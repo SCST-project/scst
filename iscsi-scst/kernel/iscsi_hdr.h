@@ -26,6 +26,7 @@
 #define __packed __attribute__ ((packed))
 #endif
 
+/* iSCSI command PDU header. See also section 10.3 in RFC 3720. */
 struct iscsi_hdr {
 	u8  opcode;			/* 0 */
 	u8  flags;
@@ -36,15 +37,21 @@ struct iscsi_hdr {
 		unsigned datalength:24;
 	} length;
 #elif defined(__LITTLE_ENDIAN_BITFIELD)
-	u32 length;			/* 4 */
+	__be32 length;			/* 4 */
 #endif
-	u64 lun;			/* 8 */
-	u32 itt;			/* 16 */
-	u32 ttt;			/* 20 */
+	__be64 lun;			/* 8 */
+	__be32 itt;			/* 16 */
+	__be32 ttt;			/* 20 */
+
+	/*
+	 * SN fields most time stay converted to the CPU form and only received
+	 * and send in the BE form.
+	 */
 	u32 sn;				/* 24 */
 	u32 exp_sn;			/* 28 */
 	u32 max_sn;			/* 32 */
-	u32 spec3[3];			/* 36 */
+
+	__be32 spec3[3];			/* 36 */
 } __packed;				/* 48 */
 
 /* Opcode encoding bits */
@@ -75,7 +82,7 @@ struct iscsi_hdr {
 #define ISCSI_OP_REJECT			0x3f
 
 struct iscsi_ahs_hdr {
-	u16 ahslength;
+	__be16 ahslength;
 	u8 ahstype;
 } __packed;
 
@@ -85,20 +92,20 @@ struct iscsi_ahs_hdr {
 union iscsi_sid {
 	struct {
 		u8 isid[6];		/* Initiator Session ID */
-		u16 tsih;		/* Target Session ID */
+		__be16 tsih;		/* Target Session ID */
 	} id;
-	u64 id64;
+	__be64 id64;
 } __packed;
 
 struct iscsi_scsi_cmd_hdr {
 	u8  opcode;
 	u8  flags;
-	u16 rsvd1;
+	__be16 rsvd1;
 	u8  ahslength;
 	u8  datalength[3];
-	u64 lun;
-	u32 itt;
-	u32 data_length;
+	__be64 lun;
+	__be32 itt;
+	__be32 data_length;
 	u32 cmd_sn;
 	u32 exp_stat_sn;
 	u8  scb[16];
@@ -115,17 +122,17 @@ struct iscsi_scsi_cmd_hdr {
 #define ISCSI_CMD_ACA		0x04
 
 struct iscsi_cdb_ahdr {
-	u16 ahslength;
+	__be16 ahslength;
 	u8  ahstype;
 	u8  reserved;
 	u8  cdb[0];
 } __packed;
 
 struct iscsi_rlength_ahdr {
-	u16 ahslength;
+	__be16 ahslength;
 	u8  ahstype;
 	u8  reserved;
-	u32 read_length;
+	__be32 read_length;
 } __packed;
 
 struct iscsi_scsi_rsp_hdr {
@@ -136,14 +143,14 @@ struct iscsi_scsi_rsp_hdr {
 	u8  ahslength;
 	u8  datalength[3];
 	u32 rsvd1[2];
-	u32 itt;
-	u32 snack;
+	__be32 itt;
+	__be32 snack;
 	u32 stat_sn;
 	u32 exp_cmd_sn;
 	u32 max_cmd_sn;
 	u32 exp_data_sn;
-	u32 bi_residual_count;
-	u32 residual_count;
+	__be32 bi_residual_count;
+	__be32 residual_count;
 } __packed;
 
 #define ISCSI_FLG_RESIDUAL_UNDERFLOW		0x02
@@ -155,19 +162,19 @@ struct iscsi_scsi_rsp_hdr {
 #define ISCSI_RESPONSE_TARGET_FAILURE		0x01
 
 struct iscsi_sense_data {
-	u16 length;
+	__be16 length;
 	u8  data[0];
 } __packed;
 
 struct iscsi_task_mgt_hdr {
 	u8  opcode;
 	u8  function;
-	u16 rsvd1;
+	__be16 rsvd1;
 	u8  ahslength;
 	u8  datalength[3];
-	u64 lun;
-	u32 itt;
-	u32 rtt;
+	__be64 lun;
+	__be32 itt;
+	__be32 rtt;
 	u32 cmd_sn;
 	u32 exp_stat_sn;
 	u32 ref_cmd_sn;
@@ -194,7 +201,7 @@ struct iscsi_task_rsp_hdr {
 	u8  ahslength;
 	u8  datalength[3];
 	u32 rsvd2[2];
-	u32 itt;
+	__be32 itt;
 	u32 rsvd3;
 	u32 stat_sn;
 	u32 exp_cmd_sn;
@@ -217,14 +224,14 @@ struct iscsi_data_out_hdr {
 	u16 rsvd1;
 	u8  ahslength;
 	u8  datalength[3];
-	u64 lun;
-	u32 itt;
-	u32 ttt;
+	__be64 lun;
+	__be32 itt;
+	__be32 ttt;
 	u32 rsvd2;
 	u32 exp_stat_sn;
 	u32 rsvd3;
-	u32 data_sn;
-	u32 buffer_offset;
+	__be32 data_sn;
+	__be32 buffer_offset;
 	u32 rsvd4;
 } __packed;
 
@@ -236,14 +243,14 @@ struct iscsi_data_in_hdr {
 	u8  ahslength;
 	u8  datalength[3];
 	u32 rsvd2[2];
-	u32 itt;
-	u32 ttt;
+	__be32 itt;
+	__be32 ttt;
 	u32 stat_sn;
 	u32 exp_cmd_sn;
 	u32 max_cmd_sn;
-	u32 data_sn;
-	u32 buffer_offset;
-	u32 residual_count;
+	__be32 data_sn;
+	__be32 buffer_offset;
+	__be32 residual_count;
 } __packed;
 
 #define ISCSI_FLG_STATUS		0x01
@@ -254,15 +261,15 @@ struct iscsi_r2t_hdr {
 	u16 rsvd1;
 	u8  ahslength;
 	u8  datalength[3];
-	u64 lun;
-	u32 itt;
-	u32 ttt;
+	__be64 lun;
+	__be32 itt;
+	__be32 ttt;
 	u32 stat_sn;
 	u32 exp_cmd_sn;
 	u32 max_cmd_sn;
 	u32 r2t_sn;
-	u32 buffer_offset;
-	u32 data_length;
+	__be32 buffer_offset;
+	__be32 data_length;
 } __packed;
 
 struct iscsi_async_msg_hdr {
@@ -271,17 +278,17 @@ struct iscsi_async_msg_hdr {
 	u16 rsvd1;
 	u8  ahslength;
 	u8  datalength[3];
-	u64 lun;
-	u32 ffffffff;
+	__be64 lun;
+	__be32 ffffffff;
 	u32 rsvd2;
 	u32 stat_sn;
 	u32 exp_cmd_sn;
 	u32 max_cmd_sn;
 	u8  async_event;
 	u8  async_vcode;
-	u16 param1;
-	u16 param2;
-	u16 param3;
+	__be16 param1;
+	__be16 param2;
+	__be16 param3;
 	u32 rsvd3;
 } __packed;
 
@@ -299,8 +306,8 @@ struct iscsi_text_req_hdr {
 	u8  ahslength;
 	u8  datalength[3];
 	u32 rsvd2[2];
-	u32 itt;
-	u32 ttt;
+	__be32 itt;
+	__be32 ttt;
 	u32 cmd_sn;
 	u32 exp_stat_sn;
 	u32 rsvd3[4];
@@ -313,8 +320,8 @@ struct iscsi_text_rsp_hdr {
 	u8  ahslength;
 	u8  datalength[3];
 	u32 rsvd2[2];
-	u32 itt;
-	u32 ttt;
+	__be32 itt;
+	__be32 ttt;
 	u32 stat_sn;
 	u32 exp_cmd_sn;
 	u32 max_cmd_sn;
@@ -329,8 +336,8 @@ struct iscsi_login_req_hdr {
 	u8  ahslength;
 	u8  datalength[3];
 	union iscsi_sid sid;
-	u32 itt;			/* Initiator Task Tag */
-	u16 cid;			/* Connection ID */
+	__be32 itt;			/* Initiator Task Tag */
+	__be16 cid;			/* Connection ID */
 	u16 rsvd1;
 	u32 cmd_sn;
 	u32 exp_stat_sn;
@@ -345,7 +352,7 @@ struct iscsi_login_rsp_hdr {
 	u8  ahslength;
 	u8  datalength[3];
 	union iscsi_sid sid;
-	u32 itt;			/* Initiator Task Tag */
+	__be32 itt;			/* Initiator Task Tag */
 	u32 rsvd1;
 	u32 stat_sn;
 	u32 exp_cmd_sn;
@@ -406,8 +413,8 @@ struct iscsi_logout_req_hdr {
 	u8  ahslength;
 	u8  datalength[3];
 	u32 rsvd2[2];
-	u32 itt;
-	u16 cid;
+	__be32 itt;
+	__be16 cid;
 	u16 rsvd3;
 	u32 cmd_sn;
 	u32 exp_stat_sn;
@@ -422,14 +429,14 @@ struct iscsi_logout_rsp_hdr {
 	u8  ahslength;
 	u8  datalength[3];
 	u32 rsvd2[2];
-	u32 itt;
+	__be32 itt;
 	u32 rsvd3;
 	u32 stat_sn;
 	u32 exp_cmd_sn;
 	u32 max_cmd_sn;
 	u32 rsvd4;
-	u16 time2wait;
-	u16 time2retain;
+	__be16 time2wait;
+	__be16 time2retain;
 	u32 rsvd5;
 } __packed;
 
@@ -440,13 +447,13 @@ struct iscsi_snack_req_hdr {
 	u8  ahslength;
 	u8  datalength[3];
 	u32 rsvd2[2];
-	u32 itt;
-	u32 ttt;
+	__be32 itt;
+	__be32 ttt;
 	u32 rsvd3;
 	u32 exp_stat_sn;
 	u32 rsvd4[2];
-	u32 beg_run;
-	u32 run_length;
+	__be32 beg_run;
+	__be32 run_length;
 } __packed;
 
 struct iscsi_reject_hdr {
@@ -457,12 +464,12 @@ struct iscsi_reject_hdr {
 	u8  ahslength;
 	u8  datalength[3];
 	u32 rsvd2[2];
-	u32 ffffffff;
-	u32 rsvd3;
+	__be32 ffffffff;
+	__be32 rsvd3;
 	u32 stat_sn;
 	u32 exp_cmd_sn;
 	u32 max_cmd_sn;
-	u32 data_sn;
+	__be32 data_sn;
 	u32 rsvd4[2];
 } __packed;
 
@@ -485,9 +492,9 @@ struct iscsi_nop_out_hdr {
 	u16 rsvd1;
 	u8  ahslength;
 	u8  datalength[3];
-	u64 lun;
-	u32 itt;
-	u32 ttt;
+	__be64 lun;
+	__be32 itt;
+	__be32 ttt;
 	u32 cmd_sn;
 	u32 exp_stat_sn;
 	u32 rsvd2[4];
@@ -499,20 +506,19 @@ struct iscsi_nop_in_hdr {
 	u16 rsvd1;
 	u8  ahslength;
 	u8  datalength[3];
-	u64 lun;
-	u32 itt;
-	u32 ttt;
+	__be64 lun;
+	__be32 itt;
+	__be32 ttt;
 	u32 stat_sn;
 	u32 exp_cmd_sn;
 	u32 max_cmd_sn;
 	u32 rsvd2[3];
 } __packed;
 
-#define ISCSI_RESERVED_TAG	(0xffffffffU)
+#define ISCSI_RESERVED_TAG_CPU32 (0xffffffffU)
+#define ISCSI_RESERVED_TAG (__constant_cpu_to_be32(ISCSI_RESERVED_TAG_CPU32))
 
 #define cmnd_hdr(cmnd) ((struct iscsi_scsi_cmd_hdr *) (&((cmnd)->pdu.bhs)))
-#define cmnd_itt(cmnd) cpu_to_be32((cmnd)->pdu.bhs.itt)
-#define cmnd_ttt(cmnd) cpu_to_be32((cmnd)->pdu.bhs.ttt)
 #define cmnd_opcode(cmnd) ((cmnd)->pdu.bhs.opcode & ISCSI_OPCODE_MASK)
 #define cmnd_scsicode(cmnd) (cmnd_hdr((cmnd))->scb[0])
 

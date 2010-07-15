@@ -289,7 +289,7 @@ struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *conn,
 #endif
 		INIT_LIST_HEAD(&cmnd->rsp_cmd_list);
 		INIT_LIST_HEAD(&cmnd->rx_ddigest_cmd_list);
-		cmnd->target_task_tag = cpu_to_be32(ISCSI_RESERVED_TAG);
+		cmnd->target_task_tag = ISCSI_RESERVED_TAG_CPU32;
 
 		spin_lock_bh(&conn->cmd_list_lock);
 		list_add_tail(&cmnd->cmd_list_entry, &conn->cmd_list);
@@ -325,7 +325,7 @@ static void cmnd_free(struct iscsi_cmnd *cmnd)
 		PRINT_CRIT_ERROR("cmnd %p still on some list?, %x, %x, %x, "
 			"%x, %x, %x, %x", cmnd, req->opcode, req->scb[0],
 			req->flags, req->itt, be32_to_cpu(req->data_length),
-			req->cmd_sn, be32_to_cpu(cmnd->pdu.datasize));
+			req->cmd_sn, be32_to_cpu((__force __be32)(cmnd->pdu.datasize)));
 
 		if (unlikely(cmnd->parent_req)) {
 			struct iscsi_scsi_cmd_hdr *preq =
@@ -724,7 +724,7 @@ static void iscsi_cmnd_init_write(struct iscsi_cmnd *rsp, int flags)
 #ifdef CONFIG_SCST_EXTRACHECKS
 	if (unlikely(rsp->on_write_list)) {
 		PRINT_CRIT_ERROR("cmd already on write list (%x %x %x "
-			"%u %u %d %d", cmnd_itt(rsp),
+			"%u %u %d %d", rsp->pdu.bhs.itt,
 			cmnd_opcode(rsp), cmnd_scsicode(rsp),
 			rsp->hdigest, rsp->ddigest,
 			list_empty(&rsp->rsp_cmd_list), rsp->hashed);
@@ -871,7 +871,7 @@ static void send_data_rsp(struct iscsi_cmnd *req, u8 status, int send_status)
 
 		rsp_hdr->opcode = ISCSI_OP_SCSI_DATA_IN;
 		rsp_hdr->itt = req_hdr->itt;
-		rsp_hdr->ttt = cpu_to_be32(ISCSI_RESERVED_TAG);
+		rsp_hdr->ttt = ISCSI_RESERVED_TAG;
 		rsp_hdr->buffer_offset = cpu_to_be32(offset);
 		rsp_hdr->data_sn = cpu_to_be32(sn);
 
@@ -1139,18 +1139,18 @@ static inline int iscsi_get_allowed_cmds(struct iscsi_session *sess)
 	return res;
 }
 
-static u32 cmnd_set_sn(struct iscsi_cmnd *cmnd, int set_stat_sn)
+static __be32 cmnd_set_sn(struct iscsi_cmnd *cmnd, int set_stat_sn)
 {
 	struct iscsi_conn *conn = cmnd->conn;
 	struct iscsi_session *sess = conn->session;
-	u32 res;
+	__be32 res;
 
 	spin_lock(&sess->sn_lock);
 
 	if (set_stat_sn)
-		cmnd->pdu.bhs.sn = cpu_to_be32(conn->stat_sn++);
-	cmnd->pdu.bhs.exp_sn = cpu_to_be32(sess->exp_cmd_sn);
-	cmnd->pdu.bhs.max_sn = cpu_to_be32(sess->exp_cmd_sn +
+		cmnd->pdu.bhs.sn = (__force u32)cpu_to_be32(conn->stat_sn++);
+	cmnd->pdu.bhs.exp_sn = (__force u32)cpu_to_be32(sess->exp_cmd_sn);
+	cmnd->pdu.bhs.max_sn = (__force u32)cpu_to_be32(sess->exp_cmd_sn +
 				 iscsi_get_allowed_cmds(sess));
 
 	res = cpu_to_be32(conn->stat_sn);
@@ -1165,7 +1165,7 @@ static void __update_stat_sn(struct iscsi_cmnd *cmnd)
 	struct iscsi_conn *conn = cmnd->conn;
 	u32 exp_stat_sn;
 
-	cmnd->pdu.bhs.exp_sn = exp_stat_sn = be32_to_cpu(cmnd->pdu.bhs.exp_sn);
+	cmnd->pdu.bhs.exp_sn = exp_stat_sn = be32_to_cpu((__force __be32)cmnd->pdu.bhs.exp_sn);
 	TRACE_DBG("%x,%x", cmnd_opcode(cmnd), exp_stat_sn);
 	if ((int)(exp_stat_sn - conn->exp_stat_sn) > 0 &&
 	    (int)(exp_stat_sn - conn->stat_sn) <= 0) {
@@ -1189,7 +1189,7 @@ static int check_cmd_sn(struct iscsi_cmnd *cmnd)
 	struct iscsi_session *session = cmnd->conn->session;
 	u32 cmd_sn;
 
-	cmnd->pdu.bhs.sn = cmd_sn = be32_to_cpu(cmnd->pdu.bhs.sn);
+	cmnd->pdu.bhs.sn = cmd_sn = be32_to_cpu((__force __be32)cmnd->pdu.bhs.sn);
 	TRACE_DBG("%d(%d)", cmd_sn, session->exp_cmd_sn);
 	if (likely((s32)(cmd_sn - session->exp_cmd_sn) >= 0))
 		return 0;
@@ -1197,7 +1197,7 @@ static int check_cmd_sn(struct iscsi_cmnd *cmnd)
 	return -ISCSI_REASON_PROTOCOL_ERROR;
 }
 
-static struct iscsi_cmnd *cmnd_find_itt_get(struct iscsi_conn *conn, u32 itt)
+static struct iscsi_cmnd *cmnd_find_itt_get(struct iscsi_conn *conn, __be32 itt)
 {
 	struct iscsi_cmnd *cmnd, *found_cmnd = NULL;
 
@@ -1220,7 +1220,7 @@ static struct iscsi_cmnd *cmnd_find_itt_get(struct iscsi_conn *conn, u32 itt)
 
 /* Must be called under cmnd_data_wait_hash_lock */
 static struct iscsi_cmnd *__cmnd_find_data_wait_hash(struct iscsi_conn *conn,
-	u32 itt)
+	__be32 itt)
 {
 	struct list_head *head;
 	struct iscsi_cmnd *cmnd;
@@ -1235,7 +1235,7 @@ static struct iscsi_cmnd *__cmnd_find_data_wait_hash(struct iscsi_conn *conn,
 }
 
 static struct iscsi_cmnd *cmnd_find_data_wait_hash(struct iscsi_conn *conn,
-	u32 itt)
+	__be32 itt)
 {
 	struct iscsi_cmnd *res;
 	struct iscsi_session *session = conn->session;
@@ -1256,7 +1256,7 @@ static inline u32 get_next_ttt(struct iscsi_conn *conn)
 
 	iscsi_extracheck_is_rd_thread(conn);
 
-	if (unlikely(session->next_ttt == ISCSI_RESERVED_TAG))
+	if (unlikely(session->next_ttt == ISCSI_RESERVED_TAG_CPU32))
 		session->next_ttt++;
 	ttt = session->next_ttt++;
 
@@ -1269,7 +1269,7 @@ static int cmnd_insert_data_wait_hash(struct iscsi_cmnd *cmnd)
 	struct iscsi_cmnd *tmp;
 	struct list_head *head;
 	int err = 0;
-	u32 itt = cmnd->pdu.bhs.itt;
+	__be32 itt = cmnd->pdu.bhs.itt;
 
 	if (unlikely(cmnd->hashed)) {
 		/*
@@ -1303,7 +1303,7 @@ static int cmnd_insert_data_wait_hash(struct iscsi_cmnd *cmnd)
 	tmp = __cmnd_find_data_wait_hash(cmnd->conn, itt);
 	if (likely(!tmp)) {
 		TRACE_DBG("Adding cmnd %p to the hash (ITT %x)", cmnd,
-			cmnd_itt(cmnd));
+			cmnd->pdu.bhs.itt);
 		list_add_tail(&cmnd->hash_list_entry, head);
 		cmnd->hashed = 1;
 	} else {
@@ -1328,11 +1328,11 @@ static void cmnd_remove_data_wait_hash(struct iscsi_cmnd *cmnd)
 
 	if (likely(tmp && tmp == cmnd)) {
 		TRACE_DBG("Deleting cmnd %p from the hash (ITT %x)", cmnd,
-			cmnd_itt(cmnd));
+			cmnd->pdu.bhs.itt);
 		list_del(&cmnd->hash_list_entry);
 		cmnd->hashed = 0;
 	} else
-		PRINT_ERROR("%p:%x not found", cmnd, cmnd_itt(cmnd));
+		PRINT_ERROR("%p:%x not found", cmnd, cmnd->pdu.bhs.itt);
 
 	spin_unlock(&session->cmnd_data_wait_hash_lock);
 
@@ -1352,7 +1352,7 @@ static void cmnd_prepare_get_rejected_immed_data(struct iscsi_cmnd *cmnd)
 	TRACE_DBG_FLAG(iscsi_get_flow_ctrl_or_mgmt_dbg_log_flag(cmnd),
 		"Skipping (cmnd %p, ITT %x, op %x, cmd op %x, "
 		"datasize %u, scst_cmd %p, scst state %d)", cmnd,
-		cmnd_itt(cmnd), cmnd_opcode(cmnd), cmnd_hdr(cmnd)->scb[0],
+		cmnd->pdu.bhs.itt, cmnd_opcode(cmnd), cmnd_hdr(cmnd)->scb[0],
 		cmnd->pdu.datasize, cmnd->scst_cmd, cmnd->scst_state);
 
 	iscsi_extracheck_is_rd_thread(conn);
@@ -1576,13 +1576,13 @@ static void send_r2t(struct iscsi_cmnd *req)
 
 	do {
 		rsp = iscsi_alloc_rsp(req);
-		rsp->pdu.bhs.ttt = req->target_task_tag;
+		rsp->pdu.bhs.ttt = (__force __be32)req->target_task_tag;
 		rsp_hdr = (struct iscsi_r2t_hdr *)&rsp->pdu.bhs;
 		rsp_hdr->opcode = ISCSI_OP_R2T;
 		rsp_hdr->flags = ISCSI_FLG_FINAL;
 		rsp_hdr->lun = cmnd_hdr(req)->lun;
 		rsp_hdr->itt = cmnd_hdr(req)->itt;
-		rsp_hdr->r2t_sn = cpu_to_be32(req->r2t_sn++);
+		rsp_hdr->r2t_sn = (__force u32)cpu_to_be32(req->r2t_sn++);
 		rsp_hdr->buffer_offset = cpu_to_be32(offset);
 		if (req->r2t_len_to_send > burst) {
 			rsp_hdr->data_length = cpu_to_be32(burst);
@@ -1597,7 +1597,7 @@ static void send_r2t(struct iscsi_cmnd *req)
 			"r2t_sn %u, outstanding_r2t %u", req,
 			be32_to_cpu(rsp_hdr->data_length),
 			be32_to_cpu(rsp_hdr->buffer_offset),
-			be32_to_cpu(rsp_hdr->r2t_sn), req->outstanding_r2t);
+			be32_to_cpu((__force __be32)rsp_hdr->r2t_sn), req->outstanding_r2t);
 
 		list_add_tail(&rsp->write_list_entry, &send);
 		req->outstanding_r2t++;
@@ -1664,7 +1664,7 @@ static int nop_out_start(struct iscsi_cmnd *cmnd)
 		goto out;
 	}
 
-	if (cmnd_itt(cmnd) == cpu_to_be32(ISCSI_RESERVED_TAG)) {
+	if (cmnd->pdu.bhs.itt == ISCSI_RESERVED_TAG_CPU32) {
 		if (unlikely(!(cmnd->pdu.bhs.opcode & ISCSI_OP_IMMEDIATE)))
 			PRINT_ERROR("%s", "Initiator sent RESERVED tag for "
 				"non-immediate Nop-Out command");
@@ -1681,7 +1681,7 @@ static int nop_out_start(struct iscsi_cmnd *cmnd)
 
 	if (size) {
 		conn->read_msg.msg_iov = conn->read_iov;
-		if (cmnd->pdu.bhs.itt != cpu_to_be32(ISCSI_RESERVED_TAG)) {
+		if (cmnd->pdu.bhs.itt != ISCSI_RESERVED_TAG) {
 			struct scatterlist *sg;
 
 			cmnd->sg = sg = scst_alloc(size, GFP_KERNEL,
@@ -1780,7 +1780,7 @@ int cmnd_rx_continue(struct iscsi_cmnd *req)
 			PRINT_ERROR("Initiator %s violated negotiated "
 				"parameters: initial R2T is required (ITT %x, "
 				"op  %x)", session->initiator_name,
-				cmnd_itt(req), req_hdr->scb[0]);
+				req->pdu.bhs.itt, req_hdr->scb[0]);
 			goto out_close;
 		}
 
@@ -1789,7 +1789,7 @@ int cmnd_rx_continue(struct iscsi_cmnd *req)
 			PRINT_ERROR("Initiator %s violated negotiated "
 				"parameters: forbidden immediate data sent "
 				"(ITT %x, op  %x)", session->initiator_name,
-				cmnd_itt(req), req_hdr->scb[0]);
+				req->pdu.bhs.itt, req_hdr->scb[0]);
 			goto out_close;
 		}
 
@@ -1800,7 +1800,7 @@ int cmnd_rx_continue(struct iscsi_cmnd *req)
 				session->initiator_name,
 				req->pdu.datasize,
 				session->sess_params.first_burst_length,
-				cmnd_itt(req), req_hdr->scb[0]);
+				req->pdu.bhs.itt, req_hdr->scb[0]);
 			goto out_close;
 		}
 
@@ -1849,7 +1849,7 @@ int cmnd_rx_continue(struct iscsi_cmnd *req)
 		if (unlikely(!(req_hdr->flags & ISCSI_CMD_FINAL) ||
 			     req->pdu.datasize)) {
 			PRINT_ERROR("Unexpected unsolicited data (ITT %x "
-				"CDB %x)", cmnd_itt(req), req_hdr->scb[0]);
+				"CDB %x)", req->pdu.bhs.itt, req_hdr->scb[0]);
 			set_scst_preliminary_status_rsp(req, true,
 				SCST_LOAD_SENSE(iscsi_sense_unexpected_unsolicited_data));
 		}
@@ -1902,7 +1902,7 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 	}
 
 	req->scst_cmd = scst_cmd;
-	scst_cmd_set_tag(scst_cmd, req_hdr->itt);
+	scst_cmd_set_tag(scst_cmd, (__force u32)req_hdr->itt);
 	scst_cmd_set_tgt_priv(scst_cmd, req);
 
 	if ((req_hdr->flags & ISCSI_CMD_READ) &&
@@ -1963,7 +1963,7 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 	}
 
 	/* check_cmd_sn() not called yet to convert cmd_sn in the CPU format */
-	scst_cmd_set_tgt_sn(scst_cmd, be32_to_cpu(req_hdr->cmd_sn));
+	scst_cmd_set_tgt_sn(scst_cmd, be32_to_cpu((__force __be32)req_hdr->cmd_sn));
 
 	ahdr = (struct iscsi_ahs_hdr *)req->pdu.ahs;
 	if (ahdr != NULL) {
@@ -2038,7 +2038,7 @@ static int data_out_start(struct iscsi_cmnd *cmnd)
 		 * them. Let's quietly drop such PDUs.
 		 */
 		TRACE_MGMT_DBG("Unable to find scsi task ITT %x",
-			cmnd_itt(cmnd));
+			cmnd->pdu.bhs.itt);
 		res = iscsi_preliminary_complete(cmnd, cmnd, true);
 		goto out;
 	}
@@ -2167,7 +2167,7 @@ static void __cmnd_abort(struct iscsi_cmnd *cmnd)
 		"sess->exp_cmd_sn %u, conn %p, rd_task %p)",
 		cmnd, cmnd->scst_cmd, cmnd->scst_state,
 		atomic_read(&cmnd->ref_cnt), cmnd->on_write_timeout_list,
-		cmnd->write_start, cmnd_itt(cmnd), cmnd->pdu.bhs.sn,
+		cmnd->write_start, cmnd->pdu.bhs.itt, cmnd->pdu.bhs.sn,
 		cmnd_opcode(cmnd), cmnd->r2t_len_to_receive,
 		cmnd->r2t_len_to_send, cmnd_scsicode(cmnd),
 		cmnd_write_size(cmnd), cmnd->outstanding_r2t,
@@ -2225,7 +2225,7 @@ static int cmnd_abort(struct iscsi_cmnd *req, int *status)
 	struct iscsi_cmnd *cmnd;
 	int res = -1;
 
-	req_hdr->ref_cmd_sn = be32_to_cpu(req_hdr->ref_cmd_sn);
+	req_hdr->ref_cmd_sn = be32_to_cpu((__force __be32)req_hdr->ref_cmd_sn);
 
 	if (!before(req_hdr->ref_cmd_sn, req_hdr->cmd_sn)) {
 		TRACE(TRACE_MGMT, "ABORT TASK: RefCmdSN(%u) > CmdSN(%u)",
@@ -2242,8 +2242,8 @@ static int cmnd_abort(struct iscsi_cmnd *req, int *status)
 		if (req_hdr->lun != hdr->lun) {
 			PRINT_ERROR("ABORT TASK: LUN mismatch: req LUN "
 				    "%llx, cmd LUN %llx, rtt %u",
-				    (long long unsigned int)req_hdr->lun,
-				    (long long unsigned int)hdr->lun,
+				    (long long unsigned)be64_to_cpu(req_hdr->lun),
+				    (long long unsigned)be64_to_cpu(hdr->lun),
 				    req_hdr->rtt);
 			*status = ISCSI_RESPONSE_FUNCTION_REJECTED;
 			goto out_put;
@@ -2444,7 +2444,7 @@ static void execute_task_management(struct iscsi_cmnd *req)
 	TRACE(TRACE_MGMT, "iSCSI TM fn %d", function);
 
 	TRACE_MGMT_DBG("TM req %p, ITT %x, RTT %x, sn %u, con %p", req,
-		cmnd_itt(req), req_hdr->rtt, req_hdr->cmd_sn, conn);
+		req->pdu.bhs.itt, req_hdr->rtt, req_hdr->cmd_sn, conn);
 
 	iscsi_extracheck_is_rd_thread(conn);
 
@@ -2487,7 +2487,7 @@ static void execute_task_management(struct iscsi_cmnd *req)
 		rc = cmnd_abort(req, &status);
 		if (rc == 0) {
 			params.fn = SCST_ABORT_TASK;
-			params.tag = req_hdr->rtt;
+			params.tag = (__force u32)req_hdr->rtt;
 			params.tag_set = 1;
 			params.lun = (uint8_t *)&req_hdr->lun;
 			params.lun_len = sizeof(req_hdr->lun);
@@ -2583,14 +2583,14 @@ static void nop_out_exec(struct iscsi_cmnd *req)
 
 	TRACE_DBG("%p", req);
 
-	if (cmnd_itt(req) != cpu_to_be32(ISCSI_RESERVED_TAG)) {
+	if (req->pdu.bhs.itt != ISCSI_RESERVED_TAG) {
 		rsp = iscsi_alloc_main_rsp(req);
 
 		rsp_hdr = (struct iscsi_nop_in_hdr *)&rsp->pdu.bhs;
 		rsp_hdr->opcode = ISCSI_OP_NOP_IN;
 		rsp_hdr->flags = ISCSI_FLG_FINAL;
 		rsp_hdr->itt = req->pdu.bhs.itt;
-		rsp_hdr->ttt = cpu_to_be32(ISCSI_RESERVED_TAG);
+		rsp_hdr->ttt = ISCSI_RESERVED_TAG;
 
 		if (req->pdu.datasize)
 			sBUG_ON(req->sg == NULL);
@@ -2613,12 +2613,12 @@ static void nop_out_exec(struct iscsi_cmnd *req)
 		struct iscsi_conn *conn = req->conn;
 
 		TRACE_DBG("Receive Nop-In response (ttt 0x%08x)",
-			be32_to_cpu(cmnd_ttt(req)));
+			  be32_to_cpu(req->pdu.bhs.ttt));
 
 		spin_lock_bh(&conn->nop_req_list_lock);
 		list_for_each_entry(r, &conn->nop_req_list,
 				nop_req_list_entry) {
-			if (cmnd_ttt(req) == cmnd_ttt(r)) {
+			if (req->pdu.bhs.ttt == r->pdu.bhs.ttt) {
 				list_del(&r->nop_req_list_entry);
 				found = true;
 				break;
@@ -2740,8 +2740,8 @@ void cmnd_tx_start(struct iscsi_cmnd *cmnd)
 
 	switch (cmnd_opcode(cmnd)) {
 	case ISCSI_OP_NOP_IN:
-		if (cmnd_itt(cmnd) == cpu_to_be32(ISCSI_RESERVED_TAG))
-			cmnd->pdu.bhs.sn = cmnd_set_sn(cmnd, 0);
+		if (cmnd->pdu.bhs.itt == ISCSI_RESERVED_TAG)
+			cmnd->pdu.bhs.sn = (__force u32)cmnd_set_sn(cmnd, 0);
 		else
 			cmnd_set_sn(cmnd, 1);
 		break;
@@ -2758,7 +2758,7 @@ void cmnd_tx_start(struct iscsi_cmnd *cmnd)
 	{
 		struct iscsi_data_in_hdr *rsp =
 			(struct iscsi_data_in_hdr *)&cmnd->pdu.bhs;
-		u32 offset = cpu_to_be32(rsp->buffer_offset);
+		u32 offset = be32_to_cpu(rsp->buffer_offset);
 
 		TRACE_DBG("cmnd %p, offset %u, datasize %u, bufflen %u", cmnd,
 			offset, cmnd->pdu.datasize, cmnd->bufflen);
@@ -2775,7 +2775,7 @@ void cmnd_tx_start(struct iscsi_cmnd *cmnd)
 		cmnd_set_sn(cmnd, 1);
 		break;
 	case ISCSI_OP_R2T:
-		cmnd->pdu.bhs.sn = cmnd_set_sn(cmnd, 0);
+		cmnd->pdu.bhs.sn = (__force u32)cmnd_set_sn(cmnd, 0);
 		break;
 	case ISCSI_OP_ASYNC_MSG:
 		cmnd_set_sn(cmnd, 1);
@@ -3001,7 +3001,7 @@ static int check_segment_length(struct iscsi_cmnd *cmnd)
 		PRINT_ERROR("Initiator %s violated negotiated parameters: "
 			"data too long (ITT %x, datasize %u, "
 			"max_recv_data_length %u", session->initiator_name,
-			cmnd_itt(cmnd), cmnd->pdu.datasize,
+			cmnd->pdu.bhs.itt, cmnd->pdu.datasize,
 			session->sess_params.max_recv_data_length);
 		mark_conn_closed(conn);
 		return -EINVAL;
@@ -3051,7 +3051,7 @@ int cmnd_rx_start(struct iscsi_cmnd *cmnd)
 
 	if (unlikely(rc < 0)) {
 		PRINT_ERROR("Error %d (iSCSI opcode %x, ITT %x)", rc,
-			cmnd_opcode(cmnd), cmnd_itt(cmnd));
+			cmnd_opcode(cmnd), cmnd->pdu.bhs.itt);
 		res = create_reject_rsp(cmnd, -rc, true);
 	}
 
@@ -3531,7 +3531,7 @@ static int iscsi_scsi_aen(struct scst_aen *aen)
 	rsp_hdr->opcode = ISCSI_OP_ASYNC_MSG;
 	rsp_hdr->flags = ISCSI_FLG_FINAL;
 	rsp_hdr->lun = lun; /* it's already in SCSI form */
-	rsp_hdr->ffffffff = 0xffffffff;
+	rsp_hdr->ffffffff = __constant_cpu_to_be32(0xffffffff);
 	rsp_hdr->async_event = ISCSI_ASYNC_SCSI;
 
 	sg = rsp->sg = rsp->rsp_sg;
@@ -3655,10 +3655,10 @@ void iscsi_send_nop_in(struct iscsi_conn *conn)
 	rsp_hdr = (struct iscsi_nop_in_hdr *)&rsp->pdu.bhs;
 	rsp_hdr->opcode = ISCSI_OP_NOP_IN;
 	rsp_hdr->flags = ISCSI_FLG_FINAL;
-	rsp_hdr->itt = cpu_to_be32(ISCSI_RESERVED_TAG);
-	rsp_hdr->ttt = conn->nop_in_ttt++;
+	rsp_hdr->itt = ISCSI_RESERVED_TAG;
+	rsp_hdr->ttt = (__force __be32)conn->nop_in_ttt++;
 
-	if (conn->nop_in_ttt == cpu_to_be32(ISCSI_RESERVED_TAG))
+	if (conn->nop_in_ttt == ISCSI_RESERVED_TAG_CPU32)
 		conn->nop_in_ttt = 0;
 
 	/* Supposed that all other fields are zeroed */

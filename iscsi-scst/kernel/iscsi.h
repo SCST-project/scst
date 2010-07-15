@@ -100,7 +100,13 @@ struct iscsi_target {
 };
 
 #define ISCSI_HASH_ORDER	8
-#define	cmnd_hashfn(itt)	hash_long((itt), ISCSI_HASH_ORDER)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 31)
+#define	cmnd_hashfn(itt)	(BUILD_BUG_ON(!__same_type(itt, __be32)), \
+			hash_long((__force u32)(itt), ISCSI_HASH_ORDER))
+#else
+/* __same_type() is not available in kernels 2.6.30 and before. */
+#define	cmnd_hashfn(itt)	hash_long((__force u32)(itt), ISCSI_HASH_ORDER)
+#endif
 
 struct iscsi_session {
 	struct iscsi_target *target;
@@ -591,8 +597,8 @@ static inline void iscsi_cmnd_get_length(struct iscsi_pdu *pdu)
 	pdu->ahssize = pdu->bhs.length.ahslength * 4;
 	pdu->datasize = pdu->bhs.length.datalength;
 #elif defined(__LITTLE_ENDIAN)
-	pdu->ahssize = (pdu->bhs.length & 0xff) * 4;
-	pdu->datasize = be32_to_cpu(pdu->bhs.length & ~0xff);
+	pdu->ahssize = ((__force __u32)pdu->bhs.length & 0xff) * 4;
+	pdu->datasize = be32_to_cpu((__force __be32)((__force __u32)pdu->bhs.length & ~0xff));
 #else
 #error
 #endif
@@ -604,7 +610,7 @@ static inline void iscsi_cmnd_set_length(struct iscsi_pdu *pdu)
 	pdu->bhs.length.ahslength = pdu->ahssize / 4;
 	pdu->bhs.length.datalength = pdu->datasize;
 #elif defined(__LITTLE_ENDIAN)
-	pdu->bhs.length = cpu_to_be32(pdu->datasize) | (pdu->ahssize / 4);
+	pdu->bhs.length = cpu_to_be32(pdu->datasize) | (__force __be32)(pdu->ahssize / 4);
 #else
 #error
 #endif
