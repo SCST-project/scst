@@ -1182,6 +1182,41 @@ void sgv_pool_free(struct sgv_pool_obj *obj, struct scst_mem_lim *mem_lim)
 	TRACE_MEM("Freeing obj %p, cache num %d, pages %d, sg_entries %p, "
 		"sg_count %d, allocator_priv %p", obj, obj->cache_num, pages,
 		obj->sg_entries, obj->sg_count, obj->allocator_priv);
+
+/*
+ * Enable it if you are investigating a data corruption and want to make
+ * sure that target or dev handler didn't leave the pages mapped somewhere and,
+ * hence, provoked a data corruption.
+ *
+ * Make sure the check value for _count is set correctly. In most cases, 1 is
+ * correct, but, e.g., iSCSI-SCST can call it with value 2, because
+ * it frees the corresponding cmd before the last put_page() call from
+ * net_put_page() for the last page in the SG. Also, user space dev handlers
+ * usually have their memory mapped in their address space.
+ */
+#if 0
+	{
+		struct scatterlist *sg = obj->sg_entries;
+		int i;
+		for (i = 0; i < obj->sg_count; i++) {
+			struct page *p = sg_page(&sg[i]);
+			int len = sg[i].length;
+			int pages = (len >> PAGE_SHIFT) + ((len & ~PAGE_MASK) != 0);
+			while (pages > 0) {
+				if (atomic_read(&p->_count) != 1) {
+					PRINT_WARNING("Freeing page %p with "
+						"additional owners (_count %d). "
+						"Data corruption possible!",
+						p, atomic_read(&p->_count));
+					WARN_ON(1);
+				}
+				pages--;
+				p++;
+			}
+		}
+	}
+#endif
+
 	if (obj->cache_num >= 0) {
 		obj->sg_entries[obj->orig_sg].length = obj->orig_length;
 		sgv_put_obj(obj);

@@ -564,9 +564,19 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 			goto out_done;
 		}
 #else
-		PRINT_ERROR("Unknown opcode %x", cmd->cdb[0]);
+		/*
+		 * Let's ignore reporting T10/04-262r7 16-byte and 12-byte ATA
+		 * pass-thru commands to not pollute logs (udev(?) checks them
+		 * for some reason). If somebody has their description, please,
+		 * update scst_scsi_op_table.
+		 */
+		if ((cmd->cdb[0] != 0x85) && (cmd->cdb[0] != 0xa1))
+			PRINT_ERROR("Refusing unknown opcode %x", cmd->cdb[0]);
+		else
+			TRACE(TRACE_MINOR, "Refusing unknown opcode %x",
+				cmd->cdb[0]);
 		scst_set_cmd_error(cmd,
-			   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+			SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		goto out_done;
 #endif
 	}
