@@ -853,9 +853,10 @@ static int scst_set_lun_not_supported_request_sense(struct scst_cmd *cmd,
 
 	sense_len = scst_set_sense(sg_virt(cmd->sg),
 		cmd->bufflen, cmd->cdb[1] & 1, key, asc, ascq);
-	scst_set_resp_data_len(cmd, sense_len);
 
 	TRACE_BUFFER("Sense set", sg_virt(cmd->sg), sense_len);
+
+	scst_set_resp_data_len(cmd, sense_len);
 
 	res = 0;
 	cmd->completed = 1;
@@ -903,6 +904,8 @@ static int scst_set_lun_not_supported_inquiry(struct scst_cmd *cmd)
 	buf[0] = 0x7F; /* Peripheral qualifier 011b, Peripheral device type 1Fh */
 
 	TRACE_BUFFER("INQUIRY for not supported LUN set", buf, len);
+
+	scst_set_resp_data_len(cmd, len);
 
 	res = 0;
 	cmd->completed = 1;
