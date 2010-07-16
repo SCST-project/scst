@@ -3019,8 +3019,8 @@ static ssize_t scst_setup_id_show(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
-	count = sprintf(buf, "0x%x%s\n", scst_setup_id,
-		(scst_setup_id == 0) ? "" : SCST_SYSFS_KEY_MARK "\n");
+	count = sprintf(buf, "0x%x\n%s\n", scst_setup_id,
+		(scst_setup_id == 0) ? "" : SCST_SYSFS_KEY_MARK);
 
 	TRACE_EXIT();
 	return count;

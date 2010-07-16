@@ -3907,7 +3907,7 @@ static ssize_t vdev_sysfs_filename_show(struct kobject *kobj,
 
 	pos = sprintf(buf, "%s\n", vdev_get_filename(virt_dev));
 
-	if ((virt_dev->filename != NULL) && (virt_dev->dev->type == TYPE_ROM))
+	if (virt_dev->filename != NULL)
 		pos += sprintf(&buf[pos], "%s\n", SCST_SYSFS_KEY_MARK);
 
 	mutex_unlock(&virt_dev->vdev_sysfs_mutex);
