@@ -390,7 +390,7 @@ function run_sparse {
     cd "${outputdir}/linux-$1" \
     && make -s prepare \
     && make -s scripts \
-    && LC_ALL=C make -k C=2 M="${subdir}" # CF=-D__CHECK_ENDIAN__
+    && LC_ALL=C make -k C=2 CF=-D__CHECK_ENDIAN__ M="${subdir}"
   ) &> "${outputfile}"
   local errors=$(grep -c ' error:' "${outputfile}")
   local warnings=$(grep -c ' warning:' "${outputfile}")
