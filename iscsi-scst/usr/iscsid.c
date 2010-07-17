@@ -192,9 +192,30 @@ static void text_key_add_reject(struct connection *conn, char *key)
 	text_key_add(conn, key, "Reject");
 }
 
+static void login_rsp_ini_err(struct connection *conn, int status_detail)
+{
+	struct iscsi_login_rsp_hdr * const rsp =
+		(struct iscsi_login_rsp_hdr * const)&conn->rsp.bhs;
+
+	rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
+	rsp->status_detail = status_detail;
+	conn->state = STATE_EXIT;
+	return;
+}
+
+static void login_rsp_tgt_err(struct connection *conn, int status_detail)
+{
+	struct iscsi_login_rsp_hdr * const rsp =
+		(struct iscsi_login_rsp_hdr * const)&conn->rsp.bhs;
+
+	rsp->status_class = ISCSI_STATUS_TARGET_ERR;
+	rsp->status_detail = status_detail;
+	conn->state = STATE_EXIT;
+	return;
+}
+
 static void text_scan_security(struct connection *conn)
 {
-	struct iscsi_login_rsp_hdr *rsp = (struct iscsi_login_rsp_hdr *)&conn->rsp.bhs;
 	char *key, *value, *data, *nextValue;
 	int datasize;
 
@@ -230,11 +251,8 @@ static void text_scan_security(struct connection *conn)
 		} else
 			text_key_add(conn, key, "NotUnderstood");
 	}
-	if (conn->auth_method == AUTH_UNKNOWN) {
-		rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
-		rsp->status_detail = ISCSI_STATUS_AUTH_FAILED;
-		conn->state = STATE_EXIT;
-	}
+	if (conn->auth_method == AUTH_UNKNOWN)
+		login_rsp_ini_err(conn, ISCSI_STATUS_AUTH_FAILED);
 	return;
 }
 
@@ -248,7 +266,6 @@ static void text_scan_security(struct connection *conn)
 static int login_check_reinstatement(struct connection *conn)
 {
 	struct iscsi_login_req_hdr *req = (struct iscsi_login_req_hdr *)&conn->req.bhs;
-	struct iscsi_login_rsp_hdr *rsp = (struct iscsi_login_rsp_hdr *)&conn->rsp.bhs;
 	struct session *session;
 	int res = 0;
 
@@ -273,9 +290,7 @@ static int login_check_reinstatement(struct connection *conn)
 				"%#" PRIx64, session->sid.id64, conn->tid,
 				conn->initiator, req->sid.id64);
 			/* Fail the login */
-			rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
-			rsp->status_detail = ISCSI_STATUS_SESSION_NOT_FOUND;
-			conn->state = STATE_EXIT;
+			login_rsp_ini_err(conn, ISCSI_STATUS_SESSION_NOT_FOUND);
 			res = -1;
 			goto out;
 		} else {
@@ -293,9 +308,7 @@ static int login_check_reinstatement(struct connection *conn)
 				log_error("Only a single connection supported "
 					"(initiator %s)", conn->initiator);
 				/* Fail the login */
-				rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
-				rsp->status_detail = ISCSI_STATUS_TOO_MANY_CONN;
-				conn->state = STATE_EXIT;
+				login_rsp_ini_err(conn, ISCSI_STATUS_TOO_MANY_CONN);
 				res = -1;
 				goto out;
 			}
@@ -307,9 +320,7 @@ static int login_check_reinstatement(struct connection *conn)
 				req->sid.id.tsih, conn->tid, conn->initiator,
 				req->sid.id64);
 			/* Fail the login */
-			rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
-			rsp->status_detail = ISCSI_STATUS_SESSION_NOT_FOUND;
-			conn->state = STATE_EXIT;
+			login_rsp_ini_err(conn, ISCSI_STATUS_SESSION_NOT_FOUND);
 			res = -1;
 			goto out;
 		} else
@@ -326,7 +337,6 @@ static void text_scan_login(struct connection *conn)
 {
 	char *key, *value, *data;
 	int datasize, idx;
-	struct iscsi_login_rsp_hdr *rsp = (struct iscsi_login_rsp_hdr *)&conn->rsp.bhs;
 
 	data = conn->req.data;
 	datasize = conn->req.datasize;
@@ -354,9 +364,7 @@ static void text_scan_login(struct connection *conn)
 					text_key_add_reject(conn, key);
 					continue;
 				} else {
-					rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
-					rsp->status_detail = ISCSI_STATUS_INIT_ERR;
-					conn->state = STATE_EXIT;
+					login_rsp_ini_err(conn, ISCSI_STATUS_INIT_ERR);
 					goto out;
 				}
 			}
@@ -377,9 +385,7 @@ static void text_scan_login(struct connection *conn)
 				break;
 			case KEY_STATE_REQUEST:
 				if (val != conn->session_params[idx].val) {
-					rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
-					rsp->status_detail = ISCSI_STATUS_INIT_ERR;
-					conn->state = STATE_EXIT;
+					login_rsp_ini_err(conn, ISCSI_STATUS_INIT_ERR);
 					log_warning("%s %u %u\n", key,
 						val, conn->session_params[idx].val);
 					goto out;
@@ -465,28 +471,6 @@ static int init_conn_session_params(struct connection *conn)
 
 out:
 	return res;
-}
-
-static void login_rsp_ini_err(struct connection *conn, int status_detail)
-{
-	struct iscsi_login_rsp_hdr * const rsp =
-		(struct iscsi_login_rsp_hdr * const)&conn->rsp.bhs;
-
-	rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
-	rsp->status_detail = status_detail;
-	conn->state = STATE_EXIT;
-	return;
-}
-
-static void login_rsp_tgt_err(struct connection *conn, int status_detail)
-{
-	struct iscsi_login_rsp_hdr * const rsp =
-		(struct iscsi_login_rsp_hdr * const)&conn->rsp.bhs;
-
-	rsp->status_class = ISCSI_STATUS_TARGET_ERR;
-	rsp->status_detail = status_detail;
-	conn->state = STATE_EXIT;
-	return;
 }
 
 static void login_start(struct connection *conn)
@@ -710,9 +694,7 @@ static void cmnd_exec_login(struct connection *conn)
 
 	if (/*req->max_version < ISCSI_VERSION ||*/
 	    req->min_version > ISCSI_VERSION) {
-		rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
-		rsp->status_detail = ISCSI_STATUS_NO_VERSION;
-		conn->state = STATE_EXIT;
+		login_rsp_ini_err(conn, ISCSI_STATUS_NO_VERSION);
 		return;
 	}
 
@@ -860,31 +842,23 @@ static void cmnd_exec_login(struct connection *conn)
 init_err:
 	log_error("Initiator %s error", conn->initiator);
 	rsp->flags = 0;
-	rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
-	rsp->status_detail = ISCSI_STATUS_INIT_ERR;
-	conn->state = STATE_EXIT;
+	login_rsp_ini_err(conn, ISCSI_STATUS_INIT_ERR);
 	return;
 
 auth_err:
 	log_error("Authentication of initiator %s failed", conn->initiator);
 	rsp->flags = 0;
-	rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
-	rsp->status_detail = ISCSI_STATUS_AUTH_FAILED;
-	conn->state = STATE_EXIT;
+	login_rsp_ini_err(conn, ISCSI_STATUS_AUTH_FAILED);
 	return;
 
 target_err:
 	rsp->flags = 0;
-	rsp->status_class = ISCSI_STATUS_TARGET_ERR;
-	rsp->status_detail = ISCSI_STATUS_TARGET_ERROR;
-	conn->state = STATE_EXIT;
+	login_rsp_tgt_err(conn, ISCSI_STATUS_TARGET_ERROR);
 	return;
 
 tgt_no_mem:
 	rsp->flags = 0;
-	rsp->status_class = ISCSI_STATUS_TARGET_ERR;
-	rsp->status_detail = ISCSI_STATUS_NO_RESOURCES;
-	conn->state = STATE_EXIT;
+	login_rsp_tgt_err(conn, ISCSI_STATUS_NO_RESOURCES);
 	return;
 }
 
