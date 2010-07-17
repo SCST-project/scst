@@ -1664,7 +1664,7 @@ static int nop_out_start(struct iscsi_cmnd *cmnd)
 		goto out;
 	}
 
-	if (cmnd->pdu.bhs.itt == ISCSI_RESERVED_TAG_CPU32) {
+	if (cmnd->pdu.bhs.itt == ISCSI_RESERVED_TAG) {
 		if (unlikely(!(cmnd->pdu.bhs.opcode & ISCSI_OP_IMMEDIATE)))
 			PRINT_ERROR("%s", "Initiator sent RESERVED tag for "
 				"non-immediate Nop-Out command");
