@@ -1702,12 +1702,12 @@ static inline int srpt_test_ioctx_list(void)
  */
 static inline void srpt_schedule_thread(struct srpt_ioctx *ioctx)
 {
-        unsigned long flags;
+	unsigned long flags;
 
-        spin_lock_irqsave(&srpt_thread.thread_lock, flags);
-        list_add_tail(&ioctx->comp_list, &srpt_thread.thread_ioctx_list);
-        spin_unlock_irqrestore(&srpt_thread.thread_lock, flags);
-        wake_up(&ioctx_list_waitQ);
+	spin_lock_irqsave(&srpt_thread.thread_lock, flags);
+	list_add_tail(&ioctx->comp_list, &srpt_thread.thread_ioctx_list);
+	spin_unlock_irqrestore(&srpt_thread.thread_lock, flags);
+	wake_up(&ioctx_list_waitQ);
 }
 
 /**
