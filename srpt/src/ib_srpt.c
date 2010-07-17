@@ -1289,10 +1289,8 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 
 	if (unlikely(scst_cmd_aborted(scmnd)))
 		srpt_abort_scst_cmd(ioctx, context);
-	else {
-		srpt_unmap_sg_to_ib_sge(ch, ioctx);
+	else
 		scst_rx_data(ioctx->scmnd, SCST_RX_STATUS_SUCCESS, context);
-	}
 }
 
 /**
