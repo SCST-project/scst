@@ -495,7 +495,7 @@ static void event_loop(void)
 	res = 0;
 
 	if (log_daemon)
-		write(init_report_pipe[1], &res, sizeof(res));
+		res = write(init_report_pipe[1], &res, sizeof(res));
 
 	close(init_report_pipe[1]);
 
@@ -696,15 +696,15 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if ((nl_fd = nl_open()) < 0) {
-		perror("netlink open failed");
-		exit(-1);
-	};
-
 	if ((ctrl_fd = kernel_open()) < 0)
 		exit(-1);
 
 	init_max_params();
+
+	if ((nl_fd = nl_open()) < 0) {
+		perror("netlink open failed");
+		exit(-1);
+	};
 
 #ifndef CONFIG_SCST_PROC
 	err = kernel_attr_add(NULL, ISCSI_ISNS_SERVER_ATTR_NAME,
