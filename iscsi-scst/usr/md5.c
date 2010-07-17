@@ -179,13 +179,14 @@ void md5_final(struct md5_ctx *ctx, u8 *out)
 	memset(p, 0, padding);
 
 	/* 64-bit bit counter stored in LSW/LSB format */
-	ctx->block[14] = ctx->count << 3;
-	ctx->block[15] = ctx->count >> 29;
+	ctx->block[14] = cpu_to_le32(ctx->count << 3);
+	ctx->block[15] = cpu_to_le32(ctx->count >> 29);
 
 	md5_transform(ctx->digest, ctx->block);
 
 	for (i = 0; i < MD5_DIGEST_WORDS; i++)
 		ctx->digest[i] = le32_to_cpu(ctx->digest[i]);
+
 	memcpy(out, ctx->digest, MD5_DIGEST_BYTES);
 	memset(ctx, 0, sizeof(*ctx));
 }

@@ -144,14 +144,15 @@ void sha1_final(struct sha1_ctx *ctx, u8 *out)
 
 	memset(p, 0, padding);
 
-	/* 64-bit bit counter stored in MSW/LSB format (RFC bug?) */
-	ctx->block[14] = bswap_32(ctx->count >> 29);
-	ctx->block[15] = bswap_32(ctx->count << 3);
+	/* 64-bit bit counter stored in MSW/MSB format */
+	ctx->block[14] = cpu_to_be32(ctx->count >> 29);
+	ctx->block[15] = cpu_to_be32(ctx->count << 3);
 
 	sha1_transform(ctx->digest, ctx->block);
 
 	for (i = 0; i < SHA1_DIGEST_WORDS; i++)
 		ctx->digest[i] = be32_to_cpu(ctx->digest[i]);
+
 	memcpy(out, ctx->digest, SHA1_DIGEST_BYTES);
 	memset(ctx, 0, sizeof(*ctx));
 }
