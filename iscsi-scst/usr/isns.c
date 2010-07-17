@@ -590,6 +590,7 @@ static void free_all_acl(struct target *target)
 	while (!list_empty(&target->isns_head)) {
 		ini = list_entry(target->isns_head.q_forw, typeof(*ini), ilist);
 		list_del(&ini->ilist);
+		free(ini);
 	}
 }
 
@@ -763,13 +764,22 @@ static char *print_scn_pdu(struct isns_hdr *hdr)
 	while (length) {
 		uint32_t vlen = ntohl(tlv->length);
 
+		if (vlen + sizeof(*tlv) > length)
+			vlen = length - sizeof(*tlv);
+
+		if (vlen < 4)
+			goto next;
+
 		switch (ntohl(tlv->tag)) {
 		case ISNS_ATTR_ISCSI_NAME:
+			((char *)tlv->value)[vlen-1] = '\0';
 			log_error("scn name: %u, %s", vlen, (char *)tlv->value);
 			if (!name)
 				name = (char *)tlv->value;
 			break;
 		case ISNS_ATTR_TIMESTAMP:
+			if (vlen < 8)
+				goto next;
 			/* log_error("%u : %u : %" PRIx64, ntohl(tlv->tag), vlen, */
 			/* *((uint64_t *)tlv->value)); */
 			break;
@@ -778,6 +788,7 @@ static char *print_scn_pdu(struct isns_hdr *hdr)
 			break;
 		}
 
+next:
 		length -= (sizeof(*tlv) + vlen);
 		tlv = (struct isns_tlv *)((char *)tlv->value + vlen);
 	}
@@ -808,8 +819,8 @@ static void qry_rsp_handle(struct isns_hdr *hdr)
 		  __func__, __LINE__, transaction);
 
 	return;
-found:
 
+found:
 	if (status) {
 		log_error("%s %d: error response %u",
 			  __func__, __LINE__, status);
@@ -833,14 +844,23 @@ found:
 	free_all_acl(target);
 
 	/* skip status */
+	if (length < 4)
+		goto free_qry_mgmt;
 	tlv = (struct isns_tlv *)((char *)hdr->pdu + 4);
 	length -= 4;
 
 	while (length) {
 		uint32_t vlen = ntohl(tlv->length);
 
+		if (vlen + sizeof(*tlv) > length)
+			vlen = length - sizeof(*tlv);
+
+		if (vlen < 4)
+			goto next;
+
 		switch (ntohl(tlv->tag)) {
 		case ISNS_ATTR_ISCSI_NAME:
+			((char *)tlv->value)[vlen-1] = '\0';
 			name = (char *)tlv->value;
 			break;
 		case ISNS_ATTR_ISCSI_NODE_TYPE:
@@ -861,6 +881,7 @@ found:
 			break;
 		}
 
+next:
 		length -= (sizeof(*tlv) + vlen);
 		tlv = (struct isns_tlv *)((char *)tlv->value + vlen);
 	}
@@ -1102,7 +1123,7 @@ int isns_init(void)
 			isns_server);
 		goto out;
 	}
-	memcpy(&ss, res->ai_addr, sizeof(ss));
+	memcpy(&ss, res->ai_addr, sizeof(*res->ai_addr));
 	freeaddrinfo(res);
 
 	rxbuf = calloc(2, BUFSIZE);
