@@ -1331,6 +1331,7 @@ static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 	srp_rsp->opcode = SRP_RSP;
 	srp_rsp->req_lim_delta = cpu_to_be32(req_lim_delta);
 	srp_rsp->tag = tag;
+	srp_rsp->status = status;
 
 	if (SCST_SENSE_VALID(sense_data)) {
 		BUILD_BUG_ON(MIN_MAX_MESSAGE_SIZE <= sizeof(*srp_rsp));
@@ -1343,7 +1344,6 @@ static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 		}
 
 		srp_rsp->flags |= SRP_RSP_FLAG_SNSVALID;
-		srp_rsp->status = status;
 		srp_rsp->sense_data_len = cpu_to_be32(sense_data_len);
 		memcpy(srp_rsp + 1, sense_data, sense_data_len);
 	} else
@@ -3025,6 +3025,13 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 
 	ret = SCST_TGT_RES_SUCCESS;
 
+	req_lim_delta = srpt_req_lim_delta(ch) + 1;
+	resp_len = srpt_build_cmd_rsp(ch, ioctx, req_lim_delta,
+				      scst_cmd_get_tag(scmnd),
+				      scst_cmd_get_status(scmnd),
+				      scst_cmd_get_sense_buffer(scmnd),
+				      scst_cmd_get_sense_buffer_len(scmnd));
+
 	/* For read commands, transfer the data to the initiator. */
 	if (dir == SCST_DATA_READ && scst_cmd_get_resp_data_len(scmnd)) {
 		ret = srpt_xfer_data(ch, ioctx, scmnd);
@@ -3036,15 +3043,6 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 			goto out;
 		}
 	}
-
-	scst_check_convert_sense(scmnd);
-
-	req_lim_delta = srpt_req_lim_delta(ch) + 1;
-	resp_len = srpt_build_cmd_rsp(ch, ioctx, req_lim_delta,
-				      scst_cmd_get_tag(scmnd),
-				      scst_cmd_get_status(scmnd),
-				      scst_cmd_get_sense_buffer(scmnd),
-				      scst_cmd_get_sense_buffer_len(scmnd));
 
 	if (srpt_post_send(ch, ioctx, resp_len)) {
 		srpt_unmap_sg_to_ib_sge(ch, ioctx);
