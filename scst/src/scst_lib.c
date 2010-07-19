@@ -856,6 +856,7 @@ static int scst_set_lun_not_supported_request_sense(struct scst_cmd *cmd,
 
 	TRACE_BUFFER("Sense set", sg_virt(cmd->sg), sense_len);
 
+	cmd->data_direction = SCST_DATA_READ;
 	scst_set_resp_data_len(cmd, sense_len);
 
 	res = 0;
@@ -905,6 +906,7 @@ static int scst_set_lun_not_supported_inquiry(struct scst_cmd *cmd)
 
 	TRACE_BUFFER("INQUIRY for not supported LUN set", buf, len);
 
+	cmd->data_direction = SCST_DATA_READ;
 	scst_set_resp_data_len(cmd, len);
 
 	res = 0;
