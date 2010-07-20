@@ -1143,12 +1143,16 @@ static void srpt_abort_scst_cmd(struct srpt_ioctx *ioctx,
 	state = srpt_test_and_set_cmd_state(ioctx, SRPT_STATE_NEED_DATA,
 					    SRPT_STATE_DATA_IN);
 	if (state != SRPT_STATE_NEED_DATA) {
-		state = srpt_test_and_set_cmd_state(ioctx,
-			    SRPT_STATE_CMD_RSP_SENT, SRPT_STATE_DONE);
-		if (state != SRPT_STATE_CMD_RSP_SENT)
+		state = srpt_test_and_set_cmd_state(ioctx, SRPT_STATE_DATA_IN,
+						    SRPT_STATE_DONE);
+		if (state != SRPT_STATE_DATA_IN) {
 			state = srpt_test_and_set_cmd_state(ioctx,
+				    SRPT_STATE_CMD_RSP_SENT, SRPT_STATE_DONE);
+			if (state != SRPT_STATE_CMD_RSP_SENT)
+				state = srpt_test_and_set_cmd_state(ioctx,
 					    SRPT_STATE_MGMT_RSP_SENT,
 					    SRPT_STATE_DONE);
+		}
 	}
 	if (state == SRPT_STATE_DONE)
 		goto out;
@@ -1177,8 +1181,6 @@ static void srpt_abort_scst_cmd(struct srpt_ioctx *ioctx,
 		 * SCST command abort flag has been set after the RDMA read
 		 * started and before srpt_xmit_response() has been invoked.
 		 */
-		scst_rx_data(scmnd, SCST_RX_STATUS_ERROR, context);
-		break;
 	case SRPT_STATE_CMD_RSP_SENT:
 		/*
 		 * SRP_RSP sending failed or the SRP_RSP send completion has
@@ -3012,9 +3014,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	BUG_ON(!ch);
 
 	if (unlikely(scst_cmd_aborted(scmnd))) {
-		WARN_ON(ioctx->mapped_sg_count);
-		srpt_set_cmd_state(ioctx, SRPT_STATE_DONE);
-		scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_ABORTED);
+		srpt_abort_scst_cmd(ioctx, srpt_context);
 		ret = SCST_TGT_RES_SUCCESS;
 		goto out;
 	}
