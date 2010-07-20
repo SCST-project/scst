@@ -440,8 +440,14 @@ static int q2t_reset(scsi_qla_host_t *ha, void *iocb, int mcmd)
 		goto out;
 	}
 
-	TRACE_MGMT_DBG("scsi(%ld): resetting (session %p, "
-		"mcmd %x, loop_id %d)", ha->host_no, sess, mcmd, loop_id);
+	TRACE_MGMT_DBG("scsi(%ld): resetting (session %p from port "
+		"%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x, "
+		"mcmd %x, loop_id %d)", ha->host_no, sess,
+		sess->port_name[0], sess->port_name[1],
+		sess->port_name[2], sess->port_name[3],
+		sess->port_name[4], sess->port_name[5],
+		sess->port_name[6], sess->port_name[7],
+		mcmd, loop_id);
 
 	res = q2t_issue_task_mgmt(sess, (uint8_t *)&lun, sizeof(lun),
 			mcmd, iocb, Q24_MGMT_SEND_NACK);
@@ -465,7 +471,13 @@ static void q2t_clear_tgt_db(struct q2t_tgt *tgt, bool local_only)
 		if (local_only && !sess->local)
 			continue;
 		if (local_only && sess->local)
-			TRACE_MGMT_DBG("Putting local session %p", sess);
+			TRACE_MGMT_DBG("Putting local session %p from port "
+				"%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
+				sess,
+				sess->port_name[0], sess->port_name[1],
+				sess->port_name[2], sess->port_name[3],
+				sess->port_name[4], sess->port_name[5],
+				sess->port_name[6], sess->port_name[7]);
 		q2t_sess_put(sess);
 	}
 
@@ -4020,7 +4032,6 @@ static void q2t_handle_imm_notify(scsi_qla_host_t *ha, void *iocb)
 			/* set the Clear LIP reset event flag */
 			add_flags |= NOTIFY_ACK_CLEAR_LIP_RESET;
 		}
-		qla2x00_mark_all_devices_lost(ha, 1);
 		if (q2t_reset(ha, iocb, Q2T_ABORT_ALL) == 0)
 			send_notify_ack = 0;
 		break;
@@ -4045,9 +4056,15 @@ static void q2t_handle_imm_notify(scsi_qla_host_t *ha, void *iocb)
 	}
 
 	case IMM_NTFY_PORT_LOGOUT:
-		TRACE(TRACE_MGMT, "Port logout (S %08x -> L %#x)",
-			le16_to_cpu(iocb2x->seq_id), le16_to_cpu(iocb2x->lun));
-		qla2x00_mark_all_devices_lost(ha, 1);
+		if (IS_FWI2_CAPABLE(ha)) {
+			TRACE(TRACE_MGMT, "Port logout (loop %#x, subcode %x)",
+				le16_to_cpu(iocb24->nport_handle),
+				iocb24->status_subcode);
+		} else {
+			TRACE(TRACE_MGMT, "Port logout (S %08x -> L %#x)",
+				le16_to_cpu(iocb2x->seq_id),
+				le16_to_cpu(iocb2x->lun));
+		}
 		if (q2t_reset(ha, iocb, Q2T_NEXUS_LOSS_SESS) == 0)
 			send_notify_ack = 0;
 		/* The sessions will be cleared in the callback, if needed */
@@ -4055,7 +4072,6 @@ static void q2t_handle_imm_notify(scsi_qla_host_t *ha, void *iocb)
 
 	case IMM_NTFY_GLBL_TPRLO:
 		TRACE(TRACE_MGMT, "Global TPRLO (%x)", status);
-		qla2x00_mark_all_devices_lost(ha, 1);
 		if (q2t_reset(ha, iocb, Q2T_NEXUS_LOSS) == 0)
 			send_notify_ack = 0;
 		/* The sessions will be cleared in the callback, if needed */
@@ -4063,7 +4079,6 @@ static void q2t_handle_imm_notify(scsi_qla_host_t *ha, void *iocb)
 
 	case IMM_NTFY_PORT_CONFIG:
 		TRACE(TRACE_MGMT, "Port config changed (%x)", status);
-		qla2x00_mark_all_devices_lost(ha, 1);
 		if (q2t_reset(ha, iocb, Q2T_ABORT_ALL) == 0)
 			send_notify_ack = 0;
 		/* The sessions will be cleared in the callback, if needed */
@@ -4073,7 +4088,6 @@ static void q2t_handle_imm_notify(scsi_qla_host_t *ha, void *iocb)
 		PRINT_ERROR("qla2x00t(%ld): Link failure detected",
 			ha->instance);
 		/* I_T nexus loss */
-		qla2x00_mark_all_devices_lost(ha, 1);
 		if (q2t_reset(ha, iocb, Q2T_NEXUS_LOSS) == 0)
 			send_notify_ack = 0;
 		break;

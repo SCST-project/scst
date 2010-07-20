@@ -2146,7 +2146,6 @@ qla2x00_mark_all_devices_lost(scsi_qla_host_t *ha, int defer)
 	if (defer)
 		qla2xxx_wake_dpc(ha);
 }
-EXPORT_SYMBOL(qla2x00_mark_all_devices_lost);
 
 /*
 * qla2x00_mem_alloc
