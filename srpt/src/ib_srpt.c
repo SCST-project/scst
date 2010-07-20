@@ -70,8 +70,14 @@ MODULE_DESCRIPTION("InfiniBand SCSI RDMA Protocol target "
 MODULE_LICENSE("Dual BSD/GPL");
 
 /*
- * Local data structures.
+ * Local data types.
  */
+
+enum threading_mode {
+	MODE_SIRQ            = 0,
+	MODE_SINGLE_THREADED = 1,
+	MODE_MULTITHREADED   = 2,
+};
 
 struct srpt_thread {
 	/* Protects thread_ioctx_list. */
@@ -1102,7 +1108,6 @@ static void srpt_reset_ioctx(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 
 	if (srpt_post_recv(ch->sport->sdev, ioctx))
 		PRINT_ERROR("%s", "SRQ post_recv failed - this is serious.");
-		/* we should queue it back to free_ioctx queue */
 	else {
 		int req_lim;
 
@@ -1210,11 +1215,7 @@ static void srpt_handle_err_comp(struct srpt_rdma_ch *ch, struct ib_wc *wc,
 	enum srpt_command_state state;
 	struct scst_cmd *scmnd;
 
-	if (wc->wr_id & SRPT_OP_RECV)
-		PRINT_INFO("%s", "Received receive completion error. Is the"
-			   " ib_srpt.ko kernel module being unloaded ? Has an"
-			   " InfiniBand cable been disconnected ?");
-	else {
+	if (!(wc->wr_id & SRPT_OP_RECV)) {
 		ioctx = sdev->ioctx_ring[wc->wr_id];
 		state = srpt_get_cmd_state(ioctx);
 		scmnd = ioctx->scmnd;
@@ -1257,7 +1258,7 @@ static void srpt_handle_send_comp(struct srpt_rdma_ch *ch,
 	EXTRACHECKS_WARN_ON((state == SRPT_STATE_MGMT_RSP_SENT)
 			    != (scmnd == NULL));
 
-	if (state == SRPT_STATE_DONE)
+	if (unlikely(state == SRPT_STATE_DONE))
 		PRINT_ERROR("IB completion has been received too late for"
 			    " wr_id = %u.", ioctx->index);
 	else if (scmnd) {
@@ -1279,18 +1280,15 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 
 	scmnd = ioctx->scmnd;
 	WARN_ON(!scmnd);
-	if (!scmnd)
+	if (unlikely(!scmnd))
 		return;
 
 	state = srpt_test_and_set_cmd_state(ioctx, SRPT_STATE_NEED_DATA,
 					    SRPT_STATE_DATA_IN);
 
-	WARN_ON(state != SRPT_STATE_NEED_DATA);
+	EXTRACHECKS_WARN_ON(state != SRPT_STATE_NEED_DATA);
 
-	if (unlikely(scst_cmd_aborted(scmnd)))
-		srpt_abort_scst_cmd(ioctx, context);
-	else
-		scst_rx_data(ioctx->scmnd, SCST_RX_STATUS_SUCCESS, context);
+	scst_rx_data(ioctx->scmnd, SCST_RX_STATUS_SUCCESS, context);
 }
 
 /**
@@ -1683,26 +1681,29 @@ err:
 }
 
 /**
- * srpt_test_ioctx_list() - Tests whether there is more work for the kernel thr.
+ * srpt_test_ioctx_list() - Returns false if the kernel thread should sleep.
  *
- * @pre thread == 1
+ * @pre thread == MODE_SINGLE_THREADED
  * @pre the caller holds a lock on srpt_thread.thread_lock
  */
 static inline int srpt_test_ioctx_list(void)
 {
-	int res = (!list_empty(&srpt_thread.thread_ioctx_list) ||
-		   unlikely(kthread_should_stop()));
-	return res;
+	EXTRACHECKS_WARN_ON(thread != MODE_SINGLE_THREADED);
+
+	return !list_empty(&srpt_thread.thread_ioctx_list)
+		|| unlikely(kthread_should_stop());
 }
 
 /**
  * srpt_schedule_thread() - Add 'ioctx' to the tail of the ioctx list.
  *
- * @pre thread == 1
+ * @pre thread == MODE_SINGLE_THREADED
  */
 static inline void srpt_schedule_thread(struct srpt_ioctx *ioctx)
 {
 	unsigned long flags;
+
+	EXTRACHECKS_WARN_ON(thread != MODE_SINGLE_THREADED);
 
 	spin_lock_irqsave(&srpt_thread.thread_lock, flags);
 	list_add_tail(&ioctx->comp_list, &srpt_thread.thread_ioctx_list);
@@ -1764,7 +1765,7 @@ static void srpt_rcv_completion(struct ib_cq *cq, void *ctx)
 		if (unlikely(req_lim < 0))
 			PRINT_ERROR("req_lim = %d < 0", req_lim);
 		ioctx = sdev->ioctx_ring[wc.wr_id & ~SRPT_OP_RECV];
-		if (thread == 1) {
+		if (thread == MODE_SINGLE_THREADED) {
 			ioctx->ch = ch;
 			ioctx->op = wc.opcode;
 			srpt_schedule_thread(ioctx);
@@ -1804,7 +1805,7 @@ static void srpt_send_completion(struct ib_cq *cq, void *ctx)
 		ioctx = sdev->ioctx_ring[wc.wr_id];
 		atomic_add(wc.opcode == IB_WC_SEND ? 1 : ioctx->n_rdma,
 			   &ch->sq_wr_avail);
-		if (thread == 1) {
+		if (thread == MODE_SINGLE_THREADED) {
 			ioctx->ch = ch;
 			ioctx->op = wc.opcode;
 			srpt_schedule_thread(ioctx);
@@ -1833,11 +1834,13 @@ static void srpt_send_completion(struct ib_cq *cq, void *ctx)
  * This kernel thread is only created when the module parameter 'thread' equals
  * one. This thread processes the ioctx list srpt_thread.thread_ioctx_list.
  *
- * @pre thread == 1
+ * @pre thread == MODE_SINGLE_THREADED
  */
 static int srpt_ioctx_thread(void *arg)
 {
 	struct srpt_ioctx *ioctx;
+
+	EXTRACHECKS_WARN_ON(thread != MODE_SINGLE_THREADED);
 
 	/* Hibernation / freezing of the SRPT kernel thread is not supported. */
 	current->flags |= PF_NOFREEZE;
@@ -3728,16 +3731,17 @@ static int __init srpt_init_module(void)
 	}
 
 	switch (thread) {
-	case 0:
+	case MODE_SIRQ:
 		/* IRQ context */
 		srpt_context = SCST_CONTEXT_TASKLET;
 		srpt_template.rdy_to_xfer_atomic = true;
 		break;
-	case 1:
+	case MODE_SINGLE_THREADED:
 		/* single kernel thread (created by ib_srpt) */
 		srpt_context = SCST_CONTEXT_DIRECT;
 		srpt_template.rdy_to_xfer_atomic = false;
 		break;
+	case MODE_MULTITHREADED:
 	default:
 		/* multiple kernel threads (created by the SCST core) */
 		srpt_context = SCST_CONTEXT_THREAD;
