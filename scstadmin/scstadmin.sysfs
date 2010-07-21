@@ -735,6 +735,7 @@ sub readWorkingConfig {
 			$CURRENT{'assign'}->{$driver}->{$target} = \%empty;
 
 			my $luns = $SCST->luns($driver, $target);
+
 			$CURRENT{'assign'}->{$driver}->{$target}->{'LUN'} = $luns if (defined($luns));
 
 			my $groups = $SCST->groups($driver, $target);
@@ -743,6 +744,7 @@ sub readWorkingConfig {
 				$CURRENT{'assign'}->{$driver}->{$target}->{'GROUP'}->{$group}->{'INITIATORS'} =
 				  $SCST->initiators($driver, $target, $group);
 				immediateExit($SCST->errorString());
+
 				$CURRENT{'assign'}->{$driver}->{$target}->{'GROUP'}->{$group}->{'LUN'} =
 				  $SCST->luns($driver, $target, $group);
 				immediateExit($SCST->errorString());
@@ -790,7 +792,7 @@ sub writeConfiguration {
 					print $io "\t$attribute $value\n"
 					  if (defined($value) && ($value ne ''));
 				}
-			} else {
+			} elsif ($nonkey) {
 				my $value = $$attributes{$attribute}->{'value'};
 				$value = "\"$value\"" if ($value =~ / /);
 				print $io "$attribute $value\n"
@@ -1247,14 +1249,14 @@ sub checkConfiguration {
 	if (!defined($$CONFIG{'TARGET_DRIVER'}) ||
 	    !(scalar keys %{$$CONFIG{'TARGET_DRIVER'}})) {
 		print "\t-> WARNING: No TARGET_DRIVER section defined. ".
-		  "No target drivers will be configured.\n";
+		  "No target drivers will be configured.\n\n";
 		$no_drivers = TRUE;
 	}
 
 	if (!defined($$CONFIG{'HANDLER'}) ||
 	    !(scalar keys %{$$CONFIG{'HANDLER'}})) {
 		print "\t-> WARNING: No HANDLER section defined. ".
-		  "Only physical media will be configured for targets.\n";
+		  "Only physical media will be configured for targets.\n\n";
 		$no_handlers = TRUE;
 	}
 
@@ -1267,13 +1269,13 @@ sub checkConfiguration {
 			my $no_targets;
 
 			if (!defined($CURRENT{'assign'}->{$driver})) {
-				print "\t-> WARNING: Target driver '$driver' is not loaded or available.\n";
+				print "\t-> WARNING: Target driver '$driver' is not loaded or available.\n\n";
 				next;
 			}
 
 			if (!defined($$CONFIG{'TARGET_DRIVER'}->{$driver}->{'TARGET'}) ||
 			    !(scalar keys %{$$CONFIG{'TARGET_DRIVER'}->{$driver}->{'TARGET'}})) {
-				print "\t-> WARNING: Driver '$driver' has no configured targets.\n";
+				print "\t-> WARNING: Driver '$driver' has no configured targets.\n\n";
 				$no_targets = TRUE;
 			}
 
@@ -1302,7 +1304,7 @@ sub checkConfiguration {
 				$_device =~ s/^\/dev\///o;
 				my $tree = $$CONFIG{'HANDLER'}->{$handler}->{'DEVICE'}->{$device};
 				print "\t-> WARNING: Device '$device' configured for handler '$handler' may ".
-				  "not contain the full /dev path, please change to '$_device'.\n";
+				  "not contain the full /dev path, please change to '$_device'.\n\n";
 				delete $$CONFIG{'HANDLER'}->{$handler}->{'DEVICE'}->{$device};
 				$$CONFIG{'HANDLER'}->{$handler}->{'DEVICE'}->{$_device} = $tree;
 			} elsif ($device =~ /\//) {
@@ -1325,7 +1327,7 @@ sub checkConfiguration {
 						if (!defined($cdevices{$device})) {
 							print "\t-> WARNING: Device '$device' associated with driver/target ".
 							  "'$driver/$target' at LUN $lun is not defined within configuration, ".
-							  "removing it.\n";
+							  "removing it.\n\n";
 							delete $$tgt{'LUN'}->{$lun};
 						}
 					}
@@ -1340,7 +1342,7 @@ sub checkConfiguration {
 								if (!defined($cdevices{$device})) {
 									print "\t-> WARNING: Device '$device' associated with ".
 									  "driver/target '$driver/$target' at LUN $lun is not ".
-									  "defined within configuration, removing it.\n";
+									  "defined within configuration, removing it.\n\n";
 									delete $$tgt{'GROUP'}->{$group}->{'LUN'}->{$lun};
 								}
 							}
@@ -2061,7 +2063,7 @@ sub setScstAttributes {
 			immediateExit($SCST->errorString($rc)) if ($rc);
 		} else {
 			print "-> WARNING: SCST lacks the settable ".
-			  "attribute '$attribute', ignoring.\n";
+			  "attribute '$attribute', ignoring.\n\n";
 		}
 	}
 }
@@ -2086,7 +2088,7 @@ sub setHandlerAttributes {
 			immediateExit($SCST->errorString($rc)) if ($rc);
 		} else {
 			print "-> WARNING: Handler '$handler' lacks the settable ".
-			  "attribute '$attribute', ignoring.\n";
+			  "attribute '$attribute', ignoring.\n\n";
 		}
 	}
 }
@@ -2113,7 +2115,7 @@ sub setDeviceAttributes {
 			immediateExit($SCST->errorString($rc)) if ($rc);
 		} else {
 			print "-> WARNING: Device '$device' lacks the settable ".
-			  "attribute '$attribute', ignoring.\n";
+			  "attribute '$attribute', ignoring.\n\n";
 		}
 	}
 }
@@ -2384,7 +2386,7 @@ sub setGroupAttributes {
 			immediateExit($SCST->errorString($rc)) if ($rc);
 		} else {
 			print "-> WARNING: Driver/target/group '$driver/$target/$group' lacks the settable ".
-			  "attribute '$attribute', ignoring.\n";
+			  "attribute '$attribute', ignoring.\n\n";
 		}
 	}
 }
@@ -2415,7 +2417,7 @@ sub setLunAttributes {
 			immediateExit($SCST->errorString($rc)) if ($rc);
 		} else {
 			print "-> WARNING: Driver/target/group/lun '$driver/$target/$group/$lun' lacks the settable ".
-			  "attribute '$attribute', ignoring.\n";
+			  "attribute '$attribute', ignoring.\n\n";
 		}
 	}
 }
@@ -2447,7 +2449,7 @@ sub setInitiatorAttributes {
 			immediateExit($SCST->errorString($rc)) if ($rc);
 		} else {
 			print "-> WARNING: Driver/target/group/initiator '$driver/$target/$group/$initiator' ".
-			  "lacks the settable attribute '$attribute', ignoring.\n";
+			  "lacks the settable attribute '$attribute', ignoring.\n\n";
 		}
 	}
 }
@@ -2777,10 +2779,7 @@ sub readConfig {
 			if (($parm eq 'HANDLER') || ($parm eq 'GROUP') ||
 			    ($parm eq 'ASSIGNMENT')) {
 				print "\nWARNING: Using a deprecated configuration file. ".
-				  "I will attempt to convert it for you. ".
-				  "Please note, groups will ONLY be configured for targets set as 'enable' ".
-				  "within your old configuration file.\n\n".
-				  "Please save your new configuration with -write_config and review.\n\n";
+				  "I will attempt to convert it for you.\n\n";
 
 				return readOldConfig($file);
 			} 
@@ -2972,6 +2971,9 @@ sub readOldConfig {
 	}
 
 	if (!scalar keys %{$new{'TARGET_DRIVER'}}) {
+		print "WARNING: No targets set to 'enable' within your configuration file. Please be sure to ".
+		  "save write your configuration with -write_config and review it carefully.\n\n";
+
 		# Fill in with known targets, all disabled.
 		my $drivers = $SCST->drivers();
 
@@ -3004,7 +3006,7 @@ sub readOldConfig {
 						$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'enabled'}->{'0'} = ()
 						  if (!defined($new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}));
 
-						$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'LUN'}->{$lun}->{$device} = ();
+						$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'LUN'}->{$lun}->{$device} = {};
 					}
 				}
 			}
@@ -3023,7 +3025,7 @@ sub readOldConfig {
 							$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'enabled'}->{'0'} = ()
 							  if (!defined($new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}));
 
-							$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'LUN'}->{$lun}->{$device} = ();
+							$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'LUN'}->{$lun}->{$device} = {};
 						}
 
 						$found_t = TRUE;
