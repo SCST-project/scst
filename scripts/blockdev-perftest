@@ -34,7 +34,7 @@ usage() {
   echo "        -i - number times each test is iterated."
   echo "        -j - use fio instead of dd for benchmarking."
   echo "        -m <l2min> - log2 of the smallest block size to use."
-  echo "        -M <l2min> - log2 of the largest block size to use."
+  echo "        -M <l2max> - log2 of the largest block size to use."
   echo "        -n - do not verify the data on <dev> before overwriting it."
   echo "        -r - only perform the read test."
   echo "        -s - logarithm base two of the I/O size."
