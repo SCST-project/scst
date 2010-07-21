@@ -1167,12 +1167,12 @@ static void srpt_abort_scst_cmd(struct srpt_ioctx *ioctx,
 	TRACE_DBG("Aborting cmd with state %d and tag %lld",
 		  state, scst_cmd_get_tag(scmnd));
 
-	srpt_unmap_sg_to_ib_sge(ioctx->ch, ioctx);
-
 	switch (state) {
 	case SRPT_STATE_NEW:
-		WARN_ON("This code should never be reached.");
-		scst_rx_data(scmnd, SCST_RX_STATUS_ERROR, context);
+		/*
+		 * Do nothing - defer abort processing until
+		 * srpt_xmit_response() is invoked.
+		 */
 		break;
 	case SRPT_STATE_NEED_DATA:
 		/* RDMA read error or RDMA read timeout. */
@@ -1186,6 +1186,7 @@ static void srpt_abort_scst_cmd(struct srpt_ioctx *ioctx,
 		 * SRP_RSP sending failed or the SRP_RSP send completion has
 		 * not been received in time.
 		 */
+		srpt_unmap_sg_to_ib_sge(ioctx->ch, ioctx);
 		scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_ABORTED);
 		scst_tgt_cmd_done(scmnd, context);
 		break;
@@ -1230,8 +1231,6 @@ static void srpt_handle_send_err_comp(struct srpt_rdma_ch *ch, u64 wr_id,
 			    && state != SRPT_STATE_MGMT_RSP_SENT
 			    && state != SRPT_STATE_NEED_DATA
 			    && state != SRPT_STATE_DONE);
-	EXTRACHECKS_WARN_ON((state == SRPT_STATE_MGMT_RSP_SENT)
-			    != (scmnd == NULL));
 
 	if (state == SRPT_STATE_DONE)
 		PRINT_ERROR("Received more than one IB error completion"
@@ -1917,6 +1916,7 @@ static int srpt_ioctx_thread(void *arg)
 
 			ioctx = list_first_entry(&srpt_thread.thread_ioctx_list,
 						 typeof(*ioctx), comp_list);
+			BUG_ON(!ioctx);
 			list_del(&ioctx->comp_list);
 			spin_unlock_irq(&srpt_thread.thread_lock);
 
@@ -2091,11 +2091,19 @@ static void srpt_unregister_channel(struct srpt_rdma_ch *ch)
 	__releases(&ch->sport->sdev->spinlock)
 {
 	struct srpt_device *sdev;
-	sdev = ch->sport->sdev;
+	unsigned long flags;
 
+	sdev = ch->sport->sdev;
 	list_del(&ch->list);
 	atomic_set(&ch->state, RDMA_CHANNEL_DISCONNECTING);
 	spin_unlock_irq(&sdev->spinlock);
+
+	TRACE_DBG("%s", "disabling receive notifications");
+	spin_lock_irqsave(&ch->recv_lock, flags);
+	ib_req_notify_cq(ch->rcq, 0);
+	spin_unlock_irqrestore(&ch->recv_lock, flags);
+
+	TRACE_DBG("unregistering session %p", ch->scst_sess);
 	scst_unregister_session(ch->scst_sess, 0, srpt_release_channel);
 	spin_lock_irq(&sdev->spinlock);
 }
@@ -2190,15 +2198,6 @@ static void srpt_release_channel(struct scst_session *scst_sess)
 	BUG_ON(!ch->cm_id);
 	ib_destroy_cm_id(ch->cm_id);
 
-	/*
-	 * After having destroyed the CM ID, wait with destroying the
-	 * completion queues and freeing ch until all completion handlers
-	 * have finished. Concurrent execution of ib_destroy_cq() and a
-	 * completion handler will trigger a kernel lockup or kernel crash.
-	 */
-	msleep(250);
-
-	PRINT_INFO("%s", "destroying QP and CQ's");
 	ib_destroy_qp(ch->qp);
 	ib_destroy_cq(ch->scq);
 	ib_destroy_cq(ch->rcq);
