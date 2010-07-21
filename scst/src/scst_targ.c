@@ -1292,7 +1292,7 @@ static void scst_process_redirect_cmd(struct scst_cmd *cmd,
  * scst_rx_data() - the command's data received
  * @cmd:	SCST commands
  * @status:	data receiving completion status
- * @pref_context: preferred command execition context
+ * @pref_context: preferred command execution context
  *
  * Description:
  *    Notifies SCST that the driver received all the necessary data
