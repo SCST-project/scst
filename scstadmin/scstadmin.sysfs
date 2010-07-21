@@ -46,7 +46,7 @@ Query Operations
 
      -list_sessions          : List all current initiator sessions.
 
-Set Operations
+Set Attribute Operations
      -set_scst_attr          : Sets SCST attribute(s) <p> to value <v>.
          -attributes <p=v,...>
      -set_hnd_attr <hndlr>   : Sets handler attribute(s) <p> to value <v>.
@@ -67,6 +67,20 @@ Set Operations
          -driver <driver>
          -target <target>
          -group <group>
+         -attributes <p=v,...>
+
+Add Dynamic Attribute Operations
+     -add_drv_attr <driver>  : Adds driver attribute(s) <p> to value <v>.
+         -attributes <p=v,...>
+     -add_tgt_attr <target>  : Adds target attribute(s) <p> to value <v>.
+         -driver <driver>
+         -attributes <p=v,...>
+
+Remove Dynamic Attribute Operations
+     -rem_drv_attr <driver>  : Remove driver attribute(s) <p> to value <v>.
+         -attributes <p=v,...>
+     -rem_tgt_attr <target>  : Remove target attribute(s) <p> to value <v>.
+         -driver <driver>
          -attributes <p=v,...>
 
 Device Operations
@@ -2950,29 +2964,54 @@ sub readOldConfig {
 
 		if ($driver) {
 			%{$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'enabled'}->{'1'}} = ();
-
-			foreach my $group (keys %{$config{'GROUP'}}) {
-				%{$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'GROUP'}->{$group}} = ();
-				if (defined($config{'GROUP'}->{$group}->{'USER'})) {
-					foreach my $user (@{$config{'GROUP'}->{$group}->{'USER'}}) {
-						%{$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'GROUP'}->{$group}->{'INITIATOR'}->{$user}} = ();
-					}
-				}
-			}
-
-			foreach my $group (keys %{$config{'ASSIGNMENT'}}) {
-				foreach my $device (@{$config{'ASSIGNMENT'}->{$group}->{'DEVICE'}}) {
-					my($device, $lun) = split(/\,/, $device);
-					%{$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'GROUP'}->{$group}->{'LUN'}->{$lun}->{$device}} = ();
-				}
-			}
+			addTargetToConfig(\%config, \%new, $driver, $target);
 		} else {
 			immediateExit("Unable to determine target driver information for target '$wwn'. ".
 			  "Please ensure this target driver is loaded.");
 		}
 	}
 
+	if (!scalar keys %{$new{'TARGET_DRIVER'}}) {
+		# Fill in with known targets, all disabled.
+		print "WARNING: There are no enabled targets in your configuration. I'll use existing targets, however, ".
+		  "this will make assignments available for all loaded targets.\n\n";
+		my $drivers = $SCST->drivers();
+
+		foreach my $driver (@{$drivers}) {
+			my $targets = $SCST->targets($driver);
+
+			foreach my $target (@{$targets}) {
+				%{$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'enabled'}->{'0'}} = ();
+
+				addTargetToConfig(\%config, \%new, $driver, $target);
+			}
+		}
+	}
+
 	return \%new;
+}
+
+sub addTargetToConfig {
+	my $config = shift;
+	my $new = shift;
+	my $driver = shift;
+	my $target = shift;
+
+	foreach my $group (keys %{$$config{'GROUP'}}) {
+		%{$$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'GROUP'}->{$group}} = ();
+		if (defined($$config{'GROUP'}->{$group}->{'USER'})) {
+			foreach my $user (@{$$config{'GROUP'}->{$group}->{'USER'}}) {
+				%{$$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'GROUP'}->{$group}->{'INITIATOR'}->{$user}} = ();
+			}
+		}
+	}
+
+	foreach my $group (keys %{$$config{'ASSIGNMENT'}}) {
+		foreach my $device (@{$$config{'ASSIGNMENT'}->{$group}->{'DEVICE'}}) {
+			my($device, $lun) = split(/\,/, $device);
+			%{$$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'GROUP'}->{$group}->{'LUN'}->{$lun}->{$device}} = ();
+		}
+	}
 }
 
 sub findTargetDriver {
