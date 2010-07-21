@@ -181,7 +181,9 @@ struct srpt_ioctx {
 	u8 n_rdma;
 	u8 n_rbuf;
 
-	enum ib_wc_opcode op;
+	u64 wr_id;
+	enum ib_wc_status status;
+	enum ib_wc_opcode opcode;
 	struct list_head comp_list;
 	struct srpt_rdma_ch *ch;
 	struct scst_cmd *scmnd;
