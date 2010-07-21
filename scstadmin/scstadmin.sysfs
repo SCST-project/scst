@@ -735,15 +735,15 @@ sub readWorkingConfig {
 			$CURRENT{'assign'}->{$driver}->{$target} = \%empty;
 
 			my $luns = $SCST->luns($driver, $target);
-			$CURRENT{'assign'}->{$driver}->{$target}->{'LUNS'} = $luns if (defined($luns));
+			$CURRENT{'assign'}->{$driver}->{$target}->{'LUN'} = $luns if (defined($luns));
 
 			my $groups = $SCST->groups($driver, $target);
 			immediateExit($SCST->errorString());
 			foreach my $group (@{$groups}) {
-				$CURRENT{'assign'}->{$driver}->{$target}->{'GROUPS'}->{$group}->{'INITIATORS'} =
+				$CURRENT{'assign'}->{$driver}->{$target}->{'GROUP'}->{$group}->{'INITIATORS'} =
 				  $SCST->initiators($driver, $target, $group);
 				immediateExit($SCST->errorString());
-				$CURRENT{'assign'}->{$driver}->{$target}->{'GROUPS'}->{$group}->{'LUNS'} =
+				$CURRENT{'assign'}->{$driver}->{$target}->{'GROUP'}->{$group}->{'LUN'} =
 				  $SCST->luns($driver, $target, $group);
 				immediateExit($SCST->errorString());
 			}
@@ -999,7 +999,7 @@ sub writeConfiguration {
 			$attribute_buff .= "\n" if ($attribute_buff);
 			$attribute_buff_nk .= "\n" if ($attribute_buff_nk);
 
-			my $luns = $CURRENT{'assign'}->{$driver}->{$target}->{'LUNS'};
+			my $luns = $CURRENT{'assign'}->{$driver}->{$target}->{'LUN'};
 			my $lun_attrs = $SCST->lunCreateAttributes($driver, $target);
 
 			my $t_lun_buff;
@@ -1054,7 +1054,7 @@ sub writeConfiguration {
 					$t_lun_buff .= "\n";
 				}
 			}
-			my $groups = $CURRENT{'assign'}->{$driver}->{$target}->{'GROUPS'};
+			my $groups = $CURRENT{'assign'}->{$driver}->{$target}->{'GROUP'};
 
 			my $group_buff;
 			foreach my $group (sort keys %{$groups}) {
@@ -1063,7 +1063,7 @@ sub writeConfiguration {
 
 				$group_buff .= "\t\tGROUP $group";
 
-				my $luns = $CURRENT{'assign'}->{$driver}->{$target}->{'GROUPS'}->{$group}->{'LUNS'};
+				my $luns = $CURRENT{'assign'}->{$driver}->{$target}->{'GROUP'}->{$group}->{'LUN'};
 
 				my $lun_buff;
 				foreach my $lun (sort numerically keys %{$luns}) {
@@ -1118,7 +1118,7 @@ sub writeConfiguration {
 					}
 				}
 
-				my $inits = $CURRENT{'assign'}->{$driver}->{$target}->{'GROUPS'}->{$group}->{'INITIATORS'};
+				my $inits = $CURRENT{'assign'}->{$driver}->{$target}->{'GROUP'}->{$group}->{'INITIATORS'};
 
 				my $init_buff;
 				foreach my $init (@{$inits}) {
@@ -1280,9 +1280,11 @@ sub checkConfiguration {
 			if (!$no_targets) {
 				foreach my $target (keys %{$$CONFIG{'TARGET_DRIVER'}->{$driver}->{'TARGET'}}) {
 					if (!defined($CURRENT{'assign'}->{$driver}->{$target})) {
-						print "\t-> FATAL: Target '$target' for driver '$driver' ".
-						  "does not exist.\n" if (!$SCST->driverIsVirtualCapable($driver));
-						return TRUE;
+						if (!$SCST->driverIsVirtualCapable($driver)) {
+							print "\t-> FATAL: Target '$target' for driver '$driver' ".
+							  "does not exist.\n";
+							return TRUE;
+						}
 					}
 				}
 			}
@@ -1401,7 +1403,7 @@ sub applyConfigDevices {
 				if ($deletions) {
 					closeDevice($device, $handler, $deletions);
 				} else {
-					print "\t-> Device '$device' is not in configuration. Use -force to close it.\n";
+					print "-> Device '$device' is not in configuration. Use -force to close it.\n";
 				}
 			}
 		}
@@ -1432,7 +1434,7 @@ sub applyConfigAssignments {
 
 	foreach my $driver (keys %{$assignments}) {
 		foreach my $target (keys %{$$assignments{$driver}}) {
-			my $luns = $$assignments{$driver}->{$target}->{'LUNS'};
+			my $luns = $$assignments{$driver}->{$target}->{'LUN'};
 			my $def_group = $$config{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target};
 
 			foreach my $lun (keys %{$luns}) {
@@ -1442,18 +1444,16 @@ sub applyConfigAssignments {
 					if ($deletions) {
 						removeLun($lun, $driver, $target, $device);
 					} else {
-						print "\t-> Device '$device' at LUN '$lun' is not in configuration ".
+						print "-> Device '$device' at LUN '$lun' is not in configuration ".
 						  "for driver/target '$driver/$target'. ".
 						  "Use -force to remove it.\n";
 					}
 				}
 			}
 
-			foreach my $group (keys %{$$assignments{$driver}->{$target}->{'GROUPS'}}) {
-				next if ($group eq 'LUNS');
-
-				my $luns = $$assignments{$driver}->{$target}->{'GROUPS'}->{$group}->{'LUNS'};
-				my $inits = $$assignments{$driver}->{$target}->{'GROUPS'}->{$group}->{'INITIATORS'};
+			foreach my $group (keys %{$$assignments{$driver}->{$target}->{'GROUP'}}) {
+				my $luns = $$assignments{$driver}->{$target}->{'GROUP'}->{$group}->{'LUN'};
+				my $inits = $$assignments{$driver}->{$target}->{'GROUP'}->{$group}->{'INITIATORS'};
 
 				my $def_group = $$config{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'GROUP'}->{$group};
 
@@ -1464,7 +1464,7 @@ sub applyConfigAssignments {
 						if ($deletions) {
 							removeLun($lun, $driver, $target, $device, $group);
 						} else {
-							print "\t-> Device '$device' at LUN '$lun' is not in configuration ".
+							print "-> Device '$device' at LUN '$lun' is not in configuration ".
 							  "for driver/target/group '$driver/$target/$group'. ".
 							  "Use -force to remove it.\n";
 						}
@@ -1476,7 +1476,7 @@ sub applyConfigAssignments {
 						if ($deletions) {
 							removeInitiator($init, $driver, $target, $group);
 						} else {
-							print "\t-> Initiator '$init' is not in configuration ".
+							print "-> Initiator '$init' is not in configuration ".
 							  "for driver/target/group '$driver/$target/$group'. ".
 							  "Use -force to remove it.\n";
 						}
@@ -1487,7 +1487,7 @@ sub applyConfigAssignments {
 					if ($deletions) {
 						removeGroup($group, $driver, $target);
 					} else {
-						print "\t-> Group '$group' is not in configuration. Use -force to remove.\n";
+						print "-> Group '$group' is not in configuration. Use -force to remove.\n";
 					}
 
 					next;
@@ -1564,7 +1564,7 @@ sub applyGroupAssignments {
 	my $groups = shift;
 
 	foreach my $group (sort keys %{$groups}) {
-		if (!defined($CURRENT{'assign'}->{$driver}->{$target}->{'GROUPS'}->{$group})) {
+		if (!defined($CURRENT{'assign'}->{$driver}->{$target}->{'GROUP'}->{$group})) {
 			addGroup($group, $driver, $target);
 		}
 
@@ -1596,9 +1596,9 @@ sub applyLunAssignments {
 	my $c_luns;
 
 	if ($group) {
-		$c_luns = $CURRENT{'assign'}->{$driver}->{$target}->{'GROUPS'}->{$group}->{'LUNS'};
+		$c_luns = $CURRENT{'assign'}->{$driver}->{$target}->{'GROUP'}->{$group}->{'LUN'};
 	} else {
-		$c_luns = $CURRENT{'assign'}->{$driver}->{$target}->{'LUNS'};
+		$c_luns = $CURRENT{'assign'}->{$driver}->{$target}->{'LUN'};
 	}
 
 	foreach my $lun (sort keys %{$luns}) {
@@ -1623,7 +1623,7 @@ sub applyInitiatorAssignments {
 	my $group = shift;
 	my $initiators = shift;
 
-	my $c_inits = $CURRENT{'assign'}->{$driver}->{$target}->{'GROUPS'}->{$group}->{'INITIATORS'};
+	my $c_inits = $CURRENT{'assign'}->{$driver}->{$target}->{'GROUP'}->{$group}->{'INITIATORS'};
 
 	foreach my $initiator (sort keys %{$initiators}) {
 		if (!groupHasInitiator($c_inits, $initiator)) {
@@ -1640,7 +1640,7 @@ sub clearConfiguration {
 
 	foreach my $driver (sort keys %{$assignments}) {
 		foreach my $target (sort keys %{$$assignments{$driver}}) {
-			foreach my $group (sort keys %{$$assignments{$driver}->{$target}->{'GROUPS'}}) {
+			foreach my $group (sort keys %{$$assignments{$driver}->{$target}->{'GROUP'}}) {
 				clearInitiators($driver, $target, $group);
 				clearLuns($driver, $target, $group);
 				removeGroup($group, $driver, $target, $force);
@@ -2964,7 +2964,7 @@ sub readOldConfig {
 
 		if ($driver) {
 			%{$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'enabled'}->{'1'}} = ();
-			addTargetToConfig(\%config, \%new, $driver, $target);
+			addAllGroupsToTarget(\%config, \%new, $driver, $target);
 		} else {
 			immediateExit("Unable to determine target driver information for target '$wwn'. ".
 			  "Please ensure this target driver is loaded.");
@@ -2973,8 +2973,6 @@ sub readOldConfig {
 
 	if (!scalar keys %{$new{'TARGET_DRIVER'}}) {
 		# Fill in with known targets, all disabled.
-		print "WARNING: There are no enabled targets in your configuration. I'll use existing targets, however, ".
-		  "this will make assignments available for all loaded targets.\n\n";
 		my $drivers = $SCST->drivers();
 
 		foreach my $driver (@{$drivers}) {
@@ -2983,7 +2981,59 @@ sub readOldConfig {
 			foreach my $target (@{$targets}) {
 				%{$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'enabled'}->{'0'}} = ();
 
-				addTargetToConfig(\%config, \%new, $driver, $target);
+				addAllGroupsToTarget(\%config, \%new, $driver, $target);
+			}
+		}
+	}
+
+	# Now handle default groups
+
+	foreach my $group (keys %{$config{'ASSIGNMENT'}}) {
+		next if ($group !~ /^Default/);
+
+		my $drivers = $SCST->drivers();
+
+		if ($group eq 'Default') { # Add to all targets
+			foreach my $device (@{$config{'ASSIGNMENT'}->{$group}->{'DEVICE'}}) {
+				my($device, $lun) = split(/\,/, $device);
+
+				foreach my $driver (@{$drivers}) {
+					my $targets = $SCST->targets($driver);
+
+					foreach my $target (@{$targets}) {
+						$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'enabled'}->{'0'} = ()
+						  if (!defined($new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}));
+
+						$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'LUN'}->{$lun}->{$device} = ();
+					}
+				}
+			}
+		} else {
+			$group =~ s/^Default\_//;
+			my $found_t = FALSE;
+			# Find the associated target
+			foreach my $driver (@{$drivers}) {
+				my $targets = $SCST->targets($driver);
+
+				foreach my $target (@{$targets}) {
+					if ($target eq $group) {
+						foreach my $device (@{$config{'ASSIGNMENT'}->{$group}->{'DEVICE'}}) {
+							my($device, $lun) = split(/\,/, $device);
+
+							$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'enabled'}->{'0'} = ()
+							  if (!defined($new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}));
+
+							$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'LUN'}->{$lun}->{$device} = ();
+						}
+
+						$found_t = TRUE;
+					}
+				}
+			}
+
+			if (!$found_t) {
+				print "WARNING: Unable to find target $group. Please ".
+				  "configure these assignments manually.\n\n";
 			}
 		}
 	}
@@ -2991,7 +3041,7 @@ sub readOldConfig {
 	return \%new;
 }
 
-sub addTargetToConfig {
+sub addAllGroupsToTarget {
 	my $config = shift;
 	my $new = shift;
 	my $driver = shift;
@@ -3007,6 +3057,8 @@ sub addTargetToConfig {
 	}
 
 	foreach my $group (keys %{$$config{'ASSIGNMENT'}}) {
+		next if ($group =~ /^Default/);
+
 		foreach my $device (@{$$config{'ASSIGNMENT'}->{$group}->{'DEVICE'}}) {
 			my($device, $lun) = split(/\,/, $device);
 			%{$$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'GROUP'}->{$group}->{'LUN'}->{$lun}->{$device}} = ();
