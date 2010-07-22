@@ -8,8 +8,10 @@ The perl module SCST::SCST is very generic and tries to handle error checking as
 The init script was written for debian but should work on most distributions.
 
 
-	sysfs		Use this version if you've disabled procfs support in SCST.
-	procfs		This is the default version which uses the older procfs.
+	scstadmin.sysfs	
+			Use this version if you've disabled procfs support in SCST.
+	scstadmin.procfs
+			This is the default version which uses the older procfs.
 
 	scst-0.8.22	This is the SCST Perl module required by scstadmin and scst_db.
 	scst-0.9.00	This is the SCST Perl module to be used with SCST compiled

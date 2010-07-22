@@ -114,7 +114,7 @@ Examples:
 EndUsage
   }
 
-use SCST::SCST;
+use SCST::SCST 0.8.22;
 use Getopt::Long;
 use IO::File;
 use IO::Dir;

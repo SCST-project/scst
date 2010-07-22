@@ -33,10 +33,10 @@ extraclean:
 
 disable_proc:
 	-rm scstadmin
-	ln -s sysfs scstadmin
+	ln -s scstadmin.sysfs scstadmin
 
 enable_proc:
 	-rm scstadmin
-	ln -s procfs scstadmin
+	ln -s scstadmin.procfs scstadmin
 
 .PHONY: all install uninstall perl-module clean distclean extraclean disable_proc enable_proc
