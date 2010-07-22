@@ -868,8 +868,10 @@ static int scst_pr_copy_file(const char *src, const char *dest)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
 	res = scst_pr_vfs_fsync(file_dest, 0, file_size);
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
 	res = vfs_fsync(file_dest, file_dest->f_path.dentry, 0);
+#else
+	res = vfs_fsync(file_dest, 0);
 #endif
 	if (res != 0) {
 		PRINT_ERROR("fsync() of the backup PR file failed: %d", res);
@@ -1035,8 +1037,10 @@ void scst_pr_sync_device_file(struct scst_tgt_dev *tgt_dev, struct scst_cmd *cmd
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
 	res = scst_pr_vfs_fsync(file, 0, pos);
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
 	res = vfs_fsync(file, file->f_path.dentry, 0);
+#else
+	res = vfs_fsync(file, 0);
 #endif
 	if (res != 0) {
 		PRINT_ERROR("fsync() of the PR file failed: %d", res);
@@ -1051,8 +1055,10 @@ void scst_pr_sync_device_file(struct scst_tgt_dev *tgt_dev, struct scst_cmd *cmd
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
 	res = scst_pr_vfs_fsync(file, 0, sizeof(sign));
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
 	res = vfs_fsync(file, file->f_path.dentry, 0);
+#else
+	res = vfs_fsync(file, 0);
 #endif
 	if (res != 0) {
 		PRINT_ERROR("fsync() of the PR file failed: %d", res);

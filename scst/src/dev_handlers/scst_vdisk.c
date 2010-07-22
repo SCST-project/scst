@@ -2739,7 +2739,11 @@ static int blockio_flush(struct block_device *bdev)
 
 	TRACE_ENTRY();
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
 	res = blkdev_issue_flush(bdev, NULL);
+#else
+	res = blkdev_issue_flush(bdev, GFP_KERNEL, NULL, BLKDEV_IFL_WAIT);
+#endif
 	if (res != 0)
 		PRINT_ERROR("blkdev_issue_flush() failed: %d", res);
 

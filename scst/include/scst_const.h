@@ -243,7 +243,9 @@ enum scst_cdb_flags {
 #define WRITE_ATTRIBUTE             0x8D
 #define WRITE_VERIFY_16             0x8E
 #define VERIFY_6                    0x13
+#ifndef VERIFY_12
 #define VERIFY_12                   0xAF
+#endif
 #ifndef GENERATING_UPSTREAM_PATCH
 /*
  * The constants below have been defined in the kernel header <scsi/scsi.h>
