@@ -1173,6 +1173,7 @@ static void srpt_abort_scst_cmd(struct srpt_ioctx *ioctx,
 		 * Do nothing - defer abort processing until
 		 * srpt_xmit_response() is invoked.
 		 */
+		WARN_ON(!scst_cmd_aborted(scmnd));
 		break;
 	case SRPT_STATE_NEED_DATA:
 		/* RDMA read error or RDMA read timeout. */
@@ -3101,8 +3102,6 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	int dir;
 	int resp_len;
 
-	EXTRACHECKS_BUG_ON(scst_cmd_atomic(scmnd));
-
 	ioctx = scst_cmd_get_tgt_priv(scmnd);
 	BUG_ON(!ioctx);
 
@@ -3112,6 +3111,11 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	if (unlikely(scst_cmd_aborted(scmnd))) {
 		srpt_abort_scst_cmd(ioctx, srpt_context);
 		ret = SCST_TGT_RES_SUCCESS;
+		goto out;
+	}
+
+	if (scst_cmd_atomic(scmnd) && srpt_must_wait_for_cred(ch, 2)) {
+		ret = SCST_TGT_RES_NEED_THREAD_CTX;
 		goto out;
 	}
 
@@ -3831,17 +3835,20 @@ static int __init srpt_init_module(void)
 		/* IRQ context */
 		srpt_context = SCST_CONTEXT_TASKLET;
 		srpt_template.rdy_to_xfer_atomic = true;
+		srpt_template.xmit_response_atomic = true;
 		break;
 	case MODE_SINGLE_THREADED:
 		/* single kernel thread (created by ib_srpt) */
 		srpt_context = SCST_CONTEXT_DIRECT;
 		srpt_template.rdy_to_xfer_atomic = false;
+		srpt_template.xmit_response_atomic = false;
 		break;
 	case MODE_MULTITHREADED:
 	default:
 		/* multiple kernel threads (created by the SCST core) */
 		srpt_context = SCST_CONTEXT_THREAD;
 		srpt_template.rdy_to_xfer_atomic = false;
+		srpt_template.xmit_response_atomic = false;
 		break;
 	}
 
