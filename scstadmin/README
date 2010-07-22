@@ -7,6 +7,10 @@ The perl module SCST::SCST is very generic and tries to handle error checking as
 
 The init script was written for debian but should work on most distributions.
 
+
+	sysfs		Use this version if you've disabled procfs support in SCST.
+	procfs		This is the default version which uses the older procfs.
+
 	scst-0.8.22	This is the SCST Perl module required by scstadmin and scst_db.
 	scst-0.9.00	This is the SCST Perl module to be used with SCST compiled
                         for sysfs. Note, the current version of scstadmin will NOT yet
@@ -15,9 +19,6 @@ The init script was written for debian but should work on most distributions.
 	scstadmin	Script which can accept operations on a command line or from
 			a configuration file. See scst.conf. For command help,
 				#> scstadmin
-
-        scstadmin.sysfs This is the sysfs version of scstadmin, a complete rewrite. This
-                        is VERY incomplete at this point so don't expect results.
 
 	old		Script which configures SCST using configurations
 			found in a database. See the examples directory database
@@ -48,9 +49,21 @@ NOTE: The init.d startup & shutdown scripts now depend on lsb-core. Ensure you h
 lsb-core installed or 'make install' will fail. Make sure /usr/lib/lsb/install_initd
 exists.
 
+To enable the newer sysfs version:
+
+  #> make disable_proc
+  #> make
+  #> make install
+
 
 Getting Started:
 ================
+
+The following pertains to the older procfs based SCST. The new sysfs version is still
+a work in progress, but should be mostly complete at this point. You may still use your
+old scst.conf, however, I very much recommend you perform a -write_config and review
+the resulting configuration file.
+
 
 The scstadmin script is much more functional than scst_db at this point but uses a
 standard text-based config file. The original thought behind scst_db was to write
