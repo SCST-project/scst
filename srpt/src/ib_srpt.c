@@ -1752,31 +1752,38 @@ static void srpt_rcv_completion(struct ib_cq *cq, void *ctx)
 
 	EXTRACHECKS_WARN_ON(thread == MODE_SINGLE_THREADED);
 
+	if (atomic_read(&ch->state) == RDMA_CHANNEL_DISCONNECTING)
+		return;
+
 	spin_lock_irqsave(&ch->recv_lock, flags);
-	ib_req_notify_cq(ch->rcq, IB_CQ_NEXT_COMP);
-	while (ib_poll_cq(ch->rcq, 1, &wc) > 0) {
-		int req_lim;
+	do {
+		while (ib_poll_cq(ch->rcq, 1, &wc) > 0) {
+			int req_lim;
 
-		if (unlikely(wc.status)) {
-			spin_unlock_irqrestore(&ch->recv_lock, flags);
-			PRINT_INFO("receiving wr_id %u failed with status %d",
-				   (unsigned)(wc.wr_id & ~SRPT_OP_RECV),
-				   wc.status);
-			spin_lock_irqsave(&ch->recv_lock, flags);
-			continue;
-		}
+			if (unlikely(wc.status)) {
+				spin_unlock_irqrestore(&ch->recv_lock, flags);
+				PRINT_INFO("receiving wr_id %u failed with"
+					   " status %d",
+					   (unsigned)(wc.wr_id & ~SRPT_OP_RECV),
+					   wc.status);
+				spin_lock_irqsave(&ch->recv_lock, flags);
+				continue;
+			}
 
-		req_lim = atomic_dec_return(&ch->req_lim);
-		if (unlikely(req_lim < 0))
-			PRINT_ERROR("req_lim = %d < 0", req_lim);
-		ioctx = sdev->ioctx_ring[wc.wr_id & ~SRPT_OP_RECV];
-		srpt_handle_new_iu(ch, ioctx);
+			req_lim = atomic_dec_return(&ch->req_lim);
+			if (unlikely(req_lim < 0))
+				PRINT_ERROR("req_lim = %d < 0", req_lim);
+			ioctx = sdev->ioctx_ring[wc.wr_id & ~SRPT_OP_RECV];
+			srpt_handle_new_iu(ch, ioctx);
 
 #if defined(CONFIG_SCST_DEBUG)
-		if (interrupt_processing_delay_in_us <= MAX_UDELAY_MS * 1000)
-			udelay(interrupt_processing_delay_in_us);
+			if (interrupt_processing_delay_in_us
+			    <= MAX_UDELAY_MS * 1000)
+				udelay(interrupt_processing_delay_in_us);
 #endif
-	}
+		}
+	} while (ib_req_notify_cq(ch->rcq, IB_CQ_NEXT_COMP
+				  | IB_CQ_REPORT_MISSED_EVENTS) > 0);
 	spin_unlock_irqrestore(&ch->recv_lock, flags);
 }
 
@@ -1793,35 +1800,39 @@ static void srpt_send_completion(struct ib_cq *cq, void *ctx)
 
 	EXTRACHECKS_WARN_ON(thread == MODE_SINGLE_THREADED);
 
-	ib_req_notify_cq(ch->scq, IB_CQ_NEXT_COMP);
-	while (ib_poll_cq(ch->scq, 1, &wc) > 0) {
-		if (unlikely(wc.status)) {
-			PRINT_INFO("sending response for wr_id %u failed with"
-				   " status %d",
-				   (unsigned)(wc.wr_id & ~SRPT_OP_RECV),
-				   wc.status);
-			srpt_handle_send_err_comp(ch, wc.wr_id, context);
-			continue;
-		}
+	do {
+		while (ib_poll_cq(ch->scq, 1, &wc) > 0) {
+			if (unlikely(wc.status)) {
+				PRINT_INFO("sending response for wr_id %u"
+					   " failed with status %d",
+					   (unsigned)(wc.wr_id & ~SRPT_OP_RECV),
+					   wc.status);
+				srpt_handle_send_err_comp(ch, wc.wr_id,
+							  context);
+				continue;
+			}
 
-		ioctx = sdev->ioctx_ring[wc.wr_id];
-		atomic_add(wc.opcode == IB_WC_SEND ? 1 : ioctx->n_rdma,
-			   &ch->sq_wr_avail);
-		if (wc.opcode == IB_WC_SEND)
-			srpt_handle_send_comp(ch, ioctx, context);
-		else {
+			ioctx = sdev->ioctx_ring[wc.wr_id];
+			atomic_add(wc.opcode == IB_WC_SEND ? 1 : ioctx->n_rdma,
+				   &ch->sq_wr_avail);
+			if (wc.opcode == IB_WC_SEND)
+				srpt_handle_send_comp(ch, ioctx, context);
+			else {
 #if defined(CONFIG_SCST_DEBUG)
-			WARN_ON(wc.opcode != IB_WC_RDMA_READ);
-			WARN_ON(ioctx->n_rdma <= 0);
+				WARN_ON(wc.opcode != IB_WC_RDMA_READ);
+				WARN_ON(ioctx->n_rdma <= 0);
 #endif
-			srpt_handle_rdma_comp(ch, ioctx, context);
-		}
+				srpt_handle_rdma_comp(ch, ioctx, context);
+			}
 
 #if defined(CONFIG_SCST_DEBUG)
-		if (interrupt_processing_delay_in_us <= MAX_UDELAY_MS * 1000)
-			udelay(interrupt_processing_delay_in_us);
+			if (interrupt_processing_delay_in_us
+			    <= MAX_UDELAY_MS * 1000)
+				udelay(interrupt_processing_delay_in_us);
 #endif
-	}
+		}
+	} while (ib_req_notify_cq(ch->scq, IB_CQ_NEXT_COMP
+				  | IB_CQ_REPORT_MISSED_EVENTS) > 0);
 }
 
 /**
@@ -1836,6 +1847,9 @@ static void srpt_rcv_completion_st(struct ib_cq *cq, void *ctx)
 	unsigned long flags;
 
 	EXTRACHECKS_WARN_ON(thread != MODE_SINGLE_THREADED);
+
+	if (atomic_read(&ch->state) == RDMA_CHANNEL_DISCONNECTING)
+		return;
 
 	spin_lock_irqsave(&ch->recv_lock, flags);
 	ib_req_notify_cq(ch->rcq, IB_CQ_NEXT_COMP);
