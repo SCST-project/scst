@@ -989,15 +989,16 @@ static int scst_fake_lld_driver_probe(struct device *dev)
 	hpnt->max_lun = scst_local_max_luns - 1;
 
 	/*
-	 * Because of a change in the size of this field around 2.6.26
+	 * Because of a change in the size of this field at 2.6.26
 	 * we use this check ... it allows us to work on earlier
-	 * kernels. If we don't, the max_cmd_size gets set to 4 (and we get
+	 * kernels. If we don't,  max_cmd_size gets set to 4 (and we get
 	 * a compiler warning) so a scan never occurs.
 	 */
-	if (sizeof(hpnt->max_cmd_len) == sizeof(unsigned char))
-		hpnt->max_cmd_len = 16;
-	else
-		hpnt->max_cmd_len = 260;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+	hpnt->max_cmd_len = 16;
+#else
+	hpnt->max_cmd_len = 260;
+#endif
 
 	ret = scsi_add_host(hpnt, &scst_lcl_host->dev);
 	if (ret) {
