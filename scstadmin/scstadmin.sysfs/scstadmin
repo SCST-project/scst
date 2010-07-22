@@ -1056,6 +1056,9 @@ sub writeConfiguration {
 					$t_lun_buff .= "\n";
 				}
 			}
+
+			$t_lun_buff .= "\n" if ($t_lun_buff);
+
 			my $groups = $CURRENT{'assign'}->{$driver}->{$target}->{'GROUP'};
 
 			my $group_buff;
@@ -2981,7 +2984,9 @@ sub readOldConfig {
 			my $targets = $SCST->targets($driver);
 
 			foreach my $target (@{$targets}) {
-				%{$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'enabled'}->{'0'}} = ();
+				my $enable = ($driver =~ /^qla/) ? 0 : 1;
+
+				%{$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'enabled'}->{$enable}} = ();
 
 				addAllGroupsToTarget(\%config, \%new, $driver, $target);
 			}
@@ -3003,7 +3008,9 @@ sub readOldConfig {
 					my $targets = $SCST->targets($driver);
 
 					foreach my $target (@{$targets}) {
-						$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'enabled'}->{'0'} = ()
+						my $enable = ($driver =~ /^qla/) ? 0 : 1;
+
+						$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'enabled'}->{$enable} = ()
 						  if (!defined($new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}));
 
 						$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'LUN'}->{$lun}->{$device} = {};
@@ -3021,8 +3028,9 @@ sub readOldConfig {
 					if ($target eq $group) {
 						foreach my $device (@{$config{'ASSIGNMENT'}->{$group}->{'DEVICE'}}) {
 							my($device, $lun) = split(/\,/, $device);
+							my $enable = ($driver =~ /^qla/) ? 0 : 1;
 
-							$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'enabled'}->{'0'} = ()
+							$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'enabled'}->{$enable} = ()
 							  if (!defined($new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}));
 
 							$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'LUN'}->{$lun}->{$device} = {};
@@ -3050,8 +3058,9 @@ sub addAllGroupsToTarget {
 	my $target = shift;
 
 	foreach my $group (keys %{$$config{'GROUP'}}) {
-		%{$$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'GROUP'}->{$group}} = ();
 		if (defined($$config{'GROUP'}->{$group}->{'USER'})) {
+			%{$$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'GROUP'}->{$group}} = ();
+
 			foreach my $user (@{$$config{'GROUP'}->{$group}->{'USER'}}) {
 				%{$$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'GROUP'}->{$group}->{'INITIATOR'}->{$user}} = ();
 			}
