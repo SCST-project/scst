@@ -84,3 +84,12 @@ The following tests must be run at least before releasing a new SRPT version:
     EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG_TM -DCONFIG_SCST_TM_DBG_GO_OFFLINE
 
 * Test with multiple values of ib_srp_tablesize in the range 1..128.
+
+* Verify that the initiator does not lock up while running the command:
+
+fio --bs=512 --buffered=0 --ioengine=sg --rw=read --invalidate=1 --thread --numjobs=8 --loops=10 --gtod_reduce=1 --name=/dev/sdb --filename=/dev/sdb
+
+  when target processing is delayed by the following command:
+
+echo 15 > /sys/module/ib_srpt/parameters/interrupt_processing_delay_in_us
+
