@@ -2530,9 +2530,10 @@ int scst_create_acn_sysfs(struct scst_acg *acg, struct scst_acn *acn)
 	int retval = 0;
 	int len;
 	struct kobj_attribute *attr = NULL;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34) && \
-    defined(CONFIG_DEBUG_LOCK_ALLOC))
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
 	static struct lock_class_key __key;
+#endif
 #endif
 
 	TRACE_ENTRY();
@@ -2558,9 +2559,10 @@ int scst_create_acn_sysfs(struct scst_acg *acg, struct scst_acn *acn)
 	strlcpy((char *)attr->attr.name, acn->name, len);
 
 	attr->attr.owner = THIS_MODULE;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34) && \
-    defined(CONFIG_DEBUG_LOCK_ALLOC))
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
 	attr->attr.key = &__key;
+#endif
 #endif
 
 	attr->attr.mode = S_IRUGO;
