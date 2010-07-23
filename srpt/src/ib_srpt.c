@@ -2729,6 +2729,12 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	scat = scst_cmd_get_sg(scmnd);
 	WARN_ON(!scat);
 	dir = scst_cmd_get_data_direction(scmnd);
+	BUG_ON(dir == SCST_DATA_NONE);
+	/*
+	 * Cache 'dir' because it is needed in srpt_unmap_sg_to_ib_sge()
+	 * and because scst_set_cmd_error_status() resets scmnd->data_direction.
+	 */
+	ioctx->dir = dir;
 	count = ib_dma_map_sg(ch->sport->sdev->device, scat,
 			      scst_cmd_get_sg_cnt(scmnd),
 			      scst_to_tgt_dma_dir(dir));
@@ -2904,8 +2910,8 @@ static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 		WARN_ON(ioctx != scst_cmd_get_tgt_priv(scmnd));
 		scat = scst_cmd_get_sg(scmnd);
 		WARN_ON(!scat);
-		dir = scst_cmd_get_data_direction(scmnd);
-		WARN_ON(dir == SCST_DATA_NONE);
+		dir = ioctx->dir;
+		BUG_ON(dir == SCST_DATA_NONE);
 		ib_dma_unmap_sg(ch->sport->sdev->device, scat,
 				scst_cmd_get_sg_cnt(scmnd),
 				scst_to_tgt_dma_dir(dir));
@@ -3113,7 +3119,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	enum srpt_command_state new_state;
 	s32 req_lim_delta;
 	int ret;
-	int dir;
+	scst_data_direction dir;
 	int resp_len;
 
 	ioctx = scst_cmd_get_tgt_priv(scmnd);
@@ -3931,3 +3937,10 @@ static void __exit srpt_cleanup_module(void)
 
 module_init(srpt_init_module);
 module_exit(srpt_cleanup_module);
+
+/*
+ * Local variables:
+ * c-basic-offset:   8
+ * indent-tabs-mode: t
+ * End:
+ */

@@ -187,6 +187,7 @@ struct srpt_ioctx {
 	struct list_head comp_list;
 	struct srpt_rdma_ch *ch;
 	struct scst_cmd *scmnd;
+	scst_data_direction dir;
 	atomic_t state;
 };
 
@@ -318,3 +319,10 @@ struct srpt_device {
 };
 
 #endif				/* IB_SRPT_H */
+
+/*
+ * Local variables:
+ * c-basic-offset:   8
+ * indent-tabs-mode: t
+ * End:
+ */
