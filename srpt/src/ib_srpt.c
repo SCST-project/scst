@@ -1064,20 +1064,21 @@ out:
  * been called. This value is necessary for filling in the REQUEST LIMIT DELTA
  * field of an SRP_RSP response.
  *
- * Side Effect: Modifies ch->last_response_req_lim.
+ * Side Effect:
+ * Increases ch->last_response_req_lim by 'delta', the value returned.
  */
 static int srpt_req_lim_delta(struct srpt_rdma_ch *ch)
 {
 	int req_lim;
 	unsigned long flags;
-	int res;
+	int delta;
 
 	req_lim = atomic_read(&ch->req_lim);
 	spin_lock_irqsave(&ch->cred_lock, flags);
-	res = req_lim - ch->last_response_req_lim;
+	delta = req_lim - ch->last_response_req_lim;
 	ch->last_response_req_lim = req_lim;
 	spin_unlock_irqrestore(&ch->cred_lock, flags);
-	return res;
+	return delta;
 }
 
 /**
@@ -3098,14 +3099,19 @@ out:
  * req_lim_min if that response would not increase initiator.req_lim. The last
  * condition is equivalent to srpt_req_lim_delta(ch) + 1 <= 0.
  *
- * See also: For more information about how to reproduce the initiator lockup,
- * see also http://bugzilla.kernel.org/show_bug.cgi?id=14235.
+ * If this function returns false, the caller must either send a response to
+ * the initiator with the REQUEST LIMIT DELTA field set to delta + 1 or call
+ * srpt_undo_req_lim_delta(ch, delta); where delta is the value written to
+ * the address that is the third argument of this function.
  *
  * Note: The constant 'compensate_for_incoming_requests' compensates for the
  * fact that if the initiator uses an I/O depth that is larger than one,
  * req_lim may have decreased towards req_lim_min after this function returned
  * and before the initiator has received and processed the SRP_RSP whose
  * REQUEST LIMIT DELTA field will have been set to *req_lim_delta.
+ *
+ * See also: For more information about how to reproduce the initiator lockup,
+ * see also http://bugzilla.kernel.org/show_bug.cgi?id=14235.
  */
 static bool srpt_must_wait_for_cred(struct srpt_rdma_ch *ch, int req_lim_min,
 				    int *req_lim_delta)
@@ -3114,7 +3120,7 @@ static bool srpt_must_wait_for_cred(struct srpt_rdma_ch *ch, int req_lim_min,
 	int delta;
 	unsigned long flags;
 	bool res;
-	enum { compensate_for_incoming_requests = 1 };
+	enum { compensate_for_incoming_requests = 3 };
 
 	EXTRACHECKS_BUG_ON(!req_lim_delta);
 
@@ -3136,10 +3142,19 @@ static bool srpt_must_wait_for_cred(struct srpt_rdma_ch *ch, int req_lim_min,
 	return res;
 }
 
+/**
+ * srpt_wait_for_cred() - Wait until sending a response won't lock up the
+ * initiator.
+ *
+ * The caller must either send a response to the initiator with the REQUEST
+ * LIMIT DELTA field set to delta + 1 or call srpt_undo_req_lim_delta(ch,
+ * delta); where delta is the return value of this function.
+ */
 static int srpt_wait_for_cred(struct srpt_rdma_ch *ch, int req_lim_min)
 {
 	int delta;
 
+	delta = 0; /* superfluous -- to keep sparse happy */
 	while (unlikely(srpt_must_wait_for_cred(ch, req_lim_min, &delta)))
 		schedule();
 	return delta;
