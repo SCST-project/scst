@@ -87,7 +87,7 @@ The following tests must be run at least before releasing a new SRPT version:
 
 * Verify that the initiator does not lock up while running the command:
 
-fio --bs=512 --buffered=0 --ioengine=sg --rw=read --invalidate=1 --thread --numjobs=8 --loops=10 --gtod_reduce=1 --name=/dev/sdb --filename=/dev/sdb
+fio --bs=512 --buffered=0 --ioengine=sg --rw=read --invalidate=1 --thread --numjobs=8 --loops=10 --gtod_reduce=1 --group_reporting --name=/dev/sdb --filename=/dev/sdb
 
   when target processing is delayed by the following command:
 
