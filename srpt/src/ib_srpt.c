@@ -3021,13 +3021,32 @@ out_unmap:
 static void srpt_pending_cmd_timeout(struct scst_cmd *scmnd)
 {
 	struct srpt_ioctx *ioctx;
+	enum srpt_command_state state;
 
 	ioctx = scst_cmd_get_tgt_priv(scmnd);
 	BUG_ON(!ioctx);
 
-	PRINT_ERROR("IB completion for wr_id %u has not been received in time"
-		    " (SRPT command state %d)",
-		    ioctx->index, srpt_get_cmd_state(ioctx));
+	state = srpt_get_cmd_state(ioctx);
+	switch (state) {
+	case SRPT_STATE_NEW:
+	case SRPT_STATE_DATA_IN:
+	case SRPT_STATE_DONE:
+		/*
+		 * srpt_pending_cmd_timeout() should never be invoked for
+		 * commands in this state.
+		 */
+		PRINT_ERROR("Processing SCST command %p (SRPT state %d) took"
+			    " too long -- aborting", scmnd, state);
+		break;
+	case SRPT_STATE_NEED_DATA:
+	case SRPT_STATE_CMD_RSP_SENT:
+	case SRPT_STATE_MGMT_RSP_SENT:
+	default:
+		PRINT_ERROR("Command %p: IB completion for wr_id %u has not"
+			    " been received in time (SRPT command state %d)",
+			    scmnd, ioctx->index, state);
+		break;
+	}
 
 	srpt_abort_scst_cmd(ioctx, SCST_CONTEXT_SAME);
 }
