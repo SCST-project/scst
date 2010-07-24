@@ -1182,13 +1182,11 @@ static void srpt_abort_scst_cmd(struct srpt_ioctx *ioctx,
 		 */
 		WARN_ON(!scst_cmd_aborted(scmnd));
 		break;
-	case SRPT_STATE_NEED_DATA:
-		/* RDMA read error or RDMA read timeout. */
 	case SRPT_STATE_DATA_IN:
-		/*
-		 * SCST command abort flag has been set after the RDMA read
-		 * started and before srpt_xmit_response() has been invoked.
-		 */
+		WARN_ON("ERROR: unexpected command state");
+		break;
+	case SRPT_STATE_NEED_DATA:
+		/* SCST_DATA_WRITE - RDMA read error or RDMA read timeout. */
 	case SRPT_STATE_CMD_RSP_SENT:
 		/*
 		 * SRP_RSP sending failed or the SRP_RSP send completion has
@@ -1592,7 +1590,7 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 	ioctx->ch = ch;
 	atomic_set(&ioctx->state, SRPT_STATE_NEW);
 
-	if (ch_state == RDMA_CHANNEL_DISCONNECTING) {
+	if (unlikely(ch_state == RDMA_CHANNEL_DISCONNECTING)) {
 		srpt_set_cmd_state(ioctx, SRPT_STATE_DONE);
 		srpt_reset_ioctx(ch, ioctx);
 		return;
@@ -2973,7 +2971,7 @@ out:
 }
 
 /**
- * srpt_xfer_data() - Start data transfer between initiator and target.
+ * srpt_xfer_data() - Start data transfer from initiator to target.
  *
  * Note: Must not block.
  */
@@ -3052,10 +3050,10 @@ static void srpt_pending_cmd_timeout(struct scst_cmd *scmnd)
 }
 
 /**
- * srpt_rdy_to_xfer() - SCST rdy_to_xfer callback.
+ * srpt_rdy_to_xfer() - SCST callback that fetches data from the initiator.
  *
  * Called by the SCST core to inform ib_srpt that data reception from the
- * initiator should start (SCST_DATA_WRITE). Must not block.
+ * initiator to the target should start (SCST_DATA_WRITE). Must not block.
  */
 static int srpt_rdy_to_xfer(struct scst_cmd *scmnd)
 {
@@ -3189,7 +3187,8 @@ static int srpt_wait_for_cred(struct srpt_rdma_ch *ch, int req_lim_min)
  * srpt_xmit_response() - SCST callback function that transmits the response
  * to a SCSI command.
  *
- * Must not block.
+ * Must not block. Must ensure that scst_tgt_cmd_done() will get invoked when
+ * returning SCST_TGT_RES_SUCCESS.
  */
 static int srpt_xmit_response(struct scst_cmd *scmnd)
 {
@@ -3207,6 +3206,11 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	ch = scst_sess_get_tgt_priv(scst_cmd_get_session(scmnd));
 	BUG_ON(!ch);
 
+	EXTRACHECKS_WARN_ON(srpt_get_cmd_state(ioctx) != SRPT_STATE_NEW
+			    && srpt_get_cmd_state(ioctx) != SRPT_STATE_DATA_IN);
+
+	new_state = srpt_set_cmd_state(ioctx, SRPT_STATE_CMD_RSP_SENT);
+
 	if (unlikely(scst_cmd_aborted(scmnd))) {
 		srpt_abort_scst_cmd(ioctx, srpt_context);
 		ret = SCST_TGT_RES_SUCCESS;
@@ -3214,9 +3218,6 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	}
 
 	EXTRACHECKS_BUG_ON(scst_cmd_atomic(scmnd));
-
-	new_state = srpt_set_cmd_state(ioctx, SRPT_STATE_CMD_RSP_SENT);
-	WARN_ON(new_state == SRPT_STATE_DONE);
 
 	dir = scst_cmd_get_data_direction(scmnd);
 
