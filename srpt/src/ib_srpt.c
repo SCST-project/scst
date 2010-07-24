@@ -1065,32 +1065,21 @@ out:
  * field of an SRP_RSP response.
  *
  * Side Effect:
- * Increases ch->last_response_req_lim by 'delta', the value returned.
+ * Resets ch->req_lim_delta.
  */
 static int srpt_req_lim_delta(struct srpt_rdma_ch *ch)
 {
-	int req_lim;
-	unsigned long flags;
-	int delta;
-
-	req_lim = atomic_read(&ch->req_lim);
-	spin_lock_irqsave(&ch->cred_lock, flags);
-	delta = req_lim - ch->last_response_req_lim;
-	ch->last_response_req_lim = req_lim;
-	spin_unlock_irqrestore(&ch->cred_lock, flags);
-	return delta;
+	return atomic_xchg(&ch->req_lim_delta, 0);
 }
 
 /**
  * srpt_undo_req_lim_delta() - Undo the side effect of srpt_req_lim_delta().
+ * @ch: Channel pointer.
+ * @delta: return value of srpt_req_lim_delta().
  */
 static void srpt_undo_req_lim_delta(struct srpt_rdma_ch *ch, int delta)
 {
-	unsigned long flags;
-
-	spin_lock_irqsave(&ch->cred_lock, flags);
-	ch->last_response_req_lim -= delta;
-	spin_unlock_irqrestore(&ch->cred_lock, flags);
+	atomic_add(delta, &ch->req_lim_delta);
 }
 
 /**
@@ -1132,6 +1121,7 @@ static void srpt_reset_ioctx(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 		if (req_lim < 0 || req_lim > SRPT_RQ_SIZE)
 			PRINT_ERROR("req_lim = %d out of range %d .. %d",
 				    req_lim, 0, SRPT_RQ_SIZE);
+		atomic_inc(&ch->req_lim_delta);
 	}
 }
 
@@ -1667,7 +1657,7 @@ err:
 	} else {
 		s32 req_lim_delta;
 
-		req_lim_delta = srpt_req_lim_delta(ch) + 1;
+		req_lim_delta = srpt_req_lim_delta(ch);
 		if (srp_cmd->opcode == SRP_TSK_MGMT)
 			len = srpt_build_tskmgmt_rsp(ch, ioctx, req_lim_delta,
 				     srp_tsk_mgmt_status,
@@ -2507,8 +2497,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	    cpu_to_be16(SRP_BUF_FORMAT_DIRECT | SRP_BUF_FORMAT_INDIRECT);
 	rsp->req_lim_delta = cpu_to_be32(SRPT_RQ_SIZE);
 	atomic_set(&ch->req_lim, SRPT_RQ_SIZE);
-	spin_lock_init(&ch->cred_lock);
-	ch->last_response_req_lim = SRPT_RQ_SIZE;
+	atomic_set(&ch->req_lim_delta, 0);
 
 	/* create cm reply */
 	rep_param->qp_num = ch->qp->qp_num;
@@ -3097,18 +3086,19 @@ out:
  * when target.req_lim == req_lim_min, initiator.req_lim must also equal
  * req_lim_min. Hence wait with sending a response when target.req_lim <=
  * req_lim_min if that response would not increase initiator.req_lim. The last
- * condition is equivalent to srpt_req_lim_delta(ch) + 1 <= 0.
+ * condition is equivalent to srpt_req_lim_delta(ch) <= 0.
  *
  * If this function returns false, the caller must either send a response to
- * the initiator with the REQUEST LIMIT DELTA field set to delta + 1 or call
+ * the initiator with the REQUEST LIMIT DELTA field set to delta or call
  * srpt_undo_req_lim_delta(ch, delta); where delta is the value written to
  * the address that is the third argument of this function.
  *
  * Note: The constant 'compensate_for_incoming_requests' compensates for the
- * fact that if the initiator uses an I/O depth that is larger than one,
- * req_lim may have decreased towards req_lim_min after this function returned
- * and before the initiator has received and processed the SRP_RSP whose
- * REQUEST LIMIT DELTA field will have been set to *req_lim_delta.
+ * race that the initiators req_lim value may have been further decreased
+ * towards req_lim_min after this function returned and before the initiator
+ * has received and processed the SRP_RSP whose REQUEST LIMIT DELTA field will
+ * have been set to *req_lim_delta. Fixing this race requires support for
+ * SRP_CRED_REQ in the initiator.
  *
  * See also: For more information about how to reproduce the initiator lockup,
  * see also http://bugzilla.kernel.org/show_bug.cgi?id=14235.
@@ -3118,7 +3108,6 @@ static bool srpt_must_wait_for_cred(struct srpt_rdma_ch *ch, int req_lim_min,
 {
 	int req_lim;
 	int delta;
-	unsigned long flags;
 	bool res;
 	enum { compensate_for_incoming_requests = 3 };
 
@@ -3130,14 +3119,19 @@ static bool srpt_must_wait_for_cred(struct srpt_rdma_ch *ch, int req_lim_min,
 		res = false;
 		*req_lim_delta = srpt_req_lim_delta(ch);
 	} else {
-		spin_lock_irqsave(&ch->cred_lock, flags);
-		delta = req_lim - ch->last_response_req_lim;
-		if (delta + 1 > 0) {
-			res = false;
-			ch->last_response_req_lim = req_lim;
-			*req_lim_delta = delta;
-		}
-		spin_unlock_irqrestore(&ch->cred_lock, flags);
+		bool again;
+		do {
+			again = false;
+			delta = atomic_read(&ch->req_lim_delta);
+			if (delta > 0) {
+				if (atomic_cmpxchg(&ch->req_lim_delta, delta, 0)
+				    == delta) {
+					res = false;
+					*req_lim_delta = delta;
+				} else
+					again = true;
+			}
+		} while (again);
 	}
 	return res;
 }
@@ -3154,9 +3148,21 @@ static int srpt_wait_for_cred(struct srpt_rdma_ch *ch, int req_lim_min)
 {
 	int delta;
 
+#if 0
+	bool debug_print = atomic_read(&ch->req_lim) <= req_lim_min + 1;
+	if (debug_print)
+		PRINT_INFO("srpt_wait_for_cred(): min %d, req_lim %d,"
+			   " req_lim_delta %d", req_lim_min,
+			   atomic_read(&ch->req_lim),
+			   atomic_read(&ch->req_lim_delta));
+#endif
 	delta = 0; /* superfluous -- to keep sparse happy */
 	while (unlikely(srpt_must_wait_for_cred(ch, req_lim_min, &delta)))
 		schedule();
+#if 0
+	if (debug_print)
+		PRINT_INFO("srpt_wait_for_cred() returns %d", delta);
+#endif
 	return delta;
 }
 
@@ -3209,7 +3215,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 		}
 	}
 
-	req_lim_delta = srpt_wait_for_cred(ch, 1) + 1;
+	req_lim_delta = srpt_wait_for_cred(ch, 1);
 
 	resp_len = srpt_build_cmd_rsp(ch, ioctx, req_lim_delta,
 				      scst_cmd_get_tag(scmnd),
@@ -3265,7 +3271,7 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 	new_state = srpt_set_cmd_state(ioctx, SRPT_STATE_MGMT_RSP_SENT);
 	WARN_ON(new_state == SRPT_STATE_DONE);
 
-	req_lim_delta = srpt_wait_for_cred(ch, 0) + 1;
+	req_lim_delta = srpt_wait_for_cred(ch, 0);
 
 	rsp_len = srpt_build_tskmgmt_rsp(ch, ioctx, req_lim_delta,
 					 (scst_mgmt_cmd_get_status(mcmnd) ==

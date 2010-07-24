@@ -226,9 +226,7 @@ enum rdma_ch_state {
  * @req_lim:       request limit: maximum number of requests that may be sent
  *                 by the initiator without having received a response or
  *                 SRP_CRED_REQ.
- * @cred_lock:     protects last_response_req_lim.
- * @last_response_req_lim: value of req_lim the last time a response or
- *                 SRP_CRED_REQ was sent.
+ * @req_lim_delta: req_lim_delta to be sent in the next SRP_RSP.
  * @state:         channel state. See also enum rdma_ch_state.
  * @list:          node for insertion in the srpt_device::rch_list list.
  * @cmd_wait_list: list of SCST commands that arrived before the RTU event. This
@@ -249,8 +247,7 @@ struct srpt_rdma_ch {
 	u8 t_port_id[16];
 	int max_ti_iu_len;
 	atomic_t req_lim;
-	spinlock_t cred_lock;
-	int32_t last_response_req_lim;
+	atomic_t req_lim_delta;
 	atomic_t state;
 	struct list_head list;
 	struct list_head cmd_wait_list;
