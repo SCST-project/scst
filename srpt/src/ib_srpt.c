@@ -134,6 +134,11 @@ module_param(srpt_srq_size, int, 0444);
 MODULE_PARM_DESC(srpt_srq_size,
 		 "Shared receive queue (SRQ) size.");
 
+static int srpt_sq_size = DEF_SRPT_SQ_SIZE;
+module_param(srpt_sq_size, int, 0444);
+MODULE_PARM_DESC(srpt_sq_size,
+		 "Per-channel send queue (SQ) size.");
+
 static int use_port_guid_in_session_name;
 module_param(use_port_guid_in_session_name, bool, 0444);
 MODULE_PARM_DESC(use_port_guid_in_session_name,
@@ -2030,17 +2035,17 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 	ch->scq = ib_create_cq(sdev->device,
 			       thread == MODE_SINGLE_THREADED
 			       ? srpt_send_completion_st : srpt_send_completion,
-			       NULL, ch, SRPT_SQ_SIZE);
+			       NULL, ch, srpt_sq_size);
 #else
 	ch->scq = ib_create_cq(sdev->device,
 			       thread == MODE_SINGLE_THREADED
 			       ? srpt_send_completion_st : srpt_send_completion,
-			       NULL, ch, SRPT_SQ_SIZE, 0);
+			       NULL, ch, srpt_sq_size, 0);
 #endif
 	if (IS_ERR(ch->scq)) {
 		ret = PTR_ERR(ch->scq);
 		PRINT_ERROR("failed to create CQ cqe= %d ret= %d",
-			    SRPT_SQ_SIZE, ret);
+			    srpt_sq_size, ret);
 		goto out_destroy_rcq;
 	}
 
@@ -2059,7 +2064,7 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 	qp_init->srq = sdev->srq;
 	qp_init->sq_sig_type = IB_SIGNAL_REQ_WR;
 	qp_init->qp_type = IB_QPT_RC;
-	qp_init->cap.max_send_wr = SRPT_SQ_SIZE;
+	qp_init->cap.max_send_wr = srpt_sq_size;
 	qp_init->cap.max_send_sge = SRPT_DEF_SG_PER_WQE;
 
 	ch->qp = ib_create_qp(sdev->pd, qp_init);
@@ -3200,6 +3205,8 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	scst_data_direction dir;
 	int resp_len;
 
+	ret = SCST_TGT_RES_SUCCESS;
+
 	ioctx = scst_cmd_get_tgt_priv(scmnd);
 	BUG_ON(!ioctx);
 
@@ -3213,15 +3220,12 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 
 	if (unlikely(scst_cmd_aborted(scmnd))) {
 		srpt_abort_scst_cmd(ioctx, srpt_context);
-		ret = SCST_TGT_RES_SUCCESS;
 		goto out;
 	}
 
 	EXTRACHECKS_BUG_ON(scst_cmd_atomic(scmnd));
 
 	dir = scst_cmd_get_data_direction(scmnd);
-
-	ret = SCST_TGT_RES_SUCCESS;
 
 	/* For read commands, transfer the data to the initiator. */
 	if (dir == SCST_DATA_READ && scst_cmd_get_resp_data_len(scmnd)) {
@@ -3916,6 +3920,13 @@ static int __init srpt_init_module(void)
 			    " srpt_srq_size -- must be in the range [%d..%d].",
 			    srpt_srq_size, MIN_SRPT_SRQ_SIZE,
 			    MAX_SRPT_SRQ_SIZE);
+		goto out;
+	}
+
+	if (srpt_sq_size < MIN_SRPT_SQ_SIZE) {
+		PRINT_ERROR("invalid value %d for kernel module parameter"
+			    " srpt_sq_size -- must be at least %d.",
+			    srpt_srq_size, MIN_SRPT_SQ_SIZE);
 		goto out;
 	}
 
