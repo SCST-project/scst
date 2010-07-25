@@ -1702,37 +1702,6 @@ err:
 }
 
 /**
- * srpt_test_ioctx_list() - Returns false if the kernel thread should sleep.
- *
- * @pre thread == MODE_SINGLE_THREADED
- * @pre the caller holds a lock on srpt_thread.thread_lock
- */
-static inline int srpt_test_ioctx_list(void)
-{
-	EXTRACHECKS_WARN_ON(thread != MODE_SINGLE_THREADED);
-
-	return !list_empty(&srpt_thread.thread_ioctx_list)
-		|| unlikely(kthread_should_stop());
-}
-
-/**
- * srpt_schedule_thread() - Add 'ioctx' to the tail of the ioctx list.
- *
- * @pre thread == MODE_SINGLE_THREADED
- */
-static inline void srpt_schedule_thread(struct srpt_ioctx *ioctx)
-{
-	unsigned long flags;
-
-	EXTRACHECKS_WARN_ON(thread != MODE_SINGLE_THREADED);
-
-	spin_lock_irqsave(&srpt_thread.thread_lock, flags);
-	list_add_tail(&ioctx->comp_list, &srpt_thread.thread_ioctx_list);
-	spin_unlock_irqrestore(&srpt_thread.thread_lock, flags);
-	wake_up(&ioctx_list_waitQ);
-}
-
-/**
  * srpt_rcv_completion() - IB receive completion queue callback function.
  *
  * Note:
@@ -1846,6 +1815,30 @@ static void srpt_send_completion(struct ib_cq *cq, void *ctx)
 }
 
 /**
+ * srpt_schedule_thread() - Add 'ioctx' to the tail of the ioctx list.
+ *
+ * @pre thread == MODE_SINGLE_THREADED
+ */
+static inline void srpt_schedule_thread(struct srpt_ioctx *ioctx)
+{
+	unsigned long flags;
+#ifdef CONFIG_SCST_EXTRACHECKS
+	struct srpt_ioctx *e;
+#endif
+
+	EXTRACHECKS_WARN_ON(thread != MODE_SINGLE_THREADED);
+
+	spin_lock_irqsave(&srpt_thread.thread_lock, flags);
+#ifdef CONFIG_SCST_EXTRACHECKS
+	list_for_each_entry(e, &srpt_thread.thread_ioctx_list, comp_list)
+		EXTRACHECKS_WARN_ON(e == ioctx);
+#endif
+	list_add_tail(&ioctx->comp_list, &srpt_thread.thread_ioctx_list);
+	spin_unlock_irqrestore(&srpt_thread.thread_lock, flags);
+	wake_up(&ioctx_list_waitQ);
+}
+
+/**
  * srpt_rcv_completion_st() - Single-threaded mode receive completion handler.
  */
 static void srpt_rcv_completion_st(struct ib_cq *cq, void *ctx)
@@ -1895,6 +1888,20 @@ static void srpt_send_completion_st(struct ib_cq *cq, void *ctx)
 		ioctx->opcode = wc.opcode;
 		srpt_schedule_thread(ioctx);
 	}
+}
+
+/**
+ * srpt_test_ioctx_list() - Returns false if the kernel thread should sleep.
+ *
+ * @pre thread == MODE_SINGLE_THREADED
+ * @pre the caller holds a lock on srpt_thread.thread_lock
+ */
+static inline int srpt_test_ioctx_list(void)
+{
+	EXTRACHECKS_WARN_ON(thread != MODE_SINGLE_THREADED);
+
+	return !list_empty(&srpt_thread.thread_ioctx_list)
+		|| unlikely(kthread_should_stop());
 }
 
 /**
@@ -1949,6 +1956,7 @@ static int srpt_ioctx_thread(void *arg)
 			wr_id = ioctx->wr_id;
 			status = ioctx->status;
 			opcode = ioctx->opcode;
+			BUG_ON(!ch);
 
 			if (wr_id & SRPT_OP_RECV) {
 				int req_lim;
@@ -2128,6 +2136,15 @@ static void srpt_unregister_channel(struct srpt_rdma_ch *ch)
 	ib_req_notify_cq(ch->rcq, 0);
 	spin_unlock_irqrestore(&ch->recv_lock, flags);
 
+	if (thread == MODE_SINGLE_THREADED)
+		flush_scheduled_work();
+
+	/*
+	 * At this point it is guaranteed that no new commands will be sent to
+	 * the SCST core for channel ch, which is a requirement for
+	 * scst_unregister_session().
+	 */
+
 	TRACE_DBG("unregistering session %p", ch->scst_sess);
 	scst_unregister_session(ch->scst_sess, 0, srpt_release_channel);
 	spin_lock_irq(&sdev->spinlock);
@@ -2212,6 +2229,7 @@ static struct srpt_rdma_ch *srpt_find_channel(struct srpt_device *sdev,
 static void srpt_release_channel(struct scst_session *scst_sess)
 {
 	struct srpt_rdma_ch *ch;
+	struct ib_wc wc;
 
 	TRACE_ENTRY();
 
@@ -2223,9 +2241,21 @@ static void srpt_release_channel(struct scst_session *scst_sess)
 	BUG_ON(!ch->cm_id);
 	ib_destroy_cm_id(ch->cm_id);
 
+	/*
+	 * At this point it is guaranteed that no new completions will be
+	 * received and also that no completion handler is still accessing ch.
+	 */
+
 	ib_destroy_qp(ch->qp);
+
+	while (ib_poll_cq(ch->scq, 1, &wc) > 0)
+		;
 	ib_destroy_cq(ch->scq);
+
+	while (ib_poll_cq(ch->rcq, 1, &wc) > 0)
+		;
 	ib_destroy_cq(ch->rcq);
+
 	kfree(ch);
 
 	TRACE_EXIT();
