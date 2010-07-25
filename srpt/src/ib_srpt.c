@@ -1188,7 +1188,13 @@ static void srpt_abort_scst_cmd(struct srpt_ioctx *ioctx,
 		WARN_ON(!scst_cmd_aborted(scmnd));
 		break;
 	case SRPT_STATE_DATA_IN:
-		WARN_ON("ERROR: unexpected command state");
+		/*
+		 * Invocation of srpt_pending_cmd_timeout() after
+		 * srpt_handle_rdma_comp() set the state to SRPT_STATE_DATA_IN
+		 * and before srpt_xmit_response() set the state to
+		 * SRPT_STATE_CMD_RSP_SENT. Ignore the timeout and let
+		 * srpt_handle_xmit_response() proceed.
+		 */
 		break;
 	case SRPT_STATE_NEED_DATA:
 		/* SCST_DATA_WRITE - RDMA read error or RDMA read timeout. */
