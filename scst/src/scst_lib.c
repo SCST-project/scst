@@ -2375,6 +2375,9 @@ bool scst_is_relative_target_port_id_unique(uint16_t id,
 		list_for_each_entry(tgt, &tgtt->tgt_list, tgt_list_entry) {
 			if (tgt == t)
 				continue;
+			if ((tgt->tgtt->is_target_enabled != NULL) &&
+			     !tgt->tgtt->is_target_enabled(tgt))
+				continue;
 			if (id == tgt->rel_tgt_id) {
 				res = false;
 				break;
