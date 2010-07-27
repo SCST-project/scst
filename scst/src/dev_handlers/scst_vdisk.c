@@ -473,7 +473,7 @@ static struct scst_dev_type vdisk_blk_devtype = {
 	.add_device =		vdisk_add_blockio_device,
 	.del_device =		vdisk_del_device,
 	.dev_attrs =		vdisk_blockio_attrs,
-	.add_device_parameters = "filename, blocksize, read_only, "
+	.add_device_parameters = "filename, blocksize, nv_cache, read_only, "
 		"removable",
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
