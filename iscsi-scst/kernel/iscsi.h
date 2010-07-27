@@ -444,8 +444,8 @@ struct iscsi_cmnd {
 	unsigned int r2t_len_to_send;
 	unsigned int outstanding_r2t;
 	u32 target_task_tag;
-	u32 hdigest;
-	u32 ddigest;
+	__be32 hdigest;
+	__be32 ddigest;
 
 	struct list_head cmd_list_entry;
 	struct list_head nop_req_list_entry;

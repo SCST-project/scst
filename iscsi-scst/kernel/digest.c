@@ -57,7 +57,7 @@ int digest_init(struct iscsi_conn *conn)
 	return 0;
 }
 
-static u32 evaluate_crc32_from_sg(struct scatterlist *sg, int nbytes,
+static __be32 evaluate_crc32_from_sg(struct scatterlist *sg, int nbytes,
 	uint32_t padding)
 {
 	u32 crc = ~0;
@@ -82,10 +82,10 @@ static u32 evaluate_crc32_from_sg(struct scatterlist *sg, int nbytes,
 		crc = crc32c(crc, (u8 *)&padding, pad_bytes);
 #endif
 
-	return ~cpu_to_le32(crc);
+	return (__force __be32)~cpu_to_le32(crc);
 }
 
-static u32 digest_header(struct iscsi_pdu *pdu)
+static __be32 digest_header(struct iscsi_pdu *pdu)
 {
 	struct scatterlist sg[2];
 	unsigned int nbytes = sizeof(struct iscsi_hdr);
@@ -102,13 +102,13 @@ static u32 digest_header(struct iscsi_pdu *pdu)
 	return evaluate_crc32_from_sg(sg, nbytes, 0);
 }
 
-static u32 digest_data(struct iscsi_cmnd *cmd, u32 size, u32 offset,
+static __be32 digest_data(struct iscsi_cmnd *cmd, u32 size, u32 offset,
 	uint32_t padding)
 {
 	struct scatterlist *sg = cmd->sg;
 	int idx, count;
 	struct scatterlist saved_sg;
-	u32 crc;
+	__be32 crc;
 
 	offset += sg[0].offset;
 	idx = offset >> PAGE_SHIFT;
@@ -132,7 +132,7 @@ static u32 digest_data(struct iscsi_cmnd *cmd, u32 size, u32 offset,
 
 int digest_rx_header(struct iscsi_cmnd *cmnd)
 {
-	u32 crc;
+	__be32 crc;
 
 	crc = digest_header(&cmnd->pdu);
 	if (unlikely(crc != cmnd->hdigest)) {
@@ -154,7 +154,8 @@ int digest_rx_data(struct iscsi_cmnd *cmnd)
 {
 	struct iscsi_cmnd *req;
 	struct iscsi_data_out_hdr *req_hdr;
-	u32 offset, crc;
+	u32 offset;
+	__be32 crc;
 	int res = 0;
 
 	switch (cmnd_opcode(cmnd)) {
