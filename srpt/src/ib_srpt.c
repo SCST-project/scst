@@ -104,10 +104,10 @@ MODULE_PARM_DESC(trace_flag,
 		 "Trace flags for the ib_srpt kernel module.");
 #endif
 #if defined(CONFIG_SCST_DEBUG)
-static unsigned long interrupt_processing_delay_in_us;
-module_param(interrupt_processing_delay_in_us, long, 0744);
-MODULE_PARM_DESC(interrupt_processing_delay_in_us,
-		 "CQ completion handler interrupt delay in microseconds.");
+static unsigned long processing_delay_in_us;
+module_param(processing_delay_in_us, long, 0744);
+MODULE_PARM_DESC(processing_delay_in_us,
+		 "SRP_CMD processing delay in microseconds.");
 #endif
 
 static enum scst_exec_context srpt_context;
@@ -1087,6 +1087,11 @@ static void srpt_undo_req_lim_delta(struct srpt_rdma_ch *ch, int delta)
 	atomic_add(delta, &ch->req_lim_delta);
 }
 
+static void srpt_send_cred_req(struct srpt_rdma_ch *ch)
+{
+	/* To be implemented. */
+}
+
 /**
  * srpt_reset_ioctx() - Free up resources and post again for receiving.
  *
@@ -1122,11 +1127,19 @@ static void srpt_reset_ioctx(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 	else {
 		int req_lim;
 
-		req_lim = atomic_inc_return(&ch->req_lim);
-		if (req_lim < 0 || req_lim > SRPT_RQ_SIZE)
-			PRINT_ERROR("req_lim = %d out of range %d .. %d",
-				    req_lim, 0, SRPT_RQ_SIZE);
 		atomic_inc(&ch->req_lim_delta);
+		req_lim = atomic_inc_return(&ch->req_lim);
+		if (req_lim < 0 || req_lim > ch->rq_size)
+			PRINT_ERROR("req_lim = %d out of range %d .. %d",
+				    req_lim, 0, ch->rq_size);
+		if (ch->supports_cred_req) {
+			if (req_lim == ch->rq_size / 2
+			    && atomic_read(&ch->req_lim_delta) > ch->rq_size/4)
+				srpt_send_cred_req(ch);
+		} else {
+			if (atomic_add_unless(&ch->req_lim_waiter_count, -1, 0))
+				complete(&ch->req_lim_compl);
+		}
 	}
 }
 
@@ -1803,12 +1816,6 @@ static void srpt_send_completion(struct ib_cq *cq, void *ctx)
 #endif
 				srpt_handle_rdma_comp(ch, ioctx, context);
 			}
-
-#if defined(CONFIG_SCST_DEBUG)
-			if (interrupt_processing_delay_in_us
-			    <= MAX_UDELAY_MS * 1000)
-				udelay(interrupt_processing_delay_in_us);
-#endif
 		}
 	} while (ib_req_notify_cq(ch->scq, IB_CQ_NEXT_COMP
 				  | IB_CQ_REPORT_MISSED_EVENTS) > 0);
@@ -2021,6 +2028,8 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 	struct srpt_device *sdev = ch->sport->sdev;
 	int ret;
 
+	EXTRACHECKS_WARN_ON(ch->rq_size < 1);
+
 	ret = -ENOMEM;
 	qp_init = kzalloc(sizeof *qp_init, GFP_KERNEL);
 	if (!qp_init)
@@ -2031,17 +2040,17 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 	ch->rcq = ib_create_cq(sdev->device,
 			       thread == MODE_SINGLE_THREADED
 			       ? srpt_rcv_completion_st : srpt_rcv_completion,
-			       NULL, ch, SRPT_RQ_SIZE);
+			       NULL, ch, ch->rq_size);
 #else
 	ch->rcq = ib_create_cq(sdev->device,
 			       thread == MODE_SINGLE_THREADED
 			       ? srpt_rcv_completion_st : srpt_rcv_completion,
-			       NULL, ch, SRPT_RQ_SIZE, 0);
+			       NULL, ch, ch->rq_size, 0);
 #endif
 	if (IS_ERR(ch->rcq)) {
 		ret = PTR_ERR(ch->rcq);
 		PRINT_ERROR("failed to create CQ cqe= %d ret= %d",
-			    SRPT_RQ_SIZE, ret);
+			    ch->rq_size, ret);
 		goto out;
 	}
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) \
@@ -2464,6 +2473,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	memcpy(ch->t_port_id, req->target_port_id, 16);
 	ch->sport = &sdev->port[param->port - 1];
 	ch->cm_id = cm_id;
+	ch->rq_size = SRPT_RQ_SIZE;
 	atomic_set(&ch->state, RDMA_CHANNEL_CONNECTING);
 	INIT_LIST_HEAD(&ch->cmd_wait_list);
 
@@ -2532,11 +2542,14 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	rsp->max_it_iu_len = req->req_it_iu_len;
 	rsp->max_ti_iu_len = req->req_it_iu_len;
 	ch->max_ti_iu_len = it_iu_len;
+	ch->supports_cred_req = false;
 	rsp->buf_fmt =
 	    cpu_to_be16(SRP_BUF_FORMAT_DIRECT | SRP_BUF_FORMAT_INDIRECT);
-	rsp->req_lim_delta = cpu_to_be32(SRPT_RQ_SIZE);
-	atomic_set(&ch->req_lim, SRPT_RQ_SIZE);
+	rsp->req_lim_delta = cpu_to_be32(ch->rq_size);
+	atomic_set(&ch->req_lim, ch->rq_size);
 	atomic_set(&ch->req_lim_delta, 0);
+	atomic_set(&ch->req_lim_waiter_count, 0);
+	init_completion(&ch->req_lim_compl);
 
 	/* create cm reply */
 	rep_param->qp_num = ch->qp->qp_num;
@@ -3151,12 +3164,8 @@ out:
  * srpt_undo_req_lim_delta(ch, delta); where delta is the value written to
  * the address that is the third argument of this function.
  *
- * Note: The constant 'compensate_for_incoming_requests' compensates for the
- * race that the initiators req_lim value may have been further decreased
- * towards req_lim_min after this function returned and before the initiator
- * has received and processed the SRP_RSP whose REQUEST LIMIT DELTA field will
- * have been set to *req_lim_delta. Fixing this race requires support for
- * SRP_CRED_REQ in the initiator.
+ * Note: The constant 'compensation' compensates for the fact that multiple
+ * threads are processing SRP commands simultaneously.
  *
  * See also: For more information about how to reproduce the initiator lockup,
  * see also http://bugzilla.kernel.org/show_bug.cgi?id=14235.
@@ -3164,16 +3173,17 @@ out:
 static bool srpt_must_wait_for_cred(struct srpt_rdma_ch *ch, int req_lim_min,
 				    int *req_lim_delta)
 {
-	int req_lim;
 	int delta;
 	bool res;
-	enum { compensate_for_incoming_requests = 3 };
+	int compensation;
+	enum { default_vdisk_threads = 8 };
 
 	EXTRACHECKS_BUG_ON(!req_lim_delta);
 
+	compensation = min_t(int, default_vdisk_threads, num_online_cpus()) + 1;
 	res = true;
-	req_lim = atomic_read(&ch->req_lim);
-	if (req_lim > req_lim_min + compensate_for_incoming_requests) {
+	if (ch->supports_cred_req
+	    || atomic_read(&ch->req_lim) > req_lim_min + compensation) {
 		res = false;
 		*req_lim_delta = srpt_req_lim_delta(ch);
 	} else {
@@ -3214,9 +3224,15 @@ static int srpt_wait_for_cred(struct srpt_rdma_ch *ch, int req_lim_min)
 			   atomic_read(&ch->req_lim),
 			   atomic_read(&ch->req_lim_delta));
 #endif
+#if defined(CONFIG_SCST_DEBUG)
+	if (processing_delay_in_us <= MAX_UDELAY_MS * 1000)
+		udelay(processing_delay_in_us);
+#endif
 	delta = 0; /* superfluous -- to keep sparse happy */
-	while (unlikely(srpt_must_wait_for_cred(ch, req_lim_min, &delta)))
-		schedule();
+	while (unlikely(srpt_must_wait_for_cred(ch, req_lim_min, &delta))) {
+		atomic_inc(&ch->req_lim_waiter_count);
+		wait_for_completion(&ch->req_lim_compl);
+	}
 #if 0
 	if (debug_print)
 		PRINT_INFO("srpt_wait_for_cred() returns %d", delta);

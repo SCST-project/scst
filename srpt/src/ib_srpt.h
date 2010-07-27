@@ -215,6 +215,7 @@ enum rdma_ch_state {
 /**
  * struct srpt_rdma_ch - RDMA channel.
  * @cm_id:         IB CM ID associated with the channel.
+ * @rq_size:       IB receive queue size.
  * @qp:            IB queue pair used for communicating over this channel.
  * @sq_wr_avail:   number of work requests available in the send queue.
  * @rcq:           completion queue for receive operations over this channel.
@@ -224,10 +225,14 @@ enum rdma_ch_state {
  * @i_port_id:     128-bit initiator port identifier copied from SRP_LOGIN_REQ.
  * @t_port_id:     128-bit target port identifier copied from SRP_LOGIN_REQ.
  * @max_ti_iu_len: maximum target-to-initiator information unit length.
+ * @supports_cred_req: whether or not the initiator supports SRP_CRED_REQ.
  * @req_lim:       request limit: maximum number of requests that may be sent
  *                 by the initiator without having received a response or
  *                 SRP_CRED_REQ.
  * @req_lim_delta: req_lim_delta to be sent in the next SRP_RSP.
+ * @req_lim_waiter_count: number of threads waiting on req_lim_wait.
+ * @req_lim_compl: completion variable that is signalled every time req_lim
+ *                 has been incremented.
  * @state:         channel state. See also enum rdma_ch_state.
  * @list:          node for insertion in the srpt_device::rch_list list.
  * @cmd_wait_list: list of SCST commands that arrived before the RTU event. This
@@ -239,6 +244,7 @@ enum rdma_ch_state {
 struct srpt_rdma_ch {
 	struct ib_cm_id *cm_id;
 	struct ib_qp *qp;
+	int rq_size;
 	atomic_t sq_wr_avail;
 	spinlock_t recv_lock;
 	struct ib_cq *rcq;
@@ -247,8 +253,11 @@ struct srpt_rdma_ch {
 	u8 i_port_id[16];
 	u8 t_port_id[16];
 	int max_ti_iu_len;
+	bool supports_cred_req;
 	atomic_t req_lim;
 	atomic_t req_lim_delta;
+	atomic_t req_lim_waiter_count;
+	struct completion req_lim_compl;
 	atomic_t state;
 	struct list_head list;
 	struct list_head cmd_wait_list;
