@@ -2993,12 +2993,11 @@ sub readOldConfig {
 		}
 	}
 
-	# Now handle default groups
+	my $drivers = $SCST->drivers();
 
+	# Now handle default groups
 	foreach my $group (keys %{$config{'ASSIGNMENT'}}) {
 		next if ($group !~ /^Default/);
-
-		my $drivers = $SCST->drivers();
 
 		if ($group eq 'Default') { # Add to all targets
 			foreach my $device (@{$config{'ASSIGNMENT'}->{$group}->{'DEVICE'}}) {
@@ -3018,14 +3017,15 @@ sub readOldConfig {
 				}
 			}
 		} else {
-			$group =~ s/^Default\_//;
+			my $group_t = $group;
+			$group_t =~ s/^Default\_//;
 			my $found_t = FALSE;
 			# Find the associated target
 			foreach my $driver (@{$drivers}) {
 				my $targets = $SCST->targets($driver);
 
 				foreach my $target (@{$targets}) {
-					if ($target eq $group) {
+					if ($target eq $group_t) {
 						foreach my $device (@{$config{'ASSIGNMENT'}->{$group}->{'DEVICE'}}) {
 							my($device, $lun) = split(/\,/, $device);
 							my $enable = ($driver =~ /^qla/) ? 0 : 1;
@@ -3042,9 +3042,32 @@ sub readOldConfig {
 			}
 
 			if (!$found_t) {
-				print "WARNING: Unable to find target $group. Please ".
-				  "configure these assignments manually.\n\n";
+				print "WARNING: Unable to find target $group. I will add this target to ".
+				  "all drivers capable of creating targets.\n";
+
+				foreach my $driver (@{$drivers}) {
+					if ($SCST->driverIsVirtualCapable($driver)) {
+						foreach my $device (@{$config{'ASSIGNMENT'}->{$group}->{'DEVICE'}}) {
+							my($device, $lun) = split(/\,/, $device);
+							my $enable = ($driver =~ /^qla/) ? 0 : 1;
+
+							$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$group_t}->{'enabled'}->{$enable} = ();
+							$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$group_t}->{'LUN'}->{$lun}->{$device} = {};
+						}
+					}
+				}
 			}
+		}
+	}
+
+	# Fix drivers 'enabled' attributes
+	foreach my $driver (@{$drivers}) {
+		next if ($driver =~ /^qla/);
+
+		my $attributes = $SCST->driverAttributes($driver);
+
+		if (defined($$attributes{'enabled'})) {
+			$new{'TARGET_DRIVER'}->{$driver}->{'enabled'}->{'1'} = ();
 		}
 	}
 
