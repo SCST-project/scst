@@ -1396,11 +1396,7 @@ sub applyConfigDevices {
 
 	foreach my $handler (keys %{$handlers}) {
 		foreach my $device (@{$$handlers{$handler}}) {
-			if (!defined($$config{'HANDLER'}) ||
-			    !defined($$config{'HANDLER'}->{$handler}) ||
-			    !defined($$config{'HANDLER'}->{$handler}->{'DEVICE'}) ||
-			    !defined($$config{'HANDLER'}->{$handler}->{'DEVICE'}->{$device})) {
-
+			if (!defined($$config{'HANDLER'}->{$handler}->{'DEVICE'}->{$device})) {
 				my $attributes = $SCST->deviceAttributes($device);
 
 				next if (defined($$attributes{'scsi_device'}));
@@ -1421,12 +1417,32 @@ sub applyConfigDevices {
 			my $devices = $$handlers{$handler}->{'DEVICE'};
 
 			foreach my $device (sort keys %{$devices}) {
+				my %_attributes;
+				foreach my $item (keys %{$$devices{$device}}) {
+					next if ($item eq 'CREATE_ATTRIBUTES');
+					$_attributes{$item} = $$devices{$device}->{$item};
+				}
+
+				my $attributes = configToAttr(\%_attributes);
+				setDeviceAttributes($device, $attributes, $deletions)
+				  if (scalar keys %{$attributes});
+
 				next if (handlerHasDevice($handler, $device));
 
 				my $attributes = configToAttr($$devices{$device}->{'CREATE_ATTRIBUTES'});
 				openDevice($device, $handler, $attributes);
 			}
 		}
+
+		my %_attributes;
+		foreach my $item (keys %{$$handlers{$handler}}) {
+			next if ($item eq 'DEVICE');
+			$_attributes{$item} = $$handlers{$handler}->{$item};
+		}
+
+		my $attributes = configToAttr(\%_attributes);
+		setHandlerAttributes($handler, $attributes, $deletions) if (scalar keys %{$attributes});
+
 	}
 }
 
