@@ -5,8 +5,9 @@ SBINDIR := $(PREFIX)/usr/local/sbin
 
 all: perl-module
 
-install:
+install: all
 	$(MAKE) -C scst-$(MODULE_VERSION) install
+	install -d $(DESTDIR)$(SBINDIR)
 	install -m 755 $(TOOL) $(DESTDIR)$(SBINDIR)
 
 uninstall:

@@ -70,8 +70,10 @@ MOD_VERS := $(shell ls Module.symvers 2>/dev/null)
 
 install: all
 	-rm -f $(INSTALL_DIR)/scsi_tgt.ko
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_DEV=m \
-		modules_install
+	install -d $(INSTALL_DIR)
+	install -d $(INSTALL_DIR)/dev_handlers
+	install -m 644 dev_handlers/*.ko $(INSTALL_DIR)/dev_handlers
+	install -m 644 scst.ko $(INSTALL_DIR)
 	install -d $(INSTALL_DIR_H)
 	install -m 644 ../include/scst.h $(INSTALL_DIR_H)
 	install -m 644 ../include/scst_sgv.h $(INSTALL_DIR_H)
@@ -87,7 +89,7 @@ ifneq ($(MOD_VERS),)
 	install -m 644 Module.symvers $(INSTALL_DIR_H)
 endif
 	-/sbin/depmod -a $(KVER)
-	mkdir -p /var/lib/scst/pr
+	mkdir -p $(DESTDIR)/var/lib/scst/pr
 	@echo "****************************************************************"
 	@echo "*!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!*"
 	@echo "*!!                                                          !!*"
