@@ -2959,43 +2959,10 @@ sub readOldConfig {
 		}
 	}
 
-	foreach my $wwn (@{$config{'TARGETS'}->{'enable'}->{'HOST'}}) {
-		my $target = formatTarget($wwn);
-
-		my $driver = findTargetDriver($target);
-
-		if ($driver) {
-			%{$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'enabled'}->{'1'}} = ();
-			addAllGroupsToTarget(\%config, \%new, $driver, $target);
-		} else {
-			immediateExit("Unable to determine target driver information for target '$wwn'. ".
-			  "Please ensure this target driver is loaded.");
-		}
-	}
-
-	if (!scalar keys %{$new{'TARGET_DRIVER'}}) {
-		print "WARNING: No targets set to 'enable' within your configuration file. Please be sure to ".
-		  "save write your configuration with -write_config and review it carefully.\n\n";
-
-		# Fill in with known targets, all disabled.
-		my $drivers = $SCST->drivers();
-
-		foreach my $driver (@{$drivers}) {
-			my $targets = $SCST->targets($driver);
-
-			foreach my $target (@{$targets}) {
-				my $enable = ($driver =~ /^qla/) ? 0 : 1;
-
-				%{$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'enabled'}->{$enable}} = ();
-
-				addAllGroupsToTarget(\%config, \%new, $driver, $target);
-			}
-		}
-	}
-
 	my $drivers = $SCST->drivers();
+	my %added_targets;
 
-	# Now handle default groups
+	# Handle default groups
 	foreach my $group (keys %{$config{'ASSIGNMENT'}}) {
 		next if ($group !~ /^Default/);
 
@@ -3007,11 +2974,6 @@ sub readOldConfig {
 					my $targets = $SCST->targets($driver);
 
 					foreach my $target (@{$targets}) {
-						my $enable = ($driver =~ /^qla/) ? 0 : 1;
-
-						$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'enabled'}->{$enable} = ()
-						  if (!defined($new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}));
-
 						$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'LUN'}->{$lun}->{$device} = {};
 					}
 				}
@@ -3028,11 +2990,6 @@ sub readOldConfig {
 					if ($target eq $group_t) {
 						foreach my $device (@{$config{'ASSIGNMENT'}->{$group}->{'DEVICE'}}) {
 							my($device, $lun) = split(/\,/, $device);
-							my $enable = ($driver =~ /^qla/) ? 0 : 1;
-
-							$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'enabled'}->{$enable} = ()
-							  if (!defined($new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}));
-
 							$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'LUN'}->{$lun}->{$device} = {};
 						}
 
@@ -3049,10 +3006,8 @@ sub readOldConfig {
 					if ($SCST->driverIsVirtualCapable($driver)) {
 						foreach my $device (@{$config{'ASSIGNMENT'}->{$group}->{'DEVICE'}}) {
 							my($device, $lun) = split(/\,/, $device);
-							my $enable = ($driver =~ /^qla/) ? 0 : 1;
-
-							$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$group_t}->{'enabled'}->{$enable} = ();
 							$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$group_t}->{'LUN'}->{$lun}->{$device} = {};
+							$added_targets{$driver}->{$group_t} = TRUE;
 						}
 					}
 				}
@@ -3060,14 +3015,56 @@ sub readOldConfig {
 		}
 	}
 
+	my $has_enabled = FALSE;
+	foreach my $wwn (@{$config{'TARGETS'}->{'enable'}->{'HOST'}}) {
+		my $target = formatTarget($wwn);
+		my $driver = findTargetDriver($target);
+
+		if ($driver) {
+			%{$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'enabled'}->{'1'}} = ();
+			addAllGroupsToTarget(\%config, \%new, $driver, $target);
+			$has_enabled = TRUE;
+		} else {
+			immediateExit("Unable to determine target driver information for target '$wwn'. ".
+			  "Please ensure this target driver is loaded.");
+		}
+	}
+
+	if (!$has_enabled) {
+		print "WARNING: No targets set to 'enable' within your configuration file. Please be sure to ".
+		  "save write your configuration with -write_config and review it carefully.\n\n";
+
+		# Fill in with known targets, all disabled.
+		foreach my $driver (@{$drivers}) {
+			my $targets = $SCST->targets($driver);
+
+			foreach my $target (@{$targets}) {
+				addAllGroupsToTarget(\%config, \%new, $driver, $target);
+			}
+		}
+
+		# As well for any created targets
+		foreach my $driver (keys %added_targets) {
+			foreach my $target (keys %{$added_targets{$driver}}) {
+				addAllGroupsToTarget(\%config, \%new, $driver, $target);
+			}
+		}
+	}
+
 	# Fix drivers 'enabled' attributes
-	foreach my $driver (@{$drivers}) {
+	foreach my $driver (keys %{$new{'TARGET_DRIVER'}}) {
 		next if ($driver =~ /^qla/);
 
 		my $attributes = $SCST->driverAttributes($driver);
 
 		if (defined($$attributes{'enabled'})) {
-			$new{'TARGET_DRIVER'}->{$driver}->{'enabled'}->{'1'} = ();
+			$new{'TARGET_DRIVER'}->{$driver}->{'enabled'}->{'1'} = {};
+		}
+
+		foreach my $target (keys %{$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}}) {
+			next if (defined($new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{'enabled'}));
+
+			$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'enabled'}->{'1'} = {};
 		}
 	}
 
