@@ -1960,7 +1960,7 @@ static ssize_t scst_luns_mgmt_show(struct kobject *kobj,
 			    "param_name=value pairs separated by ';'\n"
 			    "\nThe following parameters available: read_only.";
 
-	return sprintf(buf, help);
+	return sprintf(buf, "%s", help);
 }
 
 static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
@@ -2309,7 +2309,7 @@ static ssize_t scst_ini_group_mgmt_show(struct kobject *kobj,
 	static char *help = "Usage: echo \"create GROUP_NAME\" >mgmt\n"
 			    "       echo \"del GROUP_NAME\" >mgmt\n";
 
-	return sprintf(buf, help);
+	return sprintf(buf, "%s", help);
 }
 
 static ssize_t scst_ini_group_mgmt_store(struct kobject *kobj,
@@ -2640,7 +2640,7 @@ static ssize_t scst_acg_ini_mgmt_show(struct kobject *kobj,
 			    "       echo \"clear\" "
 					">mgmt\n";
 
-	return sprintf(buf, help);
+	return sprintf(buf, "%s", help);
 }
 
 static ssize_t scst_acg_ini_mgmt_store(struct kobject *kobj,
@@ -3632,7 +3632,7 @@ static ssize_t scst_devt_pass_through_mgmt_show(struct kobject *kobj,
 {
 	char *help = "Usage: echo \"add_device H:C:I:L\" >mgmt\n"
 		     "       echo \"del_device H:C:I:L\" >mgmt\n";
-	return sprintf(buf, help);
+	return sprintf(buf, "%s", help);
 }
 
 static ssize_t scst_devt_pass_through_mgmt_store(struct kobject *kobj,
