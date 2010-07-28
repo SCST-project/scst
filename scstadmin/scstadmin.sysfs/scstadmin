@@ -848,7 +848,7 @@ sub writeConfiguration {
 				if (!defined($$handler_attrs{$attribute})) {
 					if (!$$attributes{$attribute}->{'static'}) {
 						if (defined($$attributes{$attribute}->{'keys'})) {
-							foreach my $key (@{$$attributes{$attribute}->{'keys'}}) {
+							foreach my $key (keys %{$$attributes{$attribute}->{'keys'}}) {
 								my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
 								$value = "\"$value\"" if ($value =~ / /);
 								$attribute_buff .= "\t\t$attribute $value\n"
