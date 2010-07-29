@@ -107,6 +107,9 @@ static int isns_get_ip(int fd)
 
 	err = getnameinfo(&lss.sa, sizeof(lss),
 			  eid, sizeof(eid), NULL, 0, 0);
+	if (err == EAI_AGAIN)
+		err = getnameinfo(&lss.sa, sizeof(lss),
+				  eid, sizeof(eid), NULL, 0, NI_NUMERICHOST);
 	if (err) {
 		log_error("getnameinfo error: %s!", get_error_str(err));
 		return err;
@@ -928,6 +931,7 @@ int isns_handle(int is_timeout)
 		break;
 	case ISNS_FUNC_DEV_DEREG_RSP:
 	case ISNS_FUNC_SCN_REG_RSP:
+	case ISNS_FUNC_SCN_DEREG_RSP:
 		break;
 	case ISNS_FUNC_SCN:
 		name = print_scn_pdu(hdr);
