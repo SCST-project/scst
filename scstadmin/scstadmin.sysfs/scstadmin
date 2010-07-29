@@ -560,11 +560,11 @@ sub main {
 			$all_good = TRUE;
 		};
 		defined($listTarget) && do {
-			$rc = listTargets($listTarget, $driver);
+			$rc = listTargets($driver, $listTarget);
 			$all_good = TRUE;
 		};
 		defined($listGroup) && do {
-			$rc = listGroups($listGroup, $driver, $target);
+			$rc = listGroups($driver, $target, $listGroup);
 			$all_good = TRUE;
 		};
 		$listSessions && do {
@@ -588,15 +588,15 @@ sub main {
 			$all_good = TRUE;
 		};
 		$listTargetAttr && do {
-			$rc = listTargetAttributes($listTargetAttr, $driver);
+			$rc = listTargetAttributes($driver, $listTargetAttr);
 			$all_good = TRUE;
 		};
 		$listLunAttr && do {
-			$rc = listLunAttributes($listLunAttr, $driver, $target, $group);
+			$rc = listLunAttributes($driver, $target, $group, $listLunAttr);
 			$all_good = TRUE;
 		};
 		$listInitiatorAttr && do {
-			$rc = listInitiatorAttributes($listInitiatorAttr, $driver, $target, $group);
+			$rc = listInitiatorAttributes($driver, $target, $group, $listInitiatorAttr);
 			$all_good = TRUE;
 		};
 		$setScstAttr && do {
@@ -616,23 +616,23 @@ sub main {
 			last SWITCH;
 		};
 		$setTargetAttr && do {
-			$rc = setTargetAttributes($setTargetAttr, $driver, $attributes, FALSE);
+			$rc = setTargetAttributes($driver, $setTargetAttr, $attributes, FALSE);
 			last SWITCH;
 		};
 		$setLunAttr && do {
-			$rc = setLunAttributes($setLunAttr, $driver, $target, $attributes, $group);
+			$rc = setLunAttributes($driver, $target, $setLunAttr, $attributes, $group);
 			last SWITCH;
 		};
 		$setInitiatorAttr && do {
-			$rc = setInitiatorAttributes($setInitiatorAttr, $driver, $target, $group, $attributes);
+			$rc = setInitiatorAttributes($driver, $target, $group, $setInitiatorAttr, $attributes);
 			last SWITCH;
 		};
 		$openDev && do {
-			$rc = openDevice($openDev, $handler, $attributes);
+			$rc = openDevice($handler, $openDev, $attributes);
 			last SWITCH;
 		};
 		$closeDev && do {
-			$rc = closeDevice($closeDev, $handler, $force);
+			$rc = closeDevice($handler, $closeDev, $force);
 			last SWITCH;
 		};
 		$resyncDev && do {
@@ -640,23 +640,23 @@ sub main {
 			last SWITCH;
 		};
 		$addGroup && do {
-			$rc = addGroup($addGroup, $driver, $target);
+			$rc = addGroup($driver, $target, $addGroup);
 			last SWITCH;
 		};
 		$removeGroup && do {
-			$rc = removeGroup($removeGroup, $driver, $target, $force);
+			$rc = removeGroup($driver, $target, $removeGroup, $force);
 			last SWITCH;
 		};
 		$addInitiator && do {
-			$rc = addInitiator($addInitiator, $driver, $target, $group);
+			$rc = addInitiator($driver, $target, $addInitiator, $group);
 			last SWITCH;
 		};
 		$removeInitiator && do {
-			$rc = removeInitiator($removeInitiator, $driver, $target, $group);
+			$rc = removeInitiator($driver, $target, $group, $removeInitiator);
 			last SWITCH;
 		};
 		$moveInitiator && do {
-			$rc = moveInitiator($moveInitiator, $driver, $target, $group, $to);
+			$rc = moveInitiator($driver, $target, $group, $moveInitiator, $to);
 			last SWITCH;
 		};
 		$clearInitiators && do {
@@ -664,15 +664,15 @@ sub main {
 			last SWITCH;
 		};
 		$addLun && do {
-			$rc = addLun($addLun, $driver, $target, $device, $attributes, $group);
+			$rc = addLun($driver, $target, $device, $addLun, $attributes, $group);
 			last SWITCH;
 		};
 		$removeLun && do {
-			$rc = removeLun($removeLun, $driver, $target, $device, $group);
+			$rc = removeLun($driver, $target, $device, $removeLun, $group);
 			last SWITCH;
 		};
 		$replaceLun && do {
-			$rc = replaceLun($replaceLun, $driver, $target, $group, $device, $attributes);
+			$rc = replaceLun($driver, $target, $group, $replaceLun, $device, $attributes);
 			last SWITCH;
 		};
 		$clearLuns && do {
@@ -1402,7 +1402,7 @@ sub applyConfigDevices {
 				next if (defined($$attributes{'scsi_device'}));
 
 				if ($deletions) {
-					closeDevice($device, $handler, $deletions);
+					closeDevice($handler, $device, $deletions);
 				} else {
 					print "-> Device '$device' is not in configuration. Use -force to close it.\n";
 				}
@@ -1424,13 +1424,18 @@ sub applyConfigDevices {
 				}
 
 				my $attributes = configToAttr(\%_attributes);
+
+				if (handlerHasDevice($handler, $device)) {
+					setDeviceAttributes($device, $attributes, $deletions)
+					  if (scalar keys %{$attributes});
+					next;
+				}
+
+				my $create_attrs = configToAttr($$devices{$device}->{'CREATE_ATTRIBUTES'});
+				openDevice($handler, $device, $create_attrs);
+
 				setDeviceAttributes($device, $attributes, $deletions)
 				  if (scalar keys %{$attributes});
-
-				next if (handlerHasDevice($handler, $device));
-
-				my $attributes = configToAttr($$devices{$device}->{'CREATE_ATTRIBUTES'});
-				openDevice($device, $handler, $attributes);
 			}
 		}
 
@@ -1463,7 +1468,7 @@ sub applyConfigAssignments {
 
 				if (!defined($$def_group{'LUN'}->{$lun}->{$device})) {
 					if ($deletions) {
-						removeLun($lun, $driver, $target, $device);
+						removeLun($driver, $target, $device, $lun);
 					} else {
 						print "-> Device '$device' at LUN '$lun' is not in configuration ".
 						  "for driver/target '$driver/$target'. ".
@@ -1483,7 +1488,7 @@ sub applyConfigAssignments {
 
 					if (!defined($$def_group{'LUN'}->{$lun}->{$device})) {
 						if ($deletions) {
-							removeLun($lun, $driver, $target, $device, $group);
+							removeLun($driver, $target, $device, $lun, $group);
 						} else {
 							print "-> Device '$device' at LUN '$lun' is not in configuration ".
 							  "for driver/target/group '$driver/$target/$group'. ".
@@ -1495,7 +1500,7 @@ sub applyConfigAssignments {
 				foreach my $init (@{$inits}) {
 					if (!defined($$def_group{'INITIATOR'}->{$init})) {
 						if ($deletions) {
-							removeInitiator($init, $driver, $target, $group);
+							removeInitiator($driver, $target, $group, $init);
 						} else {
 							print "-> Initiator '$init' is not in configuration ".
 							  "for driver/target/group '$driver/$target/$group'. ".
@@ -1506,7 +1511,7 @@ sub applyConfigAssignments {
 
 				if (!defined($$config{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'GROUP'}->{$group})) {
 					if ($deletions) {
-						removeGroup($group, $driver, $target);
+						removeGroup($driver, $target, $group);
 					} else {
 						print "-> Group '$group' is not in configuration. Use -force to remove.\n";
 					}
@@ -1575,7 +1580,7 @@ sub applyTargetAssignments {
 
 		my $attributes = configToAttr(\%_attributes);
 
-		setTargetAttributes($target, $driver, $attributes, $deletions);
+		setTargetAttributes($driver, $target, $attributes, $deletions);
 	}
 }
 
@@ -1586,7 +1591,7 @@ sub applyGroupAssignments {
 
 	foreach my $group (sort keys %{$groups}) {
 		if (!defined($CURRENT{'assign'}->{$driver}->{$target}->{'GROUP'}->{$group})) {
-			addGroup($group, $driver, $target);
+			addGroup($driver, $target, $group);
 		}
 
 
@@ -1605,7 +1610,7 @@ sub applyGroupAssignments {
 
 		my $attributes = configToAttr(\%_attributes);
 
-		setGroupAttributes($target, $driver, $group, $attributes);
+		setGroupAttributes($driver, $target, $group, $attributes);
 	}
 }
 
@@ -1632,7 +1637,7 @@ sub applyLunAssignments {
 
 			foreach my $device (sort keys %{$$luns{$lun}}) {
 				my $attributes = configToAttr($$luns{$lun}->{$device});
-				addLun($lun, $driver, $target, $device, $attributes, $group);
+				addLun($driver, $target, $device, $lun, $attributes, $group);
 			}
 		}
 	}
@@ -1648,7 +1653,7 @@ sub applyInitiatorAssignments {
 
 	foreach my $initiator (sort keys %{$initiators}) {
 		if (!groupHasInitiator($c_inits, $initiator)) {
-			addInitiator($initiator, $driver, $target, $group);
+			addInitiator($driver, $target, $group, $initiator);
 		}
 	}
 }
@@ -1664,7 +1669,7 @@ sub clearConfiguration {
 			foreach my $group (sort keys %{$$assignments{$driver}->{$target}->{'GROUP'}}) {
 				clearInitiators($driver, $target, $group);
 				clearLuns($driver, $target, $group);
-				removeGroup($group, $driver, $target, $force);
+				removeGroup($driver, $target, $group, $force);
 			}
 
 			clearLuns($driver, $target);
@@ -1683,7 +1688,7 @@ sub clearConfiguration {
 		foreach my $device (@{$$handlers{$handler}}) {
 			my $attributes = $SCST->deviceAttributes($device);
 			if (!defined($$attributes{'scsi_device'})) {
-				closeDevice($device, $handler, $force);
+				closeDevice($handler, $device, $force);
 			}
 		}
 	}
@@ -1908,9 +1913,9 @@ sub listGroup {
 }
 
 sub listGroups {
-	my $group = shift;
 	my $driver = shift;
 	my $target = shift;
+	my $group = shift;
 
 	if ($group && $driver && $target) {
 		return listGroup($driver, $target, $group);
@@ -2061,80 +2066,241 @@ sub listInitiatorAttributes {
 
 ####################################################################
 
+sub setScstAttribute {
+	shift;
+	shift;
+	shift;
+	shift;
+	my $attribute = shift;
+	my $value = shift;
+
+	print "-> Setting SCST attribute '$attribute' to value '$value': ";
+	my $rc = $SCST->setScstAttribute($attribute, $value);
+	print "done.\n";
+
+	return $rc;
+}
+
 sub setScstAttributes {
 	my $attributes = shift;
 
+	my $error = "-> WARNING: SCST lacks the settable attribute '%s', ignoring.\n\n";
 	my $_attributes = $SCST->scstAttributes();
 
-	foreach my $attribute (sort keys %{$attributes}) {
-		if (defined($$_attributes{$attribute}) &&
-		    !$$_attributes{$attribute}->{'static'}) {
-			my $value = $$attributes{$attribute};
-
-			next if ($$_attributes{$attribute}->{'value'} eq $value);
-
-			print "-> Setting SCST attribute '$attribute' to '$value': ";
-
-			my $rc = $SCST->setScstAttribute($attribute, $value);
-
-			print "done.\n";
-
-			immediateExit($SCST->errorString($rc)) if ($rc);
-		} else {
-			print "-> WARNING: SCST lacks the settable ".
-			  "attribute '$attribute', ignoring.\n\n";
-		}
-	}
+	return setAttributes(undef, undef, undef, undef, $attributes,
+	  $_attributes, $error, \&setScstAttribute);
 }
 
-sub setHandlerAttributes {
-	my $handler = shift;
-	my $attributes = shift;
+sub setDeviceAttribute {
+	shift;
+	shift;
+	shift;
+	my $device = shift;
+	my $attribute = shift;
+	my $value = shift;
 
-	my $_attributes = $SCST->handlerAttributes($handler);
+	print "-> Setting device attribute '$attribute' to value '$value' for device '$device': ";
+	my $rc = $SCST->setDeviceAttribute($device, $attribute, $value);
+	print "done.\n";
 
-	foreach my $attribute (sort keys %{$attributes}) {
-		if (defined($$_attributes{$attribute}) &&
-		    !$$_attributes{$attribute}->{'static'}) {
-			my $value = $$attributes{$attribute};
-
-			print "-> Setting handler attribute '$attribute' to '$value' for handler '$handler': ";
-
-			my $rc = $SCST->setHandlerAttribute($handler, $attribute, $value);
-
-			print "done.\n";
-
-			immediateExit($SCST->errorString($rc)) if ($rc);
-		} else {
-			print "-> WARNING: Handler '$handler' lacks the settable ".
-			  "attribute '$attribute', ignoring.\n\n";
-		}
-	}
+	return $rc;
 }
 
 sub setDeviceAttributes {
 	my $device = shift;
 	my $attributes = shift;
 
+	my $error = "-> WARNING: Device '$device' lacks the settable ".
+	  "attribute '%s', ignoring.\n\n";
 	my $_attributes = $SCST->deviceAttributes($device);
 
-	foreach my $attribute (sort keys %{$attributes}) {
-		if (defined($$_attributes{$attribute}) &&
-		    !$$_attributes{$attribute}->{'static'}) {
-			my $value = $$attributes{$attribute};
+	return setAttributes(undef, undef, undef, $device, $attributes,
+	  $_attributes, $error, \&setDeviceAttribute);
+}
 
-			next if ($$_attributes{$attribute}->{'value'} eq $value);
+sub setHandlerAttribute {
+	shift;
+	shift;
+	my $handler = shift;
+	my $attribute = shift;
+	my $value = shift;
 
-			print "-> Setting device attribute '$attribute' to value '$value' for device '$device': ";
+	print "-> Setting handler attribute '$attribute' to value '$value' for handler '$handler': ";
+	my $rc = $SCST->setHandlerAttribute($handler, $attribute, $value);
+	print "done.\n";
 
-			my $rc = $SCST->setDeviceAttribute($device, $attribute, $value);
+	return $rc;
+}
 
-			print "done.\n";
+sub setHandlerAttributes {
+	my $handler = shift;
+	my $attributes = shift;
 
-			immediateExit($SCST->errorString($rc)) if ($rc);
+	my $error = "-> WARNING: Handler '$handler' lacks the settable ".
+	  "attribute '%s', ignoring.\n\n";
+	my $_attributes = $SCST->handlerAttributes($handler);
+
+	return setAttributes(undef, undef, $handler, $attributes,
+	  $_attributes, $error, \&setHandlerAttribute);
+}
+
+sub setGroupAttribute {
+	shift;
+	my $driver = shift;
+	my $target = shift;
+	my $group = shift;
+	my $attribute = shift;
+	my $value = shift;
+
+	print "-> Setting group attribute '$attribute' to value '$value' for group '$group': ";
+	my $rc = $SCST->setGroupAttribute($driver, $target, $group, $attribute, $value);
+	print "done.\n";
+
+	return $rc;
+}
+
+sub setGroupAttributes {
+	my $driver = shift;
+	my $target = shift;
+	my $group = shift;
+	my $attributes = shift;
+
+	my $error = "-> WARNING: Driver/target/group '$driver/$target/$group' lacks the settable ".
+	  "attribute '%s', ignoring.\n\n";
+	my $_attributes = $SCST->groupAttributes($driver, $target, $group);
+
+	return setAttributes(undef, $driver, $target, $group, $attributes,
+	  $_attributes, $error, \&setGroupAttribute);
+}
+
+sub setLunAttribute {
+	my $driver = shift;
+	my $target = shift;
+	my $lun = shift;
+	my $group = shift;
+	my $attribute = shift;
+	my $value = shift;
+
+	if ($group) {
+		print "-> Setting LUN attribute '$attribute' to value '$value' for ".
+		  "driver/target/group/LUN '$driver/$target/$group/$lun': ";
+	} else {
+		print "-> Setting LUN attribute '$attribute' to value '$value' for ".
+		  "driver/target/LUN '$driver/$target/$lun': ";
+	}
+
+	my $rc = $SCST->setLunAttribute($driver, $target, $lun, $attribute, $value, $group);
+	print "done.\n";
+
+	return $rc;
+}
+
+sub setLunAttributes {
+	my $driver = shift;
+	my $target = shift;
+	my $lun = shift;
+	my $attributes = shift;
+	my $group = shift;
+	my $error;
+
+	if ($group) {
+		$error = "-> WARNING: Driver/target/group/LUN '$driver/$target/$group/$lun' ".
+		  "lacks the settable attribute '%s', ignoring.\n\n";
+	} else {
+		$error = "-> WARNING: Driver/target/LUN '$driver/$target/$lun' lacks the settable ".
+		  "attribute '%s', ignoring.\n\n";
+	}
+
+	my $_attributes = $SCST->lunAttributes($driver, $target, $lun, $group);
+
+	return setAttributes($driver, $target, $lun, $group, $attributes,
+	  $_attributes, $error, \&setLunAttribute);
+}
+
+sub setInitiatorAttribute {
+	my $driver = shift;
+	my $target = shift;
+	my $group = shift;
+	my $initiator = shift;
+	my $attribute = shift;
+	my $value = shift;
+
+	print "-> Setting initiator attribute '$attribute' to value '$value' for ".
+	  "driver/target/group/initiator '$driver/$target/$group/initiator': ";
+	my $rc = $SCST->setInitiatorAttribute($driver, $target, $group,
+	  $initiator, $attribute, $value);
+	print "done.\n";
+
+	return $rc;
+}
+
+sub setInitiatorAttributes {
+	my $driver = shift;
+	my $target = shift;
+	my $group = shift;
+	my $initiator = shift;
+	my $attributes = shift;
+
+	my $error = "-> WARNING: Driver/target/group/initiator '$driver/$target/$group/$initiator' ".
+	  "lacks the settable attribute '%s', ignoring.\n\n";
+	my $_attributes = $SCST->initiatorAttributes($driver, $target, $group, $initiator);
+
+	return setAttributes($driver, $target, $group, $initiator, $attributes,
+	  $_attributes, $error, \&setInitiatorAttribute);
+}
+
+# Sets any non-dynamic attributes
+sub setAttributes {
+	my $level1 = shift;
+	my $level2 = shift;
+	my $level3 = shift;
+	my $level4 = shift;
+	my $attributes = shift;
+	my $_attributes = shift;
+	my $error = shift;
+	my $callback = shift;
+	my %toset;
+	my %existing;
+
+	# build caches for easier matching
+	foreach my $attribute (keys %{$attributes}) {
+		if (ref($$attributes{$attribute}) eq 'ARRAY') {
+			foreach my $value (@{$$attributes{$attribute}}) {
+				$toset{$attribute}->{$value}++;
+			}
 		} else {
-			print "-> WARNING: Device '$device' lacks the settable ".
-			  "attribute '$attribute', ignoring.\n\n";
+			$toset{$attribute}->{$$attributes{$attribute}}++;
+		}
+	}
+
+	foreach my $attribute (keys %{$_attributes}) {
+		next if ($$_attributes{$attribute}->{'static'});
+
+		if (defined($$_attributes{$attribute}->{'keys'})) {
+			foreach my $key (keys %{$$_attributes{$attribute}->{'keys'}}) {
+				my $value = $$_attributes{$attribute}->{'keys'}->{$key}->{'value'};
+				$existing{$attribute}->{$value}++
+				  if (defined($value) && ($value ne ''));
+			}
+		} else {
+			my $value = $$_attributes{$attribute}->{'value'};
+			$existing{$attribute}->{$value} = FALSE
+			  if (defined($value) && ($value ne ''));
+		}
+	}
+
+	foreach my $attribute (keys %toset) {
+		foreach my $value (keys %{$toset{$attribute}}) {
+			if (!defined($existing{$attribute})) {
+				print sprintf($error, $attribute);
+				next;
+			}
+
+			# already set, move on
+			next if (defined($existing{$attribute}->{$value}));
+
+			# Set the existing attribute
+			$callback->($level1, $level2, $level3, $level4, $attribute, $value);
 		}
 	}
 }
@@ -2194,6 +2360,10 @@ sub setDriverAttributes {
 			if (!defined($existing{$attribute}) &&
 			    $driverCap && !$SCST->checkDriverDynamicAttributes($driver, $attribute)) {
 				addDriverDynamicAttribute($driver, $attribute, $value);
+				next;
+			} elsif (!defined($existing{$attribute})) {
+				print "-> WARNING: Driver '$driver' lacks the settable attribute ".
+				  "'$attribute', ignoring.\n\n";
 				next;
 			}
 
@@ -2257,8 +2427,8 @@ sub removeDriverDynamicAttribute {
 }
 
 sub setTargetAttribute {
-	my $target = shift;
 	my $driver = shift;
+	my $target = shift;
 	my $attribute = shift;
 	my $value = shift;
 
@@ -2271,8 +2441,8 @@ sub setTargetAttribute {
 }
 
 sub setTargetAttributes {
-	my $target = shift;
 	my $driver = shift;
+	my $target = shift;
 	my $attributes = shift;
 	my $deletions = shift;
 	my %toset;
@@ -2316,6 +2486,10 @@ sub setTargetAttributes {
 			    $driverCap && !$SCST->checkTargetDynamicAttributes($driver, $attribute)) {
 				addTargetDynamicAttribute($driver, $target, $attribute, $value);
 				next;
+			} elsif (!defined($existing{$attribute})) {
+				print "-> WARNING: Driver/target '$driver/$target' lacks the settable attribute ".
+				  "'$attribute', ignoring.\n\n";
+				next;
 			}
 
 			# already set, move on
@@ -2328,7 +2502,7 @@ sub setTargetAttributes {
 			if ($driverCap && !$SCST->checkTargetDynamicAttributes($driver, $attribute)) {
 				addTargetDynamicAttribute($driver, $target, $attribute, $value);
 			} else {
-				setTargetAttribute($target, $driver, $attribute, $value);
+				setTargetAttribute($driver, $target, $attribute, $value);
 			}
 
 			$existing{$attribute}->{$value} = TRUE;
@@ -2380,104 +2554,11 @@ sub removeTargetDynamicAttribute {
 	immediateExit($SCST->errorString($rc)) if ($rc);
 }
 
-sub setGroupAttributes {
-	my $target = shift;
-	my $driver = shift;
-	my $group = shift;
-	my $attributes = shift;
-
-	my $_attributes = $SCST->groupAttributes($driver, $target, $group);
-
-	foreach my $attribute (sort keys %{$attributes}) {
-		if (defined($$_attributes{$attribute}) &&
-		    !$$_attributes{$attribute}->{'static'}) {
-			my $value = $$attributes{$attribute};
-
-			next if ($$_attributes{$attribute}->{'value'} eq $value);
-
-			print "-> Setting group attribute '$attribute' to value '$value' for ".
-			  "driver/target/group '$driver/$target/$group': ";
-
-			my $rc = $SCST->setGroupAttribute($driver, $target, $group, $attribute, $value);
-
-			print "done.\n";
-
-			immediateExit($SCST->errorString($rc)) if ($rc);
-		} else {
-			print "-> WARNING: Driver/target/group '$driver/$target/$group' lacks the settable ".
-			  "attribute '$attribute', ignoring.\n\n";
-		}
-	}
-}
-
-sub setLunAttributes {
-	my $lun = shift;
-	my $driver = shift;
-	my $target = shift;
-	my $attributes = shift;
-	my $group = shift;
-
-	my $_attributes = $SCST->lunAttributes($driver, $target, $lun, $group);
-
-	foreach my $attribute (sort keys %{$attributes}) {
-		if (defined($$_attributes{$attribute}) &&
-		    !$$_attributes{$attribute}->{'static'}) {
-			my $value = $$attributes{$attribute};
-
-			next if ($$_attributes{$attribute}->{'value'} eq $value);
-
-			print "-> Setting LUN attribute '$attribute' to value '$value' for ".
-			  "driver/target/group/lun '$driver/$target/$group/$lun': ";
-
-			my $rc = $SCST->setLunAttribute($driver, $target, $lun, $attribute, $value, $group);
-
-			print "done.\n";
-
-			immediateExit($SCST->errorString($rc)) if ($rc);
-		} else {
-			print "-> WARNING: Driver/target/group/lun '$driver/$target/$group/$lun' lacks the settable ".
-			  "attribute '$attribute', ignoring.\n\n";
-		}
-	}
-}
-
-sub setInitiatorAttributes {
-	my $initiator = shift;
-	my $driver = shift;
-	my $target = shift;
-	my $group = shift;
-	my $attributes = shift;
-
-	my $_attributes = $SCST->initiatorAttributes($driver, $target, $group, $initiator);
-
-	foreach my $attribute (sort keys %{$attributes}) {
-		if (defined($$_attributes{$attribute}) &&
-		    !$$_attributes{$attribute}->{'static'}) {
-			my $value = $$attributes{$attribute};
-
-			next if ($$_attributes{$attribute}->{'value'} eq $value);
-
-			print "-> Setting initiator attribute '$attribute' to value '$value' for ".
-			  "driver/target/group/initiator '$driver/$target/$group/$initiator': ";
-
-			my $rc = $SCST->setInitiatorAttribute($driver, $target, $group, $initiator,
-			  $attribute, $value);
-
-			print "done.\n";
-
-			immediateExit($SCST->errorString($rc)) if ($rc);
-		} else {
-			print "-> WARNING: Driver/target/group/initiator '$driver/$target/$group/$initiator' ".
-			  "lacks the settable attribute '$attribute', ignoring.\n\n";
-		}
-	}
-}
-
 ####################################################################
 
 sub openDevice {
-	my $device = shift;
 	my $handler = shift;
+	my $device = shift;
 	my $attributes = shift;
 
 	print "-> Opening device '$device' using handler '$handler': ";
@@ -2490,8 +2571,8 @@ sub openDevice {
 }
 
 sub closeDevice {
-	my $device = shift;
 	my $handler = shift;
+	my $device = shift;
 	my $force = shift;
 
 	my $attributes = $SCST->deviceAttributes($device);
@@ -2527,9 +2608,9 @@ sub resyncDevice {
 ####################################################################
 
 sub addGroup {
-	my $group = shift;
 	my $driver = shift;
 	my $target = shift;
+	my $group = shift;
 
 	print "-> Adding new group '$group' to driver/target '$driver/$target': ";
 
@@ -2541,9 +2622,9 @@ sub addGroup {
 }
 
 sub removeGroup {
-	my $group = shift;
 	my $driver = shift;
 	my $target = shift;
+	my $group = shift;
 	my $force = shift;
 
 	if (!$force) {
@@ -2568,10 +2649,10 @@ sub removeGroup {
 ####################################################################
 
 sub addInitiator {
-	my $initiator = shift;
 	my $driver = shift;
 	my $target = shift;
 	my $group = shift;
+	my $initiator = shift;
 
 	print "-> Adding new initiator '$initiator' to driver/target/group ".
 	  "'$driver/$target/$group': ";
@@ -2584,10 +2665,10 @@ sub addInitiator {
 }
 
 sub removeInitiator {
-	my $initiator = shift;
 	my $driver = shift;
 	my $target = shift;
 	my $group = shift;
+	my $initiator = shift;
 
 	print "-> Removing initiator '$initiator' from driver/target/group ".
 	  "'$driver/$target/$group': ";
@@ -2600,10 +2681,10 @@ sub removeInitiator {
 }
 
 sub moveInitiator {
-	my $initiator = shift;
 	my $driver = shift;
 	my $target = shift;
 	my $group = shift;
+	my $initiator = shift;
 	my $to = shift;
 
 	print "-> Moving initiator '$initiator' from group '$group' to group '$to': ";
@@ -2632,10 +2713,10 @@ sub clearInitiators {
 ####################################################################
 
 sub addLun {
-	my $lun = shift;
 	my $driver = shift;
 	my $target = shift;
 	my $device = shift;
+	my $lun = shift;
 	my $attributes = shift;
 	my $group = shift;
 
@@ -2655,10 +2736,10 @@ sub addLun {
 }
 
 sub removeLun {
-	my $lun = shift;
 	my $driver = shift;
 	my $target = shift;
 	my $device = shift;
+	my $lun = shift;
 	my $group = shift;
 
 	if ($group) {
@@ -2677,10 +2758,10 @@ sub removeLun {
 }
 
 sub replaceLun {
-	my $lun = shift;
 	my $driver = shift;
 	my $target = shift;
 	my $group = shift;
+	my $lun = shift;
 	my $device = shift;
 	my $attributes = shift;
 
