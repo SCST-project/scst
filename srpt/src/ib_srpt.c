@@ -139,6 +139,11 @@ module_param(srpt_sq_size, int, 0444);
 MODULE_PARM_DESC(srpt_sq_size,
 		 "Per-channel send queue (SQ) size.");
 
+static bool srpt_autodetect_cred_req;
+module_param(srpt_autodetect_cred_req, bool, 0444);
+MODULE_PARM_DESC(srpt_autodetect_cred_req,
+	"Enables detection of whether the initiator supports SRP_CRED_REQ.");
+
 static int use_port_guid_in_session_name;
 module_param(use_port_guid_in_session_name, bool, 0444);
 MODULE_PARM_DESC(use_port_guid_in_session_name,
@@ -704,7 +709,8 @@ static void srpt_free_ioctx(struct srpt_device *sdev, struct srpt_ioctx *ioctx)
  */
 static int srpt_alloc_ioctx_ring(struct srpt_device *sdev,
 				 struct srpt_ioctx **ioctx_ring,
-				 int ring_size)
+				 int ring_size,
+				 int flags)
 {
 	int res;
 	int i;
@@ -718,7 +724,8 @@ static int srpt_alloc_ioctx_ring(struct srpt_device *sdev,
 		if (!ioctx_ring[i])
 			goto err;
 
-		ioctx_ring[i]->index = i;
+		EXTRACHECKS_WARN_ON(i & flags);
+		ioctx_ring[i]->index = i | flags;
 	}
 	res = 0;
 	goto out;
@@ -746,6 +753,61 @@ static void srpt_free_ioctx_ring(struct srpt_device *sdev,
 		srpt_free_ioctx(sdev, ioctx_ring[i]);
 		ioctx_ring[i] = NULL;
 	}
+}
+
+/**
+ * srpt_alloc_tti_ring() - Allocate target-to-initiator I/O contexts.
+ */
+static int srpt_alloc_tti_ioctx(struct srpt_rdma_ch *ch)
+{
+	return srpt_alloc_ioctx_ring(ch->sport->sdev, ch->tti_ioctx,
+				     ARRAY_SIZE(ch->tti_ioctx),
+				     SRPT_OP_TTI);
+}
+
+/**
+ * srpt_free_tti_ring() - Free target-to-initiator I/O contexts.
+ */
+static void srpt_free_tti_ioctx(struct srpt_rdma_ch *ch)
+{
+	srpt_free_ioctx_ring(ch->sport->sdev, ch->tti_ioctx,
+			     ARRAY_SIZE(ch->tti_ioctx));
+}
+
+/**
+ * srpt_get_tti_ioctx() - Get a target-to-initiator I/O context.
+ */
+static struct srpt_ioctx *srpt_get_tti_ioctx(struct srpt_rdma_ch *ch)
+{
+	struct srpt_ioctx *ioctx;
+	struct srpt_device *sdev;
+	unsigned long flags;
+
+	sdev = ch->sport->sdev;
+	spin_lock_irqsave(&sdev->spinlock, flags);
+	EXTRACHECKS_WARN_ON(ch->tti_head - ch->tti_tail < 0);
+	if (ch->tti_head - ch->tti_tail < TTI_IOCTX_COUNT)
+		ioctx = ch->tti_ioctx[ch->tti_head++ & TTI_IOCTX_MASK];
+	else
+		ioctx = NULL;
+	spin_unlock_irqrestore(&sdev->spinlock, flags);
+	return ioctx;
+}
+
+/**
+ * srpt_put_tti_ioctx() - Put back a target-to-initiator I/O context.
+ */
+static void srpt_put_tti_ioctx(struct srpt_rdma_ch *ch)
+{
+	struct srpt_device *sdev;
+	unsigned long flags;
+
+	sdev = ch->sport->sdev;
+	spin_lock_irqsave(&sdev->spinlock, flags);
+	EXTRACHECKS_WARN_ON(ch->tti_head - ch->tti_tail < 0);
+	ch->tti_tail++;
+	EXTRACHECKS_WARN_ON(ch->tti_head - ch->tti_tail < 0);
+	spin_unlock_irqrestore(&sdev->spinlock, flags);
 }
 
 /**
@@ -1087,9 +1149,51 @@ static void srpt_undo_req_lim_delta(struct srpt_rdma_ch *ch, int delta)
 	atomic_add(delta, &ch->req_lim_delta);
 }
 
-static void srpt_send_cred_req(struct srpt_rdma_ch *ch)
+/**
+ * srpt_send_cred_req() - Send an SRP_CRED_REQ IU to the initiator.
+ *
+ * The previous value of ch->req_lim_delta is restored if sending fails
+ * synchronously or asynchronously.
+ */
+static void srpt_send_cred_req(struct srpt_rdma_ch *ch, s32 req_lim_delta)
 {
-	/* To be implemented. */
+	struct srpt_ioctx *ioctx;
+	struct srp_cred_req *srp_cred_req;
+	int res;
+
+	ioctx = srpt_get_tti_ioctx(ch);
+	if (!ioctx) {
+		PRINT_ERROR("%s",
+		    "Sending SRP_CRED_REQ failed -- no I/O context"
+		    " available ! This will sooner or later result"
+		    " in an initiator lockup.");
+		goto err;
+	}
+
+	BUG_ON(!ch);
+	srp_cred_req = ioctx->buf;
+	BUG_ON(!srp_cred_req);
+	memset(srp_cred_req, 0, sizeof(*srp_cred_req));
+	srp_cred_req->opcode = SRP_CRED_REQ;
+	srp_cred_req->req_lim_delta = cpu_to_be32(req_lim_delta);
+	srp_cred_req->tag = cpu_to_be64(0);
+	res = srpt_post_send(ch, ioctx, sizeof(*srp_cred_req));
+	if (res) {
+		PRINT_ERROR("sending SRP_CRED_REQ failed (res = %d)", res);
+		goto err_put;
+	}
+
+	TRACE_DBG("Sent SRP_CRED_REQ with req_lim_delta = %d and tag %lld",
+		  req_lim_delta, 0ULL);
+
+	goto out;
+
+err_put:
+	srpt_put_tti_ioctx(ch);
+err:
+	srpt_undo_req_lim_delta(ch, req_lim_delta);
+out:
+	return;
 }
 
 /**
@@ -1099,7 +1203,8 @@ static void srpt_send_cred_req(struct srpt_rdma_ch *ch)
  * race condition will be triggered between srpt_rcv_completion() and the
  * caller of this function on *ioctx.
  */
-static void srpt_reset_ioctx(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
+static void srpt_reset_ioctx(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
+			     bool inc_req_lim)
 {
 	BUG_ON(!ch);
 	BUG_ON(!ioctx);
@@ -1124,7 +1229,7 @@ static void srpt_reset_ioctx(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 
 	if (srpt_post_recv(ch->sport->sdev, ioctx))
 		PRINT_ERROR("%s", "SRQ post_recv failed - this is serious.");
-	else {
+	else if (inc_req_lim) {
 		int req_lim;
 
 		atomic_inc(&ch->req_lim_delta);
@@ -1132,10 +1237,10 @@ static void srpt_reset_ioctx(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx)
 		if (req_lim < 0 || req_lim > ch->rq_size)
 			PRINT_ERROR("req_lim = %d out of range %d .. %d",
 				    req_lim, 0, ch->rq_size);
-		if (ch->supports_cred_req) {
+		if (atomic_read(&ch->supports_cred_req)) {
 			if (req_lim == ch->rq_size / 2
 			    && atomic_read(&ch->req_lim_delta) > ch->rq_size/4)
-				srpt_send_cred_req(ch);
+				srpt_send_cred_req(ch, srpt_req_lim_delta(ch));
 		} else {
 			if (atomic_add_unless(&ch->req_lim_waiter_count, -1, 0))
 				complete(&ch->req_lim_compl);
@@ -1253,7 +1358,21 @@ static void srpt_handle_send_err_comp(struct srpt_rdma_ch *ch, u64 wr_id,
 
 	WARN_ON(wr_id & SRPT_OP_RECV);
 
-	ioctx = sdev->ioctx_ring[wr_id];
+	ioctx = sdev->ioctx_ring[wr_id & ~SRPT_OP_FLAGS];
+
+	if (wr_id & SRPT_OP_TTI) {
+		struct srp_cred_req *srp_cred_req;
+		s32 req_lim_delta;
+
+		srp_cred_req = ioctx->buf;
+		req_lim_delta = be32_to_cpu(srp_cred_req->req_lim_delta);
+		srpt_undo_req_lim_delta(ch, req_lim_delta);
+		srpt_put_tti_ioctx(ch);
+		PRINT_ERROR("Sending SRP_CRED_REQ with delta = %d failed.",
+			    req_lim_delta);
+		return;
+	}
+
 	state = srpt_get_cmd_state(ioctx);
 	scmnd = ioctx->scmnd;
 
@@ -1269,7 +1388,7 @@ static void srpt_handle_send_err_comp(struct srpt_rdma_ch *ch, u64 wr_id,
 		srpt_abort_scst_cmd(ioctx, context);
 	else {
 		srpt_set_cmd_state(ioctx, SRPT_STATE_DONE);
-		srpt_reset_ioctx(ch, ioctx);
+		srpt_reset_ioctx(ch, ioctx, 1);
 	}
 }
 
@@ -1299,7 +1418,7 @@ static void srpt_handle_send_comp(struct srpt_rdma_ch *ch,
 		srpt_unmap_sg_to_ib_sge(ch, ioctx);
 		scst_tgt_cmd_done(scmnd, context);
 	} else
-		srpt_reset_ioctx(ch, ioctx);
+		srpt_reset_ioctx(ch, ioctx, 1);
 }
 
 /**
@@ -1581,6 +1700,16 @@ err:
 	return srp_tsk_mgmt_status;
 }
 
+static void srpt_handle_cred_rsp(struct srpt_rdma_ch *ch,
+				 struct srpt_ioctx *ioctx)
+{
+	if (!atomic_read(&ch->supports_cred_req)) {
+		atomic_set(&ch->supports_cred_req, true);
+		PRINT_INFO("Enabled SRP_CRED_REQ support for session %s",
+			   ch->sess_name);
+	}
+}
+
 /**
  * srpt_handle_new_iu() - Process a newly received information unit.
  * @ch:    RDMA channel through which the information unit has been received.
@@ -1616,7 +1745,7 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 
 	if (unlikely(ch_state == RDMA_CHANNEL_DISCONNECTING)) {
 		srpt_set_cmd_state(ioctx, SRPT_STATE_DONE);
-		srpt_reset_ioctx(ch, ioctx);
+		srpt_reset_ioctx(ch, ioctx, 0);
 		return;
 	}
 
@@ -1633,6 +1762,15 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 				   DMA_FROM_DEVICE);
 
 	srp_cmd = ioctx->buf;
+
+	if (srp_cmd->opcode == SRP_CMD || srp_cmd->opcode == SRP_TSK_MGMT
+	    || srp_cmd->opcode == SRP_I_LOGOUT) {
+		int req_lim;
+
+		req_lim = atomic_dec_return(&ch->req_lim);
+		if (unlikely(req_lim < 0))
+			PRINT_ERROR("req_lim = %d < 0", req_lim);
+	}
 
 	switch (srp_cmd->opcode) {
 	case SRP_CMD:
@@ -1651,21 +1789,29 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 			goto err;
 		break;
 
+	case SRP_I_LOGOUT:
+		goto err;
+
 	case SRP_CRED_RSP:
 		TRACE_DBG("%s", "received SRP_CRED_RSP");
+		srpt_handle_cred_rsp(ch, ioctx);
 		srpt_set_cmd_state(ioctx, SRPT_STATE_DONE);
-		srpt_reset_ioctx(ch, ioctx);
+		srpt_reset_ioctx(ch, ioctx, 0);
 		break;
 
 	case SRP_AER_RSP:
 		TRACE_DBG("%s", "received SRP_AER_RSP");
 		srpt_set_cmd_state(ioctx, SRPT_STATE_DONE);
-		srpt_reset_ioctx(ch, ioctx);
+		srpt_reset_ioctx(ch, ioctx, 0);
 		break;
 
-	case SRP_I_LOGOUT:
+	case SRP_RSP:
 	default:
-		goto err;
+		PRINT_ERROR("received IU with unknown opcode 0x%x",
+			    srp_cmd->opcode);
+		srpt_set_cmd_state(ioctx, SRPT_STATE_DONE);
+		srpt_reset_ioctx(ch, ioctx, 0);
+		break;
 	}
 
 	return;
@@ -1709,7 +1855,7 @@ err:
 			srpt_abort_scst_cmd(ioctx, context);
 		else {
 			srpt_set_cmd_state(ioctx, SRPT_STATE_DONE);
-			srpt_reset_ioctx(ch, ioctx);
+			srpt_reset_ioctx(ch, ioctx, 1);
 		}
 	}
 }
@@ -1723,7 +1869,7 @@ err:
  *   Documentation/infiniband/core_locking.txt and the implementation of
  *   handle_edge_irq() in kernel/irq/chip.c.
  * - When threaded IRQs are enabled, completion handlers are invoked in thread
- *   context instead of interrupt context. 
+ *   context instead of interrupt context.
  */
 static void srpt_rcv_completion(struct ib_cq *cq, void *ctx)
 {
@@ -1737,21 +1883,18 @@ static void srpt_rcv_completion(struct ib_cq *cq, void *ctx)
 	atomic_inc(&ch->processing_recv_compl);
 	do {
 		while (ib_poll_cq(ch->rcq, 1, &wc) > 0) {
-			int req_lim;
+			WARN_ON(wc.wr_id & SRPT_OP_TTI);
 
 			if (unlikely(wc.status)) {
 				PRINT_INFO("receiving wr_id %u failed with"
 					   " status %d",
 					   (unsigned)(wc.wr_id & ~SRPT_OP_RECV),
 					   wc.status);
-				continue;
+			} else {
+				ioctx = sdev->ioctx_ring[wc.wr_id
+							 & ~SRPT_OP_RECV];
+				srpt_handle_new_iu(ch, ioctx);
 			}
-
-			req_lim = atomic_dec_return(&ch->req_lim);
-			if (unlikely(req_lim < 0))
-				PRINT_ERROR("req_lim = %d < 0", req_lim);
-			ioctx = sdev->ioctx_ring[wc.wr_id & ~SRPT_OP_RECV];
-			srpt_handle_new_iu(ch, ioctx);
 		}
 	} while (ib_req_notify_cq(ch->rcq, IB_CQ_NEXT_COMP
 				  | IB_CQ_REPORT_MISSED_EVENTS) > 0);
@@ -1774,26 +1917,32 @@ static void srpt_send_completion(struct ib_cq *cq, void *ctx)
 	do {
 		while (ib_poll_cq(ch->scq, 1, &wc) > 0) {
 			if (unlikely(wc.status)) {
-				PRINT_INFO("sending response for wr_id %u"
-					   " failed with status %d",
-					   (unsigned)(wc.wr_id & ~SRPT_OP_RECV),
-					   wc.status);
+				PRINT_INFO("sending %s for wr_id %u"
+					" failed with status %d",
+					wc.wr_id & SRPT_OP_TTI
+					? "request" : "response",
+					(unsigned)(wc.wr_id & ~SRPT_OP_FLAGS),
+					wc.status);
 				srpt_handle_send_err_comp(ch, wc.wr_id,
 							  context);
-				continue;
-			}
-
-			ioctx = sdev->ioctx_ring[wc.wr_id];
-			atomic_add(wc.opcode == IB_WC_SEND ? 1 : ioctx->n_rdma,
-				   &ch->sq_wr_avail);
-			if (wc.opcode == IB_WC_SEND)
-				srpt_handle_send_comp(ch, ioctx, context);
-			else {
+			} else if (wc.wr_id & SRPT_OP_TTI) {
+				srpt_put_tti_ioctx(ch);
+			} else {
+				ioctx = sdev->ioctx_ring[wc.wr_id];
+				if (wc.opcode == IB_WC_SEND) {
+					atomic_inc(&ch->sq_wr_avail);
+					srpt_handle_send_comp(ch, ioctx,
+							      context);
+				} else {
 #if defined(CONFIG_SCST_DEBUG)
-				WARN_ON(wc.opcode != IB_WC_RDMA_READ);
-				WARN_ON(ioctx->n_rdma <= 0);
+					WARN_ON(wc.opcode != IB_WC_RDMA_READ);
+					WARN_ON(ioctx->n_rdma <= 0);
 #endif
-				srpt_handle_rdma_comp(ch, ioctx, context);
+					atomic_add(ioctx->n_rdma,
+						   &ch->sq_wr_avail);
+					srpt_handle_rdma_comp(ch, ioctx,
+							      context);
+				}
 			}
 		}
 	} while (ib_req_notify_cq(ch->scq, IB_CQ_NEXT_COMP
@@ -1839,7 +1988,9 @@ static void srpt_rcv_completion_st(struct ib_cq *cq, void *ctx)
 	atomic_inc(&ch->processing_recv_compl);
 	ib_req_notify_cq(ch->rcq, IB_CQ_NEXT_COMP);
 	while (ib_poll_cq(ch->rcq, 1, &wc) > 0) {
-		ioctx = sdev->ioctx_ring[wc.wr_id & ~SRPT_OP_RECV];
+		WARN_ON(wc.wr_id & SRPT_OP_TTI);
+
+		ioctx = sdev->ioctx_ring[wc.wr_id & ~SRPT_OP_FLAGS];
 		ioctx->ch = ch;
 		ioctx->wr_id = wc.wr_id;
 		ioctx->status = wc.status;
@@ -1863,7 +2014,9 @@ static void srpt_send_completion_st(struct ib_cq *cq, void *ctx)
 
 	ib_req_notify_cq(ch->scq, IB_CQ_NEXT_COMP);
 	while (ib_poll_cq(ch->scq, 1, &wc) > 0) {
-		ioctx = sdev->ioctx_ring[wc.wr_id];
+		WARN_ON(wc.wr_id & SRPT_OP_RECV);
+
+		ioctx = sdev->ioctx_ring[wc.wr_id & ~SRPT_OP_FLAGS];
 		ioctx->ch = ch;
 		ioctx->wr_id = wc.wr_id;
 		ioctx->status = wc.status;
@@ -1941,40 +2094,40 @@ static int srpt_ioctx_thread(void *arg)
 			BUG_ON(!ch);
 
 			if (wr_id & SRPT_OP_RECV) {
-				int req_lim;
-
 				if (unlikely(status)) {
 					PRINT_INFO("receiving wr_id %u failed"
 					    " with status %d",
-					    (unsigned)(wr_id & ~SRPT_OP_RECV),
+					    (unsigned)(wr_id & ~SRPT_OP_FLAGS),
 					    status);
 					goto continue_processing;
 				}
-
-				req_lim = atomic_dec_return(&ch->req_lim);
-				if (unlikely(req_lim < 0))
-					PRINT_ERROR("req_lim = %d < 0",
-						    req_lim);
 			} else {
 				if (unlikely(status)) {
-					PRINT_INFO("sending response for wr_id"
-						   " %u failed with status %d",
-						   (unsigned)wr_id,
-						   status);
-					srpt_handle_send_err_comp(ch, wr_id,
-								  srpt_context);
+					PRINT_INFO("sending %s for wr_id"
+						" %u failed with status %d",
+						wr_id & SRPT_OP_TTI
+						? "request" : "response",
+						(unsigned)
+						   (wr_id & ~SRPT_OP_FLAGS),
+						status);
+					srpt_handle_send_err_comp(ch,
+							wr_id, srpt_context);
 					goto continue_processing;
 				}
-				atomic_add(opcode == IB_WC_SEND
-					   ? 1 : ioctx->n_rdma,
-					   &ch->sq_wr_avail);
 			}
 
 			switch (opcode) {
 			case IB_WC_SEND:
-				srpt_handle_send_comp(ch, ioctx, srpt_context);
+				if (wr_id & SRPT_OP_TTI)
+					srpt_put_tti_ioctx(ch);
+				else {
+					atomic_inc(&ch->sq_wr_avail);
+					srpt_handle_send_comp(ch, ioctx,
+							      srpt_context);
+				}
 				break;
 			case IB_WC_RDMA_READ:
+				atomic_add(ioctx->n_rdma, &ch->sq_wr_avail);
 				srpt_handle_rdma_comp(ch, ioctx, srpt_context);
 				break;
 			case IB_WC_RECV:
@@ -2236,6 +2389,7 @@ static void srpt_release_channel(struct scst_session *scst_sess)
 	ib_destroy_qp(ch->qp);
 	ib_destroy_cq(ch->scq);
 	ib_destroy_cq(ch->rcq);
+	srpt_free_tti_ioctx(ch);
 
 	kfree(ch);
 
@@ -2450,12 +2604,20 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	atomic_set(&ch->state, RDMA_CHANNEL_CONNECTING);
 	INIT_LIST_HEAD(&ch->cmd_wait_list);
 
+	ch->tti_head = 0;
+	ch->tti_tail = 0;
+	ret = srpt_alloc_tti_ioctx(ch);
+	if (ret) {
+		PRINT_ERROR("%s", "send ring allocation failed");
+		goto free_ch;
+	}
+
 	ret = srpt_create_ch_ib(ch);
 	if (ret) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		PRINT_ERROR("%s", "rejected SRP_LOGIN_REQ because creating"
 			    " a new RDMA channel failed.");
-		goto free_ch;
+		goto free_req_ring;
 	}
 
 	ret = srpt_ch_qp_rtr(ch, ch->qp);
@@ -2513,7 +2675,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	rsp->max_it_iu_len = req->req_it_iu_len;
 	rsp->max_ti_iu_len = req->req_it_iu_len;
 	ch->max_ti_iu_len = it_iu_len;
-	ch->supports_cred_req = false;
+	atomic_set(&ch->supports_cred_req, false);
 	rsp->buf_fmt =
 	    cpu_to_be16(SRP_BUF_FORMAT_DIRECT | SRP_BUF_FORMAT_INDIRECT);
 	rsp->req_lim_delta = cpu_to_be32(ch->rq_size);
@@ -2555,6 +2717,9 @@ destroy_ib:
 	ib_destroy_qp(ch->qp);
 	ib_destroy_cq(ch->scq);
 	ib_destroy_cq(ch->rcq);
+
+free_req_ring:
+	srpt_free_tti_ioctx(ch);
 
 free_ch:
 	kfree(ch);
@@ -2603,6 +2768,9 @@ static void srpt_cm_rtu_recv(struct ib_cm_id *cm_id)
 		struct srpt_ioctx *ioctx, *ioctx_tmp;
 
 		ret = srpt_ch_qp_rts(ch, ch->qp);
+
+		if (srpt_autodetect_cred_req)
+			srpt_send_cred_req(ch, 0);
 
 		list_for_each_entry_safe(ioctx, ioctx_tmp, &ch->cmd_wait_list,
 					 wait_list) {
@@ -3153,7 +3321,7 @@ static bool srpt_must_wait_for_cred(struct srpt_rdma_ch *ch, int req_lim_min,
 
 	compensation = min_t(int, default_vdisk_threads, num_online_cpus()) + 1;
 	res = true;
-	if (ch->supports_cred_req
+	if (atomic_read(&ch->supports_cred_req)
 	    || atomic_read(&ch->req_lim) > req_lim_min + compensation) {
 		res = false;
 		*req_lim_delta = srpt_req_lim_delta(ch);
@@ -3408,7 +3576,7 @@ static void srpt_on_free_cmd(struct scst_cmd *scmnd)
 	ch = ioctx->ch;
 	BUG_ON(!ch);
 
-	srpt_reset_ioctx(ch, ioctx);
+	srpt_reset_ioctx(ch, ioctx, 1);
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && ! defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
@@ -3732,7 +3900,7 @@ static void srpt_add_one(struct ib_device *device)
 	if (!sdev->ioctx_ring)
 		goto err_event;
 
-	if (srpt_alloc_ioctx_ring(sdev, sdev->ioctx_ring, sdev->srq_size))
+	if (srpt_alloc_ioctx_ring(sdev, sdev->ioctx_ring, sdev->srq_size, 0))
 		goto err_alloc_ring;
 
 	INIT_LIST_HEAD(&sdev->rch_list);

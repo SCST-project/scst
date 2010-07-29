@@ -123,11 +123,38 @@ enum {
 		+ 128 * sizeof(struct srp_direct_buf)/*16*/,
 
 	DEFAULT_MAX_RDMA_SIZE = 65536,
+
+	/*
+	 * Number of I/O contexts to be allocated for sending back requests
+	 * from the target to the initiator. Must be a power of two.
+	 */
+	TTI_IOCTX_COUNT = 2,
+	TTI_IOCTX_MASK = TTI_IOCTX_COUNT - 1,
 };
 
-/* wr_id / wc_id flag for marking receive operations. */
-#define SRPT_OP_RECV			(1 << 31)
+/**
+ * @SRPT_OP_TTI:  wr_id flag for marking requests sent by the target to the
+ *                initiator.
+ * @SRPT_OP_RECV: wr_id flag for marking receive operations.
+ */
+enum {
+	SRPT_OP_TTI	= (1 << 30),
+	SRPT_OP_RECV	= (1 << 31),
 
+	SRPT_OP_FLAGS = SRPT_OP_TTI | SRPT_OP_RECV,
+};
+
+/*
+ * SRP_CRED_REQ information unit, as defined in section 6.10 of the T10 SRP
+ * r16a document.
+ */
+struct srp_cred_req {
+	u8 opcode;
+	u8 sol_not;
+	u8 reserved[2];
+	__be32 req_lim_delta;
+	__be64 tag;
+} __attribute__((packed));
 
 struct rdma_iu {
 	u64 raddr;
@@ -240,6 +267,10 @@ enum rdma_ch_state {
  * @cmd_wait_list: list of SCST commands that arrived before the RTU event. This
  *                 list contains struct srpt_ioctx elements and is protected
  *                 against concurrent modification by the cm_id spinlock.
+ * @tti_head:      Index of first element of tti_ioctx that is not in use.
+ * @tti_tail:      Index of first element of tti_ioctx that is in use.
+ * @tti_ioctx:     Circular buffer with I/O contexts for sending requests from
+ *                 target to initiator.
  * @scst_sess:     SCST session information associated with this SRP channel.
  * @sess_name:     SCST session name.
  */
@@ -255,7 +286,7 @@ struct srpt_rdma_ch {
 	u8 i_port_id[16];
 	u8 t_port_id[16];
 	int max_ti_iu_len;
-	bool supports_cred_req;
+	atomic_t supports_cred_req;
 	atomic_t req_lim;
 	atomic_t req_lim_delta;
 	atomic_t req_lim_waiter_count;
@@ -263,6 +294,9 @@ struct srpt_rdma_ch {
 	atomic_t state;
 	struct list_head list;
 	struct list_head cmd_wait_list;
+	int tti_head;
+	int tti_tail;
+	struct srpt_ioctx *tti_ioctx[TTI_IOCTX_COUNT];
 
 	struct scst_session *scst_sess;
 	u8 sess_name[36];
