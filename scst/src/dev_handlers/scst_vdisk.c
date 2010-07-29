@@ -3610,8 +3610,8 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 		p++;
 	filename = p;
 	p = &i_buf[length-1];
-	pp = p;
-	while (isspace(*p) && *p != '\0') {
+	pp = &i_buf[length];
+	while (isspace(*p) && (*p != '\0')) {
 		pp = p;
 		p--;
 	}
