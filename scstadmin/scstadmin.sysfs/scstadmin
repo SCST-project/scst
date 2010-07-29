@@ -2310,7 +2310,13 @@ sub setDriverAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	print "-> Setting driver attribute '$attribute' to value '$value' for driver '$driver': ";
+	if ($attribute eq 'enabled') {
+		my $onoff = $value ? 'Enabling' : 'Disabling';
+		print "-> $onoff driver '$driver': ";
+	} else {
+		print "-> Setting driver attribute '$attribute' to value '$value' for driver '$driver': ";
+	}
+
 	my $rc = $SCST->setDriverAttribute($driver, $attribute, $value);
 	print "done.\n";
 
@@ -2432,8 +2438,14 @@ sub setTargetAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	print "-> Setting target attribute '$attribute' to value '$value' for ".
-	  "driver/target '$driver/$target': ";
+	if ($attribute eq 'enabled') {
+		my $onoff = $value ? 'Enabling' : 'Disabling';
+		print "-> $onoff driver/target '$driver/$target': ";
+	} else {
+		print "-> Setting target attribute '$attribute' to value '$value' for ".
+		  "driver/target '$driver/$target': ";
+	}
+
 	my $rc = $SCST->setTargetAttribute($driver, $target, $attribute, $value);
 	print "done.\n";
 
