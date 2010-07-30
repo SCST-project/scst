@@ -1997,14 +1997,16 @@ static int srpt_compl_thread(void *arg)
 
 	ch = arg;
 	BUG_ON(!ch);
-	PRINT_INFO("Kernel thread %s started", ch->thread->comm);
+	PRINT_INFO("Session %s: kernel thread %s (PID %d) started",
+		   ch->sess_name, ch->thread->comm, current->pid);
 	while (!kthread_should_stop()) {
 		wait_event_interruptible(ch->wait_queue,
 			(srpt_process_rcv_completion(ch->scq, ch,
 						     SCST_CONTEXT_THREAD),
 			 kthread_should_stop()));
 	}
-	PRINT_INFO("Kernel thread %s stopped", ch->thread->comm);
+	PRINT_INFO("Kernel thread %s (PID %d) stopped", ch->thread->comm,
+		   current->pid);
 	return 0;
 }
 
