@@ -192,7 +192,6 @@ enum srpt_command_state {
  * @buf:       Pointer to the message transferred via this I/O context.
  * @dma:       DMA address of buf.
  * @wait_list: Node for insertion in srpt_rdma_ch::cmd_wait_list.
- * @comp_list: Node for insertion in the srpt_thread::thread_ioctx_list.
  * @state:     I/O context state. See also enum srpt_command_state.
  */
 struct srpt_ioctx {
@@ -211,7 +210,6 @@ struct srpt_ioctx {
 	u64 wr_id;
 	enum ib_wc_status status;
 	enum ib_wc_opcode opcode;
-	struct list_head comp_list;
 	struct srpt_rdma_ch *ch;
 	struct scst_cmd *scmnd;
 	scst_data_direction dir;
@@ -241,6 +239,9 @@ enum rdma_ch_state {
 
 /**
  * struct srpt_rdma_ch - RDMA channel.
+ * @thread:        Kernel thread that processes the IB queues associated with
+ *                 the channel.
+ * @wait_queue:    Allows the kernel thread to wait for more work.
  * @cm_id:         IB CM ID associated with the channel.
  * @rq_size:       IB receive queue size.
  * @processing_recv_compl: whether or not a receive completion is being
@@ -275,6 +276,8 @@ enum rdma_ch_state {
  * @sess_name:     SCST session name.
  */
 struct srpt_rdma_ch {
+	struct task_struct *thread;
+	wait_queue_head_t wait_queue;
 	struct ib_cm_id *cm_id;
 	struct ib_qp *qp;
 	int rq_size;
