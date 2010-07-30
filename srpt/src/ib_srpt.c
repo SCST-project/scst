@@ -1714,6 +1714,7 @@ static void srpt_handle_cred_rsp(struct srpt_rdma_ch *ch,
 			 * variable managed by the initiator temporarily
 			 * negative.
 			 */
+			ch->rq_size -= req_lim_delta;
 			atomic_sub(req_lim_delta, &ch->req_lim);
 			atomic_sub(req_lim_delta, &ch->req_lim_delta);
 		}
