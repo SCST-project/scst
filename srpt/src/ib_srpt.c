@@ -1990,7 +1990,7 @@ static void srpt_send_completion(struct ib_cq *cq, void *ctx)
 
 static int srpt_compl_thread(void *arg)
 {
-	struct srpt_rdma_ch* ch;
+	struct srpt_rdma_ch *ch;
 
 	/* Hibernation / freezing of the SRPT kernel thread is not supported. */
 	current->flags |= PF_NOFREEZE;
