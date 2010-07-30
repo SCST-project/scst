@@ -1402,6 +1402,8 @@ static void srpt_handle_send_comp(struct srpt_rdma_ch *ch,
 	enum srpt_command_state state;
 	struct scst_cmd *scmnd;
 
+	atomic_inc(&ch->sq_wr_avail);
+
 	state = srpt_set_cmd_state(ioctx, SRPT_STATE_DONE);
 	scmnd = ioctx->scmnd;
 
@@ -1430,6 +1432,9 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 {
 	enum srpt_command_state state;
 	struct scst_cmd *scmnd;
+
+	EXTRACHECKS_WARN_ON(ioctx->n_rdma <= 0);
+	atomic_add(ioctx->n_rdma, &ch->sq_wr_avail);
 
 	scmnd = ioctx->scmnd;
 	WARN_ON(!scmnd);
@@ -1703,10 +1708,27 @@ err:
 static void srpt_handle_cred_rsp(struct srpt_rdma_ch *ch,
 				 struct srpt_ioctx *ioctx)
 {
+	int max_lun_commands;
+	int req_lim_delta;
+
 	if (!atomic_read(&ch->supports_cred_req)) {
 		atomic_set(&ch->supports_cred_req, true);
 		PRINT_INFO("Enabled SRP_CRED_REQ support for session %s",
 			   ch->sess_name);
+
+		max_lun_commands = scst_get_max_lun_commands(NULL, 0);
+		if (4 <= max_lun_commands && max_lun_commands < ch->rq_size) {
+			req_lim_delta = ch->rq_size - max_lun_commands;
+			PRINT_INFO("Decreasing request limit by %d",
+				   req_lim_delta);
+			/*
+			 * Note: at least in theory this may make the req_lim
+			 * variable managed by the initiator temporarily
+			 * negative.
+			 */
+			atomic_sub(req_lim_delta, &ch->req_lim);
+			atomic_sub(req_lim_delta, &ch->req_lim_delta);
+		}
 	}
 }
 
@@ -1929,17 +1951,12 @@ static void srpt_send_completion(struct ib_cq *cq, void *ctx)
 				srpt_put_tti_ioctx(ch);
 			} else {
 				ioctx = sdev->ioctx_ring[wc.wr_id];
-				if (wc.opcode == IB_WC_SEND) {
-					atomic_inc(&ch->sq_wr_avail);
+				if (wc.opcode == IB_WC_SEND)
 					srpt_handle_send_comp(ch, ioctx,
 							      context);
-				} else {
-#if defined(CONFIG_SCST_DEBUG)
-					WARN_ON(wc.opcode != IB_WC_RDMA_READ);
-					WARN_ON(ioctx->n_rdma <= 0);
-#endif
-					atomic_add(ioctx->n_rdma,
-						   &ch->sq_wr_avail);
+				else {
+					EXTRACHECKS_WARN_ON(wc.opcode
+							    != IB_WC_RDMA_READ);
 					srpt_handle_rdma_comp(ch, ioctx,
 							      context);
 				}
@@ -2120,14 +2137,11 @@ static int srpt_ioctx_thread(void *arg)
 			case IB_WC_SEND:
 				if (wr_id & SRPT_OP_TTI)
 					srpt_put_tti_ioctx(ch);
-				else {
-					atomic_inc(&ch->sq_wr_avail);
+				else
 					srpt_handle_send_comp(ch, ioctx,
 							      srpt_context);
-				}
 				break;
 			case IB_WC_RDMA_READ:
-				atomic_add(ioctx->n_rdma, &ch->sq_wr_avail);
 				srpt_handle_rdma_comp(ch, ioctx, srpt_context);
 				break;
 			case IB_WC_RECV:
