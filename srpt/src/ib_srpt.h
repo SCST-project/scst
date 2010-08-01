@@ -239,9 +239,9 @@ enum rdma_ch_state {
 
 /**
  * struct srpt_rdma_ch - RDMA channel.
+ * @wait_queue:    Allows the kernel thread to wait for more work.
  * @thread:        Kernel thread that processes the IB queues associated with
  *                 the channel.
- * @wait_queue:    Allows the kernel thread to wait for more work.
  * @cm_id:         IB CM ID associated with the channel.
  * @rq_size:       IB receive queue size.
  * @processing_recv_compl: whether or not a receive completion is being
@@ -276,8 +276,8 @@ enum rdma_ch_state {
  * @sess_name:     SCST session name.
  */
 struct srpt_rdma_ch {
-	struct task_struct *thread;
 	wait_queue_head_t wait_queue;
+	struct task_struct *thread;
 	struct ib_cm_id *cm_id;
 	struct ib_qp *qp;
 	int rq_size;
