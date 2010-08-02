@@ -33,23 +33,18 @@
 	  		<div id="main">
 				<h1>Generic SCSI Target Subsystem for Linux</h1>
 						
-				<p>The generic SCSI target subsystem for Linux (SCST) is an alternative
-					implementation of a SCSI target subsystem for Linux. It provides unified,
-					consistent interface between SCSI target drivers and 
-					Linux kernel as well as between Linux kernel and storage backend
-					handlers, connecting target drivers with real or emulated storage backend.
-					
-				<p>SCST allows creation of sophisticated storage devices from any Linux box. Those
+				<p>The generic SCSI target subsystem for Linux (SCST) allows creation of sophisticated storage devices
+					from any Linux box. Those
 					devices can provide advanced 
-					functionality, like <strong>replication</strong>, <strong>thin provisioning</strong>,
-					<strong>deduplication</strong>, <strong>high availability</strong>,
-					<strong>automatic backup</strong>, etc. Another class of such devices
-					are <strong>Virtual Tape Libraries</strong> (VTL)
-					as well as other disk-based backup solutions. SCST created devices not
-					limited by IP networking only. They can use any link which supports
-					SCSI-style data exchange, including <strong>Fibre Channel</strong>,
-					<strong>iSCSI</strong>, <strong>SAS</strong>,
-					<strong>InfiniBand</strong> and <strong>parallel (Wide) SCSI</strong>. It might
+					functionality, like replication, thin provisioning,
+					deduplication, high availability,
+					automatic backup, etc. Another class of such devices
+					are Virtual Tape Libraries (VTL)
+					as well as other disk-based backup solutions.</p>
+				<p>SCST devices not limited by IP networking only. They can use any link which supports
+					SCSI-style data exchange, including <strong>iSCSI</strong>, <strong>Fibre Channel</strong>,
+					<strong>SAS</strong>,
+					<strong>InfiniBand (SRP)</strong> and <strong>parallel (Wide) SCSI</strong>. It might
 					well be that your favorite storage appliance running SCST in the firmware.</p>
 
 				<p>SCST project consists from a set of subprojects: <strong>generic SCSI target mid-layer itself (SCST core)</strong>
@@ -58,9 +53,12 @@
 				
 				<h1>Features of SCST Core</h1>
 				<ul>					
-					<li><span>SCST core has simple, easy to use interface with target drivers. 
-								 SCST core performs all required pre- and post- processing of incoming requests as well as 
-								 necessary error recovery.</span></li>
+					<li><span>SCST core provides unified,
+					consistent interface between SCSI target drivers and 
+					Linux kernel as well as between Linux kernel and storage backend
+					handlers, connecting target drivers with real or emulated storage backend.</span></li>
+					<li><span>SCST core performs all required pre- and post- processing of incoming requests as well as
+						 necessary error recovery.</span></li>
 					<li><span>SCST core undertakes most problems, related to execution contexts, thus practically eliminating one of the most 
 								 complicated problem in the kernel drivers development. For example, target drivers for Marvell 
 								 SAS adapters or for InfiniBand SRP are less 3000 lines of code long.</span></li>
