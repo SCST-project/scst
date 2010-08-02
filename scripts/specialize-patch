@@ -69,7 +69,10 @@ function evaluate(stmnt) {
   gsub("defined\\(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19\\)", "0", stmnt)
 
   if (RHEL_MAJOR == "")
+  {
     gsub("defined\\(RHEL_MAJOR\\)", "0", stmnt)
+    gsub("RHEL_MAJOR", "", stmnt)
+  }
   else
   {
     gsub("defined\\(RHEL_MAJOR\\)", "1", stmnt)
@@ -77,7 +80,10 @@ function evaluate(stmnt) {
   }
 
   if (RHEL_MINOR == "")
+  {
     gsub("defined\\(RHEL_MINOR\\)", "0", stmnt)
+    gsub("RHEL_MINOR", "0", stmnt)
+  }
   else
   {
     gsub("defined\\(RHEL_MINOR\\)", "1", stmnt)
