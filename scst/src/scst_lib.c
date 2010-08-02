@@ -818,7 +818,8 @@ static int scst_set_lun_not_supported_request_sense(struct scst_cmd *cmd,
 	int key, int asc, int ascq)
 {
 	int res;
-	int sense_len;
+	int sense_len, len;
+	struct scatterlist *sg;
 
 	TRACE_ENTRY();
 
@@ -836,6 +837,18 @@ static int scst_set_lun_not_supported_request_sense(struct scst_cmd *cmd,
 	}
 
 	if (cmd->sg == NULL) {
+		/*
+		 * If target driver preparing data buffer using alloc_data_buf()
+		 * callback, it is responsible to copy the sense to its buffer
+		 * in xmit_response().
+		 */
+		if (cmd->tgt_data_buf_alloced && (cmd->tgt_sg != NULL)) {
+			cmd->sg = cmd->tgt_sg;
+			cmd->sg_cnt = cmd->tgt_sg_cnt;
+			TRACE_MEM("Tgt sg used for sense for cmd %p", cmd);
+			goto go;
+		}
+
 		if (cmd->bufflen == 0)
 			cmd->bufflen = cmd->cdb[4];
 
@@ -846,15 +859,21 @@ static int scst_set_lun_not_supported_request_sense(struct scst_cmd *cmd,
 			res = 1;
 			goto out;
 		}
+
+		TRACE_MEM("sg %p alloced for sense for cmd %p (cnt %d, "
+			"len %d)", cmd->sg, cmd, cmd->sg_cnt, cmd->bufflen);
 	}
 
-	TRACE_MEM("sg %p alloced for sense for cmd %p (cnt %d, "
-		"len %d)", cmd->sg, cmd, cmd->sg_cnt, cmd->bufflen);
+go:
+	sg = cmd->sg;
+	len = sg->length;
 
-	sense_len = scst_set_sense(sg_virt(cmd->sg),
-		cmd->bufflen, cmd->cdb[1] & 1, key, asc, ascq);
+	TRACE_MEM("sg %p (len %d) for sense for cmd %p", sg, len, cmd);
 
-	TRACE_BUFFER("Sense set", sg_virt(cmd->sg), sense_len);
+	sense_len = scst_set_sense(sg_virt(sg), len, cmd->cdb[1] & 1,
+			key, asc, ascq);
+
+	TRACE_BUFFER("Sense set", sg_virt(sg), sense_len);
 
 	cmd->data_direction = SCST_DATA_READ;
 	scst_set_resp_data_len(cmd, sense_len);
@@ -871,6 +890,7 @@ static int scst_set_lun_not_supported_inquiry(struct scst_cmd *cmd)
 {
 	int res;
 	uint8_t *buf;
+	struct scatterlist *sg;
 	int len;
 
 	TRACE_ENTRY();
@@ -883,6 +903,19 @@ static int scst_set_lun_not_supported_inquiry(struct scst_cmd *cmd)
 	}
 
 	if (cmd->sg == NULL) {
+		/*
+		 * If target driver preparing data buffer using alloc_data_buf()
+		 * callback, it is responsible to copy the sense to its buffer
+		 * in xmit_response().
+		 */
+		if (cmd->tgt_data_buf_alloced && (cmd->tgt_sg != NULL)) {
+			cmd->sg = cmd->tgt_sg;
+			cmd->sg_cnt = cmd->tgt_sg_cnt;
+			TRACE_MEM("Tgt used for INQUIRY for not supported "
+				"LUN for cmd %p", cmd);
+			goto go;
+		}
+
 		if (cmd->bufflen == 0)
 			cmd->bufflen = min_t(int, 36, (cmd->cdb[3] << 8) | cmd->cdb[4]);
 
@@ -893,13 +926,20 @@ static int scst_set_lun_not_supported_inquiry(struct scst_cmd *cmd)
 			res = 1;
 			goto out;
 		}
+
+		TRACE_MEM("sg %p alloced for INQUIRY for not supported LUN for "
+			"cmd %p (cnt %d, len %d)", cmd->sg, cmd, cmd->sg_cnt,
+			cmd->bufflen);
 	}
 
-	TRACE_MEM("sg %p alloced INQUIRY for cmd %p (cnt %d, len %d)",
-		cmd->sg, cmd, cmd->sg_cnt, cmd->bufflen);
+go:
+	sg = cmd->sg;
+	len = sg->length;
 
-	buf = sg_virt(cmd->sg);
-	len = min_t(int, 36, cmd->bufflen);
+	TRACE_MEM("sg %p (len %d) for INQUIRY for cmd %p", sg, len, cmd);
+
+	buf = sg_virt(sg);
+	len = min_t(int, 36, len);
 
 	memset(buf, 0, len);
 	buf[0] = 0x7F; /* Peripheral qualifier 011b, Peripheral device type 1Fh */
