@@ -434,16 +434,18 @@ static int scst_local_send_resp(struct scsi_cmnd *cmnd,
 
 	TRACE_ENTRY();
 
-	if (cmnd && scst_cmnd) {
+	if (scst_cmnd) {
+		/* The buffer isn't ours, so let's be safe and restore it */
+		scst_check_restore_sg_buff(scst_cmnd);
+
 		/* Simulate autosense by this driver */
-		if (SAM_STAT_CHECK_CONDITION == (scsi_result & 0xFF))
+		if (unlikely(SCST_SENSE_VALID(scst_cmnd->sense)))
 			copy_sense(cmnd, scst_cmnd);
 	}
 
-	if (cmnd)
-		cmnd->result = scsi_result;
-	if (done)
-		done(cmnd);
+	cmnd->result = scsi_result;
+
+	done(cmnd);
 
 	TRACE_EXIT_RES(ret);
 	return ret;
