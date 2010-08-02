@@ -130,8 +130,13 @@ module_param(srpt_sq_size, int, 0444);
 MODULE_PARM_DESC(srpt_sq_size,
 		 "Per-channel send queue (SQ) size.");
 
+#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
+static int srpt_autodetect_cred_req = true;
+module_param(srpt_autodetect_cred_req, int, 0444);
+#else
 static bool srpt_autodetect_cred_req = true;
 module_param(srpt_autodetect_cred_req, bool, 0444);
+#endif
 MODULE_PARM_DESC(srpt_autodetect_cred_req,
 		 "Whether or not to autodetect whether the initiator supports"
 		 " SRP_CRED_REQ.");
