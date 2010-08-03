@@ -572,31 +572,31 @@ sub main {
 			$all_good = TRUE;
 		};
 		$listScstAttr && do {
-			$rc = listScstAttr();
+			$rc = listScstAttributes($nonkey);
 			$all_good = TRUE;
 		};
 		$listHandlerAttr && do {
-			$rc = listHandlerAttributes($listHandlerAttr);
+			$rc = listHandlerAttributes($listHandlerAttr, $nonkey);
 			$all_good = TRUE;
 		};
 		$listDeviceAttr && do {
-			$rc = listDeviceAttributes($listDeviceAttr);
+			$rc = listDevice($listDeviceAttr, $nonkey);
 			$all_good = TRUE;
 		};
 		$listDriverAttr && do {
-			$rc = listDriverAttributes($listHandlerAttr);
+			$rc = listDriverAttributes($listHandlerAttr, $nonkey);
 			$all_good = TRUE;
 		};
 		$listTargetAttr && do {
-			$rc = listTargetAttributes($driver, $listTargetAttr);
+			$rc = listTargetAttributes($driver, $listTargetAttr, $nonkey);
 			$all_good = TRUE;
 		};
 		$listLunAttr && do {
-			$rc = listLunAttributes($driver, $target, $group, $listLunAttr);
+			$rc = listLunAttributes($driver, $target, $group, $listLunAttr, $nonkey);
 			$all_good = TRUE;
 		};
 		$listInitiatorAttr && do {
-			$rc = listInitiatorAttributes($driver, $target, $group, $listInitiatorAttr);
+			$rc = listInitiatorAttributes($driver, $target, $group, $listInitiatorAttr, $nonkey);
 			$all_good = TRUE;
 		};
 		$setScstAttr && do {
@@ -1829,67 +1829,15 @@ sub listDevices {
 sub listDevice {
 	my $device = shift;
 	my $nonkey = shift;
-	my $l_attr;
-	my $l_value;
 
 	my $attributes = $SCST->deviceAttributes($device);
 
-	print "No such device '$device' exists.\n"
-	  if (!scalar(keys %{$attributes}));
-
-	foreach my $attribute (keys %{$attributes}) {
-		if (defined($$attributes{$attribute}->{'keys'})) {
-			$l_attr = length($attribute) if ($l_attr < length($attribute));
-
-			foreach my $key (keys %{$$attributes{$attribute}->{'keys'}}) {
-				my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
-				$l_value = length($value) if ($l_value < length($value));
-			}
-		} elsif ($nonkey) {
-			$l_attr = length($attribute) if ($l_attr < length($attribute));
-			my $value = $$attributes{$attribute}->{'value'};
-			$l_value = length($value) if ($l_value < length($value));
-		}
+	if (!scalar(keys %{$attributes})) {
+		print "No such device '$device' exists.\n";
+		return;
 	}
 
-	printf("\t%-*s     %-*s    %-*s     %-*s\n", $l_attr, 'Attribute', $l_value,
-	  'Value', 9, 'Writable', 3, 'KEY');
-	print "\t";
-	for (my $x = 0; $x < ($l_attr + $l_value + 27); $x++) {
-		print "-";
-	};
-	print "\n";
-
-	foreach my $attribute (keys %{$attributes}) {
-		my $first = TRUE;
-
-		if (defined($$attributes{$attribute}->{'keys'})) {
-			foreach my $key (keys %{$$attributes{$attribute}->{'keys'}}) {
-				my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
-				my $static = ($$attributes{$attribute}->{'static'}) ? 'Yes' : 'No';
-				if ($first) {
-					printf("\t%-*s    %-*s     %-*s     %-*s\n",
-					  $l_attr, $attribute, $l_value, $value, 9, $static, 3, 'Yes');
-					$first = FALSE;
-				} else {
-					printf("\t%-*s    %-*s     %-*s     %-*s\n",
-					  $l_attr, '', $l_value, $value, 9, $static, 3, 'Yes');
-				}
-			}
-		} elsif ($nonkey) {
-			my $value = $$attributes{$attribute}->{'value'};
-			next if (ref($value) eq 'HASH');
-			$value = 'N/A' if (!defined($value));
-			my $static = ($$attributes{$attribute}->{'static'}) ? 'Yes' : 'No';
-			if ($first) {
-				printf("\t%-*s    %-*s     %-*s     %-*s\n",
-				  $l_attr, $attribute, $l_value, $value, 9, $static, 3, 'No');
-			} else {
-				printf("\t%-*s    %-*s     %-*s     %-*s\n",
-				  $l_attr, '', $l_value, $value, 9, $static, 3, 'No');
-			}
-		}
-	}
+	return listAttributes($attributes, $nonkey);
 }
 
 sub listDrivers {
@@ -1968,6 +1916,8 @@ sub listTargets {
 				}
 			}
 		}
+	} else {
+		print "No such driver '$driver' exists.\n";
 	}
 }
 
@@ -2042,6 +1992,7 @@ sub listGroups {
 	my $driver = shift;
 	my $target = shift;
 	my $group = shift;
+	my $found = FALSE;
 
 	if ($group && $driver && $target) {
 		return listGroup($driver, $target, $group);
@@ -2067,6 +2018,7 @@ sub listGroups {
 						$group = $_group if (!$got_group);
 
 						if ($group eq $_group) {
+							$found++;
 							print "Driver: $driver\n";
 							print "Target: $target\n";
 							print "Group : $group\n\n";
@@ -2078,6 +2030,16 @@ sub listGroups {
 					}
 				}
 			}
+		}
+	}
+
+	if (!$found) {
+		if ($got_driver && $got_target) {
+			print "Driver/target '$driver/$target' not found\n";
+		} elsif (!$got_target) {
+			print "Driver '$driver' not found.\n";
+		} else {
+			print "Target '$target' not found.\n";
 		}
 	}
 }
@@ -2133,50 +2095,95 @@ sub listExported {
 	}
 }
 
+sub listAttributes {
+	my $attributes = shift;
+	my $nonkey = shift;
+	my $l_attr = 9;
+	my $l_value = 5;
+
+	foreach my $attribute (keys %{$attributes}) {
+		if (defined($$attributes{$attribute}->{'keys'})) {
+			$l_attr = length($attribute) if ($l_attr < length($attribute));
+
+			foreach my $key (keys %{$$attributes{$attribute}->{'keys'}}) {
+				my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
+				$l_value = length($value) if ($l_value < length($value));
+			}
+		} elsif ($nonkey) {
+			$l_attr = length($attribute) if ($l_attr < length($attribute));
+			my $value = $$attributes{$attribute}->{'value'};
+			$l_value = length($value) if ($l_value < length($value));
+		}
+	}
+
+	printf("\t%-*s     %-*s    %-*s     %-*s\n", $l_attr, 'Attribute', $l_value,
+	  'Value', 9, 'Writable', 3, 'KEY');
+	print "\t";
+	for (my $x = 0; $x < ($l_attr + $l_value + 27); $x++) {
+		print "-";
+	};
+	print "\n";
+
+	my $found = FALSE;
+
+	foreach my $attribute (keys %{$attributes}) {
+		my $first = TRUE;
+
+		if (defined($$attributes{$attribute}->{'keys'})) {
+			foreach my $key (keys %{$$attributes{$attribute}->{'keys'}}) {
+				my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
+				my $static = ($$attributes{$attribute}->{'static'}) ? 'No' : 'Yes';
+				$value = '<not set>' if ($value eq '');
+				if ($first) {
+					printf("\t%-*s    %-*s     %-*s     %-*s\n",
+					  $l_attr, $attribute, $l_value, $value, 9, $static, 3, 'Yes');
+					$first = FALSE;
+				} else {
+					printf("\t%-*s    %-*s     %-*s     %-*s\n",
+					  $l_attr, '', $l_value, $value, 9, $static, 3, 'Yes');
+				}
+
+				$found++;
+			}
+		} elsif ($nonkey) {
+			my $value = $$attributes{$attribute}->{'value'};
+			next if (ref($value) eq 'HASH');
+			$value = 'N/A' if (!defined($value));
+			$value = '<not set>' if ($value eq '');
+			my $static = ($$attributes{$attribute}->{'static'}) ? 'No' : 'Yes';
+			if ($first) {
+				printf("\t%-*s    %-*s     %-*s     %-*s\n",
+				  $l_attr, $attribute, $l_value, $value, 9, $static, 3, 'No');
+			} else {
+				printf("\t%-*s    %-*s     %-*s     %-*s\n",
+				  $l_attr, '', $l_value, $value, 9, $static, 3, 'No');
+			}
+
+			$found++;
+		}
+	}
+
+	if (!$found) {
+		print "\t(none)\n";
+	}
+}
+
 sub listScstAttributes {
+	my $nonkey = shift;
+
+	my $attributes = $SCST->scstAttributes();
+
+	if (!scalar(keys %{$attributes})) {
+		print "FATAL: Unable to get a list of SCST attributes! Please make sure SCST is loaded.\n";
+		return;
+	}
+
+	return listAttributes($attributes, $nonkey);
 }
 
 sub listHandlerAttributes {
 	my $handler = shift;
 
-}
-
-sub listDeviceAttributes {
-	my $device = shift;
-	my $l_attr;
-	my $l_val;
-
-	my $attributes = $SCST->deviceAttributes($device);
-	immediateExit($SCST->errorString());
-
-	foreach my $attribute (sort keys %{$attributes}) {
-		my $value = $$attributes{$attribute}->{'value'};
-
-		next if (ref($value));
-
-		$l_attr = length($attribute) if (length($attribute) > $l_attr);
-		$l_val = length($value) if (length($value) > $l_val);
-	}
-
-	print "Attributes for device '$device':\n\n";
-
-	printf("\t%-*s %-*s %-5s\n", $l_attr, 'Attribute', $l_val, 'Value', 'Static');
-	print "\t";
-	for (my $x = 0; $x < ($l_attr + $l_val + 8); $x++) {
-		print "-";
-	}
-	print "\n";
-
-	foreach my $attribute (sort keys %{$attributes}) {
-		my $value = $$attributes{$attribute}->{'value'};
-		my $static = $$attributes{$attribute}->{'static'};
-
-		next if (ref($value));
-		$value = '-' if (!defined($value));
-		$static = ($static ? 'Yes' : 'No');
-
-		printf("\t%-*s %-*s %-5s\n", $l_attr, $attribute, $l_val, $value, $static);
-	}
 }
 
 sub listDriverAttributes {
