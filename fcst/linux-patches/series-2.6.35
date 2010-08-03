@@ -1,6 +1,0 @@
-# This series applies on GIT commit ec7b3b3aaf3b3b208140ac83dc19a754eebf648f
-02-fc4
-04-seq-set-resp
-05-lport-hook
-12-ptp-npiv
-14-fc-frame-sparse-workaround
