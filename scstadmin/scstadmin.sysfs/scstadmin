@@ -1895,7 +1895,7 @@ sub listDevice {
 sub listDrivers {
 	my $driver = shift;
 
-	return listTargets(undef, $driver) if ($driver);
+	return listTargets($driver, undef) if ($driver);
 
 	my $drivers = $SCST->drivers();
 
@@ -1917,8 +1917,8 @@ sub listDrivers {
 }
 
 sub listTargets {
-	my $target = shift;
 	my $driver = shift;
+	my $target = shift;
 	my %toprint;
 
 	return listGroups(undef, $driver, $target) if ($target && $driver);
