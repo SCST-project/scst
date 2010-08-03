@@ -2217,6 +2217,8 @@ sub lunAttributes {
 			my $r = SCST_ROOT;
 
 			$linked =~ s/\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/\.\.\//\/$r\//;
+			$linked =~ s/\.\.\/\.\.\/\.\.\/\.\.\/\.\.\//\/$r\//;
+			$linked =~ s/^\/+/\//;
 
 			$attributes{$attribute}->{'static'} = TRUE;
 			$attributes{$attribute}->{'value'} = $linked;

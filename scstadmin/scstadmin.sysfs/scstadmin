@@ -148,8 +148,8 @@ Target Driver Operations
      -issue_lip              : Issue LIP on all target-enabled FC fabrics.
 
 Options
-     -nonkey                 : When writing a configuration file, store non-key
-                               attributes as well.
+     -nonkey                 : When writing a configuration file or listing
+                               attributes, store/print non-key attributes as well.
      -force                  : Force all configuration changes,
                                even deletions (DANGER!).
      -noprompt               : Do not prompt or pause. Use with caution!
@@ -376,95 +376,96 @@ sub getArgs {
 		usage();
 	}
 
-	if ($clearConfig && !$force) {
+	if (defined($clearConfig) && !defined($force)) {
 		print "Please specify -force with -clear_config.\n";
 		usage();
 	}
 
-	if ($listTargetAttr && !$driver) {
+	if (defined($listTargetAttr) && !defined($driver)) {
 		print "Please specify -driver with -list_tgt_attr.\n";
 		usage();
 	}
 
-	if ($listLunAttr && (!$driver || !$target || !$group)) {
+	if (defined($listLunAttr) && (!defined($driver) || !defined($target))) {
 		print "Please specify -driver -target and -group with -list_lun_attr.\n";
 		usage();
 	}
 
-	if ($listInitiatorAttr && (!$driver || !$target || !$group)) {
+	if (defined($listInitiatorAttr) && (!defined($driver) || !defined($target) || !defined($group))) {
 		print "Please specify -driver -target and -group with -list_ini_attr.\n";
 		usage();
 	}
 
-	if ($setScstAttr && !$attributes) {
+	if (defined($setScstAttr) && !defined($attributes)) {
 		print "Please specify -attributes with -set_scst_attr.\n";
 		usage();
 	}
 
-	if ($setHandlerAttr && !$attributes) {
+	if (defined($setHandlerAttr) && !defined($attributes)) {
 		print "Please specify -attributes with -set_hnd_attr.\n";
 		usage();
 	}
 
-	if ($setDeviceAttr && !$attributes) {
+	if (defined($setDeviceAttr) && !defined($attributes)) {
 		print "Please specify -attributes with -set_dev_attr.\n";
 		usage();
 	}
 
-	if ($setDriverAttr && !$attributes) {
+	if (defined($setDriverAttr) && !defined($attributes)) {
 		print "Please specify -attributes with -set_drv_attr.\n";
 		usage();
 	}
 
-	if ($setTargetAttr && (!$driver || !$attributes)) {
+	if (defined($setTargetAttr) && (!defined($driver) || !defined($attributes))) {
 		print "Please specify -driver and -attributes with -set_tgt_attr.\n";
 		usage();
 	}
 
-	if ($setLunAttr && (!$driver || !$target || !$group || !$attributes)) {
+	if (defined($setLunAttr) &&
+	    (!defined($driver) || !defined($target) || !defined($group) || !defined($attributes))) {
 		print "Please specify -driver -target -group and -attributes with -set_lun_attr.\n";
 		usage();
 	}
 
-	if ($setDeviceAttr && (!$driver || !$target || !$group || !$attributes)) {
+	if (defined($setDeviceAttr) &&
+	    (!defined($driver) || !defined($target) || !defined($group) || !defined($attributes))) {
 		print "Please specify -driver -target -group and -attributes with -set_ini_attr.\n";
 		usage();
 	}
 
-	if (($openDev || $closeDev) && !$handler) {
+	if ((defined($openDev) || defined($closeDev)) && !defined($handler)) {
 		print "Please specify -handler with -open_dev/-close_dev.\n";
 		usage();
 	}
 
-	if (($addGroup || $removeGroup) && (!$driver || !$target)) {
+	if ((defined($addGroup) || defined($removeGroup)) &&
+	    (!defined($driver) || !defined($target))) {
 		print "Please specify -driver and -target with -add_group/-remove_group.\n";
 		usage();
 	}
 
-	if (($addInitiator || $removeInitiator || $clearInitiators) &&
-	    (!$target || !$driver || !$group)) {
+	if ((defined($addInitiator) || defined($removeInitiator) || defined($clearInitiators)) &&
+	    (!defined($target) || !defined($driver) || !defined($group))) {
 		print "Please specify -driver -target and -group with ".
 		  "-add_init/-remove_init/-clear_inits.\n";
 		usage();
 	}
 
-	if ($moveInitiator && (!$driver || !$target || !$group || !$to)) {
+	if (defined($moveInitiator) &&
+	    (!defined($driver) || !defined($target) || !defined($group) || !defined($to))) {
 		print "Please specify -driver -target -group and -to with -move_init.\n";
 		usage();
 	}
 
-	if (($addLun || $replaceLun || $removeLun) && (!$driver || !$target || !$group || !$device)) {
+	if ((defined($addLun) || defined($replaceLun) || defined($removeLun)) &&
+	    (!defined($driver) || !defined($target) || !defined($group) || !defined($device))) {
 		print "Please specify -driver -target -group and -device with -add_lun/-replace_lun.\n";
 		usage();
 	}
 
-	if ($clearLuns && (!$driver || !$target || !$group)) {
+	if (defined($clearLuns) && (!defined($driver) || !defined($target) || !defined($group))) {
 		print "Please specify -driver -target and -group with -remove_lun/-clear_luns.\n";
 		usage();
-	}
-
-	if ($nonkey && !defined($writeConfig)) {
-		print "Option -nonkey ignored since -writeConfig was not specified.\n";
 	}
 
 	$applyConfig = $_DEF_CONFIG_ if (defined($applyConfig) && !$applyConfig);
@@ -529,21 +530,21 @@ sub main {
 	my $all_good;
 
 	SWITCH: {
-		$applyConfig && do {
+		defined($applyConfig) && do {
 			$rc = checkConfiguration($applyConfig);
 			immediateExit("Configuration has errors, aborting.") if ($rc);
 			$rc = applyConfiguration($applyConfig, $force);
 			last SWITCH;
 		};
-		$checkConfig && do {
+		defined($checkConfig) && do {
 			$rc = checkConfiguration($checkConfig);
 			last SWITCH;
 		};
-		$writeConfig && do {
+		defined($writeConfig) && do {
 			$rc = writeConfiguration($writeConfig, $nonkey);
 			last SWITCH;
 		};
-		$clearConfig && do {
+		defined($clearConfig) && do {
 			$rc = clearConfiguration($noprompt, $force);
 			last SWITCH;
 		};
@@ -567,127 +568,127 @@ sub main {
 			$rc = listGroups($driver, $target, $listGroup);
 			$all_good = TRUE;
 		};
-		$listSessions && do {
+		defined($listSessions) && do {
 			$rc = listSessions();
 			$all_good = TRUE;
 		};
-		$listScstAttr && do {
+		defined($listScstAttr) && do {
 			$rc = listScstAttributes($nonkey);
 			$all_good = TRUE;
 		};
-		$listHandlerAttr && do {
+		defined($listHandlerAttr) && do {
 			$rc = listHandlerAttributes($listHandlerAttr, $nonkey);
 			$all_good = TRUE;
 		};
-		$listDeviceAttr && do {
+		defined($listDeviceAttr) && do {
 			$rc = listDevice($listDeviceAttr, $nonkey);
 			$all_good = TRUE;
 		};
-		$listDriverAttr && do {
-			$rc = listDriverAttributes($listHandlerAttr, $nonkey);
+		defined($listDriverAttr) && do {
+			$rc = listDriverAttributes($listDriverAttr, $nonkey);
 			$all_good = TRUE;
 		};
-		$listTargetAttr && do {
+		defined($listTargetAttr) && do {
 			$rc = listTargetAttributes($driver, $listTargetAttr, $nonkey);
 			$all_good = TRUE;
 		};
-		$listLunAttr && do {
+		defined($listLunAttr) && do {
 			$rc = listLunAttributes($driver, $target, $group, $listLunAttr, $nonkey);
 			$all_good = TRUE;
 		};
-		$listInitiatorAttr && do {
+		defined($listInitiatorAttr) && do {
 			$rc = listInitiatorAttributes($driver, $target, $group, $listInitiatorAttr, $nonkey);
 			$all_good = TRUE;
 		};
-		$setScstAttr && do {
+		defined($setScstAttr) && do {
 			$rc = setScstAttributes($attributes);
 			last SWITCH;
 		};
-		$setHandlerAttr && do {
+		defined($setHandlerAttr) && do {
 			$rc = setHandlerAttributes($setHandlerAttr, $attributes);
 			last SWITCH;
 		};
-		$setDeviceAttr && do {
+		defined($setDeviceAttr) && do {
 			$rc = setDeviceAttributes($setDeviceAttr, $attributes);
 			last SWITCH;
 		};
-		$setDriverAttr && do {
+		defined($setDriverAttr) && do {
 			$rc = setDriverAttributes($setDriverAttr, $attributes, FALSE);
 			last SWITCH;
 		};
-		$setTargetAttr && do {
+		defined($setTargetAttr) && do {
 			$rc = setTargetAttributes($driver, $setTargetAttr, $attributes, FALSE);
 			last SWITCH;
 		};
-		$setLunAttr && do {
+		defined($setLunAttr) && do {
 			$rc = setLunAttributes($driver, $target, $setLunAttr, $attributes, $group);
 			last SWITCH;
 		};
-		$setInitiatorAttr && do {
+		defined($setInitiatorAttr) && do {
 			$rc = setInitiatorAttributes($driver, $target, $group, $setInitiatorAttr, $attributes);
 			last SWITCH;
 		};
-		$openDev && do {
+		defined($openDev) && do {
 			$rc = openDevice($handler, $openDev, $attributes);
 			last SWITCH;
 		};
-		$closeDev && do {
+		defined($closeDev) && do {
 			$rc = closeDevice($handler, $closeDev, $force);
 			last SWITCH;
 		};
-		$resyncDev && do {
+		defined($resyncDev) && do {
 			$rc = resyncDevice($resyncDev);
 			last SWITCH;
 		};
-		$addGroup && do {
+		defined($addGroup) && do {
 			$rc = addGroup($driver, $target, $addGroup);
 			last SWITCH;
 		};
-		$removeGroup && do {
+		defined($removeGroup) && do {
 			$rc = removeGroup($driver, $target, $removeGroup, $force);
 			last SWITCH;
 		};
-		$addInitiator && do {
+		defined($addInitiator) && do {
 			$rc = addInitiator($driver, $target, $addInitiator, $group);
 			last SWITCH;
 		};
-		$removeInitiator && do {
+		defined($removeInitiator) && do {
 			$rc = removeInitiator($driver, $target, $group, $removeInitiator);
 			last SWITCH;
 		};
-		$moveInitiator && do {
+		defined($moveInitiator) && do {
 			$rc = moveInitiator($driver, $target, $group, $moveInitiator, $to);
 			last SWITCH;
 		};
-		$clearInitiators && do {
+		defined($clearInitiators) && do {
 			$rc = clearInitiators($driver, $target, $group);
 			last SWITCH;
 		};
-		$addLun && do {
+		defined($addLun) && do {
 			$rc = addLun($driver, $target, $device, $addLun, $attributes, $group);
 			last SWITCH;
 		};
-		$removeLun && do {
+		defined($removeLun) && do {
 			$rc = removeLun($driver, $target, $device, $removeLun, $group);
 			last SWITCH;
 		};
-		$replaceLun && do {
+		defined($replaceLun) && do {
 			$rc = replaceLun($driver, $target, $group, $replaceLun, $device, $attributes);
 			last SWITCH;
 		};
-		$clearLuns && do {
+		defined($clearLuns) && do {
 			$rc = clearLuns($driver, $target, $group);
 			last SWITCH;
 		};
-		$enableTarget && do {
+		defined($enableTarget) && do {
 			$rc = enableTarget($enableTarget);
 			last SWITCH;
 		};
-		$disableTarget && do {
+		defined($disableTarget) && do {
 			$rc = disableTarget($disableTarget);
 			last SWITCH;
 		};
-		$issueLip && do {
+		defined($issueLip) && do {
 			$rc = issueLip();
 			last SWITCH;
 		};
@@ -1822,7 +1823,7 @@ sub listDevices {
 	my $device = shift;
 	my $nonkey = shift;
 
-	return listDevice($device, $nonkey) if ($device);
+	return listDevice($device, $nonkey) if (defined($device));
 	return listHandler();
 }
 
@@ -1843,7 +1844,7 @@ sub listDevice {
 sub listDrivers {
 	my $driver = shift;
 
-	return listTargets($driver, undef) if ($driver);
+	return listTargets($driver, undef) if (defined($driver));
 
 	my $drivers = $SCST->drivers();
 
@@ -1869,7 +1870,7 @@ sub listTargets {
 	my $target = shift;
 	my %toprint;
 
-	return listGroups($driver, $target, undef) if ($target && $driver);
+	return listGroups($driver, $target, undef) if (defined($target) && defined($driver));
 
 	my $got_driver = defined($driver);
 
@@ -1966,24 +1967,30 @@ sub listGroup {
 			print "\t(none)\n";
 		}
 
-		print "\nAssigned Initiators:\n\n";
+		if (defined($group)) {
+			print "\nAssigned Initiators:\n\n";
 
-		if ($#{$initiators} > -1) {
-			print "\tInitiator\n";
-			print "\t";
-			for (my $x = 0; $x < $l_initiator; $x++) {
-				print "-";
-			}
-			print "\n";
+			if ($#{$initiators} > -1) {
+				print "\tInitiator\n";
+				print "\t";
+				for (my $x = 0; $x < $l_initiator; $x++) {
+					print "-";
+				}
+				print "\n";
 
-			foreach my $initiator (@{$initiators}) {
-				print "\t$initiator\n";
+				foreach my $initiator (@{$initiators}) {
+					print "\t$initiator\n";
+				}
+			} else {
+				print "\t(none)\n";
 			}
-		} else {
-			print "\t(none)\n";
 		}		
 	} else {
-		print "Group '$group' has no associated LUNs or initiators.\n";
+		if (defined($group)) {
+			print "Group '$group' has no associated LUNs or initiators.\n";
+		} else {
+			print "Driver/target '$driver/$target' has no associated LUNs.\n";
+		}
 	}
 
 }
@@ -1994,7 +2001,7 @@ sub listGroups {
 	my $group = shift;
 	my $found = FALSE;
 
-	if ($group && $driver && $target) {
+	if (defined($group) && defined($driver) && defined($target)) {
 		return listGroup($driver, $target, $group);
 	}
 
@@ -2013,15 +2020,20 @@ sub listGroups {
 				$target = $_target if (!$got_target);
 
 				if ($target eq $_target) {
+					$found++;
+					print "Driver: $driver\n";
+					print "Target: $target\n\n";
+
+					listGroup($driver, $target, undef);
+
+					print "\n";
+
 					my $groups = $SCST->groups($driver, $target);
 					foreach my $_group (@{$groups}) {
 						$group = $_group if (!$got_group);
 
 						if ($group eq $_group) {
-							$found++;
-							print "Driver: $driver\n";
-							print "Target: $target\n";
-							print "Group : $group\n\n";
+							print "Group: $group\n\n";
 
 							listGroup($driver, $target, $group);
 
@@ -2116,7 +2128,7 @@ sub listAttributes {
 		}
 	}
 
-	printf("\t%-*s     %-*s    %-*s     %-*s\n", $l_attr, 'Attribute', $l_value,
+	printf("\t%-*s     %-*s     %-*s     %-*s\n", $l_attr, 'Attribute', $l_value,
 	  'Value', 9, 'Writable', 3, 'KEY');
 	print "\t";
 	for (my $x = 0; $x < ($l_attr + $l_value + 27); $x++) {
@@ -2135,11 +2147,11 @@ sub listAttributes {
 				my $static = ($$attributes{$attribute}->{'static'}) ? 'No' : 'Yes';
 				$value = '<not set>' if ($value eq '');
 				if ($first) {
-					printf("\t%-*s    %-*s     %-*s     %-*s\n",
+					printf("\t%-*s     %-*s     %-*s     %-*s\n",
 					  $l_attr, $attribute, $l_value, $value, 9, $static, 3, 'Yes');
 					$first = FALSE;
 				} else {
-					printf("\t%-*s    %-*s     %-*s     %-*s\n",
+					printf("\t%-*s     %-*s     %-*s     %-*s\n",
 					  $l_attr, '', $l_value, $value, 9, $static, 3, 'Yes');
 				}
 
@@ -2147,15 +2159,15 @@ sub listAttributes {
 			}
 		} elsif ($nonkey) {
 			my $value = $$attributes{$attribute}->{'value'};
-			next if (ref($value) eq 'HASH');
-			$value = 'N/A' if (!defined($value));
+			next if ((ref($value) eq 'HASH') || (ref($value) eq 'ARRAY'));
+			$value = '<n/a>' if (!defined($value));
 			$value = '<not set>' if ($value eq '');
 			my $static = ($$attributes{$attribute}->{'static'}) ? 'No' : 'Yes';
 			if ($first) {
-				printf("\t%-*s    %-*s     %-*s     %-*s\n",
+				printf("\t%-*s     %-*s     %-*s     %-*s\n",
 				  $l_attr, $attribute, $l_value, $value, 9, $static, 3, 'No');
 			} else {
-				printf("\t%-*s    %-*s     %-*s     %-*s\n",
+				printf("\t%-*s     %-*s     %-*s     %-*s\n",
 				  $l_attr, '', $l_value, $value, 9, $static, 3, 'No');
 			}
 
@@ -2183,34 +2195,90 @@ sub listScstAttributes {
 
 sub listHandlerAttributes {
 	my $handler = shift;
+	my $nonkey = shift;
 
+	my $attributes = $SCST->handlerAttributes($handler);
+
+	if (!scalar(keys %{$attributes})) {
+		print "No such handler '$handler' found.\n";
+		return;
+	}
+
+	return listAttributes($attributes, $nonkey);
 }
 
 sub listDriverAttributes {
 	my $driver = shift;
-		
+	my $nonkey = shift;
+
+	my $attributes = $SCST->driverAttributes($driver);
+
+	if (!scalar(keys %{$attributes})) {
+		print "No such driver '$driver' found.\n";
+		return;
+	}
+
+	return listAttributes($attributes, $nonkey);
 }
 
 sub listTargetAttributes {
-	my $target = shift;
 	my $driver = shift;
+	my $target = shift;
+	my $nonkey = shift;
 
+	my $attributes = $SCST->targetAttributes($driver, $target);
+
+	if (!scalar(keys %{$attributes})) {
+		print "No such driver/target '$driver/$target' found.\n";
+		return;
+	}
+
+	return listAttributes($attributes, $nonkey);
 }
 
 sub listLunAttributes {
-	my $lun = shift;
 	my $driver = shift;
 	my $target = shift;
 	my $group = shift;
+	my $lun = shift;
+	my $nonkey = shift;
 
+	my $attributes = $SCST->lunAttributes($driver, $target, $lun, $group);
+
+	if (!scalar(keys %{$attributes})) {
+		if (defined($group)) {
+			print "No such driver/target/group/lun '$driver/$target/$group/$lun' found.\n";
+		} else {
+			print "No such driver/target/lun '$driver/$target/$lun' found.\n";
+		}
+		return;
+	}
+
+	return listAttributes($attributes, $nonkey);
 }
 
 sub listInitiatorAttributes {
-	my $initiator = shift;
 	my $driver = shift;
 	my $target = shift;
 	my $group = shift;
+	my $initiator = shift;
+	my $nonkey = shift;
 
+	my $attributes = $SCST->initiatorAttributes($driver, $target, $group, $initiator);
+
+	# As if writing, initiators didn't have attributes. This will
+	# allow us to support it in the future.
+	if ($SCST->errorString() =~ /Not a directory/) {
+		print "Initiators do not (yet) have attributes.\n";
+		return;
+	}
+
+	if (!scalar(keys %{$attributes})) {
+		print "No such driver/target/group/initiator '$driver/$target/$group/$initiator' found.\n";
+		return;
+	}
+
+	return listAttributes($attributes, $nonkey);
 }
 
 ####################################################################
