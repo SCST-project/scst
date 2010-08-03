@@ -2203,10 +2203,18 @@ sub listAttributes {
 
 	if ($nonkey && defined($$attributes{'trace_level'})) {
 		my $found = FALSE;
-		print "\n\tPossible trace levels (use trace_level=\"add <level>\", none, all or default to set):\n";
+		print "\n\tPossible trace levels:\n".
+		  "\t  (use trace_level=\"add <level>\", none, all or default to set):\n";
 
+		my $count = 0;
 		foreach my $entry (@{$$attributes{'trace_level'}->{'set'}}) {
-			print "\t\t$entry\n";
+			print "\t\t" if (!$count);
+			print "$entry, ";
+			$count++;
+			if ($count == 5) {
+				print "\n";
+				$count = 0;
+			}
 		}
 
 		print "\n";
