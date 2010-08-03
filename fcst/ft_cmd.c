@@ -120,10 +120,6 @@ void ft_cmd_dump(struct scst_cmd *cmd, const char *caller)
 		ft_cmd_flag(buf, sizeof(buf), "done");
 	if (cmd->finished)
 		ft_cmd_flag(buf, sizeof(buf), "fin");
-	if (cmd->tm_dbg_delayed)
-		ft_cmd_flag(buf, sizeof(buf), "tm_dbg_del");
-	if (cmd->tm_dbg_immut)
-		ft_cmd_flag(buf, sizeof(buf), "tm_dbg_immut");
 
 	printk(KERN_INFO "%s flags %s\n", prefix, buf);
 	printk(KERN_INFO "%s lun %lld sn %d tag %lld cmd_flags %lx\n",
