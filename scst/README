@@ -1444,6 +1444,11 @@ IMPORTANT: Since data in BLOCKIO and FILEIO modes are not consistent between
 	   simultaneously, you will almost instantly corrupt your data
 	   on that device.
 
+IMPORTANT: Kernels starting from 2.6.32 have a problem, which prevents BLOCKIO
+=========  from working with RAID5/DM. See http://lkml.org/lkml/2010/7/28/315.
+	   Hopefully, it will be fixed soon. Meanwhile, it is recommended to use
+	   kernels below 2.6.32 for BLOCKIO on RAID5/DM devices.
+
 IMPORTANT: If SCST 1.x BLOCKIO worked by default in NV_CACHE mode, when
 =========  each device reported to remote initiators as having write through
            caching. But if your backend block device has internal write
