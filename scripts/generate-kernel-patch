@@ -355,7 +355,7 @@ done
 # Directory drivers/scst/fcst/
 
 {
-  for f in $(grep -v '^#' fcst/linux-patches/series-2.6.33-rc8)
+  for f in $(grep -v '^#' fcst/linux-patches/series-${kernel_version}*)
   do
     cat "fcst/linux-patches/${f}"
   done
