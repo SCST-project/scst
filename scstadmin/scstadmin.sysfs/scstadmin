@@ -91,6 +91,12 @@ Device Operations
      -close_dev <device>     : Closes a device belonging to handler <handler>.
          -handler <handler>
 
+Target Operations
+     -add_target <target>    : Add a dynamic target to a capable driver.
+         -driver <driver>
+     -remove_target <target> : Remove a dynamic target from a driver.
+         -driver <driver>
+
 Group Operations
      -add_group <group>      : Add a group to a given driver & target.
          -driver <driver>
