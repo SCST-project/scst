@@ -1919,41 +1919,51 @@ sub listDrivers {
 sub listTargets {
 	my $target = shift;
 	my $driver = shift;
+	my %toprint;
 
 	return listGroups(undef, $driver, $target) if ($target && $driver);
+
+	my $got_driver = defined($driver);
 
 	my $drivers = $SCST->drivers();
 
 	my $l_driver;
 	my $l_target;
-	foreach my $driver (@{$drivers}) {
-		$l_driver = length($driver) if ($l_driver < length($driver));
+	foreach my $_driver (@{$drivers}) {
+		$driver = $_driver if (!$got_driver);
 
-		my $targets = $SCST->targets($driver);
+		if ($driver eq $_driver) {
+			$toprint{$driver}++;
+			$l_driver = length($driver) if ($l_driver < length($driver));
 
-		foreach my $target (@{$targets}) {
-			$l_target = length($target) if ($l_target < length($target));
+			my $targets = $SCST->targets($driver);
+
+			foreach my $target (@{$targets}) {
+				$l_target = length($target) if ($l_target < length($target));
+			}
 		}
 	}
 
-	printf("\t%-*s %-*s\n", $l_driver, 'Driver', $l_target, 'Target');
-	print "\t";
-	for (my $x = 0; $x < ($l_driver + $l_target + 1); $x++) {
-		print "-";
-	}
-	print "\n";
+	if (scalar(keys %toprint)) {
+		printf("\t%-*s %-*s\n", $l_driver, 'Driver', $l_target, 'Target');
+		print "\t";
+		for (my $x = 0; $x < ($l_driver + $l_target + 1); $x++) {
+			print "-";
+		}
+		print "\n";
 
-	my %p;
+		my %p;
 
-	foreach my $driver (@{$drivers}) {
-		my $targets = $SCST->targets($driver);
+		foreach my $driver (keys %toprint) {
+			my $targets = $SCST->targets($driver);
 
-		foreach my $target (@{$targets}) {
-			if (!defined($p{$driver})) {
-				printf("\t%-*s %-*s\n", $l_driver, $driver, $l_target, $target);
-				$p{$driver}++;
-			} else {
-				printf("\t%-*s %-*s\n", $l_driver, '', $l_target, $target);
+			foreach my $target (@{$targets}) {
+				if (!defined($p{$driver})) {
+					printf("\t%-*s %-*s\n", $l_driver, $driver, $l_target, $target);
+					$p{$driver}++;
+				} else {
+					printf("\t%-*s %-*s\n", $l_driver, '', $l_target, $target);
+				}
 			}
 		}
 	}
