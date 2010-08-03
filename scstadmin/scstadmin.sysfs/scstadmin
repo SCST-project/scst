@@ -427,7 +427,7 @@ sub getArgs {
 		usage();
 	}
 
-	if (defined($setDeviceAttr) &&
+	if (defined($setInitiatorAttr) &&
 	    (!defined($driver) || !defined($target) || !defined($group) || !defined($attributes))) {
 		print "Please specify -driver -target -group and -attributes with -set_ini_attr.\n";
 		usage();
@@ -476,7 +476,7 @@ sub getArgs {
 		foreach my $attribute (split(/\,/, $attributes)) {
 			my $value;
 
-			if ($attribute =~ /\=/) {
+			if ($attribute !~ /\=/) {
 				$value = TRUE;
 			} else {
 				($attribute, $value) = split(/\=/, $attribute, 2);
@@ -601,31 +601,31 @@ sub main {
 			$all_good = TRUE;
 		};
 		defined($setScstAttr) && do {
-			$rc = setScstAttributes($attributes);
+			$rc = setScstAttributes($attributes, TRUE);
 			last SWITCH;
 		};
 		defined($setHandlerAttr) && do {
-			$rc = setHandlerAttributes($setHandlerAttr, $attributes);
+			$rc = setHandlerAttributes($setHandlerAttr, $attributes, TRUE);
 			last SWITCH;
 		};
 		defined($setDeviceAttr) && do {
-			$rc = setDeviceAttributes($setDeviceAttr, $attributes);
+			$rc = setDeviceAttributes($setDeviceAttr, $attributes, TRUE);
 			last SWITCH;
 		};
 		defined($setDriverAttr) && do {
-			$rc = setDriverAttributes($setDriverAttr, $attributes, FALSE);
+			$rc = setDriverAttributes($setDriverAttr, $attributes, FALSE, TRUE);
 			last SWITCH;
 		};
 		defined($setTargetAttr) && do {
-			$rc = setTargetAttributes($driver, $setTargetAttr, $attributes, FALSE);
+			$rc = setTargetAttributes($driver, $setTargetAttr, $attributes, FALSE, TRUE);
 			last SWITCH;
 		};
 		defined($setLunAttr) && do {
-			$rc = setLunAttributes($driver, $target, $setLunAttr, $attributes, $group);
+			$rc = setLunAttributes($driver, $target, $setLunAttr, $attributes, $group, TRUE);
 			last SWITCH;
 		};
 		defined($setInitiatorAttr) && do {
-			$rc = setInitiatorAttributes($driver, $target, $group, $setInitiatorAttr, $attributes);
+			$rc = setInitiatorAttributes($driver, $target, $group, $setInitiatorAttr, $attributes, TRUE);
 			last SWITCH;
 		};
 		defined($openDev) && do {
@@ -2124,6 +2124,14 @@ sub listAttributes {
 		} elsif ($nonkey) {
 			$l_attr = length($attribute) if ($l_attr < length($attribute));
 			my $value = $$attributes{$attribute}->{'value'};
+			if (($attribute eq 'trace_level') && $value) {
+				foreach my $level (split(/\|/, $value)) {
+					$level =~ s/^\s+//; $level =~ s/\s+$//;
+					$l_value = length($level) if ($l_value < length($level));
+				}
+
+				next;
+			}
 			$l_value = length($value) if ($l_value < length($value));
 		}
 	}
@@ -2159,17 +2167,31 @@ sub listAttributes {
 			}
 		} elsif ($nonkey) {
 			my $value = $$attributes{$attribute}->{'value'};
+			my $static = ($$attributes{$attribute}->{'static'}) ? 'No' : 'Yes';
+			if (($attribute eq 'trace_level') && $value) {
+				foreach my $level (split(/\|/, $value)) {
+					$level =~ s/^\s+//; $level =~ s/\s+$//;
+					if ($first) {
+						printf("\t%-*s     %-*s     %-*s     %-*s\n",
+						  $l_attr, $attribute, $l_value, $level, 9, $static, 3, 'No');
+						$first = FALSE;
+					} else {
+						printf("\t%-*s     %-*s     %-*s     %-*s\n",
+						  $l_attr, '', $l_value, $level, 9, $static, 3, 'No');
+					}
+
+					$found++;
+				}
+
+				next;
+			}
+
 			next if ((ref($value) eq 'HASH') || (ref($value) eq 'ARRAY'));
+
 			$value = '<n/a>' if (!defined($value));
 			$value = '<not set>' if ($value eq '');
-			my $static = ($$attributes{$attribute}->{'static'}) ? 'No' : 'Yes';
-			if ($first) {
-				printf("\t%-*s     %-*s     %-*s     %-*s\n",
-				  $l_attr, $attribute, $l_value, $value, 9, $static, 3, 'No');
-			} else {
-				printf("\t%-*s     %-*s     %-*s     %-*s\n",
-				  $l_attr, '', $l_value, $value, 9, $static, 3, 'No');
-			}
+			printf("\t%-*s     %-*s     %-*s     %-*s\n",
+			  $l_attr, $attribute, $l_value, $value, 9, $static, 3, 'No');
 
 			$found++;
 		}
@@ -2177,6 +2199,17 @@ sub listAttributes {
 
 	if (!$found) {
 		print "\t(none)\n";
+	}
+
+	if ($nonkey && defined($$attributes{'trace_level'})) {
+		my $found = FALSE;
+		print "\n\tPossible trace levels (use trace_level=\"add <level>\", none, all or default to set):\n";
+
+		foreach my $entry (@{$$attributes{'trace_level'}->{'set'}}) {
+			print "\t\t$entry\n";
+		}
+
+		print "\n";
 	}
 }
 
@@ -2300,12 +2333,13 @@ sub setScstAttribute {
 
 sub setScstAttributes {
 	my $attributes = shift;
+	my $showset = shift;
 
 	my $error = "-> WARNING: SCST lacks the settable attribute '%s', ignoring.\n\n";
 	my $_attributes = $SCST->scstAttributes();
 
 	return setAttributes(undef, undef, undef, undef, $attributes,
-	  $_attributes, $error, \&setScstAttribute);
+	  $_attributes, $error, \&setScstAttribute, $showset);
 }
 
 sub setDeviceAttribute {
@@ -2326,16 +2360,18 @@ sub setDeviceAttribute {
 sub setDeviceAttributes {
 	my $device = shift;
 	my $attributes = shift;
+	my $showset = shift;
 
 	my $error = "-> WARNING: Device '$device' lacks the settable ".
 	  "attribute '%s', ignoring.\n\n";
 	my $_attributes = $SCST->deviceAttributes($device);
 
 	return setAttributes(undef, undef, undef, $device, $attributes,
-	  $_attributes, $error, \&setDeviceAttribute);
+	  $_attributes, $error, \&setDeviceAttribute, $showset);
 }
 
 sub setHandlerAttribute {
+	shift;
 	shift;
 	shift;
 	my $handler = shift;
@@ -2352,13 +2388,14 @@ sub setHandlerAttribute {
 sub setHandlerAttributes {
 	my $handler = shift;
 	my $attributes = shift;
+	my $showset = shift;
 
 	my $error = "-> WARNING: Handler '$handler' lacks the settable ".
 	  "attribute '%s', ignoring.\n\n";
 	my $_attributes = $SCST->handlerAttributes($handler);
 
-	return setAttributes(undef, undef, $handler, $attributes,
-	  $_attributes, $error, \&setHandlerAttribute);
+	return setAttributes(undef, undef, undef, $handler, $attributes,
+	  $_attributes, $error, \&setHandlerAttribute, $showset);
 }
 
 sub setGroupAttribute {
@@ -2377,17 +2414,19 @@ sub setGroupAttribute {
 }
 
 sub setGroupAttributes {
+	shift;
 	my $driver = shift;
 	my $target = shift;
 	my $group = shift;
 	my $attributes = shift;
+	my $showset = shift;
 
 	my $error = "-> WARNING: Driver/target/group '$driver/$target/$group' lacks the settable ".
 	  "attribute '%s', ignoring.\n\n";
 	my $_attributes = $SCST->groupAttributes($driver, $target, $group);
 
 	return setAttributes(undef, $driver, $target, $group, $attributes,
-	  $_attributes, $error, \&setGroupAttribute);
+	  $_attributes, $error, \&setGroupAttribute, $showset);
 }
 
 sub setLunAttribute {
@@ -2418,6 +2457,7 @@ sub setLunAttributes {
 	my $lun = shift;
 	my $attributes = shift;
 	my $group = shift;
+	my $showset = shift;
 	my $error;
 
 	if ($group) {
@@ -2431,7 +2471,7 @@ sub setLunAttributes {
 	my $_attributes = $SCST->lunAttributes($driver, $target, $lun, $group);
 
 	return setAttributes($driver, $target, $lun, $group, $attributes,
-	  $_attributes, $error, \&setLunAttribute);
+	  $_attributes, $error, \&setLunAttribute, $showset);
 }
 
 sub setInitiatorAttribute {
@@ -2457,13 +2497,14 @@ sub setInitiatorAttributes {
 	my $group = shift;
 	my $initiator = shift;
 	my $attributes = shift;
+	my $showset = shift;
 
 	my $error = "-> WARNING: Driver/target/group/initiator '$driver/$target/$group/$initiator' ".
 	  "lacks the settable attribute '%s', ignoring.\n\n";
 	my $_attributes = $SCST->initiatorAttributes($driver, $target, $group, $initiator);
 
 	return setAttributes($driver, $target, $group, $initiator, $attributes,
-	  $_attributes, $error, \&setInitiatorAttribute);
+	  $_attributes, $error, \&setInitiatorAttribute, $showset);
 }
 
 # Sets any non-dynamic attributes
@@ -2476,6 +2517,7 @@ sub setAttributes {
 	my $_attributes = shift;
 	my $error = shift;
 	my $callback = shift;
+	my $showset = shift;
 	my %toset;
 	my %existing;
 
@@ -2501,8 +2543,7 @@ sub setAttributes {
 			}
 		} else {
 			my $value = $$_attributes{$attribute}->{'value'};
-			$existing{$attribute}->{$value} = FALSE
-			  if (defined($value) && ($value ne ''));
+			$existing{$attribute}->{$value} = FALSE;
 		}
 	}
 
@@ -2514,7 +2555,11 @@ sub setAttributes {
 			}
 
 			# already set, move on
-			next if (defined($existing{$attribute}->{$value}));
+			if (defined($existing{$attribute}->{$value})) {
+				print "-> Attribute '$attribute' already set to value '$value', ignoring.\n"
+				  if ($showset);
+				next;
+			}
 
 			# Set the existing attribute
 			$callback->($level1, $level2, $level3, $level4, $attribute, $value);

@@ -287,11 +287,23 @@ sub scstAttributes {
 				}
 
 				if ($attribute eq SCST_TRACE_IO) {
-					$attributes{$attribute}->{'value'} = '';
+					$attributes{$attribute}->{'value'} = $value;
 					my @possible;
-					foreach my $t (split(/\|/, $value)) {
-						$t =~ s/^\s//; $t =~ s/\s$//;
-						push @possible, $t;
+					$value = '';
+					my $start = FALSE;
+					while (my $line = <$io>) {
+						$start = TRUE if ($line !~ /\[/);
+						$value .= $line if ($start);
+					}
+					$value =~ s/\n//g;
+
+					if ($value =~ /\[(.*)\]/) {
+						$value = $1;
+
+						foreach my $t (split(/\,/, $value)) {
+							$t =~ s/^\s+//; $t =~ s/\s+$//;
+							push @possible, $t;
+						}
 					}
 					$attributes{$attribute}->{'set'} = \@possible;
 				} else {
@@ -1839,11 +1851,23 @@ sub driverAttributes {
 				next if ($attribute eq SCST_MGMT_IO);
 
 				if ($attribute eq SCST_TRACE_IO) {
-					$attributes{$attribute}->{'value'} = '';
+					$attributes{$attribute}->{'value'} = $value;
 					my @possible;
-					foreach my $t (split(/\|/, $value)) {
-						$t =~ s/^\s//; $t =~ s/\s$//;
-						push @possible, $t;
+					$value = '';
+					my $start = FALSE;
+					while (my $line = <$io>) {
+						$start = TRUE if ($line !~ /\[/);
+						$value .= $line if ($start);
+					}
+					$value =~ s/\n//g;
+
+					if ($value =~ /\[(.*)\]/) {
+						$value = $1;
+
+						foreach my $t (split(/\,/, $value)) {
+							$t =~ s/^\s+//; $t =~ s/\s+$//;
+							push @possible, $t;
+						}
 					}
 					$attributes{$attribute}->{'set'} = \@possible;
 				} else {
@@ -2622,11 +2646,23 @@ sub handlerAttributes {
 			$attributes{$attribute}->{'static'} = FALSE;
 			$attributes{$attribute}->{'value'} = undef;
 		} elsif ($attribute eq SCST_TRACE_IO) {
-			$attributes{$attribute}->{'value'} = '';
+			$attributes{$attribute}->{'value'} = $value;
 			my @possible;
-			foreach my $t (split(/\|/, $value)) {
-				$t =~ s/^\s//; $t =~ s/\s$//;
-				push @possible, $t;
+			$value = '';
+			my $start = FALSE;
+			while (my $line = <$io>) {
+				$start = TRUE if ($line !~ /\[/);
+				$value .= $line if ($start);
+			}
+			$value =~ s/\n//g;
+
+			if ($value =~ /\[(.*)\]/) {
+				$value = $1;
+
+				foreach my $t (split(/\,/, $value)) {
+					$t =~ s/^\s+//; $t =~ s/\s+$//;
+					push @possible, $t;
+				}
 			}
 			$attributes{$attribute}->{'set'} = \@possible;
 		} elsif ($attribute eq 'type') {
