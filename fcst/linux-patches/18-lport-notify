@@ -1,0 +1,167 @@
+libfc: add hook to notify providers of local port changes
+
+When an SCST provider is registered, it needs to know what
+local ports are available for configuration as targets.
+
+Add a notifier chain that is invoked when any local port
+that is added or deleted.
+
+Maintain a global list of local ports and add an
+interator function that calls a given function for
+every existing local port.  This is used when first
+loading a provider.
+
+Signed-off-by: Joe Eykholt <jeykholt@cisco.com>
+
+---
+ drivers/scsi/libfc/fc_libfc.c |   41 +++++++++++++++++++++++++++++++++++++++++
+ drivers/scsi/libfc/fc_libfc.h |    2 ++
+ drivers/scsi/libfc/fc_lport.c |    2 ++
+ include/scsi/libfc.h          |   14 +++++++++++++-
+ 4 files changed, 58 insertions(+), 1 deletions(-)
+
+
+---
+diff --git a/drivers/scsi/libfc/fc_libfc.c b/drivers/scsi/libfc/fc_libfc.c
+index ce0de44..abd108a 100644
+--- a/drivers/scsi/libfc/fc_libfc.c
++++ b/drivers/scsi/libfc/fc_libfc.c
+@@ -35,6 +35,10 @@ module_param_named(debug_logging, fc_debug_logging, int, S_IRUGO|S_IWUSR);
+ MODULE_PARM_DESC(debug_logging, "a bit mask of logging levels");
+ 
+ DEFINE_MUTEX(fc_prov_mutex);
++static LIST_HEAD(fc_local_ports);
++struct blocking_notifier_head fc_lport_notifier_head =
++		BLOCKING_NOTIFIER_INIT(fc_lport_notifier_head);
++EXPORT_SYMBOL(fc_lport_notifier_head);
+ 
+ /*
+  * Providers which primarily send requests and PRLIs.
+@@ -150,6 +154,17 @@ u32 fc_copy_buffer_to_sglist(void *buf, size_t len,
+ 	return copy_len;
+ }
+ 
++void fc_lport_iterate(void (*notify)(struct fc_lport *, void *), void *arg)
++{
++	struct fc_lport *lport;
++
++	mutex_lock(&fc_prov_mutex);
++	list_for_each_entry(lport, &fc_local_ports, lport_list)
++		notify(lport, arg);
++	mutex_unlock(&fc_prov_mutex);
++}
++EXPORT_SYMBOL(fc_lport_iterate);
++
+ /**
+  * fc_fc4_register_provider() - register FC-4 upper-level provider.
+  * @type: FC-4 type, such as FC_TYPE_FCP
+@@ -192,3 +207,29 @@ void fc_fc4_deregister_provider(enum fc_fh_type type, struct fc4_prov *prov)
+ 	synchronize_rcu();
+ }
+ EXPORT_SYMBOL(fc_fc4_deregister_provider);
++
++/**
++ * fc_fc4_add_lport() - add new local port to list and run notifiers.
++ * @lport:  The new local port.
++ */
++void fc_fc4_add_lport(struct fc_lport *lport)
++{
++	mutex_lock(&fc_prov_mutex);
++	list_add_tail(&lport->lport_list, &fc_local_ports);
++	blocking_notifier_call_chain(&fc_lport_notifier_head,
++				     FC_LPORT_EV_ADD, lport);
++	mutex_unlock(&fc_prov_mutex);
++}
++
++/**
++ * fc_fc4_del_lport() - remove local port from list and run notifiers.
++ * @lport:  The new local port.
++ */
++void fc_fc4_del_lport(struct fc_lport *lport)
++{
++	mutex_lock(&fc_prov_mutex);
++	list_del(&lport->lport_list);
++	blocking_notifier_call_chain(&fc_lport_notifier_head,
++				     FC_LPORT_EV_DEL, lport);
++	mutex_unlock(&fc_prov_mutex);
++}
+diff --git a/drivers/scsi/libfc/fc_libfc.h b/drivers/scsi/libfc/fc_libfc.h
+index 2323c80..85ce01e 100644
+--- a/drivers/scsi/libfc/fc_libfc.h
++++ b/drivers/scsi/libfc/fc_libfc.h
+@@ -111,6 +111,8 @@ void fc_destroy_fcp(void);
+  * Internal libfc functions
+  */
+ const char *fc_els_resp_type(struct fc_frame *);
++extern void fc_fc4_add_lport(struct fc_lport *);
++extern void fc_fc4_del_lport(struct fc_lport *);
+ 
+ /*
+  * Copies a buffer into an sg list
+diff --git a/drivers/scsi/libfc/fc_lport.c b/drivers/scsi/libfc/fc_lport.c
+index b05329c..375a2a7 100644
+--- a/drivers/scsi/libfc/fc_lport.c
++++ b/drivers/scsi/libfc/fc_lport.c
+@@ -647,6 +647,7 @@ int fc_lport_destroy(struct fc_lport *lport)
+ 	lport->tt.fcp_abort_io(lport);
+ 	lport->tt.disc_stop_final(lport);
+ 	lport->tt.exch_mgr_reset(lport, 0, 0);
++	fc_fc4_del_lport(lport);
+ 	return 0;
+ }
+ EXPORT_SYMBOL(fc_lport_destroy);
+@@ -1639,6 +1640,7 @@ int fc_lport_init(struct fc_lport *lport)
+ 		fc_host_supported_speeds(lport->host) |= FC_PORTSPEED_1GBIT;
+ 	if (lport->link_supported_speeds & FC_PORTSPEED_10GBIT)
+ 		fc_host_supported_speeds(lport->host) |= FC_PORTSPEED_10GBIT;
++	fc_fc4_add_lport(lport);
+ 
+ 	return 0;
+ }
+diff --git a/include/scsi/libfc.h b/include/scsi/libfc.h
+index 9d7c8e3..2fa3538 100644
+--- a/include/scsi/libfc.h
++++ b/include/scsi/libfc.h
+@@ -775,6 +775,15 @@ struct fc_disc {
+ 			      enum fc_disc_event);
+ };
+ 
++/*
++ * Local port notifier and events.
++ */
++extern struct blocking_notifier_head fc_lport_notifier_head;
++enum fc_lport_event {
++	FC_LPORT_EV_ADD,
++	FC_LPORT_EV_DEL,
++};
++
+ /**
+  * struct fc_lport - Local port
+  * @host:                  The SCSI host associated with a local port
+@@ -814,8 +823,9 @@ struct fc_disc {
+  * @lso_max:               The maximum large offload send size
+  * @fcts:                  FC-4 type mask
+  * @lp_mutex:              Mutex to protect the local port
+- * @list:                  Handle for list of local ports
++ * @list:                  Linkage on list of vport peers
+  * @retry_work:            Handle to local port for delayed retry context
++ * @lport_list:            Linkage on module-wide list of local ports
+  * @prov:		   Pointers available for use by passive FC-4 providers
+  */
+ struct fc_lport {
+@@ -870,6 +880,7 @@ struct fc_lport {
+ 	struct mutex                   lp_mutex;
+ 	struct list_head               list;
+ 	struct delayed_work	       retry_work;
++	struct list_head               lport_list;
+ 	void			       *prov[FC_FC4_PROV_SIZE];
+ };
+ 
+@@ -1024,6 +1035,7 @@ int fc_set_mfs(struct fc_lport *, u32 mfs);
+ struct fc_lport *libfc_vport_create(struct fc_vport *, int privsize);
+ struct fc_lport *fc_vport_id_lookup(struct fc_lport *, u32 port_id);
+ int fc_lport_bsg_request(struct fc_bsg_job *);
++void fc_lport_iterate(void (*func)(struct fc_lport *, void *), void *);
+ 
+ /*
+  * REMOTE PORT LAYER
