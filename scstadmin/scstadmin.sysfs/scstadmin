@@ -1243,6 +1243,8 @@ sub checkConfiguration {
 	my $file = shift;
 	my $no_drivers;
 	my $no_handlers;
+	my $warnings = 0;
+	my $errors = 0;
 
 	print "-> Checking configuration file '$file' for errors.\n";
 
@@ -1254,6 +1256,7 @@ sub checkConfiguration {
 		print "\t-> WARNING: No TARGET_DRIVER section defined. ".
 		  "No target drivers will be configured.\n\n";
 		$no_drivers = TRUE;
+		$warnings++;
 	}
 
 	if (!defined($$CONFIG{'HANDLER'}) ||
@@ -1261,10 +1264,12 @@ sub checkConfiguration {
 		print "\t-> WARNING: No HANDLER section defined. ".
 		  "Only physical media will be configured for targets.\n\n";
 		$no_handlers = TRUE;
+		$warnings++;
 	}
 
 	if ($no_drivers && $no_handlers) {
-		immediateExit("No target drivers or handlers defined, aborting!");
+		print "FATAL: No target drivers or handlers defined, aborting!\n";
+		$errors++;
 	}
 
 	if (!$no_drivers) {
@@ -1273,12 +1278,14 @@ sub checkConfiguration {
 
 			if (!defined($CURRENT{'assign'}->{$driver})) {
 				print "\t-> WARNING: Target driver '$driver' is not loaded or available.\n\n";
+				$warnings++;
 				next;
 			}
 
 			if (!defined($$CONFIG{'TARGET_DRIVER'}->{$driver}->{'TARGET'}) ||
 			    !(scalar keys %{$$CONFIG{'TARGET_DRIVER'}->{$driver}->{'TARGET'}})) {
 				print "\t-> WARNING: Driver '$driver' has no configured targets.\n\n";
+				$warnings++;
 				$no_targets = TRUE;
 			}
 
@@ -1288,7 +1295,7 @@ sub checkConfiguration {
 						if (!$SCST->driverIsVirtualCapable($driver)) {
 							print "\t-> FATAL: Target '$target' for driver '$driver' ".
 							  "does not exist.\n";
-							return TRUE;
+							$errors++;
 						}
 					}
 				}
@@ -1299,6 +1306,13 @@ sub checkConfiguration {
 	my %cdevices;
 
 	foreach my $handler (sort keys %{$$CONFIG{'HANDLER'}}) {
+		if (!$SCST->handlerExists($handler)) {
+			print "\t-> WARNING: No such handler '$handler' available, ignoring.\n";
+			delete $$CONFIG{'HANDLER'}->{$handler};
+			$warnings++;
+			next;
+		}
+
 		foreach my $device (sort keys %{$$CONFIG{'HANDLER'}->{$handler}->{'DEVICE'}}) {
 			# Since some people may get confused with how to open
 			# a vcdrom, we'll support having '/dev/cdrom' instead of just 'cdrom'.
@@ -1310,15 +1324,16 @@ sub checkConfiguration {
 				  "not contain the full /dev path, please change to '$_device'.\n\n";
 				delete $$CONFIG{'HANDLER'}->{$handler}->{'DEVICE'}->{$device};
 				$$CONFIG{'HANDLER'}->{$handler}->{'DEVICE'}->{$_device} = $tree;
+				$warnings++;
 			} elsif ($device =~ /\//) {
 				print "\t-> FATAL: Device '$device' configured for handler '$handler' may not ".
 				  "contain character '/'.\n";
-				return TRUE;
+				$errors++;
 			}
 
 			$cdevices{$device}++;
 		}
-	}				
+	}
 
 	foreach my $driver (keys %{$$CONFIG{'TARGET_DRIVER'}}) {
 		foreach my $target (keys %{$$CONFIG{'TARGET_DRIVER'}->{$driver}->{'TARGET'}}) {
@@ -1332,6 +1347,7 @@ sub checkConfiguration {
 							  "'$driver/$target' at LUN $lun is not defined within configuration, ".
 							  "removing it.\n\n";
 							delete $$tgt{'LUN'}->{$lun};
+							$warnings++;
 						}
 					}
 				}
@@ -1347,6 +1363,7 @@ sub checkConfiguration {
 									  "driver/target '$driver/$target' at LUN $lun is not ".
 									  "defined within configuration, removing it.\n\n";
 									delete $$tgt{'GROUP'}->{$group}->{'LUN'}->{$lun};
+									$warnings++;
 								}
 							}
 						}
@@ -1355,6 +1372,13 @@ sub checkConfiguration {
 			}
 		}
 	}
+
+	if ($errors) {
+		print "\t-> Done, $errors errors found.\n";
+		return TRUE;
+	}
+
+	print "\t-> Done, $warnings warnings found.\n";
 
 	return FALSE;
 }
