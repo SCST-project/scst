@@ -27,6 +27,7 @@
 #include <linux/blkdev.h>
 #include <linux/completion.h>
 #include <linux/stat.h>
+#include <asm/unaligned.h>
 
 #include <scsi/scsi.h>
 #include <scsi/scsi_cmnd.h>
@@ -94,6 +95,9 @@ static unsigned long scst_local_trace_flag = SCST_LOCAL_DEFAULT_LOG_FLAGS;
  */
 static void scst_local_remove_adapter(void);
 static int scst_local_add_adapter(void);
+static int scst_local_get_initiator_port_transport_id(
+				struct scst_session *scst_sess,
+				uint8_t **transport_id);
 
 #define SCST_LOCAL_VERSION "0.9.2"
 static const char *scst_local_version_date = "20090614";
@@ -634,6 +638,85 @@ static int scst_local_targ_pre_exec(struct scst_cmd *scst_cmd)
 	return res;
 }
 
+static int scst_local_get_initiator_port_transport_id(
+				struct scst_session *scst_sess,
+				uint8_t **transport_id)
+{
+	int res = 0;
+	int tr_id_size = 0, sess = -1, i = 0;
+	uint8_t *tr_id = NULL;
+	struct scst_local_host_info *scst_lcl_host;
+
+	TRACE_ENTRY();
+
+	if (scst_sess == NULL) {
+		res = SCSI_TRANSPORTID_PROTOCOLID_SAS;
+		goto out;
+	}
+
+	scst_lcl_host = (struct scst_local_host_info *)
+				scst_sess_get_tgt_priv(scst_sess);
+
+	printk(KERN_INFO "%s: scst_lcl_host: %p\n", __func__, scst_lcl_host);
+	printk(KERN_INFO "%s: sess = %p\n", __func__, scst_sess);
+
+	tr_id_size = 24;  /* A SAS TransportID */
+
+	printk(KERN_INFO "%s: tr_id_size: %d\n", __func__, tr_id_size);
+
+	tr_id = kzalloc(tr_id_size, GFP_KERNEL);
+	if (tr_id == NULL) {
+		PRINT_ERROR("Allocation of TransportID (size %d) failed",
+			tr_id_size);
+		printk(KERN_INFO "%s: failed to allocate space\n", __func__);
+		res = -ENOMEM;
+		goto out;
+	}
+
+	tr_id[0] = 0x00 | SCSI_TRANSPORTID_PROTOCOLID_SAS;
+
+	for (i = 0; i < scst_local_num_tgts; i++) {
+		printk(KERN_INFO "%s: session: %p\n", 
+			__func__, scst_lcl_host->session[i]);
+		/*
+		 * We are called before the session is returned below
+		 */
+		if (scst_lcl_host->session[i] == NULL) {
+			sess = i;
+			break;
+		}
+	}
+
+	if (sess == -1) {
+		printk(KERN_INFO "%s: Unable to find a matching session\n",
+			__func__);
+		res = -ENOENT;
+		goto out;
+	}
+
+	/*
+	 * Assemble a valid SAS address = 0x5OOUUIIR12345678 ... Does SCST 
+	 * have one?
+	 */
+
+	tr_id[4]  = 0x5F;
+	tr_id[5]  = 0xEE;
+	tr_id[6]  = 0xDE;
+	tr_id[7]  = 0x40 | ((sess >> 4) & 0x0F);
+	tr_id[8]  = 0x0F | (sess & 0xF0);
+	tr_id[9]  = 0xAD;
+	tr_id[10] = 0xE0;
+	tr_id[11] = 0x50;
+
+	*transport_id = tr_id;
+
+	TRACE_DBG("Created tid '%08lX'", &tr_id[4]);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 static void scst_local_release_adapter(struct device *dev)
 {
 	struct scst_local_host_info *scst_lcl_host;
@@ -700,7 +783,8 @@ static int scst_local_add_adapter(void)
 		sprintf(name, "scstlclhst%d:%d", scst_local_add_host, i);
 		scst_lcl_host->session[i] = scst_register_session(
 						scst_lcl_host->target,
-						0, name, NULL, NULL, NULL);
+						0, name, (void *)scst_lcl_host, 
+						NULL, NULL);
 		if (!scst_lcl_host->session[i]) {
 			printk(KERN_WARNING "scst_register_session failed:\n");
 			error = -1;
@@ -1104,6 +1188,26 @@ static int scst_local_targ_xmit_response(struct scst_cmd *scst_cmd)
 	 * This might have to change to use the two status flags
 	 */
 	if (scst_cmd_get_is_send_status(scst_cmd)) {
+		int resid = 0;
+		/*
+		 * Calculate the residual ...
+		 */
+		switch (tgt_specific->cmnd->sc_data_direction) {
+		case DMA_TO_DEVICE:
+			resid = (signed)scst_cmd_get_bufflen(scst_cmd) -
+				scsi_bufflen(tgt_specific->cmnd);
+			break;
+		case DMA_FROM_DEVICE:
+			resid = (signed)scsi_bufflen(tgt_specific->cmnd) -
+				scst_cmd_get_resp_data_len(scst_cmd);
+			break;
+		default:
+			resid = 0;
+			break;
+		}
+
+		scsi_set_resid(tgt_specific->cmnd, resid);
+
 		(void)scst_local_send_resp(tgt_specific->cmnd, scst_cmd,
 					   tgt_specific->done,
 					   scst_cmd_get_status(scst_cmd));
@@ -1158,6 +1262,8 @@ static struct scst_tgt_template scst_local_targ_tmpl = {
 	.xmit_response		= scst_local_targ_xmit_response,
 	.on_free_cmd		= scst_local_targ_on_free_cmd,
 	.task_mgmt_fn_done	= scst_local_targ_task_mgmt_done,
+	.get_initiator_port_transport_id 
+				= scst_local_get_initiator_port_transport_id,
 };
 
 /*
