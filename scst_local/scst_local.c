@@ -657,18 +657,12 @@ static int scst_local_get_initiator_port_transport_id(
 	scst_lcl_host = (struct scst_local_host_info *)
 				scst_sess_get_tgt_priv(scst_sess);
 
-	printk(KERN_INFO "%s: scst_lcl_host: %p\n", __func__, scst_lcl_host);
-	printk(KERN_INFO "%s: sess = %p\n", __func__, scst_sess);
-
 	tr_id_size = 24;  /* A SAS TransportID */
-
-	printk(KERN_INFO "%s: tr_id_size: %d\n", __func__, tr_id_size);
 
 	tr_id = kzalloc(tr_id_size, GFP_KERNEL);
 	if (tr_id == NULL) {
 		PRINT_ERROR("Allocation of TransportID (size %d) failed",
 			tr_id_size);
-		printk(KERN_INFO "%s: failed to allocate space\n", __func__);
 		res = -ENOMEM;
 		goto out;
 	}
@@ -676,8 +670,6 @@ static int scst_local_get_initiator_port_transport_id(
 	tr_id[0] = 0x00 | SCSI_TRANSPORTID_PROTOCOLID_SAS;
 
 	for (i = 0; i < scst_local_num_tgts; i++) {
-		printk(KERN_INFO "%s: session: %p\n",
-			__func__, scst_lcl_host->session[i]);
 		/*
 		 * We are called before the session is returned below
 		 */
