@@ -328,7 +328,11 @@ out_unlock_put:
 	goto out;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
 static int sgv_shrink(int nr, gfp_t gfpm)
+#else
+static int sgv_shrink(struct shrinker *shrinker, int nr, gfp_t gfpm)
+#endif
 {
 	TRACE_ENTRY();
 
