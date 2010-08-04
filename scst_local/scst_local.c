@@ -710,7 +710,7 @@ static int scst_local_get_initiator_port_transport_id(
 
 	*transport_id = tr_id;
 
-	TRACE_DBG("Created tid '%08lX'", &tr_id[4]);
+	TRACE_DBG("Created tid '%08lX'", (unsigned long)&tr_id[4]);
 
 out:
 	TRACE_EXIT_RES(res);
