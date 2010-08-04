@@ -676,7 +676,7 @@ static int scst_local_get_initiator_port_transport_id(
 	tr_id[0] = 0x00 | SCSI_TRANSPORTID_PROTOCOLID_SAS;
 
 	for (i = 0; i < scst_local_num_tgts; i++) {
-		printk(KERN_INFO "%s: session: %p\n", 
+		printk(KERN_INFO "%s: session: %p\n",
 			__func__, scst_lcl_host->session[i]);
 		/*
 		 * We are called before the session is returned below
@@ -695,7 +695,7 @@ static int scst_local_get_initiator_port_transport_id(
 	}
 
 	/*
-	 * Assemble a valid SAS address = 0x5OOUUIIR12345678 ... Does SCST 
+	 * Assemble a valid SAS address = 0x5OOUUIIR12345678 ... Does SCST
 	 * have one?
 	 */
 
@@ -783,7 +783,7 @@ static int scst_local_add_adapter(void)
 		sprintf(name, "scstlclhst%d:%d", scst_local_add_host, i);
 		scst_lcl_host->session[i] = scst_register_session(
 						scst_lcl_host->target,
-						0, name, (void *)scst_lcl_host, 
+						0, name, (void *)scst_lcl_host,
 						NULL, NULL);
 		if (!scst_lcl_host->session[i]) {
 			printk(KERN_WARNING "scst_register_session failed:\n");
@@ -1262,7 +1262,7 @@ static struct scst_tgt_template scst_local_targ_tmpl = {
 	.xmit_response		= scst_local_targ_xmit_response,
 	.on_free_cmd		= scst_local_targ_on_free_cmd,
 	.task_mgmt_fn_done	= scst_local_targ_task_mgmt_done,
-	.get_initiator_port_transport_id 
+	.get_initiator_port_transport_id
 				= scst_local_get_initiator_port_transport_id,
 };
 
