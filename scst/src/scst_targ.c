@@ -3662,7 +3662,8 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	if (scst_is_implicit_hq(cmd)) {
+	if (scst_is_implicit_hq(cmd) &&
+	    likely(cmd->queue_type == SCST_CMD_QUEUE_SIMPLE)) {
 		TRACE_SN("Implicit HQ cmd %p", cmd);
 		cmd->queue_type = SCST_CMD_QUEUE_HEAD_OF_QUEUE;
 	}
