@@ -381,10 +381,12 @@ done
 # Directory drivers/scst/fcst/
 
 {
-  for f in $(grep -v '^#' "${fcst_patch_series}")
-  do
-    cat "fcst/linux-patches/${f}"
-  done
+  if [ -e "${fcst_patch_series}" ]; then
+    for f in $(grep -v '^#' "${fcst_patch_series}")
+    do
+      cat "fcst/linux-patches/${f}"
+    done
+  fi
 
   add_file "fcst/Makefile_in-tree" \
            "drivers/scst/fcst/Makefile"
