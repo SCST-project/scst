@@ -1128,6 +1128,12 @@ out:
  *
  * Side Effect:
  * Resets ch->req_lim_delta.
+ *
+ * Note:
+ * The caller must either pass the returned value to the initiator in the
+ * REQUEST LIMIT DELTA field of an SRP information unit or pass the returned
+ * value to srpt_undo_req_lim_delta(). Any other approach will result in an
+ * SRP protocol violation.
  */
 static int srpt_req_lim_delta(struct srpt_rdma_ch *ch)
 {
