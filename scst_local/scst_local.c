@@ -702,8 +702,8 @@ static int scst_local_get_initiator_port_transport_id(
 
 	*transport_id = tr_id;
 
-	TRACE_DBG("Created tid '%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X'", 
-		tr_id[4], tr_id[5], tr_id[6], tr_id[7], 
+	TRACE_DBG("Created tid '%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X'",
+		tr_id[4], tr_id[5], tr_id[6], tr_id[7],
 		tr_id[8], tr_id[9], tr_id[10], tr_id[11]);
 
 out:
