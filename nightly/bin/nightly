@@ -41,15 +41,31 @@ runcmd () {
    return $res
 }
 
+usage () {
+    echo "usage: $0 [-r <recipient>] <tag>"
+}
+
 #----------------------------------------------------------------------------
 # Startup
 #----------------------------------------------------------------------------
 
 scst_svn_repo="https://scst.svn.sourceforge.net/svnroot/scst/trunk"
+sendmail_opts=""
+
+set -- $(/usr/bin/getopt "r:" "$@")
+while [ "$1" != "${1#-}" ]
+do
+  case "$1" in
+    '-h') usage; exit 1;;
+    '-r') sendmail_opts="$1 $2"; shift; shift;;
+    '--') shift;;
+    *)    usage; exit 1;;
+  esac
+done
 
 # Must have exactly one argument
 if [ "$#" -ne 1 ] ; then
-    echo "usage: $0 <tag>"
+    usage
     exit 1
 fi
 
@@ -183,5 +199,6 @@ fi
 
 # Use the conf/<tag>.sendmail script to email the results.
 conf/$ABT_MACHINE.sendmail \
+   ${sendmail_opts} \
    "$changed_str$ABT_START nightly build ($ABT_MACHINE, $ABT_DETAILS)" \
    final > sendmail.log 2>&1

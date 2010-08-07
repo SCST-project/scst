@@ -1,10 +1,24 @@
 #!/bin/sh
 
-# usage: $0 subject file-to-mail [file-to-attach]
 # Don't forget to set the variables 'from' and 'realname' in ~/.muttrc !!
 
+usage() {
+  echo "Usage: $0 [-r <recipient>] <subject> <file-to-mail> [<file-to-attach>]"
+}
+
 recipients="scst-devel@lists.sourceforge.net"
-#recipients="bart.vanassche@gmail.com"
+
+set -- $(/usr/bin/getopt "r:" "$@")
+while [ "$1" != "${1#-}" ]
+do
+  case "$1" in
+    '-r') recipients="$2"; shift; shift;;
+    '-h') usage; exit 1;;
+    '--') shift;;
+    *)    usage; exit 1;;
+  esac
+done
+
 if [ $# -ge 3 ]; then
   gzip -9 <"$3" >"$3.gz"
   mutt -s "$1" -a "$3.gz" ${recipients} < "$2"
