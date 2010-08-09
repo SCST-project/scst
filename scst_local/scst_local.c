@@ -1187,12 +1187,12 @@ static int scst_local_targ_xmit_response(struct scst_cmd *scst_cmd)
 		 * Calculate the residual ...
 		 */
 		if (likely(!scst_get_resid(scst_cmd, &resid, &out_resid))) {
-			TRACE_DBG("No residuals for request %p", 
+			TRACE_DBG("No residuals for request %p",
 				tgt_specific->cmnd);
 		} else {
 			if (out_resid != 0)
 				PRINT_ERROR("Unable to return OUT residual %d "
-					"(op %02x)", out_resid, 
+					"(op %02x)", out_resid,
 					tgt_specific->cmnd->cmnd[0]);
 		}
 
