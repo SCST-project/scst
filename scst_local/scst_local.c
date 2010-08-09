@@ -1182,25 +1182,25 @@ static int scst_local_targ_xmit_response(struct scst_cmd *scst_cmd)
 	 * This might have to change to use the two status flags
 	 */
 	if (scst_cmd_get_is_send_status(scst_cmd)) {
-		int resid = 0;
+		int resid = 0, out_resid = 0;
 		/*
 		 * Calculate the residual ...
 		 */
-		switch (tgt_specific->cmnd->sc_data_direction) {
-		case DMA_TO_DEVICE:
-			resid = (signed)scst_cmd_get_bufflen(scst_cmd) -
-				scsi_bufflen(tgt_specific->cmnd);
-			break;
-		case DMA_FROM_DEVICE:
-			resid = (signed)scsi_bufflen(tgt_specific->cmnd) -
-				scst_cmd_get_resp_data_len(scst_cmd);
-			break;
-		default:
-			resid = 0;
-			break;
+		if (likely(!scst_get_resid(scst_cmd, &resid, &out_resid))) {
+			TRACE_DBG("No residuals for request %p", 
+				tgt_specific->cmnd);
+		} else {
+			if (out_resid != 0)
+				PRINT_ERROR("Unable to return OUT residual %d "
+					"(op %02x)", out_resid, 
+					tgt_specific->cmnd->cmnd[0]);
 		}
 
 		scsi_set_resid(tgt_specific->cmnd, resid);
+
+		/*
+		 * It seems like there is no way to set out_resid ...
+		 */
 
 		(void)scst_local_send_resp(tgt_specific->cmnd, scst_cmd,
 					   tgt_specific->done,
