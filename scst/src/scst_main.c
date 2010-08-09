@@ -1480,9 +1480,17 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 
 	TRACE_ENTRY();
 
+	if (num == 0) {
+		res = 0;
+		goto out;
+	}
+
 	list_for_each_entry(thr, &cmd_threads->threads_list, thread_list_entry) {
 		n++;
 	}
+
+	TRACE_DBG("cmd_threads %p, dev %p, tgt_dev %p, num %d, n %d",
+		cmd_threads, dev, tgt_dev, num, n);
 
 	if (tgt_dev != NULL) {
 		struct scst_tgt_dev *t;
@@ -1526,6 +1534,9 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 		list_add(&thr->thread_list_entry, &cmd_threads->threads_list);
 		cmd_threads->nr_threads++;
 
+		TRACE_DBG("Added thr %p to threads list (nr_threads %d, n %d)",
+			thr, cmd_threads->nr_threads, n);
+
 		wake_up_process(thr->cmd_thread);
 	}
 
@@ -1534,8 +1545,11 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 		 * Wait for io_context gets initialized to avoid possible races
 		 * for it from the sharing it tgt_devs.
 		 */
-		while (cmd_threads->io_context == NULL)
+		while (cmd_threads->io_context == NULL) {
+			TRACE_DBG("Waiting for io_context for cmd_threads %p "
+				"initialized", cmd_threads);
 			msleep(50);
+		}
 	}
 
 	res = 0;

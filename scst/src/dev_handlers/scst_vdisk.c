@@ -456,7 +456,7 @@ static struct kmem_cache *blockio_work_cachep;
 static struct scst_dev_type vdisk_blk_devtype = {
 	.name =			"vdisk_blockio",
 	.type =			TYPE_DISK,
-	.threads_num =		0,
+	.threads_num =		1,
 	.parse_atomic =		1,
 	.dev_done_atomic =	1,
 #ifdef CONFIG_SCST_PROC
@@ -4273,10 +4273,14 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 			} else if (!strncmp("NULLIO", p, 6)) {
 				p += 6;
 				virt_dev->nullio = 1;
+				/* Bad hack for anyway going out procfs */
+				virt_dev->vdev_devt = &vdisk_null_devtype;
 				TRACE_DBG("%s", "NULLIO");
 			} else if (!strncmp("BLOCKIO", p, 7)) {
 				p += 7;
 				virt_dev->blockio = 1;
+				/* Bad hack for anyway going out procfs */
+				virt_dev->vdev_devt = &vdisk_blk_devtype;
 				TRACE_DBG("%s", "BLOCKIO");
 			} else if (!strncmp("REMOVABLE", p, 9)) {
 				p += 9;
@@ -4313,7 +4317,7 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 
 		vdisk_report_registering(virt_dev);
 		virt_dev->virt_id = scst_register_virtual_device(
-			dev_type, virt_dev->name);
+			virt_dev->vdev_devt, virt_dev->name);
 		if (virt_dev->virt_id < 0) {
 			res = virt_dev->virt_id;
 			goto out_free_vpath;
