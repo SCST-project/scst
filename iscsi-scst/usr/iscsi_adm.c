@@ -439,7 +439,7 @@ static int parse_user_params(char *params, u32 *auth_dir, char **user,
 					"Already specified Password %s\n", q);
 			*pass = q;
 		} else {
-			fprintf(stderr, "Unknown parameter %p\n", q);
+			fprintf(stderr, "Unknown parameter \"%s\"\n", p);
 			return -EINVAL;
 		}
 	}
