@@ -99,8 +99,8 @@ static int scst_local_get_initiator_port_transport_id(
 				struct scst_session *scst_sess,
 				uint8_t **transport_id);
 
-#define SCST_LOCAL_VERSION "0.9.2"
-static const char *scst_local_version_date = "20090614";
+#define SCST_LOCAL_VERSION "0.9.3"
+static const char *scst_local_version_date = "20100813";
 
 /*
  * Target structures that are shared between the two pieces
@@ -130,6 +130,16 @@ static int num_dev_resets;
 static int num_target_resets;
 
 /*
+ * We put AEN items on a list on the scst_local_host_info structure so they
+ * can be processed via a work function. We do not actually need the LUN, since
+ * the whole target must be rescanned anyway.
+ */
+struct scst_local_work_item {
+	struct list_head work_list_entry;
+	struct scst_aen *aen;
+};
+
+/*
  * Each host has multiple targets, each of which has a separate session
  * to SCST.
  */
@@ -141,6 +151,9 @@ struct scst_local_host_info {
 	struct scst_session *session[SCST_LOCAL_MAX_TARGETS];
 	struct device dev;
 	char init_name[20];
+	struct work_struct local_work;
+	struct mutex work_list_mutex;
+	struct list_head work_list;
 };
 
 #define to_scst_lcl_host(d) \
@@ -638,6 +651,79 @@ static int scst_local_targ_pre_exec(struct scst_cmd *scst_cmd)
 	return res;
 }
 
+static void scst_local_work_fn(struct work_struct *work)
+{
+	struct scst_local_host_info *scst_lcl_host =
+		container_of(work, struct scst_local_host_info, local_work);
+	struct scst_local_work_item *work_item = NULL, *tmp;
+
+	TRACE_ENTRY();
+
+	TRACE_MGMT_DBG("Target work (tgt %p)", scst_lcl_host);
+
+	/*
+	 * Eventually, we need to lock things ...
+	 */
+
+	mutex_lock(&scst_lcl_host->work_list_mutex);
+	list_for_each_entry_safe(work_item, tmp, &scst_lcl_host->work_list,
+				work_list_entry) {
+		scsi_scan_target(&scst_lcl_host->shost->shost_gendev, 0, 0,
+					SCAN_WILD_CARD, 1);
+		scst_aen_done(work_item->aen);
+		list_del(&work_item->work_list_entry);
+		kfree(work_item);
+	}
+
+	mutex_unlock(&scst_lcl_host->work_list_mutex);
+
+	TRACE_EXIT();
+	return;
+}
+
+static int scst_local_report_aen(struct scst_aen *aen)
+{
+	int res = 0;
+	int event_fn = scst_aen_get_event_fn(aen);
+	struct scst_local_host_info *scst_lcl_host = scst_sess_get_tgt_priv(
+							scst_aen_get_sess(aen));
+	__be64 lun = scst_aen_get_lun(aen);
+	char *lunp = (char *)&lun;
+	struct scst_local_work_item *work_item = NULL;
+
+	TRACE_ENTRY();
+
+	switch (event_fn) {
+	case SCST_AEN_SCSI:
+		/*
+		 * Allocate a work item and place it on the queue
+		 */
+		work_item = kzalloc(sizeof(*work_item), GFP_KERNEL);
+		if (!work_item) {
+			printk(KERN_ERR "%s: Unable to allocate work item "
+				"to handle AEN!\n", __func__);
+			return -ENOMEM;
+		}
+
+		mutex_lock(&scst_lcl_host->work_list_mutex);
+		list_add_tail(&work_item->work_list_entry,
+				&scst_lcl_host->work_list);
+		work_item->aen = aen;
+		mutex_unlock(&scst_lcl_host->work_list_mutex);
+
+		schedule_work(&scst_lcl_host->local_work);
+		break;
+
+	default:
+		TRACE_MGMT_DBG("Unsupported AEN %d\n", event_fn);
+		res = SCST_AEN_RES_NOT_SUPPORTED;
+		break;
+	}
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 static int scst_local_get_initiator_port_transport_id(
 				struct scst_session *scst_sess,
 				uint8_t **transport_id)
@@ -724,6 +810,7 @@ static void scst_local_release_adapter(struct device *dev)
 				scst_unregister_session(
 					scst_lcl_host->session[i], TRUE, NULL);
 		scst_unregister_target(scst_lcl_host->target);
+		cancel_work_sync(&scst_lcl_host->local_work);
 		kfree(scst_lcl_host);
 	}
 
@@ -1007,7 +1094,6 @@ static void __exit scst_local_exit(void)
 	TRACE_ENTRY();
 
 	for (; k; k--) {
-		printk(KERN_INFO "removing adapter in %s\n", __func__);
 		scst_local_remove_adapter();
 	}
 	do_remove_driverfs_files();
@@ -1045,6 +1131,13 @@ static int scst_fake_lld_driver_probe(struct device *dev)
 	TRACE_ENTRY();
 
 	scst_lcl_host = to_scst_lcl_host(dev);
+
+	/*
+	 * Init this stuff we need for scheduling work
+	 */
+	INIT_WORK(&scst_lcl_host->local_work, scst_local_work_fn);
+	mutex_init(&scst_lcl_host->work_list_mutex);
+	INIT_LIST_HEAD(&scst_lcl_host->work_list);
 
 	hpnt = scsi_host_alloc(&scst_lcl_ini_driver_template,
 			       sizeof(scst_lcl_host));
@@ -1256,6 +1349,7 @@ static struct scst_tgt_template scst_local_targ_tmpl = {
 	.xmit_response		= scst_local_targ_xmit_response,
 	.on_free_cmd		= scst_local_targ_on_free_cmd,
 	.task_mgmt_fn_done	= scst_local_targ_task_mgmt_done,
+	.report_aen		= scst_local_report_aen,
 	.get_initiator_port_transport_id
 				= scst_local_get_initiator_port_transport_id,
 };
