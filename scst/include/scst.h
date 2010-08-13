@@ -1395,7 +1395,8 @@ struct scst_session {
 	/* Used for storage of target driver private stuff */
 	void *tgt_priv;
 
-	unsigned long sess_aflags; /* session's async flags */
+	/* session's async flags */
+	unsigned long sess_aflags __attribute__((aligned(sizeof(long))));
 
 	/*
 	 * Hash list of tgt_dev's for this session, protected by scst_mutex
@@ -1410,7 +1411,7 @@ struct scst_session {
 	 * very beginning, because otherwise they can be missed during
 	 * TM processing.
 	 */
-	struct list_head sess_cmd_list;
+	struct list_head sess_cmd_list __attribute__((aligned(sizeof(long))));
 
 	spinlock_t sess_list_lock; /* protects sess_cmd_list, etc */
 
@@ -1701,7 +1702,8 @@ struct scst_cmd {
 
 	/**************************************************************/
 
-	unsigned long cmd_flags; /* cmd's async flags */
+	/* cmd's async flags */
+	unsigned long cmd_flags  __attribute__((aligned(sizeof(long))));
 
 	/* Keeps status of cmd's status/data delivery to remote initiator */
 	int delivery_status;
@@ -2021,7 +2023,7 @@ struct scst_device {
 	 ** neighbour fields.
 	 *************************************************************/
 
-	unsigned long queue_alg:4;
+	unsigned long queue_alg:4 __attribute__((aligned(sizeof(long))));
 	unsigned long tst:3;
 	unsigned long tas:1;
 	unsigned long swp:1;
@@ -2037,7 +2039,7 @@ struct scst_device {
 	/**************************************************************/
 
 	/* Set if dev is persistently reserved. Protected by dev_pr_mutex. */
-	unsigned short pr_is_set:1;
+	unsigned short pr_is_set:1 __attribute__((aligned(sizeof(long))));
 
 	/*
 	 * Set if there is a thread changing or going to change PR state(s).
@@ -2093,7 +2095,7 @@ struct scst_device {
 	 *************************************************************/
 
 	/* True if persist through power loss is activated */
-	unsigned short pr_aptpl:1;
+	unsigned short pr_aptpl:1 __attribute__((aligned(sizeof(long))));
 
 	/* Persistent reservation type */
 	uint8_t pr_type;
@@ -2134,7 +2136,7 @@ struct scst_device {
 	wait_queue_head_t on_dev_waitQ;
 
 	/* A list entry used during TM, protected by scst_mutex */
-	struct list_head tm_dev_list_entry;
+	struct list_head tm_dev_list_entry __attribute__((aligned(sizeof(long))));
 
 	/* Virtual device internal ID */
 	int virt_id;
@@ -2210,7 +2212,8 @@ struct scst_tgt_dev {
 	struct sgv_pool *pool;
 	int max_sg_cnt;
 
-	unsigned long tgt_dev_flags;	/* tgt_dev's async flags */
+	/* tgt_dev's async flags */
+	unsigned long tgt_dev_flags __attribute__((aligned(sizeof(long))));
 
 	/* Used for storage of dev handler private stuff */
 	void *dh_priv;
@@ -2235,10 +2238,10 @@ struct scst_tgt_dev {
 	struct list_head skipped_sn_list;
 
 	/*
-	 * Set if the prev cmd was ORDERED. Size must allow unprotected
-	 * modifications independant to the neighbour fields.
+	 * Set if the prev cmd was ORDERED. Size and alignment must allow
+	 * unprotected modifications independant to the neighbour fields.
 	 */
-	unsigned long prev_cmd_ordered;
+	unsigned long prev_cmd_ordered __attribute__((aligned(sizeof(long))));
 
 	int num_free_sn_slots; /* if it's <0, then all slots are busy */
 	atomic_t *cur_sn_slot;
@@ -3145,6 +3148,14 @@ static inline void scst_set_delivery_status(struct scst_cmd *cmd,
 	int delivery_status)
 {
 	cmd->delivery_status = delivery_status;
+}
+
+static inline unsigned int scst_get_active_cmd_count(struct scst_cmd *cmd)
+{
+	if (likely(cmd->tgt_dev != NULL))
+		return atomic_read(&cmd->tgt_dev->tgt_dev_cmd_count);
+	else
+		return (unsigned int)-1;
 }
 
 /*

@@ -174,7 +174,7 @@ struct iscsi_conn {
 
 #define ISCSI_CONN_REINSTATING	1
 #define ISCSI_CONN_SHUTTINGDOWN	2
-	unsigned long conn_aflags;
+	unsigned long conn_aflags __attribute__((aligned(sizeof(long))));
 
 	spinlock_t cmd_list_lock; /* BH lock */
 
@@ -184,9 +184,9 @@ struct iscsi_conn {
 	atomic_t conn_ref_cnt;
 
 	spinlock_t write_list_lock;
-	/* List of data pdus to be sent, protected by write_list_lock */
+	/* List of data pdus to be sent. Protected by write_list_lock */
 	struct list_head write_list;
-	/* List of data pdus being sent, protected by write_list_lock */
+	/* List of data pdus being sent. Protected by write_list_lock */
 	struct list_head write_timeout_list;
 
 	/* Protected by write_list_lock */
@@ -194,7 +194,7 @@ struct iscsi_conn {
 	unsigned int rsp_timeout; /* in jiffies */
 
 	/* All 2 protected by iscsi_wr_lock */
-	unsigned short wr_state;
+	unsigned short wr_state __attribute__((aligned(sizeof(long))));
 	unsigned short wr_space_ready:1;
 
 	struct list_head wr_list_entry;
@@ -361,7 +361,7 @@ struct iscsi_cmnd {
 	 */
 #define ISCSI_CMD_ABORTED		0
 #define ISCSI_CMD_PRELIM_COMPLETED	1
-	unsigned long prelim_compl_flags;
+	unsigned long prelim_compl_flags __attribute__((aligned(sizeof(long))));
 
 	struct list_head hash_list_entry;
 
@@ -420,6 +420,10 @@ struct iscsi_cmnd {
 			};
 
 			struct iscsi_cmnd *main_rsp;
+
+			/* Protected on modify by conn->write_list_lock */
+			int not_processed_rsp_cnt
+				 __attribute__((aligned(sizeof(long))));
 		};
 
 		/* Response only fields */
@@ -518,6 +522,7 @@ extern void conn_info_show(struct seq_file *, struct iscsi_session *);
 #endif
 extern void iscsi_check_tm_data_wait_timeouts(struct iscsi_conn *conn,
 	bool force);
+extern void __iscsi_write_space_ready(struct iscsi_conn *conn);
 
 /* nthread.c */
 extern int iscsi_send(struct iscsi_conn *conn);
@@ -668,20 +673,33 @@ static inline void cmnd_put(struct iscsi_cmnd *cmnd)
 static inline void cmd_add_on_write_list(struct iscsi_conn *conn,
 	struct iscsi_cmnd *cmnd)
 {
+	struct iscsi_cmnd *parent = cmnd->parent_req;
+
 	TRACE_DBG("cmnd %p", cmnd);
 	/* See comment in iscsi_restart_cmnd() */
 	EXTRACHECKS_BUG_ON(cmnd->parent_req->hashed &&
 		(cmnd_opcode(cmnd) != ISCSI_OP_R2T));
 	list_add_tail(&cmnd->write_list_entry, &conn->write_list);
 	cmnd->on_write_list = 1;
+
+	parent->not_processed_rsp_cnt++;
+	TRACE_DBG("not processed rsp cnt %d (parent %p)",
+		parent->not_processed_rsp_cnt, parent);
 }
 
 /* conn->write_list_lock supposed to be locked and BHs off */
 static inline void cmd_del_from_write_list(struct iscsi_cmnd *cmnd)
 {
+	struct iscsi_cmnd *parent = cmnd->parent_req;
+
 	TRACE_DBG("%p", cmnd);
 	list_del(&cmnd->write_list_entry);
 	cmnd->on_write_list = 0;
+
+	parent->not_processed_rsp_cnt--;
+	TRACE_DBG("not processed rsp cnt %d (parent %p)",
+		parent->not_processed_rsp_cnt, parent);
+	EXTRACHECKS_BUG_ON(parent->not_processed_rsp_cnt < 0);
 }
 
 static inline void cmd_add_on_rx_ddigest_list(struct iscsi_cmnd *req,

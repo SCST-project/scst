@@ -1449,7 +1449,7 @@ IMPORTANT: Kernels starting from 2.6.32 have a problem, which prevents BLOCKIO
 	   Hopefully, it will be fixed soon. Meanwhile, it is recommended to use
 	   kernels below 2.6.32 for BLOCKIO on RAID5/DM devices.
 
-IMPORTANT: If SCST 1.x BLOCKIO worked by default in NV_CACHE mode, when
+IMPORTANT: In SCST 1.x BLOCKIO worked by default in NV_CACHE mode, when
 =========  each device reported to remote initiators as having write through
            caching. But if your backend block device has internal write
 	   back caching it might create a possibility for data loss of
@@ -1458,9 +1458,9 @@ IMPORTANT: If SCST 1.x BLOCKIO worked by default in NV_CACHE mode, when
 	   non-NV_CACHE mode, when each device reported to remote
 	   initiators as having write back caching, and synchronizes the
 	   internal device's cache on each SYNCHRONIZE_CACHE command
-	   from the initiators. It might lead to some PERFORMANCE LOSS,
+	   from the initiators. It might lead to some *PERFORMANCE LOSS*,
 	   so if you are are sure in your power supply and want to
-	   restore 1.x behavior, your should recreate your BLOCKIO
+	   restore the 1.x behavior, your should recreate your BLOCKIO
 	   devices in NV_CACHE mode.
 
 Pass-through mode

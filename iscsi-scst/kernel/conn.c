@@ -382,6 +382,24 @@ static void iscsi_data_ready(struct sock *sk, int len)
 	return;
 }
 
+void __iscsi_write_space_ready(struct iscsi_conn *conn)
+{
+	TRACE_ENTRY();
+
+	spin_lock_bh(&iscsi_wr_lock);
+	conn->wr_space_ready = 1;
+	if ((conn->wr_state == ISCSI_CONN_WR_STATE_SPACE_WAIT)) {
+		TRACE_DBG("wr space ready (conn %p)", conn);
+		list_add_tail(&conn->wr_list_entry, &iscsi_wr_list);
+		conn->wr_state = ISCSI_CONN_WR_STATE_IN_LIST;
+		wake_up(&iscsi_wr_waitQ);
+	}
+	spin_unlock_bh(&iscsi_wr_lock);
+
+	TRACE_EXIT();
+	return;
+}
+
 static void iscsi_write_space_ready(struct sock *sk)
 {
 	struct iscsi_conn *conn = sk->sk_user_data;
@@ -390,14 +408,7 @@ static void iscsi_write_space_ready(struct sock *sk)
 
 	TRACE_DBG("Write space ready for conn %p", conn);
 
-	spin_lock_bh(&iscsi_wr_lock);
-	conn->wr_space_ready = 1;
-	if ((conn->wr_state == ISCSI_CONN_WR_STATE_SPACE_WAIT)) {
-		list_add_tail(&conn->wr_list_entry, &iscsi_wr_list);
-		conn->wr_state = ISCSI_CONN_WR_STATE_IN_LIST;
-		wake_up(&iscsi_wr_waitQ);
-	}
-	spin_unlock_bh(&iscsi_wr_lock);
+	__iscsi_write_space_ready(conn);
 
 	conn->old_write_space(sk);
 

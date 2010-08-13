@@ -447,6 +447,8 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 
 		cmnd_free(cmnd);
 	} else {
+		struct iscsi_cmnd *parent = cmnd->parent_req;
+
 		if (cmnd->own_sg) {
 			TRACE_DBG("own_sg for rsp %p", cmnd);
 			if ((cmnd->sg != &dummy_sg) && (cmnd->sg != cmnd->rsp_sg))
@@ -460,15 +462,15 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 
 		EXTRACHECKS_BUG_ON(cmnd->dec_active_cmnds);
 
-		if (cmnd == cmnd->parent_req->main_rsp) {
+		if (cmnd == parent->main_rsp) {
 			TRACE_DBG("Finishing main rsp %p (req %p)", cmnd,
-				cmnd->parent_req);
-			cmnd->parent_req->main_rsp = NULL;
+				parent);
+			parent->main_rsp = NULL;
 		}
 
-		cmnd_put(cmnd->parent_req);
+		cmnd_put(parent);
 		/*
-		 * rsp will be freed on the last parent's put and can already
+		 * cmnd will be freed on the last parent's put and can already
 		 * be freed!!
 		 */
 	}
@@ -554,11 +556,7 @@ void req_cmnd_release_force(struct iscsi_cmnd *req)
 	return;
 }
 
-/*
- * Corresponding conn may also get destroyed after this function, except only
- * if it's called from the read thread!
- */
-static void req_cmnd_release(struct iscsi_cmnd *req)
+static void req_cmnd_pre_release(struct iscsi_cmnd *req)
 {
 	struct iscsi_cmnd *c, *t;
 
@@ -619,6 +617,19 @@ static void req_cmnd_release(struct iscsi_cmnd *req)
 #endif
 	}
 
+	TRACE_EXIT();
+	return;
+}
+
+/*
+ * Corresponding conn may also get destroyed after this function, except only
+ * if it's called from the read thread!
+ */
+static void req_cmnd_release(struct iscsi_cmnd *req)
+{
+	TRACE_ENTRY();
+
+	req_cmnd_pre_release(req);
 	cmnd_put(req);
 
 	TRACE_EXIT();
@@ -3142,16 +3153,11 @@ static void iscsi_preprocessing_done(struct scst_cmd *scst_cmd)
 	return;
 }
 
-/*
- * No locks.
- *
- * IMPORTANT! Connection conn must be protected by additional conn_get()
- * upon entrance in this function, because otherwise it could be destroyed
- * inside as a result of iscsi_send(), which releases sent commands.
- */
-static void iscsi_try_local_processing(struct iscsi_conn *conn)
+/* No locks */
+static void iscsi_try_local_processing(struct iscsi_cmnd *req)
 {
-	int local;
+	struct iscsi_conn *conn = req->conn;
+	bool local;
 
 	TRACE_ENTRY();
 
@@ -3166,10 +3172,10 @@ static void iscsi_try_local_processing(struct iscsi_conn *conn)
 #endif
 		conn->wr_state = ISCSI_CONN_WR_STATE_PROCESSING;
 		conn->wr_space_ready = 0;
-		local = 1;
+		local = true;
 		break;
 	default:
-		local = 0;
+		local = false;
 		break;
 	}
 	spin_unlock_bh(&iscsi_wr_lock);
@@ -3177,14 +3183,21 @@ static void iscsi_try_local_processing(struct iscsi_conn *conn)
 	if (local) {
 		int rc = 1;
 
-		if (test_write_ready(conn))
+		do {
 			rc = iscsi_send(conn);
+			if (rc <= 0)
+				break;
+		} while (req->not_processed_rsp_cnt != 0);
 
 		spin_lock_bh(&iscsi_wr_lock);
 #ifdef CONFIG_SCST_EXTRACHECKS
 		conn->wr_task = NULL;
 #endif
-		if ((rc <= 0) || test_write_ready(conn)) {
+		if ((rc == -EAGAIN) && !conn->wr_space_ready) {
+			TRACE_DBG("EAGAIN, setting WR_STATE_SPACE_WAIT "
+				"(conn %p)", conn);
+			conn->wr_state = ISCSI_CONN_WR_STATE_SPACE_WAIT;
+		} else if (test_write_ready(conn)) {
 			list_add_tail(&conn->wr_list_entry, &iscsi_wr_list);
 			conn->wr_state = ISCSI_CONN_WR_STATE_IN_LIST;
 			wake_up(&iscsi_wr_waitQ);
@@ -3206,6 +3219,7 @@ static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 	int status = scst_cmd_get_status(scst_cmd);
 	u8 *sense = scst_cmd_get_sense_buffer(scst_cmd);
 	int sense_len = scst_cmd_get_sense_buffer_len(scst_cmd);
+	struct iscsi_cmnd *wr_rsp, *our_rsp;
 
 	EXTRACHECKS_BUG_ON(scst_cmd_atomic(scst_cmd));
 
@@ -3296,18 +3310,41 @@ static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 #endif
 
 	/*
-	 * "_ordered" here to protect from reorder, which can lead to
-	 * preliminary connection destroy in req_cmnd_release(). Just in
-	 * case, actually, because reordering shouldn't go so far, but who
-	 * knows..
+	 * There's no need for protection, since we are not going to
+	 * dereference them.
 	 */
-	conn_get_ordered(conn);
-	req_cmnd_release(req);
-	iscsi_try_local_processing(conn);
-	conn_put(conn);
+	wr_rsp = list_entry(conn->write_list.next, struct iscsi_cmnd,
+			write_list_entry);
+	our_rsp = list_entry(req->rsp_cmd_list.next, struct iscsi_cmnd,
+			rsp_cmd_list_entry);
+	if (wr_rsp == our_rsp) {
+		/*
+		 * This is our rsp, so let's try to process it locally to
+		 * decrease latency. We need to call pre_release before
+		 * processing to handle some error recovery cases.
+		 */
+		if (scst_get_active_cmd_count(scst_cmd) <= 2) {
+			req_cmnd_pre_release(req);
+			iscsi_try_local_processing(req);
+			cmnd_put(req);
+		} else {
+			/*
+			 * There's too much backend activity, so it could be
+			 * better to push it to the write thread.
+			 */
+			goto out_push_to_wr_thread;
+		}
+	} else
+		goto out_push_to_wr_thread;
 
 out:
 	return SCST_TGT_RES_SUCCESS;
+
+out_push_to_wr_thread:
+	TRACE_DBG("Waking up write thread (conn %p)", conn);
+	req_cmnd_release(req);
+	iscsi_make_conn_wr_active(conn);
+	goto out;
 }
 
 /* Called under sn_lock */

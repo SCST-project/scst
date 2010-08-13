@@ -631,7 +631,8 @@ static void vdisk_blockio_check_flush_support(struct scst_vdisk_dev *virt_dev)
 
 	if (blockio_flush(inode->i_bdev) != 0) {
 		PRINT_WARNING("Device %s doesn't support barriers, switching "
-			"to NV_CACHE mode", virt_dev->filename);
+			"to NV_CACHE mode. Read README for more details.",
+			virt_dev->filename);
 		virt_dev->nv_cache = 1;
 	}
 

@@ -529,6 +529,9 @@ static void close_conn(struct iscsi_conn *conn)
 
 		trace_conn_close(conn);
 
+		/* It might never be called for being closed conn */
+		__iscsi_write_space_ready(conn);
+
 		iscsi_check_closewait(conn);
 	}
 
@@ -653,6 +656,9 @@ static struct iscsi_cmnd *iscsi_get_send_cmnd(struct iscsi_conn *conn)
 				write_list_entry);
 		cmd_del_from_write_list(cmnd);
 		cmnd->write_processing_started = 1;
+	} else {
+		spin_unlock_bh(&conn->write_list_lock);
+		goto out;
 	}
 	spin_unlock_bh(&conn->write_list_lock);
 
@@ -676,6 +682,7 @@ static struct iscsi_cmnd *iscsi_get_send_cmnd(struct iscsi_conn *conn)
 #endif
 	}
 
+out:
 	return cmnd;
 }
 
@@ -1528,7 +1535,6 @@ static int exit_tx(struct iscsi_conn *conn, int res)
 	switch (res) {
 	case -EAGAIN:
 	case -ERESTARTSYS:
-		res = 0;
 		break;
 	default:
 #ifndef CONFIG_SCST_DEBUG
@@ -1719,25 +1725,6 @@ out:
 	return res;
 }
 
-/* No locks, conn is wr processing.
- *
- * IMPORTANT! Connection conn must be protected by additional conn_get()
- * upon entrance in this function, because otherwise it could be destroyed
- * inside as a result of iscsi_send(), which releases sent commands.
- */
-static int process_write_queue(struct iscsi_conn *conn)
-{
-	int res = 0;
-
-	TRACE_ENTRY();
-
-	if (likely(test_write_ready(conn)))
-		res = iscsi_send(conn);
-
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
 /*
  * Called under iscsi_wr_lock and BHs disabled, but will drop it inside,
  * then reaquire.
@@ -1774,24 +1761,22 @@ static void scst_do_job_wr(void)
 
 		conn_get(conn);
 
-		rc = process_write_queue(conn);
+		rc = iscsi_send(conn);
 
 		spin_lock_bh(&iscsi_wr_lock);
 #ifdef CONFIG_SCST_EXTRACHECKS
 		conn->wr_task = NULL;
 #endif
 		if ((rc == -EAGAIN) && !conn->wr_space_ready) {
+			TRACE_DBG("EAGAIN, setting WR_STATE_SPACE_WAIT "
+				"(conn %p)", conn);
 			conn->wr_state = ISCSI_CONN_WR_STATE_SPACE_WAIT;
-			goto cont;
-		}
-
-		if (test_write_ready(conn)) {
+		} else if (test_write_ready(conn)) {
 			list_add_tail(&conn->wr_list_entry, &iscsi_wr_list);
 			conn->wr_state = ISCSI_CONN_WR_STATE_IN_LIST;
 		} else
 			conn->wr_state = ISCSI_CONN_WR_STATE_IDLE;
 
-cont:
 		conn_put(conn);
 	}
 
