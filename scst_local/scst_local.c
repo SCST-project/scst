@@ -27,6 +27,7 @@
 #include <linux/blkdev.h>
 #include <linux/completion.h>
 #include <linux/stat.h>
+#include <linux/spinlock.h>
 #include <asm/unaligned.h>
 
 #include <scsi/scsi.h>
@@ -152,7 +153,7 @@ struct scst_local_host_info {
 	struct device dev;
 	char init_name[20];
 	struct work_struct local_work;
-	struct mutex work_list_mutex;
+	spinlock_t lock;
 	struct list_head work_list;
 };
 
@@ -655,7 +656,8 @@ static void scst_local_work_fn(struct work_struct *work)
 {
 	struct scst_local_host_info *scst_lcl_host =
 		container_of(work, struct scst_local_host_info, local_work);
-	struct scst_local_work_item *work_item = NULL, *tmp;
+	struct scst_local_work_item *work_item = NULL;
+	long unsigned flags;
 
 	TRACE_ENTRY();
 
@@ -665,17 +667,19 @@ static void scst_local_work_fn(struct work_struct *work)
 	 * Eventually, we need to lock things ...
 	 */
 
-	mutex_lock(&scst_lcl_host->work_list_mutex);
-	list_for_each_entry_safe(work_item, tmp, &scst_lcl_host->work_list,
-				work_list_entry) {
+	spin_lock_irqsave(&scst_lcl_host->lock, flags);
+	while (!list_empty(&scst_lcl_host->work_list)) {
+		work_item = list_entry(scst_lcl_host->work_list.next,
+				struct scst_local_work_item, work_list_entry);
+		list_del(&work_item->work_list_entry);
+		spin_unlock_irqrestore(&scst_lcl_host->lock, flags);
 		scsi_scan_target(&scst_lcl_host->shost->shost_gendev, 0, 0,
 					SCAN_WILD_CARD, 1);
 		scst_aen_done(work_item->aen);
-		list_del(&work_item->work_list_entry);
 		kfree(work_item);
+		spin_lock_irqsave(&scst_lcl_host->lock, flags);
 	}
-
-	mutex_unlock(&scst_lcl_host->work_list_mutex);
+	spin_unlock_irqrestore(&scst_lcl_host->lock, flags);
 
 	TRACE_EXIT();
 	return;
@@ -687,9 +691,9 @@ static int scst_local_report_aen(struct scst_aen *aen)
 	int event_fn = scst_aen_get_event_fn(aen);
 	struct scst_local_host_info *scst_lcl_host = scst_sess_get_tgt_priv(
 							scst_aen_get_sess(aen));
-	__be64 lun = scst_aen_get_lun(aen);
-	char *lunp = (char *)&lun;
+	/*__be64 lun = scst_aen_get_lun(aen);*/
 	struct scst_local_work_item *work_item = NULL;
+	long unsigned flags;
 
 	TRACE_ENTRY();
 
@@ -705,11 +709,11 @@ static int scst_local_report_aen(struct scst_aen *aen)
 			return -ENOMEM;
 		}
 
-		mutex_lock(&scst_lcl_host->work_list_mutex);
+		spin_lock_irqsave(&scst_lcl_host->lock, flags);
 		list_add_tail(&work_item->work_list_entry,
 				&scst_lcl_host->work_list);
 		work_item->aen = aen;
-		mutex_unlock(&scst_lcl_host->work_list_mutex);
+		spin_unlock_irqrestore(&scst_lcl_host->lock, flags);
 
 		schedule_work(&scst_lcl_host->local_work);
 		break;
@@ -1096,6 +1100,7 @@ static void __exit scst_local_exit(void)
 	for (; k; k--) {
 		scst_local_remove_adapter();
 	}
+
 	do_remove_driverfs_files();
 	driver_unregister(&scst_local_driverfs_driver);
 	bus_unregister(&scst_fake_lld_bus);
@@ -1132,11 +1137,13 @@ static int scst_fake_lld_driver_probe(struct device *dev)
 
 	scst_lcl_host = to_scst_lcl_host(dev);
 
+	printk(KERN_INFO "%s: scst_lcl_host: %p\n", __func__, scst_lcl_host);
+
 	/*
 	 * Init this stuff we need for scheduling work
 	 */
 	INIT_WORK(&scst_lcl_host->local_work, scst_local_work_fn);
-	mutex_init(&scst_lcl_host->work_list_mutex);
+	spin_lock_init(&scst_lcl_host->lock);
 	INIT_LIST_HEAD(&scst_lcl_host->work_list);
 
 	hpnt = scsi_host_alloc(&scst_lcl_ini_driver_template,
@@ -1261,7 +1268,6 @@ static int scst_local_targ_xmit_response(struct scst_cmd *scst_cmd)
 	if (unlikely(scst_cmd_aborted(scst_cmd))) {
 		scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_ABORTED);
 		scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_SAME);
-		printk(KERN_INFO "%s aborted command handled\n", __func__);
 		return SCST_TGT_RES_SUCCESS;
 	}
 
