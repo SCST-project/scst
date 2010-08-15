@@ -154,7 +154,7 @@ struct srp_cred_req {
 	u8 reserved[2];
 	__be32 req_lim_delta;
 	__be64 tag;
-} __attribute__((packed));
+};
 
 struct rdma_iu {
 	u64 raddr;
