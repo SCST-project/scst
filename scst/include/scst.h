@@ -1703,7 +1703,7 @@ struct scst_cmd {
 	/**************************************************************/
 
 	/* cmd's async flags */
-	unsigned long cmd_flags  __attribute__((aligned(sizeof(long))));
+	unsigned long cmd_flags __attribute__((aligned(sizeof(long))));
 
 	/* Keeps status of cmd's status/data delivery to remote initiator */
 	int delivery_status;
