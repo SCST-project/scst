@@ -132,6 +132,8 @@ my %VERBOSE_ERROR = (
 
 (SCST_C_DRV_NO_DRIVER)        => 'No such driver exists.',
 (SCST_C_DRV_NOTVIRT)          => 'Driver is incapable of dynamically adding/removing targets or attributes.',
+(SCST_C_DRV_ADDATTR_FAIL)     => 'Failed to add driver dynamic attribute. See "dmesg" for more information.',
+(SCST_C_DRV_REMATTR_FAIL)     => 'Failed to remove driver dymanic attribute. See "dmesg" for more information.',
 (SCST_C_DRV_BAD_ATTRIBUTES)   => 'Bad attributes given for driver.',
 (SCST_C_DRV_ATTRIBUTE_STATIC) => 'Driver attribute specified is static.',
 (SCST_C_DRV_SETATTR_FAIL)     => 'Failed to set driver attribute. See "dmesg" for more information.',
@@ -141,6 +143,8 @@ my %VERBOSE_ERROR = (
 (SCST_C_TGT_ADD_FAIL)         => 'Failed to add target. See "dmesg" for more information.',
 (SCST_C_TGT_REM_FAIL)         => 'Failed to remove target. See "dmesg" for more information.',
 (SCST_C_TGT_SETATTR_FAIL)     => 'Failed to set target attribute. See "dmesg" for more information.',
+(SCST_C_TGT_ADDATTR_FAIL)     => 'Failed to add target dynamic attribute. See "dmesg" for more information.',
+(SCST_C_TGT_REMATTR_FAIL)     => 'Failed to remove target dynamic attribute. See "dmesg" for more information.',
 (SCST_C_TGT_NO_LUN)           => 'No such LUN exists.',
 (SCST_C_TGT_ADD_LUN_FAIL)     => 'Failed to add LUN. See "dmesg" for more information.',
 (SCST_C_TGT_LUN_EXISTS)       => 'LUN already exists.',
