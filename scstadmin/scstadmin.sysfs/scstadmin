@@ -3709,13 +3709,11 @@ sub cacheAttributes {
 		if (defined($$attributes{$attribute}->{'keys'})) {
 			foreach my $key (keys %{$$attributes{$attribute}->{'keys'}}) {
 				my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
-				$cache{$attribute}->{$value} = FALSE
-				  if (defined($value) && ($value ne ''));
+				$cache{$attribute}->{$value} = FALSE;
 			}
 		} else {
 			my $value = $$attributes{$attribute}->{'value'};
-			$cache{$attribute}->{$value} = FALSE
-			  if (defined($value) && ($value ne ''));
+			$cache{$attribute}->{$value} = FALSE;
 		}
 	}
 
