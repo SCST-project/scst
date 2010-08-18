@@ -47,7 +47,7 @@
 #include <scst_debug.h>
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
-#define SCSI_MAX_SG_SEGMENTS 128
+#define SG_MAX_SINGLE_ALLOC	(PAGE_SIZE / sizeof(struct scatterlist))
 #endif
 
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
@@ -954,7 +954,7 @@ static struct scsi_host_template scst_lcl_ini_driver_template = {
 	.can_queue			= 256,
 	.this_id			= SCST_LOCAL_MAX_TARGETS,
 	/* SCST doesn't support sg chaining */
-	.sg_tablesize			= SCSI_MAX_SG_SEGMENTS,
+	.sg_tablesize			= SG_MAX_SINGLE_ALLOC,
 	.cmd_per_lun			= 32,
 	.max_sectors			= 0xffff,
 	/*
