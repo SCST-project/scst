@@ -49,6 +49,7 @@ static int disk_exec(struct scst_cmd *cmd);
 static struct scst_dev_type disk_devtype = {
 	.name =			DISK_NAME,
 	.type =			TYPE_DISK,
+	.threads_num =		1,
 	.parse_atomic =		1,
 	.dev_done_atomic =	1,
 	.attach =		disk_attach,

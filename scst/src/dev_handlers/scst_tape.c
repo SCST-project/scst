@@ -54,6 +54,7 @@ static int tape_exec(struct scst_cmd *);
 static struct scst_dev_type tape_devtype = {
 	.name =			TAPE_NAME,
 	.type =			TYPE_TAPE,
+	.threads_num =		1,
 	.parse_atomic =		1,
 	.dev_done_atomic =	1,
 	.attach =		tape_attach,

@@ -38,6 +38,7 @@ static int raid_parse(struct scst_cmd *);
 static struct scst_dev_type raid_devtype = {
 	.name =			RAID_NAME,
 	.type =			TYPE_RAID,
+	.threads_num =		1,
 	.parse_atomic =		1,
 /*	.dev_done_atomic =	1,*/
 	.attach =		raid_attach,

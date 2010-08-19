@@ -49,6 +49,7 @@ static int modisk_exec(struct scst_cmd *);
 static struct scst_dev_type modisk_devtype = {
 	.name =			MODISK_NAME,
 	.type =			TYPE_MOD,
+	.threads_num =		1,
 	.parse_atomic =		1,
 	.dev_done_atomic =	1,
 	.attach =		modisk_attach,

@@ -43,6 +43,7 @@ static int cdrom_done(struct scst_cmd *);
 static struct scst_dev_type cdrom_devtype = {
 	.name =			CDROM_NAME,
 	.type =			TYPE_ROM,
+	.threads_num =		1,
 	.parse_atomic =		1,
 	.dev_done_atomic =	1,
 	.attach =		cdrom_attach,
