@@ -1800,8 +1800,10 @@ next:
 		old_acg->acg_name, acg->acg_name);
 	list_move_tail(&sess->acg_sess_list_entry, &acg->acg_sess_list);
 
+#ifndef CONFIG_SCST_PROC
 	scst_recreate_sess_luns_link(sess);
 	/* Ignore possible error, since we can't do anything on it */
+#endif
 
 	if (luns_changed) {
 		scst_report_luns_changed_sess(sess);
@@ -2400,7 +2402,7 @@ restart:
 	return;
 }
 
-bool scst_is_relative_target_port_id_unique(uint16_t id,
+static bool __scst_is_relative_target_port_id_unique(uint16_t id,
 	const struct scst_tgt *t)
 {
 	bool res = true;
@@ -2408,7 +2410,6 @@ bool scst_is_relative_target_port_id_unique(uint16_t id,
 
 	TRACE_ENTRY();
 
-	mutex_lock(&scst_mutex);
 	list_for_each_entry(tgtt, &scst_template_list,
 				scst_template_list_entry) {
 		struct scst_tgt *tgt;
@@ -2424,6 +2425,21 @@ bool scst_is_relative_target_port_id_unique(uint16_t id,
 			}
 		}
 	}
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/* scst_mutex supposed to be locked */
+bool scst_is_relative_target_port_id_unique(uint16_t id,
+	const struct scst_tgt *t)
+{
+	bool res;
+
+	TRACE_ENTRY();
+
+	mutex_lock(&scst_mutex);
+	res = __scst_is_relative_target_port_id_unique(id, t);
 	mutex_unlock(&scst_mutex);
 
 	TRACE_EXIT_RES(res);
@@ -2437,12 +2453,17 @@ int gen_relative_target_port_id(uint16_t *id)
 
 	TRACE_ENTRY();
 
+	if (mutex_lock_interruptible(&scst_mutex) != 0) {
+		res = -EINTR;
+		goto out;
+	}
+
 	rti_prev = rti;
 	do {
-		if (scst_is_relative_target_port_id_unique(rti, NULL)) {
+		if (__scst_is_relative_target_port_id_unique(rti, NULL)) {
 			*id = (uint16_t)rti++;
 			res = 0;
-			goto out;
+			goto out_unlock;
 		}
 		rti++;
 		if (rti > SCST_MAX_REL_TGT_ID)
@@ -2451,11 +2472,15 @@ int gen_relative_target_port_id(uint16_t *id)
 
 	PRINT_ERROR("%s", "Unable to create unique relative target port id");
 
+out_unlock:
+	mutex_unlock(&scst_mutex);
+
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
 
+/* No locks */
 int scst_alloc_tgt(struct scst_tgt_template *tgtt, struct scst_tgt **tgt)
 {
 	struct scst_tgt *t;
@@ -2487,6 +2512,8 @@ int scst_alloc_tgt(struct scst_tgt_template *tgtt, struct scst_tgt **tgt)
 		scst_free_tgt(t);
 		goto out;
 	}
+#else
+	INIT_LIST_HEAD(&t->tgt_acg_list);
 #endif
 
 	*tgt = t;
@@ -2496,12 +2523,10 @@ out:
 	return res;
 }
 
+/* No locks */
 void scst_free_tgt(struct scst_tgt *tgt)
 {
 	TRACE_ENTRY();
-
-	if (tgt->default_acg != NULL)
-		scst_free_acg(tgt->default_acg);
 
 	kfree(tgt->tgt_name);
 #ifdef CONFIG_SCST_PROC
@@ -2628,23 +2653,11 @@ out:
 	return res;
 }
 
-void scst_acg_dev_destroy(struct scst_acg_dev *acg_dev)
-{
-	TRACE_ENTRY();
-
-#ifndef CONFIG_SCST_PROC
-	if ((acg_dev->dev != NULL) && acg_dev->dev->dev_kobj_initialized)
-		kobject_put(&acg_dev->dev->dev_kobj);
-#endif
-
-	kmem_cache_free(scst_acgd_cachep, acg_dev);
-
-	TRACE_EXIT();
-	return;
-}
-
-/* The activity supposed to be suspended and scst_mutex held */
-static void scst_free_acg_dev(struct scst_acg_dev *acg_dev)
+/*
+ * The activity supposed to be suspended and scst_mutex held or the
+ * corresponding target supposed to be stopped.
+ */
+static void scst_del_free_acg_dev(struct scst_acg_dev *acg_dev, bool del_sysfs)
 {
 	TRACE_ENTRY();
 
@@ -2653,14 +2666,122 @@ static void scst_free_acg_dev(struct scst_acg_dev *acg_dev)
 	list_del(&acg_dev->acg_dev_list_entry);
 	list_del(&acg_dev->dev_acg_dev_list_entry);
 
-	if (acg_dev->acg_dev_kobj_initialized) {
-		kobject_del(&acg_dev->acg_dev_kobj);
-		kobject_put(&acg_dev->acg_dev_kobj);
-	} else
-		scst_acg_dev_destroy(acg_dev);
+	if (del_sysfs)
+		scst_acg_dev_sysfs_del(acg_dev);
+
+	kmem_cache_free(scst_acgd_cachep, acg_dev);
 
 	TRACE_EXIT();
 	return;
+}
+
+/* The activity supposed to be suspended and scst_mutex held */
+int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
+	struct scst_device *dev, uint64_t lun, int read_only,
+	bool gen_scst_report_luns_changed, struct scst_acg_dev **out_acg_dev)
+{
+	int res = 0;
+	struct scst_acg_dev *acg_dev;
+	struct scst_tgt_dev *tgt_dev;
+	struct scst_session *sess;
+	LIST_HEAD(tmp_tgt_dev_list);
+	bool del_sysfs = true;
+
+	TRACE_ENTRY();
+
+	INIT_LIST_HEAD(&tmp_tgt_dev_list);
+
+	acg_dev = scst_alloc_acg_dev(acg, dev, lun);
+	if (acg_dev == NULL) {
+		res = -ENOMEM;
+		goto out;
+	}
+	acg_dev->rd_only = read_only;
+
+	TRACE_DBG("Adding acg_dev %p to acg_dev_list and dev_acg_dev_list",
+		acg_dev);
+	list_add_tail(&acg_dev->acg_dev_list_entry, &acg->acg_dev_list);
+	list_add_tail(&acg_dev->dev_acg_dev_list_entry, &dev->dev_acg_dev_list);
+
+	list_for_each_entry(sess, &acg->acg_sess_list, acg_sess_list_entry) {
+		res = scst_alloc_add_tgt_dev(sess, acg_dev, &tgt_dev);
+		if (res == -EPERM)
+			continue;
+		else if (res != 0)
+			goto out_free;
+
+		list_add_tail(&tgt_dev->extra_tgt_dev_list_entry,
+			      &tmp_tgt_dev_list);
+	}
+
+	res = scst_acg_dev_sysfs_create(acg_dev, parent);
+	if (res != 0) {
+		del_sysfs = false;
+		goto out_free;
+	}
+
+	if (gen_scst_report_luns_changed)
+		scst_report_luns_changed(acg);
+
+	PRINT_INFO("Added device %s to group %s (LUN %lld, "
+		"rd_only %d)", dev->virt_name, acg->acg_name,
+		(long long unsigned int)lun, read_only);
+
+	if (out_acg_dev != NULL)
+		*out_acg_dev = acg_dev;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_free:
+	list_for_each_entry(tgt_dev, &tmp_tgt_dev_list,
+			 extra_tgt_dev_list_entry) {
+		scst_free_tgt_dev(tgt_dev);
+	}
+	scst_del_free_acg_dev(acg_dev, del_sysfs);
+	goto out;
+}
+
+/* The activity supposed to be suspended and scst_mutex held */
+int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun,
+	bool gen_scst_report_luns_changed)
+{
+	int res = 0;
+	struct scst_acg_dev *acg_dev = NULL, *a;
+	struct scst_tgt_dev *tgt_dev, *tt;
+
+	TRACE_ENTRY();
+
+	list_for_each_entry(a, &acg->acg_dev_list, acg_dev_list_entry) {
+		if (a->lun == lun) {
+			acg_dev = a;
+			break;
+		}
+	}
+	if (acg_dev == NULL) {
+		PRINT_ERROR("Device is not found in group %s", acg->acg_name);
+		res = -EINVAL;
+		goto out;
+	}
+
+	list_for_each_entry_safe(tgt_dev, tt, &acg_dev->dev->dev_tgt_dev_list,
+			 dev_tgt_dev_list_entry) {
+		if (tgt_dev->acg_dev == acg_dev)
+			scst_free_tgt_dev(tgt_dev);
+	}
+
+	scst_del_free_acg_dev(acg_dev, true);
+
+	if (gen_scst_report_luns_changed)
+		scst_report_luns_changed(acg);
+
+	PRINT_INFO("Removed LUN %lld from group %s", (unsigned long long)lun,
+		acg->acg_name);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 /* The activity supposed to be suspended and scst_mutex held */
@@ -2695,10 +2816,17 @@ struct scst_acg *scst_alloc_add_acg(struct scst_tgt *tgt,
 	scst_check_reassign_sessions();
 #else
 	if (tgt != NULL) {
+		int rc;
+
 		TRACE_DBG("Adding acg '%s' to device '%s' acg_list", acg_name,
 			tgt->tgt_name);
+
 		list_add_tail(&acg->acg_list_entry, &tgt->tgt_acg_list);
-		acg->in_tgt_acg_list = 1;
+		acg->tgt_acg = 1;
+
+		rc = scst_acg_sysfs_create(tgt, acg);
+		if (rc != 0)
+			goto out_del;
 	}
 #endif
 
@@ -2706,15 +2834,59 @@ out:
 	TRACE_EXIT_HRES(acg);
 	return acg;
 
+#ifndef CONFIG_SCST_PROC
+out_del:
+	list_del(&acg->acg_list_entry);
+#endif
+
 out_free:
 	kfree(acg);
 	acg = NULL;
 	goto out;
 }
 
-void scst_free_acg(struct scst_acg *acg)
+/* The activity supposed to be suspended and scst_mutex held */
+void scst_del_free_acg(struct scst_acg *acg)
 {
+	struct scst_acn *acn, *acnt;
+	struct scst_acg_dev *acg_dev, *acg_dev_tmp;
+
 	TRACE_ENTRY();
+
+	TRACE_DBG("Clearing acg %s from list", acg->acg_name);
+
+	sBUG_ON(!list_empty(&acg->acg_sess_list));
+
+	/* Freeing acg_devs */
+	list_for_each_entry_safe(acg_dev, acg_dev_tmp, &acg->acg_dev_list,
+			acg_dev_list_entry) {
+		struct scst_tgt_dev *tgt_dev, *tt;
+		list_for_each_entry_safe(tgt_dev, tt,
+				 &acg_dev->dev->dev_tgt_dev_list,
+				 dev_tgt_dev_list_entry) {
+			if (tgt_dev->acg_dev == acg_dev)
+				scst_free_tgt_dev(tgt_dev);
+		}
+		scst_del_free_acg_dev(acg_dev, true);
+	}
+
+	/* Freeing names */
+	list_for_each_entry_safe(acn, acnt, &acg->acn_list, acn_list_entry) {
+		scst_del_free_acn(acn,
+			list_is_last(&acn->acn_list_entry, &acg->acn_list));
+	}
+	INIT_LIST_HEAD(&acg->acn_list);
+
+#ifdef CONFIG_SCST_PROC
+	list_del(&acg->acg_list_entry);
+#else
+	if (acg->tgt_acg) {
+		TRACE_DBG("Removing acg %s from list", acg->acg_name);
+		list_del(&acg->acg_list_entry);
+
+		scst_acg_sysfs_del(acg);
+	}
+#endif
 
 	sBUG_ON(!list_empty(&acg->acg_sess_list));
 	sBUG_ON(!list_empty(&acg->acg_dev_list));
@@ -2727,68 +2899,7 @@ void scst_free_acg(struct scst_acg *acg)
 	return;
 }
 
-/* The activity supposed to be suspended and scst_mutex held */
-void scst_clear_acg(struct scst_acg *acg)
-{
-	struct scst_acn *n, *nn;
-	struct scst_acg_dev *acg_dev, *acg_dev_tmp;
-
-	TRACE_ENTRY();
-
-	TRACE_DBG("Clearing acg %s from list", acg->acg_name);
-
-	sBUG_ON(!list_empty(&acg->acg_sess_list));
-#ifdef CONFIG_SCST_PROC
-	list_del(&acg->acg_list_entry);
-#else
-	if (acg->in_tgt_acg_list) {
-		TRACE_DBG("Removing acg %s from list", acg->acg_name);
-		list_del(&acg->acg_list_entry);
-		acg->in_tgt_acg_list = 0;
-	}
-#endif
-	/* Freeing acg_devs */
-	list_for_each_entry_safe(acg_dev, acg_dev_tmp, &acg->acg_dev_list,
-			acg_dev_list_entry) {
-		struct scst_tgt_dev *tgt_dev, *tt;
-		list_for_each_entry_safe(tgt_dev, tt,
-				 &acg_dev->dev->dev_tgt_dev_list,
-				 dev_tgt_dev_list_entry) {
-			if (tgt_dev->acg_dev == acg_dev)
-				scst_free_tgt_dev(tgt_dev);
-		}
-		scst_free_acg_dev(acg_dev);
-	}
-
-	/* Freeing names */
-	list_for_each_entry_safe(n, nn, &acg->acn_list,
-			acn_list_entry) {
-#ifdef CONFIG_SCST_PROC
-		scst_acg_remove_acn(n);
-		if (list_is_last(&n->acn_list_entry, &acg->acn_list))
-			scst_check_reassign_sessions();
-#else
-		scst_acn_sysfs_del(acg, n,
-			list_is_last(&n->acn_list_entry, &acg->acn_list));
-#endif
-	}
-	INIT_LIST_HEAD(&acg->acn_list);
-
-	TRACE_EXIT();
-	return;
-}
-
-/* The activity supposed to be suspended and scst_mutex held */
-void scst_destroy_acg(struct scst_acg *acg)
-{
-	TRACE_ENTRY();
-
-	scst_clear_acg(acg);
-	scst_free_acg(acg);
-
-	TRACE_EXIT();
-	return;
-}
+#ifndef CONFIG_SCST_PROC
 
 /* The activity supposed to be suspended and scst_mutex held */
 struct scst_acg *scst_tgt_find_acg(struct scst_tgt *tgt, const char *name)
@@ -2807,6 +2918,8 @@ struct scst_acg *scst_tgt_find_acg(struct scst_tgt *tgt, const char *name)
 	TRACE_EXIT();
 	return acg_ret;
 }
+
+#endif
 
 /* scst_mutex supposed to be held */
 static struct scst_tgt_dev *scst_find_shared_io_tgt_dev(
@@ -3462,115 +3575,17 @@ void scst_sess_free_tgt_devs(struct scst_session *sess)
 }
 
 /* The activity supposed to be suspended and scst_mutex held */
-int scst_acg_add_dev(struct scst_acg *acg, struct scst_device *dev,
-	uint64_t lun, int read_only, bool gen_scst_report_luns_changed)
+int scst_acg_add_acn(struct scst_acg *acg, const char *name)
 {
 	int res = 0;
-	struct scst_acg_dev *acg_dev;
-	struct scst_tgt_dev *tgt_dev;
-	struct scst_session *sess;
-	LIST_HEAD(tmp_tgt_dev_list);
-
-	TRACE_ENTRY();
-
-	INIT_LIST_HEAD(&tmp_tgt_dev_list);
-
-	acg_dev = scst_alloc_acg_dev(acg, dev, lun);
-	if (acg_dev == NULL) {
-		res = -ENOMEM;
-		goto out;
-	}
-	acg_dev->rd_only = read_only;
-
-	TRACE_DBG("Adding acg_dev %p to acg_dev_list and dev_acg_dev_list",
-		acg_dev);
-	list_add_tail(&acg_dev->acg_dev_list_entry, &acg->acg_dev_list);
-	list_add_tail(&acg_dev->dev_acg_dev_list_entry, &dev->dev_acg_dev_list);
-
-	list_for_each_entry(sess, &acg->acg_sess_list, acg_sess_list_entry) {
-		res = scst_alloc_add_tgt_dev(sess, acg_dev, &tgt_dev);
-		if (res == -EPERM)
-			continue;
-		else if (res != 0)
-			goto out_free;
-
-		list_add_tail(&tgt_dev->extra_tgt_dev_list_entry,
-			      &tmp_tgt_dev_list);
-	}
-
-	if (gen_scst_report_luns_changed)
-		scst_report_luns_changed(acg);
-
-	PRINT_INFO("Added device %s to group %s (LUN %lld, "
-		"rd_only %d)", dev->virt_name, acg->acg_name,
-		(long long unsigned int)lun, read_only);
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-
-out_free:
-	list_for_each_entry(tgt_dev, &tmp_tgt_dev_list,
-			 extra_tgt_dev_list_entry) {
-		scst_free_tgt_dev(tgt_dev);
-	}
-	scst_free_acg_dev(acg_dev);
-	goto out;
-}
-
-/* The activity supposed to be suspended and scst_mutex held */
-int scst_acg_remove_dev(struct scst_acg *acg, struct scst_device *dev,
-	bool gen_scst_report_luns_changed)
-{
-	int res = 0;
-	struct scst_acg_dev *acg_dev = NULL, *a;
-	struct scst_tgt_dev *tgt_dev, *tt;
-
-	TRACE_ENTRY();
-
-	list_for_each_entry(a, &acg->acg_dev_list, acg_dev_list_entry) {
-		if (a->dev == dev) {
-			acg_dev = a;
-			break;
-		}
-	}
-
-	if (acg_dev == NULL) {
-		PRINT_ERROR("Device is not found in group %s", acg->acg_name);
-		res = -EINVAL;
-		goto out;
-	}
-
-	list_for_each_entry_safe(tgt_dev, tt, &dev->dev_tgt_dev_list,
-			 dev_tgt_dev_list_entry) {
-		if (tgt_dev->acg_dev == acg_dev)
-			scst_free_tgt_dev(tgt_dev);
-	}
-	scst_free_acg_dev(acg_dev);
-
-	if (gen_scst_report_luns_changed)
-		scst_report_luns_changed(acg);
-
-	PRINT_INFO("Removed device %s from group %s", dev->virt_name,
-		acg->acg_name);
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-/* The activity supposed to be suspended and scst_mutex held */
-int scst_acg_add_name(struct scst_acg *acg, const char *name)
-{
-	int res = 0;
-	struct scst_acn *n;
+	struct scst_acn *acn;
 	int len;
 	char *nm;
 
 	TRACE_ENTRY();
 
-	list_for_each_entry(n, &acg->acn_list, acn_list_entry) {
-		if (strcmp(n->name, name) == 0) {
+	list_for_each_entry(acn, &acg->acn_list, acn_list_entry) {
+		if (strcmp(acn->name, name) == 0) {
 			PRINT_ERROR("Name %s already exists in group %s",
 				name, acg->acg_name);
 			res = -EEXIST;
@@ -3578,12 +3593,14 @@ int scst_acg_add_name(struct scst_acg *acg, const char *name)
 		}
 	}
 
-	n = kmalloc(sizeof(*n), GFP_KERNEL);
-	if (n == NULL) {
+	acn = kzalloc(sizeof(*acn), GFP_KERNEL);
+	if (acn == NULL) {
 		PRINT_ERROR("%s", "Unable to allocate scst_acn");
 		res = -ENOMEM;
 		goto out;
 	}
+
+	acn->acg = acg;
 
 	len = strlen(name);
 	nm = kmalloc(len + 1, GFP_KERNEL);
@@ -3594,17 +3611,17 @@ int scst_acg_add_name(struct scst_acg *acg, const char *name)
 	}
 
 	strcpy(nm, name);
-	n->name = nm;
+	acn->name = nm;
 
-	res = scst_create_acn_sysfs(acg, n);
+	res = scst_acn_sysfs_create(acn);
 	if (res != 0)
 		goto out_free_nm;
 
-	list_add_tail(&n->acn_list_entry, &acg->acn_list);
+	list_add_tail(&acn->acn_list_entry, &acg->acn_list);
 
 out:
 	if (res == 0) {
-		PRINT_INFO("Added name '%s' to group '%s'", name, acg->acg_name);
+		PRINT_INFO("Added name %s to group %s", name, acg->acg_name);
 		scst_check_reassign_sessions();
 	}
 
@@ -3615,42 +3632,48 @@ out_free_nm:
 	kfree(nm);
 
 out_free:
-	kfree(n);
+	kfree(acn);
 	goto out;
 }
 
 /* The activity supposed to be suspended and scst_mutex held */
-struct scst_acn *scst_acg_find_name(struct scst_acg *acg, const char *name)
+void scst_del_free_acn(struct scst_acn *acn, bool reassign)
 {
-	struct scst_acn *n;
+	TRACE_ENTRY();
+
+	list_del(&acn->acn_list_entry);
+
+	scst_acn_sysfs_del(acn);
+
+	kfree(acn->name);
+	kfree(acn);
+
+	if (reassign)
+		scst_check_reassign_sessions();
+
+	TRACE_EXIT();
+	return;
+}
+
+/* The activity supposed to be suspended and scst_mutex held */
+struct scst_acn *scst_find_acn(struct scst_acg *acg, const char *name)
+{
+	struct scst_acn *acn;
 
 	TRACE_ENTRY();
 
 	TRACE_DBG("Trying to find name '%s'", name);
 
-	list_for_each_entry(n, &acg->acn_list, acn_list_entry) {
-		if (strcmp(n->name, name) == 0) {
+	list_for_each_entry(acn, &acg->acn_list, acn_list_entry) {
+		if (strcmp(acn->name, name) == 0) {
 			TRACE_DBG("%s", "Found");
 			goto out;
 		}
 	}
-	n = NULL;
+	acn = NULL;
 out:
 	TRACE_EXIT();
-	return n;
-}
-
-/* scst_mutex supposed to be held */
-void scst_acg_remove_acn(struct scst_acn *acn)
-{
-	TRACE_ENTRY();
-
-	list_del(&acn->acn_list_entry);
-	kfree(acn->name);
-	kfree(acn);
-
-	TRACE_EXIT();
-	return;
+	return acn;
 }
 
 #ifdef CONFIG_SCST_PROC
@@ -3658,13 +3681,13 @@ void scst_acg_remove_acn(struct scst_acn *acn)
 int scst_acg_remove_name(struct scst_acg *acg, const char *name, bool reassign)
 {
 	int res = -EINVAL;
-	struct scst_acn *n;
+	struct scst_acn *acn;
 
 	TRACE_ENTRY();
 
-	list_for_each_entry(n, &acg->acn_list, acn_list_entry) {
-		if (strcmp(n->name, name) == 0) {
-			scst_acg_remove_acn(n);
+	list_for_each_entry(acn, &acg->acn_list, acn_list_entry) {
+		if (strcmp(acn->name, name) == 0) {
+			scst_del_free_acn(acn, false);
 			res = 0;
 			break;
 		}
@@ -4032,6 +4055,8 @@ void scst_free_session(struct scst_session *sess)
 {
 	TRACE_ENTRY();
 
+	scst_sess_sysfs_del(sess);
+
 	mutex_lock(&scst_mutex);
 
 	TRACE_DBG("Removing sess %p from the list", sess);
@@ -4047,16 +4072,6 @@ void scst_free_session(struct scst_session *sess)
 	mutex_unlock(&scst_mutex);
 
 	kfree(sess->transport_id);
-
-	scst_sess_sysfs_put(sess); /* must not be called under scst_mutex */
-
-	TRACE_EXIT();
-	return;
-}
-
-void scst_release_session(struct scst_session *sess)
-{
-	TRACE_ENTRY();
 
 	kfree(sess->initiator_name);
 	kmem_cache_free(scst_sess_cachep, sess);
@@ -5910,7 +5925,7 @@ EXPORT_SYMBOL(scst_to_dma_dir);
  * scst_to_tgt_dma_dir() - translate SCST data direction to DMA direction
  *
  * Translates SCST data direction to DMA data direction from the perspective
- * of the target device.
+ * of a target.
  */
 enum dma_data_direction scst_to_tgt_dma_dir(int scst_dir)
 {

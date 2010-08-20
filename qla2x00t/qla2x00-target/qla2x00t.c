@@ -283,7 +283,7 @@ static inline int q2t_issue_marker(scsi_qla_host_t *ha, int ha_locked)
  */
 static int q2t_target_detect(struct scst_tgt_template *tgtt)
 {
-	int res;
+	int res, rc;
 	struct qla_tgt_data t = {
 		.magic = QLA2X_TARGET_MAGIC,
 		.tgt24_atio_pkt = q24_atio_pkt,
@@ -297,20 +297,22 @@ static int q2t_target_detect(struct scst_tgt_template *tgtt)
 
 	TRACE_ENTRY();
 
-	res = qla2xxx_tgt_register_driver(&t);
-	if (res < 0) {
+	rc = qla2xxx_tgt_register_driver(&t);
+	if (rc < 0) {
+		res = rc;
 		PRINT_ERROR("Unable to register driver: %d", res);
 		goto out;
 	}
 
-	if (res != QLA2X_INITIATOR_MAGIC) {
-		PRINT_ERROR("Wrong version of the initiator part: %d",
-			    res);
+	if (rc != QLA2X_INITIATOR_MAGIC) {
+		PRINT_ERROR("Wrong version of the initiator part: %d", rc);
 		res = -EINVAL;
 		goto out;
 	}
 
 	qla2xxx_add_targets();
+
+	res = 0;
 
 	PRINT_INFO("%s", "Target mode driver for QLogic 2x00 controller "
 		"registered successfully");

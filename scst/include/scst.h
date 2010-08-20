@@ -953,11 +953,9 @@ struct scst_tgt_template {
 	struct proc_dir_entry *proc_tgt_root;
 #endif
 
-	/* Set if tgtt_kobj was initialized */
-	unsigned int tgtt_kobj_initialized:1;
-
 	struct kobject tgtt_kobj; /* kobject for this struct */
 
+	/* sysfs release completion */
 	struct completion tgtt_kobj_release_cmpl;
 
 #ifdef CONFIG_SCST_PROC
@@ -1261,8 +1259,6 @@ struct scst_dev_type {
 	struct proc_dir_entry *proc_dev_type_root;
 #endif
 
-	unsigned int devt_kobj_initialized:1;
-
 	struct kobject devt_kobj; /* main handlers/driver */
 
 	/* To wait until devt_kobj released */
@@ -1281,12 +1277,11 @@ struct scst_tgt {
 
 	struct scst_tgt_template *tgtt;	/* corresponding target template */
 
-	struct scst_acg *default_acg; /* The default acg for this target. */
+#ifndef CONFIG_SCST_PROC
+	struct scst_acg *default_acg; /* default acg for this target */
 
-	/*
-	 * Device ACG groups
-	 */
-	struct list_head tgt_acg_list;
+	struct list_head tgt_acg_list; /* target ACG groups */
+#endif
 
 	/*
 	 * Maximum SG table size. Needed here, since different cards on the
@@ -1328,17 +1323,8 @@ struct scst_tgt {
 	char *default_group_name;
 #endif
 
-	/* Set if tgt_kobj was initialized */
-	unsigned int tgt_kobj_initialized:1;
-
-	/* Set if scst_tgt_sysfs_prepare_put() was called for tgt_kobj */
-	unsigned int tgt_kobj_put_prepared:1;
-
-	/*
-	 * Used to protect sysfs attributes to be called after this
-	 * object was unregistered.
-	 */
-	struct rw_semaphore tgt_attr_rwsem;
+	/* sysfs release completion */
+	struct completion tgt_kobj_release_cmpl;
 
 	struct kobject tgt_kobj; /* main targets/target kobject */
 	struct kobject *tgt_sess_kobj; /* target/sessions/ */
@@ -1469,14 +1455,10 @@ struct scst_session {
 	/* Used if scst_unregister_session() called in wait mode */
 	struct completion *shutdown_compl;
 
-	/* Set if sess_kobj was initialized */
-	unsigned int sess_kobj_initialized:1;
+	/* sysfs release completion */
+	struct completion sess_kobj_release_cmpl;
 
-	/*
-	 * Used to protect sysfs attributes to be called after this
-	 * object was unregistered.
-	 */
-	struct rw_semaphore sess_attr_rwsem;
+	unsigned int sess_kobj_ready:1;
 
 	struct kobject sess_kobj; /* kobject for this struct */
 
@@ -2012,9 +1994,6 @@ struct scst_device {
 	/* If set, dev is read only */
 	unsigned short rd_only:1;
 
-	/* Set if tgt_kobj was initialized */
-	unsigned short dev_kobj_initialized:1;
-
 	/**************************************************************/
 
 	/*************************************************************
@@ -2162,11 +2141,8 @@ struct scst_device {
 	/* Threads pool type of the device. Valid only if threads_num > 0. */
 	enum scst_dev_type_threads_pool_type threads_pool_type;
 
-	/*
-	 * Used to protect sysfs attributes to be called after this
-	 * object was unregistered.
-	 */
-	struct rw_semaphore dev_attr_rwsem;
+	/* sysfs release completion */
+	struct completion dev_kobj_release_cmpl;
 
 	struct kobject dev_kobj; /* kobject for this struct */
 	struct kobject *dev_exp_kobj; /* exported groups */
@@ -2318,9 +2294,6 @@ struct scst_acg_dev {
 	/* If set, the corresponding LU is read only */
 	unsigned int rd_only:1;
 
-	/* Set if acg_dev_kobj was initialized */
-	unsigned int acg_dev_kobj_initialized:1;
-
 	struct scst_acg *acg; /* parent acg */
 
 	/* List entry in dev->dev_acg_dev_list */
@@ -2331,6 +2304,12 @@ struct scst_acg_dev {
 
 	/* kobject for this structure */
 	struct kobject acg_dev_kobj;
+
+	/* sysfs release completion */
+	struct completion acg_dev_kobj_release_cmpl;
+
+	/* Name of the link to the corresponding LUN */
+	char acg_dev_link_name[20];
 };
 
 /*
@@ -2361,8 +2340,10 @@ struct scst_acg {
 	/* Type of I/O initiators groupping */
 	int acg_io_grouping_type;
 
-	unsigned int acg_kobj_initialized:1;
-	unsigned int in_tgt_acg_list:1;
+	unsigned int tgt_acg:1;
+
+	/* sysfs release completion */
+	struct completion acg_kobj_release_cmpl;
 
 	/* kobject for this structure */
 	struct kobject acg_kobj;
@@ -2378,8 +2359,10 @@ struct scst_acg {
  * incoming sessions will be assigned to appropriate ACG.
  */
 struct scst_acn {
-	/* Initiator's name */
-	const char *name;
+	struct scst_acg *acg; /* owner ACG */
+
+	const char *name; /* initiator's name */
+
 	/* List entry in acg->acn_list */
 	struct list_head acn_list_entry;
 
@@ -2430,8 +2413,6 @@ struct scst_aen {
 /*
  * Registers target template.
  * Returns 0 on success or appropriate error code otherwise.
- *
- * Note: *vtt must be static!
  */
 int __scst_register_target_template(struct scst_tgt_template *vtt,
 	const char *version);
@@ -2465,8 +2446,6 @@ int __scst_register_virtual_dev_driver(struct scst_dev_type *dev_type,
 /*
  * Registers dev handler driver for virtual devices (eg VDISK).
  * Returns 0 on success or appropriate error code otherwise.
- *
- * Note: *dev_type must be static!
  */
 static inline int scst_register_virtual_dev_driver(
 	struct scst_dev_type *dev_type)
@@ -3508,9 +3487,9 @@ struct proc_dir_entry *scst_create_proc_entry(struct proc_dir_entry *root,
 #else /* CONFIG_SCST_PROC */
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34))
-extern const struct sysfs_ops scst_sysfs_ops;
+const struct sysfs_ops *scst_sysfs_get_sysfs_ops(void);
 #else
-extern struct sysfs_ops scst_sysfs_ops;
+struct sysfs_ops *scst_sysfs_get_sysfs_ops(void);
 #endif
 
 /*

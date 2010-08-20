@@ -3881,6 +3881,8 @@ static int __init iscsi_init(void)
 	err = iscsi_procfs_init();
 	if (err < 0)
 		goto out_reg_tmpl;
+#else
+	iscsi_conn_ktype.sysfs_ops = scst_sysfs_get_sysfs_ops();
 #endif
 
 	num = max((int)num_online_cpus(), 2);

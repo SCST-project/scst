@@ -121,28 +121,20 @@ void conn_info_show(struct seq_file *seq, struct iscsi_session *session)
 
 #else /* CONFIG_SCST_PROC */
 
-static int conn_free(struct iscsi_conn *conn);
-
 static void iscsi_conn_release(struct kobject *kobj)
 {
 	struct iscsi_conn *conn;
-	struct iscsi_target *target;
 
 	TRACE_ENTRY();
 
-	conn = container_of(kobj, struct iscsi_conn, iscsi_conn_kobj);
-	target = conn->target;
-
-	mutex_lock(&target->target_mutex);
-	conn_free(conn);
-	mutex_unlock(&target->target_mutex);
+	conn = container_of(kobj, struct iscsi_conn, conn_kobj);
+	complete_all(&conn->conn_kobj_release_cmpl);
 
 	TRACE_EXIT();
 	return;
 }
 
-static struct kobj_type iscsi_conn_ktype = {
-	.sysfs_ops = &scst_sysfs_ops,
+struct kobj_type iscsi_conn_ktype = {
 	.release = iscsi_conn_release,
 };
 
@@ -192,7 +184,7 @@ static ssize_t iscsi_conn_ip_show(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
-	conn = container_of(kobj, struct iscsi_conn, iscsi_conn_kobj);
+	conn = container_of(kobj, struct iscsi_conn, conn_kobj);
 
 	pos = iscsi_get_initiator_ip(conn, buf, SCST_SYSFS_BLOCK_SIZE);
 
@@ -211,7 +203,7 @@ static ssize_t iscsi_conn_cid_show(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
-	conn = container_of(kobj, struct iscsi_conn, iscsi_conn_kobj);
+	conn = container_of(kobj, struct iscsi_conn, conn_kobj);
 
 	pos = sprintf(buf, "%u", conn->cid);
 
@@ -230,7 +222,7 @@ static ssize_t iscsi_conn_state_show(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
-	conn = container_of(kobj, struct iscsi_conn, iscsi_conn_kobj);
+	conn = container_of(kobj, struct iscsi_conn, conn_kobj);
 
 	pos = print_conn_state(buf, SCST_SYSFS_BLOCK_SIZE, conn);
 
@@ -240,6 +232,102 @@ static ssize_t iscsi_conn_state_show(struct kobject *kobj,
 
 static struct kobj_attribute iscsi_conn_state_attr =
 	__ATTR(state, S_IRUGO, iscsi_conn_state_show, NULL);
+
+static void conn_sysfs_del(struct iscsi_conn *conn)
+{
+	int rc;
+
+	TRACE_ENTRY();
+
+	kobject_del(&conn->conn_kobj);
+	kobject_put(&conn->conn_kobj);
+
+	rc = wait_for_completion_timeout(&conn->conn_kobj_release_cmpl, HZ);
+	if (rc == 0) {
+		PRINT_INFO("Waiting for releasing sysfs entry "
+			"for conn %p (%d refs)...", conn,
+			atomic_read(&conn->conn_kobj.kref.refcount));
+		wait_for_completion(&conn->conn_kobj_release_cmpl);
+		PRINT_INFO("Done waiting for releasing sysfs "
+			"entry for conn %p", conn);
+	}
+
+	TRACE_EXIT();
+	return;
+}
+
+static int conn_sysfs_add(struct iscsi_conn *conn)
+{
+	int res;
+	struct iscsi_session *session = conn->session;
+	struct iscsi_conn *c;
+	int n = 1;
+	char addr[64];
+
+	TRACE_ENTRY();
+
+	iscsi_get_initiator_ip(conn, addr, sizeof(addr));
+
+restart:
+	list_for_each_entry(c, &session->conn_list, conn_list_entry) {
+		if (strcmp(addr, kobject_name(&conn->conn_kobj)) == 0) {
+			char c_addr[64];
+
+			iscsi_get_initiator_ip(conn, c_addr, sizeof(c_addr));
+
+			TRACE_DBG("Duplicated conn from the same initiator "
+				"%s found", c_addr);
+
+			snprintf(addr, sizeof(addr), "%s_%d", c_addr, n);
+			n++;
+			goto restart;
+		}
+	}
+
+	init_completion(&conn->conn_kobj_release_cmpl);
+
+	res = kobject_init_and_add(&conn->conn_kobj, &iscsi_conn_ktype,
+		scst_sysfs_get_sess_kobj(session->scst_sess), addr);
+	if (res != 0) {
+		PRINT_ERROR("Unable create sysfs entries for conn %s",
+			addr);
+		goto out;
+	}
+
+	TRACE_DBG("conn %p, conn_kobj %p", conn, &conn->conn_kobj);
+
+	res = sysfs_create_file(&conn->conn_kobj,
+			&iscsi_conn_state_attr.attr);
+	if (res != 0) {
+		PRINT_ERROR("Unable create sysfs attribute %s for conn %s",
+			iscsi_conn_state_attr.attr.name, addr);
+		goto out_err;
+	}
+
+	res = sysfs_create_file(&conn->conn_kobj,
+			&iscsi_conn_cid_attr.attr);
+	if (res != 0) {
+		PRINT_ERROR("Unable create sysfs attribute %s for conn %s",
+			iscsi_conn_cid_attr.attr.name, addr);
+		goto out_err;
+	}
+
+	res = sysfs_create_file(&conn->conn_kobj,
+			&iscsi_conn_ip_attr.attr);
+	if (res != 0) {
+		PRINT_ERROR("Unable create sysfs attribute %s for conn %s",
+			iscsi_conn_ip_attr.attr.name, addr);
+		goto out_err;
+	}
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_err:
+	conn_sysfs_del(conn);
+	goto out;
+}
 
 #endif /* CONFIG_SCST_PROC */
 
@@ -665,18 +753,20 @@ out:
 }
 
 /* target_mutex supposed to be locked */
-#ifdef CONFIG_SCST_PROC
 int conn_free(struct iscsi_conn *conn)
-#else
-static int conn_free(struct iscsi_conn *conn)
-#endif
 {
 	struct iscsi_session *session = conn->session;
+
+	TRACE_ENTRY();
 
 	TRACE_MGMT_DBG("Freeing conn %p (sess=%p, %#Lx %u)", conn,
 		session, (long long unsigned int)session->sid, conn->cid);
 
 	del_timer_sync(&conn->rsp_timer);
+
+#ifndef CONFIG_SCST_PROC
+	conn_sysfs_del(conn);
+#endif
 
 	sBUG_ON(atomic_read(&conn->conn_ref_cnt) != 0);
 	sBUG_ON(!list_empty(&conn->cmd_list));
@@ -722,11 +812,6 @@ static int iscsi_conn_alloc(struct iscsi_session *session,
 {
 	struct iscsi_conn *conn;
 	int res = 0;
-#ifndef CONFIG_SCST_PROC
-	struct iscsi_conn *c;
-	int n = 1;
-	char addr[64];
-#endif
 
 	conn = kzalloc(sizeof(*conn), GFP_KERNEL);
 	if (!conn) {
@@ -758,7 +843,7 @@ static int iscsi_conn_alloc(struct iscsi_session *session,
 	conn->ddigest_type = session->sess_params.data_digest;
 	res = digest_init(conn);
 	if (res != 0)
-		goto out_err_free1;
+		goto out_free_iov;
 
 	conn->target = session->target;
 	spin_lock_init(&conn->cmd_list_lock);
@@ -794,61 +879,13 @@ static int iscsi_conn_alloc(struct iscsi_session *session,
 
 	res = conn_setup_sock(conn);
 	if (res != 0)
-		goto out_err_free2;
+		goto out_fput;
 
 #ifndef CONFIG_SCST_PROC
-	iscsi_get_initiator_ip(conn, addr, sizeof(addr));
-
-restart:
-	list_for_each_entry(c, &session->conn_list, conn_list_entry) {
-		if (strcmp(addr, kobject_name(&conn->iscsi_conn_kobj)) == 0) {
-			char c_addr[64];
-
-			iscsi_get_initiator_ip(conn, c_addr, sizeof(c_addr));
-
-			TRACE_DBG("Duplicated conn from the same initiator "
-				"%s found", c_addr);
-
-			snprintf(addr, sizeof(addr), "%s_%d", c_addr, n);
-			n++;
-			goto restart;
-		}
-	}
-
-	res = kobject_init_and_add(&conn->iscsi_conn_kobj, &iscsi_conn_ktype,
-		scst_sysfs_get_sess_kobj(session->scst_sess), addr);
-	if (res != 0) {
-		PRINT_ERROR("Unable create sysfs entries for conn %s",
-			addr);
-		goto out_err_free2;
-	}
-
-	TRACE_DBG("conn %p, iscsi_conn_kobj %p", conn, &conn->iscsi_conn_kobj);
-
-	res = sysfs_create_file(&conn->iscsi_conn_kobj,
-			&iscsi_conn_state_attr.attr);
-	if (res != 0) {
-		PRINT_ERROR("Unable create sysfs attribute %s for conn %s",
-			iscsi_conn_state_attr.attr.name, addr);
-		goto out_err_free3;
-	}
-
-	res = sysfs_create_file(&conn->iscsi_conn_kobj,
-			&iscsi_conn_cid_attr.attr);
-	if (res != 0) {
-		PRINT_ERROR("Unable create sysfs attribute %s for conn %s",
-			iscsi_conn_cid_attr.attr.name, addr);
-		goto out_err_free3;
-	}
-
-	res = sysfs_create_file(&conn->iscsi_conn_kobj,
-			&iscsi_conn_ip_attr.attr);
-	if (res != 0) {
-		PRINT_ERROR("Unable create sysfs attribute %s for conn %s",
-			iscsi_conn_ip_attr.attr.name, addr);
-		goto out_err_free3;
-	}
-#endif /* CONFIG_SCST_PROC */
+	res = conn_sysfs_add(conn);
+	if (res != 0)
+		goto out_fput;
+#endif
 
 	list_add_tail(&conn->conn_list_entry, &session->conn_list);
 
@@ -857,16 +894,10 @@ restart:
 out:
 	return res;
 
-#ifndef CONFIG_SCST_PROC
-out_err_free3:
-	kobject_put(&conn->iscsi_conn_kobj);
-	goto out;
-#endif
-
-out_err_free2:
+out_fput:
 	fput(conn->file);
 
-out_err_free1:
+out_free_iov:
 	free_page((unsigned long)conn->read_iov);
 
 out_err_free_conn:

@@ -6286,14 +6286,13 @@ static int scst_init_session(struct scst_session *sess)
 
 	res = scst_sess_alloc_tgt_devs(sess);
 
-	/* Let's always create session's sysfs to simplify error recovery */
-
-	rc = scst_create_sess_sysfs(sess);
-	if (res == 0)
-		res = rc;
-
 failed:
 	mutex_unlock(&scst_mutex);
+
+	/* Let's always create sysfs to simplify code */
+	rc = scst_sess_sysfs_create(sess);
+	if (res == 0)
+		res = rc;
 
 	if (sess->init_result_fn) {
 		TRACE_DBG("Calling init_result_fn(%p)", sess);

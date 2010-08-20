@@ -788,7 +788,7 @@ static void vdisk_detach(struct scst_device *dev)
 
 	TRACE_DBG("virt_id %d", dev->virt_id);
 
-	PRINT_INFO("Detached SCSI target virtual device %s (\"%s\")",
+	PRINT_INFO("Detached virtual device %s (\"%s\")",
 		      virt_dev->name, vdev_get_filename(virt_dev));
 
 	/* virt_dev will be freed by the caller */

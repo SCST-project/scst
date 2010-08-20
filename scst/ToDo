@@ -3,6 +3,12 @@ To be done
 
  - See http://scst.sourceforge.net/contributing.html
 
+ - Add choosing default number of threads for BLOCKIO based on "rotational"
+   sysfs attribute of the device.
+
+ - Allow to set via sysfs of what returned for "rotational" attribute to
+   remote initiators.
+
  - Remove cmd->data_len
 
  - Reimplement VDISK handler with usage of async. read/write operations

@@ -977,7 +977,7 @@ static int scst_proc_del_free_acg(struct scst_acg *acg, int remove_proc)
 		}
 		if (remove_proc)
 			scst_proc_del_acg_tree(acg_proc_root, acg->acg_name);
-		scst_destroy_acg(acg);
+		scst_del_free_acg(acg);
 	}
 out:
 	TRACE_EXIT_RES(res);
@@ -2066,7 +2066,7 @@ static ssize_t scst_proc_groups_devices_write(struct file *file,
 				goto out_free_up;
 			} else {
 				/* Replace */
-				rc = scst_acg_remove_dev(acg, acg_dev->dev,
+				rc = scst_acg_del_lun(acg, acg_dev->lun,
 						false);
 				if (rc) {
 					res = rc;
@@ -2076,12 +2076,15 @@ static ssize_t scst_proc_groups_devices_write(struct file *file,
 			}
 		}
 
-		rc = scst_acg_add_dev(acg, dev, virt_lun, read_only,
-			action == SCST_PROC_ACTION_ADD);
+		rc = scst_acg_add_lun(acg, NULL, dev, virt_lun, read_only,
+				false, NULL);
 		if (rc) {
 			res = rc;
 			goto out_free_up;
 		}
+
+		if (action == SCST_PROC_ACTION_ADD)
+			scst_report_luns_changed(acg);
 
 		if (dev_replaced) {
 			struct scst_tgt_dev *tgt_dev;
@@ -2100,17 +2103,32 @@ static ssize_t scst_proc_groups_devices_write(struct file *file,
 		break;
 	}
 	case SCST_PROC_ACTION_DEL:
-		rc = scst_acg_remove_dev(acg, dev, true);
-		if (rc) {
-			res = rc;
-			goto out_free_up;
+	{
+		/*
+		 * This code doesn't handle if there are >1 LUNs for the same
+		 * device in the group. Instead, it always deletes the first
+		 * entry. It wasn't fixed for compatibility reasons, because
+		 * procfs is now obsoleted.
+		 */
+		struct scst_acg_dev *a;
+		list_for_each_entry(a, &acg->acg_dev_list, acg_dev_list_entry) {
+			if (a->dev == dev) {
+				rc = scst_acg_del_lun(acg, a->lun, true);
+				if (rc) {
+					res = rc;
+					goto out_free_up;
+				}
+				break;
+			}
 		}
+		PRINT_ERROR("Device is not found in group %s", acg->acg_name);
 		break;
+	}
 	case SCST_PROC_ACTION_CLEAR:
 		list_for_each_entry_safe(acg_dev, acg_dev_tmp,
 					 &acg->acg_dev_list,
 					 acg_dev_list_entry) {
-			rc = scst_acg_remove_dev(acg, acg_dev->dev,
+			rc = scst_acg_del_lun(acg, acg_dev->lun,
 				list_is_last(&acg_dev->acg_dev_list_entry,
 					     &acg->acg_dev_list));
 			if (rc) {
@@ -2235,7 +2253,7 @@ static ssize_t scst_proc_groups_names_write(struct file *file,
 
 	switch (action) {
 	case SCST_PROC_ACTION_ADD:
-		rc = scst_acg_add_name(acg, p);
+		rc = scst_acg_add_acn(acg, p);
 		break;
 	case SCST_PROC_ACTION_DEL:
 		rc = scst_acg_remove_name(acg, p, true);
@@ -2274,15 +2292,15 @@ static ssize_t scst_proc_groups_names_write(struct file *file,
 		rc = scst_acg_remove_name(acg, name, false);
 		if (rc != 0)
 			goto out_free_unlock;
-		rc = scst_acg_add_name(new_acg, name);
+		rc = scst_acg_add_acn(new_acg, name);
 		if (rc != 0)
-			scst_acg_add_name(acg, name);
+			scst_acg_add_acn(acg, name);
 		break;
 	}
 	case SCST_PROC_ACTION_CLEAR:
 		list_for_each_entry_safe(n, nn, &acg->acn_list,
 					 acn_list_entry) {
-			scst_acg_remove_acn(n);
+			scst_del_free_acn(n, false);
 		}
 		scst_check_reassign_sessions();
 		break;

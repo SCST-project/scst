@@ -2525,7 +2525,7 @@ static int dev_user_attach(struct scst_device *sdev)
 
 	dev->sdev = sdev;
 
-	PRINT_INFO("Attached user space SCSI target virtual device \"%s\"",
+	PRINT_INFO("Attached user space virtual device \"%s\"",
 		dev->name);
 
 out:
@@ -2541,7 +2541,7 @@ static void dev_user_detach(struct scst_device *sdev)
 
 	TRACE_DBG("virt_id %d", sdev->virt_id);
 
-	PRINT_INFO("Detached user space SCSI target virtual device \"%s\"",
+	PRINT_INFO("Detached user space virtual device \"%s\"",
 		dev->name);
 
 	/* dev will be freed by the caller */

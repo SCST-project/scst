@@ -1452,11 +1452,20 @@ static int sgv_pool_init(struct sgv_pool *pool, const char *name,
 	list_add_tail(&pool->sgv_pools_list_entry, &sgv_pools_list);
 	spin_unlock_bh(&sgv_pools_lock);
 
+	res = scst_sgv_sysfs_create(pool);
+	if (res != 0)
+		goto out_del;
+
 	res = 0;
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_del:
+	spin_lock_bh(&sgv_pools_lock);
+	list_del(&pool->sgv_pools_list_entry);
+	spin_unlock_bh(&sgv_pools_lock);
 
 out_free:
 	for (i = 0; i < pool->max_caches; i++) {
@@ -1520,8 +1529,10 @@ void sgv_pool_flush(struct sgv_pool *pool)
 }
 EXPORT_SYMBOL(sgv_pool_flush);
 
-static void sgv_pool_deinit_put(struct sgv_pool *pool)
+static void sgv_pool_destroy(struct sgv_pool *pool)
 {
+	int i;
+
 	TRACE_ENTRY();
 
 	cancel_delayed_work_sync(&pool->sgv_purge_work);
@@ -1534,9 +1545,15 @@ static void sgv_pool_deinit_put(struct sgv_pool *pool)
 	spin_unlock_bh(&sgv_pools_lock);
 	mutex_unlock(&sgv_pools_mutex);
 
-	scst_sgv_sysfs_put(pool);
+	scst_sgv_sysfs_del(pool);
 
-	/* pool can be dead here */
+	for (i = 0; i < pool->max_caches; i++) {
+		if (pool->caches[i])
+			kmem_cache_destroy(pool->caches[i]);
+		pool->caches[i] = NULL;
+	}
+
+	kfree(pool);
 
 	TRACE_EXIT();
 	return;
@@ -1596,6 +1613,7 @@ struct sgv_pool *sgv_pool_create(const char *name,
 	TRACE_ENTRY();
 
 	mutex_lock(&sgv_pools_mutex);
+
 	list_for_each_entry(pool, &sgv_pools_list, sgv_pools_list_entry) {
 		if (strcmp(pool->name, name) == 0) {
 			if (shared) {
@@ -1603,13 +1621,14 @@ struct sgv_pool *sgv_pool_create(const char *name,
 					PRINT_ERROR("Attempt of a shared use "
 						"of SGV pool %s with "
 						"different MM", name);
-					goto out_err_unlock;
+					goto out_unlock;
 				}
 				sgv_pool_get(pool);
 				goto out_unlock;
 			} else {
 				PRINT_ERROR("SGV pool %s already exists", name);
-				goto out_err_unlock;
+				pool = NULL;
+				goto out_unlock;
 			}
 		}
 	}
@@ -1623,11 +1642,7 @@ struct sgv_pool *sgv_pool_create(const char *name,
 	rc = sgv_pool_init(pool, name, clustering_type, single_alloc_pages,
 				purge_interval);
 	if (rc != 0)
-		goto out_free_unlock;
-
-	rc = scst_create_sgv_sysfs(pool);
-	if (rc != 0)
-		goto out_err_unlock_put;
+		goto out_free;
 
 out_unlock:
 	mutex_unlock(&sgv_pools_mutex);
@@ -1635,37 +1650,11 @@ out_unlock:
 	TRACE_EXIT_RES(pool != NULL);
 	return pool;
 
-out_free_unlock:
+out_free:
 	kfree(pool);
-
-out_err_unlock:
-	pool = NULL;
 	goto out_unlock;
-
-out_err_unlock_put:
-	mutex_unlock(&sgv_pools_mutex);
-	sgv_pool_deinit_put(pool);
-	goto out_err_unlock;
 }
 EXPORT_SYMBOL(sgv_pool_create);
-
-void sgv_pool_destroy(struct sgv_pool *pool)
-{
-	int i;
-
-	TRACE_ENTRY();
-
-	for (i = 0; i < pool->max_caches; i++) {
-		if (pool->caches[i])
-			kmem_cache_destroy(pool->caches[i]);
-		pool->caches[i] = NULL;
-	}
-
-	kfree(pool);
-
-	TRACE_EXIT();
-	return;
-}
 
 /**
  * sgv_pool_get - increase ref counter for the corresponding SGV pool
@@ -1692,7 +1681,7 @@ void sgv_pool_put(struct sgv_pool *pool)
 	TRACE_MEM("Decrementing sgv pool %p ref (new value %d)",
 		pool, atomic_read(&pool->sgv_pool_ref)-1);
 	if (atomic_dec_and_test(&pool->sgv_pool_ref))
-		sgv_pool_deinit_put(pool);
+		sgv_pool_destroy(pool);
 	return;
 }
 EXPORT_SYMBOL(sgv_pool_put);
@@ -1755,10 +1744,10 @@ out:
 	return res;
 
 out_free_clust:
-	sgv_pool_deinit_put(sgv_norm_clust_pool);
+	sgv_pool_destroy(sgv_norm_clust_pool);
 
 out_free_norm:
-	sgv_pool_deinit_put(sgv_norm_pool);
+	sgv_pool_destroy(sgv_norm_pool);
 
 out_err:
 	res = -ENOMEM;
@@ -1775,9 +1764,9 @@ void scst_sgv_pools_deinit(void)
 	unregister_shrinker(&sgv_shrinker);
 #endif
 
-	sgv_pool_deinit_put(sgv_dma_pool);
-	sgv_pool_deinit_put(sgv_norm_pool);
-	sgv_pool_deinit_put(sgv_norm_clust_pool);
+	sgv_pool_destroy(sgv_dma_pool);
+	sgv_pool_destroy(sgv_norm_pool);
+	sgv_pool_destroy(sgv_norm_clust_pool);
 
 	flush_scheduled_work();
 

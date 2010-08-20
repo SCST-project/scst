@@ -88,7 +88,6 @@ struct iscsi_target {
 	struct list_head target_list_entry;
 	u32 tid;
 
-	/* Protected by iscsi_sysfs_mutex */
 	unsigned int tgt_enabled:1;
 
 #ifndef CONFIG_SCST_PROC
@@ -281,8 +280,9 @@ struct iscsi_conn {
 	u32 nop_in_ttt;
 
 #ifndef CONFIG_SCST_PROC
-	/* Doesn't need any protection */
-	struct kobject iscsi_conn_kobj;
+	/* Don't need any protection */
+	struct kobject conn_kobj;
+	struct completion conn_kobj_release_cmpl;
 #endif /* CONFIG_SCST_PROC */
 };
 
@@ -504,13 +504,14 @@ extern int set_scst_preliminary_status_rsp(struct iscsi_cmnd *req,
 	bool get_data, int key, int asc, int ascq);
 
 /* conn.c */
+#ifndef CONFIG_SCST_PROC
+extern struct kobj_type iscsi_conn_ktype;
+#endif
 extern struct iscsi_conn *conn_lookup(struct iscsi_session *, u16);
 extern void conn_reinst_finished(struct iscsi_conn *);
 extern int __add_conn(struct iscsi_session *, struct iscsi_kern_conn_info *);
 extern int __del_conn(struct iscsi_session *, struct iscsi_kern_conn_info *);
-#ifdef CONFIG_SCST_PROC
 extern int conn_free(struct iscsi_conn *);
-#endif
 extern void iscsi_make_conn_rd_active(struct iscsi_conn *conn);
 #define ISCSI_CONN_ACTIVE_CLOSE		1
 #define ISCSI_CONN_DELETING		2

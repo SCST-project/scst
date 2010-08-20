@@ -90,7 +90,6 @@ struct sgv_pool {
 
 	/* Protected by sgv_pool_lock, if necessary */
 	unsigned int purge_work_scheduled:1;
-	unsigned int sgv_kobj_initialized:1;
 
 	/* Protected by sgv_pool_lock */
 	struct list_head sorted_recycling_list;
@@ -128,6 +127,9 @@ struct sgv_pool {
 	struct list_head sgv_pools_list_entry;
 
 	struct kobject sgv_kobj;
+
+	/* sysfs release completion */
+	struct completion sgv_kobj_release_cmpl;
 };
 
 static inline struct scatterlist *sgv_pool_sg(struct sgv_pool_obj *obj)
@@ -137,8 +139,6 @@ static inline struct scatterlist *sgv_pool_sg(struct sgv_pool_obj *obj)
 
 int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark);
 void scst_sgv_pools_deinit(void);
-
-void sgv_pool_destroy(struct sgv_pool *pool);
 
 #ifdef CONFIG_SCST_PROC
 int sgv_procinfo_show(struct seq_file *seq, void *v);

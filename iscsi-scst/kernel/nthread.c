@@ -562,13 +562,9 @@ static void close_conn(struct iscsi_conn *conn)
 	sid = session->sid;
 	cid = conn->cid;
 
-#ifdef CONFIG_SCST_PROC
 	mutex_lock(&target->target_mutex);
 	conn_free(conn);
 	mutex_unlock(&target->target_mutex);
-#else
-	kobject_put(&conn->iscsi_conn_kobj);
-#endif
 
 	/*
 	 * We can't send E_CONN_CLOSE earlier, because otherwise we would have
