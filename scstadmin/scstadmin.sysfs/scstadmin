@@ -101,7 +101,7 @@ Group Operations
      -add_group <group>      : Add a group to a given driver & target.
          -driver <driver>
          -target <target>
-     -remove_group <group>   : Remove a group from a given driver & target.
+     -rem_group <group>      : Remove a group from a given driver & target.
          -driver <driver>
          -target <target>
  
@@ -110,7 +110,7 @@ Initiator Operations
          -driver <driver>
          -target <target>
          -group <group>
-     -remove_init <user>     : Removes an initiator from a group.
+     -rem_init <user>        : Removes an initiator from a group.
          -driver <driver>
          -target <target>
          -group <group>
@@ -131,7 +131,7 @@ Target LUN Operations
          -group <group>
          -device <device>
          -attributes <p=v,...>
-     -remove_lun <lun>       : Remove a LUN from a group.
+     -rem_lun <lun>          : Remove a LUN from a group.
          -driver <driver>
          -target <target>
          -group <group>
@@ -335,17 +335,17 @@ sub getArgs {
 			    'rem_target=s'	=> \$removeTarget,
 
 			    'add_group=s'	=> \$addGroup,
-			    'remove_group=s'	=> \$removeGroup,
+			    'rem_group=s'	=> \$removeGroup,
 
 			    'add_init=s'	=> \$addInitiator,
-			    'remove_init=s'	=> \$removeInitiator,
+			    'rem_init=s'	=> \$removeInitiator,
 			    'move_init=s'	=> \$moveInitiator,
 			    'clear_inits'	=> \$clearInitiators,
 
 			    'add_lun=s'		=> \$addLun,
-			    'remove_lun=s'	=> \$removeLun,
+			    'rem_lun=s'		=> \$removeLun,
 			    'replace_lun=s'	=> \$replaceLun,
-			    'clear_luns=s'	=> \$clearLuns,
+			    'clear_luns'	=> \$clearLuns,
 
 			    'enable_target=s'	=> \$enableTarget,
 			    'disable_target=s'	=> \$disableTarget,
@@ -520,7 +520,7 @@ sub getArgs {
 	}
 
 	if (defined($clearLuns) && (!defined($driver) || !defined($target) || !defined($group))) {
-		print "Please specify -driver -target and -group with -remove_lun/-clear_luns.\n";
+		print "Please specify -driver -target and -group with -clear_luns.\n";
 		usage();
 	}
 
@@ -733,7 +733,7 @@ sub main {
 			last SWITCH;
 		};
 		defined($addInitiator) && do {
-			$rc = addInitiator($driver, $target, $addInitiator, $group);
+			$rc = addInitiator($driver, $target, $group, $addInitiator);
 			last SWITCH;
 		};
 		defined($removeInitiator) && do {
@@ -765,11 +765,11 @@ sub main {
 			last SWITCH;
 		};
 		defined($enableTarget) && do {
-			$rc = enableTarget($enableTarget);
+			$rc = enableTarget($driver, $enableTarget);
 			last SWITCH;
 		};
 		defined($disableTarget) && do {
-			$rc = disableTarget($disableTarget);
+			$rc = disableTarget($driver, $disableTarget);
 			last SWITCH;
 		};
 		defined($issueLip) && do {
@@ -3061,8 +3061,6 @@ sub closeDevice {
 
 sub resyncDevice {
 	my $device = shift;
-	my $rc = FALSE;
-
 	my %attributes = ('resync_size', 1);
 
 	setDeviceAttributes($device, \%attributes);
@@ -3228,10 +3226,10 @@ sub replaceLun {
 	my $device = shift;
 	my $attributes = shift;
 
-	print "-> Replacing device '$device' at LUN $lun with device '$device' ".
+	print "-> Replacing device at LUN $lun with device '$device' ".
 	  "in driver/target/group '$driver/$target/$group': ";
 
-	my $rc = $SCST->replaceLun($driver, $target, $group, $lun, $device, $attributes);
+	my $rc = $SCST->replaceLun($driver, $target, $lun, $device, $attributes, $group);
 
 	print "done.\n";
 
@@ -3308,13 +3306,19 @@ sub clearTargetDynamicAttributes {
 ####################################################################
 
 sub enableTarget {
+	my $driver = shift;
 	my $target = shift;
+	my %attributes = ('enabled', 1);
 
+	setTargetAttributes($driver, $target, \%attributes);
 }
 
 sub disableTarget {
+	my $driver = shift;
 	my $target = shift;
+	my %attributes = ('enabled', 0);
 
+	setTargetAttributes($driver, $target, \%attributes);
 }
 
 sub issueLip {
