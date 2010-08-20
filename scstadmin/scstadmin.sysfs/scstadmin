@@ -94,7 +94,7 @@ Device Operations
 Target Operations
      -add_target <target>    : Add a dynamic target to a capable driver.
          -driver <driver>
-     -remove_target <target> : Remove a dynamic target from a driver.
+     -rem_target <target>    : Remove a dynamic target from a driver.
          -driver <driver>
 
 Group Operations
@@ -259,6 +259,9 @@ sub getArgs {
 	my $closeDev;
 	my $resyncDev;
 
+	my $addTarget;
+	my $removeTarget;
+
 	my $addGroup;
 	my $removeGroup;
 
@@ -328,6 +331,9 @@ sub getArgs {
 			    'close_dev=s'	=> \$closeDev,
 			    'resync_dev=s'	=> \$resyncDev,
 
+			    'add_target=s'	=> \$addTarget,
+			    'rem_target=s'	=> \$removeTarget,
+
 			    'add_group=s'	=> \$addGroup,
 			    'remove_group=s'	=> \$removeGroup,
 
@@ -385,6 +391,7 @@ sub getArgs {
              defined($openDev) + defined($closeDev) + defined($addGroup) + defined($removeGroup) +
 	     defined($addInitiator) + defined($removeInitiator) + defined($clearInitiators) +
 	     defined($addDriverAttr) + defined($addTargetAttr) + defined($remDriverAttr) + defined($remTargetAttr) +
+	     defined($addTarget) + defined($removeTarget) +
 	     defined($addLun) + defined($removeLun) + defined($replaceLun) + defined($clearLuns) +
 	     defined($enableTarget) + defined($disableTarget) + defined($issueLip);
 
@@ -477,6 +484,16 @@ sub getArgs {
 		usage();
 	}
 
+	if (defined($addTarget) && !defined($driver)) {
+		print "Please specify -driver with -add_target.\n";
+		usage();
+	}
+
+	if (defined($removeTarget) && !defined($driver)) {
+		print "Please specify -driver with -rem_target.\n";
+		usage();
+	}
+
 	if ((defined($addGroup) || defined($removeGroup)) &&
 	    (!defined($driver) || !defined($target))) {
 		print "Please specify -driver and -target with -add_group/-remove_group.\n";
@@ -532,6 +549,7 @@ sub getArgs {
 		$setDriverAttr, $setTargetAttr, $setLunAttr, $setInitiatorAttr,
 		$addDriverAttr, $addTargetAttr, $remDriverAttr, $remTargetAttr,
                 $openDev, $closeDev, $resyncDev,
+		$addTarget, $removeTarget,
 		$addGroup, $removeGroup,
 		$addInitiator, $removeInitiator, $moveInitiator, $clearInitiators,
 		$addLun, $removeLun, $replaceLun, $clearLuns,
@@ -556,6 +574,7 @@ sub main {
 	    $setDriverAttr, $setTargetAttr, $setLunAttr, $setInitiatorAttr,
 	    $addDriverAttr, $addTargetAttr, $remDriverAttr, $remTargetAttr,
 	    $openDev, $closeDev, $resyncDev,
+	    $addTarget, $removeTarget,
 	    $addGroup, $removeGroup,
 	    $addInitiator, $removeInitiator, $moveInitiator, $clearInitiators,
 	    $addLun, $removeLun, $replaceLun, $clearLuns,
@@ -697,6 +716,14 @@ sub main {
 			$rc = resyncDevice($resyncDev);
 			last SWITCH;
 		};
+		defined($addTarget) && do {
+			$rc = addVirtualTarget($driver, $addTarget);
+			last SWITCH;
+		};
+		defined($removeTarget) && do {
+			$rc = removeVirtualTarget($driver, $removeTarget);
+			last SWITCH;
+		};
 		defined($addGroup) && do {
 			$rc = addGroup($driver, $target, $addGroup);
 			last SWITCH;
@@ -750,14 +777,14 @@ sub main {
 			last SWITCH;
 		};
 
-		return if issueWarning($SCST->errorString($rc));
-
 		if (!$all_good) {
 			print "No valid operations specified.\n";
 			usage();
 			exit TRUE;
 		}
 	}
+
+	issueWarning($SCST->errorString($rc)) if ($rc);
 
 	print "\nAll done.\n";
 
@@ -1642,11 +1669,7 @@ sub applyTargetAssignments {
 			if (!$SCST->driverIsVirtualCapable($driver)) {
 				immediateExit("Target '$target' for driver '$driver' does not exist.");
 			} else {
-				# TODO: Add $attributes
-				print "-> Creating target '$target' for driver '$driver': ";
-				my $rc = $SCST->addVirtualTarget($driver, $target);
-				print "done.\n";
-
+				my $rc = addVirtualTarget($driver, $target);
 				immediateExit($SCST->errorString($rc)) if ($rc);
 			}
 		}
@@ -1759,7 +1782,8 @@ sub clearConfiguration {
 			clearLuns($driver, $target);
 			removeTargetDynamicAttributes($driver, $target);
 			if ($SCST->targetType($driver, $target) == $SCST::SCST::TGT_TYPE_VIRTUAL) {
-				removeVirtualTarget($driver, $target);
+				my $rc = removeVirtualTarget($driver, $target);
+				issueWarning($rc) if ($rc);
 			}
 		}
 
@@ -1781,6 +1805,19 @@ sub clearConfiguration {
 	# TODO: should we disable all target drivers as well?
 }
 
+sub addVirtualTarget {
+	my $driver = shift;
+	my $target = shift;
+
+	# TODO: Add $attributes
+
+	print "-> Creating target '$target' for driver '$driver': ";
+	my $rc = $SCST->addVirtualTarget($driver, $target);
+	print "done.\n";
+
+	return $rc;
+}
+
 sub removeVirtualTarget {
 	my $driver = shift;
 	my $target = shift;
@@ -1789,7 +1826,7 @@ sub removeVirtualTarget {
 	my $rc = $SCST->removeVirtualTarget($driver, $target);
 	print "done.\n";
 
-	# Todo - check return code
+	return $rc;
 }	
 
 ####################################################################
