@@ -1444,7 +1444,6 @@ sub removeLun {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
-	my $device = shift;
 	my $lun = shift;
 	my $group = shift;
 
@@ -1481,15 +1480,11 @@ sub removeLun {
 	return $err2 if (!$rc);
 	return $rc if ($rc > 1);
 
-	my $luns = $self->luns($driver, $target, $group);
-
-	return $err if ($$luns{$lun} ne $device);
-
 	my $io = new IO::File $path, O_WRONLY;
 
 	return $err if (!$io);
 
-	my $cmd = "del $device $lun\n";
+	my $cmd = "del $lun\n";
 	my $bytes;
 
 	if ($self->{'debug'}) {

@@ -513,14 +513,14 @@ sub getArgs {
 		usage();
 	}
 
-	if ((defined($addLun) || defined($replaceLun) || defined($removeLun)) &&
-	    (!defined($driver) || !defined($target) || !defined($group) || !defined($device))) {
-		print "Please specify -driver -target -group and -device with -add_lun/-replace_lun.\n";
+	if ((defined($addLun) || defined($replaceLun)) &&
+	    (!defined($driver) || !defined($target) || !defined($device))) {
+		print "Please specify -driver -target and -device with -add_lun/-replace_lun.\n";
 		usage();
 	}
 
-	if (defined($clearLuns) && (!defined($driver) || !defined($target) || !defined($group))) {
-		print "Please specify -driver -target and -group with -clear_luns.\n";
+	if ((defined($clearLuns) || defined($removeLun)) && (!defined($driver) || !defined($target))) {
+		print "Please specify -driver and -target with -rem_lun/-clear_luns.\n";
 		usage();
 	}
 
@@ -753,7 +753,7 @@ sub main {
 			last SWITCH;
 		};
 		defined($removeLun) && do {
-			$rc = removeLun($driver, $target, $device, $removeLun, $group);
+			$rc = removeLun($driver, $target, $removeLun, $group);
 			last SWITCH;
 		};
 		defined($replaceLun) && do {
@@ -1579,7 +1579,7 @@ sub applyConfigAssignments {
 
 				if (!defined($$def_group{'LUN'}->{$lun}->{$device})) {
 					if ($deletions) {
-						removeLun($driver, $target, $device, $lun);
+						removeLun($driver, $target, $lun);
 					} else {
 						print "-> Device '$device' at LUN '$lun' is not in configuration ".
 						  "for driver/target '$driver/$target'. ".
@@ -1599,7 +1599,7 @@ sub applyConfigAssignments {
 
 					if (!defined($$def_group{'LUN'}->{$lun}->{$device})) {
 						if ($deletions) {
-							removeLun($driver, $target, $device, $lun, $group);
+							removeLun($driver, $target, $lun, $group);
 						} else {
 							print "-> Device '$device' at LUN '$lun' is not in configuration ".
 							  "for driver/target/group '$driver/$target/$group'. ".
@@ -3199,19 +3199,18 @@ sub addLun {
 sub removeLun {
 	my $driver = shift;
 	my $target = shift;
-	my $device = shift;
 	my $lun = shift;
 	my $group = shift;
 
 	if ($group) {
-		print "-> Removing device '$device' at LUN $lun from driver/target/group ".
+		print "-> Removing LUN $lun from driver/target/group ".
 		  "'$driver/$target/$group': ";
 	} else {
-		print "-> Removing device '$device' at LUN $lun from driver/target ".
+		print "-> Removing LUN $lun from driver/target ".
 		  "'$driver/$target': ";
 	}
 
-	my $rc = $SCST->removeLun($driver, $target, $device, $lun, $group);
+	my $rc = $SCST->removeLun($driver, $target, $lun, $group);
 
 	print "done.\n";
 
