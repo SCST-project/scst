@@ -999,7 +999,7 @@ static int srpt_get_desc_tbl(struct srpt_ioctx *ioctx, struct srp_cmd *srp_cmd,
 
 		if (ioctx->n_rbuf >
 		    (srp_cmd->data_out_desc_cnt + srp_cmd->data_in_desc_cnt)) {
-			PRINT_ERROR("received corrupt SRP_CMD request"
+			PRINT_ERROR("received unsupported SRP_CMD request type"
 				    " (%u out + %u in != %u / %zu)",
 				    srp_cmd->data_out_desc_cnt,
 				    srp_cmd->data_in_desc_cnt,
