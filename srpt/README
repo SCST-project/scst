@@ -29,19 +29,23 @@ Installation
 
 Proceed as follows to compile and install the SRP target driver:
 
-1. To minimize QUEUE_FULL conditions, apply the
-   scst_increase_max_tgt_cmds patch as follows:
+1. The SRP initiator (ib_srp) included with Linux kernel 2.6.36 and before
+   frequently makes ib_srpt send BUSY responses, which hurts performance.
+   This can be avoided by making SCST's SCSI command queue size identical
+   to that of the initiator by applying the scst_increase_max_tgt_cmds patch:
 
    cd ${SCST_DIR}
    patch -p0 < srpt/patches/scst_increase_max_tgt_cmds.patch
 
    This patch increases SCST's per-device queue size from 48 to 64. This
-   helps to avoid QUEUE_FULL conditions because the size of the transmit
+   helps to avoid BUSY conditions because the size of the transmit
    queue in Linux' SRP initiator is also 64.
 
-   Note: the SCSI layer of kernel 2.6.33 will have dynamic queue depth
-   adjustment. When using SRP initiator systems with kernel 2.6.33 or later,
-   this patch is less important.
+   Note: avoiding BUSY conditions is also possible by limiting the number of
+   outstanding requests on the initiator. This is possible either by setting
+   nr_requests low enough or by enabling the dynamic queue depth adjustment
+   feature. Dynamic queue depth adjustment is available from kernel version
+   2.6.33 on.  See also scst/README for more information.
 
 2. Now compile and install SRPT:
 
@@ -58,30 +62,42 @@ Proceed as follows to compile and install the SRP target driver:
    chkconfig scst on
 
 The ib_srpt kernel module supports the following parameters:
-* srp_max_message_size (unsigned integer)
+* srp_max_message_size (number)
   Maximum size of an SRP control message in bytes. Examples of SRP control
   messages are: login request, logout request, data transfer request, ...
   The larger this parameter, the more scatter/gather list elements can be
   sent at once. Use the following formula to compute an appropriate value
-  for this parameter: 68 + 16 * (max_sg_elem_count). The default value of
-  this parameter is 2116, which corresponds to an sg list with 128 elements.
-* srp_max_rdma_size (unsigned integer)
+  for this parameter: 68 + 16 * (sg_tablesize). The default value of
+  this parameter is 2116, which corresponds to an sg table size of 128.
+* srp_max_rdma_size (number)
   Maximum number of bytes that may be transferred at once via RDMA. Defaults
   to 65536 bytes, which is sufficient to use the full bandwidth of low-latency
-  HCA's such as Mellanox' ConnectX series. Increasing this value may decrease
-  latency for applications transferring large amounts of data at once via
-  direct I/O.
-* thread (0 or 1)
-  Whether incoming SRP requests will be processed in the IB interrupt that
-  was triggered by the request (thread=0) or on the context of a separate
-  thread (thread=1). The choice thread=0 results in the best performance,
-  while thread=1 makes debugging easier. If a kernel oops is triggered inside
-  an interrupt handler the system will be halted. As a result the call trace
-  associated with the kernel oops will not be written to the kernel log in
-  /var/log/messages. When using thread=1 however, the SRPT code runs in thread
-  context. Any kernel oops generated in thread context will cause the offending
-  thread to be killed. Other threads will keep running and call traces will be
-  written to the on-disk kernel log.
+  HCAs. Increasing this value may decrease latency for applications
+  transferring large amounts of data at once.
+* srpt_autodetect_cred_req (y or n, default y)
+  Whether or not to autodetect initiator support for SRP_CRED_REQ (initiators
+  with Linux kernel 2.6.37 or later only).  The use of SRP_CRED_REQ allows
+  ib_srpt to process workloads with large I/O depths more efficiently.
+* srpt_srq_size (number, default 4095)
+  ib_srpt uses a shared receive queue (SRQ) for processing incoming SRP
+  requests. This number may have to be increased when a large number of
+  initiator systems is accessing a single SRP target system.
+* thread (0, 1 or 2, default 1)
+  Defines the context on which SRP requests are processed:
+  * thread=0: do as much processing in IRQ context as possible. Results in
+    lower latency than the other two modes but may trigger soft lockup
+    complaints when multiple initiators are simultaneously processing
+    workloads with large I/O depths. Scalability of this mode is limited
+    - it exploits only a fraction of the power available on multiprocessor
+    systems.
+  * thread=1: dedicates one kernel thread per initiator. Scales well on
+    multiprocessor systems. This is the recommended mode when multiple
+    initiator systems are accessing the same target system simultaneously.
+  * thread=2: makes one CPU process all IB completions and defer further
+    processing to kernel thread context. Scales better than mode thread=0 but
+    not as good as mode thread=1. May trigger soft lockup complaints when
+    multiple initiators are simultaneously processing workloads with large I/O
+    depths.
 * trace_flag (unsigned integer, only available in debug builds)
   The individual bits of the trace_flag parameter define which categories of
   trace messages should be sent to the kernel log and which ones not.
@@ -140,7 +156,8 @@ Notes:
 * To set up and use high availability feature you need dm-multipath driver
   and multipath tool
 * Please refer to the OFED-1.x user manual for more in-detail instructions
-  on how to enable and how to use the HA feature. See e.g. http://www.mellanox.com/related-docs/prod_software/Mellanox_OFED_Linux_user_manual_1_40_1.pdf.
+  on how to enable and how to use the HA feature. See e.g.
+  http://www.mellanox.com/related-docs/prod_software/Mellanox_OFED%20_Linux_user_manual_1_5_1_2.pdf.
 
 
 Performance Notes - Initiator Side
@@ -153,29 +170,6 @@ Performance Notes - Initiator Side
   performance:
   * /sys/class/block/${dev}/queue/rq_affinity
   * /proc/irq/${ib_int_no}/smp_affinity
-
-
-Performance Notes - Target Side
-----------------------------------
-
-* In some cases, for instance working with SSD devices, which consume 100%
-  of a single CPU load for data transfers in their internal threads, to
-  maximize IOPS it can be needed to assign for those threads dedicated
-  CPUs using Linux CPU affinity facilities. No IRQ processing should be
-  done on those CPUs. Check that using /proc/interrupts. See taskset
-  command and Documentation/IRQ-affinity.txt in your kernel's source tree
-  for how to assign CPU affinity to tasks and IRQs.
-
-  The reason for that is that processing of coming commands in SIRQ context
-  can be done on the same CPUs as SSD devices' threads doing data
-  transfers. As the result, those threads won't receive all the CPU power
-  and perform worse.
-
-  Alternatively to CPU affinity assignment, you can try to enable SRP
-  target's internal thread. It will allows Linux CPU scheduler to better
-  distribute load among available CPUs. To enable SRP target driver's
-  internal thread you should load ib_srpt module with parameter
-  "thread=1".
 
 
 Send questions about this driver to scst-devel@lists.sourceforge.net, CC:
