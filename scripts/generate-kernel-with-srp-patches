@@ -1,0 +1,67 @@
+#!/bin/bash
+
+# Generates a 2.6.34.*, 2.6.35.* or 2.6.36* kernel tree with the SRP_CRED_REQ
+# patches applied to the ib_srp initiator.
+
+# Adjust this variable such that it points to the directory with
+# linux-x.y.z.tar.bz2 and patch-x.y.z.p.bz2 files on your system
+TARBALLDIR=/home/bart/software/downloads
+
+# Local functions
+
+usage() {
+  echo "$0 <kernel-version>"
+}
+
+# Argument processing
+
+if [ $# != 1 ]; then
+  usage
+  exit 1
+fi
+
+if [ "${1#[0-9]*.[0-9]*.[0-9]*.[0-9]*}" != "$1" ]; then
+  kernel_version="${1%.[0-9]*}"
+  patch_level="${1#${kernel_version}.}"
+else
+  kernel_version="$1"
+fi
+
+# Actual kernel source generation
+
+echo "Extracting kernel sources ..."
+tar xaf $TARBALLDIR/linux-${kernel_version}.tar.bz2 || exit $?
+if [ "${patch_level}" != "" ]; then
+  mv -i linux-${kernel_version} linux-$1 || exit $?
+fi
+cd linux-$1 || exit $?
+
+if [ "${patch_level}" != "" ]; then
+  patchfile="patch-${kernel_version}.${patch_level}"
+  echo "Applying ${patchfile} ..."
+  bzip2 -cd <${TARBALLDIR}/${patchfile}.bz2 | \
+    patch -p1 -s
+fi
+if [ "${kernel_version}" "<" "2.6.36" ]; then
+  # IB/srp: Use print_hex_dump()
+  # IB/srp: Make receive buffer handling more robust
+  # IB/srp: Export req_lim via sysfs
+  for commit in \
+    7a7008110b94dfaa90db4b0cc5b0c3f964c80506 \
+    c996bb47bb419b7c2f75499e11750142775e5da9 \
+    89de74866b846cc48780fda3de7fd223296aaca9
+  do
+    echo "Applying patch $commit ..."
+    url="http://git.kernel.org/?p=linux/kernel/git/roland/infiniband.git;a=patch;h=$commit"
+    wget -O- -q "$url" | awk 'BEGIN{h=1}h==0{print}/^$/{h=0}' | patch -p1 -s
+  done
+fi
+# IB/srp: Preparation for transmit ring response allocation
+# IB/srp: Implement SRP_CRED_REQ and SRP_AER_REQ
+# IB/srp: Reduce number of BUSY conditions
+for p in 119771 119772 119773
+do
+  echo "Applying patch $p ..."
+  url="https://patchwork.kernel.org/patch/$p/raw/"
+  wget -O- -q "$url" | patch -p1 -s
+done
