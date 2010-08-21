@@ -29,6 +29,11 @@ fi
 
 # Actual kernel source generation
 
+if [ -e linux-${kernel_version} -o -e linux-$1 ]; then
+  echo "Error: directoy not clean."
+  exit 1
+fi
+
 echo "Extracting kernel sources ..."
 tar xaf $TARBALLDIR/linux-${kernel_version}.tar.bz2 || exit $?
 if [ "${patch_level}" != "" ]; then
