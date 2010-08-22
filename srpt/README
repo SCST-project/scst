@@ -150,14 +150,33 @@ the disk names assigned on the SCST target ("disk01" in the example below):
 
    [8:0:0:0]    disk    SCST_FIO disk01            102  /dev/sdb
 
-Notes:
-* You can edit /etc/infiniband/openib.conf to load srp driver and srp HA daemon
-  automatically ie. set SRP_LOAD=yes, and SRPHA_ENABLE=yes
-* To set up and use high availability feature you need dm-multipath driver
-  and multipath tool
-* Please refer to the OFED-1.x user manual for more in-detail instructions
+
+High availability
+-----------------
+
+If there are redundant paths in the IB network between initiator and target,
+automatic path failover can be set up on the initiator as follows:
+* Edit /etc/infiniband/openib.conf to load the SRP driver and SRP HA daemon
+  automatically: set SRP_LOAD=yes and SRPHA_ENABLE=yes.
+* To set up and use the high availability feature you need the dm-multipath
+  driver and multipath tool.
+* Please refer to the OFED-1.x user manual for more detailed instructions
   on how to enable and how to use the HA feature. See e.g.
   http://www.mellanox.com/related-docs/prod_software/Mellanox_OFED%20_Linux_user_manual_1_5_1_2.pdf.
+
+A setup with automatic failover between redundant targets is possible by
+installing and configuring DRBD on both targets. If the initiator system
+supports mirroring (e.g. Linux), you can use the following approach:
+* Configure DRBD in Active/Active mode.
+* Configure the initiator(s) for mirroring between the redundant targets.
+If the initiator system does not support mirroring (e.g. VMware ESX), you
+can use the following approach:
+* Configure DRBD in Active/Passive mode and enable STONITH mode in the
+  Heartbeat software.
+
+For more information, see also:
+* http://www.drbd.org/
+* http://www.linux-ha.org/wiki/Main_Page
 
 
 Performance Notes - Initiator Side
