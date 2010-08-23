@@ -383,24 +383,24 @@ static struct kobj_attribute scst_tgtt_mgmt =
 
 int scst_tgtt_sysfs_create(struct scst_tgt_template *tgtt)
 {
-	int retval = 0;
+	int res = 0;
 	const struct attribute **pattr;
 
 	TRACE_ENTRY();
 
 	init_completion(&tgtt->tgtt_kobj_release_cmpl);
 
-	retval = kobject_init_and_add(&tgtt->tgtt_kobj, &tgtt_ktype,
+	res = kobject_init_and_add(&tgtt->tgtt_kobj, &tgtt_ktype,
 			scst_targets_kobj, tgtt->name);
-	if (retval != 0) {
+	if (res != 0) {
 		PRINT_ERROR("Can't add tgtt %s to sysfs", tgtt->name);
 		goto out;
 	}
 
 	if (tgtt->add_target != NULL) {
-		retval = sysfs_create_file(&tgtt->tgtt_kobj,
+		res = sysfs_create_file(&tgtt->tgtt_kobj,
 				&scst_tgtt_mgmt.attr);
-		if (retval != 0) {
+		if (res != 0) {
 			PRINT_ERROR("Can't add mgmt attr for target driver %s",
 				tgtt->name);
 			goto out_del;
@@ -412,8 +412,8 @@ int scst_tgtt_sysfs_create(struct scst_tgt_template *tgtt)
 		while (*pattr != NULL) {
 			TRACE_DBG("Creating attr %s for target driver %s",
 				(*pattr)->name, tgtt->name);
-			retval = sysfs_create_file(&tgtt->tgtt_kobj, *pattr);
-			if (retval != 0) {
+			res = sysfs_create_file(&tgtt->tgtt_kobj, *pattr);
+			if (res != 0) {
 				PRINT_ERROR("Can't add attr %s for target "
 					"driver %s", (*pattr)->name,
 					tgtt->name);
@@ -425,9 +425,9 @@ int scst_tgtt_sysfs_create(struct scst_tgt_template *tgtt)
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	if (tgtt->trace_flags != NULL) {
-		retval = sysfs_create_file(&tgtt->tgtt_kobj,
+		res = sysfs_create_file(&tgtt->tgtt_kobj,
 				&tgtt_trace_attr.attr);
-		if (retval != 0) {
+		if (res != 0) {
 			PRINT_ERROR("Can't add trace_flag for target "
 				"driver %s", tgtt->name);
 			goto out_del;
@@ -436,8 +436,8 @@ int scst_tgtt_sysfs_create(struct scst_tgt_template *tgtt)
 #endif
 
 out:
-	TRACE_EXIT_RES(retval);
-	return retval;
+	TRACE_EXIT_RES(res);
+	return res;
 
 out_del:
 	scst_tgtt_sysfs_del(tgtt);
@@ -625,25 +625,25 @@ static struct kobj_attribute tgt_enable_attr =
 
 int scst_tgt_sysfs_create(struct scst_tgt *tgt)
 {
-	int retval;
+	int res;
 	const struct attribute **pattr;
 
 	TRACE_ENTRY();
 
 	init_completion(&tgt->tgt_kobj_release_cmpl);
 
-	retval = kobject_init_and_add(&tgt->tgt_kobj, &tgt_ktype,
+	res = kobject_init_and_add(&tgt->tgt_kobj, &tgt_ktype,
 			&tgt->tgtt->tgtt_kobj, tgt->tgt_name);
-	if (retval != 0) {
+	if (res != 0) {
 		PRINT_ERROR("Can't add tgt %s to sysfs", tgt->tgt_name);
 		goto out;
 	}
 
 	if ((tgt->tgtt->enable_target != NULL) &&
 	    (tgt->tgtt->is_target_enabled != NULL)) {
-		retval = sysfs_create_file(&tgt->tgt_kobj,
+		res = sysfs_create_file(&tgt->tgt_kobj,
 				&tgt_enable_attr.attr);
-		if (retval != 0) {
+		if (res != 0) {
 			PRINT_ERROR("Can't add attr %s to sysfs",
 				tgt_enable_attr.attr.name);
 			goto out_err;
@@ -662,8 +662,8 @@ int scst_tgt_sysfs_create(struct scst_tgt *tgt)
 		goto out_nomem;
 	}
 
-	retval = sysfs_create_file(tgt->tgt_luns_kobj, &scst_luns_mgmt.attr);
-	if (retval != 0) {
+	res = sysfs_create_file(tgt->tgt_luns_kobj, &scst_luns_mgmt.attr);
+	if (res != 0) {
 		PRINT_ERROR("Can't add attribute %s for tgt %s",
 			scst_luns_mgmt.attr.name, tgt->tgt_name);
 		goto out_err;
@@ -677,33 +677,33 @@ int scst_tgt_sysfs_create(struct scst_tgt *tgt)
 		goto out_nomem;
 	}
 
-	retval = sysfs_create_file(tgt->tgt_ini_grp_kobj,
+	res = sysfs_create_file(tgt->tgt_ini_grp_kobj,
 			&scst_ini_group_mgmt.attr);
-	if (retval != 0) {
+	if (res != 0) {
 		PRINT_ERROR("Can't add attribute %s for tgt %s",
 			scst_ini_group_mgmt.attr.name, tgt->tgt_name);
 		goto out_err;
 	}
 
-	retval = sysfs_create_file(&tgt->tgt_kobj,
+	res = sysfs_create_file(&tgt->tgt_kobj,
 			&scst_rel_tgt_id.attr);
-	if (retval != 0) {
+	if (res != 0) {
 		PRINT_ERROR("Can't add attribute %s for tgt %s",
 			scst_rel_tgt_id.attr.name, tgt->tgt_name);
 		goto out_err;
 	}
 
-	retval = sysfs_create_file(&tgt->tgt_kobj,
+	res = sysfs_create_file(&tgt->tgt_kobj,
 			&scst_tgt_addr_method.attr);
-	if (retval != 0) {
+	if (res != 0) {
 		PRINT_ERROR("Can't add attribute %s for tgt %s",
 			scst_tgt_addr_method.attr.name, tgt->tgt_name);
 		goto out_err;
 	}
 
-	retval = sysfs_create_file(&tgt->tgt_kobj,
+	res = sysfs_create_file(&tgt->tgt_kobj,
 			&scst_tgt_io_grouping_type.attr);
-	if (retval != 0) {
+	if (res != 0) {
 		PRINT_ERROR("Can't add attribute %s for tgt %s",
 			scst_tgt_io_grouping_type.attr.name, tgt->tgt_name);
 		goto out_err;
@@ -714,8 +714,8 @@ int scst_tgt_sysfs_create(struct scst_tgt *tgt)
 		while (*pattr != NULL) {
 			TRACE_DBG("Creating attr %s for tgt %s", (*pattr)->name,
 				tgt->tgt_name);
-			retval = sysfs_create_file(&tgt->tgt_kobj, *pattr);
-			if (retval != 0) {
+			res = sysfs_create_file(&tgt->tgt_kobj, *pattr);
+			if (res != 0) {
 				PRINT_ERROR("Can't add tgt attr %s for tgt %s",
 					(*pattr)->name, tgt->tgt_name);
 				goto out_err;
@@ -725,11 +725,11 @@ int scst_tgt_sysfs_create(struct scst_tgt *tgt)
 	}
 
 out:
-	TRACE_EXIT_RES(retval);
-	return retval;
+	TRACE_EXIT_RES(res);
+	return res;
 
 out_nomem:
-	retval = -ENOMEM;
+	res = -ENOMEM;
 
 out_err:
 	scst_tgt_sysfs_del(tgt);
@@ -1021,7 +1021,7 @@ static void scst_sysfs_dev_release(struct kobject *kobj)
 
 int scst_devt_dev_sysfs_create(struct scst_device *dev)
 {
-	int retval = 0;
+	int res = 0;
 	const struct attribute **pattr;
 
 	TRACE_ENTRY();
@@ -1029,17 +1029,17 @@ int scst_devt_dev_sysfs_create(struct scst_device *dev)
 	if (dev->handler == &scst_null_devtype)
 		goto out;
 
-	retval = sysfs_create_link(&dev->dev_kobj,
+	res = sysfs_create_link(&dev->dev_kobj,
 			&dev->handler->devt_kobj, "handler");
-	if (retval != 0) {
+	if (res != 0) {
 		PRINT_ERROR("Can't create handler link for dev %s",
 			dev->virt_name);
 		goto out;
 	}
 
-	retval = sysfs_create_link(&dev->handler->devt_kobj,
+	res = sysfs_create_link(&dev->handler->devt_kobj,
 			&dev->dev_kobj, dev->virt_name);
-	if (retval != 0) {
+	if (res != 0) {
 		PRINT_ERROR("Can't create handler link for dev %s",
 			dev->virt_name);
 		goto out_err;
@@ -1048,8 +1048,8 @@ int scst_devt_dev_sysfs_create(struct scst_device *dev)
 	pattr = dev->handler->dev_attrs;
 	if (pattr != NULL) {
 		while (*pattr != NULL) {
-			retval = sysfs_create_file(&dev->dev_kobj, *pattr);
-			if (retval != 0) {
+			res = sysfs_create_file(&dev->dev_kobj, *pattr);
+			if (res != 0) {
 				PRINT_ERROR("Can't add dev attr %s for dev %s",
 					(*pattr)->name, dev->virt_name);
 				goto out_err;
@@ -1059,8 +1059,8 @@ int scst_devt_dev_sysfs_create(struct scst_device *dev)
 	}
 
 out:
-	TRACE_EXIT_RES(retval);
-	return retval;
+	TRACE_EXIT_RES(res);
+	return res;
 
 out_err:
 	scst_devt_dev_sysfs_del(dev);
@@ -1100,15 +1100,15 @@ static struct kobj_type scst_dev_ktype = {
 
 int scst_dev_sysfs_create(struct scst_device *dev)
 {
-	int retval = 0;
+	int res = 0;
 
 	TRACE_ENTRY();
 
 	init_completion(&dev->dev_kobj_release_cmpl);
 
-	retval = kobject_init_and_add(&dev->dev_kobj, &scst_dev_ktype,
+	res = kobject_init_and_add(&dev->dev_kobj, &scst_dev_ktype,
 				      scst_devices_kobj, dev->virt_name);
-	if (retval != 0) {
+	if (res != 0) {
 		PRINT_ERROR("Can't add device %s to sysfs", dev->virt_name);
 		goto out;
 	}
@@ -1118,14 +1118,14 @@ int scst_dev_sysfs_create(struct scst_device *dev)
 	if (dev->dev_exp_kobj == NULL) {
 		PRINT_ERROR("Can't create exported link for device %s",
 			dev->virt_name);
-		retval = -ENOMEM;
+		res = -ENOMEM;
 		goto out_del;
 	}
 
 	if (dev->scsi_dev != NULL) {
-		retval = sysfs_create_link(&dev->dev_kobj,
+		res = sysfs_create_link(&dev->dev_kobj,
 			&dev->scsi_dev->sdev_dev.kobj, "scsi_device");
-		if (retval != 0) {
+		if (res != 0) {
 			PRINT_ERROR("Can't create scsi_device link for dev %s",
 				dev->virt_name);
 			goto out_del;
@@ -1134,9 +1134,9 @@ int scst_dev_sysfs_create(struct scst_device *dev)
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	if (dev->scsi_dev == NULL) {
-		retval = sysfs_create_file(&dev->dev_kobj,
+		res = sysfs_create_file(&dev->dev_kobj,
 				&device_dump_prs_attr.attr);
-		if (retval != 0) {
+		if (res != 0) {
 			PRINT_ERROR("Can't create attr %s for dev %s",
 				device_dump_prs_attr.attr.name, dev->virt_name);
 			goto out_del;
@@ -1145,8 +1145,8 @@ int scst_dev_sysfs_create(struct scst_device *dev)
 #endif
 
 out:
-	TRACE_EXIT_RES(retval);
-	return retval;
+	TRACE_EXIT_RES(res);
+	return res;
 
 out_del:
 	scst_dev_sysfs_del(dev);
@@ -1274,7 +1274,7 @@ static struct kobj_type scst_session_ktype = {
 
 static int scst_create_sess_luns_link(struct scst_session *sess)
 {
-	int retval;
+	int res;
 
 	/*
 	 * No locks are needed, because sess supposed to be in acg->acg_sess_list
@@ -1282,17 +1282,17 @@ static int scst_create_sess_luns_link(struct scst_session *sess)
 	 */
 
 	if (sess->acg == sess->tgt->default_acg)
-		retval = sysfs_create_link(&sess->sess_kobj,
+		res = sysfs_create_link(&sess->sess_kobj,
 				sess->tgt->tgt_luns_kobj, "luns");
 	else
-		retval = sysfs_create_link(&sess->sess_kobj,
+		res = sysfs_create_link(&sess->sess_kobj,
 				sess->acg->luns_kobj, "luns");
 
-	if (retval != 0)
+	if (res != 0)
 		PRINT_ERROR("Can't create luns link for initiator %s",
 			sess->initiator_name);
 
-	return retval;
+	return res;
 }
 
 int scst_recreate_sess_luns_link(struct scst_session *sess)
@@ -1303,7 +1303,7 @@ int scst_recreate_sess_luns_link(struct scst_session *sess)
 
 int scst_sess_sysfs_create(struct scst_session *sess)
 {
-	int retval = 0;
+	int res = 0;
 	struct scst_session *s;
 	const struct attribute **pattr;
 	char *name = (char *)sess->initiator_name;
@@ -1345,9 +1345,9 @@ restart:
 
 	init_completion(&sess->sess_kobj_release_cmpl);
 
-	retval = kobject_init_and_add(&sess->sess_kobj, &scst_session_ktype,
+	res = kobject_init_and_add(&sess->sess_kobj, &scst_session_ktype,
 			      sess->tgt->tgt_sess_kobj, name);
-	if (retval != 0) {
+	if (res != 0) {
 		PRINT_ERROR("Can't add session %s to sysfs", name);
 		goto out_free;
 	}
@@ -1357,8 +1357,8 @@ restart:
 	pattr = sess->tgt->tgtt->sess_attrs;
 	if (pattr != NULL) {
 		while (*pattr != NULL) {
-			retval = sysfs_create_file(&sess->sess_kobj, *pattr);
-			if (retval != 0) {
+			res = sysfs_create_file(&sess->sess_kobj, *pattr);
+			if (res != 0) {
 				PRINT_ERROR("Can't add sess attr %s for sess "
 					"for initiator %s", (*pattr)->name,
 					name);
@@ -1368,14 +1368,14 @@ restart:
 		}
 	}
 
-	retval = scst_create_sess_luns_link(sess);
+	res = scst_create_sess_luns_link(sess);
 
 out_free:
 	if (name != sess->initiator_name)
 		kfree(name);
 
-	TRACE_EXIT_RES(retval);
-	return retval;
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 void scst_sess_sysfs_del(struct scst_session *sess)
@@ -1482,15 +1482,15 @@ void scst_acg_dev_sysfs_del(struct scst_acg_dev *acg_dev)
 int scst_acg_dev_sysfs_create(struct scst_acg_dev *acg_dev,
 	struct kobject *parent)
 {
-	int retval;
+	int res;
 
 	TRACE_ENTRY();
 
 	init_completion(&acg_dev->acg_dev_kobj_release_cmpl);
 
-	retval = kobject_init_and_add(&acg_dev->acg_dev_kobj, &acg_dev_ktype,
+	res = kobject_init_and_add(&acg_dev->acg_dev_kobj, &acg_dev_ktype,
 				      parent, "%u", acg_dev->lun);
-	if (retval != 0) {
+	if (res != 0) {
 		PRINT_ERROR("Can't add acg_dev %p to sysfs", acg_dev);
 		goto out;
 	}
@@ -1500,24 +1500,24 @@ int scst_acg_dev_sysfs_create(struct scst_acg_dev *acg_dev,
 	snprintf(acg_dev->acg_dev_link_name, sizeof(acg_dev->acg_dev_link_name),
 		"export%u", acg_dev->dev->dev_exported_lun_num++);
 
-	retval = sysfs_create_link(acg_dev->dev->dev_exp_kobj,
+	res = sysfs_create_link(acg_dev->dev->dev_exp_kobj,
 			   &acg_dev->acg_dev_kobj, acg_dev->acg_dev_link_name);
-	if (retval != 0) {
+	if (res != 0) {
 		PRINT_ERROR("Can't create acg %s LUN link",
 			acg_dev->acg->acg_name);
 		goto out_del;
 	}
 
-	retval = sysfs_create_link(&acg_dev->acg_dev_kobj,
+	res = sysfs_create_link(&acg_dev->acg_dev_kobj,
 			&acg_dev->dev->dev_kobj, "device");
-	if (retval != 0) {
+	if (res != 0) {
 		PRINT_ERROR("Can't create acg %s device link",
 			acg_dev->acg->acg_name);
 		goto out_del;
 	}
 
 out:
-	return retval;
+	return res;
 
 out_del:
 	scst_acg_dev_sysfs_del(acg_dev);
@@ -2041,15 +2041,15 @@ void scst_acg_sysfs_del(struct scst_acg *acg)
 int scst_acg_sysfs_create(struct scst_tgt *tgt,
 	struct scst_acg *acg)
 {
-	int retval = 0;
+	int res = 0;
 
 	TRACE_ENTRY();
 
 	init_completion(&acg->acg_kobj_release_cmpl);
 
-	retval = kobject_init_and_add(&acg->acg_kobj, &acg_ktype,
+	res = kobject_init_and_add(&acg->acg_kobj, &acg_ktype,
 		tgt->tgt_ini_grp_kobj, acg->acg_name);
-	if (retval != 0) {
+	if (res != 0) {
 		PRINT_ERROR("Can't add acg '%s' to sysfs", acg->acg_name);
 		goto out;
 	}
@@ -2058,12 +2058,12 @@ int scst_acg_sysfs_create(struct scst_tgt *tgt,
 	if (acg->luns_kobj == NULL) {
 		PRINT_ERROR("Can't create luns kobj for tgt %s",
 			tgt->tgt_name);
-		retval = -ENOMEM;
+		res = -ENOMEM;
 		goto out_del;
 	}
 
-	retval = sysfs_create_file(acg->luns_kobj, &scst_acg_luns_mgmt.attr);
-	if (retval != 0) {
+	res = sysfs_create_file(acg->luns_kobj, &scst_acg_luns_mgmt.attr);
+	if (res != 0) {
 		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
 			scst_acg_luns_mgmt.attr.name, tgt->tgt_name);
 		goto out_del;
@@ -2074,35 +2074,35 @@ int scst_acg_sysfs_create(struct scst_tgt *tgt,
 	if (acg->initiators_kobj == NULL) {
 		PRINT_ERROR("Can't create initiators kobj for tgt %s",
 			tgt->tgt_name);
-		retval = -ENOMEM;
+		res = -ENOMEM;
 		goto out_del;
 	}
 
-	retval = sysfs_create_file(acg->initiators_kobj,
+	res = sysfs_create_file(acg->initiators_kobj,
 			&scst_acg_ini_mgmt.attr);
-	if (retval != 0) {
+	if (res != 0) {
 		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
 			scst_acg_ini_mgmt.attr.name, tgt->tgt_name);
 		goto out_del;
 	}
 
-	retval = sysfs_create_file(&acg->acg_kobj, &scst_acg_addr_method.attr);
-	if (retval != 0) {
+	res = sysfs_create_file(&acg->acg_kobj, &scst_acg_addr_method.attr);
+	if (res != 0) {
 		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
 			scst_acg_addr_method.attr.name, tgt->tgt_name);
 		goto out_del;
 	}
 
-	retval = sysfs_create_file(&acg->acg_kobj, &scst_acg_io_grouping_type.attr);
-	if (retval != 0) {
+	res = sysfs_create_file(&acg->acg_kobj, &scst_acg_io_grouping_type.attr);
+	if (res != 0) {
 		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
 			scst_acg_io_grouping_type.attr.name, tgt->tgt_name);
 		goto out_del;
 	}
 
 out:
-	TRACE_EXIT_RES(retval);
-	return retval;
+	TRACE_EXIT_RES(res);
+	return res;
 
 out_del:
 	scst_acg_sysfs_del(acg);
@@ -2378,7 +2378,7 @@ out_err:
 
 int scst_acn_sysfs_create(struct scst_acn *acn)
 {
-	int retval = 0;
+	int res = 0;
 	int len;
 	struct scst_acg *acg = acn->acg;
 	struct kobj_attribute *attr = NULL;
@@ -2396,7 +2396,7 @@ int scst_acn_sysfs_create(struct scst_acn *acn)
 	if (attr == NULL) {
 		PRINT_ERROR("Unable to allocate attributes for initiator '%s'",
 			acn->name);
-		retval = -ENOMEM;
+		res = -ENOMEM;
 		goto out;
 	}
 
@@ -2405,7 +2405,7 @@ int scst_acn_sysfs_create(struct scst_acn *acn)
 	if (attr->attr.name == NULL) {
 		PRINT_ERROR("Unable to allocate attributes for initiator '%s'",
 			acn->name);
-		retval = -ENOMEM;
+		res = -ENOMEM;
 		goto out_free;
 	}
 	strlcpy((char *)attr->attr.name, acn->name, len);
@@ -2421,8 +2421,8 @@ int scst_acn_sysfs_create(struct scst_acn *acn)
 	attr->show = scst_acn_file_show;
 	attr->store = NULL;
 
-	retval = sysfs_create_file(acg->initiators_kobj, &attr->attr);
-	if (retval != 0) {
+	res = sysfs_create_file(acg->initiators_kobj, &attr->attr);
+	if (res != 0) {
 		PRINT_ERROR("Unable to create acn '%s' for group '%s'",
 			acn->name, acg->acg_name);
 		kfree(attr->attr.name);
@@ -2432,8 +2432,8 @@ int scst_acn_sysfs_create(struct scst_acn *acn)
 	acn->acn_attr = attr;
 
 out:
-	TRACE_EXIT_RES(retval);
-	return retval;
+	TRACE_EXIT_RES(res);
+	return res;
 
 out_free:
 	kfree(attr);
@@ -2761,22 +2761,22 @@ static struct kobj_type sgv_pool_ktype = {
 
 int scst_sgv_sysfs_create(struct sgv_pool *pool)
 {
-	int retval;
+	int res;
 
 	TRACE_ENTRY();
 
 	init_completion(&pool->sgv_kobj_release_cmpl);
 
-	retval = kobject_init_and_add(&pool->sgv_kobj, &sgv_pool_ktype,
+	res = kobject_init_and_add(&pool->sgv_kobj, &sgv_pool_ktype,
 			scst_sgv_kobj, pool->name);
-	if (retval != 0) {
+	if (res != 0) {
 		PRINT_ERROR("Can't add sgv pool %s to sysfs", pool->name);
 		goto out;
 	}
 
 out:
-	TRACE_EXIT_RES(retval);
-	return retval;
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 void scst_sgv_sysfs_del(struct sgv_pool *pool)
@@ -3610,7 +3610,7 @@ static struct kobj_attribute scst_devt_pass_through_mgmt =
 
 int scst_devt_sysfs_create(struct scst_dev_type *devt)
 {
-	int retval;
+	int res;
 	struct kobject *parent;
 	const struct attribute **pattr;
 
@@ -3623,21 +3623,21 @@ int scst_devt_sysfs_create(struct scst_dev_type *devt)
 	else
 		parent = scst_handlers_kobj;
 
-	retval = kobject_init_and_add(&devt->devt_kobj, &scst_devt_ktype,
+	res = kobject_init_and_add(&devt->devt_kobj, &scst_devt_ktype,
 			parent, devt->name);
-	if (retval != 0) {
+	if (res != 0) {
 		PRINT_ERROR("Can't add devt %s to sysfs", devt->name);
 		goto out;
 	}
 
 	if (devt->add_device != NULL) {
-		retval = sysfs_create_file(&devt->devt_kobj,
+		res = sysfs_create_file(&devt->devt_kobj,
 				&scst_devt_mgmt.attr);
 	} else {
-		retval = sysfs_create_file(&devt->devt_kobj,
+		res = sysfs_create_file(&devt->devt_kobj,
 				&scst_devt_pass_through_mgmt.attr);
 	}
-	if (retval != 0) {
+	if (res != 0) {
 		PRINT_ERROR("Can't add mgmt attr for dev handler %s",
 			devt->name);
 		goto out_err;
@@ -3646,8 +3646,8 @@ int scst_devt_sysfs_create(struct scst_dev_type *devt)
 	pattr = devt->devt_attrs;
 	if (pattr != NULL) {
 		while (*pattr != NULL) {
-			retval = sysfs_create_file(&devt->devt_kobj, *pattr);
-			if (retval != 0) {
+			res = sysfs_create_file(&devt->devt_kobj, *pattr);
+			if (res != 0) {
 				PRINT_ERROR("Can't add devt attr %s for dev "
 					"handler %s", (*pattr)->name,
 					devt->name);
@@ -3659,9 +3659,9 @@ int scst_devt_sysfs_create(struct scst_dev_type *devt)
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	if (devt->trace_flags != NULL) {
-		retval = sysfs_create_file(&devt->devt_kobj,
+		res = sysfs_create_file(&devt->devt_kobj,
 				&devt_trace_attr.attr);
-		if (retval != 0) {
+		if (res != 0) {
 			PRINT_ERROR("Can't add devt trace_flag for dev "
 				"handler %s", devt->name);
 			goto out_err;
@@ -3670,8 +3670,8 @@ int scst_devt_sysfs_create(struct scst_dev_type *devt)
 #endif
 
 out:
-	TRACE_EXIT_RES(retval);
-	return retval;
+	TRACE_EXIT_RES(res);
+	return res;
 
 out_err:
 	scst_devt_sysfs_del(devt);
@@ -3915,13 +3915,13 @@ EXPORT_SYMBOL(scst_wait_info_completion);
 
 int __init scst_sysfs_init(void)
 {
-	int retval = 0;
+	int res = 0;
 
 	TRACE_ENTRY();
 
-	retval = kobject_init_and_add(&scst_sysfs_root_kobj,
+	res = kobject_init_and_add(&scst_sysfs_root_kobj,
 			&scst_sysfs_root_ktype, kernel_kobj, "%s", "scst_tgt");
-	if (retval != 0)
+	if (res != 0)
 		goto sysfs_root_add_error;
 
 	scst_targets_kobj = kobject_create_and_add("targets",
@@ -3938,9 +3938,9 @@ int __init scst_sysfs_init(void)
 	if (scst_sgv_kobj == NULL)
 		goto sgv_kobj_error;
 
-	retval = kobject_init_and_add(scst_sgv_kobj, &sgv_ktype,
+	res = kobject_init_and_add(scst_sgv_kobj, &sgv_ktype,
 			&scst_sysfs_root_kobj, "%s", "sgv");
-	if (retval != 0)
+	if (res != 0)
 		goto sgv_kobj_add_error;
 
 	scst_handlers_kobj = kobject_create_and_add("handlers",
@@ -3949,8 +3949,8 @@ int __init scst_sysfs_init(void)
 		goto handlers_kobj_error;
 
 out:
-	TRACE_EXIT_RES(retval);
-	return retval;
+	TRACE_EXIT_RES(res);
+	return res;
 
 handlers_kobj_error:
 	kobject_del(scst_sgv_kobj);
@@ -3972,8 +3972,8 @@ targets_kobj_error:
 sysfs_root_add_error:
 	kobject_put(&scst_sysfs_root_kobj);
 
-	if (retval == 0)
-		retval = -EINVAL;
+	if (res == 0)
+		res = -EINVAL;
 	goto out;
 }
 
