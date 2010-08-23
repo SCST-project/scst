@@ -169,6 +169,7 @@ MODULE_PARM_DESC(scst_max_dev_cmd_mem, "Maximum memory allowed to be consumed "
 
 struct scst_dev_type scst_null_devtype = {
 	.name = "none",
+	.threads_num = -1,
 };
 
 static void __scst_resume_activity(void);
