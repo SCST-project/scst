@@ -212,6 +212,7 @@ MAX_LUNS         => 255,
 my $SCST;
 my $CONFIG;
 my $_DEBUG_;
+my $_NOPROMPT_;
 
 my %CURRENT;
 
@@ -237,6 +238,7 @@ sub getArgs {
 	my $listScstAttr;
 	my $listHandlerAttr;
 	my $listDeviceAttr;
+	my $listGroupAttr;
 	my $listDriverAttr;
 	my $listTargetAttr;
 	my $listLunAttr;
@@ -247,6 +249,7 @@ sub getArgs {
 	my $setDeviceAttr;
 	my $setDriverAttr;
 	my $setTargetAttr;
+	my $setGroupAttr;
 	my $setLunAttr;
 	my $setInitiatorAttr;
 
@@ -289,7 +292,6 @@ sub getArgs {
 	my $device;
 
 	my $nonkey;
-	my $noprompt;
 	my $force;
 
 	my $p = new Getopt::Long::Parser;
@@ -311,6 +313,7 @@ sub getArgs {
 			    'list_dev_attr=s'	=> \$listDeviceAttr,
 			    'list_drv_attr=s'	=> \$listDriverAttr,
 			    'list_tgt_attr=s'	=> \$listTargetAttr,
+			    'list_grp_attr=s'	=> \$listGroupAttr,
 			    'list_lun_attr=s'	=> \$listLunAttr,
 			    'list_ini_attr=s'	=> \$listInitiatorAttr,
 
@@ -319,6 +322,7 @@ sub getArgs {
 			    'set_dev_attr=s'	=> \$setDeviceAttr,
 			    'set_drv_attr=s'	=> \$setDriverAttr,
 			    'set_tgt_attr=s'	=> \$setTargetAttr,
+			    'set_grp_attr=s'	=> \$setGroupAttr,
 			    'set_lun_attr=s'	=> \$setLunAttr,
 			    'set_ini_attr=s'	=> \$setInitiatorAttr,
 
@@ -361,16 +365,16 @@ sub getArgs {
 			    'device=s'		=> \$device,
 
 			    'nonkey'		=> \$nonkey,
-			    'noprompt'		=> \$noprompt,
+			    'noprompt'		=> \$_NOPROMPT_,
 			    'force'		=> \$force,
 			    'debug'             => \$_DEBUG_)) {
 		usage();
 	}
 
 	$_DEBUG_ = TRUE if (defined($_DEBUG_));
+	$_NOPROMPT_ = TRUE if (defined($_NOPROMPT_));
 
 	$force = TRUE if (defined($force));
-	$noprompt = TRUE if (defined($noprompt));
 	$clearInitiators = TRUE if (defined($clearInitiators));
 	$clearLuns = TRUE if (defined($clearLuns));
 	$issueLip = TRUE if (defined($issueLip));
@@ -382,10 +386,11 @@ sub getArgs {
 	my $query_mode = defined($listHandler) || defined($listDevice) || defined($listDriver) ||
 	  defined($listTarget) || defined($listGroup) || defined($listSessions) || defined($listScstAttr) ||
 	  defined($listHandlerAttr) || defined($listDeviceAttr) || defined($listDriverAttr) ||
-	  defined($listTargetAttr) || defined($listLunAttr) || defined($listInitiatorAttr);
+	  defined($listTargetAttr) || defined($listGroupAttr) || defined($listLunAttr) || defined($listInitiatorAttr);
 
 	my $set_mode = defined($setScstAttr) + defined($setHandlerAttr) + defined($setDeviceAttr) +
-	  defined($setDriverAttr) + defined($setTargetAttr) + defined($setLunAttr) + defined($setInitiatorAttr);
+	  defined($setDriverAttr) + defined($setTargetAttr) + defined($setGroupAttr) +
+	  defined($setLunAttr) + defined($setInitiatorAttr);
 
 	my $op_mode = defined($clearConfig) + defined($writeConfig) + defined($checkConfig) +
              defined($openDev) + defined($closeDev) + defined($addGroup) + defined($removeGroup) +
@@ -407,6 +412,11 @@ sub getArgs {
 
 	if (defined($listTargetAttr) && !defined($driver)) {
 		print "Please specify -driver with -list_tgt_attr.\n";
+		usage();
+	}
+
+	if (defined($listGroupAttr) && (!defined($driver) || !defined($target))) {
+		print "Please specify -driver and -target with -list_grp_attr.\n";
 		usage();
 	}
 
@@ -442,6 +452,11 @@ sub getArgs {
 
 	if (defined($setTargetAttr) && (!defined($driver) || !defined($attributes))) {
 		print "Please specify -driver and -attributes with -set_tgt_attr.\n";
+		usage();
+	}
+
+	if (defined($setGroupAttr) && (!defined($driver) || !defined($target) || !defined($attributes))) {
+		print "Please specify -driver -target and -attributes with -set_grp_attr.\n";
 		usage();
 	}
 
@@ -545,8 +560,8 @@ sub getArgs {
 	return ($applyConfig, $clearConfig, $writeConfig, $checkConfig,
 		$listScstAttr, $listHandler, $listDevice, $listDriver, $listTarget, $listGroup,
 		$listSessions, $listHandlerAttr, $listDeviceAttr, $listDriverAttr, $listTargetAttr,
-		$listLunAttr, $listInitiatorAttr, $setScstAttr, $setHandlerAttr, $setDeviceAttr,
-		$setDriverAttr, $setTargetAttr, $setLunAttr, $setInitiatorAttr,
+		$listGroupAttr, $listLunAttr, $listInitiatorAttr, $setScstAttr, $setHandlerAttr,
+		$setDeviceAttr, $setDriverAttr, $setTargetAttr, $setGroupAttr, $setLunAttr, $setInitiatorAttr,
 		$addDriverAttr, $addTargetAttr, $remDriverAttr, $remTargetAttr,
                 $openDev, $closeDev, $resyncDev,
 		$addTarget, $removeTarget,
@@ -556,7 +571,7 @@ sub getArgs {
 		$enableTarget, $disableTarget, $issueLip,
 		$handler, \%_attributes,
 		$driver, $target, $group, $to, $device,
-		$nonkey, $noprompt, $force);
+		$nonkey, $force);
 }
 
 sub main {
@@ -570,8 +585,8 @@ sub main {
 	my ($applyConfig, $clearConfig, $writeConfig, $checkConfig,
 	    $listScstAttr, $listHandler, $listDevice, $listDriver, $listTarget, $listGroup,
 	    $listSessions, $listHandlerAttr, $listDeviceAttr, $listDriverAttr, $listTargetAttr,
-	    $listLunAttr, $listInitiatorAttr, $setScstAttr, $setHandlerAttr, $setDeviceAttr,
-	    $setDriverAttr, $setTargetAttr, $setLunAttr, $setInitiatorAttr,
+	    $listGroupAttr, $listLunAttr, $listInitiatorAttr, $setScstAttr, $setHandlerAttr,
+	    $setDeviceAttr, $setDriverAttr, $setTargetAttr, $setGroupAttr, $setLunAttr, $setInitiatorAttr,
 	    $addDriverAttr, $addTargetAttr, $remDriverAttr, $remTargetAttr,
 	    $openDev, $closeDev, $resyncDev,
 	    $addTarget, $removeTarget,
@@ -581,7 +596,7 @@ sub main {
 	    $enableTarget, $disableTarget, $issueLip,
 	    $handler, $attributes,
 	    $driver, $target, $group, $to, $device,
-	    $nonkey, $noprompt, $force) = getArgs();
+	    $nonkey, $force) = getArgs();
 
 	$SCST = new SCST::SCST($_DEBUG_);
 
@@ -593,6 +608,7 @@ sub main {
 		defined($applyConfig) && do {
 			$rc = checkConfiguration($applyConfig);
 			immediateExit("Configuration has errors, aborting.") if ($rc);
+			last if ($force && prompt());
 			$rc = applyConfiguration($applyConfig, $force);
 			last SWITCH;
 		};
@@ -605,7 +621,8 @@ sub main {
 			last SWITCH;
 		};
 		defined($clearConfig) && do {
-			$rc = clearConfiguration($noprompt, $force);
+			last if (prompt());
+			$rc = clearConfiguration($force);
 			last SWITCH;
 		};
 		defined($listHandler) && do {
@@ -652,6 +669,10 @@ sub main {
 			$rc = listTargetAttributes($driver, $listTargetAttr, $nonkey);
 			$all_good = TRUE;
 		};
+		defined($listGroupAttr) && do {
+			$rc = listGroupAttributes($driver, $target, $listGroupAttr, $nonkey);
+			$all_good = TRUE;
+		};
 		defined($listLunAttr) && do {
 			$rc = listLunAttributes($driver, $target, $group, $listLunAttr, $nonkey);
 			$all_good = TRUE;
@@ -661,31 +682,43 @@ sub main {
 			$all_good = TRUE;
 		};
 		defined($setScstAttr) && do {
-			$rc = setScstAttributes($attributes, TRUE);
+			last if (prompt());
+			setScstAttributes($attributes, TRUE);
 			last SWITCH;
 		};
 		defined($setHandlerAttr) && do {
-			$rc = setHandlerAttributes($setHandlerAttr, $attributes, TRUE);
+			last if (prompt());
+			setHandlerAttributes($setHandlerAttr, $attributes, TRUE);
 			last SWITCH;
 		};
 		defined($setDeviceAttr) && do {
-			$rc = setDeviceAttributes($setDeviceAttr, $attributes, TRUE);
+			last if (prompt());
+			setDeviceAttributes($setDeviceAttr, $attributes, TRUE);
 			last SWITCH;
 		};
 		defined($setDriverAttr) && do {
-			$rc = setDriverAttributes($setDriverAttr, $attributes, FALSE, TRUE);
+			last if (prompt());
+			$rc = setDriverAttributes($setDriverAttr, $attributes, FALSE);
 			last SWITCH;
 		};
 		defined($setTargetAttr) && do {
-			$rc = setTargetAttributes($driver, $setTargetAttr, $attributes, FALSE, TRUE);
+			last if (prompt());
+			$rc = setTargetAttributes($driver, $setTargetAttr, $attributes, FALSE);
+			last SWITCH;
+		};
+		defined($setGroupAttr) && do {
+			last if (prompt());
+			setGroupAttributes(undef, $driver, $target, $setGroupAttr, $attributes, TRUE);
 			last SWITCH;
 		};
 		defined($setLunAttr) && do {
-			$rc = setLunAttributes($driver, $target, $setLunAttr, $attributes, $group, TRUE);
+			last if (prompt());
+			setLunAttributes($driver, $target, $setLunAttr, $attributes, $group, TRUE);
 			last SWITCH;
 		};
 		defined($setInitiatorAttr) && do {
-			$rc = setInitiatorAttributes($driver, $target, $group, $setInitiatorAttr, $attributes, TRUE);
+			last if (prompt());
+			setInitiatorAttributes($driver, $target, $group, $setInitiatorAttr, $attributes, TRUE);
 			last SWITCH;
 		};
 		defined($addDriverAttr) && do {
@@ -697,10 +730,12 @@ sub main {
 			last SWITCH;
 		};
 		defined($remDriverAttr) && do {
+			last if (prompt());
 			$rc = removeDriverDynamicAttributes($remDriverAttr, $attributes);
 			last SWITCH;
 		};
 		defined($remTargetAttr) && do {
+			last if (prompt());
 			$rc = removeTargetDynamicAttributes($driver, $remTargetAttr, $attributes);
 			last SWITCH;
 		};
@@ -709,6 +744,7 @@ sub main {
 			last SWITCH;
 		};
 		defined($closeDev) && do {
+			last if (prompt());
 			$rc = closeDevice($handler, $closeDev, $force);
 			last SWITCH;
 		};
@@ -721,6 +757,7 @@ sub main {
 			last SWITCH;
 		};
 		defined($removeTarget) && do {
+			last if (prompt());
 			$rc = removeVirtualTarget($driver, $removeTarget);
 			last SWITCH;
 		};
@@ -729,6 +766,7 @@ sub main {
 			last SWITCH;
 		};
 		defined($removeGroup) && do {
+			last if (prompt());
 			$rc = removeGroup($driver, $target, $removeGroup, $force);
 			last SWITCH;
 		};
@@ -737,14 +775,17 @@ sub main {
 			last SWITCH;
 		};
 		defined($removeInitiator) && do {
+			last if (prompt());
 			$rc = removeInitiator($driver, $target, $group, $removeInitiator);
 			last SWITCH;
 		};
 		defined($moveInitiator) && do {
+			last if (prompt());
 			$rc = moveInitiator($driver, $target, $group, $moveInitiator, $to);
 			last SWITCH;
 		};
 		defined($clearInitiators) && do {
+			last if (prompt());
 			$rc = clearInitiators($driver, $target, $group);
 			last SWITCH;
 		};
@@ -753,14 +794,17 @@ sub main {
 			last SWITCH;
 		};
 		defined($removeLun) && do {
+			last if (prompt());
 			$rc = removeLun($driver, $target, $removeLun, $group);
 			last SWITCH;
 		};
 		defined($replaceLun) && do {
+			last if (prompt());
 			$rc = replaceLun($driver, $target, $group, $replaceLun, $device, $attributes);
 			last SWITCH;
 		};
 		defined($clearLuns) && do {
+			last if (prompt());
 			$rc = clearLuns($driver, $target, $group);
 			last SWITCH;
 		};
@@ -769,6 +813,7 @@ sub main {
 			last SWITCH;
 		};
 		defined($disableTarget) && do {
+			last if (prompt());
 			$rc = disableTarget($driver, $disableTarget);
 			last SWITCH;
 		};
@@ -1717,7 +1762,7 @@ sub applyGroupAssignments {
 
 		my $attributes = configToAttr(\%_attributes);
 
-		setGroupAttributes($driver, $target, $group, $attributes);
+		setGroupAttributes(undef, $driver, $target, $group, $attributes);
 	}
 }
 
@@ -1766,7 +1811,6 @@ sub applyInitiatorAssignments {
 }
 
 sub clearConfiguration {
-	my $noprompt = shift;
 	my $force = shift;
 
 	my $assignments = $CURRENT{'assign'};
@@ -2387,6 +2431,24 @@ sub listTargetAttributes {
 	return listAttributes($attributes, $nonkey);
 }
 
+sub listGroupAttributes {
+	my $driver = shift;
+	my $target = shift;
+	my $group = shift;
+	my $nonkey = shift;
+
+	my $attributes = $SCST->groupAttributes($driver, $target, $group);
+
+	return if issueWarning($SCST->errorString());
+
+	if (!scalar(keys %{$attributes})) {
+		print "No suck driver/target/group '$driver/$target/$group' found.\n";
+		return;
+	}
+
+	return listAttributes($attributes, $nonkey);
+}
+
 sub listLunAttributes {
 	my $driver = shift;
 	my $target = shift;
@@ -2690,7 +2752,8 @@ sub setAttributes {
 			}
 
 			# Set the existing attribute
-			$callback->($level1, $level2, $level3, $level4, $attribute, $value);
+			my $rc = $callback->($level1, $level2, $level3, $level4, $attribute, $value);
+			issueWarning($SCST->errorString($rc)) if ($rc);
 		}
 	}
 }
@@ -2760,7 +2823,8 @@ sub setDriverAttributes {
 			if ($driverCap && !$SCST->checkDriverDynamicAttributes($driver, $attribute)) {
 				addDriverDynamicAttribute($driver, $attribute, $value);
 			} else {
-				setDriverAttribute($driver, $attribute, $value);
+				my $rc = setDriverAttribute($driver, $attribute, $value);
+				issueWarning($SCST->errorString($rc)) if ($rc);
 			}
 
 			$$existing{$attribute}->{$value} = TRUE;
@@ -2919,7 +2983,8 @@ sub setTargetAttributes {
 			if ($driverCap && !$SCST->checkTargetDynamicAttributes($driver, $attribute)) {
 				addTargetDynamicAttribute($driver, $target, $attribute, $value);
 			} else {
-				setTargetAttribute($driver, $target, $attribute, $value);
+				my $rc = setTargetAttribute($driver, $target, $attribute, $value);
+				issueWarning($SCST->errorString($rc)) if ($rc);
 			}
 
 			$$existing{$attribute}->{$value} = TRUE;
@@ -3785,6 +3850,22 @@ sub issueWarning {
 
 	print "\n\nWARNING: Received the following error:\n\n\t";
 	print "$error\n\n";
+
+	return TRUE;
+}
+
+sub prompt {
+	return FALSE if ($_NOPROMPT_);
+
+	print "Performing this action may result in lost or corrupt data, ".
+	  "are you sure you wish to continue (y/[n]) ? ";
+	my $answer = <STDIN>;
+
+	if (($answer =~ /^y$/i) || ($answer =~ /^yes$/i)) {
+		return FALSE;
+	}
+
+	print "Aborting action.\n";
 
 	return TRUE;
 }
