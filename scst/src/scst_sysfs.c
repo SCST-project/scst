@@ -788,7 +788,7 @@ static ssize_t scst_dev_sysfs_type_show(struct kobject *kobj,
 	return pos;
 }
 
-static struct kobj_attribute device_type_attr =
+static struct kobj_attribute dev_type_attr =
 	__ATTR(type, S_IRUGO, scst_dev_sysfs_type_show, NULL);
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
@@ -808,7 +808,7 @@ static ssize_t scst_dev_sysfs_dump_prs(struct kobject *kobj,
 	return count;
 }
 
-static struct kobj_attribute device_dump_prs_attr =
+static struct kobj_attribute dev_dump_prs_attr =
 	__ATTR(dump_prs, S_IWUSR, NULL, scst_dev_sysfs_dump_prs);
 
 #endif /* defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING) */
@@ -915,7 +915,7 @@ out:
 	return res;
 }
 
-static struct kobj_attribute device_threads_num_attr =
+static struct kobj_attribute dev_threads_num_attr =
 	__ATTR(threads_num, S_IRUGO | S_IWUSR,
 		scst_dev_sysfs_threads_num_show,
 		scst_dev_sysfs_threads_num_store);
@@ -994,15 +994,13 @@ out:
 }
 
 
-static struct kobj_attribute device_threads_pool_type_attr =
+static struct kobj_attribute dev_threads_pool_type_attr =
 	__ATTR(threads_pool_type, S_IRUGO | S_IWUSR,
 		scst_dev_sysfs_threads_pool_type_show,
 		scst_dev_sysfs_threads_pool_type_store);
 
 static struct attribute *scst_dev_attrs[] = {
-	&device_type_attr.attr,
-	&device_threads_num_attr.attr,
-	&device_threads_pool_type_attr.attr,
+	&dev_type_attr.attr,
 	NULL,
 };
 
@@ -1043,6 +1041,25 @@ int scst_devt_dev_sysfs_create(struct scst_device *dev)
 		PRINT_ERROR("Can't create handler link for dev %s",
 			dev->virt_name);
 		goto out_err;
+	}
+
+	if (dev->handler->threads_num >= 0) {
+		res = sysfs_create_file(&dev->dev_kobj,
+				&dev_threads_num_attr.attr);
+		if (res != 0) {
+			PRINT_ERROR("Can't add dev attr %s for dev %s",
+				dev_threads_num_attr.attr.name,
+				dev->virt_name);
+			goto out_err;
+		}
+		res = sysfs_create_file(&dev->dev_kobj,
+				&dev_threads_pool_type_attr.attr);
+		if (res != 0) {
+			PRINT_ERROR("Can't add dev attr %s for dev %s",
+				dev_threads_pool_type_attr.attr.name,
+				dev->virt_name);
+			goto out_err;
+		}
 	}
 
 	pattr = dev->handler->dev_attrs;
@@ -1086,6 +1103,13 @@ void scst_devt_dev_sysfs_del(struct scst_device *dev)
 
 	sysfs_remove_link(&dev->dev_kobj, "handler");
 	sysfs_remove_link(&dev->handler->devt_kobj, dev->virt_name);
+
+	if (dev->handler->threads_num >= 0) {
+		sysfs_remove_file(&dev->dev_kobj,
+			&dev_threads_num_attr.attr);
+		sysfs_remove_file(&dev->dev_kobj,
+			&dev_threads_pool_type_attr.attr);
+	}
 
 out:
 	TRACE_EXIT();
@@ -1135,10 +1159,10 @@ int scst_dev_sysfs_create(struct scst_device *dev)
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	if (dev->scsi_dev == NULL) {
 		res = sysfs_create_file(&dev->dev_kobj,
-				&device_dump_prs_attr.attr);
+				&dev_dump_prs_attr.attr);
 		if (res != 0) {
 			PRINT_ERROR("Can't create attr %s for dev %s",
-				device_dump_prs_attr.attr.name, dev->virt_name);
+				dev_dump_prs_attr.attr.name, dev->virt_name);
 			goto out_del;
 		}
 	}
@@ -3392,7 +3416,7 @@ static ssize_t scst_devt_mgmt_store(struct kobject *kobj,
 				    const char *buf, size_t count)
 {
 	int res;
-	char *buffer, *p, *pp, *device_name;
+	char *buffer, *p, *pp, *dev_name;
 	struct scst_dev_type *devt;
 
 	TRACE_ENTRY();
@@ -3415,16 +3439,16 @@ static ssize_t scst_devt_mgmt_store(struct kobject *kobj,
 	p = scst_get_next_lexem(&pp);
 
 	if (strcasecmp("add_device", p) == 0) {
-		device_name = scst_get_next_lexem(&pp);
-		if (*device_name == '\0') {
+		dev_name = scst_get_next_lexem(&pp);
+		if (*dev_name == '\0') {
 			PRINT_ERROR("%s", "Device name required");
 			res = -EINVAL;
 			goto out_free;
 		}
-		res = devt->add_device(device_name, pp);
+		res = devt->add_device(dev_name, pp);
 	} else if (strcasecmp("del_device", p) == 0) {
-		device_name = scst_get_next_lexem(&pp);
-		if (*device_name == '\0') {
+		dev_name = scst_get_next_lexem(&pp);
+		if (*dev_name == '\0') {
 			PRINT_ERROR("%s", "Device name required");
 			res = -EINVAL;
 			goto out_free;
@@ -3434,7 +3458,7 @@ static ssize_t scst_devt_mgmt_store(struct kobject *kobj,
 		if (*p != '\0')
 			goto out_syntax_err;
 
-		res = devt->del_device(device_name);
+		res = devt->del_device(dev_name);
 	} else if (devt->mgmt_cmd != NULL) {
 		scst_restore_token_str(p, pp);
 		res = devt->mgmt_cmd(buffer);
