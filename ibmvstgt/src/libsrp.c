@@ -23,6 +23,7 @@
 #include <linux/kfifo.h>
 #include <linux/scatterlist.h>
 #include <linux/dma-mapping.h>
+#include <linux/version.h>
 #include <scsi/scsi.h>
 #include <scsi/scsi_cmnd.h>
 #include <scsi/scsi_tcq.h>
@@ -58,11 +59,20 @@ static int srp_iu_pool_alloc(struct srp_queue *q, size_t max,
 	if (!q->items)
 		goto free_pool;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33)
 	spin_lock_init(&q->lock);
 	kfifo_init(&q->queue, (void *) q->pool, max * sizeof(void *));
+#else
+	q->queue = kfifo_init((void *) q->pool, max * sizeof(void *),
+			      GFP_KERNEL, &q->lock);
+#endif
 
 	for (i = 0, iue = q->items; i < max; i++) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33)
 		kfifo_in(&q->queue, (void *) &iue, sizeof(void *));
+#else
+		__kfifo_put(q->queue, (void *) &iue, sizeof(void *));
+#endif
 		iue->sbuf = ring[i];
 		iue++;
 	}
@@ -164,11 +174,15 @@ struct iu_entry *srp_iu_get(struct srp_target *target)
 {
 	struct iu_entry *iue = NULL;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33)
 	if (kfifo_out_locked(&target->iu_queue.queue, (void *) &iue,
 		sizeof(void *), &target->iu_queue.lock) != sizeof(void *)) {
 			WARN_ONCE(1, "unexpected fifo state");
 			return NULL;
 	}
+#else
+	kfifo_get(target->iu_queue.queue, (void *) &iue, sizeof(void *));
+#endif
 	if (!iue)
 		return iue;
 	iue->target = target;
@@ -180,8 +194,12 @@ EXPORT_SYMBOL_GPL(srp_iu_get);
 
 void srp_iu_put(struct iu_entry *iue)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33)
 	kfifo_in_locked(&iue->target->iu_queue.queue, (void *) &iue,
 			sizeof(void *), &iue->target->iu_queue.lock);
+#else
+	kfifo_put(iue->target->iu_queue.queue, (void *) &iue, sizeof(void *));
+#endif
 }
 EXPORT_SYMBOL_GPL(srp_iu_put);
 
