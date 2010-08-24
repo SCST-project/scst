@@ -29,10 +29,16 @@
 #include <scsi/scsi_transport_srp.h>
 #include <scsi/scsi_tgt.h>
 #include <scsi/libsrp.h>
-//#include <asm/hvcall.h>
 #include <asm/iommu.h>
-//#include <asm/prom.h>
-//#include <asm/vio.h>
+#ifdef __powerpc__
+#include <asm/hvcall.h>
+#include <asm/prom.h>
+#include <asm/vio.h>
+#else
+#include <linux/mod_devicetable.h>
+#include <linux/of.h>
+#include "dummy_powerpc_defs.h"
+#endif
 
 #include "ibmvscsi.h"
 
