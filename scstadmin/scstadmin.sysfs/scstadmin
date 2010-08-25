@@ -1586,7 +1586,7 @@ sub applyConfigDevices {
 					my $old_create_attrs = $SCST->deviceAttributes($device);
 
 					if (compareToKeyAttribute($create_attrs, $old_create_attrs)) {
-						print "-> Device '$device' is configured for different CREATE attributes.\n";
+						print "-> Device '$device' is configured differently.\n";
 
 						if ($deletions) {
 							print "\t-> Closing and re-opening with new attributes.\n";
@@ -1646,6 +1646,24 @@ sub applyConfigAssignments {
 						print "-> Device '$device' at LUN '$lun' is not in configuration ".
 						  "for driver/target '$driver/$target'. ".
 						  "Use -force to remove it.\n";
+					}
+				} else {
+					my $c_attrs = configToAttr($$config{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'LUN'}->{$lun}->{$device});
+					my $o_attrs = $SCST->lunAttributes($driver, $target, $lun);
+
+					filterCreateAttributes($driver, $target, undef, $c_attrs);
+
+					if (compareToKeyAttribute($c_attrs, $o_attrs)) {
+						print "-> Device '$device' at LUN '$lun' is configured differently.\n";
+
+						if ($deletions) {
+							print "\t-> Re-assigning device with new attributes.\n";
+							removeLun($driver, $target, $lun);
+							addLun($driver, $target, $device, $lun, $c_attrs);
+						} else {
+							print "\t-> Use -force to re-assign device with new attributes. ".
+							  "NOTE: This will disrupt all initiators using this device.\n";
+						}
 					}
 				}
 			}
@@ -1834,6 +1852,22 @@ sub applyInitiatorAssignments {
 	foreach my $initiator (sort keys %{$initiators}) {
 		if (!groupHasInitiator($c_inits, $initiator)) {
 			addInitiator($driver, $target, $group, $initiator);
+		}
+	}
+}
+
+sub filterCreateAttributes {
+	my $driver = shift;
+	my $target = shift;
+	my $group = shift;
+	my $attrs = shift;
+
+	foreach my $attribute (keys %{$attrs}) {
+		my $bad = $SCST->checkLunCreateAttributes($driver, $target, $attribute, $group);
+		if ($bad == TRUE) {
+			delete $$attrs{$attribute};
+		} elsif ($bad) {
+			immediateExit($SCST->errorString($bad));
 		}
 	}
 }
