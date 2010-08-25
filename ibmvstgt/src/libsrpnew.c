@@ -28,7 +28,8 @@
 #include <scsi/scsi_tcq.h>
 #include <scsi/scsi_tgt.h>
 #include <scsi/srp.h>
-#include <scsi/libsrp.h>
+#include "libsrpnew.h"
+#include "scst.h"
 
 enum srp_task_attributes {
 	SRP_SIMPLE_TASK = 0,
@@ -395,26 +396,29 @@ static int vscsis_data_length(struct srp_cmd *cmd, enum dma_data_direction dir)
 	return len;
 }
 
-int srp_cmd_queue(struct Scsi_Host *shost, struct srp_cmd *cmd, void *info,
-		  u64 itn_id, u64 addr)
+int srp_cmd_queue(struct scst_session *sess, struct srp_cmd *cmd, void *info,
+		  u64 itn_id)
 {
 	enum dma_data_direction dir;
-	struct scsi_cmnd *sc;
-	int tag, len, err;
+	struct scst_cmd *sc;
+	int tag, len;
 
 	switch (cmd->task_attr) {
 	case SRP_SIMPLE_TASK:
-		tag = MSG_SIMPLE_TAG;
+		tag = SCST_CMD_QUEUE_SIMPLE;
 		break;
 	case SRP_ORDERED_TASK:
-		tag = MSG_ORDERED_TAG;
+		tag = SCST_CMD_QUEUE_ORDERED;
 		break;
 	case SRP_HEAD_TASK:
-		tag = MSG_HEAD_TAG;
+		tag = SCST_CMD_QUEUE_HEAD_OF_QUEUE;
+		break;
+	case SRP_ACA_TASK:
+		tag = SCST_CMD_QUEUE_ACA;
 		break;
 	default:
 		eprintk("Task attribute %d not supported\n", cmd->task_attr);
-		tag = MSG_ORDERED_TAG;
+		tag = SCST_CMD_QUEUE_ORDERED;
 	}
 
 	dir = srp_cmd_direction(cmd);
@@ -423,21 +427,19 @@ int srp_cmd_queue(struct Scsi_Host *shost, struct srp_cmd *cmd, void *info,
 	dprintk("%p %x %lx %d %d %d %llx\n", info, cmd->cdb[0],
 		cmd->lun, dir, len, tag, (unsigned long long) cmd->tag);
 
-	sc = scsi_host_get_command(shost, dir, GFP_KERNEL);
+	sc = scst_rx_cmd(sess, (u8 *) &cmd->lun, sizeof(cmd->lun),
+			 cmd->cdb, 16, SCST_CONTEXT_THREAD);
 	if (!sc)
 		return -ENOMEM;
 
-	sc->SCp.ptr = info;
-	memcpy(sc->cmnd, cmd->cdb, MAX_COMMAND_SIZE);
-	sc->sdb.length = len;
-	sc->sdb.table.sgl = (void *) (unsigned long) addr;
-	sc->tag = tag;
-	err = scsi_tgt_queue_command(sc, itn_id, (struct scsi_lun *)&cmd->lun,
-				     cmd->tag);
-	if (err)
-		scsi_host_put_command(shost, sc);
+	scst_cmd_set_queue_type(sc, tag);
+	scst_cmd_set_expected(sc, dir == DMA_TO_DEVICE
+			      ? SCST_DATA_WRITE : SCST_DATA_READ, len);
+	scst_cmd_set_tgt_priv(sc, info);
+	scst_cmd_set_tag(sc, itn_id);
+	scst_cmd_init_done(sc, SCST_CONTEXT_THREAD);
 
-	return err;
+	return 0;
 }
 EXPORT_SYMBOL_GPL(srp_cmd_queue);
 
