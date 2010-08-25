@@ -208,7 +208,8 @@ my $_NOPROMPT_;
 
 my %CURRENT;
 
-$SIG{INT} = \&commitSuicide;
+$SIG{INT}  = \&commitSuicide;
+$SIG{TERM} = \&commitSuicide;
 
 use vars qw($Version);
 
