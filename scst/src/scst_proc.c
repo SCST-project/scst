@@ -934,7 +934,7 @@ static int scst_proc_group_add(const char *p, unsigned int addr_method)
 	}
 	strlcpy(name, p, len);
 
-	acg = scst_alloc_add_acg(NULL, name);
+	acg = scst_alloc_add_acg(NULL, name, false);
 	if (acg == NULL) {
 		PRINT_ERROR("scst_alloc_add_acg() (name %s) failed", name);
 		goto out_free;

@@ -86,6 +86,7 @@ struct list_head scst_dev_list;
 
 /* Protected by scst_mutex */
 struct list_head scst_dev_type_list;
+struct list_head scst_virtual_dev_type_list;
 
 spinlock_t scst_main_lock;
 
@@ -354,6 +355,13 @@ void scst_unregister_target_template(struct scst_tgt_template *vtt)
 	list_del(&vtt->scst_template_list_entry);
 	mutex_unlock(&scst_mutex2);
 
+	/* Wait for outstanding sysfs mgmt calls completed */
+	while (vtt->tgtt_active_sysfs_works_count > 0) {
+		mutex_unlock(&scst_mutex);
+		msleep(100);
+		mutex_lock(&scst_mutex);
+	}
+
 restart:
 	list_for_each_entry(tgt, &vtt->tgt_list, tgt_list_entry) {
 		mutex_unlock(&scst_mutex);
@@ -456,7 +464,7 @@ struct scst_tgt *scst_register_target(struct scst_tgt_template *vtt,
 	if (rc < 0)
 		goto out_unlock;
 
-	tgt->default_acg = scst_alloc_add_acg(NULL, tgt->tgt_name);
+	tgt->default_acg = scst_alloc_add_acg(tgt, tgt->tgt_name, false);
 	if (tgt->default_acg == NULL)
 		goto out_sysfs_del;
 #endif
@@ -1047,10 +1055,12 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 		res = -ENOMEM;
 		goto out_free_dev;
 	}
-	dev->virt_id = scst_virt_dev_last_id++;
-	if (dev->virt_id <= 0) {
+
+	while (1) {
+		dev->virt_id = scst_virt_dev_last_id++;
+		if (dev->virt_id > 0)
+			break;
 		scst_virt_dev_last_id = 1;
-		dev->virt_id = scst_virt_dev_last_id;
 	}
 
 	list_add_tail(&dev->dev_list_entry, &scst_dev_list);
@@ -1372,6 +1382,10 @@ int __scst_register_virtual_dev_driver(struct scst_dev_type *dev_type,
 	if (res != 0)
 		goto out;
 
+	mutex_lock(&scst_mutex);
+	list_add_tail(&dev_type->dev_type_list_entry, &scst_virtual_dev_type_list);
+	mutex_unlock(&scst_mutex);
+
 #ifdef CONFIG_SCST_PROC
 	if (!dev_type->no_proc) {
 		res = scst_build_proc_dev_handler_dir_entries(dev_type);
@@ -1405,6 +1419,20 @@ EXPORT_SYMBOL(__scst_register_virtual_dev_driver);
 void scst_unregister_virtual_dev_driver(struct scst_dev_type *dev_type)
 {
 	TRACE_ENTRY();
+
+	mutex_lock(&scst_mutex);
+
+	/* Disable sysfs mgmt calls (e.g. addition of new devices) */
+	list_del(&dev_type->dev_type_list_entry);
+
+	/* Wait for outstanding sysfs mgmt calls completed */
+	while (dev_type->devt_active_sysfs_works_count > 0) {
+		mutex_unlock(&scst_mutex);
+		msleep(100);
+		mutex_lock(&scst_mutex);
+	}
+
+	mutex_unlock(&scst_mutex);
 
 #ifdef CONFIG_SCST_PROC
 	if (!dev_type->no_proc)
@@ -1472,7 +1500,7 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 				cmd_threads, "%s%d_%d", nm, tgt_dev_num, n++);
 		} else
 			thr->cmd_thread = kthread_create(scst_cmd_thread,
-				cmd_threads, "scsi_tgt%d", n++);
+				cmd_threads, "scstd%d", n++);
 
 		if (IS_ERR(thr->cmd_thread)) {
 			res = PTR_ERR(thr->cmd_thread);
@@ -1639,6 +1667,13 @@ int scst_assign_dev_handler(struct scst_device *dev,
 		}
 	}
 
+	/*
+	 * devt_dev sysfs must be created AFTER attach() and deleted BEFORE
+	 * detach() to avoid calls from sysfs for not yet ready or already dead
+	 * objects.
+	 */
+	scst_devt_dev_sysfs_del(dev);
+
 	if (dev->handler->detach) {
 		TRACE_DBG("%s", "Calling dev handler's detach()");
 		dev->handler->detach(dev);
@@ -1646,8 +1681,6 @@ int scst_assign_dev_handler(struct scst_device *dev,
 	}
 
 	scst_stop_dev_threads(dev);
-
-	scst_devt_dev_sysfs_del(dev);
 
 assign:
 	dev->handler = handler;
@@ -1658,10 +1691,6 @@ assign:
 	dev->threads_num = handler->threads_num;
 	dev->threads_pool_type = handler->threads_pool_type;
 
-	res = scst_devt_dev_sysfs_create(dev);
-	if (res != 0)
-		goto out_null;
-
 	if (handler->attach) {
 		TRACE_DBG("Calling new dev handler's attach(%p)", dev);
 		res = handler->attach(dev);
@@ -1669,9 +1698,13 @@ assign:
 		if (res != 0) {
 			PRINT_ERROR("New device handler's %s attach() "
 				"failed: %d", handler->name, res);
-			goto out_remove_sysfs;
+			goto out;
 		}
 	}
+
+	res = scst_devt_dev_sysfs_create(dev);
+	if (res != 0)
+		goto out_detach;
 
 	if (handler->attach_tgt) {
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
@@ -1683,7 +1716,7 @@ assign:
 			if (res != 0) {
 				PRINT_ERROR("Device handler's %s attach_tgt() "
 				    "failed: %d", handler->name, res);
-				goto out_err_detach_tgt;
+				goto out_err_remove_sysfs;
 			}
 			list_add_tail(&tgt_dev->extra_tgt_dev_list_entry,
 				&attached_tgt_devs);
@@ -1708,16 +1741,17 @@ out_err_detach_tgt:
 			TRACE_DBG("%s", "Handler's detach_tgt() returned");
 		}
 	}
+
+out_err_remove_sysfs:
+	scst_devt_dev_sysfs_del(dev);
+
+out_detach:
 	if (handler && handler->detach) {
 		TRACE_DBG("%s", "Calling handler's detach()");
 		handler->detach(dev);
 		TRACE_DBG("%s", "Handler's detach() returned");
 	}
 
-out_remove_sysfs:
-	scst_devt_dev_sysfs_del(dev);
-
-out_null:
 	dev->handler = &scst_null_devtype;
 	dev->threads_num = scst_null_devtype.threads_num;
 	dev->threads_pool_type = scst_null_devtype.threads_pool_type;
@@ -1803,7 +1837,7 @@ static int scst_start_all_threads(int num)
 		goto out_unlock;
 
 	scst_init_cmd_thread = kthread_run(scst_init_thread,
-		NULL, "scsi_tgt_init");
+		NULL, "scst_initd");
 	if (IS_ERR(scst_init_cmd_thread)) {
 		res = PTR_ERR(scst_init_cmd_thread);
 		PRINT_ERROR("kthread_create() for init cmd failed: %d", res);
@@ -1821,7 +1855,7 @@ static int scst_start_all_threads(int num)
 	}
 
 	scst_mgmt_thread = kthread_run(scst_global_mgmt_thread,
-		NULL, "scsi_tgt_mgmt");
+		NULL, "scst_mgmtd");
 	if (IS_ERR(scst_mgmt_thread)) {
 		res = PTR_ERR(scst_mgmt_thread);
 		PRINT_ERROR("kthread_create() for mgmt failed: %d", res);
@@ -2034,6 +2068,7 @@ static int __init init_scst(void)
 	INIT_LIST_HEAD(&scst_template_list);
 	INIT_LIST_HEAD(&scst_dev_list);
 	INIT_LIST_HEAD(&scst_dev_type_list);
+	INIT_LIST_HEAD(&scst_virtual_dev_type_list);
 	spin_lock_init(&scst_main_lock);
 #ifdef CONFIG_SCST_PROC
 	INIT_LIST_HEAD(&scst_acg_list);
@@ -2175,7 +2210,7 @@ static int __init init_scst(void)
 		goto out_sysfs_cleanup;
 
 #ifdef CONFIG_SCST_PROC
-	scst_default_acg = scst_alloc_add_acg(NULL, SCST_DEFAULT_ACG_NAME);
+	scst_default_acg = scst_alloc_add_acg(NULL, SCST_DEFAULT_ACG_NAME, false);
 	if (scst_default_acg == NULL) {
 		res = -ENOMEM;
 		goto out_destroy_sgv_pool;

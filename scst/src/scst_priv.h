@@ -125,6 +125,9 @@ extern unsigned long scst_trace_flag;
 #define SCST_LUN_ADDR_METHOD_PERIPHERAL	0
 #define SCST_LUN_ADDR_METHOD_FLAT	1
 
+/* Activities suspending timeout */
+#define SCST_SUSPENDING_TIMEOUT			(90 * HZ)
+
 extern struct mutex scst_mutex2;
 
 extern int scst_threads;
@@ -151,6 +154,7 @@ extern atomic_t scst_cmd_count;
 extern struct list_head scst_template_list;
 extern struct list_head scst_dev_list;
 extern struct list_head scst_dev_type_list;
+extern struct list_head scst_virtual_dev_type_list;
 extern wait_queue_head_t scst_dev_cmd_waitQ;
 
 #ifdef CONFIG_SCST_PROC
@@ -305,7 +309,7 @@ int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev);
 void scst_free_device(struct scst_device *dev);
 
 struct scst_acg *scst_alloc_add_acg(struct scst_tgt *tgt,
-	const char *acg_name);
+	const char *acg_name, bool tgt_acg);
 void scst_del_free_acg(struct scst_acg *acg);
 
 struct scst_acg *scst_tgt_find_acg(struct scst_tgt *tgt, const char *name);

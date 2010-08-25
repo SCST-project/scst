@@ -492,11 +492,6 @@ enum scst_exec_context {
 #endif
 
 /*************************************************************
- ** Activities suspending timeout
- *************************************************************/
-#define SCST_SUSPENDING_TIMEOUT			(90 * HZ)
-
-/*************************************************************
  ** Kernel cache creation helper
  *************************************************************/
 #ifndef KMEM_CACHE
@@ -955,6 +950,9 @@ struct scst_tgt_template {
 
 	struct kobject tgtt_kobj; /* kobject for this struct */
 
+	/* Number of currently active sysfs mgmt works (scst_sysfs_work_item) */
+	int tgtt_active_sysfs_works_count;
+
 	/* sysfs release completion */
 	struct completion tgtt_kobj_release_cmpl;
 
@@ -1122,7 +1120,7 @@ struct scst_dev_type {
 	 */
 	int (*attach) (struct scst_device *dev);
 
-	/* Called when new device is detaching from the dev handler */
+	/* Called when a device is detaching from the dev handler */
 	void (*detach) (struct scst_device *dev);
 
 	/*
@@ -1251,7 +1249,7 @@ struct scst_dev_type {
 
 	/** Private, must be inited to 0 by memset() **/
 
-	/* list entry in scst_dev_type_list */
+	/* list entry in scst_(virtual_)dev_type_list */
 	struct list_head dev_type_list_entry;
 
 #ifdef CONFIG_SCST_PROC
@@ -1260,6 +1258,9 @@ struct scst_dev_type {
 #endif
 
 	struct kobject devt_kobj; /* main handlers/driver */
+
+	/* Number of currently active sysfs mgmt works (scst_sysfs_work_item) */
+	int devt_active_sysfs_works_count;
 
 	/* To wait until devt_kobj released */
 	struct completion devt_kobj_release_compl;
@@ -2317,6 +2318,9 @@ struct scst_acg_dev {
  * control information.
  */
 struct scst_acg {
+	/* Owner target */
+	struct scst_tgt *tgt;
+
 	/* List of acg_dev's in this acg, protected by scst_mutex */
 	struct list_head acg_dev_list;
 
@@ -3680,6 +3684,55 @@ int scst_wait_info_completion(struct scst_sysfs_user_info *info,
 	unsigned long timeout);
 
 unsigned int scst_get_setup_id(void);
+
+/*
+ * Needed to avoid potential circular locking dependency between scst_mutex
+ * and internal sysfs locking (s_active). It could be since most sysfs entries
+ * are created and deleted under scst_mutex AND scst_mutex is taken inside
+ * sysfs functions. So, we push from the sysfs functions all the processing
+ * taking scst_mutex. To avoid deadlock, we return from them with EAGAIN
+ * if processing is taking too long. User space then should poll
+ * last_sysfs_mgmt_res until it returns the result of the processing
+ * (something other than EAGAIN).
+ */
+struct scst_sysfs_work_item {
+	struct list_head sysfs_work_list_entry;
+	struct kref sysfs_work_kref;
+	int (*sysfs_work_fn)(struct scst_sysfs_work_item *work);
+	struct completion sysfs_work_done;
+	char *buf;
+	union {
+		struct scst_dev_type *devt;
+		struct scst_tgt_template *tgtt;
+		struct {
+			struct scst_tgt *tgt;
+			struct scst_acg *acg;
+			union {
+				bool is_tgt_kobj;
+				int io_grouping_type;
+				bool enable;
+			};
+		};
+		struct {
+			struct scst_device *dev;
+			int new_threads_num;
+			enum scst_dev_type_threads_pool_type new_threads_pool_type;
+		};
+		struct scst_session *sess;
+		struct {
+			struct scst_tgt *tgt;
+			unsigned long l;
+		};
+	};
+	int work_res;
+	char *res_buf;
+};
+
+int scst_alloc_sysfs_work(int (*sysfs_work_fn)(struct scst_sysfs_work_item *),
+	struct scst_sysfs_work_item **res_work);
+int scst_sysfs_queue_wait_work(struct scst_sysfs_work_item *work);
+void scst_sysfs_work_get(struct scst_sysfs_work_item *work);
+void scst_sysfs_work_put(struct scst_sysfs_work_item *work);
 
 #endif /* CONFIG_SCST_PROC */
 

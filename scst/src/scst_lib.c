@@ -2786,7 +2786,7 @@ out:
 
 /* The activity supposed to be suspended and scst_mutex held */
 struct scst_acg *scst_alloc_add_acg(struct scst_tgt *tgt,
-	const char *acg_name)
+	const char *acg_name, bool tgt_acg)
 {
 	struct scst_acg *acg;
 
@@ -2798,6 +2798,7 @@ struct scst_acg *scst_alloc_add_acg(struct scst_tgt *tgt,
 		goto out;
 	}
 
+	acg->tgt = tgt;
 	INIT_LIST_HEAD(&acg->acg_dev_list);
 	INIT_LIST_HEAD(&acg->acg_sess_list);
 	INIT_LIST_HEAD(&acg->acn_list);
@@ -2815,12 +2816,11 @@ struct scst_acg *scst_alloc_add_acg(struct scst_tgt *tgt,
 
 	scst_check_reassign_sessions();
 #else
-	if (tgt != NULL) {
+	if (tgt_acg) {
 		int rc;
 
 		TRACE_DBG("Adding acg '%s' to device '%s' acg_list", acg_name,
 			tgt->tgt_name);
-
 		list_add_tail(&acg->acg_list_entry, &tgt->tgt_acg_list);
 		acg->tgt_acg = 1;
 
@@ -2885,7 +2885,8 @@ void scst_del_free_acg(struct scst_acg *acg)
 		list_del(&acg->acg_list_entry);
 
 		scst_acg_sysfs_del(acg);
-	}
+	} else
+		acg->tgt->default_acg = NULL;
 #endif
 
 	sBUG_ON(!list_empty(&acg->acg_sess_list));

@@ -23,6 +23,7 @@
 #include <linux/init.h>
 #include <linux/ctype.h>
 #include <linux/slab.h>
+#include <linux/kthread.h>
 
 #include "scst.h"
 #include "scst_priv.h"
@@ -155,6 +156,391 @@ static ssize_t scst_acn_file_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 
 /**
+ ** Sysfs work
+ **/
+
+static DEFINE_SPINLOCK(sysfs_work_lock);
+static LIST_HEAD(sysfs_work_list);
+static DECLARE_WAIT_QUEUE_HEAD(sysfs_work_waitQ);
+static int active_sysfs_works;
+static int last_sysfs_work_res;
+static struct task_struct *sysfs_work_thread;
+
+/**
+ * scst_alloc_sysfs_work() - allocates a sysfs work
+ */
+int scst_alloc_sysfs_work(int (*sysfs_work_fn)(struct scst_sysfs_work_item *),
+	struct scst_sysfs_work_item **res_work)
+{
+	int res = 0;
+	struct scst_sysfs_work_item *work;
+
+	TRACE_ENTRY();
+
+	if (sysfs_work_fn == NULL) {
+		PRINT_ERROR("%s", "sysfs_work_fn is NULL");
+		res = -EINVAL;
+		goto out;
+	}
+
+	*res_work = NULL;
+
+	work = kzalloc(sizeof(*work), GFP_KERNEL);
+	if (work == NULL) {
+		PRINT_ERROR("Unable to alloc sysfs work (size %d)",
+			sizeof(*work));
+		res = -ENOMEM;
+		goto out;
+	}
+
+	kref_init(&work->sysfs_work_kref);
+	init_completion(&work->sysfs_work_done);
+	work->sysfs_work_fn = sysfs_work_fn;
+
+	*res_work = work;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+EXPORT_SYMBOL(scst_alloc_sysfs_work);
+
+static void scst_sysfs_work_release(struct kref *kref)
+{
+	struct scst_sysfs_work_item *work;
+
+	TRACE_ENTRY();
+
+	work = container_of(kref, struct scst_sysfs_work_item,
+			sysfs_work_kref);
+
+	TRACE_DBG("Freeing sysfs work %p (buf %p)", work, work->buf);
+
+	kfree(work->buf);
+	kfree(work->res_buf);
+	kfree(work);
+
+	TRACE_EXIT();
+	return;
+}
+
+/**
+ * scst_sysfs_work_get() - increases ref counter of the sysfs work
+ */
+void scst_sysfs_work_get(struct scst_sysfs_work_item *work)
+{
+	kref_get(&work->sysfs_work_kref);
+}
+EXPORT_SYMBOL(scst_sysfs_work_get);
+
+/**
+ * scst_sysfs_work_put() - decreases ref counter of the sysfs work
+ */
+void scst_sysfs_work_put(struct scst_sysfs_work_item *work)
+{
+	kref_put(&work->sysfs_work_kref, scst_sysfs_work_release);
+}
+EXPORT_SYMBOL(scst_sysfs_work_put);
+
+/**
+ * scst_sysfs_queue_wait_work() - waits for the work to complete
+ *
+ * Returnes status of the completed work or -EAGAIN if the work not
+ * completed before timeout. In the latter case a user should poll
+ * last_sysfs_mgmt_res until it returns the result of the processing.
+ */
+int scst_sysfs_queue_wait_work(struct scst_sysfs_work_item *work)
+{
+	int res = 0, rc;
+	unsigned long timeout = 15*HZ;
+
+	TRACE_ENTRY();
+
+	spin_lock(&sysfs_work_lock);
+
+	TRACE_DBG("Adding sysfs work %p to the list", work);
+	list_add_tail(&work->sysfs_work_list_entry, &sysfs_work_list);
+
+	active_sysfs_works++;
+
+	spin_unlock(&sysfs_work_lock);
+
+	kref_get(&work->sysfs_work_kref);
+
+	wake_up(&sysfs_work_waitQ);
+
+	while (1) {
+		rc = wait_for_completion_interruptible_timeout(
+			&work->sysfs_work_done, timeout);
+		if (rc == 0) {
+			if (!mutex_is_locked(&scst_mutex)) {
+				TRACE_DBG("scst_mutex not locked, continue "
+					"waiting (work %p)", work);
+				timeout = 5*HZ;
+				continue;
+			}
+			TRACE_MGMT_DBG("Time out waiting for work %p",
+				work);
+			res = -EAGAIN;
+			goto out_put;
+		} else if (rc < 0) {
+			res = rc;
+			goto out_put;
+		}
+		break;
+	}
+
+	res = work->work_res;
+
+out_put:
+	kref_put(&work->sysfs_work_kref, scst_sysfs_work_release);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+EXPORT_SYMBOL(scst_sysfs_queue_wait_work);
+
+/* Called under sysfs_work_lock and drops/reaquire it inside */
+static void scst_process_sysfs_works(void)
+{
+	struct scst_sysfs_work_item *work;
+
+	TRACE_ENTRY();
+
+	while (!list_empty(&sysfs_work_list)) {
+		work = list_entry(sysfs_work_list.next,
+			struct scst_sysfs_work_item, sysfs_work_list_entry);
+		list_del(&work->sysfs_work_list_entry);
+		spin_unlock(&sysfs_work_lock);
+
+		TRACE_DBG("Sysfs work %p", work);
+
+		work->work_res = work->sysfs_work_fn(work);
+
+		spin_lock(&sysfs_work_lock);
+		last_sysfs_work_res = work->work_res;
+		active_sysfs_works--;
+		spin_unlock(&sysfs_work_lock);
+
+		complete_all(&work->sysfs_work_done);
+		kref_put(&work->sysfs_work_kref, scst_sysfs_work_release);
+
+		spin_lock(&sysfs_work_lock);
+	}
+
+	TRACE_EXIT();
+	return;
+}
+
+static inline int test_sysfs_work_list(void)
+{
+	int res = !list_empty(&sysfs_work_list) ||
+		  unlikely(kthread_should_stop());
+	return res;
+}
+
+static int sysfs_work_thread_fn(void *arg)
+{
+	TRACE_ENTRY();
+
+	PRINT_INFO("User interface thread started, PID %d", current->pid);
+
+	current->flags |= PF_NOFREEZE;
+
+	set_user_nice(current, -10);
+
+	spin_lock(&sysfs_work_lock);
+	while (!kthread_should_stop()) {
+		wait_queue_t wait;
+		init_waitqueue_entry(&wait, current);
+
+		if (!test_sysfs_work_list()) {
+			add_wait_queue_exclusive(&sysfs_work_waitQ, &wait);
+			for (;;) {
+				set_current_state(TASK_INTERRUPTIBLE);
+				if (test_sysfs_work_list())
+					break;
+				spin_unlock(&sysfs_work_lock);
+				schedule();
+				spin_lock(&sysfs_work_lock);
+			}
+			set_current_state(TASK_RUNNING);
+			remove_wait_queue(&sysfs_work_waitQ, &wait);
+		}
+
+		scst_process_sysfs_works();
+	}
+	spin_unlock(&sysfs_work_lock);
+
+	/*
+	 * If kthread_should_stop() is true, we are guaranteed to be
+	 * on the module unload, so both lists must be empty.
+	 */
+	sBUG_ON(!list_empty(&sysfs_work_list));
+
+	PRINT_INFO("User interface thread PID %d finished", current->pid);
+
+	TRACE_EXIT();
+	return 0;
+}
+
+/* No locks */
+static int scst_check_grab_tgtt_ptr(struct scst_tgt_template *tgtt)
+{
+	int res = 0;
+	struct scst_tgt_template *tt;
+
+	TRACE_ENTRY();
+
+	mutex_lock(&scst_mutex);
+
+	list_for_each_entry(tt, &scst_template_list, scst_template_list_entry) {
+		if (tt == tgtt) {
+			tgtt->tgtt_active_sysfs_works_count++;
+			goto out_unlock;
+		}
+	}
+
+	TRACE_DBG("Tgtt %p not found", tgtt);
+	res = -ENOENT;
+
+out_unlock:
+	mutex_unlock(&scst_mutex);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/* No locks */
+static void scst_ungrab_tgtt_ptr(struct scst_tgt_template *tgtt)
+{
+	TRACE_ENTRY();
+
+	mutex_lock(&scst_mutex);
+	tgtt->tgtt_active_sysfs_works_count--;
+	mutex_unlock(&scst_mutex);
+
+	TRACE_EXIT();
+	return;
+}
+
+/* scst_mutex supposed to be locked */
+static int scst_check_tgt_acg_ptrs(struct scst_tgt *tgt, struct scst_acg *acg)
+{
+	int res = 0;
+	struct scst_tgt_template *tgtt;
+
+	list_for_each_entry(tgtt, &scst_template_list, scst_template_list_entry) {
+		struct scst_tgt *t;
+		list_for_each_entry(t, &tgtt->tgt_list, tgt_list_entry) {
+			if (t == tgt) {
+				struct scst_acg *a;
+				if (acg == NULL)
+					goto out;
+				if (acg == tgt->default_acg)
+					goto out;
+				list_for_each_entry(a, &tgt->tgt_acg_list,
+							acg_list_entry) {
+					if (a == acg)
+						goto out;
+				}
+			}
+		}
+	}
+
+	TRACE_DBG("Tgt %p/ACG %p not found", tgt, acg);
+	res = -ENOENT;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/* scst_mutex supposed to be locked */
+static int scst_check_devt_ptr(struct scst_dev_type *devt,
+	struct list_head *list)
+{
+	int res = 0;
+	struct scst_dev_type *dt;
+
+	TRACE_ENTRY();
+
+	list_for_each_entry(dt, list, dev_type_list_entry) {
+		if (dt == devt)
+			goto out;
+	}
+
+	TRACE_DBG("Devt %p not found", devt);
+	res = -ENOENT;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/* scst_mutex supposed to be locked */
+static int scst_check_dev_ptr(struct scst_device *dev)
+{
+	int res = 0;
+	struct scst_device *d;
+
+	TRACE_ENTRY();
+
+	list_for_each_entry(d, &scst_dev_list, dev_list_entry) {
+		if (d == dev)
+			goto out;
+	}
+
+	TRACE_DBG("Dev %p not found", dev);
+	res = -ENOENT;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/* No locks */
+static int scst_check_grab_devt_ptr(struct scst_dev_type *devt,
+	struct list_head *list)
+{
+	int res = 0;
+	struct scst_dev_type *dt;
+
+	TRACE_ENTRY();
+
+	mutex_lock(&scst_mutex);
+
+	list_for_each_entry(dt, list, dev_type_list_entry) {
+		if (dt == devt) {
+			devt->devt_active_sysfs_works_count++;
+			goto out_unlock;
+		}
+	}
+
+	TRACE_DBG("Devt %p not found", devt);
+	res = -ENOENT;
+
+out_unlock:
+	mutex_unlock(&scst_mutex);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/* No locks */
+static void scst_ungrab_devt_ptr(struct scst_dev_type *devt)
+{
+	TRACE_ENTRY();
+
+	mutex_lock(&scst_mutex);
+	devt->devt_active_sysfs_works_count--;
+	mutex_unlock(&scst_mutex);
+
+	TRACE_EXIT();
+	return;
+}
+
+/**
  ** Regilar SCST sysfs ops
  **/
 static ssize_t scst_show(struct kobject *kobj, struct attribute *attr,
@@ -197,9 +583,9 @@ struct sysfs_ops *scst_sysfs_get_sysfs_ops(void)
 }
 EXPORT_SYMBOL(scst_sysfs_get_sysfs_ops);
 
-/*
- * Target Template
- */
+/**
+ ** Target Template
+ **/
 
 static void scst_tgtt_release(struct kobject *kobj)
 {
@@ -304,26 +690,19 @@ char *help = "Usage: echo \"add_target target_name [parameters]\" "
 		(tgtt->tgt_optional_attributes != NULL) ? "\n" : "");
 }
 
-static ssize_t scst_tgtt_mgmt_store(struct kobject *kobj,
-				    struct kobj_attribute *attr,
-				    const char *buf, size_t count)
+static int scst_process_tgtt_mgmt_store(char *buffer,
+	struct scst_tgt_template *tgtt)
 {
-	int res;
-	char *buffer, *p, *pp, *target_name;
-	struct scst_tgt_template *tgtt;
+	int res = 0;
+	char *p, *pp, *target_name;
 
 	TRACE_ENTRY();
 
-	tgtt = container_of(kobj, struct scst_tgt_template, tgtt_kobj);
+	TRACE_DBG("buffer %s", buffer);
 
-	buffer = kzalloc(count+1, GFP_KERNEL);
-	if (buffer == NULL) {
-		res = -ENOMEM;
+	/* Check if our pointer is still alive and, if yes, grab it */
+	if (scst_check_grab_tgtt_ptr(tgtt) != 0)
 		goto out;
-	}
-
-	memcpy(buffer, buf, count);
-	buffer[count] = '\0';
 
 	pp = buffer;
 	if (pp[strlen(pp) - 1] == '\n')
@@ -336,7 +715,7 @@ static ssize_t scst_tgtt_mgmt_store(struct kobject *kobj,
 		if (*target_name == '\0') {
 			PRINT_ERROR("%s", "Target name required");
 			res = -EINVAL;
-			goto out_free;
+			goto out_ungrab;
 		}
 		res = tgtt->add_target(target_name, pp);
 	} else if (strcasecmp("del_target", p) == 0) {
@@ -344,7 +723,7 @@ static ssize_t scst_tgtt_mgmt_store(struct kobject *kobj,
 		if (*target_name == '\0') {
 			PRINT_ERROR("%s", "Target name required");
 			res = -EINVAL;
-			goto out_free;
+			goto out_ungrab;
 		}
 
 		p = scst_get_next_lexem(&pp);
@@ -358,14 +737,11 @@ static ssize_t scst_tgtt_mgmt_store(struct kobject *kobj,
 	} else {
 		PRINT_ERROR("Unknown action \"%s\"", p);
 		res = -EINVAL;
-		goto out_free;
+		goto out_ungrab;
 	}
 
-	if (res == 0)
-		res = count;
-
-out_free:
-	kfree(buffer);
+out_ungrab:
+	scst_ungrab_tgtt_ptr(tgtt);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -374,7 +750,52 @@ out:
 out_syntax_err:
 	PRINT_ERROR("Syntax error on \"%s\"", p);
 	res = -EINVAL;
-	goto out_free;
+	goto out_ungrab;
+}
+
+static int scst_tgtt_mgmt_store_work_fn(struct scst_sysfs_work_item *work)
+{
+	return scst_process_tgtt_mgmt_store(work->buf, work->tgtt);
+}
+
+static ssize_t scst_tgtt_mgmt_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	char *buffer;
+	struct scst_sysfs_work_item *work;
+	struct scst_tgt_template *tgtt;
+
+	TRACE_ENTRY();
+
+	tgtt = container_of(kobj, struct scst_tgt_template, tgtt_kobj);
+
+	buffer = kzalloc(count+1, GFP_KERNEL);
+	if (buffer == NULL) {
+		res = -ENOMEM;
+		goto out;
+	}
+	memcpy(buffer, buf, count);
+	buffer[count] = '\0';
+
+	res = scst_alloc_sysfs_work(scst_tgtt_mgmt_store_work_fn, &work);
+	if (res != 0)
+		goto out_free;
+
+	work->buf = buffer;
+	work->tgtt = tgtt;
+
+	res = scst_sysfs_queue_wait_work(work);
+	if (res == 0)
+		res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_free:
+	kfree(buffer);
+	goto out;
 }
 
 static struct kobj_attribute scst_tgtt_mgmt =
@@ -564,12 +985,53 @@ static ssize_t scst_tgt_enable_show(struct kobject *kobj,
 	return res;
 }
 
+static int scst_process_tgt_enable_store(struct scst_tgt *tgt, bool enable)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	/* Tgt protected by kobject reference */
+
+	TRACE_DBG("tgt%p, enable %d", tgt, enable);
+
+	if (enable && (tgt->rel_tgt_id == 0)) {
+		res = gen_relative_target_port_id(&tgt->rel_tgt_id);
+		if (res != 0)
+			goto out_put;
+		PRINT_INFO("Using autogenerated rel ID %d for target "
+			"%s", tgt->rel_tgt_id, tgt->tgt_name);
+	} else {
+		if (!scst_is_relative_target_port_id_unique(
+				    tgt->rel_tgt_id, tgt)) {
+			PRINT_ERROR("Relative port id %d is not unique",
+				tgt->rel_tgt_id);
+			res = -EBADSLT;
+			goto out_put;
+		}
+	}
+
+	res = tgt->tgtt->enable_target(tgt, enable);
+
+out_put:
+	kobject_put(&tgt->tgt_kobj);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int scst_tgt_enable_store_work_fn(struct scst_sysfs_work_item *work)
+{
+	return scst_process_tgt_enable_store(work->tgt, work->enable);
+}
+
 static ssize_t scst_tgt_enable_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count)
 {
 	int res;
 	struct scst_tgt *tgt;
 	bool enable;
+	struct scst_sysfs_work_item *work;
 
 	TRACE_ENTRY();
 
@@ -586,21 +1048,6 @@ static ssize_t scst_tgt_enable_store(struct kobject *kobj,
 		enable = false;
 		break;
 	case '1':
-		if (tgt->rel_tgt_id == 0) {
-			res = gen_relative_target_port_id(&tgt->rel_tgt_id);
-			if (res)
-				goto out;
-			PRINT_INFO("Using autogenerated rel ID %d for target "
-				"%s", tgt->rel_tgt_id, tgt->tgt_name);
-		} else {
-			if (!scst_is_relative_target_port_id_unique(
-					    tgt->rel_tgt_id, tgt)) {
-				PRINT_ERROR("Relative port id %d is not unique",
-					tgt->rel_tgt_id);
-					res = -EBADSLT;
-				goto out;
-			}
-		}
 		enable = true;
 		break;
 	default:
@@ -610,7 +1057,16 @@ static ssize_t scst_tgt_enable_store(struct kobject *kobj,
 		goto out;
 	}
 
-	res = tgt->tgtt->enable_target(tgt, enable);
+	res = scst_alloc_sysfs_work(scst_tgt_enable_store_work_fn, &work);
+	if (res != 0)
+		goto out;
+
+	work->tgt = tgt;
+	work->enable = enable;
+
+	kobject_get(&tgt->tgt_kobj);
+
+	res = scst_sysfs_queue_wait_work(work);
 	if (res == 0)
 		res = count;
 
@@ -813,7 +1269,91 @@ static struct kobj_attribute dev_dump_prs_attr =
 
 #endif /* defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING) */
 
-static ssize_t scst_dev_sysfs_threads_num_show(struct kobject *kobj,
+static int scst_process_dev_sysfs_threads_data_store(
+	struct scst_device *dev, int threads_num,
+	enum scst_dev_type_threads_pool_type threads_pool_type)
+{
+	int res = 0;
+	int oldtn = dev->threads_num;
+	enum scst_dev_type_threads_pool_type oldtt = dev->threads_pool_type;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("dev %p, threads_num %d, threads_pool_type %d", dev,
+		threads_num, threads_pool_type);
+
+	res = scst_suspend_activity(true);
+	if (res != 0)
+		goto out;
+
+	if (mutex_lock_interruptible(&scst_mutex) != 0) {
+		res = -EINTR;
+		goto out_resume;
+	}
+
+	/* Check if our pointer is still alive */
+	if (scst_check_dev_ptr(dev) != 0)
+		goto out_unlock;
+
+	scst_stop_dev_threads(dev);
+
+	dev->threads_num = threads_num;
+	dev->threads_pool_type = threads_pool_type;
+
+	res = scst_create_dev_threads(dev);
+	if (res != 0)
+		goto out_unlock;
+
+	if (oldtn != dev->threads_num)
+		PRINT_INFO("Changed cmd threads num to %d", dev->threads_num);
+	else if (oldtt != dev->threads_pool_type)
+		PRINT_INFO("Changed cmd threads pool type to %d",
+			dev->threads_pool_type);
+
+out_unlock:
+	mutex_unlock(&scst_mutex);
+
+out_resume:
+	scst_resume_activity();
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int scst_dev_sysfs_threads_data_store_work_fn(
+	struct scst_sysfs_work_item *work)
+{
+	return scst_process_dev_sysfs_threads_data_store(work->dev,
+		work->new_threads_num, work->new_threads_pool_type);
+}
+
+static ssize_t scst_dev_sysfs_check_threads_data(
+	struct scst_device *dev, int threads_num,
+	enum scst_dev_type_threads_pool_type threads_pool_type, bool *stop)
+{
+	int res = 0;
+
+	*stop = false;
+
+	if (dev->threads_num < 0) {
+		PRINT_ERROR("Threads pool disabled for device %s",
+			dev->virt_name);
+		res = -EPERM;
+		goto out;
+	}
+
+	if ((threads_num == dev->threads_num) &&
+	    (threads_pool_type == dev->threads_pool_type)) {
+		*stop = true;
+		goto out;
+	}
+
+out:
+	return res;
+}
+
+static int scst_dev_sysfs_threads_num_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
 	int pos = 0;
@@ -831,59 +1371,14 @@ static ssize_t scst_dev_sysfs_threads_num_show(struct kobject *kobj,
 	return pos;
 }
 
-static ssize_t scst_dev_sysfs_threads_data_store(struct scst_device *dev,
-	int threads_num, enum scst_dev_type_threads_pool_type threads_pool_type)
-{
-	int res = 0;
-
-	TRACE_ENTRY();
-
-	if (dev->threads_num < 0) {
-		PRINT_ERROR("Threads pool disabled for device %s",
-			dev->virt_name);
-		res = -EPERM;
-		goto out;
-	}
-
-	if ((threads_num == dev->threads_num) &&
-	    (threads_pool_type == dev->threads_pool_type))
-		goto out;
-
-	res = scst_suspend_activity(true);
-	if (res != 0)
-		goto out;
-
-	if (mutex_lock_interruptible(&scst_mutex) != 0) {
-		res = -EINTR;
-		goto out_resume;
-	}
-
-	scst_stop_dev_threads(dev);
-
-	dev->threads_num = threads_num;
-	dev->threads_pool_type = threads_pool_type;
-
-	res = scst_create_dev_threads(dev);
-	if (res != 0)
-		goto out_up;
-
-out_up:
-	mutex_unlock(&scst_mutex);
-
-out_resume:
-	scst_resume_activity();
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
 static ssize_t scst_dev_sysfs_threads_num_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count)
 {
 	int res;
 	struct scst_device *dev;
 	long newtn;
+	bool stop;
+	struct scst_sysfs_work_item *work;
 
 	TRACE_ENTRY();
 
@@ -894,21 +1389,29 @@ static ssize_t scst_dev_sysfs_threads_num_store(struct kobject *kobj,
 		PRINT_ERROR("strict_strtol() for %s failed: %d ", buf, res);
 		goto out;
 	}
-
 	if (newtn < 0) {
 		PRINT_ERROR("Illegal threads num value %ld", newtn);
 		res = -EINVAL;
 		goto out;
 	}
 
-	res = scst_dev_sysfs_threads_data_store(dev, newtn,
-		dev->threads_pool_type);
+	res = scst_dev_sysfs_check_threads_data(dev, newtn,
+		dev->threads_pool_type, &stop);
+	if ((res != 0) || stop)
+		goto out;
+
+	res = scst_alloc_sysfs_work(scst_dev_sysfs_threads_data_store_work_fn,
+			&work);
 	if (res != 0)
 		goto out;
 
-	PRINT_INFO("Changed cmd threads num to %ld", newtn);
+	work->dev = dev;
+	work->new_threads_num = newtn;
+	work->new_threads_pool_type = dev->threads_pool_type;
 
-	res = count;
+	res = scst_sysfs_queue_wait_work(work);
+	if (res == 0)
+		res = count;
 
 out:
 	TRACE_EXIT_RES(res);
@@ -965,6 +1468,8 @@ static ssize_t scst_dev_sysfs_threads_pool_type_store(struct kobject *kobj,
 	int res;
 	struct scst_device *dev;
 	enum scst_dev_type_threads_pool_type newtpt;
+	struct scst_sysfs_work_item *work;
+	bool stop;
 
 	TRACE_ENTRY();
 
@@ -979,20 +1484,28 @@ static ssize_t scst_dev_sysfs_threads_pool_type_store(struct kobject *kobj,
 
 	TRACE_DBG("buf %s, count %zd, newtpt %d", buf, count, newtpt);
 
-	res = scst_dev_sysfs_threads_data_store(dev, dev->threads_num,
-		newtpt);
+	res = scst_dev_sysfs_check_threads_data(dev, dev->threads_num,
+		newtpt, &stop);
+	if ((res != 0) || stop)
+		goto out;
+
+	res = scst_alloc_sysfs_work(scst_dev_sysfs_threads_data_store_work_fn,
+			&work);
 	if (res != 0)
 		goto out;
 
-	PRINT_INFO("Changed cmd threads pool type to %d", newtpt);
+	work->dev = dev;
+	work->new_threads_num = dev->threads_num;
+	work->new_threads_pool_type = newtpt;
 
-	res = count;
+	res = scst_sysfs_queue_wait_work(work);
+	if (res == 0)
+		res = count;
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
-
 
 static struct kobj_attribute dev_threads_pool_type_attr =
 	__ATTR(threads_pool_type, S_IRUGO | S_IWUSR,
@@ -1220,19 +1733,17 @@ static ssize_t scst_sess_sysfs_commands_show(struct kobject *kobj,
 static struct kobj_attribute session_commands_attr =
 	__ATTR(commands, S_IRUGO, scst_sess_sysfs_commands_show, NULL);
 
-static ssize_t scst_sess_sysfs_active_commands_show(struct kobject *kobj,
-			    struct kobj_attribute *attr, char *buf)
+static int scst_sysfs_sess_get_active_commands(struct scst_session *sess)
 {
 	int res;
-	struct scst_session *sess;
 	int active_cmds = 0, t;
+
+	TRACE_ENTRY();
 
 	if (mutex_lock_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
-		goto out;
+		goto out_put;
 	}
-
-	sess = container_of(kobj, struct scst_session, sess_kobj);
 
 	for (t = TGT_DEV_HASH_SIZE-1; t >= 0; t--) {
 		struct list_head *sess_tgt_dev_list_head =
@@ -1246,7 +1757,41 @@ static ssize_t scst_sess_sysfs_active_commands_show(struct kobject *kobj,
 
 	mutex_unlock(&scst_mutex);
 
-	res = sprintf(buf, "%i\n", active_cmds);
+	res = active_cmds;
+
+out_put:
+	scst_sess_put(sess);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int scst_sysfs_sess_get_active_commands_work_fn(struct scst_sysfs_work_item *work)
+{
+	return scst_sysfs_sess_get_active_commands(work->sess);
+}
+
+static ssize_t scst_sess_sysfs_active_commands_show(struct kobject *kobj,
+			    struct kobj_attribute *attr, char *buf)
+{
+	int res;
+	struct scst_session *sess;
+	struct scst_sysfs_work_item *work;
+
+	sess = container_of(kobj, struct scst_session, sess_kobj);
+
+	res = scst_alloc_sysfs_work(scst_sysfs_sess_get_active_commands_work_fn,
+			&work);
+	if (res != 0)
+		goto out;
+
+	work->sess = sess;
+
+	scst_sess_get(sess);
+
+	res = scst_sysfs_queue_wait_work(work);
+	if (res != -EAGAIN)
+		res = sprintf(buf, "%i\n", res);
 
 out:
 	return res;
@@ -1548,11 +2093,11 @@ out_del:
 	goto out;
 }
 
-static ssize_t __scst_luns_mgmt_store(struct scst_acg *acg,
-	struct kobject *kobj, const char *buf, size_t count)
+static int __scst_process_luns_mgmt_store(char *buffer,
+	struct scst_tgt *tgt, struct scst_acg *acg, bool tgt_kobj)
 {
 	int res, virt = 0, read_only = 0, action;
-	char *buffer, *p, *e = NULL;
+	char *p, *e = NULL;
 	unsigned int host, channel = 0, id = 0, lun = 0, virt_lun;
 	struct scst_acg_dev *acg_dev = NULL, *acg_dev_tmp;
 	struct scst_device *d, *dev = NULL;
@@ -1564,15 +2109,7 @@ static ssize_t __scst_luns_mgmt_store(struct scst_acg *acg,
 
 	TRACE_ENTRY();
 
-	buffer = kzalloc(count+1, GFP_KERNEL);
-	if (buffer == NULL) {
-		res = -ENOMEM;
-		goto out;
-	}
-
-	memcpy(buffer, buf, count);
-	buffer[count] = '\0';
-	p = buffer;
+	TRACE_DBG("buffer %s", buffer);
 
 	p = buffer;
 	if (p[strlen(p) - 1] == '\n')
@@ -1592,24 +2129,28 @@ static ssize_t __scst_luns_mgmt_store(struct scst_acg *acg,
 	} else {
 		PRINT_ERROR("Unknown action \"%s\"", p);
 		res = -EINVAL;
-		goto out_free;
+		goto out;
 	}
 
 	res = scst_suspend_activity(true);
 	if (res != 0)
-		goto out_free;
+		goto out;
 
 	if (mutex_lock_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
-		goto out_free_resume;
+		goto out_resume;
 	}
+
+	/* Check if tgt and acg not already freed while we were coming here */
+	if (scst_check_tgt_acg_ptrs(tgt, acg) != 0)
+		goto out_unlock;
 
 	if ((action != SCST_LUN_ACTION_CLEAR) &&
 	    (action != SCST_LUN_ACTION_DEL)) {
 		if (!isspace(*p)) {
 			PRINT_ERROR("%s", "Syntax error");
 			res = -EINVAL;
-			goto out_free_up;
+			goto out_unlock;
 		}
 
 		while (isspace(*p) && *p != '\0')
@@ -1658,7 +2199,7 @@ static ssize_t __scst_luns_mgmt_store(struct scst_acg *acg,
 					    host, channel, id, lun);
 			}
 			res = -EINVAL;
-			goto out_free_up;
+			goto out_unlock;
 		}
 	}
 
@@ -1688,7 +2229,7 @@ static ssize_t __scst_luns_mgmt_store(struct scst_acg *acg,
 				PRINT_ERROR("Syntax error at %s (device %s)",
 					param, dev->virt_name);
 				res = -EINVAL;
-				goto out_free_up;
+				goto out_unlock;
 			}
 
 			pp = scst_get_next_lexem(&param);
@@ -1696,21 +2237,21 @@ static ssize_t __scst_luns_mgmt_store(struct scst_acg *acg,
 				PRINT_ERROR("Parameter %s value missed for device %s",
 					p, dev->virt_name);
 				res = -EINVAL;
-				goto out_free_up;
+				goto out_unlock;
 			}
 
 			if (scst_get_next_lexem(&param)[0] != '\0') {
 				PRINT_ERROR("Too many parameter's %s values (device %s)",
 					p, dev->virt_name);
 				res = -EINVAL;
-				goto out_free_up;
+				goto out_unlock;
 			}
 
 			res = strict_strtoul(pp, 0, &val);
 			if (res != 0) {
 				PRINT_ERROR("strict_strtoul() for %s failed: %d "
 					"(device %s)", pp, res, dev->virt_name);
-				goto out_free_up;
+				goto out_unlock;
 			}
 
 			if (!strcasecmp("read_only", p)) {
@@ -1720,7 +2261,7 @@ static ssize_t __scst_luns_mgmt_store(struct scst_acg *acg,
 				PRINT_ERROR("Unknown parameter %s (device %s)",
 					p, dev->virt_name);
 				res = -EINVAL;
-				goto out_free_up;
+				goto out_unlock;
 			}
 		}
 
@@ -1738,22 +2279,23 @@ static ssize_t __scst_luns_mgmt_store(struct scst_acg *acg,
 				PRINT_ERROR("virt lun %d already exists in "
 					"group %s", virt_lun, acg->acg_name);
 				res = -EEXIST;
-				goto out_free_up;
+				goto out_unlock;
 			} else {
 				/* Replace */
 				res = scst_acg_del_lun(acg, acg_dev->lun,
 						false);
 				if (res != 0)
-					goto out_free_up;
+					goto out_unlock;
 
 				dev_replaced = true;
 			}
 		}
 
-		res = scst_acg_add_lun(acg, kobj, dev, virt_lun, read_only,
-					!dev_replaced, NULL);
+		res = scst_acg_add_lun(acg,
+			tgt_kobj ? tgt->tgt_luns_kobj : acg->luns_kobj,
+			dev, virt_lun, read_only, !dev_replaced, NULL);
 		if (res != 0)
-			goto out_free_up;
+			goto out_unlock;
 
 		if (dev_replaced) {
 			struct scst_tgt_dev *tgt_dev;
@@ -1779,7 +2321,7 @@ static ssize_t __scst_luns_mgmt_store(struct scst_acg *acg,
 
 		res = scst_acg_del_lun(acg, virt_lun, true);
 		if (res != 0)
-			goto out_free_up;
+			goto out_unlock;
 		break;
 	case SCST_LUN_ACTION_CLEAR:
 		PRINT_INFO("Removed all devices from group %s",
@@ -1791,21 +2333,18 @@ static ssize_t __scst_luns_mgmt_store(struct scst_acg *acg,
 				list_is_last(&acg_dev->acg_dev_list_entry,
 					     &acg->acg_dev_list));
 			if (res)
-				goto out_free_up;
+				goto out_unlock;
 		}
 		break;
 	}
 
-	res = count;
+	res = 0;
 
-out_free_up:
+out_unlock:
 	mutex_unlock(&scst_mutex);
 
-out_free_resume:
+out_resume:
 	scst_resume_activity();
-
-out_free:
-	kfree(buffer);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1815,6 +2354,59 @@ out:
 #undef SCST_LUN_ACTION_DEL
 #undef SCST_LUN_ACTION_REPLACE
 #undef SCST_LUN_ACTION_CLEAR
+}
+
+static int scst_luns_mgmt_store_work_fn(struct scst_sysfs_work_item *work)
+{
+	return __scst_process_luns_mgmt_store(work->buf, work->tgt, work->acg,
+			work->is_tgt_kobj);
+}
+
+static ssize_t __scst_acg_mgmt_store(struct scst_acg *acg,
+	const char *buf, size_t count, bool is_tgt_kobj,
+	int (*sysfs_work_fn)(struct scst_sysfs_work_item *))
+{
+	int res;
+	char *buffer;
+	struct scst_sysfs_work_item *work;
+
+	TRACE_ENTRY();
+
+	buffer = kzalloc(count+1, GFP_KERNEL);
+	if (buffer == NULL) {
+		res = -ENOMEM;
+		goto out;
+	}
+	memcpy(buffer, buf, count);
+	buffer[count] = '\0';
+
+	res = scst_alloc_sysfs_work(sysfs_work_fn, &work);
+	if (res != 0)
+		goto out_free;
+
+	work->buf = buffer;
+	work->tgt = acg->tgt;
+	work->acg = acg;
+	work->is_tgt_kobj = is_tgt_kobj;
+
+	res = scst_sysfs_queue_wait_work(work);
+	if (res == 0)
+		res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_free:
+	kfree(buffer);
+	goto out;
+}
+
+static ssize_t __scst_luns_mgmt_store(struct scst_acg *acg,
+	bool tgt_kobj, const char *buf, size_t count)
+{
+	return __scst_acg_mgmt_store(acg, buf, count, tgt_kobj,
+			scst_luns_mgmt_store_work_fn);
 }
 
 static ssize_t scst_luns_mgmt_show(struct kobject *kobj,
@@ -1846,7 +2438,7 @@ static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
 	tgt = container_of(kobj->parent, struct scst_tgt, tgt_kobj);
 	acg = tgt->default_acg;
 
-	res = __scst_luns_mgmt_store(acg, kobj, buf, count);
+	res = __scst_luns_mgmt_store(acg, true, buf, count);
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -1884,6 +2476,9 @@ static ssize_t __scst_acg_addr_method_store(struct scst_acg *acg,
 		PRINT_ERROR("Unknown address method %s", buf);
 		res = -EINVAL;
 	}
+
+	TRACE_DBG("acg %p, addr_method %d", acg, acg->addr_method);
+
 	return res;
 }
 
@@ -1941,36 +2536,14 @@ static ssize_t __scst_acg_io_grouping_type_show(struct scst_acg *acg, char *buf)
 	return res;
 }
 
-static ssize_t __scst_acg_io_grouping_type_store(struct scst_acg *acg,
-	const char *buf, size_t count)
+static int __scst_acg_process_io_grouping_type_store(struct scst_tgt *tgt,
+	struct scst_acg *acg, int io_grouping_type)
 {
 	int res = 0;
-	int prev = acg->acg_io_grouping_type;
 	struct scst_acg_dev *acg_dev;
 
-	if (strncasecmp(buf, SCST_IO_GROUPING_AUTO_STR,
-			min_t(int, strlen(SCST_IO_GROUPING_AUTO_STR), count)) == 0)
-		acg->acg_io_grouping_type = SCST_IO_GROUPING_AUTO;
-	else if (strncasecmp(buf, SCST_IO_GROUPING_THIS_GROUP_ONLY_STR,
-			min_t(int, strlen(SCST_IO_GROUPING_THIS_GROUP_ONLY_STR), count)) == 0)
-		acg->acg_io_grouping_type = SCST_IO_GROUPING_THIS_GROUP_ONLY;
-	else if (strncasecmp(buf, SCST_IO_GROUPING_NEVER_STR,
-			min_t(int, strlen(SCST_IO_GROUPING_NEVER_STR), count)) == 0)
-		acg->acg_io_grouping_type = SCST_IO_GROUPING_NEVER;
-	else {
-		long io_grouping_type;
-		res = strict_strtol(buf, 0, &io_grouping_type);
-		if ((res != 0) || (io_grouping_type <= 0)) {
-			PRINT_ERROR("Unknown or not allowed I/O grouping type "
-				"%s", buf);
-			res = -EINVAL;
-			goto out;
-		}
-		acg->acg_io_grouping_type = io_grouping_type;
-	}
-
-	if (prev == acg->acg_io_grouping_type)
-		goto out;
+	TRACE_DBG("tgt %p, acg %p, io_grouping_type %d", tgt, acg,
+		io_grouping_type);
 
 	res = scst_suspend_activity(true);
 	if (res != 0)
@@ -1980,6 +2553,12 @@ static ssize_t __scst_acg_io_grouping_type_store(struct scst_acg *acg,
 		res = -EINTR;
 		goto out_resume;
 	}
+
+	/* Check if tgt and acg not already freed while we were coming here */
+	if (scst_check_tgt_acg_ptrs(tgt, acg) != 0)
+		goto out_unlock;
+
+	acg->acg_io_grouping_type = io_grouping_type;
 
 	list_for_each_entry(acg_dev, &acg->acg_dev_list, acg_dev_list_entry) {
 		int rc;
@@ -1991,10 +2570,62 @@ static ssize_t __scst_acg_io_grouping_type_store(struct scst_acg *acg,
 			res = rc;
 	}
 
+out_unlock:
 	mutex_unlock(&scst_mutex);
 
 out_resume:
 	scst_resume_activity();
+
+out:
+	return res;
+}
+
+static int __scst_acg_io_grouping_type_store_work_fn(struct scst_sysfs_work_item *work)
+{
+	return __scst_acg_process_io_grouping_type_store(work->tgt, work->acg,
+			work->io_grouping_type);
+}
+
+static ssize_t __scst_acg_io_grouping_type_store(struct scst_acg *acg,
+	const char *buf, size_t count)
+{
+	int res = 0;
+	int prev = acg->acg_io_grouping_type;
+	long io_grouping_type;
+	struct scst_sysfs_work_item *work;
+
+	if (strncasecmp(buf, SCST_IO_GROUPING_AUTO_STR,
+			min_t(int, strlen(SCST_IO_GROUPING_AUTO_STR), count)) == 0)
+		io_grouping_type = SCST_IO_GROUPING_AUTO;
+	else if (strncasecmp(buf, SCST_IO_GROUPING_THIS_GROUP_ONLY_STR,
+			min_t(int, strlen(SCST_IO_GROUPING_THIS_GROUP_ONLY_STR), count)) == 0)
+		io_grouping_type = SCST_IO_GROUPING_THIS_GROUP_ONLY;
+	else if (strncasecmp(buf, SCST_IO_GROUPING_NEVER_STR,
+			min_t(int, strlen(SCST_IO_GROUPING_NEVER_STR), count)) == 0)
+		io_grouping_type = SCST_IO_GROUPING_NEVER;
+	else {
+		res = strict_strtol(buf, 0, &io_grouping_type);
+		if ((res != 0) || (io_grouping_type <= 0)) {
+			PRINT_ERROR("Unknown or not allowed I/O grouping type "
+				"%s", buf);
+			res = -EINVAL;
+			goto out;
+		}
+	}
+
+	if (prev == io_grouping_type)
+		goto out;
+
+	res = scst_alloc_sysfs_work(__scst_acg_io_grouping_type_store_work_fn,
+					&work);
+	if (res != 0)
+		goto out;
+
+	work->tgt = acg->tgt;
+	work->acg = acg;
+	work->io_grouping_type = io_grouping_type;
+
+	res = scst_sysfs_queue_wait_work(work);
 
 out:
 	return res;
@@ -2195,32 +2826,21 @@ static ssize_t scst_ini_group_mgmt_show(struct kobject *kobj,
 	return sprintf(buf, "%s", help);
 }
 
-static ssize_t scst_ini_group_mgmt_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
+static int scst_process_ini_group_mgmt_store(char *buffer,
+	struct scst_tgt *tgt)
 {
 	int res, action;
 	int len;
 	char *name;
-	char *buffer, *p, *e = NULL;
+	char *p, *e = NULL;
 	struct scst_acg *a, *acg = NULL;
-	struct scst_tgt *tgt;
 
 #define SCST_INI_GROUP_ACTION_CREATE	1
 #define SCST_INI_GROUP_ACTION_DEL	2
 
 	TRACE_ENTRY();
 
-	tgt = container_of(kobj->parent, struct scst_tgt, tgt_kobj);
-
-	buffer = kzalloc(count+1, GFP_KERNEL);
-	if (buffer == NULL) {
-		res = -ENOMEM;
-		goto out;
-	}
-
-	memcpy(buffer, buf, count);
-	buffer[count] = '\0';
-	p = buffer;
+	TRACE_DBG("tgt %p, buffer %s", tgt, buffer);
 
 	p = buffer;
 	if (p[strlen(p) - 1] == '\n')
@@ -2234,17 +2854,21 @@ static ssize_t scst_ini_group_mgmt_store(struct kobject *kobj,
 	} else {
 		PRINT_ERROR("Unknown action \"%s\"", p);
 		res = -EINVAL;
-		goto out_free;
+		goto out;
 	}
 
 	res = scst_suspend_activity(true);
 	if (res != 0)
-		goto out_free;
+		goto out;
 
 	if (mutex_lock_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
-		goto out_free_resume;
+		goto out_resume;
 	}
+
+	/* Check if our pointer is still alive */
+	if (scst_check_tgt_acg_ptrs(tgt, NULL) != 0)
+		goto out_unlock;
 
 	while (isspace(*p) && *p != '\0')
 		p++;
@@ -2256,7 +2880,7 @@ static ssize_t scst_ini_group_mgmt_store(struct kobject *kobj,
 	if (p[0] == '\0') {
 		PRINT_ERROR("%s", "Group name required");
 		res = -EINVAL;
-		goto out_free_up;
+		goto out_unlock;
 	}
 
 	list_for_each_entry(a, &tgt->tgt_acg_list, acg_list_entry) {
@@ -2274,7 +2898,7 @@ static ssize_t scst_ini_group_mgmt_store(struct kobject *kobj,
 		if (acg != NULL) {
 			PRINT_ERROR("acg name %s exist", p);
 			res = -EINVAL;
-			goto out_free_up;
+			goto out_unlock;
 		}
 
 		len = strlen(p) + 1;
@@ -2282,41 +2906,38 @@ static ssize_t scst_ini_group_mgmt_store(struct kobject *kobj,
 		if (name == NULL) {
 			PRINT_ERROR("%s", "Allocation of name failed");
 			res = -ENOMEM;
-			goto out_free_up;
+			goto out_unlock;
 		}
 		strlcpy(name, p, len);
 
-		acg = scst_alloc_add_acg(tgt, name);
+		acg = scst_alloc_add_acg(tgt, name, true);
 		kfree(name);
 		if (acg == NULL)
-			goto out_free_up;
+			goto out_unlock;
 		break;
 	case SCST_INI_GROUP_ACTION_DEL:
 		TRACE_DBG("Deleting group '%s'", p);
 		if (acg == NULL) {
 			PRINT_ERROR("Group %s not found", p);
 			res = -EINVAL;
-			goto out_free_up;
+			goto out_unlock;
 		}
 		if (!scst_acg_sess_is_empty(acg)) {
 			PRINT_ERROR("Group %s is not empty", acg->acg_name);
 			res = -EBUSY;
-			goto out_free_up;
+			goto out_unlock;
 		}
 		scst_del_free_acg(acg);
 		break;
 	}
 
-	res = count;
+	res = 0;
 
-out_free_up:
+out_unlock:
 	mutex_unlock(&scst_mutex);
 
-out_free_resume:
+out_resume:
 	scst_resume_activity();
-
-out_free:
-	kfree(buffer);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -2324,6 +2945,51 @@ out:
 
 #undef SCST_LUN_ACTION_CREATE
 #undef SCST_LUN_ACTION_DEL
+}
+
+static int scst_ini_group_mgmt_store_work_fn(struct scst_sysfs_work_item *work)
+{
+	return scst_process_ini_group_mgmt_store(work->buf, work->tgt);
+}
+
+static ssize_t scst_ini_group_mgmt_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	char *buffer;
+	struct scst_tgt *tgt;
+	struct scst_sysfs_work_item *work;
+
+	TRACE_ENTRY();
+
+	tgt = container_of(kobj->parent, struct scst_tgt, tgt_kobj);
+
+	buffer = kzalloc(count+1, GFP_KERNEL);
+	if (buffer == NULL) {
+		res = -ENOMEM;
+		goto out;
+	}
+	memcpy(buffer, buf, count);
+	buffer[count] = '\0';
+
+	res = scst_alloc_sysfs_work(scst_ini_group_mgmt_store_work_fn, &work);
+	if (res != 0)
+		goto out_free;
+
+	work->buf = buffer;
+	work->tgt = tgt;
+
+	res = scst_sysfs_queue_wait_work(work);
+	if (res == 0)
+		res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_free:
+	kfree(buffer);
+	goto out;
 }
 
 static ssize_t scst_rel_tgt_id_show(struct kobject *kobj,
@@ -2343,26 +3009,28 @@ static ssize_t scst_rel_tgt_id_show(struct kobject *kobj,
 	return res;
 }
 
-static ssize_t scst_rel_tgt_id_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
+static int scst_process_rel_tgt_id_store(struct scst_sysfs_work_item *work)
 {
 	int res = 0;
-	struct scst_tgt *tgt;
-	unsigned long rel_tgt_id;
+	struct scst_tgt *tgt = work->tgt;
+	unsigned long rel_tgt_id = work->l;
 
 	TRACE_ENTRY();
 
-	if (buf == NULL)
-		goto out_err;
-
-	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-
-	res = strict_strtoul(buf, 0, &rel_tgt_id);
-	if (res != 0)
-		goto out_err;
+	/* tgt protected by kobject_get() */
 
 	TRACE_DBG("Trying to set relative target port id %d",
 		(uint16_t)rel_tgt_id);
+
+	if (tgt->tgtt->is_target_enabled(tgt) &&
+	    rel_tgt_id != tgt->rel_tgt_id) {
+		if (!scst_is_relative_target_port_id_unique(rel_tgt_id, tgt)) {
+			PRINT_ERROR("Relative port id %d is not unique",
+				(uint16_t)rel_tgt_id);
+			res = -EBADSLT;
+			goto out_put;
+		}
+	}
 
 	if (rel_tgt_id < SCST_MIN_REL_TGT_ID ||
 	    rel_tgt_id > SCST_MAX_REL_TGT_ID) {
@@ -2372,32 +3040,57 @@ static ssize_t scst_rel_tgt_id_store(struct kobject *kobj,
 		PRINT_ERROR("Invalid relative port id %d",
 			(uint16_t)rel_tgt_id);
 		res = -EINVAL;
-		goto out;
-	}
-
-	if (tgt->tgtt->is_target_enabled(tgt) &&
-	    rel_tgt_id != tgt->rel_tgt_id) {
-		if (!scst_is_relative_target_port_id_unique(rel_tgt_id, tgt)) {
-			PRINT_ERROR("Relative port id %d is not unique",
-				(uint16_t)rel_tgt_id);
-			res = -EBADSLT;
-			goto out;
-		}
+		goto out_put;
 	}
 
 set:
 	tgt->rel_tgt_id = (uint16_t)rel_tgt_id;
 
-	res = count;
+out_put:
+	kobject_put(&tgt->tgt_kobj);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t scst_rel_tgt_id_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res = 0;
+	struct scst_tgt *tgt;
+	unsigned long rel_tgt_id;
+	struct scst_sysfs_work_item *work;
+
+	TRACE_ENTRY();
+
+	if (buf == NULL)
+		goto out;
+
+	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+
+	res = strict_strtoul(buf, 0, &rel_tgt_id);
+	if (res != 0) {
+		PRINT_ERROR("%s", "Wrong rel_tgt_id");
+		res = -EINVAL;
+		goto out;
+	}
+
+	res = scst_alloc_sysfs_work(scst_process_rel_tgt_id_store, &work);
+	if (res != 0)
+		goto out;
+
+	work->tgt = tgt;
+	work->l = rel_tgt_id;
+
+	kobject_get(&tgt->tgt_kobj);
+
+	res = scst_sysfs_queue_wait_work(work);
+	if (res == 0)
+		res = count;
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
-
-out_err:
-	PRINT_ERROR("%s: Requested action not understood: %s", __func__, buf);
-	res = -EINVAL;
-	goto out;
 }
 
 int scst_acn_sysfs_create(struct scst_acn *acn)
@@ -2496,7 +3189,7 @@ static ssize_t scst_acg_luns_mgmt_store(struct kobject *kobj,
 	struct scst_acg *acg;
 
 	acg = container_of(kobj->parent, struct scst_acg, acg_kobj);
-	res = __scst_luns_mgmt_store(acg, kobj, buf, count);
+	res = __scst_luns_mgmt_store(acg, false, buf, count);
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -2517,14 +3210,13 @@ static ssize_t scst_acg_ini_mgmt_show(struct kobject *kobj,
 	return sprintf(buf, "%s", help);
 }
 
-static ssize_t scst_acg_ini_mgmt_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
+static int scst_process_acg_ini_mgmt_store(char *buffer,
+	struct scst_tgt *tgt, struct scst_acg *acg)
 {
 	int res, action;
-	char *buffer, *p, *e = NULL;
+	char *p, *e = NULL;
 	char *name = NULL, *group = NULL;
-	struct scst_acg *acg = NULL, *acg_dest = NULL;
-	struct scst_tgt *tgt = NULL;
+	struct scst_acg *acg_dest = NULL;
 	struct scst_acn *acn = NULL, *acn_tmp;
 
 #define SCST_ACG_ACTION_INI_ADD		1
@@ -2534,17 +3226,7 @@ static ssize_t scst_acg_ini_mgmt_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
-	acg = container_of(kobj->parent, struct scst_acg, acg_kobj);
-
-	buffer = kzalloc(count+1, GFP_KERNEL);
-	if (buffer == NULL) {
-		res = -ENOMEM;
-		goto out;
-	}
-
-	memcpy(buffer, buf, count);
-	buffer[count] = '\0';
-	p = buffer;
+	TRACE_DBG("tgt %p, acg %p, buffer %s", tgt, acg, buffer);
 
 	p = buffer;
 	if (p[strlen(p) - 1] == '\n')
@@ -2565,24 +3247,28 @@ static ssize_t scst_acg_ini_mgmt_store(struct kobject *kobj,
 	} else {
 		PRINT_ERROR("Unknown action \"%s\"", p);
 		res = -EINVAL;
-		goto out_free;
+		goto out;
 	}
 
 	if (action != SCST_ACG_ACTION_INI_CLEAR)
 		if (!isspace(*p)) {
 			PRINT_ERROR("%s", "Syntax error");
 			res = -EINVAL;
-			goto out_free;
+			goto out;
 		}
 
 	res = scst_suspend_activity(true);
 	if (res != 0)
-		goto out_free;
+		goto out;
 
 	if (mutex_lock_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
-		goto out_free_resume;
+		goto out_resume;
 	}
+
+	/* Check if tgt and acg not already freed while we were coming here */
+	if (scst_check_tgt_acg_ptrs(tgt, acg) != 0)
+		goto out_unlock;
 
 	if (action != SCST_ACG_ACTION_INI_CLEAR)
 		while (isspace(*p) && *p != '\0')
@@ -2599,12 +3285,12 @@ static ssize_t scst_acg_ini_mgmt_store(struct kobject *kobj,
 		if (name[0] == '\0') {
 			PRINT_ERROR("%s", "Invalid initiator name");
 			res = -EINVAL;
-			goto out_free_up;
+			goto out_unlock;
 		}
 
 		res = scst_acg_add_acn(acg, name);
 		if (res != 0)
-			goto out_free_up;
+			goto out_unlock;
 		break;
 	case SCST_ACG_ACTION_INI_DEL:
 		e = p;
@@ -2616,7 +3302,7 @@ static ssize_t scst_acg_ini_mgmt_store(struct kobject *kobj,
 		if (name[0] == '\0') {
 			PRINT_ERROR("%s", "Invalid initiator name");
 			res = -EINVAL;
-			goto out_free_up;
+			goto out_unlock;
 		}
 
 		acn = scst_find_acn(acg, name);
@@ -2625,7 +3311,7 @@ static ssize_t scst_acg_ini_mgmt_store(struct kobject *kobj,
 				"initiator '%s' in group '%s'",
 				name, acg->acg_name);
 			res = -EINVAL;
-			goto out_free_up;
+			goto out_unlock;
 		}
 		scst_del_free_acn(acn, true);
 		break;
@@ -2643,7 +3329,7 @@ static ssize_t scst_acg_ini_mgmt_store(struct kobject *kobj,
 		if (*e == '\0') {
 			PRINT_ERROR("%s", "Too few parameters");
 			res = -EINVAL;
-			goto out_free_up;
+			goto out_unlock;
 		}
 		*e = '\0';
 		name = p;
@@ -2651,7 +3337,7 @@ static ssize_t scst_acg_ini_mgmt_store(struct kobject *kobj,
 		if (name[0] == '\0') {
 			PRINT_ERROR("%s", "Invalid initiator name");
 			res = -EINVAL;
-			goto out_free_up;
+			goto out_unlock;
 		}
 
 		e++;
@@ -2664,42 +3350,11 @@ static ssize_t scst_acg_ini_mgmt_store(struct kobject *kobj,
 		if (group[0] == '\0') {
 			PRINT_ERROR("%s", "Invalid group name");
 			res = -EINVAL;
-			goto out_free_up;
+			goto out_unlock;
 		}
 
 		TRACE_DBG("Move initiator '%s' to group '%s'",
 			name, group);
-
-		/*
-		 * Better get tgt from hierarchy tgt_kobj -> tgt_ini_grp_kobj ->
-		 * acg_kobj -> initiators_kobj than have direct pointer to tgt
-		 * in struct acg and have a headache to care about its possible
-		 * wrong dereference on the destruction time.
-		 */
-		{
-			struct kobject *k;
-
-			/* acg_kobj */
-			k = kobj->parent;
-			if (k == NULL) {
-				res = -EINVAL;
-				goto out_free_up;
-			}
-			/* tgt_ini_grp_kobj */
-			k = k->parent;
-			if (k == NULL) {
-				res = -EINVAL;
-				goto out_free_up;
-			}
-			/* tgt_kobj */
-			k = k->parent;
-			if (k == NULL) {
-				res = -EINVAL;
-				goto out_free_up;
-			}
-
-			tgt = container_of(k, struct scst_tgt, tgt_kobj);
-		}
 
 		acn = scst_find_acn(acg, name);
 		if (acn == NULL) {
@@ -2707,39 +3362,36 @@ static ssize_t scst_acg_ini_mgmt_store(struct kobject *kobj,
 				"initiator '%s' in group '%s'",
 				name, acg->acg_name);
 			res = -EINVAL;
-			goto out_free_up;
+			goto out_unlock;
 		}
 		acg_dest = scst_tgt_find_acg(tgt, group);
 		if (acg_dest == NULL) {
 			PRINT_ERROR("Unable to find group '%s' in target '%s'",
 				group, tgt->tgt_name);
 			res = -EINVAL;
-			goto out_free_up;
+			goto out_unlock;
 		}
 		if (scst_find_acn(acg_dest, name) != NULL) {
 			PRINT_ERROR("Initiator '%s' already exists in group '%s'",
 				name, acg_dest->acg_name);
 			res = -EEXIST;
-			goto out_free_up;
+			goto out_unlock;
 		}
 		scst_del_free_acn(acn, false);
 
 		res = scst_acg_add_acn(acg_dest, name);
 		if (res != 0)
-			goto out_free_up;
+			goto out_unlock;
 		break;
 	}
 
-	res = count;
+	res = 0;
 
-out_free_up:
+out_unlock:
 	mutex_unlock(&scst_mutex);
 
-out_free_resume:
+out_resume:
 	scst_resume_activity();
-
-out_free:
-	kfree(buffer);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -2749,6 +3401,22 @@ out:
 #undef SCST_ACG_ACTION_INI_DEL
 #undef SCST_ACG_ACTION_INI_CLEAR
 #undef SCST_ACG_ACTION_INI_MOVE
+}
+
+static int scst_acg_ini_mgmt_store_work_fn(struct scst_sysfs_work_item *work)
+{
+	return scst_process_acg_ini_mgmt_store(work->buf, work->tgt, work->acg);
+}
+
+static ssize_t scst_acg_ini_mgmt_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	struct scst_acg *acg;
+
+	acg = container_of(kobj->parent, struct scst_acg, acg_kobj);
+
+	return __scst_acg_mgmt_store(acg, buf, count, false,
+		scst_acg_ini_mgmt_store_work_fn);
 }
 
 /**
@@ -2865,13 +3533,14 @@ static ssize_t scst_threads_show(struct kobject *kobj,
 	return count;
 }
 
-static ssize_t scst_threads_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
+static int scst_process_threads_store(int newtn)
 {
 	int res;
-	long oldtn, newtn, delta;
+	long oldtn, delta;
 
 	TRACE_ENTRY();
+
+	TRACE_DBG("newtn %d", newtn);
 
 	if (mutex_lock_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
@@ -2879,18 +3548,6 @@ static ssize_t scst_threads_store(struct kobject *kobj,
 	}
 
 	oldtn = scst_main_cmd_threads.nr_threads;
-
-	res = strict_strtol(buf, 0, &newtn);
-	if (res != 0) {
-		PRINT_ERROR("strict_strtol() for %s failed: %d ", buf, res);
-		goto out_up;
-	}
-
-	if (newtn <= 0) {
-		PRINT_ERROR("Illegal threads num value %ld", newtn);
-		res = -EINVAL;
-		goto out_up;
-	}
 
 	delta = newtn - oldtn;
 	if (delta < 0)
@@ -2901,12 +3558,50 @@ static ssize_t scst_threads_store(struct kobject *kobj,
 			goto out_up;
 	}
 
-	PRINT_INFO("Changed cmd threads num: old %ld, new %ld", oldtn, newtn);
-
-	res = count;
+	PRINT_INFO("Changed cmd threads num: old %ld, new %d", oldtn, newtn);
 
 out_up:
 	mutex_unlock(&scst_mutex);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int scst_threads_store_work_fn(struct scst_sysfs_work_item *work)
+{
+	return scst_process_threads_store(work->new_threads_num);
+}
+
+static ssize_t scst_threads_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	long newtn;
+	struct scst_sysfs_work_item *work;
+
+	TRACE_ENTRY();
+
+	res = strict_strtol(buf, 0, &newtn);
+	if (res != 0) {
+		PRINT_ERROR("strict_strtol() for %s failed: %d ", buf, res);
+		goto out;
+	}
+	if (newtn <= 0) {
+		PRINT_ERROR("Illegal threads num value %ld", newtn);
+		res = -EINVAL;
+		goto out;
+	}
+
+	res = scst_alloc_sysfs_work(scst_threads_store_work_fn, &work);
+	if (res != 0)
+		goto out;
+
+	work->new_threads_num = newtn;
+
+	res = scst_sysfs_queue_wait_work(work);
+	if (res == 0)
+		res = count;
 
 out:
 	TRACE_EXIT_RES(res);
@@ -3039,6 +3734,8 @@ static int scst_write_trace(const char *buf, size_t length,
 	}
 	memcpy(buffer, buf, length);
 	buffer[length] = '\0';
+
+	TRACE_DBG("buffer %s", buffer);
 
 	p = buffer;
 	if (!strncasecmp("all", p, 3)) {
@@ -3242,6 +3939,25 @@ static ssize_t scst_version_show(struct kobject *kobj,
 	return strlen(buf);
 }
 
+static ssize_t scst_last_sysfs_mgmt_res_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	spin_lock(&sysfs_work_lock);
+	TRACE_DBG("active_sysfs_works %d", active_sysfs_works);
+	if (active_sysfs_works > 0)
+		res = -EAGAIN;
+	else
+		res = sprintf(buf, "%d\n", last_sysfs_work_res);
+	spin_unlock(&sysfs_work_lock);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 static struct kobj_attribute scst_threads_attr =
 	__ATTR(threads, S_IRUGO | S_IWUSR, scst_threads_show,
 	       scst_threads_store);
@@ -3259,6 +3975,10 @@ static struct kobj_attribute scst_trace_level_attr =
 static struct kobj_attribute scst_version_attr =
 	__ATTR(version, S_IRUGO, scst_version_show, NULL);
 
+static struct kobj_attribute scst_last_sysfs_mgmt_res_attr =
+	__ATTR(last_sysfs_mgmt_res, S_IRUGO,
+		scst_last_sysfs_mgmt_res_show, NULL);
+
 static struct attribute *scst_sysfs_root_default_attrs[] = {
 	&scst_threads_attr.attr,
 	&scst_setup_id_attr.attr,
@@ -3266,6 +3986,7 @@ static struct attribute *scst_sysfs_root_default_attrs[] = {
 	&scst_trace_level_attr.attr,
 #endif
 	&scst_version_attr.attr,
+	&scst_last_sysfs_mgmt_res_attr.attr,
 	NULL,
 };
 
@@ -3280,9 +4001,9 @@ static struct kobj_type scst_sysfs_root_ktype = {
 	.default_attrs = scst_sysfs_root_default_attrs,
 };
 
-/*
- * Dev handlers
- */
+/**
+ ** Dev handlers
+ **/
 
 static void scst_devt_release(struct kobject *kobj)
 {
@@ -3411,26 +4132,19 @@ static ssize_t scst_devt_mgmt_show(struct kobject *kobj,
 		(devt->dev_optional_attributes != NULL) ? "\n" : "");
 }
 
-static ssize_t scst_devt_mgmt_store(struct kobject *kobj,
-				    struct kobj_attribute *attr,
-				    const char *buf, size_t count)
+static int scst_process_devt_mgmt_store(char *buffer,
+	struct scst_dev_type *devt)
 {
-	int res;
-	char *buffer, *p, *pp, *dev_name;
-	struct scst_dev_type *devt;
+	int res = 0;
+	char *p, *pp, *dev_name;
 
 	TRACE_ENTRY();
 
-	devt = container_of(kobj, struct scst_dev_type, devt_kobj);
-
-	buffer = kzalloc(count+1, GFP_KERNEL);
-	if (buffer == NULL) {
-		res = -ENOMEM;
+	/* Check if our pointer is still alive and, if yes, grab it */
+	if (scst_check_grab_devt_ptr(devt, &scst_virtual_dev_type_list) != 0)
 		goto out;
-	}
 
-	memcpy(buffer, buf, count);
-	buffer[count] = '\0';
+	TRACE_DBG("devt %p, buffer %s", devt, buffer);
 
 	pp = buffer;
 	if (pp[strlen(pp) - 1] == '\n')
@@ -3443,7 +4157,7 @@ static ssize_t scst_devt_mgmt_store(struct kobject *kobj,
 		if (*dev_name == '\0') {
 			PRINT_ERROR("%s", "Device name required");
 			res = -EINVAL;
-			goto out_free;
+			goto out_ungrab;
 		}
 		res = devt->add_device(dev_name, pp);
 	} else if (strcasecmp("del_device", p) == 0) {
@@ -3451,7 +4165,7 @@ static ssize_t scst_devt_mgmt_store(struct kobject *kobj,
 		if (*dev_name == '\0') {
 			PRINT_ERROR("%s", "Device name required");
 			res = -EINVAL;
-			goto out_free;
+			goto out_ungrab;
 		}
 
 		p = scst_get_next_lexem(&pp);
@@ -3465,14 +4179,11 @@ static ssize_t scst_devt_mgmt_store(struct kobject *kobj,
 	} else {
 		PRINT_ERROR("Unknown action \"%s\"", p);
 		res = -EINVAL;
-		goto out_free;
+		goto out_ungrab;
 	}
 
-	if (res == 0)
-		res = count;
-
-out_free:
-	kfree(buffer);
+out_ungrab:
+	scst_ungrab_devt_ptr(devt);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -3481,7 +4192,60 @@ out:
 out_syntax_err:
 	PRINT_ERROR("Syntax error on \"%s\"", p);
 	res = -EINVAL;
-	goto out_free;
+	goto out_ungrab;
+}
+
+static int scst_devt_mgmt_store_work_fn(struct scst_sysfs_work_item *work)
+{
+	return scst_process_devt_mgmt_store(work->buf, work->devt);
+}
+
+static ssize_t __scst_devt_mgmt_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count,
+	int (*sysfs_work_fn)(struct scst_sysfs_work_item *work))
+{
+	int res;
+	char *buffer;
+	struct scst_dev_type *devt;
+	struct scst_sysfs_work_item *work;
+
+	TRACE_ENTRY();
+
+	devt = container_of(kobj, struct scst_dev_type, devt_kobj);
+
+	buffer = kzalloc(count+1, GFP_KERNEL);
+	if (buffer == NULL) {
+		res = -ENOMEM;
+		goto out;
+	}
+	memcpy(buffer, buf, count);
+	buffer[count] = '\0';
+
+	res = scst_alloc_sysfs_work(sysfs_work_fn, &work);
+	if (res != 0)
+		goto out_free;
+
+	work->buf = buffer;
+	work->devt = devt;
+
+	res = scst_sysfs_queue_wait_work(work);
+	if (res == 0)
+		res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_free:
+	kfree(buffer);
+	goto out;
+}
+
+static ssize_t scst_devt_mgmt_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	return __scst_devt_mgmt_store(kobj, attr, buf, count,
+		scst_devt_mgmt_store_work_fn);
 }
 
 static struct kobj_attribute scst_devt_mgmt =
@@ -3496,27 +4260,17 @@ static ssize_t scst_devt_pass_through_mgmt_show(struct kobject *kobj,
 	return sprintf(buf, "%s", help);
 }
 
-static ssize_t scst_devt_pass_through_mgmt_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
+static int scst_process_devt_pass_through_mgmt_store(char *buffer,
+	struct scst_dev_type *devt)
 {
-	int res;
-	char *buffer, *p, *pp, *action;
-	struct scst_dev_type *devt;
+	int res = 0;
+	char *p, *pp, *action;
 	unsigned long host, channel, id, lun;
 	struct scst_device *d, *dev = NULL;
 
 	TRACE_ENTRY();
 
-	devt = container_of(kobj, struct scst_dev_type, devt_kobj);
-
-	buffer = kzalloc(count+1, GFP_KERNEL);
-	if (buffer == NULL) {
-		res = -ENOMEM;
-		goto out;
-	}
-
-	memcpy(buffer, buf, count);
-	buffer[count] = '\0';
+	TRACE_DBG("devt %p, buffer %s", devt, buffer);
 
 	pp = buffer;
 	if (pp[strlen(pp) - 1] == '\n')
@@ -3527,10 +4281,9 @@ static ssize_t scst_devt_pass_through_mgmt_store(struct kobject *kobj,
 	if (*p == '\0') {
 		PRINT_ERROR("%s", "Device required");
 		res = -EINVAL;
-		goto out_free;
+		goto out;
 	}
 
-	;
 	if (*scst_get_next_lexem(&pp) != '\0') {
 		PRINT_ERROR("%s", "Too many parameters");
 		res = -EINVAL;
@@ -3557,8 +4310,12 @@ static ssize_t scst_devt_pass_through_mgmt_store(struct kobject *kobj,
 
 	if (mutex_lock_interruptible(&scst_mutex) != 0) {
 		res = -EINTR;
-		goto out_free;
+		goto out;
 	}
+
+	/* Check if devt not be already freed while we were coming here */
+	if (scst_check_devt_ptr(devt, &scst_dev_type_list) != 0)
+		goto out_unlock;
 
 	list_for_each_entry(d, &scst_dev_list, dev_list_entry) {
 		if ((d->virt_id == 0) &&
@@ -3609,14 +4366,8 @@ static ssize_t scst_devt_pass_through_mgmt_store(struct kobject *kobj,
 		goto out_unlock;
 	}
 
-	if (res == 0)
-		res = count;
-
 out_unlock:
 	mutex_unlock(&scst_mutex);
-
-out_free:
-	kfree(buffer);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -3625,7 +4376,20 @@ out:
 out_syntax_err:
 	PRINT_ERROR("Syntax error on \"%s\"", p);
 	res = -EINVAL;
-	goto out_free;
+	goto out;
+}
+
+static int scst_devt_pass_through_mgmt_store_work_fn(
+	struct scst_sysfs_work_item *work)
+{
+	return scst_process_devt_pass_through_mgmt_store(work->buf, work->devt);
+}
+
+static ssize_t scst_devt_pass_through_mgmt_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	return __scst_devt_mgmt_store(kobj, attr, buf, count,
+		scst_devt_pass_through_mgmt_store_work_fn);
 }
 
 static struct kobj_attribute scst_devt_pass_through_mgmt =
@@ -3725,9 +4489,9 @@ void scst_devt_sysfs_del(struct scst_dev_type *devt)
 	return;
 }
 
-/*
- * Sysfs user info
- */
+/**
+ ** Sysfs user info
+ **/
 
 static DEFINE_MUTEX(scst_sysfs_user_info_mutex);
 
@@ -3943,6 +4707,16 @@ int __init scst_sysfs_init(void)
 
 	TRACE_ENTRY();
 
+	sysfs_work_thread = kthread_run(sysfs_work_thread_fn,
+		NULL, "scst_uid");
+	if (IS_ERR(sysfs_work_thread)) {
+		res = PTR_ERR(sysfs_work_thread);
+		PRINT_ERROR("kthread_create() for user interface thread "
+			"failed: %d", res);
+		sysfs_work_thread = NULL;
+		goto out;
+	}
+
 	res = kobject_init_and_add(&scst_sysfs_root_kobj,
 			&scst_sysfs_root_ktype, kernel_kobj, "%s", "scst_tgt");
 	if (res != 0)
@@ -3996,8 +4770,11 @@ targets_kobj_error:
 sysfs_root_add_error:
 	kobject_put(&scst_sysfs_root_kobj);
 
+	kthread_stop(sysfs_work_thread);
+
 	if (res == 0)
 		res = -EINVAL;
+
 	goto out;
 }
 
@@ -4031,6 +4808,9 @@ void scst_sysfs_cleanup(void)
 	 * doesn't allow better ways to handle it.
 	 */
 	msleep(3000);
+
+	if (sysfs_work_thread)
+		kthread_stop(sysfs_work_thread);
 
 	PRINT_INFO("%s", "Exiting SCST sysfs hierarchy done");
 

@@ -223,7 +223,6 @@ struct scst_vdisk_dev {
 	struct scst_device *dev;
 	struct list_head vdev_list_entry;
 
-	struct mutex vdev_sysfs_mutex;
 	struct scst_dev_type *vdev_devt;
 };
 
@@ -2953,27 +2952,22 @@ static int vdisk_resync_size(struct scst_vdisk_dev *virt_dev)
 	loff_t file_size;
 	int res = 0;
 
-	if (mutex_lock_interruptible(&virt_dev->vdev_sysfs_mutex) != 0) {
-		res = -EINTR;
-		goto out;
-	}
-
 	sBUG_ON(virt_dev->nullio);
 
 	res = vdisk_get_file_size(virt_dev->filename,
 			virt_dev->blockio, &file_size);
 	if (res != 0)
-		goto out_unlock;
+		goto out;
 
 	if (file_size == virt_dev->file_size) {
 		PRINT_INFO("Size of virtual disk %s remained the same",
 			virt_dev->name);
-		goto out_unlock;
+		goto out;
 	}
 
 	res = scst_suspend_activity(true);
 	if (res != 0)
-		goto out_unlock;
+		goto out;
 
 	virt_dev->file_size = file_size;
 	virt_dev->nblocks = virt_dev->file_size >> virt_dev->block_shift;
@@ -2992,9 +2986,6 @@ static int vdisk_resync_size(struct scst_vdisk_dev *virt_dev)
 	scst_capacity_data_changed(virt_dev->dev);
 
 	scst_resume_activity();
-
-out_unlock:
-	mutex_unlock(&virt_dev->vdev_sysfs_mutex);
 
 out:
 	return res;
@@ -3019,7 +3010,6 @@ static int vdev_create(struct scst_dev_type *devt,
 	}
 
 	spin_lock_init(&virt_dev->flags_lock);
-	mutex_init(&virt_dev->vdev_sysfs_mutex);
 	virt_dev->vdev_devt = devt;
 
 	virt_dev->rd_only = DEF_RD_ONLY;
@@ -3586,46 +3576,32 @@ out:
 #endif /* CONFIG_SCST_PROC */
 
 static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
-	const char *buffer, int length)
+	char *buffer)
 {
 	loff_t err;
-	char *old_fn, *i_buf, *p, *pp;
+	char *old_fn, *p, *pp;
 	const char *filename = NULL;
+	int length = strlen(buffer);
 	int res = 0;
 
 	TRACE_ENTRY();
 
-	i_buf = kmalloc(length+1, GFP_KERNEL);
-	if (i_buf == NULL) {
-		PRINT_ERROR("Unable to alloc intermediate buffer with size %d",
-			length+1);
-		res = -ENOMEM;
-		goto out;
-	}
-
-	memcpy(i_buf, buffer, length);
-	i_buf[length] = '\0';
-	p = i_buf;
+	p = buffer;
 
 	while (isspace(*p) && *p != '\0')
 		p++;
 	filename = p;
-	p = &i_buf[length-1];
-	pp = &i_buf[length];
+	p = &buffer[length-1];
+	pp = &buffer[length];
 	while (isspace(*p) && (*p != '\0')) {
 		pp = p;
 		p--;
 	}
 	*pp = '\0';
 
-	if (mutex_lock_interruptible(&virt_dev->vdev_sysfs_mutex) != 0) {
-		res = -EINTR;
-		goto out_free;
-	}
-
 	res = scst_suspend_activity(true);
 	if (res != 0)
-		goto out_sysfs_unlock;
+		goto out;
 
 	/* To sync with detach*() functions */
 	mutex_lock(&scst_mutex);
@@ -3634,8 +3610,7 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 		virt_dev->cdrom_empty = 1;
 		TRACE_DBG("%s", "No media");
 	} else if (*filename != '/') {
-		PRINT_ERROR("File path \"%s\" is not "
-			"absolute", filename);
+		PRINT_ERROR("File path \"%s\" is not absolute", filename);
 		res = -EINVAL;
 		goto out_unlock;
 	} else
@@ -3701,12 +3676,6 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 out_resume:
 	scst_resume_activity();
 
-out_sysfs_unlock:
-	mutex_unlock(&virt_dev->vdev_sysfs_mutex);
-
-out_free:
-	kfree(i_buf);
-
 out:
 	TRACE_EXIT_RES(res);
 	return res;
@@ -3722,27 +3691,67 @@ out_unlock:
 
 #ifndef CONFIG_SCST_PROC
 
-static ssize_t vcdrom_sysfs_filename_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
+static int vcdrom_sysfs_process_filename_store(struct scst_sysfs_work_item *work)
 {
 	int res;
-	struct scst_device *dev;
+	struct scst_device *dev = work->dev;
 	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
 
-	dev = container_of(kobj, struct scst_device, dev_kobj);
+	/* It's safe, since we taken dev_kobj and dh_priv NULLed in attach() */
 	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
 
-	res = vcdrom_change(virt_dev, buf, count);
-	if (res != 0)
-		goto out;
+	res = vcdrom_change(virt_dev, work->buf);
 
-	res = count;
+	kobject_put(&dev->dev_kobj);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t vcdrom_sysfs_filename_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	char *i_buf;
+	struct scst_sysfs_work_item *work;
+	struct scst_device *dev;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+
+	i_buf = kmalloc(count+1, GFP_KERNEL);
+	if (i_buf == NULL) {
+		PRINT_ERROR("Unable to alloc intermediate buffer with size %d",
+			count+1);
+		res = -ENOMEM;
+		goto out;
+	}
+	memcpy(i_buf, buf, count);
+	i_buf[count] = '\0';
+
+	res = scst_alloc_sysfs_work(vcdrom_sysfs_process_filename_store, &work);
+	if (res != 0)
+		goto out_free;
+
+	work->buf = i_buf;
+	work->dev = dev;
+
+	kobject_get(&dev->dev_kobj);
+
+	res = scst_sysfs_queue_wait_work(work);
+	if (res == 0)
+		res = count;
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_free:
+	kfree(i_buf);
+	goto out;
 }
 
 static ssize_t vdev_sysfs_size_show(struct kobject *kobj,
@@ -3757,16 +3766,8 @@ static ssize_t vdev_sysfs_size_show(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
 
-	if (mutex_lock_interruptible(&virt_dev->vdev_sysfs_mutex) != 0) {
-		pos = -EINTR;
-		goto out;
-	}
-
 	pos = sprintf(buf, "%lld\n", virt_dev->file_size / 1024 / 1024);
 
-	mutex_unlock(&virt_dev->vdev_sysfs_mutex);
-
-out:
 	TRACE_EXIT_RES(pos);
 	return pos;
 }
@@ -3893,33 +3894,96 @@ static ssize_t vdisk_sysfs_removable_show(struct kobject *kobj,
 	return pos;
 }
 
-static ssize_t vdev_sysfs_filename_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static int vdev_sysfs_process_get_filename(struct scst_sysfs_work_item *work)
 {
-	int pos = 0;
+	int res = 0;
 	struct scst_device *dev;
 	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
 
-	dev = container_of(kobj, struct scst_device, dev_kobj);
-	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
+	dev = work->dev;
 
-	if (mutex_lock_interruptible(&virt_dev->vdev_sysfs_mutex) != 0) {
-		pos = -EINTR;
-		goto out;
+	if (mutex_lock_interruptible(&scst_vdisk_mutex) != 0) {
+		res = -EINTR;
+		goto out_put;
 	}
 
-	pos = sprintf(buf, "%s\n", vdev_get_filename(virt_dev));
+	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
+
+	if (virt_dev == NULL)
+		goto out_unlock;
 
 	if (virt_dev->filename != NULL)
-		pos += sprintf(&buf[pos], "%s\n", SCST_SYSFS_KEY_MARK);
+		work->res_buf = kasprintf(GFP_KERNEL, "%s\n%s\n",
+			vdev_get_filename(virt_dev), SCST_SYSFS_KEY_MARK);
+	else
+		work->res_buf = kasprintf(GFP_KERNEL, "%s\n",
+					vdev_get_filename(virt_dev));
 
-	mutex_unlock(&virt_dev->vdev_sysfs_mutex);
+out_unlock:
+	mutex_unlock(&scst_vdisk_mutex);
+
+out_put:
+	kobject_put(&dev->dev_kobj);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t vdev_sysfs_filename_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int res = 0;
+	struct scst_device *dev;
+	struct scst_sysfs_work_item *work;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+
+	res = scst_alloc_sysfs_work(vdev_sysfs_process_get_filename, &work);
+	if (res != 0)
+		goto out;
+
+	work->dev = dev;
+
+	kobject_get(&dev->dev_kobj);
+
+	scst_sysfs_work_get(work);
+
+	res = scst_sysfs_queue_wait_work(work);
+	if (res != 0)
+		goto out_put;
+
+	res = snprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s\n", work->res_buf);
+
+out_put:
+	scst_sysfs_work_put(work);
 
 out:
-	TRACE_EXIT_RES(pos);
-	return pos;
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t vdisk_sysfs_process_resync_size_store(
+	struct scst_sysfs_work_item *work)
+{
+	int res;
+	struct scst_device *dev = work->dev;
+	struct scst_vdisk_dev *virt_dev;
+
+	TRACE_ENTRY();
+
+	/* It's safe, since we taken dev_kobj and dh_priv NULLed in attach() */
+	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
+
+	res = vdisk_resync_size(virt_dev);
+
+	kobject_put(&dev->dev_kobj);
+
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 static ssize_t vdisk_sysfs_resync_size_store(struct kobject *kobj,
@@ -3927,18 +3991,24 @@ static ssize_t vdisk_sysfs_resync_size_store(struct kobject *kobj,
 {
 	int res;
 	struct scst_device *dev;
-	struct scst_vdisk_dev *virt_dev;
+	struct scst_sysfs_work_item *work;
 
 	TRACE_ENTRY();
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
-	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
 
-	res = vdisk_resync_size(virt_dev);
+	res = scst_alloc_sysfs_work(vdisk_sysfs_process_resync_size_store,
+					&work);
 	if (res != 0)
 		goto out;
 
-	res = count;
+	work->dev = dev;
+
+	kobject_get(&dev->dev_kobj);
+
+	res = scst_sysfs_queue_wait_work(work);
+	if (res == 0)
+		res = count;
 
 out:
 	TRACE_EXIT_RES(res);
@@ -4586,7 +4656,7 @@ static int vcdrom_proc_change(char *p, const char *name)
 		goto out;
 	}
 
-	res = vcdrom_change(virt_dev, p, strlen(p) + 1);
+	res = vcdrom_change(virt_dev, p);
 
 out:
 	return res;
