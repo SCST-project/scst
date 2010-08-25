@@ -198,7 +198,6 @@ TRUE             => 1,
 FALSE            => 0,
 
 DEF_CONFIG       => '/etc/scst.conf',
-MAX_LUNS         => 255,
 };
 
 my $SCST;
