@@ -1877,8 +1877,19 @@ sub compareToKeyAttribute {
 	my $second = shift;
 
 	foreach my $attr (keys %{$first}) {
-		next if (!defined($$second{$attr}->{'keys'}->{'0'}->{'value'}) && ($$first{$attr} == 0));
-		return TRUE if ($$first{$attr} ne $$second{$attr}->{'keys'}->{'0'}->{'value'});
+		if (defined($$second{$attr}->{'keys'})) {
+			next if (!defined($$second{$attr}->{'keys'}->{'0'}->{'value'}) && ($$first{$attr} == 0));
+			return TRUE if ($$first{$attr} ne $$second{$attr}->{'keys'}->{'0'}->{'value'});
+		} else {
+			next if (!defined($$second{$attr}->{'value'}) && ($$first{$attr} == 0));
+			return TRUE if ($$first{$attr} ne $$second{$attr}->{'value'});
+		}
+	}
+
+	foreach my $attr (keys %{$second}) {
+		if (defined($$second{$attr}->{'keys'}) && !defined($$first{$attr})) {
+			return TRUE;
+		}
 	}
 
 	return FALSE;
@@ -1913,9 +1924,7 @@ sub clearConfiguration {
 	foreach my $handler (sort keys %{$handlers}) {
 		foreach my $device (@{$$handlers{$handler}}) {
 			my $attributes = $SCST->deviceAttributes($device);
-			if (!defined($$attributes{'scsi_device'})) {
-				closeDevice($handler, $device, $force);
-			}
+			closeDevice($handler, $device, $force);
 		}
 	}
 
