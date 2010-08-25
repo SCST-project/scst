@@ -2,6 +2,7 @@
 
 interval="${1:-5}"
 
+echo "Interrupts per second:"
 while true
 do
   sum=0
