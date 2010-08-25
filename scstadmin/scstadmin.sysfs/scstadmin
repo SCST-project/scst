@@ -916,6 +916,8 @@ sub writeConfiguration {
 	my $attributes = $SCST->scstAttributes();
 	immediateExit($SCST->errorString());
 
+	my %nattrs;
+
 	foreach my $attribute (sort keys %{$attributes}) {
 		next if (defined($$attributes{$attribute}->{'set'}));
 
@@ -930,9 +932,17 @@ sub writeConfiguration {
 			} elsif ($nonkey) {
 				my $value = $$attributes{$attribute}->{'value'};
 				$value = "\"$value\"" if ($value =~ / /);
-				print $io "$attribute $value\n"
+				$nattrs{$attribute} = $value
 				  if (defined($value) && ($value ne ''));
 			}
+		}
+	}
+
+	if ($nonkey && (scalar keys %nattrs)) {
+		print $io "# Non-key attributes\n";
+		foreach my $attr (keys %nattrs) {
+			my $value = $nattrs{$attr};
+			print $io "$attr $value\n";
 		}
 	}
 
@@ -1034,7 +1044,7 @@ sub writeConfiguration {
 			}
 
 			if ($attribute_buff_nk) {
-				$attribute_buff .= "\t\t# Non-key attributes\n";
+				$attribute_buff .= "\n\t\t# Non-key attributes\n";
 				$attribute_buff .= $attribute_buff_nk;
 			}
 
