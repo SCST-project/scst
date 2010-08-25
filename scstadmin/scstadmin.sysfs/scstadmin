@@ -2557,7 +2557,7 @@ sub listGroupAttributes {
 	return if issueWarning($SCST->errorString());
 
 	if (!scalar(keys %{$attributes})) {
-		print "No suck driver/target/group '$driver/$target/$group' found.\n";
+		print "No such driver/target/group '$driver/$target/$group' found.\n";
 		return;
 	}
 
