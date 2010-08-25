@@ -2148,7 +2148,44 @@ sub listTargets {
 }
 
 sub listSessions {
+	my $drivers = $SCST->drivers();
 
+	foreach my $driver (@{$drivers}) {
+		my $targets = $SCST->targets($driver);
+
+		foreach my $target (@{$targets}) {
+			my $had_sessions = FALSE;
+
+			print "Driver/Target: $driver/$target\n\n";
+
+			my $sessions = $SCST->sessions($driver, $target);
+			foreach my $session (keys %{$sessions}) {
+				print "\tSession: $session\n\n";
+
+				my %attributes;
+				foreach my $attr (keys %{$$sessions{$session}}) {
+					if ($attr eq 'luns') {           
+						foreach my $lun (keys %{$$sessions{$session}->{'luns'}}) {
+							$attributes{"LUN $lun"}->{'value'} =     
+							  $$sessions{$session}->{'luns'}->{$lun};
+						}
+					} else {
+						$attributes{$attr}->{'value'} = $$sessions{$session}->{$attr};
+					}
+				}
+
+				listAttributes(\%attributes, TRUE);
+
+				print "\n";
+
+				$had_sessions = TRUE;
+			}
+
+			if (!$had_sessions) {
+				print "\t(no sessions)\n\n";
+			}
+		}
+	}
 }
 
 sub listGroup {

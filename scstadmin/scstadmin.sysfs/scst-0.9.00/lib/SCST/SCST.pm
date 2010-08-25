@@ -3241,6 +3241,7 @@ sub sessions {
 		}
 
 		foreach my $attribute (readdir($pHandle)) {
+			next if (($attribute eq '.') || ($attribute eq '..'));
 			my $pPath = mkpath($sPath, $attribute);
 
 			if ($attribute eq 'luns') {
