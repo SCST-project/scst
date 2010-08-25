@@ -111,7 +111,7 @@ Initiator and target modes
 --------------------------
 
 When qla2xxx compiled with CONFIG_SCSI_QLA2XXX_TARGET enabled, it has
-parameter "ini_mode", which determines when initiator mode will be
+parameter "qlini_mode", which determines when initiator mode will be
 enabled. Possible values:
 
  - "exclusive" (default ) - initiator mode will be enabled on load,
