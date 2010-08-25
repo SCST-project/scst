@@ -151,7 +151,6 @@ Target Driver Operations
          -driver <driver>
      -disable_target <t>     : Disable target mode for a given driver & target.
          -driver <driver>
-     -issue_lip              : Issue LIP on all target-enabled FC fabrics.
 
 Options
      -nonkey                 : When writing a configuration file or listing
@@ -181,9 +180,6 @@ Examples:
 
      Enable target mode for fibre card specifying its WWN
        scstadmin -enable_target 50:06:0B:00:00:39:71:78 -driver qla2x00t
-
-     Tell all initiators to rescan LUNs:
-       scstadmin -issue_lip
 
 EndUsage
   }
