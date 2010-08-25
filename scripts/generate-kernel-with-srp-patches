@@ -58,13 +58,20 @@ if [ "${kernel_version}" "<" "2.6.36" ]; then
   do
     echo "Applying patch $commit ..."
     url="http://git.kernel.org/?p=linux/kernel/git/roland/infiniband.git;a=patch;h=$commit"
-    wget -O- -q "$url" | awk 'BEGIN{h=1}h==0{print}/^$/{h=0}' | patch -p1 -s
+    wget -O- -q "$url" | \
+      awk 'BEGIN{h=1}h==0{print}/^diff /{h=0}' | \
+      patch -p1 -s
   done
 fi
 # IB/srp: Preparation for transmit ring response allocation
 # IB/srp: Implement SRP_CRED_REQ and SRP_AER_REQ
 # IB/srp: Reduce number of BUSY conditions
-for p in 119771 119772 119773
+# IB/srp: use multiple CPU cores more effectively
+for p in \
+  119771 \
+  119772 \
+  119773 \
+  116774
 do
   echo "Applying patch $p ..."
   url="https://patchwork.kernel.org/patch/$p/raw/"
