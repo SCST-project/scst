@@ -124,6 +124,30 @@ CAUTION: Working of target and initiator on the same host isn't fully
 =======  supported. See SCST README file for details.
 
 
+Migration from IET
+------------------
+
+Scalable Informatics Inc. has developed a pretty simple tool, will
+automatically generate an /etc/scst.conf file from an /etc/ietd.conf
+file, and then restart daemons.
+
+Tool is here: http://download.scalableinformatics.com/gen_scst_conf/
+
+Just run it on an ietd.conf based iSCSI target:
+
+$ chmod +x gen_scst_conf.pl
+$ sudo ./gen_scst_conf.pl
+
+and your IET machine should now largely be an iSCSI-SCST machine. With
+the caveat of a few IET elements not being supported.
+
+Current limitations are one LUN per target, and not all LUN options
+might be mapped well between the systems. This may change if there is
+demand. For any questions and inquirys feel free to contact Joe Landman
+<landman@scalableinformatics.com> (and please provide a few sample
+ietd.conf files for us to play with).
+
+
 Sysfs interface
 ---------------
 
