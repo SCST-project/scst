@@ -169,14 +169,10 @@ Examples:
          -attributes filename=/vdisks/disk01.dsk,read_only
 
      Setting the T10 Device ID of a device
-       scstadmin -set_dev_attr DISK01 -options t10_dev_id=0x2345 
+       scstadmin -set_dev_attr DISK01 -attributes t10_dev_id=0x2345 
 
      Create a new security group:
        scstadmin -add_group HOST01 -driver qla2x00t \
-         -target 50:06:0B:00:00:39:71:78
-       
-     Rename a security group:
-       scstadmin -rename_group HOST01 -to SERVER01 -driver qla2x00t \
          -target 50:06:0B:00:00:39:71:78
        
      Add a LUN to a group:
@@ -281,7 +277,6 @@ sub getArgs {
 
 	my $enableTarget;
 	my $disableTarget;
-	my $issueLip;
 
 	my $handler;
 	my $attributes;
@@ -354,7 +349,6 @@ sub getArgs {
 
 			    'enable_target=s'	=> \$enableTarget,
 			    'disable_target=s'	=> \$disableTarget,
-			    'issue_lip'		=> \$issueLip,
 
 			    'handler=s'		=> \$handler,
 			    'attributes=s'	=> \$attributes,
@@ -378,7 +372,6 @@ sub getArgs {
 	$force = TRUE if (defined($force));
 	$clearInitiators = TRUE if (defined($clearInitiators));
 	$clearLuns = TRUE if (defined($clearLuns));
-	$issueLip = TRUE if (defined($issueLip));
 	$listSessions = TRUE if (defined($listSessions));
 	$listScstAttr = TRUE if (defined($listScstAttr));
 	$setScstAttr = TRUE if (defined($setScstAttr));
@@ -399,7 +392,7 @@ sub getArgs {
 	     defined($addDriverAttr) + defined($addTargetAttr) + defined($remDriverAttr) + defined($remTargetAttr) +
 	     defined($addTarget) + defined($removeTarget) +
 	     defined($addLun) + defined($removeLun) + defined($replaceLun) + defined($clearLuns) +
-	     defined($enableTarget) + defined($disableTarget) + defined($issueLip);
+	     defined($enableTarget) + defined($disableTarget);
 
 	if (($query_mode + $set_mode + $op_mode) > 1) {
 		print "Please specify only one non-query operation at a time.\n";
@@ -569,7 +562,7 @@ sub getArgs {
 		$addGroup, $removeGroup,
 		$addInitiator, $removeInitiator, $moveInitiator, $clearInitiators,
 		$addLun, $removeLun, $replaceLun, $clearLuns,
-		$enableTarget, $disableTarget, $issueLip,
+		$enableTarget, $disableTarget,
 		$handler, \%_attributes,
 		$driver, $target, $group, $to, $device,
 		$nonkey, $force);
@@ -594,7 +587,7 @@ sub main {
 	    $addGroup, $removeGroup,
 	    $addInitiator, $removeInitiator, $moveInitiator, $clearInitiators,
 	    $addLun, $removeLun, $replaceLun, $clearLuns,
-	    $enableTarget, $disableTarget, $issueLip,
+	    $enableTarget, $disableTarget,
 	    $handler, $attributes,
 	    $driver, $target, $group, $to, $device,
 	    $nonkey, $force) = getArgs();
@@ -819,10 +812,6 @@ sub main {
 		defined($disableTarget) && do {
 			last if (prompt());
 			$rc = disableTarget($driver, $disableTarget);
-			last SWITCH;
-		};
-		defined($issueLip) && do {
-			$rc = issueLip();
 			last SWITCH;
 		};
 
@@ -3515,10 +3504,6 @@ sub disableTarget {
 	my %attributes = ('enabled', 0);
 
 	setTargetAttributes($driver, $target, \%attributes);
-}
-
-sub issueLip {
-
 }
 
 ####################################################################
