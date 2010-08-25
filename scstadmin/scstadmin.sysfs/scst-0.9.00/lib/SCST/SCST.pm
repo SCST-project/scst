@@ -11,6 +11,8 @@ use IO::File;
 use strict;
 use Carp qw(cluck);
 
+use POSIX;
+
 use constant {
 TRUE             => 1,
 FALSE            => 0,
@@ -22,6 +24,7 @@ SCST_HANDLERS    => 'handlers',
 SCST_DEVICES     => 'devices',
 SCST_TARGETS     => 'targets',
 SCST_SGV         => 'sgv',
+SCST_QUEUE_RES   => 'last_sysfs_mgmt_res',
 
 # Target specific
 SCST_GROUPS      => 'ini_groups',
@@ -194,6 +197,8 @@ $VERSION = 0.9.00;
 $TGT_TYPE_HARDWARE = 1;
 $TGT_TYPE_VIRTUAL  = 2;
 
+my $TIMEOUT = 300; # Command execution timeout
+
 my $_SCST_MIN_MAJOR_   = 2;
 my $_SCST_MIN_MINOR_   = 0;
 my $_SCST_MIN_RELEASE_ = 0;
@@ -349,7 +354,7 @@ sub setScstAttribute {
 	if ($self->{'debug'}) {
 		print "DBG($$): $path -> $attribute = $value\n";
 	} else {
-		$bytes = syswrite($io, $value, length($value));
+		$bytes = _syswrite($io, $value, length($value));
 	}
 
 	close $io;
@@ -675,7 +680,7 @@ sub addDriverDynamicAttribute {
 	if ($self->{'debug'}) {
 		print "DBG($$): $path -> $cmd\n";
 	} else {
-		$bytes = syswrite($io, $cmd, length($cmd));
+		$bytes = _syswrite($io, $cmd, length($cmd));
 	}
 
 	close $io;
@@ -713,7 +718,7 @@ sub removeDriverDynamicAttribute {
 	if ($self->{'debug'}) {
 		print "DBG($$): $path -> $cmd\n";
 	} else {
-		$bytes = syswrite($io, $cmd, length($cmd));
+		$bytes = _syswrite($io, $cmd, length($cmd));
 	}
 
 	close $io;
@@ -818,7 +823,7 @@ sub addVirtualTarget {
 	if ($self->{'debug'}) {
 		print "DBG($$): $path -> $cmd\n";
 	} else {
-		$bytes = syswrite($io, $cmd, length($cmd));
+		$bytes = _syswrite($io, $cmd, length($cmd));
 	}
 
 	close $io;
@@ -928,7 +933,7 @@ sub addTargetDynamicAttribute {
 	if ($self->{'debug'}) {
 		print "DBG($$): $path -> $cmd\n";
 	} else {
-		$bytes = syswrite($io, $cmd, length($cmd));
+		$bytes = _syswrite($io, $cmd, length($cmd));
 	}
 
 	close $io;
@@ -970,7 +975,7 @@ sub removeTargetDynamicAttribute {
 	if ($self->{'debug'}) {
 		print "DBG($$): $path -> $cmd\n";
 	} else {
-		$bytes = syswrite($io, $cmd, length($cmd));
+		$bytes = _syswrite($io, $cmd, length($cmd));
 	}
 
 	close $io;
@@ -1006,7 +1011,7 @@ sub removeVirtualTarget {
 	if ($self->{'debug'}) {
 		print "DBG($$): $path -> $cmd\n";
 	} else {
-		$bytes = syswrite($io, $cmd, length($cmd));
+		$bytes = _syswrite($io, $cmd, length($cmd));
 	}
 
 	close $io;
@@ -1130,7 +1135,7 @@ sub addGroup {
 	if ($self->{'debug'}) {
 		print "DBG($$): $path -> $cmd\n";
 	} else {
-		$bytes = syswrite($io, $cmd, length($cmd));
+		$bytes = _syswrite($io, $cmd, length($cmd));
 	}
 
 	close $io;
@@ -1170,7 +1175,7 @@ sub removeGroup {
 	if ($self->{'debug'}) {
 		print "DBG($$): $path -> $cmd\n";
 	} else {
-		$bytes = syswrite($io, $cmd, length($cmd));
+		$bytes = _syswrite($io, $cmd, length($cmd));
 	}
 
 	close $io;
@@ -1215,7 +1220,7 @@ sub addInitiator {
 	if ($self->{'debug'}) {
 		print "DBG($$): $path -> $cmd\n";
 	} else {
-		$bytes = syswrite($io, $cmd, length($cmd));
+		$bytes = _syswrite($io, $cmd, length($cmd));
 	}
 
 	close $io;
@@ -1260,7 +1265,7 @@ sub removeInitiator {
 	if ($self->{'debug'}) {
 		print "DBG($$): $path -> $cmd\n";
 	} else {
-		$bytes = syswrite($io, $cmd, length($cmd));
+		$bytes = _syswrite($io, $cmd, length($cmd));
 	}
 
 	close $io;
@@ -1314,7 +1319,7 @@ sub moveInitiator {
 	if ($self->{'debug'}) {
 		print "DBG($$): $path -> $cmd\n";
 	} else {
-		$bytes = syswrite($io, $cmd, length($cmd));
+		$bytes = _syswrite($io, $cmd, length($cmd));
 	}
 
 	close $io;
@@ -1354,7 +1359,7 @@ sub clearInitiators {
 	if ($self->{'debug'}) {
 		print "DBG($$): $path -> $cmd\n";
 	} else {
-		$bytes = syswrite($io, $cmd, length($cmd));
+		$bytes = _syswrite($io, $cmd, length($cmd));
 	}
 
 	close $io;
@@ -1431,7 +1436,7 @@ sub addLun {
 	if ($self->{'debug'}) {
 		print "DBG($$): $path -> $cmd\n";
 	} else {
-		$bytes = syswrite($io, $cmd, length($cmd));
+		$bytes = _syswrite($io, $cmd, length($cmd));
 	}
 
 	close $io;
@@ -1490,7 +1495,7 @@ sub removeLun {
 	if ($self->{'debug'}) {
 		print "DBG($$): $path -> $cmd\n";
 	} else {
-		$bytes = syswrite($io, $cmd, length($cmd));
+		$bytes = _syswrite($io, $cmd, length($cmd));
 	}
 
 	close $io;
@@ -1568,7 +1573,7 @@ sub replaceLun {
 	if ($self->{'debug'}) {
 		print "DBG($$): $path -> $cmd\n";
 	} else {
-		$bytes = syswrite($io, $cmd, length($cmd));
+		$bytes = _syswrite($io, $cmd, length($cmd));
 	}
 
 	close $io;
@@ -1618,7 +1623,7 @@ sub clearLuns {
 	if ($self->{'debug'}) {
 		print "DBG($$): $path -> $cmd\n";
 	} else {
-		$bytes = syswrite($io, $cmd, length($cmd));
+		$bytes = _syswrite($io, $cmd, length($cmd));
 	}
 
 	close $io;
@@ -1913,7 +1918,7 @@ sub setDriverAttribute {
 	if ($self->{'debug'}) {
 		print "DBG($$): $path -> $attribute = $value\n";
 	} else {
-		$bytes = syswrite($io, $value, length($value));
+		$bytes = _syswrite($io, $value, length($value));
 	}
 
 	close $io;
@@ -2042,7 +2047,7 @@ sub setTargetAttribute {
 	if ($self->{'debug'}) {
 		print "DBG($$): $path -> $attribute = $value\n";
 	} else {
-		$bytes = syswrite($io, $value, length($value));
+		$bytes = _syswrite($io, $value, length($value));
 	}
 
 	close $io;
@@ -2177,7 +2182,7 @@ sub setGroupAttribute {
 	if ($self->{'debug'}) {
 		print "DBG($$): $path -> $attribute = $value\n";
 	} else {
-		$bytes = syswrite($io, $value, length($value));
+		$bytes = _syswrite($io, $value, length($value));
 	}
 
 	close $io;
@@ -2347,7 +2352,7 @@ sub setLunAttribute {
 	if ($self->{'debug'}) {
 		print "DBG($$): $path -> $attribute = $value\n";
 	} else {
-		$bytes = syswrite($io, $value, length($value));
+		$bytes = _syswrite($io, $value, length($value));
 	}
 
 	close $io;
@@ -2493,7 +2498,7 @@ sub setInitiatorAttribute {
 	if ($self->{'debug'}) {
 		print "DBG($$): $path -> $attribute = $value\n";
 	} else {
-		$bytes = syswrite($io, $value, length($value));
+		$bytes = _syswrite($io, $value, length($value));
 	}
 
 	close $io;
@@ -2571,7 +2576,7 @@ sub setHandlerAttribute {
 	if ($self->{'debug'}) {
 		print "DBG($$): $path -> $attribute = $value\n";
 	} else {
-		$bytes = syswrite($io, $value, length($value));
+		$bytes = _syswrite($io, $value, length($value));
 	}
 
 	close $io;
@@ -2831,7 +2836,7 @@ sub openDevice {
         if ($self->{'debug'}) {                
 		print "DBG($$): $cmd\n";
 	} else {
-		$bytes = syswrite($io, $cmd, length($cmd));
+		$bytes = _syswrite($io, $cmd, length($cmd));
 	}
 
         return FALSE if ($self->{'debug'} || $bytes);
@@ -2866,7 +2871,7 @@ sub closeDevice {
         if ($self->{'debug'}) {                
 		print "DBG($$): $cmd\n";
 	} else {
-		$bytes = syswrite($io, $cmd, length($cmd));
+		$bytes = _syswrite($io, $cmd, length($cmd));
 	}
 
         return FALSE if ($self->{'debug'} || $bytes);
@@ -2901,7 +2906,7 @@ sub setDeviceAttribute {
 	if ($self->{'debug'}) {
 		print "DBG($$): $path -> $attribute = $value\n";
 	} else {
-		$bytes = syswrite($io, $value, length($value));
+		$bytes = _syswrite($io, $value, length($value));
 	}
 
 	close $io;
@@ -3340,6 +3345,49 @@ sub errorString {
 	$self->{'err_string'} = undef;
 
 	return $string;
+}
+
+sub _syswrite {
+	my $io = shift;
+	my $cmd = shift;
+	my $length = shift;
+	my $now = time();
+
+	my $res_file =  mkpath(SCST_ROOT, SCST_QUEUE_RES);
+
+	my $bytes = syswrite($io, $cmd, $length);
+
+	if (!defined($bytes)) {
+		if ($! == EAGAIN) {
+			my $res = new IO::File $res_file, O_RDONLY;
+
+			if (!$res) {
+				cluck("FATAL: Failed opening $res_file: $!");
+				return undef;
+			}
+
+			my $wait = TRUE;
+			my $result;
+
+			while ($wait && (($now + $TIMEOUT) > time())) {
+				sysread($res, $result, 8);
+				$wait = FALSE if ($! != EAGAIN);
+				sleep 1;
+			}
+
+			if ($wait) {
+				my $_cmd = $cmd; chomp $_cmd;
+				cluck("Timeout while waiting for command '$_cmd' to complete");
+				$bytes = undef;
+			} else {
+				$bytes = length($cmd) if ($result == 0);
+			}
+
+			close $res;
+		}
+	}
+
+	return $bytes;
 }
 
 sub mkpath {

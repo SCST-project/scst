@@ -3343,7 +3343,11 @@ sub clearLuns {
 	my $target = shift;
 	my $group = shift;
 
-	print "-> Removing all LUNs from driver/target/group '$driver/$target/$group': ";
+	if ($group) {
+		print "-> Removing all LUNs from driver/target/group '$driver/$target/$group': ";
+	} else {
+		print "-> Removing all LUNs from driver/target '$driver/$target': ";
+	}
 
 	my $rc = $SCST->clearLuns($driver, $target, $group);
 
