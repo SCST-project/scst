@@ -1556,8 +1556,6 @@ sub applyConfigDevices {
 			if (!defined($$config{'HANDLER'}->{$handler}->{'DEVICE'}->{$device})) {
 				my $attributes = $SCST->deviceAttributes($device);
 
-				next if (defined($$attributes{'scsi_device'}));
-
 				if ($deletions) {
 					closeDevice($handler, $device, $deletions);
 				} else {
@@ -3146,8 +3144,6 @@ sub closeDevice {
 	my $force = shift;
 
 	my $attributes = $SCST->deviceAttributes($device);
-
-	return if (defined($$attributes{'scsi_device'}));
 
 	if (!$force) {
 		if (keys %{$$attributes{'exported'}}) {
