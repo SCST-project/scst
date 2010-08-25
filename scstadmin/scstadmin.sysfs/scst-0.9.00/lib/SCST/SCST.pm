@@ -146,7 +146,7 @@ my %VERBOSE_ERROR = (
 (SCST_C_TGT_ADDATTR_FAIL)     => 'Failed to add target dynamic attribute. See "dmesg" for more information.',
 (SCST_C_TGT_REMATTR_FAIL)     => 'Failed to remove target dynamic attribute. See "dmesg" for more information.',
 (SCST_C_TGT_NO_LUN)           => 'No such LUN exists.',
-(SCST_C_TGT_ADD_LUN_FAIL)     => 'Failed to add LUN. See "dmesg" for more information.',
+(SCST_C_TGT_ADD_LUN_FAIL)     => 'Failed to add LUN to target. See "dmesg" for more information.',
 (SCST_C_TGT_LUN_EXISTS)       => 'LUN already exists.',
 (SCST_C_TGT_BAD_ATTRIBUTES)   => 'Bad attributes given for target.',
 (SCST_C_TGT_ATTRIBUTE_STATIC) => 'Target attribute specified is static.',
@@ -160,7 +160,7 @@ my %VERBOSE_ERROR = (
 
 (SCST_C_GRP_NO_LUN)           => 'No such LUN exists.',
 (SCST_C_GRP_LUN_EXISTS)       => 'LUN already exists.',
-(SCST_C_GRP_ADD_LUN_FAIL)     => 'Failed to add LUN. See "dmesg" for more information.',
+(SCST_C_GRP_ADD_LUN_FAIL)     => 'Failed to add LUN to group. See "dmesg" for more information.',
 (SCST_C_GRP_REM_LUN_FAIL)     => 'Failed to remove LUN. See "dmesg" for more information.',
 (SCST_C_GRP_CLR_LUN_FAIL)     => 'Failed to clear LUNs from group. See "dmesg" for more information.',
 (SCST_C_GRP_BAD_ATTRIBUTES)   => 'Bad attributes given for group.',
