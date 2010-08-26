@@ -1652,7 +1652,8 @@ sub applyConfigAssignments {
 					filterCreateAttributes($possible, $c_attrs, TRUE);
 
 					if (compareToKeyAttribute($c_attrs, $o_attrs)) {
-						print "-> Device '$device' at LUN '$lun' is configured differently.\n";
+						print "-> Assigned device '$device' in target '$target' at ".
+						  "LUN '$lun' is configured differently.\n";
 
 						if ($deletions) {
 							print "\t-> Re-assigning device with new attributes.\n";
@@ -1682,6 +1683,28 @@ sub applyConfigAssignments {
 							print "-> Device '$device' at LUN '$lun' is not in configuration ".
 							  "for driver/target/group '$driver/$target/$group'. ".
 							  "Use -force to remove it.\n";
+						}
+					} else {
+						my $c_attrs = configToAttr($$config{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'GROUP'}->{$group}->{'LUN'}->{$lun}->{$device});
+						my $o_attrs = $SCST->lunAttributes($driver, $target, $lun, $group);
+						immediateExit($SCST->errorString());
+						my $possible = $SCST->lunCreateAttributes($driver, $target, $group);
+						immediateExit($SCST->errorString());
+
+						filterCreateAttributes($possible, $c_attrs, TRUE);
+
+						if (compareToKeyAttribute($c_attrs, $o_attrs)) {
+							print "-> Assigned device '$device' in group '$group' ".
+							  "at LUN '$lun' is configured differently.\n";
+
+							if ($deletions) {
+								print "\t-> Re-assigning device with new attributes.\n";
+								removeLun($driver, $target, $lun, $group);
+								addLun($driver, $target, $device, $lun, $c_attrs, $group);
+							} else {
+								print "\t-> Use -force to re-assign device with new attributes. ".
+								  "NOTE: This will disrupt all initiators using this device.\n";
+							}
 						}
 					}
 				}
@@ -1860,9 +1883,9 @@ sub filterCreateAttributes {
 	my $keep = shift;
 
 	foreach my $attribute (keys %{$attrs}) {
-		my $bad = defined($$creates{$attribute});
+		my $good = defined($$creates{$attribute});
 
-		if (($keep && $bad) || (!$keep && !$bad)) {
+		if (($keep && !$good) || (!$keep && !$good)) {
 			delete $$attrs{$attribute};
 		}
 	}
