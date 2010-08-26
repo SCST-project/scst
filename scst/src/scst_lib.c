@@ -3424,6 +3424,10 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 		}
 	}
 
+	res = scst_tgt_dev_sysfs_create(tgt_dev);
+	if (res != 0)
+		goto out_detach;
+
 	spin_lock_bh(&dev->dev_lock);
 	list_add_tail(&tgt_dev->dev_tgt_dev_list_entry, &dev->dev_tgt_dev_list);
 	if (dev->dev_reserved)
@@ -3440,6 +3444,14 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_detach:
+	if (dev->handler && dev->handler->detach_tgt) {
+		TRACE_DBG("Calling dev handler's detach_tgt(%p)",
+		      tgt_dev);
+		dev->handler->detach_tgt(tgt_dev);
+		TRACE_DBG("%s", "Dev handler's detach_tgt() returned");
+	}
 
 out_stop_threads:
 	scst_tgt_dev_stop_threads(tgt_dev);
@@ -3497,6 +3509,8 @@ static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 	spin_unlock_bh(&dev->dev_lock);
 
 	list_del(&tgt_dev->sess_tgt_dev_list_entry);
+
+	scst_tgt_dev_sysfs_del(tgt_dev);
 
 	if (tgt_dev->sess->tgt->tgtt->get_initiator_port_transport_id == NULL)
 		dev->not_pr_supporting_tgt_devs_num--;
@@ -4056,8 +4070,6 @@ void scst_free_session(struct scst_session *sess)
 {
 	TRACE_ENTRY();
 
-	scst_sess_sysfs_del(sess);
-
 	mutex_lock(&scst_mutex);
 
 	TRACE_DBG("Removing sess %p from the list", sess);
@@ -4066,6 +4078,8 @@ void scst_free_session(struct scst_session *sess)
 	list_del(&sess->acg_sess_list_entry);
 
 	scst_sess_free_tgt_devs(sess);
+
+	scst_sess_sysfs_del(sess);
 
 	/* Called under lock to protect from too early tgt release */
 	wake_up_all(&sess->tgt->unreg_waitQ);
@@ -7647,8 +7661,6 @@ void scst_update_lat_stats(struct scst_cmd *cmd)
 	latency_stat = &sess->sess_latency_stat[i];
 	dev_latency_stat = &cmd->tgt_dev->dev_latency_stat[i];
 
-	spin_lock_bh(&sess->lat_lock);
-
 	/* Calculate the latencies */
 	scst_time = finish - cmd->start - (cmd->parse_time +
 		cmd->alloc_buf_time + cmd->restart_waiting_time +
@@ -7660,6 +7672,8 @@ void scst_update_lat_stats(struct scst_cmd *cmd)
 		cmd->xmit_time + cmd->tgt_on_free_time;
 	dev_time = cmd->parse_time + cmd->exec_time + cmd->dev_done_time +
 		cmd->dev_on_free_time;
+
+	spin_lock_bh(&sess->lat_lock);
 
 	/* Save the basic latency information */
 	sess->scst_time += scst_time;

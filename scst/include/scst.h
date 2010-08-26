@@ -2271,6 +2271,11 @@ struct scst_tgt_dev {
 	unsigned short tgt_dev_valid_sense_len;
 	uint8_t tgt_dev_sense[SCST_SENSE_BUFFERSIZE];
 
+	/* sysfs release completion */
+	struct completion tgt_dev_kobj_release_cmpl;
+
+	struct kobject tgt_dev_kobj; /* kobject for this struct */
+
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 	/*
 	 * Must be the last to allow to work with drivers who don't know

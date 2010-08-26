@@ -457,6 +457,12 @@ static inline int scst_dev_sysfs_create(struct scst_device *dev)
 }
 static inline void scst_dev_sysfs_del(struct scst_device *dev) { }
 
+static inline int scst_tgt_dev_sysfs_create(struct scst_tgt_dev *tgt_dev)
+{
+	return 0;
+}
+static inline void scst_tgt_dev_sysfs_del(struct scst_tgt_dev *tgt_dev) { }
+
 static inline int scst_sess_sysfs_create(struct scst_session *sess)
 {
 	return 0;
@@ -501,6 +507,8 @@ int scst_devt_sysfs_create(struct scst_dev_type *devt);
 void scst_devt_sysfs_del(struct scst_dev_type *devt);
 int scst_dev_sysfs_create(struct scst_device *dev);
 void scst_dev_sysfs_del(struct scst_device *dev);
+int scst_tgt_dev_sysfs_create(struct scst_tgt_dev *tgt_dev);
+void scst_tgt_dev_sysfs_del(struct scst_tgt_dev *tgt_dev);
 int scst_devt_dev_sysfs_create(struct scst_device *dev);
 void scst_devt_dev_sysfs_del(struct scst_device *dev);
 int scst_acg_sysfs_create(struct scst_tgt *tgt,

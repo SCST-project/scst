@@ -6284,15 +6284,17 @@ static int scst_init_session(struct scst_session *sess)
 				sess->transport_id), sess->tgt->rel_tgt_id);
 	}
 
-	res = scst_sess_alloc_tgt_devs(sess);
-
-failed:
-	mutex_unlock(&scst_mutex);
-
 	/* Let's always create sysfs to simplify code */
 	rc = scst_sess_sysfs_create(sess);
 	if (res == 0)
 		res = rc;
+
+	rc = scst_sess_alloc_tgt_devs(sess);
+	if (res == 0)
+		res = rc;
+
+failed:
+	mutex_unlock(&scst_mutex);
 
 	if (sess->init_result_fn) {
 		TRACE_DBG("Calling init_result_fn(%p)", sess);
