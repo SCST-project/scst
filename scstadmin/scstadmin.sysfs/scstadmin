@@ -1575,7 +1575,8 @@ sub applyConfigDevices {
 					my $create_attrs = configToAttr($$devices{$device}->{'CREATE_ATTRIBUTES'});
 					my $old_create_attrs = $SCST->deviceAttributes($device);
 
-					if (compareToKeyAttribute($create_attrs, $old_create_attrs)) {
+					if ((scalar keys %{$create_attrs}) &&
+					     compareToKeyAttribute($create_attrs, $old_create_attrs)) {
 						print "-> Device '$device' is configured differently.\n";
 
 						if ($deletions) {
@@ -1589,7 +1590,7 @@ sub applyConfigDevices {
 						}
 					}
 
-					setDeviceAttributes($device, $attributes, $deletions)
+					setDeviceAttributes($device, $attributes, FALSE)
 					  if (scalar keys %{$attributes});
 					next;
 				}
