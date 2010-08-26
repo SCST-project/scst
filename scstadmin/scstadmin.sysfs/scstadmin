@@ -1574,9 +1574,13 @@ sub applyConfigDevices {
 				if (handlerHasDevice($handler, $device)) {
 					my $create_attrs = configToAttr($$devices{$device}->{'CREATE_ATTRIBUTES'});
 					my $old_create_attrs = $SCST->deviceAttributes($device);
+					immediateExit($SCST->errorString());
+					my $possible = $SCST->deviceCreateAttributes($handler);
+					immediateExit($SCST->errorString());
 
-					if ((scalar keys %{$create_attrs}) &&
-					     compareToKeyAttribute($create_attrs, $old_create_attrs)) {
+					filterCreateAttributes($possible, $old_create_attrs, FALSE);
+
+					if (compareToKeyAttribute($create_attrs, $old_create_attrs)) {
 						print "-> Device '$device' is configured differently.\n";
 
 						if ($deletions) {
@@ -1641,8 +1645,11 @@ sub applyConfigAssignments {
 				} else {
 					my $c_attrs = configToAttr($$config{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'LUN'}->{$lun}->{$device});
 					my $o_attrs = $SCST->lunAttributes($driver, $target, $lun);
+					immediateExit($SCST->errorString());
+					my $possible = $SCST->lunCreateAttributes($driver, $target);
+					immediateExit($SCST->errorString());
 
-					filterCreateAttributes($driver, $target, undef, $c_attrs);
+					filterCreateAttributes($possible, $c_attrs, TRUE);
 
 					if (compareToKeyAttribute($c_attrs, $o_attrs)) {
 						print "-> Device '$device' at LUN '$lun' is configured differently.\n";
@@ -1848,17 +1855,15 @@ sub applyInitiatorAssignments {
 }
 
 sub filterCreateAttributes {
-	my $driver = shift;
-	my $target = shift;
-	my $group = shift;
+	my $creates = shift;
 	my $attrs = shift;
+	my $keep = shift;
 
 	foreach my $attribute (keys %{$attrs}) {
-		my $bad = $SCST->checkLunCreateAttributes($driver, $target, $attribute, $group);
-		if ($bad == TRUE) {
+		my $bad = defined($$creates{$attribute});
+
+		if (($keep && $bad) || (!$keep && !$bad)) {
 			delete $$attrs{$attribute};
-		} elsif ($bad) {
-			immediateExit($SCST->errorString($bad));
 		}
 	}
 }
