@@ -15,9 +15,9 @@ $Version
 Usage:
 General Operations
      -config <config>        : Configure SCST given the specified <file>.
+     -check_config <file>    : Checks the saved configuration <file>.
+     -write_config <file>    : Writes the current configuration to <file>.
      -clear_config           : Clear all SCST configuration.
-     -write_config <file>    : Writes the current configuration out <file>.
-     -check_config <file>    : Checks the saved configuration in <file>.
 
 Query Operations
      -list_handler [<hndlr>] : List all available handlers or specific <hndlr>.
