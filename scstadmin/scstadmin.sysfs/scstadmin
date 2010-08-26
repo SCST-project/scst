@@ -366,11 +366,6 @@ sub getArgs {
 	$_NOPROMPT_ = TRUE if (defined($_NOPROMPT_));
 
 	$force = TRUE if (defined($force));
-	$clearInitiators = TRUE if (defined($clearInitiators));
-	$clearLuns = TRUE if (defined($clearLuns));
-	$listSessions = TRUE if (defined($listSessions));
-	$listScstAttr = TRUE if (defined($listScstAttr));
-	$setScstAttr = TRUE if (defined($setScstAttr));
 	$nonkey = TRUE if (defined($nonkey));
 
 	my $query_mode = defined($listHandler) || defined($listDevice) || defined($listDriver) ||
@@ -395,142 +390,142 @@ sub getArgs {
 		usage();
 	}
 
-	if (defined($clearConfig) && !defined($force)) {
+	if (defined($clearConfig) && !$force) {
 		print "Please specify -force with -clear_config.\n";
 		usage();
 	}
 
-	if (defined($listTargetAttr) && !defined($driver)) {
+	if (defined($listTargetAttr) && ($driver eq '')) {
 		print "Please specify -driver with -list_tgt_attr.\n";
 		usage();
 	}
 
-	if (defined($listGroupAttr) && (!defined($driver) || !defined($target))) {
+	if (defined($listGroupAttr) && (($driver eq '') || ($target eq ''))) {
 		print "Please specify -driver and -target with -list_grp_attr.\n";
 		usage();
 	}
 
-	if (defined($listLunAttr) && (!defined($driver) || !defined($target))) {
+	if (defined($listLunAttr) && (($driver eq '') || ($target eq ''))) {
 		print "Please specify -driver -target and -group with -list_lun_attr.\n";
 		usage();
 	}
 
-	if (defined($listInitiatorAttr) && (!defined($driver) || !defined($target) || !defined($group))) {
+	if (defined($listInitiatorAttr) && (($driver eq '') || ($target eq '') || ($group eq ''))) {
 		print "Please specify -driver -target and -group with -list_ini_attr.\n";
 		usage();
 	}
 
-	if (defined($setScstAttr) && !defined($attributes)) {
+	if (defined($setScstAttr) && ($attributes eq '')) {
 		print "Please specify -attributes with -set_scst_attr.\n";
 		usage();
 	}
 
-	if (defined($setHandlerAttr) && !defined($attributes)) {
+	if (defined($setHandlerAttr) && ($attributes eq '')) {
 		print "Please specify -attributes with -set_hnd_attr.\n";
 		usage();
 	}
 
-	if (defined($setDeviceAttr) && !defined($attributes)) {
+	if (defined($setDeviceAttr) && ($attributes eq '')) {
 		print "Please specify -attributes with -set_dev_attr.\n";
 		usage();
 	}
 
-	if (defined($setDriverAttr) && !defined($attributes)) {
+	if (defined($setDriverAttr) && ($attributes eq '')) {
 		print "Please specify -attributes with -set_drv_attr.\n";
 		usage();
 	}
 
-	if (defined($setTargetAttr) && (!defined($driver) || !defined($attributes))) {
+	if (defined($setTargetAttr) && (($driver eq '') || ($attributes eq ''))) {
 		print "Please specify -driver and -attributes with -set_tgt_attr.\n";
 		usage();
 	}
 
-	if (defined($setGroupAttr) && (!defined($driver) || !defined($target) || !defined($attributes))) {
+	if (defined($setGroupAttr) && (($driver eq '') || ($target eq '') || ($attributes eq ''))) {
 		print "Please specify -driver -target and -attributes with -set_grp_attr.\n";
 		usage();
 	}
 
 	if (defined($setLunAttr) &&
-	    (!defined($driver) || !defined($target) || !defined($attributes))) {
+	    (($driver eq '') || ($target eq '') || ($attributes eq ''))) {
 		print "Please specify -driver -target -group and -attributes with -set_lun_attr.\n";
 		usage();
 	}
 
 	if (defined($setInitiatorAttr) &&
-	    (!defined($driver) || !defined($target) || !defined($group) || !defined($attributes))) {
+	    (($driver eq '') || ($target eq '') || ($group eq '') || ($attributes eq ''))) {
 		print "Please specify -driver -target -group and -attributes with -set_ini_attr.\n";
 		usage();
 	}
 
-	if (defined($addDriverAttr) && !defined($attributes)) {
+	if (defined($addDriverAttr) && ($attributes eq '')) {
 		print "Please specify -attributes with -add_drv_attr.\n";
 		usage();
 	}
 
 	if (defined($addTargetAttr) &&
-	    (!defined($driver) || !defined($attributes))) {
+	    (($driver eq '') || ($attributes eq ''))) {
 		print "Please specify -driver and -attributes with -add_tgt_attr.\n";
 		usage();
 	}
 
-	if (defined($remDriverAttr) && !defined($attributes)) {
+	if (defined($remDriverAttr) && ($attributes eq '')) {
 		print "Please specify -attributes with -rem_drv_attr.\n";
 		usage();
 	}
 
 	if (defined($remTargetAttr) &&
-	    (!defined($driver) || !defined($attributes))) {
+	    (($driver eq '') || ($attributes eq ''))) {
 		print "Please specify -driver and -attributes with -rem_tgt_attr.\n";
 		usage();
 	}
 
-	if ((defined($openDev) || defined($closeDev)) && !defined($handler)) {
+	if ((defined($openDev) || defined($closeDev)) && ($handler eq '')) {
 		print "Please specify -handler with -open_dev/-close_dev.\n";
 		usage();
 	}
 
-	if (defined($addTarget) && !defined($driver)) {
+	if (defined($addTarget) && ($driver eq '')) {
 		print "Please specify -driver with -add_target.\n";
 		usage();
 	}
 
-	if (defined($removeTarget) && !defined($driver)) {
+	if (defined($removeTarget) && ($driver eq '')) {
 		print "Please specify -driver with -rem_target.\n";
 		usage();
 	}
 
 	if ((defined($addGroup) || defined($removeGroup)) &&
-	    (!defined($driver) || !defined($target))) {
+	    (($driver eq '') || ($target eq ''))) {
 		print "Please specify -driver and -target with -add_group/-remove_group.\n";
 		usage();
 	}
 
 	if ((defined($addInitiator) || defined($removeInitiator) || defined($clearInitiators)) &&
-	    (!defined($target) || !defined($driver) || !defined($group))) {
+	    (($target eq '') || ($driver eq '') || ($group eq ''))) {
 		print "Please specify -driver -target and -group with ".
 		  "-add_init/-remove_init/-clear_inits.\n";
 		usage();
 	}
 
 	if (defined($moveInitiator) &&
-	    (!defined($driver) || !defined($target) || !defined($group) || !defined($to))) {
+	    (($driver eq '') || ($target eq '') || ($group eq '') || ($to eq ''))) {
 		print "Please specify -driver -target -group and -to with -move_init.\n";
 		usage();
 	}
 
 	if ((defined($addLun) || defined($replaceLun)) &&
-	    (!defined($driver) || !defined($target) || !defined($device))) {
+	    (($driver eq '') || ($target eq '') || ($device eq ''))) {
 		print "Please specify -driver -target and -device with -add_lun/-replace_lun.\n";
 		usage();
 	}
 
-	if ((defined($clearLuns) || defined($removeLun)) && (!defined($driver) || !defined($target))) {
+	if ((defined($clearLuns) || defined($removeLun)) && (($driver eq '') || ($target eq ''))) {
 		print "Please specify -driver and -target with -rem_lun/-clear_luns.\n";
 		usage();
 	}
 
-	$applyConfig = $_DEF_CONFIG_ if (defined($applyConfig) && !$applyConfig);
-	$checkConfig = $_DEF_CONFIG_ if (defined($checkConfig) && !$checkConfig);
+	$applyConfig = $_DEF_CONFIG_ if (defined($applyConfig) && ($applyConfig eq ''));
+	$checkConfig = $_DEF_CONFIG_ if (defined($checkConfig) && ($checkConfig eq ''));
 
 	my %_attributes;
 	if ($attributes) {
@@ -1981,7 +1976,7 @@ sub listHandler {
 	my $handler = shift;
 	my %toprint;
 
-	my $got_handler = defined($handler);
+	my $got_handler = ($handler ne '');
 	my $handlers = $SCST->handlers();
 
 	my $l_device;
@@ -2041,7 +2036,7 @@ sub listDevices {
 	my $device = shift;
 	my $nonkey = shift;
 
-	return listDevice($device, $nonkey) if (defined($device));
+	return listDevice($device, $nonkey) if ($device ne '');
 	return listHandler();
 }
 
@@ -2064,7 +2059,7 @@ sub listDevice {
 sub listDrivers {
 	my $driver = shift;
 
-	return listTargets($driver, undef) if (defined($driver));
+	return listTargets($driver, undef) if ($driver ne '');
 
 	my $drivers = $SCST->drivers();
 
@@ -2090,9 +2085,9 @@ sub listTargets {
 	my $target = shift;
 	my %toprint;
 
-	return listGroups($driver, $target, undef) if (defined($target) && defined($driver));
+	return listGroups($driver, $target, undef) if (($target ne '') && ($driver ne ''));
 
-	my $got_driver = defined($driver);
+	my $got_driver = ($driver ne '');
 
 	my $drivers = $SCST->drivers();
 
@@ -2191,7 +2186,8 @@ sub listGroup {
 	my $initiators = shift;
 
 	$luns = $SCST->luns($driver, $target, $group) if (!$luns);
-	$initiators = $SCST->initiators($driver, $target, $group) if (!$initiators);
+	$initiators = $SCST->initiators($driver, $target, $group)
+	  if (($initiators eq '') && ($group ne ''));
 
 	return if issueWarning($SCST->errorString());
 
@@ -2260,7 +2256,7 @@ sub listGroups {
 	my $group = shift;
 	my $found = FALSE;
 
-	if (defined($group) && defined($driver) && defined($target)) {
+	if (($group ne '') && ($driver ne '') && ($target ne '')) {
 		return listGroup($driver, $target, $group);
 	}
 
@@ -2576,7 +2572,7 @@ sub listLunAttributes {
 	return if issueWarning($SCST->errorString());
 
 	if (!scalar(keys %{$attributes})) {
-		if (defined($group)) {
+		if ($group ne '') {
 			print "No such driver/target/group/lun '$driver/$target/$group/$lun' found.\n";
 		} else {
 			print "No such driver/target/lun '$driver/$target/$lun' found.\n";
