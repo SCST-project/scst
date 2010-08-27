@@ -672,11 +672,12 @@ static ssize_t iscsi_attr_store(struct kobject *kobj,
 		res = -ENOMEM;
 		goto out;
 	}
-
 	memcpy(buffer, buf, count);
 	buffer[count] = '\0';
 
 	tgt_attr = container_of(attr, struct iscsi_attr, attr);
+
+	TRACE_DBG("attr %s, buffer %s", tgt_attr->attr.attr.name, buffer);
 
 	res = iscsi_sysfs_send_event(
 		(tgt_attr->target != NULL) ? tgt_attr->target->tid : 0,

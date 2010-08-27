@@ -993,7 +993,7 @@ static int scst_process_tgt_enable_store(struct scst_tgt *tgt, bool enable)
 
 	/* Tgt protected by kobject reference */
 
-	TRACE_DBG("tgt%p, enable %d", tgt, enable);
+	TRACE_DBG("tgt %s, enable %d", tgt->tgt_name, enable);
 
 	if (enable && (tgt->rel_tgt_id == 0)) {
 		res = gen_relative_target_port_id(&tgt->rel_tgt_id);
@@ -2341,6 +2341,7 @@ restart:
 	list_for_each_entry(s, &sess->tgt->sess_list, sess_list_entry) {
 		if (!sess->sess_kobj_ready)
 			continue;
+
 		if (strcmp(name, kobject_name(&s->sess_kobj)) == 0) {
 			if (s == sess)
 				continue;
@@ -2406,8 +2407,10 @@ void scst_sess_sysfs_del(struct scst_session *sess)
 
 	TRACE_ENTRY();
 
-	if (sess->sess_kobj_ready)
+	if (!sess->sess_kobj_ready)
 		goto out;
+
+	TRACE_DBG("Deleting session %s", kobject_name(&sess->sess_kobj));
 
 	kobject_del(&sess->sess_kobj);
 	kobject_put(&sess->sess_kobj);

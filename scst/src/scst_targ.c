@@ -6251,7 +6251,7 @@ EXPORT_SYMBOL(scst_initiator_has_luns);
 
 static int scst_init_session(struct scst_session *sess)
 {
-	int res = 0, rc;
+	int res = 0;
 	struct scst_cmd *cmd;
 	struct scst_mgmt_cmd *mcmd, *tm;
 	int mwake = 0;
@@ -6284,14 +6284,11 @@ static int scst_init_session(struct scst_session *sess)
 				sess->transport_id), sess->tgt->rel_tgt_id);
 	}
 
-	/* Let's always create sysfs to simplify code */
-	rc = scst_sess_sysfs_create(sess);
-	if (res == 0)
-		res = rc;
+	res = scst_sess_sysfs_create(sess);
+	if (res != 0)
+		goto failed;
 
-	rc = scst_sess_alloc_tgt_devs(sess);
-	if (res == 0)
-		res = rc;
+	res = scst_sess_alloc_tgt_devs(sess);
 
 failed:
 	mutex_unlock(&scst_mutex);
