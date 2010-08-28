@@ -566,7 +566,12 @@ static DEVICE_ATTR(port_database,
 #endif /* CONFIG_SCSI_QLA2XXX_TARGET */
 
 static ssize_t
-qla2x00_sysfs_read_fw_dump(struct kobject *kobj,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+qla2x00_sysfs_read_fw_dump(
+#else
+qla2x00_sysfs_read_fw_dump(struct file *file,
+#endif
+			   struct kobject *kobj,
 			   struct bin_attribute *bin_attr,
 			   char *buf, loff_t off, size_t count)
 {
@@ -587,7 +592,12 @@ qla2x00_sysfs_read_fw_dump(struct kobject *kobj,
 }
 
 static ssize_t
-qla2x00_sysfs_write_fw_dump(struct kobject *kobj,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+qla2x00_sysfs_write_fw_dump(
+#else
+qla2x00_sysfs_write_fw_dump(struct file *file,
+#endif
+			    struct kobject *kobj,
 			    struct bin_attribute *bin_attr,
 			    char *buf, loff_t off, size_t count)
 {
@@ -640,7 +650,12 @@ static struct bin_attribute sysfs_fw_dump_attr = {
 };
 
 static ssize_t
-qla2x00_sysfs_read_nvram(struct kobject *kobj,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+qla2x00_sysfs_read_nvram(
+#else
+qla2x00_sysfs_read_nvram(struct file *file,
+#endif
+			 struct kobject *kobj,
 			 struct bin_attribute *bin_attr,
 			 char *buf, loff_t off, size_t count)
 {
@@ -663,7 +678,12 @@ qla2x00_sysfs_read_nvram(struct kobject *kobj,
 }
 
 static ssize_t
-qla2x00_sysfs_write_nvram(struct kobject *kobj,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+qla2x00_sysfs_write_nvram(
+#else
+qla2x00_sysfs_write_nvram(struct file *file,
+#endif
+			  struct kobject *kobj,
 			  struct bin_attribute *bin_attr,
 			  char *buf, loff_t off, size_t count)
 {
@@ -718,7 +738,12 @@ static struct bin_attribute sysfs_nvram_attr = {
 };
 
 static ssize_t
-qla2x00_sysfs_read_optrom(struct kobject *kobj,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+qla2x00_sysfs_read_optrom(
+#else
+qla2x00_sysfs_read_optrom(struct file *file,
+#endif
+			  struct kobject *kobj,
 			  struct bin_attribute *bin_attr,
 			  char *buf, loff_t off, size_t count)
 {
@@ -738,7 +763,12 @@ qla2x00_sysfs_read_optrom(struct kobject *kobj,
 }
 
 static ssize_t
-qla2x00_sysfs_write_optrom(struct kobject *kobj,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+qla2x00_sysfs_write_optrom(
+#else
+qla2x00_sysfs_write_optrom(struct file *file,
+#endif
+			   struct kobject *kobj,
 			   struct bin_attribute *bin_attr,
 			   char *buf, loff_t off, size_t count)
 {
@@ -768,7 +798,12 @@ static struct bin_attribute sysfs_optrom_attr = {
 };
 
 static ssize_t
-qla2x00_sysfs_write_optrom_ctl(struct kobject *kobj,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+qla2x00_sysfs_write_optrom_ctl(
+#else
+qla2x00_sysfs_write_optrom_ctl(struct file *file,
+#endif
+			       struct kobject *kobj,
 			       struct bin_attribute *bin_attr,
 			       char *buf, loff_t off, size_t count)
 {
@@ -920,7 +955,12 @@ static struct bin_attribute sysfs_optrom_ctl_attr = {
 };
 
 static ssize_t
-qla2x00_sysfs_read_vpd(struct kobject *kobj,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+qla2x00_sysfs_read_vpd(
+#else
+qla2x00_sysfs_read_vpd(struct file *file,
+#endif
+		       struct kobject *kobj,
 		       struct bin_attribute *bin_attr,
 		       char *buf, loff_t off, size_t count)
 {
@@ -943,7 +983,12 @@ qla2x00_sysfs_read_vpd(struct kobject *kobj,
 }
 
 static ssize_t
-qla2x00_sysfs_write_vpd(struct kobject *kobj,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+qla2x00_sysfs_write_vpd(
+#else
+qla2x00_sysfs_write_vpd(struct file *file,
+#endif
+			struct kobject *kobj,
 			struct bin_attribute *bin_attr,
 			char *buf, loff_t off, size_t count)
 {
@@ -971,7 +1016,12 @@ static struct bin_attribute sysfs_vpd_attr = {
 };
 
 static ssize_t
-qla2x00_sysfs_read_sfp(struct kobject *kobj,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+qla2x00_sysfs_read_sfp(
+#else
+qla2x00_sysfs_read_sfp(struct file *file,
+#endif
+		       struct kobject *kobj,
 		       struct bin_attribute *bin_attr,
 		       char *buf, loff_t off, size_t count)
 {
