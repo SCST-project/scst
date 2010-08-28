@@ -1452,7 +1452,7 @@ EXPORT_SYMBOL(scst_unregister_virtual_dev_driver);
 int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 	struct scst_device *dev, struct scst_tgt_dev *tgt_dev, int num)
 {
-	int res, i;
+	int res = 0, i;
 	struct scst_cmd_thread_t *thr;
 	int n = 0, tgt_dev_num = 0;
 
@@ -1485,7 +1485,7 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 		if (!thr) {
 			res = -ENOMEM;
 			PRINT_ERROR("Fail to allocate thr %d", res);
-			goto out_error;
+			goto out_wait;
 		}
 
 		if (dev != NULL) {
@@ -1506,7 +1506,7 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 			res = PTR_ERR(thr->cmd_thread);
 			PRINT_ERROR("kthread_create() failed: %d", res);
 			kfree(thr);
-			goto out_error;
+			goto out_wait;
 		}
 
 		list_add(&thr->thread_list_entry, &cmd_threads->threads_list);
@@ -1518,27 +1518,25 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 		wake_up_process(thr->cmd_thread);
 	}
 
+out_wait:
 	if (cmd_threads != &scst_main_cmd_threads) {
 		/*
 		 * Wait for io_context gets initialized to avoid possible races
 		 * for it from the sharing it tgt_devs.
 		 */
-		while (cmd_threads->io_context == NULL) {
+		while ((volatile bool)!cmd_threads->io_context_ready) {
 			TRACE_DBG("Waiting for io_context for cmd_threads %p "
 				"initialized", cmd_threads);
 			msleep(50);
 		}
 	}
 
-	res = 0;
+	if (res != 0)
+		scst_del_threads(cmd_threads, i);
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
-
-out_error:
-	scst_del_threads(cmd_threads, i);
-	goto out;
 }
 
 /* scst_mutex supposed to be held */
@@ -1802,7 +1800,7 @@ void scst_deinit_threads(struct scst_cmd_threads *cmd_threads)
 }
 EXPORT_SYMBOL(scst_deinit_threads);
 
-static void scst_stop_all_threads(void)
+static void scst_stop_global_threads(void)
 {
 	TRACE_ENTRY();
 
@@ -1824,7 +1822,7 @@ static void scst_stop_all_threads(void)
 }
 
 /* It does NOT stop ran threads on error! */
-static int scst_start_all_threads(int num)
+static int scst_start_global_threads(int num)
 {
 	int res;
 
@@ -2096,7 +2094,7 @@ static int __init init_scst(void)
 
 	res = scst_lib_init();
 	if (res != 0)
-		goto out;
+		goto out_deinit_threads;
 
 	scst_num_cpus = num_online_cpus();
 
@@ -2236,7 +2234,7 @@ static int __init init_scst(void)
 	TRACE_DBG("%d CPUs found, starting %d threads", scst_num_cpus,
 		scst_threads);
 
-	res = scst_start_all_threads(scst_threads);
+	res = scst_start_global_threads(scst_threads);
 	if (res < 0)
 		goto out_thread_free;
 
@@ -2261,7 +2259,7 @@ out:
 	return res;
 
 out_thread_free:
-	scst_stop_all_threads();
+	scst_stop_global_threads();
 
 	scsi_unregister_interface(&scst_interface);
 
@@ -2320,6 +2318,9 @@ out_destroy_mgmt_cache:
 
 out_lib_exit:
 	scst_lib_exit();
+
+out_deinit_threads:
+	scst_deinit_threads(&scst_main_cmd_threads);
 	goto out;
 }
 
@@ -2333,7 +2334,7 @@ static void __exit exit_scst(void)
 	scst_proc_cleanup_module();
 #endif
 
-	scst_stop_all_threads();
+	scst_stop_global_threads();
 
 	scst_deinit_threads(&scst_main_cmd_threads);
 

@@ -2853,7 +2853,7 @@ static int dev_user_register_dev(struct file *file,
 					dev_desc->sgv_purge_interval);
 	if (dev->pool == NULL) {
 		res = -ENOMEM;
-		goto out_free_dev;
+		goto out_deinit_threads;
 	}
 	sgv_pool_set_allocator(dev->pool, dev_user_alloc_pages,
 		dev_user_free_sg_entries);
@@ -2968,7 +2968,9 @@ out_free:
 out_free0:
 	sgv_pool_del(dev->pool);
 
-out_free_dev:
+out_deinit_threads:
+	scst_deinit_threads(&dev->udev_cmd_threads);
+
 	kfree(dev);
 
 out_put:

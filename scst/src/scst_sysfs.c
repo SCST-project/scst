@@ -2552,9 +2552,9 @@ out_del:
 static int __scst_process_luns_mgmt_store(char *buffer,
 	struct scst_tgt *tgt, struct scst_acg *acg, bool tgt_kobj)
 {
-	int res, virt = 0, read_only = 0, action;
+	int res, read_only = 0, action;
 	char *p, *e = NULL;
-	unsigned int host, channel = 0, id = 0, lun = 0, virt_lun;
+	unsigned int virt_lun;
 	struct scst_acg_dev *acg_dev = NULL, *acg_dev_tmp;
 	struct scst_device *d, *dev = NULL;
 
@@ -2612,48 +2612,19 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 		while (isspace(*p) && *p != '\0')
 			p++;
 		e = p; /* save p */
-		host = simple_strtoul(p, &p, 0);
-		if (*p == ':') {
-			channel = simple_strtoul(p + 1, &p, 0);
-			id = simple_strtoul(p + 1, &p, 0);
-			lun = simple_strtoul(p + 1, &p, 0);
-			e = p;
-		} else {
-			virt++;
-			p = e; /* restore p */
-			while (!isspace(*e) && *e != '\0')
-				e++;
-			*e = '\0';
-		}
+		while (!isspace(*e) && *e != '\0')
+			e++;
+		*e = '\0';
 
 		list_for_each_entry(d, &scst_dev_list, dev_list_entry) {
-			if (virt) {
-				if (d->virt_id && !strcmp(d->virt_name, p)) {
-					dev = d;
-					TRACE_DBG("Virt device %p (%s) found",
-						  dev, p);
-					break;
-				}
-			} else {
-				if (d->scsi_dev &&
-				    d->scsi_dev->host->host_no == host &&
-				    d->scsi_dev->channel == channel &&
-				    d->scsi_dev->id == id &&
-				    d->scsi_dev->lun == lun) {
-					dev = d;
-					TRACE_DBG("Dev %p (%d:%d:%d:%d) found",
-						  dev, host, channel, id, lun);
-					break;
-				}
+			if (!strcmp(d->virt_name, p)) {
+				dev = d;
+				TRACE_DBG("Device %p (%s) found", dev, p);
+				break;
 			}
 		}
 		if (dev == NULL) {
-			if (virt) {
-				PRINT_ERROR("Virt device '%s' not found", p);
-			} else {
-				PRINT_ERROR("Device %d:%d:%d:%d not found",
-					    host, channel, id, lun);
-			}
+			PRINT_ERROR("Device '%s' not found", p);
 			res = -EINVAL;
 			goto out_unlock;
 		}

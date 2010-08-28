@@ -1524,8 +1524,10 @@ struct scst_cmd_threads {
 	 * Those kernels don't support ref counting based IO context sharing
 	 * between threads/processes, so need own ref counting.
 	 */
-	struct kref *io_context_kref;
+	struct kref io_context_kref;
 #endif
+
+	bool io_context_ready;
 
 	int nr_threads; /* number of processing threads */
 	struct list_head threads_list; /* processing threads */

@@ -1894,9 +1894,9 @@ static ssize_t scst_proc_groups_devices_write(struct file *file,
 					const char __user *buf,
 					size_t length, loff_t *off)
 {
-	int res, action, virt = 0, rc, read_only = 0;
+	int res, action, rc, read_only = 0;
 	char *buffer, *p, *e = NULL;
-	unsigned int host, channel = 0, id = 0, lun = 0, virt_lun;
+	unsigned int virt_lun;
 	struct scst_acg *acg =
 		(struct scst_acg *)PDE(file->f_dentry->d_inode)->data;
 	struct scst_acg_dev *acg_dev = NULL, *acg_dev_tmp;
@@ -1977,48 +1977,19 @@ static ssize_t scst_proc_groups_devices_write(struct file *file,
 		while (isspace(*p) && *p != '\0')
 			p++;
 		e = p; /* save p */
-		host = simple_strtoul(p, &p, 0);
-		if (*p == ':') {
-			channel = simple_strtoul(p + 1, &p, 0);
-			id = simple_strtoul(p + 1, &p, 0);
-			lun = simple_strtoul(p + 1, &p, 0);
-			e = p;
-		} else {
-			virt++;
-			p = e; /* restore p */
-			while (!isspace(*e) && *e != '\0')
-				e++;
-			*e = 0;
-		}
+		while (!isspace(*e) && *e != '\0')
+			e++;
+		*e = 0;
 
 		list_for_each_entry(d, &scst_dev_list, dev_list_entry) {
-			if (virt) {
-				if (d->virt_id && !strcmp(d->virt_name, p)) {
-					dev = d;
-					TRACE_DBG("Virt device %p (%s) found",
-						  dev, p);
-					break;
-				}
-			} else {
-				if (d->scsi_dev &&
-				    d->scsi_dev->host->host_no == host &&
-				    d->scsi_dev->channel == channel &&
-				    d->scsi_dev->id == id &&
-				    d->scsi_dev->lun == lun) {
-					dev = d;
-					TRACE_DBG("Dev %p (%d:%d:%d:%d) found",
-						  dev, host, channel, id, lun);
-					break;
-				}
+			if (!strcmp(d->virt_name, p)) {
+				dev = d;
+				TRACE_DBG("Device %p (%s) found", dev, p);
+				break;
 			}
 		}
 		if (dev == NULL) {
-			if (virt) {
-				PRINT_ERROR("Virt device %s not found", p);
-			} else {
-				PRINT_ERROR("Device %d:%d:%d:%d not found",
-					       host, channel, id, lun);
-			}
+			PRINT_ERROR("Device %s not found", p);
 			res = -EINVAL;
 			goto out_free_up;
 		}
@@ -2552,33 +2523,10 @@ static int scst_groups_devices_show(struct seq_file *seq, void *v)
 		       "LUN", "Options");
 
 	list_for_each_entry(acg_dev, &acg->acg_dev_list, acg_dev_list_entry) {
-		if (acg_dev->dev->virt_id == 0) {
-			char conv[60];
-			int size = sizeof(conv);
-
-			memset(conv, 0, size);
-			size = snprintf(conv, size, "%d:%d:%d:",
-					acg_dev->dev->scsi_dev->host->host_no,
-					acg_dev->dev->scsi_dev->channel,
-					acg_dev->dev->scsi_dev->id);
-			seq_printf(seq, "%s", conv);
-
-			/*
-			 * For some reason the third string argument always
-			 * shown as NULL, so we have to split it on 2 calls.
-			 */
-			sprintf(conv, "%%-%dd%%-13d", 60 - size);
-			size += seq_printf(seq, conv,
-					acg_dev->dev->scsi_dev->lun,
-					acg_dev->lun);
-			seq_printf(seq, "%s\n",
-				acg_dev->rd_only ? "RO" : "");
-		} else {
-			seq_printf(seq, "%-60s%-13lld%s\n",
-				       acg_dev->dev->virt_name,
-				       (long long unsigned int)acg_dev->lun,
-				       acg_dev->rd_only ? "RO" : "");
-		}
+		seq_printf(seq, "%-60s%-13lld%s\n",
+			       acg_dev->dev->virt_name,
+			       (long long unsigned int)acg_dev->lun,
+			       acg_dev->rd_only ? "RO" : "");
 	}
 	mutex_unlock(&scst_mutex);
 
@@ -2674,20 +2622,8 @@ static int scst_tgt_info_show(struct seq_file *seq, void *v)
 	seq_printf(seq, "%-60s%s\n", "Device (host:ch:id:lun or name)",
 		   "Device handler");
 	list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
-		if (dev->virt_id == 0) {
-			char conv[60];
-			int size = sizeof(conv);
-			size = snprintf(conv, size, "%d:%d:%d:",
-					dev->scsi_dev->host->host_no,
-					dev->scsi_dev->channel,
-					dev->scsi_dev->id);
-			seq_printf(seq, "%s", conv);
-			sprintf(conv, "%%-%dd%%s\n", 60 - size);
-			seq_printf(seq, conv, dev->scsi_dev->lun,
-				   dev->handler ? dev->handler->name : "-");
-		} else
-			seq_printf(seq, "%-60s%s\n",
-				   dev->virt_name, dev->handler->name);
+		seq_printf(seq, "%-60s%s\n",
+			   dev->virt_name, dev->handler->name);
 	}
 
 	mutex_unlock(&scst_mutex);
