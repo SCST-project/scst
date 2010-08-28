@@ -2720,7 +2720,10 @@ static int srpt_cm_handler(struct ib_cm_id *cm_id, struct ib_cm_event *event)
 		srpt_cm_rep_error(cm_id);
 		break;
 	case IB_CM_DREQ_ERROR:
-		PRINT_INFO("%s", "Received IB_CM_DREQ_ERROR event.");
+		PRINT_INFO("%s", "Received IB DREQ ERROR event.");
+		break;
+	case IB_CM_MRA_RECEIVED:
+		PRINT_INFO("%s", "Received IB MRA event");
 		break;
 	default:
 		PRINT_ERROR("received unrecognized IB CM event %d",
