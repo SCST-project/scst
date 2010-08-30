@@ -1383,7 +1383,7 @@ struct scst_session {
 	void *tgt_priv;
 
 	/* session's async flags */
-	unsigned long sess_aflags __attribute__((aligned(sizeof(long))));
+	unsigned long sess_aflags;
 
 	/*
 	 * Hash list of tgt_dev's for this session, protected by scst_mutex
@@ -1398,7 +1398,7 @@ struct scst_session {
 	 * very beginning, because otherwise they can be missed during
 	 * TM processing.
 	 */
-	struct list_head sess_cmd_list __attribute__((aligned(sizeof(long))));
+	struct list_head sess_cmd_list;
 
 	spinlock_t sess_list_lock; /* protects sess_cmd_list, etc */
 
@@ -1688,7 +1688,7 @@ struct scst_cmd {
 	/**************************************************************/
 
 	/* cmd's async flags */
-	unsigned long cmd_flags __attribute__((aligned(sizeof(long))));
+	unsigned long cmd_flags;
 
 	/* Keeps status of cmd's status/data delivery to remote initiator */
 	int delivery_status;
@@ -2001,33 +2001,36 @@ struct scst_device {
 
 	/*************************************************************
 	 ** Dev's control mode page related values. Updates serialized
-	 ** by scst_block_dev(). It's long to not interfere with the
-	 ** neighbour fields.
+	 ** by scst_block_dev(). Modified independently to the above and
+	 ** below fields, hence the alignment.
 	 *************************************************************/
 
-	unsigned long queue_alg:4 __attribute__((aligned(sizeof(long))));
-	unsigned long tst:3;
-	unsigned long tas:1;
-	unsigned long swp:1;
-	unsigned long d_sense:1;
+	unsigned int queue_alg:4  __attribute__((aligned(sizeof(long))));
+	unsigned int tst:3;
+	unsigned int tas:1;
+	unsigned int swp:1;
+	unsigned int d_sense:1;
 
 	/*
 	 * Set if device implements own ordered commands management. If not set
 	 * and queue_alg is SCST_CONTR_MODE_QUEUE_ALG_RESTRICTED_REORDER,
 	 * expected_sn will be incremented only after commands finished.
 	 */
-	unsigned long has_own_order_mgmt:1;
+	unsigned int has_own_order_mgmt:1;
 
 	/**************************************************************/
 
-	/* Set if dev is persistently reserved. Protected by dev_pr_mutex. */
-	unsigned short pr_is_set:1 __attribute__((aligned(sizeof(long))));
+	/*
+	 * Set if dev is persistently reserved. Protected by dev_pr_mutex.
+	 * Modified independently to the above field, hence the alignment.
+	 */
+	unsigned int pr_is_set:1 __attribute__((aligned(sizeof(long))));
 
 	/*
 	 * Set if there is a thread changing or going to change PR state(s).
 	 * Protected by dev_pr_mutex.
 	 */
-	unsigned short pr_writer_active:1;
+	unsigned int pr_writer_active:1;
 
 	/*
 	 * How many threads are checking commands for PR allowance. Used to
@@ -2076,7 +2079,10 @@ struct scst_device {
 	 ** Persistent reservation fields. Protected by dev_pr_mutex.
 	 *************************************************************/
 
-	/* True if persist through power loss is activated */
+	/*
+	 * True if persist through power loss is activated. Modified
+	 * independently to the above field, hence the alignment.
+	 */
 	unsigned short pr_aptpl:1 __attribute__((aligned(sizeof(long))));
 
 	/* Persistent reservation type */
@@ -2118,7 +2124,7 @@ struct scst_device {
 	wait_queue_head_t on_dev_waitQ;
 
 	/* A list entry used during TM, protected by scst_mutex */
-	struct list_head tm_dev_list_entry __attribute__((aligned(sizeof(long))));
+	struct list_head tm_dev_list_entry;
 
 	/* Virtual device internal ID */
 	int virt_id;
@@ -2191,8 +2197,11 @@ struct scst_tgt_dev {
 	struct sgv_pool *pool;
 	int max_sg_cnt;
 
-	/* tgt_dev's async flags */
-	unsigned long tgt_dev_flags __attribute__((aligned(sizeof(long))));
+	/*
+	 * Tgt_dev's async flags. Modified independently to the neighbour
+	 * fields.
+	 */
+	unsigned long tgt_dev_flags;
 
 	/* Used for storage of dev handler private stuff */
 	void *dh_priv;
@@ -2217,10 +2226,10 @@ struct scst_tgt_dev {
 	struct list_head skipped_sn_list;
 
 	/*
-	 * Set if the prev cmd was ORDERED. Size and alignment must allow
-	 * unprotected modifications independant to the neighbour fields.
+	 * Set if the prev cmd was ORDERED. Size and, hence, alignment must
+	 * allow unprotected modifications independently to the neighbour fields.
 	 */
-	unsigned long prev_cmd_ordered __attribute__((aligned(sizeof(long))));
+	unsigned long prev_cmd_ordered;
 
 	int num_free_sn_slots; /* if it's <0, then all slots are busy */
 	atomic_t *cur_sn_slot;

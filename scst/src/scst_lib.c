@@ -133,9 +133,8 @@ struct scst_sdbops {
 				 */
 	uint16_t flags;		/* opcode --  various flags */
 	uint8_t off;		/* length offset in cdb */
-	int (*get_trans_len)(struct scst_cmd *cmd, uint8_t off)
-		__attribute__ ((aligned));
-}  __attribute__((packed));
+	int (*get_trans_len)(struct scst_cmd *cmd, uint8_t off);
+};
 
 static int scst_scsi_op_list[256];
 
