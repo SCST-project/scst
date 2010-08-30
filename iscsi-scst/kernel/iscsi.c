@@ -343,6 +343,29 @@ static void cmnd_free(struct iscsi_cmnd *cmnd)
 	return;
 }
 
+static void iscsi_dec_active_cmds(struct iscsi_cmnd *req)
+{
+	struct iscsi_session *sess = req->conn->session;
+
+	TRACE_DBG("Decrementing active_cmds (req %p, sess %p, "
+		"new value %d)", req, sess,
+		atomic_read(&sess->active_cmds)-1);
+
+	EXTRACHECKS_BUG_ON(!req->dec_active_cmds);
+
+	atomic_dec(&sess->active_cmds);
+	smp_mb__after_atomic_dec();
+	req->dec_active_cmds = 0;
+#ifdef CONFIG_SCST_EXTRACHECKS
+	if (unlikely(atomic_read(&sess->active_cmds) < 0)) {
+		PRINT_CRIT_ERROR("active_cmds < 0 (%d)!!",
+			atomic_read(&sess->active_cmds));
+		sBUG();
+	}
+#endif
+	return;
+}
+
 /* Might be called under some lock and on SIRQ */
 void cmnd_done(struct iscsi_cmnd *cmnd)
 {
@@ -425,20 +448,8 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 #endif
 		}
 
-		if (cmnd->dec_active_cmnds) {
-			struct iscsi_session *sess = cmnd->conn->session;
-			TRACE_DBG("Decrementing active_cmds (cmd %p, sess %p, "
-				"new value %d)", cmnd, sess,
-				atomic_read(&sess->active_cmds)-1);
-			atomic_dec(&sess->active_cmds);
-#ifdef CONFIG_SCST_EXTRACHECKS
-			if (unlikely(atomic_read(&sess->active_cmds) < 0)) {
-				PRINT_CRIT_ERROR("active_cmds < 0 (%d)!!",
-					atomic_read(&sess->active_cmds));
-				sBUG();
-			}
-#endif
-		}
+		if (unlikely(cmnd->dec_active_cmds))
+			iscsi_dec_active_cmds(cmnd);
 
 		list_for_each_entry_safe(rsp, t, &cmnd->rsp_cmd_list,
 					rsp_cmd_list_entry) {
@@ -460,7 +471,7 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 #endif
 		}
 
-		EXTRACHECKS_BUG_ON(cmnd->dec_active_cmnds);
+		EXTRACHECKS_BUG_ON(cmnd->dec_active_cmds);
 
 		if (cmnd == parent->main_rsp) {
 			TRACE_DBG("Finishing main rsp %p (req %p)", cmnd,
@@ -601,21 +612,8 @@ static void req_cmnd_pre_release(struct iscsi_cmnd *req)
 
 	EXTRACHECKS_BUG_ON(req->pending);
 
-	if (req->dec_active_cmnds) {
-		struct iscsi_session *sess = req->conn->session;
-		TRACE_DBG("Decrementing active_cmds (cmd %p, sess %p, "
-			"new value %d)", req, sess,
-			atomic_read(&sess->active_cmds)-1);
-		atomic_dec(&sess->active_cmds);
-		req->dec_active_cmnds = 0;
-#ifdef CONFIG_SCST_EXTRACHECKS
-		if (unlikely(atomic_read(&sess->active_cmds) < 0)) {
-			PRINT_CRIT_ERROR("active_cmds < 0 (%d)!!",
-				atomic_read(&sess->active_cmds));
-			sBUG();
-		}
-#endif
-	}
+	if (unlikely(req->dec_active_cmds))
+		iscsi_dec_active_cmds(req);
 
 	TRACE_EXIT();
 	return;
@@ -1901,7 +1899,7 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 		"new value %d)", req, session,
 		atomic_read(&session->active_cmds)+1);
 	atomic_inc(&session->active_cmds);
-	req->dec_active_cmnds = 1;
+	req->dec_active_cmds = 1;
 
 	scst_cmd = scst_rx_cmd(session->scst_sess,
 		(uint8_t *)&req_hdr->lun, sizeof(req_hdr->lun),
@@ -3279,6 +3277,14 @@ static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 			SCST_LOAD_SENSE(scst_sense_hardw_error));
 		sBUG(); /* ToDo */
 	}
+
+	/*
+	 * We need to decrement active_cmds before adding any responses into
+	 * the write queue to eliminate a race, when all responses sent
+	 * with wrong MaxCmdSN.
+	 */
+	if (likely(req->dec_active_cmds))
+		iscsi_dec_active_cmds(req);
 
 	if (req->bufflen != 0) {
 		/*

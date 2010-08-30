@@ -173,7 +173,7 @@ struct iscsi_conn {
 
 #define ISCSI_CONN_REINSTATING	1
 #define ISCSI_CONN_SHUTTINGDOWN	2
-	unsigned long conn_aflags __attribute__((aligned(sizeof(long))));
+	unsigned long conn_aflags;
 
 	spinlock_t cmd_list_lock; /* BH lock */
 
@@ -192,7 +192,10 @@ struct iscsi_conn {
 	struct timer_list rsp_timer;
 	unsigned int rsp_timeout; /* in jiffies */
 
-	/* All 2 protected by iscsi_wr_lock */
+	/*
+	 * All 2 protected by iscsi_wr_lock. Modified independently to the
+	 * above field, hence the alignment.
+	 */
 	unsigned short wr_state __attribute__((aligned(sizeof(long))));
 	unsigned short wr_space_ready:1;
 
@@ -344,7 +347,7 @@ struct iscsi_cmnd {
 	unsigned int on_write_list:1;
 	unsigned int write_processing_started:1;
 	unsigned int force_cleanup_done:1;
-	unsigned int dec_active_cmnds:1;
+	unsigned int dec_active_cmds:1;
 	unsigned int ddigest_checked:1;
 #ifdef CONFIG_SCST_EXTRACHECKS
 	unsigned int on_rx_digest_list:1;
@@ -361,7 +364,7 @@ struct iscsi_cmnd {
 	 */
 #define ISCSI_CMD_ABORTED		0
 #define ISCSI_CMD_PRELIM_COMPLETED	1
-	unsigned long prelim_compl_flags __attribute__((aligned(sizeof(long))));
+	unsigned long prelim_compl_flags;
 
 	struct list_head hash_list_entry;
 
@@ -421,7 +424,11 @@ struct iscsi_cmnd {
 
 			struct iscsi_cmnd *main_rsp;
 
-			/* Protected on modify by conn->write_list_lock */
+			/*
+			 * Protected on modify by conn->write_list_lock, hence
+			 * modified independently to the above field, hence the
+			 * alignment.
+			 */
 			int not_processed_rsp_cnt
 				 __attribute__((aligned(sizeof(long))));
 		};
