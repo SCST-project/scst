@@ -2569,7 +2569,7 @@ static void blockio_endio(struct bio *bio, int error)
 		/* To protect from several bios finishing simultaneously */
 		spin_lock_bh(&blockio_endio_lock);
 
-		if (bio->bi_rw & WRITE)
+		if (bio->bi_rw & (1 << BIO_RW))
 			scst_set_cmd_error(blockio_work->cmd,
 				SCST_LOAD_SENSE(scst_sense_write_error));
 		else
@@ -2708,7 +2708,7 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 		bio = hbio;
 		hbio = hbio->bi_next;
 		bio->bi_next = NULL;
-		submit_bio(write, bio);
+		submit_bio((write != 0), bio);
 	}
 
 	if (q && q->unplug_fn)
