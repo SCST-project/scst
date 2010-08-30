@@ -183,19 +183,17 @@ static struct kmem_cache *tgt_specific_pool;
 static LIST_HEAD(scst_local_host_list);
 static DEFINE_SPINLOCK(scst_local_host_list_lock);
 
-static char scst_local_proc_name[] = "scst_ini_targ_debug";
-
 static struct bus_type scst_fake_lld_bus;
 static struct device scst_fake_primary;
 
 static struct device_driver scst_local_driverfs_driver = {
-	.name	= scst_local_proc_name,
+	.name	= SCST_LOCAL_NAME,
 	.bus	= &scst_fake_lld_bus,
 };
 
-module_param_named(add_host, scst_local_add_host, int, S_IRUGO | S_IWUSR);
-module_param_named(num_tgts, scst_local_num_tgts, int, S_IRUGO | S_IWUSR);
-module_param_named(max_luns, scst_local_max_luns, int, S_IRUGO | S_IWUSR);
+module_param_named(add_host, scst_local_add_host, int, S_IRUGO);
+module_param_named(num_tgts, scst_local_num_tgts, int, S_IRUGO);
+module_param_named(max_luns, scst_local_max_luns, int, S_IRUGO);
 
 MODULE_AUTHOR("Richard Sharpe + ideas from SCSI_DEBUG");
 MODULE_DESCRIPTION("SCSI+SCST local adapter driver");
@@ -941,7 +939,7 @@ static void scst_local_remove_adapter(void)
 
 static struct scsi_host_template scst_lcl_ini_driver_template = {
 	.proc_info			= scst_local_proc_info,
-	.proc_name			= scst_local_proc_name,
+	.proc_name			= SCST_LOCAL_NAME,
 	.name				= SCST_LOCAL_NAME,
 	.info				= scst_local_info,
 /*	.ioctl				= scst_local_ioctl, */
@@ -957,11 +955,8 @@ static struct scsi_host_template scst_lcl_ini_driver_template = {
 	.sg_tablesize			= SG_MAX_SINGLE_ALLOC,
 	.cmd_per_lun			= 32,
 	.max_sectors			= 0xffff,
-	/*
-	 * There's no gain to merge requests on this level. If necessary,
-	 * they will be merged at the backstorage level.
-	 */
-	.use_clustering			= DISABLE_CLUSTERING,
+	/* SCST doesn't support sg chaining */
+	.use_clustering			= ENABLE_CLUSTERING,
 	.skip_settle_delay		= 1,
 	.module				= THIS_MODULE,
 };
@@ -1349,6 +1344,7 @@ static struct scst_tgt_template scst_local_targ_tmpl = {
 	.name			= "scst_local_tgt",
 	.sg_tablesize		= 0xffff,
 	.xmit_response_atomic	= 1,
+	.enabled_attr_not_needed = 1,
 	.detect			= scst_local_targ_detect,
 	.release		= scst_local_targ_release,
 	.pre_exec		= scst_local_targ_pre_exec,

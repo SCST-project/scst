@@ -239,7 +239,8 @@ int __scst_register_target_template(struct scst_tgt_template *vtt,
 	}
 
 #ifndef CONFIG_SCST_PROC
-	if (!vtt->enable_target || !vtt->is_target_enabled)
+	if ((!vtt->enable_target || !vtt->is_target_enabled) &&
+	    !vtt->enabled_attr_not_needed)
 		PRINT_WARNING("Target driver %s doesn't have enable_target() "
 			"and/or is_target_enabled() method(s). This is unsafe "
 			"and can lead that initiators connected on the "

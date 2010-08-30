@@ -97,7 +97,7 @@ static inline int list_is_last(const struct list_head *list,
 
 #endif
 
-#define SCST_LOCAL_NAME			"scst_lcl_drvr"
+#define SCST_LOCAL_NAME			"scst_local"
 
 /*************************************************************
  ** States of command processing state machine. At first,
@@ -581,6 +581,9 @@ struct scst_tgt_template {
 #ifdef CONFIG_SCST_PROC
 	/* True, if the template doesn't need the entry in /proc */
 	unsigned no_proc_entry:1;
+#else
+	/* True, if this target doesn't need "enabled" attribute */
+	unsigned enabled_attr_not_needed:1;
 #endif
 
 	/*
@@ -831,6 +834,9 @@ struct scst_tgt_template {
 	 * while target not yet completed the initial configuration. In this
 	 * case the too early connected initiators would see not those devices,
 	 * which they intended to see.
+	 *
+	 * If you are sure your target driver doesn't need enabling target,
+	 * you should set enabled_attr_not_needed in 1.
 	 */
 	int (*enable_target) (struct scst_tgt *tgt, bool enable);
 
