@@ -151,10 +151,13 @@ Target Driver Operations
          -driver <driver>
      -disable_target <t>     : Disable target mode for a given driver & target.
          -driver <driver>
+     -issue_lip [<t>]
+        [-driver <driver>]   : Issue a LIP for a specific driver/target or for
+                               all drivers and targets.
 
 Options
-     -nonkey                 : When writing a configuration file or listing
-                               attributes, store/print non-key attributes as well.
+     -nonkey                 : When writing a config file or listing attributes,
+                               store/print non-key attributes as well.
      -force                  : Force all configuration changes,
                                even deletions (DANGER!).
      -noprompt               : Do not prompt or pause. Use with caution!
@@ -273,6 +276,7 @@ sub getArgs {
 
 	my $enableTarget;
 	my $disableTarget;
+	my $issueLip;
 
 	my $handler;
 	my $attributes;
@@ -345,6 +349,7 @@ sub getArgs {
 
 			    'enable_target=s'	=> \$enableTarget,
 			    'disable_target=s'	=> \$disableTarget,
+			    'issue_lip:s'	=> \$issueLip,
 
 			    'handler=s'		=> \$handler,
 			    'attributes=s'	=> \$attributes,
@@ -383,7 +388,7 @@ sub getArgs {
 	     defined($addDriverAttr) + defined($addTargetAttr) + defined($remDriverAttr) + defined($remTargetAttr) +
 	     defined($addTarget) + defined($removeTarget) +
 	     defined($addLun) + defined($removeLun) + defined($replaceLun) + defined($clearLuns) +
-	     defined($enableTarget) + defined($disableTarget);
+	     defined($enableTarget) + defined($disableTarget) + defined($issueLip);
 
 	if (($query_mode + $set_mode + $op_mode) > 1) {
 		print "Please specify only one non-query operation at a time.\n";
@@ -553,7 +558,7 @@ sub getArgs {
 		$addGroup, $removeGroup,
 		$addInitiator, $removeInitiator, $moveInitiator, $clearInitiators,
 		$addLun, $removeLun, $replaceLun, $clearLuns,
-		$enableTarget, $disableTarget,
+		$enableTarget, $disableTarget, $issueLip,
 		$handler, \%_attributes,
 		$driver, $target, $group, $to, $device,
 		$nonkey, $force);
@@ -578,7 +583,7 @@ sub main {
 	    $addGroup, $removeGroup,
 	    $addInitiator, $removeInitiator, $moveInitiator, $clearInitiators,
 	    $addLun, $removeLun, $replaceLun, $clearLuns,
-	    $enableTarget, $disableTarget,
+	    $enableTarget, $disableTarget, $issueLip,
 	    $handler, $attributes,
 	    $driver, $target, $group, $to, $device,
 	    $nonkey, $force) = getArgs();
@@ -803,6 +808,10 @@ sub main {
 		defined($disableTarget) && do {
 			last if (prompt());
 			$rc = disableTarget($driver, $disableTarget);
+			last SWITCH;
+		};
+		defined($issueLip) && do {
+			$rc = issueLip($driver, $issueLip);
 			last SWITCH;
 		};
 
@@ -3617,6 +3626,82 @@ sub disableTarget {
 	my %attributes = ('enabled', 0);
 
 	setTargetAttributes($driver, $target, \%attributes);
+}
+
+sub issueLip {
+	my $driver = shift;
+	my $target = shift;
+
+	if (defined($driver) && defined($target)) {
+		return _issueLip($driver, $target);
+	} else {
+		my $drivers = $SCST->drivers();
+
+		foreach my $driver(@{$drivers}) {
+			my $targets = $SCST->targets($driver);
+
+			foreach my $target (@{$targets}) {
+				my $rc = _issueLip($driver, $target);
+
+				return $rc if ($rc);
+			}
+		}
+	}
+
+	return FALSE;
+}
+
+sub _issueLip {
+	my $driver = shift;
+	my $target = shift;
+	my $rc = FALSE;
+
+	my $attributes = $SCST->targetAttributes($driver, $target);
+
+	if (!defined($$attributes{'host'})) {
+		print "Driver/target '$driver/$target' has no 'host' attribute, ignoring.\n";
+		return FALSE;
+	}
+
+	my $dir = new IO::Handle;
+
+	if (!(opendir $dir, $$attributes{'host'}->{'value'}.'/device/fc_host')) {
+		print "Driver/target is not a fibre channel target, ignoring.\n";
+		return FALSE;
+	}
+
+	foreach my $host (readdir($dir)) {
+		next if (($host eq '.') || ($host eq '..'));
+
+		my $lip = $$attributes{'host'}->{'value'}.'/device/fc_host/'.$host.'/issue_lip';
+
+		if (-w $lip) {
+			my $io = new IO::File $lip, O_WRONLY;
+
+			print "WARNING: Failed to open file '$lip' for writing.\n"
+			  if (!$io);
+
+			print "Issuing LIP on fibre channel driver/target '$driver/$target': ";
+
+			my $bytes = syswrite($io, 1, 1);
+
+			print "done.\n";
+
+			if (!$bytes) {
+				print "WARNING: Failed to issue LIP on driver/target '$driver/$target'.\n";
+				$rc = TRUE;
+			}
+
+			close $io;
+		} else {
+			print "Fibre channel driver/target '$driver/$target' lacks the ability to ".
+			  "issue LIPs, ignoring.\n";
+		}
+	}
+
+	close $dir;
+
+	return $rc;
 }
 
 ####################################################################
