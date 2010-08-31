@@ -3681,7 +3681,7 @@ sub _issueLip {
 			print "WARNING: Failed to open file '$lip' for writing.\n"
 			  if (!$io);
 
-			print "Issuing LIP on fibre channel driver/target '$driver/$target': ";
+			print "Issuing LIP on fibre channel driver/target '$driver/$target' ($host): ";
 
 			my $bytes = syswrite($io, 1, 1);
 
