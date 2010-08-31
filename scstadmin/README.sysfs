@@ -1,0 +1,81 @@
+ENABLING SYSFS VERSION
+----------------------
+
+To enable the sysfs version of scstadmin (you must have the sysfs version of
+SCST already installed):
+
+make disable_proc
+
+INSTALLING
+----------
+
+Now do the normal:
+
+make
+make install
+
+GETTING HELP
+------------
+
+The new scstadmin has many more options than the olde procfs version to see
+them, type:
+
+scstadmin --help
+
+CONVERTING FROM PROCFS (scst version 1.x)
+-----------------------------------------
+
+The new scstadmin uses a different configuration file format. However,
+scstadmin will convert your old configuration file for you. No special
+arguments are required, simply:
+
+scstadmin -config <old config file>
+
+Take note of warnings issued by scstadmin. Manually fix configuration
+errors using scstadmin. Once you're satisfied your running configuration is
+what you expect, save it by typing:
+
+scstadmin -write_config <new config file>
+
+Be sure to review this new configuration file to ensure it matches.
+
+CREATING A CONFIGURATION FROM SCRATCH
+-------------------------------------
+
+* DEVICES *
+
+Devices are defined by their handler. Commonly used handlers are dev_disk,
+dev_cdrom, vdisk_fileio, vdisk_blockio and vcdrom.
+
+To list all the available handlers, type:
+
+scstadmin -list_handler
+
+Physical devices used for passthrough handlers like dev_disk and dev_cdrom
+are defined by their H:C:I:L :
+
+HANDLER dev_disk {
+	DEVICE 1:0:0:0
+}
+
+HANDLER dev_cdrom {
+	DEVICE 2:0:0:0
+}
+
+Virtual devices are opened through special CREATE attributes. For example, a 
+virtual disk named "disk1" pointing to a disk partition /dev/hda1 would be look
+like:
+
+HANDLER vdisk_fileio {
+	DEVICE disk 1 {
+		CREATE_ATTRIBUTES {
+			filename /dev/hda1
+		}
+	}
+}
+
+To list all the available CREATE attributes for a given handler, type:
+
+scstadmin -list_hnd_attr <handler>
+
+(to be continued...)
