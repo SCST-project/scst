@@ -74,10 +74,11 @@ The ib_srpt kernel module supports the following parameters:
   to 65536 bytes, which is sufficient to use the full bandwidth of low-latency
   HCAs. Increasing this value may decrease latency for applications
   transferring large amounts of data at once.
-* srpt_autodetect_cred_req (y or n, default y)
+* srpt_autodetect_cred_req (y or n, default n)
   Whether or not to autodetect initiator support for SRP_CRED_REQ (initiators
   with Linux kernel 2.6.37 or later only).  The use of SRP_CRED_REQ allows
   ib_srpt to process workloads with large I/O depths more efficiently.
+  Note: enabling this mode causes the Windows SRP initiator to stop working.
 * srpt_srq_size (number, default 4095)
   ib_srpt uses a shared receive queue (SRQ) for processing incoming SRP
   requests. This number may have to be increased when a large number of
