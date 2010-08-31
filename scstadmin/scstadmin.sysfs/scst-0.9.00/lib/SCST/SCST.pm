@@ -3180,7 +3180,7 @@ sub initiatorCreateAttributes {
 	}
 
 	my $io = new IO::File mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target,
-	  SCST_GROUPS, $group, SCST_LUNS, SCST_MGMT_IO), O_RDONLY;
+	  SCST_GROUPS, $group, SCST_INITIATORS, SCST_MGMT_IO), O_RDONLY;
 
 	if (!$io) {
 		$self->{'err_string'} = "initiatorCreateAttributes(): Unable to open initiators mgmt ".

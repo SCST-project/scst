@@ -2535,7 +2535,20 @@ sub listHandlerAttributes {
 		return;
 	}
 
-	return listAttributes($attributes, $nonkey);
+	my $rc = listAttributes($attributes, $nonkey);
+	return $rc if $rc;
+
+	$attributes = $SCST->deviceCreateAttributes($handler);
+
+	return if issueWarning($SCST->errorString());
+	return if (!scalar keys %{$attributes});
+
+	print "\n\tDevice CREATE attributes available\n";
+	print "\t----------------------------------\n";
+
+	foreach my $attribute (keys %{$attributes}) {
+		print "\t$attribute\n";
+	}
 }
 
 sub listDriverAttributes {
@@ -2551,7 +2564,22 @@ sub listDriverAttributes {
 		return;
 	}
 
-	return listAttributes($attributes, $nonkey);
+	my $rc = listAttributes($attributes, $nonkey);
+	return $rc if ($rc);
+
+	if ($SCST->driverIsVirtualCapable($driver)) {
+		my $attributes = $SCST->targetCreateAttributes($driver);
+
+		return if issueWarning($SCST->errorString());
+		return if (!scalar keys %{$attributes});
+
+		print "\n\tTarget CREATE attributes available:\n";
+		print "\t-----------------------------------\n";
+
+		foreach my $attribute (keys %{$attributes}) {
+			print "\t$attribute\n";
+		}
+	}
 }
 
 sub listTargetAttributes {
@@ -2568,7 +2596,20 @@ sub listTargetAttributes {
 		return;
 	}
 
-	return listAttributes($attributes, $nonkey);
+	my $rc = listAttributes($attributes, $nonkey);
+	return $rc if $rc;
+
+	$attributes = $SCST->lunCreateAttributes($driver, $target);
+
+	return if issueWarning($SCST->errorString());
+	return if (!scalar keys %{$attributes});
+
+	print "\n\tLUN CREATE attributes available\n";
+	print "\t-------------------------------\n";
+
+	foreach my $attribute (keys %{$attributes}) {
+		print "\t$attribute\n";
+	}
 }
 
 sub listGroupAttributes {
@@ -2586,7 +2627,32 @@ sub listGroupAttributes {
 		return;
 	}
 
-	return listAttributes($attributes, $nonkey);
+	my $rc = listAttributes($attributes, $nonkey);
+	return $rc if $rc;
+
+	$attributes = $SCST->lunCreateAttributes($driver, $target, $group);
+
+	return if issueWarning($SCST->errorString());
+	return if (!scalar keys %{$attributes});
+
+	print "\n\tLUN CREATE attributes available\n";
+	print "\t-------------------------------\n";
+
+	foreach my $attribute (keys %{$attributes}) {
+		print "\t$attribute\n";
+	}
+
+	$attributes = $SCST->initiatorCreateAttributes($driver, $target, $group);
+
+	return if issueWarning($SCST->errorString());
+	return if (!scalar keys %{$attributes});
+
+	print "\n\tInitiator CREATE attributes available\n";
+	print "\t-------------------------------------\n";
+
+	foreach my $attribute (keys %{$attributes}) {
+		print "\t$attribute\n";
+	}
 }
 
 sub listLunAttributes {
