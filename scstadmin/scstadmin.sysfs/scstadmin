@@ -2568,6 +2568,18 @@ sub listDriverAttributes {
 	return $rc if ($rc);
 
 	if ($SCST->driverIsVirtualCapable($driver)) {
+		$attributes = $SCST->driverDynamicAttributes($driver);
+		return if issueWarning($SCST->errorString());
+
+		if (scalar keys %{$attributes}) {
+			print "\n\tDynamic attributes available\n";
+			print "\t----------------------------\n";
+
+			foreach my $attribute (keys %{$attributes}) {
+				print "\t$attribute\n";
+			}
+		}
+
 		my $attributes = $SCST->targetCreateAttributes($driver);
 
 		return if issueWarning($SCST->errorString());
@@ -2598,6 +2610,20 @@ sub listTargetAttributes {
 
 	my $rc = listAttributes($attributes, $nonkey);
 	return $rc if $rc;
+
+	if ($SCST->driverIsVirtualCapable($driver)) {
+		$attributes = $SCST->targetDynamicAttributes($driver);
+		return if issueWarning($SCST->errorString());
+
+		if (scalar keys %{$attributes}) {
+			print "\n\tDynamic attributes available\n";
+			print "\t----------------------------\n";
+
+			foreach my $attribute (keys %{$attributes}) {
+				print "\t$attribute\n";
+			}
+		}
+	}
 
 	$attributes = $SCST->lunCreateAttributes($driver, $target);
 

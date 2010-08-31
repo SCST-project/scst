@@ -67,7 +67,7 @@ virtual disk named "disk1" pointing to a disk partition /dev/hda1 would be look
 like:
 
 HANDLER vdisk_fileio {
-	DEVICE disk 1 {
+	DEVICE disk1 {
 		CREATE_ATTRIBUTES {
 			filename /dev/hda1
 		}
@@ -78,4 +78,161 @@ To list all the available CREATE attributes for a given handler, type:
 
 scstadmin -list_hnd_attr <handler>
 
-(to be continued...)
+* ASSIGNING DEVICES TO TARGET AND INITIATORS *
+
+Now we can assign the device to a target driver. To get a list of available
+drivers, type:
+
+scstadmin -list_driver
+
+To list all available targets, type:
+
+scstadmin -list_target
+
+Now we can build our configuration assigning disk1 to LUN 0 for all initiators:
+
+TARGET_DRIVER qla2x00t {
+	TARGET 25:00:00:f0:98:87:92:f3 {
+		LUN 0 disk1
+
+		enabled 1
+	}
+}
+
+NOTE: We added the attribute "enabled" and set it to "1". Without this attribute
+set to 1, this target will be disabled and no initiators have access to its
+LUNs.
+
+This assigns disk1 to LUN 0 using default attributes. To list all available LUN
+CREATE attributes, type:
+
+scstadmin -list_tgt_attr <target> -driver <driver>
+
+An example would be to use the CREATE attribute "read_only" to force the LUN to
+be read-only:
+
+TARGET_DRIVER qla2x00t {
+	TARGET 25:00:00:f0:98:87:92:f3 {
+		LUN 0 disk1 {
+			read_only 1
+		}
+
+		# Assign LUN 1 to passthrough device 1:0:0:0
+		LUN 1 1:0:0:0
+
+		enabled 1
+	}
+}
+
+Since LUNs 0 and 1 will now be available to all targets, we may want to
+establish groups to restrict which LUNs are available to which initiators.
+To do that, we use the GROUP clause within the TARGET clause:
+
+TARGET_DRIVER qla2x00t {
+	TARGET 25:00:00:f0:98:87:92:f3 {
+		GROUP production {
+			LUN 0 disk1 {
+				read_only 1
+			}
+
+			INITIATOR 25:00:00:f0:99:87:94:a3
+		}
+
+		GROUP development {
+			LUN 0 1:0:0:0
+			INITIATOR 25:00:00:f0:99:87:94:a4
+		}
+
+		# Allow a CDROM device to be LUN 1 for all initiators
+		LUN 1 2:0:0:0
+
+		enabled 1
+	}
+}
+
+For drivers which support virtual targets, like iSCSI, scstadmin will simply
+create them on the fly:
+
+TARGET_DRIVER iscsi {
+	IncomingUser "joe 12charsecret"
+
+	TARGET iqn.2006-10.net.vlnb:tgt {
+		IncomingUser "joe 12charsecret"
+
+		LUN 0 disk1
+
+		enabled 1
+	}
+}
+
+Notice we included a new attribute "IncomingUser" This is a dynamic attribute
+which allows an initiator to scan for LUNs, if added at the driver level, and
+attach to LUNs if added at the target level. To retrieve a list of available
+driver dynamic attributes, type:
+
+scstadmin -list_drv_attr <driver>
+
+To retrieve a list of available target dynamic attributes, type:
+
+scstadmin -list_tgt_attr <target> -driver <driver>
+
+Other attributes called non-key attributes may also be defined, assuming they
+are writable. These can be listed using any of the above -list commands using
+the extra -nonkey option:
+
+scstadmin -list_tgt_attr <target> -driver <driver> -nonkey
+
+* EXAMPLE CONFIGURATION *
+
+A complete configuration using the above examples would look like:
+
+HANDLER dev_disk {
+	DEVICE 1:0:0:0
+}
+
+HANDLER dev_cdrom {
+	DEVICE 2:0:0:0
+}
+
+HANDLER vdisk_fileio {
+	DEVICE disk1 {
+		CREATE_ATTRIBUTES {
+			filename /dev/hda1
+		}
+	}
+}
+
+TARGET_DRIVER qla2x00t {
+	TARGET 25:00:00:f0:98:87:92:f3 {
+		GROUP production {
+			LUN 0 disk1 {
+				read_only 1
+			}
+
+			INITIATOR 25:00:00:f0:99:87:94:a3
+		}
+
+		GROUP development {
+			LUN 0 1:0:0:0
+			INITIATOR 25:00:00:f0:99:87:94:a4
+		}
+
+		# Allow a CDROM device to be LUN 1 for all initiators
+		LUN 1 2:0:0:0
+
+		enabled 1
+	}
+}
+
+TARGET_DRIVER iscsi {
+	IncomingUser "joe 12charsecret"
+
+	TARGET iqn.2006-10.net.vlnb:tgt {
+		IncomingUser "joe 12charsecret"
+
+		LUN 0 disk1
+
+		enabled 1
+	}
+}
+
