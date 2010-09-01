@@ -52,7 +52,7 @@ usage () {
 scst_svn_repo="https://scst.svn.sourceforge.net/svnroot/scst/trunk"
 sendmail_opts=""
 
-set -- $(/usr/bin/getopt "r:" "$@")
+set -- $(/usr/bin/getopt "hr:" "$@")
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
