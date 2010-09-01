@@ -8,7 +8,6 @@ usage() {
 
 recipients="scst-devel@lists.sourceforge.net"
 
-set -- $(/usr/bin/getopt "r:" "$@")
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
