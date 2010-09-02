@@ -1017,7 +1017,7 @@ sub writeConfiguration {
 							foreach my $key (keys %{$$attributes{$attribute}->{'keys'}}) {
 								my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
 								$value = "\"$value\"" if ($value =~ / /);
-								$create_buff .= "\t\t\t$attribute $value\n"
+								$create_buff .= "\t\t$attribute $value\n"
 								  if (defined($value));
 							}
 						# Shouldn't be any non-key create attributes
@@ -1026,9 +1026,7 @@ sub writeConfiguration {
 				}
 
 				if ($create_buff) {
-					$attribute_buff .= "\t\tCREATE_ATTRIBUTES {\n";
 					$attribute_buff .= $create_buff;
-					$attribute_buff .= "\t\t}\n";
 				}
 			}
 
@@ -1574,19 +1572,19 @@ sub applyConfigDevices {
 				my %_attributes;
 				my %_cattributes;
 				foreach my $item (keys %{$$devices{$device}}) {
-					next if ($item eq 'CREATE_ATTRIBUTES');
 					$_attributes{$item} = $$devices{$device}->{$item};
 				}
 
 				my $attributes = configToAttr(\%_attributes);
+				my $create_attrs = configToAttr(\%_attributes);
+				my $possible = $SCST->deviceCreateAttributes($handler);
+				immediateExit($SCST->errorString());
+				filterCreateAttributes($possible, $create_attrs, FALSE);
+				filterCreateAttributes($possible, $attributes, TRUE);
 
 				if (handlerHasDevice($handler, $device)) {
-					my $create_attrs = configToAttr($$devices{$device}->{'CREATE_ATTRIBUTES'});
 					my $old_create_attrs = $SCST->deviceAttributes($device);
 					immediateExit($SCST->errorString());
-					my $possible = $SCST->deviceCreateAttributes($handler);
-					immediateExit($SCST->errorString());
-
 					filterCreateAttributes($possible, $old_create_attrs, FALSE);
 
 					if (compareToKeyAttribute($create_attrs, $old_create_attrs)) {
@@ -1608,7 +1606,6 @@ sub applyConfigDevices {
 					next;
 				}
 
-				my $create_attrs = configToAttr($$devices{$device}->{'CREATE_ATTRIBUTES'});
 				openDevice($handler, $device, $create_attrs);
 
 				setDeviceAttributes($device, $attributes, $deletions)
@@ -1658,7 +1655,7 @@ sub applyConfigAssignments {
 					my $possible = $SCST->lunCreateAttributes($driver, $target);
 					immediateExit($SCST->errorString());
 
-					filterCreateAttributes($possible, $c_attrs, TRUE);
+					filterCreateAttributes($possible, $c_attrs, FALSE);
 
 					if (compareToKeyAttribute($c_attrs, $o_attrs)) {
 						print "-> Assigned device '$device' in target '$target' at ".
@@ -1700,7 +1697,7 @@ sub applyConfigAssignments {
 						my $possible = $SCST->lunCreateAttributes($driver, $target, $group);
 						immediateExit($SCST->errorString());
 
-						filterCreateAttributes($possible, $c_attrs, TRUE);
+						filterCreateAttributes($possible, $c_attrs, FALSE);
 
 						if (compareToKeyAttribute($c_attrs, $o_attrs)) {
 							print "-> Assigned device '$device' in group '$group' ".
@@ -1892,9 +1889,9 @@ sub filterCreateAttributes {
 	my $keep = shift;
 
 	foreach my $attribute (keys %{$attrs}) {
-		my $good = defined($$creates{$attribute});
+		my $good = defined($$creates{$attribute}) ? TRUE : FALSE;
 
-		if (($keep && !$good) || (!$keep && !$good)) {
+		if (($keep && $good) || (!$keep && !$good)) {
 			delete $$attrs{$attribute};
 		}
 	}
@@ -1944,7 +1941,7 @@ sub clearConfiguration {
 			}
 		}
 
-		removeDriverDynamicAttributes($driver);
+		clearDriverDynamicAttributes($driver);
 	}
 
 	my $handlers = $CURRENT{'handler'};
@@ -3887,15 +3884,15 @@ sub readOldConfigFile {
 
 			foreach my $option (split(/\|/, $options)) {
 				if (defined($o_converts{$option})) {
-					%{$new{'HANDLER'}->{$_handler}->{'DEVICE'}->{$device}->{'CREATE_ATTRIBUTES'}->{$o_converts{$option}}->{'1'}} = ();
+					%{$new{'HANDLER'}->{$_handler}->{'DEVICE'}->{$device}->{$o_converts{$option}}->{'1'}} = ();
 				}
 			}
 
 			%{$new{'HANDLER'}->{$_handler}->{'DEVICE'}->{$device}->{'t10_dev_id'}->{$t10}} = ()
 			  if ($t10);
-			%{$new{'HANDLER'}->{$_handler}->{'DEVICE'}->{$device}->{'CREATE_ATTRIBUTES'}->{'filename'}->{$path}} = ()
+			%{$new{'HANDLER'}->{$_handler}->{'DEVICE'}->{$device}->{'filename'}->{$path}} = ()
 			  if ($path);
-			%{$new{'HANDLER'}->{$_handler}->{'DEVICE'}->{$device}->{'CREATE_ATTRIBUTES'}->{'blocksize'}->{$bsize}} = ()
+			%{$new{'HANDLER'}->{$_handler}->{'DEVICE'}->{$device}->{'blocksize'}->{$bsize}} = ()
 			  if ($bsize);
 		}
 	}
