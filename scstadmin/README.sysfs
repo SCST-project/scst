@@ -68,9 +68,7 @@ like:
 
 HANDLER vdisk_fileio {
 	DEVICE disk1 {
-		CREATE_ATTRIBUTES {
-			filename /dev/hda1
-		}
+		filename /dev/hda1
 	}
 }
 
@@ -196,9 +194,7 @@ HANDLER dev_cdrom {
 
 HANDLER vdisk_fileio {
 	DEVICE disk1 {
-		CREATE_ATTRIBUTES {
-			filename /dev/hda1
-		}
+		filename /dev/hda1
 	}
 }
 
