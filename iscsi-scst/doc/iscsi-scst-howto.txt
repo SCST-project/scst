@@ -73,12 +73,6 @@ configuration defined in this file.
 
 Here is the sample config file. Copy it in /etc/scst.conf
 
-HANDLER dev_disk {
-}
-
-HANDLER dev_cdrom {
-}
-
 HANDLER vdisk_fileio {
 	DEVICE disk01 {
 		filename /dev/ram0
@@ -91,11 +85,7 @@ HANDLER vdisk_fileio {
 }
 
 TARGET_DRIVER iscsi {
-	IncomingUser "joe 12charsecret"
-
 	TARGET iqn.2006-10.net.vlnb:tgt {
-		IncomingUser "joe 12charsecret"
-
 		LUN 0 disk01
 		LUN 1 disk02
 
