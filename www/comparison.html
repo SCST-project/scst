@@ -45,13 +45,13 @@
 			<div id="main">
 				<h1>Features comparison between Linux SCSI targets</h1>
 
-				<p><small>As on October 2009. Partially updated in August 2010.</small></p>
+				<p><small>As on September 2010</small></p>
 
 <table bgcolor="#F0F0F0" border="1" cellspacing="1" cellpadding="7" style="text-align:center" width="620">
 
 <tr>
 <td>
-</td><td><b><a href="http://scst.sourceforge.net/" title="http://scst.sourceforge.net/" rel="nofollow">SCST</a></b>
+</td><td><b><a href="http://scst.sourceforge.net/" title="http://scst.sourceforge.net/" rel="nofollow">SCST 2.0</a></b>
 </td><td><b><a href="http://stgt.berlios.de/" title="http://stgt.berlios.de/" rel="nofollow">STGT</a></b>
 </td><td><b><a href="http://iscsitarget.sourceforge.net/" title="http://iscsitarget.sourceforge.net/" rel="nofollow">IET</a></b>
 </td><td><b><a href="http://linux-iscsi.org/" title="http://linux-iscsi.org/" rel="nofollow">LIO</a></b>
@@ -61,7 +61,9 @@
 <td colspan="5"> <b>General</b>
 </td></tr>
 <tr>
-<td align="left"><b>Upstream kernel</b></td>				<td> - </td>		<td> Kernel part </td>	<td> - </td>		<td> - </td>		
+<td align="left"><b>Upstream kernel</b></td>				<td> - </td>		<td>Interface with
+												in-kernel target
+												drivers</td>		<td> - </td>		<td> - </td>		
 </tr>                                                                                                                           
 <tr>                                                                                                                            
 <td align="left"><b>Generic Target Engine</b></td>			<td> + </td>		<td> + </td>		<td> iSCSI only </td>	<td> + </td>		
@@ -72,9 +74,11 @@
 												</sup> </td>		<td> - </td>		<td> Kernel only </td>
 </tr>                                                                                                                           
 <tr>                                                                                                                           
-<td align="left"><b>Stability</b></td>					<td> + </td>		<td> +
+<td align="left"><b>Stability</b></td>					<td> Final testing
+									before release (1.0.1.x
+									- stable)</td>	<td> +
 												<sup><A HREF="#3">3</A>	
-												</sup> </td>		<td> + </td>		<td> ? (no released packages) </td>
+												</sup> </td>		<td> + </td>		<td> Probably (no released packages) </td>
 </tr>                                                                                                                           
 <tr>                                                                                                                           
 <td align="left"><b>Performance <sup><A HREF="#4">4</A></sup></b></td>	<td> ***** <sup>
@@ -92,31 +96,40 @@ backend drivers</th>							<td> + <sup>
 </tr>
 <tr>                                                                                            
 <td align="left"><b>Support for transports without expecting
-transfer values (parallel SCSI, SAS)</b></td>				<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+transfer values (Wide (parallel) SCSI, SAS)</b></td>			<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>                                                                                                                           
 <tr>                                                                                                                            
-<td align="left"><b>Interface with user space</b></td>			<td> SysFS/ProcFS </td>	<td> Custom </td>	<td> - </td>		<td> ConfigFS/IOCTL/ProcFS </td>
+<td align="left"><b>Interface with user space</b></td>			<td> SysFS (or obsolete
+									ProcFS)</td>		<td> Custom </td>	<td> - </td>		<td> ConfigFS/IOCTL/ProcFS </td>
 </tr>                                                                                                                           
 
                                                                                                 
 <tr bgcolor="#E0E0E0">                                                                                                          
-<td colspan="5"><b>Major features</b>                                                                                          
+<td colspan="5"><b>Features</b>
 </td></tr>
 <tr>                                                                                            
 <td align="left"><b>Target drivers in kernel space</b></td>		<td> + </td>		<td> + </td>		<td> - </td>		<td> + </td>
 </tr>
 <tr>                                                                                            
-<td align="left"><b>Target drivers in user space</b></td>		<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
+<td align="left"><b>Target drivers in user space</b></td>		<td>Via scst_local (e.g.
+									 using STGT
+									 pass-through)</td>	<td> + </td>		<td> - </td>		<td>Via tcm_loop (e.g.
+																		 using STGT pass-through)</td>
 </tr>
 <tr>                                                                                            
 <td align="left"><b>Backstorage handlers in kernel space</b></td>	<td> + </td>		<td> - </td>		<td> - </td>		<td> + </td>
 </tr>                                                                                                                           
 <tr>                                                                                            
-<td align="left"><b>Backstorage handlers in user space</b></td>		<td> + </td>		<td> + </td>		<td> - </td>		<td> Through STGT </td>
+<td align="left"><b>Backstorage handlers in user space</b></td>		<td>+</td>		<td> + </td>		<td> - </td>		<td> Via STGT
+																		(under development) </td>
 </tr>                                                                                           
 <tr>                                                                                            
 <td align="left"><b>Advanced devices access control 
 <sup><A HREF="#10">10</A></sup></b></td>				<td> + </td>		<td> - </td>		<td> - </td>		<td> + </td>
+</tr>
+<tr>
+<td align="left"><b>Automatic sessions reassignment (changes in the
+access control immediatelly seen by initiators)</b></td>		<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
 <td align="left"><b>Support for Asynchronous Event Notifications
@@ -124,8 +137,8 @@ transfer values (parallel SCSI, SAS)</b></td>				<td> + </td>		<td> - </td>		<td
 </tr>
 <tr>                                                                                            
 <td align="left"><b>Notifications for devices added/removed or
-resized through AENs or Unit Attentions (Initiators can instantly see
-any target reconfiguration in a PnP-like fashion)</b></td>		<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+resized through AENs or Unit Attentions (initiators can instantly see
+any target reconfiguration in a PnP-like manner)</b></td>		<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                                                            
 <td align="left"><b>Bidirectional Commands</b></td>			<td> +</td>		<td> + </td>		<td> - </td>		<td> - </td>
@@ -138,7 +151,7 @@ any target reconfiguration in a PnP-like fashion)</b></td>		<td> + </td>		<td> -
 </tr>
 <tr>
 <td align="left"><b>RESERVE/RELEASE                                                                                                       
-<small> (Windows 2003 clustering) </small></b></td>			<td> + </td>		<td> + </td>		<td> + </td>		<td> + </td>
+(Windows 2003 clustering)</b></td>					<td> + </td>		<td> + </td>		<td> + </td>		<td> + </td>
 </tr>
 <tr>
 <td align="left"><b>Safe RESERVE/RELEASE implementation according to
@@ -147,7 +160,9 @@ SCSI requirements <sup><A HREF="#12">12</A></sup></b></td>		<td> Safe </td>		<td
 </tr>
 <tr>
 <td align="left"><b>Safe implementation of Task Management commands 
-<sup><A HREF="#13">13</A></sup></b></td>				<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>	<td> Not safe </td>
+<sup><A HREF="#13">13</A></sup></b></td>				<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>	<td> LUN RESET - safe.
+																		Other TM commands not
+																		implemented. </td>
 </tr>
 <tr>                                                                                                                            
 <td align="left"><b>Support for SCSI task attributes, including
@@ -160,30 +175,49 @@ ORDERED commands</b></td>						<td> + </td>		<td> + </td>		<td> -, <br> data
 																		14</A></sup> </td>
 </tr>                                                                                                                           
 <tr>                                                                                                                            
-<td align="left"><b>Persistent Reservations <br>
-<small> (Windows 2008 clustering / RHEL5 I/O fencing)</small></b></td>	<td> + </td>		<td> + <br> (limited
+<td align="left"><b>Persistent (SCSI-3) Reservations
+(Windows 2008 clustering / RHEL5 I/O fencing)</b></td>			<td> + </td>		<td> + <br> (limited
 												functionality
 												implemented)</td>	<td> - </td>		<td> + </td>
-</tr>                                                                                                                           
+<tr>
+<td align="left"><b>Durable, i.e. transactional, save of Persistent
+Through Power Loss Persistent Reservation data</b></td>				<td> Durable </td>	<td>Not supported</td>	<td> - </td>		<td> Not durable </td>
+</tr>
 <tr>                                                                                            
 <td align="left"><b>ALUA</b></td>					<td> - </td>		<td> - </td>		<td> - </td>		<td> + </td>
 </tr>                                                                                           
-<tr>                                                                                                                            
-<td align="left"><b>Failover Clustering</b></td>			<td> + </td>		<td> ? </td>		<td> + </td>		<td> + </td>		
-</tr>                                                                                                                           
-<tr>                                                                                                                            
-<td align="left"><b>Allocated buffers cache</b></td>			<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>		
-</tr>                                                                                                                           
+<tr>
+<td align="left"><b>Failover Clustering</b></td>			<td> + </td>		<td> + </td>		<td> + </td>		<td> + </td>		
+</tr>
+<tr>                                                                                            
+<td align="left"><b>Different threading models to choose the best
+performing</b></td>							<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+</tr>                                                                                           
+<tr>
+<td align="left"><b>I/O context grouping between I/O threads (big
+performance win with CFQ)</b></td>					<td> + </td>		<td> - </td>		<td> + </td>		<td> - </td>		
+</tr>
+<tr>
+<td align="left"><b>Per-initiator I/O context grouping (big
+performance and fairness win if several initiators access the same
+virtual or backend device on the target)</b></td>			<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>		
+</tr>
 <tr>                                                                                                                            
 <td align="left"><b>Protection against commands with
 wrong transfer size or transfer direction (may lead to crash or
-hard lockup)</b></td>							<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>		
+hard lockup of the target)</b></td>					<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>		
 </tr>                                                                                                                           
 <tr>                                                                                                                            
-<td align="left"><b>Protection against DoS'ing target by making it
-allocate too much memory for buffers and taking it into an OOM state
+<td align="left"><b>Protection against crashing target by making it
+to allocate too much memory for buffers and go into OOM state
 </b></td>								<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>		
 </tr>                                                                                                                           
+<tr>
+<td align="left"><b>Caching of allocated buffers</b></td>		<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>		
+</tr>
+<tr>
+<td align="left"><b>Latencies measurement facility</b></td>		<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>		
+</tr>
 <tr>                                                                                                                            
 <td align="left"><b>SCSI MIBs</b></td>					<td> - </td>		<td> - </td>		<td> - </td>		<td>  +- 
 																		<sup><A HREF="#15">15</A></sup></td>
@@ -233,9 +267,8 @@ allocate too much memory for buffers and taking it into an OOM state
 </tr>
 <tr>                                                                                            
 <td align="left"><b>Local access to emulated backstorage devices 
-<sup><A HREF="#9">9</A></sup></b></td>					<td> + </td>		<td> - </td>		<td> - </td>		<td> + </td>
+<sup><A HREF="#9">9</A></sup></b></td>					<td> scst_local </td>	<td> - </td>		<td> - </td>		<td> tcm_loop </td>
 </tr>
-                                                                                                
 <tr bgcolor="#E0E0E0">                                                                                                          
 <td colspan="5"> <b>Supported backstorage</b>                                                   
 </td></tr>
@@ -248,15 +281,25 @@ allocate too much memory for buffers and taking it into an OOM state
 <tr>                                                                                            
 <td align="left"><b>User space FILEIO</b></td>				<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>
+<tr>
+<td align="left"><b>O_DIRECT FILEIO</b></td>				<td> fileio_tgt </td>	<td> + </td>		<td> - </td>		<td> - </td>
+</tr>
+<tr>
+<td align="left"><b>Async FILEIO</b></td>				<td> - </td>		<td> + </td>		<td> - </td>		<td> - </td>
+</tr>
+<tr>
+<td align="left"><b>Native RAMDISK</b></td>				<td> - </td>		<td> - </td>		<td> - </td>		<td> + </td>
+</tr>
 <tr>                                                                                            
 <td align="left"><b>SCSI pass-through
 	<sup><A HREF="#16">16</A></sup></b></td>			<td> + </td>		<td> Single
 												initiator only, not
 												enforced, limited
-												for tapes <sup>
+												functionality for tapes
+												<sup>
 												<A HREF="#17">17</A>
 												</sup> </td>		<td> - </td>		<td> Single initiator only, not enforced,
-																		limited for tapes
+																		limited functionality for tapes
 																		<sup><A HREF="#17">17</A></sup></td>
 </tr>
 <tr>                                                                                                                           
@@ -270,12 +313,21 @@ allocate too much memory for buffers and taking it into an OOM state
 												</sup> </td>		<td> BLOCKIO </td>	<td> BLOCKIO, pass-
 									                                                                        through </td>		
 </tr>                                                                                           
+<tr>
+<td align="left"><b>Cache safe<sup><A HREF="#11">11</A></sup>
+FILEIO</b></td>								<td> Safe </td>		<td>Safe only RDWR
+												 backend</td>		<td> Safe </td>		<td> Under development (just added) </td>
+</tr>
+<tr>
+<td align="left"><b>Cache safe<sup><A HREF="#11">11</A></sup>
+BLOCKIO</b></td>							<td> Safe </td>		<td> - </td>		<td> Not safe </td>	<td> Under development (just added)</td>
+</tr>
 <tr>                                                                                                                            
 <td align="left"><b>4k sectors support in pass-through mode</b></td>	<td> + </td>		<td> - </td>		<td> - </td>		<td> ? </td>
 </tr>                                                                                                                           
 <tr>                                                                                                                            
 <td align="left"><b>4k, 2k, 1k and 512 byte sectors emulation
-in modes, other than pass-through</b></td>				<td> + </td>		<td> - </td>		<td> - </td>		<td> + </td>		
+in modes, other than pass-through</b></td>				<td> + </td>		<td> - </td>		<td> - </td>		<td> Partial </td>
 </tr>
 <tr>                                                                                            
 <td align="left"><b>Virtual CD devices emulation from ISO files
@@ -302,8 +354,9 @@ devices (VTL)</b></td>							<td> - </td>		<td>Experimental</td>	<td> - </td>		<
 															</sup></td>		<td> Kernel only </td>
 </tr>
 <tr>                                                                                                                            
-<td align="left"><b>Interface with user space</b></td>			<td>SysFS/IOCTL/ProcFS/
-									Netlink</td>		<td> - </td>		<td>IOCTL/ProcFS/
+<td align="left"><b>Interface with user space</b></td>			<td>SysFS (or obsolete
+									ProcFS)/
+									IOCTL/Netlink</td>	<td> - </td>		<td>IOCTL/ProcFS/
 															Netlink</td>	<td> ConfigFS/IOCTL/ProcFS </td>
 </tr>                                                                                                                           
 <tr>                                                                                                                            
@@ -316,20 +369,46 @@ devices (VTL)</b></td>							<td> - </td>		<td>Experimental</td>	<td> - </td>		<
 </tr>                                                                                                                           
 <tr>                                                                                                                            
 <td align="left"><b><a href="mc_s.html">Multiple connections per
- session (MS/C)</a></b></td>						<td> - </td>		<td> - </td>		<td> - </td>		<td> + </td>
+session (MS/C)</a></b></td>						<td> - </td>		<td> - </td>		<td> - </td>		<td> + </td>
 </tr>                                                                                                                           
 <tr>                                                                                                                            
 <td align="left"><b>Max ErrorRecoveryLevel</b></td>			<td> 0 </td>		<td> 0 </td>		<td> 0 </td>		<td> 2 </td>		
 </tr>                                                                                                                           
+<tr>
+<td align="left"><b>Support for limiting number of initiators
+allowed to connect to a target</b></td>					<td> + </td>		<td> - </td>		<td> + </td>		<td> - </td>
+</tr>
+<tr>
+<td align="left"><b>Per-portal targets visibility control</b></td>	<td> + </td>		<td> - </td>		<td> + </td>		<td> - </td>
+</tr>                                                                                                                           
+<tr>
+<td align="left"><b>Per-initiators targets visibility control</b></td>	<td> + </td>		<td> + </td>		<td> + </td>		<td> - </td>
+</tr>
+<tr>
+<td align="left"><b>Support for AHS</b></td>				<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
+</tr>
+<tr>
+<td align="left"><b>Support for iSCSI redirects</b></td>		<td> + </td>		<td> + </td>		<td> + </td>		<td> - </td>
+</tr>
 <tr>                                                                                                                            
 <td align="left"><b>Bidirectional Commands</b></td>			<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>                                                                                            
 <td align="left"><b>Extended CDB (size >16 bytes)</b></td>		<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>
+<tr>
+<td align="left"><b>Support for AENs (initiators can instantly see any
+target reconfiguration in a PnP-like manner)</b></td>			<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+</tr>
 <tr>                                                                                            
-<td align="left"><b>Support for Asynchronous Event Notifications
-(AEN)</b></td>								<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+<td align="left"><b>Support for iSNS</b></td>				<td> + </td>		<td> + </td>		<td> + </td>		<td> - </td>
+</tr>
+<tr>
+<td align="left"><b>Safe implementation of Task Management commands 
+<sup><A HREF="#13">13</A></sup></b></td>				<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>	<td> ABORT TASK - not safe,
+																		LUN RESET - safe,
+																		other TM commands not
+																		implemented. </td>
 </tr>
 <tr>                                                                                                                           
 <td align="left"><b>Safe implementation of connections and sessions
@@ -337,30 +416,40 @@ reinstatement <sup><A HREF="#20">20</A></sup></b></td>			<td> Safe </td>		<td> N
 </tr>
 <tr>
 <td align="left"><b>Safe restart <sup><A HREF="#21">21</A></sup>
-</b></td>								<td> Safe </td>		<td> ? </td>		<td> Not safe </td>	<td> ?</td>
+</b></td>								<td> Safe </td>		<td> ? </td>		<td> Not safe before
+															v1.4.18. After -
+															probably safe.</td>	<td> ?</td>
 </tr>
-<tr>                                                                                                                            
-<td align="left"><b>Support for <a href="max_outstanding_r2t.txt">
-MaxOutstandingR2T >1</a> (write performance increase on high latency
-links)</b></td>								<td> + </td>		<td> Partial </td>		<td> - </td>		<td> + </td>
-</tr>                                                                                                                           
 <tr>                                                                                                                            
 <td align="left"><b>iSCSI MIBs</b></td>					<td> - </td>		<td> - </td>		<td> - </td>		<td> +- 
 																		<sup><A HREF="#15">15</A></sup></td>
 </tr>                                                                                                                           
+<tr bgcolor="#E0E0E0">                                                                                                          
+<td colspan="5"> <b>Local access target</b>
+</td></tr>
+<tr>
+<td align="left"><b>Bidirectional support</b></td>			<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+</tr>
+<tr>
+<td align="left"><b>Support for AENs (initiators can instantly see any
+target reconfiguration in a PnP-like manner)</b></td>			<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+</tr>
 </table>
 
 <br>
 <p><strong><big><u>REMARKS:</u></big></strong></p>
 
-<p><A NAME="1"></A> 1. STGT has SCSI target engine and memory management in user space with small hooks in the kernel to interact with in-kernel target drivers.
-		       As a direct consequence, fully user space STGT target (e.g. iSCSI) can run without any kernel modules needed.</p>
+<p><A NAME="1"></A> 1. STGT has all SCSI target processing and memory management in the user space. In the kernel it has only a small library
+			to help in-kernel target drivers to interact with it. As a direct consequence, neither iSCSI, nor iSER as well as
+			any other user space STGT target need any STGT kernel modules loaded to run.</p>
 
 <p><A NAME="2"></A> 2. All iSCSI management implemented in user space and actual data transfers in kernel space without user space involved.</p>
 
-<p><A NAME="3"></A> 3. ISER target driver has long known (since Feb 2008) data corruption problem, which localization hasn't been determined yet and might be
-		       in the STGT core. See <a href="http://lists.berlios.de/pipermail/stgt-devel/2008-February/001367.html">here</a> and
-		       <a href="http://lists.wpkg.org/pipermail/stgt/2009-February/002630.html">here</a>.</p>
+<p><A NAME="3"></A> 3. ISER target driver has long known (since Feb 2008) data corruption problem, which localization hasn't been
+			 determined yet and might be in the STGT core. See
+			 <a href="http://lists.berlios.de/pipermail/stgt-devel/2008-February/001367.html">here</a>,
+		       <a href="http://lists.wpkg.org/pipermail/stgt/2009-February/002630.html">here</a> and
+		       <a href="http://lists.wpkg.org/pipermail/stgt/2010-August/004076.html">here</a>.</p>
 
 <p><A NAME="4"></A> 4. The result "in average" is listed. One target can be better somewhere, another one somewhere else. Although manual tuning of target and
 		       system parameters tends the restore the difference listed in the comparison. You can find example measurements <a href="vl_res.txt">here</a>,
@@ -371,8 +460,9 @@ links)</b></td>								<td> + </td>		<td> Partial </td>		<td> - </td>		<td> + </
 		       with iSCSI-SCST iSCSI target driver, where performance will be at "***+" level.</p>
 
 <p><A NAME="6"></A> 6. There is no performance data for LIO, which allow to make a direct comparison with other targets.
-		       The conclusion was made by source code study only. LIO should have performance on the IET level or less,
-		       because of more processing overhead. It might be much less for small block sizes.</p>
+		       The conclusion was made based on source code study. LIO should have performance on the IET level or less,
+		       because of more processing overhead. It might be much less for small block sizes. Also the single I/O thread per-device
+		       approach LIO has is not optimal in many cases.</p>
 
 <p><A NAME="7"></A> 7. In SCST data are always passed in zero-copy manner between target and backend drivers without need for any
 		       additional kernel patches, except in case, when local access (scst_local) used with user space backend. </p>
@@ -390,6 +480,10 @@ links)</b></td>								<td> + </td>		<td> Partial </td>		<td> - </td>		<td> + </
 <p><A NAME="10"></A> 10. "Advanced devices access control" means that different initiators can see different sets
 		       of devices from the same target. This feature is required for hardware targets, which don't have ability
 		       to create virtual targets.</p>
+
+<p><A NAME="11"></A> 11. "Cache safe" means that cache synchronization commands (SYNCHRONIZE_CACHE and FUA attribute) from initiators perform
+			what they expected to perform, i.e. push all the requested blocks from all caches, including devices' caches,
+			to non-volatile media.</p>
 
 <p><A NAME="12"></A> 12. SCSI requires that if an initiator clears reservation held by another initiator, the reservation holder must be notified
 		       about the reservation clearance. Otherwise, several initiators can at the same time change supposed to be protected by the
@@ -434,8 +528,7 @@ links)</b></td>								<td> + </td>		<td> Partial </td>		<td> - </td>		<td> + </
 <p><A NAME="19"></A> 19. Doesn't need any kernel patch, except in the case, when used with user space backend.</p>
 
 <p><A NAME="20"></A> 20. Connections and sessions reinstatement is, basically, a kind of Task Management command, because it implies commands aborting.
-		       For instance, open-iscsi uses it as a less intrusive substistute for target reset in eh_target_reset_handler() callback. So, similarly
-		       to the safe task management above, a safe implementation of connections and sessions reinstatement
+		       So, similarly to the safe task management above, a safe implementation of connections and sessions reinstatement
 		       must not accept SCSI commands from new connection/session until all the SCSI commands in
 		       being reinstated connection/session get into a state, where they can't affect new commands.</p>
 

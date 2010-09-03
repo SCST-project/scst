@@ -126,7 +126,8 @@
     					page-cache for all operations. This mode works well with high-end storage HBAs and for applications that 
     					either do not need caching between application and disk or need the large block throughput.</span></li>
     				<li><span>User space mode using scst_user device handler, which allows to implement in the 
-    					user space virtual SCSI devices in the SCST environment.</span></li>
+    					user space high performance virtual SCSI devices. Comparing with fully in-kernel dev handlers
+    					this mode has very low overhead (few %%).</span></li>
     				<li><span>Performance testing device handlers as well as NULLIO mode to provide
     					a way for direct performance measurements without overhead of actual data
     				        transfers from/to underlying SCSI devices.

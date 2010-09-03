@@ -36,9 +36,7 @@
 				<ul>
 				<li><span>By sending donations. They will be spent on further work making SCST better as well as on providing
 				better support and troubleshooting for you. Donations can be on one time or per period of time basis,
-				from companies or individuals. They can be sent by direct bank transfer or using
-				Western Union, Moneygram or similar payment systems. Unfortunately, more convenient options,
-				like PayPal, are not available in Russia.</span></li>
+				from companies or individuals.</span></li>
 				<li><span>By sending patches, which fix bugs or implement new functionality.
     				          See below a list of possible SCST improvements with some possible 
     				          implementation ideas.</span></li>
@@ -48,10 +46,6 @@
 					time, when it was written. It would be good to bring it up to date.</span></li>
     			<li><span>By reporting bugs or other problems.</span></li>
 				</ul>			
-
-				<p>Contributing in SCST, you investing not only	in making Linux the best storage OS, but, if your company
-				has a product or service, based on SCST, you also investing in the secured future of your product
-				or service and, hence, in the the secured future of your company.</p>
 
 				<h1>Possible SCST extensions and improvements</h1>
 
@@ -282,18 +276,26 @@
 
 				<A NAME="SG_LIMIT"></A><h3>Solve SG IO count limitation issue in pass-through mode</h3>
 				
-				<p>In the pass-through mode (i.e. using the pass-through device handlers
-				scst_disk, scst_tape, etc) SCSI commands, coming from remote initiators,
+				<p>In the pass-through mode (i.e. using the pass-through device handlers like
+				scst_tape, etc) SCSI commands, coming from remote initiators,
 				are passed to local SCSI hardware on target as is, without any
 				modifications. As any other hardware, the local SCSI hardware can not
 				handle commands with amount of data and/or segments count in
-				scatter-gather array bigger some values. If you have this issue you will see
-				symptoms like small transfers work well, but large ones stall and
+				scatter-gather array bigger some values. For some commands SCST can
+				split them on subcommands and, hence, workaround this problem, but it isn't
+				always possible. For instance, for tapes splitting write commands may mean
+				corrupting the tape data.</p>
+				
+				<p>If you have this issue you will see
+				symptoms like small transfers work well, but large transfers stall and
 				messages like: "Unable to complete command due to SG IO count
 				limitation" are printed in the kernel logs.</p>
 				
-				<p>In <a href="sgv_big_order_alloc.diff">sgv_big_order_alloc.diff</a> you
-				can find a possible way to solve this issue.</p>
+				<p>
+				
+				<p>The only complete way to fix this problem is to allocate data buffers with number
+				of entries inside the SG IO count limitation. In <a href="sgv_big_order_alloc.diff">sgv_big_order_alloc.diff</a>
+				you can find a possible way to solve this issue.</p>
 
 				<p>There are also 2 more patches you can look at:</p>
 				
