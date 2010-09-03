@@ -187,7 +187,7 @@ int scst_alloc_sysfs_work(int (*sysfs_work_fn)(struct scst_sysfs_work_item *),
 
 	work = kzalloc(sizeof(*work), GFP_KERNEL);
 	if (work == NULL) {
-		PRINT_ERROR("Unable to alloc sysfs work (size %d)",
+		PRINT_ERROR("Unable to alloc sysfs work (size %zd)",
 			sizeof(*work));
 		res = -ENOMEM;
 		goto out;
@@ -1353,7 +1353,7 @@ out:
 	return res;
 }
 
-static int scst_dev_sysfs_threads_num_show(struct kobject *kobj,
+static ssize_t scst_dev_sysfs_threads_num_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
 	int pos = 0;

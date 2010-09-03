@@ -3724,7 +3724,7 @@ static ssize_t vcdrom_sysfs_filename_store(struct kobject *kobj,
 
 	i_buf = kmalloc(count+1, GFP_KERNEL);
 	if (i_buf == NULL) {
-		PRINT_ERROR("Unable to alloc intermediate buffer with size %d",
+		PRINT_ERROR("Unable to alloc intermediate buffer with size %zd",
 			count+1);
 		res = -ENOMEM;
 		goto out;
@@ -3966,7 +3966,7 @@ out:
 	return res;
 }
 
-static ssize_t vdisk_sysfs_process_resync_size_store(
+static int vdisk_sysfs_process_resync_size_store(
 	struct scst_sysfs_work_item *work)
 {
 	int res;

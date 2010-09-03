@@ -1024,14 +1024,14 @@ static int __init scst_local_init(void)
 	 * Allocate a pool of structures for tgt_specific structures
 	 */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 23)
-	#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
 	/*
 	 * We only need this for kernels where we can get non scatterlists
 	 */
 	tgt_specific_pool = kmem_cache_create("scst_tgt_specific",
 				      sizeof(struct scst_local_tgt_specific),
 				      0, SCST_SLAB_FLAGS, NULL);
-	#endif
+#endif
 #else
 	tgt_specific_pool = kmem_cache_create("scst_tgt_specific",
 				      sizeof(struct scst_local_tgt_specific),
@@ -1130,9 +1130,8 @@ static void __exit scst_local_exit(void)
 
 	TRACE_ENTRY();
 
-	for (; k; k--) {
+	for (; k; k--)
 		scst_local_remove_adapter();
-	}
 
 	do_remove_driverfs_files();
 	driver_unregister(&scst_local_driverfs_driver);
