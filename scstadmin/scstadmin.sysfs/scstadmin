@@ -590,7 +590,8 @@ sub main {
 
 	$SCST = new SCST::SCST($_DEBUG_);
 
-	readWorkingConfig();
+	my $rc = readWorkingConfig($force);
+	exit $rc if ($rc);
 
 	my $all_good;
 
@@ -830,6 +831,8 @@ sub main {
 }
 
 sub readWorkingConfig {
+	my $force = shift;
+
 	print "\nCollecting current configuration: ";
 
 	%CURRENT = ();
@@ -878,6 +881,34 @@ sub readWorkingConfig {
 	}
 
 	print "done.\n\n";
+
+	# Perform some basic checks
+
+	# Check for initiators belonging to more than one group
+	foreach my $driver (keys %{$CURRENT{'assign'}}) {
+		foreach my $target (keys %{$CURRENT{'assign'}->{$driver}}) {
+			my $current = $CURRENT{'assign'}->{$driver}->{$target}->{'GROUP'};
+			my %seen_init;
+
+			foreach my $group (keys %{$current}) {
+				my $initiators = $$current{$group}->{'INITIATORS'};
+
+				foreach my $init (@{$initiators}) {
+					if (defined($seen_init{$init})) {
+						if (!$force) {
+							print "-> FATAL: Initiator '$init' belongs to more than one groups ".
+							  "for driver/target '$driver/target', aborting. Use -force to override.\n";
+							return TRUE;
+						}
+					}
+
+					$seen_init{$init}++;
+				}
+			}
+		}
+	}
+
+	return FALSE;
 }
 
 sub writeConfiguration {
@@ -1536,7 +1567,8 @@ sub applyConfiguration {
 	# Apply config deletions
 	if ($force) {
 		applyConfigAssignments($CONFIG, $force, TRUE);
-		readWorkingConfig();
+		my $rc = readWorkingConfig($force);
+		exit $rc if ($rc);
 	}
 
 	# Apply config additions
@@ -1608,7 +1640,8 @@ sub applyConfigDevices {
 							print "\t-> Closing and re-opening with new attributes.\n";
 							closeDevice($handler, $device, $deletions);
 							openDevice($handler, $device, $create_attrs);
-							readWorkingConfig();
+							my $rc = readWorkingConfig($deletions);
+							exit $rc if ($rc);
 						} else {
 							print "\t-> Use -force to re-open device with new attributes. ".
 							  "NOTE: This will disrupt all initiators using this device.\n";
@@ -3458,6 +3491,20 @@ sub addInitiator {
 	my $target = shift;
 	my $group = shift;
 	my $initiator = shift;
+
+	my $current = $CURRENT{'assign'}->{$driver}->{$target}->{'GROUP'};
+
+	foreach my $group (keys %{$current}) {
+		my $initiators = $$current{$group}->{'INITIATORS'};
+
+		foreach my $init (@{$initiators}) {
+			if ($init eq $initiator) {
+				print "-> Initiator '$initiator' already belongs to group '$group' ".
+				  "for driver/target '$driver/target', ignoring.\n";
+				return;
+			}
+		}
+	}
 
 	print "-> Adding new initiator '$initiator' to driver/target/group ".
 	  "'$driver/$target/$group': ";
