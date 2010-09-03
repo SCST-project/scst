@@ -1422,6 +1422,20 @@ sub checkConfiguration {
 
 			if (!$no_targets) {
 				foreach my $target (keys %{$$CONFIG{'TARGET_DRIVER'}->{$driver}->{'TARGET'}}) {
+					my $groups = $$CONFIG{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'GROUP'};
+					my %seen_init;
+					foreach my $group (keys %{$groups}) {
+						foreach my $initiator (keys %{$$groups{$group}->{'INITIATOR'}}) {
+							if (defined($seen_init{$initiator})) {
+								print "\t-> FATAL: Initiator '$initiator' belongs to more than one group.\n".
+								  "\t     Initiators can only belong to one group at a time for a given target.\n";
+								$errors++;
+							}
+
+							$seen_init{$initiator}++;
+						}
+					}
+
 					if (!defined($CURRENT{'assign'}->{$driver}->{$target})) {
 						if (!$SCST->driverIsVirtualCapable($driver)) {
 							print "\t-> FATAL: Target '$target' for driver '$driver' ".
@@ -1675,7 +1689,6 @@ sub applyConfigAssignments {
 
 			foreach my $group (keys %{$$assignments{$driver}->{$target}->{'GROUP'}}) {
 				my $luns = $$assignments{$driver}->{$target}->{'GROUP'}->{$group}->{'LUN'};
-				my $inits = $$assignments{$driver}->{$target}->{'GROUP'}->{$group}->{'INITIATORS'};
 
 				my $def_group = $$config{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'GROUP'}->{$group};
 
@@ -1711,18 +1724,6 @@ sub applyConfigAssignments {
 								print "\t-> Use -force to re-assign device with new attributes. ".
 								  "NOTE: This will disrupt all initiators using this device.\n";
 							}
-						}
-					}
-				}
-
-				foreach my $init (@{$inits}) {
-					if (!defined($$def_group{'INITIATOR'}->{$init})) {
-						if ($deletions) {
-							removeInitiator($driver, $target, $group, $init);
-						} else {
-							print "-> Initiator '$init' is not in configuration ".
-							  "for driver/target/group '$driver/$target/$group'. ".
-							  "Use -force to remove it.\n";
 						}
 					}
 				}
@@ -1766,6 +1767,63 @@ sub applyConfigAssignments {
 	}
 }
 
+sub applyInitiatorAssignments {
+	my $driver = shift;
+	my $target = shift;
+	my $groups = shift;
+	my $deletions = shift;
+	my %configured;
+	my %running;
+
+	my $current = $CURRENT{'assign'}->{$driver}->{$target}->{'GROUP'};
+
+	foreach my $group (keys %{$current}) {
+		my $initiators = $$current{$group}->{'INITIATORS'};
+
+		foreach my $init (@{$initiators}) {
+			$running{$init} = $group;
+		}
+	}
+
+	foreach my $group (keys %{$groups}) {
+		my $initiators = $$groups{$group}->{'INITIATOR'};
+
+		foreach my $init (keys %{$initiators}) {
+			$configured{$init} = $group;
+		}
+	}
+
+	foreach my $init (keys %running) {
+		if (!defined($configured{$init})) {
+			my $group = $running{$init};
+
+			if ($deletions) {
+				removeInitiator($driver, $target, $group, $init);
+			} else {
+				print "-> Initiator '$init' is not in configuration ".
+				  "for driver/target/group '$driver/$target/$group'. ".
+				  "Use -force to remove it.\n";
+			}
+		} else {
+			if ($configured{$init} ne $running{$init}) {
+				if ($deletions) {
+					moveInitiator($driver, $target, $running{$init}, $init, $configured{$init});
+				} else {
+					print "-> Initiator '$init' is moving to group '".
+					  $configured{$init}."' from group '".$running{$init}."'. ".
+					  "Use -force to move it.\n";
+				}
+			}
+		}
+	}
+
+	foreach my $init (keys %configured) {
+		if (!defined($running{$init})) {
+			addInitiator($driver, $target, $configured{$init}, $init);
+		}
+	}
+}
+
 sub applyTargetAssignments {
 	my $driver = shift;
 	my $targets = shift;
@@ -1796,6 +1854,7 @@ sub applyTargetAssignments {
 		foreach my $item (keys %{$$targets{$target}}) {
 			if ($item eq 'GROUP') {
 				applyGroupAssignments($driver, $target, $$targets{$target}->{$item});
+				applyInitiatorAssignments($driver, $target, $$targets{$target}->{$item}, $deletions);
 			} elsif ($item eq 'LUN') {
 				applyLunAssignments($driver, $target, undef, $$targets{$target}->{$item});
 			} else {
@@ -1826,8 +1885,7 @@ sub applyGroupAssignments {
 				applyLunAssignments($driver, $target, $group,
 				  $$groups{$group}->{$item});
 			} elsif ($item eq 'INITIATOR') {
-				applyInitiatorAssignments($driver, $target, $group,
-				  $$groups{$group}->{$item});
+				next;
 			} else {
 				$_attributes{$item} = $$groups{$group}->{$item};
 			}
@@ -1864,21 +1922,6 @@ sub applyLunAssignments {
 				my $attributes = configToAttr($$luns{$lun}->{$device});
 				addLun($driver, $target, $device, $lun, $attributes, $group);
 			}
-		}
-	}
-}
-
-sub applyInitiatorAssignments {
-	my $driver = shift;
-	my $target = shift;
-	my $group = shift;
-	my $initiators = shift;
-
-	my $c_inits = $CURRENT{'assign'}->{$driver}->{$target}->{'GROUP'}->{$group}->{'INITIATORS'};
-
-	foreach my $initiator (sort keys %{$initiators}) {
-		if (!groupHasInitiator($c_inits, $initiator)) {
-			addInitiator($driver, $target, $group, $initiator);
 		}
 	}
 }
