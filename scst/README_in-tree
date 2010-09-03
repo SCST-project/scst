@@ -4,8 +4,7 @@ Generic SCSI target mid-level for Linux (SCST)
 SCST is designed to provide unified, consistent interface between SCSI
 target drivers and Linux kernel and simplify target drivers development
 as much as possible. Detail description of SCST's features and internals
-could be found in "Generic SCSI Target Middle Level for Linux" document
-SCST's Internet page http://scst.sourceforge.net.
+could be found on its Internet page http://scst.sourceforge.net.
 
 SCST supports the following I/O modes:
 
@@ -13,37 +12,36 @@ SCST supports the following I/O modes:
    initiators can connect to the exported pass-through devices, for
    the following SCSI devices types: disks (type 0), tapes (type 1),
    processors (type 3), CDROMs (type 5), MO disks (type 7), medium
-   changers (type 8) and RAID controllers (type 0xC)
+   changers (type 8) and RAID controllers (type 0xC).
 
  * FILEIO mode, which allows to use files on file systems or block
    devices as virtual remotely available SCSI disks or CDROMs with
-   benefits of the Linux page cache
+   benefits of the Linux page cache.
 
  * BLOCKIO mode, which performs direct block IO with a block device,
    bypassing page-cache for all operations. This mode works ideally with
    high-end storage HBAs and for applications that either do not need
    caching between application and disk or need the large block
-   throughput
-
- * User space mode using scst_user device handler, which allows to
-   implement in the user space virtual SCSI devices in the SCST
-   environment
+   throughput.
 
  * "Performance" device handlers, which provide in pseudo pass-through
    mode a way for direct performance measurements without overhead of
-   actual data transferring from/to underlying SCSI device
+   actual data transferring from/to underlying SCSI device.
 
 In addition, SCST supports advanced per-initiator access and devices
 visibility management, so different initiators could see different set
 of devices with different access permissions. See below for details.
 
+Full list of SCST features and comparison with other Linux targets you
+can find on http://scst.sourceforge.net/comparison.html.
+
 
 Installation
 ------------
 
-To see your devices remotely, you need to add them to at least "Default"
-security group (see below how). By default, no local devices are seen
-remotely. There must be LUN 0 in each security group, i.e. LUs
+To see your devices remotely, you need to add a corresponding LUN for
+them (see below how). By default, no local devices are seen remotely.
+There must be LUN 0 in each LUNs set (security group), i.e. LUs
 numeration must not start from, e.g., 1. Otherwise you will see no
 devices on remote initiators and SCST core will write into the kernel
 log message: "tgt_dev for LUN 0 not found, command to unexisting LU?"
@@ -83,8 +81,8 @@ IMPORTANT: In the current version simultaneous access to local SCSI devices
 	   the state of devices and their parameters, because that could
 	   lead to data corruption. If any such command is done, at
 	   least related device handler(s) must be restarted. For block
-	   devices READ/WRITE commands using direct disk handler look to
-	   be safe.
+	   devices READ/WRITE commands using direct disk handler are
+	   generally safe.
 
 
 Usage in failover mode
@@ -121,13 +119,6 @@ addressed in the next release. Virtual CDROM's are useful for remote
 installation. See below for details how to setup and use VDISK device
 handler.
 
-SCST user space device handler provides an interface between SCST and
-the user space, which allows to create pure user space devices. The
-simplest example, where one would want it is if he/she wants to write a
-VTL. With scst_user he/she can write it purely in the user space. Or one
-would want it if he/she needs some sophisticated for kernel space
-processing of the passed data, like encrypting them or making snapshots.
-
 "Performance" device handlers for disks, MO disks and tapes in their
 exec() method skip (pretend to execute) all READ and WRITE operations
 and thus provide a way for direct link performance measurements without
@@ -156,22 +147,22 @@ your favorite kernel configuration Makefile target, e.g. "make xconfig":
    the various places.
 
  - CONFIG_SCST_USE_EXPECTED_VALUES - if not defined (default), initiator
-   supplied expected data transfer length and direction will be used only for
-   verification purposes to return error or warn in case if one of them
-   is invalid. Instead, locally decoded from SCSI command values will be
-   used. This is necessary for security reasons, because otherwise a
-   faulty initiator can crash target by supplying invalid value in one
-   of those parameters. This is especially important in case of
-   pass-through mode. If CONFIG_SCST_USE_EXPECTED_VALUES is defined, initiator
-   supplied expected data transfer length and direction will override
-   the locally decoded values. This might be necessary if internal SCST
-   commands translation table doesn't contain SCSI command, which is
-   used in your environment. You can know that if you have messages like
-   "Unknown opcode XX for YY. Should you update scst_scsi_op_table?" in
-   your kernel log and your initiator returns an error. Also report
-   those messages in the SCST mailing list
-   scst-devel@lists.sourceforge.net. Note, that not all SCSI transports
-   support supplying expected values.
+   supplied expected data transfer length and direction will be used
+   only for verification purposes to return error or warn in case if one
+   of them is invalid. Instead, locally decoded from SCSI command values
+   will be used. This is necessary for security reasons, because
+   otherwise a faulty initiator can crash target by supplying invalid
+   value in one of those parameters. This is especially important in
+   case of pass-through mode. If CONFIG_SCST_USE_EXPECTED_VALUES is
+   defined, initiator supplied expected data transfer length and
+   direction will override the locally decoded values. This might be
+   necessary if internal SCST commands translation table doesn't contain
+   SCSI command, which is used in your environment. You can know that if
+   you enable "minor" trace level and have messages like "Unknown
+   opcode XX for YY. Should you update scst_scsi_op_table?" in your
+   kernel log and your initiator returns an error. Also report those
+   messages in the SCST mailing list scst-devel@lists.sourceforge.net.
+   Note, that not all SCSI transports support supplying expected values.
 
  - CONFIG_SCST_DEBUG_TM - if defined, turns on task management functions
    debugging, when on LUN 6 some of the commands will be delayed for
@@ -208,8 +199,8 @@ your favorite kernel configuration Makefile target, e.g. "make xconfig":
    CONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD disabled - does. This option is
    designed to be used with vdisk NULLIO backend.
 
-   WARNING! Using with other backend than vdisk NULLIO is unsafe and can
-   lead you to a kernel crash!
+   WARNING! Using this option enabled with other backend than vdisk
+   NULLIO is unsafe and can lead you to a kernel crash!
 
  - CONFIG_SCST_STRICT_SECURITY - if defined, makes SCST zero allocated data
    buffers. Undefining it (default) considerably improves performance
@@ -227,30 +218,13 @@ your favorite kernel configuration Makefile target, e.g. "make xconfig":
    Then sometimes get crazy itself. So, this option is disabled by
    default.
 
- - CONFIG_SCST_MEASURE_LATENCY - if defined, provides in /sys/kernel/scst_tgt
-   and below statistics about average commands processing latency. You
-   can clear already measured results by writing 0 in the corresponding
-   file. Note, you need a non-preemptible kernel to have correct
-   results.
+ - CONFIG_SCST_MEASURE_LATENCY - if defined, provides in "latency" files
+   global and per-LUN average commands processing latency statistic. You
+   can clear already measured results by writing 0 in each file. Note,
+   you need a non-preemptible kernel to have correct results.
 
 HIGHMEM kernel configurations are fully supported, but not recommended
-for performance reasons, except for scst_user, where they are not
-supported, because this module deals with user supplied memory on a
-zero-copy manner. If you need to use it, consider change VMSPLIT option
-or use 64-bit system configuration instead.
-
-For changing VMSPLIT option (CONFIG_VMSPLIT to be precise) you should in
-"make menuconfig" command set the following variables:
-
- - General setup->Configure standard kernel features (for small systems): ON
-
- - General setup->Prompt for development and/or incomplete code/drivers: ON
-
- - Processor type and features->High Memory Support: OFF
-
- - Processor type and features->Memory split: according to amount of
-   memory you have. If it is less than 800MB, you may not touch this
-   option at all.
+for performance reasons.
 
 
 Module parameters
@@ -296,6 +270,17 @@ following entries:
  - version - read-only attribute, which allows to see version of
    SCST and enabled optional features.
 
+ - last_sysfs_mgmt_res - read-only attribute returning completion status
+   of the last management command. In the sysfs implementation there are
+   some problems between internal sysfs and internal SCST locking. To
+   avoid them in some cases sysfs calls can return error with errno
+   EAGAIN. This doesn't mean the operation failed. It only means that
+   the operation queued and not yet completed. To wait for it to
+   complete, an management tool should poll this file. If the operation
+   hasn't yet completed, it will also return EAGAIN. But after it's
+   completed, it will return the result of this operation (0 for success
+   or -errno for error).
+
 Each SCST sysfs file (attribute) can contain in the last line mark
 "[key]". It is automatically added mark used to allow scstadmin to see
 which attributes it should save in the config file. You can ignore it.
@@ -305,7 +290,7 @@ which attributes it should save in the config file. You can ignore it.
 Content of each device's subdirectory is dev handler specific. See
 documentation for your dev handlers for more info about it as well as
 SysfsRules file for more info about common to all dev handlers rules.
-Standard SCST dev handlers have at least the following common entries:
+SCST dev handlers can have the following common entries:
 
  - exported - subdirectory containing links to all LUNs where this
    device was exported.
@@ -339,7 +324,7 @@ handler.
 Content of each handler's subdirectory is dev handler specific. See
 documentation for your dev handlers for more info about it as well as
 SysfsRules file for more info about common to all dev handlers rules.
-Standard SCST dev handlers have at least the following common entries:
+SCST dev handlers can have the following common entries:
 
  - mgmt - this entry allows to create virtual devices and their
    attributes (for virtual devices dev handlers) or assign/unassign real
@@ -446,13 +431,22 @@ Each session subdirectory contains the following entries:
 
  - commands - contains overall number of SCSI commands in this session.
 
+ - latency - if CONFIG_SCST_MEASURE_LATENCY enabled, contains latency
+   statistics for this session.
+
+ - luns - a link pointing out to the corresponding LUNs set (security
+   group) where this session was attached to.
+
+ - One or more "lunX" subdirectories, where 'X' is a number, for each LUN
+   this session has (see below).
+
  - other target driver specific attributes and subdirectories.
 
 See below description of the VDISK's sysfs interface for samples.
 
 
-Access and devices visibility management (LUN masking) - sysfs interface
-------------------------------------------------------------------------
+Access and devices visibility management (LUN masking)
+------------------------------------------------------
 
 Access and devices visibility management allows for an initiator or
 group of initiators to see different devices with different LUNs
@@ -507,10 +501,6 @@ are one or more param_name=value pairs separated by ';'.
    parameter "read_only". The recommended way to find out H:C:I:L
    numbers is use of lsscsi utility.
 
- - "del H:C:I:L" - deletes a pass-through device with host:channel:id:lun
-   The recommended way to find out H:C:I:L numbers is use of lsscsi
-   utility.
-
  - "add VNAME lun [parameters]" - adds a virtual device with name VNAME
    with LUN "lun". Optionally, the device could be marked as read only
    by using parameter "read_only".
@@ -521,7 +511,7 @@ are one or more param_name=value pairs separated by ';'.
    exist, this command acts as the "add" command. Optionally, the device
    could be marked as read only by using parameter "read_only".
 
- - "del VNAME" - deletes a virtual device with name VNAME.
+ - "del lun" - deletes LUN lun
 
  - "clear" - clears the list of devices
 
@@ -623,12 +613,12 @@ IMPORTANT
 =========
 
 All the access control must be fully configured BEFORE the corresponding
-target is enabled! When you enable a target, it will immediately start
+target is enabled. When you enable a target, it will immediately start
 accepting new connections, hence creating new sessions, and those new
 sessions will be assigned to security groups according to the
 *currently* configured access control settings. For instance, to
 the default target's set of LUNs, instead of "HOST004" group as you may
-need, because "HOST004" doesn't exist yet. So, one must configure all
+need, because "HOST004" doesn't exist yet. So, you must configure all
 the security groups before new connections from the initiators are
 created, i.e. before the target enabled.
 
@@ -806,7 +796,7 @@ removable, size_mb, t10_dev_id, threads_num, threads_pool_type, type,
 usn. See above description of those parameters.
 
 Each vcdrom's device has the following attributes in
-/sys/kernel/scst_tgt/devices/device_name: filename,  size_mb,
+/sys/kernel/scst_tgt/devices/device_name: filename, size_mb,
 t10_dev_id, threads_num, threads_pool_type, type, usn. See above
 description of those parameters. Exception is filename attribute. For
 vcdrom it is writable. Writing to it allows to virtually insert or
@@ -818,17 +808,17 @@ change virtual CD media in the virtual CDROM device. For example:
  - echo "" >/sys/kernel/scst_tgt/devices/cdrom/filename - will remove
    "media" from the virtual CDROM cdrom.
 
-Additionally to the sysfs interface VDISK handler has module parameter
-"num_threads", which specifies count of I/O threads for each VDISK's
-device. If you have a workload, which tends to produce rather random
-accesses (e.g. DB-like), you should increase this count to a bigger
-value, like 32. If you have a rather sequential workload, you should
-decrease it to a lower value, like number of CPUs on the target or even
-1. Due to some limitations of Linux I/O subsystem, increasing number of
-I/O threads too much leads to sequential performance drop, especially
-with deadline scheduler, so decreasing it can improve sequential
-performance. The default provides a good compromise between random and
-sequential accesses.
+Additionally VDISK handler has module parameter "num_threads", which
+specifies count of I/O threads for each FILEIO VDISK's or VCDROM device.
+If you have a workload, which tends to produce rather random accesses
+(e.g. DB-like), you should increase this count to a bigger value, like
+32. If you have a rather sequential workload, you should decrease it to
+a lower value, like number of CPUs on the target or even 1. Due to some
+limitations of Linux I/O subsystem, increasing number of I/O threads too
+much leads to sequential performance drop, especially with deadline
+scheduler, so decreasing it can improve sequential performance. The
+default provides a good compromise between random and sequential
+accesses.
 
 You shouldn't be afraid to have too many VDISK I/O threads if you have
 many VDISK devices. Kernel threads consume very little amount of
@@ -888,11 +878,6 @@ with suffix ".1". Those backup files are used in case of power or other
 failure to prevent Persistent Reservation information from corruption
 during update.
 
-The "Persistence Through Power Loss" feature is not available in the
-procfs build, because the SCST proc interface doesn't allow to keep
-persistent Relative Target IDs of each target between reboots/reloads
-(they are load and initialization order dependent).
-
 The Persistent Reservations available on all transports implementing
 get_initiator_port_transport_id() callback. Transports not implementing
 this callback will act in one of 2 possible scenarios ("all or
@@ -915,10 +900,10 @@ By default for performance reasons VDISK FILEIO devices use write back
 caching policy.
 
 Generally, write back caching is safe for use and danger of it is
-greatly overestimated, because most modern (especially, enterprise
+greatly overestimated, because most modern (especially, Enterprise
 level) applications are well prepared to work with write back cached
 storage. Particularly, such are all transactions-based applications.
-Those applications flush cache to completely AVOID ANY data loss on a
+Those applications flush cache to completely avoid ANY data loss on a
 crash or power failure. For instance, journaled file systems flush cache
 on each meta data update, so they survive power/hardware/software
 failures pretty well.
@@ -932,12 +917,12 @@ difference. If application doesn't flush the cache, it's doomed to loose
 data in case of a crash or power failure doesn't matter where this cache
 located, locally or on the storage.
 
-To illustrate how data loss can be avoided with write back caching,
-consider, for example, a user who wants to copy /src directory to /dst
-directory reliably, i.e. after the copy finished no power failure or
-software/hardware crash could lead to a loss of the data in /dst. There
-are 2 ways to achieve this. Let's suppose for simplicity cp opens files
-for writing with O_SYNC flag, hence bypassing the local cache.
+To illustrate that consider, for example, a user who wants to copy /src
+directory to /dst directory reliably, i.e. after the copy finished no
+power failure or software/hardware crash could lead to a loss of the
+data in /dst. There are 2 ways to achieve this. Let's suppose for
+simplicity cp opens files for writing with O_SYNC flag, hence bypassing
+the local cache.
 
 1. Slow. Make the device behind /dst working in write through caching
 mode and then run "cp -a /src /dst".
@@ -1041,6 +1026,7 @@ IMPORTANT: If SCST 1.x BLOCKIO worked by default in NV_CACHE mode, when
 	   restore 1.x behavior, your should recreate your BLOCKIO
 	   devices in NV_CACHE mode.
 
+
 Pass-through mode
 -----------------
 
@@ -1049,7 +1035,11 @@ scst_disk, scst_tape, etc) SCSI commands, coming from remote initiators,
 are passed to local SCSI devices on target as is, without any
 modifications.
 
-In the SYSFS interface all real SCSI devices are listed in
+SCST supports 1 to many pass-through, when several initiators can safely
+connect a single pass-through device (a tape, for instance). For such
+cases SCST emulates all the necessary functionality.
+
+In the sysfs interface all real SCSI devices are listed in
 /sys/kernel/scst_tgt/devices in form host:channel:id:lun numbers, for
 instance 1:0:0:0. The recommended way to match those numbers to your
 devices is use of lsscsi utility.
@@ -1105,19 +1095,6 @@ page each. See the following patch as an example:
 http://scst.sourceforge.net/sgv_big_order_alloc.diff
 
 
-User space mode using scst_user dev handler
--------------------------------------------
-
-User space program fileio_tgt uses interface of scst_user dev handler
-and allows to see how it works in various modes. Fileio_tgt provides
-mostly the same functionality as scst_vdisk handler with the most
-noticeable difference that it supports O_DIRECT mode. O_DIRECT mode is
-basically the same as BLOCKIO, but also supports files, so for some
-loads it could be significantly faster, than the regular FILEIO access.
-All the words about BLOCKIO from above apply to O_DIRECT as well. See
-fileio_tgt's README file for more details.
-
-
 Performance
 -----------
 
@@ -1141,7 +1118,8 @@ In order to get the maximum performance you should:
 1. For SCST:
 
  - Disable in Makefile CONFIG_SCST_STRICT_SERIALIZING, CONFIG_SCST_EXTRACHECKS,
-   CONFIG_SCST_TRACING, CONFIG_SCST_DEBUG*, CONFIG_SCST_STRICT_SECURITY
+   CONFIG_SCST_TRACING, CONFIG_SCST_DEBUG*, CONFIG_SCST_STRICT_SECURITY,
+   CONFIG_SCST_MEASURE_LATENCY
 
 2. For target drivers:
 
@@ -1468,8 +1446,8 @@ Thanks to:
 
  * Bart Van Assche <bart.vanassche@gmail.com> for a lot of help
 
- * Daniel Debonzi <debonzi@linux.vnet.ibm.com> for a big part of SCST sysfs tree
-   implementation
+ * Daniel Debonzi <debonzi@linux.vnet.ibm.com> for a big part of the
+   initial SCST sysfs tree implementation
 
 
 Vladislav Bolkhovitin <vst@vlnb.net>, http://scst.sourceforge.net

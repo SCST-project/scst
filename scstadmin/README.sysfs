@@ -1,11 +1,3 @@
-ENABLING SYSFS VERSION
-----------------------
-
-To enable the sysfs version of scstadmin (you must have the sysfs version of
-SCST already installed):
-
-make disable_proc
-
 INSTALLING
 ----------
 

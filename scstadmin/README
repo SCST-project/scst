@@ -51,9 +51,9 @@ NOTE: The init.d startup & shutdown scripts now depend on lsb-core. Ensure you h
 lsb-core installed or 'make install' will fail. Make sure /usr/lib/lsb/install_initd
 exists.
 
-To enable the newer sysfs version:
+To enable the obsolete procfs version:
 
-  #> make disable_proc
+  #> make enable_proc
   #> make
   #> make install
 
@@ -61,11 +61,7 @@ To enable the newer sysfs version:
 Getting Started:
 ================
 
-The following pertains to the older procfs based SCST. The new sysfs version is still
-a work in progress, but should be mostly complete at this point. You may still use your
-old scst.conf, however, I very much recommend you perform a -write_config and review
-the resulting configuration file.
-
+The following pertains to the older procfs based SCST.
 
 The scstadmin script is much more functional than scst_db at this point but uses a
 standard text-based config file. The original thought behind scst_db was to write

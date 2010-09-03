@@ -552,7 +552,7 @@ test_scst_tree_patches || exit $?
 compile_scst_unpatched || exit $?
 compile_scst_patched debug2release || exit $?
 compile_scst_patched debug2perf    || exit $?
-compile_scst_patched disable_proc  || exit $?
+compile_scst_patched enable_proc  || exit $?
 
 first_iteration="true"
 for kv in ${kernel_versions}

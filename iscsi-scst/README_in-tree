@@ -9,7 +9,7 @@ ISCSI-SCST is a deeply reworked fork of iSCSI Enterprise Target (IET)
  - To fix all the problems, corner cases issues and iSCSI standard
    violations which IET has.
 
-See more info at http://iscsi-scst.sourceforge.net.
+See for more info http://iscsi-scst.sourceforge.net.
 
 Usage
 -----
@@ -731,3 +731,4 @@ Thanks to:
  * Bart Van Assche <bart.vanassche@gmail.com> for a lot of help
 
 Vladislav Bolkhovitin <vst@vlnb.net>, http://scst.sourceforge.net
+

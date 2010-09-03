@@ -39,7 +39,6 @@ To build for linux-2.6.34, do:
 	because FCST supports only it.  You need to do
 
 		cd trunk/scst
-		make disable_proc	# first time only
 		make
 		make install
 

@@ -1,3 +1,5 @@
+This HOWTO is for iSCSI-SCST v1.x. Updates for v2.x are welcome!
+
 1) If you haven't done so already install a base gentoo installation:
 download: http://www.gentoo.org/main/en/where.xml
 documentation: http://www.gentoo.org/doc/en/handbook/index.xml

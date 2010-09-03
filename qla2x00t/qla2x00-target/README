@@ -86,16 +86,16 @@ core. It is highly recommended to use scstadmin utility for that
 purpose.
 
 Then target mode should be enabled via a sysfs interface on a per card
-basis. Under the appropriate scsi_host there is an entry
-target_mode_enabled, where you should write "1", like:
-
-echo "1" >/sys/class/scsi_host/host0/target_mode_enabled
-
-For the sysfs build you should instead
+basis, like:
 
 echo "1" >/sys/kernel/scst_tgt/targets/qla2x00t/target/enabled
 
 See below for full description of the driver's sysfs interface.
+
+With the obsolete proc interface you should instead use
+target_mode_enabled under the appropriate scsi_host entry, like:
+
+echo "1" >/sys/class/scsi_host/host0/target_mode_enabled
 
 You can find some installation and configuration HOWTOs in
 http://scst.sourceforge.net/qla2x00t-howto.html and
@@ -142,16 +142,14 @@ Explicit conformation
 ---------------------
 
 This option should (actually, almost always must) be enabled by echoing
-"1" in /sys/class/scsi_host/hostX/explicit_conform_enabled, if a target
-card exports at least one stateful SCSI device, like tape, and class 2
-isn't used, otherwise link-level errors could lead to loss of the
-target/initiator state synchronization. Also check if initiator supports
-this feature, it is reported in the kernel logs ("confirmed completion
-supported" or not). No major performance degradation was noticed, if it
-is enabled. Supported only for 23xx+. Disabled by default.
-
-In the sysfs build it is moved in /sys/kernel/scst_tgt/targets/qla2x00t/target/
-subdirectory, see the sysfs interface description below.
+"1" in /sys/kernel/scst_tgt/targets/qla2x00t/target/host/explicit_conform_enabled,
+if a target card exports at least one stateful SCSI device, like tape,
+and class 2 isn't used, otherwise link-level errors could lead to loss
+of the target/initiator state synchronization. Also check if initiator
+supports this feature, it is reported in the kernel logs ("confirmed
+completion supported" or not). No major performance degradation was
+noticed, if it is enabled. Supported only for 23xx+. Disabled by
+default.
 
 
 Class 2
@@ -159,9 +157,10 @@ Class 2
 
 Class 2 is the close equivalent of the TCP in the IP world. If you
 enable it, all the Fibre Channel packets will be acknowledged. By
-default, class 3 is used, which is UDP-like. Enable it by echoing
-"1" in /sys/class/scsi_host/hostX/class2_enabled. This option needs
-a special firmware with class 2 support. Disabled by default.
+default, class 3 is used, which is UDP-like. Enable it by echoing "1" in
+/sys/kernel/scst_tgt/targets/qla2x00t/target/host/class2_enabled. This
+option needs a special firmware with class 2 support. Disabled by
+default.
 
 
 Compilation options
@@ -191,11 +190,9 @@ in/out in Makefile:
 Sysfs interface
 ---------------
 
-Starting from 2.0.0 this driver has sysfs interface. You can switch to
-it by running "make disable_proc". To switch back to the procfs
-interface you should run "make enable_proc". The procfs interface from
-version 2.0.0 is obsolete and will be removed in one of the next
-versions.
+Starting from 2.0.0 this driver has sysfs interface. The procfs
+interface from version 2.0.0 is obsolete and will be removed in one of
+the next versions.
 
 Root of SCST sysfs interface is /sys/kernel/scst_tgt. Root of this
 driver is /sys/kernel/scst_tgt/targets/qla2x00t. It has the following

@@ -6,7 +6,7 @@ Installing and using iSCSI-SCST with scstadmin
 Start with downloading the iSCSI-SCST source code. You can either download the
 released version from the following URL:
 
-  http://sourceforge.net/project/showfiles.php?group_id=110471
+  http://scst.sourceforge.net/downloads.html
 
 or you can download the latest development version by running the following
 command in a shell:
@@ -46,8 +46,9 @@ iSCSI-SCST includes the following components:
    * /etc/init.d/iscsi-scst - service script
    * iscsi-scstd - daemon
    * man pages
-   * Configuration files (located under iscsi-scst/etc/, need to be copied to
-     /etc if you want to use them):
+   * Obsolete configuration files located under iscsi-scst/etc/obsolete, need to be copied to
+     /etc if you want to use them. In iSCSI-SCST 2.0 it is recommended to use scstadmin
+      and SCST sysfs interface for that:
       * initiators.allow - used for assigning specific initiators to targets
       * initiators.deny - used for assigning specific initiators to targets
       * iscsi-scstd.conf - list of targets and their properties
@@ -64,39 +65,60 @@ shown below. Verify the contents of the generated file.
   /etc/init.d/open-iscsi start
   cat /etc/iscsi/initiatorname.iscsi
 
-3. Set up /etc/iscsi-scstd.conf
+3. Set up /etc/scst.conf
 
-You can do this by e.g. running the following shell commands:
+The scst.conf configuration file is loaded at system boot time by the
+shell script /etc/init.d/scst. All targets, devices and LUNs
+configuration defined in this file.
 
-  echo "Target $(sed -n 's/InitiatorName=//p' /etc/iscsi/initiatorname.iscsi):storage" >/etc/iscsi-scstd.conf
-  cat /etc/iscsi-scstd.conf
+Here is the sample config file. Copy it in /etc/scst.conf
 
-4. Set up /etc/scst.conf
+HANDLER dev_disk {
+}
 
-The scst.conf configuration file is loaded at system boot time by the shell
-script /etc/init.d/scst. All devices known by SCST are defined in this file.
-The shell statements shown below set up a configuration file for two vdisks.
-Replace the device names by names that apply to your system:
+HANDLER dev_cdrom {
+}
+
+HANDLER vdisk_fileio {
+	DEVICE disk01 {
+		filename /dev/ram0
+		nv_cache 1
+	}
+	DEVICE disk02 {
+		filename /dev/ram1
+		nv_cache 1
+	}
+}
+
+TARGET_DRIVER iscsi {
+	IncomingUser "joe 12charsecret"
+
+	TARGET iqn.2006-10.net.vlnb:tgt {
+		IncomingUser "joe 12charsecret"
+
+		LUN 0 disk01
+		LUN 1 disk02
+
+		enabled 1
+	}
+}
+
+Then run the following commands:
 
   modprobe scst
   modprobe scst_vdisk
-  scstadmin -ClearConfig /etc/scst.conf
-  scstadmin -adddev disk01 -path /dev/ram0 -handler vdisk -options NV_CACHE
-  scstadmin -adddev disk02 -path /dev/ram1 -handler vdisk -options NV_CACHE
-  scstadmin -assigndev disk01 -group Default -lun 0
-  scstadmin -assigndev disk02 -group Default -lun 1
-  scstadmin -WriteConfig /etc/scst.conf
-  cat /etc/scst.conf
+  service iscsi-scst start
+  scstadmin -config /etc/scst.conf
 
 Note that for each SCSI device LUN 0 must exist. This is required by the SCSI
 protocol and is also documented in SCST's README file.
 
-5. Edit /etc/init.d/scst
+4. Edit /etc/init.d/scst
 
 Remove the modules you do not need from the SCST_MODULES variable,
 e.g. qla2x00tgt.
 
-6. Create soft links in /etc/init.d
+5. Create soft links in /etc/init.d
 
 This will make SCST to start automatically upon system boot. Use either
 chkconfig or update-rc.d, depending on the Linux distribution you are using.
@@ -110,21 +132,21 @@ On openSUSE you can let SCST start automatically through the following commands:
   insserv scst
   insserv iscsi-scst
 
-7. Restart SCST and iSCSI-SCST
+6. Restart SCST and iSCSI-SCST
 
 If you don't want to reboot now, you can make the above settings effective via
 the following commands:
 
-  /etc/init.d/iscsi-scst stop
   /etc/init.d/scst stop
-  /etc/init.d/scst start
+  /etc/init.d/iscsi-scst stop
   /etc/init.d/iscsi-scst start
+  /etc/init.d/scst start
 
 
 Installing and using iSCSI-SCST without using scstadmin via /sys interface
 ==========================================================================
 
-First repeat steps 1, 2 and 3 from the first section but leave out
+First repeat steps 1 and 2 from the first section but leave out
 "scstadm scstadm_install" from the make command in step 1.
 
 Next load the scst_disk and scst_vdisk kernel modules as follows:
@@ -266,24 +288,28 @@ echo 1 >/sys/kernel/scst_tgt/targets/iscsi/enabled
 Assigning targets to specific initiators
 ----------------------------------------
 
-In order to assign targets to specific initiators, you need to have
-/etc/initiators.allow  and /etc/initiators.deny. You can find
-example files in etc/initiators.allow and etc/initiators.deny.
+In order to assign targets to specific initiators, you should use LUN
+masking defined above. If an initiator assigned to an empty security
+group of a target, the initiator will not see this target in the
+SendTargets discovery and will not be able to connect to it.
 
-Note that all targets are allowed to all initiators by default, so if
-you want to use /etc/initiators.allow, you will need to have
-/etc/initiators.deny that looks like this:
-
-ALL ALL
-
-This will deny all initiators expect for those defined in /etc/initiators.allow.
+Additionally, you can make the target be visible only via selected
+portals using allowed_portal sysfs attribute. Read iSCSI-SCST's README
+file for more details about this facility.
 
 
 Installing and using iSCSI-SCST without using scstadmin via /proc interface
 ===========================================================================
 
-First repeat steps 1, 2 and 3 from the previous section but leave out
+First repeat steps 1 and 2 from the previous section but leave out
 "scstadm scstadm_install" from the make command in step 1.
+
+Next set up /etc/iscsi-scstd.conf
+
+You can do this by e.g. running the following shell commands:
+
+  echo "Target $(sed -n 's/InitiatorName=//p' /etc/iscsi/initiatorname.iscsi):storage" >/etc/iscsi-scstd.conf
+  cat /etc/iscsi-scstd.conf
 
 Next load the scst_disk kernel module as follows:
 
