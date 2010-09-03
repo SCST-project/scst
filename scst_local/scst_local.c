@@ -1400,6 +1400,9 @@ static struct scst_tgt_template scst_local_targ_tmpl = {
 	.name			= "scst_local_tgt",
 	.sg_tablesize		= 0xffff,
 	.xmit_response_atomic	= 1,
+#ifndef CONFIG_SCST_PROC
+	.enabled_attr_not_needed = 1,
+#endif
 	.detect			= scst_local_targ_detect,
 	.release		= scst_local_targ_release,
 	.pre_exec		= scst_local_targ_pre_exec,
