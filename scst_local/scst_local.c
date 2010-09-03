@@ -174,11 +174,16 @@ struct scst_local_tgt_specific {
 #endif
 };
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
 /*
  * We use a pool of objects maintaind by the kernel so that it is less
  * likely to have to allocate them when we are in the data path.
+ *
+ * Note, we only need this for kernels in which we are likely to get non
+ * scatterlist requests.
  */
 static struct kmem_cache *tgt_specific_pool;
+#endif
 
 static LIST_HEAD(scst_local_host_list);
 static DEFINE_SPINLOCK(scst_local_host_list_lock);
@@ -476,7 +481,9 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 	__acquires(&h->host_lock)
 	__releases(&h->host_lock)
 {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
 	struct scst_local_tgt_specific *tgt_specific = NULL;
+#endif
 	struct scst_local_host_info *scst_lcl_host;
 	struct scatterlist *sgl = NULL;
 	int sgl_count = 0;
@@ -535,8 +542,10 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 		break;
 	}
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
 	/*
-	 * Get some memory to keep track of the cmnd and the done routine
+	 * Allocate a tgt_specific_structure. We need this in case we need
+	 * to construct a single element SGL.
 	 */
 	tgt_specific = kmem_cache_alloc(tgt_specific_pool, GFP_ATOMIC);
 	if (!tgt_specific) {
@@ -546,6 +555,13 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 	}
 	tgt_specific->cmnd = SCpnt;
 	tgt_specific->done = done;
+#else
+	/*
+	 * We save a pointer to the done routine in SCpnt->scsi_done and
+	 * we save that as tgt specific stuff below.
+	 */
+	SCpnt->scsi_done = done;
+#endif
 
 	/*
 	 * If the command has a request, not a scatterlist, then convert it
@@ -612,7 +628,14 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 		break;
 	}
 
+	/*
+	 * Save the correct thing below depending on version
+	 */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
 	scst_cmd_set_tgt_priv(scst_cmd, tgt_specific);
+#else
+	scst_cmd_set_tgt_priv(scst_cmd, SCpnt);
+#endif
 
 #ifdef CONFIG_SCST_LOCAL_FORCE_DIRECT_PROCESSING
 	{
@@ -1001,21 +1024,31 @@ static int __init scst_local_init(void)
 	 * Allocate a pool of structures for tgt_specific structures
 	 */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 23)
+	#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
+	/*
+	 * We only need this for kernels where we can get non scatterlists
+	 */
 	tgt_specific_pool = kmem_cache_create("scst_tgt_specific",
 				      sizeof(struct scst_local_tgt_specific),
 				      0, SCST_SLAB_FLAGS, NULL);
+	#endif
 #else
 	tgt_specific_pool = kmem_cache_create("scst_tgt_specific",
 				      sizeof(struct scst_local_tgt_specific),
 				      0, SCST_SLAB_FLAGS, NULL, NULL);
 #endif
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
+	/*
+	 * We only need this if we could get non scatterlist requests
+	 */
 	if (!tgt_specific_pool) {
 		printk(KERN_WARNING "%s: out of memory for "
 		       "tgt_specific structs",
 		       __func__);
 		return -ENOMEM;
 	}
+#endif
 
 	ret = device_register(&scst_fake_primary);
 	if (ret < 0) {
@@ -1082,7 +1115,12 @@ bus_unreg:
 dev_unreg:
 	device_unregister(&scst_fake_primary);
 destroy_kmem:
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
+	/*
+	 * We only need to do this if we could get non scatterlist requests
+	 */
 	kmem_cache_destroy(tgt_specific_pool);
+#endif
 	goto out;
 }
 
@@ -1106,11 +1144,14 @@ static void __exit scst_local_exit(void)
 	 */
 	scst_unregister_target_template(&scst_local_targ_tmpl);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
 	/*
-	 * Free the pool we allocated
+	 * Free the pool we allocated, but we only do this if we could get
+	 * non scatterlist requests
 	 */
 	if (tgt_specific_pool)
 		kmem_cache_destroy(tgt_specific_pool);
+#endif
 
 	TRACE_EXIT();
 }
@@ -1256,7 +1297,11 @@ static int scst_local_targ_release(struct scst_tgt *tgt)
 
 static int scst_local_targ_xmit_response(struct scst_cmd *scst_cmd)
 {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
 	struct scst_local_tgt_specific *tgt_specific;
+#endif
+	struct scsi_cmnd *SCpnt = NULL;
+	void (*done)(struct scsi_cmnd *);
 
 	TRACE_ENTRY();
 
@@ -1270,7 +1315,14 @@ static int scst_local_targ_xmit_response(struct scst_cmd *scst_cmd)
 	    (scst_cmd_get_data_direction(scst_cmd) & SCST_DATA_READ))
 		scst_copy_sg(scst_cmd, SCST_SG_COPY_TO_TARGET);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
 	tgt_specific = scst_cmd_get_tgt_priv(scst_cmd);
+	SCpnt = tgt_specific->cmnd;
+	done = tgt_specific->done;
+#else
+	SCpnt = scst_cmd_get_tgt_priv(scst_cmd);
+	done = SCpnt->scsi_done;
+#endif
 
 	/*
 	 * This might have to change to use the two status flags
@@ -1281,23 +1333,20 @@ static int scst_local_targ_xmit_response(struct scst_cmd *scst_cmd)
 		 * Calculate the residual ...
 		 */
 		if (likely(!scst_get_resid(scst_cmd, &resid, &out_resid))) {
-			TRACE_DBG("No residuals for request %p",
-				tgt_specific->cmnd);
+			TRACE_DBG("No residuals for request %p", SCpnt);
 		} else {
 			if (out_resid != 0)
 				PRINT_ERROR("Unable to return OUT residual %d "
-					"(op %02x)", out_resid,
-					tgt_specific->cmnd->cmnd[0]);
+					"(op %02x)", out_resid, SCpnt->cmnd[0]);
 		}
 
-		scsi_set_resid(tgt_specific->cmnd, resid);
+		scsi_set_resid(SCpnt, resid);
 
 		/*
 		 * It seems like there is no way to set out_resid ...
 		 */
 
-		(void)scst_local_send_resp(tgt_specific->cmnd, scst_cmd,
-					   tgt_specific->done,
+		(void)scst_local_send_resp(SCpnt, scst_cmd, done,
 					   scst_cmd_get_status(scst_cmd));
 	}
 
@@ -1313,12 +1362,19 @@ static int scst_local_targ_xmit_response(struct scst_cmd *scst_cmd)
 
 static void scst_local_targ_on_free_cmd(struct scst_cmd *scst_cmd)
 {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
 	struct scst_local_tgt_specific *tgt_specific;
+#endif
 
 	TRACE_ENTRY();
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
+	/*
+	 * We only have to do this if we are using these structures
+	 */
 	tgt_specific = scst_cmd_get_tgt_priv(scst_cmd);
 	kmem_cache_free(tgt_specific_pool, tgt_specific);
+#endif
 
 	TRACE_EXIT();
 	return;
@@ -1344,7 +1400,6 @@ static struct scst_tgt_template scst_local_targ_tmpl = {
 	.name			= "scst_local_tgt",
 	.sg_tablesize		= 0xffff,
 	.xmit_response_atomic	= 1,
-	.enabled_attr_not_needed = 1,
 	.detect			= scst_local_targ_detect,
 	.release		= scst_local_targ_release,
 	.pre_exec		= scst_local_targ_pre_exec,
