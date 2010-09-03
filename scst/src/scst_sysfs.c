@@ -2213,7 +2213,7 @@ static int scst_sysfs_sess_get_active_commands(struct scst_session *sess)
 	res = active_cmds;
 
 out_put:
-	scst_sess_put(sess);
+	kobject_put(&sess->sess_kobj);
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -2240,7 +2240,7 @@ static ssize_t scst_sess_sysfs_active_commands_show(struct kobject *kobj,
 
 	work->sess = sess;
 
-	scst_sess_get(sess);
+	kobject_get(&sess->sess_kobj);
 
 	res = scst_sysfs_queue_wait_work(work);
 	if (res != -EAGAIN)
