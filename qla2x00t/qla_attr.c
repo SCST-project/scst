@@ -96,7 +96,7 @@ static DEVICE_ATTR(class2_enabled,
 
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 
-#define CONFIG_SCST_PROC
+/* #define CONFIG_SCST_PROC */
 
 #ifdef CONFIG_SCST_PROC
 

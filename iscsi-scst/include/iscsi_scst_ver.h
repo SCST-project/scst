@@ -13,7 +13,7 @@
  *  GNU General Public License for more details.
  */
 
-#define CONFIG_SCST_PROC
+/* #define CONFIG_SCST_PROC */
 
 #ifdef CONFIG_SCST_PROC
 #define ISCSI_VERSION_STRING_SUFFIX  "-procfs"

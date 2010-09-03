@@ -27,7 +27,7 @@
 #include <linux/interrupt.h>
 #include <linux/wait.h>
 
-#define CONFIG_SCST_PROC
+/* #define CONFIG_SCST_PROC */
 
 #ifdef CONFIG_SCST_PROC
 #include <linux/proc_fs.h>
