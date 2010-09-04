@@ -1677,17 +1677,11 @@ struct scst_cmd {
 	/* Set if cmd is finished */
 	unsigned int finished:1;
 
-#ifdef CONFIG_DEBUG_SG
-	/*
-	 * Set if the cmd was delayed by task management debugging code.
-	 * Used only if CONFIG_SCST_DEBUG_TM is on.
-	 */
+#ifdef CONFIG_SCST_DEBUG_TM
+	/* Set if the cmd was delayed by task management debugging code */
 	unsigned int tm_dbg_delayed:1;
 
-	/*
-	 * Set if the cmd must be ignored by task management debugging code.
-	 * Used only if CONFIG_SCST_DEBUG_TM is on.
-	 */
+	/* Set if the cmd must be ignored by task management debugging code */
 	unsigned int tm_dbg_immut:1;
 #endif
 
