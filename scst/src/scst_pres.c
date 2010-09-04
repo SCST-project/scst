@@ -607,7 +607,7 @@ static int scst_pr_do_load_device_file(struct scst_device *dev,
 	uint64_t sign, version;
 	mm_segment_t old_fs;
 	uint8_t pr_is_set, aptpl;
-	uint64_t key;
+	__be64 key;
 	uint16_t rel_tgt_id;
 
 	TRACE_ENTRY();
@@ -736,7 +736,7 @@ static int scst_pr_do_load_device_file(struct scst_device *dev,
 		tid = &buf[pos];
 		pos += tid_size(tid);
 
-		key = get_unaligned((uint64_t *)&buf[pos]);
+		key = (__force __be64)get_unaligned((uint64_t *)&buf[pos]);
 		pos += sizeof(key);
 
 		rel_tgt_id = get_unaligned((uint16_t *)&buf[pos]);
