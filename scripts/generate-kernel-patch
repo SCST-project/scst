@@ -221,14 +221,10 @@ do
    fi
 done
 
-# Hack: make sure that for kernel 2.6.33 and later the line
+# Make sure that for kernel 2.6.33 and later the line
 # "#define CONFIG_SCST_PROC" is removed from scst/include/scst.h.
-# This is done because of the following change in r1609:
-# Index: scst/kernel/in-tree/Makefile.scst-2.6.33
-# ===================================================================
-# -scst-y        += scst_proc.o
-# +scst-y        += scst_sysfs.o
-if [ ! "${kernel_version}" "<" "2.6.33" ]; then
+if grep -qw scst_sysfs scst/kernel/in-tree/Makefile.scst-${kernel_version};
+then
   specialize_patch_options="${specialize_patch_options} -v config_scst_proc_undefined=1"
 fi
 
