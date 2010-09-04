@@ -37,7 +37,7 @@
 #include <linux/file.h>
 #include <linux/fs.h>
 #include <linux/fcntl.h>
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 #include <linux/namei.h>
 #include <linux/version.h>
 #include <asm/unaligned.h>
