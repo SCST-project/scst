@@ -199,6 +199,10 @@ static inline bool scst_set_io_context(struct scst_cmd *cmd,
 {
 	bool res;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
+	return false;
+#endif
+
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
 	return false;
 #endif

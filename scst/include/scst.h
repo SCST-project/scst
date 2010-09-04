@@ -1525,14 +1525,6 @@ struct scst_cmd_threads {
 
 	struct io_context *io_context; /* IO context of the threads pool */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-	/*
-	 * Those kernels don't support ref counting based IO context sharing
-	 * between threads/processes, so need own ref counting.
-	 */
-	struct kref io_context_kref;
-#endif
-
 	bool io_context_ready;
 
 	int nr_threads; /* number of processing threads */
@@ -2177,6 +2169,7 @@ struct scst_thr_data_hdr {
  */
 struct scst_async_io_context_keeper {
 	struct kref aic_keeper_kref;
+	bool aic_ready;
 	struct io_context *aic;
 	struct task_struct *aic_keeper_thr;
 	wait_queue_head_t aic_keeper_waitQ;

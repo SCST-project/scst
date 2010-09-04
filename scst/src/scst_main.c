@@ -1525,7 +1525,7 @@ out_wait:
 		 * Wait for io_context gets initialized to avoid possible races
 		 * for it from the sharing it tgt_devs.
 		 */
-		while ((volatile bool)!cmd_threads->io_context_ready) {
+		while (!*(volatile bool*)&cmd_threads->io_context_ready) {
 			TRACE_DBG("Waiting for io_context for cmd_threads %p "
 				"initialized", cmd_threads);
 			msleep(50);

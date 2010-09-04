@@ -3004,7 +3004,7 @@ found:
 			t->acg_dev->acg->acg_io_grouping_type);
 	} else {
 		res = t;
-		if ((volatile bool)!res->active_cmd_threads->io_context_ready) {
+		if (!*(volatile bool*)&res->active_cmd_threads->io_context_ready) {
 			TRACE_MGMT_DBG("IO context for t %p not yet "
 				"initialized, waiting...", t);
 			msleep(100);
@@ -3056,9 +3056,7 @@ static int scst_ioc_keeper_thread(void *arg)
 
 	sBUG_ON(aic_keeper->aic != NULL);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
-	aic_keeper->aic = get_io_context(GFP_KERNEL);
-#else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
 	aic_keeper->aic = get_io_context(GFP_KERNEL, -1);
 #endif
 	TRACE_MGMT_DBG("Alloced new async IO context %p (aic %p)",
@@ -3068,6 +3066,7 @@ static int scst_ioc_keeper_thread(void *arg)
 	put_io_context(aic_keeper->aic);
 
 	/* We are ready */
+	aic_keeper->aic_ready = true;
 	wake_up_all(&aic_keeper->aic_keeper_waitQ);
 
 	wait_event_interruptible(aic_keeper->aic_keeper_waitQ,
@@ -3129,7 +3128,7 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 			}
 
 			wait_event(aic_keeper->aic_keeper_waitQ,
-				aic_keeper->aic != NULL);
+				aic_keeper->aic_ready);
 
 			TRACE_MGMT_DBG("Created async io context %p "
 				"for not shared tgt_dev %p (dev %s)",

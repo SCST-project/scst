@@ -2339,7 +2339,7 @@ int scst_sess_sysfs_create(struct scst_session *sess)
 
 restart:
 	list_for_each_entry(s, &sess->tgt->sess_list, sess_list_entry) {
-		if (!sess->sess_kobj_ready)
+		if (!s->sess_kobj_ready)
 			continue;
 
 		if (strcmp(name, kobject_name(&s->sess_kobj)) == 0) {
@@ -2367,6 +2367,8 @@ restart:
 	}
 
 	init_completion(&sess->sess_kobj_release_cmpl);
+
+	TRACE_DBG("Adding session %s to sysfs", name);
 
 	res = kobject_init_and_add(&sess->sess_kobj, &scst_session_ktype,
 			      sess->tgt->tgt_sess_kobj, name);
@@ -2410,7 +2412,8 @@ void scst_sess_sysfs_del(struct scst_session *sess)
 	if (!sess->sess_kobj_ready)
 		goto out;
 
-	TRACE_DBG("Deleting session %s", kobject_name(&sess->sess_kobj));
+	TRACE_DBG("Deleting session %s from sysfs",
+		kobject_name(&sess->sess_kobj));
 
 	kobject_del(&sess->sess_kobj);
 	kobject_put(&sess->sess_kobj);
