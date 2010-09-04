@@ -877,7 +877,7 @@ static int scst_local_add_adapter(void)
 	scst_lcl_host->target = scst_register_target(&scst_local_targ_tmpl,
 						     name);
 	if (!scst_lcl_host) {
-		printk(KERN_WARNING "scst_register_target failed:\n");
+		printk(KERN_WARNING "scst_register_target() failed:\n");
 		error = -1;
 		goto cleanup;
 	}
