@@ -736,7 +736,7 @@ static int scst_pr_do_load_device_file(struct scst_device *dev,
 		tid = &buf[pos];
 		pos += tid_size(tid);
 
-		key = (__force __be64)get_unaligned((uint64_t *)&buf[pos]);
+		key = get_unaligned((__be64 *)&buf[pos]);
 		pos += sizeof(key);
 
 		rel_tgt_id = get_unaligned((uint16_t *)&buf[pos]);
