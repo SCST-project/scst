@@ -542,12 +542,16 @@ static void conn_rsp_timer_fn(unsigned long arg)
 				goto out;
 			}
 		} else if (!timer_pending(&conn->rsp_timer) ||
-			   time_after(conn->rsp_timer.expires, timeout_time)) {
+			    time_after(conn->rsp_timer.expires, timeout_time)) {
 			TRACE_DBG("Restarting timer on %ld (conn %p)",
 				timeout_time, conn);
 			/*
 			 * Timer might have been restarted while we were
 			 * entering here.
+			 *
+			 * Since we have not empty write_timeout_list, we are
+			 * safe to restart the timer, because we not race with
+			 * del_timer_sync() in conn_free().
 			 */
 			mod_timer(&conn->rsp_timer, timeout_time);
 		}
@@ -585,7 +589,8 @@ static void conn_nop_in_delayed_work_fn(struct delayed_work *work)
 		iscsi_send_nop_in(conn);
 	}
 
-	if (conn->nop_in_interval > 0) {
+	if ((conn->nop_in_interval > 0) &&
+	    !test_bit(ISCSI_CONN_SHUTTINGDOWN, &conn->conn_aflags)) {
 		TRACE_DBG("Reschedule Nop-In work for conn %p", conn);
 		schedule_delayed_work(&conn->nop_in_delayed_work,
 			conn->nop_in_interval + ISCSI_ADD_SCHED_TIME);
