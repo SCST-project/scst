@@ -312,6 +312,8 @@ struct scst_user_sess
 	uint64_t lun;
 	uint16_t threads_num;
 	uint8_t rd_only;
+	uint16_t scsi_transport_version;
+	uint16_t phys_transport_version;
 	char initiator_name[SCST_MAX_NAME];
 	char target_name[SCST_MAX_NAME];
 },
@@ -326,6 +328,12 @@ where:
    the corresponding target driver
 
  - rd_only - if true, this device is read only in this session
+
+ - scsi_transport_version - version descriptor value for SCSI transport
+   of this session
+
+ - phys_transport_version - version descriptor value for physical transport
+   of this session
 
  - initiator_name - name of the remote initiator, which initiated this
    session

@@ -3746,7 +3746,7 @@ static struct scst_trace_log iscsi_local_trace_tbl[] = {
 #define ISCSI_TRACE_TBL_HELP	", d_write, conn, conn_dbg, iov, pdu, net_page"
 #endif
 
-static uint16_t iscsi_get_scsi_transport_version(struct scst_cmd *scst_cmd)
+static uint16_t iscsi_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 {
 	return 0x0960; /* iSCSI */
 }

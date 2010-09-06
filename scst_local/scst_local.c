@@ -1674,12 +1674,11 @@ static const struct attribute *scst_local_sess_attrs[] = {
 
 #endif /* CONFIG_SCST_PROC */
 
-static uint16_t scst_local_get_scsi_transport_version(struct scst_cmd *scst_cmd)
+static uint16_t scst_local_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 {
 	struct scst_local_host_info *host;
 
-	host = (struct scst_local_host_info *)scst_tgt_get_tgt_priv(
-						scst_cmd_get_tgt(scst_cmd));
+	host = (struct scst_local_host_info *)scst_tgt_get_tgt_priv(scst_tgt);
 
 	if (host->scsi_transport_version == 0)
 		return 0x0BE0; /* SAS */
@@ -1687,12 +1686,11 @@ static uint16_t scst_local_get_scsi_transport_version(struct scst_cmd *scst_cmd)
 		return host->scsi_transport_version;
 }
 
-static uint16_t scst_local_get_phys_transport_version(struct scst_cmd *scst_cmd)
+static uint16_t scst_local_get_phys_transport_version(struct scst_tgt *scst_tgt)
 {
 	struct scst_local_host_info *host;
 
-	host = (struct scst_local_host_info *)scst_tgt_get_tgt_priv(
-						scst_cmd_get_tgt(scst_cmd));
+	host = (struct scst_local_host_info *)scst_tgt_get_tgt_priv(scst_tgt);
 
 	return host->phys_transport_version;
 }

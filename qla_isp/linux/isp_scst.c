@@ -1581,7 +1581,7 @@ out:
     return (res);
 }
 
-static uint16_t isp_get_scsi_transport_version(struct scst_cmd *scst_cmd)
+static uint16_t isp_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 {
 	return 0x0900; /* FCP-2 */
 }

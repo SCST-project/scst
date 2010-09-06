@@ -107,6 +107,8 @@ struct scst_user_sess {
 	aligned_u64 lun;
 	uint16_t threads_num;
 	uint8_t rd_only;
+	uint16_t scsi_transport_version;
+	uint16_t phys_transport_version;
 	char initiator_name[SCST_MAX_EXTERNAL_NAME];
 	char target_name[SCST_MAX_EXTERNAL_NAME];
 };
