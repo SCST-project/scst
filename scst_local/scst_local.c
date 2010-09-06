@@ -59,7 +59,7 @@
 
 #ifdef CONFIG_SCST_DEBUG
 #define SCST_LOCAL_DEFAULT_LOG_FLAGS (TRACE_FUNCTION | TRACE_PID | \
-	TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_MGMT_DEBUG | \
+	TRACE_LINE | TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_MGMT_DEBUG | \
 	TRACE_MINOR | TRACE_SPECIAL)
 #else
 # ifdef CONFIG_SCST_TRACING
@@ -130,6 +130,8 @@ static int num_aborts;
 static int num_dev_resets;
 static int num_target_resets;
 
+static DEFINE_MUTEX(scst_local_mutex);
+
 /*
  * We put AEN items on a list on the scst_local_host_info structure so they
  * can be processed via a work function. We do not actually need the LUN, since
@@ -155,6 +157,16 @@ struct scst_local_host_info {
 	struct work_struct local_work;
 	spinlock_t lock;
 	struct list_head work_list;
+	uint16_t scsi_transport_version, phys_transport_version;
+	uint8_t *transport_id;
+	int transport_id_len;
+};
+
+struct scst_local_sess_info {
+	struct scst_local_host_info *host;
+	int number;
+	uint8_t *transport_id;
+	int transport_id_len;
 };
 
 #define to_scst_lcl_host(d) \
@@ -184,6 +196,8 @@ struct scst_local_tgt_specific {
  */
 static struct kmem_cache *tgt_specific_pool;
 #endif
+
+static atomic_t scst_local_sess_number = ATOMIC_INIT(0);
 
 static LIST_HEAD(scst_local_host_list);
 static DEFINE_SPINLOCK(scst_local_host_list_lock);
@@ -710,13 +724,16 @@ static int scst_local_report_aen(struct scst_aen *aen)
 {
 	int res = 0;
 	int event_fn = scst_aen_get_event_fn(aen);
-	struct scst_local_host_info *scst_lcl_host = scst_sess_get_tgt_priv(
-							scst_aen_get_sess(aen));
-	/*__be64 lun = scst_aen_get_lun(aen);*/
+	struct scst_local_host_info *scst_lcl_host;
+	struct scst_local_sess_info *sess;
 	struct scst_local_work_item *work_item = NULL;
 	long unsigned flags;
 
 	TRACE_ENTRY();
+
+	sess = (struct scst_local_sess_info *)scst_sess_get_tgt_priv(
+						scst_aen_get_sess(aen));
+	scst_lcl_host = sess->host;
 
 	switch (event_fn) {
 	case SCST_AEN_SCSI:
@@ -749,24 +766,15 @@ static int scst_local_report_aen(struct scst_aen *aen)
 	return res;
 }
 
-static int scst_local_get_initiator_port_transport_id(
-				struct scst_session *scst_sess,
-				uint8_t **transport_id)
+static int scst_local_get_sas_transport_id(
+	struct scst_local_sess_info *sess,
+	uint8_t **transport_id, int *len)
 {
 	int res = 0;
-	int tr_id_size = 0, sess = -1, i = 0;
+	int tr_id_size = 0;
 	uint8_t *tr_id = NULL;
-	struct scst_local_host_info *scst_lcl_host;
 
 	TRACE_ENTRY();
-
-	if (scst_sess == NULL) {
-		res = SCSI_TRANSPORTID_PROTOCOLID_SAS;
-		goto out;
-	}
-
-	scst_lcl_host = (struct scst_local_host_info *)
-				scst_sess_get_tgt_priv(scst_sess);
 
 	tr_id_size = 24;  /* A SAS TransportID */
 
@@ -780,23 +788,6 @@ static int scst_local_get_initiator_port_transport_id(
 
 	tr_id[0] = 0x00 | SCSI_TRANSPORTID_PROTOCOLID_SAS;
 
-	for (i = 0; i < scst_local_num_tgts; i++) {
-		/*
-		 * We are called before the session is returned below
-		 */
-		if (scst_lcl_host->session[i] == NULL) {
-			sess = i;
-			break;
-		}
-	}
-
-	if (sess == -1) {
-		printk(KERN_INFO "%s: Unable to find a matching session\n",
-			__func__);
-		res = -ENOENT;
-		goto out;
-	}
-
 	/*
 	 * Assemble a valid SAS address = 0x5OOUUIIR12345678 ... Does SCST
 	 * have one?
@@ -805,17 +796,65 @@ static int scst_local_get_initiator_port_transport_id(
 	tr_id[4]  = 0x5F;
 	tr_id[5]  = 0xEE;
 	tr_id[6]  = 0xDE;
-	tr_id[7]  = 0x40 | ((sess >> 4) & 0x0F);
-	tr_id[8]  = 0x0F | (sess & 0xF0);
+	tr_id[7]  = 0x40 | ((sess->number >> 4) & 0x0F);
+	tr_id[8]  = 0x0F | (sess->number & 0xF0);
 	tr_id[9]  = 0xAD;
 	tr_id[10] = 0xE0;
 	tr_id[11] = 0x50;
 
 	*transport_id = tr_id;
+	*len = tr_id_size;
 
 	TRACE_DBG("Created tid '%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X'",
 		tr_id[4], tr_id[5], tr_id[6], tr_id[7],
 		tr_id[8], tr_id[9], tr_id[10], tr_id[11]);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int scst_local_get_initiator_port_transport_id(
+				struct scst_session *scst_sess,
+				uint8_t **transport_id)
+{
+	int res = 0;
+	int tr_id_size = 0;
+	uint8_t *tr_id = NULL;
+	struct scst_local_sess_info *sess;
+
+	TRACE_ENTRY();
+
+	if (scst_sess == NULL) {
+		res = SCSI_TRANSPORTID_PROTOCOLID_SAS;
+		goto out;
+	}
+
+	sess = (struct scst_local_sess_info *)scst_sess_get_tgt_priv(scst_sess);
+
+	mutex_lock(&scst_local_mutex);
+
+	if (sess->transport_id == NULL) {
+		res = scst_local_get_sas_transport_id(sess,
+				transport_id, &tr_id_size);
+		goto out_unlock;
+	}
+
+	tr_id_size = sess->transport_id_len;
+	sBUG_ON(tr_id_size == 0);
+
+	tr_id = kzalloc(tr_id_size, GFP_KERNEL);
+	if (tr_id == NULL) {
+		PRINT_ERROR("Allocation of TransportID (size %d) failed",
+			tr_id_size);
+		res = -ENOMEM;
+		goto out;
+	}
+
+	memcpy(tr_id, sess->transport_id, sess->transport_id_len);
+
+out_unlock:
+	mutex_unlock(&scst_local_mutex);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -831,9 +870,14 @@ static void scst_local_release_adapter(struct device *dev)
 	scst_lcl_host = to_scst_lcl_host(dev);
 	if (scst_lcl_host) {
 		for (i = 0; i < scst_local_num_tgts; i++)
-			if (scst_lcl_host->session[i])
+			if (scst_lcl_host->session[i]) {
+				struct scst_local_sess_info *sess;
+				sess = scst_sess_get_tgt_priv(
+					scst_lcl_host->session[i]);
 				scst_unregister_session(
 					scst_lcl_host->session[i], TRUE, NULL);
+				kfree(sess);
+			}
 		scst_unregister_target(scst_lcl_host->target);
 		cancel_work_sync(&scst_lcl_host->local_work);
 		kfree(scst_lcl_host);
@@ -858,11 +902,10 @@ static int scst_local_add_adapter(void)
 
 	TRACE_ENTRY();
 
-	scst_lcl_host = kzalloc(sizeof(struct scst_local_host_info),
-				GFP_KERNEL);
+	scst_lcl_host = kzalloc(sizeof(*scst_lcl_host), GFP_KERNEL);
 	if (NULL == scst_lcl_host) {
-		printk(KERN_ERR "%s out of memory at line %d\n",
-		       __func__, __LINE__);
+		PRINT_ERROR("Unable to alloc scst_lcl_host (size %d)",
+			sizeof(*scst_lcl_host));
 		return -ENOMEM;
 	}
 
@@ -882,17 +925,32 @@ static int scst_local_add_adapter(void)
 		goto cleanup;
 	}
 
+	scst_tgt_set_tgt_priv(scst_lcl_host->target, scst_lcl_host);
+
 	/*
 	 * Create a session for each device
 	 */
 	for (i = 0; i < scst_local_num_tgts; i++) {
+		struct scst_local_sess_info *sess;
+
+		sess = kzalloc(sizeof(*sess), GFP_KERNEL);
+		if (NULL == sess) {
+			PRINT_ERROR("Unable to alloc scst_lcl_host (size %d)",
+				sizeof(*sess));
+			goto cleanup;
+		}
+
+		sess->host = scst_lcl_host;
+		sess->number = atomic_inc_return(&scst_local_sess_number);
+
 		sprintf(name, "scstlclhst%d:%d", scst_local_add_host, i);
 		scst_lcl_host->session[i] = scst_register_session(
 						scst_lcl_host->target,
-						0, name, (void *)scst_lcl_host,
+						0, name, (void *)sess,
 						NULL, NULL);
 		if (!scst_lcl_host->session[i]) {
 			printk(KERN_WARNING "scst_register_session failed:\n");
+			kfree(sess);
 			error = -1;
 			goto unregister_target;
 		}
@@ -1395,12 +1453,259 @@ static void scst_local_targ_task_mgmt_done(struct scst_mgmt_cmd *mgmt_cmd)
 	return;
 }
 
+#ifndef CONFIG_SCST_PROC
+
+static ssize_t scst_local_version_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	sprintf(buf, "%s/%s\n", SCST_LOCAL_VERSION, scst_local_version_date);
+
+#ifdef CONFIG_SCST_EXTRACHECKS
+	strcat(buf, "EXTRACHECKS\n");
+#endif
+
+#ifdef CONFIG_SCST_TRACING
+	strcat(buf, "TRACING\n");
+#endif
+
+#ifdef CONFIG_SCST_DEBUG
+	strcat(buf, "DEBUG\n");
+#endif
+
+	TRACE_EXIT();
+	return strlen(buf);
+}
+
+static struct kobj_attribute scst_local_version_attr =
+	__ATTR(version, S_IRUGO, scst_local_version_show, NULL);
+
+static ssize_t scst_local_scsi_transport_version_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct scst_tgt *scst_tgt;
+	struct scst_local_host_info *host;
+	ssize_t size;
+
+	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	host = (struct scst_local_host_info *)scst_tgt_get_tgt_priv(scst_tgt);
+
+	if (host->scsi_transport_version != 0)
+		size = sprintf(buf, "0x%x\n%s", host->scsi_transport_version,
+			SCST_SYSFS_KEY_MARK "\n");
+	else
+		size = sprintf(buf, "0x%x\n", 0x0BE0); /* SAS */
+
+	return size;
+}
+
+static ssize_t scst_local_scsi_transport_version_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buffer, size_t size)
+{
+	ssize_t res;
+	struct scst_tgt *scst_tgt;
+	struct scst_local_host_info *host;
+	unsigned long val;
+
+	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	host = (struct scst_local_host_info *)scst_tgt_get_tgt_priv(scst_tgt);
+
+	res = strict_strtoul(buffer, 0, &val);
+	if (res != 0) {
+		PRINT_ERROR("strict_strtoul() for %s failed: %d", buffer, res);
+		goto out;
+	}
+
+	host->scsi_transport_version = val;
+
+	res = size;
+
+out:
+	return res;
+}
+
+static struct kobj_attribute scst_local_scsi_transport_version_attr =
+	__ATTR(scsi_transport_version, S_IRUGO| S_IWUSR,
+		scst_local_scsi_transport_version_show,
+		scst_local_scsi_transport_version_store);
+
+static ssize_t scst_local_phys_transport_version_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct scst_tgt *scst_tgt;
+	struct scst_local_host_info *host;
+
+	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	host = (struct scst_local_host_info *)scst_tgt_get_tgt_priv(scst_tgt);
+
+	return sprintf(buf, "0x%x\n%s", host->phys_transport_version,
+			(host->phys_transport_version != 0) ?
+				SCST_SYSFS_KEY_MARK "\n" : "");
+}
+
+static ssize_t scst_local_phys_transport_version_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buffer, size_t size)
+{
+	ssize_t res;
+	struct scst_tgt *scst_tgt;
+	struct scst_local_host_info *host;
+	unsigned long val;
+
+	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	host = (struct scst_local_host_info *)scst_tgt_get_tgt_priv(scst_tgt);
+
+	res = strict_strtoul(buffer, 0, &val);
+	if (res != 0) {
+		PRINT_ERROR("strict_strtoul() for %s failed: %d", buffer, res);
+		goto out;
+	}
+
+	host->phys_transport_version = val;
+
+	res = size;
+
+out:
+	return res;
+}
+
+static struct kobj_attribute scst_local_phys_transport_version_attr =
+	__ATTR(phys_transport_version, S_IRUGO| S_IWUSR,
+		scst_local_phys_transport_version_show,
+		scst_local_phys_transport_version_store);
+
+static ssize_t scst_local_transport_id_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	ssize_t res;
+	struct scst_session *scst_sess;
+	struct scst_local_sess_info *sess;
+	uint8_t *tr_id;
+	int tr_id_len, i;
+
+	scst_sess = container_of(kobj, struct scst_session, sess_kobj);
+	sess = (struct scst_local_sess_info *)scst_sess_get_tgt_priv(scst_sess);
+
+	mutex_lock(&scst_local_mutex);
+
+	if (sess->transport_id != NULL) {
+		tr_id = sess->transport_id;
+		tr_id_len = sess->transport_id_len;
+	} else {
+		res = scst_local_get_sas_transport_id(sess, &tr_id, &tr_id_len);
+		if (res != 0)
+			goto out_unlock;
+	}
+
+	res = 0;
+	for (i = 0; i < tr_id_len; i++)
+		res += sprintf(&buf[res], "%c", tr_id[i]);
+
+	if (sess->transport_id != NULL)
+		res += sprintf(&buf[res], "\n%s", SCST_SYSFS_KEY_MARK "\n");
+	else
+		kfree(tr_id);
+
+out_unlock:
+	mutex_unlock(&scst_local_mutex);
+	return res;
+}
+
+static ssize_t scst_local_transport_id_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buffer, size_t size)
+{
+	ssize_t res;
+	struct scst_session *scst_sess;
+	struct scst_local_sess_info *sess;
+
+	scst_sess = container_of(kobj, struct scst_session, sess_kobj);
+	sess = (struct scst_local_sess_info *)scst_sess_get_tgt_priv(scst_sess);
+
+	mutex_lock(&scst_local_mutex);
+
+	if (sess->transport_id != NULL) {
+		kfree(sess->transport_id);
+		sess->transport_id = NULL;
+		sess->transport_id_len = 0;
+	}
+
+	if (size == 0)
+		goto out_res;
+
+	sess->transport_id = kzalloc(size, GFP_KERNEL);
+	if (sess->transport_id == NULL) {
+		PRINT_ERROR("Allocation of transport_id (size %d) failed",
+			size);
+		res = -ENOMEM;
+		goto out_unlock;
+	}
+
+	sess->transport_id_len = size;
+
+	memcpy(sess->transport_id, buffer, sess->transport_id_len);
+
+out_res:
+	res = size;
+
+out_unlock:
+	mutex_unlock(&scst_local_mutex);
+
+	return res;
+}
+
+static struct kobj_attribute scst_local_transport_id_attr =
+	__ATTR(transport_id, S_IRUGO| S_IWUSR,
+		scst_local_transport_id_show,
+		scst_local_transport_id_store);
+
+static const struct attribute *scst_local_tgtt_attrs[] = {
+	&scst_local_version_attr.attr,
+	NULL,
+};
+
+static const struct attribute *scst_local_tgt_attrs[] = {
+	&scst_local_scsi_transport_version_attr.attr,
+	&scst_local_phys_transport_version_attr.attr,
+	NULL,
+};
+
+static const struct attribute *scst_local_sess_attrs[] = {
+	&scst_local_transport_id_attr.attr,
+	NULL,
+};
+
+#endif /* CONFIG_SCST_PROC */
+
+static uint16_t scst_local_get_scsi_transport_version(struct scst_cmd *scst_cmd)
+{
+	struct scst_local_host_info *host;
+
+	host = (struct scst_local_host_info *)scst_tgt_get_tgt_priv(
+						scst_cmd_get_tgt(scst_cmd));
+
+	if (host->scsi_transport_version == 0)
+		return 0x0BE0; /* SAS */
+	else
+		return host->scsi_transport_version;
+}
+
+static uint16_t scst_local_get_phys_transport_version(struct scst_cmd *scst_cmd)
+{
+	struct scst_local_host_info *host;
+
+	host = (struct scst_local_host_info *)scst_tgt_get_tgt_priv(
+						scst_cmd_get_tgt(scst_cmd));
+
+	return host->phys_transport_version;
+}
+
 static struct scst_tgt_template scst_local_targ_tmpl = {
 	.name			= "scst_local_tgt",
 	.sg_tablesize		= 0xffff,
 	.xmit_response_atomic	= 1,
 #ifndef CONFIG_SCST_PROC
 	.enabled_attr_not_needed = 1,
+	.tgtt_attrs = scst_local_tgtt_attrs,
+	.tgt_attrs = scst_local_tgt_attrs,
+	.sess_attrs = scst_local_sess_attrs,
 #endif
 	.detect			= scst_local_targ_detect,
 	.release		= scst_local_targ_release,
@@ -1409,8 +1714,13 @@ static struct scst_tgt_template scst_local_targ_tmpl = {
 	.on_free_cmd		= scst_local_targ_on_free_cmd,
 	.task_mgmt_fn_done	= scst_local_targ_task_mgmt_done,
 	.report_aen		= scst_local_report_aen,
-	.get_initiator_port_transport_id
-				= scst_local_get_initiator_port_transport_id,
+	.get_initiator_port_transport_id = scst_local_get_initiator_port_transport_id,
+	.get_scsi_transport_version = scst_local_get_scsi_transport_version,
+	.get_phys_transport_version = scst_local_get_phys_transport_version,
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+	.default_trace_flags = SCST_LOCAL_DEFAULT_LOG_FLAGS,
+	.trace_flags = &trace_flag,
+#endif
 };
 
 /*

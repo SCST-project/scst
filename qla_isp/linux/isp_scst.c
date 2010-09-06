@@ -1581,6 +1581,11 @@ out:
     return (res);
 }
 
+static uint16_t isp_get_scsi_transport_version(struct scst_cmd *scst_cmd)
+{
+	return 0x0900; /* FCP-2 */
+}
+
 static struct scst_tgt_template isp_tgt_template =
 {
     .sg_tablesize = SG_ALL, /* we set this value lately based on hardware */
@@ -1598,6 +1603,7 @@ static struct scst_tgt_template isp_tgt_template =
     .rdy_to_xfer = isp_rdy_to_xfer,
     .on_free_cmd = isp_on_free_cmd,
     .task_mgmt_fn_done = isp_task_mgmt_fn_done,
+    .get_scsi_transport_version = isp_get_scsi_transport_version,
 
     //.report_aen = isp_report_aen,
     .get_initiator_port_transport_id = isp_get_initiator_port_transport_id,

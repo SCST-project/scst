@@ -66,7 +66,7 @@ static void mvst_host_action(struct mvs_info *mvi,
 	enum mvst_tgt_host_action_t action, u8 phyid);
 static int mvst_start_sas_target(struct mvs_info *mvi, u8 id);
 static int mvst_restart_free_list(struct mvs_info *mvi, u8 slot_id);
-
+static uint16_t mvst_get_scsi_transport_version(struct scst_cmd *scst_cmd);
 
 struct kmem_cache *mvst_cmd_cachep;
 struct mvst_msg_queue tgt_msg_queue;
@@ -89,11 +89,17 @@ struct scst_tgt_template tgt_template = {
 	.on_free_cmd = mvst_on_free_cmd,
 	.task_mgmt_fn_done = mvst_task_mgmt_fn_done,
 	.report_aen = mvst_report_event,
+	.get_scsi_transport_version = mvst_get_scsi_transport_version,
 };
 
 /*
  * Functions
  */
+
+static uint16_t mvst_get_scsi_transport_version(struct scst_cmd *scst_cmd)
+{
+	return 0x0BE0; /* SAS */
+}
 
 static u64 mvst_get_be_sas_addr(u8 *sas_addr)
 {

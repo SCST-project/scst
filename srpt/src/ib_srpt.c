@@ -3495,6 +3495,11 @@ static int srpt_release(struct scst_tgt *scst_tgt)
 	return 0;
 }
 
+static uint16_t srpt_get_scsi_transport_version(struct scst_cmd *scst_cmd)
+{
+	return 0x0940; /* SRP */
+}
+
 /* SCST target template for the SRP target implementation. */
 static struct scst_tgt_template srpt_template = {
 	.name = DRV_NAME,
@@ -3516,6 +3521,7 @@ static struct scst_tgt_template srpt_template = {
 	.on_free_cmd = srpt_on_free_cmd,
 	.task_mgmt_fn_done = srpt_tsk_mgmt_done,
 	.get_initiator_port_transport_id = srpt_get_initiator_port_transport_id,
+	.get_scsi_transport_version = srpt_get_scsi_transport_version,
 };
 
 /**

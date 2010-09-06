@@ -217,6 +217,7 @@ struct scst_vdisk_dev {
 				   must be <= SCSI Model + 1 */
 	char *filename;		/* File name, protected by
 				   scst_mutex and suspended activities */
+	uint16_t command_set_version;
 	unsigned int t10_dev_id_set:1; /* true if t10_dev_id manually set */
 	char t10_dev_id[16+8+2]; /* T10 device ID */
 	char usn[MAX_USN_LEN];
@@ -1396,7 +1397,7 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			goto out_put;
 		}
 	} else {
-		int len;
+		int len, num;
 
 		if (cmd->cdb[2] != 0) {
 			TRACE_DBG("INQUIRY: Unsupported page %x", cmd->cdb[2]);
@@ -1433,6 +1434,46 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 		 * aligned.
 		 */
 		memcpy(&buf[32], SCST_FIO_REV, 4);
+
+		/** Version descriptors **/
+
+		buf[4] += 58 - 36;
+		num = 0;
+
+		/* SAM-3 T10/1561-D revision 14 */
+		buf[58 + num] = 0x0;
+		buf[58 + num + 1] = 0x76;
+		num += 2;
+
+		/* Physical transport */
+		if (cmd->tgtt->get_phys_transport_version != NULL) {
+			uint16_t v = cmd->tgtt->get_phys_transport_version(cmd);
+			if (v != 0) {
+				*((uint16_t *)&buf[58 + num]) = cpu_to_be16(v);
+				num += 2;
+			}
+		}
+
+		/* SCSI transport */
+		if (cmd->tgtt->get_scsi_transport_version != NULL) {
+			*((uint16_t *)&buf[58 + num]) =
+				cpu_to_be16(cmd->tgtt->get_scsi_transport_version(cmd));
+			num += 2;
+		}
+
+		/* SPC-3 T10/1416-D revision 23 */
+		buf[58 + num] = 0x3;
+		buf[58 + num + 1] = 0x12;
+		num += 2;
+
+		/* Device command set */
+		if (virt_dev->command_set_version != 0) {
+			*((uint16_t *)&buf[58 + num]) =
+				cpu_to_be16(virt_dev->command_set_version);
+			num += 2;
+		}
+
+		buf[4] += num;
 		resp_len = buf[4] + 5;
 	}
 
@@ -3216,6 +3257,8 @@ static int vdev_fileio_add_device(const char *device_name, char *params)
 	if (res != 0)
 		goto out;
 
+	virt_dev->command_set_version = 0x04C0; /* SBC-3 */
+
 	virt_dev->wt_flag = DEF_WRITE_THROUGH;
 	virt_dev->nv_cache = DEF_NV_CACHE;
 	virt_dev->o_direct_flag = DEF_O_DIRECT;
@@ -3277,6 +3320,8 @@ static int vdev_blockio_add_device(const char *device_name, char *params)
 	if (res != 0)
 		goto out;
 
+	virt_dev->command_set_version = 0x04C0; /* SBC-3 */
+
 	virt_dev->blockio = 1;
 
 	res = vdev_parse_add_dev_params(virt_dev, params, allowed_params);
@@ -3328,6 +3373,8 @@ static int vdev_nullio_add_device(const char *device_name, char *params)
 	res = vdev_create(&vdisk_null_devtype, device_name, &virt_dev);
 	if (res != 0)
 		goto out;
+
+	virt_dev->command_set_version = 0x04C0; /* SBC-3 */
 
 	virt_dev->nullio = 1;
 
@@ -3485,6 +3532,8 @@ static ssize_t __vcdrom_add_device(const char *device_name, char *params)
 	res = vdev_create(&vcdrom_devtype, device_name, &virt_dev);
 	if (res != 0)
 		goto out;
+
+	virt_dev->command_set_version = 0x02A0; /* MMC-3 */
 
 	virt_dev->rd_only = 1;
 	virt_dev->removable = 1;

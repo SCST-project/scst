@@ -96,6 +96,8 @@ static int q2t_cut_cmd_data_head(struct q2t_cmd *cmd, unsigned int offset);
 static void q2t_clear_tgt_db(struct q2t_tgt *tgt, bool local_only);
 static void q2t_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd);
 static int q2t_unreg_sess(struct q2t_sess *sess);
+static uint16_t q2t_get_scsi_transport_version(struct scst_cmd *scst_cmd);
+static uint16_t q2t_get_phys_transport_version(struct scst_cmd *scst_cmd);
 
 #ifndef CONFIG_SCST_PROC
 
@@ -170,6 +172,8 @@ static struct scst_tgt_template tgt2x_template = {
 	.on_free_cmd = q2t_on_free_cmd,
 	.task_mgmt_fn_done = q2t_task_mgmt_fn_done,
 	.get_initiator_port_transport_id = q2t_get_initiator_port_transport_id,
+	.get_scsi_transport_version = q2t_get_scsi_transport_version,
+	.get_phys_transport_version = q2t_get_phys_transport_version,
 	.on_hw_pending_cmd_timeout = q2t_on_hw_pending_cmd_timeout,
 	.enable_target = q2t_enable_tgt,
 	.is_target_enabled = q2t_is_tgt_enabled,
@@ -5502,6 +5506,17 @@ static void q2t_proc_log_entry_clean(struct scst_tgt_template *templ)
 }
 
 #endif /* CONFIG_SCST_PROC */
+
+static uint16_t q2t_get_scsi_transport_version(struct scst_cmd *scst_cmd)
+{
+	/* FCP-2 (speculative, there's no info what FW supports) */
+	return 0x0900; 
+}
+
+static uint16_t q2t_get_phys_transport_version(struct scst_cmd *scst_cmd)
+{
+	return 0x0DA0; /* FC-FS */
+}
 
 static int __init q2t_init(void)
 {

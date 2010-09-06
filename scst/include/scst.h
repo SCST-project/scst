@@ -885,6 +885,22 @@ struct scst_tgt_template {
 	ssize_t (*mgmt_cmd) (char *cmd);
 
 	/*
+	 * Should return physical transport version. Used in the corresponding
+	 * INQUIRY version descriptor. See SPC for the list of available codes.
+	 *
+	 * OPTIONAL
+	 */
+	uint16_t (*get_phys_transport_version) (struct scst_cmd *cmd);
+
+	/*
+	 * Should return SCSI transport version. Used in the corresponding
+	 * INQUIRY version descriptor. See SPC for the list of available codes.
+	 *
+	 * OPTIONAL
+	 */
+	uint16_t (*get_scsi_transport_version) (struct scst_cmd *cmd);
+
+	/*
 	 * Name of the template. Must be unique to identify
 	 * the template. MUST HAVE
 	 */
@@ -2745,6 +2761,12 @@ static inline void scst_cmd_set_ext_cdb(struct scst_cmd *cmd,
 {
 	cmd->ext_cdb = ext_cdb;
 	cmd->ext_cdb_len = ext_cdb_len;
+}
+
+/* Returns cmd's target */
+static inline struct scst_tgt *scst_cmd_get_tgt(struct scst_cmd *cmd)
+{
+	return cmd->tgt;
 }
 
 /* Returns cmd's session */

@@ -3746,6 +3746,11 @@ static struct scst_trace_log iscsi_local_trace_tbl[] = {
 #define ISCSI_TRACE_TBL_HELP	", d_write, conn, conn_dbg, iov, pdu, net_page"
 #endif
 
+static uint16_t iscsi_get_scsi_transport_version(struct scst_cmd *scst_cmd)
+{
+	return 0x0960; /* iSCSI */
+}
+
 struct scst_tgt_template iscsi_template = {
 	.name = "iscsi",
 	.sg_tablesize = 0xFFFF /* no limit */,
@@ -3785,6 +3790,7 @@ struct scst_tgt_template iscsi_template = {
 	.task_mgmt_fn_done = iscsi_task_mgmt_fn_done,
 	.report_aen = iscsi_report_aen,
 	.get_initiator_port_transport_id = iscsi_get_initiator_port_transport_id,
+	.get_scsi_transport_version = iscsi_get_scsi_transport_version,
 };
 
 static __init int iscsi_run_threads(int count, char *name, int (*fn)(void *))
