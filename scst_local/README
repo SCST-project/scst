@@ -1,4 +1,4 @@
-SCST Debug ...
+SCST Local ...
 Richard Sharpe, 30-Nov-2008
 
 This is the SCST Local driver. Its function is to allow you to access devices
@@ -66,7 +66,31 @@ The code still has bugs, so if you encounter any, email me the fixes at:
 
 I am thinking of renaming this to something more interesting.
 
-6. Change log
+
+Limitations
+===========
+
+Swapping on scst_local's devices and using a writable mmap over a file
+on them are not supported due to possible OOM deadlock in the Linux
+memory/cache manager. See SCST README for more details.
+
+
+Note on performance
+===================
+
+Although this driver implemented in the most performance effective way,
+including zero-copy passing data between SCSI/block subsystems and SCST,
+in many cases it is NOT suited to measure performance as a NULL link.
+For example, it is not suited for max IOPS measurements. This is because
+for such cases not performance of the link between the target and
+initiator is the bottleneck, but CPU or memory speed on the target or
+initiator. For scst_local you have both initiator and target on the same
+system, which means each your initiator and target are much less
+CPU/memory powerful.
+
+
+Change log
+==========
 
 V0.1 24-Sep-2008 (Hyderabad) Initial coding, pretty chatty and messy,
                              but worked.
