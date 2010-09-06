@@ -364,6 +364,7 @@ int start(int argc, char **argv)
 		}
 
 		memset(&desc, 0, sizeof(desc));
+		desc.license_str = (unsigned long)"GPL";
 		desc.version_str = (unsigned long)DEV_USER_VERSION;
 		strncpy(desc.name, devs[i].name, sizeof(desc.name)-1);
 		desc.name[sizeof(desc.name)-1] = '\0';

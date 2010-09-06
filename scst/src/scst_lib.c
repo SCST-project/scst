@@ -1443,7 +1443,7 @@ out:
 	TRACE_EXIT();
 	return;
 }
-EXPORT_SYMBOL(scst_capacity_data_changed);
+EXPORT_SYMBOL_GPL(scst_capacity_data_changed);
 
 static inline bool scst_is_report_luns_changed_type(int type)
 {
@@ -1988,7 +1988,7 @@ int scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 	TRACE_EXIT_RES(cmd->state);
 	return cmd->state;
 }
-EXPORT_SYMBOL(scst_set_cmd_abnormal_done_state);
+EXPORT_SYMBOL_GPL(scst_set_cmd_abnormal_done_state);
 
 void scst_zero_write_rest(struct scst_cmd *cmd)
 {
@@ -2101,7 +2101,7 @@ out:
 	TRACE_EXIT();
 	return;
 }
-EXPORT_SYMBOL(scst_set_resp_data_len);
+EXPORT_SYMBOL_GPL(scst_set_resp_data_len);
 
 void scst_limit_sg_write_len(struct scst_cmd *cmd)
 {
@@ -2293,7 +2293,7 @@ void scst_update_hw_pending_start(struct scst_cmd *cmd)
 	TRACE_EXIT();
 	return;
 }
-EXPORT_SYMBOL(scst_update_hw_pending_start);
+EXPORT_SYMBOL_GPL(scst_update_hw_pending_start);
 
 /*
  * Supposed to be called under sess_list_lock, but can release/reaquire it.
@@ -2620,7 +2620,7 @@ void scst_init_mem_lim(struct scst_mem_lim *mem_lim)
 	mem_lim->max_allowed_pages =
 		((uint64_t)scst_max_dev_cmd_mem << 10) >> (PAGE_SHIFT - 10);
 }
-EXPORT_SYMBOL(scst_init_mem_lim);
+EXPORT_SYMBOL_GPL(scst_init_mem_lim);
 
 static struct scst_acg_dev *scst_alloc_acg_dev(struct scst_acg *acg,
 					struct scst_device *dev, uint64_t lun)
@@ -4873,7 +4873,7 @@ out:
 	TRACE_EXIT();
 	return;
 }
-EXPORT_SYMBOL(scst_copy_sg);
+EXPORT_SYMBOL_GPL(scst_copy_sg);
 
 int scst_get_full_buf(struct scst_cmd *cmd, uint8_t **buf)
 {
@@ -5231,7 +5231,7 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
-EXPORT_SYMBOL(scst_get_cdb_info);
+EXPORT_SYMBOL_GPL(scst_get_cdb_info);
 
 /* Packs SCST LUN back to SCSI form */
 __be64 scst_pack_lun(const uint64_t lun, unsigned int addr_method)
@@ -5389,7 +5389,7 @@ int scst_calc_block_shift(int sector_size)
 	TRACE_EXIT_RES(block_shift);
 	return block_shift;
 }
-EXPORT_SYMBOL(scst_calc_block_shift);
+EXPORT_SYMBOL_GPL(scst_calc_block_shift);
 
 /**
  * scst_sbc_generic_parse() - generic SBC parsing
@@ -5452,7 +5452,7 @@ set_timeout:
 	TRACE_EXIT_RES(res);
 	return res;
 }
-EXPORT_SYMBOL(scst_sbc_generic_parse);
+EXPORT_SYMBOL_GPL(scst_sbc_generic_parse);
 
 /**
  * scst_cdrom_generic_parse() - generic MMC parse
@@ -5512,7 +5512,7 @@ set_timeout:
 	TRACE_EXIT();
 	return res;
 }
-EXPORT_SYMBOL(scst_cdrom_generic_parse);
+EXPORT_SYMBOL_GPL(scst_cdrom_generic_parse);
 
 /**
  * scst_modisk_generic_parse() - generic MO parse
@@ -5572,7 +5572,7 @@ set_timeout:
 	TRACE_EXIT_RES(res);
 	return res;
 }
-EXPORT_SYMBOL(scst_modisk_generic_parse);
+EXPORT_SYMBOL_GPL(scst_modisk_generic_parse);
 
 /**
  * scst_tape_generic_parse() - generic tape parse
@@ -5625,7 +5625,7 @@ int scst_tape_generic_parse(struct scst_cmd *cmd,
 	TRACE_EXIT_RES(res);
 	return res;
 }
-EXPORT_SYMBOL(scst_tape_generic_parse);
+EXPORT_SYMBOL_GPL(scst_tape_generic_parse);
 
 static int scst_null_parse(struct scst_cmd *cmd)
 {
@@ -5671,7 +5671,7 @@ int scst_changer_generic_parse(struct scst_cmd *cmd,
 
 	return res;
 }
-EXPORT_SYMBOL(scst_changer_generic_parse);
+EXPORT_SYMBOL_GPL(scst_changer_generic_parse);
 
 /**
  * scst_processor_generic_parse - generic SCSI processor parse
@@ -5690,7 +5690,7 @@ int scst_processor_generic_parse(struct scst_cmd *cmd,
 
 	return res;
 }
-EXPORT_SYMBOL(scst_processor_generic_parse);
+EXPORT_SYMBOL_GPL(scst_processor_generic_parse);
 
 /**
  * scst_raid_generic_parse() - generic RAID parse
@@ -5709,7 +5709,7 @@ int scst_raid_generic_parse(struct scst_cmd *cmd,
 
 	return res;
 }
-EXPORT_SYMBOL(scst_raid_generic_parse);
+EXPORT_SYMBOL_GPL(scst_raid_generic_parse);
 
 /**
  ** Generic dev_done() support routines.
@@ -5779,7 +5779,7 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
-EXPORT_SYMBOL(scst_block_generic_dev_done);
+EXPORT_SYMBOL_GPL(scst_block_generic_dev_done);
 
 /**
  * scst_tape_generic_dev_done() - generic tape dev done
@@ -5854,7 +5854,7 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
-EXPORT_SYMBOL(scst_tape_generic_dev_done);
+EXPORT_SYMBOL_GPL(scst_tape_generic_dev_done);
 
 static void scst_check_internal_sense(struct scst_device *dev, int result,
 	uint8_t *sense, int sense_len)
@@ -6049,7 +6049,7 @@ out:
 	TRACE_EXIT();
 	return 0;
 }
-EXPORT_SYMBOL(scst_obtain_device_parameters);
+EXPORT_SYMBOL_GPL(scst_obtain_device_parameters);
 
 /* Called under dev_lock and BH off */
 void scst_process_reset(struct scst_device *dev,
@@ -6498,7 +6498,7 @@ void scst_add_thr_data(struct scst_tgt_dev *tgt_dev,
 	list_add_tail(&data->thr_data_list_entry, &tgt_dev->thr_data_list);
 	spin_unlock(&tgt_dev->thr_data_lock);
 }
-EXPORT_SYMBOL(scst_add_thr_data);
+EXPORT_SYMBOL_GPL(scst_add_thr_data);
 
 /**
  * scst_del_all_thr_data() - delete all thread's local data
@@ -6520,7 +6520,7 @@ void scst_del_all_thr_data(struct scst_tgt_dev *tgt_dev)
 	spin_unlock(&tgt_dev->thr_data_lock);
 	return;
 }
-EXPORT_SYMBOL(scst_del_all_thr_data);
+EXPORT_SYMBOL_GPL(scst_del_all_thr_data);
 
 /**
  * scst_dev_del_all_thr_data() - delete all thread's local data from device
@@ -6545,7 +6545,7 @@ void scst_dev_del_all_thr_data(struct scst_device *dev)
 	TRACE_EXIT();
 	return;
 }
-EXPORT_SYMBOL(scst_dev_del_all_thr_data);
+EXPORT_SYMBOL_GPL(scst_dev_del_all_thr_data);
 
 /* thr_data_lock supposed to be held */
 static struct scst_thr_data_hdr *__scst_find_thr_data_locked(
@@ -6579,7 +6579,7 @@ struct scst_thr_data_hdr *__scst_find_thr_data(struct scst_tgt_dev *tgt_dev,
 
 	return res;
 }
-EXPORT_SYMBOL(__scst_find_thr_data);
+EXPORT_SYMBOL_GPL(__scst_find_thr_data);
 
 bool scst_del_thr_data(struct scst_tgt_dev *tgt_dev, struct task_struct *tsk)
 {
@@ -7038,7 +7038,7 @@ char *scst_get_next_lexem(char **token_str)
 	*token_str = q;
 	return p;
 }
-EXPORT_SYMBOL(scst_get_next_lexem);
+EXPORT_SYMBOL_GPL(scst_get_next_lexem);
 
 /**
  * scst_restore_token_str() - restore string modified by scst_get_next_lexem()
@@ -7053,7 +7053,7 @@ void scst_restore_token_str(char *prev_lexem, char *token_str)
 		prev_lexem[strlen(prev_lexem)] = ' ';
 	return;
 }
-EXPORT_SYMBOL(scst_restore_token_str);
+EXPORT_SYMBOL_GPL(scst_restore_token_str);
 
 /**
  * scst_get_next_token_str() - parse and return next token
@@ -7082,7 +7082,7 @@ char *scst_get_next_token_str(char **input_str)
 
 	return p;
 }
-EXPORT_SYMBOL(scst_get_next_token_str);
+EXPORT_SYMBOL_GPL(scst_get_next_token_str);
 
 static void __init scst_scsi_op_list_init(void)
 {
@@ -7173,7 +7173,7 @@ unsigned long scst_random(void)
 	spin_unlock_irqrestore(&lock, flags);
 	return rv;
 }
-EXPORT_SYMBOL(scst_random);
+EXPORT_SYMBOL_GPL(scst_random);
 #endif /* CONFIG_SCST_DEBUG */
 
 #ifdef CONFIG_SCST_DEBUG_TM

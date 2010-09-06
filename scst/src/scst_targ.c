@@ -62,7 +62,7 @@ void scst_post_parse(struct scst_cmd *cmd)
 {
 	scst_set_parse_time(cmd);
 }
-EXPORT_SYMBOL(scst_post_parse);
+EXPORT_SYMBOL_GPL(scst_post_parse);
 
 /**
  * scst_post_alloc_data_buf() - do post alloc_data_buf actions
@@ -75,7 +75,7 @@ void scst_post_alloc_data_buf(struct scst_cmd *cmd)
 {
 	scst_set_alloc_buf_time(cmd);
 }
-EXPORT_SYMBOL(scst_post_alloc_data_buf);
+EXPORT_SYMBOL_GPL(scst_post_alloc_data_buf);
 
 static inline void scst_schedule_tasklet(struct scst_cmd *cmd)
 {
@@ -2447,7 +2447,7 @@ out_uncomplete:
 	res = -1;
 	goto out;
 }
-EXPORT_SYMBOL(scst_check_local_events);
+EXPORT_SYMBOL_GPL(scst_check_local_events);
 
 /* No locks */
 void scst_inc_expected_sn(struct scst_tgt_dev *tgt_dev, atomic_t *slot)
@@ -4220,7 +4220,7 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 	TRACE_EXIT();
 	return;
 }
-EXPORT_SYMBOL(scst_process_active_cmd);
+EXPORT_SYMBOL_GPL(scst_process_active_cmd);
 
 /* Called under cmd_list_lock and IRQs disabled */
 static void scst_do_job_active(struct list_head *cmd_list,
@@ -4528,7 +4528,7 @@ void scst_prepare_async_mcmd(struct scst_mgmt_cmd *mcmd)
 	TRACE_EXIT();
 	return;
 }
-EXPORT_SYMBOL(scst_prepare_async_mcmd);
+EXPORT_SYMBOL_GPL(scst_prepare_async_mcmd);
 
 /**
  * scst_async_mcmd_completed() - async management command completed
@@ -4562,7 +4562,7 @@ void scst_async_mcmd_completed(struct scst_mgmt_cmd *mcmd, int status)
 	TRACE_EXIT();
 	return;
 }
-EXPORT_SYMBOL(scst_async_mcmd_completed);
+EXPORT_SYMBOL_GPL(scst_async_mcmd_completed);
 
 /* No locks */
 static void scst_finish_cmd_mgmt(struct scst_cmd *cmd)
@@ -6225,7 +6225,7 @@ bool scst_initiator_has_luns(struct scst_tgt *tgt, const char *initiator_name)
 	TRACE_EXIT_RES(res);
 	return res;
 }
-EXPORT_SYMBOL(scst_initiator_has_luns);
+EXPORT_SYMBOL_GPL(scst_initiator_has_luns);
 
 static int scst_init_session(struct scst_session *sess)
 {
@@ -6333,7 +6333,8 @@ restart:
  *		    e.g. iSCSI name, which used as the key to found appropriate
  *		    access control group. Could be NULL, then the default
  *		    target's LUNs are used.
- * @data:	any target driver supplied data
+ * @tgt_priv:	pointer to target driver's private data
+ * @result_fn_data: any target driver supplied data
  * @result_fn:	pointer to the function that will be asynchronously called
  *		 when session initialization finishes.
  *		 Can be NULL. Parameters:
@@ -6409,7 +6410,27 @@ out_free:
 	sess = NULL;
 	goto out;
 }
-EXPORT_SYMBOL(scst_register_session);
+EXPORT_SYMBOL_GPL(scst_register_session);
+
+/**
+ * scst_register_session_non_gpl() - register session (non-GPL version)
+ * @tgt:	target
+ * @initiator_name: remote initiator's name, any NULL-terminated string,
+ *		    e.g. iSCSI name, which used as the key to found appropriate
+ *		    access control group. Could be NULL, then the default
+ *		    target's LUNs are used.
+ * @tgt_priv:	pointer to target driver's private data
+ *
+ * Description:
+ *    Registers new session. Returns new session on success or NULL otherwise.
+ */
+struct scst_session *scst_register_session_non_gpl(struct scst_tgt *tgt,
+	const char *initiator_name, void *tgt_priv)
+{
+	return scst_register_session(tgt, 0, initiator_name, tgt_priv,
+			NULL, NULL);
+}
+EXPORT_SYMBOL(scst_register_session_non_gpl);
 
 /**
  * scst_unregister_session() - unregister session
@@ -6485,7 +6506,26 @@ void scst_unregister_session(struct scst_session *sess, int wait,
 	TRACE_EXIT();
 	return;
 }
-EXPORT_SYMBOL(scst_unregister_session);
+EXPORT_SYMBOL_GPL(scst_unregister_session);
+
+/**
+ * scst_unregister_session_non_gpl() - unregister session, non-GPL version
+ * @sess:	session to be unregistered
+ *
+ * Unregisters session.
+ *
+ * See notes for scst_unregister_session() above.
+ */
+void scst_unregister_session_non_gpl(struct scst_session *sess)
+{
+	TRACE_ENTRY();
+
+	scst_unregister_session(sess, 1, NULL);
+
+	TRACE_EXIT();
+	return;
+}
+EXPORT_SYMBOL(scst_unregister_session_non_gpl);
 
 static inline int test_mgmt_list(void)
 {

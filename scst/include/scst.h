@@ -2434,6 +2434,21 @@ static inline int scst_register_target_template(struct scst_tgt_template *vtt)
 	return __scst_register_target_template(vtt, SCST_INTERFACE_VERSION);
 }
 
+/*
+ * Registers target template, non-GPL version.
+ * Returns 0 on success or appropriate error code otherwise.
+ *
+ * Note: *vtt must be static!
+ */
+int __scst_register_target_template_non_gpl(struct scst_tgt_template *vtt,
+	const char *version);
+static inline int scst_register_target_template_non_gpl(
+	struct scst_tgt_template *vtt)
+{
+	return __scst_register_target_template_non_gpl(vtt,
+		SCST_INTERFACE_VERSION);
+}
+
 void scst_unregister_target_template(struct scst_tgt_template *vtt);
 
 struct scst_tgt *scst_register_target(struct scst_tgt_template *vtt,
@@ -2443,8 +2458,11 @@ void scst_unregister_target(struct scst_tgt *tgt);
 struct scst_session *scst_register_session(struct scst_tgt *tgt, int atomic,
 	const char *initiator_name, void *tgt_priv, void *result_fn_data,
 	void (*result_fn) (struct scst_session *sess, void *data, int result));
+struct scst_session *scst_register_session_non_gpl(struct scst_tgt *tgt,
+	const char *initiator_name, void *tgt_priv);
 void scst_unregister_session(struct scst_session *sess, int wait,
 	void (*unreg_done_fn) (struct scst_session *sess));
+void scst_unregister_session_non_gpl(struct scst_session *sess);
 
 int __scst_register_dev_driver(struct scst_dev_type *dev_type,
 	const char *version);

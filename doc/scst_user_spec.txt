@@ -60,7 +60,8 @@ argument is:
 
 struct scst_user_dev_desc
 {
-	uint8_t version;
+	aligned_u64 version_str;
+	aligned_u64 license_str;
 	uint8_t type;
 	uint8_t sgv_shared;
 	uint8_t sgv_disable_clustered_pool;
@@ -75,9 +76,13 @@ struct scst_user_dev_desc
 
 where:
 
- - version - is a protocol version, shall be DEV_USER_VERSION
+ - version_str - protocol version, shall be DEV_USER_VERSION.
 
- - type - SCSI type of the device
+ - license_str - license of this module, for instance, "GPL", "GPL v2", or
+   "Proprietary". This field serves the same purpose as macroses
+   EXPORT_SYMBOL/EXPORT_SYMBOL_GPL of the Linux kernel.
+
+ - type - SCSI type of the device.
 
  - sgv_shared - true, if the SGV cache for this device should be shared with
    other devices. False, if the SGV cache should be dedicated.

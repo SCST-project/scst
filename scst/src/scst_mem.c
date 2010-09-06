@@ -1157,7 +1157,7 @@ out_uncheck:
 		sgv_uncheck_allowed_mem(mem_lim, pages_to_alloc);
 	goto out;
 }
-EXPORT_SYMBOL(sgv_pool_alloc);
+EXPORT_SYMBOL_GPL(sgv_pool_alloc);
 
 /**
  * sgv_get_priv - return the private allocation data
@@ -1169,7 +1169,7 @@ void *sgv_get_priv(struct sgv_pool_obj *obj)
 {
 	return obj->allocator_priv;
 }
-EXPORT_SYMBOL(sgv_get_priv);
+EXPORT_SYMBOL_GPL(sgv_get_priv);
 
 /**
  * sgv_pool_free - free previously allocated SG vector
@@ -1234,7 +1234,7 @@ void sgv_pool_free(struct sgv_pool_obj *obj, struct scst_mem_lim *mem_lim)
 	sgv_uncheck_allowed_mem(mem_lim, pages);
 	return;
 }
-EXPORT_SYMBOL(sgv_pool_free);
+EXPORT_SYMBOL_GPL(sgv_pool_free);
 
 /**
  * scst_alloc() - allocates an SG vector
@@ -1303,7 +1303,7 @@ out_uncheck:
 		sgv_hiwmk_uncheck(pages);
 	goto out;
 }
-EXPORT_SYMBOL(scst_alloc);
+EXPORT_SYMBOL_GPL(scst_alloc);
 
 /**
  * scst_free() - frees SG vector
@@ -1320,7 +1320,7 @@ void scst_free(struct scatterlist *sg, int count)
 	kfree(sg);
 	return;
 }
-EXPORT_SYMBOL(scst_free);
+EXPORT_SYMBOL_GPL(scst_free);
 
 /* Must be called under sgv_pools_mutex */
 static void sgv_pool_init_cache(struct sgv_pool *pool, int cache_num)
@@ -1527,7 +1527,7 @@ void sgv_pool_flush(struct sgv_pool *pool)
 	TRACE_EXIT();
 	return;
 }
-EXPORT_SYMBOL(sgv_pool_flush);
+EXPORT_SYMBOL_GPL(sgv_pool_flush);
 
 static void sgv_pool_destroy(struct sgv_pool *pool)
 {
@@ -1577,7 +1577,7 @@ void sgv_pool_set_allocator(struct sgv_pool *pool,
 	pool->alloc_fns.free_pages_fn = free_pages_fn;
 	return;
 }
-EXPORT_SYMBOL(sgv_pool_set_allocator);
+EXPORT_SYMBOL_GPL(sgv_pool_set_allocator);
 
 /**
  * sgv_pool_create - creates and initializes an SGV pool
@@ -1654,7 +1654,7 @@ out_free:
 	kfree(pool);
 	goto out_unlock;
 }
-EXPORT_SYMBOL(sgv_pool_create);
+EXPORT_SYMBOL_GPL(sgv_pool_create);
 
 /**
  * sgv_pool_get - increase ref counter for the corresponding SGV pool
@@ -1668,7 +1668,7 @@ void sgv_pool_get(struct sgv_pool *pool)
 		pool, atomic_read(&pool->sgv_pool_ref));
 	return;
 }
-EXPORT_SYMBOL(sgv_pool_get);
+EXPORT_SYMBOL_GPL(sgv_pool_get);
 
 /**
  * sgv_pool_put - decrease ref counter for the corresponding SGV pool
@@ -1684,7 +1684,7 @@ void sgv_pool_put(struct sgv_pool *pool)
 		sgv_pool_destroy(pool);
 	return;
 }
-EXPORT_SYMBOL(sgv_pool_put);
+EXPORT_SYMBOL_GPL(sgv_pool_put);
 
 /**
  * sgv_pool_del - deletes the corresponding SGV pool
@@ -1703,7 +1703,7 @@ void sgv_pool_del(struct sgv_pool *pool)
 	TRACE_EXIT();
 	return;
 }
-EXPORT_SYMBOL(sgv_pool_del);
+EXPORT_SYMBOL_GPL(sgv_pool_del);
 
 /* Both parameters in pages */
 int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark)

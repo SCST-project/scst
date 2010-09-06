@@ -419,7 +419,7 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
-EXPORT_SYMBOL(scst_proc_log_entry_write);
+EXPORT_SYMBOL_GPL(scst_proc_log_entry_write);
 
 static ssize_t scst_proc_scsi_tgt_gen_write_log(struct file *file,
 					const char __user *buf,
@@ -2576,7 +2576,7 @@ int scst_proc_log_entry_read(struct seq_file *seq, unsigned long log_level,
 	TRACE_EXIT_RES(res);
 	return res;
 }
-EXPORT_SYMBOL(scst_proc_log_entry_read);
+EXPORT_SYMBOL_GPL(scst_proc_log_entry_read);
 
 static int log_info_show(struct seq_file *seq, void *v)
 {
@@ -2729,7 +2729,7 @@ struct proc_dir_entry *scst_create_proc_entry(struct proc_dir_entry *root,
 	TRACE_EXIT();
 	return p;
 }
-EXPORT_SYMBOL(scst_create_proc_entry);
+EXPORT_SYMBOL_GPL(scst_create_proc_entry);
 
 int scst_single_seq_open(struct inode *inode, struct file *file)
 {
@@ -2742,18 +2742,18 @@ int scst_single_seq_open(struct inode *inode, struct file *file)
 #endif
 	return single_open(file, pdata->show, PDE(inode)->data);
 }
-EXPORT_SYMBOL(scst_single_seq_open);
+EXPORT_SYMBOL_GPL(scst_single_seq_open);
 
 struct proc_dir_entry *scst_proc_get_tgt_root(
 	struct scst_tgt_template *vtt)
 {
 	return vtt->proc_tgt_root;
 }
-EXPORT_SYMBOL(scst_proc_get_tgt_root);
+EXPORT_SYMBOL_GPL(scst_proc_get_tgt_root);
 
 struct proc_dir_entry *scst_proc_get_dev_type_root(
 	struct scst_dev_type *dtt)
 {
 	return dtt->proc_dev_type_root;
 }
-EXPORT_SYMBOL(scst_proc_get_dev_type_root);
+EXPORT_SYMBOL_GPL(scst_proc_get_dev_type_root);

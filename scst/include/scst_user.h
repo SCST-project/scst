@@ -89,6 +89,7 @@ struct scst_user_opt {
 
 struct scst_user_dev_desc {
 	aligned_u64 version_str;
+	aligned_u64 license_str;
 	uint8_t type;
 	uint8_t sgv_shared;
 	uint8_t sgv_disable_clustered_pool;

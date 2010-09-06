@@ -581,7 +581,7 @@ struct sysfs_ops *scst_sysfs_get_sysfs_ops(void)
 {
 	return &scst_sysfs_ops;
 }
-EXPORT_SYMBOL(scst_sysfs_get_sysfs_ops);
+EXPORT_SYMBOL_GPL(scst_sysfs_get_sysfs_ops);
 
 /**
  ** Target Template
@@ -4975,7 +4975,7 @@ struct scst_sysfs_user_info *scst_sysfs_user_get_info(uint32_t cookie)
 	TRACE_EXIT_HRES(res);
 	return res;
 }
-EXPORT_SYMBOL(scst_sysfs_user_get_info);
+EXPORT_SYMBOL_GPL(scst_sysfs_user_get_info);
 
 /**
  ** Helper functionality to help target drivers and dev handlers support
@@ -5023,7 +5023,7 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
-EXPORT_SYMBOL(scst_sysfs_user_add_info);
+EXPORT_SYMBOL_GPL(scst_sysfs_user_add_info);
 
 /**
  * scst_sysfs_user_del_info - delete and frees user_info
@@ -5044,7 +5044,7 @@ void scst_sysfs_user_del_info(struct scst_sysfs_user_info *info)
 	TRACE_EXIT();
 	return;
 }
-EXPORT_SYMBOL(scst_sysfs_user_del_info);
+EXPORT_SYMBOL_GPL(scst_sysfs_user_del_info);
 
 /*
  * Returns true if the reply received and being processed by another part of
@@ -5129,7 +5129,7 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
-EXPORT_SYMBOL(scst_wait_info_completion);
+EXPORT_SYMBOL_GPL(scst_wait_info_completion);
 
 int __init scst_sysfs_init(void)
 {

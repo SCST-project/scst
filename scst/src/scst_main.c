@@ -71,7 +71,7 @@
  * flush_scheduled_work().
  */
 struct mutex scst_mutex;
-EXPORT_SYMBOL(scst_mutex);
+EXPORT_SYMBOL_GPL(scst_mutex);
 
 /*
  * Secondary level main mutex, inner for scst_mutex. Needed for
@@ -321,7 +321,61 @@ out_unlock:
 	mutex_unlock(&scst_mutex);
 	goto out;
 }
-EXPORT_SYMBOL(__scst_register_target_template);
+EXPORT_SYMBOL_GPL(__scst_register_target_template);
+
+static int scst_check_non_gpl_target_template(struct scst_tgt_template *vtt)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	if (vtt->task_mgmt_affected_cmds_done || vtt->threads_num ||
+	    vtt->on_hw_pending_cmd_timeout) {
+		PRINT_ERROR("Not allowed functionality in non-GPL version for "
+			"target template %s", vtt->name);
+		res = -EPERM;
+		goto out;
+	}
+
+	res = 0;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/**
+ * __scst_register_target_template_non_gpl() - register target template,
+ *					      non-GPL version
+ * @vtt:	target template
+ * @version:	SCST_INTERFACE_VERSION version string to ensure that
+ *		SCST core and the target driver use the same version of
+ *		the SCST interface
+ *
+ * Description:
+ *    Registers a target template and returns 0 on success or appropriate
+ *    error code otherwise.
+ *
+ *    Note: *vtt must be static!
+ */
+int __scst_register_target_template_non_gpl(struct scst_tgt_template *vtt,
+	const char *version)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	res = scst_check_non_gpl_target_template(vtt);
+	if (res != 0)
+		goto out;
+
+	res = __scst_register_target_template(vtt, version);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+EXPORT_SYMBOL(__scst_register_target_template_non_gpl);
 
 /**
  * scst_unregister_target_template() - unregister target template
@@ -715,7 +769,7 @@ out_clear:
 	smp_mb__after_clear_bit();
 	goto out_up;
 }
-EXPORT_SYMBOL(scst_suspend_activity);
+EXPORT_SYMBOL_GPL(scst_suspend_activity);
 
 static void __scst_resume_activity(void)
 {
@@ -773,7 +827,7 @@ void scst_resume_activity(void)
 	TRACE_EXIT();
 	return;
 }
-EXPORT_SYMBOL(scst_resume_activity);
+EXPORT_SYMBOL_GPL(scst_resume_activity);
 
 static int scst_register_device(struct scsi_device *scsidp)
 {
@@ -1115,7 +1169,7 @@ out_resume:
 	scst_resume_activity();
 	goto out;
 }
-EXPORT_SYMBOL(scst_register_virtual_device);
+EXPORT_SYMBOL_GPL(scst_register_virtual_device);
 
 /**
  * scst_unregister_virtual_device() - unegister a virtual device.
@@ -1173,7 +1227,7 @@ out_unlock:
 	scst_resume_activity();
 	goto out;
 }
-EXPORT_SYMBOL(scst_unregister_virtual_device);
+EXPORT_SYMBOL_GPL(scst_unregister_virtual_device);
 
 /**
  * __scst_register_dev_driver() - register pass-through dev handler driver
@@ -1294,7 +1348,7 @@ out_resume:
 	scst_resume_activity();
 	goto out;
 }
-EXPORT_SYMBOL(__scst_register_dev_driver);
+EXPORT_SYMBOL_GPL(__scst_register_dev_driver);
 
 /**
  * scst_unregister_dev_driver() - unregister pass-through dev handler driver
@@ -1352,7 +1406,7 @@ out_up:
 	scst_resume_activity();
 	goto out;
 }
-EXPORT_SYMBOL(scst_unregister_dev_driver);
+EXPORT_SYMBOL_GPL(scst_unregister_dev_driver);
 
 /**
  * __scst_register_virtual_dev_driver() - register virtual dev handler driver
@@ -1412,7 +1466,7 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
-EXPORT_SYMBOL(__scst_register_virtual_dev_driver);
+EXPORT_SYMBOL_GPL(__scst_register_virtual_dev_driver);
 
 /**
  * scst_unregister_virtual_dev_driver() - unregister virtual dev driver
@@ -1447,7 +1501,7 @@ void scst_unregister_virtual_dev_driver(struct scst_dev_type *dev_type)
 	TRACE_EXIT();
 	return;
 }
-EXPORT_SYMBOL(scst_unregister_virtual_dev_driver);
+EXPORT_SYMBOL_GPL(scst_unregister_virtual_dev_driver);
 
 /* scst_mutex supposed to be held */
 int scst_add_threads(struct scst_cmd_threads *cmd_threads,
@@ -1779,7 +1833,7 @@ void scst_init_threads(struct scst_cmd_threads *cmd_threads)
 	TRACE_EXIT();
 	return;
 }
-EXPORT_SYMBOL(scst_init_threads);
+EXPORT_SYMBOL_GPL(scst_init_threads);
 
 /**
  * scst_deinit_threads() - deinitialize SCST processing threads pool
@@ -1799,7 +1853,7 @@ void scst_deinit_threads(struct scst_cmd_threads *cmd_threads)
 	TRACE_EXIT();
 	return;
 }
-EXPORT_SYMBOL(scst_deinit_threads);
+EXPORT_SYMBOL_GPL(scst_deinit_threads);
 
 static void scst_stop_global_threads(void)
 {
@@ -1905,7 +1959,7 @@ unsigned int scst_get_setup_id(void)
 {
 	return scst_setup_id;
 }
-EXPORT_SYMBOL(scst_get_setup_id);
+EXPORT_SYMBOL_GPL(scst_get_setup_id);
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)

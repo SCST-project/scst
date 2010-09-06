@@ -2757,23 +2757,46 @@ static void dev_user_setup_functions(struct scst_user_dev *dev)
 
 static int dev_user_check_version(const struct scst_user_dev_desc *dev_desc)
 {
-	char ver[sizeof(DEV_USER_VERSION)+1];
+	char str[max(sizeof(DEV_USER_VERSION)+1, 20U)];
 	int res = 0, rc;
 
-	rc = copy_from_user(ver,
+	rc = copy_from_user(str,
+			(void __user *)(unsigned long)dev_desc->license_str,
+			sizeof(str));
+	if (rc != 0) {
+		PRINT_ERROR("%s", "Unable to get license string");
+		res = -EFAULT;
+		goto out;
+	}
+	str[sizeof(str)-1] = '\0';
+
+	if ((strcmp(str, "GPL") != 0) &&
+	    (strcmp(str, "GPL v2") != 0) &&
+	    (strcmp(str, "Dual BSD/GPL") != 0) &&
+	    (strcmp(str, "Dual MIT/GPL") != 0) &&
+	    (strcmp(str, "Dual MPL/GPL") != 0)) {
+		/* ->name already 0-terminated in dev_user_ioctl() */
+		PRINT_ERROR("Unsupported license of user device %s (%s)",
+			dev_desc->name, str);
+		res = -EPERM;
+		goto out;
+	}
+
+	rc = copy_from_user(str,
 			(void __user *)(unsigned long)dev_desc->version_str,
-			sizeof(ver));
+			sizeof(str));
 	if (rc != 0) {
 		PRINT_ERROR("%s", "Unable to get version string");
 		res = -EFAULT;
 		goto out;
 	}
-	ver[sizeof(ver)-1] = '\0';
+	str[sizeof(str)-1] = '\0';
 
-	if (strcmp(ver, DEV_USER_VERSION) != 0) {
+	if (strcmp(str, DEV_USER_VERSION) != 0) {
 		/* ->name already 0-terminated in dev_user_ioctl() */
-		PRINT_ERROR("Incorrect version of user device %s (%s)",
-			dev_desc->name, ver);
+		PRINT_ERROR("Incorrect version of user device %s (%s). "
+			"Expected: %s", dev_desc->name, str,
+			DEV_USER_VERSION);
 		res = -EINVAL;
 		goto out;
 	}
