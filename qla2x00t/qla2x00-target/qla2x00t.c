@@ -5510,7 +5510,7 @@ static void q2t_proc_log_entry_clean(struct scst_tgt_template *templ)
 static uint16_t q2t_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 {
 	/* FCP-2 (speculative, there's no info what FW supports) */
-	return 0x0900; 
+	return 0x0900;
 }
 
 static uint16_t q2t_get_phys_transport_version(struct scst_tgt *scst_tgt)
