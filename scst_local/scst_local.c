@@ -68,7 +68,7 @@
 # endif
 #endif
 
-#if defined(CONFIG_SCST_DEBUG)
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 #define trace_flag scst_local_trace_flag
 static unsigned long scst_local_trace_flag = SCST_LOCAL_DEFAULT_LOG_FLAGS;
 #endif
@@ -904,7 +904,7 @@ static int scst_local_add_adapter(void)
 
 	scst_lcl_host = kzalloc(sizeof(*scst_lcl_host), GFP_KERNEL);
 	if (NULL == scst_lcl_host) {
-		PRINT_ERROR("Unable to alloc scst_lcl_host (size %d)",
+		PRINT_ERROR("Unable to alloc scst_lcl_host (size %zd)",
 			sizeof(*scst_lcl_host));
 		return -ENOMEM;
 	}
@@ -935,7 +935,7 @@ static int scst_local_add_adapter(void)
 
 		sess = kzalloc(sizeof(*sess), GFP_KERNEL);
 		if (NULL == sess) {
-			PRINT_ERROR("Unable to alloc scst_lcl_host (size %d)",
+			PRINT_ERROR("Unable to alloc scst_lcl_host (size %zd)",
 				sizeof(*sess));
 			goto cleanup;
 		}
@@ -1511,7 +1511,7 @@ static ssize_t scst_local_scsi_transport_version_store(struct kobject *kobj,
 
 	res = strict_strtoul(buffer, 0, &val);
 	if (res != 0) {
-		PRINT_ERROR("strict_strtoul() for %s failed: %d", buffer, res);
+		PRINT_ERROR("strict_strtoul() for %s failed: %zd", buffer, res);
 		goto out;
 	}
 
@@ -1524,7 +1524,7 @@ out:
 }
 
 static struct kobj_attribute scst_local_scsi_transport_version_attr =
-	__ATTR(scsi_transport_version, S_IRUGO| S_IWUSR,
+	__ATTR(scsi_transport_version, S_IRUGO | S_IWUSR,
 		scst_local_scsi_transport_version_show,
 		scst_local_scsi_transport_version_store);
 
@@ -1555,7 +1555,7 @@ static ssize_t scst_local_phys_transport_version_store(struct kobject *kobj,
 
 	res = strict_strtoul(buffer, 0, &val);
 	if (res != 0) {
-		PRINT_ERROR("strict_strtoul() for %s failed: %d", buffer, res);
+		PRINT_ERROR("strict_strtoul() for %s failed: %zd", buffer, res);
 		goto out;
 	}
 
@@ -1568,7 +1568,7 @@ out:
 }
 
 static struct kobj_attribute scst_local_phys_transport_version_attr =
-	__ATTR(phys_transport_version, S_IRUGO| S_IWUSR,
+	__ATTR(phys_transport_version, S_IRUGO | S_IWUSR,
 		scst_local_phys_transport_version_show,
 		scst_local_phys_transport_version_store);
 
@@ -1632,7 +1632,7 @@ static ssize_t scst_local_transport_id_store(struct kobject *kobj,
 
 	sess->transport_id = kzalloc(size, GFP_KERNEL);
 	if (sess->transport_id == NULL) {
-		PRINT_ERROR("Allocation of transport_id (size %d) failed",
+		PRINT_ERROR("Allocation of transport_id (size %zd) failed",
 			size);
 		res = -ENOMEM;
 		goto out_unlock;
@@ -1652,7 +1652,7 @@ out_unlock:
 }
 
 static struct kobj_attribute scst_local_transport_id_attr =
-	__ATTR(transport_id, S_IRUGO| S_IWUSR,
+	__ATTR(transport_id, S_IRUGO | S_IWUSR,
 		scst_local_transport_id_show,
 		scst_local_transport_id_store);
 
