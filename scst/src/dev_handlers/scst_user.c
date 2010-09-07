@@ -2765,7 +2765,7 @@ static void dev_user_setup_functions(struct scst_user_dev *dev)
 
 static int dev_user_check_version(const struct scst_user_dev_desc *dev_desc)
 {
-	char str[max_t(int, sizeof(DEV_USER_VERSION)+1, 20)];
+	char str[sizeof(DEV_USER_VERSION) > 20 ? sizeof(DEV_USER_VERSION) : 20];
 	int res = 0, rc;
 
 	rc = copy_from_user(str,

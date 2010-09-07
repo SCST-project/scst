@@ -1449,14 +1449,14 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 		if (cmd->tgtt->get_phys_transport_version != NULL) {
 			uint16_t v = cmd->tgtt->get_phys_transport_version(cmd->tgt);
 			if (v != 0) {
-				*((uint16_t *)&buf[58 + num]) = cpu_to_be16(v);
+				*((__be16 *)&buf[58 + num]) = cpu_to_be16(v);
 				num += 2;
 			}
 		}
 
 		/* SCSI transport */
 		if (cmd->tgtt->get_scsi_transport_version != NULL) {
-			*((uint16_t *)&buf[58 + num]) =
+			*((__be16 *)&buf[58 + num]) =
 				cpu_to_be16(cmd->tgtt->get_scsi_transport_version(cmd->tgt));
 			num += 2;
 		}
@@ -1468,7 +1468,7 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 
 		/* Device command set */
 		if (virt_dev->command_set_version != 0) {
-			*((uint16_t *)&buf[58 + num]) =
+			*((__be16 *)&buf[58 + num]) =
 				cpu_to_be16(virt_dev->command_set_version);
 			num += 2;
 		}
