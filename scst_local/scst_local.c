@@ -14,29 +14,21 @@
 
 #include <linux/kernel.h>
 #include <linux/errno.h>
-#include <linux/timer.h>
 #include <linux/types.h>
-#include <linux/string.h>
-#include <linux/genhd.h>
-#include <linux/fs.h>
 #include <linux/init.h>
+#ifdef CONFIG_SCST_PROC
 #include <linux/proc_fs.h>
-#include <linux/vmalloc.h>
+#endif
 #include <linux/moduleparam.h>
 #include <linux/scatterlist.h>
-#include <linux/blkdev.h>
+#include <linux/slab.h>
 #include <linux/completion.h>
-#include <linux/stat.h>
 #include <linux/spinlock.h>
-#include <asm/unaligned.h>
 
 #include <scsi/scsi.h>
 #include <scsi/scsi_cmnd.h>
-#include <scsi/scsi_device.h>
 #include <scsi/scsi_host.h>
 #include <scsi/scsi_tcq.h>
-#include <scsi/scsicam.h>
-#include <scsi/scsi_eh.h>
 
 /* SCST includes ... */
 #include <scst_const.h>
@@ -73,6 +65,7 @@
 static unsigned long scst_local_trace_flag = SCST_LOCAL_DEFAULT_LOG_FLAGS;
 #endif
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19))
 /*
  * Provide some local definitions that are not provided for some earlier
  * kernels so we operate over a wider range of kernels
@@ -81,8 +74,6 @@ static unsigned long scst_local_trace_flag = SCST_LOCAL_DEFAULT_LOG_FLAGS;
  * not available. Make it available for 2.6.18 which is used still on some
  * distros, like CentOS etc.
  */
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19))
 #define scsi_sg_count(cmd) ((cmd)->use_sg)
 #define scsi_sglist(cmd) ((struct scatterlist *)(cmd)->request_buffer)
 #define scsi_bufflen(cmd) ((cmd)->request_bufflen)
@@ -91,86 +82,73 @@ static unsigned long scst_local_trace_flag = SCST_LOCAL_DEFAULT_LOG_FLAGS;
 #define TRUE 1
 #define FALSE 0
 
-/*
- * Some definitions needed by the scst portion
- */
-static void scst_local_remove_adapter(void);
-static int scst_local_add_adapter(void);
-static int scst_local_get_initiator_port_transport_id(
-				struct scst_session *scst_sess,
-				uint8_t **transport_id);
+#define SCST_LOCAL_VERSION "1.0.0"
+static const char *scst_local_version_date = "20100910";
 
-#define SCST_LOCAL_VERSION "0.9.3"
-static const char *scst_local_version_date = "20100813";
+/* Some statistics */
+static atomic_t num_aborts = ATOMIC_INIT(0);
+static atomic_t num_dev_resets = ATOMIC_INIT(0);
+static atomic_t num_target_resets = ATOMIC_INIT(0);
 
-/*
- * Target structures that are shared between the two pieces
- * This will have to change if we have more than one target
- */
-static struct scst_tgt_template scst_local_targ_tmpl;
-
-/*
- * Some max values
- */
-#define DEF_NUM_HOST 1
-#define DEF_NUM_TGTS 1
-#define SCST_LOCAL_MAX_TARGETS 16
-#define DEF_MAX_LUNS 256
-
-/*
- * These following defines are the SCSI Host LLD (the initiator).
- * SCST Target Driver is below
- */
-
-static int scst_local_add_host = DEF_NUM_HOST;
-static int scst_local_num_tgts = DEF_NUM_TGTS;
-static int scst_local_max_luns = DEF_MAX_LUNS;
-
-static int num_aborts;
-static int num_dev_resets;
-static int num_target_resets;
-
-static DEFINE_MUTEX(scst_local_mutex);
+bool scst_local_add_default_tgt = true;
+module_param_named(add_default_tgt, scst_local_add_default_tgt, bool, S_IRUGO);
+MODULE_PARM_DESC(add_default_host, "add (default) or not default target with "
+	"default session");
 
 /*
  * We put AEN items on a list on the scst_local_host_info structure so they
  * can be processed via a work function. We do not actually need the LUN, since
  * the whole target must be rescanned anyway.
  */
-struct scst_local_work_item {
+struct scst_aen_work_item {
 	struct list_head work_list_entry;
 	struct scst_aen *aen;
 };
 
-/*
- * Each host has multiple targets, each of which has a separate session
- * to SCST.
- */
+struct scst_local_tgt {
+	struct scst_tgt *scst_tgt;
+	struct list_head sessions_list; /* protected by scst_local_mutex */
+	struct list_head tgts_list_entry;
 
-struct scst_local_host_info {
-	struct list_head host_list;
-	struct Scsi_Host *shost;
-	struct scst_tgt *target;
-	struct scst_session *session[SCST_LOCAL_MAX_TARGETS];
+	/* SCSI version descriptors */
+	uint16_t scsi_transport_version;
+	uint16_t phys_transport_version;
+};
+
+struct scst_local_sess {
 	struct device dev;
-	char init_name[20];
-	struct work_struct local_work;
-	spinlock_t lock;
-	struct list_head work_list;
-	uint16_t scsi_transport_version, phys_transport_version;
-	uint8_t *transport_id;
-	int transport_id_len;
-};
+	struct Scsi_Host *shost;
+	struct scst_local_tgt *tgt;
 
-struct scst_local_sess_info {
-	struct scst_local_host_info *host;
+	struct scst_session *scst_sess;
+
 	int number;
+
+	struct mutex tr_id_mutex;
 	uint8_t *transport_id;
 	int transport_id_len;
+
+	struct work_struct aen_work;
+	spinlock_t aen_lock;
+	struct list_head aen_work_list; /* protected by aen_lock */
+
+	struct list_head sessions_list_entry;
+
+	char *initiator_name;
 };
 
-#define to_scst_lcl_host(d) \
-	container_of(d, struct scst_local_host_info, dev)
+#define to_scst_lcl_sess(d) \
+	container_of(d, struct scst_local_sess, dev)
+
+static int scst_local_add_adapter(struct scst_local_tgt *tgt,
+	const char *initiator_name, struct scst_local_sess **out_sess);
+static void scst_local_remove_adapter(struct scst_local_sess *sess);
+static int scst_local_add_target(const char *target_name,
+	struct scst_local_tgt **out_tgt);
+static void __scst_local_remove_target(struct scst_local_tgt *tgt);
+static void scst_local_remove_target(struct scst_local_tgt *tgt);
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
 
 /*
  * Maintains data that is needed during command processing ...
@@ -181,12 +159,9 @@ struct scst_local_sess_info {
 struct scst_local_tgt_specific {
 	struct scsi_cmnd *cmnd;
 	void (*done)(struct scsi_cmnd *);
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
 	struct scatterlist sgl;
-#endif
 };
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
 /*
  * We use a pool of objects maintaind by the kernel so that it is less
  * likely to have to allocate them when we are in the data path.
@@ -195,35 +170,115 @@ struct scst_local_tgt_specific {
  * scatterlist requests.
  */
 static struct kmem_cache *tgt_specific_pool;
-#endif
 
-static atomic_t scst_local_sess_number = ATOMIC_INIT(0);
+#endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)) */
 
-static LIST_HEAD(scst_local_host_list);
-static DEFINE_SPINLOCK(scst_local_host_list_lock);
+static atomic_t scst_local_sess_num = ATOMIC_INIT(0);
 
-static struct bus_type scst_fake_lld_bus;
-static struct device scst_fake_primary;
+static LIST_HEAD(scst_local_tgts_list);
+static DEFINE_MUTEX(scst_local_mutex);
 
-static struct device_driver scst_local_driverfs_driver = {
-	.name	= SCST_LOCAL_NAME,
-	.bus	= &scst_fake_lld_bus,
-};
+static DECLARE_RWSEM(scst_local_exit_rwsem);
 
-module_param_named(add_host, scst_local_add_host, int, S_IRUGO);
-module_param_named(num_tgts, scst_local_num_tgts, int, S_IRUGO);
-module_param_named(max_luns, scst_local_max_luns, int, S_IRUGO);
-
-MODULE_AUTHOR("Richard Sharpe + ideas from SCSI_DEBUG");
+MODULE_AUTHOR("Richard Sharpe, Vladislav Bolkhovitin + ideas from SCSI_DEBUG");
 MODULE_DESCRIPTION("SCSI+SCST local adapter driver");
 MODULE_LICENSE("GPL");
 MODULE_VERSION(SCST_LOCAL_VERSION);
 
-MODULE_PARM_DESC(add_host, "0..127 hosts can be created (def=1)");
-MODULE_PARM_DESC(num_tgts, "mumber of targets per host (def=1)");
-MODULE_PARM_DESC(max_luns, "number of luns per target (def=1)");
+static int scst_local_get_sas_transport_id(struct scst_local_sess *sess,
+	uint8_t **transport_id, int *len)
+{
+	int res = 0;
+	int tr_id_size = 0;
+	uint8_t *tr_id = NULL;
 
-static int scst_local_target_register(void);
+	TRACE_ENTRY();
+
+	tr_id_size = 24;  /* A SAS TransportID */
+
+	tr_id = kzalloc(tr_id_size, GFP_KERNEL);
+	if (tr_id == NULL) {
+		PRINT_ERROR("Allocation of TransportID (size %d) failed",
+			tr_id_size);
+		res = -ENOMEM;
+		goto out;
+	}
+
+	tr_id[0] = 0x00 | SCSI_TRANSPORTID_PROTOCOLID_SAS;
+
+	/*
+	 * Assemble a valid SAS address = 0x5OOUUIIR12345678 ... Does SCST
+	 * have one?
+	 */
+
+	tr_id[4]  = 0x5F;
+	tr_id[5]  = 0xEE;
+	tr_id[6]  = 0xDE;
+	tr_id[7]  = 0x40 | ((sess->number >> 4) & 0x0F);
+	tr_id[8]  = 0x0F | (sess->number & 0xF0);
+	tr_id[9]  = 0xAD;
+	tr_id[10] = 0xE0;
+	tr_id[11] = 0x50;
+
+	*transport_id = tr_id;
+	*len = tr_id_size;
+
+	TRACE_DBG("Created tid '%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X'",
+		tr_id[4], tr_id[5], tr_id[6], tr_id[7],
+		tr_id[8], tr_id[9], tr_id[10], tr_id[11]);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int scst_local_get_initiator_port_transport_id(
+	struct scst_session *scst_sess, uint8_t **transport_id)
+{
+	int res = 0;
+	int tr_id_size = 0;
+	uint8_t *tr_id = NULL;
+	struct scst_local_sess *sess;
+
+	TRACE_ENTRY();
+
+	if (scst_sess == NULL) {
+		res = SCSI_TRANSPORTID_PROTOCOLID_SAS;
+		goto out;
+	}
+
+	sess = (struct scst_local_sess *)scst_sess_get_tgt_priv(scst_sess);
+
+	mutex_lock(&sess->tr_id_mutex);
+
+	if (sess->transport_id == NULL) {
+		res = scst_local_get_sas_transport_id(sess,
+				transport_id, &tr_id_size);
+		goto out_unlock;
+	}
+
+	tr_id_size = sess->transport_id_len;
+	sBUG_ON(tr_id_size == 0);
+
+	tr_id = kzalloc(tr_id_size, GFP_KERNEL);
+	if (tr_id == NULL) {
+		PRINT_ERROR("Allocation of TransportID (size %d) failed",
+			tr_id_size);
+		res = -ENOMEM;
+		goto out;
+	}
+
+	memcpy(tr_id, sess->transport_id, sess->transport_id_len);
+
+out_unlock:
+	mutex_unlock(&sess->tr_id_mutex);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+#ifdef CONFIG_SCST_PROC
 
 static int scst_local_proc_info(struct Scsi_Host *host, char *buffer,
 				char **start, off_t offset, int length,
@@ -238,12 +293,10 @@ static int scst_local_proc_info(struct Scsi_Host *host, char *buffer,
 
 	begin = 0;
 	pos = len = sprintf(buffer, "scst_local adapter driver, version "
-			    "%s [%s]\n"
-			    "num_tgts=%d, Aborts=%d, Device Resets=%d, "
-			    "Target Resets=%d\n",
-			    SCST_LOCAL_VERSION, scst_local_version_date,
-			    scst_local_num_tgts, num_aborts, num_dev_resets,
-			    num_target_resets);
+		"%s [%s]\nAborts=%d, Device Resets=%d, Target Resets=%d\n",
+		SCST_LOCAL_VERSION, scst_local_version_date,
+		atomic_read(&num_aborts), atomic_read(&num_dev_resets),
+		atomic_read(&num_target_resets));
 	if (pos < offset) {
 		len = 0;
 		begin = pos;
@@ -258,149 +311,431 @@ static int scst_local_proc_info(struct Scsi_Host *host, char *buffer,
 	return len;
 }
 
-static ssize_t scst_local_add_host_show(struct device_driver *ddp, char *buf)
-{
-	int len = 0;
-	struct scst_local_host_info *scst_lcl_host, *tmp;
-
-	TRACE_ENTRY();
-
-	list_for_each_entry_safe(scst_lcl_host, tmp, &scst_local_host_list,
-				 host_list) {
-		len += scnprintf(&buf[len], PAGE_SIZE - len, " Initiator: %s\n",
-				 scst_lcl_host->session[0]->initiator_name);
-	}
-
-	TRACE_EXIT_RES(len);
-	return len;
-}
-
-static ssize_t scst_local_add_host_store(struct device_driver *ddp,
-					 const char *buf, size_t count)
-{
-	int delta_hosts;
-
-	TRACE_ENTRY();
-
-	if (sscanf(buf, "%d", &delta_hosts) != 1)
-		return -EINVAL;
-	if (delta_hosts > 0) {
-		do {
-			scst_local_add_adapter();
-		} while (--delta_hosts);
-	} else if (delta_hosts < 0) {
-		do {
-			scst_local_remove_adapter();
-		} while (++delta_hosts);
-	}
-
-	TRACE_EXIT_RES(count);
-	return count;
-}
-
-static DRIVER_ATTR(add_host, S_IRUGO | S_IWUSR, scst_local_add_host_show,
-	    scst_local_add_host_store);
-
-static int do_create_driverfs_files(void)
-{
-	int ret;
-
-	TRACE_ENTRY();
-
-	ret = driver_create_file(&scst_local_driverfs_driver,
-				 &driver_attr_add_host);
-
-	TRACE_EXIT_RES(ret);
-	return ret;
-}
-
-static void do_remove_driverfs_files(void)
-{
-	driver_remove_file(&scst_local_driverfs_driver,
-			   &driver_attr_add_host);
-}
-
-static char scst_local_info_buf[256];
-
 static const char *scst_local_info(struct Scsi_Host *shp)
 {
+	static char scst_local_info_buf[256];
+
 	TRACE_ENTRY();
 
 	sprintf(scst_local_info_buf, "scst_local, version %s [%s], "
 		"Aborts: %d, Device Resets: %d, Target Resets: %d",
 		SCST_LOCAL_VERSION, scst_local_version_date,
-		num_aborts, num_dev_resets, num_target_resets);
+		atomic_read(&num_aborts), atomic_read(&num_dev_resets),
+		atomic_read(&num_target_resets));
 
 	TRACE_EXIT();
 	return scst_local_info_buf;
 }
 
-#if 0
-static int scst_local_ioctl(struct scsi_device *dev, int cmd, void __user *arg)
-{
-	TRACE_ENTRY();
+#else /* CONFIG_SCST_PROC */
 
-	if (scst_local_opt_noise & SCST_LOCAL_OPT_LLD_NOISE)
-		printk(KERN_INFO "scst_local: ioctl: cmd=0x%x\n", cmd);
-	return -EINVAL;
+/**
+ ** Tgtt attributes
+ **/
+
+static ssize_t scst_local_version_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	sprintf(buf, "%s/%s\n", SCST_LOCAL_VERSION, scst_local_version_date);
+
+#ifdef CONFIG_SCST_EXTRACHECKS
+	strcat(buf, "EXTRACHECKS\n");
+#endif
+
+#ifdef CONFIG_SCST_TRACING
+	strcat(buf, "TRACING\n");
+#endif
+
+#ifdef CONFIG_SCST_DEBUG
+	strcat(buf, "DEBUG\n");
+#endif
 
 	TRACE_EXIT();
+	return strlen(buf);
 }
-#endif
+
+static struct kobj_attribute scst_local_version_attr =
+	__ATTR(version, S_IRUGO, scst_local_version_show, NULL);
+
+static ssize_t scst_local_stats_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+
+{
+	return sprintf(buf, "Aborts: %d, Device Resets: %d, Target Resets: %d",
+		atomic_read(&num_aborts), atomic_read(&num_dev_resets),
+		atomic_read(&num_target_resets));
+}
+
+static struct kobj_attribute scst_local_stats_attr =
+	__ATTR(stats, S_IRUGO, scst_local_stats_show, NULL);
+
+static const struct attribute *scst_local_tgtt_attrs[] = {
+	&scst_local_version_attr.attr,
+	&scst_local_stats_attr.attr,
+	NULL,
+};
+
+/**
+ ** Tgt attributes
+ **/
+
+static ssize_t scst_local_scsi_transport_version_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct scst_tgt *scst_tgt;
+	struct scst_local_tgt *tgt;
+	ssize_t res;
+
+	if (down_read_trylock(&scst_local_exit_rwsem) == 0)
+		return -ENOENT;
+
+	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	tgt = (struct scst_local_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+
+	if (tgt->scsi_transport_version != 0)
+		res = sprintf(buf, "0x%x\n%s", tgt->scsi_transport_version,
+			SCST_SYSFS_KEY_MARK "\n");
+	else
+		res = sprintf(buf, "0x%x\n", 0x0BE0); /* SAS */
+
+	up_read(&scst_local_exit_rwsem);
+	return res;
+}
+
+static ssize_t scst_local_scsi_transport_version_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buffer, size_t size)
+{
+	ssize_t res;
+	struct scst_tgt *scst_tgt;
+	struct scst_local_tgt *tgt;
+	unsigned long val;
+
+	if (down_read_trylock(&scst_local_exit_rwsem) == 0)
+		return -ENOENT;
+
+	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	tgt = (struct scst_local_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+
+	res = strict_strtoul(buffer, 0, &val);
+	if (res != 0) {
+		PRINT_ERROR("strict_strtoul() for %s failed: %zd", buffer, res);
+		goto out_up;
+	}
+
+	tgt->scsi_transport_version = val;
+
+	res = size;
+
+out_up:
+	up_read(&scst_local_exit_rwsem);
+	return res;
+}
+
+static struct kobj_attribute scst_local_scsi_transport_version_attr =
+	__ATTR(scsi_transport_version, S_IRUGO | S_IWUSR,
+		scst_local_scsi_transport_version_show,
+		scst_local_scsi_transport_version_store);
+
+static ssize_t scst_local_phys_transport_version_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct scst_tgt *scst_tgt;
+	struct scst_local_tgt *tgt;
+	ssize_t res;
+
+	if (down_read_trylock(&scst_local_exit_rwsem) == 0)
+		return -ENOENT;
+
+	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	tgt = (struct scst_local_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+
+	res = sprintf(buf, "0x%x\n%s", tgt->phys_transport_version,
+			(tgt->phys_transport_version != 0) ?
+				SCST_SYSFS_KEY_MARK "\n" : "");
+
+	up_read(&scst_local_exit_rwsem);
+	return res;
+}
+
+static ssize_t scst_local_phys_transport_version_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buffer, size_t size)
+{
+	ssize_t res;
+	struct scst_tgt *scst_tgt;
+	struct scst_local_tgt *tgt;
+	unsigned long val;
+
+	if (down_read_trylock(&scst_local_exit_rwsem) == 0)
+		return -ENOENT;
+
+	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	tgt = (struct scst_local_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+
+	res = strict_strtoul(buffer, 0, &val);
+	if (res != 0) {
+		PRINT_ERROR("strict_strtoul() for %s failed: %zd", buffer, res);
+		goto out_up;
+	}
+
+	tgt->phys_transport_version = val;
+
+	res = size;
+
+out_up:
+	up_read(&scst_local_exit_rwsem);
+	return res;
+}
+
+static struct kobj_attribute scst_local_phys_transport_version_attr =
+	__ATTR(phys_transport_version, S_IRUGO | S_IWUSR,
+		scst_local_phys_transport_version_show,
+		scst_local_phys_transport_version_store);
+
+static const struct attribute *scst_local_tgt_attrs[] = {
+	&scst_local_scsi_transport_version_attr.attr,
+	&scst_local_phys_transport_version_attr.attr,
+	NULL,
+};
+
+/**
+ ** Session attributes
+ **/
+
+static ssize_t scst_local_transport_id_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	ssize_t res;
+	struct scst_session *scst_sess;
+	struct scst_local_sess *sess;
+	uint8_t *tr_id;
+	int tr_id_len, i;
+
+	if (down_read_trylock(&scst_local_exit_rwsem) == 0)
+		return -ENOENT;
+
+	scst_sess = container_of(kobj, struct scst_session, sess_kobj);
+	sess = (struct scst_local_sess *)scst_sess_get_tgt_priv(scst_sess);
+
+	mutex_lock(&sess->tr_id_mutex);
+
+	if (sess->transport_id != NULL) {
+		tr_id = sess->transport_id;
+		tr_id_len = sess->transport_id_len;
+	} else {
+		res = scst_local_get_sas_transport_id(sess, &tr_id, &tr_id_len);
+		if (res != 0)
+			goto out_unlock;
+	}
+
+	res = 0;
+	for (i = 0; i < tr_id_len; i++)
+		res += sprintf(&buf[res], "%c", tr_id[i]);
+
+	if (sess->transport_id == NULL)
+		kfree(tr_id);
+
+out_unlock:
+	mutex_unlock(&sess->tr_id_mutex);
+	up_read(&scst_local_exit_rwsem);
+	return res;
+}
+
+static ssize_t scst_local_transport_id_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buffer, size_t size)
+{
+	ssize_t res;
+	struct scst_session *scst_sess;
+	struct scst_local_sess *sess;
+
+	if (down_read_trylock(&scst_local_exit_rwsem) == 0)
+		return -ENOENT;
+
+	scst_sess = container_of(kobj, struct scst_session, sess_kobj);
+	sess = (struct scst_local_sess *)scst_sess_get_tgt_priv(scst_sess);
+
+	mutex_lock(&sess->tr_id_mutex);
+
+	if (sess->transport_id != NULL) {
+		kfree(sess->transport_id);
+		sess->transport_id = NULL;
+		sess->transport_id_len = 0;
+	}
+
+	if (size == 0)
+		goto out_res;
+
+	sess->transport_id = kzalloc(size, GFP_KERNEL);
+	if (sess->transport_id == NULL) {
+		PRINT_ERROR("Allocation of transport_id (size %zd) failed",
+			size);
+		res = -ENOMEM;
+		goto out_unlock;
+	}
+
+	sess->transport_id_len = size;
+
+	memcpy(sess->transport_id, buffer, sess->transport_id_len);
+
+out_res:
+	res = size;
+
+out_unlock:
+	mutex_unlock(&sess->tr_id_mutex);
+	up_read(&scst_local_exit_rwsem);
+	return res;
+}
+
+static struct kobj_attribute scst_local_transport_id_attr =
+	__ATTR(transport_id, S_IRUGO | S_IWUSR,
+		scst_local_transport_id_show,
+		scst_local_transport_id_store);
+
+static const struct attribute *scst_local_sess_attrs[] = {
+	&scst_local_transport_id_attr.attr,
+	NULL,
+};
+
+static ssize_t scst_local_sysfs_add_target(const char *target_name, char *params)
+{
+	int res;
+	struct scst_local_tgt *tgt;
+	char *param, *p;
+
+	TRACE_ENTRY();
+
+	if (down_read_trylock(&scst_local_exit_rwsem) == 0)
+		return -ENOENT;
+
+	res = scst_local_add_target(target_name, &tgt);
+	if (res != 0)
+		goto out_up;
+
+	while (1) {
+		param = scst_get_next_token_str(&params);
+		if (param == NULL)
+			break;
+
+		p = scst_get_next_lexem(&param);
+		if (*p == '\0')
+			break;
+
+		if (strcasecmp("session_name", p) != 0) {
+			PRINT_ERROR("Unknown parameter %s", p);
+			res = -EINVAL;
+			goto out_remove;
+		}
+
+		p = scst_get_next_lexem(&param);
+		if (*p == '\0') {
+			PRINT_ERROR("Wrong session name %s", p);
+			res = -EINVAL;
+			goto out_remove;
+		}
+
+		res = scst_local_add_adapter(tgt, p, NULL);
+		if (res != 0)
+			goto out_remove;
+	}
+
+out_up:
+	up_read(&scst_local_exit_rwsem);
+
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_remove:
+	scst_local_remove_target(tgt);
+	goto out_up;
+}
+
+static ssize_t scst_local_sysfs_del_target(const char *target_name)
+{
+	int res;
+	struct scst_local_tgt *tgt;
+	bool deleted = false;
+
+	TRACE_ENTRY();
+
+	if (down_read_trylock(&scst_local_exit_rwsem) == 0)
+		return -ENOENT;
+
+	mutex_lock(&scst_local_mutex);
+	list_for_each_entry(tgt, &scst_local_tgts_list, tgts_list_entry) {
+		if (strcmp(target_name, tgt->scst_tgt->tgt_name) == 0) {
+			__scst_local_remove_target(tgt);
+			deleted = true;
+			break;
+		}
+	}
+	mutex_unlock(&scst_local_mutex);
+
+	if (!deleted) {
+		PRINT_ERROR("Target %s not found", target_name);
+		res = -ENOENT;
+		goto out_up;
+	}
+
+	res = 0;
+
+out_up:
+	up_read(&scst_local_exit_rwsem);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+#endif /* CONFIG_SCST_PROC */
 
 static int scst_local_abort(struct scsi_cmnd *SCpnt)
 {
-	struct scst_local_host_info *scst_lcl_host;
-	int ret = 0;
+	struct scst_local_sess *sess;
+	int ret;
 	DECLARE_COMPLETION_ONSTACK(dev_reset_completion);
 
 	TRACE_ENTRY();
 
-	scst_lcl_host = to_scst_lcl_host(scsi_get_device(SCpnt->device->host));
+	sess = to_scst_lcl_sess(scsi_get_device(SCpnt->device->host));
 
-	ret = scst_rx_mgmt_fn_tag(scst_lcl_host->session[SCpnt->device->id],
-				  SCST_ABORT_TASK, SCpnt->tag, FALSE,
-				  &dev_reset_completion);
+	ret = scst_rx_mgmt_fn_tag(sess->scst_sess, SCST_ABORT_TASK, SCpnt->tag,
+				 FALSE, &dev_reset_completion);
 
+	/* Now wait for the completion ... */
 	wait_for_completion_interruptible(&dev_reset_completion);
 
-	++num_aborts;
+	atomic_inc(&num_aborts);
+
+	if (ret == 0)
+		ret = SUCCESS;
 
 	TRACE_EXIT_RES(ret);
 	return ret;
 }
 
-/*
- * We issue a mgmt function. We should pass a structure to the function
- * that contains our private data, so we can retrieve the status from the
- * done routine ... TODO
- */
 static int scst_local_device_reset(struct scsi_cmnd *SCpnt)
 {
-	struct scst_local_host_info *scst_lcl_host;
-	int lun;
-	int ret = 0;
+	struct scst_local_sess *sess;
+	uint16_t lun;
+	int ret;
 	DECLARE_COMPLETION_ONSTACK(dev_reset_completion);
 
 	TRACE_ENTRY();
 
-	scst_lcl_host = to_scst_lcl_host(scsi_get_device(SCpnt->device->host));
+	sess = to_scst_lcl_sess(scsi_get_device(SCpnt->device->host));
 
 	lun = SCpnt->device->lun;
-	lun = (lun & 0xFF) << 8 | ((lun & 0xFF00) >> 8); /* FIXME: LE only */
+	lun = cpu_to_be16(lun);
 
-	ret = scst_rx_mgmt_fn_lun(scst_lcl_host->session[SCpnt->device->id],
-				  SCST_LUN_RESET,
-				  (const uint8_t *)&lun,
-				  sizeof(lun), FALSE,
-				  &dev_reset_completion);
+	ret = scst_rx_mgmt_fn_lun(sess->scst_sess, SCST_LUN_RESET,
+			(const uint8_t *)&lun, sizeof(lun), FALSE,
+			&dev_reset_completion);
 
-	/*
-	 * Now wait for the completion ...
-	 */
+	/* Now wait for the completion ... */
 	wait_for_completion_interruptible(&dev_reset_completion);
 
-	++num_dev_resets;
+	atomic_inc(&num_dev_resets);
+
+	if (ret == 0)
+		ret = SUCCESS;
 
 	TRACE_EXIT_RES(ret);
 	return ret;
@@ -409,30 +744,29 @@ static int scst_local_device_reset(struct scsi_cmnd *SCpnt)
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 25))
 static int scst_local_target_reset(struct scsi_cmnd *SCpnt)
 {
-	struct scst_local_host_info *scst_lcl_host;
-	int lun;
-	int ret = 0;
+	struct scst_local_sess *sess;
+	uint16_t lun;
+	int ret;
 	DECLARE_COMPLETION_ONSTACK(dev_reset_completion);
 
 	TRACE_ENTRY();
 
-	scst_lcl_host = to_scst_lcl_host(scsi_get_device(SCpnt->device->host));
+	sess = to_scst_lcl_sess(scsi_get_device(SCpnt->device->host));
 
 	lun = SCpnt->device->lun;
-	lun = (lun & 0xFF) << 8 | ((lun & 0xFF00) >> 8); /* FIXME: LE only */
+	lun = cpu_to_be16(lun);
 
-	ret = scst_rx_mgmt_fn_lun(scst_lcl_host->session[SCpnt->device->id],
-				  SCST_TARGET_RESET,
-				  (const uint8_t *)&lun,
-				  sizeof(lun), FALSE,
-				  &dev_reset_completion);
+	ret = scst_rx_mgmt_fn_lun(sess->scst_sess, SCST_TARGET_RESET,
+			(const uint8_t *)&lun, sizeof(lun), FALSE,
+			&dev_reset_completion);
 
-	/*
-	 * Now wait for the completion ...
-	 */
+	/* Now wait for the completion ... */
 	wait_for_completion_interruptible(&dev_reset_completion);
 
-	++num_target_resets;
+	atomic_inc(&num_target_resets);
+
+	if (ret == 0)
+		ret = SUCCESS;
 
 	TRACE_EXIT_RES(ret);
 	return ret;
@@ -498,44 +832,31 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
 	struct scst_local_tgt_specific *tgt_specific = NULL;
 #endif
-	struct scst_local_host_info *scst_lcl_host;
+	struct scst_local_sess *sess;
 	struct scatterlist *sgl = NULL;
 	int sgl_count = 0;
-	int target = SCpnt->device->id;
-	int lun;
+	uint16_t lun;
 	struct scst_cmd *scst_cmd = NULL;
 	scst_data_direction dir;
 
 	TRACE_ENTRY();
 
-	TRACE_DBG("targ: %d, init id %d, lun %d, cmd: 0X%02X\n",
-	      target, SCpnt->device->host->hostt->this_id, SCpnt->device->lun,
-	      SCpnt->cmnd[0]);
+	TRACE_DBG("lun %d, cmd: 0x%02X", SCpnt->device->lun, SCpnt->cmnd[0]);
 
-	scst_lcl_host = to_scst_lcl_host(scsi_get_device(SCpnt->device->host));
+	sess = to_scst_lcl_sess(scsi_get_device(SCpnt->device->host));
 
 	scsi_set_resid(SCpnt, 0);
-
-	if (target == SCpnt->device->host->hostt->this_id) {
-		printk(KERN_ERR "%s: initiator's id used as target\n",
-		       __func__);
-		return scst_local_send_resp(SCpnt, NULL, done,
-					    DID_NO_CONNECT << 16);
-	}
 
 	/*
 	 * Tell the target that we have a command ... but first we need
 	 * to get the LUN into a format that SCST understand
 	 */
 	lun = SCpnt->device->lun;
-	lun = (lun & 0xFF) << 8 | ((lun & 0xFF00) >> 8); /* FIXME: LE only */
-	scst_cmd = scst_rx_cmd(scst_lcl_host->session[SCpnt->device->id],
-			       (const uint8_t *)&lun,
-			       sizeof(lun), SCpnt->cmnd,
-			       SCpnt->cmd_len, TRUE);
+	lun = cpu_to_be16(lun);
+	scst_cmd = scst_rx_cmd(sess->scst_sess, (const uint8_t *)&lun,
+			       sizeof(lun), SCpnt->cmnd, SCpnt->cmd_len, TRUE);
 	if (!scst_cmd) {
-		printk(KERN_ERR "%s out of memory at line %d\n",
-		       __func__, __LINE__);
+		PRINT_ERROR("%s", "scst_rx_cmd() failed");
 		return -ENOMEM;
 	}
 
@@ -563,8 +884,8 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 	 */
 	tgt_specific = kmem_cache_alloc(tgt_specific_pool, GFP_ATOMIC);
 	if (!tgt_specific) {
-		printk(KERN_ERR "%s out of memory at line %d\n",
-		       __func__, __LINE__);
+		PRINT_ERROR("Unable to create tgt_specific (size %d)",
+			sizeof(*tgt_specific));
 		return -ENOMEM;
 	}
 	tgt_specific->cmnd = SCpnt;
@@ -577,14 +898,14 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 	SCpnt->scsi_done = done;
 #endif
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
 	/*
 	 * If the command has a request, not a scatterlist, then convert it
 	 * to one. We use scsi_sg_count to isolate us from the changes from
 	 * version to version
 	 */
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
 	if (scsi_sg_count(SCpnt)) {
-		sgl       = scsi_sglist(SCpnt);
+		sgl = scsi_sglist(SCpnt);
 		sgl_count = scsi_sg_count(SCpnt);
 	} else {
 		/*
@@ -607,7 +928,7 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 		}
 	}
 #else
-	sgl       = scsi_sglist(SCpnt);
+	sgl = scsi_sglist(SCpnt);
 	sgl_count = scsi_sg_count(SCpnt);
 #endif
 
@@ -642,9 +963,7 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 		break;
 	}
 
-	/*
-	 * Save the correct thing below depending on version
-	 */
+	/* Save the correct thing below depending on version */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
 	scst_cmd_set_tgt_priv(scst_cmd, tgt_specific);
 #else
@@ -661,14 +980,11 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 #else
 	/*
 	 * Unfortunately, we called with IRQs disabled, so have no choice,
-	 * except pass to the thread context.
+	 * except to pass to the thread context.
 	 */
 	scst_cmd_init_done(scst_cmd, SCST_CONTEXT_THREAD);
 #endif
 
-	/*
-	 * We are done here I think. Other callbacks move us forward.
-	 */
 	TRACE_EXIT();
 	return 0;
 }
@@ -687,34 +1003,33 @@ static int scst_local_targ_pre_exec(struct scst_cmd *scst_cmd)
 	return res;
 }
 
-static void scst_local_work_fn(struct work_struct *work)
+static void scst_aen_work_fn(struct work_struct *work)
 {
-	struct scst_local_host_info *scst_lcl_host =
-		container_of(work, struct scst_local_host_info, local_work);
-	struct scst_local_work_item *work_item = NULL;
-	long unsigned flags;
+	struct scst_local_sess *sess =
+		container_of(work, struct scst_local_sess, aen_work);
+	struct scst_aen_work_item *work_item = NULL;
 
 	TRACE_ENTRY();
 
-	TRACE_MGMT_DBG("Target work (tgt %p)", scst_lcl_host);
+	TRACE_MGMT_DBG("Target work (sess %p)", sess);
 
-	/*
-	 * Eventually, we need to lock things ...
-	 */
-
-	spin_lock_irqsave(&scst_lcl_host->lock, flags);
-	while (!list_empty(&scst_lcl_host->work_list)) {
-		work_item = list_entry(scst_lcl_host->work_list.next,
-				struct scst_local_work_item, work_list_entry);
+	spin_lock(&sess->aen_lock);
+	while (!list_empty(&sess->aen_work_list)) {
+		work_item = list_entry(sess->aen_work_list.next,
+				struct scst_aen_work_item, work_list_entry);
 		list_del(&work_item->work_list_entry);
-		spin_unlock_irqrestore(&scst_lcl_host->lock, flags);
-		scsi_scan_target(&scst_lcl_host->shost->shost_gendev, 0, 0,
+
+		spin_unlock(&sess->aen_lock);
+
+		scsi_scan_target(&sess->shost->shost_gendev, 0, 0,
 					SCAN_WILD_CARD, 1);
+
 		scst_aen_done(work_item->aen);
 		kfree(work_item);
-		spin_lock_irqsave(&scst_lcl_host->lock, flags);
+
+		spin_lock(&sess->aen_lock);
 	}
-	spin_unlock_irqrestore(&scst_lcl_host->lock, flags);
+	spin_unlock(&sess->aen_lock);
 
 	TRACE_EXIT();
 	return;
@@ -724,17 +1039,13 @@ static int scst_local_report_aen(struct scst_aen *aen)
 {
 	int res = 0;
 	int event_fn = scst_aen_get_event_fn(aen);
-	struct scst_local_host_info *scst_lcl_host;
-	struct scst_local_sess_info *sess;
-	struct scst_local_work_item *work_item = NULL;
-	long unsigned flags;
+	struct scst_local_sess *sess;
+	struct scst_aen_work_item *work_item = NULL;
 
 	TRACE_ENTRY();
 
-	sess = (struct scst_local_sess_info *)scst_sess_get_tgt_priv(
+	sess = (struct scst_local_sess *)scst_sess_get_tgt_priv(
 						scst_aen_get_sess(aen));
-	scst_lcl_host = sess->host;
-
 	switch (event_fn) {
 	case SCST_AEN_SCSI:
 		/*
@@ -742,22 +1053,21 @@ static int scst_local_report_aen(struct scst_aen *aen)
 		 */
 		work_item = kzalloc(sizeof(*work_item), GFP_KERNEL);
 		if (!work_item) {
-			printk(KERN_ERR "%s: Unable to allocate work item "
-				"to handle AEN!\n", __func__);
+			PRINT_ERROR("%s", "Unable to allocate work item "
+				"to handle AEN!");
 			return -ENOMEM;
 		}
 
-		spin_lock_irqsave(&scst_lcl_host->lock, flags);
-		list_add_tail(&work_item->work_list_entry,
-				&scst_lcl_host->work_list);
+		spin_lock(&sess->aen_lock);
+		list_add_tail(&work_item->work_list_entry, &sess->aen_work_list);
 		work_item->aen = aen;
-		spin_unlock_irqrestore(&scst_lcl_host->lock, flags);
+		spin_unlock(&sess->aen_lock);
 
-		schedule_work(&scst_lcl_host->local_work);
+		schedule_work(&sess->aen_work);
 		break;
 
 	default:
-		TRACE_MGMT_DBG("Unsupported AEN %d\n", event_fn);
+		TRACE_MGMT_DBG("Unsupported AEN %d", event_fn);
 		res = SCST_AEN_RES_NOT_SUPPORTED;
 		break;
 	}
@@ -766,582 +1076,12 @@ static int scst_local_report_aen(struct scst_aen *aen)
 	return res;
 }
 
-static int scst_local_get_sas_transport_id(
-	struct scst_local_sess_info *sess,
-	uint8_t **transport_id, int *len)
-{
-	int res = 0;
-	int tr_id_size = 0;
-	uint8_t *tr_id = NULL;
-
-	TRACE_ENTRY();
-
-	tr_id_size = 24;  /* A SAS TransportID */
-
-	tr_id = kzalloc(tr_id_size, GFP_KERNEL);
-	if (tr_id == NULL) {
-		PRINT_ERROR("Allocation of TransportID (size %d) failed",
-			tr_id_size);
-		res = -ENOMEM;
-		goto out;
-	}
-
-	tr_id[0] = 0x00 | SCSI_TRANSPORTID_PROTOCOLID_SAS;
-
-	/*
-	 * Assemble a valid SAS address = 0x5OOUUIIR12345678 ... Does SCST
-	 * have one?
-	 */
-
-	tr_id[4]  = 0x5F;
-	tr_id[5]  = 0xEE;
-	tr_id[6]  = 0xDE;
-	tr_id[7]  = 0x40 | ((sess->number >> 4) & 0x0F);
-	tr_id[8]  = 0x0F | (sess->number & 0xF0);
-	tr_id[9]  = 0xAD;
-	tr_id[10] = 0xE0;
-	tr_id[11] = 0x50;
-
-	*transport_id = tr_id;
-	*len = tr_id_size;
-
-	TRACE_DBG("Created tid '%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X'",
-		tr_id[4], tr_id[5], tr_id[6], tr_id[7],
-		tr_id[8], tr_id[9], tr_id[10], tr_id[11]);
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static int scst_local_get_initiator_port_transport_id(
-				struct scst_session *scst_sess,
-				uint8_t **transport_id)
-{
-	int res = 0;
-	int tr_id_size = 0;
-	uint8_t *tr_id = NULL;
-	struct scst_local_sess_info *sess;
-
-	TRACE_ENTRY();
-
-	if (scst_sess == NULL) {
-		res = SCSI_TRANSPORTID_PROTOCOLID_SAS;
-		goto out;
-	}
-
-	sess = (struct scst_local_sess_info *)scst_sess_get_tgt_priv(scst_sess);
-
-	mutex_lock(&scst_local_mutex);
-
-	if (sess->transport_id == NULL) {
-		res = scst_local_get_sas_transport_id(sess,
-				transport_id, &tr_id_size);
-		goto out_unlock;
-	}
-
-	tr_id_size = sess->transport_id_len;
-	sBUG_ON(tr_id_size == 0);
-
-	tr_id = kzalloc(tr_id_size, GFP_KERNEL);
-	if (tr_id == NULL) {
-		PRINT_ERROR("Allocation of TransportID (size %d) failed",
-			tr_id_size);
-		res = -ENOMEM;
-		goto out;
-	}
-
-	memcpy(tr_id, sess->transport_id, sess->transport_id_len);
-
-out_unlock:
-	mutex_unlock(&scst_local_mutex);
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static void scst_local_release_adapter(struct device *dev)
-{
-	struct scst_local_host_info *scst_lcl_host;
-	int i = 0;
-
-	TRACE_ENTRY();
-	scst_lcl_host = to_scst_lcl_host(dev);
-	if (scst_lcl_host) {
-		for (i = 0; i < scst_local_num_tgts; i++)
-			if (scst_lcl_host->session[i]) {
-				struct scst_local_sess_info *sess;
-				sess = scst_sess_get_tgt_priv(
-					scst_lcl_host->session[i]);
-				scst_unregister_session(
-					scst_lcl_host->session[i], TRUE, NULL);
-				kfree(sess);
-			}
-		scst_unregister_target(scst_lcl_host->target);
-		cancel_work_sync(&scst_lcl_host->local_work);
-		kfree(scst_lcl_host);
-	}
-
-	TRACE_EXIT();
-}
-
-/*
- * Add an adapter on the host side ... We add the target before we add
- * the host (initiator) so that we don't get any requests before we are
- * ready for them.
- *
- * I want to convert this so we can map many hosts to a smaller number of
- * targets to support the simulation of multiple initiators.
- */
-static int scst_local_add_adapter(void)
-{
-	int error = 0, i = 0;
-	struct scst_local_host_info *scst_lcl_host;
-	char name[32];
-
-	TRACE_ENTRY();
-
-	scst_lcl_host = kzalloc(sizeof(*scst_lcl_host), GFP_KERNEL);
-	if (NULL == scst_lcl_host) {
-		PRINT_ERROR("Unable to alloc scst_lcl_host (size %zd)",
-			sizeof(*scst_lcl_host));
-		return -ENOMEM;
-	}
-
-	spin_lock(&scst_local_host_list_lock);
-	list_add_tail(&scst_lcl_host->host_list, &scst_local_host_list);
-	spin_unlock(&scst_local_host_list_lock);
-
-	/*
-	 * Register a target with SCST and add a session
-	 */
-	sprintf(name, "scstlcltgt%d", scst_local_add_host);
-	scst_lcl_host->target = scst_register_target(&scst_local_targ_tmpl,
-						     name);
-	if (!scst_lcl_host) {
-		printk(KERN_WARNING "scst_register_target() failed:\n");
-		error = -1;
-		goto cleanup;
-	}
-
-	scst_tgt_set_tgt_priv(scst_lcl_host->target, scst_lcl_host);
-
-	/*
-	 * Create a session for each device
-	 */
-	for (i = 0; i < scst_local_num_tgts; i++) {
-		struct scst_local_sess_info *sess;
-
-		sess = kzalloc(sizeof(*sess), GFP_KERNEL);
-		if (NULL == sess) {
-			PRINT_ERROR("Unable to alloc scst_lcl_host (size %zd)",
-				sizeof(*sess));
-			goto cleanup;
-		}
-
-		sess->host = scst_lcl_host;
-		sess->number = atomic_inc_return(&scst_local_sess_number);
-
-		sprintf(name, "scstlclhst%d:%d", scst_local_add_host, i);
-		scst_lcl_host->session[i] = scst_register_session(
-						scst_lcl_host->target,
-						0, name, (void *)sess,
-						NULL, NULL);
-		if (!scst_lcl_host->session[i]) {
-			printk(KERN_WARNING "scst_register_session failed:\n");
-			kfree(sess);
-			error = -1;
-			goto unregister_target;
-		}
-	}
-
-	scst_lcl_host->dev.bus     = &scst_fake_lld_bus;
-	scst_lcl_host->dev.parent  = &scst_fake_primary;
-	scst_lcl_host->dev.release = &scst_local_release_adapter;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
-	sprintf(scst_lcl_host->dev.bus_id, "scst_adp_%d", scst_local_add_host);
-#else
-	snprintf(scst_lcl_host->init_name, sizeof(scst_lcl_host->init_name),
-		 "scst_adp_%d", scst_local_add_host);
-	scst_lcl_host->dev.init_name = scst_lcl_host->init_name;
-#endif
-
-	error = device_register(&scst_lcl_host->dev);
-	if (error)
-		goto unregister_session;
-
-	scst_local_add_host++; /* keep count of what we have added */
-
-	TRACE_EXIT();
-	return error;
-
-unregister_session:
-	for (i = 0; i < scst_local_num_tgts; i++) {
-		if (scst_lcl_host->session[i])
-			scst_unregister_session(scst_lcl_host->session[i],
-			TRUE, NULL);
-	}
-unregister_target:
-	scst_unregister_target(scst_lcl_host->target);
-cleanup:
-	kfree(scst_lcl_host);
-	TRACE_EXIT();
-	return error;
-}
-
-/*
- * Remove an adapter ...
- */
-static void scst_local_remove_adapter(void)
-{
-	struct scst_local_host_info *scst_lcl_host = NULL;
-
-	TRACE_ENTRY();
-
-	spin_lock(&scst_local_host_list_lock);
-	if (!list_empty(&scst_local_host_list)) {
-		scst_lcl_host = list_entry(scst_local_host_list.prev,
-					   struct scst_local_host_info,
-					   host_list);
-		list_del(&scst_lcl_host->host_list);
-	}
-	spin_unlock(&scst_local_host_list_lock);
-
-	if (!scst_lcl_host)
-		return;
-
-	device_unregister(&scst_lcl_host->dev);
-
-	--scst_local_add_host;
-
-	TRACE_EXIT();
-}
-
-static struct scsi_host_template scst_lcl_ini_driver_template = {
-	.proc_info			= scst_local_proc_info,
-	.proc_name			= SCST_LOCAL_NAME,
-	.name				= SCST_LOCAL_NAME,
-	.info				= scst_local_info,
-/*	.ioctl				= scst_local_ioctl, */
-	.queuecommand			= scst_local_queuecommand,
-	.eh_abort_handler		= scst_local_abort,
-	.eh_device_reset_handler	= scst_local_device_reset,
-#if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 25))
-	.eh_target_reset_handler	= scst_local_target_reset,
-#endif
-	.can_queue			= 256,
-	.this_id			= SCST_LOCAL_MAX_TARGETS,
-	/* SCST doesn't support sg chaining */
-	.sg_tablesize			= SG_MAX_SINGLE_ALLOC,
-	.cmd_per_lun			= 32,
-	.max_sectors			= 0xffff,
-	/* SCST doesn't support sg chaining */
-	.use_clustering			= ENABLE_CLUSTERING,
-	.skip_settle_delay		= 1,
-	.module				= THIS_MODULE,
-};
-
-static void scst_fake_0_release(struct device *dev)
+static int scst_local_targ_detect(struct scst_tgt_template *tgt_template)
 {
 	TRACE_ENTRY();
-
-	TRACE_EXIT();
-}
-
-static struct device scst_fake_primary = {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
-	.bus_id		= "scst_fake_0",
-#else
-	.init_name	= "scst_fake_0",
-#endif
-	.release	= scst_fake_0_release,
-};
-
-static int __init scst_local_init(void)
-{
-	int ret, k, adapters;
-
-	TRACE_ENTRY();
-
-#if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
-	PRINT_ERROR("%s", "HIGHMEM kernel configurations are not supported. "
-		"Consider changing VMSPLIT option or use a 64-bit "
-		"configuration instead. See SCST core README file for "
-		"details.");
-	ret = -EINVAL;
-	goto out;
-#endif
-
-	TRACE_DBG("Adapters: %d\n", scst_local_add_host);
-
-	if (scst_local_num_tgts > SCST_LOCAL_MAX_TARGETS)
-		scst_local_num_tgts = SCST_LOCAL_MAX_TARGETS;
-
-	/*
-	 * Allocate a pool of structures for tgt_specific structures
-	 */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 23)
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
-	/*
-	 * We only need this for kernels where we can get non scatterlists
-	 */
-	tgt_specific_pool = kmem_cache_create("scst_tgt_specific",
-				      sizeof(struct scst_local_tgt_specific),
-				      0, SCST_SLAB_FLAGS, NULL);
-#endif
-#else
-	tgt_specific_pool = kmem_cache_create("scst_tgt_specific",
-				      sizeof(struct scst_local_tgt_specific),
-				      0, SCST_SLAB_FLAGS, NULL, NULL);
-#endif
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
-	/*
-	 * We only need this if we could get non scatterlist requests
-	 */
-	if (!tgt_specific_pool) {
-		printk(KERN_WARNING "%s: out of memory for "
-		       "tgt_specific structs",
-		       __func__);
-		return -ENOMEM;
-	}
-#endif
-
-	ret = device_register(&scst_fake_primary);
-	if (ret < 0) {
-		printk(KERN_WARNING "%s: device_register error: %d\n",
-		       __func__, ret);
-		goto destroy_kmem;
-	}
-	ret = bus_register(&scst_fake_lld_bus);
-	if (ret < 0) {
-		printk(KERN_WARNING "%s: bus_register error: %d\n",
-		       __func__, ret);
-		goto dev_unreg;
-	}
-	ret = driver_register(&scst_local_driverfs_driver);
-	if (ret < 0) {
-		printk(KERN_WARNING "%s: driver_register error: %d\n",
-		       __func__, ret);
-		goto bus_unreg;
-	}
-	ret = do_create_driverfs_files();
-	if (ret < 0) {
-		printk(KERN_WARNING "%s: create_files error: %d\n",
-		       __func__, ret);
-		goto driver_unregister;
-	}
-
-	/*
-	 * register the target driver and then create a host. This makes sure
-	 * that we see any targets that are there. Gotta figure out how to
-	 * tell the system that there are new targets when SCST creates them.
-	 */
-
-	ret = scst_local_target_register();
-	if (ret < 0) {
-		printk(KERN_WARNING "%s: unable to register targ griver: %d\n",
-		       __func__, ret);
-		goto del_files;
-	}
-
-	/*
-	 * Add adapters ...
-	 */
-	adapters = scst_local_add_host;
-	scst_local_add_host = 0;
-	for (k = 0; k < adapters; k++) {
-		if (scst_local_add_adapter()) {
-			printk(KERN_ERR "%s: "
-					"scst_local_add_adapter failed: %d\n",
-					__func__, k);
-			break;
-		}
-	}
-
-out:
-	TRACE_EXIT_RES(ret);
-	return ret;
-
-del_files:
-	do_remove_driverfs_files();
-driver_unregister:
-	driver_unregister(&scst_local_driverfs_driver);
-bus_unreg:
-	bus_unregister(&scst_fake_lld_bus);
-dev_unreg:
-	device_unregister(&scst_fake_primary);
-destroy_kmem:
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
-	/*
-	 * We only need to do this if we could get non scatterlist requests
-	 */
-	kmem_cache_destroy(tgt_specific_pool);
-#endif
-	goto out;
-}
-
-static void __exit scst_local_exit(void)
-{
-	int k = scst_local_add_host;
-
-	TRACE_ENTRY();
-
-	for (; k; k--)
-		scst_local_remove_adapter();
-
-	do_remove_driverfs_files();
-	driver_unregister(&scst_local_driverfs_driver);
-	bus_unregister(&scst_fake_lld_bus);
-	device_unregister(&scst_fake_primary);
-
-	/*
-	 * Now unregister the target template
-	 */
-	scst_unregister_target_template(&scst_local_targ_tmpl);
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
-	/*
-	 * Free the pool we allocated, but we only do this if we could get
-	 * non scatterlist requests
-	 */
-	if (tgt_specific_pool)
-		kmem_cache_destroy(tgt_specific_pool);
-#endif
-
-	TRACE_EXIT();
-}
-
-device_initcall(scst_local_init);
-module_exit(scst_local_exit);
-
-/*
- * Fake LLD Bus and functions
- */
-
-static int scst_fake_lld_driver_probe(struct device *dev)
-{
-	int ret = 0;
-	struct scst_local_host_info *scst_lcl_host;
-	struct Scsi_Host *hpnt;
-
-	TRACE_ENTRY();
-
-	scst_lcl_host = to_scst_lcl_host(dev);
-
-	printk(KERN_INFO "%s: scst_lcl_host: %p\n", __func__, scst_lcl_host);
-
-	/*
-	 * Init this stuff we need for scheduling work
-	 */
-	INIT_WORK(&scst_lcl_host->local_work, scst_local_work_fn);
-	spin_lock_init(&scst_lcl_host->lock);
-	INIT_LIST_HEAD(&scst_lcl_host->work_list);
-
-	hpnt = scsi_host_alloc(&scst_lcl_ini_driver_template,
-			       sizeof(scst_lcl_host));
-	if (NULL == hpnt) {
-		printk(KERN_ERR "%s: scsi_register failed\n", __func__);
-		ret = -ENODEV;
-		return ret;
-	}
-
-	scst_lcl_host->shost = hpnt;
-
-	/*
-	 * We are going to have to register with SCST here I think
-	 * and fill in some of these from that info?
-	 */
-
-	*((struct scst_local_host_info **)hpnt->hostdata) = scst_lcl_host;
-	if ((hpnt->this_id >= 0) && (scst_local_num_tgts > hpnt->this_id))
-		hpnt->max_id = scst_local_num_tgts + 1;
-	else
-		hpnt->max_id = scst_local_num_tgts;
-	hpnt->max_lun = scst_local_max_luns - 1;
-
-	/*
-	 * Because of a change in the size of this field at 2.6.26
-	 * we use this check ... it allows us to work on earlier
-	 * kernels. If we don't,  max_cmd_size gets set to 4 (and we get
-	 * a compiler warning) so a scan never occurs.
-	 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
-	hpnt->max_cmd_len = 16;
-#else
-	hpnt->max_cmd_len = 260;
-#endif
-
-	ret = scsi_add_host(hpnt, &scst_lcl_host->dev);
-	if (ret) {
-		printk(KERN_ERR "%s: scsi_add_host failed\n", __func__);
-		ret = -ENODEV;
-		scsi_host_put(hpnt);
-	} else
-		scsi_scan_host(hpnt);
-
-	TRACE_EXIT_RES(ret);
-	return ret;
-}
-
-static int scst_fake_lld_driver_remove(struct device *dev)
-{
-	struct scst_local_host_info *scst_lcl_host;
-
-	TRACE_ENTRY();
-
-	scst_lcl_host = to_scst_lcl_host(dev);
-
-	if (!scst_lcl_host) {
-		printk(KERN_ERR "%s: Unable to locate host info\n",
-		       __func__);
-		return -ENODEV;
-	}
-
-	scsi_remove_host(scst_lcl_host->shost);
-
-	scsi_host_put(scst_lcl_host->shost);
 
 	TRACE_EXIT();
 	return 0;
-}
-
-static int scst_fake_lld_bus_match(struct device *dev,
-				   struct device_driver *dev_driver)
-{
-	TRACE_ENTRY();
-
-	TRACE_EXIT();
-	return 1;
-}
-
-static struct bus_type scst_fake_lld_bus = {
-	.name   = "scst_fake_bus",
-	.match  = scst_fake_lld_bus_match,
-	.probe  = scst_fake_lld_driver_probe,
-	.remove = scst_fake_lld_driver_remove,
-};
-
-/*
- * SCST Target driver from here ... there are some forward declarations
- * above
- */
-
-static int scst_local_targ_detect(struct scst_tgt_template *tgt_template)
-{
-	int adapter_count;
-
-	TRACE_ENTRY();
-
-	/*
-	 * Register the adapter(s)
-	 */
-
-	adapter_count = scst_local_add_host;
-
-	TRACE_EXIT_RES(adapter_count);
-	return adapter_count;
 };
 
 static int scst_local_targ_release(struct scst_tgt *tgt)
@@ -1386,9 +1126,8 @@ static int scst_local_targ_xmit_response(struct scst_cmd *scst_cmd)
 	 */
 	if (scst_cmd_get_is_send_status(scst_cmd)) {
 		int resid = 0, out_resid = 0;
-		/*
-		 * Calculate the residual ...
-		 */
+
+		/* Calculate the residual ... */
 		if (likely(!scst_get_resid(scst_cmd, &resid, &out_resid))) {
 			TRACE_DBG("No residuals for request %p", SCpnt);
 		} else {
@@ -1407,296 +1146,65 @@ static int scst_local_targ_xmit_response(struct scst_cmd *scst_cmd)
 					   scst_cmd_get_status(scst_cmd));
 	}
 
-	/*
-	 * Now tell SCST that the command is done ...
-	 */
+	/* Now tell SCST that the command is done ... */
 	scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_SAME);
 
 	TRACE_EXIT();
-
 	return SCST_TGT_RES_SUCCESS;
 }
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
 static void scst_local_targ_on_free_cmd(struct scst_cmd *scst_cmd)
 {
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
 	struct scst_local_tgt_specific *tgt_specific;
-#endif
 
 	TRACE_ENTRY();
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
-	/*
-	 * We only have to do this if we are using these structures
-	 */
 	tgt_specific = scst_cmd_get_tgt_priv(scst_cmd);
 	kmem_cache_free(tgt_specific_pool, tgt_specific);
-#endif
 
 	TRACE_EXIT();
 	return;
 }
+#endif
 
 static void scst_local_targ_task_mgmt_done(struct scst_mgmt_cmd *mgmt_cmd)
 {
-	struct completion *tgt_specific;
+	struct completion *compl;
 
 	TRACE_ENTRY();
 
-	tgt_specific = (struct completion *)
-			 scst_mgmt_cmd_get_tgt_priv(mgmt_cmd);
-
-	if (tgt_specific)
-		complete(tgt_specific);
+	compl = (struct completion *)scst_mgmt_cmd_get_tgt_priv(mgmt_cmd);
+	if (compl)
+		complete(compl);
 
 	TRACE_EXIT();
 	return;
 }
 
-#ifndef CONFIG_SCST_PROC
-
-static ssize_t scst_local_version_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
-{
-	sprintf(buf, "%s/%s\n", SCST_LOCAL_VERSION, scst_local_version_date);
-
-#ifdef CONFIG_SCST_EXTRACHECKS
-	strcat(buf, "EXTRACHECKS\n");
-#endif
-
-#ifdef CONFIG_SCST_TRACING
-	strcat(buf, "TRACING\n");
-#endif
-
-#ifdef CONFIG_SCST_DEBUG
-	strcat(buf, "DEBUG\n");
-#endif
-
-	TRACE_EXIT();
-	return strlen(buf);
-}
-
-static struct kobj_attribute scst_local_version_attr =
-	__ATTR(version, S_IRUGO, scst_local_version_show, NULL);
-
-static ssize_t scst_local_scsi_transport_version_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
-{
-	struct scst_tgt *scst_tgt;
-	struct scst_local_host_info *host;
-	ssize_t size;
-
-	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-	host = (struct scst_local_host_info *)scst_tgt_get_tgt_priv(scst_tgt);
-
-	if (host->scsi_transport_version != 0)
-		size = sprintf(buf, "0x%x\n%s", host->scsi_transport_version,
-			SCST_SYSFS_KEY_MARK "\n");
-	else
-		size = sprintf(buf, "0x%x\n", 0x0BE0); /* SAS */
-
-	return size;
-}
-
-static ssize_t scst_local_scsi_transport_version_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buffer, size_t size)
-{
-	ssize_t res;
-	struct scst_tgt *scst_tgt;
-	struct scst_local_host_info *host;
-	unsigned long val;
-
-	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-	host = (struct scst_local_host_info *)scst_tgt_get_tgt_priv(scst_tgt);
-
-	res = strict_strtoul(buffer, 0, &val);
-	if (res != 0) {
-		PRINT_ERROR("strict_strtoul() for %s failed: %zd", buffer, res);
-		goto out;
-	}
-
-	host->scsi_transport_version = val;
-
-	res = size;
-
-out:
-	return res;
-}
-
-static struct kobj_attribute scst_local_scsi_transport_version_attr =
-	__ATTR(scsi_transport_version, S_IRUGO | S_IWUSR,
-		scst_local_scsi_transport_version_show,
-		scst_local_scsi_transport_version_store);
-
-static ssize_t scst_local_phys_transport_version_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
-{
-	struct scst_tgt *scst_tgt;
-	struct scst_local_host_info *host;
-
-	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-	host = (struct scst_local_host_info *)scst_tgt_get_tgt_priv(scst_tgt);
-
-	return sprintf(buf, "0x%x\n%s", host->phys_transport_version,
-			(host->phys_transport_version != 0) ?
-				SCST_SYSFS_KEY_MARK "\n" : "");
-}
-
-static ssize_t scst_local_phys_transport_version_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buffer, size_t size)
-{
-	ssize_t res;
-	struct scst_tgt *scst_tgt;
-	struct scst_local_host_info *host;
-	unsigned long val;
-
-	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-	host = (struct scst_local_host_info *)scst_tgt_get_tgt_priv(scst_tgt);
-
-	res = strict_strtoul(buffer, 0, &val);
-	if (res != 0) {
-		PRINT_ERROR("strict_strtoul() for %s failed: %zd", buffer, res);
-		goto out;
-	}
-
-	host->phys_transport_version = val;
-
-	res = size;
-
-out:
-	return res;
-}
-
-static struct kobj_attribute scst_local_phys_transport_version_attr =
-	__ATTR(phys_transport_version, S_IRUGO | S_IWUSR,
-		scst_local_phys_transport_version_show,
-		scst_local_phys_transport_version_store);
-
-static ssize_t scst_local_transport_id_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
-{
-	ssize_t res;
-	struct scst_session *scst_sess;
-	struct scst_local_sess_info *sess;
-	uint8_t *tr_id;
-	int tr_id_len, i;
-
-	scst_sess = container_of(kobj, struct scst_session, sess_kobj);
-	sess = (struct scst_local_sess_info *)scst_sess_get_tgt_priv(scst_sess);
-
-	mutex_lock(&scst_local_mutex);
-
-	if (sess->transport_id != NULL) {
-		tr_id = sess->transport_id;
-		tr_id_len = sess->transport_id_len;
-	} else {
-		res = scst_local_get_sas_transport_id(sess, &tr_id, &tr_id_len);
-		if (res != 0)
-			goto out_unlock;
-	}
-
-	res = 0;
-	for (i = 0; i < tr_id_len; i++)
-		res += sprintf(&buf[res], "%c", tr_id[i]);
-
-	if (sess->transport_id != NULL)
-		res += sprintf(&buf[res], "\n%s", SCST_SYSFS_KEY_MARK "\n");
-	else
-		kfree(tr_id);
-
-out_unlock:
-	mutex_unlock(&scst_local_mutex);
-	return res;
-}
-
-static ssize_t scst_local_transport_id_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buffer, size_t size)
-{
-	ssize_t res;
-	struct scst_session *scst_sess;
-	struct scst_local_sess_info *sess;
-
-	scst_sess = container_of(kobj, struct scst_session, sess_kobj);
-	sess = (struct scst_local_sess_info *)scst_sess_get_tgt_priv(scst_sess);
-
-	mutex_lock(&scst_local_mutex);
-
-	if (sess->transport_id != NULL) {
-		kfree(sess->transport_id);
-		sess->transport_id = NULL;
-		sess->transport_id_len = 0;
-	}
-
-	if (size == 0)
-		goto out_res;
-
-	sess->transport_id = kzalloc(size, GFP_KERNEL);
-	if (sess->transport_id == NULL) {
-		PRINT_ERROR("Allocation of transport_id (size %zd) failed",
-			size);
-		res = -ENOMEM;
-		goto out_unlock;
-	}
-
-	sess->transport_id_len = size;
-
-	memcpy(sess->transport_id, buffer, sess->transport_id_len);
-
-out_res:
-	res = size;
-
-out_unlock:
-	mutex_unlock(&scst_local_mutex);
-
-	return res;
-}
-
-static struct kobj_attribute scst_local_transport_id_attr =
-	__ATTR(transport_id, S_IRUGO | S_IWUSR,
-		scst_local_transport_id_show,
-		scst_local_transport_id_store);
-
-static const struct attribute *scst_local_tgtt_attrs[] = {
-	&scst_local_version_attr.attr,
-	NULL,
-};
-
-static const struct attribute *scst_local_tgt_attrs[] = {
-	&scst_local_scsi_transport_version_attr.attr,
-	&scst_local_phys_transport_version_attr.attr,
-	NULL,
-};
-
-static const struct attribute *scst_local_sess_attrs[] = {
-	&scst_local_transport_id_attr.attr,
-	NULL,
-};
-
-#endif /* CONFIG_SCST_PROC */
-
 static uint16_t scst_local_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 {
-	struct scst_local_host_info *host;
+	struct scst_local_tgt *tgt;
 
-	host = (struct scst_local_host_info *)scst_tgt_get_tgt_priv(scst_tgt);
+	tgt = (struct scst_local_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
 
-	if (host->scsi_transport_version == 0)
+	if (tgt->scsi_transport_version == 0)
 		return 0x0BE0; /* SAS */
 	else
-		return host->scsi_transport_version;
+		return tgt->scsi_transport_version;
 }
 
 static uint16_t scst_local_get_phys_transport_version(struct scst_tgt *scst_tgt)
 {
-	struct scst_local_host_info *host;
+	struct scst_local_tgt *tgt;
 
-	host = (struct scst_local_host_info *)scst_tgt_get_tgt_priv(scst_tgt);
+	tgt = (struct scst_local_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
 
-	return host->phys_transport_version;
+	return tgt->phys_transport_version;
 }
 
 static struct scst_tgt_template scst_local_targ_tmpl = {
-	.name			= "scst_local_tgt",
+	.name			= "scst_local",
 	.sg_tablesize		= 0xffff,
 	.xmit_response_atomic	= 1,
 #ifndef CONFIG_SCST_PROC
@@ -1704,12 +1212,17 @@ static struct scst_tgt_template scst_local_targ_tmpl = {
 	.tgtt_attrs = scst_local_tgtt_attrs,
 	.tgt_attrs = scst_local_tgt_attrs,
 	.sess_attrs = scst_local_sess_attrs,
+	.add_target = scst_local_sysfs_add_target,
+	.del_target = scst_local_sysfs_del_target,
+	.add_target_parameters = "session_name",
 #endif
 	.detect			= scst_local_targ_detect,
 	.release		= scst_local_targ_release,
 	.pre_exec		= scst_local_targ_pre_exec,
 	.xmit_response		= scst_local_targ_xmit_response,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
 	.on_free_cmd		= scst_local_targ_on_free_cmd,
+#endif
 	.task_mgmt_fn_done	= scst_local_targ_task_mgmt_done,
 	.report_aen		= scst_local_report_aen,
 	.get_initiator_port_transport_id = scst_local_get_initiator_port_transport_id,
@@ -1721,28 +1234,472 @@ static struct scst_tgt_template scst_local_targ_tmpl = {
 #endif
 };
 
+static struct scsi_host_template scst_lcl_ini_driver_template = {
+#ifdef CONFIG_SCST_PROC
+	.proc_info			= scst_local_proc_info,
+	.proc_name			= SCST_LOCAL_NAME,
+	.info				= scst_local_info,
+#endif
+	.name				= SCST_LOCAL_NAME,
+	.queuecommand			= scst_local_queuecommand,
+	.eh_abort_handler		= scst_local_abort,
+	.eh_device_reset_handler	= scst_local_device_reset,
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 25))
+	.eh_target_reset_handler	= scst_local_target_reset,
+#endif
+	.can_queue			= 256,
+	.this_id			= -1,
+	/* SCST doesn't support sg chaining */
+	.sg_tablesize			= SG_MAX_SINGLE_ALLOC,
+	.cmd_per_lun			= 32,
+	.max_sectors			= 0xffff,
+	/* SCST doesn't support sg chaining */
+	.use_clustering			= ENABLE_CLUSTERING,
+	.skip_settle_delay		= 1,
+	.module				= THIS_MODULE,
+};
+
 /*
- * Register the target driver ... to get things going
+ * LLD Bus and functions
  */
-static int scst_local_target_register(void)
+
+static int scst_local_lld_driver_probe(struct device *dev)
 {
 	int ret;
+	struct scst_local_sess *sess;
+	struct Scsi_Host *hpnt;
 
 	TRACE_ENTRY();
 
-	ret = scst_register_target_template(&scst_local_targ_tmpl);
-	if (ret < 0) {
-		printk(KERN_WARNING "scst_register_target_template "
-		       "failed: %d\n",
-		       ret);
-		goto error;
+	sess = to_scst_lcl_sess(dev);
+
+	TRACE_DBG("sess %p", sess);
+
+	hpnt = scsi_host_alloc(&scst_lcl_ini_driver_template, sizeof(*sess));
+	if (NULL == hpnt) {
+		PRINT_ERROR("%s", "scsi_register() failed");
+		ret = -ENODEV;
+		goto out;
 	}
 
-	TRACE_EXIT();
-	return 0;
+	sess->shost = hpnt;
 
-error:
+	hpnt->max_lun = 0xFFFF;
+
+	/*
+	 * Because of a change in the size of this field at 2.6.26
+	 * we use this check ... it allows us to work on earlier
+	 * kernels. If we don't,  max_cmd_size gets set to 4 (and we get
+	 * a compiler warning) so a scan never occurs.
+	 */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+	hpnt->max_cmd_len = 16;
+#else
+	hpnt->max_cmd_len = 260;
+#endif
+
+	ret = scsi_add_host(hpnt, &sess->dev);
+	if (ret) {
+		PRINT_ERROR("%s", "scsi_add_host() failed");
+		ret = -ENODEV;
+		scsi_host_put(hpnt);
+		goto out;
+	}
+#ifdef CONFIG_SCST_PROC
+	else {
+		scsi_scan_host(hpnt);
+	}
+#endif
+
+out:
 	TRACE_EXIT_RES(ret);
 	return ret;
 }
+
+static int scst_local_lld_driver_remove(struct device *dev)
+{
+	struct scst_local_sess *sess;
+
+	TRACE_ENTRY();
+
+	sess = to_scst_lcl_sess(dev);
+	if (!sess) {
+		PRINT_ERROR("%s", "Unable to locate sess info");
+		return -ENODEV;
+	}
+
+	scsi_remove_host(sess->shost);
+	scsi_host_put(sess->shost);
+
+	TRACE_EXIT();
+	return 0;
+}
+
+static int scst_local_lld_bus_match(struct device *dev,
+	struct device_driver *dev_driver)
+{
+	TRACE_ENTRY();
+
+	TRACE_EXIT();
+	return 1;
+}
+
+static struct bus_type scst_local_lld_bus = {
+	.name   = "scst_local_bus",
+	.match  = scst_local_lld_bus_match,
+	.probe  = scst_local_lld_driver_probe,
+	.remove = scst_local_lld_driver_remove,
+};
+
+static struct device_driver scst_local_driver = {
+	.name	= SCST_LOCAL_NAME,
+	.bus	= &scst_local_lld_bus,
+};
+
+static void scst_local_root_release(struct device *dev)
+{
+	TRACE_ENTRY();
+
+	TRACE_EXIT();
+	return;
+}
+
+static struct device scst_local_root = {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
+	.bus_id		= "scst_local_root",
+#else
+	.init_name	= "scst_local_root",
+#endif
+	.release	= scst_local_root_release,
+};
+
+static void scst_local_release_adapter(struct device *dev)
+{
+	struct scst_local_sess *sess;
+
+	TRACE_ENTRY();
+
+	sess = to_scst_lcl_sess(dev);
+	if (sess == NULL)
+		goto out;
+
+	cancel_work_sync(&sess->aen_work);
+
+	scst_unregister_session(sess->scst_sess, TRUE, NULL);
+
+	kfree(sess);
+
+out:
+	TRACE_EXIT();
+	return;
+}
+
+static int scst_local_add_adapter(struct scst_local_tgt *tgt,
+	const char *initiator_name, struct scst_local_sess **out_sess)
+{
+	int res;
+	struct scst_local_sess *sess;
+
+	TRACE_ENTRY();
+
+	sess = kzalloc(sizeof(*sess), GFP_KERNEL);
+	if (NULL == sess) {
+		PRINT_ERROR("Unable to alloc scst_lcl_host (size %zd)",
+			sizeof(*sess));
+		res = -ENOMEM;
+		goto out;
+	}
+
+	sess->tgt = tgt;
+	sess->number = atomic_inc_return(&scst_local_sess_num);
+	mutex_init(&sess->tr_id_mutex);
+
+	/*
+	 * Init this stuff we need for scheduling AEN work
+	 */
+	INIT_WORK(&sess->aen_work, scst_aen_work_fn);
+	spin_lock_init(&sess->aen_lock);
+	INIT_LIST_HEAD(&sess->aen_work_list);
+
+	sess->scst_sess = scst_register_session(tgt->scst_tgt, 0,
+				initiator_name, (void *)sess, NULL, NULL);
+	if (sess->scst_sess == NULL) {
+		PRINT_ERROR("%s", "scst_register_session failed");
+		kfree(sess);
+		res = -ENOMEM;
+		goto out_free;
+	}
+
+	sess->dev.bus     = &scst_local_lld_bus;
+	sess->dev.parent  = &scst_local_root;
+	sess->dev.release = &scst_local_release_adapter;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
+	snprintf(sess->dev.bus_id, sizeof(sess->dev.bus_id), initiator_name);
+#else
+	sess->dev.init_name = sess->scst_sess->initiator_name;
+#endif
+
+	res = device_register(&sess->dev);
+	if (res != 0)
+		goto unregister_session;
+
+#ifndef CONFIG_SCST_PROC
+	res = sysfs_create_link(scst_sysfs_get_sess_kobj(sess->scst_sess),
+		&sess->shost->shost_dev.kobj, "host");
+	if (res != 0) {
+		PRINT_ERROR("Unable to create \"host\" link for target "
+			"%s", scst_get_tgt_name(tgt->scst_tgt));
+		goto unregister_dev;
+	}
+#endif
+
+	mutex_lock(&scst_local_mutex);
+	list_add_tail(&sess->sessions_list_entry, &tgt->sessions_list);
+	mutex_unlock(&scst_local_mutex);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+#ifndef CONFIG_SCST_PROC
+unregister_dev:
+	device_unregister(&sess->dev);
+#endif
+
+unregister_session:
+	scst_unregister_session(sess->scst_sess, TRUE, NULL);
+
+out_free:
+	kfree(sess);
+	goto out;
+}
+
+/* Must be called under scst_local_mutex */
+static void scst_local_remove_adapter(struct scst_local_sess *sess)
+{
+	TRACE_ENTRY();
+
+	list_del(&sess->sessions_list_entry);
+
+	device_unregister(&sess->dev);
+
+	TRACE_EXIT();
+	return;
+}
+
+static int scst_local_add_target(const char *target_name,
+	struct scst_local_tgt **out_tgt)
+{
+	int res;
+	struct scst_local_tgt *tgt;
+
+	TRACE_ENTRY();
+
+	tgt = kzalloc(sizeof(*tgt), GFP_KERNEL);
+	if (NULL == tgt) {
+		PRINT_ERROR("Unable to alloc tgt (size %zd)", sizeof(*tgt));
+		res = -ENOMEM;
+		goto out;
+	}
+
+	INIT_LIST_HEAD(&tgt->sessions_list);
+
+	tgt->scst_tgt = scst_register_target(&scst_local_targ_tmpl, target_name);
+	if (tgt->scst_tgt == NULL) {
+		PRINT_ERROR("%s", "scst_register_target() failed:");
+		res = -ENOMEM;
+		goto out_free;
+	}
+
+	scst_tgt_set_tgt_priv(tgt->scst_tgt, tgt);
+
+	mutex_lock(&scst_local_mutex);
+	list_add_tail(&tgt->tgts_list_entry, &scst_local_tgts_list);
+	mutex_unlock(&scst_local_mutex);
+
+	if (out_tgt != NULL)
+		*out_tgt = tgt;
+
+	res = 0;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_free:
+	kfree(tgt);
+	goto out;
+}
+
+/* Must be called under scst_local_mutex */
+static void __scst_local_remove_target(struct scst_local_tgt *tgt)
+{
+	struct scst_local_sess *sess, *ts;
+
+	TRACE_ENTRY();
+
+	list_for_each_entry_safe(sess, ts, &tgt->sessions_list,
+					sessions_list_entry) {
+		scst_local_remove_adapter(sess);
+	}
+
+	list_del(&tgt->tgts_list_entry);
+
+	scst_unregister_target(tgt->scst_tgt);
+
+	TRACE_EXIT();
+	return;
+}
+
+static void scst_local_remove_target(struct scst_local_tgt *tgt)
+{
+	TRACE_ENTRY();
+
+	mutex_lock(&scst_local_mutex);
+	__scst_local_remove_target(tgt);
+	mutex_unlock(&scst_local_mutex);
+
+	TRACE_EXIT();
+	return;
+}
+
+static int __init scst_local_init(void)
+{
+	int ret;
+	struct scst_local_tgt *tgt;
+
+	TRACE_ENTRY();
+
+#if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
+	PRINT_ERROR("%s", "HIGHMEM kernel configurations are not supported. "
+		"Consider changing VMSPLIT option or use a 64-bit "
+		"configuration instead. See SCST core README file for "
+		"details.");
+	ret = -EINVAL;
+	goto out;
+#endif
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
+	/*
+	 * Allocate a pool of structures for tgt_specific structures.
+	 * We only need this if we could get non scatterlist requests
+	 */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 23)
+	tgt_specific_pool = kmem_cache_create("scst_tgt_specific",
+				      sizeof(struct scst_local_tgt_specific),
+				      0, SCST_SLAB_FLAGS, NULL);
+#else
+	tgt_specific_pool = kmem_cache_create("scst_tgt_specific",
+				      sizeof(struct scst_local_tgt_specific),
+				      0, SCST_SLAB_FLAGS, NULL, NULL);
+#endif
+	if (!tgt_specific_pool) {
+		PRINT_ERROR("%s", "Unable to initialize tgt_specific_pool");
+		ret = -ENOMEM;
+		goto out;
+	}
+#endif
+
+	ret = device_register(&scst_local_root);
+	if (ret < 0) {
+		PRINT_ERROR("Root device_register() error: %d", ret);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
+		goto destroy_kmem;
+#else
+		goto out;
+#endif
+	}
+
+	ret = bus_register(&scst_local_lld_bus);
+	if (ret < 0) {
+		PRINT_ERROR("bus_register() error: %d", ret);
+		goto dev_unreg;
+	}
+
+	ret = driver_register(&scst_local_driver);
+	if (ret < 0) {
+		PRINT_ERROR("driver_register() error: %d", ret);
+		goto bus_unreg;
+	}
+
+	ret = scst_register_target_template(&scst_local_targ_tmpl);
+	if (ret != 0) {
+		PRINT_ERROR("Unable to register target template: %d", ret);
+		goto driver_unreg;
+	}
+
+	if (!scst_local_add_default_tgt)
+		goto out;
+
+	ret = scst_local_add_target("default_tgt", &tgt);
+	if (ret != 0)
+		goto tgt_templ_unreg;
+
+	ret = scst_local_add_adapter(tgt, "default_scst_local_sess", NULL);
+	if (ret != 0)
+		goto tgt_unreg;
+
+out:
+	TRACE_EXIT_RES(ret);
+	return ret;
+
+tgt_unreg:
+	scst_local_remove_target(tgt);
+
+tgt_templ_unreg:
+	scst_unregister_target_template(&scst_local_targ_tmpl);
+
+driver_unreg:
+	driver_unregister(&scst_local_driver);
+
+bus_unreg:
+	bus_unregister(&scst_local_lld_bus);
+
+dev_unreg:
+	device_unregister(&scst_local_root);
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
+destroy_kmem:
+	kmem_cache_destroy(tgt_specific_pool);
+#endif
+	goto out;
+}
+
+static void __exit scst_local_exit(void)
+{
+	struct scst_local_tgt *tgt, *tt;
+
+	TRACE_ENTRY();
+
+	down_write(&scst_local_exit_rwsem);
+
+	mutex_lock(&scst_local_mutex);
+	list_for_each_entry_safe(tgt, tt, &scst_local_tgts_list,
+	                                 tgts_list_entry) {
+		__scst_local_remove_target(tgt);
+	}
+	mutex_unlock(&scst_local_mutex);
+
+	driver_unregister(&scst_local_driver);
+	bus_unregister(&scst_local_lld_bus);
+	device_unregister(&scst_local_root);
+
+	/* Now unregister the target template */
+	scst_unregister_target_template(&scst_local_targ_tmpl);
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
+	/* Free the non scatterlist pool we allocated */
+	if (tgt_specific_pool)
+		kmem_cache_destroy(tgt_specific_pool);
+#endif
+
+	/* To make lockdep happy */
+	up_write(&scst_local_exit_rwsem);
+
+	TRACE_EXIT();
+	return;
+}
+
+device_initcall(scst_local_init);
+module_exit(scst_local_exit);
 
