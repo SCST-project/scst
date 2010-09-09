@@ -247,10 +247,10 @@ void target_list_build(struct connection *conn, char *target_name)
 		if (target_name && strcmp(target->name, target_name))
 			continue;
 
-		if (!isns_scn_access_allowed(target->tid, conn->initiator) ||
+		if (!target->tgt_enabled ||
+		    !isns_scn_access_allowed(target->tid, conn->initiator) ||
 		    !config_initiator_access_allowed(target->tid, conn->fd) ||
-		    !target_portal_allowed(target, conn->target_portal,
-		    					conn->initiator))
+		    !target_portal_allowed(target, conn->target_portal, conn->initiator))
 			continue;
 
 		text_key_add(conn, "TargetName", target->name);
