@@ -45,7 +45,11 @@
 
 #define LOG_PREFIX			"dev_vdisk"
 
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/scst.h>
+#else
 #include "scst.h"
+#endif
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 

@@ -18,7 +18,11 @@
 
 #define LOG_PREFIX "iscsi-scst"
 
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/scst_debug.h>
+#else
 #include <scst_debug.h>
+#endif
 
 #define TRACE_D_WRITE		0x80000000
 #define TRACE_CONN_OC		0x40000000

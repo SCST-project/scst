@@ -1,4 +1,4 @@
-ccflags-y += -Iinclude/scst -Wno-unused-parameter
+ccflags-y += -Wno-unused-parameter
 
 scst-y        += scst_main.o
 scst-y        += scst_pres.o

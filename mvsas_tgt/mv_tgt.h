@@ -25,8 +25,13 @@
 #ifdef SUPPORT_TARGET
 #ifndef _MVSAST_H
 #define _MVSAST_H
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/scst.h>
+#include <scst/scst_debug.h>
+#else
 #include "scst.h"
 #include "scst_debug.h"
+#endif
 #include "mv_sas.h"
 
 struct mvs_info;

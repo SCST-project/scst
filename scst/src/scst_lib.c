@@ -32,10 +32,13 @@
 #include <asm/kmap_types.h>
 #include <asm/unaligned.h>
 
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/scst.h>
+#else
 #include "scst.h"
+#endif
 #include "scst_priv.h"
 #include "scst_mem.h"
-
 #include "scst_pres.h"
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)

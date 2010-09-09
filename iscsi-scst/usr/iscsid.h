@@ -24,8 +24,12 @@
 #include <netdb.h>
 
 #include "types.h"
-#include "iscsi_hdr.h"
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/iscsi_scst.h>
+#else
 #include "iscsi_scst.h"
+#endif
+#include "iscsi_hdr.h"
 #include "param.h"
 #include "misc.h"
 

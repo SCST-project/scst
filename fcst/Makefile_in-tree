@@ -1,5 +1,3 @@
-ccflags-y += -Iinclude/scst
-
 obj-$(CONFIG_FCST) += fcst.o
 
 fcst-objs := \

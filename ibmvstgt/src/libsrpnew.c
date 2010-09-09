@@ -29,7 +29,11 @@
 #include <scsi/scsi_tgt.h>
 #include <scsi/srp.h>
 #include "libsrpnew.h"
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/scst.h>
+#else
 #include "scst.h"
+#endif
 
 enum srp_task_attributes {
 	SRP_SIMPLE_TASK = 0,

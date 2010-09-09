@@ -17,7 +17,11 @@
  */
 
 #include <net/tcp.h>
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/iscsi_scst.h>
+#else
 #include "iscsi_scst.h"
+#endif
 #include "iscsi.h"
 
 static struct sock *nl;

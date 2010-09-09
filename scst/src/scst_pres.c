@@ -50,8 +50,13 @@
 #include <linux/writeback.h>
 #endif
 
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/scst.h>
+#include <scst/scst_const.h>
+#else
 #include "scst.h"
 #include "scst_const.h"
+#endif
 #include "scst_priv.h"
 #include "scst_pres.h"
 

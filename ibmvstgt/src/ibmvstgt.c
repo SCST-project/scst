@@ -27,7 +27,11 @@
 #include <scsi/scsi.h>
 #include <scsi/scsi_host.h>
 #include <scsi/scsi_transport_srp.h>
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/scst.h>
+#else
 #include "scst.h"
+#endif
 #include <scsi/libsrp.h>
 #include <asm/iommu.h>
 #ifdef __powerpc__

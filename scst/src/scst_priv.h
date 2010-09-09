@@ -33,7 +33,11 @@
 
 #define LOG_PREFIX "scst"
 
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/scst_debug.h>
+#else
 #include "scst_debug.h"
+#endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
 #define SCST_MAJOR              177

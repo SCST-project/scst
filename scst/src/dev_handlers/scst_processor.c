@@ -23,7 +23,11 @@
 
 #define LOG_PREFIX "dev_processor"
 
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/scst.h>
+#else
 #include "scst.h"
+#endif
 #include "scst_dev_handler.h"
 
 #define PROCESSOR_NAME	"dev_processor"

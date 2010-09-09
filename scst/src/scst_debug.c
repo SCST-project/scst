@@ -19,8 +19,13 @@
  *  GNU General Public License for more details.
  */
 
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/scst.h>
+#include <scst/scst_debug.h>
+#else
 #include "scst.h"
 #include "scst_debug.h"
+#endif
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 

@@ -1,4 +1,4 @@
-ccflags-y += -Iinclude/scst -Idrivers/scsi/qla2xxx
+ccflags-y += -Idrivers/scsi/qla2xxx
 
 qla2x00tgt-y := qla2x00t.o
 

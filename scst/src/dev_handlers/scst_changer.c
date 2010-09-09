@@ -23,7 +23,11 @@
 
 #define LOG_PREFIX      "dev_changer"
 
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/scst.h>
+#else
 #include "scst.h"
+#endif
 #include "scst_dev_handler.h"
 
 #define CHANGER_NAME	"dev_changer"

@@ -28,7 +28,11 @@
 
 #define LOG_PREFIX             "dev_modisk"
 
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/scst.h>
+#else
 #include "scst.h"
+#endif
 #include "scst_dev_handler.h"
 
 # define MODISK_NAME           "dev_modisk"

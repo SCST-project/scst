@@ -30,7 +30,11 @@
 #include <linux/delay.h>
 #include <linux/ktime.h>
 
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/scst.h>
+#else
 #include "scst.h"
+#endif
 #include "scst_priv.h"
 #include "scst_pres.h"
 

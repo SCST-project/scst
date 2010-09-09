@@ -30,13 +30,18 @@
 #include <scsi/scsi_host.h>
 #include <scsi/scsi_tcq.h>
 
-/* SCST includes ... */
-#include <scst_const.h>
-#include <scst.h>
-
 #define LOG_PREFIX "scst_local"
 
+/* SCST includes ... */
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/scst_const.h>
+#include <scst/scst.h>
+#include <scst/scst_debug.h>
+#else
+#include <scst_const.h>
+#include <scst.h>
 #include <scst_debug.h>
+#endif
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
 #define SG_MAX_SINGLE_ALLOC	(PAGE_SIZE / sizeof(struct scatterlist))

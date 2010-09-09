@@ -19,7 +19,11 @@
 #ifndef __SCSI_FCST_H__
 #define __SCSI_FCST_H__
 
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/scst.h>
+#else
 #include "scst.h"
+#endif
 
 #define FT_VERSION	"0.3"
 #define FT_MODULE	"fcst"

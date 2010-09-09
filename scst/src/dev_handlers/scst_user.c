@@ -25,8 +25,13 @@
 
 #define LOG_PREFIX		DEV_USER_NAME
 
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/scst.h>
+#include <scst/scst_user.h>
+#else
 #include "scst.h"
 #include "scst_user.h"
+#endif
 #include "scst_dev_handler.h"
 
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)

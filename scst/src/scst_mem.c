@@ -26,7 +26,11 @@
 #include <linux/unistd.h>
 #include <linux/string.h>
 
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/scst.h>
+#else
 #include "scst.h"
+#endif
 #include "scst_priv.h"
 #include "scst_mem.h"
 

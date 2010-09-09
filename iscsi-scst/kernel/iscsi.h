@@ -22,11 +22,14 @@
 #include <linux/net.h>
 #include <net/sock.h>
 
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/scst.h>
+#include <scst/iscsi_scst.h>
+#else
 #include <scst.h>
-
-#include "iscsi_hdr.h"
 #include "iscsi_scst.h"
-
+#endif
+#include "iscsi_hdr.h"
 #include "iscsi_dbg.h"
 
 #define iscsi_sense_crc_error			ABORTED_COMMAND, 0x47, 0x05

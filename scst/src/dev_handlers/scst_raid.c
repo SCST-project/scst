@@ -23,7 +23,11 @@
 #include <scsi/scsi_host.h>
 #include <linux/slab.h>
 
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/scst.h>
+#else
 #include "scst.h"
+#endif
 #include "scst_dev_handler.h"
 
 #define RAID_NAME	"dev_raid"
