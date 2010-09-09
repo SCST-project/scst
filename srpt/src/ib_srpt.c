@@ -42,9 +42,11 @@
 #include <linux/string.h>
 #include <linux/delay.h>
 #include <asm/atomic.h>
+#if defined(CONFIG_SCST_PROC)
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
+#endif
 #endif
 #include "ib_srpt.h"
 #define LOG_PREFIX "ib_srpt" /* Prefix for SCST tracing macros. */
