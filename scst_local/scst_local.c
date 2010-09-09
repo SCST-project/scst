@@ -1675,7 +1675,7 @@ static void __exit scst_local_exit(void)
 
 	mutex_lock(&scst_local_mutex);
 	list_for_each_entry_safe(tgt, tt, &scst_local_tgts_list,
-	                                 tgts_list_entry) {
+				 tgts_list_entry) {
 		__scst_local_remove_target(tgt);
 	}
 	mutex_unlock(&scst_local_mutex);
