@@ -90,16 +90,11 @@ static atomic_t num_aborts = ATOMIC_INIT(0);
 static atomic_t num_dev_resets = ATOMIC_INIT(0);
 static atomic_t num_target_resets = ATOMIC_INIT(0);
 
-bool scst_local_add_default_tgt = true;
+bool scst_local_add_default_tgt = false;
 module_param_named(add_default_tgt, scst_local_add_default_tgt, bool, S_IRUGO);
-MODULE_PARM_DESC(add_default_host, "add (default) or not default target with "
-	"default session");
+MODULE_PARM_DESC(add_default_host, "add or not (default) on start default "
+	"target scst_local_tgt with default session scst_local_host");
 
-/*
- * We put AEN items on a list on the scst_local_host_info structure so they
- * can be processed via a work function. We do not actually need the LUN, since
- * the whole target must be rescanned anyway.
- */
 struct scst_aen_work_item {
 	struct list_head work_list_entry;
 	struct scst_aen *aen;
@@ -116,11 +111,13 @@ struct scst_local_tgt {
 };
 
 struct scst_local_sess {
+	struct scst_session *scst_sess;
+
+	unsigned int unregistering:1;
+
 	struct device dev;
 	struct Scsi_Host *shost;
 	struct scst_local_tgt *tgt;
-
-	struct scst_session *scst_sess;
 
 	int number;
 
@@ -133,13 +130,14 @@ struct scst_local_sess {
 	struct list_head aen_work_list; /* protected by aen_lock */
 
 	struct list_head sessions_list_entry;
-
-	char *initiator_name;
 };
 
 #define to_scst_lcl_sess(d) \
 	container_of(d, struct scst_local_sess, dev)
 
+static int __scst_local_add_adapter(struct scst_local_tgt *tgt,
+	const char *initiator_name, struct scst_local_sess **out_sess,
+	bool locked);
 static int scst_local_add_adapter(struct scst_local_tgt *tgt,
 	const char *initiator_name, struct scst_local_sess **out_sess);
 static void scst_local_remove_adapter(struct scst_local_sess *sess);
@@ -684,6 +682,80 @@ out_up:
 	return res;
 }
 
+static ssize_t scst_local_sysfs_mgmt_cmd(char *buf)
+{
+	ssize_t res;
+	char *command, *target_name, *session_name;
+	struct scst_local_tgt *t, *tgt;
+
+	TRACE_ENTRY();
+
+	if (down_read_trylock(&scst_local_exit_rwsem) == 0)
+		return -ENOENT;
+
+	command = scst_get_next_lexem(&buf);
+
+	target_name = scst_get_next_lexem(&buf);
+	if (*target_name == '\0') {
+		PRINT_ERROR("%s", "Target name required");
+		res = -EINVAL;
+		goto out_up;
+	}
+
+	mutex_lock(&scst_local_mutex);
+
+	tgt = NULL;
+	list_for_each_entry(t, &scst_local_tgts_list, tgts_list_entry) {
+		if (strcmp(t->scst_tgt->tgt_name, target_name) == 0) {
+			tgt = t;
+			break;
+		}
+	}
+	if (tgt == NULL) {
+		PRINT_ERROR("Target %s not found", target_name);
+		res = -EINVAL;
+		goto out_unlock;
+	}
+
+	session_name = scst_get_next_lexem(&buf);
+	if (*session_name == '\0') {
+		PRINT_ERROR("%s", "Session name required");
+		res = -EINVAL;
+		goto out_unlock;
+	}
+
+	if (strcasecmp("add_session", command) == 0) {
+		res = __scst_local_add_adapter(tgt, session_name, NULL, true);
+	} else if (strcasecmp("del_session", command) == 0) {
+		struct scst_local_sess *s, *sess = NULL;
+		list_for_each_entry(s, &tgt->sessions_list,
+					sessions_list_entry) {
+			if (strcmp(s->scst_sess->initiator_name, session_name) == 0) {
+				sess = s;
+				break;
+			}
+		}
+		if (sess == NULL) {
+			PRINT_ERROR("Session %s not found (target %s)",
+				session_name, target_name);
+			res = -EINVAL;
+			goto out_unlock;
+		}
+		scst_local_remove_adapter(sess);
+	}
+
+	res = 0;
+
+out_unlock:
+	mutex_unlock(&scst_local_mutex);
+
+out_up:
+	up_read(&scst_local_exit_rwsem);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 #endif /* CONFIG_SCST_PROC */
 
 static int scst_local_abort(struct scsi_cmnd *SCpnt)
@@ -847,6 +919,27 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 
 	scsi_set_resid(SCpnt, 0);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
+	/*
+	 * Allocate a tgt_specific_structure. We need this in case we need
+	 * to construct a single element SGL.
+	 */
+	tgt_specific = kmem_cache_alloc(tgt_specific_pool, GFP_ATOMIC);
+	if (!tgt_specific) {
+		PRINT_ERROR("Unable to create tgt_specific (size %d)",
+			sizeof(*tgt_specific));
+		return -ENOMEM;
+	}
+	tgt_specific->cmnd = SCpnt;
+	tgt_specific->done = done;
+#else
+	/*
+	 * We save a pointer to the done routine in SCpnt->scsi_done and
+	 * we save that as tgt specific stuff below.
+	 */
+	SCpnt->scsi_done = done;
+#endif
+
 	/*
 	 * Tell the target that we have a command ... but first we need
 	 * to get the LUN into a format that SCST understand
@@ -876,27 +969,6 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 		scst_cmd_set_queue_type(scst_cmd, SCST_CMD_QUEUE_UNTAGGED);
 		break;
 	}
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
-	/*
-	 * Allocate a tgt_specific_structure. We need this in case we need
-	 * to construct a single element SGL.
-	 */
-	tgt_specific = kmem_cache_alloc(tgt_specific_pool, GFP_ATOMIC);
-	if (!tgt_specific) {
-		PRINT_ERROR("Unable to create tgt_specific (size %d)",
-			sizeof(*tgt_specific));
-		return -ENOMEM;
-	}
-	tgt_specific->cmnd = SCpnt;
-	tgt_specific->done = done;
-#else
-	/*
-	 * We save a pointer to the done routine in SCpnt->scsi_done and
-	 * we save that as tgt specific stuff below.
-	 */
-	SCpnt->scsi_done = done;
-#endif
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
 	/*
@@ -1003,17 +1075,16 @@ static int scst_local_targ_pre_exec(struct scst_cmd *scst_cmd)
 	return res;
 }
 
-static void scst_aen_work_fn(struct work_struct *work)
+/* Must be called under sess->aen_lock. Drops then reacquires it inside. */
+static void scst_process_aens(struct scst_local_sess *sess,
+	bool cleanup_only)
 {
-	struct scst_local_sess *sess =
-		container_of(work, struct scst_local_sess, aen_work);
 	struct scst_aen_work_item *work_item = NULL;
 
 	TRACE_ENTRY();
 
-	TRACE_MGMT_DBG("Target work (sess %p)", sess);
+	TRACE_DBG("Target work sess %p", sess);
 
-	spin_lock(&sess->aen_lock);
 	while (!list_empty(&sess->aen_work_list)) {
 		work_item = list_entry(sess->aen_work_list.next,
 				struct scst_aen_work_item, work_list_entry);
@@ -1021,14 +1092,37 @@ static void scst_aen_work_fn(struct work_struct *work)
 
 		spin_unlock(&sess->aen_lock);
 
+		if (cleanup_only)
+			goto done;
+
+		sBUG_ON(work_item->aen->event_fn != SCST_AEN_SCSI);
+
+		/* Let's always rescan */
 		scsi_scan_target(&sess->shost->shost_gendev, 0, 0,
 					SCAN_WILD_CARD, 1);
 
+done:
 		scst_aen_done(work_item->aen);
 		kfree(work_item);
 
 		spin_lock(&sess->aen_lock);
 	}
+
+	TRACE_EXIT();
+	return;
+}
+
+static void scst_aen_work_fn(struct work_struct *work)
+{
+	struct scst_local_sess *sess =
+		container_of(work, struct scst_local_sess, aen_work);
+
+	TRACE_ENTRY();
+
+	TRACE_MGMT_DBG("Target work %p)", work);
+
+	spin_lock(&sess->aen_lock);
+	scst_process_aens(sess, false);
 	spin_unlock(&sess->aen_lock);
 
 	TRACE_EXIT();
@@ -1059,8 +1153,17 @@ static int scst_local_report_aen(struct scst_aen *aen)
 		}
 
 		spin_lock(&sess->aen_lock);
+
+		if (unlikely(sess->unregistering)) {
+			spin_unlock(&sess->aen_lock);
+			kfree(work_item);
+			res = SCST_AEN_RES_NOT_SUPPORTED;
+			goto out;
+		}
+
 		list_add_tail(&work_item->work_list_entry, &sess->aen_work_list);
 		work_item->aen = aen;
+
 		spin_unlock(&sess->aen_lock);
 
 		schedule_work(&sess->aen_work);
@@ -1072,6 +1175,7 @@ static int scst_local_report_aen(struct scst_aen *aen)
 		break;
 	}
 
+out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -1209,12 +1313,15 @@ static struct scst_tgt_template scst_local_targ_tmpl = {
 	.xmit_response_atomic	= 1,
 #ifndef CONFIG_SCST_PROC
 	.enabled_attr_not_needed = 1,
-	.tgtt_attrs = scst_local_tgtt_attrs,
-	.tgt_attrs = scst_local_tgt_attrs,
-	.sess_attrs = scst_local_sess_attrs,
-	.add_target = scst_local_sysfs_add_target,
-	.del_target = scst_local_sysfs_del_target,
-	.add_target_parameters = "session_name",
+	.tgtt_attrs		= scst_local_tgtt_attrs,
+	.tgt_attrs		= scst_local_tgt_attrs,
+	.sess_attrs		= scst_local_sess_attrs,
+	.add_target		= scst_local_sysfs_add_target,
+	.del_target		= scst_local_sysfs_del_target,
+	.mgmt_cmd		= scst_local_sysfs_mgmt_cmd,
+	.add_target_parameters	= "session_name",
+	.mgmt_cmd_help		= "       echo \"add_session target_name session_name\" >mgmt\n"
+				  "       echo \"del_session target_name session_name\" >mgmt\n",
 #endif
 	.detect			= scst_local_targ_detect,
 	.release		= scst_local_targ_release,
@@ -1383,6 +1490,11 @@ static void scst_local_release_adapter(struct device *dev)
 	if (sess == NULL)
 		goto out;
 
+	spin_lock(&sess->aen_lock);
+	sess->unregistering = 1;
+	scst_process_aens(sess, true);
+	spin_unlock(&sess->aen_lock);
+
 	cancel_work_sync(&sess->aen_work);
 
 	scst_unregister_session(sess->scst_sess, TRUE, NULL);
@@ -1394,8 +1506,9 @@ out:
 	return;
 }
 
-static int scst_local_add_adapter(struct scst_local_tgt *tgt,
-	const char *initiator_name, struct scst_local_sess **out_sess)
+static int __scst_local_add_adapter(struct scst_local_tgt *tgt,
+	const char *initiator_name, struct scst_local_sess **out_sess,
+	bool locked)
 {
 	int res;
 	struct scst_local_sess *sess;
@@ -1426,7 +1539,7 @@ static int scst_local_add_adapter(struct scst_local_tgt *tgt,
 	if (sess->scst_sess == NULL) {
 		PRINT_ERROR("%s", "scst_register_session failed");
 		kfree(sess);
-		res = -ENOMEM;
+		res = -EFAULT;
 		goto out_free;
 	}
 
@@ -1436,7 +1549,11 @@ static int scst_local_add_adapter(struct scst_local_tgt *tgt,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
 	snprintf(sess->dev.bus_id, sizeof(sess->dev.bus_id), initiator_name);
 #else
+# ifdef CONFIG_SCST_PROC
 	sess->dev.init_name = sess->scst_sess->initiator_name;
+# else
+	sess->dev.init_name = kobject_name(&sess->scst_sess->sess_kobj);
+#endif
 #endif
 
 	res = device_register(&sess->dev);
@@ -1453,9 +1570,13 @@ static int scst_local_add_adapter(struct scst_local_tgt *tgt,
 	}
 #endif
 
-	mutex_lock(&scst_local_mutex);
+	if (!locked)
+		mutex_lock(&scst_local_mutex);
 	list_add_tail(&sess->sessions_list_entry, &tgt->sessions_list);
-	mutex_unlock(&scst_local_mutex);
+	if (!locked)
+		mutex_unlock(&scst_local_mutex);
+
+	scsi_scan_target(&sess->shost->shost_gendev, 0, 0, SCAN_WILD_CARD, 1);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1472,6 +1593,12 @@ unregister_session:
 out_free:
 	kfree(sess);
 	goto out;
+}
+
+static int scst_local_add_adapter(struct scst_local_tgt *tgt,
+	const char *initiator_name, struct scst_local_sess **out_sess)
+{
+	return __scst_local_add_adapter(tgt, initiator_name, out_sess, false);
 }
 
 /* Must be called under scst_local_mutex */
@@ -1507,7 +1634,7 @@ static int scst_local_add_target(const char *target_name,
 	tgt->scst_tgt = scst_register_target(&scst_local_targ_tmpl, target_name);
 	if (tgt->scst_tgt == NULL) {
 		PRINT_ERROR("%s", "scst_register_target() failed:");
-		res = -ENOMEM;
+		res = -EFAULT;
 		goto out_free;
 	}
 
@@ -1546,6 +1673,8 @@ static void __scst_local_remove_target(struct scst_local_tgt *tgt)
 	list_del(&tgt->tgts_list_entry);
 
 	scst_unregister_target(tgt->scst_tgt);
+
+	kfree(tgt);
 
 	TRACE_EXIT();
 	return;
@@ -1631,11 +1760,11 @@ static int __init scst_local_init(void)
 	if (!scst_local_add_default_tgt)
 		goto out;
 
-	ret = scst_local_add_target("default_tgt", &tgt);
+	ret = scst_local_add_target("scst_local_tgt", &tgt);
 	if (ret != 0)
 		goto tgt_templ_unreg;
 
-	ret = scst_local_add_adapter(tgt, "default_scst_local_sess", NULL);
+	ret = scst_local_add_adapter(tgt, "scst_local_host", NULL);
 	if (ret != 0)
 		goto tgt_unreg;
 

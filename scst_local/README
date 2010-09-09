@@ -14,11 +14,9 @@ except the following: you can't mount file systems or put swap on them.
 This is a limitation of Linux memory/cache manager. See SCST README file
 for details.
 
-To build, simply issue 'make' in the scst-local directory.
+To build, simply issue 'make' in the scst_local directory.
 
 Try 'modinfo scst_local' for a listing of module parameters so far.
-
-NOTE! This is now part of scst and supports being built in the scst tree.
 
 Here is how I have used it so far:
 
@@ -30,16 +28,12 @@ Here is how I have used it so far:
 2. Create a virtual disk (or your own device handler):
 
   dd if=/dev/zero of=/some/path/vdisk1.img bs=16384 count=1000000
-#  dd if=/dev/zero of=/some/path/vdisk2.img bs=16384 count=1000000
-  echo "open vm_disk1 /some/path/vdisk1.img" > /proc/scsi_tgt/vdisk/vdisk
-#  echo "open vm_disk2 /some/path/vdisk2.img" > /proc/scsi_tgt/vdisk/vdisk
-  echo "add vm_disk1 0" > /proc/scsi_tgt/groups/Default/devices
-#  echo "add vm_disk2 1" > /proc/scsi_tgt/groups/Default/devices
+  echo "add_device vm_disk1 filename=/some/path/vdisk1.img" >/sys/kernel/scst_tgt/handlers/vdisk_fileio/mgmt
 
 3. Load the scst_local driver:
 
-  insmod scst_local
-# insmod scst_local max_luns=8
+  insmod scst_local add_default_tgt=1
+  echo "add vm_disk1 0" >/sys/kernel/scst_tgt/targets/scst_local/scst_local_tgt/luns/mgmt
 
 4. Check what you have
 
@@ -52,8 +46,40 @@ Here is how I have used it so far:
     Vendor: TSSTcorp Model: CD/DVDW TS-L632D Rev: TO04
     Type:   CD-ROM                           ANSI  SCSI revision: 05
   Host: scsi7 Channel: 00 Id: 00 Lun: 00
-    Vendor: SCST_FIO Model: vm_disk1         Rev:  101
+    Vendor: SCST_FIO Model: vm_disk1         Rev:  200
     Type:   Direct-Access                    ANSI  SCSI revision: 04
+
+Or for (3) you can:
+
+  insmod scst_local
+  echo "add_target scst_local_tgt session_name=scst_local_host" >/sys/kernel/scst_tgt/targets/scst_local//mgmt
+  echo "add vm_disk1 0" >/sys/kernel/scst_tgt/targets/scst_local/scst_local_tgt/luns/mgmt
+
+Or instead of manually "add_device" in (2) and (3) write and scstadmin config
+(doesn't create the session at the moment due to bug in scstadmin):
+
+HANDLER vdisk_fileio {
+        DEVICE vm_disk1 {
+        	filename /some/path/vdisk1.img
+        }
+}
+
+TARGET_DRIVER scst_local {
+	TARGET scst_local_tgt {
+		session_name=scst_local_host
+
+		LUN 0 vm_disk1
+	}
+}
+
+then:
+
+  insmod scst_local
+  scstadmin -config conf_file.cfg
+
+There can be any number of targets and sessions created. Each SCST
+session corresponds to SCSI host. You can change which LUNs assigned to
+each session by using SCST access control.
 
 5. Have fun.
 
@@ -67,13 +93,57 @@ The code still has bugs, so if you encounter any, email me the fixes at:
 I am thinking of renaming this to something more interesting.
 
 
-Limitations
-===========
+Sysfs interface
+===============
 
-Swapping on scst_local's devices and using a writable mmap over a file
-on them are not supported due to possible OOM deadlock in the Linux
-memory/cache manager. See SCST README for more details.
+See SCST's README for a common SCST sysfs description.
 
+Root of this driver is /sys/kernel/scst_tgt/targets/scst_local. It has
+the following additional entry:
+
+ - stats - read-only attribute with some statistical information.
+
+Each target subdirectory contains the following additional entries:
+
+ - phys_transport_version - contains and allows to change physical
+   transport version descriptor. It determines by which phisical
+   interface this target will look like. See SPC for more details. By
+   default, it is not defined (0).
+
+ - scsi_transport_version - contains and allows to change SCSI
+   transport version descriptor. It determines by which SCSI
+   transport this target will look like. See SPC for more details. By
+   default, it is SAS.
+
+Each session subdirectory contains the following additional entries:
+
+ - transport_id - contains this host's TransportID. This TransportID
+   used to identify initiator in Persisten Reservation commands. If you
+   change scsi_transport_version for a target, make sure you set for all
+   its sessions correct TransportID. See SPC for more details.
+
+ - host - links to the corresponding SCSI host. Using it you can find
+   local sg/bsg/sd/etc. devices of this session. For instance, this
+   links points out to host12, so you can find your sg devices by:
+
+$ lsscsi -g|grep "\[12"
+[12:0:0:0]   disk    SCST_FIO rd1               200  /dev/sdc  /dev/sg2
+[12:0:0:1]   disk    SCST_FIO nullio            200  /dev/sdd  /dev/sg3
+
+They are /dev/sg2 and /dev/sg3.
+
+The following management commands available via /sys/kernel/scst_tgt/targets/scst_local/mgmt:
+
+ - add_target target_name [session_name=sess_name; [session_name=sess_name1;] [...]] -
+   creates a target with optionally one or more sessions.
+
+ - del_target target_name - deletes a target.
+
+ - add_session target_name session_name - adds to target target_name
+   session (SCSI host) with name session_name.
+
+ - del_session target_name session_name - deletes session session_name
+    from target target_name.
 
 Note on performance
 ===================
@@ -122,3 +192,6 @@ V0.7 11-Oct-2008 (Santa Clara) Moved into the scst tree. Cleaned up some
 V0.9 30-Nov-2008 (Mtn View) Cleaned up an additional problem with symbols not
 			    being defined in older version of the kernel. Also
 			    fixed some English and cleaned up this doc.
+
+V1.0 10-Sep-2010 (Moscow)   Sysfs management added. Reviewed and cleaned up.
+
