@@ -869,6 +869,11 @@ out_del:
 	goto out;
 }
 
+/*
+ * Must not be called under scst_mutex, due to possible deadlock with
+ * sysfs ref counting in sysfs works (it is waiting for the last put, but
+ * the last ref counter holder is waiting for scst_mutex)
+ */
 void scst_tgtt_sysfs_del(struct scst_tgt_template *tgtt)
 {
 	int rc;
@@ -1083,6 +1088,10 @@ static struct kobj_attribute tgt_enable_attr =
 	__ATTR(enabled, S_IRUGO | S_IWUSR,
 	       scst_tgt_enable_show, scst_tgt_enable_store);
 
+/*
+ * Supposed to be called under scst_mutex. In case of error will drop,
+ * then reacquire it.
+ */
 int scst_tgt_sysfs_create(struct scst_tgt *tgt)
 {
 	int res;
@@ -1192,10 +1201,17 @@ out_nomem:
 	res = -ENOMEM;
 
 out_err:
+	mutex_unlock(&scst_mutex);
 	scst_tgt_sysfs_del(tgt);
+	mutex_lock(&scst_mutex);
 	goto out;
 }
 
+/*
+ * Must not be called under scst_mutex, due to possible deadlock with
+ * sysfs ref counting in sysfs works (it is waiting for the last put, but
+ * the last ref counter holder is waiting for scst_mutex)
+ */
 void scst_tgt_sysfs_del(struct scst_tgt *tgt)
 {
 	int rc;
@@ -1639,6 +1655,10 @@ static struct kobj_type scst_dev_ktype = {
 	.default_attrs = scst_dev_attrs,
 };
 
+/*
+ * Must not be called under scst_mutex, because it can call
+ * scst_dev_sysfs_del()
+ */
 int scst_dev_sysfs_create(struct scst_device *dev)
 {
 	int res = 0;
@@ -1694,6 +1714,11 @@ out_del:
 	goto out;
 }
 
+/*
+ * Must not be called under scst_mutex, due to possible deadlock with
+ * sysfs ref counting in sysfs works (it is waiting for the last put, but
+ * the last ref counter holder is waiting for scst_mutex)
+ */
 void scst_dev_sysfs_del(struct scst_device *dev)
 {
 	int rc;
@@ -1905,6 +1930,13 @@ out:
 	return res;
 }
 
+/*
+ * Called with scst_mutex held.
+ *
+ * !! No sysfs works must use kobject_get() to protect tgt_dev, due to possible
+ * !! deadlock with scst_mutex (it is waiting for the last put, but
+ * !! the last ref counter holder is waiting for scst_mutex)
+ */
 void scst_tgt_dev_sysfs_del(struct scst_tgt_dev *tgt_dev)
 {
 	int rc;
@@ -2407,6 +2439,11 @@ out_free:
 	return res;
 }
 
+/*
+ * Must not be called under scst_mutex, due to possible deadlock with
+ * sysfs ref counting in sysfs works (it is waiting for the last put, but
+ * the last ref counter holder is waiting for scst_mutex)
+ */
 void scst_sess_sysfs_del(struct scst_session *sess)
 {
 	int rc;
@@ -2482,6 +2519,13 @@ static struct kobj_type acg_dev_ktype = {
 	.default_attrs = lun_attrs,
 };
 
+/*
+ * Called with scst_mutex held.
+ *
+ * !! No sysfs works must use kobject_get() to protect acg_dev, due to possible
+ * !! deadlock with scst_mutex (it is waiting for the last put, but
+ * !! the last ref counter holder is waiting for scst_mutex)
+ */
 void scst_acg_dev_sysfs_del(struct scst_acg_dev *acg_dev)
 {
 	int rc;
@@ -3098,6 +3142,13 @@ out:
 	return res;
 }
 
+/*
+ * Called with scst_mutex held.
+ *
+ * !! No sysfs works must use kobject_get() to protect acg, due to possible
+ * !! deadlock with scst_mutex (it is waiting for the last put, but
+ * !! the last ref counter holder is waiting for scst_mutex)
+ */
 void scst_acg_sysfs_del(struct scst_acg *acg)
 {
 	int rc;

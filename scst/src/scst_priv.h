@@ -459,10 +459,6 @@ static inline int scst_devt_dev_sysfs_create(struct scst_device *dev)
 }
 static inline void scst_devt_dev_sysfs_del(struct scst_device *dev) { }
 
-static inline int scst_dev_sysfs_create(struct scst_device *dev)
-{
-	return 0;
-}
 static inline void scst_dev_sysfs_del(struct scst_device *dev) { }
 
 static inline int scst_tgt_dev_sysfs_create(struct scst_tgt_dev *tgt_dev)
@@ -475,7 +471,6 @@ static inline int scst_sess_sysfs_create(struct scst_session *sess)
 {
 	return 0;
 }
-static inline void scst_sess_sysfs_del(struct scst_session *sess) { }
 
 static inline int scst_acg_dev_sysfs_create(struct scst_acg_dev *acg_dev,
 	struct kobject *parent)
