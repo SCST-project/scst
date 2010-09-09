@@ -3,7 +3,11 @@
 
 #include <linux/module.h>
 #include <scsi/scsi_eh.h>
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/scst_debug.h>
+#else
 #include "scst_debug.h"
+#endif
 
 #define SCST_DEV_UA_RETRIES 5
 #define SCST_PASSTHROUGH_RETRIES	0
