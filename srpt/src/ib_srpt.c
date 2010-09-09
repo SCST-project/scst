@@ -50,7 +50,7 @@
 #endif
 #include "ib_srpt.h"
 #define LOG_PREFIX "ib_srpt" /* Prefix for SCST tracing macros. */
-#if defined(GENERATING_UPSTREAM_PATCH)
+#if defined(INSIDE_KERNEL_TREE)
 #include <scst/scst_debug.h>
 #else
 #include "scst_debug.h"

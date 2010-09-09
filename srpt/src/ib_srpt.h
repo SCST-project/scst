@@ -45,7 +45,7 @@
 
 #include <scsi/srp.h>
 
-#if defined(GENERATING_UPSTREAM_PATCH)
+#if defined(INSIDE_KERNEL_TREE)
 #include <scst/scst.h>
 #else
 #include <scst.h>

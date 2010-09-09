@@ -39,7 +39,7 @@
 #include <scsi/scsi_eh.h>
 #include <scsi/scsi.h>
 
-#ifdef GENERATING_UPSTREAM_PATCH
+#ifdef INSIDE_KERNEL_TREE
 #include <scst/scst_const.h>
 #else
 #include <scst_const.h>
@@ -53,7 +53,7 @@ typedef _Bool bool;
 #define false 0
 #endif
 
-#ifdef GENERATING_UPSTREAM_PATCH
+#ifdef INSIDE_KERNEL_TREE
 #include <scst/scst_sgv.h>
 #else
 #include "scst_sgv.h"

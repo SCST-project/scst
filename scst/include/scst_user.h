@@ -22,7 +22,7 @@
 #ifndef __SCST_USER_H
 #define __SCST_USER_H
 
-#ifdef GENERATING_UPSTREAM_PATCH
+#ifdef INSIDE_KERNEL_TREE
 #include <scst/scst_const.h>
 #else
 #include <scst_const.h>
