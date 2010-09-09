@@ -22,7 +22,11 @@
 #ifndef __SCST_USER_H
 #define __SCST_USER_H
 
+#ifdef GENERATING_UPSTREAM_PATCH
+#include <scst/scst_const.h>
+#else
 #include <scst_const.h>
+#endif
 
 #define DEV_USER_NAME			"scst_user"
 #define DEV_USER_PATH			"/dev/"

@@ -50,7 +50,11 @@
 #endif
 #include "ib_srpt.h"
 #define LOG_PREFIX "ib_srpt" /* Prefix for SCST tracing macros. */
+#if defined(GENERATING_UPSTREAM_PATCH)
+#include <scst/scst_debug.h>
+#else
 #include "scst_debug.h"
+#endif
 
 /* Name of this kernel module. */
 #define DRV_NAME		"ib_srpt"

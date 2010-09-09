@@ -1,3 +1,1 @@
-EXTRA_CFLAGS += -Iinclude/scst
-
 obj-$(CONFIG_SCST_SRPT)			+= ib_srpt.o

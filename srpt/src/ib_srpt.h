@@ -45,7 +45,11 @@
 
 #include <scsi/srp.h>
 
+#if defined(GENERATING_UPSTREAM_PATCH)
+#include <scst/scst.h>
+#else
 #include <scst.h>
+#endif
 
 #include "ib_dm_mad.h"
 

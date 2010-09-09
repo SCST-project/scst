@@ -39,7 +39,11 @@
 #include <scsi/scsi_eh.h>
 #include <scsi/scsi.h>
 
+#ifdef GENERATING_UPSTREAM_PATCH
+#include <scst/scst_const.h>
+#else
 #include <scst_const.h>
+#endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 #ifndef RHEL_RELEASE_CODE
@@ -49,7 +53,11 @@ typedef _Bool bool;
 #define false 0
 #endif
 
+#ifdef GENERATING_UPSTREAM_PATCH
+#include <scst/scst_sgv.h>
+#else
 #include "scst_sgv.h"
+#endif
 
 /*
  * Version numbers, the same as for the kernel.
