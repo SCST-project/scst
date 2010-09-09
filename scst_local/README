@@ -126,7 +126,7 @@ Each session subdirectory contains the following additional entries:
    local sg/bsg/sd/etc. devices of this session. For instance, this
    links points out to host12, so you can find your sg devices by:
 
-$ lsscsi -g|grep "\[12"
+$ lsscsi -g|grep "\[12:"
 [12:0:0:0]   disk    SCST_FIO rd1               200  /dev/sdc  /dev/sg2
 [12:0:0:1]   disk    SCST_FIO nullio            200  /dev/sdd  /dev/sg3
 
@@ -144,6 +144,7 @@ The following management commands available via /sys/kernel/scst_tgt/targets/scs
 
  - del_session target_name session_name - deletes session session_name
     from target target_name.
+
 
 Note on performance
 ===================
