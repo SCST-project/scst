@@ -28,8 +28,10 @@
 #include <linux/string.h>
 #include <linux/kthread.h>
 #include <linux/delay.h>
+#ifdef CONFIG_SCST_PROC
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
+#endif
 #include <linux/time.h>
 #include <linux/ctype.h>
 #include <asm/byteorder.h>
