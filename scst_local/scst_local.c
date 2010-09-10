@@ -47,11 +47,13 @@
 #define SG_MAX_SINGLE_ALLOC	(PAGE_SIZE / sizeof(struct scatterlist))
 #endif
 
+#ifndef INSIDE_KERNEL_TREE
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
 #warning "HIGHMEM kernel configurations are not supported by this module,\
  because nowadays it isn't worth the effort. Consider changing\
  VMSPLIT option or use a 64-bit configuration instead. See SCST core\
  README file for details."
+#endif
 #endif
 
 #ifdef CONFIG_SCST_DEBUG
@@ -1704,6 +1706,7 @@ static int __init scst_local_init(void)
 
 	TRACE_ENTRY();
 
+#ifndef INSIDE_KERNEL_TREE
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
 	PRINT_ERROR("%s", "HIGHMEM kernel configurations are not supported. "
 		"Consider changing VMSPLIT option or use a 64-bit "
@@ -1711,6 +1714,7 @@ static int __init scst_local_init(void)
 		"details.");
 	ret = -EINVAL;
 	goto out;
+#endif
 #endif
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
