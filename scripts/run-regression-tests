@@ -334,7 +334,7 @@ function patch_and_configure_kernel {
                        >"${outputdir}/patch-command-output-$1.txt" \
     && make -s allmodconfig &>/dev/null                            \
     && sed -i.tmp 's/^CONFIG_DEBUG_STRICT_USER_COPY_CHECKS=y$/CONFIG_DEBUG_STRICT_USER_COPY_CHECKS=n/' .config \
-    && make -s oldconfig
+    && make -s oldconfig &>/dev/null 
   )
 }
 
