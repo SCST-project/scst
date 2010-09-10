@@ -68,6 +68,8 @@ function evaluate(stmnt) {
 
   gsub("defined\\(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19\\)", "0", stmnt)
 
+  gsub("defined\\(CONFIG_SUSE_KERNEL\\)", "0", stmnt)
+
   if (RHEL_MAJOR == "")
   {
     gsub("defined\\(RHEL_MAJOR\\)", "0", stmnt)
@@ -170,7 +172,7 @@ function evaluate(stmnt) {
       sub(pattern, result, stmnt)
     }
   
-    pattern="(-*[0-9]+) *(<|<=|>|>=|==) *(-*[0-9]+)"
+    pattern="(-*[0-9]+) *(<|<=|>|>=|==|!=) *(-*[0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
       result="error"
@@ -179,6 +181,7 @@ function evaluate(stmnt) {
       else if (op[2] == ">" ) result = op[1] >  op[3]
       else if (op[2] == ">=") result = op[1] >= op[3]
       else if (op[2] == "==") result = op[1] == op[3]
+      else if (op[2] == "!=") result = op[1] != op[3]
       sub(pattern, result, stmnt)
     }
   
