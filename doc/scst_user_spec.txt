@@ -80,7 +80,9 @@ where:
 
  - license_str - license of this module, for instance, "GPL", "GPL v2", or
    "Proprietary". This field serves the same purpose as macroses
-   EXPORT_SYMBOL/EXPORT_SYMBOL_GPL of the Linux kernel.
+   EXPORT_SYMBOL/EXPORT_SYMBOL_GPL of the Linux kernel. You can find
+   more info about it, if you ask at license@scst-tgt.com e-mail
+   address.
 
  - type - SCSI type of the device.
 
