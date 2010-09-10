@@ -97,7 +97,12 @@ static atomic_t num_aborts = ATOMIC_INIT(0);
 static atomic_t num_dev_resets = ATOMIC_INIT(0);
 static atomic_t num_target_resets = ATOMIC_INIT(0);
 
-bool scst_local_add_default_tgt;
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 27) \
+    || defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
+static int scst_local_add_default_tgt;
+#else
+static bool scst_local_add_default_tgt;
+#endif
 module_param_named(add_default_tgt, scst_local_add_default_tgt, bool, S_IRUGO);
 MODULE_PARM_DESC(add_default_host, "add or not (default) on start default "
 	"target scst_local_tgt with default session scst_local_host");
