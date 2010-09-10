@@ -34,11 +34,13 @@
 #endif
 #include "scst_dev_handler.h"
 
+#ifndef INSIDE_KERNEL_TREE
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
 #warning "HIGHMEM kernel configurations are not supported by this module,\
  because nowadays it doesn't worth the effort. Consider changing\
  VMSPLIT option or use a 64-bit configuration instead. See README file\
  for details."
+#endif
 #endif
 
 #define DEV_USER_CMD_HASH_ORDER		6
@@ -3721,12 +3723,14 @@ static int __init init_scst_user(void)
 
 	TRACE_ENTRY();
 
+#ifndef INSIDE_KERNEL_TREE
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
 	PRINT_ERROR("%s", "HIGHMEM kernel configurations are not supported. "
 		"Consider changing VMSPLIT option or use a 64-bit "
 		"configuration instead. See README file for details.");
 	res = -EINVAL;
 	goto out;
+#endif
 #endif
 
 	user_cmd_cachep = KMEM_CACHE(scst_user_cmd, SCST_SLAB_FLAGS);

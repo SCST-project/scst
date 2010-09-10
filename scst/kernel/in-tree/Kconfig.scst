@@ -65,6 +65,16 @@ config SCST_VDISK
 	help
 	  SCST device handler for virtual disk and/or CDROM device.
 
+config SCST_USER
+	tristate "User-space SCSI target driver support"
+	default SCST
+	depends on SCSI && SCST && !HIGHMEM4G && !HIGHMEM64G
+	help
+	  The SCST device handler scst_user allows to implement full-feature
+          SCSI target devices in user space.
+
+	  If unsure, say "N".
+
 config SCST_STRICT_SERIALIZING
 	bool "Strict serialization"
 	depends on SCST
