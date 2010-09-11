@@ -97,7 +97,7 @@ static atomic_t num_aborts = ATOMIC_INIT(0);
 static atomic_t num_dev_resets = ATOMIC_INIT(0);
 static atomic_t num_target_resets = ATOMIC_INIT(0);
 
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 27) \
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31) \
     || defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
 static int scst_local_add_default_tgt;
 #else
