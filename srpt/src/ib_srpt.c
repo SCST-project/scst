@@ -1581,7 +1581,8 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch, struct srpt_ioctx *ioctx,
 	srp_cmd = ioctx->buf;
 
 	scmnd = scst_rx_cmd(ch->scst_sess, (u8 *) &srp_cmd->lun,
-			    sizeof srp_cmd->lun, srp_cmd->cdb, 16, context);
+			    sizeof srp_cmd->lun, srp_cmd->cdb,
+			    sizeof srp_cmd->cdb, context);
 	if (!scmnd)
 		goto err;
 
@@ -1626,7 +1627,7 @@ err:
 /**
  * srpt_handle_tsk_mgmt() - Process an SRP_TSK_MGMT information unit.
  *
- * Returns SRP_TSK_MGMT_SUCCESS upon success.
+ * Returns SCST_MGMT_STATUS_SUCCESS upon success.
  *
  * Each task management function is performed by calling one of the
  * scst_rx_mgmt_fn*() functions. These functions will either report failure
@@ -1645,7 +1646,6 @@ static u8 srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 	struct srp_tsk_mgmt *srp_tsk;
 	struct srpt_mgmt_ioctx *mgmt_ioctx;
 	int ret;
-	u8 srp_tsk_mgmt_status;
 
 	srp_tsk = ioctx->buf;
 
@@ -1654,7 +1654,7 @@ static u8 srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 		  srp_tsk->tsk_mgmt_func, srp_tsk->task_tag, srp_tsk->tag,
 		  ch->cm_id, ch->scst_sess);
 
-	srp_tsk_mgmt_status = SRP_TSK_MGMT_FAILED;
+	ret = SCST_MGMT_STATUS_FAILED;
 	mgmt_ioctx = kmalloc(sizeof *mgmt_ioctx, GFP_ATOMIC);
 	if (!mgmt_ioctx)
 		goto err;
@@ -1705,20 +1705,16 @@ static u8 srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 		break;
 	default:
 		TRACE_DBG("%s", "Unsupported task management function.");
-		srp_tsk_mgmt_status = SRP_TSK_MGMT_FUNC_NOT_SUPP;
-		goto err;
+		ret = SCST_MGMT_STATUS_FN_NOT_SUPPORTED;
 	}
 
-	if (ret) {
-		TRACE_DBG("Processing task management function failed"
-			  " (ret = %d).", ret);
+	if (ret != SCST_MGMT_STATUS_SUCCESS)
 		goto err;
-	}
-	return SRP_TSK_MGMT_SUCCESS;
+	return ret;
 
 err:
 	kfree(mgmt_ioctx);
-	return srp_tsk_mgmt_status;
+	return ret;
 }
 
 static void srpt_handle_cred_rsp(struct srpt_rdma_ch *ch,
@@ -1749,6 +1745,23 @@ static void srpt_handle_cred_rsp(struct srpt_rdma_ch *ch,
 	}
 }
 
+static u8 scst_to_srp_tsk_mgmt_status(const int scst_mgmt_status)
+{
+	switch (scst_mgmt_status) {
+	case SCST_MGMT_STATUS_SUCCESS:
+		return SRP_TSK_MGMT_SUCCESS;
+	case SCST_MGMT_STATUS_FN_NOT_SUPPORTED:
+		return SRP_TSK_MGMT_FUNC_NOT_SUPP;
+	case SCST_MGMT_STATUS_TASK_NOT_EXIST:
+	case SCST_MGMT_STATUS_LUN_NOT_EXIST:
+	case SCST_MGMT_STATUS_REJECTED:
+	case SCST_MGMT_STATUS_FAILED:
+	default:
+		break;
+	}
+	return SRP_TSK_MGMT_FAILED;
+}
+
 /**
  * srpt_handle_new_iu() - Process a newly received information unit.
  * @ch:    RDMA channel through which the information unit has been received.
@@ -1762,7 +1775,7 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 	struct scst_cmd *scmnd;
 	enum rdma_ch_state ch_state;
 	u8 srp_response_status;
-	u8 srp_tsk_mgmt_status;
+	int tsk_mgmt_status;
 	int len;
 	int send_rsp_res;
 
@@ -1794,7 +1807,7 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 
 	srp_response_status = SAM_STAT_BUSY;
 	/* To keep the compiler happy. */
-	srp_tsk_mgmt_status = -1;
+	tsk_mgmt_status = SCST_MGMT_STATUS_FAILED;
 
 	ib_dma_sync_single_for_cpu(ch->sport->sdev->device,
 				   ioctx->dma, srp_max_message_size,
@@ -1823,8 +1836,8 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 		break;
 
 	case SRP_TSK_MGMT:
-		srp_tsk_mgmt_status = srpt_handle_tsk_mgmt(ch, ioctx);
-		if (srp_tsk_mgmt_status != SRP_TSK_MGMT_SUCCESS)
+		tsk_mgmt_status = srpt_handle_tsk_mgmt(ch, ioctx);
+		if (tsk_mgmt_status != SCST_MGMT_STATUS_SUCCESS)
 			goto err;
 		break;
 
@@ -1867,8 +1880,8 @@ err:
 		req_lim_delta = srpt_req_lim_delta(ch);
 		if (srp_cmd->opcode == SRP_TSK_MGMT)
 			len = srpt_build_tskmgmt_rsp(ch, ioctx, req_lim_delta,
-				     srp_tsk_mgmt_status,
-				     ((struct srp_tsk_mgmt *)srp_cmd)->tag);
+				scst_to_srp_tsk_mgmt_status(tsk_mgmt_status),
+				((struct srp_tsk_mgmt *)srp_cmd)->tag);
 		else if (scmnd)
 			len = srpt_build_cmd_rsp(ch, ioctx, req_lim_delta,
 				srp_cmd->tag, srp_response_status,
@@ -2512,7 +2525,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 					      ch, NULL, NULL);
 	if (!ch->scst_sess) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-		TRACE_DBG("%s", "Failed to create scst sess");
+		TRACE_DBG("%s", "Failed to create SCST session");
 		goto release_channel;
 	}
 
@@ -3094,10 +3107,10 @@ static void srpt_pending_cmd_timeout(struct scst_cmd *scmnd)
 }
 
 /**
- * srpt_rdy_to_xfer() - SCST callback that fetches data from the initiator.
+ * srpt_rdy_to_xfer() - Transfers data from initiator to target.
  *
- * Called by the SCST core to inform ib_srpt that data reception from the
- * initiator to the target should start (SCST_DATA_WRITE). Must not block.
+ * Called by the SCST core to transfer data from the initiator to the target
+ * (SCST_DATA_WRITE). Must not block.
  */
 static int srpt_rdy_to_xfer(struct scst_cmd *scmnd)
 {
@@ -3231,11 +3244,10 @@ static int srpt_wait_for_cred(struct srpt_rdma_ch *ch, int req_lim_min)
 }
 
 /**
- * srpt_xmit_response() - SCST callback function that transmits the response
- * to a SCSI command.
+ * srpt_xmit_response() - Transmits the response to a SCSI command.
  *
- * Must not block. Must ensure that scst_tgt_cmd_done() will get invoked when
- * returning SCST_TGT_RES_SUCCESS.
+ * Callback function called by the SCST core. Must not block. Must ensure that
+ * scst_tgt_cmd_done() will get invoked when returning SCST_TGT_RES_SUCCESS.
  */
 static int srpt_xmit_response(struct scst_cmd *scmnd)
 {
@@ -3342,10 +3354,8 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 	req_lim_delta = srpt_wait_for_cred(ch, 0);
 
 	rsp_len = srpt_build_tskmgmt_rsp(ch, ioctx, req_lim_delta,
-					 (scst_mgmt_cmd_get_status(mcmnd) ==
-					  SCST_MGMT_STATUS_SUCCESS) ?
-					 SRP_TSK_MGMT_SUCCESS :
-					 SRP_TSK_MGMT_FAILED,
+					 scst_to_srp_tsk_mgmt_status(
+					 scst_mgmt_cmd_get_status(mcmnd)),
 					 mgmt_ioctx->tag);
 	/*
 	 * Note: the srpt_post_send() call below sends the task management
@@ -3411,10 +3421,9 @@ out:
 }
 
 /**
- * srpt_on_free_cmd() - SCST on_free_cmd callback.
+ * srpt_on_free_cmd() - Free command-private data.
  *
- * Called by the SCST core to inform ib_srpt that the command 'scmnd' is about
- * to be freed. May be called in IRQ context.
+ * Called by the SCST core. May be called in IRQ context.
  */
 static void srpt_on_free_cmd(struct scst_cmd *scmnd)
 {
@@ -3449,10 +3458,9 @@ static void srpt_refresh_port_work(struct work_struct *work)
 }
 
 /**
- * srpt_detect() - SCST detect callback function.
+ * srpt_detect() - Returns the number of target adapters.
  *
- * Called by the SCST core to detect target adapters. Returns the number of
- * detected target adapters.
+ * Callback function called by the SCST core.
  */
 static int srpt_detect(struct scst_tgt_template *tp)
 {
@@ -3468,10 +3476,9 @@ static int srpt_detect(struct scst_tgt_template *tp)
 }
 
 /**
- * srpt_release() - SCST release callback function.
+ * srpt_release() - Free the resources associated with an SCST target.
  *
- * Callback function called by the SCST core from scst_unregister_target() to
- * free up the resources associated with device scst_tgt.
+ * Callback function called by the SCST core from scst_unregister_target().
  */
 static int srpt_release(struct scst_tgt *scst_tgt)
 {
@@ -3506,6 +3513,11 @@ static int srpt_release(struct scst_tgt *scst_tgt)
 	return 0;
 }
 
+/**
+ * srpt_get_scsi_transport_version() - Returns the SCSI transport version.
+ * This function is called from scst_pres.c, the code that implements
+ * persistent reservation support.
+ */
 static uint16_t srpt_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 {
 	return 0x0940; /* SRP */
@@ -3513,41 +3525,41 @@ static uint16_t srpt_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 
 /* SCST target template for the SRP target implementation. */
 static struct scst_tgt_template srpt_template = {
-	.name = DRV_NAME,
-	.sg_tablesize = SRPT_DEF_SG_TABLESIZE,
-	.max_hw_pending_time = 60/*seconds*/,
+	.name				 = DRV_NAME,
+	.sg_tablesize			 = SRPT_DEF_SG_TABLESIZE,
+	.max_hw_pending_time		 = 60/*seconds*/,
 #if !defined(CONFIG_SCST_PROC)
-	.enable_target = srpt_enable_target,
-	.is_target_enabled = srpt_is_target_enabled,
+	.enable_target			 = srpt_enable_target,
+	.is_target_enabled		 = srpt_is_target_enabled,
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-	.default_trace_flags = DEFAULT_SRPT_TRACE_FLAGS,
-	.trace_flags = &trace_flag,
+	.default_trace_flags		 = DEFAULT_SRPT_TRACE_FLAGS,
+	.trace_flags			 = &trace_flag,
 #endif
-	.detect = srpt_detect,
-	.release = srpt_release,
-	.xmit_response = srpt_xmit_response,
-	.rdy_to_xfer = srpt_rdy_to_xfer,
-	.on_hw_pending_cmd_timeout = srpt_pending_cmd_timeout,
-	.on_free_cmd = srpt_on_free_cmd,
-	.task_mgmt_fn_done = srpt_tsk_mgmt_done,
+	.detect				 = srpt_detect,
+	.release			 = srpt_release,
+	.xmit_response			 = srpt_xmit_response,
+	.rdy_to_xfer			 = srpt_rdy_to_xfer,
+	.on_hw_pending_cmd_timeout	 = srpt_pending_cmd_timeout,
+	.on_free_cmd			 = srpt_on_free_cmd,
+	.task_mgmt_fn_done		 = srpt_tsk_mgmt_done,
 	.get_initiator_port_transport_id = srpt_get_initiator_port_transport_id,
-	.get_scsi_transport_version = srpt_get_scsi_transport_version,
+	.get_scsi_transport_version	 = srpt_get_scsi_transport_version,
 };
 
 /**
- * srpt_release_class_dev() - Device release callback function.
+ * srpt_dev_release() - Device release callback function.
  *
- * The callback function srpt_release_class_dev() is called whenever a
+ * The callback function srpt_dev_release() is called whenever a
  * device is removed from the /sys/class/infiniband_srpt device class.
  * Although this function has been left empty, a release function has been
  * defined such that upon module removal no complaint is logged about a
  * missing release function.
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
-static void srpt_release_class_dev(struct class_device *class_dev)
+static void srpt_dev_release(struct class_device *class_dev)
 #else
-static void srpt_release_class_dev(struct device *dev)
+static void srpt_dev_release(struct device *dev)
 #endif
 {
 }
@@ -3631,9 +3643,9 @@ static struct device_attribute srpt_dev_attrs[] = {
 static struct class srpt_class = {
 	.name        = "infiniband_srpt",
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
-	.release = srpt_release_class_dev,
+	.release = srpt_dev_release,
 #else
-	.dev_release = srpt_release_class_dev,
+	.dev_release = srpt_dev_release,
 #endif
 	.class_attrs = srpt_class_attrs,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
