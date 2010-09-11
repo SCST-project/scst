@@ -23,17 +23,8 @@
 #include <linux/kfifo.h>
 #include <linux/scatterlist.h>
 #include <linux/dma-mapping.h>
-#include <scsi/scsi.h>
-#include <scsi/scsi_cmnd.h>
-#include <scsi/scsi_tcq.h>
-#include <scsi/scsi_tgt.h>
 #include <scsi/srp.h>
 #include "libsrpnew.h"
-#ifdef INSIDE_KERNEL_TREE
-#include <scst/scst.h>
-#else
-#include "scst.h"
-#endif
 
 enum srp_task_attributes {
 	SRP_SIMPLE_TASK = 0,
@@ -190,7 +181,7 @@ void srp_iu_put(struct iu_entry *iue)
 }
 EXPORT_SYMBOL_GPL(srp_iu_put);
 
-static int srp_direct_data(struct scsi_cmnd *sc, struct srp_direct_buf *md,
+static int srp_direct_data(struct scst_cmd *sc, struct srp_direct_buf *md,
 			   enum dma_data_direction dir, srp_rdma_t rdma_io,
 			   int dma_map, int ext_desc)
 {
@@ -199,19 +190,21 @@ static int srp_direct_data(struct scsi_cmnd *sc, struct srp_direct_buf *md,
 	int err, nsg = 0, len;
 
 	if (dma_map) {
-		iue = (struct iu_entry *) sc->SCp.ptr;
-		sg = scsi_sglist(sc);
+		iue = scst_cmd_get_tgt_priv(sc);
+		sg = scst_cmd_get_sg(sc);
 
 		dprintk("%p %u %u %d\n", iue, scsi_bufflen(sc),
-			md->len, scsi_sg_count(sc));
+			md->len, scst_cmd_get_sg_cnt(sc));
 
-		nsg = dma_map_sg(iue->target->dev, sg, scsi_sg_count(sc),
+		nsg = dma_map_sg(iue->target->dev, sg, scst_cmd_get_sg_cnt(sc),
 				 DMA_BIDIRECTIONAL);
 		if (!nsg) {
-			printk("fail to map %p %d\n", iue, scsi_sg_count(sc));
+			printk(KERN_ERR "fail to map %p %d\n", iue,
+			       scst_cmd_get_sg_cnt(sc));
 			return 0;
 		}
-		len = min(scsi_bufflen(sc), md->len);
+		len = min_t(int, scst_cmd_get_expected_transfer_len(sc),
+			    md->len);
 	} else
 		len = md->len;
 
@@ -223,7 +216,7 @@ static int srp_direct_data(struct scsi_cmnd *sc, struct srp_direct_buf *md,
 	return err;
 }
 
-static int srp_indirect_data(struct scsi_cmnd *sc, struct srp_cmd *cmd,
+static int srp_indirect_data(struct scst_cmd *sc, struct srp_cmd *cmd,
 			     struct srp_indirect_buf *id,
 			     enum dma_data_direction dir, srp_rdma_t rdma_io,
 			     int dma_map, int ext_desc)
@@ -236,8 +229,8 @@ static int srp_indirect_data(struct scsi_cmnd *sc, struct srp_cmd *cmd,
 	int nmd, nsg = 0, len;
 
 	if (dma_map || ext_desc) {
-		iue = (struct iu_entry *) sc->SCp.ptr;
-		sg = scsi_sglist(sc);
+		iue = scst_cmd_get_tgt_priv(sc);
+		sg = scst_cmd_get_sg(sc);
 
 		dprintk("%p %u %u %d %d\n",
 			iue, scsi_bufflen(sc), id->len,
@@ -276,14 +269,16 @@ static int srp_indirect_data(struct scsi_cmnd *sc, struct srp_cmd *cmd,
 
 rdma:
 	if (dma_map) {
-		nsg = dma_map_sg(iue->target->dev, sg, scsi_sg_count(sc),
+		nsg = dma_map_sg(iue->target->dev, sg, scst_cmd_get_sg_cnt(sc),
 				 DMA_BIDIRECTIONAL);
 		if (!nsg) {
-			eprintk("fail to map %p %d\n", iue, scsi_sg_count(sc));
+			eprintk("fail to map %p %d\n", iue,
+				scst_cmd_get_sg_cnt(sc));
 			err = -EIO;
 			goto free_mem;
 		}
-		len = min(scsi_bufflen(sc), id->len);
+		len = min_t(int, scst_cmd_get_expected_transfer_len(sc),
+			    id->len);
 	} else
 		len = id->len;
 
@@ -325,7 +320,7 @@ static int data_out_desc_size(struct srp_cmd *cmd)
  * TODO: this can be called multiple times for a single command if it
  * has very long data.
  */
-int srp_transfer_data(struct scsi_cmnd *sc, struct srp_cmd *cmd,
+int srp_transfer_data(struct scst_cmd *sc, struct srp_cmd *cmd,
 		      srp_rdma_t rdma_io, int dma_map, int ext_desc)
 {
 	struct srp_direct_buf *md;
@@ -400,8 +395,7 @@ static int vscsis_data_length(struct srp_cmd *cmd, enum dma_data_direction dir)
 	return len;
 }
 
-int srp_cmd_queue(struct scst_session *sess, struct srp_cmd *cmd, void *info,
-		  u64 itn_id)
+int srp_cmd_queue(struct scst_session *sess, struct srp_cmd *cmd, void *info)
 {
 	enum dma_data_direction dir;
 	struct scst_cmd *sc;
@@ -432,15 +426,15 @@ int srp_cmd_queue(struct scst_session *sess, struct srp_cmd *cmd, void *info,
 		cmd->lun, dir, len, tag, (unsigned long long) cmd->tag);
 
 	sc = scst_rx_cmd(sess, (u8 *) &cmd->lun, sizeof(cmd->lun),
-			 cmd->cdb, 16, SCST_CONTEXT_THREAD);
+			 cmd->cdb, sizeof(cmd->cdb), SCST_CONTEXT_THREAD);
 	if (!sc)
 		return -ENOMEM;
 
 	scst_cmd_set_queue_type(sc, tag);
+	scst_cmd_set_tag(sc, cmd->tag);
+	scst_cmd_set_tgt_priv(sc, info);
 	scst_cmd_set_expected(sc, dir == DMA_TO_DEVICE
 			      ? SCST_DATA_WRITE : SCST_DATA_READ, len);
-	scst_cmd_set_tgt_priv(sc, info);
-	scst_cmd_set_tag(sc, itn_id);
 	scst_cmd_init_done(sc, SCST_CONTEXT_THREAD);
 
 	return 0;
