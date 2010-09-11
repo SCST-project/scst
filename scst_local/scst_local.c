@@ -1382,7 +1382,7 @@ static struct scsi_host_template scst_lcl_ini_driver_template = {
  * LLD Bus and functions
  */
 
-static int scst_local_lld_driver_probe(struct device *dev)
+static int scst_local_driver_probe(struct device *dev)
 {
 	int ret;
 	struct scst_local_sess *sess;
@@ -1435,7 +1435,7 @@ out:
 	return ret;
 }
 
-static int scst_local_lld_driver_remove(struct device *dev)
+static int scst_local_driver_remove(struct device *dev)
 {
 	struct scst_local_sess *sess;
 
@@ -1454,7 +1454,7 @@ static int scst_local_lld_driver_remove(struct device *dev)
 	return 0;
 }
 
-static int scst_local_lld_bus_match(struct device *dev,
+static int scst_local_bus_match(struct device *dev,
 	struct device_driver *dev_driver)
 {
 	TRACE_ENTRY();
@@ -1465,9 +1465,9 @@ static int scst_local_lld_bus_match(struct device *dev,
 
 static struct bus_type scst_local_lld_bus = {
 	.name   = "scst_local_bus",
-	.match  = scst_local_lld_bus_match,
-	.probe  = scst_local_lld_driver_probe,
-	.remove = scst_local_lld_driver_remove,
+	.match  = scst_local_bus_match,
+	.probe  = scst_local_driver_probe,
+	.remove = scst_local_driver_remove,
 };
 
 static struct device_driver scst_local_driver = {
@@ -1475,6 +1475,7 @@ static struct device_driver scst_local_driver = {
 	.bus	= &scst_local_lld_bus,
 };
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
 static void scst_local_root_release(struct device *dev)
 {
 	TRACE_ENTRY();
@@ -1491,6 +1492,9 @@ static struct device scst_local_root = {
 #endif
 	.release	= scst_local_root_release,
 };
+#else
+static struct device *scst_local_root;
+#endif
 
 static void scst_local_release_adapter(struct device *dev)
 {
@@ -1556,7 +1560,11 @@ static int __scst_local_add_adapter(struct scst_local_tgt *tgt,
 	}
 
 	sess->dev.bus     = &scst_local_lld_bus;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29))
 	sess->dev.parent  = &scst_local_root;
+#else
+	sess->dev.parent = scst_local_root;
+#endif
 	sess->dev.release = &scst_local_release_adapter;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
 	snprintf(sess->dev.bus_id, sizeof(sess->dev.bus_id), initiator_name);
@@ -1743,6 +1751,7 @@ static int __init scst_local_init(void)
 	}
 #endif
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29))
 	ret = device_register(&scst_local_root);
 	if (ret < 0) {
 		PRINT_ERROR("Root device_register() error: %d", ret);
@@ -1752,6 +1761,13 @@ static int __init scst_local_init(void)
 		goto out;
 #endif
 	}
+#else
+	scst_local_root = root_device_register(SCST_LOCAL_NAME);
+	if (IS_ERR(scst_local_root)) {
+		ret = PTR_ERR(scst_local_root);
+		goto out;
+	}
+#endif
 
 	ret = bus_register(&scst_local_lld_bus);
 	if (ret < 0) {
@@ -1772,7 +1788,7 @@ static int __init scst_local_init(void)
 	}
 
 	if (!scst_local_add_default_tgt)
-		goto out;
+		goto driver_unreg;
 
 	ret = scst_local_add_target("scst_local_tgt", &tgt);
 	if (ret != 0)
@@ -1799,7 +1815,11 @@ bus_unreg:
 	bus_unregister(&scst_local_lld_bus);
 
 dev_unreg:
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29))
 	device_unregister(&scst_local_root);
+#else
+	root_device_unregister(scst_local_root);
+#endif
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
 destroy_kmem:
@@ -1825,7 +1845,11 @@ static void __exit scst_local_exit(void)
 
 	driver_unregister(&scst_local_driver);
 	bus_unregister(&scst_local_lld_bus);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29))
 	device_unregister(&scst_local_root);
+#else
+	root_device_unregister(scst_local_root);
+#endif
 
 	/* Now unregister the target template */
 	scst_unregister_target_template(&scst_local_targ_tmpl);
