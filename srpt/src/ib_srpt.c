@@ -136,7 +136,7 @@ module_param(srpt_sq_size, int, 0444);
 MODULE_PARM_DESC(srpt_sq_size,
 		 "Per-channel send queue (SQ) size.");
 
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 27) \
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31) \
     || defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
 static int srpt_autodetect_cred_req;
 module_param(srpt_autodetect_cred_req, int, 0444);
@@ -148,7 +148,12 @@ MODULE_PARM_DESC(srpt_autodetect_cred_req,
 		 "Whether or not to autodetect whether the initiator supports"
 		 " SRP_CRED_REQ.");
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31) \
+    || defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
 static int use_port_guid_in_session_name;
+#else
+static bool use_port_guid_in_session_name;
+#endif
 module_param(use_port_guid_in_session_name, bool, 0444);
 MODULE_PARM_DESC(use_port_guid_in_session_name,
 		 "Use target port ID in the SCST session name such that"
