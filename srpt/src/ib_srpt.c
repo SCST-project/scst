@@ -96,8 +96,7 @@ static atomic_t srpt_device_count;
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 static unsigned long trace_flag = DEFAULT_SRPT_TRACE_FLAGS;
 module_param(trace_flag, long, 0644);
-MODULE_PARM_DESC(trace_flag,
-		 "Trace flags for the ib_srpt kernel module.");
+MODULE_PARM_DESC(trace_flag, "SCST trace flags.");
 #endif
 #if defined(CONFIG_SCST_DEBUG)
 static unsigned long processing_delay_in_us;
