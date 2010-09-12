@@ -1788,7 +1788,7 @@ static int __init scst_local_init(void)
 	}
 
 	if (!scst_local_add_default_tgt)
-		goto driver_unreg;
+		goto out;
 
 	ret = scst_local_add_target("scst_local_tgt", &tgt);
 	if (ret != 0)
