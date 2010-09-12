@@ -104,7 +104,7 @@ static int scst_local_add_default_tgt;
 static bool scst_local_add_default_tgt;
 #endif
 module_param_named(add_default_tgt, scst_local_add_default_tgt, bool, S_IRUGO);
-MODULE_PARM_DESC(add_default_host, "add or not (default) on start default "
+MODULE_PARM_DESC(add_default_tgt, "add or not (default) on start default "
 	"target scst_local_tgt with default session scst_local_host");
 
 struct scst_aen_work_item {
