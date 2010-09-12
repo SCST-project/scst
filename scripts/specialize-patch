@@ -404,6 +404,10 @@ BEGIN {
   {
     gsub("^+/\\* #define CONFIG_SCST_PROC \\*/$", "+#define CONFIG_SCST_PROC")
   }
+  else
+  {
+    gsub("^+/\\* #define CONFIG_SCST_PROC \\*/$", "+")
+  }
   input_line[0] = $0
   input_line_count = 1
   # Join continued lines before processing these.
