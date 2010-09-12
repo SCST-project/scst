@@ -1,3 +1,4 @@
+/* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
 /*
  * IBM eServer i/pSeries Virtual SCSI Target Driver
  * Copyright (C) 2003-2005 Dave Boutcher (boutcher@us.ibm.com) IBM Corp.
@@ -5,6 +6,7 @@
  *			   Linda Xie (lxie@us.ibm.com) IBM Corp.
  *
  * Copyright (C) 2005-2006 FUJITA Tomonori <tomof@acm.org>
+ * Copyright (C) 2010 Bart Van Assche <bvanassche@acm.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -79,10 +81,22 @@ struct vio_port {
 	unsigned long liobn;
 	unsigned long riobn;
 	struct srp_target *target;
+	struct scst_session *sess;
+	struct device dev;
+	bool releasing;
+	bool enabled;
 };
 
 static atomic_t ibmvstgt_device_count;
 static struct workqueue_struct *vtgtd;
+
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+#define DEFAULT_IBMVSTGT_TRACE_FLAGS \
+	(TRACE_OUT_OF_MEM | TRACE_MINOR | TRACE_MGMT | TRACE_SPECIAL)
+static unsigned long trace_flag = DEFAULT_IBMVSTGT_TRACE_FLAGS;
+module_param(trace_flag, long, 0644);
+MODULE_PARM_DESC(trace_flag, "SCST trace flags.");
+#endif
 
 /*
  * These are fixed for the system and come from the Open Firmware device tree.
@@ -155,7 +169,7 @@ static int send_rsp(struct iu_entry *iue, struct scst_cmd *sc,
 
 	memset(iu, 0, sizeof(struct srp_rsp));
 	iu->srp.rsp.opcode = SRP_RSP;
-	iu->srp.rsp.req_lim_delta = 1;
+	iu->srp.rsp.req_lim_delta = __constant_cpu_to_be32(1);
 	iu->srp.rsp.tag = tag;
 
 	if (test_bit(V_DIOVER, &iue->flags))
@@ -185,7 +199,8 @@ static int send_rsp(struct iu_entry *iue, struct scst_cmd *sc,
 		} else {
 			iu->srp.rsp.status = SAM_STAT_CHECK_CONDITION;
 			iu->srp.rsp.flags |= SRP_RSP_FLAG_SNSVALID;
-			iu->srp.rsp.sense_data_len = SRP_RSP_SENSE_DATA_LEN;
+			iu->srp.rsp.sense_data_len
+			       = __constant_cpu_to_be32(SRP_RSP_SENSE_DATA_LEN);
 
 			/* Valid bit and 'current errors' */
 			sense[0] = (0x1 << 7 | 0x70);
@@ -206,7 +221,8 @@ static int send_rsp(struct iu_entry *iue, struct scst_cmd *sc,
 
 static void handle_cmd_queue(struct srp_target *target)
 {
-	struct scst_session *sess = target->sess;
+	struct vio_port *vport = target_to_port(target);
+	struct scst_session *sess = vport->sess;
 	struct iu_entry *iue;
 	struct srp_cmd *cmd;
 	unsigned long flags;
@@ -250,14 +266,14 @@ static int ibmvstgt_rdma(struct scst_cmd *sc, struct scatterlist *sg, int nsg,
 	for (i = 0; i < nmd && rest; i++) {
 		unsigned int mdone, mlen;
 
-		mlen = min(rest, md[i].len);
+		mlen = min(rest, be32_to_cpu(md[i].len));
 		for (mdone = 0; mlen;) {
 			int slen = min(sg_dma_len(sg + sidx) - soff, mlen);
 
 			if (dir == DMA_TO_DEVICE)
 				err = h_copy_rdma(slen,
 						  vport->riobn,
-						  md[i].va + mdone,
+						  be64_to_cpu(md[i].va) + mdone,
 						  vport->liobn,
 						  token + soff);
 			else
@@ -265,7 +281,8 @@ static int ibmvstgt_rdma(struct scst_cmd *sc, struct scatterlist *sg, int nsg,
 						  vport->liobn,
 						  token + soff,
 						  vport->riobn,
-						  md[i].va + mdone);
+						  be64_to_cpu(md[i].va)
+						  + mdone);
 
 			if (err != H_SUCCESS) {
 				eprintk("rdma error %d %d %ld\n", dir, slen, err);
@@ -302,13 +319,17 @@ static int ibmvstgt_rdma(struct scst_cmd *sc, struct scatterlist *sg, int nsg,
 static int ibmvstgt_enable_target(struct scst_tgt *scst_tgt, bool enable)
 {
 	struct srp_target *target = scst_tgt_get_tgt_priv(scst_tgt);
+	struct vio_port *vport = target_to_port(target);
+	unsigned long flags;
 
 	EXTRACHECKS_WARN_ON_ONCE(irqs_disabled());
 
-	TRACE_DBG("%s target %s", enable ? "Enabling" : "Disabling",
-		  target->sess ? target->sess->name : "???");
+	TRACE_DBG("%s target %d", enable ? "Enabling" : "Disabling",
+		  vport->dma_dev->unit_address);
 
-	target->enabled = enable;
+	spin_lock_irqsave(&target->lock, flags);
+	vport->enabled = enable;
+	spin_unlock_irqrestore(&target->lock, flags);
 
 	return 0;
 }
@@ -319,10 +340,16 @@ static int ibmvstgt_enable_target(struct scst_tgt *scst_tgt, bool enable)
 static bool ibmvstgt_is_target_enabled(struct scst_tgt *scst_tgt)
 {
 	struct srp_target *target = scst_tgt_get_tgt_priv(scst_tgt);
+	struct vio_port *vport = target_to_port(target);
+	unsigned long flags;
+	bool res;
 
 	EXTRACHECKS_WARN_ON_ONCE(irqs_disabled());
 
-	return target->enabled;
+	spin_lock_irqsave(&target->lock, flags);
+	res = vport->enabled;
+	spin_unlock_irqrestore(&target->lock, flags);
+	return res;
 }
 #endif
 
@@ -343,7 +370,17 @@ static int ibmvstgt_detect(struct scst_tgt_template *tp)
  */
 static int ibmvstgt_release(struct scst_tgt *scst_tgt)
 {
-	/* To do: implement this function. */
+	unsigned long flags;
+	struct srp_target *target = scst_tgt_get_tgt_priv(scst_tgt);
+	struct vio_port *vport = target_to_port(target);
+	struct scst_session *sess = vport->sess;
+
+	spin_lock_irqsave(&target->lock, flags);
+	vport->releasing = true;
+	spin_unlock_irqrestore(&target->lock, flags);
+
+	scst_unregister_session(sess, 0, NULL);
+
 	return 0;
 }
 
@@ -437,7 +474,7 @@ static void ibmvstgt_on_free_cmd(struct scst_cmd *sc)
 	srp_iu_put(iue);
 }
 
-int send_adapter_info(struct iu_entry *iue,
+static int send_adapter_info(struct iu_entry *iue,
 		      dma_addr_t remote_buffer, uint16_t length)
 {
 	struct srp_target *target = iue->target;
@@ -496,7 +533,7 @@ static void process_login(struct iu_entry *iue)
 	struct vio_port *vport = target_to_port(target);
 	char name[16];
 
-	BUG_ON(target->sess);
+	BUG_ON(vport->sess);
 
 	memset(iu, 0, max(sizeof *rsp, sizeof *rej));
 
@@ -505,21 +542,22 @@ static void process_login(struct iu_entry *iue)
 	BUG_ON(!target);
 	sess = scst_register_session(target->tgt, 0, name, target, NULL, NULL);
 	if (!sess) {
-		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
+		rej->reason
+		 = __constant_cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		TRACE_DBG("%s", "Failed to create SCST session");
 		goto reject;
 	}
 
-	target->sess = sess;
+	vport->sess = sess;
 
 	/* TODO handle case that requested size is wrong and
 	 * buffer format is wrong
 	 */
 	rsp->opcode = SRP_LOGIN_RSP;
-	rsp->req_lim_delta = INITIAL_SRP_LIMIT;
+	rsp->req_lim_delta = __constant_cpu_to_be32(INITIAL_SRP_LIMIT);
 	rsp->tag = tag;
-	rsp->max_it_iu_len = sizeof(union srp_iu);
-	rsp->max_ti_iu_len = sizeof(union srp_iu);
+	rsp->max_it_iu_len = __constant_cpu_to_be32(sizeof(union srp_iu));
+	rsp->max_ti_iu_len = __constant_cpu_to_be32(sizeof(union srp_iu));
 	/* direct and indirect */
 	rsp->buf_fmt
 		= cpu_to_be16(SRP_BUF_FORMAT_DIRECT | SRP_BUF_FORMAT_INDIRECT);
@@ -561,7 +599,9 @@ struct mgmt_ctx {
 static int process_tsk_mgmt(struct iu_entry *iue)
 {
 	union viosrp_iu *iu = vio_iu(iue);
-	struct scst_session *sess = iue->target->sess;
+	struct srp_target *target = iue->target;
+	struct vio_port *vport = target_to_port(target);
+	struct scst_session *sess = vport->sess;
 	struct srp_tsk_mgmt *srp_tsk;
 	struct mgmt_ctx *mgmt_ctx;
 	int ret = 0;
@@ -664,8 +704,8 @@ static void ibmvstgt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 
 	iu = vio_iu(iue);
 
-	TRACE_DBG("%s: tsk_mgmt_done for tag= %lld status=%d",
-		  __func__, mgmt_ctx->tag, scst_mgmt_cmd_get_status(mcmnd));
+	TRACE_DBG("%s: tag %lld status %d",
+		  __func__, iu->srp.rsp.tag, scst_mgmt_cmd_get_status(mcmnd));
 
 	send_rsp(iue, NULL,
 		 scst_to_srp_tsk_mgmt_status(scst_mgmt_cmd_get_status(mcmnd)),
@@ -709,9 +749,19 @@ static int process_mad_iu(struct iu_entry *iue)
 
 static bool process_srp_iu(struct iu_entry *iue)
 {
+	unsigned long flags;
 	union viosrp_iu *iu = vio_iu(iue);
+	struct srp_target *target = iue->target;
+	struct vio_port *vport = target_to_port(target);
 	bool done = true;
 	u8 opcode = iu->srp.rsp.opcode;
+
+	spin_lock_irqsave(&target->lock, flags);
+	if (vport->releasing) {
+		spin_unlock_irqrestore(&target->lock, flags);
+		return done;
+	}
+	spin_unlock_irqrestore(&target->lock, flags);
 
 	switch (opcode) {
 	case SRP_LOGIN_REQ:
@@ -828,7 +878,7 @@ static int crq_queue_create(struct crq_queue *queue, struct srp_target *target)
 
 	vio_enable_interrupts(vport->dma_dev);
 
-	h_send_crq(vport->dma_dev->unit_address, 0xC001000000000000, 0);
+	h_send_crq(vport->dma_dev->unit_address, 0xC001000000000000UL, 0);
 
 	queue->cur = 0;
 	spin_lock_init(&queue->lock);
@@ -878,7 +928,7 @@ static void process_crq(struct viosrp_crq *crq,	struct srp_target *target)
 		switch (crq->format) {
 		case 0x01:
 			h_send_crq(vport->dma_dev->unit_address,
-				   0xC002000000000000, 0);
+				   0xC002000000000000UL, 0);
 			break;
 		case 0x02:
 			break;
@@ -970,8 +1020,7 @@ static ssize_t partition_number_show(struct device *dev,
 static ssize_t unit_address_show(struct device *dev,
 				  struct device_attribute *attr, char *buf)
 {
-	struct srp_target *target = container_of(dev, struct srp_target, dev2);
-	struct vio_port *vport = target_to_port(target);
+	struct vio_port *vport = container_of(dev, struct vio_port, dev);
 	return snprintf(buf, PAGE_SIZE, "%x\n", vport->dma_dev->unit_address);
 }
 
@@ -1061,17 +1110,19 @@ static int ibmvstgt_probe(struct vio_dev *dev, const struct vio_device_id *id)
 	if (err)
 		goto free_srp_target;
 
-	target->dev2.class = &ibmvstgt_class;
-	target->dev2.parent = &dev->dev;
-	dev_set_name(&target->dev2, "ibmvstgt-%d",
+	vport->dev.class = &ibmvstgt_class;
+	vport->dev.parent = &dev->dev;
+	dev_set_name(&vport->dev, "ibmvstgt-%d",
 		     vport->dma_dev->unit_address);
-	if (device_register(&target->dev2))
-		/* to do: handle failure */;
+	if (device_register(&vport->dev))
+		goto destroy_crq_queue;
 
 	atomic_inc(&ibmvstgt_device_count);
 
 	return 0;
 
+destroy_crq_queue:
+	crq_queue_destroy(target);
 free_srp_target:
 	srp_target_free(target);
 unregister_target:
@@ -1106,9 +1157,9 @@ static struct vio_device_id ibmvstgt_device_table[] __devinitdata = {
 MODULE_DEVICE_TABLE(vio, ibmvstgt_device_table);
 
 static struct vio_driver ibmvstgt_driver = {
-	.id_table = ibmvstgt_device_table,
-	.probe = ibmvstgt_probe,
-	.remove = ibmvstgt_remove,
+	.id_table	= ibmvstgt_device_table,
+	.probe		= ibmvstgt_probe,
+	.remove		= ibmvstgt_remove,
 	.driver = {
 		.name = "ibmvscsis",
 		.owner = THIS_MODULE,
@@ -1142,15 +1193,31 @@ static int get_system_info(void)
 	return 0;
 }
 
-static int ibmvstgt_init(void)
+/**
+ * ibmvstgt_init() - Kernel module initialization.
+ *
+ * Note: Since vio_register_driver() registers callback functions, and since
+ * at least one of these callback functions (ibmvstgt_probe()) calls SCST
+ * functions, the SCST target template must be registered before
+ * vio_register_driver() is called.
+ */
+static int __init ibmvstgt_init(void)
 {
 	int err = -ENOMEM;
 
 	printk("IBM eServer i/pSeries Virtual SCSI Target Driver\n");
 
+	err = class_register(&ibmvstgt_class);
+	if (err)
+		goto out;
+
+	err = scst_register_target_template(&ibmvstgt_template);
+	if (err)
+		goto unregister_class;
+
 	vtgtd = create_workqueue("ibmvtgtd");
 	if (!vtgtd)
-		return err;
+		goto unregister_tgt;
 
 	err = get_system_info();
 	if (err)
@@ -1161,17 +1228,25 @@ static int ibmvstgt_init(void)
 		goto destroy_wq;
 
 	return 0;
+
 destroy_wq:
 	destroy_workqueue(vtgtd);
+unregister_tgt:
+	scst_unregister_target_template(&ibmvstgt_template);
+unregister_class:
+	class_unregister(&ibmvstgt_class);
+out:
 	return err;
 }
 
-static void ibmvstgt_exit(void)
+static void __exit ibmvstgt_exit(void)
 {
 	printk("Unregister IBM virtual SCSI driver\n");
 
-	destroy_workqueue(vtgtd);
 	vio_unregister_driver(&ibmvstgt_driver);
+	destroy_workqueue(vtgtd);
+	scst_unregister_target_template(&ibmvstgt_template);
+	class_unregister(&ibmvstgt_class);
 }
 
 MODULE_DESCRIPTION("IBM Virtual SCSI Target");

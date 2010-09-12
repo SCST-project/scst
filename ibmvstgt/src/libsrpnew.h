@@ -1,3 +1,4 @@
+/* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
 #ifndef __LIBSRP_H__
 #define __LIBSRP_H__
 
@@ -17,8 +18,6 @@ enum iue_flags {
 	V_FLYING,
 };
 
-struct scst_session;
-
 struct srp_buf {
 	dma_addr_t dma;
 	void *buf;
@@ -33,9 +32,7 @@ struct srp_queue {
 
 struct srp_target {
 	struct scst_tgt *tgt;
-	struct scst_session *sess;
-	struct device *dev; /* to do: invent a better name */
-	struct device dev2; /* to do: invent a better name */
+	struct device *dev;
 
 	spinlock_t lock;
 	struct list_head cmd_queue;
@@ -46,8 +43,6 @@ struct srp_target {
 	struct srp_buf **rx_ring;
 
 	void *ldata;
-
-	bool enabled;
 };
 
 struct iu_entry {
