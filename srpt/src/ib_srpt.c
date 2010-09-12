@@ -1965,18 +1965,23 @@ static void srpt_process_completion(struct ib_cq *cq,
 				    struct srpt_rdma_ch *ch,
 				    enum scst_exec_context context)
 {
-	struct ib_wc wc;
+	struct ib_wc wc[16];
+	int i, n;
 
 	EXTRACHECKS_WARN_ON(cq != ch->cq);
 
 	do {
-		while (ib_poll_cq(cq, 1, &wc) > 0) {
-			if (wc.wr_id & SRPT_OP_RECV)
-				srpt_process_rcv_completion(cq, ch, context,
-							    &wc);
-			else
-				srpt_process_send_completion(cq, ch, context,
-							     &wc);
+		while ((n = ib_poll_cq(cq, ARRAY_SIZE(wc), wc)) > 0) {
+			for (i = 0; i < n; i++) {
+				if (wc[i].wr_id & SRPT_OP_RECV)
+					srpt_process_rcv_completion(cq, ch,
+								    context,
+								    &wc[i]);
+				else
+					srpt_process_send_completion(cq, ch,
+								     context,
+								     &wc[i]);
+			}
 		}
 	} while (ib_req_notify_cq(cq, IB_CQ_NEXT_COMP
 				  | IB_CQ_REPORT_MISSED_EVENTS) > 0);
