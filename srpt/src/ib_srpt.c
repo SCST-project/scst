@@ -2303,6 +2303,14 @@ static bool srpt_is_target_enabled(struct scst_tgt *scst_tgt)
 	spin_unlock_irq(&sdev->spinlock);
 	return res;
 }
+#else
+/**
+ * srpt_is_target_enabled() - Reports that a target is enabled when using procfs.
+ */
+static bool srpt_is_target_enabled(struct scst_tgt *scst_tgt)
+{
+	return true;
+}
 #endif
 
 /**
