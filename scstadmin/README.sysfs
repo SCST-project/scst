@@ -144,6 +144,8 @@ For drivers which support virtual targets, like iSCSI, scstadmin will simply
 create them on the fly:
 
 TARGET_DRIVER iscsi {
+	enabled 1
+
 	IncomingUser "joe 12charsecret"
 
 	TARGET iqn.2006-10.net.vlnb:tgt {
@@ -213,6 +215,8 @@ TARGET_DRIVER qla2x00t {
 }
 
 TARGET_DRIVER iscsi {
+	enabled 1
+
 	IncomingUser "joe 12charsecret"
 
 	TARGET iqn.2006-10.net.vlnb:tgt {
