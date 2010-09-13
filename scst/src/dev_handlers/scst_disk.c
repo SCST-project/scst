@@ -632,7 +632,7 @@ out_error:
 
 static int disk_perf_exec(struct scst_cmd *cmd)
 {
-	int res;
+	int res, rc;
 	int opcode = cmd->cdb[0];
 
 	TRACE_ENTRY();

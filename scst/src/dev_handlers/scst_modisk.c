@@ -48,7 +48,7 @@ static int modisk_attach(struct scst_device *);
 static void modisk_detach(struct scst_device *);
 static int modisk_parse(struct scst_cmd *);
 static int modisk_done(struct scst_cmd *);
-static int modisk_exec(struct scst_cmd *);
+static int modisk_perf_exec(struct scst_cmd *);
 
 static struct scst_dev_type modisk_devtype = {
 	.name =			MODISK_NAME,
@@ -75,7 +75,7 @@ static struct scst_dev_type modisk_devtype_perf = {
 	.detach =		modisk_detach,
 	.parse =		modisk_parse,
 	.dev_done =		modisk_done,
-	.exec =			modisk_exec,
+	.exec =			modisk_perf_exec,
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
 	.trace_flags =		&trace_flag,
@@ -145,15 +145,6 @@ static void __exit exit_scst_modisk_driver(void)
 module_init(init_scst_modisk_driver);
 module_exit(exit_scst_modisk_driver);
 
-/**************************************************************
- *  Function:  modisk_attach
- *
- *  Argument:
- *
- *  Returns :  1 if attached, error code otherwise
- *
- *  Description:
- *************************************************************/
 static int modisk_attach(struct scst_device *dev)
 {
 	int res, rc;
@@ -277,15 +268,6 @@ out:
 	return res;
 }
 
-/************************************************************
- *  Function:  modisk_detach
- *
- *  Argument:
- *
- *  Returns :  None
- *
- *  Description:  Called to detach this device type driver
- ************************************************************/
 static void modisk_detach(struct scst_device *dev)
 {
 	struct modisk_params *params =
@@ -311,17 +293,6 @@ static int modisk_get_block_shift(struct scst_cmd *cmd)
 	return params->block_shift;
 }
 
-/********************************************************************
- *  Function:  modisk_parse
- *
- *  Argument:
- *
- *  Returns :  The state of the command
- *
- *  Description:  This does the parsing of the command
- *
- *  Note:  Not all states are allowed on return
- ********************************************************************/
 static int modisk_parse(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
@@ -348,17 +319,6 @@ static void modisk_set_block_shift(struct scst_cmd *cmd, int block_shift)
 	return;
 }
 
-/********************************************************************
- *  Function:  modisk_done
- *
- *  Argument:
- *
- *  Returns :
- *
- *  Description:  This is the completion routine for the command,
- *                it is used to extract any necessary information
- *                about a command.
- ********************************************************************/
 static int modisk_done(struct scst_cmd *cmd)
 {
 	int res;
@@ -371,17 +331,7 @@ static int modisk_done(struct scst_cmd *cmd)
 	return res;
 }
 
-/********************************************************************
- *  Function:  modisk_exec
- *
- *  Argument:
- *
- *  Returns :
- *
- *  Description:  Make SCST do nothing for data READs and WRITES.
- *                Intended for raw line performance testing
- ********************************************************************/
-static int modisk_exec(struct scst_cmd *cmd)
+static int modisk_perf_exec(struct scst_cmd *cmd)
 {
 	int res = SCST_EXEC_NOT_COMPLETED, rc;
 	int opcode = cmd->cdb[0];

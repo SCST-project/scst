@@ -53,7 +53,7 @@ static int tape_attach(struct scst_device *);
 static void tape_detach(struct scst_device *);
 static int tape_parse(struct scst_cmd *);
 static int tape_done(struct scst_cmd *);
-static int tape_exec(struct scst_cmd *);
+static int tape_perf_exec(struct scst_cmd *);
 
 static struct scst_dev_type tape_devtype = {
 	.name =			TAPE_NAME,
@@ -80,7 +80,7 @@ static struct scst_dev_type tape_devtype_perf = {
 	.detach =		tape_detach,
 	.parse =		tape_parse,
 	.dev_done =		tape_done,
-	.exec =			tape_exec,
+	.exec =			tape_perf_exec,
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
 	.trace_flags =		&trace_flag,
@@ -150,15 +150,6 @@ static void __exit exit_scst_tape_driver(void)
 module_init(init_scst_tape_driver);
 module_exit(exit_scst_tape_driver);
 
-/**************************************************************
- *  Function:  tape_attach
- *
- *  Argument:
- *
- *  Returns :  1 if attached, error code otherwise
- *
- *  Description:
- *************************************************************/
 static int tape_attach(struct scst_device *dev)
 {
 	int res, rc;
@@ -266,15 +257,6 @@ out:
 	return res;
 }
 
-/************************************************************
- *  Function:  tape_detach
- *
- *  Argument:
- *
- *  Returns :  None
- *
- *  Description:  Called to detach this device type driver
- ************************************************************/
 static void tape_detach(struct scst_device *dev)
 {
 	struct tape_params *params =
@@ -299,17 +281,6 @@ static int tape_get_block_size(struct scst_cmd *cmd)
 	return params->block_size;
 }
 
-/********************************************************************
- *  Function:  tape_parse
- *
- *  Argument:
- *
- *  Returns :  The state of the command
- *
- *  Description:  This does the parsing of the command
- *
- *  Note:  Not all states are allowed on return
- ********************************************************************/
 static int tape_parse(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
@@ -332,17 +303,6 @@ static void tape_set_block_size(struct scst_cmd *cmd, int block_size)
 	return;
 }
 
-/********************************************************************
- *  Function:  tape_done
- *
- *  Argument:
- *
- *  Returns :
- *
- *  Description:  This is the completion routine for the command,
- *                it is used to extract any necessary information
- *                about a command.
- ********************************************************************/
 static int tape_done(struct scst_cmd *cmd)
 {
 	int opcode = cmd->cdb[0];
@@ -412,17 +372,7 @@ out:
 	return res;
 }
 
-/********************************************************************
- *  Function:  tape_exec
- *
- *  Argument:
- *
- *  Returns :
- *
- *  Description:  Make SCST do nothing for data READs and WRITES.
- *                Intended for raw line performance testing
- ********************************************************************/
-static int tape_exec(struct scst_cmd *cmd)
+static int tape_perf_exec(struct scst_cmd *cmd)
 {
 	int res = SCST_EXEC_NOT_COMPLETED, rc;
 	int opcode = cmd->cdb[0];

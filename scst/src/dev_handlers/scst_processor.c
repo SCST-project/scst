@@ -55,15 +55,6 @@ static struct scst_dev_type processor_devtype = {
 #endif
 };
 
-/**************************************************************
- *  Function:  processor_attach
- *
- *  Argument:
- *
- *  Returns :  1 if attached, error code otherwise
- *
- *  Description:
- *************************************************************/
 static int processor_attach(struct scst_device *dev)
 {
 	int res, rc;
@@ -118,15 +109,6 @@ out:
 	return res;
 }
 
-/************************************************************
- *  Function:  processor_detach
- *
- *  Argument:
- *
- *  Returns :  None
- *
- *  Description:  Called to detach this device type driver
- ************************************************************/
 #if 0
 void processor_detach(struct scst_device *dev)
 {
@@ -137,17 +119,6 @@ void processor_detach(struct scst_device *dev)
 }
 #endif
 
-/********************************************************************
- *  Function:  processor_parse
- *
- *  Argument:
- *
- *  Returns :  The state of the command
- *
- *  Description:  This does the parsing of the command
- *
- *  Note:  Not all states are allowed on return
- ********************************************************************/
 static int processor_parse(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
@@ -159,17 +130,6 @@ static int processor_parse(struct scst_cmd *cmd)
 	return res;
 }
 
-/********************************************************************
- *  Function:  processor_done
- *
- *  Argument:
- *
- *  Returns :
- *
- *  Description:  This is the completion routine for the command,
- *                it is used to extract any necessary information
- *                about a command.
- ********************************************************************/
 #if 0
 int processor_done(struct scst_cmd *cmd)
 {

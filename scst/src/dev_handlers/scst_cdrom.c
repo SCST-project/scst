@@ -60,15 +60,6 @@ static struct scst_dev_type cdrom_devtype = {
 #endif
 };
 
-/**************************************************************
- *  Function:  cdrom_attach
- *
- *  Argument:
- *
- *  Returns :  1 if attached, error code otherwise
- *
- *  Description:
- *************************************************************/
 static int cdrom_attach(struct scst_device *dev)
 {
 	int res, rc;
@@ -180,15 +171,6 @@ out:
 	return res;
 }
 
-/************************************************************
- *  Function:  cdrom_detach
- *
- *  Argument:
- *
- *  Returns :  None
- *
- *  Description:  Called to detach this device type driver
- ************************************************************/
 static void cdrom_detach(struct scst_device *dev)
 {
 	struct cdrom_params *params =
@@ -213,17 +195,6 @@ static int cdrom_get_block_shift(struct scst_cmd *cmd)
 	return params->block_shift;
 }
 
-/********************************************************************
- *  Function:  cdrom_parse
- *
- *  Argument:
- *
- *  Returns :  The state of the command
- *
- *  Description:  This does the parsing of the command
- *
- *  Note:  Not all states are allowed on return
- ********************************************************************/
 static int cdrom_parse(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
@@ -249,17 +220,6 @@ static void cdrom_set_block_shift(struct scst_cmd *cmd, int block_shift)
 	return;
 }
 
-/********************************************************************
- *  Function:  cdrom_done
- *
- *  Argument:
- *
- *  Returns :
- *
- *  Description:  This is the completion routine for the command,
- *                it is used to extract any necessary information
- *                about a command.
- ********************************************************************/
 static int cdrom_done(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
