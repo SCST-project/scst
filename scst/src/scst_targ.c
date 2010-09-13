@@ -1332,7 +1332,7 @@ void scst_rx_data(struct scst_cmd *cmd, int status,
 	case SCST_RX_STATUS_SUCCESS:
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 		if (trace_flag & TRACE_RCV_BOT) {
-			int i;
+			int i, j;
 			struct scatterlist *sg;
 			if (cmd->out_sg != NULL)
 				sg = cmd->out_sg;
@@ -1347,9 +1347,13 @@ void scst_rx_data(struct scst_cmd *cmd, int status,
 					"(sg_cnt %d, sg %p, sg[0].page %p)",
 					cmd, cmd->tgt_sg_cnt, sg,
 					(void *)sg_page(&sg[0]));
-				for (i = 0; i < cmd->tgt_sg_cnt; ++i) {
+				for (i = 0, j = 0; i < cmd->tgt_sg_cnt; ++i, ++j) {
+					if (unlikely(sg_is_chain(&sg[j]))) {
+						sg = sg_chain_ptr(&sg[j]);
+						j = 0;
+					}
 					PRINT_BUFF_FLAG(TRACE_RCV_BOT, "RX sg",
-						sg_virt(&sg[i]), sg[i].length);
+						sg_virt(&sg[j]), sg[j].length);
 				}
 			}
 		}
@@ -1607,14 +1611,18 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state,
 #if defined(CONFIG_SCST_DEBUG)
 	if (next_state == SCST_CMD_STATE_PRE_DEV_DONE) {
 		if ((trace_flag & TRACE_RCV_TOP) && (cmd->sg != NULL)) {
-			int i;
+			int i, j;
 			struct scatterlist *sg = cmd->sg;
 			TRACE_RECV_TOP("Exec'd %d S/G(s) at %p sg[0].page at "
 				"%p", cmd->sg_cnt, sg, (void *)sg_page(&sg[0]));
-			for (i = 0; i < cmd->sg_cnt; ++i) {
+			for (i = 0, j = 0; i < cmd->sg_cnt; ++i, ++j) {
+				if (unlikely(sg_is_chain(&sg[j]))) {
+					sg = sg_chain_ptr(&sg[j]);
+					j = 0;
+				}
 				TRACE_BUFF_FLAG(TRACE_RCV_TOP,
-					"Exec'd sg", sg_virt(&sg[i]),
-					sg[i].length);
+					"Exec'd sg", sg_virt(&sg[j]),
+					sg[j].length);
 			}
 		}
 	}
@@ -3480,7 +3488,7 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 		if (trace_flag & TRACE_SND_BOT) {
-			int i;
+			int i, j;
 			struct scatterlist *sg;
 			if (cmd->tgt_sg != NULL)
 				sg = cmd->tgt_sg;
@@ -3491,10 +3499,14 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 					"(sg_cnt %d, sg %p, sg[0].page %p)",
 					cmd, cmd->tgt_sg_cnt, sg,
 					(void *)sg_page(&sg[0]));
-				for (i = 0; i < cmd->tgt_sg_cnt; ++i) {
+				for (i = 0, j = 0; i < cmd->tgt_sg_cnt; ++i, ++j) {
+					if (unlikely(sg_is_chain(&sg[j]))) {
+						sg = sg_chain_ptr(&sg[j]);
+						j = 0;
+					}
 					PRINT_BUFF_FLAG(TRACE_SND_BOT,
-						"Xmitting sg", sg_virt(&sg[i]),
-						sg[i].length);
+						"Xmitting sg", sg_virt(&sg[j]),
+						sg[j].length);
 				}
 			}
 		}

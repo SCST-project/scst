@@ -1808,6 +1808,7 @@ struct scst_cmd {
 	int *write_sg_cnt;
 
 	/* scst_get_sg_buf_[first,next]() support */
+	struct scatterlist *get_sg_buf_cur_sg_entry;
 	int get_sg_buf_entry_num;
 
 	/* Bidirectional transfers support */
@@ -3345,31 +3346,35 @@ enum scst_sg_copy_dir {
 void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir copy_dir);
 
 /*
- * Functions for access to the commands data (SG) buffer,
- * including HIGHMEM environment. Should be used instead of direct
- * access. Returns the mapped buffer length for success, 0 for EOD,
+ * Functions for access to the commands data (SG) buffer. Should be used
+ * instead of direct access. Returns the buffer length for success, 0 for EOD,
  * negative error code otherwise.
  *
  * "Buf" argument returns the mapped buffer
  *
  * The "put" function unmaps the buffer.
  */
-static inline int __scst_get_buf(struct scst_cmd *cmd, struct scatterlist *sg,
-	int sg_cnt, uint8_t **buf)
+static inline int __scst_get_buf(struct scst_cmd *cmd, int sg_cnt,
+	uint8_t **buf)
 {
 	int res = 0;
-	int i = cmd->get_sg_buf_entry_num;
+	struct scatterlist *sg = cmd->get_sg_buf_cur_sg_entry;
 
 	*buf = NULL;
 
-	if ((i >= sg_cnt) || unlikely(sg == NULL))
+	if (cmd->get_sg_buf_entry_num >= sg_cnt)
 		goto out;
 
-	*buf = page_address(sg_page(&sg[i]));
-	*buf += sg[i].offset;
+	if (unlikely(sg_is_chain(sg)))
+		sg = sg_chain_ptr(sg);
 
-	res = sg[i].length;
+	*buf = page_address(sg_page(sg));
+	*buf += sg->offset;
+
+	res = sg->length;
+
 	cmd->get_sg_buf_entry_num++;
+	cmd->get_sg_buf_cur_sg_entry = ++sg;
 
 out:
 	return res;
@@ -3377,14 +3382,17 @@ out:
 
 static inline int scst_get_buf_first(struct scst_cmd *cmd, uint8_t **buf)
 {
+	if (unlikely(cmd->sg == NULL))
+		return 0;
 	cmd->get_sg_buf_entry_num = 0;
+	cmd->get_sg_buf_cur_sg_entry = cmd->sg;
 	cmd->may_need_dma_sync = 1;
-	return __scst_get_buf(cmd, cmd->sg, cmd->sg_cnt, buf);
+	return __scst_get_buf(cmd, cmd->sg_cnt, buf);
 }
 
 static inline int scst_get_buf_next(struct scst_cmd *cmd, uint8_t **buf)
 {
-	return __scst_get_buf(cmd, cmd->sg, cmd->sg_cnt, buf);
+	return __scst_get_buf(cmd, cmd->sg_cnt, buf);
 }
 
 static inline void scst_put_buf(struct scst_cmd *cmd, void *buf)
@@ -3394,14 +3402,17 @@ static inline void scst_put_buf(struct scst_cmd *cmd, void *buf)
 
 static inline int scst_get_out_buf_first(struct scst_cmd *cmd, uint8_t **buf)
 {
+	if (unlikely(cmd->out_sg == NULL))
+		return 0;
 	cmd->get_sg_buf_entry_num = 0;
+	cmd->get_sg_buf_cur_sg_entry = cmd->out_sg;
 	cmd->may_need_dma_sync = 1;
-	return __scst_get_buf(cmd, cmd->out_sg, cmd->out_sg_cnt, buf);
+	return __scst_get_buf(cmd, cmd->out_sg_cnt, buf);
 }
 
 static inline int scst_get_out_buf_next(struct scst_cmd *cmd, uint8_t **buf)
 {
-	return __scst_get_buf(cmd, cmd->out_sg, cmd->out_sg_cnt, buf);
+	return __scst_get_buf(cmd, cmd->out_sg_cnt, buf);
 }
 
 static inline void scst_put_out_buf(struct scst_cmd *cmd, void *buf)
@@ -3412,15 +3423,18 @@ static inline void scst_put_out_buf(struct scst_cmd *cmd, void *buf)
 static inline int scst_get_sg_buf_first(struct scst_cmd *cmd, uint8_t **buf,
 	struct scatterlist *sg, int sg_cnt)
 {
+	if (unlikely(sg == NULL))
+		return 0;
 	cmd->get_sg_buf_entry_num = 0;
+	cmd->get_sg_buf_cur_sg_entry = cmd->sg;
 	cmd->may_need_dma_sync = 1;
-	return __scst_get_buf(cmd, sg, sg_cnt, buf);
+	return __scst_get_buf(cmd, sg_cnt, buf);
 }
 
 static inline int scst_get_sg_buf_next(struct scst_cmd *cmd, uint8_t **buf,
 	struct scatterlist *sg, int sg_cnt)
 {
-	return __scst_get_buf(cmd, sg, sg_cnt, buf);
+	return __scst_get_buf(cmd, sg_cnt, buf);
 }
 
 static inline void scst_put_sg_buf(struct scst_cmd *cmd, void *buf,

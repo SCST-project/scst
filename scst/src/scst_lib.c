@@ -2028,30 +2028,36 @@ next:
 static void scst_adjust_sg(struct scst_cmd *cmd, struct scatterlist *sg,
 	int *sg_cnt, int adjust_len)
 {
-	int i, l;
+	int i, j, l;
 
 	TRACE_ENTRY();
 
 	l = 0;
-	for (i = 0; i < *sg_cnt; i++) {
-		l += sg[i].length;
+	for (i = 0, j = 0; i < *sg_cnt; i++, j++) {
+		TRACE_DBG("i %d, j %d, sg_cnt %d, sg %p, page_link %lx", i, j,
+			*sg_cnt, sg, sg[j].page_link);
+		if (unlikely(sg_is_chain(&sg[j]))) {
+			sg = sg_chain_ptr(&sg[j]);
+			j = 0;
+		}
+		l += sg[j].length;
 		if (l >= adjust_len) {
-			int left = adjust_len - (l - sg[i].length);
+			int left = adjust_len - (l - sg[j].length);
 #ifdef CONFIG_SCST_DEBUG
 			TRACE(TRACE_SG_OP|TRACE_MEMORY, "cmd %p (tag %llu), "
-				"sg %p, sg_cnt %d, adjust_len %d, i %d, "
-				"sg[i].length %d, left %d",
+				"sg %p, sg_cnt %d, adjust_len %d, i %d, j %d, "
+				"sg[j].length %d, left %d",
 				cmd, (long long unsigned int)cmd->tag,
-				sg, *sg_cnt, adjust_len, i,
-				sg[i].length, left);
+				sg, *sg_cnt, adjust_len, i, j,
+				sg[j].length, left);
 #endif
 			cmd->orig_sg = sg;
 			cmd->p_orig_sg_cnt = sg_cnt;
 			cmd->orig_sg_cnt = *sg_cnt;
-			cmd->orig_sg_entry = i;
-			cmd->orig_entry_len = sg[i].length;
-			*sg_cnt = (left > 0) ? i+1 : i;
-			sg[i].length = left;
+			cmd->orig_sg_entry = j;
+			cmd->orig_entry_len = sg[j].length;
+			*sg_cnt = (left > 0) ? j+1 : j;
+			sg[j].length = left;
 			cmd->sg_buff_modified = 1;
 			break;
 		}

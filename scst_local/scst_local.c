@@ -43,10 +43,6 @@
 #include <scst_debug.h>
 #endif
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
-#define SG_MAX_SINGLE_ALLOC	(PAGE_SIZE / sizeof(struct scatterlist))
-#endif
-
 #ifndef INSIDE_KERNEL_TREE
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
 #warning "HIGHMEM kernel configurations are not supported by this module,\
@@ -1368,11 +1364,9 @@ static struct scsi_host_template scst_lcl_ini_driver_template = {
 #endif
 	.can_queue			= 256,
 	.this_id			= -1,
-	/* SCST doesn't support sg chaining */
-	.sg_tablesize			= SG_MAX_SINGLE_ALLOC,
+	.sg_tablesize			= 0xFFFF,
 	.cmd_per_lun			= 32,
 	.max_sectors			= 0xffff,
-	/* SCST doesn't support sg chaining */
 	.use_clustering			= ENABLE_CLUSTERING,
 	.skip_settle_delay		= 1,
 	.module				= THIS_MODULE,
