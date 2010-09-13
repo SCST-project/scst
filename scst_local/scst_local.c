@@ -1592,7 +1592,9 @@ static int __scst_local_add_adapter(struct scst_local_tgt *tgt,
 	if (!locked)
 		mutex_unlock(&scst_local_mutex);
 
-	scsi_scan_target(&sess->shost->shost_gendev, 0, 0, SCAN_WILD_CARD, 1);
+	if (scst_initiator_has_luns(tgt->scst_tgt, initiator_name))
+		scsi_scan_target(&sess->shost->shost_gendev, 0, 0,
+				 SCAN_WILD_CARD, 1);
 
 out:
 	TRACE_EXIT_RES(res);
