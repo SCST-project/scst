@@ -1367,7 +1367,8 @@ static struct scsi_host_template scst_lcl_ini_driver_template = {
 	.sg_tablesize			= 0xFFFF,
 	.cmd_per_lun			= 32,
 	.max_sectors			= 0xffff,
-	.use_clustering			= ENABLE_CLUSTERING,
+	/* Possible pass-through backend device may not support clustering */
+	.use_clustering			= DISABLE_CLUSTERING,
 	.skip_settle_delay		= 1,
 	.module				= THIS_MODULE,
 };

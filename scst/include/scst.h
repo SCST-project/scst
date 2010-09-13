@@ -1120,12 +1120,17 @@ struct scst_dev_type {
 	 * Pay attention to "atomic" attribute of the cmd, which can be get
 	 * by scst_cmd_atomic(): it is true if the function called in the
 	 * atomic (non-sleeping) context.
+	 *
+	 * OPTIONAL
 	 */
 	int (*dev_done) (struct scst_cmd *cmd);
 
 	/*
 	 * Called to notify dev hander that the command is about to be freed.
+	 *
 	 * Could be called on IRQ context.
+	 *
+	 * OPTIONAL
 	 */
 	void (*on_free_cmd) (struct scst_cmd *cmd);
 
@@ -1140,26 +1145,52 @@ struct scst_dev_type {
 	 *      command should be done
 	 *
 	 * Called without any locks held from a thread context.
+	 *
+	 * OPTIONAL
 	 */
 	int (*task_mgmt_fn) (struct scst_mgmt_cmd *mgmt_cmd,
 		struct scst_tgt_dev *tgt_dev);
 
 	/*
+	 * Called to notify dev handler that its sg_tablesize is too low to
+	 * satisfy this command's data transfer requirements. Should return
+	 * true if exec() callback will split this command's CDB on smaller
+	 * transfers, false otherwise.
+	 *
+	 * Could be called on SIRQ context.
+	 *
+	 * MUST HAVE, if dev handler supports CDB splitting.
+	 */
+	bool (*on_sg_tablesize_low) (struct scst_cmd *cmd);
+
+	/*
 	 * Called when new device is attaching to the dev handler
 	 * Returns 0 on success, error code otherwise.
+	 *
+	 * OPTIONAL
 	 */
 	int (*attach) (struct scst_device *dev);
 
-	/* Called when a device is detaching from the dev handler */
+	/*
+	 * Called when a device is detaching from the dev handler.
+	 *
+	 * OPTIONAL
+	 */
 	void (*detach) (struct scst_device *dev);
 
 	/*
 	 * Called when new tgt_dev (session) is attaching to the dev handler.
 	 * Returns 0 on success, error code otherwise.
+	 *
+	 * OPTIONAL
 	 */
 	int (*attach_tgt) (struct scst_tgt_dev *tgt_dev);
 
-	/* Called when tgt_dev (session) is detaching from the dev handler */
+	/*
+	 * Called when tgt_dev (session) is detaching from the dev handler.
+	 *
+	 * OPTIONAL
+	 */
 	void (*detach_tgt) (struct scst_tgt_dev *tgt_dev);
 
 #ifdef CONFIG_SCST_PROC
@@ -3807,5 +3838,11 @@ char *scst_get_next_token_str(char **input_str);
 
 void scst_init_threads(struct scst_cmd_threads *cmd_threads);
 void scst_deinit_threads(struct scst_cmd_threads *cmd_threads);
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && defined(SCSI_EXEC_REQ_FIFO_DEFINED)
+void scst_pass_through_cmd_done(void *data, char *sense, int result, int resid);
+int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
+	void (*done)(void *data, char *sense, int result, int resid));
+#endif
 
 #endif /* __SCST_H */

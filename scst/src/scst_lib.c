@@ -4444,6 +4444,43 @@ void scst_release_request(struct scst_cmd *cmd)
 }
 #endif
 
+static bool scst_on_sg_tablesize_low(struct scst_cmd *cmd, bool out)
+{
+	bool res;
+	int sg_cnt = out ? cmd->out_sg_cnt : cmd->sg_cnt;
+	static int ll;
+	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
+
+	TRACE_ENTRY();
+
+	if (sg_cnt > cmd->tgt->sg_tablesize) {
+		/* It's the target's side business */
+		goto failed;
+	}
+
+	if (tgt_dev->dev->handler->on_sg_tablesize_low == NULL)
+		goto failed;
+
+	res = tgt_dev->dev->handler->on_sg_tablesize_low(cmd);
+
+	TRACE_DBG("on_sg_tablesize_low(%p) returned %d", cmd, res);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+failed:
+	res = false;
+	if ((ll < 10) || TRACING_MINOR()) {
+		PRINT_INFO("Unable to complete command due to SG IO count "
+			"limitation (%srequested %d, available %d, tgt lim %d)",
+			out ? "OUT buffer, " : "", cmd->sg_cnt,
+			tgt_dev->max_sg_cnt, cmd->tgt->sg_tablesize);
+		ll++;
+	}
+	goto out;
+}
+
 int scst_alloc_space(struct scst_cmd *cmd)
 {
 	gfp_t gfp_mask;
@@ -4451,7 +4488,6 @@ int scst_alloc_space(struct scst_cmd *cmd)
 	int atomic = scst_cmd_atomic(cmd);
 	int flags;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
-	static int ll;
 
 	TRACE_ENTRY();
 
@@ -4466,16 +4502,9 @@ int scst_alloc_space(struct scst_cmd *cmd)
 	if (cmd->sg == NULL)
 		goto out;
 
-	if (unlikely(cmd->sg_cnt > tgt_dev->max_sg_cnt)) {
-		if ((ll < 10) || TRACING_MINOR()) {
-			PRINT_INFO("Unable to complete command due to "
-				"SG IO count limitation (requested %d, "
-				"available %d, tgt lim %d)", cmd->sg_cnt,
-				tgt_dev->max_sg_cnt, cmd->tgt->sg_tablesize);
-			ll++;
-		}
-		goto out_sg_free;
-	}
+	if (unlikely(cmd->sg_cnt > tgt_dev->max_sg_cnt))
+		if (!scst_on_sg_tablesize_low(cmd, false))
+			goto out_sg_free;
 
 	if (cmd->data_direction != SCST_DATA_BIDI)
 		goto success;
@@ -4486,16 +4515,9 @@ int scst_alloc_space(struct scst_cmd *cmd)
 	if (cmd->out_sg == NULL)
 		goto out_sg_free;
 
-	if (unlikely(cmd->out_sg_cnt > tgt_dev->max_sg_cnt)) {
-		if ((ll < 10) || TRACING_MINOR()) {
-			PRINT_INFO("Unable to complete command due to "
-				"SG IO count limitation (OUT buffer, requested "
-				"%d, available %d, tgt lim %d)", cmd->out_sg_cnt,
-				tgt_dev->max_sg_cnt, cmd->tgt->sg_tablesize);
-			ll++;
-		}
-		goto out_out_sg_free;
-	}
+	if (unlikely(cmd->out_sg_cnt > tgt_dev->max_sg_cnt))
+		if (!scst_on_sg_tablesize_low(cmd, true))
+			goto out_out_sg_free;
 
 success:
 	res = 0;
@@ -4718,10 +4740,11 @@ static void scsi_end_async(struct request *req, int error)
 /**
  * scst_scsi_exec_async - executes a SCSI command in pass-through mode
  * @cmd:	scst command
+ * @data:	pointer passed to done() as "data"
  * @done:	callback function when done
  */
-int scst_scsi_exec_async(struct scst_cmd *cmd,
-		       void (*done)(void *, char *, int, int))
+int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
+	void (*done)(void *data, char *sense, int result, int resid))
 {
 	int res = 0;
 	struct request_queue *q = cmd->dev->scsi_dev->request_queue;
@@ -4806,7 +4829,7 @@ int scst_scsi_exec_async(struct scst_cmd *cmd,
 done:
 	TRACE_DBG("sioc %p, cmd %p", sioc, cmd);
 
-	sioc->data = cmd;
+	sioc->data = data;
 	sioc->done = done;
 
 	rq->cmd_len = cmd_len;
@@ -4844,6 +4867,7 @@ out_free_sioc:
 		kfree(sioc);
 	goto out;
 }
+EXPORT_SYMBOL(scst_scsi_exec_async);
 
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30) && defined(SCSI_EXEC_REQ_FIFO_DEFINED) */
 

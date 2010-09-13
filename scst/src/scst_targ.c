@@ -1568,7 +1568,15 @@ out:
 	return;
 }
 #else /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18) */
-static void scst_cmd_done(void *data, char *sense, int result, int resid)
+
+/**
+ * scst_pass_through_cmd_done - done callback for pass-through commands
+ * @data:	private opaque data
+ * @sense:	pointer to the sense data, if any
+ * @result:	command's execution result
+ * @resid:	residual, if any
+ */
+void scst_pass_through_cmd_done(void *data, char *sense, int result, int resid)
 {
 	struct scst_cmd *cmd;
 
@@ -1589,6 +1597,8 @@ out:
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL_GPL(scst_pass_through_cmd_done);
+
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18) */
 
 static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state,
@@ -2602,11 +2612,11 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 #else
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
 	rc = scst_exec_req(dev->scsi_dev, cmd->cdb, cmd->cdb_len,
-			cmd->data_direction, cmd->sg, cmd->bufflen, cmd->sg_cnt,
-			cmd->timeout, cmd->retries, cmd, scst_cmd_done,
-			GFP_KERNEL);
+			cmd->data_direction, cmd->sg, cmd->bufflen,
+			cmd->sg_cnt, cmd->timeout, cmd->retries, cmd,
+			scst_pass_through_cmd_done, GFP_KERNEL);
 #else
-	rc = scst_scsi_exec_async(cmd, scst_cmd_done);
+	rc = scst_scsi_exec_async(cmd, cmd, scst_pass_through_cmd_done);
 #endif
 	if (unlikely(rc != 0)) {
 		PRINT_ERROR("scst pass-through exec failed: %x", rc);
@@ -4839,6 +4849,7 @@ static int scst_set_mcmd_next_state(struct scst_mgmt_cmd *mcmd)
 			mcmd, mcmd->state, mcmd->fn,
 			mcmd->cmd_finish_wait_count, mcmd->cmd_done_wait_count);
 		spin_unlock_irq(&scst_mcmd_lock);
+		res = -1;
 		sBUG();
 		goto out;
 	}

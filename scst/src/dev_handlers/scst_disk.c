@@ -25,6 +25,7 @@
 #include <linux/init.h>
 #include <scsi/scsi_host.h>
 #include <linux/slab.h>
+#include <asm/unaligned.h>
 
 #define LOG_PREFIX           "dev_disk"
 
@@ -47,8 +48,12 @@ struct disk_params {
 static int disk_attach(struct scst_device *dev);
 static void disk_detach(struct scst_device *dev);
 static int disk_parse(struct scst_cmd *cmd);
+static int disk_perf_exec(struct scst_cmd *cmd);
 static int disk_done(struct scst_cmd *cmd);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && defined(SCSI_EXEC_REQ_FIFO_DEFINED)
 static int disk_exec(struct scst_cmd *cmd);
+static bool disk_on_sg_tablesize_low(struct scst_cmd *cmd);
+#endif
 
 static struct scst_dev_type disk_devtype = {
 	.name =			DISK_NAME,
@@ -59,6 +64,10 @@ static struct scst_dev_type disk_devtype = {
 	.attach =		disk_attach,
 	.detach =		disk_detach,
 	.parse =		disk_parse,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && defined(SCSI_EXEC_REQ_FIFO_DEFINED)
+	.exec =			disk_exec,
+	.on_sg_tablesize_low = disk_on_sg_tablesize_low,
+#endif
 	.dev_done =		disk_done,
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags = SCST_DEFAULT_DEV_LOG_FLAGS,
@@ -74,8 +83,11 @@ static struct scst_dev_type disk_devtype_perf = {
 	.attach =		disk_attach,
 	.detach =		disk_detach,
 	.parse =		disk_parse,
+	.exec =			disk_perf_exec,
 	.dev_done =		disk_done,
-	.exec =			disk_exec,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && defined(SCSI_EXEC_REQ_FIFO_DEFINED)
+	.on_sg_tablesize_low = disk_on_sg_tablesize_low,
+#endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
 	.trace_flags =		&trace_flag,
@@ -145,15 +157,6 @@ static void __exit exit_scst_disk_driver(void)
 module_init(init_scst_disk_driver);
 module_exit(exit_scst_disk_driver);
 
-/**************************************************************
- *  Function:  disk_attach
- *
- *  Argument:
- *
- *  Returns :  1 if attached, error code otherwise
- *
- *  Description:
- *************************************************************/
 static int disk_attach(struct scst_device *dev)
 {
 	int res, rc;
@@ -260,15 +263,6 @@ out:
 	return res;
 }
 
-/************************************************************
- *  Function:  disk_detach
- *
- *  Argument:
- *
- *  Returns :  None
- *
- *  Description:  Called to detach this device type driver
- ************************************************************/
 static void disk_detach(struct scst_device *dev)
 {
 	struct disk_params *params =
@@ -293,17 +287,6 @@ static int disk_get_block_shift(struct scst_cmd *cmd)
 	return params->block_shift;
 }
 
-/********************************************************************
- *  Function:  disk_parse
- *
- *  Argument:
- *
- *  Returns :  The state of the command
- *
- *  Description:  This does the parsing of the command
- *
- *  Note:  Not all states are allowed on return
- ********************************************************************/
 static int disk_parse(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
@@ -329,17 +312,6 @@ static void disk_set_block_shift(struct scst_cmd *cmd, int block_shift)
 	return;
 }
 
-/********************************************************************
- *  Function:  disk_done
- *
- *  Argument:
- *
- *  Returns :
- *
- *  Description:  This is the completion routine for the command,
- *                it is used to extract any necessary information
- *                about a command.
- ********************************************************************/
 static int disk_done(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_DEFAULT;
@@ -352,19 +324,315 @@ static int disk_done(struct scst_cmd *cmd)
 	return res;
 }
 
-/********************************************************************
- *  Function:  disk_exec
- *
- *  Argument:
- *
- *  Returns :
- *
- *  Description:  Make SCST do nothing for data READs and WRITES.
- *                Intended for raw line performance testing
- ********************************************************************/
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && defined(SCSI_EXEC_REQ_FIFO_DEFINED)
+
+static bool disk_on_sg_tablesize_low(struct scst_cmd *cmd)
+{
+	bool res;
+
+	TRACE_ENTRY();
+
+	switch (cmd-> cdb[0]) {
+	case WRITE_6:
+	case READ_6:
+	case WRITE_10:
+	case READ_10:
+	case WRITE_VERIFY:
+	case WRITE_12:
+	case READ_12:
+	case WRITE_VERIFY_12:
+	case WRITE_16:
+	case READ_16:
+	case WRITE_VERIFY_16:
+		res = true;
+		/* See comment in disk_exec */
+		cmd->inc_expected_sn_on_done = 1;
+		break;
+	default:
+		res = false;
+		break;
+	}
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+struct disk_work {
+	struct scst_cmd *cmd;
+	struct completion disk_work_cmpl;
+	volatile int result;
+	unsigned int left;
+	uint64_t save_lba;
+	unsigned int save_len;
+	struct scatterlist *save_sg;
+	int save_sg_cnt;
+};
+
+static int disk_cdb_get_transfer_data(const uint8_t *cdb,
+	uint64_t *out_lba, unsigned int *out_length)
+{
+	int res;
+	uint64_t lba;
+	unsigned int len;
+
+	TRACE_ENTRY();
+
+	switch (cdb[0]) {
+	case WRITE_6:
+	case READ_6:
+		lba = be16_to_cpu(get_unaligned((__be16 *)&cdb[2]));
+		len = cdb[4];
+		break;
+	case WRITE_10:
+	case READ_10:
+	case WRITE_VERIFY:
+		lba = be32_to_cpu(get_unaligned((__be32 *)&cdb[2]));
+		len = be16_to_cpu(get_unaligned((__be16 *)&cdb[7]));
+		break;
+	case WRITE_12:
+	case READ_12:
+	case WRITE_VERIFY_12:
+		lba = be32_to_cpu(get_unaligned((__be32 *)&cdb[2]));
+		len = be32_to_cpu(get_unaligned((__be32 *)&cdb[6]));
+		break;
+	case WRITE_16:
+	case READ_16:
+	case WRITE_VERIFY_16:
+		lba = be64_to_cpu(get_unaligned((__be64 *)&cdb[2]));
+		len = be32_to_cpu(get_unaligned((__be32 *)&cdb[10]));
+		break;
+	default:
+		res = -EINVAL;
+		goto out;
+	}
+
+	res = 0;
+	*out_lba = lba;
+	*out_length = len;
+
+	TRACE_DBG("LBA %lld, length %d", (unsigned long long)lba, len);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int disk_cdb_set_transfer_data(uint8_t *cdb,
+	uint64_t lba, unsigned int len)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	switch (cdb[0]) {
+	case WRITE_6:
+	case READ_6:
+		put_unaligned(cpu_to_be16(lba), (__be16 *)&cdb[2]);
+		cdb[4] = len;
+		break;
+	case WRITE_10:
+	case READ_10:
+	case WRITE_VERIFY:
+		put_unaligned(cpu_to_be32(lba), (__be32 *)&cdb[2]);
+		put_unaligned(cpu_to_be16(len), (__be16 *)&cdb[7]);
+		break;
+	case WRITE_12:
+	case READ_12:
+	case WRITE_VERIFY_12:
+		put_unaligned(cpu_to_be32(lba), (__be32 *)&cdb[2]);
+		put_unaligned(cpu_to_be32(len), (__be32 *)&cdb[6]);
+		break;
+	case WRITE_16:
+	case READ_16:
+	case WRITE_VERIFY_16:
+		put_unaligned(cpu_to_be64(lba), (__be64 *)&cdb[2]);
+		put_unaligned(cpu_to_be32(len), (__be32 *)&cdb[10]);
+		break;
+	default:
+		res = -EINVAL;
+		goto out;
+	}
+
+	res = 0;
+
+	TRACE_DBG("LBA %lld, length %d", (unsigned long long)lba, len);
+	TRACE_BUFFER("New CDB", cdb, SCST_MAX_CDB_SIZE);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static void disk_cmd_done(void *data, char *sense, int result, int resid)
+{
+	struct disk_work *work = data;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("work %p, cmd %p, left %d, result %d, sense %p, resid %d",
+		work, work->cmd, work->left, result, sense, resid);
+
+	if (result == SAM_STAT_GOOD)
+		goto out_complete;
+
+	work->result = result;
+
+	disk_cdb_set_transfer_data(work->cmd->cdb, work->save_lba, work->save_len);
+	work->cmd->sg = work->save_sg;
+	work->cmd->sg_cnt = work->save_sg_cnt;
+
+	scst_pass_through_cmd_done(work->cmd, sense, result, resid + work->left);
+
+out_complete:
+	complete_all(&work->disk_work_cmpl);
+
+	TRACE_EXIT();
+	return;
+}
+
+/* Executes command and split CDB, if necessary */
 static int disk_exec(struct scst_cmd *cmd)
 {
-	int res = SCST_EXEC_NOT_COMPLETED, rc;
+	int res, rc;
+	struct disk_params *params = (struct disk_params *)cmd->dev->dh_priv;
+	struct disk_work work;
+	unsigned int offset, cur_len;
+	struct scatterlist *sg, *start_sg;
+	int cur_sg_cnt;
+	int sg_tablesize = cmd->dev->scsi_dev->host->sg_tablesize;
+	int num, j;
+
+	TRACE_ENTRY();
+
+	if (likely((cmd->sg_cnt <= sg_tablesize) &&
+		   (cmd->out_sg_cnt <= sg_tablesize))) {
+		res = SCST_EXEC_NOT_COMPLETED;
+		goto out;
+	}
+
+	memset(&work, 0, sizeof(work));
+	work.cmd = cmd;
+	work.save_sg = cmd->sg;
+	work.save_sg_cnt = cmd->sg_cnt;
+	rc = disk_cdb_get_transfer_data(cmd->cdb, &work.save_lba,
+		&work.save_len);
+	if (rc != 0)
+		goto out_error;
+
+	rc = scst_check_local_events(cmd);
+	if (unlikely(rc != 0))
+		goto out_done;
+
+	cmd->status = 0;
+	cmd->msg_status = 0;
+	cmd->host_status = DID_OK;
+	cmd->driver_status = 0;
+
+	TRACE_DBG("cmd %p, save_sg %p, save_sg_cnt %d, save_lba %lld, "
+		"save_len %d (sg_tablesize %d, sizeof(*sg) 0x%x)", cmd,
+		work.save_sg, work.save_sg_cnt,
+		(unsigned long long)work.save_lba, work.save_len,
+		sg_tablesize, sizeof(*sg));
+
+	/*
+	 * If we submit all chunks async'ly, it will be very not trivial what
+	 * to do if several of them finish with sense or residual. So, let's
+	 * do it synchronously.
+	 */
+
+	num = 1;
+	j = 0;
+	offset = 0;
+	cur_len = 0;
+	sg = work.save_sg;
+	start_sg = sg;
+	cur_sg_cnt = 0;
+	while (1) {
+		unsigned int l;
+
+		if (unlikely(sg_is_chain(&sg[j]))) {
+			bool reset_start_sg = (start_sg == &sg[j]);
+			sg = sg_chain_ptr(&sg[j]);
+			j = 0;
+			if (reset_start_sg)
+				start_sg = sg;
+		}
+
+		l = sg[j].length >> params->block_shift;
+		cur_len += l;
+		cur_sg_cnt++;
+
+		TRACE_DBG("l %d, j %d, num %d, offset %d, cur_len %d, "
+			"cur_sg_cnt %d, start_sg %p", l, j, num, offset,
+			cur_len, cur_sg_cnt, start_sg);
+
+		if (((num % sg_tablesize) == 0) || (num == work.save_sg_cnt)) {
+			TRACE_DBG("%s", "Execing...");
+
+			disk_cdb_set_transfer_data(cmd->cdb,
+				work.save_lba + offset, cur_len);
+			cmd->sg = start_sg;
+			cmd->sg_cnt = cur_sg_cnt;
+
+			work.left = work.save_len - (offset + cur_len);
+			init_completion(&work.disk_work_cmpl);
+
+			rc = scst_scsi_exec_async(cmd, &work, disk_cmd_done);
+			if (unlikely(rc != 0)) {
+				PRINT_ERROR("scst_scsi_exec_async() failed: %d",
+					rc);
+				goto out_err_restore;
+			}
+
+			wait_for_completion(&work.disk_work_cmpl);
+
+			if (work.result != SAM_STAT_GOOD) {
+				/* cmd can be already dead */
+				res = SCST_EXEC_COMPLETED;
+				goto out;
+			}
+
+			offset += cur_len;
+			cur_len = 0;
+			cur_sg_cnt = 0;
+			start_sg = &sg[j+1];
+
+			if (num == work.save_sg_cnt)
+				break;
+		}
+		num++;
+		j++;
+	}
+
+	cmd->completed = 1;
+
+out_restore:
+	disk_cdb_set_transfer_data(cmd->cdb, work.save_lba, work.save_len);
+	cmd->sg = work.save_sg;
+	cmd->sg_cnt = work.save_sg_cnt;
+
+out_done:
+	res = SCST_EXEC_COMPLETED;
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_err_restore:
+	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+	goto out_restore;
+
+out_error:
+	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+	goto out_done;
+}
+
+#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && defined(SCSI_EXEC_REQ_FIFO_DEFINED) */
+
+static int disk_perf_exec(struct scst_cmd *cmd)
+{
+	int res;
 	int opcode = cmd->cdb[0];
 
 	TRACE_ENTRY();
@@ -387,13 +655,20 @@ static int disk_exec(struct scst_cmd *cmd)
 	case READ_10:
 	case READ_12:
 	case READ_16:
-		cmd->completed = 1;
-		goto out_done;
+	case WRITE_VERIFY:
+	case WRITE_VERIFY_12:
+	case WRITE_VERIFY_16:
+		goto out_complete;
 	}
+
+	res = SCST_EXEC_NOT_COMPLETED;
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_complete:
+	cmd->completed = 1;
 
 out_done:
 	res = SCST_EXEC_COMPLETED;
@@ -405,3 +680,4 @@ MODULE_AUTHOR("Vladislav Bolkhovitin & Leonid Stoljar");
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("SCSI disk (type 0) dev handler for SCST");
 MODULE_VERSION(SCST_VERSION_STRING);
+
