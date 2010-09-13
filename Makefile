@@ -178,6 +178,9 @@ extraclean:
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
 
+tags:
+	find . -type f -name "*.[ch]" | ctags --c-kinds=+p --fields=+iaS --extra=+q -e -L-
+
 scst: 
 	cd $(SCST_DIR) && $(MAKE) all
 
@@ -404,7 +407,7 @@ disable_proc:
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
 
-.PHONY: all install uninstall clean extraclean help \
+.PHONY: all install uninstall clean extraclean tags help \
 	qla qla_install qla_uninstall qla_clean qla_extraclean \
 	qla_isp qla_isp_install qla_isp_uninstall qla_isp_clean qla_isp_extraclean \
 	lsi lsi_install lsi_uninstall lsi_clean lsi_extraclean \
