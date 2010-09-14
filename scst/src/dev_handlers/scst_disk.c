@@ -332,7 +332,7 @@ static bool disk_on_sg_tablesize_low(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	switch (cmd-> cdb[0]) {
+	switch (cmd->cdb[0]) {
 	case WRITE_6:
 	case READ_6:
 	case WRITE_10:
@@ -529,7 +529,7 @@ static int disk_exec(struct scst_cmd *cmd)
 	cmd->driver_status = 0;
 
 	TRACE_DBG("cmd %p, save_sg %p, save_sg_cnt %d, save_lba %lld, "
-		"save_len %d (sg_tablesize %d, sizeof(*sg) 0x%x)", cmd,
+		"save_len %d (sg_tablesize %d, sizeof(*sg) 0x%zx)", cmd,
 		work.save_sg, work.save_sg_cnt,
 		(unsigned long long)work.save_lba, work.save_len,
 		sg_tablesize, sizeof(*sg));
