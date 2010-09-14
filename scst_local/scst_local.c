@@ -1785,8 +1785,16 @@ static int __init scst_local_init(void)
 		goto driver_unreg;
 	}
 
+#ifndef CONFIG_SCST_PROC
+	/*
+	 *  If we are using sysfs, then don't add a default target unless
+	 *  we are told to do so. When using procfs, we always add a default
+	 *  target because that was what the earliest versions did. Just
+	 *  remove the preprocessor directives when no longer needed.
+	 */
 	if (!scst_local_add_default_tgt)
 		goto out;
+#endif
 
 	ret = scst_local_add_target("scst_local_tgt", &tgt);
 	if (ret != 0)
