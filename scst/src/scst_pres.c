@@ -161,7 +161,7 @@ static bool tid_equal(const uint8_t *tid_a, const uint8_t *tid_b)
 	} else
 		len = TID_COMMON_SIZE;
 
-	return (memcmp(tid_a, tid_b, len) == 0);
+	return memcmp(tid_a, tid_b, len) == 0;
 
 out_error:
 	PRINT_ERROR("%s", "Invalid initiator port transport id");
