@@ -1350,7 +1350,7 @@ static struct scst_aen *scst_alloc_aen(struct scst_session *sess,
 out:
 	TRACE_EXIT_HRES((unsigned long)aen);
 	return aen;
-};
+}
 
 static void scst_free_aen(struct scst_aen *aen)
 {
@@ -1361,7 +1361,7 @@ static void scst_free_aen(struct scst_aen *aen)
 
 	TRACE_EXIT();
 	return;
-};
+}
 
 /* Must be called under scst_mutex */
 void scst_gen_aen_or_ua(struct scst_tgt_dev *tgt_dev,
