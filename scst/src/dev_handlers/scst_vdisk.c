@@ -2641,8 +2641,8 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 		(struct scst_vdisk_dev *)cmd->dev->dh_priv;
 	struct block_device *bdev = thr->bdev;
 	struct request_queue *q = bdev_get_queue(bdev);
-	int length, max_nr_vecs = 0;
-	uint8_t *address;
+	int length, max_nr_vecs = 0, offset;
+	struct page *page;
 	struct bio *bio = NULL, *hbio = NULL, *tbio = NULL;
 	int need_new_bio;
 	struct scst_blockio_work *blockio_work;
@@ -2667,21 +2667,20 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 
 	need_new_bio = 1;
 
-	length = scst_get_buf_first(cmd, &address);
+	length = scst_get_sg_page_first(cmd, &page, &offset);
 	while (length > 0) {
 		int len, bytes, off, thislen;
-		uint8_t *addr;
+		struct page *pg;
 		u64 lba_start0;
 
-		addr = address;
-		off = offset_in_page(addr);
+		pg = page;
 		len = length;
+		off = offset;
 		thislen = 0;
 		lba_start0 = lba_start;
 
 		while (len > 0) {
 			int rc;
-			struct page *page = virt_to_page(addr);
 
 			if (need_new_bio) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
@@ -2725,7 +2724,7 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 
 			bytes = min_t(unsigned int, len, PAGE_SIZE - off);
 
-			rc = bio_add_page(bio, page, bytes, off);
+			rc = bio_add_page(bio, pg, bytes, off);
 			if (rc < bytes) {
 				sBUG_ON(rc != 0);
 				need_new_bio = 1;
@@ -2734,7 +2733,7 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 				continue;
 			}
 
-			addr += PAGE_SIZE;
+			pg++;
 			thislen += bytes;
 			len -= bytes;
 			off = 0;
@@ -2742,8 +2741,8 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 
 		lba_start += length >> virt_dev->block_shift;
 
-		scst_put_buf(cmd, address);
-		length = scst_get_buf_next(cmd, &address);
+		scst_put_sg_page(cmd, page, offset);
+		length = scst_get_sg_page_next(cmd, &page, &offset);
 	}
 
 	/* +1 to prevent erroneous too early command completion */

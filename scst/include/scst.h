@@ -3401,10 +3401,10 @@ static inline int __scst_get_buf(struct scst_cmd *cmd, int sg_cnt,
 	int res = 0;
 	struct scatterlist *sg = cmd->get_sg_buf_cur_sg_entry;
 
-	*buf = NULL;
-
-	if (cmd->get_sg_buf_entry_num >= sg_cnt)
+	if (cmd->get_sg_buf_entry_num >= sg_cnt) {
+		*buf = NULL;
 		goto out;
+	}
 
 	if (unlikely(sg_is_chain(sg)))
 		sg = sg_chain_ptr(sg);
@@ -3486,6 +3486,94 @@ static inline int scst_get_sg_buf_next(struct scst_cmd *cmd, uint8_t **buf,
 
 static inline void scst_put_sg_buf(struct scst_cmd *cmd, void *buf,
 	struct scatterlist *sg, int sg_cnt)
+{
+	/* Nothing to do */
+}
+
+/*
+ * Functions for access to the commands data (SG) page. Should be used
+ * instead of direct access. Returns the buffer length for success, 0 for EOD,
+ * negative error code otherwise.
+ *
+ * "Page" argument returns the starting page, "offset" - offset in it.
+ *
+ * The "put" function "puts" the buffer. It should be always be used, because
+ * in future may need to do some additional operations.
+ */
+static inline int __scst_get_sg_page(struct scst_cmd *cmd, int sg_cnt,
+	struct page **page, int *offset)
+{
+	int res = 0;
+	struct scatterlist *sg = cmd->get_sg_buf_cur_sg_entry;
+
+	if (cmd->get_sg_buf_entry_num >= sg_cnt) {
+		*page = NULL;
+		*offset = 0;
+		goto out;
+	}
+
+	if (unlikely(sg_is_chain(sg)))
+		sg = sg_chain_ptr(sg);
+
+	*page = sg_page(sg);
+	*offset = sg->offset;
+	res = sg->length;
+
+	cmd->get_sg_buf_entry_num++;
+	cmd->get_sg_buf_cur_sg_entry = ++sg;
+
+out:
+	return res;
+}
+
+static inline int scst_get_sg_page_first(struct scst_cmd *cmd,
+	struct page **page, int *offset)
+{
+	if (unlikely(cmd->sg == NULL)) {
+		*page = NULL;
+		*offset = 0;
+		return 0;
+	}
+	cmd->get_sg_buf_entry_num = 0;
+	cmd->get_sg_buf_cur_sg_entry = cmd->sg;
+	cmd->may_need_dma_sync = 1;
+	return __scst_get_sg_page(cmd, cmd->sg_cnt, page, offset);
+}
+
+static inline int scst_get_sg_page_next(struct scst_cmd *cmd,
+	struct page **page, int *offset)
+{
+	return __scst_get_sg_page(cmd, cmd->sg_cnt, page, offset);
+}
+
+static inline void scst_put_sg_page(struct scst_cmd *cmd,
+	struct page *page, int offset)
+{
+	/* Nothing to do */
+}
+
+static inline int scst_get_out_sg_page_first(struct scst_cmd *cmd,
+	struct page **page, int *offset)
+{
+	if (unlikely(cmd->out_sg == NULL)) {
+		*page = NULL;
+		*offset = 0;
+		return 0;
+	}
+	cmd->get_sg_buf_entry_num = 0;
+	cmd->get_sg_buf_cur_sg_entry = cmd->out_sg;
+	cmd->may_need_dma_sync = 1;
+	return __scst_get_sg_page(cmd, cmd->out_sg_cnt, page, offset);
+}
+
+static inline int scst_get_out_sg_page_next(struct scst_cmd *cmd,
+	struct page **page, int *offset)
+{
+	return __scst_get_sg_page(cmd, cmd->out_sg_cnt, page, offset);
+}
+
+static inline void scst_put_out_sg_page(struct scst_cmd *cmd,
+	struct page *page, int offset)
 {
 	/* Nothing to do */
 }
