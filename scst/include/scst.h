@@ -3323,6 +3323,16 @@ void scst_aen_done(struct scst_aen *aen);
 
 #ifndef __BACKPORT_LINUX_SCATTERLIST_H_TO_2_6_23__
 
+static inline bool sg_is_chain(struct scatterlist *sg)
+{
+	return false;
+}
+
+static inline struct scatterlist *sg_chain_ptr(struct scatterlist *sg)
+{
+	return NULL;
+}
+
 static inline struct page *sg_page(struct scatterlist *sg)
 {
 	return sg->page;
@@ -3413,8 +3423,10 @@ out:
 
 static inline int scst_get_buf_first(struct scst_cmd *cmd, uint8_t **buf)
 {
-	if (unlikely(cmd->sg == NULL))
+	if (unlikely(cmd->sg == NULL)) {
+		*buf = NULL;
 		return 0;
+	}
 	cmd->get_sg_buf_entry_num = 0;
 	cmd->get_sg_buf_cur_sg_entry = cmd->sg;
 	cmd->may_need_dma_sync = 1;
@@ -3433,8 +3445,10 @@ static inline void scst_put_buf(struct scst_cmd *cmd, void *buf)
 
 static inline int scst_get_out_buf_first(struct scst_cmd *cmd, uint8_t **buf)
 {
-	if (unlikely(cmd->out_sg == NULL))
+	if (unlikely(cmd->out_sg == NULL)) {
+		*buf = NULL;
 		return 0;
+	}
 	cmd->get_sg_buf_entry_num = 0;
 	cmd->get_sg_buf_cur_sg_entry = cmd->out_sg;
 	cmd->may_need_dma_sync = 1;
@@ -3454,8 +3468,10 @@ static inline void scst_put_out_buf(struct scst_cmd *cmd, void *buf)
 static inline int scst_get_sg_buf_first(struct scst_cmd *cmd, uint8_t **buf,
 	struct scatterlist *sg, int sg_cnt)
 {
-	if (unlikely(sg == NULL))
+	if (unlikely(sg == NULL)) {
+		*buf = NULL;
 		return 0;
+	}
 	cmd->get_sg_buf_entry_num = 0;
 	cmd->get_sg_buf_cur_sg_entry = cmd->sg;
 	cmd->may_need_dma_sync = 1;
