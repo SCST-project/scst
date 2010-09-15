@@ -545,7 +545,7 @@ static void scst_ungrab_devt_ptr(struct scst_dev_type *devt)
 }
 
 /**
- ** Regilar SCST sysfs ops
+ ** Regular SCST sysfs ops
  **/
 static ssize_t scst_show(struct kobject *kobj, struct attribute *attr,
 			 char *buf)
