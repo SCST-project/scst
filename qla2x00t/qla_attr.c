@@ -1146,10 +1146,10 @@ qla2x00_fw_version_show(struct device *dev,
 			struct device_attribute *attr, char *buf)
 {
 	scsi_qla_host_t *ha = shost_priv(class_to_shost(dev));
-	char fw_str[30];
+	char fw_str[128];
 
 	return scnprintf(buf, PAGE_SIZE, "%s\n",
-	    ha->isp_ops->fw_version_str(ha, fw_str));
+	    ha->isp_ops->fw_version_str(ha, fw_str, sizeof(fw_str)));
 }
 
 static ssize_t
@@ -1210,7 +1210,7 @@ qla2x00_pci_info_show(struct device *dev, struct device_attribute *attr,
 	char pci_info[30];
 
 	return scnprintf(buf, PAGE_SIZE, "%s\n",
-	    ha->isp_ops->pci_info_str(ha, pci_info));
+	    ha->isp_ops->pci_info_str(ha, pci_info, sizeof(pci_info)));
 }
 
 static ssize_t

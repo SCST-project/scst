@@ -1706,7 +1706,7 @@ struct ct_fdmi_hba_attr {
 		uint8_t hw_version[16];
 		uint8_t driver_version[32];
 		uint8_t orom_version[16];
-		uint8_t fw_version[16];
+		uint8_t fw_version[64];
 		uint8_t os_version[128];
 		uint8_t max_ct_len[4];
 	} a;
@@ -2069,8 +2069,8 @@ struct isp_operations {
 	void (*update_fw_options) (struct scsi_qla_host *);
 	int (*load_risc) (struct scsi_qla_host *, uint32_t *);
 
-	char * (*pci_info_str) (struct scsi_qla_host *, char *);
-	char * (*fw_version_str) (struct scsi_qla_host *, char *);
+	char * (*pci_info_str) (struct scsi_qla_host *, char *, int);
+	char * (*fw_version_str) (struct scsi_qla_host *, char *, int);
 
 	irq_handler_t intr_handler;
 	void (*enable_intrs) (struct scsi_qla_host *);

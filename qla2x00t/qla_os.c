@@ -258,30 +258,30 @@ static void qla2x00_sp_free_dma(scsi_qla_host_t *, srb_t *);
 /* -------------------------------------------------------------------------- */
 
 static char *
-qla2x00_pci_info_str(struct scsi_qla_host *ha, char *str)
+qla2x00_pci_info_str(struct scsi_qla_host *ha, char *str, int str_len)
 {
 	static char *pci_bus_modes[] = {
 		"33", "66", "100", "133",
 	};
 	uint16_t pci_bus;
 
-	strcpy(str, "PCI");
+	strlcpy(str, "PCI", str_len);
 	pci_bus = (ha->pci_attr & (BIT_9 | BIT_10)) >> 9;
 	if (pci_bus) {
-		strcat(str, "-X (");
-		strcat(str, pci_bus_modes[pci_bus]);
+		strncat(str, "-X (", str_len - (strlen(str)+1));
+		strncat(str, pci_bus_modes[pci_bus], str_len - (strlen(str)+1));
 	} else {
 		pci_bus = (ha->pci_attr & BIT_8) >> 8;
-		strcat(str, " (");
-		strcat(str, pci_bus_modes[pci_bus]);
+		strncat(str, " (", str_len - (strlen(str)+1));
+		strncat(str, pci_bus_modes[pci_bus], str_len - (strlen(str)+1));
 	}
-	strcat(str, " MHz)");
+	strncat(str, " MHz)", str_len - (strlen(str)+1));
 
 	return (str);
 }
 
 static char *
-qla24xx_pci_info_str(struct scsi_qla_host *ha, char *str)
+qla24xx_pci_info_str(struct scsi_qla_host *ha, char *str, int str_len)
 {
 	static char *pci_bus_modes[] = { "33", "66", "100", "133", };
 	uint32_t pci_bus;
@@ -298,99 +298,99 @@ qla24xx_pci_info_str(struct scsi_qla_host *ha, char *str)
 		lwidth = (pcie_lstat &
 		    (BIT_4 | BIT_5 | BIT_6 | BIT_7 | BIT_8 | BIT_9)) >> 4;
 
-		strcpy(str, "PCIe (");
+		strlcpy(str, "PCIe (", str_len);
 		if (lspeed == 1)
-			strcat(str, "2.5GT/s ");
+			strncat(str, "2.5GT/s ", str_len - (strlen(str)+1));
 		else if (lspeed == 2)
-			strcat(str, "5.0GT/s ");
+			strncat(str, "5.0GT/s ", str_len - (strlen(str)+1));
 		else
-			strcat(str, "<unknown> ");
+			strncat(str, "<unknown> ", str_len - (strlen(str)+1));
 		snprintf(lwstr, sizeof(lwstr), "x%d)", lwidth);
-		strcat(str, lwstr);
+		strncat(str, lwstr, str_len - (strlen(str)+1));
 
 		return str;
 	}
 
-	strcpy(str, "PCI");
+	strncpy(str, "PCI", str_len);
 	pci_bus = (ha->pci_attr & CSRX_PCIX_BUS_MODE_MASK) >> 8;
 	if (pci_bus == 0 || pci_bus == 8) {
-		strcat(str, " (");
-		strcat(str, pci_bus_modes[pci_bus >> 3]);
+		strncat(str, " (", str_len - (strlen(str)+1));
+		strncat(str, pci_bus_modes[pci_bus >> 3], str_len - (strlen(str)+1));
 	} else {
-		strcat(str, "-X ");
+		strncat(str, "-X ", str_len - (strlen(str)+1));
 		if (pci_bus & BIT_2)
-			strcat(str, "Mode 2");
+			strncat(str, "Mode 2", str_len - (strlen(str)+1));
 		else
-			strcat(str, "Mode 1");
-		strcat(str, " (");
-		strcat(str, pci_bus_modes[pci_bus & ~BIT_2]);
+			strncat(str, "Mode 1", str_len - (strlen(str)+1));
+		strncat(str, " (", str_len - (strlen(str)+1));
+		strncat(str, pci_bus_modes[pci_bus & ~BIT_2], str_len - (strlen(str)+1));
 	}
-	strcat(str, " MHz)");
+	strncat(str, " MHz)", str_len - (strlen(str)+1));
 
 	return str;
 }
 
 static char *
-qla2x00_fw_version_str(struct scsi_qla_host *ha, char *str)
+qla2x00_fw_version_str(struct scsi_qla_host *ha, char *str, int str_len)
 {
 	char un_str[10];
 
-	sprintf(str, "%d.%02d.%02d ", ha->fw_major_version,
+	snprintf(str, str_len, "%d.%02d.%02d ", ha->fw_major_version,
 	    ha->fw_minor_version,
 	    ha->fw_subminor_version);
 
 	if (ha->fw_attributes & BIT_9) {
-		strcat(str, "FLX");
+		strncat(str, "FLX", str_len - (strlen(str)+1));
 		return (str);
 	}
 
 	switch (ha->fw_attributes & 0xFF) {
 	case 0x7:
-		strcat(str, "EF");
+		strncat(str, "EF", str_len - (strlen(str)+1));
 		break;
 	case 0x17:
-		strcat(str, "TP");
+		strncat(str, "TP", str_len - (strlen(str)+1));
 		break;
 	case 0x37:
-		strcat(str, "IP");
+		strncat(str, "IP", str_len - (strlen(str)+1));
 		break;
 	case 0x77:
-		strcat(str, "VI");
+		strncat(str, "VI", str_len - (strlen(str)+1));
 		break;
 	default:
-		sprintf(un_str, "(%x)", ha->fw_attributes);
-		strcat(str, un_str);
+		snprintf(un_str, sizeof(un_str), "(%x)", ha->fw_attributes);
+		strncat(str, un_str, str_len - (strlen(str)+1));
 		break;
 	}
 	if (ha->fw_attributes & 0x100)
-		strcat(str, "X");
+		strncat(str, "X", str_len - (strlen(str)+1));
 
 	return (str);
 }
 
 static char *
-qla24xx_fw_version_str(struct scsi_qla_host *ha, char *str)
+qla24xx_fw_version_str(struct scsi_qla_host *ha, char *str, int str_len)
 {
-	sprintf(str, "%d.%02d.%02d ", ha->fw_major_version,
+	snprintf(str, str_len, "%d.%02d.%02d ", ha->fw_major_version,
 	    ha->fw_minor_version,
 	    ha->fw_subminor_version);
 
 	if (ha->fw_attributes & BIT_0)
-		strcat(str, "[Class 2] ");
+		strncat(str, "[Class 2] ", str_len - (strlen(str)+1));
 	if (ha->fw_attributes & BIT_1)
-		strcat(str, "[IP] ");
+		strncat(str, "[IP] ", str_len - (strlen(str)+1));
 	if (ha->fw_attributes & BIT_2)
-		strcat(str, "[Multi-ID] ");
+		strncat(str, "[Multi-ID] ", str_len - (strlen(str)+1));
 	if (ha->fw_attributes & BIT_3)
-		strcat(str, "[SB-2] ");
+		strncat(str, "[SB-2] ", str_len - (strlen(str)+1));
 	if (ha->fw_attributes & BIT_4)
-		strcat(str, "[T10 CRC] ");
+		strncat(str, "[T10 CRC] ", str_len - (strlen(str)+1));
 	if (ha->fw_attributes & BIT_5)
-		strcat(str, "[VI] ");
+		strncat(str, "[VI] ", str_len - (strlen(str)+1));
 	if (ha->fw_attributes & BIT_10)
-		strcat(str, "[84XX] ");
+		strncat(str, "[84XX] ", str_len - (strlen(str)+1));
 	if (ha->fw_attributes & BIT_13)
-		strcat(str, "[Experimental]");
+		strncat(str, "[Experimental]", str_len - (strlen(str)+1));
 	return str;
 }
 
@@ -1668,7 +1668,7 @@ qla2x00_probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	struct Scsi_Host *host;
 	scsi_qla_host_t *ha;
 	char pci_info[30];
-	char fw_str[30];
+	char fw_str[128];
 	struct scsi_host_template *sht;
 	int bars, mem_only = 0;
 
@@ -1909,9 +1909,10 @@ qla2x00_probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	    "  ISP%04X: %s @ %s hdma%c, host#=%ld, fw=%s\n",
 	    qla2x00_version_str, ha->model_number,
 	    ha->model_desc ? ha->model_desc: "", pdev->device,
-	    ha->isp_ops->pci_info_str(ha, pci_info), pci_name(pdev),
-	    ha->flags.enable_64bit_addressing ? '+': '-', ha->host_no,
-	    ha->isp_ops->fw_version_str(ha, fw_str));
+	    ha->isp_ops->pci_info_str(ha, pci_info, sizeof(pci_info)),
+	    pci_name(pdev), ha->flags.enable_64bit_addressing ? '+': '-',
+	    ha->host_no, ha->isp_ops->fw_version_str(ha, fw_str,
+	    						sizeof(fw_str)));
 
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 	if (qla_target.tgt_host_action != NULL)
