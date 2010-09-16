@@ -116,6 +116,16 @@ See HOWTOs in the doc/ subdirectory.
 In 2.0.0 usage of iscsi-scstd.conf as well as iscsi-scst-adm utility is
 obsolete. Use the sysfs interface facilities instead.
 
+The flow of iSCSI-SCST inialization should be as the following:
+
+1. Load of SCST and iSCSI-SCST kernel modules with necessary module
+parameters, if needed.
+
+2. Start iSCSI-SCST service.
+
+3. Configure targets, devices, LUNs, etc. either using scstadmin
+(recommended), or using the sysfs interface directly as described below.
+
 It is recommended to use TEST UNIT READY ("tur") command to check if
 iSCSI-SCST target is alive in MPIO configurations.
 
@@ -143,10 +153,17 @@ configuration to the sysfs interface:
 5. Check new_config_file and make sure it has everything written
 properly.
 
-6. Delete /etc/iscsi-scst.conf and forget about it.
+6. IMPORTANT! Delete /etc/iscsi-scst.conf and forget about it.
 
 7. Start using "scstadmin -config new_config_file" to configure both
 SCST and iSCSI-SCST.
+
+IMPORTANT: With the sysfs interface the flow of iSCSI-SCST initialization
+=========  has changed (see above). Now scstadmin should be run as the FINAL
+	   step of the initialization and only ONCE.
+
+Also it is recommended to convert initiators.allow and initiators.deny
+files to the corresponding sysfs facilities.
 
 
 Migration from IET

@@ -128,6 +128,13 @@ log message: "tgt_dev for LUN 0 not found, command to unexisting LU?"
 It is highly recommended to use scstadmin utility for configuring
 devices and security groups.
 
+The flow of SCST inialization should be as the following:
+
+1. Load of SCST modules with necessary module parameters, if needed.
+
+2. Configure targets, devices, LUNs, etc. using either scstadmin
+(recommended), or the sysfs interface directly as described below.
+
 If you experience problems during modules load or running, check your
 kernel logs (or run dmesg command for the few most recent messages).
 
@@ -164,7 +171,6 @@ IMPORTANT: In the current version simultaneous access to local SCSI devices
 	   generally safe.
 
 To uninstall, type 'make scst_uninstall'.
-
 
 Migration from the obsolete proc interface
 ------------------------------------------
