@@ -51,9 +51,9 @@ start_server()
 		modprobe ${module} || { exit 1 ; }
 	done
 
-	$SCST_CMD -config $SCST_CFG || { exit $? ; }
-
 	/usr/local/sbin/iscsi-scstd
+
+	$SCST_CMD -config $SCST_CFG || { exit $? ; }
 }
 
 stop_server()
