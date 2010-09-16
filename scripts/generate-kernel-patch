@@ -309,6 +309,11 @@ add_file "${tmp_Kconfig}" "drivers/scst/Kconfig"
 
 tmp_Makefile="${tmpdir}/Makefile.scst-${kernel_version}"
 cat "scst/kernel/in-tree/Makefile.scst-${kernel_version}" | \
+if [ "${generating_upstream_patch}" = "true" ]; then
+  grep -v 'scst_proc'
+else
+  cat
+fi | \
 if [ -e "${fcst_patch_series}" ]; then
   cat
 else
