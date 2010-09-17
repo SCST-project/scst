@@ -58,8 +58,8 @@
 
 /* Name of this kernel module. */
 #define DRV_NAME		"ib_srpt"
-#define DRV_VERSION		"1.0.1"
-#define DRV_RELDATE		"July 10, 2008"
+#define DRV_VERSION		"2.0.0"
+#define DRV_RELDATE		"September 17, 2010"
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 /* Flags to be used in SCST debug tracing statements. */
 #define DEFAULT_SRPT_TRACE_FLAGS (TRACE_OUT_OF_MEM | TRACE_MINOR \
