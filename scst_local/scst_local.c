@@ -934,7 +934,7 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 	 */
 	tgt_specific = kmem_cache_alloc(tgt_specific_pool, GFP_ATOMIC);
 	if (!tgt_specific) {
-		PRINT_ERROR("Unable to create tgt_specific (size %d)",
+		PRINT_ERROR("Unable to create tgt_specific (size %zd)",
 			sizeof(*tgt_specific));
 		return -ENOMEM;
 	}
@@ -1390,7 +1390,7 @@ static int scst_local_driver_probe(struct device *dev)
 	TRACE_DBG("sess %p", sess);
 
 	hpnt = scsi_host_alloc(&scst_lcl_ini_driver_template, sizeof(*sess));
-	if (NULL == hpnt) {
+	if (!hpnt) {
 		PRINT_ERROR("%s", "scsi_register() failed");
 		ret = -ENODEV;
 		goto out;
@@ -1528,7 +1528,7 @@ static int __scst_local_add_adapter(struct scst_local_tgt *tgt,
 	TRACE_ENTRY();
 
 	sess = kzalloc(sizeof(*sess), GFP_KERNEL);
-	if (NULL == sess) {
+	if (!sess) {
 		PRINT_ERROR("Unable to alloc scst_lcl_host (size %zd)",
 			sizeof(*sess));
 		res = -ENOMEM;
@@ -1641,7 +1641,7 @@ static int scst_local_add_target(const char *target_name,
 	TRACE_ENTRY();
 
 	tgt = kzalloc(sizeof(*tgt), GFP_KERNEL);
-	if (NULL == tgt) {
+	if (!tgt) {
 		PRINT_ERROR("Unable to alloc tgt (size %zd)", sizeof(*tgt));
 		res = -ENOMEM;
 		goto out;
