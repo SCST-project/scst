@@ -1,4 +1,3 @@
-/* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
 /*
  * SCSI RDMA Protocol lib functions
  *
@@ -26,7 +25,11 @@
 #include <linux/scatterlist.h>
 #include <linux/dma-mapping.h>
 #include <scsi/srp.h>
+#ifdef INSIDE_KERNEL_TREE
+#include <scsi/libsrp.h>
+#else
 #include "libsrpnew.h"
+#endif
 
 enum srp_task_attributes {
 	SRP_SIMPLE_TASK = 0,
@@ -206,9 +209,9 @@ static int srp_direct_data(struct scst_cmd *sc, struct srp_direct_buf *md,
 			return 0;
 		}
 		len = min_t(unsigned, scst_cmd_get_expected_transfer_len(sc),
-			    be32_to_cpu(md->len));
+			    md->len);
 	} else
-		len = be32_to_cpu(md->len);
+		len = md->len;
 
 	err = rdma_io(sc, sg, nsg, md, 1, dir, len);
 
@@ -239,7 +242,7 @@ static int srp_indirect_data(struct scst_cmd *sc, struct srp_cmd *cmd,
 			cmd->data_in_desc_cnt, cmd->data_out_desc_cnt);
 	}
 
-	nmd = be32_to_cpu(id->table_desc.len) / sizeof(struct srp_direct_buf);
+	nmd = id->table_desc.len / sizeof(struct srp_direct_buf);
 
 	if ((dir == DMA_FROM_DEVICE && nmd == cmd->data_in_desc_cnt) ||
 	    (dir == DMA_TO_DEVICE && nmd == cmd->data_out_desc_cnt)) {
@@ -249,18 +252,18 @@ static int srp_indirect_data(struct scst_cmd *sc, struct srp_cmd *cmd,
 
 	if (ext_desc && dma_map) {
 		md = dma_alloc_coherent(iue->target->dev,
-					be32_to_cpu(id->table_desc.len),
+					id->table_desc.len,
 					&token, GFP_KERNEL);
 		if (!md) {
 			eprintk("Can't get dma memory %u\n", id->table_desc.len);
 			return -ENOMEM;
 		}
 
-		sg_init_one(&dummy, md, be32_to_cpu(id->table_desc.len));
+		sg_init_one(&dummy, md, id->table_desc.len);
 		sg_dma_address(&dummy) = token;
-		sg_dma_len(&dummy) = be32_to_cpu(id->table_desc.len);
+		sg_dma_len(&dummy) = id->table_desc.len;
 		err = rdma_io(sc, &dummy, 1, &id->table_desc, 1, DMA_TO_DEVICE,
-			      be32_to_cpu(id->table_desc.len));
+			      id->table_desc.len);
 		if (err) {
 			eprintk("Error copying indirect table %d\n", err);
 			goto free_mem;
@@ -281,9 +284,9 @@ rdma:
 			goto free_mem;
 		}
 		len = min_t(unsigned, scst_cmd_get_expected_transfer_len(sc),
-			    be32_to_cpu(id->len));
+			    id->len);
 	} else
-		len = be32_to_cpu(id->len);
+		len = id->len;
 
 	err = rdma_io(sc, sg, nsg, md, nmd, dir, len);
 
@@ -293,7 +296,7 @@ rdma:
 free_mem:
 	if (token && dma_map)
 		dma_free_coherent(iue->target->dev,
-				  be32_to_cpu(id->table_desc.len), md, token);
+				  id->table_desc.len, md, token);
 
 	return err;
 }
@@ -386,11 +389,11 @@ static int vscsis_data_length(struct srp_cmd *cmd, enum dma_data_direction dir)
 		break;
 	case SRP_DATA_DESC_DIRECT:
 		md = (struct srp_direct_buf *) (cmd->add_data + offset);
-		len = be32_to_cpu(md->len);
+		len = md->len;
 		break;
 	case SRP_DATA_DESC_INDIRECT:
 		id = (struct srp_indirect_buf *) (cmd->add_data + offset);
-		len = be32_to_cpu(id->len);
+		len = id->len;
 		break;
 	default:
 		eprintk("invalid data format %x\n", fmt);

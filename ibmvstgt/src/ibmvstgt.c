@@ -1,4 +1,3 @@
-/* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
 /*
  * IBM eServer i/pSeries Virtual SCSI Target Driver
  * Copyright (C) 2003-2005 Dave Boutcher (boutcher@us.ibm.com) IBM Corp.
@@ -169,7 +168,7 @@ static int send_rsp(struct iu_entry *iue, struct scst_cmd *sc,
 
 	memset(iu, 0, sizeof(struct srp_rsp));
 	iu->srp.rsp.opcode = SRP_RSP;
-	iu->srp.rsp.req_lim_delta = __constant_cpu_to_be32(1);
+	iu->srp.rsp.req_lim_delta = 1;
 	iu->srp.rsp.tag = tag;
 
 	if (test_bit(V_DIOVER, &iue->flags))
@@ -193,14 +192,12 @@ static int send_rsp(struct iu_entry *iue, struct scst_cmd *sc,
 			sense_data_len = min(scst_cmd_get_sense_buffer_len(sc),
 					     SRP_RSP_SENSE_DATA_LEN);
 			iu->srp.rsp.flags |= SRP_RSP_FLAG_SNSVALID;
-			iu->srp.rsp.sense_data_len
-				= cpu_to_be32(sense_data_len);
+			iu->srp.rsp.sense_data_len = sense_data_len;
 			memcpy(sense, sc_sense, sense_data_len);
 		} else {
 			iu->srp.rsp.status = SAM_STAT_CHECK_CONDITION;
 			iu->srp.rsp.flags |= SRP_RSP_FLAG_SNSVALID;
-			iu->srp.rsp.sense_data_len
-			       = __constant_cpu_to_be32(SRP_RSP_SENSE_DATA_LEN);
+			iu->srp.rsp.sense_data_len = SRP_RSP_SENSE_DATA_LEN;
 
 			/* Valid bit and 'current errors' */
 			sense[0] = (0x1 << 7 | 0x70);
@@ -266,7 +263,7 @@ static int ibmvstgt_rdma(struct scst_cmd *sc, struct scatterlist *sg, int nsg,
 	for (i = 0; i < nmd && rest; i++) {
 		unsigned int mdone, mlen;
 
-		mlen = min(rest, be32_to_cpu(md[i].len));
+		mlen = min(rest, md[i].len);
 		for (mdone = 0; mlen;) {
 			int slen = min(sg_dma_len(sg + sidx) - soff, mlen);
 
@@ -542,8 +539,7 @@ static void process_login(struct iu_entry *iue)
 	BUG_ON(!target);
 	sess = scst_register_session(target->tgt, 0, name, target, NULL, NULL);
 	if (!sess) {
-		rej->reason
-		 = __constant_cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
+		rej->reason = SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES;
 		TRACE_DBG("%s", "Failed to create SCST session");
 		goto reject;
 	}
@@ -554,10 +550,10 @@ static void process_login(struct iu_entry *iue)
 	 * buffer format is wrong
 	 */
 	rsp->opcode = SRP_LOGIN_RSP;
-	rsp->req_lim_delta = __constant_cpu_to_be32(INITIAL_SRP_LIMIT);
+	rsp->req_lim_delta = INITIAL_SRP_LIMIT;
 	rsp->tag = tag;
-	rsp->max_it_iu_len = __constant_cpu_to_be32(sizeof(union srp_iu));
-	rsp->max_ti_iu_len = __constant_cpu_to_be32(sizeof(union srp_iu));
+	rsp->max_it_iu_len = sizeof(union srp_iu);
+	rsp->max_ti_iu_len = sizeof(union srp_iu);
 	/* direct and indirect */
 	rsp->buf_fmt
 		= cpu_to_be16(SRP_BUF_FORMAT_DIRECT | SRP_BUF_FORMAT_INDIRECT);

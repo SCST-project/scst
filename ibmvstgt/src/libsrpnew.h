@@ -1,15 +1,14 @@
-/* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
 #ifndef __LIBSRP_H__
 #define __LIBSRP_H__
 
 #include <linux/list.h>
 #include <linux/kfifo.h>
-#include <scsi/srp.h>
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/scst.h>
 #else
 #include "scst.h"
 #endif
+#include <scsi/srp.h>
 
 enum iue_flags {
 	V_DIOVER,
