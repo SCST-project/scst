@@ -1,0 +1,29 @@
+#!/bin/bash
+
+kernel_version="$1"
+
+if [ "$1" = "" ]; then
+  echo "Error: missing kernel version argument."
+  exit 1
+fi
+
+if [ "${1#2.6.35}" = "$1" ]; then
+  # Exit silently for other kernel versions than 2.6.35.x.
+  exit 0
+fi
+
+mkdir -p in-tree-patches/"${kernel_version}"
+
+for f in src/orig/"${kernel_version}"/*
+do
+  g="${f#src/orig/${kernel_version}/}"
+  f1="$f"
+  f2="src/$g"
+  if [ ! -e "$f2" ]; then
+    f2="src/libsrpnew${f2#src/libsrp}"
+  fi
+  f3="in-tree-patches/${kernel_version}/$g.patch"
+  if [ "$f1" -nt "$f3" -o "$f2" -nt "$f3" ]; then
+    diff -up "$f1" "$f2" > "$f3"
+  fi
+done
