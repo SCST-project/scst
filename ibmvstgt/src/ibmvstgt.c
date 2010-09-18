@@ -80,6 +80,7 @@ struct vio_port {
 	unsigned long liobn;
 	unsigned long riobn;
 	struct srp_target *target;
+
 	struct scst_session *sess;
 	struct device dev;
 	bool releasing;
@@ -225,7 +226,6 @@ static void handle_cmd_queue(struct srp_target *target)
 	unsigned long flags;
 	int err;
 
-	BUG_ON(!sess);
 retry:
 	spin_lock_irqsave(&target->lock, flags);
 
@@ -270,7 +270,7 @@ static int ibmvstgt_rdma(struct scst_cmd *sc, struct scatterlist *sg, int nsg,
 			if (dir == DMA_TO_DEVICE)
 				err = h_copy_rdma(slen,
 						  vport->riobn,
-						  be64_to_cpu(md[i].va) + mdone,
+						  md[i].va + mdone,
 						  vport->liobn,
 						  token + soff);
 			else
@@ -278,8 +278,7 @@ static int ibmvstgt_rdma(struct scst_cmd *sc, struct scatterlist *sg, int nsg,
 						  vport->liobn,
 						  token + soff,
 						  vport->riobn,
-						  be64_to_cpu(md[i].va)
-						  + mdone);
+						  md[i].va + mdone);
 
 			if (err != H_SUCCESS) {
 				eprintk("rdma error %d %d %ld\n", dir, slen, err);
@@ -319,8 +318,6 @@ static int ibmvstgt_enable_target(struct scst_tgt *scst_tgt, bool enable)
 	struct vio_port *vport = target_to_port(target);
 	unsigned long flags;
 
-	EXTRACHECKS_WARN_ON_ONCE(irqs_disabled());
-
 	TRACE_DBG("%s target %d", enable ? "Enabling" : "Disabling",
 		  vport->dma_dev->unit_address);
 
@@ -340,8 +337,6 @@ static bool ibmvstgt_is_target_enabled(struct scst_tgt *scst_tgt)
 	struct vio_port *vport = target_to_port(target);
 	unsigned long flags;
 	bool res;
-
-	EXTRACHECKS_WARN_ON_ONCE(irqs_disabled());
 
 	spin_lock_irqsave(&target->lock, flags);
 	res = vport->enabled;
@@ -743,13 +738,13 @@ static int process_mad_iu(struct iu_entry *iue)
 	return 1;
 }
 
-static bool process_srp_iu(struct iu_entry *iue)
+static int process_srp_iu(struct iu_entry *iue)
 {
 	unsigned long flags;
 	union viosrp_iu *iu = vio_iu(iue);
 	struct srp_target *target = iue->target;
 	struct vio_port *vport = target_to_port(target);
-	bool done = true;
+	int done = 1;
 	u8 opcode = iu->srp.rsp.opcode;
 
 	spin_lock_irqsave(&target->lock, flags);
@@ -874,7 +869,7 @@ static int crq_queue_create(struct crq_queue *queue, struct srp_target *target)
 
 	vio_enable_interrupts(vport->dma_dev);
 
-	h_send_crq(vport->dma_dev->unit_address, 0xC001000000000000UL, 0);
+	h_send_crq(vport->dma_dev->unit_address, 0xC001000000000000, 0);
 
 	queue->cur = 0;
 	spin_lock_init(&queue->lock);
@@ -924,7 +919,7 @@ static void process_crq(struct viosrp_crq *crq,	struct srp_target *target)
 		switch (crq->format) {
 		case 0x01:
 			h_send_crq(vport->dma_dev->unit_address,
-				   0xC002000000000000UL, 0);
+				   0xC002000000000000, 0);
 			break;
 		case 0x02:
 			break;

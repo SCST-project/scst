@@ -251,9 +251,8 @@ static int srp_indirect_data(struct scst_cmd *sc, struct srp_cmd *cmd,
 	}
 
 	if (ext_desc && dma_map) {
-		md = dma_alloc_coherent(iue->target->dev,
-					id->table_desc.len,
-					&token, GFP_KERNEL);
+		md = dma_alloc_coherent(iue->target->dev, id->table_desc.len,
+				&token, GFP_KERNEL);
 		if (!md) {
 			eprintk("Can't get dma memory %u\n", id->table_desc.len);
 			return -ENOMEM;
@@ -295,8 +294,7 @@ rdma:
 
 free_mem:
 	if (token && dma_map)
-		dma_free_coherent(iue->target->dev,
-				  id->table_desc.len, md, token);
+		dma_free_coherent(iue->target->dev, id->table_desc.len, md, token);
 
 	return err;
 }
