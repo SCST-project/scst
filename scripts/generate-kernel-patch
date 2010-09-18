@@ -542,3 +542,19 @@ fi
 
 add_file "scst_local/README" "Documentation/scst/README.scst_local" \
 | process_patch "scst_local-doc.diff"
+
+
+# Directory drivers/scsi/ibmvstgt
+
+{
+  ( cd ibmvstgt && ./generate-in-tree-patches "${kernel_version}" )
+  if [ -e "ibmvstgt/in-tree-patches/${kernel_version}" ]; then
+    add_patch "ibmvstgt/in-tree-patches/${kernel_version}/libsrp.h.patch" \
+        "include/scsi/libsrp.h"
+    add_patch "ibmvstgt/in-tree-patches/${kernel_version}/libsrp.c.patch" \
+        "drivers/scsi/libsrp.c"
+    add_patch "ibmvstgt/in-tree-patches/${kernel_version}/ibmvstgt.c.patch" \
+        "drivers/scsi/ibmvscsi/ibmvstgt.c"
+  fi
+} \
+| process_patch "ibmvstgt.diff"
