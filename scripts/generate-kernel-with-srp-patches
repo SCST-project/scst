@@ -769,8 +769,9 @@ if [ "${kernel_version}" "<" "2.6.36" ]; then
 fi
 # IB/srp: Preparation for transmit ring response allocation
 # IB/srp: Implement SRP_CRED_REQ and SRP_AER_REQ
+# IB/srp: Eliminate two forward declarations
 # IB/srp: Reduce number of BUSY conditions
-# IB/srp: use multiple CPU cores more effectively
+# IB/srp: Introduce list_first_entry()
 for p in \
   143381 \
   143391 \
