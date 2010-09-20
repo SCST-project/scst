@@ -498,7 +498,7 @@ static int send_adapter_info(struct iu_entry *iue,
 	info->partition_number = partition_number;
 	info->mad_version = 1;
 	info->os_type = 2;
-	info->port_max_txu[0] = 255 << 9;/*sess->hostt->max_sectors << 9;*/
+	info->port_max_txu[0] = DEFAULT_MAX_SECTORS << 9;
 
 	/* Send our info to remote */
 	err = h_copy_rdma(sizeof(*info), vport->liobn, data_token,
