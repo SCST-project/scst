@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Richard Sharpe
+ * Copyright (C) 2008 - 2010 Richard Sharpe
  * Copyright (C) 1992 Eric Youngdale
  * Copyright (C) 2008 - 2010 Vladislav Bolkhovitin <vst@vlnb.net>
  *
@@ -24,6 +24,7 @@
 #include <linux/slab.h>
 #include <linux/completion.h>
 #include <linux/spinlock.h>
+#include <linux/delay.h>
 
 #include <scsi/scsi.h>
 #include <scsi/scsi_cmnd.h>
@@ -41,6 +42,10 @@
 #include <scst_const.h>
 #include <scst.h>
 #include <scst_debug.h>
+#endif
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
+#define SG_MAX_SINGLE_ALLOC	(PAGE_SIZE / sizeof(struct scatterlist))
 #endif
 
 #ifndef INSIDE_KERNEL_TREE
@@ -934,7 +939,7 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 	 */
 	tgt_specific = kmem_cache_alloc(tgt_specific_pool, GFP_ATOMIC);
 	if (!tgt_specific) {
-		PRINT_ERROR("Unable to create tgt_specific (size %zd)",
+		PRINT_ERROR("Unable to create tgt_specific (size %zu)",
 			sizeof(*tgt_specific));
 		return -ENOMEM;
 	}
@@ -998,7 +1003,7 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 		 */
 		if (scsi_sglist(SCpnt)) {
 			sg_init_one(&(tgt_specific->sgl),
-				(const void *)scsi_sglist(SCpnt),
+				(void *)scsi_sglist(SCpnt),
 				scsi_bufflen(SCpnt));
 			sgl	  = &(tgt_specific->sgl);
 			sgl_count = 1;
@@ -1120,14 +1125,22 @@ done:
 	return;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+static void scst_aen_work_fn(void *ctx)
+#else
 static void scst_aen_work_fn(struct work_struct *work)
+#endif
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	struct scst_local_sess *sess = (struct scst_local_sess *)ctx;
+#else
 	struct scst_local_sess *sess =
 		container_of(work, struct scst_local_sess, aen_work);
+#endif
 
 	TRACE_ENTRY();
 
-	TRACE_MGMT_DBG("Target work %p)", work);
+	TRACE_MGMT_DBG("Target work %p)", sess);
 
 	spin_lock(&sess->aen_lock);
 	scst_process_aens(sess, false);
@@ -1317,7 +1330,11 @@ static uint16_t scst_local_get_phys_transport_version(struct scst_tgt *scst_tgt)
 
 static struct scst_tgt_template scst_local_targ_tmpl = {
 	.name			= "scst_local",
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	.sg_tablesize		= SG_MAX_SINGLE_ALLOC,
+#else
 	.sg_tablesize		= 0xffff,
+#endif
 	.xmit_response_atomic	= 1,
 #ifndef CONFIG_SCST_PROC
 	.enabled_attr_not_needed = 1,
@@ -1390,7 +1407,7 @@ static int scst_local_driver_probe(struct device *dev)
 	TRACE_DBG("sess %p", sess);
 
 	hpnt = scsi_host_alloc(&scst_lcl_ini_driver_template, sizeof(*sess));
-	if (!hpnt) {
+	if (NULL == hpnt) {
 		PRINT_ERROR("%s", "scsi_register() failed");
 		ret = -ENODEV;
 		goto out;
@@ -1507,7 +1524,15 @@ static void scst_local_release_adapter(struct device *dev)
 	scst_process_aens(sess, true);
 	spin_unlock(&sess->aen_lock);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22)
+	/*
+	 * cancel_work_sync() was introduced in 2.6.22. We can only wait until
+	 * all scheduled work is done.
+	 */
+	flush_scheduled_work();
+#else
 	cancel_work_sync(&sess->aen_work);
+#endif
 
 	scst_unregister_session(sess->scst_sess, TRUE, NULL);
 
@@ -1528,8 +1553,8 @@ static int __scst_local_add_adapter(struct scst_local_tgt *tgt,
 	TRACE_ENTRY();
 
 	sess = kzalloc(sizeof(*sess), GFP_KERNEL);
-	if (!sess) {
-		PRINT_ERROR("Unable to alloc scst_lcl_host (size %zd)",
+	if (NULL == sess) {
+		PRINT_ERROR("Unable to alloc scst_lcl_host (size %zu)",
 			sizeof(*sess));
 		res = -ENOMEM;
 		goto out;
@@ -1542,7 +1567,11 @@ static int __scst_local_add_adapter(struct scst_local_tgt *tgt,
 	/*
 	 * Init this stuff we need for scheduling AEN work
 	 */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20))
+	INIT_WORK(&sess->aen_work, scst_aen_work_fn, sess);
+#else
 	INIT_WORK(&sess->aen_work, scst_aen_work_fn);
+#endif
 	spin_lock_init(&sess->aen_lock);
 	INIT_LIST_HEAD(&sess->aen_work_list);
 
@@ -1641,8 +1670,8 @@ static int scst_local_add_target(const char *target_name,
 	TRACE_ENTRY();
 
 	tgt = kzalloc(sizeof(*tgt), GFP_KERNEL);
-	if (!tgt) {
-		PRINT_ERROR("Unable to alloc tgt (size %zd)", sizeof(*tgt));
+	if (NULL == tgt) {
+		PRINT_ERROR("Unable to alloc tgt (size %zu)", sizeof(*tgt));
 		res = -ENOMEM;
 		goto out;
 	}
