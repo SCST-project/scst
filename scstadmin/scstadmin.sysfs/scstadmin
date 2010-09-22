@@ -747,7 +747,7 @@ sub main {
 			last SWITCH;
 		};
 		defined($addTarget) && do {
-			$rc = addVirtualTarget($driver, $addTarget);
+			$rc = addVirtualTarget($driver, $addTarget, $attributes);
 			last SWITCH;
 		};
 		defined($removeTarget) && do {
@@ -1873,12 +1873,31 @@ sub applyTargetAssignments {
 		}
 	}
 
+	my $possible;
+
+	my $is_virtual = $SCST->driverIsVirtualCapable($driver);
+
+	if ($is_virtual) {
+		$possible = $SCST->targetCreateAttributes($driver);
+	}
+
 	foreach my $target (sort keys %{$targets}) {
 		if (!defined($CURRENT{'assign'}->{$driver}->{$target})) {
-			if (!$SCST->driverIsVirtualCapable($driver)) {
+			if (!$is_virtual) {
 				immediateExit("Target '$target' for driver '$driver' does not exist.");
 			} else {
-				my $rc = addVirtualTarget($driver, $target);
+				my %_attributes;
+
+				foreach my $item (keys %{$$targets{$target}}) {
+					next if ($item eq 'GROUP');
+					next if ($item eq 'LUN');
+					$_attributes{$item} = $$targets{$target}->{$item};
+				}
+
+				my $attributes = configToAttr(\%_attributes);
+				filterCreateAttributes($possible, $attributes, FALSE);
+
+				my $rc = addVirtualTarget($driver, $target, $attributes);
 				immediateExit($SCST->errorString($rc)) if ($rc);
 			}
 		}
@@ -1896,7 +1915,7 @@ sub applyTargetAssignments {
 		}
 
 		my $attributes = configToAttr(\%_attributes);
-
+		filterCreateAttributes($possible, $attributes, TRUE);
 		setTargetAttributes($driver, $target, $attributes, $deletions);
 	}
 }
@@ -2036,11 +2055,10 @@ sub clearConfiguration {
 sub addVirtualTarget {
 	my $driver = shift;
 	my $target = shift;
-
-	# TODO: Add $attributes
+	my $attributes = shift;
 
 	print "-> Creating target '$target' for driver '$driver': ";
-	my $rc = $SCST->addVirtualTarget($driver, $target);
+	my $rc = $SCST->addVirtualTarget($driver, $target, $attributes);
 	print "done.\n";
 
 	return $rc;
