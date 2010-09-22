@@ -552,6 +552,7 @@ add_file "scst_local/README" "Documentation/scst/README.scst_local" \
   if [ -e "ibmvstgt/in-tree-patches/${kernel_version}" ]; then
     for f in \
       drivers/scsi/Kconfig \
+      drivers/scsi/Makefile \
       drivers/scsi/ibmvscsi/ibmvstgt.c \
       drivers/scsi/libsrp.c \
       drivers/scsi/scsi_sysfs.c \
