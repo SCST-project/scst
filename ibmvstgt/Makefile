@@ -25,10 +25,10 @@ MODULE_SYMVERS:=$(shell if [ -e $(KDIR)/Module.symvers ]; then \
 all: src/$(MODULE_SYMVERS)
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src modules
 
-install: all src/ib_srpt.ko
+install: all src/ibmvstgt.ko
 	@eval `sed -n 's/#define UTS_RELEASE /KERNELRELEASE=/p' $(KDIR)/include/linux/version.h $(KDIR)/include/linux/utsrelease.h 2>/dev/null`; \
-	install -vD -m 644 src/ib_srpt.ko \
-	$(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra/ib_srpt.ko
+	install -vD -m 644 src/ibmvstgt.ko \
+	$(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra/ibmvstgt.ko
 	-/sbin/depmod -aq $(KVER)
 
 src/Module.symvers src/Modules.symvers: $(SCST_DIR)/$(MODULE_SYMVERS)
