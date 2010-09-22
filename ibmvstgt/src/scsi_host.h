@@ -38,7 +38,6 @@ struct blk_queue_tags;
 
 #define MODE_UNKNOWN 0x00
 #define MODE_INITIATOR 0x01
-#define MODE_TARGET 0x02
 
 #define DISABLE_CLUSTERING 0
 #define ENABLE_CLUSTERING 1

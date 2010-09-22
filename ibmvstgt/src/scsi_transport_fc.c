@@ -2908,10 +2908,6 @@ fc_remote_port_delete(struct fc_rport  *rport)
 
 	spin_unlock_irqrestore(shost->host_lock, flags);
 
-	if (rport->roles & FC_PORT_ROLE_FCP_INITIATOR &&
-	    shost->active_mode & MODE_TARGET)
-		fc_tgt_it_nexus_destroy(shost, (unsigned long)rport);
-
 	scsi_target_block(&rport->dev);
 
 	/* see if we need to kill io faster than waiting for device loss */
@@ -2961,12 +2957,6 @@ fc_remote_port_rolechg(struct fc_rport  *rport, u32 roles)
 			create = 1;
 		} else if (!(rport->roles & FC_PORT_ROLE_FCP_TARGET))
 			create = 1;
-	} else if (shost->active_mode & MODE_TARGET) {
-		ret = fc_tgt_it_nexus_create(shost, (unsigned long)rport,
-					     (char *)&rport->node_name);
-		if (ret)
-			printk(KERN_ERR "FC Remore Port tgt nexus failed %d\n",
-			       ret);
 	}
 
 	rport->roles = roles;
