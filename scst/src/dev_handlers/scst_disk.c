@@ -463,6 +463,14 @@ out:
 	return res;
 }
 
+static void disk_restore_sg(struct disk_work *work)
+{
+	disk_cdb_set_transfer_data(work->cmd->cdb, work->save_lba, work->save_len);
+	work->cmd->sg = work->save_sg;
+	work->cmd->sg_cnt = work->save_sg_cnt;
+	return;
+}
+
 static void disk_cmd_done(void *data, char *sense, int result, int resid)
 {
 	struct disk_work *work = data;
@@ -477,9 +485,7 @@ static void disk_cmd_done(void *data, char *sense, int result, int resid)
 
 	work->result = result;
 
-	disk_cdb_set_transfer_data(work->cmd->cdb, work->save_lba, work->save_len);
-	work->cmd->sg = work->save_sg;
-	work->cmd->sg_cnt = work->save_sg_cnt;
+	disk_restore_sg(work);
 
 	scst_pass_through_cmd_done(work->cmd, sense, result, resid + work->left);
 
@@ -496,19 +502,51 @@ static int disk_exec(struct scst_cmd *cmd)
 	int res, rc;
 	struct disk_params *params = (struct disk_params *)cmd->dev->dh_priv;
 	struct disk_work work;
-	unsigned int offset, cur_len;
+	unsigned int offset, cur_len; /* in blocks */
 	struct scatterlist *sg, *start_sg;
 	int cur_sg_cnt;
 	int sg_tablesize = cmd->dev->scsi_dev->host->sg_tablesize;
+	int max_sectors = cmd->dev->scsi_dev->host->max_sectors;
 	int num, j;
 
 	TRACE_ENTRY();
 
-	if (likely((cmd->sg_cnt <= sg_tablesize) &&
-		   (cmd->out_sg_cnt <= sg_tablesize))) {
+	if (unlikely(((max_sectors << params->block_shift) & ~PAGE_MASK) != 0)) {
+		int mlen = max_sectors << params->block_shift;
+		int pg = ((mlen >> PAGE_SHIFT) + ((mlen & ~PAGE_MASK) != 0)) - 1;
+		int adj_len = pg << PAGE_SHIFT;
+		max_sectors = adj_len >> params->block_shift;
+		if (max_sectors == 0) {
+			PRINT_ERROR("Too low max sectors %d", max_sectors);
+			goto out_error;
+		}
+	}
+
+	if (unlikely((cmd->bufflen >> params->block_shift) > max_sectors)) {
+		if ((cmd->out_bufflen >> params->block_shift) > max_sectors) {
+			PRINT_ERROR("Too limited max_sectors %d for "
+				"bidirectional cmd %x (out_bufflen %d)",
+				max_sectors, cmd->cdb[0], cmd->out_bufflen);
+			/* Let lower level handle it */
+			res = SCST_EXEC_NOT_COMPLETED;
+			goto out;
+		}
+		goto split;
+	}
+
+	if (likely(cmd->sg_cnt <= sg_tablesize)) {
 		res = SCST_EXEC_NOT_COMPLETED;
 		goto out;
 	}
+
+split:
+	sBUG_ON(cmd->out_sg_cnt > sg_tablesize);
+	sBUG_ON((cmd->out_bufflen >> params->block_shift) > max_sectors);
+
+	/*
+	 * We don't support changing BIDI CDBs (see disk_on_sg_tablesize_low()),
+	 * so use only sg_cnt
+	 */
 
 	memset(&work, 0, sizeof(work));
 	work.cmd = cmd;
@@ -529,10 +567,10 @@ static int disk_exec(struct scst_cmd *cmd)
 	cmd->driver_status = 0;
 
 	TRACE_DBG("cmd %p, save_sg %p, save_sg_cnt %d, save_lba %lld, "
-		"save_len %d (sg_tablesize %d, sizeof(*sg) 0x%zx)", cmd,
-		work.save_sg, work.save_sg_cnt,
+		"save_len %d (sg_tablesize %d, max_sectors %d, block_shift %d, "
+		"sizeof(*sg) 0x%zx)", cmd, work.save_sg, work.save_sg_cnt,
 		(unsigned long long)work.save_lba, work.save_len,
-		sg_tablesize, sizeof(*sg));
+		sg_tablesize, max_sectors, params->block_shift, sizeof(*sg));
 
 	/*
 	 * If we submit all chunks async'ly, it will be very not trivial what
@@ -566,7 +604,9 @@ static int disk_exec(struct scst_cmd *cmd)
 			"cur_sg_cnt %d, start_sg %p", l, j, num, offset,
 			cur_len, cur_sg_cnt, start_sg);
 
-		if (((num % sg_tablesize) == 0) || (num == work.save_sg_cnt)) {
+		if (((num % sg_tablesize) == 0) ||
+		     (num == work.save_sg_cnt) ||
+		     (cur_len >= max_sectors)) {
 			TRACE_DBG("%s", "Execing...");
 
 			disk_cdb_set_transfer_data(cmd->cdb,
@@ -607,9 +647,7 @@ static int disk_exec(struct scst_cmd *cmd)
 	cmd->completed = 1;
 
 out_restore:
-	disk_cdb_set_transfer_data(cmd->cdb, work.save_lba, work.save_len);
-	cmd->sg = work.save_sg;
-	cmd->sg_cnt = work.save_sg_cnt;
+	disk_restore_sg(&work);
 
 out_done:
 	res = SCST_EXEC_COMPLETED;
