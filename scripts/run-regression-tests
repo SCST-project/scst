@@ -382,17 +382,20 @@ function compile_kernel {
 # For more information about endianness annotations, see also
 # http://lwn.net/Articles/205624/.
 function run_sparse {
+  local k="$1"
   local kver="$(kernel_version $1)"
   local plevel="$(patchlevel $1)"
   local outputfile="${outputdir}/sparse-$1-output.txt"
   local subdir="$2"
+  shift
+  shift
 
-  echo "Running sparse on the patched kernel ..."
-  (
-    cd "${outputdir}/linux-$1" \
+  echo "Running sparse on the patched kernel in ${subdir} $@ ..."
+  ( 
+    cd "${outputdir}/linux-$k" \
     && make -s prepare \
     && make -s scripts \
-    && LC_ALL=C make -k C=2 CF=-D__CHECK_ENDIAN__ M="${subdir}"
+    && LC_ALL=C make -k C=2 CF=-D__CHECK_ENDIAN__ M="${subdir}" "$@"
   ) &> "${outputfile}"
   local errors=$(grep -c ' error:' "${outputfile}")
   local warnings=$(grep -c ' warning:' "${outputfile}")
@@ -593,6 +596,13 @@ do
   patch_and_configure_kernel $k
   if [ "${run_sparse}" = "true" ]; then
     run_sparse $k drivers/scst
+    mv ${outputdir}/sparse-$k-output.txt ${outputdir}/sparse-$k-scst-output.txt
+    if [ "$k" = "2.6.35" ]; then
+      run_sparse $k drivers/scsi libsrp.ko scsi_sysfs.ko \
+                                 scsi_transport_fc.ko scsi_transport_srp.ko
+      mv ${outputdir}/sparse-$k-output.txt \
+         ${outputdir}/sparse-$k-scsi-output.txt
+    fi
   fi
   compile_kernel $k drivers/scst
   if [ "${full_check}" = "true" ]; then
