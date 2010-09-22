@@ -75,14 +75,8 @@ static int __init scsi_tgt_init(void)
 		goto free_kmemcache;
 	}
 
-	err = scsi_tgt_if_init();
-	if (err)
-		goto destroy_wq;
-
 	return 0;
 
-destroy_wq:
-	destroy_workqueue(scsi_tgtd);
 free_kmemcache:
 	kmem_cache_destroy(scsi_tgt_cmd_cache);
 	return err;
@@ -91,7 +85,6 @@ free_kmemcache:
 static void __exit scsi_tgt_exit(void)
 {
 	destroy_workqueue(scsi_tgtd);
-	scsi_tgt_if_exit();
 	kmem_cache_destroy(scsi_tgt_cmd_cache);
 }
 
