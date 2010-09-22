@@ -8,4 +8,5 @@ EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
 obj-m		+= ibmvstgt.o
 obj-m		+= libsrpnew.o
 
+obj-m		+= scsi_tgt.o
 scsi_tgt-y	+= scsi_tgt_lib.o scsi_tgt_if.o
