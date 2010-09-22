@@ -74,24 +74,7 @@ static struct tgt_event *tgt_head_event(struct tgt_ring *ring, u32 idx)
 
 static int event_recv_msg(struct tgt_event *ev)
 {
-	int err = 0;
-
-	switch (ev->hdr.type) {
-	case TGT_UEVENT_CMD_RSP:
-		err = -EINVAL;
-		break;
-	case TGT_UEVENT_TSK_MGMT_RSP:
-		err = -EINVAL;
-		break;
-	case TGT_UEVENT_IT_NEXUS_RSP:
-		err = -EINVAL;
-		break;
-	default:
-		eprintk("unknown type %d\n", ev->hdr.type);
-		err = -EINVAL;
-	}
-
-	return err;
+	return -EINVAL;
 }
 
 static ssize_t tgt_write(struct file *file, const char __user * buffer,
