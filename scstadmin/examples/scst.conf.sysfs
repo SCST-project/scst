@@ -1,0 +1,73 @@
+# Sample SCST configuration file for scstadmin v2.0.
+
+setup_id 0x1234
+
+HANDLER dev_disk {
+	DEVICE 1:0:0:0
+	DEVICE 2:0:0:0
+}
+
+HANDLER vdisk_fileio {
+	DEVICE disk1 {
+		filename /disk1
+		nv_cache 1
+	}
+
+	DEVICE disk2 {
+		filename /disk2
+		blocksize 4096
+		removable 1
+	}
+}
+
+HANDLER vdisk_blockio {
+	DEVICE blockio1 {
+		filename /dev/sda5
+	}
+}
+
+HANDLER vcdrom {
+	DEVICE cdrom1 {
+		filename /cdrom1.iso
+	}
+}
+
+TARGET_DRIVER qla2x00t {
+	TARGET 25:00:00:f0:98:87:92:f3 {
+		GROUP INI1 {
+			LUN 0 blockio1
+			LUN 1 1:0:0:0 {
+				read_only 1
+			}
+			LUN 5 cdrom1
+
+			INITIATOR 25:00:00:f0:99:87:94:a3
+			INITIATOR 25:00:00:f0:99:87:94:a4
+		}
+
+		enabled 1
+	}
+
+	TARGET 25:00:00:f0:98:87:92:f4 {
+	}
+}
+
+TARGET_DRIVER iscsi {
+	IncomingUser "joe 12charsecret"
+
+	TARGET iqn.2006-10.net.vlnb:tgt {
+		IncomingUser "joe 12charsecret"
+		HeaderDigest CRC32C,None
+
+		LUN 0 disk1
+		LUN 1 disk2
+		LUN 2 blockio1 {
+			read_only 1
+		}
+
+		enabled 1
+	}
+
+	enabled 1
+}
+
