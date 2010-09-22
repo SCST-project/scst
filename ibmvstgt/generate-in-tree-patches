@@ -22,6 +22,9 @@ do
   if [ ! -e "$f2" ]; then
     f2="src/libsrpnew${f2#src/libsrp}"
   fi
+  if [ "$g" = "Makefile" ]; then
+    f2="src/scsi-Makefile${f2#src/Makefile}"
+  fi
   f3="in-tree-patches/${kernel_version}/$g.patch"
   if [ "$f1" -nt "$f3" -o "$f2" -nt "$f3" ]; then
     diff -up "$f1" "$f2" > "$f3"
