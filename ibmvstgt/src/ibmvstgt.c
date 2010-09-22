@@ -1192,7 +1192,7 @@ static int get_system_info(void)
  * functions, the SCST target template must be registered before
  * vio_register_driver() is called.
  */
-static int __init ibmvstgt_init(void)
+static int ibmvstgt_init(void)
 {
 	int err = -ENOMEM;
 
@@ -1230,7 +1230,7 @@ out:
 	return err;
 }
 
-static void __exit ibmvstgt_exit(void)
+static void ibmvstgt_exit(void)
 {
 	printk("Unregister IBM virtual SCSI driver\n");
 
