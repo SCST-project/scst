@@ -126,7 +126,7 @@ function process_patch {
       echo "Signed-off-by: ${SIGNED_OFF_BY}"
       echo ""
       specialize_patch
-    ) >"${patchdir}/$1"
+    ) >"${patchdir}/$(basename $1)"
     else
       # echo "Discarded $(wc -l) lines."
       true
@@ -207,10 +207,11 @@ if [ "${generating_upstream_patch}" = "true" ]; then
   specialize_patch_options="${specialize_patch_options} -v generating_upstream_patch_defined=1 -v config_tcp_zero_copy_transfer_completion_notification_undefined=1"
 fi
 
-if [ "${multiple_patches}" = "" ]; then
+if [ "${multiple_patches}" = "true" ]; then
   if [ -e "${patchdir}" ]; then
     echo "Patch output directory ${patchdir} already exists."
   fi
+  mkdir -p "${patchdir}"
   if [ ! -d "${patchdir}" ]; then
     echo "Error: ${patchdir} is not a directory."
   fi
