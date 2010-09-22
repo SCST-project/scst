@@ -72,38 +72,6 @@ static struct tgt_event *tgt_head_event(struct tgt_ring *ring, u32 idx)
 		(ring->tr_pages[pidx] + sizeof(struct tgt_event) * off);
 }
 
-static int tgt_uspace_send_event(u32 type, struct tgt_event *p)
-{
-	struct tgt_event *ev;
-	struct tgt_ring *ring = &tx_ring;
-	unsigned long flags;
-	int err = 0;
-
-	spin_lock_irqsave(&ring->tr_lock, flags);
-
-	ev = tgt_head_event(ring, ring->tr_idx);
-	if (!ev->hdr.status)
-		tgt_ring_idx_inc(ring);
-	else
-		err = -BUSY;
-
-	spin_unlock_irqrestore(&ring->tr_lock, flags);
-
-	if (err)
-		return err;
-
-	memcpy(ev, p, sizeof(*ev));
-	ev->hdr.type = type;
-	mb();
-	ev->hdr.status = 1;
-
-	flush_dcache_page(virt_to_page(ev));
-
-	wake_up_interruptible(&tgt_poll_wait);
-
-	return 0;
-}
-
 static int event_recv_msg(struct tgt_event *ev)
 {
 	int err = 0;
