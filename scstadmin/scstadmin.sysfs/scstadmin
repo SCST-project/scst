@@ -4184,10 +4184,11 @@ sub configToAttr {
 	my %attributes;
 
 	foreach my $attr (keys %{$config}) {
-		if ((keys %{$$config{$attr}}) > 1) {
+		if (!scalar keys %{$$config{$attr}}) {
+				$attributes{$attr} = '';
+		} elsif ((keys %{$$config{$attr}}) > 1) {
 			foreach my $value (keys %{$$config{$attr}}) {
-				push @{$attributes{$attr}}, $value if (defined($value) &&
-								       ($value ne ''));
+				push @{$attributes{$attr}}, $value;
 			}
 		} else {
 			foreach my $value (keys %{$$config{$attr}}) {
