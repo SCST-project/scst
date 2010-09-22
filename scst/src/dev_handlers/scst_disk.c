@@ -517,7 +517,8 @@ static int disk_exec(struct scst_cmd *cmd)
 		int adj_len = pg << PAGE_SHIFT;
 		max_sectors = adj_len >> params->block_shift;
 		if (max_sectors == 0) {
-			PRINT_ERROR("Too low max sectors %d", max_sectors);
+			PRINT_ERROR("Too low max sectors %d",
+				cmd->dev->scsi_dev->host->max_sectors);
 			goto out_error;
 		}
 	}
