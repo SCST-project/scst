@@ -1,6 +1,4 @@
-IBMVSTGT_INC_DIR := $(SUBDIRS)/../../scst/include
-
-EXTRA_CFLAGS += -I$(IBMVSTGT_INC_DIR)
+EXTRA_CFLAGS += -I$(SUBDIRS)/../../scst/include
 EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
 EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG
 #EXTRA_CFLAGS += -g -fno-inline -fno-inline-functions
