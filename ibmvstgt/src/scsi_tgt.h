@@ -1,0 +1,3 @@
+/*
+ * SCSI target definitions
+ */
