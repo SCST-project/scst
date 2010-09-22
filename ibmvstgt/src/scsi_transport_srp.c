@@ -30,7 +30,6 @@
 #include <scsi/scsi_host.h>
 #include <scsi/scsi_transport.h>
 #include <scsi/scsi_transport_srp.h>
-#include "scsi_transport_srp_internal.h"
 
 struct srp_host_attrs {
 	atomic_t next_port_id;

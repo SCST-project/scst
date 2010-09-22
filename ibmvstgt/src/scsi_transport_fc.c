@@ -39,7 +39,6 @@
 #include <scsi/scsi_netlink_fc.h>
 #include <scsi/scsi_bsg_fc.h>
 #include "scsi_priv.h"
-#include "scsi_transport_fc_internal.h"
 
 static int fc_queue_work(struct Scsi_Host *, struct work_struct *);
 static void fc_vport_sched_delete(struct work_struct *work);
