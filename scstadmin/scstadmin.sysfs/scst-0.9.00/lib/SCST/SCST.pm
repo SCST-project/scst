@@ -812,8 +812,14 @@ sub addVirtualTarget {
 
 	my $o_string;
 	foreach my $attribute (keys %{$attributes}) {
-		my $value = $$attributes{$attribute};
-		$o_string .= "$attribute=$value; ";
+		if (ref($$attributes{$attribute}) eq 'ARRAY') {
+			foreach my $value (@{$$attributes{$attribute}}) {
+				$o_string .= "$attribute=$value;";
+			}
+		} else {
+			my $value = $$attributes{$attribute};
+			$o_string .= "$attribute=$value;";
+		}
 	}
 
         $o_string =~ s/\s$//;
