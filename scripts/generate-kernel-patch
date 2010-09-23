@@ -551,6 +551,37 @@ add_file "scst_local/README" "Documentation/scst/README.scst_local" \
   ( cd ibmvstgt && ./generate-in-tree-patches "${kernel_version}" )
   if [ -e "ibmvstgt/in-tree-patches/${kernel_version}" ]; then
     for f in \
+      arch/arm/configs/at572d940hfek_defconfig \
+      arch/arm/configs/cam60_defconfig \
+      arch/arm/configs/s3c2410_defconfig \
+      arch/m68k/configs/amiga_defconfig \
+      arch/m68k/configs/apollo_defconfig \
+      arch/m68k/configs/atari_defconfig \
+      arch/m68k/configs/bvme6000_defconfig \
+      arch/m68k/configs/hp300_defconfig \
+      arch/m68k/configs/mac_defconfig \
+      arch/m68k/configs/multi_defconfig \
+      arch/m68k/configs/mvme147_defconfig \
+      arch/m68k/configs/mvme16x_defconfig \
+      arch/m68k/configs/q40_defconfig \
+      arch/m68k/configs/sun3_defconfig \
+      arch/m68k/configs/sun3x_defconfig \
+      arch/mips/configs/bcm47xx_defconfig \
+      arch/mips/configs/decstation_defconfig \
+      arch/mips/configs/ip22_defconfig \
+      arch/mips/configs/ip27_defconfig \
+      arch/mips/configs/ip32_defconfig \
+      arch/mips/configs/jazz_defconfig \
+      arch/mips/configs/malta_defconfig \
+      arch/mips/configs/markeins_defconfig \
+      arch/mips/configs/pnx8550-jbs_defconfig \
+      arch/mips/configs/pnx8550-stb810_defconfig \
+      arch/mips/configs/rm200_defconfig \
+      arch/mips/configs/tb0226_defconfig \
+      arch/mips/configs/tb0287_defconfig \
+      arch/powerpc/configs/52xx/motionpro_defconfig \
+      arch/powerpc/configs/86xx/mpc8610_hpcd_defconfig \
+      arch/powerpc/configs/mpc5200_defconfig \
       drivers/scsi/Kconfig \
       drivers/scsi/Makefile \
       drivers/scsi/ibmvscsi/ibmvstgt.c \
