@@ -1,3 +1,7 @@
+New version 2.0.0
+
+- Works with SCST 2.0.0.x compiled for sysfs.
+
 Changes for 1.0.11
 
 - Added -noprompt option. Use with care!
