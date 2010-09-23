@@ -238,7 +238,6 @@ EXPORT_SYMBOL_GPL(srp_rport_add);
 void srp_rport_del(struct srp_rport *rport)
 {
 	struct device *dev = &rport->dev;
-	struct Scsi_Host *shost = dev_to_shost(dev->parent);
 
 	transport_remove_device(dev);
 	device_del(dev);
