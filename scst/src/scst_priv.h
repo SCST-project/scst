@@ -421,9 +421,6 @@ int scst_alloc_space(struct scst_cmd *cmd);
 int scst_lib_init(void);
 void scst_lib_exit(void);
 
-int scst_get_full_buf(struct scst_cmd *cmd, uint8_t **buf);
-void scst_put_full_buf(struct scst_cmd *cmd, uint8_t *buf);
-
 __be64 scst_pack_lun(const uint64_t lun, unsigned int addr_method);
 uint64_t scst_unpack_lun(const uint8_t *lun, int len);
 

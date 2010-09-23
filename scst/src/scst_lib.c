@@ -405,6 +405,8 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 0, get_trans_len_single},
 	{0x42, "     O          ", "READ SUB-CHANNEL",
 	 SCST_DATA_READ, FLAG_NONE, 7, get_trans_len_2},
+	{0x42, "O               ", "UNMAP",
+	 SCST_DATA_WRITE, SCST_WRITE_MEDIUM, 7, get_trans_len_2},
 	{0x43, "     O          ", "READ TOC/PMA/ATIP",
 	 SCST_DATA_READ, FLAG_NONE, 7, get_trans_len_2},
 	{0x44, " M              ", "REPORT DENSITY SUPPORT",
@@ -4927,6 +4929,15 @@ out:
 }
 EXPORT_SYMBOL_GPL(scst_copy_sg);
 
+/**
+ * scst_get_full_buf - return linear buffer for command
+ * @cmd:	scst command
+ * @buf:	pointer on the resulting pointer
+ *
+ * If the command's buffer >single page, it vmalloc() the needed area
+ * and copies the buffer there. Returnes length of the buffer or negative
+ * error code otherwise.
+ */
 int scst_get_full_buf(struct scst_cmd *cmd, uint8_t **buf)
 {
 	int res = 0;
@@ -4979,7 +4990,16 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
+EXPORT_SYMBOL(scst_get_full_buf);
 
+/**
+ * scst_put_full_buf - unmaps linear buffer for command
+ * @cmd:	scst command
+ * @buf:	pointer on the buffer to unmap
+ *
+ * Reverse operation for scst_get_full_buf. If the buffer was vmalloced(),
+ * it vfree() the buffer.
+ */
 void scst_put_full_buf(struct scst_cmd *cmd, uint8_t *buf)
 {
 	TRACE_ENTRY();
@@ -5015,6 +5035,7 @@ out:
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(scst_put_full_buf);
 
 static const int SCST_CDB_LENGTH[8] = { 6, 10, 10, 0, 16, 12, 0, 0 };
 

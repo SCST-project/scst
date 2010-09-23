@@ -102,6 +102,7 @@ static struct scst_trace_log vdisk_local_trace_tbl[] = {
 #define DEF_NV_CACHE			0
 #define DEF_O_DIRECT			0
 #define DEF_REMOVABLE			0
+#define DEF_THIN_PROVISIONED		0
 
 #define VDISK_NULLIO_SIZE		(3LL*1024*1024*1024*1024/2)
 
@@ -215,6 +216,7 @@ struct scst_vdisk_dev {
 	unsigned int blockio:1;
 	unsigned int cdrom_empty:1;
 	unsigned int removable:1;
+	unsigned int thin_provisioned:1;
 
 	int virt_id;
 	char name[16+1];	/* Name of the virtual device,
@@ -276,6 +278,7 @@ static void vdisk_exec_mode_select(struct scst_cmd *cmd);
 static void vdisk_exec_log(struct scst_cmd *cmd);
 static void vdisk_exec_read_toc(struct scst_cmd *cmd);
 static void vdisk_exec_prevent_allow_medium_removal(struct scst_cmd *cmd);
+static void vdisk_exec_unmap(struct scst_cmd *cmd, struct scst_vdisk_thr *thr);
 static int vdisk_fsync(struct scst_vdisk_thr *thr, loff_t loff,
 	loff_t len, struct scst_cmd *cmd, struct scst_device *dev);
 #ifdef CONFIG_SCST_PROC
@@ -311,6 +314,8 @@ static ssize_t vdisk_sysfs_rd_only_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdisk_sysfs_wt_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
+static ssize_t vdisk_sysfs_tp_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
 static ssize_t vdisk_sysfs_nv_cache_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdisk_sysfs_o_direct_show(struct kobject *kobj,
@@ -339,6 +344,8 @@ static struct kobj_attribute vdisk_rd_only_attr =
 	__ATTR(read_only, S_IRUGO, vdisk_sysfs_rd_only_show, NULL);
 static struct kobj_attribute vdisk_wt_attr =
 	__ATTR(write_through, S_IRUGO, vdisk_sysfs_wt_show, NULL);
+static struct kobj_attribute vdisk_tp_attr =
+	__ATTR(thin_provisioned, S_IRUGO, vdisk_sysfs_tp_show, NULL);
 static struct kobj_attribute vdisk_nv_cache_attr =
 	__ATTR(nv_cache, S_IRUGO, vdisk_sysfs_nv_cache_show, NULL);
 static struct kobj_attribute vdisk_o_direct_attr =
@@ -364,6 +371,7 @@ static const struct attribute *vdisk_fileio_attrs[] = {
 	&vdisk_blocksize_attr.attr,
 	&vdisk_rd_only_attr.attr,
 	&vdisk_wt_attr.attr,
+	&vdisk_tp_attr.attr,
 	&vdisk_nv_cache_attr.attr,
 	&vdisk_o_direct_attr.attr,
 	&vdisk_removable_attr.attr,
@@ -384,6 +392,7 @@ static const struct attribute *vdisk_blockio_attrs[] = {
 	&vdisk_resync_size_attr.attr,
 	&vdev_t10_dev_id_attr.attr,
 	&vdev_usn_attr.attr,
+	&vdisk_tp_attr.attr,
 	NULL,
 };
 
@@ -443,7 +452,7 @@ static struct scst_dev_type vdisk_file_devtype = {
 	.del_device =		vdisk_del_device,
 	.dev_attrs =		vdisk_fileio_attrs,
 	.add_device_parameters = "filename, blocksize, write_through, "
-		"nv_cache, o_direct, read_only, removable",
+		"nv_cache, o_direct, read_only, removable, thin_provisioned",
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
@@ -478,7 +487,7 @@ static struct scst_dev_type vdisk_blk_devtype = {
 	.del_device =		vdisk_del_device,
 	.dev_attrs =		vdisk_blockio_attrs,
 	.add_device_parameters = "filename, blocksize, nv_cache, read_only, "
-		"removable",
+		"removable, thin_provisioned",
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
@@ -1131,9 +1140,16 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 			vdisk_exec_read_capacity16(cmd);
 			break;
 		}
+	case UNMAP:
+		if (likely(virt_dev->thin_provisioned))
+			vdisk_exec_unmap(cmd, thr);
+		else
+			goto invalid_opcode;
+		break;
 		/* else go through */
 	case REPORT_LUNS:
 	default:
+invalid_opcode:
 		TRACE_DBG("Invalid opcode %d", opcode);
 		scst_set_cmd_error(cmd,
 		    SCST_LOAD_SENSE(scst_sense_invalid_opcode));
@@ -1234,6 +1250,82 @@ static uint64_t vdisk_gen_dev_id_num(const char *virt_dev_name)
 #else
 	return ((uint64_t)scst_get_setup_id() << 32) | dev_id_num;
 #endif
+}
+
+static void vdisk_exec_unmap(struct scst_cmd *cmd, struct scst_vdisk_thr *thr)
+{
+	ssize_t length;
+	struct file *fd = thr->fd;
+	struct inode *inode;
+	uint8_t __user *address;
+	int offset, descriptor_len, total_len;
+	uint64_t range[2];
+
+	TRACE_ENTRY();
+
+	length = scst_get_full_buf(cmd, (uint8_t __force **)&address);
+	if (unlikely(length <= 0)) {
+		if (length == 0)
+			goto out_put;
+		else if (length == -ENOMEM)
+			scst_set_busy(cmd);
+		else
+			scst_set_cmd_error(cmd,
+				SCST_LOAD_SENSE(scst_sense_hardw_error));
+		goto out;
+	}
+
+	total_len = cmd->cdb[7] << 8 | cmd->cdb[8]; /* length */
+	offset = 8;
+
+	descriptor_len = address[2] << 8 | address[3];
+
+	TRACE_DBG("total_len %d, descriptor_len %d", total_len, descriptor_len);
+
+	if (descriptor_len == 0)
+		goto out_put;
+
+	if (unlikely((descriptor_len > (total_len - 8)) ||
+		     ((descriptor_len % 16) != 0))) {
+		PRINT_ERROR("Bad descriptor length: %d < %d - 8",
+			descriptor_len, total_len);
+		scst_set_cmd_error(cmd,
+			SCST_LOAD_SENSE(scst_sense_invalid_field_in_parm_list));
+		goto out_put;
+	}
+
+	while ((offset - 8) < descriptor_len) {
+		uint32_t len = 0;
+		range[1] = 0;
+		/* Assemble the two fields: LBA and block len */
+		range[0] = be64_to_cpu(
+				get_unaligned((__be64 *)&address[offset]));
+		offset += 8;
+		len = be32_to_cpu(get_unaligned((__be32 *)&address[offset]));
+		offset += 8;
+		range[1] = len;
+		TRACE_DBG("Unmapping lba %lld (blocks %lld)",
+			range[0], range[1]);
+		/* BLKDISCARD ioctl */
+		if (fd->f_op->ioctl) {
+			int err = 0;
+			inode = fd->f_dentry->d_inode;
+			err = fd->f_op->ioctl(inode, fd, BLKDISCARD,
+				(unsigned long)range);
+			if (unlikely(err != 0)) {
+				PRINT_WARNING("BLKDISCARD request for "
+					"LBA %lld len %lld failed with err %d",
+					range[0], range[1], err);
+			}
+		}
+	}
+
+out_put:
+	scst_put_full_buf(cmd, address);
+
+out:
+	TRACE_EXIT();
+	return;
 }
 
 static void vdisk_exec_inquiry(struct scst_cmd *cmd)
@@ -2012,7 +2104,13 @@ static void vdisk_exec_read_capacity(struct scst_cmd *cmd)
 
 	/* Last block on the virt_dev is (nblocks-1) */
 	memset(buffer, 0, sizeof(buffer));
-	if (nblocks >> 32) {
+
+	/*
+	 * If we are thinly provisioned, we must ensure that the initiator
+	 * issues a READ_CAPACITY(16) so we can return the TPE bit. By
+	 * returning 0xFFFFFFFF we do that.
+	 */
+	if (nblocks >> 32 || virt_dev->thin_provisioned) {
 		buffer[0] = 0xFF;
 		buffer[1] = 0xFF;
 		buffer[2] = 0xFF;
@@ -2108,6 +2206,9 @@ static void vdisk_exec_read_capacity16(struct scst_cmd *cmd)
 		buffer[13] = 0;
 		break;
 	}
+
+	if (virt_dev->thin_provisioned)
+		buffer[14] |= 0x80;     /* Add TPE */
 
 	length = scst_get_buf_first(cmd, &address);
 	if (unlikely(length <= 0)) {
@@ -2985,6 +3086,10 @@ static void vdisk_report_registering(const struct scst_vdisk_dev *virt_dev)
 		i += snprintf(&buf[i], sizeof(buf) - i, "%sREMOVABLE",
 			(j == i) ? "(" : ", ");
 
+	if (virt_dev->thin_provisioned)
+		i += snprintf(&buf[i], sizeof(buf) - i, "%sTHIN PROVISIONED",
+			(j == i) ? "(" : ", ");
+
 	if (j == i)
 		PRINT_INFO("%s", buf);
 	else
@@ -3060,6 +3165,7 @@ static int vdev_create(struct scst_dev_type *devt,
 
 	virt_dev->rd_only = DEF_RD_ONLY;
 	virt_dev->removable = DEF_REMOVABLE;
+	virt_dev->thin_provisioned = DEF_THIN_PROVISIONED;
 
 	virt_dev->block_size = DEF_DISK_BLOCKSIZE;
 	virt_dev->block_shift = DEF_DISK_BLOCKSIZE_SHIFT;
@@ -3226,6 +3332,10 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 		} else if (!strcasecmp("removable", p)) {
 			virt_dev->removable = val;
 			TRACE_DBG("REMOVABLE %d", virt_dev->removable);
+		} else if (!strcasecmp("thin_provisioned", p)) {
+			virt_dev->thin_provisioned = val;
+			TRACE_DBG("THIN PROVISIONED %d",
+				virt_dev->thin_provisioned);
 		} else if (!strcasecmp("blocksize", p)) {
 			virt_dev->block_size = val;
 			virt_dev->block_shift = scst_calc_block_shift(
@@ -3316,7 +3426,8 @@ static int vdev_blockio_add_device(const char *device_name, char *params)
 {
 	int res = 0;
 	const char *allowed_params[] = { "filename", "read_only", "removable",
-					 "blocksize", "nv_cache", NULL };
+					 "blocksize", "nv_cache",
+					 "thin_provisioned", NULL };
 	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
@@ -3881,6 +3992,26 @@ static ssize_t vdisk_sysfs_wt_show(struct kobject *kobj,
 
 	pos = sprintf(buf, "%d\n%s", virt_dev->wt_flag ? 1 : 0,
 		(virt_dev->wt_flag == DEF_WRITE_THROUGH) ? "" :
+			SCST_SYSFS_KEY_MARK "");
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static ssize_t vdisk_sysfs_tp_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int pos = 0;
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
+
+	pos = sprintf(buf, "%d\n%s", virt_dev->thin_provisioned ? 1 : 0,
+		(virt_dev->thin_provisioned == DEF_THIN_PROVISIONED) ? "" :
 			SCST_SYSFS_KEY_MARK "");
 
 	TRACE_EXIT_RES(pos);
