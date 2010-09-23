@@ -32,6 +32,15 @@ HANDLER vcdrom {
 	}
 }
 
+TARGET_DRIVER scst_local {
+	TARGET scst_local_tgt {
+		session_name scst_local_host
+		session_name scst_local_host1
+
+		LUN 0 disk1
+	}
+}
+
 TARGET_DRIVER qla2x00t {
 	TARGET 25:00:00:f0:98:87:92:f3 {
 		GROUP INI1 {
