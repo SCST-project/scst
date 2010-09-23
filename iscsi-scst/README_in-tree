@@ -17,6 +17,10 @@ Usage
 See in http://iscsi-scst.sourceforge.net/iscsi-scst-howto.txt how to
 configure iSCSI-SCST.
 
+If you want to use Intel CRC32 offload and have corresponding hardware,
+you should load crc32c-intel module. Then iSCSI-SCST will do all digest
+calculations using this facility.
+
 In 2.0.0 usage of iscsi-scstd.conf as well as iscsi-scst-adm utility is
 obsolete. Use the sysfs interface facilities instead.
 
