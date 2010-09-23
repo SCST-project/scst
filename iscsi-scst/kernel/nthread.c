@@ -218,8 +218,8 @@ static void free_orphaned_pending_commands(struct iscsi_conn *conn)
 				cmnd, conn, cmnd->pdu.bhs.sn,
 				session->exp_cmd_sn);
 			if (cmnd->conn == conn) {
-				PRINT_ERROR("Freeing orphaned pending cmd %p",
-					    cmnd);
+				TRACE_MGMT_DBG("Freeing orphaned pending "
+					"cmnd %p", cmnd);
 
 				list_del(&cmnd->pending_list_entry);
 				cmnd->pending = 0;
