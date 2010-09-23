@@ -584,6 +584,7 @@ add_file "scst_local/README" "Documentation/scst/README.scst_local" \
       arch/powerpc/configs/mpc5200_defconfig \
       drivers/scsi/Kconfig \
       drivers/scsi/Makefile \
+      drivers/scsi/hosts.c \
       drivers/scsi/ibmvscsi/ibmvstgt.c \
       drivers/scsi/libsrp.c \
       drivers/scsi/scsi_sysfs.c \
