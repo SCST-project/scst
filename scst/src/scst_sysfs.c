@@ -174,7 +174,7 @@ static struct task_struct *sysfs_work_thread;
  * scst_alloc_sysfs_work() - allocates a sysfs work
  */
 int scst_alloc_sysfs_work(int (*sysfs_work_fn)(struct scst_sysfs_work_item *),
-	struct scst_sysfs_work_item **res_work)
+	bool read_only_action, struct scst_sysfs_work_item **res_work)
 {
 	int res = 0;
 	struct scst_sysfs_work_item *work;
@@ -197,6 +197,7 @@ int scst_alloc_sysfs_work(int (*sysfs_work_fn)(struct scst_sysfs_work_item *),
 		goto out;
 	}
 
+	work->read_only_action = read_only_action;
 	kref_init(&work->sysfs_work_kref);
 	init_completion(&work->sysfs_work_done);
 	work->sysfs_work_fn = sysfs_work_fn;
@@ -322,7 +323,8 @@ static void scst_process_sysfs_works(void)
 		work->work_res = work->sysfs_work_fn(work);
 
 		spin_lock(&sysfs_work_lock);
-		last_sysfs_work_res = work->work_res;
+		if (!work->read_only_action)
+			last_sysfs_work_res = work->work_res;
 		active_sysfs_works--;
 		spin_unlock(&sysfs_work_lock);
 
@@ -782,7 +784,7 @@ static ssize_t scst_tgtt_mgmt_store(struct kobject *kobj,
 	memcpy(buffer, buf, count);
 	buffer[count] = '\0';
 
-	res = scst_alloc_sysfs_work(scst_tgtt_mgmt_store_work_fn, &work);
+	res = scst_alloc_sysfs_work(scst_tgtt_mgmt_store_work_fn, false, &work);
 	if (res != 0)
 		goto out_free;
 
@@ -1066,7 +1068,8 @@ static ssize_t scst_tgt_enable_store(struct kobject *kobj,
 		goto out;
 	}
 
-	res = scst_alloc_sysfs_work(scst_tgt_enable_store_work_fn, &work);
+	res = scst_alloc_sysfs_work(scst_tgt_enable_store_work_fn, false,
+					&work);
 	if (res != 0)
 		goto out;
 
@@ -1421,7 +1424,7 @@ static ssize_t scst_dev_sysfs_threads_num_store(struct kobject *kobj,
 		goto out;
 
 	res = scst_alloc_sysfs_work(scst_dev_sysfs_threads_data_store_work_fn,
-			&work);
+					false, &work);
 	if (res != 0)
 		goto out;
 
@@ -1510,7 +1513,7 @@ static ssize_t scst_dev_sysfs_threads_pool_type_store(struct kobject *kobj,
 		goto out;
 
 	res = scst_alloc_sysfs_work(scst_dev_sysfs_threads_data_store_work_fn,
-			&work);
+					false, &work);
 	if (res != 0)
 		goto out;
 
@@ -2186,7 +2189,7 @@ static ssize_t scst_sess_latency_store(struct kobject *kobj,
 
 	sess = container_of(kobj, struct scst_session, sess_kobj);
 
-	res = scst_alloc_sysfs_work(scst_sess_zero_latency, &work);
+	res = scst_alloc_sysfs_work(scst_sess_zero_latency, false, &work);
 	if (res != 0)
 		goto out;
 
@@ -2270,7 +2273,7 @@ static ssize_t scst_sess_sysfs_active_commands_show(struct kobject *kobj,
 	sess = container_of(kobj, struct scst_session, sess_kobj);
 
 	res = scst_alloc_sysfs_work(scst_sysfs_sess_get_active_commands_work_fn,
-			&work);
+			true, &work);
 	if (res != 0)
 		goto out;
 
@@ -2858,7 +2861,7 @@ static ssize_t __scst_acg_mgmt_store(struct scst_acg *acg,
 	memcpy(buffer, buf, count);
 	buffer[count] = '\0';
 
-	res = scst_alloc_sysfs_work(sysfs_work_fn, &work);
+	res = scst_alloc_sysfs_work(sysfs_work_fn, false, &work);
 	if (res != 0)
 		goto out_free;
 
@@ -3095,7 +3098,7 @@ static ssize_t __scst_acg_io_grouping_type_store(struct scst_acg *acg,
 		goto out;
 
 	res = scst_alloc_sysfs_work(__scst_acg_io_grouping_type_store_work_fn,
-					&work);
+					false, &work);
 	if (res != 0)
 		goto out;
 
@@ -3457,7 +3460,8 @@ static ssize_t scst_ini_group_mgmt_store(struct kobject *kobj,
 	memcpy(buffer, buf, count);
 	buffer[count] = '\0';
 
-	res = scst_alloc_sysfs_work(scst_ini_group_mgmt_store_work_fn, &work);
+	res = scst_alloc_sysfs_work(scst_ini_group_mgmt_store_work_fn, false,
+					&work);
 	if (res != 0)
 		goto out_free;
 
@@ -3560,7 +3564,8 @@ static ssize_t scst_rel_tgt_id_store(struct kobject *kobj,
 		goto out;
 	}
 
-	res = scst_alloc_sysfs_work(scst_process_rel_tgt_id_store, &work);
+	res = scst_alloc_sysfs_work(scst_process_rel_tgt_id_store, false,
+					&work);
 	if (res != 0)
 		goto out;
 
@@ -4078,7 +4083,7 @@ static ssize_t scst_threads_store(struct kobject *kobj,
 		goto out;
 	}
 
-	res = scst_alloc_sysfs_work(scst_threads_store_work_fn, &work);
+	res = scst_alloc_sysfs_work(scst_threads_store_work_fn, false, &work);
 	if (res != 0)
 		goto out;
 
@@ -4706,7 +4711,7 @@ static ssize_t __scst_devt_mgmt_store(struct kobject *kobj,
 	memcpy(buffer, buf, count);
 	buffer[count] = '\0';
 
-	res = scst_alloc_sysfs_work(sysfs_work_fn, &work);
+	res = scst_alloc_sysfs_work(sysfs_work_fn, false, &work);
 	if (res != 0)
 		goto out_free;
 
