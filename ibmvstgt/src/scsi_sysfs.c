@@ -216,14 +216,7 @@ static ssize_t
 show_shost_supported_mode(struct device *dev, struct device_attribute *attr,
 			  char *buf)
 {
-	struct Scsi_Host *shost = class_to_shost(dev);
-	unsigned int supported_mode = shost->hostt->supported_mode;
-
-	if (supported_mode == MODE_UNKNOWN)
-		/* by default this should be initiator */
-		supported_mode = MODE_INITIATOR;
-
-	return show_shost_mode(supported_mode, buf);
+	return show_shost_mode(MODE_INITIATOR, buf);
 }
 
 static DEVICE_ATTR(supported_mode, S_IRUGO | S_IWUSR, show_shost_supported_mode, NULL);
@@ -234,10 +227,7 @@ show_shost_active_mode(struct device *dev,
 {
 	struct Scsi_Host *shost = class_to_shost(dev);
 
-	if (shost->active_mode == MODE_UNKNOWN)
-		return snprintf(buf, 20, "unknown\n");
-	else
-		return show_shost_mode(shost->active_mode, buf);
+	return show_shost_mode(MODE_INITIATOR, buf);
 }
 
 static DEVICE_ATTR(active_mode, S_IRUGO | S_IWUSR, show_shost_active_mode, NULL);

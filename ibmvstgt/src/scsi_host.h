@@ -404,11 +404,6 @@ struct scsi_host_template {
 	unsigned char present;
 
 	/*
-	 * This specifies the mode that a LLD supports.
-	 */
-	unsigned supported_mode:2;
-
-	/*
 	 * True if this host adapter uses unchecked DMA onto an ISA bus.
 	 */
 	unsigned unchecked_isa_dma:1;
@@ -585,7 +580,6 @@ struct Scsi_Host {
 	 */
 	unsigned long cmd_serial_number;
 	
-	unsigned active_mode:2;
 	unsigned unchecked_isa_dma:1;
 	unsigned use_clustering:1;
 	unsigned use_blk_tcq:1;
