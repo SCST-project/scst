@@ -36,9 +36,6 @@ struct blk_queue_tags;
 #define SG_NONE 0
 #define SG_ALL	SCSI_MAX_SG_SEGMENTS
 
-#define MODE_UNKNOWN 0x00
-#define MODE_INITIATOR 0x01
-
 #define DISABLE_CLUSTERING 0
 #define ENABLE_CLUSTERING 1
 
