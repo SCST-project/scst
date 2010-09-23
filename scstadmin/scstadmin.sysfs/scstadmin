@@ -1958,7 +1958,8 @@ sub applyTargetAssignments {
 	foreach my $target (keys %{$CURRENT{'assign'}->{$driver}}) {
 		if (!defined($$targets{$target})) {
 			if ($deletions) {
-				removeVirtualTarget($driver, $target);
+				my $rc = removeVirtualTarget($driver, $target);
+				immediateExit($SCST->errorString($rc)) if ($rc);
 				$changes++;
 			} else {
 				print "\t-> Virtual target '$target' for driver '$driver' is not in configuration. ".
@@ -2139,7 +2140,7 @@ sub clearConfiguration {
 			removeTargetDynamicAttributes($driver, $target);
 			if ($SCST->targetType($driver, $target) == $SCST::SCST::TGT_TYPE_VIRTUAL) {
 				my $rc = removeVirtualTarget($driver, $target);
-				issueWarning($rc) if ($rc);
+				issueWarning($SCST->errorString($rc)) if ($rc);
 			}
 		}
 
