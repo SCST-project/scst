@@ -200,23 +200,10 @@ struct device_attribute dev_attr_hstate =
 	__ATTR(state, S_IRUGO | S_IWUSR, show_shost_state, store_shost_state);
 
 static ssize_t
-show_shost_mode(unsigned int mode, char *buf)
-{
-	ssize_t len = 0;
-
-	if (mode & MODE_INITIATOR)
-		len = sprintf(buf, "%s", "Initiator");
-
-	len += sprintf(buf + len, "\n");
-
-	return len;
-}
-
-static ssize_t
 show_shost_supported_mode(struct device *dev, struct device_attribute *attr,
 			  char *buf)
 {
-	return show_shost_mode(MODE_INITIATOR, buf);
+	return sprintf(buf, "Initiator\n");
 }
 
 static DEVICE_ATTR(supported_mode, S_IRUGO | S_IWUSR, show_shost_supported_mode, NULL);
@@ -225,9 +212,7 @@ static ssize_t
 show_shost_active_mode(struct device *dev,
 		       struct device_attribute *attr, char *buf)
 {
-	struct Scsi_Host *shost = class_to_shost(dev);
-
-	return show_shost_mode(MODE_INITIATOR, buf);
+	return sprintf(buf, "Initiator\n");
 }
 
 static DEVICE_ATTR(active_mode, S_IRUGO | S_IWUSR, show_shost_active_mode, NULL);
