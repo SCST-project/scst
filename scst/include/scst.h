@@ -3896,11 +3896,22 @@ unsigned int scst_get_setup_id(void);
  * (something other than EAGAIN).
  */
 struct scst_sysfs_work_item {
+	/*
+	 * If true, then last_sysfs_mgmt_res will not be updated. This is
+	 * needed to allow read only sysfs monitoring during management actions.
+	 * All management actions are supposed to be externally serialized,
+	 * so then last_sysfs_mgmt_res automatically serialized too.
+	 * Othewrwise a monitoring action can overwrite value of simultaneous
+	 * management action's last_sysfs_mgmt_res.
+	 */
+	bool read_only_action;
+
 	struct list_head sysfs_work_list_entry;
 	struct kref sysfs_work_kref;
 	int (*sysfs_work_fn)(struct scst_sysfs_work_item *work);
 	struct completion sysfs_work_done;
 	char *buf;
+
 	union {
 		struct scst_dev_type *devt;
 		struct scst_tgt_template *tgtt;
@@ -3929,7 +3940,7 @@ struct scst_sysfs_work_item {
 };
 
 int scst_alloc_sysfs_work(int (*sysfs_work_fn)(struct scst_sysfs_work_item *),
-	struct scst_sysfs_work_item **res_work);
+	bool read_only_action, struct scst_sysfs_work_item **res_work);
 int scst_sysfs_queue_wait_work(struct scst_sysfs_work_item *work);
 void scst_sysfs_work_get(struct scst_sysfs_work_item *work);
 void scst_sysfs_work_put(struct scst_sysfs_work_item *work);

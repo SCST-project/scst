@@ -3786,7 +3786,8 @@ static ssize_t vcdrom_sysfs_filename_store(struct kobject *kobj,
 	memcpy(i_buf, buf, count);
 	i_buf[count] = '\0';
 
-	res = scst_alloc_sysfs_work(vcdrom_sysfs_process_filename_store, &work);
+	res = scst_alloc_sysfs_work(vcdrom_sysfs_process_filename_store,
+					false, &work);
 	if (res != 0)
 		goto out_free;
 
@@ -3996,7 +3997,8 @@ static ssize_t vdev_sysfs_filename_show(struct kobject *kobj,
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
-	res = scst_alloc_sysfs_work(vdev_sysfs_process_get_filename, &work);
+	res = scst_alloc_sysfs_work(vdev_sysfs_process_get_filename,
+					true, &work);
 	if (res != 0)
 		goto out;
 
@@ -4052,7 +4054,7 @@ static ssize_t vdisk_sysfs_resync_size_store(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
 	res = scst_alloc_sysfs_work(vdisk_sysfs_process_resync_size_store,
-					&work);
+					false, &work);
 	if (res != 0)
 		goto out;
 
