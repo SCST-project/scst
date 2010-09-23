@@ -241,6 +241,26 @@ out:
 	return;
 }
 
+static struct iscsi_cmnd *iscsi_create_tm_clone(struct iscsi_cmnd *cmnd)
+{
+	struct iscsi_cmnd *tm_clone;
+
+	TRACE_ENTRY();
+
+	tm_clone = cmnd_alloc(cmnd->conn, NULL);
+	if (tm_clone != NULL) {
+		set_bit(ISCSI_CMD_ABORTED, &tm_clone->prelim_compl_flags);
+		tm_clone->pdu = cmnd->pdu;
+
+		TRACE_MGMT_DBG("TM clone %p for cmnd %p created",
+			tm_clone, cmnd);
+	} else
+		PRINT_ERROR("Failed to create TM clone for cmnd %p", cmnd);
+
+	TRACE_EXIT_HRES((unsigned long)tm_clone);
+	return tm_clone;
+}
+
 void iscsi_fail_data_waiting_cmnd(struct iscsi_cmnd *cmnd)
 {
 	TRACE_ENTRY();
@@ -256,6 +276,36 @@ void iscsi_fail_data_waiting_cmnd(struct iscsi_cmnd *cmnd)
 	/* This cmnd is going to die without response */
 	cmnd->r2t_len_to_receive = 0;
 	cmnd->r2t_len_to_send = 0;
+
+	if (cmnd->pending) {
+		struct iscsi_session *session = cmnd->conn->session;
+		struct iscsi_cmnd *tm_clone;
+
+		TRACE_MGMT_DBG("Unpending cmnd %p (sn %u, exp_cmd_sn %u)", cmnd,
+			cmnd->pdu.bhs.sn, session->exp_cmd_sn);
+
+		/*
+		 * If cmnd is pending, then the next command, if any, must be
+		 * pending too. So, just insert a clone instead of cmnd to
+		 * fill the hole in SNs. Then we can release cmnd.
+		 */
+
+		tm_clone = iscsi_create_tm_clone(cmnd);
+
+		spin_lock(&session->sn_lock);
+
+		if (tm_clone != NULL) {
+			TRACE_MGMT_DBG("Adding tm_clone %p after its cmnd",
+				tm_clone);
+			list_add(&tm_clone->pending_list_entry,
+				&cmnd->pending_list_entry);
+		}
+
+		list_del(&cmnd->pending_list_entry);
+		cmnd->pending = 0;
+
+		spin_unlock(&session->sn_lock);
+	}
 
 	req_cmnd_release_force(cmnd);
 
@@ -2962,23 +3012,15 @@ static void iscsi_push_cmnd(struct iscsi_cmnd *cmnd)
 					&cmnd->prelim_compl_flags))) {
 			struct iscsi_cmnd *tm_clone;
 
-			TRACE_MGMT_DBG("Pending aborted cmnd %p, creating TM "
+			TRACE_MGMT_DBG("Aborted pending cmnd %p, creating TM "
 				"clone (scst cmd %p, state %d)", cmnd,
 				cmnd->scst_cmd, cmnd->scst_state);
 
-			tm_clone = cmnd_alloc(cmnd->conn, NULL);
+			tm_clone = iscsi_create_tm_clone(cmnd);
 			if (tm_clone != NULL) {
-				set_bit(ISCSI_CMD_ABORTED,
-					&tm_clone->prelim_compl_flags);
-				tm_clone->pdu = cmnd->pdu;
-
-				TRACE_MGMT_DBG("TM clone %p created",
-					       tm_clone);
-
 				iscsi_cmnd_exec(cmnd);
 				cmnd = tm_clone;
-			} else
-				PRINT_ERROR("%s", "Unable to create TM clone");
+			}
 		}
 
 		TRACE_MGMT_DBG("Pending cmnd %p (op %x, sn %u, exp sn %u)",
