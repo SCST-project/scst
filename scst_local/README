@@ -160,6 +160,39 @@ system, which means each your initiator and target are much less
 CPU/memory powerful.
 
 
+User space target drivers
+=========================
+
+Scst_local can be used to write full featured SCST target drivers in
+user space:
+
+1. For each SCSI target a user space target driver should create an
+   scst_local's target using "add_target" command.
+
+2. Then the user space target driver should, if needed, set its SCSI and
+   physical transport version descriptors using attributes
+   scsi_transport_version and phys_transport_version correspondingly in
+   /sys/kernel/scst_tgt/targets/scst_local/target_name directory.
+
+3. For incoming session (I_T nexus) from an initiator the user space
+   target driver should create scst_local's session using "add_session"
+   command.
+
+4. Then, if needed, the user space target driver should set TransportID
+   for this session (I_T nexus) using attribute
+   /sys/kernel/scst_tgt/targets/scst_local/target_name/sessions/session_name/transport_id
+
+5. Then the user space target driver should find out sg/bsg devices for
+   the LUNs the created session has using link
+   /sys/kernel/scst_tgt/targets/scst_local/target_name/sessions/session_name/host
+   as described above.
+
+6. Then the user space target driver can start serving the initiator using
+   found sg/bsg devices.
+
+For other connected initiators steps 3-6 should be repeated.
+
+
 Change log
 ==========
 
