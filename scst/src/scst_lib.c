@@ -2136,7 +2136,10 @@ void scst_adjust_resp_data_len(struct scst_cmd *cmd)
 {
 	TRACE_ENTRY();
 
-	EXTRACHECKS_BUG_ON(!cmd->expected_values_set);
+	if (!cmd->expected_values_set) {
+		cmd->adjusted_resp_data_len = cmd->resp_data_len;
+		goto out;
+	}
 
 	cmd->adjusted_resp_data_len = min(cmd->resp_data_len,
 					cmd->expected_transfer_len);
@@ -2150,6 +2153,7 @@ void scst_adjust_resp_data_len(struct scst_cmd *cmd)
 				cmd->adjusted_resp_data_len);
 	}
 
+out:
 	TRACE_EXIT();
 	return;
 }
