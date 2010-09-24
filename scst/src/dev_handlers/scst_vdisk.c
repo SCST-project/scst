@@ -1257,13 +1257,13 @@ static void vdisk_exec_unmap(struct scst_cmd *cmd, struct scst_vdisk_thr *thr)
 	ssize_t length;
 	struct file *fd = thr->fd;
 	struct inode *inode;
-	uint8_t __user *address;
+	uint8_t *address;
 	int offset, descriptor_len, total_len;
 	uint64_t range[2];
 
 	TRACE_ENTRY();
 
-	length = scst_get_full_buf(cmd, (uint8_t __force **)&address);
+	length = scst_get_full_buf(cmd, &address);
 	if (unlikely(length <= 0)) {
 		if (length == 0)
 			goto out_put;
