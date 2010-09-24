@@ -2166,6 +2166,8 @@ sub clearConfiguration {
 		foreach my $target (@{$targets}) {
 			disableTarget($driver, $target);
 		}
+
+		disableDriver($driver);
 	}
 
 	print "\t-> Configuration cleared.\n";
@@ -3867,6 +3869,28 @@ sub disableTarget {
 	my %attributes = ('enabled', 0);
 
 	setTargetAttributes($driver, $target, \%attributes);
+}
+
+sub enableDriver {
+	my $driver = shift;
+	my %attributes = ('enabled', 1);
+
+	my $attrs = $SCST->driverAttributes($driver);
+use Data::Dumper;
+print Dumper($attrs);
+	return if (!defined($$attrs{'enabled'}));
+
+	setDriverAttributes($driver, \%attributes);
+}
+
+sub disableDriver {
+	my $driver = shift;
+	my %attributes = ('enabled', 0);
+
+	my $attrs = $SCST->driverAttributes($driver);
+	return if (!defined($$attrs{'enabled'}));
+
+	setDriverAttributes($driver, \%attributes);
 }
 
 sub issueLip {
