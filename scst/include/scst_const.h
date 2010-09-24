@@ -284,7 +284,7 @@ enum scst_cdb_flags {
 #define UNMAP 0x42
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 27)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
 /*
  * From <linux/fs.h>. See also commit
  * d30a2605be9d5132d95944916e8f578fcfe4f976.
