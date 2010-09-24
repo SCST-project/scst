@@ -2157,7 +2157,16 @@ sub clearConfiguration {
 	}
 
 	# Todo - check return code
-	# TODO: should we disable all target drivers as well?
+
+	my $drivers = $SCST->drivers();
+
+	foreach my $driver (@{$drivers}) {
+		my $targets = $SCST->targets($driver);
+
+		foreach my $target (@{$targets}) {
+			disableTarget($driver, $target);
+		}
+	}
 
 	print "\t-> Configuration cleared.\n";
 }
