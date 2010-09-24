@@ -343,6 +343,11 @@ static bool ibmvstgt_is_target_enabled(struct scst_tgt *scst_tgt)
 	spin_unlock_irqrestore(&target->lock, flags);
 	return res;
 }
+#else
+static bool ibmvstgt_is_target_enabled(struct scst_tgt *scst_tgt)
+{
+	return true;
+}
 #endif
 
 /**
@@ -433,8 +438,9 @@ static int ibmvstgt_rdy_to_xfer(struct scst_cmd *sc)
 					ibmvstgt_rdma, 1, 1);
 
 		if (ret != SCST_TGT_RES_SUCCESS) {
-			PRINT_ERROR("%s: tag= %llu xfer_data failed",
-				    __func__, scst_cmd_get_tag(sc));
+			PRINT_ERROR("%s: tag= %llu xfer_data failed", __func__,
+				    (long long unsigned)
+				    be64_to_cpu(scst_cmd_get_tag(sc)));
 			scst_set_cmd_error(sc,
 				SCST_LOAD_SENSE(scst_sense_write_error));
 		}
@@ -700,7 +706,8 @@ static void ibmvstgt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 	iu = vio_iu(iue);
 
 	TRACE_DBG("%s: tag %lld status %d",
-		  __func__, iu->srp.rsp.tag, scst_mgmt_cmd_get_status(mcmnd));
+		  __func__, (long long unsigned)be64_to_cpu(iu->srp.rsp.tag),
+		  scst_mgmt_cmd_get_status(mcmnd));
 
 	send_rsp(iue, NULL,
 		 scst_to_srp_tsk_mgmt_status(scst_mgmt_cmd_get_status(mcmnd)),
