@@ -1563,16 +1563,16 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 		conn->read_iov[i].iov_base = addr + offset;
 
 		if (size <= sg_len) {
-			TRACE_DBG("idx=%d, offset=%u, size=%d, addr=%p",
-				idx, offset, size, addr);
+			TRACE_DBG("idx=%d, i=%d, offset=%u, size=%d, addr=%p",
+				idx, i, offset, size, addr);
 			conn->read_iov[i].iov_len = size;
-			conn->read_msg.msg_iovlen = i;
+			conn->read_msg.msg_iovlen = i+1;
 			break;
 		}
 		conn->read_iov[i].iov_len = sg_len;
 
-		TRACE_DBG("idx=%d, offset=%u, size=%d, sg_len=%u, addr=%p",
-			idx, offset, size, sg_len, addr);
+		TRACE_DBG("idx=%d, i=%d, offset=%u, size=%d, sg_len=%u, "
+			"addr=%p", idx, i, offset, size, sg_len, addr);
 
 		size -= sg_len;
 		buff_offs += sg_len;
