@@ -59,6 +59,7 @@ start()
 	modprobe iscsi-scst
 	daemon /usr/local/sbin/iscsi-scstd
 	# -d 0xFFFF
+	/usr/local/sbin/scstadmin -config /etc/scst.conf
 	RETVAL=$?
 	echo
 	return $RETVAL

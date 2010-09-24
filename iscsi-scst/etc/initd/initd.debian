@@ -54,6 +54,7 @@ iscsi_scstd_start()
 	modprobe -q crc32c
 	modprobe iscsi-scst
 	start-stop-daemon --start --exec $DAEMON --quiet
+	/usr/local/sbin/scstadmin -config /etc/scst.conf
 	RETVAL=$?
 	if [ $RETVAL -eq 0 ]; then
 	    echo "succeeded."
@@ -62,7 +63,7 @@ iscsi_scstd_start()
 	    rmmod iscsi-scst
 	fi
 }
-	
+
 iscsi_scstd_stop()
 {
 	echo -n "Stopping iSCSI-SCST target service: "
