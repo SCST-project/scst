@@ -400,19 +400,14 @@ static int ibmvstgt_xmit_response(struct scst_cmd *sc)
 	if (dir == DMA_FROM_DEVICE && scst_cmd_get_resp_data_len(sc)) {
 		ret = srp_transfer_data(sc, &vio_iu(iue)->srp.cmd,
 					ibmvstgt_rdma, 1, 1);
-
-		if (ret != SCST_TGT_RES_SUCCESS) {
-			PRINT_ERROR("%s: tag= %llu xfer_data failed",
-				    __func__, scst_cmd_get_tag(sc));
-			scst_set_cmd_error(sc,
-				SCST_LOAD_SENSE(scst_sense_read_error));
-		}
+		scst_rx_data(sc, ret ? SCST_RX_STATUS_ERROR
+			     : SCST_RX_STATUS_SUCCESS, SCST_CONTEXT_SAME);
 	}
 
 	send_rsp(iue, sc, scst_cmd_get_status(sc), 0);
 
 out:
-	scst_tgt_cmd_done(sc, SCST_CONTEXT_DIRECT);
+	scst_tgt_cmd_done(sc, SCST_CONTEXT_SAME);
 
 	return SCST_TGT_RES_SUCCESS;
 }
@@ -530,6 +525,13 @@ static void process_login(struct iu_entry *iue)
 	memset(iu, 0, max(sizeof *rsp, sizeof *rej));
 
 	snprintf(name, sizeof(name), "%x", vport->dma_dev->unit_address);
+
+	if (!ibmvstgt_is_target_enabled(target->tgt)) {
+		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
+		PRINT_ERROR("rejected SRP_LOGIN_REQ because the target %s"
+			    " has not yet been enabled", name);
+		goto reject;
+	}
 
 	BUG_ON(!target);
 	sess = scst_register_session(target->tgt, 0, name, target, NULL, NULL);
