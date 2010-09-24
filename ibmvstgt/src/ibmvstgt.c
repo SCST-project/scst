@@ -527,7 +527,8 @@ static void process_login(struct iu_entry *iue)
 	snprintf(name, sizeof(name), "%x", vport->dma_dev->unit_address);
 
 	if (!ibmvstgt_is_target_enabled(target->tgt)) {
-		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
+		rej->reason =
+		  __constant_cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		PRINT_ERROR("rejected SRP_LOGIN_REQ because the target %s"
 			    " has not yet been enabled", name);
 		goto reject;
@@ -536,7 +537,8 @@ static void process_login(struct iu_entry *iue)
 	BUG_ON(!target);
 	sess = scst_register_session(target->tgt, 0, name, target, NULL, NULL);
 	if (!sess) {
-		rej->reason = SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES;
+		rej->reason =
+		  __constant_cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		TRACE_DBG("%s", "Failed to create SCST session");
 		goto reject;
 	}
@@ -552,8 +554,8 @@ static void process_login(struct iu_entry *iue)
 	rsp->max_it_iu_len = sizeof(union srp_iu);
 	rsp->max_ti_iu_len = sizeof(union srp_iu);
 	/* direct and indirect */
-	rsp->buf_fmt
-		= cpu_to_be16(SRP_BUF_FORMAT_DIRECT | SRP_BUF_FORMAT_INDIRECT);
+	rsp->buf_fmt = __constant_cpu_to_be16(SRP_BUF_FORMAT_DIRECT
+ 					      | SRP_BUF_FORMAT_INDIRECT);
 
 	send_iu(iue, sizeof(*rsp), VIOSRP_SRP_FORMAT);
 
@@ -562,8 +564,8 @@ static void process_login(struct iu_entry *iue)
 reject:
 	rej->opcode = SRP_LOGIN_REJ;
 	rej->tag = tag;
-	rej->buf_fmt =
-	    cpu_to_be16(SRP_BUF_FORMAT_DIRECT | SRP_BUF_FORMAT_INDIRECT);
+	rej->buf_fmt = __constant_cpu_to_be16(SRP_BUF_FORMAT_DIRECT
+					      | SRP_BUF_FORMAT_INDIRECT);
 
 	send_iu(iue, sizeof *rsp, VIOSRP_SRP_FORMAT);
 }
