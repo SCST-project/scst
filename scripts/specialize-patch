@@ -201,6 +201,12 @@ function evaluate(stmnt) {
       sub(pattern, (op[1] != 0) || (op[2] != 0), stmnt)
     }
   
+    pattern="([01]) *\\|\\| *(!* *defined *\\( *[A-Za-z_]* *\\))"
+    while (match(stmnt, pattern, op) != 0)
+    {
+      sub(pattern, op[1] == 0 ? op[2] : op[1], stmnt)
+    }
+  
     pattern="\\((-*[0-9]+)\\)"
     while (match(stmnt, pattern, op) != 0)
     {
