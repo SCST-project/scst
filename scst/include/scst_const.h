@@ -276,6 +276,23 @@ enum scst_cdb_flags {
 #endif
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
+/*
+ * From <scsi/scsi.h>. See also commit
+ * f57e4502cea471c69782d4790c71d8414ab49a9d.
+ */
+#define UNMAP 0x42
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 27)
+/*
+ * From <linux/fs.h>. See also commit
+ * d30a2605be9d5132d95944916e8f578fcfe4f976.
+ */
+#define BLKDISCARD _IO(0x12,119)
+#endif
+
+
 /*************************************************************
  **  SCSI Architecture Model (SAM) Status codes. Taken from SAM-3 draft
  **  T10/1561-D Revision 4 Draft dated 7th November 2002.
