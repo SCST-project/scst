@@ -356,7 +356,7 @@ static void srpt_get_iou(struct ib_dm_mad *mad)
 	int i;
 
 	ioui = (struct ib_dm_iou_info *)mad->data;
-	ioui->change_id = cpu_to_be16(1);
+	ioui->change_id = __constant_cpu_to_be16(1);
 	ioui->max_controllers = 16;
 
 	/* set present for slot 1 and empty for the rest */
@@ -382,12 +382,12 @@ static void srpt_get_ioc(struct srpt_device *sdev, u32 slot,
 	iocp = (struct ib_dm_ioc_profile *)mad->data;
 
 	if (!slot || slot > 16) {
-		mad->mad_hdr.status = cpu_to_be16(DM_MAD_STATUS_INVALID_FIELD);
+		mad->mad_hdr.status = __constant_cpu_to_be16(DM_MAD_STATUS_INVALID_FIELD);
 		return;
 	}
 
 	if (slot > 2) {
-		mad->mad_hdr.status = cpu_to_be16(DM_MAD_STATUS_NO_IOC);
+		mad->mad_hdr.status = __constant_cpu_to_be16(DM_MAD_STATUS_NO_IOC);
 		return;
 	}
 
@@ -399,10 +399,10 @@ static void srpt_get_ioc(struct srpt_device *sdev, u32 slot,
 	iocp->device_version = cpu_to_be16(sdev->dev_attr.hw_ver);
 	iocp->subsys_vendor_id = cpu_to_be32(sdev->dev_attr.vendor_id);
 	iocp->subsys_device_id = 0x0;
-	iocp->io_class = cpu_to_be16(SRP_REV16A_IB_IO_CLASS);
-	iocp->io_subclass = cpu_to_be16(SRP_IO_SUBCLASS);
-	iocp->protocol = cpu_to_be16(SRP_PROTOCOL);
-	iocp->protocol_version = cpu_to_be16(SRP_PROTOCOL_VERSION);
+	iocp->io_class = __constant_cpu_to_be16(SRP_REV16A_IB_IO_CLASS);
+	iocp->io_subclass = __constant_cpu_to_be16(SRP_IO_SUBCLASS);
+	iocp->protocol = __constant_cpu_to_be16(SRP_PROTOCOL);
+	iocp->protocol_version = __constant_cpu_to_be16(SRP_PROTOCOL_VERSION);
 	iocp->send_queue_depth = cpu_to_be16(sdev->srq_size);
 	iocp->rdma_read_depth = 4;
 	iocp->send_size = cpu_to_be32(srp_max_message_size);
@@ -429,12 +429,12 @@ static void srpt_get_svc_entries(u64 ioc_guid,
 	WARN_ON(!ioc_guid);
 
 	if (!slot || slot > 16) {
-		mad->mad_hdr.status = cpu_to_be16(DM_MAD_STATUS_INVALID_FIELD);
+		mad->mad_hdr.status = __constant_cpu_to_be16(DM_MAD_STATUS_INVALID_FIELD);
 		return;
 	}
 
 	if (slot > 2 || lo > hi || hi > 1) {
-		mad->mad_hdr.status = cpu_to_be16(DM_MAD_STATUS_NO_IOC);
+		mad->mad_hdr.status = __constant_cpu_to_be16(DM_MAD_STATUS_NO_IOC);
 		return;
 	}
 
@@ -485,7 +485,7 @@ static void srpt_mgmt_method_get(struct srpt_port *sp, struct ib_mad *rq_mad,
 		break;
 	default:
 		rsp_mad->mad_hdr.status =
-		    cpu_to_be16(DM_MAD_STATUS_UNSUP_METHOD_ATTR);
+		    __constant_cpu_to_be16(DM_MAD_STATUS_UNSUP_METHOD_ATTR);
 		break;
 	}
 }
@@ -541,11 +541,11 @@ static void srpt_mad_recv_handler(struct ib_mad_agent *mad_agent,
 		break;
 	case IB_MGMT_METHOD_SET:
 		dm_mad->mad_hdr.status =
-		    cpu_to_be16(DM_MAD_STATUS_UNSUP_METHOD_ATTR);
+		    __constant_cpu_to_be16(DM_MAD_STATUS_UNSUP_METHOD_ATTR);
 		break;
 	default:
 		dm_mad->mad_hdr.status =
-		    cpu_to_be16(DM_MAD_STATUS_UNSUP_METHOD);
+		    __constant_cpu_to_be16(DM_MAD_STATUS_UNSUP_METHOD);
 		break;
 	}
 
@@ -1188,7 +1188,7 @@ static void srpt_send_cred_req(struct srpt_rdma_ch *ch, s32 req_lim_delta)
 	memset(srp_cred_req, 0, sizeof(*srp_cred_req));
 	srp_cred_req->opcode = SRP_CRED_REQ;
 	srp_cred_req->req_lim_delta = cpu_to_be32(req_lim_delta);
-	srp_cred_req->tag = cpu_to_be64(0);
+	srp_cred_req->tag = __constant_cpu_to_be64(0);
 	res = srpt_post_send(ch, ioctx, sizeof(*srp_cred_req));
 	if (res) {
 		PRINT_ERROR("sending SRP_CRED_REQ failed (res = %d)", res);
@@ -2373,8 +2373,8 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	}
 
 	if (it_iu_len > srp_max_message_size || it_iu_len < 64) {
-		rej->reason =
-		    cpu_to_be32(SRP_LOGIN_REJ_REQ_IT_IU_LENGTH_TOO_LARGE);
+		rej->reason = __constant_cpu_to_be32(
+				SRP_LOGIN_REJ_REQ_IT_IU_LENGTH_TOO_LARGE);
 		ret = -EINVAL;
 		PRINT_ERROR("rejected SRP_LOGIN_REQ because its"
 			    " length (%d bytes) is out of range (%d .. %d)",
@@ -2383,8 +2383,8 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	}
 
 	if (!srpt_is_target_enabled(sdev->scst_tgt)) {
-		rej->reason =
-		    cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
+		rej->reason = __constant_cpu_to_be32(
+				SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		ret = -EINVAL;
 		PRINT_ERROR("rejected SRP_LOGIN_REQ because the target %s"
 			    " has not yet been enabled", sdev->device->name);
@@ -2447,9 +2447,9 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 
 	if (*(__be64 *)req->target_port_id != cpu_to_be64(srpt_service_guid)
 	    || *(__be64 *)(req->target_port_id + 8) !=
-	    cpu_to_be64(srpt_service_guid)) {
-		rej->reason =
-		    cpu_to_be32(SRP_LOGIN_REJ_UNABLE_ASSOCIATE_CHANNEL);
+	       cpu_to_be64(srpt_service_guid)) {
+		rej->reason = __constant_cpu_to_be32(
+				SRP_LOGIN_REJ_UNABLE_ASSOCIATE_CHANNEL);
 		ret = -ENOMEM;
 		PRINT_ERROR("%s", "rejected SRP_LOGIN_REQ because it"
 		       " has an invalid target port identifier.");
@@ -2458,7 +2458,8 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 
 	ch = kzalloc(sizeof *ch, GFP_KERNEL);
 	if (!ch) {
-		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
+		rej->reason = __constant_cpu_to_be32(
+					SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		PRINT_ERROR("%s",
 			    "rejected SRP_LOGIN_REQ because out of memory.");
 		ret = -ENOMEM;
@@ -2484,7 +2485,8 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 
 	ret = srpt_create_ch_ib(ch);
 	if (ret) {
-		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
+		rej->reason = __constant_cpu_to_be32(
+				SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		PRINT_ERROR("%s", "rejected SRP_LOGIN_REQ because creating"
 			    " a new RDMA channel failed.");
 		goto free_req_ring;
@@ -2492,7 +2494,8 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 
 	ret = srpt_ch_qp_rtr(ch, ch->qp);
 	if (ret) {
-		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
+		rej->reason = __constant_cpu_to_be32(
+				SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		PRINT_ERROR("rejected SRP_LOGIN_REQ because enabling"
 		       " RTR failed (error code = %d)", ret);
 		goto destroy_ib;
@@ -2528,7 +2531,8 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	ch->scst_sess = scst_register_session(sdev->scst_tgt, 0, ch->sess_name,
 					      ch, NULL, NULL);
 	if (!ch->scst_sess) {
-		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
+		rej->reason = __constant_cpu_to_be32(
+				SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		TRACE_DBG("%s", "Failed to create SCST session");
 		goto release_channel;
 	}
@@ -2543,8 +2547,8 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	rsp->max_ti_iu_len = req->req_it_iu_len;
 	ch->max_ti_iu_len = it_iu_len;
 	atomic_set(&ch->supports_cred_req, false);
-	rsp->buf_fmt =
-	    cpu_to_be16(SRP_BUF_FORMAT_DIRECT | SRP_BUF_FORMAT_INDIRECT);
+	rsp->buf_fmt = __constant_cpu_to_be16(SRP_BUF_FORMAT_DIRECT
+					      | SRP_BUF_FORMAT_INDIRECT);
 	rsp->req_lim_delta = cpu_to_be32(ch->rq_size);
 	atomic_set(&ch->req_lim, ch->rq_size);
 	atomic_set(&ch->req_lim_delta, 0);
@@ -2592,8 +2596,8 @@ free_ch:
 reject:
 	rej->opcode = SRP_LOGIN_REJ;
 	rej->tag = req->tag;
-	rej->buf_fmt =
-	    cpu_to_be16(SRP_BUF_FORMAT_DIRECT | SRP_BUF_FORMAT_INDIRECT);
+	rej->buf_fmt = __constant_cpu_to_be16(SRP_BUF_FORMAT_DIRECT
+					      | SRP_BUF_FORMAT_INDIRECT);
 
 	ib_send_cm_rej(cm_id, IB_CM_REJ_CONSUMER_DEFINED, NULL, 0,
 			     (void *)rej, sizeof *rej);
