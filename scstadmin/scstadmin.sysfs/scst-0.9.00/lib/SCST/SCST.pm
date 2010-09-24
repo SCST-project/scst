@@ -3301,18 +3301,36 @@ sub sessions {
 					  $self->luns($driver, $target, $group);
 				}
 			} else {
-				my $io = new IO::File $pPath, O_RDONLY;
+				my $mode = (stat($pPath))[2];
+				if (-d $pPath) {
+					# Skip directories
+				} else {
+					if (!(($mode & S_IRUSR) >> 6)) {
+						$_sessions{$session}->{$attribute}->{'static'} = FALSE;
+						$_sessions{$session}->{$attribute}->{'value'} = undef;
+					} else {
+						my $is_static;
+						if (($mode & S_IWUSR) >> 6) {
+							$is_static = FALSE;
+						} else {
+							$is_static = TRUE;
+						}
 
-				if (!$io) {
-					$self->{'err_string'} = "sessions(): Unable to read ".
-					  "session attribute '$attribute': $!";
-					return undef;
+						my $io = new IO::File $pPath, O_RDONLY;
+
+						if (!$io) {
+							$self->{'err_string'} = "sessions(): Unable to read ".
+							  "session attribute '$attribute': $!";
+							return undef;
+						}
+
+						my $value = <$io>;
+						chomp $value;
+
+						$_sessions{$session}->{$attribute}->{'value'} = $value;
+						$_sessions{$session}->{$attribute}->{'static'} = $is_static;
+					}
 				}
-
-				my $value = <$io>;
-				chomp $value;
-
-				$_sessions{$session}->{$attribute} = $value;
 			}
 		}
 	}

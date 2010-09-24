@@ -2399,7 +2399,7 @@ sub listSessions {
 							  $$sessions{$session}->{'luns'}->{$lun};
 						}
 					} else {
-						$attributes{$attr}->{'value'} = $$sessions{$session}->{$attr};
+						$attributes{$attr}->{'value'} = $$sessions{$session}->{$attr}->{'value'};
 					}
 				}
 
