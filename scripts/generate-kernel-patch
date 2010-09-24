@@ -551,6 +551,20 @@ add_file "scst_local/README" "Documentation/scst/README.scst_local" \
   ( cd ibmvstgt && ./generate-in-tree-patches "${kernel_version}" )
   if [ -e "ibmvstgt/in-tree-patches/${kernel_version}" ]; then
     for f in \
+      drivers/scsi/ibmvscsi/ibmvstgt.c \
+      drivers/scsi/libsrp.c \
+      include/scsi/libsrp.h
+    do
+      add_patch "ibmvstgt/in-tree-patches/${kernel_version}/$(basename $f).patch" $f
+    done
+  fi
+} \
+| process_patch "ibmvstgt.diff"
+
+{
+  ( cd ibmvstgt && ./generate-in-tree-patches "${kernel_version}" )
+  if [ -e "ibmvstgt/in-tree-patches/${kernel_version}" ]; then
+    for f in \
       arch/arm/configs/at572d940hfek_defconfig \
       arch/arm/configs/cam60_defconfig \
       arch/arm/configs/s3c2410_defconfig \
@@ -585,8 +599,6 @@ add_file "scst_local/README" "Documentation/scst/README.scst_local" \
       drivers/scsi/Kconfig \
       drivers/scsi/Makefile \
       drivers/scsi/hosts.c \
-      drivers/scsi/ibmvscsi/ibmvstgt.c \
-      drivers/scsi/libsrp.c \
       drivers/scsi/scsi_sysfs.c \
       drivers/scsi/scsi_tgt_if.c \
       drivers/scsi/scsi_tgt_lib.c \
@@ -595,7 +607,6 @@ add_file "scst_local/README" "Documentation/scst/README.scst_local" \
       drivers/scsi/scsi_transport_fc_internal.h \
       drivers/scsi/scsi_transport_srp.c \
       drivers/scsi/scsi_transport_srp_internal.h \
-      include/scsi/libsrp.h \
       include/scsi/scsi_host.h \
       include/scsi/scsi_tgt.h \
       include/scsi/scsi_tgt_if.h
@@ -604,4 +615,4 @@ add_file "scst_local/README" "Documentation/scst/README.scst_local" \
     done
   fi
 } \
-| process_patch "ibmvstgt.diff"
+| process_patch "scsi_tgt.diff"
