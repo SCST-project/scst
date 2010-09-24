@@ -561,7 +561,7 @@ static void process_login(struct iu_entry *iue)
 	rsp->max_ti_iu_len = sizeof(union srp_iu);
 	/* direct and indirect */
 	rsp->buf_fmt = __constant_cpu_to_be16(SRP_BUF_FORMAT_DIRECT
- 					      | SRP_BUF_FORMAT_INDIRECT);
+					      | SRP_BUF_FORMAT_INDIRECT);
 
 	send_iu(iue, sizeof(*rsp), VIOSRP_SRP_FORMAT);
 
