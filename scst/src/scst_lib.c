@@ -29,6 +29,7 @@
 #include <linux/string.h>
 #include <linux/ctype.h>
 #include <linux/delay.h>
+#include <linux/vmalloc.h>
 #include <asm/kmap_types.h>
 #include <asm/unaligned.h>
 
