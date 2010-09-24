@@ -32,10 +32,16 @@
 #include "scst.h"
 #include "scst_debug.h"
 #endif
-#include "libsrpnew.h" /* <scsi/libsrp.h> */
-#include <asm/iommu.h>
-#ifdef __powerpc__
+#if defined(INSIDE_KERNEL_TREE)
+#include <scsi/libsrp.h>
+#else
+#include "libsrpnew.h"
+#endif
+#if defined(INSIDE_KERNEL_TREE) || defined(__powerpc__)
 #include <asm/hvcall.h>
+#endif
+#include <asm/iommu.h>
+#if defined(INSIDE_KERNEL_TREE) || defined(__powerpc__)
 #include <asm/prom.h>
 #include <asm/vio.h>
 #else
