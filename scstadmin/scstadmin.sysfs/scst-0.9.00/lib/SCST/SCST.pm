@@ -81,6 +81,7 @@ SCST_C_TGT_BAD_ATTRIBUTES   => 50,
 SCST_C_TGT_ATTRIBUTE_STATIC => 51,
 SCST_C_TGT_SETATTR_FAIL     => 52,
 SCST_C_TGT_CLR_LUN_FAIL     => 53,
+SCST_C_TGT_BUSY             => 54,
 
 SCST_C_GRP_NO_GROUP         => 60,
 SCST_C_GRP_EXISTS           => 61,
@@ -112,6 +113,9 @@ SCST_C_LUN_SETATTR_FAIL     => 99,
 SCST_C_INI_BAD_ATTRIBUTES   => 100,
 SCST_C_INI_ATTRIBUTE_STATIC => 101,
 SCST_C_INI_SETATTR_FAIL     => 102,
+
+SCST_C_NO_SESSION           => 110,
+SCST_C_SESSION_CLOSE_FAIL   => 111,
 };
 
 my %VERBOSE_ERROR = (
@@ -155,6 +159,7 @@ my %VERBOSE_ERROR = (
 (SCST_C_TGT_ATTRIBUTE_STATIC) => 'Target attribute specified is static.',
 (SCST_C_TGT_SETATTR_FAIL)     => 'Failed to set target attribute. See "dmesg" for more information.',
 (SCST_C_TGT_CLR_LUN_FAIL)     => 'Failed to clear LUNs from target. See "dmesg" for more information.',
+(SCST_C_TGT_BUSY)             => 'Failed to remove target - target has active sessions. See "dmesg" for more information.',
 
 (SCST_C_GRP_NO_GROUP)         => 'No such group exists.',
 (SCST_C_GRP_EXISTS)           => 'Group already exists.',
@@ -186,6 +191,9 @@ my %VERBOSE_ERROR = (
 (SCST_C_INI_BAD_ATTRIBUTES)   => 'Bad attributes for initiator.',
 (SCST_C_INI_ATTRIBUTE_STATIC) => 'Initiator attribute specified is static.',
 (SCST_C_INI_SETATTR_FAIL)     => 'Failed to set initiator attribute. See "dmesg" for more information.',
+
+(SCST_C_NO_SESSION)           => 'Session not found for driver/target.',
+(SCST_C_SESSION_CLOSE_FAIL)   => 'Failed to close session.',
 );
 
 use vars qw(@ISA @EXPORT $VERSION);
@@ -1011,6 +1019,31 @@ sub removeVirtualTarget {
 
 	return SCST_C_TGT_REM_FAIL if (!$io);
 
+	$self->enableTarget($driver, $target, FALSE);
+
+	my $sessions = $self->sessions($driver, $target);
+
+	my $can_close;
+	foreach my $session (keys %{$sessions}) {
+		if (defined($$sessions{$session}->{'force_close'})) {
+			$can_close = TRUE;
+			my $rc = closeSession($driver, $target, $session);
+			return $rc if ($rc);
+		}
+	}			
+
+	if ($can_close) {
+		my $has_sessions = 1;
+		my $now = time();
+		while ($has_sessions && (($now + $TIMEOUT) > time())) {
+			$sessions = $self->sessions($driver, $target);
+			$has_sessions = scalar keys %{$sessions};
+			sleep 1 if ($has_sessions);
+		}
+
+		return SCST_C_TGT_BUSY if ($has_sessions);
+	}
+
 	my $cmd = "del_target $target\n";
 	my $bytes;
 
@@ -1022,6 +1055,7 @@ sub removeVirtualTarget {
 
 	close $io;
 
+	return SCST_C_TGT_BUSY if ($bytes == -1);
 	return FALSE if ($self->{'debug'} || $bytes);
 	return SCST_C_TGT_REM_FAIL;
 }
@@ -3279,6 +3313,37 @@ sub sessions {
 	return \%_sessions;
 }
 
+sub closeSession {
+	my $self = shift;
+	my $driver = shift;
+	my $target = shift;
+	my $session = shift;
+
+	my $sessions = $self->sessions($driver, $target);
+
+	return SCST_C_NO_SESSION if (!defined($$sessions{$session}));
+
+	# If it's not closable, silently return
+	return FALSE if (!defined($$sessions{$session}->{'force_close'}));
+
+	my $path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_SESSIONS, $session, 'force_close'); 
+
+	my $io = new IO::File $path, O_WRONLY;
+
+	my $cmd = "1";
+
+	my $bytes;
+
+        if ($self->{'debug'}) {                
+		print "DBG($$): $cmd\n";
+	} else {
+		$bytes = _syswrite($io, $cmd, length($cmd));
+	}
+
+        return FALSE if ($self->{'debug'} || $bytes);
+	return SCST_C_SESSION_CLOSE_FAIL;
+}
+
 sub sgvStats {
 	my $self = shift;
 	my %stats;
@@ -3391,6 +3456,8 @@ sub _syswrite {
 			}
 
 			close $res;
+		} elsif ($! == EBUSY) {
+			return -1;
 		}
 	}
 
