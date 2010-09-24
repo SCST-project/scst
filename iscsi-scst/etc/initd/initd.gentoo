@@ -53,6 +53,7 @@ start_server()
         modprobe -q crc32c
         modprobe iscsi-scst
         /usr/local/sbin/iscsi-scstd
+        /usr/local/sbin/scstadmin -config /etc/scst.conf
 }
 
 stop_server()
