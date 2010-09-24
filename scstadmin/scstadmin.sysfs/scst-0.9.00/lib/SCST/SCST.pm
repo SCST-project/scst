@@ -1023,21 +1023,28 @@ sub removeVirtualTarget {
 
 	my $sessions = $self->sessions($driver, $target);
 
-	my $can_close;
+	my %can_close;
 	foreach my $session (keys %{$sessions}) {
 		if (defined($$sessions{$session}->{'force_close'})) {
-			$can_close = TRUE;
+			$can_close{$session}++;
 			my $rc = closeSession($driver, $target, $session);
 			return $rc if ($rc);
 		}
 	}			
 
-	if ($can_close) {
+	if (scalar keys %can_close) {
 		my $has_sessions = 1;
 		my $now = time();
 		while ($has_sessions && (($now + $TIMEOUT) > time())) {
 			$sessions = $self->sessions($driver, $target);
-			$has_sessions = scalar keys %{$sessions};
+
+			foreach my $session (keys %can_close) {
+				if (!defined($$sessions{$session})) {
+					delete $can_close{$session};
+				}
+			}
+
+			$has_sessions = scalar keys %can_close;
 			sleep 1 if ($has_sessions);
 		}
 
