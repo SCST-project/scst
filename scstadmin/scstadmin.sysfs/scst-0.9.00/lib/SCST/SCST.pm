@@ -1027,7 +1027,7 @@ sub removeVirtualTarget {
 	foreach my $session (keys %{$sessions}) {
 		if (defined($$sessions{$session}->{'force_close'})) {
 			$can_close{$session}++;
-			my $rc = closeSession($driver, $target, $session);
+			my $rc = $self->closeSession($driver, $target, $session);
 			return $rc if ($rc);
 		}
 	}			
