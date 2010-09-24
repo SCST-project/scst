@@ -3876,8 +3876,6 @@ sub enableDriver {
 	my %attributes = ('enabled', 1);
 
 	my $attrs = $SCST->driverAttributes($driver);
-use Data::Dumper;
-print Dumper($attrs);
 	return if (!defined($$attrs{'enabled'}));
 
 	setDriverAttributes($driver, \%attributes);
