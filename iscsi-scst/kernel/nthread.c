@@ -715,7 +715,7 @@ restart:
 			   MSG_DONTWAIT | MSG_NOSIGNAL);
 	set_fs(oldfs);
 
-	TRACE_DBG("msg_iovlen %d, first_len %d, read_size %d, res %d",
+	TRACE_DBG("msg_iovlen %zd, first_len %d, read_size %d, res %d",
 		msg.msg_iovlen, first_len, conn->read_size, res);
 
 	if (res > 0) {
