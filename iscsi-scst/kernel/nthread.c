@@ -715,6 +715,9 @@ restart:
 			   MSG_DONTWAIT | MSG_NOSIGNAL);
 	set_fs(oldfs);
 
+	TRACE_DBG("msg_iovlen %d, first_len %d, read_size %d, res %d",
+		msg.msg_iovlen, first_len, conn->read_size, res);
+
 	if (res > 0) {
 		/*
 		 * To save some considerable effort and CPU power we
@@ -729,6 +732,7 @@ restart:
 		if (conn->read_size != 0) {
 			if (res >= first_len) {
 				int done = 1 + ((res - first_len) >> PAGE_SHIFT);
+				TRACE_DBG("done %d", done);
 				conn->read_msg.msg_iov += done;
 				conn->read_msg.msg_iovlen -= done;
 			}
