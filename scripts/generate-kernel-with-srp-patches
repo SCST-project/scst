@@ -677,19 +677,74 @@ index 854ec81..f665cea 100644
  	enum dma_data_direction	direction;
  };
  
+diff --git a/drivers/scsi/hosts.c b/drivers/scsi/hosts.c
+index 8a8f803..716f704 100644
+--- a/drivers/scsi/hosts.c
++++ b/drivers/scsi/hosts.c
+@@ -65,7 +65,7 @@ static struct class shost_class = {
+  **/
+ int scsi_host_set_state(struct Scsi_Host *shost, enum scsi_host_state state)
+ {
+-	enum scsi_host_state oldstate = shost->shost_state;
++	enum scsi_host_state oldstate = atomic_read(&shost->shost_state);
+ 
+ 	if (state == oldstate)
+ 		return 0;
+@@ -136,7 +136,7 @@ int scsi_host_set_state(struct Scsi_Host *shost, enum scsi_host_state state)
+ 		}
+ 		break;
+ 	}
+-	shost->shost_state = state;
++	atomic_set(&shost->shost_state, state);
+ 	return 0;
+ 
+  illegal:
+@@ -341,7 +341,7 @@ struct Scsi_Host *scsi_host_alloc(struct scsi_host_template *sht, int privsize)
+ 
+ 	shost->host_lock = &shost->default_lock;
+ 	spin_lock_init(shost->host_lock);
+-	shost->shost_state = SHOST_CREATED;
++	atomic_set(&shost->shost_state, SHOST_CREATED);
+ 	INIT_LIST_HEAD(&shost->__devices);
+ 	INIT_LIST_HEAD(&shost->__targets);
+ 	INIT_LIST_HEAD(&shost->eh_cmd_q);
+@@ -503,7 +503,7 @@ EXPORT_SYMBOL(scsi_host_lookup);
+  **/
+ struct Scsi_Host *scsi_host_get(struct Scsi_Host *shost)
+ {
+-	if ((shost->shost_state == SHOST_DEL) ||
++	if (atomic_read(&shost->shost_state) == SHOST_DEL ||
+ 		!get_device(&shost->shost_gendev))
+ 		return NULL;
+ 	return shost;
 diff --git a/drivers/scsi/scsi.c b/drivers/scsi/scsi.c
-index ad0ed21..3819d66 100644
+index ad0ed21..c150a3d 100644
 --- a/drivers/scsi/scsi.c
 +++ b/drivers/scsi/scsi.c
-@@ -749,11 +749,16 @@ int scsi_dispatch_cmd(struct scsi_cmnd *cmd)
- 	if (unlikely(host->shost_state == SHOST_DEL)) {
+@@ -737,23 +737,22 @@ int scsi_dispatch_cmd(struct scsi_cmnd *cmd)
+ 		goto out;
+ 	}
+ 
+-	spin_lock_irqsave(host->host_lock, flags);
+-	/*
+-	 * AK: unlikely race here: for some reason the timer could
+-	 * expire before the serial number is set up below.
+-	 *
+-	 * TODO: kill serial or move to blk layer
+-	 */
+-	scsi_cmd_get_serial(host, cmd); 
++	cmd->serial_number = 1;
+ 
+-	if (unlikely(host->shost_state == SHOST_DEL)) {
++	if (unlikely(atomic_read(&host->shost_state) == SHOST_DEL)) {
  		cmd->result = (DID_NO_CONNECT << 16);
++		spin_lock_irqsave(host->host_lock, flags);
  		scsi_done(cmd);
 +		spin_unlock_irqrestore(host->host_lock, flags);
  	} else {
  		trace_scsi_dispatch_cmd_start(cmd);
-+		if (host->unlocked_qcmds)
-+			spin_unlock_irqrestore(host->host_lock, flags);
++		if (!host->unlocked_qcmds)
++			spin_lock_irqsave(host->host_lock, flags);
  		rtn = host->hostt->queuecommand(cmd, scsi_done);
 +		if (!host->unlocked_qcmds)
 +			spin_unlock_irqrestore(host->host_lock, flags);
@@ -699,8 +754,21 @@ index ad0ed21..3819d66 100644
  	if (rtn) {
  		trace_scsi_dispatch_cmd_error(cmd, rtn);
  		if (rtn != SCSI_MLQUEUE_DEVICE_BUSY &&
+diff --git a/drivers/scsi/scsi_sysfs.c b/drivers/scsi/scsi_sysfs.c
+index c3f6737..cbcb096 100644
+--- a/drivers/scsi/scsi_sysfs.c
++++ b/drivers/scsi/scsi_sysfs.c
+@@ -188,7 +188,7 @@ static ssize_t
+ show_shost_state(struct device *dev, struct device_attribute *attr, char *buf)
+ {
+ 	struct Scsi_Host *shost = class_to_shost(dev);
+-	const char *name = scsi_host_state_name(shost->shost_state);
++	const char *name = scsi_host_state_name(atomic_read(&shost->shost_state));
+ 
+ 	if (!name)
+ 		return -EINVAL;
 diff --git a/include/scsi/scsi_host.h b/include/scsi/scsi_host.h
-index b7bdecb..1814c51 100644
+index b7bdecb..d899f57 100644
 --- a/include/scsi/scsi_host.h
 +++ b/include/scsi/scsi_host.h
 @@ -636,6 +636,9 @@ struct Scsi_Host {
@@ -713,7 +781,38 @@ index b7bdecb..1814c51 100644
  	/*
  	 * Optional work queue to be utilized by the transport
  	 */
-
+@@ -670,7 +673,7 @@ struct Scsi_Host {
+ 	unsigned int  irq;
+ 	
+ 
+-	enum scsi_host_state shost_state;
++	atomic_t shost_state; /* enum scsi_host_state */
+ 
+ 	/* ldm bits */
+ 	struct device		shost_gendev, shost_dev;
+@@ -730,9 +733,10 @@ static inline struct Scsi_Host *dev_to_shost(struct device *dev)
+ 
+ static inline int scsi_host_in_recovery(struct Scsi_Host *shost)
+ {
+-	return shost->shost_state == SHOST_RECOVERY ||
+-		shost->shost_state == SHOST_CANCEL_RECOVERY ||
+-		shost->shost_state == SHOST_DEL_RECOVERY ||
++	const int shost_state = atomic_read(&shost->shost_state);
++	return shost_state == SHOST_RECOVERY ||
++		shost_state == SHOST_CANCEL_RECOVERY ||
++		shost_state == SHOST_DEL_RECOVERY ||
+ 		shost->tmf_in_progress;
+ }
+ 
+@@ -770,7 +774,7 @@ static inline struct device *scsi_get_device(struct Scsi_Host *shost)
+  **/
+ static inline int scsi_host_scan_allowed(struct Scsi_Host *shost)
+ {
+-	return shost->shost_state == SHOST_RUNNING;
++	return atomic_read(&shost->shost_state) == SHOST_RUNNING;
+ }
+ 
+ extern void scsi_unblock_requests(struct Scsi_Host *);
 EOF
 }
 
@@ -784,4 +883,5 @@ do
   wget -O- -q "$url" | patch -p1 -s
 done
 
+echo "Applying locking-per-lun patch ..."
 apply_locking_per_lun_patch
