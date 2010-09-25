@@ -313,7 +313,7 @@ function run_checkpatch  {
   then
     echo "Running checkpatch on the SCST kernel patch ..."
     ( cd "${outputdir}/linux-$1" \
-      && scripts/checkpatch.pl - < "${patchfile}" &> "${outputfile}")
+      && scripts/checkpatch.pl --no-tree - < "${patchfile}" &> "${outputfile}")
     local errors=$(grep -c '^ERROR' "${outputfile}")
     local warnings=$(grep -c '^WARNING' "${outputfile}")
     echo "${errors} errors / ${warnings} warnings."
