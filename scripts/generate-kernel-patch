@@ -123,8 +123,6 @@ function process_patch {
         echo "Warning: overwriting ${patchdir}/$1"
       fi
     (
-      echo "Signed-off-by: ${SIGNED_OFF_BY}"
-      echo ""
       specialize_patch
     ) >"${patchdir}/$(basename $1)"
     else
