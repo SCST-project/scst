@@ -30,7 +30,7 @@
 # Convert a kernel version in the x.y.z format into numeric form, just like
 # the KERNEL_VERSION() macro.
 
-function version_code(kver) {
+function version_code(kver, array) {
   match(kver, "([0-9]+).([0-9]+).([0-9]+)", array)
   return 65536*array[1] + 256*array[2] + array[3]
 }
@@ -41,7 +41,7 @@ function version_code(kver) {
 # Note: the order in which the substitutions appear below is important --
 # it is the same order as the order of operators in C.
 
-function evaluate(stmnt) {
+function evaluate(stmnt, pattern, arg, op) {
 
   if (debug)
     printf "/* debug specialize-patch: (a) %s */\n", stmnt
@@ -189,10 +189,10 @@ function evaluate(stmnt) {
       sub(pattern, (op[1] != 0) && (op[2] != 0), stmnt)
     }
   
-    pattern="([01]) *\\&\\& *(!* *defined *\\( *[A-Za-z_]* *\\))"
+    pattern="^+#if *([01]) *\\&\\& *(!* *defined *\\( *[A-Za-z_]* *\\))$"
     while (match(stmnt, pattern, op) != 0)
     {
-      sub(pattern, op[1] != 0 ? op[2] : op[1], stmnt)
+      stmnt = "+#if " (op[1] != 0 ? op[2] : op[1])
     }
   
     pattern="(-*[0-9]+) *\\|\\| *(-*[0-9]+)"
@@ -201,10 +201,10 @@ function evaluate(stmnt) {
       sub(pattern, (op[1] != 0) || (op[2] != 0), stmnt)
     }
   
-    pattern="([01]) *\\|\\| *(!* *defined *\\( *[A-Za-z_]* *\\))"
+    pattern="^+#if *([01]) *\\|\\| *(!* *defined *\\( *[A-Za-z_]* *\\))$"
     while (match(stmnt, pattern, op) != 0)
     {
-      sub(pattern, op[1] == 0 ? op[2] : op[1], stmnt)
+      stmnt = "+#if " (op[1] == 0 ? op[2] : op[1])
     }
   
     pattern="\\((-*[0-9]+)\\)"
@@ -224,8 +224,7 @@ function evaluate(stmnt) {
 
 # Evaluate ! stmnt
 function invert(stmnt) {
-  sub("^+#if ", "+#if ! ", stmnt)
-  return evaluate(stmnt)
+  return evaluate(gensub("^+#if (.*)$", "+#if ! (\\1)", "g", stmnt))
 }
 
 
