@@ -885,3 +885,23 @@ done
 
 echo "Applying locking-per-lun patch ..."
 apply_locking_per_lun_patch
+
+echo "Applying Jens' block layer optimization patches ..."
+if [ "${kernel_version}" "<" "2.6.38" ]; then
+  # block: kill request batching
+  # block: add separate sync/async rq allocation mempools
+  # block: get rid of request_list->starved[]
+  # block: optimize rq allocation path for less queue locking
+  for commit in \
+    5a00f237eb167a5e98d5f3bb56e11e4da406a5bc \
+    76241c12f6a730241b9fa6a795dff55f826ce391 \
+    35f2046ac858ca165a8aba477c9236e53a8dbffa \
+    38bb177765247024dad4b70a2abe0044d0574998
+  do
+    echo "Applying patch $commit ..."
+    url="http://git.kernel.dk/?p=linux-2.6-block.git;a=patch;h=$commit"
+    wget -O- -q "$url" | \
+      awk 'BEGIN{h=1}h==0{print}/^diff /{h=0}' | \
+      patch -p1 -s
+  done
+fi
