@@ -42,6 +42,7 @@
 #include <linux/uaccess.h>
 #include <linux/namei.h>
 #include <linux/version.h>
+#include <linux/vmalloc.h>
 #include <asm/unaligned.h>
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
