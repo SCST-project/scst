@@ -141,6 +141,10 @@ enum scst_cmd_queue_type {
 
 /*************************************************************
  ** CDB flags
+ **
+ ** Implicit ordered used for commands which need calm environment
+ ** without any simultaneous activities. For instance, for MODE
+ ** SELECT it is needed to correctly generate its UA.
  *************************************************************/
 enum scst_cdb_flags {
 	SCST_TRANSFER_LEN_TYPE_FIXED =		0x0001,
@@ -150,13 +154,14 @@ enum scst_cdb_flags {
 	SCST_INFO_VALID =			0x0010, /* must be single bit */
 	SCST_VERIFY_BYTCHK_MISMATCH_ALLOWED =	0x0020,
 	SCST_IMPLICIT_HQ =			0x0040,
-	SCST_SKIP_UA =				0x0080,
-	SCST_WRITE_MEDIUM =			0x0100,
-	SCST_LOCAL_CMD =			0x0200,
-	SCST_FULLY_LOCAL_CMD =			0x0400,
-	SCST_REG_RESERVE_ALLOWED =		0x0800,
-	SCST_WRITE_EXCL_ALLOWED =		0x1000,
-	SCST_EXCL_ACCESS_ALLOWED =		0x2000,
+	SCST_IMPLICIT_ORDERED =			0x0080,
+	SCST_SKIP_UA =				0x0100,
+	SCST_WRITE_MEDIUM =			0x0200,
+	SCST_LOCAL_CMD =			0x0400,
+	SCST_FULLY_LOCAL_CMD =			0x0800,
+	SCST_REG_RESERVE_ALLOWED =		0x1000,
+	SCST_WRITE_EXCL_ALLOWED =		0x2000,
+	SCST_EXCL_ACCESS_ALLOWED =		0x4000,
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
 	SCST_TEST_IO_IN_SIRQ_ALLOWED =		0x8000,
 #endif

@@ -1636,14 +1636,8 @@ struct scst_cmd {
 	/* Set if cmd is internally generated */
 	unsigned int internal:1;
 
-	/* Set if the device was blocked by scst_inc_on_dev_cmd() (for debug) */
-	unsigned int inc_blocking:1;
-
-	/* Set if the device should be unblocked after cmd's finish */
-	unsigned int needs_unblocking:1;
-
-	/* Set if scst_dec_on_dev_cmd() call is needed on the cmd's finish */
-	unsigned int dec_on_dev_needed:1;
+	/* Set if the device was blocked by scst_check_blocked_dev() */
+	unsigned int unblock_dev:1;
 
 	/* Set if cmd is queued as hw pending */
 	unsigned int cmd_hw_pending:1;
@@ -2069,6 +2063,15 @@ struct scst_device {
 	/**************************************************************/
 
 	/*
+	 * How many times device was blocked for new cmds execution.
+	 * Protected by dev_lock
+	 */
+	int block_count;
+
+	/* How many cmds alive on this dev */
+	atomic_t dev_cmd_count;
+
+	/*
 	 * Set if dev is persistently reserved. Protected by dev_pr_mutex.
 	 * Modified independently to the above field, hence the alignment.
 	 */
@@ -2104,21 +2107,6 @@ struct scst_device {
 
 	/* Memory limits for this device */
 	struct scst_mem_lim dev_mem_lim;
-
-	/* How many cmds alive on this dev */
-	atomic_t dev_cmd_count;
-
-	/*
-	 * How many there are "on_dev" commands, i.e. ones those are being
-	 * executed by the underlying SCSI/virtual device.
-	 */
-	atomic_t on_dev_count;
-
-	/*
-	 * How many times device was blocked for new cmds execution.
-	 * Protected by dev_lock
-	 */
-	int block_count;
 
 	/* How many write cmds alive on this dev. Temporary, ToDo */
 	atomic_t write_cmd_count;
@@ -2167,9 +2155,6 @@ struct scst_device {
 	spinlock_t dev_lock;		/* device lock */
 
 	struct list_head blocked_cmd_list; /* protected by dev_lock */
-
-	/* Used to wait for requested amount of "on_dev" commands */
-	wait_queue_head_t on_dev_waitQ;
 
 	/* A list entry used during TM, protected by scst_mutex */
 	struct list_head tm_dev_list_entry;

@@ -271,7 +271,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 			 SCST_WRITE_EXCL_ALLOWED,
 	 2, get_trans_len_3},
 	{0x15, "OMOOOOOOOOOOOOOO", "MODE SELECT(6)",
-	 SCST_DATA_WRITE, SCST_LOCAL_CMD, 4, get_trans_len_1},
+	 SCST_DATA_WRITE, SCST_IMPLICIT_ORDERED, 4, get_trans_len_1},
 	{0x16, "MMMMMMMMMMMMMMMM", "RESERVE",
 	 SCST_DATA_NONE, SCST_SMALL_TIMEOUT|SCST_LOCAL_CMD|
 			 SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
@@ -432,7 +432,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{0x4B, "     O          ", "PAUSE/RESUME",
 	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
 	{0x4C, "OOOOOOOOOOOOOOOO", "LOG SELECT",
-	 SCST_DATA_WRITE, SCST_SMALL_TIMEOUT, 7, get_trans_len_2},
+	 SCST_DATA_WRITE, SCST_IMPLICIT_ORDERED, 7, get_trans_len_2},
 	{0x4D, "OOOOOOOOOOOOOOOO", "LOG SENSE",
 	 SCST_DATA_READ, SCST_SMALL_TIMEOUT|
 			 SCST_REG_RESERVE_ALLOWED|
@@ -458,7 +458,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{0x54, "     O          ", "SEND OPC INFORMATION",
 	 SCST_DATA_WRITE, FLAG_NONE, 7, get_trans_len_2},
 	{0x55, "OOOOOOOOOOOOOOOO", "MODE SELECT(10)",
-	 SCST_DATA_WRITE, SCST_LOCAL_CMD, 7, get_trans_len_2},
+	 SCST_DATA_WRITE, SCST_IMPLICIT_ORDERED, 7, get_trans_len_2},
 	{0x56, "OOOOOOOOOOOOOOOO", "RESERVE(10)",
 	 SCST_DATA_NONE, SCST_SMALL_TIMEOUT|SCST_LOCAL_CMD,
 	 0, get_trans_len_none},
@@ -2579,11 +2579,9 @@ int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev)
 	atomic_set(&dev->write_cmd_count, 0);
 	scst_init_mem_lim(&dev->dev_mem_lim);
 	spin_lock_init(&dev->dev_lock);
-	atomic_set(&dev->on_dev_count, 0);
 	INIT_LIST_HEAD(&dev->blocked_cmd_list);
 	INIT_LIST_HEAD(&dev->dev_tgt_dev_list);
 	INIT_LIST_HEAD(&dev->dev_acg_dev_list);
-	init_waitqueue_head(&dev->on_dev_waitQ);
 	dev->dev_double_ua_possible = 1;
 	dev->queue_alg = SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER;
 
@@ -4231,8 +4229,7 @@ void scst_free_cmd(struct scst_cmd *cmd)
 			cmd, atomic_read(&scst_cmd_count));
 	}
 
-	sBUG_ON(cmd->inc_blocking || cmd->needs_unblocking ||
-		cmd->dec_on_dev_needed);
+	sBUG_ON(cmd->unblock_dev);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
 #if defined(CONFIG_SCST_EXTRACHECKS)
@@ -6685,45 +6682,10 @@ bool scst_del_thr_data(struct scst_tgt_dev *tgt_dev, struct task_struct *tsk)
 }
 
 /* dev_lock supposed to be held and BH disabled */
-void __scst_block_dev(struct scst_device *dev)
+void scst_block_dev(struct scst_device *dev)
 {
 	dev->block_count++;
 	TRACE_MGMT_DBG("Device BLOCK(new %d), dev %p", dev->block_count, dev);
-}
-
-/* No locks */
-static void scst_block_dev(struct scst_device *dev, int outstanding)
-{
-	spin_lock_bh(&dev->dev_lock);
-	__scst_block_dev(dev);
-	spin_unlock_bh(&dev->dev_lock);
-
-	/*
-	 * Memory barrier is necessary here, because we need to read
-	 * on_dev_count in wait_event() below after we increased block_count.
-	 * Otherwise, we can miss wake up in scst_dec_on_dev_cmd().
-	 * We use the explicit barrier, because spin_unlock_bh() doesn't
-	 * provide the necessary memory barrier functionality.
-	 */
-	smp_mb();
-
-	TRACE_MGMT_DBG("Waiting during blocking outstanding %d (on_dev_count "
-		"%d)", outstanding, atomic_read(&dev->on_dev_count));
-	wait_event(dev->on_dev_waitQ,
-		atomic_read(&dev->on_dev_count) <= outstanding);
-	TRACE_MGMT_DBG("%s", "wait_event() returned");
-}
-
-/* No locks */
-void scst_block_dev_cmd(struct scst_cmd *cmd, int outstanding)
-{
-	sBUG_ON(cmd->needs_unblocking);
-
-	cmd->needs_unblocking = 1;
-	TRACE_MGMT_DBG("Needs unblocking cmd %p (tag %llu)",
-		       cmd, (long long unsigned int)cmd->tag);
-
-	scst_block_dev(cmd->dev, outstanding);
 }
 
 /* No locks */
@@ -6739,25 +6701,14 @@ void scst_unblock_dev(struct scst_device *dev)
 }
 
 /* No locks */
-void scst_unblock_dev_cmd(struct scst_cmd *cmd)
+bool __scst_check_blocked_dev(struct scst_cmd *cmd)
 {
-	scst_unblock_dev(cmd->dev);
-	cmd->needs_unblocking = 0;
-}
-
-/* No locks */
-int scst_inc_on_dev_cmd(struct scst_cmd *cmd)
-{
-	int res = 0;
+	int res = false;
 	struct scst_device *dev = cmd->dev;
 
 	TRACE_ENTRY();
 
-	sBUG_ON(cmd->inc_blocking || cmd->dec_on_dev_needed);
-
-	atomic_inc(&dev->on_dev_count);
-	cmd->dec_on_dev_needed = 1;
-	TRACE_DBG("New on_dev_count %d", atomic_read(&dev->on_dev_count));
+	EXTRACHECKS_BUG_ON(cmd->unblock_dev);
 
 	if (unlikely(cmd->internal) && (cmd->cdb[0] == REQUEST_SENSE)) {
 		/*
@@ -6768,18 +6719,17 @@ int scst_inc_on_dev_cmd(struct scst_cmd *cmd)
 	}
 
 repeat:
-	if (unlikely(dev->block_count > 0)) {
+	if (dev->block_count > 0) {
 		spin_lock_bh(&dev->dev_lock);
 		if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)))
 			goto out_unlock;
 		if (dev->block_count > 0) {
-			scst_dec_on_dev_cmd(cmd);
 			TRACE_MGMT_DBG("Delaying cmd %p due to blocking "
 				"(tag %llu, dev %p)", cmd,
 				(long long unsigned int)cmd->tag, dev);
 			list_add_tail(&cmd->blocked_cmd_list_entry,
 				      &dev->blocked_cmd_list);
-			res = 1;
+			res = true;
 			spin_unlock_bh(&dev->dev_lock);
 			goto out;
 		} else {
@@ -6788,14 +6738,15 @@ repeat:
 		}
 		spin_unlock_bh(&dev->dev_lock);
 	}
-	if (unlikely(dev->dev_double_ua_possible)) {
+
+	if (dev->dev_double_ua_possible) {
 		spin_lock_bh(&dev->dev_lock);
 		if (dev->block_count == 0) {
 			TRACE_MGMT_DBG("cmd %p (tag %llu), blocking further "
 				"cmds due to possible double reset UA (dev %p)",
 				cmd, (long long unsigned int)cmd->tag, dev);
-			__scst_block_dev(dev);
-			cmd->inc_blocking = 1;
+			scst_block_dev(dev);
+			cmd->unblock_dev = 1;
 		} else {
 			spin_unlock_bh(&dev->dev_lock);
 			TRACE_MGMT_DBG("Somebody blocked the device, "

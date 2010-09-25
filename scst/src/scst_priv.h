@@ -558,6 +558,11 @@ static inline bool scst_is_implicit_hq(struct scst_cmd *cmd)
 	return (cmd->op_flags & SCST_IMPLICIT_HQ) != 0;
 }
 
+static inline bool scst_is_implicit_ordered(struct scst_cmd *cmd)
+{
+	return (cmd->op_flags & SCST_IMPLICIT_ORDERED) != 0;
+}
+
 /*
  * Some notes on devices "blocking". Blocking means that no
  * commands will go from SCST to underlying SCSI device until it
@@ -565,40 +570,29 @@ static inline bool scst_is_implicit_hq(struct scst_cmd *cmd)
  * already on the device.
  */
 
-extern int scst_inc_on_dev_cmd(struct scst_cmd *cmd);
-
-extern void __scst_block_dev(struct scst_device *dev);
-extern void scst_block_dev_cmd(struct scst_cmd *cmd, int outstanding);
+extern void scst_block_dev(struct scst_device *dev);
 extern void scst_unblock_dev(struct scst_device *dev);
-extern void scst_unblock_dev_cmd(struct scst_cmd *cmd);
+
+extern bool __scst_check_blocked_dev(struct scst_cmd *cmd);
+
+static inline bool scst_check_blocked_dev(struct scst_cmd *cmd)
+{
+	if (unlikely(cmd->dev->block_count > 0) ||
+	    unlikely(cmd->dev->dev_double_ua_possible))
+		return __scst_check_blocked_dev(cmd);
+	else
+		return false;
+}
 
 /* No locks */
-static inline void scst_dec_on_dev_cmd(struct scst_cmd *cmd)
+static inline void scst_check_unblock_dev(struct scst_cmd *cmd)
 {
-	struct scst_device *dev = cmd->dev;
-	bool unblock_dev = cmd->inc_blocking;
-
-	if (cmd->inc_blocking) {
+	if (unlikely(cmd->unblock_dev)) {
 		TRACE_MGMT_DBG("cmd %p (tag %llu): unblocking dev %p", cmd,
 			       (long long unsigned int)cmd->tag, cmd->dev);
-		cmd->inc_blocking = 0;
+		cmd->unblock_dev = 0;
+		scst_unblock_dev(cmd->dev);
 	}
-	cmd->dec_on_dev_needed = 0;
-
-	if (unblock_dev)
-		scst_unblock_dev(dev);
-
-	atomic_dec(&dev->on_dev_count);
-	/* See comment in scst_block_dev() */
-	smp_mb__after_atomic_dec();
-
-	TRACE_DBG("New on_dev_count %d", atomic_read(&dev->on_dev_count));
-
-	sBUG_ON(atomic_read(&dev->on_dev_count) < 0);
-
-	if (unlikely(dev->block_count != 0))
-		wake_up_all(&dev->on_dev_waitQ);
-
 	return;
 }
 

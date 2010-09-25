@@ -414,9 +414,10 @@ static int scst_pre_parse(struct scst_cmd *cmd)
 	cmd->inc_expected_sn_on_done = 1;
 #else
 	cmd->inc_expected_sn_on_done = dev->handler->exec_sync ||
-	     (!dev->has_own_order_mgmt &&
-	      (dev->queue_alg == SCST_CONTR_MODE_QUEUE_ALG_RESTRICTED_REORDER ||
-	       cmd->queue_type == SCST_CMD_QUEUE_ORDERED));
+		scst_is_implicit_ordered(cmd) ||
+		(!dev->has_own_order_mgmt &&
+		 (dev->queue_alg == SCST_CONTR_MODE_QUEUE_ALG_RESTRICTED_REORDER ||
+		  cmd->queue_type == SCST_CMD_QUEUE_ORDERED));
 #endif
 
 	/*
@@ -1927,20 +1928,6 @@ out_unlock_compl:
 	goto out_compl;
 }
 
-static int scst_pre_select(struct scst_cmd *cmd)
-{
-	int res = SCST_EXEC_NOT_COMPLETED;
-
-	TRACE_ENTRY();
-
-	scst_block_dev_cmd(cmd, 1);
-
-	/* Check for local events will be done when cmd will be executed */
-
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
 static int scst_reserve_local(struct scst_cmd *cmd)
 {
 	int res = SCST_EXEC_NOT_COMPLETED, rc;
@@ -2704,11 +2691,6 @@ static int scst_do_local_exec(struct scst_cmd *cmd)
 	}
 
 	switch (cmd->cdb[0]) {
-	case MODE_SELECT:
-	case MODE_SELECT_10:
-	case LOG_SELECT:
-		res = scst_pre_select(cmd);
-		break;
 	case RESERVE:
 	case RESERVE_10:
 		res = scst_reserve_local(cmd);
@@ -2780,7 +2762,7 @@ static int scst_exec(struct scst_cmd **active_cmd)
 
 	TRACE_ENTRY();
 
-	if (unlikely(scst_inc_on_dev_cmd(cmd) != 0))
+	if (unlikely(scst_check_blocked_dev(cmd)))
 		goto out;
 
 	/* To protect tgt_dev */
@@ -2823,7 +2805,7 @@ done:
 		if (cmd == NULL)
 			break;
 
-		if (unlikely(scst_inc_on_dev_cmd(cmd) != 0))
+		if (unlikely(scst_check_blocked_dev(cmd)))
 			break;
 
 		__scst_cmd_put(ref_cmd);
@@ -3372,11 +3354,7 @@ static int scst_dev_done(struct scst_cmd *cmd)
 #endif
 	}
 
-	if (cmd->needs_unblocking)
-		scst_unblock_dev_cmd(cmd);
-
-	if (likely(cmd->dec_on_dev_needed))
-		scst_dec_on_dev_cmd(cmd);
+	scst_check_unblock_dev(cmd);
 
 	if (cmd->inc_expected_sn_on_done && cmd->sent_for_exec)
 		scst_inc_check_expected_sn(cmd);
@@ -3693,6 +3671,9 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 		TRACE_SN("Implicit HQ cmd %p", cmd);
 		cmd->queue_type = SCST_CMD_QUEUE_HEAD_OF_QUEUE;
 	}
+
+	if (unlikely(scst_is_implicit_ordered(cmd)))
+		cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
 
 	EXTRACHECKS_BUG_ON(cmd->sn_set || cmd->hq_cmd_inced);
 
@@ -5047,7 +5028,7 @@ static int scst_clear_task_set(struct scst_mgmt_cmd *mcmd)
 	 */
 	mcmd->needs_unblocking = 1;
 	spin_lock_bh(&dev->dev_lock);
-	__scst_block_dev(dev);
+	scst_block_dev(dev);
 	spin_unlock_bh(&dev->dev_lock);
 #endif
 
@@ -5207,7 +5188,7 @@ static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 		dev = acg_dev->dev;
 
 		spin_lock_bh(&dev->dev_lock);
-		__scst_block_dev(dev);
+		scst_block_dev(dev);
 		scst_process_reset(dev, mcmd->sess, NULL, mcmd, true);
 		spin_unlock_bh(&dev->dev_lock);
 
@@ -5311,7 +5292,7 @@ static int scst_lun_reset(struct scst_mgmt_cmd *mcmd)
 	mcmd->needs_unblocking = 1;
 
 	spin_lock_bh(&dev->dev_lock);
-	__scst_block_dev(dev);
+	scst_block_dev(dev);
 	scst_process_reset(dev, mcmd->sess, NULL, mcmd, true);
 	spin_unlock_bh(&dev->dev_lock);
 

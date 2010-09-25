@@ -82,12 +82,8 @@ void ft_cmd_dump(struct scst_cmd *cmd, const char *caller)
 		ft_cmd_flag(buf, sizeof(buf), "retry");
 	if (cmd->internal)
 		ft_cmd_flag(buf, sizeof(buf), "internal");
-	if (cmd->inc_blocking)
-		ft_cmd_flag(buf, sizeof(buf), "inc_blk");
-	if (cmd->needs_unblocking)
-		ft_cmd_flag(buf, sizeof(buf), "needs_unblk");
-	if (cmd->dec_on_dev_needed)
-		ft_cmd_flag(buf, sizeof(buf), "dec_on_dev");
+	if (cmd->unblock_dev)
+		ft_cmd_flag(buf, sizeof(buf), "unblock_dev");
 	if (cmd->cmd_hw_pending)
 		ft_cmd_flag(buf, sizeof(buf), "hw_pend");
 	if (cmd->tgt_need_alloc_data_buf)
