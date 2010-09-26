@@ -557,6 +557,28 @@ add_file "scst_local/README" "Documentation/scst/README.scst_local" \
 {
   ( cd ibmvstgt && ./generate-in-tree-patches "${kernel_version}" )
   if [ -e "ibmvstgt/in-tree-patches/${kernel_version}" ]; then
+    if [ "${multiple_patches}" = "true" ]; then
+      cat <<EOF
+[SCSI] ibmvstgt: Port from tgt to SCST
+
+The current ibmvstgt and libsrp kernel modules are based on the tgt
+infrastructure - these modules need the scsi_tgt kernel module and the tgtd
+user space process in order to function properly. This patch modifies the
+ibmvstgt and the libsrp kernel modules such that both use the SCST storage
+target framework instead of tgt. Note: ibmvstgt is the only user of libsrp.
+
+This patch introduces one backwards-incompatible change, namely that the
+path of the ibmvstgt sysfs attributes is modified.
+
+Note: this patch does compile, is checkpatch clean and does not introduce any
+new sparse warnings. This patch has not been tested in any other way
+however. The primary purpose of this patch is to invite feedback about the
+chosen approach.
+
+Signed-off-by: Bart Van Assche <bvanassche@acm.org>
+
+EOF
+    fi
     for f in \
       drivers/scsi/ibmvscsi/ibmvstgt.c \
       drivers/scsi/libsrp.c \
@@ -571,6 +593,20 @@ add_file "scst_local/README" "Documentation/scst/README.scst_local" \
 {
   ( cd ibmvstgt && ./generate-in-tree-patches "${kernel_version}" )
   if [ -e "ibmvstgt/in-tree-patches/${kernel_version}" ]; then
+    if [ "${multiple_patches}" = "true" ]; then
+      cat <<EOF
+[SCSI] tgt: Removal
+
+Because of the conversion of the ibmvstgt driver from tgt to SCST, the
+scsi_tgt kernel module, the CONFIG_SCSI_TGT, CONFIG_SCSI_SRP_TGT_ATTRS and
+CONFIG_SCSI_FC_TGT_ATTRS kbuild variable, the scsi_host_template member
+variables transfer_response, supportedmode and active_mode and the constants
+MODE_UNKNOWN, MODE_INITIATOR and MODE_TARGET are no longer needed.
+
+Signed-off-by: Bart Van Assche <bvanassche@acm.org>
+
+EOF
+    fi
     for f in \
       arch/arm/configs/at572d940hfek_defconfig \
       arch/arm/configs/cam60_defconfig \
