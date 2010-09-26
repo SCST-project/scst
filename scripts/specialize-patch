@@ -405,8 +405,8 @@ BEGIN {
 
 
 {
-  if (match($0, "^diff [^ ]* [^ ]* ([^ ]*)$", filename) \
-      || match($0, "^\\+\\+\\+\t([^ ]*)\t", filename))
+  if (match($0, "^diff[ \t]+[^ \t]+[ \t]+[^ \t]+[ \t]+([^ \t]+)$", filename) \
+      || match($0, "^\\+\\+\\+[ \t]+([^ \t]+)[ \t]+", filename))
   {
     # Start of new file.
     dump_lines()
