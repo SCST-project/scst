@@ -396,7 +396,7 @@ static int ibmvstgt_release(struct scst_tgt *scst_tgt)
 static int ibmvstgt_xmit_response(struct scst_cmd *sc)
 {
 	struct iu_entry *iue = scst_cmd_get_tgt_priv(sc);
-	int ret = SCST_TGT_RES_SUCCESS;
+	int ret;
 	enum dma_data_direction dir;
 
 	if (unlikely(scst_cmd_aborted(sc))) {
