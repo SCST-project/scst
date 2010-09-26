@@ -439,7 +439,7 @@ static int ibmvstgt_rdy_to_xfer(struct scst_cmd *sc)
 	WARN_ON(dir != DMA_FROM_DEVICE && dir != DMA_TO_DEVICE);
 
 	/* For write commands, transfer the data from the initiator. */
-	if (dir == DMA_TO_DEVICE && scst_cmd_get_resp_data_len(sc)) {
+	if (dir == DMA_TO_DEVICE && scst_cmd_get_bufflen(sc)) {
 		ret = srp_transfer_data(sc, &vio_iu(iue)->srp.cmd,
 					ibmvstgt_rdma, 1, 1);
 
