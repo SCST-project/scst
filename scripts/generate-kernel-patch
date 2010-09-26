@@ -24,12 +24,15 @@
 ########################
 
 function usage {
-  echo "Usage: $0 [-h] [-m] [-n] [-p <dir>] [-u] <kernel version>, where: "
+  echo "Usage: $0 [-d] [-h] [-m] [-n] [-p <dir>] [-s] [-u] <kernel version>"
+  echo "where: "
+  echo "        -d - enable patch specialization debugging"
   echo "        -h - show this text"
   echo "        -m - add mpt target driver"
   echo "        -n - do not delete code disabled via preprocessor statements"
   echo "        -p - generate multiple patches instead of one big patch into"\
        "the specified directory."
+  echo "        -s - disable patch specialization."
   echo "        -u - enables #define GENERATING_UPSTREAM_PATCH."
 }
 
@@ -101,16 +104,20 @@ EOF
 # Run the script specialize_patch with appropriate options on the patch
 # passed via stdin and send the specialized patch to stdout.
 function specialize_patch {
-  "$(dirname $0)/specialize-patch" \
-       ${specialize_patch_options} \
-       -v kernel_version="${kernel_version}" \
-       -v SCSI_EXEC_REQ_FIFO_DEFINED="${scsi_exec_req_fifo_defined}" \
-       -v SCST_IO_CONTEXT="${scst_io_context}" \
-  | if [ "${generating_upstream_patch}" = "true" ]; then
-      scripts/filter-trace-entry-exit
-    else
-      cat
-    fi
+  if [ "${enable_specialize}" = "true" ]; then
+    "$(dirname $0)/specialize-patch" \
+         ${specialize_patch_options} \
+         -v kernel_version="${kernel_version}" \
+         -v SCSI_EXEC_REQ_FIFO_DEFINED="${scsi_exec_req_fifo_defined}" \
+         -v SCST_IO_CONTEXT="${scst_io_context}" \
+    | if [ "${generating_upstream_patch}" = "true" ]; then
+        scripts/filter-trace-entry-exit
+      else
+        cat
+      fi
+  else
+    cat
+  fi
 }
 
 # Read a patch from stdin, specialize it for kernel version ${kernel_version}
@@ -146,6 +153,7 @@ function in_separate_patch {
 #########################
 
 debug_specialize="false"
+enable_specialize="true"
 generating_upstream_patch="false"
 mpt_scst="false"
 multiple_patches="false"
@@ -160,7 +168,7 @@ if [ ! -e scst -o ! -e iscsi-scst -o ! -e srpt -o ! -e scst_local ]; then
   exit 1
 fi
 
-set -- $(/usr/bin/getopt dhlmnp:u "$@")
+set -- $(/usr/bin/getopt dhlmnp:su "$@")
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
@@ -172,6 +180,7 @@ do
           shift
           ;;
     '-p') multiple_patches="true"; patchdir="$2"; shift; shift;;
+    '-s') enable_specialize="false"; shift;;
     '-u') generating_upstream_patch="true"; shift;;
     '--') shift;;
     *)    usage; exit 1;;
