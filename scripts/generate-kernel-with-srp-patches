@@ -607,7 +607,7 @@ index a2935e3..b8815e7 100644
  	target_host->transportt = ib_srp_transport_template;
  	target_host->max_lun     = SRP_MAX_LUN;
  	target_host->max_cmd_len = sizeof ((struct srp_cmd *) (void *) 0L)->cdb;
-+	target_host->unlocked_qcmds = true,
++	target_host->unlocked_qcmds = true;
  
  	target = host_to_target(target_host);
  
