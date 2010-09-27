@@ -3521,7 +3521,6 @@ static inline int scst_get_sg_page_first(struct scst_cmd *cmd,
 	}
 	cmd->get_sg_buf_entry_num = 0;
 	cmd->get_sg_buf_cur_sg_entry = cmd->sg;
-	cmd->may_need_dma_sync = 1;
 	return __scst_get_sg_page(cmd, cmd->sg_cnt, page, offset);
 }
 
@@ -3547,7 +3546,6 @@ static inline int scst_get_out_sg_page_first(struct scst_cmd *cmd,
 	}
 	cmd->get_sg_buf_entry_num = 0;
 	cmd->get_sg_buf_cur_sg_entry = cmd->out_sg;
-	cmd->may_need_dma_sync = 1;
 	return __scst_get_sg_page(cmd, cmd->out_sg_cnt, page, offset);
 }
 
