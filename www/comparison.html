@@ -45,6 +45,12 @@
 			<div id="main">
 				<h1>Features comparison between Linux SCSI targets</h1>
 
+				<p>This features comparison is intended to be a complete and fair feature-by-feature
+				comparison between the listed targets without any bias to SCST. If you see anything
+				wrong somewhere or anything missed, you are welcome to report it in scst-devel
+				mailing list and it will be corrected.
+				</p>
+
 				<p><small>As on September 2010</small></p>
 
 <table bgcolor="#F0F0F0" border="1" cellspacing="1" cellpadding="7" style="text-align:center" width="620">
@@ -345,6 +351,10 @@ CD devices</b></td>							<td> - </td>		<td> + </td>		<td> - </td>		<td> - </td>
 <td align="left"><b>Emulation of virtual tape and media changer
 devices (VTL)</b></td>							<td> - </td>		<td>Experimental</td>	<td> - </td>		<td> - </td>
 </tr>
+<tr>
+<td align="left"><b>Thin provisioning support</b></td>			<td>+<br>
+									(v2.1 only)</td>	<td> - </td>		<td> - </td>		<td> - </td>
+</tr>
                                                                                                 
 <tr bgcolor="#E0E0E0">                                                                                                          
 <td colspan="5"> <b>iSCSI Target</b>                                                                                            
@@ -417,6 +427,15 @@ target reconfiguration in a PnP-like manner)</b></td>			<td> + </td>		<td> - </t
 <tr>                                                                                                                           
 <td align="left"><b>Safe implementation of connections and sessions
 reinstatement <sup><A HREF="#20">20</A></sup></b></td>			<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>	<td> Not safe </td>
+</tr>
+<tr>
+<td align="left"><b>Usage of hardware instructions for digest
+calculations, if available</b></td>					<td> + </td>		<td> - </td>		<td> - </td>		<td> Under development
+																		(just added) </td>
+</tr>
+<tr>
+<td align="left"><b>Each connection multithreaded digest calculation
+</b></td>								<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>
 <td align="left"><b>Safe restart <sup><A HREF="#21">21</A></sup>
