@@ -798,7 +798,7 @@ static int scst_local_abort(struct scsi_cmnd *SCpnt)
 static int scst_local_device_reset(struct scsi_cmnd *SCpnt)
 {
 	struct scst_local_sess *sess;
-	uint16_t lun;
+	__be16 lun;
 	int ret;
 	DECLARE_COMPLETION_ONSTACK(dev_reset_completion);
 
@@ -806,8 +806,7 @@ static int scst_local_device_reset(struct scsi_cmnd *SCpnt)
 
 	sess = to_scst_lcl_sess(scsi_get_device(SCpnt->device->host));
 
-	lun = SCpnt->device->lun;
-	lun = cpu_to_be16(lun);
+	lun = cpu_to_be16(SCpnt->device->lun);
 
 	ret = scst_rx_mgmt_fn_lun(sess->scst_sess, SCST_LUN_RESET,
 			(const uint8_t *)&lun, sizeof(lun), FALSE,
@@ -829,7 +828,7 @@ static int scst_local_device_reset(struct scsi_cmnd *SCpnt)
 static int scst_local_target_reset(struct scsi_cmnd *SCpnt)
 {
 	struct scst_local_sess *sess;
-	uint16_t lun;
+	__be16 lun;
 	int ret;
 	DECLARE_COMPLETION_ONSTACK(dev_reset_completion);
 
@@ -837,8 +836,7 @@ static int scst_local_target_reset(struct scsi_cmnd *SCpnt)
 
 	sess = to_scst_lcl_sess(scsi_get_device(SCpnt->device->host));
 
-	lun = SCpnt->device->lun;
-	lun = cpu_to_be16(lun);
+	lun = cpu_to_be16(SCpnt->device->lun);
 
 	ret = scst_rx_mgmt_fn_lun(sess->scst_sess, SCST_TARGET_RESET,
 			(const uint8_t *)&lun, sizeof(lun), FALSE,
@@ -919,7 +917,7 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 	struct scst_local_sess *sess;
 	struct scatterlist *sgl = NULL;
 	int sgl_count = 0;
-	uint16_t lun;
+	__be16 lun;
 	struct scst_cmd *scst_cmd = NULL;
 	scst_data_direction dir;
 
@@ -956,8 +954,7 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 	 * Tell the target that we have a command ... but first we need
 	 * to get the LUN into a format that SCST understand
 	 */
-	lun = SCpnt->device->lun;
-	lun = cpu_to_be16(lun);
+	lun = cpu_to_be16(SCpnt->device->lun);
 	scst_cmd = scst_rx_cmd(sess->scst_sess, (const uint8_t *)&lun,
 			       sizeof(lun), SCpnt->cmnd, SCpnt->cmd_len, TRUE);
 	if (!scst_cmd) {
@@ -1090,6 +1087,8 @@ static int scst_local_targ_pre_exec(struct scst_cmd *scst_cmd)
 /* Must be called under sess->aen_lock. Drops then reacquires it inside. */
 static void scst_process_aens(struct scst_local_sess *sess,
 	bool cleanup_only)
+	__releases(&sess->aen_lock)
+	__acquires(&sess->aen_lock)
 {
 	struct scst_aen_work_item *work_item = NULL;
 
