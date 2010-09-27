@@ -559,21 +559,21 @@ add_file "scst_local/README" "Documentation/scst/README.scst_local" \
 The current ibmvstgt and libsrp kernel modules are based on the tgt
 infrastructure. Both modules need the scsi_tgt kernel module and the tgtd user
 space process in order to function properly. This patch modifies the ibmvstgt
-and the libsrp kernel modules such that both use the SCST storage target
-framework instead of tgt. Porting ibmvstgt to SCST is required for upstream
-acceptance of SCST.
+and libsrp kernel modules such that both use the SCST storage target framework
+instead of tgt. Porting ibmvstgt to SCST is required for upstream acceptance
+of SCST.
 
 This patch introduces one backwards-incompatible change, namely that the path
 of the ibmvstgt sysfs attributes is modified. This change is unavoidable
-because this patch dissociates ibmvstgt target instances from a SCSI host
-instance.
+because this patch dissociates ibmvstgt SRP sessions from a SCSI host instance.
 
 Notes:
 - ibmvstgt is the only user of libsrp.
-- A 2.6.35 kernel tree with this patch applied does compile cleanly, the patch
-itself is checkpatch clean and does not introduce any new sparse warnings.
-This patch has not been tested in any other way however. The primary purpose
-of this patch is to invite feedback about the chosen approach.
+- A 2.6.35 kernel tree with this patch applied does compile cleanly on the
+systems supported by the ibmvstgt kernel module, the patch itself is checkpatch
+clean and does not introduce any new sparse warnings. This patch has not been
+tested in any other way however. The primary purpose of this patch is to invite
+feedback about the chosen approach.
 
 Signed-off-by: Bart Van Assche <bvanassche@acm.org>
 
@@ -602,6 +602,10 @@ scsi_tgt kernel module, the CONFIG_SCSI_TGT, CONFIG_SCSI_SRP_TGT_ATTRS and
 CONFIG_SCSI_FC_TGT_ATTRS kbuild variable, the scsi_host_template member
 variables transfer_response, supportedmode and active_mode and the constants
 MODE_UNKNOWN, MODE_INITIATOR and MODE_TARGET are no longer needed.
+
+Note: this patch applies cleanly on a 2.6.35 kernel tree. The patch tool
+however complains about the defconfig changes when trying to apply this patch
+on a 2.6.36 kernel tree.
 
 Signed-off-by: Bart Van Assche <bvanassche@acm.org>
 
