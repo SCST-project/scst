@@ -256,10 +256,20 @@ function handle_if()
   if (debug)
     printf "/* debug specialize-patch: (d) %s -> %s */\n", $0, evaluated
 
-  if_stmnt[if_elif_nesting_level] = evaluated
-  any_section_output[if_elif_nesting_level] = 0
-  decision[if_elif_nesting_level] = evaluated
-  matching_if = if_stmnt[if_elif_nesting_level]
+  if (evaluated ~ "^+#if")
+  {
+    if_stmnt[if_nesting_level] = evaluated
+    any_section_output[if_nesting_level] = 0
+  }
+  else
+  {
+    sub("^+#elif ",
+        sprintf("+#if ! %d \\&\\& ", decision[if_nesting_level]),
+        evaluated)
+    evaluated = evaluate(evaluated)
+  }
+  decision[if_nesting_level] = evaluated
+  matching_if = if_stmnt[if_nesting_level]
 }
 
 
@@ -273,28 +283,20 @@ function process_preprocessor_statement() {
   if (evaluated ~ "^+#if")
   {
     if_nesting_level++
-    if_elif_nesting_level++
-    contiguous_if_elif_count[if_nesting_level] = 1
     handle_if()
   }
   else if (evaluated ~ "^+#elif")
   {
-    matching_if = if_stmnt[if_elif_nesting_level]
-    decision[if_elif_nesting_level] = invert(decision[if_elif_nesting_level])
-    if_elif_nesting_level++
-    contiguous_if_elif_count[if_nesting_level]++
-    sub("^+#elif ", "+#if ", evaluated)
     handle_if()
   }
   else if (evaluated ~ "^+#else")
   {
-    matching_if = if_stmnt[if_elif_nesting_level]
-    decision[if_elif_nesting_level] = invert(decision[if_elif_nesting_level])
+    matching_if = if_stmnt[if_nesting_level]
+    decision[if_nesting_level] = invert(decision[if_nesting_level])
   }
   else if (evaluated ~ "^+#endif")
   {
-    matching_if = if_stmnt[if_elif_nesting_level]
-    if_elif_nesting_level -= contiguous_if_elif_count[if_nesting_level]
+    matching_if = if_stmnt[if_nesting_level]
     if_nesting_level--
   }
   else
@@ -304,12 +306,12 @@ function process_preprocessor_statement() {
   if (condition)
   {
     output = 1
-    for (i = if_elif_nesting_level; i >= 0; i--)
+    for (i = if_nesting_level; i >= 0; i--)
     {
       output = output && decision[i] != "+#if 0"
     }
     if (output)
-      any_section_output[if_elif_nesting_level] = 1
+      any_section_output[if_nesting_level] = 1
   }
   if (evaluated ~ "^+#define SCSI_EXEC_REQ_FIFO_DEFINED$"   \
          && SCSI_EXEC_REQ_FIFO_DEFINED != ""                \
@@ -349,7 +351,6 @@ function reset_hunk_state_variables() {
   lines_deleted = 0
   output = 1
   if_nesting_level = -1
-  if_elif_nesting_level = -1
   delete_next_blank_line = 0
   h[0] = ""
 }
