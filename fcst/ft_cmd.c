@@ -569,6 +569,7 @@ static void ft_recv_cmd(struct ft_sess *sess, struct fc_seq *sp,
 
 	switch (fcp->fc_flags & (FCP_CFL_RDDATA | FCP_CFL_WRDATA)) {
 	case 0:
+	default:
 		data_dir = SCST_DATA_NONE;
 		break;
 	case FCP_CFL_RDDATA:
