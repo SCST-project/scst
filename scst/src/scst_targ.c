@@ -1703,13 +1703,11 @@ static int scst_report_luns_local(struct scst_cmd *cmd)
 
 	/*
 	 * cmd won't allow to suspend activities, so we can access
-	 * sess->sess_tgt_dev_list_hash without any additional protection.
+	 * sess->sess_tgt_dev_list without any additional protection.
 	 */
-	for (i = 0; i < TGT_DEV_HASH_SIZE; i++) {
-		struct list_head *sess_tgt_dev_list_head =
-			&cmd->sess->sess_tgt_dev_list_hash[i];
-		list_for_each_entry(tgt_dev, sess_tgt_dev_list_head,
-				sess_tgt_dev_list_entry) {
+	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
+		struct list_head *head = &cmd->sess->sess_tgt_dev_list[i];
+		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
 			if (!overflow) {
 				if (offs >= buffer_size) {
 					scst_put_buf(cmd, buffer);
@@ -1775,14 +1773,12 @@ out_compl:
 
 	/*
 	 * cmd won't allow to suspend activities, so we can access
-	 * sess->sess_tgt_dev_list_hash without any additional protection.
+	 * sess->sess_tgt_dev_list without any additional protection.
 	 */
-	for (i = 0; i < TGT_DEV_HASH_SIZE; i++) {
-		struct list_head *sess_tgt_dev_list_head =
-			&cmd->sess->sess_tgt_dev_list_hash[i];
+	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
+		struct list_head *head = &cmd->sess->sess_tgt_dev_list[i];
 
-		list_for_each_entry(tgt_dev, sess_tgt_dev_list_head,
-				sess_tgt_dev_list_entry) {
+		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
 			struct scst_tgt_dev_UA *ua;
 
 			spin_lock_bh(&tgt_dev->tgt_dev_lock);
@@ -3808,13 +3804,12 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 	__scst_get(1);
 
 	if (likely(!test_bit(SCST_FLAG_SUSPENDED, &scst_flags))) {
-		struct list_head *sess_tgt_dev_list_head =
-			&cmd->sess->sess_tgt_dev_list_hash[HASH_VAL(cmd->lun)];
+		struct list_head *head =
+			&cmd->sess->sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_FN(cmd->lun)];
 		TRACE_DBG("Finding tgt_dev for cmd %p (lun %lld)", cmd,
 			(long long unsigned int)cmd->lun);
 		res = -1;
-		list_for_each_entry(tgt_dev, sess_tgt_dev_list_head,
-				sess_tgt_dev_list_entry) {
+		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
 			if (tgt_dev->lun == cmd->lun) {
 				TRACE_DBG("tgt_dev %p found", tgt_dev);
 
@@ -4378,7 +4373,7 @@ void scst_cmd_tasklet(long p)
 static int scst_mgmt_translate_lun(struct scst_mgmt_cmd *mcmd)
 {
 	struct scst_tgt_dev *tgt_dev = NULL;
-	struct list_head *sess_tgt_dev_list_head;
+	struct list_head *head;
 	int res = -1;
 
 	TRACE_ENTRY();
@@ -4397,10 +4392,8 @@ static int scst_mgmt_translate_lun(struct scst_mgmt_cmd *mcmd)
 		goto out;
 	}
 
-	sess_tgt_dev_list_head =
-		&mcmd->sess->sess_tgt_dev_list_hash[HASH_VAL(mcmd->lun)];
-	list_for_each_entry(tgt_dev, sess_tgt_dev_list_head,
-			sess_tgt_dev_list_entry) {
+	head = &mcmd->sess->sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_FN(mcmd->lun)];
+	list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
 		if (tgt_dev->lun == mcmd->lun) {
 			TRACE_DBG("tgt_dev %p found", tgt_dev);
 			mcmd->mcmd_tgt_dev = tgt_dev;
@@ -4984,7 +4977,7 @@ static int scst_is_cmd_belongs_to_dev(struct scst_cmd *cmd,
 	struct scst_device *dev)
 {
 	struct scst_tgt_dev *tgt_dev = NULL;
-	struct list_head *sess_tgt_dev_list_head;
+	struct list_head *head;
 	int res = 0;
 
 	TRACE_ENTRY();
@@ -4992,10 +4985,8 @@ static int scst_is_cmd_belongs_to_dev(struct scst_cmd *cmd,
 	TRACE_DBG("Finding match for dev %p and cmd %p (lun %lld)", dev, cmd,
 	      (long long unsigned int)cmd->lun);
 
-	sess_tgt_dev_list_head =
-		&cmd->sess->sess_tgt_dev_list_hash[HASH_VAL(cmd->lun)];
-	list_for_each_entry(tgt_dev, sess_tgt_dev_list_head,
-			sess_tgt_dev_list_entry) {
+	head = &cmd->sess->sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_FN(cmd->lun)];
+	list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
 		if (tgt_dev->lun == cmd->lun) {
 			TRACE_DBG("dev %p found", tgt_dev->dev);
 			res = (tgt_dev->dev == dev);
@@ -5338,11 +5329,9 @@ static void scst_do_nexus_loss_sess(struct scst_mgmt_cmd *mcmd)
 
 	TRACE_ENTRY();
 
-	for (i = 0; i < TGT_DEV_HASH_SIZE; i++) {
-		struct list_head *sess_tgt_dev_list_head =
-			&sess->sess_tgt_dev_list_hash[i];
-		list_for_each_entry(tgt_dev, sess_tgt_dev_list_head,
-				sess_tgt_dev_list_entry) {
+	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
+		struct list_head *head = &sess->sess_tgt_dev_list[i];
+		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
 			scst_nexus_loss(tgt_dev,
 				(mcmd->fn != SCST_UNREG_SESS_TM));
 		}
@@ -5373,11 +5362,9 @@ static int scst_abort_all_nexus_loss_sess(struct scst_mgmt_cmd *mcmd,
 
 	mutex_lock(&scst_mutex);
 
-	for (i = 0; i < TGT_DEV_HASH_SIZE; i++) {
-		struct list_head *sess_tgt_dev_list_head =
-			&sess->sess_tgt_dev_list_hash[i];
-		list_for_each_entry(tgt_dev, sess_tgt_dev_list_head,
-				sess_tgt_dev_list_entry) {
+	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
+		struct list_head *head = &sess->sess_tgt_dev_list[i];
+		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
 			int rc;
 
 			__scst_abort_task_set(mcmd, tgt_dev);
@@ -5412,11 +5399,10 @@ static void scst_do_nexus_loss_tgt(struct scst_mgmt_cmd *mcmd)
 	TRACE_ENTRY();
 
 	list_for_each_entry(sess, &tgt->sess_list, sess_list_entry) {
-		for (i = 0; i < TGT_DEV_HASH_SIZE; i++) {
-			struct list_head *sess_tgt_dev_list_head =
-				&sess->sess_tgt_dev_list_hash[i];
+		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
+			struct list_head *head = &sess->sess_tgt_dev_list[i];
 			struct scst_tgt_dev *tgt_dev;
-			list_for_each_entry(tgt_dev, sess_tgt_dev_list_head,
+			list_for_each_entry(tgt_dev, head,
 					sess_tgt_dev_list_entry) {
 				scst_nexus_loss(tgt_dev, true);
 			}
@@ -5448,11 +5434,10 @@ static int scst_abort_all_nexus_loss_tgt(struct scst_mgmt_cmd *mcmd,
 	mutex_lock(&scst_mutex);
 
 	list_for_each_entry(sess, &tgt->sess_list, sess_list_entry) {
-		for (i = 0; i < TGT_DEV_HASH_SIZE; i++) {
-			struct list_head *sess_tgt_dev_list_head =
-				&sess->sess_tgt_dev_list_hash[i];
+		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
+			struct list_head *head = &sess->sess_tgt_dev_list[i];
 			struct scst_tgt_dev *tgt_dev;
-			list_for_each_entry(tgt_dev, sess_tgt_dev_list_head,
+			list_for_each_entry(tgt_dev, head,
 					sess_tgt_dev_list_entry) {
 				int rc;
 

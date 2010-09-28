@@ -2154,12 +2154,10 @@ static int scst_sess_zero_latency(struct scst_sysfs_work_item *work)
 	memset(sess->sess_latency_stat, 0,
 		sizeof(sess->sess_latency_stat));
 
-	for (t = TGT_DEV_HASH_SIZE-1; t >= 0; t--) {
-		struct list_head *sess_tgt_dev_list_head =
-			&sess->sess_tgt_dev_list_hash[t];
+	for (t = SESS_TGT_DEV_LIST_HASH_SIZE-1; t >= 0; t--) {
+		struct list_head *head = &sess->sess_tgt_dev_list[t];
 		struct scst_tgt_dev *tgt_dev;
-		list_for_each_entry(tgt_dev, sess_tgt_dev_list_head,
-				sess_tgt_dev_list_entry) {
+		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
 			tgt_dev->scst_time = 0;
 			tgt_dev->tgt_time = 0;
 			tgt_dev->dev_time = 0;
@@ -2239,12 +2237,10 @@ static int scst_sysfs_sess_get_active_commands(struct scst_session *sess)
 		goto out_put;
 	}
 
-	for (t = TGT_DEV_HASH_SIZE-1; t >= 0; t--) {
-		struct list_head *sess_tgt_dev_list_head =
-			&sess->sess_tgt_dev_list_hash[t];
+	for (t = SESS_TGT_DEV_LIST_HASH_SIZE-1; t >= 0; t--) {
+		struct list_head *head = &sess->sess_tgt_dev_list[t];
 		struct scst_tgt_dev *tgt_dev;
-		list_for_each_entry(tgt_dev, sess_tgt_dev_list_head,
-				sess_tgt_dev_list_entry) {
+		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
 			active_cmds += atomic_read(&tgt_dev->tgt_dev_cmd_count);
 		}
 	}

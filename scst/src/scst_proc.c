@@ -579,11 +579,11 @@ static int lat_info_show(struct seq_file *seq, void *v)
 				seq_printf(seq, "%-47s\n", buf);
 			}
 
-			for (t = TGT_DEV_HASH_SIZE-1; t >= 0; t--) {
-				struct list_head *sess_tgt_dev_list_head =
-					&sess->sess_tgt_dev_list_hash[t];
+			for (t = SESS_TGT_DEV_LIST_HASH_SIZE-1; t >= 0; t--) {
+				struct list_head *head =
+						&sess->sess_tgt_dev_list[t];
 				struct scst_tgt_dev *tgt_dev;
-				list_for_each_entry(tgt_dev, sess_tgt_dev_list_head,
+				list_for_each_entry(tgt_dev, head,
 						sess_tgt_dev_list_entry) {
 
 					seq_printf(seq, "\nLUN: %llu\n", tgt_dev->lun);
@@ -749,11 +749,11 @@ static ssize_t scst_proc_scsi_tgt_gen_write_lat(struct file *file,
 			memset(sess->sess_latency_stat, 0,
 				sizeof(sess->sess_latency_stat));
 
-			for (t = TGT_DEV_HASH_SIZE-1; t >= 0; t--) {
-				struct list_head *sess_tgt_dev_list_head =
-					&sess->sess_tgt_dev_list_hash[t];
+			for (t = SESS_TGT_DEV_LIST_HASH_SIZE-1; t >= 0; t--) {
+				struct list_head *head =
+						&sess->sess_tgt_dev_list[t];
 				struct scst_tgt_dev *tgt_dev;
-				list_for_each_entry(tgt_dev, sess_tgt_dev_list_head,
+				list_for_each_entry(tgt_dev, head,
 						sess_tgt_dev_list_entry) {
 					tgt_dev->scst_time = 0;
 					tgt_dev->tgt_time = 0;
@@ -2412,12 +2412,11 @@ static int scst_sessions_info_show(struct seq_file *seq, void *v)
 		list_for_each_entry(sess, &acg->acg_sess_list,
 				acg_sess_list_entry) {
 			int active_cmds = 0, t;
-			for (t = TGT_DEV_HASH_SIZE-1; t >= 0; t--) {
-				struct list_head *sess_tgt_dev_list_head =
-					&sess->sess_tgt_dev_list_hash[t];
+			for (t = SESS_TGT_DEV_LIST_HASH_SIZE-1; t >= 0; t--) {
+				struct list_head *head =
+						&sess->sess_tgt_dev_list[t];
 				struct scst_tgt_dev *tgt_dev;
-				list_for_each_entry(tgt_dev,
-						sess_tgt_dev_list_head,
+				list_for_each_entry(tgt_dev, head,
 						sess_tgt_dev_list_entry) {
 					active_cmds += atomic_read(&tgt_dev->tgt_dev_cmd_count);
 				}

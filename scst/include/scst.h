@@ -1394,11 +1394,6 @@ struct scst_tgt {
 	struct kobject *tgt_ini_grp_kobj; /* target/ini_groups/ */
 };
 
-/* Hash size and hash fn for hash based lun translation */
-#define	TGT_DEV_HASH_SHIFT	5
-#define	TGT_DEV_HASH_SIZE	(1 << TGT_DEV_HASH_SHIFT)
-#define	HASH_VAL(_val)		(_val & (TGT_DEV_HASH_SIZE - 1))
-
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 
 /* Defines extended latency statistics */
@@ -1447,10 +1442,13 @@ struct scst_session {
 	unsigned long sess_aflags;
 
 	/*
-	 * Hash list of tgt_dev's for this session, protected by scst_mutex
-	 * and suspended activity
+	 * Hash list for tgt_dev's for this session with size and fn. It isn't
+	 * hlist_entry, because we need ability to go over the list in the
+	 * reverse order. Protected by scst_mutex and suspended activity.
 	 */
-	struct list_head sess_tgt_dev_list_hash[TGT_DEV_HASH_SIZE];
+#define	SESS_TGT_DEV_LIST_HASH_SIZE (1 << 5)
+#define	SESS_TGT_DEV_LIST_HASH_FN(val) ((val) & (SESS_TGT_DEV_LIST_HASH_SIZE - 1))
+	struct list_head sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_SIZE];
 
 	/*
 	 * List of cmds in this session. Protected by sess_list_lock.
@@ -2219,7 +2217,7 @@ struct scst_async_io_context_keeper {
  * SCSI I_T_L nexus.
  */
 struct scst_tgt_dev {
-	/* List entry in sess->sess_tgt_dev_list_hash */
+	/* List entry in sess->sess_tgt_dev_list */
 	struct list_head sess_tgt_dev_list_entry;
 
 	struct scst_device *dev; /* to save extra dereferences */

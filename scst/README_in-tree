@@ -1434,11 +1434,8 @@ Thanks to:
  * Erik Habbinga <erikhabbinga@inphase-tech.com> for fixes and support
    of the LSI target driver.
 
- * Ross S. W. Walker <rswwalker@hotmail.com> for the original block IO
-   code and Vu Pham <huongvp@yahoo.com> who updated it for the VDISK dev
-   handler.
-
- * Michael G. Byrnes <michael.byrnes@hp.com> for fixes.
+ * Ross S. W. Walker <rswwalker@hotmail.com> for BLOCKIO inspiration
+   and Vu Pham <huongvp@yahoo.com> who implemented it for VDISK dev handler.
 
  * Alessandro Premoli <a.premoli@andxor.it> for fixes
 

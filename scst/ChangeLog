@@ -224,8 +224,7 @@ Summary of changes between versions 0.9.5 and 1.0.0
    Target drivers need to be updated accordingly.
 
  - Linear search in the LUN translation routines scst_translate_lun()
-   and scst_mgmt_translate_lun() was changed to a hash-based one, thanks
-   to Michael G. Byrnes.
+   and scst_mgmt_translate_lun() was changed to a hash-based one.
 
  - Building from the Linux kernel tree updated, inside kernel building fixed.
 
