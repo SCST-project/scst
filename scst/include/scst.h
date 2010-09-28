@@ -1768,11 +1768,9 @@ struct scst_cmd {
 
 	uint32_t tgt_sn; /* SN set by target driver (for TM purposes) */
 
-	/* CDB and its len */
-	uint8_t cdb[SCST_MAX_CDB_SIZE];
+	uint8_t *cdb; /* Pointer on CDB. Points on cdb_buf for small CDBs. */
 	unsigned short cdb_len;
-	unsigned short ext_cdb_len;
-	uint8_t *ext_cdb;
+	uint8_t cdb_buf[SCST_MAX_CDB_SIZE];
 
 	enum scst_cdb_flags op_flags;
 	const char *op_name;
@@ -2768,25 +2766,8 @@ static inline unsigned int scst_cmd_get_cdb_len(struct scst_cmd *cmd)
 	return cmd->cdb_len;
 }
 
-/* Returns cmd's extended CDB */
-static inline const uint8_t *scst_cmd_get_ext_cdb(struct scst_cmd *cmd)
-{
-	return cmd->ext_cdb;
-}
-
-/* Returns cmd's extended CDB length */
-static inline unsigned int scst_cmd_get_ext_cdb_len(struct scst_cmd *cmd)
-{
-	return cmd->ext_cdb_len;
-}
-
-/* Sets cmd's extended CDB and its length */
-static inline void scst_cmd_set_ext_cdb(struct scst_cmd *cmd,
-	uint8_t *ext_cdb, unsigned int ext_cdb_len)
-{
-	cmd->ext_cdb = ext_cdb;
-	cmd->ext_cdb_len = ext_cdb_len;
-}
+void scst_cmd_set_ext_cdb(struct scst_cmd *cmd,
+	uint8_t *ext_cdb, unsigned int ext_cdb_len);
 
 /* Returns cmd's session */
 static inline struct scst_session *scst_cmd_get_session(struct scst_cmd *cmd)

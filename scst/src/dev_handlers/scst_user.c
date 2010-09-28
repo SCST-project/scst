@@ -696,9 +696,9 @@ static int dev_user_alloc_space(struct scst_user_cmd *ucmd)
 	ucmd->user_cmd.cmd_h = ucmd->h;
 	ucmd->user_cmd.subcode = SCST_USER_ALLOC_MEM;
 	ucmd->user_cmd.alloc_cmd.sess_h = (unsigned long)cmd->tgt_dev;
-	memcpy(ucmd->user_cmd.alloc_cmd.cdb, cmd->cdb, cmd->cdb_len);
+	memcpy(ucmd->user_cmd.alloc_cmd.cdb, cmd->cdb,
+		min_t(int, SCST_MAX_CDB_SIZE, cmd->cdb_len));
 	ucmd->user_cmd.alloc_cmd.cdb_len = cmd->cdb_len;
-	ucmd->user_cmd.alloc_cmd.ext_cdb_len = cmd->ext_cdb_len;
 	ucmd->user_cmd.alloc_cmd.alloc_len = ucmd->buff_cached ?
 		(cmd->sg_cnt << PAGE_SHIFT) : cmd->bufflen;
 	ucmd->user_cmd.alloc_cmd.queue_type = cmd->queue_type;
@@ -823,9 +823,9 @@ static int dev_user_parse(struct scst_cmd *cmd)
 		ucmd->user_cmd.cmd_h = ucmd->h;
 		ucmd->user_cmd.subcode = SCST_USER_PARSE;
 		ucmd->user_cmd.parse_cmd.sess_h = (unsigned long)cmd->tgt_dev;
-		memcpy(ucmd->user_cmd.parse_cmd.cdb, cmd->cdb, cmd->cdb_len);
+		memcpy(ucmd->user_cmd.parse_cmd.cdb, cmd->cdb,
+			min_t(int, SCST_MAX_CDB_SIZE, cmd->cdb_len));
 		ucmd->user_cmd.parse_cmd.cdb_len = cmd->cdb_len;
-		ucmd->user_cmd.parse_cmd.ext_cdb_len = cmd->ext_cdb_len;
 		ucmd->user_cmd.parse_cmd.timeout = cmd->timeout / HZ;
 		ucmd->user_cmd.parse_cmd.bufflen = cmd->bufflen;
 		ucmd->user_cmd.parse_cmd.out_bufflen = cmd->out_bufflen;
@@ -943,17 +943,15 @@ static int dev_user_exec(struct scst_cmd *cmd)
 	if (cmd->data_direction & SCST_DATA_WRITE)
 		dev_user_flush_dcache(ucmd);
 
-	BUILD_BUG_ON(sizeof(ucmd->user_cmd.exec_cmd.cdb) != sizeof(cmd->cdb));
-
 	ucmd->user_cmd_payload_len =
 		offsetof(struct scst_user_get_cmd, exec_cmd) +
 		sizeof(ucmd->user_cmd.exec_cmd);
 	ucmd->user_cmd.cmd_h = ucmd->h;
 	ucmd->user_cmd.subcode = SCST_USER_EXEC;
 	ucmd->user_cmd.exec_cmd.sess_h = (unsigned long)cmd->tgt_dev;
-	memcpy(ucmd->user_cmd.exec_cmd.cdb, cmd->cdb, cmd->cdb_len);
+	memcpy(ucmd->user_cmd.exec_cmd.cdb, cmd->cdb,
+		min_t(int, SCST_MAX_CDB_SIZE, cmd->cdb_len));
 	ucmd->user_cmd.exec_cmd.cdb_len = cmd->cdb_len;
-	ucmd->user_cmd.exec_cmd.ext_cdb_len = cmd->ext_cdb_len;
 	ucmd->user_cmd.exec_cmd.bufflen = cmd->bufflen;
 	ucmd->user_cmd.exec_cmd.data_len = cmd->data_len;
 	ucmd->user_cmd.exec_cmd.pbuf = ucmd->ubuff;
@@ -1292,7 +1290,7 @@ static int dev_user_process_reply_parse(struct scst_user_cmd *ucmd,
 	if (unlikely((preply->bufflen < 0) || (preply->data_len < 0)))
 		goto out_inval;
 
-	if (unlikely(preply->cdb_len > SCST_MAX_CDB_SIZE))
+	if (unlikely(preply->cdb_len > cmd->cdb_len))
 		goto out_inval;
 
 	TRACE_DBG("ucmd %p, queue_type %x, data_direction, %x, bufflen %d, "
@@ -1740,12 +1738,18 @@ static int dev_user_get_ext_cdb(struct file *file, void __user *arg)
 	if (cmd == NULL)
 		goto out_put;
 
-	if (cmd->ext_cdb == NULL)
+	BUILD_BUG_ON(sizeof(cmd->cdb_buf) != SCST_MAX_CDB_SIZE);
+
+	if (cmd->cdb_len <= SCST_MAX_CDB_SIZE)
 		goto out_cmd_put;
 
-	TRACE_BUFFER("EXT CDB", cmd->ext_cdb, cmd->ext_cdb_len);
+	EXTRACHECKS_BUG_ON(cmd->cdb_buf == cmd->cdb_buf);
+
+	TRACE_BUFFER("EXT CDB", &cmd->cdb[sizeof(cmd->cdb_buf)],
+		cmd->cdb_len - sizeof(cmd->cdb_buf));
 	rc = copy_to_user((void __user *)(unsigned long)get.ext_cdb_buffer,
-		cmd->ext_cdb, cmd->ext_cdb_len);
+		&cmd->cdb[sizeof(cmd->cdb_buf)],
+		cmd->cdb_len - sizeof(cmd->cdb_buf));
 	if (unlikely(rc != 0)) {
 		PRINT_ERROR("Failed to copy to user %d bytes", rc);
 		res = -EFAULT;

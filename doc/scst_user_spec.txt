@@ -2,7 +2,7 @@
 
 	  USER SPACE INTERFACE DESCRIPTION.
 
-		   Version 2.0.0
+		   Version 2.1.0
 
 
 		I. Description.
@@ -384,7 +384,6 @@ struct scst_user_scsi_cmd_parse
 
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
 	uint16_t cdb_len;
-	uint16_t ext_cdb_len;
 
 	uint32_t timeout;
 	int32_t bufflen;
@@ -410,9 +409,6 @@ where:
  - cdb - SCSI CDB
 
  - cdb_len - SCSI CDB length
-
- - ext_cdb_len - size of extended CDB, see SCST_USER_GET_EXTENDED_CDB
-   for more details
 
  - timeout - CDB execution timeout
 
@@ -499,7 +495,6 @@ struct scst_user_scsi_cmd_alloc_mem
 
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
 	uint16_t cdb_len;
-	uint16_t ext_cdb_len;
 
 	int32_t alloc_len;
 
@@ -516,9 +511,6 @@ where:
  - cdb - SCSI CDB
 
  - cdb_len - SCSI CDB length
-
- - ext_cdb_len - size of extended CDB, see SCST_USER_GET_EXTENDED_CDB
-   for more details
 
  - alloc_len - command's buffer length
 
@@ -602,7 +594,6 @@ struct scst_user_scsi_cmd_exec
 
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
 	uint16_t cdb_len;
-	uint16_t ext_cdb_len;
 
 	int32_t data_len;
 	int32_t bufflen;
@@ -630,9 +621,6 @@ where:
  - cdb - SCSI CDB
 
  - cdb_len - SCSI CDB length
-
- - ext_cdb_len - size of extended CDB, see SCST_USER_GET_EXTENDED_CDB
-   for more details
 
  - data_len - command's data length. Could be different from bufflen for
    commands like VERIFY, which transfer different amount of data, than

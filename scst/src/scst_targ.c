@@ -327,8 +327,7 @@ void scst_cmd_init_done(struct scst_cmd *cmd,
 		case SCST_SESS_IPH_FAILED:
 			spin_unlock_irqrestore(&sess->sess_list_lock, flags);
 			scst_set_busy(cmd);
-			scst_set_cmd_abnormal_done_state(cmd);
-			goto active;
+			goto set_state;
 		default:
 			sBUG();
 		}
@@ -342,14 +341,17 @@ void scst_cmd_init_done(struct scst_cmd *cmd,
 		PRINT_ERROR("%s", "Wrong CDB len 0, finishing cmd");
 		scst_set_cmd_error(cmd,
 			   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
-		scst_set_cmd_abnormal_done_state(cmd);
-		goto active;
 	}
 
 	if (unlikely(cmd->queue_type >= SCST_CMD_QUEUE_ACA)) {
 		PRINT_ERROR("Unsupported queue type %d", cmd->queue_type);
 		scst_set_cmd_error(cmd,
 			SCST_LOAD_SENSE(scst_sense_invalid_message));
+	}
+
+set_state:
+	if (unlikely(cmd->status != SAM_STAT_GOOD)) {
+		scst_set_cmd_abnormal_done_state(cmd);
 		goto active;
 	}
 

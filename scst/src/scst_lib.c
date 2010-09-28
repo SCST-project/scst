@@ -44,11 +44,9 @@
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 struct scsi_io_context {
-	unsigned int full_cdb_used:1;
 	void *data;
 	void (*done)(void *data, char *sense, int result, int resid);
 	char sense[SCST_SENSE_BUFFERSIZE];
-	unsigned char full_cdb[0];
 };
 static struct kmem_cache *scsi_io_context_cache;
 #endif
@@ -4159,6 +4157,39 @@ void scst_cmd_put(struct scst_cmd *cmd)
 }
 EXPORT_SYMBOL(scst_cmd_put);
 
+/**
+ * scst_cmd_set_ext_cdb() - sets cmd's extended CDB and its length
+ */
+void scst_cmd_set_ext_cdb(struct scst_cmd *cmd,
+	uint8_t *ext_cdb, unsigned int ext_cdb_len)
+{
+	TRACE_ENTRY();
+
+	if ((cmd->cdb_len + ext_cdb_len) <= sizeof(cmd->cdb_buf))
+		goto copy;
+
+	cmd->cdb = kmalloc(cmd->cdb_len + ext_cdb_len, GFP_ATOMIC);
+	if (cmd->cdb == NULL)
+		goto out_err;
+
+	memcpy(cmd->cdb, cmd->cdb_buf, cmd->cdb_len);
+
+copy:
+	memcpy(&cmd->cdb[cmd->cdb_len], ext_cdb, ext_cdb_len);
+
+	cmd->cdb_len = cmd->cdb_len + ext_cdb_len;
+
+out:
+	TRACE_EXIT();
+	return;
+
+out_err:
+	cmd->cdb = cmd->cdb_buf;
+	scst_set_busy(cmd);
+	goto out;
+}
+EXPORT_SYMBOL(scst_cmd_set_ext_cdb);
+
 struct scst_cmd *scst_alloc_cmd(gfp_t gfp_mask)
 {
 	struct scst_cmd *cmd;
@@ -4183,6 +4214,7 @@ struct scst_cmd *scst_alloc_cmd(gfp_t gfp_mask)
 	atomic_set(&cmd->cmd_ref, 1);
 	cmd->cmd_threads = &scst_main_cmd_threads;
 	INIT_LIST_HEAD(&cmd->mgmt_cmd_list);
+	cmd->cdb = cmd->cdb_buf;
 	cmd->queue_type = SCST_CMD_QUEUE_SIMPLE;
 	cmd->timeout = SCST_DEFAULT_TIMEOUT;
 	cmd->retries = 0;
@@ -4298,6 +4330,9 @@ void scst_free_cmd(struct scst_cmd *cmd)
 					&cmd->cmd_flags);
 		}
 	}
+
+	if (cmd->cdb != cmd->cdb_buf)
+		kfree(cmd->cdb);
 
 	if (likely(destroy))
 		scst_destroy_put_cmd(cmd);
@@ -4736,10 +4771,7 @@ static void scsi_end_async(struct request *req, int error)
 		sioc->done(sioc->data, sioc->sense, req->errors, req->resid_len);
 #endif
 
-	if (!sioc->full_cdb_used)
-		kmem_cache_free(scsi_io_context_cache, sioc);
-	else
-		kfree(sioc);
+	kmem_cache_free(scsi_io_context_cache, sioc);
 
 	__blk_put_request(req->q, req);
 	return;
@@ -4762,29 +4794,10 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	gfp_t gfp = GFP_KERNEL;
 	int cmd_len = cmd->cdb_len;
 
-	if (cmd->ext_cdb_len == 0) {
-		TRACE_DBG("Simple CDB (cmd_len %d)", cmd_len);
-		sioc = kmem_cache_zalloc(scsi_io_context_cache, gfp);
-		if (sioc == NULL) {
-			res = -ENOMEM;
-			goto out;
-		}
-	} else {
-		cmd_len += cmd->ext_cdb_len;
-
-		TRACE_DBG("Extended CDB (cmd_len %d)", cmd_len);
-
-		sioc = kzalloc(sizeof(*sioc) + cmd_len, gfp);
-		if (sioc == NULL) {
-			res = -ENOMEM;
-			goto out;
-		}
-
-		sioc->full_cdb_used = 1;
-
-		memcpy(sioc->full_cdb, cmd->cdb, cmd->cdb_len);
-		memcpy(&sioc->full_cdb[cmd->cdb_len], cmd->ext_cdb,
-			cmd->ext_cdb_len);
+	sioc = kmem_cache_zalloc(scsi_io_context_cache, gfp);
+	if (sioc == NULL) {
+		res = -ENOMEM;
+		goto out;
 	}
 
 	rq = blk_get_request(q, write, gfp);
@@ -4841,11 +4854,11 @@ done:
 	sioc->done = done;
 
 	rq->cmd_len = cmd_len;
-	if (cmd->ext_cdb_len == 0) {
+	if (rq->cmd_len <= BLK_MAX_CDB) {
 		memset(rq->cmd, 0, BLK_MAX_CDB); /* ATAPI hates garbage after CDB */
 		memcpy(rq->cmd, cmd->cdb, cmd->cdb_len);
 	} else
-		rq->cmd = sioc->full_cdb;
+		rq->cmd = cmd->cdb;
 
 	rq->sense = sioc->sense;
 	rq->sense_len = sizeof(sioc->sense);
@@ -4869,10 +4882,7 @@ out_free_rq:
 	blk_put_request(rq);
 
 out_free_sioc:
-	if (!sioc->full_cdb_used)
-		kmem_cache_free(scsi_io_context_cache, sioc);
-	else
-		kfree(sioc);
+	kmem_cache_free(scsi_io_context_cache, sioc);
 	goto out;
 }
 EXPORT_SYMBOL(scst_scsi_exec_async);

@@ -122,7 +122,6 @@ struct scst_user_scsi_cmd_parse {
 
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
 	uint16_t cdb_len;
-	uint16_t ext_cdb_len;
 
 	int32_t timeout;
 	int32_t bufflen;
@@ -146,7 +145,6 @@ struct scst_user_scsi_cmd_alloc_mem {
 
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
 	uint16_t cdb_len;
-	uint16_t ext_cdb_len;
 
 	int32_t alloc_len;
 
@@ -161,7 +159,6 @@ struct scst_user_scsi_cmd_exec {
 
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
 	uint16_t cdb_len;
-	uint16_t ext_cdb_len;
 
 	int32_t data_len;
 	int32_t bufflen;

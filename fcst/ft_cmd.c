@@ -126,8 +126,7 @@ void ft_cmd_dump(struct scst_cmd *cmd, const char *caller)
 		"host_status %x driver_status %x\n",
 		prefix, cmd->status, cmd->msg_status,
 		cmd->host_status, cmd->driver_status);
-	printk(KERN_INFO "%s cdb_len %d ext_cdb_len %u\n",
-		prefix, cmd->cdb_len, cmd->ext_cdb_len);
+	printk(KERN_INFO "%s cdb_len %d\n", prefix, cmd->cdb_len);
 	snprintf(buf, sizeof(buf), "%s cdb ", prefix);
 	print_hex_dump(KERN_INFO, buf, DUMP_PREFIX_NONE,
 		16, 4, cmd->cdb, SCST_MAX_CDB_SIZE, 0);

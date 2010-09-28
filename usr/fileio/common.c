@@ -515,11 +515,10 @@ static int do_alloc_mem(struct vdisk_cmd *vcmd)
 	TRACE_ENTRY();
 
 	TRACE_MEM("Alloc mem (cmd %d, sess_h %"PRIx64", cdb_len %d, "
-		"ext_cdb_len %d, alloc_len %d, queue_type %d, data_direction "
-		"%d)", cmd->cmd_h, cmd->alloc_cmd.sess_h,
-		cmd->alloc_cmd.cdb_len, cmd->alloc_cmd.ext_cdb_len,
-		cmd->alloc_cmd.alloc_len, cmd->alloc_cmd.queue_type,
-		cmd->alloc_cmd.data_direction);
+		"alloc_len %d, queue_type %d, data_direction %d)",
+		cmd->cmd_h, cmd->alloc_cmd.sess_h,
+		cmd->alloc_cmd.cdb_len, cmd->alloc_cmd.alloc_len,
+		cmd->alloc_cmd.queue_type, cmd->alloc_cmd.data_direction);
 
 	TRACE_BUFF_FLAG(TRACE_MEMORY, "CDB", cmd->alloc_cmd.cdb,
 		cmd->alloc_cmd.cdb_len);
