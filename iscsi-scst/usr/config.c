@@ -1124,7 +1124,7 @@ int config_load(const char *config_name)
 	} while (i < size);
 
 	size = i;
-	buf[size+1] = '\0';
+	buf[size] = '\0';
 
 	config_parse_main(buf, 0);
 
