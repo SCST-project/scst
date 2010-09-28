@@ -890,7 +890,7 @@ EOF
 }
 
 apply_locking_per_lun_patch() {
-patch -p1 <<EOF
+patch -p1 -s <<EOF
 diff --git a/drivers/infiniband/ulp/srp/ib_srp.c b/drivers/infiniband/ulp/srp/ib_srp.c
 index a2935e3..b8815e7 100644
 --- a/drivers/infiniband/ulp/srp/ib_srp.c
