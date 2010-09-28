@@ -124,14 +124,24 @@ function specialize_patch {
 # and write the output either to stdout or to the file $1 (if not empty),
 # depending on the value of the variable ${multiple_patches}.
 function process_patch {
+  local tmppatch
   if [ "${multiple_patches}" = "true" ]; then
     if [ "$1" != "" ]; then
       if [ -e "${patchdir}/$1" ]; then
         echo "Warning: overwriting ${patchdir}/$1"
       fi
-    (
-      specialize_patch
-    ) >"${patchdir}/$(basename $1)"
+      tmppatch="/tmp/scst-tmp-patch-$$"
+      (
+        specialize_patch
+      ) >"${tmppatch}"
+      touch "${tmppatch}"
+      {
+        awk 'BEGIN{h=1}/^diff/{h=0}/^---/{h=0}h!=0{print}' < "${tmppatch}";
+        echo "---"; diffstat "${tmppatch}"; echo "";
+        awk 'BEGIN{h=1}/^diff/{h=0}/^---/{h=0}h==0{print}' < "${tmppatch}";
+      } \
+        > "${patchdir}/$(basename $1)"
+      rm -f "${tmppatch}"
     else
       # echo "Discarded $(wc -l) lines."
       true
