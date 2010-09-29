@@ -889,10 +889,10 @@ EOF
   esac
 }
 
-apply_locking_per_lun_patch() {
-patch -p1 -s <<EOF
+get_locking_per_lun_patch() {
+cat <<EOF
 diff --git a/drivers/infiniband/ulp/srp/ib_srp.c b/drivers/infiniband/ulp/srp/ib_srp.c
-index a2935e3..b8815e7 100644
+index a2935e3..dda5203 100644
 --- a/drivers/infiniband/ulp/srp/ib_srp.c
 +++ b/drivers/infiniband/ulp/srp/ib_srp.c
 @@ -441,18 +441,30 @@ static void srp_disconnect_target(struct srp_target_port *target)
@@ -1086,7 +1086,7 @@ index a2935e3..b8815e7 100644
   *
   * Note:
   * An upper limit for the number of allocated information units for each
-@@ -914,24 +903,28 @@ static struct srp_iu *__srp_get_tx_iu(struct srp_target_port *target,
+@@ -914,24 +903,29 @@ static struct srp_iu *__srp_get_tx_iu(struct srp_target_port *target,
  				      enum srp_tx_iu_type iu_type)
  {
  	s32 rsv = (iu_type == SRP_IU_TSK_MGMT) ? 0 : SRP_TSK_MGMT_SQ_SIZE;
@@ -1109,6 +1109,7 @@ index a2935e3..b8815e7 100644
  	}
  
 -	return target->tx_ring[target->tx_head & SRP_SQ_MASK];
++	--target->req_lim;
 +	res = list_first_entry(&target->tx_free, struct srp_iu, list);
 +	list_del(&res->list);
 +out:
@@ -1123,7 +1124,7 @@ index a2935e3..b8815e7 100644
  static int __srp_post_send(struct srp_target_port *target,
  			   struct srp_iu *iu, int len,
  			   enum srp_send_iu_type iu_type)
-@@ -945,7 +938,7 @@ static int __srp_post_send(struct srp_target_port *target,
+@@ -945,7 +939,7 @@ static int __srp_post_send(struct srp_target_port *target,
  	list.lkey   = target->srp_host->srp_dev->mr->lkey;
  
  	wr.next       = NULL;
@@ -1132,7 +1133,7 @@ index a2935e3..b8815e7 100644
  	wr.sg_list    = &list;
  	wr.num_sge    = 1;
  	wr.opcode     = IB_WR_SEND;
-@@ -953,43 +946,45 @@ static int __srp_post_send(struct srp_target_port *target,
+@@ -953,43 +947,45 @@ static int __srp_post_send(struct srp_target_port *target,
  
  	ret = ib_post_send(target->qp, &wr, &bad_wr);
  
@@ -1193,7 +1194,7 @@ index a2935e3..b8815e7 100644
  
  	shost_printk(KERN_ERR, target->scsi_host,
  		     PFX "ignoring AER for LUN %llu\n", be64_to_cpu(req->lun));
-@@ -1006,7 +1001,6 @@ static void srp_handle_req(struct srp_target_port *target,
+@@ -1006,7 +1002,6 @@ static void srp_handle_req(struct srp_target_port *target,
  {
  	struct ib_device *dev;
  	u8 *req_buf;
@@ -1201,7 +1202,7 @@ index a2935e3..b8815e7 100644
  	struct srp_iu *rsp_iu;
  	u8 *rsp_buf;
  	int res;
-@@ -1014,11 +1008,9 @@ static void srp_handle_req(struct srp_target_port *target,
+@@ -1014,11 +1009,9 @@ static void srp_handle_req(struct srp_target_port *target,
  	dev = target->srp_host->srp_dev->dev;
  	req_buf = req_iu->buf;
  
@@ -1214,7 +1215,7 @@ index a2935e3..b8815e7 100644
  
  	rsp_buf = rsp_iu->buf;
  
-@@ -1031,9 +1023,6 @@ static void srp_handle_req(struct srp_target_port *target,
+@@ -1031,9 +1024,6 @@ static void srp_handle_req(struct srp_target_port *target,
  	if (res)
  		shost_printk(KERN_ERR, target->scsi_host,
  			     PFX "Sending response failed -- res = %d\n", res);
@@ -1224,7 +1225,7 @@ index a2935e3..b8815e7 100644
  }
  
  static void srp_handle_recv(struct srp_target_port *target, struct ib_wc *wc)
-@@ -1070,11 +1059,11 @@ static void srp_handle_recv(struct srp_target_port *target, struct ib_wc *wc)
+@@ -1070,11 +1060,11 @@ static void srp_handle_recv(struct srp_target_port *target, struct ib_wc *wc)
  		break;
  
  	case SRP_CRED_REQ:
@@ -1238,7 +1239,7 @@ index a2935e3..b8815e7 100644
  		break;
  
  	default:
-@@ -1086,7 +1075,7 @@ static void srp_handle_recv(struct srp_target_port *target, struct ib_wc *wc)
+@@ -1086,7 +1076,7 @@ static void srp_handle_recv(struct srp_target_port *target, struct ib_wc *wc)
  	ib_dma_sync_single_for_device(dev, iu->dma, target->max_ti_iu_len,
  				      DMA_FROM_DEVICE);
  
@@ -1247,7 +1248,7 @@ index a2935e3..b8815e7 100644
  	if (res != 0)
  		shost_printk(KERN_ERR, target->scsi_host,
  			     PFX "Recv failed with error code %d\n", res);
-@@ -1095,38 +1084,53 @@ static void srp_handle_recv(struct srp_target_port *target, struct ib_wc *wc)
+@@ -1095,38 +1085,53 @@ static void srp_handle_recv(struct srp_target_port *target, struct ib_wc *wc)
  static void srp_recv_completion(struct ib_cq *cq, void *target_ptr)
  {
  	struct srp_target_port *target = target_ptr;
@@ -1321,7 +1322,7 @@ index a2935e3..b8815e7 100644
  }
  
  static int srp_queuecommand(struct scsi_cmnd *scmnd,
-@@ -1138,6 +1142,7 @@ static int srp_queuecommand(struct scsi_cmnd *scmnd,
+@@ -1138,6 +1143,7 @@ static int srp_queuecommand(struct scsi_cmnd *scmnd,
  	struct srp_cmd *cmd;
  	struct ib_device *dev;
  	int len;
@@ -1329,7 +1330,7 @@ index a2935e3..b8815e7 100644
  
  	if (target->state == SRP_TARGET_CONNECTING)
  		goto err;
-@@ -1157,7 +1162,10 @@ static int srp_queuecommand(struct scsi_cmnd *scmnd,
+@@ -1157,7 +1163,10 @@ static int srp_queuecommand(struct scsi_cmnd *scmnd,
  	ib_dma_sync_single_for_cpu(dev, iu->dma, srp_max_iu_len,
  				   DMA_TO_DEVICE);
  
@@ -1340,7 +1341,7 @@ index a2935e3..b8815e7 100644
  
  	scmnd->scsi_done     = done;
  	scmnd->result        = 0;
-@@ -1180,7 +1188,7 @@ static int srp_queuecommand(struct scsi_cmnd *scmnd,
+@@ -1180,7 +1189,7 @@ static int srp_queuecommand(struct scsi_cmnd *scmnd,
  	if (len < 0) {
  		shost_printk(KERN_ERR, target->scsi_host,
  			     PFX "Failed to map data\n");
@@ -1349,7 +1350,7 @@ index a2935e3..b8815e7 100644
  	}
  
  	ib_dma_sync_single_for_device(dev, iu->dma, srp_max_iu_len,
-@@ -1188,16 +1196,22 @@ static int srp_queuecommand(struct scsi_cmnd *scmnd,
+@@ -1188,16 +1197,22 @@ static int srp_queuecommand(struct scsi_cmnd *scmnd,
  
  	if (__srp_post_send(target, iu, len, SRP_SEND_REQ)) {
  		shost_printk(KERN_ERR, target->scsi_host, PFX "Send failed\n");
@@ -1374,7 +1375,7 @@ index a2935e3..b8815e7 100644
  err:
  	return SCSI_MLQUEUE_HOST_BUSY;
  }
-@@ -1212,14 +1226,19 @@ static int srp_alloc_iu_bufs(struct srp_target_port *target)
+@@ -1212,14 +1227,19 @@ static int srp_alloc_iu_bufs(struct srp_target_port *target)
  						  GFP_KERNEL, DMA_FROM_DEVICE);
  		if (!target->rx_ring[i])
  			goto err;
@@ -1394,7 +1395,7 @@ index a2935e3..b8815e7 100644
  	}
  
  	return 0;
-@@ -1381,7 +1400,8 @@ static int srp_cm_handler(struct ib_cm_id *cm_id, struct ib_cm_event *event)
+@@ -1381,7 +1401,8 @@ static int srp_cm_handler(struct ib_cm_id *cm_id, struct ib_cm_event *event)
  			break;
  
  		for (i = 0; i < SRP_RQ_SIZE; i++) {
@@ -1404,7 +1405,7 @@ index a2935e3..b8815e7 100644
  			if (target->status)
  				break;
  		}
-@@ -1451,8 +1471,6 @@ static int srp_send_tsk_mgmt(struct srp_target_port *target,
+@@ -1451,8 +1472,6 @@ static int srp_send_tsk_mgmt(struct srp_target_port *target,
  	struct srp_iu *iu;
  	struct srp_tsk_mgmt *tsk_mgmt;
  
@@ -1413,7 +1414,7 @@ index a2935e3..b8815e7 100644
  	if (target->state == SRP_TARGET_DEAD ||
  	    target->state == SRP_TARGET_REMOVED) {
  		req->scmnd->result = DID_BAD_TARGET << 16;
-@@ -1479,8 +1497,6 @@ static int srp_send_tsk_mgmt(struct srp_target_port *target,
+@@ -1479,8 +1498,6 @@ static int srp_send_tsk_mgmt(struct srp_target_port *target,
  
  	req->tsk_mgmt = iu;
  
@@ -1422,7 +1423,7 @@ index a2935e3..b8815e7 100644
  	if (!wait_for_completion_timeout(&req->done,
  					 msecs_to_jiffies(SRP_ABORT_TIMEOUT_MS)))
  		return -1;
-@@ -1488,7 +1504,6 @@ static int srp_send_tsk_mgmt(struct srp_target_port *target,
+@@ -1488,7 +1505,6 @@ static int srp_send_tsk_mgmt(struct srp_target_port *target,
  	return 0;
  
  out:
@@ -1430,7 +1431,7 @@ index a2935e3..b8815e7 100644
  	return -1;
  }
  
-@@ -1519,8 +1534,6 @@ static int srp_abort(struct scsi_cmnd *scmnd)
+@@ -1519,8 +1535,6 @@ static int srp_abort(struct scsi_cmnd *scmnd)
  	if (srp_send_tsk_mgmt(target, req, SRP_TSK_ABORT_TASK))
  		return FAILED;
  
@@ -1439,7 +1440,7 @@ index a2935e3..b8815e7 100644
  	if (req->cmd_done) {
  		srp_remove_req(target, req);
  		scmnd->scsi_done(scmnd);
-@@ -1530,15 +1543,14 @@ static int srp_abort(struct scsi_cmnd *scmnd)
+@@ -1530,15 +1544,14 @@ static int srp_abort(struct scsi_cmnd *scmnd)
  	} else
  		ret = FAILED;
  
@@ -1457,7 +1458,7 @@ index a2935e3..b8815e7 100644
  
  	shost_printk(KERN_ERR, target->scsi_host, "SRP reset_device called\n");
  
-@@ -1551,14 +1563,10 @@ static int srp_reset_device(struct scsi_cmnd *scmnd)
+@@ -1551,14 +1564,10 @@ static int srp_reset_device(struct scsi_cmnd *scmnd)
  	if (req->tsk_status)
  		return FAILED;
  
@@ -1474,7 +1475,7 @@ index a2935e3..b8815e7 100644
  	return SUCCESS;
  }
  
-@@ -1981,6 +1989,7 @@ static ssize_t srp_create_target(struct device *dev,
+@@ -1981,6 +1990,7 @@ static ssize_t srp_create_target(struct device *dev,
  	target_host->transportt = ib_srp_transport_template;
  	target_host->max_lun     = SRP_MAX_LUN;
  	target_host->max_cmd_len = sizeof ((struct srp_cmd *) (void *) 0L)->cdb;
@@ -1482,7 +1483,7 @@ index a2935e3..b8815e7 100644
  
  	target = host_to_target(target_host);
  
-@@ -1988,8 +1997,9 @@ static ssize_t srp_create_target(struct device *dev,
+@@ -1988,8 +1998,9 @@ static ssize_t srp_create_target(struct device *dev,
  	target->scsi_host  = target_host;
  	target->srp_host   = host;
  
@@ -1493,7 +1494,7 @@ index a2935e3..b8815e7 100644
  	for (i = 0; i < SRP_CMD_SQ_SIZE; ++i) {
  		target->req_ring[i].index = i;
  		list_add_tail(&target->req_ring[i].list, &target->free_reqs);
-@@ -2200,6 +2210,7 @@ static void srp_remove_one(struct ib_device *device)
+@@ -2200,6 +2211,7 @@ static void srp_remove_one(struct ib_device *device)
  	struct srp_host *host, *tmp_host;
  	LIST_HEAD(target_list);
  	struct srp_target_port *target, *tmp_target;
@@ -1501,7 +1502,7 @@ index a2935e3..b8815e7 100644
  
  	srp_dev = ib_get_client_data(device, &srp_client);
  
-@@ -2217,9 +2228,9 @@ static void srp_remove_one(struct ib_device *device)
+@@ -2217,9 +2229,9 @@ static void srp_remove_one(struct ib_device *device)
  		 */
  		spin_lock(&host->target_lock);
  		list_for_each_entry(target, &host->target_list, list) {
@@ -2330,7 +2331,7 @@ do
 done
 
 echo "Applying locking-per-lun patch ..."
-apply_locking_per_lun_patch
+get_locking_per_lun_patch | patch -p1 -s
 
 echo "Applying Jens' block layer optimization patches ..."
 if [ "${kernel_version}" "<" "2.6.38" ]; then
