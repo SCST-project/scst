@@ -411,8 +411,8 @@ static int ibmvstgt_xmit_response(struct scst_cmd *sc)
 	if (dir == DMA_FROM_DEVICE && scst_cmd_get_adjusted_resp_data_len(sc)) {
 		ret = srp_transfer_data(sc, &vio_iu(iue)->srp.cmd,
 					ibmvstgt_rdma, 1, 1);
-		scst_rx_data(sc, ret ? SCST_RX_STATUS_ERROR
-			     : SCST_RX_STATUS_SUCCESS, SCST_CONTEXT_SAME);
+		if (ret)
+			scst_set_delivery_status(sc, SCST_CMD_DELIVERY_FAILED);
 	}
 
 	send_rsp(iue, sc, scst_cmd_get_status(sc), 0);
@@ -443,12 +443,15 @@ static int ibmvstgt_rdy_to_xfer(struct scst_cmd *sc)
 		ret = srp_transfer_data(sc, &vio_iu(iue)->srp.cmd,
 					ibmvstgt_rdma, 1, 1);
 
-		if (ret != SCST_TGT_RES_SUCCESS) {
+		if (!ret) {
+			scst_rx_data(sc, SCST_RX_STATUS_SUCCESS,
+				     SCST_CONTEXT_SAME);
+		} else {
 			PRINT_ERROR("%s: tag= %llu xfer_data failed", __func__,
 				    (long long unsigned)
 				    be64_to_cpu(scst_cmd_get_tag(sc)));
-			scst_set_cmd_error(sc,
-				SCST_LOAD_SENSE(scst_sense_write_error));
+			scst_rx_data(sc, SCST_RX_STATUS_ERROR,
+				     SCST_CONTEXT_SAME);
 		}
 	}
 
