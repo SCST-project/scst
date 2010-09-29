@@ -192,20 +192,24 @@ static int srp_direct_data(struct scst_cmd *sc, struct srp_direct_buf *md,
 {
 	struct iu_entry *iue = NULL;
 	struct scatterlist *sg = NULL;
-	int err, nsg = 0, len;
+	int err, nsg = 0, len, sg_cnt;
 
 	if (dma_map) {
 		iue = scst_cmd_get_tgt_priv(sc);
-		sg = scst_cmd_get_sg(sc);
+		if (dir == DMA_TO_DEVICE) {
+			scst_cmd_get_write_fields(sc, &sg, &sg_cnt);
+		} else {
+			sg = scst_cmd_get_sg(sc);
+			sg_cnt = scst_cmd_get_sg_cnt(sc);
+		}
 
 		dprintk("%p %u %u %d\n", iue, scsi_bufflen(sc),
-			md->len, scst_cmd_get_sg_cnt(sc));
+			md->len, sg_cnt);
 
-		nsg = dma_map_sg(iue->target->dev, sg, scst_cmd_get_sg_cnt(sc),
+		nsg = dma_map_sg(iue->target->dev, sg, sg_cnt,
 				 DMA_BIDIRECTIONAL);
 		if (!nsg) {
-			printk(KERN_ERR "fail to map %p %d\n", iue,
-			       scst_cmd_get_sg_cnt(sc));
+			printk(KERN_ERR "fail to map %p %d\n", iue, sg_cnt);
 			return 0;
 		}
 		len = min_t(unsigned, scst_cmd_get_expected_transfer_len(sc),
@@ -231,11 +235,16 @@ static int srp_indirect_data(struct scst_cmd *sc, struct srp_cmd *cmd,
 	struct scatterlist dummy, *sg = NULL;
 	dma_addr_t token = 0;
 	int err = 0;
-	int nmd, nsg = 0, len;
+	int nmd, nsg = 0, len, sg_cnt;
 
 	if (dma_map || ext_desc) {
 		iue = scst_cmd_get_tgt_priv(sc);
-		sg = scst_cmd_get_sg(sc);
+		if (dir == DMA_TO_DEVICE) {
+			scst_cmd_get_write_fields(sc, &sg, &sg_cnt);
+		} else {
+			sg = scst_cmd_get_sg(sc);
+			sg_cnt = scst_cmd_get_sg_cnt(sc);
+		}
 
 		dprintk("%p %u %u %d %d\n",
 			iue, scsi_bufflen(sc), id->len,
@@ -274,11 +283,10 @@ static int srp_indirect_data(struct scst_cmd *sc, struct srp_cmd *cmd,
 
 rdma:
 	if (dma_map) {
-		nsg = dma_map_sg(iue->target->dev, sg, scst_cmd_get_sg_cnt(sc),
+		nsg = dma_map_sg(iue->target->dev, sg, sg_cnt,
 				 DMA_BIDIRECTIONAL);
 		if (!nsg) {
-			eprintk("fail to map %p %d\n", iue,
-				scst_cmd_get_sg_cnt(sc));
+			eprintk("fail to map %p %d\n", iue, sg_cnt);
 			err = -EIO;
 			goto free_mem;
 		}

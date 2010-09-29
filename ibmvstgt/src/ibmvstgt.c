@@ -408,7 +408,7 @@ static int ibmvstgt_xmit_response(struct scst_cmd *sc)
 	WARN_ON(dir != DMA_FROM_DEVICE && dir != DMA_TO_DEVICE);
 
 	/* For read commands, transfer the data to the initiator. */
-	if (dir == DMA_FROM_DEVICE && scst_cmd_get_resp_data_len(sc)) {
+	if (dir == DMA_FROM_DEVICE && scst_cmd_get_adjusted_resp_data_len(sc)) {
 		ret = srp_transfer_data(sc, &vio_iu(iue)->srp.cmd,
 					ibmvstgt_rdma, 1, 1);
 		scst_rx_data(sc, ret ? SCST_RX_STATUS_ERROR
