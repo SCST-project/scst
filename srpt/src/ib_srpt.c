@@ -2770,7 +2770,8 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 				 struct srpt_ioctx *ioctx,
 				 struct scst_cmd *scmnd)
 {
-	struct scatterlist *scat;
+	struct scatterlist *sg;
+	int sg_cnt;
 	scst_data_direction dir;
 	struct rdma_iu *riu;
 	struct srp_direct_buf *db;
@@ -2786,8 +2787,6 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	BUG_ON(!ch);
 	BUG_ON(!ioctx);
 	BUG_ON(!scmnd);
-	scat = scst_cmd_get_sg(scmnd);
-	WARN_ON(!scat);
 	dir = scst_cmd_get_data_direction(scmnd);
 	BUG_ON(dir == SCST_DATA_NONE);
 	/*
@@ -2795,8 +2794,17 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	 * and because scst_set_cmd_error_status() resets scmnd->data_direction.
 	 */
 	ioctx->dir = dir;
-	count = ib_dma_map_sg(ch->sport->sdev->device, scat,
-			      scst_cmd_get_sg_cnt(scmnd),
+	if (dir == SCST_DATA_WRITE) {
+		scst_cmd_get_write_fields(scmnd, &sg, &sg_cnt);
+		WARN_ON(!sg);
+	} else {
+		sg = scst_cmd_get_sg(scmnd);
+		sg_cnt = scst_cmd_get_sg_cnt(scmnd);
+		WARN_ON(!sg);
+	}
+	ioctx->sg = sg;
+	ioctx->sg_cnt = sg_cnt;
+	count = ib_dma_map_sg(ch->sport->sdev->device, sg, sg_cnt,
 			      scst_to_tgt_dma_dir(dir));
 	if (unlikely(!count))
 		return -EBUSY;
@@ -2820,7 +2828,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	db = ioctx->rbufs;
 	tsize = (dir == SCST_DATA_READ) ?
 		scst_cmd_get_resp_data_len(scmnd) : scst_cmd_get_bufflen(scmnd);
-	dma_len = sg_dma_len(&scat[0]);
+	dma_len = sg_dma_len(&sg[0]);
 	riu = ioctx->rdma_ius;
 
 	/*
@@ -2850,7 +2858,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 				if (tsize > 0) {
 					++j;
 					if (j < count)
-						dma_len = sg_dma_len(&scat[j]);
+						dma_len = sg_dma_len(&sg[j]);
 				}
 			} else {
 				tsize -= rsize;
@@ -2885,12 +2893,11 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	}
 
 	db = ioctx->rbufs;
-	scat = scst_cmd_get_sg(scmnd);
 	tsize = (dir == SCST_DATA_READ) ?
 		scst_cmd_get_resp_data_len(scmnd) : scst_cmd_get_bufflen(scmnd);
 	riu = ioctx->rdma_ius;
-	dma_len = sg_dma_len(&scat[0]);
-	dma_addr = sg_dma_address(&scat[0]);
+	dma_len = sg_dma_len(&sg[0]);
+	dma_addr = sg_dma_address(&sg[0]);
 
 	/* this second loop is really mapped sg_addres to rdma_iu->ib_sge */
 	for (i = 0, j = 0;
@@ -2912,9 +2919,9 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 				if (tsize > 0) {
 					++j;
 					if (j < count) {
-						dma_len = sg_dma_len(&scat[j]);
+						dma_len = sg_dma_len(&sg[j]);
 						dma_addr =
-						    sg_dma_address(&scat[j]);
+						    sg_dma_address(&sg[j]);
 					}
 				}
 			} else {
@@ -2950,7 +2957,7 @@ static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 				    struct srpt_ioctx *ioctx)
 {
 	struct scst_cmd *scmnd;
-	struct scatterlist *scat;
+	struct scatterlist *sg;
 	scst_data_direction dir;
 
 	EXTRACHECKS_BUG_ON(!ch);
@@ -2968,12 +2975,11 @@ static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 		EXTRACHECKS_BUG_ON(!scmnd);
 		EXTRACHECKS_WARN_ON(ioctx->scmnd != scmnd);
 		EXTRACHECKS_WARN_ON(ioctx != scst_cmd_get_tgt_priv(scmnd));
-		scat = scst_cmd_get_sg(scmnd);
-		EXTRACHECKS_WARN_ON(!scat);
+		sg = ioctx->sg;
+		EXTRACHECKS_WARN_ON(!sg);
 		dir = ioctx->dir;
 		EXTRACHECKS_BUG_ON(dir == SCST_DATA_NONE);
-		ib_dma_unmap_sg(ch->sport->sdev->device, scat,
-				scst_cmd_get_sg_cnt(scmnd),
+		ib_dma_unmap_sg(ch->sport->sdev->device, sg, ioctx->sg_cnt,
 				scst_to_tgt_dma_dir(dir));
 		ioctx->mapped_sg_count = 0;
 	}
@@ -3291,7 +3297,8 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	dir = scst_cmd_get_data_direction(scmnd);
 
 	/* For read commands, transfer the data to the initiator. */
-	if (dir == SCST_DATA_READ && scst_cmd_get_resp_data_len(scmnd)) {
+	if (dir == SCST_DATA_READ
+	    && scst_cmd_get_adjusted_resp_data_len(scmnd)) {
 		ret = srpt_xfer_data(ch, ioctx, scmnd);
 		if (ret != SCST_TGT_RES_SUCCESS) {
 			PRINT_ERROR("%s: tag= %llu xfer_data failed",

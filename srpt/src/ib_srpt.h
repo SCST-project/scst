@@ -206,6 +206,8 @@ struct srpt_ioctx {
 	struct srp_direct_buf *rbufs;
 	struct srp_direct_buf single_rbuf;
 	struct list_head wait_list;
+	struct scatterlist *sg;
+	int sg_cnt;
 	int mapped_sg_count;
 	u16 n_rdma_ius;
 	u8 n_rdma;
