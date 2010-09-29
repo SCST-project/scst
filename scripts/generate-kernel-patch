@@ -596,6 +596,7 @@ EOF
     do
       add_patch "ibmvstgt/in-tree-patches/${kernel_version}/$(basename $f).patch" $f
     done
+    add_file "ibmvstgt/README" "Documentation/powerpc/ibmvstgt.txt"
   fi
 } \
 | process_patch "ibmvstgt.diff"
