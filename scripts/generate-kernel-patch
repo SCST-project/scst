@@ -608,11 +608,12 @@ EOF
       cat <<EOF
 [SCSI] tgt: Removal
 
-Because of the conversion of the ibmvstgt driver from tgt to SCST, the
-scsi_tgt kernel module, the CONFIG_SCSI_TGT, CONFIG_SCSI_SRP_TGT_ATTRS and
-CONFIG_SCSI_FC_TGT_ATTRS kbuild variable, the scsi_host_template member
-variables transfer_response, supportedmode and active_mode and the constants
-MODE_UNKNOWN, MODE_INITIATOR and MODE_TARGET are no longer needed.
+Because of the conversion of the ibmvstgt driver from tgt to SCST, and because
+the ibmvstgt driver was the only user of scsi_tgt, the scsi_tgt kernel module,
+the CONFIG_SCSI_TGT, CONFIG_SCSI_SRP_TGT_ATTRS and CONFIG_SCSI_FC_TGT_ATTRS
+kbuild variable, the scsi_host_template member variables transfer_response,
+supportedmode and active_mode and the constants MODE_UNKNOWN, MODE_INITIATOR
+and MODE_TARGET are no longer needed.
 
 Note: this patch applies cleanly on a 2.6.35 kernel tree. The patch tool
 however complains about the defconfig changes when trying to apply this patch
