@@ -427,19 +427,17 @@ out:
  * ibmvstgt_rdy_to_xfer() - Transfers data from initiator to target.
  *
  * Called by the SCST core to transfer data from the initiator to the target
- * (SCST_DATA_WRITE). Must not block.
+ * (SCST_DATA_WRITE / DMA_TO_DEVICE). Must not block.
  */
 static int ibmvstgt_rdy_to_xfer(struct scst_cmd *sc)
 {
 	struct iu_entry *iue = scst_cmd_get_tgt_priv(sc);
 	int ret = SCST_TGT_RES_SUCCESS;
-	enum dma_data_direction dir;
 
-	dir = srp_cmd_direction(&vio_iu(iue)->srp.cmd);
-	WARN_ON(dir != DMA_FROM_DEVICE && dir != DMA_TO_DEVICE);
+	WARN_ON(srp_cmd_direction(&vio_iu(iue)->srp.cmd) != DMA_TO_DEVICE);
 
-	/* For write commands, transfer the data from the initiator. */
-	if (dir == DMA_TO_DEVICE && scst_cmd_get_bufflen(sc)) {
+	/* Transfer the data from the initiator to the target. */
+	if (scst_cmd_get_bufflen(sc)) {
 		ret = srp_transfer_data(sc, &vio_iu(iue)->srp.cmd,
 					ibmvstgt_rdma, 1, 1);
 
