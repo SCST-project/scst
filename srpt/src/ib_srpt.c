@@ -2826,8 +2826,9 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	}
 
 	db = ioctx->rbufs;
-	tsize = (dir == SCST_DATA_READ) ?
-		scst_cmd_get_resp_data_len(scmnd) : scst_cmd_get_bufflen(scmnd);
+	tsize = (dir == SCST_DATA_READ)
+		? scst_cmd_get_adjusted_resp_data_len(scmnd)
+		: scst_cmd_get_bufflen(scmnd);
 	dma_len = sg_dma_len(&sg[0]);
 	riu = ioctx->rdma_ius;
 
@@ -2893,8 +2894,9 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	}
 
 	db = ioctx->rbufs;
-	tsize = (dir == SCST_DATA_READ) ?
-		scst_cmd_get_resp_data_len(scmnd) : scst_cmd_get_bufflen(scmnd);
+	tsize = (dir == SCST_DATA_READ)
+		? scst_cmd_get_adjusted_resp_data_len(scmnd)
+		: scst_cmd_get_bufflen(scmnd);
 	riu = ioctx->rdma_ius;
 	dma_len = sg_dma_len(&sg[0]);
 	dma_addr = sg_dma_address(&sg[0]);
