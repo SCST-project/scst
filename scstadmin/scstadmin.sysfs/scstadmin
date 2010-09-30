@@ -1280,6 +1280,7 @@ sub writeConfiguration {
 			}
 
 			$t_lun_buff .= "\n" if ($t_lun_buff);
+			$t_lun_buff =~ s/\n+$/\n\n/;
 
 			my $groups = $CURRENT{'assign'}->{$driver}->{$target}->{'GROUP'};
 
@@ -1397,7 +1398,7 @@ sub writeConfiguration {
 					$init_buff .= "\n";
 				}
 
-				$init_buff =~ s/\n\n$/\n/;
+				$init_buff =~ s/\n+$/\n\n/;
 
 				if ($lun_buff || $init_buff) {
 					$group_buff .= " {\n";
@@ -1409,20 +1410,59 @@ sub writeConfiguration {
 					if ($init_buff) {
 						$group_buff .= $init_buff;
 					}
-
-					$group_buff =~ s/\n\n$/\n/;
-					$group_buff .= "\t\t}\n\n";
 				}
 
-				$group_buff .= "\n";
-				$group_buff =~ s/\n\n$/\n/;
+				my $grp_attributes = $SCST->groupAttributes($driver, $target, $group);
+
+				my $g_attribute_buff;
+				my $g_attribute_buff_nk;
+				foreach my $attribute (sort keys %{$grp_attributes}) {
+					next if (defined($$grp_attributes{$attribute}->{'set'}));
+
+					if (!$$grp_attributes{$attribute}->{'static'}) {
+						if (defined($$grp_attributes{$attribute}->{'keys'})) {
+							foreach my $key (keys %{$$grp_attributes{$attribute}->{'keys'}}) {
+								my $value = $$grp_attributes{$attribute}->{'keys'}->{$key}->{'value'};
+								$value = "\"$value\"" if ($value =~ / /);
+								$g_attribute_buff .= "\t\t\t$attribute $value\n"
+								  if (defined($value));
+							}
+						} elsif (($attribute eq 'enabled') || $nonkey) {
+							my $value = $$grp_attributes{$attribute}->{'value'};
+							$value = "\"$value\"" if ($value =~ / /);
+							if ($attribute eq 'enabled') {
+								$g_attribute_buff .= "\t\t\t$attribute $value\n"
+								  if (defined($value));
+							} else {
+								$g_attribute_buff_nk .= "\t\t\t$attribute $value\n"
+								  if (defined($value));
+							}
+						}
+					}
+				}
+
+				if ($g_attribute_buff_nk) {
+					$g_attribute_buff .= "\n" if ($g_attribute_buff);
+					$g_attribute_buff .= "\t\t\t# Non-key attributes\n";
+					$g_attribute_buff .= $g_attribute_buff_nk;
+				}
+
+				if ($g_attribute_buff) {
+					$group_buff .= $g_attribute_buff . "\n";
+				}
+
+				if ($group_buff) {
+					$group_buff =~ s/\n\n$/\n/;
+					$group_buff .= "\t\t}\n\n";
+					$group_buff .= "\n";
+					$group_buff =~ s/\n+$/\n/;
+				}
+
+				$group_buff .= "\n" if ($group_buff);
 			}
 
-			$group_buff .= "\n" if ($group_buff);
-			$group_buff =~ s/\n+$/\n/;
-
 			if ($attribute_buff_nk) {
-				$attribute_buff .= "\t\t# Non-key attributes\n";
+				$attribute_buff .= "\n\t\t# Non-key attributes\n";
 				$attribute_buff .= $attribute_buff_nk;
 			}
 
