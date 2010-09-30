@@ -1121,7 +1121,8 @@ sub writeConfiguration {
 			}
 
 			if ($attribute_buff_nk) {
-				$attribute_buff .= "\n\t\t# Non-key attributes\n";
+				$attribute_buff .= "\n" if ($attribute_buff);
+				$attribute_buff .= "\t\t# Non-key attributes\n";
 				$attribute_buff .= $attribute_buff_nk;
 			}
 
@@ -1340,7 +1341,7 @@ sub writeConfiguration {
 					if ($l_attribute_buff) {
 						$lun_buff .= " {\n";
 						$lun_buff .= $l_attribute_buff;
-						$lun_buff .= "\t\t\t}\n\n";
+						$lun_buff .= "\t\t\t}\n";
 					} else {
 						$lun_buff .= "\n";
 					}
@@ -1350,7 +1351,7 @@ sub writeConfiguration {
 
 				my $init_buff;
 				foreach my $init (@{$inits}) {
-					$init_buff .= "\t\t\tINITIATOR $init";
+					$init_buff .= "\n\t\t\tINITIATOR $init";
 
 					$attributes = $SCST->initiatorAttributes($driver, $target, $group, $init);
 
@@ -1389,16 +1390,12 @@ sub writeConfiguration {
 
 					if ($i_attribute_buff) {
 						$init_buff .= " {\n";
-						$init_buff .= i_$attribute_buff;
+						$init_buff .= $attribute_buff;
 						$init_buff .= "\t\t\t}\n";
 					} else {
 						$init_buff .= "\n";
 					}
-
-					$init_buff .= "\n";
 				}
-
-				$init_buff =~ s/\n+$/\n\n/;
 
 				if ($lun_buff || $init_buff) {
 					$group_buff .= " {\n";
@@ -1448,13 +1445,12 @@ sub writeConfiguration {
 				}
 
 				if ($g_attribute_buff) {
-					$group_buff .= $g_attribute_buff . "\n";
+					$group_buff .= "\n";
+					$group_buff .= $g_attribute_buff;
 				}
 
 				if ($group_buff) {
-					$group_buff =~ s/\n\n$/\n/;
 					$group_buff .= "\t\t}\n\n";
-					$group_buff .= "\n";
 					$group_buff =~ s/\n+$/\n/;
 				}
 
@@ -1462,7 +1458,7 @@ sub writeConfiguration {
 			}
 
 			if ($attribute_buff_nk) {
-				$attribute_buff .= "\n\t\t# Non-key attributes\n";
+				$attribute_buff .= "\t\t# Non-key attributes\n";
 				$attribute_buff .= $attribute_buff_nk;
 			}
 
