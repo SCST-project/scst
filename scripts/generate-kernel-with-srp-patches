@@ -1253,7 +1253,7 @@ index a2935e3..dda5203 100644
  {
  	struct srp_target_port *target = target_ptr;
 -	struct ib_wc wc;
-+	struct ib_wc wc[16];
++	struct ib_wc wc[8];
 +	int i, n;
  
  	ib_req_notify_cq(cq, IB_CQ_NEXT_COMP);
