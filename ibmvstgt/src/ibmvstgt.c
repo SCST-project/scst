@@ -437,20 +437,13 @@ static int ibmvstgt_rdy_to_xfer(struct scst_cmd *sc)
 	WARN_ON(srp_cmd_direction(&vio_iu(iue)->srp.cmd) != DMA_TO_DEVICE);
 
 	/* Transfer the data from the initiator to the target. */
-	if (scst_cmd_get_bufflen(sc)) {
-		ret = srp_transfer_data(sc, &vio_iu(iue)->srp.cmd,
-					ibmvstgt_rdma, 1, 1);
-
-		if (!ret) {
-			scst_rx_data(sc, SCST_RX_STATUS_SUCCESS,
-				     SCST_CONTEXT_SAME);
-		} else {
-			PRINT_ERROR("%s: tag= %llu xfer_data failed", __func__,
-				    (long long unsigned)
-				    be64_to_cpu(scst_cmd_get_tag(sc)));
-			scst_rx_data(sc, SCST_RX_STATUS_ERROR,
-				     SCST_CONTEXT_SAME);
-		}
+	ret = srp_transfer_data(sc, &vio_iu(iue)->srp.cmd, ibmvstgt_rdma, 1, 1);
+	if (ret == 0) {
+		scst_rx_data(sc, SCST_RX_STATUS_SUCCESS, SCST_CONTEXT_SAME);
+	} else {
+		PRINT_ERROR("%s: tag= %llu xfer_data failed", __func__,
+			(long long unsigned)be64_to_cpu(scst_cmd_get_tag(sc)));
+		scst_rx_data(sc, SCST_RX_STATUS_ERROR, SCST_CONTEXT_SAME);
 	}
 
 	return SCST_TGT_RES_SUCCESS;
