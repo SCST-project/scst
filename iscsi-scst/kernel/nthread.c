@@ -544,9 +544,9 @@ static void close_conn(struct iscsi_conn *conn)
 	while (1) {
 		bool t;
 
-		spin_lock_bh(&iscsi_wr_lock);
+		spin_lock_bh(&conn->conn_thr_pool->wr_lock);
 		t = (conn->wr_state == ISCSI_CONN_WR_STATE_IDLE);
-		spin_unlock_bh(&iscsi_wr_lock);
+		spin_unlock_bh(&conn->conn_thr_pool->wr_lock);
 
 		if (t && (atomic_read(&conn->conn_ref_cnt) == 0))
 			break;
@@ -1001,12 +1001,12 @@ out:
 }
 
 /*
- * Called under iscsi_rd_lock and BHs disabled, but will drop it inside,
+ * Called under rd_lock and BHs disabled, but will drop it inside,
  * then reaquire.
  */
-static void scst_do_job_rd(void)
-	__acquires(&iscsi_rd_lock)
-	__releases(&iscsi_rd_lock)
+static void scst_do_job_rd(struct iscsi_thread_pool *p)
+	__acquires(&rd_lock)
+	__releases(&rd_lock)
 {
 	TRACE_ENTRY();
 
@@ -1014,9 +1014,9 @@ static void scst_do_job_rd(void)
 	 * We delete/add to tail connections to maintain fairness between them.
 	 */
 
-	while (!list_empty(&iscsi_rd_list)) {
+	while (!list_empty(&p->rd_list)) {
 		int closed = 0, rc;
-		struct iscsi_conn *conn = list_entry(iscsi_rd_list.next,
+		struct iscsi_conn *conn = list_entry(p->rd_list.next,
 			typeof(*conn), rd_list_entry);
 
 		list_del(&conn->rd_list_entry);
@@ -1027,26 +1027,26 @@ static void scst_do_job_rd(void)
 #ifdef CONFIG_SCST_EXTRACHECKS
 		conn->rd_task = current;
 #endif
-		spin_unlock_bh(&iscsi_rd_lock);
+		spin_unlock_bh(&p->rd_lock);
 
 		rc = process_read_io(conn, &closed);
 
-		spin_lock_bh(&iscsi_rd_lock);
+		spin_lock_bh(&p->rd_lock);
 
 		if (unlikely(closed))
 			continue;
 
 		if (unlikely(conn->conn_tm_active)) {
-			spin_unlock_bh(&iscsi_rd_lock);
+			spin_unlock_bh(&p->rd_lock);
 			iscsi_check_tm_data_wait_timeouts(conn, false);
-			spin_lock_bh(&iscsi_rd_lock);
+			spin_lock_bh(&p->rd_lock);
 		}
 
 #ifdef CONFIG_SCST_EXTRACHECKS
 		conn->rd_task = NULL;
 #endif
 		if ((rc == 0) || conn->rd_data_ready) {
-			list_add_tail(&conn->rd_list_entry, &iscsi_rd_list);
+			list_add_tail(&conn->rd_list_entry, &p->rd_list);
 			conn->rd_state = ISCSI_CONN_RD_STATE_IN_LIST;
 		} else
 			conn->rd_state = ISCSI_CONN_RD_STATE_IDLE;
@@ -1056,50 +1056,56 @@ static void scst_do_job_rd(void)
 	return;
 }
 
-static inline int test_rd_list(void)
+static inline int test_rd_list(struct iscsi_thread_pool *p)
 {
-	int res = !list_empty(&iscsi_rd_list) ||
+	int res = !list_empty(&p->rd_list) ||
 		  unlikely(kthread_should_stop());
 	return res;
 }
 
 int istrd(void *arg)
 {
+	struct iscsi_thread_pool *p = arg;
+	int rc;
+
 	TRACE_ENTRY();
 
-	PRINT_INFO("Read thread started, PID %d", current->pid);
+	PRINT_INFO("Read thread for pool %p started, PID %d", p, current->pid);
 
 	current->flags |= PF_NOFREEZE;
+	rc = set_cpus_allowed_ptr(current, &p->cpu_mask);
+	if (rc != 0)
+		PRINT_ERROR("Setting CPU affinity failed: %d", rc);
 
-	spin_lock_bh(&iscsi_rd_lock);
+	spin_lock_bh(&p->rd_lock);
 	while (!kthread_should_stop()) {
 		wait_queue_t wait;
 		init_waitqueue_entry(&wait, current);
 
-		if (!test_rd_list()) {
-			add_wait_queue_exclusive_head(&iscsi_rd_waitQ, &wait);
+		if (!test_rd_list(p)) {
+			add_wait_queue_exclusive_head(&p->rd_waitQ, &wait);
 			for (;;) {
 				set_current_state(TASK_INTERRUPTIBLE);
-				if (test_rd_list())
+				if (test_rd_list(p))
 					break;
-				spin_unlock_bh(&iscsi_rd_lock);
+				spin_unlock_bh(&p->rd_lock);
 				schedule();
-				spin_lock_bh(&iscsi_rd_lock);
+				spin_lock_bh(&p->rd_lock);
 			}
 			set_current_state(TASK_RUNNING);
-			remove_wait_queue(&iscsi_rd_waitQ, &wait);
+			remove_wait_queue(&p->rd_waitQ, &wait);
 		}
-		scst_do_job_rd();
+		scst_do_job_rd(p);
 	}
-	spin_unlock_bh(&iscsi_rd_lock);
+	spin_unlock_bh(&p->rd_lock);
 
 	/*
 	 * If kthread_should_stop() is true, we are guaranteed to be
-	 * on the module unload, so iscsi_rd_list must be empty.
+	 * on the module unload, so rd_list must be empty.
 	 */
-	sBUG_ON(!list_empty(&iscsi_rd_list));
+	sBUG_ON(!list_empty(&p->rd_list));
 
-	PRINT_INFO("Read thread PID %d finished", current->pid);
+	PRINT_INFO("Read thread for PID %d for pool %p finished", current->pid, p);
 
 	TRACE_EXIT();
 	return 0;
@@ -1240,13 +1246,13 @@ void req_add_to_write_timeout_list(struct iscsi_cmnd *req)
 	/*
 	 * conn_tm_active can be already cleared by
 	 * iscsi_check_tm_data_wait_timeouts(). write_list_lock is an inner
-	 * lock for iscsi_rd_lock.
+	 * lock for rd_lock.
 	 */
 	if (unlikely(set_conn_tm_active)) {
-		spin_lock_bh(&iscsi_rd_lock);
+		spin_lock_bh(&conn->conn_thr_pool->rd_lock);
 		TRACE_MGMT_DBG("Setting conn_tm_active for conn %p", conn);
 		conn->conn_tm_active = 1;
-		spin_unlock_bh(&iscsi_rd_lock);
+		spin_unlock_bh(&conn->conn_thr_pool->rd_lock);
 	}
 
 out:
@@ -1726,12 +1732,12 @@ out:
 }
 
 /*
- * Called under iscsi_wr_lock and BHs disabled, but will drop it inside,
+ * Called under wr_lock and BHs disabled, but will drop it inside,
  * then reaquire.
  */
-static void scst_do_job_wr(void)
-	__acquires(&iscsi_wr_lock)
-	__releases(&iscsi_wr_lock)
+static void scst_do_job_wr(struct iscsi_thread_pool *p)
+	__acquires(&wr_lock)
+	__releases(&wr_lock)
 {
 	TRACE_ENTRY();
 
@@ -1739,9 +1745,9 @@ static void scst_do_job_wr(void)
 	 * We delete/add to tail connections to maintain fairness between them.
 	 */
 
-	while (!list_empty(&iscsi_wr_list)) {
+	while (!list_empty(&p->wr_list)) {
 		int rc;
-		struct iscsi_conn *conn = list_entry(iscsi_wr_list.next,
+		struct iscsi_conn *conn = list_entry(p->wr_list.next,
 			typeof(*conn), wr_list_entry);
 
 		TRACE_DBG("conn %p, wr_state %x, wr_space_ready %d, "
@@ -1757,13 +1763,13 @@ static void scst_do_job_wr(void)
 #ifdef CONFIG_SCST_EXTRACHECKS
 		conn->wr_task = current;
 #endif
-		spin_unlock_bh(&iscsi_wr_lock);
+		spin_unlock_bh(&p->wr_lock);
 
 		conn_get(conn);
 
 		rc = iscsi_send(conn);
 
-		spin_lock_bh(&iscsi_wr_lock);
+		spin_lock_bh(&p->wr_lock);
 #ifdef CONFIG_SCST_EXTRACHECKS
 		conn->wr_task = NULL;
 #endif
@@ -1772,7 +1778,7 @@ static void scst_do_job_wr(void)
 				"(conn %p)", conn);
 			conn->wr_state = ISCSI_CONN_WR_STATE_SPACE_WAIT;
 		} else if (test_write_ready(conn)) {
-			list_add_tail(&conn->wr_list_entry, &iscsi_wr_list);
+			list_add_tail(&conn->wr_list_entry, &p->wr_list);
 			conn->wr_state = ISCSI_CONN_WR_STATE_IN_LIST;
 		} else
 			conn->wr_state = ISCSI_CONN_WR_STATE_IDLE;
@@ -1784,50 +1790,56 @@ static void scst_do_job_wr(void)
 	return;
 }
 
-static inline int test_wr_list(void)
+static inline int test_wr_list(struct iscsi_thread_pool *p)
 {
-	int res = !list_empty(&iscsi_wr_list) ||
+	int res = !list_empty(&p->wr_list) ||
 		  unlikely(kthread_should_stop());
 	return res;
 }
 
 int istwr(void *arg)
 {
+	struct iscsi_thread_pool *p = arg;
+	int rc;
+
 	TRACE_ENTRY();
 
-	PRINT_INFO("Write thread started, PID %d", current->pid);
+	PRINT_INFO("Write thread for pool %p started, PID %d", p, current->pid);
 
 	current->flags |= PF_NOFREEZE;
+	rc = set_cpus_allowed_ptr(current, &p->cpu_mask);
+	if (rc != 0)
+		PRINT_ERROR("Setting CPU affinity failed: %d", rc);
 
-	spin_lock_bh(&iscsi_wr_lock);
+	spin_lock_bh(&p->wr_lock);
 	while (!kthread_should_stop()) {
 		wait_queue_t wait;
 		init_waitqueue_entry(&wait, current);
 
-		if (!test_wr_list()) {
-			add_wait_queue_exclusive_head(&iscsi_wr_waitQ, &wait);
+		if (!test_wr_list(p)) {
+			add_wait_queue_exclusive_head(&p->wr_waitQ, &wait);
 			for (;;) {
 				set_current_state(TASK_INTERRUPTIBLE);
-				if (test_wr_list())
+				if (test_wr_list(p))
 					break;
-				spin_unlock_bh(&iscsi_wr_lock);
+				spin_unlock_bh(&p->wr_lock);
 				schedule();
-				spin_lock_bh(&iscsi_wr_lock);
+				spin_lock_bh(&p->wr_lock);
 			}
 			set_current_state(TASK_RUNNING);
-			remove_wait_queue(&iscsi_wr_waitQ, &wait);
+			remove_wait_queue(&p->wr_waitQ, &wait);
 		}
-		scst_do_job_wr();
+		scst_do_job_wr(p);
 	}
-	spin_unlock_bh(&iscsi_wr_lock);
+	spin_unlock_bh(&p->wr_lock);
 
 	/*
 	 * If kthread_should_stop() is true, we are guaranteed to be
-	 * on the module unload, so iscsi_wr_list must be empty.
+	 * on the module unload, so wr_list must be empty.
 	 */
-	sBUG_ON(!list_empty(&iscsi_wr_list));
+	sBUG_ON(!list_empty(&p->wr_list));
 
-	PRINT_INFO("Write thread PID %d finished", current->pid);
+	PRINT_INFO("Write thread PID %d for pool %p finished", current->pid, p);
 
 	TRACE_EXIT();
 	return 0;

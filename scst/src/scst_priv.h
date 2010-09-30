@@ -193,6 +193,8 @@ extern spinlock_t scst_mgmt_lock;
 extern struct list_head scst_sess_init_list;
 extern struct list_head scst_sess_shut_list;
 
+extern struct cpumask default_cpu_mask;
+
 struct scst_cmd_thread_t {
 	struct task_struct *cmd_thread;
 	struct list_head thread_list_entry;
@@ -549,6 +551,10 @@ void scst_process_reset(struct scst_device *dev,
 
 bool scst_is_ua_global(const uint8_t *sense, int len);
 void scst_requeue_ua(struct scst_cmd *cmd);
+
+struct scst_aen *scst_alloc_aen(struct scst_session *sess,
+	uint64_t unpacked_lun);
+void scst_free_aen(struct scst_aen *aen);
 
 void scst_gen_aen_or_ua(struct scst_tgt_dev *tgt_dev,
 	int key, int asc, int ascq);

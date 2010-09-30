@@ -88,6 +88,11 @@ static int iscsi_session_alloc(struct iscsi_target *target,
 		goto err;
 	}
 
+	err = iscsi_threads_pool_get(&session->scst_sess->acg->acg_cpu_mask,
+		&session->sess_thr_pool);
+	if (err != 0)
+		goto err_unreg;
+
 #ifdef CONFIG_SCST_PROC
 	kfree(name);
 #endif
@@ -97,6 +102,9 @@ static int iscsi_session_alloc(struct iscsi_target *target,
 
 	*result = session;
 	return 0;
+
+err_unreg:
+	scst_unregister_session(session->scst_sess, 1, NULL);
 
 err:
 	if (session) {
@@ -318,6 +326,11 @@ int session_free(struct iscsi_session *session, bool del)
 	if (del)
 		list_del(&session->session_list_entry);
 
+	if (session->sess_thr_pool != NULL) {
+		iscsi_threads_pool_put(session->sess_thr_pool);
+		session->sess_thr_pool = NULL;
+	}
+
 	if (session->scst_sess != NULL) {
 		/*
 		 * We must NOT call scst_unregister_session() in the waiting
@@ -350,6 +363,25 @@ int __del_session(struct iscsi_target *target, u64 sid)
 	}
 
 	return session_free(session, true);
+}
+
+/* Must be called under target_mutex */
+void iscsi_sess_force_close(struct iscsi_session *sess)
+{
+	struct iscsi_conn *conn;
+
+	TRACE_ENTRY();
+
+	PRINT_INFO("Deleting session %llx with initiator %s (%p)",
+		(long long unsigned int)sess->sid, sess->initiator_name, sess);
+
+	list_for_each_entry(conn, &sess->conn_list, conn_list_entry) {
+		TRACE_MGMT_DBG("Deleting connection with initiator %p", conn);
+		__mark_conn_closed(conn, ISCSI_CONN_ACTIVE_CLOSE|ISCSI_CONN_DELETING);
+	}
+
+	TRACE_EXIT();
+	return;
 }
 
 #ifdef CONFIG_SCST_PROC
@@ -509,7 +541,6 @@ static ssize_t iscsi_sess_force_close_store(struct kobject *kobj,
 	int res;
 	struct scst_session *scst_sess;
 	struct iscsi_session *sess;
-	struct iscsi_conn *conn;
 
 	TRACE_ENTRY();
 
@@ -521,13 +552,7 @@ static ssize_t iscsi_sess_force_close_store(struct kobject *kobj,
 		goto out;
 	}
 
-	PRINT_INFO("Deleting session %llx with initiator %s (%p)",
-		(long long unsigned int)sess->sid, sess->initiator_name, sess);
-
-	list_for_each_entry(conn, &sess->conn_list, conn_list_entry) {
-		TRACE_MGMT_DBG("Deleting connection with initiator %p", conn);
-		__mark_conn_closed(conn, ISCSI_CONN_ACTIVE_CLOSE|ISCSI_CONN_DELETING);
-	}
+	iscsi_sess_force_close(sess);
 
 	mutex_unlock(&sess->target->target_mutex);
 

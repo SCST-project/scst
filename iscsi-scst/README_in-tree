@@ -155,15 +155,6 @@ Each target subdirectory contains the following entries:
    configuring it before it starts accepting new connections. 0 by
    default.
 
- - rel_tgt_id - allows to read or write SCSI Relative Target Port
-   Identifier attribute. This identifier is used to identify SCSI Target
-   Ports by some SCSI commands, mainly by Persistent Reservations
-   commands. This identifier must be unique among all SCST targets, but
-   for convenience SCST allows disabled targets to have not unique
-   rel_tgt_id. In this case SCST will not allow to enable this target
-   until rel_tgt_id becomes unique. This attribute initialized unique by
-   SCST by default.
-
  - redirect - allows to temporarily or permanently redirect login to the
    target to another portal. Discovery sessions will not be impacted,
    but normal sessions will be redirected before security negotiation.
@@ -208,6 +199,8 @@ Each connection subdirectory contains the following entries:
  - ip - contains IP address of the connected initiator.
 
  - state - contains processing state of this connection.
+
+See SCST README for info about other attributes.
 
 Below is a sample script, which configures 1 virtual disk "disk1" using
 /disk1 image and one target iqn.2006-10.net.vlnb:tgt with all default
@@ -705,7 +698,14 @@ load, including IRQ processing load. Note, many tools like vmstat give
 aggregate load on all CPUs, so with 4 cores 25% corresponds to 100% load
 of any single CPU.
 
-7. See SCST core's README for more advices. Especially pay attention to
+7. For high speed network adapters is can be better if you configure
+them to serve connections, e.g., from initiator on CPU0 and from
+initiator Y on CPU1. Then you can bind threads processing them also to
+CPU0 and CPU1 correspondingly using cpu_mask attribute of their targets
+or security groups. In NUMA-like configurations it can signficantly
+boost IOPS performance.
+
+8. See SCST core's README for more advices. Especially pay attention to
 have io_grouping_type option set correctly.
 
 

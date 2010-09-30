@@ -335,6 +335,11 @@ enum scst_exec_context {
  */
 #define SCST_AEN_SCSI                0
 
+/*
+ * Notifies that CPU affinity mask on the corresponding session changed
+ */
+#define SCST_AEN_CPU_MASK_CHANGED    1
+
 /*************************************************************
  ** Allowed return/status codes for report_aen() callback and
  ** scst_set_aen_delivery_status() function
@@ -2390,6 +2395,9 @@ struct scst_acg {
 	/* Type of I/O initiators groupping */
 	int acg_io_grouping_type;
 
+	/* CPU affinity for threads in this ACG */
+	struct cpumask acg_cpu_mask;
+
 	unsigned int tgt_acg:1;
 
 	/* sysfs release completion */
@@ -3887,6 +3895,7 @@ struct scst_sysfs_work_item {
 				bool is_tgt_kobj;
 				int io_grouping_type;
 				bool enable;
+				struct cpumask cpu_mask;
 			};
 		};
 		struct {

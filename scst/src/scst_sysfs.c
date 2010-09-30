@@ -123,6 +123,12 @@ static ssize_t scst_tgt_io_grouping_type_show(struct kobject *kobj,
 static ssize_t scst_tgt_io_grouping_type_store(struct kobject *kobj,
 				    struct kobj_attribute *attr,
 				    const char *buf, size_t count);
+static ssize_t scst_tgt_cpu_mask_show(struct kobject *kobj,
+				   struct kobj_attribute *attr,
+				   char *buf);
+static ssize_t scst_tgt_cpu_mask_store(struct kobject *kobj,
+				    struct kobj_attribute *attr,
+				    const char *buf, size_t count);
 static ssize_t scst_ini_group_mgmt_show(struct kobject *kobj,
 				   struct kobj_attribute *attr,
 				   char *buf);
@@ -154,6 +160,12 @@ static ssize_t scst_acg_io_grouping_type_show(struct kobject *kobj,
 				   struct kobj_attribute *attr,
 				   char *buf);
 static ssize_t scst_acg_io_grouping_type_store(struct kobject *kobj,
+				    struct kobj_attribute *attr,
+				    const char *buf, size_t count);
+static ssize_t scst_acg_cpu_mask_show(struct kobject *kobj,
+				   struct kobj_attribute *attr,
+				   char *buf);
+static ssize_t scst_acg_cpu_mask_store(struct kobject *kobj,
 				    struct kobj_attribute *attr,
 				    const char *buf, size_t count);
 static ssize_t scst_acn_file_show(struct kobject *kobj,
@@ -964,6 +976,11 @@ static struct kobj_attribute scst_tgt_io_grouping_type =
 	       scst_tgt_io_grouping_type_show,
 	       scst_tgt_io_grouping_type_store);
 
+static struct kobj_attribute scst_tgt_cpu_mask =
+	__ATTR(cpu_mask, S_IRUGO | S_IWUSR,
+	       scst_tgt_cpu_mask_show,
+	       scst_tgt_cpu_mask_store);
+
 static struct kobj_attribute scst_rel_tgt_id =
 	__ATTR(rel_tgt_id, S_IRUGO | S_IWUSR, scst_rel_tgt_id_show,
 	       scst_rel_tgt_id_store);
@@ -976,6 +993,11 @@ static struct kobj_attribute scst_acg_io_grouping_type =
 	__ATTR(io_grouping_type, S_IRUGO | S_IWUSR,
 	       scst_acg_io_grouping_type_show,
 	       scst_acg_io_grouping_type_store);
+
+static struct kobj_attribute scst_acg_cpu_mask =
+	__ATTR(cpu_mask, S_IRUGO | S_IWUSR,
+	       scst_acg_cpu_mask_show,
+	       scst_acg_cpu_mask_store);
 
 static ssize_t scst_tgt_enable_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
@@ -1180,6 +1202,13 @@ int scst_tgt_sysfs_create(struct scst_tgt *tgt)
 	if (res != 0) {
 		PRINT_ERROR("Can't add attribute %s for tgt %s",
 			scst_tgt_io_grouping_type.attr.name, tgt->tgt_name);
+		goto out_err;
+	}
+
+	res = sysfs_create_file(&tgt->tgt_kobj, &scst_tgt_cpu_mask.attr);
+	if (res != 0) {
+		PRINT_ERROR("Can't add attribute %s for tgt %s",
+			scst_tgt_cpu_mask.attr.name, tgt->tgt_name);
 		goto out_err;
 	}
 
@@ -3143,6 +3172,168 @@ out:
 	return res;
 }
 
+static ssize_t __scst_acg_cpu_mask_show(struct scst_acg *acg, char *buf)
+{
+	int res;
+
+	res = cpumask_scnprintf(buf, SCST_SYSFS_BLOCK_SIZE,
+		&acg->acg_cpu_mask);
+	if (!cpus_equal(acg->acg_cpu_mask, default_cpu_mask))
+		res += sprintf(&buf[res], "\n%s\n", SCST_SYSFS_KEY_MARK);
+
+	return res;
+}
+
+static int __scst_acg_process_cpu_mask_store(struct scst_tgt *tgt,
+	struct scst_acg *acg, struct cpumask *cpu_mask)
+{
+	int res = 0;
+	struct scst_session *sess;
+
+	TRACE_DBG("tgt %p, acg %p", tgt, acg);
+
+	if (mutex_lock_interruptible(&scst_mutex) != 0) {
+		res = -EINTR;
+		goto out;
+	}
+
+	/* Check if tgt and acg not already freed while we were coming here */
+	if (scst_check_tgt_acg_ptrs(tgt, acg) != 0)
+		goto out_unlock;
+
+	cpumask_copy(&acg->acg_cpu_mask, cpu_mask);
+
+	list_for_each_entry(sess, &acg->acg_sess_list, acg_sess_list_entry) {
+		int i;
+		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
+			struct scst_tgt_dev *tgt_dev;
+			struct list_head *head = &sess->sess_tgt_dev_list[i];
+			list_for_each_entry(tgt_dev, head,
+						sess_tgt_dev_list_entry) {
+				struct scst_cmd_thread_t *thr;
+				if (tgt_dev->active_cmd_threads != &tgt_dev->tgt_dev_cmd_threads)
+					continue;
+				list_for_each_entry(thr,
+						&tgt_dev->active_cmd_threads->threads_list,
+						thread_list_entry) {
+					int rc;
+					rc = set_cpus_allowed_ptr(thr->cmd_thread, cpu_mask);
+					if (rc != 0)
+						PRINT_ERROR("Setting CPU "
+							"affinity failed: %d", rc);
+				}
+			}
+		}
+		if (tgt->tgtt->report_aen != NULL) {
+			struct scst_aen *aen;
+			int rc;
+
+			aen = scst_alloc_aen(sess, 0);
+			if (aen == NULL) {
+				PRINT_ERROR("Unable to notify target driver %s "
+					"about cpu_mask change", tgt->tgt_name);
+				continue;
+			}
+
+			aen->event_fn = SCST_AEN_CPU_MASK_CHANGED;
+
+			TRACE_DBG("Calling target's %s report_aen(%p)",
+				tgt->tgtt->name, aen);
+			rc = tgt->tgtt->report_aen(aen);
+			TRACE_DBG("Target's %s report_aen(%p) returned %d",
+				tgt->tgtt->name, aen, rc);
+			if (rc != SCST_AEN_RES_SUCCESS)
+				scst_free_aen(aen);
+		}
+	}
+
+
+out_unlock:
+	mutex_unlock(&scst_mutex);
+
+out:
+	return res;
+}
+
+static int __scst_acg_cpu_mask_store_work_fn(struct scst_sysfs_work_item *work)
+{
+	return __scst_acg_process_cpu_mask_store(work->tgt, work->acg,
+			&work->cpu_mask);
+}
+
+static ssize_t __scst_acg_cpu_mask_store(struct scst_acg *acg,
+	const char *buf, size_t count)
+{
+	int res;
+	struct scst_sysfs_work_item *work;
+
+	/* cpumask might be too big for stack */
+
+	res = scst_alloc_sysfs_work(__scst_acg_cpu_mask_store_work_fn,
+					false, &work);
+	if (res != 0)
+		goto out;
+
+	/*
+	 * We can't use cpumask_parse_user() here, because it expects
+	 * buffer in the user space.
+	 */
+	res = __bitmap_parse(buf, count, 0, cpumask_bits(&work->cpu_mask),
+				nr_cpumask_bits);
+	if (res != 0) {
+		PRINT_ERROR("__bitmap_parse() failed: %d", res);
+		goto out_release;
+	}
+
+	if (cpus_equal(acg->acg_cpu_mask, work->cpu_mask))
+		goto out;
+
+	work->tgt = acg->tgt;
+	work->acg = acg;
+
+	res = scst_sysfs_queue_wait_work(work);
+
+out:
+	return res;
+
+out_release:
+	scst_sysfs_work_release(&work->sysfs_work_kref);
+	goto out;
+}
+
+static ssize_t scst_tgt_cpu_mask_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct scst_acg *acg;
+	struct scst_tgt *tgt;
+
+	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	acg = tgt->default_acg;
+
+	return __scst_acg_cpu_mask_show(acg, buf);
+}
+
+static ssize_t scst_tgt_cpu_mask_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	struct scst_acg *acg;
+	struct scst_tgt *tgt;
+
+	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	acg = tgt->default_acg;
+
+	res = __scst_acg_cpu_mask_store(acg, buf, count);
+	if (res != 0)
+		goto out;
+
+	res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 /*
  * Called with scst_mutex held.
  *
@@ -3241,6 +3432,13 @@ int scst_acg_sysfs_create(struct scst_tgt *tgt,
 		goto out_del;
 	}
 
+	res = sysfs_create_file(&acg->acg_kobj, &scst_acg_cpu_mask.attr);
+	if (res != 0) {
+		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
+			scst_acg_cpu_mask.attr.name, tgt->tgt_name);
+		goto out_del;
+	}
+
 out:
 	TRACE_EXIT_RES(res);
 	return res;
@@ -3293,6 +3491,35 @@ static ssize_t scst_acg_io_grouping_type_store(struct kobject *kobj,
 	acg = container_of(kobj, struct scst_acg, acg_kobj);
 
 	res = __scst_acg_io_grouping_type_store(acg, buf, count);
+	if (res != 0)
+		goto out;
+
+	res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t scst_acg_cpu_mask_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct scst_acg *acg;
+
+	acg = container_of(kobj, struct scst_acg, acg_kobj);
+
+	return __scst_acg_cpu_mask_show(acg, buf);
+}
+
+static ssize_t scst_acg_cpu_mask_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	struct scst_acg *acg;
+
+	acg = container_of(kobj, struct scst_acg, acg_kobj);
+
+	res = __scst_acg_cpu_mask_store(acg, buf, count);
 	if (res != 0)
 		goto out;
 
@@ -5199,7 +5426,7 @@ int __init scst_sysfs_init(void)
 		NULL, "scst_uid");
 	if (IS_ERR(sysfs_work_thread)) {
 		res = PTR_ERR(sysfs_work_thread);
-		PRINT_ERROR("kthread_create() for user interface thread "
+		PRINT_ERROR("kthread_run() for user interface thread "
 			"failed: %d", res);
 		sysfs_work_thread = NULL;
 		goto out;

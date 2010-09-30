@@ -350,9 +350,11 @@ struct iscsi_conn *conn_lookup(struct iscsi_session *session, u16 cid)
 
 void iscsi_make_conn_rd_active(struct iscsi_conn *conn)
 {
+	struct iscsi_thread_pool *p = conn->conn_thr_pool;
+
 	TRACE_ENTRY();
 
-	spin_lock_bh(&iscsi_rd_lock);
+	spin_lock_bh(&p->rd_lock);
 
 	TRACE_DBG("conn %p, rd_state %x, rd_data_ready %d", conn,
 		conn->rd_state, conn->rd_data_ready);
@@ -367,12 +369,12 @@ void iscsi_make_conn_rd_active(struct iscsi_conn *conn)
 	conn->rd_data_ready = 1;
 
 	if (conn->rd_state == ISCSI_CONN_RD_STATE_IDLE) {
-		list_add_tail(&conn->rd_list_entry, &iscsi_rd_list);
+		list_add_tail(&conn->rd_list_entry, &p->rd_list);
 		conn->rd_state = ISCSI_CONN_RD_STATE_IN_LIST;
-		wake_up(&iscsi_rd_waitQ);
+		wake_up(&p->rd_waitQ);
 	}
 
-	spin_unlock_bh(&iscsi_rd_lock);
+	spin_unlock_bh(&p->rd_lock);
 
 	TRACE_EXIT();
 	return;
@@ -380,9 +382,11 @@ void iscsi_make_conn_rd_active(struct iscsi_conn *conn)
 
 void iscsi_make_conn_wr_active(struct iscsi_conn *conn)
 {
+	struct iscsi_thread_pool *p = conn->conn_thr_pool;
+
 	TRACE_ENTRY();
 
-	spin_lock_bh(&iscsi_wr_lock);
+	spin_lock_bh(&p->wr_lock);
 
 	TRACE_DBG("conn %p, wr_state %x, wr_space_ready %d", conn,
 		conn->wr_state, conn->wr_space_ready);
@@ -395,12 +399,12 @@ void iscsi_make_conn_wr_active(struct iscsi_conn *conn)
 	 */
 
 	if (conn->wr_state == ISCSI_CONN_WR_STATE_IDLE) {
-		list_add_tail(&conn->wr_list_entry, &iscsi_wr_list);
+		list_add_tail(&conn->wr_list_entry, &p->wr_list);
 		conn->wr_state = ISCSI_CONN_WR_STATE_IN_LIST;
-		wake_up(&iscsi_wr_waitQ);
+		wake_up(&p->wr_waitQ);
 	}
 
-	spin_unlock_bh(&iscsi_wr_lock);
+	spin_unlock_bh(&p->wr_lock);
 
 	TRACE_EXIT();
 	return;
@@ -408,13 +412,13 @@ void iscsi_make_conn_wr_active(struct iscsi_conn *conn)
 
 void __mark_conn_closed(struct iscsi_conn *conn, int flags)
 {
-	spin_lock_bh(&iscsi_rd_lock);
+	spin_lock_bh(&conn->conn_thr_pool->rd_lock);
 	conn->closing = 1;
 	if (flags & ISCSI_CONN_ACTIVE_CLOSE)
 		conn->active_close = 1;
 	if (flags & ISCSI_CONN_DELETING)
 		conn->deleting = 1;
-	spin_unlock_bh(&iscsi_rd_lock);
+	spin_unlock_bh(&conn->conn_thr_pool->rd_lock);
 
 	iscsi_make_conn_rd_active(conn);
 }
@@ -472,17 +476,19 @@ static void iscsi_data_ready(struct sock *sk, int len)
 
 void __iscsi_write_space_ready(struct iscsi_conn *conn)
 {
+	struct iscsi_thread_pool *p = conn->conn_thr_pool;
+
 	TRACE_ENTRY();
 
-	spin_lock_bh(&iscsi_wr_lock);
+	spin_lock_bh(&p->wr_lock);
 	conn->wr_space_ready = 1;
 	if ((conn->wr_state == ISCSI_CONN_WR_STATE_SPACE_WAIT)) {
 		TRACE_DBG("wr space ready (conn %p)", conn);
-		list_add_tail(&conn->wr_list_entry, &iscsi_wr_list);
+		list_add_tail(&conn->wr_list_entry, &p->wr_list);
 		conn->wr_state = ISCSI_CONN_WR_STATE_IN_LIST;
-		wake_up(&iscsi_wr_waitQ);
+		wake_up(&p->wr_waitQ);
 	}
-	spin_unlock_bh(&iscsi_wr_lock);
+	spin_unlock_bh(&p->wr_lock);
 
 	TRACE_EXIT();
 	return;
@@ -535,7 +541,7 @@ static void conn_rsp_timer_fn(unsigned long arg)
 				/*
 				 * We must call mark_conn_closed() outside of
 				 * write_list_lock or we will have a circular
-				 * locking dependency with iscsi_rd_lock.
+				 * locking dependency with rd_lock.
 				 */
 				spin_unlock_bh(&conn->write_list_lock);
 				mark_conn_closed(conn);
@@ -618,7 +624,7 @@ void iscsi_check_tm_data_wait_timeouts(struct iscsi_conn *conn, bool force)
 	iscsi_extracheck_is_rd_thread(conn);
 
 again:
-	spin_lock_bh(&iscsi_rd_lock);
+	spin_lock_bh(&conn->conn_thr_pool->rd_lock);
 	spin_lock(&conn->write_list_lock);
 
 	aborted_cmds_pending = false;
@@ -635,7 +641,7 @@ again:
 			    (time_after_eq(j, cmnd->write_start + ISCSI_TM_DATA_WAIT_TIMEOUT) ||
 			     force)) {
 				spin_unlock(&conn->write_list_lock);
-				spin_unlock_bh(&iscsi_rd_lock);
+				spin_unlock_bh(&conn->conn_thr_pool->rd_lock);
 				iscsi_fail_data_waiting_cmnd(cmnd);
 				goto again;
 			}
@@ -657,7 +663,7 @@ again:
 	}
 
 	spin_unlock(&conn->write_list_lock);
-	spin_unlock_bh(&iscsi_rd_lock);
+	spin_unlock_bh(&conn->conn_thr_pool->rd_lock);
 
 	TRACE_EXIT();
 	return;
@@ -862,6 +868,8 @@ static int iscsi_conn_alloc(struct iscsi_session *session,
 	INIT_LIST_HEAD(&conn->reinst_pending_cmd_list);
 	INIT_LIST_HEAD(&conn->nop_req_list);
 	spin_lock_init(&conn->nop_req_list_lock);
+
+	conn->conn_thr_pool = session->sess_thr_pool;
 
 	conn->nop_in_ttt = 0;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20))

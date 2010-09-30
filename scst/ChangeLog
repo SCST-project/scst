@@ -1,3 +1,16 @@
+Summary of changes between versions 2.0.0 and 2.1.0
+---------------------------------------------------
+
+ - Assigning CPU affinity to threads and connections
+
+ - Splitting read/write CDBs for pass-through devices with sg_tablesize
+   and max_sectors limitations added to scst_disk.
+
+ - Support for thin provisioning commands added in scst_vdisk.
+
+ - Bug fixes and other minor improvements.
+
+
 Summary of changes between versions 1.0.1 and 1.0.2
 ---------------------------------------------------
 

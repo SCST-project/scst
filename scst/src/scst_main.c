@@ -158,6 +158,8 @@ static int suspend_count;
 
 static int scst_virt_dev_last_id; /* protected by scst_mutex */
 
+struct cpumask default_cpu_mask;
+
 static unsigned int scst_max_cmd_mem;
 unsigned int scst_max_dev_cmd_mem;
 
@@ -1588,9 +1590,15 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 				cmd_threads, "%s%d", nm, n++);
 		} else if (tgt_dev != NULL) {
 			char nm[11]; /* to limit the name's len */
+			int rc;
 			strlcpy(nm, tgt_dev->dev->virt_name, ARRAY_SIZE(nm));
 			thr->cmd_thread = kthread_create(scst_cmd_thread,
 				cmd_threads, "%s%d_%d", nm, tgt_dev_num, n++);
+			rc = set_cpus_allowed_ptr(thr->cmd_thread,
+				&tgt_dev->sess->acg->acg_cpu_mask);
+			if (rc != 0)
+				PRINT_ERROR("Setting CPU affinity failed: "
+					"%d", rc);
 		} else
 			thr->cmd_thread = kthread_create(scst_cmd_thread,
 				cmd_threads, "scstd%d", n++);
@@ -2182,6 +2190,7 @@ static int __init init_scst(void)
 	init_waitqueue_head(&scst_dev_cmd_waitQ);
 	mutex_init(&scst_suspend_mutex);
 	INIT_LIST_HEAD(&scst_cmd_threads_list);
+	cpus_setall(default_cpu_mask);
 
 	scst_init_threads(&scst_main_cmd_threads);
 

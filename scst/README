@@ -515,6 +515,10 @@ Every target should have at least the following entries:
    initiators security groups, so you can assign the addressing method
    on per-initiator basis.
 
+ - cpu_mask - defines CPU affinity mask for threads serving this target.
+   For threads serving LUNs it is used only for devices with
+   threads_pool_type "per_initiator".
+
  - io_grouping_type - defines how I/O from sessions to this target are
    grouped together. This I/O grouping is very important for
    performance. By setting this attribute in a right value, you can
@@ -668,7 +672,8 @@ commands by looking inside this file.
  - "del GROUP_NAME" - deletes a new security group.
 
 Each security group's subdirectory contains 2 subdirectories: initiators
-and luns.
+and luns as well as the following attributes: addr_method, cpu_mask and
+io_grouping_type. See above description of them.
 
 Each "initiators" subdirectory contains list of added to this groups
 initiator as well as as well as file "mgmt". This file has the following
@@ -1487,13 +1492,15 @@ IMPORTANT: If you use on initiator some versions of Windows (at least W2K)
 	   for VDISK FILEIO devices above.
 
 
-9. In some cases, for instance working with SSD devices, which consume 100%
-of a single CPU load for data transfers in their internal threads, to
-maximize IOPS it can be needed to assign for those threads dedicated
-CPUs using Linux CPU affinity facilities. No IRQ processing should be
-done on those CPUs. Check that using /proc/interrupts. See taskset
-command and Documentation/IRQ-affinity.txt in your kernel's source tree
-for how to assign IRQ affinity to tasks and IRQs.
+9. In some cases, for instance working with SSD devices, which consume
+100% of a single CPU load for data transfers in their internal threads,
+to maximize IOPS it can be needed to assign for those threads dedicated
+CPUs. Consider using cpu_mask attribute for devices with
+threads_pool_type "per_initiator" or Linux CPU affinity facilities for
+other threads_pool_types. No IRQ processing should be done on those
+CPUs. Check that using /proc/interrupts. See taskset command and
+Documentation/IRQ-affinity.txt in your kernel's source tree for how to
+assign IRQ affinity to tasks and IRQs.
 
 The reason for that is that processing of coming commands in SIRQ
 context might be done on the same CPUs as SSD devices' threads doing data

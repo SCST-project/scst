@@ -47,23 +47,13 @@ unsigned long iscsi_trace_flag = ISCSI_DEFAULT_LOG_FLAGS;
 
 static struct kmem_cache *iscsi_cmnd_cache;
 
-DEFINE_SPINLOCK(iscsi_rd_lock);
-LIST_HEAD(iscsi_rd_list);
-DECLARE_WAIT_QUEUE_HEAD(iscsi_rd_waitQ);
+static DEFINE_MUTEX(iscsi_threads_pool_mutex);
+static LIST_HEAD(iscsi_thread_pools_list);
 
-DEFINE_SPINLOCK(iscsi_wr_lock);
-LIST_HEAD(iscsi_wr_list);
-DECLARE_WAIT_QUEUE_HEAD(iscsi_wr_waitQ);
+struct iscsi_thread_pool *iscsi_main_thread_pool;
 
 static struct page *dummy_page;
 static struct scatterlist dummy_sg;
-
-struct iscsi_thread_t {
-	struct task_struct *thr;
-	struct list_head threads_list_entry;
-};
-
-static LIST_HEAD(iscsi_threads_list);
 
 static void cmnd_remove_data_wait_hash(struct iscsi_cmnd *cmnd);
 static void iscsi_send_task_mgmt_resp(struct iscsi_cmnd *req, int status);
@@ -2241,7 +2231,7 @@ static void __cmnd_abort(struct iscsi_cmnd *cmnd)
 	 * Lock to sync with iscsi_check_tm_data_wait_timeouts(), including
 	 * CMD_ABORTED bit set.
 	 */
-	spin_lock_bh(&iscsi_rd_lock);
+	spin_lock_bh(&conn->conn_thr_pool->rd_lock);
 
 	/*
 	 * We suppose that preliminary commands completion is tested by
@@ -2255,7 +2245,7 @@ static void __cmnd_abort(struct iscsi_cmnd *cmnd)
 	TRACE_MGMT_DBG("Setting conn_tm_active for conn %p", conn);
 	conn->conn_tm_active = 1;
 
-	spin_unlock_bh(&iscsi_rd_lock);
+	spin_unlock_bh(&conn->conn_thr_pool->rd_lock);
 
 	/*
 	 * We need the lock to sync with req_add_to_write_timeout_list() and
@@ -3197,11 +3187,12 @@ static void iscsi_preprocessing_done(struct scst_cmd *scst_cmd)
 static void iscsi_try_local_processing(struct iscsi_cmnd *req)
 {
 	struct iscsi_conn *conn = req->conn;
+	struct iscsi_thread_pool *p = conn->conn_thr_pool;
 	bool local;
 
 	TRACE_ENTRY();
 
-	spin_lock_bh(&iscsi_wr_lock);
+	spin_lock_bh(&p->wr_lock);
 	switch (conn->wr_state) {
 	case ISCSI_CONN_WR_STATE_IN_LIST:
 		list_del(&conn->wr_list_entry);
@@ -3218,7 +3209,7 @@ static void iscsi_try_local_processing(struct iscsi_cmnd *req)
 		local = false;
 		break;
 	}
-	spin_unlock_bh(&iscsi_wr_lock);
+	spin_unlock_bh(&p->wr_lock);
 
 	if (local) {
 		int rc = 1;
@@ -3229,7 +3220,7 @@ static void iscsi_try_local_processing(struct iscsi_cmnd *req)
 				break;
 		} while (req->not_processed_rsp_cnt != 0);
 
-		spin_lock_bh(&iscsi_wr_lock);
+		spin_lock_bh(&p->wr_lock);
 #ifdef CONFIG_SCST_EXTRACHECKS
 		conn->wr_task = NULL;
 #endif
@@ -3238,12 +3229,12 @@ static void iscsi_try_local_processing(struct iscsi_cmnd *req)
 				"(conn %p)", conn);
 			conn->wr_state = ISCSI_CONN_WR_STATE_SPACE_WAIT;
 		} else if (test_write_ready(conn)) {
-			list_add_tail(&conn->wr_list_entry, &iscsi_wr_list);
+			list_add_tail(&conn->wr_list_entry, &p->wr_list);
 			conn->wr_state = ISCSI_CONN_WR_STATE_IN_LIST;
-			wake_up(&iscsi_wr_waitQ);
+			wake_up(&p->wr_waitQ);
 		} else
 			conn->wr_state = ISCSI_CONN_WR_STATE_IDLE;
-		spin_unlock_bh(&iscsi_wr_lock);
+		spin_unlock_bh(&p->wr_lock);
 	}
 
 	TRACE_EXIT();
@@ -3646,6 +3637,27 @@ out_err:
 	goto out;
 }
 
+static int iscsi_cpu_mask_changed_aen(struct scst_aen *aen)
+{
+	int res = SCST_AEN_RES_SUCCESS;
+	struct scst_session *scst_sess = scst_aen_get_sess(aen);
+	struct iscsi_session *sess = scst_sess_get_tgt_priv(scst_sess);
+
+	TRACE_ENTRY();
+
+	TRACE_MGMT_DBG("CPU mask changed AEN to sess %p (initiator %s)", sess,
+		sess->initiator_name);
+
+	mutex_lock(&sess->target->target_mutex);
+	iscsi_sess_force_close(sess);
+	mutex_unlock(&sess->target->target_mutex);
+
+	scst_aen_done(aen);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 static int iscsi_report_aen(struct scst_aen *aen)
 {
 	int res;
@@ -3656,6 +3668,9 @@ static int iscsi_report_aen(struct scst_aen *aen)
 	switch (event_fn) {
 	case SCST_AEN_SCSI:
 		res = iscsi_scsi_aen(aen);
+		break;
+	case SCST_AEN_CPU_MASK_CHANGED:
+		res = iscsi_cpu_mask_changed_aen(aen);
 		break;
 	default:
 		TRACE_MGMT_DBG("Unsupported AEN %d", event_fn);
@@ -3835,52 +3850,179 @@ struct scst_tgt_template iscsi_template = {
 	.get_scsi_transport_version = iscsi_get_scsi_transport_version,
 };
 
-static __init int iscsi_run_threads(int count, char *name, int (*fn)(void *))
+int iscsi_threads_pool_get(const struct cpumask *cpu_mask,
+	struct iscsi_thread_pool **out_pool)
 {
-	int res = 0;
-	int i;
-	struct iscsi_thread_t *thr;
+	int res;
+	struct iscsi_thread_pool *p;
+	struct iscsi_thread *t, *tt;
+	int i, j, count;
 
-	for (i = 0; i < count; i++) {
-		thr = kmalloc(sizeof(*thr), GFP_KERNEL);
-		if (!thr) {
-			res = -ENOMEM;
-			PRINT_ERROR("Failed to allocate thr %d", res);
-			goto out;
+	TRACE_ENTRY();
+
+	mutex_lock(&iscsi_threads_pool_mutex);
+
+	list_for_each_entry(p, &iscsi_thread_pools_list,
+			thread_pools_list_entry) {
+		if ((cpu_mask == NULL) ||
+		    __cpus_equal(cpu_mask, &p->cpu_mask, nr_cpumask_bits)) {
+			p->thread_pool_ref++;
+			TRACE_DBG("iSCSI thread pool %p found (new ref %d)",
+				p, p->thread_pool_ref);
+			res = 0;
+			goto out_unlock;
 		}
-		thr->thr = kthread_run(fn, NULL, "%s%d", name, i);
-		if (IS_ERR(thr->thr)) {
-			res = PTR_ERR(thr->thr);
-			PRINT_ERROR("kthread_create() failed: %d", res);
-			kfree(thr);
-			goto out;
-		}
-		list_add_tail(&thr->threads_list_entry, &iscsi_threads_list);
 	}
 
-out:
+	TRACE_DBG("%s", "Creating new iSCSI thread pool");
+
+	p = kzalloc(sizeof(*p), GFP_KERNEL);
+	if (p == NULL) {
+		PRINT_ERROR("Unable to allocate iSCSI thread pool (size %zd)",
+			sizeof(*p));
+		res = -ENOMEM;
+		if (!list_empty(&iscsi_thread_pools_list)) {
+			PRINT_WARNING("%s", "Using global iSCSI thread pool "
+				"instead");
+			p = list_entry(iscsi_thread_pools_list.next,
+				struct iscsi_thread_pool,
+				thread_pools_list_entry);
+		} else
+			res = -ENOMEM;
+		goto out_unlock;
+	}
+
+	spin_lock_init(&p->rd_lock);
+	INIT_LIST_HEAD(&p->rd_list);
+	init_waitqueue_head(&p->rd_waitQ);
+	spin_lock_init(&p->wr_lock);
+	INIT_LIST_HEAD(&p->wr_list);
+	init_waitqueue_head(&p->wr_waitQ);
+	if (cpu_mask == NULL)
+		cpus_setall(p->cpu_mask);
+	else {
+		cpus_clear(p->cpu_mask);
+		for_each_cpu(i, cpu_mask)
+			cpu_set(i, p->cpu_mask);
+	}
+	p->thread_pool_ref = 1;
+	INIT_LIST_HEAD(&p->threads_list);
+
+	if (cpu_mask == NULL)
+		count = max((int)num_online_cpus(), 2);
+	else {
+		count = 0;
+		for_each_cpu(i, cpu_mask)
+			count++;
+	}
+
+	for (j = 0; j < 2; j++) {
+		int (*fn)(void *);
+		char name[25];
+		static int major;
+
+		if (j == 0)
+			fn = istrd;
+		else
+			fn = istwr;
+
+		major++;
+
+		for (i = 0; i < count; i++) {
+			if (j == 0) {
+				if (cpu_mask == NULL)
+					snprintf(name, sizeof(name), "iscsird%d", i);
+				else
+					snprintf(name, sizeof(name), "iscsird%d_%d",
+						major, i);
+			} else {
+				if (cpu_mask == NULL)
+					snprintf(name, sizeof(name), "iscsiwr%d", i);
+				else
+					snprintf(name, sizeof(name), "iscsiwr%d_%d",
+						major, i);
+			}
+
+			t = kmalloc(sizeof(*t), GFP_KERNEL);
+			if (t == NULL) {
+				res = -ENOMEM;
+				PRINT_ERROR("Failed to allocate thread %s "
+					"(size %zd)", name, sizeof(*t));
+				goto out_free;
+			}
+
+			t->thr = kthread_run(fn, p, name);
+			if (IS_ERR(t->thr)) {
+				res = PTR_ERR(t->thr);
+				PRINT_ERROR("kthread_run() for thread %s failed: %d",
+					name, res);
+				kfree(t);
+				goto out_free;
+			}
+			list_add_tail(&t->threads_list_entry, &p->threads_list);
+		}
+	}
+
+	list_add_tail(&p->thread_pools_list_entry, &iscsi_thread_pools_list);
+	res = 0;
+
+	TRACE_DBG("Created iSCSI thread pool %p", p);
+
+out_unlock:
+	mutex_unlock(&iscsi_threads_pool_mutex);
+
+	if (out_pool != NULL)
+		*out_pool = p;
+
+	TRACE_EXIT_RES(res);
 	return res;
-}
 
-static void iscsi_stop_threads(void)
-{
-	struct iscsi_thread_t *t, *tmp;
-
-	list_for_each_entry_safe(t, tmp, &iscsi_threads_list,
-				threads_list_entry) {
-		int rc = kthread_stop(t->thr);
-		if (rc < 0)
-			TRACE_MGMT_DBG("kthread_stop() failed: %d", rc);
+out_free:
+	list_for_each_entry_safe(t, tt, &p->threads_list, threads_list_entry) {
+		kthread_stop(t->thr);
 		list_del(&t->threads_list_entry);
 		kfree(t);
 	}
+	goto out_unlock;
+}
+
+void iscsi_threads_pool_put(struct iscsi_thread_pool *p)
+{
+	struct iscsi_thread *t, *tt;
+
+	TRACE_ENTRY();
+
+	mutex_lock(&iscsi_threads_pool_mutex);
+
+	p->thread_pool_ref--;
+	if (p->thread_pool_ref > 0) {
+		TRACE_DBG("iSCSI thread pool %p still has %d references)",
+			p, p->thread_pool_ref);
+		goto out_unlock;
+	}
+
+	TRACE_DBG("Freeing iSCSI thread pool %p", p);
+
+	list_for_each_entry_safe(t, tt, &p->threads_list, threads_list_entry) {
+		kthread_stop(t->thr);
+		list_del(&t->threads_list_entry);
+		kfree(t);
+	}
+
+	list_del(&p->thread_pools_list_entry);
+
+	kfree(p);
+
+out_unlock:
+	mutex_unlock(&iscsi_threads_pool_mutex);
+
+	TRACE_EXIT();
 	return;
 }
 
 static int __init iscsi_init(void)
 {
 	int err = 0;
-	int num;
 
 	PRINT_INFO("iSCSI SCST Target - version %s", ISCSI_VERSION_STRING);
 
@@ -3939,13 +4081,7 @@ static int __init iscsi_init(void)
 	iscsi_conn_ktype.sysfs_ops = scst_sysfs_get_sysfs_ops();
 #endif
 
-	num = max((int)num_online_cpus(), 2);
-
-	err = iscsi_run_threads(num, "iscsird", istrd);
-	if (err != 0)
-		goto out_thr;
-
-	err = iscsi_run_threads(num, "iscsiwr", istwr);
+	err = iscsi_threads_pool_get(NULL, &iscsi_main_thread_pool);
 	if (err != 0)
 		goto out_thr;
 
@@ -3956,7 +4092,6 @@ out_thr:
 #ifdef CONFIG_SCST_PROC
 	iscsi_procfs_exit();
 #endif
-	iscsi_stop_threads();
 
 #ifdef CONFIG_SCST_PROC
 out_reg_tmpl:
@@ -3984,7 +4119,9 @@ out_free_dummy:
 
 static void __exit iscsi_exit(void)
 {
-	iscsi_stop_threads();
+	iscsi_threads_pool_put(iscsi_main_thread_pool);
+
+	sBUG_ON(!list_empty(&iscsi_thread_pools_list));
 
 	unregister_chrdev(ctr_major, ctr_name);
 

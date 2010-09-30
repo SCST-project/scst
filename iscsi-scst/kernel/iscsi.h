@@ -64,10 +64,29 @@ struct iscsi_tgt_params {
 	unsigned int nop_in_interval;
 };
 
-struct network_thread_info {
-	struct task_struct *task;
-	unsigned int ready;
+struct iscsi_thread {
+	struct task_struct *thr;
+	struct list_head threads_list_entry;
 };
+
+struct iscsi_thread_pool {
+	spinlock_t rd_lock;
+	struct list_head rd_list;
+	wait_queue_head_t rd_waitQ;
+
+	spinlock_t wr_lock;
+	struct list_head wr_list;
+	wait_queue_head_t wr_waitQ;
+
+	struct cpumask cpu_mask;
+
+	int thread_pool_ref;
+
+	struct list_head threads_list;
+
+	struct list_head thread_pools_list_entry;
+};
+
 
 struct iscsi_target;
 struct iscsi_cmnd;
@@ -151,6 +170,8 @@ struct iscsi_session {
 	unsigned int sess_reinstating:1;
 	unsigned int sess_shutting_down:1;
 
+	struct iscsi_thread_pool *sess_thr_pool;
+
 	/* All don't need any protection */
 	char *initiator_name;
 	u64 sid;
@@ -196,7 +217,7 @@ struct iscsi_conn {
 	unsigned int rsp_timeout; /* in jiffies */
 
 	/*
-	 * All 2 protected by iscsi_wr_lock. Modified independently to the
+	 * All 2 protected by wr_lock. Modified independently to the
 	 * above field, hence the alignment.
 	 */
 	unsigned short wr_state __attribute__((aligned(sizeof(long))));
@@ -232,7 +253,9 @@ struct iscsi_conn {
 	int hdigest_type;
 	int ddigest_type;
 
-	/* All 6 protected by iscsi_rd_lock */
+	struct iscsi_thread_pool *conn_thr_pool;
+
+	/* All 6 protected by rd_lock */
 	unsigned short rd_state;
 	unsigned short rd_data_ready:1;
 	/* Let's save some cache footprint by putting them here */
@@ -485,14 +508,6 @@ extern struct mutex target_mgmt_mutex;
 extern int ctr_open_state;
 extern const struct file_operations ctr_fops;
 
-extern spinlock_t iscsi_rd_lock;
-extern struct list_head iscsi_rd_list;
-extern wait_queue_head_t iscsi_rd_waitQ;
-
-extern spinlock_t iscsi_wr_lock;
-extern struct list_head iscsi_wr_list;
-extern wait_queue_head_t iscsi_wr_waitQ;
-
 /* iscsi.c */
 extern struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *,
 	struct iscsi_cmnd *parent);
@@ -512,6 +527,9 @@ extern int iscsi_preliminary_complete(struct iscsi_cmnd *req,
 	struct iscsi_cmnd *orig_req, bool get_data);
 extern int set_scst_preliminary_status_rsp(struct iscsi_cmnd *req,
 	bool get_data, int key, int asc, int ascq);
+extern int iscsi_threads_pool_get(const struct cpumask *cpu_mask,
+	struct iscsi_thread_pool **out_pool);
+extern void iscsi_threads_pool_put(struct iscsi_thread_pool *p);
 
 /* conn.c */
 #ifndef CONFIG_SCST_PROC
@@ -591,6 +609,7 @@ extern int __add_session(struct iscsi_target *,
 	struct iscsi_kern_session_info *);
 extern int __del_session(struct iscsi_target *, u64);
 extern int session_free(struct iscsi_session *session, bool del);
+extern void iscsi_sess_force_close(struct iscsi_session *sess);
 
 /* params.c */
 extern const char *iscsi_get_digest_name(int val, char *res);

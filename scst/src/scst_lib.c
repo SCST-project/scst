@@ -1325,7 +1325,7 @@ void scst_set_initial_UA(struct scst_session *sess, int key, int asc, int ascq)
 }
 EXPORT_SYMBOL(scst_set_initial_UA);
 
-static struct scst_aen *scst_alloc_aen(struct scst_session *sess,
+struct scst_aen *scst_alloc_aen(struct scst_session *sess,
 	uint64_t unpacked_lun)
 {
 	struct scst_aen *aen;
@@ -1351,7 +1351,7 @@ out:
 	return aen;
 }
 
-static void scst_free_aen(struct scst_aen *aen)
+void scst_free_aen(struct scst_aen *aen)
 {
 	TRACE_ENTRY();
 
@@ -2814,6 +2814,7 @@ struct scst_acg *scst_alloc_add_acg(struct scst_tgt *tgt,
 	INIT_LIST_HEAD(&acg->acg_dev_list);
 	INIT_LIST_HEAD(&acg->acg_sess_list);
 	INIT_LIST_HEAD(&acg->acn_list);
+	cpumask_copy(&acg->acg_cpu_mask, &default_cpu_mask);
 	acg->acg_name = kstrdup(acg_name, GFP_KERNEL);
 	if (acg->acg_name == NULL) {
 		PRINT_ERROR("%s", "Allocation of acg_name failed");
