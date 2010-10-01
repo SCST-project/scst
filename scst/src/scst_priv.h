@@ -193,7 +193,7 @@ extern spinlock_t scst_mgmt_lock;
 extern struct list_head scst_sess_init_list;
 extern struct list_head scst_sess_shut_list;
 
-extern struct cpumask default_cpu_mask;
+extern cpumask_t default_cpu_mask;
 
 struct scst_cmd_thread_t {
 	struct task_struct *cmd_thread;

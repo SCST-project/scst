@@ -158,7 +158,7 @@ static int suspend_count;
 
 static int scst_virt_dev_last_id; /* protected by scst_mutex */
 
-struct cpumask default_cpu_mask;
+cpumask_t default_cpu_mask;
 
 static unsigned int scst_max_cmd_mem;
 unsigned int scst_max_dev_cmd_mem;

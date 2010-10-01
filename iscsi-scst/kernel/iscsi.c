@@ -3850,7 +3850,7 @@ struct scst_tgt_template iscsi_template = {
 	.get_scsi_transport_version = iscsi_get_scsi_transport_version,
 };
 
-int iscsi_threads_pool_get(const struct cpumask *cpu_mask,
+int iscsi_threads_pool_get(const cpumask_t *cpu_mask,
 	struct iscsi_thread_pool **out_pool)
 {
 	int res;

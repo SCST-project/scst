@@ -78,7 +78,7 @@ struct iscsi_thread_pool {
 	struct list_head wr_list;
 	wait_queue_head_t wr_waitQ;
 
-	struct cpumask cpu_mask;
+	cpumask_t cpu_mask;
 
 	int thread_pool_ref;
 
@@ -527,7 +527,7 @@ extern int iscsi_preliminary_complete(struct iscsi_cmnd *req,
 	struct iscsi_cmnd *orig_req, bool get_data);
 extern int set_scst_preliminary_status_rsp(struct iscsi_cmnd *req,
 	bool get_data, int key, int asc, int ascq);
-extern int iscsi_threads_pool_get(const struct cpumask *cpu_mask,
+extern int iscsi_threads_pool_get(const cpumask_t *cpu_mask,
 	struct iscsi_thread_pool **out_pool);
 extern void iscsi_threads_pool_put(struct iscsi_thread_pool *p);
 

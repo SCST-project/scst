@@ -26,6 +26,7 @@
 #include <linux/blkdev.h>
 #include <linux/interrupt.h>
 #include <linux/wait.h>
+#include <linux/cpumask.h>
 
 /* #define CONFIG_SCST_PROC */
 
@@ -57,6 +58,76 @@ typedef _Bool bool;
 #include <scst/scst_sgv.h>
 #else
 #include "scst_sgv.h"
+#endif
+
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 20)
+#define nr_cpu_ids NR_CPUS
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
+#define cpumask_bits(maskp) ((maskp)->bits)
+#ifdef CONFIG_CPUMASK_OFFSTACK
+/* Assuming NR_CPUS is huge, a runtime limit is more efficient.  Also,
+ * not all bits may be allocated. */
+#define nr_cpumask_bits nr_cpu_ids
+#else
+#define nr_cpumask_bits NR_CPUS
+#endif
+
+/* verify cpu argument to cpumask_* operators */
+static inline unsigned int cpumask_check(unsigned int cpu)
+{
+#ifdef CONFIG_DEBUG_PER_CPU_MAPS
+	WARN_ON_ONCE(cpu >= nr_cpumask_bits);
+#endif /* CONFIG_DEBUG_PER_CPU_MAPS */
+	return cpu;
+}
+
+/**
+ * cpumask_next - get the next cpu in a cpumask
+ * @n: the cpu prior to the place to search (ie. return will be > @n)
+ * @srcp: the cpumask pointer
+ *
+ * Returns >= nr_cpu_ids if no further cpus set.
+ */
+static inline unsigned int cpumask_next(int n, const cpumask_t *srcp)
+{
+	/* -1 is a legal arg here. */
+	if (n != -1)
+		cpumask_check(n);
+	return find_next_bit(cpumask_bits(srcp), nr_cpumask_bits, n+1);
+}
+
+/**
+ * for_each_cpu - iterate over every cpu in a mask
+ * @cpu: the (optionally unsigned) integer iterator
+ * @mask: the cpumask pointer
+ *
+ * After the loop, cpu is >= nr_cpu_ids.
+ */
+#define for_each_cpu(cpu, mask)                         \
+	for ((cpu) = -1;                                \
+		(cpu) = cpumask_next((cpu), (mask)),    \
+		(cpu) < nr_cpu_ids;)
+
+/**
+ * cpumask_copy - *dstp = *srcp
+ * @dstp: the result
+ * @srcp: the input cpumask
+ */
+static inline void cpumask_copy(cpumask_t *dstp,
+				const cpumask_t *srcp)
+{
+	bitmap_copy(cpumask_bits(dstp), cpumask_bits(srcp), nr_cpumask_bits);
+}
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+static inline int set_cpus_allowed_ptr(struct task_struct *p,
+				       const cpumask_t *new_mask)
+{
+	return set_cpus_allowed(p, *new_mask);
+}
 #endif
 
 /*
@@ -2396,7 +2467,7 @@ struct scst_acg {
 	int acg_io_grouping_type;
 
 	/* CPU affinity for threads in this ACG */
-	struct cpumask acg_cpu_mask;
+	cpumask_t acg_cpu_mask;
 
 	unsigned int tgt_acg:1;
 
@@ -3895,7 +3966,7 @@ struct scst_sysfs_work_item {
 				bool is_tgt_kobj;
 				int io_grouping_type;
 				bool enable;
-				struct cpumask cpu_mask;
+				cpumask_t cpu_mask;
 			};
 		};
 		struct {

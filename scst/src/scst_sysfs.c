@@ -3176,8 +3176,13 @@ static ssize_t __scst_acg_cpu_mask_show(struct scst_acg *acg, char *buf)
 {
 	int res;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
+	res = cpumask_scnprintf(buf, SCST_SYSFS_BLOCK_SIZE,
+		acg->acg_cpu_mask);
+#else
 	res = cpumask_scnprintf(buf, SCST_SYSFS_BLOCK_SIZE,
 		&acg->acg_cpu_mask);
+#endif
 	if (!cpus_equal(acg->acg_cpu_mask, default_cpu_mask))
 		res += sprintf(&buf[res], "\n%s\n", SCST_SYSFS_KEY_MARK);
 
@@ -3185,7 +3190,7 @@ static ssize_t __scst_acg_cpu_mask_show(struct scst_acg *acg, char *buf)
 }
 
 static int __scst_acg_process_cpu_mask_store(struct scst_tgt *tgt,
-	struct scst_acg *acg, struct cpumask *cpu_mask)
+	struct scst_acg *acg, cpumask_t *cpu_mask)
 {
 	int res = 0;
 	struct scst_session *sess;
