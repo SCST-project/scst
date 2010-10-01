@@ -503,10 +503,11 @@ outputdir="${PWD}/regression-test-output-$(date +%Y-%m-%d_%Hh%Mm%Ss)"
 mpt_scst="false"
 qla2x00t="false"
 remove_temporary_files_at_end="false"
+run_local_compilation="true"
 scst_local="true"
 quiet_download="false"
 
-set -- $(/usr/bin/getopt "c:d:j:hkq" "$@")
+set -- $(/usr/bin/getopt "c:d:j:hklq" "$@")
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
@@ -515,6 +516,7 @@ do
     '-h') usage; exit 1;;
     '-j') export MAKEFLAGS="-j$2"; shift; shift;;
     '-k') remove_temporary_files_at_end="true"; shift;;
+    '-l') run_local_compilation="false"; shift;;
     '-q') quiet_download="true"; shift;;
     '--') shift;;
     *)    usage; exit 1;;
@@ -555,10 +557,12 @@ if ! mkdir -p "${outputdir}"; then
 fi
 
 test_scst_tree_patches || exit $?
-compile_scst_unpatched || exit $?
-compile_scst_patched debug2release || exit $?
-compile_scst_patched debug2perf    || exit $?
-compile_scst_patched enable_proc  || exit $?
+if [ "${run_local_compilation}" = "true" ]; then
+  compile_scst_unpatched || exit $?
+  compile_scst_patched debug2release || exit $?
+  compile_scst_patched debug2perf    || exit $?
+  compile_scst_patched enable_proc  || exit $?
+fi
 
 first_iteration="true"
 for kv in ${kernel_versions}
