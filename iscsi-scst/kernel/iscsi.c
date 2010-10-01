@@ -3926,10 +3926,9 @@ int iscsi_threads_pool_get(const cpumask_t *cpu_mask,
 		else
 			fn = istwr;
 
-		major++;
-
 		for (i = 0; i < count; i++) {
 			if (j == 0) {
+				major++;
 				if (cpu_mask == NULL)
 					snprintf(name, sizeof(name), "iscsird%d", i);
 				else
