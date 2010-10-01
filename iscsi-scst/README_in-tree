@@ -698,7 +698,7 @@ load, including IRQ processing load. Note, many tools like vmstat give
 aggregate load on all CPUs, so with 4 cores 25% corresponds to 100% load
 of any single CPU.
 
-7. For high speed network adapters is can be better if you configure
+7. For high speed network adapters it can be better if you configure
 them to serve connections, e.g., from initiator on CPU0 and from
 initiator Y on CPU1. Then you can bind threads processing them also to
 CPU0 and CPU1 correspondingly using cpu_mask attribute of their targets

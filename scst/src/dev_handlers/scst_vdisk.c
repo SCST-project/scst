@@ -75,7 +75,7 @@ static struct scst_trace_log vdisk_local_trace_tbl[] = {
 
 #define MAX_USN_LEN			(20+1) /* For '\0' */
 
-#define INQ_BUF_SZ			128
+#define INQ_BUF_SZ			256
 #define EVPD				0x01
 #define CMDDT				0x02
 
@@ -107,6 +107,7 @@ static struct scst_trace_log vdisk_local_trace_tbl[] = {
 #define VDISK_NULLIO_SIZE		(3LL*1024*1024*1024*1024/2)
 
 #define DEF_TST				SCST_CONTR_MODE_SEP_TASK_SETS
+
 /*
  * Since we can't control backstorage device's reordering, we have to always
  * report unrestricted reordering.
@@ -657,6 +658,62 @@ out:
 	return;
 }
 
+static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
+{
+	struct inode *inode;
+	struct file *fd;
+	bool supported = false;
+
+	TRACE_ENTRY();
+
+	if (virt_dev->rd_only || !virt_dev->thin_provisioned)
+		goto out;
+
+	fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
+	if (IS_ERR(fd)) {
+		PRINT_ERROR("filp_open(%s) returned error %ld",
+			virt_dev->filename, PTR_ERR(fd));
+		goto out;
+	}
+
+	inode = fd->f_dentry->d_inode;
+
+	if (virt_dev->blockio) {
+		if (!S_ISBLK(inode->i_mode)) {
+			PRINT_ERROR("%s is NOT a block device",
+				virt_dev->filename);
+			goto out_close;
+		}
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 31)
+		supported = blk_queue_discard(bdev_get_queue(inode->i_bdev));
+#else
+		supported = false;
+#endif
+
+	} else {
+		/*
+		 * truncate_range() was chosen rather as a sample. In future,
+		 * when unmap of range of blocks in file become standard, we
+		 * will just switch to the new call.
+		 */
+		supported = (inode->i_op->truncate_range != NULL);
+	}
+
+	if (!supported) {
+		PRINT_WARNING("Device %s doesn't support thin "
+			"provisioning, disabling it.",
+			virt_dev->filename);
+		virt_dev->thin_provisioned = 0;
+	}
+
+out_close:
+	filp_close(fd, NULL);
+
+out:
+	TRACE_EXIT();
+	return;
+}
+
 /* Returns 0 on success and file size in *file_size, error code otherwise */
 static int vdisk_get_file_size(const char *filename, bool blockio,
 	loff_t *file_size)
@@ -754,6 +811,7 @@ static int vdisk_attach(struct scst_device *dev)
 		TRACE_DBG("size of file: %lld", (long long unsigned int)err);
 
 		vdisk_blockio_check_flush_support(virt_dev);
+		vdisk_check_tp_support(virt_dev);
 	} else
 		virt_dev->file_size = 0;
 
@@ -1141,15 +1199,11 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 			break;
 		}
 	case UNMAP:
-		if (likely(virt_dev->thin_provisioned))
-			vdisk_exec_unmap(cmd, thr);
-		else
-			goto invalid_opcode;
+		vdisk_exec_unmap(cmd, thr);
 		break;
 		/* else go through */
 	case REPORT_LUNS:
 	default:
-invalid_opcode:
 		TRACE_DBG("Invalid opcode %d", opcode);
 		scst_set_cmd_error(cmd,
 		    SCST_LOAD_SENSE(scst_sense_invalid_opcode));
@@ -1254,14 +1308,22 @@ static uint64_t vdisk_gen_dev_id_num(const char *virt_dev_name)
 
 static void vdisk_exec_unmap(struct scst_cmd *cmd, struct scst_vdisk_thr *thr)
 {
-	ssize_t length;
+	struct scst_vdisk_dev *virt_dev =
+	    (struct scst_vdisk_dev *)cmd->dev->dh_priv;
+	ssize_t length = 0;
 	struct file *fd = thr->fd;
 	struct inode *inode;
 	uint8_t *address;
 	int offset, descriptor_len, total_len;
-	uint64_t range[2];
 
 	TRACE_ENTRY();
+
+	if (unlikely(virt_dev->thin_provisioned)) {
+		TRACE_DBG("%s", "Invalid opcode UNMAP");
+		scst_set_cmd_error(cmd,
+			SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+		goto out;
+	}
 
 	length = scst_get_full_buf(cmd, &address);
 	if (unlikely(length <= 0)) {
@@ -1274,6 +1336,8 @@ static void vdisk_exec_unmap(struct scst_cmd *cmd, struct scst_vdisk_thr *thr)
 				SCST_LOAD_SENSE(scst_sense_hardw_error));
 		goto out;
 	}
+
+	inode = fd->f_dentry->d_inode;
 
 	total_len = cmd->cdb[7] << 8 | cmd->cdb[8]; /* length */
 	offset = 8;
@@ -1295,28 +1359,48 @@ static void vdisk_exec_unmap(struct scst_cmd *cmd, struct scst_vdisk_thr *thr)
 	}
 
 	while ((offset - 8) < descriptor_len) {
-		uint32_t len = 0;
-		range[1] = 0;
-		/* Assemble the two fields: LBA and block len */
-		range[0] = be64_to_cpu(
-				get_unaligned((__be64 *)&address[offset]));
+		int err;
+		uint64_t start;
+		uint32_t len;
+		start = be64_to_cpu(get_unaligned((__be64 *)&address[offset]));
 		offset += 8;
 		len = be32_to_cpu(get_unaligned((__be32 *)&address[offset]));
 		offset += 8;
-		range[1] = len;
-		TRACE_DBG("Unmapping lba %lld (blocks %lld)",
-			range[0], range[1]);
-		/* BLKDISCARD ioctl */
-		if (fd->f_op->ioctl) {
-			int err = 0;
-			inode = fd->f_dentry->d_inode;
-			err = fd->f_op->ioctl(inode, fd, BLKDISCARD,
-				(unsigned long)range);
+
+		if ((start > virt_dev->nblocks) ||
+		    ((start + len) > virt_dev->nblocks)) {
+			PRINT_ERROR("Device %s: attempt to write beyond max "
+				"size", virt_dev->name);
+			scst_set_cmd_error(cmd,
+			    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+			goto out_put;
+		}
+
+		TRACE_DBG("Unmapping lba %lld (blocks %d)",
+			(unsigned long long)start, len);
+
+		if (virt_dev->blockio) {
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 27)
+			err = blkdev_issue_discard(inode->i_bdev, start, len,
+					GFP_KERNEL, BLKDEV_IFL_WAIT);
 			if (unlikely(err != 0)) {
-				PRINT_WARNING("BLKDISCARD request for "
-					"LBA %lld len %lld failed with err %d",
-					range[0], range[1], err);
+				PRINT_ERROR("blkdev_issue_discard() for "
+					"LBA %lld len %d failed with err %d",
+					(unsigned long long)start, len, err);
+				goto out_hw_err;
 			}
+#else
+		scst_set_cmd_error(cmd,
+			SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+		goto out_put;
+#endif
+		} else {
+			/*
+			 * We are guaranteed by thin_provisioned flag
+			 * that truncate_range is not NULL.
+			 */
+			inode->i_op->truncate_range(inode,
+				start, start + len);
 		}
 	}
 
@@ -1326,6 +1410,10 @@ out_put:
 out:
 	TRACE_EXIT();
 	return;
+
+out_hw_err:
+	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_write_error));
+	goto out_put;
 }
 
 static void vdisk_exec_inquiry(struct scst_cmd *cmd)
@@ -1383,6 +1471,10 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			if (virt_dev->dev->type == TYPE_DISK) {
 				buf[3] += 1;
 				buf[7] = 0xB0; /* block limits */
+				if (virt_dev->thin_provisioned) {
+					buf[3] += 1;
+					buf[8] = 0xB2; /* thin provisioning */
+				}
 			}
 			resp_len = buf[3] + 4;
 		} else if (0x80 == cmd->cdb[2]) {
@@ -1459,10 +1551,10 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			resp_len += 4;
 		} else if ((0xB0 == cmd->cdb[2]) &&
 			   (virt_dev->dev->type == TYPE_DISK)) {
-			/* block limits */
+			/* Block Limits */
 			int max_transfer;
 			buf[1] = 0xB0;
-			buf[3] = 0x1C;
+			buf[3] = 0x3C;
 			/* Optimal transfer granuality is PAGE_SIZE */
 			put_unaligned(cpu_to_be16(max_t(int,
 					PAGE_SIZE/virt_dev->block_size, 1)),
@@ -1484,6 +1576,22 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 					max_transfer,
 					1*1024*1024 / virt_dev->block_size)),
 				      (uint32_t *)&buf[12]);
+			if (virt_dev->thin_provisioned) {
+				/* MAXIMUM UNMAP LBA COUNT is UNLIMITED */
+				put_unaligned(cpu_to_be32(0xFFFFFFFF),
+					      (uint16_t *)&buf[20]);
+				/* MAXIMUM UNMAP BLOCK DESCRIPTOR COUNT is UNLIMITED */
+				put_unaligned(cpu_to_be32(0xFFFFFFFF),
+					      (uint16_t *)&buf[24]);
+			}
+			resp_len = buf[3] + 4;
+		} else if ((0xB2 == cmd->cdb[2]) &&
+			   (virt_dev->dev->type == TYPE_DISK) &&
+			   virt_dev->thin_provisioned) {
+			/* Thin Provisioning */
+			buf[1] = 0xB2;
+			buf[3] = 2;
+			buf[5] = 0x80;
 			resp_len = buf[3] + 4;
 		} else {
 			TRACE_DBG("INQUIRY: Unsupported EVPD page %x",

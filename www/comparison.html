@@ -187,10 +187,11 @@ ORDERED commands</b></td>						<td> + </td>		<td> + </td>		<td> -, <br> data
 												implemented)</td>	<td> - </td>		<td> + </td>
 <tr>
 <td align="left"><b>Durable, i.e. transactional, save of Persistent
-Through Power Loss Persistent Reservation data</b></td>				<td> Durable </td>	<td>Not supported</td>	<td> - </td>		<td> Not durable </td>
+Through Power Loss Persistent Reservation data</b></td>			<td> Durable </td>	<td>Not supported</td>	<td> - </td>		<td> Not durable </td>
 </tr>
 <tr>                                                                                            
-<td align="left"><b>ALUA</b></td>					<td> - </td>		<td> - </td>		<td> - </td>		<td> + </td>
+<td align="left"><b>ALUA</b></td>					<td> - </td>		<td> - </td>		<td> - </td>		<td> +/-<sup><A HREF="#22">
+																		22</A></sup></td>
 </tr>                                                                                           
 <tr>
 <td align="left"><b>Failover Clustering</b></td>			<td> + </td>		<td> + </td>		<td> + </td>		<td> + </td>		
@@ -558,7 +559,11 @@ target reconfiguration in a PnP-like manner)</b></td>			<td> + </td>		<td> - </t
 			the restart connections. "Not safe" means that, most likely, the connected initiators will fail to restore
 			existing connections with some errors. However, your iSCSI initiator also should be able to handle the safe restart. For instance,
 			old (pre-CentOS/RHEL 5) open-iscsi has problems in this area. But the latest versions do it pretty well.</p>
-			
+
+<p><A NAME="22"></A> 22. All ALUA states
+			transitioning implemented as empty placeholders, which means this implementation can't be used to build ALUA-based
+			clusters without additional code.</p>
+
 	  		</div> 
 	</div>
 </div>		

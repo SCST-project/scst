@@ -841,6 +841,10 @@ cache. The following parameters possible for vdisk_fileio:
    will go from the initiator. This option overrides "write_through"
    option. Disabled by default.
 
+ - thin_provisioned - enables thin provisioning facility, when remote
+   initiators can unmap blocks of storage, if they don't need them
+   anymore. Backend storage also must support this facility.
+
  - removable - with this flag set the device is reported to remote
    initiators as removable.
 
@@ -852,8 +856,8 @@ between application and disk or need the large block throughput. See
 below for more info.
 
 The following parameters possible for vdisk_blockio: filename,
-blocksize, nv_cache, read_only, removable. See vdisk_fileio above for
-description of those parameters.
+blocksize, nv_cache, read_only, removable, thin_provisioned. See
+vdisk_fileio above for description of those parameters.
 
 Handler vdisk_nullio provides NULLIO mode to create virtual devices. In
 this mode no real I/O is done, but success returned to initiators.
@@ -887,6 +891,9 @@ Each vdisk_fileio's device has the following attributes in
  - o_direct - contains O_DIRECT status of this virtual device.
 
  - nv_cache - contains NV_CACHE status of this virtual device.
+
+ - thin_provisioned - contains thin provisioning status of this virtual
+   device
 
  - removable - contains removable status of this virtual device.
 
@@ -927,6 +934,7 @@ For example:
 |-- resync_size
 |-- size_mb
 |-- t10_dev_id
+|-- thin_provisioned
 |-- threads_num
 |-- threads_pool_type
 |-- type
@@ -935,8 +943,9 @@ For example:
 
 Each vdisk_blockio's device has the following attributes in
 /sys/kernel/scst_tgt/devices/device_name: blocksize, filename, nv_cache,
-read_only, removable, resync_size, size_mb, t10_dev_id, threads_num,
-threads_pool_type, type, usn. See above description of those parameters.
+read_only, removable, resync_size, size_mb, t10_dev_id,
+thin_provisioned, threads_num, threads_pool_type, type, usn. See above
+description of those parameters.
 
 Each vdisk_nullio's device has the following attributes in
 /sys/kernel/scst_tgt/devices/device_name: blocksize, read_only,
