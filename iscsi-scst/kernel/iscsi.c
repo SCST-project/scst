@@ -50,7 +50,7 @@ static struct kmem_cache *iscsi_cmnd_cache;
 static DEFINE_MUTEX(iscsi_threads_pool_mutex);
 static LIST_HEAD(iscsi_thread_pools_list);
 
-struct iscsi_thread_pool *iscsi_main_thread_pool;
+static struct iscsi_thread_pool *iscsi_main_thread_pool;
 
 static struct page *dummy_page;
 static struct scatterlist dummy_sg;
