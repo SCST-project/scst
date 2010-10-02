@@ -285,7 +285,6 @@ struct srpt_rdma_ch {
 	struct ib_cm_id *cm_id;
 	struct ib_qp *qp;
 	int rq_size;
-	atomic_t processing_compl;
 	struct ib_cq *cq;
 	atomic_t sq_wr_avail;
 	struct srpt_port *sport;
