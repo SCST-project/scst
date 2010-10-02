@@ -3137,7 +3137,7 @@ out_unmap:
 }
 
 /**
- * srpt_pending_cmd_timeout() - SCST command hw processing timeout callback.
+ * srpt_pending_cmd_timeout() - SCST command HCA processing timeout callback.
  *
  * Called by the SCST core if no IB completion notification has been received
  * within max_hw_pending_time seconds.
