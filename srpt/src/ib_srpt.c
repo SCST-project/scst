@@ -1290,10 +1290,6 @@ static void srpt_abort_scst_cmd(struct srpt_ioctx *ioctx,
 		if (state != SRPT_STATE_DATA_IN) {
 			state = srpt_test_and_set_cmd_state(ioctx,
 				    SRPT_STATE_CMD_RSP_SENT, SRPT_STATE_DONE);
-			if (state != SRPT_STATE_CMD_RSP_SENT)
-				state = srpt_test_and_set_cmd_state(ioctx,
-					    SRPT_STATE_MGMT_RSP_SENT,
-					    SRPT_STATE_DONE);
 		}
 	}
 	if (state == SRPT_STATE_DONE)
@@ -1311,20 +1307,12 @@ static void srpt_abort_scst_cmd(struct srpt_ioctx *ioctx,
 
 	switch (state) {
 	case SRPT_STATE_NEW:
+	case SRPT_STATE_DATA_IN:
 		/*
 		 * Do nothing - defer abort processing until
 		 * srpt_xmit_response() is invoked.
 		 */
 		WARN_ON(!scst_cmd_aborted(scmnd));
-		break;
-	case SRPT_STATE_DATA_IN:
-		/*
-		 * Invocation of srpt_pending_cmd_timeout() after
-		 * srpt_handle_rdma_comp() set the state to SRPT_STATE_DATA_IN
-		 * and before srpt_xmit_response() set the state to
-		 * SRPT_STATE_CMD_RSP_SENT. Ignore the timeout and let
-		 * srpt_handle_xmit_response() proceed.
-		 */
 		break;
 	case SRPT_STATE_NEED_DATA:
 		/* SCST_DATA_WRITE - RDMA read error or RDMA read timeout. */
@@ -1369,8 +1357,6 @@ static void srpt_handle_send_err_comp(struct srpt_rdma_ch *ch, u64 wr_id,
 	struct srpt_device *sdev = ch->sport->sdev;
 	enum srpt_command_state state;
 	struct scst_cmd *scmnd;
-
-	EXTRACHECKS_WARN_ON(wr_id & SRPT_OP_RECV);
 
 	ioctx = sdev->ioctx_ring[wr_id & ~SRPT_OP_TTI];
 
@@ -1461,6 +1447,31 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 		EXTRACHECKS_WARN_ON(state != SRPT_STATE_NEED_DATA);
 
 		scst_rx_data(ioctx->scmnd, SCST_RX_STATUS_SUCCESS, context);
+	} else
+		PRINT_ERROR("%s[%d]: scmnd == NULL", __func__, __LINE__);
+}
+
+/**
+ * srpt_handle_rdma_err_comp() - Process an IB RDMA error completion.
+ */
+static void srpt_handle_rdma_err_comp(struct srpt_rdma_ch *ch,
+				      struct srpt_ioctx *ioctx,
+				      enum scst_exec_context context)
+{
+	enum srpt_command_state state;
+	struct scst_cmd *scmnd;
+
+	EXTRACHECKS_WARN_ON(ioctx->n_rdma <= 0);
+	atomic_add(ioctx->n_rdma, &ch->sq_wr_avail);
+
+	scmnd = ioctx->scmnd;
+	if (scmnd) {
+		state = srpt_test_and_set_cmd_state(ioctx, SRPT_STATE_NEED_DATA,
+						    SRPT_STATE_DATA_IN);
+
+		EXTRACHECKS_WARN_ON(state != SRPT_STATE_NEED_DATA);
+
+		scst_rx_data(ioctx->scmnd, SCST_RX_STATUS_ERROR, context);
 	} else
 		PRINT_ERROR("%s[%d]: scmnd == NULL", __func__, __LINE__);
 }
@@ -1919,8 +1930,9 @@ static void srpt_process_rcv_completion(struct ib_cq *cq,
 	struct srpt_device *sdev = ch->sport->sdev;
 	struct srpt_ioctx *ioctx;
 
-	EXTRACHECKS_WARN_ON((wc->wr_id & SRPT_OP_RECV) == 0);
-	EXTRACHECKS_WARN_ON((wc->wr_id & SRPT_OP_TTI) != 0);
+	EXTRACHECKS_WARN_ON(!(wc->wr_id & SRPT_OP_RECV)
+			    && !(wc->opcode & IB_WC_RECV));
+	EXTRACHECKS_WARN_ON(wc->wr_id & SRPT_OP_TTI);
 
 	if (wc->status == IB_WC_SUCCESS) {
 		ioctx = sdev->ioctx_ring[wc->wr_id & ~SRPT_OP_RECV];
@@ -1939,7 +1951,8 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 	struct srpt_device *sdev = ch->sport->sdev;
 	struct srpt_ioctx *ioctx;
 
-	EXTRACHECKS_WARN_ON((wc->wr_id & SRPT_OP_RECV) != 0);
+	EXTRACHECKS_WARN_ON((wc->wr_id & SRPT_OP_RECV)
+			    || (wc->opcode & IB_WC_RECV));
 
 	if (wc->status == IB_WC_SUCCESS) {
 		if ((wc->wr_id & SRPT_OP_TTI) == 0) {
@@ -1954,13 +1967,56 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 		} else
 			srpt_put_tti_ioctx(ch);
 	} else {
-		PRINT_INFO("sending %s for wr_id %u failed with status %d",
-			   wc->wr_id & SRPT_OP_TTI ? "request" : "response",
-			   (unsigned)(wc->wr_id & ~SRPT_OP_FLAGS), wc->status);
-		srpt_handle_send_err_comp(ch, wc->wr_id, context);
+		if ((wc->wr_id & SRPT_OP_TTI) == 0) {
+			ioctx = sdev->ioctx_ring[wc->wr_id];
+			if (wc->opcode == IB_WC_SEND) {
+				PRINT_INFO("sending %s for wr_id %u failed with"
+					   " status %d",
+					   wc->wr_id & SRPT_OP_TTI ? "request"
+					   : "response",
+					   (unsigned)
+					   (wc->wr_id & ~SRPT_OP_FLAGS),
+					   wc->status);
+				srpt_handle_send_err_comp(ch, wc->wr_id,
+							  context);
+			} else if (wc->opcode == IB_WC_RDMA_READ) {
+				PRINT_INFO("RDMA read with wr_id %u failed with"
+					   " status %d",
+					   (unsigned)
+					   (wc->wr_id & ~SRPT_OP_FLAGS),
+					   wc->status);
+				srpt_handle_rdma_err_comp(ch, ioctx, context);
+			} else {
+				PRINT_INFO("IB operation %d with wr_id %u"
+					   " failed with status %d", wc->opcode,
+					   (unsigned)
+					   (wc->wr_id & ~SRPT_OP_FLAGS),
+					   wc->status);
+			}
+		} else {
+			struct srp_cred_req *srp_cred_req;
+
+			ioctx = sdev->ioctx_ring[wc->wr_id & ~SRPT_OP_TTI];
+			srp_cred_req = ioctx->buf;
+			WARN_ON(srp_cred_req->opcode != SRP_CRED_REQ);
+			PRINT_INFO("Sending SRP_CRED_REQ with wr_id %u failed"
+				   " with status %d",
+				   (unsigned)(wc->wr_id & ~SRPT_OP_FLAGS),
+				   wc->status);
+			srpt_undo_req_lim_delta(ch,
+				be32_to_cpu(srp_cred_req->req_lim_delta));
+			srpt_put_tti_ioctx(ch);
+		}
 	}
 }
 
+/**
+ * Note: while in the loop below testing against the SRPT_OP_RECV mask should
+ * be sufficient to tell the difference between a send completion and a receive
+ * completion, at least with a 2.6.34 kernel it can occur that a receive error
+ * completion arrives for which the SRPT_OP_RECV mask is not set. Hence the
+ * additional test for opcode IB_WC_RECV.
+ */
 static void srpt_process_completion(struct ib_cq *cq,
 				    struct srpt_rdma_ch *ch,
 				    enum scst_exec_context context)
@@ -1973,7 +2029,8 @@ static void srpt_process_completion(struct ib_cq *cq,
 	ib_req_notify_cq(cq, IB_CQ_NEXT_COMP);
 	while ((n = ib_poll_cq(cq, ARRAY_SIZE(wc), wc)) > 0) {
 		for (i = 0; i < n; i++) {
-			if (wc[i].wr_id & SRPT_OP_RECV)
+			if ((wc[i].wr_id & SRPT_OP_RECV)
+			    || (wc[i].opcode & IB_WC_RECV))
 				srpt_process_rcv_completion(cq, ch, context,
 							    &wc[i]);
 			else
@@ -3320,7 +3377,6 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	if (srpt_post_send(ch, ioctx, resp_len)) {
 		srpt_unmap_sg_to_ib_sge(ch, ioctx);
 		srpt_set_cmd_state(ioctx, state);
-		scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_FAILED);
 		PRINT_ERROR("%s[%d]: ch->state %d cmd state %d tag %llu",
 			    __func__, __LINE__, atomic_read(&ch->state),
 			    state, scst_cmd_get_tag(scmnd));
