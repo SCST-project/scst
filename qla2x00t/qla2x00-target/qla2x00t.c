@@ -31,7 +31,11 @@
 #include <linux/delay.h>
 #include <linux/list.h>
 
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/scst.h>
+#else
 #include <scst.h>
+#endif
 
 #include "qla2x00t.h"
 
