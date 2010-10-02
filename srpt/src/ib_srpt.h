@@ -296,6 +296,7 @@ struct srpt_rdma_ch {
 	atomic_t req_lim_delta;
 	atomic_t req_lim_waiter_count;
 	struct completion req_lim_compl;
+	struct ib_wc wc[16];
 	atomic_t state;
 	struct list_head list;
 	struct list_head cmd_wait_list;

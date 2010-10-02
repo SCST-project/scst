@@ -2021,13 +2021,13 @@ static void srpt_process_completion(struct ib_cq *cq,
 				    struct srpt_rdma_ch *ch,
 				    enum scst_exec_context context)
 {
-	struct ib_wc wc[4];
+	struct ib_wc* const wc = ch->wc;
 	int i, n;
 
 	EXTRACHECKS_WARN_ON(cq != ch->cq);
 
 	ib_req_notify_cq(cq, IB_CQ_NEXT_COMP);
-	while ((n = ib_poll_cq(cq, ARRAY_SIZE(wc), wc)) > 0) {
+	while ((n = ib_poll_cq(cq, ARRAY_SIZE(ch->wc), wc)) > 0) {
 		for (i = 0; i < n; i++) {
 			if ((wc[i].wr_id & SRPT_OP_RECV)
 			    || (wc[i].opcode & IB_WC_RECV))
