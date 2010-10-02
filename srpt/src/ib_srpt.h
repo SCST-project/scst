@@ -169,7 +169,7 @@ struct rdma_iu {
 };
 
 /**
- * enum srpt_command_state - SCSI command states managed by SRPT.
+ * enum srpt_command_state - SCSI command state managed by SRPT.
  * @SRPT_STATE_NEW:           New command arrived and is being processed.
  * @SRPT_STATE_NEED_DATA:     Processing a write or bidir command and waiting
  *                            for data arrival.
