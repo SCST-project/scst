@@ -3581,7 +3581,7 @@ out_error:
  *    Notifies SCST that the driver sent the response and the command
  *    can be freed now. Don't forget to set the delivery status, if it
  *    isn't success, using scst_set_delivery_status() before calling
- *    this function. The third argument sets preferred command execition
+ *    this function. The third argument sets preferred command execution
  *    context (see SCST_CONTEXT_* constants for details)
  */
 void scst_tgt_cmd_done(struct scst_cmd *cmd,
