@@ -180,6 +180,19 @@ For more information, see also:
 * http://www.linux-ha.org/wiki/Main_Page
 
 
+Notes about ib_srpt
+-------------------
+
+* Unloading the kernel module ib_srpt while I/O is ongoing is supported.
+  However, it can take up to two minutes before unloading finishes. During
+  that time CPU usage will be high. This can happen because sometimes it
+  happens that ib_srpt resets the InfiniBand queue pair used for communication
+  with the SRP initiator but the Linux InfiniBand stack does not deliver a
+  completion notification for every aborted IB work request to ib_srpt.
+  ib_srpt then waits until the SCST core calls the ib_srpt timeout handler
+  for pending SCSI commands, which can take up to 2 * max_hw_pending_time.
+
+
 Performance Notes - Initiator Side
 ----------------------------------
 
