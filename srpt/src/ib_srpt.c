@@ -2021,7 +2021,7 @@ static void srpt_process_completion(struct ib_cq *cq,
 				    struct srpt_rdma_ch *ch,
 				    enum scst_exec_context context)
 {
-	struct ib_wc* const wc = ch->wc;
+	struct ib_wc *const wc = ch->wc;
 	int i, n;
 
 	EXTRACHECKS_WARN_ON(cq != ch->cq);
