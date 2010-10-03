@@ -13,53 +13,6 @@ usage() {
   echo "$0 <kernel-version>"
 }
 
-# See also https://bugzilla.kernel.org/show_bug.cgi?id=16312.
-# Patch source: https://bugzilla.kernel.org/attachment.cgi?id=30282.
-get_2_6_35_bdi_patch() {
-cat <<EOF
-When a new disk is being discovered, add_disk() first ties the bdev to gendisk
-(via register_disk()->blkdev_get()) and only after that calls
-bdi_register_bdev(). Because register_disk() also creates disk's kobject, it
-can happen that userspace manages to open and modify the device's data (or
-inode) before its BDI is properly initialized leading to a warning in
-__mark_inode_dirty().
-
-Fix the problem by registering BDI early enough.
-
-This patch addresses https://bugzilla.kernel.org/show_bug.cgi?id=16312
-
-Signed-off-by: Jan Kara <jack@suse.cz>
----
- block/genhd.c |    6 ++++--
- 1 files changed, 4 insertions(+), 2 deletions(-)
-
-diff --git a/block/genhd.c b/block/genhd.c
-index 59a2db6..315afd2 100644
---- a/block/genhd.c
-+++ b/block/genhd.c
-@@ -541,13 +541,15 @@ void add_disk(struct gendisk *disk)
- 	disk->major = MAJOR(devt);
- 	disk->first_minor = MINOR(devt);
- 
-+	/* Register BDI before referencing it from bdev */
-+	bdi = &disk->queue->backing_dev_info;
-+	bdi_register_dev(bdi, disk_devt(disk));
-+
- 	blk_register_region(disk_devt(disk), disk->minors, NULL,
- 			    exact_match, exact_lock, disk);
- 	register_disk(disk);
- 	blk_register_queue(disk);
- 
--	bdi = &disk->queue->backing_dev_info;
--	bdi_register_dev(bdi, disk_devt(disk));
- 	retval = sysfs_create_link(&disk_to_dev(disk)->kobj, &bdi->dev->kobj,
- 				   "bdi");
- 	WARN_ON(retval);
--- 
-1.6.4.2
-EOF
-}
-
 # Source: http://git.kernel.org/?p=linux/kernel/git/roland/infiniband.git;a=patch;h=$commit
 get_2_6_36_patch() {
 case "$1" in
@@ -939,7 +892,7 @@ EOF
 get_locking_per_lun_patch() {
 cat <<EOF
 diff --git a/drivers/infiniband/ulp/srp/ib_srp.c b/drivers/infiniband/ulp/srp/ib_srp.c
-index a2935e3..830c658 100644
+index a2935e3..dda5203 100644
 --- a/drivers/infiniband/ulp/srp/ib_srp.c
 +++ b/drivers/infiniband/ulp/srp/ib_srp.c
 @@ -441,18 +441,30 @@ static void srp_disconnect_target(struct srp_target_port *target)
@@ -1300,7 +1253,7 @@ index a2935e3..830c658 100644
  {
  	struct srp_target_port *target = target_ptr;
 -	struct ib_wc wc;
-+	struct ib_wc *const wc = target->recv_wc;
++	struct ib_wc wc[4];
 +	int i, n;
  
  	ib_req_notify_cq(cq, IB_CQ_NEXT_COMP);
@@ -1312,7 +1265,7 @@ index a2935e3..830c658 100644
 -			target->qp_in_error = 1;
 -			break;
 -		}
-+	while ((n = ib_poll_cq(cq, ARRAY_SIZE(target->recv_wc), wc)) > 0) {
++	while ((n = ib_poll_cq(cq, ARRAY_SIZE(wc), wc)) > 0) {
 +		for (i = 0; i < n; ++i) {
 +			if (wc[i].status) {
 +				shost_printk(KERN_ERR, target->scsi_host,
@@ -1334,7 +1287,7 @@ index a2935e3..830c658 100644
  {
  	struct srp_target_port *target = target_ptr;
 -	struct ib_wc wc;
-+	struct ib_wc *const wc = target->send_wc;
++	struct ib_wc wc[4];
 +	int i, n;
 +	unsigned long flags;
  
@@ -1346,7 +1299,7 @@ index a2935e3..830c658 100644
 -			target->qp_in_error = 1;
 -			break;
 -		}
-+	while ((n = ib_poll_cq(cq, ARRAY_SIZE(target->send_wc), wc)) > 0) {
++	while ((n = ib_poll_cq(cq, ARRAY_SIZE(wc), wc)) > 0) {
 +		spin_lock_irqsave(&target->lock, flags);
 +		for (i = 0; i < n; ++i) {
 +			if (wc[i].status) {
@@ -1522,51 +1475,7 @@ index a2935e3..830c658 100644
  	return SUCCESS;
  }
  
-@@ -1575,6 +1584,26 @@ static int srp_reset_host(struct scsi_cmnd *scmnd)
- 	return ret;
- }
- 
-+static ssize_t show_max_host_blocked(struct device *dev,
-+				     struct device_attribute *attr,
-+				     char *buf)
-+{
-+	struct Scsi_Host *host = class_to_shost(dev);
-+
-+	return sprintf(buf, "%d\n", max(1U, host->max_host_blocked));
-+}
-+
-+
-+static ssize_t set_max_host_blocked(struct device *dev,
-+				    struct device_attribute *attr,
-+				    const char *buf, size_t count)
-+{
-+	struct Scsi_Host *host = class_to_shost(dev);
-+
-+	host->max_host_blocked = max(1UL, simple_strtoul(buf, NULL, 0));
-+	return count;
-+}
-+
- static ssize_t show_id_ext(struct device *dev, struct device_attribute *attr,
- 			   char *buf)
- {
-@@ -1690,6 +1719,8 @@ static ssize_t show_local_ib_device(struct device *dev,
- 	return sprintf(buf, "%s\n", target->srp_host->srp_dev->dev->name);
- }
- 
-+static DEVICE_ATTR(max_host_blocked, S_IWUSR | S_IRUGO,
-+		   show_max_host_blocked, set_max_host_blocked);
- static DEVICE_ATTR(id_ext,	    S_IRUGO, show_id_ext,	   NULL);
- static DEVICE_ATTR(ioc_guid,	    S_IRUGO, show_ioc_guid,	   NULL);
- static DEVICE_ATTR(service_id,	    S_IRUGO, show_service_id,	   NULL);
-@@ -1702,6 +1733,7 @@ static DEVICE_ATTR(local_ib_port,   S_IRUGO, show_local_ib_port,   NULL);
- static DEVICE_ATTR(local_ib_device, S_IRUGO, show_local_ib_device, NULL);
- 
- static struct device_attribute *srp_host_attrs[] = {
-+	&dev_attr_max_host_blocked,
- 	&dev_attr_id_ext,
- 	&dev_attr_ioc_guid,
- 	&dev_attr_service_id,
-@@ -1981,6 +2013,7 @@ static ssize_t srp_create_target(struct device *dev,
+@@ -1981,6 +1990,7 @@ static ssize_t srp_create_target(struct device *dev,
  	target_host->transportt = ib_srp_transport_template;
  	target_host->max_lun     = SRP_MAX_LUN;
  	target_host->max_cmd_len = sizeof ((struct srp_cmd *) (void *) 0L)->cdb;
@@ -1574,7 +1483,7 @@ index a2935e3..830c658 100644
  
  	target = host_to_target(target_host);
  
-@@ -1988,8 +2021,9 @@ static ssize_t srp_create_target(struct device *dev,
+@@ -1988,8 +1998,9 @@ static ssize_t srp_create_target(struct device *dev,
  	target->scsi_host  = target_host;
  	target->srp_host   = host;
  
@@ -1585,7 +1494,7 @@ index a2935e3..830c658 100644
  	for (i = 0; i < SRP_CMD_SQ_SIZE; ++i) {
  		target->req_ring[i].index = i;
  		list_add_tail(&target->req_ring[i].list, &target->free_reqs);
-@@ -2200,6 +2234,7 @@ static void srp_remove_one(struct ib_device *device)
+@@ -2200,6 +2211,7 @@ static void srp_remove_one(struct ib_device *device)
  	struct srp_host *host, *tmp_host;
  	LIST_HEAD(target_list);
  	struct srp_target_port *target, *tmp_target;
@@ -1593,7 +1502,7 @@ index a2935e3..830c658 100644
  
  	srp_dev = ib_get_client_data(device, &srp_client);
  
-@@ -2217,9 +2252,9 @@ static void srp_remove_one(struct ib_device *device)
+@@ -2217,9 +2229,9 @@ static void srp_remove_one(struct ib_device *device)
  		 */
  		spin_lock(&host->target_lock);
  		list_for_each_entry(target, &host->target_list, list) {
@@ -1606,15 +1515,11 @@ index a2935e3..830c658 100644
  		spin_unlock(&host->target_lock);
  
 diff --git a/drivers/infiniband/ulp/srp/ib_srp.h b/drivers/infiniband/ulp/srp/ib_srp.h
-index 854ec81..1d5ab5d 100644
+index 854ec81..f665cea 100644
 --- a/drivers/infiniband/ulp/srp/ib_srp.h
 +++ b/drivers/infiniband/ulp/srp/ib_srp.h
-@@ -146,21 +146,23 @@ struct srp_target_port {
- 	struct ib_cq	       *recv_cq;
- 	struct ib_cq	       *send_cq;
+@@ -148,19 +148,19 @@ struct srp_target_port {
  	struct ib_qp	       *qp;
-+	struct ib_wc		send_wc[16];
-+	struct ib_wc		recv_wc[16];
  
  	int			max_ti_iu_len;
 +
@@ -1637,7 +1542,7 @@ index 854ec81..1d5ab5d 100644
  	struct srp_request	req_ring[SRP_CMD_SQ_SIZE];
  
  	struct work_struct	work;
-@@ -173,9 +175,11 @@ struct srp_target_port {
+@@ -173,9 +173,11 @@ struct srp_target_port {
  };
  
  struct srp_iu {
@@ -1650,41 +1555,18 @@ index 854ec81..1d5ab5d 100644
  };
  
 diff --git a/drivers/scsi/scsi.c b/drivers/scsi/scsi.c
-index ad0ed21..2f9110c 100644
+index ad0ed21..3819d66 100644
 --- a/drivers/scsi/scsi.c
 +++ b/drivers/scsi/scsi.c
-@@ -737,23 +737,31 @@ int scsi_dispatch_cmd(struct scsi_cmnd *cmd)
- 		goto out;
- 	}
- 
--	spin_lock_irqsave(host->host_lock, flags);
--	/*
--	 * AK: unlikely race here: for some reason the timer could
--	 * expire before the serial number is set up below.
--	 *
--	 * TODO: kill serial or move to blk layer
--	 */
--	scsi_cmd_get_serial(host, cmd); 
-+	if (!host->unlocked_qcmds) {
-+		spin_lock_irqsave(host->host_lock, flags);
-+		/*
-+		 * AK: unlikely race here: for some reason the timer could
-+		 * expire before the serial number is set up below.
-+		 *
-+		 * TODO: kill serial or move to blk layer
-+		 */
-+		scsi_cmd_get_serial(host, cmd); 
-+	} else
-+		cmd->serial_number = 1;
- 
+@@ -749,11 +749,16 @@ int scsi_dispatch_cmd(struct scsi_cmnd *cmd)
  	if (unlikely(host->shost_state == SHOST_DEL)) {
-+		if (host->unlocked_qcmds)
-+			spin_lock_irqsave(host->host_lock, flags);
  		cmd->result = (DID_NO_CONNECT << 16);
  		scsi_done(cmd);
 +		spin_unlock_irqrestore(host->host_lock, flags);
  	} else {
  		trace_scsi_dispatch_cmd_start(cmd);
++		if (host->unlocked_qcmds)
++			spin_unlock_irqrestore(host->host_lock, flags);
  		rtn = host->hostt->queuecommand(cmd, scsi_done);
 +		if (!host->unlocked_qcmds)
 +			spin_unlock_irqrestore(host->host_lock, flags);
@@ -1708,6 +1590,7 @@ index b7bdecb..1814c51 100644
  	/*
  	 * Optional work queue to be utilized by the transport
  	 */
+
 EOF
 }
 
@@ -2418,12 +2301,6 @@ if [ "${patch_level}" != "" ]; then
   bzip2 -cd <${TARBALLDIR}/${patchfile}.bz2 | \
     patch -p1 -s
 fi
-
-if [ "${kernel_version}" = "2.6.35" ]; then
-  echo "Applying 2.6.35 bdi race fix ..."
-  get_2_6_35_bdi_patch | patch -p1 -s
-fi
-
 if [ "${kernel_version}" "<" "2.6.36" ]; then
   # IB/srp: Use print_hex_dump()
   # IB/srp: Make receive buffer handling more robust
