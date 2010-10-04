@@ -876,7 +876,7 @@ static int srpt_post_recv(struct srpt_device *sdev, struct srpt_ioctx *ioctx)
 	struct ib_sge list;
 	struct ib_recv_wr wr, *bad_wr;
 
-	wr.wr_id = ioctx->index | SRPT_OP_RECV;
+	wr.wr_id = (uint32_t)(ioctx->index | SRPT_OP_RECV);
 
 	list.addr = ioctx->dma;
 	list.length = srp_max_message_size;
@@ -1930,8 +1930,7 @@ static void srpt_process_rcv_completion(struct ib_cq *cq,
 	struct srpt_device *sdev = ch->sport->sdev;
 	struct srpt_ioctx *ioctx;
 
-	EXTRACHECKS_WARN_ON(!(wc->wr_id & SRPT_OP_RECV)
-			    && !(wc->opcode & IB_WC_RECV));
+	EXTRACHECKS_WARN_ON(!(wc->wr_id & SRPT_OP_RECV));
 	EXTRACHECKS_WARN_ON(wc->wr_id & SRPT_OP_TTI);
 
 	if (wc->status == IB_WC_SUCCESS) {
@@ -1951,8 +1950,7 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 	struct srpt_device *sdev = ch->sport->sdev;
 	struct srpt_ioctx *ioctx;
 
-	EXTRACHECKS_WARN_ON((wc->wr_id & SRPT_OP_RECV)
-			    || (wc->opcode & IB_WC_RECV));
+	EXTRACHECKS_WARN_ON(wc->wr_id & SRPT_OP_RECV);
 
 	if (wc->status == IB_WC_SUCCESS) {
 		if ((wc->wr_id & SRPT_OP_TTI) == 0) {
@@ -1979,19 +1977,15 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 					   wc->status);
 				srpt_handle_send_err_comp(ch, wc->wr_id,
 							  context);
-			} else if (wc->opcode == IB_WC_RDMA_READ) {
+			} else {
+				EXTRACHECKS_WARN_ON(wc->opcode
+						    != IB_WC_RDMA_READ);
 				PRINT_INFO("RDMA read with wr_id %u failed with"
 					   " status %d",
 					   (unsigned)
 					   (wc->wr_id & ~SRPT_OP_FLAGS),
 					   wc->status);
 				srpt_handle_rdma_err_comp(ch, ioctx, context);
-			} else {
-				PRINT_INFO("IB operation %d with wr_id %u"
-					   " failed with status %d", wc->opcode,
-					   (unsigned)
-					   (wc->wr_id & ~SRPT_OP_FLAGS),
-					   wc->status);
 			}
 		} else {
 			struct srp_cred_req *srp_cred_req;
@@ -2029,6 +2023,14 @@ static void srpt_process_completion(struct ib_cq *cq,
 	ib_req_notify_cq(cq, IB_CQ_NEXT_COMP);
 	while ((n = ib_poll_cq(cq, ARRAY_SIZE(ch->wc), wc)) > 0) {
 		for (i = 0; i < n; i++) {
+			if (!!(wc[i].wr_id & SRPT_OP_RECV)
+			    != !!(wc[i].opcode & IB_WC_RECV)) {
+				PRINT_ERROR("Ignored invalid completion (wr_id"
+					    " %#llx, status %d, opcode %#x).",
+					    wc[i].wr_id, wc[i].status,
+					    wc[i].opcode);
+				continue;
+			}
 			if ((wc[i].wr_id & SRPT_OP_RECV)
 			    || (wc[i].opcode & IB_WC_RECV))
 				srpt_process_rcv_completion(cq, ch, context,
