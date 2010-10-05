@@ -221,7 +221,7 @@ static inline int list_is_last(const struct list_head *list,
 /* Dev handler's dev_done() is going to be called */
 #define SCST_CMD_STATE_DEV_DONE      11
 
-/* Target driver's xmit_response() is going to be called */
+/* Checks before target driver's xmit_response() is called */
 #define SCST_CMD_STATE_PRE_XMIT_RESP 12
 
 /* Target driver's xmit_response() is going to be called */

@@ -10,7 +10,7 @@ diff -upkr linux-2.6.35/block/blk-map.c linux-2.6.35/block/blk-map.c
  #include <scsi/sg.h>		/* for struct sg_iovec */
  
  #include "blk.h"
-@@ -271,6 +273,336 @@ int blk_rq_unmap_user(struct bio *bio)
+@@ -271,6 +273,338 @@ int blk_rq_unmap_user(struct bio *bio)
  }
  EXPORT_SYMBOL(blk_rq_unmap_user);
  
@@ -262,6 +262,8 @@ diff -upkr linux-2.6.35/block/blk-map.c linux-2.6.35/block/blk-map.c
 +			goto out_unmap_bios;
 +		}
 +	}
++
++	res = 0;
 +
 +	rq->buffer = NULL;
 +out:
