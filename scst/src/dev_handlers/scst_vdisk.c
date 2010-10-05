@@ -1381,13 +1381,23 @@ static void vdisk_exec_unmap(struct scst_cmd *cmd, struct scst_vdisk_thr *thr)
 
 		if (virt_dev->blockio) {
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 27)
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 31)
+			err = blkdev_issue_discard(inode->i_bdev, start, len,
+					GFP_KERNEL);
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+			err = blkdev_issue_discard(inode->i_bdev, start, len,
+					GFP_KERNEL, DISCARD_FL_WAIT);
+#else
 			err = blkdev_issue_discard(inode->i_bdev, start, len,
 					GFP_KERNEL, BLKDEV_IFL_WAIT);
+#endif
 			if (unlikely(err != 0)) {
 				PRINT_ERROR("blkdev_issue_discard() for "
 					"LBA %lld len %d failed with err %d",
 					(unsigned long long)start, len, err);
-				goto out_hw_err;
+				scst_set_cmd_error(cmd,
+					SCST_LOAD_SENSE(scst_sense_write_error));
+				goto out_put;
 			}
 #else
 		scst_set_cmd_error(cmd,
@@ -1410,10 +1420,6 @@ out_put:
 out:
 	TRACE_EXIT();
 	return;
-
-out_hw_err:
-	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_write_error));
-	goto out_put;
 }
 
 static void vdisk_exec_inquiry(struct scst_cmd *cmd)
