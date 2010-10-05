@@ -31,11 +31,20 @@ The following tests must be run at least before releasing a new SRPT version:
             --name=partition1 --filename=$dev &
     done
 
-* Verify that the following I/O stress test runs fine:
+* Verify that the following I/O stress test does not report any errors even
+  when left running for several hours:
 
     mkfs.ext2 $dev
     mount $dev /mnt
-    while true; do { sleep 30; killall fio; } & { rm -rf /mnt/test* && fio --verify=md5 -rw=randwrite --size=10m --bs=4k --loops=1000000 --iodepth=64 --group_reporting --sync=1 --direct=1 --norandommap --ioengine=psync --directory=/mnt --name=test --thread --numjobs=80; }; done
+    while \
+      rm -rf /mnt/test* && \
+      fio --verify=md5 -rw=randwrite --size=10m --bs=4k
+        --loops=1000000 --iodepth=64 --group_reporting --sync=1 --direct=1
+        --norandommap --ioengine=psync --directory=/mnt --name=test --thread
+        --numjobs=80 --runtime=30
+    do
+      true
+    done
 
 * Another I/O stress test:
   (initiator) Write data pattern:
