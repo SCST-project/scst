@@ -2844,7 +2844,7 @@ static inline unsigned int scst_cmd_get_cdb_len(struct scst_cmd *cmd)
 }
 
 void scst_cmd_set_ext_cdb(struct scst_cmd *cmd,
-	uint8_t *ext_cdb, unsigned int ext_cdb_len);
+	uint8_t *ext_cdb, unsigned int ext_cdb_len, gfp_t gfp_mask);
 
 /* Returns cmd's session */
 static inline struct scst_session *scst_cmd_get_session(struct scst_cmd *cmd)

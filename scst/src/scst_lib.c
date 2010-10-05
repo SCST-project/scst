@@ -3684,14 +3684,15 @@ int scst_acg_remove_name(struct scst_acg *acg, const char *name, bool reassign)
 #endif
 
 static struct scst_cmd *scst_create_prepare_internal_cmd(
-	struct scst_cmd *orig_cmd, int bufsize)
+	struct scst_cmd *orig_cmd, const uint8_t *cdb,
+	unsigned int cdb_len, int bufsize)
 {
 	struct scst_cmd *res;
 	gfp_t gfp_mask = scst_cmd_atomic(orig_cmd) ? GFP_ATOMIC : GFP_KERNEL;
 
 	TRACE_ENTRY();
 
-	res = scst_alloc_cmd(gfp_mask);
+	res = scst_alloc_cmd(cdb, cdb_len, gfp_mask);
 	if (res == NULL)
 		goto out;
 
@@ -3738,13 +3739,12 @@ int scst_prepare_request_sense(struct scst_cmd *orig_cmd)
 	}
 
 	rs_cmd = scst_create_prepare_internal_cmd(orig_cmd,
+			request_sense, sizeof(request_sense),
 			SCST_SENSE_BUFFERSIZE);
 	if (rs_cmd == NULL)
 		goto out_error;
 
-	memcpy(rs_cmd->cdb, request_sense, sizeof(request_sense));
 	rs_cmd->cdb[1] |= scst_get_cmd_dev_d_sense(orig_cmd);
-	rs_cmd->cdb_len = sizeof(request_sense);
 	rs_cmd->data_direction = SCST_DATA_READ;
 	rs_cmd->expected_data_direction = rs_cmd->data_direction;
 	rs_cmd->expected_transfer_len = SCST_SENSE_BUFFERSIZE;
@@ -4155,16 +4155,28 @@ EXPORT_SYMBOL(scst_cmd_put);
  * scst_cmd_set_ext_cdb() - sets cmd's extended CDB and its length
  */
 void scst_cmd_set_ext_cdb(struct scst_cmd *cmd,
-	uint8_t *ext_cdb, unsigned int ext_cdb_len)
+	uint8_t *ext_cdb, unsigned int ext_cdb_len,
+	gfp_t gfp_mask)
 {
+	unsigned int len = cmd->cdb_len + ext_cdb_len;
+
 	TRACE_ENTRY();
 
-	if ((cmd->cdb_len + ext_cdb_len) <= sizeof(cmd->cdb_buf))
+	if (len <= sizeof(cmd->cdb_buf))
 		goto copy;
 
-	cmd->cdb = kmalloc(cmd->cdb_len + ext_cdb_len, GFP_ATOMIC);
-	if (cmd->cdb == NULL)
+	if (unlikely(len > SCST_MAX_LONG_CDB_SIZE)) {
+		PRINT_ERROR("Too big CDB (%d)", len);
+		scst_set_cmd_error(cmd,
+			SCST_LOAD_SENSE(scst_sense_hardw_error));
+		goto out;
+	}
+
+	cmd->cdb = kmalloc(len, gfp_mask);
+	if (unlikely(cmd->cdb == NULL)) {
+		PRINT_ERROR("Unable to alloc extended CDB (size %d)", len);
 		goto out_err;
+	}
 
 	memcpy(cmd->cdb, cmd->cdb_buf, cmd->cdb_len);
 
@@ -4184,7 +4196,8 @@ out_err:
 }
 EXPORT_SYMBOL(scst_cmd_set_ext_cdb);
 
-struct scst_cmd *scst_alloc_cmd(gfp_t gfp_mask)
+struct scst_cmd *scst_alloc_cmd(const uint8_t *cdb,
+        unsigned int cdb_len, gfp_t gfp_mask)
 {
 	struct scst_cmd *cmd;
 
@@ -4221,9 +4234,36 @@ struct scst_cmd *scst_alloc_cmd(gfp_t gfp_mask)
 	cmd->dbl_ua_orig_data_direction = SCST_DATA_UNKNOWN;
 	cmd->dbl_ua_orig_resp_data_len = -1;
 
+	if (unlikely(cdb_len == 0)) {
+		PRINT_ERROR("%s", "Wrong CDB len 0, finishing cmd");
+		goto out_free;
+	} else if (cdb_len <= SCST_MAX_CDB_SIZE) {
+		/* Duplicate memcpy to save a branch on the most common path */
+		memcpy(cmd->cdb, cdb, cdb_len);
+	} else {
+		if (unlikely(cdb_len > SCST_MAX_LONG_CDB_SIZE)) {
+			PRINT_ERROR("Too big CDB (%d), finishing cmd", cdb_len);
+			goto out_free;
+		}
+		cmd->cdb = kmalloc(cdb_len, gfp_mask);
+		if (unlikely(cmd->cdb == NULL)) {
+			PRINT_ERROR("Unable to alloc extended CDB (size %d)",
+				cdb_len);
+			goto out_free;
+		}
+		memcpy(cmd->cdb, cdb, cdb_len);
+	}
+
+	cmd->cdb_len = cdb_len;
+
 out:
 	TRACE_EXIT();
 	return cmd;
+
+out_free:
+	kmem_cache_free(scst_cmd_cachep, cmd);
+	cmd = NULL;
+	goto out;
 }
 
 static void scst_destroy_put_cmd(struct scst_cmd *cmd)

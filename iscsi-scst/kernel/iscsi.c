@@ -2027,7 +2027,8 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 				struct iscsi_cdb_ahdr *eca =
 					(struct iscsi_cdb_ahdr *)ahdr;
 				scst_cmd_set_ext_cdb(scst_cmd, eca->cdb,
-					be16_to_cpu(ahdr->ahslength) - 1);
+					be16_to_cpu(ahdr->ahslength) - 1,
+					GFP_KERNEL);
 				break;
 			}
 			s = 3 + be16_to_cpu(ahdr->ahslength);

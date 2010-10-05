@@ -37,6 +37,9 @@
 /* Max size of CDB */
 #define SCST_MAX_CDB_SIZE            16
 
+/* Max size of long CDB */
+#define SCST_MAX_LONG_CDB_SIZE	     65536
+
 /* Max size of various names */
 #define SCST_MAX_NAME		     50
 

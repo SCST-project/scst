@@ -127,8 +127,8 @@ struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
 	}
 #endif
 
-	cmd = scst_alloc_cmd(atomic ? GFP_ATOMIC : GFP_KERNEL);
-	if (cmd == NULL)
+	cmd = scst_alloc_cmd(cdb, cdb_len, atomic ? GFP_ATOMIC : GFP_KERNEL);
+	if (unlikely(cmd == NULL))
 		goto out;
 
 	cmd->sess = sess;
@@ -141,20 +141,6 @@ struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
 		scst_set_cmd_error(cmd,
 			   SCST_LOAD_SENSE(scst_sense_lun_not_supported));
 	}
-
-	/*
-	 * For cdb_len 0 defer the error reporting until scst_cmd_init_done(),
-	 * scst_set_cmd_error() supports nested calls.
-	 */
-	if (unlikely(cdb_len > SCST_MAX_CDB_SIZE)) {
-		PRINT_ERROR("Too big CDB len %d, finishing cmd", cdb_len);
-		cdb_len = SCST_MAX_CDB_SIZE;
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_message));
-	}
-
-	memcpy(cmd->cdb, cdb, cdb_len);
-	cmd->cdb_len = cdb_len;
 
 	TRACE_DBG("cmd %p, sess %p", cmd, sess);
 	scst_sess_get(sess);
@@ -336,12 +322,6 @@ void scst_cmd_init_done(struct scst_cmd *cmd,
 			      &sess->sess_cmd_list);
 
 	spin_unlock_irqrestore(&sess->sess_list_lock, flags);
-
-	if (unlikely(cmd->cdb_len == 0)) {
-		PRINT_ERROR("%s", "Wrong CDB len 0, finishing cmd");
-		scst_set_cmd_error(cmd,
-			   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
-	}
 
 	if (unlikely(cmd->queue_type >= SCST_CMD_QUEUE_ACA)) {
 		PRINT_ERROR("Unsupported queue type %d", cmd->queue_type);
