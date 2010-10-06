@@ -25,7 +25,11 @@ struct srp_buf {
 struct srp_queue {
 	void *pool;
 	void *items;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
+	struct kfifo *queue;
+#else
 	struct kfifo queue;
+#endif
 	spinlock_t lock;
 };
 

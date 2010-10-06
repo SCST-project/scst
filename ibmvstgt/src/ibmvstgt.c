@@ -46,7 +46,10 @@
 #include <asm/vio.h>
 #else
 #include <linux/mod_devicetable.h>
+#endif
+#if defined(INSIDE_KERNEL_TREE) || defined(__powerpc__)
 #include <linux/of.h>
+#else
 #include "dummy_powerpc_defs.h"
 #endif
 
