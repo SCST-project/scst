@@ -377,6 +377,7 @@ done
 
 # Directory drivers/scst/dev_handlers/
 
+(
 add_file "scst/kernel/in-tree/Makefile.dev_handlers-${kernel_version}" \
          "drivers/scst/dev_handlers/Makefile" \
 | process_patch "dev_handlers_makefile.diff"
@@ -386,7 +387,8 @@ do
   if ! in_separate_patch "${f}"; then
     add_file "${f}" "drivers/scst/dev_handlers/${f#scst/src/dev_handlers/}"
   fi
-done \
+done
+) \
 | process_patch "scst_passthrough.diff"
 
 
