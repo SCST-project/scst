@@ -130,7 +130,7 @@ function process_patch {
       if [ -e "${patchdir}/$1" ]; then
         echo "Warning: overwriting ${patchdir}/$1"
       fi
-      tmppatch="/tmp/scst-tmp-patch-$$"
+      tmppatch="$(/bin/mktemp)"
       (
         specialize_patch
       ) >"${tmppatch}"
