@@ -260,15 +260,29 @@ function handle_if()
   {
     if_stmnt[if_nesting_level] = evaluated
     any_section_output[if_nesting_level] = 0
+    decision[if_nesting_level] = evaluated
+    inv_decision[if_nesting_level] = evaluate(sprintf("+#if ! %s", substr(evaluated, 6)))
+    if (debug)
+      printf "/* debug specialize-patch: (f) %s / %s */\n", \
+        decision[if_nesting_level], inv_decision[if_nesting_level]
   }
   else
   {
     sub("^+#elif ",
-        sprintf("+#if ! %s \\&\\& ", substr(decision[if_nesting_level], 5)),
+        sprintf("+#if %s \\&\\& ", substr(inv_decision[if_nesting_level], 6)),
         evaluated)
+    if (debug)
+      printf "/* debug specialize-patch: (e) %s */\n", evaluated
     evaluated = evaluate(evaluated)
+    decision[if_nesting_level] = evaluated
+    inv_decision[if_nesting_level] \
+      = evaluate(sprintf("+#if %s && ! %s", \
+                         substr(inv_decision[if_nesting_level], 6), \
+                         substr(evaluated, 6)))
+    if (debug)
+      printf "/* debug specialize-patch: (f) %s / %s */\n", \
+        decision[if_nesting_level], inv_decision[if_nesting_level]
   }
-  decision[if_nesting_level] = evaluated
   matching_if = if_stmnt[if_nesting_level]
 }
 
@@ -292,7 +306,7 @@ function process_preprocessor_statement() {
   else if (evaluated ~ "^+#else")
   {
     matching_if = if_stmnt[if_nesting_level]
-    decision[if_nesting_level] = invert(decision[if_nesting_level])
+    decision[if_nesting_level] = inv_decision[if_nesting_level]
   }
   else if (evaluated ~ "^+#endif")
   {
