@@ -55,7 +55,7 @@
 ########################
 
 function usage {
-  echo "Usage: $0 [-c <dir>] [-d <dir>] [-f] [-h] [-j <jobs>] [-q] <kver1> <kver2> ..."
+  echo "Usage: $0 [-c <dir>] [-d <dir>] [-f] [-h] [-j <jobs>] [-p <patchdir>] [-q] <kver1> <kver2> ..."
   echo "        -c - cache directory for Linux kernel tarballs."
   echo "        -d - directory for temporary regression test files."
   echo "        -h - display this help information."
@@ -283,21 +283,17 @@ function generate_kernel_patch {
   local kver="$(kernel_version $1)"
   local patchfile="${outputdir}/scst-$1-kernel.patch"
   local patchfile_m="${outputdir}/scst-$1-kernel-matching-line-numbers.patch"
+  local driver_options=""
 
-  SIGNED_OFF_BY="..." \
-  scripts/generate-kernel-patch \
-    $([ "${scst_local}" = "true" ] && echo "-l") \
-    $([ "${mpt_scst}"   = "true" ] && echo "-m") \
-    $([ "${qla2x00t}"   = "true" ] && echo "-q") \
-    $2 $1 > "${patchfile}"
+  driver_options="$([ "${scst_local}" = "true" ] && echo "-l") \
+                  $([ "${mpt_scst}"   = "true" ] && echo "-m") \
+                  $([ "${qla2x00t}"   = "true" ] && echo "-q")"
 
-  SIGNED_OFF_BY="..." \
-  scripts/generate-kernel-patch \
-    -n                                           \
-    $([ "${scst_local}" = "true" ] && echo "-l") \
-    $([ "${mpt_scst}"   = "true" ] && echo "-m") \
-    $([ "${qla2x00t}"   = "true" ] && echo "-q") \
-    $2 $1 > "${patchfile_m}"
+  scripts/generate-kernel-patch ${driver_options} $2 $1 > "${patchfile}"
+
+  scripts/generate-kernel-patch ${driver_options} -n $2 $1 > "${patchfile_m}"
+
+  scripts/generate-kernel-patch ${driver_options} -p "${outputdir}/${patchdir}" $2 $1
 }
 
 # Run checkpatch on the generated kernel patch. Assumes that there is a
@@ -326,12 +322,21 @@ function run_checkpatch  {
 
 function patch_and_configure_kernel {
   local patchfile="${outputdir}/scst-$1-kernel-matching-line-numbers.patch"
+  local patchoutput="${outputdir}/patch-command-output-$1.txt"
 
   echo "Patching and configuring kernel ..."
   (
     cd "${outputdir}/linux-$1"                                      \
-    && patch -p1 -f -s <"${patchfile}"                              \
-                       >"${outputdir}/patch-command-output-$1.txt"  \
+    && if [ "${multiple_patches}" = "false" ]; then
+         patch -p1 -f -s <"${patchfile}" >"${patchoutput}"
+       else
+         rm -f "${patchoutput}"
+         for p in "${outputdir}/${patchdir}"/*
+         do
+           echo "==== $p" >>"${patchoutput}"
+           patch -p1 -f -s <"${p}" >>"${patchoutput}" 2>&1
+         done
+       fi \
     && make -s allmodconfig &>"${outputdir}/make-config-output.txt" \
     && sed -i.tmp 's/^CONFIG_DEBUG_STRICT_USER_COPY_CHECKS=y$/CONFIG_DEBUG_STRICT_USER_COPY_CHECKS=n/' .config \
     && make -s oldconfig &>/dev/null 
@@ -501,13 +506,15 @@ kernel_versions=""
 outputdir="${PWD}/regression-test-output-$(date +%Y-%m-%d_%Hh%Mm%Ss)"
 # Driver configuration.
 mpt_scst="false"
+multiple_patches="false"
+patchdir="patchdir"
 qla2x00t="false"
 remove_temporary_files_at_end="false"
 run_local_compilation="true"
 scst_local="true"
 quiet_download="false"
 
-set -- $(/usr/bin/getopt "c:d:j:hklq" "$@")
+set -- $(/usr/bin/getopt "c:d:j:hklp:q" "$@")
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
@@ -517,6 +524,7 @@ do
     '-j') export MAKEFLAGS="-j$2"; shift; shift;;
     '-k') remove_temporary_files_at_end="true"; shift;;
     '-l') run_local_compilation="false"; shift;;
+    '-p') multiple_patches="true"; patchdir="$2"; shift; shift;;
     '-q') quiet_download="true"; shift;;
     '--') shift;;
     *)    usage; exit 1;;
@@ -575,6 +583,7 @@ do
   generate_kernel_patch_options=""
   run_checkpatch="true"
   run_sparse="true"
+  global_multiple_patches="${multiple_patches}"
   while [ "${kv%-?}" != "${kv}" -o "${kv%-??}" != "${kv}" ]; do
     kv_without_opt="${kv%-?}"
     if [ "${kv_without_opt}" = "${kv}" ]; then
@@ -586,6 +595,7 @@ do
       '-nc') run_checkpatch="false";;
       '-ns') run_sparse="false";;
       '-u')  generate_kernel_patch_options="-u";;
+      '-p')  multiple_patches="true";;
       *)     echo "Error: unknown option ${kopt}."; exit 1;;
     esac
     kv="${kv_without_opt}"
@@ -626,4 +636,6 @@ do
     rm -rf "${outputdir}"
     mkdir -p "${outputdir}"
   fi
+
+  multiple_patches="${global_multiple_patches}"
 done
