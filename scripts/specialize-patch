@@ -264,7 +264,7 @@ function handle_if()
   else
   {
     sub("^+#elif ",
-        sprintf("+#if ! %d \\&\\& ", decision[if_nesting_level]),
+        sprintf("+#if ! %s \\&\\& ", substr(decision[if_nesting_level], 5)),
         evaluated)
     evaluated = evaluate(evaluated)
   }
