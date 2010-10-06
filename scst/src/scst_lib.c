@@ -4197,7 +4197,7 @@ out_err:
 EXPORT_SYMBOL(scst_cmd_set_ext_cdb);
 
 struct scst_cmd *scst_alloc_cmd(const uint8_t *cdb,
-        unsigned int cdb_len, gfp_t gfp_mask)
+	unsigned int cdb_len, gfp_t gfp_mask)
 {
 	struct scst_cmd *cmd;
 

@@ -364,7 +364,7 @@ void scst_free_session(struct scst_session *sess);
 void scst_free_session_callback(struct scst_session *sess);
 
 struct scst_cmd *scst_alloc_cmd(const uint8_t *cdb,
-        unsigned int cdb_len, gfp_t gfp_mask);
+	unsigned int cdb_len, gfp_t gfp_mask);
 void scst_free_cmd(struct scst_cmd *cmd);
 static inline void scst_destroy_cmd(struct scst_cmd *cmd)
 {
