@@ -305,11 +305,22 @@ function run_checkpatch  {
   local outputfile="${outputdir}/checkpatch-$1-output.txt"
   local patchfile="${outputdir}/scst-$1-kernel.patch"
 
-  if [ -e "${outputdir}/linux-$1/scripts/checkpatch.pl" ]
-  then
-    echo "Running checkpatch on the SCST kernel patch ..."
-    ( cd "${outputdir}/linux-$1" \
-      && scripts/checkpatch.pl --no-tree - < "${patchfile}" &> "${outputfile}")
+  if [ -e "${outputdir}/linux-$1/scripts/checkpatch.pl" ]; then
+    if [ "${multiple_patches}" = "false" ]; then
+      echo "Running checkpatch on the SCST kernel patch ..."
+      ( cd "${outputdir}/linux-$1" \
+        && scripts/checkpatch.pl --no-tree --no-signoff - < "${patchfile}" &> "${outputfile}")
+    else
+      echo "Running checkpatch on the SCST kernel patches ..."
+      rm -f "${outputfile}"
+      ( cd "${outputdir}/linux-$1" \
+        && for p in "${outputdir}/${patchdir}"/*
+           do
+             echo "==== $p" >>"${outputfile}"
+             scripts/checkpatch.pl --no-tree --no-signoff - < "$p" >> "${outputfile}" 2>&1
+           done
+      )
+    fi
     local errors=$(grep -c '^ERROR' "${outputfile}")
     local warnings=$(grep -c '^WARNING' "${outputfile}")
     echo "${errors} errors / ${warnings} warnings."
