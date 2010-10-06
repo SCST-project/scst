@@ -1119,7 +1119,7 @@ write_error_close:
 	goto out_set_fs;
 }
 
-int scst_pr_check_pr_path(void)
+static int scst_pr_check_pr_path(void)
 {
 	int res;
 	struct nameidata nd;
@@ -1180,9 +1180,12 @@ int scst_pr_init_dev(struct scst_device *dev)
 			dev->virt_name);
 
 #ifndef CONFIG_SCST_PROC
-	res = scst_pr_load_device_file(dev);
-	if (res == -ENOENT)
-		res = 0;
+	res = scst_pr_check_pr_path();
+	if (res == 0) {
+		res = scst_pr_load_device_file(dev);
+		if (res == -ENOENT)
+			res = 0;
+	}
 #endif
 
 	if (res != 0)

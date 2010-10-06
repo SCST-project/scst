@@ -60,10 +60,6 @@ static inline bool scst_pr_type_valid(uint8_t type)
 	}
 }
 
-#ifndef CONFIG_SCST_PROC
-int scst_pr_check_pr_path(void);
-#endif
-
 static inline bool scst_pr_read_lock(struct scst_device *dev)
 {
 	bool unlock = false;
