@@ -2344,10 +2344,6 @@ static int __init init_scst(void)
 	res = scst_proc_init_module();
 	if (res != 0)
 		goto out_thread_free;
-#else
-	res = scst_pr_check_pr_path();
-	if (res != 0)
-		goto out_thread_free;
 #endif
 
 	PRINT_INFO("SCST version %s loaded successfully (max mem for "
