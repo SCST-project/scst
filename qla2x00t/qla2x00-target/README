@@ -137,6 +137,10 @@ of the initiator mode from enabled to disabled and vice versa.
 You can always see which modes are currently active in active_mode sysfs
 attribute.
 
+Also if the "disabled" mode isn't sufficiently strong for you, you can
+consider using patch unsupported-patches/qla_delayed_hw_init_tgt_mode_from_the_beginning.diff.
+See description of it inside it.
+
 
 Explicit conformation
 ---------------------
