@@ -40,8 +40,8 @@
 #if defined(INSIDE_KERNEL_TREE) || defined(__powerpc__)
 #include <asm/hvcall.h>
 #endif
-#include <asm/iommu.h>
 #if defined(INSIDE_KERNEL_TREE) || defined(__powerpc__)
+#include <asm/iommu.h>
 #include <asm/prom.h>
 #include <asm/vio.h>
 #else
@@ -91,7 +91,11 @@ struct vio_port {
 	struct srp_target *target;
 
 	struct scst_session *sess;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+	struct class_device dev;
+#else
 	struct device dev;
+#endif
 	bool releasing;
 	bool enabled;
 };
@@ -828,7 +832,11 @@ out:
 		srp_iu_put(iue);
 }
 
+#ifdef RHEL_MAJOR
+static irqreturn_t ibmvstgt_interrupt(int dummy, void *data, struct pt_regs *p)
+#else
 static irqreturn_t ibmvstgt_interrupt(int dummy, void *data)
+#endif
 {
 	struct srp_target *target = data;
 	struct vio_port *vport = target_to_port(target);
@@ -853,7 +861,11 @@ static int crq_queue_create(struct crq_queue *queue, struct srp_target *target)
 					  queue->size * sizeof(*queue->msgs),
 					  DMA_BIDIRECTIONAL);
 
+#ifdef RHEL_MAJOR
+	if (dma_mapping_error(queue->msg_token))
+#else
 	if (dma_mapping_error(target->dev, queue->msg_token))
+#endif
 		goto map_failed;
 
 	err = h_reg_crq(vport->dma_dev->unit_address, queue->msg_token,
@@ -983,9 +995,17 @@ static inline struct viosrp_crq *next_crq(struct crq_queue *queue)
 	return crq;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
+static void handle_crq(void *ctx)
+#else
 static void handle_crq(struct work_struct *work)
+#endif
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
+	struct vio_port *vport = (struct vio_port *)ctx;
+#else
 	struct vio_port *vport = container_of(work, struct vio_port, crq_work);
+#endif
 	struct srp_target *target = vport->target;
 	struct viosrp_crq *crq;
 	int done = 0;
@@ -1010,20 +1030,32 @@ static void handle_crq(struct work_struct *work)
 	handle_cmd_queue(target);
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+static ssize_t system_id_show(struct class_device *dev, char *buf)
+#else
 static ssize_t system_id_show(struct device *dev,
 			      struct device_attribute *attr, char *buf)
+#endif
 {
 	return snprintf(buf, PAGE_SIZE, "%s\n", system_id);
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+static ssize_t partition_number_show(struct class_device *dev, char *buf)
+#else
 static ssize_t partition_number_show(struct device *dev,
 				     struct device_attribute *attr, char *buf)
+#endif
 {
 	return snprintf(buf, PAGE_SIZE, "%x\n", partition_number);
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+static ssize_t unit_address_show(struct class_device *dev, char *buf)
+#else
 static ssize_t unit_address_show(struct device *dev,
 				  struct device_attribute *attr, char *buf)
+#endif
 {
 	struct vio_port *vport = container_of(dev, struct vio_port, dev);
 	return snprintf(buf, PAGE_SIZE, "%x\n", vport->dma_dev->unit_address);
@@ -1033,26 +1065,46 @@ static struct class_attribute ibmvstgt_class_attrs[] = {
 	__ATTR_NULL,
 };
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+static struct class_device_attribute ibmvstgt_attrs[] = {
+#else
 static struct device_attribute ibmvstgt_attrs[] = {
+#endif
 	__ATTR(system_id, S_IRUGO, system_id_show, NULL),
 	__ATTR(partition_number, S_IRUGO, partition_number_show, NULL),
 	__ATTR(unit_address, S_IRUGO, unit_address_show, NULL),
 	__ATTR_NULL,
 };
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+static void ibmvstgt_dev_release(struct class_device *dev)
+#else
 static void ibmvstgt_dev_release(struct device *dev)
+#endif
 { }
 
 static struct class ibmvstgt_class = {
 	.name		= "ibmvstgt",
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+	.release	= ibmvstgt_dev_release,
+#else
 	.dev_release	= ibmvstgt_dev_release,
+#endif
 	.class_attrs	= ibmvstgt_class_attrs,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+	.class_dev_attrs= ibmvstgt_attrs,
+#else
 	.dev_attrs	= ibmvstgt_attrs,
+#endif
 };
 
 static struct scst_tgt_template ibmvstgt_template = {
 	.name			= TGT_NAME,
+#ifdef RHEL_MAJOR
+	.sg_tablesize		= 1024,
+#else
 	.sg_tablesize		= SCSI_MAX_SG_SEGMENTS,
+#endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags	= DEFAULT_IBMVSTGT_TRACE_FLAGS,
 	.trace_flags		= &trace_flag,
@@ -1109,17 +1161,34 @@ static int ibmvstgt_probe(struct vio_dev *dev, const struct vio_device_id *id)
 	vport->liobn = dma[0];
 	vport->riobn = dma[5];
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
+	INIT_WORK(&vport->crq_work, handle_crq, vport);
+#else
 	INIT_WORK(&vport->crq_work, handle_crq);
+#endif
 
 	err = crq_queue_create(&vport->crq_queue, target);
 	if (err)
 		goto free_srp_target;
 
 	vport->dev.class = &ibmvstgt_class;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+	vport->dev.dev = &dev->dev;
+#else
 	vport->dev.parent = &dev->dev;
+#endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
+	snprintf(vport->dev.class_id, BUS_ID_SIZE, "ibmvstgt-%d",
+		     vport->dma_dev->unit_address);
+#else
 	dev_set_name(&vport->dev, "ibmvstgt-%d",
 		     vport->dma_dev->unit_address);
+#endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+	if (class_device_register(&vport->dev))
+#else
 	if (device_register(&vport->dev))
+#endif
 		goto destroy_crq_queue;
 
 	atomic_inc(&ibmvstgt_device_count);
