@@ -273,13 +273,24 @@ do
 done
 
 
-scst_debug="scst/include/scst_debug.h scst/src/scst_debug.c"
+scst_03_public_headers="scst/include/scst.h scst/include/scst_const.h"
+scst_04_main="scst/src/scst_main.c scst/src/scst_module.c scst/src/scst_priv.h"
+scst_05_targ="scst/src/scst_targ.c"
+scst_06_lib="scst/src/scst_lib.c"
+scst_07_pres="scst/src/scst_pres.h scst/src/scst_pres.c"
+scst_08_sysfs="scst/src/scst_sysfs.c"
+scst_09_debug="scst/include/scst_debug.h scst/src/scst_debug.c"
 scst_proc="scst/src/scst_proc.c"
-scst_sgv="scst/include/scst_sgv.h scst/src/scst_mem.h scst/src/scst_mem.c doc/sgv_cache.txt"
+scst_10_sgv="scst/include/scst_sgv.h scst/src/scst_mem.h scst/src/scst_mem.c doc/sgv_cache.txt"
 scst_user="scst/include/scst_user.h scst/src/dev_handlers/scst_user.c"
-scst_vdisk="scst/src/dev_handlers/scst_vdisk.c"
-separate_patches="scst_debug scst_proc scst_sgv scst_user scst_vdisk"
-source_files_in_separate_patch="${scst_debug} ${scst_proc} ${scst_sgv} ${scst_user} ${scst_vdisk}"
+scst_13_vdisk="scst/src/dev_handlers/scst_vdisk.c"
+separate_patches="scst_03_public_headers scst_04_main scst_05_targ scst_06_lib scst_07_pres scst_08_sysfs scst_09_debug scst_proc scst_10_sgv scst_user scst_13_vdisk"
+source_files_in_separate_patch=""
+for s in ${separate_patches}
+do
+  source_files_in_separate_patch+=" $(set | \
+                    sed -n -e "s/^$s='\(.*\)'$/\1/p" -e "s/^$s=\(.*\)$/\1/p")"
+done
 
 
 # Directory include/scst/
@@ -302,7 +313,7 @@ add_patch "scst/kernel/in-tree/Kconfig.drivers.Linux-${kernel_version}.patch" \
 add_patch "scst/kernel/in-tree/Makefile.drivers.Linux-${kernel_version}.patch"\
           "drivers/Makefile"
 ) \
-| process_patch "misc.diff"
+| process_patch "scst_01_drivers_kbuild.diff"
 
 
 # Directory drivers/scst/
@@ -335,7 +346,10 @@ fi >"$tmp_Makefile"
 add_file "$tmp_Makefile" "drivers/scst/Makefile"
 
 rm -rf "${tmpdir}"
+) \
+| process_patch "scst_02_scst_kbuild.diff"
 
+(
 for f in $(ls scst/src/*.[ch] 2>/dev/null)
 do
   if [ "${generating_upstream_patch}" = "true" \
@@ -370,26 +384,24 @@ do
 done
 
 {
-	add_file "scst/README_in-tree" "Documentation/scst/README.scst"
-	add_file "scst/SysfsRules" "Documentation/scst/SysfsRules"
-} | process_patch "scst_core_doc.diff"
+  add_file "scst/README_in-tree" "Documentation/scst/README.scst"
+  add_file "scst/SysfsRules" "Documentation/scst/SysfsRules"
+} | process_patch "scst_11_core_doc.diff"
 
 
 # Directory drivers/scst/dev_handlers/
 
-(
 add_file "scst/kernel/in-tree/Makefile.dev_handlers-${kernel_version}" \
          "drivers/scst/dev_handlers/Makefile" \
-| process_patch "dev_handlers_makefile.diff"
+| process_patch "scst_12_dev_handlers_makefile.diff"
 
 for f in $(ls scst/src/dev_handlers/*.[ch] 2>/dev/null)
 do
   if ! in_separate_patch "${f}"; then
     add_file "${f}" "drivers/scst/dev_handlers/${f#scst/src/dev_handlers/}"
   fi
-done
-) \
-| process_patch "scst_passthrough.diff"
+done \
+| process_patch "scst_14_passthrough.diff"
 
 
 # Directory drivers/scst/fcst/
@@ -497,6 +509,8 @@ fi \
 
 if [ "$srpt" = "true" ]; then
 
+  add_file  "srpt/README_in-tree"         "Documentation/scst/README.srpt"
+
   add_file  "srpt/src/Kconfig"            "drivers/scst/srpt/Kconfig"
 
   add_file  "srpt/src/Makefile.in_kernel" "drivers/scst/srpt/Makefile"
@@ -513,10 +527,7 @@ else
   add_empty_file "drivers/scst/srpt/Makefile"
 
 fi \
-| process_patch "srpt.diff"
-
-add_file "srpt/README_in-tree" "Documentation/scst/README.srpt" \
-| process_patch "srpt-doc.diff"
+| process_patch "scst_17_srpt.diff"
 
 
 # Directory drivers/message/fusion/mpt_scst
@@ -545,16 +556,16 @@ fi
 # Directory drivers/scst/scst_local
 
 (
+  add_file "scst_local/README"          "Documentation/scst/README.scst_local"
+
   add_file "scst_local/in-tree/Kconfig" "drivers/scst/scst_local/Kconfig"
 
   add_file "scst_local/in-tree/Makefile-${kernel_version}" "drivers/scst/scst_local/Makefile"
 
   add_file "scst_local/scst_local.c" "drivers/scst/scst_local/scst_local.c"
 ) \
-| process_patch "scst_local.diff"
+| process_patch "scst_16_local.diff"
 
-add_file "scst_local/README" "Documentation/scst/README.scst_local" \
-| process_patch "scst_local-doc.diff"
 
 
 # Directory drivers/scsi/ibmvstgt
@@ -599,7 +610,7 @@ EOF
     add_file "ibmvstgt/README" "Documentation/powerpc/ibmvstgt.txt"
   fi
 } \
-| process_patch "ibmvstgt.diff"
+| process_patch "scst_18_ibmvstgt.diff"
 
 {
   ( cd ibmvstgt && ./generate-in-tree-patches "${kernel_version}" )
@@ -674,4 +685,4 @@ EOF
     done
   fi
 } \
-| process_patch "scsi_tgt.diff"
+| process_patch "scst_19_scsi_tgt.diff"
