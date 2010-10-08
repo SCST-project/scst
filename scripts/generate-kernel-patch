@@ -284,24 +284,17 @@ scst_proc="scst/src/scst_proc.c"
 scst_10_sgv="scst/include/scst_sgv.h scst/src/scst_mem.h scst/src/scst_mem.c doc/sgv_cache.txt"
 scst_user="scst/include/scst_user.h scst/src/dev_handlers/scst_user.c"
 scst_13_vdisk="scst/src/dev_handlers/scst_vdisk.c"
-separate_patches="scst_03_public_headers scst_04_main scst_05_targ scst_06_lib scst_07_pres scst_08_sysfs scst_09_debug scst_proc scst_10_sgv scst_user scst_13_vdisk"
+separate_patches="scst_03_public_headers scst_04_main scst_05_targ scst_06_lib scst_07_pres scst_08_sysfs scst_09_debug scst_10_sgv scst_user scst_13_vdisk"
+
+if [ "${generating_upstream_patch}" = "false" ]; then
+  separate_patches+=" scst_proc"
+fi
 source_files_in_separate_patch=""
 for s in ${separate_patches}
 do
   source_files_in_separate_patch+=" $(set | \
                     sed -n -e "s/^$s='\(.*\)'$/\1/p" -e "s/^$s=\(.*\)$/\1/p")"
 done
-
-
-# Directory include/scst/
-
-for f in $(ls scst/include/*h 2>/dev/null)
-do
-  if ! in_separate_patch "${f}"; then
-    add_file "${f}" "include/scst/${f#scst/include/}"
-  fi
-done \
-| process_patch "scst_public_headers.diff"
 
 
 # Directory drivers/
@@ -349,29 +342,11 @@ rm -rf "${tmpdir}"
 ) \
 | process_patch "scst_02_scst_kbuild.diff"
 
-(
-for f in $(ls scst/src/*.[ch] 2>/dev/null)
-do
-  if [ "${generating_upstream_patch}" = "true" \
-       -a "${f}" = "scst/src/scst_proc.c" ]; then
-    continue
-  fi
-  if ! in_separate_patch "${f}"; then
-    add_file "${f}" "drivers/scst/${f#scst/src/}"
-  fi
-done
-) \
-| process_patch "scst_core.diff"
-
 for s in ${separate_patches}
 do
   fileset=$s
   for f in $(set | grep "^$s=" | sed -e "s/^$s='\(.*\)'\$/\1/" -e "s/^$s=\(.*\)\$/\1/")
   do
-    if [ "${generating_upstream_patch}" = "true" \
-         -a "${f}" = "scst/src/scst_proc.c" ]; then
-      continue
-    fi
     if [ "${f#scst/include}" != "${f}" ]; then
       add_file "${f}" "include/scst/${f#scst/include/}"
     elif [ "${f#doc}" != "${f}" ]; then
