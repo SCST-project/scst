@@ -1126,8 +1126,6 @@ int config_load(const char *config_name)
 	size = i;
 	buf[size] = '\0';
 
-	config_parse_main(buf, 0);
-
 	err = config_isns_load(buf);
 	if ((err == 0) && (isns_server != NULL)) {
 		int rc = isns_init();
@@ -1136,6 +1134,8 @@ int config_load(const char *config_name)
 			isns_exit();
 		}
 	}
+
+	config_parse_main(buf, 0);
 
 out_free:
 	free(buf);

@@ -1149,6 +1149,8 @@ int isns_init(void)
 	isns_timeout = current_timeout * 1000;
 
 	err = isns_connect();
+	if (err > 0)
+		err = 0;
 
 out:
 	return err;
