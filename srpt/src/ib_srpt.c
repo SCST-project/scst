@@ -1465,14 +1465,9 @@ static void srpt_handle_rdma_err_comp(struct srpt_rdma_ch *ch,
 	atomic_add(ioctx->n_rdma, &ch->sq_wr_avail);
 
 	scmnd = ioctx->scmnd;
-	if (scmnd) {
-		state = srpt_test_and_set_cmd_state(ioctx, SRPT_STATE_NEED_DATA,
-						    SRPT_STATE_DATA_IN);
-
-		EXTRACHECKS_WARN_ON(state != SRPT_STATE_NEED_DATA);
-
-		scst_rx_data(ioctx->scmnd, SCST_RX_STATUS_ERROR, context);
-	} else
+	if (scmnd)
+		srpt_abort_scst_cmd(ioctx, context);
+	else
 		PRINT_ERROR("%s[%d]: scmnd == NULL", __func__, __LINE__);
 }
 
