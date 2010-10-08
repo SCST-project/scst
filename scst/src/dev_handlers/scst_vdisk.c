@@ -1353,7 +1353,9 @@ static void vdisk_exec_unmap(struct scst_cmd *cmd, struct scst_vdisk_thr *thr)
 	}
 
 	while ((offset - 8) < descriptor_len) {
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 27)
 		int err;
+#endif
 		uint64_t start;
 		uint32_t len;
 		start = be64_to_cpu(get_unaligned((__be64 *)&address[offset]));
@@ -1566,7 +1568,7 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			put_unaligned(cpu_to_be32(max_transfer),
 					(uint32_t *)&buf[8]);
 			/*
-			 * Let's have optimal transfer len 1MB. Better to not
+			 * Let's have optimal transfer len 512KB. Better to not
 			 * set it at all, because we don't have such limit,
 			 * but some initiators may not understand that (?).
 			 * From other side, too big transfers  are not optimal,
@@ -1574,15 +1576,18 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			 */
 			put_unaligned(cpu_to_be32(min_t(int,
 					max_transfer,
-					1*1024*1024 / virt_dev->block_size)),
+					512*1024 / virt_dev->block_size)),
 				      (uint32_t *)&buf[12]);
 			if (virt_dev->thin_provisioned) {
 				/* MAXIMUM UNMAP LBA COUNT is UNLIMITED */
-				put_unaligned(cpu_to_be32(0xFFFFFFFF),
-					      (uint16_t *)&buf[20]);
+				put_unaligned(__constant_cpu_to_be32(0xFFFFFFFF),
+					      (uint32_t *)&buf[20]);
 				/* MAXIMUM UNMAP BLOCK DESCRIPTOR COUNT is UNLIMITED */
-				put_unaligned(cpu_to_be32(0xFFFFFFFF),
-					      (uint16_t *)&buf[24]);
+				put_unaligned(__constant_cpu_to_be32(0xFFFFFFFF),
+					      (uint32_t *)&buf[24]);
+				/* OPTIMAL UNMAP GRANULARITY is 1 */
+				put_unaligned(__constant_cpu_to_be32(1),
+					      (uint32_t *)&buf[28]);
 			}
 			resp_len = buf[3] + 4;
 		} else if ((0xB2 == cmd->cdb[2]) &&

@@ -1575,8 +1575,13 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 			strlcpy(nm, tgt_dev->dev->virt_name, ARRAY_SIZE(nm));
 			thr->cmd_thread = kthread_create(scst_cmd_thread,
 				cmd_threads, "%s%d_%d", nm, tgt_dev_num, n++);
+#ifdef RHEL_MAJOR
+			rc = set_cpus_allowed(thr->cmd_thread,
+				tgt_dev->sess->acg->acg_cpu_mask);
+#else
 			rc = set_cpus_allowed_ptr(thr->cmd_thread,
 				&tgt_dev->sess->acg->acg_cpu_mask);
+#endif
 			if (rc != 0)
 				PRINT_ERROR("Setting CPU affinity failed: "
 					"%d", rc);

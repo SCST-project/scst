@@ -33,6 +33,8 @@
 #ifdef CONFIG_SCST_PROC
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
+#elif defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
+#error The SCST sysfs interface is not supported on RHEL 5. Please run 'make enable_proc'.
 #endif
 
 #include <scsi/scsi_cmnd.h>
@@ -122,7 +124,7 @@ static inline void cpumask_copy(cpumask_t *dstp,
 }
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26) && !defined(RHEL_MAJOR)
 static inline int set_cpus_allowed_ptr(struct task_struct *p,
 				       const cpumask_t *new_mask)
 {
