@@ -284,7 +284,7 @@ scst_proc="scst/src/scst_proc.c"
 scst_10_sgv="scst/include/scst_sgv.h scst/src/scst_mem.h scst/src/scst_mem.c doc/sgv_cache.txt"
 scst_user="scst/include/scst_user.h scst/src/dev_handlers/scst_user.c"
 scst_13_vdisk="scst/src/dev_handlers/scst_vdisk.c"
-separate_patches="scst_02_public_headers scst_03_main scst_04_targ scst_05_lib scst_06_pres scst_07_sysfs scst_08_debug scst_09_sgv scst_user scst_12_vdisk"
+separate_patches="scst_03_public_headers scst_04_main scst_05_targ scst_06_lib scst_07_pres scst_08_sysfs scst_09_debug scst_10_sgv scst_user scst_13_vdisk"
 
 if [ "${generating_upstream_patch}" = "false" ]; then
   separate_patches+=" scst_proc"
