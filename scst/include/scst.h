@@ -34,7 +34,7 @@
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
 #elif defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
-#error The SCST sysfs interface is not supported on RHEL 5. Please run 'make enable_proc'.
+#error The SCST sysfs interface is not supported on RHEL 5. Please run make enable_proc.
 #endif
 
 #include <scsi/scsi_cmnd.h>
