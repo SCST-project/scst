@@ -2642,19 +2642,12 @@ static struct scst_acg_dev *scst_alloc_acg_dev(struct scst_acg *acg,
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17)
-	res = kmem_cache_alloc(scst_acgd_cachep, GFP_KERNEL);
-#else
 	res = kmem_cache_zalloc(scst_acgd_cachep, GFP_KERNEL);
-#endif
 	if (res == NULL) {
 		TRACE(TRACE_OUT_OF_MEM,
 		      "%s", "Allocation of scst_acg_dev failed");
 		goto out;
 	}
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17)
-	memset(res, 0, sizeof(*res));
-#endif
 
 	res->dev = dev;
 	res->acg = acg;
@@ -3280,20 +3273,13 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17)
-	tgt_dev = kmem_cache_alloc(scst_tgtd_cachep, GFP_KERNEL);
-#else
 	tgt_dev = kmem_cache_zalloc(scst_tgtd_cachep, GFP_KERNEL);
-#endif
 	if (tgt_dev == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of scst_tgt_dev "
 			"failed");
 		res = -ENOMEM;
 		goto out;
 	}
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17)
-	memset(tgt_dev, 0, sizeof(*tgt_dev));
-#endif
 
 	tgt_dev->dev = dev;
 	tgt_dev->lun = acg_dev->lun;
@@ -3824,69 +3810,6 @@ int scst_finish_internal_cmd(struct scst_cmd *cmd)
 	return res;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
-static void scst_req_done(struct scsi_cmnd *scsi_cmd)
-{
-	struct scsi_request *req;
-
-	TRACE_ENTRY();
-
-	if (scsi_cmd) {
-		req = scsi_cmd->sc_request;
-		if (req) {
-			if (req->sr_bufflen)
-				kfree(req->sr_buffer);
-			scsi_release_request(req);
-		}
-	}
-
-	TRACE_EXIT();
-	return;
-}
-
-static void scst_send_release(struct scst_device *dev)
-{
-	struct scsi_request *req;
-	struct scsi_device *scsi_dev;
-	uint8_t cdb[6];
-
-	TRACE_ENTRY();
-
-	if (dev->scsi_dev == NULL)
-		goto out;
-
-	scsi_dev = dev->scsi_dev;
-
-	req = scsi_allocate_request(scsi_dev, GFP_KERNEL);
-	if (req == NULL) {
-		PRINT_ERROR("Allocation of scsi_request failed: unable "
-			    "to RELEASE device %s", dev->virt_name);
-		goto out;
-	}
-
-	memset(cdb, 0, sizeof(cdb));
-	cdb[0] = RELEASE;
-	cdb[1] = (scsi_dev->scsi_level <= SCSI_2) ?
-	    ((scsi_dev->lun << 5) & 0xe0) : 0;
-	memcpy(req->sr_cmnd, cdb, sizeof(cdb));
-	req->sr_cmd_len = sizeof(cdb);
-	req->sr_data_direction = SCST_DATA_NONE;
-	req->sr_use_sg = 0;
-	req->sr_bufflen = 0;
-	req->sr_buffer = NULL;
-	req->sr_request->rq_disk = dev->rq_disk;
-	req->sr_sense_buffer[0] = 0;
-
-	TRACE(TRACE_DEBUG | TRACE_SCSI, "Sending RELEASE req %p to SCSI "
-		"mid-level", req);
-	scst_do_req(req, req->sr_cmnd, (void *)req->sr_buffer, req->sr_bufflen,
-		    scst_req_done, 15, 3);
-
-out:
-	TRACE_EXIT();
-	return;
-}
-#else /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18) */
 static void scst_send_release(struct scst_device *dev)
 {
 	struct scsi_device *scsi_dev;
@@ -3933,7 +3856,6 @@ out:
 	TRACE_EXIT();
 	return;
 }
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18) */
 
 /* scst_mutex supposed to be held */
 static void scst_clear_reservation(struct scst_tgt_dev *tgt_dev)
@@ -3973,19 +3895,12 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17)
-	sess = kmem_cache_alloc(scst_sess_cachep, gfp_mask);
-#else
 	sess = kmem_cache_zalloc(scst_sess_cachep, gfp_mask);
-#endif
 	if (sess == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s",
 		      "Allocation of scst_session failed");
 		goto out;
 	}
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17)
-	memset(sess, 0, sizeof(*sess));
-#endif
 
 	sess->init_phase = SCST_SESS_IPH_INITING;
 	sess->shut_phase = SCST_SESS_SPH_READY;
@@ -4203,18 +4118,11 @@ struct scst_cmd *scst_alloc_cmd(const uint8_t *cdb,
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17)
-	cmd = kmem_cache_alloc(scst_cmd_cachep, gfp_mask);
-#else
 	cmd = kmem_cache_zalloc(scst_cmd_cachep, gfp_mask);
-#endif
 	if (cmd == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of scst_cmd failed");
 		goto out;
 	}
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17)
-	memset(cmd, 0, sizeof(*cmd));
-#endif
 
 	cmd->state = SCST_CMD_STATE_INIT_WAIT;
 	cmd->start_time = jiffies;
@@ -4296,16 +4204,6 @@ void scst_free_cmd(struct scst_cmd *cmd)
 	}
 
 	sBUG_ON(cmd->unblock_dev);
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
-#if defined(CONFIG_SCST_EXTRACHECKS)
-	if (cmd->scsi_req) {
-		PRINT_ERROR("%s: %s", __func__, "Cmd with unfreed "
-			"scsi_req!");
-		scst_release_request(cmd);
-	}
-#endif
-#endif
 
 	/*
 	 * Target driver can already free sg buffer before calling
@@ -4477,49 +4375,6 @@ void scst_free_mgmt_cmd(struct scst_mgmt_cmd *mcmd)
 	TRACE_EXIT();
 	return;
 }
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
-int scst_alloc_request(struct scst_cmd *cmd)
-{
-	int res = 0;
-	struct scsi_request *req;
-	int gm = GFP_KERNEL;
-
-	TRACE_ENTRY();
-
-	/* cmd->dev->scsi_dev must be non-NULL here */
-	req = scsi_allocate_request(cmd->dev->scsi_dev, gm);
-	if (req == NULL) {
-		TRACE(TRACE_OUT_OF_MEM, "%s",
-		      "Allocation of scsi_request failed");
-		res = -ENOMEM;
-		goto out;
-	}
-
-	cmd->scsi_req = req;
-
-	memcpy(req->sr_cmnd, cmd->cdb, cmd->cdb_len);
-	req->sr_cmd_len = cmd->cdb_len;
-	req->sr_data_direction = cmd->data_direction;
-	req->sr_use_sg = cmd->sg_cnt;
-	req->sr_bufflen = cmd->bufflen;
-	req->sr_buffer = cmd->sg;
-	req->sr_request->rq_disk = cmd->dev->rq_disk;
-	req->sr_sense_buffer[0] = 0;
-
-	cmd->scsi_req->upper_private_data = cmd;
-
-out:
-	TRACE_EXIT();
-	return res;
-}
-
-void scst_release_request(struct scst_cmd *cmd)
-{
-	scsi_release_request(cmd->scsi_req);
-	cmd->scsi_req = NULL;
-}
-#endif
 
 static bool scst_on_sg_tablesize_low(struct scst_cmd *cmd, bool out)
 {

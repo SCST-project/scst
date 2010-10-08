@@ -147,35 +147,6 @@ static inline int set_cpus_allowed_ptr(struct task_struct *p,
 #define SCST_INTERFACE_VERSION	    \
 		SCST_VERSION_STRING "$Revision$" SCST_CONST_VERSION
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18))
-#define COMPLETION_INITIALIZER_ONSTACK(work) \
-	({ init_completion(&work); work; })
-
-/*
- * Lockdep needs to run a non-constant initializer for on-stack
- * completions - so we use the _ONSTACK() variant for those that
- * are on the kernel stack:
- */
-#ifdef CONFIG_LOCKDEP
-# define DECLARE_COMPLETION_ONSTACK(work) \
-	struct completion work = COMPLETION_INITIALIZER_ONSTACK(work)
-#else
-# define DECLARE_COMPLETION_ONSTACK(work) DECLARE_COMPLETION(work)
-#endif
-
-/**
- * list_is_last - tests whether @list is the last entry in list @head
- * @list: the entry to test
- * @head: the head of the list
- */
-static inline int list_is_last(const struct list_head *list,
-				const struct list_head *head)
-{
-	return list->next == head;
-}
-
-#endif
-
 #define SCST_LOCAL_NAME			"scst_local"
 
 /*************************************************************
@@ -1818,10 +1789,6 @@ struct scst_cmd {
 
 	unsigned long start_time;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
-	struct scsi_request *scsi_req;	/* SCSI request */
-#endif
-
 	/* List entry for tgt_dev's SN related lists */
 	struct list_head sn_cmd_list_entry;
 
@@ -2165,11 +2132,6 @@ struct scst_device {
 
 	/* Used for storage of dev handler private stuff */
 	void *dh_priv;
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
-	/* Used to translate SCSI's cmd to SCST's cmd */
-	struct gendisk *rq_disk;
-#endif
 
 	/* Corresponding real SCSI device, could be NULL for virtual devices */
 	struct scsi_device *scsi_dev;

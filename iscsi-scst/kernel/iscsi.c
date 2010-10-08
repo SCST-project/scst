@@ -309,12 +309,7 @@ struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *conn,
 	struct iscsi_cmnd *cmnd;
 
 	/* ToDo: __GFP_NOFAIL?? */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17)
-	cmnd = kmem_cache_alloc(iscsi_cmnd_cache, GFP_KERNEL|__GFP_NOFAIL);
-	memset(cmnd, 0, sizeof(*cmnd));
-#else
 	cmnd = kmem_cache_zalloc(iscsi_cmnd_cache, GFP_KERNEL|__GFP_NOFAIL);
-#endif
 
 	atomic_set(&cmnd->ref_cnt, 1);
 	cmnd->scst_state = ISCSI_CMD_STATE_NEW;

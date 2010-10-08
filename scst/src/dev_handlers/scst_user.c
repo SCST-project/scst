@@ -721,13 +721,7 @@ static struct scst_user_cmd *dev_user_alloc_ucmd(struct scst_user_dev *dev,
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 17)
-	ucmd = kmem_cache_alloc(user_cmd_cachep, gfp_mask);
-	if (ucmd != NULL)
-		memset(ucmd, 0, sizeof(*ucmd));
-#else
 	ucmd = kmem_cache_zalloc(user_cmd_cachep, gfp_mask);
-#endif
 	if (unlikely(ucmd == NULL)) {
 		TRACE(TRACE_OUT_OF_MEM, "Unable to allocate "
 			"user cmd (gfp_mask %x)", gfp_mask);

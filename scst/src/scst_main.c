@@ -885,18 +885,6 @@ static int scst_register_device(struct scsi_device *scsidp)
 		}
 	}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
-	dev->rq_disk = alloc_disk(1);
-	if (dev->rq_disk == NULL) {
-		PRINT_ERROR("Unable to alloc disk object for device %s",
-			dev->virt_name);
-		res = -ENOMEM;
-		/* virt_name will be freed in scst_free_dev() */
-		goto out_free_dev;
-	}
-	dev->rq_disk->major = SCST_MAJOR;
-#endif
-
 	dev->scsi_dev = scsidp;
 
 	list_add_tail(&dev->dev_list_entry, &scst_dev_list);
@@ -935,9 +923,6 @@ out:
 
 out_del:
 	list_del(&dev->dev_list_entry);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
-	put_disk(dev->rq_disk);
-#endif
 
 out_free_dev:
 	scst_free_device(dev);
@@ -985,10 +970,6 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 	}
 
 	mutex_unlock(&scst_mutex);
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
-	put_disk(dev->rq_disk);
-#endif
 
 	scst_resume_activity();
 
@@ -2143,21 +2124,11 @@ static int __init init_scst(void)
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
-	{
-		struct scsi_request *req;
-		BUILD_BUG_ON(SCST_SENSE_BUFFERSIZE !=
-			sizeof(req->sr_sense_buffer));
-	}
-#else
 	{
 		struct scsi_sense_hdr *shdr;
-		BUILD_BUG_ON(SCST_SENSE_BUFFERSIZE < sizeof(*shdr));
-	}
-#endif
-	{
 		struct scst_tgt_dev *t;
 		struct scst_cmd *c;
+		BUILD_BUG_ON(SCST_SENSE_BUFFERSIZE < sizeof(*shdr));
 		BUILD_BUG_ON(sizeof(t->curr_sn) != sizeof(t->expected_sn));
 		BUILD_BUG_ON(sizeof(c->sn) != sizeof(t->expected_sn));
 	}

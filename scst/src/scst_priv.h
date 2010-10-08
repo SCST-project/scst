@@ -27,20 +27,12 @@
 #include <scsi/scsi_device.h>
 #include <scsi/scsi_host.h>
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
-#include <scsi/scsi_request.h>
-#endif
-
 #define LOG_PREFIX "scst"
 
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/scst_debug.h>
 #else
 #include "scst_debug.h"
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
-#define SCST_MAJOR              177
 #endif
 
 #define TRACE_RTRY              0x80000000
@@ -374,23 +366,7 @@ static inline void scst_destroy_cmd(struct scst_cmd *cmd)
 
 void scst_check_retries(struct scst_tgt *tgt);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
-int scst_alloc_request(struct scst_cmd *cmd);
-void scst_release_request(struct scst_cmd *cmd);
-
-static inline void scst_do_req(struct scsi_request *sreq,
-	const void *cmnd, void *buffer, unsigned bufflen,
-	void (*done)(struct scsi_cmnd *), int timeout, int retries)
-{
-#ifdef CONFIG_SCST_STRICT_SERIALIZING
-	scsi_do_req(sreq, cmnd, buffer, bufflen, done, timeout, retries);
-#elif !defined(SCSI_EXEC_REQ_FIFO_DEFINED)
-	sBUG();
-#else
-	scsi_do_req_fifo(sreq, cmnd, buffer, bufflen, done, timeout, retries);
-#endif
-}
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
 static inline int scst_exec_req(struct scsi_device *sdev,
 	const unsigned char *cmd, int cmd_len, int data_direction,
 	struct scatterlist *sgl, unsigned bufflen, unsigned nents,

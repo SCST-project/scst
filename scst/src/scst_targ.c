@@ -1495,63 +1495,6 @@ static inline enum scst_exec_context scst_optimize_post_exec_context(
 	return context;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
-static inline struct scst_cmd *scst_get_cmd(struct scsi_cmnd *scsi_cmd,
-					    struct scsi_request **req)
-{
-	struct scst_cmd *cmd = NULL;
-
-	if (scsi_cmd) {
-                *req = scsi_cmd->sc_request;
-                if (*req)
-                        cmd = (struct scst_cmd *)(*req)->upper_private_data;
-        }
-
-	if (cmd == NULL) {
-		PRINT_ERROR("%s", "Request with NULL cmd");
-		if (*req)
-			scsi_release_request(*req);
-	}
-
-	return cmd;
-}
-
-static void scst_cmd_done(struct scsi_cmnd *scsi_cmd)
-{
-	struct scsi_request *req = NULL;
-	struct scst_cmd *cmd;
-
-	TRACE_ENTRY();
-
-	cmd = scst_get_cmd(scsi_cmd, &req);
-	if (cmd == NULL)
-		goto out;
-
-	scst_do_cmd_done(cmd, req->sr_result, req->sr_sense_buffer,
-		sizeof(req->sr_sense_buffer), scsi_cmd->resid);
-
-	/* Clear out request structure */
-	req->sr_use_sg = 0;
-	req->sr_sglist_len = 0;
-	req->sr_bufflen = 0;
-	req->sr_buffer = NULL;
-	req->sr_underflow = 0;
-	req->sr_request->rq_disk = NULL; /* disown request blk */
-
-	scst_release_request(cmd);
-
-	cmd->state = SCST_CMD_STATE_PRE_DEV_DONE;
-
-	scst_process_redirect_cmd(cmd,
-		scst_optimize_post_exec_context(cmd, scst_estimate_context()),
-						0);
-
-out:
-	TRACE_EXIT();
-	return;
-}
-#else /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18) */
-
 /**
  * scst_pass_through_cmd_done - done callback for pass-through commands
  * @data:	private opaque data
@@ -1581,8 +1524,6 @@ out:
 	return;
 }
 EXPORT_SYMBOL_GPL(scst_pass_through_cmd_done);
-
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18) */
 
 static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state,
 	enum scst_exec_context pref_context)
@@ -2516,9 +2457,7 @@ static struct scst_cmd *scst_post_exec_sn(struct scst_cmd *cmd,
 static int scst_do_real_exec(struct scst_cmd *cmd)
 {
 	int res = SCST_EXEC_NOT_COMPLETED;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 18)
 	int rc;
-#endif
 	struct scst_device *dev = cmd->dev;
 	struct scst_dev_type *handler = dev->handler;
 	struct io_context *old_ctx = NULL;
@@ -2563,18 +2502,6 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 
 	scst_set_cur_start(cmd);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
-	if (unlikely(scst_alloc_request(cmd) != 0)) {
-		PRINT_INFO("%s", "Unable to allocate request, sending BUSY "
-			"status");
-		goto out_busy;
-	}
-
-	scst_do_req(cmd->scsi_req, (void *)cmd->cdb,
-		    (void *)cmd->scsi_req->sr_buffer,
-		    cmd->scsi_req->sr_bufflen, scst_cmd_done, cmd->timeout,
-		    cmd->retries);
-#else
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
 	rc = scst_exec_req(dev->scsi_dev, cmd->cdb, cmd->cdb_len,
 			cmd->data_direction, cmd->sg, cmd->bufflen,
@@ -2587,7 +2514,6 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 		PRINT_ERROR("scst pass-through exec failed: %x", rc);
 		goto out_error;
 	}
-#endif
 
 out_complete:
 	res = SCST_EXEC_COMPLETED;
@@ -2601,12 +2527,6 @@ out_complete:
 out_error:
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 	goto out_done;
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
-out_busy:
-	scst_set_busy(cmd);
-	/* go through */
-#endif
 
 out_done:
 	res = SCST_EXEC_COMPLETED;
