@@ -1458,7 +1458,6 @@ static void srpt_handle_rdma_err_comp(struct srpt_rdma_ch *ch,
 				      struct srpt_ioctx *ioctx,
 				      enum scst_exec_context context)
 {
-	enum srpt_command_state state;
 	struct scst_cmd *scmnd;
 
 	EXTRACHECKS_WARN_ON(ioctx->n_rdma <= 0);
