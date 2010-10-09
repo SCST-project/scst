@@ -518,14 +518,13 @@ outputdir="${PWD}/regression-test-output-$(date +%Y-%m-%d_%Hh%Mm%Ss)"
 # Driver configuration.
 mpt_scst="false"
 multiple_patches="false"
-patchdir="patchdir"
 qla2x00t="false"
 remove_temporary_files_at_end="false"
 run_local_compilation="true"
 scst_local="true"
 quiet_download="false"
 
-set -- $(/usr/bin/getopt "c:d:j:hklp:q" "$@")
+set -- $(/usr/bin/getopt "c:d:j:hklpq" "$@")
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
@@ -535,7 +534,7 @@ do
     '-j') export MAKEFLAGS="-j$2"; shift; shift;;
     '-k') remove_temporary_files_at_end="true"; shift;;
     '-l') run_local_compilation="false"; shift;;
-    '-p') multiple_patches="true"; patchdir="$2"; shift; shift;;
+    '-p') multiple_patches="true"; shift;;
     '-q') quiet_download="true"; shift;;
     '--') shift;;
     *)    usage; exit 1;;
@@ -611,6 +610,7 @@ do
     esac
     kv="${kv_without_opt}"
   done
+  patchdir="patchdir-${kv}"
   k="${kv}"
 
   download_kernel $k || continue
