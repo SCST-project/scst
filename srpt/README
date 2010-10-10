@@ -196,6 +196,7 @@ Performance Notes - Initiator Side
 
 * The following parameters have a small but measureable impact on SRP
   performance:
+  * /sys/class/block/${dev}/queue/rotational
   * /sys/class/block/${dev}/queue/rq_affinity
   * /proc/irq/${ib_int_no}/smp_affinity
 
