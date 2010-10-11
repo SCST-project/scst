@@ -780,9 +780,10 @@ sub targetType {
 	my $target = shift;
 
 	if ($self->driverIsVirtualCapable($driver)) {
-		my $attribs = $self->driverAttributes($driver);
+		my $attribs = $self->targetAttributes($driver, $target);
 
-		if (defined($$attribs{'hw_target'})) {
+		if (defined($$attribs{'hw_target'}) &&
+		    ($$attribs{'hw_target'}->{'value'} == TRUE)) {
 			return $TGT_TYPE_HARDWARE;
 		} else {
 			return $TGT_TYPE_VIRTUAL;
