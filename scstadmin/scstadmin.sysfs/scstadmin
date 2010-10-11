@@ -1188,28 +1188,30 @@ sub writeConfiguration {
 		$drv_attr_buff_nk .= "\n" if ($drv_attr_buff_nk);
 
 		my $targets = $CURRENT{'assign'}->{$driver};
+		my $tgt_attrs = $SCST->targetCreateAttributes($driver);
 
 		my $target_buff;
 		foreach my $target (sort keys %{$targets}) {
 			$target_buff .= "\tTARGET $target";
 
-			my $tgt_attrs = $SCST->targetAttributes($driver, $target);
+			my $attributes = $SCST->targetAttributes($driver, $target);
 
 			my $attribute_buff;
 			my $attribute_buff_nk;
-			foreach my $attr (keys %{$tgt_attrs}) {
-				next if ($$tgt_attrs{$attr}->{'static'});
-				next if ($$tgt_attrs{$attr}->{'set'});
+			foreach my $attr (keys %{$attributes}) {
+				next if ($$attributes{$attr}->{'static'} &&
+					 !defined($$tgt_attrs{$attr}));
+				next if ($$attributes{$attr}->{'set'});
 
-				if (defined($$tgt_attrs{$attr}->{'keys'})) {
-					foreach my $key (keys %{$$tgt_attrs{$attr}->{'keys'}}) {
-						my $value = $$tgt_attrs{$attr}->{'keys'}->{$key}->{'value'};
+				if (defined($$attributes{$attr}->{'keys'})) {
+					foreach my $key (keys %{$$attributes{$attr}->{'keys'}}) {
+						my $value = $$attributes{$attr}->{'keys'}->{$key}->{'value'};
 						$value = "\"$value\"" if ($value =~ / /);
 						$attribute_buff .= "\t\t$attr $value\n"
 						  if (defined($value));
 					}
 				} elsif (($attr eq 'enabled') || $nonkey) {
-					my $value = $$tgt_attrs{$attr}->{'value'};
+					my $value = $$attributes{$attr}->{'value'};
 					$value = "\"$value\"" if ($value =~ /\s/);
 					if ($attr eq 'enabled') {
 						$attribute_buff .= "\t\t$attr $value\n"
@@ -1993,7 +1995,9 @@ sub applyTargetAssignments {
 
 	foreach my $target (keys %{$CURRENT{'assign'}->{$driver}}) {
 		if (!defined($$targets{$target})) {
-			if ($deletions) {
+			my $isVirtual = ($SCST->targetType($driver, $target) == $SCST::SCST::TGT_TYPE_VIRTUAL);
+
+			if ($deletions && $isVirtual) {
 				my $rc = removeVirtualTarget($driver, $target);
 				immediateExit($SCST->errorString($rc)) if ($rc);
 				$changes++;
@@ -2174,6 +2178,7 @@ sub clearConfiguration {
 
 			clearLuns($driver, $target);
 			removeTargetDynamicAttributes($driver, $target);
+
 			if ($SCST->targetType($driver, $target) == $SCST::SCST::TGT_TYPE_VIRTUAL) {
 				my $rc = removeVirtualTarget($driver, $target);
 				issueWarning($SCST->errorString($rc)) if ($rc);
