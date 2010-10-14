@@ -1571,20 +1571,9 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 				cmd_threads, "%s%d", nm, n++);
 		} else if (tgt_dev != NULL) {
 			char nm[11]; /* to limit the name's len */
-			int rc;
 			strlcpy(nm, tgt_dev->dev->virt_name, ARRAY_SIZE(nm));
 			thr->cmd_thread = kthread_create(scst_cmd_thread,
 				cmd_threads, "%s%d_%d", nm, tgt_dev_num, n++);
-#ifdef RHEL_MAJOR
-			rc = set_cpus_allowed(thr->cmd_thread,
-				tgt_dev->sess->acg->acg_cpu_mask);
-#else
-			rc = set_cpus_allowed_ptr(thr->cmd_thread,
-				&tgt_dev->sess->acg->acg_cpu_mask);
-#endif
-			if (rc != 0)
-				PRINT_ERROR("Setting CPU affinity failed: "
-					"%d", rc);
 		} else
 			thr->cmd_thread = kthread_create(scst_cmd_thread,
 				cmd_threads, "scstd%d", n++);
@@ -1594,6 +1583,24 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 			PRINT_ERROR("kthread_create() failed: %d", res);
 			kfree(thr);
 			goto out_wait;
+		}
+
+		if (tgt_dev != NULL) {
+			int rc;
+			/*
+			 * sess->acg can be NULL here, if called from
+			 * scst_check_reassign_sess()!
+			 */
+#ifdef RHEL_MAJOR
+			rc = set_cpus_allowed(thr->cmd_thread,
+				tgt_dev->acg_dev->acg->acg_cpu_mask);
+#else
+			rc = set_cpus_allowed_ptr(thr->cmd_thread,
+				&tgt_dev->acg_dev->acg->acg_cpu_mask);
+#endif
+			if (rc != 0)
+				PRINT_ERROR("Setting CPU affinity failed: "
+					"%d", rc);
 		}
 
 		list_add(&thr->thread_list_entry, &cmd_threads->threads_list);
