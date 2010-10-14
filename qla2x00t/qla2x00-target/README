@@ -17,14 +17,6 @@ Linux kernel 2.6.26 and higher. Sorry, kernels below 2.6.26 are not
 supported, because it's too hard to backport used initiator driver to
 older kernels.
 
-NPIV is partially supported by this driver. You can create virtual
-targets using standard Linux interface by echoing wwpn:wwnn into
-/sys/class/fc_host/hostX/vport_create and work with them, but SCST core
-will not see those virtual targets and, hence, provide the
-target-oriented access control for them. However, the initiator-oriented
-access control will still work very well. Note, you need NPIV-supporting
-firmware as well as NPIV-supporting switches to use NPIV.
-
 The original initiator driver was taken from the kernel 2.6.26. Also the
 following 2.6.26.x commits have been applied to it (upstream ID):
 048feec5548c0582ee96148c61b87cccbcb5f9be,
@@ -167,6 +159,34 @@ option needs a special firmware with class 2 support. Disabled by
 default.
 
 
+N_Port ID Virtualization
+------------------------
+
+N_Port ID Virtualization(NPIV) is a Fibre Channel facility allowing
+multiple N_Port IDs to share a single physical N_Port. NPIV is fully
+supported by this driver. You must have 24xx+ ISPs with NPIV-supporting
+and NPIV-switches switch(es) to use this facility.
+
+You can add NPIV targets by echoing
+
+add_target target_name node_name=node_name_value; parent_host=parent_host_value
+
+in /sys/kernel/scst_tgt/targets/qla2x00t/mgmt.
+
+Removing NPIV targets is done by echoing
+
+del_target target_name
+
+in/sys/kernel/scst_tgt/targets/qla2x00t/mgmt.
+
+Also, you can create and remove NPIV targets using the standard Linux
+interface (i.e. echoing wwpn:wwnn into /sys/class/fc_host/hostX/vport_create
+and /sys/class/fc_host/hostX/vport_delete).
+
+It is recommended to use scstadmin utility and its config file to
+configure virtual NPIV targets instead of the above direct interface.
+
+
 Compilation options
 -------------------
 
@@ -211,6 +231,12 @@ entries:
  - version - read-only attribute, which allows to see version of
    this driver and enabled optional features.
 
+ - mgmt - main management entry, which allows to configure NPIV targets.
+   See content of this file for help how to use it.
+
+ - hw_target (hardware target only) - read-only attribute with value 1.
+   It allows to distinguish hardware and virtual targets.
+
 Each target subdirectory contains the following entries:
 
  - host - link pointing on the corresponding scsi_host of the initiator
@@ -241,6 +267,12 @@ Each target subdirectory contains the following entries:
    until rel_tgt_id becomes unique. This attribute initialized unique by
    SCST by default.
 
+ - node_name (NPIV targets only) - read-only attribute, which allows to see
+   the target World Wide Node Name.
+
+ - parent_host (NPIV target only) - read-only attribute, which allows to see
+   the parent HBA World Wide Port Name (WWPN).
+
 Subdirectory "sessions" contains one subdirectory for each connected
 session with name equal to port name of the connected initiator.
 
@@ -253,9 +285,10 @@ Each session subdirectory contains the following entries:
 
  - commands - contains overall number of SCSI commands in this session.
 
-Below is a sample script, which configures 1 virtual disk "disk1" using
-/disk1 image for usage with 25:00:00:f0:98:87:92:f3 target. All
-initiators connected to this target will see this device.
+Below is a sample script, which configures 2 virtual disk "disk1" using
+/disk1 image for usage with 25:00:00:f0:98:87:92:f3 hardware target, and
+"disk2" using /disk2 image for usage with 50:50:00:00:00:00:00:11 NPIV
+target. All initiators connected to this targets will see those devices.
 
 #!/bin/bash
 
@@ -263,11 +296,17 @@ modprobe scst
 modprobe scst_vdisk
 
 echo "add_device disk1 filename=/disk1; nv_cache=1" >/sys/kernel/scst_tgt/handlers/vdisk_fileio/mgmt
+echo "add_device disk2 filename=/disk2; nv_cache=1" >/sys/kernel/scst_tgt/handlers/vdisk_fileio/mgmt
 
 modprobe qla2x00tgt
 
+echo "add_target 50:50:00:00:00:00:00:11 node_name=50:50:00:00:00:00:00:00;parent_host=25:00:00:f0:98:87:92:f3" >\
+/sys/kernel/scst_tgt/targets/qla2x00t/mgmt
+
 echo "add disk1 0" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/luns/mgmt
+echo "add disk2 0" >/sys/kernel/scst_tgt/targets/qla2x00t/50:50:00:00:00:00:00:11/luns/mgmt
 echo 1 >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/enabled
+echo 1 >/sys/kernel/scst_tgt/targets/qla2x00t/50:50:00:00:00:00:00:11/enabled
 
 Below is another sample script, which configures 1 real local SCSI disk
 0:0:1:0 for usage with 25:00:00:f0:98:87:92:f3 target:
@@ -456,6 +495,7 @@ The resulting overall SCST sysfs hierarchy with initiator
 |       |   |   |   `-- read_only
 |       |   |   `-- mgmt
 |       |   |-- rel_tgt_id
+|	|   |-- hw_target
 |       |   `-- sessions
 |       |       `-- 25:00:00:f0:99:87:94:a3
 |       |           |-- active_commands
@@ -463,7 +503,8 @@ The resulting overall SCST sysfs hierarchy with initiator
 |       |           |-- initiator_name
 |       |           `-- luns -> ../../ini_groups/25:00:00:f0:99:87:94:a3/luns
 |       |-- trace_level
-|       `-- version
+|       |-- version
+|	`-- mgmt
 |-- threads
 |-- trace_level
 `-- version
@@ -502,5 +543,8 @@ WWN-based authentification, a lot of useful suggestions, bug reports and
 help in debugging.
 
  * Ming Zhang <mingz@ele.uri.edu> for fixes.
+
+ * Uri Yanai <Uri.Yanai@ngsoft.com> and Dorit Halsadi
+<Dorit.Halsadi@dothill.com> for adding full NPIV support.
 
 Vladislav Bolkhovitin <vst@vlnb.net>, http://scst.sourceforge.net

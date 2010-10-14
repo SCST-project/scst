@@ -126,7 +126,9 @@ qla2x00_send_enable_lun(scsi_qla_host_t *ha, bool enable)
 }
 
 extern void qla2xxx_add_targets(void);
-
+extern size_t
+qla2xxx_add_vtarget(u64 *port_name, u64 *node_name, u64 *parent_host);
+extern size_t qla2xxx_del_vtarget(u64 *port_name);
 #endif /* CONFIG_SCSI_QLA2XXX_TARGET */
 
 #endif /* __QLA2X_TGT_H */

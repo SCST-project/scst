@@ -44,13 +44,13 @@
  * Must be changed on any change in any initiator visible interfaces or
  * data in the target add-on
  */
-#define QLA2X_TARGET_MAGIC	267
+#define QLA2X_TARGET_MAGIC	268
 
 /*
  * Must be changed on any change in any target visible interfaces or
  * data in the initiator
  */
-#define QLA2X_INITIATOR_MAGIC   57219
+#define QLA2X_INITIATOR_MAGIC   57220
 
 #define QLA2X_INI_MODE_STR_EXCLUSIVE	"exclusive"
 #define QLA2X_INI_MODE_STR_DISABLED	"disabled"
@@ -508,7 +508,8 @@ typedef struct {
 	uint16_t status;
 	uint16_t timeout;
 	uint16_t dseg_count;		    /* Data segment count. */
-	uint8_t  reserved1[6];
+	uint8_t  vp_index;
+	uint8_t  reserved1[5];
 	uint32_t exchange_address;
 	uint16_t reserved2;
 	uint16_t flags;
@@ -614,7 +615,8 @@ typedef struct {
 	uint8_t	 entry_status;		    /* Entry Status. */
 	uint8_t  reserved_1[6];
 	uint16_t nport_handle;
-	uint8_t  reserved_2[3];
+	uint8_t  reserved_2[2];
+	uint8_t  vp_index;
 	uint8_t  reserved_3:4;
 	uint8_t  sof_type:4;
 	uint32_t exchange_address;
@@ -656,7 +658,7 @@ typedef struct {
 	uint16_t nport_handle;
 	uint16_t control_flags;
 #define ABTS_CONTR_FLG_TERM_EXCHG	BIT_0
-	uint8_t  reserved_2;
+	uint8_t  vp_index;
 	uint8_t  reserved_3:4;
 	uint8_t  sof_type:4;
 	uint32_t exchange_address;

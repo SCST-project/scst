@@ -1783,6 +1783,26 @@ qla24xx_vport_create(struct fc_vport *fc_vport, bool disable)
 	fc_host_supported_speeds(vha->host) =
 		fc_host_supported_speeds(ha->host);
 
+#ifdef CONFIG_SCSI_QLA2XXX_TARGET
+	vha->tgt = NULL;
+	vha->q2t_tgt = NULL;
+	mutex_init(&vha->tgt_mutex);
+	mutex_init(&vha->tgt_host_action_mutex);
+	qla_clear_tgt_mode(vha);
+	qla2x00_send_enable_lun(vha, false);
+	if (IS_QLA24XX_TYPE(vha))
+		vha->atio_q_length = ATIO_ENTRY_CNT_24XX;
+	else if (IS_QLA25XX(vha))
+		vha->atio_q_length = ATIO_ENTRY_CNT_24XX;
+
+	if (qla_target.tgt_host_action != NULL)
+		qla_target.tgt_host_action(vha, ADD_TARGET);
+
+	/*
+	 * Must be after tgt_host_action() to not race with
+	 * qla2xxx_add_targets().
+	 */
+#endif
 	qla24xx_vport_disable(fc_vport, disable);
 
 	return 0;
@@ -1800,6 +1820,11 @@ qla24xx_vport_delete(struct fc_vport *fc_vport)
 {
 	scsi_qla_host_t *ha = shost_priv(fc_vport->shost);
 	scsi_qla_host_t *vha = fc_vport->dd_data;
+
+#ifdef CONFIG_SCSI_QLA2XXX_TARGET
+	if (qla_target.tgt_host_action != NULL)
+		qla_target.tgt_host_action(vha, REMOVE_TARGET);
+#endif
 
 	qla24xx_disable_vp(vha);
 	qla24xx_deallocate_vp_id(vha);

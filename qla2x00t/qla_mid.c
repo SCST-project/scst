@@ -16,6 +16,8 @@
 #include <scsi/scsicam.h>
 #include <linux/delay.h>
 
+#include "qla2x_tgt.h"
+
 void
 qla2x00_vp_stop_timer(scsi_qla_host_t *vha)
 {
@@ -25,7 +27,7 @@ qla2x00_vp_stop_timer(scsi_qla_host_t *vha)
 	}
 }
 
-static uint32_t
+static void
 qla24xx_allocate_vp_id(scsi_qla_host_t *vha)
 {
 	uint32_t vp_id;
@@ -38,15 +40,16 @@ qla24xx_allocate_vp_id(scsi_qla_host_t *vha)
 		DEBUG15(printk ("vp_id %d is bigger than max-supported %d.\n",
 		    vp_id, ha->max_npiv_vports));
 		mutex_unlock(&ha->vport_lock);
-		return vp_id;
+	} else {
+		set_bit(vp_id, ha->vp_idx_map);
+		ha->num_vhosts++;
+		vha->vp_idx = vp_id;
+		list_add_tail(&vha->vp_list, &ha->vp_list);
+#ifdef CONFIG_SCSI_QLA2XXX_TARGET
+		ha->tgt_vp_map[vp_id].vha = vha;
+#endif
+		mutex_unlock(&ha->vport_lock);
 	}
-
-	set_bit(vp_id, ha->vp_idx_map);
-	ha->num_vhosts++;
-	vha->vp_idx = vp_id;
-	list_add_tail(&vha->vp_list, &ha->vp_list);
-	mutex_unlock(&ha->vport_lock);
-	return vp_id;
 }
 
 void
@@ -60,6 +63,9 @@ qla24xx_deallocate_vp_id(scsi_qla_host_t *vha)
 	ha->num_vhosts--;
 	clear_bit(vp_id, ha->vp_idx_map);
 	list_del(&vha->vp_list);
+#ifdef CONFIG_SCSI_QLA2XXX_TARGET
+	ha->tgt_vp_map[vp_id].vha = NULL;
+#endif
 	mutex_unlock(&ha->vport_lock);
 }
 
@@ -116,6 +122,10 @@ qla24xx_disable_vp(scsi_qla_host_t *vha)
 	ret = qla24xx_control_vp(vha, VCE_COMMAND_DISABLE_VPS_LOGO_ALL);
 	atomic_set(&vha->loop_state, LOOP_DOWN);
 	atomic_set(&vha->loop_down_timer, LOOP_DOWN_TIME);
+#ifdef CONFIG_SCSI_QLA2XXX_TARGET
+	/* Remove port id from vp target map */
+	vha->parent->tgt_vp_map[vha->d_id.b.al_pa].idx = 0;
+#endif
 
 	/* Delete all vp's fcports from parent's list */
 	qla2x00_mark_vp_devices_dead(vha);
@@ -249,6 +259,11 @@ qla2x00_vp_abort_isp(scsi_qla_host_t *vha)
 	DEBUG15(printk("scsi(%ld): Scheduling enable of Vport %d...\n",
 	    vha->host_no, vha->vp_idx));
 	qla24xx_enable_vp(vha);
+#ifdef CONFIG_SCSI_QLA2XXX_TARGET
+	/* Enable target response to SCSI bus. */
+	if (qla_tgt_mode_enabled(vha))
+		qla2x00_send_enable_lun(vha, true);
+#endif
 }
 
 static int
@@ -391,7 +406,7 @@ qla24xx_create_vhost(struct fc_vport *fc_vport)
 	vha->fc_vport = fc_vport;
 	vha->device_flags = 0;
 	vha->instance = num_hosts;
-	vha->vp_idx = qla24xx_allocate_vp_id(vha);
+	qla24xx_allocate_vp_id(vha);
 	if (vha->vp_idx > ha->max_npiv_vports) {
 		DEBUG15(printk("scsi(%ld): Couldn't allocate vp_id.\n",
 			vha->host_no));

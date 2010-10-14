@@ -1649,13 +1649,104 @@ qla2xxx_add_targets(void)
 
 	mutex_lock(&qla_ha_list_mutex);
 	list_for_each_entry(ha, &qla_ha_list, ha_list_entry) {
-		if (qla_target.tgt_host_action != NULL)
+		if (qla_target.tgt_host_action != NULL) {
+			int i, vp_idx_matched;
+
 			qla_target.tgt_host_action(ha, ADD_TARGET);
+			for_each_mapped_vp_idx(ha, i) {
+				scsi_qla_host_t *vha;
+				vp_idx_matched = 0;
+
+				list_for_each_entry(vha, &ha->vp_list,
+						vp_list) {
+					if (i == vha->vp_idx) {
+						vp_idx_matched = 1;
+						break;
+					}
+				}
+
+				if (vp_idx_matched)
+					qla_target.tgt_host_action(vha, ADD_TARGET);
+			}
+		}
 	}
 	mutex_unlock(&qla_ha_list_mutex);
 	return;
 }
 EXPORT_SYMBOL(qla2xxx_add_targets);
+
+size_t qla2xxx_add_vtarget(u64 *port_name, u64 *node_name, u64 *parent_host)
+{
+	struct Scsi_Host *shost = NULL;
+	scsi_qla_host_t *ha;
+	struct fc_vport_identifiers vid;
+	uint8_t parent_wwn[WWN_SIZE];
+
+	memset(&vid, 0, sizeof(vid));
+
+	u64_to_wwn(*parent_host, parent_wwn);
+
+	mutex_lock(&qla_ha_list_mutex);
+	list_for_each_entry(ha, &qla_ha_list, ha_list_entry) {
+		if (!memcmp(parent_wwn, ha->port_name, WWN_SIZE)) {
+			shost = ha->host;
+			break;
+		}
+	}
+	mutex_unlock(&qla_ha_list_mutex);
+	if (!ha || !shost)
+		return -ENODEV;
+
+	vid.port_name = *port_name;
+	vid.node_name = *node_name;
+	vid.roles = FC_PORT_ROLE_FCP_INITIATOR;
+	vid.vport_type = FC_PORTTYPE_NPIV;
+	/* vid.symbolic_name is already zero/NULL's */
+	vid.disable = false;		/* always enabled */
+
+	/* We only allow support on Channel 0 !!! */
+	if (!fc_vport_create(shost, 0, &vid))
+		return -EINVAL;
+
+	return 0;
+}
+EXPORT_SYMBOL(qla2xxx_add_vtarget);
+
+size_t qla2xxx_del_vtarget(u64 *port_name)
+{
+	scsi_qla_host_t *ha;
+	struct Scsi_Host *shost;
+	struct fc_host_attrs *fc_host;
+	struct fc_vport *vport;
+	unsigned long flags;
+	int match = 0;
+
+	mutex_lock(&qla_ha_list_mutex);
+	list_for_each_entry(ha, &qla_ha_list, ha_list_entry) {
+		shost = ha->host;
+		fc_host = shost_to_fc_host(shost);
+		spin_lock_irqsave(shost->host_lock, flags);
+		/* We only allow support on Channel 0 !!! */
+		list_for_each_entry(vport, &fc_host->vports, peers) {
+			if ((vport->channel == 0) &&
+					(vport->port_name == *port_name)) {
+				match = 1;
+				break;
+			}
+		}
+		spin_unlock_irqrestore(shost->host_lock, flags);
+		if (match)
+			break;
+	}
+	mutex_unlock(&qla_ha_list_mutex);
+
+	if (!match)
+		return -ENODEV;
+
+	return fc_vport_terminate(vport);
+}
+EXPORT_SYMBOL(qla2xxx_del_vtarget);
+
 #endif /* CONFIG_SCSI_QLA2XXX_TARGET */
 
 /*
@@ -1729,6 +1820,7 @@ qla2x00_probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	mutex_init(&ha->tgt_mutex);
 	mutex_init(&ha->tgt_host_action_mutex);
 	qla_clear_tgt_mode(ha);
+	ha->tgt_vp_map = NULL;
 #endif
 
 	/* Set ISP-type information. */
@@ -2184,11 +2276,16 @@ qla2x00_mem_alloc(scsi_qla_host_t *ha)
 
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 	if (IS_FWI2_CAPABLE(ha)) {
+		ha->tgt_vp_map = kzalloc(sizeof(struct qla_tgt_vp_map) *
+					MAX_MULTI_ID_FABRIC, GFP_KERNEL);
+		if (!ha->tgt_vp_map)
+			goto fail_free_response_ring;
+
 		ha->atio_ring = dma_alloc_coherent(&ha->pdev->dev,
 		    (ha->atio_q_length + 1) * sizeof(atio_t),
 		    &ha->atio_dma, GFP_KERNEL);
 		if (ha->atio_ring == NULL)
-			goto fail_free_response_ring;
+			goto fail_free_vp_map;
 	}
 #endif
 
@@ -2270,6 +2367,9 @@ fail_free_atio_ring:
 	    sizeof(response_t), ha->atio_ring, ha->atio_dma);
 	ha->atio_ring = NULL;
 	ha->atio_dma = 0;
+fail_free_vp_map:
+	kfree(ha->tgt_vp_map);
+	ha->tgt_vp_map = NULL;
 fail_free_response_ring:
 #endif
 	dma_free_coherent(&ha->pdev->dev, (ha->response_q_length + 1) *
@@ -2342,6 +2442,7 @@ qla2x00_mem_free(scsi_qla_host_t *ha)
 		dma_free_coherent(&ha->pdev->dev,
 		    (ha->atio_q_length + 1) * sizeof(atio_t),
 		    ha->atio_ring, ha->atio_dma);
+	kfree(ha->tgt_vp_map);
 #endif
 
 	if (ha->response_ring)
@@ -2378,6 +2479,7 @@ qla2x00_mem_free(scsi_qla_host_t *ha)
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 	ha->atio_ring = NULL;
 	ha->atio_dma = 0;
+	ha->tgt_vp_map = NULL;
 #endif
 
 	list_for_each_safe(fcpl, fcptemp, &ha->fcports) {

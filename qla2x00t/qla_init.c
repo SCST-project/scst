@@ -1460,7 +1460,9 @@ qla2x00_configure_hba(scsi_qla_host_t *ha)
 	uint8_t       area;
 	uint8_t       domain;
 	char		connect_type[22];
-
+#ifdef CONFIG_SCSI_QLA2XXX_TARGET
+	scsi_qla_host_t *pha = ha->parent;
+#endif
 	/* Get host addresses. */
 	rval = qla2x00_get_adapter_id(ha,
 	    &loop_id, &al_pa, &area, &domain, &topo, &sw_cap);
@@ -1537,7 +1539,10 @@ qla2x00_configure_hba(scsi_qla_host_t *ha)
 	ha->d_id.b.domain = domain;
 	ha->d_id.b.area = area;
 	ha->d_id.b.al_pa = al_pa;
-
+#ifdef CONFIG_SCSI_QLA2XXX_TARGET
+	if (pha)
+		pha->tgt_vp_map[al_pa].idx = ha->vp_idx;
+#endif
 	if (!ha->flags.init_done)
  		qla_printk(KERN_INFO, ha,
 		    "Topology - %s, Host Loop address 0x%x\n",
@@ -4139,6 +4144,9 @@ qla2x00_enable_tgt_mode(scsi_qla_host_t *ha)
 	qla_set_tgt_mode(ha);
 	spin_unlock_irqrestore(&ha->hardware_lock, flags);
 
+	if (ha->parent)
+		ha = ha->parent;
+
 	set_bit(ISP_ABORT_NEEDED, &ha->dpc_flags);
 	qla2xxx_wake_dpc(ha);
 	qla2x00_wait_for_hba_online(ha);
@@ -4154,14 +4162,15 @@ void
 qla2x00_disable_tgt_mode(scsi_qla_host_t *ha)
 {
 	unsigned long flags;
+	scsi_qla_host_t *vha = to_qla_parent(ha);
 
-	spin_lock_irqsave(&ha->hardware_lock, flags);
+	spin_lock_irqsave(&vha->hardware_lock, flags);
 	qla_clear_tgt_mode(ha);
-	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+	spin_unlock_irqrestore(&vha->hardware_lock, flags);
 
-	set_bit(ISP_ABORT_NEEDED, &ha->dpc_flags);
-	qla2xxx_wake_dpc(ha);
-	qla2x00_wait_for_hba_online(ha);
+	set_bit(ISP_ABORT_NEEDED, &vha->dpc_flags);
+	qla2xxx_wake_dpc(vha);
+	qla2x00_wait_for_hba_online(vha);
 }
 EXPORT_SYMBOL(qla2x00_disable_tgt_mode);
 

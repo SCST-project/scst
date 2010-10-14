@@ -6,6 +6,8 @@
  */
 #include "qla_def.h"
 
+#include "qla2x_tgt.h"
+
 #include <linux/delay.h>
 
 
@@ -2765,6 +2767,14 @@ qla24xx_modify_vp_config(scsi_qla_host_t *vha)
 	vpmod->vp_count = 1;
 	vpmod->vp_index1 = vha->vp_idx;
 	vpmod->options_idx1 = BIT_3|BIT_4|BIT_5;
+#ifdef CONFIG_SCSI_QLA2XXX_TARGET
+	/* Enable target mode */
+	if (qla_tgt_mode_enabled(vha))
+		vpmod->options_idx1 &= ~BIT_5;
+	/* Disable ini mode, if requested */
+	if (!qla_ini_mode_enabled(vha))
+		vpmod->options_idx1 &= ~BIT_4;
+#endif
 	memcpy(vpmod->node_name_idx1, vha->node_name, WWN_SIZE);
 	memcpy(vpmod->port_name_idx1, vha->port_name, WWN_SIZE);
 	vpmod->entry_count = 1;

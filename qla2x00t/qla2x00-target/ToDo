@@ -3,9 +3,6 @@ Known issues and unimplemented features
 
  - Allow to set port and node names through sysfs.
  
- - Complete NPIV support. Particularly, SCST core should see all the virtual
-   targets and provide separate target-oriented access control for them.
-
  - Minor "ToDo"'s spread in the code.
 
  - If a Linux initiator asks for devices using INQUIRY command too soon

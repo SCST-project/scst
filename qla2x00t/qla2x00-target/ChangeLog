@@ -1,8 +1,17 @@
+Summary of changes between versions 2.0.0 and 2.1.0
+---------------------------------------------------
+
+ - Complete NPIV support added. Particularly, now SCST core sees
+   all the virtual targets and provide separate target-oriented access
+   control for them. Thanks a lot to Uri Yanai and Dorit
+   Halsadi!
+
+
 Summary of changes between versions 1.0.2 and 2.0.0
 ---------------------------------------------------
 
  - Support for 24xx/25xx added
- 
+
  - Disable by default initiator mode if target mode enabled. It can be changed
    using .config option CONFIG_SCSI_QLA2XXX_TARGET_DISABLE_INI_MODE.
 
@@ -17,7 +26,7 @@ Summary of changes between versions 1.0.1 and 1.0.2
    module unload fixed
 
  - Implemented abort on timeout of stuck in the firmware commands
- 
+
 
 Summary of changes between versions 1.0.0 and 1.0.1
 ---------------------------------------------------

@@ -2626,6 +2626,7 @@ typedef struct scsi_qla_host {
 	uint16_t        vp_idx;		/* vport ID */
 
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
+	struct qla_tgt_vp_map *tgt_vp_map;
 	struct mutex	tgt_mutex;
 
 	struct mutex	tgt_host_action_mutex;
@@ -2671,6 +2672,12 @@ typedef struct scsi_qla_host {
 	struct qla_chip_state_84xx *cs84xx;
 } scsi_qla_host_t;
 
+#ifdef CONFIG_SCSI_QLA2XXX_TARGET
+struct qla_tgt_vp_map {
+	uint8_t 	idx;
+	scsi_qla_host_t	*vha;
+};
+#endif
 
 /*
  * Macros to help code, maintain, etc.
