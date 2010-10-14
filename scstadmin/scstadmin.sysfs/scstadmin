@@ -1198,6 +1198,12 @@ sub writeConfiguration {
 
 			my $attribute_buff;
 			my $attribute_buff_nk;
+
+			if (defined($$attributes{'hw_target'}) &&
+			  ($$attributes{'hw_target'}->{'value'} == TRUE)) {
+				$attribute_buff = "\t\tHW_TARGET\n\n";
+			}
+
 			foreach my $attr (keys %{$attributes}) {
 				next if ($$attributes{$attr}->{'static'} &&
 					 !defined($$tgt_attrs{$attr}));
@@ -1210,7 +1216,7 @@ sub writeConfiguration {
 						$attribute_buff .= "\t\t$attr $value\n"
 						  if (defined($value));
 					}
-				} elsif (($attr eq 'enabled') || $nonkey) {
+				} elsif (($attr eq 'hw_target') || ($attr eq 'enabled') || $nonkey) {
 					my $value = $$attributes{$attr}->{'value'};
 					$value = "\"$value\"" if ($value =~ /\s/);
 					if ($attr eq 'enabled') {
@@ -2030,6 +2036,11 @@ sub applyTargetAssignments {
 				}
 
 				my $attributes = configToAttr(\%_attributes);
+
+				if (defined($$attributes{'HW_TARGET'})) {
+					immediateExit("Hardware target '$target' for driver '$driver' does not exist.");
+				}
+
 				filterCreateAttributes($possible, $attributes, FALSE);
 
 				my $rc = addVirtualTarget($driver, $target, $attributes);
@@ -3468,6 +3479,7 @@ sub setTargetAttributes {
 	# add/change
 	foreach my $attribute (keys %toset) {
 		foreach my $value (keys %{$toset{$attribute}}) {
+			next if ($attribute eq 'HW_TARGET');
 			if (!defined($$existing{$attribute}) &&
 			    $driverCap && !$SCST->checkTargetDynamicAttributes($driver, $attribute)) {
 				addTargetDynamicAttribute($driver, $target, $attribute, $value);
