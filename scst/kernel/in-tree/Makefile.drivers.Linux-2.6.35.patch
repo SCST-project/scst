@@ -1,11 +1,8 @@
 diff -upkr -X linux-2.6.35/Documentation/dontdiff linux-2.6.35/drivers/Makefile linux-2.6.35/drivers/Makefile
---- linux-2.6.35/drivers/Makefile	2008-07-14 01:51:29.000000000 +0400
-+++ linux-2.6.35/drivers/Makefile	2008-07-24 14:15:29.000000000 +0400
-@@ -43,6 +43,7 @@ obj-$(CONFIG_ATM)		+= atm/
- obj-y				+= macintosh/
- obj-$(CONFIG_IDE)		+= ide/
- obj-$(CONFIG_SCSI)		+= scsi/
+--- linux-2.6.35/drivers/Makefile.orig	2010-10-16 15:40:04.000000000 +0200
++++ linux-2.6.35/drivers/Makefile	2010-10-16 15:40:20.000000000 +0200
+@@ -113,3 +113,4 @@ obj-$(CONFIG_VLYNQ)		+= vlynq/
+ obj-$(CONFIG_STAGING)		+= staging/
+ obj-y				+= platform/
+ obj-y				+= ieee802154/
 +obj-$(CONFIG_SCST)		+= scst/
- obj-$(CONFIG_ATA)		+= ata/
- obj-y				+= net/
- obj-$(CONFIG_ATM)		+= atm/
