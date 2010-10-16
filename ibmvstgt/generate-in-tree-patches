@@ -1,5 +1,16 @@
 #!/bin/bash
 
+function file_to_patch {
+  echo "--- $1 "
+  echo "+++ $1 "
+  echo "@@ -1,0 +1,$(wc --lines $1) @@"
+  sed 's/^/+/' "$1"
+}
+
+function patch_to_file {
+  tail -n +4 | sed 's/^.//'
+}
+
 kernel_version="$1"
 
 if [ "$1" = "" ]; then
@@ -27,6 +38,10 @@ do
   fi
   f3="in-tree-patches/${kernel_version}/$g.patch"
   if [ "$f1" -nt "$f3" -o "$f2" -nt "$f3" ]; then
-    diff -up "$f1" "$f2" > "$f3"
+    file_to_patch "$f2" | \
+      ../scripts/specialize-patch -v kernel_version="$1" \
+                                  -v generating_upstream_patch_defined=1 | \
+      patch_to_file | \
+      diff -up "$f1" - > "$f3"
   fi
 done
