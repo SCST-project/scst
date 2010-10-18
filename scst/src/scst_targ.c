@@ -4853,8 +4853,12 @@ static int scst_abort_task_set(struct scst_mgmt_cmd *mcmd)
 
 	__scst_abort_task_set(mcmd, tgt_dev);
 
-	if (atomic_dec_and_test(&mcmd->origin_pr_cmd->pr_abort_counter->pr_aborting_cnt))
-		complete_all(&mcmd->origin_pr_cmd->pr_abort_counter->pr_aborting_cmpl);
+	if (mcmd->fn == SCST_PR_ABORT_ALL) {
+		struct scst_pr_abort_all_pending_mgmt_cmds_counter *pr_cnt =
+			mcmd->origin_pr_cmd->pr_abort_counter;
+		if (atomic_dec_and_test(&pr_cnt->pr_aborting_cnt))
+			complete_all(&pr_cnt->pr_aborting_cmpl);
+	}
 
 	tm_dbg_task_mgmt(mcmd->mcmd_tgt_dev->dev, "ABORT TASK SET/PR ABORT", 0);
 
