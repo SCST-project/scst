@@ -375,7 +375,8 @@ static void q24_atio_pkt_all_vps(scsi_qla_host_t *ha, atio7_entry_t *atio)
 		scsi_qla_host_t *host = ha;
 		if (IS_FWI2_CAPABLE(ha)) {
 			notify24xx_entry_t *entry = (notify24xx_entry_t *)atio;
-			if (IMM_NTFY_LIP_LINK_REINIT != entry->status) {
+			if ((entry->vp_index != 0xFF) &&
+			    (entry->nport_handle != 0xFFFF)) {
 				host = q2t_find_host_by_vp_idx(ha,
 						entry->vp_index);
 				if (unlikely(!host)) {
