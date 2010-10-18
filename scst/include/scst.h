@@ -158,53 +158,50 @@ static inline int set_cpus_allowed_ptr(struct task_struct *p,
  ** "switch" statements.
  *************************************************************/
 
-/* Internal parsing */
-#define SCST_CMD_STATE_PRE_PARSE     0
-
 /* Dev handler's parse() is going to be called */
-#define SCST_CMD_STATE_DEV_PARSE     1
+#define SCST_CMD_STATE_PARSE	     0
 
 /* Allocation of the cmd's data buffer */
-#define SCST_CMD_STATE_PREPARE_SPACE 2
+#define SCST_CMD_STATE_PREPARE_SPACE 1
 
 /* Calling preprocessing_done() */
-#define SCST_CMD_STATE_PREPROCESSING_DONE 3
+#define SCST_CMD_STATE_PREPROCESSING_DONE 2
 
 /* Target driver's rdy_to_xfer() is going to be called */
-#define SCST_CMD_STATE_RDY_TO_XFER   4
+#define SCST_CMD_STATE_RDY_TO_XFER   3
 
 /* Target driver's pre_exec() is going to be called */
-#define SCST_CMD_STATE_TGT_PRE_EXEC  5
+#define SCST_CMD_STATE_TGT_PRE_EXEC  4
 
 /* Cmd is going to be sent for execution */
-#define SCST_CMD_STATE_SEND_FOR_EXEC 6
+#define SCST_CMD_STATE_SEND_FOR_EXEC 5
 
 /* Cmd is being checked if it should be executed locally */
-#define SCST_CMD_STATE_LOCAL_EXEC    7
+#define SCST_CMD_STATE_LOCAL_EXEC    6
 
 /* Cmd is ready for execution */
-#define SCST_CMD_STATE_REAL_EXEC     8
+#define SCST_CMD_STATE_REAL_EXEC     7
 
 /* Internal post-exec checks */
-#define SCST_CMD_STATE_PRE_DEV_DONE  9
+#define SCST_CMD_STATE_PRE_DEV_DONE  8
 
 /* Internal MODE SELECT pages related checks */
-#define SCST_CMD_STATE_MODE_SELECT_CHECKS 10
+#define SCST_CMD_STATE_MODE_SELECT_CHECKS 9
 
 /* Dev handler's dev_done() is going to be called */
-#define SCST_CMD_STATE_DEV_DONE      11
+#define SCST_CMD_STATE_DEV_DONE      10
 
 /* Checks before target driver's xmit_response() is called */
-#define SCST_CMD_STATE_PRE_XMIT_RESP 12
+#define SCST_CMD_STATE_PRE_XMIT_RESP 11
 
 /* Target driver's xmit_response() is going to be called */
-#define SCST_CMD_STATE_XMIT_RESP     13
+#define SCST_CMD_STATE_XMIT_RESP     12
 
 /* Cmd finished */
-#define SCST_CMD_STATE_FINISHED      14
+#define SCST_CMD_STATE_FINISHED      13
 
 /* Internal cmd finished */
-#define SCST_CMD_STATE_FINISHED_INTERNAL 15
+#define SCST_CMD_STATE_FINISHED_INTERNAL 14
 
 #define SCST_CMD_STATE_LAST_ACTIVE   (SCST_CMD_STATE_FINISHED_INTERNAL+100)
 

@@ -1863,8 +1863,7 @@ static int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
 	switch (cmd->state) {
 	case SCST_CMD_STATE_INIT_WAIT:
 	case SCST_CMD_STATE_INIT:
-	case SCST_CMD_STATE_PRE_PARSE:
-	case SCST_CMD_STATE_DEV_PARSE:
+	case SCST_CMD_STATE_PARSE:
 		if (cmd->preprocessing_only) {
 			res = SCST_CMD_STATE_PREPROCESSING_DONE;
 			break;
@@ -1949,7 +1948,7 @@ int scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 	switch (cmd->state) {
 	case SCST_CMD_STATE_INIT_WAIT:
 	case SCST_CMD_STATE_INIT:
-	case SCST_CMD_STATE_PRE_PARSE:
+	case SCST_CMD_STATE_PARSE:
 	case SCST_CMD_STATE_PREPROCESSING_DONE:
 	case SCST_CMD_STATE_PREPROCESSING_DONE_CALLED:
 	case SCST_CMD_STATE_PREPARE_SPACE:
@@ -1963,7 +1962,6 @@ int scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 	case SCST_CMD_STATE_LOCAL_EXEC:
 	case SCST_CMD_STATE_REAL_EXEC:
 	case SCST_CMD_STATE_REAL_EXECUTING:
-	case SCST_CMD_STATE_DEV_PARSE:
 	case SCST_CMD_STATE_DEV_DONE:
 	case SCST_CMD_STATE_PRE_DEV_DONE:
 	case SCST_CMD_STATE_MODE_SELECT_CHECKS:
@@ -3700,7 +3698,7 @@ static struct scst_cmd *scst_create_prepare_internal_cmd(
 	if (res->tgt_dev != NULL)
 		__scst_get(0);
 
-	res->state = SCST_CMD_STATE_PRE_PARSE;
+	res->state = SCST_CMD_STATE_PARSE;
 
 out:
 	TRACE_EXIT_HRES((unsigned long)res);

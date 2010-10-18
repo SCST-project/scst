@@ -386,21 +386,11 @@ EXPORT_SYMBOL(scst_cmd_init_done);
 
 static int scst_pre_parse(struct scst_cmd *cmd)
 {
-	int res = SCST_CMD_STATE_RES_CONT_SAME;
+	int res;
 	struct scst_device *dev = cmd->dev;
 	int rc;
 
 	TRACE_ENTRY();
-
-#ifdef CONFIG_SCST_STRICT_SERIALIZING
-	cmd->inc_expected_sn_on_done = 1;
-#else
-	cmd->inc_expected_sn_on_done = dev->handler->exec_sync ||
-		scst_is_implicit_ordered(cmd) ||
-		(!dev->has_own_order_mgmt &&
-		 (dev->queue_alg == SCST_CONTR_MODE_QUEUE_ALG_RESTRICTED_REORDER ||
-		  cmd->queue_type == SCST_CMD_QUEUE_ORDERED));
-#endif
 
 	/*
 	 * Expected transfer data supplied by the SCSI transport via the
@@ -423,11 +413,19 @@ static int scst_pre_parse(struct scst_cmd *cmd)
 			cmd->cdb[0], dev->handler->name);
 		PRINT_BUFF_FLAG(TRACE_MINOR, "Failed CDB", cmd->cdb,
 			cmd->cdb_len);
-	} else {
+	} else
 		EXTRACHECKS_BUG_ON(!(cmd->op_flags & SCST_INFO_VALID));
-	}
 
-	cmd->state = SCST_CMD_STATE_DEV_PARSE;
+#ifdef CONFIG_SCST_STRICT_SERIALIZING
+	cmd->inc_expected_sn_on_done = 1;
+#else
+	cmd->inc_expected_sn_on_done = dev->handler->exec_sync ||
+		scst_is_implicit_ordered(cmd) ||
+		(!dev->has_own_order_mgmt &&
+		 (dev->queue_alg == SCST_CONTR_MODE_QUEUE_ALG_RESTRICTED_REORDER ||
+		  cmd->queue_type == SCST_CMD_QUEUE_ORDERED));
+#endif
+
 
 	TRACE_DBG("op_name <%s> (cmd %p), direction=%d "
 		"(expected %d, set %s), bufflen=%d, out_bufflen=%d (expected "
@@ -437,6 +435,8 @@ static int scst_pre_parse(struct scst_cmd *cmd)
 		cmd->bufflen, cmd->out_bufflen, cmd->expected_transfer_len,
 		cmd->expected_out_transfer_len, cmd->op_flags);
 
+	res = 0;
+
 out:
 	TRACE_EXIT_RES(res);
 	return res;
@@ -444,7 +444,7 @@ out:
 out_err:
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
 	scst_set_cmd_abnormal_done_state(cmd);
-	res = SCST_CMD_STATE_RES_CONT_SAME;
+	res = -1;
 	goto out;
 }
 
@@ -749,8 +749,7 @@ set_res:
 #ifdef CONFIG_SCST_EXTRACHECKS
 	switch (state) {
 	case SCST_CMD_STATE_PREPARE_SPACE:
-	case SCST_CMD_STATE_PRE_PARSE:
-	case SCST_CMD_STATE_DEV_PARSE:
+	case SCST_CMD_STATE_PARSE:
 	case SCST_CMD_STATE_RDY_TO_XFER:
 	case SCST_CMD_STATE_TGT_PRE_EXEC:
 	case SCST_CMD_STATE_SEND_FOR_EXEC:
@@ -3209,8 +3208,7 @@ static int scst_dev_done(struct scst_cmd *cmd)
 	switch (state) {
 #ifdef CONFIG_SCST_EXTRACHECKS
 	case SCST_CMD_STATE_PRE_XMIT_RESP:
-	case SCST_CMD_STATE_DEV_PARSE:
-	case SCST_CMD_STATE_PRE_PARSE:
+	case SCST_CMD_STATE_PARSE:
 	case SCST_CMD_STATE_PREPARE_SPACE:
 	case SCST_CMD_STATE_RDY_TO_XFER:
 	case SCST_CMD_STATE_TGT_PRE_EXEC:
@@ -3764,7 +3762,7 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 		int cnt;
 		bool failure = false;
 
-		cmd->state = SCST_CMD_STATE_PRE_PARSE;
+		cmd->state = SCST_CMD_STATE_PARSE;
 
 		cnt = atomic_inc_return(&cmd->tgt_dev->tgt_dev_cmd_count);
 		if (unlikely(cnt > SCST_MAX_TGT_DEV_COMMANDS)) {
@@ -3800,6 +3798,9 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 
 		if (unlikely(failure))
 			goto out_busy;
+
+		if (unlikely(scst_pre_parse(cmd) != 0))
+			goto out;
 
 		if (!cmd->set_sn_on_restart_cmd)
 			scst_cmd_set_sn(cmd);
@@ -3985,13 +3986,7 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 
 	do {
 		switch (cmd->state) {
-		case SCST_CMD_STATE_PRE_PARSE:
-			res = scst_pre_parse(cmd);
-			EXTRACHECKS_BUG_ON(res ==
-				SCST_CMD_STATE_RES_NEED_THREAD);
-			break;
-
-		case SCST_CMD_STATE_DEV_PARSE:
+		case SCST_CMD_STATE_PARSE:
 			res = scst_parse_cmd(cmd);
 			break;
 
@@ -4091,7 +4086,7 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 		spin_lock_irq(&cmd->cmd_threads->cmd_list_lock);
 #ifdef CONFIG_SCST_EXTRACHECKS
 		switch (cmd->state) {
-		case SCST_CMD_STATE_DEV_PARSE:
+		case SCST_CMD_STATE_PARSE:
 		case SCST_CMD_STATE_PREPARE_SPACE:
 		case SCST_CMD_STATE_RDY_TO_XFER:
 		case SCST_CMD_STATE_TGT_PRE_EXEC:
