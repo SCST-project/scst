@@ -62,27 +62,31 @@ Proceed as follows to compile and install the SRP target driver:
    chkconfig scst on
 
 The ib_srpt kernel module supports the following parameters:
-* srp_max_message_size (number)
+* srp_max_req_size (number)
   Maximum size of an SRP control message in bytes. Examples of SRP control
   messages are: login request, logout request, data transfer request, ...
   The larger this parameter, the more scatter/gather list elements can be
   sent at once. Use the following formula to compute an appropriate value
   for this parameter: 68 + 16 * (sg_tablesize). The default value of
   this parameter is 2116, which corresponds to an sg table size of 128.
+* srp_max_rsp_size (number)
+  Maximum size of an SRP response message in bytes. Sense data is sent back
+  via these messages towards the initiator. The default size is 256 bytes.
+  With this value there remains (256-36) = 220 bytes for sense data.
 * srp_max_rdma_size (number)
   Maximum number of bytes that may be transferred at once via RDMA. Defaults
   to 65536 bytes, which is sufficient to use the full bandwidth of low-latency
   HCAs. Increasing this value may decrease latency for applications
   transferring large amounts of data at once.
-* srpt_autodetect_cred_req (y or n, default n)
-  Whether or not to autodetect initiator support for SRP_CRED_REQ (initiators
-  with Linux kernel 2.6.37 or later only).  The use of SRP_CRED_REQ allows
-  ib_srpt to process workloads with large I/O depths more efficiently.
-  Note: enabling this mode causes the Windows SRP initiator to stop working.
 * srpt_srq_size (number, default 4095)
   ib_srpt uses a shared receive queue (SRQ) for processing incoming SRP
   requests. This number may have to be increased when a large number of
   initiator systems is accessing a single SRP target system.
+* srpt_sq_size (number, default 4096)
+  Per-channel InfiniBand send queue size. The default setting is sufficient
+  for a credit limit of 128. Changing this parameter to a smaller value may
+  cause RDMA requests to be retried and hence may slow down data transfer
+  severely.
 * thread (0, 1 or 2, default 1)
   Defines the context on which SRP requests are processed:
   * thread=0: do as much processing in IRQ context as possible. Results in
@@ -194,7 +198,7 @@ Performance Notes - Initiator Side
 * For latency sensitive applications, using the noop scheduler at the initiator
   side can give significantly better results than with other schedulers.
 
-* The following parameters have a small but measureable impact on SRP
+* The following parameters have a small but measurable impact on SRP
   performance:
   * /sys/class/block/${dev}/queue/rotational
   * /sys/class/block/${dev}/queue/rq_affinity
