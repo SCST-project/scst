@@ -1,6 +1,6 @@
-diff -upkr linux-2.6.35/include/linux/mm_types.h linux-2.6.35/include/linux/mm_types.h
---- linux-2.6.35/include/linux/mm_types.h	2010-05-17 01:17:36.000000000 +0400
-+++ linux-2.6.35/include/linux/mm_types.h	2010-05-24 14:51:40.000000000 +0400
+diff -upkr linux-2.6.36/include/linux/mm_types.h linux-2.6.36/include/linux/mm_types.h
+--- linux-2.6.36/include/linux/mm_types.h	2010-05-17 01:17:36.000000000 +0400
++++ linux-2.6.36/include/linux/mm_types.h	2010-05-24 14:51:40.000000000 +0400
 @@ -100,6 +100,18 @@ struct page {
  	 */
  	void *shadow;
@@ -20,9 +20,9 @@ diff -upkr linux-2.6.35/include/linux/mm_types.h linux-2.6.35/include/linux/mm_t
  };
  
  /*
-diff -upkr linux-2.6.35/include/linux/net.h linux-2.6.35/include/linux/net.h
---- linux-2.6.35/include/linux/net.h	2010-05-17 01:17:36.000000000 +0400
-+++ linux-2.6.35/include/linux/net.h	2010-05-24 14:51:40.000000000 +0400
+diff -upkr linux-2.6.36/include/linux/net.h linux-2.6.36/include/linux/net.h
+--- linux-2.6.36/include/linux/net.h	2010-05-17 01:17:36.000000000 +0400
++++ linux-2.6.36/include/linux/net.h	2010-05-24 14:51:40.000000000 +0400
 @@ -20,6 +20,7 @@
  
  #include <linux/socket.h>
@@ -76,9 +76,9 @@ diff -upkr linux-2.6.35/include/linux/net.h linux-2.6.35/include/linux/net.h
 +
  #endif /* __KERNEL__ */
  #endif	/* _LINUX_NET_H */
-diff -upkr linux-2.6.35/net/core/dev.c linux-2.6.35/net/core/dev.c
---- linux-2.6.35/net/core/dev.c	2010-05-17 01:17:36.000000000 +0400
-+++ linux-2.6.35/net/core/dev.c	2010-05-24 14:51:40.000000000 +0400
+diff -upkr linux-2.6.36/net/core/dev.c linux-2.6.36/net/core/dev.c
+--- linux-2.6.36/net/core/dev.c	2010-05-17 01:17:36.000000000 +0400
++++ linux-2.6.36/net/core/dev.c	2010-05-24 14:51:40.000000000 +0400
 @@ -3130,7 +3130,7 @@ pull:
  		skb_shinfo(skb)->frags[0].size -= grow;
  
@@ -88,9 +88,9 @@ diff -upkr linux-2.6.35/net/core/dev.c linux-2.6.35/net/core/dev.c
  			memmove(skb_shinfo(skb)->frags,
  				skb_shinfo(skb)->frags + 1,
  				--skb_shinfo(skb)->nr_frags);
-diff -upkr linux-2.6.35/net/core/skbuff.c linux-2.6.35/net/core/skbuff.c
---- linux-2.6.35/net/core/skbuff.c	2010-05-17 01:17:36.000000000 +0400
-+++ linux-2.6.35/net/core/skbuff.c	2010-05-24 14:51:40.000000000 +0400
+diff -upkr linux-2.6.36/net/core/skbuff.c linux-2.6.36/net/core/skbuff.c
+--- linux-2.6.36/net/core/skbuff.c	2010-05-17 01:17:36.000000000 +0400
++++ linux-2.6.36/net/core/skbuff.c	2010-05-24 14:51:40.000000000 +0400
 @@ -76,13 +76,13 @@ static struct kmem_cache *skbuff_fclone_
  static void sock_pipe_buf_release(struct pipe_inode_info *pipe,
  				  struct pipe_buffer *buf)
@@ -224,9 +224,9 @@ diff -upkr linux-2.6.35/net/core/skbuff.c linux-2.6.35/net/core/skbuff.c
  			size = frag->size;
  
  			if (pos < offset) {
-diff -upkr linux-2.6.35/net/ipv4/ip_output.c linux-2.6.35/net/ipv4/ip_output.c
---- linux-2.6.35/net/ipv4/ip_output.c	2010-05-17 01:17:36.000000000 +0400
-+++ linux-2.6.35/net/ipv4/ip_output.c	2010-05-24 14:51:40.000000000 +0400
+diff -upkr linux-2.6.36/net/ipv4/ip_output.c linux-2.6.36/net/ipv4/ip_output.c
+--- linux-2.6.36/net/ipv4/ip_output.c	2010-05-17 01:17:36.000000000 +0400
++++ linux-2.6.36/net/ipv4/ip_output.c	2010-05-24 14:51:40.000000000 +0400
 @@ -1035,7 +1035,7 @@ alloc_new_skb:
  						err = -EMSGSIZE;
  						goto error;
@@ -245,9 +245,9 @@ diff -upkr linux-2.6.35/net/ipv4/ip_output.c linux-2.6.35/net/ipv4/ip_output.c
  			skb_fill_page_desc(skb, i, page, offset, len);
  		} else {
  			err = -EMSGSIZE;
-diff -upkr linux-2.6.35/net/ipv4/Makefile linux-2.6.35/net/ipv4/Makefile
---- linux-2.6.35/net/ipv4/Makefile	2010-05-17 01:17:36.000000000 +0400
-+++ linux-2.6.35/net/ipv4/Makefile	2010-05-24 14:51:40.000000000 +0400
+diff -upkr linux-2.6.36/net/ipv4/Makefile linux-2.6.36/net/ipv4/Makefile
+--- linux-2.6.36/net/ipv4/Makefile	2010-05-17 01:17:36.000000000 +0400
++++ linux-2.6.36/net/ipv4/Makefile	2010-05-24 14:51:40.000000000 +0400
 @@ -49,6 +49,7 @@ obj-$(CONFIG_TCP_CONG_LP) += tcp_lp.o
  obj-$(CONFIG_TCP_CONG_YEAH) += tcp_yeah.o
  obj-$(CONFIG_TCP_CONG_ILLINOIS) += tcp_illinois.o
@@ -256,9 +256,9 @@ diff -upkr linux-2.6.35/net/ipv4/Makefile linux-2.6.35/net/ipv4/Makefile
  
  obj-$(CONFIG_XFRM) += xfrm4_policy.o xfrm4_state.o xfrm4_input.o \
  		      xfrm4_output.o
-diff -upkr linux-2.6.35/net/ipv4/tcp.c linux-2.6.35/net/ipv4/tcp.c
---- linux-2.6.35/net/ipv4/tcp.c	2010-05-17 01:17:36.000000000 +0400
-+++ linux-2.6.35/net/ipv4/tcp.c	2010-05-24 14:51:40.000000000 +0400
+diff -upkr linux-2.6.36/net/ipv4/tcp.c linux-2.6.36/net/ipv4/tcp.c
+--- linux-2.6.36/net/ipv4/tcp.c	2010-05-17 01:17:36.000000000 +0400
++++ linux-2.6.36/net/ipv4/tcp.c	2010-05-24 14:51:40.000000000 +0400
 @@ -801,7 +801,7 @@ new_segment:
  		if (can_coalesce) {
  			skb_shinfo(skb)->frags[i - 1].size += copy;
@@ -289,9 +289,9 @@ diff -upkr linux-2.6.35/net/ipv4/tcp.c linux-2.6.35/net/ipv4/tcp.c
  						TCP_PAGE(sk) = page;
  					}
  				}
-diff -upkr linux-2.6.35/net/ipv4/tcp_output.c linux-2.6.35/net/ipv4/tcp_output.c
---- linux-2.6.35/net/ipv4/tcp_output.c	2010-05-17 01:17:36.000000000 +0400
-+++ linux-2.6.35/net/ipv4/tcp_output.c	2010-05-24 14:51:40.000000000 +0400
+diff -upkr linux-2.6.36/net/ipv4/tcp_output.c linux-2.6.36/net/ipv4/tcp_output.c
+--- linux-2.6.36/net/ipv4/tcp_output.c	2010-05-17 01:17:36.000000000 +0400
++++ linux-2.6.36/net/ipv4/tcp_output.c	2010-05-24 14:51:40.000000000 +0400
 @@ -1085,7 +1085,7 @@ static void __pskb_trim_head(struct sk_b
  	k = 0;
  	for (i = 0; i < skb_shinfo(skb)->nr_frags; i++) {
@@ -301,9 +301,9 @@ diff -upkr linux-2.6.35/net/ipv4/tcp_output.c linux-2.6.35/net/ipv4/tcp_output.c
  			eat -= skb_shinfo(skb)->frags[i].size;
  		} else {
  			skb_shinfo(skb)->frags[k] = skb_shinfo(skb)->frags[i];
-diff -upkr linux-2.6.35/net/ipv4/tcp_zero_copy.c linux-2.6.35/net/ipv4/tcp_zero_copy.c
---- linux-2.6.35/net/ipv4/tcp_zero_copy.c	2010-03-01 17:30:31.000000000 +0300
-+++ linux-2.6.35/net/ipv4/tcp_zero_copy.c	2010-05-24 14:51:40.000000000 +0400
+diff -upkr linux-2.6.36/net/ipv4/tcp_zero_copy.c linux-2.6.36/net/ipv4/tcp_zero_copy.c
+--- linux-2.6.36/net/ipv4/tcp_zero_copy.c	2010-03-01 17:30:31.000000000 +0300
++++ linux-2.6.36/net/ipv4/tcp_zero_copy.c	2010-05-24 14:51:40.000000000 +0400
 @@ -0,0 +1,49 @@
 +/*
 + *	Support routines for TCP zero copy transmit
@@ -354,9 +354,9 @@ diff -upkr linux-2.6.35/net/ipv4/tcp_zero_copy.c linux-2.6.35/net/ipv4/tcp_zero_
 +	return res;
 +}
 +EXPORT_SYMBOL(net_set_get_put_page_callbacks);
-diff -upkr linux-2.6.35/net/ipv6/ip6_output.c linux-2.6.35/net/ipv6/ip6_output.c
---- linux-2.6.35/net/ipv6/ip6_output.c	2010-05-17 01:17:36.000000000 +0400
-+++ linux-2.6.35/net/ipv6/ip6_output.c	2010-05-24 14:51:40.000000000 +0400
+diff -upkr linux-2.6.36/net/ipv6/ip6_output.c linux-2.6.36/net/ipv6/ip6_output.c
+--- linux-2.6.36/net/ipv6/ip6_output.c	2010-05-17 01:17:36.000000000 +0400
++++ linux-2.6.36/net/ipv6/ip6_output.c	2010-05-24 14:51:40.000000000 +0400
 @@ -1383,7 +1383,7 @@ alloc_new_skb:
  						err = -EMSGSIZE;
  						goto error;
@@ -366,9 +366,9 @@ diff -upkr linux-2.6.35/net/ipv6/ip6_output.c linux-2.6.35/net/ipv6/ip6_output.c
  					skb_fill_page_desc(skb, i, page, sk->sk_sndmsg_off, 0);
  					frag = &skb_shinfo(skb)->frags[i];
  				}
-diff -upkr linux-2.6.35/net/Kconfig linux-2.6.35/net/Kconfig
---- linux-2.6.35/net/Kconfig	2010-05-17 01:17:36.000000000 +0400
-+++ linux-2.6.35/net/Kconfig	2010-05-24 14:51:40.000000000 +0400
+diff -upkr linux-2.6.36/net/Kconfig linux-2.6.36/net/Kconfig
+--- linux-2.6.36/net/Kconfig	2010-05-17 01:17:36.000000000 +0400
++++ linux-2.6.36/net/Kconfig	2010-05-24 14:51:40.000000000 +0400
 @@ -72,6 +72,18 @@ config INET
  
  	  Short answer: say Y.
