@@ -18,7 +18,7 @@ if [ "$1" = "" ]; then
   exit 1
 fi
 
-if [ "${1#2.6.35}" = "$1" ]; then
+if [ "${1#2.6.36}" = "$1" ]; then
   # Exit silently for other kernel versions than 2.6.35.x.
   exit 0
 fi
