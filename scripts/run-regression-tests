@@ -591,6 +591,7 @@ do
 
   full_check="false"
   generate_kernel_patch_options=""
+  ibmvio="false"
   run_checkpatch="true"
   run_sparse="true"
   global_multiple_patches="${multiple_patches}"
@@ -602,6 +603,7 @@ do
     kopt="${kv#${kv_without_opt}}"
     case "${kopt}" in
       '-f')  full_check="true";;
+      '-i')  ibmvio="true";;
       '-nc') run_checkpatch="false";;
       '-ns') run_sparse="false";;
       '-u')  generate_kernel_patch_options="-u";;
@@ -623,7 +625,7 @@ do
   if [ "${run_sparse}" = "true" ]; then
     run_sparse $k drivers/scst
     mv ${outputdir}/sparse-$k-output.txt ${outputdir}/sparse-$k-scst-output.txt
-    if [ "${k#2.6.35}" != "$k" ]; then
+    if [ "${ibmvio}" = "true" ]; then
       run_sparse $k drivers/scsi libsrp.ko scsi_sysfs.ko \
                                  scsi_transport_fc.ko scsi_transport_srp.ko
       mv ${outputdir}/sparse-$k-output.txt \
