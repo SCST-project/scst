@@ -3787,13 +3787,13 @@ static int iscsi_target_release(struct scst_tgt *scst_tgt)
 #if !defined(CONFIG_SCST_PROC) && \
 	(defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING))
 static struct scst_trace_log iscsi_local_trace_tbl[] = {
-    { TRACE_D_WRITE,		"d_write" },
-    { TRACE_CONN_OC,		"conn" },
-    { TRACE_CONN_OC_DBG,	"conn_dbg" },
-    { TRACE_D_IOV,		"iov" },
-    { TRACE_D_DUMP_PDU,		"pdu" },
-    { TRACE_NET_PG,		"net_page" },
-    { 0,			NULL }
+	{ TRACE_D_WRITE,		"d_write" },
+	{ TRACE_CONN_OC,		"conn" },
+	{ TRACE_CONN_OC_DBG,	"conn_dbg" },
+	{ TRACE_D_IOV,		"iov" },
+	{ TRACE_D_DUMP_PDU,		"pdu" },
+	{ TRACE_NET_PG,		"net_page" },
+	{ 0,			NULL }
 };
 
 #define ISCSI_TRACE_TBL_HELP	", d_write, conn, conn_dbg, iov, pdu, net_page"

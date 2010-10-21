@@ -56,8 +56,8 @@
 #define TRACE_ORDER	0x80000000
 
 static struct scst_trace_log vdisk_local_trace_tbl[] = {
-    { TRACE_ORDER,		"order" },
-    { 0,			NULL }
+	{ TRACE_ORDER,		"order" },
+	{ 0,			NULL }
 };
 #define trace_log_tbl			vdisk_local_trace_tbl
 
@@ -2998,8 +2998,8 @@ static int blockio_flush(struct block_device *bdev)
 	TRACE_ENTRY();
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)           \
-    && !(defined(CONFIG_SUSE_KERNEL)                        \
-         && LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 34))
+	&& !(defined(CONFIG_SUSE_KERNEL)                    \
+	&& LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 34))
 	res = blkdev_issue_flush(bdev, NULL);
 #else
 	res = blkdev_issue_flush(bdev, GFP_KERNEL, NULL, BLKDEV_IFL_WAIT);

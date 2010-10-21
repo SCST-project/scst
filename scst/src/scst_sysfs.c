@@ -43,22 +43,22 @@ static struct kobject *scst_sgv_kobj;
 static struct kobject *scst_handlers_kobj;
 
 static const char *scst_dev_handler_types[] = {
-    "Direct-access device (e.g., magnetic disk)",
-    "Sequential-access device (e.g., magnetic tape)",
-    "Printer device",
-    "Processor device",
-    "Write-once device (e.g., some optical disks)",
-    "CD-ROM device",
-    "Scanner device (obsolete)",
-    "Optical memory device (e.g., some optical disks)",
-    "Medium changer device (e.g., jukeboxes)",
-    "Communications device (obsolete)",
-    "Defined by ASC IT8 (Graphic arts pre-press devices)",
-    "Defined by ASC IT8 (Graphic arts pre-press devices)",
-    "Storage array controller device (e.g., RAID)",
-    "Enclosure services device",
-    "Simplified direct-access device (e.g., magnetic disk)",
-    "Optical card reader/writer device"
+	"Direct-access device (e.g., magnetic disk)",
+	"Sequential-access device (e.g., magnetic tape)",
+	"Printer device",
+	"Processor device",
+	"Write-once device (e.g., some optical disks)",
+	"CD-ROM device",
+	"Scanner device (obsolete)",
+	"Optical memory device (e.g., some optical disks)",
+	"Medium changer device (e.g., jukeboxes)",
+	"Communications device (obsolete)",
+	"Defined by ASC IT8 (Graphic arts pre-press devices)",
+	"Defined by ASC IT8 (Graphic arts pre-press devices)",
+	"Storage array controller device (e.g., RAID)",
+	"Enclosure services device",
+	"Simplified direct-access device (e.g., magnetic disk)",
+	"Optical card reader/writer device"
 };
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
@@ -66,35 +66,35 @@ static const char *scst_dev_handler_types[] = {
 static DEFINE_MUTEX(scst_log_mutex);
 
 static struct scst_trace_log scst_trace_tbl[] = {
-    { TRACE_OUT_OF_MEM,		"out_of_mem" },
-    { TRACE_MINOR,		"minor" },
-    { TRACE_SG_OP,		"sg" },
-    { TRACE_MEMORY,		"mem" },
-    { TRACE_BUFF,		"buff" },
+	{ TRACE_OUT_OF_MEM,		"out_of_mem" },
+	{ TRACE_MINOR,		"minor" },
+	{ TRACE_SG_OP,		"sg" },
+	{ TRACE_MEMORY,		"mem" },
+	{ TRACE_BUFF,		"buff" },
 #ifndef GENERATING_UPSTREAM_PATCH
-    { TRACE_ENTRYEXIT,		"entryexit" },
+	{ TRACE_ENTRYEXIT,		"entryexit" },
 #endif
-    { TRACE_PID,		"pid" },
-    { TRACE_LINE,		"line" },
-    { TRACE_FUNCTION,		"function" },
-    { TRACE_DEBUG,		"debug" },
-    { TRACE_SPECIAL,		"special" },
-    { TRACE_SCSI,		"scsi" },
-    { TRACE_MGMT,		"mgmt" },
-    { TRACE_MGMT_DEBUG,		"mgmt_dbg" },
-    { TRACE_FLOW_CONTROL,	"flow_control" },
-    { TRACE_PRES,		"pr" },
-    { 0,			NULL }
+	{ TRACE_PID,		"pid" },
+	{ TRACE_LINE,		"line" },
+	{ TRACE_FUNCTION,		"function" },
+	{ TRACE_DEBUG,		"debug" },
+	{ TRACE_SPECIAL,		"special" },
+	{ TRACE_SCSI,		"scsi" },
+	{ TRACE_MGMT,		"mgmt" },
+	{ TRACE_MGMT_DEBUG,		"mgmt_dbg" },
+	{ TRACE_FLOW_CONTROL,	"flow_control" },
+	{ TRACE_PRES,		"pr" },
+	{ 0,			NULL }
 };
 
 static struct scst_trace_log scst_local_trace_tbl[] = {
-    { TRACE_RTRY,		"retry" },
-    { TRACE_SCSI_SERIALIZING,	"scsi_serializing" },
-    { TRACE_RCV_BOT,		"recv_bot" },
-    { TRACE_SND_BOT,		"send_bot" },
-    { TRACE_RCV_TOP,		"recv_top" },
-    { TRACE_SND_TOP,		"send_top" },
-    { 0,			NULL }
+	{ TRACE_RTRY,		"retry" },
+	{ TRACE_SCSI_SERIALIZING,	"scsi_serializing" },
+	{ TRACE_RCV_BOT,		"recv_bot" },
+	{ TRACE_SND_BOT,		"send_bot" },
+	{ TRACE_RCV_TOP,		"recv_top" },
+	{ TRACE_SND_TOP,		"send_top" },
+	{ 0,			NULL }
 };
 
 static ssize_t scst_trace_level_show(const struct scst_trace_log *local_tbl,
