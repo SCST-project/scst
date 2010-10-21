@@ -47,10 +47,10 @@ function evaluate(stmnt, pattern, arg, op) {
     printf "/* debug specialize-patch: (a) %s */\n", stmnt
 
   # Remove C-style comments.
-  gsub(" *\\/\\*[^*]*\\*\\/ *", "", stmnt)
+  gsub("[ 	]*\\/\\*[^*]*\\*\\/[ 	]*", "", stmnt)
 
   # Remove the spaces before the #-sign.
-  gsub("^+ *# *", "+#", stmnt)
+  gsub("^+[ 	]*#[ 	]*", "+#", stmnt)
 
   if (match(stmnt, "^+#ifdef (.*)$", arg))
   {
@@ -105,32 +105,32 @@ function evaluate(stmnt, pattern, arg, op) {
 
   if (SCSI_EXEC_REQ_FIFO_DEFINED != "")
   {
-    gsub("defined  *SCSI_EXEC_REQ_FIFO_DEFINED",
+    gsub("defined [ 	]*SCSI_EXEC_REQ_FIFO_DEFINED",
          SCSI_EXEC_REQ_FIFO_DEFINED, stmnt)
-    gsub("defined *\\( *SCSI_EXEC_REQ_FIFO_DEFINED *\\)",
+    gsub("defined[ 	]*\\([ 	]*SCSI_EXEC_REQ_FIFO_DEFINED[ 	]*\\)",
          SCSI_EXEC_REQ_FIFO_DEFINED, stmnt)
   }
 
   if (SCST_IO_CONTEXT != "")
   {
-    gsub("defined  *SCST_IO_CONTEXT", SCST_IO_CONTEXT, stmnt)
-    gsub("defined *\\( *SCST_IO_CONTEXT *\\)", SCST_IO_CONTEXT, stmnt)
+    gsub("defined [ 	]*SCST_IO_CONTEXT", SCST_IO_CONTEXT, stmnt)
+    gsub("defined[ 	]*\\([ 	]*SCST_IO_CONTEXT[ 	]*\\)", SCST_IO_CONTEXT, stmnt)
   }
 
   if (generating_upstream_patch_defined)
   {
-    gsub("defined  *GENERATING_UPSTREAM_PATCH", 1, stmnt)
-    gsub("defined *\\( *GENERATING_UPSTREAM_PATCH *\\)", 1, stmnt)
+    gsub("defined [ 	]*GENERATING_UPSTREAM_PATCH", 1, stmnt)
+    gsub("defined[ 	]*\\([ 	]*GENERATING_UPSTREAM_PATCH[ 	]*\\)", 1, stmnt)
   }
 
   if (config_tcp_zero_copy_transfer_completion_notification_undefined)
   {
-    gsub("defined  *CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION", 0, stmnt)
-    gsub("defined *\\( *CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION *\\)", 0, stmnt)
+    gsub("defined [ 	]*CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION", 0, stmnt)
+    gsub("defined[ 	]*\\([ 	]*CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION[ 	]*\\)", 0, stmnt)
   }
 
-  gsub("defined  *CONFIG_SCST_PROC", !config_scst_proc_undefined, stmnt)
-  gsub("defined *\\( *CONFIG_SCST_PROC *\\)", !config_scst_proc_undefined,
+  gsub("defined [ 	]*CONFIG_SCST_PROC", !config_scst_proc_undefined, stmnt)
+  gsub("defined[ 	]*\\([ 	]*CONFIG_SCST_PROC[ 	]*\\)", !config_scst_proc_undefined,
        stmnt)
 
   if (debug)
@@ -140,19 +140,19 @@ function evaluate(stmnt, pattern, arg, op) {
   {
     last_stmnt = stmnt
 
-    pattern = "! *([0-9]+)"
+    pattern = "![ 	]*([0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
       sub(pattern, op[1] == 0, stmnt)
     }
     
-    pattern="KERNEL_VERSION\\( *([0-9]+) *, *([0-9]+) *, *([0-9]+) *\\)"
+    pattern="KERNEL_VERSION\\([ 	]*([0-9]+)[ 	]*,[ 	]*([0-9]+)[ 	]*,[ 	]*([0-9]+)[ 	]*\\)"
     while (match(stmnt, pattern, op) != 0)
     {
       sub(pattern, op[1] * 65536 + op[2] * 256 + op[3], stmnt)
     }
   
-    pattern="(-*[0-9]+) *(\\*|/) *(-*[0-9]+)"
+    pattern="(-*[0-9]+)[ 	]*(\\*|/)[ 	]*(-*[0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
       result="error"
@@ -161,7 +161,7 @@ function evaluate(stmnt, pattern, arg, op) {
       sub(pattern, result, stmnt)
     }
   
-    pattern="(-*[0-9]+) *(\\+|-) *(-*[0-9]+)"
+    pattern="(-*[0-9]+)[ 	]*(\\+|-)[ 	]*(-*[0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
       result="error"
@@ -170,7 +170,7 @@ function evaluate(stmnt, pattern, arg, op) {
       sub(pattern, result, stmnt)
     }
   
-    pattern="(-*[0-9]+) *(<|<=|>|>=|==|!=) *(-*[0-9]+)"
+    pattern="(-*[0-9]+)[ 	]*(<|<=|>|>=|==|!=)[ 	]*(-*[0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
       result="error"
@@ -183,25 +183,25 @@ function evaluate(stmnt, pattern, arg, op) {
       sub(pattern, result, stmnt)
     }
   
-    pattern="(-*[0-9]+) *\\&\\& *(-*[0-9]+)"
+    pattern="(-*[0-9]+)[ 	]*\\&\\&[ 	]*(-*[0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
       sub(pattern, (op[1] != 0) && (op[2] != 0), stmnt)
     }
   
-    pattern="^+#if *([01]) *\\&\\& *(!* *defined *\\( *[A-Za-z_]* *\\))$"
+    pattern="^+#if[ 	]*([01])[ 	]*\\&\\&[ 	]*(!*[ 	]*defined[ 	]*\\([ 	]*[A-Za-z_]*[ 	]*\\))$"
     while (match(stmnt, pattern, op) != 0)
     {
       stmnt = "+#if " (op[1] != 0 ? op[2] : op[1])
     }
   
-    pattern="(-*[0-9]+) *\\|\\| *(-*[0-9]+)"
+    pattern="(-*[0-9]+)[ 	]*\\|\\|[ 	]*(-*[0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
       sub(pattern, (op[1] != 0) || (op[2] != 0), stmnt)
     }
   
-    pattern="^+#if *([01]) *\\|\\| *(!* *defined *\\( *[A-Za-z_]* *\\))$"
+    pattern="^+#if[ 	]*([01])[ 	]*\\|\\|[ 	]*(!*[ 	]*defined[ 	]*\\([ 	]*[A-Za-z_]*[ 	]*\\))$"
     while (match(stmnt, pattern, op) != 0)
     {
       stmnt = "+#if " (op[1] == 0 ? op[2] : op[1])
