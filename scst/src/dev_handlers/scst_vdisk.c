@@ -1319,6 +1319,14 @@ static void vdisk_exec_unmap(struct scst_cmd *cmd, struct scst_vdisk_thr *thr)
 		goto out;
 	}
 
+	if (unlikely(cmd->cdb[1] & 1)) {
+		/* ANCHOR not supported */
+		TRACE_DBG("%s", "Invalid ANCHOR field");
+		scst_set_cmd_error(cmd,
+			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		goto out;
+	}
+
 	length = scst_get_full_buf(cmd, &address);
 	if (unlikely(length <= 0)) {
 		if (length == 0)
@@ -2320,8 +2328,17 @@ static void vdisk_exec_read_capacity16(struct scst_cmd *cmd)
 		break;
 	}
 
-	if (virt_dev->thin_provisioned)
+	if (virt_dev->thin_provisioned) {
 		buffer[14] |= 0x80;     /* Add TPE */
+#if 0  /*
+	* Might be a big performance and functionality win, but might be
+	* dangerous as well, although generally nearly always it should be set,
+	* because nearly all devices should return zero for unmapped blocks.
+	* But let's be on the safe side and disable it for now.
+	*/
+		buffer[14] |= 0x40;     /* Add TPRZ */
+#endif
+	}
 
 	length = scst_get_buf_first(cmd, &address);
 	if (unlikely(length <= 0)) {
