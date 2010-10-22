@@ -306,13 +306,16 @@ int scst_queue_retry_cmd(struct scst_cmd *cmd, int finished_cmds);
 
 int scst_alloc_tgt(struct scst_tgt_template *tgtt, struct scst_tgt **tgt);
 void scst_free_tgt(struct scst_tgt *tgt);
+void __scst_free_tgt(struct scst_tgt *tgt);
 
-int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev);
-void scst_free_device(struct scst_device *dev);
+int scst_alloc_dev(gfp_t gfp_mask, struct scst_device **out_dev);
+void scst_free_dev(struct scst_device *dev);
+void __scst_free_dev(struct scst_device *dev);
 
 struct scst_acg *scst_alloc_add_acg(struct scst_tgt *tgt,
 	const char *acg_name, bool tgt_acg);
 void scst_del_free_acg(struct scst_acg *acg);
+void __scst_free_acg(struct scst_acg *acg);
 
 struct scst_acg *scst_tgt_find_acg(struct scst_tgt *tgt, const char *name);
 struct scst_acg *scst_find_acg(const struct scst_session *sess);
@@ -322,6 +325,8 @@ void scst_check_reassign_sessions(void);
 int scst_sess_alloc_tgt_devs(struct scst_session *sess);
 void scst_sess_free_tgt_devs(struct scst_session *sess);
 void scst_nexus_loss(struct scst_tgt_dev *tgt_dev, bool queue_UA);
+
+void __scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev);
 
 int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
 	struct scst_device *dev, uint64_t lun, int read_only,
@@ -335,6 +340,8 @@ int scst_acg_remove_name(struct scst_acg *acg, const char *name, bool reassign);
 #endif
 void scst_del_free_acn(struct scst_acn *acn, bool reassign);
 struct scst_acn *scst_find_acn(struct scst_acg *acg, const char *name);
+
+void scst_free_acg_dev(struct scst_acg_dev *acg_dev);
 
 /* The activity supposed to be suspended and scst_mutex held */
 static inline bool scst_acg_sess_is_empty(struct scst_acg *acg)
@@ -426,19 +433,24 @@ static inline int scst_sysfs_init(void)
 }
 static inline void scst_sysfs_cleanup(void) { }
 
+static inline void scst_tgt_sysfs_del_free(struct scst_tgt *tgt) { BUG(); }
+
 static inline int scst_devt_dev_sysfs_create(struct scst_device *dev)
 {
 	return 0;
 }
 static inline void scst_devt_dev_sysfs_del(struct scst_device *dev) { }
 
-static inline void scst_dev_sysfs_del(struct scst_device *dev) { }
+static inline void scst_dev_sysfs_del_free(struct scst_device *dev) { BUG(); }
 
 static inline int scst_tgt_dev_sysfs_create(struct scst_tgt_dev *tgt_dev)
 {
 	return 0;
 }
-static inline void scst_tgt_dev_sysfs_del(struct scst_tgt_dev *tgt_dev) { }
+static inline void scst_tgt_dev_sysfs_del_free(struct scst_tgt_dev *tgt_dev)
+{
+	BUG();
+}
 
 static inline int scst_sess_sysfs_create(struct scst_session *sess)
 {
@@ -451,7 +463,12 @@ static inline int scst_acg_dev_sysfs_create(struct scst_acg_dev *acg_dev,
 	return 0;
 }
 
-static inline void scst_acg_dev_sysfs_del(struct scst_acg_dev *acg_dev) { }
+static inline void scst_acg_dev_sysfs_del_free(struct scst_acg_dev *acg_dev)
+{
+	BUG();
+}
+
+static inline void scst_acg_sysfs_del_free(struct scst_acg *acg) { BUG(); }
 
 static inline int scst_acn_sysfs_create(struct scst_acn *acn)
 {
@@ -473,7 +490,7 @@ int scst_tgtt_sysfs_create(struct scst_tgt_template *tgtt);
 void scst_tgtt_sysfs_del(struct scst_tgt_template *tgtt);
 int scst_tgt_sysfs_create(struct scst_tgt *tgt);
 void scst_tgt_sysfs_prepare_put(struct scst_tgt *tgt);
-void scst_tgt_sysfs_del(struct scst_tgt *tgt);
+void scst_tgt_sysfs_del_free(struct scst_tgt *tgt);
 int scst_sess_sysfs_create(struct scst_session *sess);
 void scst_sess_sysfs_del(struct scst_session *sess);
 int scst_recreate_sess_luns_link(struct scst_session *sess);
@@ -482,17 +499,17 @@ void scst_sgv_sysfs_del(struct sgv_pool *pool);
 int scst_devt_sysfs_create(struct scst_dev_type *devt);
 void scst_devt_sysfs_del(struct scst_dev_type *devt);
 int scst_dev_sysfs_create(struct scst_device *dev);
-void scst_dev_sysfs_del(struct scst_device *dev);
+void scst_dev_sysfs_del_free(struct scst_device *dev);
 int scst_tgt_dev_sysfs_create(struct scst_tgt_dev *tgt_dev);
-void scst_tgt_dev_sysfs_del(struct scst_tgt_dev *tgt_dev);
+void scst_tgt_dev_sysfs_del_free(struct scst_tgt_dev *tgt_dev);
 int scst_devt_dev_sysfs_create(struct scst_device *dev);
 void scst_devt_dev_sysfs_del(struct scst_device *dev);
 int scst_acg_sysfs_create(struct scst_tgt *tgt,
 	struct scst_acg *acg);
-void scst_acg_sysfs_del(struct scst_acg *acg);
+void scst_acg_sysfs_del_free(struct scst_acg *acg);
 int scst_acg_dev_sysfs_create(struct scst_acg_dev *acg_dev,
 	struct kobject *parent);
-void scst_acg_dev_sysfs_del(struct scst_acg_dev *acg_dev);
+void scst_acg_dev_sysfs_del_free(struct scst_acg_dev *acg_dev);
 int scst_acn_sysfs_create(struct scst_acn *acn);
 void scst_acn_sysfs_del(struct scst_acn *acn);
 
