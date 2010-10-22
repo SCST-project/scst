@@ -514,7 +514,7 @@ where:
 
  - alloc_len - command's buffer length
 
- - queue_type - SCSI task attribute (queue type )
+ - queue_type - SCSI task attribute (queue type)
 
  - data_direction - command's data flow direction, one of SCST_DATA_*
    constants
@@ -854,9 +854,14 @@ struct scst_user_scsi_cmd_reply_parse
 
 where:
 
- - queue_type - SCSI task attribute (queue type )
+ - queue_type - SCSI task attribute (queue type). NOTE! In current
+   implementation setting changing this field from the provided value
+   affects commands execution only when then produced by iSCSI-SCST
+   target. With al other target drivers, this field is ignored. This is
+   because for them commands queueing is set before parse() called.
 
- - data_direction - command's data flow direction, one of SCST_DATA_* constants
+ - data_direction - command's data flow direction, one of SCST_DATA_*
+   constants
 
  - cdb_len - length of CDB
 
