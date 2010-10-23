@@ -3071,6 +3071,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	    && scst_cmd_get_adjusted_resp_data_len(scmnd)) {
 		ret = srpt_xfer_data(ch, ioctx, scmnd);
 		if (ret != SCST_TGT_RES_SUCCESS) {
+			srpt_set_cmd_state(ioctx, state);
 			PRINT_ERROR("%s: tag= %llu xfer_data failed",
 				    __func__, scst_cmd_get_tag(scmnd));
 			goto out;
