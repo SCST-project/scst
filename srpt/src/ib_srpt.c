@@ -847,12 +847,12 @@ static int srpt_post_send(struct srpt_rdma_ch *ch,
 
 	ret = -ENOMEM;
 	if (atomic_dec_return(&ch->sq_wr_avail) < 0) {
-		PRINT_ERROR("%s[%d]: send queue full", __func__, __LINE__);
+		PRINT_WARNING("%s", "IB send queue full (needed 1)");
 		goto out;
 	}
 
-	ib_dma_sync_single_for_device(sdev->device, ioctx->ioctx.dma,
-				      srp_max_rsp_size, DMA_TO_DEVICE);
+	ib_dma_sync_single_for_device(sdev->device, ioctx->ioctx.dma, len,
+				      DMA_TO_DEVICE);
 
 	list.addr = ioctx->ioctx.dma;
 	list.length = len;
@@ -1239,6 +1239,8 @@ static void srpt_handle_send_err_comp(struct srpt_rdma_ch *ch, u64 wr_id,
 	struct scst_cmd *scmnd;
 	u32 index;
 
+	atomic_inc(&ch->sq_wr_avail);
+
 	index = idx_from_wr_id(wr_id);
 	ioctx = ch->ioctx_ring[index];
 	state = srpt_get_cmd_state(ioctx);
@@ -1343,7 +1345,12 @@ static void srpt_handle_rdma_err_comp(struct srpt_rdma_ch *ch,
 	if (scmnd) {
 		switch (opcode) {
 		case IB_WC_RDMA_READ:
-			EXTRACHECKS_WARN_ON(ioctx->n_rdma <= 0);
+			if (ioctx->n_rdma <= 0) {
+				PRINT_ERROR("Received invalid RDMA read error"
+					    " completion with idx %d",
+					    ioctx->ioctx.index);
+				break;
+			}
 			atomic_add(ioctx->n_rdma, &ch->sq_wr_avail);
 			if (state == SRPT_STATE_NEED_DATA)
 				srpt_abort_scst_cmd(ioctx, context);
@@ -1411,8 +1418,7 @@ static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 		max_sense_len = ch->max_ti_iu_len - sizeof(*srp_rsp);
 		if (sense_data_len > max_sense_len) {
 			PRINT_WARNING("truncated sense data from %d to %d"
-				" bytes", sense_data_len,
-				max_sense_len);
+				" bytes", sense_data_len, max_sense_len);
 			sense_data_len = max_sense_len;
 		}
 
@@ -2847,6 +2853,8 @@ static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 
 /**
  * srpt_perform_rdmas() - Perform IB RDMA.
+ *
+ * Returns zero upon success or a negative number upon failure.
  */
 static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 			      struct srpt_send_ioctx *ioctx,
@@ -2864,9 +2872,8 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 		sq_wr_avail = atomic_sub_return(ioctx->n_rdma,
 						 &ch->sq_wr_avail);
 		if (sq_wr_avail < 0) {
-			atomic_add(ioctx->n_rdma, &ch->sq_wr_avail);
-			PRINT_ERROR("%s[%d]: send queue full",
-				    __func__, __LINE__);
+			PRINT_WARNING("IB send queue full (needed %d)",
+				      ioctx->n_rdma);
 			goto out;
 		}
 	}
@@ -2901,11 +2908,15 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 	}
 
 out:
+	if (unlikely(dir == SCST_DATA_WRITE && ret < 0))
+		atomic_add(ioctx->n_rdma, &ch->sq_wr_avail);
 	return ret;
 }
 
 /**
  * srpt_xfer_data() - Start data transfer from initiator to target.
+ *
+ * Returns an SCST_TGT_RES_... status code.
  *
  * Note: Must not block.
  */
@@ -3070,10 +3081,14 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	if (dir == SCST_DATA_READ
 	    && scst_cmd_get_adjusted_resp_data_len(scmnd)) {
 		ret = srpt_xfer_data(ch, ioctx, scmnd);
-		if (ret != SCST_TGT_RES_SUCCESS) {
+		if (ret == SCST_TGT_RES_QUEUE_FULL) {
 			srpt_set_cmd_state(ioctx, state);
-			PRINT_ERROR("%s: tag= %llu xfer_data failed",
-				    __func__, scst_cmd_get_tag(scmnd));
+			PRINT_WARNING("xfer_data failed for tag %llu"
+				      " - retrying", scst_cmd_get_tag(scmnd));
+			goto out;
+		} else if (ret != SCST_TGT_RES_SUCCESS) {
+			PRINT_ERROR("xfer_data failed for tag %llu",
+				    scst_cmd_get_tag(scmnd));
 			goto out;
 		}
 	}
@@ -3090,9 +3105,8 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 		srpt_unmap_sg_to_ib_sge(ch, ioctx);
 		srpt_set_cmd_state(ioctx, state);
 		atomic_dec(&ch->req_lim);
-		PRINT_ERROR("%s[%d]: ch->state %d cmd state %d tag %llu",
-			    __func__, __LINE__, atomic_read(&ch->state),
-			    state, scst_cmd_get_tag(scmnd));
+		PRINT_WARNING("sending response failed for tag %llu - retrying",
+			      scst_cmd_get_tag(scmnd));
 		ret = SCST_TGT_RES_QUEUE_FULL;
 	}
 
