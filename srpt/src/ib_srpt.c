@@ -2327,6 +2327,10 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	memcpy(ch->t_port_id, req->target_port_id, 16);
 	ch->sport = &sdev->port[param->port - 1];
 	ch->cm_id = cm_id;
+	/*
+	 * Avoid QUEUE_FULL conditions by limiting the number of buffers used
+	 * for the SRP protocol to the SCST SCSI command queue size.
+	 */
 	ch->rq_size = min(SRPT_RQ_SIZE, scst_get_max_lun_commands(NULL, 0));
 	atomic_set(&ch->processing_compl, 0);
 	atomic_set(&ch->state, RDMA_CHANNEL_CONNECTING);
