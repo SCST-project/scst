@@ -110,8 +110,16 @@ Index: srpt/src/ib_srpt.c
         --thread --numjobs=8 --loops=10 --gtod_reduce=1 --group_reporting \
         --name=$dev --filename=$dev
 
-* Test whether queue overflow recovery works correctly by setting the queue
-  send queue size to a low value, e.g. srpt_sq_size=128.
+* Test whether queue overflow recovery works correctly as follows:
+  - On the target, reload ib_srpt with srpt_sq_size set to 64.
+  - On the initiator, run a direct I/O test with large block sizes, e.g.
+      scripts/blockdev-perftest -f -d -j -m 12 -M 24 /dev/sdb
+  - On the initiator, run the following two commands in parallel:
+      scripts/blockdev-perftest -r -d -j -m 12 -M 24 /dev/sdb
+      fio --verify=md5 -rw=randwrite --size=10m --bs=4k \
+        --loops=1000000 --iodepth=64 --group_reporting --sync=1 --direct=1 \
+        --norandommap --ioengine=aio --directory=/mnt --name=test --thread \
+        --numjobs=80 --runtime=30
 
 * Repeat the above tests for all three threading modes: thread=0, thread=1
   and thread=2.
