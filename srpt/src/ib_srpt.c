@@ -1754,6 +1754,21 @@ static void srpt_process_rcv_completion(struct ib_cq *cq,
 	}
 }
 
+/**
+ * srpt_process_send_completion() - Process an IB send completion.
+ *
+ * Note: Although this has not yet been observed during tests, at least in
+ * theory it is possible that the srpt_get_send_ioctx() call invoked by
+ * srpt_handle_new_iu() fails. This is possible because the req_lim_delta
+ * value in each response is set to one, and it is possible that this response
+ * makes the initiator send a new request before the send completion for that
+ * response has been processed. This could e.g. happen if the call to
+ * srpt_put_send_iotcx() is delayed because of a higher priority interrupt or
+ * if IB retransmission causes generation of the send completion to be
+ * delayed. Incoming information units for which srpt_get_send_ioctx() fails
+ * are queued on cmd_wait_list. The code below processes these delayed
+ * requests one at a time.
+ */
 static void srpt_process_send_completion(struct ib_cq *cq,
 					 struct srpt_rdma_ch *ch,
 					 enum scst_exec_context context,
@@ -1788,22 +1803,6 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 		}
 	}
 
-	/*
-	 * Although this has not yet been observed during tests, at least in
-	 * theory it is possible that the srpt_get_send_ioctx() call invoked
-	 * by srpt_handle_new_iu() fails. This is possible because the
-	 * req_lim_delta value in each response is set to one, and it is
-	 * possible that this response makes the initiator send a new request
-	 * before the send completion for that response has been
-	 * processed. This could e.g. happen if the call to
-	 * srpt_put_send_iotcx() is delayed because of a higher priority
-	 * interrupt or if IB retransmission causes generation of the send
-	 * completion to be delayed. Incoming information units for which
-	 * srpt_get_send_ioctx() fails are queued on cmd_wait_list. The code
-	 * below processes these delayed requests one at a time. The code
-	 * below has been tested by setting the req_lim_delta value in the
-	 * SRP_LOGIN_RSP response to a higher value than ch->req_lim.
-	 */
 	while (unlikely(opcode == IB_WC_SEND
 			&& !list_empty(&ch->cmd_wait_list)
 			&& atomic_read(&ch->state) == RDMA_CHANNEL_LIVE
