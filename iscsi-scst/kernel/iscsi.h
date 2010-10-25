@@ -679,12 +679,10 @@ static inline void cmnd_get(struct iscsi_cmnd *cmnd)
 	atomic_inc(&cmnd->ref_cnt);
 	TRACE_DBG("cmnd %p, new cmnd->ref_cnt %d", cmnd,
 		atomic_read(&cmnd->ref_cnt));
-}
-
-static inline void cmnd_get_ordered(struct iscsi_cmnd *cmnd)
-{
-	cmnd_get(cmnd);
-	/* See comments for each cmnd_get_ordered() use */
+	/*
+	 * For the same reason as in kref_get(). Let's be safe and
+	 * always do it.
+	 */
 	smp_mb__after_atomic_inc();
 }
 
@@ -767,12 +765,10 @@ static inline void conn_get(struct iscsi_conn *conn)
 	atomic_inc(&conn->conn_ref_cnt);
 	TRACE_DBG("conn %p, new conn_ref_cnt %d", conn,
 		atomic_read(&conn->conn_ref_cnt));
-}
-
-static inline void conn_get_ordered(struct iscsi_conn *conn)
-{
-	conn_get(conn);
-	/* See comments for each conn_get_ordered() use */
+	/*
+	 * For the same reason as in kref_get(). Let's be safe and
+	 * always do it.
+	 */
 	smp_mb__after_atomic_inc();
 }
 

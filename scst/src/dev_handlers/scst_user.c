@@ -280,22 +280,15 @@ static inline bool ucmd_get_check(struct scst_user_cmd *ucmd)
 	return res;
 }
 
-static inline void __ucmd_get(struct scst_user_cmd *ucmd, bool barrier)
+static inline void ucmd_get(struct scst_user_cmd *ucmd)
 {
 	TRACE_DBG("ucmd %p, ucmd_ref %d", ucmd, atomic_read(&ucmd->ucmd_ref));
 	atomic_inc(&ucmd->ucmd_ref);
-	if (barrier)
-		smp_mb__after_atomic_inc();
-}
-
-static inline void ucmd_get_ordered(struct scst_user_cmd *ucmd)
-{
-	__ucmd_get(ucmd, true);
-}
-
-static inline void ucmd_get(struct scst_user_cmd *ucmd)
-{
-	__ucmd_get(ucmd, false);
+	/*
+	 * For the same reason as in kref_get(). Let's be safe and
+	 * always do it.
+	 */
+	smp_mb__after_atomic_inc();
 }
 
 /* Must not be called under cmd_list_lock!! */
@@ -1412,7 +1405,7 @@ static int dev_user_process_reply_exec(struct scst_user_cmd *ucmd,
 		 * Otherwise, due to reorder, in dev_user_process_reply()
 		 * it is possible that ucmd is destroyed before it "got" here.
 		 */
-		ucmd_get_ordered(ucmd);
+		ucmd_get(ucmd);
 		ucmd->background_exec = 1;
 		TRACE_DBG("Background ucmd %p", ucmd);
 		goto out_compl;

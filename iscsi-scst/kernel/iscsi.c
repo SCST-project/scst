@@ -3166,7 +3166,7 @@ static void iscsi_preprocessing_done(struct scst_cmd *scst_cmd)
 		 * because there can be only one read thread processing
 		 * connection.
 		 */
-		cmnd_get_ordered(req);
+		cmnd_get(req);
 		req->scst_state = ISCSI_CMD_STATE_AFTER_PREPROC;
 		iscsi_make_conn_rd_active(req->conn);
 		if (unlikely(req->conn->closing)) {
