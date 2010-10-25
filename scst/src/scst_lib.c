@@ -3422,11 +3422,16 @@ void scst_nexus_loss(struct scst_tgt_dev *tgt_dev, bool queue_UA)
 
 	scst_clear_reservation(tgt_dev);
 
+#if 0 /* Clearing UAs and last sense isn't required by SAM and it looks to be
+       * better to not clear them to not loose important events, so let's
+       * disable it.
+       */
 	/* With activity suspended the lock isn't needed, but let's be safe */
 	spin_lock_bh(&tgt_dev->tgt_dev_lock);
 	scst_free_all_UA(tgt_dev);
 	memset(tgt_dev->tgt_dev_sense, 0, sizeof(tgt_dev->tgt_dev_sense));
 	spin_unlock_bh(&tgt_dev->tgt_dev_lock);
+#endif
 
 	if (queue_UA) {
 		uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
@@ -6057,14 +6062,16 @@ void scst_process_reset(struct scst_device *dev,
 		dev_tgt_dev_list_entry) {
 		struct scst_session *sess = tgt_dev->sess;
 
+#if 0 /* Clearing UAs and last sense isn't required by SAM and it
+       * looks to be better to not clear them to not loose important
+       * events, so let's disable it.
+       */
 		spin_lock_bh(&tgt_dev->tgt_dev_lock);
-
 		scst_free_all_UA(tgt_dev);
-
 		memset(tgt_dev->tgt_dev_sense, 0,
 			sizeof(tgt_dev->tgt_dev_sense));
-
 		spin_unlock_bh(&tgt_dev->tgt_dev_lock);
+#endif
 
 		spin_lock_irq(&sess->sess_list_lock);
 
