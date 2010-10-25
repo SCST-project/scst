@@ -922,9 +922,7 @@ static void scst_tgt_release(struct kobject *kobj)
 	TRACE_ENTRY();
 
 	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-	complete_all(tgt->tgt_kobj_release_cmpl);
-
-	__scst_free_tgt(tgt);
+	complete_all(&tgt->tgt_kobj_release_cmpl);
 
 	TRACE_EXIT();
 	return;
@@ -942,9 +940,7 @@ static void scst_acg_release(struct kobject *kobj)
 	TRACE_ENTRY();
 
 	acg = container_of(kobj, struct scst_acg, acg_kobj);
-	complete_all(acg->acg_kobj_release_cmpl);
-
-	__scst_free_acg(acg);
+	complete_all(&acg->acg_kobj_release_cmpl);
 
 	TRACE_EXIT();
 	return;
@@ -1120,11 +1116,8 @@ static struct kobj_attribute tgt_enable_attr =
 	       scst_tgt_enable_show, scst_tgt_enable_store);
 
 /*
- * Supposed to be called under scst_mutex.
- *
- * Upon return, including with an error, if tgt_kobj_initialized set
- * scst_tgt_sysfs_del_free() must be called to free tgt instead of
- * __scst_free_tgt()!
+ * Supposed to be called under scst_mutex. In case of error will drop,
+ * then reacquire it.
  */
 int scst_tgt_sysfs_create(struct scst_tgt *tgt)
 {
@@ -1133,14 +1126,14 @@ int scst_tgt_sysfs_create(struct scst_tgt *tgt)
 
 	TRACE_ENTRY();
 
+	init_completion(&tgt->tgt_kobj_release_cmpl);
+
 	res = kobject_init_and_add(&tgt->tgt_kobj, &tgt_ktype,
 			&tgt->tgtt->tgtt_kobj, tgt->tgt_name);
 	if (res != 0) {
 		PRINT_ERROR("Can't add tgt %s to sysfs", tgt->tgt_name);
 		goto out;
 	}
-
-	tgt->tgt_kobj_initialized = 1;
 
 	if ((tgt->tgtt->enable_target != NULL) &&
 	    (tgt->tgtt->is_target_enabled != NULL)) {
@@ -1149,7 +1142,7 @@ int scst_tgt_sysfs_create(struct scst_tgt *tgt)
 		if (res != 0) {
 			PRINT_ERROR("Can't add attr %s to sysfs",
 				tgt_enable_attr.attr.name);
-			goto out;
+			goto out_err;
 		}
 	}
 
@@ -1169,7 +1162,7 @@ int scst_tgt_sysfs_create(struct scst_tgt *tgt)
 	if (res != 0) {
 		PRINT_ERROR("Can't add attribute %s for tgt %s",
 			scst_luns_mgmt.attr.name, tgt->tgt_name);
-		goto out;
+		goto out_err;
 	}
 
 	tgt->tgt_ini_grp_kobj = kobject_create_and_add("ini_groups",
@@ -1185,7 +1178,7 @@ int scst_tgt_sysfs_create(struct scst_tgt *tgt)
 	if (res != 0) {
 		PRINT_ERROR("Can't add attribute %s for tgt %s",
 			scst_ini_group_mgmt.attr.name, tgt->tgt_name);
-		goto out;
+		goto out_err;
 	}
 
 	res = sysfs_create_file(&tgt->tgt_kobj,
@@ -1193,7 +1186,7 @@ int scst_tgt_sysfs_create(struct scst_tgt *tgt)
 	if (res != 0) {
 		PRINT_ERROR("Can't add attribute %s for tgt %s",
 			scst_rel_tgt_id.attr.name, tgt->tgt_name);
-		goto out;
+		goto out_err;
 	}
 
 	res = sysfs_create_file(&tgt->tgt_kobj,
@@ -1201,7 +1194,7 @@ int scst_tgt_sysfs_create(struct scst_tgt *tgt)
 	if (res != 0) {
 		PRINT_ERROR("Can't add attribute %s for tgt %s",
 			scst_tgt_addr_method.attr.name, tgt->tgt_name);
-		goto out;
+		goto out_err;
 	}
 
 	res = sysfs_create_file(&tgt->tgt_kobj,
@@ -1209,14 +1202,14 @@ int scst_tgt_sysfs_create(struct scst_tgt *tgt)
 	if (res != 0) {
 		PRINT_ERROR("Can't add attribute %s for tgt %s",
 			scst_tgt_io_grouping_type.attr.name, tgt->tgt_name);
-		goto out;
+		goto out_err;
 	}
 
 	res = sysfs_create_file(&tgt->tgt_kobj, &scst_tgt_cpu_mask.attr);
 	if (res != 0) {
 		PRINT_ERROR("Can't add attribute %s for tgt %s",
 			scst_tgt_cpu_mask.attr.name, tgt->tgt_name);
-		goto out;
+		goto out_err;
 	}
 
 	pattr = tgt->tgtt->tgt_attrs;
@@ -1228,7 +1221,7 @@ int scst_tgt_sysfs_create(struct scst_tgt *tgt)
 			if (res != 0) {
 				PRINT_ERROR("Can't add tgt attr %s for tgt %s",
 					(*pattr)->name, tgt->tgt_name);
-				goto out;
+				goto out_err;
 			}
 			pattr++;
 		}
@@ -1240,23 +1233,24 @@ out:
 
 out_nomem:
 	res = -ENOMEM;
+
+out_err:
+	mutex_unlock(&scst_mutex);
+	scst_tgt_sysfs_del(tgt);
+	mutex_lock(&scst_mutex);
 	goto out;
 }
 
 /*
- * Deletes tgt from sysfs and frees it in the tgt_kobj release()
- *
  * Must not be called under scst_mutex, due to possible deadlock with
  * sysfs ref counting in sysfs works (it is waiting for the last put, but
  * the last ref counter holder is waiting for scst_mutex)
  */
-void scst_tgt_sysfs_del_free(struct scst_tgt *tgt)
+void scst_tgt_sysfs_del(struct scst_tgt *tgt)
 {
-	DECLARE_COMPLETION_ONSTACK(cmpl);
+	int rc;
 
 	TRACE_ENTRY();
-
-	tgt->tgt_kobj_release_cmpl = &cmpl;
 
 	kobject_del(tgt->tgt_sess_kobj);
 	kobject_put(tgt->tgt_sess_kobj);
@@ -1267,17 +1261,18 @@ void scst_tgt_sysfs_del_free(struct scst_tgt *tgt)
 	kobject_del(tgt->tgt_ini_grp_kobj);
 	kobject_put(tgt->tgt_ini_grp_kobj);
 
-	if (atomic_read(&tgt->tgt_kobj.kref.refcount) > 1)
-		TRACE_MGMT_DBG("Waiting for releasing sysfs entry "
-			"for tgt %s (%d refs)...", tgt->tgt_name,
-			atomic_read(&tgt->tgt_kobj.kref.refcount));
-
 	kobject_del(&tgt->tgt_kobj);
 	kobject_put(&tgt->tgt_kobj);
 
-	/* tgt can be dead here! */
-
-	wait_for_completion(&cmpl);
+	rc = wait_for_completion_timeout(&tgt->tgt_kobj_release_cmpl, HZ);
+	if (rc == 0) {
+		PRINT_INFO("Waiting for releasing sysfs entry "
+			"for target %s (%d refs)...", tgt->tgt_name,
+			atomic_read(&tgt->tgt_kobj.kref.refcount));
+		wait_for_completion(&tgt->tgt_kobj_release_cmpl);
+		PRINT_INFO("Done waiting for releasing sysfs "
+			"entry for target %s", tgt->tgt_name);
+	}
 
 	TRACE_EXIT();
 	return;
@@ -1583,9 +1578,7 @@ static void scst_sysfs_dev_release(struct kobject *kobj)
 	TRACE_ENTRY();
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
-	complete_all(dev->dev_kobj_release_cmpl);
-
-	__scst_free_dev(dev);
+	complete_all(&dev->dev_kobj_release_cmpl);
 
 	TRACE_EXIT();
 	return;
@@ -1697,15 +1690,16 @@ static struct kobj_type scst_dev_ktype = {
 };
 
 /*
- * Upon return, including with an error, if dev_kobj_initialized set
- * scst_dev_sysfs_del_free() must be called to free dev instead of
- * __scst_free_dev()!
+ * Must not be called under scst_mutex, because it can call
+ * scst_dev_sysfs_del()
  */
 int scst_dev_sysfs_create(struct scst_device *dev)
 {
 	int res = 0;
 
 	TRACE_ENTRY();
+
+	init_completion(&dev->dev_kobj_release_cmpl);
 
 	res = kobject_init_and_add(&dev->dev_kobj, &scst_dev_ktype,
 				      scst_devices_kobj, dev->virt_name);
@@ -1714,15 +1708,13 @@ int scst_dev_sysfs_create(struct scst_device *dev)
 		goto out;
 	}
 
-	dev->dev_kobj_initialized = 1;
-
 	dev->dev_exp_kobj = kobject_create_and_add("exported",
 						   &dev->dev_kobj);
 	if (dev->dev_exp_kobj == NULL) {
 		PRINT_ERROR("Can't create exported link for device %s",
 			dev->virt_name);
 		res = -ENOMEM;
-		goto out;
+		goto out_del;
 	}
 
 	if (dev->scsi_dev != NULL) {
@@ -1731,7 +1723,7 @@ int scst_dev_sysfs_create(struct scst_device *dev)
 		if (res != 0) {
 			PRINT_ERROR("Can't create scsi_device link for dev %s",
 				dev->virt_name);
-			goto out;
+			goto out_del;
 		}
 	}
 
@@ -1742,7 +1734,7 @@ int scst_dev_sysfs_create(struct scst_device *dev)
 		if (res != 0) {
 			PRINT_ERROR("Can't create attr %s for dev %s",
 				dev_dump_prs_attr.attr.name, dev->virt_name);
-			goto out;
+			goto out_del;
 		}
 	}
 #endif
@@ -1750,37 +1742,38 @@ int scst_dev_sysfs_create(struct scst_device *dev)
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_del:
+	scst_dev_sysfs_del(dev);
+	goto out;
 }
 
 /*
- * Deletes dev from sysfs and frees it in the dev_kobj release()
- *
  * Must not be called under scst_mutex, due to possible deadlock with
  * sysfs ref counting in sysfs works (it is waiting for the last put, but
  * the last ref counter holder is waiting for scst_mutex)
  */
-void scst_dev_sysfs_del_free(struct scst_device *dev)
+void scst_dev_sysfs_del(struct scst_device *dev)
 {
-	DECLARE_COMPLETION_ONSTACK(cmpl);
+	int rc;
 
 	TRACE_ENTRY();
-
-	dev->dev_kobj_release_cmpl = &cmpl;
 
 	kobject_del(dev->dev_exp_kobj);
 	kobject_put(dev->dev_exp_kobj);
 
-	if (atomic_read(&dev->dev_kobj.kref.refcount) > 1)
-		TRACE_MGMT_DBG("Waiting for releasing sysfs entry "
-			"for dev %s (%d refs)...", dev->virt_name,
-			atomic_read(&dev->dev_kobj.kref.refcount));
-
 	kobject_del(&dev->dev_kobj);
 	kobject_put(&dev->dev_kobj);
 
-	/* dev can be dead here! */
-
-	wait_for_completion(&cmpl);
+	rc = wait_for_completion_timeout(&dev->dev_kobj_release_cmpl, HZ);
+	if (rc == 0) {
+		PRINT_INFO("Waiting for releasing sysfs entry "
+			"for device %s (%d refs)...", dev->virt_name,
+			atomic_read(&dev->dev_kobj.kref.refcount));
+		wait_for_completion(&dev->dev_kobj_release_cmpl);
+		PRINT_INFO("Done waiting for releasing sysfs "
+			"entry for device %s", dev->virt_name);
+	}
 
 	TRACE_EXIT();
 	return;
@@ -1937,9 +1930,7 @@ static void scst_sysfs_tgt_dev_release(struct kobject *kobj)
 	TRACE_ENTRY();
 
 	tgt_dev = container_of(kobj, struct scst_tgt_dev, tgt_dev_kobj);
-	complete_all(tgt_dev->tgt_dev_kobj_release_cmpl);
-
-	__scst_free_tgt_dev(tgt_dev);
+	complete_all(&tgt_dev->tgt_dev_kobj_release_cmpl);
 
 	TRACE_EXIT();
 	return;
@@ -1957,6 +1948,8 @@ int scst_tgt_dev_sysfs_create(struct scst_tgt_dev *tgt_dev)
 
 	TRACE_ENTRY();
 
+	init_completion(&tgt_dev->tgt_dev_kobj_release_cmpl);
+
 	res = kobject_init_and_add(&tgt_dev->tgt_dev_kobj, &scst_tgt_dev_ktype,
 			      &tgt_dev->sess->sess_kobj, "lun%lld",
 			      (unsigned long long)tgt_dev->lun);
@@ -1966,42 +1959,38 @@ int scst_tgt_dev_sysfs_create(struct scst_tgt_dev *tgt_dev)
 		goto out;
 	}
 
-	tgt_dev->tgt_dev_kobj_initialized = 1;
-
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
 
 /*
- * Deletes tgt_dev from sysfs and frees it in the tgt_dev_kobj release()
- *
  * Called with scst_mutex held.
  *
  * !! No sysfs works must use kobject_get() to protect tgt_dev, due to possible
  * !! deadlock with scst_mutex (it is waiting for the last put, but
  * !! the last ref counter holder is waiting for scst_mutex)
  */
-void scst_tgt_dev_sysfs_del_free(struct scst_tgt_dev *tgt_dev)
+void scst_tgt_dev_sysfs_del(struct scst_tgt_dev *tgt_dev)
 {
-	DECLARE_COMPLETION_ONSTACK(cmpl);
+	int rc;
 
 	TRACE_ENTRY();
-
-	tgt_dev->tgt_dev_kobj_release_cmpl = &cmpl;
-
-	if (atomic_read(&tgt_dev->tgt_dev_kobj.kref.refcount) > 1)
-		TRACE_MGMT_DBG("Waiting for releasing sysfs entry "
-			"for tgt_dev LUN %lld, (%d refs)...",
-			(unsigned long long)tgt_dev->lun,
-			atomic_read(&tgt_dev->tgt_dev_kobj.kref.refcount));
 
 	kobject_del(&tgt_dev->tgt_dev_kobj);
 	kobject_put(&tgt_dev->tgt_dev_kobj);
 
-	/* tgt_dev can be dead here! */
-
-	wait_for_completion(&cmpl);
+	rc = wait_for_completion_timeout(
+			&tgt_dev->tgt_dev_kobj_release_cmpl, HZ);
+	if (rc == 0) {
+		PRINT_INFO("Waiting for releasing sysfs entry "
+			"for tgt_dev %lld (%d refs)...",
+			(unsigned long long)tgt_dev->lun,
+			atomic_read(&tgt_dev->tgt_dev_kobj.kref.refcount));
+		wait_for_completion(&tgt_dev->tgt_dev_kobj_release_cmpl);
+		PRINT_INFO("Done waiting for releasing sysfs entry for "
+			"tgt_dev %lld", (unsigned long long)tgt_dev->lun);
+	}
 
 	TRACE_EXIT();
 	return;
@@ -2526,9 +2515,7 @@ static void scst_acg_dev_release(struct kobject *kobj)
 	TRACE_ENTRY();
 
 	acg_dev = container_of(kobj, struct scst_acg_dev, acg_dev_kobj);
-	complete_all(acg_dev->acg_dev_kobj_release_cmpl);
-
-	scst_free_acg_dev(acg_dev);
+	complete_all(&acg_dev->acg_dev_kobj_release_cmpl);
 
 	TRACE_EXIT();
 	return;
@@ -2563,21 +2550,17 @@ static struct kobj_type acg_dev_ktype = {
 };
 
 /*
- * Deletes acg_dev from sysfs and frees it in the acg_dev_kobj release()
- *
  * Called with scst_mutex held.
  *
  * !! No sysfs works must use kobject_get() to protect acg_dev, due to possible
  * !! deadlock with scst_mutex (it is waiting for the last put, but
  * !! the last ref counter holder is waiting for scst_mutex)
  */
-void scst_acg_dev_sysfs_del_free(struct scst_acg_dev *acg_dev)
+void scst_acg_dev_sysfs_del(struct scst_acg_dev *acg_dev)
 {
-	DECLARE_COMPLETION_ONSTACK(cmpl);
+	int rc;
 
 	TRACE_ENTRY();
-
-	acg_dev->acg_dev_kobj_release_cmpl = &cmpl;
 
 	if (acg_dev->dev != NULL) {
 		sysfs_remove_link(acg_dev->dev->dev_exp_kobj,
@@ -2585,27 +2568,23 @@ void scst_acg_dev_sysfs_del_free(struct scst_acg_dev *acg_dev)
 		kobject_put(&acg_dev->dev->dev_kobj);
 	}
 
-	if (atomic_read(&acg_dev->acg_dev_kobj.kref.refcount) > 1)
-		TRACE_MGMT_DBG("Waiting for releasing sysfs entry "
-			"for acg_dev %p (%d refs)...", acg_dev,
-			atomic_read(&acg_dev->acg_dev_kobj.kref.refcount));
-
 	kobject_del(&acg_dev->acg_dev_kobj);
 	kobject_put(&acg_dev->acg_dev_kobj);
 
-	/* acg_dev can be dead here! */
-
-	wait_for_completion(&cmpl);
+	rc = wait_for_completion_timeout(&acg_dev->acg_dev_kobj_release_cmpl, HZ);
+	if (rc == 0) {
+		PRINT_INFO("Waiting for releasing sysfs entry "
+			"for acg_dev %p (%d refs)...", acg_dev,
+			atomic_read(&acg_dev->acg_dev_kobj.kref.refcount));
+		wait_for_completion(&acg_dev->acg_dev_kobj_release_cmpl);
+		PRINT_INFO("Done waiting for releasing sysfs "
+			"entry for acg_dev %p", acg_dev);
+	}
 
 	TRACE_EXIT();
 	return;
 }
 
-/*
- * Upon return, including with an error, if acg_dev_kobj_initialized set
- * scst_acg_dev_sysfs_del_free() must be called to free acg_dev instead of
- * scst_free_acg_dev()!
- */
 int scst_acg_dev_sysfs_create(struct scst_acg_dev *acg_dev,
 	struct kobject *parent)
 {
@@ -2613,14 +2592,14 @@ int scst_acg_dev_sysfs_create(struct scst_acg_dev *acg_dev,
 
 	TRACE_ENTRY();
 
+	init_completion(&acg_dev->acg_dev_kobj_release_cmpl);
+
 	res = kobject_init_and_add(&acg_dev->acg_dev_kobj, &acg_dev_ktype,
 				      parent, "%u", acg_dev->lun);
 	if (res != 0) {
 		PRINT_ERROR("Can't add acg_dev %p to sysfs", acg_dev);
 		goto out;
 	}
-
-	acg_dev->acg_dev_kobj_initialized = 1;
 
 	kobject_get(&acg_dev->dev->dev_kobj);
 
@@ -2632,7 +2611,7 @@ int scst_acg_dev_sysfs_create(struct scst_acg_dev *acg_dev,
 	if (res != 0) {
 		PRINT_ERROR("Can't create acg %s LUN link",
 			acg_dev->acg->acg_name);
-		goto out;
+		goto out_del;
 	}
 
 	res = sysfs_create_link(&acg_dev->acg_dev_kobj,
@@ -2640,11 +2619,15 @@ int scst_acg_dev_sysfs_create(struct scst_acg_dev *acg_dev,
 	if (res != 0) {
 		PRINT_ERROR("Can't create acg %s device link",
 			acg_dev->acg->acg_name);
-		goto out;
+		goto out_del;
 	}
 
 out:
 	return res;
+
+out_del:
+	scst_acg_dev_sysfs_del(acg_dev);
+	goto out;
 }
 
 static int __scst_process_luns_mgmt_store(char *buffer,
@@ -3357,21 +3340,17 @@ out:
 }
 
 /*
- * Deletes acg from sysfs and frees it in the acg_kobj release()
- *
  * Called with scst_mutex held.
  *
  * !! No sysfs works must use kobject_get() to protect acg, due to possible
  * !! deadlock with scst_mutex (it is waiting for the last put, but
  * !! the last ref counter holder is waiting for scst_mutex)
  */
-void scst_acg_sysfs_del_free(struct scst_acg *acg)
+void scst_acg_sysfs_del(struct scst_acg *acg)
 {
-	DECLARE_COMPLETION_ONSTACK(cmpl);
+	int rc;
 
 	TRACE_ENTRY();
-
-	acg->acg_kobj_release_cmpl = &cmpl;
 
 	kobject_del(acg->luns_kobj);
 	kobject_put(acg->luns_kobj);
@@ -3379,33 +3358,31 @@ void scst_acg_sysfs_del_free(struct scst_acg *acg)
 	kobject_del(acg->initiators_kobj);
 	kobject_put(acg->initiators_kobj);
 
-	if (atomic_read(&acg->acg_kobj.kref.refcount) > 1)
-		TRACE_MGMT_DBG("Waiting for releasing sysfs entry "
-			"for acg %s (%d refs)...", acg->acg_name,
-			atomic_read(&acg->acg_kobj.kref.refcount));
-
 	kobject_del(&acg->acg_kobj);
 	kobject_put(&acg->acg_kobj);
 
-	/* acg can be dead here! */
-
-	wait_for_completion(&cmpl);
+	rc = wait_for_completion_timeout(&acg->acg_kobj_release_cmpl, HZ);
+	if (rc == 0) {
+		PRINT_INFO("Waiting for releasing sysfs entry "
+			"for acg %s (%d refs)...", acg->acg_name,
+			atomic_read(&acg->acg_kobj.kref.refcount));
+		wait_for_completion(&acg->acg_kobj_release_cmpl);
+		PRINT_INFO("Done waiting for releasing sysfs "
+			"entry for acg %s", acg->acg_name);
+	}
 
 	TRACE_EXIT();
 	return;
 }
 
-/*
- * Upon return, including with an error, if acg_kobj_initialized set
- * scst_acg_sysfs_del_free() must be called to free acg instead of
- * __scst_free_acg()!
- */
 int scst_acg_sysfs_create(struct scst_tgt *tgt,
 	struct scst_acg *acg)
 {
 	int res = 0;
 
 	TRACE_ENTRY();
+
+	init_completion(&acg->acg_kobj_release_cmpl);
 
 	res = kobject_init_and_add(&acg->acg_kobj, &acg_ktype,
 		tgt->tgt_ini_grp_kobj, acg->acg_name);
@@ -3414,21 +3391,19 @@ int scst_acg_sysfs_create(struct scst_tgt *tgt,
 		goto out;
 	}
 
-	acg->acg_kobj_initialized = 1;
-
 	acg->luns_kobj = kobject_create_and_add("luns", &acg->acg_kobj);
 	if (acg->luns_kobj == NULL) {
 		PRINT_ERROR("Can't create luns kobj for tgt %s",
 			tgt->tgt_name);
 		res = -ENOMEM;
-		goto out;
+		goto out_del;
 	}
 
 	res = sysfs_create_file(acg->luns_kobj, &scst_acg_luns_mgmt.attr);
 	if (res != 0) {
 		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
 			scst_acg_luns_mgmt.attr.name, tgt->tgt_name);
-		goto out;
+		goto out_del;
 	}
 
 	acg->initiators_kobj = kobject_create_and_add("initiators",
@@ -3437,7 +3412,7 @@ int scst_acg_sysfs_create(struct scst_tgt *tgt,
 		PRINT_ERROR("Can't create initiators kobj for tgt %s",
 			tgt->tgt_name);
 		res = -ENOMEM;
-		goto out;
+		goto out_del;
 	}
 
 	res = sysfs_create_file(acg->initiators_kobj,
@@ -3445,33 +3420,37 @@ int scst_acg_sysfs_create(struct scst_tgt *tgt,
 	if (res != 0) {
 		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
 			scst_acg_ini_mgmt.attr.name, tgt->tgt_name);
-		goto out;
+		goto out_del;
 	}
 
 	res = sysfs_create_file(&acg->acg_kobj, &scst_acg_addr_method.attr);
 	if (res != 0) {
 		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
 			scst_acg_addr_method.attr.name, tgt->tgt_name);
-		goto out;
+		goto out_del;
 	}
 
 	res = sysfs_create_file(&acg->acg_kobj, &scst_acg_io_grouping_type.attr);
 	if (res != 0) {
 		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
 			scst_acg_io_grouping_type.attr.name, tgt->tgt_name);
-		goto out;
+		goto out_del;
 	}
 
 	res = sysfs_create_file(&acg->acg_kobj, &scst_acg_cpu_mask.attr);
 	if (res != 0) {
 		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
 			scst_acg_cpu_mask.attr.name, tgt->tgt_name);
-		goto out;
+		goto out_del;
 	}
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_del:
+	scst_acg_sysfs_del(acg);
+	goto out;
 }
 
 static ssize_t scst_acg_addr_method_show(struct kobject *kobj,

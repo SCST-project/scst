@@ -553,6 +553,7 @@ out:
 #ifndef CONFIG_SCST_PROC
 out_sysfs_del:
 	mutex_unlock(&scst_mutex);
+	scst_tgt_sysfs_del(tgt);
 	goto out_free_tgt;
 #endif
 
@@ -638,6 +639,10 @@ again:
 
 	mutex_unlock(&scst_mutex);
 	scst_resume_activity();
+
+#ifndef CONFIG_SCST_PROC
+	scst_tgt_sysfs_del(tgt);
+#endif
 
 	PRINT_INFO("Target %s for template %s unregistered successfully",
 		tgt->tgt_name, vtt->name);
@@ -857,7 +862,7 @@ static int scst_register_device(struct scsi_device *scsidp)
 #endif
 	}
 
-	res = scst_alloc_dev(GFP_KERNEL, &dev);
+	res = scst_alloc_device(GFP_KERNEL, &dev);
 	if (res != 0)
 		goto out_unlock;
 
@@ -920,7 +925,7 @@ out_del:
 	list_del(&dev->dev_list_entry);
 
 out_free_dev:
-	scst_free_dev(dev);
+	scst_free_device(dev);
 
 out_unlock:
 	mutex_unlock(&scst_mutex);
@@ -968,11 +973,13 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 
 	scst_resume_activity();
 
+	scst_dev_sysfs_del(dev);
+
 	PRINT_INFO("Detached from scsi%d, channel %d, id %d, lun %d, type %d",
 		scsidp->host->host_no, scsidp->channel, scsidp->id,
 		scsidp->lun, scsidp->type);
 
-	scst_free_dev(dev);
+	scst_free_device(dev);
 
 out:
 	TRACE_EXIT();
@@ -1047,6 +1054,7 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 {
 	int res, rc;
 	struct scst_device *dev, *d;
+	bool sysfs_del = false;
 
 	TRACE_ENTRY();
 
@@ -1080,7 +1088,7 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 		goto out_resume;
 	}
 
-	res = scst_alloc_dev(GFP_KERNEL, &dev);
+	res = scst_alloc_device(GFP_KERNEL, &dev);
 	if (res != 0)
 		goto out_unlock;
 
@@ -1127,6 +1135,7 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 		if (strcmp(d->virt_name, dev_name) == 0) {
 			PRINT_ERROR("Device %s already exists", dev_name);
 			res = -EEXIST;
+			sysfs_del = true;
 			goto out_pr_clear_dev;
 		}
 	}
@@ -1134,6 +1143,7 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 	rc = scst_assign_dev_handler(dev, dev_handler);
 	if (rc != 0) {
 		res = rc;
+		sysfs_del = true;
 		goto out_pr_clear_dev;
 	}
 
@@ -1161,7 +1171,9 @@ out_pr_clear_dev:
 
 out_free_dev:
 	mutex_unlock(&scst_mutex);
-	scst_free_dev(dev);
+	if (sysfs_del)
+		scst_dev_sysfs_del(dev);
+	scst_free_device(dev);
 	goto out_resume;
 
 out_unlock:
@@ -1213,10 +1225,12 @@ void scst_unregister_virtual_device(int id)
 	mutex_unlock(&scst_mutex);
 	scst_resume_activity();
 
+	scst_dev_sysfs_del(dev);
+
 	PRINT_INFO("Detached from virtual device %s (id %d)",
 		dev->virt_name, dev->virt_id);
 
-	scst_free_dev(dev);
+	scst_free_device(dev);
 
 out:
 	TRACE_EXIT();

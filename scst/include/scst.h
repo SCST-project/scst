@@ -1431,10 +1431,8 @@ struct scst_tgt {
 	char *default_group_name;
 #endif
 
-	unsigned int tgt_kobj_initialized:1;
-
 	/* sysfs release completion */
-	struct completion *tgt_kobj_release_cmpl;
+	struct completion tgt_kobj_release_cmpl;
 
 	struct kobject tgt_kobj; /* main targets/target kobject */
 	struct kobject *tgt_sess_kobj; /* target/sessions/ */
@@ -2079,9 +2077,6 @@ struct scst_device {
 	/* If set, dev is read only */
 	unsigned short rd_only:1;
 
-	/* If set, dev_kobj was initialized */
-	unsigned short dev_kobj_initialized:1;
-
 	/**************************************************************/
 
 	/*************************************************************
@@ -2222,7 +2217,7 @@ struct scst_device {
 	enum scst_dev_type_threads_pool_type threads_pool_type;
 
 	/* sysfs release completion */
-	struct completion *dev_kobj_release_cmpl;
+	struct completion dev_kobj_release_cmpl;
 
 	struct kobject dev_kobj; /* kobject for this struct */
 	struct kobject *dev_exp_kobj; /* exported groups */
@@ -2347,9 +2342,6 @@ struct scst_tgt_dev {
 	/* Set if INQUIRY DATA HAS CHANGED UA is needed */
 	unsigned int inq_changed_ua_needed:1;
 
-	/* Set if tgt_dev_kobj was initialized */
-	unsigned int tgt_dev_kobj_initialized:1;
-
 	/*
 	 * Stored Unit Attention sense and its length for possible
 	 * subsequent REQUEST SENSE. Both protected by tgt_dev_lock.
@@ -2358,7 +2350,7 @@ struct scst_tgt_dev {
 	uint8_t tgt_dev_sense[SCST_SENSE_BUFFERSIZE];
 
 	/* sysfs release completion */
-	struct completion *tgt_dev_kobj_release_cmpl;
+	struct completion tgt_dev_kobj_release_cmpl;
 
 	struct kobject tgt_dev_kobj; /* kobject for this struct */
 
@@ -2386,9 +2378,6 @@ struct scst_acg_dev {
 	/* If set, the corresponding LU is read only */
 	unsigned int rd_only:1;
 
-	/* If set acg_dev_kobj was initialized */
-	unsigned int acg_dev_kobj_initialized:1;
-
 	struct scst_acg *acg; /* parent acg */
 
 	/* List entry in dev->dev_acg_dev_list */
@@ -2401,7 +2390,7 @@ struct scst_acg_dev {
 	struct kobject acg_dev_kobj;
 
 	/* sysfs release completion */
-	struct completion *acg_dev_kobj_release_cmpl;
+	struct completion acg_dev_kobj_release_cmpl;
 
 	/* Name of the link to the corresponding LUN */
 	char acg_dev_link_name[20];
@@ -2442,10 +2431,9 @@ struct scst_acg {
 	cpumask_t acg_cpu_mask;
 
 	unsigned int tgt_acg:1;
-	unsigned int acg_kobj_initialized:1;
 
 	/* sysfs release completion */
-	struct completion *acg_kobj_release_cmpl;
+	struct completion acg_kobj_release_cmpl;
 
 	/* kobject for this structure */
 	struct kobject acg_kobj;
