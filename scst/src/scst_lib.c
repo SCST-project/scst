@@ -7544,7 +7544,10 @@ void scst_update_lat_stats(struct scst_cmd *cmd)
 	else if (data_len <= SCST_IO_SIZE_THRESHOLD_VERY_LARGE)
 		i = SCST_LATENCY_STAT_INDEX_VERY_LARGE;
 	latency_stat = &sess->sess_latency_stat[i];
-	dev_latency_stat = &cmd->tgt_dev->dev_latency_stat[i];
+	if (cmd->tgt_dev != NULL)
+		dev_latency_stat = &cmd->tgt_dev->dev_latency_stat[i];
+	else
+		dev_latency_stat = NULL;
 
 	/* Calculate the latencies */
 	scst_time = finish - cmd->start - (cmd->parse_time +
@@ -7607,27 +7610,29 @@ void scst_update_lat_stats(struct scst_cmd *cmd)
 		if (latency_stat->max_dev_time_rd < dev_time)
 			latency_stat->max_dev_time_rd = dev_time;
 
-		dev_latency_stat->scst_time_rd += scst_time;
-		dev_latency_stat->tgt_time_rd += tgt_time;
-		dev_latency_stat->dev_time_rd += dev_time;
-		dev_latency_stat->processed_cmds_rd++;
+		if (dev_latency_stat != NULL) {
+			dev_latency_stat->scst_time_rd += scst_time;
+			dev_latency_stat->tgt_time_rd += tgt_time;
+			dev_latency_stat->dev_time_rd += dev_time;
+			dev_latency_stat->processed_cmds_rd++;
 
-		if ((dev_latency_stat->min_scst_time_rd == 0) ||
-		    (dev_latency_stat->min_scst_time_rd > scst_time))
-			dev_latency_stat->min_scst_time_rd = scst_time;
-		if ((dev_latency_stat->min_tgt_time_rd == 0) ||
-		    (dev_latency_stat->min_tgt_time_rd > tgt_time))
-			dev_latency_stat->min_tgt_time_rd = tgt_time;
-		if ((dev_latency_stat->min_dev_time_rd == 0) ||
-		    (dev_latency_stat->min_dev_time_rd > dev_time))
-			dev_latency_stat->min_dev_time_rd = dev_time;
+			if ((dev_latency_stat->min_scst_time_rd == 0) ||
+			    (dev_latency_stat->min_scst_time_rd > scst_time))
+				dev_latency_stat->min_scst_time_rd = scst_time;
+			if ((dev_latency_stat->min_tgt_time_rd == 0) ||
+			    (dev_latency_stat->min_tgt_time_rd > tgt_time))
+				dev_latency_stat->min_tgt_time_rd = tgt_time;
+			if ((dev_latency_stat->min_dev_time_rd == 0) ||
+			    (dev_latency_stat->min_dev_time_rd > dev_time))
+				dev_latency_stat->min_dev_time_rd = dev_time;
 
-		if (dev_latency_stat->max_scst_time_rd < scst_time)
-			dev_latency_stat->max_scst_time_rd = scst_time;
-		if (dev_latency_stat->max_tgt_time_rd < tgt_time)
-			dev_latency_stat->max_tgt_time_rd = tgt_time;
-		if (dev_latency_stat->max_dev_time_rd < dev_time)
-			dev_latency_stat->max_dev_time_rd = dev_time;
+			if (dev_latency_stat->max_scst_time_rd < scst_time)
+				dev_latency_stat->max_scst_time_rd = scst_time;
+			if (dev_latency_stat->max_tgt_time_rd < tgt_time)
+				dev_latency_stat->max_tgt_time_rd = tgt_time;
+			if (dev_latency_stat->max_dev_time_rd < dev_time)
+				dev_latency_stat->max_dev_time_rd = dev_time;
+		}
 	} else if (cmd->data_direction & SCST_DATA_WRITE) {
 		latency_stat->scst_time_wr += scst_time;
 		latency_stat->tgt_time_wr += tgt_time;
@@ -7651,27 +7656,29 @@ void scst_update_lat_stats(struct scst_cmd *cmd)
 		if (latency_stat->max_dev_time_wr < dev_time)
 			latency_stat->max_dev_time_wr = dev_time;
 
-		dev_latency_stat->scst_time_wr += scst_time;
-		dev_latency_stat->tgt_time_wr += tgt_time;
-		dev_latency_stat->dev_time_wr += dev_time;
-		dev_latency_stat->processed_cmds_wr++;
+		if (dev_latency_stat != NULL) {
+			dev_latency_stat->scst_time_wr += scst_time;
+			dev_latency_stat->tgt_time_wr += tgt_time;
+			dev_latency_stat->dev_time_wr += dev_time;
+			dev_latency_stat->processed_cmds_wr++;
 
-		if ((dev_latency_stat->min_scst_time_wr == 0) ||
-		    (dev_latency_stat->min_scst_time_wr > scst_time))
-			dev_latency_stat->min_scst_time_wr = scst_time;
-		if ((dev_latency_stat->min_tgt_time_wr == 0) ||
-		    (dev_latency_stat->min_tgt_time_wr > tgt_time))
-			dev_latency_stat->min_tgt_time_wr = tgt_time;
-		if ((dev_latency_stat->min_dev_time_wr == 0) ||
-		    (dev_latency_stat->min_dev_time_wr > dev_time))
-			dev_latency_stat->min_dev_time_wr = dev_time;
+			if ((dev_latency_stat->min_scst_time_wr == 0) ||
+			    (dev_latency_stat->min_scst_time_wr > scst_time))
+				dev_latency_stat->min_scst_time_wr = scst_time;
+			if ((dev_latency_stat->min_tgt_time_wr == 0) ||
+			    (dev_latency_stat->min_tgt_time_wr > tgt_time))
+				dev_latency_stat->min_tgt_time_wr = tgt_time;
+			if ((dev_latency_stat->min_dev_time_wr == 0) ||
+			    (dev_latency_stat->min_dev_time_wr > dev_time))
+				dev_latency_stat->min_dev_time_wr = dev_time;
 
-		if (dev_latency_stat->max_scst_time_wr < scst_time)
-			dev_latency_stat->max_scst_time_wr = scst_time;
-		if (dev_latency_stat->max_tgt_time_wr < tgt_time)
-			dev_latency_stat->max_tgt_time_wr = tgt_time;
-		if (dev_latency_stat->max_dev_time_wr < dev_time)
-			dev_latency_stat->max_dev_time_wr = dev_time;
+			if (dev_latency_stat->max_scst_time_wr < scst_time)
+				dev_latency_stat->max_scst_time_wr = scst_time;
+			if (dev_latency_stat->max_tgt_time_wr < tgt_time)
+				dev_latency_stat->max_tgt_time_wr = tgt_time;
+			if (dev_latency_stat->max_dev_time_wr < dev_time)
+				dev_latency_stat->max_dev_time_wr = dev_time;
+		}
 	}
 
 	spin_unlock_bh(&sess->lat_lock);
