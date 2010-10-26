@@ -1,0 +1,8 @@
+diff -upkr -X linux-2.6.36/Documentation/dontdiff linux-2.6.36/drivers/Makefile linux-2.6.36/drivers/Makefile
+--- linux-2.6.36/drivers/Makefile.orig	2010-10-16 15:40:04.000000000 +0200
++++ linux-2.6.36/drivers/Makefile	2010-10-16 15:40:20.000000000 +0200
+@@ -113,3 +113,4 @@ obj-$(CONFIG_VLYNQ)		+= vlynq/
+ obj-$(CONFIG_STAGING)		+= staging/
+ obj-y				+= platform/
+ obj-y				+= ieee802154/
++obj-$(CONFIG_SCST)		+= scst/

@@ -91,7 +91,7 @@ void conn_info_show(struct seq_file *seq, struct iscsi_session *session)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,33)
 				 "%u.%u.%u.%u", NIPQUAD(inet_sk(sk)->daddr));
 #else
-				 "%u.%u.%u.%u", NIPQUAD(inet_sk(sk)->inet_daddr));
+				 "%pI4", &inet_sk(sk)->inet_daddr);
 #endif
 			break;
 		case AF_INET6:
@@ -153,7 +153,7 @@ static ssize_t iscsi_get_initiator_ip(struct iscsi_conn *conn,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,33)
 			 "%u.%u.%u.%u", NIPQUAD(inet_sk(sk)->daddr));
 #else
-			"%u.%u.%u.%u", NIPQUAD(inet_sk(sk)->inet_daddr));
+			"%pI4", &inet_sk(sk)->inet_daddr);
 #endif
 		break;
 	case AF_INET6:
