@@ -3847,7 +3847,9 @@ int scst_acn_sysfs_create(struct scst_acn *acn)
 	}
 	strlcpy((char *)attr->attr.name, acn->name, len);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 	attr->attr.owner = THIS_MODULE;
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 	attr->attr.key = &__key;

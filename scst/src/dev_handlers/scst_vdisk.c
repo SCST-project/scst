@@ -2845,7 +2845,11 @@ static void blockio_endio(struct bio *bio, int error)
 		/* To protect from several bios finishing simultaneously */
 		spin_lock_bh(&blockio_endio_lock);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 		if (bio->bi_rw & (1 << BIO_RW))
+#else
+		if (bio->bi_rw & REQ_WRITE)
+#endif
 			scst_set_cmd_error(blockio_work->cmd,
 				SCST_LOAD_SENSE(scst_sense_write_error));
 		else
@@ -2937,15 +2941,19 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 				 * Better to fail fast w/o any local recovery
 				 * and retries.
 				 */
-#ifdef BIO_RW_FAILFAST
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 27)
 				bio->bi_rw |= (1 << BIO_RW_FAILFAST);
-#else
+#elif LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 35)
 				bio->bi_rw |= (1 << BIO_RW_FAILFAST_DEV) |
 					      (1 << BIO_RW_FAILFAST_TRANSPORT) |
 					      (1 << BIO_RW_FAILFAST_DRIVER);
+#else
+				bio->bi_rw |= REQ_FAILFAST_DEV |
+					      REQ_FAILFAST_TRANSPORT |
+					      REQ_FAILFAST_DRIVER;
 #endif
 #if 0 /* It could be win, but could be not, so a performance study is needed */
-				bio->bi_rw |= 1 << BIO_RW_SYNC;
+				bio->bi_rw |= REQ_SYNC;
 #endif
 				if (!hbio)
 					hbio = tbio = bio;

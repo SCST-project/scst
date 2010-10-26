@@ -754,7 +754,9 @@ int iscsi_add_attr(struct iscsi_target *target,
 	list_add(&tgt_attr->attrs_list_entry, attrs_list);
 
 	tgt_attr->attr.attr.name = tgt_attr->name;
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 35)
 	tgt_attr->attr.attr.owner = THIS_MODULE;
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 	tgt_attr->attr.attr.key = &__key;
