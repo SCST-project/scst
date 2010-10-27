@@ -4584,7 +4584,8 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 
 	/*
 	 * To sync with cmd->finished/done set in
-	 * scst_finish_cmd()/scst_pre_xmit_response()
+	 * scst_finish_cmd()/scst_pre_xmit_response() and with setting UA for
+	 * aborted cmd in scst_set_pending_UA().
 	 */
 	smp_mb__after_set_bit();
 

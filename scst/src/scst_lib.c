@@ -6125,6 +6125,19 @@ int scst_set_pending_UA(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
+	/*
+	 * RMB and recheck to sync with setting SCST_CMD_ABORTED in
+	 * scst_abort_cmd() to not set UA for the being aborted cmd, hence
+	 * possibly miss its delivery by a legitimate command while the UA is
+	 * being requeued.
+	 */
+	smp_rmb();
+	if (test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)) {
+		TRACE_MGMT_DBG("Not set pending UA for aborted cmd %p", cmd);
+		res = -1;
+		goto out;
+	}
+
 	TRACE_MGMT_DBG("Setting pending UA cmd %p", cmd);
 
 	spin_lock_bh(&cmd->tgt_dev->tgt_dev_lock);
@@ -6230,6 +6243,7 @@ out_unlock:
 
 	spin_unlock_bh(&cmd->tgt_dev->tgt_dev_lock);
 
+out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
