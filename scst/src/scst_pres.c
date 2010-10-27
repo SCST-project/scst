@@ -1527,6 +1527,8 @@ static int scst_pr_register_on_tgt_id(struct scst_cmd *cmd,
 		list_add_tail(&reg->aux_list_entry, rollback_list);
 	}
 
+	res = 0;
+
 out:
 	TRACE_EXIT_RES(res);
 	return res;
@@ -2160,6 +2162,8 @@ static void scst_pr_do_preempt(struct scst_cmd *cmd, uint8_t *buffer,
 	struct scst_device *dev = cmd->dev;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
 	struct scst_dev_registrant *reg, *r, *rt;
+	int existing_pr_type = dev->pr_type;
+	int existing_pr_scope = dev->pr_scope;
 	LIST_HEAD(preempt_list);
 
 	TRACE_ENTRY();
@@ -2206,10 +2210,13 @@ static void scst_pr_do_preempt(struct scst_cmd *cmd, uint8_t *buffer,
 		if (list_empty(&preempt_list))
 			goto out_error;
 		list_for_each_entry_safe(r, rt, &preempt_list, aux_list_entry) {
-			if (r != reg)
+			if (abort)
+				scst_pr_abort_reg(dev, cmd, r);
+			if (r != reg) {
 				scst_pr_send_ua_reg(dev, r, SCST_LOAD_SENSE(
 					scst_sense_registrations_preempted));
-			scst_pr_remove_registrant(dev, r);
+				scst_pr_remove_registrant(dev, r);
+			}
 		}
 		goto done;
 	}
@@ -2221,16 +2228,15 @@ static void scst_pr_do_preempt(struct scst_cmd *cmd, uint8_t *buffer,
 				&preempt_list);
 			list_for_each_entry_safe(r, rt, &preempt_list,
 					aux_list_entry) {
-				if (r != reg)
-					scst_pr_send_ua_reg(dev, r,
-						SCST_LOAD_SENSE(
+				sBUG_ON(r == reg);
+				if (abort)
+					scst_pr_abort_reg(dev, cmd, r);
+				scst_pr_send_ua_reg(dev, r,
+					SCST_LOAD_SENSE(
 						scst_sense_registrations_preempted));
-				else
-					reg = NULL;
 				scst_pr_remove_registrant(dev, r);
 			}
-			if (reg != NULL)
-				scst_pr_set_holder(dev, reg, scope, type);
+			scst_pr_set_holder(dev, reg, scope, type);
 		} else {
 			scst_pr_find_registrants_list_key(dev, action_key,
 				&preempt_list);
@@ -2238,19 +2244,18 @@ static void scst_pr_do_preempt(struct scst_cmd *cmd, uint8_t *buffer,
 				goto out_error;
 			list_for_each_entry_safe(r, rt, &preempt_list,
 					aux_list_entry) {
-				if (r != reg)
+				if (abort)
+					scst_pr_abort_reg(dev, cmd, r);
+				if (r != reg) {
 					scst_pr_send_ua_reg(dev, r,
 						SCST_LOAD_SENSE(
-						scst_sense_registrations_preempted));
-				else
-					reg = NULL;
-				scst_pr_remove_registrant(dev, r);
+							scst_sense_registrations_preempted));
+					scst_pr_remove_registrant(dev, r);
+				}
 			}
 		}
 		goto done;
 	}
-
-	sBUG_ON(dev->pr_holder == NULL);
 
 	if (dev->pr_holder->key != action_key) {
 		if (action_key == 0) {
@@ -2264,12 +2269,12 @@ static void scst_pr_do_preempt(struct scst_cmd *cmd, uint8_t *buffer,
 				goto out_error;
 			list_for_each_entry_safe(r, rt, &preempt_list,
 					aux_list_entry) {
+				if (abort)
+					scst_pr_abort_reg(dev, cmd, r);
 				if (r != reg)
 					scst_pr_send_ua_reg(dev, r,
 						SCST_LOAD_SENSE(
-						scst_sense_registrations_preempted));
-				else
-					reg = NULL;
+							scst_sense_registrations_preempted));
 				scst_pr_remove_registrant(dev, r);
 			}
 			goto done;
@@ -2282,24 +2287,23 @@ static void scst_pr_do_preempt(struct scst_cmd *cmd, uint8_t *buffer,
 	list_for_each_entry_safe(r, rt, &preempt_list, aux_list_entry) {
 		if (abort)
 			scst_pr_abort_reg(dev, cmd, r);
-		if (r != reg)
+		if (r != reg) {
 			scst_pr_send_ua_reg(dev, r, SCST_LOAD_SENSE(
 				scst_sense_registrations_preempted));
-		else
-			reg = NULL;
-		scst_pr_remove_registrant(dev, r);
+			scst_pr_remove_registrant(dev, r);
+		}
 	}
 
-	if (dev->pr_type != type || dev->pr_scope != scope)
+	scst_pr_set_holder(dev, reg, scope, type);
+
+	if (existing_pr_type != type || existing_pr_scope != scope) {
 		list_for_each_entry(r, &dev->dev_registrants_list,
 					dev_registrants_list_entry) {
 			if (r != reg)
 				scst_pr_send_ua_reg(dev, r, SCST_LOAD_SENSE(
 					scst_sense_reservation_released));
 		}
-
-	if (reg != NULL)
-		scst_pr_set_holder(dev, reg, scope, type);
+	}
 
 done:
 	dev->pr_generation++;
@@ -2595,7 +2599,7 @@ void scst_pr_read_reservation(struct scst_cmd *cmd, uint8_t *buffer,
 
 	memset(b, 0, sizeof(b));
 
-	put_unaligned(cpu_to_be32(dev->pr_generation), (__be32 *)&buffer[0]);
+	put_unaligned(cpu_to_be32(dev->pr_generation), (__be32 *)&b[0]);
 
 	if (!dev->pr_is_set) {
 		TRACE_PR("Read Reservation: no reservations for dev %s",
