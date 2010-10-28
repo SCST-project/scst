@@ -4976,7 +4976,8 @@ static int get_trans_len_serv_act_in(struct scst_cmd *cmd, uint8_t off)
 	if ((cmd->cdb[1] & 0x1f) == SAI_READ_CAPACITY_16) {
 		cmd->op_name = "READ CAPACITY(16)";
 		cmd->bufflen = be32_to_cpu(get_unaligned((__be32 *)&cmd->cdb[10]));
-		cmd->op_flags |= SCST_IMPLICIT_HQ|SCST_REG_RESERVE_ALLOWED;
+		cmd->op_flags |= SCST_IMPLICIT_HQ | SCST_REG_RESERVE_ALLOWED |
+			SCST_WRITE_EXCL_ALLOWED | SCST_EXCL_ACCESS_ALLOWED;
 	} else
 		cmd->op_flags |= SCST_UNKNOWN_LENGTH;
 
