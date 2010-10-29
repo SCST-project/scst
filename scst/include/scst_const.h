@@ -46,6 +46,9 @@
 /* Max size of external names, like initiator name */
 #define SCST_MAX_EXTERNAL_NAME	     256
 
+/* Max LUN. 2 bits are used for addressing method. */
+#define SCST_MAX_LUN		     ((1 << (16-2)) - 1)
+
 /*
  * Size of sense sufficient to carry standard sense data.
  * Warning! It's allocated on stack!

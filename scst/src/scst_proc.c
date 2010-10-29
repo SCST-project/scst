@@ -2007,7 +2007,14 @@ static ssize_t scst_proc_groups_devices_write(struct file *file,
 		e++;
 		while (isspace(*e) && *e != '\0')
 			e++;
+
 		virt_lun = simple_strtoul(e, &e, 0);
+		if (virt_lun > SCST_MAX_LUN) {
+			PRINT_ERROR("Too big LUN %d (max %d)", virt_lun,
+				SCST_MAX_LUN);
+			res = -EINVAL;
+			goto out_free_up;
+		}
 
 		while (isspace(*e) && *e != '\0')
 			e++;
