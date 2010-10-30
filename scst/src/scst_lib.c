@@ -2030,10 +2030,11 @@ static void scst_adjust_sg(struct scst_cmd *cmd, struct scatterlist *sg,
 
 	l = 0;
 	for (i = 0, j = 0; i < *sg_cnt; i++, j++) {
-		TRACE_DBG("i %d, j %d, sg_cnt %d, sg %p, page_link %lx", i, j,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24)
+		TRACE_DBG("i %d, j %d, sg_cnt %d, sg %p, page_link %lx", i, j,
 			*sg_cnt, sg, sg[j].page_link);
 #else
+		TRACE_DBG("i %d, j %d, sg_cnt %d, sg %p, page_link %lx", i, j,
 			*sg_cnt, sg, 0UL);
 #endif
 		if (unlikely(sg_is_chain(&sg[j]))) {
