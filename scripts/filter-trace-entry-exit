@@ -26,26 +26,28 @@ function categorize_line(line) {
   if (line ~ "^+$")
     is_blank = 1
   else if (line ~ "^+\tTRACE_ENTRY\\(\\);$")
-    is_trace_exit = 1
+    is_trace_entry = 1
   else if (line ~ "^+\tTRACE_EXIT\\(\\);$" \
            || line ~ "^+\tTRACE_EXIT_RES\\(.*\\);$" \
            || line ~ "^+\tTRACE_EXIT_HRES\\(.*\\);$")
     is_trace_exit = 1
 }
 
+# Leave out TRACE_ENTRY() and the blank line below it and also TRACE_EXIT()
+# and the blank line before it.
 function print_conditionally() {
-  if (! previous_is_trace_entry                                  \
-      && ! (before_previous_is_trace_entry && previous_is_blank) \
-      && ! previous_is_trace_exit                                \
-      && ! (previous_is_blank && is_trace_exit))
-  {
-    # printf "[%d] %s\n", lines, previous_line
-    line[lines++] = previous_line
-  }
-  else
+  if (previous_is_trace_entry                                  \
+      || (before_previous_is_trace_entry && previous_is_blank) \
+      || previous_is_trace_exit                                \
+      || (previous_is_blank && is_trace_exit))
   {
     # print "deleted", previous_line
     lines_deleted++
+  }
+  else
+  {
+    # printf "[%d] %s\n", lines, previous_line
+    line[lines++] = previous_line
   }
 }
 
