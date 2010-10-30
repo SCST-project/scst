@@ -314,7 +314,7 @@ diff -upkr linux-2.6.36/net/ipv4/tcp_zero_copy.c linux-2.6.36/net/ipv4/tcp_zero_
 + *      modify it under the terms of the GNU General Public License
 + *      version 2 as published by the Free Software Foundation.
 + */
-+ 
++
 +#include <linux/skbuff.h>
 +
 +net_get_page_callback_t net_get_page_callback __read_mostly;
