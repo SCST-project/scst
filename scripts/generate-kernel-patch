@@ -585,7 +585,10 @@ EOF
       include/scsi/libsrp.h \
       include/scsi/srp.h
     do
-      add_patch "ibmvstgt/in-tree-patches/${kernel_version}/$(basename $f).patch" $f
+      patch="ibmvstgt/in-tree-patches/${kernel_version}/$(basename $f).patch"
+      if [ -e "${patch}" ]; then
+        add_patch "${patch}" $f
+      fi
     done
     add_file "ibmvstgt/README" "Documentation/powerpc/ibmvstgt.txt"
   fi
