@@ -224,13 +224,13 @@ static inline int set_cpus_allowed_ptr(struct task_struct *p,
 #define SCST_CMD_STATE_XMIT_WAIT     (SCST_CMD_STATE_LAST_ACTIVE+6)
 
 /*************************************************************
- * Can be retuned instead of cmd's state by dev handlers'
+ * Can be returned instead of cmd's state by dev handlers'
  * functions, if the command's state should be set by default
  *************************************************************/
 #define SCST_CMD_STATE_DEFAULT        500
 
 /*************************************************************
- * Can be retuned instead of cmd's state by dev handlers'
+ * Can be returned instead of cmd's state by dev handlers'
  * functions, if it is impossible to complete requested
  * task in atomic context. The cmd will be restarted in thread
  * context.
@@ -238,7 +238,7 @@ static inline int set_cpus_allowed_ptr(struct task_struct *p,
 #define SCST_CMD_STATE_NEED_THREAD_CTX 1000
 
 /*************************************************************
- * Can be retuned instead of cmd's state by dev handlers'
+ * Can be returned instead of cmd's state by dev handlers'
  * parse function, if the cmd processing should be stopped
  * for now. The cmd will be restarted by dev handlers itself.
  *************************************************************/
@@ -519,7 +519,7 @@ enum scst_exec_context {
 #define SCST_TGT_DEV_CLUST_POOL			11
 
 /*************************************************************
- ** I/O groupping types. Changing them don't forget to change
+ ** I/O grouping types. Changing them don't forget to change
  ** the corresponding *_STR values in scst_const.h!
  *************************************************************/
 
@@ -555,7 +555,7 @@ enum scst_exec_context {
 #endif
 
 /*************************************************************
- ** Vlaid_mask constants for scst_analyze_sense()
+ ** Valid_mask constants for scst_analyze_sense()
  *************************************************************/
 
 #define SCST_SENSE_KEY_VALID		1
@@ -865,9 +865,9 @@ struct scst_tgt_template {
 
 	/*
 	 * This function returns in tr_id the corresponding to sess initiator
-	 * port TransporID in the form as it's used by PR commands, see
+	 * port TransportID in the form as it's used by PR commands, see
 	 * "Transport Identifiers" in SPC. Space for the initiator port
-	 * TransporID must be allocated via kmalloc(). Caller supposed to
+	 * TransportID must be allocated via kmalloc(). Caller supposed to
 	 * kfree() it, when it isn't needed anymore.
 	 *
 	 * If sess is NULL, this function must return TransportID PROTOCOL
@@ -1184,7 +1184,7 @@ struct scst_dev_type {
 	 * Called to execute a task management command.
 	 * Returns:
 	 *  - SCST_MGMT_STATUS_SUCCESS - the command is done with success,
-	 *	no firther actions required
+	 *	no further actions required
 	 *  - The SCST_MGMT_STATUS_* error code if the command is failed and
 	 *	no further actions required
 	 *  - SCST_DEV_TM_NOT_COMPLETED - regular standard actions for the
@@ -1601,7 +1601,7 @@ struct scst_pr_abort_all_pending_mgmt_cmds_counter {
 	 */
 	atomic_t pr_abort_pending_cnt;
 
-	/* Saved completition routine */
+	/* Saved completion routine */
 	void (*saved_cmd_done) (struct scst_cmd *cmd, int next_state,
 		enum scst_exec_context pref_context);
 
@@ -1835,7 +1835,7 @@ struct scst_cmd {
 	 */
 	int data_len;
 
-	/* Completition routine */
+	/* Completion routine */
 	void (*scst_cmd_done) (struct scst_cmd *cmd, int next_state,
 		enum scst_exec_context pref_context);
 
@@ -2028,7 +2028,7 @@ struct scst_mgmt_cmd {
 	/* corresponding device for this mgmt cmd (found by lun) */
 	struct scst_tgt_dev *mcmd_tgt_dev;
 
-	/* completition status, one of the SCST_MGMT_STATUS_* constants */
+	/* completion status, one of the SCST_MGMT_STATUS_* constants */
 	int status;
 
 	/* Used for storage of target driver private stuff or origin PR cmd */
@@ -2424,7 +2424,7 @@ struct scst_acg {
 	struct proc_dir_entry *acg_proc_root;
 #endif
 
-	/* Type of I/O initiators groupping */
+	/* Type of I/O initiators grouping */
 	int acg_io_grouping_type;
 
 	/* CPU affinity for threads in this ACG */
@@ -2576,7 +2576,7 @@ void scst_cmd_init_done(struct scst_cmd *cmd,
  * Notifies SCST that the driver finished the first stage of the command
  * initialization, and the command is ready for execution, but after
  * SCST done the command's preprocessing preprocessing_done() function
- * should be called. The second argument sets preferred command execition
+ * should be called. The second argument sets preferred command execution
  * context. See SCST_CONTEXT_* constants for details.
  *
  * See comment for scst_cmd_init_done() for the serialization requirements.
@@ -3242,7 +3242,7 @@ static inline void scst_mgmt_cmd_set_tgt_priv(struct scst_mgmt_cmd *mcmd,
 	mcmd->tgt_priv = val;
 }
 
-/* Returns mgmt cmd's completition status (SCST_MGMT_STATUS_* constants) */
+/* Returns mgmt cmd's completion status (SCST_MGMT_STATUS_* constants) */
 static inline int scst_mgmt_cmd_get_status(struct scst_mgmt_cmd *mcmd)
 {
 	return mcmd->status;
@@ -3906,7 +3906,7 @@ struct scst_sysfs_work_item {
 	 * needed to allow read only sysfs monitoring during management actions.
 	 * All management actions are supposed to be externally serialized,
 	 * so then last_sysfs_mgmt_res automatically serialized too.
-	 * Othewrwise a monitoring action can overwrite value of simultaneous
+	 * Otherwise a monitoring action can overwrite value of simultaneous
 	 * management action's last_sysfs_mgmt_res.
 	 */
 	bool read_only_action;
