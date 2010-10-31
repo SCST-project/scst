@@ -136,9 +136,13 @@ function process_patch {
       ) >"${tmppatch}"
       touch "${tmppatch}"
       {
-        awk 'BEGIN{h=1}/^diff/{h=0}/^---/{h=0}h!=0{print}' < "${tmppatch}";
-        echo "---"; diffstat "${tmppatch}"; echo "";
-        awk 'BEGIN{h=1}/^diff/{h=0}/^---/{h=0}h==0{print}' < "${tmppatch}";
+        if [ -e /usr/bin/diffstat ]; then
+          awk 'BEGIN{h=1}/^diff/{h=0}/^---/{h=0}h!=0{print}' < "${tmppatch}"
+          echo "---"
+          diffstat "${tmppatch}"
+          echo ""
+          awk 'BEGIN{h=1}/^diff/{h=0}/^---/{h=0}h==0{print}' < "${tmppatch}"
+        fi
       } \
         > "${patchdir}/$(basename $1)"
       rm -f "${tmppatch}"
@@ -578,7 +582,8 @@ EOF
     for f in \
       drivers/scsi/ibmvscsi/ibmvstgt.c \
       drivers/scsi/libsrp.c \
-      include/scsi/libsrp.h
+      include/scsi/libsrp.h \
+      include/scsi/srp.h
     do
       add_patch "ibmvstgt/in-tree-patches/${kernel_version}/$(basename $f).patch" $f
     done
