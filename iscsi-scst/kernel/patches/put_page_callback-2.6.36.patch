@@ -304,7 +304,7 @@ diff -upkr linux-2.6.36/net/ipv4/tcp_output.c linux-2.6.36/net/ipv4/tcp_output.c
 diff -upkr linux-2.6.36/net/ipv4/tcp_zero_copy.c linux-2.6.36/net/ipv4/tcp_zero_copy.c
 --- linux-2.6.36/net/ipv4/tcp_zero_copy.c	2010-10-26 12:02:24.519252006 +0400
 +++ linux-2.6.36/net/ipv4/tcp_zero_copy.c	2010-10-26 12:01:40.659752056 +0400
-@@ -1 +1,49 @@
+@@ -0,0 +1,49 @@
 +/*
 + *	Support routines for TCP zero copy transmit
 + *
@@ -314,7 +314,7 @@ diff -upkr linux-2.6.36/net/ipv4/tcp_zero_copy.c linux-2.6.36/net/ipv4/tcp_zero_
 + *      modify it under the terms of the GNU General Public License
 + *      version 2 as published by the Free Software Foundation.
 + */
- 
++ 
 +#include <linux/skbuff.h>
 +
 +net_get_page_callback_t net_get_page_callback __read_mostly;
