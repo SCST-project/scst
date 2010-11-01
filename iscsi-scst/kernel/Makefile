@@ -21,8 +21,8 @@
 # Note 2! The CFLAGS definitions are now in the main makefile.
 
 EXTRA_CFLAGS += -I$(src)/../include -I$(SCST_INC_DIR)
-EXTRA_CFLAGS += -Wextra -Wno-old-style-declaration -Wno-unused-parameter \
-	-Wno-missing-field-initializers
+EXTRA_CFLAGS += -Wextra $(call cc-option,-Wno-old-style-declaration) \
+	-Wno-unused-parameter -Wno-missing-field-initializers
 
 EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
 #EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
