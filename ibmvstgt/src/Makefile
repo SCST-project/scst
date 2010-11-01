@@ -6,4 +6,4 @@ EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
 #EXTRA_CFLAGS += -Wextra -Wno-unused-parameter
 
 obj-m		+= ibmvstgt.o
-obj-m		+= libsrpnew.o
+obj-m		+= libsrp.o
