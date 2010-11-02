@@ -1235,9 +1235,12 @@ static int check_cmd_sn(struct iscsi_cmnd *cmnd)
 
 	cmnd->pdu.bhs.sn = cmd_sn = be32_to_cpu((__force __be32)cmnd->pdu.bhs.sn);
 	TRACE_DBG("%d(%d)", cmd_sn, session->exp_cmd_sn);
-	if (likely((s32)(cmd_sn - session->exp_cmd_sn) >= 0))
+	if ((s32)(cmd_sn - session->exp_cmd_sn) >= 0)
 		return 0;
-	PRINT_ERROR("sequence error (%x,%x)", cmd_sn, session->exp_cmd_sn);
+	if (likely(cmnd->pdu.bhs.opcode & ISCSI_OP_IMMEDIATE))
+		return 0;
+	PRINT_ERROR("sequence error (cmd sn %x, exp cmd sn %x, )",
+		cmd_sn, session->exp_cmd_sn);
 	return -ISCSI_REASON_PROTOCOL_ERROR;
 }
 
