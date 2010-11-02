@@ -125,7 +125,7 @@ struct q2t_tgt {
 
 	int datasegs_per_cmd, datasegs_per_cont;
 
-	/* Target's flags, serialized by ha->hardware_lock */
+	/* Target's flags, serialized by pha->hardware_lock */
 	unsigned int tgt_enable_64bit_addr:1;	/* 64-bits PCI addressing enabled */
 	unsigned int link_reinit_iocb_pending:1;
 	unsigned int tm_to_unknown:1; /* TM to unknown session was sent */

@@ -454,11 +454,12 @@ qla2x00_marker(scsi_qla_host_t *ha, uint16_t loop_id, uint16_t lun,
     uint8_t type)
 {
 	int ret;
-	unsigned long flags = 0;
+	unsigned long flags;
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 
-	spin_lock_irqsave(&ha->hardware_lock, flags);
+	spin_lock_irqsave(&pha->hardware_lock, flags);
 	ret = __qla2x00_marker(ha, loop_id, lun, type);
-	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 
 	return (ret);
 }

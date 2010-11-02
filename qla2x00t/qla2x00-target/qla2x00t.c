@@ -226,14 +226,14 @@ static inline int scst_cmd_get_ppl_offset(struct scst_cmd *scst_cmd)
 	return 0;
 }
 
-/* ha->hardware_lock supposed to be held on entry */
+/* pha->hardware_lock supposed to be held on entry */
 static inline void q2t_sess_get(struct q2t_sess *sess)
 {
 	sess->sess_ref++;
 	TRACE_DBG("sess %p, new sess_ref %d", sess, sess->sess_ref);
 }
 
-/* ha->hardware_lock supposed to be held on entry */
+/* pha->hardware_lock supposed to be held on entry */
 static inline void q2t_sess_put(struct q2t_sess *sess)
 {
 	TRACE_DBG("sess %p, new sess_ref %d", sess, sess->sess_ref-1);
@@ -244,7 +244,7 @@ static inline void q2t_sess_put(struct q2t_sess *sess)
 		q2t_unreg_sess(sess);
 }
 
-/* ha->hardware_lock supposed to be held on entry (to protect tgt->sess_list) */
+/* pha->hardware_lock supposed to be held on entry (to protect tgt->sess_list) */
 static inline struct q2t_sess *q2t_find_sess_by_loop_id(struct q2t_tgt *tgt,
 	uint16_t lid)
 {
@@ -257,7 +257,7 @@ static inline struct q2t_sess *q2t_find_sess_by_loop_id(struct q2t_tgt *tgt,
 	return NULL;
 }
 
-/* ha->hardware_lock supposed to be held on entry (to protect tgt->sess_list) */
+/* pha->hardware_lock supposed to be held on entry (to protect tgt->sess_list) */
 static inline struct q2t_sess *q2t_find_sess_by_s_id(struct q2t_tgt *tgt,
 	const uint8_t *s_id)
 {
@@ -272,7 +272,7 @@ static inline struct q2t_sess *q2t_find_sess_by_s_id(struct q2t_tgt *tgt,
 	return NULL;
 }
 
-/* ha->hardware_lock supposed to be held on entry (to protect tgt->sess_list) */
+/* pha->hardware_lock supposed to be held on entry (to protect tgt->sess_list) */
 static inline struct q2t_sess *q2t_find_sess_by_s_id_le(struct q2t_tgt *tgt,
 	const uint8_t *s_id)
 {
@@ -287,13 +287,13 @@ static inline struct q2t_sess *q2t_find_sess_by_s_id_le(struct q2t_tgt *tgt,
 	return NULL;
 }
 
-/* ha->hardware_lock supposed to be held on entry */
+/* pha->hardware_lock supposed to be held on entry */
 static inline void q2t_exec_queue(scsi_qla_host_t *ha)
 {
 	qla2x00_isp_cmd(to_qla_parent(ha));
 }
 
-/* ha->hardware_lock supposed to be held on entry */
+/* pha->hardware_lock supposed to be held on entry */
 static inline request_t *q2t_req_pkt(scsi_qla_host_t *ha)
 {
 	return qla2x00_req_pkt(to_qla_parent(ha));
@@ -303,7 +303,7 @@ static inline request_t *q2t_req_pkt(scsi_qla_host_t *ha)
 static inline int q2t_issue_marker(scsi_qla_host_t *ha, int ha_locked)
 {
 	/* Send marker if required */
-	if (unlikely(ha->marker_needed != 0)) {
+	if (unlikely(to_qla_parent(ha)->marker_needed != 0)) {
 		int rc = qla2x00_issue_marker(ha, ha_locked);
 		if (rc != QLA_SUCCESS) {
 			PRINT_ERROR("qla2x00t(%ld): issue_marker() "
@@ -551,7 +551,7 @@ static void q2t_free_session_done(struct scst_session *scst_sess)
 {
 	struct q2t_sess *sess;
 	struct q2t_tgt *tgt;
-	scsi_qla_host_t *ha, *vha;
+	scsi_qla_host_t *ha, *pha;
 	unsigned long flags;
 
 	TRACE_ENTRY();
@@ -572,24 +572,24 @@ static void q2t_free_session_done(struct scst_session *scst_sess)
 	      list_empty(&tgt->sess_list), tgt->sess_count);
 
 	ha = tgt->ha;
-	vha = to_qla_parent(ha);
+	pha = to_qla_parent(ha);
 
 	/*
 	 * We need to protect against race, when tgt is freed before or
 	 * inside wake_up()
 	 */
-	spin_lock_irqsave(&vha->hardware_lock, flags);
+	spin_lock_irqsave(&pha->hardware_lock, flags);
 	tgt->sess_count--;
 	if (tgt->sess_count == 0)
 		wake_up_all(&tgt->waitQ);
-	spin_unlock_irqrestore(&vha->hardware_lock, flags);
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 
 out:
 	TRACE_EXIT();
 	return;
 }
 
-/* ha->hardware_lock supposed to be held on entry */
+/* pha->hardware_lock supposed to be held on entry */
 static int q2t_unreg_sess(struct q2t_sess *sess)
 {
 	int res = 1;
@@ -615,7 +615,7 @@ static int q2t_unreg_sess(struct q2t_sess *sess)
 	return res;
 }
 
-/* ha->hardware_lock supposed to be held on entry */
+/* pha->hardware_lock supposed to be held on entry */
 static int q2t_reset(scsi_qla_host_t *ha, void *iocb, int mcmd)
 {
 	struct q2t_sess *sess;
@@ -685,7 +685,7 @@ out:
 	return res;
 }
 
-/* ha->hardware_lock supposed to be held on entry */
+/* pha->hardware_lock supposed to be held on entry */
 static void q2t_clear_tgt_db(struct q2t_tgt *tgt, bool local_only)
 {
 	struct q2t_sess *sess, *sess_tmp;
@@ -727,15 +727,15 @@ static void q2t_alloc_session_done(struct scst_session *scst_sess,
 		struct q2t_sess *sess = (struct q2t_sess *)data;
 		struct q2t_tgt *tgt = sess->tgt;
 		scsi_qla_host_t *ha = tgt->ha;
-		scsi_qla_host_t *vha = to_qla_parent(ha);
+		scsi_qla_host_t *pha = to_qla_parent(ha);
 		unsigned long flags;
 
 		PRINT_INFO("qla2x00t(%ld): Session initialization failed",
 			   ha->instance);
 
-		spin_lock_irqsave(&vha->hardware_lock, flags);
+		spin_lock_irqsave(&pha->hardware_lock, flags);
 		q2t_sess_put(sess);
-		spin_unlock_irqrestore(&vha->hardware_lock, flags);
+		spin_unlock_irqrestore(&pha->hardware_lock, flags);
 	}
 
 	TRACE_EXIT();
@@ -746,13 +746,13 @@ static void q2t_del_sess_timer_fn(unsigned long arg)
 {
 	struct q2t_tgt *tgt = (struct q2t_tgt *)arg;
 	scsi_qla_host_t *ha = tgt->ha;
-	scsi_qla_host_t *vha = to_qla_parent(ha);
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 	struct q2t_sess *sess;
 	unsigned long flags;
 
 	TRACE_ENTRY();
 
-	spin_lock_irqsave(&vha->hardware_lock, flags);
+	spin_lock_irqsave(&pha->hardware_lock, flags);
 	while (!list_empty(&tgt->del_sess_list)) {
 		sess = list_entry(tgt->del_sess_list.next, typeof(*sess),
 				del_list_entry);
@@ -770,7 +770,7 @@ static void q2t_del_sess_timer_fn(unsigned long arg)
 			break;
 		}
 	}
-	spin_unlock_irqrestore(&vha->hardware_lock, flags);
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 
 	TRACE_EXIT();
 	return;
@@ -789,12 +789,12 @@ static struct q2t_sess *q2t_create_sess(scsi_qla_host_t *ha, fc_port_t *fcport,
 	const int wwn_str_len = 3*WWN_SIZE+2;
 	struct q2t_tgt *tgt = ha->tgt;
 	struct q2t_sess *sess;
-	scsi_qla_host_t *vha = to_qla_parent(ha);
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 
 	TRACE_ENTRY();
 
 	/* Check to avoid double sessions */
-	spin_lock_irq(&vha->hardware_lock);
+	spin_lock_irq(&pha->hardware_lock);
 	list_for_each_entry(sess, &tgt->sess_list, sess_list_entry) {
 		if ((sess->port_name[0] == fcport->port_name[0]) &&
 		    (sess->port_name[1] == fcport->port_name[1]) &&
@@ -823,11 +823,11 @@ static struct q2t_sess *q2t_create_sess(scsi_qla_host_t *ha, fc_port_t *fcport,
 			sess->conf_compl_supported = fcport->conf_compl_supported;
 			if (sess->local && !local)
 				sess->local = false;
-			spin_unlock_irq(&vha->hardware_lock);
+			spin_unlock_irq(&pha->hardware_lock);
 			goto out;
 		}
 	}
-	spin_unlock_irq(&vha->hardware_lock);
+	spin_unlock_irq(&pha->hardware_lock);
 
 	/* We are under tgt_mutex, so a new sess can't be added behind us */
 
@@ -881,11 +881,11 @@ static struct q2t_sess *q2t_create_sess(scsi_qla_host_t *ha, fc_port_t *fcport,
 		goto out_free_sess_wwn;
 	}
 
-	spin_lock_irq(&vha->hardware_lock);
+	spin_lock_irq(&pha->hardware_lock);
 	TRACE_MGMT_DBG("Adding sess %p to tgt %p", sess, tgt);
 	list_add_tail(&sess->sess_list_entry, &tgt->sess_list);
 	tgt->sess_count++;
-	spin_unlock_irq(&vha->hardware_lock);
+	spin_unlock_irq(&pha->hardware_lock);
 
 	PRINT_INFO("qla2x00t(%ld): %ssession for wwn %s (loop_id %d, "
 		"s_id %x:%x:%x, confirmed completion %ssupported) added",
@@ -913,7 +913,7 @@ static void q2t_fc_port_added(scsi_qla_host_t *ha, fc_port_t *fcport)
 {
 	struct q2t_tgt *tgt;
 	struct q2t_sess *sess;
-	scsi_qla_host_t *vha = to_qla_parent(ha);
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 
 	TRACE_ENTRY();
 
@@ -927,13 +927,13 @@ static void q2t_fc_port_added(scsi_qla_host_t *ha, fc_port_t *fcport)
 	if (tgt->tgt_stop)
 		goto out_unlock;
 
-	spin_lock_irq(&vha->hardware_lock);
+	spin_lock_irq(&pha->hardware_lock);
 
 	sess = q2t_find_sess_by_loop_id(tgt, fcport->loop_id);
 	if (sess == NULL) {
-		spin_unlock_irq(&vha->hardware_lock);
+		spin_unlock_irq(&pha->hardware_lock);
 		sess = q2t_create_sess(ha, fcport, false);
-		spin_lock_irq(&vha->hardware_lock);
+		spin_lock_irq(&pha->hardware_lock);
 		if (sess != NULL)
 			q2t_sess_put(sess); /* put the extra creation ref */
 	} else {
@@ -962,7 +962,7 @@ static void q2t_fc_port_added(scsi_qla_host_t *ha, fc_port_t *fcport)
 		sess->local = 0;
 	}
 
-	spin_unlock_irq(&vha->hardware_lock);
+	spin_unlock_irq(&pha->hardware_lock);
 
 out_unlock:
 	mutex_unlock(&ha->tgt_mutex);
@@ -976,7 +976,7 @@ static void q2t_fc_port_deleted(scsi_qla_host_t *ha, fc_port_t *fcport)
 	struct q2t_tgt *tgt;
 	struct q2t_sess *sess;
 	uint32_t dev_loss_tmo;
-	scsi_qla_host_t *vha = to_qla_parent(ha);
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 
 	TRACE_ENTRY();
 
@@ -992,7 +992,7 @@ static void q2t_fc_port_deleted(scsi_qla_host_t *ha, fc_port_t *fcport)
 	if (tgt->tgt_stop)
 		goto out_unlock;
 
-	spin_lock_irq(&vha->hardware_lock);
+	spin_lock_irq(&pha->hardware_lock);
 
 	sess = q2t_find_sess_by_loop_id(tgt, fcport->loop_id);
 	if (sess == NULL)
@@ -1023,7 +1023,7 @@ static void q2t_fc_port_deleted(scsi_qla_host_t *ha, fc_port_t *fcport)
 	}
 
 out_unlock_ha:
-	spin_unlock_irq(&vha->hardware_lock);
+	spin_unlock_irq(&pha->hardware_lock);
 
 out_unlock:
 	mutex_unlock(&ha->tgt_mutex);
@@ -1036,17 +1036,17 @@ static inline int test_tgt_sess_count(struct q2t_tgt *tgt)
 {
 	unsigned long flags;
 	int res;
-	scsi_qla_host_t *vha = to_qla_parent(tgt->ha);
+	scsi_qla_host_t *pha = to_qla_parent(tgt->ha);
 
 	/*
 	 * We need to protect against race, when tgt is freed before or
 	 * inside wake_up()
 	 */
-	spin_lock_irqsave(&vha->hardware_lock, flags);
+	spin_lock_irqsave(&pha->hardware_lock, flags);
 	TRACE_DBG("tgt %p, empty(sess_list)=%d sess_count=%d",
 	      tgt, list_empty(&tgt->sess_list), tgt->sess_count);
 	res = (tgt->sess_count == 0);
-	spin_unlock_irqrestore(&vha->hardware_lock, flags);
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 
 	return res;
 }
@@ -1056,7 +1056,7 @@ static void q2t_target_stop(struct scst_tgt *scst_tgt)
 {
 	struct q2t_tgt *tgt = (struct q2t_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
 	scsi_qla_host_t *ha = tgt->ha;
-	scsi_qla_host_t *vha = to_qla_parent(ha);
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 
 	TRACE_ENTRY();
 
@@ -1068,10 +1068,10 @@ static void q2t_target_stop(struct scst_tgt *scst_tgt)
 	 */
 
 	mutex_lock(&ha->tgt_mutex);
-	spin_lock_irq(&vha->hardware_lock);
+	spin_lock_irq(&pha->hardware_lock);
 	tgt->tgt_stop = 1;
 	q2t_clear_tgt_db(tgt, false);
-	spin_unlock_irq(&vha->hardware_lock);
+	spin_unlock_irq(&pha->hardware_lock);
 	mutex_unlock(&ha->tgt_mutex);
 
 	del_timer_sync(&tgt->sess_del_timer);
@@ -1092,7 +1092,7 @@ static void q2t_target_stop(struct scst_tgt *scst_tgt)
 	wait_event(tgt->waitQ, test_tgt_sess_count(tgt));
 
 	/* Big hammer */
-	if (!vha->host_shutting_down && qla_tgt_mode_enabled(ha))
+	if (!pha->host_shutting_down && qla_tgt_mode_enabled(ha))
 		qla2x00_disable_tgt_mode(ha);
 
 	/* Wait for sessions to clear out (just in case) */
@@ -1102,14 +1102,14 @@ static void q2t_target_stop(struct scst_tgt *scst_tgt)
 		tgt->irq_cmd_count, tgt);
 
 	mutex_lock(&ha->tgt_mutex);
-	spin_lock_irq(&vha->hardware_lock);
+	spin_lock_irq(&pha->hardware_lock);
 	while (tgt->irq_cmd_count != 0) {
-		spin_unlock_irq(&vha->hardware_lock);
+		spin_unlock_irq(&pha->hardware_lock);
 		udelay(2);
-		spin_lock_irq(&vha->hardware_lock);
+		spin_lock_irq(&pha->hardware_lock);
 	}
 	ha->tgt = NULL;
-	spin_unlock_irq(&vha->hardware_lock);
+	spin_unlock_irq(&pha->hardware_lock);
 	mutex_unlock(&ha->tgt_mutex);
 
 	TRACE_MGMT_DBG("Stop of tgt %p finished", tgt);
@@ -1140,7 +1140,7 @@ static int q2t_target_release(struct scst_tgt *scst_tgt)
 }
 
 /*
- * ha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
+ * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
  */
 static void q2x_modify_command_count(scsi_qla_host_t *ha, int cmd_count,
 	int imm_count)
@@ -1193,7 +1193,7 @@ out:
 }
 
 /*
- * ha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
+ * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
  */
 static void q2x_send_notify_ack(scsi_qla_host_t *ha, notify_entry_t *iocb,
 	uint32_t add_flags, uint16_t resp_code, int resp_code_valid,
@@ -1255,7 +1255,7 @@ out:
 }
 
 /*
- * ha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
+ * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
  */
 static void q24_send_abts_resp(scsi_qla_host_t *ha,
 	const abts24_recv_entry_t *abts, uint32_t status, bool ids_reversed)
@@ -1336,7 +1336,7 @@ out:
 }
 
 /*
- * ha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
+ * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
  */
 static void q24_retry_term_exchange(scsi_qla_host_t *ha,
 	abts24_resp_fw_entry_t *entry)
@@ -1389,7 +1389,7 @@ out:
 }
 
 /*
- * ha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
+ * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
  */
 static void q24_handle_abts(scsi_qla_host_t *ha, abts24_recv_entry_t *abts)
 {
@@ -1458,7 +1458,7 @@ out_err:
 }
 
 /*
- * ha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
+ * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
  */
 static void q24_send_task_mgmt_ctio(scsi_qla_host_t *ha,
 	struct q2t_mgmt_cmd *mcmd, uint32_t resp_code)
@@ -1509,7 +1509,7 @@ out:
 }
 
 /*
- * ha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
+ * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
  */
 static void q24_send_notify_ack(scsi_qla_host_t *ha,
 	notify24xx_entry_t *iocb, uint16_t srr_flags,
@@ -1595,7 +1595,7 @@ static void q2t_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd)
 {
 	struct q2t_mgmt_cmd *mcmd;
 	unsigned long flags;
-	scsi_qla_host_t *ha, *vha;
+	scsi_qla_host_t *ha, *pha;
 
 	TRACE_ENTRY();
 
@@ -1609,9 +1609,9 @@ static void q2t_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd)
 	}
 
 	ha = mcmd->sess->tgt->ha;
-	vha = to_qla_parent(ha);
+	pha = to_qla_parent(ha);
 
-	spin_lock_irqsave(&vha->hardware_lock, flags);
+	spin_lock_irqsave(&pha->hardware_lock, flags);
 	if (IS_FWI2_CAPABLE(ha)) {
 		if (mcmd->flags == Q24_MGMT_SEND_NACK) {
 			q24_send_notify_ack(ha,
@@ -1632,7 +1632,7 @@ static void q2t_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd)
 		q2x_send_notify_ack(ha, &mcmd->orig_iocb.notify_entry, 0,
 			resp_code, 1, 0, 0, 0);
 	}
-	spin_unlock_irqrestore(&vha->hardware_lock, flags);
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 
 	scst_mgmt_cmd_set_tgt_priv(scst_mcmd, NULL);
 	mempool_free(mcmd, q2t_mgmt_cmd_mempool);
@@ -1723,7 +1723,7 @@ out:
 }
 
 /*
- * ha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
+ * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
  */
 static inline void *q2t_get_req_pkt(scsi_qla_host_t *ha)
 {
@@ -1740,7 +1740,7 @@ static inline void *q2t_get_req_pkt(scsi_qla_host_t *ha)
 	return (cont_entry_t *)ha->request_ring_ptr;
 }
 
-/* ha->hardware_lock supposed to be held on entry */
+/* pha->hardware_lock supposed to be held on entry */
 static inline uint32_t q2t_make_handle(scsi_qla_host_t *ha)
 {
 	uint32_t h;
@@ -1767,7 +1767,7 @@ static inline uint32_t q2t_make_handle(scsi_qla_host_t *ha)
 	return h;
 }
 
-/* ha->hardware_lock supposed to be held on entry */
+/* pha->hardware_lock supposed to be held on entry */
 static void q2x_build_ctio_pkt(struct q2t_prm *prm)
 {
 	uint32_t h;
@@ -1806,7 +1806,7 @@ static void q2x_build_ctio_pkt(struct q2t_prm *prm)
 	      GET_TARGET_ID(ha, &pkt->common), pkt->common.rx_id);
 }
 
-/* ha->hardware_lock supposed to be held on entry */
+/* pha->hardware_lock supposed to be held on entry */
 static int q24_build_ctio_pkt(struct q2t_prm *prm)
 {
 	uint32_t h;
@@ -1857,7 +1857,7 @@ out:
 }
 
 /*
- * ha->hardware_lock supposed to be held on entry. We have already made sure
+ * pha->hardware_lock supposed to be held on entry. We have already made sure
  * that there is sufficient amount of request entries to not drop it.
  */
 static void q2t_load_cont_data_segments(struct q2t_prm *prm)
@@ -1928,7 +1928,7 @@ static void q2t_load_cont_data_segments(struct q2t_prm *prm)
 }
 
 /*
- * ha->hardware_lock supposed to be held on entry. We have already made sure
+ * pha->hardware_lock supposed to be held on entry. We have already made sure
  * that there is sufficient amount of request entries to not drop it.
  */
 static void q2x_load_data_segments(struct q2t_prm *prm)
@@ -1992,7 +1992,7 @@ out:
 }
 
 /*
- * ha->hardware_lock supposed to be held on entry. We have already made sure
+ * pha->hardware_lock supposed to be held on entry. We have already made sure
  * that there is sufficient amount of request entries to not drop it.
  */
 static void q24_load_data_segments(struct q2t_prm *prm)
@@ -2065,7 +2065,7 @@ static int q2t_pre_xmit_response(struct q2t_cmd *cmd,
 	int res;
 	struct q2t_tgt *tgt = cmd->tgt;
 	scsi_qla_host_t *ha = tgt->ha;
-	scsi_qla_host_t *vha = to_qla_parent(ha);
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 	uint16_t full_req_cnt;
 	struct scst_cmd *scst_cmd = cmd->scst_cmd;
 
@@ -2160,7 +2160,7 @@ static int q2t_pre_xmit_response(struct q2t_cmd *cmd,
 		prm->req_cnt, full_req_cnt, prm->add_status_pkt);
 
 	/* Acquire ring specific lock */
-	spin_lock_irqsave(&vha->hardware_lock, *flags);
+	spin_lock_irqsave(&pha->hardware_lock, *flags);
 
 	/* Does F/W have an IOCBs for this request */
 	res = q2t_check_reserve_free_req(ha, full_req_cnt);
@@ -2178,7 +2178,7 @@ out_unlock_free_unmap:
 		     cmd->dma_data_direction);
 
 	/* Release ring specific lock */
-	spin_unlock_irqrestore(&vha->hardware_lock, *flags);
+	spin_unlock_irqrestore(&pha->hardware_lock, *flags);
 	goto out;
 }
 
@@ -2236,7 +2236,7 @@ static int __q2x_xmit_response(struct q2t_cmd *cmd, int xmit_type)
 {
 	int res;
 	unsigned long flags;
-	scsi_qla_host_t *ha, *vha;
+	scsi_qla_host_t *ha, *pha;
 	struct q2t_prm prm;
 	ctio_common_entry_t *pkt;
 
@@ -2251,10 +2251,10 @@ static int __q2x_xmit_response(struct q2t_cmd *cmd, int xmit_type)
 		goto out;
 	}
 
-	/* Here ha->hardware_lock already locked */
+	/* Here pha->hardware_lock already locked */
 
 	ha = prm.tgt->ha;
-	vha = to_qla_parent(ha);
+	pha = to_qla_parent(ha);
 
 	q2x_build_ctio_pkt(&prm);
 	pkt = (ctio_common_entry_t *)prm.pkt;
@@ -2309,7 +2309,7 @@ static int __q2x_xmit_response(struct q2t_cmd *cmd, int xmit_type)
 	q2t_exec_queue(ha);
 
 	/* Release ring specific lock */
-	spin_unlock_irqrestore(&vha->hardware_lock, flags);
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -2464,7 +2464,7 @@ static int __q24_xmit_response(struct q2t_cmd *cmd, int xmit_type)
 {
 	int res;
 	unsigned long flags;
-	scsi_qla_host_t *ha, *vha;
+	scsi_qla_host_t *ha, *pha;
 	struct q2t_prm prm;
 	ctio7_status0_entry_t *pkt;
 
@@ -2479,10 +2479,10 @@ static int __q24_xmit_response(struct q2t_cmd *cmd, int xmit_type)
 		goto out;
 	}
 
-	/* Here ha->hardware_lock already locked */
+	/* Here pha->hardware_lock already locked */
 
 	ha = prm.tgt->ha;
-	vha = to_qla_parent(ha);
+	pha = to_qla_parent(ha);
 
 	res = q24_build_ctio_pkt(&prm);
 	if (unlikely(res != SCST_TGT_RES_SUCCESS))
@@ -2544,7 +2544,7 @@ static int __q24_xmit_response(struct q2t_cmd *cmd, int xmit_type)
 
 out_unlock:
 	/* Release ring specific lock */
-	spin_unlock_irqrestore(&vha->hardware_lock, flags);
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -2561,7 +2561,7 @@ static int __q2t_rdy_to_xfer(struct q2t_cmd *cmd)
 {
 	int res = SCST_TGT_RES_SUCCESS;
 	unsigned long flags;
-	scsi_qla_host_t *ha, *vha;
+	scsi_qla_host_t *ha, *pha;
 	struct q2t_tgt *tgt = cmd->tgt;
 	struct q2t_prm prm;
 	void *p;
@@ -2574,7 +2574,7 @@ static int __q2t_rdy_to_xfer(struct q2t_cmd *cmd)
 	prm.sg = NULL;
 	prm.req_cnt = 1;
 	ha = tgt->ha;
-	vha = to_qla_parent(ha);
+	pha = to_qla_parent(ha);
 
 	/* Send marker if required */
 	if (q2t_issue_marker(ha, 0) != QLA_SUCCESS) {
@@ -2591,7 +2591,7 @@ static int __q2t_rdy_to_xfer(struct q2t_cmd *cmd)
 	}
 
 	/* Acquire ring specific lock */
-	spin_lock_irqsave(&vha->hardware_lock, flags);
+	spin_lock_irqsave(&pha->hardware_lock, flags);
 
 	/* Does F/W have an IOCBs for this request */
 	res = q2t_check_reserve_free_req(ha, prm.req_cnt);
@@ -2625,7 +2625,7 @@ static int __q2t_rdy_to_xfer(struct q2t_cmd *cmd)
 
 out_unlock:
 	/* Release ring specific lock */
-	spin_unlock_irqrestore(&vha->hardware_lock, flags);
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -2667,7 +2667,7 @@ static void q2x_send_term_exchange(scsi_qla_host_t *ha, struct q2t_cmd *cmd,
 	ctio_ret_entry_t *ctio;
 	unsigned long flags = 0; /* to stop compiler's warning */
 	int do_tgt_cmd_done = 0;
-	scsi_qla_host_t *vha = to_qla_parent(ha);
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 
 	TRACE_ENTRY();
 
@@ -2678,7 +2678,7 @@ static void q2x_send_term_exchange(scsi_qla_host_t *ha, struct q2t_cmd *cmd,
 		goto out;
 
 	if (!ha_locked)
-		spin_lock_irqsave(&vha->hardware_lock, flags);
+		spin_lock_irqsave(&pha->hardware_lock, flags);
 
 	ctio = (ctio_ret_entry_t *)q2t_req_pkt(ha);
 	if (ctio == NULL) {
@@ -2718,7 +2718,7 @@ static void q2x_send_term_exchange(scsi_qla_host_t *ha, struct q2t_cmd *cmd,
 
 out_unlock:
 	if (!ha_locked)
-		spin_unlock_irqrestore(&vha->hardware_lock, flags);
+		spin_unlock_irqrestore(&pha->hardware_lock, flags);
 
 	if (do_tgt_cmd_done) {
 		if (!ha_locked && !in_interrupt()) {
@@ -2741,7 +2741,7 @@ static void q24_send_term_exchange(scsi_qla_host_t *ha, struct q2t_cmd *cmd,
 	ctio7_status1_entry_t *ctio;
 	unsigned long flags = 0; /* to stop compiler's warning */
 	int do_tgt_cmd_done = 0;
-	scsi_qla_host_t *vha = to_qla_parent(ha);
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 
 	TRACE_ENTRY();
 
@@ -2752,7 +2752,7 @@ static void q24_send_term_exchange(scsi_qla_host_t *ha, struct q2t_cmd *cmd,
 		goto out;
 
 	if (!ha_locked)
-		spin_lock_irqsave(&vha->hardware_lock, flags);
+		spin_lock_irqsave(&pha->hardware_lock, flags);
 
 	ctio = (ctio7_status1_entry_t *)q2t_req_pkt(ha);
 	if (ctio == NULL) {
@@ -2795,7 +2795,7 @@ static void q24_send_term_exchange(scsi_qla_host_t *ha, struct q2t_cmd *cmd,
 
 out_unlock:
 	if (!ha_locked)
-		spin_unlock_irqrestore(&vha->hardware_lock, flags);
+		spin_unlock_irqrestore(&pha->hardware_lock, flags);
 
 	if (do_tgt_cmd_done) {
 		if (!ha_locked && !in_interrupt()) {
@@ -2836,7 +2836,7 @@ static void q2t_on_free_cmd(struct scst_cmd *scst_cmd)
 	return;
 }
 
-/* ha->hardware_lock supposed to be held on entry */
+/* pha->hardware_lock supposed to be held on entry */
 static int q2t_prepare_srr_ctio(scsi_qla_host_t *ha, struct q2t_cmd *cmd,
 	void *ctio)
 {
@@ -2922,7 +2922,7 @@ out:
 }
 
 /*
- * ha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
+ * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
  */
 static int q2t_term_ctio_exchange(scsi_qla_host_t *ha, void *ctio,
 	struct q2t_cmd *cmd, uint32_t status)
@@ -2960,7 +2960,7 @@ static int q2t_term_ctio_exchange(scsi_qla_host_t *ha, void *ctio,
 	return term;
 }
 
-/* ha->hardware_lock supposed to be held on entry */
+/* pha->hardware_lock supposed to be held on entry */
 static inline struct q2t_cmd *q2t_get_cmd(scsi_qla_host_t *ha, uint32_t handle)
 {
 	handle--;
@@ -2972,7 +2972,7 @@ static inline struct q2t_cmd *q2t_get_cmd(scsi_qla_host_t *ha, uint32_t handle)
 		return NULL;
 }
 
-/* ha->hardware_lock supposed to be held on entry */
+/* pha->hardware_lock supposed to be held on entry */
 static struct q2t_cmd *q2t_ctio_to_cmd(scsi_qla_host_t *ha, uint32_t handle,
 	void *ctio)
 {
@@ -3043,7 +3043,7 @@ out:
 }
 
 /*
- * ha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
+ * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
  */
 static void q2t_do_ctio_completion(scsi_qla_host_t *ha, uint32_t handle,
 	uint32_t status, void *ctio)
@@ -3169,7 +3169,7 @@ out:
 	return;
 }
 
-/* ha->hardware_lock supposed to be held on entry */
+/* pha->hardware_lock supposed to be held on entry */
 /* called via callback from qla2xxx */
 static void q2x_ctio_completion(scsi_qla_host_t *ha, uint32_t handle)
 {
@@ -3190,7 +3190,7 @@ static void q2x_ctio_completion(scsi_qla_host_t *ha, uint32_t handle)
 	return;
 }
 
-/* ha->hardware_lock is supposed to be held on entry */
+/* pha->hardware_lock supposed to be held on entry */
 static int q2x_do_send_cmd_to_scst(struct q2t_cmd *cmd)
 {
 	int res = 0;
@@ -3269,7 +3269,7 @@ out:
 	return res;
 }
 
-/* ha->hardware_lock is supposed to be held on entry */
+/* pha->hardware_lock supposed to be held on entry */
 static int q24_do_send_cmd_to_scst(struct q2t_cmd *cmd)
 {
 	int res = 0;
@@ -3344,7 +3344,7 @@ out:
 	return res;
 }
 
-/* ha->hardware_lock supposed to be held on entry */
+/* pha->hardware_lock supposed to be held on entry */
 static int q2t_do_send_cmd_to_scst(scsi_qla_host_t *ha,
 	struct q2t_cmd *cmd, struct q2t_sess *sess)
 {
@@ -3365,7 +3365,7 @@ static int q2t_do_send_cmd_to_scst(scsi_qla_host_t *ha,
 	return res;
 }
 
-/* ha->hardware_lock supposed to be held on entry */
+/* pha->hardware_lock supposed to be held on entry */
 static int q2t_send_cmd_to_scst(scsi_qla_host_t *ha, atio_t *atio)
 {
 	int res = 0;
@@ -3458,7 +3458,7 @@ out_sched:
 	goto out;
 }
 
-/* ha->hardware_lock supposed to be held on entry */
+/* pha->hardware_lock supposed to be held on entry */
 static int q2t_issue_task_mgmt(struct q2t_sess *sess, uint8_t *lun,
 	int lun_size, int fn, void *iocb, int flags)
 {
@@ -3564,7 +3564,7 @@ out_free:
 	goto out;
 }
 
-/* ha->hardware_lock supposed to be held on entry */
+/* pha->hardware_lock supposed to be held on entry */
 static int q2t_handle_task_mgmt(scsi_qla_host_t *ha, void *iocb)
 {
 	int res = 0;
@@ -3614,7 +3614,7 @@ out:
 	return res;
 }
 
-/* ha->hardware_lock supposed to be held on entry */
+/* pha->hardware_lock supposed to be held on entry */
 static int q2t_abort_task(scsi_qla_host_t *ha, notify_entry_t *iocb)
 {
 	int res = 0, rc;
@@ -3668,7 +3668,7 @@ out_free:
 }
 
 /*
- * ha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
+ * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
  */
 static int q24_handle_els(scsi_qla_host_t *ha, notify24xx_entry_t *iocb)
 {
@@ -3859,7 +3859,7 @@ static void q24_handle_srr(scsi_qla_host_t *ha, struct srr_ctio *sctio,
 {
 	notify24xx_entry_t *ntfy = &imm->imm.notify_entry24;
 	struct q2t_cmd *cmd = sctio->cmd;
-	scsi_qla_host_t *vha = to_qla_parent(ha);
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 
 	TRACE_ENTRY();
 
@@ -3867,10 +3867,10 @@ static void q24_handle_srr(scsi_qla_host_t *ha, struct srr_ctio *sctio,
 
 	switch (ntfy->srr_ui) {
 	case SRR_IU_STATUS:
-		spin_lock_irq(&vha->hardware_lock);
+		spin_lock_irq(&pha->hardware_lock);
 		q24_send_notify_ack(ha, ntfy,
 			NOTIFY_ACK_SRR_FLAGS_ACCEPT, 0, 0);
-		spin_unlock_irq(&vha->hardware_lock);
+		spin_unlock_irq(&pha->hardware_lock);
 		__q24_xmit_response(cmd, Q2T_XMIT_STATUS);
 		break;
 	case SRR_IU_DATA_IN:
@@ -3883,10 +3883,10 @@ static void q24_handle_srr(scsi_qla_host_t *ha, struct srr_ctio *sctio,
 			offset = le32_to_cpu(imm->imm.notify_entry24.srr_rel_offs);
 			if (q2t_srr_adjust_data(cmd, offset, &xmit_type) != 0)
 				goto out_reject;
-			spin_lock_irq(&vha->hardware_lock);
+			spin_lock_irq(&pha->hardware_lock);
 			q24_send_notify_ack(ha, ntfy,
 				NOTIFY_ACK_SRR_FLAGS_ACCEPT, 0, 0);
-			spin_unlock_irq(&vha->hardware_lock);
+			spin_unlock_irq(&pha->hardware_lock);
 			__q24_xmit_response(cmd, xmit_type);
 		} else {
 			PRINT_ERROR("qla2x00t(%ld): SRR for in data for cmd "
@@ -3907,10 +3907,10 @@ static void q24_handle_srr(scsi_qla_host_t *ha, struct srr_ctio *sctio,
 			offset = le32_to_cpu(imm->imm.notify_entry24.srr_rel_offs);
 			if (q2t_srr_adjust_data(cmd, offset, &xmit_type) != 0)
 				goto out_reject;
-			spin_lock_irq(&vha->hardware_lock);
+			spin_lock_irq(&pha->hardware_lock);
 			q24_send_notify_ack(ha, ntfy,
 				NOTIFY_ACK_SRR_FLAGS_ACCEPT, 0, 0);
-			spin_unlock_irq(&vha->hardware_lock);
+			spin_unlock_irq(&pha->hardware_lock);
 			__q2t_rdy_to_xfer(cmd);
 		} else {
 			PRINT_ERROR("qla2x00t(%ld): SRR for out data for cmd "
@@ -3937,7 +3937,7 @@ out_unmap_reject:
 	}
 
 out_reject:
-	spin_lock_irq(&vha->hardware_lock);
+	spin_lock_irq(&pha->hardware_lock);
 	q24_send_notify_ack(ha, ntfy, NOTIFY_ACK_SRR_FLAGS_REJECT,
 		NOTIFY_ACK_SRR_REJECT_REASON_UNABLE_TO_PERFORM,
 		NOTIFY_ACK_SRR_FLAGS_REJECT_EXPL_NO_EXPL);
@@ -3951,7 +3951,7 @@ out_reject:
 			SCST_CONTEXT_THREAD);
 	} else
 		q24_send_term_exchange(ha, cmd, &cmd->atio.atio7, 1);
-	spin_unlock_irq(&vha->hardware_lock);
+	spin_unlock_irq(&pha->hardware_lock);
 	goto out;
 }
 
@@ -3961,7 +3961,7 @@ static void q2x_handle_srr(scsi_qla_host_t *ha, struct srr_ctio *sctio,
 {
 	notify_entry_t *ntfy = &imm->imm.notify_entry;
 	struct q2t_cmd *cmd = sctio->cmd;
-	scsi_qla_host_t *vha = to_qla_parent(ha);
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 
 	TRACE_ENTRY();
 
@@ -3969,10 +3969,10 @@ static void q2x_handle_srr(scsi_qla_host_t *ha, struct srr_ctio *sctio,
 
 	switch (ntfy->srr_ui) {
 	case SRR_IU_STATUS:
-		spin_lock_irq(&vha->hardware_lock);
+		spin_lock_irq(&pha->hardware_lock);
 		q2x_send_notify_ack(ha, ntfy, 0, 0, 0,
 			NOTIFY_ACK_SRR_FLAGS_ACCEPT, 0, 0);
-		spin_unlock_irq(&vha->hardware_lock);
+		spin_unlock_irq(&pha->hardware_lock);
 		__q2x_xmit_response(cmd, Q2T_XMIT_STATUS);
 		break;
 	case SRR_IU_DATA_IN:
@@ -3985,10 +3985,10 @@ static void q2x_handle_srr(scsi_qla_host_t *ha, struct srr_ctio *sctio,
 			offset = le32_to_cpu(imm->imm.notify_entry.srr_rel_offs);
 			if (q2t_srr_adjust_data(cmd, offset, &xmit_type) != 0)
 				goto out_reject;
-			spin_lock_irq(&vha->hardware_lock);
+			spin_lock_irq(&pha->hardware_lock);
 			q2x_send_notify_ack(ha, ntfy, 0, 0, 0,
 				NOTIFY_ACK_SRR_FLAGS_ACCEPT, 0, 0);
-			spin_unlock_irq(&vha->hardware_lock);
+			spin_unlock_irq(&pha->hardware_lock);
 			__q2x_xmit_response(cmd, xmit_type);
 		} else {
 			PRINT_ERROR("qla2x00t(%ld): SRR for in data for cmd "
@@ -4009,10 +4009,10 @@ static void q2x_handle_srr(scsi_qla_host_t *ha, struct srr_ctio *sctio,
 			offset = le32_to_cpu(imm->imm.notify_entry.srr_rel_offs);
 			if (q2t_srr_adjust_data(cmd, offset, &xmit_type) != 0)
 				goto out_reject;
-			spin_lock_irq(&vha->hardware_lock);
+			spin_lock_irq(&pha->hardware_lock);
 			q2x_send_notify_ack(ha, ntfy, 0, 0, 0,
 				NOTIFY_ACK_SRR_FLAGS_ACCEPT, 0, 0);
-			spin_unlock_irq(&vha->hardware_lock);
+			spin_unlock_irq(&pha->hardware_lock);
 			__q2t_rdy_to_xfer(cmd);
 		} else {
 			PRINT_ERROR("qla2x00t(%ld): SRR for out data for cmd "
@@ -4039,7 +4039,7 @@ out_unmap_reject:
 	}
 
 out_reject:
-	spin_lock_irq(&vha->hardware_lock);
+	spin_lock_irq(&pha->hardware_lock);
 	q2x_send_notify_ack(ha, ntfy, 0, 0, 0, NOTIFY_ACK_SRR_FLAGS_REJECT,
 		NOTIFY_ACK_SRR_REJECT_REASON_UNABLE_TO_PERFORM,
 		NOTIFY_ACK_SRR_FLAGS_REJECT_EXPL_NO_EXPL);
@@ -4053,17 +4053,17 @@ out_reject:
 			SCST_CONTEXT_THREAD);
 	} else
 		q2x_send_term_exchange(ha, cmd, &cmd->atio.atio2x, 1);
-	spin_unlock_irq(&vha->hardware_lock);
+	spin_unlock_irq(&pha->hardware_lock);
 	goto out;
 }
 
 static void q2t_reject_free_srr_imm(scsi_qla_host_t *ha, struct srr_imm *imm,
 	int ha_locked)
 {
-	scsi_qla_host_t *vha = to_qla_parent(ha);
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 
 	if (!ha_locked)
-		spin_lock_irq(&vha->hardware_lock);
+		spin_lock_irq(&pha->hardware_lock);
 
 	if (IS_FWI2_CAPABLE(ha)) {
 		q24_send_notify_ack(ha, &imm->imm.notify_entry24,
@@ -4078,7 +4078,7 @@ static void q2t_reject_free_srr_imm(scsi_qla_host_t *ha, struct srr_imm *imm,
 	}
 
 	if (!ha_locked)
-		spin_unlock_irq(&vha->hardware_lock);
+		spin_unlock_irq(&pha->hardware_lock);
 
 	kfree(imm);
 	return;
@@ -4160,7 +4160,7 @@ restart:
 	return;
 }
 
-/* ha->hardware_lock supposed to be held on entry */
+/* pha->hardware_lock supposed to be held on entry */
 static void q2t_prepare_srr_imm(scsi_qla_host_t *ha, void *iocb)
 {
 	struct srr_imm *imm;
@@ -4259,7 +4259,7 @@ out_reject:
 }
 
 /*
- * ha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
+ * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
  */
 static void q2t_handle_imm_notify(scsi_qla_host_t *ha, void *iocb)
 {
@@ -4403,7 +4403,7 @@ static void q2t_handle_imm_notify(scsi_qla_host_t *ha, void *iocb)
 }
 
 /*
- * ha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
+ * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
  */
 static void q2x_send_busy(scsi_qla_host_t *ha, atio_entry_t *atio)
 {
@@ -4450,7 +4450,7 @@ out:
 }
 
 /*
- * ha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
+ * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
  */
 static void q24_send_busy(scsi_qla_host_t *ha, atio7_entry_t *atio,
 	uint16_t status)
@@ -4507,7 +4507,7 @@ out:
 	return;
 }
 
-/* ha->hardware_lock supposed to be held on entry */
+/* pha->hardware_lock supposed to be held on entry */
 /* called via callback from qla2xxx */
 static void q24_atio_pkt(scsi_qla_host_t *ha, atio7_entry_t *atio)
 {
@@ -4608,7 +4608,7 @@ out:
 	return;
 }
 
-/* ha->hardware_lock supposed to be held on entry */
+/* pha->hardware_lock supposed to be held on entry */
 /* called via callback from qla2xxx */
 static void q2t_response_pkt(scsi_qla_host_t *ha, response_t *pkt)
 {
@@ -4857,7 +4857,7 @@ out:
 }
 
 /*
- * ha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
+ * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
  */
 static void q2t_async_event(uint16_t code, scsi_qla_host_t *ha,
 	uint16_t *mailbox)
@@ -5061,7 +5061,7 @@ static int q2t_exec_sess_work(struct q2t_tgt *tgt,
 	struct q2t_sess_work_param *prm)
 {
 	scsi_qla_host_t *ha = tgt->ha;
-	scsi_qla_host_t *vha = to_qla_parent(ha);
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 	int res = 0;
 	struct q2t_sess *sess = NULL;
 	struct q2t_cmd *cmd = prm->cmd;
@@ -5072,7 +5072,7 @@ static int q2t_exec_sess_work(struct q2t_tgt *tgt,
 	TRACE_MGMT_DBG("cmd %p", cmd);
 
 	mutex_lock(&ha->tgt_mutex);
-	spin_lock_irq(&vha->hardware_lock);
+	spin_lock_irq(&pha->hardware_lock);
 
 	if (tgt->tgt_stop)
 		goto send;
@@ -5092,9 +5092,9 @@ static int q2t_exec_sess_work(struct q2t_tgt *tgt,
 		 * We are under tgt_mutex, so a new sess can't be added
 		 * behind us.
 		 */
-		spin_unlock_irq(&vha->hardware_lock);
+		spin_unlock_irq(&pha->hardware_lock);
 		sess = q2t_make_local_sess(ha, atio);
-		spin_lock_irq(&vha->hardware_lock);
+		spin_lock_irq(&pha->hardware_lock);
 		/* sess has got an extra creation ref */
 	}
 
@@ -5119,7 +5119,7 @@ send:
 	if (sess != NULL)
 		q2t_sess_put(sess);
 
-	spin_unlock_irq(&vha->hardware_lock);
+	spin_unlock_irq(&pha->hardware_lock);
 	mutex_unlock(&ha->tgt_mutex);
 
 	TRACE_EXIT_RES(res);
@@ -5129,7 +5129,7 @@ send:
 static void q2t_sess_work_fn(struct work_struct *work)
 {
 	struct q2t_tgt *tgt = container_of(work, struct q2t_tgt, sess_work);
-	scsi_qla_host_t *vha = to_qla_parent(tgt->ha);
+	scsi_qla_host_t *pha = to_qla_parent(tgt->ha);
 
 	TRACE_ENTRY();
 
@@ -5163,20 +5163,20 @@ static void q2t_sess_work_fn(struct work_struct *work)
 	}
 	spin_unlock_irq(&tgt->sess_work_lock);
 
-	spin_lock_irq(&vha->hardware_lock);
+	spin_lock_irq(&pha->hardware_lock);
 	spin_lock(&tgt->sess_work_lock);
 	if (list_empty(&tgt->sess_works_list)) {
 		tgt->sess_works_pending = 0;
 		tgt->tm_to_unknown = 0;
 	}
 	spin_unlock(&tgt->sess_work_lock);
-	spin_unlock_irq(&vha->hardware_lock);
+	spin_unlock_irq(&pha->hardware_lock);
 
 	TRACE_EXIT();
 	return;
 }
 
-/* ha->hardware_lock supposed to be held and IRQs off */
+/* pha->hardware_lock supposed to be held and IRQs off */
 static void q2t_cleanup_hw_pending_cmd(scsi_qla_host_t *ha, struct q2t_cmd *cmd)
 {
 	uint32_t h;
@@ -5196,7 +5196,7 @@ static void q2t_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd)
 	struct q2t_cmd *cmd = (struct q2t_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
 	struct q2t_tgt *tgt = cmd->tgt;
 	scsi_qla_host_t *ha = tgt->ha;
-	scsi_qla_host_t *vha = to_qla_parent(ha);
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 	unsigned long flags;
 
 	TRACE_ENTRY();
@@ -5204,7 +5204,7 @@ static void q2t_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd)
 	TRACE_MGMT_DBG("Cmd %p HW pending for too long (state %x)", cmd,
 		cmd->state);
 
-	spin_lock_irqsave(&vha->hardware_lock, flags);
+	spin_lock_irqsave(&pha->hardware_lock, flags);
 
 	if (cmd->state == Q2T_STATE_PROCESSED) {
 		TRACE_MGMT_DBG("Force finishing cmd %p", cmd);
@@ -5238,7 +5238,7 @@ static void q2t_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd)
 	scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_THREAD);
 
 out_unlock:
-	spin_unlock_irqrestore(&vha->hardware_lock, flags);
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 	TRACE_EXIT();
 	return;
 }
@@ -5396,7 +5396,7 @@ static int q2t_host_action(scsi_qla_host_t *ha,
 	qla2x_tgt_host_action_t action)
 {
 	int res = 0;
-	scsi_qla_host_t *vha = to_qla_parent(ha);
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 
 	TRACE_ENTRY();
 
@@ -5434,10 +5434,10 @@ static int q2t_host_action(scsi_qla_host_t *ha,
 		PRINT_INFO("qla2x00t(%ld): Enabling target mode",
 			ha->instance);
 
-		spin_lock_irq(&vha->hardware_lock);
+		spin_lock_irq(&pha->hardware_lock);
 		ha->tgt = ha->q2t_tgt;
 		ha->tgt->tgt_stop = 0;
-		spin_unlock_irq(&vha->hardware_lock);
+		spin_unlock_irq(&pha->hardware_lock);
 		list_for_each_entry_rcu(fcport, &ha->fcports, list) {
 			q2t_fc_port_added(ha, fcport);
 		}
@@ -5712,15 +5712,15 @@ static ssize_t q2t_store_expl_conf_enabled(struct kobject *kobj,
 {
 	struct scst_tgt *scst_tgt;
 	struct q2t_tgt *tgt;
-	scsi_qla_host_t *ha, *vha;
+	scsi_qla_host_t *ha, *pha;
 	unsigned long flags;
 
 	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 	tgt = (struct q2t_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
 	ha = tgt->ha;
-	vha = to_qla_parent(ha);
+	pha = to_qla_parent(ha);
 
-	spin_lock_irqsave(&vha->hardware_lock, flags);
+	spin_lock_irqsave(&pha->hardware_lock, flags);
 
 	switch (buffer[0]) {
 	case '0':
@@ -5741,7 +5741,7 @@ static ssize_t q2t_store_expl_conf_enabled(struct kobject *kobj,
 		break;
 	}
 
-	spin_unlock_irqrestore(&vha->hardware_lock, flags);
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 
 	return size;
 }
