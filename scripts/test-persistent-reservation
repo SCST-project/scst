@@ -1,0 +1,38 @@
+#!/bin/bash
+
+if [ $# != 1 ]; then
+  echo "Error: wrong number of arguments (expecting one)."
+  exit 1
+fi
+
+KEY1=ABC123
+KEY2=BAD123
+DEV="$1"
+
+# Use sg_persist to put SCSI Persistent Reservation thru its paces.
+echo -e "\n>>>> Query registered keys - Should report 'no keys'"
+sg_persist --no-inquiry -i --read-keys $DEV
+
+echo -e "\n>>>> Registering key $KEY1"
+sg_persist -n -o --register --param-sark $KEY1 $DEV
+
+echo -e "\n>>>> Query registered keys - Should report 'key' $KEY1"
+sg_persist -n -i --read-keys $DEV
+
+echo -e "\n>>>> Replacing registered key $KEY1 with $KEY2"
+sg_persist -n -o --register --param-sark $KEY2 --param-rk $KEY1 $DEV
+
+echo -e "\n>>>> Query registered keys - Should report 'key' $KEY2"
+sg_persist -n -i --read-keys $DEV
+
+echo -e "\n>>>> Reserving device using key $KEY2 (Write exclusive)"
+sg_persist -n -o --reserve --prout-type=1 --param-sark $KEY2 $DEV
+
+echo -e "\n>>>> Removing registered key 'bad123' "
+sg_persist -n -o --register --param-sark 0 --param-rk $KEY2 $DEV
+
+echo -e "\n>>>> Query registered keys - Should report no registered keys"
+sg_persist -n -i --read-keys $DEV
+
+echo -e "\n>>>> Query full status - "
+sg_persist -n -i --read-full-status $DEV
