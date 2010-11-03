@@ -697,9 +697,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 			TRACE(TRACE_MINOR, "Warning: expected "
 				"transfer length %d for opcode 0x%02x "
 				"(handler %s, target %s) doesn't match "
-				"decoded value %d. Faulty initiator "
-				"(e.g. VMware is known to be such) or "
-				"scst_scsi_op_table should be updated?",
+				"decoded value %d",
 				cmd->expected_transfer_len, cmd->cdb[0],
 				dev->handler->name, cmd->tgtt->name,
 				cmd->bufflen);
@@ -713,9 +711,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 			TRACE(TRACE_MINOR, "Warning: expected bidirectional OUT "
 				"transfer length %d for opcode 0x%02x "
 				"(handler %s, target %s) doesn't match "
-				"decoded value %d. Faulty initiator "
-				"(e.g. VMware is known to be such) or "
-				"scst_scsi_op_table should be updated?",
+				"decoded value %d",
 				cmd->expected_out_transfer_len, cmd->cdb[0],
 				dev->handler->name, cmd->tgtt->name,
 				cmd->out_bufflen);
