@@ -3705,7 +3705,7 @@ static struct scst_cmd *scst_create_prepare_internal_cmd(
 
 	scst_sess_get(res->sess);
 	if (res->tgt_dev != NULL)
-		__scst_get(0);
+		__scst_get();
 
 	res->state = SCST_CMD_STATE_PARSE;
 

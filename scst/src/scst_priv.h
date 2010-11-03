@@ -579,15 +579,13 @@ static inline void scst_check_unblock_dev(struct scst_cmd *cmd)
 	return;
 }
 
-static inline void __scst_get(int barrier)
+static inline void __scst_get(void)
 {
 	atomic_inc(&scst_cmd_count);
 	TRACE_DBG("Incrementing scst_cmd_count(new value %d)",
 		atomic_read(&scst_cmd_count));
-
 	/* See comment about smp_mb() in scst_suspend_activity() */
-	if (barrier)
-		smp_mb__after_atomic_inc();
+	smp_mb__after_atomic_inc();
 }
 
 static inline void __scst_put(void)

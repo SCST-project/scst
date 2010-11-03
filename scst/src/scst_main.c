@@ -1970,7 +1970,7 @@ out_unlock:
  */
 void scst_get(void)
 {
-	__scst_get(0);
+	__scst_get();
 }
 EXPORT_SYMBOL(scst_get);
 
