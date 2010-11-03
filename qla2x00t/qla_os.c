@@ -671,14 +671,8 @@ qla2x00_abort_fcport_cmds(fc_port_t *fcport)
 	int cnt;
 	unsigned long flags;
 	srb_t *sp;
-	scsi_qla_host_t *ha;
-	scsi_qla_host_t *pha;
-
-	if (fcport == NULL)
-		goto out;
-
-	ha = fcport->ha;
-	pha = to_qla_parent(ha);
+	scsi_qla_host_t *ha = fcport->ha;
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 
 	spin_lock_irqsave(&pha->hardware_lock, flags);
 	for (cnt = 1; cnt < MAX_OUTSTANDING_COMMANDS; cnt++) {
@@ -703,9 +697,6 @@ qla2x00_abort_fcport_cmds(fc_port_t *fcport)
 		spin_lock_irqsave(&pha->hardware_lock, flags);
 	}
 	spin_unlock_irqrestore(&pha->hardware_lock, flags);
-
-out:
-	return;
 }
 
 static void
