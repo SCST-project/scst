@@ -26,7 +26,7 @@ echo -e "\n>>>> Query registered keys - Should report 'key' $KEY2"
 sg_persist -n -i --read-keys $DEV
 
 echo -e "\n>>>> Reserving device using key $KEY2 (Write exclusive)"
-sg_persist -n -o --reserve --prout-type=1 --param-sark $KEY2 $DEV
+sg_persist -n -o --reserve --prout-type=1 --param-rk $KEY2 $DEV
 
 echo -e "\n>>>> Removing registered key 'bad123' "
 sg_persist -n -o --register --param-sark 0 --param-rk $KEY2 $DEV
