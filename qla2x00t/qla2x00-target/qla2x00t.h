@@ -196,6 +196,7 @@ struct q2t_cmd {
 	struct scst_cmd *scst_cmd;
 
 	unsigned int conf_compl_supported:1;/* to save extra sess dereferences */
+	unsigned int sg_mapped:1;
 	unsigned int free_sg:1;
 	unsigned int aborted:1; /* Needed in case of SRR */
 	unsigned int write_data_transferred:1;

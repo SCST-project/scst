@@ -73,6 +73,10 @@ subdirectory. The target driver will be installed in
 /lib/modules/`you_kernel_version`/extra. To uninstall it, type 'make
 uninstall'.
 
+
+Usage
+-----
+
 After the drivers are loaded and adapters successfully initialized by
 the initiator driver, including firmware image load, you should
 configure exported devices using the corresponding interface of SCST
@@ -95,10 +99,30 @@ You can find some installation and configuration HOWTOs in
 http://scst.sourceforge.net/qla2x00t-howto.html and
 https://forums.openfiler.com/viewtopic.php?id=3422.
 
-It is strongly recommended to use firmware version 5.x or higher for
-24xx/25xx adapters. See
+
+IMPORTANT USAGE NOTES
+---------------------
+
+1. It is strongly recommended to use firmware version 5.x or higher
+for 24xx/25xx adapters. See
 http://sourceforge.net/mailarchive/forum.php?thread_name=4B4CD39F.6020401%40vlnb.net&forum_name=scst-devel
 for more details why.
+
+2. If you reload qla2x00tgt module, you should also reload qla2xxx
+module, otherwise your initiators could not see the target, when it is
+enabled after qla2x00tgt module load.
+
+3. If you delete and then add back with the same WWN an NPIV initiator
+on the initiator side, make sure it has the same port_id as well. In
+Fibre Channel initiators identified by port_id (s_id in FC terms), so if
+the recreated NPIV initiator has another port_id, which was already used
+by another (NPIV) initiator, those initiators could be confused by the
+target and assigned to incorrect security groups, hence they could see
+incorrect LUNs.
+
+If you can't ensure the same port_id's for recreated initiators, it is
+safer to restart qla2x00tgt and qla2xxx modules on the target to make
+sure the target doesn't have any initiator port_id cached.
 
 
 Initiator and target modes
@@ -116,24 +140,28 @@ enabled back.
 
  - "enabled" - initiator mode will always stay enabled.
 
-Usage of mode "disabled" is recommended if you have incorrectly
-functioning remote for your target initiators, which if they once seen a
-port in initiator mode, later refuse to see it as a target.
+Usage of mode "disabled" is recommended, if you have incorrectly
+functioning your target's initiators, which if once seen a port in
+initiator mode, later refuse to see it as a target. Although this mode
+does make a noticeable difference, it isn't absolutely strong, since the
+firmware once initialized requires a HBA to be in either initiator, or
+target mode, so until you enable target mode on a port, your initiators
+will report this port as working in initiator mode. If you need
+absolutely strong assurance that initiator mode never enabled, you can
+consider using patch
+unsupported-patches/qla_delayed_hw_init_tgt_mode_from_the_beginning.diff.
+See description of it inside the patch.
 
 Use mode "enabled" if you need your QLA adapters to work in both
 initiator and target modes at the same time.
+
+You can always see which modes are currently active in active_mode sysfs
+attribute.
 
 In all the modes you can at any time use sysfs attribute
 ini_mode_force_reverse to force enable or disable initiator mode on any
 particular port. Setting this attribute to 1 will reverse current status
 of the initiator mode from enabled to disabled and vice versa.
-
-You can always see which modes are currently active in active_mode sysfs
-attribute.
-
-Also if the "disabled" mode isn't sufficiently strong for you, you can
-consider using patch unsupported-patches/qla_delayed_hw_init_tgt_mode_from_the_beginning.diff.
-See description of it inside it.
 
 
 Explicit conformation
