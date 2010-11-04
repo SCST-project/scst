@@ -1607,6 +1607,10 @@ qla2x00_dev_loss_tmo_callbk(struct fc_rport *rport)
 	 * Transport has effectively 'deleted' the rport, clear
 	 * all local references.
 	 */
+#ifdef CONFIG_SCSI_QLA2XXX_TARGET
+	if (qla_target.tgt_fc_port_deleted)
+		qla_target.tgt_fc_port_deleted(fcport->ha, fcport);
+#endif
 	spin_lock_irq(host->host_lock);
 	fcport->rport = NULL;
 	*((fc_port_t **)rport->dd_data) = NULL;
