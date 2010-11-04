@@ -1598,6 +1598,9 @@ qla2x00_dev_loss_tmo_callbk(struct fc_rport *rport)
 	struct Scsi_Host *host = rport_to_shost(rport);
 	fc_port_t *fcport = *(fc_port_t **)rport->dd_data;
 
+	if (!fcport)
+		return;
+
 	qla2x00_abort_fcport_cmds(fcport);
 
 	/*
@@ -1614,6 +1617,9 @@ static void
 qla2x00_terminate_rport_io(struct fc_rport *rport)
 {
 	fc_port_t *fcport = *(fc_port_t **)rport->dd_data;
+
+	if (!fcport)
+		return;
 
 	qla2x00_abort_fcport_cmds(fcport);
 	scsi_target_unblock(&rport->dev);
