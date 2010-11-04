@@ -4543,7 +4543,7 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 
 	TRACE_ENTRY();
 
-	TRACE(TRACE_MGMT, "Aborting cmd %p (tag %llu, op %x)",
+	TRACE(TRACE_SCSI|TRACE_MGMT_DEBUG, "Aborting cmd %p (tag %llu, op %x)",
 		cmd, (long long unsigned int)cmd->tag, cmd->cdb[0]);
 
 	/* To protect from concurrent aborts */
@@ -5537,7 +5537,11 @@ static void scst_mgmt_cmd_send_done(struct scst_mgmt_cmd *mcmd)
 	if (scst_is_strict_mgmt_fn(mcmd->fn) && (mcmd->completed_cmd_count > 0))
 		mcmd->status = SCST_MGMT_STATUS_TASK_NOT_EXIST;
 
-	TRACE(TRACE_MINOR_AND_MGMT_DBG, "TM command fn %d finished, "
+	if (mcmd->fn < SCST_UNREG_SESS_TM)
+		TRACE(TRACE_MGMT, "TM fn %d finished, "
+		"status %x", mcmd->fn, mcmd->status);
+	else
+		TRACE_MGMT_DBG("TM fn %d finished, "
 		"status %x", mcmd->fn, mcmd->status);
 
 	if (mcmd->fn == SCST_PR_ABORT_ALL) {
@@ -5870,7 +5874,7 @@ int scst_rx_mgmt_fn(struct scst_session *sess,
 	mcmd->cmd_sn_set = params->cmd_sn_set;
 	mcmd->cmd_sn = params->cmd_sn;
 
-	if (params->fn <= SCST_TARGET_RESET)
+	if (params->fn < SCST_UNREG_SESS_TM)
 		TRACE(TRACE_MGMT, "TM fn %d", params->fn);
 	else
 		TRACE_MGMT_DBG("TM fn %d", params->fn);
