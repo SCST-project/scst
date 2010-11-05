@@ -550,7 +550,7 @@ qla2x00_rff_id(scsi_qla_host_t *ha)
 			ct_req->req.rff_id.fc4_feature = BIT_0 | BIT_1;
 		else
 			ct_req->req.rff_id.fc4_feature = BIT_0;
-	} else
+	} else if (qla_ini_mode_enabled(ha))
 #endif
 		ct_req->req.rff_id.fc4_feature = BIT_1;
 

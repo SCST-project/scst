@@ -129,7 +129,7 @@ qla2x00_initialize_adapter(scsi_qla_host_t *ha)
 		/* Enable target response to SCSI bus. */
 		if (qla_tgt_mode_enabled(ha))
 			qla2x00_send_enable_lun(ha, true);
-		else
+		else if (qla_ini_mode_enabled(ha))
 			qla2x00_send_enable_lun(ha, false);
 	}
 #endif
@@ -1766,10 +1766,10 @@ qla2x00_nvram_config(scsi_qla_host_t *ha)
 
 			/* Disable Full Login after LIP */
 			nv->firmware_options[1] &= ~BIT_5;
-			/* Enable FC tapes support, just in case, it is ON by default */
+			/* Enable initial LIP */
+			nv->firmware_options[1] &= BIT_1;
+			/* Enable FC tapes support */
 			nv->add_firmware_options[1] |= BIT_4;
-			/* Enable Fibre Channel Confirm */
-			nv->add_firmware_options[1] |= BIT_5;
 			/* Enable Command Queuing in Target Mode */
 			nv->add_firmware_options[1] |= BIT_6;
 		} else {
@@ -1809,10 +1809,12 @@ qla2x00_nvram_config(scsi_qla_host_t *ha)
 	if (IS_QLA23XX(ha)) {
 		/* Enable full duplex */
 		nv->firmware_options[0] |= BIT_2;
-		/* Disable Fast Sataus Posting */
+		/* Disable Fast Status Posting */
 		nv->firmware_options[0] &= ~BIT_3;
+
 		/* P2P preferred, otherwise loop */
 		nv->add_firmware_options[1] |= BIT_5 | BIT_4;
+
 		/* out-of-order frames rassembly */
 		nv->special_options[0] |= BIT_6;
 
@@ -1859,13 +1861,19 @@ qla2x00_nvram_config(scsi_qla_host_t *ha)
 	while (cnt--)
 		*dptr1++ = *dptr2++;
 
-	/* Use alternate WWN? */
-	if (nv->host_p[1] & BIT_7) {
-		memcpy(icb->node_name, nv->alternate_node_name, WWN_SIZE);
-		memcpy(icb->port_name, nv->alternate_port_name, WWN_SIZE);
-	}
-
 	/* Prepare nodename */
+#ifdef CONFIG_SCSI_QLA2XXX_TARGET
+	if (ha->node_name_set) {
+		memcpy(icb->node_name, ha->tgt_node_name, WWN_SIZE);
+		icb->firmware_options[1] |= BIT_6;
+	} else
+#endif
+		if (nv->host_p[1] & BIT_7) {
+			/* Use alternate WWN? */
+			memcpy(icb->node_name, nv->alternate_node_name, WWN_SIZE);
+			memcpy(icb->port_name, nv->alternate_port_name, WWN_SIZE);
+		}
+
 	if ((icb->firmware_options[1] & BIT_6) == 0) {
 		/*
 		 * Firmware will apply the following mask if the nodename was
@@ -3759,7 +3767,9 @@ qla24xx_nvram_config(scsi_qla_host_t *ha)
 
 		/* Disable Full Login after LIP */
 		nv->firmware_options_1 &= __constant_cpu_to_le32(~BIT_13);
-		/* Enable FC tapes support, just in case, it is ON by default */
+		/* Enable initial LIP */
+		nv->firmware_options_1 &= __constant_cpu_to_le32(~BIT_9);
+		/* Enable FC tapes support */
 		nv->firmware_options_2 |= __constant_cpu_to_le32(BIT_12);
 	} else {
 		if (ha->saved_set) {
@@ -3820,13 +3830,19 @@ qla24xx_nvram_config(scsi_qla_host_t *ha)
 	qla2x00_set_model_info(ha, nv->model_name, sizeof(nv->model_name),
 	    "QLA2462");
 
-	/* Use alternate WWN? */
-	if (nv->host_p & __constant_cpu_to_le32(BIT_15)) {
-		memcpy(icb->node_name, nv->alternate_node_name, WWN_SIZE);
-		memcpy(icb->port_name, nv->alternate_port_name, WWN_SIZE);
-	}
-
 	/* Prepare nodename */
+#ifdef CONFIG_SCSI_QLA2XXX_TARGET
+	if (ha->node_name_set) {
+		memcpy(icb->node_name, ha->tgt_node_name, WWN_SIZE);
+		icb->firmware_options_1 |= __constant_cpu_to_le32(BIT_14);
+	} else
+#endif
+		if (nv->host_p & __constant_cpu_to_le32(BIT_15)) {
+			/* Use alternate WWN? */
+			memcpy(icb->node_name, nv->alternate_node_name, WWN_SIZE);
+			memcpy(icb->port_name, nv->alternate_port_name, WWN_SIZE);
+		}
+
 	if ((icb->firmware_options_1 & __constant_cpu_to_le32(BIT_14)) == 0) {
 		/*
 		 * Firmware will apply the following mask if the nodename was

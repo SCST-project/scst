@@ -2353,6 +2353,7 @@ typedef struct scsi_qla_host {
 	unsigned int	enable_explicit_conf	:1;
 	unsigned int	host_shutting_down	:1;
 	unsigned int	ini_mode_force_reverse	:1;
+	unsigned int	node_name_set		:1;
 
 	dma_addr_t	atio_dma;           /* Physical address. */
 	atio_t		*atio_ring;         /* Base virtual address */
@@ -2643,6 +2644,8 @@ typedef struct scsi_qla_host {
 	uint32_t	saved_firmware_options_3;
 	uint8_t		saved_firmware_options[2];
 	uint8_t		saved_add_firmware_options[2];
+
+	uint8_t		tgt_node_name[WWN_SIZE];
 #endif /* CONFIG_SCSI_QLA2XXX_TARGET */
 
 	struct scsi_qla_host	*parent;	/* holds pport */

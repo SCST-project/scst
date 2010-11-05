@@ -133,29 +133,36 @@ static ssize_t q2t_abort_isp_store(struct kobject *kobj,
 struct kobj_attribute q2t_abort_isp_attr =
 	__ATTR(abort_isp, S_IWUSR, NULL, q2t_abort_isp_store);
 
-static const struct attribute *q2t_tgt_attrs[] = {
-	&q2t_expl_conf_attr.attr,
-	&q2t_abort_isp_attr.attr,
-	NULL,
-};
-
 static ssize_t q2t_hw_target_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 
 static struct kobj_attribute q2t_hw_target_attr =
 	__ATTR(hw_target, S_IRUGO, q2t_hw_target_show, NULL);
 
-static ssize_t q2t_vp_node_name_show(struct kobject *kobj,
+static ssize_t q2t_node_name_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 
 static struct kobj_attribute q2t_vp_node_name_attr =
-	__ATTR(node_name, S_IRUGO, q2t_vp_node_name_show, NULL);
+	__ATTR(node_name, S_IRUGO, q2t_node_name_show, NULL);
+
+static ssize_t q2t_node_name_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buffer, size_t size);
+
+static struct kobj_attribute q2t_hw_node_name_attr =
+	__ATTR(node_name, S_IRUGO|S_IWUSR, q2t_node_name_show,
+		q2t_node_name_store);
 
 static ssize_t q2t_vp_parent_host_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 
 static struct kobj_attribute q2t_vp_parent_host_attr =
 	__ATTR(parent_host, S_IRUGO, q2t_vp_parent_host_show, NULL);
+
+static const struct attribute *q2t_tgt_attrs[] = {
+	&q2t_expl_conf_attr.attr,
+	&q2t_abort_isp_attr.attr,
+	NULL,
+};
 
 #endif /* CONFIG_SCST_PROC */
 
@@ -5310,7 +5317,8 @@ static int q2t_add_target(scsi_qla_host_t *ha)
 
 	ha->q2t_tgt = tgt;
 
-	if (q2t_get_target_name(ha->port_name, &wwn) != 0)
+	res = q2t_get_target_name(ha->port_name, &wwn);
+	if (res != 0)
 		goto out_free;
 
 	tgt->scst_tgt = scst_register_target(&tgt2x_template, wwn);
@@ -5367,6 +5375,13 @@ static int q2t_add_target(scsi_qla_host_t *ha)
 		if (rc != 0)
 			PRINT_ERROR("qla2x00t(%ld): Unable to create "
 				"\"hw_target\" file for target %s",
+				ha->instance, scst_get_tgt_name(tgt->scst_tgt));
+
+		rc = sysfs_create_file(scst_sysfs_get_tgt_kobj(tgt->scst_tgt),
+				&q2t_hw_node_name_attr.attr);
+		if (rc != 0)
+			PRINT_ERROR("qla2x00t(%ld): Unable to create "
+				"\"node_name\" file for HW target %s",
 				ha->instance, scst_get_tgt_name(tgt->scst_tgt));
 	} else {
 		rc = sysfs_create_file(scst_sysfs_get_tgt_kobj(tgt->scst_tgt),
@@ -5534,7 +5549,7 @@ static int q2t_parse_wwn(const char *ns, u64 *nm)
 	u8 wwn[8];
 
 	/* validate we have enough characters for WWPN */
-	if (strlen(ns) != 23)
+	if (strnlen(ns, 23) != 23)
 		return -EINVAL;
 
 	memset(wwn, 0, sizeof(wwn));
@@ -5824,27 +5839,93 @@ static ssize_t q2t_hw_target_show(struct kobject *kobj,
 	return sprintf(buf, "%d\n", 1);
 }
 
-static ssize_t q2t_vp_node_name_show(struct kobject *kobj,
+static ssize_t q2t_node_name_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
 	struct scst_tgt *scst_tgt;
 	struct q2t_tgt *tgt;
 	scsi_qla_host_t *ha;
-	ssize_t size;
+	ssize_t res;
 	char *wwn;
+	uint8_t *node_name;
 
 	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 	tgt = (struct q2t_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
 	ha = tgt->ha;
 
-	if (q2t_get_target_name(ha->node_name, &wwn) != 0)
-		return 0;
+	if (ha->parent == NULL) {
+		if (qla_tgt_mode_enabled(ha) || !ha->node_name_set)
+			node_name = ha->node_name;
+		else
+			node_name = ha->tgt_node_name;
+	} else
+		node_name = ha->node_name;
 
-	size = sprintf(buf, "%s\n%s\n", wwn, SCST_SYSFS_KEY_MARK);
+	res = q2t_get_target_name(node_name, &wwn);
+	if (res != 0)
+		goto out;
+
+	res = sprintf(buf, "%s\n", wwn);
+	if ((ha->parent != NULL) || ha->node_name_set)
+		res += sprintf(&buf[res], "%s\n", SCST_SYSFS_KEY_MARK);
 
 	kfree(wwn);
 
-	return size;
+out:
+	return res;
+}
+
+static ssize_t q2t_node_name_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buffer, size_t size)
+{
+	struct scst_tgt *scst_tgt;
+	struct q2t_tgt *tgt;
+	scsi_qla_host_t *ha;
+	u64 node_name, old_node_name;
+	int res;
+
+	TRACE_ENTRY();
+
+	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	tgt = (struct q2t_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+	ha = tgt->ha;
+
+	sBUG_ON(ha->parent != NULL);
+
+	if (size == 0)
+		goto out_default;
+
+	res = q2t_parse_wwn(buffer, &node_name);
+	if (res != 0) {
+		if ((buffer[0] == '\0') || (buffer[0] == '\n'))
+			goto out_default;
+		PRINT_ERROR("qla2x00t(%ld): Wrong node name", ha->instance);
+		goto out;
+	}
+
+	old_node_name = wwn_to_u64(ha->node_name);
+	if (old_node_name == node_name)
+		goto out_success;
+
+	u64_to_wwn(node_name, ha->tgt_node_name);
+	ha->node_name_set = 1;
+
+abort:
+	if (qla_tgt_mode_enabled(ha)) {
+		set_bit(ISP_ABORT_NEEDED, &ha->dpc_flags);
+		qla2x00_wait_for_hba_online(ha);
+	}
+
+out_success:
+	res = size;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_default:
+	ha->node_name_set = 0;
+	goto abort;
 }
 
 static ssize_t q2t_vp_parent_host_show(struct kobject *kobj,
@@ -5853,27 +5934,23 @@ static ssize_t q2t_vp_parent_host_show(struct kobject *kobj,
 	struct scst_tgt *scst_tgt;
 	struct q2t_tgt *tgt;
 	scsi_qla_host_t *ha;
-	ssize_t size;
+	ssize_t res;
 	char *wwn;
 
 	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 	tgt = (struct q2t_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
 	ha = to_qla_parent(tgt->ha);
 
-	if (!ha) {
-		PRINT_ERROR("qla2x00t(%ld): No parent for NPIV target %s",
-			tgt->ha->instance, scst_get_tgt_name(scst_tgt));
-		return 0;
-	}
+	res = q2t_get_target_name(ha->port_name, &wwn);
+	if (res != 0)
+		goto out;
 
-	if (q2t_get_target_name(ha->port_name, &wwn) != 0)
-		return 0;
-
-	size = sprintf(buf, "%s\n%s\n", wwn, SCST_SYSFS_KEY_MARK);
+	res = sprintf(buf, "%s\n%s\n", wwn, SCST_SYSFS_KEY_MARK);
 
 	kfree(wwn);
 
-	return size;
+out:
+	return res;
 }
 
 #else /* CONFIG_SCST_PROC */

@@ -1020,6 +1020,13 @@ qla2x00_init_firmware(scsi_qla_host_t *ha, uint16_t size)
 	DEBUG11(printk("qla2x00_init_firmware(%ld): entered.\n",
 	    ha->host_no));
 
+	if (!qla_tgt_mode_enabled(ha) && !qla_ini_mode_enabled(ha)) {
+		DEBUG11(printk("qla2x00_init_firmware(%ld): neither initiator, "
+			"nor target mode enabled, exiting\n", ha->host_no));
+		rval = QLA_SUCCESS;
+		goto out;
+	}
+
 #ifdef QL_DEBUG_LEVEL_5
 	if (IS_FWI2_CAPABLE(ha)) {
 		struct init_cb_24xx *icb = (struct init_cb_24xx *)ha->init_cb;
@@ -1071,6 +1078,7 @@ qla2x00_init_firmware(scsi_qla_host_t *ha, uint16_t size)
 		    ha->host_no));
 	}
 
+out:
 	return rval;
 }
 

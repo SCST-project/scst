@@ -6,6 +6,12 @@ Summary of changes between versions 2.0.0 and 2.1.0
    control for them. Thanks a lot to Uri Yanai and Dorit
    Halsadi!
 
+ - Node name setting added
+
+ - qlini_mode "disabled" parameter handling improved
+
+ - Other minor fixes and cleanups
+
 
 Summary of changes between versions 1.0.2 and 2.0.0
 ---------------------------------------------------

@@ -142,15 +142,7 @@ enabled back.
 
 Usage of mode "disabled" is recommended, if you have incorrectly
 functioning your target's initiators, which if once seen a port in
-initiator mode, later refuse to see it as a target. Although this mode
-does make a noticeable difference, it isn't absolutely strong, since the
-firmware once initialized requires a HBA to be in either initiator, or
-target mode, so until you enable target mode on a port, your initiators
-will report this port as working in initiator mode. If you need
-absolutely strong assurance that initiator mode never enabled, you can
-consider using patch
-unsupported-patches/qla_delayed_hw_init_tgt_mode_from_the_beginning.diff.
-See description of it inside the patch.
+initiator mode, later refuse to see it as a target.
 
 Use mode "enabled" if you need your QLA adapters to work in both
 initiator and target modes at the same time.
