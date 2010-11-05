@@ -160,7 +160,7 @@ enum scst_cdb_flags {
 	SCST_INFO_VALID =			0x0010, /* must be single bit */
 	SCST_VERIFY_BYTCHK_MISMATCH_ALLOWED =	0x0020,
 	SCST_IMPLICIT_HQ =			0x0040,
-	SCST_IMPLICIT_ORDERED =			0x0080,
+	SCST_IMPLICIT_ORDERED =			0x0080, /* ToDo: remove it's nonsense */
 	SCST_SKIP_UA =				0x0100,
 	SCST_WRITE_MEDIUM =			0x0200,
 	SCST_LOCAL_CMD =			0x0400,

@@ -541,11 +541,6 @@ static inline bool scst_is_implicit_hq(struct scst_cmd *cmd)
 	return (cmd->op_flags & SCST_IMPLICIT_HQ) != 0;
 }
 
-static inline bool scst_is_implicit_ordered(struct scst_cmd *cmd)
-{
-	return (cmd->op_flags & SCST_IMPLICIT_ORDERED) != 0;
-}
-
 /*
  * Some notes on devices "blocking". Blocking means that no
  * commands will go from SCST to underlying SCSI device until it

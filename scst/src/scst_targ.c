@@ -420,7 +420,6 @@ static int scst_pre_parse(struct scst_cmd *cmd)
 	cmd->inc_expected_sn_on_done = 1;
 #else
 	cmd->inc_expected_sn_on_done = dev->handler->exec_sync ||
-		scst_is_implicit_ordered(cmd) ||
 		(!dev->has_own_order_mgmt &&
 		 (dev->queue_alg == SCST_CONTR_MODE_QUEUE_ALG_RESTRICTED_REORDER ||
 		  cmd->queue_type == SCST_CMD_QUEUE_ORDERED));
@@ -3563,9 +3562,6 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 		TRACE_SN("Implicit HQ cmd %p", cmd);
 		cmd->queue_type = SCST_CMD_QUEUE_HEAD_OF_QUEUE;
 	}
-
-	if (unlikely(scst_is_implicit_ordered(cmd)))
-		cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
 
 	EXTRACHECKS_BUG_ON(cmd->sn_set || cmd->hq_cmd_inced);
 
