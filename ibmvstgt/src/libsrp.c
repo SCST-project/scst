@@ -24,19 +24,13 @@
 #include <linux/kfifo.h>
 #include <linux/scatterlist.h>
 #include <linux/dma-mapping.h>
-#include <scsi/srp.h>
 #ifdef INSIDE_KERNEL_TREE
+#include <scsi/srp.h>
 #include <scsi/libsrp.h>
 #else
+#include "srpnew.h"
 #include "libsrpnew.h"
 #endif
-
-enum srp_task_attributes {
-	SRP_SIMPLE_TASK = 0,
-	SRP_HEAD_TASK = 1,
-	SRP_ORDERED_TASK = 2,
-	SRP_ACA_TASK = 4
-};
 
 /* tmp - will replace with SCSI logging stuff */
 #define eprintk(fmt, args...)					\
