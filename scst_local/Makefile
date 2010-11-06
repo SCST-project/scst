@@ -8,8 +8,11 @@ SCST_INC_DIR	:= $(SUBDIRS)/../scst/include/
 SCST_DIR	:= $(shell pwd)/../scst/src
 KMOD 		:= $(shell pwd)/kernel
 
+enable-Wextra = $(shell uname_r="$$(uname -r)"; if [ "$${uname_r%.el5}" = "$${uname_r}" ]; then echo "$(1)"; fi)
+
 EXTRA_CFLAGS	+= -I$(SCST_INC_DIR) -I$(SCST_DIR)
-EXTRA_CFLAGS	+=  -Wextra -Wno-unused-parameter -Wno-missing-field-initializers
+EXTRA_CFLAGS	+= $(call enable-Wextra,-Wextra -Wno-unused-parameter\
+	-Wno-missing-field-initializers)
 
 #EXTRA_CFLAGS += -DCONFIG_SCST_LOCAL_FORCE_DIRECT_PROCESSING
 

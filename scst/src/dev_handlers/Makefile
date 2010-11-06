@@ -69,8 +69,10 @@ else
 INSTALL_DIR := /lib/modules/$(KVER)/extra
 endif
 
-EXTRA_CFLAGS += -I$(SUBDIRS) -I$(SCST_INC_DIR) -Wextra -Wno-unused-parameter \
-		-Wno-missing-field-initializers
+enable-Wextra = $(shell uname_r="$$(uname -r)"; if [ "$${uname_r%.el5}" = "$${uname_r}" ]; then echo "$(1)"; fi)
+
+EXTRA_CFLAGS += -I$(SUBDIRS) -I$(SCST_INC_DIR) $(call enable-Wextra,-Wextra \
+	-Wno-unused-parameter -Wno-missing-field-initializers)
 
 EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
 
