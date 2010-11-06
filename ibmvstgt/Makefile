@@ -27,8 +27,9 @@ all: src/$(MODULE_SYMVERS)
 
 install: all src/ibmvstgt.ko
 	@eval `sed -n 's/#define UTS_RELEASE /KERNELRELEASE=/p' $(KDIR)/include/linux/version.h $(KDIR)/include/linux/utsrelease.h 2>/dev/null`; \
-	install -vD -m 644 src/ibmvstgt.ko \
-	$(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra/ibmvstgt.ko
+	for m in libsrp.ko ibmvstgt.ko; do \
+	install -vD -m 644 src/$$m \
+	$(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra/$$m; done
 	-/sbin/depmod -aq $(KVER)
 
 src/Module.symvers src/Modules.symvers: $(SCST_DIR)/$(MODULE_SYMVERS)
