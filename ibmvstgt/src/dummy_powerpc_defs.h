@@ -28,7 +28,8 @@ struct device_node {
 
 static inline struct device_node *of_find_node_by_path(const char *path)
 {
-	return NULL;
+	static struct device_node rootdn;
+	return &rootdn;
 }
 static inline const void *of_get_property(const struct device_node *node,
                                 const char *name,
