@@ -48,7 +48,9 @@
 #include <linux/mod_devicetable.h>
 #endif
 #if defined(INSIDE_KERNEL_TREE) || defined(__powerpc__)
+#if !defined(RHEL_MAJOR)
 #include <linux/of.h>
+#endif
 #else
 #include "dummy_powerpc_defs.h"
 #endif
