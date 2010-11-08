@@ -711,7 +711,8 @@ static void q2t_schedule_sess_for_deletion(struct q2t_sess *sess)
 	 */
 	schedule = list_empty(&tgt->del_sess_list);
 
-	TRACE_MGMT_DBG("Scheduling sess %p to deletion", sess);
+	TRACE_MGMT_DBG("Scheduling sess %p for deletion (schedule %d)", sess,
+		schedule);
 	list_add_tail(&sess->del_list_entry, &tgt->del_sess_list);
 	sess->deleted = 1;
 	sess->expires = jiffies + dev_loss_tmo * HZ;
@@ -728,7 +729,7 @@ static void q2t_schedule_sess_for_deletion(struct q2t_sess *sess)
 
 	if (schedule)
 		schedule_delayed_work(&tgt->sess_del_work,
-				sess->expires);
+				jiffies - sess->expires);
 
 out:
 	TRACE_EXIT();
@@ -810,7 +811,7 @@ static int q24_get_loop_id(scsi_qla_host_t *ha, const uint8_t *s_id,
 	/* Get list of logged in devices */
 	rc = qla2x00_get_id_list(ha, gid_list, gid_list_dma, &entries);
 	if (rc != QLA_SUCCESS) {
-		PRINT_ERROR("qla2x00t(%ld): get_id_list() failed: %x",
+		TRACE_MGMT_DBG("qla2x00t(%ld): get_id_list() failed: %x",
 			ha->instance, rc);
 		res = -1;
 		goto out_free_id_list;
@@ -851,6 +852,15 @@ static bool q2t_check_fcport_exist(scsi_qla_host_t *ha, const uint8_t *s_id)
 	return res;
 }
 
+/* pha->hardware_lock supposed to be held on entry */
+static void q2t_undelete_sess(struct q2t_sess *sess)
+{
+	sBUG_ON(!sess->deleted);
+
+	list_del(&sess->del_list_entry);
+	sess->deleted = 0;
+}
+
 static void q2t_del_sess_work_fn(struct delayed_work *work)
 {
 	struct q2t_tgt *tgt = container_of(work, struct q2t_tgt,
@@ -867,7 +877,15 @@ static void q2t_del_sess_work_fn(struct delayed_work *work)
 		sess = list_entry(tgt->del_sess_list.next, typeof(*sess),
 				del_list_entry);
 		if (time_after_eq(jiffies, sess->expires)) {
-			if (q2t_check_fcport_exist(ha, (uint8_t *)&sess->s_id)) {
+			bool cancel;
+
+			q2t_undelete_sess(sess);
+
+			spin_unlock_irqrestore(&pha->hardware_lock, flags);
+			cancel = q2t_check_fcport_exist(ha, (uint8_t *)&sess->s_id);
+			spin_lock_irqsave(&pha->hardware_lock, flags);
+
+			if (cancel) {
 				PRINT_INFO("qla2x00t(%ld): cancel deletion of "
 					"session for port %02x:%02x:%02x:"
 					"%02x:%02x:%02x:%02x:%02x (loop ID %d), "
@@ -879,17 +897,13 @@ static void q2t_del_sess_work_fn(struct delayed_work *work)
 					sess->port_name[6], sess->port_name[7],
 					sess->loop_id);
 			} else {
-				/*
-				 * sess will be deleted from del_sess_list in
-				 * q2t_unreg_sess()
-				 */
 				TRACE_MGMT_DBG("Timeout: sess %p about to be "
 					"deleted", sess);
 				q2t_sess_put(sess);
 			}
 		} else {
 			schedule_delayed_work(&tgt->sess_del_work,
-				sess->expires);
+				jiffies - sess->expires);
 			break;
 		}
 	}
@@ -897,15 +911,6 @@ static void q2t_del_sess_work_fn(struct delayed_work *work)
 
 	TRACE_EXIT();
 	return;
-}
-
-/* pha->hardware_lock supposed to be held on entry */
-static void q2t_undelete_sess(struct q2t_sess *sess)
-{
-	sBUG_ON(!sess->deleted);
-
-	list_del(&sess->del_list_entry);
-	sess->deleted = 0;
 }
 
 /*
