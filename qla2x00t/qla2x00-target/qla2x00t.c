@@ -484,8 +484,7 @@ static void q2t_clear_tgt_db(struct q2t_tgt *tgt, bool local_only)
 		if (local_only && sess->local)
 			TRACE_MGMT_DBG("Putting local session %p from port "
 				"%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
-				sess,
-				sess->port_name[0], sess->port_name[1],
+				sess, sess->port_name[0], sess->port_name[1],
 				sess->port_name[2], sess->port_name[3],
 				sess->port_name[4], sess->port_name[5],
 				sess->port_name[6], sess->port_name[7]);
@@ -557,6 +556,7 @@ static void q2t_del_sess_timer_fn(unsigned long arg)
 	return;
 }
 
+/* pha->hardware_lock supposed to be held on entry */
 static void q2t_undelete_sess(struct q2t_sess *sess)
 {
 	list_del(&sess->del_list_entry);
@@ -606,7 +606,7 @@ static struct q2t_sess *q2t_create_sess(scsi_qla_host_t *ha, fc_port_t *fcport,
 			sess->loop_id = fcport->loop_id;
 			sess->conf_compl_supported = fcport->conf_compl_supported;
 			if (sess->local && !local)
-				sess->local = false;
+				sess->local = 0;
 			spin_unlock_irq(&ha->hardware_lock);
 			goto out;
 		}
@@ -693,16 +693,17 @@ out_free_sess:
 	goto out;
 }
 
+/* pha->hardware_lock supposed to be held on entry */
 static void q2t_reappear_sess(struct q2t_sess *sess, const char *reason)
 {
 	q2t_undelete_sess(sess);
 
-	PRINT_INFO("qla2x00t(%ld): session for port %02x:"
+	PRINT_INFO("qla2x00t(%ld): %ssession for port %02x:"
 		"%02x:%02x:%02x:%02x:%02x:%02x:%02x (loop ID %d) "
-		"reappeared%s", sess->tgt->ha->instance, sess->port_name[0],
-		sess->port_name[1], sess->port_name[2],
-		sess->port_name[3], sess->port_name[4],
-		sess->port_name[5], sess->port_name[6],
+		"reappeared%s", sess->tgt->ha->instance,
+		sess->local ? "local " : "", sess->port_name[0],
+		sess->port_name[1], sess->port_name[2], sess->port_name[3],
+		sess->port_name[4], sess->port_name[5], sess->port_name[6],
 		sess->port_name[7], sess->loop_id, reason);
 	TRACE_MGMT_DBG("Appeared sess %p", sess);
 }
@@ -736,19 +737,19 @@ static void q2t_fc_port_added(scsi_qla_host_t *ha, fc_port_t *fcport)
 	} else {
 		if (sess->deleted)
 			q2t_reappear_sess(sess, "");
-		else if (sess->local) {
-			TRACE(TRACE_MGMT, "qla2x00t(%ld): local session for "
-				"port %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x "
-				"(loop ID %d) became global", ha->instance,
-				fcport->port_name[0], fcport->port_name[1],
-				fcport->port_name[2], fcport->port_name[3],
-				fcport->port_name[4], fcport->port_name[5],
-				fcport->port_name[6], fcport->port_name[7],
-				sess->loop_id);
-		}
 	}
 
-	sess->local = 0;
+	if (sess->local) {
+		TRACE(TRACE_MGMT, "qla2x00t(%ld): local session for "
+			"port %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x "
+			"(loop ID %d) became global", ha->instance,
+			fcport->port_name[0], fcport->port_name[1],
+			fcport->port_name[2], fcport->port_name[3],
+			fcport->port_name[4], fcport->port_name[5],
+			fcport->port_name[6], fcport->port_name[7],
+			sess->loop_id);
+		sess->local = 0;
+	}
 
 	spin_unlock_irq(&ha->hardware_lock);
 
