@@ -10,6 +10,8 @@ Summary of changes between versions 2.0.0 and 2.1.0
 
  - qlini_mode "disabled" parameter handling improved
 
+ - Local sessions management made more robust
+
  - Other minor fixes and cleanups
 
 

@@ -694,6 +694,48 @@ out:
 }
 
 /* pha->hardware_lock supposed to be held on entry */
+static void q2t_schedule_sess_for_deletion(struct q2t_sess *sess)
+{
+	struct q2t_tgt *tgt = sess->tgt;
+	uint32_t dev_loss_tmo = tgt->ha->port_down_retry_count + 5;
+	bool schedule;
+
+	TRACE_ENTRY();
+
+	if (sess->deleted)
+		goto out;
+
+	/*
+	 * If the list is empty, then, most likely, the work isn't
+	 * scheduled.
+	 */
+	schedule = list_empty(&tgt->del_sess_list);
+
+	TRACE_MGMT_DBG("Scheduling sess %p to deletion", sess);
+	list_add_tail(&sess->del_list_entry, &tgt->del_sess_list);
+	sess->deleted = 1;
+	sess->expires = jiffies + dev_loss_tmo * HZ;
+
+	PRINT_INFO("qla2x00t(%ld): %ssession for port %02x:%02x:%02x:"
+		"%02x:%02x:%02x:%02x:%02x (loop ID %d) scheduled for "
+		"deletion in %d secs", tgt->ha->instance,
+		sess->local ? "local " : "",
+		sess->port_name[0], sess->port_name[1],
+		sess->port_name[2], sess->port_name[3],
+		sess->port_name[4], sess->port_name[5],
+		sess->port_name[6], sess->port_name[7],
+		sess->loop_id, dev_loss_tmo);
+
+	if (schedule)
+		schedule_delayed_work(&tgt->sess_del_work,
+				sess->expires);
+
+out:
+	TRACE_EXIT();
+	return;
+}
+
+/* pha->hardware_lock supposed to be held on entry */
 static void q2t_clear_tgt_db(struct q2t_tgt *tgt, bool local_only)
 {
 	struct q2t_sess *sess, *sess_tmp;
@@ -704,17 +746,12 @@ static void q2t_clear_tgt_db(struct q2t_tgt *tgt, bool local_only)
 
 	list_for_each_entry_safe(sess, sess_tmp, &tgt->sess_list,
 					sess_list_entry) {
-		if (local_only && !sess->local)
-			continue;
-		if (local_only && sess->local)
-			TRACE_MGMT_DBG("Putting local session %p from port "
-				"%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
-				sess,
-				sess->port_name[0], sess->port_name[1],
-				sess->port_name[2], sess->port_name[3],
-				sess->port_name[4], sess->port_name[5],
-				sess->port_name[6], sess->port_name[7]);
-		q2t_sess_put(sess);
+		if (local_only) {
+			if (!sess->local)
+				continue;
+			q2t_schedule_sess_for_deletion(sess);
+		} else
+			q2t_sess_put(sess);
 	}
 
 	/* At this point tgt could be already dead */
@@ -750,9 +787,74 @@ static void q2t_alloc_session_done(struct scst_session *scst_sess,
 	return;
 }
 
-static void q2t_del_sess_timer_fn(unsigned long arg)
+static int q24_get_loop_id(scsi_qla_host_t *ha, const uint8_t *s_id,
+	uint16_t *loop_id)
 {
-	struct q2t_tgt *tgt = (struct q2t_tgt *)arg;
+	dma_addr_t gid_list_dma;
+	struct gid_list_info *gid_list;
+	char *id_iter;
+	int res, rc, i;
+	uint16_t entries;
+
+	TRACE_ENTRY();
+
+	gid_list = dma_alloc_coherent(&ha->pdev->dev, GID_LIST_SIZE,
+			&gid_list_dma, GFP_KERNEL);
+	if (gid_list == NULL) {
+		PRINT_ERROR("qla2x00t(%ld): DMA Alloc failed of %zd",
+			ha->instance, GID_LIST_SIZE);
+		res = -ENOMEM;
+		goto out;
+	}
+
+	/* Get list of logged in devices */
+	rc = qla2x00_get_id_list(ha, gid_list, gid_list_dma, &entries);
+	if (rc != QLA_SUCCESS) {
+		PRINT_ERROR("qla2x00t(%ld): get_id_list() failed: %x",
+			ha->instance, rc);
+		res = -1;
+		goto out_free_id_list;
+	}
+
+	id_iter = (char *)gid_list;
+	res = -1;
+	for (i = 0; i < entries; i++) {
+		struct gid_list_info *gid = (struct gid_list_info *)id_iter;
+		if ((gid->al_pa == s_id[2]) &&
+		    (gid->area == s_id[1]) &&
+		    (gid->domain == s_id[0])) {
+			*loop_id = le16_to_cpu(gid->loop_id);
+			res = 0;
+			break;
+		}
+		id_iter += ha->gid_list_info_size;
+	}
+
+out_free_id_list:
+	dma_free_coherent(&ha->pdev->dev, GID_LIST_SIZE, gid_list, gid_list_dma);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static bool q2t_check_fcport_exist(scsi_qla_host_t *ha, const uint8_t *s_id)
+{
+	bool res;
+	uint16_t loop_id;
+
+	TRACE_ENTRY();
+
+	res = (q24_get_loop_id(ha, s_id, &loop_id) == 0);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static void q2t_del_sess_work_fn(struct delayed_work *work)
+{
+	struct q2t_tgt *tgt = container_of(work, struct q2t_tgt,
+					sess_del_work);
 	scsi_qla_host_t *ha = tgt->ha;
 	scsi_qla_host_t *pha = to_qla_parent(ha);
 	struct q2t_sess *sess;
@@ -765,16 +867,30 @@ static void q2t_del_sess_timer_fn(unsigned long arg)
 		sess = list_entry(tgt->del_sess_list.next, typeof(*sess),
 				del_list_entry);
 		if (time_after_eq(jiffies, sess->expires)) {
-			/*
-			 * sess will be deleted from del_sess_list in
-			 * q2t_unreg_sess()
-			 */
-			TRACE_MGMT_DBG("Timeout: sess %p about to be deleted",
-				sess);
-			q2t_sess_put(sess);
+			if (q2t_check_fcport_exist(ha, (uint8_t *)&sess->s_id)) {
+				PRINT_INFO("qla2x00t(%ld): cancel deletion of "
+					"session for port %02x:%02x:%02x:"
+					"%02x:%02x:%02x:%02x:%02x (loop ID %d), "
+					"because it isn't deleted by firmware",
+					ha->instance,
+					sess->port_name[0], sess->port_name[1],
+					sess->port_name[2], sess->port_name[3],
+					sess->port_name[4], sess->port_name[5],
+					sess->port_name[6], sess->port_name[7],
+					sess->loop_id);
+				sess->local = 1;
+			} else {
+				/*
+				 * sess will be deleted from del_sess_list in
+				 * q2t_unreg_sess()
+				 */
+				TRACE_MGMT_DBG("Timeout: sess %p about to be "
+					"deleted", sess);
+				q2t_sess_put(sess);
+			}
 		} else {
-			tgt->sess_del_timer.expires = sess->expires;
-			add_timer(&tgt->sess_del_timer);
+			schedule_delayed_work(&tgt->sess_del_work,
+				sess->expires);
 			break;
 		}
 	}
@@ -786,6 +902,8 @@ static void q2t_del_sess_timer_fn(unsigned long arg)
 
 static void q2t_undelete_sess(struct q2t_sess *sess)
 {
+	sBUG_ON(!sess->deleted);
+
 	list_del(&sess->del_list_entry);
 	sess->deleted = 0;
 }
@@ -992,7 +1110,6 @@ static void q2t_fc_port_deleted(scsi_qla_host_t *ha, fc_port_t *fcport)
 {
 	struct q2t_tgt *tgt;
 	struct q2t_sess *sess;
-	uint32_t dev_loss_tmo;
 	scsi_qla_host_t *pha = to_qla_parent(ha);
 
 	TRACE_ENTRY();
@@ -1004,8 +1121,6 @@ static void q2t_fc_port_deleted(scsi_qla_host_t *ha, fc_port_t *fcport)
 	if ((tgt == NULL) || (fcport->port_type != FCT_INITIATOR))
 		goto out_unlock;
 
-	dev_loss_tmo = ha->port_down_retry_count + 5;
-
 	if (tgt->tgt_stop)
 		goto out_unlock;
 
@@ -1015,29 +1130,7 @@ static void q2t_fc_port_deleted(scsi_qla_host_t *ha, fc_port_t *fcport)
 	if (sess == NULL)
 		goto out_unlock_ha;
 
-	if (!sess->deleted) {
-		int add_tmr;
-
-		add_tmr = list_empty(&tgt->del_sess_list);
-
-		TRACE_MGMT_DBG("Scheduling sess %p to deletion", sess);
-		list_add_tail(&sess->del_list_entry, &tgt->del_sess_list);
-		sess->deleted = 1;
-
-		PRINT_INFO("qla2x00t(%ld): %ssession for port %02x:%02x:%02x:"
-			"%02x:%02x:%02x:%02x:%02x (loop ID %d) scheduled for "
-			"deletion in %d secs", ha->instance,
-			sess->local ? "local " : "",
-			fcport->port_name[0], fcport->port_name[1],
-			fcport->port_name[2], fcport->port_name[3],
-			fcport->port_name[4], fcport->port_name[5],
-			fcport->port_name[6], fcport->port_name[7],
-			sess->loop_id, dev_loss_tmo);
-
-		sess->expires = jiffies + dev_loss_tmo * HZ;
-		if (add_tmr)
-			mod_timer(&tgt->sess_del_timer, sess->expires);
-	}
+	q2t_schedule_sess_for_deletion(sess);
 
 out_unlock_ha:
 	spin_unlock_irq(&pha->hardware_lock);
@@ -1091,7 +1184,7 @@ static void q2t_target_stop(struct scst_tgt *scst_tgt)
 	spin_unlock_irq(&pha->hardware_lock);
 	mutex_unlock(&ha->tgt_mutex);
 
-	del_timer_sync(&tgt->sess_del_timer);
+	cancel_delayed_work_sync(&tgt->sess_del_work);
 
 	TRACE_MGMT_DBG("Waiting for sess works (tgt %p)", tgt);
 	spin_lock_irq(&tgt->sess_work_lock);
@@ -4981,74 +5074,6 @@ out:
 	return res;
 }
 
-static int q24_get_loop_id(scsi_qla_host_t *ha, atio7_entry_t *atio7,
-	uint16_t *loop_id)
-{
-	dma_addr_t gid_list_dma;
-	struct gid_list_info *gid_list;
-	char *id_iter;
-	int res, rc, i;
-	uint16_t entries;
-
-	TRACE_ENTRY();
-
-	gid_list = dma_alloc_coherent(&ha->pdev->dev, GID_LIST_SIZE,
-			&gid_list_dma, GFP_KERNEL);
-	if (gid_list == NULL) {
-		PRINT_ERROR("qla2x00t(%ld): DMA Alloc failed of %zd",
-			ha->instance, GID_LIST_SIZE);
-		res = -ENOMEM;
-		goto out;
-	}
-
-	/* Get list of logged in devices */
-	rc = qla2x00_get_id_list(ha, gid_list, gid_list_dma, &entries);
-	if (rc != QLA_SUCCESS) {
-		PRINT_ERROR("qla2x00t(%ld): get_id_list() failed: %x",
-			ha->instance, rc);
-		res = -1;
-		goto out_free_id_list;
-	}
-
-	id_iter = (char *)gid_list;
-	res = -1;
-	for (i = 0; i < entries; i++) {
-		struct gid_list_info *gid = (struct gid_list_info *)id_iter;
-		if ((gid->al_pa == atio7->fcp_hdr.s_id[2]) &&
-		    (gid->area == atio7->fcp_hdr.s_id[1]) &&
-		    (gid->domain == atio7->fcp_hdr.s_id[0])) {
-			*loop_id = le16_to_cpu(gid->loop_id);
-			res = 0;
-			break;
-		}
-		id_iter += ha->gid_list_info_size;
-	}
-
-	if (res != 0) {
-		if ((atio7->fcp_hdr.s_id[0] == 0xFF) &&
-		    (atio7->fcp_hdr.s_id[1] == 0xFC)) {
-			/*
-			 * This is Domain Controller. It should be OK to drop
-			 * SCSI commands from it.
-			 */
-			TRACE_MGMT_DBG("Unable to find initiator with S_ID "
-				"%x:%x:%x", atio7->fcp_hdr.s_id[0],
-				atio7->fcp_hdr.s_id[1], atio7->fcp_hdr.s_id[2]);
-		} else
-			PRINT_ERROR("qla2x00t(%ld): Unable to find initiator with "
-				"S_ID %x:%x:%x", ha->instance,
-				atio7->fcp_hdr.s_id[0], atio7->fcp_hdr.s_id[1],
-				atio7->fcp_hdr.s_id[2]);
-	}
-
-out_free_id_list:
-	dma_free_coherent(&ha->pdev->dev, GID_LIST_SIZE, gid_list, gid_list_dma);
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
 /* Must be called under tgt_mutex */
 static struct q2t_sess *q2t_make_local_sess(scsi_qla_host_t *ha, atio_t *atio)
 {
@@ -5060,9 +5085,27 @@ static struct q2t_sess *q2t_make_local_sess(scsi_qla_host_t *ha, atio_t *atio)
 	TRACE_ENTRY();
 
 	if (IS_FWI2_CAPABLE(ha)) {
-		rc = q24_get_loop_id(ha, (atio7_entry_t *)atio, &loop_id);
-		if (rc != 0)
+		atio7_entry_t *atio7 = (atio7_entry_t *)atio;
+		rc = q24_get_loop_id(ha, atio7->fcp_hdr.s_id, &loop_id);
+		if (rc != 0) {
+			if ((atio7->fcp_hdr.s_id[0] == 0xFF) &&
+			    (atio7->fcp_hdr.s_id[1] == 0xFC)) {
+				/*
+				 * This is Domain Controller, so it should be
+				 * OK to drop SCSI commands from it.
+				 */
+				TRACE_MGMT_DBG("Unable to find initiator with "
+					"S_ID %x:%x:%x", atio7->fcp_hdr.s_id[0],
+					atio7->fcp_hdr.s_id[1],
+					atio7->fcp_hdr.s_id[2]);
+			} else
+				PRINT_ERROR("qla2x00t(%ld): Unable to find "
+					"initiator with S_ID %x:%x:%x",
+					ha->instance, atio7->fcp_hdr.s_id[0],
+					atio7->fcp_hdr.s_id[1],
+					atio7->fcp_hdr.s_id[2]);
 			goto out;
+		}
 	} else
 		loop_id = GET_TARGET_ID(ha, (atio_entry_t *)atio);
 
@@ -5304,9 +5347,8 @@ static int q2t_add_target(scsi_qla_host_t *ha)
 	init_waitqueue_head(&tgt->waitQ);
 	INIT_LIST_HEAD(&tgt->sess_list);
 	INIT_LIST_HEAD(&tgt->del_sess_list);
-	init_timer(&tgt->sess_del_timer);
-	tgt->sess_del_timer.data = (unsigned long)tgt;
-	tgt->sess_del_timer.function = q2t_del_sess_timer_fn;
+	INIT_DELAYED_WORK(&tgt->sess_del_work,
+		(void (*)(struct work_struct *))q2t_del_sess_work_fn);
 	spin_lock_init(&tgt->sess_work_lock);
 	INIT_WORK(&tgt->sess_work, q2t_sess_work_fn);
 	INIT_LIST_HEAD(&tgt->sess_works_list);

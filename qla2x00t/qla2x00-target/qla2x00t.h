@@ -145,7 +145,7 @@ struct q2t_tgt {
 
 	/* Protected by hardware_lock */
 	struct list_head del_sess_list;
-	struct timer_list sess_del_timer;
+	struct delayed_work sess_del_work;
 
 	spinlock_t sess_work_lock;
 	struct list_head sess_works_list;
