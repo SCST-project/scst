@@ -1204,7 +1204,7 @@ static __be32 cmnd_set_sn(struct iscsi_cmnd *cmnd, int set_stat_sn)
 }
 
 /* Called under sn_lock */
-static void __update_stat_sn(struct iscsi_cmnd *cmnd)
+static void update_stat_sn(struct iscsi_cmnd *cmnd)
 {
 	struct iscsi_conn *conn = cmnd->conn;
 	u32 exp_stat_sn;
@@ -1217,31 +1217,6 @@ static void __update_stat_sn(struct iscsi_cmnd *cmnd)
 		cmnd->conn->exp_stat_sn = exp_stat_sn;
 	}
 	return;
-}
-
-static inline void update_stat_sn(struct iscsi_cmnd *cmnd)
-{
-	spin_lock(&cmnd->conn->session->sn_lock);
-	__update_stat_sn(cmnd);
-	spin_unlock(&cmnd->conn->session->sn_lock);
-	return;
-}
-
-/* Called under sn_lock */
-static int check_cmd_sn(struct iscsi_cmnd *cmnd)
-{
-	struct iscsi_session *session = cmnd->conn->session;
-	u32 cmd_sn;
-
-	cmnd->pdu.bhs.sn = cmd_sn = be32_to_cpu((__force __be32)cmnd->pdu.bhs.sn);
-	TRACE_DBG("%d(%d)", cmd_sn, session->exp_cmd_sn);
-	if ((s32)(cmd_sn - session->exp_cmd_sn) >= 0)
-		return 0;
-	if (likely(cmnd->pdu.bhs.opcode & ISCSI_OP_IMMEDIATE))
-		return 0;
-	PRINT_ERROR("sequence error (cmd sn %x, exp cmd sn %x, )",
-		cmd_sn, session->exp_cmd_sn);
-	return -ISCSI_REASON_PROTOCOL_ERROR;
 }
 
 static struct iscsi_cmnd *cmnd_find_itt_get(struct iscsi_conn *conn, __be32 itt)
@@ -1717,12 +1692,7 @@ static int nop_out_start(struct iscsi_cmnd *cmnd)
 				"non-immediate Nop-Out command");
 	}
 
-	spin_lock(&conn->session->sn_lock);
-	__update_stat_sn(cmnd);
-	err = check_cmd_sn(cmnd);
-	spin_unlock(&conn->session->sn_lock);
-	if (unlikely(err))
-		goto out;
+	update_stat_sn(cmnd);
 
 	size = cmnd->pdu.datasize;
 
@@ -2009,8 +1979,7 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 		break;
 	}
 
-	/* check_cmd_sn() not called yet to convert cmd_sn in the CPU format */
-	scst_cmd_set_tgt_sn(scst_cmd, be32_to_cpu((__force __be32)req_hdr->cmd_sn));
+	scst_cmd_set_tgt_sn(scst_cmd, req_hdr->cmd_sn);
 
 	ahdr = (struct iscsi_ahs_hdr *)req->pdu.ahs;
 	if (ahdr != NULL) {
@@ -2528,7 +2497,7 @@ static void execute_task_management(struct iscsi_cmnd *req)
 		goto reject;
 	}
 
-	/* cmd_sn is already in CPU format converted in check_cmd_sn() */
+	/* cmd_sn is already in CPU format converted in cmnd_rx_start() */
 
 	switch (function) {
 	case ISCSI_FUNCTION_ABORT_TASK:
@@ -2976,8 +2945,10 @@ static void iscsi_push_cmnd(struct iscsi_cmnd *cmnd)
 		 */
 
 		if (unlikely(before(cmd_sn, session->exp_cmd_sn))) {
-			PRINT_ERROR("Unexpected cmd_sn (%u,%u)", cmd_sn,
-				session->exp_cmd_sn);
+			TRACE_MGMT_DBG("Ignoring out of expected range cmd_sn "
+				"(sn %u, exp_sn %u, op %x, CDB op %x)", cmd_sn,
+				session->exp_cmd_sn, cmnd_opcode(cmnd),
+				cmnd_scsicode(cmnd));
 			drop = 1;
 		}
 
@@ -2987,6 +2958,7 @@ static void iscsi_push_cmnd(struct iscsi_cmnd *cmnd)
 			TRACE_MGMT_DBG("Too large cmd_sn %u (exp_cmd_sn %u, "
 				"max_sn %u)", cmd_sn, session->exp_cmd_sn,
 				iscsi_get_allowed_cmds(session));
+			drop = 1;
 		}
 #endif
 
@@ -3051,7 +3023,7 @@ static int check_segment_length(struct iscsi_cmnd *cmnd)
 
 int cmnd_rx_start(struct iscsi_cmnd *cmnd)
 {
-	int res, rc;
+	int res, rc = 0;
 
 	iscsi_dump_pdu(&cmnd->pdu);
 
@@ -3059,15 +3031,14 @@ int cmnd_rx_start(struct iscsi_cmnd *cmnd)
 	if (res != 0)
 		goto out;
 
+	cmnd->pdu.bhs.sn = be32_to_cpu((__force __be32)cmnd->pdu.bhs.sn);
+
 	switch (cmnd_opcode(cmnd)) {
 	case ISCSI_OP_SCSI_CMD:
 		res = scsi_cmnd_start(cmnd);
 		if (unlikely(res < 0))
 			goto out;
-		spin_lock(&cmnd->conn->session->sn_lock);
-		__update_stat_sn(cmnd);
-		rc = check_cmd_sn(cmnd);
-		spin_unlock(&cmnd->conn->session->sn_lock);
+		update_stat_sn(cmnd);
 		break;
 	case ISCSI_OP_SCSI_DATA_OUT:
 		res = data_out_start(cmnd);
@@ -3077,10 +3048,7 @@ int cmnd_rx_start(struct iscsi_cmnd *cmnd)
 		break;
 	case ISCSI_OP_SCSI_TASK_MGT_MSG:
 	case ISCSI_OP_LOGOUT_CMD:
-		spin_lock(&cmnd->conn->session->sn_lock);
-		__update_stat_sn(cmnd);
-		rc = check_cmd_sn(cmnd);
-		spin_unlock(&cmnd->conn->session->sn_lock);
+		update_stat_sn(cmnd);
 		break;
 	case ISCSI_OP_TEXT_CMD:
 	case ISCSI_OP_SNACK_CMD:

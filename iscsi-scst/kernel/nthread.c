@@ -179,8 +179,10 @@ static void free_pending_commands(struct iscsi_conn *conn)
 				session->exp_cmd_sn);
 			if ((cmnd->conn == conn) &&
 			    (session->exp_cmd_sn == cmnd->pdu.bhs.sn)) {
-				TRACE_CONN_CLOSE_DBG("Freeing pending cmd %p",
-					cmnd);
+				TRACE_MGMT_DBG("Freeing pending cmd %p "
+					"(cmd_sn %u, exp_cmd_sn %u)",
+					cmnd, cmnd->pdu.bhs.sn,
+					session->exp_cmd_sn);
 
 				list_del(&cmnd->pending_list_entry);
 				cmnd->pending = 0;
@@ -219,7 +221,9 @@ static void free_orphaned_pending_commands(struct iscsi_conn *conn)
 				session->exp_cmd_sn);
 			if (cmnd->conn == conn) {
 				TRACE_MGMT_DBG("Freeing orphaned pending "
-					"cmnd %p", cmnd);
+					"cmnd %p (cmd_sn %u, exp_cmd_sn %u)",
+					cmnd, cmnd->pdu.bhs.sn,
+					session->exp_cmd_sn);
 
 				list_del(&cmnd->pending_list_entry);
 				cmnd->pending = 0;
