@@ -433,7 +433,7 @@ typedef struct {
 	 * make sizeof(fcp_cmnd_t) be as expected by BUILD_BUG_ON() in
 	 * q2t_init().
 	 */
-	uint8_t  add_cdb[4]; 
+	uint8_t  add_cdb[4];
 	/* uint32_t data_length; */
 } __attribute__((packed)) fcp_cmnd_t;
 
