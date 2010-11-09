@@ -33,7 +33,11 @@ BOOTED*. Please don't try to be smart and filter out what's you
 think isn't needed. What's usually removed could allow us to see the
 target and SCST configurations.
 
-Don't forget to compress your log using "bzip2 -9".
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!! ALWAYS COMPRESS YOUR LOGS USING "bzip2 -9" !!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 Example of a really bad question:
 
