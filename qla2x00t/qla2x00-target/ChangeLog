@@ -12,6 +12,8 @@ Summary of changes between versions 2.0.0 and 2.1.0
 
  - Local sessions management made more robust
 
+ - Long CDBs handling fixed
+
  - Other minor fixes and cleanups
 
 

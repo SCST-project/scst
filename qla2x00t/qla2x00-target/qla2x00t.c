@@ -30,6 +30,7 @@
 #include <linux/pci.h>
 #include <linux/delay.h>
 #include <linux/list.h>
+#include <asm/unaligned.h>
 
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/scst.h>
@@ -2915,7 +2916,8 @@ static void q24_send_term_exchange(scsi_qla_host_t *ha, struct q2t_cmd *cmd,
 	ctio->ox_id = swab16(atio->fcp_hdr.ox_id);
 
 	/* Most likely, it isn't needed */
-	ctio->residual = atio->fcp_cmnd.data_length;
+	ctio->residual = get_unaligned((uint32_t *)
+			&atio->fcp_cmnd.add_cdb[atio->fcp_cmnd.add_cdb_len]);
 	if (ctio->residual != 0)
 		ctio->scsi_status |= SS_RESIDUAL_UNDER;
 
@@ -3410,7 +3412,8 @@ static int q24_do_send_cmd_to_scst(struct q2t_cmd *cmd)
 
 	cmd->scst_cmd = scst_rx_cmd(sess->scst_sess,
 		(uint8_t *)&atio->fcp_cmnd.lun, sizeof(atio->fcp_cmnd.lun),
-		atio->fcp_cmnd.cdb, Q2T_MAX_CDB_LEN, SCST_ATOMIC);
+		atio->fcp_cmnd.cdb, sizeof(atio->fcp_cmnd.cdb) +
+			atio->fcp_cmnd.add_cdb_len, SCST_ATOMIC);
 
 	if (cmd->scst_cmd == NULL) {
 		PRINT_ERROR("%s", "qla2x00t: scst_rx_cmd() failed");
@@ -3431,7 +3434,8 @@ static int q24_do_send_cmd_to_scst(struct q2t_cmd *cmd)
 	else
 		dir = SCST_DATA_NONE;
 	scst_cmd_set_expected(cmd->scst_cmd, dir,
-		be32_to_cpu(atio->fcp_cmnd.data_length));
+		be32_to_cpu(get_unaligned((uint32_t *)
+			&atio->fcp_cmnd.add_cdb[atio->fcp_cmnd.add_cdb_len])));
 
 	switch (atio->fcp_cmnd.task_attr) {
 	case ATIO_SIMPLE_QUEUE:
@@ -4618,7 +4622,8 @@ static void q24_send_busy(scsi_qla_host_t *ha, atio7_entry_t *atio,
 	 */
 	ctio->ox_id = swab16(atio->fcp_hdr.ox_id);
 	ctio->scsi_status = cpu_to_le16(status);
-	ctio->residual = atio->fcp_cmnd.data_length;
+	ctio->residual = get_unaligned((uint32_t *)
+			&atio->fcp_cmnd.add_cdb[atio->fcp_cmnd.add_cdb_len]);
 	if (ctio->residual != 0)
 		ctio->scsi_status |= SS_RESIDUAL_UNDER;
 
@@ -4657,19 +4662,12 @@ static void q24_atio_pkt(scsi_qla_host_t *ha, atio7_entry_t *atio)
 
 	switch (atio->entry_type) {
 	case ATIO_TYPE7:
-		if (unlikely(atio->entry_count > 1) ||
-		    unlikely(atio->fcp_cmnd.add_cdb_len != 0)) {
-			PRINT_ERROR("qla2x00t(%ld): Multi entry ATIO7 IOCBs "
-				"(%d), ie with CDBs>16 bytes (%d), are not "
-				"supported", ha->instance, atio->entry_count,
-				atio->fcp_cmnd.add_cdb_len);
-			break;
-		}
 		TRACE_DBG("ATIO_TYPE7 instance %ld, lun %Lx, read/write %d/%d, "
-			"data_length %04x, s_id %x:%x:%x", ha->instance,
-			atio->fcp_cmnd.lun, atio->fcp_cmnd.rddata,
-			atio->fcp_cmnd.wrdata,
-			be32_to_cpu(atio->fcp_cmnd.data_length),
+			"add_cdb_len %d, data_length %04x, s_id %x:%x:%x",
+			ha->instance, atio->fcp_cmnd.lun, atio->fcp_cmnd.rddata,
+			atio->fcp_cmnd.wrdata, atio->fcp_cmnd.add_cdb_len,
+			be32_to_cpu(get_unaligned((uint32_t *)
+				&atio->fcp_cmnd.add_cdb[atio->fcp_cmnd.add_cdb_len])),
 			atio->fcp_hdr.s_id[0], atio->fcp_hdr.s_id[1],
 			atio->fcp_hdr.s_id[2]);
 		TRACE_BUFFER("Incoming ATIO7 packet data", atio,

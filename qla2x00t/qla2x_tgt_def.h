@@ -428,8 +428,13 @@ typedef struct {
 	uint8_t  rddata:1;
 	uint8_t  add_cdb_len:6;
 	uint8_t  cdb[16];
-	/* Valid only if add_cdb_len=0, otherwise this is additional CDB data */
-	uint32_t data_length;
+	/*
+	 * add_cdb is optional and can absent from fcp_cmnd_t. Size 4 only to
+	 * make sizeof(fcp_cmnd_t) be as expected by BUILD_BUG_ON() in
+	 * q2t_init().
+	 */
+	uint8_t  add_cdb[4]; 
+	/* uint32_t data_length; */
 } __attribute__((packed)) fcp_cmnd_t;
 
 /*
