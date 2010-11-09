@@ -135,6 +135,17 @@
 #define SCST_MGMT_STATUS_FAILED			-129
 
 /*************************************************************
+ ** SCSI LUN addressing methods. See also SAM-2 and the
+ ** section about eight byte LUNs.
+ *************************************************************/
+enum scst_lun_addr_method {
+	SCST_LUN_ADDR_METHOD_PERIPHERAL	  = 0,
+	SCST_LUN_ADDR_METHOD_FLAT	  = 1,
+	SCST_LUN_ADDR_METHOD_LUN	  = 2,
+	SCST_LUN_ADDR_METHOD_EXTENDED_LUN = 3,
+};
+
+/*************************************************************
  ** SCSI task attribute queue types
  *************************************************************/
 enum scst_cmd_queue_type {

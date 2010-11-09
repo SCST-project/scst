@@ -137,6 +137,7 @@ static char *scst_proc_help_string =
 "   echo \"assign H:C:I:L HANDLER_NAME\" >/proc/scsi_tgt/scsi_tgt\n"
 "\n"
 "   echo \"add_group GROUP_NAME [FLAT]\" >/proc/scsi_tgt/scsi_tgt\n"
+"   echo \"add_group GROUP_NAME [LUN]\" >/proc/scsi_tgt/scsi_tgt\n"
 "   echo \"del_group GROUP_NAME\" >/proc/scsi_tgt/scsi_tgt\n"
 "   echo \"rename_group OLD_NAME NEW_NAME\" >/proc/scsi_tgt/scsi_tgt\n"
 "\n"
@@ -1628,6 +1629,7 @@ static ssize_t scst_proc_scsi_tgt_gen_write(struct file *file,
 
 	/*
 	 * Usage: echo "add_group GROUP_NAME [FLAT]" >/proc/scsi_tgt/scsi_tgt
+	 *   or   echo "add_group GROUP_NAME [LUN]" >/proc/scsi_tgt/scsi_tgt
 	 *   or   echo "del_group GROUP_NAME" >/proc/scsi_tgt/scsi_tgt
 	 *   or   echo "rename_group OLD_NAME NEW_NAME" >/proc/scsi_tgt/scsi_tgt"
 	 *   or   echo "assign H:C:I:L HANDLER_NAME" >/proc/scsi_tgt/scsi_tgt
@@ -1697,13 +1699,16 @@ static ssize_t scst_proc_scsi_tgt_gen_write(struct file *file,
 							goto out_up_free;
 					   }
 					}
-					if (strcasecmp(pp, "FLAT") != 0) {
+					if (strcasecmp(pp, "FLAT") == 0)
+						addr_method = SCST_LUN_ADDR_METHOD_FLAT;
+					else if (strcasecmp(pp, "LUN") == 0)
+						addr_method = SCST_LUN_ADDR_METHOD_LUN;
+					else {
 						PRINT_ERROR("Unexpected "
 							"argument %s", pp);
 						res = -EINVAL;
 						goto out_up_free;
-					} else
-						addr_method = SCST_LUN_ADDR_METHOD_FLAT;
+					}
 					break;
 				case SCST_PROC_ACTION_DEL_GROUP:
 					PRINT_ERROR("%s", "Too many "
@@ -2496,6 +2501,9 @@ static int scst_groups_addr_method_show(struct seq_file *seq, void *v)
 		break;
 	case SCST_LUN_ADDR_METHOD_PERIPHERAL:
 		seq_printf(seq, "%s\n", "PERIPHERAL");
+		break;
+	case SCST_LUN_ADDR_METHOD_LUN:
+		seq_printf(seq, "%s\n", "LUN");
 		break;
 	default:
 		seq_printf(seq, "%s\n", "UNKNOWN");

@@ -1489,10 +1489,15 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			resp_len = buf[3] + 4;
 		} else if (0x80 == cmd->cdb[2]) {
 			/* unit serial number */
-			int usn_len = strlen(virt_dev->usn);
 			buf[1] = 0x80;
-			buf[3] = usn_len;
-			strncpy(&buf[4], virt_dev->usn, usn_len);
+			if (cmd->tgtt->get_serial) {
+				buf[3] = cmd->tgtt->get_serial(cmd->tgt_dev,
+						       &buf[4], INQ_BUF_SZ - 4);
+			} else {
+				int usn_len = strlen(virt_dev->usn);
+				buf[3] = usn_len;
+				strncpy(&buf[4], virt_dev->usn, usn_len);
+			}
 			resp_len = buf[3] + 4;
 		} else if (0x83 == cmd->cdb[2]) {
 			/* device identification */
@@ -1502,7 +1507,9 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			/* T10 vendor identifier field format (faked) */
 			buf[num + 0] = 0x2;	/* ASCII */
 			buf[num + 1] = 0x1;	/* Vendor ID */
-			if (virt_dev->blockio)
+			if (cmd->tgtt->vendor)
+				memcpy(&buf[num + 4], cmd->tgtt->vendor, 8);
+			else if (virt_dev->blockio)
 				memcpy(&buf[num + 4], SCST_BIO_VENDOR, 8);
 			else
 				memcpy(&buf[num + 4], SCST_FIO_VENDOR, 8);
@@ -1633,7 +1640,9 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 		 * 8 byte ASCII Vendor Identification of the target
 		 * - left aligned.
 		 */
-		if (virt_dev->blockio)
+		if (cmd->tgtt->vendor)
+			memcpy(&buf[8], cmd->tgtt->vendor, 8);
+		else if (virt_dev->blockio)
 			memcpy(&buf[8], SCST_BIO_VENDOR, 8);
 		else
 			memcpy(&buf[8], SCST_FIO_VENDOR, 8);
@@ -1643,14 +1652,21 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 		 * aligned.
 		 */
 		memset(&buf[16], ' ', 16);
-		len = min(strlen(virt_dev->name), (size_t)16);
-		memcpy(&buf[16], virt_dev->name, len);
+		if (cmd->tgtt->get_product_id)
+			cmd->tgtt->get_product_id(cmd->tgt_dev, &buf[16], 16);
+		else {
+			len = min_t(size_t, strlen(virt_dev->name), 16);
+			memcpy(&buf[16], virt_dev->name, len);
+		}
 
 		/*
 		 * 4 byte ASCII Product Revision Level of the target - left
 		 * aligned.
 		 */
-		memcpy(&buf[32], SCST_FIO_REV, 4);
+		if (cmd->tgtt->revision)
+			memcpy(&buf[32], cmd->tgtt->revision, 4);
+		else
+			memcpy(&buf[32], SCST_FIO_REV, 4);
 
 		/** Version descriptors **/
 
@@ -1688,6 +1704,14 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			*((__be16 *)&buf[58 + num]) =
 				cpu_to_be16(virt_dev->command_set_version);
 			num += 2;
+		}
+
+		/* Vendor specific information. */
+		if (cmd->tgtt->get_vend_specific) {
+			/* Skip to byte 96. */
+			num = 96 - 58;
+			num += cmd->tgtt->get_vend_specific(cmd->tgt_dev,
+						    &buf[96], INQ_BUF_SZ - 96);
 		}
 
 		buf[4] += num;

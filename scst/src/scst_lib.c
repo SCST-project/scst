@@ -2816,14 +2816,17 @@ struct scst_acg *scst_alloc_add_acg(struct scst_tgt *tgt,
 		goto out_free;
 	}
 
-	acg->addr_method = SCST_LUN_ADDR_METHOD_PERIPHERAL;
-
 #ifdef CONFIG_SCST_PROC
+	acg->addr_method = tgt && tgt->tgtt ? tgt->tgtt->preferred_addr_method
+		: SCST_LUN_ADDR_METHOD_PERIPHERAL;
+
 	TRACE_DBG("Adding acg %s to scst_acg_list", acg_name);
 	list_add_tail(&acg->acg_list_entry, &scst_acg_list);
 
 	scst_check_reassign_sessions();
 #else
+	acg->addr_method = tgt->tgtt->preferred_addr_method;
+
 	if (tgt_acg) {
 		int rc;
 
@@ -5216,27 +5219,17 @@ out:
 EXPORT_SYMBOL_GPL(scst_get_cdb_info);
 
 /* Packs SCST LUN back to SCSI form */
-__be64 scst_pack_lun(const uint64_t lun, unsigned int addr_method)
+__be64 scst_pack_lun(const uint64_t lun, enum scst_lun_addr_method addr_method)
 {
-	uint64_t res;
-	uint16_t *p = (uint16_t *)&res;
+	uint64_t res = 0;
 
-	res = lun;
-
-	if ((addr_method == SCST_LUN_ADDR_METHOD_FLAT) && (lun != 0)) {
-		/*
-		 * Flat space: luns other than 0 should use flat space
-		 * addressing method.
-		 */
-		*p = 0x7fff & *p;
-		*p = 0x4000 | *p;
+	if (lun) {
+		res = (addr_method << 14) | (lun & 0x3fff);
+		res = res << 48;
 	}
-	/* Default is to use peripheral device addressing mode */
 
-	*p = (__force u16)cpu_to_be16(*p);
-
-	TRACE_EXIT_HRES((unsigned long)res);
-	return (__force __be64)res;
+	TRACE_EXIT_HRES(res >> 48);
+	return cpu_to_be64(res);
 }
 
 /*
@@ -5282,46 +5275,13 @@ uint64_t scst_unpack_lun(const uint8_t *lun, int len)
 
 	address_method = (*lun) >> 6;	/* high 2 bits of byte 0 */
 	switch (address_method) {
-	case 0:	/* peripheral device addressing method */
-#if 0
-		if (*lun) {
-			PRINT_ERROR("Illegal BUS INDENTIFIER in LUN "
-			     "peripheral device addressing method 0x%02x, "
-			     "expected 0", *lun);
-			break;
-		}
-		res = *(lun + 1);
-		break;
-#else
-		/*
-		 * Looks like it's legal to use it as flat space addressing
-		 * method as well
-		 */
-
-		/* go through */
-#endif
-
-	case 1:	/* flat space addressing method */
+	case SCST_LUN_ADDR_METHOD_PERIPHERAL:
+	case SCST_LUN_ADDR_METHOD_FLAT:
+	case SCST_LUN_ADDR_METHOD_LUN:
 		res = *(lun + 1) | (((*lun) & 0x3f) << 8);
 		break;
 
-	case 2:	/* logical unit addressing method */
-		if (*lun & 0x3f) {
-			PRINT_ERROR("Illegal BUS NUMBER in LUN logical unit "
-				    "addressing method 0x%02x, expected 0",
-				    *lun & 0x3f);
-			break;
-		}
-		if (*(lun + 1) & 0xe0) {
-			PRINT_ERROR("Illegal TARGET in LUN logical unit "
-				    "addressing method 0x%02x, expected 0",
-				    (*(lun + 1) & 0xf8) >> 5);
-			break;
-		}
-		res = *(lun + 1) & 0x1f;
-		break;
-
-	case 3:	/* extended logical unit addressing method */
+	case SCST_LUN_ADDR_METHOD_EXTENDED_LUN:
 	default:
 		PRINT_ERROR("Unimplemented LUN addressing method %u",
 			    address_method);

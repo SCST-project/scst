@@ -641,6 +641,18 @@ struct scst_tgt_template {
 #endif
 
 	/*
+	 * True if SCST should report that it supports ACA although it does
+	 * not yet support ACA. Necessary for the IBM virtual SCSI target
+	 * driver.
+	 */
+	unsigned fake_aca:1;
+
+	/*
+	 * Preferred SCSI LUN addressing method.
+	 */
+	enum scst_lun_addr_method preferred_addr_method;
+
+	/*
 	 * The maximum time in seconds cmd can stay inside the target
 	 * hardware, i.e. after rdy_to_xfer() and xmit_response(), before
 	 * on_hw_pending_cmd_timeout() will be called, if defined.
@@ -1036,6 +1048,48 @@ struct scst_tgt_template {
 	/* Device number in /proc */
 	int proc_dev_num;
 #endif
+
+	/*
+	 * Optional vendor to be reported via the SCSI inquiry data. If NULL,
+	 * an SCST device handler specific default value will be used, e.g.
+	 * "SCST_FIO" for scst_vdisk file I/O.
+	 */
+	const char *vendor;
+
+	/*
+	 * Optional method that sets the product ID in [buf, buf+size) based
+	 * on the device type (byte 0 of the SCSI inquiry data, which contains
+	 * the peripheral qualifier in the highest three bits and the
+	 * peripheral device type in the lower five bits).
+	 */
+	void (*get_product_id)(const struct scst_tgt_dev *tgt_dev,
+				   char *buf, int size);
+
+	/*
+	 * Optional revision to be reported in the SCSI inquiry response. If
+	 * NULL, an SCST device handler specific default value will be used,
+	 * e.g. " 210" for scst_vdisk file I/O.
+	 */
+	const char *revision;
+
+	/*
+	 * Optional method that writes the serial number of a target device in
+	 * [buf, buf+size) and returns the number of bytes written.
+	 *
+	 * Note: SCST can be configured such that a device can be accessed
+	 * from several different transports at the same time. It is important
+	 * that all clients see the same USN for proper operation. Overriding
+	 * the serial number can lead to subtle misbehavior.
+	 */
+	int (*get_serial)(const struct scst_tgt_dev *tgt_dev, char *buf,
+			  int size);
+
+	/*
+	 * Optional method that writes the SCSI inquiry vendor-specific data in
+	 * [buf, buf+size) and returns the number of bytes written.
+	 */
+	int (*get_vend_specific)(const struct scst_tgt_dev *tgt_dev, char *buf,
+				 int size);
 };
 
 /*
@@ -2441,7 +2495,7 @@ struct scst_acg {
 	struct kobject *luns_kobj;
 	struct kobject *initiators_kobj;
 
-	unsigned int addr_method;
+	enum scst_lun_addr_method addr_method;
 };
 
 /*

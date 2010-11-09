@@ -1644,15 +1644,9 @@ static int scst_report_luns_local(struct scst_cmd *cmd)
 						buffer_size);
 					goto out_put_hw_err;
 				}
-				if ((cmd->sess->acg->addr_method == SCST_LUN_ADDR_METHOD_FLAT) &&
-				    (tgt_dev->lun != 0)) {
-					buffer[offs] = (tgt_dev->lun >> 8) & 0x3f;
-					buffer[offs] = buffer[offs] | 0x40;
-					buffer[offs+1] = tgt_dev->lun & 0xff;
-				} else {
-					buffer[offs] = (tgt_dev->lun >> 8) & 0xff;
-					buffer[offs+1] = tgt_dev->lun & 0xff;
-				}
+				*(__force __be64 *)&buffer[offs]
+					= scst_pack_lun(tgt_dev->lun,
+						cmd->sess->acg->addr_method);
 				offs += 8;
 			}
 inc_dev_cnt:
@@ -2987,18 +2981,18 @@ static int scst_pre_dev_done(struct scst_cmd *cmd)
 
 			/* ToDo: all pages ?? */
 			buflen = scst_get_buf_first(cmd, &buffer);
-			if (buflen > SCST_INQ_BYTE3) {
+			if (buflen > SCST_INQ_BYTE3 && !cmd->tgtt->fake_aca) {
 #ifdef CONFIG_SCST_EXTRACHECKS
 				if (buffer[SCST_INQ_BYTE3] & SCST_INQ_NORMACA_BIT) {
 					PRINT_INFO("NormACA set for device: "
-					    "lun=%lld, type 0x%02x. Clear it, "
-					    "since it's unsupported.",
-					    (long long unsigned int)cmd->lun,
-					    buffer[0]);
+						"lun=%lld, type 0x%02x. Clear it, "
+						"since it's unsupported.",
+						(long long unsigned int)cmd->lun,
+						buffer[0]);
 				}
 #endif
 				buffer[SCST_INQ_BYTE3] &= ~SCST_INQ_NORMACA_BIT;
-			} else if (buflen != 0) {
+			} else if (buflen <= SCST_INQ_BYTE3 && buflen != 0) {
 				PRINT_ERROR("%s", "Unable to get INQUIRY "
 				    "buffer");
 				scst_set_cmd_error(cmd,
