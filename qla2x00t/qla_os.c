@@ -1666,6 +1666,8 @@ qla2xxx_add_targets(void)
 }
 EXPORT_SYMBOL(qla2xxx_add_targets);
 
+#if ((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)) || \
+     defined(FC_VPORT_CREATE_DEFINED))
 size_t qla2xxx_add_vtarget(u64 *port_name, u64 *node_name, u64 *parent_host)
 {
 	struct Scsi_Host *shost = NULL;
@@ -1737,6 +1739,12 @@ size_t qla2xxx_del_vtarget(u64 *port_name)
 	return fc_vport_terminate(vport);
 }
 EXPORT_SYMBOL(qla2xxx_del_vtarget);
+#else
+
+#warning "Patch scst_fc_vport_create was not applied on\
+ your kernel. Adding NPIV targets using SCST sysfs interface will be disabled."
+#endif /*((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)) || \
+	  defined(FC_VPORT_CREATE_DEFINED))*/
 
 #endif /* CONFIG_SCSI_QLA2XXX_TARGET */
 

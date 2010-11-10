@@ -47,6 +47,14 @@ Before installation make sure that the link
 "/lib/modules/`you_kernel_version`/build" points to the source code for
 your currently running kernel.
 
+If your kernel version is <2.6.28, then you should consider applying
+kernel patch scst_fc_vport_create.patch from the "kernel" subdirectory.
+Without it, creating and removing NPIV targets using SCST sysfs
+interface will be disabled. NOTE: you will still be able to create and
+remove NPIV targets using the standard Linux interface (i.e. echoing
+wwpn:wwnn into /sys/class/fc_host/hostX/vport_create and
+/sys/class/fc_host/hostX/vport_delete).
+
 Then you should replace (or link) by the initiator driver from this
 package "qla2xxx" subdirectory in kernel_source/drivers/scsi/ of the
 currently running kernel and using your favorite kernel configuration
