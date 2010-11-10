@@ -2,6 +2,8 @@
 # A Makefile for the scst-local ...
 #
 
+SHELL=/bin/bash
+
 #SCST_INC_DIR := /usr/local/include/scst
 #SCST_DIR := $(SCST_INC_DIR)
 SCST_INC_DIR	:= $(SUBDIRS)/../scst/include/
@@ -102,4 +104,5 @@ perf2debug:
 	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed"; false; fi
 	rm Makefile.aa
 
-.PHONY: all tgt install uninstall clean extraclean
+.PHONY: all tgt install uninstall clean extraclean debug2release release2debug debug2perf perf2debug
+
