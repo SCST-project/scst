@@ -886,6 +886,7 @@ go:
 
 	res = 0;
 	cmd->completed = 1;
+	cmd->resid_possible = 1;
 
 out:
 	TRACE_EXIT_RES(res);
@@ -957,6 +958,7 @@ go:
 
 	res = 0;
 	cmd->completed = 1;
+	cmd->resid_possible = 1;
 
 out:
 	TRACE_EXIT_RES(res);
