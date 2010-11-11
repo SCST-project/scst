@@ -352,7 +352,7 @@ function process_preprocessor_statement(evaluated, condition) {
 function reset_hunk_state_variables() {
   lines                  =  0
   lines_less_added       =  0
-  lines_less_removed     =  0
+  lines_less_deleted     =  0
   output                 =  1
   if_nesting_level       = -1
   delete_next_blank_line =  0
