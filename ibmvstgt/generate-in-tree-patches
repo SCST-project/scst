@@ -43,7 +43,8 @@ do
   if [ "$f1" -nt "$f3" -o "$f2" -nt "$f3" ]; then
     file_to_patch "$f2" | \
       ../scripts/specialize-patch -v kernel_version="$1" \
-                                  -v generating_upstream_patch_defined=1 | \
+                                  -v generating_upstream_patch_defined=1 \
+                                  -v config_scst_proc_undefined=1 | \
       patch_to_file | \
       diff -up "$f1" - > "$f3"
   fi
