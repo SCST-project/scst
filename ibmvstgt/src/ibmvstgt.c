@@ -228,7 +228,7 @@ static int send_rsp(struct iu_entry *iue, struct scst_cmd *sc,
 	memset(iu, 0, sizeof(struct srp_rsp));
 	iu->srp.rsp.opcode = SRP_RSP;
 	iu->srp.rsp.req_lim_delta = __constant_cpu_to_be32(1
-					+ atomic_xchg(&vport->req_lim_delta, 0));
+				    + atomic_xchg(&vport->req_lim_delta, 0));
 	iu->srp.rsp.tag = tag;
 
 	if (test_bit(V_DIOVER, &iue->flags))
