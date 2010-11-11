@@ -1,0 +1,121 @@
+IBM Virtual SCSI Target (ibmvstgt)
+==================================
+
+
+Introduction
+------------
+The virtual SCSI (VSCSI) protocol as defined in [2] is a protocol that allows
+one logical partition (LPAR) to access SCSI targets provided by another LPAR.
+The LPAR that provides one or more SCSI targets is called the VIO server or
+VIOS. The ibmvstgt driver is a VIOS driver that makes it possible to access
+exported target devices via the VSCSI protocol.
+
+Setup
+-----
+After having configured the LPARs, boot the LPARs and load the ibmvstgt kernel
+module in the VIOS. After the target driver has been loaded, verify that a
+message similar to the following appears in the initiator kernel log:
+
+ibmvscsi 30000028: partner initialized
+ibmvscsi 30000028: host srp version: 16.a, host partition VIOS3-P6 (40), OS 2, max io 67108864
+ibmvscsi 30000028: sent SRP login
+ibmvscsi 30000028: SRP_LOGIN succeeded
+
+In the above log messages, the number 30000028 refers to the VIOS. The last
+two digits, 0x28, refer to the VIOS partition number (0x28 = 40).
+
+The next step is to decide which SCSI devices to export. Here is an example of
+a configuration in which 16 RAM disks have been exported (see also [1] for
+more information):
+
+$ cat /proc/scsi_tgt/vdisk/vdisk
+Name  Size(MB)  Block size  Options   File name        T10 device id
+ram000      16      512     NV        /dev/ram0        c726a6ab
+ram001      16      512     NV        /dev/ram1        eca3eb12
+ram002      16      512     NV        /dev/ram2        8e9fb87
+ram003      16      512     NV        /dev/ram3        912b0e46
+ram004      16      512     NV        /dev/ram4        c52a6cdf
+ram005      16      512     NV        /dev/ram5        b3f98ada
+ram006      16      512     NV        /dev/ram6        fb5fd9ce
+ram007      16      512     NV        /dev/ram7        3285b724
+ram008      16      512     NV        /dev/ram8        6a93ad6d
+ram009      16      512     NV        /dev/ram9        f0c60f83
+ram010      16      512     NV        /dev/ram10       f0c60f84
+ram011      16      512     NV        /dev/ram11       f0c60f85
+ram012      16      512     NV        /dev/ram12       f0c60f86
+ram013      16      512     NV        /dev/ram13       f0c60f87
+ram014      16      512     NV        /dev/ram14       f0c60f88
+ram015      16      512     NV        /dev/ram15       f0c60f89
+
+After this step a LUN has to be assigned to each exported SCSI device. Some
+non-Linux initiator operating systems only accept LUN numbes that are
+multiples of 256 and require that the LUN addressing method is used. The LUN
+addressing method is only available for other groups than the Default group.
+Configuring such a group can be done e.g. as follows:
+
+  vios_id="30000028"
+  echo "add_group ${vios_id} LUN" >/proc/scsi_tgt/scsi_tgt
+  echo "add ${vios_id}" >/proc/scsi_tgt/groups/${vios_id}/names
+  lun=0
+  for name in ram000 ram001 ram002 ram003 ram004 ram005 ram006 ram007 \
+              ram008 ram009 ram010 ram011 ram012 ram013 ram014 ram015
+  do
+    lun=$((lun+256))
+    echo "add $name $lun" >/proc/scsi_tgt/groups/${vios_id}/devices
+  done
+
+In the above, the first echo command will create a group and will enable LUN
+addressing for that group. The second echo command tells SCST to use this
+group instead of the Default group for VSCSI. And the subsequent commands
+assign LUNs to the exported vdisks. The result of the above commands will
+be as follows:
+
+# cat /proc/scsi_tgt/groups/30000028/devices
+Device (host:ch:id:lun or name)   LUN      Options
+ram000                            256
+ram001                            512
+ram002                            768
+ram003                            1024
+ram004                            1280
+ram005                            1536
+ram006                            1792
+ram007                            2048
+ram008                            2304
+ram009                            2560
+ram010                            2816
+ram011                            3072
+ram012                            3328
+ram013                            3584
+ram014                            3840
+ram015                            4096
+
+After SCST has been configured, make the new configuration available to the
+initiator by rescanning the SCSI bus, e.g. as follows:
+
+# rescan-scsi-bus --hosts=2 --ids=0-31
+# lsscsi 2:
+[2:0:1:0]    disk    IBM      VDASD blkdev     0001  /dev/sdb
+[2:0:2:0]    disk    IBM      VDASD blkdev     0001  /dev/sdc
+[2:0:3:0]    disk    IBM      VDASD blkdev     0001  /dev/sdd
+[2:0:4:0]    disk    IBM      VDASD blkdev     0001  /dev/sde
+[2:0:5:0]    disk    IBM      VDASD blkdev     0001  /dev/sdf
+[2:0:6:0]    disk    IBM      VDASD blkdev     0001  /dev/sdg
+[2:0:7:0]    disk    IBM      VDASD blkdev     0001  /dev/sdh
+[2:0:8:0]    disk    IBM      VDASD blkdev     0001  /dev/sdi
+[2:0:9:0]    disk    IBM      VDASD blkdev     0001  /dev/sdj
+[2:0:10:0]   disk    IBM      VDASD blkdev     0001  /dev/sdk
+[2:0:11:0]   disk    IBM      VDASD blkdev     0001  /dev/sdl
+[2:0:12:0]   disk    IBM      VDASD blkdev     0001  /dev/sdm
+[2:0:13:0]   disk    IBM      VDASD blkdev     0001  /dev/sdn
+[2:0:14:0]   disk    IBM      VDASD blkdev     0001  /dev/sdo
+[2:0:15:0]   disk    IBM      VDASD blkdev     0001  /dev/sdp
+[2:0:16:0]   disk    IBM      VDASD blkdev     0001  /dev/sdq
+
+
+References
+----------
+[1] SCST Configuration Interface, Documentation/scst/README.scst.
+[2] Power.org Standard for Power Architecture Platform Requirements (PAPR)
+(Workstation, Server), Version 2.4, December 7, 2009, http://www.power.org.
+[3] Virtual I/O (VIO) and Virtualization, IBM Developerworks, 2010,
+http://www.ibm.com/developerworks/wikis/display/virtualization/VIO.

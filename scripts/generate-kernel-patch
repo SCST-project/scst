@@ -659,7 +659,7 @@ EOF
         add_patch "${patch}" $f
       fi
     done
-    add_file "ibmvstgt/README" "Documentation/powerpc/ibmvstgt.txt"
+    add_file "ibmvstgt/README.sysfs" "Documentation/powerpc/ibmvstgt.txt"
   fi
 } \
 | process_patch "scst_17_ibmvstgt.diff"
