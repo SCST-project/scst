@@ -1042,7 +1042,7 @@ struct scst_tgt_template {
 	int tgtt_active_sysfs_works_count;
 
 	/* sysfs release completion */
-	struct completion tgtt_kobj_release_cmpl;
+	struct completion *tgtt_kobj_release_cmpl;
 
 #ifdef CONFIG_SCST_PROC
 	/* Device number in /proc */
@@ -1424,7 +1424,7 @@ struct scst_dev_type {
 	int devt_active_sysfs_works_count;
 
 	/* To wait until devt_kobj released */
-	struct completion devt_kobj_release_compl;
+	struct completion *devt_kobj_release_compl;
 };
 
 /*
@@ -1486,7 +1486,7 @@ struct scst_tgt {
 #endif
 
 	/* sysfs release completion */
-	struct completion tgt_kobj_release_cmpl;
+	struct completion *tgt_kobj_release_cmpl;
 
 	struct kobject tgt_kobj; /* main targets/target kobject */
 	struct kobject *tgt_sess_kobj; /* target/sessions/ */
@@ -1616,7 +1616,7 @@ struct scst_session {
 	struct completion *shutdown_compl;
 
 	/* sysfs release completion */
-	struct completion sess_kobj_release_cmpl;
+	struct completion *sess_kobj_release_cmpl;
 
 	unsigned int sess_kobj_ready:1;
 
@@ -2271,7 +2271,7 @@ struct scst_device {
 	enum scst_dev_type_threads_pool_type threads_pool_type;
 
 	/* sysfs release completion */
-	struct completion dev_kobj_release_cmpl;
+	struct completion *dev_kobj_release_cmpl;
 
 	struct kobject dev_kobj; /* kobject for this struct */
 	struct kobject *dev_exp_kobj; /* exported groups */
@@ -2404,7 +2404,7 @@ struct scst_tgt_dev {
 	uint8_t tgt_dev_sense[SCST_SENSE_BUFFERSIZE];
 
 	/* sysfs release completion */
-	struct completion tgt_dev_kobj_release_cmpl;
+	struct completion *tgt_dev_kobj_release_cmpl;
 
 	struct kobject tgt_dev_kobj; /* kobject for this struct */
 
@@ -2444,7 +2444,7 @@ struct scst_acg_dev {
 	struct kobject acg_dev_kobj;
 
 	/* sysfs release completion */
-	struct completion acg_dev_kobj_release_cmpl;
+	struct completion *acg_dev_kobj_release_cmpl;
 
 	/* Name of the link to the corresponding LUN */
 	char acg_dev_link_name[20];
@@ -2487,7 +2487,7 @@ struct scst_acg {
 	unsigned int tgt_acg:1;
 
 	/* sysfs release completion */
-	struct completion acg_kobj_release_cmpl;
+	struct completion *acg_kobj_release_cmpl;
 
 	/* kobject for this structure */
 	struct kobject acg_kobj;
