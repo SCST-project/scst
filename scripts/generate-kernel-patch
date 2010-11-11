@@ -626,20 +626,21 @@ Functional changes in libsrp compared to the patch posted on October 2, 2010:
 
 Note: ibmvstgt is the only user of libsrp.
 
-Tests performed on a backport to kernel version 2.6.18 of this driver:
+Tests performed on a backport to kernel version 2.6.18 of this driver with a
+Linux initiator system:
 - Verified that the kernel module ibmvstgt loads and initializes successfully
-  and also that the client connected after loading.
-- Verified that virtual disks configured in scst_vdisk were discovered by
-  the client.
-- Performed IO stress testing on the device.
-- Performed basic I/O performance testing. With a RAM disk as target linear
-  direct I/O throughput was above 2 GB/s and a 4 KB random I/O test resulted
-  in more than 10000 IOPS (without any caching of DMA mappings in the target).
-  Both initiator and target were a dual core POWER6 LPAR.
+  and also that the client connects after loading.
+- Verified that all virtual disks configured in scst_vdisk were discovered by
+  the client after rescanning the SCSI bus.
 - Verified that after unloading and reloading ibmvstgt and after client
   recovery that the initiator devices were functioning normally.
 - Verified that after a client reboot ibmvscsic reconnected with the target
   and that the target devices were again usable.
+- Performed IO stress testing on the device.
+- Performed basic I/O performance testing. With a RAM disk as target linear
+  direct I/O throughput was above 2 GB/s and a 4 KB random I/O test resulted
+  in more than 10000 IOPS.
+  Both initiator and target were dual core POWER6 LPAR systems.
 
 Signed-off-by: Bart Van Assche <bvanassche@acm.org>
 Cc: Fujita Tomonori <fujita.tomonori@lab.ntt.co.jp>
