@@ -570,23 +570,9 @@ because this patch dissociates ibmvstgt SRP sessions from a SCSI host
 instance.  Since the user space STGT driver ibmvio was the only user of
 these attributes, that shouldn't be an issue.
 
-Functional changes in ibmvstgt compared to the patch posted on October 2, 2010:
+Changes in ibmvstgt compared to the patch posted on October 2, 2010:
 - The format of a SCSI INQUIRY response is now in the format expected by AIX.
-- Added support for persistent reservations.
-- Increased maximum data size for a single SRP command from 128 KB to 64 MB.
-- The maximum RDMA transfer size supported by a single H_COPY_RDMA call is
-  queried at driver initiatlization time from the open firmware tree / larger
-  transfers than 128 KB are now supported too.
-- If DMA mapping fails while handling a READ or WRITE command, the offending
-  command is retried until the associated data has been transferred instead of
-  reporting to the ibmvscsi client that the SCSI command failed.
 - Aborting a SCSI command does no longer trigger an SRP credit leak.
-- VSCSI command/response queue: one element has been reserved for management
-  datagrams since these fall outside the SRP credit mechanism. Added a compile-
-  time check whether the size of this queue is a power of two.
-- Fixed a race condition which in theory could have caused the VSCSI receive
-  queue to overflow: srp_iu_put() is now invoked before a response is sent back
-  to the initiator instead of after.
 - The flag SRP_RSP_FLAG_SNSVALID in an SRP_RSP information unit is now only
   set when a response contains sense data and not when e.g. the response status
   is BUSY and no sense data is sent back to the initiator.
@@ -596,13 +582,34 @@ Functional changes in ibmvstgt compared to the patch posted on October 2, 2010:
   invoked before a client has logged in.
 - The second and subsequent SRP_LOGIN received from a client does no longer
   trigger a BUG_ON() in process_login().
+
+Changes in ibmvstgt compared to kernel 2.6.36:
+- Added support for persistent reservations.
+- Increased maximum data size for a single SRP command from 128 KB to 64 MB.
+- The maximum RDMA transfer size supported by a single H_COPY_RDMA call is
+  queried at driver initiatlization time from the open firmware tree / larger
+  transfers than 128 KB are now supported too.
+- If DMA mapping fails while handling a READ or WRITE command, the offending
+  command is retried until the associated data has been transferred instead of
+  reporting to the ibmvscsi client that the SCSI command failed.
+- VSCSI command/response queue: one element has been reserved for management
+  datagrams since these fall outside the SRP credit mechanism. Added a compile-
+  time check whether the size of this queue is a power of two.
+- Fixed a race condition which in theory could have caused the VSCSI receive
+  queue to overflow: srp_iu_put() is now invoked before a response is sent back
+  to the initiator instead of after.
 - Moved enum iue_flags from libsrp to ibmvstgt because it is ibmvstgt-specific.
 - Removed a variable that was modified but never read from ibmvstgt_rdma().
 - ibmvstgt_probe(): changed the datatype of the variable "dma" from
   unsigned * into const unsigned * such that a cast could be removed.
 - Fixed all compiler and sparse warnings (C=2 CF=-D__CHECK_ENDIAN__).
 
-Functional changes in libsrp compared to the patch posted on October 2, 2010:
+Changes in libsrp compared to the patch posted on October 2, 2010:
+- srp_direct_data() and srp_indirect_data(): Use the data length from
+  the SCSI CDB instead of the length from the SRP_CMD data descriptors. Also,
+  compute the correct data length even if dma_map == 0.
+
+Changes in libsrp compared to kernel 2.6.36:
 - Renamed vscsis_data_length() into srp_data_length() and exported
   this function.
 - All error messages reported via printk() do now have prefix KERN_ERR.
@@ -613,9 +620,6 @@ Functional changes in libsrp compared to the patch posted on October 2, 2010:
 - srp_transfer_data(): All three return statements related to DMA mapping
   failure do now return -ENOMEM instead of 0, -EIO and -ENOMEM.
 - srp_direct_data(): Removed the ext_desc argument since not used.
-- srp_direct_data() and srp_indirect_data(): Use the data length from
-  the SCSI CDB instead of the length from the SRP_CMD data descriptors. Also,
-  compute the correct data length even if dma_map == 0.
 - srp_direct_data() and srp_indirect_data(): Use DMA_TO/FROM_DEVICE
   instead of DMA_BIDIRECTIONAL for the buffers mapped for transferring data
   via DMA.
