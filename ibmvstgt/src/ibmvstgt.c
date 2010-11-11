@@ -1030,8 +1030,8 @@ static inline struct viosrp_crq *next_crq(struct crq_queue *queue)
  * handle_crq() - Process the command/response queue.
  *
  * Note: Although this function is not thread-safe because of how it is
- * scheduled it is guaranteed that this function is running on at most one CPU
- * at any given time.
+ * scheduled it is guaranteed that this function will never be scheduled
+ * concurrently against itself.
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
 static void handle_crq(void *ctx)
