@@ -1254,6 +1254,7 @@ struct scatterlist *scst_alloc(int size, gfp_t gfp_mask, int *count)
 	struct sgv_pool_alloc_fns sys_alloc_fns = {
 		sgv_alloc_sys_pages, sgv_free_sys_sg_entries };
 	int no_fail = ((gfp_mask & __GFP_NOFAIL) == __GFP_NOFAIL);
+	int cnt;
 
 	TRACE_ENTRY();
 
@@ -1285,15 +1286,20 @@ struct scatterlist *scst_alloc(int size, gfp_t gfp_mask, int *count)
 	/*
 	 * If we allow use clustering here, we will have troubles in
 	 * scst_free() to figure out how many pages are in the SG vector.
-	 * So, always don't use clustering.
+	 * So, let's always don't use clustering.
 	 */
-	*count = sgv_alloc_sg_entries(res, pages, gfp_mask, sgv_no_clustering,
+	cnt = sgv_alloc_sg_entries(res, pages, gfp_mask, sgv_no_clustering,
 			NULL, &sys_alloc_fns, NULL);
-	if (*count <= 0)
+	if (cnt <= 0)
 		goto out_free;
 
+	if (size & ~PAGE_MASK)
+		res[cnt-1].length -= PAGE_SIZE - (size & ~PAGE_MASK);
+
+	*count = cnt;
+
 out:
-	TRACE_MEM("Alloced sg %p (count %d) \"no fail\" %d", res, *count, no_fail);
+	TRACE_MEM("Alloced sg %p (count %d, no_fail %d)", res, *count, no_fail);
 
 	TRACE_EXIT_HRES(res);
 	return res;
