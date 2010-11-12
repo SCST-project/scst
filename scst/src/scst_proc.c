@@ -2556,7 +2556,7 @@ static struct scst_proc_data scst_groups_devices_proc_data = {
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 
-static int scst_proc_read_tlb(const struct scst_trace_log *tbl,
+static int scst_proc_read_tbl(const struct scst_trace_log *tbl,
 			      struct seq_file *seq,
 	unsigned long log_level, int *first)
 {
@@ -2580,10 +2580,10 @@ int scst_proc_log_entry_read(struct seq_file *seq, unsigned long log_level,
 
 	TRACE_ENTRY();
 
-	scst_proc_read_tlb(scst_proc_trace_tbl, seq, log_level, &first);
+	scst_proc_read_tbl(scst_proc_trace_tbl, seq, log_level, &first);
 
 	if (tbl)
-		scst_proc_read_tlb(tbl, seq, log_level, &first);
+		scst_proc_read_tbl(tbl, seq, log_level, &first);
 
 	seq_printf(seq, "%s\n", first ? "none" : "");
 

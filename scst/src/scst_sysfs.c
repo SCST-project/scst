@@ -4399,7 +4399,7 @@ out:
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 
-static void scst_read_trace_tlb(const struct scst_trace_log *tbl, char *buf,
+static void scst_read_trace_tbl(const struct scst_trace_log *tbl, char *buf,
 	unsigned long log_level, int *pos)
 {
 	const struct scst_trace_log *t = tbl;
@@ -4424,8 +4424,8 @@ static ssize_t scst_trace_level_show(const struct scst_trace_log *local_tbl,
 {
 	int pos = 0;
 
-	scst_read_trace_tlb(scst_trace_tbl, buf, log_level, &pos);
-	scst_read_trace_tlb(local_tbl, buf, log_level, &pos);
+	scst_read_trace_tbl(scst_trace_tbl, buf, log_level, &pos);
+	scst_read_trace_tbl(local_tbl, buf, log_level, &pos);
 
 	pos += sprintf(&buf[pos], "\n\n\nUsage:\n"
 		"	echo \"all|none|default\" >trace_level\n"
