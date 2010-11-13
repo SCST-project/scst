@@ -3075,6 +3075,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	}
 
 	if (unlikely(scst_cmd_aborted(scmnd))) {
+		atomic_inc(&ch->req_lim_delta);
 		srpt_abort_scst_cmd(ioctx, SCST_CONTEXT_SAME);
 		goto out;
 	}
