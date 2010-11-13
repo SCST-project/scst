@@ -394,13 +394,15 @@ static ssize_t scst_local_scsi_transport_version_show(struct kobject *kobj,
 {
 	struct scst_tgt *scst_tgt;
 	struct scst_local_tgt *tgt;
-	ssize_t res;
+	ssize_t res = -ENOENT;
 
 	if (down_read_trylock(&scst_local_exit_rwsem) == 0)
-		return -ENOENT;
+		goto out;
 
 	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-	tgt = (struct scst_local_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+	tgt = scst_tgt_get_tgt_priv(scst_tgt);
+	if (!tgt)
+		goto out_up;
 
 	if (tgt->scsi_transport_version != 0)
 		res = sprintf(buf, "0x%x\n%s", tgt->scsi_transport_version,
@@ -408,23 +410,27 @@ static ssize_t scst_local_scsi_transport_version_show(struct kobject *kobj,
 	else
 		res = sprintf(buf, "0x%x\n", 0x0BE0); /* SAS */
 
+out_up:
 	up_read(&scst_local_exit_rwsem);
+out:
 	return res;
 }
 
 static ssize_t scst_local_scsi_transport_version_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buffer, size_t size)
 {
-	ssize_t res;
+	ssize_t res = -ENOENT;
 	struct scst_tgt *scst_tgt;
 	struct scst_local_tgt *tgt;
 	unsigned long val;
 
 	if (down_read_trylock(&scst_local_exit_rwsem) == 0)
-		return -ENOENT;
+		goto out;
 
 	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-	tgt = (struct scst_local_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+	tgt = scst_tgt_get_tgt_priv(scst_tgt);
+	if (!tgt)
+		goto out_up;
 
 	res = strict_strtoul(buffer, 0, &val);
 	if (res != 0) {
@@ -438,6 +444,7 @@ static ssize_t scst_local_scsi_transport_version_store(struct kobject *kobj,
 
 out_up:
 	up_read(&scst_local_exit_rwsem);
+out:
 	return res;
 }
 
@@ -451,35 +458,41 @@ static ssize_t scst_local_phys_transport_version_show(struct kobject *kobj,
 {
 	struct scst_tgt *scst_tgt;
 	struct scst_local_tgt *tgt;
-	ssize_t res;
+	ssize_t res = -ENOENT;
 
 	if (down_read_trylock(&scst_local_exit_rwsem) == 0)
-		return -ENOENT;
+		goto out;
 
 	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-	tgt = (struct scst_local_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+	tgt = scst_tgt_get_tgt_priv(scst_tgt);
+	if (!tgt)
+		goto out_up;
 
 	res = sprintf(buf, "0x%x\n%s", tgt->phys_transport_version,
 			(tgt->phys_transport_version != 0) ?
 				SCST_SYSFS_KEY_MARK "\n" : "");
 
+out_up:
 	up_read(&scst_local_exit_rwsem);
+out:
 	return res;
 }
 
 static ssize_t scst_local_phys_transport_version_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buffer, size_t size)
 {
-	ssize_t res;
+	ssize_t res = -ENOENT;
 	struct scst_tgt *scst_tgt;
 	struct scst_local_tgt *tgt;
 	unsigned long val;
 
 	if (down_read_trylock(&scst_local_exit_rwsem) == 0)
-		return -ENOENT;
+		goto out;
 
 	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-	tgt = (struct scst_local_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+	tgt = scst_tgt_get_tgt_priv(scst_tgt);
+	if (!tgt)
+		goto out_up;
 
 	res = strict_strtoul(buffer, 0, &val);
 	if (res != 0) {
@@ -493,6 +506,7 @@ static ssize_t scst_local_phys_transport_version_store(struct kobject *kobj,
 
 out_up:
 	up_read(&scst_local_exit_rwsem);
+out:
 	return res;
 }
 
