@@ -672,16 +672,16 @@ static struct kobj_attribute tgtt_trace_attr =
 static ssize_t scst_tgtt_mgmt_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
-char *help = "Usage: echo \"add_target target_name [parameters]\" "
-				">mgmt\n"
-		     "       echo \"del_target target_name\" >mgmt\n"
-		     "%s%s"
-		     "%s"
-		     "\n"
-		     "where parameters are one or more "
-		     "param_name=value pairs separated by ';'\n\n"
-		     "%s%s%s%s%s%s%s%s\n";
-		struct scst_tgt_template *tgtt;
+	static const char help[] =
+		"Usage: echo \"add_target target_name [parameters]\" >mgmt\n"
+		"       echo \"del_target target_name\" >mgmt\n"
+		"%s%s"
+		"%s"
+		"\n"
+		"where parameters are one or more "
+		"param_name=value pairs separated by ';'\n\n"
+		"%s%s%s%s%s%s%s%s\n";
+	struct scst_tgt_template *tgtt;
 
 	tgtt = container_of(kobj, struct scst_tgt_template, tgtt_kobj);
 
@@ -2941,16 +2941,17 @@ static ssize_t scst_luns_mgmt_show(struct kobject *kobj,
 				   struct kobj_attribute *attr,
 				   char *buf)
 {
-	static char *help = "Usage: echo \"add|del H:C:I:L lun [parameters]\" >mgmt\n"
-			    "       echo \"add VNAME lun [parameters]\" >mgmt\n"
-			    "       echo \"del lun\" >mgmt\n"
-			    "       echo \"replace H:C:I:L lun [parameters]\" >mgmt\n"
-			    "       echo \"replace VNAME lun [parameters]\" >mgmt\n"
-			    "       echo \"clear\" >mgmt\n"
-			    "\n"
-			    "where parameters are one or more "
-			    "param_name=value pairs separated by ';'\n"
-			    "\nThe following parameters available: read_only.";
+	static const char help[] =
+		"Usage: echo \"add|del H:C:I:L lun [parameters]\" >mgmt\n"
+		"       echo \"add VNAME lun [parameters]\" >mgmt\n"
+		"       echo \"del lun\" >mgmt\n"
+		"       echo \"replace H:C:I:L lun [parameters]\" >mgmt\n"
+		"       echo \"replace VNAME lun [parameters]\" >mgmt\n"
+		"       echo \"clear\" >mgmt\n"
+		"\n"
+		"where parameters are one or more "
+		"param_name=value pairs separated by ';'\n"
+		"\nThe following parameters available: read_only.\n";
 
 	return sprintf(buf, "%s", help);
 }
@@ -3567,8 +3568,9 @@ out:
 static ssize_t scst_ini_group_mgmt_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
-	static char *help = "Usage: echo \"create GROUP_NAME\" >mgmt\n"
-			    "       echo \"del GROUP_NAME\" >mgmt\n";
+	static const char help[] =
+		"Usage: echo \"create GROUP_NAME\" >mgmt\n"
+		"       echo \"del GROUP_NAME\" >mgmt\n";
 
 	return sprintf(buf, "%s", help);
 }
@@ -3949,14 +3951,11 @@ static ssize_t scst_acg_luns_mgmt_store(struct kobject *kobj,
 static ssize_t scst_acg_ini_mgmt_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
-	static char *help = "Usage: echo \"add INITIATOR_NAME\" "
-					">mgmt\n"
-			    "       echo \"del INITIATOR_NAME\" "
-					">mgmt\n"
-			    "       echo \"move INITIATOR_NAME DEST_GROUP_NAME\" "
-					">mgmt\n"
-			    "       echo \"clear\" "
-					">mgmt\n";
+	static const char help[] =
+		"Usage: echo \"add INITIATOR_NAME\" >mgmt\n"
+		"       echo \"del INITIATOR_NAME\" >mgmt\n"
+		"       echo \"move INITIATOR_NAME DEST_GROUP_NAME\" >mgmt\n"
+		"       echo \"clear\" >mgmt\n";
 
 	return sprintf(buf, "%s", help);
 }
@@ -4847,15 +4846,15 @@ static struct kobj_type scst_devt_ktype = {
 static ssize_t scst_devt_mgmt_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
-	char *help = "Usage: echo \"add_device device_name [parameters]\" "
-				">mgmt\n"
-		     "       echo \"del_device device_name\" >mgmt\n"
-		     "%s%s"
-		     "%s"
-		     "\n"
-		     "where parameters are one or more "
-		     "param_name=value pairs separated by ';'\n\n"
-		     "%s%s%s%s%s%s%s%s\n";
+	static const char help[] =
+		"Usage: echo \"add_device device_name [parameters]\" >mgmt\n"
+		"       echo \"del_device device_name\" >mgmt\n"
+		"%s%s"
+		"%s"
+		"\n"
+		"where parameters are one or more "
+		"param_name=value pairs separated by ';'\n\n"
+		"%s%s%s%s%s%s%s%s\n";
 	struct scst_dev_type *devt;
 
 	devt = container_of(kobj, struct scst_dev_type, devt_kobj);
@@ -5007,8 +5006,9 @@ static struct kobj_attribute scst_devt_mgmt =
 static ssize_t scst_devt_pass_through_mgmt_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
-	char *help = "Usage: echo \"add_device H:C:I:L\" >mgmt\n"
-		     "       echo \"del_device H:C:I:L\" >mgmt\n";
+	static const char help[] =
+		"Usage: echo \"add_device H:C:I:L\" >mgmt\n"
+		"       echo \"del_device H:C:I:L\" >mgmt\n";
 	return sprintf(buf, "%s", help);
 }
 
