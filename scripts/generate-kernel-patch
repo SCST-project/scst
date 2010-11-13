@@ -500,6 +500,8 @@ It was originally developed by Vu Pham (Mellanox) and has been optimized by
 Bart Van Assche.
 
 Signed-off-by: Bart Van Assche <bvanassche@acm.org>
+Cc: Vu Pham <vu@mellanox.com>
+Cc: Roland Dreier <rdreier@cisco.com>
 EOF
 if [ "$srpt" = "true" ]; then
 
