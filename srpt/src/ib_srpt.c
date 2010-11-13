@@ -1407,7 +1407,8 @@ static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 	memset(srp_rsp, 0, sizeof *srp_rsp);
 
 	srp_rsp->opcode = SRP_RSP;
-	srp_rsp->req_lim_delta = __constant_cpu_to_be32(1);
+	srp_rsp->req_lim_delta = __constant_cpu_to_be32(1
+				    + atomic_xchg(&ch->req_lim_delta, 0));
 	srp_rsp->tag = tag;
 	srp_rsp->status = status;
 
@@ -1459,7 +1460,8 @@ static int srpt_build_tskmgmt_rsp(struct srpt_rdma_ch *ch,
 	memset(srp_rsp, 0, sizeof *srp_rsp);
 
 	srp_rsp->opcode = SRP_RSP;
-	srp_rsp->req_lim_delta = __constant_cpu_to_be32(1);
+	srp_rsp->req_lim_delta = __constant_cpu_to_be32(1
+				    + atomic_xchg(&ch->req_lim_delta, 0));
 	srp_rsp->tag = tag;
 
 	if (rsp_code != SRP_TSK_MGMT_SUCCESS) {
@@ -2417,6 +2419,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 					      | SRP_BUF_FORMAT_INDIRECT);
 	rsp->req_lim_delta = cpu_to_be32(ch->rq_size);
 	atomic_set(&ch->req_lim, ch->rq_size);
+	atomic_set(&ch->req_lim_delta, 0);
 
 	/* create cm reply */
 	rep_param->qp_num = ch->qp->qp_num;
@@ -3072,6 +3075,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	}
 
 	if (unlikely(scst_cmd_aborted(scmnd))) {
+		atomic_inc(&ch->req_lim_delta);
 		srpt_abort_scst_cmd(ioctx, SCST_CONTEXT_SAME);
 		goto out;
 	}
@@ -3411,6 +3415,48 @@ static ssize_t show_login_info(struct device *dev,
 	return len;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+static ssize_t show_req_lim(struct class_device *dev, char *buf)
+#else
+static ssize_t show_req_lim(struct device *dev,
+			    struct device_attribute *attr, char *buf)
+#endif
+{
+	struct srpt_device *sdev;
+	struct srpt_rdma_ch *ch;
+	int req_lim;
+
+	sdev = container_of(dev, struct srpt_device, dev);
+	req_lim = 0;
+	spin_lock_irq(&sdev->spinlock);
+	list_for_each_entry(ch, &sdev->rch_list, list)
+		req_lim += atomic_read(&ch->req_lim);
+	spin_unlock_irq(&sdev->spinlock);
+
+	return sprintf(buf, "%d\n", req_lim);
+}
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+static ssize_t show_req_lim_delta(struct class_device *dev, char *buf)
+#else
+static ssize_t show_req_lim_delta(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+#endif
+{
+	struct srpt_device *sdev;
+	struct srpt_rdma_ch *ch;
+	int req_lim_delta;
+
+	sdev = container_of(dev, struct srpt_device, dev);
+	req_lim_delta = 0;
+	spin_lock_irq(&sdev->spinlock);
+	list_for_each_entry(ch, &sdev->rch_list, list)
+		req_lim_delta += atomic_read(&ch->req_lim_delta);
+	spin_unlock_irq(&sdev->spinlock);
+
+	return sprintf(buf, "%d\n", req_lim_delta);
+}
+
 static struct class_attribute srpt_class_attrs[] = {
 	__ATTR_NULL,
 };
@@ -3420,7 +3466,9 @@ static struct class_device_attribute srpt_dev_attrs[] = {
 #else
 static struct device_attribute srpt_dev_attrs[] = {
 #endif
-	__ATTR(login_info, S_IRUGO, show_login_info, NULL),
+	__ATTR(login_info,    S_IRUGO, show_login_info,    NULL),
+	__ATTR(req_lim,       S_IRUGO, show_req_lim,       NULL),
+	__ATTR(req_lim_delta, S_IRUGO, show_req_lim_delta, NULL),
 	__ATTR_NULL,
 };
 

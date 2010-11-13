@@ -278,6 +278,7 @@ struct srpt_rdma_ch {
 	u8			t_port_id[16];
 	int			max_ti_iu_len;
 	atomic_t		req_lim;
+	atomic_t		req_lim_delta;
 	spinlock_t		spinlock;
 	struct list_head	free_list;
 	struct srpt_send_ioctx	**ioctx_ring;
