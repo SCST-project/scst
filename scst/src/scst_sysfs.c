@@ -262,7 +262,7 @@ EXPORT_SYMBOL(scst_sysfs_work_put);
 /**
  * scst_sysfs_queue_wait_work() - waits for the work to complete
  *
- * Returnes status of the completed work or -EAGAIN if the work not
+ * Returns status of the completed work or -EAGAIN if the work not
  * completed before timeout. In the latter case a user should poll
  * last_sysfs_mgmt_res until it returns the result of the processing.
  */
@@ -317,7 +317,7 @@ out_put:
 }
 EXPORT_SYMBOL(scst_sysfs_queue_wait_work);
 
-/* Called under sysfs_work_lock and drops/reaquire it inside */
+/* Called under sysfs_work_lock and drops/reacquire it inside */
 static void scst_process_sysfs_works(void)
 {
 	struct scst_sysfs_work_item *work;
