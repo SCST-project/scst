@@ -486,6 +486,21 @@ fi \
 
 # Directory drivers/scst/srpt
 
+{
+
+cat <<EOF
+This patch adds the kernel module ib_srpt, which is a SCSI RDMA Protocol (SRP)
+target implementation. This driver uses the InfiniBand stack and the SCST core.
+
+It is a high performance driver capable of handling 600K+ 4K random write
+IOPS by a single target as well as 2.5+ GB/s sequential throughput over
+a single QDR IB port.
+
+It was originally developed by Vu Pham (Mellanox) and has been optimized by
+Bart Van Assche.
+
+Signed-off-by: Bart Van Assche <bvanassche@acm.org>
+EOF
 if [ "$srpt" = "true" ]; then
 
   add_file  "srpt/README_in-tree"         "Documentation/scst/README.srpt"
@@ -506,7 +521,7 @@ else
   add_empty_file "drivers/scst/srpt/Makefile"
 
 fi \
-| process_patch "scst_16_srpt.diff"
+} | process_patch "scst_16_srpt.diff"
 
 
 # Directory drivers/message/fusion/mpt_scst
@@ -641,6 +656,7 @@ Linux initiator system:
 - Verified that after a client reboot ibmvscsic reconnected with the target
   and that the target devices were again usable.
 - Performed IO stress testing on the device.
+- Verified that SCSI task abortion works correctly.
 - Performed basic I/O performance testing. With a RAM disk as target linear
   direct I/O throughput was above 2 GB/s and a 4 KB random I/O test resulted
   in more than 10000 IOPS.
