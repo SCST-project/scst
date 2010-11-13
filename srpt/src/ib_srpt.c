@@ -3314,6 +3314,7 @@ static uint16_t srpt_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 	return 0x0940; /* SRP */
 }
 
+#if !defined(CONFIG_SCST_PROC)
 static ssize_t show_req_lim(struct kobject *kobj,
 			    struct kobj_attribute *attr, char *buf)
 {
@@ -3350,6 +3351,7 @@ static const struct attribute *srpt_sess_attrs[] = {
 	&srpt_req_lim_delta_attr.attr,
 	NULL
 };
+#endif
 
 /* SCST target template for the SRP target implementation. */
 static struct scst_tgt_template srpt_template = {
