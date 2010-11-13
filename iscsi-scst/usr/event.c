@@ -679,7 +679,7 @@ static int handle_target_redirect(struct target *target, char *p)
 	}
 
 	if (strlen(addr) >= sizeof(target->redirect.addr)) {
-		log_error("Too long addr %s, max allowed %d", addr,
+		log_error("Too long addr %s, max allowed %zd", addr,
 			sizeof(target->redirect.addr)-1);
 		res = -ERANGE;
 		goto out;
