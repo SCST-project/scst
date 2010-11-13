@@ -3314,6 +3314,43 @@ static uint16_t srpt_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 	return 0x0940; /* SRP */
 }
 
+static ssize_t show_req_lim(struct kobject *kobj,
+			    struct kobj_attribute *attr, char *buf)
+{
+	struct scst_session *scst_sess;
+	struct srpt_rdma_ch *ch;
+
+	scst_sess = container_of(kobj, struct scst_session, sess_kobj);
+	ch = scst_sess_get_tgt_priv(scst_sess);
+	if (!ch)
+		return -ENOENT;
+	return sprintf(buf, "%d\n", atomic_read(&ch->req_lim));
+}
+
+static ssize_t show_req_lim_delta(struct kobject *kobj,
+				  struct kobj_attribute *attr, char *buf)
+{
+	struct scst_session *scst_sess;
+	struct srpt_rdma_ch *ch;
+
+	scst_sess = container_of(kobj, struct scst_session, sess_kobj);
+	ch = scst_sess_get_tgt_priv(scst_sess);
+	if (!ch)
+		return -ENOENT;
+	return sprintf(buf, "%d\n", atomic_read(&ch->req_lim_delta));
+}
+
+static const struct kobj_attribute srpt_req_lim_attr =
+	__ATTR(req_lim,       S_IRUGO, show_req_lim,       NULL);
+static const struct kobj_attribute srpt_req_lim_delta_attr =
+	__ATTR(req_lim_delta, S_IRUGO, show_req_lim_delta, NULL);
+
+static const struct attribute *srpt_sess_attrs[] = {
+	&srpt_req_lim_attr.attr,
+	&srpt_req_lim_delta_attr.attr,
+	NULL
+};
+
 /* SCST target template for the SRP target implementation. */
 static struct scst_tgt_template srpt_template = {
 	.name				 = DRV_NAME,
@@ -3322,6 +3359,7 @@ static struct scst_tgt_template srpt_template = {
 #if !defined(CONFIG_SCST_PROC)
 	.enable_target			 = srpt_enable_target,
 	.is_target_enabled		 = srpt_is_target_enabled,
+	.sess_attrs			 = srpt_sess_attrs,
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags		 = DEFAULT_SRPT_TRACE_FLAGS,
@@ -3415,48 +3453,6 @@ static ssize_t show_login_info(struct device *dev,
 	return len;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
-static ssize_t show_req_lim(struct class_device *dev, char *buf)
-#else
-static ssize_t show_req_lim(struct device *dev,
-			    struct device_attribute *attr, char *buf)
-#endif
-{
-	struct srpt_device *sdev;
-	struct srpt_rdma_ch *ch;
-	int req_lim;
-
-	sdev = container_of(dev, struct srpt_device, dev);
-	req_lim = 0;
-	spin_lock_irq(&sdev->spinlock);
-	list_for_each_entry(ch, &sdev->rch_list, list)
-		req_lim += atomic_read(&ch->req_lim);
-	spin_unlock_irq(&sdev->spinlock);
-
-	return sprintf(buf, "%d\n", req_lim);
-}
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
-static ssize_t show_req_lim_delta(struct class_device *dev, char *buf)
-#else
-static ssize_t show_req_lim_delta(struct device *dev,
-				  struct device_attribute *attr, char *buf)
-#endif
-{
-	struct srpt_device *sdev;
-	struct srpt_rdma_ch *ch;
-	int req_lim_delta;
-
-	sdev = container_of(dev, struct srpt_device, dev);
-	req_lim_delta = 0;
-	spin_lock_irq(&sdev->spinlock);
-	list_for_each_entry(ch, &sdev->rch_list, list)
-		req_lim_delta += atomic_read(&ch->req_lim_delta);
-	spin_unlock_irq(&sdev->spinlock);
-
-	return sprintf(buf, "%d\n", req_lim_delta);
-}
-
 static struct class_attribute srpt_class_attrs[] = {
 	__ATTR_NULL,
 };
@@ -3467,8 +3463,6 @@ static struct class_device_attribute srpt_dev_attrs[] = {
 static struct device_attribute srpt_dev_attrs[] = {
 #endif
 	__ATTR(login_info,    S_IRUGO, show_login_info,    NULL),
-	__ATTR(req_lim,       S_IRUGO, show_req_lim,       NULL),
-	__ATTR(req_lim_delta, S_IRUGO, show_req_lim_delta, NULL),
 	__ATTR_NULL,
 };
 
