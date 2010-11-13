@@ -2422,7 +2422,7 @@ restart:
 			if (s == sess)
 				continue;
 
-			TRACE_DBG("Dublicated session from the same initiator "
+			TRACE_DBG("Duplicated session from the same initiator "
 				"%s found", name);
 
 			if (name == sess->initiator_name) {
