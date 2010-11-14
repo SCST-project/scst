@@ -388,7 +388,7 @@ EXPORT_SYMBOL(__scst_register_target_template_non_gpl);
  *
  * Target drivers supposed to behave sanely and not call register()
  * and unregister() randomly sinultaneously. Also it is supposed that
- * no attepts to create new targets for this vtt will be done in a race
+ * no attempts to create new targets for this vtt will be done in a race
  * with this function.
  */
 void scst_unregister_target_template(struct scst_tgt_template *vtt)
@@ -580,7 +580,7 @@ static inline int test_sess_list(struct scst_tgt *tgt)
 /**
  * scst_unregister_target() - unregister target.
  *
- * It is supposed that no attepts to create new sessions for this
+ * It is supposed that no attempts to create new sessions for this
  * target will be done in a race with this function.
  */
 void scst_unregister_target(struct scst_tgt *tgt)
