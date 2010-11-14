@@ -1694,6 +1694,8 @@ sub applyConfiguration {
 	$changes += setScstAttributes($attributes);
 
 	print "\t-> Done, $changes change(s) made.\n";
+
+	return 0;
 }
 
 sub applyConfigDevices {
