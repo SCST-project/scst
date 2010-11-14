@@ -491,7 +491,7 @@ static void scst_pr_send_ua_reg(struct scst_device *dev,
 
 	scst_set_sense(ua, sizeof(ua), dev->d_sense, key, asc, ascq);
 
-	TRACE_PR("Queuing UA [%x %x %x]: registrant %s/%d (%p), tgt_dev %p, "
+	TRACE_PR("Queueing UA [%x %x %x]: registrant %s/%d (%p), tgt_dev %p, "
 		"key %016llx", ua[2], ua[12], ua[13],
 		debug_transport_id_to_initiator_name(reg->transport_id),
 		reg->rel_tgt_id, reg, reg->tgt_dev, reg->key);

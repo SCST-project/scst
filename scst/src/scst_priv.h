@@ -37,10 +37,10 @@
 
 #define TRACE_RTRY              0x80000000
 #define TRACE_SCSI_SERIALIZING  0x40000000
-/** top being the edge away from the interupt */
+/** top being the edge away from the interrupt */
 #define TRACE_SND_TOP		0x20000000
 #define TRACE_RCV_TOP		0x01000000
-/** bottom being the edge toward the interupt */
+/** bottom being the edge toward the interrupt */
 #define TRACE_SND_BOT		0x08000000
 #define TRACE_RCV_BOT		0x04000000
 

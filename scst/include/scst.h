@@ -735,7 +735,7 @@ struct scst_tgt_template {
 	 * double buffer allocation and memory leaks alloc_data_buf() shall
 	 * fail.
 	 *
-	 * Shall return 0 in case of success or < 0 (preferrably -ENOMEM)
+	 * Shall return 0 in case of success or < 0 (preferably -ENOMEM)
 	 * in case of error, or > 0 if the regular SCST allocation should be
 	 * done. In case of returning successfully,
 	 * scst_cmd->tgt_data_buf_alloced will be set by SCST.

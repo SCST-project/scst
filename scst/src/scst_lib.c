@@ -115,7 +115,7 @@ struct scst_sdbops {
 				 * type_disk      devkey[0]
 				 * type_tape      devkey[1]
 				 * type_printer   devkey[2]
-				 * type_proseccor devkey[3]
+				 * type_processor devkey[3]
 				 * type_worm      devkey[4]
 				 * type_cdrom     devkey[5]
 				 * type_scanner   devkey[6]
@@ -705,7 +705,7 @@ static inline void tm_dbg_deinit_tgt_dev(struct scst_tgt_dev *tgt_dev) {}
  * scst_alloc_sense() - allocate sense buffer for command
  *
  * Allocates, if necessary, sense buffer for command. Returns 0 on success
- * and error code othrwise. Parameter "atomic" should be non-0 if the
+ * and error code otherwise. Parameter "atomic" should be non-0 if the
  * function called in atomic context.
  */
 int scst_alloc_sense(struct scst_cmd *cmd, int atomic)
@@ -743,7 +743,7 @@ EXPORT_SYMBOL(scst_alloc_sense);
  *
  * Allocates, if necessary, sense buffer for command and copies in
  * it data from the supplied sense buffer. Returns 0 on success
- * and error code othrwise.
+ * and error code otherwise.
  */
 int scst_alloc_set_sense(struct scst_cmd *cmd, int atomic,
 	const uint8_t *sense, unsigned int len)
@@ -1211,7 +1211,7 @@ void scst_check_convert_sense(struct scst_cmd *cmd)
 			cmd);
 		if ((cmd->sense_buflen < 18) || (cmd->sense_valid_len < 8)) {
 			PRINT_ERROR("Sense too small to convert (%d, "
-				"type: descryptor, valid %d)",
+				"type: descriptor, valid %d)",
 				cmd->sense_buflen, cmd->sense_valid_len);
 			goto out;
 		}
@@ -1406,7 +1406,7 @@ void scst_gen_aen_or_ua(struct scst_tgt_dev *tgt_dev,
 	}
 
 queue_ua:
-	TRACE_MGMT_DBG("AEN not supported, queuing plain UA (tgt_dev %p)",
+	TRACE_MGMT_DBG("AEN not supported, queueing plain UA (tgt_dev %p)",
 		tgt_dev);
 	sl = scst_set_sense(sense_buffer, sizeof(sense_buffer),
 		tgt_dev->dev->d_sense, key, asc, ascq);
@@ -1483,7 +1483,7 @@ static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
 
 	TRACE_ENTRY();
 
-	TRACE_MGMT_DBG("Queuing REPORTED LUNS DATA CHANGED UA "
+	TRACE_MGMT_DBG("Queueing REPORTED LUNS DATA CHANGED UA "
 		"(sess %p)", sess);
 
 	local_bh_disable();
@@ -2145,7 +2145,7 @@ void scst_adjust_resp_data_len(struct scst_cmd *cmd)
 					cmd->expected_transfer_len);
 
 	if (cmd->adjusted_resp_data_len != cmd->resp_data_len) {
-		TRACE_MEM("Abjusting resp_data_len to %d (cmd %p, sg %p, "
+		TRACE_MEM("Adjusting resp_data_len to %d (cmd %p, sg %p, "
 			"sg_cnt %d)", cmd->adjusted_resp_data_len, cmd, cmd->sg,
 			cmd->sg_cnt);
 		scst_check_restore_sg_buff(cmd);
@@ -2256,7 +2256,7 @@ int scst_queue_retry_cmd(struct scst_cmd *cmd, int finished_cmds)
 	/*
 	 * Memory barrier is needed here, because we need the exact order
 	 * between the read and write between retry_cmds and finished_cmds to
-	 * not miss the case when a command finished while we queuing it for
+	 * not miss the case when a command finished while we queueing it for
 	 * retry after the finished_cmds check.
 	 */
 	smp_mb();
@@ -2315,7 +2315,7 @@ void scst_update_hw_pending_start(struct scst_cmd *cmd)
 EXPORT_SYMBOL_GPL(scst_update_hw_pending_start);
 
 /*
- * Supposed to be called under sess_list_lock, but can release/reaquire it.
+ * Supposed to be called under sess_list_lock, but can release/reacquire it.
  * Returns 0 to continue, >0 to restart, <0 to break.
  */
 static int scst_check_hw_pending_cmd(struct scst_cmd *cmd,
@@ -4848,7 +4848,7 @@ EXPORT_SYMBOL_GPL(scst_copy_sg);
  * @buf:	pointer on the resulting pointer
  *
  * If the command's buffer >single page, it vmalloc() the needed area
- * and copies the buffer there. Returnes length of the buffer or negative
+ * and copies the buffer there. Returns length of the buffer or negative
  * error code otherwise.
  */
 int scst_get_full_buf(struct scst_cmd *cmd, uint8_t **buf)
@@ -6018,7 +6018,7 @@ void scst_process_reset(struct scst_device *dev,
 		dev->dev_reserved = 0;
 		/*
 		 * There is no need to send RELEASE, since the device is going
-		 * to be resetted. Actually, since we can be in RESET TM
+		 * to be reset. Actually, since we can be in RESET TM
 		 * function, it might be dangerous.
 		 */
 	}
@@ -6235,7 +6235,7 @@ static void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
 
 	UA_entry->global_UA = (flags & SCST_SET_UA_FLAG_GLOBAL) != 0;
 	if (UA_entry->global_UA)
-		TRACE_MGMT_DBG("Queuing global UA %p", UA_entry);
+		TRACE_MGMT_DBG("Queueing global UA %p", UA_entry);
 
 	if (sense_len > (int)sizeof(UA_entry->UA_sense_buffer)) {
 		PRINT_WARNING("Sense truncated (needed %d), shall you increase "

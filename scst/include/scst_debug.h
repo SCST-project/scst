@@ -5,7 +5,7 @@
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
  *  Copyright (C) 2007 - 2010 ID7 Ltd.
  *
- *  Contains macroses for execution tracing and error reporting
+ *  Contains macros for execution tracing and error reporting
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -122,7 +122,7 @@
 #endif
 
 /*
- * We don't print prefix for debug traces to not put additional preasure
+ * We don't print prefix for debug traces to not put additional pressure
  * on the logging system in case of a lot of logging.
  */
 

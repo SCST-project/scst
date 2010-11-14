@@ -148,7 +148,7 @@ EXPORT_SYMBOL(debug_print_buffer);
  * if the name corrupted in the debug logs because of the race for this buffer.
  *
  * Note! You can't call this function 2 or more times in a single logging
- * (printk) statement, because then each new call of this functon will override
+ * (printk) statement, because then each new call of this function will override
  * data written in this buffer by the previous call. You should instead split
  * that logging statement on smaller statements each calling
  * debug_transport_id_to_initiator_name() only once.

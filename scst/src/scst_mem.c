@@ -399,7 +399,7 @@ static void sgv_purge_work_fn(struct delayed_work *work)
 			/*
 			 * Let's reschedule it for full period to not get here
 			 * too often. In the worst case we have shrinker
-			 * to reclaim buffers quickier.
+			 * to reclaim buffers more quickly.
 			 */
 			TRACE_MEM("Rescheduling purge work for pool %p (delay "
 				"%d HZ/%d sec)", pool, pool->purge_interval,
@@ -1503,7 +1503,7 @@ static void sgv_evaluate_local_max_pages(void)
 }
 
 /**
- * sgv_pool_flush - flushe the SGV pool
+ * sgv_pool_flush() - flushes the SGV pool.
  *
  * Flushes, i.e. frees, all the cached entries in the SGV pool.
  */
@@ -1959,7 +1959,7 @@ ssize_t sgv_sysfs_stat_reset(struct kobject *kobj,
 	atomic_set(&pool->other_merged, 0);
 	atomic_set(&pool->other_alloc, 0);
 
-	PRINT_INFO("Statistics for SGV pool %s resetted", pool->name);
+	PRINT_INFO("Statistics for SGV pool %s reset", pool->name);
 
 	TRACE_EXIT_RES(count);
 	return count;
@@ -2003,7 +2003,7 @@ ssize_t sgv_sysfs_global_stat_reset(struct kobject *kobj,
 	atomic_set(&sgv_releases_on_hiwmk_failed, 0);
 	atomic_set(&sgv_other_total_alloc, 0);
 
-	PRINT_INFO("%s", "Global SGV pool statistics resetted");
+	PRINT_INFO("%s", "Global SGV pool statistics reset");
 
 	TRACE_EXIT_RES(count);
 	return count;

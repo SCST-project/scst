@@ -193,7 +193,7 @@ static void __scst_resume_activity(void);
  *    error code otherwise.
  *
  *    Target drivers supposed to behave sanely and not call register()
- *    and unregister() randomly sinultaneously.
+ *    and unregister() randomly simultaneously.
  */
 int __scst_register_target_template(struct scst_tgt_template *vtt,
 	const char *version)
@@ -387,7 +387,7 @@ EXPORT_SYMBOL(__scst_register_target_template_non_gpl);
  * scst_unregister_target_template() - unregister target template
  *
  * Target drivers supposed to behave sanely and not call register()
- * and unregister() randomly sinultaneously. Also it is supposed that
+ * and unregister() randomly simultaneously. Also it is supposed that
  * no attempts to create new targets for this vtt will be done in a race
  * with this function.
  */
@@ -1046,7 +1046,7 @@ static int scst_check_device_name(const char *dev_name)
  * @dev_name:	the new device name, NULL-terminated string. Must be uniq
  *              among all virtual devices in the system.
  *
- * Registers a virtual device and returns assinged to the device ID on
+ * Registers a virtual device and returns ID assigned to the device on
  * success, or negative value otherwise
  */
 int scst_register_virtual_device(struct scst_dev_type *dev_handler,
@@ -1977,7 +1977,7 @@ EXPORT_SYMBOL(scst_get);
 /**
  * scst_put() - decrease global SCST ref counter
  *
- * Decreses global SCST ref counter that prevents from entering into suspended
+ * Decreases global SCST ref counter that prevents from entering into suspended
  * activities stage, so protects from any global management operations. On
  * zero, if suspending activities is waiting, they will be suspended.
  */

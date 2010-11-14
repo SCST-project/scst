@@ -241,7 +241,7 @@ out_redirect:
  * Description:
  *    Notifies SCST that the driver finished its part of the command
  *    initialization, and the command is ready for execution.
- *    The second argument sets preferred command execition context.
+ *    The second argument sets preferred command execution context.
  *    See SCST_CONTEXT_* constants for details.
  *
  *    !!IMPORTANT!!
@@ -272,7 +272,7 @@ void scst_cmd_init_done(struct scst_cmd *cmd,
 		"(cmd %p)", (long long unsigned int)cmd->tag,
 		(long long unsigned int)cmd->lun, cmd->cdb_len,
 		cmd->queue_type, cmd);
-	PRINT_BUFF_FLAG(TRACE_SCSI|TRACE_RCV_BOT, "Recieving CDB",
+	PRINT_BUFF_FLAG(TRACE_SCSI|TRACE_RCV_BOT, "Receiving CDB",
 		cmd->cdb, cmd->cdb_len);
 
 #ifdef CONFIG_SCST_EXTRACHECKS
@@ -1019,7 +1019,7 @@ static int scst_preprocessing_done(struct scst_cmd *cmd)
  * scst_restart_cmd() - restart execution of the command
  * @cmd:	SCST commands
  * @status:	completion status
- * @pref_context: preferred command execition context
+ * @pref_context: preferred command execution context
  *
  * Description:
  *    Notifies SCST that the driver finished its part of the command's
@@ -1768,7 +1768,7 @@ static int scst_request_sense_local(struct scst_cmd *cmd)
 	if (((tgt_dev->tgt_dev_sense[0] == 0x70) ||
 	     (tgt_dev->tgt_dev_sense[0] == 0x71)) && (cmd->cdb[1] & 1)) {
 		PRINT_WARNING("%s: Fixed format of the saved sense, but "
-			"descriptor format requested. Convertion will "
+			"descriptor format requested. Conversion will "
 			"truncated data", cmd->op_name);
 		PRINT_BUFFER("Original sense", tgt_dev->tgt_dev_sense,
 			tgt_dev->tgt_dev_valid_sense_len);
@@ -1780,7 +1780,7 @@ static int scst_request_sense_local(struct scst_cmd *cmd)
 	} else if (((tgt_dev->tgt_dev_sense[0] == 0x72) ||
 		    (tgt_dev->tgt_dev_sense[0] == 0x73)) && !(cmd->cdb[1] & 1)) {
 		PRINT_WARNING("%s: Descriptor format of the "
-			"saved sense, but fixed format requested. Convertion "
+			"saved sense, but fixed format requested. Conversion "
 			"will truncated data", cmd->op_name);
 		PRINT_BUFFER("Original sense", tgt_dev->tgt_dev_sense,
 			tgt_dev->tgt_dev_valid_sense_len);
@@ -1866,7 +1866,7 @@ static int scst_reserve_local(struct scst_cmd *cmd)
 	 *    around the reservation command either by ORDERED attribute, or by
 	 *    queue draining, or etc. For case of SCST_CONTR_MODE_ONE_TASK_SET
 	 *    there are no target drivers which can ensure even for ORDERED
-	 *    comamnds order of their delivery, so, because initiators know
+	 *    commands order of their delivery, so, because initiators know
 	 *    it, also there's no point to do any extra protection actions.
 	 */
 
@@ -1993,7 +1993,7 @@ out_done:
  *
  * Description:
  *    Checks if the command can be executed or there are local events,
- *    like reservatons, pending UAs, etc. Returns < 0 if command must be
+ *    like reservations, pending UAs, etc. Returns < 0 if command must be
  *    aborted, > 0 if there is an event and command should be immediately
  *    completed, or 0 otherwise.
  *
@@ -2744,7 +2744,7 @@ static int scst_send_for_exec(struct scst_cmd **active_cmd)
 		 * path. We need the exact order of read and write between
 		 * def_cmd_count and expected_sn. Otherwise, we can miss case,
 		 * when expected_sn was changed to be equal to cmd->sn while
-		 * we are queuing cmd the deferred list after the expected_sn
+		 * we are queueing cmd the deferred list after the expected_sn
 		 * below. It will lead to a forever stuck command. But with
 		 * the barrier in such case __scst_check_deferred_commands()
 		 * will be called and it will take sn_lock, so we will be
@@ -5363,7 +5363,7 @@ static int scst_abort_task(struct scst_mgmt_cmd *mcmd)
 
 	TRACE_ENTRY();
 
-	TRACE_MGMT_DBG("Abortind task (cmd %p, sn %d, set %d, tag %llu, "
+	TRACE_MGMT_DBG("Aborting task (cmd %p, sn %d, set %d, tag %llu, "
 		"queue_type %x)", cmd, cmd->sn, cmd->sn_set,
 		(long long unsigned int)mcmd->tag, cmd->queue_type);
 
@@ -6339,7 +6339,7 @@ EXPORT_SYMBOL(scst_register_session_non_gpl);
  *   SCST via scst_rx_cmd().
  *
  * - The caller must ensure that no scst_rx_cmd() or scst_rx_mgmt_fn_*() is
- *   called in paralell with scst_unregister_session().
+ *   called in parallel with scst_unregister_session().
  *
  * - Can be called before result_fn() of scst_register_session() called,
  *   i.e. during the session registration/initialization.
@@ -6530,10 +6530,10 @@ static struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess,
 		if (cmd->tag == tag) {
 			/*
 			 * We must not count done commands, because
-			 * they were submitted for transmittion.
+			 * they were submitted for transmission.
 			 * Otherwise we can have a race, when for
 			 * some reason cmd's release delayed
-			 * after transmittion and initiator sends
+			 * after transmission and initiator sends
 			 * cmd with the same tag => it can be possible
 			 * that a wrong cmd will be returned.
 			 */
@@ -6569,7 +6569,7 @@ static struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess,
 /**
  * scst_find_cmd() - find command by custom comparison function
  *
- * Finds a command based on user supplied data and comparision
+ * Finds a command based on user supplied data and comparison
  * callback function, that should return true, if the command is found.
  * Returns the command on success or NULL otherwise.
  */
@@ -6591,9 +6591,9 @@ struct scst_cmd *scst_find_cmd(struct scst_session *sess, void *data,
 	list_for_each_entry(cmd, &sess->sess_cmd_list, sess_cmd_list_entry) {
 		/*
 		 * We must not count done commands, because they were
-		 * submitted for transmittion. Otherwise we can have a race,
+		 * submitted for transmission. Otherwise we can have a race,
 		 * when for some reason cmd's release delayed after
-		 * transmittion and initiator sends cmd with the same tag =>
+		 * transmission and initiator sends cmd with the same tag =>
 		 * it can be possible that a wrong cmd will be returned.
 		 */
 		if (cmd->done)
