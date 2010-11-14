@@ -2140,6 +2140,9 @@ static int srpt_enable_target(struct scst_tgt *scst_tgt, bool enable)
 
 	EXTRACHECKS_WARN_ON_ONCE(irqs_disabled());
 
+	if (!sdev)
+		return -ENOENT;
+
 	TRACE_DBG("%s target %s", enable ? "Enabling" : "Disabling",
 		  sdev->device->name);
 
@@ -2159,6 +2162,9 @@ static bool srpt_is_target_enabled(struct scst_tgt *scst_tgt)
 	bool res;
 
 	EXTRACHECKS_WARN_ON_ONCE(irqs_disabled());
+
+	if (!sdev)
+		return false;
 
 	spin_lock_irq(&sdev->spinlock);
 	res = sdev->enabled;
