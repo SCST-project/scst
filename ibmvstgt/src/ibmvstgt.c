@@ -349,9 +349,13 @@ static int ibmvstgt_rdma(struct scst_cmd *sc, struct scatterlist *sg, int nsg,
 static int ibmvstgt_enable_target(struct scst_tgt *scst_tgt, bool enable)
 {
 	struct srp_target *target = scst_tgt_get_tgt_priv(scst_tgt);
-	struct vio_port *vport = target_to_port(target);
+	struct vio_port *vport;
 	unsigned long flags;
 
+	if (!target)
+		return -ENOENT;
+
+	vport = target_to_port(target);
 	TRACE_DBG("%s target %d", enable ? "Enabling" : "Disabling",
 		  vport->dma_dev->unit_address);
 
@@ -368,10 +372,14 @@ static int ibmvstgt_enable_target(struct scst_tgt *scst_tgt, bool enable)
 static bool ibmvstgt_is_target_enabled(struct scst_tgt *scst_tgt)
 {
 	struct srp_target *target = scst_tgt_get_tgt_priv(scst_tgt);
-	struct vio_port *vport = target_to_port(target);
+	struct vio_port *vport;
 	unsigned long flags;
 	bool res;
 
+	if (!target)
+		return false;
+
+	vport = target_to_port(target);
 	spin_lock_irqsave(&target->lock, flags);
 	res = vport->enabled;
 	spin_unlock_irqrestore(&target->lock, flags);
