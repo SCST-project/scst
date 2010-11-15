@@ -1912,20 +1912,33 @@ sub applyConfigAssignments {
 		}
 
 		my %_attributes;
+		my %special;
 		foreach my $item (keys %{$$assignments{$driver}}) {
 			if ($item eq 'TARGET') {
 				$changes += applyTargetAssignments($driver, $$assignments{$driver}->{$item},
 				  $deletions);
-			} else {
+			} elsif ($item ne 'enabled') {
+				# Enable driver last
 				$_attributes{$item} = $$assignments{$driver}->{$item};
-			}
+			} else {
+				$special{$item} = $$assignments{$driver}->{$item};
 
+			}
 		}
 
 		my $attributes = configToAttr(\%_attributes);
 
 		if (scalar keys %{$attributes}) {
 			$changes += setDriverAttributes($driver, $attributes, $deletions);
+		}
+
+		$attributes = configToAttr(\%special);
+		my $d_attributes = $SCST->driverAttributes($driver);
+
+		if (defined($$d_attributes{'enabled'}) &&
+		    ($$d_attributes{'enabled'}->{'value'} != $$attributes{'enabled'})) {
+			setDriverAttribute($driver, 'enabled', $$attributes{'enabled'});
+			$changes++;
 		}
 	}
 
@@ -2051,21 +2064,38 @@ sub applyTargetAssignments {
 			}
 		}
 
+		# Apply attribute changes first in case we want a different address method applied
 		my %_attributes;
+		foreach my $item (keys %{$$targets{$target}}) {
+			# Handle enabled attribute last
+			next if (($item eq 'GROUP') || ($item eq 'LUN') || ($item eq 'enabled'));
+			$_attributes{$item} = $$targets{$target}->{$item};
+		}
+
+		my $attributes = configToAttr(\%_attributes);
+		filterCreateAttributes($possible, $attributes, TRUE);
+		$changes += setTargetAttributes($driver, $target, $attributes, $deletions);
+
+		%_attributes = ();
 		foreach my $item (keys %{$$targets{$target}}) {
 			if ($item eq 'GROUP') {
 				$changes += applyGroupAssignments($driver, $target, $$targets{$target}->{$item});
 				$changes += applyInitiatorAssignments($driver, $target, $$targets{$target}->{$item}, $deletions);
 			} elsif ($item eq 'LUN') {
 				$changes += applyLunAssignments($driver, $target, undef, $$targets{$target}->{$item});
-			} else {
+			} elsif ($item eq 'enabled') {
 				$_attributes{$item} = $$targets{$target}->{$item};
 			}
 		}
 
-		my $attributes = configToAttr(\%_attributes);
-		filterCreateAttributes($possible, $attributes, TRUE);
-		$changes += setTargetAttributes($driver, $target, $attributes, $deletions);
+		$attributes = configToAttr(\%_attributes);
+		my $t_attributes = $SCST->targetAttributes($driver, $target);
+
+		if (defined($$t_attributes{'enabled'}) &&
+		    ($$t_attributes{'enabled'}->{'value'} != $$attributes{'enabled'})) {
+			setTargetAttribute($driver, $target, 'enabled', $$attributes{'enabled'});
+			$changes++;
+		}
 	}
 
 	return $changes;
