@@ -111,22 +111,24 @@ The ib_srpt kernel module supports the following parameters:
 Configuring the SRP Target System
 ---------------------------------
 
-First of all, create the file /etc/scst.conf. Below you can find an
-example of how you can create this file using the scstadmin tool:
+First of all, create the file /etc/scst.conf. You can create this file with
+the scstadmin tool as follows:
 
   /etc/init.d/scst stop
   /etc/init.d/scst start
 
-  scstadmin -ClearConfig /etc/scst.conf
-  scstadmin -adddev disk01 -path /dev/ram0 -handler vdisk -options NV_CACHE
-  scstadmin -adddev disk02 -path /dev/ram1 -handler vdisk -options NV_CACHE
-  scstadmin -assigndev disk01 -group Default -lun 0
-  scstadmin -assigndev disk02 -group Default -lun 1
-  scstadmin -assigndev 4:0:0:0 -group Default -lun 2
-  scstadmin -WriteConfig /etc/scst.conf
+Now configure SCST using scstadmin - see also the scstadmin documentation for
+further information. Once finished, save the configuration to /etc/scst.conf:
+
+  scstadmin -write_config /etc/scst.conf  (sysfs version)
+or
+  scstadmin -WriteConfig /etc/scst.conf   (procfs version)
+
+One can verify the contents of scst.conf e.g. as follows:
+
   cat /etc/scst.conf
 
-Now load the new configuration:
+Now verify that loading the configuration from file works correctly:
 
   /etc/init.d/scst reload
 
