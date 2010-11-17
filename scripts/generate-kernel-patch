@@ -588,24 +588,12 @@ because this patch dissociates ibmvstgt SRP sessions from a SCSI host
 instance.  Since the user space STGT driver ibmvio was the only user of
 these attributes, that shouldn't be an issue.
 
-Changes in ibmvstgt compared to the patch posted on October 2, 2010:
-- The format of a SCSI INQUIRY response is now in the format expected by AIX.
-- Aborting a SCSI command does no longer trigger an SRP credit leak.
-- The flag SRP_RSP_FLAG_SNSVALID in an SRP_RSP information unit is now only
-  set when a response contains sense data and not when e.g. the response status
-  is BUSY and no sense data is sent back to the initiator.
-- In ibmvstgt_init(), get_system_info() is now invoked before registering the
-  sysfs attributes that export the queried values.
-- Avoid that ibmvstgt_release() triggers a NULL-pointer dereference when
-  invoked before a client has logged in.
-- The second and subsequent SRP_LOGIN received from a client does no longer
-  trigger a BUG_ON() in process_login().
-
 Changes in ibmvstgt compared to kernel 2.6.36:
-- Added support for persistent reservations.
-- Increased maximum data size for a single SRP command from 128 KB to 64 MB.
+- Increased maximum data size for a single SRP command from 128 KB to 64 MB
+  such that an initiator is not forced to split large transfers into
+  multiple SCSI commands.
 - The maximum RDMA transfer size supported by a single H_COPY_RDMA call is
-  queried at driver initiatlization time from the open firmware tree / larger
+  queried at driver initialization time from the open firmware tree / larger
   transfers than 128 KB are now supported too.
 - If DMA mapping fails while handling a READ or WRITE command, the offending
   command is retried until the associated data has been transferred instead of
@@ -621,11 +609,6 @@ Changes in ibmvstgt compared to kernel 2.6.36:
 - ibmvstgt_probe(): changed the datatype of the variable "dma" from
   unsigned * into const unsigned * such that a cast could be removed.
 - Fixed all compiler and sparse warnings (C=2 CF=-D__CHECK_ENDIAN__).
-
-Changes in libsrp compared to the patch posted on October 2, 2010:
-- srp_direct_data() and srp_indirect_data(): Use the data length from
-  the SCSI CDB instead of the length from the SRP_CMD data descriptors. Also,
-  compute the correct data length even if dma_map == 0.
 
 Changes in libsrp compared to kernel 2.6.36:
 - Renamed vscsis_data_length() into srp_data_length() and exported
@@ -646,8 +629,6 @@ Changes in libsrp compared to kernel 2.6.36:
   core.
 - Fixed all compiler and sparse warnings (C=2 CF=-D__CHECK_ENDIAN__).
 
-Note: ibmvstgt is the only user of libsrp.
-
 Tests performed on a backport to kernel version 2.6.18 of this driver with a
 Linux initiator system:
 - Verified that the kernel module ibmvstgt loads and initializes successfully
@@ -661,9 +642,11 @@ Linux initiator system:
 - Performed IO stress testing on the device.
 - Verified that SCSI task abortion works correctly.
 - Performed basic I/O performance testing. With a RAM disk as target linear
-  direct I/O throughput was above 2 GB/s and a 4 KB random I/O test resulted
-  in more than 10000 IOPS.
+  direct I/O throughput was above 2 GB/s and a random I/O test resulted in
+  about 30000 IOPS for all block sizes between 512 bytes and 16 KB.
   Both initiator and target were dual core POWER6 LPAR systems.
+
+Note: ibmvstgt is the only user of libsrp.
 
 Signed-off-by: Bart Van Assche <bvanassche@acm.org>
 Cc: Fujita Tomonori <fujita.tomonori@lab.ntt.co.jp>
