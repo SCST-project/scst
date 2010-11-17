@@ -319,6 +319,8 @@ EXPORT_SYMBOL(scst_sysfs_queue_wait_work);
 
 /* Called under sysfs_work_lock and drops/reacquire it inside */
 static void scst_process_sysfs_works(void)
+	__releases(&sysfs_work_lock)
+	__acquires(&sysfs_work_lock)
 {
 	struct scst_sysfs_work_item *work;
 
