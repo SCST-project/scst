@@ -71,6 +71,10 @@ case "$1" in
                 log_failure_msg
                 exit 1
             fi
+        else
+            log_end_msg 0
+            echo "SCST configuration file $SCST_CFG missing"
+            exit 0
         fi
 
         log_success_msg
