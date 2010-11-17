@@ -820,7 +820,8 @@ static void process_srp_iu(struct iu_entry *iue)
 		process_tsk_mgmt(iue);
 		break;
 	case SRP_CMD:
-		err = srp_cmd_queue(vport->sess, &iu->srp.cmd, iue);
+		err = srp_cmd_queue(vport->sess, &iu->srp.cmd, iue,
+				    SCST_NON_ATOMIC);
 		if (err) {
 			eprintk("cannot queue cmd %p %d\n", &iu->srp.cmd, err);
 			srp_iu_put(iue);
@@ -1038,8 +1039,8 @@ static inline struct viosrp_crq *next_crq(struct crq_queue *queue)
  * handle_crq() - Process the command/response queue.
  *
  * Note: Although this function is not thread-safe because of how it is
- * scheduled it is guaranteed that this function will never be scheduled
- * concurrently against itself.
+ * scheduled it is guaranteed that this function will never run concurrently
+ * with itself.
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
 static void handle_crq(void *ctx)

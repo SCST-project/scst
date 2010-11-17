@@ -59,7 +59,7 @@ extern struct iu_entry *srp_iu_get(struct srp_target *);
 extern void srp_iu_put(struct iu_entry *);
 
 extern int srp_data_length(struct srp_cmd *, enum dma_data_direction);
-extern int srp_cmd_queue(struct scst_session *, struct srp_cmd *, void *);
+extern int srp_cmd_queue(struct scst_session *, struct srp_cmd *, void *, int);
 extern int srp_transfer_data(struct scst_cmd *, struct srp_cmd *,
 			     srp_rdma_t, int, int);
 

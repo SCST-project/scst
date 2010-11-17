@@ -427,7 +427,8 @@ int srp_data_length(struct srp_cmd *cmd, enum dma_data_direction dir)
 }
 EXPORT_SYMBOL_GPL(srp_data_length);
 
-int srp_cmd_queue(struct scst_session *sess, struct srp_cmd *cmd, void *info)
+int srp_cmd_queue(struct scst_session *sess, struct srp_cmd *cmd, void *info,
+		  int atomic)
 {
 	enum dma_data_direction dir;
 	struct scst_cmd *sc;
@@ -458,7 +459,7 @@ int srp_cmd_queue(struct scst_session *sess, struct srp_cmd *cmd, void *info)
 		cmd->lun, dir, len, tag, (unsigned long long) cmd->tag);
 
 	sc = scst_rx_cmd(sess, (u8 *) &cmd->lun, sizeof(cmd->lun),
-			 cmd->cdb, sizeof(cmd->cdb), SCST_CONTEXT_THREAD);
+			 cmd->cdb, sizeof(cmd->cdb), atomic);
 	if (!sc)
 		return -ENOMEM;
 
