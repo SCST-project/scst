@@ -107,7 +107,7 @@ time_write() {
     else
       fio_flags="--direct=0 --end_fsync=1"
     fi
-    fio  --rw=write --filename="${device}" --bs=$1 --size=$(($1*$2)) --ioengine=sync --end_fsync=1 --invalidate=1 ${fio_flags} --name=writeperftest \
+    fio  --rw=write --filename="${device}" --bs=$1 --size=$(($1*$2)) --ioengine=psync --end_fsync=1 --invalidate=1 ${fio_flags} --name=writeperftest \
     | sed -n 's/.*runt= *\([0-9]*\)msec.*/\1/p' \
     | awk '{print $1/1000}'
   else
@@ -129,7 +129,7 @@ time_read() {
     else
       fio_flags="--direct=0"
     fi
-    fio  --rw=read --filename="${device}" --bs=$1 --size=$(($1*$2)) --ioengine=sync --end_fsync=1 --invalidate=1 ${fio_flags} --name=readperftest \
+    fio  --rw=read --filename="${device}" --bs=$1 --size=$(($1*$2)) --ioengine=psync --end_fsync=1 --invalidate=1 ${fio_flags} --name=readperftest \
     | sed -n 's/.*runt= *\([0-9]*\)msec.*/\1/p' \
     | awk '{print $1/1000}'
   else
