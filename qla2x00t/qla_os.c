@@ -3148,12 +3148,8 @@ static bool __init qla2x00_parse_ini_mode(void)
 
 	return true;
 }
-#else
-static inline bool qla2x00_parse_ini_mode(void)
-{
-	return true;
-}
-#endif
+
+#endif /* CONFIG_SCSI_QLA2XXX_TARGET */
 
 /**
  * qla2x00_module_init - Module initialization.
@@ -3182,10 +3178,12 @@ qla2x00_module_init(void)
 	ql2xextended_error_logging = 1;
 #endif
 
+#ifdef CONFIG_SCSI_QLA2XXX_TARGET
 	if (!qla2x00_parse_ini_mode()) {
 		printk("Wrong qlini_mode value %s\n", qlini_mode);
 		return -EINVAL;
 	}
+#endif
 
 	/* Allocate cache for SRBs. */
 	srb_cachep = kmem_cache_create("qla2xxx_srbs", sizeof(srb_t), 0,
