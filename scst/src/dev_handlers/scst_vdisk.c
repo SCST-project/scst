@@ -1388,7 +1388,9 @@ static void vdisk_exec_unmap(struct scst_cmd *cmd, struct scst_vdisk_thr *thr)
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 31)
 			err = blkdev_issue_discard(inode->i_bdev, start, len,
 					GFP_KERNEL);
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)       \
+      && !(LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 34) \
+           && defined(CONFIG_SUSE_KERNEL))
 			err = blkdev_issue_discard(inode->i_bdev, start, len,
 					GFP_KERNEL, DISCARD_FL_WAIT);
 #else
