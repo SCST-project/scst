@@ -4189,7 +4189,8 @@ static void sgv_kobj_release(struct kobject *kobj)
 	TRACE_ENTRY();
 
 	pool = container_of(kobj, struct sgv_pool, sgv_kobj);
-	complete_all(&pool->sgv_kobj_release_cmpl);
+	if (pool->sgv_kobj_release_cmpl != NULL)
+		complete_all(pool->sgv_kobj_release_cmpl);
 
 	TRACE_EXIT();
 	return;
@@ -4207,8 +4208,6 @@ int scst_sgv_sysfs_create(struct sgv_pool *pool)
 
 	TRACE_ENTRY();
 
-	init_completion(&pool->sgv_kobj_release_cmpl);
-
 	res = kobject_init_and_add(&pool->sgv_kobj, &sgv_pool_ktype,
 			scst_sgv_kobj, pool->name);
 	if (res != 0) {
@@ -4224,18 +4223,21 @@ out:
 void scst_sgv_sysfs_del(struct sgv_pool *pool)
 {
 	int rc;
+	DECLARE_COMPLETION_ONSTACK(c);
 
 	TRACE_ENTRY();
+
+	pool->sgv_kobj_release_cmpl = &c;
 
 	kobject_del(&pool->sgv_kobj);
 	kobject_put(&pool->sgv_kobj);
 
-	rc = wait_for_completion_timeout(&pool->sgv_kobj_release_cmpl, HZ);
+	rc = wait_for_completion_timeout(pool->sgv_kobj_release_cmpl, HZ);
 	if (rc == 0) {
 		PRINT_INFO("Waiting for releasing sysfs entry "
 			"for SGV pool %s (%d refs)...", pool->name,
 			atomic_read(&pool->sgv_kobj.kref.refcount));
-		wait_for_completion(&pool->sgv_kobj_release_cmpl);
+		wait_for_completion(pool->sgv_kobj_release_cmpl);
 		PRINT_INFO("Done waiting for releasing sysfs "
 			"entry for SGV pool %s", pool->name);
 	}

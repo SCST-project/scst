@@ -129,7 +129,7 @@ struct sgv_pool {
 	struct kobject sgv_kobj;
 
 	/* sysfs release completion */
-	struct completion sgv_kobj_release_cmpl;
+	struct completion *sgv_kobj_release_cmpl;
 };
 
 static inline struct scatterlist *sgv_pool_sg(struct sgv_pool_obj *obj)

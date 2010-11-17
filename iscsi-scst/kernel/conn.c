@@ -128,7 +128,8 @@ static void iscsi_conn_release(struct kobject *kobj)
 	TRACE_ENTRY();
 
 	conn = container_of(kobj, struct iscsi_conn, conn_kobj);
-	complete_all(&conn->conn_kobj_release_cmpl);
+	if (conn->conn_kobj_release_cmpl != NULL)
+		complete_all(conn->conn_kobj_release_cmpl);
 
 	TRACE_EXIT();
 	return;
@@ -236,18 +237,21 @@ static struct kobj_attribute iscsi_conn_state_attr =
 static void conn_sysfs_del(struct iscsi_conn *conn)
 {
 	int rc;
+	DECLARE_COMPLETION_ONSTACK(c);
 
 	TRACE_ENTRY();
+
+	conn->conn_kobj_release_cmpl = &c;
 
 	kobject_del(&conn->conn_kobj);
 	kobject_put(&conn->conn_kobj);
 
-	rc = wait_for_completion_timeout(&conn->conn_kobj_release_cmpl, HZ);
+	rc = wait_for_completion_timeout(conn->conn_kobj_release_cmpl, HZ);
 	if (rc == 0) {
 		PRINT_INFO("Waiting for releasing sysfs entry "
 			"for conn %p (%d refs)...", conn,
 			atomic_read(&conn->conn_kobj.kref.refcount));
-		wait_for_completion(&conn->conn_kobj_release_cmpl);
+		wait_for_completion(conn->conn_kobj_release_cmpl);
 		PRINT_INFO("Done waiting for releasing sysfs "
 			"entry for conn %p", conn);
 	}
@@ -283,8 +287,6 @@ restart:
 			goto restart;
 		}
 	}
-
-	init_completion(&conn->conn_kobj_release_cmpl);
 
 	res = kobject_init_and_add(&conn->conn_kobj, &iscsi_conn_ktype,
 		scst_sysfs_get_sess_kobj(session->scst_sess), addr);
