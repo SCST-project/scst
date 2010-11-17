@@ -34,9 +34,8 @@ ram008  ram009  ram010  ram011  ram012  ram013  ram014  ram015
 
 After this step a LUN has to be assigned to each exported SCSI device. Some
 non-Linux initiator operating systems only accept LUN numbes that are
-multiples of 256 and require that the LUN addressing method is used. The LUN
-addressing method is only available for other groups than the Default group.
-Configuring such a group can be done e.g. as follows:
+multiples of 256 and require that the LUN addressing method is used.
+Assigning LUN numbers is possible e.g. as follows:
 
   lun=0
   for name in ram000 ram001 ram002 ram003 ram004 ram005 ram006 ram007 \
