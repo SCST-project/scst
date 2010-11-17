@@ -1241,11 +1241,12 @@ As any other hardware, the local SCSI hardware can not handle commands
 with amount of data and/or segments count in scatter-gather array bigger
 some values. Therefore, when using the pass-through mode you should note
 that values for maximum number of segments and maximum amount of
-transferred data for each SCSI command on devices on initiators can not
-be bigger, than corresponding values of the corresponding SCSI devices
-on the target. Otherwise you will see symptoms like small transfers work
-well, but large ones stall and messages like: "Unable to complete
-command due to SG IO count limitation" are printed in the kernel logs.
+transferred data (max_sectors) for each SCSI command on devices on
+initiators can not be bigger, than corresponding values of the
+corresponding SCSI devices on the target. Otherwise you will see
+symptoms like small transfers work well, but large ones stall and
+messages like: "Unable to complete command due to SG IO count
+limitation" are printed in the kernel logs.
 
 You can't control from the user space limit of the scatter-gather
 segments, but for block devices usually it is sufficient if you set on
