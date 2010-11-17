@@ -49,7 +49,6 @@ SCST_MODULES="scst scst_disk scst_vdisk"
 #
 
 [ -x "$(which scstadmin)" ] || exit 5
-[ -f $SCST_CFG ]            || exit 6
 
 . /lib/lsb/init-functions
 
@@ -65,12 +64,16 @@ case "$1" in
             fi
         done
 
-        if scstadmin -config $SCST_CFG >/dev/null 2>&1; then
-            log_success_msg
-        else
-            log_failure_msg
-            exit 1
+	if [ -f $SCST_CFG ]; then
+            if scstadmin -config $SCST_CFG >/dev/null 2>&1; then
+       	        log_success_msg
+            else
+                log_failure_msg
+                exit 1
+            fi
         fi
+
+        log_success_msg
         ;;
     stop)
         ## Stop the service.

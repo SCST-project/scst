@@ -50,7 +50,6 @@ SCST_MODULES="scst scst_disk scst_vdisk"
 checkconfig() {
 	if [ ! -f $SCST_CFG ] ; then
 		eerror "Please create $SCST_CFG"
-		eerror "Do touch $SCST_CFG, and run scstadmin"
 		return 1
 	fi
 	return 0
@@ -67,7 +66,7 @@ checkinstall() {
 start() {
         ebegin "Loading and configuring the mid-level SCSI target SCST"
        	eindent
-	checkconfig || return $?
+	checkconfig
 	checkinstall || return $?
 	ret=0
         for module in ${SCST_MODULES}; do
@@ -80,11 +79,16 @@ start() {
         done
 	einfo "Configuring SCST..."
 	eindent
-        if scstadmin -config $SCST_CFG >/dev/null 2>&1; then
-        	einfo "SCST config was loaded"
-	else
-		eend $? "SCST config could not be loaded"
-		return $?
+	if [ -f $SCST_CFG ]; then
+                if scstadmin -config $SCST_CFG >/dev/null 2>&1; then
+        	        einfo "SCST config was loaded"
+	        else
+		        eend $? "SCST config could not be loaded"
+		        return $?
+                fi
+        else
+                einfo "SCST configuration file $SCST_CFG missing, skipping"
+                return 0
         fi
         eoutdent
         eoutdent
