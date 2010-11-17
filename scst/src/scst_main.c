@@ -416,12 +416,14 @@ void scst_unregister_target_template(struct scst_tgt_template *vtt)
 	list_del(&vtt->scst_template_list_entry);
 	mutex_unlock(&scst_mutex2);
 
+#ifndef CONFIG_SCST_PROC
 	/* Wait for outstanding sysfs mgmt calls completed */
 	while (vtt->tgtt_active_sysfs_works_count > 0) {
 		mutex_unlock(&scst_mutex);
 		msleep(100);
 		mutex_lock(&scst_mutex);
 	}
+#endif
 
 restart:
 	list_for_each_entry(tgt, &vtt->tgt_list, tgt_list_entry) {
@@ -1501,12 +1503,14 @@ void scst_unregister_virtual_dev_driver(struct scst_dev_type *dev_type)
 	/* Disable sysfs mgmt calls (e.g. addition of new devices) */
 	list_del(&dev_type->dev_type_list_entry);
 
+#ifndef CONFIG_SCST_PROC
 	/* Wait for outstanding sysfs mgmt calls completed */
 	while (dev_type->devt_active_sysfs_works_count > 0) {
 		mutex_unlock(&scst_mutex);
 		msleep(100);
 		mutex_lock(&scst_mutex);
 	}
+#endif
 
 	mutex_unlock(&scst_mutex);
 

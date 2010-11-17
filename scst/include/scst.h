@@ -1034,8 +1034,10 @@ struct scst_tgt_template {
 #ifdef CONFIG_SCST_PROC
 	/* The pointer to the /proc directory entry */
 	struct proc_dir_entry *proc_tgt_root;
-#endif
 
+	/* Device number in /proc */
+	int proc_dev_num;
+#else
 	struct kobject tgtt_kobj; /* kobject for this struct */
 
 	/* Number of currently active sysfs mgmt works (scst_sysfs_work_item) */
@@ -1043,10 +1045,6 @@ struct scst_tgt_template {
 
 	/* sysfs release completion */
 	struct completion *tgtt_kobj_release_cmpl;
-
-#ifdef CONFIG_SCST_PROC
-	/* Device number in /proc */
-	int proc_dev_num;
 #endif
 
 	/*
@@ -1416,8 +1414,7 @@ struct scst_dev_type {
 #ifdef CONFIG_SCST_PROC
 	/* The pointer to the /proc directory entry */
 	struct proc_dir_entry *proc_dev_type_root;
-#endif
-
+#else
 	struct kobject devt_kobj; /* main handlers/driver */
 
 	/* Number of currently active sysfs mgmt works (scst_sysfs_work_item) */
@@ -1425,6 +1422,7 @@ struct scst_dev_type {
 
 	/* To wait until devt_kobj released */
 	struct completion *devt_kobj_release_compl;
+#endif
 };
 
 /*
@@ -1483,8 +1481,7 @@ struct scst_tgt {
 #ifdef CONFIG_SCST_PROC
 	/* Name of the default security group ("Default_target_name") */
 	char *default_group_name;
-#endif
-
+#else
 	/* sysfs release completion */
 	struct completion *tgt_kobj_release_cmpl;
 
@@ -1492,6 +1489,7 @@ struct scst_tgt {
 	struct kobject *tgt_sess_kobj; /* target/sessions/ */
 	struct kobject *tgt_luns_kobj; /* target/luns/ */
 	struct kobject *tgt_ini_grp_kobj; /* target/ini_groups/ */
+#endif
 };
 
 #ifdef CONFIG_SCST_MEASURE_LATENCY
@@ -1618,9 +1616,11 @@ struct scst_session {
 	/* sysfs release completion */
 	struct completion *sess_kobj_release_cmpl;
 
+#ifndef CONFIG_SCST_PROC
 	unsigned int sess_kobj_ready:1;
 
 	struct kobject sess_kobj; /* kobject for this struct */
+#endif
 
 	/*
 	 * Functions and data for user callbacks from scst_register_session()
@@ -2270,6 +2270,7 @@ struct scst_device {
 	/* Threads pool type of the device. Valid only if threads_num > 0. */
 	enum scst_dev_type_threads_pool_type threads_pool_type;
 
+#ifndef CONFIG_SCST_PROC
 	/* sysfs release completion */
 	struct completion *dev_kobj_release_cmpl;
 
@@ -2278,6 +2279,7 @@ struct scst_device {
 
 	/* Export number in the dev's sysfs list. Protected by scst_mutex */
 	int dev_exported_lun_num;
+#endif
 };
 
 /*
@@ -2403,10 +2405,12 @@ struct scst_tgt_dev {
 	unsigned short tgt_dev_valid_sense_len;
 	uint8_t tgt_dev_sense[SCST_SENSE_BUFFERSIZE];
 
+#ifndef CONFIG_SCST_PROC
 	/* sysfs release completion */
 	struct completion *tgt_dev_kobj_release_cmpl;
 
 	struct kobject tgt_dev_kobj; /* kobject for this struct */
+#endif
 
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 	/*
@@ -2440,6 +2444,7 @@ struct scst_acg_dev {
 	/* List entry in acg->acg_dev_list */
 	struct list_head acg_dev_list_entry;
 
+#ifndef CONFIG_SCST_PROC
 	/* kobject for this structure */
 	struct kobject acg_dev_kobj;
 
@@ -2448,6 +2453,7 @@ struct scst_acg_dev {
 
 	/* Name of the link to the corresponding LUN */
 	char acg_dev_link_name[20];
+#endif
 };
 
 /*
@@ -2489,11 +2495,13 @@ struct scst_acg {
 	/* sysfs release completion */
 	struct completion *acg_kobj_release_cmpl;
 
+#ifndef CONFIG_SCST_PROC
 	/* kobject for this structure */
 	struct kobject acg_kobj;
 
 	struct kobject *luns_kobj;
 	struct kobject *initiators_kobj;
+#endif
 
 	enum scst_lun_addr_method addr_method;
 };
