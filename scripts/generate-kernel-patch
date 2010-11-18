@@ -582,69 +582,115 @@ both use the SCST storage target framework instead of tgt. As a result,
 neither the scsi_tgt kernel module nor the tgtd user space process are any
 more necessary when using the ibmvstgt driver.
 
-This patch introduces one backwards-incompatible change, namely that the path
-of the ibmvstgt sysfs attributes is modified. This change is unavoidable
-because this patch dissociates ibmvstgt SRP sessions from a SCSI host
-instance.  Since the user space STGT driver ibmvio was the only user of
-these attributes, that shouldn't be an issue.
+With SCST, this driver can benefit of all the advantages SCST has over
+STGT. Particularly:
 
-Changes in ibmvstgt compared to kernel 2.6.36:
-- Increased maximum data size for a single SRP command from 128 KB to 64 MB
-  such that an initiator is not forced to split large transfers into
-  multiple SCSI commands.
-- The maximum RDMA transfer size supported by a single H_COPY_RDMA call is
-  queried at driver initialization time from the open firmware tree / larger
-  transfers than 128 KB are now supported too.
-- If DMA mapping fails while handling a READ or WRITE command, the offending
-  command is retried until the associated data has been transferred instead of
-  reporting to the ibmvscsi client that the SCSI command failed.
-- VSCSI command/response queue: one element has been reserved for management
-  datagrams since these fall outside the SRP credit mechanism. Added a compile-
-  time check whether the size of this queue is a power of two.
-- Fixed a race condition which in theory could have caused the VSCSI receive
-  queue to overflow: srp_iu_put() is now invoked before a response is sent back
-  to the initiator instead of after.
-- Moved enum iue_flags from libsrp to ibmvstgt because it is ibmvstgt-specific.
-- Removed a variable that was modified but never read from ibmvstgt_rdma().
-- ibmvstgt_probe(): changed the datatype of the variable "dma" from
-  unsigned * into const unsigned * such that a cast could be removed.
-- Fixed all compiler and sparse warnings (C=2 CF=-D__CHECK_ENDIAN__).
+ - Improved performance.
 
-Changes in libsrp compared to kernel 2.6.36:
-- Renamed vscsis_data_length() into srp_data_length() and exported
-  this function.
-- All error messages reported via printk() do now have prefix KERN_ERR.
-- modified srp_target_alloc() and srp_target_free() such that the
-  driver-private data reflects whether or not target data has been allocated.
-  This change was necessary to avoid that ibmvstgt_remove() triggers a
-  NULL-pointer dereference if ibmvstgt_probe() failed.
-- srp_transfer_data(): All three return statements related to DMA mapping
-  failure do now return -ENOMEM instead of 0, -EIO and -ENOMEM.
-- srp_direct_data(): Removed the ext_desc argument since not used.
-- srp_direct_data() and srp_indirect_data(): Use DMA_TO/FROM_DEVICE
-  instead of DMA_BIDIRECTIONAL for the buffers mapped for transferring data
-  via DMA.
-- struct srp_target: eliminated the information unit linked list and also the
-  V_FLYING flag since both were duplicating information managed by the SCST
-  core.
-- Fixed all compiler and sparse warnings (C=2 CF=-D__CHECK_ENDIAN__).
+ - Complete Persistent Reservations implementation.
 
-Tests performed on a backport to kernel version 2.6.18 of this driver with a
-Linux initiator system:
+ - Advanced devices access control, where different initiators can see
+   different sets of LUNs.
+
+ Etc.
+
+Full set of advantages of SCST over STGT you can find on
+http://scst.sourceforge.net/comparison.html
+
+The patched driver is completed and fully functional. Tests performed on
+a backport to kernel version 2.6.18 of this driver with a Linux
+initiator system:
+
 - Verified that the kernel module ibmvstgt loads and initializes successfully
   and also that the client connects after loading.
+
 - Verified that all virtual disks configured in scst_vdisk were discovered by
   the client after rescanning the SCSI bus.
+
 - Verified that after unloading and reloading ibmvstgt and after client
   recovery that the initiator devices were functioning normally.
+
 - Verified that after a client reboot ibmvscsic reconnected with the target
   and that the target devices were again usable.
+
 - Performed IO stress testing on the device.
+
 - Verified that SCSI task abortion works correctly.
+
 - Performed basic I/O performance testing. With a RAM disk as target linear
   direct I/O throughput was above 2 GB/s and a random I/O test resulted in
   about 30000 IOPS for all block sizes between 512 bytes and 16 KB.
   Both initiator and target were dual core POWER6 LPAR systems.
+
+This patch introduces one backwards-incompatible change, namely that the path
+of the ibmvstgt sysfs attributes is modified. This change is unavoidable
+because this patch dissociates ibmvstgt SRP sessions from a SCSI host
+instance. Since the user space STGT driver ibmvio was the only user of
+these attributes, that shouldn't be an issue.
+
+The following additional improvements were done comparing to the
+original version of ibmvstgt:
+
+- Increased maximum data size for a single SRP command from 128 KB to 64 MB
+  such that an initiator is not forced to split large transfers into
+  multiple SCSI commands (performance improvement).
+
+- The maximum RDMA transfer size supported by a single H_COPY_RDMA call is
+  queried at driver initialization time from the open firmware tree / larger
+  transfers than 128 KB are now supported too (performance improvement).
+
+- If DMA mapping fails while handling a READ or WRITE command, the offending
+  command is retried until the associated data has been transferred
+  instead of reporting to the ibmvscsi client that the SCSI command
+  failed (more reliable work).
+
+- VSCSI command/response queue: one element has been reserved for management
+  datagrams since these fall outside the SRP credit mechanism. Added a
+  compile-time check whether the size of this queue is a power of two
+  (more reliable work).
+
+- Fixed a race condition which in theory could have caused the VSCSI receive
+  queue to overflow: srp_iu_put() is now invoked before a response is sent back
+  to the initiator instead of after (more reliable work).
+
+- Moved enum iue_flags from libsrp to ibmvstgt because it is
+  ibmvstgt-specific.
+
+- Removed a variable that was modified, but never read from
+  ibmvstgt_rdma().
+
+- ibmvstgt_probe(): changed the datatype of the variable "dma" from
+  unsigned * into const unsigned * such that a cast could be removed.
+
+- Fixed all compiler and sparse warnings (C=2 CF=-D__CHECK_ENDIAN__).
+
+The following additional improvements were done comparing to the
+original version of libsrp:
+
+- Renamed vscsis_data_length() into srp_data_length() and exported
+  this function.
+
+- All error messages reported via printk() do now have prefix KERN_ERR.
+
+- modified srp_target_alloc() and srp_target_free() such that the
+  driver-private data reflects whether or not target data has been allocated.
+  This change was necessary to avoid that ibmvstgt_remove() triggers a
+  NULL-pointer dereference if ibmvstgt_probe() failed.
+
+- srp_transfer_data(): All three return statements related to DMA mapping
+  failure do now return -ENOMEM instead of 0, -EIO and -ENOMEM.
+
+- srp_direct_data(): Removed the ext_desc argument since not used.
+
+- srp_direct_data() and srp_indirect_data(): Use DMA_TO/FROM_DEVICE
+  instead of DMA_BIDIRECTIONAL for the buffers mapped for transferring data
+  via DMA.
+
+- struct srp_target: eliminated the information unit linked list and also the
+  V_FLYING flag since both were duplicating information managed by the SCST
+  core.
+
+- Fixed all compiler and sparse warnings (C=2 CF=-D__CHECK_ENDIAN__).
 
 Note: ibmvstgt is the only user of libsrp.
 
