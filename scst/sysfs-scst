@@ -1,0 +1,254 @@
+What:		/sys/kernel/scst_tgt/
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Contains SCST management interface entries.
+
+What:		/sys/kernel/scst_tgt/devices/
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Contains subdirectories for all SCST devices
+
+What:		/sys/kernel/scst_tgt/devices/<device>/exported/exportX
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Links to LUNs in the LUNs group where <device> exported, e.g. to
+		/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt/luns/11
+
+What:		/sys/kernel/scst_tgt/devices/<device>/handler
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Link to dev handler of this device, if assigned, e.g. to
+		/sys/kernel/scst_tgt/handlers/dev_disk
+
+What:		/sys/kernel/scst_tgt/devices/<device>/type
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		SCSI type of this device as define by SAM.
+
+What:		/sys/kernel/scst_tgt/handlers/
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Contains all SCST dev handlers.
+
+What:		/sys/kernel/scst_tgt/handlers/<handler>/<device>
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Links to <device> managed by this dev handler, e.g.
+		ext3_disk1_4K -> /sys/kernel/scst_tgt/devices/ext3_disk1_4K
+
+What:		/sys/kernel/scst_tgt/handlers/<handler>/mgmt
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Management entry, which allows to create and delete
+		devices for this dev handler. See SysfsRules file for more
+		info.
+
+What:		/sys/kernel/scst_tgt/handlers/<handler>/type
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		SCSI type of this dev handler as define by SAM.
+
+What:		/sys/kernel/scst_tgt/sgv/
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Contains SCST SGV caches statistics.
+
+What:		/sys/kernel/scst_tgt/sgv/global_stats
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Contains global SGV cache statistics.
+
+What:		/sys/kernel/scst_tgt/sgv/<cache>/stats
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Contains statistics for SGV cache <cache>
+
+What:		/sys/kernel/scst_tgt/targets/
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Contains all SCST target drivers
+
+What:		/sys/kernel/scst_tgt/targets/<target_driver>
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Contains all targets for <target_driver>
+
+What:		/sys/kernel/scst_tgt/targets/<target_driver>/mgmt
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Optional management entry, which allows to create and
+		delete targets for this target driver. See SysfsRules
+		file for more info.
+
+What:		/sys/kernel/scst_tgt/targets/<target_driver>/enable
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Optional attribute to enable <target_driver> and make it serve
+		incoming connections from initiators. Possible values:
+		1 - enable
+		0 - disable
+
+What:		/sys/kernel/scst_tgt/targets/<target_driver>/<target>/ini_groups/
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Contains security groups for <target>
+
+What:		/sys/kernel/scst_tgt/targets/<target_driver>/<target>/ini_groups/mgmt
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Allows to create and delete security groups for <target>.
+		See README.scst for more info.
+
+What:		/sys/kernel/scst_tgt/targets/<target_driver>/<target>/ini_groups/<group>/initiators/mgmt
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Allows to add and delete initiators to/from <group>.
+		See README.scst for more info.
+
+What:		/sys/kernel/scst_tgt/targets/<target_driver>/<target>/ini_groups/<group>/initiators/<initiator_name>
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		One or more initiators in <group>. Contains initiator's name.
+
+What:		/sys/kernel/scst_tgt/targets/<target_driver>/<target>/ini_groups/<group>/luns/mgmt
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Allows to add and delete LUNs to/from <group>. See README.scst
+		for more info.
+
+What:		/sys/kernel/scst_tgt/targets/<target_driver>/<target>/ini_groups/<group>/luns/<lun>/device
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Link to device for <lun>, e.g. to /sys/kernel/scst_tgt/devices/ext3_disk1_4K
+
+What:		/sys/kernel/scst_tgt/targets/<target_driver>/<target>/ini_groups/<group>/luns/<lun>/read_only
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Sets if this LUN should be read only
+
+What:		/sys/kernel/scst_tgt/targets/<target_driver>/<target>/ini_groups/<group>/addr_method
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Sets SCSI addressing method for <group>. See README.scst
+		for more info.
+
+What:		/sys/kernel/scst_tgt/targets/<target_driver>/<target>/ini_groups/<group>/cpu_mask
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Sets CPU mask for threads serving initiators in <group>.
+		See README.scst for more info.
+
+What:		/sys/kernel/scst_tgt/targets/<target_driver>/<target>/ini_groups/<group>/io_grouping_type
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Sets IO groupping types for threads serving initiators
+		in <group>. See README.scst for more info.
+
+What:		/sys/kernel/scst_tgt/targets/<target_driver>/<target>/luns/mgmt
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Allows to add and delete LUNs to/from the <target>'s default
+		set of LUNs. See README.scst for more info.
+
+What:		/sys/kernel/scst_tgt/targets/<target_driver>/<target>/luns/<lun>/device
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Link to device for <lun>, e.g. to /sys/kernel/scst_tgt/devices/ext3_disk1_4K
+
+What:		/sys/kernel/scst_tgt/targets/<target_driver>/<target>/luns/<lun>/read_only
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Sets if this LUN should be read only
+
+What:		/sys/kernel/scst_tgt/targets/<target_driver>/<target>/addr_method
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Sets SCSI addressing method for the <target>'s default
+		set of LUNs. See README.scst for more info.
+
+What:		/sys/kernel/scst_tgt/targets/<target_driver>/<target>/cpu_mask
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Sets CPU mask for threads serving initiators in the
+		<target>'s default set of LUNs. See README.scst for more info.
+
+What:		/sys/kernel/scst_tgt/targets/<target_driver>/<target>/io_grouping_type
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Sets IO groupping types for threads serving initiators
+		in the <target>'s default set of LUNs. See README.scst
+		for more info.
+
+What:		/sys/kernel/scst_tgt/targets/<target_driver>/<target>/enable
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Optional attribute to enable <target> and make it serve
+		incoming connections from initiators. Possible values:
+		1 - enable
+		0 - disable
+
+What:		/sys/kernel/scst_tgt/last_sysfs_mgmt_res
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Returning completion status of the last management
+		command. See README.scst for more info.
+
+What:		/sys/kernel/scst_tgt/setup_id
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Allows to read and write SCST setup ID. This ID can be
+		used in cases, when the same SCST configuration should
+		be installed on several targets, but exported from those
+		targets devices should have different IDs and SNs. For
+		instance, VDISK dev handler uses this ID to generate T10
+		vendor specific identifier and SN of the devices.
+
+What:		/sys/kernel/scst_tgt/threads
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Allows to read and set number of global SCST I/O
+		threads. Those threads used with async. dev handlers,
+		for instance, vdisk BLOCKIO or NULLIO
+
+What:		/sys/kernel/scst_tgt/version
+Date:		November 2010
+Contact:	Vladislav Bolkhovitin <vst@vlnb.net>
+Description:
+		Allows to see version of SCST and enabled optional features.
+
