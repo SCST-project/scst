@@ -1,0 +1,33 @@
+fcoe: don't deliver FCP frames to target modules in softirq context
+
+Under certain conditions when FCP frames arrive on the correct CPU
+we deliver them in the softirq context.  This is unexpected for
+target modules like tcm_fc and fcst, and causes them to get errors.
+
+Add a check for the FC frame header F_CTL bit EX_CTX, and don't
+deliver in softirq context if that bit is off.
+
+Signed-off-by: Joe Eykholt <jeykholt@cisco.com>
+
+---
+ drivers/scsi/fcoe/fcoe.c |    3 +++
+ 1 files changed, 3 insertions(+), 0 deletions(-)
+
+
+---
+diff --git a/drivers/scsi/fcoe/fcoe.c b/drivers/scsi/fcoe/fcoe.c
+index 44a0759..d222ae4 100644
+--- a/drivers/scsi/fcoe/fcoe.c
++++ b/drivers/scsi/fcoe/fcoe.c
+@@ -1293,8 +1293,11 @@ int fcoe_rcv(struct sk_buff *skb, struct net_device *netdev,
+ 	 * This lets us process completions without context switching from the
+ 	 * NET_RX softirq, to our receive processing thread, and then back to
+ 	 * BLOCK softirq context.
++	 * Don't do this if EX_CTX is off as it causes problems for target
++	 * modules that don't expect to be called in softirq context.
+ 	 */
+ 	if (fh->fh_type == FC_TYPE_FCP &&
++	    (ntoh24(fh->fh_f_ctl) & FC_FC_EX_CTX) &&
+ 	    cpu == smp_processor_id() &&
+ 	    skb_queue_empty(&fps->fcoe_rx_list)) {
+ 		spin_unlock_bh(&fps->fcoe_rx_list.lock);
