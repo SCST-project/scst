@@ -265,12 +265,11 @@ static inline void q2t_sess_put(struct q2t_sess *sess)
 
 /* pha->hardware_lock supposed to be held on entry (to protect tgt->sess_list) */
 static inline struct q2t_sess *q2t_find_sess_by_loop_id(struct q2t_tgt *tgt,
-	uint16_t lid)
+	uint16_t loop_id)
 {
 	struct q2t_sess *sess;
-	sBUG_ON(tgt == NULL);
 	list_for_each_entry(sess, &tgt->sess_list, sess_list_entry) {
-		if (lid == (sess->loop_id))
+		if ((loop_id == sess->loop_id) && !sess->deleted)
 			return sess;
 	}
 	return NULL;
@@ -281,11 +280,11 @@ static inline struct q2t_sess *q2t_find_sess_by_s_id(struct q2t_tgt *tgt,
 	const uint8_t *s_id)
 {
 	struct q2t_sess *sess;
-	sBUG_ON(tgt == NULL);
 	list_for_each_entry(sess, &tgt->sess_list, sess_list_entry) {
 		if ((sess->s_id.b.al_pa == s_id[2]) &&
 		    (sess->s_id.b.area == s_id[1]) &&
-		    (sess->s_id.b.domain == s_id[0]))
+		    (sess->s_id.b.domain == s_id[0]) &&
+		    !sess->deleted)
 			return sess;
 	}
 	return NULL;
@@ -296,11 +295,30 @@ static inline struct q2t_sess *q2t_find_sess_by_s_id_le(struct q2t_tgt *tgt,
 	const uint8_t *s_id)
 {
 	struct q2t_sess *sess;
-	sBUG_ON(tgt == NULL);
 	list_for_each_entry(sess, &tgt->sess_list, sess_list_entry) {
 		if ((sess->s_id.b.al_pa == s_id[0]) &&
 		    (sess->s_id.b.area == s_id[1]) &&
-		    (sess->s_id.b.domain == s_id[2]))
+		    (sess->s_id.b.domain == s_id[2]) &&
+		    !sess->deleted)
+			return sess;
+	}
+	return NULL;
+}
+
+/* pha->hardware_lock supposed to be held on entry (to protect tgt->sess_list) */
+static inline struct q2t_sess *q2t_find_sess_by_port_name(struct q2t_tgt *tgt,
+	const uint8_t *port_name)
+{
+	struct q2t_sess *sess;
+	list_for_each_entry(sess, &tgt->sess_list, sess_list_entry) {
+		if ((sess->port_name[0] == port_name[0]) &&
+		    (sess->port_name[1] == port_name[1]) &&
+		    (sess->port_name[2] == port_name[2]) &&
+		    (sess->port_name[3] == port_name[3]) &&
+		    (sess->port_name[4] == port_name[4]) &&
+		    (sess->port_name[5] == port_name[5]) &&
+		    (sess->port_name[6] == port_name[6]) &&
+		    (sess->port_name[7] == port_name[7]))
 			return sess;
 	}
 	return NULL;
@@ -653,6 +671,7 @@ static int q2t_reset(scsi_qla_host_t *ha, void *iocb, int mcmd)
 
 	if (loop_id == 0xFFFF) {
 		/* Global event */
+		atomic_inc(&ha->tgt->tgt_global_resets_count);
 		q2t_clear_tgt_db(ha->tgt, 1);
 		if (!list_empty(&ha->tgt->sess_list)) {
 			sess = list_entry(ha->tgt->sess_list.next,
@@ -729,10 +748,9 @@ static void q2t_schedule_sess_for_deletion(struct q2t_sess *sess)
 	sess->deleted = 1;
 	sess->expires = jiffies + dev_loss_tmo * HZ;
 
-	PRINT_INFO("qla2x00t(%ld): %ssession for port %02x:%02x:%02x:"
+	PRINT_INFO("qla2x00t(%ld): session for port %02x:%02x:%02x:"
 		"%02x:%02x:%02x:%02x:%02x (loop ID %d) scheduled for "
 		"deletion in %d secs", tgt->ha->instance,
-		sess->local ? "local " : "",
 		sess->port_name[0], sess->port_name[1],
 		sess->port_name[2], sess->port_name[3],
 		sess->port_name[4], sess->port_name[5],
@@ -851,15 +869,120 @@ out:
 	return res;
 }
 
-static bool q2t_check_fcport_exist(scsi_qla_host_t *ha, const uint8_t *s_id)
+static bool q2t_check_fcport_exist(scsi_qla_host_t *ha, struct q2t_sess *sess)
 {
-	bool res;
-	uint16_t loop_id;
+	bool res, found = false;
+	int rc, i;
+	uint16_t loop_id = 0xFFFF; /* to eliminate compiler's warning */
+	uint16_t entries;
+	void *pmap;
+	int pmap_len;
+	fc_port_t *fcport;
+	int global_resets;
 
 	TRACE_ENTRY();
 
-	res = (q24_get_loop_id(ha, s_id, &loop_id) == 0);
+retry:
+	global_resets = atomic_read(&ha->tgt->tgt_global_resets_count);
 
+	rc = qla2x00_get_node_name_list(ha, &pmap, &pmap_len);
+	if (rc != QLA_SUCCESS) {
+		res = false;
+		goto out;
+	}
+
+	if (IS_FWI2_CAPABLE(ha)) {
+		struct qla_port24_data *pmap24 = pmap;
+
+		entries = pmap_len/sizeof(*pmap24);
+
+		for (i = 0; i < entries; ++i) {
+			if ((sess->port_name[0] == pmap24[i].port_name[0]) &&
+			    (sess->port_name[1] == pmap24[i].port_name[1]) &&
+			    (sess->port_name[2] == pmap24[i].port_name[2]) &&
+			    (sess->port_name[3] == pmap24[i].port_name[3]) &&
+			    (sess->port_name[4] == pmap24[i].port_name[4]) &&
+			    (sess->port_name[5] == pmap24[i].port_name[5]) &&
+			    (sess->port_name[6] == pmap24[i].port_name[6]) &&
+			    (sess->port_name[7] == pmap24[i].port_name[7])) {
+				loop_id = le16_to_cpu(pmap24[i].loop_id);
+				found = true;
+				break;
+			}
+		}
+	} else {
+		struct qla_port23_data *pmap2x = pmap;
+
+		entries = pmap_len/sizeof(*pmap2x);
+
+		for (i = 0; i < entries; ++i) {
+			if ((sess->port_name[0] == pmap2x[i].port_name[0]) &&
+			    (sess->port_name[1] == pmap2x[i].port_name[1]) &&
+			    (sess->port_name[2] == pmap2x[i].port_name[2]) &&
+			    (sess->port_name[3] == pmap2x[i].port_name[3]) &&
+			    (sess->port_name[4] == pmap2x[i].port_name[4]) &&
+			    (sess->port_name[5] == pmap2x[i].port_name[5]) &&
+			    (sess->port_name[6] == pmap2x[i].port_name[6]) &&
+			    (sess->port_name[7] == pmap2x[i].port_name[7])) {
+				loop_id = le16_to_cpu(pmap2x[i].loop_id);
+				found = true;
+				break;
+			}
+		}
+	}
+
+	kfree(pmap);
+
+	if (!found) {
+		res = false;
+		goto out;
+	}
+
+	TRACE_MGMT_DBG("loop_id %d", loop_id);
+
+	fcport = kzalloc(sizeof(*fcport), GFP_KERNEL);
+	if (fcport == NULL) {
+		PRINT_ERROR("qla2x00t(%ld): Allocation of tmp FC port failed",
+			ha->instance);
+		res = false;
+		goto out;
+	}
+
+	fcport->loop_id = loop_id;
+
+	rc = qla2x00_get_port_database(ha, fcport, 0);
+	if (rc != QLA_SUCCESS) {
+		PRINT_ERROR("qla2x00t(%ld): Failed to retrieve fcport "
+			"information -- get_port_database() returned %x "
+			"(loop_id=0x%04x)", ha->instance, rc, loop_id);
+		res = false;
+		goto out_free_fcport;
+	}
+
+	if (global_resets != atomic_read(&ha->tgt->tgt_global_resets_count)) {
+		TRACE_MGMT_DBG("qla2x00t(%ld): global reset during session "
+			"discovery (counter was %d, new %d), retrying",
+			ha->instance, global_resets,
+			atomic_read(&ha->tgt->tgt_global_resets_count));
+		goto retry;
+	}
+
+	TRACE_MGMT_DBG("Updating sess %p s_id %x:%x:%x, "
+		"loop_id %d) to d_id %x:%x:%x, loop_id %d", sess,
+		sess->s_id.b.domain, sess->s_id.b.al_pa,
+		sess->s_id.b.area, sess->loop_id, fcport->d_id.b.domain,
+		fcport->d_id.b.al_pa, fcport->d_id.b.area, fcport->loop_id);
+
+	sess->s_id = fcport->d_id;
+	sess->loop_id = fcport->loop_id;
+	sess->conf_compl_supported = fcport->conf_compl_supported;
+
+	res = true;
+
+out_free_fcport:
+	kfree(fcport);
+
+out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -894,10 +1017,18 @@ static void q2t_del_sess_work_fn(struct delayed_work *work)
 			q2t_undelete_sess(sess);
 
 			spin_unlock_irqrestore(&pha->hardware_lock, flags);
-			cancel = q2t_check_fcport_exist(ha, (uint8_t *)&sess->s_id);
+			cancel = q2t_check_fcport_exist(ha, sess);
 			spin_lock_irqsave(&pha->hardware_lock, flags);
 
 			if (cancel) {
+				if (sess->deleted) {
+					/*
+					 * sess was again deleted while we were
+					 * discovering it
+					 */
+					continue;
+				}
+
 				PRINT_INFO("qla2x00t(%ld): cancel deletion of "
 					"session for port %02x:%02x:%02x:"
 					"%02x:%02x:%02x:%02x:%02x (loop ID %d), "
@@ -1028,8 +1159,9 @@ static struct q2t_sess *q2t_create_sess(scsi_qla_host_t *ha, fc_port_t *fcport,
 		goto out_free_sess_wwn;
 	}
 
-	spin_lock_irq(&pha->hardware_lock);
 	TRACE_MGMT_DBG("Adding sess %p to tgt %p", sess, tgt);
+
+	spin_lock_irq(&pha->hardware_lock);
 	list_add_tail(&sess->sess_list_entry, &tgt->sess_list);
 	tgt->sess_count++;
 	spin_unlock_irq(&pha->hardware_lock);
@@ -1037,7 +1169,7 @@ static struct q2t_sess *q2t_create_sess(scsi_qla_host_t *ha, fc_port_t *fcport,
 	PRINT_INFO("qla2x00t(%ld): %ssession for wwn %s (loop_id %d, "
 		"s_id %x:%x:%x, confirmed completion %ssupported) added",
 		ha->instance, local ? "local " : "", wwn_str, fcport->loop_id,
-		sess->s_id.b.domain, sess->s_id.b.al_pa, sess->s_id.b.area,
+		sess->s_id.b.domain, sess->s_id.b.area, sess->s_id.b.al_pa,
 		sess->conf_compl_supported ? "" : "not ");
 
 	kfree(wwn_str);
@@ -1054,21 +1186,6 @@ out_free_sess:
 	kfree(sess);
 	sess = NULL;
 	goto out;
-}
-
-/* pha->hardware_lock supposed to be held on entry */
-static void q2t_reappear_sess(struct q2t_sess *sess, const char *reason)
-{
-	q2t_undelete_sess(sess);
-
-	PRINT_INFO("qla2x00t(%ld): %ssession for port %02x:"
-		"%02x:%02x:%02x:%02x:%02x:%02x:%02x (loop ID %d) "
-		"reappeared%s", sess->tgt->ha->instance,
-		sess->local ? "local " : "", sess->port_name[0],
-		sess->port_name[1], sess->port_name[2], sess->port_name[3],
-		sess->port_name[4], sess->port_name[5], sess->port_name[6],
-		sess->port_name[7], sess->loop_id, reason);
-	TRACE_MGMT_DBG("Appeared sess %p", sess);
 }
 
 static void q2t_fc_port_added(scsi_qla_host_t *ha, fc_port_t *fcport)
@@ -1091,7 +1208,7 @@ static void q2t_fc_port_added(scsi_qla_host_t *ha, fc_port_t *fcport)
 
 	spin_lock_irq(&pha->hardware_lock);
 
-	sess = q2t_find_sess_by_loop_id(tgt, fcport->loop_id);
+	sess = q2t_find_sess_by_port_name(tgt, fcport->port_name);
 	if (sess == NULL) {
 		spin_unlock_irq(&pha->hardware_lock);
 		sess = q2t_create_sess(ha, fcport, false);
@@ -1099,8 +1216,23 @@ static void q2t_fc_port_added(scsi_qla_host_t *ha, fc_port_t *fcport)
 		if (sess != NULL)
 			q2t_sess_put(sess); /* put the extra creation ref */
 	} else {
-		if (sess->deleted)
-			q2t_reappear_sess(sess, "");
+		if (sess->deleted) {
+			q2t_undelete_sess(sess);
+
+			PRINT_INFO("qla2x00t(%ld): %ssession for port %02x:"
+				"%02x:%02x:%02x:%02x:%02x:%02x:%02x (loop ID %d) "
+				"reappeared", sess->tgt->ha->instance,
+				sess->local ? "local " : "", sess->port_name[0],
+				sess->port_name[1], sess->port_name[2],
+				sess->port_name[3], sess->port_name[4],
+				sess->port_name[5], sess->port_name[6],
+				sess->port_name[7], sess->loop_id);
+
+			TRACE_MGMT_DBG("Reappeared sess %p", sess);
+		}
+		sess->s_id = fcport->d_id;
+		sess->loop_id = fcport->loop_id;
+		sess->conf_compl_supported = fcport->conf_compl_supported;
 	}
 
 	if (sess->local) {
@@ -1144,7 +1276,7 @@ static void q2t_fc_port_deleted(scsi_qla_host_t *ha, fc_port_t *fcport)
 
 	spin_lock_irq(&pha->hardware_lock);
 
-	sess = q2t_find_sess_by_loop_id(tgt, fcport->loop_id);
+	sess = q2t_find_sess_by_port_name(tgt, fcport->port_name);
 	if (sess == NULL)
 		goto out_unlock_ha;
 
@@ -1268,6 +1400,49 @@ static int q2t_target_release(struct scst_tgt *scst_tgt)
 
 	TRACE_EXIT();
 	return 0;
+}
+
+/* pha->hardware_lock supposed to be held on entry */
+static int q2t_sched_sess_work(struct q2t_tgt *tgt, int type,
+	const void *param, unsigned int param_size)
+{
+	int res;
+	struct q2t_sess_work_param *prm;
+	unsigned long flags;
+
+	TRACE_ENTRY();
+
+	prm = kzalloc(sizeof(*prm), GFP_ATOMIC);
+	if (prm == NULL) {
+		PRINT_ERROR("qla2x00t(%ld): Unable to create session "
+			"work, command will be refused", tgt->ha->instance);
+		res = -ENOMEM;
+		goto out;
+	}
+
+	TRACE_MGMT_DBG("Scheduling work (type %d, prm %p) to find session for "
+		"param %p (size %d, tgt %p)", type, prm, param, param_size, tgt);
+
+	sBUG_ON(param_size > (sizeof(*prm) -
+		offsetof(struct q2t_sess_work_param, cmd)));
+
+	prm->type = type;
+	memcpy(&prm->cmd, param, param_size);
+
+	spin_lock_irqsave(&tgt->sess_work_lock, flags);
+	if (!tgt->sess_works_pending)
+		tgt->tm_to_unknown = 0;
+	list_add_tail(&prm->sess_works_list_entry, &tgt->sess_works_list);
+	tgt->sess_works_pending = 1;
+	spin_unlock_irqrestore(&tgt->sess_work_lock, flags);
+
+	schedule_work(&tgt->sess_work);
+
+	res = 0;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 /*
@@ -1520,14 +1695,55 @@ out:
 	return;
 }
 
+/* pha->hardware_lock supposed to be held on entry */
+static int __q24_handle_abts(scsi_qla_host_t *ha, abts24_recv_entry_t *abts,
+	struct q2t_sess *sess)
+{
+	int res;
+	uint32_t tag = abts->exchange_addr_to_abort;
+	struct q2t_mgmt_cmd *mcmd;
+
+	TRACE_ENTRY();
+
+	TRACE_MGMT_DBG("qla2x00t(%ld): task abort (tag=%d)", ha->instance,
+		tag);
+
+	mcmd = mempool_alloc(q2t_mgmt_cmd_mempool, GFP_ATOMIC);
+	if (mcmd == NULL) {
+		PRINT_ERROR("qla2x00t(%ld): %s: Allocation of ABORT cmd failed",
+			ha->instance, __func__);
+		res = -ENOMEM;
+		goto out;
+	}
+	memset(mcmd, 0, sizeof(*mcmd));
+
+	mcmd->sess = sess;
+	memcpy(&mcmd->orig_iocb.abts, abts, sizeof(mcmd->orig_iocb.abts));
+
+	res = scst_rx_mgmt_fn_tag(sess->scst_sess, SCST_ABORT_TASK, tag,
+		SCST_ATOMIC, mcmd);
+	if (res != 0) {
+		PRINT_ERROR("qla2x00t(%ld): scst_rx_mgmt_fn_tag() failed: %d",
+			    ha->instance, res);
+		goto out_free;
+	}
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_free:
+	mempool_free(mcmd, q2t_mgmt_cmd_mempool);
+	goto out;
+}
+
 /*
  * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
  */
 static void q24_handle_abts(scsi_qla_host_t *ha, abts24_recv_entry_t *abts)
 {
-	uint32_t tag;
 	int rc;
-	struct q2t_mgmt_cmd *mcmd;
+	uint32_t tag = abts->exchange_addr_to_abort;
 	struct q2t_sess *sess;
 
 	TRACE_ENTRY();
@@ -1537,8 +1753,6 @@ static void q24_handle_abts(scsi_qla_host_t *ha, abts24_recv_entry_t *abts)
 			"supported", ha->instance);
 		goto out_err;
 	}
-
-	tag = abts->exchange_addr_to_abort;
 
 	if (tag == ATIO_EXCHANGE_ADDRESS_UNKNOWN) {
 		TRACE_MGMT_DBG("qla2x00t(%ld): ABTS: Unknown Exchange "
@@ -1553,37 +1767,27 @@ static void q24_handle_abts(scsi_qla_host_t *ha, abts24_recv_entry_t *abts)
 
 	sess = q2t_find_sess_by_s_id_le(ha->tgt, abts->fcp_hdr_le.s_id);
 	if (sess == NULL) {
-		TRACE(TRACE_MGMT, "qla2x00t(%ld): task abort for unexisting "
+		TRACE_MGMT_DBG("qla2x00t(%ld): task abort for unexisting "
 			"session", ha->instance);
-		ha->tgt->tm_to_unknown = 1;
-		goto out_err;
+		rc = q2t_sched_sess_work(ha->tgt, Q2T_SESS_WORK_ABORT, abts,
+			sizeof(*abts));
+		if (rc != 0) {
+			ha->tgt->tm_to_unknown = 1;
+			goto out_err;
+		}
+		goto out;
 	}
 
-	mcmd = mempool_alloc(q2t_mgmt_cmd_mempool, GFP_ATOMIC);
-	if (mcmd == NULL) {
-		PRINT_ERROR("qla2x00t(%ld): %s: Allocation of ABORT cmd failed",
-			ha->instance, __func__);
-		goto out_err;
-	}
-	memset(mcmd, 0, sizeof(*mcmd));
-
-	mcmd->sess = sess;
-	memcpy(&mcmd->orig_iocb.abts, abts, sizeof(mcmd->orig_iocb.abts));
-
-	rc = scst_rx_mgmt_fn_tag(sess->scst_sess, SCST_ABORT_TASK, tag,
-		SCST_ATOMIC, mcmd);
+	rc = __q24_handle_abts(ha, abts, sess);
 	if (rc != 0) {
 		PRINT_ERROR("qla2x00t(%ld): scst_rx_mgmt_fn_tag() failed: %d",
 			    ha->instance, rc);
-		goto out_err_free;
+		goto out_err;
 	}
 
 out:
 	TRACE_EXIT();
 	return;
-
-out_err_free:
-	mempool_free(mcmd, q2t_mgmt_cmd_mempool);
 
 out_err:
 	q24_send_abts_resp(ha, abts, SCST_MGMT_STATUS_REJECTED, false);
@@ -3560,9 +3764,6 @@ static int q2t_send_cmd_to_scst(scsi_qla_host_t *ha, atio_t *atio)
 		}
 	}
 
-	if (unlikely(sess->deleted))
-		q2t_reappear_sess(sess, " by new commands");
-
 	res = q2t_do_send_cmd_to_scst(ha, cmd, sess);
 	if (unlikely(res != 0))
 		goto out_free_cmd;
@@ -3576,32 +3777,14 @@ out_free_cmd:
 	goto out;
 
 out_sched:
-	{
-		struct q2t_sess_work_param *prm;
-		unsigned long flags;
-
-		prm = kzalloc(sizeof(*prm), GFP_ATOMIC);
-		if (prm == NULL) {
-			PRINT_ERROR("qla2x00t(%ld): Unable to create session "
-				"work, command will be refused", ha->instance);
-			res = -1;
-			goto out_free_cmd;
-		}
-
-		TRACE_MGMT_DBG("Scheduling work to find session for cmd %p",
-			cmd);
-
-		prm->cmd = cmd;
-
-		spin_lock_irqsave(&tgt->sess_work_lock, flags);
-		if (!tgt->sess_works_pending)
-			tgt->tm_to_unknown = 0;
-		list_add_tail(&prm->sess_works_list_entry, &tgt->sess_works_list);
-		tgt->sess_works_pending = 1;
-		spin_unlock_irqrestore(&tgt->sess_work_lock, flags);
-
-		schedule_work(&tgt->sess_work);
+	if (atio->entry_count > 1) {
+		TRACE_MGMT_DBG("Dropping multy entry cmd %p", cmd);
+		res = -EBUSY;
+		goto out_free_cmd;
 	}
+	res = q2t_sched_sess_work(tgt, Q2T_SESS_WORK_CMD, &cmd, sizeof(cmd));
+	if (res != 0)
+		goto out_free_cmd;
 	goto out;
 }
 
@@ -3740,11 +3923,6 @@ static int q2t_handle_task_mgmt(scsi_qla_host_t *ha, void *iocb)
 		lun_size = sizeof(a->fcp_cmnd.lun);
 		fn = a->fcp_cmnd.task_mgmt_flags;
 		sess = q2t_find_sess_by_s_id(tgt, a->fcp_hdr.s_id);
-		if (sess != NULL) {
-			sess->s_id.b.al_pa = a->fcp_hdr.s_id[2];
-			sess->s_id.b.area = a->fcp_hdr.s_id[1];
-			sess->s_id.b.domain = a->fcp_hdr.s_id[0];
-		}
 	} else {
 		notify_entry_t *n = (notify_entry_t *)iocb;
 		/* make it be in network byte order */
@@ -3756,10 +3934,13 @@ static int q2t_handle_task_mgmt(scsi_qla_host_t *ha, void *iocb)
 	}
 
 	if (sess == NULL) {
-		TRACE(TRACE_MGMT, "qla2x00t(%ld): task mgmt fn 0x%x for "
+		TRACE_MGMT_DBG("qla2x00t(%ld): task mgmt fn 0x%x for "
 			"non-existant session", ha->instance, fn);
-		tgt->tm_to_unknown = 1;
-		res = -ESRCH;
+		res = q2t_sched_sess_work(tgt, Q2T_SESS_WORK_TM, iocb,
+			IS_FWI2_CAPABLE(ha) ? sizeof(atio7_entry_t) :
+					      sizeof(notify_entry_t));
+		if (res != 0)
+			tgt->tm_to_unknown = 1;
 		goto out;
 	}
 
@@ -3771,27 +3952,13 @@ out:
 }
 
 /* pha->hardware_lock supposed to be held on entry */
-static int q2t_abort_task(scsi_qla_host_t *ha, notify_entry_t *iocb)
+static int __q2t_abort_task(scsi_qla_host_t *ha, notify_entry_t *iocb,
+	struct q2t_sess *sess)
 {
-	int res = 0, rc;
+	int res, rc;
 	struct q2t_mgmt_cmd *mcmd;
-	struct q2t_sess *sess;
-	int loop_id;
-	uint32_t tag;
 
 	TRACE_ENTRY();
-
-	loop_id = GET_TARGET_ID(ha, iocb);
-	tag = le16_to_cpu(iocb->seq_id);
-
-	sess = q2t_find_sess_by_loop_id(ha->tgt, loop_id);
-	if (sess == NULL) {
-		TRACE(TRACE_MGMT, "qla2x00t(%ld): task abort for unexisting "
-			"session", ha->instance);
-		ha->tgt->tm_to_unknown = 1;
-		res = -EFAULT;
-		goto out;
-	}
 
 	mcmd = mempool_alloc(q2t_mgmt_cmd_mempool, GFP_ATOMIC);
 	if (mcmd == NULL) {
@@ -3806,14 +3973,16 @@ static int q2t_abort_task(scsi_qla_host_t *ha, notify_entry_t *iocb)
 	memcpy(&mcmd->orig_iocb.notify_entry, iocb,
 		sizeof(mcmd->orig_iocb.notify_entry));
 
-	rc = scst_rx_mgmt_fn_tag(sess->scst_sess, SCST_ABORT_TASK, tag,
-		SCST_ATOMIC, mcmd);
+	rc = scst_rx_mgmt_fn_tag(sess->scst_sess, SCST_ABORT_TASK,
+		le16_to_cpu(iocb->seq_id), SCST_ATOMIC, mcmd);
 	if (rc != 0) {
 		PRINT_ERROR("qla2x00t(%ld): scst_rx_mgmt_fn_tag() failed: %d",
 			    ha->instance, rc);
 		res = -EFAULT;
 		goto out_free;
 	}
+
+	res = 0;
 
 out:
 	TRACE_EXIT_RES(res);
@@ -3822,6 +3991,35 @@ out:
 out_free:
 	mempool_free(mcmd, q2t_mgmt_cmd_mempool);
 	goto out;
+}
+
+/* pha->hardware_lock supposed to be held on entry */
+static int q2t_abort_task(scsi_qla_host_t *ha, notify_entry_t *iocb)
+{
+	int res;
+	struct q2t_sess *sess;
+	int loop_id;
+
+	TRACE_ENTRY();
+
+	loop_id = GET_TARGET_ID(ha, iocb);
+
+	sess = q2t_find_sess_by_loop_id(ha->tgt, loop_id);
+	if (sess == NULL) {
+		TRACE_MGMT_DBG("qla2x00t(%ld): task abort for unexisting "
+			"session", ha->instance);
+		res = q2t_sched_sess_work(sess->tgt, Q2T_SESS_WORK_ABORT, iocb,
+			sizeof(*iocb));
+		if (res != 0)
+			sess->tgt->tm_to_unknown = 1;
+		goto out;
+	}
+
+	res = __q2t_abort_task(ha, iocb, sess);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 /*
@@ -5093,39 +5291,38 @@ out:
 }
 
 /* Must be called under tgt_mutex */
-static struct q2t_sess *q2t_make_local_sess(scsi_qla_host_t *ha, atio_t *atio)
+static struct q2t_sess *q2t_make_local_sess(scsi_qla_host_t *ha,
+	const uint8_t *s_id, uint16_t loop_id)
 {
 	struct q2t_sess *sess = NULL;
 	fc_port_t *fcport = NULL;
-	uint16_t loop_id = 0xFFFF; /* to remove warning */
-	int rc;
+	int rc, global_resets;
 
 	TRACE_ENTRY();
 
+retry:
+        global_resets = atomic_read(&ha->tgt->tgt_global_resets_count);
+
 	if (IS_FWI2_CAPABLE(ha)) {
-		atio7_entry_t *atio7 = (atio7_entry_t *)atio;
-		rc = q24_get_loop_id(ha, atio7->fcp_hdr.s_id, &loop_id);
+		rc = q24_get_loop_id(ha, s_id, &loop_id);
 		if (rc != 0) {
-			if ((atio7->fcp_hdr.s_id[0] == 0xFF) &&
-			    (atio7->fcp_hdr.s_id[1] == 0xFC)) {
+			if ((s_id[0] == 0xFF) &&
+			    (s_id[1] == 0xFC)) {
 				/*
 				 * This is Domain Controller, so it should be
 				 * OK to drop SCSI commands from it.
 				 */
 				TRACE_MGMT_DBG("Unable to find initiator with "
-					"S_ID %x:%x:%x", atio7->fcp_hdr.s_id[0],
-					atio7->fcp_hdr.s_id[1],
-					atio7->fcp_hdr.s_id[2]);
+					"S_ID %x:%x:%x", s_id[0], s_id[1],
+					s_id[2]);
 			} else
 				PRINT_ERROR("qla2x00t(%ld): Unable to find "
 					"initiator with S_ID %x:%x:%x",
-					ha->instance, atio7->fcp_hdr.s_id[0],
-					atio7->fcp_hdr.s_id[1],
-					atio7->fcp_hdr.s_id[2]);
+					ha->instance, s_id[0], s_id[1],
+					s_id[2]);
 			goto out;
 		}
-	} else
-		loop_id = GET_TARGET_ID(ha, (atio_entry_t *)atio);
+	}
 
 	fcport = kzalloc(sizeof(*fcport), GFP_KERNEL);
 	if (fcport == NULL) {
@@ -5146,6 +5343,14 @@ static struct q2t_sess *q2t_make_local_sess(scsi_qla_host_t *ha, atio_t *atio)
 		goto out_free_fcport;
 	}
 
+	if (global_resets != atomic_read(&ha->tgt->tgt_global_resets_count)) {
+		TRACE_MGMT_DBG("qla2x00t(%ld): global reset during session "
+			"discovery (counter was %d, new %d), retrying",
+			ha->instance, global_resets,
+			atomic_read(&ha->tgt->tgt_global_resets_count));
+		goto retry;
+	}
+
 	sess = q2t_create_sess(ha, fcport, true);
 
 out_free_fcport:
@@ -5156,19 +5361,19 @@ out:
 	return sess;
 }
 
-static int q2t_exec_sess_work(struct q2t_tgt *tgt,
+static void q2t_exec_sess_work(struct q2t_tgt *tgt,
 	struct q2t_sess_work_param *prm)
 {
 	scsi_qla_host_t *ha = tgt->ha;
 	scsi_qla_host_t *pha = to_qla_parent(ha);
-	int res = 0;
+	int rc;
 	struct q2t_sess *sess = NULL;
-	struct q2t_cmd *cmd = prm->cmd;
-	atio_t *atio = (atio_t *)&cmd->atio;
+	const uint8_t *s_id = NULL; /* to hide compiler warnings */
+	int loop_id = -1; /* to hide compiler warnings */
 
 	TRACE_ENTRY();
 
-	TRACE_MGMT_DBG("cmd %p", cmd);
+	TRACE_MGMT_DBG("prm %p", prm);
 
 	mutex_lock(&ha->tgt_mutex);
 	spin_lock_irq(&pha->hardware_lock);
@@ -5176,13 +5381,42 @@ static int q2t_exec_sess_work(struct q2t_tgt *tgt,
 	if (tgt->tgt_stop)
 		goto send;
 
-	if (IS_FWI2_CAPABLE(ha)) {
-		atio7_entry_t *a = (atio7_entry_t *)atio;
-		sess = q2t_find_sess_by_s_id(tgt, a->fcp_hdr.s_id);
-	} else
-		sess = q2t_find_sess_by_loop_id(tgt,
-			GET_TARGET_ID(ha, (atio_entry_t *)atio));
+	switch(prm->type) {
+	case Q2T_SESS_WORK_CMD:
+	{
+		struct q2t_cmd *cmd = prm->cmd;
+		if (IS_FWI2_CAPABLE(ha)) {
+			atio7_entry_t *a = (atio7_entry_t *)&cmd->atio;
+			s_id = a->fcp_hdr.s_id;
+		} else
+			loop_id = GET_TARGET_ID(ha, (atio_entry_t *)&cmd->atio);
+		break;
+	}
+	case Q2T_SESS_WORK_ABORT:
+		if (IS_FWI2_CAPABLE(ha)) {
+			sess = q2t_find_sess_by_s_id_le(tgt,
+				prm->abts.fcp_hdr_le.s_id);
+			goto after_find;
+		} else
+			loop_id = GET_TARGET_ID(ha, &prm->tm_iocb);
+		break;
+	case Q2T_SESS_WORK_TM:
+		if (IS_FWI2_CAPABLE(ha))
+			s_id = prm->tm_iocb2.fcp_hdr.s_id;
+		else
+			loop_id = GET_TARGET_ID(ha, &prm->tm_iocb);
+		break;
+	default:
+		sBUG_ON(1);
+		break;
+	}
 
+	if (IS_FWI2_CAPABLE(ha))
+		sess = q2t_find_sess_by_s_id(tgt, s_id);
+	else
+		sess = q2t_find_sess_by_loop_id(tgt, loop_id);
+
+after_find:
 	if (sess != NULL) {
 		TRACE_MGMT_DBG("sess %p found", sess);
 		q2t_sess_get(sess);
@@ -5192,37 +5426,117 @@ static int q2t_exec_sess_work(struct q2t_tgt *tgt,
 		 * behind us.
 		 */
 		spin_unlock_irq(&pha->hardware_lock);
-		sess = q2t_make_local_sess(ha, atio);
+		sess = q2t_make_local_sess(ha, s_id, loop_id);
 		spin_lock_irq(&pha->hardware_lock);
 		/* sess has got an extra creation ref */
 	}
 
 send:
-	if (!tgt->tm_to_unknown && !tgt->tgt_stop && (sess != NULL)) {
+	if ((sess == NULL) || tgt->tgt_stop)
+		goto out_term;
+
+	switch(prm->type) {
+	case Q2T_SESS_WORK_CMD:
+	{
+		struct q2t_cmd *cmd = prm->cmd;
+		if (tgt->tm_to_unknown) {
+			/*
+			 * Cmd might be already aborted behind us, so be safe
+			 * and abort it. It should be OK, initiator will retry
+			 * it.
+			 */
+			goto out_term;
+		}
 		TRACE_MGMT_DBG("Sending work cmd %p to SCST", cmd);
-		res = q2t_do_send_cmd_to_scst(ha, cmd, sess);
-	} else {
-		/*
-		 * Cmd might be already aborted behind us, so be safe and
-		 * abort it. It should be OK, initiator will retry it. It has
-		 * not sent to SCST yet, so pass NULL as the second argument.
-		 */
-		TRACE_MGMT_DBG("Terminating work cmd %p", cmd);
+		rc = q2t_do_send_cmd_to_scst(ha, cmd, sess);
+		break;
+	}
+	case Q2T_SESS_WORK_ABORT:
 		if (IS_FWI2_CAPABLE(ha))
-			q24_send_term_exchange(ha, NULL , &cmd->atio.atio7, 1);
+			rc = __q24_handle_abts(ha, &prm->abts, sess);
 		else
-			q2x_send_term_exchange(ha, NULL, &cmd->atio.atio2x, 1);
-		q2t_free_cmd(cmd);
+			rc = __q2t_abort_task(ha, &prm->tm_iocb, sess);
+		break;
+	case Q2T_SESS_WORK_TM:
+	{
+		uint8_t *lun;
+		uint16_t lun_data;
+		int lun_size, fn;
+		void *iocb;
+
+		if (IS_FWI2_CAPABLE(ha)) {
+			atio7_entry_t *a = &prm->tm_iocb2;
+			iocb = a;
+			lun = (uint8_t *)&a->fcp_cmnd.lun;
+			lun_size = sizeof(a->fcp_cmnd.lun);
+			fn = a->fcp_cmnd.task_mgmt_flags;
+		} else {
+			notify_entry_t *n = &prm->tm_iocb;
+			iocb = n;
+			/* make it be in network byte order */
+			lun_data = swab16(le16_to_cpu(n->lun));
+			lun = (uint8_t *)&lun_data;
+			lun_size = sizeof(lun_data);
+			fn = n->task_flags >> IMM_NTFY_TASK_MGMT_SHIFT;
+		}
+		rc = q2t_issue_task_mgmt(sess, lun, lun_size, fn, iocb, 0);
+		break;
+	}
+	default:
+		sBUG_ON(1);
+		break;
 	}
 
+	if (rc != 0)
+		goto out_term;
+
+out_put:
 	if (sess != NULL)
 		q2t_sess_put(sess);
 
 	spin_unlock_irq(&pha->hardware_lock);
 	mutex_unlock(&ha->tgt_mutex);
 
-	TRACE_EXIT_RES(res);
-	return res;
+	TRACE_EXIT();
+	return;
+
+out_term:
+	switch(prm->type) {
+	case Q2T_SESS_WORK_CMD:
+	{
+		struct q2t_cmd *cmd = prm->cmd;
+		TRACE_MGMT_DBG("Terminating work cmd %p", cmd);
+		/*
+		 * cmd has not sent to SCST yet, so pass NULL as the second
+		 * argument
+		 */
+		if (IS_FWI2_CAPABLE(ha))
+			q24_send_term_exchange(ha, NULL, &cmd->atio.atio7, 1);
+		else
+			q2x_send_term_exchange(ha, NULL, &cmd->atio.atio2x, 1);
+		q2t_free_cmd(cmd);
+		break;
+	}
+	case Q2T_SESS_WORK_ABORT:
+		if (IS_FWI2_CAPABLE(ha))
+			q24_send_abts_resp(ha, &prm->abts,
+				SCST_MGMT_STATUS_REJECTED, false);
+		else
+			q2x_send_notify_ack(ha, &prm->tm_iocb, 0,
+				0, 0, 0, 0, 0);
+		break;
+	case Q2T_SESS_WORK_TM:
+		if (IS_FWI2_CAPABLE(ha))
+			q24_send_term_exchange(ha, NULL, &prm->tm_iocb2, 1);
+		else
+			q2x_send_notify_ack(ha, &prm->tm_iocb, 0,
+				0, 0, 0, 0, 0);
+		break;
+	default:
+		sBUG_ON(1);
+		break;
+	}
+	goto out_put;
 }
 
 static void q2t_sess_work_fn(struct work_struct *work)
@@ -5236,7 +5550,6 @@ static void q2t_sess_work_fn(struct work_struct *work)
 
 	spin_lock_irq(&tgt->sess_work_lock);
 	while (!list_empty(&tgt->sess_works_list)) {
-		int rc;
 		struct q2t_sess_work_param *prm = list_entry(
 			tgt->sess_works_list.next, typeof(*prm),
 			sess_works_list_entry);
@@ -5249,15 +5562,9 @@ static void q2t_sess_work_fn(struct work_struct *work)
 
 		spin_unlock_irq(&tgt->sess_work_lock);
 
-		rc = q2t_exec_sess_work(tgt, prm);
+		q2t_exec_sess_work(tgt, prm);
 
 		spin_lock_irq(&tgt->sess_work_lock);
-
-		if (rc != 0) {
-			TRACE_MGMT_DBG("Unable to complete sess work (tgt %p), "
-				"freeing cmd %p", tgt, prm->cmd);
-			q2t_free_cmd(prm->cmd);
-		}
 
 		kfree(prm);
 	}
@@ -5374,6 +5681,7 @@ static int q2t_add_target(scsi_qla_host_t *ha)
 	INIT_LIST_HEAD(&tgt->srr_ctio_list);
 	INIT_LIST_HEAD(&tgt->srr_imm_list);
 	INIT_WORK(&tgt->srr_work, q2t_handle_srr_work);
+	atomic_set(&tgt->tgt_global_resets_count, 0);
 
 	ha->q2t_tgt = tgt;
 

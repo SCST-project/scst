@@ -164,6 +164,8 @@ struct q2t_tgt {
 	struct list_head srr_imm_list;
 	struct work_struct srr_work;
 
+	atomic_t tgt_global_resets_count;
+
 	struct list_head tgt_list_entry;
 };
 
@@ -221,7 +223,18 @@ struct q2t_cmd {
 
 struct q2t_sess_work_param {
 	struct list_head sess_works_list_entry;
-	struct q2t_cmd *cmd;
+
+#define Q2T_SESS_WORK_CMD	0
+#define Q2T_SESS_WORK_ABORT	1
+#define Q2T_SESS_WORK_TM	2
+	int type;
+
+	union {
+		struct q2t_cmd *cmd;
+		abts24_recv_entry_t abts;
+		notify_entry_t tm_iocb;
+		atio7_entry_t tm_iocb2;
+	};
 };
 
 struct q2t_mgmt_cmd {

@@ -120,18 +120,6 @@ for more details why.
 module, otherwise your initiators could not see the target, when it is
 enabled after qla2x00tgt module load.
 
-3. If you delete and then add back with the same WWN an NPIV initiator
-on the initiator side, make sure it has the same port_id as well. In
-Fibre Channel initiators identified by port_id (s_id in FC terms), so if
-the recreated NPIV initiator has another port_id, which was already used
-by another (NPIV) initiator, those initiators could be confused by the
-target and assigned to incorrect security groups, hence they could see
-incorrect LUNs.
-
-If you can't ensure the same port_id's for recreated initiators, it is
-safer to restart qla2x00tgt and qla2xxx modules on the target to make
-sure the target doesn't have any initiator port_id cached.
-
 
 Initiator and target modes
 --------------------------
