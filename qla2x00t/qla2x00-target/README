@@ -140,7 +140,7 @@ When qla2xxx compiled with CONFIG_SCSI_QLA2XXX_TARGET enabled, it has
 parameter "qlini_mode", which determines when initiator mode will be
 enabled. Possible values:
 
- - "exclusive" (default ) - initiator mode will be enabled on load,
+ - "exclusive" (default) - initiator mode will be enabled on load,
 disabled on enabling target mode and then on disabling target mode
 enabled back.
 
@@ -181,29 +181,29 @@ default.
 Class 2
 -------
 
-Class 2 is the close equivalent of the TCP in the IP world. If you
+Class 2 is the close equivalent of TCP in the network world. If you
 enable it, all the Fibre Channel packets will be acknowledged. By
-default, class 3 is used, which is UDP-like. Enable it by echoing "1" in
-/sys/kernel/scst_tgt/targets/qla2x00t/target/host/class2_enabled. This
-option needs a special firmware with class 2 support. Disabled by
+default, class 3 is used, which is UDP-like. Enable class 2 by echoing
+"1" in /sys/kernel/scst_tgt/targets/qla2x00t/target/host/class2_enabled.
+This option needs a special firmware with class 2 support. Disabled by
 default.
 
 
 N_Port ID Virtualization
 ------------------------
 
-N_Port ID Virtualization(NPIV) is a Fibre Channel facility allowing
+N_Port ID Virtualization (NPIV) is a Fibre Channel facility allowing
 multiple N_Port IDs to share a single physical N_Port. NPIV is fully
 supported by this driver. You must have 24xx+ ISPs with NPIV-supporting
 and NPIV-switches switch(es) to use this facility.
 
-You can add NPIV targets by echoing
+You can add NPIV targets by echoing:
 
 add_target target_name node_name=node_name_value; parent_host=parent_host_value
 
 in /sys/kernel/scst_tgt/targets/qla2x00t/mgmt.
 
-Removing NPIV targets is done by echoing
+Removing NPIV targets is done by echoing:
 
 del_target target_name
 

@@ -1,7 +1,7 @@
 Known issues and unimplemented features
 ---------------------------------------
 
- - Allow to set port and node names through sysfs.
+ - Allow to set port names through sysfs.
  
  - Minor "ToDo"'s spread in the code.
 
