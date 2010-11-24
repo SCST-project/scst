@@ -2610,7 +2610,7 @@ int scst_acg_dev_sysfs_create(struct scst_acg_dev *acg_dev,
 	TRACE_ENTRY();
 
 	res = kobject_init_and_add(&acg_dev->acg_dev_kobj, &acg_dev_ktype,
-				      parent, "%u", acg_dev->lun);
+				      parent, "%llu", acg_dev->lun);
 	if (res != 0) {
 		PRINT_ERROR("Can't add acg_dev %p to sysfs", acg_dev);
 		goto out;
