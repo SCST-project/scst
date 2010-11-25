@@ -5301,7 +5301,7 @@ static struct q2t_sess *q2t_make_local_sess(scsi_qla_host_t *ha,
 	TRACE_ENTRY();
 
 retry:
-        global_resets = atomic_read(&ha->tgt->tgt_global_resets_count);
+	global_resets = atomic_read(&ha->tgt->tgt_global_resets_count);
 
 	if (IS_FWI2_CAPABLE(ha)) {
 		rc = q24_get_loop_id(ha, s_id, &loop_id);
@@ -5381,7 +5381,7 @@ static void q2t_exec_sess_work(struct q2t_tgt *tgt,
 	if (tgt->tgt_stop)
 		goto send;
 
-	switch(prm->type) {
+	switch (prm->type) {
 	case Q2T_SESS_WORK_CMD:
 	{
 		struct q2t_cmd *cmd = prm->cmd;
@@ -5435,7 +5435,7 @@ send:
 	if ((sess == NULL) || tgt->tgt_stop)
 		goto out_term;
 
-	switch(prm->type) {
+	switch (prm->type) {
 	case Q2T_SESS_WORK_CMD:
 	{
 		struct q2t_cmd *cmd = prm->cmd;
@@ -5501,7 +5501,7 @@ out_put:
 	return;
 
 out_term:
-	switch(prm->type) {
+	switch (prm->type) {
 	case Q2T_SESS_WORK_CMD:
 	{
 		struct q2t_cmd *cmd = prm->cmd;
