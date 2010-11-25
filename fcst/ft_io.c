@@ -218,7 +218,6 @@ int ft_send_read_data(struct scst_cmd *cmd)
 			fr_max_payload(fp) = fcmd->max_payload;
 			to = fc_frame_payload_get(fp, 0);
 			fh_off = frame_off;
-			frame_off += frame_len;
 		}
 		tlen = min(mem_len, frame_len);
 		BUG_ON(!tlen);
@@ -233,20 +232,25 @@ int ft_send_read_data(struct scst_cmd *cmd)
 				     PAGE_SIZE - (mem_off & ~PAGE_MASK));
 			skb_fill_page_desc(fp_skb(fp),
 					   skb_shinfo(fp_skb(fp))->nr_frags,
-					   page, mem_off, tlen);
+					   page, offset_in_page(from + mem_off),
+					   tlen);
 			fr_len(fp) += tlen;
 			fp_skb(fp)->data_len += tlen;
 			fp_skb(fp)->truesize +=
 					PAGE_SIZE << compound_order(page);
+			frame_len -= tlen;
+			if (skb_shinfo(fp_skb(fp))->nr_frags >= FC_FRAME_SG_LEN)
+				frame_len = 0;
 		} else {
 			memcpy(to, from + mem_off, tlen);
 			to += tlen;
+			frame_len -= tlen;
 		}
 
 		mem_len -= tlen;
 		mem_off += tlen;
-		frame_len -= tlen;
 		remaining -= tlen;
+		frame_off += tlen;
 
 		if (frame_len)
 			continue;

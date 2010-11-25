@@ -19,6 +19,7 @@
 #ifndef __SCSI_FCST_H__
 #define __SCSI_FCST_H__
 
+#include <linux/version.h>
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/scst.h>
 #else
@@ -117,7 +118,11 @@ extern struct scst_tgt_template ft_scst_template;
 int ft_prli(struct fc_rport_priv *, u32 spp_len,
 	    const struct fc_els_spp *, struct fc_els_spp *);
 void ft_prlo(struct fc_rport_priv *);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 void ft_recv(struct fc_lport *, struct fc_seq *, struct fc_frame *);
+#else
+void ft_recv(struct fc_lport *, struct fc_frame *);
+#endif
 
 /*
  * SCST interface.
@@ -145,7 +150,7 @@ void ft_lport_del(struct fc_lport *, void *);
  * other internal functions.
  */
 int ft_thread(void *);
-void ft_recv_req(struct ft_sess *, struct fc_seq *, struct fc_frame *);
+void ft_recv_req(struct ft_sess *, struct fc_frame *);
 void ft_recv_write_data(struct scst_cmd *, struct fc_frame *);
 int ft_send_read_data(struct scst_cmd *);
 struct ft_tpg *ft_lport_find_tpg(struct fc_lport *);

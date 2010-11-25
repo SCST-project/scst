@@ -49,15 +49,20 @@ static struct ft_tport *ft_tport_create(struct fc_lport *lport)
 	FT_SESS_DBG("create %s\n", name);
 
 	tport = rcu_dereference(lport->prov[FC_TYPE_FCP]);
-	if (tport)
+	if (tport) {
+		FT_SESS_DBG("tport alloc %s - already setup\n", name);
 		return tport;
+	}
 
 	tport = kzalloc(sizeof(*tport), GFP_KERNEL);
-	if (!tport)
+	if (!tport) {
+		FT_SESS_DBG("tport alloc %s failed\n", name);
 		return NULL;
+	}
 
 	tport->tgt = scst_register_target(&ft_scst_template, name);
 	if (!tport->tgt) {
+		FT_SESS_DBG("register_target %s failed\n", name);
 		kfree(tport);
 		return NULL;
 	}
@@ -69,6 +74,7 @@ static struct ft_tport *ft_tport_create(struct fc_lport *lport)
 		INIT_HLIST_HEAD(&tport->hash[i]);
 
 	rcu_assign_pointer(lport->prov[FC_TYPE_FCP], tport);
+	FT_SESS_DBG("register_target %s succeeded\n", name);
 	return tport;
 }
 
@@ -474,7 +480,11 @@ void ft_prlo(struct fc_rport_priv *rdata)
  * Caller has verified that the frame is type FCP.
  * Note that this may be called directly from the softirq context.
  */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 void ft_recv(struct fc_lport *lport, struct fc_seq *sp, struct fc_frame *fp)
+#else
+void ft_recv(struct fc_lport *lport, struct fc_frame *fp)
+#endif
 {
 	struct ft_sess *sess;
 	struct fc_frame_header *fh;
@@ -488,14 +498,16 @@ void ft_recv(struct fc_lport *lport, struct fc_seq *sp, struct fc_frame *fp)
 	sess = ft_sess_get(lport, sid);
 	if (!sess) {
 		FT_SESS_DBG("sid %x sess lookup failed\n", sid);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 		lport->tt.exch_done(sp);
+#endif
 		/* TBD XXX - if FCP_CMND, send LOGO */
 		fc_frame_free(fp);
 		return;
 	}
 	FT_SESS_DBG("sid %x sess lookup returned %p preempt %x\n",
 			sid, sess, preempt_count());
-	ft_recv_req(sess, sp, fp);
+	ft_recv_req(sess, fp);
 	ft_sess_put(sess);
 }
 

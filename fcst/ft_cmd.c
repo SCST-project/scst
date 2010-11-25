@@ -38,7 +38,7 @@ void ft_cmd_dump(struct scst_cmd *cmd, const char *caller)
 {
 	static atomic_t serial;
 	struct ft_cmd *fcmd;
-	struct fc_exch *ep;
+	struct fc_frame_header *fh;
 	char prefix[30];
 	char buf[150];
 
@@ -46,12 +46,12 @@ void ft_cmd_dump(struct scst_cmd *cmd, const char *caller)
 		return;
 
 	fcmd = scst_cmd_get_tgt_priv(cmd);
-	ep = fc_seq_exch(fcmd->seq);
+	fh = fc_frame_header_get(fcmd->req_frame);
 	snprintf(prefix, sizeof(prefix), FT_MODULE ": cmd %2x",
 		atomic_inc_return(&serial) & 0xff);
 
 	printk(KERN_INFO "%s %s oid %x oxid %x resp_len %u\n",
-		prefix, caller, ep->oid, ep->oxid,
+		prefix, caller, ntoh24(fh->fh_s_id), ntohs(fh->fh_ox_id),
 		scst_cmd_get_resp_data_len(cmd));
 	printk(KERN_INFO "%s scst_cmd %p wlen %u rlen %u\n",
 		prefix, cmd, fcmd->write_data_len, fcmd->read_data_len);
@@ -138,19 +138,19 @@ void ft_cmd_dump(struct scst_cmd *cmd, const char *caller)
 static void ft_cmd_tm_dump(struct scst_mgmt_cmd *mcmd, const char *caller)
 {
 	struct ft_cmd *fcmd;
-	struct fc_exch *ep;
+	struct fc_frame_header *fh;
 	char prefix[30];
 	char buf[150];
 
 	if (!(ft_debug_logging & FT_DEBUG_IO))
 		return;
 	fcmd = scst_mgmt_cmd_get_tgt_priv(mcmd);
-	ep = fc_seq_exch(fcmd->seq);
+	fh = fc_frame_header_get(fcmd->req_frame);
 
 	snprintf(prefix, sizeof(prefix), FT_MODULE ": mcmd");
 
 	printk(KERN_INFO "%s %s oid %x oxid %x lun %lld\n",
-		prefix, caller, ep->oid, ep->oxid,
+		prefix, caller, ntoh24(fh->fh_s_id), ntohs(fh->fh_ox_id),
 		(unsigned long long)mcmd->lun);
 	printk(KERN_INFO "%s state %d fn %d fin_wait %d done_wait %d comp %d\n",
 		prefix, mcmd->state, mcmd->fn,
@@ -169,7 +169,25 @@ static void ft_cmd_tm_dump(struct scst_mgmt_cmd *mcmd, const char *caller)
 }
 
 /*
- * Free command.
+ * Free command and associated frame.
+ */
+static void ft_cmd_done(struct ft_cmd *fcmd)
+{
+	struct fc_frame *fp = fcmd->req_frame;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36)
+	struct fc_lport *lport;
+
+	lport = fr_dev(fp);
+	if (fr_seq(fp))
+		lport->tt.seq_release(fr_seq(fp));
+#endif
+
+	fc_frame_free(fp);
+	kfree(fcmd);
+}
+
+/*
+ * Free command - callback from SCST.
  */
 void ft_cmd_free(struct scst_cmd *cmd)
 {
@@ -178,8 +196,7 @@ void ft_cmd_free(struct scst_cmd *cmd)
 	fcmd = scst_cmd_get_tgt_priv(cmd);
 	if (fcmd) {
 		scst_cmd_set_tgt_priv(cmd, NULL);
-		fc_frame_free(fcmd->req_frame);
-		kfree(fcmd);
+		ft_cmd_done(fcmd);
 	}
 }
 
@@ -383,27 +400,35 @@ int ft_send_xfer_rdy(struct scst_cmd *cmd)
  * status is SAM_STAT_GOOD (zero) if code is valid.
  * This is used in error cases, such as allocation failures.
  */
-static void ft_send_resp_status(struct fc_seq *sp, u32 status,
+static void ft_send_resp_status(struct fc_frame *rx_fp, u32 status,
 				enum fcp_resp_rsp_codes code)
 {
 	struct fc_frame *fp;
+	struct fc_frame_header *fh;
 	size_t len;
 	struct fcp_resp_with_ext *fcp;
 	struct fcp_resp_rsp_info *info;
 	struct fc_lport *lport;
+	struct fc_seq *sp;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 	struct fc_exch *ep;
+#endif
 
-	ep = fc_seq_exch(sp);
-
+	sp = fr_seq(rx_fp);
+	fh = fc_frame_header_get(rx_fp);
 	FT_IO_DBG("FCP error response: did %x oxid %x status %x code %x\n",
-		  ep->did, ep->oxid, status, code);
-	lport = ep->lp;
+		  ntoh24(fh->fh_s_id), ntohs(fh->fh_ox_id), status, code);
+	lport = fr_dev(rx_fp);
 	len = sizeof(*fcp);
 	if (status == SAM_STAT_GOOD)
 		len += sizeof(*info);
 	fp = fc_frame_alloc(lport, len);
 	if (!fp)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 		goto out;
+#else
+		return;
+#endif
 	fcp = fc_frame_payload_get(fp, len);
 	memset(fcp, 0, len);
 	fcp->resp.fr_status = status;
@@ -414,13 +439,22 @@ static void ft_send_resp_status(struct fc_seq *sp, u32 status,
 		info->rsp_code = code;
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 	sp = lport->tt.seq_start_next(sp);
+	ep = fc_seq_exch(sp);
 	fc_fill_fc_hdr(fp, FC_RCTL_DD_CMD_STATUS, ep->did, ep->sid, FC_TYPE_FCP,
 		       FC_FC_EX_CTX | FC_FC_LAST_SEQ | FC_FC_END_SEQ, 0);
 
 	lport->tt.seq_send(lport, sp, fp);
 out:
 	lport->tt.exch_done(sp);
+#else
+	fc_fill_reply_hdr(fp, rx_fp, FC_RCTL_DD_CMD_STATUS, 0);
+	if (sp)
+		lport->tt.seq_send(lport, sp, fp);
+	else
+		lport->tt.frame_send(lport, fp);
+#endif
 }
 
 /*
@@ -429,9 +463,8 @@ out:
  */
 static void ft_send_resp_code(struct ft_cmd *fcmd, enum fcp_resp_rsp_codes code)
 {
-	ft_send_resp_status(fcmd->seq, SAM_STAT_GOOD, code);
-	fc_frame_free(fcmd->req_frame);
-	kfree(fcmd);
+	ft_send_resp_status(fcmd->req_frame, SAM_STAT_GOOD, code);
+	ft_cmd_done(fcmd);
 }
 
 void ft_cmd_tm_done(struct scst_mgmt_cmd *mcmd)
@@ -516,10 +549,10 @@ static void ft_recv_tm(struct scst_session *scst_sess,
  * Handle an incoming FCP command frame.
  * Note that this may be called directly from the softirq context.
  */
-static void ft_recv_cmd(struct ft_sess *sess, struct fc_seq *sp,
-			struct fc_frame *fp)
+static void ft_recv_cmd(struct ft_sess *sess, struct fc_frame *fp)
 {
 	static atomic_t serial;
+	struct fc_seq *sp;
 	struct scst_cmd *cmd;
 	struct ft_cmd *fcmd;
 	struct fcp_cmnd *fcp;
@@ -528,12 +561,11 @@ static void ft_recv_cmd(struct ft_sess *sess, struct fc_seq *sp,
 	u32 data_len;
 	int cdb_len;
 
-	lport = fc_seq_exch(sp)->lp;
+	lport = sess->tport->lport;
 	fcmd = kzalloc(sizeof(*fcmd), GFP_ATOMIC);
 	if (!fcmd)
 		goto busy;
 	fcmd->serial = atomic_inc_return(&serial);	/* debug only */
-	fcmd->seq = sp;
 	fcmd->max_payload = sess->max_payload;
 	fcmd->max_lso_payload = sess->max_lso_payload;
 	fcmd->req_frame = fp;
@@ -559,12 +591,20 @@ static void ft_recv_cmd(struct ft_sess *sess, struct fc_seq *sp,
 
 	cmd = scst_rx_cmd(sess->scst_sess, fcp->fc_lun, sizeof(fcp->fc_lun),
 			  fcp->fc_cdb, cdb_len, SCST_ATOMIC);
-	if (!cmd) {
-		kfree(fcmd);
+	if (!cmd)
 		goto busy;
-	}
 	fcmd->scst_cmd = cmd;
 	scst_cmd_set_tgt_priv(cmd, fcmd);
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
+	sp = fr_seq(fp);
+#else
+	sp = lport->tt.seq_assign(lport, fp);
+	if (!sp)
+		goto busy;
+#endif
+	fcmd->seq = sp;
+	lport->tt.seq_set_resp(sp, ft_recv_seq, cmd);
 
 	switch (fcp->fc_flags & (FCP_CFL_RDDATA | FCP_CFL_WRDATA)) {
 	case 0:
@@ -599,7 +639,6 @@ static void ft_recv_cmd(struct ft_sess *sess, struct fc_seq *sp,
 		break;
 	}
 
-	lport->tt.seq_set_resp(sp, ft_recv_seq, cmd);
 	scst_cmd_init_done(cmd, SCST_CONTEXT_THREAD);
 	return;
 
@@ -609,16 +648,18 @@ err:
 
 busy:
 	FT_IO_DBG("cmd allocation failure - sending BUSY\n");
-	ft_send_resp_status(sp, SAM_STAT_BUSY, 0);
-	fc_frame_free(fp);
+	ft_send_resp_status(fp, SAM_STAT_BUSY, 0);
+	ft_cmd_done(fcmd);
 }
 
 /*
  * Send FCP ELS-4 Reject.
  */
-static void ft_cmd_ls_rjt(struct fc_seq *sp, enum fc_els_rjt_reason reason,
+static void ft_cmd_ls_rjt(struct fc_frame *rx_fp, enum fc_els_rjt_reason reason,
 			  enum fc_els_rjt_explan explan)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
+	struct fc_seq *sp = fr_seq(rx_fp);
 	struct fc_frame *fp;
 	struct fc_els_ls_rjt *rjt;
 	struct fc_lport *lport;
@@ -640,14 +681,22 @@ static void ft_cmd_ls_rjt(struct fc_seq *sp, enum fc_els_rjt_reason reason,
 	fc_fill_fc_hdr(fp, FC_RCTL_ELS_REP, ep->did, ep->sid, FC_TYPE_FCP,
 		       FC_FC_EX_CTX | FC_FC_END_SEQ | FC_FC_LAST_SEQ, 0);
 	lport->tt.seq_send(lport, sp, fp);
+#else
+	struct fc_seq_els_data rjt_data;
+	struct fc_lport *lport;
+
+	lport = fr_dev(rx_fp);
+	rjt_data.reason = reason;
+	rjt_data.explan = explan;
+	lport->tt.seq_els_rsp_send(rx_fp, ELS_LS_RJT, &rjt_data);
+#endif
 }
 
 /*
  * Handle an incoming FCP ELS-4 command frame.
  * Note that this may be called directly from the softirq context.
  */
-static void ft_recv_els4(struct ft_sess *sess, struct fc_seq *sp,
-			 struct fc_frame *fp)
+static void ft_recv_els4(struct ft_sess *sess, struct fc_frame *fp)
 {
 	u8 op = fc_frame_payload_op(fp);
 
@@ -655,7 +704,7 @@ static void ft_recv_els4(struct ft_sess *sess, struct fc_seq *sp,
 	case ELS_SRR:			/* TBD */
 	default:
 		FT_IO_DBG("unsupported ELS-4 op %x\n", op);
-		ft_cmd_ls_rjt(sp, ELS_RJT_INVAL, ELS_EXPL_NONE);
+		ft_cmd_ls_rjt(fp, ELS_RJT_INVAL, ELS_EXPL_NONE);
 		fc_frame_free(fp);
 		break;
 	}
@@ -665,22 +714,24 @@ static void ft_recv_els4(struct ft_sess *sess, struct fc_seq *sp,
  * Handle an incoming FCP frame.
  * Note that this may be called directly from the softirq context.
  */
-void ft_recv_req(struct ft_sess *sess, struct fc_seq *sp, struct fc_frame *fp)
+void ft_recv_req(struct ft_sess *sess, struct fc_frame *fp)
 {
 	struct fc_frame_header *fh = fc_frame_header_get(fp);
 
 	switch (fh->fh_r_ctl) {
 	case FC_RCTL_DD_UNSOL_CMD:
-		ft_recv_cmd(sess, sp, fp);
+		ft_recv_cmd(sess, fp);
 		break;
 	case FC_RCTL_ELS4_REQ:
-		ft_recv_els4(sess, sp, fp);
+		ft_recv_els4(sess, fp);
 		break;
 	default:
 		printk(KERN_INFO "%s: unhandled frame r_ctl %x\n",
 		       __func__, fh->fh_r_ctl);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
+		sess->tport->lport->tt.exch_done(fr_seq(fp));
+#endif
 		fc_frame_free(fp);
-		sess->tport->lport->tt.exch_done(sp);
 		break;
 	}
 }
