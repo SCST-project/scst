@@ -3581,8 +3581,6 @@ static int scst_process_ini_group_mgmt_store(char *buffer,
 	struct scst_tgt *tgt)
 {
 	int res, action;
-	int len;
-	char *name;
 	char *p, *e = NULL;
 	struct scst_acg *a, *acg = NULL;
 
@@ -3651,18 +3649,7 @@ static int scst_process_ini_group_mgmt_store(char *buffer,
 			res = -EINVAL;
 			goto out_unlock;
 		}
-
-		len = strlen(p) + 1;
-		name = kmalloc(len, GFP_KERNEL);
-		if (name == NULL) {
-			PRINT_ERROR("%s", "Allocation of name failed");
-			res = -ENOMEM;
-			goto out_unlock;
-		}
-		strlcpy(name, p, len);
-
-		acg = scst_alloc_add_acg(tgt, name, true);
-		kfree(name);
+		acg = scst_alloc_add_acg(tgt, p, true);
 		if (acg == NULL)
 			goto out_unlock;
 		break;
