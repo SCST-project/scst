@@ -29,6 +29,7 @@
 #include <linux/string.h>
 #include <linux/kthread.h>
 #include <linux/delay.h>
+#include <linux/lockdep.h>
 
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/scst.h>
@@ -145,6 +146,11 @@ struct list_head scst_sess_shut_list;
 
 wait_queue_head_t scst_dev_cmd_waitQ;
 
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
+static struct lockdep_map scst_suspend_dep_map = {
+	.name = "scst_suspend_activity"
+};
+#endif
 static struct mutex scst_suspend_mutex;
 /* protected by scst_suspend_mutex */
 static struct list_head scst_cmd_threads_list;
@@ -704,6 +710,12 @@ int scst_suspend_activity(bool interruptible)
 
 	TRACE_ENTRY();
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+	lock_acquire(&scst_suspend_dep_map, 0/*subclass*/, true/*try*/,
+		     0/*exclusive*/, 2/*full validation*/, NULL/*nest_lock*/,
+		     _RET_IP_);
+#endif
+
 	if (interruptible) {
 		if (mutex_lock_interruptible(&scst_suspend_mutex) != 0) {
 			res = -EINTR;
@@ -759,6 +771,10 @@ int scst_suspend_activity(bool interruptible)
 	TRACE_MGMT_DBG("Waiting for %d active commands finally to complete",
 		atomic_read(&scst_cmd_count));
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+	lock_contended(&scst_suspend_dep_map, _RET_IP_);
+#endif
+
 	res = scst_susp_wait(interruptible);
 	if (res != 0)
 		goto out_clear;
@@ -770,6 +786,11 @@ out_up:
 	mutex_unlock(&scst_suspend_mutex);
 
 out:
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+	if (res == 0)
+		lock_acquired(&scst_suspend_dep_map, _RET_IP_);
+#endif
+
 	TRACE_EXIT_RES(res);
 	return res;
 
@@ -786,6 +807,10 @@ static void __scst_resume_activity(void)
 	struct scst_cmd_threads *l;
 
 	TRACE_ENTRY();
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+	lock_release(&scst_suspend_dep_map, false/*nested*/, _RET_IP_);
+#endif
 
 	suspend_count--;
 	TRACE_MGMT_DBG("suspend_count %d left", suspend_count);
