@@ -1,6 +1,6 @@
 diff -upkr linux-2.6.31/block/blk-map.c linux-2.6.31/block/blk-map.c
 --- linux-2.6.31/block/blk-map.c	2009-09-10 02:13:59.000000000 +0400
-+++ linux-2.6.31/block/blk-map.c	2009-09-23 14:48:36.000000000 +0400
++++ linux-2.6.31/block/blk-map.c	2010-11-26 17:39:55.415689756 +0300
 @@ -5,6 +5,7 @@
  #include <linux/module.h>
  #include <linux/bio.h>
@@ -9,7 +9,7 @@ diff -upkr linux-2.6.31/block/blk-map.c linux-2.6.31/block/blk-map.c
  #include <scsi/sg.h>		/* for struct sg_iovec */
  
  #include "blk.h"
-@@ -271,6 +272,336 @@ int blk_rq_unmap_user(struct bio *bio)
+@@ -271,6 +272,335 @@ int blk_rq_unmap_user(struct bio *bio)
  }
  EXPORT_SYMBOL(blk_rq_unmap_user);
  
@@ -266,16 +266,15 @@ diff -upkr linux-2.6.31/block/blk-map.c linux-2.6.31/block/blk-map.c
 +out:
 +	return res;
 +
++out_unmap_bios:
++	blk_rq_unmap_kern_sg(rq, res);
++
 +out_free_bios:
 +	while (hbio != NULL) {
 +		bio = hbio;
 +		hbio = hbio->bi_next;
 +		bio_put(bio);
 +	}
-+	goto out;
-+
-+out_unmap_bios:
-+	blk_rq_unmap_kern_sg(rq, res);
 +	goto out;
 +}
 +
@@ -526,3 +525,4 @@ diff -upkr linux-2.6.31/lib/scatterlist.c linux-2.6.31/lib/scatterlist.c
 +	return res;
 +}
 +EXPORT_SYMBOL(sg_copy);
+

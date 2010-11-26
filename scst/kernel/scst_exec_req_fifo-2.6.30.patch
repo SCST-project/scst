@@ -1,6 +1,6 @@
-diff -upkr linux-2.6.30.1/block/blk-map.c linux-2.6.30.1/block/blk-map.c
---- linux-2.6.30.1/block/blk-map.c	2009-07-10 21:13:25.000000000 +0400
-+++ linux-2.6.30.1/block/blk-map.c	2009-08-12 20:01:43.000000000 +0400
+diff -upkr linux-2.6.30/block/blk-map.c linux-2.6.30/block/blk-map.c
+--- linux-2.6.30/block/blk-map.c	2009-06-10 07:05:27.000000000 +0400
++++ linux-2.6.30/block/blk-map.c	2010-11-26 17:35:41.027689874 +0300
 @@ -5,6 +5,7 @@
  #include <linux/module.h>
  #include <linux/bio.h>
@@ -9,7 +9,7 @@ diff -upkr linux-2.6.30.1/block/blk-map.c linux-2.6.30.1/block/blk-map.c
  #include <scsi/sg.h>		/* for struct sg_iovec */
  
  #include "blk.h"
-@@ -272,6 +273,336 @@ int blk_rq_unmap_user(struct bio *bio)
+@@ -272,6 +273,335 @@ int blk_rq_unmap_user(struct bio *bio)
  }
  EXPORT_SYMBOL(blk_rq_unmap_user);
  
@@ -266,16 +266,15 @@ diff -upkr linux-2.6.30.1/block/blk-map.c linux-2.6.30.1/block/blk-map.c
 +out:
 +	return res;
 +
++out_unmap_bios:
++	blk_rq_unmap_kern_sg(rq, res);
++
 +out_free_bios:
 +	while (hbio != NULL) {
 +		bio = hbio;
 +		hbio = hbio->bi_next;
 +		bio_put(bio);
 +	}
-+	goto out;
-+
-+out_unmap_bios:
-+	blk_rq_unmap_kern_sg(rq, res);
 +	goto out;
 +}
 +
@@ -346,9 +345,9 @@ diff -upkr linux-2.6.30.1/block/blk-map.c linux-2.6.30.1/block/blk-map.c
  /**
   * blk_rq_map_kern - map kernel data to a request, for REQ_TYPE_BLOCK_PC usage
   * @q:		request queue where request should be inserted
-diff -upkr linux-2.6.30.1/include/linux/blkdev.h linux-2.6.30.1/include/linux/blkdev.h
---- linux-2.6.30.1/include/linux/blkdev.h	2009-07-10 21:13:25.000000000 +0400
-+++ linux-2.6.30.1/include/linux/blkdev.h	2009-08-12 19:48:06.000000000 +0400
+diff -upkr linux-2.6.30/include/linux/blkdev.h linux-2.6.30/include/linux/blkdev.h
+--- linux-2.6.30/include/linux/blkdev.h	2009-06-10 07:05:27.000000000 +0400
++++ linux-2.6.30/include/linux/blkdev.h	2009-08-12 19:48:06.000000000 +0400
 @@ -704,6 +704,8 @@ extern unsigned long blk_max_low_pfn, bl
  #define BLK_DEFAULT_SG_TIMEOUT	(60 * HZ)
  #define BLK_MIN_SG_TIMEOUT	(7 * HZ)
@@ -368,9 +367,9 @@ diff -upkr linux-2.6.30.1/include/linux/blkdev.h linux-2.6.30.1/include/linux/bl
  extern int blk_execute_rq(struct request_queue *, struct gendisk *,
  			  struct request *, int);
  extern void blk_execute_rq_nowait(struct request_queue *, struct gendisk *,
-diff -upkr linux-2.6.30.1/include/linux/scatterlist.h linux-2.6.30.1/include/linux/scatterlist.h
---- linux-2.6.30.1/include/linux/scatterlist.h	2009-06-10 07:05:27.000000000 +0400
-+++ linux-2.6.30.1/include/linux/scatterlist.h	2009-08-12 19:50:02.000000000 +0400
+diff -upkr linux-2.6.30/include/linux/scatterlist.h linux-2.6.30/include/linux/scatterlist.h
+--- linux-2.6.30/include/linux/scatterlist.h	2009-06-10 07:05:27.000000000 +0400
++++ linux-2.6.30/include/linux/scatterlist.h	2009-08-12 19:50:02.000000000 +0400
 @@ -3,6 +3,7 @@
  
  #include <asm/types.h>
@@ -390,9 +389,9 @@ diff -upkr linux-2.6.30.1/include/linux/scatterlist.h linux-2.6.30.1/include/lin
  /*
   * Maximum number of entries that will be allocated in one piece, if
   * a list larger than this is required then chaining will be utilized.
-diff -upkr linux-2.6.30.1/lib/scatterlist.c linux-2.6.30.1/lib/scatterlist.c
---- linux-2.6.30.1/lib/scatterlist.c	2009-06-10 07:05:27.000000000 +0400
-+++ linux-2.6.30.1/lib/scatterlist.c	2009-08-12 19:56:04.000000000 +0400
+diff -upkr linux-2.6.30/lib/scatterlist.c linux-2.6.30/lib/scatterlist.c
+--- linux-2.6.30/lib/scatterlist.c	2009-06-10 07:05:27.000000000 +0400
++++ linux-2.6.30/lib/scatterlist.c	2009-08-12 19:56:04.000000000 +0400
 @@ -485,3 +485,132 @@ size_t sg_copy_to_buffer(struct scatterl
  	return sg_copy_buffer(sgl, nents, buf, buflen, 1);
  }
@@ -526,3 +525,4 @@ diff -upkr linux-2.6.30.1/lib/scatterlist.c linux-2.6.30.1/lib/scatterlist.c
 +	return res;
 +}
 +EXPORT_SYMBOL(sg_copy);
+
