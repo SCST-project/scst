@@ -5019,7 +5019,7 @@ static int vcdrom_write_proc(char *buffer, char **start, off_t offset,
 	if ((length == 0) || (buffer == NULL) || (buffer[0] == '\0'))
 		goto out;
 
-	i_buf = kasnprintf(GFP_KERNEL, "%.*s", (int)length, buffer);
+	i_buf = kasprintf(GFP_KERNEL, "%.*s", (int)length, buffer);
 	if (i_buf == NULL) {
 		PRINT_ERROR("Unable to alloc intermediate buffer with size %d",
 			length+1);
