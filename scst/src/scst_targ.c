@@ -2510,14 +2510,13 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 #endif
 	if (unlikely(rc != 0)) {
 		PRINT_ERROR("scst pass-through exec failed: %x", rc);
-		if ((int)rc == -EINVAL)
-			PRINT_ERROR("Do you have too low max_sectors on your "
-				"backend hardware? For success bufflen "
-				"must be <= max_sectors (bufflen %db, "
-				"max_sectors %d sectors, CDB %x). See README "
-				"for more details.", cmd->bufflen,
+		if (((int)rc == -EINVAL) &&
+		    (cmd->bufflen > queue_max_hw_sectors(scsi_dev->request_queue)))
+			PRINT_ERROR("Too low max_hw_sectors %d sectors on %s "
+				"to serve command %x with bufflen %db."
+				"See README for more details.",
 				queue_max_hw_sectors(scsi_dev->request_queue),
-				cmd->cdb[0]);
+				dev->virt_name, cmd->cdb[0], cmd->bufflen);
 		goto out_error;
 	}
 
