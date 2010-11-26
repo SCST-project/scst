@@ -1,0 +1,71 @@
+libfc: export seq_release() for users of seq_assign()
+
+Target modules using lport->tt.seq_assign() get a hold on the
+exchange but have no way of releasing it.  Add that.
+
+Signed-off-by: Joe Eykholt <jeykholt@cisco.com>
+
+---
+ drivers/scsi/libfc/fc_exch.c |   14 ++++++++++++++
+ include/scsi/libfc.h         |    7 +++++++
+ 2 files changed, 21 insertions(+), 0 deletions(-)
+
+
+---
+diff --git a/drivers/scsi/libfc/fc_exch.c b/drivers/scsi/libfc/fc_exch.c
+index 0000ddf..0deb901 100644
+--- a/drivers/scsi/libfc/fc_exch.c
++++ b/drivers/scsi/libfc/fc_exch.c
+@@ -1252,6 +1252,8 @@ free:
+  * @fp:    The request frame
+  *
+  * On success, the sequence pointer will be returned and also in fr_seq(@fp).
++ * A reference will be held on the exchange/sequence for the caller, which
++ * must call fc_seq_release().
+  */
+ static struct fc_seq *fc_seq_assign(struct fc_lport *lport, struct fc_frame *fp)
+ {
+@@ -1269,6 +1271,15 @@ static struct fc_seq *fc_seq_assign(struct fc_lport *lport, struct fc_frame *fp)
+ }
+ 
+ /**
++ * fc_seq_release() - Release the hold
++ * @sp:    The sequence.
++ */
++static void fc_seq_release(struct fc_seq *sp)
++{
++	fc_exch_release(fc_seq_exch(sp));
++}
++
++/**
+  * fc_exch_recv_req() - Handler for an incoming request
+  * @lport: The local port that received the request
+  * @mp:	   The EM that the exchange is on
+@@ -2337,6 +2348,9 @@ int fc_exch_init(struct fc_lport *lport)
+ 	if (!lport->tt.seq_assign)
+ 		lport->tt.seq_assign = fc_seq_assign;
+ 
++	if (!lport->tt.seq_release)
++		lport->tt.seq_release = fc_seq_release;
++
+ 	return 0;
+ }
+ EXPORT_SYMBOL(fc_exch_init);
+diff --git a/include/scsi/libfc.h b/include/scsi/libfc.h
+index af8a6e8..875e3a8 100644
+--- a/include/scsi/libfc.h
++++ b/include/scsi/libfc.h
+@@ -574,6 +574,13 @@ struct libfc_function_template {
+ 			     void *arg);
+ 
+ 	/*
++	 * Release the reference on the sequence returned by seq_assign().
++	 *
++	 * STATUS: OPTIONAL
++	 */
++	void (*seq_release)(struct fc_seq *);
++
++	/*
+ 	 * Reset an exchange manager, completing all sequences and exchanges.
+ 	 * If s_id is non-zero, reset only exchanges originating from that FID.
+ 	 * If d_id is non-zero, reset only exchanges sending to that FID.

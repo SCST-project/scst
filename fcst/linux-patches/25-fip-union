@@ -1,0 +1,26 @@
+libfcoe: fix stack damage caused by using union instead of struct
+
+TBD.  This was already submitted by someone else
+but didn't make it into 2.6.36.
+
+Signed-off-by: Joe Eykholt <jeykholt@cisco.com>
+
+---
+ drivers/scsi/fcoe/libfcoe.c |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+
+---
+diff --git a/drivers/scsi/fcoe/libfcoe.c b/drivers/scsi/fcoe/libfcoe.c
+index aa503d8..bc17c71 100644
+--- a/drivers/scsi/fcoe/libfcoe.c
++++ b/drivers/scsi/fcoe/libfcoe.c
+@@ -2296,7 +2296,7 @@ static int fcoe_ctlr_vn_recv(struct fcoe_ctlr *fip, struct sk_buff *skb)
+ {
+ 	struct fip_header *fiph;
+ 	enum fip_vn2vn_subcode sub;
+-	union {
++	struct {
+ 		struct fc_rport_priv rdata;
+ 		struct fcoe_rport frport;
+ 	} buf;
