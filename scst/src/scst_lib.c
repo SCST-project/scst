@@ -3962,9 +3962,6 @@ void scst_free_session(struct scst_session *sess)
 	scst_sess_free_tgt_devs(sess);
 
 #ifndef CONFIG_SCST_PROC
-	/* tgt will stay alive at least until its sysfs alive */
-	kobject_get(&sess->tgt->tgt_kobj);
-
 	mutex_unlock(&scst_mutex);
 	scst_sess_sysfs_del(sess);
 	mutex_lock(&scst_mutex);
@@ -3980,18 +3977,14 @@ void scst_free_session(struct scst_session *sess)
 	TRACE_DBG("Removing session %p from acg %s", sess, sess->acg->acg_name);
 	list_del(&sess->acg_sess_list_entry);
 
-#ifdef CONFIG_SCST_PROC
 	/* Called under lock to protect from too early tgt release */
 	wake_up_all(&sess->tgt->unreg_waitQ);
-#endif
 
+	/*
+	 * NOTE: do not dereference the sess->tgt pointer after scst_mutex
+	 * has been unlocked, because it can be already dead!!
+	 */
 	mutex_unlock(&scst_mutex);
-
-#ifndef CONFIG_SCST_PROC
-	wake_up_all(&sess->tgt->unreg_waitQ);
-
-	kobject_put(&sess->tgt->tgt_kobj);
-#endif
 
 	kfree(sess->transport_id);
 	kfree(sess->initiator_name);
