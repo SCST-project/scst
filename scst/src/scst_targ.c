@@ -2441,6 +2441,13 @@ static struct scst_cmd *scst_post_exec_sn(struct scst_cmd *cmd,
 	return res;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31)
+static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
+{
+	return q->max_hw_sectors;
+}
+#endif
+
 /* cmd must be additionally referenced to not die inside */
 static int scst_do_real_exec(struct scst_cmd *cmd)
 {
@@ -2450,6 +2457,7 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 	struct scst_dev_type *handler = dev->handler;
 	struct io_context *old_ctx = NULL;
 	bool ctx_changed = false;
+	struct scsi_device *scsi_dev;
 
 	TRACE_ENTRY();
 
@@ -2477,7 +2485,9 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 
 	TRACE_DBG("Sending cmd %p to SCSI mid-level", cmd);
 
-	if (unlikely(dev->scsi_dev == NULL)) {
+	scsi_dev = dev->scsi_dev;
+
+	if (unlikely(scsi_dev == NULL)) {
 		PRINT_ERROR("Command for virtual device must be "
 			"processed by device handler (LUN %lld)!",
 			(long long unsigned int)cmd->lun);
@@ -2491,7 +2501,7 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 	scst_set_cur_start(cmd);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
-	rc = scst_exec_req(dev->scsi_dev, cmd->cdb, cmd->cdb_len,
+	rc = scst_exec_req(scsi_dev, cmd->cdb, cmd->cdb_len,
 			cmd->data_direction, cmd->sg, cmd->bufflen,
 			cmd->sg_cnt, cmd->timeout, cmd->retries, cmd,
 			scst_pass_through_cmd_done, GFP_KERNEL);
@@ -2502,11 +2512,12 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 		PRINT_ERROR("scst pass-through exec failed: %x", rc);
 		if ((int)rc == -EINVAL)
 			PRINT_ERROR("Do you have too low max_sectors on your "
-				"backend hardware? For success max_sectors must "
-				"be >= bufflen in sectors (max_sectors %d, "
-				"bufflen %db, CDB %x). See README for more "
-				"details.", dev->scsi_dev->host->max_sectors,
-				cmd->bufflen, cmd->cdb[0]);
+				"backend hardware? For success bufflen "
+				"must be <= max_sectors (bufflen %db, "
+				"max_sectors %d sectors, CDB %x). See README "
+				"for more details.", cmd->bufflen,
+				queue_max_hw_sectors(scsi_dev->request_queue),
+				cmd->cdb[0]);
 		goto out_error;
 	}
 

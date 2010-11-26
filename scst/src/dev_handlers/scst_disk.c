@@ -23,6 +23,7 @@
 
 #include <linux/module.h>
 #include <linux/init.h>
+#include <linux/blkdev.h>
 #include <scsi/scsi_host.h>
 #include <linux/slab.h>
 #include <asm/unaligned.h>
@@ -506,10 +507,16 @@ static int disk_exec(struct scst_cmd *cmd)
 	struct scatterlist *sg, *start_sg;
 	int cur_sg_cnt;
 	int sg_tablesize = cmd->dev->scsi_dev->host->sg_tablesize;
-	int max_sectors = cmd->dev->scsi_dev->host->max_sectors;
+	int max_sectors;
 	int num, j;
 
 	TRACE_ENTRY();
+
+	/*
+	 * For PC requests we are going to submit max_hw_sectors used instead
+	 * of max_sectors.
+	 */
+	max_sectors = queue_max_hw_sectors(cmd->dev->scsi_dev->request_queue);
 
 	if (unlikely(((max_sectors << params->block_shift) & ~PAGE_MASK) != 0)) {
 		int mlen = max_sectors << params->block_shift;
@@ -517,8 +524,7 @@ static int disk_exec(struct scst_cmd *cmd)
 		int adj_len = pg << PAGE_SHIFT;
 		max_sectors = adj_len >> params->block_shift;
 		if (max_sectors == 0) {
-			PRINT_ERROR("Too low max sectors %d",
-				cmd->dev->scsi_dev->host->max_sectors);
+			PRINT_ERROR("Too low max sectors %d", max_sectors);
 			goto out_error;
 		}
 	}
