@@ -1258,15 +1258,13 @@ void scst_tgt_sysfs_del(struct scst_tgt *tgt)
 	tgt->tgt_kobj_release_cmpl = &c;
 
 	kobject_del(tgt->tgt_sess_kobj);
-	kobject_put(tgt->tgt_sess_kobj);
-
 	kobject_del(tgt->tgt_luns_kobj);
-	kobject_put(tgt->tgt_luns_kobj);
-
 	kobject_del(tgt->tgt_ini_grp_kobj);
-	kobject_put(tgt->tgt_ini_grp_kobj);
-
 	kobject_del(&tgt->tgt_kobj);
+
+	kobject_put(tgt->tgt_sess_kobj);
+	kobject_put(tgt->tgt_luns_kobj);
+	kobject_put(tgt->tgt_ini_grp_kobj);
 	kobject_put(&tgt->tgt_kobj);
 
 	rc = wait_for_completion_timeout(tgt->tgt_kobj_release_cmpl, HZ);
@@ -1767,9 +1765,9 @@ void scst_dev_sysfs_del(struct scst_device *dev)
 	dev->dev_kobj_release_cmpl = &c;
 
 	kobject_del(dev->dev_exp_kobj);
-	kobject_put(dev->dev_exp_kobj);
-
 	kobject_del(&dev->dev_kobj);
+
+	kobject_put(dev->dev_exp_kobj);
 	kobject_put(&dev->dev_kobj);
 
 	rc = wait_for_completion_timeout(dev->dev_kobj_release_cmpl, HZ);
@@ -3383,12 +3381,11 @@ void scst_acg_sysfs_del(struct scst_acg *acg)
 	acg->acg_kobj_release_cmpl = &c;
 
 	kobject_del(acg->luns_kobj);
-	kobject_put(acg->luns_kobj);
-
 	kobject_del(acg->initiators_kobj);
-	kobject_put(acg->initiators_kobj);
-
 	kobject_del(&acg->acg_kobj);
+
+	kobject_put(acg->luns_kobj);
+	kobject_put(acg->initiators_kobj);
 	kobject_put(&acg->acg_kobj);
 
 	rc = wait_for_completion_timeout(acg->acg_kobj_release_cmpl, HZ);
