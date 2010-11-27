@@ -713,9 +713,7 @@ int scst_suspend_activity(bool interruptible)
 	TRACE_ENTRY();
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
-	lock_acquire(&scst_suspend_dep_map, 0/*subclass*/, true/*try*/,
-		     0/*exclusive*/, 2/*full validation*/, NULL/*nest_lock*/,
-		     _RET_IP_);
+	mutex_acquire(&scst_suspend_dep_map, 0, 0/*try*/, _RET_IP_);
 #endif
 
 	if (interruptible) {
@@ -791,6 +789,8 @@ out:
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 	if (res == 0)
 		lock_acquired(&scst_suspend_dep_map, _RET_IP_);
+	else
+		mutex_release(&scst_suspend_dep_map, 1/*nested*/, _RET_IP_);
 #endif
 
 	TRACE_EXIT_RES(res);
@@ -811,7 +811,7 @@ static void __scst_resume_activity(void)
 	TRACE_ENTRY();
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
-	lock_release(&scst_suspend_dep_map, false/*nested*/, _RET_IP_);
+	mutex_release(&scst_suspend_dep_map, 1/*nested*/, _RET_IP_);
 #endif
 
 	suspend_count--;
