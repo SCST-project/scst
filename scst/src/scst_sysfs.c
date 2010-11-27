@@ -171,6 +171,35 @@ static ssize_t scst_acg_cpu_mask_store(struct kobject *kobj,
 static ssize_t scst_acn_file_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 34)
+/**
+ ** Backported sysfs functions.
+ **/
+
+static int sysfs_create_files(struct kobject *kobj,
+			      const struct attribute **ptr)
+{
+	int err = 0;
+	int i;
+
+	for (i = 0; ptr[i] && !err; i++)
+		err = sysfs_create_file(kobj, ptr[i]);
+	if (err)
+		while (--i >= 0)
+			sysfs_remove_file(kobj, ptr[i]);
+	return err;
+}
+
+static void sysfs_remove_files(struct kobject *kobj,
+			       const struct attribute **ptr)
+{
+	int i;
+
+	for (i = 0; ptr[i]; i++)
+		sysfs_remove_file(kobj, ptr[i]);
+}
+#endif
+
 /**
  ** Sysfs work
  **/
@@ -824,7 +853,6 @@ static struct kobj_attribute scst_tgtt_mgmt =
 int scst_tgtt_sysfs_create(struct scst_tgt_template *tgtt)
 {
 	int res = 0;
-	const struct attribute **pattr;
 
 	TRACE_ENTRY();
 
@@ -845,19 +873,12 @@ int scst_tgtt_sysfs_create(struct scst_tgt_template *tgtt)
 		}
 	}
 
-	pattr = tgtt->tgtt_attrs;
-	if (pattr != NULL) {
-		while (*pattr != NULL) {
-			TRACE_DBG("Creating attr %s for target driver %s",
-				(*pattr)->name, tgtt->name);
-			res = sysfs_create_file(&tgtt->tgtt_kobj, *pattr);
-			if (res != 0) {
-				PRINT_ERROR("Can't add attr %s for target "
-					"driver %s", (*pattr)->name,
-					tgtt->name);
-				goto out_del;
-			}
-			pattr++;
+	if (tgtt->tgtt_attrs) {
+		res = sysfs_create_files(&tgtt->tgtt_kobj, tgtt->tgtt_attrs);
+		if (res) {
+			PRINT_ERROR("Can't add attributes for target "
+				    "driver %s", tgtt->name);
+			goto out_del;
 		}
 	}
 
@@ -1126,7 +1147,6 @@ static struct kobj_attribute tgt_enable_attr =
 int scst_tgt_sysfs_create(struct scst_tgt *tgt)
 {
 	int res;
-	const struct attribute **pattr;
 
 	TRACE_ENTRY();
 
@@ -1214,18 +1234,12 @@ int scst_tgt_sysfs_create(struct scst_tgt *tgt)
 		goto out_err;
 	}
 
-	pattr = tgt->tgtt->tgt_attrs;
-	if (pattr != NULL) {
-		while (*pattr != NULL) {
-			TRACE_DBG("Creating attr %s for tgt %s", (*pattr)->name,
-				tgt->tgt_name);
-			res = sysfs_create_file(&tgt->tgt_kobj, *pattr);
-			if (res != 0) {
-				PRINT_ERROR("Can't add tgt attr %s for tgt %s",
-					(*pattr)->name, tgt->tgt_name);
-				goto out_err;
-			}
-			pattr++;
+	if (tgt->tgtt->tgt_attrs) {
+		res = sysfs_create_files(&tgt->tgt_kobj, tgt->tgtt->tgt_attrs);
+		if (res) {
+			PRINT_ERROR("Can't add attributes for tgt %s",
+				    tgt->tgt_name);
+			goto out_err;
 		}
 	}
 
@@ -1591,7 +1605,6 @@ static void scst_sysfs_dev_release(struct kobject *kobj)
 int scst_devt_dev_sysfs_create(struct scst_device *dev)
 {
 	int res = 0;
-	const struct attribute **pattr;
 
 	TRACE_ENTRY();
 
@@ -1633,16 +1646,13 @@ int scst_devt_dev_sysfs_create(struct scst_device *dev)
 		}
 	}
 
-	pattr = dev->handler->dev_attrs;
-	if (pattr != NULL) {
-		while (*pattr != NULL) {
-			res = sysfs_create_file(&dev->dev_kobj, *pattr);
-			if (res != 0) {
-				PRINT_ERROR("Can't add dev attr %s for dev %s",
-					(*pattr)->name, dev->virt_name);
-				goto out_err;
-			}
-			pattr++;
+	if (dev->handler->dev_attrs) {
+		res = sysfs_create_files(&dev->dev_kobj,
+					 dev->handler->dev_attrs);
+		if (res) {
+			PRINT_ERROR("Can't add dev attributes for dev %s",
+				    dev->virt_name);
+			goto out_err;
 		}
 	}
 
@@ -1657,20 +1667,13 @@ out_err:
 
 void scst_devt_dev_sysfs_del(struct scst_device *dev)
 {
-	const struct attribute **pattr;
-
 	TRACE_ENTRY();
 
 	if (dev->handler == &scst_null_devtype)
 		goto out;
 
-	pattr = dev->handler->dev_attrs;
-	if (pattr != NULL) {
-		while (*pattr != NULL) {
-			sysfs_remove_file(&dev->dev_kobj, *pattr);
-			pattr++;
-		}
-	}
+	if (dev->handler->dev_attrs)
+		sysfs_remove_files(&dev->dev_kobj, dev->handler->dev_attrs);
 
 	sysfs_remove_link(&dev->dev_kobj, "handler");
 	sysfs_remove_link(&dev->handler->devt_kobj, dev->virt_name);
@@ -2405,7 +2408,6 @@ int scst_sess_sysfs_create(struct scst_session *sess)
 {
 	int res = 0;
 	struct scst_session *s;
-	const struct attribute **pattr;
 	char *name = (char *)sess->initiator_name;
 	int len = strlen(name) + 1, n = 1;
 
@@ -2451,17 +2453,12 @@ restart:
 
 	sess->sess_kobj_ready = 1;
 
-	pattr = sess->tgt->tgtt->sess_attrs;
-	if (pattr != NULL) {
-		while (*pattr != NULL) {
-			res = sysfs_create_file(&sess->sess_kobj, *pattr);
-			if (res != 0) {
-				PRINT_ERROR("Can't add sess attr %s for sess "
-					"for initiator %s", (*pattr)->name,
-					name);
-				goto out_free;
-			}
-			pattr++;
+	if (sess->tgt->tgtt->sess_attrs) {
+		res = sysfs_create_files(&sess->sess_kobj,
+					 sess->tgt->tgtt->sess_attrs);
+		if (res) {
+			PRINT_ERROR("Can't add attributes for session %s", name);
+			goto out_free;
 		}
 	}
 
@@ -5127,7 +5124,6 @@ int scst_devt_sysfs_create(struct scst_dev_type *devt)
 {
 	int res;
 	struct kobject *parent;
-	const struct attribute **pattr;
 
 	TRACE_ENTRY();
 
@@ -5156,17 +5152,12 @@ int scst_devt_sysfs_create(struct scst_dev_type *devt)
 		goto out_err;
 	}
 
-	pattr = devt->devt_attrs;
-	if (pattr != NULL) {
-		while (*pattr != NULL) {
-			res = sysfs_create_file(&devt->devt_kobj, *pattr);
-			if (res != 0) {
-				PRINT_ERROR("Can't add devt attr %s for dev "
-					"handler %s", (*pattr)->name,
-					devt->name);
-				goto out_err;
-			}
-			pattr++;
+	if (devt->devt_attrs) {
+		res = sysfs_create_files(&devt->devt_kobj, devt->devt_attrs);
+		if (res) {
+			PRINT_ERROR("Can't add attributes for dev handler %s",
+				    devt->name);
+			goto out_err;
 		}
 	}
 
