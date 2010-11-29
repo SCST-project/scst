@@ -1719,6 +1719,9 @@ static void scst_check_reassign_sess(struct scst_session *sess)
 
 	TRACE_ENTRY();
 
+	if (tgt_dev->sess->shut_phase != SCST_SESS_SPH_READY)
+		goto out;
+
 	TRACE_MGMT_DBG("Checking reassignment for sess %p (initiator %s)",
 		sess, sess->initiator_name);
 
