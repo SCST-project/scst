@@ -147,10 +147,10 @@ struct list_head scst_sess_shut_list;
 wait_queue_head_t scst_dev_cmd_waitQ;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
-static struct lockdep_map scst_suspend_dep_map = {
-	.name = "scst_suspend_activity"
-};
+#ifdef CONFIG_LOCKDEP
+static struct lock_class_key scst_suspend_key;
+static struct lockdep_map scst_suspend_dep_map =
+	STATIC_LOCKDEP_MAP_INIT("scst_suspend_activity", &scst_suspend_key);
 #endif
 #endif
 static struct mutex scst_suspend_mutex;
@@ -713,7 +713,7 @@ int scst_suspend_activity(bool interruptible)
 	TRACE_ENTRY();
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
-	mutex_acquire(&scst_suspend_dep_map, 0, 0/*try*/, _RET_IP_);
+	rwlock_acquire_read(&scst_suspend_dep_map, 0, 0, _RET_IP_);
 #endif
 
 	if (interruptible) {
@@ -758,6 +758,10 @@ int scst_suspend_activity(bool interruptible)
 			"program recovers and starts responding or gets "
 			"killed.", atomic_read(&scst_cmd_count));
 		rep = true;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+		lock_contended(&scst_suspend_dep_map, _RET_IP_);
+#endif
 	}
 
 	res = scst_susp_wait(interruptible);
@@ -770,10 +774,6 @@ int scst_suspend_activity(bool interruptible)
 
 	TRACE_MGMT_DBG("Waiting for %d active commands finally to complete",
 		atomic_read(&scst_cmd_count));
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
-	lock_contended(&scst_suspend_dep_map, _RET_IP_);
-#endif
 
 	res = scst_susp_wait(interruptible);
 	if (res != 0)
@@ -790,7 +790,7 @@ out:
 	if (res == 0)
 		lock_acquired(&scst_suspend_dep_map, _RET_IP_);
 	else
-		mutex_release(&scst_suspend_dep_map, 1/*nested*/, _RET_IP_);
+		rwlock_release(&scst_suspend_dep_map, 1, _RET_IP_);
 #endif
 
 	TRACE_EXIT_RES(res);
@@ -809,10 +809,6 @@ static void __scst_resume_activity(void)
 	struct scst_cmd_threads *l;
 
 	TRACE_ENTRY();
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
-	mutex_release(&scst_suspend_dep_map, 1/*nested*/, _RET_IP_);
-#endif
 
 	suspend_count--;
 	TRACE_MGMT_DBG("suspend_count %d left", suspend_count);
@@ -856,6 +852,10 @@ out:
 void scst_resume_activity(void)
 {
 	TRACE_ENTRY();
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+	rwlock_release(&scst_suspend_dep_map, 1, _RET_IP_);
+#endif
 
 	mutex_lock(&scst_suspend_mutex);
 	__scst_resume_activity();
