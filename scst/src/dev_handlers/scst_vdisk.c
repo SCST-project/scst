@@ -2607,12 +2607,13 @@ static void blockio_endio(struct bio *bio, int error)
 
 	if (unlikely(error != 0)) {
 		static DEFINE_SPINLOCK(blockio_endio_lock);
+		unsigned long flags;
 
 		PRINT_ERROR("cmd %p returned error %d", blockio_work->cmd,
 			error);
 
 		/* To protect from several bios finishing simultaneously */
-		spin_lock_bh(&blockio_endio_lock);
+		spin_lock_irqsave(&blockio_endio_lock, flags);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 		if (bio->bi_rw & (1 << BIO_RW))
@@ -2625,7 +2626,7 @@ static void blockio_endio(struct bio *bio, int error)
 			scst_set_cmd_error(blockio_work->cmd,
 				SCST_LOAD_SENSE(scst_sense_read_error));
 
-		spin_unlock_bh(&blockio_endio_lock);
+		spin_unlock_irqrestore(&blockio_endio_lock, flags);
 	}
 
 	blockio_check_finish(blockio_work);
