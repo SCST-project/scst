@@ -1486,14 +1486,17 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch,
 	scst_data_direction dir;
 	u64 data_len;
 	int ret;
+	int atomic;
 
 	BUG_ON(!send_ioctx);
 
 	srp_cmd = recv_ioctx->ioctx.buf;
 
+	atomic = context == SCST_CONTEXT_TASKLET ? SCST_ATOMIC
+		 : SCST_NON_ATOMIC;
 	scmnd = scst_rx_cmd(ch->scst_sess, (u8 *) &srp_cmd->lun,
 			    sizeof srp_cmd->lun, srp_cmd->cdb,
-			    sizeof srp_cmd->cdb, context);
+			    sizeof srp_cmd->cdb, atomic);
 	if (!scmnd) {
 		PRINT_ERROR("0x%llx: allocation of an SCST command failed",
 			    srp_cmd->tag);
