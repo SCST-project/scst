@@ -481,44 +481,37 @@ struct scst_tgt *scst_register_target(struct scst_tgt_template *vtt,
 
 	if (target_name != NULL) {
 #ifdef CONFIG_SCST_PROC
-		int len = strlen(target_name) +
-			strlen(SCST_DEFAULT_ACG_NAME) + 1 + 1;
-
-		tgt->default_group_name = kmalloc(len, GFP_KERNEL);
+		tgt->default_group_name = kasprintf(GFP_KERNEL, "%s_%s",
+						    SCST_DEFAULT_ACG_NAME,
+						    target_name);
 		if (tgt->default_group_name == NULL) {
 			TRACE(TRACE_OUT_OF_MEM, "Allocation of default "
 				"group name failed (tgt %s)", target_name);
 			rc = -ENOMEM;
 			goto out_free_tgt;
 		}
-		sprintf(tgt->default_group_name, "%s_%s", SCST_DEFAULT_ACG_NAME,
-			target_name);
-
 		/* In case of error default_group_name will be freed in scst_free_tgt() */
 #endif
 
-		tgt->tgt_name = kmalloc(strlen(target_name) + 1, GFP_KERNEL);
+		tgt->tgt_name = kstrdup(target_name, GFP_KERNEL);
 		if (tgt->tgt_name == NULL) {
 			TRACE(TRACE_OUT_OF_MEM, "Allocation of tgt name %s failed",
 				target_name);
 			rc = -ENOMEM;
 			goto out_free_tgt;
 		}
-		strcpy(tgt->tgt_name, target_name);
 	} else {
 		static int tgt_num; /* protected by scst_mutex */
-		int len = strlen(vtt->name) +
-			strlen(SCST_DEFAULT_TGT_NAME_SUFFIX) + 11 + 1;
 
-		tgt->tgt_name = kmalloc(len, GFP_KERNEL);
+		tgt->tgt_name = kasprintf(GFP_KERNEL, "%s%s%d", vtt->name,
+			SCST_DEFAULT_TGT_NAME_SUFFIX, tgt_num);
 		if (tgt->tgt_name == NULL) {
 			TRACE(TRACE_OUT_OF_MEM, "Allocation of tgt name failed "
 				"(template name %s)", vtt->name);
 			rc = -ENOMEM;
 			goto out_free_tgt;
 		}
-		sprintf(tgt->tgt_name, "%s%s%d", vtt->name,
-			SCST_DEFAULT_TGT_NAME_SUFFIX, tgt_num++);
+		tgt_num++;
 	}
 
 	if (mutex_lock_interruptible(&scst_mutex) != 0) {
@@ -897,14 +890,14 @@ static int scst_register_device(struct scsi_device *scsidp)
 
 	dev->type = scsidp->type;
 
-	dev->virt_name = kmalloc(50, GFP_KERNEL);
+	dev->virt_name = kasprintf(GFP_KERNEL, "%d:%d:%d:%d",
+				   scsidp->host->host_no,
+				   scsidp->channel, scsidp->id, scsidp->lun);
 	if (dev->virt_name == NULL) {
 		PRINT_ERROR("%s", "Unable to alloc device name");
 		res = -ENOMEM;
 		goto out_free_dev;
 	}
-	snprintf(dev->virt_name, 50, "%d:%d:%d:%d", scsidp->host->host_no,
-		scsidp->channel, scsidp->id, scsidp->lun);
 
 	list_for_each_entry(d, &scst_dev_list, dev_list_entry) {
 		if (strcmp(d->virt_name, dev->virt_name) == 0) {
