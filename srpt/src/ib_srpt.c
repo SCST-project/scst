@@ -3508,7 +3508,11 @@ static void srpt_add_one(struct ib_device *device)
 
 	sdev = kzalloc(sizeof *sdev, GFP_KERNEL);
 	if (!sdev)
-		return;
+		goto err;
+
+	sdev->device = device;
+	INIT_LIST_HEAD(&sdev->rch_list);
+	spin_lock_init(&sdev->spinlock);
 
 	sdev->scst_tgt = scst_register_target(&srpt_template, NULL);
 	if (!sdev->scst_tgt) {
@@ -3518,8 +3522,6 @@ static void srpt_add_one(struct ib_device *device)
 	}
 
 	scst_tgt_set_tgt_priv(sdev->scst_tgt, sdev);
-
-	sdev->device = device;
 
 	sdev->dev.class = &srpt_class;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
@@ -3566,9 +3568,8 @@ static void srpt_add_one(struct ib_device *device)
 	if (IS_ERR(sdev->srq))
 		goto err_mr;
 
-	TRACE_DBG("%s: create SRQ #wr= %d max_allow=%d dev= %s",
-	      __func__, sdev->srq_size,
-	      sdev->dev_attr.max_srq_wr, device->name);
+	TRACE_DBG("%s: create SRQ #wr= %d max_allow=%d dev= %s", __func__,
+		  sdev->srq_size, sdev->dev_attr.max_srq_wr, device->name);
 
 	if (!srpt_service_guid)
 		srpt_service_guid = be64_to_cpu(device->node_guid);
@@ -3603,14 +3604,8 @@ static void srpt_add_one(struct ib_device *device)
 	if (!sdev->ioctx_ring)
 		goto err_event;
 
-
-	INIT_LIST_HEAD(&sdev->rch_list);
-	spin_lock_init(&sdev->spinlock);
-
 	for (i = 0; i < sdev->srq_size; ++i)
 		srpt_post_recv(sdev, sdev->ioctx_ring[i]);
-
-	ib_set_client_data(device, &srpt_client, sdev);
 
 	WARN_ON(sdev->device->phys_port_cnt
 		> sizeof(sdev->port)/sizeof(sdev->port[0]));
@@ -3636,13 +3631,13 @@ static void srpt_add_one(struct ib_device *device)
 	}
 
 	atomic_inc(&srpt_device_count);
+out:
+	ib_set_client_data(device, &srpt_client, sdev);
 
 	TRACE_EXIT();
-
 	return;
 
 err_ring:
-	ib_set_client_data(device, &srpt_client, NULL);
 	srpt_free_ioctx_ring((struct srpt_ioctx **)sdev->ioctx_ring, sdev,
 			     sdev->srq_size, srp_max_req_size,
 			     DMA_FROM_DEVICE);
@@ -3666,8 +3661,10 @@ unregister_tgt:
 	scst_unregister_target(sdev->scst_tgt);
 free_dev:
 	kfree(sdev);
-
-	TRACE_EXIT();
+err:
+	sdev = NULL;
+	PRINT_INFO("%s(%s) failed.", __func__, device->name);
+	goto out;
 }
 
 /**
@@ -3681,14 +3678,10 @@ static void srpt_remove_one(struct ib_device *device)
 	TRACE_ENTRY();
 
 	sdev = ib_get_client_data(device, &srpt_client);
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18)
-	WARN_ON(!sdev);
-	if (!sdev)
+	if (!sdev) {
+		PRINT_INFO("%s(%s): nothing to do.", __func__, device->name);
 		return;
-#else
-	if (WARN_ON(!sdev))
-		return;
-#endif
+	}
 
 	srpt_unregister_mad_agent(sdev);
 
