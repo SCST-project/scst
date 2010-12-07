@@ -225,8 +225,8 @@ sub new {
 
 	my $scstVersion = $self->scstVersion();
 
-	die("Failed to obtain SCST version information. Is the scst module loaded?\n")
-	  if ($scstVersion == -1);
+	die("Failed to obtain SCST version information. Are the SCST modules loaded?\n")
+	  if (!defined($scstVersion));
 
 	my($major, $minor, $release) = split(/\./, $scstVersion, 3);
 	($release, undef) = split(/\-/, $release) if ($release =~ /\-/);
