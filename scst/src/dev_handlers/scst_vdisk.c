@@ -4545,7 +4545,7 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 	struct scst_vdisk_dev *virt_dev, *vv;
 	uint32_t block_size = DEF_DISK_BLOCKSIZE;
 	int block_shift = DEF_DISK_BLOCKSIZE_SHIFT;
-	size_t len, slen;
+	size_t slen;
 
 	TRACE_ENTRY();
 
@@ -4877,7 +4877,6 @@ static int vcdrom_open(char *p, char *name)
 {
 	struct scst_vdisk_dev *virt_dev, *vv;
 	char *filename;
-	int len;
 	int res = 0;
 	int cdrom_empty;
 
