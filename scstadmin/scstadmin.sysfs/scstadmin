@@ -1405,9 +1405,8 @@ sub writeConfiguration {
 					}
 				}
 
+				$group_buff .= " {\n";
 				if ($lun_buff || $init_buff) {
-					$group_buff .= " {\n";
-
 					if ($lun_buff) {
 						$group_buff .= $lun_buff;
 					}
