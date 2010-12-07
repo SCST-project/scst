@@ -3510,6 +3510,10 @@ static void srpt_add_one(struct ib_device *device)
 	if (!sdev)
 		goto err;
 
+	sdev->device = device;
+	INIT_LIST_HEAD(&sdev->rch_list);
+	spin_lock_init(&sdev->spinlock);
+
 	sdev->scst_tgt = scst_register_target(&srpt_template, NULL);
 	if (!sdev->scst_tgt) {
 		PRINT_ERROR("SCST registration failed for %s.",
@@ -3518,8 +3522,6 @@ static void srpt_add_one(struct ib_device *device)
 	}
 
 	scst_tgt_set_tgt_priv(sdev->scst_tgt, sdev);
-
-	sdev->device = device;
 
 	sdev->dev.class = &srpt_class;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
@@ -3601,9 +3603,6 @@ static void srpt_add_one(struct ib_device *device)
 				      srp_max_req_size, DMA_FROM_DEVICE);
 	if (!sdev->ioctx_ring)
 		goto err_event;
-
-	INIT_LIST_HEAD(&sdev->rch_list);
-	spin_lock_init(&sdev->spinlock);
 
 	for (i = 0; i < sdev->srq_size; ++i)
 		srpt_post_recv(sdev, sdev->ioctx_ring[i]);
