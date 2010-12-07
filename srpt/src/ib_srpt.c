@@ -3566,9 +3566,8 @@ static void srpt_add_one(struct ib_device *device)
 	if (IS_ERR(sdev->srq))
 		goto err_mr;
 
-	TRACE_DBG("%s: create SRQ #wr= %d max_allow=%d dev= %s",
-	      __func__, sdev->srq_size,
-	      sdev->dev_attr.max_srq_wr, device->name);
+	TRACE_DBG("%s: create SRQ #wr= %d max_allow=%d dev= %s", __func__,
+		  sdev->srq_size, sdev->dev_attr.max_srq_wr, device->name);
 
 	if (!srpt_service_guid)
 		srpt_service_guid = be64_to_cpu(device->node_guid);
@@ -3602,7 +3601,6 @@ static void srpt_add_one(struct ib_device *device)
 				      srp_max_req_size, DMA_FROM_DEVICE);
 	if (!sdev->ioctx_ring)
 		goto err_event;
-
 
 	INIT_LIST_HEAD(&sdev->rch_list);
 	spin_lock_init(&sdev->spinlock);
@@ -3638,7 +3636,6 @@ out:
 	ib_set_client_data(device, &srpt_client, sdev);
 
 	TRACE_EXIT();
-
 	return;
 
 err_ring:
