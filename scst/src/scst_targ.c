@@ -2441,13 +2441,6 @@ static struct scst_cmd *scst_post_exec_sn(struct scst_cmd *cmd,
 	return res;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31)
-static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
-{
-	return q->max_hw_sectors;
-}
-#endif
-
 /* cmd must be additionally referenced to not die inside */
 static int scst_do_real_exec(struct scst_cmd *cmd)
 {

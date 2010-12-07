@@ -132,6 +132,13 @@ static inline int set_cpus_allowed_ptr(struct task_struct *p,
 }
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31)
+static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
+{
+	return q->max_hw_sectors;
+}
+#endif
+
 /*
  * Version numbers, the same as for the kernel.
  *
