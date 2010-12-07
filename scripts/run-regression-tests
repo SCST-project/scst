@@ -154,6 +154,27 @@ See also http://lkml.org/lkml/2009/9/26/51
  	do {								\
 EOF
     fi
+    if [ "$1" = 2.6.32 -o "${1#2.6.32.}" != "$1" -o "$1" = "2.6.33" \
+	 -o "${1#2.6.33.}" != "$1" ]
+    then
+      cd "../linux-$1" || return $?
+      patch -f -s -p1 <<'EOF'
+Get rid of sparse errors on sk_buff.protocol.
+
+--- linux/include/linux/skbuff-orig.h	2010-12-07 13:40:51.000000000 -0500
++++ linux/include/linux/skbuff.h	2010-12-07 13:41:05.000000000 -0500
+@@ -349,8 +349,8 @@ struct sk_buff {
+ 				ipvs_property:1,
+ 				peeked:1,
+ 				nf_trace:1;
+-	__be16			protocol:16;
+ 	kmemcheck_bitfield_end(flags1);
++	__be16			protocol;
+ 
+ 	void			(*destructor)(struct sk_buff *skb);
+ #if defined(CONFIG_NF_CONNTRACK) || defined(CONFIG_NF_CONNTRACK_MODULE)
+EOF
+    fi
   )
   rmdir "${tmpdir}"
 }
