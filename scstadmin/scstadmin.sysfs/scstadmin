@@ -1516,6 +1516,11 @@ sub checkConfiguration {
 
 	readConfigFile() if (!$CONFIG);
 
+	if (!scalar keys %{$CONFIG}) {
+		print "-> WARNING: Configuration is empty or unreadable, aborting.\n\n";
+		exit 0;
+	}
+
 	# Check for a minimum sane configuration
 	if (!defined($$CONFIG{'TARGET_DRIVER'}) ||
 	    !(scalar keys %{$$CONFIG{'TARGET_DRIVER'}})) {
