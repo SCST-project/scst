@@ -64,7 +64,7 @@ case "$1" in
             fi
         done
 
-	if [ -f $SCST_CFG ]; then
+        if [ -f $SCST_CFG ]; then
             if scstadmin -config $SCST_CFG >/dev/null 2>&1; then
        	        log_success_msg
             else
@@ -72,12 +72,9 @@ case "$1" in
                 exit 1
             fi
         else
-            log_end_msg 0
+            log_success_msg
             echo "SCST configuration file $SCST_CFG missing"
-            exit 0
         fi
-
-        log_success_msg
         ;;
     stop)
         ## Stop the service.
