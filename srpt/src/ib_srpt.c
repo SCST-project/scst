@@ -3323,7 +3323,65 @@ static uint16_t srpt_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 	return 0x0940; /* SRP */
 }
 
+#if defined(CONFIG_SCST_PROC)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+static ssize_t show_login_info(struct class_device *dev, char *buf)
+#else
+static ssize_t show_login_info(struct device *dev,
+			       struct device_attribute *attr, char *buf)
+#endif
+#else
+static ssize_t show_login_info(struct kobject *kobj,
+			       struct kobj_attribute *attr, char *buf)
+#endif
+{
 #if !defined(CONFIG_SCST_PROC)
+	struct scst_tgt *scst_tgt;
+#endif
+	struct srpt_device *sdev;
+	struct srpt_port *sport;
+	int i;
+	int len;
+
+#if defined(CONFIG_SCST_PROC)
+	sdev = container_of(dev, struct srpt_device, dev);
+#else
+	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	sdev = scst_tgt_get_tgt_priv(scst_tgt);
+#endif
+	len = 0;
+	for (i = 0; i < sdev->device->phys_port_cnt; i++) {
+		sport = &sdev->port[i];
+
+		len += sprintf(buf + len,
+			       "tid_ext=%016llx,ioc_guid=%016llx,pkey=ffff,"
+			       "dgid=%04x%04x%04x%04x%04x%04x%04x%04x,"
+			       "service_id=%016llx\n",
+			       srpt_service_guid,
+			       srpt_service_guid,
+			       be16_to_cpu(((__be16 *) sport->gid.raw)[0]),
+			       be16_to_cpu(((__be16 *) sport->gid.raw)[1]),
+			       be16_to_cpu(((__be16 *) sport->gid.raw)[2]),
+			       be16_to_cpu(((__be16 *) sport->gid.raw)[3]),
+			       be16_to_cpu(((__be16 *) sport->gid.raw)[4]),
+			       be16_to_cpu(((__be16 *) sport->gid.raw)[5]),
+			       be16_to_cpu(((__be16 *) sport->gid.raw)[6]),
+			       be16_to_cpu(((__be16 *) sport->gid.raw)[7]),
+			       srpt_service_guid);
+	}
+
+	return len;
+}
+
+#if !defined(CONFIG_SCST_PROC)
+static struct kobj_attribute srpt_show_login_info_attr =
+	__ATTR(login_info, S_IRUGO, show_login_info, NULL);
+
+static const struct attribute *srpt_tgt_attrs[] = {
+	&srpt_show_login_info_attr.attr,
+	NULL
+};
+
 static ssize_t show_req_lim(struct kobject *kobj,
 			    struct kobj_attribute *attr, char *buf)
 {
@@ -3370,6 +3428,7 @@ static struct scst_tgt_template srpt_template = {
 #if !defined(CONFIG_SCST_PROC)
 	.enable_target			 = srpt_enable_target,
 	.is_target_enabled		 = srpt_is_target_enabled,
+	.tgt_attrs			 = srpt_tgt_attrs,
 	.sess_attrs			 = srpt_sess_attrs,
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
@@ -3386,23 +3445,6 @@ static struct scst_tgt_template srpt_template = {
 	.get_initiator_port_transport_id = srpt_get_initiator_port_transport_id,
 	.get_scsi_transport_version	 = srpt_get_scsi_transport_version,
 };
-
-/**
- * srpt_dev_release() - Device release callback function.
- *
- * The callback function srpt_dev_release() is called whenever a
- * device is removed from the /sys/class/infiniband_srpt device class.
- * Although this function has been left empty, a release function has been
- * defined such that upon module removal no complaint is logged about a
- * missing release function.
- */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
-static void srpt_dev_release(struct class_device *dev)
-#else
-static void srpt_dev_release(struct device *dev)
-#endif
-{
-}
 
 #ifdef CONFIG_SCST_PROC
 
@@ -3425,43 +3467,20 @@ static struct scst_proc_data srpt_log_proc_data = {
 };
 #endif
 
-#endif /* CONFIG_SCST_PROC */
-
+/**
+ * srpt_dev_release() - Device release callback function.
+ *
+ * The callback function srpt_dev_release() is called whenever a device is
+ * removed from the /sys/class/infiniband_srpt device class.  This function
+ * has been left empty because device nodes are embedded in struct
+ * srpt_device.
+ */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
-static ssize_t show_login_info(struct class_device *dev, char *buf)
+static void srpt_dev_release(struct class_device *dev)
 #else
-static ssize_t show_login_info(struct device *dev,
-			       struct device_attribute *attr, char *buf)
+static void srpt_dev_release(struct device *dev)
 #endif
 {
-	struct srpt_device *sdev;
-	struct srpt_port *sport;
-	int i;
-	int len;
-
-	sdev = container_of(dev, struct srpt_device, dev);
-	len = 0;
-	for (i = 0; i < sdev->device->phys_port_cnt; i++) {
-		sport = &sdev->port[i];
-
-		len += sprintf(buf + len,
-			       "tid_ext=%016llx,ioc_guid=%016llx,pkey=ffff,"
-			       "dgid=%04x%04x%04x%04x%04x%04x%04x%04x,"
-			       "service_id=%016llx\n",
-			       srpt_service_guid,
-			       srpt_service_guid,
-			       be16_to_cpu(((__be16 *) sport->gid.raw)[0]),
-			       be16_to_cpu(((__be16 *) sport->gid.raw)[1]),
-			       be16_to_cpu(((__be16 *) sport->gid.raw)[2]),
-			       be16_to_cpu(((__be16 *) sport->gid.raw)[3]),
-			       be16_to_cpu(((__be16 *) sport->gid.raw)[4]),
-			       be16_to_cpu(((__be16 *) sport->gid.raw)[5]),
-			       be16_to_cpu(((__be16 *) sport->gid.raw)[6]),
-			       be16_to_cpu(((__be16 *) sport->gid.raw)[7]),
-			       srpt_service_guid);
-	}
-
-	return len;
 }
 
 static struct class_attribute srpt_class_attrs[] = {
@@ -3473,7 +3492,7 @@ static struct class_device_attribute srpt_dev_attrs[] = {
 #else
 static struct device_attribute srpt_dev_attrs[] = {
 #endif
-	__ATTR(login_info,    S_IRUGO, show_login_info,    NULL),
+	__ATTR(login_info, S_IRUGO, show_login_info, NULL),
 	__ATTR_NULL,
 };
 
@@ -3491,6 +3510,8 @@ static struct class srpt_class = {
 	.dev_attrs   = srpt_dev_attrs,
 #endif
 };
+
+#endif /*CONFIG_SCST_PROC*/
 
 /**
  * srpt_add_one() - Infiniband device addition callback function.
@@ -3523,6 +3544,7 @@ static void srpt_add_one(struct ib_device *device)
 
 	scst_tgt_set_tgt_priv(sdev->scst_tgt, sdev);
 
+#ifdef CONFIG_SCST_PROC
 	sdev->dev.class = &srpt_class;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 	sdev->dev.dev = device->dma_device;
@@ -3544,13 +3566,22 @@ static void srpt_add_one(struct ib_device *device)
 	if (device_register(&sdev->dev))
 		goto unregister_tgt;
 #endif
+#endif /*CONFIG_SCST_PROC*/
 
 	if (ib_query_device(device, &sdev->dev_attr))
+#ifdef CONFIG_SCST_PROC
 		goto err_dev;
+#else
+		goto unregister_tgt;
+#endif
 
 	sdev->pd = ib_alloc_pd(device);
 	if (IS_ERR(sdev->pd))
+#ifdef CONFIG_SCST_PROC
 		goto err_dev;
+#else
+		goto unregister_tgt;
+#endif
 
 	sdev->mr = ib_get_dma_mr(sdev->pd, IB_ACCESS_LOCAL_WRITE);
 	if (IS_ERR(sdev->mr))
@@ -3651,12 +3682,14 @@ err_mr:
 	ib_dereg_mr(sdev->mr);
 err_pd:
 	ib_dealloc_pd(sdev->pd);
+#ifdef CONFIG_SCST_PROC
 err_dev:
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 	class_device_unregister(&sdev->dev);
 #else
 	device_unregister(&sdev->dev);
 #endif
+#endif /*CONFIG_SCST_PROC*/
 unregister_tgt:
 	scst_unregister_target(sdev->scst_tgt);
 free_dev:
@@ -3705,11 +3738,13 @@ static void srpt_remove_one(struct ib_device *device)
 	ib_dereg_mr(sdev->mr);
 	ib_dealloc_pd(sdev->pd);
 
+#ifdef CONFIG_SCST_PROC
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 	class_device_unregister(&sdev->dev);
 #else
 	device_unregister(&sdev->dev);
 #endif
+#endif /*CONFIG_SCST_PROC*/
 
 	/*
 	 * Unregistering an SCST target must happen after destroying sdev->cm_id
@@ -3823,11 +3858,13 @@ static int __init srpt_init_module(void)
 		goto out;
 	}
 
+#ifdef CONFIG_SCST_PROC
 	ret = class_register(&srpt_class);
 	if (ret) {
 		PRINT_ERROR("%s", "couldn't register class ib_srpt");
 		goto out;
 	}
+#endif
 
 	switch (thread) {
 	case MODE_ALL_IN_SIRQ:
@@ -3860,7 +3897,11 @@ static int __init srpt_init_module(void)
 	if (ret < 0) {
 		PRINT_ERROR("%s", "couldn't register with scst");
 		ret = -ENODEV;
+#ifdef CONFIG_SCST_PROC
 		goto out_unregister_class;
+#else
+		goto out;
+#endif
 	}
 
 #ifdef CONFIG_SCST_PROC
@@ -3874,19 +3915,21 @@ static int __init srpt_init_module(void)
 	ret = ib_register_client(&srpt_client);
 	if (ret) {
 		PRINT_ERROR("%s", "couldn't register IB client");
-		goto out_unregister_procfs;
+		goto out_unregister_target;
 	}
 
 	return 0;
 
-out_unregister_procfs:
 #ifdef CONFIG_SCST_PROC
+out_unregister_procfs:
 	srpt_unregister_procfs_entry(&srpt_template);
-out_unregister_target:
 #endif /*CONFIG_SCST_PROC*/
+out_unregister_target:
 	scst_unregister_target_template(&srpt_template);
+#ifdef CONFIG_SCST_PROC
 out_unregister_class:
 	class_unregister(&srpt_class);
+#endif /*CONFIG_SCST_PROC*/
 out:
 	return ret;
 }
@@ -3901,7 +3944,9 @@ static void __exit srpt_cleanup_module(void)
 
 	ib_unregister_client(&srpt_client);
 	scst_unregister_target_template(&srpt_template);
+#ifdef CONFIG_SCST_PROC
 	class_unregister(&srpt_class);
+#endif /*CONFIG_SCST_PROC*/
 
 	TRACE_EXIT();
 }
