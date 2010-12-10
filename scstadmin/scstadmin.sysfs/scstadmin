@@ -565,7 +565,7 @@ sub getArgs {
 }
 
 sub main {
-	my $rc;
+	my $rc = 0;
 
 	STDOUT->autoflush(1);
 
@@ -601,7 +601,8 @@ sub main {
 			$rc = checkConfiguration();
 			immediateExit("Configuration has errors, aborting.") if ($rc);
 			last if ($force && prompt());
-			$rc = applyConfiguration($force);
+			my $changes = applyConfiguration($force);
+			$rc = issueLip() if ($changes);
 			last SWITCH;
 		};
 		defined($checkConfig) && do {
@@ -616,7 +617,8 @@ sub main {
 		};
 		defined($clearConfig) && do {
 			last if (prompt());
-			$rc = clearConfiguration($force);
+			$rc = clearConfiguration();
+			$rc = issueLip() if (!$rc);
 			last SWITCH;
 		};
 		defined($listHandler) && do {
@@ -734,11 +736,14 @@ sub main {
 		defined($addDriverAttr) && do {
 			print "\n-> Making requested changes.\n";
 			$rc = addDriverDynamicAttributes($addDriverAttr, $attributes);
+			$rc = issueLip() if (!$rc);
+			print "\t-> Done.\n";
 			last SWITCH;
 		};
 		defined($addTargetAttr) && do {
 			print "\n-> Making requested changes.\n";
 			$rc = addTargetDynamicAttributes($driver, $addTargetAttr, $attributes);
+			$rc = issueLip() if (!$rc);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -746,6 +751,7 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			$rc = removeDriverDynamicAttributes($remDriverAttr, $attributes);
+			$rc = issueLip() if (!$rc);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -753,6 +759,7 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			$rc = removeTargetDynamicAttributes($driver, $remTargetAttr, $attributes);
+			$rc = issueLip() if (!$rc);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -766,12 +773,14 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			$rc = closeDevice($handler, $closeDev, $force);
+			$rc = issueLip() if (!$rc);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
 		defined($resyncDev) && do {
 			print "\n-> Making requested changes.\n";
 			$rc = resyncDevice($resyncDev);
+			$rc = issueLip() if (!$rc);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -785,6 +794,7 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			$rc = removeVirtualTarget($driver, $removeTarget);
+			$rc = issueLip($driver) if (!$rc);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -804,6 +814,7 @@ sub main {
 		defined($addInitiator) && do {
 			print "\n-> Making requested changes.\n";
 			$rc = addInitiator($driver, $target, $group, $addInitiator);
+			$rc = issueLip($driver, $target) if (!$rc);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -811,6 +822,7 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			$rc = removeInitiator($driver, $target, $group, $removeInitiator);
+			$rc = issueLip($driver, $target) if (!$rc);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -818,6 +830,7 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			$rc = moveInitiator($driver, $target, $group, $moveInitiator, $to);
+			$rc = issueLip($driver, $target) if (!$rc);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -825,12 +838,14 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			$rc = clearInitiators($driver, $target, $group);
+			$rc = issueLip($driver, $target) if (!$rc);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
 		defined($addLun) && do {
 			print "\n-> Making requested changes.\n";
 			$rc = addLun($driver, $target, $device, $addLun, $attributes, $group);
+			$rc = issueLip($driver, $target) if (!$rc);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -838,6 +853,7 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			$rc = removeLun($driver, $target, $removeLun, $group);
+			$rc = issueLip($driver, $target) if (!$rc);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -845,6 +861,7 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			$rc = replaceLun($driver, $target, $group, $replaceLun, $device, $attributes);
+			$rc = issueLip($driver, $target) if (!$rc);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -852,6 +869,7 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			$rc = clearLuns($driver, $target, $group);
+			$rc = issueLip($driver, $target) if (!$rc);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -1701,7 +1719,7 @@ sub applyConfiguration {
 
 	print "\t-> Done, $changes change(s) made.\n";
 
-	return FALSE;
+	return $changes;
 }
 
 sub applyConfigDevices {
@@ -2211,8 +2229,6 @@ sub compareToKeyAttribute {
 }
 
 sub clearConfiguration {
-	my $force = shift;
-
 	my $assignments = $CURRENT{'assign'};
 
 	print "-> Clearing running configuration.\n";
@@ -2222,7 +2238,7 @@ sub clearConfiguration {
 			foreach my $group (sort keys %{$$assignments{$driver}->{$target}->{'GROUP'}}) {
 				clearInitiators($driver, $target, $group);
 				clearLuns($driver, $target, $group);
-				removeGroup($driver, $target, $group, $force);
+				removeGroup($driver, $target, $group, TRUE);
 			}
 
 			clearLuns($driver, $target);
@@ -2242,7 +2258,7 @@ sub clearConfiguration {
 	foreach my $handler (sort keys %{$handlers}) {
 		foreach my $device (@{$$handlers{$handler}}) {
 			my $attributes = $SCST->deviceAttributes($device);
-			closeDevice($handler, $device, $force);
+			closeDevice($handler, $device, TRUE);
 		}
 	}
 
@@ -4090,14 +4106,14 @@ sub _issueLip {
 	my $attributes = $SCST->targetAttributes($driver, $target);
 
 	if (!defined($$attributes{'host'})) {
-		print "Driver/target '$driver/$target' has no 'host' attribute, ignoring.\n";
+		#print "\t-> Driver/target '$driver/$target' has no 'host' attribute, ignoring.\n";
 		return FALSE;
 	}
 
 	my $dir = new IO::Handle;
 
 	if (!(opendir $dir, $$attributes{'host'}->{'value'}.'/device/fc_host')) {
-		print "Driver/target is not a fibre channel target, ignoring.\n";
+		#print "\t-> Driver/target is not a fibre channel target, ignoring.\n";
 		return FALSE;
 	}
 
@@ -4112,7 +4128,7 @@ sub _issueLip {
 			print "WARNING: Failed to open file '$lip' for writing.\n"
 			  if (!$io);
 
-			print "Issuing LIP on fibre channel driver/target '$driver/$target' ($host): ";
+			print "\t-> Issuing LIP on fibre channel driver/target '$driver/$target' ($host): ";
 
 			my $bytes = syswrite($io, 1, 1);
 
@@ -4125,8 +4141,8 @@ sub _issueLip {
 
 			close $io;
 		} else {
-			print "Fibre channel driver/target '$driver/$target' lacks the ability to ".
-			  "issue LIPs, ignoring.\n";
+			#print "Fibre channel driver/target '$driver/$target' lacks the ability to ".
+			#  "issue LIPs, ignoring.\n";
 		}
 	}
 
