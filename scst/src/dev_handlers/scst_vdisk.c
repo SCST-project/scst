@@ -1393,9 +1393,12 @@ static void vdisk_exec_unmap(struct scst_cmd *cmd, struct scst_vdisk_thr *thr)
            && defined(CONFIG_SUSE_KERNEL))
 			err = blkdev_issue_discard(inode->i_bdev, start, len,
 					GFP_KERNEL, DISCARD_FL_WAIT);
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
 			err = blkdev_issue_discard(inode->i_bdev, start, len,
 					GFP_KERNEL, BLKDEV_IFL_WAIT);
+#else
+			err = blkdev_issue_discard(inode->i_bdev, start, len,
+						   GFP_KERNEL, 0);
 #endif
 			if (unlikely(err != 0)) {
 				PRINT_ERROR("blkdev_issue_discard() for "
@@ -3055,8 +3058,10 @@ static int blockio_flush(struct block_device *bdev)
     && !(defined(CONFIG_SUSE_KERNEL)                        \
 	 && LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 34))
 	res = blkdev_issue_flush(bdev, NULL);
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
 	res = blkdev_issue_flush(bdev, GFP_KERNEL, NULL, BLKDEV_IFL_WAIT);
+#else
+	res = blkdev_issue_flush(bdev, GFP_KERNEL, NULL);
 #endif
 	if (res != 0)
 		PRINT_ERROR("blkdev_issue_flush() failed: %d", res);
