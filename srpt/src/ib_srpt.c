@@ -3904,25 +3904,25 @@ static int __init srpt_init_module(void)
 #endif
 	}
 
-#ifdef CONFIG_SCST_PROC
-	ret = srpt_register_procfs_entry(&srpt_template);
-	if (ret) {
-		PRINT_ERROR("%s", "couldn't register procfs entry");
-		goto out_unregister_target;
-	}
-#endif /*CONFIG_SCST_PROC*/
-
 	ret = ib_register_client(&srpt_client);
 	if (ret) {
 		PRINT_ERROR("%s", "couldn't register IB client");
 		goto out_unregister_target;
 	}
 
+#ifdef CONFIG_SCST_PROC
+	ret = srpt_register_procfs_entry(&srpt_template);
+	if (ret) {
+		PRINT_ERROR("%s", "couldn't register procfs entry");
+		goto out_unregister_client;
+	}
+#endif /*CONFIG_SCST_PROC*/
+
 	return 0;
 
 #ifdef CONFIG_SCST_PROC
-out_unregister_procfs:
-	srpt_unregister_procfs_entry(&srpt_template);
+out_unregister_client:
+	ib_unregister_client(&srpt_client);
 #endif /*CONFIG_SCST_PROC*/
 out_unregister_target:
 	scst_unregister_target_template(&srpt_template);
@@ -3938,11 +3938,10 @@ static void __exit srpt_cleanup_module(void)
 {
 	TRACE_ENTRY();
 
+	ib_unregister_client(&srpt_client);
 #ifdef CONFIG_SCST_PROC
 	srpt_unregister_procfs_entry(&srpt_template);
 #endif /*CONFIG_SCST_PROC*/
-
-	ib_unregister_client(&srpt_client);
 	scst_unregister_target_template(&srpt_template);
 #ifdef CONFIG_SCST_PROC
 	class_unregister(&srpt_class);
