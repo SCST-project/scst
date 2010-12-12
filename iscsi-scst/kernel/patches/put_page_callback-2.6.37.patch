@@ -1,5 +1,4 @@
 diff --git a/include/linux/mm_types.h b/include/linux/mm_types.h
-index bb7288a..9fa6a60 100644
 --- a/include/linux/mm_types.h
 +++ b/include/linux/mm_types.h
 @@ -100,6 +100,18 @@ struct page {
@@ -22,7 +21,6 @@ index bb7288a..9fa6a60 100644
  
  /*
 diff --git a/include/linux/net.h b/include/linux/net.h
-index 16faa13..4c7c564 100644
 --- a/include/linux/net.h
 +++ b/include/linux/net.h
 @@ -20,6 +20,7 @@
@@ -78,31 +76,7 @@ index 16faa13..4c7c564 100644
 +
  #endif /* __KERNEL__ */
  #endif	/* _LINUX_NET_H */
-diff --git a/net/Kconfig b/net/Kconfig
-index 55fd82e..3bc798b 100644
---- a/net/Kconfig
-+++ b/net/Kconfig
-@@ -72,6 +72,18 @@ config INET
- 
- 	  Short answer: say Y.
- 
-+config TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION
-+	bool "TCP/IP zero-copy transfer completion notification"
-+        depends on INET
-+        default SCST_ISCSI
-+	---help---
-+	  Adds support for sending a notification upon completion of a
-+          zero-copy TCP/IP transfer. This can speed up certain TCP/IP
-+          software. Currently this is only used by the iSCSI target driver
-+          iSCSI-SCST.
-+
-+          If unsure, say N.
-+
- if INET
- source "net/ipv4/Kconfig"
- source "net/ipv6/Kconfig"
 diff --git a/net/core/dev.c b/net/core/dev.c
-index 0dd54a6..23ea0f1 100644
 --- a/net/core/dev.c
 +++ b/net/core/dev.c
 @@ -3225,7 +3225,7 @@ pull:
@@ -115,7 +89,6 @@ index 0dd54a6..23ea0f1 100644
  				skb_shinfo(skb)->frags + 1,
  				--skb_shinfo(skb)->nr_frags * sizeof(skb_frag_t));
 diff --git a/net/core/skbuff.c b/net/core/skbuff.c
-index 104f844..c2b64fb 100644
 --- a/net/core/skbuff.c
 +++ b/net/core/skbuff.c
 @@ -76,13 +76,13 @@ static struct kmem_cache *skbuff_fclone_cache __read_mostly;
@@ -251,20 +224,7 @@ index 104f844..c2b64fb 100644
  			size = frag->size;
  
  			if (pos < offset) {
-diff --git a/net/ipv4/Makefile b/net/ipv4/Makefile
-index 4978d22..dee3df7 100644
---- a/net/ipv4/Makefile
-+++ b/net/ipv4/Makefile
-@@ -50,6 +50,7 @@ obj-$(CONFIG_TCP_CONG_LP) += tcp_lp.o
- obj-$(CONFIG_TCP_CONG_YEAH) += tcp_yeah.o
- obj-$(CONFIG_TCP_CONG_ILLINOIS) += tcp_illinois.o
- obj-$(CONFIG_NETLABEL) += cipso_ipv4.o
-+obj-$(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION) += tcp_zero_copy.o
- 
- obj-$(CONFIG_XFRM) += xfrm4_policy.o xfrm4_state.o xfrm4_input.o \
- 		      xfrm4_output.o
 diff --git a/net/ipv4/ip_output.c b/net/ipv4/ip_output.c
-index 439d2a3..0796586 100644
 --- a/net/ipv4/ip_output.c
 +++ b/net/ipv4/ip_output.c
 @@ -1042,7 +1042,7 @@ alloc_new_skb:
@@ -285,8 +245,18 @@ index 439d2a3..0796586 100644
  			skb_fill_page_desc(skb, i, page, offset, len);
  		} else {
  			err = -EMSGSIZE;
+diff --git a/net/ipv4/Makefile b/net/ipv4/Makefile
+--- a/net/ipv4/Makefile
++++ b/net/ipv4/Makefile
+@@ -50,6 +50,7 @@ obj-$(CONFIG_TCP_CONG_LP) += tcp_lp.o
+ obj-$(CONFIG_TCP_CONG_YEAH) += tcp_yeah.o
+ obj-$(CONFIG_TCP_CONG_ILLINOIS) += tcp_illinois.o
+ obj-$(CONFIG_NETLABEL) += cipso_ipv4.o
++obj-$(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION) += tcp_zero_copy.o
+ 
+ obj-$(CONFIG_XFRM) += xfrm4_policy.o xfrm4_state.o xfrm4_input.o \
+ 		      xfrm4_output.o
 diff --git a/net/ipv4/tcp.c b/net/ipv4/tcp.c
-index f15c36a..053d21c 100644
 --- a/net/ipv4/tcp.c
 +++ b/net/ipv4/tcp.c
 @@ -806,7 +806,7 @@ new_segment:
@@ -320,7 +290,6 @@ index f15c36a..053d21c 100644
  					}
  				}
 diff --git a/net/ipv4/tcp_output.c b/net/ipv4/tcp_output.c
-index 05b1ecf..e5ba64c 100644
 --- a/net/ipv4/tcp_output.c
 +++ b/net/ipv4/tcp_output.c
 @@ -1080,7 +1080,7 @@ static void __pskb_trim_head(struct sk_buff *skb, int len)
@@ -332,8 +301,61 @@ index 05b1ecf..e5ba64c 100644
  			eat -= skb_shinfo(skb)->frags[i].size;
  		} else {
  			skb_shinfo(skb)->frags[k] = skb_shinfo(skb)->frags[i];
+diff --git a/net/ipv4/tcp_zero_copy.c b/net/ipv4/tcp_zero_copy.c
+new file mode 100644
+--- /dev/null
++++ b/net/ipv4/tcp_zero_copy.c
+@@ -0,0 +1,49 @@
++/*
++ *	Support routines for TCP zero copy transmit
++ *
++ *	Created by Vladislav Bolkhovitin
++ *
++ *	This program is free software; you can redistribute it and/or
++ *      modify it under the terms of the GNU General Public License
++ *      version 2 as published by the Free Software Foundation.
++ */
++
++#include <linux/skbuff.h>
++
++net_get_page_callback_t net_get_page_callback __read_mostly;
++EXPORT_SYMBOL(net_get_page_callback);
++
++net_put_page_callback_t net_put_page_callback __read_mostly;
++EXPORT_SYMBOL(net_put_page_callback);
++
++/*
++ * Caller of this function must ensure that at the moment when it's called
++ * there are no pages in the system with net_priv field set to non-zero
++ * value. Hence, this function, as well as net_get_page() and net_put_page(),
++ * don't need any protection.
++ */
++int net_set_get_put_page_callbacks(
++	net_get_page_callback_t get_callback,
++	net_put_page_callback_t put_callback)
++{
++	int res = 0;
++
++	if ((net_get_page_callback != NULL) && (get_callback != NULL) &&
++	    (net_get_page_callback != get_callback)) {
++		res = -EBUSY;
++		goto out;
++	}
++
++	if ((net_put_page_callback != NULL) && (put_callback != NULL) &&
++	    (net_put_page_callback != put_callback)) {
++		res = -EBUSY;
++		goto out;
++	}
++
++	net_get_page_callback = get_callback;
++	net_put_page_callback = put_callback;
++
++out:
++	return res;
++}
++EXPORT_SYMBOL(net_set_get_put_page_callbacks);
 diff --git a/net/ipv6/ip6_output.c b/net/ipv6/ip6_output.c
-index 99157b4..2e20ffd 100644
 --- a/net/ipv6/ip6_output.c
 +++ b/net/ipv6/ip6_output.c
 @@ -1391,7 +1391,7 @@ alloc_new_skb:
@@ -345,3 +367,25 @@ index 99157b4..2e20ffd 100644
  					skb_fill_page_desc(skb, i, page, sk->sk_sndmsg_off, 0);
  					frag = &skb_shinfo(skb)->frags[i];
  				}
+diff --git a/net/Kconfig b/net/Kconfig
+--- a/net/Kconfig
++++ b/net/Kconfig
+@@ -72,6 +72,18 @@ config INET
+ 
+ 	  Short answer: say Y.
+ 
++config TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION
++	bool "TCP/IP zero-copy transfer completion notification"
++        depends on INET
++        default SCST_ISCSI
++	---help---
++	  Adds support for sending a notification upon completion of a
++          zero-copy TCP/IP transfer. This can speed up certain TCP/IP
++          software. Currently this is only used by the iSCSI target driver
++          iSCSI-SCST.
++
++          If unsure, say N.
++
+ if INET
+ source "net/ipv4/Kconfig"
+ source "net/ipv6/Kconfig"
