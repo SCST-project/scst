@@ -14,6 +14,8 @@ PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin:/usr/local/bin
 # with knowledge about it.
 MEM_SIZE=1048576
 
+ADD_MODULES="scst_vdisk scst"
+
 configure_memsize()
 {
     if [ -e /proc/sys/net/core/wmem_max ]; then
@@ -53,6 +55,9 @@ iscsi_scstd_start()
 #	configure_memsize
 	modprobe -q crc32c
 	modprobe iscsi-scst
+	for m in $ADD_MODULES; do
+		modprobe $m
+	done
 	start-stop-daemon --start --exec $DAEMON --quiet
 	/usr/local/sbin/scstadmin -config /etc/scst.conf
 	RETVAL=$?
@@ -74,12 +79,20 @@ iscsi_scstd_stop()
 	else
 	    echo "failed."
 	fi
-	# ugly, but pid file is not removed ba iscsi-scstd
+	# ugly, but pid file is not removed by iscsi-scstd
 	rm -f $PID_FILE
 
 	echo -n "Removing iSCSI-SCST target modules: "
-	rmmod -w iscsi-scst
+	if [ -e /sys/module/iscsi_scst ]; then
+		rmmod -w iscsi-scst
+	fi
 	RETVAL=$?
+	for m in $ADD_MODULES; do
+		if [ -e /sys/module/$m ]; then
+			rmmod -w $m
+		fi
+		RETVAL=$?
+	done
 	modprobe -r crc32c 2>/dev/null
 	if [ $RETVAL -eq 0 ]; then
 	    echo "succeeded."
