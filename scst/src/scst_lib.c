@@ -3556,7 +3556,6 @@ int scst_acg_add_acn(struct scst_acg *acg, const char *name)
 {
 	int res = 0;
 	struct scst_acn *acn;
-	int len;
 	char *nm;
 
 	TRACE_ENTRY();
@@ -3579,15 +3578,12 @@ int scst_acg_add_acn(struct scst_acg *acg, const char *name)
 
 	acn->acg = acg;
 
-	len = strlen(name);
-	nm = kmalloc(len + 1, GFP_KERNEL);
+	nm = kstrdup(name, GFP_KERNEL);
 	if (nm == NULL) {
 		PRINT_ERROR("%s", "Unable to allocate scst_acn->name");
 		res = -ENOMEM;
 		goto out_free;
 	}
-
-	strcpy(nm, name);
 	acn->name = nm;
 
 	res = scst_acn_sysfs_create(acn);
