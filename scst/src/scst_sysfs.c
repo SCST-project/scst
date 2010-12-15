@@ -5005,7 +5005,7 @@ out:
 	return res;
 }
 
-static struct kobj_attribute scst_trace_level_attr =
+static struct kobj_attribute scst_main_trace_level_attr =
 	__ATTR(trace_level, S_IRUGO | S_IWUSR, scst_main_trace_level_show,
 	       scst_main_trace_level_store);
 
@@ -5097,7 +5097,7 @@ static struct attribute *scst_sysfs_root_default_attrs[] = {
 	&scst_threads_attr.attr,
 	&scst_setup_id_attr.attr,
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-	&scst_trace_level_attr.attr,
+	&scst_main_trace_level_attr.attr,
 #endif
 	&scst_version_attr.attr,
 	&scst_last_sysfs_mgmt_res_attr.attr,
