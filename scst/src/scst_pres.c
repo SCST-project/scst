@@ -2339,15 +2339,12 @@ static void scst_cmd_done_pr_preempt(struct scst_cmd *cmd, int next_state,
 
 	TRACE_ENTRY();
 
-	saved_cmd_done = NULL; /* to remove warning that it's used not inited */
+	if (!atomic_dec_and_test(&cmd->pr_abort_counter->pr_abort_pending_cnt))
+		goto out;
 
-	if (cmd->pr_abort_counter != NULL) {
-		if (!atomic_dec_and_test(&cmd->pr_abort_counter->pr_abort_pending_cnt))
-			goto out;
-		saved_cmd_done = cmd->pr_abort_counter->saved_cmd_done;
-		kfree(cmd->pr_abort_counter);
-		cmd->pr_abort_counter = NULL;
-	}
+	saved_cmd_done = cmd->pr_abort_counter->saved_cmd_done;
+	kfree(cmd->pr_abort_counter);
+	cmd->pr_abort_counter = NULL;
 
 	saved_cmd_done(cmd, next_state, pref_context);
 
