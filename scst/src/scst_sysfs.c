@@ -98,10 +98,186 @@ static struct scst_trace_log scst_local_trace_tbl[] = {
 };
 
 static ssize_t scst_trace_level_show(const struct scst_trace_log *local_tbl,
-	unsigned long log_level, char *buf, const char *help);
+	unsigned long log_level, char *buf, const char *help)
+{
+	int pos = 0;
+
+	scst_read_trace_tbl(scst_trace_tbl, buf, log_level, &pos);
+	scst_read_trace_tbl(local_tbl, buf, log_level, &pos);
+
+	pos += sprintf(&buf[pos], "\n\n\nUsage:\n"
+		"	echo \"all|none|default\" >trace_level\n"
+		"	echo \"value DEC|0xHEX|0OCT\" >trace_level\n"
+		"	echo \"add|del TOKEN\" >trace_level\n"
+		"\nwhere TOKEN is one of [debug, function, line, pid,\n"
+#ifndef GENERATING_UPSTREAM_PATCH
+		"		       entryexit, buff, mem, sg, out_of_mem,\n"
+#else
+		"		       buff, mem, sg, out_of_mem,\n"
+#endif
+		"		       special, scsi, mgmt, minor,\n"
+		"		       mgmt_dbg, scsi_serializing,\n"
+		"		       retry, recv_bot, send_bot, recv_top, pr,\n"
+		"		       send_top%s]\n", help != NULL ? help : "");
+
+	return pos;
+}
+
 static int scst_write_trace(const char *buf, size_t length,
 	unsigned long *log_level, unsigned long default_level,
-	const char *name, const struct scst_trace_log *tbl);
+	const char *name, const struct scst_trace_log *tbl)
+{
+	int res = length;
+	int action;
+	unsigned long level = 0, oldlevel;
+	char *buffer, *p, *e;
+	const struct scst_trace_log *t;
+
+#define SCST_TRACE_ACTION_ALL		1
+#define SCST_TRACE_ACTION_NONE		2
+#define SCST_TRACE_ACTION_DEFAULT	3
+#define SCST_TRACE_ACTION_ADD		4
+#define SCST_TRACE_ACTION_DEL		5
+#define SCST_TRACE_ACTION_VALUE		6
+
+	TRACE_ENTRY();
+
+	if ((buf == NULL) || (length == 0)) {
+		res = -EINVAL;
+		goto out;
+	}
+
+	buffer = kasprintf(GFP_KERNEL, "%.*s", (int)length, buf);
+	if (buffer == NULL) {
+		PRINT_ERROR("Unable to alloc intermediate buffer (size %zd)",
+			length+1);
+		res = -ENOMEM;
+		goto out;
+	}
+
+	TRACE_DBG("buffer %s", buffer);
+
+	p = buffer;
+	if (!strncasecmp("all", p, 3)) {
+		action = SCST_TRACE_ACTION_ALL;
+	} else if (!strncasecmp("none", p, 4) || !strncasecmp("null", p, 4)) {
+		action = SCST_TRACE_ACTION_NONE;
+	} else if (!strncasecmp("default", p, 7)) {
+		action = SCST_TRACE_ACTION_DEFAULT;
+	} else if (!strncasecmp("add", p, 3)) {
+		p += 3;
+		action = SCST_TRACE_ACTION_ADD;
+	} else if (!strncasecmp("del", p, 3)) {
+		p += 3;
+		action = SCST_TRACE_ACTION_DEL;
+	} else if (!strncasecmp("value", p, 5)) {
+		p += 5;
+		action = SCST_TRACE_ACTION_VALUE;
+	} else {
+		if (p[strlen(p) - 1] == '\n')
+			p[strlen(p) - 1] = '\0';
+		PRINT_ERROR("Unknown action \"%s\"", p);
+		res = -EINVAL;
+		goto out_free;
+	}
+
+	switch (action) {
+	case SCST_TRACE_ACTION_ADD:
+	case SCST_TRACE_ACTION_DEL:
+	case SCST_TRACE_ACTION_VALUE:
+		if (!isspace(*p)) {
+			PRINT_ERROR("%s", "Syntax error");
+			res = -EINVAL;
+			goto out_free;
+		}
+	}
+
+	switch (action) {
+	case SCST_TRACE_ACTION_ALL:
+		level = TRACE_ALL;
+		break;
+	case SCST_TRACE_ACTION_DEFAULT:
+		level = default_level;
+		break;
+	case SCST_TRACE_ACTION_NONE:
+		level = TRACE_NULL;
+		break;
+	case SCST_TRACE_ACTION_ADD:
+	case SCST_TRACE_ACTION_DEL:
+		while (isspace(*p) && *p != '\0')
+			p++;
+		e = p;
+		while (!isspace(*e) && *e != '\0')
+			e++;
+		*e = 0;
+		if (tbl) {
+			t = tbl;
+			while (t->token) {
+				if (!strcasecmp(p, t->token)) {
+					level = t->val;
+					break;
+				}
+				t++;
+			}
+		}
+		if (level == 0) {
+			t = scst_trace_tbl;
+			while (t->token) {
+				if (!strcasecmp(p, t->token)) {
+					level = t->val;
+					break;
+				}
+				t++;
+			}
+		}
+		if (level == 0) {
+			PRINT_ERROR("Unknown token \"%s\"", p);
+			res = -EINVAL;
+			goto out_free;
+		}
+		break;
+	case SCST_TRACE_ACTION_VALUE:
+		while (isspace(*p) && *p != '\0')
+			p++;
+		res = strict_strtoul(p, 0, &level);
+		if (res != 0) {
+			PRINT_ERROR("Invalid trace value \"%s\"", p);
+			res = -EINVAL;
+			goto out_free;
+		}
+		break;
+	}
+
+	oldlevel = *log_level;
+
+	switch (action) {
+	case SCST_TRACE_ACTION_ADD:
+		*log_level |= level;
+		break;
+	case SCST_TRACE_ACTION_DEL:
+		*log_level &= ~level;
+		break;
+	default:
+		*log_level = level;
+		break;
+	}
+
+	PRINT_INFO("Changed trace level for \"%s\": old 0x%08lx, new 0x%08lx",
+		name, oldlevel, *log_level);
+
+out_free:
+	kfree(buffer);
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+#undef SCST_TRACE_ACTION_ALL
+#undef SCST_TRACE_ACTION_NONE
+#undef SCST_TRACE_ACTION_DEFAULT
+#undef SCST_TRACE_ACTION_ADD
+#undef SCST_TRACE_ACTION_DEL
+#undef SCST_TRACE_ACTION_VALUE
+}
 
 #endif /* defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING) */
 
@@ -4394,193 +4570,11 @@ out:
 	return;
 }
 
-static ssize_t scst_trace_level_show(const struct scst_trace_log *local_tbl,
-	unsigned long log_level, char *buf, const char *help)
-{
-	int pos = 0;
-
-	scst_read_trace_tbl(scst_trace_tbl, buf, log_level, &pos);
-	scst_read_trace_tbl(local_tbl, buf, log_level, &pos);
-
-	pos += sprintf(&buf[pos], "\n\n\nUsage:\n"
-		"	echo \"all|none|default\" >trace_level\n"
-		"	echo \"value DEC|0xHEX|0OCT\" >trace_level\n"
-		"	echo \"add|del TOKEN\" >trace_level\n"
-		"\nwhere TOKEN is one of [debug, function, line, pid,\n"
-#ifndef GENERATING_UPSTREAM_PATCH
-		"		       entryexit, buff, mem, sg, out_of_mem,\n"
-#else
-		"		       buff, mem, sg, out_of_mem,\n"
-#endif
-		"		       special, scsi, mgmt, minor,\n"
-		"		       mgmt_dbg, scsi_serializing,\n"
-		"		       retry, recv_bot, send_bot, recv_top, pr,\n"
-		"		       send_top%s]\n", help != NULL ? help : "");
-
-	return pos;
-}
-
 static ssize_t scst_main_trace_level_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
 	return scst_trace_level_show(scst_local_trace_tbl, trace_flag,
 			buf, NULL);
-}
-
-static int scst_write_trace(const char *buf, size_t length,
-	unsigned long *log_level, unsigned long default_level,
-	const char *name, const struct scst_trace_log *tbl)
-{
-	int res = length;
-	int action;
-	unsigned long level = 0, oldlevel;
-	char *buffer, *p, *e;
-	const struct scst_trace_log *t;
-
-#define SCST_TRACE_ACTION_ALL		1
-#define SCST_TRACE_ACTION_NONE		2
-#define SCST_TRACE_ACTION_DEFAULT	3
-#define SCST_TRACE_ACTION_ADD		4
-#define SCST_TRACE_ACTION_DEL		5
-#define SCST_TRACE_ACTION_VALUE		6
-
-	TRACE_ENTRY();
-
-	if ((buf == NULL) || (length == 0)) {
-		res = -EINVAL;
-		goto out;
-	}
-
-	buffer = kasprintf(GFP_KERNEL, "%.*s", (int)length, buf);
-	if (buffer == NULL) {
-		PRINT_ERROR("Unable to alloc intermediate buffer (size %zd)",
-			length+1);
-		res = -ENOMEM;
-		goto out;
-	}
-
-	TRACE_DBG("buffer %s", buffer);
-
-	p = buffer;
-	if (!strncasecmp("all", p, 3)) {
-		action = SCST_TRACE_ACTION_ALL;
-	} else if (!strncasecmp("none", p, 4) || !strncasecmp("null", p, 4)) {
-		action = SCST_TRACE_ACTION_NONE;
-	} else if (!strncasecmp("default", p, 7)) {
-		action = SCST_TRACE_ACTION_DEFAULT;
-	} else if (!strncasecmp("add", p, 3)) {
-		p += 3;
-		action = SCST_TRACE_ACTION_ADD;
-	} else if (!strncasecmp("del", p, 3)) {
-		p += 3;
-		action = SCST_TRACE_ACTION_DEL;
-	} else if (!strncasecmp("value", p, 5)) {
-		p += 5;
-		action = SCST_TRACE_ACTION_VALUE;
-	} else {
-		if (p[strlen(p) - 1] == '\n')
-			p[strlen(p) - 1] = '\0';
-		PRINT_ERROR("Unknown action \"%s\"", p);
-		res = -EINVAL;
-		goto out_free;
-	}
-
-	switch (action) {
-	case SCST_TRACE_ACTION_ADD:
-	case SCST_TRACE_ACTION_DEL:
-	case SCST_TRACE_ACTION_VALUE:
-		if (!isspace(*p)) {
-			PRINT_ERROR("%s", "Syntax error");
-			res = -EINVAL;
-			goto out_free;
-		}
-	}
-
-	switch (action) {
-	case SCST_TRACE_ACTION_ALL:
-		level = TRACE_ALL;
-		break;
-	case SCST_TRACE_ACTION_DEFAULT:
-		level = default_level;
-		break;
-	case SCST_TRACE_ACTION_NONE:
-		level = TRACE_NULL;
-		break;
-	case SCST_TRACE_ACTION_ADD:
-	case SCST_TRACE_ACTION_DEL:
-		while (isspace(*p) && *p != '\0')
-			p++;
-		e = p;
-		while (!isspace(*e) && *e != '\0')
-			e++;
-		*e = 0;
-		if (tbl) {
-			t = tbl;
-			while (t->token) {
-				if (!strcasecmp(p, t->token)) {
-					level = t->val;
-					break;
-				}
-				t++;
-			}
-		}
-		if (level == 0) {
-			t = scst_trace_tbl;
-			while (t->token) {
-				if (!strcasecmp(p, t->token)) {
-					level = t->val;
-					break;
-				}
-				t++;
-			}
-		}
-		if (level == 0) {
-			PRINT_ERROR("Unknown token \"%s\"", p);
-			res = -EINVAL;
-			goto out_free;
-		}
-		break;
-	case SCST_TRACE_ACTION_VALUE:
-		while (isspace(*p) && *p != '\0')
-			p++;
-		res = strict_strtoul(p, 0, &level);
-		if (res != 0) {
-			PRINT_ERROR("Invalid trace value \"%s\"", p);
-			res = -EINVAL;
-			goto out_free;
-		}
-		break;
-	}
-
-	oldlevel = *log_level;
-
-	switch (action) {
-	case SCST_TRACE_ACTION_ADD:
-		*log_level |= level;
-		break;
-	case SCST_TRACE_ACTION_DEL:
-		*log_level &= ~level;
-		break;
-	default:
-		*log_level = level;
-		break;
-	}
-
-	PRINT_INFO("Changed trace level for \"%s\": old 0x%08lx, new 0x%08lx",
-		name, oldlevel, *log_level);
-
-out_free:
-	kfree(buffer);
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-
-#undef SCST_TRACE_ACTION_ALL
-#undef SCST_TRACE_ACTION_NONE
-#undef SCST_TRACE_ACTION_DEFAULT
-#undef SCST_TRACE_ACTION_ADD
-#undef SCST_TRACE_ACTION_DEL
-#undef SCST_TRACE_ACTION_VALUE
 }
 
 static ssize_t scst_main_trace_level_store(struct kobject *kobj,
