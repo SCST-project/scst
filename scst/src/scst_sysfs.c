@@ -36,7 +36,6 @@
 
 static DECLARE_COMPLETION(scst_sysfs_root_release_completion);
 
-static struct kobject scst_sysfs_root_kobj;
 static struct kobject *scst_targets_kobj;
 static struct kobject *scst_devices_kobj;
 static struct kobject *scst_sgv_kobj;
@@ -4421,289 +4420,6 @@ static struct kobj_type sgv_ktype = {
 };
 
 /**
- ** SCST sysfs root directory implementation
- **/
-
-static ssize_t scst_threads_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
-{
-	int count;
-
-	TRACE_ENTRY();
-
-	count = sprintf(buf, "%d\n%s", scst_main_cmd_threads.nr_threads,
-		(scst_main_cmd_threads.nr_threads != scst_threads) ?
-			SCST_SYSFS_KEY_MARK "\n" : "");
-
-	TRACE_EXIT();
-	return count;
-}
-
-static int scst_process_threads_store(int newtn)
-{
-	int res;
-	long oldtn, delta;
-
-	TRACE_ENTRY();
-
-	TRACE_DBG("newtn %d", newtn);
-
-	if (mutex_lock_interruptible(&scst_mutex) != 0) {
-		res = -EINTR;
-		goto out;
-	}
-
-	oldtn = scst_main_cmd_threads.nr_threads;
-
-	delta = newtn - oldtn;
-	if (delta < 0)
-		scst_del_threads(&scst_main_cmd_threads, -delta);
-	else {
-		res = scst_add_threads(&scst_main_cmd_threads, NULL, NULL, delta);
-		if (res != 0)
-			goto out_up;
-	}
-
-	PRINT_INFO("Changed cmd threads num: old %ld, new %d", oldtn, newtn);
-
-out_up:
-	mutex_unlock(&scst_mutex);
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static int scst_threads_store_work_fn(struct scst_sysfs_work_item *work)
-{
-	return scst_process_threads_store(work->new_threads_num);
-}
-
-static ssize_t scst_threads_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
-{
-	int res;
-	long newtn;
-	struct scst_sysfs_work_item *work;
-
-	TRACE_ENTRY();
-
-	res = strict_strtol(buf, 0, &newtn);
-	if (res != 0) {
-		PRINT_ERROR("strict_strtol() for %s failed: %d ", buf, res);
-		goto out;
-	}
-	if (newtn <= 0) {
-		PRINT_ERROR("Illegal threads num value %ld", newtn);
-		res = -EINVAL;
-		goto out;
-	}
-
-	res = scst_alloc_sysfs_work(scst_threads_store_work_fn, false, &work);
-	if (res != 0)
-		goto out;
-
-	work->new_threads_num = newtn;
-
-	res = scst_sysfs_queue_wait_work(work);
-	if (res == 0)
-		res = count;
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static ssize_t scst_setup_id_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
-{
-	int count;
-
-	TRACE_ENTRY();
-
-	count = sprintf(buf, "0x%x\n%s\n", scst_setup_id,
-		(scst_setup_id == 0) ? "" : SCST_SYSFS_KEY_MARK);
-
-	TRACE_EXIT();
-	return count;
-}
-
-static ssize_t scst_setup_id_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
-{
-	int res;
-	unsigned long val;
-
-	TRACE_ENTRY();
-
-	res = strict_strtoul(buf, 0, &val);
-	if (res != 0) {
-		PRINT_ERROR("strict_strtoul() for %s failed: %d ", buf, res);
-		goto out;
-	}
-
-	scst_setup_id = val;
-	PRINT_INFO("Changed scst_setup_id to %x", scst_setup_id);
-
-	res = count;
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-
-static ssize_t scst_main_trace_level_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
-{
-	return scst_trace_level_show(scst_local_trace_tbl, trace_flag,
-			buf, NULL);
-}
-
-static ssize_t scst_main_trace_level_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
-{
-	int res;
-
-	TRACE_ENTRY();
-
-	if (mutex_lock_interruptible(&scst_log_mutex) != 0) {
-		res = -EINTR;
-		goto out;
-	}
-
-	res = scst_write_trace(buf, count, &trace_flag,
-		SCST_DEFAULT_LOG_FLAGS, "scst", scst_local_trace_tbl);
-
-	mutex_unlock(&scst_log_mutex);
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-#endif /* defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING) */
-
-static ssize_t scst_version_show(struct kobject *kobj,
-				 struct kobj_attribute *attr,
-				 char *buf)
-{
-	TRACE_ENTRY();
-
-	sprintf(buf, "%s\n", SCST_VERSION_STRING);
-
-#ifdef CONFIG_SCST_STRICT_SERIALIZING
-	strcat(buf, "STRICT_SERIALIZING\n");
-#endif
-
-#ifdef CONFIG_SCST_EXTRACHECKS
-	strcat(buf, "EXTRACHECKS\n");
-#endif
-
-#ifdef CONFIG_SCST_TRACING
-	strcat(buf, "TRACING\n");
-#endif
-
-#ifdef CONFIG_SCST_DEBUG
-	strcat(buf, "DEBUG\n");
-#endif
-
-#ifdef CONFIG_SCST_DEBUG_TM
-	strcat(buf, "DEBUG_TM\n");
-#endif
-
-#ifdef CONFIG_SCST_DEBUG_RETRY
-	strcat(buf, "DEBUG_RETRY\n");
-#endif
-
-#ifdef CONFIG_SCST_DEBUG_OOM
-	strcat(buf, "DEBUG_OOM\n");
-#endif
-
-#ifdef CONFIG_SCST_DEBUG_SN
-	strcat(buf, "DEBUG_SN\n");
-#endif
-
-#ifdef CONFIG_SCST_USE_EXPECTED_VALUES
-	strcat(buf, "USE_EXPECTED_VALUES\n");
-#endif
-
-#ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
-	strcat(buf, "TEST_IO_IN_SIRQ\n");
-#endif
-
-#ifdef CONFIG_SCST_STRICT_SECURITY
-	strcat(buf, "STRICT_SECURITY\n");
-#endif
-
-	TRACE_EXIT();
-	return strlen(buf);
-}
-
-static ssize_t scst_last_sysfs_mgmt_res_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
-{
-	int res;
-
-	TRACE_ENTRY();
-
-	spin_lock(&sysfs_work_lock);
-	TRACE_DBG("active_sysfs_works %d", active_sysfs_works);
-	if (active_sysfs_works > 0)
-		res = -EAGAIN;
-	else
-		res = sprintf(buf, "%d\n", last_sysfs_work_res);
-	spin_unlock(&sysfs_work_lock);
-
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static struct kobj_attribute scst_threads_attr =
-	__ATTR(threads, S_IRUGO | S_IWUSR, scst_threads_show,
-	       scst_threads_store);
-
-static struct kobj_attribute scst_setup_id_attr =
-	__ATTR(setup_id, S_IRUGO | S_IWUSR, scst_setup_id_show,
-	       scst_setup_id_store);
-
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-static struct kobj_attribute scst_trace_level_attr =
-	__ATTR(trace_level, S_IRUGO | S_IWUSR, scst_main_trace_level_show,
-	       scst_main_trace_level_store);
-#endif
-
-static struct kobj_attribute scst_version_attr =
-	__ATTR(version, S_IRUGO, scst_version_show, NULL);
-
-static struct kobj_attribute scst_last_sysfs_mgmt_res_attr =
-	__ATTR(last_sysfs_mgmt_res, S_IRUGO,
-		scst_last_sysfs_mgmt_res_show, NULL);
-
-static struct attribute *scst_sysfs_root_default_attrs[] = {
-	&scst_threads_attr.attr,
-	&scst_setup_id_attr.attr,
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-	&scst_trace_level_attr.attr,
-#endif
-	&scst_version_attr.attr,
-	&scst_last_sysfs_mgmt_res_attr.attr,
-	NULL,
-};
-
-static void scst_sysfs_root_release(struct kobject *kobj)
-{
-	complete_all(&scst_sysfs_root_release_completion);
-}
-
-static struct kobj_type scst_sysfs_root_ktype = {
-	.sysfs_ops = &scst_sysfs_ops,
-	.release = scst_sysfs_root_release,
-	.default_attrs = scst_sysfs_root_default_attrs,
-};
-
-/**
  ** Dev handlers
  **/
 
@@ -5187,6 +4903,289 @@ void scst_devt_sysfs_del(struct scst_dev_type *devt)
 }
 
 /**
+ ** SCST sysfs root directory implementation
+ **/
+
+static ssize_t scst_threads_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int count;
+
+	TRACE_ENTRY();
+
+	count = sprintf(buf, "%d\n%s", scst_main_cmd_threads.nr_threads,
+		(scst_main_cmd_threads.nr_threads != scst_threads) ?
+			SCST_SYSFS_KEY_MARK "\n" : "");
+
+	TRACE_EXIT();
+	return count;
+}
+
+static int scst_process_threads_store(int newtn)
+{
+	int res;
+	long oldtn, delta;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("newtn %d", newtn);
+
+	if (mutex_lock_interruptible(&scst_mutex) != 0) {
+		res = -EINTR;
+		goto out;
+	}
+
+	oldtn = scst_main_cmd_threads.nr_threads;
+
+	delta = newtn - oldtn;
+	if (delta < 0)
+		scst_del_threads(&scst_main_cmd_threads, -delta);
+	else {
+		res = scst_add_threads(&scst_main_cmd_threads, NULL, NULL, delta);
+		if (res != 0)
+			goto out_up;
+	}
+
+	PRINT_INFO("Changed cmd threads num: old %ld, new %d", oldtn, newtn);
+
+out_up:
+	mutex_unlock(&scst_mutex);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int scst_threads_store_work_fn(struct scst_sysfs_work_item *work)
+{
+	return scst_process_threads_store(work->new_threads_num);
+}
+
+static ssize_t scst_threads_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	long newtn;
+	struct scst_sysfs_work_item *work;
+
+	TRACE_ENTRY();
+
+	res = strict_strtol(buf, 0, &newtn);
+	if (res != 0) {
+		PRINT_ERROR("strict_strtol() for %s failed: %d ", buf, res);
+		goto out;
+	}
+	if (newtn <= 0) {
+		PRINT_ERROR("Illegal threads num value %ld", newtn);
+		res = -EINVAL;
+		goto out;
+	}
+
+	res = scst_alloc_sysfs_work(scst_threads_store_work_fn, false, &work);
+	if (res != 0)
+		goto out;
+
+	work->new_threads_num = newtn;
+
+	res = scst_sysfs_queue_wait_work(work);
+	if (res == 0)
+		res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t scst_setup_id_show(struct kobject *kobj,
+				  struct kobj_attribute *attr, char *buf)
+{
+	int count;
+
+	TRACE_ENTRY();
+
+	count = sprintf(buf, "0x%x\n%s\n", scst_setup_id,
+		(scst_setup_id == 0) ? "" : SCST_SYSFS_KEY_MARK);
+
+	TRACE_EXIT();
+	return count;
+}
+
+static ssize_t scst_setup_id_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	unsigned long val;
+
+	TRACE_ENTRY();
+
+	res = strict_strtoul(buf, 0, &val);
+	if (res != 0) {
+		PRINT_ERROR("strict_strtoul() for %s failed: %d ", buf, res);
+		goto out;
+	}
+
+	scst_setup_id = val;
+	PRINT_INFO("Changed scst_setup_id to %x", scst_setup_id);
+
+	res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+
+static ssize_t scst_main_trace_level_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	return scst_trace_level_show(scst_local_trace_tbl, trace_flag,
+			buf, NULL);
+}
+
+static ssize_t scst_main_trace_level_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	if (mutex_lock_interruptible(&scst_log_mutex) != 0) {
+		res = -EINTR;
+		goto out;
+	}
+
+	res = scst_write_trace(buf, count, &trace_flag,
+		SCST_DEFAULT_LOG_FLAGS, "scst", scst_local_trace_tbl);
+
+	mutex_unlock(&scst_log_mutex);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+#endif /* defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING) */
+
+static ssize_t scst_version_show(struct kobject *kobj,
+				 struct kobj_attribute *attr,
+				 char *buf)
+{
+	TRACE_ENTRY();
+
+	sprintf(buf, "%s\n", SCST_VERSION_STRING);
+
+#ifdef CONFIG_SCST_STRICT_SERIALIZING
+	strcat(buf, "STRICT_SERIALIZING\n");
+#endif
+
+#ifdef CONFIG_SCST_EXTRACHECKS
+	strcat(buf, "EXTRACHECKS\n");
+#endif
+
+#ifdef CONFIG_SCST_TRACING
+	strcat(buf, "TRACING\n");
+#endif
+
+#ifdef CONFIG_SCST_DEBUG
+	strcat(buf, "DEBUG\n");
+#endif
+
+#ifdef CONFIG_SCST_DEBUG_TM
+	strcat(buf, "DEBUG_TM\n");
+#endif
+
+#ifdef CONFIG_SCST_DEBUG_RETRY
+	strcat(buf, "DEBUG_RETRY\n");
+#endif
+
+#ifdef CONFIG_SCST_DEBUG_OOM
+	strcat(buf, "DEBUG_OOM\n");
+#endif
+
+#ifdef CONFIG_SCST_DEBUG_SN
+	strcat(buf, "DEBUG_SN\n");
+#endif
+
+#ifdef CONFIG_SCST_USE_EXPECTED_VALUES
+	strcat(buf, "USE_EXPECTED_VALUES\n");
+#endif
+
+#ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
+	strcat(buf, "TEST_IO_IN_SIRQ\n");
+#endif
+
+#ifdef CONFIG_SCST_STRICT_SECURITY
+	strcat(buf, "STRICT_SECURITY\n");
+#endif
+
+	TRACE_EXIT();
+	return strlen(buf);
+}
+
+static ssize_t scst_last_sysfs_mgmt_res_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	spin_lock(&sysfs_work_lock);
+	TRACE_DBG("active_sysfs_works %d", active_sysfs_works);
+	if (active_sysfs_works > 0)
+		res = -EAGAIN;
+	else
+		res = sprintf(buf, "%d\n", last_sysfs_work_res);
+	spin_unlock(&sysfs_work_lock);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute scst_threads_attr =
+	__ATTR(threads, S_IRUGO | S_IWUSR, scst_threads_show,
+	       scst_threads_store);
+
+static struct kobj_attribute scst_setup_id_attr =
+	__ATTR(setup_id, S_IRUGO | S_IWUSR, scst_setup_id_show,
+	       scst_setup_id_store);
+
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+static struct kobj_attribute scst_trace_level_attr =
+	__ATTR(trace_level, S_IRUGO | S_IWUSR, scst_main_trace_level_show,
+	       scst_main_trace_level_store);
+#endif
+
+static struct kobj_attribute scst_version_attr =
+	__ATTR(version, S_IRUGO, scst_version_show, NULL);
+
+static struct kobj_attribute scst_last_sysfs_mgmt_res_attr =
+	__ATTR(last_sysfs_mgmt_res, S_IRUGO,
+		scst_last_sysfs_mgmt_res_show, NULL);
+
+static struct attribute *scst_sysfs_root_default_attrs[] = {
+	&scst_threads_attr.attr,
+	&scst_setup_id_attr.attr,
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+	&scst_trace_level_attr.attr,
+#endif
+	&scst_version_attr.attr,
+	&scst_last_sysfs_mgmt_res_attr.attr,
+	NULL,
+};
+
+static void scst_sysfs_root_release(struct kobject *kobj)
+{
+	complete_all(&scst_sysfs_root_release_completion);
+}
+
+static struct kobj_type scst_sysfs_root_ktype = {
+	.sysfs_ops = &scst_sysfs_ops,
+	.release = scst_sysfs_root_release,
+	.default_attrs = scst_sysfs_root_default_attrs,
+};
+
+/**
  ** Sysfs user info
  **/
 
@@ -5397,6 +5396,8 @@ out:
 	return res;
 }
 EXPORT_SYMBOL_GPL(scst_wait_info_completion);
+
+static struct kobject scst_sysfs_root_kobj;
 
 int __init scst_sysfs_init(void)
 {
