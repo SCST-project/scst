@@ -1403,6 +1403,10 @@ static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
 	return res;
 }
 
+static struct kobj_attribute scst_luns_mgmt =
+	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_luns_mgmt_show,
+	       scst_luns_mgmt_store);
+
 static ssize_t __scst_acg_addr_method_show(struct scst_acg *acg, char *buf)
 {
 	int res;
@@ -1476,6 +1480,10 @@ static ssize_t scst_tgt_addr_method_store(struct kobject *kobj,
 	TRACE_EXIT_RES(res);
 	return res;
 }
+
+static struct kobj_attribute scst_tgt_addr_method =
+	__ATTR(addr_method, S_IRUGO | S_IWUSR, scst_tgt_addr_method_show,
+	       scst_tgt_addr_method_store);
 
 static ssize_t __scst_acg_io_grouping_type_show(struct scst_acg *acg, char *buf)
 {
@@ -1629,6 +1637,11 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
+
+static struct kobj_attribute scst_tgt_io_grouping_type =
+	__ATTR(io_grouping_type, S_IRUGO | S_IWUSR,
+	       scst_tgt_io_grouping_type_show,
+	       scst_tgt_io_grouping_type_store);
 
 static ssize_t __scst_acg_cpu_mask_show(struct scst_acg *acg, char *buf)
 {
@@ -1796,6 +1809,11 @@ out:
 	return res;
 }
 
+static struct kobj_attribute scst_tgt_cpu_mask =
+	__ATTR(cpu_mask, S_IRUGO | S_IWUSR,
+	       scst_tgt_cpu_mask_show,
+	       scst_tgt_cpu_mask_store);
+
 static ssize_t scst_ini_group_mgmt_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
@@ -1958,24 +1976,6 @@ out_free:
 static struct kobj_attribute scst_ini_group_mgmt =
 	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_ini_group_mgmt_show,
 	       scst_ini_group_mgmt_store);
-
-static struct kobj_attribute scst_luns_mgmt =
-	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_luns_mgmt_show,
-	       scst_luns_mgmt_store);
-
-static struct kobj_attribute scst_tgt_addr_method =
-	__ATTR(addr_method, S_IRUGO | S_IWUSR, scst_tgt_addr_method_show,
-	       scst_tgt_addr_method_store);
-
-static struct kobj_attribute scst_tgt_io_grouping_type =
-	__ATTR(io_grouping_type, S_IRUGO | S_IWUSR,
-	       scst_tgt_io_grouping_type_show,
-	       scst_tgt_io_grouping_type_store);
-
-static struct kobj_attribute scst_tgt_cpu_mask =
-	__ATTR(cpu_mask, S_IRUGO | S_IWUSR,
-	       scst_tgt_cpu_mask_show,
-	       scst_tgt_cpu_mask_store);
 
 static ssize_t scst_tgt_enable_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
@@ -3398,7 +3398,8 @@ static ssize_t scst_sess_sysfs_initiator_name_show(struct kobject *kobj,
 }
 
 static struct kobj_attribute session_initiator_name_attr =
-	__ATTR(initiator_name, S_IRUGO, scst_sess_sysfs_initiator_name_show, NULL);
+	__ATTR(initiator_name, S_IRUGO, scst_sess_sysfs_initiator_name_show,
+	       NULL);
 
 static struct attribute *scst_session_attrs[] = {
 	&session_commands_attr.attr,
@@ -4928,6 +4929,10 @@ out:
 	return res;
 }
 
+static struct kobj_attribute scst_threads_attr =
+	__ATTR(threads, S_IRUGO | S_IWUSR, scst_threads_show,
+	       scst_threads_store);
+
 static ssize_t scst_setup_id_show(struct kobject *kobj,
 				  struct kobj_attribute *attr, char *buf)
 {
@@ -4966,6 +4971,10 @@ out:
 	return res;
 }
 
+static struct kobj_attribute scst_setup_id_attr =
+	__ATTR(setup_id, S_IRUGO | S_IWUSR, scst_setup_id_show,
+	       scst_setup_id_store);
+
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 
 static ssize_t scst_main_trace_level_show(struct kobject *kobj,
@@ -4995,6 +5004,10 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
+
+static struct kobj_attribute scst_trace_level_attr =
+	__ATTR(trace_level, S_IRUGO | S_IWUSR, scst_main_trace_level_show,
+	       scst_main_trace_level_store);
 
 #endif /* defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING) */
 
@@ -5054,6 +5067,9 @@ static ssize_t scst_version_show(struct kobject *kobj,
 	return strlen(buf);
 }
 
+static struct kobj_attribute scst_version_attr =
+	__ATTR(version, S_IRUGO, scst_version_show, NULL);
+
 static ssize_t scst_last_sysfs_mgmt_res_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
@@ -5072,23 +5088,6 @@ static ssize_t scst_last_sysfs_mgmt_res_show(struct kobject *kobj,
 	TRACE_EXIT_RES(res);
 	return res;
 }
-
-static struct kobj_attribute scst_threads_attr =
-	__ATTR(threads, S_IRUGO | S_IWUSR, scst_threads_show,
-	       scst_threads_store);
-
-static struct kobj_attribute scst_setup_id_attr =
-	__ATTR(setup_id, S_IRUGO | S_IWUSR, scst_setup_id_show,
-	       scst_setup_id_store);
-
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-static struct kobj_attribute scst_trace_level_attr =
-	__ATTR(trace_level, S_IRUGO | S_IWUSR, scst_main_trace_level_show,
-	       scst_main_trace_level_store);
-#endif
-
-static struct kobj_attribute scst_version_attr =
-	__ATTR(version, S_IRUGO, scst_version_show, NULL);
 
 static struct kobj_attribute scst_last_sysfs_mgmt_res_attr =
 	__ATTR(last_sysfs_mgmt_res, S_IRUGO,
