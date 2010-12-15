@@ -301,12 +301,6 @@ static ssize_t scst_luns_mgmt_show(struct kobject *kobj,
 static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
 				    struct kobj_attribute *attr,
 				    const char *buf, size_t count);
-static ssize_t scst_tgt_io_grouping_type_show(struct kobject *kobj,
-				   struct kobj_attribute *attr,
-				   char *buf);
-static ssize_t scst_tgt_io_grouping_type_store(struct kobject *kobj,
-				    struct kobj_attribute *attr,
-				    const char *buf, size_t count);
 static ssize_t scst_tgt_cpu_mask_show(struct kobject *kobj,
 				   struct kobj_attribute *attr,
 				   char *buf);
@@ -1230,6 +1224,160 @@ static ssize_t scst_tgt_addr_method_store(struct kobject *kobj,
 
 	res = __scst_acg_addr_method_store(acg, buf, count);
 
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t __scst_acg_io_grouping_type_show(struct scst_acg *acg, char *buf)
+{
+	int res;
+
+	switch (acg->acg_io_grouping_type) {
+	case SCST_IO_GROUPING_AUTO:
+		res = sprintf(buf, "%s\n", SCST_IO_GROUPING_AUTO_STR);
+		break;
+	case SCST_IO_GROUPING_THIS_GROUP_ONLY:
+		res = sprintf(buf, "%s\n%s\n",
+			SCST_IO_GROUPING_THIS_GROUP_ONLY_STR,
+			SCST_SYSFS_KEY_MARK);
+		break;
+	case SCST_IO_GROUPING_NEVER:
+		res = sprintf(buf, "%s\n%s\n", SCST_IO_GROUPING_NEVER_STR,
+			SCST_SYSFS_KEY_MARK);
+		break;
+	default:
+		res = sprintf(buf, "%d\n%s\n", acg->acg_io_grouping_type,
+			SCST_SYSFS_KEY_MARK);
+		break;
+	}
+
+	return res;
+}
+
+static int __scst_acg_process_io_grouping_type_store(struct scst_tgt *tgt,
+	struct scst_acg *acg, int io_grouping_type)
+{
+	int res = 0;
+	struct scst_acg_dev *acg_dev;
+
+	TRACE_DBG("tgt %p, acg %p, io_grouping_type %d", tgt, acg,
+		io_grouping_type);
+
+	res = scst_suspend_activity(true);
+	if (res != 0)
+		goto out;
+
+	if (mutex_lock_interruptible(&scst_mutex) != 0) {
+		res = -EINTR;
+		goto out_resume;
+	}
+
+	/* Check if tgt and acg not already freed while we were coming here */
+	if (scst_check_tgt_acg_ptrs(tgt, acg) != 0)
+		goto out_unlock;
+
+	acg->acg_io_grouping_type = io_grouping_type;
+
+	list_for_each_entry(acg_dev, &acg->acg_dev_list, acg_dev_list_entry) {
+		int rc;
+
+		scst_stop_dev_threads(acg_dev->dev);
+
+		rc = scst_create_dev_threads(acg_dev->dev);
+		if (rc != 0)
+			res = rc;
+	}
+
+out_unlock:
+	mutex_unlock(&scst_mutex);
+
+out_resume:
+	scst_resume_activity();
+
+out:
+	return res;
+}
+
+static int __scst_acg_io_grouping_type_store_work_fn(struct scst_sysfs_work_item *work)
+{
+	return __scst_acg_process_io_grouping_type_store(work->tgt, work->acg,
+			work->io_grouping_type);
+}
+
+static ssize_t __scst_acg_io_grouping_type_store(struct scst_acg *acg,
+	const char *buf, size_t count)
+{
+	int res = 0;
+	int prev = acg->acg_io_grouping_type;
+	long io_grouping_type;
+	struct scst_sysfs_work_item *work;
+
+	if (strncasecmp(buf, SCST_IO_GROUPING_AUTO_STR,
+			min_t(int, strlen(SCST_IO_GROUPING_AUTO_STR), count)) == 0)
+		io_grouping_type = SCST_IO_GROUPING_AUTO;
+	else if (strncasecmp(buf, SCST_IO_GROUPING_THIS_GROUP_ONLY_STR,
+			min_t(int, strlen(SCST_IO_GROUPING_THIS_GROUP_ONLY_STR), count)) == 0)
+		io_grouping_type = SCST_IO_GROUPING_THIS_GROUP_ONLY;
+	else if (strncasecmp(buf, SCST_IO_GROUPING_NEVER_STR,
+			min_t(int, strlen(SCST_IO_GROUPING_NEVER_STR), count)) == 0)
+		io_grouping_type = SCST_IO_GROUPING_NEVER;
+	else {
+		res = strict_strtol(buf, 0, &io_grouping_type);
+		if ((res != 0) || (io_grouping_type <= 0)) {
+			PRINT_ERROR("Unknown or not allowed I/O grouping type "
+				"%s", buf);
+			res = -EINVAL;
+			goto out;
+		}
+	}
+
+	if (prev == io_grouping_type)
+		goto out;
+
+	res = scst_alloc_sysfs_work(__scst_acg_io_grouping_type_store_work_fn,
+					false, &work);
+	if (res != 0)
+		goto out;
+
+	work->tgt = acg->tgt;
+	work->acg = acg;
+	work->io_grouping_type = io_grouping_type;
+
+	res = scst_sysfs_queue_wait_work(work);
+
+out:
+	return res;
+}
+
+static ssize_t scst_tgt_io_grouping_type_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct scst_acg *acg;
+	struct scst_tgt *tgt;
+
+	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	acg = tgt->default_acg;
+
+	return __scst_acg_io_grouping_type_show(acg, buf);
+}
+
+static ssize_t scst_tgt_io_grouping_type_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	struct scst_acg *acg;
+	struct scst_tgt *tgt;
+
+	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	acg = tgt->default_acg;
+
+	res = __scst_acg_io_grouping_type_store(acg, buf, count);
+	if (res != 0)
+		goto out;
+
+	res = count;
+
+out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -3216,160 +3364,6 @@ static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
 
 	res = __scst_luns_mgmt_store(acg, true, buf, count);
 
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static ssize_t __scst_acg_io_grouping_type_show(struct scst_acg *acg, char *buf)
-{
-	int res;
-
-	switch (acg->acg_io_grouping_type) {
-	case SCST_IO_GROUPING_AUTO:
-		res = sprintf(buf, "%s\n", SCST_IO_GROUPING_AUTO_STR);
-		break;
-	case SCST_IO_GROUPING_THIS_GROUP_ONLY:
-		res = sprintf(buf, "%s\n%s\n",
-			SCST_IO_GROUPING_THIS_GROUP_ONLY_STR,
-			SCST_SYSFS_KEY_MARK);
-		break;
-	case SCST_IO_GROUPING_NEVER:
-		res = sprintf(buf, "%s\n%s\n", SCST_IO_GROUPING_NEVER_STR,
-			SCST_SYSFS_KEY_MARK);
-		break;
-	default:
-		res = sprintf(buf, "%d\n%s\n", acg->acg_io_grouping_type,
-			SCST_SYSFS_KEY_MARK);
-		break;
-	}
-
-	return res;
-}
-
-static int __scst_acg_process_io_grouping_type_store(struct scst_tgt *tgt,
-	struct scst_acg *acg, int io_grouping_type)
-{
-	int res = 0;
-	struct scst_acg_dev *acg_dev;
-
-	TRACE_DBG("tgt %p, acg %p, io_grouping_type %d", tgt, acg,
-		io_grouping_type);
-
-	res = scst_suspend_activity(true);
-	if (res != 0)
-		goto out;
-
-	if (mutex_lock_interruptible(&scst_mutex) != 0) {
-		res = -EINTR;
-		goto out_resume;
-	}
-
-	/* Check if tgt and acg not already freed while we were coming here */
-	if (scst_check_tgt_acg_ptrs(tgt, acg) != 0)
-		goto out_unlock;
-
-	acg->acg_io_grouping_type = io_grouping_type;
-
-	list_for_each_entry(acg_dev, &acg->acg_dev_list, acg_dev_list_entry) {
-		int rc;
-
-		scst_stop_dev_threads(acg_dev->dev);
-
-		rc = scst_create_dev_threads(acg_dev->dev);
-		if (rc != 0)
-			res = rc;
-	}
-
-out_unlock:
-	mutex_unlock(&scst_mutex);
-
-out_resume:
-	scst_resume_activity();
-
-out:
-	return res;
-}
-
-static int __scst_acg_io_grouping_type_store_work_fn(struct scst_sysfs_work_item *work)
-{
-	return __scst_acg_process_io_grouping_type_store(work->tgt, work->acg,
-			work->io_grouping_type);
-}
-
-static ssize_t __scst_acg_io_grouping_type_store(struct scst_acg *acg,
-	const char *buf, size_t count)
-{
-	int res = 0;
-	int prev = acg->acg_io_grouping_type;
-	long io_grouping_type;
-	struct scst_sysfs_work_item *work;
-
-	if (strncasecmp(buf, SCST_IO_GROUPING_AUTO_STR,
-			min_t(int, strlen(SCST_IO_GROUPING_AUTO_STR), count)) == 0)
-		io_grouping_type = SCST_IO_GROUPING_AUTO;
-	else if (strncasecmp(buf, SCST_IO_GROUPING_THIS_GROUP_ONLY_STR,
-			min_t(int, strlen(SCST_IO_GROUPING_THIS_GROUP_ONLY_STR), count)) == 0)
-		io_grouping_type = SCST_IO_GROUPING_THIS_GROUP_ONLY;
-	else if (strncasecmp(buf, SCST_IO_GROUPING_NEVER_STR,
-			min_t(int, strlen(SCST_IO_GROUPING_NEVER_STR), count)) == 0)
-		io_grouping_type = SCST_IO_GROUPING_NEVER;
-	else {
-		res = strict_strtol(buf, 0, &io_grouping_type);
-		if ((res != 0) || (io_grouping_type <= 0)) {
-			PRINT_ERROR("Unknown or not allowed I/O grouping type "
-				"%s", buf);
-			res = -EINVAL;
-			goto out;
-		}
-	}
-
-	if (prev == io_grouping_type)
-		goto out;
-
-	res = scst_alloc_sysfs_work(__scst_acg_io_grouping_type_store_work_fn,
-					false, &work);
-	if (res != 0)
-		goto out;
-
-	work->tgt = acg->tgt;
-	work->acg = acg;
-	work->io_grouping_type = io_grouping_type;
-
-	res = scst_sysfs_queue_wait_work(work);
-
-out:
-	return res;
-}
-
-static ssize_t scst_tgt_io_grouping_type_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
-{
-	struct scst_acg *acg;
-	struct scst_tgt *tgt;
-
-	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-	acg = tgt->default_acg;
-
-	return __scst_acg_io_grouping_type_show(acg, buf);
-}
-
-static ssize_t scst_tgt_io_grouping_type_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
-{
-	int res;
-	struct scst_acg *acg;
-	struct scst_tgt *tgt;
-
-	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-	acg = tgt->default_acg;
-
-	res = __scst_acg_io_grouping_type_store(acg, buf, count);
-	if (res != 0)
-		goto out;
-
-	res = count;
-
-out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
