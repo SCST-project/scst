@@ -295,39 +295,6 @@ out:
 
 #endif /* defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING) */
 
-static ssize_t scst_ini_group_mgmt_show(struct kobject *kobj,
-				   struct kobj_attribute *attr,
-				   char *buf);
-static ssize_t scst_ini_group_mgmt_store(struct kobject *kobj,
-				    struct kobj_attribute *attr,
-				    const char *buf, size_t count);
-static ssize_t scst_acg_ini_mgmt_show(struct kobject *kobj,
-				   struct kobj_attribute *attr,
-				   char *buf);
-static ssize_t scst_acg_ini_mgmt_store(struct kobject *kobj,
-				    struct kobj_attribute *attr,
-				    const char *buf, size_t count);
-static ssize_t scst_acg_addr_method_show(struct kobject *kobj,
-				   struct kobj_attribute *attr,
-				   char *buf);
-static ssize_t scst_acg_addr_method_store(struct kobject *kobj,
-				    struct kobj_attribute *attr,
-				    const char *buf, size_t count);
-static ssize_t scst_acg_io_grouping_type_show(struct kobject *kobj,
-				   struct kobj_attribute *attr,
-				   char *buf);
-static ssize_t scst_acg_io_grouping_type_store(struct kobject *kobj,
-				    struct kobj_attribute *attr,
-				    const char *buf, size_t count);
-static ssize_t scst_acg_cpu_mask_show(struct kobject *kobj,
-				   struct kobj_attribute *attr,
-				   char *buf);
-static ssize_t scst_acg_cpu_mask_store(struct kobject *kobj,
-				    struct kobj_attribute *attr,
-				    const char *buf, size_t count);
-static ssize_t scst_acn_file_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 34)
 /**
  ** Backported sysfs functions.
@@ -1833,17 +1800,173 @@ out:
 	return res;
 }
 
-static struct kobj_attribute scst_luns_mgmt =
-	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_luns_mgmt_show,
-	       scst_luns_mgmt_store);
+static ssize_t scst_ini_group_mgmt_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	static const char help[] =
+		"Usage: echo \"create GROUP_NAME\" >mgmt\n"
+		"       echo \"del GROUP_NAME\" >mgmt\n";
 
-static struct kobj_attribute scst_acg_ini_mgmt =
-	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_acg_ini_mgmt_show,
-	       scst_acg_ini_mgmt_store);
+	return sprintf(buf, "%s", help);
+}
+
+static int scst_process_ini_group_mgmt_store(char *buffer,
+	struct scst_tgt *tgt)
+{
+	int res, action;
+	char *p, *e = NULL;
+	struct scst_acg *a, *acg = NULL;
+	enum {
+		SCST_INI_GROUP_ACTION_CREATE = 1,
+		SCST_INI_GROUP_ACTION_DEL    = 2,
+	};
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("tgt %p, buffer %s", tgt, buffer);
+
+	p = buffer;
+	if (p[strlen(p) - 1] == '\n')
+		p[strlen(p) - 1] = '\0';
+	if (strncasecmp("create ", p, 7) == 0) {
+		p += 7;
+		action = SCST_INI_GROUP_ACTION_CREATE;
+	} else if (strncasecmp("del ", p, 4) == 0) {
+		p += 4;
+		action = SCST_INI_GROUP_ACTION_DEL;
+	} else {
+		PRINT_ERROR("Unknown action \"%s\"", p);
+		res = -EINVAL;
+		goto out;
+	}
+
+	res = scst_suspend_activity(true);
+	if (res != 0)
+		goto out;
+
+	if (mutex_lock_interruptible(&scst_mutex) != 0) {
+		res = -EINTR;
+		goto out_resume;
+	}
+
+	/* Check if our pointer is still alive */
+	if (scst_check_tgt_acg_ptrs(tgt, NULL) != 0)
+		goto out_unlock;
+
+	while (isspace(*p) && *p != '\0')
+		p++;
+	e = p;
+	while (!isspace(*e) && *e != '\0')
+		e++;
+	*e = '\0';
+
+	if (p[0] == '\0') {
+		PRINT_ERROR("%s", "Group name required");
+		res = -EINVAL;
+		goto out_unlock;
+	}
+
+	list_for_each_entry(a, &tgt->tgt_acg_list, acg_list_entry) {
+		if (strcmp(a->acg_name, p) == 0) {
+			TRACE_DBG("group (acg) %p %s found",
+				  a, a->acg_name);
+			acg = a;
+			break;
+		}
+	}
+
+	switch (action) {
+	case SCST_INI_GROUP_ACTION_CREATE:
+		TRACE_DBG("Creating group '%s'", p);
+		if (acg != NULL) {
+			PRINT_ERROR("acg name %s exist", p);
+			res = -EINVAL;
+			goto out_unlock;
+		}
+		acg = scst_alloc_add_acg(tgt, p, true);
+		if (acg == NULL)
+			goto out_unlock;
+		break;
+	case SCST_INI_GROUP_ACTION_DEL:
+		TRACE_DBG("Deleting group '%s'", p);
+		if (acg == NULL) {
+			PRINT_ERROR("Group %s not found", p);
+			res = -EINVAL;
+			goto out_unlock;
+		}
+		if (!scst_acg_sess_is_empty(acg)) {
+			PRINT_ERROR("Group %s is not empty", acg->acg_name);
+			res = -EBUSY;
+			goto out_unlock;
+		}
+		scst_del_free_acg(acg);
+		break;
+	}
+
+	res = 0;
+
+out_unlock:
+	mutex_unlock(&scst_mutex);
+
+out_resume:
+	scst_resume_activity();
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int scst_ini_group_mgmt_store_work_fn(struct scst_sysfs_work_item *work)
+{
+	return scst_process_ini_group_mgmt_store(work->buf, work->tgt);
+}
+
+static ssize_t scst_ini_group_mgmt_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	char *buffer;
+	struct scst_tgt *tgt;
+	struct scst_sysfs_work_item *work;
+
+	TRACE_ENTRY();
+
+	tgt = container_of(kobj->parent, struct scst_tgt, tgt_kobj);
+
+	buffer = kasprintf(GFP_KERNEL, "%.*s", (int)count, buf);
+	if (buffer == NULL) {
+		res = -ENOMEM;
+		goto out;
+	}
+
+	res = scst_alloc_sysfs_work(scst_ini_group_mgmt_store_work_fn, false,
+					&work);
+	if (res != 0)
+		goto out_free;
+
+	work->buf = buffer;
+	work->tgt = tgt;
+
+	res = scst_sysfs_queue_wait_work(work);
+	if (res == 0)
+		res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_free:
+	kfree(buffer);
+	goto out;
+}
 
 static struct kobj_attribute scst_ini_group_mgmt =
 	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_ini_group_mgmt_show,
 	       scst_ini_group_mgmt_store);
+
+static struct kobj_attribute scst_luns_mgmt =
+	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_luns_mgmt_show,
+	       scst_luns_mgmt_store);
 
 static struct kobj_attribute scst_tgt_addr_method =
 	__ATTR(addr_method, S_IRUGO | S_IWUSR, scst_tgt_addr_method_show,
@@ -1858,20 +1981,6 @@ static struct kobj_attribute scst_tgt_cpu_mask =
 	__ATTR(cpu_mask, S_IRUGO | S_IWUSR,
 	       scst_tgt_cpu_mask_show,
 	       scst_tgt_cpu_mask_store);
-
-static struct kobj_attribute scst_acg_addr_method =
-	__ATTR(addr_method, S_IRUGO | S_IWUSR, scst_acg_addr_method_show,
-		scst_acg_addr_method_store);
-
-static struct kobj_attribute scst_acg_io_grouping_type =
-	__ATTR(io_grouping_type, S_IRUGO | S_IWUSR,
-	       scst_acg_io_grouping_type_show,
-	       scst_acg_io_grouping_type_store);
-
-static struct kobj_attribute scst_acg_cpu_mask =
-	__ATTR(cpu_mask, S_IRUGO | S_IWUSR,
-	       scst_acg_cpu_mask_show,
-	       scst_acg_cpu_mask_store);
 
 static ssize_t scst_tgt_enable_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
@@ -3616,475 +3725,6 @@ static struct kobj_type acg_ktype = {
 	.release = scst_acg_release,
 };
 
-static ssize_t scst_acg_luns_mgmt_store(struct kobject *kobj,
-				    struct kobj_attribute *attr,
-				    const char *buf, size_t count)
-{
-	int res;
-	struct scst_acg *acg;
-
-	acg = container_of(kobj->parent, struct scst_acg, acg_kobj);
-	res = __scst_luns_mgmt_store(acg, false, buf, count);
-
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static struct kobj_attribute scst_acg_luns_mgmt =
-	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_luns_mgmt_show,
-	       scst_acg_luns_mgmt_store);
-
-static ssize_t scst_acg_addr_method_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
-{
-	struct scst_acg *acg;
-
-	acg = container_of(kobj, struct scst_acg, acg_kobj);
-
-	return __scst_acg_addr_method_show(acg, buf);
-}
-
-static ssize_t scst_acg_addr_method_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
-{
-	int res;
-	struct scst_acg *acg;
-
-	acg = container_of(kobj, struct scst_acg, acg_kobj);
-
-	res = __scst_acg_addr_method_store(acg, buf, count);
-
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static ssize_t scst_acg_io_grouping_type_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
-{
-	struct scst_acg *acg;
-
-	acg = container_of(kobj, struct scst_acg, acg_kobj);
-
-	return __scst_acg_io_grouping_type_show(acg, buf);
-}
-
-static ssize_t scst_acg_io_grouping_type_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
-{
-	int res;
-	struct scst_acg *acg;
-
-	acg = container_of(kobj, struct scst_acg, acg_kobj);
-
-	res = __scst_acg_io_grouping_type_store(acg, buf, count);
-	if (res != 0)
-		goto out;
-
-	res = count;
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static ssize_t scst_acg_cpu_mask_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
-{
-	struct scst_acg *acg;
-
-	acg = container_of(kobj, struct scst_acg, acg_kobj);
-
-	return __scst_acg_cpu_mask_show(acg, buf);
-}
-
-static ssize_t scst_acg_cpu_mask_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
-{
-	int res;
-	struct scst_acg *acg;
-
-	acg = container_of(kobj, struct scst_acg, acg_kobj);
-
-	res = __scst_acg_cpu_mask_store(acg, buf, count);
-	if (res != 0)
-		goto out;
-
-	res = count;
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static ssize_t scst_ini_group_mgmt_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
-{
-	static const char help[] =
-		"Usage: echo \"create GROUP_NAME\" >mgmt\n"
-		"       echo \"del GROUP_NAME\" >mgmt\n";
-
-	return sprintf(buf, "%s", help);
-}
-
-static int scst_process_ini_group_mgmt_store(char *buffer,
-	struct scst_tgt *tgt)
-{
-	int res, action;
-	char *p, *e = NULL;
-	struct scst_acg *a, *acg = NULL;
-	enum {
-		SCST_INI_GROUP_ACTION_CREATE = 1,
-		SCST_INI_GROUP_ACTION_DEL    = 2,
-	};
-
-	TRACE_ENTRY();
-
-	TRACE_DBG("tgt %p, buffer %s", tgt, buffer);
-
-	p = buffer;
-	if (p[strlen(p) - 1] == '\n')
-		p[strlen(p) - 1] = '\0';
-	if (strncasecmp("create ", p, 7) == 0) {
-		p += 7;
-		action = SCST_INI_GROUP_ACTION_CREATE;
-	} else if (strncasecmp("del ", p, 4) == 0) {
-		p += 4;
-		action = SCST_INI_GROUP_ACTION_DEL;
-	} else {
-		PRINT_ERROR("Unknown action \"%s\"", p);
-		res = -EINVAL;
-		goto out;
-	}
-
-	res = scst_suspend_activity(true);
-	if (res != 0)
-		goto out;
-
-	if (mutex_lock_interruptible(&scst_mutex) != 0) {
-		res = -EINTR;
-		goto out_resume;
-	}
-
-	/* Check if our pointer is still alive */
-	if (scst_check_tgt_acg_ptrs(tgt, NULL) != 0)
-		goto out_unlock;
-
-	while (isspace(*p) && *p != '\0')
-		p++;
-	e = p;
-	while (!isspace(*e) && *e != '\0')
-		e++;
-	*e = '\0';
-
-	if (p[0] == '\0') {
-		PRINT_ERROR("%s", "Group name required");
-		res = -EINVAL;
-		goto out_unlock;
-	}
-
-	list_for_each_entry(a, &tgt->tgt_acg_list, acg_list_entry) {
-		if (strcmp(a->acg_name, p) == 0) {
-			TRACE_DBG("group (acg) %p %s found",
-				  a, a->acg_name);
-			acg = a;
-			break;
-		}
-	}
-
-	switch (action) {
-	case SCST_INI_GROUP_ACTION_CREATE:
-		TRACE_DBG("Creating group '%s'", p);
-		if (acg != NULL) {
-			PRINT_ERROR("acg name %s exist", p);
-			res = -EINVAL;
-			goto out_unlock;
-		}
-		acg = scst_alloc_add_acg(tgt, p, true);
-		if (acg == NULL)
-			goto out_unlock;
-		break;
-	case SCST_INI_GROUP_ACTION_DEL:
-		TRACE_DBG("Deleting group '%s'", p);
-		if (acg == NULL) {
-			PRINT_ERROR("Group %s not found", p);
-			res = -EINVAL;
-			goto out_unlock;
-		}
-		if (!scst_acg_sess_is_empty(acg)) {
-			PRINT_ERROR("Group %s is not empty", acg->acg_name);
-			res = -EBUSY;
-			goto out_unlock;
-		}
-		scst_del_free_acg(acg);
-		break;
-	}
-
-	res = 0;
-
-out_unlock:
-	mutex_unlock(&scst_mutex);
-
-out_resume:
-	scst_resume_activity();
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static int scst_ini_group_mgmt_store_work_fn(struct scst_sysfs_work_item *work)
-{
-	return scst_process_ini_group_mgmt_store(work->buf, work->tgt);
-}
-
-static ssize_t scst_ini_group_mgmt_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
-{
-	int res;
-	char *buffer;
-	struct scst_tgt *tgt;
-	struct scst_sysfs_work_item *work;
-
-	TRACE_ENTRY();
-
-	tgt = container_of(kobj->parent, struct scst_tgt, tgt_kobj);
-
-	buffer = kasprintf(GFP_KERNEL, "%.*s", (int)count, buf);
-	if (buffer == NULL) {
-		res = -ENOMEM;
-		goto out;
-	}
-
-	res = scst_alloc_sysfs_work(scst_ini_group_mgmt_store_work_fn, false,
-					&work);
-	if (res != 0)
-		goto out_free;
-
-	work->buf = buffer;
-	work->tgt = tgt;
-
-	res = scst_sysfs_queue_wait_work(work);
-	if (res == 0)
-		res = count;
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-
-out_free:
-	kfree(buffer);
-	goto out;
-}
-
-/*
- * Called with scst_mutex held.
- *
- * !! No sysfs works must use kobject_get() to protect acg, due to possible
- * !! deadlock with scst_mutex (it is waiting for the last put, but
- * !! the last ref counter holder is waiting for scst_mutex)
- */
-void scst_acg_sysfs_del(struct scst_acg *acg)
-{
-	int rc;
-	DECLARE_COMPLETION_ONSTACK(c);
-
-	TRACE_ENTRY();
-
-	acg->acg_kobj_release_cmpl = &c;
-
-	kobject_del(acg->luns_kobj);
-	kobject_del(acg->initiators_kobj);
-	kobject_del(&acg->acg_kobj);
-
-	kobject_put(acg->luns_kobj);
-	kobject_put(acg->initiators_kobj);
-	kobject_put(&acg->acg_kobj);
-
-	rc = wait_for_completion_timeout(acg->acg_kobj_release_cmpl, HZ);
-	if (rc == 0) {
-		PRINT_INFO("Waiting for releasing sysfs entry "
-			"for acg %s (%d refs)...", acg->acg_name,
-			atomic_read(&acg->acg_kobj.kref.refcount));
-		wait_for_completion(acg->acg_kobj_release_cmpl);
-		PRINT_INFO("Done waiting for releasing sysfs "
-			"entry for acg %s", acg->acg_name);
-	}
-
-	TRACE_EXIT();
-	return;
-}
-
-int scst_acg_sysfs_create(struct scst_tgt *tgt,
-	struct scst_acg *acg)
-{
-	int res = 0;
-
-	TRACE_ENTRY();
-
-	res = kobject_init_and_add(&acg->acg_kobj, &acg_ktype,
-		tgt->tgt_ini_grp_kobj, acg->acg_name);
-	if (res != 0) {
-		PRINT_ERROR("Can't add acg '%s' to sysfs", acg->acg_name);
-		goto out;
-	}
-
-	acg->luns_kobj = kobject_create_and_add("luns", &acg->acg_kobj);
-	if (acg->luns_kobj == NULL) {
-		PRINT_ERROR("Can't create luns kobj for tgt %s",
-			tgt->tgt_name);
-		res = -ENOMEM;
-		goto out_del;
-	}
-
-	res = sysfs_create_file(acg->luns_kobj, &scst_acg_luns_mgmt.attr);
-	if (res != 0) {
-		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
-			scst_acg_luns_mgmt.attr.name, tgt->tgt_name);
-		goto out_del;
-	}
-
-	acg->initiators_kobj = kobject_create_and_add("initiators",
-					&acg->acg_kobj);
-	if (acg->initiators_kobj == NULL) {
-		PRINT_ERROR("Can't create initiators kobj for tgt %s",
-			tgt->tgt_name);
-		res = -ENOMEM;
-		goto out_del;
-	}
-
-	res = sysfs_create_file(acg->initiators_kobj,
-			&scst_acg_ini_mgmt.attr);
-	if (res != 0) {
-		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
-			scst_acg_ini_mgmt.attr.name, tgt->tgt_name);
-		goto out_del;
-	}
-
-	res = sysfs_create_file(&acg->acg_kobj, &scst_acg_addr_method.attr);
-	if (res != 0) {
-		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
-			scst_acg_addr_method.attr.name, tgt->tgt_name);
-		goto out_del;
-	}
-
-	res = sysfs_create_file(&acg->acg_kobj, &scst_acg_io_grouping_type.attr);
-	if (res != 0) {
-		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
-			scst_acg_io_grouping_type.attr.name, tgt->tgt_name);
-		goto out_del;
-	}
-
-	res = sysfs_create_file(&acg->acg_kobj, &scst_acg_cpu_mask.attr);
-	if (res != 0) {
-		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
-			scst_acg_cpu_mask.attr.name, tgt->tgt_name);
-		goto out_del;
-	}
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-
-out_del:
-	scst_acg_sysfs_del(acg);
-	goto out;
-}
-
-/**
- ** acn
- **/
-
-int scst_acn_sysfs_create(struct scst_acn *acn)
-{
-	int res = 0;
-	struct scst_acg *acg = acn->acg;
-	struct kobj_attribute *attr = NULL;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
-	static struct lock_class_key __key;
-#endif
-#endif
-
-	TRACE_ENTRY();
-
-	acn->acn_attr = NULL;
-
-	attr = kzalloc(sizeof(struct kobj_attribute), GFP_KERNEL);
-	if (attr == NULL) {
-		PRINT_ERROR("Unable to allocate attributes for initiator '%s'",
-			acn->name);
-		res = -ENOMEM;
-		goto out;
-	}
-
-	attr->attr.name = kstrdup(acn->name, GFP_KERNEL);
-	if (attr->attr.name == NULL) {
-		PRINT_ERROR("Unable to allocate attributes for initiator '%s'",
-			acn->name);
-		res = -ENOMEM;
-		goto out_free;
-	}
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
-	attr->attr.owner = THIS_MODULE;
-#endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
-	attr->attr.key = &__key;
-#endif
-#endif
-
-	attr->attr.mode = S_IRUGO;
-	attr->show = scst_acn_file_show;
-	attr->store = NULL;
-
-	res = sysfs_create_file(acg->initiators_kobj, &attr->attr);
-	if (res != 0) {
-		PRINT_ERROR("Unable to create acn '%s' for group '%s'",
-			acn->name, acg->acg_name);
-		kfree(attr->attr.name);
-		goto out_free;
-	}
-
-	acn->acn_attr = attr;
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-
-out_free:
-	kfree(attr);
-	goto out;
-}
-
-void scst_acn_sysfs_del(struct scst_acn *acn)
-{
-	struct scst_acg *acg = acn->acg;
-
-	TRACE_ENTRY();
-
-	if (acn->acn_attr != NULL) {
-		sysfs_remove_file(acg->initiators_kobj,
-			&acn->acn_attr->attr);
-		kfree(acn->acn_attr->attr.name);
-		kfree(acn->acn_attr);
-	}
-
-	TRACE_EXIT();
-	return;
-}
-
-static ssize_t scst_acn_file_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
-{
-	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s\n",
-		attr->attr.name);
-}
-
-/**
- ** acg_ini_mgmt
- **/
-
 static ssize_t scst_acg_ini_mgmt_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
@@ -4301,6 +3941,330 @@ static ssize_t scst_acg_ini_mgmt_store(struct kobject *kobj,
 	return __scst_acg_mgmt_store(acg, buf, count, false,
 		scst_acg_ini_mgmt_store_work_fn);
 }
+
+static struct kobj_attribute scst_acg_ini_mgmt =
+	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_acg_ini_mgmt_show,
+	       scst_acg_ini_mgmt_store);
+
+static ssize_t scst_acg_luns_mgmt_store(struct kobject *kobj,
+				    struct kobj_attribute *attr,
+				    const char *buf, size_t count)
+{
+	int res;
+	struct scst_acg *acg;
+
+	acg = container_of(kobj->parent, struct scst_acg, acg_kobj);
+	res = __scst_luns_mgmt_store(acg, false, buf, count);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute scst_acg_luns_mgmt =
+	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_luns_mgmt_show,
+	       scst_acg_luns_mgmt_store);
+
+static ssize_t scst_acg_addr_method_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct scst_acg *acg;
+
+	acg = container_of(kobj, struct scst_acg, acg_kobj);
+
+	return __scst_acg_addr_method_show(acg, buf);
+}
+
+static ssize_t scst_acg_addr_method_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	struct scst_acg *acg;
+
+	acg = container_of(kobj, struct scst_acg, acg_kobj);
+
+	res = __scst_acg_addr_method_store(acg, buf, count);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute scst_acg_addr_method =
+	__ATTR(addr_method, S_IRUGO | S_IWUSR, scst_acg_addr_method_show,
+		scst_acg_addr_method_store);
+
+static ssize_t scst_acg_io_grouping_type_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct scst_acg *acg;
+
+	acg = container_of(kobj, struct scst_acg, acg_kobj);
+
+	return __scst_acg_io_grouping_type_show(acg, buf);
+}
+
+static ssize_t scst_acg_io_grouping_type_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	struct scst_acg *acg;
+
+	acg = container_of(kobj, struct scst_acg, acg_kobj);
+
+	res = __scst_acg_io_grouping_type_store(acg, buf, count);
+	if (res != 0)
+		goto out;
+
+	res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute scst_acg_io_grouping_type =
+	__ATTR(io_grouping_type, S_IRUGO | S_IWUSR,
+	       scst_acg_io_grouping_type_show,
+	       scst_acg_io_grouping_type_store);
+
+static ssize_t scst_acg_cpu_mask_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct scst_acg *acg;
+
+	acg = container_of(kobj, struct scst_acg, acg_kobj);
+
+	return __scst_acg_cpu_mask_show(acg, buf);
+}
+
+static ssize_t scst_acg_cpu_mask_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	struct scst_acg *acg;
+
+	acg = container_of(kobj, struct scst_acg, acg_kobj);
+
+	res = __scst_acg_cpu_mask_store(acg, buf, count);
+	if (res != 0)
+		goto out;
+
+	res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute scst_acg_cpu_mask =
+	__ATTR(cpu_mask, S_IRUGO | S_IWUSR,
+	       scst_acg_cpu_mask_show,
+	       scst_acg_cpu_mask_store);
+
+/*
+ * Called with scst_mutex held.
+ *
+ * !! No sysfs works must use kobject_get() to protect acg, due to possible
+ * !! deadlock with scst_mutex (it is waiting for the last put, but
+ * !! the last ref counter holder is waiting for scst_mutex)
+ */
+void scst_acg_sysfs_del(struct scst_acg *acg)
+{
+	int rc;
+	DECLARE_COMPLETION_ONSTACK(c);
+
+	TRACE_ENTRY();
+
+	acg->acg_kobj_release_cmpl = &c;
+
+	kobject_del(acg->luns_kobj);
+	kobject_del(acg->initiators_kobj);
+	kobject_del(&acg->acg_kobj);
+
+	kobject_put(acg->luns_kobj);
+	kobject_put(acg->initiators_kobj);
+	kobject_put(&acg->acg_kobj);
+
+	rc = wait_for_completion_timeout(acg->acg_kobj_release_cmpl, HZ);
+	if (rc == 0) {
+		PRINT_INFO("Waiting for releasing sysfs entry "
+			"for acg %s (%d refs)...", acg->acg_name,
+			atomic_read(&acg->acg_kobj.kref.refcount));
+		wait_for_completion(acg->acg_kobj_release_cmpl);
+		PRINT_INFO("Done waiting for releasing sysfs "
+			"entry for acg %s", acg->acg_name);
+	}
+
+	TRACE_EXIT();
+	return;
+}
+
+int scst_acg_sysfs_create(struct scst_tgt *tgt,
+	struct scst_acg *acg)
+{
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	res = kobject_init_and_add(&acg->acg_kobj, &acg_ktype,
+		tgt->tgt_ini_grp_kobj, acg->acg_name);
+	if (res != 0) {
+		PRINT_ERROR("Can't add acg '%s' to sysfs", acg->acg_name);
+		goto out;
+	}
+
+	acg->luns_kobj = kobject_create_and_add("luns", &acg->acg_kobj);
+	if (acg->luns_kobj == NULL) {
+		PRINT_ERROR("Can't create luns kobj for tgt %s",
+			tgt->tgt_name);
+		res = -ENOMEM;
+		goto out_del;
+	}
+
+	res = sysfs_create_file(acg->luns_kobj, &scst_acg_luns_mgmt.attr);
+	if (res != 0) {
+		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
+			scst_acg_luns_mgmt.attr.name, tgt->tgt_name);
+		goto out_del;
+	}
+
+	acg->initiators_kobj = kobject_create_and_add("initiators",
+					&acg->acg_kobj);
+	if (acg->initiators_kobj == NULL) {
+		PRINT_ERROR("Can't create initiators kobj for tgt %s",
+			tgt->tgt_name);
+		res = -ENOMEM;
+		goto out_del;
+	}
+
+	res = sysfs_create_file(acg->initiators_kobj,
+			&scst_acg_ini_mgmt.attr);
+	if (res != 0) {
+		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
+			scst_acg_ini_mgmt.attr.name, tgt->tgt_name);
+		goto out_del;
+	}
+
+	res = sysfs_create_file(&acg->acg_kobj, &scst_acg_addr_method.attr);
+	if (res != 0) {
+		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
+			scst_acg_addr_method.attr.name, tgt->tgt_name);
+		goto out_del;
+	}
+
+	res = sysfs_create_file(&acg->acg_kobj, &scst_acg_io_grouping_type.attr);
+	if (res != 0) {
+		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
+			scst_acg_io_grouping_type.attr.name, tgt->tgt_name);
+		goto out_del;
+	}
+
+	res = sysfs_create_file(&acg->acg_kobj, &scst_acg_cpu_mask.attr);
+	if (res != 0) {
+		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
+			scst_acg_cpu_mask.attr.name, tgt->tgt_name);
+		goto out_del;
+	}
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_del:
+	scst_acg_sysfs_del(acg);
+	goto out;
+}
+
+/**
+ ** acn
+ **/
+
+static ssize_t scst_acn_file_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s\n",
+		attr->attr.name);
+}
+
+int scst_acn_sysfs_create(struct scst_acn *acn)
+{
+	int res = 0;
+	struct scst_acg *acg = acn->acg;
+	struct kobj_attribute *attr = NULL;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
+	static struct lock_class_key __key;
+#endif
+#endif
+
+	TRACE_ENTRY();
+
+	acn->acn_attr = NULL;
+
+	attr = kzalloc(sizeof(struct kobj_attribute), GFP_KERNEL);
+	if (attr == NULL) {
+		PRINT_ERROR("Unable to allocate attributes for initiator '%s'",
+			acn->name);
+		res = -ENOMEM;
+		goto out;
+	}
+
+	attr->attr.name = kstrdup(acn->name, GFP_KERNEL);
+	if (attr->attr.name == NULL) {
+		PRINT_ERROR("Unable to allocate attributes for initiator '%s'",
+			acn->name);
+		res = -ENOMEM;
+		goto out_free;
+	}
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
+	attr->attr.owner = THIS_MODULE;
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
+	attr->attr.key = &__key;
+#endif
+#endif
+
+	attr->attr.mode = S_IRUGO;
+	attr->show = scst_acn_file_show;
+	attr->store = NULL;
+
+	res = sysfs_create_file(acg->initiators_kobj, &attr->attr);
+	if (res != 0) {
+		PRINT_ERROR("Unable to create acn '%s' for group '%s'",
+			acn->name, acg->acg_name);
+		kfree(attr->attr.name);
+		goto out_free;
+	}
+
+	acn->acn_attr = attr;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_free:
+	kfree(attr);
+	goto out;
+}
+
+void scst_acn_sysfs_del(struct scst_acn *acn)
+{
+	struct scst_acg *acg = acn->acg;
+
+	TRACE_ENTRY();
+
+	if (acn->acn_attr != NULL) {
+		sysfs_remove_file(acg->initiators_kobj,
+			&acn->acn_attr->attr);
+		kfree(acn->acn_attr->attr.name);
+		kfree(acn->acn_attr);
+	}
+
+	TRACE_EXIT();
+	return;
+}
+
 
 /**
  ** SGV directory implementation
