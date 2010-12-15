@@ -302,8 +302,6 @@ static void accept_connection(int listen)
 	pollfd->revents = 0;
 
 	incoming_cnt++;
-	if (incoming_cnt >= INCOMING_MAX)
-		poll_array[POLL_LISTEN].events = 0;
 
 out:
 	return;
