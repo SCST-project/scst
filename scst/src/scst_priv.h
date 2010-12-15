@@ -139,8 +139,6 @@ extern struct kmem_cache *scst_acgd_cachep;
 
 extern spinlock_t scst_main_lock;
 
-extern struct scst_sgv_pools scst_sgv;
-
 extern unsigned long scst_flags;
 extern atomic_t scst_cmd_count;
 extern struct list_head scst_template_list;
@@ -455,14 +453,13 @@ static inline int scst_acn_sysfs_create(struct scst_acn *acn)
 }
 static inline void scst_acn_sysfs_del(struct scst_acn *acn) { }
 
-static inline int scst_sgv_sysfs_create(struct sgv_pool *pool)
-{
-	return 0;
-}
-static inline void scst_sgv_sysfs_del(struct sgv_pool *pool) { }
-
 #else /* CONFIG_SCST_PROC */
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
+extern const struct sysfs_ops scst_sysfs_ops;
+#else
+extern struct sysfs_ops scst_sysfs_ops;
+#endif
 int scst_sysfs_init(void);
 void scst_sysfs_cleanup(void);
 int scst_tgtt_sysfs_create(struct scst_tgt_template *tgtt);
@@ -473,8 +470,8 @@ void scst_tgt_sysfs_del(struct scst_tgt *tgt);
 int scst_sess_sysfs_create(struct scst_session *sess);
 void scst_sess_sysfs_del(struct scst_session *sess);
 int scst_recreate_sess_luns_link(struct scst_session *sess);
-int scst_sgv_sysfs_create(struct sgv_pool *pool);
-void scst_sgv_sysfs_del(struct sgv_pool *pool);
+int scst_add_sgv_kobj(struct kobject *parent, const char *name);
+void scst_del_put_sgv_kobj(void);
 int scst_devt_sysfs_create(struct scst_dev_type *devt);
 void scst_devt_sysfs_del(struct scst_dev_type *devt);
 int scst_dev_sysfs_create(struct scst_device *dev);

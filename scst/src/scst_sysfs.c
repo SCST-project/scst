@@ -31,14 +31,12 @@
 #include "scst.h"
 #endif
 #include "scst_priv.h"
-#include "scst_mem.h"
 #include "scst_pres.h"
 
 static DECLARE_COMPLETION(scst_sysfs_root_release_completion);
 
 static struct kobject *scst_targets_kobj;
 static struct kobject *scst_devices_kobj;
-static struct kobject *scst_sgv_kobj;
 static struct kobject *scst_handlers_kobj;
 
 static const char *scst_dev_handler_types[] = {
@@ -738,9 +736,9 @@ static ssize_t scst_store(struct kobject *kobj, struct attribute *attr,
 }
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34))
-static const struct sysfs_ops scst_sysfs_ops = {
+const struct sysfs_ops scst_sysfs_ops = {
 #else
-static struct sysfs_ops scst_sysfs_ops = {
+struct sysfs_ops scst_sysfs_ops = {
 #endif
 	.show = scst_show,
 	.store = scst_store,
@@ -4259,103 +4257,6 @@ void scst_acn_sysfs_del(struct scst_acn *acn)
 
 
 /**
- ** SGV directory implementation
- **/
-
-static struct kobj_attribute sgv_stat_attr =
-	__ATTR(stats, S_IRUGO | S_IWUSR, sgv_sysfs_stat_show,
-		sgv_sysfs_stat_reset);
-
-static struct attribute *sgv_attrs[] = {
-	&sgv_stat_attr.attr,
-	NULL,
-};
-
-static void sgv_kobj_release(struct kobject *kobj)
-{
-	struct sgv_pool *pool;
-
-	TRACE_ENTRY();
-
-	pool = container_of(kobj, struct sgv_pool, sgv_kobj);
-	if (pool->sgv_kobj_release_cmpl != NULL)
-		complete_all(pool->sgv_kobj_release_cmpl);
-
-	TRACE_EXIT();
-	return;
-}
-
-static struct kobj_type sgv_pool_ktype = {
-	.sysfs_ops = &scst_sysfs_ops,
-	.release = sgv_kobj_release,
-	.default_attrs = sgv_attrs,
-};
-
-int scst_sgv_sysfs_create(struct sgv_pool *pool)
-{
-	int res;
-
-	TRACE_ENTRY();
-
-	res = kobject_init_and_add(&pool->sgv_kobj, &sgv_pool_ktype,
-			scst_sgv_kobj, pool->name);
-	if (res) {
-		PRINT_ERROR("Can't add sgv pool %s to sysfs", pool->name);
-		goto out;
-	}
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-void scst_sgv_sysfs_del(struct sgv_pool *pool)
-{
-	int rc;
-	DECLARE_COMPLETION_ONSTACK(c);
-
-	TRACE_ENTRY();
-
-	pool->sgv_kobj_release_cmpl = &c;
-
-	kobject_del(&pool->sgv_kobj);
-	kobject_put(&pool->sgv_kobj);
-
-	rc = wait_for_completion_timeout(pool->sgv_kobj_release_cmpl, HZ);
-	if (rc == 0) {
-		PRINT_INFO("Waiting for releasing sysfs entry "
-			"for SGV pool %s (%d refs)...", pool->name,
-			atomic_read(&pool->sgv_kobj.kref.refcount));
-		wait_for_completion(pool->sgv_kobj_release_cmpl);
-		PRINT_INFO("Done waiting for releasing sysfs "
-			"entry for SGV pool %s", pool->name);
-	}
-
-	TRACE_EXIT();
-	return;
-}
-
-static struct kobj_attribute sgv_global_stat_attr =
-	__ATTR(global_stats, S_IRUGO | S_IWUSR, sgv_sysfs_global_stat_show,
-		sgv_sysfs_global_stat_reset);
-
-static struct attribute *sgv_default_attrs[] = {
-	&sgv_global_stat_attr.attr,
-	NULL,
-};
-
-static void scst_sysfs_release(struct kobject *kobj)
-{
-	kfree(kobj);
-}
-
-static struct kobj_type sgv_ktype = {
-	.sysfs_ops = &scst_sysfs_ops,
-	.release = scst_sysfs_release,
-	.default_attrs = sgv_default_attrs,
-};
-
-/**
  ** Dev handlers
  **/
 
@@ -5360,14 +5261,9 @@ int __init scst_sysfs_init(void)
 	if (scst_devices_kobj == NULL)
 		goto devices_kobj_error;
 
-	scst_sgv_kobj = kzalloc(sizeof(*scst_sgv_kobj), GFP_KERNEL);
-	if (scst_sgv_kobj == NULL)
-		goto sgv_kobj_error;
-
-	res = kobject_init_and_add(scst_sgv_kobj, &sgv_ktype,
-			&scst_sysfs_root_kobj, "%s", "sgv");
+	res = scst_add_sgv_kobj(&scst_sysfs_root_kobj, "sgv");
 	if (res)
-		goto sgv_kobj_add_error;
+		goto sgv_kobj_error;
 
 	scst_handlers_kobj = kobject_create_and_add("handlers",
 					&scst_sysfs_root_kobj);
@@ -5379,10 +5275,7 @@ out:
 	return res;
 
 handlers_kobj_error:
-	kobject_del(scst_sgv_kobj);
-
-sgv_kobj_add_error:
-	kobject_put(scst_sgv_kobj);
+	scst_del_put_sgv_kobj();
 
 sgv_kobj_error:
 	kobject_del(scst_devices_kobj);
@@ -5412,8 +5305,7 @@ void scst_sysfs_cleanup(void)
 
 	PRINT_INFO("%s", "Exiting SCST sysfs hierarchy...");
 
-	kobject_del(scst_sgv_kobj);
-	kobject_put(scst_sgv_kobj);
+	scst_del_put_sgv_kobj();
 
 	kobject_del(scst_devices_kobj);
 	kobject_put(scst_devices_kobj);

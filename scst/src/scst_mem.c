@@ -74,6 +74,12 @@ static struct shrinker sgv_shrinker;
  */
 static LIST_HEAD(sgv_pools_list);
 
+#ifndef CONFIG_SCST_PROC
+static struct kobject *scst_sgv_kobj;
+static int scst_sgv_sysfs_create(struct sgv_pool *pool);
+static void scst_sgv_sysfs_del(struct sgv_pool *pool);
+#endif
+
 static inline bool sgv_pool_clustered(const struct sgv_pool *pool)
 {
 	return pool->clustering_type != sgv_no_clustering;
@@ -1462,9 +1468,11 @@ static int sgv_pool_init(struct sgv_pool *pool, const char *name,
 	list_add_tail(&pool->sgv_pools_list_entry, &sgv_pools_list);
 	spin_unlock_bh(&sgv_pools_lock);
 
+#ifndef CONFIG_SCST_PROC
 	res = scst_sgv_sysfs_create(pool);
 	if (res != 0)
 		goto out_del;
+#endif
 
 	res = 0;
 
@@ -1472,10 +1480,12 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 
+#ifndef CONFIG_SCST_PROC
 out_del:
 	spin_lock_bh(&sgv_pools_lock);
 	list_del(&pool->sgv_pools_list_entry);
 	spin_unlock_bh(&sgv_pools_lock);
+#endif
 
 out_free:
 	for (i = 0; i < pool->max_caches; i++) {
@@ -1555,7 +1565,9 @@ static void sgv_pool_destroy(struct sgv_pool *pool)
 	spin_unlock_bh(&sgv_pools_lock);
 	mutex_unlock(&sgv_pools_mutex);
 
+#ifndef CONFIG_SCST_PROC
 	scst_sgv_sysfs_del(pool);
+#endif
 
 	for (i = 0; i < pool->max_caches; i++) {
 		if (pool->caches[i])
@@ -1880,7 +1892,7 @@ int sgv_procinfo_show(struct seq_file *seq, void *v)
 
 #else /* CONFIG_SCST_PROC */
 
-ssize_t sgv_sysfs_stat_show(struct kobject *kobj,
+static ssize_t sgv_sysfs_stat_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
 	struct sgv_pool *pool;
@@ -1936,7 +1948,7 @@ ssize_t sgv_sysfs_stat_show(struct kobject *kobj,
 	return res;
 }
 
-ssize_t sgv_sysfs_stat_reset(struct kobject *kobj,
+static ssize_t sgv_sysfs_stat_reset(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count)
 {
 	struct sgv_pool *pool;
@@ -1965,7 +1977,7 @@ ssize_t sgv_sysfs_stat_reset(struct kobject *kobj,
 	return count;
 }
 
-ssize_t sgv_sysfs_global_stat_show(struct kobject *kobj,
+static ssize_t sgv_sysfs_global_stat_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
 	struct sgv_pool *pool;
@@ -1994,7 +2006,7 @@ ssize_t sgv_sysfs_global_stat_show(struct kobject *kobj,
 	return res;
 }
 
-ssize_t sgv_sysfs_global_stat_reset(struct kobject *kobj,
+static ssize_t sgv_sysfs_global_stat_reset(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count)
 {
 	TRACE_ENTRY();
@@ -2007,6 +2019,132 @@ ssize_t sgv_sysfs_global_stat_reset(struct kobject *kobj,
 
 	TRACE_EXIT_RES(count);
 	return count;
+}
+
+static struct kobj_attribute sgv_stat_attr =
+	__ATTR(stats, S_IRUGO | S_IWUSR, sgv_sysfs_stat_show,
+		sgv_sysfs_stat_reset);
+
+static struct attribute *sgv_attrs[] = {
+	&sgv_stat_attr.attr,
+	NULL,
+};
+
+static void sgv_kobj_release(struct kobject *kobj)
+{
+	struct sgv_pool *pool;
+
+	TRACE_ENTRY();
+
+	pool = container_of(kobj, struct sgv_pool, sgv_kobj);
+	if (pool->sgv_kobj_release_cmpl != NULL)
+		complete_all(pool->sgv_kobj_release_cmpl);
+
+	TRACE_EXIT();
+	return;
+}
+
+static struct kobj_type sgv_pool_ktype = {
+	.sysfs_ops = &scst_sysfs_ops,
+	.release = sgv_kobj_release,
+	.default_attrs = sgv_attrs,
+};
+
+static int scst_sgv_sysfs_create(struct sgv_pool *pool)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	res = kobject_init_and_add(&pool->sgv_kobj, &sgv_pool_ktype,
+			scst_sgv_kobj, pool->name);
+	if (res) {
+		PRINT_ERROR("Can't add sgv pool %s to sysfs", pool->name);
+		goto out;
+	}
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static void scst_sgv_sysfs_del(struct sgv_pool *pool)
+{
+	int rc;
+	DECLARE_COMPLETION_ONSTACK(c);
+
+	TRACE_ENTRY();
+
+	pool->sgv_kobj_release_cmpl = &c;
+
+	kobject_del(&pool->sgv_kobj);
+	kobject_put(&pool->sgv_kobj);
+
+	rc = wait_for_completion_timeout(pool->sgv_kobj_release_cmpl, HZ);
+	if (rc == 0) {
+		PRINT_INFO("Waiting for releasing sysfs entry "
+			"for SGV pool %s (%d refs)...", pool->name,
+			atomic_read(&pool->sgv_kobj.kref.refcount));
+		wait_for_completion(pool->sgv_kobj_release_cmpl);
+		PRINT_INFO("Done waiting for releasing sysfs "
+			"entry for SGV pool %s", pool->name);
+	}
+
+	TRACE_EXIT();
+}
+
+static struct kobj_attribute sgv_global_stat_attr =
+	__ATTR(global_stats, S_IRUGO | S_IWUSR, sgv_sysfs_global_stat_show,
+		sgv_sysfs_global_stat_reset);
+
+static struct attribute *sgv_default_attrs[] = {
+	&sgv_global_stat_attr.attr,
+	NULL,
+};
+
+static void scst_sysfs_release(struct kobject *kobj)
+{
+	kfree(kobj);
+}
+
+static struct kobj_type sgv_ktype = {
+	.sysfs_ops = &scst_sysfs_ops,
+	.release = scst_sysfs_release,
+	.default_attrs = sgv_default_attrs,
+};
+
+/**
+ * scst_add_sgv_kobj() - Initialize and add the root SGV kernel object.
+ */
+int scst_add_sgv_kobj(struct kobject *parent, const char *name)
+{
+	int res;
+
+	WARN_ON(scst_sgv_kobj);
+	res = -ENOMEM;
+	scst_sgv_kobj = kzalloc(sizeof(*scst_sgv_kobj), GFP_KERNEL);
+	if (!scst_sgv_kobj)
+		goto out;
+	res = kobject_init_and_add(scst_sgv_kobj, &sgv_ktype, parent, name);
+	if (res)
+		goto out_free;
+out:
+	return res;
+out_free:
+	kobject_put(scst_sgv_kobj);
+	scst_sgv_kobj = NULL;
+	goto out;
+}
+
+/**
+ * scst_del_put_sgv_kobj() - Remove the root SGV kernel object.
+ */
+void scst_del_put_sgv_kobj(void)
+{
+	WARN_ON(!scst_sgv_kobj);
+	kobject_del(scst_sgv_kobj);
+	kobject_put(scst_sgv_kobj);
+	scst_sgv_kobj = NULL;
 }
 
 #endif /* CONFIG_SCST_PROC */
