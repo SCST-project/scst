@@ -578,8 +578,6 @@ static int dev_user_alloc_sg(struct scst_user_cmd *ucmd, int cached_buff)
 			last_len = bufflen & ~PAGE_MASK;
 		else
 			last_len = orig_bufflen & ~PAGE_MASK;
-		if (last_len == 0)
-			last_len = PAGE_SIZE;
 	}
 	ucmd->buff_cached = cached_buff;
 
