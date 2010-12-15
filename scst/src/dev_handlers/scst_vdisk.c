@@ -852,8 +852,7 @@ out:
 /* scst_mutex supposed to be held */
 static void vdisk_detach(struct scst_device *dev)
 {
-	struct scst_vdisk_dev *virt_dev =
-	    (struct scst_vdisk_dev *)dev->dh_priv;
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 
 	TRACE_ENTRY();
 
@@ -891,8 +890,7 @@ static struct scst_vdisk_thr *vdisk_init_thr_data(
 	struct scst_tgt_dev *tgt_dev)
 {
 	struct scst_vdisk_thr *res;
-	struct scst_vdisk_dev *virt_dev =
-	    (struct scst_vdisk_dev *)tgt_dev->dev->dh_priv;
+	struct scst_vdisk_dev *virt_dev = tgt_dev->dev->dh_priv;
 
 	TRACE_ENTRY();
 
@@ -963,8 +961,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	loff_t loff;
 	struct scst_device *dev = cmd->dev;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
-	struct scst_vdisk_dev *virt_dev =
-		(struct scst_vdisk_dev *)dev->dh_priv;
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 	struct scst_thr_data_hdr *d;
 	struct scst_vdisk_thr *thr = NULL;
 	int fua = 0;
@@ -1221,8 +1218,7 @@ out_thr:
 
 static int vdisk_get_block_shift(struct scst_cmd *cmd)
 {
-	struct scst_vdisk_dev *virt_dev =
-	    (struct scst_vdisk_dev *)cmd->dev->dh_priv;
+	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	return virt_dev->block_shift;
 }
 
@@ -1242,8 +1238,7 @@ static int vcdrom_exec(struct scst_cmd *cmd)
 {
 	int res = SCST_EXEC_COMPLETED;
 	int opcode = cmd->cdb[0];
-	struct scst_vdisk_dev *virt_dev =
-	    (struct scst_vdisk_dev *)cmd->dev->dh_priv;
+	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 
 	TRACE_ENTRY();
 
@@ -1302,8 +1297,7 @@ static uint64_t vdisk_gen_dev_id_num(const char *virt_dev_name)
 
 static void vdisk_exec_unmap(struct scst_cmd *cmd, struct scst_vdisk_thr *thr)
 {
-	struct scst_vdisk_dev *virt_dev =
-	    (struct scst_vdisk_dev *)cmd->dev->dh_priv;
+	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	ssize_t length = 0;
 	struct file *fd = thr->fd;
 	struct inode *inode;
@@ -1436,8 +1430,7 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 	int32_t length, i, resp_len = 0;
 	uint8_t *address;
 	uint8_t *buf;
-	struct scst_vdisk_dev *virt_dev =
-	    (struct scst_vdisk_dev *)cmd->dev->dh_priv;
+	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 
 	/* ToDo: Performance Boost:
 	 * 1. remove kzalloc, buf
@@ -1938,7 +1931,7 @@ static void vdisk_exec_mode_sense(struct scst_cmd *cmd)
 		goto out;
 	}
 
-	virt_dev = (struct scst_vdisk_dev *)cmd->dev->dh_priv;
+	virt_dev = cmd->dev->dh_priv;
 	blocksize = virt_dev->block_size;
 	nblocks = virt_dev->nblocks;
 
@@ -2129,7 +2122,7 @@ static void vdisk_exec_mode_select(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	virt_dev = (struct scst_vdisk_dev *)cmd->dev->dh_priv;
+	virt_dev = cmd->dev->dh_priv;
 	mselect_6 = (MODE_SELECT == cmd->cdb[0]);
 
 	length = scst_get_buf_first(cmd, &address);
@@ -2240,7 +2233,7 @@ static void vdisk_exec_read_capacity(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	virt_dev = (struct scst_vdisk_dev *)cmd->dev->dh_priv;
+	virt_dev = cmd->dev->dh_priv;
 	blocksize = virt_dev->block_size;
 	nblocks = virt_dev->nblocks;
 
@@ -2313,7 +2306,7 @@ static void vdisk_exec_read_capacity16(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	virt_dev = (struct scst_vdisk_dev *)cmd->dev->dh_priv;
+	virt_dev = cmd->dev->dh_priv;
 	blocksize = virt_dev->block_size;
 	nblocks = virt_dev->nblocks - 1;
 
@@ -2439,7 +2432,7 @@ static void vdisk_exec_read_toc(struct scst_cmd *cmd)
 		goto out;
 	}
 
-	virt_dev = (struct scst_vdisk_dev *)cmd->dev->dh_priv;
+	virt_dev = cmd->dev->dh_priv;
 	/* ToDo when you have > 8TB ROM device. */
 	nblocks = (uint32_t)virt_dev->nblocks;
 
@@ -2488,8 +2481,7 @@ out:
 
 static void vdisk_exec_prevent_allow_medium_removal(struct scst_cmd *cmd)
 {
-	struct scst_vdisk_dev *virt_dev =
-		(struct scst_vdisk_dev *)cmd->dev->dh_priv;
+	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 
 	TRACE_DBG("PERSIST/PREVENT 0x%02x", cmd->cdb[4]);
 
@@ -2504,8 +2496,7 @@ static int vdisk_fsync(struct scst_vdisk_thr *thr, loff_t loff,
 	loff_t len, struct scst_cmd *cmd, struct scst_device *dev)
 {
 	int res = 0;
-	struct scst_vdisk_dev *virt_dev =
-		(struct scst_vdisk_dev *)dev->dh_priv;
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 	struct file *file;
 
 	TRACE_ENTRY();
@@ -2574,8 +2565,7 @@ static void vdisk_exec_read(struct scst_cmd *cmd,
 	loff_t err;
 	ssize_t length, full_len;
 	uint8_t __user *address;
-	struct scst_vdisk_dev *virt_dev =
-	    (struct scst_vdisk_dev *)cmd->dev->dh_priv;
+	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	struct file *fd = thr->fd;
 	struct iovec *iv;
 	int iv_count, i;
@@ -2689,8 +2679,7 @@ static void vdisk_exec_write(struct scst_cmd *cmd,
 	loff_t err;
 	ssize_t length, full_len, saved_full_len;
 	uint8_t __user *address;
-	struct scst_vdisk_dev *virt_dev =
-	    (struct scst_vdisk_dev *)cmd->dev->dh_priv;
+	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	struct file *fd = thr->fd;
 	struct iovec *iv, *eiv;
 	int i, iv_count, eiv_count;
@@ -2904,8 +2893,7 @@ static void blockio_endio(struct bio *bio, int error)
 static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 	u64 lba_start, int write)
 {
-	struct scst_vdisk_dev *virt_dev =
-		(struct scst_vdisk_dev *)cmd->dev->dh_priv;
+	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	struct block_device *bdev = thr->bdev;
 	struct request_queue *q = bdev_get_queue(bdev);
 	int length, max_nr_vecs = 0, offset;
@@ -3078,8 +3066,7 @@ static void vdisk_exec_verify(struct scst_cmd *cmd,
 	ssize_t length, len_mem = 0;
 	uint8_t *address_sav, *address;
 	int compare;
-	struct scst_vdisk_dev *virt_dev =
-	    (struct scst_vdisk_dev *)cmd->dev->dh_priv;
+	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	struct file *fd = thr->fd;
 	uint8_t *mem_verify = NULL;
 
@@ -3194,8 +3181,7 @@ static int vdisk_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 	if ((mcmd->fn == SCST_LUN_RESET) || (mcmd->fn == SCST_TARGET_RESET)) {
 		/* Restore default values */
 		struct scst_device *dev = tgt_dev->dev;
-		struct scst_vdisk_dev *virt_dev =
-			(struct scst_vdisk_dev *)dev->dh_priv;
+		struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 
 		dev->tst = DEF_TST;
 		dev->d_sense = DEF_DSENSE;
@@ -3211,8 +3197,7 @@ static int vdisk_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 		spin_unlock(&virt_dev->flags_lock);
 	} else if (mcmd->fn == SCST_PR_ABORT_ALL) {
 		struct scst_device *dev = tgt_dev->dev;
-		struct scst_vdisk_dev *virt_dev =
-			(struct scst_vdisk_dev *)dev->dh_priv;
+		struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 		spin_lock(&virt_dev->flags_lock);
 		virt_dev->prevent_allow_medium_removal = 0;
 		spin_unlock(&virt_dev->flags_lock);
@@ -4035,7 +4020,7 @@ static int vcdrom_sysfs_process_filename_store(struct scst_sysfs_work_item *work
 	TRACE_ENTRY();
 
 	/* It's safe, since we taken dev_kobj and dh_priv NULLed in attach() */
-	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
+	virt_dev = dev->dh_priv;
 
 	res = vcdrom_change(virt_dev, work->buf);
 
@@ -4098,7 +4083,7 @@ static ssize_t vdev_sysfs_size_show(struct kobject *kobj,
 	TRACE_ENTRY();
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
-	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
+	virt_dev = dev->dh_priv;
 
 	pos = sprintf(buf, "%lld\n", virt_dev->file_size / 1024 / 1024);
 
@@ -4116,7 +4101,7 @@ static ssize_t vdisk_sysfs_blocksize_show(struct kobject *kobj,
 	TRACE_ENTRY();
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
-	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
+	virt_dev = dev->dh_priv;
 
 	pos = sprintf(buf, "%d\n%s", (int)virt_dev->block_size,
 		(virt_dev->block_size == DEF_DISK_BLOCKSIZE) ? "" :
@@ -4136,7 +4121,7 @@ static ssize_t vdisk_sysfs_rd_only_show(struct kobject *kobj,
 	TRACE_ENTRY();
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
-	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
+	virt_dev = dev->dh_priv;
 
 	pos = sprintf(buf, "%d\n%s", virt_dev->rd_only ? 1 : 0,
 		(virt_dev->rd_only == DEF_RD_ONLY) ? "" :
@@ -4156,7 +4141,7 @@ static ssize_t vdisk_sysfs_wt_show(struct kobject *kobj,
 	TRACE_ENTRY();
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
-	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
+	virt_dev = dev->dh_priv;
 
 	pos = sprintf(buf, "%d\n%s", virt_dev->wt_flag ? 1 : 0,
 		(virt_dev->wt_flag == DEF_WRITE_THROUGH) ? "" :
@@ -4176,7 +4161,7 @@ static ssize_t vdisk_sysfs_tp_show(struct kobject *kobj,
 	TRACE_ENTRY();
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
-	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
+	virt_dev = dev->dh_priv;
 
 	pos = sprintf(buf, "%d\n%s", virt_dev->thin_provisioned ? 1 : 0,
 		(virt_dev->thin_provisioned == DEF_THIN_PROVISIONED) ? "" :
@@ -4196,7 +4181,7 @@ static ssize_t vdisk_sysfs_nv_cache_show(struct kobject *kobj,
 	TRACE_ENTRY();
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
-	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
+	virt_dev = dev->dh_priv;
 
 	pos = sprintf(buf, "%d\n%s", virt_dev->nv_cache ? 1 : 0,
 		(virt_dev->nv_cache == DEF_NV_CACHE) ? "" :
@@ -4216,7 +4201,7 @@ static ssize_t vdisk_sysfs_o_direct_show(struct kobject *kobj,
 	TRACE_ENTRY();
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
-	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
+	virt_dev = dev->dh_priv;
 
 	pos = sprintf(buf, "%d\n%s", virt_dev->o_direct_flag ? 1 : 0,
 		(virt_dev->o_direct_flag == DEF_O_DIRECT) ? "" :
@@ -4236,7 +4221,7 @@ static ssize_t vdisk_sysfs_removable_show(struct kobject *kobj,
 	TRACE_ENTRY();
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
-	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
+	virt_dev = dev->dh_priv;
 
 	pos = sprintf(buf, "%d\n", virt_dev->removable ? 1 : 0);
 
@@ -4263,7 +4248,7 @@ static int vdev_sysfs_process_get_filename(struct scst_sysfs_work_item *work)
 		goto out_put;
 	}
 
-	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
+	virt_dev = dev->dh_priv;
 
 	if (virt_dev == NULL)
 		goto out_unlock;
@@ -4331,7 +4316,7 @@ static int vdisk_sysfs_process_resync_size_store(
 	TRACE_ENTRY();
 
 	/* It's safe, since we taken dev_kobj and dh_priv NULLed in attach() */
-	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
+	virt_dev = dev->dh_priv;
 
 	res = vdisk_resync_size(virt_dev);
 
@@ -4380,7 +4365,7 @@ static ssize_t vdev_sysfs_t10_dev_id_store(struct kobject *kobj,
 	TRACE_ENTRY();
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
-	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
+	virt_dev = dev->dh_priv;
 
 	write_lock_bh(&vdisk_t10_dev_id_rwlock);
 
@@ -4429,7 +4414,7 @@ static ssize_t vdev_sysfs_t10_dev_id_show(struct kobject *kobj,
 	TRACE_ENTRY();
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
-	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
+	virt_dev = dev->dh_priv;
 
 	read_lock_bh(&vdisk_t10_dev_id_rwlock);
 	pos = sprintf(buf, "%s\n%s", virt_dev->t10_dev_id,
@@ -4450,7 +4435,7 @@ static ssize_t vdev_sysfs_usn_show(struct kobject *kobj,
 	TRACE_ENTRY();
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
-	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
+	virt_dev = dev->dh_priv;
 
 	pos = sprintf(buf, "%s\n", virt_dev->usn);
 
