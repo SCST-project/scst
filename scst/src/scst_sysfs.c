@@ -803,10 +803,9 @@ static ssize_t scst_tgtt_trace_level_store(struct kobject *kobj,
 
 	tgtt = container_of(kobj, struct scst_tgt_template, tgtt_kobj);
 
-	if (mutex_lock_interruptible(&scst_log_mutex) != 0) {
-		res = -EINTR;
+	res = mutex_lock_interruptible(&scst_log_mutex);
+	if (res)
 		goto out;
-	}
 
 	res = scst_write_trace(buf, count, tgtt->trace_flags,
 		tgtt->default_trace_flags, tgtt->name, tgtt->trace_tbl);
@@ -951,7 +950,7 @@ static ssize_t scst_tgtt_mgmt_store(struct kobject *kobj,
 	}
 
 	res = scst_alloc_sysfs_work(scst_tgtt_mgmt_store_work_fn, false, &work);
-	if (res != 0)
+	if (res)
 		goto out_free;
 
 	work->buf = buffer;
@@ -982,7 +981,7 @@ int scst_tgtt_sysfs_create(struct scst_tgt_template *tgtt)
 
 	res = kobject_init_and_add(&tgtt->tgtt_kobj, &tgtt_ktype,
 			scst_targets_kobj, tgtt->name);
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("Can't add tgtt %s to sysfs", tgtt->name);
 		goto out;
 	}
@@ -990,7 +989,7 @@ int scst_tgtt_sysfs_create(struct scst_tgt_template *tgtt)
 	if (tgtt->add_target != NULL) {
 		res = sysfs_create_file(&tgtt->tgtt_kobj,
 				&scst_tgtt_mgmt.attr);
-		if (res != 0) {
+		if (res) {
 			PRINT_ERROR("Can't add mgmt attr for target driver %s",
 				tgtt->name);
 			goto out_del;
@@ -1010,7 +1009,7 @@ int scst_tgtt_sysfs_create(struct scst_tgt_template *tgtt)
 	if (tgtt->trace_flags != NULL) {
 		res = sysfs_create_file(&tgtt->tgtt_kobj,
 				&tgtt_trace_attr.attr);
-		if (res != 0) {
+		if (res) {
 			PRINT_ERROR("Can't add trace_flag for target "
 				"driver %s", tgtt->name);
 			goto out_del;
@@ -1122,13 +1121,12 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 	}
 
 	res = scst_suspend_activity(true);
-	if (res != 0)
+	if (res)
 		goto out;
 
-	if (mutex_lock_interruptible(&scst_mutex) != 0) {
-		res = -EINTR;
+	res = mutex_lock_interruptible(&scst_mutex);
+	if (res)
 		goto out_resume;
-	}
 
 	/* Check if tgt and acg not already freed while we were coming here */
 	if (scst_check_tgt_acg_ptrs(tgt, acg) != 0)
@@ -1215,7 +1213,7 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 			}
 
 			res = strict_strtoul(pp, 0, &val);
-			if (res != 0) {
+			if (res) {
 				PRINT_ERROR("strict_strtoul() for %s failed: %d "
 					"(device %s)", pp, res, dev->virt_name);
 				goto out_unlock;
@@ -1251,7 +1249,7 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 				/* Replace */
 				res = scst_acg_del_lun(acg, acg_dev->lun,
 						false);
-				if (res != 0)
+				if (res)
 					goto out_unlock;
 
 				dev_replaced = true;
@@ -1261,7 +1259,7 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 		res = scst_acg_add_lun(acg,
 			tgt_kobj ? tgt->tgt_luns_kobj : acg->luns_kobj,
 			dev, virt_lun, read_only, !dev_replaced, NULL);
-		if (res != 0)
+		if (res)
 			goto out_unlock;
 
 		if (dev_replaced) {
@@ -1287,7 +1285,7 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 		virt_lun = simple_strtoul(p, &p, 0);
 
 		res = scst_acg_del_lun(acg, virt_lun, true);
-		if (res != 0)
+		if (res)
 			goto out_unlock;
 		break;
 	case SCST_LUN_ACTION_CLEAR:
@@ -1341,7 +1339,7 @@ static ssize_t __scst_acg_mgmt_store(struct scst_acg *acg,
 	}
 
 	res = scst_alloc_sysfs_work(sysfs_work_fn, false, &work);
-	if (res != 0)
+	if (res)
 		goto out_free;
 
 	work->buf = buffer;
@@ -1515,13 +1513,12 @@ static int __scst_acg_process_io_grouping_type_store(struct scst_tgt *tgt,
 		io_grouping_type);
 
 	res = scst_suspend_activity(true);
-	if (res != 0)
+	if (res)
 		goto out;
 
-	if (mutex_lock_interruptible(&scst_mutex) != 0) {
-		res = -EINTR;
+	res = mutex_lock_interruptible(&scst_mutex);
+	if (res)
 		goto out_resume;
-	}
 
 	/* Check if tgt and acg not already freed while we were coming here */
 	if (scst_check_tgt_acg_ptrs(tgt, acg) != 0)
@@ -1574,7 +1571,7 @@ static ssize_t __scst_acg_io_grouping_type_store(struct scst_acg *acg,
 		io_grouping_type = SCST_IO_GROUPING_NEVER;
 	else {
 		res = strict_strtol(buf, 0, &io_grouping_type);
-		if ((res != 0) || (io_grouping_type <= 0)) {
+		if (res || io_grouping_type <= 0) {
 			PRINT_ERROR("Unknown or not allowed I/O grouping type "
 				"%s", buf);
 			res = -EINVAL;
@@ -1587,7 +1584,7 @@ static ssize_t __scst_acg_io_grouping_type_store(struct scst_acg *acg,
 
 	res = scst_alloc_sysfs_work(__scst_acg_io_grouping_type_store_work_fn,
 					false, &work);
-	if (res != 0)
+	if (res)
 		goto out;
 
 	work->tgt = acg->tgt;
@@ -1623,7 +1620,7 @@ static ssize_t scst_tgt_io_grouping_type_store(struct kobject *kobj,
 	acg = tgt->default_acg;
 
 	res = __scst_acg_io_grouping_type_store(acg, buf, count);
-	if (res != 0)
+	if (res)
 		goto out;
 
 	res = count;
@@ -1658,10 +1655,9 @@ static int __scst_acg_process_cpu_mask_store(struct scst_tgt *tgt,
 
 	TRACE_DBG("tgt %p, acg %p", tgt, acg);
 
-	if (mutex_lock_interruptible(&scst_mutex) != 0) {
-		res = -EINTR;
+	res = mutex_lock_interruptible(&scst_mutex);
+	if (res)
 		goto out;
-	}
 
 	/* Check if tgt and acg not already freed while we were coming here */
 	if (scst_check_tgt_acg_ptrs(tgt, acg) != 0)
@@ -1737,7 +1733,7 @@ static ssize_t __scst_acg_cpu_mask_store(struct scst_acg *acg,
 
 	res = scst_alloc_sysfs_work(__scst_acg_cpu_mask_store_work_fn,
 					false, &work);
-	if (res != 0)
+	if (res)
 		goto out;
 
 	/*
@@ -1746,7 +1742,7 @@ static ssize_t __scst_acg_cpu_mask_store(struct scst_acg *acg,
 	 */
 	res = __bitmap_parse(buf, count, 0, cpumask_bits(&work->cpu_mask),
 				nr_cpumask_bits);
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("__bitmap_parse() failed: %d", res);
 		goto out_release;
 	}
@@ -1790,7 +1786,7 @@ static ssize_t scst_tgt_cpu_mask_store(struct kobject *kobj,
 	acg = tgt->default_acg;
 
 	res = __scst_acg_cpu_mask_store(acg, buf, count);
-	if (res != 0)
+	if (res)
 		goto out;
 
 	res = count;
@@ -1841,13 +1837,12 @@ static int scst_process_ini_group_mgmt_store(char *buffer,
 	}
 
 	res = scst_suspend_activity(true);
-	if (res != 0)
+	if (res)
 		goto out;
 
-	if (mutex_lock_interruptible(&scst_mutex) != 0) {
-		res = -EINTR;
+	res = mutex_lock_interruptible(&scst_mutex);
+	if (res)
 		goto out_resume;
-	}
 
 	/* Check if our pointer is still alive */
 	if (scst_check_tgt_acg_ptrs(tgt, NULL) != 0)
@@ -1941,7 +1936,7 @@ static ssize_t scst_ini_group_mgmt_store(struct kobject *kobj,
 
 	res = scst_alloc_sysfs_work(scst_ini_group_mgmt_store_work_fn, false,
 					&work);
-	if (res != 0)
+	if (res)
 		goto out_free;
 
 	work->buf = buffer;
@@ -2014,7 +2009,7 @@ static int scst_process_tgt_enable_store(struct scst_tgt *tgt, bool enable)
 	if (enable) {
 		if (tgt->rel_tgt_id == 0) {
 			res = gen_relative_target_port_id(&tgt->rel_tgt_id);
-			if (res != 0)
+			if (res)
 				goto out_put;
 			PRINT_INFO("Using autogenerated rel ID %d for target "
 				"%s", tgt->rel_tgt_id, tgt->tgt_name);
@@ -2077,7 +2072,7 @@ static ssize_t scst_tgt_enable_store(struct kobject *kobj,
 
 	res = scst_alloc_sysfs_work(scst_tgt_enable_store_work_fn, false,
 					&work);
-	if (res != 0)
+	if (res)
 		goto out;
 
 	work->tgt = tgt;
@@ -2175,7 +2170,7 @@ static ssize_t scst_rel_tgt_id_store(struct kobject *kobj,
 	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 
 	res = strict_strtoul(buf, 0, &rel_tgt_id);
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("%s", "Wrong rel_tgt_id");
 		res = -EINVAL;
 		goto out;
@@ -2183,7 +2178,7 @@ static ssize_t scst_rel_tgt_id_store(struct kobject *kobj,
 
 	res = scst_alloc_sysfs_work(scst_process_rel_tgt_id_store, false,
 					&work);
-	if (res != 0)
+	if (res)
 		goto out;
 
 	work->tgt = tgt;
@@ -2216,7 +2211,7 @@ int scst_tgt_sysfs_create(struct scst_tgt *tgt)
 
 	res = kobject_init_and_add(&tgt->tgt_kobj, &tgt_ktype,
 			&tgt->tgtt->tgtt_kobj, tgt->tgt_name);
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("Can't add tgt %s to sysfs", tgt->tgt_name);
 		goto out;
 	}
@@ -2225,7 +2220,7 @@ int scst_tgt_sysfs_create(struct scst_tgt *tgt)
 	    (tgt->tgtt->is_target_enabled != NULL)) {
 		res = sysfs_create_file(&tgt->tgt_kobj,
 				&tgt_enable_attr.attr);
-		if (res != 0) {
+		if (res) {
 			PRINT_ERROR("Can't add attr %s to sysfs",
 				tgt_enable_attr.attr.name);
 			goto out_err;
@@ -2245,7 +2240,7 @@ int scst_tgt_sysfs_create(struct scst_tgt *tgt)
 	}
 
 	res = sysfs_create_file(tgt->tgt_luns_kobj, &scst_luns_mgmt.attr);
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("Can't add attribute %s for tgt %s",
 			scst_luns_mgmt.attr.name, tgt->tgt_name);
 		goto out_err;
@@ -2261,7 +2256,7 @@ int scst_tgt_sysfs_create(struct scst_tgt *tgt)
 
 	res = sysfs_create_file(tgt->tgt_ini_grp_kobj,
 			&scst_ini_group_mgmt.attr);
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("Can't add attribute %s for tgt %s",
 			scst_ini_group_mgmt.attr.name, tgt->tgt_name);
 		goto out_err;
@@ -2269,7 +2264,7 @@ int scst_tgt_sysfs_create(struct scst_tgt *tgt)
 
 	res = sysfs_create_file(&tgt->tgt_kobj,
 			&scst_rel_tgt_id.attr);
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("Can't add attribute %s for tgt %s",
 			scst_rel_tgt_id.attr.name, tgt->tgt_name);
 		goto out_err;
@@ -2277,7 +2272,7 @@ int scst_tgt_sysfs_create(struct scst_tgt *tgt)
 
 	res = sysfs_create_file(&tgt->tgt_kobj,
 			&scst_tgt_addr_method.attr);
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("Can't add attribute %s for tgt %s",
 			scst_tgt_addr_method.attr.name, tgt->tgt_name);
 		goto out_err;
@@ -2285,14 +2280,14 @@ int scst_tgt_sysfs_create(struct scst_tgt *tgt)
 
 	res = sysfs_create_file(&tgt->tgt_kobj,
 			&scst_tgt_io_grouping_type.attr);
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("Can't add attribute %s for tgt %s",
 			scst_tgt_io_grouping_type.attr.name, tgt->tgt_name);
 		goto out_err;
 	}
 
 	res = sysfs_create_file(&tgt->tgt_kobj, &scst_tgt_cpu_mask.attr);
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("Can't add attribute %s for tgt %s",
 			scst_tgt_cpu_mask.attr.name, tgt->tgt_name);
 		goto out_err;
@@ -2418,13 +2413,12 @@ static int scst_process_dev_sysfs_threads_data_store(
 		threads_num, threads_pool_type);
 
 	res = scst_suspend_activity(true);
-	if (res != 0)
+	if (res)
 		goto out;
 
-	if (mutex_lock_interruptible(&scst_mutex) != 0) {
-		res = -EINTR;
+	res = mutex_lock_interruptible(&scst_mutex);
+	if (res)
 		goto out_resume;
-	}
 
 	/* Check if our pointer is still alive */
 	if (scst_check_dev_ptr(dev) != 0)
@@ -2436,7 +2430,7 @@ static int scst_process_dev_sysfs_threads_data_store(
 	dev->threads_pool_type = threads_pool_type;
 
 	res = scst_create_dev_threads(dev);
-	if (res != 0)
+	if (res)
 		goto out_unlock;
 
 	if (oldtn != dev->threads_num)
@@ -2520,7 +2514,7 @@ static ssize_t scst_dev_sysfs_threads_num_store(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
 	res = strict_strtol(buf, 0, &newtn);
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("strict_strtol() for %s failed: %d ", buf, res);
 		goto out;
 	}
@@ -2532,12 +2526,12 @@ static ssize_t scst_dev_sysfs_threads_num_store(struct kobject *kobj,
 
 	res = scst_dev_sysfs_check_threads_data(dev, newtn,
 		dev->threads_pool_type, &stop);
-	if ((res != 0) || stop)
+	if (res || stop)
 		goto out;
 
 	res = scst_alloc_sysfs_work(scst_dev_sysfs_threads_data_store_work_fn,
 					false, &work);
-	if (res != 0)
+	if (res)
 		goto out;
 
 	work->dev = dev;
@@ -2621,12 +2615,12 @@ static ssize_t scst_dev_sysfs_threads_pool_type_store(struct kobject *kobj,
 
 	res = scst_dev_sysfs_check_threads_data(dev, dev->threads_num,
 		newtpt, &stop);
-	if ((res != 0) || stop)
+	if (res || stop)
 		goto out;
 
 	res = scst_alloc_sysfs_work(scst_dev_sysfs_threads_data_store_work_fn,
 					false, &work);
-	if (res != 0)
+	if (res)
 		goto out;
 
 	work->dev = dev;
@@ -2677,7 +2671,7 @@ int scst_devt_dev_sysfs_create(struct scst_device *dev)
 
 	res = sysfs_create_link(&dev->dev_kobj,
 			&dev->handler->devt_kobj, "handler");
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("Can't create handler link for dev %s",
 			dev->virt_name);
 		goto out;
@@ -2685,7 +2679,7 @@ int scst_devt_dev_sysfs_create(struct scst_device *dev)
 
 	res = sysfs_create_link(&dev->handler->devt_kobj,
 			&dev->dev_kobj, dev->virt_name);
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("Can't create handler link for dev %s",
 			dev->virt_name);
 		goto out_err;
@@ -2694,7 +2688,7 @@ int scst_devt_dev_sysfs_create(struct scst_device *dev)
 	if (dev->handler->threads_num >= 0) {
 		res = sysfs_create_file(&dev->dev_kobj,
 				&dev_threads_num_attr.attr);
-		if (res != 0) {
+		if (res) {
 			PRINT_ERROR("Can't add dev attr %s for dev %s",
 				dev_threads_num_attr.attr.name,
 				dev->virt_name);
@@ -2702,7 +2696,7 @@ int scst_devt_dev_sysfs_create(struct scst_device *dev)
 		}
 		res = sysfs_create_file(&dev->dev_kobj,
 				&dev_threads_pool_type_attr.attr);
-		if (res != 0) {
+		if (res) {
 			PRINT_ERROR("Can't add dev attr %s for dev %s",
 				dev_threads_pool_type_attr.attr.name,
 				dev->virt_name);
@@ -2772,7 +2766,7 @@ int scst_dev_sysfs_create(struct scst_device *dev)
 
 	res = kobject_init_and_add(&dev->dev_kobj, &scst_dev_ktype,
 				      scst_devices_kobj, dev->virt_name);
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("Can't add device %s to sysfs", dev->virt_name);
 		goto out;
 	}
@@ -2789,7 +2783,7 @@ int scst_dev_sysfs_create(struct scst_device *dev)
 	if (dev->scsi_dev != NULL) {
 		res = sysfs_create_link(&dev->dev_kobj,
 			&dev->scsi_dev->sdev_dev.kobj, "scsi_device");
-		if (res != 0) {
+		if (res) {
 			PRINT_ERROR("Can't create scsi_device link for dev %s",
 				dev->virt_name);
 			goto out_del;
@@ -2800,7 +2794,7 @@ int scst_dev_sysfs_create(struct scst_device *dev)
 	if (dev->scsi_dev == NULL) {
 		res = sysfs_create_file(&dev->dev_kobj,
 				&dev_dump_prs_attr.attr);
-		if (res != 0) {
+		if (res) {
 			PRINT_ERROR("Can't create attr %s for dev %s",
 				dev_dump_prs_attr.attr.name, dev->virt_name);
 			goto out_del;
@@ -3024,7 +3018,7 @@ int scst_tgt_dev_sysfs_create(struct scst_tgt_dev *tgt_dev)
 	res = kobject_init_and_add(&tgt_dev->tgt_dev_kobj, &scst_tgt_dev_ktype,
 			      &tgt_dev->sess->sess_kobj, "lun%lld",
 			      (unsigned long long)tgt_dev->lun);
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("Can't add tgt_dev %lld to sysfs",
 			(unsigned long long)tgt_dev->lun);
 		goto out;
@@ -3234,10 +3228,9 @@ static int scst_sess_zero_latency(struct scst_sysfs_work_item *work)
 
 	TRACE_ENTRY();
 
-	if (mutex_lock_interruptible(&scst_mutex) != 0) {
-		res = -EINTR;
+	res = mutex_lock_interruptible(&scst_mutex);
+	if (res)
 		goto out_put;
-	}
 
 	PRINT_INFO("Zeroing latency statistics for initiator "
 		"%s", sess->initiator_name);
@@ -3293,7 +3286,7 @@ static ssize_t scst_sess_latency_store(struct kobject *kobj,
 	sess = container_of(kobj, struct scst_session, sess_kobj);
 
 	res = scst_alloc_sysfs_work(scst_sess_zero_latency, false, &work);
-	if (res != 0)
+	if (res)
 		goto out;
 
 	work->sess = sess;
@@ -3335,10 +3328,9 @@ static int scst_sysfs_sess_get_active_commands(struct scst_session *sess)
 
 	TRACE_ENTRY();
 
-	if (mutex_lock_interruptible(&scst_mutex) != 0) {
-		res = -EINTR;
+	res = mutex_lock_interruptible(&scst_mutex);
+	if (res)
 		goto out_put;
-	}
 
 	for (t = SESS_TGT_DEV_LIST_HASH_SIZE-1; t >= 0; t--) {
 		struct list_head *head = &sess->sess_tgt_dev_list[t];
@@ -3375,7 +3367,7 @@ static ssize_t scst_sess_sysfs_active_commands_show(struct kobject *kobj,
 
 	res = scst_alloc_sysfs_work(scst_sysfs_sess_get_active_commands_work_fn,
 			true, &work);
-	if (res != 0)
+	if (res)
 		goto out;
 
 	work->sess = sess;
@@ -3454,7 +3446,7 @@ static int scst_create_sess_luns_link(struct scst_session *sess)
 		res = sysfs_create_link(&sess->sess_kobj,
 				sess->acg->luns_kobj, "luns");
 
-	if (res != 0)
+	if (res)
 		PRINT_ERROR("Can't create luns link for initiator %s",
 			sess->initiator_name);
 
@@ -3510,7 +3502,7 @@ restart:
 
 	res = kobject_init_and_add(&sess->sess_kobj, &scst_session_ktype,
 			      sess->tgt->tgt_sess_kobj, name);
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("Can't add session %s to sysfs", name);
 		goto out_free;
 	}
@@ -3668,7 +3660,7 @@ int scst_acg_dev_sysfs_create(struct scst_acg_dev *acg_dev,
 
 	res = kobject_init_and_add(&acg_dev->acg_dev_kobj, &acg_dev_ktype,
 				      parent, "%llu", acg_dev->lun);
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("Can't add acg_dev %p to sysfs", acg_dev);
 		goto out;
 	}
@@ -3680,7 +3672,7 @@ int scst_acg_dev_sysfs_create(struct scst_acg_dev *acg_dev,
 
 	res = sysfs_create_link(acg_dev->dev->dev_exp_kobj,
 			   &acg_dev->acg_dev_kobj, acg_dev->acg_dev_link_name);
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("Can't create acg %s LUN link",
 			acg_dev->acg->acg_name);
 		goto out_del;
@@ -3688,7 +3680,7 @@ int scst_acg_dev_sysfs_create(struct scst_acg_dev *acg_dev,
 
 	res = sysfs_create_link(&acg_dev->acg_dev_kobj,
 			&acg_dev->dev->dev_kobj, "device");
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("Can't create acg %s device link",
 			acg_dev->acg->acg_name);
 		goto out_del;
@@ -3786,13 +3778,12 @@ static int scst_process_acg_ini_mgmt_store(char *buffer,
 		}
 
 	res = scst_suspend_activity(true);
-	if (res != 0)
+	if (res)
 		goto out;
 
-	if (mutex_lock_interruptible(&scst_mutex) != 0) {
-		res = -EINTR;
+	res = mutex_lock_interruptible(&scst_mutex);
+	if (res)
 		goto out_resume;
-	}
 
 	/* Check if tgt and acg not already freed while we were coming here */
 	if (scst_check_tgt_acg_ptrs(tgt, acg) != 0)
@@ -3817,7 +3808,7 @@ static int scst_process_acg_ini_mgmt_store(char *buffer,
 		}
 
 		res = scst_acg_add_acn(acg, name);
-		if (res != 0)
+		if (res)
 			goto out_unlock;
 		break;
 	case SCST_ACG_ACTION_INI_DEL:
@@ -3908,7 +3899,7 @@ static int scst_process_acg_ini_mgmt_store(char *buffer,
 		scst_del_free_acn(acn, false);
 
 		res = scst_acg_add_acn(acg_dest, name);
-		if (res != 0)
+		if (res)
 			goto out_unlock;
 		break;
 	}
@@ -4011,7 +4002,7 @@ static ssize_t scst_acg_io_grouping_type_store(struct kobject *kobj,
 	acg = container_of(kobj, struct scst_acg, acg_kobj);
 
 	res = __scst_acg_io_grouping_type_store(acg, buf, count);
-	if (res != 0)
+	if (res)
 		goto out;
 
 	res = count;
@@ -4045,7 +4036,7 @@ static ssize_t scst_acg_cpu_mask_store(struct kobject *kobj,
 	acg = container_of(kobj, struct scst_acg, acg_kobj);
 
 	res = __scst_acg_cpu_mask_store(acg, buf, count);
-	if (res != 0)
+	if (res)
 		goto out;
 
 	res = count;
@@ -4107,7 +4098,7 @@ int scst_acg_sysfs_create(struct scst_tgt *tgt,
 
 	res = kobject_init_and_add(&acg->acg_kobj, &acg_ktype,
 		tgt->tgt_ini_grp_kobj, acg->acg_name);
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("Can't add acg '%s' to sysfs", acg->acg_name);
 		goto out;
 	}
@@ -4121,7 +4112,7 @@ int scst_acg_sysfs_create(struct scst_tgt *tgt,
 	}
 
 	res = sysfs_create_file(acg->luns_kobj, &scst_acg_luns_mgmt.attr);
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
 			scst_acg_luns_mgmt.attr.name, tgt->tgt_name);
 		goto out_del;
@@ -4138,28 +4129,28 @@ int scst_acg_sysfs_create(struct scst_tgt *tgt,
 
 	res = sysfs_create_file(acg->initiators_kobj,
 			&scst_acg_ini_mgmt.attr);
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
 			scst_acg_ini_mgmt.attr.name, tgt->tgt_name);
 		goto out_del;
 	}
 
 	res = sysfs_create_file(&acg->acg_kobj, &scst_acg_addr_method.attr);
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
 			scst_acg_addr_method.attr.name, tgt->tgt_name);
 		goto out_del;
 	}
 
 	res = sysfs_create_file(&acg->acg_kobj, &scst_acg_io_grouping_type.attr);
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
 			scst_acg_io_grouping_type.attr.name, tgt->tgt_name);
 		goto out_del;
 	}
 
 	res = sysfs_create_file(&acg->acg_kobj, &scst_acg_cpu_mask.attr);
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
 			scst_acg_cpu_mask.attr.name, tgt->tgt_name);
 		goto out_del;
@@ -4230,7 +4221,7 @@ int scst_acn_sysfs_create(struct scst_acn *acn)
 	attr->store = NULL;
 
 	res = sysfs_create_file(acg->initiators_kobj, &attr->attr);
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("Unable to create acn '%s' for group '%s'",
 			acn->name, acg->acg_name);
 		kfree(attr->attr.name);
@@ -4307,7 +4298,7 @@ int scst_sgv_sysfs_create(struct sgv_pool *pool)
 
 	res = kobject_init_and_add(&pool->sgv_kobj, &sgv_pool_ktype,
 			scst_sgv_kobj, pool->name);
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("Can't add sgv pool %s to sysfs", pool->name);
 		goto out;
 	}
@@ -4405,10 +4396,9 @@ static ssize_t scst_devt_trace_level_store(struct kobject *kobj,
 
 	devt = container_of(kobj, struct scst_dev_type, devt_kobj);
 
-	if (mutex_lock_interruptible(&scst_log_mutex) != 0) {
-		res = -EINTR;
+	res = mutex_lock_interruptible(&scst_log_mutex);
+	if (res)
 		goto out;
-	}
 
 	res = scst_write_trace(buf, count, devt->trace_flags,
 		devt->default_trace_flags, devt->name, devt->trace_tbl);
@@ -4583,7 +4573,7 @@ static ssize_t __scst_devt_mgmt_store(struct kobject *kobj,
 	}
 
 	res = scst_alloc_sysfs_work(sysfs_work_fn, false, &work);
-	if (res != 0)
+	if (res)
 		goto out_free;
 
 	work->buf = buffer;
@@ -4670,10 +4660,9 @@ static int scst_process_devt_pass_through_mgmt_store(char *buffer,
 
 	TRACE_DBG("Dev %ld:%ld:%ld:%ld", host, channel, id, lun);
 
-	if (mutex_lock_interruptible(&scst_mutex) != 0) {
-		res = -EINTR;
+	res = mutex_lock_interruptible(&scst_mutex);
+	if (res)
 		goto out;
-	}
 
 	/* Check if devt not be already freed while we were coming here */
 	if (scst_check_devt_ptr(devt, &scst_dev_type_list) != 0)
@@ -4772,7 +4761,7 @@ int scst_devt_sysfs_create(struct scst_dev_type *devt)
 
 	res = kobject_init_and_add(&devt->devt_kobj, &scst_devt_ktype,
 			parent, devt->name);
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("Can't add devt %s to sysfs", devt->name);
 		goto out;
 	}
@@ -4784,7 +4773,7 @@ int scst_devt_sysfs_create(struct scst_dev_type *devt)
 		res = sysfs_create_file(&devt->devt_kobj,
 				&scst_devt_pass_through_mgmt.attr);
 	}
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("Can't add mgmt attr for dev handler %s",
 			devt->name);
 		goto out_err;
@@ -4803,7 +4792,7 @@ int scst_devt_sysfs_create(struct scst_dev_type *devt)
 	if (devt->trace_flags != NULL) {
 		res = sysfs_create_file(&devt->devt_kobj,
 				&devt_trace_attr.attr);
-		if (res != 0) {
+		if (res) {
 			PRINT_ERROR("Can't add devt trace_flag for dev "
 				"handler %s", devt->name);
 			goto out_err;
@@ -4874,10 +4863,9 @@ static int scst_process_threads_store(int newtn)
 
 	TRACE_DBG("newtn %d", newtn);
 
-	if (mutex_lock_interruptible(&scst_mutex) != 0) {
-		res = -EINTR;
+	res = mutex_lock_interruptible(&scst_mutex);
+	if (res)
 		goto out;
-	}
 
 	oldtn = scst_main_cmd_threads.nr_threads;
 
@@ -4886,7 +4874,7 @@ static int scst_process_threads_store(int newtn)
 		scst_del_threads(&scst_main_cmd_threads, -delta);
 	else {
 		res = scst_add_threads(&scst_main_cmd_threads, NULL, NULL, delta);
-		if (res != 0)
+		if (res)
 			goto out_up;
 	}
 
@@ -4915,7 +4903,7 @@ static ssize_t scst_threads_store(struct kobject *kobj,
 	TRACE_ENTRY();
 
 	res = strict_strtol(buf, 0, &newtn);
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("strict_strtol() for %s failed: %d ", buf, res);
 		goto out;
 	}
@@ -4926,7 +4914,7 @@ static ssize_t scst_threads_store(struct kobject *kobj,
 	}
 
 	res = scst_alloc_sysfs_work(scst_threads_store_work_fn, false, &work);
-	if (res != 0)
+	if (res)
 		goto out;
 
 	work->new_threads_num = newtn;
@@ -4963,7 +4951,7 @@ static ssize_t scst_setup_id_store(struct kobject *kobj,
 	TRACE_ENTRY();
 
 	res = strict_strtoul(buf, 0, &val);
-	if (res != 0) {
+	if (res) {
 		PRINT_ERROR("strict_strtoul() for %s failed: %d ", buf, res);
 		goto out;
 	}
@@ -4994,10 +4982,9 @@ static ssize_t scst_main_trace_level_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
-	if (mutex_lock_interruptible(&scst_log_mutex) != 0) {
-		res = -EINTR;
+	res = mutex_lock_interruptible(&scst_log_mutex);
+	if (res)
 		goto out;
-	}
 
 	res = scst_write_trace(buf, count, &trace_flag,
 		SCST_DEFAULT_LOG_FLAGS, "scst", scst_local_trace_tbl);
@@ -5361,7 +5348,7 @@ int __init scst_sysfs_init(void)
 
 	res = kobject_init_and_add(&scst_sysfs_root_kobj,
 			&scst_sysfs_root_ktype, kernel_kobj, "%s", "scst_tgt");
-	if (res != 0)
+	if (res)
 		goto sysfs_root_add_error;
 
 	scst_targets_kobj = kobject_create_and_add("targets",
@@ -5380,7 +5367,7 @@ int __init scst_sysfs_init(void)
 
 	res = kobject_init_and_add(scst_sgv_kobj, &sgv_ktype,
 			&scst_sysfs_root_kobj, "%s", "sgv");
-	if (res != 0)
+	if (res)
 		goto sgv_kobj_add_error;
 
 	scst_handlers_kobj = kobject_create_and_add("handlers",
