@@ -295,12 +295,6 @@ out:
 
 #endif /* defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING) */
 
-static ssize_t scst_luns_mgmt_show(struct kobject *kobj,
-				   struct kobj_attribute *attr,
-				   char *buf);
-static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
-				    struct kobj_attribute *attr,
-				    const char *buf, size_t count);
 static ssize_t scst_ini_group_mgmt_show(struct kobject *kobj,
 				   struct kobj_attribute *attr,
 				   char *buf);
@@ -1120,24 +1114,329 @@ static struct kobj_type tgt_ktype = {
 	.release = scst_tgt_release,
 };
 
-static void scst_acg_release(struct kobject *kobj)
+static int __scst_process_luns_mgmt_store(char *buffer,
+	struct scst_tgt *tgt, struct scst_acg *acg, bool tgt_kobj)
 {
-	struct scst_acg *acg;
+	int res, read_only = 0, action;
+	char *p, *e = NULL;
+	unsigned int virt_lun;
+	struct scst_acg_dev *acg_dev = NULL, *acg_dev_tmp;
+	struct scst_device *d, *dev = NULL;
+	enum {
+		SCST_LUN_ACTION_ADD	= 1,
+		SCST_LUN_ACTION_DEL	= 2,
+		SCST_LUN_ACTION_REPLACE	= 3,
+		SCST_LUN_ACTION_CLEAR	= 4,
+	};
 
 	TRACE_ENTRY();
 
-	acg = container_of(kobj, struct scst_acg, acg_kobj);
-	if (acg->acg_kobj_release_cmpl)
-		complete_all(acg->acg_kobj_release_cmpl);
+	TRACE_DBG("buffer %s", buffer);
 
-	TRACE_EXIT();
-	return;
+	p = buffer;
+	if (p[strlen(p) - 1] == '\n')
+		p[strlen(p) - 1] = '\0';
+	if (strncasecmp("add", p, 3) == 0) {
+		p += 3;
+		action = SCST_LUN_ACTION_ADD;
+	} else if (strncasecmp("del", p, 3) == 0) {
+		p += 3;
+		action = SCST_LUN_ACTION_DEL;
+	} else if (!strncasecmp("replace", p, 7)) {
+		p += 7;
+		action = SCST_LUN_ACTION_REPLACE;
+	} else if (!strncasecmp("clear", p, 5)) {
+		p += 5;
+		action = SCST_LUN_ACTION_CLEAR;
+	} else {
+		PRINT_ERROR("Unknown action \"%s\"", p);
+		res = -EINVAL;
+		goto out;
+	}
+
+	res = scst_suspend_activity(true);
+	if (res != 0)
+		goto out;
+
+	if (mutex_lock_interruptible(&scst_mutex) != 0) {
+		res = -EINTR;
+		goto out_resume;
+	}
+
+	/* Check if tgt and acg not already freed while we were coming here */
+	if (scst_check_tgt_acg_ptrs(tgt, acg) != 0)
+		goto out_unlock;
+
+	if ((action != SCST_LUN_ACTION_CLEAR) &&
+	    (action != SCST_LUN_ACTION_DEL)) {
+		if (!isspace(*p)) {
+			PRINT_ERROR("%s", "Syntax error");
+			res = -EINVAL;
+			goto out_unlock;
+		}
+
+		while (isspace(*p) && *p != '\0')
+			p++;
+		e = p; /* save p */
+		while (!isspace(*e) && *e != '\0')
+			e++;
+		*e = '\0';
+
+		list_for_each_entry(d, &scst_dev_list, dev_list_entry) {
+			if (!strcmp(d->virt_name, p)) {
+				dev = d;
+				TRACE_DBG("Device %p (%s) found", dev, p);
+				break;
+			}
+		}
+		if (dev == NULL) {
+			PRINT_ERROR("Device '%s' not found", p);
+			res = -EINVAL;
+			goto out_unlock;
+		}
+	}
+
+	switch (action) {
+	case SCST_LUN_ACTION_ADD:
+	case SCST_LUN_ACTION_REPLACE:
+	{
+		bool dev_replaced = false;
+
+		e++;
+		while (isspace(*e) && *e != '\0')
+			e++;
+
+		virt_lun = simple_strtoul(e, &e, 0);
+		if (virt_lun > SCST_MAX_LUN) {
+			PRINT_ERROR("Too big LUN %d (max %d)", virt_lun,
+				SCST_MAX_LUN);
+			res = -EINVAL;
+			goto out_unlock;
+		}
+
+		while (isspace(*e) && *e != '\0')
+			e++;
+
+		while (1) {
+			char *pp;
+			unsigned long val;
+			char *param = scst_get_next_token_str(&e);
+			if (param == NULL)
+				break;
+
+			p = scst_get_next_lexem(&param);
+			if (*p == '\0') {
+				PRINT_ERROR("Syntax error at %s (device %s)",
+					param, dev->virt_name);
+				res = -EINVAL;
+				goto out_unlock;
+			}
+
+			pp = scst_get_next_lexem(&param);
+			if (*pp == '\0') {
+				PRINT_ERROR("Parameter %s value missed for device %s",
+					p, dev->virt_name);
+				res = -EINVAL;
+				goto out_unlock;
+			}
+
+			if (scst_get_next_lexem(&param)[0] != '\0') {
+				PRINT_ERROR("Too many parameter's %s values (device %s)",
+					p, dev->virt_name);
+				res = -EINVAL;
+				goto out_unlock;
+			}
+
+			res = strict_strtoul(pp, 0, &val);
+			if (res != 0) {
+				PRINT_ERROR("strict_strtoul() for %s failed: %d "
+					"(device %s)", pp, res, dev->virt_name);
+				goto out_unlock;
+			}
+
+			if (!strcasecmp("read_only", p)) {
+				read_only = val;
+				TRACE_DBG("READ ONLY %d", read_only);
+			} else {
+				PRINT_ERROR("Unknown parameter %s (device %s)",
+					p, dev->virt_name);
+				res = -EINVAL;
+				goto out_unlock;
+			}
+		}
+
+		acg_dev = NULL;
+		list_for_each_entry(acg_dev_tmp, &acg->acg_dev_list,
+				    acg_dev_list_entry) {
+			if (acg_dev_tmp->lun == virt_lun) {
+				acg_dev = acg_dev_tmp;
+				break;
+			}
+		}
+
+		if (acg_dev != NULL) {
+			if (action == SCST_LUN_ACTION_ADD) {
+				PRINT_ERROR("virt lun %d already exists in "
+					"group %s", virt_lun, acg->acg_name);
+				res = -EEXIST;
+				goto out_unlock;
+			} else {
+				/* Replace */
+				res = scst_acg_del_lun(acg, acg_dev->lun,
+						false);
+				if (res != 0)
+					goto out_unlock;
+
+				dev_replaced = true;
+			}
+		}
+
+		res = scst_acg_add_lun(acg,
+			tgt_kobj ? tgt->tgt_luns_kobj : acg->luns_kobj,
+			dev, virt_lun, read_only, !dev_replaced, NULL);
+		if (res != 0)
+			goto out_unlock;
+
+		if (dev_replaced) {
+			struct scst_tgt_dev *tgt_dev;
+
+			list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
+				dev_tgt_dev_list_entry) {
+				if ((tgt_dev->acg_dev->acg == acg) &&
+				    (tgt_dev->lun == virt_lun)) {
+					TRACE_MGMT_DBG("INQUIRY DATA HAS CHANGED"
+						" on tgt_dev %p", tgt_dev);
+					scst_gen_aen_or_ua(tgt_dev,
+						SCST_LOAD_SENSE(scst_sense_inquery_data_changed));
+				}
+			}
+		}
+
+		break;
+	}
+	case SCST_LUN_ACTION_DEL:
+		while (isspace(*p) && *p != '\0')
+			p++;
+		virt_lun = simple_strtoul(p, &p, 0);
+
+		res = scst_acg_del_lun(acg, virt_lun, true);
+		if (res != 0)
+			goto out_unlock;
+		break;
+	case SCST_LUN_ACTION_CLEAR:
+		PRINT_INFO("Removed all devices from group %s",
+			acg->acg_name);
+		list_for_each_entry_safe(acg_dev, acg_dev_tmp,
+					 &acg->acg_dev_list,
+					 acg_dev_list_entry) {
+			res = scst_acg_del_lun(acg, acg_dev->lun,
+				list_is_last(&acg_dev->acg_dev_list_entry,
+					     &acg->acg_dev_list));
+			if (res)
+				goto out_unlock;
+		}
+		break;
+	}
+
+	res = 0;
+
+out_unlock:
+	mutex_unlock(&scst_mutex);
+
+out_resume:
+	scst_resume_activity();
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
-static struct kobj_type acg_ktype = {
-	.sysfs_ops = &scst_sysfs_ops,
-	.release = scst_acg_release,
-};
+static int scst_luns_mgmt_store_work_fn(struct scst_sysfs_work_item *work)
+{
+	return __scst_process_luns_mgmt_store(work->buf, work->tgt, work->acg,
+			work->is_tgt_kobj);
+}
+
+static ssize_t __scst_acg_mgmt_store(struct scst_acg *acg,
+	const char *buf, size_t count, bool is_tgt_kobj,
+	int (*sysfs_work_fn)(struct scst_sysfs_work_item *))
+{
+	int res;
+	char *buffer;
+	struct scst_sysfs_work_item *work;
+
+	TRACE_ENTRY();
+
+	buffer = kasprintf(GFP_KERNEL, "%.*s", (int)count, buf);
+	if (buffer == NULL) {
+		res = -ENOMEM;
+		goto out;
+	}
+
+	res = scst_alloc_sysfs_work(sysfs_work_fn, false, &work);
+	if (res != 0)
+		goto out_free;
+
+	work->buf = buffer;
+	work->tgt = acg->tgt;
+	work->acg = acg;
+	work->is_tgt_kobj = is_tgt_kobj;
+
+	res = scst_sysfs_queue_wait_work(work);
+	if (res == 0)
+		res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_free:
+	kfree(buffer);
+	goto out;
+}
+
+static ssize_t __scst_luns_mgmt_store(struct scst_acg *acg,
+	bool tgt_kobj, const char *buf, size_t count)
+{
+	return __scst_acg_mgmt_store(acg, buf, count, tgt_kobj,
+			scst_luns_mgmt_store_work_fn);
+}
+
+static ssize_t scst_luns_mgmt_show(struct kobject *kobj,
+				   struct kobj_attribute *attr,
+				   char *buf)
+{
+	static const char help[] =
+		"Usage: echo \"add|del H:C:I:L lun [parameters]\" >mgmt\n"
+		"       echo \"add VNAME lun [parameters]\" >mgmt\n"
+		"       echo \"del lun\" >mgmt\n"
+		"       echo \"replace H:C:I:L lun [parameters]\" >mgmt\n"
+		"       echo \"replace VNAME lun [parameters]\" >mgmt\n"
+		"       echo \"clear\" >mgmt\n"
+		"\n"
+		"where parameters are one or more "
+		"param_name=value pairs separated by ';'\n"
+		"\nThe following parameters available: read_only.\n";
+
+	return sprintf(buf, "%s", help);
+}
+
+static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
+				    struct kobj_attribute *attr,
+				    const char *buf, size_t count)
+{
+	int res;
+	struct scst_acg *acg;
+	struct scst_tgt *tgt;
+
+	tgt = container_of(kobj->parent, struct scst_tgt, tgt_kobj);
+	acg = tgt->default_acg;
+
+	res = __scst_luns_mgmt_store(acg, true, buf, count);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
 
 static ssize_t __scst_acg_addr_method_show(struct scst_acg *acg, char *buf)
 {
@@ -3298,329 +3597,24 @@ out_del:
  ** ini_groups directory implementation.
  **/
 
-static int __scst_process_luns_mgmt_store(char *buffer,
-	struct scst_tgt *tgt, struct scst_acg *acg, bool tgt_kobj)
+static void scst_acg_release(struct kobject *kobj)
 {
-	int res, read_only = 0, action;
-	char *p, *e = NULL;
-	unsigned int virt_lun;
-	struct scst_acg_dev *acg_dev = NULL, *acg_dev_tmp;
-	struct scst_device *d, *dev = NULL;
-	enum {
-		SCST_LUN_ACTION_ADD	= 1,
-		SCST_LUN_ACTION_DEL	= 2,
-		SCST_LUN_ACTION_REPLACE	= 3,
-		SCST_LUN_ACTION_CLEAR	= 4,
-	};
-
-	TRACE_ENTRY();
-
-	TRACE_DBG("buffer %s", buffer);
-
-	p = buffer;
-	if (p[strlen(p) - 1] == '\n')
-		p[strlen(p) - 1] = '\0';
-	if (strncasecmp("add", p, 3) == 0) {
-		p += 3;
-		action = SCST_LUN_ACTION_ADD;
-	} else if (strncasecmp("del", p, 3) == 0) {
-		p += 3;
-		action = SCST_LUN_ACTION_DEL;
-	} else if (!strncasecmp("replace", p, 7)) {
-		p += 7;
-		action = SCST_LUN_ACTION_REPLACE;
-	} else if (!strncasecmp("clear", p, 5)) {
-		p += 5;
-		action = SCST_LUN_ACTION_CLEAR;
-	} else {
-		PRINT_ERROR("Unknown action \"%s\"", p);
-		res = -EINVAL;
-		goto out;
-	}
-
-	res = scst_suspend_activity(true);
-	if (res != 0)
-		goto out;
-
-	if (mutex_lock_interruptible(&scst_mutex) != 0) {
-		res = -EINTR;
-		goto out_resume;
-	}
-
-	/* Check if tgt and acg not already freed while we were coming here */
-	if (scst_check_tgt_acg_ptrs(tgt, acg) != 0)
-		goto out_unlock;
-
-	if ((action != SCST_LUN_ACTION_CLEAR) &&
-	    (action != SCST_LUN_ACTION_DEL)) {
-		if (!isspace(*p)) {
-			PRINT_ERROR("%s", "Syntax error");
-			res = -EINVAL;
-			goto out_unlock;
-		}
-
-		while (isspace(*p) && *p != '\0')
-			p++;
-		e = p; /* save p */
-		while (!isspace(*e) && *e != '\0')
-			e++;
-		*e = '\0';
-
-		list_for_each_entry(d, &scst_dev_list, dev_list_entry) {
-			if (!strcmp(d->virt_name, p)) {
-				dev = d;
-				TRACE_DBG("Device %p (%s) found", dev, p);
-				break;
-			}
-		}
-		if (dev == NULL) {
-			PRINT_ERROR("Device '%s' not found", p);
-			res = -EINVAL;
-			goto out_unlock;
-		}
-	}
-
-	switch (action) {
-	case SCST_LUN_ACTION_ADD:
-	case SCST_LUN_ACTION_REPLACE:
-	{
-		bool dev_replaced = false;
-
-		e++;
-		while (isspace(*e) && *e != '\0')
-			e++;
-
-		virt_lun = simple_strtoul(e, &e, 0);
-		if (virt_lun > SCST_MAX_LUN) {
-			PRINT_ERROR("Too big LUN %d (max %d)", virt_lun,
-				SCST_MAX_LUN);
-			res = -EINVAL;
-			goto out_unlock;
-		}
-
-		while (isspace(*e) && *e != '\0')
-			e++;
-
-		while (1) {
-			char *pp;
-			unsigned long val;
-			char *param = scst_get_next_token_str(&e);
-			if (param == NULL)
-				break;
-
-			p = scst_get_next_lexem(&param);
-			if (*p == '\0') {
-				PRINT_ERROR("Syntax error at %s (device %s)",
-					param, dev->virt_name);
-				res = -EINVAL;
-				goto out_unlock;
-			}
-
-			pp = scst_get_next_lexem(&param);
-			if (*pp == '\0') {
-				PRINT_ERROR("Parameter %s value missed for device %s",
-					p, dev->virt_name);
-				res = -EINVAL;
-				goto out_unlock;
-			}
-
-			if (scst_get_next_lexem(&param)[0] != '\0') {
-				PRINT_ERROR("Too many parameter's %s values (device %s)",
-					p, dev->virt_name);
-				res = -EINVAL;
-				goto out_unlock;
-			}
-
-			res = strict_strtoul(pp, 0, &val);
-			if (res != 0) {
-				PRINT_ERROR("strict_strtoul() for %s failed: %d "
-					"(device %s)", pp, res, dev->virt_name);
-				goto out_unlock;
-			}
-
-			if (!strcasecmp("read_only", p)) {
-				read_only = val;
-				TRACE_DBG("READ ONLY %d", read_only);
-			} else {
-				PRINT_ERROR("Unknown parameter %s (device %s)",
-					p, dev->virt_name);
-				res = -EINVAL;
-				goto out_unlock;
-			}
-		}
-
-		acg_dev = NULL;
-		list_for_each_entry(acg_dev_tmp, &acg->acg_dev_list,
-				    acg_dev_list_entry) {
-			if (acg_dev_tmp->lun == virt_lun) {
-				acg_dev = acg_dev_tmp;
-				break;
-			}
-		}
-
-		if (acg_dev != NULL) {
-			if (action == SCST_LUN_ACTION_ADD) {
-				PRINT_ERROR("virt lun %d already exists in "
-					"group %s", virt_lun, acg->acg_name);
-				res = -EEXIST;
-				goto out_unlock;
-			} else {
-				/* Replace */
-				res = scst_acg_del_lun(acg, acg_dev->lun,
-						false);
-				if (res != 0)
-					goto out_unlock;
-
-				dev_replaced = true;
-			}
-		}
-
-		res = scst_acg_add_lun(acg,
-			tgt_kobj ? tgt->tgt_luns_kobj : acg->luns_kobj,
-			dev, virt_lun, read_only, !dev_replaced, NULL);
-		if (res != 0)
-			goto out_unlock;
-
-		if (dev_replaced) {
-			struct scst_tgt_dev *tgt_dev;
-
-			list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
-				dev_tgt_dev_list_entry) {
-				if ((tgt_dev->acg_dev->acg == acg) &&
-				    (tgt_dev->lun == virt_lun)) {
-					TRACE_MGMT_DBG("INQUIRY DATA HAS CHANGED"
-						" on tgt_dev %p", tgt_dev);
-					scst_gen_aen_or_ua(tgt_dev,
-						SCST_LOAD_SENSE(scst_sense_inquery_data_changed));
-				}
-			}
-		}
-
-		break;
-	}
-	case SCST_LUN_ACTION_DEL:
-		while (isspace(*p) && *p != '\0')
-			p++;
-		virt_lun = simple_strtoul(p, &p, 0);
-
-		res = scst_acg_del_lun(acg, virt_lun, true);
-		if (res != 0)
-			goto out_unlock;
-		break;
-	case SCST_LUN_ACTION_CLEAR:
-		PRINT_INFO("Removed all devices from group %s",
-			acg->acg_name);
-		list_for_each_entry_safe(acg_dev, acg_dev_tmp,
-					 &acg->acg_dev_list,
-					 acg_dev_list_entry) {
-			res = scst_acg_del_lun(acg, acg_dev->lun,
-				list_is_last(&acg_dev->acg_dev_list_entry,
-					     &acg->acg_dev_list));
-			if (res)
-				goto out_unlock;
-		}
-		break;
-	}
-
-	res = 0;
-
-out_unlock:
-	mutex_unlock(&scst_mutex);
-
-out_resume:
-	scst_resume_activity();
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static int scst_luns_mgmt_store_work_fn(struct scst_sysfs_work_item *work)
-{
-	return __scst_process_luns_mgmt_store(work->buf, work->tgt, work->acg,
-			work->is_tgt_kobj);
-}
-
-static ssize_t __scst_acg_mgmt_store(struct scst_acg *acg,
-	const char *buf, size_t count, bool is_tgt_kobj,
-	int (*sysfs_work_fn)(struct scst_sysfs_work_item *))
-{
-	int res;
-	char *buffer;
-	struct scst_sysfs_work_item *work;
-
-	TRACE_ENTRY();
-
-	buffer = kasprintf(GFP_KERNEL, "%.*s", (int)count, buf);
-	if (buffer == NULL) {
-		res = -ENOMEM;
-		goto out;
-	}
-
-	res = scst_alloc_sysfs_work(sysfs_work_fn, false, &work);
-	if (res != 0)
-		goto out_free;
-
-	work->buf = buffer;
-	work->tgt = acg->tgt;
-	work->acg = acg;
-	work->is_tgt_kobj = is_tgt_kobj;
-
-	res = scst_sysfs_queue_wait_work(work);
-	if (res == 0)
-		res = count;
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-
-out_free:
-	kfree(buffer);
-	goto out;
-}
-
-static ssize_t __scst_luns_mgmt_store(struct scst_acg *acg,
-	bool tgt_kobj, const char *buf, size_t count)
-{
-	return __scst_acg_mgmt_store(acg, buf, count, tgt_kobj,
-			scst_luns_mgmt_store_work_fn);
-}
-
-static ssize_t scst_luns_mgmt_show(struct kobject *kobj,
-				   struct kobj_attribute *attr,
-				   char *buf)
-{
-	static const char help[] =
-		"Usage: echo \"add|del H:C:I:L lun [parameters]\" >mgmt\n"
-		"       echo \"add VNAME lun [parameters]\" >mgmt\n"
-		"       echo \"del lun\" >mgmt\n"
-		"       echo \"replace H:C:I:L lun [parameters]\" >mgmt\n"
-		"       echo \"replace VNAME lun [parameters]\" >mgmt\n"
-		"       echo \"clear\" >mgmt\n"
-		"\n"
-		"where parameters are one or more "
-		"param_name=value pairs separated by ';'\n"
-		"\nThe following parameters available: read_only.\n";
-
-	return sprintf(buf, "%s", help);
-}
-
-static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
-				    struct kobj_attribute *attr,
-				    const char *buf, size_t count)
-{
-	int res;
 	struct scst_acg *acg;
-	struct scst_tgt *tgt;
 
-	tgt = container_of(kobj->parent, struct scst_tgt, tgt_kobj);
-	acg = tgt->default_acg;
+	TRACE_ENTRY();
 
-	res = __scst_luns_mgmt_store(acg, true, buf, count);
+	acg = container_of(kobj, struct scst_acg, acg_kobj);
+	if (acg->acg_kobj_release_cmpl)
+		complete_all(acg->acg_kobj_release_cmpl);
 
-	TRACE_EXIT_RES(res);
-	return res;
+	TRACE_EXIT();
+	return;
 }
+
+static struct kobj_type acg_ktype = {
+	.sysfs_ops = &scst_sysfs_ops,
+	.release = scst_acg_release,
+};
 
 static ssize_t scst_acg_luns_mgmt_store(struct kobject *kobj,
 				    struct kobj_attribute *attr,
