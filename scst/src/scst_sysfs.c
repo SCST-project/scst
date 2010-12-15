@@ -97,6 +97,26 @@ static struct scst_trace_log scst_local_trace_tbl[] = {
 	{ 0,			NULL }
 };
 
+static void scst_read_trace_tbl(const struct scst_trace_log *tbl, char *buf,
+	unsigned long log_level, int *pos)
+{
+	const struct scst_trace_log *t = tbl;
+
+	if (t == NULL)
+		goto out;
+
+	while (t->token) {
+		if (log_level & t->val) {
+			*pos += sprintf(&buf[*pos], "%s%s",
+					(*pos == 0) ? "" : " | ",
+					t->token);
+		}
+		t++;
+	}
+out:
+	return;
+}
+
 static ssize_t scst_trace_level_show(const struct scst_trace_log *local_tbl,
 	unsigned long log_level, char *buf, const char *help)
 {
@@ -4549,26 +4569,6 @@ out:
 }
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-
-static void scst_read_trace_tbl(const struct scst_trace_log *tbl, char *buf,
-	unsigned long log_level, int *pos)
-{
-	const struct scst_trace_log *t = tbl;
-
-	if (t == NULL)
-		goto out;
-
-	while (t->token) {
-		if (log_level & t->val) {
-			*pos += sprintf(&buf[*pos], "%s%s",
-					(*pos == 0) ? "" : " | ",
-					t->token);
-		}
-		t++;
-	}
-out:
-	return;
-}
 
 static ssize_t scst_main_trace_level_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
