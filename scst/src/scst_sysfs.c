@@ -301,25 +301,10 @@ static ssize_t scst_luns_mgmt_show(struct kobject *kobj,
 static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
 				    struct kobj_attribute *attr,
 				    const char *buf, size_t count);
-static ssize_t scst_tgt_cpu_mask_show(struct kobject *kobj,
-				   struct kobj_attribute *attr,
-				   char *buf);
-static ssize_t scst_tgt_cpu_mask_store(struct kobject *kobj,
-				    struct kobj_attribute *attr,
-				    const char *buf, size_t count);
 static ssize_t scst_ini_group_mgmt_show(struct kobject *kobj,
 				   struct kobj_attribute *attr,
 				   char *buf);
 static ssize_t scst_ini_group_mgmt_store(struct kobject *kobj,
-				    struct kobj_attribute *attr,
-				    const char *buf, size_t count);
-static ssize_t scst_rel_tgt_id_show(struct kobject *kobj,
-				   struct kobj_attribute *attr,
-				   char *buf);
-static ssize_t scst_rel_tgt_id_store(struct kobject *kobj,
-				    struct kobj_attribute *attr,
-				    const char *buf, size_t count);
-static ssize_t scst_acg_luns_mgmt_store(struct kobject *kobj,
 				    struct kobj_attribute *attr,
 				    const char *buf, size_t count);
 static ssize_t scst_acg_ini_mgmt_show(struct kobject *kobj,
@@ -1382,13 +1367,176 @@ out:
 	return res;
 }
 
+static ssize_t __scst_acg_cpu_mask_show(struct scst_acg *acg, char *buf)
+{
+	int res;
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
+	res = cpumask_scnprintf(buf, SCST_SYSFS_BLOCK_SIZE,
+		acg->acg_cpu_mask);
+#else
+	res = cpumask_scnprintf(buf, SCST_SYSFS_BLOCK_SIZE,
+		&acg->acg_cpu_mask);
+#endif
+	if (!cpus_equal(acg->acg_cpu_mask, default_cpu_mask))
+		res += sprintf(&buf[res], "\n%s\n", SCST_SYSFS_KEY_MARK);
+
+	return res;
+}
+
+static int __scst_acg_process_cpu_mask_store(struct scst_tgt *tgt,
+	struct scst_acg *acg, cpumask_t *cpu_mask)
+{
+	int res = 0;
+	struct scst_session *sess;
+
+	TRACE_DBG("tgt %p, acg %p", tgt, acg);
+
+	if (mutex_lock_interruptible(&scst_mutex) != 0) {
+		res = -EINTR;
+		goto out;
+	}
+
+	/* Check if tgt and acg not already freed while we were coming here */
+	if (scst_check_tgt_acg_ptrs(tgt, acg) != 0)
+		goto out_unlock;
+
+	cpumask_copy(&acg->acg_cpu_mask, cpu_mask);
+
+	list_for_each_entry(sess, &acg->acg_sess_list, acg_sess_list_entry) {
+		int i;
+		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
+			struct scst_tgt_dev *tgt_dev;
+			struct list_head *head = &sess->sess_tgt_dev_list[i];
+			list_for_each_entry(tgt_dev, head,
+						sess_tgt_dev_list_entry) {
+				struct scst_cmd_thread_t *thr;
+				if (tgt_dev->active_cmd_threads != &tgt_dev->tgt_dev_cmd_threads)
+					continue;
+				list_for_each_entry(thr,
+						&tgt_dev->active_cmd_threads->threads_list,
+						thread_list_entry) {
+					int rc;
+					rc = set_cpus_allowed_ptr(thr->cmd_thread, cpu_mask);
+					if (rc != 0)
+						PRINT_ERROR("Setting CPU "
+							"affinity failed: %d", rc);
+				}
+			}
+		}
+		if (tgt->tgtt->report_aen != NULL) {
+			struct scst_aen *aen;
+			int rc;
+
+			aen = scst_alloc_aen(sess, 0);
+			if (aen == NULL) {
+				PRINT_ERROR("Unable to notify target driver %s "
+					"about cpu_mask change", tgt->tgt_name);
+				continue;
+			}
+
+			aen->event_fn = SCST_AEN_CPU_MASK_CHANGED;
+
+			TRACE_DBG("Calling target's %s report_aen(%p)",
+				tgt->tgtt->name, aen);
+			rc = tgt->tgtt->report_aen(aen);
+			TRACE_DBG("Target's %s report_aen(%p) returned %d",
+				tgt->tgtt->name, aen, rc);
+			if (rc != SCST_AEN_RES_SUCCESS)
+				scst_free_aen(aen);
+		}
+	}
+
+
+out_unlock:
+	mutex_unlock(&scst_mutex);
+
+out:
+	return res;
+}
+
+static int __scst_acg_cpu_mask_store_work_fn(struct scst_sysfs_work_item *work)
+{
+	return __scst_acg_process_cpu_mask_store(work->tgt, work->acg,
+			&work->cpu_mask);
+}
+
+static ssize_t __scst_acg_cpu_mask_store(struct scst_acg *acg,
+	const char *buf, size_t count)
+{
+	int res;
+	struct scst_sysfs_work_item *work;
+
+	/* cpumask might be too big for stack */
+
+	res = scst_alloc_sysfs_work(__scst_acg_cpu_mask_store_work_fn,
+					false, &work);
+	if (res != 0)
+		goto out;
+
+	/*
+	 * We can't use cpumask_parse_user() here, because it expects
+	 * buffer in the user space.
+	 */
+	res = __bitmap_parse(buf, count, 0, cpumask_bits(&work->cpu_mask),
+				nr_cpumask_bits);
+	if (res != 0) {
+		PRINT_ERROR("__bitmap_parse() failed: %d", res);
+		goto out_release;
+	}
+
+	if (cpus_equal(acg->acg_cpu_mask, work->cpu_mask))
+		goto out;
+
+	work->tgt = acg->tgt;
+	work->acg = acg;
+
+	res = scst_sysfs_queue_wait_work(work);
+
+out:
+	return res;
+
+out_release:
+	scst_sysfs_work_release(&work->sysfs_work_kref);
+	goto out;
+}
+
+static ssize_t scst_tgt_cpu_mask_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct scst_acg *acg;
+	struct scst_tgt *tgt;
+
+	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	acg = tgt->default_acg;
+
+	return __scst_acg_cpu_mask_show(acg, buf);
+}
+
+static ssize_t scst_tgt_cpu_mask_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	struct scst_acg *acg;
+	struct scst_tgt *tgt;
+
+	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	acg = tgt->default_acg;
+
+	res = __scst_acg_cpu_mask_store(acg, buf, count);
+	if (res != 0)
+		goto out;
+
+	res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 static struct kobj_attribute scst_luns_mgmt =
 	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_luns_mgmt_show,
 	       scst_luns_mgmt_store);
-
-static struct kobj_attribute scst_acg_luns_mgmt =
-	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_luns_mgmt_show,
-	       scst_acg_luns_mgmt_store);
 
 static struct kobj_attribute scst_acg_ini_mgmt =
 	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_acg_ini_mgmt_show,
@@ -1411,10 +1559,6 @@ static struct kobj_attribute scst_tgt_cpu_mask =
 	__ATTR(cpu_mask, S_IRUGO | S_IWUSR,
 	       scst_tgt_cpu_mask_show,
 	       scst_tgt_cpu_mask_store);
-
-static struct kobj_attribute scst_rel_tgt_id =
-	__ATTR(rel_tgt_id, S_IRUGO | S_IWUSR, scst_rel_tgt_id_show,
-	       scst_rel_tgt_id_store);
 
 static struct kobj_attribute scst_acg_addr_method =
 	__ATTR(addr_method, S_IRUGO | S_IWUSR, scst_acg_addr_method_show,
@@ -1545,6 +1689,112 @@ out:
 static struct kobj_attribute tgt_enable_attr =
 	__ATTR(enabled, S_IRUGO | S_IWUSR,
 	       scst_tgt_enable_show, scst_tgt_enable_store);
+
+static ssize_t scst_rel_tgt_id_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct scst_tgt *tgt;
+	int res;
+
+	TRACE_ENTRY();
+
+	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+
+	res = sprintf(buf, "%d\n%s", tgt->rel_tgt_id,
+		(tgt->rel_tgt_id != 0) ? SCST_SYSFS_KEY_MARK "\n" : "");
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int scst_process_rel_tgt_id_store(struct scst_sysfs_work_item *work)
+{
+	int res = 0;
+	struct scst_tgt *tgt = work->tgt;
+	unsigned long rel_tgt_id = work->l;
+
+	TRACE_ENTRY();
+
+	/* tgt protected by kobject_get() */
+
+	TRACE_DBG("Trying to set relative target port id %d",
+		(uint16_t)rel_tgt_id);
+
+	if (tgt->tgtt->is_target_enabled(tgt) &&
+	    rel_tgt_id != tgt->rel_tgt_id) {
+		if (!scst_is_relative_target_port_id_unique(rel_tgt_id, tgt)) {
+			PRINT_ERROR("Relative port id %d is not unique",
+				(uint16_t)rel_tgt_id);
+			res = -EBADSLT;
+			goto out_put;
+		}
+	}
+
+	if (rel_tgt_id < SCST_MIN_REL_TGT_ID ||
+	    rel_tgt_id > SCST_MAX_REL_TGT_ID) {
+		if ((rel_tgt_id == 0) && !tgt->tgtt->is_target_enabled(tgt))
+			goto set;
+
+		PRINT_ERROR("Invalid relative port id %d",
+			(uint16_t)rel_tgt_id);
+		res = -EINVAL;
+		goto out_put;
+	}
+
+set:
+	tgt->rel_tgt_id = (uint16_t)rel_tgt_id;
+
+out_put:
+	kobject_put(&tgt->tgt_kobj);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t scst_rel_tgt_id_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res = 0;
+	struct scst_tgt *tgt;
+	unsigned long rel_tgt_id;
+	struct scst_sysfs_work_item *work;
+
+	TRACE_ENTRY();
+
+	if (buf == NULL)
+		goto out;
+
+	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+
+	res = strict_strtoul(buf, 0, &rel_tgt_id);
+	if (res != 0) {
+		PRINT_ERROR("%s", "Wrong rel_tgt_id");
+		res = -EINVAL;
+		goto out;
+	}
+
+	res = scst_alloc_sysfs_work(scst_process_rel_tgt_id_store, false,
+					&work);
+	if (res != 0)
+		goto out;
+
+	work->tgt = tgt;
+	work->l = rel_tgt_id;
+
+	kobject_get(&tgt->tgt_kobj);
+
+	res = scst_sysfs_queue_wait_work(work);
+	if (res == 0)
+		res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute scst_rel_tgt_id =
+	__ATTR(rel_tgt_id, S_IRUGO | S_IWUSR, scst_rel_tgt_id_show,
+	       scst_rel_tgt_id_store);
 
 /*
  * Supposed to be called under scst_mutex. In case of error will drop,
@@ -3044,6 +3294,10 @@ out_del:
 	goto out;
 }
 
+/**
+ ** ini_groups directory implementation.
+ **/
+
 static int __scst_process_luns_mgmt_store(char *buffer,
 	struct scst_tgt *tgt, struct scst_acg *acg, bool tgt_kobj)
 {
@@ -3368,286 +3622,23 @@ static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
 	return res;
 }
 
-static ssize_t __scst_acg_cpu_mask_show(struct scst_acg *acg, char *buf)
-{
-	int res;
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
-	res = cpumask_scnprintf(buf, SCST_SYSFS_BLOCK_SIZE,
-		acg->acg_cpu_mask);
-#else
-	res = cpumask_scnprintf(buf, SCST_SYSFS_BLOCK_SIZE,
-		&acg->acg_cpu_mask);
-#endif
-	if (!cpus_equal(acg->acg_cpu_mask, default_cpu_mask))
-		res += sprintf(&buf[res], "\n%s\n", SCST_SYSFS_KEY_MARK);
-
-	return res;
-}
-
-static int __scst_acg_process_cpu_mask_store(struct scst_tgt *tgt,
-	struct scst_acg *acg, cpumask_t *cpu_mask)
-{
-	int res = 0;
-	struct scst_session *sess;
-
-	TRACE_DBG("tgt %p, acg %p", tgt, acg);
-
-	if (mutex_lock_interruptible(&scst_mutex) != 0) {
-		res = -EINTR;
-		goto out;
-	}
-
-	/* Check if tgt and acg not already freed while we were coming here */
-	if (scst_check_tgt_acg_ptrs(tgt, acg) != 0)
-		goto out_unlock;
-
-	cpumask_copy(&acg->acg_cpu_mask, cpu_mask);
-
-	list_for_each_entry(sess, &acg->acg_sess_list, acg_sess_list_entry) {
-		int i;
-		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
-			struct scst_tgt_dev *tgt_dev;
-			struct list_head *head = &sess->sess_tgt_dev_list[i];
-			list_for_each_entry(tgt_dev, head,
-						sess_tgt_dev_list_entry) {
-				struct scst_cmd_thread_t *thr;
-				if (tgt_dev->active_cmd_threads != &tgt_dev->tgt_dev_cmd_threads)
-					continue;
-				list_for_each_entry(thr,
-						&tgt_dev->active_cmd_threads->threads_list,
-						thread_list_entry) {
-					int rc;
-					rc = set_cpus_allowed_ptr(thr->cmd_thread, cpu_mask);
-					if (rc != 0)
-						PRINT_ERROR("Setting CPU "
-							"affinity failed: %d", rc);
-				}
-			}
-		}
-		if (tgt->tgtt->report_aen != NULL) {
-			struct scst_aen *aen;
-			int rc;
-
-			aen = scst_alloc_aen(sess, 0);
-			if (aen == NULL) {
-				PRINT_ERROR("Unable to notify target driver %s "
-					"about cpu_mask change", tgt->tgt_name);
-				continue;
-			}
-
-			aen->event_fn = SCST_AEN_CPU_MASK_CHANGED;
-
-			TRACE_DBG("Calling target's %s report_aen(%p)",
-				tgt->tgtt->name, aen);
-			rc = tgt->tgtt->report_aen(aen);
-			TRACE_DBG("Target's %s report_aen(%p) returned %d",
-				tgt->tgtt->name, aen, rc);
-			if (rc != SCST_AEN_RES_SUCCESS)
-				scst_free_aen(aen);
-		}
-	}
-
-
-out_unlock:
-	mutex_unlock(&scst_mutex);
-
-out:
-	return res;
-}
-
-static int __scst_acg_cpu_mask_store_work_fn(struct scst_sysfs_work_item *work)
-{
-	return __scst_acg_process_cpu_mask_store(work->tgt, work->acg,
-			&work->cpu_mask);
-}
-
-static ssize_t __scst_acg_cpu_mask_store(struct scst_acg *acg,
-	const char *buf, size_t count)
-{
-	int res;
-	struct scst_sysfs_work_item *work;
-
-	/* cpumask might be too big for stack */
-
-	res = scst_alloc_sysfs_work(__scst_acg_cpu_mask_store_work_fn,
-					false, &work);
-	if (res != 0)
-		goto out;
-
-	/*
-	 * We can't use cpumask_parse_user() here, because it expects
-	 * buffer in the user space.
-	 */
-	res = __bitmap_parse(buf, count, 0, cpumask_bits(&work->cpu_mask),
-				nr_cpumask_bits);
-	if (res != 0) {
-		PRINT_ERROR("__bitmap_parse() failed: %d", res);
-		goto out_release;
-	}
-
-	if (cpus_equal(acg->acg_cpu_mask, work->cpu_mask))
-		goto out;
-
-	work->tgt = acg->tgt;
-	work->acg = acg;
-
-	res = scst_sysfs_queue_wait_work(work);
-
-out:
-	return res;
-
-out_release:
-	scst_sysfs_work_release(&work->sysfs_work_kref);
-	goto out;
-}
-
-static ssize_t scst_tgt_cpu_mask_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
-{
-	struct scst_acg *acg;
-	struct scst_tgt *tgt;
-
-	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-	acg = tgt->default_acg;
-
-	return __scst_acg_cpu_mask_show(acg, buf);
-}
-
-static ssize_t scst_tgt_cpu_mask_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
+static ssize_t scst_acg_luns_mgmt_store(struct kobject *kobj,
+				    struct kobj_attribute *attr,
+				    const char *buf, size_t count)
 {
 	int res;
 	struct scst_acg *acg;
-	struct scst_tgt *tgt;
 
-	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-	acg = tgt->default_acg;
+	acg = container_of(kobj->parent, struct scst_acg, acg_kobj);
+	res = __scst_luns_mgmt_store(acg, false, buf, count);
 
-	res = __scst_acg_cpu_mask_store(acg, buf, count);
-	if (res != 0)
-		goto out;
-
-	res = count;
-
-out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
 
-/*
- * Called with scst_mutex held.
- *
- * !! No sysfs works must use kobject_get() to protect acg, due to possible
- * !! deadlock with scst_mutex (it is waiting for the last put, but
- * !! the last ref counter holder is waiting for scst_mutex)
- */
-void scst_acg_sysfs_del(struct scst_acg *acg)
-{
-	int rc;
-	DECLARE_COMPLETION_ONSTACK(c);
-
-	TRACE_ENTRY();
-
-	acg->acg_kobj_release_cmpl = &c;
-
-	kobject_del(acg->luns_kobj);
-	kobject_del(acg->initiators_kobj);
-	kobject_del(&acg->acg_kobj);
-
-	kobject_put(acg->luns_kobj);
-	kobject_put(acg->initiators_kobj);
-	kobject_put(&acg->acg_kobj);
-
-	rc = wait_for_completion_timeout(acg->acg_kobj_release_cmpl, HZ);
-	if (rc == 0) {
-		PRINT_INFO("Waiting for releasing sysfs entry "
-			"for acg %s (%d refs)...", acg->acg_name,
-			atomic_read(&acg->acg_kobj.kref.refcount));
-		wait_for_completion(acg->acg_kobj_release_cmpl);
-		PRINT_INFO("Done waiting for releasing sysfs "
-			"entry for acg %s", acg->acg_name);
-	}
-
-	TRACE_EXIT();
-	return;
-}
-
-int scst_acg_sysfs_create(struct scst_tgt *tgt,
-	struct scst_acg *acg)
-{
-	int res = 0;
-
-	TRACE_ENTRY();
-
-	res = kobject_init_and_add(&acg->acg_kobj, &acg_ktype,
-		tgt->tgt_ini_grp_kobj, acg->acg_name);
-	if (res != 0) {
-		PRINT_ERROR("Can't add acg '%s' to sysfs", acg->acg_name);
-		goto out;
-	}
-
-	acg->luns_kobj = kobject_create_and_add("luns", &acg->acg_kobj);
-	if (acg->luns_kobj == NULL) {
-		PRINT_ERROR("Can't create luns kobj for tgt %s",
-			tgt->tgt_name);
-		res = -ENOMEM;
-		goto out_del;
-	}
-
-	res = sysfs_create_file(acg->luns_kobj, &scst_acg_luns_mgmt.attr);
-	if (res != 0) {
-		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
-			scst_acg_luns_mgmt.attr.name, tgt->tgt_name);
-		goto out_del;
-	}
-
-	acg->initiators_kobj = kobject_create_and_add("initiators",
-					&acg->acg_kobj);
-	if (acg->initiators_kobj == NULL) {
-		PRINT_ERROR("Can't create initiators kobj for tgt %s",
-			tgt->tgt_name);
-		res = -ENOMEM;
-		goto out_del;
-	}
-
-	res = sysfs_create_file(acg->initiators_kobj,
-			&scst_acg_ini_mgmt.attr);
-	if (res != 0) {
-		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
-			scst_acg_ini_mgmt.attr.name, tgt->tgt_name);
-		goto out_del;
-	}
-
-	res = sysfs_create_file(&acg->acg_kobj, &scst_acg_addr_method.attr);
-	if (res != 0) {
-		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
-			scst_acg_addr_method.attr.name, tgt->tgt_name);
-		goto out_del;
-	}
-
-	res = sysfs_create_file(&acg->acg_kobj, &scst_acg_io_grouping_type.attr);
-	if (res != 0) {
-		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
-			scst_acg_io_grouping_type.attr.name, tgt->tgt_name);
-		goto out_del;
-	}
-
-	res = sysfs_create_file(&acg->acg_kobj, &scst_acg_cpu_mask.attr);
-	if (res != 0) {
-		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
-			scst_acg_cpu_mask.attr.name, tgt->tgt_name);
-		goto out_del;
-	}
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-
-out_del:
-	scst_acg_sysfs_del(acg);
-	goto out;
-}
+static struct kobj_attribute scst_acg_luns_mgmt =
+	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_luns_mgmt_show,
+	       scst_acg_luns_mgmt_store);
 
 static ssize_t scst_acg_addr_method_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
@@ -3891,107 +3882,123 @@ out_free:
 	goto out;
 }
 
-static ssize_t scst_rel_tgt_id_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+/*
+ * Called with scst_mutex held.
+ *
+ * !! No sysfs works must use kobject_get() to protect acg, due to possible
+ * !! deadlock with scst_mutex (it is waiting for the last put, but
+ * !! the last ref counter holder is waiting for scst_mutex)
+ */
+void scst_acg_sysfs_del(struct scst_acg *acg)
 {
-	struct scst_tgt *tgt;
-	int res;
+	int rc;
+	DECLARE_COMPLETION_ONSTACK(c);
 
 	TRACE_ENTRY();
 
-	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	acg->acg_kobj_release_cmpl = &c;
 
-	res = sprintf(buf, "%d\n%s", tgt->rel_tgt_id,
-		(tgt->rel_tgt_id != 0) ? SCST_SYSFS_KEY_MARK "\n" : "");
+	kobject_del(acg->luns_kobj);
+	kobject_del(acg->initiators_kobj);
+	kobject_del(&acg->acg_kobj);
 
-	TRACE_EXIT_RES(res);
-	return res;
-}
+	kobject_put(acg->luns_kobj);
+	kobject_put(acg->initiators_kobj);
+	kobject_put(&acg->acg_kobj);
 
-static int scst_process_rel_tgt_id_store(struct scst_sysfs_work_item *work)
-{
-	int res = 0;
-	struct scst_tgt *tgt = work->tgt;
-	unsigned long rel_tgt_id = work->l;
-
-	TRACE_ENTRY();
-
-	/* tgt protected by kobject_get() */
-
-	TRACE_DBG("Trying to set relative target port id %d",
-		(uint16_t)rel_tgt_id);
-
-	if (tgt->tgtt->is_target_enabled(tgt) &&
-	    rel_tgt_id != tgt->rel_tgt_id) {
-		if (!scst_is_relative_target_port_id_unique(rel_tgt_id, tgt)) {
-			PRINT_ERROR("Relative port id %d is not unique",
-				(uint16_t)rel_tgt_id);
-			res = -EBADSLT;
-			goto out_put;
-		}
+	rc = wait_for_completion_timeout(acg->acg_kobj_release_cmpl, HZ);
+	if (rc == 0) {
+		PRINT_INFO("Waiting for releasing sysfs entry "
+			"for acg %s (%d refs)...", acg->acg_name,
+			atomic_read(&acg->acg_kobj.kref.refcount));
+		wait_for_completion(acg->acg_kobj_release_cmpl);
+		PRINT_INFO("Done waiting for releasing sysfs "
+			"entry for acg %s", acg->acg_name);
 	}
 
-	if (rel_tgt_id < SCST_MIN_REL_TGT_ID ||
-	    rel_tgt_id > SCST_MAX_REL_TGT_ID) {
-		if ((rel_tgt_id == 0) && !tgt->tgtt->is_target_enabled(tgt))
-			goto set;
-
-		PRINT_ERROR("Invalid relative port id %d",
-			(uint16_t)rel_tgt_id);
-		res = -EINVAL;
-		goto out_put;
-	}
-
-set:
-	tgt->rel_tgt_id = (uint16_t)rel_tgt_id;
-
-out_put:
-	kobject_put(&tgt->tgt_kobj);
-
-	TRACE_EXIT_RES(res);
-	return res;
+	TRACE_EXIT();
+	return;
 }
 
-static ssize_t scst_rel_tgt_id_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
+int scst_acg_sysfs_create(struct scst_tgt *tgt,
+	struct scst_acg *acg)
 {
 	int res = 0;
-	struct scst_tgt *tgt;
-	unsigned long rel_tgt_id;
-	struct scst_sysfs_work_item *work;
 
 	TRACE_ENTRY();
 
-	if (buf == NULL)
-		goto out;
-
-	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-
-	res = strict_strtoul(buf, 0, &rel_tgt_id);
+	res = kobject_init_and_add(&acg->acg_kobj, &acg_ktype,
+		tgt->tgt_ini_grp_kobj, acg->acg_name);
 	if (res != 0) {
-		PRINT_ERROR("%s", "Wrong rel_tgt_id");
-		res = -EINVAL;
+		PRINT_ERROR("Can't add acg '%s' to sysfs", acg->acg_name);
 		goto out;
 	}
 
-	res = scst_alloc_sysfs_work(scst_process_rel_tgt_id_store, false,
-					&work);
-	if (res != 0)
-		goto out;
+	acg->luns_kobj = kobject_create_and_add("luns", &acg->acg_kobj);
+	if (acg->luns_kobj == NULL) {
+		PRINT_ERROR("Can't create luns kobj for tgt %s",
+			tgt->tgt_name);
+		res = -ENOMEM;
+		goto out_del;
+	}
 
-	work->tgt = tgt;
-	work->l = rel_tgt_id;
+	res = sysfs_create_file(acg->luns_kobj, &scst_acg_luns_mgmt.attr);
+	if (res != 0) {
+		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
+			scst_acg_luns_mgmt.attr.name, tgt->tgt_name);
+		goto out_del;
+	}
 
-	kobject_get(&tgt->tgt_kobj);
+	acg->initiators_kobj = kobject_create_and_add("initiators",
+					&acg->acg_kobj);
+	if (acg->initiators_kobj == NULL) {
+		PRINT_ERROR("Can't create initiators kobj for tgt %s",
+			tgt->tgt_name);
+		res = -ENOMEM;
+		goto out_del;
+	}
 
-	res = scst_sysfs_queue_wait_work(work);
-	if (res == 0)
-		res = count;
+	res = sysfs_create_file(acg->initiators_kobj,
+			&scst_acg_ini_mgmt.attr);
+	if (res != 0) {
+		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
+			scst_acg_ini_mgmt.attr.name, tgt->tgt_name);
+		goto out_del;
+	}
+
+	res = sysfs_create_file(&acg->acg_kobj, &scst_acg_addr_method.attr);
+	if (res != 0) {
+		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
+			scst_acg_addr_method.attr.name, tgt->tgt_name);
+		goto out_del;
+	}
+
+	res = sysfs_create_file(&acg->acg_kobj, &scst_acg_io_grouping_type.attr);
+	if (res != 0) {
+		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
+			scst_acg_io_grouping_type.attr.name, tgt->tgt_name);
+		goto out_del;
+	}
+
+	res = sysfs_create_file(&acg->acg_kobj, &scst_acg_cpu_mask.attr);
+	if (res != 0) {
+		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
+			scst_acg_cpu_mask.attr.name, tgt->tgt_name);
+		goto out_del;
+	}
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_del:
+	scst_acg_sysfs_del(acg);
+	goto out;
 }
+
+/**
+ ** acn
+ **/
 
 int scst_acn_sysfs_create(struct scst_acn *acn)
 {
@@ -4080,19 +4087,9 @@ static ssize_t scst_acn_file_show(struct kobject *kobj,
 		attr->attr.name);
 }
 
-static ssize_t scst_acg_luns_mgmt_store(struct kobject *kobj,
-				    struct kobj_attribute *attr,
-				    const char *buf, size_t count)
-{
-	int res;
-	struct scst_acg *acg;
-
-	acg = container_of(kobj->parent, struct scst_acg, acg_kobj);
-	res = __scst_luns_mgmt_store(acg, false, buf, count);
-
-	TRACE_EXIT_RES(res);
-	return res;
-}
+/**
+ ** acg_ini_mgmt
+ **/
 
 static ssize_t scst_acg_ini_mgmt_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
