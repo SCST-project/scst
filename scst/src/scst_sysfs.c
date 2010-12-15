@@ -301,12 +301,6 @@ static ssize_t scst_luns_mgmt_show(struct kobject *kobj,
 static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
 				    struct kobj_attribute *attr,
 				    const char *buf, size_t count);
-static ssize_t scst_tgt_addr_method_show(struct kobject *kobj,
-				   struct kobj_attribute *attr,
-				   char *buf);
-static ssize_t scst_tgt_addr_method_store(struct kobject *kobj,
-				    struct kobj_attribute *attr,
-				    const char *buf, size_t count);
 static ssize_t scst_tgt_io_grouping_type_show(struct kobject *kobj,
 				   struct kobj_attribute *attr,
 				   char *buf);
@@ -1165,6 +1159,80 @@ static struct kobj_type acg_ktype = {
 	.sysfs_ops = &scst_sysfs_ops,
 	.release = scst_acg_release,
 };
+
+static ssize_t __scst_acg_addr_method_show(struct scst_acg *acg, char *buf)
+{
+	int res;
+
+	switch (acg->addr_method) {
+	case SCST_LUN_ADDR_METHOD_FLAT:
+		res = sprintf(buf, "FLAT\n");
+		break;
+	case SCST_LUN_ADDR_METHOD_PERIPHERAL:
+		res = sprintf(buf, "PERIPHERAL\n");
+		break;
+	case SCST_LUN_ADDR_METHOD_LUN:
+		res = sprintf(buf, "LUN\n");
+		break;
+	default:
+		res = sprintf(buf, "UNKNOWN\n");
+		break;
+	}
+
+	if (acg->addr_method != acg->tgt->tgtt->preferred_addr_method)
+		res += sprintf(&buf[res], "%s\n", SCST_SYSFS_KEY_MARK);
+
+	return res;
+}
+
+static ssize_t __scst_acg_addr_method_store(struct scst_acg *acg,
+	const char *buf, size_t count)
+{
+	int res = count;
+
+	if (strncasecmp(buf, "FLAT", min_t(int, 4, count)) == 0)
+		acg->addr_method = SCST_LUN_ADDR_METHOD_FLAT;
+	else if (strncasecmp(buf, "PERIPHERAL", min_t(int, 10, count)) == 0)
+		acg->addr_method = SCST_LUN_ADDR_METHOD_PERIPHERAL;
+	else if (strncasecmp(buf, "LUN", min_t(int, 3, count)) == 0)
+		acg->addr_method = SCST_LUN_ADDR_METHOD_LUN;
+	else {
+		PRINT_ERROR("Unknown address method %s", buf);
+		res = -EINVAL;
+	}
+
+	TRACE_DBG("acg %p, addr_method %d", acg, acg->addr_method);
+
+	return res;
+}
+
+static ssize_t scst_tgt_addr_method_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct scst_acg *acg;
+	struct scst_tgt *tgt;
+
+	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	acg = tgt->default_acg;
+
+	return __scst_acg_addr_method_show(acg, buf);
+}
+
+static ssize_t scst_tgt_addr_method_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	struct scst_acg *acg;
+	struct scst_tgt *tgt;
+
+	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	acg = tgt->default_acg;
+
+	res = __scst_acg_addr_method_store(acg, buf, count);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
 
 static struct kobj_attribute scst_luns_mgmt =
 	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_luns_mgmt_show,
@@ -3147,80 +3215,6 @@ static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
 	acg = tgt->default_acg;
 
 	res = __scst_luns_mgmt_store(acg, true, buf, count);
-
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static ssize_t __scst_acg_addr_method_show(struct scst_acg *acg, char *buf)
-{
-	int res;
-
-	switch (acg->addr_method) {
-	case SCST_LUN_ADDR_METHOD_FLAT:
-		res = sprintf(buf, "FLAT\n");
-		break;
-	case SCST_LUN_ADDR_METHOD_PERIPHERAL:
-		res = sprintf(buf, "PERIPHERAL\n");
-		break;
-	case SCST_LUN_ADDR_METHOD_LUN:
-		res = sprintf(buf, "LUN\n");
-		break;
-	default:
-		res = sprintf(buf, "UNKNOWN\n");
-		break;
-	}
-
-	if (acg->addr_method != acg->tgt->tgtt->preferred_addr_method)
-		res += sprintf(&buf[res], "%s\n", SCST_SYSFS_KEY_MARK);
-
-	return res;
-}
-
-static ssize_t __scst_acg_addr_method_store(struct scst_acg *acg,
-	const char *buf, size_t count)
-{
-	int res = count;
-
-	if (strncasecmp(buf, "FLAT", min_t(int, 4, count)) == 0)
-		acg->addr_method = SCST_LUN_ADDR_METHOD_FLAT;
-	else if (strncasecmp(buf, "PERIPHERAL", min_t(int, 10, count)) == 0)
-		acg->addr_method = SCST_LUN_ADDR_METHOD_PERIPHERAL;
-	else if (strncasecmp(buf, "LUN", min_t(int, 3, count)) == 0)
-		acg->addr_method = SCST_LUN_ADDR_METHOD_LUN;
-	else {
-		PRINT_ERROR("Unknown address method %s", buf);
-		res = -EINVAL;
-	}
-
-	TRACE_DBG("acg %p, addr_method %d", acg, acg->addr_method);
-
-	return res;
-}
-
-static ssize_t scst_tgt_addr_method_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
-{
-	struct scst_acg *acg;
-	struct scst_tgt *tgt;
-
-	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-	acg = tgt->default_acg;
-
-	return __scst_acg_addr_method_show(acg, buf);
-}
-
-static ssize_t scst_tgt_addr_method_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
-{
-	int res;
-	struct scst_acg *acg;
-	struct scst_tgt *tgt;
-
-	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-	acg = tgt->default_acg;
-
-	res = __scst_acg_addr_method_store(acg, buf, count);
 
 	TRACE_EXIT_RES(res);
 	return res;
