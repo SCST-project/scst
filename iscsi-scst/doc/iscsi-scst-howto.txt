@@ -34,7 +34,7 @@ rebuild the initial RAM disk. Make sure you regenerate the RAM disk before
 rebooting. Please look up the documentation of the update-initrd,
 update-initramfs or the mkinitrd command supplied with your distribution.
 
-Now reboot the system.
+Now reboot your system such that the newly built kernel is loaded.
 
 Once the system is again up and running the next step is to build and install
 SCST, iSCSI-SCST and scstadmin. You can do this by running the following
@@ -95,6 +95,9 @@ TARGET_DRIVER iscsi {
 	}
 }
 
+Note that for each SCSI device LUN 0 must exist. This is required by the SCSI
+protocol and is also documented in SCST's README file.
+
 Then run the following commands:
 
   modprobe scst
@@ -102,9 +105,6 @@ Then run the following commands:
   modprobe iscsi-scst
   iscsi-scstd
   scstadmin -config /etc/scst.conf
-
-Note that for each SCSI device LUN 0 must exist. This is required by the SCSI
-protocol and is also documented in SCST's README file.
 
 You should have the working iSCSI-SCST now. Do the following steps if
 you need to automatically configure it upon reboot.
