@@ -2058,7 +2058,7 @@ static int scst_sgv_sysfs_create(struct sgv_pool *pool)
 
 	res = kobject_init_and_add(&pool->sgv_kobj, &sgv_pool_ktype,
 			scst_sgv_kobj, pool->name);
-	if (res) {
+	if (res != 0) {
 		PRINT_ERROR("Can't add sgv pool %s to sysfs", pool->name);
 		goto out;
 	}
