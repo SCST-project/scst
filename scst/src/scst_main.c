@@ -686,12 +686,17 @@ static int scst_susp_wait(bool interruptible)
 }
 
 /**
- * scst_suspend_activity() - Globally suspend SCSI command processing.
+ * scst_suspend_activity() - globally suspend any activity
  *
- * Wait until any ongoing SCSI commands have finished and suspend processing
- * of new SCSI commands. If the argument "interruptible" is set to true,
- * returns after either SCST_SUSPENDING_TIMEOUT elapsed or if interrupted by a
- * signal. Returns zero upon success or a negative error code upon failure.
+ * Description:
+ *    Globally suspends any activity and doesn't return, until there are any
+ *    active commands (state after SCST_CMD_STATE_INIT). If "interruptible"
+ *    is true, it returns after SCST_SUSPENDING_TIMEOUT or if it was interrupted
+ *    by a signal with the corresponding error status < 0. If "interruptible"
+ *    is false, it will wait virtually forever. On success returns 0.
+ *
+ *    New arriving commands stay in the suspended state until
+ *    scst_resume_activity() is called.
  */
 int scst_suspend_activity(bool interruptible)
 {
@@ -833,7 +838,9 @@ out:
 }
 
 /**
- * scst_resume_activity() - Globally resume SCSI command processing.
+ * scst_resume_activity() - globally resume all activities
+ *
+ * Resumes suspended by scst_suspend_activity() activities.
  */
 void scst_resume_activity(void)
 {
