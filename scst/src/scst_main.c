@@ -274,7 +274,7 @@ int __scst_register_target_template(struct scst_tgt_template *vtt,
 		vtt->rdy_to_xfer_atomic = 1;
 
 	res = mutex_lock_interruptible(&scst_mutex);
-	if (res)
+	if (res != 0)
 		goto out;
 	list_for_each_entry(t, &scst_template_list, scst_template_list_entry) {
 		if (strcmp(t->name, vtt->name) == 0) {
@@ -288,7 +288,7 @@ int __scst_register_target_template(struct scst_tgt_template *vtt,
 
 #ifndef CONFIG_SCST_PROC
 	res = scst_tgtt_sysfs_create(vtt);
-	if (res)
+	if (res != 0)
 		goto out;
 #else
 	if (!vtt->no_proc_entry) {
@@ -516,7 +516,7 @@ struct scst_tgt *scst_register_target(struct scst_tgt_template *vtt,
 	}
 
 	rc = mutex_lock_interruptible(&scst_mutex);
-	if (rc)
+	if (rc != 0)
 		goto out_free_tgt;
 
 #ifdef CONFIG_SCST_PROC
@@ -871,12 +871,12 @@ static int scst_register_device(struct scsi_device *scsidp)
 
 #ifdef CONFIG_SCST_PROC
 	res = scst_suspend_activity(true);
-	if (res)
+	if (res != 0)
 		goto out;
 #endif
 
 	res = mutex_lock_interruptible(&scst_mutex);
-	if (res)
+	if (res != 0)
 #ifdef CONFIG_SCST_PROC
 		goto out_resume;
 #else
@@ -884,7 +884,7 @@ static int scst_register_device(struct scsi_device *scsidp)
 #endif
 
 	res = scst_alloc_device(GFP_KERNEL, &dev);
-	if (res)
+	if (res != 0)
 		goto out_unlock;
 
 	dev->type = scsidp->type;
@@ -930,7 +930,7 @@ static int scst_register_device(struct scsi_device *scsidp)
 	mutex_unlock(&scst_mutex);
 
 	res = scst_dev_sysfs_create(dev);
-	if (res)
+	if (res != 0)
 		goto out_del;
 #endif
 
@@ -1093,23 +1093,23 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 	}
 
 	res = scst_check_device_name(dev_name);
-	if (res)
+	if (res != 0)
 		goto out;
 
 	res = scst_dev_handler_check(dev_handler);
-	if (res)
+	if (res != 0)
 		goto out;
 
 	res = scst_suspend_activity(true);
-	if (res)
+	if (res != 0)
 		goto out;
 
 	res = mutex_lock_interruptible(&scst_mutex);
-	if (res)
+	if (res != 0)
 		goto out_resume;
 
 	res = scst_alloc_device(GFP_KERNEL, &dev);
-	if (res)
+	if (res != 0)
 		goto out_unlock;
 
 	dev->type = dev_handler->type;
@@ -1132,7 +1132,7 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 	res = dev->virt_id;
 
 	res = scst_pr_init_dev(dev);
-	if (res)
+	if (res != 0)
 		goto out_free_dev;
 
 #ifndef CONFIG_SCST_PROC
@@ -1143,7 +1143,7 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 	mutex_unlock(&scst_mutex);
 
 	res = scst_dev_sysfs_create(dev);
-	if (res)
+	if (res != 0)
 		goto out_lock_pr_clear_dev;
 
 	mutex_lock(&scst_mutex);
@@ -1159,7 +1159,7 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 	}
 
 	res = scst_assign_dev_handler(dev, dev_handler);
-	if (res) {
+	if (res != 0) {
 		sysfs_del = true;
 		goto out_pr_clear_dev;
 	}
@@ -1289,7 +1289,7 @@ int __scst_register_dev_driver(struct scst_dev_type *dev_type,
 	}
 
 	res = scst_dev_handler_check(dev_type);
-	if (res)
+	if (res != 0)
 		goto out;
 
 #if !defined(SCSI_EXEC_REQ_FIFO_DEFINED)
@@ -1315,12 +1315,12 @@ int __scst_register_dev_driver(struct scst_dev_type *dev_type,
 
 #ifdef CONFIG_SCST_PROC
 	res = scst_suspend_activity(true);
-	if (res)
+	if (res != 0)
 		goto out;
 #endif
 
 	res = mutex_lock_interruptible(&scst_mutex);
-	if (res)
+	if (res != 0)
 #ifdef CONFIG_SCST_PROC
 		goto out_resume;
 #else
@@ -1470,11 +1470,11 @@ int __scst_register_virtual_dev_driver(struct scst_dev_type *dev_type,
 	}
 
 	res = scst_dev_handler_check(dev_type);
-	if (res)
+	if (res != 0)
 		goto out;
 
 	res = mutex_lock_interruptible(&scst_mutex);
-	if (res)
+	if (res != 0)
 		goto out;
 	list_add_tail(&dev_type->dev_type_list_entry, &scst_virtual_dev_type_list);
 	mutex_unlock(&scst_mutex);
@@ -2279,7 +2279,7 @@ static int __init init_scst(void)
 	}
 
 	res = scst_sysfs_init();
-	if (res)
+	if (res != 0)
 		goto out_destroy_aen_mempool;
 
 	if (scst_max_cmd_mem == 0) {

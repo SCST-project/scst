@@ -5609,7 +5609,7 @@ static int scst_process_mgmt_cmd(struct scst_mgmt_cmd *mcmd)
 		switch (mcmd->state) {
 		case SCST_MCMD_STATE_INIT:
 			res = scst_mgmt_cmd_init(mcmd);
-			if (res)
+			if (res != 0)
 				goto out;
 			break;
 
