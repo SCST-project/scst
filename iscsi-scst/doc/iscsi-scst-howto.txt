@@ -53,7 +53,7 @@ iSCSI-SCST includes the following components:
       * initiators.deny - used for assigning specific initiators to targets
       * iscsi-scstd.conf - list of targets and their properties
 
-2. Set up /etc/iscsi/ininitiatorname.iscsi
+2. Set up /etc/iscsi/initiatorname.iscsi
 
 The most convenient way to set up this file is to install the open-iscsi
 package provided by your Linux distro first and then to run the shell commands
@@ -68,8 +68,8 @@ shown below. Verify the contents of the generated file.
 3. Set up /etc/scst.conf
 
 The scst.conf configuration file is loaded at system boot time by the
-shell script /etc/init.d/scst. All targets, devices and LUNs
-configuration defined in this file.
+shell script /etc/init.d/iscsi-scst. The target, device and LUN
+configuration is defined in this file.
 
 Here is the sample config file. Copy it in /etc/scst.conf
 
@@ -109,10 +109,9 @@ protocol and is also documented in SCST's README file.
 You should have the working iSCSI-SCST now. Do the following steps if
 you need to automatically configure it upon reboot.
 
-4. Edit /etc/init.d/scst
+4. Edit /etc/init.d/iscsi-scst
 
-Remove the modules you do not need from the SCST_MODULES variable,
-e.g. qla2x00tgt.
+Add additional modules you need to the ADD_MODULES variable, e.g. scst_disk.
 
 5. Create soft links in /etc/init.d
 
@@ -120,12 +119,10 @@ This will make SCST to start automatically upon system boot. Use either
 chkconfig or update-rc.d, depending on the Linux distribution you are using.
 An example for Debian systems such as Ubuntu:
 
-  update-rc.d scst defaults
   update-rc.d iscsi-scst defaults
 
 On openSUSE you can let SCST start automatically through the following commands:
 
-  insserv scst
   insserv iscsi-scst
 
 6. Restart SCST and iSCSI-SCST
@@ -133,10 +130,8 @@ On openSUSE you can let SCST start automatically through the following commands:
 If you don't want to reboot now, you can make the above settings effective via
 the following commands:
 
-  /etc/init.d/scst stop
   /etc/init.d/iscsi-scst stop
   /etc/init.d/iscsi-scst start
-  /etc/init.d/scst start
 
 
 Installing and using iSCSI-SCST without using scstadmin via /sys interface
