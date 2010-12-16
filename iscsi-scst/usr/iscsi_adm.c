@@ -113,7 +113,7 @@ iSCSI-SCST Target Administration Utility.\n\
   --version             display version and exit\n\
   --help                display this help and exit\n\
 \n\
-Report bugs to <iscsitarget-devel@sourceforge.net>.\n");
+Report bugs to <scst-devel@sourceforge.net>.\n");
 	}
 	exit(status == 0 ? 0 : -1);
 }
