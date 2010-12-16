@@ -3685,6 +3685,13 @@ static inline int cancel_delayed_work_sync(struct work_struct *work)
 }
 #endif
 
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
+extern struct lockdep_map scst_suspend_dep_map;
+#define scst_assert_activity_suspended()		\
+	WARN_ON(debug_locks && !lock_is_held(&scst_suspend_dep_map));
+#else
+#define scst_assert_activity_suspended() do { } while (0)
+#endif
 int scst_suspend_activity(bool interruptible);
 void scst_resume_activity(void);
 
