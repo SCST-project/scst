@@ -32,7 +32,7 @@ Here is how I have used it so far:
 
 3. Load the scst_local driver:
 
-  insmod scst_local add_default_tgt=1
+  insmod scst_local
   echo "add vm_disk1 0" >/sys/kernel/scst_tgt/targets/scst_local/scst_local_tgt/luns/mgmt
 
 4. Check what you have
@@ -49,14 +49,44 @@ Here is how I have used it so far:
     Vendor: SCST_FIO Model: vm_disk1         Rev:  200
     Type:   Direct-Access                    ANSI  SCSI revision: 04
 
-Or for (3) you can:
+Or instead of manually "add_device" in (2) and step (3) write a
+scstadmin config:
+
+HANDLER vdisk_fileio {
+        DEVICE vm_disk1 {
+        	filename /some/path/vdisk1.img
+        }
+}
+
+TARGET_DRIVER scst_local {
+	TARGET scst_local_tgt {
+		LUN 0 vm_disk1
+	}
+}
+
+then:
 
   insmod scst_local
+  scstadmin -config conf_file.cfg
+
+More advanced examples:
+
+For (3) you can:
+
+  insmod scst_local add_default_tgt=0
   echo "add_target scst_local_tgt session_name=scst_local_host" >/sys/kernel/scst_tgt/targets/scst_local//mgmt
   echo "add vm_disk1 0" >/sys/kernel/scst_tgt/targets/scst_local/scst_local_tgt/luns/mgmt
 
-Or instead of manually "add_device" in (2) and step (3) write a
-scstadmin config:
+Scst_local module's parameter add_default_tgt disables creation of
+default target "scst_local_tgt" and session "scst_local_host", so you
+needed to create it manually.
+
+There can be any number of targets and sessions created. Each SCST
+session corresponds to SCSI host. You can change which LUNs assigned to
+each session by using SCST access control. This mode is intended for
+user space target drivers (see below).
+
+Alternatively, you can write an scstadmin's config file conf_file.cfg:
 
 HANDLER vdisk_fileio {
         DEVICE vm_disk1 {
@@ -74,12 +104,14 @@ TARGET_DRIVER scst_local {
 
 then:
 
-  insmod scst_local
+  insmod scst_local add_default_tgt=0
   scstadmin -config conf_file.cfg
 
-There can be any number of targets and sessions created. Each SCST
-session corresponds to SCSI host. You can change which LUNs assigned to
-each session by using SCST access control.
+NOTE! Although scstadmin allows to create scst_local's sessions using
+"session_name" expression, it doesn't save existing sessions during
+writing config file by "write_config" command. If you need this
+functionality, feel free to send a request for it in SCST development
+mailing list.
 
 5. Have fun.
 
