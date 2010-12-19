@@ -3038,6 +3038,7 @@ static int srpt_rdy_to_xfer(struct scst_cmd *scmnd)
 	if (ch_state == RDMA_CHANNEL_DISCONNECTING) {
 		TRACE_DBG("cmd with tag %lld: channel disconnecting",
 			  scst_cmd_get_tag(scmnd));
+		srpt_set_cmd_state(ioctx, SRPT_STATE_DATA_IN);
 		ret = SCST_TGT_RES_FATAL_ERROR;
 		goto out;
 	} else if (ch_state == RDMA_CHANNEL_CONNECTING) {
