@@ -4149,7 +4149,7 @@ static inline int test_cmd_threads(struct scst_cmd_threads *p_cmd_threads)
 
 int scst_cmd_thread(void *arg)
 {
-	struct scst_cmd_threads *p_cmd_threads = (struct scst_cmd_threads *)arg;
+	struct scst_cmd_threads *p_cmd_threads = arg;
 	static DEFINE_MUTEX(io_context_mutex);
 
 	TRACE_ENTRY();
@@ -4230,10 +4230,9 @@ int scst_cmd_thread(void *arg)
 	EXTRACHECKS_BUG_ON((p_cmd_threads->nr_threads == 1) &&
 		 !list_empty(&p_cmd_threads->active_cmd_list));
 
-	if (p_cmd_threads != &scst_main_cmd_threads) {
-		if (p_cmd_threads->nr_threads == 1)
-			p_cmd_threads->io_context = NULL;
-	}
+	if ((p_cmd_threads != &scst_main_cmd_threads) &&
+	    (p_cmd_threads->nr_threads == 1))
+		p_cmd_threads->io_context = NULL;
 
 	PRINT_INFO("Processing thread %s (PID %d) finished", current->comm,
 		current->pid);
