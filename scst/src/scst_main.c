@@ -1584,15 +1584,12 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 		}
 
 		if (dev != NULL) {
-			char nm[14]; /* to limit the name's len */
-			strlcpy(nm, dev->virt_name, ARRAY_SIZE(nm));
 			thr->cmd_thread = kthread_create(scst_cmd_thread,
-				cmd_threads, "%s%d", nm, n++);
+				cmd_threads, "%.13s%d", dev->virt_name, n++);
 		} else if (tgt_dev != NULL) {
-			char nm[11]; /* to limit the name's len */
-			strlcpy(nm, tgt_dev->dev->virt_name, ARRAY_SIZE(nm));
 			thr->cmd_thread = kthread_create(scst_cmd_thread,
-				cmd_threads, "%s%d_%d", nm, tgt_dev_num, n++);
+				cmd_threads, "%.10s%d_%d",
+				tgt_dev->dev->virt_name, tgt_dev_num, n++);
 		} else
 			thr->cmd_thread = kthread_create(scst_cmd_thread,
 				cmd_threads, "scstd%d", n++);
