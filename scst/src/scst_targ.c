@@ -4150,7 +4150,6 @@ static inline int test_cmd_threads(struct scst_cmd_threads *p_cmd_threads)
 int scst_cmd_thread(void *arg)
 {
 	struct scst_cmd_threads *p_cmd_threads = arg;
-	static DEFINE_MUTEX(io_context_mutex);
 
 	TRACE_ENTRY();
 
@@ -4162,36 +4161,38 @@ int scst_cmd_thread(void *arg)
 #endif
 	current->flags |= PF_NOFREEZE;
 
-	mutex_lock(&io_context_mutex);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
+	mutex_lock(&p_cmd_threads->io_context_mutex);
 
 	WARN_ON(current->io_context);
 
 	if (p_cmd_threads != &scst_main_cmd_threads) {
+		/*
+		 * For linked IO contexts io_context might be not NULL while
+		 * io_context 0.
+		 */
 		if (p_cmd_threads->io_context == NULL) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
 			p_cmd_threads->io_context = get_io_context(GFP_KERNEL, -1);
-#endif
 			TRACE_MGMT_DBG("Alloced new IO context %p "
 				"(p_cmd_threads %p)",
 				p_cmd_threads->io_context,
 				p_cmd_threads);
 			/*
-			 * Put the extra reference. It isn't needed, because we
-			 * ref counted via nr_threads below.
+			 * Put the extra reference created by get_io_context()
+			 * because we don't need it.
 			 */
 			put_io_context(p_cmd_threads->io_context);
 		} else {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
-			put_io_context(current->io_context);
 			current->io_context = ioc_task_link(p_cmd_threads->io_context);
-#endif
 			TRACE_MGMT_DBG("Linked IO context %p "
 				"(p_cmd_threads %p)", p_cmd_threads->io_context,
 				p_cmd_threads);
 		}
+		p_cmd_threads->io_context_refcnt++;
 	}
 
-	mutex_unlock(&io_context_mutex);
+	mutex_unlock(&p_cmd_threads->io_context_mutex);
+#endif
 
 	p_cmd_threads->io_context_ready = true;
 
@@ -4227,12 +4228,14 @@ int scst_cmd_thread(void *arg)
 	}
 	spin_unlock_irq(&p_cmd_threads->cmd_list_lock);
 
-	EXTRACHECKS_BUG_ON((p_cmd_threads->nr_threads == 1) &&
-		 !list_empty(&p_cmd_threads->active_cmd_list));
-
-	if ((p_cmd_threads != &scst_main_cmd_threads) &&
-	    (p_cmd_threads->nr_threads == 1))
-		p_cmd_threads->io_context = NULL;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
+	if (p_cmd_threads != &scst_main_cmd_threads) {
+		mutex_lock(&p_cmd_threads->io_context_mutex);
+		if (--p_cmd_threads->io_context_refcnt == 0)
+			p_cmd_threads->io_context = NULL;
+		mutex_unlock(&p_cmd_threads->io_context_mutex);
+	}
+#endif
 
 	PRINT_INFO("Processing thread %s (PID %d) finished", current->comm,
 		current->pid);
