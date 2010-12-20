@@ -546,17 +546,6 @@ static void sgv_free_sys_sg_entries(struct scatterlist *sg, int sg_count,
 		while (pages > 0) {
 			int order = 0;
 
-/*
- * __free_pages() doesn't like freeing pages with not that order with
- * which they were allocated, so disable this small optimization.
- */
-#if 0
-			if (len > 0) {
-				while (((1 << order) << PAGE_SHIFT) < len)
-					order++;
-				len = 0;
-			}
-#endif
 			TRACE_MEM("free_pages(): order %d, page %lx",
 				order, (unsigned long)p);
 
