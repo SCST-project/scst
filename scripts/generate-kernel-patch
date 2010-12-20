@@ -310,7 +310,7 @@ add_patch "scst/kernel/in-tree/Kconfig.drivers.Linux-${kernel_version}.patch" \
 add_patch "scst/kernel/in-tree/Makefile.drivers.Linux-${kernel_version}.patch"\
           "drivers/Makefile"
 ) \
-| process_patch "scst_18_drivers_kbuild.diff"
+| process_patch "scst_01_drivers_kbuild.diff"
 
 
 # Directory drivers/scst/
@@ -344,7 +344,7 @@ add_file "$tmp_Makefile" "drivers/scst/Makefile"
 
 rm -rf "${tmpdir}"
 ) \
-| process_patch "scst_01_scst_kbuild.diff"
+| process_patch "scst_02_scst_kbuild.diff"
 
 for s in ${separate_patches}
 do
@@ -365,7 +365,7 @@ done
 {
   add_file "scst/README_in-tree" "Documentation/scst/README.scst"
   add_file "scst/SysfsRules" "Documentation/scst/SysfsRules"
-} | process_patch "scst_10_core_doc.diff"
+} | process_patch "scst_11_core_doc.diff"
 
 
 # Directory drivers/scst/dev_handlers/
@@ -380,7 +380,7 @@ do
     add_file "${f}" "drivers/scst/dev_handlers/${f#scst/src/dev_handlers/}"
   fi
 done \
-| process_patch "scst_13_passthrough.diff"
+| process_patch "scst_14_passthrough.diff"
 
 
 # Directory drivers/scst/fcst/
@@ -524,7 +524,7 @@ else
   add_empty_file "drivers/scst/srpt/Makefile"
 
 fi \
-} | process_patch "scst_16_srpt.diff"
+} | process_patch "scst_17_srpt.diff"
 
 
 # Directory drivers/message/fusion/mpt_scst
@@ -561,7 +561,7 @@ fi
 
   add_file "scst_local/scst_local.c" "drivers/scst/scst_local/scst_local.c"
 ) \
-| process_patch "scst_15_local.diff"
+| process_patch "scst_16_local.diff"
 
 
 
@@ -669,7 +669,7 @@ EOF
     add_file "ibmvstgt/README.sysfs" "Documentation/powerpc/ibmvstgt.txt"
   fi
 } \
-| process_patch "scst_17_ibmvstgt.diff"
+| process_patch "scst_18_ibmvstgt.diff"
 
 {
   ( cd ibmvstgt && ./generate-in-tree-patches "${kernel_version}" )
