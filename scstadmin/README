@@ -1,3 +1,35 @@
+SCST Configuration/Administration scripts. Here you'll find scstadmin which reads
+a configuration file /etc/scst.conf, or one if your choosing. With it you can manually
+or automatically configure every aspect of SCST incuding enabling/disabling target mode
+on your target SCSI controller. The old directory contains scst_db which uses a mysql
+backend database to configure SCST but doesn't handle all the things scstadmin handles.
+The perl module SCST::SCST is very generic and tries to handle error checking as well.
+
+The init script was written for debian but should work on most distributions.
+
+
+	scstadmin.sysfs
+			Use this version if you've disabled procfs support in SCST.
+	scstadmin.procfs
+			This is the default version which uses the older procfs.
+
+	scst-0.8.22	This is the SCST Perl module required by scstadmin and scst_db.
+	scst-0.9.00	This is the SCST Perl module to be used with SCST compiled
+                        for sysfs. Note, the current version of scstadmin will NOT yet
+                        work with this module.
+
+	scstadmin	Script which can accept operations on a command line or from
+			a configuration file. See scst.conf. For command help,
+				#> scstadmin
+
+	scst.conf	Configuration file for scst script. Usually stored
+			in /etc.
+
+	examples	Configuration examples.
+
+	init.d/scst	Init script to start SCST on boot which uses scstadmin.
+
+
 INSTALLING
 ----------
 
@@ -6,6 +38,15 @@ Now do the normal:
 make
 make install
 
+This installs scstadmin, the init.d script and the perl module. If you want SCST to
+startup and configure automatically upon boot, enable SCST using your favorite
+SysV init editor.
+
+NOTE: The init.d startup & shutdown scripts now depend on lsb-core. Ensure you have
+lsb-core installed or 'make install' will fail. Make sure /usr/lib/lsb/install_initd
+exists.
+
+
 GETTING HELP
 ------------
 
@@ -13,6 +54,7 @@ The new scstadmin has many more options than the olde procfs version to see
 them, type:
 
 scstadmin --help
+
 
 CONVERTING FROM PROCFS (scst version 1.x)
 -----------------------------------------
@@ -30,6 +72,7 @@ what you expect, save it by typing:
 scstadmin -write_config <new config file>
 
 Be sure to review this new configuration file to ensure it matches.
+
 
 CREATING A CONFIGURATION FROM SCRATCH
 -------------------------------------
