@@ -66,13 +66,13 @@ typedef _Bool bool;
  * and FIO_REV in usr/fileio/common.h as well.
  */
 #define SCST_VERSION(a, b, c, d)    (((a) << 24) + ((b) << 16) + ((c) << 8) + d)
-#define SCST_VERSION_CODE	    SCST_VERSION(2, 0, 0, 0)
+#define SCST_VERSION_CODE	    SCST_VERSION(2, 0, 0, 1)
 #ifdef CONFIG_SCST_PROC
 #define SCST_VERSION_STRING_SUFFIX  "-procfs"
 #else
 #define SCST_VERSION_STRING_SUFFIX
 #endif
-#define SCST_VERSION_STRING	    "2.0.0" SCST_VERSION_STRING_SUFFIX
+#define SCST_VERSION_STRING	    "2.0.0.1-rc1" SCST_VERSION_STRING_SUFFIX
 #define SCST_INTERFACE_VERSION	    \
 		SCST_VERSION_STRING "$Revision$" SCST_CONST_VERSION
 
