@@ -222,9 +222,13 @@ struct scst_vdisk_dev {
 	char *filename;		/* File name, protected by
 				   scst_mutex and suspended activities */
 	uint16_t command_set_version;
+
+	/* All 4 protected by vdisk_serial_rwlock */
 	unsigned int t10_dev_id_set:1; /* true if t10_dev_id manually set */
+	unsigned int usn_set:1; /* true if usn manually set */
 	char t10_dev_id[16+8+2]; /* T10 device ID */
 	char usn[MAX_USN_LEN];
+
 	struct scst_device *dev;
 	struct list_head vdev_list_entry;
 
@@ -325,6 +329,8 @@ static ssize_t vdev_sysfs_t10_dev_id_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count);
 static ssize_t vdev_sysfs_t10_dev_id_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
+static ssize_t vdev_sysfs_usn_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count);
 static ssize_t vdev_sysfs_usn_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 
@@ -353,7 +359,7 @@ static struct kobj_attribute vdev_t10_dev_id_attr =
 	__ATTR(t10_dev_id, S_IWUSR|S_IRUGO, vdev_sysfs_t10_dev_id_show,
 		vdev_sysfs_t10_dev_id_store);
 static struct kobj_attribute vdev_usn_attr =
-	__ATTR(usn, S_IRUGO, vdev_sysfs_usn_show, NULL);
+	__ATTR(usn, S_IWUSR|S_IRUGO, vdev_sysfs_usn_show, vdev_sysfs_usn_store);
 
 static struct kobj_attribute vcdrom_filename_attr =
 	__ATTR(filename, S_IRUGO|S_IWUSR, vdev_sysfs_filename_show,
@@ -409,7 +415,9 @@ static const struct attribute *vcdrom_attrs[] = {
 
 /* Protects vdisks addition/deletion and related activities, like search */
 static DEFINE_MUTEX(scst_vdisk_mutex);
-static DEFINE_RWLOCK(vdisk_t10_dev_id_rwlock);
+
+/* Protects devices t10_dev_id and usn */
+static DEFINE_RWLOCK(vdisk_serial_rwlock);
 
 /* Protected by scst_vdisk_mutex */
 static LIST_HEAD(vdev_list);
@@ -1295,10 +1303,12 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			resp_len = buf[3] + 4;
 		} else if (0x80 == cmd->cdb[2]) {
 			/* unit serial number */
-			int usn_len = strlen(virt_dev->usn);
-			buf[1] = 0x80;
+			int usn_len;
+			read_lock(&vdisk_serial_rwlock);
+			usn_len = strlen(virt_dev->usn);
 			buf[3] = usn_len;
 			strncpy(&buf[4], virt_dev->usn, usn_len);
+			read_unlock(&vdisk_serial_rwlock);
 			resp_len = buf[3] + 4;
 		} else if (0x83 == cmd->cdb[2]) {
 			/* device identification */
@@ -1313,10 +1323,10 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			else
 				memcpy(&buf[num + 4], SCST_FIO_VENDOR, 8);
 
-			read_lock_bh(&vdisk_t10_dev_id_rwlock);
+			read_lock(&vdisk_serial_rwlock);
 			i = strlen(virt_dev->t10_dev_id);
 			memcpy(&buf[num + 12], virt_dev->t10_dev_id, i);
-			read_unlock_bh(&vdisk_t10_dev_id_rwlock);
+			read_unlock(&vdisk_serial_rwlock);
 
 			buf[num + 3] = 8 + i;
 			num += buf[num + 3];
@@ -3092,8 +3102,12 @@ static int vdev_create(struct scst_dev_type *devt,
 	memcpy(virt_dev->t10_dev_id + i, dev_id_str, dev_id_len);
 	TRACE_DBG("t10_dev_id %s", virt_dev->t10_dev_id);
 
+	virt_dev->t10_dev_id_set = 1; /* temporary */
+
 	scnprintf(virt_dev->usn, sizeof(virt_dev->usn), "%llx", dev_id_num);
 	TRACE_DBG("usn %s", virt_dev->usn);
+
+	virt_dev->usn_set = 1; /* temporary */
 
 	*res_virt_dev = virt_dev;
 
@@ -4093,7 +4107,7 @@ static ssize_t vdev_sysfs_t10_dev_id_store(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
 
-	write_lock_bh(&vdisk_t10_dev_id_rwlock);
+	write_lock(&vdisk_serial_rwlock);
 
 	if ((count > sizeof(virt_dev->t10_dev_id)) ||
 	    ((count == sizeof(virt_dev->t10_dev_id)) &&
@@ -4124,7 +4138,7 @@ static ssize_t vdev_sysfs_t10_dev_id_store(struct kobject *kobj,
 		virt_dev->t10_dev_id);
 
 out_unlock:
-	write_unlock_bh(&vdisk_t10_dev_id_rwlock);
+	write_unlock(&vdisk_serial_rwlock);
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -4142,13 +4156,62 @@ static ssize_t vdev_sysfs_t10_dev_id_show(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
 
-	read_lock_bh(&vdisk_t10_dev_id_rwlock);
+	read_lock(&vdisk_serial_rwlock);
 	pos = sprintf(buf, "%s\n%s", virt_dev->t10_dev_id,
 		virt_dev->t10_dev_id_set ? SCST_SYSFS_KEY_MARK "\n" : "");
-	read_unlock_bh(&vdisk_t10_dev_id_rwlock);
+	read_unlock(&vdisk_serial_rwlock);
 
 	TRACE_EXIT_RES(pos);
 	return pos;
+}
+
+static ssize_t vdev_sysfs_usn_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res, i;
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = dev->dh_priv;
+
+	write_lock(&vdisk_serial_rwlock);
+
+	if ((count > sizeof(virt_dev->usn)) ||
+	    ((count == sizeof(virt_dev->usn)) &&
+	     (buf[count-1] != '\n'))) {
+		PRINT_ERROR("USN is too long (max %zd "
+			"characters)", sizeof(virt_dev->usn)-1);
+		res = -EINVAL;
+		goto out_unlock;
+	}
+
+	memset(virt_dev->usn, 0, sizeof(virt_dev->usn));
+	memcpy(virt_dev->usn, buf, count);
+
+	i = 0;
+	while (i < sizeof(virt_dev->usn)) {
+		if (virt_dev->usn[i] == '\n') {
+			virt_dev->usn[i] = '\0';
+			break;
+		}
+		i++;
+	}
+
+	virt_dev->usn_set = 1;
+
+	res = count;
+
+	PRINT_INFO("USN for device %s changed to %s", virt_dev->name,
+		virt_dev->usn);
+
+out_unlock:
+	write_unlock(&vdisk_serial_rwlock);
+
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 static ssize_t vdev_sysfs_usn_show(struct kobject *kobj,
@@ -4163,7 +4226,10 @@ static ssize_t vdev_sysfs_usn_show(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = (struct scst_vdisk_dev *)dev->dh_priv;
 
-	pos = sprintf(buf, "%s\n", virt_dev->usn);
+	read_lock(&vdisk_serial_rwlock);
+	pos = sprintf(buf, "%s\n%s", virt_dev->usn,
+		virt_dev->usn_set ? SCST_SYSFS_KEY_MARK "\n" : "");
+	read_unlock(&vdisk_serial_rwlock);
 
 	TRACE_EXIT_RES(pos);
 	return pos;
@@ -4239,10 +4305,10 @@ static int vdisk_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type)
 			seq_printf(seq, " ");
 			c++;
 		}
-		read_lock_bh(&vdisk_t10_dev_id_rwlock);
+		read_lock(&vdisk_serial_rwlock);
 		seq_printf(seq, "%-45s %-16s\n", vdev_get_filename(virt_dev),
 			virt_dev->t10_dev_id);
-		read_unlock_bh(&vdisk_t10_dev_id_rwlock);
+		read_unlock(&vdisk_serial_rwlock);
 	}
 	mutex_unlock(&scst_vdisk_mutex);
 out:
@@ -4524,7 +4590,7 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 			goto out_up;
 		}
 
-		write_lock_bh(&vdisk_t10_dev_id_rwlock);
+		write_lock(&vdisk_serial_rwlock);
 
 		slen = (strlen(t10_dev_id) <= (sizeof(virt_dev->t10_dev_id)-1) ?
 			strlen(t10_dev_id) :
@@ -4536,7 +4602,7 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 		PRINT_INFO("T10 device id for device %s changed to %s",
 			virt_dev->name, virt_dev->t10_dev_id);
 
-		write_unlock_bh(&vdisk_t10_dev_id_rwlock);
+		write_unlock(&vdisk_serial_rwlock);
 	}
 	res = length;
 
