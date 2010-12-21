@@ -109,4 +109,4 @@ internal thread you should load ib_srpt module with parameter
 
 
 Send questions about this driver to scst-devel@lists.sourceforge.net, CC:
-Vu Pham <vuhuong@mellanox.com> and Bart Van Assche <bart.vanassche@gmail.com>.
+Vu Pham <vuhuong@mellanox.com> and Bart Van Assche <bvanassche@acm.org>.

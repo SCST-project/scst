@@ -5,7 +5,7 @@
 # Script that takes a patch as input and lists the line numbers of double
 # blank lines in the input.
 #
-# Copyright (C) 2009 Bart Van Assche <bart.vanassche@gmail.com>
+# Copyright (C) 2009 Bart Van Assche <bvanassche@acm.org>
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
