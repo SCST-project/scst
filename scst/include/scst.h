@@ -1084,7 +1084,9 @@ struct scst_tgt_template {
 	 * Note: SCST can be configured such that a device can be accessed
 	 * from several different transports at the same time. It is important
 	 * that all clients see the same USN for proper operation. Overriding
-	 * the serial number can lead to subtle misbehavior.
+	 * the serial number can lead to subtle misbehavior. Particularly,
+	 * "usn" sysfs attribute of the corresponding devices will still show
+	 * the devices generated or assigned serial numbers.
 	 */
 	int (*get_serial)(const struct scst_tgt_dev *tgt_dev, char *buf,
 			  int size);
