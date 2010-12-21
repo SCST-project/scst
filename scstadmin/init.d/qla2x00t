@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # Copyright (C) 2008 Mark Buechler <mark.buechler@gmail.com>
-# Copyright (C) 2009 Bart Van Assche <bart.vanassche@gmail.com>
+# Copyright (C) 2009 Bart Van Assche <bvanassche@acm.org>
 # This software is made available under the GPLv2 license.
 #
 # System startup script for the QLogic 22xx/23xx card target driver.

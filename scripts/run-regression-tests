@@ -4,7 +4,7 @@
 #
 # Script for running those SCST regression tests that can be run automatically.
 #
-# Copyright (C) 2008-2009 Bart Van Assche <bart.vanassche@gmail.com>
+# Copyright (C) 2008-2009 Bart Van Assche <bvanassche@acm.org>
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -127,7 +127,7 @@ kmemcheck_annotate_bitfield() macro. An example of such a warning:
 
 include/net/inet_sock.h:208:17: warning: do-while statement is not a compound statement
 
-Signed-off-by: Bart Van Assche <bart.vanassche@gmail.com>
+Signed-off-by: Bart Van Assche <bvanassche@acm.org>
 Cc: Vegard Nossum <vegardno@ifi.uio.no>
 Cc: Andrew Morton <akpm@linux-foundation.org>
 
