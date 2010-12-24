@@ -2039,7 +2039,9 @@ qla2x00_get_id_list(scsi_qla_host_t *ha, void *id_list, dma_addr_t id_list_dma,
 	rval = qla2x00_mailbox_command(ha, mcp);
 
 	if (rval != QLA_SUCCESS) {
-		/*EMPTY*/
+		if ((mcp->mb[0] == MBS_COMMAND_ERROR) &&
+		    (mcp->mb[1] == 0x7))
+			rval = QLA_FW_NOT_READY;
 		DEBUG2_3_11(printk("qla2x00_get_id_list(%ld): failed=%x.\n",
 		    ha->host_no, rval));
 	} else {

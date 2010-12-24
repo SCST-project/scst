@@ -824,7 +824,7 @@ static int q24_get_loop_id(scsi_qla_host_t *ha, const uint8_t *s_id,
 	dma_addr_t gid_list_dma;
 	struct gid_list_info *gid_list;
 	char *id_iter;
-	int res, rc, i;
+	int res, rc, i, retries = 0;
 	uint16_t entries;
 
 	TRACE_ENTRY();
@@ -839,11 +839,19 @@ static int q24_get_loop_id(scsi_qla_host_t *ha, const uint8_t *s_id,
 	}
 
 	/* Get list of logged in devices */
+retry:
 	rc = qla2x00_get_id_list(ha, gid_list, gid_list_dma, &entries);
 	if (rc != QLA_SUCCESS) {
+		if (rc == QLA_FW_NOT_READY) {
+			retries++;
+			if (retries < 3) {
+				msleep(1500);
+				goto retry;
+			}
+		}
 		TRACE_MGMT_DBG("qla2x00t(%ld): get_id_list() failed: %x",
 			ha->instance, rc);
-		res = -1;
+		res = -rc;
 		goto out_free_id_list;
 	}
 

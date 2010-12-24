@@ -3350,7 +3350,7 @@ qla2x00_module_exit(void)
 module_init(qla2x00_module_init);
 module_exit(qla2x00_module_exit);
 
-MODULE_AUTHOR("QLogic Corporation");
+MODULE_AUTHOR("QLogic Corporation & SCST team");
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 MODULE_DESCRIPTION("QLogic Fibre Channel HBA Driver (Target Mode Support, including 24xx+ ISP)");
 #else

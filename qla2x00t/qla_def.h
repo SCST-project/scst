@@ -2721,6 +2721,7 @@ struct qla_tgt_vp_map {
 #define QLA_BUSY			0x107
 #define QLA_RSCNS_HANDLED		0x108
 #define QLA_ALREADY_REGISTERED		0x109
+#define QLA_FW_NOT_READY		0x10A
 
 #define NVRAM_DELAY()		udelay(10)
 
