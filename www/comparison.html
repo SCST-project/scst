@@ -57,7 +57,7 @@
 
 <tr>
 <td>
-</td><td><b><a href="http://scst.sourceforge.net/" title="http://scst.sourceforge.net/" rel="nofollow">SCST 2.0</a></b>
+</td><td><b><a href="http://scst.sourceforge.net/" title="http://scst.sourceforge.net/" rel="nofollow">SCST</a></b>
 </td><td><b><a href="http://stgt.berlios.de/" title="http://stgt.berlios.de/" rel="nofollow">STGT</a></b>
 </td><td><b><a href="http://iscsitarget.sourceforge.net/" title="http://iscsitarget.sourceforge.net/" rel="nofollow">IET</a></b>
 </td><td><b><a href="http://linux-iscsi.org/" title="http://linux-iscsi.org/" rel="nofollow">LIO</a></b>
@@ -199,6 +199,9 @@ Through Power Loss Persistent Reservation data</b></td>			<td> Durable </td>	<td
 performing</b></td>							<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>                                                                                           
 <tr>
+<td align="left"><b>CPU affinity control</b></td>			<td> + </td>		<td> - </td>		<td> - </td>		<td> + </td>
+</tr>
+<tr>
 <td align="left"><b>I/O context grouping between I/O threads (big
 performance win with CFQ)</b></td>					<td> + </td>		<td> - </td>		<td> + </td>		<td> - </td>		
 </tr>
@@ -231,9 +234,6 @@ apply changes in the config file on fly without any restarts</b></td>	<td> scsta
 <td align="left"><b>SCSI MIBs</b></td>					<td> - </td>		<td> - </td>		<td> - </td>		<td>  +- 
 																		<sup><A HREF="#15">15</A></sup></td>
 </tr>                                                                                                                           
-<tr>                                                                                                                            
-<td align="left"><b>Cluster Storage Integration</b></td>		<td> - </td>		<td> - </td>		<td> - </td>		<td> VHACS </td>	
-</tr>                                                                                                                           
                                                                                                 
                                                                                                 
 <tr bgcolor="#E0E0E0">                                                                                                          
@@ -261,7 +261,7 @@ apply changes in the config file on fly without any restarts</b></td>	<td> scsta
 <td align="left"><b>Marvell (SAS)</b></td>				<td> Beta </td>		<td> - </td>		<td> - </td>		<td> - </td>		
 </tr>
 <tr>
-<td align="left"><b>FCoE</b></td>					<td> Alpha </td>	<td>Under
+<td align="left"><b>FCoE</b></td>					<td> Beta </td>		<td>Under
 									 			 development</td>	<td> - </td>		<td> Alpha </td>	
 </tr>                                                                                                                                                 
 <tr>                                                                                                                            
@@ -352,8 +352,7 @@ CD devices</b></td>							<td> - </td>		<td> + </td>		<td> - </td>		<td> - </td>
 devices (VTL)</b></td>							<td> - </td>		<td>Experimental</td>	<td> - </td>		<td> - </td>
 </tr>
 <tr>
-<td align="left"><b>Thin provisioning support</b></td>			<td>+<br>
-									(v2.1 only)</td>	<td> - </td>		<td> - </td>		<td> + (just added) </td>
+<td align="left"><b>Thin provisioning support</b></td>			<td>+<br></td>		<td> - </td>		<td> - </td>		<td> + (just added) </td>
 </tr>
                                                                                                 
 <tr bgcolor="#E0E0E0">                                                                                                          
