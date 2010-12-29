@@ -845,7 +845,7 @@ retry:
 		if (rc == QLA_FW_NOT_READY) {
 			retries++;
 			if (retries < 3) {
-				msleep(1500);
+				msleep(1000);
 				goto retry;
 			}
 		}
@@ -5657,7 +5657,10 @@ out_unlock:
 /* Must be called under tgt_host_action_mutex */
 static int q2t_add_target(scsi_qla_host_t *ha)
 {
-	int res, rc;
+	int res;
+#ifndef CONFIG_SCST_PROC
+	int rc;
+#endif
 	char *wwn;
 	int sg_tablesize;
 	struct q2t_tgt *tgt;
@@ -5919,6 +5922,9 @@ static bool q2t_is_tgt_enabled(struct scst_tgt *scst_tgt)
 	return qla_tgt_mode_enabled(ha);
 }
 
+#if ((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)) || \
+     defined(FC_VPORT_CREATE_DEFINED)) || \
+     !defined(CONFIG_SCST_PROC)
 static int q2t_parse_wwn(const char *ns, u64 *nm)
 {
 	unsigned int i, j;
@@ -5952,6 +5958,7 @@ static int q2t_parse_wwn(const char *ns, u64 *nm)
 
 	return 0;
 }
+#endif
 
 #if ((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)) || \
      defined(FC_VPORT_CREATE_DEFINED))
