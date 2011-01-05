@@ -39,7 +39,7 @@ static struct kobject *scst_targets_kobj;
 static struct kobject *scst_devices_kobj;
 static struct kobject *scst_handlers_kobj;
 
-static const char *scst_dev_handler_types[] = {
+static const char *const scst_dev_handler_types[] = {
 	"Direct-access device (e.g., magnetic disk)",
 	"Sequential-access device (e.g., magnetic tape)",
 	"Printer device",
