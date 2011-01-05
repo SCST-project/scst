@@ -39,7 +39,7 @@
 #define ISCSI_INIT_WRITE_WAKE		0x1
 
 static int ctr_major;
-static char ctr_name[] = "iscsi-scst-ctl";
+static const char ctr_name[] = "iscsi-scst-ctl";
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 unsigned long iscsi_trace_flag = ISCSI_DEFAULT_LOG_FLAGS;
