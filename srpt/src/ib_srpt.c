@@ -715,8 +715,8 @@ static struct srpt_ioctx **srpt_alloc_ioctx_ring(struct srpt_device *sdev,
 
 	TRACE_ENTRY();
 
-	WARN_ON(ioctx_size != sizeof(struct srpt_recv_ioctx)
-		&& ioctx_size != sizeof(struct srpt_send_ioctx));
+	WARN_ON(ioctx_size != sizeof(struct srpt_recv_ioctx) &&
+		ioctx_size != sizeof(struct srpt_send_ioctx));
 	WARN_ON(dma_size != srp_max_req_size && dma_size != srp_max_rsp_size);
 
 	ring = kmalloc(ring_size * sizeof(ring[0]), GFP_KERNEL);
