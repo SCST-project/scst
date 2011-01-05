@@ -920,8 +920,8 @@ static int scst_local_send_resp(struct scsi_cmnd *cmnd,
  * This does the heavy lifting ... we pass all the commands on to the
  * target driver and have it do its magic ...
  */
-static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
-				   void (*done)(struct scsi_cmnd *))
+static int scst_local_queuecommand_lck(struct scsi_cmnd *SCpnt,
+				       void (*done)(struct scsi_cmnd *))
 	__acquires(&h->host_lock)
 	__releases(&h->host_lock)
 {
@@ -956,7 +956,7 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 	}
 	tgt_specific->cmnd = SCpnt;
 	tgt_specific->done = done;
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
 	/*
 	 * We save a pointer to the done routine in SCpnt->scsi_done and
 	 * we save that as tgt specific stuff below.
@@ -1083,6 +1083,10 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 	TRACE_EXIT();
 	return 0;
 }
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
+static DEF_SCSI_QCMD(scst_local_queuecommand)
+#endif
 
 static int scst_local_targ_pre_exec(struct scst_cmd *scst_cmd)
 {
@@ -1385,7 +1389,11 @@ static struct scsi_host_template scst_lcl_ini_driver_template = {
 	.info				= scst_local_info,
 #endif
 	.name				= SCST_LOCAL_NAME,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
+	.queuecommand			= scst_local_queuecommand_lck,
+#else
 	.queuecommand			= scst_local_queuecommand,
+#endif
 	.eh_abort_handler		= scst_local_abort,
 	.eh_device_reset_handler	= scst_local_device_reset,
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 25))
