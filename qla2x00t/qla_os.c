@@ -2225,10 +2225,8 @@ qla2x00_mark_all_devices_lost(scsi_qla_host_t *ha, int defer)
 	scsi_qla_host_t *pha = to_qla_parent(ha);
 
 	list_for_each_entry_rcu(fcport, &pha->fcports, list) {
-#ifndef CONFIG_SCSI_QLA2XXX_TARGET
 		if (ha->vp_idx != 0 && ha->vp_idx != fcport->vp_idx)
 			continue;
-#endif
 		/*
 		 * No point in marking the device as lost, if the device is
 		 * already DEAD.
@@ -2243,9 +2241,6 @@ qla2x00_mark_all_devices_lost(scsi_qla_host_t *ha, int defer)
 		}
 		atomic_set(&fcport->state, FCS_DEVICE_LOST);
 	}
-
-	if (defer)
-		qla2xxx_wake_dpc(ha);
 }
 
 /*
