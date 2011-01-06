@@ -1306,6 +1306,7 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			int usn_len;
 			read_lock(&vdisk_serial_rwlock);
 			usn_len = strlen(virt_dev->usn);
+			buf[1] = 0x80;
 			buf[3] = usn_len;
 			strncpy(&buf[4], virt_dev->usn, usn_len);
 			read_unlock(&vdisk_serial_rwlock);
