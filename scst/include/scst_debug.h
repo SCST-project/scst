@@ -34,20 +34,22 @@
 #if !defined(INSIDE_KERNEL_TREE)
 #ifdef CONFIG_SCST_DEBUG
 
-#ifndef CONFIG_DEBUG_BUGVERBOSE
 #define sBUG() do {						\
 	printk(KERN_CRIT "BUG at %s:%d\n",			\
 	       __FILE__, __LINE__);				\
+	local_irq_enable();					\
+	while (in_softirq())					\
+		local_bh_enable();				\
 	BUG();							\
 } while (0)
-#else
-#define sBUG() BUG()
-#endif
 
 #define sBUG_ON(p) do {						\
 	if (unlikely(p)) {					\
 		printk(KERN_CRIT "BUG at %s:%d (%s)\n",		\
 		       __FILE__, __LINE__, #p);			\
+		local_irq_enable();				\
+		while (in_softirq())				\
+			local_bh_enable();			\
 		BUG();						\
 	}							\
 } while (0)
