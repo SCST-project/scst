@@ -1077,7 +1077,7 @@ sub writeConfiguration {
 		my $devices = $CURRENT{'handler'}->{$handler};
 
 		my $device_buff;
-		foreach my $device (@{$devices}) {
+		foreach my $device (sort @{$devices}) {
 			$device_buff .= "\tDEVICE $device";
 
 			$attributes = $SCST->deviceAttributes($device);
