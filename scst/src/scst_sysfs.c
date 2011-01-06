@@ -2,8 +2,9 @@
  *  scst_sysfs.c
  *
  *  Copyright (C) 2009 Daniel Henrique Debonzi <debonzi@linux.vnet.ibm.com>
- *  Copyright (C) 2009 - 2010 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2009 - 2011 Vladislav Bolkhovitin <vst@vlnb.net>
  *  Copyright (C) 2009 - 2010 ID7 Ltd.
+ *  Copyright (C) 2010 - 2011 SCST Ltd.
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License

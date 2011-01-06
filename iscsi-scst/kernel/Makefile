@@ -1,24 +1,25 @@
 #
-# Makefile for the kernel part of iSCSI-SCST.
+#  Makefile for the kernel part of iSCSI-SCST.
 #
-# Copyright (C) 2007 - 2010 Vladislav Bolkhovitin
-# Copyright (C) 2007 - 2010 ID7 Ltd.
+#  Copyright (C) 2007 - 2011 Vladislav Bolkhovitin
+#  Copyright (C) 2007 - 2010 ID7 Ltd.
+#  Copyright (C) 2010 - 2011 SCST Ltd.
 #
-# This program is free software; you can redistribute it and/or
-# modify it under the terms of the GNU General Public License
-# as published by the Free Software Foundation, version 2
-# of the License.
+#  This program is free software; you can redistribute it and/or
+#  modify it under the terms of the GNU General Public License
+#  as published by the Free Software Foundation, version 2
+#  of the License.
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+#  GNU General Public License for more details.
 #
-# Note! Dependencies are done automatically by 'make dep', which also
-# removes any old dependencies. DON'T put your own dependencies here
-# unless it's something special (not a .c file).
+#  Note! Dependencies are done automatically by 'make dep', which also
+#  removes any old dependencies. DON'T put your own dependencies here
+#  unless it's something special (not a .c file).
 #
-# Note 2! The CFLAGS definitions are now in the main makefile.
+#  Note 2! The CFLAGS definitions are now in the main makefile.
 
 cc-option = $(shell if $(CC) $(CFLAGS) $(1) -S -o /dev/null -xc /dev/null \
              > /dev/null 2>&1; then echo "$(1)"; else echo "$(2)"; fi ;)
