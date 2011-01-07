@@ -58,6 +58,10 @@ Set Attribute Operations
      -set_tgt_attr <target>  : Sets target attribute(s) <p> to value <v>.
          -driver <driver>
          -attributes <p=v,...>
+     -set_grp_attr <group>   : Sets group attribute(s) <p> to value <v>.
+         -driver <driver>
+         -target <target>
+         -attributes <p=v,...>
      -set_lun_attr <lun>     : Sets LUN attribute(s) <p> to value <v>.
          -driver <driver>
          -target <target>
