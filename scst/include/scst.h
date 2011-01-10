@@ -2705,25 +2705,37 @@ static inline bool scst_cmd_prelim_completed(struct scst_cmd *cmd)
 	return cmd->completed || test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags);
 }
 
-static inline enum scst_exec_context __scst_estimate_context(bool direct)
+static inline enum scst_exec_context __scst_estimate_context(bool atomic)
 {
 	if (in_irq())
 		return SCST_CONTEXT_TASKLET;
+/*
+ * We come here from many non reliable places, like the block layer, and don't
+ * have any reliable way to detect if we called under atomic context or not
+ * (in_atomic() isn't reliable), so let's be safe and disable this section
+ * for now to unconditionally return thread context.
+ */
+#if 0
 	else if (irqs_disabled())
 		return SCST_CONTEXT_THREAD;
+	else if (in_atomic())
+		return SCST_CONTEXT_DIRECT_ATOMIC;
 	else
-		return direct ? SCST_CONTEXT_DIRECT :
+		return atomic ? SCST_CONTEXT_DIRECT :
 				SCST_CONTEXT_DIRECT_ATOMIC;
+#else
+	return SCST_CONTEXT_THREAD;
+#endif
 }
 
 static inline enum scst_exec_context scst_estimate_context(void)
 {
-	return __scst_estimate_context(0);
+	return __scst_estimate_context(false);
 }
 
-static inline enum scst_exec_context scst_estimate_context_direct(void)
+static inline enum scst_exec_context scst_estimate_context_atomic(void)
 {
-	return __scst_estimate_context(1);
+	return __scst_estimate_context(true);
 }
 
 /* Returns cmd's CDB */

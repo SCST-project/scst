@@ -1058,7 +1058,7 @@ static int scst_local_queuecommand(struct scsi_cmnd *SCpnt,
 	{
 		struct Scsi_Host *h = SCpnt->device->host;
 		spin_unlock_irq(h->host_lock);
-		scst_cmd_init_done(scst_cmd, scst_estimate_context_direct());
+		scst_cmd_init_done(scst_cmd, scst_estimate_context_atomic());
 		spin_lock_irq(h->host_lock);
 	}
 #else
