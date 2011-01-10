@@ -225,6 +225,24 @@ user space:
 For other connected initiators steps 3-6 should be repeated.
 
 
+Compilation options
+===================
+
+There are the following compilation options, that could be commented
+in/out in Makefile:
+
+ - CONFIG_SCST_LOCAL_FORCE_DIRECT_PROCESSING - by default, when this option
+   is not defined, scst_local reschedules all commands for processing in
+   one of the SCST threads. If this option is defined, scst_local tries
+   to not do it, if possible (sometimes queuecommand() called under
+   various locks held), but instead process them in the submitter's
+   context. This is to increase performance, but as on 2.6.37 and below
+   Linux block layer doesn't work with such kind of reentrance, hence
+   this option disabled by default. Note! At the moment in
+   scst_estimate_context*() returning DIRECT contexts disabled, so this
+   option doesn't have any real effect.
+
+
 Change log
 ==========
 

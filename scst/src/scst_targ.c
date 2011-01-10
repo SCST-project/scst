@@ -3974,8 +3974,7 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 	 * for debugging purposes.
 	 */
 	EXTRACHECKS_BUG_ON(in_irq() || irqs_disabled());
-	EXTRACHECKS_WARN_ON((in_atomic() || in_interrupt() || irqs_disabled()) &&
-			     !atomic);
+	EXTRACHECKS_WARN_ON((in_atomic() || in_interrupt()) && !atomic);
 
 	cmd->atomic = atomic;
 

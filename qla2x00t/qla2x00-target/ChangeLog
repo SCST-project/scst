@@ -1,6 +1,8 @@
 Summary of changes between versions 2.0.0 and 2.1.0
 ---------------------------------------------------
 
+ - Update to 2.6.37
+
  - Complete NPIV support added. Particularly, now SCST core sees
    all the virtual targets and provide separate target-oriented access
    control for them. Thanks a lot to Uri Yanai and Dorit

@@ -118,13 +118,13 @@ allows to work directly over a block device, e.g. local IDE or SCSI disk
 or ever disk partition, where there is no file systems overhead. Using
 block devices comparing to sending SCSI commands directly to SCSI
 mid-level via scsi_do_req()/scsi_execute_async() has advantage that data
-are transferred via system cache, so it is possible to fully benefit from
-caching and read ahead performed by Linux's VM subsystem. The only
+are transferred via system cache, so it is possible to fully benefit
+from caching and read ahead performed by Linux's VM subsystem. The only
 disadvantage here that in the FILEIO mode there is superfluous data
 copying between the cache and SCST's buffers. This issue is going to be
-addressed in the next release. Virtual CDROM's are useful for remote
-installation. See below for details how to setup and use VDISK device
-handler.
+addressed in one of the future releases. Virtual CDROM's are useful for
+remote installation. See below for details how to setup and use VDISK
+device handler.
 
 "Performance" device handlers for disks, MO disks and tapes in their
 exec() method skip (pretend to execute) all READ and WRITE operations
@@ -1257,7 +1257,10 @@ sessions, which is enough.
    device.
 
    Note2: you need to restart SCST after you changed read-ahead settings
-   on the target.
+   on the target. It is a limitation of the Linux read ahead
+   implementation. It reads RA values for each file only when the file
+   is open and not updates them when the global RA parameters changed.
+   Hence, the need for vdisk to reopen all its files/devices.
 
  - You may need to increase amount of requests that OS on initiator
    sends to the target device. To do it on Linux initiators, run

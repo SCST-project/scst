@@ -1,7 +1,6 @@
-diff --git a/block/blk-map.c b/block/blk-map.c
-index 5d5dbe4..bc036bc 100644
---- a/block/blk-map.c
-+++ b/block/blk-map.c
+diff -upkr linux-2.6.37/block/blk-map.c linux-2.6.37/block/blk-map.c
+--- linux-2.6.37/block/blk-map.c	2011-01-05 03:50:19.000000000 +0300
++++ linux-2.6.37/block/blk-map.c	2011-01-08 16:45:54.350430208 +0300
 @@ -5,6 +5,8 @@
  #include <linux/module.h>
  #include <linux/bio.h>
@@ -11,7 +10,7 @@ index 5d5dbe4..bc036bc 100644
  #include <scsi/sg.h>		/* for struct sg_iovec */
  
  #include "blk.h"
-@@ -273,6 +275,337 @@ int blk_rq_unmap_user(struct bio *bio)
+@@ -274,6 +276,337 @@ int blk_rq_unmap_user(struct bio *bio)
  }
  EXPORT_SYMBOL(blk_rq_unmap_user);
  
@@ -349,11 +348,10 @@ index 5d5dbe4..bc036bc 100644
  /**
   * blk_rq_map_kern - map kernel data to a request, for REQ_TYPE_BLOCK_PC usage
   * @q:		request queue where request should be inserted
-diff --git a/include/linux/blkdev.h b/include/linux/blkdev.h
-index aae86fd..c9a438e 100644
---- a/include/linux/blkdev.h
-+++ b/include/linux/blkdev.h
-@@ -589,6 +589,8 @@ extern unsigned long blk_max_low_pfn, blk_max_pfn;
+diff -upkr linux-2.6.37/include/linux/blkdev.h linux-2.6.37/include/linux/blkdev.h
+--- linux-2.6.37/include/linux/blkdev.h	2011-01-05 03:50:19.000000000 +0300
++++ linux-2.6.37/include/linux/blkdev.h	2011-01-08 16:45:54.350430208 +0300
+@@ -592,6 +592,8 @@ extern unsigned long blk_max_low_pfn, bl
  #define BLK_DEFAULT_SG_TIMEOUT	(60 * HZ)
  #define BLK_MIN_SG_TIMEOUT	(7 * HZ)
  
@@ -362,7 +360,7 @@ index aae86fd..c9a438e 100644
  #ifdef CONFIG_BOUNCE
  extern int init_emergency_isa_pool(void);
  extern void blk_queue_bounce(struct request_queue *q, struct bio **bio);
-@@ -706,6 +708,9 @@ extern int blk_rq_map_kern(struct request_queue *, struct request *, void *, uns
+@@ -709,6 +711,9 @@ extern int blk_rq_map_kern(struct reques
  extern int blk_rq_map_user_iov(struct request_queue *, struct request *,
  			       struct rq_map_data *, struct sg_iovec *, int,
  			       unsigned int, gfp_t);
@@ -372,10 +370,9 @@ index aae86fd..c9a438e 100644
  extern int blk_execute_rq(struct request_queue *, struct gendisk *,
  			  struct request *, int);
  extern void blk_execute_rq_nowait(struct request_queue *, struct gendisk *,
-diff --git a/include/linux/scatterlist.h b/include/linux/scatterlist.h
-index 9aaf5bf..0177996 100644
---- a/include/linux/scatterlist.h
-+++ b/include/linux/scatterlist.h
+diff -upkr linux-2.6.37/include/linux/scatterlist.h linux-2.6.37/include/linux/scatterlist.h
+--- linux-2.6.37/include/linux/scatterlist.h	2011-01-05 03:50:19.000000000 +0300
++++ linux-2.6.37/include/linux/scatterlist.h	2011-01-08 16:45:54.354431761 +0300
 @@ -3,6 +3,7 @@
  
  #include <asm/types.h>
@@ -384,7 +381,7 @@ index 9aaf5bf..0177996 100644
  #include <linux/mm.h>
  #include <linux/string.h>
  #include <asm/io.h>
-@@ -218,6 +219,10 @@ size_t sg_copy_from_buffer(struct scatterlist *sgl, unsigned int nents,
+@@ -218,6 +219,10 @@ size_t sg_copy_from_buffer(struct scatte
  size_t sg_copy_to_buffer(struct scatterlist *sgl, unsigned int nents,
  			 void *buf, size_t buflen);
  
@@ -395,11 +392,10 @@ index 9aaf5bf..0177996 100644
  /*
   * Maximum number of entries that will be allocated in one piece, if
   * a list larger than this is required then chaining will be utilized.
-diff --git a/lib/scatterlist.c b/lib/scatterlist.c
-index 4ceb05d..caf58c4 100644
---- a/lib/scatterlist.c
-+++ b/lib/scatterlist.c
-@@ -517,3 +517,132 @@ size_t sg_copy_to_buffer(struct scatterlist *sgl, unsigned int nents,
+diff -upkr linux-2.6.37/lib/scatterlist.c linux-2.6.37/lib/scatterlist.c
+--- linux-2.6.37/lib/scatterlist.c	2011-01-05 03:50:19.000000000 +0300
++++ linux-2.6.37/lib/scatterlist.c	2011-01-08 16:45:54.401930472 +0300
+@@ -517,3 +517,132 @@ size_t sg_copy_to_buffer(struct scatterl
  	return sg_copy_buffer(sgl, nents, buf, buflen, 1);
  }
  EXPORT_SYMBOL(sg_copy_to_buffer);
@@ -532,3 +528,4 @@ index 4ceb05d..caf58c4 100644
 +	return res;
 +}
 +EXPORT_SYMBOL(sg_copy);
+

@@ -1,6 +1,8 @@
 Summary of changes between versions 2.0.0 and 2.1.0
 ---------------------------------------------------
 
+ - Update to 2.6.37
+
  - Assigning CPU affinity to RD/WR threads added
 
 

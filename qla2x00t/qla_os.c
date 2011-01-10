@@ -129,10 +129,14 @@ static int qla2xxx_slave_alloc(struct scsi_device *);
 static int qla2xxx_scan_finished(struct Scsi_Host *, unsigned long time);
 static void qla2xxx_scan_start(struct Scsi_Host *);
 static void qla2xxx_slave_destroy(struct scsi_device *);
-static int qla2x00_queuecommand(struct scsi_cmnd *cmd,
+static int qla2x00_queuecommand_lck(struct scsi_cmnd *cmd,
 		void (*fn)(struct scsi_cmnd *));
-static int qla24xx_queuecommand(struct scsi_cmnd *cmd,
+static int qla24xx_queuecommand_lck(struct scsi_cmnd *cmd,
 		void (*fn)(struct scsi_cmnd *));
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
+static DEF_SCSI_QCMD(qla2x00_queuecommand);
+static DEF_SCSI_QCMD(qla24xx_queuecommand);
+#endif
 static int qla2xxx_eh_abort(struct scsi_cmnd *);
 static int qla2xxx_eh_device_reset(struct scsi_cmnd *);
 static int qla2xxx_eh_target_reset(struct scsi_cmnd *);
@@ -150,7 +154,11 @@ static int qla2x00_change_queue_type(struct scsi_device *, int);
 static struct scsi_host_template qla2x00_driver_template = {
 	.module			= THIS_MODULE,
 	.name			= QLA2XXX_DRIVER_NAME,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
+	.queuecommand		= qla2x00_queuecommand_lck,
+#else
 	.queuecommand		= qla2x00_queuecommand,
+#endif
 
 	.eh_abort_handler	= qla2xxx_eh_abort,
 	.eh_device_reset_handler = qla2xxx_eh_device_reset,
@@ -186,7 +194,11 @@ static struct scsi_host_template qla2x00_driver_template = {
 struct scsi_host_template qla24xx_driver_template = {
 	.module			= THIS_MODULE,
 	.name			= QLA2XXX_DRIVER_NAME,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
+	.queuecommand		= qla24xx_queuecommand_lck,
+#else
 	.queuecommand		= qla24xx_queuecommand,
+#endif
 
 	.eh_abort_handler	= qla2xxx_eh_abort,
 	.eh_device_reset_handler = qla2xxx_eh_device_reset,
@@ -415,7 +427,7 @@ qla2x00_get_new_sp(scsi_qla_host_t *ha, fc_port_t *fcport,
 }
 
 static int
-qla2x00_queuecommand(struct scsi_cmnd *cmd, void (*done)(struct scsi_cmnd *))
+qla2x00_queuecommand_lck(struct scsi_cmnd *cmd, void (*done)(struct scsi_cmnd *))
 {
 	scsi_qla_host_t *ha = shost_priv(cmd->device->host);
 	fc_port_t *fcport = (struct fc_port *) cmd->device->hostdata;
@@ -479,9 +491,8 @@ qc_fail_command:
 	return 0;
 }
 
-
 static int
-qla24xx_queuecommand(struct scsi_cmnd *cmd, void (*done)(struct scsi_cmnd *))
+qla24xx_queuecommand_lck(struct scsi_cmnd *cmd, void (*done)(struct scsi_cmnd *))
 {
 	scsi_qla_host_t *ha = shost_priv(cmd->device->host);
 	fc_port_t *fcport = (struct fc_port *) cmd->device->hostdata;
@@ -545,7 +556,6 @@ qc24_fail_command:
 
 	return 0;
 }
-
 
 /*
  * qla2x00_eh_wait_on_command
