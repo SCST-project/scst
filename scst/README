@@ -154,11 +154,12 @@ IMPORTANT: Working of target and initiator on the same host is
 	   freely use any sg, sd, st, etc. devices imported from target
 	   on the same host, but you can't mount file systems or put
 	   swap on them. This is a limitation of Linux memory/cache
-	   manager, because in this case an OOM deadlock like: system
-	   needs some memory -> it decides to clear some cache -> cache
-	   needs to write on target exported device -> initiator sends
-	   request to the target -> target needs memory -> system needs
-	   even more memory -> deadlock.
+	   manager, because in this case a memory allocation deadlock is
+	   possible like: system needs some memory -> it decides to
+	   clear some cache -> the cache is needed to be written on a
+	   target exported device -> initiator sends request to the
+	   target located on the same system -> the target needs memory
+	   -> the system needs even more memory -> deadlock.
 
 IMPORTANT: In the current version simultaneous access to local SCSI devices
 =========  via standard high-level SCSI drivers (sd, st, sg, etc.) and

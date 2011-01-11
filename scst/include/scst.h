@@ -1755,6 +1755,14 @@ struct scst_cmd {
 	unsigned int cmd_hw_pending:1;
 
 	/*
+	 * Set, if for this cmd required to not have any IO or FS calls on
+	 * memory buffers allocations, at least for READ and WRITE commands.
+	 * Needed for cases like file systems mounted over scst_local's
+	 * devices.
+	 */
+	unsigned noio_mem_alloc:1;
+
+	/*
 	 * Set if the target driver wants to alloc data buffers on its own.
 	 * In this case alloc_data_buf() must be provided in the target driver
 	 * template.
@@ -3221,6 +3229,19 @@ static inline void scst_cmd_set_tgt_sn(struct scst_cmd *cmd, uint32_t tgt_sn)
 {
 	cmd->tgt_sn_set = 1;
 	cmd->tgt_sn = tgt_sn;
+}
+
+/*
+ * Get/Set functions for noio_mem_alloc
+ */
+static inline bool scst_cmd_get_noio_mem_alloc(struct scst_cmd *cmd)
+{
+	return cmd->noio_mem_alloc;
+}
+
+static inline void scst_cmd_set_noio_mem_alloc(struct scst_cmd *cmd)
+{
+	cmd->noio_mem_alloc = 1;
 }
 
 /*

@@ -10,9 +10,12 @@ any device handlers that you load in SCST should be visible, including tapes
 and so forth.
 
 You can freely use any sg, sd, st, etc. devices imported from target,
-except the following: you can't mount file systems or put swap on them.
-This is a limitation of Linux memory/cache manager. See SCST README file
-for details.
+except the following: you can't mount file systems or put swap on them
+for all dev handlers, except BLOCKIO and pass-through, because it can
+lead to recursive memory allocation deadlock. This is a limitation of
+Linux memory/cache manager. See SCST README file for details. For
+BLOCKIO and pass-through dev handlers there's no such limitation, so you
+can freely mount file systems over them.
 
 To build, simply issue 'make' in the scst_local directory.
 

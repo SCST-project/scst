@@ -4686,7 +4686,7 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	struct request *rq;
 	struct scsi_io_context *sioc;
 	int write = (cmd->data_direction & SCST_DATA_WRITE) ? WRITE : READ;
-	gfp_t gfp = GFP_KERNEL;
+	gfp_t gfp = cmd->noio_mem_alloc ? GFP_NOIO : GFP_KERNEL;
 	int cmd_len = cmd->cdb_len;
 
 	sioc = kmem_cache_zalloc(scsi_io_context_cache, gfp);

@@ -272,7 +272,7 @@ static void vdisk_exec_write(struct scst_cmd *cmd,
 	struct scst_vdisk_thr *thr, loff_t loff);
 static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 	u64 lba_start, int write);
-static int blockio_flush(struct block_device *bdev);
+static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask);
 static void vdisk_exec_verify(struct scst_cmd *cmd,
 	struct scst_vdisk_thr *thr, loff_t loff);
 static void vdisk_exec_read_capacity(struct scst_cmd *cmd);
@@ -652,7 +652,7 @@ static void vdisk_blockio_check_flush_support(struct scst_vdisk_dev *virt_dev)
 		goto out_close;
 	}
 
-	if (blockio_flush(inode->i_bdev) != 0) {
+	if (vdisk_blockio_flush(inode->i_bdev, GFP_KERNEL) != 0) {
 		PRINT_WARNING("Device %s doesn't support barriers, switching "
 			"to NV_CACHE mode. Read README for more details.",
 			virt_dev->filename);
@@ -896,7 +896,7 @@ static void vdisk_free_thr_data(struct scst_thr_data_hdr *d)
 }
 
 static struct scst_vdisk_thr *vdisk_init_thr_data(
-	struct scst_tgt_dev *tgt_dev)
+	struct scst_tgt_dev *tgt_dev, gfp_t gfp_mask)
 {
 	struct scst_vdisk_thr *res;
 	struct scst_vdisk_dev *virt_dev = tgt_dev->dev->dh_priv;
@@ -905,7 +905,7 @@ static struct scst_vdisk_thr *vdisk_init_thr_data(
 
 	EXTRACHECKS_BUG_ON(virt_dev->nullio);
 
-	res = kmem_cache_zalloc(vdisk_thr_cachep, GFP_KERNEL);
+	res = kmem_cache_zalloc(vdisk_thr_cachep, gfp_mask);
 	if (res == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Unable to allocate struct "
 			"scst_vdisk_thr");
@@ -1000,7 +1000,8 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	if (!virt_dev->nullio) {
 		d = scst_find_thr_data(tgt_dev);
 		if (unlikely(d == NULL)) {
-			thr = vdisk_init_thr_data(tgt_dev);
+			thr = vdisk_init_thr_data(tgt_dev,
+				cmd->noio_mem_alloc ? GFP_NOIO : GFP_KERNEL);
 			if (thr == NULL) {
 				scst_set_busy(cmd);
 				goto out_compl;
@@ -1387,21 +1388,22 @@ static void vdisk_exec_unmap(struct scst_cmd *cmd, struct scst_vdisk_thr *thr)
 			(unsigned long long)start, len);
 
 		if (virt_dev->blockio) {
+			gfp_t gfp = cmd->noio_mem_alloc ? GFP_NOIO : GFP_KERNEL;
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 27)
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 31)
 			err = blkdev_issue_discard(inode->i_bdev, start, len,
-					GFP_KERNEL);
+					gfp);
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)       \
       && !(LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 34) \
            && defined(CONFIG_SUSE_KERNEL))
 			err = blkdev_issue_discard(inode->i_bdev, start, len,
-					GFP_KERNEL, DISCARD_FL_WAIT);
+					gfp, DISCARD_FL_WAIT);
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
 			err = blkdev_issue_discard(inode->i_bdev, start, len,
-					GFP_KERNEL, BLKDEV_IFL_WAIT);
+					gfp, BLKDEV_IFL_WAIT);
 #else
 			err = blkdev_issue_discard(inode->i_bdev, start, len,
-						   GFP_KERNEL, 0);
+						   gfp, 0);
 #endif
 			if (unlikely(err != 0)) {
 				PRINT_ERROR("blkdev_issue_discard() for "
@@ -2519,7 +2521,8 @@ static int vdisk_fsync(struct scst_vdisk_thr *thr, loff_t loff,
 		goto out;
 
 	if (virt_dev->blockio) {
-		res = blockio_flush(thr->bdev);
+		res = vdisk_blockio_flush(thr->bdev,
+			(cmd->noio_mem_alloc ? GFP_NOIO : GFP_KERNEL));
 		goto out;
 	}
 
@@ -2914,6 +2917,7 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 	int need_new_bio;
 	struct scst_blockio_work *blockio_work;
 	int bios = 0;
+	gfp_t gfp_mask = (cmd->noio_mem_alloc ? GFP_NOIO : GFP_KERNEL);
 
 	TRACE_ENTRY();
 
@@ -2921,7 +2925,7 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 		goto out;
 
 	/* Allocate and initialize blockio_work struct */
-	blockio_work = kmem_cache_alloc(blockio_work_cachep, GFP_KERNEL);
+	blockio_work = kmem_cache_alloc(blockio_work_cachep, gfp_mask);
 	if (blockio_work == NULL)
 		goto out_no_mem;
 
@@ -2951,9 +2955,9 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 
 			if (need_new_bio) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
-				bio = bio_kmalloc(GFP_KERNEL, max_nr_vecs);
+				bio = bio_kmalloc(gfp_mask, max_nr_vecs);
 #else
-				bio = bio_alloc(GFP_KERNEL, max_nr_vecs);
+				bio = bio_alloc(gfp_mask, max_nr_vecs);
 #endif
 				if (!bio) {
 					PRINT_ERROR("Failed to create bio "
@@ -3048,7 +3052,7 @@ out_no_mem:
 	goto out;
 }
 
-static int blockio_flush(struct block_device *bdev)
+static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask)
 {
 	int res = 0;
 
@@ -3059,9 +3063,9 @@ static int blockio_flush(struct block_device *bdev)
 	 && LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 34))
 	res = blkdev_issue_flush(bdev, NULL);
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
-	res = blkdev_issue_flush(bdev, GFP_KERNEL, NULL, BLKDEV_IFL_WAIT);
+	res = blkdev_issue_flush(bdev, gfp_mask, NULL, BLKDEV_IFL_WAIT);
 #else
-	res = blkdev_issue_flush(bdev, GFP_KERNEL, NULL);
+	res = blkdev_issue_flush(bdev, gfp_mask, NULL);
 #endif
 	if (res != 0)
 		PRINT_ERROR("blkdev_issue_flush() failed: %d", res);

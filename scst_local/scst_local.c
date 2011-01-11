@@ -1033,11 +1033,13 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *SCpnt,
 	case DMA_TO_DEVICE:
 		dir = SCST_DATA_WRITE;
 		scst_cmd_set_expected(scst_cmd, dir, scsi_bufflen(SCpnt));
+		scst_cmd_set_noio_mem_alloc(scst_cmd);
 		scst_cmd_set_tgt_sg(scst_cmd, sgl, sgl_count);
 		break;
 	case DMA_FROM_DEVICE:
 		dir = SCST_DATA_READ;
 		scst_cmd_set_expected(scst_cmd, dir, scsi_bufflen(SCpnt));
+		scst_cmd_set_noio_mem_alloc(scst_cmd);
 		scst_cmd_set_tgt_sg(scst_cmd, sgl, sgl_count);
 		break;
 	case DMA_BIDIRECTIONAL:
@@ -1047,6 +1049,7 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *SCpnt,
 		scst_cmd_set_expected(scst_cmd, dir, scsi_bufflen(SCpnt));
 		scst_cmd_set_expected_out_transfer_len(scst_cmd,
 			scsi_in(SCpnt)->length);
+		scst_cmd_set_noio_mem_alloc(scst_cmd);
 		scst_cmd_set_tgt_sg(scst_cmd, scsi_in(SCpnt)->table.sgl,
 			scsi_in(SCpnt)->table.nents);
 		scst_cmd_set_tgt_out_sg(scst_cmd, sgl, sgl_count);
