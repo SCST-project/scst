@@ -774,7 +774,7 @@ static void q2t_clear_tgt_db(struct q2t_tgt *tgt, bool local_only)
 
 	TRACE_ENTRY();
 
-	TRACE(TRACE_MGMT, "qla2x00t: Clearing targets DB %p", tgt);
+	TRACE(TRACE_MGMT, "qla2x00t: Clearing targets DB for target %p", tgt);
 
 	list_for_each_entry_safe(sess, sess_tmp, &tgt->sess_list,
 					sess_list_entry) {
@@ -4040,7 +4040,7 @@ static int q24_handle_els(scsi_qla_host_t *ha, notify24xx_entry_t *iocb)
 
 	TRACE_ENTRY();
 
-	TRACE(TRACE_MGMT, "qla2x00t(%ld): ELS opcode %x", ha->instance,
+	TRACE_MGMT_DBG("qla2x00t(%ld): ELS opcode %x", ha->instance,
 		iocb->status_subcode);
 
 	switch (iocb->status_subcode) {
@@ -5228,40 +5228,38 @@ static void q2t_async_event(uint16_t code, scsi_qla_host_t *ha,
 		break;
 
 	case MBA_LOOP_UP:
-	{
-		TRACE(TRACE_MGMT, "qla2x00t(%ld): Async LOOP_UP occured "
-			"(m[1]=%x, m[2]=%x, m[3]=%x, m[4]=%x)", ha->instance,
-			le16_to_cpu(mailbox[1]), le16_to_cpu(mailbox[2]),
-			le16_to_cpu(mailbox[3]), le16_to_cpu(mailbox[4]));
+		TRACE(TRACE_MGMT, "qla2x00t(%ld): Loop up occured",
+			ha->instance);
 		if (tgt->link_reinit_iocb_pending) {
 			q24_send_notify_ack(ha, &tgt->link_reinit_iocb, 0, 0, 0);
 			tgt->link_reinit_iocb_pending = 0;
 		}
 		break;
-	}
 
 	case MBA_LIP_OCCURRED:
+		TRACE(TRACE_MGMT, "qla2x00t(%ld): LIP occured", ha->instance);
+		break;
+
 	case MBA_LOOP_DOWN:
+		TRACE(TRACE_MGMT, "qla2x00t(%ld): Loop down occured",
+			ha->instance);
+		break;
+
 	case MBA_LIP_RESET:
-		TRACE(TRACE_MGMT, "qla2x00t(%ld): Async event %#x occured "
-			"(m[1]=%x, m[2]=%x, m[3]=%x, m[4]=%x)", ha->instance,
-			code, le16_to_cpu(mailbox[1]), le16_to_cpu(mailbox[2]),
-			le16_to_cpu(mailbox[3]), le16_to_cpu(mailbox[4]));
+		TRACE(TRACE_MGMT, "qla2x00t(%ld): LIP reset occured",
+			ha->instance);
 		break;
 
 	case MBA_PORT_UPDATE:
 	case MBA_RSCN_UPDATE:
-		TRACE(TRACE_MGMT, "qla2x00t(%ld): Port update async event %#x "
-			"occured: updating the ports database (m[1]=%x, m[2]=%x, "
-			"m[3]=%x, m[4]=%x)", ha->instance, code,
-			le16_to_cpu(mailbox[1]), le16_to_cpu(mailbox[2]),
-			le16_to_cpu(mailbox[3]), le16_to_cpu(mailbox[4]));
+		TRACE_MGMT_DBG("qla2x00t(%ld): Port update async event %#x "
+			"occured", ha->instance, code);
 		/* .mark_all_devices_lost() is handled by the initiator driver */
 		break;
 
 	default:
 		TRACE(TRACE_MGMT, "qla2x00t(%ld): Async event %#x occured: "
-			"ignore (m[1]=%x, m[2]=%x, m[3]=%x, m[4]=%x)",
+			"ignoring (m[1]=%x, m[2]=%x, m[3]=%x, m[4]=%x)",
 			ha->instance, code,
 			le16_to_cpu(mailbox[1]), le16_to_cpu(mailbox[2]),
 			le16_to_cpu(mailbox[3]), le16_to_cpu(mailbox[4]));

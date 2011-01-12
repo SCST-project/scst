@@ -712,16 +712,10 @@ qla2x00_chip_diag(scsi_qla_host_t *ha)
 
 	DEBUG3(printk("scsi(%ld): Checking mailboxes.\n", ha->host_no));
 	rval = qla2x00_mbx_reg_test(ha);
-	if (rval) {
-		DEBUG(printk("scsi(%ld): Failed mailbox send register test\n",
-		    ha->host_no));
+	if (rval != QLA_SUCCESS)
 		qla_printk(KERN_WARNING, ha,
-		    "Failed mailbox send register test\n");
-	}
-	else {
-		/* Flag a successful rval */
-		rval = QLA_SUCCESS;
-	}
+		    "Failed mailbox send register test (%x)\n", rval);
+
 	spin_lock_irqsave(&ha->hardware_lock, flags);
 
 chip_diag_failed:
@@ -751,15 +745,9 @@ qla24xx_chip_diag(scsi_qla_host_t *ha)
 	ha->fw_transfer_size = REQUEST_ENTRY_SIZE * 1024;
 
 	rval = qla2x00_mbx_reg_test(ha);
-	if (rval) {
-		DEBUG(printk("scsi(%ld): Failed mailbox send register test\n",
-		    ha->host_no));
+	if (rval != QLA_SUCCESS)
 		qla_printk(KERN_WARNING, ha,
-		    "Failed mailbox send register test\n");
-	} else {
-		/* Flag a successful rval */
-		rval = QLA_SUCCESS;
-	}
+		    "Failed mailbox send register test (%x)\n", rval);
 
 	return rval;
 }
