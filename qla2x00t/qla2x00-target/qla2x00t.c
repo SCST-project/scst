@@ -978,9 +978,9 @@ retry:
 
 	TRACE_MGMT_DBG("Updating sess %p s_id %x:%x:%x, "
 		"loop_id %d) to d_id %x:%x:%x, loop_id %d", sess,
-		sess->s_id.b.domain, sess->s_id.b.al_pa,
-		sess->s_id.b.area, sess->loop_id, fcport->d_id.b.domain,
-		fcport->d_id.b.al_pa, fcport->d_id.b.area, fcport->loop_id);
+		sess->s_id.b.domain, sess->s_id.b.area,
+		sess->s_id.b.al_pa, sess->loop_id, fcport->d_id.b.domain,
+		fcport->d_id.b.area, fcport->d_id.b.al_pa, fcport->loop_id);
 
 	sess->s_id = fcport->d_id;
 	sess->loop_id = fcport->loop_id;
@@ -1096,9 +1096,9 @@ static struct q2t_sess *q2t_create_sess(scsi_qla_host_t *ha, fc_port_t *fcport,
 			TRACE_MGMT_DBG("Double sess %p found (s_id %x:%x:%x, "
 				"loop_id %d), updating to d_id %x:%x:%x, "
 				"loop_id %d", sess, sess->s_id.b.domain,
-				sess->s_id.b.al_pa, sess->s_id.b.area,
+				sess->s_id.b.area, sess->s_id.b.al_pa,
 				sess->loop_id, fcport->d_id.b.domain,
-				fcport->d_id.b.al_pa, fcport->d_id.b.area,
+				fcport->d_id.b.area, fcport->d_id.b.al_pa,
 				fcport->loop_id);
 
 			if (sess->deleted)
@@ -4036,7 +4036,7 @@ out:
  */
 static int q24_handle_els(scsi_qla_host_t *ha, notify24xx_entry_t *iocb)
 {
-	int res = 0;
+	int res = 1; /* send notify ack */
 
 	TRACE_ENTRY();
 
@@ -4047,6 +4047,8 @@ static int q24_handle_els(scsi_qla_host_t *ha, notify24xx_entry_t *iocb)
 	case ELS_PLOGI:
 	case ELS_FLOGI:
 	case ELS_PRLI:
+		break;
+
 	case ELS_LOGO:
 	case ELS_PRLO:
 		res = q2t_reset(ha, iocb, Q2T_NEXUS_LOSS_SESS);
@@ -4060,14 +4062,15 @@ static int q24_handle_els(scsi_qla_host_t *ha, notify24xx_entry_t *iocb)
 			q24_send_notify_ack(ha, &tgt->link_reinit_iocb, 0, 0, 0);
 			tgt->link_reinit_iocb_pending = 0;
 		}
-		res = 1; /* send notify ack */
 		break;
 	}
 
 	default:
 		PRINT_ERROR("qla2x00t(%ld): Unsupported ELS command %x "
 			"received", ha->instance, iocb->status_subcode);
+#if 0
 		res = q2t_reset(ha, iocb, Q2T_NEXUS_LOSS_SESS);
+#endif
 		break;
 	}
 
@@ -4629,8 +4632,11 @@ static void q2t_handle_imm_notify(scsi_qla_host_t *ha, void *iocb)
 			/* set the Clear LIP reset event flag */
 			add_flags |= NOTIFY_ACK_CLEAR_LIP_RESET;
 		}
-		if (q2t_reset(ha, iocb, Q2T_ABORT_ALL) == 0)
-			send_notify_ack = 0;
+		/*
+		 * No additional resets or aborts are needed, because firmware
+		 * will as required by FCP either generate TARGET RESET or
+		 * reject all affected commands with LIP_RESET status.
+		 */
 		break;
 	}
 
@@ -4681,9 +4687,6 @@ static void q2t_handle_imm_notify(scsi_qla_host_t *ha, void *iocb)
 	case IMM_NTFY_PORT_CONFIG:
 		TRACE(TRACE_MGMT, "qla2x00t(%ld): Port config changed (%x)",
 			ha->instance, status);
-		if (q2t_reset(ha, iocb, Q2T_ABORT_ALL) == 0)
-			send_notify_ack = 0;
-		/* The sessions will be cleared in the callback, if needed */
 		break;
 
 	case IMM_NTFY_GLBL_LOGO:
