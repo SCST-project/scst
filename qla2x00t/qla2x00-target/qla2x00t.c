@@ -5358,6 +5358,8 @@ retry:
 			"discovery (counter was %d, new %d), retrying",
 			ha->instance, global_resets,
 			atomic_read(&ha->tgt->tgt_global_resets_count));
+		kfree(fcport);
+		fcport = NULL;
 		goto retry;
 	}
 
