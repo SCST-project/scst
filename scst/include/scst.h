@@ -2217,9 +2217,6 @@ struct scst_device {
 	/* Memory limits for this device */
 	struct scst_mem_lim dev_mem_lim;
 
-	/* How many write cmds alive on this dev. Temporary, ToDo */
-	atomic_t write_cmd_count;
-
 	/*************************************************************
 	 ** Persistent reservation fields. Protected by dev_pr_mutex.
 	 *************************************************************/
