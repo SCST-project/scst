@@ -179,7 +179,6 @@ static int scst_init_cmd(struct scst_cmd *cmd, enum scst_exec_context *context)
 	EXTRACHECKS_BUG_ON(*context == SCST_CONTEXT_SAME);
 
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
-	scst_get_cdb_info(cmd);
 	if (cmd->op_flags & SCST_TEST_IO_IN_SIRQ_ALLOWED)
 		goto out;
 #endif
