@@ -128,6 +128,8 @@ struct kmem_cache *scst_cmd_cachep;
 unsigned long scst_trace_flag;
 #endif
 
+int scst_max_tasklet_cmd = SCST_DEF_MAX_TASKLET_CMD;
+
 unsigned long scst_flags;
 atomic_t scst_cmd_count;
 
