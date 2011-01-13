@@ -1,3 +1,13 @@
+Summary of changes between versions 2.0.0 and 2.0.0.1
+-----------------------------------------------------
+
+ - Fixed critical issue with wrong INQUIRY page 0x80 (r3197)
+
+ - Possible crashes due to incorrect execution context estimations fixed
+
+ - Responsiveness under heavy load improved
+
+
 Summary of changes between versions 1.0.1 and 1.0.2
 ---------------------------------------------------
 
