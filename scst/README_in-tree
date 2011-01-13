@@ -257,6 +257,14 @@ following entries:
 
  - handlers - this is a root subdirectory for all SCST dev handlers
 
+ - max_tasklet_cmd - specifies how many commands at max can be queued in
+   the SCST core simultaneously from all connected initiators to allow
+   processing commands in soft-IRQ context in tasklets. If the count of
+   the commands exceeds this value, then all of them will be processed
+   only in threads. This is to to prevent possible starvation under
+   heavy load and in some cases to improve performance by more evenly
+   spreading load over available CPUs.
+
  - sgv - this is a root subdirectory for all SCST SGV caches
 
  - targets - this is a root subdirectory for all SCST targets

@@ -4458,6 +4458,49 @@ static struct kobj_attribute scst_setup_id_attr =
 	__ATTR(setup_id, S_IRUGO | S_IWUSR, scst_setup_id_show,
 	       scst_setup_id_store);
 
+static ssize_t scst_max_tasklet_cmd_show(struct kobject *kobj,
+				  struct kobj_attribute *attr, char *buf)
+{
+	int count;
+
+	TRACE_ENTRY();
+
+	count = sprintf(buf, "%d\n%s\n", scst_max_tasklet_cmd,
+		(scst_max_tasklet_cmd == SCST_DEF_MAX_TASKLET_CMD)
+			? "" : SCST_SYSFS_KEY_MARK);
+
+	TRACE_EXIT();
+	return count;
+}
+
+static ssize_t scst_max_tasklet_cmd_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	unsigned long val;
+
+	TRACE_ENTRY();
+
+	res = strict_strtoul(buf, 0, &val);
+	if (res != 0) {
+		PRINT_ERROR("strict_strtoul() for %s failed: %d ", buf, res);
+		goto out;
+	}
+
+	scst_max_tasklet_cmd = val;
+	PRINT_INFO("Changed scst_max_tasklet_cmd to %d", scst_max_tasklet_cmd);
+
+	res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute scst_max_tasklet_cmd_attr =
+	__ATTR(max_tasklet_cmd, S_IRUGO | S_IWUSR, scst_max_tasklet_cmd_show,
+	       scst_max_tasklet_cmd_store);
+
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 static struct kobj_attribute scst_trace_level_attr =
 	__ATTR(trace_level, S_IRUGO | S_IWUSR, scst_main_trace_level_show,
@@ -4474,6 +4517,7 @@ static struct kobj_attribute scst_last_sysfs_mgmt_res_attr =
 static struct attribute *scst_sysfs_root_default_attrs[] = {
 	&scst_threads_attr.attr,
 	&scst_setup_id_attr.attr,
+	&scst_max_tasklet_cmd_attr.attr,
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	&scst_trace_level_attr.attr,
 #endif
