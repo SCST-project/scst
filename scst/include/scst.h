@@ -436,15 +436,6 @@ enum scst_exec_context {
 /* The cmd should be sent to SCSI mid-level */
 #define SCST_EXEC_NOT_COMPLETED      1
 
-/*
- * Set if cmd is finished and there is status/sense to be sent.
- * The status should be not sent (i.e. the flag not set) if the
- * possibility to perform a command in "chunks" (i.e. with multiple
- * xmit_response()/rdy_to_xfer()) is used (not implemented yet).
- * Obsolete, use scst_cmd_get_is_send_status() instead.
- */
-#define SCST_TSC_FLAG_STATUS         0x2
-
 /*************************************************************
  ** Additional return code for dev handler's task_mgmt_fn()
  *************************************************************/
