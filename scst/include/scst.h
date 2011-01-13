@@ -427,7 +427,7 @@ enum scst_exec_context {
 #define SCST_TGT_RES_FATAL_ERROR     -3
 
 /*************************************************************
- ** Allowed return codes for dev handler's exec()
+ ** Return codes for dev handler's exec()
  *************************************************************/
 
 /* The cmd is done, go to other ones */
@@ -511,7 +511,7 @@ enum scst_exec_context {
 /* Set if tgt_dev is RESERVED by another session */
 #define SCST_TGT_DEV_RESERVED		1
 
-/* Set if the corresponding context is atomic */
+/* Set if the corresponding context should be atomic */
 #define SCST_TGT_DEV_AFTER_INIT_WR_ATOMIC	5
 #define SCST_TGT_DEV_AFTER_EXEC_ATOMIC		6
 

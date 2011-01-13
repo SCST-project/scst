@@ -271,7 +271,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 			 SCST_WRITE_EXCL_ALLOWED,
 	 2, get_trans_len_3},
 	{0x15, "OMOOOOOOOOOOOOOO", "MODE SELECT(6)",
-	 SCST_DATA_WRITE, SCST_IMPLICIT_ORDERED, 4, get_trans_len_1},
+	 SCST_DATA_WRITE, FLAG_NONE, 4, get_trans_len_1},
 	{0x16, "MMMMMMMMMMMMMMMM", "RESERVE",
 	 SCST_DATA_NONE, SCST_SMALL_TIMEOUT|SCST_LOCAL_CMD|
 			 SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
@@ -433,7 +433,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{0x4B, "     O          ", "PAUSE/RESUME",
 	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
 	{0x4C, "OOOOOOOOOOOOOOOO", "LOG SELECT",
-	 SCST_DATA_WRITE, SCST_IMPLICIT_ORDERED, 7, get_trans_len_2},
+	 SCST_DATA_WRITE, FLAG_NONE, 7, get_trans_len_2},
 	{0x4D, "OOOOOOOOOOOOOOOO", "LOG SENSE",
 	 SCST_DATA_READ, SCST_SMALL_TIMEOUT|
 			 SCST_REG_RESERVE_ALLOWED|
@@ -459,7 +459,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{0x54, "     O          ", "SEND OPC INFORMATION",
 	 SCST_DATA_WRITE, FLAG_NONE, 7, get_trans_len_2},
 	{0x55, "OOOOOOOOOOOOOOOO", "MODE SELECT(10)",
-	 SCST_DATA_WRITE, SCST_IMPLICIT_ORDERED, 7, get_trans_len_2},
+	 SCST_DATA_WRITE, FLAG_NONE, 7, get_trans_len_2},
 	{0x56, "OOOOOOOOOOOOOOOO", "RESERVE(10)",
 	 SCST_DATA_NONE, SCST_SMALL_TIMEOUT|SCST_LOCAL_CMD,
 	 0, get_trans_len_none},
