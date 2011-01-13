@@ -800,7 +800,7 @@ set_res:
 
 #ifndef CONFIG_SCST_TEST_IO_IN_SIRQ
 	/*
-	 * We shouldn't allow atomic command to the exec stage. It shouldn't
+	 * We can't allow atomic command on the exec stages. It shouldn't
 	 * be because of the SCST_TGT_DEV_AFTER_* optimization, but during
 	 * parsing data_direction can change, so we need to recheck.
 	 */
@@ -1147,10 +1147,10 @@ static int scst_rdy_to_xfer(struct scst_cmd *cmd)
 	if ((tgtt->rdy_to_xfer == NULL) || unlikely(cmd->internal)) {
 		cmd->state = SCST_CMD_STATE_TGT_PRE_EXEC;
 #ifndef CONFIG_SCST_TEST_IO_IN_SIRQ
-		/* We shouldn't allow atomic command to the exec stage */
+		/* We can't allow atomic command on the exec stages */
 		if (scst_cmd_atomic(cmd)) {
 			TRACE_DBG("NULL rdy_to_xfer() and atomic context, "
-				" rescheduling (cmd %p)", cmd);
+				"rescheduling (cmd %p)", cmd);
 			res = SCST_CMD_STATE_RES_NEED_THREAD;
 		} else
 #endif
@@ -2980,8 +2980,14 @@ static int scst_pre_dev_done(struct scst_cmd *cmd)
 				SCST_LOAD_SENSE(scst_sense_hardw_error));
 		}
 		goto out;
-	} else if (unlikely(scst_check_sense(cmd)))
+	} else if (unlikely(scst_check_sense(cmd))) {
+		/*
+		 * We can't allow atomic command on the exec stages, so
+		 * restart to the thread
+		 */
+		res = SCST_CMD_STATE_RES_NEED_THREAD;
 		goto out;
+	}
 
 	if (likely(scsi_status_is_good(cmd->status))) {
 		unsigned char type = cmd->dev->type;
@@ -3294,6 +3300,24 @@ static int scst_dev_done(struct scst_cmd *cmd)
 
 	if (unlikely(cmd->internal))
 		cmd->state = SCST_CMD_STATE_FINISHED_INTERNAL;
+
+#ifndef CONFIG_SCST_TEST_IO_IN_SIRQ
+	if (cmd->state != SCST_CMD_STATE_PRE_XMIT_RESP) {
+		/* We can't allow atomic command on the exec stages */
+		if (scst_cmd_atomic(cmd)) {
+			switch (state) {
+			case SCST_CMD_STATE_TGT_PRE_EXEC:
+			case SCST_CMD_STATE_SEND_FOR_EXEC:
+			case SCST_CMD_STATE_LOCAL_EXEC:
+			case SCST_CMD_STATE_REAL_EXEC:
+				TRACE_DBG("Atomic context and redirect, "
+					"rescheduling (cmd %p)", cmd);
+				res = SCST_CMD_STATE_RES_NEED_THREAD;
+				break;
+			}
+		}
+	}
+#endif
 
 out:
 	TRACE_EXIT_HRES(res);
@@ -4057,8 +4081,8 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 
 		case SCST_CMD_STATE_PRE_DEV_DONE:
 			res = scst_pre_dev_done(cmd);
-			EXTRACHECKS_BUG_ON(res ==
-				SCST_CMD_STATE_RES_NEED_THREAD);
+			EXTRACHECKS_BUG_ON((res == SCST_CMD_STATE_RES_NEED_THREAD) &&
+				(cmd->state == SCST_CMD_STATE_PRE_DEV_DONE));
 			break;
 
 		case SCST_CMD_STATE_MODE_SELECT_CHECKS:
