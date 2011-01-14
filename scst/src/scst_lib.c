@@ -3710,7 +3710,7 @@ static struct scst_cmd *scst_create_prepare_internal_cmd(
 
 	scst_sess_get(res->sess);
 	if (res->tgt_dev != NULL)
-		__scst_get();
+		res->cpu_cmd_counter = scst_get();
 
 	res->state = SCST_CMD_STATE_PARSE;
 
@@ -4187,7 +4187,7 @@ static void scst_destroy_put_cmd(struct scst_cmd *cmd)
 	 * At this point tgt_dev can be dead, but the pointer remains non-NULL
 	 */
 	if (likely(cmd->tgt_dev != NULL))
-		__scst_put();
+		scst_put(cmd->cpu_cmd_counter);
 
 	scst_destroy_cmd(cmd);
 	return;
@@ -4203,10 +4203,8 @@ void scst_free_cmd(struct scst_cmd *cmd)
 	TRACE_DBG("Freeing cmd %p (tag %llu)",
 		  cmd, (long long unsigned int)cmd->tag);
 
-	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
-		TRACE_MGMT_DBG("Freeing aborted cmd %p (scst_cmd_count %d)",
-			cmd, atomic_read(&scst_cmd_count));
-	}
+	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)))
+		TRACE_MGMT_DBG("Freeing aborted cmd %p", cmd);
 
 	sBUG_ON(cmd->unblock_dev);
 
@@ -4373,7 +4371,7 @@ void scst_free_mgmt_cmd(struct scst_mgmt_cmd *mcmd)
 	scst_sess_put(mcmd->sess);
 
 	if (mcmd->mcmd_tgt_dev != NULL)
-		__scst_put();
+		scst_put(mcmd->cpu_cmd_counter);
 
 	mempool_free(mcmd, scst_mgmt_mempool);
 
@@ -6772,9 +6770,8 @@ void scst_xmit_process_aborted_cmd(struct scst_cmd *cmd)
 {
 	TRACE_ENTRY();
 
-	TRACE_MGMT_DBG("Aborted cmd %p done (cmd_ref %d, "
-		"scst_cmd_count %d)", cmd, atomic_read(&cmd->cmd_ref),
-		atomic_read(&scst_cmd_count));
+	TRACE_MGMT_DBG("Aborted cmd %p done (cmd_ref %d)", cmd,
+		atomic_read(&cmd->cmd_ref));
 
 	scst_done_cmd_mgmt(cmd);
 

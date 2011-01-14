@@ -1713,6 +1713,8 @@ struct scst_cmd {
 
 	struct scst_session *sess;	/* corresponding session */
 
+	atomic_t *cpu_cmd_counter;
+
 	/* Cmd state, one of SCST_CMD_STATE_* constants */
 	int state;
 
@@ -2065,6 +2067,8 @@ struct scst_mgmt_cmd {
 	struct list_head mgmt_cmd_list_entry;
 
 	struct scst_session *sess;
+
+	atomic_t *cpu_cmd_counter;
 
 	/* Mgmt cmd state, one of SCST_MCMD_STATE_* constants */
 	int state;
@@ -3890,9 +3894,6 @@ bool scst_analyze_sense(const uint8_t *sense, int len,
 unsigned long scst_random(void);
 
 void scst_set_resp_data_len(struct scst_cmd *cmd, int resp_data_len);
-
-void scst_get(void);
-void scst_put(void);
 
 void scst_cmd_get(struct scst_cmd *cmd);
 void scst_cmd_put(struct scst_cmd *cmd);

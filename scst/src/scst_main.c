@@ -131,11 +131,10 @@ unsigned long scst_trace_flag;
 int scst_max_tasklet_cmd = SCST_DEF_MAX_TASKLET_CMD;
 
 unsigned long scst_flags;
-atomic_t scst_cmd_count;
 
 struct scst_cmd_threads scst_main_cmd_threads;
 
-struct scst_tasklet scst_tasklets[NR_CPUS];
+struct scst_percpu_info scst_percpu_infos[NR_CPUS];
 
 spinlock_t scst_mcmd_lock;
 struct list_head scst_active_mgmt_cmd_list;
@@ -662,6 +661,14 @@ again:
 }
 EXPORT_SYMBOL(scst_unregister_target);
 
+int scst_get_cmd_counter(void)
+{
+	int i, res = 0;
+	for (i = 0; i < (int)ARRAY_SIZE(scst_percpu_infos); i++)
+		res += atomic_read(&scst_percpu_infos[i].cpu_cmd_count);
+	return res;
+}
+
 static int scst_susp_wait(bool interruptible)
 {
 	int res = 0;
@@ -670,7 +677,7 @@ static int scst_susp_wait(bool interruptible)
 
 	if (interruptible) {
 		res = wait_event_interruptible_timeout(scst_dev_cmd_waitQ,
-			(atomic_read(&scst_cmd_count) == 0),
+			(scst_get_cmd_counter() == 0),
 			SCST_SUSPENDING_TIMEOUT);
 		if (res <= 0) {
 			__scst_resume_activity();
@@ -679,8 +686,7 @@ static int scst_susp_wait(bool interruptible)
 		} else
 			res = 0;
 	} else
-		wait_event(scst_dev_cmd_waitQ,
-			   atomic_read(&scst_cmd_count) == 0);
+		wait_event(scst_dev_cmd_waitQ, scst_get_cmd_counter() == 0);
 
 	TRACE_MGMT_DBG("wait_event() returned %d", res);
 
@@ -729,7 +735,7 @@ int scst_suspend_activity(bool interruptible)
 	set_bit(SCST_FLAG_SUSPENDED, &scst_flags);
 	/*
 	 * Assignment of SCST_FLAG_SUSPENDING and SCST_FLAG_SUSPENDED must be
-	 * ordered with scst_cmd_count. Otherwise lockless logic in
+	 * ordered with cpu_cmd_count in scst_get(). Otherwise lockless logic in
 	 * scst_translate_lun() and scst_mgmt_translate_lun() won't work.
 	 */
 	smp_mb__after_set_bit();
@@ -743,7 +749,7 @@ int scst_suspend_activity(bool interruptible)
 	 * implementation of scst_translate_lun().. )
 	 */
 
-	if (atomic_read(&scst_cmd_count) != 0) {
+	if (scst_get_cmd_counter() != 0) {
 		PRINT_INFO("Waiting for %d active commands to complete... This "
 			"might take few minutes for disks or few hours for "
 			"tapes, if you use long executed commands, like "
@@ -752,7 +758,7 @@ int scst_suspend_activity(bool interruptible)
 			"responding to any commands, if might take virtually "
 			"forever until the corresponding user space "
 			"program recovers and starts responding or gets "
-			"killed.", atomic_read(&scst_cmd_count));
+			"killed.", scst_get_cmd_counter());
 		rep = true;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
@@ -769,7 +775,7 @@ int scst_suspend_activity(bool interruptible)
 	smp_mb__after_clear_bit();
 
 	TRACE_MGMT_DBG("Waiting for %d active commands finally to complete",
-		atomic_read(&scst_cmd_count));
+		scst_get_cmd_counter());
 
 	res = scst_susp_wait(interruptible);
 	if (res != 0)
@@ -1982,31 +1988,6 @@ out_unlock:
 	return res;
 }
 
-/**
- * scst_get() - increase global SCST ref counter
- *
- * Increases global SCST ref counter that prevents from entering into suspended
- * activities stage, so protects from any global management operations.
- */
-void scst_get(void)
-{
-	__scst_get();
-}
-EXPORT_SYMBOL(scst_get);
-
-/**
- * scst_put() - decrease global SCST ref counter
- *
- * Decreases global SCST ref counter that prevents from entering into suspended
- * activities stage, so protects from any global management operations. On
- * zero, if suspending activities is waiting, they will be suspended.
- */
-void scst_put(void)
-{
-	__scst_put();
-}
-EXPORT_SYMBOL(scst_put);
-
 #ifndef CONFIG_SCST_PROC
 /**
  * scst_get_setup_id() - return SCST setup ID
@@ -2181,7 +2162,6 @@ static int __init init_scst(void)
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	scst_trace_flag = SCST_DEFAULT_LOG_FLAGS;
 #endif
-	atomic_set(&scst_cmd_count, 0);
 	spin_lock_init(&scst_mcmd_lock);
 	INIT_LIST_HEAD(&scst_active_mgmt_cmd_list);
 	INIT_LIST_HEAD(&scst_delayed_mgmt_cmd_list);
@@ -2328,12 +2308,13 @@ static int __init init_scst(void)
 		goto out_destroy_sgv_pool;
 #endif
 
-	for (i = 0; i < (int)ARRAY_SIZE(scst_tasklets); i++) {
-		spin_lock_init(&scst_tasklets[i].tasklet_lock);
-		INIT_LIST_HEAD(&scst_tasklets[i].tasklet_cmd_list);
-		tasklet_init(&scst_tasklets[i].tasklet,
+	for (i = 0; i < (int)ARRAY_SIZE(scst_percpu_infos); i++) {
+		atomic_set(&scst_percpu_infos[i].cpu_cmd_count, 0);
+		spin_lock_init(&scst_percpu_infos[i].tasklet_lock);
+		INIT_LIST_HEAD(&scst_percpu_infos[i].tasklet_cmd_list);
+		tasklet_init(&scst_percpu_infos[i].tasklet,
 			     (void *)scst_cmd_tasklet,
-			     (unsigned long)&scst_tasklets[i]);
+			     (unsigned long)&scst_percpu_infos[i]);
 	}
 
 	TRACE_DBG("%d CPUs found, starting %d threads", scst_num_cpus,

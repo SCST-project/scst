@@ -79,21 +79,21 @@ EXPORT_SYMBOL_GPL(scst_post_alloc_data_buf);
 
 static inline void scst_schedule_tasklet(struct scst_cmd *cmd)
 {
-	struct scst_tasklet *t = &scst_tasklets[smp_processor_id()];
+	struct scst_percpu_info *i = &scst_percpu_infos[smp_processor_id()];
 	unsigned long flags;
 
-	if (atomic_read(&scst_cmd_count) <= scst_max_tasklet_cmd) {
-		spin_lock_irqsave(&t->tasklet_lock, flags);
+	if (atomic_read(&i->cpu_cmd_count) <= scst_max_tasklet_cmd) {
+		spin_lock_irqsave(&i->tasklet_lock, flags);
 		TRACE_DBG("Adding cmd %p to tasklet %d cmd list", cmd,
 			smp_processor_id());
-		list_add_tail(&cmd->cmd_list_entry, &t->tasklet_cmd_list);
-		spin_unlock_irqrestore(&t->tasklet_lock, flags);
+		list_add_tail(&cmd->cmd_list_entry, &i->tasklet_cmd_list);
+		spin_unlock_irqrestore(&i->tasklet_lock, flags);
 
-		tasklet_schedule(&t->tasklet);
+		tasklet_schedule(&i->tasklet);
 	} else {
 		spin_lock_irqsave(&cmd->cmd_threads->cmd_list_lock, flags);
 		TRACE_DBG("Too many tasklet commands (%d), adding cmd %p to "
-			"active cmd list", atomic_read(&scst_cmd_count), cmd);
+			"active cmd list", atomic_read(&i->cpu_cmd_count), cmd);
 		list_add_tail(&cmd->cmd_list_entry,
 			&cmd->cmd_threads->active_cmd_list);
 		wake_up(&cmd->cmd_threads->cmd_list_waitQ);
@@ -231,8 +231,7 @@ out_redirect:
 	} else {
 		unsigned long flags;
 		spin_lock_irqsave(&scst_init_lock, flags);
-		TRACE_MGMT_DBG("Adding cmd %p to init cmd list (scst_cmd_count "
-			"%d)", cmd, atomic_read(&scst_cmd_count));
+		TRACE_MGMT_DBG("Adding cmd %p to init cmd list)", cmd);
 		list_add_tail(&cmd->cmd_list_entry, &scst_init_cmd_list);
 		if (test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))
 			scst_init_poll_cnt++;
@@ -3602,9 +3601,8 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 	smp_mb(); /* to sync with scst_abort_cmd() */
 
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
-		TRACE_MGMT_DBG("Aborted cmd %p finished (cmd_ref %d, "
-			"scst_cmd_count %d)", cmd, atomic_read(&cmd->cmd_ref),
-			atomic_read(&scst_cmd_count));
+		TRACE_MGMT_DBG("Aborted cmd %p finished (cmd_ref %d)",
+			cmd, atomic_read(&cmd->cmd_ref));
 
 		scst_finish_cmd_mgmt(cmd);
 	}
@@ -3754,8 +3752,7 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	/* See comment about smp_mb() in scst_suspend_activity() */
-	__scst_get();
+	cmd->cpu_cmd_counter = scst_get();
 
 	if (likely(!test_bit(SCST_FLAG_SUSPENDED, &scst_flags))) {
 		struct list_head *head =
@@ -3789,11 +3786,11 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 				"tgt_dev for LUN %lld not found, command to "
 				"unexisting LU?",
 				(long long unsigned int)cmd->lun);
-			__scst_put();
+			scst_put(cmd->cpu_cmd_counter);
 		}
 	} else {
 		TRACE_MGMT_DBG("%s", "FLAG SUSPENDED set, skipping");
-		__scst_put();
+		scst_put(cmd->cpu_cmd_counter);
 		res = 1;
 	}
 
@@ -4299,13 +4296,13 @@ int scst_cmd_thread(void *arg)
 
 void scst_cmd_tasklet(long p)
 {
-	struct scst_tasklet *t = (struct scst_tasklet *)p;
+	struct scst_percpu_info *i = (struct scst_percpu_info *)p;
 
 	TRACE_ENTRY();
 
-	spin_lock_irq(&t->tasklet_lock);
-	scst_do_job_active(&t->tasklet_cmd_list, &t->tasklet_lock, true);
-	spin_unlock_irq(&t->tasklet_lock);
+	spin_lock_irq(&i->tasklet_lock);
+	scst_do_job_active(&i->tasklet_cmd_list, &i->tasklet_lock, true);
+	spin_unlock_irq(&i->tasklet_lock);
 
 	TRACE_EXIT();
 	return;
@@ -4327,13 +4324,12 @@ static int scst_mgmt_translate_lun(struct scst_mgmt_cmd *mcmd)
 	TRACE_DBG("Finding tgt_dev for mgmt cmd %p (lun %lld)", mcmd,
 	      (long long unsigned int)mcmd->lun);
 
-	/* See comment about smp_mb() in scst_suspend_activity() */
-	__scst_get();
+	mcmd->cpu_cmd_counter = scst_get();
 
 	if (unlikely(test_bit(SCST_FLAG_SUSPENDED, &scst_flags) &&
 		     !test_bit(SCST_FLAG_SUSPENDING, &scst_flags))) {
 		TRACE_MGMT_DBG("%s", "FLAG SUSPENDED set, skipping");
-		__scst_put();
+		scst_put(mcmd->cpu_cmd_counter);
 		res = 1;
 		goto out;
 	}
@@ -4348,7 +4344,7 @@ static int scst_mgmt_translate_lun(struct scst_mgmt_cmd *mcmd)
 		}
 	}
 	if (mcmd->mcmd_tgt_dev == NULL)
-		__scst_put();
+		scst_put(mcmd->cpu_cmd_counter);
 
 out:
 	TRACE_EXIT_HRES(res);
