@@ -186,13 +186,15 @@ enum scst_cdb_flags {
 
 /*************************************************************
  ** Data direction aliases. Changing it don't forget to change
- ** scst_to_tgt_dma_dir as well!!
+ ** scst_to_tgt_dma_dir and SCST_DATA_DIR_MAX as well!!
  *************************************************************/
 #define SCST_DATA_UNKNOWN		0
 #define SCST_DATA_WRITE			1
 #define SCST_DATA_READ			2
 #define SCST_DATA_BIDI			(SCST_DATA_WRITE | SCST_DATA_READ)
 #define SCST_DATA_NONE			4
+
+#define SCST_DATA_DIR_MAX		(SCST_DATA_NONE+1)
 
 #ifdef CONFIG_SCST_PROC
 

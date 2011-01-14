@@ -3565,6 +3565,7 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 {
 	int res;
 	struct scst_session *sess = cmd->sess;
+	struct scst_io_stat_entry *stat;
 
 	TRACE_ENTRY();
 
@@ -3588,7 +3589,13 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 	atomic_dec(&sess->sess_cmd_count);
 
 	spin_lock_irq(&sess->sess_list_lock);
+
+	stat = &sess->io_stats[cmd->data_direction];
+	stat->cmd_count++;
+	stat->io_byte_count += cmd->bufflen + cmd->out_bufflen;
+
 	list_del(&cmd->sess_cmd_list_entry);
+
 	spin_unlock_irq(&sess->sess_list_lock);
 
 	cmd->finished = 1;

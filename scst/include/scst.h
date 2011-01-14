@@ -1522,6 +1522,11 @@ struct scst_ext_latency_stat {
 
 #endif /* CONFIG_SCST_MEASURE_LATENCY */
 
+struct scst_io_stat_entry {
+	uint64_t cmd_count;
+	uint64_t io_byte_count;
+};
+
 /*
  * SCST session, analog of SCSI I_T nexus
  */
@@ -1567,6 +1572,9 @@ struct scst_session {
 	 * IO flow control.
 	 */
 	atomic_t sess_cmd_count;
+
+	/* Some statistics. Protected by sess_list_lock. */
+	struct scst_io_stat_entry io_stats[SCST_DATA_DIR_MAX];
 
 	/* Access control for this session and list entry there */
 	struct scst_acg *acg;
