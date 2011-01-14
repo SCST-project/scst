@@ -71,7 +71,20 @@
 				<p>You can find version which can compile on RHEL5 platforms
 				<a href="lpfc_scst1123.tar.bz2" class="readmore">here</a>. Thanks to Chris Worley who supplied it.</p>
 
-				<p>This driver compatible only with SCST 1.x. Update for SCST 2.x is welcome!</p>
+				<p>This driver compatible only with SCST 1.x. To update it for 2.x you should perform the following steps: </p>
+				
+				<ol>
+					<li><span>Replace on line #1503 &quot;scst_unregister(tgtport->scst_tgt)&quot; on
+					&quot;scst_unregister_target(tgtport->scst_tgt)&quot;</span></li>
+					
+					<li><span>Replace on line #1570 &quot;tgtport->scst_tgt = scst_register(&amp;scst_data, wwpn)&quot;
+					on &quot;tgtport->scst_tgt = scst_register_target(&amp;scst_data, wwpn)&quot;</span></li>
+					
+					<li><span>Replace on line #1784 &quot;wwpn, login_handle, tm_session_reg_callback)&quot; on
+					&quot;wwpn, NULL, login_handle, tm_session_reg_callback)&quot;</span></li>
+				</ol>
+				
+				<p> Patch to put this driver in the SCST SVN trunk is welcome!</p>
 
 				<br><br>
 				<p class="post-footer align-right">
