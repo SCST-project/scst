@@ -44,10 +44,7 @@ function download_file {
     if [ "${quiet_download}" = "false" ]; then
       echo "Downloading $1 ..."
     fi
-    if ! wget -q -nc "$1"; then
-      echo "Downloading $1 failed."
-      return 1
-    fi
+    wget -q -nc "$1"
   fi
 }
 
@@ -64,7 +61,9 @@ function download_kernel {
     download_file "${kernel_mirror}/linux-$(kernel_version $1).tar.bz2" \
       || return $?
     if [ "${plevel}" != "" ]; then
-      download_file "${kernel_mirror}/patch-$1.bz2" || return $?
+      download_file "${kernel_mirror}/patch-$1.bz2" \
+        || download_file "${kernel_longterm}/v$(kernel_version $1)/patch-$1.tar.bz2" \
+        || return $?
     fi
   )
 }
@@ -87,6 +86,7 @@ fi
 ##########################
 
 kernel_mirror="ftp://ftp.eu.kernel.org/pub/linux/kernel/v2.6"
+kernel_longterm="http://www.kernel.org/pub/linux/kernel/v2.6/longterm"
 kernel_sources="$HOME/software/downloads"
 
 scriptname="$0"
