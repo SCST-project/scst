@@ -31,7 +31,7 @@
 
 #define DEV_USER_NAME			"scst_user"
 #define DEV_USER_PATH			"/dev/"
-#define DEV_USER_VERSION_NAME		"2.1.0-pre1"
+#define DEV_USER_VERSION_NAME		SCST_VERSION_NAME
 #define DEV_USER_VERSION		\
 	DEV_USER_VERSION_NAME "$Revision$" SCST_CONST_VERSION
 

@@ -31,6 +31,22 @@
 #endif
 #include <scsi/scsi.h>
 
+/*
+ * Version numbers, the same as for the kernel.
+ *
+ * Changing it don't forget to change SCST_FIO_REV in scst_vdisk.c
+ * and FIO_REV in usr/fileio/common.h as well.
+ */
+#define SCST_VERSION(a, b, c, d)    (((a) << 24) + ((b) << 16) + ((c) << 8) + d)
+#define SCST_VERSION_CODE	    SCST_VERSION(2, 1, 0, 0)
+#ifdef CONFIG_SCST_PROC
+#define SCST_VERSION_STRING_SUFFIX  "-procfs"
+#else
+#define SCST_VERSION_STRING_SUFFIX
+#endif
+#define SCST_VERSION_NAME	    "2.1.0-pre1"
+#define SCST_VERSION_STRING	    SCST_VERSION_NAME SCST_VERSION_STRING_SUFFIX
+
 #define SCST_CONST_VERSION "$Revision$"
 
 /*** Shared constants between user and kernel spaces ***/
