@@ -5390,9 +5390,6 @@ static int scst_abort_all_nexus_loss_tgt(struct scst_mgmt_cmd *mcmd,
 
 				__scst_abort_task_set(mcmd, tgt_dev);
 
-				if (nexus_loss)
-					scst_nexus_loss(tgt_dev, true);
-
 				if (mcmd->sess == tgt_dev->sess) {
 					rc = scst_call_dev_task_mgmt_fn(
 						mcmd, tgt_dev, 0);
