@@ -277,6 +277,20 @@ static inline struct q2t_sess *q2t_find_sess_by_loop_id(struct q2t_tgt *tgt,
 }
 
 /* pha->hardware_lock supposed to be held on entry (to protect tgt->sess_list) */
+static inline struct q2t_sess *q2t_find_sess_by_s_id_include_deleted(
+	struct q2t_tgt *tgt, const uint8_t *s_id)
+{
+	struct q2t_sess *sess;
+	list_for_each_entry(sess, &tgt->sess_list, sess_list_entry) {
+		if ((sess->s_id.b.al_pa == s_id[2]) &&
+		    (sess->s_id.b.area == s_id[1]) &&
+		    (sess->s_id.b.domain == s_id[0]))
+			return sess;
+	}
+	return NULL;
+}
+
+/* pha->hardware_lock supposed to be held on entry (to protect tgt->sess_list) */
 static inline struct q2t_sess *q2t_find_sess_by_s_id(struct q2t_tgt *tgt,
 	const uint8_t *s_id)
 {
@@ -4806,14 +4820,22 @@ static void q24_send_busy(scsi_qla_host_t *ha, atio7_entry_t *atio,
 {
 	ctio7_status1_entry_t *ctio;
 	struct q2t_sess *sess;
+	uint16_t loop_id;
 
 	TRACE_ENTRY();
 
-	sess = q2t_find_sess_by_s_id(ha->tgt, atio->fcp_hdr.s_id);
-	if (sess == NULL) {
-		q24_send_term_exchange(ha, NULL, atio, 1);
-		goto out;
-	}
+	/*
+	 * In some cases, for instance for ATIO_EXCHANGE_ADDRESS_UNKNOWN, the
+	 * spec requires to issue queue full SCSI status. So, let's search among
+	 * being deleted sessions as well and use CTIO7_NHANDLE_UNRECOGNIZED,
+	 * if we can't find sess.
+	 */
+	sess = q2t_find_sess_by_s_id_include_deleted(ha->tgt,
+					atio->fcp_hdr.s_id);
+	if (sess != NULL)
+		loop_id = sess->loop_id;
+	else
+		loop_id = CTIO7_NHANDLE_UNRECOGNIZED;
 
 	/* Sending marker isn't necessary, since we called from ISR */
 
@@ -4827,7 +4849,7 @@ static void q24_send_busy(scsi_qla_host_t *ha, atio7_entry_t *atio,
 	ctio->common.entry_type = CTIO_TYPE7;
 	ctio->common.entry_count = 1;
 	ctio->common.handle = Q2T_SKIP_HANDLE | CTIO_COMPLETION_HANDLE_MARK;
-	ctio->common.nport_handle = sess->loop_id;
+	ctio->common.nport_handle = loop_id;
 	ctio->common.timeout = __constant_cpu_to_le16(Q2T_TIMEOUT);
 	ctio->common.vp_index = ha->vp_idx;
 	ctio->common.initiator_id[0] = atio->fcp_hdr.s_id[2];
