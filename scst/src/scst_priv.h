@@ -154,7 +154,7 @@ extern struct scst_acg *scst_default_acg;
 extern unsigned int scst_setup_id;
 #endif
 
-#define SCST_DEF_MAX_TASKLET_CMD 20
+#define SCST_DEF_MAX_TASKLET_CMD 10
 extern int scst_max_tasklet_cmd;
 
 extern spinlock_t scst_init_lock;
