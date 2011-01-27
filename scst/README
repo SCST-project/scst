@@ -393,9 +393,10 @@ following entries:
    the SCST core simultaneously from all connected initiators to allow
    processing commands in soft-IRQ context in tasklets. If the count of
    the commands exceeds this value, then all of them will be processed
-   only in threads. This is to to prevent possible starvation under
-   heavy load and in some cases to improve performance by more evenly
-   spreading load over available CPUs.
+   only in SCST threads. This is to to prevent possible under heavy load
+   starvation of processes on the CPUs serving soft IRQs and in some
+   cases to improve performance by more evenly spreading load over
+   available CPUs.
 
  - sgv - this is a root subdirectory for all SCST SGV caches
 
