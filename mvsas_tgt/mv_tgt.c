@@ -316,7 +316,7 @@ static int mvst_target_release(struct scst_tgt *scst_tgt)
 	wait_event(tgt->waitQ, test_tgt_sess_count(tgt, mvi));
 
 	/* big hammer */
-	if (!mvi->flags & MVF_HOST_SHUTTING_DOWN)
+	if (!(mvi->flags & MVF_HOST_SHUTTING_DOWN))
 		mvi->flags |= MVF_TARGET_MODE_ENABLE;
 
 	/* wait for sessions to clear out (just in case) */

@@ -411,17 +411,11 @@ int mvs_slave_configure(struct scsi_device *sdev)
 
 	if (ret)
 		return ret;
-	if (dev_is_sata(dev)) {
-		/* may set PIO mode */
-	#if MV_DISABLE_NCQ
-		struct ata_port *ap = dev->sata_dev.ap;
-		struct ata_device *adev = ap->link.device;
-		adev->flags |= ATA_DFLAG_NCQ_OFF;
-		scsi_adjust_queue_depth(sdev, MSG_SIMPLE_TAG, 1);
-	#endif
-	} else
-		sas_change_queue_depth(sdev, MVS_QUEUE_SIZE);
 
+	if (!dev_is_sata(dev))
+		sas_change_queue_depth(sdev,
+			MVS_QUEUE_SIZE,
+			SCSI_QDEPTH_DEFAULT);
 	return 0;
 }
 
