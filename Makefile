@@ -398,6 +398,7 @@ enable_proc:
 #	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
+	@if [ -d $(SCSTADM_DIR) ]; then cd $(SCSTADM_DIR) && $(MAKE) $@; fi
 
 disable_proc:
 	cd $(SCST_DIR) && $(MAKE) $@
@@ -407,6 +408,7 @@ disable_proc:
 #	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
+	@if [ -d $(SCSTADM_DIR) ]; then cd $(SCSTADM_DIR) && $(MAKE) $@; fi
 
 .PHONY: all install uninstall clean extraclean tags help \
 	qla qla_install qla_uninstall qla_clean qla_extraclean \
