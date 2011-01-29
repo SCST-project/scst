@@ -32,11 +32,11 @@ extraclean:
 	cd $(SCSTADMIN_DIR) && $(MAKE) $@
 
 disable_proc:
-	-rm scstadmin
+	-rm -f scstadmin
 	ln -s scstadmin.sysfs scstadmin
 
 enable_proc:
-	-rm scstadmin
+	-rm -f scstadmin
 	ln -s scstadmin.procfs scstadmin
 
 .PHONY: all install uninstall perl-module clean distclean extraclean disable_proc enable_proc
