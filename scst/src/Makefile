@@ -121,10 +121,6 @@ INSTALL_DIR_H := $(DESTDIR)/usr/local/include/scst
 
 enable-Wextra = $(shell uname_r="$$(uname -r)"; if [ "$${uname_r%.el5}" = "$${uname_r}" ]; then echo "$(1)"; fi)
 
-ifneq ($(shell grep -w sg_copy $(srctree)/include/linux/scatterlist.h),)
-EXTRA_CFLAGS += -DHAVE_SG_COPY
-endif
-
 EXTRA_CFLAGS += -I$(SCST_INC_DIR) $(call enable-Wextra,-Wextra \
 	-Wno-unused-parameter -Wno-missing-field-initializers)
 
