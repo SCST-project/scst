@@ -5226,10 +5226,9 @@ __be64 scst_pack_lun(const uint64_t lun, enum scst_lun_addr_method addr_method)
 }
 
 /*
- * Routine to extract a lun number from an 8-byte LUN structure
- * in network byte order (BE).
- * (see SAM-2, Section 4.12.3 page 40)
- * Supports 2 types of lun unpacking: peripheral and logical unit.
+ * Function to extract a LUN number from an 8-byte LUN structure in network byte
+ * order (big endian). Supports three LUN addressing methods: peripheral, flat
+ * and logical unit. See also SAM-2, section 4.9.4 (page 40).
  */
 uint64_t scst_unpack_lun(const uint8_t *lun, int len)
 {
