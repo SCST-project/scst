@@ -278,9 +278,13 @@ enum scst_cdb_flags {
 #define INIT_ELEMENT_STATUS         0x07
 #define INIT_ELEMENT_STATUS_RANGE   0x37
 #define PREVENT_ALLOW_MEDIUM        0x1E
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 38)
 #define READ_ATTRIBUTE              0x8C
+#endif
 #define REQUEST_VOLUME_ADDRESS      0xB5
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 38)
 #define WRITE_ATTRIBUTE             0x8D
+#endif
 #define WRITE_VERIFY_16             0x8E
 #define VERIFY_6                    0x13
 #ifndef VERIFY_12

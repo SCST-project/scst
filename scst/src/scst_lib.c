@@ -4517,7 +4517,7 @@ out:
 	return;
 }
 
-#if !((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && defined(SCSI_EXEC_REQ_FIFO_DEFINED))
+#if !((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && defined(SCSI_EXEC_REQ_FIFO_DEFINED)) && !defined(HAVE_SG_COPY)
 
 /*
  * Can switch to the next dst_sg element, so, to copy to strictly only
