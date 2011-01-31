@@ -145,10 +145,9 @@ struct scst_local_sess {
 	container_of(d, struct scst_local_sess, dev)
 
 static int __scst_local_add_adapter(struct scst_local_tgt *tgt,
-	const char *initiator_name, struct scst_local_sess **out_sess,
-	bool locked);
+	const char *initiator_name, bool locked);
 static int scst_local_add_adapter(struct scst_local_tgt *tgt,
-	const char *initiator_name, struct scst_local_sess **out_sess);
+	const char *initiator_name);
 static void scst_local_remove_adapter(struct scst_local_sess *sess);
 static int scst_local_add_target(const char *target_name,
 	struct scst_local_tgt **out_tgt);
@@ -653,7 +652,7 @@ static ssize_t scst_local_sysfs_add_target(const char *target_name, char *params
 			goto out_remove;
 		}
 
-		res = scst_local_add_adapter(tgt, p, NULL);
+		res = scst_local_add_adapter(tgt, p);
 		if (res != 0)
 			goto out_remove;
 	}
@@ -748,7 +747,7 @@ static ssize_t scst_local_sysfs_mgmt_cmd(char *buf)
 	}
 
 	if (strcasecmp("add_session", command) == 0) {
-		res = __scst_local_add_adapter(tgt, session_name, NULL, true);
+		res = __scst_local_add_adapter(tgt, session_name, true);
 	} else if (strcasecmp("del_session", command) == 0) {
 		struct scst_local_sess *s, *sess = NULL;
 		list_for_each_entry(s, &tgt->sessions_list,
@@ -1581,8 +1580,7 @@ out:
 }
 
 static int __scst_local_add_adapter(struct scst_local_tgt *tgt,
-	const char *initiator_name, struct scst_local_sess **out_sess,
-	bool locked)
+	const char *initiator_name, bool locked)
 {
 	int res;
 	struct scst_local_sess *sess;
@@ -1680,9 +1678,9 @@ out_free:
 }
 
 static int scst_local_add_adapter(struct scst_local_tgt *tgt,
-	const char *initiator_name, struct scst_local_sess **out_sess)
+	const char *initiator_name)
 {
-	return __scst_local_add_adapter(tgt, initiator_name, out_sess, false);
+	return __scst_local_add_adapter(tgt, initiator_name, false);
 }
 
 /* Must be called under scst_local_mutex */
@@ -1866,7 +1864,7 @@ static int __init scst_local_init(void)
 	if (ret != 0)
 		goto tgt_templ_unreg;
 
-	ret = scst_local_add_adapter(tgt, "scst_local_host", NULL);
+	ret = scst_local_add_adapter(tgt, "scst_local_host");
 	if (ret != 0)
 		goto tgt_unreg;
 
