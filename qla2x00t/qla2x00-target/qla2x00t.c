@@ -5336,6 +5336,8 @@ retry:
 	global_resets = atomic_read(&ha->tgt->tgt_global_resets_count);
 
 	if (IS_FWI2_CAPABLE(ha)) {
+		sBUG_ON(s_id == NULL);
+
 		rc = q24_get_loop_id(ha, s_id, &loop_id);
 		if (rc != 0) {
 			if ((s_id[0] == 0xFF) &&
@@ -5402,7 +5404,8 @@ static void q2t_exec_sess_work(struct q2t_tgt *tgt,
 	scsi_qla_host_t *pha = to_qla_parent(ha);
 	int rc;
 	struct q2t_sess *sess = NULL;
-	const uint8_t *s_id = NULL; /* to hide compiler warnings */
+	uint8_t *s_id = NULL; /* to hide compiler warnings */
+	uint8_t local_s_id[3];
 	int loop_id = -1; /* to hide compiler warnings */
 
 	TRACE_ENTRY();
@@ -5430,6 +5433,12 @@ static void q2t_exec_sess_work(struct q2t_tgt *tgt,
 		if (IS_FWI2_CAPABLE(ha)) {
 			sess = q2t_find_sess_by_s_id_le(tgt,
 				prm->abts.fcp_hdr_le.s_id);
+			if (sess == NULL) {
+				s_id = local_s_id;
+				s_id[0] = prm->abts.fcp_hdr_le.s_id[2];
+				s_id[1] = prm->abts.fcp_hdr_le.s_id[1];
+				s_id[2] = prm->abts.fcp_hdr_le.s_id[0];
+			}
 			goto after_find;
 		} else
 			loop_id = GET_TARGET_ID(ha, &prm->tm_iocb);
@@ -5445,9 +5454,10 @@ static void q2t_exec_sess_work(struct q2t_tgt *tgt,
 		break;
 	}
 
-	if (IS_FWI2_CAPABLE(ha))
+	if (IS_FWI2_CAPABLE(ha)) {
+		sBUG_ON(s_id == NULL);
 		sess = q2t_find_sess_by_s_id(tgt, s_id);
-	else
+	} else
 		sess = q2t_find_sess_by_loop_id(tgt, loop_id);
 
 after_find:
