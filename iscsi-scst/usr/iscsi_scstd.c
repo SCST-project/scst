@@ -718,7 +718,7 @@ int main(int argc, char **argv)
 #endif
 
 	if ((ipc_fd = iscsi_adm_request_listen()) < 0) {
-		perror("ipc failed\n");
+		perror("Opening AF_LOCAL socket failed");
 		exit(-1);
 	}
 
