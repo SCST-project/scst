@@ -272,7 +272,8 @@ static void vdisk_exec_write(struct scst_cmd *cmd,
 	struct scst_vdisk_thr *thr, loff_t loff);
 static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 	u64 lba_start, int write);
-static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask);
+static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask,
+	bool report_error);
 static void vdisk_exec_verify(struct scst_cmd *cmd,
 	struct scst_vdisk_thr *thr, loff_t loff);
 static void vdisk_exec_read_capacity(struct scst_cmd *cmd);
@@ -652,7 +653,7 @@ static void vdisk_blockio_check_flush_support(struct scst_vdisk_dev *virt_dev)
 		goto out_close;
 	}
 
-	if (vdisk_blockio_flush(inode->i_bdev, GFP_KERNEL) != 0) {
+	if (vdisk_blockio_flush(inode->i_bdev, GFP_KERNEL, false) != 0) {
 		PRINT_WARNING("Device %s doesn't support barriers, switching "
 			"to NV_CACHE mode. Read README for more details.",
 			virt_dev->filename);
@@ -2522,7 +2523,7 @@ static int vdisk_fsync(struct scst_vdisk_thr *thr, loff_t loff,
 
 	if (virt_dev->blockio) {
 		res = vdisk_blockio_flush(thr->bdev,
-			(cmd->noio_mem_alloc ? GFP_NOIO : GFP_KERNEL));
+			(cmd->noio_mem_alloc ? GFP_NOIO : GFP_KERNEL), true);
 		goto out;
 	}
 
@@ -3052,7 +3053,8 @@ out_no_mem:
 	goto out;
 }
 
-static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask)
+static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask,
+	bool report_error)
 {
 	int res = 0;
 
@@ -3067,7 +3069,7 @@ static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask)
 #else
 	res = blkdev_issue_flush(bdev, gfp_mask, NULL);
 #endif
-	if (res != 0)
+	if ((res != 0) && report_error)
 		PRINT_ERROR("blkdev_issue_flush() failed: %d", res);
 
 	TRACE_EXIT_RES(res);
