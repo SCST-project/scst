@@ -302,6 +302,8 @@ void scst_unblock_deferred(struct scst_tgt_dev *tgt_dev,
 void scst_on_hq_cmd_response(struct scst_cmd *cmd);
 void scst_xmit_process_aborted_cmd(struct scst_cmd *cmd);
 
+int scst_pre_parse(struct scst_cmd *cmd);
+
 int scst_cmd_thread(void *arg);
 void scst_cmd_tasklet(long p);
 int scst_init_thread(void *arg);

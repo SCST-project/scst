@@ -1979,6 +1979,7 @@ int scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 	case SCST_CMD_STATE_PRE_DEV_DONE:
 	case SCST_CMD_STATE_MODE_SELECT_CHECKS:
 	case SCST_CMD_STATE_PRE_XMIT_RESP:
+	case SCST_CMD_STATE_FINISHED_INTERNAL:
 		break;
 	default:
 		PRINT_CRIT_ERROR("Wrong cmd state %d (cmd %p, op %x)",
@@ -3690,6 +3691,7 @@ static struct scst_cmd *scst_create_prepare_internal_cmd(
 	struct scst_cmd *orig_cmd, int bufsize)
 {
 	struct scst_cmd *res;
+	int rc;
 	gfp_t gfp_mask = scst_cmd_atomic(orig_cmd) ? GFP_ATOMIC : GFP_KERNEL;
 
 	TRACE_ENTRY();
@@ -3715,6 +3717,9 @@ static struct scst_cmd *scst_create_prepare_internal_cmd(
 	scst_sess_get(res->sess);
 	if (res->tgt_dev != NULL)
 		__scst_get();
+
+	rc = scst_pre_parse(res);
+	sBUG_ON(rc != 0);
 
 	res->state = SCST_CMD_STATE_PARSE;
 
