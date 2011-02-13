@@ -394,7 +394,7 @@ out:
 }
 EXPORT_SYMBOL(scst_cmd_init_done);
 
-static int scst_pre_parse(struct scst_cmd *cmd)
+int scst_pre_parse(struct scst_cmd *cmd)
 {
 	int res;
 	struct scst_device *dev = cmd->dev;
