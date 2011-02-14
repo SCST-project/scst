@@ -418,20 +418,19 @@ next:
 			gid = (struct gid_list_info *)id_iter;
 			if (IS_QLA2100(ha) || IS_QLA2200(ha)) {
 				size += scnprintf(buffer+size, max_size-size,
-						 "%02x  %02x%02x%02x\n",
-						 gid->loop_id_2100,
-						 gid->domain,
-						 gid->area,
-						 gid->al_pa);
-
-			} else {
-				size += scnprintf(buffer+size, max_size-size,
 						 "%04x %02x%02x%02x %02x\n",
 						 le16_to_cpu(gid->loop_id),
 						 gid->domain,
 						 gid->area,
 						 gid->al_pa,
 						 gid->loop_id_2100);
+			} else {
+				size += scnprintf(buffer+size, max_size-size,
+						 "%02x  %02x%02x%02x\n",
+						 gid->loop_id_2100,
+						 gid->domain,
+						 gid->area,
+						 gid->al_pa);
 
 			}
 			id_iter += ha->gid_list_info_size;
