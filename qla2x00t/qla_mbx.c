@@ -2255,6 +2255,13 @@ qla24xx_get_isp_stats(scsi_qla_host_t *ha, struct link_statistics *stats,
 	mbx_cmd_t *mcp = &mc;
 	uint32_t *siter, *diter, dwords;
 
+	if (!qla_tgt_mode_enabled(ha) && !qla_ini_mode_enabled(ha)) {
+		DEBUG2_3_11(printk("%s(%ld): neither initiator, nor target "
+			"mode enabled, no stats returned\n",
+			__func__, ha->host_no));
+		return QLA_FUNCTION_FAILED;
+	}
+
 	DEBUG11(printk("%s(%ld): entered.\n", __func__, ha->host_no));
 
 	mcp->mb[0] = MBC_GET_LINK_PRIV_STATS;
