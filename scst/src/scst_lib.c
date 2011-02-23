@@ -6268,6 +6268,9 @@ again:
 							"needed global UA %p",
 							ua);
 						list_del(&ua->UA_list_entry);
+						if (list_empty(&tgt_dev->UA_list))
+						    clear_bit(SCST_TGT_DEV_UA_PENDING,
+							      &tgt_dev->tgt_dev_flags);
 						mempool_free(ua, scst_ua_mempool);
 						break;
 					}
