@@ -527,6 +527,15 @@ qla24xx_queuecommand_lck(struct scsi_cmnd *cmd, void (*done)(struct scsi_cmnd *)
 		goto qc24_host_busy;
 	}
 
+#ifdef CONFIG_SCSI_QLA2XXX_TARGET
+	if (unlikely(!qla_ini_mode_enabled(ha))) {
+		DEBUG2_3_11(printk("%s(%ld): Initiator command in the initiator "
+			"disabled mode\n", __func__, ha->host_no));
+		cmd->result = DID_NO_CONNECT << 16;
+		goto qc24_fail_command;
+	}
+#endif
+
 	spin_unlock_irq(ha->host->host_lock);
 
 	sp = qla2x00_get_new_sp(pha, fcport, cmd, done);
