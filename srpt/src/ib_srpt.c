@@ -3098,14 +3098,12 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	if (dir == SCST_DATA_READ
 	    && scst_cmd_get_adjusted_resp_data_len(scmnd)) {
 		ret = srpt_xfer_data(ch, ioctx, scmnd);
-		if (ret == SCST_TGT_RES_QUEUE_FULL) {
+		if (unlikely(ret != SCST_TGT_RES_SUCCESS)) {
 			srpt_set_cmd_state(ioctx, state);
 			PRINT_WARNING("xfer_data failed for tag %llu"
-				      " - retrying", scst_cmd_get_tag(scmnd));
-			goto out;
-		} else if (ret != SCST_TGT_RES_SUCCESS) {
-			PRINT_ERROR("xfer_data failed for tag %llu",
-				    scst_cmd_get_tag(scmnd));
+				      " - %s", scst_cmd_get_tag(scmnd),
+				      ret == SCST_TGT_RES_QUEUE_FULL ?
+				      "retrying" : "failing");
 			goto out;
 		}
 	}
