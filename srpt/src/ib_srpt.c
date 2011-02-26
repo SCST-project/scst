@@ -2693,7 +2693,8 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	if (ioctx->rdma_ius && ioctx->n_rdma_ius)
 		nrdma = ioctx->n_rdma_ius;
 	else {
-		nrdma = count / SRPT_DEF_SG_PER_WQE + ioctx->n_rbuf;
+		nrdma = (count + SRPT_DEF_SG_PER_WQE - 1) / SRPT_DEF_SG_PER_WQE
+			+ ioctx->n_rbuf;
 
 		ioctx->rdma_ius = kzalloc(nrdma * sizeof *riu,
 					  scst_cmd_atomic(scmnd)
@@ -2772,6 +2773,9 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 			goto free_mem;
 	}
 
+	EXTRACHECKS_WARN_ON(riu - ioctx->rdma_ius != ioctx->n_rdma);
+	EXTRACHECKS_WARN_ON(ioctx->n_rdma > ioctx->n_rdma_ius);
+
 	db = ioctx->rbufs;
 	tsize = (dir == SCST_DATA_READ)
 		? scst_cmd_get_adjusted_resp_data_len(scmnd)
@@ -2814,14 +2818,16 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 			}
 
 			++k;
-			if (k == riu->sge_cnt && rsize > 0) {
+			if (k == riu->sge_cnt && rsize > 0 && tsize > 0) {
 				++riu;
 				sge = riu->sge;
 				k = 0;
-			} else if (rsize > 0)
+			} else if (rsize > 0 && tsize > 0)
 				++sge;
 		}
 	}
+
+	EXTRACHECKS_WARN_ON(riu - ioctx->rdma_ius != ioctx->n_rdma);
 
 	return 0;
 
