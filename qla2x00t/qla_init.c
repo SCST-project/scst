@@ -4182,7 +4182,7 @@ EXPORT_SYMBOL(qla2x00_disable_tgt_mode);
  * qla2x00_issue_marker
  *	Issue marker
  *	Caller CAN have hardware lock held as specified by ha_locked parameter.
- *	Might release it, then reaquire.
+ *	Might release it, then reacquire.
  */
 int qla2x00_issue_marker(scsi_qla_host_t *ha, int ha_locked)
 {

@@ -1007,7 +1007,7 @@ out:
 
 /*
  * Called under rd_lock and BHs disabled, but will drop it inside,
- * then reaquire.
+ * then reacquire.
  */
 static void scst_do_job_rd(struct iscsi_thread_pool *p)
 	__acquires(&rd_lock)
@@ -1742,7 +1742,7 @@ out:
 
 /*
  * Called under wr_lock and BHs disabled, but will drop it inside,
- * then reaquire.
+ * then reacquire.
  */
 static void scst_do_job_wr(struct iscsi_thread_pool *p)
 	__acquires(&wr_lock)

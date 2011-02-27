@@ -119,7 +119,7 @@ struct q2t_tgt {
 
 	/*
 	 * To sync between IRQ handlers and q2t_target_release(). Needed,
-	 * because req_pkt() can drop/reaquire HW lock inside. Protected by
+	 * because req_pkt() can drop/reacquire HW lock inside. Protected by
 	 * HW lock.
 	 */
 	int irq_cmd_count;

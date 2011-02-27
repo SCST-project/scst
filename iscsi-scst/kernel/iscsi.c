@@ -3378,7 +3378,7 @@ static bool iscsi_is_delay_tm_resp(struct iscsi_cmnd *rsp)
 	return res;
 }
 
-/* Called under sn_lock, but might drop it inside, then reaquire */
+/* Called under sn_lock, but might drop it inside, then reacquire */
 static void iscsi_check_send_delayed_tm_resp(struct iscsi_session *sess)
 	__acquires(&sn_lock)
 	__releases(&sn_lock)

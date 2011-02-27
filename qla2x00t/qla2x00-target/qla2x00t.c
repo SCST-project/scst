@@ -351,7 +351,7 @@ static inline request_t *q2t_req_pkt(scsi_qla_host_t *ha)
 	return qla2x00_req_pkt(to_qla_parent(ha));
 }
 
-/* Might release hw lock, then reaquire!! */
+/* Might release hw lock, then reacquire!! */
 static inline int q2t_issue_marker(scsi_qla_host_t *ha, int ha_locked)
 {
 	/* Send marker if required */
@@ -1469,7 +1469,7 @@ out:
 }
 
 /*
- * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
+ * pha->hardware_lock supposed to be held on entry. Might drop it, then reacquire
  */
 static void q2x_modify_command_count(scsi_qla_host_t *ha, int cmd_count,
 	int imm_count)
@@ -1522,7 +1522,7 @@ out:
 }
 
 /*
- * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
+ * pha->hardware_lock supposed to be held on entry. Might drop it, then reacquire
  */
 static void q2x_send_notify_ack(scsi_qla_host_t *ha, notify_entry_t *iocb,
 	uint32_t add_flags, uint16_t resp_code, int resp_code_valid,
@@ -1585,7 +1585,7 @@ out:
 }
 
 /*
- * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
+ * pha->hardware_lock supposed to be held on entry. Might drop it, then reacquire
  */
 static void q24_send_abts_resp(scsi_qla_host_t *ha,
 	const abts24_recv_entry_t *abts, uint32_t status, bool ids_reversed)
@@ -1666,7 +1666,7 @@ out:
 }
 
 /*
- * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
+ * pha->hardware_lock supposed to be held on entry. Might drop it, then reacquire
  */
 static void q24_retry_term_exchange(scsi_qla_host_t *ha,
 	abts24_resp_fw_entry_t *entry)
@@ -1761,7 +1761,7 @@ out_free:
 }
 
 /*
- * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
+ * pha->hardware_lock supposed to be held on entry. Might drop it, then reacquire
  */
 static void q24_handle_abts(scsi_qla_host_t *ha, abts24_recv_entry_t *abts)
 {
@@ -1818,7 +1818,7 @@ out_err:
 }
 
 /*
- * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
+ * pha->hardware_lock supposed to be held on entry. Might drop it, then reacquire
  */
 static void q24_send_task_mgmt_ctio(scsi_qla_host_t *ha,
 	struct q2t_mgmt_cmd *mcmd, uint32_t resp_code)
@@ -1869,7 +1869,7 @@ out:
 }
 
 /*
- * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
+ * pha->hardware_lock supposed to be held on entry. Might drop it, then reacquire
  */
 static void q24_send_notify_ack(scsi_qla_host_t *ha,
 	notify24xx_entry_t *iocb, uint16_t srr_flags,
@@ -2095,7 +2095,7 @@ out:
 }
 
 /*
- * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
+ * pha->hardware_lock supposed to be held on entry. Might drop it, then reacquire
  */
 static inline void *q2t_get_req_pkt(scsi_qla_host_t *ha)
 {
@@ -3029,7 +3029,7 @@ static int q2t_rdy_to_xfer(struct scst_cmd *scst_cmd)
 	return res;
 }
 
-/* If hardware_lock held on entry, might drop it, then reaquire */
+/* If hardware_lock held on entry, might drop it, then reacquire */
 static void q2x_send_term_exchange(scsi_qla_host_t *ha, struct q2t_cmd *cmd,
 	atio_entry_t *atio, int ha_locked)
 {
@@ -3103,7 +3103,7 @@ out:
 	return;
 }
 
-/* If hardware_lock held on entry, might drop it, then reaquire */
+/* If hardware_lock held on entry, might drop it, then reacquire */
 static void q24_send_term_exchange(scsi_qla_host_t *ha, struct q2t_cmd *cmd,
 	atio7_entry_t *atio, int ha_locked)
 {
@@ -3294,7 +3294,7 @@ out:
 }
 
 /*
- * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
+ * pha->hardware_lock supposed to be held on entry. Might drop it, then reacquire
  */
 static int q2t_term_ctio_exchange(scsi_qla_host_t *ha, void *ctio,
 	struct q2t_cmd *cmd, uint32_t status)
@@ -3415,7 +3415,7 @@ out:
 }
 
 /*
- * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
+ * pha->hardware_lock supposed to be held on entry. Might drop it, then reacquire
  */
 static void q2t_do_ctio_completion(scsi_qla_host_t *ha, uint32_t handle,
 	uint32_t status, void *ctio)
@@ -4046,7 +4046,7 @@ out:
 }
 
 /*
- * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
+ * pha->hardware_lock supposed to be held on entry. Might drop it, then reacquire
  */
 static int q24_handle_els(scsi_qla_host_t *ha, notify24xx_entry_t *iocb)
 {
@@ -4615,7 +4615,7 @@ out_reject:
 }
 
 /*
- * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
+ * pha->hardware_lock supposed to be held on entry. Might drop it, then reacquire
  */
 static void q2t_handle_imm_notify(scsi_qla_host_t *ha, void *iocb)
 {
@@ -4766,7 +4766,7 @@ static void q2t_handle_imm_notify(scsi_qla_host_t *ha, void *iocb)
 }
 
 /*
- * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
+ * pha->hardware_lock supposed to be held on entry. Might drop it, then reacquire
  */
 static void q2x_send_busy(scsi_qla_host_t *ha, atio_entry_t *atio)
 {
@@ -4813,7 +4813,7 @@ out:
 }
 
 /*
- * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
+ * pha->hardware_lock supposed to be held on entry. Might drop it, then reacquire
  */
 static void q24_send_busy(scsi_qla_host_t *ha, atio7_entry_t *atio,
 	uint16_t status)
@@ -5221,7 +5221,7 @@ out:
 }
 
 /*
- * pha->hardware_lock supposed to be held on entry. Might drop it, then reaquire
+ * pha->hardware_lock supposed to be held on entry. Might drop it, then reacquire
  */
 static void q2t_async_event(uint16_t code, scsi_qla_host_t *ha,
 	uint16_t *mailbox)

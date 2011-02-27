@@ -408,7 +408,7 @@ queuing_error:
  *
  * Returns non-zero if a failure occured, else zero.
  *
- * Hardware lock must be held on entrance. Might release it, then reaquire.
+ * Hardware lock must be held on entrance. Might release it, then reacquire.
  */
 int
 __qla2x00_marker(scsi_qla_host_t *ha, uint16_t loop_id, uint16_t lun,
@@ -469,7 +469,7 @@ qla2x00_marker(scsi_qla_host_t *ha, uint16_t loop_id, uint16_t lun,
  * @ha: HA context
  *
  * Note: The caller must hold the hardware lock before calling this routine.
- * Might release it, then reaquire.
+ * Might release it, then reacquire.
  *
  * Returns NULL if function failed, else, a pointer to the request packet.
  */

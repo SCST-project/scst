@@ -70,7 +70,7 @@ static inline void qla_reverse_ini_mode(scsi_qla_host_t *ha)
  *	ha = adapter block pointer.
  *
  * Caller MUST have hardware lock held. This function might release it,
- * then reaquire.
+ * then reacquire.
  */
 static inline void
 __qla2x00_send_enable_lun(scsi_qla_host_t *ha, int enable)
