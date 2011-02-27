@@ -6077,6 +6077,16 @@ void scst_process_reset(struct scst_device *dev,
 	return;
 }
 
+/* Caller must hold tgt_dev->tgt_dev_lock. */
+void scst_tgt_dev_del_free_UA(struct scst_tgt_dev *tgt_dev,
+			      struct scst_tgt_dev_UA *ua)
+{
+	list_del(&ua->UA_list_entry);
+	if (list_empty(&tgt_dev->UA_list))
+		clear_bit(SCST_TGT_DEV_UA_PENDING, &tgt_dev->tgt_dev_flags);
+	mempool_free(ua, scst_ua_mempool);
+}
+
 /* No locks, no IRQ or IRQ-disabled context allowed */
 int scst_set_pending_UA(struct scst_cmd *cmd)
 {
@@ -6172,11 +6182,8 @@ again:
 						TRACE_MGMT_DBG("Freeing not "
 							"needed global UA %p",
 							ua);
-						list_del(&ua->UA_list_entry);
-						if (list_empty(&tgt_dev->UA_list))
-						    clear_bit(SCST_TGT_DEV_UA_PENDING,
-							      &tgt_dev->tgt_dev_flags);
-						mempool_free(ua, scst_ua_mempool);
+						scst_tgt_dev_del_free_UA(tgt_dev,
+									 ua);
 						break;
 					}
 				}

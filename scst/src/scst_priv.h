@@ -499,6 +499,8 @@ void scst_acn_sysfs_del(struct scst_acn *acn);
 
 void __scst_dev_check_set_UA(struct scst_device *dev, struct scst_cmd *exclude,
 	const uint8_t *sense, int sense_len);
+void scst_tgt_dev_del_free_UA(struct scst_tgt_dev *tgt_dev,
+			      struct scst_tgt_dev_UA *ua);
 static inline void scst_dev_check_set_UA(struct scst_device *dev,
 	struct scst_cmd *exclude, const uint8_t *sense, int sense_len)
 {
