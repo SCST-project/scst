@@ -46,8 +46,8 @@ include/iscsi_scst_itf_ver.h: include/iscsi_scst.h
 	echo "\"`sha1sum include/iscsi_scst.h|awk '{printf $$1}'`\"" >>include/iscsi_scst_itf_ver.h
 
 install: all
-	@install -vD usr/iscsi-scstd $(DESTDIR)$(SBINDIR)/iscsi-scstd
-	@install -vD usr/iscsi-scst-adm $(DESTDIR)$(SBINDIR)/iscsi-scst-adm
+	@install -vD -m 755 usr/iscsi-scstd $(DESTDIR)$(SBINDIR)/iscsi-scstd
+	@install -vD -m 755 usr/iscsi-scst-adm $(DESTDIR)$(SBINDIR)/iscsi-scst-adm
 	if [ -f /etc/debian_version ]; then \
 		install -vD -m 755 etc/initd/initd.debian $(DESTDIR)$(INITDIR)/iscsi-scst; \
 	elif [ -f /etc/redhat-release ]; then \
