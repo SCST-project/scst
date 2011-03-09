@@ -1,12 +1,12 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html>
 <head>
-<meta name="Keywords" content="Fibre Channel Target, QLogic Target, 4Gbps target, 8Gbps target">
+<meta name="Keywords" content="SRP target, RDMA target">
 <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
 <meta name="author" content="Daniel Fernandes">
 <meta name="Robots" content="index,follow">
 <link rel="stylesheet" href="images/Orange.css" type="text/css">	
-<title>QLogic Fibre Channel Target Driver</title>
+<title>SRP Target Driver</title>
 </head>
 
 <body>
@@ -25,7 +25,7 @@
 			<li id="current"><a href="targets.html">Drivers</a></li>
 			<li><a href="downloads.html">Downloads</a></li>
 			<li><a href="contributing.html">Contributing</a></li>
-			<li><a href="comparison.html">Comparison</a></li>				
+			<li><a href="comparison.html">Comparison</a></li>			
 			<li><a href="users.html">Users</a></li>
 			<li><a href="solutions.html">Solutions</a></li>
 		</ul>
@@ -37,14 +37,14 @@
 				<h1>Target Drivers</h1>
 				<ul class="sidemenu">
 					<li><a href="http://iscsi-scst.sourceforge.net">ISCSI-SCST</a></li>
-					<li><a href="target_qla2x00t.html">QLogic FC QLA2X00T</a></li>
-					<li><a href="target_qla_isp.html">QLogic FC ISP</a></li>
+					<li><a href="target_qla2x00t.html">QLogic FC qla2x00t</a></li>
 					<li><a href="target_srp.html">SCSI RDMA Protocol (SRP)</a></li>
 					<li><a href="target_mvsas.html">Marvell SAS adapters</a></li>
 					<li><a href="target_emulex.html">Emulex lpfc FC/FCoE adapters</a></li>
 					<li><a href="target_lsi.html">LSI/MPT adapters</a></li>
 					<li><a href="target_fcoe.html">FCoE Target</a></li>
 					<li><a href="target_local.html">Local Target Driver</a></li>
+					<li><a href="target_ibmvscsi.html">IBM pSeries Virtual SCSI</a></li>
 					<li><a href="target_old.html">Old Unsupported</a></li>
 				</ul>
 				<h1>User utilities</h1>
@@ -55,32 +55,20 @@
 			</div>		
 	
 	  		<div id="main"> 
-				<h1>Target driver for QLogic ISP chipsets</h1>
-
-				<p><img src="images/t_qlogic.gif" width="100" height="120" class="float-left" alt="SCST QLogic">
-				This is an SCST driver for ISP QLogic chipsets commonly used in many SCSI and FC host bus adapters. 
-				It is based on Matthew Jacob's multiplatform driver for ISP chipsets, which has its own page at 
-				<a href="http://www.feral.com/isp.html">http://www.feral.com/isp.html</a>. The update for SCST was made by 
-				Stanislaw Gruszka for Open-E Inc.</p>
-
-				<p>This driver operates on the same hardware as the qla2x00t target driver, but, comparing to version 1.0.1.1
-				of it, has a notable advantage: support of 24xx (4Gbps) and 25xx (8Gbps) series of QLogic adapters.
-				From other side, qla2x00t is simpler, smaller and much better tested on 22xx and 23xx, hence perform more
-				reliable and, thus, is recommended for these adapters.</p>
-				
-				<p> Since support of 24xx (4Gbps) and 25xx (8Gbps) series of QLogic adapters was added in version 2.0.0
-				of qla2x00t, users are encouraged to switch from this driver to qla2x00t.</p>
-
-				<p>The latest release is 1.0.2. It supports kernel versions between 2.6.16 and 2.6.32.</p>
-
-				<p>You can find the latest development version of this driver in the SCST SVN. See the download page how to setup 
-				access to it.</p>
-
+				<h1>IBM Virtual SCSI Target</h1>
+				<p>The virtual SCSI (VSCSI) protocol as defined in <a href="http://www.power.org" class="readmore">Power Architecture Standard</a>
+				is a protocol that allows one logical partition (LPAR) to access SCSI targets provided by another LPAR.
+				The LPAR that provides one or more SCSI targets is called the VIO server or
+				VIOS. The ibmvstgt driver is a VIOS driver that makes it possible to access
+				exported target devices via the VSCSI protocol.</p>
+				<p>This driver is based on ibmvstgt driver, but comparing to the original ibmvstgt has a number of important fixes and improvements.
+				The port was made by Bart Van Assche.</p>
+				<p>You can download it from the SCST SVN repository. See the download page how to setup access to it.</p>
+				<br><br><br>
 				<p class="post-footer align-right">					
-					<a href="downloads.html" class="readmore">Download</a>				
 					<a href="http://scst.svn.sourceforge.net/" class="readmore">SCST SVN Repository</a>
 				</p>
-				<table border=0><tr><td height="250px">&nbsp;</td></tr></table>
+				<table border=0><tr><td height="300px">&nbsp;</td></tr></table>								
 	  		</div>
 	<!-- content-wrap ends here -->	
 	</div>
