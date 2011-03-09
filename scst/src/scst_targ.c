@@ -2025,20 +2025,7 @@ out_done:
 	goto out;
 }
 
-/**
- * scst_check_local_events() - check if there are any local SCSI events
- *
- * Description:
- *    Checks if the command can be executed or there are local events,
- *    like reservations, pending UAs, etc. Returns < 0 if command must be
- *    aborted, > 0 if there is an event and command should be immediately
- *    completed, or 0 otherwise.
- *
- * !! Dev handlers implementing exec() callback must call this function there
- * !! just before the actual command's execution!
- *
- *    On call no locks, no IRQ or IRQ-disabled context allowed.
- */
+/* No locks, no IRQ or IRQ-disabled context allowed */
 static int scst_persistent_reserve_in_local(struct scst_cmd *cmd)
 {
 	int rc;
@@ -2305,7 +2292,20 @@ out_done:
 	return res;
 }
 
-/* No locks, no IRQ or IRQ-disabled context allowed */
+/**
+ * scst_check_local_events() - check if there are any local SCSI events
+ *
+ * Description:
+ *    Checks if the command can be executed or there are local events,
+ *    like reservations, pending UAs, etc. Returns < 0 if command must be
+ *    aborted, > 0 if there is an event and command should be immediately
+ *    completed, or 0 otherwise.
+ *
+ * !! Dev handlers implementing exec() callback must call this function there
+ * !! just before the actual command's execution!
+ *
+ *    On call no locks, no IRQ or IRQ-disabled context allowed.
+ */
 int scst_check_local_events(struct scst_cmd *cmd)
 {
 	int res, rc;
