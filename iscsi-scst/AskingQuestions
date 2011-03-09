@@ -33,11 +33,21 @@ BOOTED*. Please don't try to be smart and filter out what's you
 think isn't needed. What's usually removed could allow us to see the
 target and SCST configurations.
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!! ALWAYS COMPRESS YOUR LOGS USING "bzip2 -9" !!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Please, NEVER send dmesg output without timestamps, because timestamps
+are very important to see the whole picture. You should either enable
+CONFIG_PRINTK_TIME kernel compile option, or use kernel logs your system
+logger stored for you in /var/log.
+
+******************************************************
+******************************************************
+**!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!**
+**!! ALWAYS COMPRESS YOUR LOGS USING "bzip2 -9"   !!**
+**!! OR, IF THEY ARE SMALL (<10K), MAKE SURE YOUR !!**
+**!! EDITOR OR MAILER NOT WORD-WRAP LONG LINES    !!**
+**!! (TO BE SURE ALWAYS SEND LOGS AS ATTACHMENTS) !!**
+**!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!**
+******************************************************
+******************************************************
 
 Example of a really bad question:
 
