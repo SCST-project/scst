@@ -55,8 +55,10 @@ $(SOURCE_NAME).rtf: $(SOURCE)
 
 clean:
 	@mv scst_user_spec.txt scst_user_spec.tx
+	@mv sgv_cache.txt sgv_cache.tx
 	rm -f *.txt *.html *.tex *.dvi *.ps *.pdf *.info *.lyx *.rtf
 	@mv scst_user_spec.tx scst_user_spec.txt
+	@mv sgv_cache.tx sgv_cache.txt
 
 extraclean: clean
 
