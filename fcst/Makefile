@@ -102,5 +102,6 @@ clean:
 	rm -rf .tmp_versions
 
 extraclean: clean
+	rm -f *.orig *.rej
 
 .PHONY: all tgt install uninstall clean extraclean

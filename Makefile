@@ -349,7 +349,6 @@ fcst_clean:
 fcst_extraclean:
 	cd $(FCST_DIR) && $(MAKE) extraclean
 
-
 debug2perf:
 	cd $(SCST_DIR) && $(MAKE) $@
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi

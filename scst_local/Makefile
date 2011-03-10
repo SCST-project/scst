@@ -74,6 +74,7 @@ clean:
 	@$(RM) tags Modules.symvers module.symvers Module.markers modules.order
 
 extraclean: clean
+	rm -f *.orig *.rej
 
 debug2release:
 	sed -i.aa s/"^EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ Makefile

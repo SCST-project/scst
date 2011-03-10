@@ -41,5 +41,6 @@ clean:
 		src/modules.order
 
 extraclean: clean
+	rm -f *.orig *.rej
 
 .PHONY: all install clean extraclean

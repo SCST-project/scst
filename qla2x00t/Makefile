@@ -9,5 +9,6 @@ clean:
 	rm -rf .tmp_versions
 
 extraclean: clean
+	rm -f *.orig *.rej
 
 .PHONY: clean extraclean

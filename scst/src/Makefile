@@ -157,6 +157,7 @@ clean:
 	cd $(DEV_HANDLERS_DIR) && $(MAKE) $@
 
 extraclean: clean
+	rm -f *.orig *.rej
 
 debug2release:
 	sed -i.aa s/"^EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ Makefile

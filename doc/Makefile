@@ -61,5 +61,6 @@ clean:
 	@mv sgv_cache.tx sgv_cache.txt
 
 extraclean: clean
+	rm -f *.orig *.rej
 
 .PHONY: all default html txt pdf tex dvi ps info lyx rtf clean extraclean

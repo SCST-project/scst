@@ -24,6 +24,7 @@ clean:
 
 distclean: clean
 	-rm -f scst-$(MODULE_VERSION)/Makefile.old
+	rm -f *.orig *.rej
 
 extraclean: distclean
 

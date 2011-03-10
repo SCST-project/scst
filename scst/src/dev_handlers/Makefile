@@ -86,6 +86,7 @@ clean:
 	rm -rf .tmp_versions
 
 extraclean: clean
+	rm -f *.orig *.rej
 
 debug2release:
 	sed -i.aa s/"^EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ Makefile

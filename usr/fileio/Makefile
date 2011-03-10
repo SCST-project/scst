@@ -81,6 +81,7 @@ clean:
 	rm -f *.o $(PROGS) .depend*
 
 extraclean: clean
+	rm -f *.orig *.rej
 
 debug2release:
 	sed -i.aa s/"^CFLAGS += \-DEXTRACHECKS"/"#CFLAGS += \-DEXTRACHECKS"/ Makefile

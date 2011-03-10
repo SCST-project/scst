@@ -60,3 +60,6 @@ endif
 
 clean:
 	rm -f *.o $(PROGRAMS) .depend*
+
+extraclean: clean
+	rm -f *.orig *.rej

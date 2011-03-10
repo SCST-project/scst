@@ -50,6 +50,7 @@ clean:
 	@$(RM) tags Modules.symvers Module.symvers
 
 extraclean: clean
+	rm -f *.orig *.rej
 
 install:
 	@$(MAKE) -C ${LINUX} M=${CURDIR}/build modules_install
