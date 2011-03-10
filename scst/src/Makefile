@@ -157,6 +157,7 @@ clean:
 	cd $(DEV_HANDLERS_DIR) && $(MAKE) $@
 
 extraclean: clean
+	cd $(DEV_HANDLERS_DIR) && $(MAKE) $@
 	rm -f *.orig *.rej
 
 debug2release:
