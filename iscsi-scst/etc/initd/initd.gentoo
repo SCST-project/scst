@@ -50,7 +50,8 @@ configure_memsize()
 start_server()
 {
 #        configure_memsize
-        modprobe -q crc32c
+        modprobe -q crc32c 2>/dev/null
+        modprobe -q crc32c-intel 2>/dev/null
         modprobe iscsi-scst
         /usr/local/sbin/iscsi-scstd
         /usr/local/sbin/scstadmin -config /etc/scst.conf

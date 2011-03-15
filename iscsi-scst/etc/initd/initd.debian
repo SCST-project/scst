@@ -53,7 +53,8 @@ iscsi_scstd_start()
 {
 	echo -n "Starting iSCSI-SCST target service: "
 #	configure_memsize
-	modprobe -q crc32c
+	modprobe -q crc32c 2>/dev/null
+	modprobe -q crc32c-intel 2>/dev/null
 	modprobe iscsi-scst
 	for m in $ADD_MODULES; do
 		modprobe $m

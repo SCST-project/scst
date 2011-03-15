@@ -60,7 +60,8 @@ start()
 {
 	echo -n "Starting iSCSI target service: "
 #	configure_memsize
-	modprobe -q crc32c
+	modprobe -q crc32c 2>/dev/null
+	modprobe -q crc32c-intel 2>/dev/null
 	modprobe iscsi-scst
 	for module in ${ADD_MODULES}; do
 		modprobe ${module}

@@ -46,6 +46,8 @@ start_server()
 {
 #	configure_memsize
 
+	modprobe -q crc32c 2>/dev/null
+	modprobe -q crc32c-intel 2>/dev/null
 	modprobe iscsi-scst || { exit $? ; }
 	for module in ${ADD_MODULES}; do
 		modprobe ${module} || { exit 1 ; }
