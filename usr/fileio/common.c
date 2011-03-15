@@ -198,7 +198,7 @@ static int do_parse(struct vdisk_cmd *vcmd)
 	if (cmd->op_flags & SCST_INFO_VALID)
 		reply->op_flags = cmd->op_flags;
 	else {
-		TRACE_DBG_SPECIAL("Extra parse (op %x)", cmd->cdb[0]);
+		TRACE_DBG("Extra parse (op %x)", cmd->cdb[0]);
 
 		if (reply->data_direction & SCST_DATA_WRITE)
 			reply->op_flags |= SCST_WRITE_MEDIUM;
