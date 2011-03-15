@@ -1272,10 +1272,14 @@ static int dev_user_process_reply_parse(struct scst_user_cmd *ucmd,
 		     (preply->bufflen == 0)))
 		goto out_inval;
 
-	if (unlikely((preply->bufflen < 0) || (preply->data_len < 0)))
+	if (unlikely((preply->bufflen < 0) || (preply->out_bufflen < 0) ||
+		     (preply->data_len < 0)))
 		goto out_inval;
 
 	if (unlikely(preply->cdb_len > cmd->cdb_len))
+		goto out_inval;
+
+	if (!(preply->op_flags & SCST_INFO_VALID))
 		goto out_inval;
 
 	TRACE_DBG("ucmd %p, queue_type %x, data_direction, %x, bufflen %d, "
@@ -1287,11 +1291,11 @@ static int dev_user_process_reply_parse(struct scst_user_cmd *ucmd,
 	cmd->queue_type = preply->queue_type;
 	cmd->data_direction = preply->data_direction;
 	cmd->bufflen = preply->bufflen;
+	cmd->out_bufflen = preply->out_bufflen;
 	cmd->data_len = preply->data_len;
 	if (preply->cdb_len > 0)
 		cmd->cdb_len = preply->cdb_len;
-	if (preply->op_flags & SCST_INFO_VALID)
-		cmd->op_flags = preply->op_flags;
+	cmd->op_flags = preply->op_flags;
 
 out_process:
 	scst_post_parse(cmd);

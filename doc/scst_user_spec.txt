@@ -850,6 +850,7 @@ struct scst_user_scsi_cmd_reply_parse
 	uint32_t op_flags;
 	int32_t data_len;
 	int32_t bufflen;
+	int32_t out_bufflen;
 },
 
 where:
@@ -857,7 +858,7 @@ where:
  - queue_type - SCSI task attribute (queue type). NOTE! In current
    implementation setting changing this field from the provided value
    affects commands execution only when then produced by iSCSI-SCST
-   target. With al other target drivers, this field is ignored. This is
+   target. With all other target drivers, this field is ignored. This is
    because for them commands queueing is set before parse() called.
 
  - data_direction - command's data flow direction, one of SCST_DATA_*
@@ -866,10 +867,16 @@ where:
  - cdb_len - length of CDB
 
  - op_flags - commands flags, one or more scst_cdb_flags bits, see above.
+   At least SCST_INFO_VALID must be set for correct processing.
+   SCST_IMPLICIT_HQ not implemented (yet) for single stage init target
+   drivers (all, except iSCSI), because custom parse can reorder
+   commands due to multithreaded processing.
 
  - data_len - command's data length
 
  - bufflen - command's buffer length
+
+ - out_bufflen - command's out buffer length (for bidirectional commands)
 
 
 struct scst_user_scsi_cmd_reply_alloc_mem

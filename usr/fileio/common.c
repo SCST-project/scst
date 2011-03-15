@@ -192,8 +192,18 @@ static int do_parse(struct vdisk_cmd *vcmd)
 	reply->data_direction = cmd->expected_data_direction;
 	reply->data_len = cmd->expected_transfer_len;
 	reply->bufflen = cmd->expected_transfer_len;
+	reply->out_bufflen = cmd->expected_out_transfer_len;
 	reply->cdb_len = cmd->cdb_len;
-	reply->op_flags = reply->op_flags;
+
+	if (cmd->op_flags & SCST_INFO_VALID)
+		reply->op_flags = cmd->op_flags;
+	else {
+		TRACE_DBG_SPECIAL("Extra parse (op %x)", cmd->cdb[0]);
+
+		if (reply->data_direction & SCST_DATA_WRITE)
+			reply->op_flags |= SCST_WRITE_MEDIUM;
+		reply->op_flags |= SCST_INFO_VALID;
+	}
 
 out:
 	TRACE_EXIT_RES(res);

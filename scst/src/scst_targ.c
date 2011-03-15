@@ -3845,8 +3845,15 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 		if (unlikely(failure))
 			goto out_busy;
 
-		if (unlikely(scst_pre_parse(cmd) != 0))
-			goto out;
+		/*
+		 * SCST_IMPLICIT_HQ for unknown commands not implemented for
+		 * case when set_sn_on_restart_cmd not set, because custom parse
+		 * can reorder commands due to multithreaded processing. To
+		 * implement it we need to implement all unknown commands as
+		 * ORDERED in the beginning and post parse reprocess of
+		 * queue_type to change it if needed. ToDo.
+		 */
+		scst_pre_parse(cmd);
 
 		if (!cmd->set_sn_on_restart_cmd)
 			scst_cmd_set_sn(cmd);

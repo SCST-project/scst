@@ -227,6 +227,7 @@ struct scst_user_scsi_cmd_reply_parse {
 			uint32_t op_flags;
 			int32_t data_len;
 			int32_t bufflen;
+			int32_t out_bufflen;
 		};
 		struct {
 			uint8_t sense_len;
