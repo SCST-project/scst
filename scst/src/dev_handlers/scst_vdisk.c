@@ -1200,15 +1200,13 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 			vdisk_exec_read_capacity16(cmd);
 			break;
 		}
+		goto out_invalid_opcode;
 	case UNMAP:
 		vdisk_exec_unmap(cmd, thr);
 		break;
-		/* else go through */
 	case REPORT_LUNS:
 	default:
-		TRACE_DBG("Invalid opcode %d", opcode);
-		scst_set_cmd_error(cmd,
-		    SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+		goto out_invalid_opcode;
 	}
 
 out_compl:
@@ -1225,6 +1223,12 @@ out_thr:
 
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_invalid_opcode:
+	TRACE_DBG("Invalid opcode %d", opcode);
+	scst_set_cmd_error(cmd,
+		    SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+	goto out_compl;
 }
 
 static int vdisk_get_block_shift(struct scst_cmd *cmd)
