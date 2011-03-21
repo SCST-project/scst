@@ -10,6 +10,8 @@ all: html txt pdf tex dvi ps info lyx rtf
 
 txt: $(SOURCE_NAME).txt
 
+ptxt: $(SOURCE_NAME).ptxt
+
 html: $(SOURCE_NAME).html
 
 tex: $(SOURCE_NAME).tex
@@ -26,8 +28,14 @@ lyx: $(SOURCE_NAME).lyx
 
 rtf: $(SOURCE_NAME).rtf
 
+check:
+	$(COMMAND)check $(SOURCE)
+
 $(SOURCE_NAME).txt: $(SOURCE)
 	$(COMMAND)txt $(SOURCE)
+
+$(SOURCE_NAME).ptxt: $(SOURCE)
+	$(COMMAND)txt -f $(SOURCE)
 
 $(SOURCE_NAME).html: $(SOURCE)
 	$(COMMAND)html --split=0 $(SOURCE)
@@ -54,13 +62,11 @@ $(SOURCE_NAME).rtf: $(SOURCE)
 	$(COMMAND)rtf $(SOURCE)
 
 clean:
-	@mv scst_user_spec.txt scst_user_spec.tx
 	@mv sgv_cache.txt sgv_cache.tx
 	rm -f *.txt *.html *.tex *.dvi *.ps *.pdf *.info *.lyx *.rtf
-	@mv scst_user_spec.tx scst_user_spec.txt
 	@mv sgv_cache.tx sgv_cache.txt
 
 extraclean: clean
 	rm -f *.orig *.rej
 
-.PHONY: all default html txt pdf tex dvi ps info lyx rtf clean extraclean
+.PHONY: all default html txt ptxt pdf tex dvi ps info lyx rtf check clean extraclean
