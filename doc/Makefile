@@ -1,65 +1,39 @@
+SRCS = $(wildcard *.sgml)
+
+TXTS = $(SRCS:.sgml=.txt)
+GTXTS = $(SRCS:.sgml=.gtxt)
+PDFS = $(SRCS:.sgml=.pdf)
+HTMLS = $(SRCS:.sgml=.html)
+RTFS = $(SRCS:.sgml=.rtf)
+
 COMMAND=linuxdoc --backend=
 
-SOURCE_NAME=scst_pg
+all: txt pdf html
 
-SOURCE=$(SOURCE_NAME).sgml
+txt: $(TXTS)
 
-default: html txt pdf
+gtxt: $(GTXTS)
 
-all: html txt pdf tex dvi ps info lyx rtf
+pdf: $(PDFS)
 
-txt: $(SOURCE_NAME).txt
+html: $(HTMLS)
 
-ptxt: $(SOURCE_NAME).ptxt
+rtf: $(RTFS)
 
-html: $(SOURCE_NAME).html
+%.txt: %.sgml
+	$(COMMAND)txt -f $(<)
 
-tex: $(SOURCE_NAME).tex
+%.gtxt: %.sgml
+	$(COMMAND)txt $(<)
 
-dvi: $(SOURCE_NAME).dvi
+%.html: %.sgml
+	$(COMMAND)html --split=0 $(<)
 
-ps: $(SOURCE_NAME).ps
+%.pdf: %.sgml
+	$(COMMAND)latex -o pdf $(<)
 
-pdf: $(SOURCE_NAME).pdf
-
-info: $(SOURCE_NAME).info
-
-lyx: $(SOURCE_NAME).lyx
-
-rtf: $(SOURCE_NAME).rtf
-
-check:
-	$(COMMAND)check $(SOURCE)
-
-$(SOURCE_NAME).txt: $(SOURCE)
-	$(COMMAND)txt $(SOURCE)
-
-$(SOURCE_NAME).ptxt: $(SOURCE)
-	$(COMMAND)txt -f $(SOURCE)
-
-$(SOURCE_NAME).html: $(SOURCE)
-	$(COMMAND)html --split=0 $(SOURCE)
-
-$(SOURCE_NAME).tex: $(SOURCE)
-	$(COMMAND)latex -o tex $(SOURCE)
-
-$(SOURCE_NAME).dvi: $(SOURCE)
-	$(COMMAND)latex -o dvi $(SOURCE)
-
-$(SOURCE_NAME).ps: $(SOURCE)
-	$(COMMAND)latex -o ps $(SOURCE)
-
-$(SOURCE_NAME).pdf: $(SOURCE)
-	$(COMMAND)latex -o pdf $(SOURCE)
-
-$(SOURCE_NAME).info: $(SOURCE)
-	$(COMMAND)info $(SOURCE)
-
-$(SOURCE_NAME).lyx: $(SOURCE)
-	$(COMMAND)lyx $(SOURCE)
-
-$(SOURCE_NAME).rtf: $(SOURCE)
-	$(COMMAND)rtf $(SOURCE)
+%.rtf: %.sgml
+	$(COMMAND)rtf $(<)
 
 clean:
 	@mv sgv_cache.txt sgv_cache.tx
@@ -69,4 +43,4 @@ clean:
 extraclean: clean
 	rm -f *.orig *.rej
 
-.PHONY: all default html txt ptxt pdf tex dvi ps info lyx rtf check clean extraclean
+.PHONY: all default html txt gtxt pdf tex dvi ps info lyx rtf check clean extraclean
