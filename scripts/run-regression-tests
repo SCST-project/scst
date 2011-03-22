@@ -292,7 +292,9 @@ function download_kernel {
     download_file "${kernel_mirror}/linux-$(kernel_version $1).tar.bz2" \
       || return $?
     if [ "${plevel}" != "" ]; then
-      download_file "${kernel_mirror}/patch-$1.bz2" || return $?
+      download_file "${kernel_mirror}/patch-$1.bz2" \
+        || download_file "${kernel_longterm}/v$(kernel_version $1)/patch-$1.bz2" \
+        || return $?
     fi
   )
 }
@@ -533,6 +535,7 @@ fi
 kernel_sources="$HOME/software/downloads"
 # URL for downloading kernel tarballs and kernel patches.
 kernel_mirror="ftp://ftp.eu.kernel.org/pub/linux/kernel/v2.6"
+kernel_longterm="http://www.kernel.org/pub/linux/kernel/v2.6/longterm"
 kernel_versions=""
 # Directory in which the regression test output files will be stored. Must be
 # an absolute path.
