@@ -62,7 +62,7 @@ function download_kernel {
       || return $?
     if [ "${plevel}" != "" ]; then
       download_file "${kernel_mirror}/patch-$1.bz2" \
-        || download_file "${kernel_longterm}/v$(kernel_version $1)/patch-$1.tar.bz2" \
+        || download_file "${kernel_longterm}/v$(kernel_version $1)/patch-$1.bz2" \
         || return $?
     fi
   )
