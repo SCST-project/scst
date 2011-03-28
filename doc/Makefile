@@ -36,9 +36,7 @@ rtf: $(RTFS)
 	$(COMMAND)rtf $(<)
 
 clean:
-	@mv sgv_cache.txt sgv_cache.tx
 	rm -f *.txt *.html *.tex *.dvi *.ps *.pdf *.info *.lyx *.rtf
-	@mv sgv_cache.tx sgv_cache.txt
 
 extraclean: clean
 	rm -f *.orig *.rej
