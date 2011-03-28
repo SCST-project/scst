@@ -1,4 +1,4 @@
-Target driver for Qlogic 22xx/23xx/24xx/25xx Fibre Channel cards
+Target driver for QLogic 22xx/23xx/24xx/25xx Fibre Channel cards
 ================================================================
 
 Version 2.1.0, XX XXXXX 2010
@@ -119,6 +119,9 @@ for more details why.
 2. If you reload qla2x00tgt module, you should also reload qla2xxx
 module, otherwise your initiators could not see the target, when it is
 enabled after qla2x00tgt module load.
+
+3. You need to issue LIP after you enabled a target, if you enabled it
+after one or more its initiators already started.
 
 
 Initiator and target modes
