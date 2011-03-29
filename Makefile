@@ -37,6 +37,7 @@ ifdef KDIR
 endif
 
 SCST_DIR=scst
+DOC_DIR=doc
 SCSTADM_DIR=scstadmin
 QLA_INI_DIR=qla2x00t
 QLA_DIR=qla2x00t/qla2x00-target
@@ -129,6 +130,7 @@ help:
 
 all:
 	cd $(SCST_DIR) && $(MAKE) $@
+	@if [ -d $(DOC_DIR) ]; then cd $(DOC_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(QLA_ISP_DIR) ]; then cd $(QLA_ISP_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
@@ -139,6 +141,7 @@ all:
 
 install: 
 	cd $(SCST_DIR) && $(MAKE) $@
+#	@if [ -d $(DOC_DIR) ]; then cd $(DOC_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(QLA_ISP_DIR) ]; then cd $(QLA_ISP_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
@@ -149,6 +152,7 @@ install:
 
 uninstall: 
 	cd $(SCST_DIR) && $(MAKE) $@
+#	@if [ -d $(DOC_DIR) ]; then cd $(DOC_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(QLA_ISP_DIR) ]; then cd $(QLA_ISP_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
@@ -159,6 +163,7 @@ uninstall:
 
 clean: 
 	cd $(SCST_DIR) && $(MAKE) $@
+	@if [ -d $(DOC_DIR) ]; then cd $(DOC_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_INI_DIR) ]; then cd $(QLA_INI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(QLA_ISP_DIR) ]; then cd $(QLA_ISP_DIR) && $(MAKE) $@; fi
@@ -170,6 +175,7 @@ clean:
 
 extraclean: 
 	cd $(SCST_DIR) && $(MAKE) $@
+	@if [ -d $(DOC_DIR) ]; then cd $(DOC_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_INI_DIR) ]; then cd $(QLA_INI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(QLA_ISP_DIR) ]; then cd $(QLA_ISP_DIR) && $(MAKE) $@; fi
@@ -196,6 +202,15 @@ scst_clean:
 
 scst_extraclean: 
 	cd $(SCST_DIR) && $(MAKE) extraclean
+
+docs:
+	cd $(DOC_DIR) && $(MAKE) all
+
+docs_clean:
+	cd $(DOC_DIR) && $(MAKE) clean
+
+docs_extraclean:
+	cd $(DOC_DIR) && $(MAKE) extraclean
 
 scstadm:
 	cd $(SCSTADM_DIR) && $(MAKE) all
@@ -415,6 +430,7 @@ disable_proc:
 	lsi lsi_install lsi_uninstall lsi_clean lsi_extraclean \
 	iscsi iscsi_install iscsi_uninstall iscsi_clean iscsi_extraclean \
 	scst scst_install scst_uninstall scst_clean scst_extraclean \
+	docs docs_clean docs_extraclean \
 	scstadm scstadm_install scstadm_uninstall scstadm_clean scstadm_extraclean \
 	srpt srpt_install srpt_uninstall srpt_clean srpt_extraclean \
 	usr usr_install usr_uninstall usr_clean usr_extraclean \
