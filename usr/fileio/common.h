@@ -16,6 +16,8 @@
  *  GNU General Public License for more details.
  */
 
+#include <stdint.h>
+
 #include <scst_user.h>
 
 #include "debug.h"
@@ -114,6 +116,8 @@ struct vdisk_cmd
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
 extern int vdisk_ID;
+
+uint32_t crc32buf(const char *buf, size_t len);
 
 uint64_t gen_dev_id_num(const struct vdisk_dev *dev);
 void *main_loop(void *arg);

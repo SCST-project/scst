@@ -17,7 +17,7 @@
 
 SHELL=/bin/bash
 
-SRCS_F = fileio.c common.c debug.c
+SRCS_F = fileio.c common.c debug.c crc32.c
 OBJS_F = $(SRCS_F:.c=.o)
 
 #SRCS_C = 
