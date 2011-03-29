@@ -3650,8 +3650,8 @@ static int iscsi_report_aen(struct scst_aen *aen)
 	return res;
 }
 
-static int iscsi_get_initiator_port_transport_id(struct scst_session *scst_sess,
-	uint8_t **transport_id)
+static int iscsi_get_initiator_port_transport_id(struct scst_tgt *tgt,
+	struct scst_session *scst_sess, uint8_t **transport_id)
 {
 	struct iscsi_session *sess;
 	int res = 0;

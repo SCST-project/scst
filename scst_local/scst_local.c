@@ -239,7 +239,8 @@ out:
 }
 
 static int scst_local_get_initiator_port_transport_id(
-	struct scst_session *scst_sess, uint8_t **transport_id)
+	struct scst_tgt *tgt, struct scst_session *scst_sess,
+	uint8_t **transport_id)
 {
 	int res = 0;
 	int tr_id_size = 0;

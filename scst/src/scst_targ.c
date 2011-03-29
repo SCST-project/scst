@@ -6198,8 +6198,8 @@ static int scst_init_session(struct scst_session *sess)
 	list_add_tail(&sess->sess_list_entry, &sess->tgt->sess_list);
 
 	if (sess->tgt->tgtt->get_initiator_port_transport_id != NULL) {
-		res = sess->tgt->tgtt->get_initiator_port_transport_id(sess,
-				&sess->transport_id);
+		res = sess->tgt->tgtt->get_initiator_port_transport_id(
+					sess->tgt, sess, &sess->transport_id);
 		if (res != 0) {
 			PRINT_ERROR("Unable to make initiator %s port "
 				"transport id", sess->initiator_name);

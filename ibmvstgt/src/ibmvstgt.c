@@ -1123,8 +1123,8 @@ static int ibmvstgt_get_serial(const struct scst_tgt_dev *tgt_dev, char *buf,
  *
  * See also SPC-3, section 7.5.4.5, TransportID for initiator ports using SRP.
  */
-static int ibmvstgt_get_transportid(struct scst_session *sess,
-				    uint8_t **transport_id)
+static int ibmvstgt_get_transportid(struct scst_tgt *tgt,
+	struct scst_session *sess, uint8_t **transport_id)
 {
 	struct vio_port *vport;
 	struct spc_rdma_transport_id {

@@ -871,14 +871,14 @@ struct scst_tgt_template {
 	 * kfree() it, when it isn't needed anymore.
 	 *
 	 * If sess is NULL, this function must return TransportID PROTOCOL
-	 * IDENTIFIER of this transport.
+	 * IDENTIFIER for the requested target.
 	 *
 	 * Returns 0 on success or negative error code otherwise.
 	 *
 	 * SHOULD HAVE, because it's required for Persistent Reservations.
 	 */
-	int (*get_initiator_port_transport_id) (struct scst_session *sess,
-		uint8_t **transport_id);
+	int (*get_initiator_port_transport_id) (struct scst_tgt *tgt,
+		struct scst_session *sess, uint8_t **transport_id);
 
 	/*
 	 * This function allows to enable or disable particular target.

@@ -303,7 +303,8 @@ static void ft_sess_close(struct ft_sess *sess)
 /*
  * Allocate and fill in the SPC Transport ID for persistent reservations.
  */
-int ft_get_transport_id(struct scst_session *scst_sess, uint8_t **result)
+int ft_get_transport_id(struct scst_tgt *tgt, struct scst_session *scst_sess,
+	uint8_t **result)
 {
 	struct ft_sess *sess;
 	struct {

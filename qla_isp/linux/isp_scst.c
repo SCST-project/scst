@@ -1321,8 +1321,8 @@ isp_task_mgmt_fn_done(struct scst_mgmt_cmd *mgmt_cmd)
     (*bp->h.r_action) (QIN_NOTIFY_ACK, ins);
 }
 
-int isp_get_initiator_port_transport_id(struct scst_session *scst_sess,
-	uint8_t **transport_id)
+int isp_get_initiator_port_transport_id(struct scst_tgt *tgt,
+	struct scst_session *scst_sess, uint8_t **transport_id)
 {
 	ini_t *ini;
 	int res = 0;

@@ -77,8 +77,8 @@ static int __q24_xmit_response(struct q2t_cmd *cmd, int xmit_type);
 static int q2t_rdy_to_xfer(struct scst_cmd *scst_cmd);
 static void q2t_on_free_cmd(struct scst_cmd *scst_cmd);
 static void q2t_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd);
-static int q2t_get_initiator_port_transport_id(struct scst_session *scst_sess,
-	uint8_t **transport_id);
+static int q2t_get_initiator_port_transport_id(struct scst_tgt *tgt,
+	struct scst_session *scst_sess, uint8_t **transport_id);
 
 /* Predefs for callbacks handed to qla2xxx(target) */
 static void q24_atio_pkt(scsi_qla_host_t *ha, atio7_entry_t *pkt);
@@ -6114,8 +6114,8 @@ out:
 #endif /*((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)) || \
 	  defined(FC_VPORT_CREATE_DEFINED))*/
 
-static int q2t_get_initiator_port_transport_id(struct scst_session *scst_sess,
-	uint8_t **transport_id)
+static int q2t_get_initiator_port_transport_id(struct scst_tgt *tgt,
+	struct scst_session *scst_sess, uint8_t **transport_id)
 {
 	struct q2t_sess *sess;
 	int res = 0;

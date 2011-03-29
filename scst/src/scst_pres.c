@@ -1469,11 +1469,11 @@ static void scst_pr_unregister_all_tg_pt(struct scst_device *dev,
 		if (tgtt->get_initiator_port_transport_id == NULL)
 			continue;
 
-		if (tgtt->get_initiator_port_transport_id(NULL, NULL) != proto_id)
-			continue;
-
 		list_for_each_entry(tgt, &tgtt->tgt_list, tgt_list_entry) {
 			struct scst_dev_registrant *reg;
+
+			if (tgtt->get_initiator_port_transport_id(tgt, NULL, NULL) != proto_id)
+				continue;
 
 			reg = scst_pr_find_reg(dev, transport_id,
 					tgt->rel_tgt_id);
@@ -1556,12 +1556,11 @@ static int scst_pr_register_all_tg_pt(struct scst_cmd *cmd, uint8_t *buffer,
 		if (tgtt->get_initiator_port_transport_id == NULL)
 			continue;
 
-		if (tgtt->get_initiator_port_transport_id(NULL, NULL) != proto_id)
-			continue;
-
 		TRACE_PR("tgtt %s, spec_i_pt %d", tgtt->name, spec_i_pt);
 
 		list_for_each_entry(tgt, &tgtt->tgt_list, tgt_list_entry) {
+			if (tgtt->get_initiator_port_transport_id(tgt, NULL, NULL) != proto_id)
+				continue;
 			if (tgt->rel_tgt_id == 0)
 				continue;
 			TRACE_PR("tgt %s, rel_tgt_id %d", tgt->tgt_name,
