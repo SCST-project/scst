@@ -3751,7 +3751,13 @@ static ssize_t __vcdrom_add_device(const char *device_name, char *params)
 	if (res != 0)
 		goto out;
 
+#if 0  /*
+	* Our implementation is pretty minimalistic and doesn't support all
+	* mandatory commands, so it's better to not claim any standard
+	* confirmance.
+	*/
 	virt_dev->command_set_version = 0x02A0; /* MMC-3 */
+#endif
 
 	virt_dev->rd_only = 1;
 	virt_dev->removable = 1;
