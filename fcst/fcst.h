@@ -137,7 +137,7 @@ int ft_tgt_release(struct scst_tgt *);
 int ft_tgt_enable(struct scst_tgt *, bool);
 bool ft_tgt_enabled(struct scst_tgt *);
 int ft_report_aen(struct scst_aen *);
-int ft_get_transport_id(struct scst_session *, uint8_t **);
+int ft_get_transport_id(struct scst_tgt *, struct scst_session *, uint8_t **);
 
 /*
  * Session interface.
