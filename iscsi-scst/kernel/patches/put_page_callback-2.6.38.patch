@@ -22,15 +22,15 @@ diff -upkr linux-2.6.38/include/linux/mm_types.h linux-2.6.38/include/linux/mm_t
  /*
 diff -upkr linux-2.6.38/include/linux/net.h linux-2.6.38/include/linux/net.h
 --- linux-2.6.38/include/linux/net.h	2011-03-15 04:20:32.000000000 +0300
-+++ linux-2.6.38/include/linux/net.h	2011-03-18 17:17:58.577360968 +0300
-@@ -20,6 +20,7 @@
- 
- #include <linux/socket.h>
- #include <asm/socket.h>
++++ linux-2.6.38/include/linux/net.h	2011-04-01 21:47:43.293184996 +0400
+@@ -60,6 +60,7 @@ typedef enum {
+ #include <linux/fcntl.h>	/* For O_CLOEXEC and O_NONBLOCK */
+ #include <linux/kmemcheck.h>
+ #include <linux/rcupdate.h>
 +#include <linux/mm.h>
  
- #define NPROTO		AF_MAX
- 
+ struct poll_table_struct;
+ struct pipe_inode_info;
 @@ -293,5 +294,44 @@ extern int kernel_sock_shutdown(struct s
  extern struct ratelimit_state net_ratelimit_state;
  #endif
