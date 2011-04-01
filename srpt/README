@@ -158,6 +158,71 @@ the disk names assigned on the SCST target ("disk01" in the example below):
    [8:0:0:0]    disk    SCST_FIO disk01            102  /dev/sdb
 
 
+Target names
+------------
+
+The name assigned by the ib_srpt target driver to an SCST target is the node
+GUID of a HCA in hexadecimal form with a colon after every fourth digit. The
+HCA node GUIDs can be obtained via the ibv_devices command, the ibv_devinfo
+command or via sysfs. An example:
+
+# ibv_devices
+    device                 node GUID
+    ------              ----------------
+    mlx4_1              0002c9030003cca2
+    mlx4_0              0002c9030005f34e
+
+# head /sys/devices/*/*/*/infiniband/*/node_guid
+==> /sys/devices/pci0000:00/0000:00:01.0/0000:01:00.0/infiniband/mlx4_0/node_guid <==
+0002:c903:0005:f34e
+
+==> /sys/devices/pci0000:00/0000:00:1c.0/0000:05:00.0/infiniband/mlx4_1/node_guid <==
+0002:c903:0003:cca2
+
+Once the ib_srpt driver has been loaded there will be SCST targets available
+with the HCA node GUID as name:
+
+# ls /sys/bus/scst_target/drivers/ib_srpt/0*
+0002:c903:0003:cca2  0002:c903:0005:f34e
+
+
+Session names
+-------------
+
+The ib_srpt target driver uses the 128-bit SRP initiator port identifier for
+the session name. This identifier is sent by the SRP initiator to the SRP
+target via the SRP_LOGIN_REQ information unit. The Linux SRP initiator
+(ib_srp) generates the initiator port identifier as follows:
+- The first eight bytes are the identifier extension ('initiator_ext' parameter
+  specified in the login string echoed into the sysfs file 'add_target').
+- The last eight bytes are the GUID of the initiator HCA port used to
+  communicate with the target.
+
+An example:
+
+[ INITIATOR ]
+
+$ for f in /sys/devices/*/*/*/infiniband/*/ports/*/gids/0; do echo
+f; cat $f | cut -c21-; done
+/sys/devices/pci0000:00/0000:00:01.0/0000:01:00.0/infiniband/mlx4_0/ports/1/gids/0
+0002:c903:0005:f34b
+/sys/devices/pci0000:00/0000:00:01.0/0000:01:00.0/infiniband/mlx4_0/ports/2/gids/0
+0002:c903:0005:f34c
+/sys/devices/pci0000:00/0000:00:1c.0/0000:05:00.0/infiniband/mlx4_1/ports/1/gids/0
+0002:c903:0003:cca7
+/sys/devices/pci0000:00/0000:00:1c.0/0000:05:00.0/infiniband/mlx4_1/ports/2/gids/0
+0002:c903:0003:cca8
+
+[ TARGET, after login ]
+
+$ ls /sys/bus/scst_target/drivers/ib_srpt/*/sessions
+/sys/bus/scst_target/drivers/ib_srpt/0002:c903:0003:cca2/sessions:
+0x00000000000000000002c9030003cca7
+
+/sys/bus/scst_target/drivers/ib_srpt/0002:c903:0005:f34e/sessions:
+0x00000000000000000002c9030005f34b
+
+
 High availability
 -----------------
 

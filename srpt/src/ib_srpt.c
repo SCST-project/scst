@@ -144,6 +144,16 @@ MODULE_PARM_DESC(use_port_guid_in_session_name,
 		 "Use target port ID in the SCST session name such that"
 		 " redundant paths between multiport systems can be masked.");
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31) \
+    || defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
+static int use_node_guid_in_target_name;
+#else
+static bool use_node_guid_in_target_name;
+#endif
+module_param(use_node_guid_in_target_name, bool, 0444);
+MODULE_PARM_DESC(use_node_guid_in_target_name,
+		 "Use target node GUIDs of HCAs as SCST target names.");
+
 static int srpt_get_u64_x(char *buffer, struct kernel_param *kp)
 {
 	return sprintf(buffer, "0x%016llx", *(u64 *)kp->arg);
@@ -3526,6 +3536,7 @@ static void srpt_add_one(struct ib_device *device)
 	struct srpt_device *sdev;
 	struct srpt_port *sport;
 	struct ib_srq_init_attr srq_attr;
+	char tgt_name[24];
 	int i;
 
 	TRACE_ENTRY();
@@ -3540,7 +3551,15 @@ static void srpt_add_one(struct ib_device *device)
 	INIT_LIST_HEAD(&sdev->rch_list);
 	spin_lock_init(&sdev->spinlock);
 
-	sdev->scst_tgt = scst_register_target(&srpt_template, NULL);
+	if (use_node_guid_in_target_name) {
+		snprintf(tgt_name, sizeof(tgt_name), "%04x:%04x:%04x:%04x",
+			be16_to_cpu(((__be16 *)&device->node_guid)[0]),
+			be16_to_cpu(((__be16 *)&device->node_guid)[1]),
+			be16_to_cpu(((__be16 *)&device->node_guid)[2]),
+			be16_to_cpu(((__be16 *)&device->node_guid)[3]));
+		sdev->scst_tgt = scst_register_target(&srpt_template, tgt_name);
+	} else
+		sdev->scst_tgt = scst_register_target(&srpt_template, NULL);
 	if (!sdev->scst_tgt) {
 		PRINT_ERROR("SCST registration failed for %s.",
 			    sdev->device->name);
@@ -3862,6 +3881,14 @@ static int __init srpt_init_module(void)
 			    srpt_srq_size, MIN_SRPT_SQ_SIZE);
 		goto out;
 	}
+
+	if (!use_node_guid_in_target_name)
+		PRINT_WARNING("%s", "Usage of HCA numbers as SCST target names "
+			"is deprecated and will be removed in one of the next "
+			"versions. It is strongly recommended to set "
+			"use_node_guid_in_target_name parameter in 1 and "
+			"update your SCST config file accordingly to use HCAs "
+			"GUIDs.");
 
 #ifdef CONFIG_SCST_PROC
 	ret = class_register(&srpt_class);
