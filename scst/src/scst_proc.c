@@ -931,7 +931,7 @@ static int scst_proc_group_add(const char *p, unsigned int addr_method)
 
 	name = kmalloc(len, GFP_KERNEL);
 	if (name == NULL) {
-		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of name failed");
+		PRINT_ERROR("Allocation of new name (size %d) failed", len);
 		goto out_nomem;
 	}
 	strlcpy(name, p, len);
@@ -997,7 +997,7 @@ static int scst_proc_rename_acg(struct scst_acg *acg, const char *new_name)
 
 	name = kmalloc(len, GFP_KERNEL);
 	if (name == NULL) {
-		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of new name failed");
+		PRINT_ERROR("Allocation of new name (size %d) failed", len);
 		goto out_nomem;
 	}
 	strlcpy(name, new_name, len);

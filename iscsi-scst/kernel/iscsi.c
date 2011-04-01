@@ -1705,8 +1705,8 @@ static int nop_out_start(struct iscsi_cmnd *cmnd)
 			cmnd->sg = sg = scst_alloc(size, GFP_KERNEL,
 						&cmnd->sg_cnt);
 			if (sg == NULL) {
-				TRACE(TRACE_OUT_OF_MEM, "Allocating buffer for"
-				      " %d Nop-Out payload failed", size);
+				TRACE(TRACE_OUT_OF_MEM, "Allocation of buffer "
+					"for %d Nop-Out payload failed", size);
 				err = -ISCSI_REASON_OUT_OF_RESOURCES;
 				goto out;
 			}

@@ -1435,7 +1435,7 @@ static int sgv_pool_init(struct sgv_pool *pool, const char *name,
 	for (i = 0; i < pool->max_caches; i++) {
 		sgv_pool_init_cache(pool, i);
 		if (pool->caches[i] == NULL) {
-			TRACE(TRACE_OUT_OF_MEM, "Allocation of sgv_pool "
+			PRINT_ERROR("Allocation of sgv_pool "
 				"cache %s(%d) failed", name, i);
 			goto out_free;
 		}
@@ -1647,7 +1647,8 @@ struct sgv_pool *sgv_pool_create(const char *name,
 
 	pool = kzalloc(sizeof(*pool), GFP_KERNEL);
 	if (pool == NULL) {
-		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of sgv_pool failed");
+		PRINT_ERROR("Allocation of sgv_pool failed (size %d)",
+			sizeof(*pool));
 		goto out_unlock;
 	}
 

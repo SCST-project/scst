@@ -2514,7 +2514,7 @@ int scst_alloc_tgt(struct scst_tgt_template *tgtt, struct scst_tgt **tgt)
 
 	t = kzalloc(sizeof(*t), GFP_KERNEL);
 	if (t == NULL) {
-		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of tgt failed");
+		PRINT_ERROR("%s", "Allocation of tgt failed");
 		res = -ENOMEM;
 		goto out;
 	}
@@ -2573,8 +2573,7 @@ int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev)
 
 	dev = kzalloc(sizeof(*dev), gfp_mask);
 	if (dev == NULL) {
-		TRACE(TRACE_OUT_OF_MEM, "%s",
-			"Allocation of scst_device failed");
+		PRINT_ERROR("%s", "Allocation of scst_device failed");
 		res = -ENOMEM;
 		goto out;
 	}
@@ -2653,8 +2652,7 @@ static struct scst_acg_dev *scst_alloc_acg_dev(struct scst_acg *acg,
 
 	res = kmem_cache_zalloc(scst_acgd_cachep, GFP_KERNEL);
 	if (res == NULL) {
-		TRACE(TRACE_OUT_OF_MEM,
-		      "%s", "Allocation of scst_acg_dev failed");
+		PRINT_ERROR("%s", "Allocation of scst_acg_dev failed");
 		goto out;
 	}
 
@@ -3287,8 +3285,7 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 
 	tgt_dev = kmem_cache_zalloc(scst_tgtd_cachep, GFP_KERNEL);
 	if (tgt_dev == NULL) {
-		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of scst_tgt_dev "
-			"failed");
+		PRINT_ERROR("%s", "Allocation of scst_tgt_dev failed");
 		res = -ENOMEM;
 		goto out;
 	}
@@ -3914,8 +3911,7 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 
 	sess = kmem_cache_zalloc(scst_sess_cachep, gfp_mask);
 	if (sess == NULL) {
-		TRACE(TRACE_OUT_OF_MEM, "%s",
-		      "Allocation of scst_session failed");
+		PRINT_ERROR("%s", "Allocation of scst_session failed");
 		goto out;
 	}
 

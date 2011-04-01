@@ -488,7 +488,7 @@ struct scst_tgt *scst_register_target(struct scst_tgt_template *vtt,
 						    SCST_DEFAULT_ACG_NAME,
 						    target_name);
 		if (tgt->default_group_name == NULL) {
-			TRACE(TRACE_OUT_OF_MEM, "Allocation of default "
+			PRINT_ERROR("Allocation of default "
 				"group name failed (tgt %s)", target_name);
 			rc = -ENOMEM;
 			goto out_free_tgt;
@@ -498,7 +498,7 @@ struct scst_tgt *scst_register_target(struct scst_tgt_template *vtt,
 
 		tgt->tgt_name = kstrdup(target_name, GFP_KERNEL);
 		if (tgt->tgt_name == NULL) {
-			TRACE(TRACE_OUT_OF_MEM, "Allocation of tgt name %s failed",
+			PRINT_ERROR("Allocation of tgt name %s failed",
 				target_name);
 			rc = -ENOMEM;
 			goto out_free_tgt;
@@ -509,7 +509,7 @@ struct scst_tgt *scst_register_target(struct scst_tgt_template *vtt,
 		tgt->tgt_name = kasprintf(GFP_KERNEL, "%s%s%d", vtt->name,
 			SCST_DEFAULT_TGT_NAME_SUFFIX, tgt_num);
 		if (tgt->tgt_name == NULL) {
-			TRACE(TRACE_OUT_OF_MEM, "Allocation of tgt name failed "
+			PRINT_ERROR("Allocation of tgt name failed "
 				"(template name %s)", vtt->name);
 			rc = -ENOMEM;
 			goto out_free_tgt;

@@ -842,8 +842,8 @@ static struct scst_vdisk_thr *vdisk_init_thr_data(
 
 	res = kmem_cache_zalloc(vdisk_thr_cachep, gfp_mask);
 	if (res == NULL) {
-		TRACE(TRACE_OUT_OF_MEM, "%s", "Unable to allocate struct "
-			"scst_vdisk_thr");
+		PRINT_ERROR("Unable to allocate struct scst_vdisk_thr (size %d)",
+			sizeof(*res));
 		goto out;
 	}
 
@@ -3894,8 +3894,7 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 	if (!virt_dev->cdrom_empty) {
 		char *fn = kstrdup(filename, GFP_KERNEL);
 		if (fn == NULL) {
-			TRACE(TRACE_OUT_OF_MEM, "%s",
-				"Allocation of filename failed");
+			PRINT_ERROR("%s", "Allocation of filename failed");
 			res = -ENOMEM;
 			goto out_unlock;
 		}
@@ -4715,8 +4714,7 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 
 		virt_dev->filename = kstrdup(filename, GFP_KERNEL);
 		if (virt_dev->filename == NULL) {
-			TRACE(TRACE_OUT_OF_MEM, "%s",
-				  "Allocation of filename failed");
+			PRINT_ERROR("%s", "Allocation of filename failed");
 			res = -ENOMEM;
 			goto out_free_vdev;
 		}
@@ -4915,8 +4913,7 @@ static int vcdrom_open(char *p, char *name)
 	if (!virt_dev->cdrom_empty) {
 		virt_dev->filename = kstrdup(filename, GFP_KERNEL);
 		if (virt_dev->filename == NULL) {
-			TRACE(TRACE_OUT_OF_MEM, "%s",
-			      "Allocation of filename failed");
+			PRINT_ERROR("%s", "Allocation of filename failed");
 			res = -ENOMEM;
 			goto out_free_vdev;
 		}

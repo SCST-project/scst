@@ -5306,8 +5306,8 @@ static int q2t_get_target_name(uint8_t *wwn, char **ppwwn_name)
 
 	name = kmalloc(wwn_len, GFP_KERNEL);
 	if (name == NULL) {
-		TRACE(TRACE_OUT_OF_MEM, "%s", "qla2x00t: Allocation of tgt "
-			"name failed");
+		PRINT_ERROR("qla2x00t: Allocation of tgt wwn name (size %d) "
+			"failed", wwn_len);
 		res = -ENOMEM;
 		goto out;
 	}
@@ -5709,8 +5709,7 @@ static int q2t_add_target(scsi_qla_host_t *ha)
 
 	tgt = kzalloc(sizeof(*tgt), GFP_KERNEL);
 	if (tgt == NULL) {
-		TRACE(TRACE_OUT_OF_MEM, "qla2x00t: %s", "Allocation of tgt "
-			"failed");
+		PRINT_ERROR("qla2x00t: %s", "Allocation of tgt failed");
 		res = -ENOMEM;
 		goto out;
 	}

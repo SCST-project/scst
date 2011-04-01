@@ -171,8 +171,8 @@ static int tape_attach(struct scst_device *dev)
 
 	params = kzalloc(sizeof(*params), GFP_KERNEL);
 	if (params == NULL) {
-		TRACE(TRACE_OUT_OF_MEM, "%s",
-		      "Unable to allocate struct tape_params");
+		PRINT_ERROR("Unable to allocate struct tape_params (size %d)",
+			sizeof(*params));
 		res = -ENOMEM;
 		goto out;
 	}
@@ -181,7 +181,8 @@ static int tape_attach(struct scst_device *dev)
 
 	buffer = kmalloc(buffer_size, GFP_KERNEL);
 	if (!buffer) {
-		TRACE(TRACE_OUT_OF_MEM, "%s", "Memory allocation failure");
+		PRINT_ERROR("Buffer memory allocation (size %d) failure",
+			buffer_size);
 		res = -ENOMEM;
 		goto out_free_req;
 	}
