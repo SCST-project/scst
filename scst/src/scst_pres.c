@@ -2103,7 +2103,6 @@ out:
 /* Called with dev_pr_mutex locked, no IRQ */
 void scst_pr_clear(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 {
-	int scope, type;
 	__be64 key;
 	struct scst_device *dev = cmd->dev;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
@@ -2112,8 +2111,6 @@ void scst_pr_clear(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 	TRACE_ENTRY();
 
 	key = get_unaligned((__be64 *)&buffer[0]);
-	scope = (cmd->cdb[2] & 0x0f) >> 4;
-	type = cmd->cdb[2] & 0x0f;
 
 	if (buffer_size != 24) {
 		TRACE_PR("Invalid buffer size %d", buffer_size);
