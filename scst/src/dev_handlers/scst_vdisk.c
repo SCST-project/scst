@@ -842,8 +842,8 @@ static struct scst_vdisk_thr *vdisk_init_thr_data(
 
 	res = kmem_cache_zalloc(vdisk_thr_cachep, gfp_mask);
 	if (res == NULL) {
-		PRINT_ERROR("Unable to allocate struct scst_vdisk_thr (size %d)",
-			sizeof(*res));
+		PRINT_ERROR("Unable to allocate struct scst_vdisk_thr"
+			    " (size %zd)", sizeof(*res));
 		goto out;
 	}
 

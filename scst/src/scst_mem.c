@@ -1647,7 +1647,7 @@ struct sgv_pool *sgv_pool_create(const char *name,
 
 	pool = kzalloc(sizeof(*pool), GFP_KERNEL);
 	if (pool == NULL) {
-		PRINT_ERROR("Allocation of sgv_pool failed (size %d)",
+		PRINT_ERROR("Allocation of sgv_pool failed (size %zd)",
 			sizeof(*pool));
 		goto out_unlock;
 	}

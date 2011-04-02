@@ -168,7 +168,7 @@ static int modisk_attach(struct scst_device *dev)
 
 	params = kzalloc(sizeof(*params), GFP_KERNEL);
 	if (params == NULL) {
-		PRINT_ERROR("Unable to allocate struct modisk_params (size %d)",
+		PRINT_ERROR("Unable to allocate struct modisk_params (size %zd)",
 			sizeof(*params));
 		res = -ENOMEM;
 		goto out;
