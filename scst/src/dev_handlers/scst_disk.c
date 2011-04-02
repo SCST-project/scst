@@ -182,7 +182,7 @@ static int disk_attach(struct scst_device *dev)
 	params = kzalloc(sizeof(*params), GFP_KERNEL);
 	if (params == NULL) {
 		PRINT_ERROR("Unable to allocate struct disk_params (size %zd)",
-		                        sizeof(*params));
+			    sizeof(*params));
 		res = -ENOMEM;
 		goto out;
 	}
