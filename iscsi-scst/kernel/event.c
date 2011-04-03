@@ -30,13 +30,9 @@ static u32 iscsid_pid;
 
 static int event_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 {
-	u32 uid, pid, seq;
-	char *data;
+	u32 pid;
 
-	pid  = NETLINK_CREDS(skb)->pid;
-	uid  = NETLINK_CREDS(skb)->uid;
-	seq  = nlh->nlmsg_seq;
-	data = NLMSG_DATA(nlh);
+	pid = NETLINK_CREDS(skb)->pid;
 
 	iscsid_pid = pid;
 

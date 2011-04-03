@@ -477,7 +477,7 @@ out:
 static void login_start(struct connection *conn)
 {
 	struct iscsi_login_req_hdr *req = (struct iscsi_login_req_hdr *)&conn->req.bhs;
-	char *name, *alias, *session_type, *target_name;
+	char *name, *session_type, *target_name;
 
 	conn->cid = be16_to_cpu(req->cid);
 	conn->sid.id64 = req->sid.id64;
@@ -495,7 +495,6 @@ static void login_start(struct connection *conn)
 		return;
 	}
 
-	alias = text_key_find(conn, "InitiatorAlias");
 	session_type = text_key_find(conn, "SessionType");
 	target_name = text_key_find(conn, "TargetName");
 

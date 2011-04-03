@@ -897,7 +897,7 @@ static void dev_user_flush_dcache(struct scst_user_cmd *ucmd)
 	 */
 
 	for (i = 0; (bufflen > 0) && (i < buf_ucmd->num_data_pages); i++) {
-		struct page *page;
+		struct page *page __attribute__((unused));
 		page = buf_ucmd->data_pages[i];
 #ifdef ARCH_HAS_FLUSH_ANON_PAGE
 		struct vm_area_struct *vma = find_vma(current->mm, start);

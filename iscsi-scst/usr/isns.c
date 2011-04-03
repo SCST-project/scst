@@ -760,7 +760,11 @@ static int recv_pdu(int fd, struct isns_io *rx, struct isns_hdr *hdr)
 static char *print_scn_pdu(struct isns_hdr *hdr)
 {
 	struct isns_tlv *tlv = (struct isns_tlv *)hdr->pdu;
-	uint16_t function, length, flags, transaction, sequence;
+	uint16_t function __attribute__((unused));
+	uint16_t length;
+	uint16_t flags __attribute__((unused));
+	uint16_t transaction __attribute__((unused));
+	uint16_t sequence __attribute__((unused));
 	char *name = NULL;
 
 	get_hdr_param(hdr, function, length, flags, transaction, sequence);
@@ -803,7 +807,10 @@ next:
 static void qry_rsp_handle(struct isns_hdr *hdr)
 {
 	struct isns_tlv *tlv;
-	uint16_t function, length, flags, transaction, sequence;
+	uint16_t function __attribute__((unused));
+	uint16_t flags __attribute__((unused));
+	uint16_t sequence __attribute__((unused));
+	uint16_t length, transaction;
 	uint32_t status = (uint32_t) (*hdr->pdu);
 	struct isns_qry_mgmt *mgmt, *n;
 	struct target *target;
@@ -899,8 +906,11 @@ int isns_handle(int is_timeout)
 	int err;
 	struct isns_io *rx = &isns_rx;
 	struct isns_hdr *hdr = (struct isns_hdr *)rx->buf;
-	uint32_t result;
-	uint16_t function, length, flags, transaction, sequence;
+	uint16_t function;
+	uint16_t length __attribute__((unused));
+	uint16_t flags __attribute__((unused));
+	uint16_t transaction __attribute__((unused));
+	uint16_t sequence __attribute__((unused));
 	char *name = NULL;
 
 	if (isns_server == NULL)
@@ -922,7 +932,6 @@ int isns_handle(int is_timeout)
 	}
 
 	get_hdr_param(hdr, function, length, flags, transaction, sequence);
-	result = ntohl((uint32_t) hdr->pdu[0]);
 
 	switch (function) {
 	case ISNS_FUNC_DEV_ATTR_REG_RSP:
@@ -1015,7 +1024,10 @@ int isns_scn_handle(int is_accept)
 	int err;
 	struct isns_io *rx = &scn_rx;
 	struct isns_hdr *hdr = (struct isns_hdr *)rx->buf;
-	uint16_t function, length, flags, transaction, sequence;
+	uint16_t function, transaction;
+	uint16_t length __attribute__((unused));
+	uint16_t flags __attribute__((unused));
+	uint16_t sequence __attribute__((unused));
 	char *name = NULL;
 
 	log_error("%s %d: %d", __func__, __LINE__, is_accept);
