@@ -578,6 +578,12 @@ static void event_loop(void)
 							conn->sess->sid.id64,
 							conn->cid);
 					} else {
+						/*
+						 * Check if session could not be established,
+						 * but sessions count was already incremented
+						 */
+						if (!sess && conn->sessions_count_incremented)
+							conn->target->sessions_count--;
 						conn_free(conn);
 						log_debug(1, "conn %p freed (sess %p, empty %d)",
 							conn, sess,

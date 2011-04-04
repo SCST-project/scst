@@ -82,7 +82,9 @@ struct connection {
 	int fd;
 
 	unsigned int passed_to_kern:1;
+	unsigned int sessions_count_incremented:1;
 
+	struct target *target;
 	struct session *sess;
 
 	u32 tid;

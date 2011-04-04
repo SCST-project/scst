@@ -525,6 +525,8 @@ static void login_start(struct connection *conn)
 			return;
 		}
 
+		conn->target = target;
+
 		/* We may "leak" here if we have an iSCSI event on the wrong time */
 		if (!iscsi_enabled) {
 			log_info("Connect from %s to disabled iSCSI-SCST refused",
@@ -580,13 +582,15 @@ static void login_start(struct connection *conn)
 		rc = login_check_reinstatement(conn);
 		if (rc < 0)
 			return;
-		else if (rc == ISCSI_SESS_REINSTATEMENT)
-			target->sessions_count++;
-		else if (rc != ISCSI_CONN_REINSTATEMENT) {
-			if ((target->target_params[key_max_sessions] == 0) ||
-			    (target->sessions_count < target->target_params[key_max_sessions]))
+		else if (rc == ISCSI_SESS_REINSTATEMENT) {
 				target->sessions_count++;
-			else {
+				conn->sessions_count_incremented = 1;
+		} else if (rc != ISCSI_CONN_REINSTATEMENT) {
+			if ((target->target_params[key_max_sessions] == 0) ||
+			    (target->sessions_count < target->target_params[key_max_sessions])) {
+					target->sessions_count++;
+					conn->sessions_count_incremented = 1;
+			} else {
 				log_warning("Initiator %s not allowed to connect to "
 					"target %s - max sessions limit "
 					"reached (%d)",	name, target_name,
