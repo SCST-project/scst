@@ -144,9 +144,35 @@ Next, discover the new SRP target by running the ibsrpdm command:
 
    ibsrpdm -c
 
-Now let the initiator system log in to the target system:
+If you want to let the initiator system log in to all SRP targets available
+in the same InfiniBand subnet that is possible as follows:
 
    ibsrpdm -c | while read target_info; do echo "${target_info}" > /sys/class/infiniband_srp/${SRP_HCA_NAME}/add_target; done
+
+If you want to let the initiator log in to a specific target you can do that
+e.g. as follows:
+
+   echo "id_ext=0002c903000f1366,ioc_guid=0002c903000f1366,dgid=fe800000000000000002c903000f1367,pkey=ffff,service_id=0002c903000f1366" > /sys/class/infiniband_srp/${SRP_HCA_NAME}/add_target; done
+
+The meaning of the parameters in the above command is as follows:
+   * id_ext: must match ioc_guid.
+   * ioc_guid: see also the documentation of the ib_srpt ioc_guid parameter.
+   * dgid: target HCA port GID to connect to.
+   * pkey: IB partition key (P_Key) of the target to connect to.
+   * service_id: must match ioc_guid.
+
+Target GIDs can be queried e.g. via sysfs:
+
+$ for f in /sys/devices/*/*/*/infiniband/*/ports/*/gids/0; do echo $f; \
+cat $f | cut -c21- | sed 's/://g'; done
+/sys/devices/pci0000:00/0000:00:01.0/0000:01:00.0/infiniband/mlx4_0/ports/1/gids/0
+0002c9030005f34b
+/sys/devices/pci0000:00/0000:00:01.0/0000:01:00.0/infiniband/mlx4_0/ports/2/gids/0
+0002c9030005f34c
+/sys/devices/pci0000:00/0000:00:1c.0/0000:05:00.0/infiniband/mlx4_1/ports/1/gids/0
+0002c9030003cca7
+/sys/devices/pci0000:00/0000:00:1c.0/0000:05:00.0/infiniband/mlx4_1/ports/2/gids/0
+0002c9030003cca8
 
 Finally run lsscsi to display the details of the newly discovered SCSI disks:
 
