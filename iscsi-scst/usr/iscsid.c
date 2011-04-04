@@ -583,13 +583,13 @@ static void login_start(struct connection *conn)
 		if (rc < 0)
 			return;
 		else if (rc == ISCSI_SESS_REINSTATEMENT) {
-				target->sessions_count++;
-				conn->sessions_count_incremented = 1;
+			target->sessions_count++;
+			conn->sessions_count_incremented = 1;
 		} else if (rc != ISCSI_CONN_REINSTATEMENT) {
 			if ((target->target_params[key_max_sessions] == 0) ||
 			    (target->sessions_count < target->target_params[key_max_sessions])) {
-					target->sessions_count++;
-					conn->sessions_count_incremented = 1;
+				target->sessions_count++;
+				conn->sessions_count_incremented = 1;
 			} else {
 				log_warning("Initiator %s not allowed to connect to "
 					"target %s - max sessions limit "
