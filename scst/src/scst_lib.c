@@ -2553,6 +2553,7 @@ void scst_free_tgt(struct scst_tgt *tgt)
 	TRACE_ENTRY();
 
 	kfree(tgt->tgt_name);
+	kfree(tgt->tgt_comment);
 #ifdef CONFIG_SCST_PROC
 	kfree(tgt->default_group_name);
 #endif

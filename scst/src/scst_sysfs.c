@@ -2198,6 +2198,80 @@ static struct kobj_attribute scst_rel_tgt_id =
 	__ATTR(rel_tgt_id, S_IRUGO | S_IWUSR, scst_rel_tgt_id_show,
 	       scst_rel_tgt_id_store);
 
+static ssize_t scst_tgt_comment_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct scst_tgt *tgt;
+	int res;
+
+	TRACE_ENTRY();
+
+	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+
+	if (tgt->tgt_comment != NULL)
+		res = sprintf(buf, "%s\n%s", tgt->tgt_comment,
+			SCST_SYSFS_KEY_MARK "\n");
+	else
+		res = 0;
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t scst_tgt_comment_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	struct scst_tgt *tgt;
+	char *p;
+	int len;
+
+	TRACE_ENTRY();
+
+	if ((buf == NULL) || (count == 0)) {
+		res = 0;
+		goto out;
+	}
+
+	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+
+	len = strnlen(buf, count);
+	if (buf[count-1] == '\n')
+		len--;
+
+	if (len == 0) {
+		kfree(tgt->tgt_comment);
+		tgt->tgt_comment = NULL;
+		goto out_done;
+	}
+
+	p = kmalloc(len+1, GFP_KERNEL);
+	if (p == NULL) {
+		PRINT_ERROR("Unable to alloc tgt_comment string (len %d)",
+			len+1);
+		res = -ENOMEM;
+		goto out;
+	}
+
+	memcpy(p, buf, len);
+	p[len] = '\0';
+
+	kfree(tgt->tgt_comment);
+
+	tgt->tgt_comment = p;
+
+out_done:
+	res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute scst_tgt_comment =
+	__ATTR(comment, S_IRUGO | S_IWUSR, scst_tgt_comment_show,
+	       scst_tgt_comment_store);
+
 /*
  * Supposed to be called under scst_mutex. In case of error will drop,
  * then reacquire it.
@@ -2266,6 +2340,14 @@ int scst_tgt_sysfs_create(struct scst_tgt *tgt)
 	if (res != 0) {
 		PRINT_ERROR("Can't add attribute %s for tgt %s",
 			scst_rel_tgt_id.attr.name, tgt->tgt_name);
+		goto out_err;
+	}
+
+	res = sysfs_create_file(&tgt->tgt_kobj,
+			&scst_tgt_comment.attr);
+	if (res != 0) {
+		PRINT_ERROR("Can't add attribute %s for tgt %s",
+			scst_tgt_comment.attr.name, tgt->tgt_name);
 		goto out_err;
 	}
 

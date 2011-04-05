@@ -1466,6 +1466,9 @@ struct scst_tgt {
 	/* Name of the target */
 	char *tgt_name;
 
+	/* User comment to it to let easier distinguish targets */
+	char *tgt_comment;
+
 	uint16_t rel_tgt_id;
 
 #ifdef CONFIG_SCST_PROC
