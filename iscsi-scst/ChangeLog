@@ -1,9 +1,11 @@
 Summary of changes between versions 2.0.0 and 2.1.0
 ---------------------------------------------------
 
- - Update to 2.6.37
+ - Update to 2.6.37 and 2.6.38
 
  - Assigning CPU affinity to RD/WR threads added
+
+ - Other minor fixes and improvements
 
 
 Summary of changes in iSCSI-SCST between versions 1.0.1 and 1.0.2

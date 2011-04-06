@@ -1,7 +1,11 @@
 Summary of changes between versions 2.0.0 and 2.1.0
 ---------------------------------------------------
 
- - Update to 2.6.37
+ - Update to 2.6.37 and 2.6.38
+
+ - Change T10 ID and USN generations to get the random part be CRC32
+   from the device name in the first 8 characters as many MPIO
+   implementations expect
 
  - Assigning CPU affinity to threads and connections added
 
@@ -10,7 +14,17 @@ Summary of changes between versions 2.0.0 and 2.1.0
 
  - Support for thin provisioning commands added in scst_vdisk
 
- - Bug fixes and minor improvements
+ - Fix possible incorrect atomic context on exec stages
+
+ - Limit max tasklet commands via scst_max_tasklet_cmd global attribute
+   to prevent possible starvation under heavy load and in some cases
+   improve performance
+
+ - Custom parse improvements
+
+ - Logging improvements
+
+ - Bug fixes and other improvements
 
 
 Summary of changes between versions 1.0.1 and 1.0.2

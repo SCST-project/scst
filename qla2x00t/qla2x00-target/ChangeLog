@@ -1,7 +1,7 @@
 Summary of changes between versions 2.0.0 and 2.1.0
 ---------------------------------------------------
 
- - Update to 2.6.37
+ - Update to 2.6.37 and 2.6.38
 
  - Complete NPIV support added. Particularly, now SCST core sees
    all the virtual targets and provide separate target-oriented access
@@ -16,7 +16,10 @@ Summary of changes between versions 2.0.0 and 2.1.0
 
  - Long CDBs handling fixed
 
- - Other minor fixes and cleanups
+ - Per sessions commands stats implemented based on patch from Steven
+   Umbehocker <steven.umbehocker@osnexus.com>
+
+ - Bug fixes and other improvements
 
 
 Summary of changes between versions 1.0.2 and 2.0.0

@@ -1,10 +1,28 @@
-Summary of changes between versions 1.0.1 and 1.0.2
+Summary of changes between versions 2.0.0 and 2.1.0
+---------------------------------------------------
+
+ - Change T10 ID and USN generations to get the random part be CRC32
+   from the device name in the first 8 characters as many MPIO
+   implementations expect
+
+ - Custom parse improvements
+
+ - Other monor fixes and cleanups
+
+
+Summary of changes between versions 1.0.1 and 2.0.0
 ---------------------------------------------------
 
  - Support for shared between devices caches added
 
  - Possibility to use single size SGV cache as well as control
    of the SGV cache reclamation time added
+
+ - Change T10 ID and USN generations to get the random part be CRC32
+   from the device name in the first 8 characters as many MPIO
+   implementations expect
+
+ - Custom parse improvements
 
  - Other monor fixes and cleanups
 
