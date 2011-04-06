@@ -514,6 +514,11 @@ Every target should have at least the following entries:
 
  - sessions - subdirectory containing connected to this target sessions.
 
+ - comment - this attribute can be used to store any human readable info
+   to help identify target. For instance, to help identify the target's
+   mapping to the corresponding hardware port. It isn't anyhow used by
+   SCST.
+
  - enabled - using this attribute you can enable or disable this target/
    It allows to finish configuring it before it starts accepting new
    connections. 0 by default.
