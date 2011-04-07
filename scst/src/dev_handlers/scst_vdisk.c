@@ -2809,8 +2809,10 @@ static int blockio_flush(struct block_device *bdev)
     && !(defined(CONFIG_SUSE_KERNEL)                        \
          && LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 34))
 	res = blkdev_issue_flush(bdev, NULL);
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
 	res = blkdev_issue_flush(bdev, GFP_KERNEL, NULL, BLKDEV_IFL_WAIT);
+#else
+	res = blkdev_issue_flush(bdev, GFP_KERNEL, NULL);
 #endif
 	if (res != 0)
 		PRINT_ERROR("blkdev_issue_flush() failed: %d", res);
