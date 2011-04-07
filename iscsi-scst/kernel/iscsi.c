@@ -1263,7 +1263,7 @@ static struct iscsi_cmnd *__cmnd_find_data_wait_hash(struct iscsi_conn *conn,
 	struct list_head *head;
 	struct iscsi_cmnd *cmnd;
 
-	head = &conn->session->cmnd_data_wait_hash[cmnd_hashfn(itt)];
+	head = &conn->session->cmnd_data_wait_hash[cmnd_hashfn((__force u32)itt)];
 
 	list_for_each_entry(cmnd, head, hash_list_entry) {
 		if (cmnd->pdu.bhs.itt == itt)
@@ -1336,7 +1336,7 @@ static int cmnd_insert_data_wait_hash(struct iscsi_cmnd *cmnd)
 
 	spin_lock(&session->cmnd_data_wait_hash_lock);
 
-	head = &session->cmnd_data_wait_hash[cmnd_hashfn(itt)];
+	head = &session->cmnd_data_wait_hash[cmnd_hashfn((__force u32)itt)];
 
 	tmp = __cmnd_find_data_wait_hash(cmnd->conn, itt);
 	if (likely(!tmp)) {

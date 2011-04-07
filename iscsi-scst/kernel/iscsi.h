@@ -103,12 +103,10 @@ struct iscsi_target {
 };
 
 #define ISCSI_HASH_ORDER	8
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 31)
-#define	cmnd_hashfn(itt)	(BUILD_BUG_ON(!__same_type(itt, __be32)), \
-			hash_long((__force u32)(itt), ISCSI_HASH_ORDER))
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
+#define	cmnd_hashfn(itt)	hash_32(itt, ISCSI_HASH_ORDER)
 #else
-/* __same_type() is not available in kernels 2.6.30 and before. */
-#define	cmnd_hashfn(itt)	hash_long((__force u32)(itt), ISCSI_HASH_ORDER)
+#define	cmnd_hashfn(itt)	hash_long(itt, ISCSI_HASH_ORDER)
 #endif
 
 struct iscsi_session {
