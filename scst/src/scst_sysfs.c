@@ -2112,8 +2112,8 @@ static ssize_t scst_rel_tgt_id_show(struct kobject *kobj,
 static int scst_process_rel_tgt_id_store(struct scst_sysfs_work_item *work)
 {
 	int res = 0;
-	struct scst_tgt *tgt = work->tgt;
-	unsigned long rel_tgt_id = work->l;
+	struct scst_tgt *tgt = work->tgt_r;
+	unsigned long rel_tgt_id = work->rel_tgt_id;
 
 	TRACE_ENTRY();
 
@@ -2180,8 +2180,8 @@ static ssize_t scst_rel_tgt_id_store(struct kobject *kobj,
 	if (res != 0)
 		goto out;
 
-	work->tgt = tgt;
-	work->l = rel_tgt_id;
+	work->tgt_r = tgt;
+	work->rel_tgt_id = rel_tgt_id;
 
 	kobject_get(&tgt->tgt_kobj);
 

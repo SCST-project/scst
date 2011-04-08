@@ -4046,8 +4046,8 @@ struct scst_sysfs_work_item {
 		};
 		struct scst_session *sess;
 		struct {
-			struct scst_tgt *tgt;
-			unsigned long l;
+			struct scst_tgt *tgt_r;
+			unsigned long rel_tgt_id;
 		};
 	};
 	int work_res;
