@@ -1,0 +1,11 @@
+--- linux-2.6.30/Makefile	2009-10-31 13:49:29.000000000 +0100
++++ linux-2.6.30/Makefile	2009-10-31 13:49:32.000000000 +0100
+@@ -342,7 +342,7 @@ AFLAGS_KERNEL	=
+ 
+ # Use LINUXINCLUDE when you must reference the include/ directory.
+ # Needed to be compatible with the O= option
+-LINUXINCLUDE    := -Iinclude \
++LINUXINCLUDE    := $(PRE_CFLAGS) -Iinclude \
+                    $(if $(KBUILD_SRC),-Iinclude2 -I$(srctree)/include) \
+                    -I$(srctree)/arch/$(hdr-arch)/include               \
+                    -include include/linux/autoconf.h
