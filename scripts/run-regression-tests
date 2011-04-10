@@ -355,11 +355,13 @@ function run_checkpatch  {
 }
 
 function patch_and_configure_kernel {
+  local kver="$(kernel_version $1)"
   local patchfile="${outputdir}/scst-$1-kernel-matching-line-numbers.patch"
   local patchoutput="${outputdir}/patch-command-output-$1.txt"
 
   echo "Patching and configuring kernel ..."
   (
+    local srcdir="$PWD"
     cd "${outputdir}/linux-$1"                                      \
     && if [ "${multiple_patches}" = "false" ]; then
          patch -p1 -f -s <"${patchfile}" >"${patchoutput}"
@@ -370,6 +372,14 @@ function patch_and_configure_kernel {
            echo "==== $p" >>"${patchoutput}"
            patch -p1 -f -s <"${p}" >>"${patchoutput}" 2>&1
          done
+       fi \
+    && if [ -e $srcdir/srpt/patches/kernel-${kver}-pre-cflags.patch ]; then 
+         echo "$srcdir/srpt/patches/kernel-${kver}-pre-cflags.patch ..." \
+           >>"${patchoutput}"
+         patch -p1 -f -s <$srcdir/srpt/patches/kernel-${kver}-pre-cflags.patch \
+	   >>"${patchoutput}";
+       else
+         echo "srpt/patches/kernel-${kver}-pre-cflags.patch not found."; \
        fi \
     && make -s allmodconfig &>"${outputdir}/make-config-output.txt" \
     && sed -i.tmp 's/^CONFIG_DEBUG_STRICT_USER_COPY_CHECKS=y$/CONFIG_DEBUG_STRICT_USER_COPY_CHECKS=n/' .config \
