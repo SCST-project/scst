@@ -24,12 +24,15 @@
 ########################
 
 function usage {
-  echo "Usage: $0 [-h] [-m] [-n] [-p <dir>] [-u] <kernel version>, where: "
+  echo "Usage: $0 [-d] [-h] [-m] [-n] [-p <dir>] [-s] [-u] <kernel version>"
+  echo "where: "
+  echo "        -d - enable patch specialization debugging"
   echo "        -h - show this text"
   echo "        -m - add mpt target driver"
   echo "        -n - do not delete code disabled via preprocessor statements"
   echo "        -p - generate multiple patches instead of one big patch into"\
        "the specified directory."
+  echo "        -s - disable patch specialization."
   echo "        -u - enables #define GENERATING_UPSTREAM_PATCH."
 }
 
@@ -101,32 +104,48 @@ EOF
 # Run the script specialize_patch with appropriate options on the patch
 # passed via stdin and send the specialized patch to stdout.
 function specialize_patch {
-  "$(dirname $0)/specialize-patch" \
-       ${specialize_patch_options} \
-       -v kernel_version="${kernel_version}" \
-       -v SCSI_EXEC_REQ_FIFO_DEFINED="${scsi_exec_req_fifo_defined}" \
-       -v SCST_IO_CONTEXT="${scst_io_context}" \
-  | if [ "${generating_upstream_patch}" = "true" ]; then
-      scripts/filter-trace-entry-exit
-    else
-      cat
-    fi
+  if [ "${enable_specialize}" = "true" ]; then
+    "$(dirname $0)/specialize-patch" \
+         ${specialize_patch_options} \
+         -v kernel_version="${kernel_version}" \
+         -v SCSI_EXEC_REQ_FIFO_DEFINED="${scsi_exec_req_fifo_defined}" \
+         -v SCST_IO_CONTEXT="${scst_io_context}" \
+    | if [ "${generating_upstream_patch}" = "true" ]; then
+        scripts/filter-trace-entry-exit
+      else
+        cat
+      fi
+  else
+    cat
+  fi
 }
 
 # Read a patch from stdin, specialize it for kernel version ${kernel_version}
 # and write the output either to stdout or to the file $1 (if not empty),
 # depending on the value of the variable ${multiple_patches}.
 function process_patch {
+  local tmppatch
   if [ "${multiple_patches}" = "true" ]; then
     if [ "$1" != "" ]; then
       if [ -e "${patchdir}/$1" ]; then
         echo "Warning: overwriting ${patchdir}/$1"
       fi
-    (
-      echo "Signed-off-by: ${SIGNED_OFF_BY}"
-      echo ""
-      specialize_patch
-    ) >"${patchdir}/$1"
+      tmppatch="$(/bin/mktemp)"
+      (
+        specialize_patch
+      ) >"${tmppatch}"
+      touch "${tmppatch}"
+      {
+        if [ -e /usr/bin/diffstat ]; then
+          awk 'BEGIN{h=1}/^diff/{h=0}/^---/{h=0}h!=0{print}' < "${tmppatch}"
+          echo "---"
+          diffstat "${tmppatch}"
+          echo ""
+          awk 'BEGIN{h=1}/^diff/{h=0}/^---/{h=0}h==0{print}' < "${tmppatch}"
+        fi
+      } \
+        > "${patchdir}/$(basename $1)"
+      rm -f "${tmppatch}"
     else
       # echo "Discarded $(wc -l) lines."
       true
@@ -148,6 +167,7 @@ function in_separate_patch {
 #########################
 
 debug_specialize="false"
+enable_specialize="true"
 generating_upstream_patch="false"
 mpt_scst="false"
 multiple_patches="false"
@@ -162,7 +182,7 @@ if [ ! -e scst -o ! -e iscsi-scst -o ! -e srpt -o ! -e scst_local ]; then
   exit 1
 fi
 
-set -- $(/usr/bin/getopt dhlmnp:u "$@")
+set -- $(/usr/bin/getopt dhlmnp:su "$@")
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
@@ -174,28 +194,45 @@ do
           shift
           ;;
     '-p') multiple_patches="true"; patchdir="$2"; shift; shift;;
+    '-s') enable_specialize="false"; shift;;
     '-u') generating_upstream_patch="true"; shift;;
     '--') shift;;
     *)    usage; exit 1;;
   esac
 done
 
-if [ "${debug_specialize}" = "true" ]; then
-  specialize_patch_options="${specialize_patch_options} -v debug=1"
-fi
-if [ "${generating_upstream_patch}" = "true" ]; then
-  specialize_patch_options="${specialize_patch_options} -v generating_upstream_patch_defined=1 -v config_tcp_zero_copy_transfer_completion_notification_undefined=1 -v config_scst_proc_undefined=1"
-fi
-
 if [ $# != 1 ]; then
   usage
   exit 1
 fi
 
-if [ "${multiple_patches}" = "" ]; then
+# Strip patch level from the kernel version number.
+if [ "${1#[0-9]*.[0-9]*.[0-9]*.[0-9]*}" != "$1" ]; then
+  kernel_version="${1%.[0-9]*}"
+  patch_level="${1#${kernel_version}.}"
+else
+  kernel_version="$1"
+fi
+
+# Make sure that for kernel 2.6.33 and later the line
+# "#define CONFIG_SCST_PROC" is removed from scst/include/scst.h.
+if grep -qw scst_sysfs scst/kernel/in-tree/Makefile.scst-${kernel_version} \
+   || [ "${generating_upstream_patch}" = "true" ];
+then
+  specialize_patch_options="${specialize_patch_options} -v config_scst_proc_undefined=1"
+fi
+if [ "${debug_specialize}" = "true" ]; then
+  specialize_patch_options="${specialize_patch_options} -v debug=1"
+fi
+if [ "${generating_upstream_patch}" = "true" ]; then
+  specialize_patch_options="${specialize_patch_options} -v generating_upstream_patch_defined=1 -v config_tcp_zero_copy_transfer_completion_notification_undefined=1"
+fi
+
+if [ "${multiple_patches}" = "true" ]; then
   if [ -e "${patchdir}" ]; then
     echo "Patch output directory ${patchdir} already exists."
   fi
+  mkdir -p "${patchdir}"
   if [ ! -d "${patchdir}" ]; then
     echo "Error: ${patchdir} is not a directory."
   fi
@@ -206,32 +243,12 @@ fi
 # Patch Generation #
 ####################
 
-# Strip patch level from the kernel version number.
-if [ "${1#[0-9]*.[0-9]*.[0-9]*.[0-9]*}" != "$1" ]; then
-  kernel_version="${1%.[0-9]*}"
-  patch_level="${1#${kernel_version}.}"
-else
-  kernel_version="$1"
-fi
-
 for f in fcst/linux-patches/series-${kernel_version}*
 do
    if [ -e "$f" ]; then
        fcst_patch_series="$f"
    fi
 done
-
-# Make sure that for kernel 2.6.33 and later the line
-# "#define CONFIG_SCST_PROC" is removed from scst/include/scst.h.
-if grep -qw scst_sysfs scst/kernel/in-tree/Makefile.scst-${kernel_version};
-then
-  specialize_patch_options="${specialize_patch_options} -v config_scst_proc_undefined=1"
-fi
-
-if [ "${multiple_patches}" = "false" ]; then
-  echo "Signed-off-by: ${SIGNED_OFF_BY}"
-  echo ""
-fi
 
 
 # General kernel patches.
@@ -260,24 +277,28 @@ do
 done
 
 
-scst_debug="scst/include/scst_debug.h scst/src/scst_debug.c"
+scst_03_public_headers="scst/include/scst.h scst/include/scst_const.h"
+scst_04_main="scst/src/scst_main.c scst/src/scst_module.c scst/src/scst_priv.h"
+scst_05_targ="scst/src/scst_targ.c"
+scst_06_lib="scst/src/scst_lib.c"
+scst_07_pres="scst/src/scst_pres.h scst/src/scst_pres.c"
+scst_08_sysfs="scst/src/scst_sysfs.c"
+scst_09_debug="scst/include/scst_debug.h scst/src/scst_debug.c"
 scst_proc="scst/src/scst_proc.c"
-scst_sgv="scst/include/scst_sgv.h scst/src/scst_mem.h scst/src/scst_mem.c doc/sgv_cache.txt"
+scst_10_sgv="scst/include/scst_sgv.h scst/src/scst_mem.h scst/src/scst_mem.c doc/sgv_cache.sgml"
 scst_user="scst/include/scst_user.h scst/src/dev_handlers/scst_user.c"
-scst_vdisk="scst/src/dev_handlers/scst_vdisk.c"
-separate_patches="scst_debug scst_proc scst_sgv scst_user scst_vdisk"
-source_files_in_separate_patch="${scst_debug} ${scst_proc} ${scst_sgv} ${scst_user} ${scst_vdisk}"
+scst_13_vdisk="scst/src/dev_handlers/scst_vdisk.c"
+separate_patches="scst_03_public_headers scst_04_main scst_05_targ scst_06_lib scst_07_pres scst_08_sysfs scst_09_debug scst_10_sgv scst_user scst_13_vdisk"
 
-
-# Directory include/scst/
-
-for f in $(ls scst/include/*h 2>/dev/null)
+if [ "${generating_upstream_patch}" = "false" ]; then
+  separate_patches+=" scst_proc"
+fi
+source_files_in_separate_patch=""
+for s in ${separate_patches}
 do
-  if ! in_separate_patch "${f}"; then
-    add_file "${f}" "include/scst/${f#scst/include/}"
-  fi
-done \
-| process_patch "scst_public_headers.diff"
+  source_files_in_separate_patch+=" $(set | \
+                    sed -n -e "s/^$s='\(.*\)'$/\1/p" -e "s/^$s=\(.*\)$/\1/p")"
+done
 
 
 # Directory drivers/
@@ -289,7 +310,7 @@ add_patch "scst/kernel/in-tree/Kconfig.drivers.Linux-${kernel_version}.patch" \
 add_patch "scst/kernel/in-tree/Makefile.drivers.Linux-${kernel_version}.patch"\
           "drivers/Makefile"
 ) \
-| process_patch "misc.diff"
+| process_patch "scst_01_drivers_kbuild.diff"
 
 
 # Directory drivers/scst/
@@ -309,6 +330,11 @@ add_file "${tmp_Kconfig}" "drivers/scst/Kconfig"
 
 tmp_Makefile="${tmpdir}/Makefile.scst-${kernel_version}"
 cat "scst/kernel/in-tree/Makefile.scst-${kernel_version}" | \
+if [ "${generating_upstream_patch}" = "true" ]; then
+  grep -v 'scst_proc'
+else
+  cat
+fi | \
 if [ -e "${fcst_patch_series}" ]; then
   cat
 else
@@ -317,29 +343,14 @@ fi >"$tmp_Makefile"
 add_file "$tmp_Makefile" "drivers/scst/Makefile"
 
 rm -rf "${tmpdir}"
-
-for f in $(ls scst/src/*.[ch] 2>/dev/null)
-do
-  if [ "${generating_upstream_patch}" = "true" \
-       -a "${f}" = "scst/src/scst_proc.c" ]; then
-    continue
-  fi
-  if ! in_separate_patch "${f}"; then
-    add_file "${f}" "drivers/scst/${f#scst/src/}"
-  fi
-done
 ) \
-| process_patch "scst_core.diff"
+| process_patch "scst_02_scst_kbuild.diff"
 
 for s in ${separate_patches}
 do
   fileset=$s
   for f in $(set | grep "^$s=" | sed -e "s/^$s='\(.*\)'\$/\1/" -e "s/^$s=\(.*\)\$/\1/")
   do
-    if [ "${generating_upstream_patch}" = "true" \
-         -a "${f}" = "scst/src/scst_proc.c" ]; then
-      continue
-    fi
     if [ "${f#scst/include}" != "${f}" ]; then
       add_file "${f}" "include/scst/${f#scst/include/}"
     elif [ "${f#doc}" != "${f}" ]; then
@@ -352,26 +363,24 @@ do
 done
 
 {
-	add_file "scst/README_in-tree" "Documentation/scst/README.scst"
-	add_file "scst/SysfsRules" "Documentation/scst/SysfsRules"
-} | process_patch "scst_core_doc.diff"
+  add_file "scst/README_in-tree" "Documentation/scst/README.scst"
+  add_file "scst/SysfsRules" "Documentation/scst/SysfsRules"
+} | process_patch "scst_11_core_doc.diff"
 
 
 # Directory drivers/scst/dev_handlers/
 
-(
 add_file "scst/kernel/in-tree/Makefile.dev_handlers-${kernel_version}" \
          "drivers/scst/dev_handlers/Makefile" \
-| process_patch "dev_handlers_makefile.diff"
+| process_patch "scst_11_dev_handlers_makefile.diff"
 
 for f in $(ls scst/src/dev_handlers/*.[ch] 2>/dev/null)
 do
   if ! in_separate_patch "${f}"; then
     add_file "${f}" "drivers/scst/dev_handlers/${f#scst/src/dev_handlers/}"
   fi
-done
-) \
-| process_patch "scst_passthrough.diff"
+done \
+| process_patch "scst_14_passthrough.diff"
 
 
 # Directory drivers/scst/fcst/
@@ -386,9 +395,9 @@ done
 
   add_file "fcst/Makefile_in-tree" \
            "drivers/scst/fcst/Makefile"
-  
+
   add_file "fcst/Kconfig" "drivers/scst/fcst/Kconfig"
-  
+
   for f in $(ls fcst/*.[ch] 2>/dev/null)
   do
     add_file "${f}" "drivers/scst/fcst/${f#fcst/}"
@@ -477,7 +486,27 @@ fi \
 
 # Directory drivers/scst/srpt
 
+{
+
+cat <<EOF
+This patch adds the kernel module ib_srpt, which is a SCSI RDMA Protocol (SRP)
+target implementation. This driver uses the InfiniBand stack and the SCST core.
+
+It is a high performance driver capable of handling 600K+ 4K random write
+IOPS by a single target as well as 2.5+ GB/s sequential throughput over
+a single QDR IB port.
+
+It was originally developed by Vu Pham (Mellanox) and has been optimized by
+Bart Van Assche.
+
+Signed-off-by: Bart Van Assche <bvanassche@acm.org>
+Cc: Vu Pham <vu@mellanox.com>
+Cc: Roland Dreier <rdreier@cisco.com>
+Cc: David Dillow <dillowda@ornl.gov>
+EOF
 if [ "$srpt" = "true" ]; then
+
+  add_file  "srpt/README_in-tree"         "Documentation/scst/README.srpt"
 
   add_file  "srpt/src/Kconfig"            "drivers/scst/srpt/Kconfig"
 
@@ -495,10 +524,7 @@ else
   add_empty_file "drivers/scst/srpt/Makefile"
 
 fi \
-| process_patch "srpt.diff"
-
-add_file "srpt/README_in-tree" "Documentation/scst/README.srpt" \
-| process_patch "srpt-doc.diff"
+} | process_patch "scst_17_srpt.diff"
 
 
 # Directory drivers/message/fusion/mpt_scst
@@ -527,13 +553,195 @@ fi
 # Directory drivers/scst/scst_local
 
 (
+  add_file "scst_local/README"          "Documentation/scst/README.scst_local"
+
   add_file "scst_local/in-tree/Kconfig" "drivers/scst/scst_local/Kconfig"
 
   add_file "scst_local/in-tree/Makefile-${kernel_version}" "drivers/scst/scst_local/Makefile"
 
   add_file "scst_local/scst_local.c" "drivers/scst/scst_local/scst_local.c"
 ) \
-| process_patch "scst_local.diff"
+| process_patch "scst_16_local.diff"
 
-add_file "scst_local/README" "Documentation/scst/README.scst_local" \
-| process_patch "scst_local-doc.diff"
+
+
+# Directory drivers/scsi/ibmvstgt
+
+{
+  ( cd ibmvstgt && ./generate-in-tree-patches "${kernel_version}" )
+  if [ -e "ibmvstgt/in-tree-patches/${kernel_version}" ]; then
+    if [ "${multiple_patches}" = "true" ]; then
+      cat <<EOF
+[SCSI] ibmvstgt: Port from tgt to SCST
+
+The ibmvstgt and libsrp kernel modules as included in the 2.6.37 kernel are
+based on the tgt SCSI target framework. Both kernel modules need the scsi_tgt
+kernel module and the tgtd user space process in order to function
+properly. This patch modifies the ibmvstgt and libsrp kernel modules such that
+both use the SCST storage target framework instead of tgt. As a result,
+neither the scsi_tgt kernel module nor the tgtd user space process are any
+more necessary when using the ibmvstgt driver.
+
+This patch introduces one backwards-incompatible change, namely that the path
+of the ibmvstgt sysfs attributes is modified. This change is unavoidable
+because this patch dissociates ibmvstgt SRP sessions from a SCSI host
+instance.  Since the user space STGT driver ibmvio was the only user of
+these attributes, that shouldn't be an issue.
+
+Changes in ibmvstgt compared to kernel 2.6.36:
+- Increased maximum data size for a single SRP command from 128 KB to 64 MB
+  such that an initiator is not forced to split large transfers into
+  multiple SCSI commands.
+- The maximum RDMA transfer size supported by a single H_COPY_RDMA call is
+  queried at driver initialization time from the open firmware tree / larger
+  transfers than 128 KB are now supported too.
+- If DMA mapping fails while handling a READ or WRITE command, the offending
+  command is retried until the associated data has been transferred instead of
+  reporting to the ibmvscsi client that the SCSI command failed.
+- VSCSI command/response queue: one element has been reserved for management
+  datagrams since these fall outside the SRP credit mechanism. Added a compile-
+  time check whether the size of this queue is a power of two.
+- Fixed a race condition which in theory could have caused the VSCSI receive
+  queue to overflow: srp_iu_put() is now invoked before a response is sent back
+  to the initiator instead of after.
+- Moved enum iue_flags from libsrp to ibmvstgt because it is ibmvstgt-specific.
+- Removed a variable that was modified but never read from ibmvstgt_rdma().
+- ibmvstgt_probe(): changed the datatype of the variable "dma" from
+  unsigned * into const unsigned * such that a cast could be removed.
+- Fixed all compiler and sparse warnings (C=2 CF=-D__CHECK_ENDIAN__).
+
+Changes in libsrp compared to kernel 2.6.36:
+- Renamed vscsis_data_length() into srp_data_length() and exported
+  this function.
+- All error messages reported via printk() do now have prefix KERN_ERR.
+- modified srp_target_alloc() and srp_target_free() such that the
+  driver-private data reflects whether or not target data has been allocated.
+  This change was necessary to avoid that ibmvstgt_remove() triggers a
+  NULL-pointer dereference if ibmvstgt_probe() failed.
+- srp_transfer_data(): All three return statements related to DMA mapping
+  failure do now return -ENOMEM instead of 0, -EIO and -ENOMEM.
+- srp_direct_data(): Removed the ext_desc argument since not used.
+- srp_direct_data() and srp_indirect_data(): Use DMA_TO/FROM_DEVICE
+  instead of DMA_BIDIRECTIONAL for the buffers mapped for transferring data
+  via DMA.
+- struct srp_target: eliminated the information unit linked list and also the
+  V_FLYING flag since both were duplicating information managed by the SCST
+  core.
+- Fixed all compiler and sparse warnings (C=2 CF=-D__CHECK_ENDIAN__).
+
+Tests performed on a backport to kernel version 2.6.18 of this driver with a
+Linux initiator system:
+- Verified that the kernel module ibmvstgt loads and initializes successfully
+  and also that the client connects after loading.
+- Verified that all virtual disks configured in scst_vdisk were discovered by
+  the client after rescanning the SCSI bus.
+- Verified that after unloading and reloading ibmvstgt and after client
+  recovery that the initiator devices were functioning normally.
+- Verified that after a client reboot ibmvscsic reconnected with the target
+  and that the target devices were again usable.
+- Performed IO stress testing on the device.
+- Verified that SCSI task abortion works correctly.
+- Performed basic I/O performance testing. With a RAM disk as target linear
+  direct I/O throughput was above 2 GB/s and a random I/O test resulted in
+  about 30000 IOPS for all block sizes between 512 bytes and 16 KB.
+  Both initiator and target were dual core POWER6 LPAR systems.
+
+Note: ibmvstgt is the only user of libsrp.
+
+Signed-off-by: Bart Van Assche <bvanassche@acm.org>
+Cc: Fujita Tomonori <fujita.tomonori@lab.ntt.co.jp>
+Cc: Brian King <brking@linux.vnet.ibm.com>
+Cc: Robert Jennings <rcj@linux.vnet.ibm.com>
+
+EOF
+    fi
+    for f in \
+      drivers/scsi/ibmvscsi/ibmvstgt.c \
+      drivers/scsi/libsrp.c \
+      include/scsi/libsrp.h \
+      include/scsi/srp.h
+    do
+      patch="ibmvstgt/in-tree-patches/${kernel_version}/$(basename $f).patch"
+      if [ -e "${patch}" ]; then
+        add_patch "${patch}" $f
+      fi
+    done
+    add_file "ibmvstgt/README.sysfs" "Documentation/powerpc/ibmvstgt.txt"
+  fi
+} \
+| process_patch "scst_18_ibmvstgt.diff"
+
+{
+  ( cd ibmvstgt && ./generate-in-tree-patches "${kernel_version}" )
+  if [ -e "ibmvstgt/in-tree-patches/${kernel_version}" ]; then
+    if [ "${multiple_patches}" = "true" ]; then
+      cat <<EOF
+[SCSI] tgt: Removal
+
+Because of the conversion of the ibmvstgt driver from tgt to SCST, and because
+the ibmvstgt driver was the only user of scsi_tgt, the scsi_tgt kernel module,
+the CONFIG_SCSI_TGT, CONFIG_SCSI_SRP_TGT_ATTRS and CONFIG_SCSI_FC_TGT_ATTRS
+kbuild variable, the scsi_host_template member variables transfer_response,
+supportedmode and active_mode and the constants MODE_UNKNOWN, MODE_INITIATOR
+and MODE_TARGET are no longer needed.
+
+Note: this patch applies cleanly on a 2.6.35 kernel tree. The patch tool
+however complains about the defconfig changes when trying to apply this patch
+on a 2.6.36 kernel tree.
+
+Signed-off-by: Bart Van Assche <bvanassche@acm.org>
+
+EOF
+    fi
+    for f in \
+      arch/arm/configs/at572d940hfek_defconfig \
+      arch/arm/configs/cam60_defconfig \
+      arch/arm/configs/s3c2410_defconfig \
+      arch/m68k/configs/amiga_defconfig \
+      arch/m68k/configs/apollo_defconfig \
+      arch/m68k/configs/atari_defconfig \
+      arch/m68k/configs/bvme6000_defconfig \
+      arch/m68k/configs/hp300_defconfig \
+      arch/m68k/configs/mac_defconfig \
+      arch/m68k/configs/multi_defconfig \
+      arch/m68k/configs/mvme147_defconfig \
+      arch/m68k/configs/mvme16x_defconfig \
+      arch/m68k/configs/q40_defconfig \
+      arch/m68k/configs/sun3_defconfig \
+      arch/m68k/configs/sun3x_defconfig \
+      arch/mips/configs/bcm47xx_defconfig \
+      arch/mips/configs/decstation_defconfig \
+      arch/mips/configs/ip22_defconfig \
+      arch/mips/configs/ip27_defconfig \
+      arch/mips/configs/ip32_defconfig \
+      arch/mips/configs/jazz_defconfig \
+      arch/mips/configs/malta_defconfig \
+      arch/mips/configs/markeins_defconfig \
+      arch/mips/configs/pnx8550-jbs_defconfig \
+      arch/mips/configs/pnx8550-stb810_defconfig \
+      arch/mips/configs/rm200_defconfig \
+      arch/mips/configs/tb0226_defconfig \
+      arch/mips/configs/tb0287_defconfig \
+      arch/powerpc/configs/52xx/motionpro_defconfig \
+      arch/powerpc/configs/86xx/mpc8610_hpcd_defconfig \
+      arch/powerpc/configs/mpc5200_defconfig \
+      drivers/scsi/Kconfig \
+      drivers/scsi/Makefile \
+      drivers/scsi/hosts.c \
+      drivers/scsi/scsi_sysfs.c \
+      drivers/scsi/scsi_tgt_if.c \
+      drivers/scsi/scsi_tgt_lib.c \
+      drivers/scsi/scsi_tgt_priv.h \
+      drivers/scsi/scsi_transport_fc.c \
+      drivers/scsi/scsi_transport_fc_internal.h \
+      drivers/scsi/scsi_transport_srp.c \
+      drivers/scsi/scsi_transport_srp_internal.h \
+      include/scsi/scsi_host.h \
+      include/scsi/scsi_tgt.h \
+      include/scsi/scsi_tgt_if.h
+    do
+      add_patch "ibmvstgt/in-tree-patches/${kernel_version}/$(basename $f).patch" $f
+    done
+  fi
+} \
+| process_patch "scst_19_scsi_tgt.diff"

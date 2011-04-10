@@ -30,7 +30,7 @@
 # Convert a kernel version in the x.y.z format into numeric form, just like
 # the KERNEL_VERSION() macro.
 
-function version_code(kver) {
+function version_code(kver, array) {
   match(kver, "([0-9]+).([0-9]+).([0-9]+)", array)
   return 65536*array[1] + 256*array[2] + array[3]
 }
@@ -41,16 +41,16 @@ function version_code(kver) {
 # Note: the order in which the substitutions appear below is important --
 # it is the same order as the order of operators in C.
 
-function evaluate(stmnt) {
+function evaluate(stmnt, pattern, arg, op, result) {
 
   if (debug)
     printf "/* debug specialize-patch: (a) %s */\n", stmnt
 
   # Remove C-style comments.
-  gsub(" *\\/\\*[^*]*\\*\\/ *", "", stmnt)
+  gsub("[ 	]*\\/\\*[^*]*\\*\\/[ 	]*", "", stmnt)
 
   # Remove the spaces before the #-sign.
-  gsub("^+ *# *", "+#", stmnt)
+  gsub("^+[ 	]*#[ 	]*", "+#", stmnt)
 
   if (match(stmnt, "^+#ifdef (.*)$", arg))
   {
@@ -105,35 +105,33 @@ function evaluate(stmnt) {
 
   if (SCSI_EXEC_REQ_FIFO_DEFINED != "")
   {
-    gsub("defined  *SCSI_EXEC_REQ_FIFO_DEFINED",
+    gsub("defined [ 	]*SCSI_EXEC_REQ_FIFO_DEFINED",
          SCSI_EXEC_REQ_FIFO_DEFINED, stmnt)
-    gsub("defined *\\( *SCSI_EXEC_REQ_FIFO_DEFINED *\\)",
+    gsub("defined[ 	]*\\([ 	]*SCSI_EXEC_REQ_FIFO_DEFINED[ 	]*\\)",
          SCSI_EXEC_REQ_FIFO_DEFINED, stmnt)
   }
 
   if (SCST_IO_CONTEXT != "")
   {
-    gsub("defined  *SCST_IO_CONTEXT", SCST_IO_CONTEXT, stmnt)
-    gsub("defined *\\( *SCST_IO_CONTEXT *\\)", SCST_IO_CONTEXT, stmnt)
+    gsub("defined [ 	]*SCST_IO_CONTEXT", SCST_IO_CONTEXT, stmnt)
+    gsub("defined[ 	]*\\([ 	]*SCST_IO_CONTEXT[ 	]*\\)", SCST_IO_CONTEXT, stmnt)
   }
 
   if (generating_upstream_patch_defined)
   {
-    gsub("defined  *GENERATING_UPSTREAM_PATCH", 1, stmnt)
-    gsub("defined *\\( *GENERATING_UPSTREAM_PATCH *\\)", 1, stmnt)
+    gsub("defined [ 	]*GENERATING_UPSTREAM_PATCH", 1, stmnt)
+    gsub("defined[ 	]*\\([ 	]*GENERATING_UPSTREAM_PATCH[ 	]*\\)", 1, stmnt)
   }
 
   if (config_tcp_zero_copy_transfer_completion_notification_undefined)
   {
-    gsub("defined  *CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION", 0, stmnt)
-    gsub("defined *\\( *CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION *\\)", 0, stmnt)
+    gsub("defined [ 	]*CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION", 0, stmnt)
+    gsub("defined[ 	]*\\([ 	]*CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION[ 	]*\\)", 0, stmnt)
   }
 
-  if (config_scst_proc_undefined)
-  {
-    gsub("defined  *CONFIG_SCST_PROC", 0, stmnt)
-    gsub("defined *\\( *CONFIG_SCST_PROC *\\)", 0, stmnt)
-  }
+  gsub("defined [ 	]*CONFIG_SCST_PROC", !config_scst_proc_undefined, stmnt)
+  gsub("defined[ 	]*\\([ 	]*CONFIG_SCST_PROC[ 	]*\\)", !config_scst_proc_undefined,
+       stmnt)
 
   if (debug)
     printf "/* debug specialize-patch: (b) %s */\n", stmnt
@@ -142,19 +140,19 @@ function evaluate(stmnt) {
   {
     last_stmnt = stmnt
 
-    pattern = "! *([0-9]+)"
+    pattern = "![ 	]*([0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
       sub(pattern, op[1] == 0, stmnt)
     }
     
-    pattern="KERNEL_VERSION\\( *([0-9]+) *, *([0-9]+) *, *([0-9]+) *\\)"
+    pattern="KERNEL_VERSION\\([ 	]*([0-9]+)[ 	]*,[ 	]*([0-9]+)[ 	]*,[ 	]*([0-9]+)[ 	]*\\)"
     while (match(stmnt, pattern, op) != 0)
     {
       sub(pattern, op[1] * 65536 + op[2] * 256 + op[3], stmnt)
     }
   
-    pattern="(-*[0-9]+) *(\\*|/) *(-*[0-9]+)"
+    pattern="(-*[0-9]+)[ 	]*(\\*|/)[ 	]*(-*[0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
       result="error"
@@ -163,7 +161,7 @@ function evaluate(stmnt) {
       sub(pattern, result, stmnt)
     }
   
-    pattern="(-*[0-9]+) *(\\+|-) *(-*[0-9]+)"
+    pattern="(-*[0-9]+)[ 	]*(\\+|-)[ 	]*(-*[0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
       result="error"
@@ -172,7 +170,7 @@ function evaluate(stmnt) {
       sub(pattern, result, stmnt)
     }
   
-    pattern="(-*[0-9]+) *(<|<=|>|>=|==|!=) *(-*[0-9]+)"
+    pattern="(-*[0-9]+)[ 	]*(<|<=|>|>=|==|!=)[ 	]*(-*[0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
       result="error"
@@ -185,22 +183,34 @@ function evaluate(stmnt) {
       sub(pattern, result, stmnt)
     }
   
-    pattern="(-*[0-9]+) *\\&\\& *(-*[0-9]+)"
+    pattern="(-*[0-9]+)[ 	]*\\&\\&[ 	]*(-*[0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
       sub(pattern, (op[1] != 0) && (op[2] != 0), stmnt)
     }
   
-    pattern="([01]) *\\&\\& *(!* *defined *\\( *[A-Za-z_]* *\\))"
+    pattern="^+#if[ 	]*([01])[ 	]*\\&\\&[ 	]*(!*[ 	]*defined[ 	]*\\([ 	]*[A-Za-z_]*[ 	]*\\))$"
     while (match(stmnt, pattern, op) != 0)
     {
-      sub(pattern, op[1] != 0 ? op[2] : op[1], stmnt)
+      stmnt = "+#if " (op[1] != 0 ? op[2] : op[1])
     }
   
-    pattern="(-*[0-9]+) *\\|\\| *(-*[0-9]+)"
+    pattern="(-*[0-9]+)[ 	]*\\|\\|[ 	]*(-*[0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
       sub(pattern, (op[1] != 0) || (op[2] != 0), stmnt)
+    }
+  
+    pattern="^+#if[ 	]*([01])[ 	]*\\|\\|[ 	]*(!*[ 	]*defined[ 	]*\\([ 	]*[A-Za-z_]*[ 	]*\\))$"
+    while (match(stmnt, pattern, op) != 0)
+    {
+      stmnt = "+#if " (op[1] == 0 ? op[2] : op[1])
+    }
+  
+    pattern="\\(([01])[ 	]*\\|\\|[ 	]*(!*[ 	]*defined[ 	]*\\([ 	]*[A-Za-z_]*[ 	]*\\))\\)"
+    while (match(stmnt, pattern, op) != 0)
+    {
+      sub(pattern, op[1] == 0 ? op[2] : op[1], stmnt)
     }
   
     pattern="\\((-*[0-9]+)\\)"
@@ -220,14 +230,13 @@ function evaluate(stmnt) {
 
 # Evaluate ! stmnt
 function invert(stmnt) {
-  sub("^+#if ", "+#if ! ", stmnt)
-  return evaluate(stmnt)
+  return evaluate(gensub("^+#if (.*)$", "+#if ! (\\1)", "g", stmnt))
 }
 
 
 # Handle #if or #elif
 
-function handle_if()
+function handle_if(evaluated)
 {
   # Only act on preprocessor conditional expressions with regard to the Linux
   # kernel version, and do not interpret other expressions.
@@ -257,40 +266,52 @@ function handle_if()
   {
     if_stmnt[if_nesting_level] = evaluated
     any_section_output[if_nesting_level] = 0
+    decision[if_nesting_level] = evaluated
+    inv_decision[if_nesting_level] = evaluate(sprintf("+#if ! %s", substr(evaluated, 6)))
+    if (debug)
+      printf "/* debug specialize-patch: (f) %s / %s */\n", \
+        decision[if_nesting_level], inv_decision[if_nesting_level]
   }
   else
   {
     sub("^+#elif ",
-        sprintf("+#if ! %d \\&\\& ", decision[if_nesting_level]),
+        sprintf("+#if %s \\&\\& ", substr(inv_decision[if_nesting_level], 6)),
         evaluated)
+    if (debug)
+      printf "/* debug specialize-patch: (e) %s */\n", evaluated
     evaluated = evaluate(evaluated)
+    decision[if_nesting_level] = evaluated
+    inv_decision[if_nesting_level] \
+      = evaluate(sprintf("+#if %s && ! %s", \
+                         substr(inv_decision[if_nesting_level], 6), \
+                         substr(evaluated, 6)))
+    if (debug)
+      printf "/* debug specialize-patch: (f) %s / %s */\n", \
+        decision[if_nesting_level], inv_decision[if_nesting_level]
   }
-  decision[if_nesting_level] = evaluated
   matching_if = if_stmnt[if_nesting_level]
+  return evaluated
 }
 
 
 # Decide whether or not to print the preprocessor statement $0.
 
-function process_preprocessor_statement() {
-  last_if_nesting_level = if_nesting_level
-  orig_stmnt = $0
+function process_preprocessor_statement(evaluated, condition) {
   evaluated = evaluate($0)
   condition = 1
-  delete_next_blank_line = 0
   if (evaluated ~ "^+#if")
   {
     if_nesting_level++
-    handle_if()
+    evaluated = handle_if(evaluated)
   }
   else if (evaluated ~ "^+#elif")
   {
-    handle_if()
+    evaluated = handle_if(evaluated)
   }
   else if (evaluated ~ "^+#else")
   {
     matching_if = if_stmnt[if_nesting_level]
-    decision[if_nesting_level] = invert(decision[if_nesting_level])
+    decision[if_nesting_level] = inv_decision[if_nesting_level]
   }
   else if (evaluated ~ "^+#endif")
   {
@@ -318,13 +339,7 @@ function process_preprocessor_statement() {
       || (evaluated ~ "^+#define CONFIG_SCST_PROC$"         \
          && config_scst_proc_undefined))
   {
-    if (blank_deleted_code)
-      for (i = 0; i < input_line_count; i++)
-        line[lines++] = "+"
-    else
-    {
-      lines_deleted += input_line_count
-    }
+    discard = 1
     delete_next_blank_line = 1
   }
   else if (output && (! condition || condition && matching_if !~ "^+#if [01]"))
@@ -334,22 +349,20 @@ function process_preprocessor_statement() {
   }
   else
   {
-    if (blank_deleted_code)
-      for (i = 0; i < input_line_count; i++)
-        line[lines++] = "+"
-    else
-      lines_deleted += input_line_count
+    discard = 1
     if (lines >= 1 && line[lines - 1] == "+")
       delete_next_blank_line = 1
   }
 }
 
 function reset_hunk_state_variables() {
-  lines = 0
-  lines_deleted = 0
-  output = 1
-  if_nesting_level = -1
-  delete_next_blank_line = 0
+  lines                  =  0
+  lines_less_added       =  0
+  lines_less_deleted     =  0
+  output                 =  1
+  if_nesting_level       = -1
+  delete_next_blank_line =  0
+  h[0]                   = ""
 }
 
 function dump_lines() {
@@ -368,9 +381,9 @@ function dump_lines() {
   if (first_modif >= 0)
   {
     if (h[0] != "")
-      printf "@@ -%d,%d +%d,%d @@%s\n",h[1],h[2],h[3],h[4]-lines_deleted,h[5]
+      printf "@@ -%d,%d +%d,%d @@%s\n",h[1],h[2]-lines_less_deleted,h[3],h[4]-lines_less_added,h[5]
     for (i = 0; i < lines; i++)
-    print line[i]
+      print line[i]
   }
 }
 
@@ -397,14 +410,34 @@ BEGIN {
     config_scst_proc_undefined = 0
 
   # Variable initialization.
+  is_c_source = 0
   reset_hunk_state_variables()
 }
 
 
 {
+  if (match($0, "^diff[ \t]+[^ \t]+[ \t]+[^ \t]+[ \t]+([^ \t]+)$", filename) \
+      || match($0, "^\\+\\+\\+[ \t]+([^ \t]+)[ \t]+", filename))
+  {
+    # Start of new file.
+    dump_lines()
+    reset_hunk_state_variables()
+    is_c_source = match(filename[1], "\\.[ch]$") != 0
+  }
+
+  if (!is_c_source)
+  {
+    print
+    next
+  }
+
   if (!config_scst_proc_undefined)
   {
     gsub("^+/\\* #define CONFIG_SCST_PROC \\*/$", "+#define CONFIG_SCST_PROC")
+  }
+  else
+  {
+    gsub("^+/\\* #define CONFIG_SCST_PROC \\*/$", "+")
   }
   input_line[0] = $0
   input_line_count = 1
@@ -419,6 +452,7 @@ BEGIN {
     $0 = previous_line $0
   }
 
+  discard = 0
   # If the line currently being processed is a hunk header, print all lines
   # that were stored in the array line[] since the last hunk header was read.
   if (match($0, "^@@ -([0-9]*),([0-9]*) \\+([0-9]*),([0-9]*) @@(.*)$"))
@@ -430,13 +464,7 @@ BEGIN {
   }
   else if (delete_next_blank_line && match($0, "^+$"))
   {
-    if (blank_deleted_code)
-      for (i = 0; i < input_line_count; i++)
-        line[lines++] = "+"
-    else
-    {
-      lines_deleted += input_line_count
-    }
+    discard = 1
     delete_next_blank_line = 0
   }
   else
@@ -457,16 +485,29 @@ BEGIN {
     }
     else
     {
-      # Discard the last read lines.
-      if (blank_deleted_code)
-      {
-        for (i = 0; i < input_line_count; i++)
-          line[lines++] = "+"
-      }
-      else
-        lines_deleted += input_line_count
+      discard = 1
       if (lines >= 1 && line[lines-1] == "+")
         delete_next_blank_line = 1
+    }
+  }
+  if (discard)
+  {
+    for (i = 0; i < input_line_count; i++)
+    {
+      if (blank_deleted_code)
+      {
+        if (input_line[i] ~ "^+")
+          line[lines++] = "+"
+        else
+          line[lines++] = input_line[i]
+      }
+      else
+      {
+        if (input_line[i] ~ "^+")
+          lines_less_added++
+        else if (input_line[i] ~ "^-")
+          lines_less_deleted++
+      }
     }
   }
 }

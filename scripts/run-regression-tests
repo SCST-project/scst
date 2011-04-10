@@ -55,7 +55,7 @@
 ########################
 
 function usage {
-  echo "Usage: $0 [-c <dir>] [-d <dir>] [-f] [-h] [-j <jobs>] [-q] <kver1> <kver2> ..."
+  echo "Usage: $0 [-c <dir>] [-d <dir>] [-f] [-h] [-j <jobs>] [-p <patchdir>] [-q] <kver1> <kver2> ..."
   echo "        -c - cache directory for Linux kernel tarballs."
   echo "        -d - directory for temporary regression test files."
   echo "        -h - display this help information."
@@ -152,6 +152,27 @@ See also http://lkml.org/lkml/2009/9/26/51
  
  #define kmemcheck_annotate_variable(var)				\
  	do {								\
+EOF
+    fi
+    if [ "$1" = 2.6.32 -o "${1#2.6.32.}" != "$1" -o "$1" = "2.6.33" \
+	 -o "${1#2.6.33.}" != "$1" ]
+    then
+      cd "../linux-$1" || return $?
+      patch -f -s -p1 <<'EOF'
+Get rid of sparse errors on sk_buff.protocol.
+
+--- linux/include/linux/skbuff-orig.h	2010-12-07 13:40:51.000000000 -0500
++++ linux/include/linux/skbuff.h	2010-12-07 13:41:05.000000000 -0500
+@@ -349,8 +349,8 @@ struct sk_buff {
+ 				ipvs_property:1,
+ 				peeked:1,
+ 				nf_trace:1;
+-	__be16			protocol:16;
+ 	kmemcheck_bitfield_end(flags1);
++	__be16			protocol;
+ 
+ 	void			(*destructor)(struct sk_buff *skb);
+ #if defined(CONFIG_NF_CONNTRACK) || defined(CONFIG_NF_CONNTRACK_MODULE)
 EOF
     fi
   )
@@ -271,7 +292,9 @@ function download_kernel {
     download_file "${kernel_mirror}/linux-$(kernel_version $1).tar.bz2" \
       || return $?
     if [ "${plevel}" != "" ]; then
-      download_file "${kernel_mirror}/patch-$1.bz2" || return $?
+      download_file "${kernel_mirror}/patch-$1.bz2" \
+        || download_file "${kernel_longterm}/v$(kernel_version $1)/patch-$1.bz2" \
+        || return $?
     fi
   )
 }
@@ -283,21 +306,17 @@ function generate_kernel_patch {
   local kver="$(kernel_version $1)"
   local patchfile="${outputdir}/scst-$1-kernel.patch"
   local patchfile_m="${outputdir}/scst-$1-kernel-matching-line-numbers.patch"
+  local driver_options=""
 
-  SIGNED_OFF_BY="..." \
-  scripts/generate-kernel-patch \
-    $([ "${scst_local}" = "true" ] && echo "-l") \
-    $([ "${mpt_scst}"   = "true" ] && echo "-m") \
-    $([ "${qla2x00t}"   = "true" ] && echo "-q") \
-    $2 $1 > "${patchfile}"
+  driver_options="$([ "${scst_local}" = "true" ] && echo "-l") \
+                  $([ "${mpt_scst}"   = "true" ] && echo "-m") \
+                  $([ "${qla2x00t}"   = "true" ] && echo "-q")"
 
-  SIGNED_OFF_BY="..." \
-  scripts/generate-kernel-patch \
-    -n                                           \
-    $([ "${scst_local}" = "true" ] && echo "-l") \
-    $([ "${mpt_scst}"   = "true" ] && echo "-m") \
-    $([ "${qla2x00t}"   = "true" ] && echo "-q") \
-    $2 $1 > "${patchfile_m}"
+  scripts/generate-kernel-patch ${driver_options} $2 $1 > "${patchfile}"
+
+  scripts/generate-kernel-patch ${driver_options} -n $2 $1 > "${patchfile_m}"
+
+  scripts/generate-kernel-patch ${driver_options} -p "${outputdir}/${patchdir}" $2 $1
 }
 
 # Run checkpatch on the generated kernel patch. Assumes that there is a
@@ -309,11 +328,22 @@ function run_checkpatch  {
   local outputfile="${outputdir}/checkpatch-$1-output.txt"
   local patchfile="${outputdir}/scst-$1-kernel.patch"
 
-  if [ -e "${outputdir}/linux-$1/scripts/checkpatch.pl" ]
-  then
-    echo "Running checkpatch on the SCST kernel patch ..."
-    ( cd "${outputdir}/linux-$1" \
-      && scripts/checkpatch.pl - < "${patchfile}" &> "${outputfile}")
+  if [ -e "${outputdir}/linux-$1/scripts/checkpatch.pl" ]; then
+    if [ "${multiple_patches}" = "false" ]; then
+      echo "Running checkpatch on the SCST kernel patch ..."
+      ( cd "${outputdir}/linux-$1" \
+        && scripts/checkpatch.pl --no-tree --no-signoff - < "${patchfile}" &> "${outputfile}")
+    else
+      echo "Running checkpatch on the SCST kernel patches ..."
+      rm -f "${outputfile}"
+      ( cd "${outputdir}/linux-$1" \
+        && for p in "${outputdir}/${patchdir}"/*
+           do
+             echo "==== $p" >>"${outputfile}"
+             scripts/checkpatch.pl --no-tree --no-signoff - < "$p" >> "${outputfile}" 2>&1
+           done
+      )
+    fi
     local errors=$(grep -c '^ERROR' "${outputfile}")
     local warnings=$(grep -c '^WARNING' "${outputfile}")
     echo "${errors} errors / ${warnings} warnings."
@@ -325,14 +355,33 @@ function run_checkpatch  {
 }
 
 function patch_and_configure_kernel {
+  local kver="$(kernel_version $1)"
   local patchfile="${outputdir}/scst-$1-kernel-matching-line-numbers.patch"
+  local patchoutput="${outputdir}/patch-command-output-$1.txt"
 
   echo "Patching and configuring kernel ..."
   (
-    cd "${outputdir}/linux-$1"                                     \
-    && patch -p1 -f -s <"${patchfile}"                             \
-                       >"${outputdir}/patch-command-output-$1.txt" \
-    && make -s allmodconfig &>/dev/null                            \
+    local srcdir="$PWD"
+    cd "${outputdir}/linux-$1"                                      \
+    && if [ "${multiple_patches}" = "false" ]; then
+         patch -p1 -f -s <"${patchfile}" >"${patchoutput}"
+       else
+         rm -f "${patchoutput}"
+         for p in "${outputdir}/${patchdir}"/*
+         do
+           echo "==== $p" >>"${patchoutput}"
+           patch -p1 -f -s <"${p}" >>"${patchoutput}" 2>&1
+         done
+       fi \
+    && if [ -e $srcdir/srpt/patches/kernel-${kver}-pre-cflags.patch ]; then 
+         echo "$srcdir/srpt/patches/kernel-${kver}-pre-cflags.patch ..." \
+           >>"${patchoutput}"
+         patch -p1 -f -s <$srcdir/srpt/patches/kernel-${kver}-pre-cflags.patch \
+	   >>"${patchoutput}";
+       else
+         echo "srpt/patches/kernel-${kver}-pre-cflags.patch not found."; \
+       fi \
+    && make -s allmodconfig &>"${outputdir}/make-config-output.txt" \
     && sed -i.tmp 's/^CONFIG_DEBUG_STRICT_USER_COPY_CHECKS=y$/CONFIG_DEBUG_STRICT_USER_COPY_CHECKS=n/' .config \
     && for c in CONFIG_BINARY_PRINTF CONFIG_BLK_DEV_IO_TRACE CONFIG_BRANCH_PROFILE_NONE CONFIG_CONTEXT_SWITCH_TRACER CONFIG_DYNAMIC_FTRACE CONFIG_EVENT_TRACE_TEST_SYSCALLS CONFIG_EVENT_TRACING CONFIG_FTRACE CONFIG_FTRACE_MCOUNT_RECORD CONFIG_FTRACE_NMI_ENTER CONFIG_FTRACE_SELFTEST CONFIG_FTRACE_STARTUP_TEST CONFIG_FTRACE_SYSCALLS CONFIG_FUNCTION_GRAPH_TRACER CONFIG_FUNCTION_PROFILER CONFIG_FUNCTION_TRACER CONFIG_GENERIC_TRACER CONFIG_HAVE_FTRACE_NMI_ENTER CONFIG_IRQSOFF_TRACER CONFIG_IWLWIFI_DEVICE_TRACING CONFIG_IWM_TRACING CONFIG_KVM_MMU_AUDIT CONFIG_MAC80211_DRIVER_API_TRACER CONFIG_MMIOTRACE CONFIG_NET_DROP_MONITOR CONFIG_NOP_TRACER CONFIG_SCHED_TRACER CONFIG_STACK_TRACER CONFIG_TRACEPOINTS CONFIG_TRACER_MAX_TRACE CONFIG_TRACING; do sed -i.tmp "s/^$c=y\$/$c=n/" .config; done \
     && make -s oldconfig &>/dev/null 
@@ -383,17 +432,21 @@ function compile_kernel {
 # For more information about endianness annotations, see also
 # http://lwn.net/Articles/205624/.
 function run_sparse {
+  local k="$1"
   local kver="$(kernel_version $1)"
   local plevel="$(patchlevel $1)"
   local outputfile="${outputdir}/sparse-$1-output.txt"
   local subdir="$2"
+  shift
+  shift
 
-  echo "Running sparse on the patched kernel ..."
-  (
-    cd "${outputdir}/linux-$1" \
+  echo "Running sparse on the patched kernel in ${subdir} $@ ..."
+  ( 
+    cd "${outputdir}/linux-$k" \
     && make -s prepare \
     && make -s scripts \
-    && LC_ALL=C make -k C=2 CF=-D__CHECK_ENDIAN__ M="${subdir}"
+    && if grep -q '^CONFIG_PPC=y$' .config; then LC_ALL=C make -k M=arch/powerpc/lib; fi \
+    && LC_ALL=C make -k C=2 CF=-D__CHECK_ENDIAN__ M="${subdir}" "$@"
   ) &> "${outputfile}"
   local errors=$(grep -c ' error:' "${outputfile}")
   local warnings=$(grep -c ' warning:' "${outputfile}")
@@ -492,18 +545,21 @@ fi
 kernel_sources="$HOME/software/downloads"
 # URL for downloading kernel tarballs and kernel patches.
 kernel_mirror="ftp://ftp.eu.kernel.org/pub/linux/kernel/v2.6"
+kernel_longterm="http://www.kernel.org/pub/linux/kernel/v2.6/longterm"
 kernel_versions=""
 # Directory in which the regression test output files will be stored. Must be
 # an absolute path.
 outputdir="${PWD}/regression-test-output-$(date +%Y-%m-%d_%Hh%Mm%Ss)"
 # Driver configuration.
 mpt_scst="false"
+multiple_patches="false"
 qla2x00t="false"
 remove_temporary_files_at_end="false"
+run_local_compilation="true"
 scst_local="true"
 quiet_download="false"
 
-set -- $(/usr/bin/getopt "c:d:j:hkq" "$@")
+set -- $(/usr/bin/getopt "c:d:j:hklpq" "$@")
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
@@ -512,6 +568,8 @@ do
     '-h') usage; exit 1;;
     '-j') export MAKEFLAGS="-j$2"; shift; shift;;
     '-k') remove_temporary_files_at_end="true"; shift;;
+    '-l') run_local_compilation="false"; shift;;
+    '-p') multiple_patches="true"; shift;;
     '-q') quiet_download="true"; shift;;
     '--') shift;;
     *)    usage; exit 1;;
@@ -552,10 +610,12 @@ if ! mkdir -p "${outputdir}"; then
 fi
 
 test_scst_tree_patches || exit $?
-compile_scst_unpatched || exit $?
-compile_scst_patched debug2release || exit $?
-compile_scst_patched debug2perf    || exit $?
-compile_scst_patched enable_proc  || exit $?
+if [ "${run_local_compilation}" = "true" ]; then
+  compile_scst_unpatched || exit $?
+  compile_scst_patched debug2release || exit $?
+  compile_scst_patched debug2perf    || exit $?
+  compile_scst_patched enable_proc  || exit $?
+fi
 
 first_iteration="true"
 for kv in ${kernel_versions}
@@ -566,8 +626,10 @@ do
 
   full_check="false"
   generate_kernel_patch_options=""
+  ibmvio="false"
   run_checkpatch="true"
   run_sparse="true"
+  global_multiple_patches="${multiple_patches}"
   while [ "${kv%-?}" != "${kv}" -o "${kv%-??}" != "${kv}" ]; do
     kv_without_opt="${kv%-?}"
     if [ "${kv_without_opt}" = "${kv}" ]; then
@@ -576,13 +638,16 @@ do
     kopt="${kv#${kv_without_opt}}"
     case "${kopt}" in
       '-f')  full_check="true";;
+      '-i')  ibmvio="true";;
       '-nc') run_checkpatch="false";;
       '-ns') run_sparse="false";;
       '-u')  generate_kernel_patch_options="-u";;
+      '-p')  multiple_patches="true";;
       *)     echo "Error: unknown option ${kopt}."; exit 1;;
     esac
     kv="${kv_without_opt}"
   done
+  patchdir="patchdir-${kv}"
   k="${kv}"
 
   download_kernel $k || continue
@@ -594,6 +659,18 @@ do
   patch_and_configure_kernel $k
   if [ "${run_sparse}" = "true" ]; then
     run_sparse $k drivers/scst
+    mv ${outputdir}/sparse-$k-output.txt ${outputdir}/sparse-$k-scst-output.txt
+    if [ "${ibmvio}" = "true" ]; then
+      run_sparse $k drivers/scsi libsrp.ko scsi_sysfs.ko \
+                                 scsi_transport_fc.ko scsi_transport_srp.ko
+      mv ${outputdir}/sparse-$k-output.txt \
+         ${outputdir}/sparse-$k-scsi-output.txt
+      if [ $(uname -m) = "ppc32" -o $(uname -m) = "ppc64" ]; then
+        run_sparse $k drivers/scsi/ibmvscsi ibmvstgt.ko
+        mv ${outputdir}/sparse-$k-output.txt \
+           ${outputdir}/sparse-$k-ibmvstgt-output.txt
+      fi
+    fi
   fi
   compile_kernel $k drivers/scst
   if [ "${full_check}" = "true" ]; then
@@ -607,4 +684,6 @@ do
     rm -rf "${outputdir}"
     mkdir -p "${outputdir}"
   fi
+
+  multiple_patches="${global_multiple_patches}"
 done
