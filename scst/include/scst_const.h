@@ -194,8 +194,8 @@ enum scst_cdb_flags {
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
 	SCST_TEST_IO_IN_SIRQ_ALLOWED =		0x4000,
 #endif
-	SCST_SERIALIZED =	 		0x8000,
-	SCST_STRICTLY_SERIALIZED = 		0x10000|SCST_SERIALIZED,
+	SCST_SERIALIZED =			0x8000,
+	SCST_STRICTLY_SERIALIZED =		0x10000|SCST_SERIALIZED,
 };
 
 /*************************************************************
