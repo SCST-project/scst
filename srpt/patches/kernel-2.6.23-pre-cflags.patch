@@ -1,0 +1,11 @@
+--- linux-2.6.23.17/scripts/Makefile.lib.orig	2011-04-10 10:29:50.000000000 -0400
++++ linux-2.6.23.17/scripts/Makefile.lib	2011-04-10 10:30:27.000000000 -0400
+@@ -86,7 +86,7 @@
+ modname_flags  = $(if $(filter 1,$(words $(modname))),\
+                  -D"KBUILD_MODNAME=KBUILD_STR($(call name-fix,$(modname)))")
+ 
+-_c_flags       = $(CFLAGS) $(EXTRA_CFLAGS) $(CFLAGS_$(basetarget).o)
++_c_flags       = $(PRE_CFLAGS) $(CFLAGS) $(EXTRA_CFLAGS) $(CFLAGS_$(basetarget).o)
+ _a_flags       = $(AFLAGS) $(EXTRA_AFLAGS) $(AFLAGS_$(basetarget).o)
+ _cpp_flags     = $(CPPFLAGS) $(EXTRA_CPPFLAGS) $(CPPFLAGS_$(@F))
+ 
