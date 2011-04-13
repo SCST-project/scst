@@ -251,24 +251,24 @@ extern bool scst_del_thr_data(struct scst_tgt_dev *tgt_dev,
 extern struct scst_dev_type scst_null_devtype;
 
 extern struct scst_cmd *__scst_check_deferred_commands(
-	struct scst_tgt_dev *tgt_dev);
+	struct scst_order_data *order_data);
 
 /* Used to save the function call on the fast path */
 static inline struct scst_cmd *scst_check_deferred_commands(
-	struct scst_tgt_dev *tgt_dev)
+	struct scst_order_data *order_data)
 {
-	if (tgt_dev->def_cmd_count == 0)
+	if (order_data->def_cmd_count == 0)
 		return NULL;
 	else
-		return __scst_check_deferred_commands(tgt_dev);
+		return __scst_check_deferred_commands(order_data);
 }
 
 static inline void scst_make_deferred_commands_active(
-	struct scst_tgt_dev *tgt_dev)
+	struct scst_order_data *order_data)
 {
 	struct scst_cmd *c;
 
-	c = __scst_check_deferred_commands(tgt_dev);
+	c = __scst_check_deferred_commands(order_data);
 	if (c != NULL) {
 		TRACE_SN("Adding cmd %p to active cmd list", c);
 		spin_lock_irq(&c->cmd_threads->cmd_list_lock);
@@ -281,10 +281,10 @@ static inline void scst_make_deferred_commands_active(
 	return;
 }
 
-void scst_inc_expected_sn(struct scst_tgt_dev *tgt_dev, atomic_t *slot);
+void scst_inc_expected_sn(struct scst_order_data *order_data, atomic_t *slot);
 int scst_check_hq_cmd(struct scst_cmd *cmd);
 
-void scst_unblock_deferred(struct scst_tgt_dev *tgt_dev,
+void scst_unblock_deferred(struct scst_order_data *order_data,
 	struct scst_cmd *cmd_sn);
 
 void scst_on_hq_cmd_response(struct scst_cmd *cmd);
@@ -537,43 +537,32 @@ void scst_free_aen(struct scst_aen *aen);
 void scst_gen_aen_or_ua(struct scst_tgt_dev *tgt_dev,
 	int key, int asc, int ascq);
 
-static inline bool scst_is_implicit_hq(struct scst_cmd *cmd)
+static inline bool scst_is_implicit_hq_cmd(struct scst_cmd *cmd)
 {
 	return (cmd->op_flags & SCST_IMPLICIT_HQ) != 0;
+}
+
+static inline bool scst_is_serialized_cmd(struct scst_cmd *cmd)
+{
+	return (cmd->op_flags & SCST_SERIALIZED) != 0;
+}
+
+static inline bool scst_is_strictly_serialized_cmd(struct scst_cmd *cmd)
+{
+	return (cmd->op_flags & SCST_STRICTLY_SERIALIZED) == SCST_STRICTLY_SERIALIZED;
 }
 
 /*
  * Some notes on devices "blocking". Blocking means that no
  * commands will go from SCST to underlying SCSI device until it
- * is unblocked. But we don't care about all commands that
- * already on the device.
+ * is unblocked. But, except for strictly serialized commands,
+ * we don't care about all commands that already on the device.
  */
 
 extern void scst_block_dev(struct scst_device *dev);
 extern void scst_unblock_dev(struct scst_device *dev);
 
-extern bool __scst_check_blocked_dev(struct scst_cmd *cmd);
-
-static inline bool scst_check_blocked_dev(struct scst_cmd *cmd)
-{
-	if (unlikely(cmd->dev->block_count > 0) ||
-	    unlikely(cmd->dev->dev_double_ua_possible))
-		return __scst_check_blocked_dev(cmd);
-	else
-		return false;
-}
-
-/* No locks */
-static inline void scst_check_unblock_dev(struct scst_cmd *cmd)
-{
-	if (unlikely(cmd->unblock_dev)) {
-		TRACE_MGMT_DBG("cmd %p (tag %llu): unblocking dev %p", cmd,
-			       (long long unsigned int)cmd->tag, cmd->dev);
-		cmd->unblock_dev = 0;
-		scst_unblock_dev(cmd->dev);
-	}
-	return;
-}
+bool __scst_check_blocked_dev(struct scst_cmd *cmd);
 
 /*
  * Increases global SCST ref counters which prevent from entering into suspended

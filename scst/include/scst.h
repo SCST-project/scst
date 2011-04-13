@@ -1692,6 +1692,34 @@ struct scst_cmd_threads {
 };
 
 /*
+ * Used to execute cmd's in order of arrival, honoring SCSI task attributes
+ */
+struct scst_order_data {
+	/*
+	 * Protected by sn_lock, except expected_sn, which is protected by
+	 * itself. Curr_sn must have the same size as expected_sn to
+	 * overflow simultaneously.
+	 */
+	int def_cmd_count;
+	spinlock_t sn_lock;
+	unsigned int expected_sn;
+	unsigned int curr_sn;
+	int hq_cmd_count;
+	struct list_head deferred_cmd_list;
+	struct list_head skipped_sn_list;
+
+	/*
+	 * Set if the prev cmd was ORDERED. Size and, hence, alignment must
+	 * allow unprotected modifications independently to the neighbour fields.
+	 */
+	unsigned long prev_cmd_ordered;
+
+	int num_free_sn_slots; /* if it's <0, then all slots are busy */
+	atomic_t *cur_sn_slot;
+	atomic_t sn_slots[15];
+};
+
+/*
  * SCST command, analog of I_T_L_Q nexus or task
  */
 struct scst_cmd {
@@ -1743,6 +1771,12 @@ struct scst_cmd {
 
 	/* Set if the device was blocked by scst_check_blocked_dev() */
 	unsigned int unblock_dev:1;
+
+	/* Set if this cmd incremented dev->pr_readers_count */
+	unsigned int dec_pr_readers_count_needed:1;
+
+	/* Set if scst_dec_on_dev_cmd() call is needed on the cmd's finish */
+	unsigned int dec_on_dev_needed:1;
 
 	/* Set if cmd is queued as hw pending */
 	unsigned int cmd_hw_pending:1;
@@ -1851,7 +1885,10 @@ struct scst_cmd {
 	struct scst_tgt *tgt;		/* to save extra dereferences */
 	struct scst_device *dev;	/* to save extra dereferences */
 
-	struct scst_tgt_dev *tgt_dev;	/* corresponding device for this cmd */
+	/* corresponding I_T_L device for this cmd */
+	struct scst_tgt_dev *tgt_dev;
+
+	struct scst_order_data *cur_order_data; /* to save extra dereferences */
 
 	uint64_t lun;			/* LUN for this cmd */
 
@@ -2148,6 +2185,9 @@ struct scst_device {
 	/* If set, dev is read only */
 	unsigned short rd_only:1;
 
+	/* Set, if a strictly serialized cmd is waiting blocked */
+	unsigned short strictly_serialized_cmd_waiting:1;
+
 	/**************************************************************/
 
 	/*************************************************************
@@ -2171,14 +2211,28 @@ struct scst_device {
 
 	/**************************************************************/
 
+	/* How many cmds alive on this dev */
+	atomic_t dev_cmd_count;
+
+	spinlock_t dev_lock; /* device lock */
+
 	/*
 	 * How many times device was blocked for new cmds execution.
-	 * Protected by dev_lock
+	 * Protected by dev_lock.
 	 */
 	int block_count;
 
-	/* How many cmds alive on this dev */
-	atomic_t dev_cmd_count;
+	/*
+	 * How many there are "on_dev" commands, i.e. ones who passed
+	 * scst_check_blocked_dev(). Protected by dev_lock.
+	 */
+	int on_dev_cmd_count;
+
+	/*
+	 * How many threads are checking commands for PR allowance.
+	 * Protected by dev_lock.
+	 */
+	int pr_readers_count;
 
 	/*
 	 * Set if dev is persistently reserved. Protected by dev_pr_mutex.
@@ -2191,12 +2245,6 @@ struct scst_device {
 	 * Protected by dev_pr_mutex.
 	 */
 	unsigned int pr_writer_active:1;
-
-	/*
-	 * How many threads are checking commands for PR allowance. Used to
-	 * implement lockless read-only fast path.
-	 */
-	atomic_t pr_readers_count;
 
 	struct scst_dev_type *handler;	/* corresponding dev handler */
 
@@ -2247,27 +2295,26 @@ struct scst_device {
 	 */
 	int not_pr_supporting_tgt_devs_num;
 
+	struct scst_order_data dev_order_data;
+
 	/* Persist through power loss files */
 	char *pr_file_name;
 	char *pr_file_name1;
 
 	/**************************************************************/
 
-	spinlock_t dev_lock;		/* device lock */
-
-	struct list_head blocked_cmd_list; /* protected by dev_lock */
+	/* List of blocked commands, protected by dev_lock. */
+	struct list_head blocked_cmd_list;
 
 	/* A list entry used during TM, protected by scst_mutex */
 	struct list_head tm_dev_list_entry;
 
-	/* Virtual device internal ID */
-	int virt_id;
+	int virt_id; /* virtual device internal ID */
 
 	/* Pointer to virtual device name, for convenience only */
 	char *virt_name;
 
-	/* List entry in global devices list */
-	struct list_head dev_list_entry;
+	struct list_head dev_list_entry; /* list entry in global devices list */
 
 	/*
 	 * List of tgt_dev's, one per session, protected by scst_mutex or
@@ -2346,31 +2393,8 @@ struct scst_tgt_dev {
 	/* How many cmds alive on this dev in this session */
 	atomic_t tgt_dev_cmd_count;
 
-	/*
-	 * Used to execute cmd's in order of arrival, honoring SCSI task
-	 * attributes.
-	 *
-	 * Protected by sn_lock, except expected_sn, which is protected by
-	 * itself. Curr_sn must have the same size as expected_sn to
-	 * overflow simultaneously.
-	 */
-	int def_cmd_count;
-	spinlock_t sn_lock;
-	unsigned int expected_sn;
-	unsigned int curr_sn;
-	int hq_cmd_count;
-	struct list_head deferred_cmd_list;
-	struct list_head skipped_sn_list;
-
-	/*
-	 * Set if the prev cmd was ORDERED. Size and, hence, alignment must
-	 * allow unprotected modifications independently to the neighbour fields.
-	 */
-	unsigned long prev_cmd_ordered;
-
-	int num_free_sn_slots; /* if it's <0, then all slots are busy */
-	atomic_t *cur_sn_slot;
-	atomic_t sn_slots[15];
+	struct scst_order_data *curr_order_data;
+	struct scst_order_data tgt_dev_order_data;
 
 	/* List of scst_thr_data_hdr and lock */
 	spinlock_t thr_data_lock;

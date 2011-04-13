@@ -1571,8 +1571,8 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 		n++;
 	}
 
-	TRACE_DBG("cmd_threads %p, dev %p, tgt_dev %p, num %d, n %d",
-		cmd_threads, dev, tgt_dev, num, n);
+	TRACE_DBG("cmd_threads %p, dev %s, tgt_dev %p, num %d, n %d",
+		cmd_threads, dev->virt_name, tgt_dev, num, n);
 
 	if (tgt_dev != NULL) {
 		struct scst_tgt_dev *t;
@@ -2139,11 +2139,11 @@ static int __init init_scst(void)
 
 	{
 		struct scsi_sense_hdr *shdr;
-		struct scst_tgt_dev *t;
+		struct scst_order_data *o;
 		struct scst_cmd *c;
 		BUILD_BUG_ON(SCST_SENSE_BUFFERSIZE < sizeof(*shdr));
-		BUILD_BUG_ON(sizeof(t->curr_sn) != sizeof(t->expected_sn));
-		BUILD_BUG_ON(sizeof(c->sn) != sizeof(t->expected_sn));
+		BUILD_BUG_ON(sizeof(o->curr_sn) != sizeof(o->expected_sn));
+		BUILD_BUG_ON(sizeof(c->sn) != sizeof(o->expected_sn));
 	}
 
 	mutex_init(&scst_mutex);

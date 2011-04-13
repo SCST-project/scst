@@ -175,10 +175,6 @@ enum scst_cmd_queue_type {
 
 /*************************************************************
  ** CDB flags
- **
- ** Implicit ordered used for commands which need calm environment
- ** without any simultaneous activities. For instance, for MODE
- ** SELECT it is needed to correctly generate its UA.
  *************************************************************/
 enum scst_cdb_flags {
 	SCST_TRANSFER_LEN_TYPE_FIXED =		0x0001,
@@ -196,8 +192,10 @@ enum scst_cdb_flags {
 	SCST_WRITE_EXCL_ALLOWED =		0x1000,
 	SCST_EXCL_ACCESS_ALLOWED =		0x2000,
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
-	SCST_TEST_IO_IN_SIRQ_ALLOWED =		0x8000,
+	SCST_TEST_IO_IN_SIRQ_ALLOWED =		0x4000,
 #endif
+	SCST_SERIALIZED =	 		0x8000,
+	SCST_STRICTLY_SERIALIZED = 		0x10000|SCST_SERIALIZED,
 };
 
 /*************************************************************

@@ -2458,7 +2458,7 @@ bool scst_pr_is_cmd_allowed(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	unlock = scst_pr_read_lock(dev);
+	unlock = scst_pr_read_lock(cmd);
 
 	TRACE_DBG("Testing if command %s (0x%x) from %s allowed to execute",
 		cmd->op_name, cmd->cdb[0], cmd->sess->initiator_name);
@@ -2518,7 +2518,7 @@ bool scst_pr_is_cmd_allowed(struct scst_cmd *cmd)
 			cmd->op_name, cmd->cdb[0], cmd->sess->initiator_name);
 
 out_unlock:
-	scst_pr_read_unlock(dev, unlock);
+	scst_pr_read_unlock(cmd, unlock);
 
 	TRACE_EXIT_RES(allowed);
 	return allowed;
@@ -2540,7 +2540,7 @@ void scst_pr_read_keys(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 	}
 
 	TRACE_PR("Read Keys (dev %s): PRGen %d", dev->virt_name,
-			dev->pr_generation);
+		dev->pr_generation);
 
 	put_unaligned(cpu_to_be32(dev->pr_generation), (__be32 *)&buffer[0]);
 

@@ -102,6 +102,77 @@ static inline void scst_schedule_tasklet(struct scst_cmd *cmd)
 	return;
 }
 
+/* No locks */
+static bool scst_check_blocked_dev(struct scst_cmd *cmd)
+{
+	bool res;
+	struct scst_device *dev = cmd->dev;
+
+	spin_lock_bh(&dev->dev_lock);
+
+	dev->on_dev_cmd_count++;
+	cmd->dec_on_dev_needed = 1;
+	TRACE_DBG("New inc on_dev_count %d (cmd %p)", dev->on_dev_cmd_count,
+		cmd);
+
+	scst_inc_pr_readers_count(cmd, true);
+
+	if (unlikely(dev->block_count > 0) ||
+	    unlikely(dev->dev_double_ua_possible) ||
+	    unlikely(scst_is_serialized_cmd(cmd)))
+		res = __scst_check_blocked_dev(cmd);
+	else
+		res = false;
+
+	if (unlikely(res)) {
+		/* Undo increments */
+		dev->on_dev_cmd_count--;
+		cmd->dec_on_dev_needed = 0;
+		TRACE_DBG("New dec on_dev_count %d (cmd %p)",
+			dev->on_dev_cmd_count, cmd);
+
+		scst_dec_pr_readers_count(cmd, true);
+	}
+
+	spin_unlock_bh(&dev->dev_lock);
+
+	return res;
+}
+
+/* No locks */
+static void scst_check_unblock_dev(struct scst_cmd *cmd)
+{
+	struct scst_device *dev = cmd->dev;
+
+	spin_lock_bh(&dev->dev_lock);
+
+	if (likely(cmd->dec_on_dev_needed)) {
+		dev->on_dev_cmd_count--;
+		cmd->dec_on_dev_needed = 0;
+		TRACE_DBG("New dec on_dev_count %d (cmd %p)",
+			dev->on_dev_cmd_count, cmd);
+	}
+
+	if (unlikely(cmd->dec_pr_readers_count_needed))
+		scst_dec_pr_readers_count(cmd, true);
+
+	if (unlikely(cmd->unblock_dev)) {
+		TRACE_MGMT_DBG("cmd %p (tag %llu): unblocking dev %s", cmd,
+			(long long unsigned int)cmd->tag, dev->virt_name);
+		cmd->unblock_dev = 0;
+		scst_unblock_dev(dev);
+	} else if (unlikely(dev->strictly_serialized_cmd_waiting)) {
+		if (dev->on_dev_cmd_count == 0) {
+			TRACE_MGMT_DBG("Strictly serialized cmd waiting: "
+				"unblocking dev %s", dev->virt_name);
+			scst_unblock_dev(dev);
+		}
+	}
+
+	spin_unlock_bh(&dev->dev_lock);
+	return;
+}
+
 /**
  * scst_rx_cmd() - create new command
  * @sess:	SCST session
@@ -2304,7 +2375,7 @@ out_done:
  * !! Dev handlers implementing exec() callback must call this function there
  * !! just before the actual command's execution!
  *
- *    On call no locks, no IRQ or IRQ-disabled context allowed.
+ * On call no locks, no IRQ or IRQ-disabled context allowed.
  */
 int scst_check_local_events(struct scst_cmd *cmd)
 {
@@ -2327,7 +2398,7 @@ int scst_check_local_events(struct scst_cmd *cmd)
 		if ((cmd->op_flags & SCST_REG_RESERVE_ALLOWED) == 0) {
 			scst_set_cmd_error_status(cmd,
 				SAM_STAT_RESERVATION_CONFLICT);
-			goto out_complete;
+			goto out_dec_pr_readers_count;
 		}
 	}
 
@@ -2337,7 +2408,8 @@ int scst_check_local_events(struct scst_cmd *cmd)
 				SAM_STAT_RESERVATION_CONFLICT);
 			goto out_complete;
 		}
-	}
+	} else
+		scst_dec_pr_readers_count(cmd, false);
 
 	/*
 	 * Let's check for ABORTED after scst_pr_is_cmd_allowed(), because
@@ -2354,8 +2426,7 @@ int scst_check_local_events(struct scst_cmd *cmd)
 		if (scst_is_ua_command(cmd)) {
 			int done = 0;
 			/*
-			 * Prevent more than 1 cmd to be triggered by
-			 * was_reset.
+			 * Prevent more than 1 cmd to be triggered by was_reset
 			 */
 			spin_lock_bh(&dev->dev_lock);
 			if (dev->scsi_dev->was_reset) {
@@ -2364,7 +2435,7 @@ int scst_check_local_events(struct scst_cmd *cmd)
 					  SCST_LOAD_SENSE(scst_sense_reset_UA));
 				/*
 				 * It looks like it is safe to clear was_reset
-				 * here.
+				 * here
 				 */
 				dev->scsi_dev->was_reset = 0;
 				done = 1;
@@ -2391,6 +2462,10 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 
+out_dec_pr_readers_count:
+	if (cmd->dec_pr_readers_count_needed)
+		scst_dec_pr_readers_count(cmd, false);
+
 out_complete:
 	res = 1;
 	sBUG_ON(!cmd->completed);
@@ -2403,36 +2478,34 @@ out_uncomplete:
 EXPORT_SYMBOL_GPL(scst_check_local_events);
 
 /* No locks */
-void scst_inc_expected_sn(struct scst_tgt_dev *tgt_dev, atomic_t *slot)
+void scst_inc_expected_sn(struct scst_order_data *order_data, atomic_t *slot)
 {
 	if (slot == NULL)
 		goto inc;
 
 	/* Optimized for lockless fast path */
 
-	TRACE_SN("Slot %zd, *cur_sn_slot %d", slot - tgt_dev->sn_slots,
+	TRACE_SN("Slot %zd, *cur_sn_slot %d", slot - order_data->sn_slots,
 		atomic_read(slot));
 
 	if (!atomic_dec_and_test(slot))
 		goto out;
 
 	TRACE_SN("Slot is 0 (num_free_sn_slots=%d)",
-		tgt_dev->num_free_sn_slots);
-	if (tgt_dev->num_free_sn_slots < (int)ARRAY_SIZE(tgt_dev->sn_slots)-1) {
-		spin_lock_irq(&tgt_dev->sn_lock);
-		if (likely(tgt_dev->num_free_sn_slots < (int)ARRAY_SIZE(tgt_dev->sn_slots)-1)) {
-			if (tgt_dev->num_free_sn_slots < 0)
-				tgt_dev->cur_sn_slot = slot;
-			/*
-			 * To be in-sync with SIMPLE case in scst_cmd_set_sn()
-			 */
+		order_data->num_free_sn_slots);
+	if (order_data->num_free_sn_slots < (int)ARRAY_SIZE(order_data->sn_slots)-1) {
+		spin_lock_irq(&order_data->sn_lock);
+		if (likely(order_data->num_free_sn_slots < (int)ARRAY_SIZE(order_data->sn_slots)-1)) {
+			if (order_data->num_free_sn_slots < 0)
+				order_data->cur_sn_slot = slot;
+			/* To be in-sync with SIMPLE case in scst_cmd_set_sn() */
 			smp_mb();
-			tgt_dev->num_free_sn_slots++;
+			order_data->num_free_sn_slots++;
 			TRACE_SN("Incremented num_free_sn_slots (%d)",
-				tgt_dev->num_free_sn_slots);
+				order_data->num_free_sn_slots);
 
 		}
-		spin_unlock_irq(&tgt_dev->sn_lock);
+		spin_unlock_irq(&order_data->sn_lock);
 	}
 
 inc:
@@ -2441,13 +2514,13 @@ inc:
 	 * at time can be here (serialized by sn). Also it is supposed that
 	 * there could not be half-incremented halves.
 	 */
-	tgt_dev->expected_sn++;
+	order_data->expected_sn++;
 	/*
 	 * Write must be before def_cmd_count read to be in sync. with
 	 * scst_post_exec_sn(). See comment in scst_send_for_exec().
 	 */
 	smp_mb();
-	TRACE_SN("Next expected_sn: %d", tgt_dev->expected_sn);
+	TRACE_SN("Next expected_sn: %d", order_data->expected_sn);
 
 out:
 	return;
@@ -2460,19 +2533,19 @@ static struct scst_cmd *scst_post_exec_sn(struct scst_cmd *cmd,
 	/* For HQ commands SN is not set */
 	bool inc_expected_sn = !cmd->inc_expected_sn_on_done &&
 			       cmd->sn_set && !cmd->retry;
-	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
+	struct scst_order_data *order_data = cmd->cur_order_data;
 	struct scst_cmd *res;
 
 	TRACE_ENTRY();
 
 	if (inc_expected_sn)
-		scst_inc_expected_sn(tgt_dev, cmd->sn_slot);
+		scst_inc_expected_sn(order_data, cmd->sn_slot);
 
 	if (make_active) {
-		scst_make_deferred_commands_active(tgt_dev);
+		scst_make_deferred_commands_active(order_data);
 		res = NULL;
 	} else
-		res = scst_check_deferred_commands(tgt_dev);
+		res = scst_check_deferred_commands(order_data);
 
 	TRACE_EXIT_HRES(res);
 	return res;
@@ -2766,8 +2839,8 @@ static int scst_send_for_exec(struct scst_cmd **active_cmd)
 {
 	int res;
 	struct scst_cmd *cmd = *active_cmd;
-	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
-	typeof(tgt_dev->expected_sn) expected_sn;
+	struct scst_order_data *order_data = cmd->cur_order_data;
+	typeof(order_data->expected_sn) expected_sn;
 
 	TRACE_ENTRY();
 
@@ -2779,12 +2852,12 @@ static int scst_send_for_exec(struct scst_cmd **active_cmd)
 
 	sBUG_ON(!cmd->sn_set);
 
-	expected_sn = tgt_dev->expected_sn;
+	expected_sn = order_data->expected_sn;
 	/* Optimized for lockless fast path */
-	if ((cmd->sn != expected_sn) || (tgt_dev->hq_cmd_count > 0)) {
-		spin_lock_irq(&tgt_dev->sn_lock);
+	if ((cmd->sn != expected_sn) || (order_data->hq_cmd_count > 0)) {
+		spin_lock_irq(&order_data->sn_lock);
 
-		tgt_dev->def_cmd_count++;
+		order_data->def_cmd_count++;
 		/*
 		 * Memory barrier is needed here to implement lockless fast
 		 * path. We need the exact order of read and write between
@@ -2798,15 +2871,15 @@ static int scst_send_for_exec(struct scst_cmd **active_cmd)
 		 */
 		smp_mb();
 
-		expected_sn = tgt_dev->expected_sn;
-		if ((cmd->sn != expected_sn) || (tgt_dev->hq_cmd_count > 0)) {
+		expected_sn = order_data->expected_sn;
+		if ((cmd->sn != expected_sn) || (order_data->hq_cmd_count > 0)) {
 			if (unlikely(test_bit(SCST_CMD_ABORTED,
 					      &cmd->cmd_flags))) {
 				/* Necessary to allow aborting out of sn cmds */
 				TRACE_MGMT_DBG("Aborting out of sn cmd %p "
 					"(tag %llu, sn %u)", cmd,
 					(long long unsigned)cmd->tag, cmd->sn);
-				tgt_dev->def_cmd_count--;
+				order_data->def_cmd_count--;
 				scst_set_cmd_abnormal_done_state(cmd);
 				res = SCST_CMD_STATE_RES_CONT_SAME;
 			} else {
@@ -2814,16 +2887,16 @@ static int scst_send_for_exec(struct scst_cmd **active_cmd)
 					"expected_sn=%d)", cmd, cmd->sn,
 					cmd->sn_set, expected_sn);
 				list_add_tail(&cmd->sn_cmd_list_entry,
-					      &tgt_dev->deferred_cmd_list);
+					      &order_data->deferred_cmd_list);
 				res = SCST_CMD_STATE_RES_CONT_NEXT;
 			}
-			spin_unlock_irq(&tgt_dev->sn_lock);
+			spin_unlock_irq(&order_data->sn_lock);
 			goto out;
 		} else {
 			TRACE_SN("Somebody incremented expected_sn %d, "
 				"continuing", expected_sn);
-			tgt_dev->def_cmd_count--;
-			spin_unlock_irq(&tgt_dev->sn_lock);
+			order_data->def_cmd_count--;
+			spin_unlock_irq(&order_data->sn_lock);
 		}
 	}
 
@@ -3204,9 +3277,9 @@ out:
 static void scst_inc_check_expected_sn(struct scst_cmd *cmd)
 {
 	if (likely(cmd->sn_set))
-		scst_inc_expected_sn(cmd->tgt_dev, cmd->sn_slot);
+		scst_inc_expected_sn(cmd->cur_order_data, cmd->sn_slot);
 
-	scst_make_deferred_commands_active(cmd->tgt_dev);
+	scst_make_deferred_commands_active(cmd->cur_order_data);
 }
 
 static int scst_dev_done(struct scst_cmd *cmd)
@@ -3361,7 +3434,7 @@ static int scst_pre_xmit_response(struct scst_cmd *cmd)
 			TRACE_SN("cmd %p was not sent to mid-lev"
 				" (sn %d, set %d)",
 				cmd, cmd->sn, cmd->sn_set);
-			scst_unblock_deferred(cmd->tgt_dev, cmd);
+			scst_unblock_deferred(cmd->cur_order_data, cmd);
 			cmd->sent_for_exec = 1;
 		}
 	}
@@ -3621,12 +3694,12 @@ out:
  */
 static void scst_cmd_set_sn(struct scst_cmd *cmd)
 {
-	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
+	struct scst_order_data *order_data = cmd->cur_order_data;
 	unsigned long flags;
 
 	TRACE_ENTRY();
 
-	if (scst_is_implicit_hq(cmd) &&
+	if (scst_is_implicit_hq_cmd(cmd) &&
 	    likely(cmd->queue_type == SCST_CMD_QUEUE_SIMPLE)) {
 		TRACE_SN("Implicit HQ cmd %p", cmd);
 		cmd->queue_type = SCST_CMD_QUEUE_HEAD_OF_QUEUE;
@@ -3654,23 +3727,23 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 	switch (cmd->queue_type) {
 	case SCST_CMD_QUEUE_SIMPLE:
 	case SCST_CMD_QUEUE_UNTAGGED:
-		if (likely(tgt_dev->num_free_sn_slots >= 0)) {
+		if (likely(order_data->num_free_sn_slots >= 0)) {
 			/*
 			 * atomic_inc_return() implies memory barrier to sync
 			 * with scst_inc_expected_sn()
 			 */
-			if (atomic_inc_return(tgt_dev->cur_sn_slot) == 1) {
-				tgt_dev->curr_sn++;
+			if (atomic_inc_return(order_data->cur_sn_slot) == 1) {
+				order_data->curr_sn++;
 				TRACE_SN("Incremented curr_sn %d",
-					tgt_dev->curr_sn);
+					order_data->curr_sn);
 			}
-			cmd->sn_slot = tgt_dev->cur_sn_slot;
-			cmd->sn = tgt_dev->curr_sn;
+			cmd->sn_slot = order_data->cur_sn_slot;
+			cmd->sn = order_data->curr_sn;
 
-			tgt_dev->prev_cmd_ordered = 0;
+			order_data->prev_cmd_ordered = 0;
 		} else {
 			TRACE(TRACE_MINOR, "***WARNING*** Not enough SN slots "
-				"%zd", ARRAY_SIZE(tgt_dev->sn_slots));
+				"%zd", ARRAY_SIZE(order_data->sn_slots));
 			goto ordered;
 		}
 		break;
@@ -3678,44 +3751,44 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 	case SCST_CMD_QUEUE_ORDERED:
 		TRACE_SN("ORDERED cmd %p (op %x)", cmd, cmd->cdb[0]);
 ordered:
-		if (!tgt_dev->prev_cmd_ordered) {
-			spin_lock_irqsave(&tgt_dev->sn_lock, flags);
-			if (tgt_dev->num_free_sn_slots >= 0) {
-				tgt_dev->num_free_sn_slots--;
-				if (tgt_dev->num_free_sn_slots >= 0) {
+		if (!order_data->prev_cmd_ordered) {
+			spin_lock_irqsave(&order_data->sn_lock, flags);
+			if (order_data->num_free_sn_slots >= 0) {
+				order_data->num_free_sn_slots--;
+				if (order_data->num_free_sn_slots >= 0) {
 					int i = 0;
 					/* Commands can finish in any order, so
 					 * we don't know which slot is empty.
 					 */
 					while (1) {
-						tgt_dev->cur_sn_slot++;
-						if (tgt_dev->cur_sn_slot ==
-						      tgt_dev->sn_slots + ARRAY_SIZE(tgt_dev->sn_slots))
-							tgt_dev->cur_sn_slot = tgt_dev->sn_slots;
+						order_data->cur_sn_slot++;
+						if (order_data->cur_sn_slot ==
+						      order_data->sn_slots + ARRAY_SIZE(order_data->sn_slots))
+							order_data->cur_sn_slot = order_data->sn_slots;
 
-						if (atomic_read(tgt_dev->cur_sn_slot) == 0)
+						if (atomic_read(order_data->cur_sn_slot) == 0)
 							break;
 
 						i++;
-						sBUG_ON(i == ARRAY_SIZE(tgt_dev->sn_slots));
+						sBUG_ON(i == ARRAY_SIZE(order_data->sn_slots));
 					}
 					TRACE_SN("New cur SN slot %zd",
-						tgt_dev->cur_sn_slot -
-						tgt_dev->sn_slots);
+						order_data->cur_sn_slot -
+						order_data->sn_slots);
 				}
 			}
-			spin_unlock_irqrestore(&tgt_dev->sn_lock, flags);
+			spin_unlock_irqrestore(&order_data->sn_lock, flags);
 		}
-		tgt_dev->prev_cmd_ordered = 1;
-		tgt_dev->curr_sn++;
-		cmd->sn = tgt_dev->curr_sn;
+		order_data->prev_cmd_ordered = 1;
+		order_data->curr_sn++;
+		cmd->sn = order_data->curr_sn;
 		break;
 
 	case SCST_CMD_QUEUE_HEAD_OF_QUEUE:
 		TRACE_SN("HQ cmd %p (op %x)", cmd, cmd->cdb[0]);
-		spin_lock_irqsave(&tgt_dev->sn_lock, flags);
-		tgt_dev->hq_cmd_count++;
-		spin_unlock_irqrestore(&tgt_dev->sn_lock, flags);
+		spin_lock_irqsave(&order_data->sn_lock, flags);
+		order_data->hq_cmd_count++;
+		spin_unlock_irqrestore(&order_data->sn_lock, flags);
 		cmd->hq_cmd_inced = 1;
 		goto out;
 
@@ -3723,12 +3796,12 @@ ordered:
 		sBUG();
 	}
 
-	TRACE_SN("cmd(%p)->sn: %d (tgt_dev %p, *cur_sn_slot %d, "
+	TRACE_SN("cmd(%p)->sn: %d (order_data %p, *cur_sn_slot %d, "
 		"num_free_sn_slots %d, prev_cmd_ordered %ld, "
-		"cur_sn_slot %zd)", cmd, cmd->sn, tgt_dev,
-		atomic_read(tgt_dev->cur_sn_slot),
-		tgt_dev->num_free_sn_slots, tgt_dev->prev_cmd_ordered,
-		tgt_dev->cur_sn_slot-tgt_dev->sn_slots);
+		"cur_sn_slot %zd)", cmd, cmd->sn, order_data,
+		atomic_read(order_data->cur_sn_slot),
+		order_data->num_free_sn_slots, order_data->prev_cmd_ordered,
+		order_data->cur_sn_slot - order_data->sn_slots);
 
 	cmd->sn_set = 1;
 
@@ -3774,6 +3847,7 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 
 				cmd->cmd_threads = tgt_dev->active_cmd_threads;
 				cmd->tgt_dev = tgt_dev;
+				cmd->cur_order_data = tgt_dev->curr_order_data;
 				cmd->dev = tgt_dev->dev;
 
 				res = 0;
@@ -4830,20 +4904,21 @@ static void scst_unblock_aborted_cmds(int scst_mutex_held)
 
 		local_irq_disable();
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
-					 dev_tgt_dev_list_entry) {
-			spin_lock(&tgt_dev->sn_lock);
+					dev_tgt_dev_list_entry) {
+			struct scst_order_data *order_data = tgt_dev->curr_order_data;
+			spin_lock(&order_data->sn_lock);
 			list_for_each_entry_safe(cmd, tcmd,
-					&tgt_dev->deferred_cmd_list,
+					&order_data->deferred_cmd_list,
 					sn_cmd_list_entry) {
 				if (__scst_check_unblock_aborted_cmd(cmd,
 						&cmd->sn_cmd_list_entry)) {
 					TRACE_MGMT_DBG("Unblocked aborted SN "
 						"cmd %p (sn %u)",
 						cmd, cmd->sn);
-					tgt_dev->def_cmd_count--;
+					order_data->def_cmd_count--;
 				}
 			}
-			spin_unlock(&tgt_dev->sn_lock);
+			spin_unlock(&order_data->sn_lock);
 		}
 		local_irq_enable();
 	}
@@ -4935,13 +5010,13 @@ static int scst_is_cmd_belongs_to_dev(struct scst_cmd *cmd,
 
 	TRACE_ENTRY();
 
-	TRACE_DBG("Finding match for dev %p and cmd %p (lun %lld)", dev, cmd,
-	      (long long unsigned int)cmd->lun);
+	TRACE_DBG("Finding match for dev %s and cmd %p (lun %lld)", dev->virt_name,
+		cmd, (long long unsigned int)cmd->lun);
 
 	head = &cmd->sess->sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_FN(cmd->lun)];
 	list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
 		if (tgt_dev->lun == cmd->lun) {
-			TRACE_DBG("dev %p found", tgt_dev->dev);
+			TRACE_DBG("dev %s found", tgt_dev->dev->virt_name);
 			res = (tgt_dev->dev == dev);
 			goto out;
 		}
@@ -5615,7 +5690,10 @@ static void scst_mgmt_cmd_send_done(struct scst_mgmt_cmd *mcmd)
 		switch (mcmd->fn) {
 		case SCST_LUN_RESET:
 		case SCST_CLEAR_TASK_SET:
-			scst_unblock_dev(mcmd->mcmd_tgt_dev->dev);
+			dev = mcmd->mcmd_tgt_dev->dev;
+			spin_lock_bh(&dev->dev_lock);
+			scst_unblock_dev(dev);
+			spin_unlock_bh(&dev->dev_lock);
 			break;
 
 		case SCST_TARGET_RESET:
@@ -5627,7 +5705,9 @@ static void scst_mgmt_cmd_send_done(struct scst_mgmt_cmd *mcmd)
 			list_for_each_entry(acg_dev, &acg->acg_dev_list,
 					acg_dev_list_entry) {
 				dev = acg_dev->dev;
+				spin_lock_bh(&dev->dev_lock);
 				scst_unblock_dev(dev);
+				spin_unlock_bh(&dev->dev_lock);
 			}
 			mutex_unlock(&scst_mutex);
 			break;

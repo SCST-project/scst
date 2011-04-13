@@ -45,6 +45,52 @@
 
 #define SCOPE_LU				0x00
 
+static inline void scst_inc_pr_readers_count(struct scst_cmd *cmd,
+	bool locked)
+{
+	struct scst_device *dev = cmd->dev;
+
+	EXTRACHECKS_BUG_ON(cmd->dec_pr_readers_count_needed);
+
+	if (!locked)
+		spin_lock_bh(&dev->dev_lock);
+
+	EXTRACHECKS_BUG_ON(!spin_is_locked(&dev->dev_lock));
+
+	dev->pr_readers_count++;
+	cmd->dec_pr_readers_count_needed = 1;
+	TRACE_DBG("New inc pr_readers_count %d (cmd %p)", dev->pr_readers_count,
+		cmd);
+
+	if (!locked)
+		spin_unlock_bh(&dev->dev_lock);
+	return;
+}
+
+static inline void scst_dec_pr_readers_count(struct scst_cmd *cmd,
+	bool locked)
+{
+	struct scst_device *dev = cmd->dev;
+
+	EXTRACHECKS_BUG_ON(!cmd->dec_pr_readers_count_needed);
+
+	if (!locked)
+		spin_lock_bh(&dev->dev_lock);
+
+	EXTRACHECKS_BUG_ON(!spin_is_locked(&dev->dev_lock));
+
+	dev->pr_readers_count--;
+	cmd->dec_pr_readers_count_needed = 0;
+	TRACE_DBG("New dec pr_readers_count %d (cmd %p)", dev->pr_readers_count,
+		cmd);
+
+	if (!locked)
+		spin_unlock_bh(&dev->dev_lock);
+
+	EXTRACHECKS_BUG_ON(dev->pr_readers_count < 0);
+	return;
+}
+
 static inline bool scst_pr_type_valid(uint8_t type)
 {
 	switch (type) {
@@ -60,18 +106,17 @@ static inline bool scst_pr_type_valid(uint8_t type)
 	}
 }
 
-static inline bool scst_pr_read_lock(struct scst_device *dev)
+static inline bool scst_pr_read_lock(struct scst_cmd *cmd)
 {
+	struct scst_device *dev = cmd->dev;
 	bool unlock = false;
 
 	TRACE_ENTRY();
 
-	atomic_inc(&dev->pr_readers_count);
-	smp_mb__after_atomic_inc(); /* to sync with scst_pr_write_lock() */
-
+	smp_mb(); /* to sync with scst_pr_write_lock() */
 	if (unlikely(dev->pr_writer_active)) {
 		unlock = true;
-		atomic_dec(&dev->pr_readers_count);
+		scst_dec_pr_readers_count(cmd, false);
 		mutex_lock(&dev->dev_pr_mutex);
 	}
 
@@ -79,20 +124,16 @@ static inline bool scst_pr_read_lock(struct scst_device *dev)
 	return unlock;
 }
 
-static inline void scst_pr_read_unlock(struct scst_device *dev, bool unlock)
+static inline void scst_pr_read_unlock(struct scst_cmd *cmd, bool unlock)
 {
+	struct scst_device *dev = cmd->dev;
+
 	TRACE_ENTRY();
 
 	if (unlikely(unlock))
 		mutex_unlock(&dev->dev_pr_mutex);
-	else {
-		/*
-		 * To sync with scst_pr_write_lock(). We need it to ensure
-		 * order of our reads with the writer's writes.
-		 */
-		smp_mb__before_atomic_dec();
-		atomic_dec(&dev->pr_readers_count);
-	}
+	else
+		scst_dec_pr_readers_count(cmd, false);
 
 	TRACE_EXIT();
 	return;
@@ -105,13 +146,17 @@ static inline void scst_pr_write_lock(struct scst_device *dev)
 	mutex_lock(&dev->dev_pr_mutex);
 
 	dev->pr_writer_active = 1;
-
 	/* to sync with scst_pr_read_lock() and unlock() */
 	smp_mb();
 
-	while (atomic_read(&dev->pr_readers_count) != 0) {
-		TRACE_DBG("Waiting for %d readers (dev %p)",
-			atomic_read(&dev->pr_readers_count), dev);
+	while (true) {
+		int readers;
+		spin_lock_bh(&dev->dev_lock);
+		readers = dev->pr_readers_count;
+		spin_unlock_bh(&dev->dev_lock);
+		if (readers == 0)
+			break;
+		TRACE_DBG("Waiting for %d readers (dev %p)", readers, dev);
 		msleep(1);
 	}
 
@@ -124,7 +169,6 @@ static inline void scst_pr_write_unlock(struct scst_device *dev)
 	TRACE_ENTRY();
 
 	dev->pr_writer_active = 0;
-
 	mutex_unlock(&dev->dev_pr_mutex);
 
 	TRACE_EXIT();
