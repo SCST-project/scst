@@ -73,6 +73,9 @@ drop_caches() {
 # provided.
 set_frequency_scaling() {
   local syscpu=/sys/devices/system/cpu
+  if [ ! -e $syscpu/cpufreq ]; then
+    return
+  fi
   local governor=$(<$syscpu/cpu0/cpufreq/scaling_governor)
   local cpuinfo_min_freq=$(<$syscpu/cpu0/cpufreq/cpuinfo_min_freq)
   local cpuinfo_max_freq=$(<$syscpu/cpu0/cpufreq/cpuinfo_max_freq)
@@ -104,7 +107,7 @@ time_write() {
     else
       fio_flags="--direct=0 --end_fsync=1"
     fi
-    fio  --rw=write --filename="${device}" --bs=$1 --size=$(($1*$2)) --ioengine=sync --end_fsync=1 --invalidate=1 ${fio_flags} --name=writeperftest \
+    fio  --rw=write --filename="${device}" --bs=$1 --size=$(($1*$2)) --ioengine=psync --end_fsync=1 --invalidate=1 ${fio_flags} --name=writeperftest \
     | sed -n 's/.*runt= *\([0-9]*\)msec.*/\1/p' \
     | awk '{print $1/1000}'
   else
@@ -115,7 +118,7 @@ time_write() {
       dd_oflags=""
     fi
     { dd if=/dev/zero of="${device}" bs=$1 count=$2 ${dd_oflags} 2>&1; sync; } \
-      | sed -n -e 's/.* \([0-9.]*\) s,.*/\1/p' | sed 's/^$/0/'
+      | sed -n -e 's/.* \([0-9.]*\) s[econds]*,.*/\1/p' | sed 's/^$/0/'
   fi
 }
 
@@ -126,7 +129,7 @@ time_read() {
     else
       fio_flags="--direct=0"
     fi
-    fio  --rw=read --filename="${device}" --bs=$1 --size=$(($1*$2)) --ioengine=sync --end_fsync=1 --invalidate=1 ${fio_flags} --name=readperftest \
+    fio  --rw=read --filename="${device}" --bs=$1 --size=$(($1*$2)) --ioengine=psync --end_fsync=1 --invalidate=1 ${fio_flags} --name=readperftest \
     | sed -n 's/.*runt= *\([0-9]*\)msec.*/\1/p' \
     | awk '{print $1/1000}'
   else
@@ -137,7 +140,7 @@ time_read() {
       dd_iflags=""
     fi
     dd if="${device}" of=/dev/null bs=$1 count=$2 ${dd_iflags} 2>&1 \
-      | sed -n -e 's/.* \([0-9.]*\) s,.*/\1/p' | sed 's/^$/0/'
+      | sed -n -e 's/.* \([0-9.]*\) s[econds]*,.*/\1/p' | sed 's/^$/0/'
   fi
 }
 
@@ -230,13 +233,15 @@ if ! can_drop_cache; then
 fi
 
 # Disable frequency scaling
-if [ -w /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor ]; then
-  frequency_scaling_params="$(set_frequency_scaling)"
-else
-  echo ""
-  echo "WARNING: insufficient privileges to disable CPU frequency scaling"
-  echo "-- results will be unreliable."
-  echo ""
+if [ -e /sys/devices/system/cpu/cpu0/cpufreq ]; then
+  if [ -w /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor ]; then
+    frequency_scaling_params="$(set_frequency_scaling)"
+  else
+    echo ""
+    echo "WARNING: insufficient privileges to disable CPU frequency scaling"
+    echo "-- results will be unreliable."
+    echo ""
+  fi
 fi
 
 # Header, line 1
