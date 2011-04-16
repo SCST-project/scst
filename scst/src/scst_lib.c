@@ -796,6 +796,13 @@ int scst_set_cmd_error_status(struct scst_cmd *cmd, int status)
 
 	TRACE_ENTRY();
 
+	if (status == SAM_STAT_RESERVATION_CONFLICT) {
+		TRACE(TRACE_SCSI|TRACE_MINOR, "Reservation conflict (dev %s, "
+			"initiator %s, tgt_id %d)",
+			cmd->dev ? cmd->dev->virt_name : NULL,
+			cmd->sess->initiator_name, cmd->tgt->rel_tgt_id);
+	}
+
 	if (cmd->status != 0) {
 		TRACE_MGMT_DBG("cmd %p already has status %x set", cmd,
 			cmd->status);
