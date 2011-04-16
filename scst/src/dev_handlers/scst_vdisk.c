@@ -2041,15 +2041,22 @@ out:
 }
 
 static void vdisk_ctrl_m_pg_select(unsigned char *p,
-	struct scst_vdisk_dev *virt_dev)
+	struct scst_vdisk_dev *virt_dev, struct scst_cmd *cmd)
 {
 	struct scst_device *dev = virt_dev->dev;
 	int old_swp = dev->swp, old_tas = dev->tas, old_dsense = dev->d_sense;
 
-#if 0
-	/* Not implemented yet, see comment in vdisk_ctrl_m_pg() */
-	dev->tst = p[2] >> 5;
+#if 0 /* Not implemented yet, see comment in vdisk_ctrl_m_pg() */
+	dev->tst = (p[2] >> 5) & 1;
 	dev->queue_alg = p[3] >> 4;
+#else
+	if ((dev->tst != ((p[2] >> 5) & 1)) || (dev->queue_alg != (p[3] >> 4))) {
+		TRACE(TRACE_MINOR|TRACE_SCSI, "%s", "MODE SELECT: Changing of "
+			"TST and QUEUE ALGORITHM not supported");
+		scst_set_cmd_error(cmd,
+		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		return;
+	}
 #endif
 	dev->swp = (p[4] & 0x8) >> 3;
 	dev->tas = (p[5] & 0x40) >> 6;
@@ -2140,7 +2147,7 @@ static void vdisk_exec_mode_select(struct scst_cmd *cmd)
 				    scst_sense_invalid_field_in_parm_list));
 				goto out_put;
 			}
-			vdisk_ctrl_m_pg_select(&address[offset], virt_dev);
+			vdisk_ctrl_m_pg_select(&address[offset], virt_dev, cmd);
 		} else {
 			PRINT_ERROR("MODE SELECT: Invalid request %x",
 				address[offset] & 0x3f);
