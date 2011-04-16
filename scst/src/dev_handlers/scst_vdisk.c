@@ -1412,8 +1412,6 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 	}
 
 	buf[0] = cmd->dev->type;      /* type dev */
-	if (virt_dev->removable)
-		buf[1] = 0x80;      /* removable */
 	/* Vital Product */
 	if (cmd->cdb[1] & EVPD) {
 		if (0 == cmd->cdb[2]) {
@@ -1577,6 +1575,8 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			goto out_put;
 		}
 
+		if (virt_dev->removable)
+			buf[1] = 0x80;      /* removable */
 		buf[2] = 5; /* Device complies to SPC-3 */
 		buf[3] = 0x12;	/* HiSup + data in format specified in SPC */
 		if (cmd->tgtt->fake_aca)
