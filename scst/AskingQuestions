@@ -36,7 +36,9 @@ target and SCST configurations.
 Please, NEVER send dmesg output without timestamps, because timestamps
 are very important to see the whole picture. You should either enable
 CONFIG_PRINTK_TIME kernel compile option, or use kernel logs your system
-logger stored for you in /var/log.
+logger stored for you in /var/log. In case if you enabled a trace option
+producing a lot of log data, you should make NOT CORRUPTED logs as
+described in section "Dealing with massive logs" of the SCST README.
 
 ******************************************************
 ******************************************************
