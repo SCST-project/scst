@@ -414,7 +414,9 @@ following entries:
    BLOCKIO or NULLIO.
 
  - trace_level - allows to enable and disable various tracing
-   facilities. See content of this file for help how to use it.
+   facilities. See content of this file for help how to use it. See also
+   section "Dealing with massive logs" for more info how to make correct
+   logs when you enabled trace levels producing a lot of logs data.
 
  - version - read-only attribute, which allows to see version of
    SCST and enabled optional features.
@@ -481,7 +483,9 @@ SCST dev handlers can have the following common entries:
    handlers).
 
  - trace_level - allows to enable and disable various tracing
-   facilities. See content of this file for help how to use it.
+   facilities. See content of this file for help how to use it. See also
+   section "Dealing with massive logs" for more info how to make correct
+   logs when you enabled trace levels producing a lot of logs data.
 
  - type - SCSI type of devices served by this dev handler.
 
@@ -799,7 +803,9 @@ entries:
    of the corresponding devices.
 
  - trace_level - allows to enable and disable various tracing
-   facilities. See content of this file for help how to use it.
+   facilities. See content of this file for help how to use it. See also
+   section "Dealing with massive logs" for more info how to make correct
+   logs when you enabled trace levels producing a lot of logs data.
 
  - mgmt - main management entry, which allows to add/delete VDISK
    devices with the corresponding type.
@@ -1035,6 +1041,29 @@ IMPORTANT: Some disk and partition table management utilities don't support
 	   successfully mounted a file system over non-512 bytes block
 	   size device, the block size stops matter, any program will
 	   work with files on such file system.
+
+
+Dealing with massive logs
+-------------------------
+
+If you want to enable using "trace_level" file logging levels, which
+produce a lot of events, like "debug", to not loose logged events you
+should also:
+
+  * Increase in .config of your kernel CONFIG_LOG_BUF_SHIFT variable
+    to much bigger value, then recompile it. For example, value 25 will
+    provide good protection from logging overflow even under high volume
+    of logging events. To use it you will need to modify the maximum
+    allowed value for CONFIG_LOG_BUF_SHIFT in the corresponding Kconfig
+    file to 25 as well.
+
+  * Change in your /etc/syslog.conf or other config file of your favorite
+    logging program to store kernel logs in async manner. For example,
+    you can add in rsyslog.conf line "kern.info -/var/log/kernel" and
+    add "kern.none" in line for /var/log/messages, so the resulting line
+    would looks like:
+
+    "*.info;kern.none;mail.none;authpriv.none;cron.none /var/log/messages"
 
 
 Persistent Reservations
@@ -1667,22 +1696,10 @@ It contains the following entries.
   - "trace_level" file, which allows to read and set trace (logging) level
     for SCST. Also this file allows to dump persistent reservations
     information about some device in the log file. See
-    /proc/scsi_tgt/help file for list of commands and trace levels. If
-    you want to enable logging options, which produce a lot of events,
-    like "debug", to not loose logged events you should also:
-
-     * Increase in .config of your kernel CONFIG_LOG_BUF_SHIFT variable
-       to much bigger value, then recompile it. For example, value 25
-       will provide good protection from logging overflow even under
-       high volume of logging events, but to use it you will need to
-       modify the maximum allowed value for CONFIG_LOG_BUF_SHIFT in the
-       corresponding Kconfig file.
-
-     * Change in your /etc/syslog.conf or other config file of your favorite
-       logging program to store kernel logs in async manner. For example,
-       I added in my rsyslog.conf line "kern.info -/var/log/kernel"
-       and added "kern.none" in line for /var/log/messages, so I had:
-       "*.info;kern.none;mail.none;authpriv.none;cron.none /var/log/messages"
+    /proc/scsi_tgt/help file for list of commands and trace levels. See
+    also section "Dealing with massive logs" for more info how to make
+    correct logs when you enabled trace levels producing a lot of logs
+    data.
 
 Each dev handler has own subdirectory. Most dev handler have only two
 files in this subdirectory: "trace_level" and "type". The first one is
