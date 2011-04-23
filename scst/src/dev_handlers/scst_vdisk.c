@@ -1393,11 +1393,11 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 		goto out;
 	}
 
-	length = scst_get_buf_first(cmd, &address);
+	length = scst_get_full_buf(cmd, &address);
 	TRACE_DBG("length %d", length);
 	if (unlikely(length <= 0)) {
 		if (length < 0) {
-			PRINT_ERROR("scst_get_buf_first() failed: %d", length);
+			PRINT_ERROR("scst_get_full_buf() failed: %d", length);
 			scst_set_cmd_error(cmd,
 				SCST_LOAD_SENSE(scst_sense_hardw_error));
 		}
@@ -1674,7 +1674,7 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 	memcpy(address, buf, length);
 
 out_put:
-	scst_put_buf(cmd, address);
+	scst_put_full_buf(cmd, address);
 	if (length < cmd->resp_data_len)
 		scst_set_resp_data_len(cmd, length);
 
@@ -1697,10 +1697,10 @@ static void vdisk_exec_request_sense(struct scst_cmd *cmd)
 	sl = scst_set_sense(b, sizeof(b), cmd->dev->d_sense,
 		SCST_LOAD_SENSE(scst_sense_no_sense));
 
-	length = scst_get_buf_first(cmd, &address);
+	length = scst_get_full_buf(cmd, &address);
 	TRACE_DBG("length %d", length);
 	if (length < 0) {
-		PRINT_ERROR("scst_get_buf_first() failed: %d)", length);
+		PRINT_ERROR("scst_get_full_buf() failed: %d)", length);
 		scst_set_cmd_error(cmd,
 			SCST_LOAD_SENSE(scst_sense_hardw_error));
 		goto out;
@@ -1710,7 +1710,7 @@ static void vdisk_exec_request_sense(struct scst_cmd *cmd)
 	memcpy(address, b, length);
 	scst_set_resp_data_len(cmd, length);
 
-	scst_put_buf(cmd, address);
+	scst_put_full_buf(cmd, address);
 
 out:
 	TRACE_EXIT();
@@ -1896,10 +1896,10 @@ static void vdisk_exec_mode_sense(struct scst_cmd *cmd)
 	if (!virt_dev->blockio)
 		dev_spec |= DPOFUA;
 
-	length = scst_get_buf_first(cmd, &address);
+	length = scst_get_full_buf(cmd, &address);
 	if (unlikely(length <= 0)) {
 		if (length < 0) {
-			PRINT_ERROR("scst_get_buf_first() failed: %d", length);
+			PRINT_ERROR("scst_get_full_buf() failed: %d", length);
 			scst_set_cmd_error(cmd,
 				SCST_LOAD_SENSE(scst_sense_hardw_error));
 		}
@@ -2008,7 +2008,7 @@ static void vdisk_exec_mode_sense(struct scst_cmd *cmd)
 	memcpy(address, buf, offset);
 
 out_put:
-	scst_put_buf(cmd, address);
+	scst_put_full_buf(cmd, address);
 	if (offset < cmd->resp_data_len)
 		scst_set_resp_data_len(cmd, offset);
 
@@ -2081,10 +2081,10 @@ static void vdisk_exec_mode_select(struct scst_cmd *cmd)
 	virt_dev = cmd->dev->dh_priv;
 	mselect_6 = (MODE_SELECT == cmd->cdb[0]);
 
-	length = scst_get_buf_first(cmd, &address);
+	length = scst_get_full_buf(cmd, &address);
 	if (unlikely(length <= 0)) {
 		if (length < 0) {
-			PRINT_ERROR("scst_get_buf_first() failed: %d", length);
+			PRINT_ERROR("scst_get_full_buf() failed: %d", length);
 			scst_set_cmd_error(cmd,
 				SCST_LOAD_SENSE(scst_sense_hardw_error));
 		}
@@ -2159,7 +2159,7 @@ static void vdisk_exec_mode_select(struct scst_cmd *cmd)
 	}
 
 out_put:
-	scst_put_buf(cmd, address);
+	scst_put_full_buf(cmd, address);
 
 out:
 	TRACE_EXIT();
@@ -2227,10 +2227,10 @@ static void vdisk_exec_read_capacity(struct scst_cmd *cmd)
 	buffer[6] = (blocksize >> (BYTE * 1)) & 0xFF;
 	buffer[7] = (blocksize >> (BYTE * 0)) & 0xFF;
 
-	length = scst_get_buf_first(cmd, &address);
+	length = scst_get_full_buf(cmd, &address);
 	if (unlikely(length <= 0)) {
 		if (length < 0) {
-			PRINT_ERROR("scst_get_buf_first() failed: %d", length);
+			PRINT_ERROR("scst_get_full_buf() failed: %d", length);
 			scst_set_cmd_error(cmd,
 				SCST_LOAD_SENSE(scst_sense_hardw_error));
 		}
@@ -2241,7 +2241,7 @@ static void vdisk_exec_read_capacity(struct scst_cmd *cmd)
 
 	memcpy(address, buffer, length);
 
-	scst_put_buf(cmd, address);
+	scst_put_full_buf(cmd, address);
 
 	if (length < cmd->resp_data_len)
 		scst_set_resp_data_len(cmd, length);
@@ -2320,10 +2320,10 @@ static void vdisk_exec_read_capacity16(struct scst_cmd *cmd)
 #endif
 	}
 
-	length = scst_get_buf_first(cmd, &address);
+	length = scst_get_full_buf(cmd, &address);
 	if (unlikely(length <= 0)) {
 		if (length < 0) {
-			PRINT_ERROR("scst_get_buf_first() failed: %d", length);
+			PRINT_ERROR("scst_get_full_buf() failed: %d", length);
 			scst_set_cmd_error(cmd,
 				SCST_LOAD_SENSE(scst_sense_hardw_error));
 			}
@@ -2334,7 +2334,7 @@ static void vdisk_exec_read_capacity16(struct scst_cmd *cmd)
 
 	memcpy(address, buffer, length);
 
-	scst_put_buf(cmd, address);
+	scst_put_full_buf(cmd, address);
 
 	if (length < cmd->resp_data_len)
 		scst_set_resp_data_len(cmd, length);
@@ -2378,10 +2378,10 @@ static void vdisk_exec_read_toc(struct scst_cmd *cmd)
 		goto out;
 	}
 
-	length = scst_get_buf_first(cmd, &address);
+	length = scst_get_full_buf(cmd, &address);
 	if (unlikely(length <= 0)) {
 		if (length < 0) {
-			PRINT_ERROR("scst_get_buf_first() failed: %d", length);
+			PRINT_ERROR("scst_get_full_buf() failed: %d", length);
 			scst_set_cmd_error(cmd,
 				SCST_LOAD_SENSE(scst_sense_hardw_error));
 		}
@@ -2425,7 +2425,7 @@ static void vdisk_exec_read_toc(struct scst_cmd *cmd)
 		off = length;
 	memcpy(address, buffer, off);
 
-	scst_put_buf(cmd, address);
+	scst_put_full_buf(cmd, address);
 
 	if (off < cmd->resp_data_len)
 		scst_set_resp_data_len(cmd, off);

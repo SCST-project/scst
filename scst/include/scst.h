@@ -3524,6 +3524,10 @@ void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir copy_dir);
  * instead of direct access. Returns the buffer length for success, 0 for EOD,
  * negative error code otherwise.
  *
+ * Never EVER use this function to process only "the first page" of the buffer.
+ * The first SG entry can be as low as few bytes long. Use scst_get_full_buf()
+ * instead for such cases.
+ *
  * "Buf" argument returns the mapped buffer
  *
  * The "put" function unmaps the buffer.
