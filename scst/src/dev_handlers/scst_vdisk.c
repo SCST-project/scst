@@ -27,7 +27,6 @@
 #include <linux/string.h>
 #include <linux/types.h>
 #include <linux/unistd.h>
-#include <linux/smp_lock.h>
 #include <linux/spinlock.h>
 #include <linux/init.h>
 #include <linux/uio.h>
