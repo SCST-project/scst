@@ -3525,7 +3525,7 @@ void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir copy_dir);
  * negative error code otherwise.
  *
  * Never EVER use this function to process only "the first page" of the buffer.
- * The first SG entry can be as low as few bytes long. Use scst_get_full_buf()
+ * The first SG entry can be as low as few bytes long. Use scst_get_buf_full()
  * instead for such cases.
  *
  * "Buf" argument returns the mapped buffer
@@ -3731,8 +3731,8 @@ static inline int scst_get_out_buf_count(struct scst_cmd *cmd)
 	return (cmd->out_sg_cnt == 0) ? 1 : cmd->out_sg_cnt;
 }
 
-int scst_get_full_buf(struct scst_cmd *cmd, uint8_t **buf);
-void scst_put_full_buf(struct scst_cmd *cmd, uint8_t *buf);
+int scst_get_buf_full(struct scst_cmd *cmd, uint8_t **buf);
+void scst_put_buf_full(struct scst_cmd *cmd, uint8_t *buf);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20))
