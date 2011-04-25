@@ -2629,11 +2629,9 @@ static inline int scst_real_exec(struct scst_cmd *cmd)
 	res = scst_do_real_exec(cmd);
 	if (likely(res == SCST_EXEC_COMPLETED)) {
 		scst_post_exec_sn(cmd, true);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
 		if (cmd->dev->scsi_dev != NULL)
 			generic_unplug_device(
 				cmd->dev->scsi_dev->request_queue);
-#endif
 	} else
 		sBUG();
 
@@ -2736,6 +2734,7 @@ static int scst_exec(struct scst_cmd **active_cmd)
 {
 	struct scst_cmd *cmd = *active_cmd;
 	struct scst_cmd *ref_cmd;
+	struct scst_device *dev = cmd->dev;
 	int res = SCST_CMD_STATE_RES_CONT_NEXT, count;
 
 	TRACE_ENTRY();
@@ -2796,10 +2795,8 @@ done:
 	if (count == 0)
 		goto out_put;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
-	if (cmd->dev->scsi_dev != NULL)
-		generic_unplug_device(cmd->dev->scsi_dev->request_queue);
-#endif
+	if (dev->scsi_dev != NULL)
+		generic_unplug_device(dev->scsi_dev->request_queue);
 
 out_put:
 	__scst_cmd_put(ref_cmd);
