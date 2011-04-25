@@ -3734,7 +3734,7 @@ static inline int scst_get_out_buf_count(struct scst_cmd *cmd)
 int scst_get_buf_full(struct scst_cmd *cmd, uint8_t **buf);
 void scst_put_buf_full(struct scst_cmd *cmd, uint8_t *buf);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19) && RHEL_RELEASE_CODE -0 <= 5 * 256 + 5
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20))
 static inline int cancel_delayed_work_sync(struct delayed_work *work)
 #else
