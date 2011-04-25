@@ -908,11 +908,11 @@ out:
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25) \
-	&& LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 26)
+	&& LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 27)
 static int kern_path(const char *name, unsigned int flags, struct path *path)
 {
         struct nameidata nd;
-        int res = do_path_lookup(AT_FDCWD, name, flags, &nd);
+        int res = path_lookup(name, flags, &nd);
         if (!res)
                 *path = nd.path;
         return res;
