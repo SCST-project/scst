@@ -2859,6 +2859,9 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 	struct scst_blockio_work *blockio_work;
 	int bios = 0;
 	gfp_t gfp_mask = (cmd->noio_mem_alloc ? GFP_NOIO : GFP_KERNEL);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+	struct blk_plug plug;
+#endif
 
 	TRACE_ENTRY();
 
@@ -2964,6 +2967,9 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 	/* +1 to prevent erroneous too early command completion */
 	atomic_set(&blockio_work->bios_inflight, bios+1);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+	blk_start_plug(&plug);
+#endif
 	while (hbio) {
 		bio = hbio;
 		hbio = hbio->bi_next;
@@ -2971,8 +2977,12 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 		submit_bio((write != 0), bio);
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
 	if (q && q->unplug_fn)
 		q->unplug_fn(q);
+#else
+	blk_finish_plug(&plug);
+#endif
 
 	blockio_check_finish(blockio_work);
 

@@ -568,28 +568,33 @@ out:
 #ifndef CONFIG_SCST_PROC
 
 /* Abstract vfs_unlink & path_put for different kernel versions */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
 static inline void scst_pr_vfs_unlink_and_put(struct nameidata *nd)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
 	vfs_unlink(nd->dentry->d_parent->d_inode, nd->dentry);
 	dput(nd->dentry);
 	mntput(nd->mnt);
-#else
-	vfs_unlink(nd->path.dentry->d_parent->d_inode,
-		nd->path.dentry);
-	path_put(&nd->path);
-#endif
 }
+#else
+static inline void scst_pr_vfs_unlink_and_put(struct path *path)
+{
+	vfs_unlink(path->dentry->d_parent->d_inode, path->dentry);
+	path_put(path);
+}
+#endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
 static inline void scst_pr_path_put(struct nameidata *nd)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
 	dput(nd->dentry);
 	mntput(nd->mnt);
-#else
-	path_put(&nd->path);
-#endif
 }
+#else
+static inline void scst_pr_path_put(struct path *path)
+{
+	path_put(path);
+}
+#endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
 static int scst_pr_vfs_fsync(struct file *file, loff_t loff, loff_t len)
@@ -902,27 +907,59 @@ out:
 	return res;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25) \
+	&& LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 26)
+static int kern_path(const char *name, unsigned int flags, struct path *path)
+{
+        struct nameidata nd;
+        int res = do_path_lookup(AT_FDCWD, name, flags, &nd);
+        if (!res)
+                *path = nd.path;
+        return res;
+}
+#endif
+
 static void scst_pr_remove_device_files(struct scst_tgt_dev *tgt_dev)
 {
 	int res = 0;
 	struct scst_device *dev = tgt_dev->dev;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 	struct nameidata nd;
+#else
+	struct path path;
+#endif
 	mm_segment_t old_fs = get_fs();
 
 	TRACE_ENTRY();
 
 	set_fs(KERNEL_DS);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 	res = path_lookup(dev->pr_file_name, 0, &nd);
+#else
+	res = kern_path(dev->pr_file_name, 0, &path);
+#endif
 	if (!res)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 		scst_pr_vfs_unlink_and_put(&nd);
+#else
+		scst_pr_vfs_unlink_and_put(&path);
+#endif
 	else
 		TRACE_DBG("Unable to lookup file '%s' - error %d",
 			dev->pr_file_name, res);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 	res = path_lookup(dev->pr_file_name1, 0, &nd);
+#else
+	res = kern_path(dev->pr_file_name1, 0, &path);
+#endif
 	if (!res)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 		scst_pr_vfs_unlink_and_put(&nd);
+#else
+		scst_pr_vfs_unlink_and_put(&path);
+#endif
 	else
 		TRACE_DBG("Unable to lookup file '%s' - error %d",
 			dev->pr_file_name1, res);
@@ -1105,12 +1142,24 @@ write_error:
 write_error_close:
 	filp_close(file, NULL);
 	{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 		struct nameidata nd;
+#else
+		struct path path;
+#endif
 		int rc;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 		rc = path_lookup(dev->pr_file_name, 0,	&nd);
+#else
+		rc = kern_path(dev->pr_file_name, 0, &path);
+#endif
 		if (!rc)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 			scst_pr_vfs_unlink_and_put(&nd);
+#else
+			scst_pr_vfs_unlink_and_put(&path);
+#endif
 		else
 			TRACE_PR("Unable to lookup '%s' - error %d",
 				dev->pr_file_name, rc);
@@ -1121,14 +1170,22 @@ write_error_close:
 static int scst_pr_check_pr_path(void)
 {
 	int res;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 	struct nameidata nd;
+#else
+	struct path path;
+#endif
 	mm_segment_t old_fs = get_fs();
 
 	TRACE_ENTRY();
 
 	set_fs(KERNEL_DS);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 	res = path_lookup(SCST_PR_DIR, 0, &nd);
+#else
+	res = kern_path(SCST_PR_DIR, 0, &path);
+#endif
 	if (res != 0) {
 		PRINT_ERROR("Unable to find %s (err %d), you should create "
 			"this directory manually or reinstall SCST",
@@ -1136,7 +1193,11 @@ static int scst_pr_check_pr_path(void)
 		goto out_setfs;
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 	scst_pr_path_put(&nd);
+#else
+	scst_pr_path_put(&path);
+#endif
 
 out_setfs:
 	set_fs(old_fs);
