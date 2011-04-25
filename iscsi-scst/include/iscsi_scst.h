@@ -70,6 +70,7 @@ enum {
 	key_queued_cmnds,
 	key_rsp_timeout,
 	key_nop_in_interval,
+	key_nop_in_timeout,
 	key_max_sessions,
 	target_key_last,
 };
@@ -187,13 +188,17 @@ struct iscsi_kern_initiator_info {
 #define	MIN_NR_QUEUED_CMNDS	1
 #define	MAX_NR_QUEUED_CMNDS	256
 
-#define DEFAULT_RSP_TIMEOUT	30
+#define DEFAULT_RSP_TIMEOUT	90
 #define MIN_RSP_TIMEOUT		2
 #define MAX_RSP_TIMEOUT		65535
 
 #define DEFAULT_NOP_IN_INTERVAL 30
 #define MIN_NOP_IN_INTERVAL	0
 #define MAX_NOP_IN_INTERVAL	65535
+
+#define DEFAULT_NOP_IN_TIMEOUT  30
+#define MIN_NOP_IN_TIMEOUT	2
+#define MAX_NOP_IN_TIMEOUT	65535
 
 #define NETLINK_ISCSI_SCST	25
 

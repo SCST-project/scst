@@ -294,19 +294,19 @@ Each target subdirectory contains the following entries:
  - QueuedCommands - defines maximum number of commands queued to any
    session of this target. Default is 32 commands.
 
- - RspTimeout - defines the maximum time in seconds a command can wait for
-   response from initiator, otherwise the corresponding connection will
-   be closed. For performance reasons it is implemented as a timer,
-   which once in RspTimeout time checks the oldest command waiting for
-   response and, if it's older than RspTimeout, then it closes the
-   connection. Hence, a stalled connection will be closed in time
-   between RspTimeout and 2*RspTimeout. Default is 30 seconds.
-
  - NopInInterval - defines interval between NOP-In requests, which the
    target will send on idle connections to check if the initiator is
    still alive. If there is no NOP-Out reply from the initiator in
    RspTimeout time, the corresponding connection will be closed. Default
    is 30 seconds. If it's set to 0, then NOP-In requests are disabled.
+
+ - NopInTimeout - defines the maximum time in seconds a NOP-In request
+   can wait for response from initiator, otherwise the corresponding
+   connection will be closed. Default is 30 seconds.
+
+ - RspTimeout - defines the maximum time in seconds a command can wait for
+   response from initiator, otherwise the corresponding connection will
+   be closed. Default is 90 seconds.
 
  - enabled - using this attribute you can enable or disable iSCSI-SCST
    accept new connections to this target. It allows to finish

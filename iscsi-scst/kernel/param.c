@@ -204,6 +204,8 @@ static void tgt_params_check(struct iscsi_session *session,
 		MAX_RSP_TIMEOUT);
 	CHECK_PARAM(info, iparams, nop_in_interval, MIN_NOP_IN_INTERVAL,
 		MAX_NOP_IN_INTERVAL);
+	CHECK_PARAM(info, iparams, nop_in_timeout, MIN_NOP_IN_TIMEOUT,
+		MAX_NOP_IN_TIMEOUT);
 	return;
 }
 
@@ -222,16 +224,19 @@ static int iscsi_tgt_params_set(struct iscsi_session *session,
 		SET_PARAM(params, info, iparams, queued_cmnds);
 		SET_PARAM(params, info, iparams, rsp_timeout);
 		SET_PARAM(params, info, iparams, nop_in_interval);
+		SET_PARAM(params, info, iparams, nop_in_timeout);
 
 		PRINT_INFO("Target parameters set for session %llx: "
 			"QueuedCommands %d, Response timeout %d, Nop-In "
-			"interval %d", session->sid, params->queued_cmnds,
-			params->rsp_timeout, params->nop_in_interval);
+			"interval %d, Nop-In timeout %d", session->sid,
+			params->queued_cmnds, params->rsp_timeout,
+			params->nop_in_interval, params->nop_in_timeout);
 
 		list_for_each_entry(conn, &session->conn_list,
 					conn_list_entry) {
-			conn->rsp_timeout = session->tgt_params.rsp_timeout * HZ;
+			conn->data_rsp_timeout = session->tgt_params.rsp_timeout * HZ;
 			conn->nop_in_interval = session->tgt_params.nop_in_interval * HZ;
+			conn->nop_in_timeout = session->tgt_params.nop_in_timeout * HZ;
 			spin_lock_bh(&conn->conn_thr_pool->rd_lock);
 			if (!conn->closing && (conn->nop_in_interval > 0)) {
 				TRACE_DBG("Schedule Nop-In work for conn %p", conn);
@@ -244,6 +249,7 @@ static int iscsi_tgt_params_set(struct iscsi_session *session,
 		GET_PARAM(params, info, iparams, queued_cmnds);
 		GET_PARAM(params, info, iparams, rsp_timeout);
 		GET_PARAM(params, info, iparams, nop_in_interval);
+		GET_PARAM(params, info, iparams, nop_in_timeout);
 	}
 
 	return 0;

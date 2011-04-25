@@ -1217,8 +1217,32 @@ void req_add_to_write_timeout_list(struct iscsi_cmnd *req)
 	req->on_write_timeout_list = 1;
 	req->write_start = jiffies;
 
-	list_add_tail(&req->write_timeout_list_entry,
-		&conn->write_timeout_list);
+	if (unlikely(cmnd_opcode(req) == ISCSI_OP_NOP_OUT)) {
+		unsigned long req_tt = iscsi_get_timeout_time(req);
+		struct iscsi_cmnd *r;
+		bool inserted = false;
+		list_for_each_entry(r, &conn->write_timeout_list,
+					write_timeout_list_entry) {
+			unsigned long tt = iscsi_get_timeout_time(r);
+			if (time_after(tt, req_tt)) {
+				TRACE_DBG("Add NOP IN req %p (tt %ld) before "
+					"req %p (tt %ld)", req, req_tt, r, tt);
+				list_add_tail(&req->write_timeout_list_entry,
+					&r->write_timeout_list_entry);
+				inserted = true;
+				break;
+			} else
+				TRACE_DBG("Skipping op %x req %p (tt %ld)",
+					cmnd_opcode(r), r, tt);
+		}
+		if (!inserted) {
+			TRACE_DBG("Add NOP IN req %p in the tail", req);
+			list_add_tail(&req->write_timeout_list_entry,
+				&conn->write_timeout_list);
+		}
+	} else
+		list_add_tail(&req->write_timeout_list_entry,
+			&conn->write_timeout_list);
 
 	if (!timer_pending(&conn->rsp_timer)) {
 		unsigned long timeout_time;
@@ -1227,11 +1251,11 @@ void req_add_to_write_timeout_list(struct iscsi_cmnd *req)
 					&req->prelim_compl_flags))) {
 			set_conn_tm_active = true;
 			timeout_time = req->write_start +
-					ISCSI_TM_DATA_WAIT_TIMEOUT +
-					ISCSI_ADD_SCHED_TIME;
+					ISCSI_TM_DATA_WAIT_TIMEOUT;
 		} else
-			timeout_time = req->write_start +
-				conn->rsp_timeout + ISCSI_ADD_SCHED_TIME;
+			timeout_time = iscsi_get_timeout_time(req);
+
+		timeout_time += ISCSI_ADD_SCHED_TIME;
 
 		TRACE_DBG("Starting timer on %ld (con %p, write_start %ld)",
 			timeout_time, conn, req->write_start);
