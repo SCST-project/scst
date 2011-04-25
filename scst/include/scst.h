@@ -3737,9 +3737,6 @@ void scst_put_buf_full(struct scst_cmd *cmd, uint8_t *buf);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20))
 static inline int cancel_delayed_work_sync(struct delayed_work *work)
-#else
-static inline int cancel_delayed_work_sync(struct work_struct *work)
-#endif
 {
 	int res;
 
@@ -3747,6 +3744,23 @@ static inline int cancel_delayed_work_sync(struct work_struct *work)
 	flush_scheduled_work();
 	return res;
 }
+#else
+/*
+ * While cancel_delayed_work_sync() has not been defined in the vanilla kernel
+ * 2.6.18 nor in 2.6.19 nor in RHEL/CentOS 5.0..5.5, a definition is available
+ * in RHEL/CentOS 5.6. Unfortunately that definition is incompatible with what
+ * we need. So define cancel_delayed_work() as a macro such that it overrides
+ * the RHEL/CentOS 5.6 inline function definition in <linux/workqueue.h>.
+ */
+#define cancel_delayed_work_sync(work)		\
+({						\
+	int res;				\
+						\
+	res = cancel_delayed_work((work));	\
+	flush_scheduled_work();			\
+	res;					\
+})
+#endif
 #endif
 
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
