@@ -2182,15 +2182,16 @@ static void __cmnd_abort(struct iscsi_cmnd *cmnd)
 		"ref_cnt %d, on_write_timeout_list %d, write_start %ld, ITT %x, "
 		"sn %u, op %x, r2t_len_to_receive %d, r2t_len_to_send %d, "
 		"CDB op %x, size to write %u, outstanding_r2t %d, "
-		"sess->exp_cmd_sn %u, conn %p, rd_task %p)",
-		cmnd, cmnd->scst_cmd, cmnd->scst_state,
+		"sess->exp_cmd_sn %u, conn %p, rd_task %p, read_cmnd %p, "
+		"read_state %d)", cmnd, cmnd->scst_cmd, cmnd->scst_state,
 		atomic_read(&cmnd->ref_cnt), cmnd->on_write_timeout_list,
 		cmnd->write_start, cmnd->pdu.bhs.itt, cmnd->pdu.bhs.sn,
 		cmnd_opcode(cmnd), cmnd->r2t_len_to_receive,
 		cmnd->r2t_len_to_send, cmnd_scsicode(cmnd),
 		cmnd_write_size(cmnd), cmnd->outstanding_r2t,
 		cmnd->conn->session->exp_cmd_sn, cmnd->conn,
-		cmnd->conn->rd_task);
+		cmnd->conn->rd_task, cmnd->conn->read_cmnd,
+		cmnd->conn->read_state);
 
 #if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 	TRACE_MGMT_DBG("net_ref_cnt %d", atomic_read(&cmnd->net_ref_cnt));
