@@ -2122,6 +2122,8 @@ void scst_set_resp_data_len(struct scst_cmd *cmd, int resp_data_len)
 	if (resp_data_len == cmd->bufflen)
 		goto out;
 
+	TRACE_DBG("cmd %p, resp_data_len %d", cmd, resp_data_len);
+
 	scst_adjust_sg(cmd, cmd->sg, &cmd->sg_cnt, resp_data_len);
 
 	cmd->resid_possible = 1;
@@ -3798,7 +3800,7 @@ static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 
 	sBUG_ON(orig_cmd == NULL);
 
-	len = scst_get_buf_first(req_cmd, &buf);
+	len = scst_get_buf_full(req_cmd, &buf);
 
 	if (scsi_status_is_good(req_cmd->status) && (len > 0) &&
 	    SCST_SENSE_VALID(buf) && (!SCST_NO_SENSE(buf))) {
@@ -3814,7 +3816,7 @@ static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 	}
 
 	if (len > 0)
-		scst_put_buf(req_cmd, buf);
+		scst_put_buf_full(req_cmd, buf);
 
 	TRACE_MGMT_DBG("Adding orig cmd %p to head of active "
 		"cmd list", orig_cmd);
@@ -4858,7 +4860,7 @@ out:
 EXPORT_SYMBOL_GPL(scst_copy_sg);
 
 /**
- * scst_get_full_buf - return linear buffer for command
+ * scst_get_buf_full - return linear buffer for command
  * @cmd:	scst command
  * @buf:	pointer on the resulting pointer
  *
@@ -4866,7 +4868,7 @@ EXPORT_SYMBOL_GPL(scst_copy_sg);
  * and copies the buffer there. Returns length of the buffer or negative
  * error code otherwise.
  */
-int scst_get_full_buf(struct scst_cmd *cmd, uint8_t **buf)
+int scst_get_buf_full(struct scst_cmd *cmd, uint8_t **buf)
 {
 	int res = 0;
 
@@ -4918,17 +4920,17 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
-EXPORT_SYMBOL(scst_get_full_buf);
+EXPORT_SYMBOL(scst_get_buf_full);
 
 /**
- * scst_put_full_buf - unmaps linear buffer for command
+ * scst_put_buf_full - unmaps linear buffer for command
  * @cmd:	scst command
  * @buf:	pointer on the buffer to unmap
  *
- * Reverse operation for scst_get_full_buf. If the buffer was vmalloced(),
+ * Reverse operation for scst_get_buf_full. If the buffer was vmalloced(),
  * it vfree() the buffer.
  */
-void scst_put_full_buf(struct scst_cmd *cmd, uint8_t *buf)
+void scst_put_buf_full(struct scst_cmd *cmd, uint8_t *buf)
 {
 	TRACE_ENTRY();
 
@@ -4963,7 +4965,7 @@ out:
 	TRACE_EXIT();
 	return;
 }
-EXPORT_SYMBOL(scst_put_full_buf);
+EXPORT_SYMBOL(scst_put_buf_full);
 
 static const int SCST_CDB_LENGTH[8] = { 6, 10, 10, 0, 16, 12, 0, 0 };
 
@@ -5703,7 +5705,7 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 			int buffer_size, sector_size, sh;
 			uint8_t *buffer;
 
-			buffer_size = scst_get_buf_first(cmd, &buffer);
+			buffer_size = scst_get_buf_full(cmd, &buffer);
 			if (unlikely(buffer_size <= 0)) {
 				if (buffer_size < 0) {
 					PRINT_ERROR("%s: Unable to get the"
@@ -5715,7 +5717,7 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 			sector_size =
 			    ((buffer[4] << 24) | (buffer[5] << 16) |
 			     (buffer[6] << 8) | (buffer[7] << 0));
-			scst_put_buf(cmd, buffer);
+			scst_put_buf_full(cmd, buffer);
 			if (sector_size != 0)
 				sh = scst_calc_block_shift(sector_size);
 			else
@@ -5766,7 +5768,7 @@ int scst_tape_generic_dev_done(struct scst_cmd *cmd,
 	switch (opcode) {
 	case MODE_SENSE:
 	case MODE_SELECT:
-		buffer_size = scst_get_buf_first(cmd, &buffer);
+		buffer_size = scst_get_buf_full(cmd, &buffer);
 		if (unlikely(buffer_size <= 0)) {
 			if (buffer_size < 0) {
 				PRINT_ERROR("%s: Unable to get the buffer (%d)",
@@ -5804,7 +5806,7 @@ int scst_tape_generic_dev_done(struct scst_cmd *cmd,
 	switch (opcode) {
 	case MODE_SENSE:
 	case MODE_SELECT:
-		scst_put_buf(cmd, buffer);
+		scst_put_buf_full(cmd, buffer);
 		break;
 	}
 

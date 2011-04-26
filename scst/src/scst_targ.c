@@ -1713,7 +1713,7 @@ static int scst_report_luns_local(struct scst_cmd *cmd)
 		goto out_err;
 	}
 
-	buffer_size = scst_get_buf_first(cmd, &buffer);
+	buffer_size = scst_get_buf_full(cmd, &buffer);
 	if (unlikely(buffer_size == 0))
 		goto out_compl;
 	else if (unlikely(buffer_size < 0))
@@ -1733,25 +1733,9 @@ static int scst_report_luns_local(struct scst_cmd *cmd)
 		struct list_head *head = &cmd->sess->sess_tgt_dev_list[i];
 		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
 			if (!overflow) {
-				if (offs >= buffer_size) {
-					scst_put_buf(cmd, buffer);
-					buffer_size = scst_get_buf_next(cmd,
-								       &buffer);
-					if (buffer_size > 0) {
-						memset(buffer, 0, buffer_size);
-						offs = 0;
-					} else {
-						overflow = 1;
-						goto inc_dev_cnt;
-					}
-				}
 				if ((buffer_size - offs) < 8) {
-					PRINT_ERROR("Buffer allocated for "
-						"REPORT LUNS command doesn't "
-						"allow to fit 8 byte entry "
-						"(buffer_size=%d)",
-						buffer_size);
-					goto out_put_hw_err;
+					overflow = 1;
+					goto inc_dev_cnt;
 				}
 				*(__force __be64 *)&buffer[offs]
 					= scst_pack_lun(tgt_dev->lun,
@@ -1762,23 +1746,15 @@ inc_dev_cnt:
 			dev_cnt++;
 		}
 	}
-	if (!overflow)
-		scst_put_buf(cmd, buffer);
 
 	/* Set the response header */
-	buffer_size = scst_get_buf_first(cmd, &buffer);
-	if (unlikely(buffer_size == 0))
-		goto out_compl;
-	else if (unlikely(buffer_size < 0))
-		goto out_hw_err;
-
 	dev_cnt *= 8;
 	buffer[0] = (dev_cnt >> 24) & 0xff;
 	buffer[1] = (dev_cnt >> 16) & 0xff;
 	buffer[2] = (dev_cnt >> 8) & 0xff;
 	buffer[3] = dev_cnt & 0xff;
 
-	scst_put_buf(cmd, buffer);
+	scst_put_buf_full(cmd, buffer);
 
 	dev_cnt += 8;
 	if (dev_cnt < cmd->resp_data_len)
@@ -1825,15 +1801,12 @@ out_done:
 	return res;
 
 out_put_err:
-	scst_put_buf(cmd, buffer);
+	scst_put_buf_full(cmd, buffer);
 
 out_err:
 	scst_set_cmd_error(cmd,
 		   SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
 	goto out_compl;
-
-out_put_hw_err:
-	scst_put_buf(cmd, buffer);
 
 out_hw_err:
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
@@ -1865,7 +1838,7 @@ static int scst_request_sense_local(struct scst_cmd *cmd)
 
 	TRACE(TRACE_SCSI, "%s: Returning stored sense", cmd->op_name);
 
-	buffer_size = scst_get_buf_first(cmd, &buffer);
+	buffer_size = scst_get_buf_full(cmd, &buffer);
 	if (unlikely(buffer_size == 0))
 		goto out_unlock_compl;
 	else if (unlikely(buffer_size < 0))
@@ -1909,7 +1882,7 @@ static int scst_request_sense_local(struct scst_cmd *cmd)
 		memcpy(buffer, tgt_dev->tgt_dev_sense, sl);
 	}
 
-	scst_put_buf(cmd, buffer);
+	scst_put_buf_full(cmd, buffer);
 
 	tgt_dev->tgt_dev_valid_sense_len = 0;
 
@@ -2143,7 +2116,7 @@ static int scst_persistent_reserve_in_local(struct scst_cmd *cmd)
 		goto out_done;
 	}
 
-	buffer_size = scst_get_full_buf(cmd, &buffer);
+	buffer_size = scst_get_buf_full(cmd, &buffer);
 	if (unlikely(buffer_size <= 0)) {
 		if (buffer_size < 0)
 			scst_set_busy(cmd);
@@ -2188,7 +2161,7 @@ out_complete:
 out_unlock:
 	scst_pr_write_unlock(dev);
 
-	scst_put_full_buf(cmd, buffer);
+	scst_put_buf_full(cmd, buffer);
 
 out_done:
 	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
@@ -2262,7 +2235,7 @@ static int scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 		goto out_done;
 	}
 
-	buffer_size = scst_get_full_buf(cmd, &buffer);
+	buffer_size = scst_get_buf_full(cmd, &buffer);
 	if (unlikely(buffer_size <= 0)) {
 		if (buffer_size < 0)
 			scst_set_busy(cmd);
@@ -2275,7 +2248,7 @@ static int scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 		TRACE_PR("Scope must be SCOPE_LU for action %x", action);
 		scst_set_cmd_error(cmd,
 			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
-		goto out_put_full_buf;
+		goto out_put_buf_full;
 	}
 
 	/* Check SPEC_I_PT (PR_REGISTER_AND_MOVE has another format) */
@@ -2284,7 +2257,7 @@ static int scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 		TRACE_PR("SPEC_I_PT must be zero for action %x", action);
 		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
 					scst_sense_invalid_field_in_cdb));
-		goto out_put_full_buf;
+		goto out_put_buf_full;
 	}
 
 	/* Check ALL_TG_PT (PR_REGISTER_AND_MOVE has another format) */
@@ -2293,7 +2266,7 @@ static int scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 		TRACE_PR("ALL_TG_PT must be zero for action %x", action);
 		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
 					scst_sense_invalid_field_in_cdb));
-		goto out_put_full_buf;
+		goto out_put_buf_full;
 	}
 
 	scst_pr_write_lock(dev);
@@ -2348,8 +2321,8 @@ static int scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 out_unlock:
 	scst_pr_write_unlock(dev);
 
-out_put_full_buf:
-	scst_put_full_buf(cmd, buffer);
+out_put_buf_full:
+	scst_put_buf_full(cmd, buffer);
 
 out_done:
 	if (SCST_EXEC_COMPLETED == res) {
@@ -3074,7 +3047,7 @@ static int scst_pre_dev_done(struct scst_cmd *cmd)
 			uint8_t *address;
 			bool err = false;
 
-			length = scst_get_buf_first(cmd, &address);
+			length = scst_get_buf_full(cmd, &address);
 			if (length < 0) {
 				PRINT_ERROR("%s", "Unable to get "
 					"MODE_SENSE buffer");
@@ -3086,7 +3059,7 @@ static int scst_pre_dev_done(struct scst_cmd *cmd)
 				address[2] |= 0x80;   /* Write Protect*/
 			else if (length > 3 && cmd->cdb[0] == MODE_SENSE_10)
 				address[3] |= 0x80;   /* Write Protect*/
-			scst_put_buf(cmd, address);
+			scst_put_buf_full(cmd, address);
 
 			if (err)
 				goto out;
@@ -3104,8 +3077,7 @@ static int scst_pre_dev_done(struct scst_cmd *cmd)
 			int buflen;
 			bool err = false;
 
-			/* ToDo: all pages ?? */
-			buflen = scst_get_buf_first(cmd, &buffer);
+			buflen = scst_get_buf_full(cmd, &buffer);
 			if (buflen > SCST_INQ_BYTE3 && !cmd->tgtt->fake_aca) {
 #ifdef CONFIG_SCST_EXTRACHECKS
 				if (buffer[SCST_INQ_BYTE3] & SCST_INQ_NORMACA_BIT) {
@@ -3125,7 +3097,7 @@ static int scst_pre_dev_done(struct scst_cmd *cmd)
 				err = true;
 			}
 			if (buflen > 0)
-				scst_put_buf(cmd, buffer);
+				scst_put_buf_full(cmd, buffer);
 
 			if (err)
 				goto out;
@@ -3507,14 +3479,16 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 				sg = cmd->sg;
 			if (sg != NULL) {
 				TRACE(TRACE_SND_BOT, "Xmitting data for cmd %p "
-					"(sg_cnt %d, sg %p, sg[0].page %p)",
-					cmd, cmd->tgt_sg_cnt, sg,
-					(void *)sg_page(&sg[0]));
+					"(sg_cnt %d, sg %p, sg[0].page %p, buf %p, "
+					"resp len %d)", cmd, cmd->tgt_sg_cnt,
+					sg, (void *)sg_page(&sg[0]), sg_virt(sg),
+					cmd->resp_data_len);
 				for (i = 0, j = 0; i < cmd->tgt_sg_cnt; ++i, ++j) {
 					if (unlikely(sg_is_chain(&sg[j]))) {
 						sg = sg_chain_ptr(&sg[j]);
 						j = 0;
 					}
+					TRACE(TRACE_SND_BOT, "sg %d", j);
 					PRINT_BUFF_FLAG(TRACE_SND_BOT,
 						"Xmitting sg", sg_virt(&sg[j]),
 						sg[j].length);
