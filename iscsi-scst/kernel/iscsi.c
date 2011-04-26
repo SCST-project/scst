@@ -417,6 +417,7 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 
 	EXTRACHECKS_BUG_ON(cmnd->on_rx_digest_list);
 	EXTRACHECKS_BUG_ON(cmnd->hashed);
+	EXTRACHECKS_BUG_ON(cmnd->cmd_req);
 
 	req_del_from_write_timeout_list(cmnd);
 
@@ -626,6 +627,12 @@ static void req_cmnd_pre_release(struct iscsi_cmnd *req)
 	if (unlikely(req->hashed)) {
 		/* It sometimes can happen during errors recovery */
 		cmnd_remove_data_wait_hash(req);
+	}
+
+	if (unlikely(req->cmd_req)) {
+		/* It sometimes can happen during errors recovery */
+		cmnd_put(req->cmd_req);
+		req->cmd_req = NULL;
 	}
 
 	if (unlikely(req->main_rsp != NULL)) {
@@ -1265,6 +1272,8 @@ static struct iscsi_cmnd *cmnd_find_data_wait_hash(struct iscsi_conn *conn,
 
 	spin_lock(&session->cmnd_data_wait_hash_lock);
 	res = __cmnd_find_data_wait_hash(conn, itt);
+	if (cmnd_get_check(res) != 0)
+		res = NULL;
 	spin_unlock(&session->cmnd_data_wait_hash_lock);
 
 	return res;
@@ -2158,13 +2167,17 @@ static void data_out_end(struct iscsi_cmnd *cmnd)
 		req->r2t_len_to_send);
 
 	if (!(req_hdr->flags & ISCSI_FLG_FINAL))
-		goto out;
+		goto out_put;
 
 	if (req->r2t_len_to_receive == 0) {
 		if (!req->pending)
 			iscsi_restart_cmnd(req);
 	} else if (req->r2t_len_to_send != 0)
 		send_r2t(req);
+
+out_put:
+	cmnd_put(req);
+	cmnd->cmd_req = NULL;
 
 out:
 	TRACE_EXIT();
