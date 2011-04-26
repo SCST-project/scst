@@ -2939,6 +2939,7 @@ static int scst_check_sense(struct scst_cmd *cmd)
 
 					cmd->state = SCST_CMD_STATE_REAL_EXEC;
 					cmd->retry = 1;
+					scst_inc_pr_readers_count(cmd, false);
 					res = 1;
 					goto out;
 				}

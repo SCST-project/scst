@@ -72,7 +72,11 @@ static inline void scst_dec_pr_readers_count(struct scst_cmd *cmd,
 {
 	struct scst_device *dev = cmd->dev;
 
-	EXTRACHECKS_BUG_ON(!cmd->dec_pr_readers_count_needed);
+	/*
+	 * scst_check_local_events() should not be called twice for the
+	 * same cmd
+	 */
+	WARN_ON(!cmd->dec_pr_readers_count_needed);
 
 	if (!locked)
 		spin_lock_bh(&dev->dev_lock);
