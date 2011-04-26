@@ -530,14 +530,14 @@ static void conn_rsp_timer_fn(unsigned long arg)
 		cmnd = list_entry(conn->write_timeout_list.next,
 				struct iscsi_cmnd, write_timeout_list_entry);
 
-		timeout_time = j + conn->rsp_timeout + ISCSI_ADD_SCHED_TIME;
+		timeout_time = j + iscsi_get_timeout(cmnd) + ISCSI_ADD_SCHED_TIME;
 
-		if (unlikely(time_after_eq(j, cmnd->write_start +
-						conn->rsp_timeout))) {
+		if (unlikely(time_after_eq(j, iscsi_get_timeout_time(cmnd)))) {
 			if (!conn->closing) {
-				PRINT_ERROR("Timeout sending data/waiting "
+				PRINT_ERROR("Timeout %ld sec sending data/waiting "
 					"for reply to/from initiator "
 					"%s (SID %llx), closing connection",
+					iscsi_get_timeout(cmnd)/HZ,
 					conn->session->initiator_name,
 					(long long unsigned int)
 						conn->session->sid);
@@ -883,8 +883,9 @@ static int iscsi_conn_alloc(struct iscsi_session *session,
 		conn);
 #endif
 	conn->last_rcv_time = jiffies;
-	conn->rsp_timeout = session->tgt_params.rsp_timeout * HZ;
+	conn->data_rsp_timeout = session->tgt_params.rsp_timeout * HZ;
 	conn->nop_in_interval = session->tgt_params.nop_in_interval * HZ;
+	conn->nop_in_timeout = session->tgt_params.nop_in_timeout * HZ;
 	if (conn->nop_in_interval > 0) {
 		TRACE_DBG("Schedule Nop-In work for conn %p", conn);
 		schedule_delayed_work(&conn->nop_in_delayed_work,

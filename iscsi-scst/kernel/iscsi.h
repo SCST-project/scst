@@ -63,6 +63,7 @@ struct iscsi_tgt_params {
 	int queued_cmnds;
 	unsigned int rsp_timeout;
 	unsigned int nop_in_interval;
+	unsigned int nop_in_timeout;
 };
 
 struct iscsi_thread {
@@ -213,7 +214,7 @@ struct iscsi_conn {
 
 	/* Protected by write_list_lock */
 	struct timer_list rsp_timer;
-	unsigned int rsp_timeout; /* in jiffies */
+	unsigned int data_rsp_timeout; /* in jiffies */
 
 	/*
 	 * All 2 protected by wr_lock. Modified independently to the
@@ -303,6 +304,7 @@ struct iscsi_conn {
 	struct work_struct nop_in_delayed_work;
 #endif
 	unsigned int nop_in_interval; /* in jiffies */
+	unsigned int nop_in_timeout; /* in jiffies */
 	struct list_head nop_req_list;
 	spinlock_t nop_req_list_lock;
 	u32 nop_in_ttt;
@@ -748,6 +750,17 @@ static inline void cmd_del_from_rx_ddigest_list(struct iscsi_cmnd *cmnd)
 #ifdef CONFIG_SCST_EXTRACHECKS
 	cmnd->on_rx_digest_list = 0;
 #endif
+}
+
+static inline unsigned long iscsi_get_timeout(struct iscsi_cmnd *req)
+{
+	return (cmnd_opcode(req) == ISCSI_OP_NOP_OUT) ?
+			req->conn->nop_in_timeout : req->conn->data_rsp_timeout;
+}
+
+static inline unsigned long iscsi_get_timeout_time(struct iscsi_cmnd *req)
+{
+	return req->write_start + iscsi_get_timeout(req);
 }
 
 static inline int test_write_ready(struct iscsi_conn *conn)
