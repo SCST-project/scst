@@ -815,7 +815,7 @@ int config_params_get(u32 tid, u64 sid, int type, struct iscsi_param *params)
 			params[i].val = target->session_params[i];
 	} else {
 		for (i = 0; i < target_key_last; i++)
-				params[i].val = target->target_params[i];
+			params[i].val = target->target_params[i];
 	}
 
 out:

@@ -115,6 +115,11 @@ static void sess_params_check(struct iscsi_kern_params_info *info)
 	int32_t *iparams = info->session_params;
 	const int max_len = ISCSI_CONN_IOV_MAX * PAGE_SIZE;
 
+	/*
+	 * This is only kernel sanity check. Actual data validity checks
+	 * performed in the user space.
+	 */
+
 	CHECK_PARAM(info, iparams, initial_r2t, 0, 1);
 	CHECK_PARAM(info, iparams, immediate_data, 0, 1);
 	CHECK_PARAM(info, iparams, max_connections, 1, 1);
@@ -196,6 +201,12 @@ static void tgt_params_check(struct iscsi_session *session,
 	struct iscsi_kern_params_info *info)
 {
 	int32_t *iparams = info->target_params;
+	unsigned int rsp_timeout, nop_in_timeout;
+
+	/*
+	 * This is only kernel sanity check. Actual data validity checks
+	 * performed in the user space.
+	 */
 
 	CHECK_PARAM(info, iparams, queued_cmnds, MIN_NR_QUEUED_CMNDS,
 		min_t(int, MAX_NR_QUEUED_CMNDS,
@@ -206,6 +217,24 @@ static void tgt_params_check(struct iscsi_session *session,
 		MAX_NOP_IN_INTERVAL);
 	CHECK_PARAM(info, iparams, nop_in_timeout, MIN_NOP_IN_TIMEOUT,
 		MAX_NOP_IN_TIMEOUT);
+
+	/*
+	 * We adjust too long timeout in req_add_to_write_timeout_list()
+	 * only for NOPs, so check and warn if this assumption isn't honored.
+	 */
+	if (!info->partial || (info->partial & 1 << key_rsp_timeout))
+		rsp_timeout = iparams[key_rsp_timeout];
+	else
+		rsp_timeout = session->tgt_params.rsp_timeout;
+	if (!info->partial || (info->partial & 1 << key_nop_in_timeout))
+		nop_in_timeout = iparams[key_nop_in_timeout];
+	else
+		nop_in_timeout = session->tgt_params.nop_in_timeout;
+	if (nop_in_timeout > rsp_timeout)
+		PRINT_WARNING("%s", "RspTimeout should be >= NopInTimeout, "
+			"otherwise data transfer failure could take up to "
+			"NopInTimeout long to detect");
+
 	return;
 }
 

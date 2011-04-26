@@ -1224,6 +1224,15 @@ void req_add_to_write_timeout_list(struct iscsi_cmnd *req)
 			list_add_tail(&req->write_timeout_list_entry,
 				&conn->write_timeout_list);
 		}
+
+		/* We suppose that nop_in_timeout must be <= data_rsp_timeout */
+		req_tt += ISCSI_ADD_SCHED_TIME;
+		if (timer_pending(&conn->rsp_timer) &&
+		    time_after(conn->rsp_timer.expires, req_tt)) {
+			TRACE_DBG("Timer adjusted for sooner expired NOP IN "
+				"req %p", req);
+			mod_timer(&conn->rsp_timer, req_tt);
+		}
 	} else
 		list_add_tail(&req->write_timeout_list_entry,
 			&conn->write_timeout_list);
