@@ -1933,6 +1933,7 @@ qla2x00_probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	init_completion(&ha->mbx_cmd_comp);
 	complete(&ha->mbx_cmd_comp);
 	init_completion(&ha->mbx_intr_comp);
+	init_completion(&ha->pass_thru_intr_comp);
 
 	INIT_LIST_HEAD(&ha->list);
 	INIT_LIST_HEAD(&ha->fcports);
@@ -2347,10 +2348,23 @@ qla2x00_mem_alloc(scsi_qla_host_t *ha)
 		    sizeof(struct ct_sns_pkt), &ha->ct_sns_dma, GFP_KERNEL);
 		if (!ha->ct_sns)
 			goto fail_free_ms_iocb;
+
+		/* Get consistent memory allocated for pass-thru commands */
+		ha->pass_thru = dma_alloc_coherent(&ha->pdev->dev,
+				    PAGE_SIZE, &ha->pass_thru_dma, GFP_KERNEL);
+		if (!ha->pass_thru) {
+			qla_printk(KERN_WARNING, ha,
+			    "Memory Allocation failed - pass_thru\n");
+			goto fail_free_pass_thru;
+		}
 	}
 
 	return 0;
 
+fail_free_pass_thru:
+	dma_free_coherent(&ha->pdev->dev,
+		PAGE_SIZE, ha->pass_thru, ha->pass_thru_dma);
+	ha->pass_thru = NULL;
 fail_free_ms_iocb:
 	dma_pool_free(ha->s_dma_pool, ha->ms_iocb, ha->ms_iocb_dma);
 	ha->ms_iocb = NULL;
@@ -2468,6 +2482,10 @@ qla2x00_mem_free(scsi_qla_host_t *ha)
 		    (ha->request_q_length + 1) * sizeof(request_t),
 		    ha->request_ring, ha->request_dma);
 
+	if (ha->pass_thru)
+		dma_free_coherent(&ha->pdev->dev,
+		    PAGE_SIZE, ha->pass_thru, ha->pass_thru_dma);
+
 	ha->srb_mempool = NULL;
 	ha->eft = NULL;
 	ha->eft_dma = 0;
@@ -2484,6 +2502,8 @@ qla2x00_mem_free(scsi_qla_host_t *ha)
 
 	ha->gid_list = NULL;
 	ha->gid_list_dma = 0;
+
+	ha->pass_thru = NULL;
 
 	ha->response_ring = NULL;
 	ha->response_dma = 0;

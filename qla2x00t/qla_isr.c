@@ -16,6 +16,9 @@ static void qla2x00_process_completed_request(struct scsi_qla_host *, uint32_t);
 static void qla2x00_status_entry(scsi_qla_host_t *, void *);
 static void qla2x00_status_cont_entry(scsi_qla_host_t *, sts_cont_entry_t *);
 static void qla2x00_error_entry(scsi_qla_host_t *, sts_entry_t *);
+static void qla2x00_ms_entry(scsi_qla_host_t *, ms_iocb_entry_t *);
+static void qla24xx_ms_entry(scsi_qla_host_t *, struct ct_entry_24xx *);
+
 
 /**
  * qla2100_intr_handler() - Process interrupts for the ISP2100 and ISP2200.
@@ -964,6 +967,21 @@ qla2x00_process_response_queue(struct scsi_qla_host *ha)
 			break;
 		case MARKER_TYPE:
 			break;
+		case MS_IOCB_TYPE:
+			if (ha->outstanding_cmds[pkt->handle])
+				qla2x00_ms_entry(ha, (ms_iocb_entry_t *)pkt);
+			else {
+				if (ha->pass_thru_cmd_result)
+					DEBUG2(qla_printk(KERN_INFO, ha,
+					    "Passthru cmd result on.\n"));
+				if (!ha->pass_thru_cmd_in_process)
+					DEBUG2(qla_printk(KERN_INFO, ha,
+					    "Passthru in process off.\n"));
+
+				ha->pass_thru_cmd_result = 1;
+				complete(&ha->pass_thru_intr_comp);
+			}
+			break;
 		default:
 			/* Type Not Supported. */
 			DEBUG4(printk(KERN_WARNING
@@ -1500,6 +1518,43 @@ qla2x00_error_entry(scsi_qla_host_t *ha, sts_entry_t *pkt)
 }
 
 /**
+ * qla2x00_ms_entry() - Process a Management Server entry.
+ * @ha: SCSI driver HA context
+ * @index: Response queue out pointer
+ */
+static void
+qla2x00_ms_entry(scsi_qla_host_t *ha, ms_iocb_entry_t *pkt)
+{
+	srb_t *sp;
+
+	DEBUG3(printk("%s(%ld): pkt=%p pkthandle=%d.\n",
+	    __func__, ha->host_no, pkt, pkt->handle1));
+
+	/* Validate handle. */
+	if (pkt->handle1 < MAX_OUTSTANDING_COMMANDS)
+		sp = ha->outstanding_cmds[pkt->handle1];
+	else
+		sp = NULL;
+
+	if (sp == NULL) {
+		DEBUG2(printk("scsi(%ld): MS entry - invalid handle\n",
+		    ha->host_no));
+		qla_printk(KERN_WARNING, ha, "MS entry - invalid handle\n");
+
+		set_bit(ISP_ABORT_NEEDED, &ha->dpc_flags);
+		return;
+	}
+
+	CMD_COMPL_STATUS(sp->cmd) = le16_to_cpu(pkt->status);
+	CMD_ENTRY_STATUS(sp->cmd) = pkt->entry_status;
+
+	/* Free outstanding command slot. */
+	ha->outstanding_cmds[pkt->handle1] = NULL;
+
+	qla2x00_sp_compl(ha, sp);
+}
+
+/**
  * qla24xx_mbx_completion() - Process mailbox command completions.
  * @ha: SCSI driver HA context
  * @mb0: Mailbox0 register
@@ -1668,6 +1723,32 @@ qla24xx_process_response_queue(struct scsi_qla_host *ha)
 #endif /* CONFIG_SCSI_QLA2XXX_TARGET */
 		case MARKER_TYPE:
 			break;
+		case MS_IOCB_TYPE:
+			if (ha->outstanding_cmds[pkt->handle])
+				qla24xx_ms_entry(ha, (void *)pkt);
+			else {
+				if (ha->pass_thru_cmd_result)
+					DEBUG2(qla_printk(KERN_INFO, ha,
+					    "Passthru cmd result on.\n"));
+				if (!ha->pass_thru_cmd_in_process)
+					DEBUG2(qla_printk(KERN_INFO, ha,
+					    "Passthru in process off.\n"));
+
+				ha->pass_thru_cmd_result = 1;
+				complete(&ha->pass_thru_intr_comp);
+			}
+			break;
+		case ELS_IOCB_TYPE:
+			if (ha->pass_thru_cmd_result)
+				DEBUG2(qla_printk(KERN_INFO, ha,
+				    "Passthru cmd result on.\n"));
+			if (!ha->pass_thru_cmd_in_process)
+				DEBUG2(qla_printk(KERN_INFO, ha,
+				    "Passthru in process off.\n"));
+
+			ha->pass_thru_cmd_result = 1;
+			complete(&ha->pass_thru_intr_comp);
+			break;
 		default:
 			/* Type Not Supported. */
 			DEBUG4(printk(KERN_WARNING
@@ -1832,6 +1913,49 @@ qla24xx_intr_handler(int irq, void *dev_id)
 	}
 
 	return IRQ_HANDLED;
+}
+
+/**
+ * qla24xx_ms_entry() - Process a Management Server entry.
+ * @ha: SCSI driver HA context
+ * @index: Response queue out pointer
+ */
+static void
+qla24xx_ms_entry(scsi_qla_host_t *ha, struct ct_entry_24xx *pkt)
+{
+	srb_t *sp;
+
+	DEBUG3(printk("%s(%ld): pkt=%p pkthandle=%d.\n",
+	    __func__, ha->host_no, pkt, pkt->handle));
+
+	DEBUG9(printk("%s: ct pkt dump:\n", __func__));
+	DEBUG9(qla2x00_dump_buffer((void *)pkt, sizeof(struct ct_entry_24xx)));
+
+	/* Validate handle. */
+	if (pkt->handle < MAX_OUTSTANDING_COMMANDS)
+		sp = ha->outstanding_cmds[pkt->handle];
+	else
+		sp = NULL;
+
+	if (sp == NULL) {
+		DEBUG2(printk("scsi(%ld): MS entry - invalid handle\n",
+		    ha->host_no));
+		DEBUG10(printk("scsi(%ld): MS entry - invalid handle\n",
+		    ha->host_no));
+		qla_printk(KERN_WARNING, ha, "MS entry - invalid handle %d\n",
+		    pkt->handle);
+
+		set_bit(ISP_ABORT_NEEDED, &ha->dpc_flags);
+		return;
+	}
+
+	CMD_COMPL_STATUS(sp->cmd) = le16_to_cpu(pkt->comp_status);
+	CMD_ENTRY_STATUS(sp->cmd) = pkt->entry_status;
+
+	/* Free outstanding command slot. */
+	ha->outstanding_cmds[pkt->handle] = NULL;
+
+	qla2x00_sp_compl(ha, sp);
 }
 
 static irqreturn_t

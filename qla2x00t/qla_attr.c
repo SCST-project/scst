@@ -1048,6 +1048,198 @@ static struct bin_attribute sysfs_sfp_attr = {
 	.read = qla2x00_sysfs_read_sfp,
 };
 
+static void
+qla2x00_wait_for_passthru_completion(struct scsi_qla_host *ha)
+{
+	unsigned long timeout;
+
+	if (unlikely(pci_channel_offline(ha->pdev)))
+		return;
+
+	timeout = ((ha->r_a_tov / 10 * 2) + 5) * HZ;
+	if (!wait_for_completion_timeout(&ha->pass_thru_intr_comp, timeout)) {
+		DEBUG2(qla_printk(KERN_WARNING, ha,
+		    "Passthru request timed out.\n"));
+		if (IS_QLA82XX(ha))
+			set_bit(FCOE_CTX_RESET_NEEDED, &ha->dpc_flags);
+		else {
+			ha->isp_ops->fw_dump(ha, 0);
+			set_bit(ISP_ABORT_NEEDED, &ha->dpc_flags);
+		}
+		qla2xxx_wake_dpc(ha);
+		ha->pass_thru_cmd_result = 0;
+		ha->pass_thru_cmd_in_process = 0;
+	}
+}
+
+static ssize_t
+qla2x00_sysfs_read_ct(struct kobject *kobj,
+		      struct bin_attribute *bin_attr,
+		      char *buf,
+		      loff_t off, size_t count)
+{
+	struct scsi_qla_host *ha = shost_priv(dev_to_shost(container_of(kobj,
+					    struct device, kobj)));
+
+	if (!ha->pass_thru_cmd_in_process || !ha->pass_thru_cmd_result) {
+		DEBUG3(qla_printk(KERN_WARNING, ha,
+		    "Passthru CT response is not available.\n"));
+		return 0;
+	}
+
+	memcpy(buf, ha->pass_thru, count);
+
+	ha->pass_thru_cmd_result = 0;
+	ha->pass_thru_cmd_in_process = 0;
+
+	return count;
+}
+
+static ssize_t
+qla2x00_sysfs_write_ct(struct kobject *kobj,
+		       struct bin_attribute *bin_attr,
+		       char *buf,
+		       loff_t off, size_t count)
+{
+	struct scsi_qla_host *ha = shost_priv(dev_to_shost(container_of(kobj,
+					    struct device, kobj)));
+	fc_ct_request_t *request = (void *)buf;
+	struct ct_entry_24xx *ct_iocb = NULL;
+	ms_iocb_entry_t *ct_iocb_2G = NULL;
+	unsigned long flags;
+
+	if (test_bit(ISP_ABORT_NEEDED, &ha->dpc_flags) ||
+	    test_bit(ABORT_ISP_ACTIVE, &ha->dpc_flags) ||
+	    test_bit(ISP_ABORT_RETRY, &ha->dpc_flags)) {
+		DEBUG2_3_11(qla_printk(KERN_INFO, ha,
+		    "%s(%ld): isp reset in progress.\n",
+		    __func__, ha->host_no));
+		goto ct_error0;
+	}
+	if (atomic_read(&ha->loop_state) != LOOP_READY)
+		goto ct_error0;
+	if (count < sizeof(request->ct_iu)) {
+		DEBUG2(qla_printk(KERN_WARNING, ha,
+		    "Passthru CT buffer insufficient size %zu...\n", count));
+		goto ct_error0;
+	}
+	if (ha->pass_thru_cmd_in_process || ha->pass_thru_cmd_result) {
+		DEBUG2(qla_printk(KERN_WARNING, ha,
+		    "Passthru CT request is already progress\n"));
+		goto ct_error0;
+	}
+	if (qla2x00_mgmt_svr_login(ha)) {
+		DEBUG2(qla_printk(KERN_WARNING, ha,
+		    "Passthru CT request failed to login management server\n"));
+		goto ct_error0;
+	}
+
+	ha->pass_thru_cmd_in_process = 1;
+	spin_lock_irqsave(&ha->hardware_lock, flags);
+
+	if (count > PAGE_SIZE) {
+		DEBUG2(qla_printk(KERN_INFO, ha,
+		    "Passthru CT request excessive size %d...\n",
+		    (int)count));
+		count = PAGE_SIZE;
+	}
+
+	memset(ha->pass_thru, 0, PAGE_SIZE);
+	memcpy(ha->pass_thru, &request->ct_iu, count);
+
+	if (IS_FWI2_CAPABLE(ha)) {
+		ct_iocb = (void *)qla2x00_req_pkt(ha);
+
+		if (ct_iocb == NULL) {
+			DEBUG2(qla_printk(KERN_WARNING, ha,
+			    "Passthru CT request failed to get request "
+			    "packet\n"));
+			goto ct_error1;
+		}
+
+		ct_iocb->entry_type = CT_IOCB_TYPE;
+		ct_iocb->entry_count = 1;
+		ct_iocb->entry_status = 0;
+		ct_iocb->comp_status = __constant_cpu_to_le16(0);
+		if (*(buf+4) & 0xfc)
+			ct_iocb->nport_handle = __constant_cpu_to_le16(NPH_SNS);
+		else
+			ct_iocb->nport_handle = cpu_to_le16(ha->mgmt_svr_loop_id);
+		ct_iocb->cmd_dsd_count = __constant_cpu_to_le16(1);
+		ct_iocb->vp_index = ha->vp_idx;
+		ct_iocb->timeout = (cpu_to_le16(ha->r_a_tov / 10 * 2) + 2);
+		ct_iocb->rsp_dsd_count = __constant_cpu_to_le16(1);
+		ct_iocb->rsp_byte_count = cpu_to_le32(PAGE_SIZE);
+		ct_iocb->cmd_byte_count = cpu_to_le32(count);
+
+		ct_iocb->dseg_0_address[0] = cpu_to_le32(LSD(ha->pass_thru_dma));
+		ct_iocb->dseg_0_address[1] = cpu_to_le32(MSD(ha->pass_thru_dma));
+		ct_iocb->dseg_0_len = ct_iocb->cmd_byte_count;
+
+		ct_iocb->dseg_1_address[0] = cpu_to_le32(LSD(ha->pass_thru_dma));
+		ct_iocb->dseg_1_address[1] = cpu_to_le32(MSD(ha->pass_thru_dma));
+		ct_iocb->dseg_1_len = ct_iocb->rsp_byte_count;
+	} else {
+		ct_iocb_2G = (void *)qla2x00_req_pkt(ha);
+
+		if (ct_iocb_2G == NULL) {
+			DEBUG2(qla_printk(KERN_WARNING, ha,
+			    "Passthru CT request failed to get request "
+			    "packet\n"));
+			goto ct_error1;
+		}
+
+		ct_iocb_2G->entry_type = CT_IOCB_TYPE;
+		ct_iocb_2G->entry_count = 1;
+		ct_iocb_2G->entry_status = 0;
+		SET_TARGET_ID(ha, ct_iocb_2G->loop_id, ha->mgmt_svr_loop_id);
+		ct_iocb_2G->status = __constant_cpu_to_le16(0);
+		ct_iocb_2G->control_flags = __constant_cpu_to_le16(0);
+		ct_iocb_2G->timeout = (cpu_to_le16(ha->r_a_tov / 10 * 2) + 2);
+		ct_iocb_2G->cmd_dsd_count = __constant_cpu_to_le16(1);
+		ct_iocb_2G->total_dsd_count = __constant_cpu_to_le16(2);
+		ct_iocb_2G->rsp_bytecount = cpu_to_le32(PAGE_SIZE);
+		ct_iocb_2G->req_bytecount = cpu_to_le32(count);
+
+		ct_iocb_2G->dseg_req_address[0] = cpu_to_le32(LSD(ha->pass_thru_dma));
+		ct_iocb_2G->dseg_req_address[1] = cpu_to_le32(MSD(ha->pass_thru_dma));
+		ct_iocb_2G->dseg_req_length = ct_iocb_2G->req_bytecount;
+
+		ct_iocb_2G->dseg_rsp_address[0] = cpu_to_le32(LSD(ha->pass_thru_dma));
+		ct_iocb_2G->dseg_rsp_address[1] = cpu_to_le32(MSD(ha->pass_thru_dma));
+		ct_iocb_2G->dseg_rsp_length = ct_iocb_2G->rsp_bytecount;
+	}
+
+	wmb();
+	qla2x00_isp_cmd(ha);
+
+	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+
+	qla2x00_wait_for_passthru_completion(ha);
+
+	return count;
+
+ct_error1:
+	ha->pass_thru_cmd_in_process = 0;
+	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+
+ct_error0:
+	DEBUG3(qla_printk(KERN_WARNING, ha,
+	    "Passthru CT failed on scsi(%ld)\n", ha->host_no));
+	return 0;
+}
+
+static struct bin_attribute sysfs_ct_attr = {
+	.attr = {
+		.name = "ct",
+		.mode = S_IRUSR | S_IWUSR,
+	},
+	.size = 0,
+	.read = qla2x00_sysfs_read_ct,
+	.write = qla2x00_sysfs_write_ct,
+};
+
+
 static struct sysfs_entry {
 	char *name;
 	struct bin_attribute *attr;
@@ -1059,6 +1251,7 @@ static struct sysfs_entry {
 	{ "optrom_ctl", &sysfs_optrom_ctl_attr, },
 	{ "vpd", &sysfs_vpd_attr, 1 },
 	{ "sfp", &sysfs_sfp_attr, 1 },
+	{ "ct", &sysfs_ct_attr, },
 	{ NULL },
 };
 
