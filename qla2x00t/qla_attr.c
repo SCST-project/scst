@@ -1073,7 +1073,12 @@ qla2x00_wait_for_passthru_completion(struct scsi_qla_host *ha)
 }
 
 static ssize_t
-qla2x00_sysfs_read_ct(struct kobject *kobj,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+qla2x00_sysfs_read_ct(
+#else
+qla2x00_sysfs_read_ct(struct file *file,
+#endif
+		      struct kobject *kobj,
 		      struct bin_attribute *bin_attr,
 		      char *buf,
 		      loff_t off, size_t count)
@@ -1096,7 +1101,12 @@ qla2x00_sysfs_read_ct(struct kobject *kobj,
 }
 
 static ssize_t
-qla2x00_sysfs_write_ct(struct kobject *kobj,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+qla2x00_sysfs_write_ct(
+#else
+qla2x00_sysfs_write_ct(struct file *file,
+#endif
+		       struct kobject *kobj,
 		       struct bin_attribute *bin_attr,
 		       char *buf,
 		       loff_t off, size_t count)

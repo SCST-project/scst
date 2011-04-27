@@ -51,7 +51,7 @@
  * Must be changed on any change in any target visible interfaces or
  * data in the initiator
  */
-#define QLA2X_INITIATOR_MAGIC   57224
+#define QLA2X_INITIATOR_MAGIC   57225
 
 #define QLA2X_INI_MODE_STR_EXCLUSIVE	"exclusive"
 #define QLA2X_INI_MODE_STR_DISABLED	"disabled"
