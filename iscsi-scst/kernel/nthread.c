@@ -838,7 +838,21 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 		case RX_BHS:
 			res = do_recv(conn);
 			if (res == 0) {
+				/*
+				 * Clear aborted status if this command was
+				 * accidentally aborted with other commands of
+				 * this connection. This command not yet
+				 * received on the aborted time, so shouldn't be
+				 * affected by the abort.
+				 */
+				if (cmnd->prelim_compl_flags != 0)
+					TRACE_MGMT_DBG("Unabort not yet "
+						"received cmnd %p (flags %lx)",
+						cmnd, cmnd->prelim_compl_flags);
+				cmnd->prelim_compl_flags = 0;
+
 				iscsi_cmnd_get_length(&cmnd->pdu);
+
 				if (cmnd->pdu.ahssize == 0) {
 					if ((conn->hdigest_type & DIGEST_NONE) == 0)
 						conn->read_state = RX_INIT_HDIGEST;
