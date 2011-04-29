@@ -1322,8 +1322,8 @@ static void vdisk_exec_unmap(struct scst_cmd *cmd, struct scst_vdisk_thr *thr)
 			(unsigned long long)start, len);
 
 		if (virt_dev->blockio) {
-			gfp_t gfp = cmd->noio_mem_alloc ? GFP_NOIO : GFP_KERNEL;
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 27)
+			gfp_t gfp = cmd->noio_mem_alloc ? GFP_NOIO : GFP_KERNEL;
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 31)
 			err = blkdev_issue_discard(inode->i_bdev, start, len,
 					gfp);
