@@ -473,7 +473,7 @@ EXPORT_SYMBOL(scst_unregister_target_template);
 struct scst_tgt *scst_register_target(struct scst_tgt_template *vtt,
 	const char *target_name)
 {
-	struct scst_tgt *tgt;
+	struct scst_tgt *tgt, *t;
 	int rc = 0;
 
 	TRACE_ENTRY();
@@ -526,6 +526,14 @@ struct scst_tgt *scst_register_target(struct scst_tgt_template *vtt,
 	rc = mutex_lock_interruptible(&scst_mutex);
 	if (rc != 0)
 		goto out_free_tgt;
+
+	list_for_each_entry(t, &vtt->tgt_list, tgt_list_entry) {
+		if (strcmp(t->tgt_name, tgt->tgt_name) == 0) {
+			PRINT_ERROR("target %s already exists", tgt->tgt_name);
+			rc = -EEXIST;
+			goto out_unlock;
+		}
+	}
 
 #ifdef CONFIG_SCST_PROC
 	rc = scst_build_proc_target_entries(tgt);
