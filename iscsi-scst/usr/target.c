@@ -349,7 +349,8 @@ int target_del(u32 tid, u32 cookie)
 		exit(-1);
 	}
 
-	isns_target_deregister(target->name);
+	if (target->tgt_enabled)
+		isns_target_deregister(target->name);
 
 	target_free(target);
 
@@ -421,7 +422,9 @@ int target_add(struct target *target, u32 *tid, u32 cookie)
 #endif
 	list_add_tail(&target->tlist, &targets_list);
 
+#ifdef CONFIG_SCST_PROC
 	isns_target_register(target->name);
+#endif
 
 out:
 	return err;
