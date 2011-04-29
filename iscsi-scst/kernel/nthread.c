@@ -838,7 +838,21 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 		case RX_BHS:
 			res = do_recv(conn);
 			if (res == 0) {
+				/*
+				 * Clear aborted status if this command was
+				 * accidentally aborted with other commands of
+				 * this connection. This command not yet
+				 * received on the aborted time, so shouldn't be
+				 * affected by the abort.
+				 */
+				if (cmnd->prelim_compl_flags != 0)
+					TRACE_MGMT_DBG("Unabort not yet "
+						"received cmnd %p (flags %lx)",
+						cmnd, cmnd->prelim_compl_flags);
+				cmnd->prelim_compl_flags = 0;
+
 				iscsi_cmnd_get_length(&cmnd->pdu);
+
 				if (cmnd->pdu.ahssize == 0) {
 					if ((conn->hdigest_type & DIGEST_NONE) == 0)
 						conn->read_state = RX_INIT_HDIGEST;
@@ -1223,6 +1237,15 @@ void req_add_to_write_timeout_list(struct iscsi_cmnd *req)
 			TRACE_DBG("Add NOP IN req %p in the tail", req);
 			list_add_tail(&req->write_timeout_list_entry,
 				&conn->write_timeout_list);
+		}
+
+		/* We suppose that nop_in_timeout must be <= data_rsp_timeout */
+		req_tt += ISCSI_ADD_SCHED_TIME;
+		if (timer_pending(&conn->rsp_timer) &&
+		    time_after(conn->rsp_timer.expires, req_tt)) {
+			TRACE_DBG("Timer adjusted for sooner expired NOP IN "
+				"req %p", req);
+			mod_timer(&conn->rsp_timer, req_tt);
 		}
 	} else
 		list_add_tail(&req->write_timeout_list_entry,

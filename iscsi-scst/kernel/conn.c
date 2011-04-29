@@ -650,6 +650,7 @@ again:
 					TRACE_MGMT_DBG("Unabort not yet received cmnd %p",
 						cmnd);
 					clear_bit(ISCSI_CMD_ABORTED, &cmnd->prelim_compl_flags);
+					continue;
 				} else if (cmnd->scst_state == ISCSI_CMD_STATE_RX_CMD) {
 					TRACE_MGMT_DBG("Aborted cmnd %p is RX_CMD, "
 						"keep waiting", cmnd);

@@ -979,6 +979,8 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 			int rc;
 
 			list_for_each_entry(t, &targets_list, tlist) {
+				if (!t->tgt_enabled)
+					continue;
 				rc = isns_target_register(t->name);
 				if (rc < 0) {
 					/*
@@ -1080,8 +1082,10 @@ retry:
 		} else
 			rc = 0;
 		rc |= send_mgmt_cmd_res(event.tid, event.cookie, E_ENABLE_TARGET, rc, NULL);
-		if (rc == 0)
+		if (rc == 0) {
 			target->tgt_enabled = 1;
+			isns_target_register(target->name);
+		}
 		break;
 
 	case E_DISABLE_TARGET:
@@ -1092,8 +1096,10 @@ retry:
 		} else
 			rc = 0;
 		rc |= send_mgmt_cmd_res(event.tid, event.cookie, E_DISABLE_TARGET, rc, NULL);
-		if (rc == 0)
+		if (rc == 0) {
 			target->tgt_enabled = 0;
+			isns_target_deregister(target->name);
+		}
 		break;
 
 	case E_GET_ATTR_VALUE:
