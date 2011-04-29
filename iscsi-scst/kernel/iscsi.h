@@ -301,6 +301,23 @@ struct iscsi_pdu {
 typedef void (iscsi_show_info_t)(struct seq_file *seq,
 				 struct iscsi_target *target);
 
+/* Read data states */
+enum rx_state {
+	RX_INIT_BHS, /* Must be zero for better "switch" optimization. */
+	RX_BHS,
+	RX_CMD_START,
+	RX_DATA,
+	RX_END,
+
+	RX_CMD_CONTINUE,
+	RX_INIT_HDIGEST,
+	RX_CHECK_HDIGEST,
+	RX_INIT_DDIGEST,
+	RX_CHECK_DDIGEST,
+	RX_AHS,
+	RX_PADDING,
+};
+
 /** Commands' states **/
 
 /* New command and SCST processes it */

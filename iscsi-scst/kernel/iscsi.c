@@ -432,6 +432,7 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 
 	EXTRACHECKS_BUG_ON(cmnd->on_rx_digest_list);
 	EXTRACHECKS_BUG_ON(cmnd->hashed);
+	EXTRACHECKS_BUG_ON(cmnd->cmd_req);
 
 	req_del_from_write_timeout_list(cmnd);
 
@@ -641,6 +642,12 @@ static void req_cmnd_pre_release(struct iscsi_cmnd *req)
 	if (unlikely(req->hashed)) {
 		/* It sometimes can happen during errors recovery */
 		cmnd_remove_data_wait_hash(req);
+	}
+
+	if (unlikely(req->cmd_req)) {
+		/* It sometimes can happen during errors recovery */
+		cmnd_put(req->cmd_req);
+		req->cmd_req = NULL;
 	}
 
 	if (unlikely(req->main_rsp != NULL)) {
@@ -1280,6 +1287,8 @@ static struct iscsi_cmnd *cmnd_find_data_wait_hash(struct iscsi_conn *conn,
 
 	spin_lock(&session->cmnd_data_wait_hash_lock);
 	res = __cmnd_find_data_wait_hash(conn, itt);
+	if (cmnd_get_check(res) != 0)
+		res = NULL;
 	spin_unlock(&session->cmnd_data_wait_hash_lock);
 
 	return res;
@@ -2172,13 +2181,17 @@ static void data_out_end(struct iscsi_cmnd *cmnd)
 		req->r2t_len_to_send);
 
 	if (!(req_hdr->flags & ISCSI_FLG_FINAL))
-		goto out;
+		goto out_put;
 
 	if (req->r2t_len_to_receive == 0) {
 		if (!req->pending)
 			iscsi_restart_cmnd(req);
 	} else if (req->r2t_len_to_send != 0)
 		send_r2t(req);
+
+out_put:
+	cmnd_put(req);
+	cmnd->cmd_req = NULL;
 
 out:
 	TRACE_EXIT();
@@ -2196,15 +2209,16 @@ static void __cmnd_abort(struct iscsi_cmnd *cmnd)
 		"ref_cnt %d, on_write_timeout_list %d, write_start %ld, ITT %x, "
 		"sn %u, op %x, r2t_len_to_receive %d, r2t_len_to_send %d, "
 		"CDB op %x, size to write %u, outstanding_r2t %d, "
-		"sess->exp_cmd_sn %u, conn %p, rd_task %p)",
-		cmnd, cmnd->scst_cmd, cmnd->scst_state,
+		"sess->exp_cmd_sn %u, conn %p, rd_task %p, read_cmnd %p, "
+		"read_state %d)", cmnd, cmnd->scst_cmd, cmnd->scst_state,
 		atomic_read(&cmnd->ref_cnt), cmnd->on_write_timeout_list,
 		cmnd->write_start, cmnd->pdu.bhs.itt, cmnd->pdu.bhs.sn,
 		cmnd_opcode(cmnd), cmnd->r2t_len_to_receive,
 		cmnd->r2t_len_to_send, cmnd_scsicode(cmnd),
 		cmnd_write_size(cmnd), cmnd->outstanding_r2t,
 		cmnd->conn->session->exp_cmd_sn, cmnd->conn,
-		cmnd->conn->rd_task);
+		cmnd->conn->rd_task, cmnd->conn->read_cmnd,
+		cmnd->conn->read_state);
 
 #if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 	TRACE_MGMT_DBG("net_ref_cnt %d", atomic_read(&cmnd->net_ref_cnt));
