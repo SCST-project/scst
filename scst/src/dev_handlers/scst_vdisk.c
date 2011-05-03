@@ -1577,11 +1577,11 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 		if (virt_dev->removable)
 			buf[1] = 0x80;      /* removable */
 		buf[2] = 5; /* Device complies to SPC-3 */
-		buf[3] = 0x12;	/* HiSup + data in format specified in SPC */
+		buf[3] = 0x02;	/* Data in format specified in SPC */
 		if (cmd->tgtt->fake_aca)
 			buf[3] |= 0x20;
 		buf[4] = 31;/* n - 4 = 35 - 4 = 31 for full 36 byte data */
-		buf[6] = 1; /* MultiP 1 */
+		buf[6] = 0x10; /* MultiP 1 */
 		buf[7] = 2; /* CMDQUE 1, BQue 0 => commands queuing supported */
 
 		/*
