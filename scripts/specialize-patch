@@ -242,6 +242,7 @@ function handle_if(evaluated)
   # kernel version, and do not interpret other expressions.
   if ($0 ~ "LINUX_VERSION_CODE"    \
       || $0 ~ "INSIDE_KERNEL_TREE" \
+      || $0 ~ "CONFIG_SCST_PROC"   \
       || $0 ~ "RHEL_MAJOR"         \
       || $0 ~ "RHEL_MINOR"         \
       || $0 ~ "RHEL_RELEASE_CODE"  \

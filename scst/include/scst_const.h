@@ -272,7 +272,6 @@ enum scst_cdb_flags {
 /*************************************************************
  * SCSI opcodes not listed anywhere else
  *************************************************************/
-#define REPORT_DEVICE_IDENTIFIER    0xA3
 #define INIT_ELEMENT_STATUS         0x07
 #define INIT_ELEMENT_STATUS_RANGE   0x37
 #define PREVENT_ALLOW_MEDIUM        0x1E

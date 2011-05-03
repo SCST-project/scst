@@ -116,6 +116,10 @@ svn status -v "$(dirname "$(dirname "$scriptname")")" \
 | grep -v /in-tree/ \
 | while read p
   do
-    echo "==== $p"
-    patch -p1 <$p
+    if [ "${p/readahead-2.6.32.below11.patch//}" = "$p" \
+         -o "${patchlevel:-0}" -lt 11 ]
+    then
+      echo "==== $p"
+      patch -p1 <$p
+    fi
   done

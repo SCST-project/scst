@@ -21,7 +21,7 @@
 #define __SCST_PRIV_H
 
 #include <linux/types.h>
-
+#include <linux/slab.h>
 #include <scsi/scsi.h>
 #include <scsi/scsi_cmnd.h>
 #include <scsi/scsi_driver.h>
