@@ -1076,7 +1076,7 @@ int istrd(void *arg)
 	PRINT_INFO("Read thread for pool %p started, PID %d", p, current->pid);
 
 	current->flags |= PF_NOFREEZE;
-#ifdef RHEL_MAJOR
+#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
 	rc = set_cpus_allowed(current, p->cpu_mask);
 #else
 	rc = set_cpus_allowed_ptr(current, &p->cpu_mask);
@@ -1847,7 +1847,7 @@ int istwr(void *arg)
 	PRINT_INFO("Write thread for pool %p started, PID %d", p, current->pid);
 
 	current->flags |= PF_NOFREEZE;
-#ifdef RHEL_MAJOR
+#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
 	rc = set_cpus_allowed(current, p->cpu_mask);
 #else
 	rc = set_cpus_allowed_ptr(current, &p->cpu_mask);
