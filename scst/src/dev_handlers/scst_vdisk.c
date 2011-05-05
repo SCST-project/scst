@@ -1377,13 +1377,6 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 	uint8_t *buf;
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 
-	/* ToDo: Performance Boost:
-	 * 1. remove kzalloc, buf
-	 * 2. do all checks before touching *address
-	 * 3. zero *address
-	 * 4. write directly to *address
-	 */
-
 	TRACE_ENTRY();
 
 	buf = kzalloc(INQ_BUF_SZ, GFP_KERNEL);
