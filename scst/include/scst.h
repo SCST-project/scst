@@ -536,7 +536,7 @@ enum scst_exec_context {
 /*************************************************************
  ** Kernel cache creation helper
  *************************************************************/
-#ifndef KMEM_CACHE
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22)
 #define KMEM_CACHE(__struct, __flags) kmem_cache_create(#__struct,\
 	sizeof(struct __struct), __alignof__(struct __struct),\
 	(__flags), NULL, NULL)
