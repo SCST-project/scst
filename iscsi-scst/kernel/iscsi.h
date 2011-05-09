@@ -672,7 +672,7 @@ static inline void iscsi_cmnd_set_length(struct iscsi_pdu *pdu)
 extern struct scst_tgt_template iscsi_template;
 
 /*
- * Skip this command if result is not 0. Must be called under
+ * Skip this command if result is true. Must be called under
  * corresponding lock.
  */
 static inline bool cmnd_get_check(struct iscsi_cmnd *cmnd)

@@ -61,7 +61,6 @@ static void iscsi_send_task_mgmt_resp(struct iscsi_cmnd *req, int status);
 static void iscsi_check_send_delayed_tm_resp(struct iscsi_session *sess);
 static void req_cmnd_release(struct iscsi_cmnd *req);
 static int cmnd_insert_data_wait_hash(struct iscsi_cmnd *cmnd);
-static void __cmnd_abort(struct iscsi_cmnd *cmnd);
 static void iscsi_cmnd_init_write(struct iscsi_cmnd *rsp, int flags);
 static void iscsi_set_resid_no_scst_cmd(struct iscsi_cmnd *rsp);
 static void iscsi_set_resid(struct iscsi_cmnd *rsp);
@@ -2250,7 +2249,7 @@ static void __cmnd_abort(struct iscsi_cmnd *cmnd)
 }
 
 /* Must be called from the read or conn close thread */
-static int cmnd_abort(struct iscsi_cmnd *req, int *status)
+static int cmnd_abort_pre_checks(struct iscsi_cmnd *req, int *status)
 {
 	struct iscsi_task_mgt_hdr *req_hdr =
 		(struct iscsi_task_mgt_hdr *)&req->pdu.bhs;
@@ -2268,7 +2267,6 @@ static int cmnd_abort(struct iscsi_cmnd *req, int *status)
 
 	cmnd = cmnd_find_itt_get(req->conn, req_hdr->rtt);
 	if (cmnd) {
-		struct iscsi_conn *conn = cmnd->conn;
 		struct iscsi_scsi_cmd_hdr *hdr = cmnd_hdr(cmnd);
 
 		if (req_hdr->lun != hdr->lun) {
@@ -2310,10 +2308,6 @@ static int cmnd_abort(struct iscsi_cmnd *req, int *status)
 			goto out_put;
 		}
 
-		spin_lock_bh(&conn->cmd_list_lock);
-		__cmnd_abort(cmnd);
-		spin_unlock_bh(&conn->cmd_list_lock);
-
 		cmnd_put(cmnd);
 		res = 0;
 	} else {
@@ -2351,69 +2345,86 @@ out_put:
 	goto out;
 }
 
-/* Must be called from the read or conn close thread */
-static int target_abort(struct iscsi_cmnd *req, int all)
+struct iscsi_cmnd_abort_params {
+	struct work_struct iscsi_cmnd_abort_work;
+	struct scst_cmd *scst_cmd;
+};
+
+static mempool_t *iscsi_cmnd_abort_mempool;
+
+static void iscsi_cmnd_abort_fn(struct work_struct *work)
 {
-	struct iscsi_target *target = req->conn->session->target;
-	struct iscsi_task_mgt_hdr *req_hdr =
-		(struct iscsi_task_mgt_hdr *)&req->pdu.bhs;
-	struct iscsi_session *session;
+	struct iscsi_cmnd_abort_params *params = container_of(work,
+		struct iscsi_cmnd_abort_params, iscsi_cmnd_abort_work);
+	struct scst_cmd *scst_cmd = params->scst_cmd;
+	struct iscsi_session *session = scst_sess_get_tgt_priv(scst_cmd->sess);
 	struct iscsi_conn *conn;
-	struct iscsi_cmnd *cmnd;
+	struct iscsi_cmnd *cmnd = scst_cmd_get_tgt_priv(scst_cmd);
+	bool done = false;
 
-	mutex_lock(&target->target_mutex);
+	TRACE_ENTRY();
 
-	list_for_each_entry(session, &target->session_list,
-			    session_list_entry) {
-		list_for_each_entry(conn, &session->conn_list,
-				    conn_list_entry) {
-			spin_lock_bh(&conn->cmd_list_lock);
-			list_for_each_entry(cmnd, &conn->cmd_list,
-					    cmd_list_entry) {
-				if (cmnd == req)
-					continue;
-				if (all)
-					__cmnd_abort(cmnd);
-				else if (req_hdr->lun == cmnd_hdr(cmnd)->lun)
-					__cmnd_abort(cmnd);
-			}
-			spin_unlock_bh(&conn->cmd_list_lock);
-		}
-	}
+	TRACE_MGMT_DBG("Checking aborted scst_cmd %p (cmnd %p)", scst_cmd, cmnd);
 
-	mutex_unlock(&target->target_mutex);
-	return 0;
-}
+	mutex_lock(&session->target->target_mutex);
 
-/* Must be called from the read or conn close thread */
-static void task_set_abort(struct iscsi_cmnd *req)
-{
-	struct iscsi_session *session = req->conn->session;
-	struct iscsi_task_mgt_hdr *req_hdr =
-		(struct iscsi_task_mgt_hdr *)&req->pdu.bhs;
-	struct iscsi_target *target = session->target;
-	struct iscsi_conn *conn;
-	struct iscsi_cmnd *cmnd;
-
-	mutex_lock(&target->target_mutex);
-
+	/*
+	 * cmnd pointer is valid only under cmd_list_lock, but we can't know the
+	 * corresponding conn without dereferencing cmnd at first, so let's
+	 * check all conns and cmnds to find out if our cmnd is still valid
+	 * under lock.
+	 */
 	list_for_each_entry(conn, &session->conn_list, conn_list_entry) {
+		struct iscsi_cmnd *c;
 		spin_lock_bh(&conn->cmd_list_lock);
-		list_for_each_entry(cmnd, &conn->cmd_list, cmd_list_entry) {
-			struct iscsi_scsi_cmd_hdr *hdr = cmnd_hdr(cmnd);
-			if (cmnd == req)
-				continue;
-			if (req_hdr->lun != hdr->lun)
-				continue;
-			if (before(req_hdr->cmd_sn, hdr->cmd_sn) ||
-			    req_hdr->cmd_sn == hdr->cmd_sn)
-				continue;
-			__cmnd_abort(cmnd);
+		list_for_each_entry(c, &conn->cmd_list, cmd_list_entry) {
+			if (c == cmnd) {
+				__cmnd_abort(cmnd);
+				done = true;
+				break;
+			}
 		}
 		spin_unlock_bh(&conn->cmd_list_lock);
+		if (done)
+			break;
 	}
 
-	mutex_unlock(&target->target_mutex);
+	mutex_unlock(&session->target->target_mutex);
+
+	scst_cmd_put(scst_cmd);
+
+	mempool_free(params, iscsi_cmnd_abort_mempool);
+
+	TRACE_EXIT();
+	return;
+}
+
+static void iscsi_on_abort_cmd(struct scst_cmd *scst_cmd)
+{
+	struct iscsi_cmnd_abort_params *params;
+
+	TRACE_ENTRY();
+
+	params = mempool_alloc(iscsi_cmnd_abort_mempool, GFP_ATOMIC);
+	if (params == NULL) {
+		PRINT_CRIT_ERROR("Unable to create iscsi_cmnd_abort_params, "
+			"iSCSI cmnd for scst_cmd %p may not be aborted",
+			scst_cmd);
+		goto out;
+	}
+
+	memset(params, 0, sizeof(*params));
+	INIT_WORK(&params->iscsi_cmnd_abort_work, iscsi_cmnd_abort_fn);
+	params->scst_cmd = scst_cmd;
+
+	scst_cmd_get(scst_cmd);
+
+	TRACE_MGMT_DBG("Scheduling abort check for scst_cmd %p", scst_cmd);
+
+	schedule_work(&params->iscsi_cmnd_abort_work);
+
+out:
+	TRACE_EXIT();
 	return;
 }
 
@@ -2516,7 +2527,7 @@ static void execute_task_management(struct iscsi_cmnd *req)
 
 	switch (function) {
 	case ISCSI_FUNCTION_ABORT_TASK:
-		rc = cmnd_abort(req, &status);
+		rc = cmnd_abort_pre_checks(req, &status);
 		if (rc == 0) {
 			params.fn = SCST_ABORT_TASK;
 			params.tag = (__force u32)req_hdr->rtt;
@@ -2532,7 +2543,6 @@ static void execute_task_management(struct iscsi_cmnd *req)
 		}
 		break;
 	case ISCSI_FUNCTION_ABORT_TASK_SET:
-		task_set_abort(req);
 		params.fn = SCST_ABORT_TASK_SET;
 		params.lun = (uint8_t *)&req_hdr->lun;
 		params.lun_len = sizeof(req_hdr->lun);
@@ -2544,7 +2554,6 @@ static void execute_task_management(struct iscsi_cmnd *req)
 		status = ISCSI_RESPONSE_FUNCTION_REJECTED;
 		break;
 	case ISCSI_FUNCTION_CLEAR_TASK_SET:
-		task_set_abort(req);
 		params.fn = SCST_CLEAR_TASK_SET;
 		params.lun = (uint8_t *)&req_hdr->lun;
 		params.lun_len = sizeof(req_hdr->lun);
@@ -2568,7 +2577,6 @@ static void execute_task_management(struct iscsi_cmnd *req)
 		break;
 	case ISCSI_FUNCTION_TARGET_COLD_RESET:
 	case ISCSI_FUNCTION_TARGET_WARM_RESET:
-		target_abort(req, 1);
 		params.fn = SCST_TARGET_RESET;
 		params.cmd_sn = req_hdr->cmd_sn;
 		params.cmd_sn_set = 1;
@@ -2577,7 +2585,6 @@ static void execute_task_management(struct iscsi_cmnd *req)
 		status = ISCSI_RESPONSE_FUNCTION_REJECTED;
 		break;
 	case ISCSI_FUNCTION_LOGICAL_UNIT_RESET:
-		target_abort(req, 0);
 		params.fn = SCST_LUN_RESET;
 		params.lun = (uint8_t *)&req_hdr->lun;
 		params.lun_len = sizeof(req_hdr->lun);
@@ -3827,6 +3834,7 @@ struct scst_tgt_template iscsi_template = {
 	.pre_exec = iscsi_pre_exec,
 	.task_mgmt_affected_cmds_done = iscsi_task_mgmt_affected_cmds_done,
 	.task_mgmt_fn_done = iscsi_task_mgmt_fn_done,
+	.on_abort_cmd = iscsi_on_abort_cmd,
 	.report_aen = iscsi_report_aen,
 	.get_initiator_port_transport_id = iscsi_get_initiator_port_transport_id,
 	.get_scsi_transport_version = iscsi_get_scsi_transport_version,
@@ -4016,12 +4024,19 @@ static int __init iscsi_init(void)
 	sg_init_table(&dummy_sg, 1);
 	sg_set_page(&dummy_sg, dummy_page, PAGE_SIZE, 0);
 
+	iscsi_cmnd_abort_mempool = mempool_create_kmalloc_pool(2500,
+		sizeof(struct iscsi_cmnd_abort_params));
+        if (iscsi_cmnd_abort_mempool == NULL) {
+                err = -ENOMEM;
+                goto out_free_dummy;
+        }
+
 #if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 	err = net_set_get_put_page_callbacks(iscsi_get_page_callback,
 			iscsi_put_page_callback);
 	if (err != 0) {
 		PRINT_INFO("Unable to set page callbackes: %d", err);
-		goto out_free_dummy;
+		goto out_destroy_mempool;
 	}
 #else
 #ifndef GENERATING_UPSTREAM_PATCH
@@ -4092,6 +4107,9 @@ out_callb:
 #if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 	net_set_get_put_page_callbacks(NULL, NULL);
 
+out_destroy_mempool:
+	mempool_destroy(iscsi_cmnd_abort_mempool);
+
 out_free_dummy:
 #endif
 	__free_pages(dummy_page, 0);
@@ -4118,6 +4136,8 @@ static void __exit iscsi_exit(void)
 #if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 	net_set_get_put_page_callbacks(NULL, NULL);
 #endif
+
+	mempool_destroy(iscsi_cmnd_abort_mempool);
 
 	__free_pages(dummy_page, 0);
 	return;

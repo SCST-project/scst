@@ -811,6 +811,15 @@ struct scst_tgt_template {
 	void (*task_mgmt_fn_done) (struct scst_mgmt_cmd *mgmt_cmd);
 
 	/*
+	 * Called to notify target driver that the command is being aborted.
+	 * If target driver wants to redirect processing to some outside
+	 * processing, it should get it using scst_cmd_get().
+	 *
+	 * OPTIONAL
+	 */
+	void (*on_abort_cmd) (struct scst_cmd *cmd);
+
+	/*
 	 * This function should detect the target adapters that
 	 * are present in the system. The function should return a value
 	 * >= 0 to signify the number of detected target adapters.
@@ -1232,7 +1241,13 @@ struct scst_dev_type {
 	 *  - SCST_DEV_TM_NOT_COMPLETED - regular standard actions for the
 	 *      command should be done
 	 *
-	 * Called without any locks held from a thread context.
+	 * Can be called under many internal SCST locks, including under
+	 * disabled IRQs, so dev handler should be careful with locking and,
+	 * if necessary, pass processing somewhere outside (in a work, e.g.)
+	 *
+	 * But at the moment it's called under disabled IRQs only for
+	 * SCST_ABORT_TASK, however dev handler using it should add a BUG_ON
+	 * trap to catch if it's changed in future.
 	 *
 	 * OPTIONAL
 	 */
@@ -1862,7 +1877,10 @@ struct scst_cmd {
 	/* Set if cmd is done */
 	unsigned int done:1;
 
-	/* Set if cmd is finished */
+	/*
+	 * Set if cmd is finished. Used under sess_list_lock to sync
+	 * between scst_finish_cmd() and scst_abort_cmd()
+	 */
 	unsigned int finished:1;
 
 #ifdef CONFIG_SCST_DEBUG_TM

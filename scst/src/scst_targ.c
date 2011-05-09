@@ -508,7 +508,7 @@ int scst_pre_parse(struct scst_cmd *cmd)
 
 	TRACE_DBG("op_name <%s> (cmd %p), direction=%d "
 		"(expected %d, set %s), bufflen=%d, out_bufflen=%d (expected "
-		"len %d, out expected len %d), flags=%d", cmd->op_name, cmd,
+		"len %d, out expected len %d), flags=0x%x", cmd->op_name, cmd,
 		cmd->data_direction, cmd->expected_data_direction,
 		scst_cmd_is_expected_set(cmd) ? "yes" : "no",
 		cmd->bufflen, cmd->out_bufflen, cmd->expected_transfer_len,
@@ -3641,10 +3641,13 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 
 	list_del(&cmd->sess_cmd_list_entry);
 
-	spin_unlock_irq(&sess->sess_list_lock);
-
+	/*
+	 * Done under sess_list_lock to sync with scst_abort_cmd() without
+	 * using extra barrier.
+	 */
 	cmd->finished = 1;
-	smp_mb(); /* to sync with scst_abort_cmd() */
+
+	spin_unlock_irq(&sess->sess_list_lock);
 
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
 		TRACE_MGMT_DBG("Aborted cmd %p finished (cmd_ref %d)",
@@ -4613,7 +4616,6 @@ static int scst_call_dev_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 	if (h->task_mgmt_fn) {
 		TRACE_MGMT_DBG("Calling dev handler %s task_mgmt_fn(fn=%d)",
 			h->name, mcmd->fn);
-		EXTRACHECKS_BUG_ON(in_irq() || irqs_disabled());
 		res = h->task_mgmt_fn(mcmd, tgt_dev);
 		TRACE_MGMT_DBG("Dev handler %s task_mgmt_fn() returned %d",
 		      h->name, res);
@@ -4639,7 +4641,10 @@ static inline int scst_is_strict_mgmt_fn(int mgmt_fn)
 	}
 }
 
-/* Might be called under sess_list_lock and IRQ off + BHs also off */
+/*
+ * Must be called under sess_list_lock to sync with finished flag assignment in
+ * scst_finish_cmd()
+ */
 void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 	bool other_ini, bool call_dev_task_mgmt_fn)
 {
@@ -4684,9 +4689,9 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 	spin_unlock_irqrestore(&other_ini_lock, flags);
 
 	/*
-	 * To sync with cmd->finished/done set in
-	 * scst_finish_cmd()/scst_pre_xmit_response() and with setting UA for
-	 * aborted cmd in scst_set_pending_UA().
+	 * To sync with setting cmd->done in scst_pre_xmit_response() (with
+	 * scst_finish_cmd() we synced by using sess_list_lock) and with
+	 * setting UA for aborted cmd in scst_set_pending_UA().
 	 */
 	smp_mb__after_set_bit();
 
@@ -4697,10 +4702,8 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 		wake_up(&scst_init_cmd_list_waitQ);
 	}
 
-	if (call_dev_task_mgmt_fn && (cmd->tgt_dev != NULL)) {
-		EXTRACHECKS_BUG_ON(irqs_disabled());
+	if (!cmd->finished && call_dev_task_mgmt_fn && (cmd->tgt_dev != NULL))
 		scst_call_dev_task_mgmt_fn(mcmd, cmd->tgt_dev, 1);
-	}
 
 	spin_lock_irqsave(&scst_mcmd_lock, flags);
 	if ((mcmd != NULL) && !cmd->finished) {
@@ -4766,6 +4769,9 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 			/* We don't need to wait for this cmd */
 			mempool_free(mstb, scst_mgmt_stub_mempool);
 		}
+
+		if (cmd->tgtt->on_abort_cmd)
+			cmd->tgtt->on_abort_cmd(cmd);
 	}
 
 unlock:
@@ -5495,7 +5501,10 @@ static int scst_abort_task(struct scst_mgmt_cmd *mcmd)
 			cmd->tgt_sn, (long long unsigned int)mcmd->tag);
 		mcmd->status = SCST_MGMT_STATUS_REJECTED;
 	} else {
+		spin_lock_irq(&cmd->sess->sess_list_lock);
 		scst_abort_cmd(cmd, mcmd, 0, 1);
+		spin_unlock_irq(&cmd->sess->sess_list_lock);
+
 		scst_unblock_aborted_cmds(0);
 	}
 

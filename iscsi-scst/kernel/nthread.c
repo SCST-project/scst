@@ -19,7 +19,6 @@
 #include <linux/sched.h>
 #include <linux/file.h>
 #include <linux/kthread.h>
-#include <asm/ioctls.h>
 #include <linux/delay.h>
 #include <net/tcp.h>
 
@@ -839,17 +838,10 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 			res = do_recv(conn);
 			if (res == 0) {
 				/*
-				 * Clear aborted status if this command was
-				 * accidentally aborted with other commands of
-				 * this connection. This command not yet
-				 * received on the aborted time, so shouldn't be
-				 * affected by the abort.
+				 * This command not yet received on the aborted
+				 * time, so shouldn't be affected by any abort.
 				 */
-				if (cmnd->prelim_compl_flags != 0)
-					TRACE_MGMT_DBG("Unabort not yet "
-						"received cmnd %p (flags %lx)",
-						cmnd, cmnd->prelim_compl_flags);
-				cmnd->prelim_compl_flags = 0;
+				EXTRACHECKS_BUG_ON(cmnd->prelim_compl_flags != 0);
 
 				iscsi_cmnd_get_length(&cmnd->pdu);
 

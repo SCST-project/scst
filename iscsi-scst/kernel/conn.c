@@ -620,9 +620,9 @@ void iscsi_check_tm_data_wait_timeouts(struct iscsi_conn *conn, bool force)
 
 	TRACE_ENTRY();
 
-	TRACE_DBG_FLAG(force ? TRACE_CONN_OC_DBG : TRACE_MGMT_DEBUG,
-		"conn %p, read_cmnd %p, read_state %d, j %ld (TIMEOUT %d, "
-		"force %d)", conn, conn->read_cmnd, conn->read_state, j,
+	TRACE_DBG_FLAG(TRACE_MGMT_DEBUG, "conn %p, read_cmnd %p, read_state "
+		"%d, j %ld (TIMEOUT %d, force %d)", conn, conn->read_cmnd,
+		conn->read_state, j,
 		ISCSI_TM_DATA_WAIT_TIMEOUT + ISCSI_ADD_SCHED_TIME, force);
 
 	iscsi_extracheck_is_rd_thread(conn);
@@ -635,23 +635,19 @@ again:
 	list_for_each_entry(cmnd, &conn->write_timeout_list,
 				write_timeout_list_entry) {
 		if (test_bit(ISCSI_CMD_ABORTED, &cmnd->prelim_compl_flags)) {
-			TRACE_DBG_FLAG(force ? TRACE_CONN_OC_DBG : TRACE_MGMT_DEBUG,
-				"Checking aborted cmnd %p (scst_state %d, "
-				"on_write_timeout_list %d, write_start %ld, "
-				"r2t_len_to_receive %d)", cmnd, cmnd->scst_state,
+			TRACE_DBG_FLAG(TRACE_MGMT_DEBUG, "Checking aborted "
+				"cmnd %p (scst_state %d, on_write_timeout_list "
+				"%d, write_start %ld, r2t_len_to_receive %d)",
+				cmnd, cmnd->scst_state,
 				cmnd->on_write_timeout_list, cmnd->write_start,
 				cmnd->r2t_len_to_receive);
 			if (cmnd == conn->read_cmnd) {
-				TRACE_DBG_FLAG(force ? TRACE_CONN_OC_DBG : TRACE_MGMT_DEBUG,
+				TRACE_DBG_FLAG(TRACE_MGMT_DEBUG,
 					"cmnd %p is read cmd", cmnd);
 				sBUG_ON(force);
-				if ((conn->read_state == RX_INIT_BHS) ||
-				    (conn->read_state == RX_BHS)) {
-					TRACE_MGMT_DBG("Unabort not yet received cmnd %p",
-						cmnd);
-					clear_bit(ISCSI_CMD_ABORTED, &cmnd->prelim_compl_flags);
-					continue;
-				} else if (cmnd->scst_state == ISCSI_CMD_STATE_RX_CMD) {
+				sBUG_ON((conn->read_state == RX_INIT_BHS) ||
+					(conn->read_state == RX_BHS));
+				if (cmnd->scst_state == ISCSI_CMD_STATE_RX_CMD) {
 					TRACE_MGMT_DBG("Aborted cmnd %p is RX_CMD, "
 						"keep waiting", cmnd);
 					goto cont;
@@ -661,7 +657,8 @@ again:
 			    (time_after_eq(j, cmnd->write_start + ISCSI_TM_DATA_WAIT_TIMEOUT) ||
 			     force)) {
 				if (cmnd == conn->read_cmnd) {
-					TRACE_MGMT_DBG("Clearing read_cmnd for conn %p", conn);
+					TRACE_MGMT_DBG("Clearing read_cmnd for "
+						"conn %p", conn);
 					conn->read_cmnd = NULL;
 					conn->read_state = RX_INIT_BHS;
 				}
