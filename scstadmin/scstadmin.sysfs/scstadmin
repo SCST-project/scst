@@ -2082,7 +2082,7 @@ sub applyTargetAssignments {
 
 				if (defined($$attributes{'HW_TARGET'})) {
 					immediateExit("Hardware target '$target' for driver '$driver' does not exist.");
-				}
+				}					
 
 				filterCreateAttributes($possible, $attributes, FALSE);
 
@@ -2289,6 +2289,18 @@ sub addVirtualTarget {
 	my $driver = shift;
 	my $target = shift;
 	my $attributes = shift;
+
+	# Enable all hardware targets before creating virtual ones
+	my $targets = $SCST->targets($driver);
+
+	foreach my $_target (@{$targets}) {
+		my $attributes = $SCST->targetAttributes($driver, $_target);
+
+		if (defined($$attributes{'hw_target'}) &&
+		    !$$attributes{'enabled'}->{'value'}) {
+			enableTarget($driver, $_target);
+		}
+	}
 
 	print "\t-> Creating target '$target' for driver '$driver': ";
 	my $rc = $SCST->addVirtualTarget($driver, $target, $attributes);
