@@ -39,6 +39,7 @@ static DECLARE_COMPLETION(scst_sysfs_root_release_completion);
 static struct kobject *scst_targets_kobj;
 static struct kobject *scst_devices_kobj;
 static struct kobject *scst_handlers_kobj;
+static struct kobject *scst_device_groups_kobj;
 
 static const char *const scst_dev_handler_types[] = {
 	"Direct-access device (e.g., magnetic disk)",
@@ -4880,6 +4881,698 @@ void scst_devt_sysfs_del(struct scst_dev_type *devt)
 }
 
 /**
+ ** SCST sysfs device_groups/<dg>/devices/<dev> implementation.
+ **/
+
+int scst_dg_dev_sysfs_add(struct scst_dev_group *dg, struct scst_dg_dev *dgdev)
+{
+	int res;
+
+	TRACE_ENTRY();
+	res = sysfs_create_link(dg->dev_kobj, &dgdev->dev->dev_kobj,
+				dgdev->dev->virt_name);
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+void scst_dg_dev_sysfs_del(struct scst_dev_group *dg, struct scst_dg_dev *dgdev)
+{
+	TRACE_ENTRY();
+	sysfs_remove_link(dg->dev_kobj, dgdev->dev->virt_name);
+	TRACE_EXIT();
+}
+
+/**
+ ** SCST sysfs device_groups/<dg>/devices directory implementation.
+ **/
+
+static ssize_t scst_dg_devs_mgmt_show(struct kobject *kobj,
+				 struct kobj_attribute *attr,
+				 char *buf)
+{
+	static const char help[] =
+		"Usage: echo \"add device\" >mgmt\n"
+		"       echo \"del device\" >mgmt\n";
+
+	return scnprintf(buf, PAGE_SIZE, help);
+}
+
+static int scst_dg_devs_mgmt_store_work_fn(struct scst_sysfs_work_item *w)
+{
+	struct scst_dev_group *dg;
+	char *cmd, *p, *pp, *dev_name;
+	int res;
+
+	TRACE_ENTRY();
+
+	cmd = w->buf;
+	dg = scst_lookup_dg_by_kobj(w->kobj);
+	WARN_ON(!dg);
+
+	p = strchr(cmd, '\n');
+	if (p)
+		*p = '\0';
+
+	res = -EINVAL;
+	pp = cmd;
+	p = scst_get_next_lexem(&pp);
+	if (strcasecmp(p, "add") == 0) {
+		dev_name = scst_get_next_lexem(&pp);
+		if (!*dev_name)
+			goto out;
+		res = scst_dg_dev_add(dg, dev_name);
+	} else if (strcasecmp(p, "del") == 0) {
+		dev_name = scst_get_next_lexem(&pp);
+		if (!*dev_name)
+			goto out;
+		res = scst_dg_dev_remove_by_name(dg, dev_name);
+	}
+out:
+	kobject_put(w->kobj);
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t scst_dg_devs_mgmt_store(struct kobject *kobj,
+				      struct kobj_attribute *attr,
+				      const char *buf, size_t count)
+{
+	char *cmd;
+	struct scst_sysfs_work_item *work;
+	int res;
+
+	TRACE_ENTRY();
+
+	res = -ENOMEM;
+	cmd = kasprintf(GFP_KERNEL, "%.*s", (int)count, buf);
+	if (!cmd)
+		goto out;
+
+	res = scst_alloc_sysfs_work(scst_dg_devs_mgmt_store_work_fn, false,
+				    &work);
+	if (res)
+		goto out;
+
+	work->buf = cmd;
+	work->kobj = kobj;
+	kobject_get(kobj);
+	res = scst_sysfs_queue_wait_work(work);
+
+out:
+	if (res == 0)
+		res = count;
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute scst_dg_devs_mgmt =
+	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_dg_devs_mgmt_show,
+	       scst_dg_devs_mgmt_store);
+
+static const struct attribute *scst_dg_devs_attrs[] = {
+	&scst_dg_devs_mgmt.attr,
+	NULL,
+};
+
+/**
+ ** SCST sysfs device_groups/<dg>/target_groups/<tg>/<tgt> implementation.
+ **/
+
+static ssize_t scst_tg_tgt_rel_tgt_id_show(struct kobject *kobj,
+					   struct kobj_attribute *attr,
+					   char *buf)
+{
+	struct scst_tg_tgt *tg_tgt;
+
+	tg_tgt = container_of(kobj, struct scst_tg_tgt, kobj);
+	return scnprintf(buf, PAGE_SIZE, "%u\n" SCST_SYSFS_KEY_MARK "\n",
+			 tg_tgt->rel_tgt_id);
+}
+
+static ssize_t scst_tg_tgt_rel_tgt_id_store(struct kobject *kobj,
+					    struct kobj_attribute *attr,
+					    const char *buf, size_t count)
+{
+	struct scst_tg_tgt *tg_tgt;
+	unsigned long rel_tgt_id;
+	char ch[8];
+	int res;
+
+	TRACE_ENTRY();
+	tg_tgt = container_of(kobj, struct scst_tg_tgt, kobj);
+	snprintf(ch, sizeof(ch), "%.*s", min_t(int, count, sizeof(ch)-1), buf);
+	res = strict_strtoul(ch, 0, &rel_tgt_id);
+	if (res)
+		goto out;
+	res = -EINVAL;
+	if (rel_tgt_id == 0 || rel_tgt_id > 0xffff)
+		goto out;
+	tg_tgt->rel_tgt_id = rel_tgt_id;
+	res = count;
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute scst_tg_tgt_rel_tgt_id =
+	__ATTR(rel_tgt_id, S_IRUGO | S_IWUSR, scst_tg_tgt_rel_tgt_id_show,
+	       scst_tg_tgt_rel_tgt_id_store);
+
+static const struct attribute *scst_tg_tgt_attrs[] = {
+	&scst_tg_tgt_rel_tgt_id.attr,
+	NULL,
+};
+
+int scst_tg_tgt_sysfs_add(struct scst_target_group *tg,
+			  struct scst_tg_tgt *tg_tgt)
+{
+	int res;
+
+	TRACE_ENTRY();
+	BUG_ON(!tg);
+	BUG_ON(!tg_tgt);
+	BUG_ON(!tg_tgt->name);
+	if (tg_tgt->tgt)
+		res = sysfs_create_link(&tg->kobj, &tg_tgt->tgt->tgt_kobj,
+					tg_tgt->name);
+	else {
+		res = kobject_add(&tg_tgt->kobj, &tg->kobj, "%s", tg_tgt->name);
+		if (res)
+			goto err;
+		res = sysfs_create_files(&tg_tgt->kobj, scst_tg_tgt_attrs);
+		if (res)
+			goto err;
+	}
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+err:
+	scst_tg_tgt_sysfs_del(tg, tg_tgt);
+	goto out;
+}
+
+void scst_tg_tgt_sysfs_del(struct scst_target_group *tg,
+			   struct scst_tg_tgt *tg_tgt)
+{
+	TRACE_ENTRY();
+	if (tg_tgt->tgt)
+		sysfs_remove_link(&tg->kobj, tg_tgt->name);
+	else {
+		sysfs_remove_files(&tg_tgt->kobj, scst_tg_tgt_attrs);
+		kobject_del(&tg_tgt->kobj);
+	}
+	TRACE_EXIT();
+}
+
+/**
+ ** SCST sysfs device_groups/<dg>/target_groups/<tg> directory implementation.
+ **/
+
+static ssize_t scst_tg_group_id_show(struct kobject *kobj,
+				     struct kobj_attribute *attr,
+				     char *buf)
+{
+	struct scst_target_group *tg;
+
+	tg = container_of(kobj, struct scst_target_group, kobj);
+	return scnprintf(buf, PAGE_SIZE, "%u\n" SCST_SYSFS_KEY_MARK "\n",
+			 tg->group_id);
+}
+
+static ssize_t scst_tg_group_id_store(struct kobject *kobj,
+				      struct kobj_attribute *attr,
+				      const char *buf, size_t count)
+{
+	struct scst_target_group *tg;
+	unsigned long group_id;
+	char ch[8];
+	int res;
+
+	TRACE_ENTRY();
+	tg = container_of(kobj, struct scst_target_group, kobj);
+	snprintf(ch, sizeof(ch), "%.*s", min_t(int, count, sizeof(ch)-1), buf);
+	res = strict_strtoul(ch, 0, &group_id);
+	if (res)
+		goto out;
+	res = -EINVAL;
+	if (group_id == 0 || group_id > 0xffff)
+		goto out;
+	tg->group_id = group_id;
+	res = count;
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute scst_tg_group_id =
+	__ATTR(group_id, S_IRUGO | S_IWUSR, scst_tg_group_id_show,
+	       scst_tg_group_id_store);
+
+static ssize_t scst_tg_preferred_show(struct kobject *kobj,
+				      struct kobj_attribute *attr,
+				      char *buf)
+{
+	struct scst_target_group *tg;
+
+	tg = container_of(kobj, struct scst_target_group, kobj);
+	return scnprintf(buf, PAGE_SIZE, "%u\n%s",
+			 tg->preferred, SCST_SYSFS_KEY_MARK "\n");
+}
+
+static ssize_t scst_tg_preferred_store(struct kobject *kobj,
+				       struct kobj_attribute *attr,
+				       const char *buf, size_t count)
+{
+	struct scst_target_group *tg;
+	unsigned long preferred;
+	char ch[8];
+	int res;
+
+	TRACE_ENTRY();
+	tg = container_of(kobj, struct scst_target_group, kobj);
+	snprintf(ch, sizeof(ch), "%.*s", min_t(int, count, sizeof(ch)-1), buf);
+	res = strict_strtoul(ch, 0, &preferred);
+	if (res)
+		goto out;
+	res = -EINVAL;
+	if (preferred != 0 && preferred != 1)
+		goto out;
+	tg->preferred = preferred;
+	res = count;
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute scst_tg_preferred =
+	__ATTR(preferred, S_IRUGO | S_IWUSR, scst_tg_preferred_show,
+	       scst_tg_preferred_store);
+
+static struct { enum scst_tg_state s; const char *n; } scst_tg_state_names[] = {
+	{ SCST_TG_STATE_OPTIMIZED,	"active"	},
+	{ SCST_TG_STATE_NONOPTIMIZED,	"nonoptimized"	},
+	{ SCST_TG_STATE_STANDBY,	"standby"	},
+	{ SCST_TG_STATE_UNAVAILABLE,	"unavailable"	},
+	{ SCST_TG_STATE_OFFLINE,	"offline"	},
+	{ SCST_TG_STATE_TRANSITIONING,	"transitioning"	},
+};
+
+static ssize_t scst_tg_state_show(struct kobject *kobj,
+				  struct kobj_attribute *attr,
+				  char *buf)
+{
+	struct scst_target_group *tg;
+	int i;
+
+	tg = container_of(kobj, struct scst_target_group, kobj);
+	for (i = ARRAY_SIZE(scst_tg_state_names) - 1; i >= 0; i--)
+		if (scst_tg_state_names[i].s == tg->state)
+			break;
+
+	return scnprintf(buf, PAGE_SIZE, "%s\n" SCST_SYSFS_KEY_MARK "\n",
+			 i >= 0 ? scst_tg_state_names[i].n : "???");
+}
+
+static int scst_tg_state_store_work_fn(struct scst_sysfs_work_item *w)
+{
+	struct scst_target_group *tg;
+	char *cmd, *p;
+	int i, res;
+
+	TRACE_ENTRY();
+
+	cmd = w->buf;
+	tg = container_of(w->kobj, struct scst_target_group, kobj);
+
+	p = strchr(cmd, '\n');
+	if (p)
+		*p = '\0';
+
+	for (i = ARRAY_SIZE(scst_tg_state_names) - 1; i >= 0; i--)
+		if (strcmp(scst_tg_state_names[i].n, cmd) == 0)
+			break;
+
+	res = -EINVAL;
+	if (i < 0)
+		goto out;
+	res = scst_tg_set_state(tg, scst_tg_state_names[i].s);
+out:
+	kobject_put(w->kobj);
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t scst_tg_state_store(struct kobject *kobj,
+				  struct kobj_attribute *attr,
+				  const char *buf, size_t count)
+{
+	char *cmd;
+	struct scst_sysfs_work_item *work;
+	int res;
+
+	TRACE_ENTRY();
+
+	res = -ENOMEM;
+	cmd = kasprintf(GFP_KERNEL, "%.*s", (int)count, buf);
+	if (!cmd)
+		goto out;
+
+	res = scst_alloc_sysfs_work(scst_tg_state_store_work_fn, false,
+				    &work);
+	if (res)
+		goto out;
+
+	work->buf = cmd;
+	work->kobj = kobj;
+	kobject_get(kobj);
+	res = scst_sysfs_queue_wait_work(work);
+
+out:
+	if (res == 0)
+		res = count;
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute scst_tg_state =
+	__ATTR(state, S_IRUGO | S_IWUSR, scst_tg_state_show,
+	       scst_tg_state_store);
+
+static ssize_t scst_tg_mgmt_show(struct kobject *kobj,
+				 struct kobj_attribute *attr,
+				 char *buf)
+{
+	static const char help[] =
+		"Usage: echo \"add target\" >mgmt\n"
+		"       echo \"del target\" >mgmt\n";
+
+	return scnprintf(buf, PAGE_SIZE, help);
+}
+
+static int scst_tg_mgmt_store_work_fn(struct scst_sysfs_work_item *w)
+{
+	struct scst_target_group *tg;
+	char *cmd, *p, *pp, *target_name;
+	int res;
+
+	TRACE_ENTRY();
+
+	cmd = w->buf;
+	tg = container_of(w->kobj, struct scst_target_group, kobj);
+
+	p = strchr(cmd, '\n');
+	if (p)
+		*p = '\0';
+
+	res = -EINVAL;
+	pp = cmd;
+	p = scst_get_next_lexem(&pp);
+	if (strcasecmp(p, "add") == 0) {
+		target_name = scst_get_next_lexem(&pp);
+		if (!*target_name)
+			goto out;
+		res = scst_tg_tgt_add(tg, target_name);
+	} else if (strcasecmp(p, "del") == 0) {
+		target_name = scst_get_next_lexem(&pp);
+		if (!*target_name)
+			goto out;
+		res = scst_tg_tgt_remove_by_name(tg, target_name);
+	}
+out:
+	kobject_put(w->kobj);
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t scst_tg_mgmt_store(struct kobject *kobj,
+				  struct kobj_attribute *attr,
+				  const char *buf, size_t count)
+{
+	char *cmd;
+	struct scst_sysfs_work_item *work;
+	int res;
+
+	TRACE_ENTRY();
+
+	res = -ENOMEM;
+	cmd = kasprintf(GFP_KERNEL, "%.*s", (int)count, buf);
+	if (!cmd)
+		goto out;
+
+	res = scst_alloc_sysfs_work(scst_tg_mgmt_store_work_fn, false,
+				    &work);
+	if (res)
+		goto out;
+
+	work->buf = cmd;
+	work->kobj = kobj;
+	kobject_get(kobj);
+	res = scst_sysfs_queue_wait_work(work);
+
+out:
+	if (res == 0)
+		res = count;
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute scst_tg_mgmt =
+	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_tg_mgmt_show,
+	       scst_tg_mgmt_store);
+
+static const struct attribute *scst_tg_attrs[] = {
+	&scst_tg_mgmt.attr,
+	&scst_tg_group_id.attr,
+	&scst_tg_preferred.attr,
+	&scst_tg_state.attr,
+	NULL,
+};
+
+int scst_tg_sysfs_add(struct scst_dev_group *dg, struct scst_target_group *tg)
+{
+	int res;
+
+	TRACE_ENTRY();
+	res = kobject_add(&tg->kobj, dg->tg_kobj, "%s", tg->name);
+	if (res)
+		goto err;
+	res = sysfs_create_files(&tg->kobj, scst_tg_attrs);
+	if (res)
+		goto err;
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+err:
+	scst_tg_sysfs_del(tg);
+	goto out;
+}
+
+void scst_tg_sysfs_del(struct scst_target_group *tg)
+{
+	TRACE_ENTRY();
+	sysfs_remove_files(&tg->kobj, scst_tg_attrs);
+	kobject_del(&tg->kobj);
+	TRACE_EXIT();
+}
+
+/**
+ ** SCST sysfs device_groups/<dg>/target_groups directory implementation.
+ **/
+
+static ssize_t scst_dg_tgs_mgmt_show(struct kobject *kobj,
+				    struct kobj_attribute *attr, char *buf)
+{
+	static const char help[] =
+		"Usage: echo \"add group_name\" >mgmt\n"
+		"       echo \"del group_name\" >mgmt\n";
+
+	return scnprintf(buf, PAGE_SIZE, help);
+}
+
+static int scst_dg_tgs_mgmt_store_work_fn(struct scst_sysfs_work_item *w)
+{
+	struct scst_dev_group *dg;
+	char *cmd, *p, *pp, *dev_name;
+	int res;
+
+	TRACE_ENTRY();
+
+	cmd = w->buf;
+	dg = scst_lookup_dg_by_kobj(w->kobj);
+	WARN_ON(!dg);
+
+	p = strchr(cmd, '\n');
+	if (p)
+		*p = '\0';
+
+	res = -EINVAL;
+	pp = cmd;
+	p = scst_get_next_lexem(&pp);
+	if (strcasecmp(p, "add") == 0) {
+		dev_name = scst_get_next_lexem(&pp);
+		if (!*dev_name)
+			goto out;
+		res = scst_tg_add(dg, dev_name);
+	} else if (strcasecmp(p, "del") == 0) {
+		dev_name = scst_get_next_lexem(&pp);
+		if (!*dev_name)
+			goto out;
+		res = scst_tg_remove_by_name(dg, dev_name);
+	}
+out:
+	kobject_put(w->kobj);
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t scst_dg_tgs_mgmt_store(struct kobject *kobj,
+				      struct kobj_attribute *attr,
+				      const char *buf, size_t count)
+{
+	char *cmd;
+	struct scst_sysfs_work_item *work;
+	int res;
+
+	TRACE_ENTRY();
+
+	res = -ENOMEM;
+	cmd = kasprintf(GFP_KERNEL, "%.*s", (int)count, buf);
+	if (!cmd)
+		goto out;
+
+	res = scst_alloc_sysfs_work(scst_dg_tgs_mgmt_store_work_fn, false,
+				    &work);
+	if (res)
+		goto out;
+
+	work->buf = cmd;
+	work->kobj = kobj;
+	kobject_get(kobj);
+	res = scst_sysfs_queue_wait_work(work);
+
+out:
+	if (res == 0)
+		res = count;
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute scst_dg_tgs_mgmt =
+	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_dg_tgs_mgmt_show,
+	       scst_dg_tgs_mgmt_store);
+
+static const struct attribute *scst_dg_tgs_attrs[] = {
+	&scst_dg_tgs_mgmt.attr,
+	NULL,
+};
+
+/**
+ ** SCST sysfs device_groups directory implementation.
+ **/
+
+int scst_dg_sysfs_add(struct kobject *parent, struct scst_dev_group *dg)
+{
+	int res;
+
+	dg->dev_kobj = NULL;
+	dg->tg_kobj = NULL;
+	res = kobject_add(&dg->kobj, parent, "%s", dg->name);
+	if (res)
+		goto err;
+	res = -EEXIST;
+	dg->dev_kobj = kobject_create_and_add("devices", &dg->kobj);
+	if (!dg->dev_kobj)
+		goto err;
+	res = sysfs_create_files(dg->dev_kobj, scst_dg_devs_attrs);
+	if (res)
+		goto err;
+	dg->tg_kobj = kobject_create_and_add("target_groups", &dg->kobj);
+	if (!dg->tg_kobj)
+		goto err;
+	res = sysfs_create_files(dg->tg_kobj, scst_dg_tgs_attrs);
+	if (res)
+		goto err;
+out:
+	return res;
+err:
+	scst_dg_sysfs_del(dg);
+	goto out;
+}
+
+void scst_dg_sysfs_del(struct scst_dev_group *dg)
+{
+	if (dg->tg_kobj) {
+		sysfs_remove_files(dg->tg_kobj, scst_dg_tgs_attrs);
+		kobject_del(dg->tg_kobj);
+		kobject_put(dg->tg_kobj);
+		dg->tg_kobj = NULL;
+	}
+	if (dg->dev_kobj) {
+		sysfs_remove_files(dg->dev_kobj, scst_dg_devs_attrs);
+		kobject_del(dg->dev_kobj);
+		kobject_put(dg->dev_kobj);
+		dg->dev_kobj = NULL;
+	}
+	kobject_del(&dg->kobj);
+}
+
+static ssize_t scst_device_groups_mgmt_show(struct kobject *kobj,
+					    struct kobj_attribute *attr,
+					    char *buf)
+{
+	static const char help[] =
+		"Usage: echo \"add group_name\" >mgmt\n"
+		"       echo \"del group_name\" >mgmt\n";
+
+	return scnprintf(buf, PAGE_SIZE, help);
+}
+
+static ssize_t scst_device_groups_mgmt_store(struct kobject *kobj,
+					     struct kobj_attribute *attr,
+					     const char *buf, size_t count)
+{
+	int res;
+	char *p, *pp, *input, *group_name;
+
+	TRACE_ENTRY();
+
+	input = kasprintf(GFP_KERNEL, "%.*s", (int)count, buf);
+	pp = input;
+	p = strchr(input, '\n');
+	if (p)
+		*p = '\0';
+
+	res = -EINVAL;
+	p = scst_get_next_lexem(&pp);
+	if (strcasecmp(p, "add") == 0) {
+		group_name = scst_get_next_lexem(&pp);
+		if (!*group_name)
+			goto out;
+		res = scst_dg_add(scst_device_groups_kobj, group_name);
+	} else if (strcasecmp(p, "del") == 0) {
+		group_name = scst_get_next_lexem(&pp);
+		if (!*group_name)
+			goto out;
+		res = scst_dg_remove(group_name);
+	}
+out:
+	kfree(input);
+	if (res == 0)
+		res = count;
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute scst_device_groups_mgmt =
+	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_device_groups_mgmt_show,
+	       scst_device_groups_mgmt_store);
+
+static const struct attribute *scst_device_groups_attrs[] = {
+	&scst_device_groups_mgmt.attr,
+	NULL,
+};
+
+/**
  ** SCST sysfs root directory implementation
  **/
 
@@ -5456,9 +6149,26 @@ int __init scst_sysfs_init(void)
 	if (scst_handlers_kobj == NULL)
 		goto handlers_kobj_error;
 
+	scst_device_groups_kobj = kobject_create_and_add("device_groups",
+							 &scst_sysfs_root_kobj);
+	if (scst_device_groups_kobj == NULL)
+		goto device_groups_kobj_error;
+
+	if (sysfs_create_files(scst_device_groups_kobj,
+			       scst_device_groups_attrs))
+		goto device_groups_attrs_error;
+
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+device_groups_attrs_error:
+	kobject_del(scst_device_groups_kobj);
+	kobject_put(scst_device_groups_kobj);
+
+device_groups_kobj_error:
+	kobject_del(scst_handlers_kobj);
+	kobject_put(scst_handlers_kobj);
 
 handlers_kobj_error:
 	scst_del_put_sgv_kobj();
@@ -5501,6 +6211,11 @@ void scst_sysfs_cleanup(void)
 
 	kobject_del(scst_handlers_kobj);
 	kobject_put(scst_handlers_kobj);
+
+	sysfs_remove_files(scst_device_groups_kobj, scst_device_groups_attrs);
+
+	kobject_del(scst_device_groups_kobj);
+	kobject_put(scst_device_groups_kobj);
 
 	kobject_del(&scst_sysfs_root_kobj);
 	kobject_put(&scst_sysfs_root_kobj);

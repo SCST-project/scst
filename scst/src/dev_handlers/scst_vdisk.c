@@ -211,6 +211,7 @@ static void vdisk_exec_verify(struct scst_cmd *cmd,
 	struct scst_vdisk_thr *thr, loff_t loff);
 static void vdisk_exec_read_capacity(struct scst_cmd *cmd);
 static void vdisk_exec_read_capacity16(struct scst_cmd *cmd);
+static void vdisk_exec_report_tpgs(struct scst_cmd *cmd);
 static void vdisk_exec_inquiry(struct scst_cmd *cmd);
 static void vdisk_exec_request_sense(struct scst_cmd *cmd);
 static void vdisk_exec_mode_sense(struct scst_cmd *cmd);
@@ -1137,6 +1138,15 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	case UNMAP:
 		vdisk_exec_unmap(cmd, thr);
 		break;
+	case MAINTENANCE_IN:
+		switch (cmd->cdb[1] & 0x1f) {
+		case MI_REPORT_TARGET_PGS:
+			vdisk_exec_report_tpgs(cmd);
+			break;
+		default:
+			goto out_invalid_opcode;
+		}
+		break;
 	case REPORT_LUNS:
 	default:
 		goto out_invalid_opcode;
@@ -1376,6 +1386,7 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 	uint8_t *address;
 	uint8_t *buf;
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
+	uint16_t tg_id;
 
 	TRACE_ENTRY();
 
@@ -1476,6 +1487,22 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 
 			num += 4;
 
+			tg_id = scst_lookup_tg_id(cmd->dev, cmd->tgt);
+			if (tg_id) {
+				/*
+				 * Target port group designator
+				 */
+				buf[num + 0] = 0x01; /* binary */
+				/* Target port group id */
+				buf[num + 1] = 0x10 | 0x05;
+
+				put_unaligned(cpu_to_be16(tg_id),
+					      (__be16 *)&buf[num + 4 + 2]);
+
+				buf[num + 3] = 4;
+				num += 4 + buf[num + 3];
+			}
+
 			/*
 			 * IEEE id
 			 */
@@ -1574,6 +1601,8 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 		if (cmd->tgtt->fake_aca)
 			buf[3] |= 0x20;
 		buf[4] = 31;/* n - 4 = 35 - 4 = 31 for full 36 byte data */
+		if (scst_impl_alua_configured(cmd->dev))
+			buf[5] = SCST_INQ_TPGS_MODE_IMPLICIT;
 		buf[6] = 0x10; /* MultiP 1 */
 		buf[7] = 2; /* CMDQUE 1, BQue 0 => commands queuing supported */
 
@@ -2330,6 +2359,61 @@ static void vdisk_exec_read_capacity16(struct scst_cmd *cmd)
 
 	if (length < cmd->resp_data_len)
 		scst_set_resp_data_len(cmd, length);
+
+out:
+	TRACE_EXIT();
+	return;
+}
+
+/* SPC-4 REPORT TARGET PORT GROUPS command */
+static void vdisk_exec_report_tpgs(struct scst_cmd *cmd)
+{
+	struct scst_device *dev;
+	uint8_t *address;
+	void *buf;
+	int32_t buf_len;
+	uint32_t allocation_length, data_length, length;
+	uint8_t data_format;
+	int res;
+
+	TRACE_ENTRY();
+
+	buf_len = scst_get_buf_full(cmd, &address);
+	if (buf_len < 0) {
+		PRINT_ERROR("scst_get_buf_full() failed: %d", buf_len);
+		scst_set_cmd_error(cmd,
+			SCST_LOAD_SENSE(scst_sense_hardw_error));
+		goto out;
+	}
+
+	if (cmd->cdb_len < 12)
+		PRINT_WARNING("received invalid REPORT TARGET PORT GROUPS "
+			      "command - length %d is too small (should be at "
+			      "least 12 bytes)", cmd->cdb_len);
+
+	dev = cmd->dev;
+	data_format = cmd->cdb_len > 1 ? cmd->cdb[1] >> 5 : 0;
+	allocation_length = cmd->cdb_len >= 10 ?
+		be32_to_cpu(get_unaligned((__be32 *)(cmd->cdb + 6))) : 1024;
+
+	res = scst_tg_get_group_info(&buf, &data_length, dev, data_format);
+	if (res == -ENOMEM) {
+		scst_set_busy(cmd);
+		goto out_put;
+	} else if (res < 0) {
+		scst_set_cmd_error(cmd,
+			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		goto out_put;
+	}
+
+	length = min_t(uint32_t, min(allocation_length, data_length), buf_len);
+	memcpy(address, buf, length);
+	kfree(buf);
+	if (length < cmd->resp_data_len)
+		scst_set_resp_data_len(cmd, length);
+
+out_put:
+	scst_put_buf_full(cmd, address);
 
 out:
 	TRACE_EXIT();

@@ -409,6 +409,70 @@ void scst_done_cmd_mgmt(struct scst_cmd *cmd);
 
 static inline void scst_devt_cleanup(struct scst_dev_type *devt) { }
 
+void scst_tg_init(void);
+void scst_tg_cleanup(void);
+int scst_dg_add(struct kobject *parent, const char *name);
+int scst_dg_remove(const char *name);
+struct scst_dev_group *scst_lookup_dg_by_kobj(struct kobject *kobj);
+int scst_dg_dev_add(struct scst_dev_group *dg, const char *name);
+int scst_dg_dev_remove_by_name(struct scst_dev_group *dg, const char *name);
+int scst_dg_dev_remove_by_dev(struct scst_device *dev);
+int scst_tg_add(struct scst_dev_group *dg, const char *name);
+int scst_tg_remove_by_name(struct scst_dev_group *dg, const char *name);
+int scst_tg_set_state(struct scst_target_group *tg, enum scst_tg_state state);
+int scst_tg_tgt_add(struct scst_target_group *tg, const char *name);
+int scst_tg_tgt_remove_by_name(struct scst_target_group *tg, const char *name);
+void scst_tg_tgt_remove_by_tgt(struct scst_tgt *tgt);
+#ifndef CONFIG_SCST_PROC
+int scst_dg_sysfs_add(struct kobject *parent, struct scst_dev_group *dg);
+void scst_dg_sysfs_del(struct scst_dev_group *dg);
+int scst_dg_dev_sysfs_add(struct scst_dev_group *dg, struct scst_dg_dev *dgdev);
+void scst_dg_dev_sysfs_del(struct scst_dev_group *dg,
+			   struct scst_dg_dev *dgdev);
+int scst_tg_sysfs_add(struct scst_dev_group *dg,
+			 struct scst_target_group *tg);
+void scst_tg_sysfs_del(struct scst_target_group *tg);
+int scst_tg_tgt_sysfs_add(struct scst_target_group *tg,
+			  struct scst_tg_tgt *tg_tgt);
+void scst_tg_tgt_sysfs_del(struct scst_target_group *tg,
+			   struct scst_tg_tgt *tg_tgt);
+#else
+static inline int scst_dg_sysfs_add(struct kobject *parent,
+				    struct scst_dev_group *dg)
+{
+	return 0;
+}
+static inline void scst_dg_sysfs_del(struct scst_dev_group *dg)
+{
+}
+static inline int scst_dg_dev_sysfs_add(struct scst_dev_group *dg,
+					struct scst_dg_dev *dgdev)
+{
+	return 0;
+}
+static inline void scst_dg_dev_sysfs_del(struct scst_dev_group *dg,
+					 struct scst_dg_dev *dgdev)
+{
+}
+static inline int scst_tg_sysfs_add(struct scst_dev_group *dg,
+					struct scst_target_group *tg)
+{
+	return 0;
+}
+static inline void scst_tg_sysfs_del(struct scst_target_group *tg)
+{
+}
+static inline int scst_tg_tgt_sysfs_add(struct scst_target_group *tg,
+					struct scst_tg_tgt *tg_tgt)
+{
+	return 0;
+}
+static inline void scst_tg_tgt_sysfs_del(struct scst_target_group *tg,
+					 struct scst_tg_tgt *tg_tgt)
+{
+}
+#endif
+
 #ifdef CONFIG_SCST_PROC
 
 int scst_proc_init_module(void);

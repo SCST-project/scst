@@ -1099,6 +1099,246 @@ persistent reservations from this device are released, upon reconnect
 the initiators will see it.
 
 
+Implicit ALUA Support
+---------------------
+
+SCST supports implicit asymmetric logical unit access (ALUA). Implicit ALUA is
+a feature defined by the ANSI T10 SCSI committee that allows a target to tell
+the initiator which path to use in a multipath setup. The redundant paths
+between initiator and target can be used either for redundancy or for load
+sharing purposes. The target can either be a single target system running SCST
+with multiple communication interfaces or two target systems each running SCST
+and configured in a high availability setup.
+
+In the SPC-4 standard the following concepts are defined related to ALUA:
+* Relative target port ID. A number between 1 and 65535 that uniquely
+  identifies a target port. These numbers must be unique over the target as
+  a whole, even if that target consists of multiple systems each running SCST.
+* Target port group asymmetric access state. One of active/optimized,
+  active/non-optimized, standby, unavailable, logical block dependent or
+  offline. The access state of a port defines which (if any) SCSI commands
+  will be processed by the target port.
+* Target port preference indicator. This indicator is additional information
+  next to the asymmetric access state that is provided by the target to an
+  initiator and that may impact the decision taken by the initiator about
+  which path that will be choosen.
+
+More detailed information about ALUA can be found in section 5.11.2 of the
+ANSI T10 standard called SPC-4.
+
+ALUA support in SCST
+....................
+
+SCST allows to define implicit ALUA settings for each unique combination of
+SCST device and SCST target. An initiator however queries ALUA settings by
+sending an appropriate SCSI command to a specific LUN of an SCST target. Each
+such LUN maps uniquely to an SCST device. For hardware SCST target drivers,
+e.g. ib_srpt, there is a one-to-one correspondence between SCST target and
+SCSI target port. With other SCST targets, e.g. iSCSI-SCST, the only
+relationship between SCST targets and SCSI target ports is that all SCST
+targets defined on a system are visible via all SCSI target ports. Hence for
+target drivers like iSCSI-SCST configuring ALUA in SCST only makes sense in a
+setup involving more than one system, e.g. a H.A. setup.
+
+Notes:
+- In a H.A. setup it is the responsibility of the user to synchronize ALUA
+  information between the individual systems running SCST. There are no
+  provisions in SCST to exchange ALUA information automatically between
+  individual systems.
+- In order to support H.A. setups it is possible to let one SCST system
+  report information about target ports present in other SCST systems.
+- With SCST, and certainly in a H.A. setup, it is possible to configure ALUA
+  such that an initiator receives information that is not standard compliant,
+  e.g. setting all target ports in the offline state. It is the responsibility
+  of the user to make sure that the information queried by an initiator is
+  consistent independent of the LUN and the target port used by the initiator
+  to query this information.
+
+Configuring ALUA in SCST
+........................
+
+SCST allows to configure the following settings related to implicit ALUA
+for each unique combination of SCST target and virtual SCST device
+(vdisk_fileio, vdisk_blockio, vcdrom, ...):
+* The target port group asymmetric access state. SCST supports all ALUA port
+  states except logical block dependent.
+* The preference indicator for a target port group.
+* The relative target port ID associated with the SCST target.
+
+It is possible to configure the following ALUA-related information via the
+sysfs interface of SCST:
+* Device groups, where each device group has a name and contains zero or more
+  SCST devices. If a device group contains only a single SCST device, the name
+  of the group may be identical to the device name. See also
+  /sys/kernel/scst_tgt/device_groups/mgmt.
+* Which devices are inside a device group. See also
+  /sys/kernel/scst_tgt/device_groups/<device group name>/devices/mgmt.
+* Target groups, where each target group has a name and contains zero or more
+  SCST target names. See also
+  /sys/kernel/scst_tgt/device_groups/<device group name>/target_groups/mgmt.
+* Target port group identifier. This is a number in the range 0..65535 and is
+  called the TARGET PORT GROUP in SPC-4. See also
+  /sys/kernel/scst_tgt/device_groups/<device group name>/target_groups/<target
+  group name>/group_id.
+* Target port group preference indicator. This is a boolean value called the
+  PREF bit in SPC-4. See also /sys/kernel/scst_tgt/device_groups/<device group
+  name>/target_groups/<target group name>/preferred.
+* Target port group state name. One of active, nonoptimized, standby,
+  unavailable, offline or transitioning. See also
+  /sys/kernel/scst_tgt/device_groups/<device group name>/target_groups/<target
+  group name>/state.
+* Target group contents - zero or more target names. The target names either
+  exist on the local system or on a remote system in a H.A. setup. For target
+  names that refer to SCST targets on another system only the relative target
+  port identifier matters, not the assigned name. See also
+  /sys/kernel/scst_tgt/device_groups/<device group name>/target_groups/<target
+  group name>/mgmt.
+* Relative target identifier. See also
+  /sys/kernel/scst_tgt/device_groups/<device group name>/target_groups/<target
+  group name>/<target name>/rel_tgt_id.
+
+The steps involved in configuring ALUA are:
+* Identify the SCST devices that will always share the same ALUA settings and
+  state. Assign a name to each such group of SCST devices. If a device group
+  only contains a single device, the group name may be identical to the device
+  name.
+* Configure that device group in SCST via sysfs.
+* Identify the SCSI target ports that will always share the same ALUA settings
+  and state. Assign a name, a group ID and preference indicator to each such
+  SCSI target port group.
+* Configure the target port group information in SCST via sysfs.
+* Identify all SCST targets that can be accessed via a target port group.
+* Assign all these SCST target names to the target group via sysfs.
+* Assign a relative target port identifier to each target.
+
+As an example, in a H.A. setup with two systems each having one InfiniBand
+HCA controlled by the ib_srpt driver and where each system exports two LUNs
+could be configured as follows:
+
+own_tgt_id=1
+other_tgt_id=2
+cd /sys/kernel/scst_tgt/device_groups
+echo del dgroup1         >mgmt
+echo del dgroup2         >mgmt
+echo add dgroup1         >mgmt
+echo add disk01          >dgroup1/devices/mgmt
+echo add tgroup1         >dgroup1/target_groups/mgmt
+echo ${own_tgt_id}       >dgroup1/target_groups/tgroup1/group_id
+echo add ib_srpt_0       >dgroup1/target_groups/tgroup1/mgmt
+echo ${own_tgt_id}       >dgroup1/target_groups/tgroup1/ib_srpt_0/rel_tgt_id
+if [ ${own_tgt_id} = 1 ]; then
+ echo 1                  >dgroup1/target_groups/tgroup1/preferred
+fi
+echo add tgroup2         >dgroup1/target_groups/mgmt
+echo ${other_tgt_id}     >dgroup1/target_groups/tgroup2/group_id
+echo add ib_srpt_0-other >dgroup1/target_groups/tgroup2/mgmt
+echo ${other_tgt_id}     >dgroup1/target_groups/tgroup2/ib_srpt_0-other/rel_tgt_id
+if [ ${other_tgt_id} = 1 ]; then
+ echo 1                  >dgroup1/target_groups/tgroup1/preferred
+fi
+echo add dgroup2         >mgmt
+echo add disk02          >dgroup2/devices/mgmt
+echo add tgroup1         >dgroup2/target_groups/mgmt
+echo ${own_tgt_id}       >dgroup2/target_groups/tgroup1/group_id
+echo add ib_srpt_0       >dgroup2/target_groups/tgroup1/mgmt
+echo ${own_tgt_id}       >dgroup2/target_groups/tgroup1/ib_srpt_0/rel_tgt_id
+if [ ${own_tgt_id} = 2 ]; then
+ echo 1                  >dgroup2/target_groups/tgroup1/preferred
+fi
+echo add tgroup2         >dgroup2/target_groups/mgmt
+echo ${other_tgt_id}     >dgroup2/target_groups/tgroup2/group_id
+echo add ib_srpt_0-other >dgroup2/target_groups/tgroup2/mgmt
+echo ${other_tgt_id}     >dgroup2/target_groups/tgroup2/ib_srpt_0-other/rel_tgt_id
+if [ ${other_tgt_id} = 2 ]; then
+ echo 1                  >dgroup2/target_groups/tgroup1/preferred
+fi
+
+The second system in the same H.A. setup can be configured with the same
+commands but with the values of ${own_rel_tgt_id} and ${other_rel_tgt_id}
+swapped.
+
+The result of the above commands is:
+
+$ find -type f | grep -v '/mgmt$' | cut -c3- | sort | \
+  while read f; do echo $f =  $(head -n 1 $f); done
+dgroup1/target_groups/tgroup1/group_id = 1
+dgroup1/target_groups/tgroup1/ib_srpt_0/rel_tgt_id = 1
+dgroup1/target_groups/tgroup1/preferred = 1
+dgroup1/target_groups/tgroup1/state = active
+dgroup1/target_groups/tgroup2/group_id = 2
+dgroup1/target_groups/tgroup2/ib_srpt_0-other/rel_tgt_id = 2
+dgroup1/target_groups/tgroup2/preferred = 0
+dgroup1/target_groups/tgroup2/state = active
+dgroup2/target_groups/tgroup1/group_id = 1
+dgroup2/target_groups/tgroup1/ib_srpt_0/rel_tgt_id = 1
+dgroup2/target_groups/tgroup1/preferred = 1
+dgroup2/target_groups/tgroup1/state = active
+dgroup2/target_groups/tgroup2/group_id = 2
+dgroup2/target_groups/tgroup2/ib_srpt_0-other/rel_tgt_id = 2
+dgroup2/target_groups/tgroup2/preferred = 0
+dgroup2/target_groups/tgroup2/state = active
+
+Checking the Target Configuration
+.................................
+
+One way to verify the implicit ALUA configuration from a Linux initiator is
+via the commands provided in the sg3_utils package. The first step is to
+verify whether for a certain LUN implicit ALUA has been configured on the
+target. This is possible by checking whether the TPGS=1 text appears in the
+sg_inq output, where /dev/sdb is a device node created by the ib_srp initiator:
+
+# sg_inq /dev/sdb
+standard INQUIRY:
+  PQual=0  Device_type=0  RMB=0  version=0x05  [SPC-3]
+  [AERC=0]  [TrmTsk=0]  NormACA=0  HiSUP=1  Resp_data_format=2
+  SCCS=0  ACC=0  TPGS=1  3PC=0  Protect=0  BQue=0
+  EncServ=0  MultiP=0  [MChngr=0]  [ACKREQQ=0]  Addr16=1
+  [RelAdr=0]  WBus16=0  Sync=0  Linked=0  [TranDis=0]  CmdQue=1
+  [SPI: Clocking=0x0  QAS=0  IUS=0]
+    length=66 (0x42)   Peripheral device type: disk
+ Vendor identification: SCST_FIO
+ Product identification: disk01          
+ Product revision level:  300
+ Unit serial number: 27cddc71
+
+The next step is to verify the target group configuration. That is possible
+by verifying whether the output of the sg_rtpg command matches the values
+configured on the target:
+
+# sg_rtpg /dev/sdb
+Report target port groups:
+  target port group id : 0x1 , Pref=1
+    target port group asymmetric access state : 0x00
+    T_SUP : 0, O_SUP : 0, LBD_SUP : 0, U_SUP : 1, S_SUP : 1, AN_SUP : 1, AO_SUP : 1
+    status code : 0x02
+    vendor unique status : 0x00
+    target port count : 01
+    Relative target port ids:
+      0x01
+  target port group id : 0x2 , Pref=0
+    target port group asymmetric access state : 0x00
+    T_SUP : 0, O_SUP : 0, LBD_SUP : 0, U_SUP : 1, S_SUP : 1, AN_SUP : 1, AO_SUP : 1
+    status code : 0x02
+    vendor unique status : 0x00
+    target port count : 01
+    Relative target port ids:
+      0x02
+
+Initiator Support
+.................
+
+On Linux systems implicit ALUA support is provided by the scsi_dh_alua driver
+of the device mapper. Information about how to configure the device mapper and
+the scsi_dh_alua driver can be found in the manual of your Linux distribution.
+
+Windows initiator systems support ALUA from Windows Server 2008 on. For more
+information, see also:
+* Microsoft, Multipathing Support in Windows Server 2008, MSDN
+(http://blogs.msdn.com/b/san/archive/2008/07/27/multipathing-support-in-windows-server-2008.aspx).
+* Microsoft, ALUA MPIO Logo Test, MSDN
+(http://msdn.microsoft.com/en-us/library/gg607458%28v=vs.85%29.aspx).
+
+
 Caching
 -------
 
