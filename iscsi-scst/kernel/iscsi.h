@@ -393,6 +393,13 @@ struct iscsi_cmnd {
 	unsigned int force_cleanup_done:1;
 	unsigned int dec_active_cmds:1;
 	unsigned int ddigest_checked:1;
+	/*
+	 * Used to prevent release of original req while its related DATA OUT
+	 * cmd is receiving data, i.e. stays between data_out_start() and
+	 * data_out_end(). Ref counting can't be used for that, because
+	 * req_cmnd_release() supposed to be called only once.
+	 */
+	unsigned int data_out_in_data_receiving:1;
 #ifdef CONFIG_SCST_EXTRACHECKS
 	unsigned int on_rx_digest_list:1;
 	unsigned int release_called:1;
