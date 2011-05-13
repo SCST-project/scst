@@ -414,15 +414,18 @@ function compile_kernel {
   local subdir="$2"
 
   echo "Compiling the patched kernel ..."
-  (
-    cd "${outputdir}/linux-$1" \
-    && make -s prepare \
-    && make -s scripts \
-    && LC_ALL=C make -k M="${subdir}"
-  ) &> "${outputfile}"
-  local errors=$(grep -c ' error:' "${outputfile}")
-  local warnings=$(grep -c ' warning:' "${outputfile}")
-  echo "${errors} errors / ${warnings} warnings."
+  if (cd "${outputdir}/linux-$1" \
+      && make -s prepare \
+      && make -s scripts \
+      && LC_ALL=C make -k M="${subdir}"
+     ) &> "${outputfile}"
+  then
+    local errors=$(grep -c ' error:' "${outputfile}")
+    local warnings=$(grep -c ' warning:' "${outputfile}")
+    echo "${errors} errors / ${warnings} warnings."
+  else
+    echo FAILED
+  fi
   cat "${outputfile}" | grep -E 'warning:|error:' | sort | uniq -c
   return 0
 }
