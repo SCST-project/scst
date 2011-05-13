@@ -4120,8 +4120,8 @@ out_callb:
 out_destroy_mempool:
 	mempool_destroy(iscsi_cmnd_abort_mempool);
 
-out_free_dummy:
 #endif
+out_free_dummy:
 	__free_pages(dummy_page, 0);
 	goto out;
 }
