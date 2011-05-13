@@ -1660,7 +1660,7 @@ sub checkConfiguration {
 				}
 
 				if (!defined($$tgt{'LUN'}->{'0'})) {
-					print "\t->WARNING: No LUN 0 defined for driver/target '$driver/$target'. ".
+					print "\t-> WARNING: No LUN 0 defined for driver/target '$driver/$target'. ".
 					  "Many initiators require a LUN 0 to be defined.\n\n";
 					$warnings++;
 				}
@@ -1682,7 +1682,7 @@ sub checkConfiguration {
 						}
 
 						if (!defined($$tgt{'GROUP'}->{$group}->{'LUN'}->{'0'})) {
-							print "\t->WARNING: No LUN 0 defined for driver/target/group '$driver/$target/$group'. ".
+							print "\t-> WARNING: No LUN 0 defined for driver/target/group '$driver/$target/$group'. ".
 							  "Many initiators require a LUN 0 to be defined.\n\n";
 							$warnings++;
 						}
