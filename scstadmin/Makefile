@@ -6,6 +6,9 @@ all:
 	cd $(SCSTADMIN_DIR) && $(MAKE) $@
 
 install:
+	@if ! perl -MExtUtils::MakeMaker -e '' >/dev/null 2>&1; then \
+	echo Error: the Perl module ExtUtils::MakeMaker must be installed \
+	first; false; fi
 	cd $(SCSTADMIN_DIR) && $(MAKE) $@
 	-/usr/lib/lsb/install_initd scst
 	-/usr/lib/lsb/install_initd qla2x00t
