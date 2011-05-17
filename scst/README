@@ -1134,11 +1134,12 @@ SCST device and SCST target. An initiator however queries ALUA settings by
 sending an appropriate SCSI command to a specific LUN of an SCST target. Each
 such LUN maps uniquely to an SCST device. For hardware SCST target drivers,
 e.g. ib_srpt, there is a one-to-one correspondence between SCST target and
-SCSI target port. With other SCST targets, e.g. iSCSI-SCST, the only
-relationship between SCST targets and SCSI target ports is that all SCST
-targets defined on a system are visible via all SCSI target ports. Hence for
-target drivers like iSCSI-SCST configuring ALUA in SCST only makes sense in a
-setup involving more than one system, e.g. a H.A. setup.
+SCSI target port. With other SCST targets, e.g. iSCSI-SCST, by default the
+only relationship between SCST targets and SCSI target ports is that all SCST
+targets defined on a system are visible via all SCSI target ports. See also
+the iSCSI-SCST documentation about the allowed_portal attribute for
+information about how to associate iSCSI targets with a single physical
+interface.
 
 Notes:
 - In a H.A. setup it is the responsibility of the user to synchronize ALUA
@@ -1328,8 +1329,12 @@ Initiator Support
 .................
 
 On Linux systems implicit ALUA support is provided by the scsi_dh_alua driver
-of the device mapper. Information about how to configure the device mapper and
-the scsi_dh_alua driver can be found in the manual of your Linux distribution.
+of the device mapper. You will have to modify at least the following in
+/etc/multipath.conf:
+* path_checker scsi_dh_alua
+* prio_callout "/sbin/mpath_prio_alua /dev/%n"
+More information about how to configure the device mapper and the scsi_dh_alua
+driver can be found in the manual of your Linux distribution.
 
 Windows initiator systems support ALUA from Windows Server 2008 on. For more
 information, see also:
