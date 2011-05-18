@@ -326,23 +326,6 @@ struct iscsi_pdu {
 typedef void (iscsi_show_info_t)(struct seq_file *seq,
 				 struct iscsi_target *target);
 
-/* Read data states */
-enum rx_state {
-	RX_INIT_BHS, /* Must be zero for better "switch" optimization. */
-	RX_BHS,
-	RX_CMD_START,
-	RX_DATA,
-	RX_END,
-
-	RX_CMD_CONTINUE,
-	RX_INIT_HDIGEST,
-	RX_CHECK_HDIGEST,
-	RX_INIT_DDIGEST,
-	RX_CHECK_DDIGEST,
-	RX_AHS,
-	RX_PADDING,
-};
-
 /** Commands' states **/
 
 /* New command and SCST processes it */
@@ -778,8 +761,15 @@ static inline void cmd_del_from_rx_ddigest_list(struct iscsi_cmnd *cmnd)
 
 static inline unsigned long iscsi_get_timeout(struct iscsi_cmnd *req)
 {
-	return (cmnd_opcode(req) == ISCSI_OP_NOP_OUT) ?
+	unsigned long res;
+
+	res = (cmnd_opcode(req) == ISCSI_OP_NOP_OUT) ?
 			req->conn->nop_in_timeout : req->conn->data_rsp_timeout;
+
+	if (unlikely(test_bit(ISCSI_CMD_ABORTED, &req->prelim_compl_flags)))
+		res = min_t(unsigned long, res, ISCSI_TM_DATA_WAIT_TIMEOUT);
+
+	return res;
 }
 
 static inline unsigned long iscsi_get_timeout_time(struct iscsi_cmnd *req)

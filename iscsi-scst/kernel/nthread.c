@@ -25,6 +25,23 @@
 #include "iscsi.h"
 #include "digest.h"
 
+/* Read data states */
+enum rx_state {
+	RX_INIT_BHS, /* Must be zero for better "switch" optimization. */
+	RX_BHS,
+	RX_CMD_START,
+	RX_DATA,
+	RX_END,
+
+	RX_CMD_CONTINUE,
+	RX_INIT_HDIGEST,
+	RX_CHECK_HDIGEST,
+	RX_INIT_DDIGEST,
+	RX_CHECK_DDIGEST,
+	RX_AHS,
+	RX_PADDING,
+};
+
 enum tx_state {
 	TX_INIT = 0, /* Must be zero for better "switch" optimization. */
 	TX_BHS_DATA,

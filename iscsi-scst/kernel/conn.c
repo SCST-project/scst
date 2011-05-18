@@ -634,39 +634,37 @@ again:
 	aborted_cmds_pending = false;
 	list_for_each_entry(cmnd, &conn->write_timeout_list,
 				write_timeout_list_entry) {
+		/*
+		 * This should not happen, because DATA OUT commands can't get
+		 * into write_timeout_list.
+		 */
+		sBUG_ON(cmnd->cmd_req != NULL);
+
 		if (test_bit(ISCSI_CMD_ABORTED, &cmnd->prelim_compl_flags)) {
-			TRACE_DBG_FLAG(TRACE_MGMT_DEBUG, "Checking aborted "
-				"cmnd %p (scst_state %d, on_write_timeout_list "
-				"%d, write_start %ld, r2t_len_to_receive %d)",
-				cmnd, cmnd->scst_state,
-				cmnd->on_write_timeout_list, cmnd->write_start,
-				cmnd->r2t_len_to_receive);
-			if (cmnd == conn->read_cmnd) {
-				TRACE_DBG_FLAG(TRACE_MGMT_DEBUG,
-					"cmnd %p is read cmd", cmnd);
-				sBUG_ON(force);
-				sBUG_ON((conn->read_state == RX_INIT_BHS) ||
-					(conn->read_state == RX_BHS));
-				if (cmnd->scst_state == ISCSI_CMD_STATE_RX_CMD) {
-					TRACE_MGMT_DBG("Aborted cmnd %p is RX_CMD, "
-						"keep waiting", cmnd);
-					goto cont;
-				}
-			}
-			if (cmnd->data_out_in_data_receiving) {
-				TRACE_MGMT_DBG("Aborted cmnd %p is waiting for "
-					"DATA OUT data, keep waiting", cmnd);
+			TRACE_MGMT_DBG("Checking aborted cmnd %p (scst_state "
+				"%d, on_write_timeout_list %d, write_start "
+				"%ld, r2t_len_to_receive %d)", cmnd,
+				cmnd->scst_state, cmnd->on_write_timeout_list,
+				cmnd->write_start, cmnd->r2t_len_to_receive);
+			if ((cmnd == conn->read_cmnd) ||
+			    cmnd->data_out_in_data_receiving) {
+				sBUG_ON((cmnd == conn->read_cmnd) && force);
+				/*
+				 * We can't abort command waiting for data from
+				 * the net, because otherwise we are risking to
+				 * get out of sync with the sender, so we have
+				 * to wait until the timeout timer gets into the
+				 * action and close this connection.
+				 */
+				TRACE_MGMT_DBG("Aborted cmnd %p is %s, "
+					"keep waiting", cmnd,
+					(cmnd == conn->read_cmnd) ? "RX cmnd" :
+						"waiting for DATA OUT data");
 				goto cont;
 			}
-			if (((cmnd == conn->read_cmnd) || (cmnd->r2t_len_to_receive != 0)) &&
+			if ((cmnd->r2t_len_to_receive != 0) &&
 			    (time_after_eq(j, cmnd->write_start + ISCSI_TM_DATA_WAIT_TIMEOUT) ||
 			     force)) {
-				if (cmnd == conn->read_cmnd) {
-					TRACE_MGMT_DBG("Clearing read_cmnd for "
-						"conn %p", conn);
-					conn->read_cmnd = NULL;
-					conn->read_state = RX_INIT_BHS;
-				}
 				spin_unlock(&conn->write_list_lock);
 				spin_unlock_bh(&conn->conn_thr_pool->rd_lock);
 				iscsi_fail_data_waiting_cmnd(cmnd);
