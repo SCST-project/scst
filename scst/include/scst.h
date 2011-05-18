@@ -174,32 +174,26 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 /* Cmd is going to be sent for execution */
 #define SCST_CMD_STATE_SEND_FOR_EXEC 5
 
-/* Cmd is being checked if it should be executed locally */
-#define SCST_CMD_STATE_LOCAL_EXEC    6
-
-/* Cmd is ready for execution */
-#define SCST_CMD_STATE_REAL_EXEC     7
-
 /* Internal post-exec checks */
-#define SCST_CMD_STATE_PRE_DEV_DONE  8
+#define SCST_CMD_STATE_PRE_DEV_DONE  6
 
 /* Internal MODE SELECT pages related checks */
-#define SCST_CMD_STATE_MODE_SELECT_CHECKS 9
+#define SCST_CMD_STATE_MODE_SELECT_CHECKS 7
 
 /* Dev handler's dev_done() is going to be called */
-#define SCST_CMD_STATE_DEV_DONE      10
+#define SCST_CMD_STATE_DEV_DONE      8
 
 /* Checks before target driver's xmit_response() is called */
-#define SCST_CMD_STATE_PRE_XMIT_RESP 11
+#define SCST_CMD_STATE_PRE_XMIT_RESP 9
 
 /* Target driver's xmit_response() is going to be called */
-#define SCST_CMD_STATE_XMIT_RESP     12
+#define SCST_CMD_STATE_XMIT_RESP     10
 
 /* Cmd finished */
-#define SCST_CMD_STATE_FINISHED      13
+#define SCST_CMD_STATE_FINISHED      11
 
 /* Internal cmd finished */
-#define SCST_CMD_STATE_FINISHED_INTERNAL 14
+#define SCST_CMD_STATE_FINISHED_INTERNAL 12
 
 #define SCST_CMD_STATE_LAST_ACTIVE   (SCST_CMD_STATE_FINISHED_INTERNAL+100)
 
@@ -215,11 +209,17 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 /* Waiting for data from the initiator (until scst_rx_data() called) */
 #define SCST_CMD_STATE_DATA_WAIT     (SCST_CMD_STATE_LAST_ACTIVE+4)
 
+/* Cmd is being checked if it should be executed locally */
+#define SCST_CMD_STATE_LOCAL_EXEC    (SCST_CMD_STATE_LAST_ACTIVE+5)
+
+/* Cmd is ready for execution */
+#define SCST_CMD_STATE_REAL_EXEC     (SCST_CMD_STATE_LAST_ACTIVE+6)
+
 /* Waiting for CDB's execution finish */
-#define SCST_CMD_STATE_REAL_EXECUTING (SCST_CMD_STATE_LAST_ACTIVE+5)
+#define SCST_CMD_STATE_REAL_EXECUTING (SCST_CMD_STATE_LAST_ACTIVE+7)
 
 /* Waiting for response's transmission finish */
-#define SCST_CMD_STATE_XMIT_WAIT     (SCST_CMD_STATE_LAST_ACTIVE+6)
+#define SCST_CMD_STATE_XMIT_WAIT     (SCST_CMD_STATE_LAST_ACTIVE+8)
 
 /*************************************************************
  * Can be returned instead of cmd's state by dev handlers'
@@ -1883,6 +1883,12 @@ struct scst_cmd {
 	 * between scst_finish_cmd() and scst_abort_cmd()
 	 */
 	unsigned int finished:1;
+
+	/*
+	 * Set if scst_check_local_events() can be called more than once. Set by
+	 * scst_pre_check_local_events().
+	 */
+	unsigned int check_local_events_once_done:1;
 
 #ifdef CONFIG_SCST_DEBUG_TM
 	/* Set if the cmd was delayed by task management debugging code */
@@ -3862,6 +3868,13 @@ void scst_post_parse(struct scst_cmd *cmd);
 void scst_post_alloc_data_buf(struct scst_cmd *cmd);
 
 int scst_check_local_events(struct scst_cmd *cmd);
+
+static inline int scst_pre_check_local_events(struct scst_cmd *cmd)
+{
+	int res = scst_check_local_events(cmd);
+	cmd->check_local_events_once_done = 1;
+	return res;
+}
 
 int scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd);
 
