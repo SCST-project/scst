@@ -1,6 +1,6 @@
 diff -upkr linux-2.6.35/block/blk-map.c linux-2.6.35/block/blk-map.c
---- linux-2.6.35/block/blk-map.c	2010-08-02 02:11:14.000000000 +0400
-+++ linux-2.6.35/block/blk-map.c	2010-11-26 18:03:58.107693773 +0300
+--- linux-2.6.35/block/blk-map.c	2010-08-01 18:11:14.000000000 -0400
++++ linux-2.6.35/block/blk-map.c	2011-05-17 21:12:23.125813000 -0400
 @@ -5,6 +5,8 @@
  #include <linux/module.h>
  #include <linux/bio.h>
@@ -10,7 +10,7 @@ diff -upkr linux-2.6.35/block/blk-map.c linux-2.6.35/block/blk-map.c
  #include <scsi/sg.h>		/* for struct sg_iovec */
  
  #include "blk.h"
-@@ -271,6 +273,335 @@ int blk_rq_unmap_user(struct bio *bio)
+@@ -271,6 +273,337 @@ int blk_rq_unmap_user(struct bio *bio)
  }
  EXPORT_SYMBOL(blk_rq_unmap_user);
  
@@ -22,7 +22,18 @@ diff -upkr linux-2.6.35/block/blk-map.c linux-2.6.35/block/blk-map.c
 +
 +static void blk_free_kern_sg_work(struct blk_kern_sg_work *bw)
 +{
-+	sg_free_table(&bw->sg_table);
++	struct sg_table *sgt = &bw->sg_table;
++	struct scatterlist *sg;
++	int i;
++
++	for_each_sg(sgt->sgl, sg, sgt->orig_nents, i) {
++		struct page *pg = sg_page(sg);
++		if (pg == NULL)
++			break;
++		__free_page(pg);
++	}
++
++	sg_free_table(sgt);
 +	kfree(bw);
 +	return;
 +}
@@ -76,7 +87,7 @@ diff -upkr linux-2.6.35/block/blk-map.c linux-2.6.35/block/blk-map.c
 +
 +	res = sg_alloc_table(&bw->sg_table, new_sgl_nents, gfp);
 +	if (res != 0)
-+		goto out_free_bw;
++		goto err_free;
 +
 +	new_sgl = bw->sg_table.sgl;
 +
@@ -85,7 +96,7 @@ diff -upkr linux-2.6.35/block/blk-map.c linux-2.6.35/block/blk-map.c
 +
 +		pg = alloc_page(page_gfp);
 +		if (pg == NULL)
-+			goto err_free_new_sgl;
++			goto err_free;
 +
 +		sg_assign_page(sg, pg);
 +		sg->length = min_t(size_t, PAGE_SIZE, len);
@@ -113,17 +124,8 @@ diff -upkr linux-2.6.35/block/blk-map.c linux-2.6.35/block/blk-map.c
 +out:
 +	return res;
 +
-+err_free_new_sgl:
-+	for_each_sg(new_sgl, sg, new_sgl_nents, i) {
-+		struct page *pg = sg_page(sg);
-+		if (pg == NULL)
-+			break;
-+		__free_page(pg);
-+	}
-+	sg_free_table(&bw->sg_table);
-+
-+out_free_bw:
-+	kfree(bw);
++err_free:
++	blk_free_kern_sg_work(bw);
 +	res = -ENOMEM;
 +	goto out;
 +}
@@ -347,8 +349,8 @@ diff -upkr linux-2.6.35/block/blk-map.c linux-2.6.35/block/blk-map.c
   * blk_rq_map_kern - map kernel data to a request, for REQ_TYPE_BLOCK_PC usage
   * @q:		request queue where request should be inserted
 diff -upkr linux-2.6.35/include/linux/blkdev.h linux-2.6.35/include/linux/blkdev.h
---- linux-2.6.35/include/linux/blkdev.h	2010-08-02 02:11:14.000000000 +0400
-+++ linux-2.6.35/include/linux/blkdev.h	2010-08-04 12:21:59.737128732 +0400
+--- linux-2.6.35/include/linux/blkdev.h	2010-08-01 18:11:14.000000000 -0400
++++ linux-2.6.35/include/linux/blkdev.h	2010-08-04 04:21:59.737128732 -0400
 @@ -717,6 +717,8 @@ extern unsigned long blk_max_low_pfn, bl
  #define BLK_DEFAULT_SG_TIMEOUT	(60 * HZ)
  #define BLK_MIN_SG_TIMEOUT	(7 * HZ)
@@ -369,8 +371,8 @@ diff -upkr linux-2.6.35/include/linux/blkdev.h linux-2.6.35/include/linux/blkdev
  			  struct request *, int);
  extern void blk_execute_rq_nowait(struct request_queue *, struct gendisk *,
 diff -upkr linux-2.6.35/include/linux/scatterlist.h linux-2.6.35/include/linux/scatterlist.h
---- linux-2.6.35/include/linux/scatterlist.h	2010-08-02 02:11:14.000000000 +0400
-+++ linux-2.6.35/include/linux/scatterlist.h	2010-08-04 12:21:59.741129485 +0400
+--- linux-2.6.35/include/linux/scatterlist.h	2010-08-01 18:11:14.000000000 -0400
++++ linux-2.6.35/include/linux/scatterlist.h	2010-08-04 04:21:59.741129485 -0400
 @@ -3,6 +3,7 @@
  
  #include <asm/types.h>
@@ -391,8 +393,8 @@ diff -upkr linux-2.6.35/include/linux/scatterlist.h linux-2.6.35/include/linux/s
   * Maximum number of entries that will be allocated in one piece, if
   * a list larger than this is required then chaining will be utilized.
 diff -upkr linux-2.6.35/lib/scatterlist.c linux-2.6.35/lib/scatterlist.c
---- linux-2.6.35/lib/scatterlist.c	2010-08-02 02:11:14.000000000 +0400
-+++ linux-2.6.35/lib/scatterlist.c	2010-08-04 12:21:59.741129485 +0400
+--- linux-2.6.35/lib/scatterlist.c	2010-08-01 18:11:14.000000000 -0400
++++ linux-2.6.35/lib/scatterlist.c	2010-08-04 04:21:59.741129485 -0400
 @@ -494,3 +494,132 @@ size_t sg_copy_to_buffer(struct scatterl
  	return sg_copy_buffer(sgl, nents, buf, buflen, 1);
  }
@@ -526,4 +528,3 @@ diff -upkr linux-2.6.35/lib/scatterlist.c linux-2.6.35/lib/scatterlist.c
 +	return res;
 +}
 +EXPORT_SYMBOL(sg_copy);
-
