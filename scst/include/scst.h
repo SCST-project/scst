@@ -209,17 +209,23 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 /* Waiting for data from the initiator (until scst_rx_data() called) */
 #define SCST_CMD_STATE_DATA_WAIT     (SCST_CMD_STATE_LAST_ACTIVE+4)
 
+/*
+ * Cmd is ready for exec (after check if its device is blocked or should
+ * be blocked)
+ */
+#define SCST_CMD_STATE_START_EXEC (SCST_CMD_STATE_LAST_ACTIVE+5)
+
 /* Cmd is being checked if it should be executed locally */
-#define SCST_CMD_STATE_LOCAL_EXEC    (SCST_CMD_STATE_LAST_ACTIVE+5)
+#define SCST_CMD_STATE_LOCAL_EXEC    (SCST_CMD_STATE_LAST_ACTIVE+6)
 
 /* Cmd is ready for execution */
-#define SCST_CMD_STATE_REAL_EXEC     (SCST_CMD_STATE_LAST_ACTIVE+6)
+#define SCST_CMD_STATE_REAL_EXEC     (SCST_CMD_STATE_LAST_ACTIVE+7)
 
 /* Waiting for CDB's execution finish */
-#define SCST_CMD_STATE_REAL_EXECUTING (SCST_CMD_STATE_LAST_ACTIVE+7)
+#define SCST_CMD_STATE_REAL_EXECUTING (SCST_CMD_STATE_LAST_ACTIVE+8)
 
 /* Waiting for response's transmission finish */
-#define SCST_CMD_STATE_XMIT_WAIT     (SCST_CMD_STATE_LAST_ACTIVE+8)
+#define SCST_CMD_STATE_XMIT_WAIT     (SCST_CMD_STATE_LAST_ACTIVE+9)
 
 /*************************************************************
  * Can be returned instead of cmd's state by dev handlers'

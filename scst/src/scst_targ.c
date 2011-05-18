@@ -828,6 +828,7 @@ set_res:
 	case SCST_CMD_STATE_RDY_TO_XFER:
 	case SCST_CMD_STATE_TGT_PRE_EXEC:
 	case SCST_CMD_STATE_SEND_FOR_EXEC:
+	case SCST_CMD_STATE_START_EXEC:
 	case SCST_CMD_STATE_LOCAL_EXEC:
 	case SCST_CMD_STATE_REAL_EXEC:
 	case SCST_CMD_STATE_PRE_DEV_DONE:
@@ -2740,9 +2741,11 @@ static int scst_exec(struct scst_cmd **active_cmd)
 	struct scst_cmd *cmd = *active_cmd;
 	struct scst_cmd *ref_cmd;
 	struct scst_device *dev = cmd->dev;
-	int res = SCST_CMD_STATE_RES_CONT_NEXT, count;
+	int res = SCST_CMD_STATE_RES_CONT_NEXT, count = 0;
 
 	TRACE_ENTRY();
+
+	cmd->state = SCST_CMD_STATE_START_EXEC;
 
 	if (unlikely(scst_check_blocked_dev(cmd)))
 		goto out;
@@ -2751,7 +2754,6 @@ static int scst_exec(struct scst_cmd **active_cmd)
 	ref_cmd = cmd;
 	__scst_cmd_get(ref_cmd);
 
-	count = 0;
 	while (1) {
 		int rc;
 
@@ -2787,12 +2789,15 @@ done:
 		if (cmd == NULL)
 			break;
 
+		cmd->state = SCST_CMD_STATE_START_EXEC;
+
 		if (unlikely(scst_check_blocked_dev(cmd)))
 			break;
 
 		__scst_cmd_put(ref_cmd);
 		ref_cmd = cmd;
 		__scst_cmd_get(ref_cmd);
+
 	}
 
 	*active_cmd = cmd;
@@ -2808,6 +2813,7 @@ out_put:
 	/* !! At this point sess, dev and tgt_dev can be already freed !! */
 
 out:
+	EXTRACHECKS_BUG_ON(res == SCST_CMD_STATE_RES_NEED_THREAD);
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -3304,6 +3310,7 @@ static int scst_dev_done(struct scst_cmd *cmd)
 	case SCST_CMD_STATE_RDY_TO_XFER:
 	case SCST_CMD_STATE_TGT_PRE_EXEC:
 	case SCST_CMD_STATE_SEND_FOR_EXEC:
+	case SCST_CMD_STATE_START_EXEC:
 	case SCST_CMD_STATE_LOCAL_EXEC:
 	case SCST_CMD_STATE_REAL_EXEC:
 	case SCST_CMD_STATE_PRE_DEV_DONE:
@@ -3356,6 +3363,7 @@ static int scst_dev_done(struct scst_cmd *cmd)
 			switch (state) {
 			case SCST_CMD_STATE_TGT_PRE_EXEC:
 			case SCST_CMD_STATE_SEND_FOR_EXEC:
+			case SCST_CMD_STATE_START_EXEC:
 			case SCST_CMD_STATE_LOCAL_EXEC:
 			case SCST_CMD_STATE_REAL_EXEC:
 				TRACE_DBG("Atomic context and redirect, "
@@ -4123,6 +4131,16 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 				break;
 			}
 			res = scst_send_for_exec(&cmd);
+			EXTRACHECKS_BUG_ON(res == SCST_CMD_STATE_RES_NEED_THREAD);
+			/*
+			 * !! At this point cmd, sess & tgt_dev can already be
+			 * freed !!
+			 */
+			break;
+
+		case SCST_CMD_STATE_START_EXEC:
+			res = scst_exec(&cmd);
+			EXTRACHECKS_BUG_ON(res == SCST_CMD_STATE_RES_NEED_THREAD);
 			/*
 			 * !! At this point cmd, sess & tgt_dev can already be
 			 * freed !!
@@ -4131,6 +4149,7 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 
 		case SCST_CMD_STATE_LOCAL_EXEC:
 			res = scst_local_exec(cmd);
+			EXTRACHECKS_BUG_ON(res == SCST_CMD_STATE_RES_NEED_THREAD);
 			/*
 			 * !! At this point cmd, sess & tgt_dev can already be
 			 * freed !!
@@ -4139,6 +4158,7 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 
 		case SCST_CMD_STATE_REAL_EXEC:
 			res = scst_real_exec(cmd);
+			EXTRACHECKS_BUG_ON(res == SCST_CMD_STATE_RES_NEED_THREAD);
 			/*
 			 * !! At this point cmd, sess & tgt_dev can already be
 			 * freed !!
@@ -4199,6 +4219,7 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 		case SCST_CMD_STATE_RDY_TO_XFER:
 		case SCST_CMD_STATE_TGT_PRE_EXEC:
 		case SCST_CMD_STATE_SEND_FOR_EXEC:
+		case SCST_CMD_STATE_START_EXEC:
 		case SCST_CMD_STATE_LOCAL_EXEC:
 		case SCST_CMD_STATE_REAL_EXEC:
 		case SCST_CMD_STATE_DEV_DONE:
