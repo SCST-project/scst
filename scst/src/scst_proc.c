@@ -2090,11 +2090,9 @@ static ssize_t scst_proc_groups_devices_write(struct file *file,
 		list_for_each_entry(a, &acg->acg_dev_list, acg_dev_list_entry) {
 			if (a->dev == dev) {
 				rc = scst_acg_del_lun(acg, a->lun, true);
-				if (rc) {
+				if (rc)
 					res = rc;
-					goto out_free_up;
-				}
-				break;
+				goto out_free_up;
 			}
 		}
 		PRINT_ERROR("Device is not found in group %s", acg->acg_name);

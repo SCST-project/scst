@@ -649,6 +649,11 @@ again:
 					goto cont;
 				}
 			}
+			if (cmnd->data_out_in_data_receiving) {
+				TRACE_MGMT_DBG("Aborted cmnd %p is waiting for "
+					"DATA OUT data, keep waiting", cmnd);
+				goto cont;
+			}
 			if (((cmnd == conn->read_cmnd) || (cmnd->r2t_len_to_receive != 0)) &&
 			    (time_after_eq(j, cmnd->write_start + ISCSI_TM_DATA_WAIT_TIMEOUT) ||
 			     force)) {

@@ -433,6 +433,7 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 	EXTRACHECKS_BUG_ON(cmnd->on_rx_digest_list);
 	EXTRACHECKS_BUG_ON(cmnd->hashed);
 	EXTRACHECKS_BUG_ON(cmnd->cmd_req);
+	EXTRACHECKS_BUG_ON(cmnd->data_out_in_data_receiving);
 
 	req_del_from_write_timeout_list(cmnd);
 
@@ -646,6 +647,8 @@ static void req_cmnd_pre_release(struct iscsi_cmnd *req)
 
 	if (unlikely(req->cmd_req)) {
 		/* It sometimes can happen during errors recovery */
+		TRACE_MGMT_DBG("Putting cmd_req %p (req %p)", req->cmd_req, req);
+		req->cmd_req->data_out_in_data_receiving = 0;
 		cmnd_put(req->cmd_req);
 		req->cmd_req = NULL;
 	}
@@ -1287,8 +1290,6 @@ static struct iscsi_cmnd *cmnd_find_data_wait_hash(struct iscsi_conn *conn,
 
 	spin_lock(&session->cmnd_data_wait_hash_lock);
 	res = __cmnd_find_data_wait_hash(conn, itt);
-	if (cmnd_get_check(res) != 0)
-		res = NULL;
 	spin_unlock(&session->cmnd_data_wait_hash_lock);
 
 	return res;
@@ -2063,8 +2064,9 @@ static int data_out_start(struct iscsi_cmnd *cmnd)
 	TRACE_ENTRY();
 
 	/*
-	 * There is no race with send_r2t() and conn_abort(), since
-	 * all functions called from single read thread
+	 * There is no race with send_r2t(), conn_abort() and
+	 * iscsi_check_tm_data_wait_timeouts(), since
+	 * all the functions called from single read thread
 	 */
 	iscsi_extracheck_is_rd_thread(cmnd->conn);
 
@@ -2083,6 +2085,8 @@ static int data_out_start(struct iscsi_cmnd *cmnd)
 		res = iscsi_preliminary_complete(cmnd, cmnd, true);
 		goto out;
 	}
+
+	cmnd_get(orig_req);
 
 	if (unlikely(orig_req->r2t_len_to_receive < cmnd->pdu.datasize)) {
 		if (orig_req->prelim_compl_flags != 0) {
@@ -2117,6 +2121,9 @@ go:
 		goto out;
 	}
 
+	EXTRACHECKS_BUG_ON(orig_req->data_out_in_data_receiving);
+	orig_req->data_out_in_data_receiving = 1;
+
 	TRACE_WRITE("cmnd %p, orig_req %p, offset %u, datasize %u", cmnd,
 		orig_req, offset, cmnd->pdu.datasize);
 
@@ -2143,6 +2150,8 @@ static void data_out_end(struct iscsi_cmnd *cmnd)
 	TRACE_DBG("cmnd %p, req %p", cmnd, req);
 
 	iscsi_extracheck_is_rd_thread(cmnd->conn);
+
+	req->data_out_in_data_receiving = 0;
 
 	if (!(cmnd->conn->ddigest_type & DIGEST_NONE) &&
 	    !cmnd->ddigest_checked) {
