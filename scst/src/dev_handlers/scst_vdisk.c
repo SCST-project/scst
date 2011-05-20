@@ -3058,8 +3058,8 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	blk_finish_plug(&plug);
 #else
- 	if (q && q->unplug_fn)
- 		q->unplug_fn(q);
+	if (q && q->unplug_fn)
+		q->unplug_fn(q);
 #endif
 
 	blockio_check_finish(blockio_work);
