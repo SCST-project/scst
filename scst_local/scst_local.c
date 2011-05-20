@@ -917,10 +917,16 @@ static int scst_local_send_resp(struct scsi_cmnd *cmnd,
  * This does the heavy lifting ... we pass all the commands on to the
  * target driver and have it do its magic ...
  */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37) && \
+    defined(CONFIG_SCST_LOCAL_FORCE_DIRECT_PROCESSING)
+static int scst_local_queuecommand(struct Scsi_Host *host,
+	struct scsi_cmnd *SCpnt)
+#else
 static int scst_local_queuecommand_lck(struct scsi_cmnd *SCpnt,
 				       void (*done)(struct scsi_cmnd *))
 	__acquires(&h->host_lock)
 	__releases(&h->host_lock)
+#endif
 {
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
 	struct scst_local_tgt_specific *tgt_specific = NULL;
@@ -1071,23 +1077,32 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *SCpnt,
 
 /*
  * Although starting from 2.6.37 queuecommand() called with no host_lock
- * held, in reality without DEF_SCSI_QCMD() this doesn't work and leading
- * to various problems like commands lost under highload. So, until that fixed
- * we have to go ahead under host_lock, although absolutely don't need it.
- *
- * NOTE! At the moment in scst_estimate_context*() returning DIRECT contexts
- * disabled, so this option doesn't have any real effect.
+ * held, in fact without DEF_SCSI_QCMD() it doesn't work and leading
+ * to various problems like hangs under highload. Most likely, it is caused
+ * by some not reenrable block layer function(s). So, until that changed, we
+ * have to go ahead with extra context switch. In this regard doesn't matter
+ * much if we under host_lock or not (although we absolutely don't need this
+ * lock), so let's have simpler code with DEF_SCSI_QCMD().
  */
 #ifdef CONFIG_SCST_LOCAL_FORCE_DIRECT_PROCESSING
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
+	scst_cmd_init_done(scst_cmd, SCST_CONTEXT_DIRECT);
+#else
 	{
+		/*
+		 * NOTE! At the moment in scst_estimate_context*() returning
+		 * DIRECT contexts disabled, so this option doesn't have any
+		 * real effect.
+		 */
 		struct Scsi_Host *h = SCpnt->device->host;
 		spin_unlock_irq(h->host_lock);
 		scst_cmd_init_done(scst_cmd, scst_estimate_context_atomic());
 		spin_lock_irq(h->host_lock);
 	}
+#endif
 #else
 	/*
-	 * Unfortunately, we called with IRQs disabled, so have no choice,
+	 * We called with IRQs disabled, so have no choice,
 	 * except to pass to the thread context.
 	 */
 	scst_cmd_init_done(scst_cmd, SCST_CONTEXT_THREAD);
@@ -1097,7 +1112,8 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *SCpnt,
 	return 0;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37) && \
+    !defined(CONFIG_SCST_LOCAL_FORCE_DIRECT_PROCESSING)
 /*
  * See comment in scst_local_queuecommand_lck() near
  * CONFIG_SCST_LOCAL_FORCE_DIRECT_PROCESSING
@@ -1940,4 +1956,3 @@ static void __exit scst_local_exit(void)
 
 device_initcall(scst_local_init);
 module_exit(scst_local_exit);
-
