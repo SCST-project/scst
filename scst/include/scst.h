@@ -173,32 +173,26 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 /* Cmd is going to be sent for execution */
 #define SCST_CMD_STATE_SEND_FOR_EXEC 5
 
-/* Cmd is being checked if it should be executed locally */
-#define SCST_CMD_STATE_LOCAL_EXEC    6
-
-/* Cmd is ready for execution */
-#define SCST_CMD_STATE_REAL_EXEC     7
-
 /* Internal post-exec checks */
-#define SCST_CMD_STATE_PRE_DEV_DONE  8
+#define SCST_CMD_STATE_PRE_DEV_DONE  6
 
 /* Internal MODE SELECT pages related checks */
-#define SCST_CMD_STATE_MODE_SELECT_CHECKS 9
+#define SCST_CMD_STATE_MODE_SELECT_CHECKS 7
 
 /* Dev handler's dev_done() is going to be called */
-#define SCST_CMD_STATE_DEV_DONE      10
+#define SCST_CMD_STATE_DEV_DONE      8
 
 /* Checks before target driver's xmit_response() is called */
-#define SCST_CMD_STATE_PRE_XMIT_RESP 11
+#define SCST_CMD_STATE_PRE_XMIT_RESP 9
 
 /* Target driver's xmit_response() is going to be called */
-#define SCST_CMD_STATE_XMIT_RESP     12
+#define SCST_CMD_STATE_XMIT_RESP     10
 
 /* Cmd finished */
-#define SCST_CMD_STATE_FINISHED      13
+#define SCST_CMD_STATE_FINISHED      11
 
 /* Internal cmd finished */
-#define SCST_CMD_STATE_FINISHED_INTERNAL 14
+#define SCST_CMD_STATE_FINISHED_INTERNAL 12
 
 #define SCST_CMD_STATE_LAST_ACTIVE   (SCST_CMD_STATE_FINISHED_INTERNAL+100)
 
@@ -214,11 +208,23 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 /* Waiting for data from the initiator (until scst_rx_data() called) */
 #define SCST_CMD_STATE_DATA_WAIT     (SCST_CMD_STATE_LAST_ACTIVE+4)
 
+/*
+ * Cmd is ready for exec (after check if its device is blocked or should
+ * be blocked)
+ */
+#define SCST_CMD_STATE_START_EXEC (SCST_CMD_STATE_LAST_ACTIVE+5)
+
+/* Cmd is being checked if it should be executed locally */
+#define SCST_CMD_STATE_LOCAL_EXEC    (SCST_CMD_STATE_LAST_ACTIVE+6)
+
+/* Cmd is ready for execution */
+#define SCST_CMD_STATE_REAL_EXEC     (SCST_CMD_STATE_LAST_ACTIVE+7)
+
 /* Waiting for CDB's execution finish */
-#define SCST_CMD_STATE_REAL_EXECUTING (SCST_CMD_STATE_LAST_ACTIVE+5)
+#define SCST_CMD_STATE_REAL_EXECUTING (SCST_CMD_STATE_LAST_ACTIVE+8)
 
 /* Waiting for response's transmission finish */
-#define SCST_CMD_STATE_XMIT_WAIT     (SCST_CMD_STATE_LAST_ACTIVE+6)
+#define SCST_CMD_STATE_XMIT_WAIT     (SCST_CMD_STATE_LAST_ACTIVE+9)
 
 /*************************************************************
  * Can be returned instead of cmd's state by dev handlers'
@@ -536,7 +542,7 @@ enum scst_exec_context {
 /*************************************************************
  ** Kernel cache creation helper
  *************************************************************/
-#ifndef KMEM_CACHE
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22)
 #define KMEM_CACHE(__struct, __flags) kmem_cache_create(#__struct,\
 	sizeof(struct __struct), __alignof__(struct __struct),\
 	(__flags), NULL, NULL)
@@ -809,6 +815,15 @@ struct scst_tgt_template {
 	 * MUST HAVE if the target supports task management.
 	 */
 	void (*task_mgmt_fn_done) (struct scst_mgmt_cmd *mgmt_cmd);
+
+	/*
+	 * Called to notify target driver that the command is being aborted.
+	 * If target driver wants to redirect processing to some outside
+	 * processing, it should get it using scst_cmd_get().
+	 *
+	 * OPTIONAL
+	 */
+	void (*on_abort_cmd) (struct scst_cmd *cmd);
 
 	/*
 	 * This function should detect the target adapters that
@@ -1232,7 +1247,13 @@ struct scst_dev_type {
 	 *  - SCST_DEV_TM_NOT_COMPLETED - regular standard actions for the
 	 *      command should be done
 	 *
-	 * Called without any locks held from a thread context.
+	 * Can be called under many internal SCST locks, including under
+	 * disabled IRQs, so dev handler should be careful with locking and,
+	 * if necessary, pass processing somewhere outside (in a work, e.g.)
+	 *
+	 * But at the moment it's called under disabled IRQs only for
+	 * SCST_ABORT_TASK, however dev handler using it should add a BUG_ON
+	 * trap to catch if it's changed in future.
 	 *
 	 * OPTIONAL
 	 */
@@ -1862,7 +1883,10 @@ struct scst_cmd {
 	/* Set if cmd is done */
 	unsigned int done:1;
 
-	/* Set if cmd is finished */
+	/*
+	 * Set if cmd is finished. Used under sess_list_lock to sync
+	 * between scst_finish_cmd() and scst_abort_cmd()
+	 */
 	unsigned int finished:1;
 
 #ifdef CONFIG_SCST_DEBUG_TM

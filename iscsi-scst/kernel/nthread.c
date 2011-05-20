@@ -19,12 +19,28 @@
 #include <linux/sched.h>
 #include <linux/file.h>
 #include <linux/kthread.h>
-#include <asm/ioctls.h>
 #include <linux/delay.h>
 #include <net/tcp.h>
 
 #include "iscsi.h"
 #include "digest.h"
+
+/* Read data states */
+enum rx_state {
+	RX_INIT_BHS, /* Must be zero for better "switch" optimization. */
+	RX_BHS,
+	RX_CMD_START,
+	RX_DATA,
+	RX_END,
+
+	RX_CMD_CONTINUE,
+	RX_INIT_HDIGEST,
+	RX_CHECK_HDIGEST,
+	RX_INIT_DDIGEST,
+	RX_CHECK_DDIGEST,
+	RX_AHS,
+	RX_PADDING,
+};
 
 enum tx_state {
 	TX_INIT = 0, /* Must be zero for better "switch" optimization. */
@@ -839,17 +855,10 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 			res = do_recv(conn);
 			if (res == 0) {
 				/*
-				 * Clear aborted status if this command was
-				 * accidentally aborted with other commands of
-				 * this connection. This command not yet
-				 * received on the aborted time, so shouldn't be
-				 * affected by the abort.
+				 * This command not yet received on the aborted
+				 * time, so shouldn't be affected by any abort.
 				 */
-				if (cmnd->prelim_compl_flags != 0)
-					TRACE_MGMT_DBG("Unabort not yet "
-						"received cmnd %p (flags %lx)",
-						cmnd, cmnd->prelim_compl_flags);
-				cmnd->prelim_compl_flags = 0;
+				EXTRACHECKS_BUG_ON(cmnd->prelim_compl_flags != 0);
 
 				iscsi_cmnd_get_length(&cmnd->pdu);
 

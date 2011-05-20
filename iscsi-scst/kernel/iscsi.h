@@ -326,23 +326,6 @@ struct iscsi_pdu {
 typedef void (iscsi_show_info_t)(struct seq_file *seq,
 				 struct iscsi_target *target);
 
-/* Read data states */
-enum rx_state {
-	RX_INIT_BHS, /* Must be zero for better "switch" optimization. */
-	RX_BHS,
-	RX_CMD_START,
-	RX_DATA,
-	RX_END,
-
-	RX_CMD_CONTINUE,
-	RX_INIT_HDIGEST,
-	RX_CHECK_HDIGEST,
-	RX_INIT_DDIGEST,
-	RX_CHECK_DDIGEST,
-	RX_AHS,
-	RX_PADDING,
-};
-
 /** Commands' states **/
 
 /* New command and SCST processes it */
@@ -393,6 +376,13 @@ struct iscsi_cmnd {
 	unsigned int force_cleanup_done:1;
 	unsigned int dec_active_cmds:1;
 	unsigned int ddigest_checked:1;
+	/*
+	 * Used to prevent release of original req while its related DATA OUT
+	 * cmd is receiving data, i.e. stays between data_out_start() and
+	 * data_out_end(). Ref counting can't be used for that, because
+	 * req_cmnd_release() supposed to be called only once.
+	 */
+	unsigned int data_out_in_data_receiving:1;
 #ifdef CONFIG_SCST_EXTRACHECKS
 	unsigned int on_rx_digest_list:1;
 	unsigned int release_called:1;
@@ -672,7 +662,7 @@ static inline void iscsi_cmnd_set_length(struct iscsi_pdu *pdu)
 extern struct scst_tgt_template iscsi_template;
 
 /*
- * Skip this command if result is not 0. Must be called under
+ * Skip this command if result is true. Must be called under
  * corresponding lock.
  */
 static inline bool cmnd_get_check(struct iscsi_cmnd *cmnd)
@@ -771,8 +761,15 @@ static inline void cmd_del_from_rx_ddigest_list(struct iscsi_cmnd *cmnd)
 
 static inline unsigned long iscsi_get_timeout(struct iscsi_cmnd *req)
 {
-	return (cmnd_opcode(req) == ISCSI_OP_NOP_OUT) ?
+	unsigned long res;
+
+	res = (cmnd_opcode(req) == ISCSI_OP_NOP_OUT) ?
 			req->conn->nop_in_timeout : req->conn->data_rsp_timeout;
+
+	if (unlikely(test_bit(ISCSI_CMD_ABORTED, &req->prelim_compl_flags)))
+		res = min_t(unsigned long, res, ISCSI_TM_DATA_WAIT_TIMEOUT);
+
+	return res;
 }
 
 static inline unsigned long iscsi_get_timeout_time(struct iscsi_cmnd *req)

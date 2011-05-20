@@ -1,15 +1,16 @@
-diff -upkr linux-2.6.31/block/blk-map.c linux-2.6.31/block/blk-map.c
---- linux-2.6.31/block/blk-map.c	2009-09-09 18:13:59.000000000 -0400
-+++ linux-2.6.31/block/blk-map.c	2011-05-17 21:05:32.669812993 -0400
-@@ -5,6 +5,7 @@
+diff -upkr linux-2.6.39/block/blk-map.c linux-2.6.39/block/blk-map.c
+--- linux-2.6.39/block/blk-map.c	2011-05-19 00:06:34.000000000 -0400
++++ linux-2.6.39/block/blk-map.c	2011-05-19 10:49:02.753812997 -0400
+@@ -5,6 +5,8 @@
  #include <linux/module.h>
  #include <linux/bio.h>
  #include <linux/blkdev.h>
 +#include <linux/scatterlist.h>
++#include <linux/slab.h>
  #include <scsi/sg.h>		/* for struct sg_iovec */
  
  #include "blk.h"
-@@ -271,6 +272,337 @@ int blk_rq_unmap_user(struct bio *bio)
+@@ -274,6 +276,339 @@ int blk_rq_unmap_user(struct bio *bio)
  }
  EXPORT_SYMBOL(blk_rq_unmap_user);
  
@@ -196,7 +197,7 @@ diff -upkr linux-2.6.31/block/blk-map.c linux-2.6.31/block/blk-map.c
 +				}
 +
 +				if (rw == WRITE)
-+					bio->bi_rw |= 1 << BIO_RW;
++					bio->bi_rw |= REQ_WRITE;
 +
 +				bios++;
 +				bio->bi_private = bw;
@@ -263,6 +264,8 @@ diff -upkr linux-2.6.31/block/blk-map.c linux-2.6.31/block/blk-map.c
 +			goto out_unmap_bios;
 +		}
 +	}
++
++	res = 0;
 +
 +	rq->buffer = NULL;
 +out:
@@ -347,10 +350,10 @@ diff -upkr linux-2.6.31/block/blk-map.c linux-2.6.31/block/blk-map.c
  /**
   * blk_rq_map_kern - map kernel data to a request, for REQ_TYPE_BLOCK_PC usage
   * @q:		request queue where request should be inserted
-diff -upkr linux-2.6.31/include/linux/blkdev.h linux-2.6.31/include/linux/blkdev.h
---- linux-2.6.31/include/linux/blkdev.h	2009-09-09 18:13:59.000000000 -0400
-+++ linux-2.6.31/include/linux/blkdev.h	2009-09-23 06:17:33.000000000 -0400
-@@ -699,6 +699,8 @@ extern unsigned long blk_max_low_pfn, bl
+diff -upkr linux-2.6.39/include/linux/blkdev.h linux-2.6.39/include/linux/blkdev.h
+--- linux-2.6.39/include/linux/blkdev.h	2011-05-19 00:06:34.000000000 -0400
++++ linux-2.6.39/include/linux/blkdev.h	2011-05-19 10:49:02.753812997 -0400
+@@ -592,6 +592,8 @@ extern unsigned long blk_max_low_pfn, bl
  #define BLK_DEFAULT_SG_TIMEOUT	(60 * HZ)
  #define BLK_MIN_SG_TIMEOUT	(7 * HZ)
  
@@ -359,7 +362,7 @@ diff -upkr linux-2.6.31/include/linux/blkdev.h linux-2.6.31/include/linux/blkdev
  #ifdef CONFIG_BOUNCE
  extern int init_emergency_isa_pool(void);
  extern void blk_queue_bounce(struct request_queue *q, struct bio **bio);
-@@ -803,6 +805,9 @@ extern int blk_rq_map_kern(struct reques
+@@ -707,6 +709,9 @@ extern int blk_rq_map_kern(struct reques
  extern int blk_rq_map_user_iov(struct request_queue *, struct request *,
  			       struct rq_map_data *, struct sg_iovec *, int,
  			       unsigned int, gfp_t);
@@ -369,9 +372,9 @@ diff -upkr linux-2.6.31/include/linux/blkdev.h linux-2.6.31/include/linux/blkdev
  extern int blk_execute_rq(struct request_queue *, struct gendisk *,
  			  struct request *, int);
  extern void blk_execute_rq_nowait(struct request_queue *, struct gendisk *,
-diff -upkr linux-2.6.31/include/linux/scatterlist.h linux-2.6.31/include/linux/scatterlist.h
---- linux-2.6.31/include/linux/scatterlist.h	2009-09-09 18:13:59.000000000 -0400
-+++ linux-2.6.31/include/linux/scatterlist.h	2009-09-23 06:17:33.000000000 -0400
+diff -upkr linux-2.6.39/include/linux/scatterlist.h linux-2.6.39/include/linux/scatterlist.h
+--- linux-2.6.39/include/linux/scatterlist.h	2011-05-19 00:06:34.000000000 -0400
++++ linux-2.6.39/include/linux/scatterlist.h	2011-05-19 10:49:02.753812997 -0400
 @@ -3,6 +3,7 @@
  
  #include <asm/types.h>
@@ -391,10 +394,10 @@ diff -upkr linux-2.6.31/include/linux/scatterlist.h linux-2.6.31/include/linux/s
  /*
   * Maximum number of entries that will be allocated in one piece, if
   * a list larger than this is required then chaining will be utilized.
-diff -upkr linux-2.6.31/lib/scatterlist.c linux-2.6.31/lib/scatterlist.c
---- linux-2.6.31/lib/scatterlist.c	2009-09-09 18:13:59.000000000 -0400
-+++ linux-2.6.31/lib/scatterlist.c	2009-09-23 06:17:33.000000000 -0400
-@@ -493,3 +493,132 @@ size_t sg_copy_to_buffer(struct scatterl
+diff -upkr linux-2.6.39/lib/scatterlist.c linux-2.6.39/lib/scatterlist.c
+--- linux-2.6.39/lib/scatterlist.c	2011-05-19 00:06:34.000000000 -0400
++++ linux-2.6.39/lib/scatterlist.c	2011-05-19 10:49:02.753812997 -0400
+@@ -517,3 +517,132 @@ size_t sg_copy_to_buffer(struct scatterl
  	return sg_copy_buffer(sgl, nents, buf, buflen, 1);
  }
  EXPORT_SYMBOL(sg_copy_to_buffer);

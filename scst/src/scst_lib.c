@@ -1918,6 +1918,7 @@ static int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
 	case SCST_CMD_STATE_RDY_TO_XFER:
 	case SCST_CMD_STATE_DATA_WAIT:
 	case SCST_CMD_STATE_TGT_PRE_EXEC:
+	case SCST_CMD_STATE_START_EXEC:
 	case SCST_CMD_STATE_SEND_FOR_EXEC:
 	case SCST_CMD_STATE_LOCAL_EXEC:
 	case SCST_CMD_STATE_REAL_EXEC:
@@ -1977,6 +1978,7 @@ int scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 		break;
 	case SCST_CMD_STATE_TGT_PRE_EXEC:
 	case SCST_CMD_STATE_SEND_FOR_EXEC:
+	case SCST_CMD_STATE_START_EXEC:
 	case SCST_CMD_STATE_LOCAL_EXEC:
 	case SCST_CMD_STATE_REAL_EXEC:
 	case SCST_CMD_STATE_REAL_EXECUTING:

@@ -2408,6 +2408,7 @@ again:
 	return;
 }
 
+/* Can be called under some spinlock and IRQs off */
 static int dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 	struct scst_tgt_dev *tgt_dev)
 {
@@ -2458,7 +2459,12 @@ static int dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 	dev_user_abort_ready_commands(dev);
 
 	/* We can't afford missing TM command due to memory shortage */
-	ucmd = dev_user_alloc_ucmd(dev, GFP_KERNEL|__GFP_NOFAIL);
+	ucmd = dev_user_alloc_ucmd(dev, GFP_ATOMIC|__GFP_NOFAIL);
+	if (ucmd == NULL) {
+		PRINT_CRIT_ERROR("Unable to allocate TM %d message "
+			"(dev %s)", mcmd->fn, dev->name);
+		goto out;
+	}
 
 	ucmd->user_cmd_payload_len =
 		offsetof(struct scst_user_get_cmd, tm_cmd) +
@@ -2488,6 +2494,7 @@ static int dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 
 	dev_user_add_to_ready(ucmd);
 
+out:
 	TRACE_EXIT();
 	return SCST_DEV_TM_NOT_COMPLETED;
 }
@@ -2676,12 +2683,15 @@ static void dev_user_detach_tgt(struct scst_tgt_dev *tgt_dev)
 	TRACE_ENTRY();
 
 	/*
-	 * We can't miss TM command due to memory shortage, because it might
+	 * We can't miss detach command due to memory shortage, because it might
 	 * lead to a memory leak in the user space handler.
 	 */
 	ucmd = dev_user_alloc_ucmd(dev, GFP_KERNEL|__GFP_NOFAIL);
-	if (ucmd == NULL)
+	if (ucmd == NULL) {
+		PRINT_CRIT_ERROR("Unable to allocate DETACH_SESS message "
+			"(dev %s)", dev->name);
 		goto out;
+	}
 
 	TRACE_MGMT_DBG("Preparing DETACH_SESS %p (h %d, sess_h %llx)", ucmd,
 		ucmd->h, ucmd->user_cmd.sess.sess_h);

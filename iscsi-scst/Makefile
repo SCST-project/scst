@@ -99,44 +99,44 @@ extraclean:
 
 debug2release:
 	sed -i.aa s/"^EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ $(KMOD)/Makefile
-	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed"; false; fi
+	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed: wrong original state?"; false; fi
 	sed -i.aa s/"#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/"EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/ $(KMOD)/Makefile
-	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed"; false; fi
+	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed: wrong original state?"; false; fi
 	sed -i.aa s/"^EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/ $(KMOD)/Makefile
-	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed"; false; fi
+	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed: wrong original state?"; false; fi
 	rm $(KMOD)/Makefile.aa
 
 release2debug:
 	sed -i.aa s/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ $(KMOD)/Makefile
-	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed"; false; fi
+	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed: wrong original state?"; false; fi
 	sed -i.aa s/"^EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/ $(KMOD)/Makefile
-	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed"; false; fi
+	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed: wrong original state?"; false; fi
 	sed -i.aa s/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/"EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/ $(KMOD)/Makefile
-	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed"; false; fi
+	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed: wrong original state?"; false; fi
 	rm $(KMOD)/Makefile.aa
 
 debug2perf:
 	sed -i.aa s/"^EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ $(KMOD)/Makefile
-	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed"; false; fi
+	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed: wrong original state?"; false; fi
 	sed -i.aa s/"^EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/ $(KMOD)/Makefile
-	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed"; false; fi
+	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed: wrong original state?"; false; fi
 	rm $(KMOD)/Makefile.aa
 
 perf2debug:
 	sed -i.aa s/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ $(KMOD)/Makefile
-	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed"; false; fi
+	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed: wrong original state?"; false; fi
 	sed -i.aa s/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/"EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/ $(KMOD)/Makefile
-	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed"; false; fi
+	@cmp $(KMOD)/Makefile $(KMOD)/Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(KMOD)/Makefile.aa; echo "sed failed: wrong original state?"; false; fi
 	rm $(KMOD)/Makefile.aa
 
 disable_proc:
 	sed -i.aa s/"^#define CONFIG_SCST_PROC"/"\/* #define CONFIG_SCST_PROC *\/"/ $(INCDIR)/iscsi_scst_ver.h
-	@cmp $(INCDIR)/iscsi_scst_ver.h $(INCDIR)/iscsi_scst_ver.h.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(INCDIR)/iscsi_scst_ver.h.aa; echo "sed failed"; false; fi
+	@cmp $(INCDIR)/iscsi_scst_ver.h $(INCDIR)/iscsi_scst_ver.h.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(INCDIR)/iscsi_scst_ver.h.aa; echo "sed failed: wrong original state?"; false; fi
 	rm $(INCDIR)/iscsi_scst_ver.h.aa
 
 enable_proc:
 	sed -i.aa s/"\/\* #define CONFIG_SCST_PROC \*\/"/"#define CONFIG_SCST_PROC"/ $(INCDIR)/iscsi_scst_ver.h
-	@cmp $(INCDIR)/iscsi_scst_ver.h $(INCDIR)/iscsi_scst_ver.h.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(INCDIR)/iscsi_scst_ver.h.aa; echo "sed failed"; false; fi
+	@cmp $(INCDIR)/iscsi_scst_ver.h $(INCDIR)/iscsi_scst_ver.h.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(INCDIR)/iscsi_scst_ver.h.aa; echo "sed failed: wrong original state?"; false; fi
 	rm $(INCDIR)/iscsi_scst_ver.h.aa
 
 .PHONY: all mods progs install clean extraclean debug2release release2debug debug2perf perf2debug disable_proc enable_proc
