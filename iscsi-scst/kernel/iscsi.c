@@ -642,6 +642,7 @@ static void req_cmnd_pre_release(struct iscsi_cmnd *req)
 
 	if (unlikely(req->hashed)) {
 		/* It sometimes can happen during errors recovery */
+		TRACE_MGMT_DBG("Removing req %p from hash", req);
 		cmnd_remove_data_wait_hash(req);
 	}
 
@@ -2984,9 +2985,9 @@ static void iscsi_push_cmnd(struct iscsi_cmnd *cmnd)
 
 		if (unlikely(before(cmd_sn, session->exp_cmd_sn))) {
 			TRACE_MGMT_DBG("Ignoring out of expected range cmd_sn "
-				"(sn %u, exp_sn %u, op %x, CDB op %x)", cmd_sn,
-				session->exp_cmd_sn, cmnd_opcode(cmnd),
-				cmnd_scsicode(cmnd));
+				"(sn %u, exp_sn %u, cmd %p, op %x, CDB op %x)",
+				cmd_sn, session->exp_cmd_sn, cmnd,
+				cmnd_opcode(cmnd), cmnd_scsicode(cmnd));
 			drop = 1;
 		}
 
