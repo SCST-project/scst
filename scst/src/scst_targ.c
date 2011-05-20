@@ -1247,7 +1247,7 @@ static int scst_rdy_to_xfer(struct scst_cmd *cmd)
 			      "rdy_to_xfer() requested thread "
 			      "context, rescheduling", tgtt->name);
 			res = SCST_CMD_STATE_RES_NEED_THREAD;
-			break;
+			goto out;
 
 		default:
 			goto out_error_rc;
@@ -3370,7 +3370,7 @@ static int scst_dev_done(struct scst_cmd *cmd)
 		      "thread context, rescheduling",
 		      dev->handler->name);
 		res = SCST_CMD_STATE_RES_NEED_THREAD;
-		break;
+		goto out;
 #ifdef CONFIG_SCST_EXTRACHECKS
 	default:
 		if (state >= 0) {
@@ -3596,7 +3596,7 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 			      "requested thread context, rescheduling",
 			      tgtt->name);
 			res = SCST_CMD_STATE_RES_NEED_THREAD;
-			break;
+			goto out;
 
 		default:
 			goto out_error;
