@@ -214,6 +214,11 @@ with the HCA node GUID as name:
 If you need deprecated target names in form ib_srpt_target_X, you should
 set use_node_guid_in_target_name parameter of module ib_srpt to 0.
 
+To move from the deprecated ib_srpt_target_X layout you should replace
+in your scst.conf all ib_srpt_target_X to the corresponding ports names,
+like ib_srpt_target_0 to 0002:c902:0022:16f4, if ibv_devices reported
+for this port/node GUID 0002c902002216f4.
+
 
 Session names
 -------------
