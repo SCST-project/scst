@@ -1,7 +1,7 @@
 Summary of changes between versions 2.0.0 and 2.1.0
 ---------------------------------------------------
 
- - Update to 2.6.37 and 2.6.38
+ - Update to kernels up to 2.6.39
 
  - Change T10 ID and USN generations to get the random part be CRC32
    from the device name in the first 8 characters as many MPIO
