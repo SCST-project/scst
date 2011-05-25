@@ -1182,7 +1182,8 @@ static int scst_pr_check_pr_path(void)
 	scst_pr_path_put(&nd);
 #else
 	res = kern_path(SCST_PR_DIR, 0, &path);
-	path_put(&path);
+	if (res == 0)
+		path_put(&path);
 #endif
 	if (res != 0) {
 		PRINT_ERROR("Unable to find %s (err %d), you should create "
