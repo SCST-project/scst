@@ -9,9 +9,12 @@ install:
 	@if ! perl -MExtUtils::MakeMaker -e '' >/dev/null 2>&1; then \
 	echo Error: the Perl module ExtUtils::MakeMaker must be installed \
 	first; false; fi
+	@if [ ! -e /usr/lib/lsb/install_initd ]; then \
+	echo Error: the lsb-core package must be installed first; false; fi
 	cd $(SCSTADMIN_DIR) && $(MAKE) $@
 	-/usr/lib/lsb/install_initd scst
 	-/usr/lib/lsb/install_initd qla2x00t
+	mkdir -m 755 -p $(DESTDIR)$(INITDIR)
 	install -m 755 init.d/scst $(DESTDIR)$(INITDIR)
 	install -m 755 init.d/qla2x00t $(DESTDIR)$(INITDIR)
 
