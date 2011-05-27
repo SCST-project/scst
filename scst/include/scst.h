@@ -33,6 +33,10 @@
 #ifdef CONFIG_SCST_PROC
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
+#elif defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
+#error The SCST sysfs interface is not supported on RHEL 5. Please run make enable_proc.
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+#error The SCST sysfs interface is supported from kernel version 2.6.26 on. Please run make enable_proc.
 #endif
 
 #include <scsi/scsi_cmnd.h>
