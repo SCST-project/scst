@@ -11,7 +11,7 @@ install: all
 	install -m 755 $(TOOL) $(DESTDIR)$(SBINDIR)
 
 uninstall:
-	-rm -f $(DESTDIR)$(PATH_SBIN)/$(TOOL)
+	-rm -f $(DESTDIR)$(SBINDIR)/$(TOOL)
 	$(MAKE) -C scst-$(MODULE_VERSION) uninstall
 
 perl-module:
