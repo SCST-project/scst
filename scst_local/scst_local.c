@@ -34,7 +34,6 @@
 
 /* SCST includes ... */
 #ifdef INSIDE_KERNEL_TREE
-#include <scst/scst_const.h>
 #include <scst/scst.h>
 #include <scst/scst_debug.h>
 #else
