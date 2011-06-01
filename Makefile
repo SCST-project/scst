@@ -174,6 +174,7 @@ clean:
 	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
 
 extraclean:
+	-rm -f TAGS
 	cd $(SCST_DIR) && $(MAKE) $@
 	@if [ -d $(DOC_DIR) ]; then cd $(DOC_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_INI_DIR) ]; then cd $(QLA_INI_DIR) && $(MAKE) $@; fi
