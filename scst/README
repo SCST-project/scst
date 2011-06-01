@@ -900,11 +900,13 @@ Each vdisk_fileio's device has the following attributes in
    identifier for Device Identification VPD page (0x83) of INQUIRY data.
    By default VDISK handler always generates t10_dev_id for every new
    created device at creation time based on the device name and
-   scst_vdisk_ID scst_vdisk.ko module parameter (see below).
+   scst_vdisk_ID scst_vdisk.ko module parameter for procfs (see below)
+   or the SCST setup_id when using the sysfs interface (see above).
 
  - usn - contains the virtual device's serial number of INQUIRY data. It
    is created at the device creation time based on the device name and
-   scst_vdisk_ID scst_vdisk.ko module parameter (see below).
+   scst_vdisk_ID scst_vdisk.ko module parameter for procfs (see below)
+   or the SCST setup_id when using the sysfs interface (see above).
 
  - type - contains SCSI type of this virtual device.
 
