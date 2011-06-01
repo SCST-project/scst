@@ -1894,16 +1894,12 @@ static int srpt_compl_thread(void *arg)
 
 	ch = arg;
 	BUG_ON(!ch);
-	PRINT_INFO("Session %s: kernel thread %s (PID %d) started",
-		   ch->sess_name, ch->thread->comm, current->pid);
 	while (!kthread_should_stop()) {
 		wait_event_interruptible(ch->wait_queue,
 			(srpt_process_completion(ch->cq, ch,
 						 SCST_CONTEXT_THREAD),
 			 kthread_should_stop()));
 	}
-	PRINT_INFO("Session %s: kernel thread %s (PID %d) stopped",
-		   ch->sess_name, ch->thread->comm, current->pid);
 	return 0;
 }
 
