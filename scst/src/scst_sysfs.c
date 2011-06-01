@@ -2544,6 +2544,8 @@ static ssize_t scst_dev_sysfs_check_threads_data(
 {
 	int res = 0;
 
+	TRACE_ENTRY();
+
 	*stop = false;
 
 	if (dev->threads_num < 0) {
@@ -2560,6 +2562,7 @@ static ssize_t scst_dev_sysfs_check_threads_data(
 	}
 
 out:
+	TRACE_EXIT_RES(res);
 	return res;
 }
 
@@ -2620,10 +2623,11 @@ static ssize_t scst_dev_sysfs_threads_num_store(struct kobject *kobj,
 	work->new_threads_pool_type = dev->threads_pool_type;
 
 	res = scst_sysfs_queue_wait_work(work);
+
+out:
 	if (res == 0)
 		res = count;
 
-out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -2709,10 +2713,11 @@ static ssize_t scst_dev_sysfs_threads_pool_type_store(struct kobject *kobj,
 	work->new_threads_pool_type = newtpt;
 
 	res = scst_sysfs_queue_wait_work(work);
+
+out:
 	if (res == 0)
 		res = count;
 
-out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
