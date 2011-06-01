@@ -1564,9 +1564,10 @@ out_res:
 
 out_err:
 #ifndef CONFIG_SCST_DEBUG
-	if (!conn->closing)
-#endif
+	if (!conn->closing) {
+#else
 	{
+#endif
 		PRINT_ERROR("error %d at sid:cid %#Lx:%u, cmnd %p", res,
 			    (long long unsigned int)conn->session->sid,
 			    conn->cid, conn->write_cmnd);
@@ -1593,9 +1594,10 @@ static int exit_tx(struct iscsi_conn *conn, int res)
 		break;
 	default:
 #ifndef CONFIG_SCST_DEBUG
-		if (!conn->closing)
-#endif
+		if (!conn->closing) {
+#else
 		{
+#endif
 			PRINT_ERROR("Sending data failed: initiator %s, "
 				"write_size %d, write_state %d, res %d",
 				conn->session->initiator_name,
