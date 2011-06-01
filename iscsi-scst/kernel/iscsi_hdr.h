@@ -23,7 +23,7 @@
 
 #define ISCSI_VERSION			0
 
-#ifndef __packed
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21)
 #define __packed __attribute__ ((packed))
 #endif
 
