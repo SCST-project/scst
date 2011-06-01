@@ -1586,7 +1586,7 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 	}
 
 	TRACE_DBG("cmd_threads %p, dev %s, tgt_dev %p, num %d, n %d",
-		cmd_threads, dev->virt_name, tgt_dev, num, n);
+		cmd_threads, dev ? dev->virt_name : NULL, tgt_dev, num, n);
 
 	if (tgt_dev != NULL) {
 		struct scst_tgt_dev *t;
