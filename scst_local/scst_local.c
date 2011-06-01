@@ -1494,12 +1494,11 @@ static int scst_local_driver_probe(struct device *dev)
 		ret = -ENODEV;
 		scsi_host_put(hpnt);
 		goto out;
-	}
 #ifdef CONFIG_SCST_PROC
-	else {
+	} else {
 		scsi_scan_host(hpnt);
-	}
 #endif
+	}
 
 out:
 	TRACE_EXIT_RES(ret);
