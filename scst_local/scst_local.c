@@ -1116,13 +1116,14 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *SCpnt,
 	return 0;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37) && \
-    !defined(CONFIG_SCST_LOCAL_FORCE_DIRECT_PROCESSING)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
+#if !defined(CONFIG_SCST_LOCAL_FORCE_DIRECT_PROCESSING)
 /*
  * See comment in scst_local_queuecommand_lck() near
  * CONFIG_SCST_LOCAL_FORCE_DIRECT_PROCESSING
  */
 static DEF_SCSI_QCMD(scst_local_queuecommand)
+#endif
 #endif
 
 static int scst_local_targ_pre_exec(struct scst_cmd *scst_cmd)
