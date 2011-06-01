@@ -65,7 +65,7 @@ else
 endif
 
 uninstall:
-	rm -f $(INSTALL_DIR)/scst_local.kp
+	rm -f $(INSTALL_DIR)/scst_local.ko
 	-/sbin/depmod -a $(KVER)
 endif
 
