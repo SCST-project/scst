@@ -30,10 +30,10 @@
 
 #ifndef GENERATING_UPSTREAM_PATCH
 #if !defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
-#warning "Patch put_page_callback-<kernel-version>.patch not applied on your\
- kernel or CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION\
- config option not set. ISCSI-SCST will be working with not the best\
- performance. Refer README file for details."
+#warning "Patch put_page_callback-<kernel-version>.patch not applied on your \
+kernel or CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION \
+config option not set. ISCSI-SCST will be working with not the best \
+performance. Refer README file for details."
 #endif
 #endif
 
