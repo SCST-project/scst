@@ -23,8 +23,8 @@
 
 #define ISCSI_VERSION			0
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21)
-#define __packed __attribute__ ((packed))
+#ifndef __packed
+#error The macro __packed has not been defined.
 #endif
 
 /* iSCSI command PDU header. See also section 10.3 in RFC 3720. */

@@ -633,7 +633,7 @@ index ad178fa..1ae84db 100644
 +++ b/include/scsi/srp.h
 @@ -239,4 +239,42 @@ struct srp_rsp {
  	u8	data[0];
- } __attribute__((packed));
+ } __packed;
  
 +struct srp_cred_req {
 +	u8	opcode;
@@ -665,7 +665,7 @@ index ad178fa..1ae84db 100644
 +	__be32	sense_data_len;
 +	u32	reserved3;
 +	u8	sense_data[0];
-+} __attribute__((packed));
++} __packed;
 +
 +struct srp_aer_rsp {
 +	u8	opcode;

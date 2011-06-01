@@ -115,7 +115,7 @@ struct srp_indirect_buf {
 	struct srp_direct_buf	table_desc;
 	__be32			len;
 	struct srp_direct_buf	desc_list[0];
-} __attribute__((packed));
+} __packed;
 
 enum {
 	SRP_MULTICHAN_SINGLE = 0,
@@ -150,7 +150,7 @@ struct srp_login_rsp {
 	__be16	buf_fmt;
 	u8	rsp_flags;
 	u8	reserved2[25];
-} __attribute__((packed));
+} __packed;
 
 struct srp_login_rej {
 	u8	opcode;
@@ -186,7 +186,7 @@ struct srp_tsk_mgmt {
 	u8	reserved1[6];
 	u64	tag;
 	u8	reserved2[4];
-	__be64	lun __attribute__((packed));
+	__be64	lun __packed;
 	u8	reserved3[2];
 	u8	tsk_mgmt_func;
 	u8	reserved4;
@@ -207,7 +207,7 @@ struct srp_cmd {
 	u8	data_in_desc_cnt;
 	u64	tag;
 	u8	reserved2[4];
-	__be64	lun __attribute__((packed));
+	__be64	lun __packed;
 	u8	reserved3;
 	u8	task_attr;
 	u8	reserved4;
@@ -244,6 +244,6 @@ struct srp_rsp {
 	__be32	sense_data_len;
 	__be32	resp_data_len;
 	u8	data[0];
-} __attribute__((packed));
+} __packed;
 
 #endif /* SCSI_SRP_H */

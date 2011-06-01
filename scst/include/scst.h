@@ -60,6 +60,10 @@ typedef _Bool bool;
 #define false 0
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21)
+#define __packed __attribute__((packed))
+#endif
+
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/scst_sgv.h>
 #else
