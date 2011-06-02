@@ -2153,12 +2153,21 @@ static void srpt_release_channel(struct srpt_rdma_ch *ch)
 	schedule_work(&ch->release_work);
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
+/* A vanilla 2.6.19 or older kernel without backported OFED kernel headers. */
+static void srpt_release_channel_work(void *ctx)
+#else
 static void srpt_release_channel_work(struct work_struct *w)
+#endif
 {
 	struct srpt_rdma_ch *ch;
 	struct srpt_device *sdev;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
+	ch = ctx;
+#else
 	ch = container_of(w, struct srpt_rdma_ch, release_work);
+#endif
 	TRACE_DBG("ch = %p; ch->scst_sess = %p; release_done = %p", ch,
 		  ch->scst_sess, ch->release_done);
 
@@ -2374,7 +2383,11 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		goto reject;
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
+	INIT_WORK(&ch->release_work, srpt_release_channel_work, ch);
+#else
 	INIT_WORK(&ch->release_work, srpt_release_channel_work);
+#endif
 	memcpy(ch->i_port_id, req->initiator_port_id, 16);
 	memcpy(ch->t_port_id, req->target_port_id, 16);
 	ch->sport = &sdev->port[param->port - 1];
@@ -3282,7 +3295,7 @@ static void srpt_refresh_port_work(struct work_struct *work)
 #endif
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
-	struct srpt_port *sport = (struct srpt_port *)ctx;
+	struct srpt_port *sport = ctx;
 #else
 	struct srpt_port *sport = container_of(work, struct srpt_port, work);
 #endif
