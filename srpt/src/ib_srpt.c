@@ -272,7 +272,7 @@ static void srpt_qp_event(struct ib_event *event, struct srpt_rdma_ch *ch)
 {
 	TRACE_DBG("QP event %d on cm_id=%p sess_name=%s state=%d",
 		  event->event, ch->cm_id, ch->sess_name,
-		  atomic_read(&ch->state));
+		  ch->state);
 
 	switch (event->event) {
 	case IB_EVENT_COMM_EST:
@@ -3074,7 +3074,7 @@ static int srpt_rdy_to_xfer(struct scst_cmd *scmnd)
 
 	EXTRACHECKS_WARN_ON(ioctx->ch !=
 			scst_sess_get_tgt_priv(scst_cmd_get_session(scmnd)));
-	EXTRACHECKS_BUG_ON(!ioctx_ch);
+	EXTRACHECKS_BUG_ON(!ioctx->ch);
 
 	return srpt_xfer_data(ioctx->ch, ioctx, scmnd);
 }
