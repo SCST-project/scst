@@ -120,7 +120,7 @@ MODULE_PARM_DESC(srp_max_req_size,
 
 static unsigned int srp_max_rsp_size = DEFAULT_MAX_RSP_SIZE;
 module_param(srp_max_rsp_size, int, 0444);
-MODULE_PARM_DESC(thread,
+MODULE_PARM_DESC(srp_max_rsp_size,
 		 "Maximum size of SRP response messages in bytes.");
 
 static int srpt_srq_size = DEFAULT_SRPT_SRQ_SIZE;
