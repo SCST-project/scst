@@ -72,7 +72,7 @@ typedef _Bool bool;
 #include "scst_sgv.h"
 #endif
 
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 20)
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_CPUMASK_H)
 #define nr_cpu_ids NR_CPUS
 #endif
 
@@ -3554,8 +3554,6 @@ void scst_aen_done(struct scst_aen *aen);
  * define the backported macro's because OFED has already defined these.
  */
 
-#ifndef __BACKPORT_LINUX_SCATTERLIST_H_TO_2_6_23__
-
 static inline bool sg_is_chain(struct scatterlist *sg)
 {
 	return false;
@@ -3566,15 +3564,19 @@ static inline struct scatterlist *sg_chain_ptr(struct scatterlist *sg)
 	return NULL;
 }
 
+#ifndef sg_page
 static inline struct page *sg_page(struct scatterlist *sg)
 {
 	return sg->page;
 }
+#endif
 
 static inline void *sg_virt(struct scatterlist *sg)
 {
 	return page_address(sg_page(sg)) + sg->offset;
 }
+
+#ifndef __BACKPORT_LINUX_SCATTERLIST_H_TO_2_6_23__
 
 static inline void sg_init_table(struct scatterlist *sgl, unsigned int nents)
 {
