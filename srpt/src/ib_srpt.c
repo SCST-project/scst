@@ -1873,7 +1873,7 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 	atomic_inc(&ch->processing_compl);
 	switch (thread) {
 	case MODE_IB_COMPLETION_IN_THREAD:
-		wake_up_interruptible(&ch->wait_queue);
+		wake_up_process(ch->thread);
 		break;
 	case MODE_IB_COMPLETION_IN_SIRQ:
 		srpt_process_completion(cq, ch, SCST_CONTEXT_THREAD);
@@ -1895,10 +1895,9 @@ static int srpt_compl_thread(void *arg)
 	ch = arg;
 	BUG_ON(!ch);
 	while (!kthread_should_stop()) {
-		wait_event_interruptible(ch->wait_queue,
-			(srpt_process_completion(ch->cq, ch,
-						 SCST_CONTEXT_THREAD),
-			 kthread_should_stop()));
+		set_current_state(TASK_INTERRUPTIBLE);
+		srpt_process_completion(ch->cq, ch, SCST_CONTEXT_THREAD);
+		schedule();
 	}
 	return 0;
 }
@@ -1964,8 +1963,6 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 		goto err_destroy_qp;
 
 	if (thread == MODE_IB_COMPLETION_IN_THREAD) {
-		init_waitqueue_head(&ch->wait_queue);
-
 		TRACE_DBG("creating IB completion thread for session %s",
 			  ch->sess_name);
 
