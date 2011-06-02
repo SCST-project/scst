@@ -3130,8 +3130,6 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	}
 	spin_unlock_irqrestore(&ioctx->spinlock, flags);
 
-	if (state != SRPT_STATE_DATA_IN)
-
 	if (unlikely(scst_cmd_aborted(scmnd))) {
 		atomic_inc(&ch->req_lim_delta);
 		srpt_abort_cmd(ioctx, SCST_CONTEXT_SAME);
