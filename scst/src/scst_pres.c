@@ -40,7 +40,9 @@
 #include <linux/fcntl.h>
 #include <linux/uaccess.h>
 #include <linux/namei.h>
+#ifndef INSIDE_KERNEL_TREE
 #include <linux/version.h>
+#endif
 #include <linux/vmalloc.h>
 #include <asm/unaligned.h>
 

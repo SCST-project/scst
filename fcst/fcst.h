@@ -19,10 +19,10 @@
 #ifndef __SCSI_FCST_H__
 #define __SCSI_FCST_H__
 
-#include <linux/version.h>
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/scst.h>
 #else
+#include <linux/version.h>
 #include "scst.h"
 #endif
 

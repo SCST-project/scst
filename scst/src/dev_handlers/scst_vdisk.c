@@ -37,7 +37,9 @@
 #include <asm/atomic.h>
 #include <linux/kthread.h>
 #include <linux/sched.h>
+#ifndef INSIDE_KERNEL_TREE
 #include <linux/version.h>
+#endif
 #include <asm/div64.h>
 #include <asm/unaligned.h>
 #include <linux/slab.h>
