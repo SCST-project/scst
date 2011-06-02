@@ -1335,6 +1335,20 @@ of the device mapper. You will have to modify at least the following in
 /etc/multipath.conf:
 * path_checker scsi_dh_alua
 * prio_callout "/sbin/mpath_prio_alua /dev/%n"
+
+If your distribution does not provide a /sbin/mpath_prio_alua script, you can
+use the following implementation:
+$ cat /sbin/mpath_prio_alua
+#!/bin/bash
+# Given a SCSI device node, query the target port group asymmetric access
+# state and report it in numeric form.
+tpg_id="$(sg_vpd --page=di "$1" | sed -n 's/.*Target port group: //p')"
+aas="$(sg_rtpg "$1" \
+| grep -A1 "target port group id : $tpg_id" \
+| tail -n 1 \
+| sed 's/.*target port group asymmetric access state : //')"
+echo $((aas))
+
 More information about how to configure the device mapper and the scsi_dh_alua
 driver can be found in the manual of your Linux distribution.
 
