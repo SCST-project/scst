@@ -92,7 +92,7 @@ int kernel_open(void)
 			"kernel module?\n", get_error_str(errno));
 		goto out_close;
 	} else {
-		log_debug(0, "max_data_seg_len %d, max_queued_cmds %d, ",
+		log_debug(0, "max_data_seg_len %d, max_queued_cmds %d",
 			reg.max_data_seg_len, reg.max_queued_cmds);
 		iscsi_init_params.max_data_seg_len = reg.max_data_seg_len;
 		iscsi_init_params.max_queued_cmds = reg.max_queued_cmds;
