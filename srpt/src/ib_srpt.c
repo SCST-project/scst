@@ -283,7 +283,7 @@ static void srpt_event_handler(struct ib_event_handler *handler,
  */
 static void srpt_srq_event(struct ib_event *event, void *ctx)
 {
-	PRINT_INFO("SRQ event %d", event->event);
+	TRACE_DBG("SRQ event %d", event->event);
 }
 
 /**
