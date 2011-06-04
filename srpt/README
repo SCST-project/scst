@@ -87,22 +87,6 @@ The ib_srpt kernel module supports the following parameters:
   for a credit limit of 128. Changing this parameter to a smaller value may
   cause RDMA requests to be retried and hence may slow down data transfer
   severely.
-* thread (0, 1 or 2, default 1)
-  Defines the context on which SRP requests are processed:
-  * thread=0: do as much processing in IRQ context as possible. Results in
-    lower latency than the other two modes but may trigger soft lockup
-    complaints when multiple initiators are simultaneously processing
-    workloads with large I/O depths. Scalability of this mode is limited
-    - it exploits only a fraction of the power available on multiprocessor
-    systems.
-  * thread=1: dedicates one kernel thread per initiator. Scales well on
-    multiprocessor systems. This is the recommended mode when multiple
-    initiator systems are accessing the same target system simultaneously.
-  * thread=2: makes one CPU process all IB completions and defer further
-    processing to kernel thread context. Scales better than mode thread=0 but
-    not as good as mode thread=1. May trigger soft lockup complaints when
-    multiple initiators are simultaneously processing workloads with large I/O
-    depths.
 * trace_flag (unsigned integer, only available in debug builds)
   The individual bits of the trace_flag parameter define which categories of
   trace messages should be sent to the kernel log and which ones not.

@@ -76,17 +76,6 @@ MODULE_DESCRIPTION("InfiniBand SCSI RDMA Protocol target "
 MODULE_LICENSE("Dual BSD/GPL");
 
 /*
- * Local data types.
- */
-
-enum threading_mode {
-	MODE_ALL_IN_SIRQ             = 0,
-	MODE_IB_COMPLETION_IN_THREAD = 1,
-	MODE_IB_COMPLETION_IN_SIRQ   = 2,
-};
-
-
-/*
  * Global Variables
  */
 
@@ -98,15 +87,6 @@ static unsigned long trace_flag = DEFAULT_SRPT_TRACE_FLAGS;
 module_param(trace_flag, long, 0644);
 MODULE_PARM_DESC(trace_flag, "SCST trace flags.");
 #endif
-
-static int thread = 1;
-module_param(thread, int, 0444);
-MODULE_PARM_DESC(thread,
-		 "IB completion and SCSI command processing context. Defaults"
-		 " to one, i.e. process IB completions and SCSI commands in"
-		 " kernel thread context. 0 means soft IRQ whenever possible"
-		 " and 2 means process IB completions in soft IRQ context and"
-		 " SCSI commands in kernel thread context.");
 
 static unsigned srp_max_rdma_size = DEFAULT_MAX_RDMA_SIZE;
 module_param(srp_max_rdma_size, int, 0744);
@@ -1892,33 +1872,12 @@ static void srpt_process_completion(struct ib_cq *cq,
 
 /**
  * srpt_completion() - IB completion queue callback function.
- *
- * Notes:
- * - It is guaranteed that a completion handler will never be invoked
- *   concurrently on two different CPUs for the same completion queue. See also
- *   Documentation/infiniband/core_locking.txt and the implementation of
- *   handle_edge_irq() in kernel/irq/chip.c.
- * - When threaded IRQs are enabled, completion handlers are invoked in thread
- *   context instead of interrupt context.
  */
 static void srpt_completion(struct ib_cq *cq, void *ctx)
 {
 	struct srpt_rdma_ch *ch = ctx;
 
-	BUG_ON(!ch);
-	switch (thread) {
-	case MODE_IB_COMPLETION_IN_THREAD:
-		wake_up_process(ch->thread);
-		break;
-	case MODE_IB_COMPLETION_IN_SIRQ:
-		srpt_process_completion(cq, ch, SCST_CONTEXT_THREAD,
-					SCST_CONTEXT_THREAD);
-		break;
-	case MODE_ALL_IN_SIRQ:
-		srpt_process_completion(cq, ch, SCST_CONTEXT_TASKLET,
-					SCST_CONTEXT_TASKLET);
-		break;
-	}
+	wake_up_process(ch->thread);
 }
 
 static int srpt_compl_thread(void *arg)
@@ -1999,20 +1958,16 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 	if (ret)
 		goto err_destroy_qp;
 
-	if (thread == MODE_IB_COMPLETION_IN_THREAD) {
-		TRACE_DBG("creating IB completion thread for session %s",
-			  ch->sess_name);
+	TRACE_DBG("creating IB completion thread for session %s",
+		  ch->sess_name);
 
-		ch->thread = kthread_run(srpt_compl_thread, ch,
-					 "ib_srpt_compl");
-		if (IS_ERR(ch->thread)) {
-			PRINT_ERROR("failed to create kernel thread %ld",
-				    PTR_ERR(ch->thread));
-			ch->thread = NULL;
-			goto err_destroy_qp;
-		}
-	} else
-		ib_req_notify_cq(ch->cq, IB_CQ_NEXT_COMP);
+	ch->thread = kthread_run(srpt_compl_thread, ch, "ib_srpt_compl");
+	if (IS_ERR(ch->thread)) {
+		PRINT_ERROR("failed to create kernel thread %ld",
+			    PTR_ERR(ch->thread));
+		ch->thread = NULL;
+		goto err_destroy_qp;
+	}
 
 out:
 	kfree(qp_init);
@@ -3971,33 +3926,6 @@ static int __init srpt_init_module(void)
 		goto out;
 	}
 #endif
-
-	switch (thread) {
-	case MODE_ALL_IN_SIRQ:
-		/*
-		 * Process both IB completions and SCST commands in SIRQ
-		 * context. May lead to soft lockups and other scary behavior
-		 * under sufficient load.
-		 */
-		srpt_template.rdy_to_xfer_atomic = true;
-		break;
-	case MODE_IB_COMPLETION_IN_THREAD:
-		/*
-		 * Process IB completions in the kernel thread associated with
-		 * the RDMA channel, and process SCST commands in the kernel
-		 * threads created by the SCST core.
-		 */
-		srpt_template.rdy_to_xfer_atomic = false;
-		break;
-	case MODE_IB_COMPLETION_IN_SIRQ:
-	default:
-		/*
-		 * Process IB completions in SIRQ context and SCST commands in
-		 * the kernel threads created by the SCST core.
-		 */
-		srpt_template.rdy_to_xfer_atomic = false;
-		break;
-	}
 
 	ret = scst_register_target_template(&srpt_template);
 	if (ret < 0) {
