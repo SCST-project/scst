@@ -1775,6 +1775,7 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 		break;
 	}
 
+post_recv:
 	srpt_post_recv(ch->sport->sdev, recv_ioctx);
 out:
 	return;
