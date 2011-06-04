@@ -799,15 +799,14 @@ static enum srpt_command_state srpt_set_cmd_state(struct srpt_send_ioctx *ioctx,
 						  enum srpt_command_state new)
 {
 	enum srpt_command_state previous;
-	unsigned long flags;
 
 	BUG_ON(!ioctx);
 
-	spin_lock_irqsave(&ioctx->spinlock, flags);
+	spin_lock(&ioctx->spinlock);
 	previous = ioctx->state;
 	if (previous != SRPT_STATE_DONE)
 		ioctx->state = new;
-	spin_unlock_irqrestore(&ioctx->spinlock, flags);
+	spin_unlock(&ioctx->spinlock);
 
 	return previous;
 }
@@ -822,17 +821,16 @@ static bool srpt_test_and_set_cmd_state(struct srpt_send_ioctx *ioctx,
 					enum srpt_command_state new)
 {
 	enum srpt_command_state previous;
-	unsigned long flags;
 
 	WARN_ON(!ioctx);
 	WARN_ON(old == SRPT_STATE_DONE);
 	WARN_ON(new == SRPT_STATE_NEW);
 
-	spin_lock_irqsave(&ioctx->spinlock, flags);
+	spin_lock(&ioctx->spinlock);
 	previous = ioctx->state;
 	if (previous == old)
 		ioctx->state = new;
-	spin_unlock_irqrestore(&ioctx->spinlock, flags);
+	spin_unlock(&ioctx->spinlock);
 
 	return previous == old;
 }
@@ -1188,7 +1186,6 @@ static void srpt_abort_cmd(struct srpt_send_ioctx *ioctx,
 {
 	struct scst_cmd *scmnd;
 	enum srpt_command_state state;
-	unsigned long flags;
 
 	TRACE_ENTRY();
 
@@ -1201,7 +1198,7 @@ static void srpt_abort_cmd(struct srpt_send_ioctx *ioctx,
 	 * SRPT_STATE_DATA_IN ensures that srpt_xmit_response() will call this
 	 * function a second time.
 	 */
-	spin_lock_irqsave(&ioctx->spinlock, flags);
+	spin_lock(&ioctx->spinlock);
 	state = ioctx->state;
 	switch (state) {
 	case SRPT_STATE_NEED_DATA:
@@ -1215,7 +1212,7 @@ static void srpt_abort_cmd(struct srpt_send_ioctx *ioctx,
 	default:
 		break;
 	}
-	spin_unlock_irqrestore(&ioctx->spinlock, flags);
+	spin_unlock(&ioctx->spinlock);
 
 	if (state == SRPT_STATE_DONE)
 		goto out;
@@ -3074,7 +3071,6 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	int ret;
 	scst_data_direction dir;
 	int resp_len;
-	unsigned long flags;
 
 	ret = SCST_TGT_RES_SUCCESS;
 
@@ -3084,7 +3080,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	ch = scst_sess_get_tgt_priv(scst_cmd_get_session(scmnd));
 	BUG_ON(!ch);
 
-	spin_lock_irqsave(&ioctx->spinlock, flags);
+	spin_lock(&ioctx->spinlock);
 	state = ioctx->state;
 	switch (state) {
 	case SRPT_STATE_NEW:
@@ -3096,7 +3092,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 		__WARN();
 		break;
 	}
-	spin_unlock_irqrestore(&ioctx->spinlock, flags);
+	spin_unlock(&ioctx->spinlock);
 
 	if (unlikely(scst_cmd_aborted(scmnd))) {
 		atomic_inc(&ch->req_lim_delta);
