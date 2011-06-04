@@ -1716,6 +1716,9 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 		goto out;
 	}
 
+	if (unlikely(ch_state != CH_LIVE))
+		goto post_recv;
+
 	if (srp_cmd->opcode == SRP_CMD || srp_cmd->opcode == SRP_TSK_MGMT) {
 		if (!send_ioctx)
 			send_ioctx = srpt_get_send_ioctx(ch);
