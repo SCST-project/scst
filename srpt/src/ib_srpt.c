@@ -1868,7 +1868,8 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 
 static void srpt_process_completion(struct ib_cq *cq,
 				    struct srpt_rdma_ch *ch,
-				    enum scst_exec_context context)
+				    enum scst_exec_context rcv_context,
+				    enum scst_exec_context send_context)
 {
 	struct ib_wc *const wc = ch->wc;
 	int i, n;
@@ -1879,10 +1880,11 @@ static void srpt_process_completion(struct ib_cq *cq,
 	while ((n = ib_poll_cq(cq, ARRAY_SIZE(ch->wc), wc)) > 0) {
 		for (i = 0; i < n; i++) {
 			if (opcode_from_wr_id(wc[i].wr_id) & IB_WC_RECV)
-				srpt_process_rcv_completion(cq, ch, context,
+				srpt_process_rcv_completion(cq, ch, rcv_context,
 							    &wc[i]);
 			else
-				srpt_process_send_completion(cq, ch, context,
+				srpt_process_send_completion(cq, ch,
+							     send_context,
 							     &wc[i]);
 		}
 	}
@@ -1909,10 +1911,12 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 		wake_up_process(ch->thread);
 		break;
 	case MODE_IB_COMPLETION_IN_SIRQ:
-		srpt_process_completion(cq, ch, SCST_CONTEXT_THREAD);
+		srpt_process_completion(cq, ch, SCST_CONTEXT_THREAD,
+					SCST_CONTEXT_THREAD);
 		break;
 	case MODE_ALL_IN_SIRQ:
-		srpt_process_completion(cq, ch, SCST_CONTEXT_TASKLET);
+		srpt_process_completion(cq, ch, SCST_CONTEXT_TASKLET,
+					SCST_CONTEXT_TASKLET);
 		break;
 	}
 }
@@ -1928,7 +1932,8 @@ static int srpt_compl_thread(void *arg)
 	BUG_ON(!ch);
 	while (!kthread_should_stop()) {
 		set_current_state(TASK_INTERRUPTIBLE);
-		srpt_process_completion(ch->cq, ch, SCST_CONTEXT_THREAD);
+		srpt_process_completion(ch->cq, ch, SCST_CONTEXT_THREAD,
+					SCST_CONTEXT_DIRECT);
 		schedule();
 	}
 	return 0;
