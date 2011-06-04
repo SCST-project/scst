@@ -2047,7 +2047,6 @@ static void __srpt_close_ch(struct srpt_rdma_ch *ch)
 			PRINT_ERROR("%s", "sending CM DREQ failed.");
 		break;
 	case CH_DISCONNECTING:
-		break;
 	case CH_DRAINING:
 	case CH_RELEASING:
 		break;
