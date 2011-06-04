@@ -2592,7 +2592,11 @@ static void srpt_cm_dreq_recv(struct ib_cm_id *cm_id)
 			PRINT_ERROR("%s", "Sending DREP failed");
 		break;
 	default:
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
 		__WARN();
+#else
+		WARN_ON(true);
+#endif
 		break;
 	}
 out:
@@ -3050,7 +3054,11 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 		break;
 	default:
 		PRINT_ERROR("Unexpected command state %d", state);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
 		__WARN();
+#else
+		WARN_ON(true);
+#endif
 		break;
 	}
 	spin_unlock(&ioctx->spinlock);
