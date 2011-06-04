@@ -1719,9 +1719,6 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 		goto out;
 	}
 
-	if (unlikely(ch_state != CH_LIVE))
-		goto post_recv;
-
 	if (srp_cmd->opcode == SRP_CMD || srp_cmd->opcode == SRP_TSK_MGMT) {
 		if (!send_ioctx)
 			send_ioctx = srpt_get_send_ioctx(ch);
@@ -1757,7 +1754,6 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 		break;
 	}
 
-post_recv:
 	srpt_post_recv(ch->sport->sdev, recv_ioctx);
 out:
 	return;
@@ -2006,8 +2002,10 @@ err_destroy_cq:
 
 static void srpt_destroy_ch_ib(struct srpt_rdma_ch *ch)
 {
-	if (ch->thread)
-		kthread_stop(ch->thread);
+	WARN_ON(ch->thread);
+
+	while (ib_poll_cq(ch->cq, ARRAY_SIZE(ch->wc), ch->wc) > 0)
+		;
 
 	ib_destroy_qp(ch->qp);
 	ib_destroy_cq(ch->cq);
@@ -2147,6 +2145,7 @@ static struct srpt_rdma_ch *srpt_find_channel(struct srpt_device *sdev,
  */
 static void srpt_release_channel(struct srpt_rdma_ch *ch)
 {
+	WARN_ON(ch->state != CH_RELEASING);
 	schedule_work(&ch->release_work);
 }
 
@@ -2167,9 +2166,15 @@ static void srpt_release_channel_work(struct work_struct *w)
 #endif
 	TRACE_DBG("ch = %p; ch->scst_sess = %p; release_done = %p", ch,
 		  ch->scst_sess, ch->release_done);
+	WARN_ON(ch->state != CH_RELEASING);
 
 	sdev = ch->sport->sdev;
 	BUG_ON(!sdev);
+
+	if (ch->thread) {
+		kthread_stop(ch->thread);
+		ch->thread = NULL;
+	}
 
 	/*
 	 * Unregister the session and wait until processing of all commands
