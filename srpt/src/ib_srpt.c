@@ -186,6 +186,26 @@ srpt_set_ch_state(struct srpt_rdma_ch *ch, enum rdma_ch_state new_state)
 	return prev;
 }
 
+static enum rdma_ch_state srpt_set_ch_state_to_disc(struct srpt_rdma_ch *ch)
+{
+	unsigned long flags;
+	enum rdma_ch_state prev;
+
+	spin_lock_irqsave(&ch->spinlock, flags);
+	prev = ch->state;
+	switch (prev) {
+	case CH_CONNECTING:
+	case CH_LIVE:
+		ch->state = CH_DISCONNECTING;
+		break;
+	default:
+		break;
+	}
+	spin_unlock_irqrestore(&ch->spinlock, flags);
+
+	return prev;
+}
+
 static bool srpt_set_ch_state_to_draining(struct srpt_rdma_ch *ch)
 {
 	unsigned long flags;
@@ -2017,27 +2037,21 @@ static void srpt_destroy_ch_ib(struct srpt_rdma_ch *ch)
  * Reset the QP and make sure all resources associated with the channel will
  * be deallocated at an appropriate time.
  *
+ * Returns true if and only if the channel state has been modified from
+ * CH_CONNECTING or CH_LIVE into CH_DISCONNECTING.
+ *
  * Note: The caller must hold ch->sport->sdev->spinlock.
  */
-static void __srpt_close_ch(struct srpt_rdma_ch *ch)
+static bool __srpt_close_ch(struct srpt_rdma_ch *ch)
 {
 	struct srpt_device *sdev;
 	enum rdma_ch_state prev_state;
-	unsigned long flags;
+	bool was_live;
 
 	sdev = ch->sport->sdev;
+	was_live = false;
 
-	spin_lock_irqsave(&ch->spinlock, flags);
-	prev_state = ch->state;
-	switch (prev_state) {
-	case CH_CONNECTING:
-	case CH_LIVE:
-		ch->state = CH_DISCONNECTING;
-		break;
-	default:
-		break;
-	}
-	spin_unlock_irqrestore(&ch->spinlock, flags);
+	prev_state = srpt_set_ch_state_to_disc(ch);
 
 	switch (prev_state) {
 	case CH_CONNECTING:
@@ -2045,6 +2059,7 @@ static void __srpt_close_ch(struct srpt_rdma_ch *ch)
 			       NULL, 0);
 		/* fall through */
 	case CH_LIVE:
+		was_live = true;
 		if (ib_send_cm_dreq(ch->cm_id, NULL, 0) < 0)
 			PRINT_ERROR("%s", "sending CM DREQ failed.");
 		break;
@@ -2053,6 +2068,8 @@ static void __srpt_close_ch(struct srpt_rdma_ch *ch)
 	case CH_RELEASING:
 		break;
 	}
+
+	return was_live;
 }
 
 /**
@@ -2340,19 +2357,11 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 			    && param->port == ch->sport->port
 			    && param->listen_id == ch->sport->sdev->cm_id
 			    && ch->cm_id) {
-				enum rdma_ch_state ch_state;
-
-				ch_state = ch->state;
-				if (ch_state != CH_CONNECTING &&
-				    ch_state != CH_LIVE)
+				if (!__srpt_close_ch(ch))
 					continue;
 
-				/* found an existing channel */
-				TRACE_DBG("Found existing channel name= %s"
-					  " cm_id= %p state= %d",
-					  ch->sess_name, ch->cm_id, ch_state);
-
-				__srpt_close_ch(ch);
+				TRACE_DBG("Found existing channel %s; cm_id ="
+					  " %p", ch->sess_name, ch->cm_id);
 
 				rsp->rsp_flags =
 					SRP_LOGIN_RSP_MULTICHAN_TERMINATED;
@@ -2600,8 +2609,6 @@ static void srpt_cm_rep_error(struct ib_cm_id *cm_id)
 static void srpt_cm_dreq_recv(struct ib_cm_id *cm_id)
 {
 	struct srpt_rdma_ch *ch;
-	unsigned long flags;
-	bool send_drep = false;
 
 	ch = srpt_find_channel(cm_id->context, cm_id);
 	if (!ch) {
@@ -2610,27 +2617,18 @@ static void srpt_cm_dreq_recv(struct ib_cm_id *cm_id)
 		goto out;
 	}
 
-	spin_lock_irqsave(&ch->spinlock, flags);
-	switch (ch->state) {
+	switch (srpt_set_ch_state_to_disc(ch)) {
 	case CH_CONNECTING:
 	case CH_LIVE:
-		send_drep = true;
-		ch->state = CH_DISCONNECTING;
-		break;
-	case CH_DISCONNECTING:
-	case CH_DRAINING:
-	case CH_RELEASING:
-		__WARN();
-		break;
-	}
-	spin_unlock_irqrestore(&ch->spinlock, flags);
-
-	if (send_drep) {
 		if (ib_send_cm_drep(ch->cm_id, NULL, 0) >= 0)
 			PRINT_INFO("Received DREQ and sent DREP for session %s",
 				   ch->sess_name);
 		else
 			PRINT_ERROR("%s", "Sending DREP failed");
+		break;
+	default:
+		__WARN();
+		break;
 	}
 out:
 	;
