@@ -186,6 +186,27 @@ srpt_set_ch_state(struct srpt_rdma_ch *ch, enum rdma_ch_state new_state)
 	return prev;
 }
 
+static bool srpt_set_ch_state_to_draining(struct srpt_rdma_ch *ch)
+{
+	unsigned long flags;
+	bool changed_state = false;
+
+	spin_lock_irqsave(&ch->spinlock, flags);
+	switch (ch->state) {
+	case CH_CONNECTING:
+	case CH_LIVE:
+	case CH_DISCONNECTING:
+		ch->state = CH_DRAINING;
+		changed_state = true;
+		break;
+	default:
+		break;
+	}
+	spin_unlock_irqrestore(&ch->spinlock, flags);
+
+	return changed_state;
+}
+
 /**
  * srpt_test_and_set_ch_state() - Test and set the channel state.
  *
@@ -2092,12 +2113,7 @@ static void srpt_drain_channel(struct ib_cm_id *cm_id)
 	spin_lock_irq(&sdev->spinlock);
 	list_for_each_entry(ch, &sdev->rch_list, list) {
 		if (ch->cm_id == cm_id) {
-			do_reset = srpt_test_and_set_ch_state(ch,
-					CH_CONNECTING, CH_DRAINING) ||
-				srpt_test_and_set_ch_state(ch,
-					CH_LIVE, CH_DRAINING) ||
-				srpt_test_and_set_ch_state(ch,
-					CH_DISCONNECTING, CH_DRAINING);
+			do_reset = srpt_set_ch_state_to_draining(ch);
 			break;
 		}
 	}
