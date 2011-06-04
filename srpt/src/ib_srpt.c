@@ -2167,8 +2167,12 @@ static struct srpt_rdma_ch *srpt_find_channel(struct srpt_device *sdev,
  */
 static void srpt_release_channel(struct srpt_rdma_ch *ch)
 {
+	TRACE_ENTRY();
+
 	WARN_ON(ch->state != CH_RELEASING);
 	schedule_work(&ch->release_work);
+
+	TRACE_EXIT();
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
@@ -2180,6 +2184,8 @@ static void srpt_release_channel_work(struct work_struct *w)
 {
 	struct srpt_rdma_ch *ch;
 	struct srpt_device *sdev;
+
+	TRACE_ENTRY();
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
 	ch = ctx;
@@ -2223,6 +2229,8 @@ static void srpt_release_channel_work(struct work_struct *w)
 	wake_up(&sdev->ch_releaseQ);
 
 	kfree(ch);
+
+	TRACE_EXIT();
 }
 
 #if !defined(CONFIG_SCST_PROC)
