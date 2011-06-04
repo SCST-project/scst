@@ -1158,8 +1158,6 @@ static void srpt_put_send_ioctx(struct srpt_send_ioctx *ioctx)
 	ch = ioctx->ch;
 	BUG_ON(!ch);
 
-	WARN_ON(ioctx->state != SRPT_STATE_DONE);
-
 	ioctx->scmnd = NULL;
 
 	/*
@@ -1306,10 +1304,8 @@ static void srpt_handle_send_err_comp(struct srpt_rdma_ch *ch, u64 wr_id,
 	if (state != SRPT_STATE_DONE) {
 		if (scmnd)
 			srpt_abort_cmd(ioctx, context);
-		else {
-			srpt_set_cmd_state(ioctx, SRPT_STATE_DONE);
+		else
 			srpt_put_send_ioctx(ioctx);
-		}
 	} else
 		PRINT_ERROR("Received more than one IB error completion"
 			    " for wr_id = %u.", (unsigned)index);
@@ -1610,12 +1606,12 @@ static u8 srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 			       struct srpt_send_ioctx *send_ioctx)
 {
 	struct srp_tsk_mgmt *srp_tsk;
-	struct srpt_mgmt_ioctx *mgmt_ioctx;
 	int ret;
 
 	ret = SCST_MGMT_STATUS_FAILED;
 
 	BUG_ON(!send_ioctx);
+	BUG_ON(send_ioctx->ch != ch);
 
 	srpt_set_cmd_state(send_ioctx, SRPT_STATE_MGMT);
 
@@ -1626,18 +1622,7 @@ static u8 srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 		  srp_tsk->tsk_mgmt_func, srp_tsk->task_tag, srp_tsk->tag,
 		  ch->cm_id, ch->scst_sess);
 
-	mgmt_ioctx = kmalloc(sizeof *mgmt_ioctx, GFP_ATOMIC);
-	if (!mgmt_ioctx) {
-		PRINT_ERROR("tag 0x%llx: memory allocation for task management"
-			    " function failed. Ignoring task management request"
-			    " (func %d).", srp_tsk->task_tag,
-			    srp_tsk->tsk_mgmt_func);
-		goto err;
-	}
-
-	mgmt_ioctx->ioctx = send_ioctx;
-	BUG_ON(mgmt_ioctx->ioctx->ch != ch);
-	mgmt_ioctx->tag = srp_tsk->tag;
+	send_ioctx->tsk_mgmt.tag = srp_tsk->tag;
 
 	switch (srp_tsk->tsk_mgmt_func) {
 	case SRP_TSK_ABORT_TASK:
@@ -1645,7 +1630,7 @@ static u8 srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 		ret = scst_rx_mgmt_fn_tag(ch->scst_sess,
 					  SCST_ABORT_TASK,
 					  srp_tsk->task_tag,
-					  SCST_ATOMIC, mgmt_ioctx);
+					  SCST_ATOMIC, send_ioctx);
 		break;
 	case SRP_TSK_ABORT_TASK_SET:
 		TRACE_DBG("%s", "Processing SRP_TSK_ABORT_TASK_SET");
@@ -1653,7 +1638,7 @@ static u8 srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 					  SCST_ABORT_TASK_SET,
 					  (u8 *) &srp_tsk->lun,
 					  sizeof srp_tsk->lun,
-					  SCST_ATOMIC, mgmt_ioctx);
+					  SCST_ATOMIC, send_ioctx);
 		break;
 	case SRP_TSK_CLEAR_TASK_SET:
 		TRACE_DBG("%s", "Processing SRP_TSK_CLEAR_TASK_SET");
@@ -1661,7 +1646,7 @@ static u8 srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 					  SCST_CLEAR_TASK_SET,
 					  (u8 *) &srp_tsk->lun,
 					  sizeof srp_tsk->lun,
-					  SCST_ATOMIC, mgmt_ioctx);
+					  SCST_ATOMIC, send_ioctx);
 		break;
 	case SRP_TSK_LUN_RESET:
 		TRACE_DBG("%s", "Processing SRP_TSK_LUN_RESET");
@@ -1669,7 +1654,7 @@ static u8 srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 					  SCST_LUN_RESET,
 					  (u8 *) &srp_tsk->lun,
 					  sizeof srp_tsk->lun,
-					  SCST_ATOMIC, mgmt_ioctx);
+					  SCST_ATOMIC, send_ioctx);
 		break;
 	case SRP_TSK_CLEAR_ACA:
 		TRACE_DBG("%s", "Processing SRP_TSK_CLEAR_ACA");
@@ -1677,7 +1662,7 @@ static u8 srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 					  SCST_CLEAR_ACA,
 					  (u8 *) &srp_tsk->lun,
 					  sizeof srp_tsk->lun,
-					  SCST_ATOMIC, mgmt_ioctx);
+					  SCST_ATOMIC, send_ioctx);
 		break;
 	default:
 		TRACE_DBG("%s", "Unsupported task management function.");
@@ -1685,11 +1670,8 @@ static u8 srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 	}
 
 	if (ret != SCST_MGMT_STATUS_SUCCESS)
-		goto err;
-	return ret;
+		srpt_put_send_ioctx(send_ioctx);
 
-err:
-	kfree(mgmt_ioctx);
 	return ret;
 }
 
@@ -3199,21 +3181,18 @@ out:
 static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 {
 	struct srpt_rdma_ch *ch;
-	struct srpt_mgmt_ioctx *mgmt_ioctx;
 	struct srpt_send_ioctx *ioctx;
 	int rsp_len;
 
-	mgmt_ioctx = scst_mgmt_cmd_get_tgt_priv(mcmnd);
-	BUG_ON(!mgmt_ioctx);
-
-	ioctx = mgmt_ioctx->ioctx;
+	ioctx = scst_mgmt_cmd_get_tgt_priv(mcmnd);
 	BUG_ON(!ioctx);
 
 	ch = ioctx->ch;
 	BUG_ON(!ch);
 
 	TRACE_DBG("%s: tsk_mgmt_done for tag= %lld status=%d",
-		  __func__, mgmt_ioctx->tag, scst_mgmt_cmd_get_status(mcmnd));
+		  __func__, ioctx->tsk_mgmt.tag,
+		  scst_mgmt_cmd_get_status(mcmnd));
 
 	WARN_ON(in_irq());
 
@@ -3225,7 +3204,7 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 	rsp_len = srpt_build_tskmgmt_rsp(ch, ioctx,
 					 scst_to_srp_tsk_mgmt_status(
 					 scst_mgmt_cmd_get_status(mcmnd)),
-					 mgmt_ioctx->tag);
+					 ioctx->tsk_mgmt.tag);
 	/*
 	 * Note: the srpt_post_send() call below sends the task management
 	 * response asynchronously. It is possible that the SCST core has
@@ -3234,14 +3213,9 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 	 */
 	if (srpt_post_send(ch, ioctx, rsp_len)) {
 		PRINT_ERROR("%s", "Sending SRP_RSP response failed.");
-		srpt_set_cmd_state(ioctx, SRPT_STATE_DONE);
 		srpt_put_send_ioctx(ioctx);
 		atomic_dec(&ch->req_lim);
 	}
-
-	scst_mgmt_cmd_set_tgt_priv(mcmnd, NULL);
-
-	kfree(mgmt_ioctx);
 }
 
 /**

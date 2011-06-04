@@ -199,6 +199,14 @@ struct srpt_recv_ioctx {
 };
 
 /**
+ * struct srpt_tsk_mgmt - SCST management command context information.
+ * @tag:   SCSI tag of the management command.
+ */
+struct srpt_tsk_mgmt {
+	u64			tag;
+};
+
+/**
  * struct srpt_send_ioctx - SRPT send I/O context.
  * @ioctx:     See above.
  * @ch:          Channel pointer.
@@ -234,16 +242,7 @@ struct srpt_send_ioctx {
 	u16			n_rdma_ius;
 	u8			n_rdma;
 	u8			n_rbuf;
-};
-
-/**
- * struct srpt_mgmt_ioctx - SCST management command context information.
- * @ioctx: SRPT I/O context associated with the management command.
- * @tag:   SCSI tag of the management command.
- */
-struct srpt_mgmt_ioctx {
-	struct srpt_send_ioctx	*ioctx;
-	u64			tag;
+	struct srpt_tsk_mgmt	tsk_mgmt;
 };
 
 /**
