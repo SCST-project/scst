@@ -2063,58 +2063,20 @@ static void srpt_close_ch(struct srpt_rdma_ch *ch)
  */
 static void srpt_drain_channel(struct ib_cm_id *cm_id)
 {
-	struct srpt_device *sdev;
 	struct srpt_rdma_ch *ch;
 	int ret;
-	bool do_reset = false;
+	bool do_reset;
 
 	WARN_ON_ONCE(irqs_disabled());
 
-	sdev = cm_id->context;
-	BUG_ON(!sdev);
-	spin_lock_irq(&sdev->spinlock);
-	list_for_each_entry(ch, &sdev->rch_list, list) {
-		if (ch->cm_id == cm_id) {
-			do_reset = srpt_set_ch_state_to_draining(ch);
-			break;
-		}
-	}
-	spin_unlock_irq(&sdev->spinlock);
-
+	ch = cm_id->context;
+	do_reset = srpt_set_ch_state_to_draining(ch);
 	if (do_reset) {
 		ret = srpt_ch_qp_err(ch);
 		if (ret < 0)
 			PRINT_ERROR("Setting queue pair in error state"
 			       " failed: %d", ret);
 	}
-}
-
-/**
- * srpt_find_channel() - Look up an RDMA channel.
- * @cm_id: Pointer to the CM ID of the channel to be looked up.
- *
- * Return NULL if no matching RDMA channel has been found.
- */
-static struct srpt_rdma_ch *srpt_find_channel(struct srpt_device *sdev,
-					      struct ib_cm_id *cm_id)
-{
-	struct srpt_rdma_ch *ch;
-	bool found;
-
-	EXTRACHECKS_WARN_ON_ONCE(irqs_disabled());
-	BUG_ON(!sdev);
-
-	found = false;
-	spin_lock_irq(&sdev->spinlock);
-	list_for_each_entry(ch, &sdev->rch_list, list) {
-		if (ch->cm_id == cm_id) {
-			found = true;
-			break;
-		}
-	}
-	spin_unlock_irq(&sdev->spinlock);
-
-	return found ? ch : NULL;
 }
 
 /**
@@ -2372,6 +2334,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	memcpy(ch->t_port_id, req->target_port_id, 16);
 	ch->sport = &sdev->port[param->port - 1];
 	ch->cm_id = cm_id;
+	cm_id->context = ch;
 	/*
 	 * Avoid QUEUE_FULL conditions by limiting the number of buffers used
 	 * for the SRP protocol to the SCST SCSI command queue size.
@@ -2536,10 +2499,8 @@ static void srpt_cm_rtu_recv(struct ib_cm_id *cm_id)
 	struct srpt_rdma_ch *ch;
 	int ret;
 
-	ch = srpt_find_channel(cm_id->context, cm_id);
-	WARN_ON(!ch);
-	if (!ch)
-		goto out;
+	ch = cm_id->context;
+	BUG_ON(!ch);
 
 	if (srpt_test_and_set_ch_state(ch, CH_CONNECTING, CH_LIVE)) {
 		struct srpt_recv_ioctx *ioctx, *ioctx_tmp;
@@ -2555,9 +2516,6 @@ static void srpt_cm_rtu_recv(struct ib_cm_id *cm_id)
 		if (ret)
 			srpt_close_ch(ch);
 	}
-
-out:
-	;
 }
 
 static void srpt_cm_timewait_exit(struct ib_cm_id *cm_id)
@@ -2579,12 +2537,7 @@ static void srpt_cm_dreq_recv(struct ib_cm_id *cm_id)
 {
 	struct srpt_rdma_ch *ch;
 
-	ch = srpt_find_channel(cm_id->context, cm_id);
-	if (!ch) {
-		TRACE_DBG("Received DREQ for channel %p which is already"
-			  " being unregistered.", cm_id);
-		goto out;
-	}
+	ch = cm_id->context;
 
 	switch (srpt_set_ch_state_to_disc(ch)) {
 	case CH_CONNECTING:
@@ -2603,8 +2556,6 @@ static void srpt_cm_dreq_recv(struct ib_cm_id *cm_id)
 #endif
 		break;
 	}
-out:
-	;
 }
 
 /**
