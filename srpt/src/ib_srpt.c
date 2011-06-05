@@ -2151,6 +2151,7 @@ static void srpt_release_channel_work(struct work_struct *w)
 #else
 	ch = container_of(w, struct srpt_rdma_ch, release_work);
 #endif
+	BUG_ON(!ch);
 	TRACE_DBG("ch = %p; ch->scst_sess = %p", ch, ch->scst_sess);
 	WARN_ON(ch->state != CH_RELEASING);
 
