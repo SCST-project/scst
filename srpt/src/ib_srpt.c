@@ -2243,7 +2243,7 @@ static bool srpt_is_target_enabled(struct scst_tgt *scst_tgt)
 /**
  * srpt_cm_req_recv() - Process the event IB_CM_REQ_RECEIVED.
  *
- * Ownership of the cm_id is transferred to the SCST session if this functions
+ * Ownership of the cm_id is transferred to the SCST session if this function
  * returns zero. Otherwise the caller remains the owner of cm_id.
  */
 static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
