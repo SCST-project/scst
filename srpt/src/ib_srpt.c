@@ -152,6 +152,7 @@ static void srpt_unregister_procfs_entry(struct scst_tgt_template *tgt);
 static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 				    struct srpt_send_ioctx *ioctx);
 static void srpt_release_channel(struct srpt_rdma_ch *ch);
+static void srpt_free_ch(struct scst_session *sess);
 
 static enum rdma_ch_state
 srpt_set_ch_state(struct srpt_rdma_ch *ch, enum rdma_ch_state new_state)
@@ -1883,15 +1884,23 @@ static int srpt_compl_thread(void *arg)
 
 	/* Hibernation / freezing of the SRPT kernel thread is not supported. */
 	current->flags |= PF_NOFREEZE;
+	allow_signal(SIGTERM);
 
 	ch = arg;
 	BUG_ON(!ch);
-	while (!kthread_should_stop()) {
+	while (!kthread_should_stop() && !signal_pending(current)) {
 		set_current_state(TASK_INTERRUPTIBLE);
 		srpt_process_completion(ch->cq, ch, SCST_CONTEXT_THREAD,
 					SCST_CONTEXT_DIRECT);
 		schedule();
 	}
+	set_current_state(TASK_RUNNING);
+
+	disallow_signal(SIGTERM);
+	flush_signals(current);
+
+	scst_unregister_session(ch->scst_sess, false, srpt_free_ch);
+
 	return 0;
 }
 
@@ -1955,17 +1964,6 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 	if (ret)
 		goto err_destroy_qp;
 
-	TRACE_DBG("creating IB completion thread for session %s",
-		  ch->sess_name);
-
-	ch->thread = kthread_run(srpt_compl_thread, ch, "ib_srpt_compl");
-	if (IS_ERR(ch->thread)) {
-		PRINT_ERROR("failed to create kernel thread %ld",
-			    PTR_ERR(ch->thread));
-		ch->thread = NULL;
-		goto err_destroy_qp;
-	}
-
 out:
 	kfree(qp_init);
 	return ret;
@@ -1980,11 +1978,6 @@ err_destroy_cq:
 static void srpt_destroy_ch_ib(struct srpt_rdma_ch *ch)
 {
 	TRACE_ENTRY();
-
-	if (ch->thread) {
-		kthread_stop(ch->thread);
-		ch->thread = NULL;
-	}
 
 	while (ib_poll_cq(ch->cq, ARRAY_SIZE(ch->wc), ch->wc) > 0)
 		;
@@ -2065,13 +2058,11 @@ static void srpt_drain_channel(struct ib_cm_id *cm_id)
 {
 	struct srpt_rdma_ch *ch;
 	int ret;
-	bool do_reset;
 
 	WARN_ON_ONCE(irqs_disabled());
 
 	ch = cm_id->context;
-	do_reset = srpt_set_ch_state_to_draining(ch);
-	if (do_reset) {
+	if (srpt_set_ch_state_to_draining(ch)) {
 		ret = srpt_ch_qp_err(ch);
 		if (ret < 0)
 			PRINT_ERROR("Setting queue pair in error state"
@@ -2081,61 +2072,37 @@ static void srpt_drain_channel(struct ib_cm_id *cm_id)
 
 /**
  * srpt_release_channel() - Release channel resources.
- *
- * Schedules the actual release not only because invoking ib_destroy_cm_id()
- * directly from inside an IB CM callback function would trigger a deadlock
- * but also because scst_unregister_session() can sleep.
  */
 static void srpt_release_channel(struct srpt_rdma_ch *ch)
 {
-	TRACE_ENTRY();
-
-	WARN_ON(ch->state != CH_RELEASING);
-	schedule_work(&ch->release_work);
-
-	TRACE_EXIT();
+	kill_pid(task_pid(ch->thread), SIGTERM, 1);
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
-/* A vanilla 2.6.19 or older kernel without backported OFED kernel headers. */
-static void srpt_release_channel_work(void *ctx)
-#else
-static void srpt_release_channel_work(struct work_struct *w)
-#endif
+static void srpt_free_ch(struct scst_session *sess)
 {
 	struct srpt_rdma_ch *ch;
 	struct srpt_device *sdev;
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
-	ch = ctx;
-#else
-	ch = container_of(w, struct srpt_rdma_ch, release_work);
-#endif
-	BUG_ON(!ch);
-	TRACE_DBG("ch = %p; ch->scst_sess = %p", ch, ch->scst_sess);
-	WARN_ON(ch->state != CH_RELEASING);
-
+	ch = scst_sess_get_tgt_priv(sess);
+	BUG_ON(ch->scst_sess != sess);
 	sdev = ch->sport->sdev;
 	BUG_ON(!sdev);
 
-	if (ch->thread) {
-		kthread_stop(ch->thread);
-		ch->thread = NULL;
-	}
+	BUG_ON(!ch->thread);
+	kthread_stop(ch->thread);
+	ch->thread = NULL;
 
 	/*
 	 * Unregister the session and wait until processing of all commands
 	 * associated with the session has finished.
 	 */
-	scst_unregister_session(ch->scst_sess, true, NULL);
-	ch->scst_sess = NULL;
 
 	srpt_destroy_ch_ib(ch);
 
 	srpt_free_ioctx_ring((struct srpt_ioctx **)ch->ioctx_ring,
-			     ch->sport->sdev, ch->rq_size,
+			     sdev, ch->rq_size,
 			     srp_max_rsp_size, DMA_TO_DEVICE);
 
 	spin_lock_irq(&sdev->spinlock);
@@ -2325,11 +2292,6 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		goto reject;
 	}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
-	INIT_WORK(&ch->release_work, srpt_release_channel_work, ch);
-#else
-	INIT_WORK(&ch->release_work, srpt_release_channel_work);
-#endif
 	memcpy(ch->i_port_id, req->initiator_port_id, 16);
 	memcpy(ch->t_port_id, req->target_port_id, 16);
 	ch->sport = &sdev->port[param->port - 1];
@@ -2365,13 +2327,21 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		goto free_ring;
 	}
 
+	ch->thread = kthread_run(srpt_compl_thread, ch, "ib_srpt_compl");
+	if (IS_ERR(ch->thread)) {
+		PRINT_ERROR("failed to create kernel thread %ld",
+			    PTR_ERR(ch->thread));
+		ch->thread = NULL;
+		goto destroy_ib;
+	}
+
 	ret = srpt_ch_qp_rtr(ch, ch->qp);
 	if (ret) {
 		rej->reason = __constant_cpu_to_be32(
 				SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		PRINT_ERROR("rejected SRP_LOGIN_REQ because enabling"
 		       " RTR failed (error code = %d)", ret);
-		goto destroy_ib;
+		goto stop_kthread;
 	}
 
 	if (use_port_guid_in_session_name) {
@@ -2451,8 +2421,12 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 
 release_channel:
 	srpt_set_ch_state(ch, CH_DISCONNECTING);
-	scst_unregister_session(ch->scst_sess, 0, NULL);
+	scst_unregister_session(ch->scst_sess, false, NULL);
 	ch->scst_sess = NULL;
+
+stop_kthread:
+	kthread_stop(ch->thread);
+	ch->thread = NULL;
 
 destroy_ib:
 	srpt_destroy_ch_ib(ch);
