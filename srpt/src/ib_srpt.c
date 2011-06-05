@@ -2144,8 +2144,7 @@ static void srpt_release_channel_work(struct work_struct *w)
 #else
 	ch = container_of(w, struct srpt_rdma_ch, release_work);
 #endif
-	TRACE_DBG("ch = %p; ch->scst_sess = %p; release_done = %p", ch,
-		  ch->scst_sess, ch->release_done);
+	TRACE_DBG("ch = %p; ch->scst_sess = %p", ch, ch->scst_sess);
 	WARN_ON(ch->state != CH_RELEASING);
 
 	sdev = ch->sport->sdev;
@@ -2174,9 +2173,6 @@ static void srpt_release_channel_work(struct work_struct *w)
 	spin_unlock_irq(&sdev->spinlock);
 
 	ib_destroy_cm_id(ch->cm_id);
-
-	if (ch->release_done)
-		complete(ch->release_done);
 
 	wake_up(&sdev->ch_releaseQ);
 

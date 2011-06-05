@@ -292,7 +292,6 @@ enum rdma_ch_state {
  * @scst_sess:     SCST session information associated with this SRP channel.
  * @sess_name:     SCST session name.
  * @release_work:
- * @release_done:
  */
 struct srpt_rdma_ch {
 	struct task_struct	*thread;
@@ -318,7 +317,6 @@ struct srpt_rdma_ch {
 	struct scst_session	*scst_sess;
 	u8			sess_name[36];
 	struct work_struct	release_work;
-	struct completion	*release_done;
 };
 
 /**
