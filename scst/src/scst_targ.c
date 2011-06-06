@@ -213,11 +213,9 @@ struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
 	cmd->tgtt = sess->tgt->tgtt;
 
 	cmd->lun = scst_unpack_lun(lun, lun_len);
-	if (unlikely(cmd->lun == NO_SUCH_LUN)) {
-		PRINT_ERROR("Wrong LUN %d, finishing cmd", -1);
+	if (unlikely(cmd->lun == NO_SUCH_LUN))
 		scst_set_cmd_error(cmd,
 			   SCST_LOAD_SENSE(scst_sense_lun_not_supported));
-	}
 
 	TRACE_DBG("cmd %p, sess %p", cmd, sess);
 	scst_sess_get(sess);
