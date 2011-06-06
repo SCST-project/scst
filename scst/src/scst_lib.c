@@ -2166,7 +2166,15 @@ void scst_cmd_set_write_not_received_data_len(struct scst_cmd *cmd,
 {
 	TRACE_ENTRY();
 
-	sBUG_ON(!cmd->expected_values_set);
+	if (!cmd->expected_values_set) {
+		/*
+		 * No expected values set, so no residuals processing.
+		 * It can happen if a command preliminary completed before
+		 * target driver had a chance to set expected values.
+		 */
+		TRACE_MGMT_DBG("No expected values set, ignoring (cmd %p)", cmd);
+		goto out;
+	}
 
 	cmd->resid_possible = 1;
 
@@ -2206,13 +2214,25 @@ EXPORT_SYMBOL(scst_cmd_set_write_not_received_data_len);
  */
 bool __scst_get_resid(struct scst_cmd *cmd, int *resid, int *bidi_out_resid)
 {
+	bool res;
+
 	TRACE_ENTRY();
 
 	*resid = 0;
 	if (bidi_out_resid != NULL)
 		*bidi_out_resid = 0;
 
-	sBUG_ON(!cmd->expected_values_set);
+	if (!cmd->expected_values_set) {
+		/*
+		 * No expected values set, so no residuals processing.
+		 * It can happen if a command preliminary completed before
+		 * target driver had a chance to set expected values.
+		 */
+		TRACE_MGMT_DBG("No expected values set, returning no residual "
+			"(cmd %p)", cmd);
+		res = false;
+		goto out;
+	}
 
 	if (cmd->expected_data_direction & SCST_DATA_READ) {
 		*resid = cmd->expected_transfer_len - cmd->resp_data_len;
@@ -2230,13 +2250,16 @@ bool __scst_get_resid(struct scst_cmd *cmd, int *resid, int *bidi_out_resid)
 			*resid = cmd->write_len - cmd->bufflen;
 	}
 
+	res = true;
+
 	TRACE_DBG("cmd %p, resid %d, bidi_out_resid %d (resp_data_len %d, "
 		"expected_data_direction %d, write_len %d, bufflen %d)", cmd,
 		*resid, bidi_out_resid ? *bidi_out_resid : 0, cmd->resp_data_len,
 		cmd->expected_data_direction, cmd->write_len, cmd->bufflen);
 
-	TRACE_EXIT_RES(1);
-	return true;
+out:
+	TRACE_EXIT_RES(res);
+	return res;
 }
 EXPORT_SYMBOL(__scst_get_resid);
 
