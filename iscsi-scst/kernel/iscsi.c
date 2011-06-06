@@ -266,7 +266,8 @@ void iscsi_fail_data_waiting_cmnd(struct iscsi_cmnd *cmnd)
 {
 	TRACE_ENTRY();
 
-	TRACE_MGMT_DBG("Failing data waiting cmnd %p", cmnd);
+	TRACE_MGMT_DBG("Failing data waiting cmnd %p (data_out_in_data_receiving %d)",
+		cmnd, cmnd->data_out_in_data_receiving);
 
 	/*
 	 * There is no race with conn_abort(), since all functions
@@ -2117,18 +2118,16 @@ go:
 	if (req_hdr->flags & ISCSI_FLG_FINAL)
 		orig_req->outstanding_r2t--;
 
-	if (unlikely(orig_req->prelim_compl_flags != 0)) {
-		res = iscsi_preliminary_complete(cmnd, orig_req, true);
-		goto out;
-	}
-
 	EXTRACHECKS_BUG_ON(orig_req->data_out_in_data_receiving);
 	orig_req->data_out_in_data_receiving = 1;
 
 	TRACE_WRITE("cmnd %p, orig_req %p, offset %u, datasize %u", cmnd,
 		orig_req, offset, cmnd->pdu.datasize);
 
-	res = cmnd_prepare_recv_pdu(conn, orig_req, offset, cmnd->pdu.datasize);
+	if (unlikely(orig_req->prelim_compl_flags != 0))
+		res = iscsi_preliminary_complete(cmnd, orig_req, true);
+	else
+		res = cmnd_prepare_recv_pdu(conn, orig_req, offset, cmnd->pdu.datasize);
 
 out:
 	TRACE_EXIT_RES(res);
