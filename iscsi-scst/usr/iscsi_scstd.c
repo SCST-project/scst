@@ -99,9 +99,9 @@ static void set_non_blocking(int fd)
 	if (res != -1) {
 		res = fcntl(fd, F_SETFL, res | O_NONBLOCK);
 		if (res)
-			log_warning("unable to set fd flags (%s)!", get_error_str(errno));
+			log_warning("unable to set fd flags (%s)!", strerror(errno));
 	} else
-		log_warning("unable to get fd flags (%s)!", get_error_str(errno));
+		log_warning("unable to get fd flags (%s)!", strerror(errno));
 }
 
 static void sock_set_keepalive(int sock, int timeout)
@@ -110,18 +110,18 @@ static void sock_set_keepalive(int sock, int timeout)
 		int opt = 2;
 
 		if (setsockopt(sock, SOL_TCP, TCP_KEEPCNT, &opt, sizeof(opt)))
-			log_warning("unable to set TCP_KEEPCNT on server socket (%s)!", get_error_str(errno));
+			log_warning("unable to set TCP_KEEPCNT on server socket (%s)!", strerror(errno));
 
 		if (setsockopt(sock, SOL_TCP, TCP_KEEPIDLE, &timeout, sizeof(timeout)))
-			log_warning("unable to set TCP_KEEPIDLE on server socket (%s)!", get_error_str(errno));
+			log_warning("unable to set TCP_KEEPIDLE on server socket (%s)!", strerror(errno));
 
 		opt = 3;
 		if (setsockopt(sock, SOL_TCP, TCP_KEEPINTVL, &opt, sizeof(opt)))
-			log_warning("unable to set KEEPINTVL on server socket (%s)!", get_error_str(errno));
+			log_warning("unable to set KEEPINTVL on server socket (%s)!", strerror(errno));
 
 		opt = 1;
 		if (setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, &opt, sizeof(opt)))
-			log_warning("unable to set SO_KEEPALIVE on server socket (%s)!", get_error_str(errno));
+			log_warning("unable to set SO_KEEPALIVE on server socket (%s)!", strerror(errno));
 	}
 }
 
@@ -158,7 +158,7 @@ static void create_listen_socket(struct pollfd *array)
 		sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
 		if (sock < 0) {
 			log_error("Unable to create server socket (%s) %d %d %d!",
-				  get_error_str(errno), res->ai_family,
+				  strerror(errno), res->ai_family,
 				  res->ai_socktype, res->ai_protocol);
 			continue;
 		}
@@ -168,23 +168,23 @@ static void create_listen_socket(struct pollfd *array)
 		opt = 1;
 		if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)))
 			log_warning("Unable to set SO_REUSEADDR on server socket (%s)!",
-				    get_error_str(errno));
+				    strerror(errno));
 		opt = 1;
 		if (res->ai_family == AF_INET6 &&
 		    setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt))) {
-			log_error("Unable to restrict IPv6 socket (%s)", get_error_str(errno));
+			log_error("Unable to restrict IPv6 socket (%s)", strerror(errno));
 			close(sock);
 			continue;
 		}
 
 		if (bind(sock, res->ai_addr, res->ai_addrlen)) {
-			log_error("Unable to bind server socket (%s)!", get_error_str(errno));
+			log_error("Unable to bind server socket (%s)!", strerror(errno));
 			close(sock);
 			continue;
 		}
 
 		if (listen(sock, INCOMING_MAX)) {
-			log_error("Unable to listen to server socket (%s)!", get_error_str(errno));
+			log_error("Unable to listen to server socket (%s)!", strerror(errno));
 			close(sock);
 			continue;
 		}
@@ -233,7 +233,7 @@ static void accept_connection(int listen)
 			break;
 		default:
 			log_error("accept(incoming_socket) failed: %s",
-				get_error_str(errno));
+				strerror(errno));
 			exit(1);
 		}
 		goto out;
@@ -242,7 +242,7 @@ static void accept_connection(int listen)
 	namesize = sizeof(to);
 	rc = getsockname(fd, &to.sa, &namesize);
 	if (rc != 0) {
-		log_error("getsockname() failed: %s", get_error_str(errno));
+		log_error("getsockname() failed: %s", strerror(errno));
 		goto out_close;
 	}
 
@@ -526,7 +526,7 @@ static void event_loop(void)
 					"of iSCSI-SCST.", __FUNCTION__);
 			else
 				log_error("%s: poll() failed: %s", __FUNCTION__,
-					get_error_str(errno));
+					strerror(errno));
 			exit(1);
 		}
 
@@ -784,10 +784,10 @@ int main(int argc, char **argv)
 		exit(1);
 
 	if (gid && setgid(gid) < 0)
-		log_error("setgid failed: %s", get_error_str(errno));
+		log_error("setgid failed: %s", strerror(errno));
 
 	if (uid && setuid(uid) < 0)
-		log_error("setuid failed: %s", get_error_str(errno));
+		log_error("setuid failed: %s", strerror(errno));
 
 	event_loop();
 

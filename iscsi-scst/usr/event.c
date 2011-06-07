@@ -134,7 +134,7 @@ static int send_mgmt_cmd_res(u32 tid, u32 cookie, u32 req_cmd, int result,
 	if (res != 0) {
 		res = -errno;
 		log_error("Can't send mgmt reply (cookie %d, result %d, "
-			"res %d): %s\n", cookie, result, res, get_error_str(errno));
+			"res %d): %s\n", cookie, result, res, strerror(errno));
 	}
 
 	return res;
@@ -170,7 +170,7 @@ static int handle_e_add_target(int fd, const struct iscsi_kern_event *event)
 			if ((errno == EINTR) || (errno == EAGAIN))
 				continue;
 			log_error("read netlink fd (%d) failed: %s", fd,
-				get_error_str(errno));
+				strerror(errno));
 			send_mgmt_cmd_res(0, event->cookie, E_ADD_TARGET, -errno, NULL);
 			exit(1);
 		}
@@ -186,7 +186,7 @@ static int handle_e_add_target(int fd, const struct iscsi_kern_event *event)
 				if ((errno == EINTR) || (errno == EAGAIN))
 					continue;
 				log_error("read netlink fd (%d) failed: %s", fd,
-					get_error_str(errno));
+					strerror(errno));
 				send_mgmt_cmd_res(0, event->cookie, E_ADD_TARGET, -errno, NULL);
 				exit(1);
 			}
@@ -407,7 +407,7 @@ static int handle_e_mgmt_cmd(int fd, const struct iscsi_kern_event *event)
 			if ((errno == EINTR) || (errno == EAGAIN))
 				continue;
 			log_error("read netlink fd (%d) failed: %s", fd,
-				get_error_str(errno));
+				strerror(errno));
 			send_mgmt_cmd_res(0, event->cookie, E_MGMT_CMD, -errno, NULL);
 			exit(1);
 		}
@@ -496,7 +496,7 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 			if ((errno == EINTR) || (errno == EAGAIN))
 				continue;
 			log_error("read netlink fd (%d) failed: %s", fd,
-				get_error_str(errno));
+				strerror(errno));
 			send_mgmt_cmd_res(0, event->cookie, E_GET_ATTR_VALUE, -errno, NULL);
 			exit(1);
 		}
@@ -759,7 +759,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 			if ((errno == EINTR) || (errno == EAGAIN))
 				continue;
 			log_error("read netlink fd (%d) failed: %s", fd,
-				get_error_str(errno));
+				strerror(errno));
 			send_mgmt_cmd_res(0, event->cookie, E_SET_ATTR_VALUE, -errno, NULL);
 			exit(1);
 		}
@@ -774,7 +774,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 			if ((errno == EINTR) || (errno == EAGAIN))
 				continue;
 			log_error("read netlink fd (%d) failed: %s", fd,
-				get_error_str(errno));
+				strerror(errno));
 			send_mgmt_cmd_res(0, event->cookie, E_SET_ATTR_VALUE, -errno, NULL);
 			exit(1);
 		}
@@ -1039,7 +1039,7 @@ retry:
 			return EAGAIN;
 		if (errno == EINTR)
 			goto retry;
-		log_error("read netlink fd (%d) failed: %s", fd, get_error_str(errno));
+		log_error("read netlink fd (%d) failed: %s", fd, strerror(errno));
 		exit(1);
 	}
 
@@ -1151,7 +1151,7 @@ int nl_open(void)
 
 	nl_fd = socket(PF_NETLINK, SOCK_RAW, NETLINK_ISCSI_SCST);
 	if (nl_fd == -1) {
-		log_error("%s %d\n", __FUNCTION__, errno);
+		log_error("%s %s\n", __FUNCTION__, strerror(errno));
 		return -1;
 	}
 
