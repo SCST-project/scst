@@ -2361,10 +2361,18 @@ struct iscsi_cmnd_abort_params {
 
 static mempool_t *iscsi_cmnd_abort_mempool;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+static void iscsi_cmnd_abort_fn(void *ctx)
+#else
 static void iscsi_cmnd_abort_fn(struct work_struct *work)
+#endif
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	struct iscsi_cmnd_abort_params *params = ctx;
+#else
 	struct iscsi_cmnd_abort_params *params = container_of(work,
 		struct iscsi_cmnd_abort_params, iscsi_cmnd_abort_work);
+#endif
 	struct scst_cmd *scst_cmd = params->scst_cmd;
 	struct iscsi_session *session = scst_sess_get_tgt_priv(scst_cmd->sess);
 	struct iscsi_conn *conn;
@@ -2423,7 +2431,11 @@ static void iscsi_on_abort_cmd(struct scst_cmd *scst_cmd)
 	}
 
 	memset(params, 0, sizeof(*params));
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	INIT_WORK(&params->iscsi_cmnd_abort_work, iscsi_cmnd_abort_fn, params);
+#else
 	INIT_WORK(&params->iscsi_cmnd_abort_work, iscsi_cmnd_abort_fn);
+#endif
 	params->scst_cmd = scst_cmd;
 
 	scst_cmd_get(scst_cmd);
