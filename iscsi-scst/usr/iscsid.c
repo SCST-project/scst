@@ -463,7 +463,7 @@ static int init_conn_session_params(struct connection *conn)
 	target = target_find_by_id(conn->tid);
 	if (target == NULL) {
 		log_error("target %d not found", conn->tid);
-		res = -EINVAL;
+		res = -ENOENT;
 		goto out;
 	}
 
@@ -574,7 +574,7 @@ static void login_start(struct connection *conn)
 		if (err != 0) {
 			log_error("Can't get session params for session 0x%" PRIx64
 				" (err %d): %s\n", conn->sid.id64, err,
-				get_error_str(-err));
+				strerror(-err));
 			login_rsp_tgt_err(conn, ISCSI_STATUS_TARGET_ERROR);
 			return;
 		}

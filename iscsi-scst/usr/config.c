@@ -1086,7 +1086,7 @@ int config_load(const char *config_name)
 		} else {
 			err = -errno;
 			log_error("Open config file %s failed: %s", cname,
-				get_error_str(err));
+				strerror(errno));
 			goto out;
 		}
 	}
@@ -1094,21 +1094,21 @@ int config_load(const char *config_name)
 	size = lseek(config, 0, SEEK_END);
 	if (size < 0) {
 		err = -errno;
-		log_error("lseek() failed: %s", get_error_str(err));
+		log_error("lseek() failed: %s", strerror(errno));
 		goto out_close;
 	}
 
 	buf = malloc(size+1);
 	if (buf == NULL) {
 		err = -ENOMEM;
-		log_error("malloc() failed: %s", get_error_str(err));
+		log_error("malloc() failed: %s", strerror(-err));
 		goto out_close;
 	}
 
 	rc = lseek(config, 0, SEEK_SET);
 	if (rc < 0) {
 		err = -errno;
-		log_error("lseek() failed: %s", get_error_str(err));
+		log_error("lseek() failed: %s", strerror(errno));
 		goto out_free;
 	}
 
@@ -1117,7 +1117,7 @@ int config_load(const char *config_name)
 		rc = read(config, &buf[i], size - i);
 		if (rc < 0) {
 			err = -errno;
-			log_error("read() failed: %s", get_error_str(err));
+			log_error("read() failed: %s", strerror(errno));
 			goto out_free;
 		} else if (rc == 0)
 			break;

@@ -71,14 +71,14 @@ int kernel_open(void)
 	unlink(CTL_DEVICE);
 	if (mknod(CTL_DEVICE, (S_IFCHR | 0600), (devn << 8))) {
 		err = -errno;
-		printf("cannot create %s %d\n", CTL_DEVICE, errno);
+		printf("cannot create %s %s\n", CTL_DEVICE, strerror(errno));
 		goto out_err;
 	}
 
 	ctlfd = open(CTL_DEVICE, O_RDWR);
 	if (ctlfd < 0) {
 		err = -errno;
-		printf("cannot open %s %d\n", CTL_DEVICE, errno);
+		printf("cannot open %s %s\n", CTL_DEVICE, strerror(errno));
 		goto out_err;
 	}
 
@@ -89,7 +89,7 @@ int kernel_open(void)
 	if (err != 0) {
 		err = -errno;
 		log_error("Unable to register: %s. Incompatible version of the "
-			"kernel module?\n", get_error_str(errno));
+			"kernel module?\n", strerror(errno));
 		goto out_close;
 	} else {
 		log_debug(0, "max_data_seg_len %d, max_queued_cmds %d",
@@ -202,7 +202,7 @@ int kernel_target_create(struct target *target, u32 *tid, u32 cookie)
 	if ((err = ioctl(ctrl_fd, ADD_TARGET, &info)) < 0) {
 		err = -errno;
 		log_error("Can't create target %s: %s\n", target->name,
-			get_error_str(errno));
+			strerror(errno));
 	} else {
 		target->tid = err;
 		if (tid != NULL)
@@ -228,7 +228,7 @@ int kernel_target_destroy(u32 tid, u32 cookie)
 	res = ioctl(ctrl_fd, DEL_TARGET, &info);
 	if (res < 0) {
 		res = -errno;
-		log_error("Can't destroy target %d %u\n", errno, tid);
+		log_error("Can't destroy target %s %u\n", strerror(errno), tid);
 	}
 
 	return res;
@@ -299,8 +299,8 @@ int kernel_initiator_allowed(u32 tid, const char *full_initiator_name)
 
 	if ((err = ioctl(ctrl_fd, ISCSI_INITIATOR_ALLOWED, &info)) < 0) {
 		err = -errno;
-		log_error("Can't find out initiator %s permissions (errno %d, "
-			"tid %u", full_initiator_name, errno, tid);
+		log_error("Can't find out initiator %s permissions (%s, "
+			  "tid %u", full_initiator_name, strerror(errno), tid);
 	}
 
 	return err;
@@ -317,8 +317,8 @@ int kernel_conn_destroy(u32 tid, u64 sid, u32 cid)
 
 	if ((err = ioctl(ctrl_fd, DEL_CONN, &info)) < 0) {
 		err = -errno;
-		log_debug(2, "Can't destroy conn (errno %d, tid %u, sid 0x%"
-			PRIx64 ", cid %u\n", errno, tid, sid, cid);
+		log_debug(2, "Can't destroy conn (%s, tid %u, sid 0x%"
+			  PRIx64 ", cid %u\n", strerror(errno), tid, sid, cid);
 	}
 
 	return err;
@@ -343,7 +343,7 @@ int kernel_params_get(u32 tid, u64 sid, int type, struct iscsi_param *params)
 	if ((err = ioctl(ctrl_fd, ISCSI_PARAM_GET, &info)) < 0) {
 		err = -errno;
 		log_debug(1, "Can't get session params for session 0x%" PRIx64 
-			" (tid %u, err %d): %s\n", sid, tid, err, get_error_str(errno));
+			" (tid %u, err %d): %s\n", sid, tid, err, strerror(errno));
 	}
 
 	if (type == key_session)
@@ -386,7 +386,7 @@ int kernel_params_set(u32 tid, u64 sid, int type, u32 partial,
 		err = -errno;
 		log_error("Can't set session params for session 0x%" PRIx64 
 			" (tid %u, type %d, partial %d, err %d): %s\n", sid,
-			tid, type, partial, err, get_error_str(errno));
+			tid, type, partial, err, strerror(errno));
 	}
 
 out:
@@ -435,7 +435,7 @@ int kernel_session_create(struct connection *conn)
 		res = -errno;
 		log_error("Can't create sess 0x%" PRIx64 " (tid %d, "
 			"initiator %s): %s\n", conn->sess->sid.id64, conn->tid,
-			conn->sess->initiator, get_error_str(errno));
+			conn->sess->initiator, strerror(errno));
 	}
 
 out:
@@ -456,7 +456,7 @@ int kernel_session_destroy(u32 tid, u64 sid)
 	if (res < 0) {
 		res = -errno;
 		log_debug(2, "Can't destroy sess 0x%" PRIx64 " (tid %d): %s\n",
-			sid, tid, get_error_str(errno));
+			sid, tid, strerror(errno));
 	}
 
 	return res;
@@ -481,7 +481,7 @@ int kernel_conn_create(u32 tid, u64 sid, u32 cid, u32 stat_sn, u32 exp_stat_sn,
 	if (res < 0) {
 		res = -errno;
 		log_error("Can't create conn %x (sess 0x%" PRIx64 ", tid %d): %s\n",
-			cid, sid, tid, get_error_str(errno));
+			cid, sid, tid, strerror(errno));
 	}
 
 	return res;

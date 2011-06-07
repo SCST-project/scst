@@ -449,13 +449,13 @@ bool target_redirected(struct target *target, struct connection *conn)
 
 	rc = getsockname(conn->fd, (struct sockaddr *)&sa.sa, &slen);
 	if (rc != 0) {
-		log_error("getsockname() failed: %s", get_error_str(errno));
+		log_error("getsockname() failed: %s", strerror(errno));
 		goto out;
 	}
 
 	rc = getnameinfo(&sa.sa, sizeof(sa), tmp, sizeof(tmp), NULL, 0, NI_NUMERICHOST);
 	if (rc != 0) {
-		log_error("getnameinfo() failed: %s", get_error_str(errno));
+		log_error("getnameinfo() failed: %s", get_error_str(rc));
 		goto out;
 	}
 
