@@ -38,7 +38,6 @@
 #include <scst/scst.h>
 #include <scst/scst_debug.h>
 #else
-#include <scst_const.h>
 #include <scst.h>
 #include <scst_debug.h>
 #endif
