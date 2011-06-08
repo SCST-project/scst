@@ -1888,6 +1888,12 @@ struct scst_cmd {
 	 */
 	unsigned int finished:1;
 
+	/*
+	 * Set if scst_check_local_events() can be called more than once. Set by
+	 * scst_pre_check_local_events().
+	 */
+	unsigned int check_local_events_once_done:1;
+
 #ifdef CONFIG_SCST_DEBUG_TM
 	/* Set if the cmd was delayed by task management debugging code */
 	unsigned int tm_dbg_delayed:1;
@@ -3788,6 +3794,13 @@ void scst_post_parse(struct scst_cmd *cmd);
 void scst_post_alloc_data_buf(struct scst_cmd *cmd);
 
 int scst_check_local_events(struct scst_cmd *cmd);
+
+static inline int scst_pre_check_local_events(struct scst_cmd *cmd)
+{
+	int res = scst_check_local_events(cmd);
+	cmd->check_local_events_once_done = 1;
+	return res;
+}
 
 int scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd);
 

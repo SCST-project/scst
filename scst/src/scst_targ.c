@@ -1949,7 +1949,7 @@ static int scst_reserve_local(struct scst_cmd *cmd)
 	 *    it, also there's no point to do any extra protection actions.
 	 */
 
-	rc = scst_check_local_events(cmd);
+	rc = scst_pre_check_local_events(cmd);
 	if (unlikely(rc != 0))
 		goto out_done;
 
@@ -2010,7 +2010,7 @@ static int scst_release_local(struct scst_cmd *cmd)
 	 * other protection is needed here.
 	 */
 
-	rc = scst_check_local_events(cmd);
+	rc = scst_pre_check_local_events(cmd);
 	if (unlikely(rc != 0))
 		goto out_done;
 
@@ -2343,8 +2343,11 @@ out_done:
  *    aborted, > 0 if there is an event and command should be immediately
  *    completed, or 0 otherwise.
  *
- * !! Dev handlers implementing exec() callback must call this function there
- * !! just before the actual command's execution!
+ * !! 1.Dev handlers implementing exec() callback must call this function there
+ * !!   just before the actual command's execution!
+ * !!
+ * !! 2. If this function can be called more than once on the processing path
+ * !!    scst_pre_check_local_events() should be used for the first call!
  *
  * On call no locks, no IRQ or IRQ-disabled context allowed.
  */
@@ -2373,14 +2376,16 @@ int scst_check_local_events(struct scst_cmd *cmd)
 		}
 	}
 
-	if (dev->pr_is_set) {
-		if (unlikely(!scst_pr_is_cmd_allowed(cmd))) {
-			scst_set_cmd_error_status(cmd,
-				SAM_STAT_RESERVATION_CONFLICT);
-			goto out_complete;
-		}
-	} else
-		scst_dec_pr_readers_count(cmd, false);
+	if (likely(!cmd->check_local_events_once_done)) {
+		if (dev->pr_is_set) {
+			if (unlikely(!scst_pr_is_cmd_allowed(cmd))) {
+				scst_set_cmd_error_status(cmd,
+					SAM_STAT_RESERVATION_CONFLICT);
+				goto out_complete;
+			}
+		} else
+			scst_dec_pr_readers_count(cmd, false);
+	}
 
 	/*
 	 * Let's check for ABORTED after scst_pr_is_cmd_allowed(), because
@@ -2946,7 +2951,7 @@ static int scst_check_sense(struct scst_cmd *cmd)
 
 					cmd->state = SCST_CMD_STATE_REAL_EXEC;
 					cmd->retry = 1;
-					scst_inc_pr_readers_count(cmd, false);
+					scst_reset_requeued_cmd(cmd);
 					res = 1;
 					goto out;
 				}

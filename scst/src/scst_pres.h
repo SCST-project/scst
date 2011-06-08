@@ -72,11 +72,14 @@ static inline void scst_dec_pr_readers_count(struct scst_cmd *cmd,
 {
 	struct scst_device *dev = cmd->dev;
 
-	/*
-	 * scst_check_local_events() should not be called twice for the
-	 * same cmd
-	 */
-	WARN_ON(!cmd->dec_pr_readers_count_needed);
+	if (unlikely(!cmd->dec_pr_readers_count_needed)) {
+		PRINT_ERROR("scst_check_local_events() should not be called "
+			"twice (cmd %p, op %x)! Use "
+			"scst_pre_check_local_events() instead.", cmd,
+			cmd->cdb[0]);
+		WARN_ON(1);
+		goto out;
+	}
 
 	if (!locked)
 		spin_lock_bh(&dev->dev_lock);
@@ -91,7 +94,16 @@ static inline void scst_dec_pr_readers_count(struct scst_cmd *cmd,
 	if (!locked)
 		spin_unlock_bh(&dev->dev_lock);
 
+out:
 	EXTRACHECKS_BUG_ON(dev->pr_readers_count < 0);
+	return;
+}
+
+static inline void scst_reset_requeued_cmd(struct scst_cmd *cmd)
+{
+	TRACE_DBG("Reset requeued cmd %p (op %x)", cmd, cmd->cdb[0]);
+	scst_inc_pr_readers_count(cmd, false);
+	cmd->check_local_events_once_done = 0;
 	return;
 }
 

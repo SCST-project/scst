@@ -4047,10 +4047,10 @@ static int __init iscsi_init(void)
 
 	iscsi_cmnd_abort_mempool = mempool_create_kmalloc_pool(2500,
 		sizeof(struct iscsi_cmnd_abort_params));
-        if (iscsi_cmnd_abort_mempool == NULL) {
-                err = -ENOMEM;
-                goto out_free_dummy;
-        }
+	if (iscsi_cmnd_abort_mempool == NULL) {
+		err = -ENOMEM;
+		goto out_free_dummy;
+	}
 
 #if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 	err = net_set_get_put_page_callbacks(iscsi_get_page_callback,
