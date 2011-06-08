@@ -62,8 +62,8 @@ Index: srpt/src/ib_srpt.c
         /* create cm reply */
 
 * Verify that a SCSI reset works properly by running the following command
-  on an initiator system (note: with older kernel versions the command below
-  triggers a bug in the Linux SRP initiator -- see also
+  on an initiator system (note: with kernel version 2.6.37 and before the
+  command below triggers a bug in the Linux SRP initiator -- see also
   https://bugzilla.kernel.org/show_bug.cgi?id=13893):
 
   (target)
