@@ -216,7 +216,7 @@ struct srpt_tsk_mgmt {
  * @sg:          Pointer to sg-list associated with this I/O context.
  * @spinlock:    Protects 'state'.
  * @state:       I/O context state.
- * @scmd:        SCST command data structure.
+ * @scmnd:       SCST command data structure.
  * @dir:
  * @free_list:   Node in srpt_rdma_ch.free_list.
  * @sg_cnt:      SG-list size.
@@ -224,6 +224,9 @@ struct srpt_tsk_mgmt {
  * @n_rdma_ius:  Number of elements in the rdma_ius array.
  * @n_rdma:
  * @n_rbuf:      Number of data buffers in the received SRP command.
+ * @req_lim_delta: one less than the req_lim_delta value field in the latest
+ *               SRP response sent.
+ * @tsk_mgmt:
  */
 struct srpt_send_ioctx {
 	struct srpt_ioctx	ioctx;
@@ -242,6 +245,7 @@ struct srpt_send_ioctx {
 	u16			n_rdma_ius;
 	u8			n_rdma;
 	u8			n_rbuf;
+	int			req_lim_delta;
 	struct srpt_tsk_mgmt	tsk_mgmt;
 };
 
@@ -279,7 +283,9 @@ enum rdma_ch_state {
  * @max_ti_iu_len: maximum target-to-initiator information unit length.
  * @req_lim:       request limit: maximum number of requests that may be sent
  *                 by the initiator without having received a response.
- * @req_lim_delta:
+ * @req_lim_delta: one less than the req_lim_delta value that will be included
+ *                 in the next reply sent to the initiator. See also the SRP
+ *                 credit algorithm in the SRP spec.
  * @spinlock:      Protects free_list.
  * @free_list:     Head of list with free send I/O contexts.
  * @ioctx_ring:
@@ -303,8 +309,8 @@ struct srpt_rdma_ch {
 	u8			i_port_id[16];
 	u8			t_port_id[16];
 	int			max_ti_iu_len;
-	atomic_t		req_lim;
-	atomic_t		req_lim_delta;
+	int			req_lim;
+	int			req_lim_delta;
 	spinlock_t		spinlock;
 	struct list_head	free_list;
 	struct srpt_send_ioctx	**ioctx_ring;

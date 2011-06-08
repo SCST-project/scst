@@ -229,6 +229,53 @@ static bool srpt_test_and_set_ch_state(struct srpt_rdma_ch *ch,
 }
 
 /**
+ * srpt_adjust_req_lim() - Adjust ch->req_lim and ch->req_lim_delta atomically.
+ *
+ * Returns the new value of ch->req_lim.
+ */
+static int srpt_adjust_req_lim(struct srpt_rdma_ch *ch, int req_lim_change,
+			       int req_lim_delta_change)
+{
+	int req_lim;
+	unsigned long flags;
+
+	spin_lock_irqsave(&ch->spinlock, flags);
+	ch->req_lim += req_lim_change;
+	req_lim = ch->req_lim;
+	ch->req_lim_delta += req_lim_delta_change;
+	spin_unlock_irqrestore(&ch->spinlock, flags);
+
+	return req_lim;
+}
+
+/**
+ * srpt_inc_req_lim() - Increase ch->req_lim and decrease ch->req_lim_delta.
+ *
+ * Returns the previous value of ch->req_lim_delta.
+ */
+static int srpt_inc_req_lim(struct srpt_rdma_ch *ch)
+{
+	int req_lim_delta;
+	unsigned long flags;
+
+	spin_lock_irqsave(&ch->spinlock, flags);
+	req_lim_delta = ch->req_lim_delta;
+	ch->req_lim += 1 + req_lim_delta;
+	ch->req_lim_delta = 0;
+	spin_unlock_irqrestore(&ch->spinlock, flags);
+
+	return req_lim_delta;
+}
+
+/**
+ * srpt_undo_inc_req_lim() - Undo the effect of srpt_inc_req_lim.
+ */
+static int srpt_undo_inc_req_lim(struct srpt_rdma_ch *ch, int req_lim_delta)
+{
+	return srpt_adjust_req_lim(ch, -(1 + req_lim_delta), req_lim_delta);
+}
+
+/**
  * srpt_event_handler() - Asynchronous IB event callback function.
  *
  * Callback function called by the InfiniBand core when an asynchronous IB
@@ -1295,10 +1342,13 @@ static void srpt_handle_send_err_comp(struct srpt_rdma_ch *ch, u64 wr_id,
 			    && state != SRPT_STATE_NEED_DATA
 			    && state != SRPT_STATE_DONE);
 
-	/* If SRP_RSP sending failed, undo the ch->req_lim change. */
+	/*
+	 * If SRP_RSP sending failed, undo the ch->req_lim and ch->req_lim_delta
+	 * changes.
+	 */
 	if (state == SRPT_STATE_CMD_RSP_SENT
 	    || state == SRPT_STATE_MGMT_RSP_SENT)
-		atomic_dec(&ch->req_lim);
+		srpt_undo_inc_req_lim(ch, ioctx->req_lim_delta);
 	if (state != SRPT_STATE_DONE) {
 		if (scmnd)
 			srpt_abort_cmd(ioctx, context);
@@ -1447,8 +1497,8 @@ static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 	memset(srp_rsp, 0, sizeof *srp_rsp);
 
 	srp_rsp->opcode = SRP_RSP;
-	srp_rsp->req_lim_delta = __constant_cpu_to_be32(1
-				    + atomic_xchg(&ch->req_lim_delta, 0));
+	srp_rsp->req_lim_delta =
+		__constant_cpu_to_be32(ioctx->req_lim_delta + 1);
 	srp_rsp->tag = tag;
 	srp_rsp->status = status;
 
@@ -1500,8 +1550,8 @@ static int srpt_build_tskmgmt_rsp(struct srpt_rdma_ch *ch,
 	memset(srp_rsp, 0, sizeof *srp_rsp);
 
 	srp_rsp->opcode = SRP_RSP;
-	srp_rsp->req_lim_delta = __constant_cpu_to_be32(1
-				    + atomic_xchg(&ch->req_lim_delta, 0));
+	srp_rsp->req_lim_delta
+		= __constant_cpu_to_be32(ioctx->req_lim_delta + 1);
 	srp_rsp->tag = tag;
 
 	if (rsp_code != SRP_TSK_MGMT_SUCCESS) {
@@ -1770,7 +1820,7 @@ static void srpt_process_rcv_completion(struct ib_cq *cq,
 	if (wc->status == IB_WC_SUCCESS) {
 		int req_lim;
 
-		req_lim = atomic_dec_return(&ch->req_lim);
+		req_lim = srpt_adjust_req_lim(ch, -1, 0);
 		if (unlikely(req_lim < 0))
 			PRINT_ERROR("req_lim = %d < 0", req_lim);
 		ioctx = sdev->ioctx_ring[index];
@@ -2392,8 +2442,8 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	rsp->buf_fmt = __constant_cpu_to_be16(SRP_BUF_FORMAT_DIRECT
 					      | SRP_BUF_FORMAT_INDIRECT);
 	rsp->req_lim_delta = cpu_to_be32(ch->rq_size);
-	atomic_set(&ch->req_lim, ch->rq_size);
-	atomic_set(&ch->req_lim_delta, 0);
+	ch->req_lim = ch->rq_size;
+	ch->req_lim_delta = 0;
 
 	/* create cm reply */
 	rep_param->qp_num = ch->qp->qp_num;
@@ -2463,7 +2513,7 @@ static void srpt_cm_rej_recv(struct ib_cm_id *cm_id)
 }
 
 /**
- * srpt_cm_rtu_recv() - Process an IB_CM_RTU_RECEIVED or IB_CM_USER_ESTABLISHED event.
+ * srpt_cm_rtu_recv() - Process IB CM RTU_RECEIVED and USER_ESTABLISHED events.
  *
  * An IB_CM_RTU_RECEIVED message indicates that the connection is established
  * and that the recipient may begin transmitting (RTU = ready to use).
@@ -2993,7 +3043,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	spin_unlock(&ioctx->spinlock);
 
 	if (unlikely(scst_cmd_aborted(scmnd))) {
-		atomic_inc(&ch->req_lim_delta);
+		srpt_adjust_req_lim(ch, 0, 1);
 		srpt_abort_cmd(ioctx, SCST_CONTEXT_SAME);
 		goto out;
 	}
@@ -3016,8 +3066,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 		}
 	}
 
-	atomic_inc(&ch->req_lim);
-
+	ioctx->req_lim_delta = srpt_inc_req_lim(ch);
 	resp_len = srpt_build_cmd_rsp(ch, ioctx,
 				      scst_cmd_get_tag(scmnd),
 				      scst_cmd_get_status(scmnd),
@@ -3027,7 +3076,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	if (srpt_post_send(ch, ioctx, resp_len)) {
 		srpt_unmap_sg_to_ib_sge(ch, ioctx);
 		srpt_set_cmd_state(ioctx, state);
-		atomic_dec(&ch->req_lim);
+		srpt_undo_inc_req_lim(ch, ioctx->req_lim_delta);
 		PRINT_WARNING("sending response failed for tag %llu - retrying",
 			      scst_cmd_get_tag(scmnd));
 		ret = SCST_TGT_RES_QUEUE_FULL;
@@ -3064,8 +3113,7 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 	srpt_set_cmd_state(ioctx, SRPT_STATE_MGMT_RSP_SENT);
 	WARN_ON(ioctx->state == SRPT_STATE_DONE);
 
-	atomic_inc(&ch->req_lim);
-
+	ioctx->req_lim_delta = srpt_inc_req_lim(ch);
 	rsp_len = srpt_build_tskmgmt_rsp(ch, ioctx,
 					 scst_to_srp_tsk_mgmt_status(
 					 scst_mgmt_cmd_get_status(mcmnd)),
@@ -3079,7 +3127,7 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 	if (srpt_post_send(ch, ioctx, rsp_len)) {
 		PRINT_ERROR("%s", "Sending SRP_RSP response failed.");
 		srpt_put_send_ioctx(ioctx);
-		atomic_dec(&ch->req_lim);
+		srpt_undo_inc_req_lim(ch, ioctx->req_lim_delta);
 	}
 }
 
@@ -3322,7 +3370,7 @@ static ssize_t show_req_lim(struct kobject *kobj,
 	ch = scst_sess_get_tgt_priv(scst_sess);
 	if (!ch)
 		return -ENOENT;
-	return sprintf(buf, "%d\n", atomic_read(&ch->req_lim));
+	return sprintf(buf, "%d\n", ch->req_lim);
 }
 
 static ssize_t show_req_lim_delta(struct kobject *kobj,
@@ -3335,7 +3383,7 @@ static ssize_t show_req_lim_delta(struct kobject *kobj,
 	ch = scst_sess_get_tgt_priv(scst_sess);
 	if (!ch)
 		return -ENOENT;
-	return sprintf(buf, "%d\n", atomic_read(&ch->req_lim_delta));
+	return sprintf(buf, "%d\n", ch->req_lim_delta);
 }
 
 static const struct kobj_attribute srpt_req_lim_attr =
