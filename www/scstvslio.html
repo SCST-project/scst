@@ -1,0 +1,119 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<meta name="author" content="Daniel Fernandes">
+<meta name="Robots" content="index,follow">
+<link rel="stylesheet" href="images/Orange.css" type="text/css">	
+<title>SCST vs LIO/TCM</title>
+</head>
+
+<body>
+<!-- wrap starts here -->
+<div id="wrap"> 
+	<div id="header">	
+		<div class="logoimg"></div><h1 id="logo"><span class="orange"></span></h1>
+		<h2 id=slogan>Generic SCSI Target Subsystem for Linux</h2>	
+	</div>		
+		
+	<div id="menu">
+		<ul>
+			<li><a href="index.html">Home</a></li>
+			<li><a href="http://www.sourceforge.net/projects/scst">Main</a></li>
+			<li><a href="http://sourceforge.net/news/?group_id=110471">News</a></li>
+			<li><a href="targets.html">Drivers</a></li>
+			<li><a href="downloads.html">Downloads</a></li>
+			<li><a href="contributing.html">Contributing</a></li>
+			<li id="current"><a href="comparison.html">Comparison</a></li>
+			<li><a href="users.html">Users</a></li>
+			<li><a href="solutions.html">Solutions</a></li>		
+		</ul>
+	</div>
+	
+	<!-- content-wrap starts here -->	
+	<div id="content-wrap">  
+			<div id="sidebar">
+				<h1>Comparison</h1>
+				<ul class="sidemenu">
+					<li><a href="comparison.html">Features comparison</a></li>
+					<li><a href="scstvslio.html">SCST vs LIO/TCM</a></li>
+					<li><a href="scstvsstgt.html">SCST vs STGT</a></li>
+					<li><a href="mc_s.html">MC/S vs MPIO</a></li>
+				</ul>
+			</div>		
+	
+			<div id="main">
+				<h1>SCST vs LIO/TCM</h1>
+				<p>LIO, from recently being renamed to TCM, is another independent from SCST implementation 
+				of SCSI target framework for Linux. It's started as PyX iSCSI target and then was
+				accommodated to other transports. But it's still in many kinds iSCSI-oriented.
+				You can find an example when people are not happy with it
+				<a href="http://thread.gmane.org/gmane.linux.scsi/65703/focus=66749">here</a>.</p>
+
+				<p>LIO maintainer, Nicholas Bellinger, is very good in building personal relationships and promoting LIO,
+				although often using misleading half, less-then-half and simply deceitful statements
+				about LIO current state, capabilities and future directions as well as about its competitor, SCST.
+				For instance, he setup LIO targets comparison page with obviously wrong statements about SCST, like
+				that it isn't fully zero copy or it isn't a generic target engine (while LIO, of course, is fully
+				zero-copy and fully generic target engine). Any
+				<a href="http://sourceforge.net/mailarchive/message.php?msg_id=21741080">attempts</a>
+				to correct it were simply ignored.</p>
+
+				<p>With those tricks Nicholas Bellinger was capable to attract key Linux kernel developers, and
+				they suddenly changed their opinion about Linux SCSI target subsystem in the opposite direction.
+				They previously asserted that
+				in-kernel SCSI target is the wrong direction, SCSI target must be in the user space, so
+				STGT is what everybody needed. Now their opinion is that SCSI target driver should be in the kernel space
+				and the only target good for them is LIO, doesn't matter that:</p>
+
+				<ol>
+					<li><span>SCST is a lot more mature and advanced</span></li>
+
+					<li><span>SCST from the beginning is a generic SCSI target</span></li>
+
+					<li><span>SCST has a lot more features</span></li>
+
+					<li><span>SCST has better performance</span></li>
+
+					<li><span>SCST has a lot more users</span></li>
+
+					<li><span>SCST has much bigger community</span></li>
+
+				</ol>
+
+				<p>So, rejecting base principles of the Linux kernel community that the best code should win, the worst
+				code was chosen.</p>
+
+				<p>You can find more background behind choosing LIO as the mainline kernel SCSI target
+				subsystem if you read <a href="http://thread.gmane.org/gmane.linux.kernel/1078109/focus=1078310">this thread</a>
+				as well as searching for targets related topics in Linux kernel and Linux SCSI mailing lists.</p>
+
+				<p>Particularly notable is that James Bottomley from the beginning was telling that SCST
+				can't be merged in the mainline kernel, because it doesn't offer a drop in replacement for STGT
+				to avoid having 2 target infrastructures in the kernel at the same time. But, since LIO can't
+				offer user space backend drivers and doesn't have ibmvstgt driver analog, for LIO the drop in replacement wasn't
+				a requirement, so 2.6.38+ kernels successfully have both STGT and LIO.</p>
+	  		</div>
+	</div>
+</div>		
+<!-- wrap ends here -->
+<!-- footer starts here -->		
+<div id="footer">
+	<p>&copy; Copyright 2004-2011 <b><font color="#EC981F">Vladislav Bolkhovitin/SCST Ltd &amp others.</font></b>&nbsp;&nbsp;
+	   Design by: <b><font color="#EC981F">Daniel Fernandes</font></b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</p>		
+</div>	
+<!-- footer ends here -->
+<!-- Piwik -->
+<script type="text/javascript">
+var pkBaseURL = (("https:" == document.location.protocol) ? "https://apps.sourceforge.net/piwik/scst/" : "http://apps.sourceforge.net/piwik/scst/");
+document.write(unescape("%3Cscript src='" + pkBaseURL + "piwik.js' type='text/javascript'%3E%3C/script%3E"));
+</script><script type="text/javascript">
+piwik_action_name = '';
+piwik_idsite = 1;
+piwik_url = pkBaseURL + "piwik.php";
+piwik_log(piwik_action_name, piwik_idsite, piwik_url);
+</script>
+<object><noscript><p><img src="http://apps.sourceforge.net/piwik/scst/piwik.php?idsite=1" alt="piwik"></p></noscript></object>
+<!-- End Piwik Tag -->
+</body>
+</html>
