@@ -34,19 +34,17 @@
 # 7 - program is not running
 #
 
-PATH=/bin:/usr/bin:/sbin:/usr/sbin:/usr/local/sbin:/usr/local/bin
-SCST_CFG=/etc/scst.conf
-SCST_DFLT=/etc/default/scst
-
 if [ -e /lib/lsb/init-functions ]; then
+    # Debian, RHEL / Fedora, SLES / openSUSE.
     . /lib/lsb/init-functions
 else
+# Slackware / Gentoo.
 start_daemon() {
     "$@" >/dev/null 2>&1 &
 }
 killproc() {
     local exe="`basename "$1"`"
-    /bin/killall $exe
+    killall $exe
     rm -f "/var/run/$exe.pid"
 }
 log_success_msg() {
@@ -57,6 +55,10 @@ log_failure_msg() {
 }
 fi
 
+PATH=/bin:/usr/bin:/sbin:/usr/sbin:/usr/local/sbin:/usr/local/bin
+SCST_CFG=/etc/scst.conf
+SCST_DFLT=/etc/default/scst
+
 [ -x "$(which scstadmin)" ] || exit 5
 
 if [ -f $SCST_DFLT ]; then
@@ -66,7 +68,7 @@ fi
 # Whether or not there is a "TARGET_DRIVER iscsi" section in scst.conf.
 using_iscsi() {
     for m in $SCST_MODULES; do
-        if [ $m = "iscsi-scst" ]; then
+        if [ $m = "iscsi_scst" ]; then
             return 0
         fi
     done
@@ -98,7 +100,7 @@ parse_scst_conf() {
         done | sort -u;
         sed -n 's/^TARGET_DRIVER \(.*\) {$/\1/p' $SCST_CFG | while read d; do
             case "$d" in
-                iscsi)    echo iscsi-scst;;
+                iscsi)    echo iscsi_scst;;
                 qla2x00t) echo qla2x00tgt;;
                 *)        echo "$d";;
             esac
@@ -110,13 +112,13 @@ parse_scst_conf() {
                 SCST_OPT_MODULES="crc32c-intel $SCST_OPT_MODULES";;
         esac
         SCST_OPT_MODULES="crc32c $SCST_OPT_MODULES"
-        DAEMONS="/usr/local/sbin/iscsi-scstd $DAEMONS"
+        SCST_DAEMONS="/usr/local/sbin/iscsi-scstd $SCST_DAEMONS"
     fi
 }
 
 # Stop SCST. parse_scst_conf must already have been invoked.
 stop() {
-    for d in $DAEMONS; do
+    for d in $SCST_DAEMONS; do
         killproc $d
     done
 
@@ -125,11 +127,6 @@ stop() {
         reverse_list="$m $reverse_list"
     done
     for m in $reverse_list; do
-        # Although the file name of the iSCSI kernel module is
-        # "iscsi-scst.ko", pass the name "iscsi_scst" to rmmod.
-        if [ $m = "iscsi-scst" ]; then
-            m="iscsi_scst"
-        fi
         refcnt="`cat /sys/module/$m/refcnt 2>/dev/null`"
         if [ ! -z "$refcnt" ] && [ "$refcnt" -gt 0 ]; then
             # Apparently it can happen that the iscsi_scst refcnt is only
@@ -137,7 +134,7 @@ stop() {
             # occurs, sleep for a short time.
             sleep 1
         fi
-        if [ -e "/sys/module/$m" ] && ! rmmod $m; then
+        if [ -e /sys/module/$m/refcnt ] && ! rmmod $m; then
             return 1
         fi
     done
@@ -147,6 +144,13 @@ stop() {
     for m in $reverse_list; do
         rmmod $m >/dev/null 2>&1
     done
+
+    # Clear the config in case unloading failed or SCST has been built into the
+    # kernel
+    if [ -e /sys/module/scst ]; then
+        echo y | scstadmin -clear_config -force >/dev/null 2>&1
+    fi
+
     return 0
 }
 
@@ -155,7 +159,7 @@ case "$1" in
         ## Start the service.
         echo -n "Loading and configuring SCST"
 
-        if [ -e /sys/module/scst ]; then
+        if [ -e /sys/module/scst -a -e /sys/module/scst/refcnt ]; then
             log_failure_msg
             echo Already started
             exit 1
@@ -168,16 +172,25 @@ case "$1" in
         done
 
         for m in $SCST_MODULES; do
-            module_params="`set|sed -n "s/${m}_parameters='\(.*\)'/\1/p"`"
-            if ! modprobe $m $module_params; then
-                log_failure_msg
-                echo modprobe $m $module_params failed.
-                stop
-                exit 5
+            module_params="`set | sed -n -e "s/^${m}_parameters='\(.*\)'$/\1/p"\
+                                         -e "s/^${m}_parameters=\(.*\)$/\1/p"`"
+            if [ ! -e /sys/module/$m ]; then
+                if ! modprobe $m $module_params; then
+                    log_failure_msg
+                    echo modprobe $m $module_params failed.
+                    stop
+                    exit 5
+                fi
+            else
+                for pv in $module_params; do
+                    echo $pv | sed 's/=/ /' \
+                      | { read param value;
+                           echo "$value" >/sys/module/$m/parameters/$param; }
+                done
             fi
         done
 
-        for d in $DAEMONS; do
+        for d in $SCST_DAEMONS; do
             if ! start_daemon $d; then
                 log_failure_msg
                 echo "Starting $d failed"
@@ -187,6 +200,7 @@ case "$1" in
         done
 
         if [ -f $SCST_CFG ]; then
+            echo y | scstadmin -clear_config -force >/dev/null 2>&1
             tmpout=/tmp/scstadmin-output-$$
             if scstadmin -config $SCST_CFG >$tmpout 2>&1; then
                 rm -f $tmpout
@@ -267,10 +281,7 @@ case "$1" in
         parse_scst_conf
 
         for m in $SCST_MODULES; do
-            if [ $m = "iscsi-scst" ]; then
-                m="iscsi_scst"
-            fi
-            if [ ! -e "/sys/module/$m" ]; then
+            if [ ! -e /sys/module/$m ]; then
                 echo "$m: not loaded"
                 exit 3
             fi
