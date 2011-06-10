@@ -1,43 +1,29 @@
 #!/bin/sh
 #
 # Copyright (C) 2008 Mark Buechler <mark.buechler@gmail.com>
-# Copyright (C) 2009 Bart Van Assche <bvanassche@acm.org>
+# Copyright (C) 2009-2011 Bart Van Assche <bvanassche@acm.org>
 # This software is made available under the GPLv2 license.
 #
-# System startup script for the SCST core functionality.
-#
-# Note: on most Linux distributions /bin/sh is a soft link to /bin/bash, while
-# on a default Ubuntu setup /bin/sh is a soft link to /bin/dash !
+# System startup script for SCST.
 #
 # See also:
-# * http://refspecs.freestandards.org/LSB_3.1.0/LSB-Core-generic/LSB-Core-generic/iniscrptact.html
+# * http://refspecs.freestandards.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/iniscrptact.html
 # * http://www.opengroup.org/onlinepubs/009695399/utilities/xcu_chap02.html
 #
 ### BEGIN INIT INFO
 # Provides:       scst
-# Required-Start: $syslog $local_fs
-# Required-Stop:  $syslog $local_fs
+# Required-Start: $syslog $local_fs $network
+# Required-Stop:  $syslog $local_fs $network
 # Default-Start:  2 3 4 5
 # Default-Stop:   0 1 6
-# Description:    SCST core
+# Description:    SCST - A Generic SCSI Target Subsystem
 ### END INIT INFO
 ### BEGIN CHKCONFIG INFO
 # chkconfig:      2345 13 87
-# description:    SCST core
-### END CHKCONFIG IFO
+# description:    SCST - A Generic SCSI Target Subsystem
+### END CHKCONFIG INFO
 
-PATH=/bin:/usr/bin:/sbin:/usr/sbin:/usr/local/sbin:/usr/local/bin
-SCST_CFG=/etc/scst.conf
-
-# Modules to load/unload.
-#
-# !!! DON'T ADD HERE TARGET DRIVERS, WHICH IMMEDIATELLY START ACCEPTING
-# !!! NEW CONNECTIONS, BECAUSE AT THIS POINT ACCESS CONTROL HASN'T CONFIGURED
-# !!! YET!
-#
-SCST_MODULES="scst scst_disk scst_vdisk"
-
-# Return values according to LSB for all commands but status:
+# Return values according to LSB for all commands except status:
 # 0 - success
 # 1 - generic or unspecified error
 # 2 - invalid or excess argument(s)
@@ -48,27 +34,168 @@ SCST_MODULES="scst scst_disk scst_vdisk"
 # 7 - program is not running
 #
 
+PATH=/bin:/usr/bin:/sbin:/usr/sbin:/usr/local/sbin:/usr/local/bin
+SCST_CFG=/etc/scst.conf
+SCST_DFLT=/etc/default/scst
+
+if [ -e /lib/lsb/init-functions ]; then
+    . /lib/lsb/init-functions
+else
+start_daemon() {
+    "$@" >/dev/null 2>&1 &
+}
+killproc() {
+    local exe="`basename "$1"`"
+    /bin/killall $exe
+    rm -f "/var/run/$exe.pid"
+}
+log_success_msg() {
+    echo "$@"
+}
+log_failure_msg() {
+    echo "$@"
+}
+fi
+
 [ -x "$(which scstadmin)" ] || exit 5
 
-. /lib/lsb/init-functions
+if [ -f $SCST_DFLT ]; then
+    . $SCST_DFLT
+fi
+
+# Whether or not there is a "TARGET_DRIVER iscsi" section in scst.conf.
+using_iscsi() {
+    for m in $SCST_MODULES; do
+        if [ $m = "iscsi-scst" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Parse scst.conf and assign the list of associated kernel modules to
+# SCST_MODULES.
+parse_scst_conf() {
+    if [ ! -e $SCST_CFG ]; then
+        return 1
+    fi
+    SCST_MODULES="scst `
+        sed -n -e 's/^HANDLER \(.*\) {$/\1/p' -e 's/^\[HANDLER \(.*\)\]$/\1/p' \
+          $SCST_CFG \
+        | while read h; do
+            case "$h" in
+                dev_cdrom)      echo scst_cdrom;;
+                dev_changer)    echo scst_changer;;
+                dev_disk*)      echo scst_disk;;
+                dev_modisk*)    echo scst_modisk;;
+                dev_processor)  echo scst_processor;;
+                dev_raid)       echo scst_raid;;
+                dev_tape*)      echo scst_tape;;
+                dev_user)       echo scst_user;;
+                vdisk*|vcdrom)  echo scst_vdisk;;
+                *)              echo "$h";;
+            esac
+        done | sort -u;
+        sed -n 's/^TARGET_DRIVER \(.*\) {$/\1/p' $SCST_CFG | while read d; do
+            case "$d" in
+                iscsi)    echo iscsi-scst;;
+                qla2x00t) echo qla2x00tgt;;
+                *)        echo "$d";;
+            esac
+        done | sort -u
+        ` $SCST_TARGET_MODULES"
+    if using_iscsi; then
+        case "`uname -m`" in
+            x86_64|i686)
+                SCST_OPT_MODULES="crc32c-intel $SCST_OPT_MODULES";;
+        esac
+        SCST_OPT_MODULES="crc32c $SCST_OPT_MODULES"
+        DAEMONS="/usr/local/sbin/iscsi-scstd $DAEMONS"
+    fi
+}
+
+# Stop SCST. parse_scst_conf must already have been invoked.
+stop() {
+    for d in $DAEMONS; do
+        killproc $d
+    done
+
+    reverse_list=""
+    for m in $SCST_MODULES; do
+        reverse_list="$m $reverse_list"
+    done
+    for m in $reverse_list; do
+        # Although the file name of the iSCSI kernel module is
+        # "iscsi-scst.ko", pass the name "iscsi_scst" to rmmod.
+        if [ $m = "iscsi-scst" ]; then
+            m="iscsi_scst"
+        fi
+        refcnt="`cat /sys/module/$m/refcnt 2>/dev/null`"
+        if [ ! -z "$refcnt" ] && [ "$refcnt" -gt 0 ]; then
+            # Apparently it can happen that the iscsi_scst refcnt is only
+            # decremented a short time after killproc finished. If that
+            # occurs, sleep for a short time.
+            sleep 1
+        fi
+        if [ -e "/sys/module/$m" ] && ! rmmod $m; then
+            return 1
+        fi
+    done
+    for m in $SCST_OPT_MODULES; do
+        reverse_list="$m $reverse_list"
+    done
+    for m in $reverse_list; do
+        rmmod $m >/dev/null 2>&1
+    done
+    return 0
+}
 
 case "$1" in
     start)
         ## Start the service.
-        echo -n "Loading and configuring the mid-level SCSI target SCST"
+        echo -n "Loading and configuring SCST"
 
-        for module in ${SCST_MODULES}; do
-            if ! modprobe "${module}"; then
+        if [ -e /sys/module/scst ]; then
+            log_failure_msg
+            echo Already started
+            exit 1
+        fi
+
+        parse_scst_conf
+
+        for m in $SCST_OPT_MODULES; do
+            modprobe $m >/dev/null 2>&1
+        done
+
+        for m in $SCST_MODULES; do
+            module_params="`set|sed -n "s/${m}_parameters='\(.*\)'/\1/p"`"
+            if ! modprobe $m $module_params; then
                 log_failure_msg
+                echo modprobe $m $module_params failed.
+                stop
                 exit 5
             fi
         done
 
+        for d in $DAEMONS; do
+            if ! start_daemon $d; then
+                log_failure_msg
+                echo "Starting $d failed"
+                stop
+                exit 1
+            fi
+        done
+
         if [ -f $SCST_CFG ]; then
-            if scstadmin -config $SCST_CFG >/dev/null 2>&1; then
+            tmpout=/tmp/scstadmin-output-$$
+            if scstadmin -config $SCST_CFG >$tmpout 2>&1; then
+                rm -f $tmpout
        	        log_success_msg
             else
                 log_failure_msg
+                cat $tmpout
+                rm -f $tmpout
+                stop
                 exit 1
             fi
         else
@@ -78,26 +205,29 @@ case "$1" in
         ;;
     stop)
         ## Stop the service.
-        echo -n "Stopping the mid-level SCSI target SCST"
+        echo -n "Stopping SCST"
 
-        reverse_list=""
-        for module in ${SCST_MODULES}; do
-            reverse_list="${module} ${reverse_list}"
-        done
-        for module in ${reverse_list}; do
-            if [ -e "/sys/module/${module}" ] && ! rmmod "${module}"; then
-                log_failure_msg FAILED
-                exit 1
-            fi
-        done
+        if ! parse_scst_conf; then
+            log_failure_msg "No $SCST_CFG found"
+            exit 1
+        fi
 
-        log_success_msg
+        stop
+
+        rc=$?
+        if [ $rc = 0 ]; then
+            log_success_msg
+        else
+            log_failure_msg
+        fi
+        exit $rc
         ;;
     restart)
         ## Stop and restart the service if the service is already running,
         ## otherwise start the service.
-        $0 stop
-        $0 start
+        if $0 stop; then
+            $0 start
+        fi
         ;;
     try-restart)
         ## Restart the service if the service is already running.
@@ -134,9 +264,14 @@ case "$1" in
         # 2 - service dead, but /var/lock/ lock file exists
         # 3 - service not running
 
-        for module in ${SCST_MODULES}; do
-            if [ ! -e "/sys/module/${module}" ]; then
-                echo "Not loaded"
+        parse_scst_conf
+
+        for m in $SCST_MODULES; do
+            if [ $m = "iscsi-scst" ]; then
+                m="iscsi_scst"
+            fi
+            if [ ! -e "/sys/module/$m" ]; then
+                echo "$m: not loaded"
                 exit 3
             fi
         done
