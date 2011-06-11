@@ -81,10 +81,10 @@ parse_scst_conf() {
     if [ ! -e $SCST_CFG ]; then
         return 1
     fi
+    local nonblanks="[^ 	]\{1,\}"
     local blanks="[ 	]\{1,\}"
-    SCST_MODULES="scst `
-        sed -n -e 's/^HANDLER'"$blanks"'\(.*\)'"$blanks"'{$/\1/p' -e 's/^\[HANDLER'"$blanks"'\(.*\)\]$/\1/p' \
-          $SCST_CFG \
+    SCST_MODULES="scst `sed -n -e 's/^HANDLER'"$blanks"'\('"$nonblanks"'\)'"$blanks"'{$/\1/p' \
+                         -e 's/^\[HANDLER'"$blanks"'\('"$nonblanks"'\)\]$/\1/p' $SCST_CFG \
         | while read h; do
             case "$h" in
                 dev_cdrom)      echo scst_cdrom;;
@@ -98,15 +98,15 @@ parse_scst_conf() {
                 vdisk*|vcdrom)  echo scst_vdisk;;
                 *)              echo "$h";;
             esac
-        done | sort -u;
-        sed -n 's/^TARGET_DRIVER'"$blanks"'\(.*\)'"$blanks"'{$/\1/p' $SCST_CFG | while read d; do
+        done | sort -u` \
+        `sed -n 's/^TARGET_DRIVER'"$blanks"'\('"$nonblanks"'\)'"$blanks"'{$/\1/p' $SCST_CFG | while read d; do
             case "$d" in
                 iscsi)    echo iscsi_scst;;
                 qla2x00t) echo qla2x00tgt;;
                 *)        echo "$d";;
             esac
-        done | sort -u
-        ` $SCST_TARGET_MODULES"
+        done | sort -u` \
+        $SCST_TARGET_MODULES"
     if using_iscsi; then
         case "`uname -m`" in
             x86_64|i686)
