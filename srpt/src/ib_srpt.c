@@ -1894,17 +1894,20 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 	}
 }
 
-static void srpt_process_completion(struct ib_cq *cq,
+static bool srpt_process_completion(struct ib_cq *cq,
 				    struct srpt_rdma_ch *ch,
 				    enum scst_exec_context rcv_context,
 				    enum scst_exec_context send_context)
 {
 	struct ib_wc *const wc = ch->wc;
 	int i, n;
+	bool keep_going;
 
 	EXTRACHECKS_WARN_ON(cq != ch->cq);
 
-	ib_req_notify_cq(cq, IB_CQ_NEXT_COMP);
+	keep_going = ch->state != CH_RELEASING;
+	if (keep_going)
+		ib_req_notify_cq(cq, IB_CQ_NEXT_COMP);
 	while ((n = ib_poll_cq(cq, ARRAY_SIZE(ch->wc), wc)) > 0) {
 		for (i = 0; i < n; i++) {
 			if (opcode_from_wr_id(wc[i].wr_id) & IB_WC_RECV)
@@ -1916,6 +1919,8 @@ static void srpt_process_completion(struct ib_cq *cq,
 							     &wc[i]);
 		}
 	}
+
+	return keep_going;
 }
 
 /**
@@ -1934,21 +1939,21 @@ static int srpt_compl_thread(void *arg)
 
 	/* Hibernation / freezing of the SRPT kernel thread is not supported. */
 	current->flags |= PF_NOFREEZE;
-	allow_signal(SIGTERM);
 
 	ch = arg;
 	BUG_ON(!ch);
-	while (!kthread_should_stop() && !signal_pending(current)) {
+	while (!kthread_should_stop()) {
 		set_current_state(TASK_INTERRUPTIBLE);
-		srpt_process_completion(ch->cq, ch, SCST_CONTEXT_THREAD,
-					SCST_CONTEXT_DIRECT);
+		if (!srpt_process_completion(ch->cq, ch, SCST_CONTEXT_THREAD,
+					     SCST_CONTEXT_DIRECT))
+			break;
 		schedule();
 	}
 	set_current_state(TASK_RUNNING);
 
-	disallow_signal(SIGTERM);
-	flush_signals(current);
-
+	TRACE_DBG("ch %s: about to invoke scst_unregister_session()",
+		  ch->sess_name);
+	WARN_ON(ch->state != CH_RELEASING);
 	scst_unregister_session(ch->scst_sess, false, srpt_free_ch);
 
 	return 0;
@@ -2117,7 +2122,8 @@ static void srpt_drain_channel(struct ib_cm_id *cm_id)
 		if (ret < 0)
 			PRINT_ERROR("Setting queue pair in error state"
 			       " failed: %d", ret);
-	}
+	} else
+		TRACE_DBG("Channel already in state %d", ch->state);
 }
 
 /**
@@ -2125,7 +2131,8 @@ static void srpt_drain_channel(struct ib_cm_id *cm_id)
  */
 static void srpt_release_channel(struct srpt_rdma_ch *ch)
 {
-	kill_pid(task_pid(ch->thread), SIGTERM, 1);
+	WARN_ON(ch->state != CH_RELEASING);
+	wake_up_process(ch->thread);
 }
 
 static void srpt_free_ch(struct scst_session *sess)
@@ -2140,7 +2147,10 @@ static void srpt_free_ch(struct scst_session *sess)
 	sdev = ch->sport->sdev;
 	BUG_ON(!sdev);
 
+	WARN_ON(ch->state != CH_RELEASING);
+
 	BUG_ON(!ch->thread);
+	BUG_ON(ch->thread == current);
 	kthread_stop(ch->thread);
 	ch->thread = NULL;
 
@@ -3274,8 +3284,7 @@ static int srpt_ch_list_empty(struct srpt_device *sdev)
  */
 static int srpt_release_sdev(struct srpt_device *sdev)
 {
-	struct srpt_rdma_ch *ch, *tmp_ch;
-	int res;
+	struct srpt_rdma_ch *ch, *next_ch;
 
 	TRACE_ENTRY();
 
@@ -3283,14 +3292,21 @@ static int srpt_release_sdev(struct srpt_device *sdev)
 	BUG_ON(!sdev);
 
 	spin_lock_irq(&sdev->spinlock);
-	list_for_each_entry_safe(ch, tmp_ch, &sdev->rch_list, list)
+	list_for_each_entry_safe(ch, next_ch, &sdev->rch_list, list)
 		__srpt_close_ch(ch);
 	spin_unlock_irq(&sdev->spinlock);
 
-	res = wait_event_interruptible(sdev->ch_releaseQ,
-				       srpt_ch_list_empty(sdev));
-	if (res)
-		PRINT_ERROR("%s: interrupted.", __func__);
+	while (wait_event_timeout(sdev->ch_releaseQ,
+				  srpt_ch_list_empty(sdev), 5 * HZ) <= 0) {
+		PRINT_INFO("%s: waiting for session unregistration ...",
+			   sdev->device->name);
+		spin_lock_irq(&sdev->spinlock);
+		list_for_each_entry_safe(ch, next_ch, &sdev->rch_list, list)
+			PRINT_INFO("%s: %d commands in progress",
+				   ch->sess_name,
+				   atomic_read(&ch->scst_sess->sess_cmd_count));
+		spin_unlock_irq(&sdev->spinlock);
+	}
 
 	TRACE_EXIT();
 	return 0;
