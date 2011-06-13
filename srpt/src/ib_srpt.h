@@ -224,7 +224,7 @@ struct srpt_tsk_mgmt {
  * @n_rdma_ius:  Number of elements in the rdma_ius array.
  * @n_rdma:
  * @n_rbuf:      Number of data buffers in the received SRP command.
- * @req_lim_delta: one less than the req_lim_delta value field in the latest
+ * @req_lim_delta: Value of the req_lim_delta value field in the latest
  *               SRP response sent.
  * @tsk_mgmt:
  */
@@ -283,7 +283,7 @@ enum rdma_ch_state {
  * @max_ti_iu_len: maximum target-to-initiator information unit length.
  * @req_lim:       request limit: maximum number of requests that may be sent
  *                 by the initiator without having received a response.
- * @req_lim_delta: one less than the req_lim_delta value that will be included
+ * @req_lim_delta: One less than the req_lim_delta value that will be included
  *                 in the next reply sent to the initiator. See also the SRP
  *                 credit algorithm in the SRP spec.
  * @spinlock:      Protects free_list.

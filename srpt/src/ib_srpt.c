@@ -251,7 +251,7 @@ static int srpt_adjust_req_lim(struct srpt_rdma_ch *ch, int req_lim_change,
 /**
  * srpt_inc_req_lim() - Increase ch->req_lim and decrease ch->req_lim_delta.
  *
- * Returns the previous value of ch->req_lim_delta.
+ * Returns one more than the previous value of ch->req_lim_delta.
  */
 static int srpt_inc_req_lim(struct srpt_rdma_ch *ch)
 {
@@ -259,8 +259,8 @@ static int srpt_inc_req_lim(struct srpt_rdma_ch *ch)
 	unsigned long flags;
 
 	spin_lock_irqsave(&ch->spinlock, flags);
-	req_lim_delta = ch->req_lim_delta;
-	ch->req_lim += 1 + req_lim_delta;
+	req_lim_delta = ch->req_lim_delta + 1;
+	ch->req_lim += req_lim_delta;
 	ch->req_lim_delta = 0;
 	spin_unlock_irqrestore(&ch->spinlock, flags);
 
@@ -272,7 +272,7 @@ static int srpt_inc_req_lim(struct srpt_rdma_ch *ch)
  */
 static int srpt_undo_inc_req_lim(struct srpt_rdma_ch *ch, int req_lim_delta)
 {
-	return srpt_adjust_req_lim(ch, -(1 + req_lim_delta), req_lim_delta);
+	return srpt_adjust_req_lim(ch, -req_lim_delta, req_lim_delta - 1);
 }
 
 /**
@@ -1510,8 +1510,7 @@ static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 	memset(srp_rsp, 0, sizeof *srp_rsp);
 
 	srp_rsp->opcode = SRP_RSP;
-	srp_rsp->req_lim_delta =
-		__constant_cpu_to_be32(ioctx->req_lim_delta + 1);
+	srp_rsp->req_lim_delta = __constant_cpu_to_be32(ioctx->req_lim_delta);
 	srp_rsp->tag = tag;
 	srp_rsp->status = status;
 
@@ -1563,8 +1562,7 @@ static int srpt_build_tskmgmt_rsp(struct srpt_rdma_ch *ch,
 	memset(srp_rsp, 0, sizeof *srp_rsp);
 
 	srp_rsp->opcode = SRP_RSP;
-	srp_rsp->req_lim_delta
-		= __constant_cpu_to_be32(ioctx->req_lim_delta + 1);
+	srp_rsp->req_lim_delta = __constant_cpu_to_be32(ioctx->req_lim_delta);
 	srp_rsp->tag = tag;
 
 	if (rsp_code != SRP_TSK_MGMT_SUCCESS) {
@@ -1850,9 +1848,9 @@ static void srpt_process_rcv_completion(struct ib_cq *cq,
  * Note: Although this has not yet been observed during tests, at least in
  * theory it is possible that the srpt_get_send_ioctx() call invoked by
  * srpt_handle_new_iu() fails. This is possible because the req_lim_delta
- * value in each response is set to one, and it is possible that this response
- * makes the initiator send a new request before the send completion for that
- * response has been processed. This could e.g. happen if the call to
+ * value in each response is set to at least one, and it is possible that this
+ * response makes the initiator send a new request before the send completion
+ * for that response has been processed. This could e.g. happen if the call to
  * srpt_put_send_iotcx() is delayed because of a higher priority interrupt or
  * if IB retransmission causes generation of the send completion to be
  * delayed. Incoming information units for which srpt_get_send_ioctx() fails
