@@ -3026,18 +3026,16 @@ static void srpt_pending_cmd_timeout(struct scst_cmd *scmnd)
 static int srpt_rdy_to_xfer(struct scst_cmd *scmnd)
 {
 	struct srpt_send_ioctx *ioctx;
+	enum srpt_command_state prev_cmd_state;
+	int ret;
 
 	ioctx = scst_cmd_get_tgt_priv(scmnd);
-	EXTRACHECKS_BUG_ON(!ioctx);
+	prev_cmd_state = srpt_set_cmd_state(ioctx, SRPT_STATE_NEED_DATA);
+	ret = srpt_xfer_data(ioctx->ch, ioctx, scmnd);
+	if (unlikely(ret != SCST_TGT_RES_SUCCESS))
+		srpt_set_cmd_state(ioctx, prev_cmd_state);
 
-	srpt_set_cmd_state(ioctx, SRPT_STATE_NEED_DATA);
-	EXTRACHECKS_WARN_ON(ioctx->state == SRPT_STATE_DONE);
-
-	EXTRACHECKS_WARN_ON(ioctx->ch !=
-			scst_sess_get_tgt_priv(scst_cmd_get_session(scmnd)));
-	EXTRACHECKS_BUG_ON(!ioctx->ch);
-
-	return srpt_xfer_data(ioctx->ch, ioctx, scmnd);
+	return ret;
 }
 
 /**
