@@ -2979,6 +2979,45 @@ out_unmap:
 }
 
 /**
+ * srpt_pending_cmd_timeout() - SCST command HCA processing timeout callback.
+ *
+ * Called by the SCST core if no IB completion notification has been received
+ * within max_hw_pending_time seconds.
+ */
+static void srpt_pending_cmd_timeout(struct scst_cmd *scmnd)
+{
+	struct srpt_send_ioctx *ioctx;
+	enum srpt_command_state state;
+
+	ioctx = scst_cmd_get_tgt_priv(scmnd);
+	BUG_ON(!ioctx);
+
+	state = ioctx->state;
+	switch (state) {
+	case SRPT_STATE_NEW:
+	case SRPT_STATE_DATA_IN:
+	case SRPT_STATE_DONE:
+		/*
+		 * srpt_pending_cmd_timeout() should never be invoked for
+		 * commands in this state.
+		 */
+		PRINT_ERROR("Processing SCST command %p (SRPT state %d) took"
+			    " too long -- aborting", scmnd, state);
+		break;
+	case SRPT_STATE_NEED_DATA:
+	case SRPT_STATE_CMD_RSP_SENT:
+	case SRPT_STATE_MGMT_RSP_SENT:
+	default:
+		PRINT_ERROR("Command %p: IB completion for idx %u has not"
+			    " been received in time (SRPT command state %d)",
+			    scmnd, ioctx->ioctx.index, state);
+		break;
+	}
+
+	srpt_abort_cmd(ioctx, SCST_CONTEXT_SAME);
+}
+
+/**
  * srpt_rdy_to_xfer() - Transfers data from initiator to target.
  *
  * Called by the SCST core to transfer data from the initiator to the target
@@ -3402,6 +3441,7 @@ static const struct attribute *srpt_sess_attrs[] = {
 static struct scst_tgt_template srpt_template = {
 	.name				 = DRV_NAME,
 	.sg_tablesize			 = SRPT_DEF_SG_TABLESIZE,
+	.max_hw_pending_time		 = 60/*seconds*/,
 #if !defined(CONFIG_SCST_PROC)
 	.enable_target			 = srpt_enable_target,
 	.is_target_enabled		 = srpt_is_target_enabled,
@@ -3416,6 +3456,7 @@ static struct scst_tgt_template srpt_template = {
 	.release			 = srpt_release,
 	.xmit_response			 = srpt_xmit_response,
 	.rdy_to_xfer			 = srpt_rdy_to_xfer,
+	.on_hw_pending_cmd_timeout	 = srpt_pending_cmd_timeout,
 	.on_free_cmd			 = srpt_on_free_cmd,
 	.task_mgmt_fn_done		 = srpt_tsk_mgmt_done,
 	.get_initiator_port_transport_id = srpt_get_initiator_port_transport_id,
