@@ -3423,14 +3423,47 @@ static ssize_t show_req_lim_delta(struct kobject *kobj,
 	return sprintf(buf, "%d\n", ch->req_lim_delta);
 }
 
+static const char *get_ch_state_name(enum rdma_ch_state s)
+{
+	switch (s) {
+	case CH_CONNECTING:
+		return "connecting";
+	case CH_LIVE:
+		return "live";
+	case CH_DISCONNECTING:
+		return "disconnecting";
+	case CH_DRAINING:
+		return "draining";
+	case CH_RELEASING:
+		return "releasing";
+	}
+	return "???";
+}
+
+static ssize_t show_ch_state(struct kobject *kobj, struct kobj_attribute *attr,
+			     char *buf)
+{
+	struct scst_session *scst_sess;
+	struct srpt_rdma_ch *ch;
+
+	scst_sess = container_of(kobj, struct scst_session, sess_kobj);
+	ch = scst_sess_get_tgt_priv(scst_sess);
+	if (!ch)
+		return -ENOENT;
+	return sprintf(buf, "%s\n", get_ch_state_name(ch->state));
+}
+
 static const struct kobj_attribute srpt_req_lim_attr =
 	__ATTR(req_lim,       S_IRUGO, show_req_lim,       NULL);
 static const struct kobj_attribute srpt_req_lim_delta_attr =
 	__ATTR(req_lim_delta, S_IRUGO, show_req_lim_delta, NULL);
+static const struct kobj_attribute srpt_ch_state_attr =
+	__ATTR(ch_state, S_IRUGO, show_ch_state, NULL);
 
 static const struct attribute *srpt_sess_attrs[] = {
 	&srpt_req_lim_attr.attr,
 	&srpt_req_lim_delta_attr.attr,
+	&srpt_ch_state_attr.attr,
 	NULL
 };
 #endif
