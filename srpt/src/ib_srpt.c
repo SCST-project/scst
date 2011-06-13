@@ -906,6 +906,19 @@ static int srpt_post_recv(struct srpt_device *sdev,
 	return ib_post_srq_recv(sdev->srq, &wr, &bad_wr);
 }
 
+static int srpt_adjust_srq_wr_avail(struct srpt_rdma_ch *ch, int delta)
+{
+	int res;
+	unsigned long flags;
+
+	spin_lock_irqsave(&ch->spinlock, flags);
+	ch->sq_wr_avail += delta;
+	res = ch->sq_wr_avail;
+	spin_unlock_irqrestore(&ch->spinlock, flags);
+
+	return res;
+}
+
 /**
  * srpt_post_send() - Post an IB send request.
  *
@@ -920,7 +933,7 @@ static int srpt_post_send(struct srpt_rdma_ch *ch,
 	int ret;
 
 	ret = -ENOMEM;
-	if (atomic_dec_return(&ch->sq_wr_avail) < 0) {
+	if (srpt_adjust_srq_wr_avail(ch, -1) < 0) {
 		PRINT_WARNING("%s", "IB send queue full (needed 1)");
 		goto out;
 	}
@@ -943,7 +956,7 @@ static int srpt_post_send(struct srpt_rdma_ch *ch,
 
 out:
 	if (ret < 0)
-		atomic_inc(&ch->sq_wr_avail);
+		srpt_adjust_srq_wr_avail(ch, 1);
 	return ret;
 }
 
@@ -1330,7 +1343,7 @@ static void srpt_handle_send_err_comp(struct srpt_rdma_ch *ch, u64 wr_id,
 	struct scst_cmd *scmnd;
 	u32 index;
 
-	atomic_inc(&ch->sq_wr_avail);
+	srpt_adjust_srq_wr_avail(ch, 1);
 
 	index = idx_from_wr_id(wr_id);
 	ioctx = ch->ioctx_ring[index];
@@ -1368,7 +1381,7 @@ static void srpt_handle_send_comp(struct srpt_rdma_ch *ch,
 {
 	enum srpt_command_state state;
 
-	atomic_inc(&ch->sq_wr_avail);
+	srpt_adjust_srq_wr_avail(ch, 1);
 
 	state = srpt_set_cmd_state(ioctx, SRPT_STATE_DONE);
 
@@ -1404,7 +1417,7 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 	struct scst_cmd *scmnd;
 
 	EXTRACHECKS_WARN_ON(ioctx->n_rdma <= 0);
-	atomic_add(ioctx->n_rdma, &ch->sq_wr_avail);
+	srpt_adjust_srq_wr_avail(ch, ioctx->n_rdma);
 
 	scmnd = ioctx->scmnd;
 	if (scmnd) {
@@ -1441,7 +1454,7 @@ static void srpt_handle_rdma_err_comp(struct srpt_rdma_ch *ch,
 					    ioctx->ioctx.index);
 				break;
 			}
-			atomic_add(ioctx->n_rdma, &ch->sq_wr_avail);
+			srpt_adjust_srq_wr_avail(ch, ioctx->n_rdma);
 			if (state == SRPT_STATE_NEED_DATA)
 				srpt_abort_cmd(ioctx, context);
 			else
@@ -2008,7 +2021,7 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 		goto err_destroy_cq;
 	}
 
-	atomic_set(&ch->sq_wr_avail, qp_init->cap.max_send_wr);
+	ch->sq_wr_avail = qp_init->cap.max_send_wr;
 
 	TRACE_DBG("%s: max_cqe= %d max_sge= %d sq_size = %d"
 		  " cm_id= %p", __func__, ch->cq->cqe,
@@ -2901,8 +2914,7 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 
 	if (dir == SCST_DATA_WRITE) {
 		ret = -ENOMEM;
-		sq_wr_avail = atomic_sub_return(ioctx->n_rdma,
-						 &ch->sq_wr_avail);
+		sq_wr_avail = srpt_adjust_srq_wr_avail(ch, -ioctx->n_rdma);
 		if (sq_wr_avail < 0) {
 			PRINT_WARNING("IB send queue full (needed %d)",
 				      ioctx->n_rdma);
@@ -2941,7 +2953,7 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 
 out:
 	if (unlikely(dir == SCST_DATA_WRITE && ret < 0))
-		atomic_add(ioctx->n_rdma, &ch->sq_wr_avail);
+		srpt_adjust_srq_wr_avail(ch, ioctx->n_rdma);
 	return ret;
 }
 
