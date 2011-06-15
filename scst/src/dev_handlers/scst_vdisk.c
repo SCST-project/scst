@@ -1382,6 +1382,45 @@ out:
 	return;
 }
 
+static void vdev_blockio_get_unmap_params(struct scst_vdisk_dev *virt_dev,
+	uint32_t *unmap_gran, uint32_t *unmap_alignment)
+{
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32) && (!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
+	struct file *fd;
+	struct request_queue *q;
+#endif
+
+	TRACE_ENTRY();
+
+	*unmap_gran = 1;
+	*unmap_alignment = 0;
+
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32) && (!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
+	fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
+	if (IS_ERR(fd)) {
+		PRINT_ERROR("filp_open(%s) returned error %ld",
+			virt_dev->filename, PTR_ERR(fd));
+		goto out;
+	}
+
+	q = bdev_get_queue(fd->f_dentry->d_inode->i_bdev);
+	if (q == NULL) {
+		PRINT_ERROR("No queue for device %s", virt_dev->filename);
+		goto out_close;
+	}
+
+	*unmap_gran = q->limits.discard_granularity;
+	*unmap_alignment = q->limits.discard_alignment;
+
+out_close:
+	filp_close(fd, NULL);
+
+out:
+#endif
+	TRACE_EXIT();
+	return;
+}
+
 static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 {
 	int32_t length, i, resp_len = 0;
@@ -1566,9 +1605,20 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 				/* MAXIMUM UNMAP BLOCK DESCRIPTOR COUNT is UNLIMITED */
 				put_unaligned(__constant_cpu_to_be32(0xFFFFFFFF),
 					      (uint32_t *)&buf[24]);
-				/* OPTIMAL UNMAP GRANULARITY is 1 */
-				put_unaligned(__constant_cpu_to_be32(1),
-					      (uint32_t *)&buf[28]);
+				if (virt_dev->blockio) {
+					/* OPTIMAL UNMAP GRANULARITY AND ALIGNMENT*/
+					uint32_t gran, align;
+					vdev_blockio_get_unmap_params(virt_dev,
+						&gran, &align);
+					put_unaligned(cpu_to_be32(gran),
+						(uint32_t *)&buf[28]);
+					put_unaligned(cpu_to_be32(align),
+						(uint32_t *)&buf[32]);
+				} else {
+					/* OPTIMAL UNMAP GRANULARITY is 1 */
+					put_unaligned(__constant_cpu_to_be32(1),
+						(uint32_t *)&buf[28]);
+				}
 			}
 			resp_len = buf[3] + 4;
 		} else if ((0xB2 == cmd->cdb[2]) &&
