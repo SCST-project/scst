@@ -346,9 +346,9 @@ void scst_cmd_init_done(struct scst_cmd *cmd,
 
 	TRACE_DBG("Preferred context: %d (cmd %p)", pref_context, cmd);
 	TRACE(TRACE_SCSI, "tag=%llu, lun=%lld, CDB len=%d, queue_type=%x "
-		"(cmd %p)", (long long unsigned int)cmd->tag,
+		"(cmd %p, sess %p)", (long long unsigned int)cmd->tag,
 		(long long unsigned int)cmd->lun, cmd->cdb_len,
-		cmd->queue_type, cmd);
+		cmd->queue_type, cmd, sess);
 	PRINT_BUFF_FLAG(TRACE_SCSI|TRACE_RCV_BOT, "Receiving CDB",
 		cmd->cdb, cmd->cdb_len);
 
@@ -5678,10 +5678,10 @@ static void scst_mgmt_cmd_send_done(struct scst_mgmt_cmd *mcmd)
 
 	if (mcmd->fn < SCST_UNREG_SESS_TM)
 		TRACE(TRACE_MGMT, "TM fn %d finished, "
-		"status %x", mcmd->fn, mcmd->status);
+			"status %d", mcmd->fn, mcmd->status);
 	else
 		TRACE_MGMT_DBG("TM fn %d finished, "
-		"status %x", mcmd->fn, mcmd->status);
+			"status %d", mcmd->fn, mcmd->status);
 
 	if (mcmd->fn == SCST_PR_ABORT_ALL) {
 		mcmd->origin_pr_cmd->scst_cmd_done(mcmd->origin_pr_cmd,
