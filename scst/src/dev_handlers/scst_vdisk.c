@@ -154,6 +154,9 @@ struct scst_vdisk_dev {
 	unsigned int cdrom_empty:1;
 	unsigned int removable:1;
 	unsigned int thin_provisioned:1;
+	unsigned int thin_provisioned_manually_set:1;
+	unsigned int dev_thin_provisioned:1;
+
 
 	int virt_id;
 	char name[16+1];	/* Name of the virtual device,
@@ -608,18 +611,19 @@ static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 {
 	struct inode *inode;
 	struct file *fd;
-	bool supported = false;
 
 	TRACE_ENTRY();
 
-	if (virt_dev->rd_only || !virt_dev->thin_provisioned)
-		goto out;
+	virt_dev->dev_thin_provisioned = 0;
+
+	if (virt_dev->rd_only)
+		goto out_check;
 
 	fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
 	if (IS_ERR(fd)) {
 		PRINT_ERROR("filp_open(%s) returned error %ld",
 			virt_dev->filename, PTR_ERR(fd));
-		goto out;
+		goto out_check;
 	}
 
 	inode = fd->f_dentry->d_inode;
@@ -631,31 +635,37 @@ static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 			goto out_close;
 		}
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 31)
-		supported = blk_queue_discard(bdev_get_queue(inode->i_bdev));
-#else
-		supported = false;
+		virt_dev->dev_thin_provisioned =
+			blk_queue_discard(bdev_get_queue(inode->i_bdev));
 #endif
-
 	} else {
 		/*
 		 * truncate_range() was chosen rather as a sample. In future,
 		 * when unmap of range of blocks in file become standard, we
 		 * will just switch to the new call.
 		 */
-		supported = (inode->i_op->truncate_range != NULL);
-	}
-
-	if (!supported) {
-		PRINT_WARNING("Device %s doesn't support thin "
-			"provisioning, disabling it.",
-			virt_dev->filename);
-		virt_dev->thin_provisioned = 0;
+		virt_dev->dev_thin_provisioned = (inode->i_op->truncate_range != NULL);
 	}
 
 out_close:
 	filp_close(fd, NULL);
 
-out:
+out_check:
+	if (virt_dev->thin_provisioned_manually_set) {
+		if (virt_dev->thin_provisioned && !virt_dev->dev_thin_provisioned) {
+			PRINT_WARNING("Device %s doesn't support thin "
+				"provisioning, disabling it.",
+				virt_dev->filename);
+			virt_dev->thin_provisioned = 0;
+		}
+	} else if (virt_dev->blockio) {
+		virt_dev->thin_provisioned = virt_dev->dev_thin_provisioned;
+		if (virt_dev->thin_provisioned)
+			PRINT_INFO("Auto enable thin provisioning for device "
+				"%s", virt_dev->filename);
+
+	}
+
 	TRACE_EXIT();
 	return;
 }
@@ -3582,6 +3592,7 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 			TRACE_DBG("REMOVABLE %d", virt_dev->removable);
 		} else if (!strcasecmp("thin_provisioned", p)) {
 			virt_dev->thin_provisioned = val;
+			virt_dev->thin_provisioned_manually_set = 1;
 			TRACE_DBG("THIN PROVISIONED %d",
 				virt_dev->thin_provisioned);
 		} else if (!strcasecmp("blocksize", p)) {
@@ -4260,7 +4271,7 @@ static ssize_t vdisk_sysfs_tp_show(struct kobject *kobj,
 	virt_dev = dev->dh_priv;
 
 	pos = sprintf(buf, "%d\n%s", virt_dev->thin_provisioned ? 1 : 0,
-		(virt_dev->thin_provisioned == DEF_THIN_PROVISIONED) ? "" :
+		(virt_dev->thin_provisioned == virt_dev->dev_thin_provisioned) ? "" :
 			SCST_SYSFS_KEY_MARK "");
 
 	TRACE_EXIT_RES(pos);
