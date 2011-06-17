@@ -241,6 +241,19 @@ $ ls /sys/bus/scst_target/drivers/ib_srpt/*/sessions
 0x00000000000000000002c9030005f34b
 
 
+Adding and Removing LUNs Dynamically
+------------------------------------
+
+It is possible to add and/or remove LUNs on the target without restarting
+target or initiator. This can be done either via scstadmin or directly via the
+sysfs interface. Although the SCST core will notify the initiator about LUN
+changes, Linux initiators will ignore these notifications. In order to bring a
+Linux initiator again in sync after a LUN change, the initiator has to be told
+to rescan SCSI devices. Rescanning SCSI devices is e.g. possible via the
+rescsan-scsi-bus.sh script that can be found here:
+http://www.garloff.de/kurt/linux/#rescan-scsi
+
+
 High availability
 -----------------
 
