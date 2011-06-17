@@ -4089,7 +4089,7 @@ static int q24_handle_els(scsi_qla_host_t *ha, notify24xx_entry_t *iocb)
 					sess->port_name[6], sess->port_name[7],
 					loop_id);
 
-				q2t_schedule_sess_for_deletion( sess);
+				q2t_schedule_sess_for_deletion(sess);
 
 			} else {
 				/* no session - no action required */
