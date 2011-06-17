@@ -1419,8 +1419,11 @@ static void vdev_blockio_get_unmap_params(struct scst_vdisk_dev *virt_dev,
 		goto out_close;
 	}
 
-	*unmap_gran = q->limits.discard_granularity;
-	*unmap_alignment = q->limits.discard_alignment;
+	*unmap_gran = q->limits.discard_granularity >> virt_dev->block_shift;
+	*unmap_alignment = q->limits.discard_alignment >> virt_dev->block_shift;
+
+	TRACE_DBG("unmap_gran %d, unmap_alignment %d", *unmap_gran,
+		*unmap_alignment);
 
 out_close:
 	filp_close(fd, NULL);
@@ -1622,8 +1625,11 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 						&gran, &align);
 					put_unaligned(cpu_to_be32(gran),
 						(uint32_t *)&buf[28]);
-					put_unaligned(cpu_to_be32(align),
-						(uint32_t *)&buf[32]);
+					if (align != 0) {
+						put_unaligned(cpu_to_be32(align),
+							(uint32_t *)&buf[32]);
+						buf[32] |= 0x80;
+					}
 				} else {
 					/* OPTIMAL UNMAP GRANULARITY is 1 */
 					put_unaligned(__constant_cpu_to_be32(1),
