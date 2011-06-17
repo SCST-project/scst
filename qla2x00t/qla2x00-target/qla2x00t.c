@@ -4051,6 +4051,8 @@ out:
 static int q24_handle_els(scsi_qla_host_t *ha, notify24xx_entry_t *iocb)
 {
 	int res = 1; /* send notify ack */
+	struct q2t_sess *sess;
+	int loop_id;
 
 	TRACE_ENTRY();
 
@@ -4066,6 +4068,37 @@ static int q24_handle_els(scsi_qla_host_t *ha, notify24xx_entry_t *iocb)
 	case ELS_LOGO:
 	case ELS_PRLO:
 		res = q2t_reset(ha, iocb, Q2T_NEXUS_LOSS_SESS);
+
+		/* The peer logged out - if we have a session, we'll drop it */
+		if (IS_FWI2_CAPABLE(ha)) {
+			notify24xx_entry_t *n = (notify24xx_entry_t *)iocb;
+			loop_id = le16_to_cpu(n->nport_handle);
+		} else
+			loop_id = GET_TARGET_ID(ha, (notify_entry_t *)iocb);
+
+		if (loop_id != 0xFFFF) {
+			sess = q2t_find_sess_by_loop_id(ha->tgt, loop_id);
+
+			if (sess) {
+				TRACE_MGMT_DBG("qla2x00t(%ld): port logged out - scheduling session %p for deletion "
+					"(port %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x, loop_id %d)",
+					ha->instance, sess,
+					sess->port_name[0], sess->port_name[1],
+					sess->port_name[2], sess->port_name[3],
+					sess->port_name[4], sess->port_name[5],
+					sess->port_name[6], sess->port_name[7],
+					loop_id);
+
+				q2t_schedule_sess_for_deletion( sess);
+
+			} else {
+				/* no session - no action required */
+			}
+		} else {
+			PRINT_ERROR("qla2x00t(%ld): invalid loop id "
+				"%x for ELS opcode %x", ha->instance,
+				loop_id, iocb->status_subcode);
+		}
 		break;
 
 	case ELS_PDISC:
