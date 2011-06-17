@@ -16,12 +16,12 @@ command in a shell:
 While iSCSI-SCST works fine with an unpatched Linux kernel with the same
 or better speed as other open source iSCSI targets, including IET, if
 you want even better performance you have to patch and rebuild the
-kernel. Select the patch according to your kernel version (2.6.18.1 in
+kernel. Select the patch according to your kernel version (2.6.38.x in
 the example below):
 
-  cd /usr/src/kernels/linux-2.6.18.1
-  patch -p1 < $HOME/scst/iscsi-scst/kernel/patches/put_page_callback-2.6.18.1.patch
-  patch -p1 < $HOME/scst/scst/kernel/scst_exec_req_fifo-2.6.18.patch
+  cd /usr/src/kernels/linux-2.6.38.8
+  patch -p1 < $HOME/scst/iscsi-scst/kernel/patches/put_page_callback-2.6.38.patch
+  patch -p1 < $HOME/scst/scst/kernel/scst_exec_req_fifo-2.6.38.patch
   make clean
 
 Next, build and install the kernel:
@@ -29,21 +29,25 @@ Next, build and install the kernel:
   make && make modules
   make modules_install && make install
 
-For some Linux distributions (a.o. Ubuntu and openSUSE) the above steps do not
-rebuild the initial RAM disk. Make sure you regenerate the RAM disk before
-rebooting. Please look up the documentation of the update-initrd,
-update-initramfs or the mkinitrd command supplied with your distribution.
+For some Linux distributions (e.g. Ubuntu) the above steps do not rebuild the
+initial RAM disk. Make sure you regenerate the RAM disk before rebooting.
+Please look up the documentation of the update-initrd, update-initramfs or the
+mkinitrd command supplied with your distribution.
 
 Now reboot your system such that the newly built kernel is loaded.
 
 Once the system is again up and running the next step is to build and install
-SCST, iSCSI-SCST and scstadmin. You can do this by running the following
-command from the SCST directory:
+SCST, iSCSI-SCST and scstadmin. With most distros (including RHEL 6) you can
+do that by running the following command from the SCST directory:
 
   make scst scst_install iscsi iscsi_install scstadm scstadm_install
 
+When using RHEL 5 or CentOS 5, use these commands instead:
+
+  make enable_proc
+  make scst scst_install iscsi iscsi_install scstadm scstadm_install
+
 iSCSI-SCST includes the following components:
-   * /etc/init.d/iscsi-scst - service script
    * iscsi-scstd - daemon
    * man pages
    * Obsolete configuration files located under iscsi-scst/etc/obsolete, need to be copied to
