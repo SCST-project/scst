@@ -1385,7 +1385,7 @@ out:
 static void vdev_blockio_get_unmap_params(struct scst_vdisk_dev *virt_dev,
 	uint32_t *unmap_gran, uint32_t *unmap_alignment)
 {
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32) && (!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32) || (defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6)
 	struct file *fd;
 	struct request_queue *q;
 #endif
@@ -1395,7 +1395,7 @@ static void vdev_blockio_get_unmap_params(struct scst_vdisk_dev *virt_dev,
 	*unmap_gran = 1;
 	*unmap_alignment = 0;
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32) && (!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32) || (defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6)
 	fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
 	if (IS_ERR(fd)) {
 		PRINT_ERROR("filp_open(%s) returned error %ld",
