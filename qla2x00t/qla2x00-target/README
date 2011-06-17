@@ -24,7 +24,8 @@ following 2.6.26.x commits have been applied to it (upstream ID):
 5f3a9a207f1fccde476dd31b4c63ead2967d934f,
 85821c906cf3563a00a3d98fa380a2581a7a5ff1,
 3c01b4f9fbb43fc911acd33ea7a14ea7a4f9866b,
-8eca3f39c4b11320787f7b216f63214aee8415a9.
+8eca3f39c4b11320787f7b216f63214aee8415a9,
+0f19bc681ed0849a2b95778460a0a8132e3700e2.
 
 See also "ToDo" file for list of known issues and unimplemented
 features.
