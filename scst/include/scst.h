@@ -4105,15 +4105,43 @@ int scst_get_max_lun_commands(struct scst_session *sess, uint64_t lun);
  * allows exclusive wake ups of threads in LIFO order. We need it to let (yet)
  * unneeded threads sleep and not pollute CPU cache by their stacks.
  */
-static inline void add_wait_queue_exclusive_head(wait_queue_head_t *q,
-	wait_queue_t *wait)
+
+static inline void prepare_to_wait_exclusive_head(wait_queue_head_t *q,
+						  wait_queue_t *wait, int state)
 {
 	unsigned long flags;
 
 	wait->flags |= WQ_FLAG_EXCLUSIVE;
 	spin_lock_irqsave(&q->lock, flags);
-	__add_wait_queue(q, wait);
+	if (list_empty(&wait->task_list))
+		__add_wait_queue(q, wait);
+	set_current_state(state);
 	spin_unlock_irqrestore(&q->lock, flags);
+}
+
+/**
+ * wait_event_locked() - Wait until a condition becomes true.
+ * @wq: Wait queue to wait on if @condition is false.
+ * @condition: Condition to wait for. Can be any C expression.
+ * @lock_type: One of lock, lock_bh or lock_irq.
+ * @lock: A spinlock.
+ *
+ * Caller must hold lock of type @lock_type on @lock.
+ */
+#define wait_event_locked(wq, condition, lock_type, lock)		\
+if (!(condition)) {							\
+	DEFINE_WAIT(__wait);						\
+									\
+	do {								\
+		prepare_to_wait_exclusive_head(&(wq), &__wait,		\
+					       TASK_INTERRUPTIBLE);	\
+		if (condition)						\
+			break;						\
+		spin_un ## lock_type(&(lock));				\
+		schedule();						\
+		spin_ ## lock_type(&(lock));				\
+	} while (!(condition));						\
+	finish_wait(&(wq), &__wait);					\
 }
 
 #ifndef CONFIG_SCST_PROC

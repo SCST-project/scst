@@ -1862,29 +1862,13 @@ static int dev_user_get_next_cmd(struct scst_user_dev *dev,
 	struct scst_user_cmd **ucmd)
 {
 	int res = 0;
-	wait_queue_t wait;
 
 	TRACE_ENTRY();
 
-	init_waitqueue_entry(&wait, current);
-
 	while (1) {
-		if (!test_cmd_threads(dev)) {
-			add_wait_queue_exclusive_head(
-				&dev->udev_cmd_threads.cmd_list_waitQ,
-				&wait);
-			for (;;) {
-				set_current_state(TASK_INTERRUPTIBLE);
-				if (test_cmd_threads(dev))
-					break;
-				spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
-				schedule();
-				spin_lock_irq(&dev->udev_cmd_threads.cmd_list_lock);
-			}
-			set_current_state(TASK_RUNNING);
-			remove_wait_queue(&dev->udev_cmd_threads.cmd_list_waitQ,
-				&wait);
-		}
+		wait_event_locked(dev->udev_cmd_threads.cmd_list_waitQ,
+				  test_cmd_threads(dev), lock_irq,
+				  dev->udev_cmd_threads.cmd_list_lock);
 
 		dev_user_process_scst_commands(dev);
 
@@ -3633,22 +3617,8 @@ static int dev_user_cleanup_thread(void *arg)
 
 	spin_lock(&cleanup_lock);
 	while (!kthread_should_stop()) {
-		wait_queue_t wait;
-		init_waitqueue_entry(&wait, current);
-
-		if (!test_cleanup_list()) {
-			add_wait_queue_exclusive(&cleanup_list_waitQ, &wait);
-			for (;;) {
-				set_current_state(TASK_INTERRUPTIBLE);
-				if (test_cleanup_list())
-					break;
-				spin_unlock(&cleanup_lock);
-				schedule();
-				spin_lock(&cleanup_lock);
-			}
-			set_current_state(TASK_RUNNING);
-			remove_wait_queue(&cleanup_list_waitQ, &wait);
-		}
+		wait_event_locked(cleanup_list_waitQ, test_cleanup_list(),
+				  lock, cleanup_lock);
 
 		/*
 		 * We have to poll devices, because commands can go from SCST

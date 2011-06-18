@@ -1095,22 +1095,8 @@ int istrd(void *arg)
 
 	spin_lock_bh(&p->rd_lock);
 	while (!kthread_should_stop()) {
-		wait_queue_t wait;
-		init_waitqueue_entry(&wait, current);
-
-		if (!test_rd_list(p)) {
-			add_wait_queue_exclusive_head(&p->rd_waitQ, &wait);
-			for (;;) {
-				set_current_state(TASK_INTERRUPTIBLE);
-				if (test_rd_list(p))
-					break;
-				spin_unlock_bh(&p->rd_lock);
-				schedule();
-				spin_lock_bh(&p->rd_lock);
-			}
-			set_current_state(TASK_RUNNING);
-			remove_wait_queue(&p->rd_waitQ, &wait);
-		}
+		wait_event_locked(p->rd_waitQ, test_rd_list(p), lock_bh,
+				  p->rd_lock);
 		scst_do_job_rd(p);
 	}
 	spin_unlock_bh(&p->rd_lock);
@@ -1868,22 +1854,8 @@ int istwr(void *arg)
 
 	spin_lock_bh(&p->wr_lock);
 	while (!kthread_should_stop()) {
-		wait_queue_t wait;
-		init_waitqueue_entry(&wait, current);
-
-		if (!test_wr_list(p)) {
-			add_wait_queue_exclusive_head(&p->wr_waitQ, &wait);
-			for (;;) {
-				set_current_state(TASK_INTERRUPTIBLE);
-				if (test_wr_list(p))
-					break;
-				spin_unlock_bh(&p->wr_lock);
-				schedule();
-				spin_lock_bh(&p->wr_lock);
-			}
-			set_current_state(TASK_RUNNING);
-			remove_wait_queue(&p->wr_waitQ, &wait);
-		}
+		wait_event_locked(p->wr_waitQ, test_wr_list(p), lock_bh,
+				  p->wr_lock);
 		scst_do_job_wr(p);
 	}
 	spin_unlock_bh(&p->wr_lock);

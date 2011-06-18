@@ -524,23 +524,8 @@ static int sysfs_work_thread_fn(void *arg)
 
 	spin_lock(&sysfs_work_lock);
 	while (!kthread_should_stop()) {
-		wait_queue_t wait;
-		init_waitqueue_entry(&wait, current);
-
-		if (!test_sysfs_work_list()) {
-			add_wait_queue_exclusive(&sysfs_work_waitQ, &wait);
-			for (;;) {
-				set_current_state(TASK_INTERRUPTIBLE);
-				if (test_sysfs_work_list())
-					break;
-				spin_unlock(&sysfs_work_lock);
-				schedule();
-				spin_lock(&sysfs_work_lock);
-			}
-			set_current_state(TASK_RUNNING);
-			remove_wait_queue(&sysfs_work_waitQ, &wait);
-		}
-
+		wait_event_locked(sysfs_work_waitQ, test_sysfs_work_list(),
+				  lock, sysfs_work_lock);
 		scst_process_sysfs_works();
 	}
 	spin_unlock(&sysfs_work_lock);
