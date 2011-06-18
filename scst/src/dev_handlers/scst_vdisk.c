@@ -1393,7 +1393,8 @@ out:
 }
 
 static void vdev_blockio_get_unmap_params(struct scst_vdisk_dev *virt_dev,
-	uint32_t *unmap_gran, uint32_t *unmap_alignment)
+	uint32_t *unmap_gran, uint32_t *unmap_alignment,
+	uint32_t *max_unmap_lba)
 {
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32) || (defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6)
 	struct file *fd;
@@ -1404,6 +1405,7 @@ static void vdev_blockio_get_unmap_params(struct scst_vdisk_dev *virt_dev,
 
 	*unmap_gran = 1;
 	*unmap_alignment = 0;
+	*max_unmap_lba = 0xFFFFFFFF;
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32) || (defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6)
 	fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
@@ -1421,9 +1423,10 @@ static void vdev_blockio_get_unmap_params(struct scst_vdisk_dev *virt_dev,
 
 	*unmap_gran = q->limits.discard_granularity >> virt_dev->block_shift;
 	*unmap_alignment = q->limits.discard_alignment >> virt_dev->block_shift;
+	*max_unmap_lba = q->limits.max_discard_sectors >> (virt_dev->block_shift - 9);
 
-	TRACE_DBG("unmap_gran %d, unmap_alignment %d", *unmap_gran,
-		*unmap_alignment);
+	TRACE_DBG("unmap_gran %d, unmap_alignment %d, max_unmap_lba %u",
+		*unmap_gran, *unmap_alignment, *max_unmap_lba);
 
 out_close:
 	filp_close(fd, NULL);
@@ -1612,17 +1615,18 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 					512*1024 / virt_dev->block_size)),
 				      (uint32_t *)&buf[12]);
 			if (virt_dev->thin_provisioned) {
-				/* MAXIMUM UNMAP LBA COUNT is UNLIMITED */
-				put_unaligned(__constant_cpu_to_be32(0xFFFFFFFF),
-					      (uint32_t *)&buf[20]);
 				/* MAXIMUM UNMAP BLOCK DESCRIPTOR COUNT is UNLIMITED */
 				put_unaligned(__constant_cpu_to_be32(0xFFFFFFFF),
 					      (uint32_t *)&buf[24]);
 				if (virt_dev->blockio) {
-					/* OPTIMAL UNMAP GRANULARITY AND ALIGNMENT*/
-					uint32_t gran, align;
+					/*
+					 * OPTIMAL UNMAP GRANULARITY, ALIGNMENT
+					 * and MAXIMUM UNMAP LBA COUNT */
+					uint32_t gran, align, max_lba;
 					vdev_blockio_get_unmap_params(virt_dev,
-						&gran, &align);
+						&gran, &align, &max_lba);
+					put_unaligned(cpu_to_be32(max_lba),
+					      (uint32_t *)&buf[20]);
 					put_unaligned(cpu_to_be32(gran),
 						(uint32_t *)&buf[28]);
 					if (align != 0) {
@@ -1631,6 +1635,9 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 						buf[32] |= 0x80;
 					}
 				} else {
+					/* MAXIMUM UNMAP LBA COUNT is UNLIMITED */
+					put_unaligned(__constant_cpu_to_be32(0xFFFFFFFF),
+					      (uint32_t *)&buf[20]);
 					/* OPTIMAL UNMAP GRANULARITY is 1 */
 					put_unaligned(__constant_cpu_to_be32(1),
 						(uint32_t *)&buf[28]);
