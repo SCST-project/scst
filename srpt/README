@@ -251,7 +251,8 @@ changes, Linux initiators will ignore these notifications. In order to bring a
 Linux initiator again in sync after a LUN change, the initiator has to be told
 to rescan SCSI devices. Rescanning SCSI devices is e.g. possible via the
 rescsan-scsi-bus.sh script that can be found here:
-http://www.garloff.de/kurt/linux/#rescan-scsi
+http://www.garloff.de/kurt/linux/#rescan-scsi. An example:
+$ rescan-scsi-bus --hosts=${srp_host_id} --channels=0 --ids=0 --luns=0-31
 
 
 High availability
