@@ -1002,10 +1002,10 @@ sub writeConfiguration {
 
 		if (!$$attributes{$attribute}->{'static'}) {
 			if (defined($$attributes{$attribute}->{'keys'})) {
-				foreach my $key (@{$$attributes{$attribute}->{'keys'}}) {
+				foreach my $key (%{$$attributes{$attribute}->{'keys'}}) {
 					my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
 					$value = "\"$value\"" if ($value =~ / /);
-					print $io "\t$attribute $value\n"
+					print $io "$attribute $value\n"
 					  if (defined($value) && ($value ne ''));
 				}
 			} elsif ($nonkey) {
