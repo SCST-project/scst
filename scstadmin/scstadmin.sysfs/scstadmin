@@ -139,7 +139,7 @@ Target LUN Operations
          -driver <driver>
          -target <target>
          -group <group>
-     -replace_lun <lun>      : Replaces a LUN's device with a different one.
+     -replace_lun <lun>      : Replaces a LUN\'s device with a different one.
          -driver <driver>
          -target <target>
          -group <group>
