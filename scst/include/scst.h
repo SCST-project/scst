@@ -4105,7 +4105,6 @@ int scst_get_max_lun_commands(struct scst_session *sess, uint64_t lun);
  * allows exclusive wake ups of threads in LIFO order. We need it to let (yet)
  * unneeded threads sleep and not pollute CPU cache by their stacks.
  */
-
 static inline void prepare_to_wait_exclusive_head(wait_queue_head_t *q,
 						  wait_queue_t *wait, int state)
 {
