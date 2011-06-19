@@ -992,6 +992,7 @@ sub readWorkingConfig {
 	return FALSE;
 }
 
+# Returns 0 upon success and 1 upon error.
 sub writeConfiguration {
 	my $nonkey = shift;
 
@@ -1525,7 +1526,7 @@ sub writeConfiguration {
 
 	close $io;
 
-	return FALSE;
+	return 0;
 }
 
 sub checkConfiguration {
