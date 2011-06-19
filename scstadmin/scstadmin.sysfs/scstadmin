@@ -1430,14 +1430,8 @@ sub writeConfiguration {
 
 				if ($lun_buff || $init_buff) {
 					$group_buff .= " {\n";
-
-					if ($lun_buff) {
-						$group_buff .= $lun_buff;
-					}
-
-					if ($init_buff) {
-						$group_buff .= $init_buff;
-					}
+					$group_buff .= $lun_buff;
+					$group_buff .= $init_buff;
 				}
 
 				my $grp_attributes = $SCST->groupAttributes($driver, $target, $group);
