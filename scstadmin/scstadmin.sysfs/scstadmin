@@ -29,7 +29,7 @@ Query Operations
          [-driver <driver>]
          [-target <target>]
 
-     -list_scst_attr         : List add attributes for SCST.
+     -list_scst_attr         : List all attributes for SCST.
      -list_hnd_attr <hndlr>  : List all attributes for a given handler.
      -list_dev_attr <device> : List all attributes for a given device.
      -list_drv_attr <driver> : List all attributes for a given driver.
