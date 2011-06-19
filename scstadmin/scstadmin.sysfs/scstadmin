@@ -999,7 +999,7 @@ sub writeConfiguration {
 		if (!unlink $CONFIGFILE) {
 			print "Failed to save current configuration, specified ".
 			  "file exists and cannot be deleted.\n";
-			return TRUE;
+			return 1;
 		}
 	}
 
