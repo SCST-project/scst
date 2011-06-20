@@ -160,7 +160,7 @@ static int isns_connect(void)
 		return -errno;
 	}
 
-	log_error("%s %d: new connection %d", __func__, __LINE__, fd);
+	log_info("%s %d: new connection %d", __func__, __LINE__, fd);
 
 	if (!strlen(eid)) {
 		err = isns_get_ip(fd);
@@ -781,18 +781,18 @@ static char *print_scn_pdu(struct isns_hdr *hdr)
 		switch (ntohl(tlv->tag)) {
 		case ISNS_ATTR_ISCSI_NAME:
 			((char *)tlv->value)[vlen-1] = '\0';
-			log_error("scn name: %u, %s", vlen, (char *)tlv->value);
+			log_debug(3, "scn name: %u, %s", vlen, (char *)tlv->value);
 			if (!name)
 				name = (char *)tlv->value;
 			break;
 		case ISNS_ATTR_TIMESTAMP:
 			if (vlen < 8)
 				goto next;
-			/* log_error("%u : %u : %" PRIx64, ntohl(tlv->tag), vlen, */
+			/* log_debug(3, "%u : %u : %" PRIx64, ntohl(tlv->tag), vlen, */
 			/* *((uint64_t *)tlv->value)); */
 			break;
 		case ISNS_ATTR_ISCSI_SCN_BITMAP:
-			log_error("scn bitmap : %x", *((uint32_t *)tlv->value));
+			log_debug(3, "scn bitmap : %x", *((uint32_t *)tlv->value));
 			break;
 		}
 
@@ -876,7 +876,7 @@ found:
 			break;
 		case ISNS_ATTR_ISCSI_NODE_TYPE:
 			if (ntohl(*(tlv->value)) == ISNS_NODE_INITIATOR && name) {
-				log_error("%s %d: %s", __func__, __LINE__,
+				log_debug(3, "%s %d: %s", __func__, __LINE__,
 					  (char *)name);
 				ini = malloc(sizeof(*ini));
 				if (!ini)
@@ -946,7 +946,7 @@ int isns_handle(int is_timeout)
 	case ISNS_FUNC_SCN:
 		name = print_scn_pdu(hdr);
 		if (name) {
-			log_error("%s %d: %s", __func__, __LINE__, name);
+			log_debug(3, "%s %d: %s", __func__, __LINE__, name);
 			isns_attr_query(name);
 		}
 		break;
@@ -974,7 +974,7 @@ static int scn_accept_connection(void)
 			  strerror(errno));
 		return -errno;
 	}
-	log_error("Accept scn connection %d", fd);
+	log_info("Accept scn connection %d", fd);
 
 	err = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
 	if (err)
@@ -1030,7 +1030,7 @@ int isns_scn_handle(int is_accept)
 	uint16_t sequence __attribute__((unused));
 	char *name = NULL;
 
-	log_error("%s %d: %d", __func__, __LINE__, is_accept);
+	log_debug(3, "%s %d: %d", __func__, __LINE__, is_accept);
 
 	if (is_accept)
 		return scn_accept_connection();
