@@ -609,14 +609,14 @@ out:
 
 static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 {
-	struct inode *inode;
-	struct file *fd;
+	struct inode *inode = NULL;
+	struct file *fd = NULL;
 
 	TRACE_ENTRY();
 
 	virt_dev->dev_thin_provisioned = 0;
 
-	if (virt_dev->rd_only)
+	if (virt_dev->rd_only || (virt_dev->filename == NULL))
 		goto out_check;
 
 	fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
@@ -648,7 +648,8 @@ static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 	}
 
 out_close:
-	filp_close(fd, NULL);
+	if (fd != NULL)
+		filp_close(fd, NULL);
 
 out_check:
 	if (virt_dev->thin_provisioned_manually_set) {
