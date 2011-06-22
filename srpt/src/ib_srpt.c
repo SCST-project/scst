@@ -697,13 +697,11 @@ static int srpt_refresh_port(struct srpt_port *sport)
 	return 0;
 
 err_query_port:
-
 	port_modify.set_port_cap_mask = 0;
 	port_modify.clr_port_cap_mask = IB_PORT_DEVICE_MGMT_SUP;
 	ib_modify_port(sport->sdev->device, sport->port, 0, &port_modify);
 
 err_mod_port:
-
 	TRACE_EXIT_RES(ret);
 
 	return ret;
