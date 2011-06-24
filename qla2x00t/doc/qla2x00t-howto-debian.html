@@ -1,9 +1,8 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html>
 	<head>
 		<meta http-equiv="content-type" content="text/html; charset=ISO-8859-1">
 		<title>How to build and configure QLogic target driver for 22xx/23xx/24xx/25xx adapters on Ubuntu/Debian</title>
-		<style type="text/css">
+		<style>
 			li {
 				padding: 5px 0px 5px 0px;
 			}
@@ -24,13 +23,21 @@
 			}
 		</style>
 	</head>
-	<body>
+	<body width="1024">
 		<div style="width: 1024px;">
 
 				<div style="text-align: center; width: 1024px;"><strong>How to build and configure QLogic target driver for 22xx/23xx/24xx/25xx adapters on Ubuntu/Debian. A Step by step guide.</strong></div>
 				
 				<br><br>
+				<div class="specialbox" style="width: 1024px;">
+				Author: <a href="mailto:b.schut@iu.nl?subject=SCST Debian/Ubuntu HowTo">Barry Schut</a>, <a href="http://www.iu.nl" target="_new" title="Internet Unie BV">Internet Unie BV</a>.<br>
+				<p>
+					You can email me with questions regarding this guide, suppliments or corrections. I might answer your email, I might not, on that I will and can not provide any waranty.
+				</p>
+				Copyrights 2011 SCST Project, released under the GNU GPL.
+				</div>
 				
+				<br>
 				<div class="specialbox" style="width: 1024px;">
 				<strong>Prerequisites:</strong>
 				<ul style="list-style-type: decimal;">
@@ -46,12 +53,12 @@
 				<b>Note 1:</b> I know this guide never builds a debian kernel package, i did not care about this, i only wanted to get the Generic SCSI Target Subsystem for Linux to work. I also know its not a good idea to compile anything as root, but again: i did not care about that either: the machine was a clean install, nobody will ever get hurt by me compiling a kernel or anything else as root.
 				</div>
 				<div class="specialbox" style="width: 1024px;">
-				<b>Note 2:</b> I have to thank the original creator of <a>this guide</a>. I can not find your name but i can say i would not have been able to make it work wihtout it. I have based this document on that HowTo as a template.<br>
+				<b>Note 2:</b> I have to thank the original creator of <a href="http://scst.sourceforge.net/qla2x00t-howto.html" target="_new" title="Original Guide">this guide</a>. I can not find your name but i can say i would not have been able to make it work without it. I have based this document on that HowTo as a template.<br>
 				</div>
 				<br>
 				<div style="text-align: center; width: 1024px;"> <strong>ON TARGET</strong></div>
 				<ul style="list-style-type: decimal;">
-					<li>Run the following apt command to install everything you might need or find useful:<br>
+					<li>Run the following apt command to install everything you might need or find usefull:<br>
 				
 				<div class="specialbox">
 					# apt-get install linux-source subversion patch libcunit1-ncurses libncurses5-dev screen cramfsprogs bootcd-mkinitramfs lsscsi
@@ -102,7 +109,7 @@
 				    # svn co https://scst.svn.sourceforge.net/svnroot/scst
 				    </div>
 				    If the command returns successfully then you'll have 'scst'<br>
-				    directory under your current directory ( here it is /root )<br><br>
+				    directory under your current directory ( here it is /root )<br>
 				</li>
 				<li>Change directory to ~scst/trunk/<br>
 				    <div class="specialbox">
@@ -130,7 +137,7 @@
 				www
 				</div>
 				</li>
-				<li>Patch the kernel (the kernel version you've downloaded in step 1)<br>
+				<li>Patch the kernel (the kernel version you've downloaded in 'Target' step 1)<br>
 					<div class="specialbox">
 				    # cp /root/scst/trunk/scst/kernel/scst_exec_req_fifo-2.x.xxx.patch /usr/src/linux/<br>
 				    # cd /usr/src/linux/<br>
@@ -157,7 +164,7 @@
 				    # CONFIG_HIGHMEM4G is not set<br>
 				    # CONFIG_HIGHMEM64G is not set
 				  </div>
-				   	If you have system with more than 1GB of memory, consider to change CONFIG_VMSPLIT option to the corresponding value.<br>
+				   	If you have system with more than 1GB of memory, consider to change CONFIG_VMSPLIT option to the correspinding value.<br>
 				  <div class="specialbox">
 				    # pwd<br>
 				    /usr/src/linux<br>
@@ -264,7 +271,7 @@
 					</div>
 				</li>
 				<li>To see the device remotely, we have to add it to at least in the LUNs set for our target.<br>
-				    We must have LUN 0 (LUs numeration must not start from, e.g., 1).<br><br>
+				    We must have LUN 0 (LUNs numeration must not start from, e.g., 1).<br><br>
 				
 				    The simplest way to do that is to write an scstadmin's config file:<br><br>
 				<div class="specialbox">
@@ -331,10 +338,10 @@
 				   &lt; snip from README &gt;<br><br>
 				
 				    But as I've already loaded the device handler(scst_vdisk) on the target, 
-				    hence I don't need to perform step 17. <br><br>
+				    hence I don't need to perform 'Initiator' step 1. <br><br>
 				   
 				</li>
-				<li>After enabling the target mode on the target (see step 16),
+				<li>After enabling the target mode on the target (see 'Target' step 15),
 				    to see new targets and devices you need either to rescan 
 				    initiator(s) manually, for example, by rmmod/modprobe the
 				    corresponding FC device module on the initiator, or reboot the initiator itself.
