@@ -2008,7 +2008,9 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 	qp_init->sq_sig_type = IB_SIGNAL_REQ_WR;
 	qp_init->qp_type = IB_QPT_RC;
 	qp_init->cap.max_send_wr = srpt_sq_size;
-	qp_init->cap.max_send_sge = SRPT_DEF_SG_PER_WQE;
+	ch->max_sge = sdev->dev_attr.max_sge - 2;
+	BUG_ON(ch->max_sge <= 2);
+	qp_init->cap.max_send_sge = ch->max_sge;
 
 	ch->qp = ib_create_qp(sdev->pd, qp_init);
 	if (IS_ERR(ch->qp)) {
@@ -2684,10 +2686,12 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	u32 dma_len;
 	int count, nrdma;
 	int i, j, k;
+	int max_sge;
 
 	BUG_ON(!ch);
 	BUG_ON(!ioctx);
 	BUG_ON(!scmnd);
+	max_sge = ch->max_sge;
 	dir = scst_cmd_get_data_direction(scmnd);
 	BUG_ON(dir == SCST_DATA_NONE);
 	/*
@@ -2715,8 +2719,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	if (ioctx->rdma_ius && ioctx->n_rdma_ius)
 		nrdma = ioctx->n_rdma_ius;
 	else {
-		nrdma = (count + SRPT_DEF_SG_PER_WQE - 1) / SRPT_DEF_SG_PER_WQE
-			+ ioctx->n_rbuf;
+		nrdma = (count + max_sge - 1) / max_sge + ioctx->n_rbuf;
 
 		ioctx->rdma_ius = kzalloc(nrdma * sizeof *riu,
 					  scst_cmd_atomic(scmnd)
@@ -2771,7 +2774,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 
 			++riu->sge_cnt;
 
-			if (rsize > 0 && riu->sge_cnt == SRPT_DEF_SG_PER_WQE) {
+			if (rsize > 0 && riu->sge_cnt == max_sge) {
 				++ioctx->n_rdma;
 				riu->sge =
 				    kmalloc(riu->sge_cnt * sizeof *riu->sge,

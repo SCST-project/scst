@@ -108,7 +108,6 @@ enum {
 	SRP_LOGIN_RSP_MULTICHAN_MAINTAINED = 0x2,
 
 	SRPT_DEF_SG_TABLESIZE = 128,
-	SRPT_DEF_SG_PER_WQE = 16,
 
 	MIN_SRPT_SQ_SIZE = 16,
 	DEF_SRPT_SQ_SIZE = 4096,
@@ -208,7 +207,7 @@ struct srpt_tsk_mgmt {
 
 /**
  * struct srpt_send_ioctx - SRPT send I/O context.
- * @ioctx:     See above.
+ * @ioctx:       See above.
  * @ch:          Channel pointer.
  * @rdma_ius:    Array with information about the RDMA mapping.
  * @rbufs:       Pointer to SRP data buffer array.
@@ -275,6 +274,7 @@ enum rdma_ch_state {
  * @qp:            IB queue pair used for communicating over this channel.
  * @cq:            IB completion queue for this channel.
  * @rq_size:       IB receive queue size.
+ * @max_sge:       Maximum length of RDMA scatter list.
  * @sq_wr_avail:   number of work requests available in the send queue.
  * @sport:         pointer to the information of the HCA port used by this
  *                 channel.
@@ -304,6 +304,7 @@ struct srpt_rdma_ch {
 	struct ib_qp		*qp;
 	struct ib_cq		*cq;
 	int			rq_size;
+	int			max_sge;
 	int			sq_wr_avail;
 	struct srpt_port	*sport;
 	u8			i_port_id[16];
