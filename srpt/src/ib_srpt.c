@@ -2019,7 +2019,7 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 	 * (max_sge - 3) entries only.
 	 */
 	ch->max_sge = sdev->dev_attr.max_sge - 3;
-	BUG_ON(ch->max_sge < 1);
+	WARN_ON(ch->max_sge < 1);
 	qp_init->cap.max_send_sge = ch->max_sge;
 
 	ch->qp = ib_create_qp(sdev->pd, qp_init);
