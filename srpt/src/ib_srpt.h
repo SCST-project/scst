@@ -128,12 +128,21 @@ enum {
 	DEFAULT_MAX_RDMA_SIZE = 65536,
 };
 
-static inline u64 encode_wr_id(u8 opcode, u32 idx)
+enum srpt_opcode {
+	SRPT_RECV,
+	SRPT_SEND,
+	SRPT_RDMA_MID,
+	SRPT_RDMA_ABORT,
+	SRPT_RDMA_READ_LAST,
+	SRPT_RDMA_WRITE_LAST,
+};
+
+static inline u64 encode_wr_id(enum srpt_opcode opcode, u32 idx)
 {
 	return ((u64)opcode << 32) | idx;
 }
 
-static inline u8 opcode_from_wr_id(u64 wr_id)
+static inline enum srpt_opcode opcode_from_wr_id(u64 wr_id)
 {
 	return wr_id >> 32;
 }
@@ -215,6 +224,8 @@ struct srpt_tsk_mgmt {
  * @sg:          Pointer to sg-list associated with this I/O context.
  * @spinlock:    Protects 'state'.
  * @state:       I/O context state.
+ * @rdma_aborted: If initiating a multipart RDMA transfer failed, whether
+ *               the already initiated transfers have finished.
  * @scmnd:       SCST command data structure.
  * @dir:
  * @free_list:   Node in srpt_rdma_ch.free_list.
@@ -237,6 +248,7 @@ struct srpt_send_ioctx {
 	struct list_head	free_list;
 	spinlock_t		spinlock;
 	enum srpt_command_state	state;
+	bool			rdma_aborted;
 	struct scst_cmd		*scmnd;
 	scst_data_direction	dir;
 	int			sg_cnt;
