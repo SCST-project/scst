@@ -128,5 +128,16 @@ Index: srpt/src/ib_srpt.c
         --norandommap --ioengine=aio --directory=/mnt --name=test --thread \
         --numjobs=80 --runtime=30
 
+* Test whether aborting multipart RDMA transfers works correctly as follows:
+  - On the target, reload ib_srpt with srpt_sq_size set to 64.
+  - On the initiator, run a direct I/O test with large block sizes, e.g. 128 KB.
+  - Verify that on the target kernel messages similar to the following are
+    logged frequently:
+    ib_srpt: ***ERROR***: srpt_perform_rdmas[2966]: ib_post_send() returned
+    -12 for 1/2
+  - On the target, unload and reload the ib_srpt kernel module.
+  - Verify that no kernel crash occurs on the target.
+  - Repeat the above a few times.
+
 * Repeat the above tests for all three threading modes: thread=0, thread=1
   and thread=2.
