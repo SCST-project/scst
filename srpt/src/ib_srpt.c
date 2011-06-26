@@ -2399,7 +2399,8 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		goto free_ring;
 	}
 
-	ch->thread = kthread_run(srpt_compl_thread, ch, "ib_srpt_compl");
+	ch->thread = kthread_run(srpt_compl_thread, ch, "srpt_%s",
+				 ch->sport->sdev->device->name);
 	if (IS_ERR(ch->thread)) {
 		PRINT_ERROR("failed to create kernel thread %ld",
 			    PTR_ERR(ch->thread));
