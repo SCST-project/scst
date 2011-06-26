@@ -151,7 +151,6 @@ static void srpt_unregister_procfs_entry(struct scst_tgt_template *tgt);
 #endif /*CONFIG_SCST_PROC*/
 static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 				    struct srpt_send_ioctx *ioctx);
-static void srpt_release_channel(struct srpt_rdma_ch *ch);
 static void srpt_free_ch(struct scst_session *sess);
 
 static enum rdma_ch_state
@@ -355,7 +354,7 @@ static void srpt_qp_event(struct ib_event *event, struct srpt_rdma_ch *ch)
 		break;
 	case IB_EVENT_QP_LAST_WQE_REACHED:
 		if (srpt_test_and_set_ch_state(ch, CH_DRAINING, CH_RELEASING))
-			srpt_release_channel(ch);
+			wake_up_process(ch->thread);
 		else
 			TRACE_DBG("%s: state %d - ignored LAST_WQE.",
 				  ch->sess_name, ch->state);
@@ -2148,15 +2147,6 @@ static void srpt_drain_channel(struct ib_cm_id *cm_id)
 		TRACE_DBG("Channel already in state %d", ch->state);
 }
 
-/**
- * srpt_release_channel() - Release channel resources.
- */
-static void srpt_release_channel(struct srpt_rdma_ch *ch)
-{
-	WARN_ON(ch->state != CH_RELEASING);
-	wake_up_process(ch->thread);
-}
-
 static void srpt_free_ch(struct scst_session *sess)
 {
 	struct srpt_rdma_ch *ch;
@@ -2631,7 +2621,7 @@ static void srpt_cm_drep_recv(struct ib_cm_id *cm_id)
  * Note: srpt_cm_handler() must only return a non-zero value when transferring
  * ownership of the cm_id to a channel if srpt_cm_req_recv() failed. Returning
  * a non-zero value in any other case will trigger a race with the
- * ib_destroy_cm_id() call in srpt_release_channel().
+ * ib_destroy_cm_id() call in srpt_free_ch().
  */
 static int srpt_cm_handler(struct ib_cm_id *cm_id, struct ib_cm_event *event)
 {
