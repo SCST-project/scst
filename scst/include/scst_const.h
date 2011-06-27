@@ -266,6 +266,7 @@ enum scst_cdb_flags {
 #define scst_sense_reservation_preempted	UNIT_ATTENTION,  0x2A, 0x03
 #define scst_sense_reservation_released		UNIT_ATTENTION,  0x2A, 0x04
 #define scst_sense_registrations_preempted	UNIT_ATTENTION,  0x2A, 0x05
+#define scst_sense_asym_access_state_changed	UNIT_ATTENTION,  0x2A, 0x06
 #define scst_sense_reported_luns_data_changed	UNIT_ATTENTION,  0x3F, 0xE
 #define scst_sense_inquery_data_changed		UNIT_ATTENTION,  0x3F, 0x3
 
@@ -369,6 +370,14 @@ enum scst_cdb_flags {
 #define SCST_INQ_NORMACA_BIT         0x20
 
 /*************************************************************
+ ** TPGS field in byte 5 of the INQUIRY response (SPC-4).
+ *************************************************************/
+enum {
+	SCST_INQ_TPGS_MODE_IMPLICIT = 0x10,
+	SCST_INQ_TPGS_MODE_EXPLICIT = 0x20,
+};
+
+/*************************************************************
  ** Byte 2 in RESERVE_10 CDB
  *************************************************************/
 #define SCST_RES_3RDPTY              0x10
@@ -401,6 +410,45 @@ enum scst_cdb_flags {
 #define SCSI_TRANSPORTID_PROTOCOLID_SRP		4
 #define SCSI_TRANSPORTID_PROTOCOLID_ISCSI	5
 #define SCSI_TRANSPORTID_PROTOCOLID_SAS		6
+
+/**
+ * enum scst_tg_state - SCSI target port group asymmetric access state.
+ *
+ * See also the documentation of the REPORT TARGET PORT GROUPS command in SPC-4.
+ */
+enum scst_tg_state {
+	SCST_TG_STATE_OPTIMIZED		= 0x0,
+	SCST_TG_STATE_NONOPTIMIZED	= 0x1,
+	SCST_TG_STATE_STANDBY		= 0x2,
+	SCST_TG_STATE_UNAVAILABLE	= 0x3,
+	SCST_TG_STATE_LBA_DEPENDENT	= 0x4,
+	SCST_TG_STATE_OFFLINE		= 0xe,
+	SCST_TG_STATE_TRANSITIONING	= 0xf,
+};
+
+/**
+ * Target port group preferred bit.
+ *
+ * See also the documentation of the REPORT TARGET PORT GROUPS command in SPC-4.
+ */
+enum {
+	SCST_TG_PREFERRED = 0x80,
+};
+
+/**
+ * enum scst_tg_sup - Supported SCSI target port group states.
+ *
+ * See also the documentation of the REPORT TARGET PORT GROUPS command in SPC-4.
+ */
+enum scst_tg_sup {
+	SCST_TG_SUP_OPTIMIZED		= 0x01,
+	SCST_TG_SUP_NONOPTIMIZED	= 0x02,
+	SCST_TG_SUP_STANDBY		= 0x04,
+	SCST_TG_SUP_UNAVAILABLE		= 0x08,
+	SCST_TG_SUP_LBA_DEPENDENT	= 0x10,
+	SCST_TG_SUP_OFFLINE		= 0x40,
+	SCST_TG_SUP_TRANSITION		= 0x80,
+};
 
 /*************************************************************
  ** Misc SCSI constants

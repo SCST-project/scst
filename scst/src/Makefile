@@ -45,6 +45,7 @@ scst-y        += scst_sysfs.o
 scst-y        += scst_mem.o
 scst-y        += scst_debug.o
 scst-y        += scst_pres.o
+scst-y        += scst_tg.o
 obj-$(CONFIG_SCST)   += scst.o dev_handlers/
 
 obj-$(BUILD_DEV) += $(DEV_HANDLERS_DIR)/

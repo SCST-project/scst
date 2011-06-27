@@ -5,6 +5,7 @@
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
  *  Copyright (C) 2007 - 2010 ID7 Ltd.
  *  Copyright (C) 2010 - 2011 SCST Ltd.
+ *  Copyright (C) 2010 - 2011 Bart Van Assche <bvanassche@acm.org>.
  *
  *  Main SCSI target mid-level include file.
  *
@@ -2589,6 +2590,65 @@ struct scst_acn {
 	struct kobj_attribute *acn_attr;
 };
 
+/**
+ * struct scst_dev_group - A group of SCST devices (struct scst_device).
+ *
+ * Each device is member of zero or one device groups. With each device group
+ * there are zero or more target groups associated.
+ */
+struct scst_dev_group {
+	char			*name;
+	struct list_head	entry;
+	struct list_head	dev_list;
+	struct list_head	tg_list;
+	struct kobject		kobj;
+	struct kobject		*dev_kobj;
+	struct kobject		*tg_kobj;
+};
+
+/**
+ * struct scst_dg_dev - A node in scst_dev_group.dev_list.
+ */
+struct scst_dg_dev {
+	struct list_head	entry;
+	struct scst_device	*dev;
+};
+
+/**
+ * struct scst_target_group - A group of SCSI targets (struct scst_tgt).
+ *
+ * Such a group is either a primary target port group or a secondary
+ * port group. See also SPC-4 for more information.
+ */
+struct scst_target_group {
+	struct scst_dev_group	*dg;
+	char			*name;
+	uint16_t		group_id;
+	enum scst_tg_state	state;
+	bool			preferred;
+	struct list_head	entry;
+	struct list_head	tgt_list;
+	struct kobject		kobj;
+};
+
+/**
+ * struct scst_tg_tgt - A node in scst_target_group.tgt_list.
+ *
+ * Such a node can either represent a local storage target (struct scst_tgt)
+ * or a storage target on another system running SCST. In the former case tgt
+ * != NULL and rel_tgt_id is ignored. In the latter case tgt == NULL and
+ * rel_tgt_id is relevant.
+ */
+struct scst_tg_tgt {
+	struct list_head	entry;
+	struct scst_target_group *tg;
+	struct kobject          kobj;
+	struct scst_tgt		*tgt;
+	char			*name;
+	uint16_t		rel_tgt_id;
+};
+
+
 /*
  * Used to store per-session UNIT ATTENTIONs
  */
@@ -2868,6 +2928,11 @@ static inline void scst_sess_set_tgt_priv(struct scst_session *sess,
 {
 	sess->tgt_priv = val;
 }
+
+uint16_t scst_lookup_tg_id(struct scst_device *dev, struct scst_tgt *tgt);
+bool scst_impl_alua_configured(struct scst_device *dev);
+int scst_tg_get_group_info(void **buf, uint32_t *response_length,
+			   struct scst_device *dev, uint8_t data_format);
 
 /**
  * Returns TRUE if cmd is being executed in atomic context.
@@ -4112,6 +4177,9 @@ struct scst_sysfs_work_item {
 		struct {
 			struct scst_tgt *tgt_r;
 			unsigned long rel_tgt_id;
+		};
+		struct {
+			struct kobject *kobj;
 		};
 	};
 	int work_res;
