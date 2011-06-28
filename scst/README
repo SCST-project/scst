@@ -277,6 +277,8 @@ in/out in Makefile:
    kernel log and your initiator returns an error. Also report those
    messages in the SCST mailing list scst-devel@lists.sourceforge.net.
    Note, that not all SCSI transports support supplying expected values.
+   You should try to enable this option if you have a not working with
+   SCST pass-through device, for instance, an SATA CDROM.
 
  - CONFIG_SCST_DEBUG_TM - if defined, turns on task management functions
    debugging, when on LUN 6 some of the commands will be delayed for
@@ -383,6 +385,22 @@ had a major change, which made it heavily incompatible with pre-2.6.26
 version. If you need pre-2.6.26 kernel, you need to use obsolete procfs
 interface (see below).
 
+SCST sysfs interface designed to be self descriptive and self
+containing. This means that a high level managament tool for it can be
+written once and automatically support any future sysfs interface
+changes (attributes additions or removals, new target drivers and dev
+handlers, etc.) without any modifications. Scstadmin is an example of
+such management tool.
+
+To implement that an management tool should not be implemented around
+drivers and their attributes, but around common rules those drivers and
+attributes follow. You can find those rules in SysfsRules file. For
+instance, each SCST sysfs file (attribute) can contain in the last line
+mark "[key]". It is automatically added to allow scstadmin and other
+management tools to see which attributes it should save in the config
+file. If you are doing manual attributes manipulations, you can ignore
+this mark.
+
 Root of SCST sysfs interface is /sys/kernel/scst_tgt. It has the
 following entries:
 
@@ -431,10 +449,6 @@ following entries:
    hasn't yet completed, it will also return EAGAIN. But after it's
    completed, it will return the result of this operation (0 for success
    or -errno for error).
-
-Each SCST sysfs file (attribute) can contain in the last line mark
-"[key]". It is automatically added mark used to allow scstadmin to see
-which attributes it should save in the config file. You can ignore it.
 
 "Devices" subdirectory contains subdirectories for each SCST devices.
 

@@ -2018,7 +2018,7 @@ void scst_zero_write_rest(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	len = scst_get_sg_buf_first(cmd, &buf, *cmd->write_sg,
-		*cmd->write_sg_cnt);
+			*cmd->write_sg_cnt);
 	while (len > 0) {
 		int cur_offs;
 
@@ -3077,9 +3077,9 @@ found:
 			TRACE_MGMT_DBG("IO context for t %p not yet "
 				"initialized, waiting...", t);
 			msleep(100);
-			barrier();
 			goto found;
 		}
+		smp_rmb();
 		TRACE_MGMT_DBG("Going to share IO context %p (res %p, ini %s, "
 			"dev %s, cmd_threads %p, grouping type %d)",
 			res->active_cmd_threads->io_context, res,
