@@ -4314,6 +4314,7 @@ int scst_cmd_thread(void *arg)
 	mutex_unlock(&p_cmd_threads->io_context_mutex);
 #endif
 
+	smp_wmb();
 	p_cmd_threads->io_context_ready = true;
 
 	spin_lock_irq(&p_cmd_threads->cmd_list_lock);
