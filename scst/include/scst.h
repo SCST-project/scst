@@ -160,77 +160,81 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
  ** more efficient generated code of the corresponding
  ** "switch" statements.
  *************************************************************/
+enum {
+	/* Dev handler's parse() is going to be called */
+	SCST_CMD_STATE_PARSE = 0,
 
-/* Dev handler's parse() is going to be called */
-#define SCST_CMD_STATE_PARSE	     0
+	/* Allocation of the cmd's data buffer */
+	SCST_CMD_STATE_PREPARE_SPACE,
 
-/* Allocation of the cmd's data buffer */
-#define SCST_CMD_STATE_PREPARE_SPACE 1
+	/* Calling preprocessing_done() */
+	SCST_CMD_STATE_PREPROCESSING_DONE,
 
-/* Calling preprocessing_done() */
-#define SCST_CMD_STATE_PREPROCESSING_DONE 2
+	/* Target driver's rdy_to_xfer() is going to be called */
+	SCST_CMD_STATE_RDY_TO_XFER,
 
-/* Target driver's rdy_to_xfer() is going to be called */
-#define SCST_CMD_STATE_RDY_TO_XFER   3
+	/* Target driver's pre_exec() is going to be called */
+	SCST_CMD_STATE_TGT_PRE_EXEC,
 
-/* Target driver's pre_exec() is going to be called */
-#define SCST_CMD_STATE_TGT_PRE_EXEC  4
+	/*
+	 * Cmd is going to be sent for execution. The first stage of it is
+	 * order checking
+	 */
+	SCST_CMD_STATE_EXEC_CHECK_SN,
 
-/* Cmd is going to be sent for execution */
-#define SCST_CMD_STATE_SEND_FOR_EXEC 5
+	/* Internal post-exec checks */
+	SCST_CMD_STATE_PRE_DEV_DONE,
 
-/* Internal post-exec checks */
-#define SCST_CMD_STATE_PRE_DEV_DONE  6
+	/* Internal MODE SELECT pages related checks */
+	SCST_CMD_STATE_MODE_SELECT_CHECKS,
 
-/* Internal MODE SELECT pages related checks */
-#define SCST_CMD_STATE_MODE_SELECT_CHECKS 7
+	/* Dev handler's dev_done() is going to be called */
+	SCST_CMD_STATE_DEV_DONE,
 
-/* Dev handler's dev_done() is going to be called */
-#define SCST_CMD_STATE_DEV_DONE      8
+	/* Checks before target driver's xmit_response() is called */
+	SCST_CMD_STATE_PRE_XMIT_RESP,
 
-/* Checks before target driver's xmit_response() is called */
-#define SCST_CMD_STATE_PRE_XMIT_RESP 9
+	/* Target driver's xmit_response() is going to be called */
+	SCST_CMD_STATE_XMIT_RESP,
 
-/* Target driver's xmit_response() is going to be called */
-#define SCST_CMD_STATE_XMIT_RESP     10
+	/* Cmd finished */
+	SCST_CMD_STATE_FINISHED,
 
-/* Cmd finished */
-#define SCST_CMD_STATE_FINISHED      11
+	/* Internal cmd finished */
+	SCST_CMD_STATE_FINISHED_INTERNAL,
 
-/* Internal cmd finished */
-#define SCST_CMD_STATE_FINISHED_INTERNAL 12
+	SCST_CMD_STATE_LAST_ACTIVE = (SCST_CMD_STATE_FINISHED_INTERNAL+100),
 
-#define SCST_CMD_STATE_LAST_ACTIVE   (SCST_CMD_STATE_FINISHED_INTERNAL+100)
+	/* A cmd is created, but scst_cmd_init_done() not called */
+	SCST_CMD_STATE_INIT_WAIT,
 
-/* A cmd is created, but scst_cmd_init_done() not called */
-#define SCST_CMD_STATE_INIT_WAIT     (SCST_CMD_STATE_LAST_ACTIVE+1)
+	/* LUN translation (cmd->tgt_dev assignment) */
+	SCST_CMD_STATE_INIT,
 
-/* LUN translation (cmd->tgt_dev assignment) */
-#define SCST_CMD_STATE_INIT          (SCST_CMD_STATE_LAST_ACTIVE+2)
+	/* Waiting for scst_restart_cmd() */
+	SCST_CMD_STATE_PREPROCESSING_DONE_CALLED,
 
-/* Waiting for scst_restart_cmd() */
-#define SCST_CMD_STATE_PREPROCESSING_DONE_CALLED (SCST_CMD_STATE_LAST_ACTIVE+3)
+	/* Waiting for data from the initiator (until scst_rx_data() called) */
+	SCST_CMD_STATE_DATA_WAIT,
 
-/* Waiting for data from the initiator (until scst_rx_data() called) */
-#define SCST_CMD_STATE_DATA_WAIT     (SCST_CMD_STATE_LAST_ACTIVE+4)
+	/*
+	 * Cmd is ready for exec (after check if its device is blocked or should
+	 * be blocked)
+	 */
+	SCST_CMD_STATE_EXEC_CHECK_BLOCKING,
 
-/*
- * Cmd is ready for exec (after check if its device is blocked or should
- * be blocked)
- */
-#define SCST_CMD_STATE_START_EXEC (SCST_CMD_STATE_LAST_ACTIVE+5)
+	/* Cmd is being checked if it should be executed locally */
+	SCST_CMD_STATE_LOCAL_EXEC,
 
-/* Cmd is being checked if it should be executed locally */
-#define SCST_CMD_STATE_LOCAL_EXEC    (SCST_CMD_STATE_LAST_ACTIVE+6)
+	/* Cmd is ready for execution */
+	SCST_CMD_STATE_REAL_EXEC,
 
-/* Cmd is ready for execution */
-#define SCST_CMD_STATE_REAL_EXEC     (SCST_CMD_STATE_LAST_ACTIVE+7)
+	/* Waiting for CDB's execution finish */
+	SCST_CMD_STATE_EXEC_WAIT,
 
-/* Waiting for CDB's execution finish */
-#define SCST_CMD_STATE_REAL_EXECUTING (SCST_CMD_STATE_LAST_ACTIVE+8)
-
-/* Waiting for response's transmission finish */
-#define SCST_CMD_STATE_XMIT_WAIT     (SCST_CMD_STATE_LAST_ACTIVE+9)
+	/* Waiting for response's transmission finish */
+	SCST_CMD_STATE_XMIT_WAIT,
+};
 
 /*************************************************************
  * Can be returned instead of cmd's state by dev handlers'
@@ -256,27 +260,28 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 /*************************************************************
  ** States of mgmt command processing state machine
  *************************************************************/
+enum {
+	/* LUN translation (mcmd->tgt_dev assignment) */
+	SCST_MCMD_STATE_INIT = 0,
 
-/* LUN translation (mcmd->tgt_dev assignment) */
-#define SCST_MCMD_STATE_INIT				0
+	/* Mgmt cmd is being processed */
+	SCST_MCMD_STATE_EXEC,
 
-/* Mgmt cmd is being processed */
-#define SCST_MCMD_STATE_EXEC				1
+	/* Waiting for affected commands done */
+	SCST_MCMD_STATE_WAITING_AFFECTED_CMDS_DONE,
 
-/* Waiting for affected commands done */
-#define SCST_MCMD_STATE_WAITING_AFFECTED_CMDS_DONE	2
+	/* Post actions when affected commands done */
+	SCST_MCMD_STATE_AFFECTED_CMDS_DONE,
 
-/* Post actions when affected commands done */
-#define SCST_MCMD_STATE_AFFECTED_CMDS_DONE		3
+	/* Waiting for affected local commands finished */
+	SCST_MCMD_STATE_WAITING_AFFECTED_CMDS_FINISHED,
 
-/* Waiting for affected local commands finished */
-#define SCST_MCMD_STATE_WAITING_AFFECTED_CMDS_FINISHED	4
+	/* Target driver's task_mgmt_fn_done() is going to be called */
+	SCST_MCMD_STATE_DONE,
 
-/* Target driver's task_mgmt_fn_done() is going to be called */
-#define SCST_MCMD_STATE_DONE				5
-
-/* The mcmd finished */
-#define SCST_MCMD_STATE_FINISHED			6
+	/* The mcmd finished */
+	SCST_MCMD_STATE_FINISHED,
+};
 
 /*************************************************************
  ** Constants for "atomic" parameter of SCST's functions
@@ -1206,9 +1211,9 @@ struct scst_dev_type {
 	 * exec_sync flag and consider to setup dedicated threads by
 	 * setting threads_num > 0.
 	 *
-	 * !! If this function is implemented, scst_check_local_events() !!
-	 * !! shall be called inside it just before the actual command's !!
-	 * !! execution.                                                 !!
+	 * Dev handlers implementing internal queuing in their exec() callback
+	 * should call scst_check_local_events() just before the actual
+	 * command's execution (i.e. after it's taken from the internal queue).
 	 *
 	 * OPTIONAL, if not set, the commands will be sent directly to SCSI
 	 * device.
@@ -1895,12 +1900,6 @@ struct scst_cmd {
 	 */
 	unsigned int finished:1;
 
-	/*
-	 * Set if scst_check_local_events() can be called more than once. Set by
-	 * scst_pre_check_local_events().
-	 */
-	unsigned int check_local_events_once_done:1;
-
 #ifdef CONFIG_SCST_DEBUG_TM
 	/* Set if the cmd was delayed by task management debugging code */
 	unsigned int tm_dbg_delayed:1;
@@ -1920,6 +1919,7 @@ struct scst_cmd {
 	struct scst_tgt_template *tgtt;	/* to save extra dereferences */
 	struct scst_tgt *tgt;		/* to save extra dereferences */
 	struct scst_device *dev;	/* to save extra dereferences */
+	struct scst_dev_type *devt;	/* to save extra dereferences */
 
 	/* corresponding I_T_L device for this cmd */
 	struct scst_tgt_dev *tgt_dev;
@@ -3880,13 +3880,20 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic);
 void scst_post_parse(struct scst_cmd *cmd);
 void scst_post_alloc_data_buf(struct scst_cmd *cmd);
 
-int scst_check_local_events(struct scst_cmd *cmd);
+int __scst_check_local_events(struct scst_cmd *cmd, bool preempt_tests_only);
 
-static inline int scst_pre_check_local_events(struct scst_cmd *cmd)
+/**
+ * scst_check_local_events() - check if there are any local SCSI events
+ *
+ * See description of __scst_check_local_events().
+ *
+ * Dev handlers implementing internal queuing in their exec() callback should
+ * call this function just before the actual command's execution (i.e.
+ * after it's taken from the internal queue).
+ */
+static inline int scst_check_local_events(struct scst_cmd *cmd)
 {
-	int res = scst_check_local_events(cmd);
-	cmd->check_local_events_once_done = 1;
-	return res;
+	return __scst_check_local_events(cmd, true);
 }
 
 int scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd);

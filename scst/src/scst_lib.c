@@ -1918,11 +1918,11 @@ static int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
 	case SCST_CMD_STATE_RDY_TO_XFER:
 	case SCST_CMD_STATE_DATA_WAIT:
 	case SCST_CMD_STATE_TGT_PRE_EXEC:
-	case SCST_CMD_STATE_START_EXEC:
-	case SCST_CMD_STATE_SEND_FOR_EXEC:
+	case SCST_CMD_STATE_EXEC_CHECK_BLOCKING:
+	case SCST_CMD_STATE_EXEC_CHECK_SN:
 	case SCST_CMD_STATE_LOCAL_EXEC:
 	case SCST_CMD_STATE_REAL_EXEC:
-	case SCST_CMD_STATE_REAL_EXECUTING:
+	case SCST_CMD_STATE_EXEC_WAIT:
 		res = SCST_CMD_STATE_PRE_DEV_DONE;
 		break;
 
@@ -1977,11 +1977,11 @@ int scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 		cmd->resid_possible = 1;
 		break;
 	case SCST_CMD_STATE_TGT_PRE_EXEC:
-	case SCST_CMD_STATE_SEND_FOR_EXEC:
-	case SCST_CMD_STATE_START_EXEC:
+	case SCST_CMD_STATE_EXEC_CHECK_SN:
+	case SCST_CMD_STATE_EXEC_CHECK_BLOCKING:
 	case SCST_CMD_STATE_LOCAL_EXEC:
 	case SCST_CMD_STATE_REAL_EXEC:
-	case SCST_CMD_STATE_REAL_EXECUTING:
+	case SCST_CMD_STATE_EXEC_WAIT:
 	case SCST_CMD_STATE_DEV_DONE:
 	case SCST_CMD_STATE_PRE_DEV_DONE:
 	case SCST_CMD_STATE_MODE_SELECT_CHECKS:
@@ -4275,15 +4275,15 @@ void scst_free_cmd(struct scst_cmd *cmd)
 	}
 
 	if (likely(cmd->dev != NULL)) {
-		struct scst_dev_type *handler = cmd->dev->handler;
-		if (handler->on_free_cmd != NULL) {
+		struct scst_dev_type *devt = cmd->devt;
+		if (devt->on_free_cmd != NULL) {
 			TRACE_DBG("Calling dev handler %s on_free_cmd(%p)",
-				handler->name, cmd);
+				devt->name, cmd);
 			scst_set_cur_start(cmd);
-			handler->on_free_cmd(cmd);
+			devt->on_free_cmd(cmd);
 			scst_set_dev_on_free_time(cmd);
 			TRACE_DBG("Dev handler %s on_free_cmd() returned",
-				handler->name);
+				devt->name);
 		}
 	}
 
@@ -4444,10 +4444,10 @@ static bool scst_on_sg_tablesize_low(struct scst_cmd *cmd, bool out)
 		goto failed;
 	}
 
-	if (tgt_dev->dev->handler->on_sg_tablesize_low == NULL)
+	if (cmd->devt->on_sg_tablesize_low == NULL)
 		goto failed;
 
-	res = tgt_dev->dev->handler->on_sg_tablesize_low(cmd);
+	res = cmd->devt->on_sg_tablesize_low(cmd);
 
 	TRACE_DBG("on_sg_tablesize_low(%p) returned %d", cmd, res);
 
@@ -5891,151 +5891,6 @@ enum dma_data_direction scst_to_tgt_dma_dir(int scst_dir)
 }
 EXPORT_SYMBOL(scst_to_tgt_dma_dir);
 
-/**
- * scst_obtain_device_parameters() - obtain device control parameters
- *
- * Issues a MODE SENSE for control mode page data and sets the corresponding
- * dev's parameter from it. Returns 0 on success and not 0 otherwise.
- */
-int scst_obtain_device_parameters(struct scst_device *dev)
-{
-	int rc, i;
-	uint8_t cmd[16];
-	uint8_t buffer[4+0x0A];
-	uint8_t sense_buffer[SCSI_SENSE_BUFFERSIZE];
-
-	TRACE_ENTRY();
-
-	EXTRACHECKS_BUG_ON(dev->scsi_dev == NULL);
-
-	for (i = 0; i < 5; i++) {
-		/* Get control mode page */
-		memset(cmd, 0, sizeof(cmd));
-#if 0
-		cmd[0] = MODE_SENSE_10;
-		cmd[1] = 0;
-		cmd[2] = 0x0A;
-		cmd[8] = sizeof(buffer); /* it's < 256 */
-#else
-		cmd[0] = MODE_SENSE;
-		cmd[1] = 8; /* DBD */
-		cmd[2] = 0x0A;
-		cmd[4] = sizeof(buffer);
-#endif
-
-		memset(buffer, 0, sizeof(buffer));
-		memset(sense_buffer, 0, sizeof(sense_buffer));
-
-		TRACE(TRACE_SCSI, "%s", "Doing internal MODE_SENSE");
-		rc = scsi_execute(dev->scsi_dev, cmd, SCST_DATA_READ, buffer,
-				sizeof(buffer), sense_buffer, 15, 0, 0
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,29)
-				, NULL
-#endif
-				);
-
-		TRACE_DBG("MODE_SENSE done: %x", rc);
-
-		if (scsi_status_is_good(rc)) {
-			int q;
-
-			PRINT_BUFF_FLAG(TRACE_SCSI, "Returned control mode "
-				"page data", buffer, sizeof(buffer));
-
-			dev->tst = buffer[4+2] >> 5;
-			q = buffer[4+3] >> 4;
-			if (q > SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER) {
-				PRINT_ERROR("Too big QUEUE ALG %x, dev %s",
-					dev->queue_alg, dev->virt_name);
-			}
-			dev->queue_alg = q;
-			dev->swp = (buffer[4+4] & 0x8) >> 3;
-			dev->tas = (buffer[4+5] & 0x40) >> 6;
-			dev->d_sense = (buffer[4+2] & 0x4) >> 2;
-
-			/*
-			 * Unfortunately, SCSI ML doesn't provide a way to
-			 * specify commands task attribute, so we can rely on
-			 * device's restricted reordering only. Linux I/O
-			 * subsystem doesn't reorder pass-through (PC) requests.
-			 */
-			dev->has_own_order_mgmt = !dev->queue_alg;
-
-			PRINT_INFO("Device %s: TST %x, QUEUE ALG %x, SWP %x, "
-				"TAS %x, D_SENSE %d, has_own_order_mgmt %d",
-				dev->virt_name, dev->tst, dev->queue_alg,
-				dev->swp, dev->tas, dev->d_sense,
-				dev->has_own_order_mgmt);
-
-			goto out;
-		} else {
-			scst_check_internal_sense(dev, rc, sense_buffer,
-				sizeof(sense_buffer));
-#if 0
-			if ((status_byte(rc) == CHECK_CONDITION) &&
-			    SCST_SENSE_VALID(sense_buffer)) {
-#else
-			/*
-			 * 3ware controller is buggy and returns CONDITION_GOOD
-			 * instead of CHECK_CONDITION
-			 */
-			if (SCST_SENSE_VALID(sense_buffer)) {
-#endif
-				PRINT_BUFF_FLAG(TRACE_SCSI, "Returned sense "
-					"data", sense_buffer,
-					sizeof(sense_buffer));
-				if (scst_analyze_sense(sense_buffer,
-						sizeof(sense_buffer),
-						SCST_SENSE_KEY_VALID,
-						ILLEGAL_REQUEST, 0, 0)) {
-					PRINT_INFO("Device %s doesn't support "
-						"MODE SENSE", dev->virt_name);
-					break;
-				} else if (scst_analyze_sense(sense_buffer,
-						sizeof(sense_buffer),
-						SCST_SENSE_KEY_VALID,
-						NOT_READY, 0, 0)) {
-					PRINT_ERROR("Device %s not ready",
-						dev->virt_name);
-					break;
-				}
-			} else {
-				PRINT_INFO("Internal MODE SENSE to "
-					"device %s failed: %x",
-					dev->virt_name, rc);
-				PRINT_BUFF_FLAG(TRACE_SCSI, "MODE SENSE sense",
-					sense_buffer, sizeof(sense_buffer));
-				switch (host_byte(rc)) {
-				case DID_RESET:
-				case DID_ABORT:
-				case DID_SOFT_ERROR:
-					break;
-				default:
-					goto brk;
-				}
-				switch (driver_byte(rc)) {
-				case DRIVER_BUSY:
-				case DRIVER_SOFT:
-					break;
-				default:
-					goto brk;
-				}
-			}
-		}
-	}
-brk:
-	PRINT_WARNING("Unable to get device's %s control mode page, using "
-		"existing values/defaults: TST %x, QUEUE ALG %x, SWP %x, "
-		"TAS %x, D_SENSE %d, has_own_order_mgmt %d", dev->virt_name,
-		dev->tst, dev->queue_alg, dev->swp, dev->tas, dev->d_sense,
-		dev->has_own_order_mgmt);
-
-out:
-	TRACE_EXIT();
-	return 0;
-}
-EXPORT_SYMBOL_GPL(scst_obtain_device_parameters);
-
 /* Called under dev_lock and BH off */
 void scst_process_reset(struct scst_device *dev,
 	struct scst_session *originator, struct scst_cmd *exclude_cmd,
@@ -6774,6 +6629,151 @@ void scst_unblock_dev(struct scst_device *dev)
 	TRACE_EXIT();
 	return;
 }
+
+/**
+ * scst_obtain_device_parameters() - obtain device control parameters
+ *
+ * Issues a MODE SENSE for control mode page data and sets the corresponding
+ * dev's parameter from it. Returns 0 on success and not 0 otherwise.
+ */
+int scst_obtain_device_parameters(struct scst_device *dev)
+{
+	int rc, i;
+	uint8_t cmd[16];
+	uint8_t buffer[4+0x0A];
+	uint8_t sense_buffer[SCSI_SENSE_BUFFERSIZE];
+
+	TRACE_ENTRY();
+
+	EXTRACHECKS_BUG_ON(dev->scsi_dev == NULL);
+
+	for (i = 0; i < 5; i++) {
+		/* Get control mode page */
+		memset(cmd, 0, sizeof(cmd));
+#if 0
+		cmd[0] = MODE_SENSE_10;
+		cmd[1] = 0;
+		cmd[2] = 0x0A;
+		cmd[8] = sizeof(buffer); /* it's < 256 */
+#else
+		cmd[0] = MODE_SENSE;
+		cmd[1] = 8; /* DBD */
+		cmd[2] = 0x0A;
+		cmd[4] = sizeof(buffer);
+#endif
+
+		memset(buffer, 0, sizeof(buffer));
+		memset(sense_buffer, 0, sizeof(sense_buffer));
+
+		TRACE(TRACE_SCSI, "%s", "Doing internal MODE_SENSE");
+		rc = scsi_execute(dev->scsi_dev, cmd, SCST_DATA_READ, buffer,
+				sizeof(buffer), sense_buffer, 15, 0, 0
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,29)
+				, NULL
+#endif
+				);
+
+		TRACE_DBG("MODE_SENSE done: %x", rc);
+
+		if (scsi_status_is_good(rc)) {
+			int q;
+
+			PRINT_BUFF_FLAG(TRACE_SCSI, "Returned control mode "
+				"page data", buffer, sizeof(buffer));
+
+			dev->tst = buffer[4+2] >> 5;
+			q = buffer[4+3] >> 4;
+			if (q > SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER) {
+				PRINT_ERROR("Too big QUEUE ALG %x, dev %s",
+					dev->queue_alg, dev->virt_name);
+			}
+			dev->queue_alg = q;
+			dev->swp = (buffer[4+4] & 0x8) >> 3;
+			dev->tas = (buffer[4+5] & 0x40) >> 6;
+			dev->d_sense = (buffer[4+2] & 0x4) >> 2;
+
+			/*
+			 * Unfortunately, SCSI ML doesn't provide a way to
+			 * specify commands task attribute, so we can rely on
+			 * device's restricted reordering only. Linux I/O
+			 * subsystem doesn't reorder pass-through (PC) requests.
+			 */
+			dev->has_own_order_mgmt = !dev->queue_alg;
+
+			PRINT_INFO("Device %s: TST %x, QUEUE ALG %x, SWP %x, "
+				"TAS %x, D_SENSE %d, has_own_order_mgmt %d",
+				dev->virt_name, dev->tst, dev->queue_alg,
+				dev->swp, dev->tas, dev->d_sense,
+				dev->has_own_order_mgmt);
+
+			goto out;
+		} else {
+			scst_check_internal_sense(dev, rc, sense_buffer,
+				sizeof(sense_buffer));
+#if 0
+			if ((status_byte(rc) == CHECK_CONDITION) &&
+			    SCST_SENSE_VALID(sense_buffer)) {
+#else
+			/*
+			 * 3ware controller is buggy and returns CONDITION_GOOD
+			 * instead of CHECK_CONDITION
+			 */
+			if (SCST_SENSE_VALID(sense_buffer)) {
+#endif
+				PRINT_BUFF_FLAG(TRACE_SCSI, "Returned sense "
+					"data", sense_buffer,
+					sizeof(sense_buffer));
+				if (scst_analyze_sense(sense_buffer,
+						sizeof(sense_buffer),
+						SCST_SENSE_KEY_VALID,
+						ILLEGAL_REQUEST, 0, 0)) {
+					PRINT_INFO("Device %s doesn't support "
+						"MODE SENSE", dev->virt_name);
+					break;
+				} else if (scst_analyze_sense(sense_buffer,
+						sizeof(sense_buffer),
+						SCST_SENSE_KEY_VALID,
+						NOT_READY, 0, 0)) {
+					PRINT_ERROR("Device %s not ready",
+						dev->virt_name);
+					break;
+				}
+			} else {
+				PRINT_INFO("Internal MODE SENSE to "
+					"device %s failed: %x",
+					dev->virt_name, rc);
+				PRINT_BUFF_FLAG(TRACE_SCSI, "MODE SENSE sense",
+					sense_buffer, sizeof(sense_buffer));
+				switch (host_byte(rc)) {
+				case DID_RESET:
+				case DID_ABORT:
+				case DID_SOFT_ERROR:
+					break;
+				default:
+					goto brk;
+				}
+				switch (driver_byte(rc)) {
+				case DRIVER_BUSY:
+				case DRIVER_SOFT:
+					break;
+				default:
+					goto brk;
+				}
+			}
+		}
+	}
+brk:
+	PRINT_WARNING("Unable to get device's %s control mode page, using "
+		"existing values/defaults: TST %x, QUEUE ALG %x, SWP %x, "
+		"TAS %x, D_SENSE %d, has_own_order_mgmt %d", dev->virt_name,
+		dev->tst, dev->queue_alg, dev->swp, dev->tas, dev->d_sense,
+		dev->has_own_order_mgmt);
+
+out:
+	TRACE_EXIT();
+	return 0;
+}
+EXPORT_SYMBOL_GPL(scst_obtain_device_parameters);
 
 void scst_on_hq_cmd_response(struct scst_cmd *cmd)
 {

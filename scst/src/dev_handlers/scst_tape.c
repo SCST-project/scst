@@ -376,14 +376,10 @@ out:
 
 static int tape_perf_exec(struct scst_cmd *cmd)
 {
-	int res = SCST_EXEC_NOT_COMPLETED, rc;
+	int res = SCST_EXEC_NOT_COMPLETED;
 	int opcode = cmd->cdb[0];
 
 	TRACE_ENTRY();
-
-	rc = scst_check_local_events(cmd);
-	if (unlikely(rc != 0))
-		goto out_done;
 
 	cmd->status = 0;
 	cmd->msg_status = 0;

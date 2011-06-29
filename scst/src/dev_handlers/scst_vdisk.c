@@ -910,7 +910,7 @@ static void vdisk_detach_tgt(struct scst_tgt_dev *tgt_dev)
 
 static int vdisk_do_job(struct scst_cmd *cmd)
 {
-	int rc, res;
+	int res;
 	uint64_t lba_start = 0;
 	loff_t data_len = 0;
 	uint8_t *cdb = cmd->cdb;
@@ -935,10 +935,6 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	default:
 		break;
 	}
-
-	rc = scst_check_local_events(cmd);
-	if (unlikely(rc != 0))
-		goto out_done;
 
 	cmd->status = 0;
 	cmd->msg_status = 0;
@@ -1167,8 +1163,6 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 
 out_compl:
 	cmd->completed = 1;
-
-out_done:
 	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
 
 out_thr:
