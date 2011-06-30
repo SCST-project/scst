@@ -1127,7 +1127,6 @@ sub writeConfiguration {
 			$attribute_buff_nk .= "\n" if ($attribute_buff_nk);
 
 			if ($attribute_buff_nk) {
-				$attribute_buff .= "\n" if ($attribute_buff);
 				$attribute_buff .= "\t\t# Non-key attributes\n";
 				$attribute_buff .= $attribute_buff_nk;
 			}
@@ -1205,16 +1204,16 @@ sub writeConfiguration {
 
 				my $attributes = $SCST->lunAttributes($driver, $target, $lun);
 				my $l_attribute_buff =
-				    serializeKeyAttr("\t\t\t\t",
+				    serializeKeyAttr("\t\t\t",
 						     $attributes,
 						     $lun_attrs);
 				my $l_attribute_buff_nk =
-				    serializeNkAttr("\t\t\t\t",
+				    serializeNkAttr("\t\t\t",
 						    $attributes,
 						    $lun_attrs) if ($nonkey);
 
 				if ($l_attribute_buff_nk) {
-					$l_attribute_buff .= "\t\t\t\t# Non-key attributes\n";
+					$l_attribute_buff .= "\t\t\t# Non-key attributes\n";
 					$l_attribute_buff .= $l_attribute_buff_nk;
 				}
 
