@@ -2587,12 +2587,16 @@ out_done:
 
 static inline int scst_real_exec(struct scst_cmd *cmd)
 {
-	int res;
+	int res, rc;
 
 	TRACE_ENTRY();
 
 	BUILD_BUG_ON(SCST_CMD_STATE_RES_CONT_SAME != SCST_EXEC_NOT_COMPLETED);
 	BUILD_BUG_ON(SCST_CMD_STATE_RES_CONT_NEXT != SCST_EXEC_COMPLETED);
+
+	rc = scst_check_local_events(cmd);
+	if (unlikely(rc != 0))
+		goto out_done;
 
 	__scst_cmd_get(cmd);
 
@@ -2611,8 +2615,14 @@ static inline int scst_real_exec(struct scst_cmd *cmd)
 
 	/* SCST_EXEC_* match SCST_CMD_STATE_RES_* */
 
+out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_done:
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
+	res = SCST_CMD_STATE_RES_CONT_NEXT;
+	goto out;
 }
 
 static int scst_do_local_exec(struct scst_cmd *cmd)
@@ -2678,12 +2688,16 @@ out_done:
 
 static int scst_local_exec(struct scst_cmd *cmd)
 {
-	int res;
+	int res, rc;
 
 	TRACE_ENTRY();
 
 	BUILD_BUG_ON(SCST_CMD_STATE_RES_CONT_SAME != SCST_EXEC_NOT_COMPLETED);
 	BUILD_BUG_ON(SCST_CMD_STATE_RES_CONT_NEXT != SCST_EXEC_COMPLETED);
+
+	rc = scst_check_local_events(cmd);
+	if (unlikely(rc != 0))
+		goto out_done;
 
 	__scst_cmd_get(cmd);
 
@@ -2698,8 +2712,15 @@ static int scst_local_exec(struct scst_cmd *cmd)
 	__scst_cmd_put(cmd);
 
 	/* SCST_EXEC_* match SCST_CMD_STATE_RES_* */
+
+out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_done:
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
+	res = SCST_CMD_STATE_RES_CONT_NEXT;
+	goto out;
 }
 
 static int scst_pre_exec_checks(struct scst_cmd *cmd)
@@ -2728,7 +2749,7 @@ static int scst_exec_check_blocking(struct scst_cmd **active_cmd)
 {
 	struct scst_cmd *cmd = *active_cmd;
 	struct scst_cmd *ref_cmd;
-	int count = 0, rc;
+	int count = 0;
 
 	TRACE_ENTRY();
 
