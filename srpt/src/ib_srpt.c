@@ -1101,27 +1101,29 @@ static int srpt_init_ch_qp(struct srpt_rdma_ch *ch, struct ib_qp *qp)
  * @qp: queue pair to change the state of.
  *
  * Returns zero upon success and a negative value upon failure.
- *
- * Note: currently a struct ib_qp_attr takes 136 bytes on a 64-bit system.
- * If this structure ever becomes larger, it might be necessary to allocate
- * it dynamically instead of on the stack.
  */
 static int srpt_ch_qp_rtr(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 {
-	struct ib_qp_attr qp_attr;
+	struct ib_qp_attr *attr;
 	int attr_mask;
 	int ret;
 
-	qp_attr.qp_state = IB_QPS_RTR;
-	ret = ib_cm_init_qp_attr(ch->cm_id, &qp_attr, &attr_mask);
+	attr = kzalloc(sizeof *attr, GFP_KERNEL);
+	if (!attr)
+		return -ENOMEM;
+
+	attr->qp_state = IB_QPS_RTR;
+	ret = ib_cm_init_qp_attr(ch->cm_id, attr, &attr_mask);
 	if (ret)
 		goto out;
 
-	qp_attr.max_dest_rd_atomic = 4;
+	attr->max_dest_rd_atomic = 4;
+	TRACE_DBG("qp timeout = %d", attr->timeout);
 
-	ret = ib_modify_qp(qp, &qp_attr, attr_mask);
+	ret = ib_modify_qp(qp, attr, attr_mask);
 
 out:
+	kfree(attr);
 	return ret;
 }
 
@@ -1131,27 +1133,28 @@ out:
  * @qp: queue pair to change the state of.
  *
  * Returns zero upon success and a negative value upon failure.
- *
- * Note: currently a struct ib_qp_attr takes 136 bytes on a 64-bit system.
- * If this structure ever becomes larger, it might be necessary to allocate
- * it dynamically instead of on the stack.
  */
 static int srpt_ch_qp_rts(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 {
-	struct ib_qp_attr qp_attr;
+	struct ib_qp_attr *attr;
 	int attr_mask;
 	int ret;
 
-	qp_attr.qp_state = IB_QPS_RTS;
-	ret = ib_cm_init_qp_attr(ch->cm_id, &qp_attr, &attr_mask);
+	attr = kzalloc(sizeof *attr, GFP_KERNEL);
+	if (!attr)
+		return -ENOMEM;
+
+	attr->qp_state = IB_QPS_RTS;
+	ret = ib_cm_init_qp_attr(ch->cm_id, attr, &attr_mask);
 	if (ret)
 		goto out;
 
-	qp_attr.max_rd_atomic = 4;
+	attr->max_rd_atomic = 4;
 
-	ret = ib_modify_qp(qp, &qp_attr, attr_mask);
+	ret = ib_modify_qp(qp, attr, attr_mask);
 
 out:
+	kfree(attr);
 	return ret;
 }
 
@@ -1160,10 +1163,17 @@ out:
  */
 static int srpt_ch_qp_err(struct srpt_rdma_ch *ch)
 {
-	struct ib_qp_attr qp_attr;
+	struct ib_qp_attr *attr;
+	int ret;
 
-	qp_attr.qp_state = IB_QPS_ERR;
-	return ib_modify_qp(ch->qp, &qp_attr, IB_QP_STATE);
+	attr = kzalloc(sizeof *attr, GFP_KERNEL);
+	if (!attr)
+		return -ENOMEM;
+
+	attr->qp_state = IB_QPS_ERR;
+	ret = ib_modify_qp(ch->qp, attr, IB_QP_STATE);
+	kfree(attr);
+	return ret;
 }
 
 /**
