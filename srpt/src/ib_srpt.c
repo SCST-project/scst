@@ -1151,6 +1151,9 @@ static int srpt_ch_qp_rts(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 
 	attr->max_rd_atomic = 4;
 
+	TRACE_DBG("Session %s: QP timeout = %d (about %d ms)", ch->sess_name,
+		  attr->timeout, 1 << max(attr->timeout - 8, 0));
+
 	ret = ib_modify_qp(qp, attr, attr_mask);
 
 out:
