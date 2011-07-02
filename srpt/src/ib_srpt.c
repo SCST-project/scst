@@ -1139,6 +1139,8 @@ static int srpt_ch_qp_rts(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 	struct ib_qp_attr *attr;
 	int attr_mask;
 	int ret;
+	uint64_t T_tr_ns;
+	uint32_t max_compl_time_ms;
 
 	attr = kzalloc(sizeof *attr, GFP_KERNEL);
 	if (!attr)
@@ -1151,8 +1153,28 @@ static int srpt_ch_qp_rts(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 
 	attr->max_rd_atomic = 4;
 
-	TRACE_DBG("Session %s: QP timeout = %d (about %d ms)", ch->sess_name,
-		  attr->timeout, 1 << max(attr->timeout - 8, 0));
+	/*
+	 * From IBTA C9-140: Transport Timer timeout interval
+	 * T_tr = 4.096 us * 2**(local ACK timeout) where the local ACK timeout
+	 * is a five-bit value, with zero meaning that the timer is disabled.
+	 */
+	WARN_ON(attr->timeout < 0 || attr->timeout >= (1 << 5));
+	if (attr->timeout) {
+		T_tr_ns = 1ULL << (12 + attr->timeout);
+		max_compl_time_ms = attr->retry_cnt * 4 * T_tr_ns / 1000000;
+		TRACE_DBG("Session %s: QP local ack timeout = %d or T_tr ="
+			  " %u ms; retry_cnt = %d; max compl. time = %d ms",
+			  ch->sess_name,
+			  attr->timeout, (unsigned)(T_tr_ns / (1000 * 1000)),
+			  attr->retry_cnt, max_compl_time_ms);
+	
+		if (max_compl_time_ms >= RDMA_COMPL_TIMEOUT_S * 1000) {
+			PRINT_ERROR("Maximum RDMA completion time (%d ms)"
+				    " exceeds ib_srpt timeout (%d ms)",
+				    max_compl_time_ms,
+				    1000 * RDMA_COMPL_TIMEOUT_S);
+		}
+	}
 
 	ret = ib_modify_qp(qp, attr, attr_mask);
 
@@ -3055,7 +3077,7 @@ out_unmap:
  * srpt_pending_cmd_timeout() - SCST command HCA processing timeout callback.
  *
  * Called by the SCST core if no IB completion notification has been received
- * within max_hw_pending_time seconds.
+ * within RDMA_COMPL_TIMEOUT_S seconds.
  */
 static void srpt_pending_cmd_timeout(struct scst_cmd *scmnd)
 {
@@ -3551,7 +3573,7 @@ static const struct attribute *srpt_sess_attrs[] = {
 static struct scst_tgt_template srpt_template = {
 	.name				 = DRV_NAME,
 	.sg_tablesize			 = SRPT_DEF_SG_TABLESIZE,
-	.max_hw_pending_time		 = 60/*seconds*/,
+	.max_hw_pending_time		 = RDMA_COMPL_TIMEOUT_S,
 #if !defined(CONFIG_SCST_PROC)
 	.enable_target			 = srpt_enable_target,
 	.is_target_enabled		 = srpt_is_target_enabled,
