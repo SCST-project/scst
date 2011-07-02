@@ -1167,7 +1167,7 @@ static int srpt_ch_qp_rts(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 			  ch->sess_name,
 			  attr->timeout, (unsigned)(T_tr_ns / (1000 * 1000)),
 			  attr->retry_cnt, max_compl_time_ms);
-	
+
 		if (max_compl_time_ms >= RDMA_COMPL_TIMEOUT_S * 1000) {
 			PRINT_ERROR("Maximum RDMA completion time (%d ms)"
 				    " exceeds ib_srpt timeout (%d ms)",
