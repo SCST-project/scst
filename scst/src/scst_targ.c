@@ -465,7 +465,9 @@ EXPORT_SYMBOL(scst_cmd_init_done);
 int scst_pre_parse(struct scst_cmd *cmd)
 {
 	int res;
+#ifndef CONFIG_SCST_STRICT_SERIALIZING
 	struct scst_device *dev = cmd->dev;
+#endif
 	struct scst_dev_type *devt = cmd->devt;
 	int rc;
 
