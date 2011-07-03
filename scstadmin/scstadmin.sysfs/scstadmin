@@ -14,6 +14,8 @@ sub usage
 $Version
 
 Usage:
+     -h, -help, --help       : Show this information.
+
 General Operations
      -config <config>        : Configure SCST given the specified <file>.
      -check_config <file>    : Checks the saved configuration <file>.
@@ -292,6 +294,7 @@ sub getArgs {
 	my $to;
 	my $device;
 
+	my $show_usage;
 	my $nonkey;
 	my $force;
 
@@ -365,10 +368,15 @@ sub getArgs {
 			    'to=s'		=> \$to,
 			    'device=s'		=> \$device,
 
+			    'h'			=> \$show_usage,
+			    'help'		=> \$show_usage,
+
 			    'nonkey'		=> \$nonkey,
 			    'noprompt'		=> \$_NOPROMPT_,
 			    'force'		=> \$force,
-			    'debug'             => \$_DEBUG_)) {
+			    'debug'             => \$_DEBUG_) ||
+	    defined($show_usage))
+	{
 		usage();
 	}
 
