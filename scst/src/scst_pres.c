@@ -930,28 +930,32 @@ static void scst_pr_remove_device_files(struct scst_tgt_dev *tgt_dev)
 	set_fs(KERNEL_DS);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
-	res = path_lookup(dev->pr_file_name, 0, &nd);
+	res = dev->pr_file_name ? path_lookup(dev->pr_file_name, 0, &nd) :
+		-ENOENT;
 	if (!res)
 		scst_pr_vfs_unlink_and_put(&nd);
 	else
 		TRACE_DBG("Unable to lookup file '%s' - error %d",
 			dev->pr_file_name, res);
 
-	res = path_lookup(dev->pr_file_name1, 0, &nd);
+	res = dev->pr_file_name1 ? path_lookup(dev->pr_file_name1, 0, &nd) :
+		-ENOENT;
 	if (!res)
 		scst_pr_vfs_unlink_and_put(&nd);
 	else
 		TRACE_DBG("Unable to lookup file '%s' - error %d",
 			dev->pr_file_name1, res);
 #else
-	res = kern_path(dev->pr_file_name, 0, &path);
+	res = dev->pr_file_name ? kern_path(dev->pr_file_name, 0, &path) :
+		-ENOENT;
 	if (!res)
 		scst_pr_vfs_unlink_and_put(&path);
 	else
 		TRACE_DBG("Unable to lookup file '%s' - error %d",
 			dev->pr_file_name, res);
 
-	res = kern_path(dev->pr_file_name1, 0, &path);
+	res = dev->pr_file_name1 ? kern_path(dev->pr_file_name1, 0, &path) :
+		-ENOENT;
 	if (!res)
 		scst_pr_vfs_unlink_and_put(&path);
 	else
