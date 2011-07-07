@@ -9,7 +9,7 @@ $Version  = 'SCST Configurator v2.0.0';
 
 sub usage
   {
-    die <<"EndUsage";
+    print <<"EndUsage";
 $Version
 
 Usage:
