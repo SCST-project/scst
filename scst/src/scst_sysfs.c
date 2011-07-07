@@ -89,13 +89,10 @@ static struct scst_trace_log scst_trace_tbl[] = {
 static struct scst_trace_log scst_local_trace_tbl[] = {
 	{ TRACE_RTRY,			"retry"			},
 	{ TRACE_SCSI_SERIALIZING,	"scsi_serializing"	},
-	{ TRACE_RCV_BOT,		"recv_bot"		},
-	{ TRACE_SND_BOT,		"send_bot"		},
-	{ TRACE_RCV_TOP,		"recv_top"		},
-	{ TRACE_SND_TOP,		"send_top"		},
+	{ TRACE_DATA_SEND,              "data_send"		},
+	{ TRACE_DATA_RECEIVED,          "data_received"		},
 	{ 0,				NULL			}
 };
-
 
 static void scst_read_trace_tbl(const struct scst_trace_log *tbl, char *buf,
 	unsigned long log_level, int *pos)

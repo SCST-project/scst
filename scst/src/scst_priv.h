@@ -38,12 +38,8 @@
 
 #define TRACE_RTRY              0x80000000
 #define TRACE_SCSI_SERIALIZING  0x40000000
-/** top being the edge away from the interrupt */
-#define TRACE_SND_TOP		0x20000000
-#define TRACE_RCV_TOP		0x01000000
-/** bottom being the edge toward the interrupt */
-#define TRACE_SND_BOT		0x08000000
-#define TRACE_RCV_BOT		0x04000000
+#define TRACE_DATA_SEND		0x20000000
+#define TRACE_DATA_RECEIVED	0x01000000
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 #define trace_flag scst_trace_flag
@@ -58,10 +54,6 @@ extern unsigned long scst_trace_flag;
 
 #define TRACE_RETRY(args...)	TRACE_DBG_FLAG(TRACE_RTRY, args)
 #define TRACE_SN(args...)	TRACE_DBG_FLAG(TRACE_SCSI_SERIALIZING, args)
-#define TRACE_SEND_TOP(args...)	TRACE_DBG_FLAG(TRACE_SND_TOP, args)
-#define TRACE_RECV_TOP(args...)	TRACE_DBG_FLAG(TRACE_RCV_TOP, args)
-#define TRACE_SEND_BOT(args...)	TRACE_DBG_FLAG(TRACE_SND_BOT, args)
-#define TRACE_RECV_BOT(args...)	TRACE_DBG_FLAG(TRACE_RCV_BOT, args)
 
 #else /* CONFIG_SCST_DEBUG */
 
@@ -74,10 +66,6 @@ extern unsigned long scst_trace_flag;
 
 #define TRACE_RETRY(args...)
 #define TRACE_SN(args...)
-#define TRACE_SEND_TOP(args...)
-#define TRACE_RECV_TOP(args...)
-#define TRACE_SEND_BOT(args...)
-#define TRACE_RECV_BOT(args...)
 
 #endif
 

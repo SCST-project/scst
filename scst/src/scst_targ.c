@@ -349,8 +349,7 @@ void scst_cmd_init_done(struct scst_cmd *cmd,
 		"(cmd %p, sess %p)", (long long unsigned int)cmd->tag,
 		(long long unsigned int)cmd->lun, cmd->cdb_len,
 		cmd->queue_type, cmd, sess);
-	PRINT_BUFF_FLAG(TRACE_SCSI|TRACE_RCV_BOT, "Receiving CDB",
-		cmd->cdb, cmd->cdb_len);
+	PRINT_BUFF_FLAG(TRACE_SCSI, "Receiving CDB", cmd->cdb, cmd->cdb_len);
 
 #ifdef CONFIG_SCST_EXTRACHECKS
 	if (unlikely((in_irq() || irqs_disabled())) &&
@@ -578,8 +577,6 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 
 		TRACE_DBG("Calling dev handler %s parse(%p)",
 		      devt->name, cmd);
-		TRACE_BUFF_FLAG(TRACE_SND_BOT, "Parsing: ",
-				cmd->cdb, cmd->cdb_len);
 		scst_set_cur_start(cmd);
 		state = devt->parse(cmd);
 		/* Caution: cmd can be already dead here */
@@ -1417,34 +1414,6 @@ void scst_rx_data(struct scst_cmd *cmd, int status,
 
 	switch (status) {
 	case SCST_RX_STATUS_SUCCESS:
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-		if (trace_flag & TRACE_RCV_BOT) {
-			int i, j;
-			struct scatterlist *sg;
-			if (cmd->out_sg != NULL)
-				sg = cmd->out_sg;
-			else if (cmd->tgt_out_sg != NULL)
-				sg = cmd->tgt_out_sg;
-			else if (cmd->tgt_sg != NULL)
-				sg = cmd->tgt_sg;
-			else
-				sg = cmd->sg;
-			if (sg != NULL) {
-				TRACE_RECV_BOT("RX data for cmd %p "
-					"(sg_cnt %d, sg %p, sg[0].page %p)",
-					cmd, cmd->tgt_sg_cnt, sg,
-					(void *)sg_page(&sg[0]));
-				for (i = 0, j = 0; i < cmd->tgt_sg_cnt; ++i, ++j) {
-					if (unlikely(sg_is_chain(&sg[j]))) {
-						sg = sg_chain_ptr(&sg[j]);
-						j = 0;
-					}
-					PRINT_BUFF_FLAG(TRACE_RCV_BOT, "RX sg",
-						sg_virt(&sg[j]), sg[j].length);
-				}
-			}
-		}
-#endif
 		cmd->state = SCST_CMD_STATE_TGT_PRE_EXEC;
 
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
@@ -1495,6 +1464,42 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 	int res = SCST_CMD_STATE_RES_CONT_SAME, rc;
 
 	TRACE_ENTRY();
+
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+	if (unlikely(trace_flag & TRACE_DATA_RECEIVED) &&
+	    (cmd->data_direction & SCST_DATA_WRITE)) {
+		int i, j, sg_cnt;
+		struct scatterlist *sg;
+
+		if (cmd->out_sg != NULL) {
+			sg = cmd->out_sg;
+			sg_cnt = cmd->out_sg_cnt;
+		} else if (cmd->tgt_out_sg != NULL) {
+			sg = cmd->tgt_out_sg;
+			sg_cnt = cmd->tgt_out_sg_cnt;
+		} else if (cmd->tgt_sg != NULL) {
+			sg = cmd->tgt_sg;
+			sg_cnt = cmd->tgt_sg_cnt;
+		} else {
+			sg = cmd->sg;
+			sg_cnt = cmd->sg_cnt;
+		}
+		if (sg != NULL) {
+			PRINT_INFO("Received data for cmd %p (sg_cnt %d, "
+				"sg %p, sg[0].page %p)", cmd, sg_cnt, sg,
+				(void *)sg_page(&sg[0]));
+			for (i = 0, j = 0; i < sg_cnt; ++i, ++j) {
+				if (unlikely(sg_is_chain(&sg[j]))) {
+					sg = sg_chain_ptr(&sg[j]);
+					j = 0;
+				}
+				PRINT_INFO("sg %d", j);
+				PRINT_BUFFER("data", sg_virt(&sg[j]),
+					sg[j].length);
+			}
+		}
+	}
+#endif
 
 	if (unlikely(cmd->resid_possible)) {
 		if (cmd->data_direction & SCST_DATA_WRITE) {
@@ -1648,26 +1653,6 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state,
 
 	if (next_state == SCST_CMD_STATE_DEFAULT)
 		next_state = SCST_CMD_STATE_PRE_DEV_DONE;
-
-#if defined(CONFIG_SCST_DEBUG)
-	if (next_state == SCST_CMD_STATE_PRE_DEV_DONE) {
-		if ((trace_flag & TRACE_RCV_TOP) && (cmd->sg != NULL)) {
-			int i, j;
-			struct scatterlist *sg = cmd->sg;
-			TRACE_RECV_TOP("Exec'd %d S/G(s) at %p sg[0].page at "
-				"%p", cmd->sg_cnt, sg, (void *)sg_page(&sg[0]));
-			for (i = 0, j = 0; i < cmd->sg_cnt; ++i, ++j) {
-				if (unlikely(sg_is_chain(&sg[j]))) {
-					sg = sg_chain_ptr(&sg[j]);
-					j = 0;
-				}
-				TRACE_BUFF_FLAG(TRACE_RCV_TOP,
-					"Exec'd sg", sg_virt(&sg[j]),
-					sg[j].length);
-			}
-		}
-	}
-#endif
 
 	cmd->state = next_state;
 
@@ -2519,8 +2504,6 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 	if (devt->exec) {
 		TRACE_DBG("Calling dev handler %s exec(%p)",
 		      devt->name, cmd);
-		TRACE_BUFF_FLAG(TRACE_SND_TOP, "Execing: ", cmd->cdb,
-			cmd->cdb_len);
 		scst_set_cur_start(cmd);
 		res = devt->exec(cmd);
 		TRACE_DBG("Dev handler %s exec() returned %d",
@@ -3499,27 +3482,30 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 		TRACE_DBG("Calling xmit_response(%p)", cmd);
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-		if (trace_flag & TRACE_SND_BOT) {
-			int i, j;
+		if (unlikely(trace_flag & TRACE_DATA_SEND) &&
+		    (cmd->data_direction & SCST_DATA_READ)) {
+			int i, j, sg_cnt;
 			struct scatterlist *sg;
-			if (cmd->tgt_sg != NULL)
+			if (cmd->tgt_sg != NULL) {
 				sg = cmd->tgt_sg;
-			else
+				sg_cnt = cmd->tgt_sg_cnt;
+			} else {
 				sg = cmd->sg;
+				sg_cnt = cmd->sg_cnt;
+			}
 			if (sg != NULL) {
-				TRACE(TRACE_SND_BOT, "Xmitting data for cmd %p "
+				PRINT_INFO("Xmitting data for cmd %p "
 					"(sg_cnt %d, sg %p, sg[0].page %p, buf %p, "
-					"resp len %d)", cmd, cmd->tgt_sg_cnt,
-					sg, (void *)sg_page(&sg[0]), sg_virt(sg),
+					"resp len %d)", cmd, sg_cnt, sg,
+					(void *)sg_page(&sg[0]), sg_virt(sg),
 					cmd->resp_data_len);
-				for (i = 0, j = 0; i < cmd->tgt_sg_cnt; ++i, ++j) {
+				for (i = 0, j = 0; i < sg_cnt; ++i, ++j) {
 					if (unlikely(sg_is_chain(&sg[j]))) {
 						sg = sg_chain_ptr(&sg[j]);
 						j = 0;
 					}
-					TRACE(TRACE_SND_BOT, "sg %d", j);
-					PRINT_BUFF_FLAG(TRACE_SND_BOT,
-						"Xmitting sg", sg_virt(&sg[j]),
+					PRINT_INFO("sg %d", j);
+					PRINT_BUFFER("data", sg_virt(&sg[j]),
 						sg[j].length);
 				}
 			}
