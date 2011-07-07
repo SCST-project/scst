@@ -412,7 +412,13 @@ static void q24_atio_pkt_all_vps(scsi_qla_host_t *ha, atio7_entry_t *atio)
 	{
 		scsi_qla_host_t *host = q2t_find_host_by_d_id(ha, atio->fcp_hdr.d_id);
 		if (unlikely(NULL == host)) {
-			PRINT_ERROR("qla2x00t(%ld): Received ATIO_TYPE7 "
+			/*
+			 * It might happen, because there is a small gap between
+			 * requesting the DPC thread to update loop and actual
+			 * update. It is harmless and on the next retry should
+			 * work well.
+			 */
+			PRINT_WARNING("qla2x00t(%ld): Received ATIO_TYPE7 "
 				"with unknown d_id %x:%x:%x", ha->instance,
 				atio->fcp_hdr.d_id[0], atio->fcp_hdr.d_id[1],
 				atio->fcp_hdr.d_id[2]);
