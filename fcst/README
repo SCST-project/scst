@@ -1,8 +1,19 @@
-fcst README						v1.0 06/10/2010
+About fcst
+==========
 
-$Id$
+The fcst kernel module implements an SCST target driver for the FCoE protocol.
+FCoE or Fibre Channel over Ethernet is a protocol that allows to communicate
+fibre channel frames over an Ethernet network. Since the FCoE protocol
+requires a lossless Ethernet network, special network adapters and switches
+are required.  Ethernet network adapters that support FCoE are called
+Converged Network Adapters (CNA). The standard that makes lossless Ethernet
+communication possible is called DCB or Data Center Bridging.
 
-FCST is a module that depends on libfc and SCST to provide FC target support.
+Building and Installing
+=======================
+
+FCST is a kernel module that depends on libfc and SCST to provide FC target
+support.
 
 To build for linux-2.6.34, do:
 
