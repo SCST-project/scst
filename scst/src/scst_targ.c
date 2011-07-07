@@ -3848,8 +3848,9 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 		if (res != 0) {
 			TRACE(TRACE_MINOR,
 				"tgt_dev for LUN %lld not found, command to "
-				"unexisting LU?",
-				(long long unsigned int)cmd->lun);
+				"unexisting LU (initiator %s, target %s)?",
+				(long long unsigned int)cmd->lun,
+				cmd->sess->initiator_name, cmd->tgt->tgt_name);
 			scst_put(cmd->cpu_cmd_counter);
 		}
 	} else {
