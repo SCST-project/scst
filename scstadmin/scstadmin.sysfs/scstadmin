@@ -2794,11 +2794,6 @@ sub listDriverAttributes {
 
 	return TRUE if issueWarning($SCST->errorString());
 
-	if (!scalar(keys %{$attributes})) {
-		print "No such driver '$driver' found.\n";
-		return;
-	}
-
 	my $rc = listAttributes($attributes, $nonkey);
 	return $rc if ($rc);
 
