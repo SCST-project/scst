@@ -429,7 +429,7 @@ sub getArgs {
 	}
 
 	if (defined($listInitiatorAttr) && (($driver eq '') || ($target eq '') || ($group eq ''))) {
-		print "Please specify -driver -target and -group with -list_ini_attr.\n";
+		print "Please specify -driver, -target and -group with -list_ini_attr.\n";
 		usage();
 	}
 
