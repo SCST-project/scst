@@ -71,7 +71,7 @@ Set Attribute Operations
      -set_lun_attr <lun>     : Sets LUN attribute(s) <p> to value <v>.
          -driver <driver>
          -target <target>
-         -group <group>
+         [-group <group>]
          -attributes <p=v,...>
      -set_ini_attr <ini>     : Sets initiator attribute(s) <p> to value <v>.
          -driver <driver>
