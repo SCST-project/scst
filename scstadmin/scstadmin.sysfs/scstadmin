@@ -41,7 +41,7 @@ Query Operations
      -list_lun_attr <lun>    : List all attributes for a driver/target/lun.
           -driver <driver>
           -target <target>
-          -group <group>
+          [-group <group>]
      -list_ini_attr <ini>    : List all attributes for a driver/target/initiator
           -driver <driver>
           -target <target>
@@ -424,7 +424,7 @@ sub getArgs {
 	}
 
 	if (defined($listLunAttr) && (($driver eq '') || ($target eq ''))) {
-		print "Please specify -driver -target and -group with -list_lun_attr.\n";
+		print "Please specify -driver and -target with -list_lun_attr.\n";
 		usage();
 	}
 
