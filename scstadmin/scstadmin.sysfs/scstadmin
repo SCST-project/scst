@@ -38,6 +38,9 @@ Query Operations
      -list_drv_attr <driver> : List all attributes for a given driver.
      -list_tgt_attr <target> : List all attributes for a given driver/target.
           -driver <driver>
+     -list_grp_attr <group>  : List all attributes for a given group.
+         -driver <driver>
+         -target <target>
      -list_lun_attr <lun>    : List all attributes for a driver/target/lun.
           -driver <driver>
           -target <target>
@@ -418,8 +421,9 @@ sub getArgs {
 		usage();
 	}
 
-	if (defined($listGroupAttr) && (($driver eq '') || ($target eq ''))) {
-		print "Please specify -driver and -target with -list_grp_attr.\n";
+	if (defined($listGroupAttr) && (($driver eq '') || ($target eq '') ||
+					($listGroupAttr eq ''))) {
+		print "Please specify -driver, -target and group with -list_grp_attr.\n";
 		usage();
 	}
 
