@@ -138,23 +138,23 @@ Target LUN Operations
      -add_lun <lun>          : Adds a given device to a group.
          -driver <driver>
          -target <target>
-         -group <group>
+         [-group <group>]
          -device <device>
          -attributes <p=v,...>
      -rem_lun <lun>          : Remove a LUN from a group.
          -driver <driver>
          -target <target>
-         -group <group>
+         [-group <group>]
      -replace_lun <lun>      : Replaces a LUN\'s device with a different one.
          -driver <driver>
          -target <target>
-         -group <group>
+         [-group <group>]
          -device <device>
          -attributes <p=v,...>
      -clear_luns             : Clear all LUNs within a group.
          -driver <driver>
          -target <target>
-         -group <group>
+         [-group <group>]
 
 Target Driver Operations
      -enable_target <t>      : Enable target mode for a given driver & target.
