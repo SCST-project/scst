@@ -149,7 +149,7 @@ stop() {
     # Clear the config in case unloading failed or SCST has been built into the
     # kernel
     if [ -e /sys/module/scst ]; then
-        echo y | scstadmin -clear_config -force >/dev/null 2>&1
+        scstadmin -noprompt -force -clear_config >/dev/null 2>&1
     fi
 
     return 0
