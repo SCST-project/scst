@@ -425,8 +425,7 @@ sub getArgs {
 		exit 1;
 	}
 
-	if (defined($listGroupAttr) && (($driver eq '') || ($target eq '') ||
-					($listGroupAttr eq ''))) {
+	if (defined($listGroupAttr) && ($driver eq '') || ($target eq '')) {
 		print "Please specify -driver, -target and group with -list_grp_attr.\n";
 		exit 1;
 	}
