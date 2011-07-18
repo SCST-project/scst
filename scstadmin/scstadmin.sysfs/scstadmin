@@ -3540,7 +3540,7 @@ sub addTargetDynamicAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	print "\t-> Adding driver attribute '$attribute' with value '$value' ".
+	print "\t-> Adding target attribute '$attribute' with value '$value' ".
 	  "for driver/target '$driver/$target': ";
 	my $rc = $SCST->addTargetDynamicAttribute($driver, $target, $attribute, $value);
 	print "done.\n";
