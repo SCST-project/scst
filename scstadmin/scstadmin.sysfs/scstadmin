@@ -80,16 +80,16 @@ Set Attribute Operations
          -attributes <p=v,...>
 
 Add Dynamic Attribute Operations
-     -add_drv_attr <driver>  : Adds driver attribute(s) <p> to value <v>.
+     -add_drv_attr <driver>  : Adds driver attribute(s) <p> with value <v>.
          -attributes <p=v,...>
-     -add_tgt_attr <target>  : Adds target attribute(s) <p> to value <v>.
+     -add_tgt_attr <target>  : Adds target attribute(s) <p> with value <v>.
          -driver <driver>
          -attributes <p=v,...>
 
 Remove Dynamic Attribute Operations
-     -rem_drv_attr <driver>  : Remove driver attribute(s) <p> to value <v>.
+     -rem_drv_attr <driver>  : Remove driver attribute(s) <p> with value <v>.
          -attributes <p=v,...>
-     -rem_tgt_attr <target>  : Remove target attribute(s) <p> to value <v>.
+     -rem_tgt_attr <target>  : Remove target attribute(s) <p> with value <v>.
          -driver <driver>
          -attributes <p=v,...>
 
