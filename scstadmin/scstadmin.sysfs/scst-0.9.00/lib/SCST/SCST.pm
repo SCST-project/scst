@@ -2569,7 +2569,7 @@ sub handlers {
 	foreach my $handler (readdir($hHandle)) {
 		next if (($handler eq '.') || ($handler eq '..'));
 
-		if (-d mkpath(SCST_ROOT, SCST_HANDLERS)) {
+		if (-d mkpath(SCST_ROOT, SCST_HANDLERS, $handler)) {
 			push @handlers, $handler;
 		}
 	}
