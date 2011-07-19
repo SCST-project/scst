@@ -215,7 +215,7 @@ sub new {
 	my $this = shift;
 	my $debug = shift;
 	my $badVersion = 1;
-	
+
 	my $class = ref($this) || $this;
 	my $self = {};
 
@@ -255,8 +255,8 @@ sub scstAttributes {
 	my $self = shift;
 	my %attributes;
 
-	my $pHandle = new IO::Handle;	
-	my $_path = mkpath(SCST_ROOT); 
+	my $pHandle = new IO::Handle;
+	my $_path = mkpath(SCST_ROOT);
 	if (!(opendir $pHandle, $_path)) {
 		$self->{'err_string'} = "scstAttributes(): Unable to read directory '$_path': $!";
 		return undef;
@@ -368,7 +368,7 @@ sub setScstAttribute {
 	close $io;
 
 	return FALSE if ($self->{'debug'} || $bytes);
-        return SCST_C_SETATTR_FAIL;
+	return SCST_C_SETATTR_FAIL;
 }
 
 sub drivers {
@@ -831,7 +831,7 @@ sub addVirtualTarget {
 		}
 	}
 
-        $o_string =~ s/\s$//;
+	$o_string =~ s/\s$//;
 	my $cmd = "add_target $target $o_string\n";
 	my $bytes;
 
@@ -1031,7 +1031,7 @@ sub removeVirtualTarget {
 			my $rc = $self->closeSession($driver, $target, $session);
 			return $rc if ($rc);
 		}
-	}			
+	}
 
 	if (scalar keys %can_close) {
 		my $has_sessions = 1;
@@ -1694,9 +1694,9 @@ sub devices {
 	foreach my $device (readdir($dHandle)) {
 		next if (($device eq '.') || ($device eq '..'));
 
-                if (-d mkpath(SCST_ROOT, SCST_DEVICES, $device)) {
+		if (-d mkpath(SCST_ROOT, SCST_DEVICES, $device)) {
 			push @devices, $device;
-		}							
+		}
 	}
 
 	close $dHandle;
@@ -1731,8 +1731,8 @@ sub deviceAttributes {
 		return undef;
 	}
 
-	my $pHandle = new IO::Handle;	
-	my $_path = mkpath(SCST_ROOT, SCST_DEVICES, $device); 
+	my $pHandle = new IO::Handle;
+	my $_path = mkpath(SCST_ROOT, SCST_DEVICES, $device);
 	if (!(opendir $pHandle, $_path)) {
 		$self->{'err_string'} = "deviceAttributes(): Unable to read directory '$_path': $!";
 		return undef;
@@ -1852,8 +1852,8 @@ sub driverAttributes {
 		return undef;
 	}
 
-	my $pHandle = new IO::Handle;	
-	my $_path = mkpath(SCST_ROOT, SCST_TARGETS, $driver); 
+	my $pHandle = new IO::Handle;
+	my $_path = mkpath(SCST_ROOT, SCST_TARGETS, $driver);
 	if (!(opendir $pHandle, $_path)) {
 		$self->{'err_string'} = "driverAttributes(): Unable to read directory '$_path': $!";
 		return undef;
@@ -1972,7 +1972,7 @@ sub setDriverAttribute {
 	close $io;
 
 	return FALSE if ($self->{'debug'} || $bytes);
-        return SCST_C_DRV_SETATTR_FAIL;
+	return SCST_C_DRV_SETATTR_FAIL;
 }
 
 sub targetAttributes {
@@ -1991,8 +1991,8 @@ sub targetAttributes {
 		return undef;
 	}
 
-	my $pHandle = new IO::Handle;	
-	my $_path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target); 
+	my $pHandle = new IO::Handle;
+	my $_path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target);
 	if (!(opendir $pHandle, $_path)) {
 		$self->{'err_string'} = "targetAttributes(): Unable to read directory '$_path': $!";
 		return undef;
@@ -2101,7 +2101,7 @@ sub setTargetAttribute {
 	close $io;
 
 	return FALSE if ($self->{'debug'} || $bytes);
-        return SCST_C_TGT_SETATTR_FAIL;
+	return SCST_C_TGT_SETATTR_FAIL;
 }
 
 sub groupAttributes {
@@ -2126,8 +2126,8 @@ sub groupAttributes {
 		return undef;
 	}
 
-	my $pHandle = new IO::Handle;	
-	my $_path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_GROUPS, $group); 
+	my $pHandle = new IO::Handle;
+	my $_path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_GROUPS, $group);
 	if (!(opendir $pHandle, $_path)) {
 		$self->{'err_string'} = "groupAttributes(): Unable to read directory '$_path': $!";
 		return undef;
@@ -2236,7 +2236,7 @@ sub setGroupAttribute {
 	close $io;
 
 	return FALSE if ($self->{'debug'} || $bytes);
-        return SCST_C_GRP_SETATTR_FAIL;
+	return SCST_C_GRP_SETATTR_FAIL;
 }
 
 sub lunAttributes {
@@ -2266,9 +2266,9 @@ sub lunAttributes {
 		}
 
 		$_path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_GROUPS,
-		  $group, SCST_LUNS, $lun); 
+		  $group, SCST_LUNS, $lun);
 	} else {
-		$_path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_LUNS, $lun); 
+		$_path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_LUNS, $lun);
 	}
 
 	if ($self->lunExists($driver, $target, $lun, $group) != TRUE) {
@@ -2276,7 +2276,7 @@ sub lunAttributes {
 		return undef;
 	}
 
-	my $pHandle = new IO::Handle;	
+	my $pHandle = new IO::Handle;
 	if (!(opendir $pHandle, $_path)) {
 		$self->{'err_string'} = "lunAttributes(): Unable to read directory '$_path': $!";
 		return undef;
@@ -2406,7 +2406,7 @@ sub setLunAttribute {
 	close $io;
 
 	return FALSE if ($self->{'debug'} || $bytes);
-        return SCST_C_LUN_SETATTR_FAIL;
+	return SCST_C_LUN_SETATTR_FAIL;
 }
 
 sub initiatorAttributes {
@@ -2437,9 +2437,9 @@ sub initiatorAttributes {
 		return undef;
 	}
 
-	my $pHandle = new IO::Handle;	
+	my $pHandle = new IO::Handle;
 	my $_path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_GROUPS,
-	  $group, SCST_INITIATORS, $initiator); 
+	  $group, SCST_INITIATORS, $initiator);
 	if (!(opendir $pHandle, $_path)) {
 		$self->{'err_string'} = "initiatorAttributes(): Unable to read directory '$_path': $!";
 		return undef;
@@ -2552,7 +2552,7 @@ sub setInitiatorAttribute {
 	close $io;
 
 	return FALSE if ($self->{'debug'} || $bytes);
-        return SCST_C_INI_SETATTR_FAIL;
+	return SCST_C_INI_SETATTR_FAIL;
 }
 
 sub handlers {
@@ -2630,7 +2630,7 @@ sub setHandlerAttribute {
 	close $io;
 
 	return FALSE if ($self->{'debug'} || $bytes);
-        return SCST_C_HND_SETATTR_FAIL;
+	return SCST_C_HND_SETATTR_FAIL;
 }
 
 sub handlerAttributes {
@@ -2881,13 +2881,13 @@ sub openDevice {
 
 	my $bytes;
 
-        if ($self->{'debug'}) {                
+	if ($self->{'debug'}) {
 		print "DBG($$): $cmd\n";
 	} else {
 		$bytes = _syswrite($io, $cmd, length($cmd));
 	}
 
-        return FALSE if ($self->{'debug'} || $bytes);
+	return FALSE if ($self->{'debug'} || $bytes);
 	return SCST_C_DEV_OPEN_FAIL;
 }
 
@@ -2916,13 +2916,13 @@ sub closeDevice {
 
 	my $bytes;
 
-        if ($self->{'debug'}) {                
+	if ($self->{'debug'}) {
 		print "DBG($$): $cmd\n";
 	} else {
 		$bytes = _syswrite($io, $cmd, length($cmd));
 	}
 
-        return FALSE if ($self->{'debug'} || $bytes);
+	return FALSE if ($self->{'debug'} || $bytes);
 	return SCST_C_DEV_CLOSE_FAIL;
 }
 
@@ -2960,7 +2960,7 @@ sub setDeviceAttribute {
 	close $io;
 
 	return FALSE if ($self->{'debug'} || $bytes);
-        return SCST_C_DEV_SETATTR_FAIL;
+	return SCST_C_DEV_SETATTR_FAIL;
 }
 
 sub checkTargetCreateAttributes {
@@ -3272,8 +3272,8 @@ sub sessions {
 		return undef;
 	}
 
-	my $sHandle = new IO::Handle;	
-	my $_path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_SESSIONS); 
+	my $sHandle = new IO::Handle;
+	my $_path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_SESSIONS);
 	if (!(opendir $sHandle, $_path)) {
 		$self->{'err_string'} = "sessions(): Unable to read directory '$_path': $!";
 		return undef;
@@ -3352,7 +3352,7 @@ sub closeSession {
 	# If it's not closable, silently return
 	return FALSE if (!defined($$sessions{$session}->{'force_close'}));
 
-	my $path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_SESSIONS, $session, 'force_close'); 
+	my $path = mkpath(SCST_ROOT, SCST_TARGETS, $driver, $target, SCST_SESSIONS, $session, 'force_close');
 
 	my $io = new IO::File $path, O_WRONLY;
 
@@ -3360,13 +3360,13 @@ sub closeSession {
 
 	my $bytes;
 
-        if ($self->{'debug'}) {                
+	if ($self->{'debug'}) {
 		print "DBG($$): $cmd\n";
 	} else {
 		$bytes = _syswrite($io, $cmd, length($cmd));
 	}
 
-        return FALSE if ($self->{'debug'} || $bytes);
+	return FALSE if ($self->{'debug'} || $bytes);
 	return SCST_C_SESSION_CLOSE_FAIL;
 }
 
@@ -3511,9 +3511,9 @@ SCST::SCST - Generic SCST methods.
     use SCST::SCST;
 
     $p = SCST::SCST->new();
-    
+
     print "Using SCST version".$p->scstVersion()."\n";
-    
+
     undef $p;
 
 =head1 DESCRIPTION
