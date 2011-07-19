@@ -201,7 +201,7 @@ case "$1" in
         done
 
         if [ -f $SCST_CFG ]; then
-            echo y | scstadmin -clear_config -force >/dev/null 2>&1
+            scstadmin -force -noprompt -clear_config >/dev/null 2>&1
             tmpout=/tmp/scstadmin-output-$$
             if scstadmin -config $SCST_CFG >$tmpout 2>&1; then
                 rm -f $tmpout
