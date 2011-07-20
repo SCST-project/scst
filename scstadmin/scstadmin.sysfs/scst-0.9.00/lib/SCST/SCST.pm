@@ -1920,10 +1920,12 @@ sub clearLuns {
 
 sub devices {
 	my $self = shift;
+	my $handler = shift;
 	my @devices;
 
 	my $dHandle = new IO::Handle;
-	my $_path = SCST_DEVICES_DIR();
+	my $_path = new_sysfs_interface() || !defined($handler) ?
+	    SCST_DEVICES_DIR() : mkpath(SCST_HANDLERS_DIR(), $handler);
 	if (!(opendir $dHandle, $_path)) {
 		$self->{'err_string'} = "devices(): Unable to read directory '$_path': $!";
 		return undef;
@@ -1931,11 +1933,11 @@ sub devices {
 
 	if (new_sysfs_interface()) {
 		foreach my $device (readdir($dHandle)) {
-			my $link = readlink(mkpath(SCST_DEVICES_DIR(),
-						   $device));
-			$link =~ s/.*\///;
-			if ($link) {
-				push @devices, $link;
+			my $driver = readlink(mkpath($_path, $device,
+						     "driver"));
+			$driver =~ s/.*\///;
+			if (!defined($handler) || $driver eq $handler) {
+				push @devices, $device;
 			}
 		}
 	} else {
@@ -2913,39 +2915,13 @@ sub handlerAttributes {
 		return undef;
 	}
 
+	$attributes{'devices'}->{'value'} = devices($self, $handler);
+
 	my $hHandle = new IO::Handle;
 	my $_path = mkpath(SCST_HANDLERS_DIR(), $handler);
 	if (!(opendir $hHandle, $_path)) {
 		$self->{'err_string'} = "handlerAttributes(): Unable to read directory '$_path': $!";
 		return undef;
-	}
-
-	if (new_sysfs_interface()) {
-		$_path = SCST_DEVICES_DIR();
-		if (!opendir($hHandle, $_path)) {
-			$self->{'err_string'} = "handlerAttributes(): Unable".
-			    " to read directory '$_path': $!";
-			return undef;
-		}
-		foreach my $dev (readdir($hHandle)) {
-			next if ($dev eq '.' || $dev eq '..');
-
-			my $driver = readlink("$_path/$dev/driver");
-			$driver =~ s/.*\///;
-			if ($driver eq $handler) {
-				push @{$attributes{'devices'}->{'value'}}, $dev;
-			}
-		}
-	} else {
-		foreach my $attribute (readdir($hHandle)) {
-			next if ($attribute eq '.' || $attribute eq '..');
-
-			my $pPath = mkpath($_path, $attribute);
-			if (-d $pPath) {
-				push @{$attributes{'devices'}->{'value'}},
-					$attribute;
-			}
-		}
 	}
 
 	foreach my $attribute (readdir($hHandle)) {
