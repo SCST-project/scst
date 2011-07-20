@@ -1,3 +1,5 @@
+# -*- mode: perl; perl-indent-level: 8; indent-tabs-mode: t -*-
+
 package SCST::SCST;
 
 # Author:	Mark R. Buechler

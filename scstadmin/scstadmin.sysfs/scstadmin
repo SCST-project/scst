@@ -1,4 +1,5 @@
 #!/usr/bin/perl
+
 $Version  = 'SCST Configurator v2.0.0';
 
 # Configures SCST
@@ -4528,3 +4529,9 @@ sub commitSuicide {
 	print "\n\nAborting immediately.\n";
 	exit 1;
 }
+
+# Local Variables:
+# mode: perl
+# perl-indent-level: 8
+# indent-tabs-mode: t
+# End:
