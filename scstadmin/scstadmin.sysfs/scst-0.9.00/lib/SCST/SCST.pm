@@ -531,12 +531,12 @@ sub initiators {
 	my @initiators;
 
 	if ($self->driverExists($driver) != TRUE) {
-		$self->{'err_string'} = "groups(): Driver '$driver' is not available";
+		$self->{'err_string'} = "initiators(): Driver '$driver' is not available";
 		return undef;
 	}
 
 	if ($self->targetExists($driver, $target) != TRUE) {
-		$self->{'err_string'} = "groups(): Target '$target' is not available";
+		$self->{'err_string'} = "initiators(): Target '$target' is not available";
 		return undef;
 	}
 
@@ -573,12 +573,12 @@ sub luns {
 	my %luns;
 
 	if ($self->driverExists($driver) != TRUE) {
-		$self->{'err_string'} = "groups(): Driver '$driver' is not available";
+		$self->{'err_string'} = "luns(): Driver '$driver' is not available";
 		return undef;
 	}
 
 	if ($self->targetExists($driver, $target) != TRUE) {
-		$self->{'err_string'} = "groups(): Target '$target' is not available";
+		$self->{'err_string'} = "luns(): Target '$target' is not available";
 		return undef;
 	}
 
