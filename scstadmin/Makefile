@@ -1,10 +1,13 @@
+# Prefix for /sbin and /man destination paths.
+PREFIX ?= /usr/local
+
 SCSTADMIN_DIR = scstadmin
 
-MANDIR := $(DESTDIR)$(PREFIX)/usr/local/man/
+MANDIR := $(DESTDIR)$(PREFIX)/man
 INITDIR := $(shell if [ -f /etc/slackware-version ]; then	\
-                     echo $(PREFIX)/etc/rc.d;			\
+                     echo /etc/rc.d;				\
                    else						\
-                     echo $(PREFIX)/etc/init.d;			\
+                     echo /etc/init.d;				\
                    fi)
 INSTALL_INITD_CMD := $(shell if [ -f /etc/gentoo-release ]; then	\
 			       echo rc-update add;			\
@@ -21,7 +24,7 @@ REMOVE_INITD_CMD := $(shell if [ -f /etc/gentoo-release ]; then		\
 			    else					\
 			      echo /usr/lib/lsb/remove_initd;		\
 			    fi)
-DEFAULTDIR := $(PREFIX)/etc/default
+DEFAULTDIR := /etc/default
 
 all:
 	cd $(SCSTADMIN_DIR) && $(MAKE) $@
@@ -38,7 +41,7 @@ install:
 	cd $(SCSTADMIN_DIR) && $(MAKE) $@
 	for m in scstadmin/man*/*.[1-9]; do				\
 	  if [ -e $$m ]; then			    			\
-	    d=$(MANDIR)$$(basename $$(dirname $$m));			\
+	    d=$(MANDIR)/$$(basename $$(dirname $$m));			\
 	    if install -d $$d; then					\
 	      install -m 644 $$m $$d;					\
 	    fi								\
@@ -74,7 +77,7 @@ uninstall:
 	fi
 	for m in scstadmin/man*/*.[1-9]; do		\
 	  if [ -e $$m ]; then				\
-	    d=$(MANDIR)$$(basename $$(dirname $$m));	\
+	    d=$(MANDIR)/$$(basename $$(dirname $$m));	\
 	    rm -f $$d/$$(basename $$m);			\
 	  fi						\
 	done
