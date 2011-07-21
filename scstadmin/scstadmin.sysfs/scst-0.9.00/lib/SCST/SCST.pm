@@ -4,7 +4,7 @@ package SCST::SCST;
 
 # Author:	Mark R. Buechler
 # License:	GPLv2
-# Copyright (c) 2005-2010 Mark R. Buechler
+# Copyright (c) 2005-2011 Mark R. Buechler
 # Copyright (c) 2011 Bart Van Assche <bvanassche@acm.org>.
 
 use 5.005;
@@ -29,6 +29,7 @@ SCST_SGV         => 'sgv',
 SCST_HANDLERS    => 'handlers',
 SCST_DEVICES     => 'devices',
 SCST_TARGETS     => 'targets',
+SCST_DEV_GROUPS  => 'device_groups',
 SCST_QUEUE_RES   => 'last_sysfs_mgmt_res',
 # Root level, new sysfs interface
 IN_SCST_HANDLERS => 'device_driver',
@@ -40,6 +41,10 @@ SCST_TGTT_ATTR      => 'driver_attributes',
 SCST_TGT_ATTR       => 'target_attributes',
 SCST_ADD_DEV_PARAMS => 'add_device_parameters',
 SCST_PARAM_ATTR     => 'parameters',
+
+# Device group specific
+SCST_DG_DEVICES  => 'devices',
+SCST_DG_TGROUPS  => 'target_groups',
 
 # Target specific
 SCST_GROUPS      => 'ini_groups',
@@ -131,6 +136,20 @@ SCST_C_INI_SETATTR_FAIL     => 102,
 
 SCST_C_NO_SESSION           => 110,
 SCST_C_SESSION_CLOSE_FAIL   => 111,
+
+SCST_C_DEV_GRP_NO_GROUP     => 120,
+SCST_C_DEV_GRP_EXISTS       => 121,
+SCST_C_DEV_GRP_ADD_FAIL     => 122,
+SCST_C_DEV_GRP_REM_FAIL     => 123,
+
+SCST_C_DGRP_ADD_DEV_FAIL    => 130,
+SCST_C_DGRP_REM_DEV_FAIL    => 131,
+SCST_C_DGRP_NO_DEVICE       => 132,
+SCST_C_DGRP_DEVICE_EXISTS   => 133,
+SCST_C_DGRP_ADD_GRP_FAIL    => 134,
+SCST_C_DGRP_REM_GRP_FAIL    => 135,
+SCST_C_DGRP_NO_GROUP        => 136,
+SCST_C_DGRP_GROUP_EXISTS    => 137,
 };
 
 my %VERBOSE_ERROR = (
@@ -209,6 +228,20 @@ my %VERBOSE_ERROR = (
 
 (SCST_C_NO_SESSION)           => 'Session not found for driver/target.',
 (SCST_C_SESSION_CLOSE_FAIL)   => 'Failed to close session.',
+
+(SCST_C_DEV_GRP_NO_GROUP)     => 'No such device group exists.',
+(SCST_C_DEV_GRP_EXISTS)       => 'Device group already exists.',
+(SCST_C_DEV_GRP_ADD_FAIL)     => 'Failed to add device group. See "dmesg" for more information.',
+(SCST_C_DEV_GRP_REM_FAIL)     => 'Failed to remove device group. See "dmesg" for more information.',
+
+(SCST_C_DGRP_ADD_DEV_FAIL)    => 'Failed to add device to device group. See "dmesg" for more information.',
+(SCST_C_DGRP_REM_DEV_FAIL)    => 'Failed to remove device from device group. See "dmesg" for more information.',
+(SCST_C_DGRP_NO_DEVICE)       => 'No such device in device group.',
+(SCST_C_DGRP_DEVICE_EXISTS)   => 'Device already exists within device group.',
+(SCST_C_DGRP_ADD_GRP_FAIL)    => 'Failed to add target group to device group. See "dmesg" for more information.',
+(SCST_C_DGRP_REM_GRP_FAIL)    => 'Failed to remove target group from device group. See "dmesg" for more information.',
+(SCST_C_DGRP_NO_GROUP)        => 'No such target group exists within device group.',
+(SCST_C_DGRP_GROUP_EXISTS)    => 'Target group already exists within device group.',
 );
 
 use vars qw(@ISA @EXPORT $VERSION);
@@ -257,6 +290,15 @@ sub SCST_DEVICES_DIR {
 		return SCST_ROOT_OLD . '/' . SCST_DEVICES;
 	} else {
 		return '/sys/bus/scst_tgt_dev/devices';
+	}
+}
+
+# Device groups.
+sub SCST_DEV_GROUP_DIR {
+	if (-d SCST_ROOT_OLD) {
+		return SCST_ROOT_OLD . '/' . SCST_DEV_GROUPS;
+	} else {
+		die("New /sys interface for device groups not yet supported.");
 	}
 }
 
@@ -634,6 +676,90 @@ sub luns {
 	close $lHandle;
 
 	return \%luns;
+}
+
+sub deviceGroups {
+	my $self = shift;
+	my @groups;
+
+	my $dHandle = new IO::Handle;
+	my $_path = SCST_DEV_GROUP_DIR();
+	if (!(opendir $dHandle, $_path)) {
+		$self->{'err_string'} = "deviceGroups(): Unable to read directory '$_path': $!";
+		return undef;
+	}
+
+	foreach my $group (readdir($dHandle)) {
+		next if (($group eq '.') || ($group eq '..'));
+
+		if (-d make_path(SCST_DEV_GROUP_DIR(), $group)) {
+			push @groups, $group;
+		}
+	}
+
+	close $dHandle;
+
+	return \@groups;
+}
+
+sub deviceGroupDevices {
+	my $self = shift;
+	my $group = shift;
+	my @devices;
+
+	if ($self->deviceGroupExists($group) != TRUE) {
+		$self->{'err_string'} = "deviceGroupDevices(): Device group '$group' does not exist";
+		return undef;
+	}
+
+	my $dHandle = new IO::Handle;
+	my $_path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_DEVICES);
+	if (!(opendir $dHandle, $_path)) {
+		$self->{'err_string'} = "deviceGroupDevices(): Unable to read directory '$_path': $!";
+		return undef;
+	}
+
+	foreach my $device (readdir($dHandle)) {
+		next if (($device eq '.') || ($device eq '..'));
+
+		if (-d make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_DEVICES, $device)) {
+			push @devices, $device;
+		}
+	}
+
+	close $dHandle;
+
+	return \@devices;
+}
+
+sub deviceGroupTargetGroups {
+	my $self = shift;
+	my $group = shift;
+	my @tgroups;
+
+	if ($self->deviceGroupExists($group) != TRUE) {
+		$self->{'err_string'} = "deviceGroupTargetGroups(): Device group '$group' does not exist";
+		return undef;
+	}
+
+	my $dHandle = new IO::Handle;
+	my $_path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS);
+	if (!(opendir $dHandle, $_path)) {
+		$self->{'err_string'} = "deviceGroupTargetGroups(): Unable to read directory '$_path': $!";
+		return undef;
+	}
+
+	foreach my $tgroup (readdir($dHandle)) {
+		next if (($tgroup eq '.') || ($tgroup eq '..'));
+
+		if (-d make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS, $tgroup)) {
+			push @tgroups, $tgroup;
+		}
+	}
+
+	close $dHandle;
+
+	return \@tgroups;
 }
 
 sub driverExists {
@@ -1371,6 +1497,238 @@ sub removeGroup {
 
 	return FALSE if ($self->{'debug'} || $bytes);
 	return SCST_C_GRP_REM_FAIL;
+}
+
+sub addDeviceGroup {
+	my $self = shift;
+	my $group = shift;
+
+	my $rc = $self->deviceGroupExists($group);
+	return SCST_C_DEV_GRP_EXISTS if ($rc == TRUE);
+	return $rc if ($rc > 1);
+
+	my ($path, $cmd);
+	if (new_sysfs_interface()) {
+		die("New /sys interface for device groups not yet supported.");
+	} else {
+		$path = make_path(SCST_DEV_GROUP_DIR(), SCST_MGMT_IO);
+	}
+	$cmd .= "add $group";
+
+	my $io = new IO::File $path, O_WRONLY;
+
+	return SCST_C_DEV_GRP_ADD_FAIL if (!$io);
+
+	my $bytes;
+
+	if ($self->{'debug'}) {
+		print "DBG($$): $path -> $cmd\n";
+	} else {
+		$bytes = _syswrite($io, $cmd, length($cmd));
+	}
+
+	close $io;
+
+	return FALSE if ($self->{'debug'} || $bytes);
+	return SCST_C_DEV_GRP_ADD_FAIL;
+}
+
+sub removeDeviceGroup {
+	my $self = shift;
+	my $group = shift;
+
+	my $rc = $self->deviceGroupExists($group);
+	return SCST_C_DEV_GRP_NO_GROUP if (!$rc);
+	return $rc if ($rc > 1);
+
+	my ($path, $cmd);
+	if (new_sysfs_interface()) {
+		die("New /sys interface for device groups not yet supported.");
+	} else {
+		$path = make_path(SCST_DEV_GROUP_DIR(), SCST_MGMT_IO);
+	}
+	$cmd .= "del $group";
+
+	my $io = new IO::File $path, O_WRONLY;
+
+	return SCST_C_DEV_GRP_REM_FAIL if (!$io);
+
+	my $bytes;
+
+	if ($self->{'debug'}) {
+		print "DBG($$): $path -> $cmd\n";
+	} else {
+		$bytes = _syswrite($io, $cmd, length($cmd));
+	}
+
+	close $io;
+
+	return FALSE if ($self->{'debug'} || $bytes);
+	return SCST_C_DEV_GRP_REM_FAIL;
+}
+
+sub addDeviceGroupDevice {
+	my $self = shift;
+	my $group = shift;
+	my $device = shift;
+
+	my $rc = $self->deviceGroupExists($group);
+	return SCST_C_DEV_GRP_NO_GROUP if (!$rc);
+	return $rc if ($rc > 1);
+
+	$rc = $self->deviceExists($device);
+        return SCST_C_DEV_NO_DEVICE if (!$rc);
+        return $rc if ($rc > 1);
+
+	$rc = $self->deviceGroupDeviceExists($group, $device);
+	return SCST_C_DGRP_DEVICE_EXISTS if ($rc == TRUE);
+	return $rc if ($rc > 1);
+
+	my ($path, $cmd);
+	if (new_sysfs_interface()) {
+		die("New /sys interface for device groups not yet supported.");
+	} else {
+		$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_DEVICES, SCST_MGMT_IO);
+	}
+	$cmd .= "add $device";
+
+	my $io = new IO::File $path, O_WRONLY;
+
+	return SCST_C_DGRP_ADD_DEV_FAIL if (!$io);
+
+	my $bytes;
+
+	if ($self->{'debug'}) {
+		print "DBG($$): $path -> $cmd\n";
+	} else {
+		$bytes = _syswrite($io, $cmd, length($cmd));
+	}
+
+	close $io;
+
+	return FALSE if ($self->{'debug'} || $bytes);
+	return SCST_C_DGRP_ADD_DEV_FAIL;
+}
+
+sub addDeviceGroupTargetGroup {
+	my $self = shift;
+	my $group = shift;
+	my $tgroup = shift;
+
+	my $rc = $self->deviceGroupExists($group);
+	return SCST_C_DEV_GRP_NO_GROUP if (!$rc);
+	return $rc if ($rc > 1);
+
+	$rc = $self->deviceGroupTargetGroupExists($group, $tgroup);
+	return SCST_C_DGRP_GROUP_EXISTS if ($rc == TRUE);
+	return $rc if ($rc > 1);
+
+	my ($path, $cmd);
+	if (new_sysfs_interface()) {
+		die("New /sys interface for device groups not yet supported.");
+	} else {
+		$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS, SCST_MGMT_IO);
+	}
+	$cmd .= "add $tgroup";
+
+	my $io = new IO::File $path, O_WRONLY;
+
+	return SCST_C_DGRP_ADD_GRP_FAIL if (!$io);
+
+	my $bytes;
+
+	if ($self->{'debug'}) {
+		print "DBG($$): $path -> $cmd\n";
+	} else {
+		$bytes = _syswrite($io, $cmd, length($cmd));
+	}
+
+	close $io;
+
+	return FALSE if ($self->{'debug'} || $bytes);
+	return SCST_C_DGRP_ADD_GRP_FAIL;
+}
+
+sub removeDeviceGroupDevice {
+	my $self = shift;
+	my $group = shift;
+	my $device = shift;
+
+	my $rc = $self->deviceGroupExists($group);
+	return SCST_C_DEV_GRP_NO_GROUP if (!$rc);
+	return $rc if ($rc > 1);
+
+	$rc = $self->deviceExists($device);
+        return SCST_C_DEV_NO_DEVICE if (!$rc);
+        return $rc if ($rc > 1);
+
+	$rc = $self->deviceGroupDeviceExists($group, $device);
+	return SCST_C_DGRP_NO_DEVICE if (!$rc);
+	return $rc if ($rc > 1);
+
+	my ($path, $cmd);
+	if (new_sysfs_interface()) {
+		die("New /sys interface for device groups not yet supported.");
+	} else {
+		$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_DEVICES, SCST_MGMT_IO);
+	}
+	$cmd .= "del $device";
+
+	my $io = new IO::File $path, O_WRONLY;
+
+	return SCST_C_DGRP_REM_DEV_FAIL if (!$io);
+
+	my $bytes;
+
+	if ($self->{'debug'}) {
+		print "DBG($$): $path -> $cmd\n";
+	} else {
+		$bytes = _syswrite($io, $cmd, length($cmd));
+	}
+
+	close $io;
+
+	return FALSE if ($self->{'debug'} || $bytes);
+	return SCST_C_DGRP_REM_DEV_FAIL;
+}
+
+sub removeDeviceGroupTargetGroup {
+	my $self = shift;
+	my $group = shift;
+	my $tgroup = shift;
+
+	my $rc = $self->deviceGroupExists($group);
+	return SCST_C_DEV_GRP_NO_GROUP if (!$rc);
+	return $rc if ($rc > 1);
+
+	$rc = $self->deviceGroupTargetGroupExists($group, $tgroup);
+	return SCST_C_DGRP_NO_GROUP if (!$rc);
+	return $rc if ($rc > 1);
+
+	my ($path, $cmd);
+	if (new_sysfs_interface()) {
+		die("New /sys interface for device groups not yet supported.");
+	} else {
+		$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS, SCST_MGMT_IO);
+	}
+	$cmd .= "del $group";
+
+	my $io = new IO::File $path, O_WRONLY;
+
+	return SCST_C_DGRP_REM_GRP_FAIL if (!$io);
+
+	my $bytes;
+
+	if ($self->{'debug'}) {
+		print "DBG($$): $path -> $cmd\n";
+	} else {
+		$bytes = _syswrite($io, $cmd, length($cmd));
+	}
+
+	close $io;
+
+	return FALSE if ($self->{'debug'} || $bytes);
+	return SCST_C_DGRP_REM_GRP_FAIL;
 }
 
 sub addInitiator {
@@ -3045,6 +3403,21 @@ sub handlerAttributes {
 	return \%attributes;
 }
 
+sub deviceExists {
+	my $self = shift;
+	my $device = shift;
+
+	my $handlers = $self->handlers();
+
+	return SCST_C_FATAL_ERROR if (!defined($handlers));
+
+	foreach my $handler (@{$handlers}) {
+		return TRUE if $self->handlerDeviceExists($handler, $device);
+	}
+
+	return FALSE;
+}
+
 sub handlerDeviceExists {
 	my $self = shift;
 	my $handler = shift;
@@ -3406,6 +3779,63 @@ sub setT10DeviceId {
 	my $t10_id = shift;
 
 	return $self->setDeviceAttribute($device, 't10_dev_id', $t10_id);
+}
+
+sub deviceGroupExists {
+	my $self = shift;
+	my $group = shift;
+
+	my $groups = $self->deviceGroups();
+
+	return SCST_C_FATAL_ERROR if (!defined($groups));
+
+	foreach my $_group (@{$groups}) {
+		return TRUE if ($group eq $_group);
+	}
+
+	return FALSE;
+}
+
+sub deviceGroupDeviceExists {
+	my $self = shift;
+	my $group = shift;
+	my $device = shift;
+
+	if ($self->deviceGroupExists($group) != TRUE) {
+		$self->{'err_string'} = "deviceGroupDeviceExists(): Device group '$group' does not exist";
+		return undef;
+	}
+
+	my $devices = $self->deviceGroupDevices($group);
+
+	return SCST_C_FATAL_ERROR if (!defined($devices));
+
+	foreach my $_device (@{$devices}) {
+		return TRUE if ($device eq $_device);
+	}
+
+	return FALSE;
+}
+
+sub deviceGroupTargetGroupExists {
+	my $self = shift;
+	my $group = shift;
+	my $tgroup = shift;
+
+	if ($self->deviceGroupExists($group) != TRUE) {
+		$self->{'err_string'} = "deviceGroupTargetGroupExists(): Device group '$group' does not exist";
+		return undef;
+	}
+
+	my $tgroups = $self->deviceGroupTargetGroups($group);
+
+	return SCST_C_FATAL_ERROR if (!defined($tgroups));
+
+	foreach my $_tgroup (@{$tgroups}) {
+		return TRUE if ($tgroup eq $_tgroup);
+	}
+
+	return FALSE;
 }
 
 sub checkLunCreateAttributes {
