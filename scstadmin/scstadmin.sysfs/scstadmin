@@ -1,12 +1,12 @@
 #!/usr/bin/perl
 
-$Version  = 'SCST Configurator v2.0.0';
+$Version  = 'SCST Configurator v3.0.0-pre0';
 
 # Configures SCST
 #
 # Author:       Mark R. Buechler
 # License:      GPLv2
-# Copyright (c) 2005-2010 Mark R. Buechler
+# Copyright (c) 2005-2011 Mark R. Buechler
 # Copyright (C) 2011 Bart Van Assche <bvanassche@acm.org>
 
 sub usage
@@ -26,6 +26,7 @@ General Operations
 Query Operations
      -list_handler [<hndlr>] : List all available handlers or specific <hndlr>.
      -list_device [<device>] : List all open devices or specific <device>.
+     -list_dev_grp [<grp>]   : List all device groups or specific <grp>.
      -list_driver [<driver>] : List all available drivers or specific <driver>.
      -list_target [<target>] : List all available targets or specific <target>.
          [-driver <driver>]
@@ -101,6 +102,10 @@ Device Operations
      -resync_dev <device>    : Resync the device size with the initiator(s).
      -close_dev <device>     : Closes a device belonging to handler <handler>.
          -handler <handler>
+
+Device Group Operations
+     -add_dev_grp <group>    : Add device group <group>.
+     -rem_dev_grp <group>    : Remove device group <group>.
 
 Target Operations
      -add_target <target>    : Add a dynamic target to a capable driver.
@@ -198,7 +203,7 @@ Examples:
 EndUsage
   }
 
-use SCST::SCST 0.9.0;
+use SCST::SCST 0.9.10;
 use Getopt::Long;
 use IO::File;
 use IO::Dir;
@@ -237,6 +242,7 @@ sub getArgs {
 
 	my $listHandler;
 	my $listDevice;
+	my $listDeviceGroup;
 	my $listDriver;
 	my $listTarget;
 	my $listGroup;
@@ -268,6 +274,9 @@ sub getArgs {
 	my $openDev;
 	my $closeDev;
 	my $resyncDev;
+
+	my $addDevGroup;
+	my $removeDevGroup;
 
 	my $addTarget;
 	my $removeTarget;
@@ -311,6 +320,7 @@ sub getArgs {
 
 			    'list_handler:s'	=> \$listHandler,
 			    'list_device:s'	=> \$listDevice,
+			    'list_dev_grp:s'	=> \$listDeviceGroup,
 			    'list_driver:s'	=> \$listDriver,
 			    'list_target:s'	=> \$listTarget,
 			    'list_group:s'	=> \$listGroup,
@@ -342,6 +352,9 @@ sub getArgs {
 			    'open_dev=s'	=> \$openDev,
 			    'close_dev=s'	=> \$closeDev,
 			    'resync_dev=s'	=> \$resyncDev,
+
+			    'add_dev_grp=s'	=> \$addDevGroup,
+			    'rem_dev_grp=s'	=> \$removeDevGroup,
 
 			    'add_target=s'	=> \$addTarget,
 			    'rem_target=s'	=> \$removeTarget,
@@ -394,9 +407,9 @@ sub getArgs {
 	$force = TRUE if (defined($force));
 	$nonkey = TRUE if (defined($nonkey));
 
-	my $query_mode = defined($listHandler) || defined($listDevice) || defined($listDriver) ||
-	  defined($listTarget) || defined($listGroup) || defined($listSessions) || defined($listScstAttr) ||
-	  defined($listHandlerAttr) || defined($listDeviceAttr) || defined($listDriverAttr) ||
+	my $query_mode = defined($listHandler) || defined($listDevice) || defined($listDeviceGroup) ||
+	  defined($listDriver) || defined($listTarget) || defined($listGroup) || defined($listSessions) ||
+	  defined($listScstAttr) || defined($listHandlerAttr) || defined($listDeviceAttr) || defined($listDriverAttr) ||
 	  defined($listTargetAttr) || defined($listGroupAttr) || defined($listLunAttr) || defined($listInitiatorAttr);
 
 	my $set_mode = defined($setScstAttr) + defined($setHandlerAttr) + defined($setDeviceAttr) +
@@ -404,7 +417,8 @@ sub getArgs {
 	  defined($setLunAttr) + defined($setInitiatorAttr);
 
 	my $op_mode = defined($clearConfig) + defined($writeConfig) + defined($checkConfig) +
-             defined($openDev) + defined($closeDev) + defined($addGroup) + defined($removeGroup) +
+             defined($openDev) + defined($closeDev) + defined($addDevGroup) + defined($removeDevGroup) +
+	     defined($addGroup) + defined($removeGroup) +
 	     defined($addInitiator) + defined($removeInitiator) + defined($clearInitiators) +
 	     defined($addDriverAttr) + defined($addTargetAttr) + defined($remDriverAttr) + defined($remTargetAttr) +
 	     defined($addTarget) + defined($removeTarget) +
@@ -569,12 +583,13 @@ sub getArgs {
 	}
 
 	return ($applyConfig, $clearConfig, $writeConfig, $checkConfig,
-		$listScstAttr, $listHandler, $listDevice, $listDriver, $listTarget, $listGroup,
+		$listScstAttr, $listHandler, $listDevice, $listDeviceGroup, $listDriver, $listTarget, $listGroup,
 		$listSessions, $listHandlerAttr, $listDeviceAttr, $listDriverAttr, $listTargetAttr,
 		$listGroupAttr, $listLunAttr, $listInitiatorAttr, $setScstAttr, $setHandlerAttr,
 		$setDeviceAttr, $setDriverAttr, $setTargetAttr, $setGroupAttr, $setLunAttr, $setInitiatorAttr,
 		$addDriverAttr, $addTargetAttr, $remDriverAttr, $remTargetAttr,
                 $openDev, $closeDev, $resyncDev,
+		$addDevGroup, $removeDevGroup,
 		$addTarget, $removeTarget,
 		$addGroup, $removeGroup,
 		$addInitiator, $removeInitiator, $moveInitiator, $clearInitiators,
@@ -594,12 +609,13 @@ sub main {
 	if ( $> ) {die("This program must run as root.\n");}
 
 	my ($applyConfig, $clearConfig, $writeConfig, $checkConfig,
-	    $listScstAttr, $listHandler, $listDevice, $listDriver, $listTarget, $listGroup,
+	    $listScstAttr, $listHandler, $listDevice, $listDeviceGroup, $listDriver, $listTarget, $listGroup,
 	    $listSessions, $listHandlerAttr, $listDeviceAttr, $listDriverAttr, $listTargetAttr,
 	    $listGroupAttr, $listLunAttr, $listInitiatorAttr, $setScstAttr, $setHandlerAttr,
 	    $setDeviceAttr, $setDriverAttr, $setTargetAttr, $setGroupAttr, $setLunAttr, $setInitiatorAttr,
 	    $addDriverAttr, $addTargetAttr, $remDriverAttr, $remTargetAttr,
 	    $openDev, $closeDev, $resyncDev,
+	    $addDevGroup, $removeDevGroup,
 	    $addTarget, $removeTarget,
 	    $addGroup, $removeGroup,
 	    $addInitiator, $removeInitiator, $moveInitiator, $clearInitiators,
@@ -648,6 +664,10 @@ sub main {
 		};
 		defined($listDevice) && do {
 			$rc = listDevices($listDevice, $nonkey);
+			$all_good = TRUE;
+		};
+		defined($listDeviceGroup) && do {
+			$rc = listDeviceGroups($listDeviceGroup);
 			$all_good = TRUE;
 		};
 		defined($listDriver) && do {
@@ -802,6 +822,18 @@ sub main {
 			print "\n-> Making requested changes.\n";
 			$rc = resyncDevice($resyncDev);
 			$rc = issueLip() if (!$rc);
+			print "\t-> Done.\n";
+			last SWITCH;
+		};
+		defined($addDevGroup) && do {
+			print "\n-> Making requested changes.\n";
+			$rc = addDeviceGroup($addDevGroup);
+			print "\t-> Done.\n";
+			last SWITCH;
+		};
+		defined($removeDevGroup) && do {
+			print "\n-> Making requested changes.\n";
+			$rc = removeDeviceGroup($removeDevGroup, $force);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -2312,6 +2344,80 @@ sub listDevice {
 	return listAttributes($attributes, $nonkey);
 }
 
+sub listDeviceGroups {
+	my $group = shift;
+
+	return listDeviceGroup($group) if ($group ne '');
+
+	my $groups = $SCST->deviceGroups();
+
+	my $l_group;
+	foreach my $group (@{$groups}) {
+		$l_group = length($group) if ($l_group < length($group));
+	}
+
+	$l_group = 12 if ($l_group < 12);
+
+	print "\tDevice Group\n";
+	print "\t";
+	for (my $x = 0; $x < $l_group; $x++) {
+		print "-";
+	}
+	print "\n";
+
+	foreach my $group (@{$groups}) {
+		print "\t$group\n";
+	}
+
+	return FALSE;
+}
+
+sub listDeviceGroup {
+	my $group = shift;
+
+	my $devices = $SCST->deviceGroupDevices($group);
+
+	my $l_device;
+	foreach my $device (@{$devices}) {
+		$l_device = length($device) if ($l_device < length($device));
+	}
+
+	$l_device = 7 if ($l_device < 6);
+
+	print "\tDevices\n";
+	print "\t";
+	for (my $x = 0; $x < $l_device; $x++) {
+		print "-";
+	}
+	print "\n";
+
+	foreach my $device (@{$devices}) {
+		print "\t$device\n";
+	}
+
+	my $tgroups = $SCST->deviceGroupTargetGroups($group);
+
+	my $l_tgroup;
+	foreach my $tgroup (@{$tgroups}) {
+		$l_tgroup = length($tgroup) if ($l_tgroup < length($tgroup));
+	}
+
+	$l_tgroup = 12 if ($l_tgroup < 12);
+
+	print "\n\tTarget Groups\n";
+	print "\t";
+	for (my $x = 0; $x < $l_tgroup; $x++) {
+		print "-";
+	}
+	print "\n";
+
+	foreach my $tgroup (@{$tgroups}) {
+		print "\t$tgroup\n";
+	}
+
+	return FALSE;
+}
+
 sub listDrivers {
 	my $driver = shift;
 
@@ -3642,6 +3748,48 @@ sub resyncDevice {
 	my %attributes = ('resync_size', 1);
 
 	return setDeviceAttributes($device, \%attributes);
+}
+
+####################################################################
+
+sub addDeviceGroup {
+	my $group = shift;
+
+	print "\t-> Adding new device group '$group': ";
+
+	my $rc = $SCST->addDeviceGroup($group);
+
+	print "done.\n";
+
+	immediateExit($SCST->errorString($rc)) if ($rc);
+
+	return FALSE;
+}
+
+sub removeDeviceGroup {
+	my $group = shift;
+	my $force = shift;
+
+	if (!$force) {
+		my $devices = $SCST->deviceGroupDevices($group);
+		my $tgroups = $SCST->deviceGroupTargetGroups($group);
+
+		if (($#{$devices} > -1) || ($#{$tgroups} > -1)) {
+			print "\n";
+			listDeviceGroup($group);
+			immediateExit("Device group is still in use, aborting. Use -force to override.");
+		}
+	}
+
+	print "\t-> Removing device group '$group': ";
+
+	my $rc = $SCST->removeDeviceGroup($group);
+
+	print "done.\n";
+
+	immediateExit($SCST->errorString($rc)) if ($rc);
+
+	return FALSE;
 }
 
 ####################################################################
