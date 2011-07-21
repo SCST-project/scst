@@ -2432,7 +2432,7 @@ static ssize_t scst_dev_sysfs_type_show(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
 	pos = sprintf(buf, "%d - %s\n", dev->type,
-		(unsigned)dev->type > ARRAY_SIZE(scst_dev_handler_types) ?
+		(unsigned)dev->type >= ARRAY_SIZE(scst_dev_handler_types) ?
 		      "unknown" : scst_dev_handler_types[dev->type]);
 
 	return pos;
@@ -4457,7 +4457,7 @@ static ssize_t scst_devt_type_show(struct kobject *kobj,
 	devt = container_of(kobj, struct scst_dev_type, devt_kobj);
 
 	pos = sprintf(buf, "%d - %s\n", devt->type,
-		(unsigned)devt->type > ARRAY_SIZE(scst_dev_handler_types) ?
+		(unsigned)devt->type >= ARRAY_SIZE(scst_dev_handler_types) ?
 			"unknown" : scst_dev_handler_types[devt->type]);
 
 	return pos;
