@@ -352,7 +352,8 @@ sub scstAttributes {
 				chomp $value;
 
 				my $is_key = <$io>;
-				$is_key = ($is_key =~ /\[key\]/) ? TRUE : FALSE;
+				$is_key = new_sysfs_interface() && !$is_static ||
+				    ($is_key =~ /\[key\]/) ? TRUE : FALSE;
 
 				my $key = 0;
 				if ($is_key) {
@@ -1928,6 +1929,16 @@ sub clearLuns {
 	return SCST_C_GRP_CLR_LUN_FAIL;
 }
 
+sub deviceHandler {
+	my $self = shift;
+	my $device = shift;
+
+	my $handler = readlink(make_path(SCST_DEVICES_DIR(), $device,
+				new_sysfs_interface() ? 'driver' : 'handler'));
+	$handler =~ s/.*\///;
+	return $handler;
+}
+
 sub devices {
 	my $self = shift;
 	my $handler = shift;
@@ -1941,22 +1952,14 @@ sub devices {
 		return undef;
 	}
 
-	if (new_sysfs_interface()) {
-		foreach my $device (readdir($dHandle)) {
-			my $driver = readlink(make_path($_path, $device,
-							"driver"));
-			$driver =~ s/.*\///;
-			if (!defined($handler) || $driver eq $handler) {
-				push @devices, $device;
-			}
-		}
-	} else {
-		foreach my $device (readdir($dHandle)) {
-			next if (($device eq '.') || ($device eq '..'));
+	foreach my $device (readdir($dHandle)) {
+		next if ($device eq '.' || $device eq '..');
 
-			if (-d make_path(SCST_DEVICES_DIR(), $device)) {
-				push @devices, $device;
-			}
+		my $isdev = (new_sysfs_interface() ||
+			     -d make_path(SCST_DEVICES_DIR(), $device));
+		if ($isdev && (!defined($handler) || 
+			       $handler eq $self->deviceHandler($device))) {
+			push @devices, $device;
 		}
 	}
 
@@ -1998,6 +2001,8 @@ sub deviceAttributes {
 		$self->{'err_string'} = "deviceAttributes(): Unable to read directory '$_path': $!";
 		return undef;
 	}
+
+	my $dca = $self->deviceCreateAttributes($self->deviceHandler($device));
 
 	foreach my $attribute (readdir($pHandle)) {
 		next if ($attribute eq '.' || $attribute eq '..' ||
@@ -2069,7 +2074,9 @@ sub deviceAttributes {
 				chomp $value;
 
 				my $is_key = <$io>;
-				$is_key = ($is_key =~ /\[key\]/) ? TRUE : FALSE;
+				$is_key = new_sysfs_interface() &&
+				    (!$is_static || defined($$dca{$attribute}))
+				    || ($is_key =~ /\[key\]/) ? TRUE : FALSE;
 
 				my $key = 0;
 				if ($is_key) {
@@ -2151,7 +2158,8 @@ sub driverAttributes {
 				chomp $value;
 
 				my $is_key = <$io>;
-				$is_key = ($is_key =~ /\[key\]/) ? TRUE : FALSE;
+				$is_key = new_sysfs_interface() && !$is_static ||
+				    ($is_key =~ /\[key\]/) ? TRUE : FALSE;
 
 				my $key = 0;
 				if ($is_key) {
@@ -2300,7 +2308,8 @@ sub targetAttributes {
 				chomp $value;
 
 				my $is_key = <$io>;
-				$is_key = ($is_key =~ /\[key\]/) ? TRUE : FALSE;
+				$is_key = new_sysfs_interface() && !$is_static ||
+				    ($is_key =~ /\[key\]/) ? TRUE : FALSE;
 
 				my $key = 0;
 				if ($is_key) {
@@ -2444,7 +2453,8 @@ sub groupAttributes {
 				chomp $value;
 
 				my $is_key = <$io>;
-				$is_key = ($is_key =~ /\[key\]/) ? TRUE : FALSE;
+				$is_key = new_sysfs_interface() && !$is_static ||
+				    ($is_key =~ /\[key\]/) ? TRUE : FALSE;
 
 				my $key = 0;
 				if ($is_key) {
@@ -2545,7 +2555,7 @@ sub lunAttributes {
 		return undef;
 	}
 
-	my $_path;
+	my ($_path, $luncrattr);
 
 	if ($group) {
 		if ($self->groupExists($driver, $target, $group) != TRUE) {
@@ -2555,9 +2565,12 @@ sub lunAttributes {
 
 		$_path = make_path(SCST_TARGETS_DIR(), $driver, $target,
 				   SCST_GROUPS, $group, SCST_LUNS, $lun);
+		$luncrattr = $self->lunCreateAttributes($driver, $target,
+							$group);
 	} else {
 		$_path = make_path(SCST_TARGETS_DIR(), $driver, $target,
 				   SCST_LUNS, $lun);
+		$luncrattr = $self->lunCreateAttributes($driver, $target);
 	}
 
 	if ($self->lunExists($driver, $target, $lun, $group) != TRUE) {
@@ -2609,7 +2622,10 @@ sub lunAttributes {
 				chomp $value;
 
 				my $is_key = <$io>;
-				$is_key = ($is_key =~ /\[key\]/) ? TRUE : FALSE;
+				$is_key = new_sysfs_interface() &&
+				    (!$is_static ||
+				     defined($$luncrattr{$attribute})) ||
+				    ($is_key =~ /\[key\]/) ? TRUE : FALSE;
 
 				my $key = 0;
 				if ($is_key) {
@@ -2765,7 +2781,8 @@ sub initiatorAttributes {
 				chomp $value;
 
 				my $is_key = <$io>;
-				$is_key = ($is_key =~ /\[key\]/) ? TRUE : FALSE;
+				$is_key = new_sysfs_interface() && !$is_static ||
+				    ($is_key =~ /\[key\]/) ? TRUE : FALSE;
 
 				my $key = 0;
 				if ($is_key) {
@@ -2969,7 +2986,8 @@ sub handlerAttributes {
 		chomp $value;
 
 		my $is_key = <$io>;
-		$is_key = ($is_key =~ /\[key\]/) ? TRUE : FALSE;
+		$is_key = new_sysfs_interface() && !$is_static ||
+		    ($is_key =~ /\[key\]/) ? TRUE : FALSE;
 
 		my $key = 0;
 		if ($is_key) {
