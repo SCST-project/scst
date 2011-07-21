@@ -749,7 +749,7 @@ sub addDriverDynamicAttribute {
 	my ($path, $cmd);
 	if (new_sysfs_interface()) {
 		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . IN_SCST_TARGETS . "/$driver ";
+		$cmd = "in " . make_path(IN_SCST_TARGETS, $driver) . " ";
 	} else {
 		$path = make_path(SCST_TARGETS_DIR(), $driver, SCST_MGMT_IO);
 	}
@@ -793,7 +793,7 @@ sub removeDriverDynamicAttribute {
 	my ($path, $cmd);
 	if (new_sysfs_interface()) {
 		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . IN_SCST_TARGETS . "/$driver ";
+		$cmd = "in " . make_path(IN_SCST_TARGETS, $driver) . " ";
 	} else {
 		$path = make_path(SCST_TARGETS_DIR(), $driver, SCST_MGMT_IO);
 	}
@@ -919,7 +919,7 @@ sub addVirtualTarget {
 	my ($path, $cmd);
 	if (new_sysfs_interface()) {
 		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . IN_SCST_TARGETS . "/$driver ";
+		$cmd = "in " . make_path(IN_SCST_TARGETS, $driver) . " ";
 	} else {
 		$path = make_path(SCST_TARGETS_DIR(), $driver, SCST_MGMT_IO);
 	}
@@ -1047,7 +1047,7 @@ sub addTargetDynamicAttribute {
 	my ($path, $cmd);
 	if (new_sysfs_interface()) {
 		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . IN_SCST_TARGETS . "/$driver ";
+		$cmd = "in " . make_path(IN_SCST_TARGETS, $driver) . " ";
 	} else {
 		$path = make_path(SCST_TARGETS_DIR(), $driver, SCST_MGMT_IO);
 	}
@@ -1095,7 +1095,7 @@ sub removeTargetDynamicAttribute {
 	my ($path, $cmd);
 	if (new_sysfs_interface()) {
 		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . IN_SCST_TARGETS . "/$driver";
+		$cmd = "in " . make_path(IN_SCST_TARGETS, $driver) . " ";
 	} else {
 		$path = make_path(SCST_TARGETS_DIR(), $driver, SCST_MGMT_IO);
 	}
@@ -1169,7 +1169,7 @@ sub removeVirtualTarget {
 	my ($path, $cmd);
 	if (new_sysfs_interface()) {
 		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . IN_SCST_TARGETS . "/$driver ";
+		$cmd = "in " . make_path(IN_SCST_TARGETS, $driver) . " ";
 	} else {
 		$path = make_path(SCST_TARGETS_DIR(), $driver, SCST_MGMT_IO);
 	}
@@ -1299,8 +1299,8 @@ sub addGroup {
 	my ($path, $cmd);
 	if (new_sysfs_interface()) {
 		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . IN_SCST_TARGETS . "/$driver/$target/" .
-		    SCST_GROUPS . " ";
+		$cmd = "in " . make_path(IN_SCST_TARGETS, $driver, $target,
+					 SCST_GROUPS) . " ";
 	} else {
 		$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
 				  SCST_GROUPS, SCST_MGMT_IO);
@@ -1346,8 +1346,8 @@ sub removeGroup {
 	my ($path, $cmd);
 	if (new_sysfs_interface()) {
 		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . IN_SCST_TARGETS . "/$driver/$target/" .
-		    SCST_GROUPS . " ";
+		$cmd = "in " . make_path(IN_SCST_TARGETS, $driver, $target,
+					 SCST_GROUPS) . " ";
 	} else {
 		$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
 				  SCST_GROUPS, SCST_MGMT_IO);
@@ -1398,8 +1398,9 @@ sub addInitiator {
 	my ($path, $cmd);
 	if (new_sysfs_interface()) {
 		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . IN_SCST_TARGETS . "/$driver/$target/" .
-		    SCST_GROUPS . "/$group/" . SCST_INITIATORS . " ";
+		$cmd = "in " . make_path(IN_SCST_TARGETS, $driver, $target,
+					 SCST_GROUPS, $group, SCST_INITIATORS) .
+					     " ";
 	} else {
 		$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
 				  SCST_GROUPS, $group, SCST_INITIATORS,
@@ -1451,8 +1452,9 @@ sub removeInitiator {
 	my ($path, $cmd);
 	if (new_sysfs_interface()) {
 		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . IN_SCST_TARGETS . "/$driver/$target/" .
-		    SCST_GROUPS . "/$group/" . SCST_INITIATORS . " ";
+		$cmd = "in " . make_path(IN_SCST_TARGETS, $driver, $target,
+					 SCST_GROUPS, $group, SCST_INITIATORS) .
+					     " ";
 	} else {
 		$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
 				  SCST_GROUPS, $group, SCST_INITIATORS,
@@ -1513,8 +1515,9 @@ sub moveInitiator {
 	my ($path, $cmd);
 	if (new_sysfs_interface()) {
 		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . IN_SCST_TARGETS . "/$driver/$target/" .
-		    SCST_GROUPS . "/$from/" . SCST_INITIATORS . " ";
+		$cmd = "in " . make_path(IN_SCST_TARGETS, $driver, $target,
+					 SCST_GROUPS, $from, SCST_INITIATORS) .
+					     " ";
 	} else {
 		$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
 				  SCST_GROUPS, $from, SCST_INITIATORS,
@@ -1561,8 +1564,9 @@ sub clearInitiators {
 	my ($path, $cmd);
 	if (new_sysfs_interface()) {
 		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . IN_SCST_TARGETS . "/$driver/$target/" .
-		    SCST_GROUPS . "/$group/" . SCST_INITIATORS . " ";
+		$cmd = "in " . make_path(IN_SCST_TARGETS, $driver, $target,
+					 SCST_GROUPS, $group, SCST_INITIATORS) .
+					     " ";
 	} else {
 		$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
 				  SCST_GROUPS, $group, SCST_INITIATORS,
@@ -1647,11 +1651,12 @@ sub addLun {
 	if (new_sysfs_interface()) {
 		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
 		if ($group) {
-			$cmd = "in " . IN_SCST_TARGETS . "/$driver/$target/" .
-			    SCST_GROUPS . "/$group/" . SCST_LUNS . " ";
+			$cmd = "in " .
+			    make_path(IN_SCST_TARGETS, $driver, $target,
+				      SCST_GROUPS, $group, SCST_LUNS) . " ";
 		} else {
-			$cmd = "in " . IN_SCST_TARGETS . "/$driver/$target/" .
-			    SCST_LUNS . " ";
+			$cmd = "in " . make_path(IN_SCST_TARGETS, $driver,
+						 $target, SCST_LUNS) . " ";
 		}
 	} else {
 		if ($group) {
@@ -1723,11 +1728,12 @@ sub removeLun {
 	if (new_sysfs_interface()) {
 		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
 		if ($group) {
-			$cmd = "in " . IN_SCST_TARGETS . "/$driver/$target/" .
-			    SCST_GROUPS . "/$group/" . SCST_LUNS . " ";
+			$cmd = "in " . make_path(IN_SCST_TARGETS, $driver,
+						 $target, SCST_GROUPS, $group,
+						 SCST_LUNS) . " ";
 		} else {
-			$cmd = "in " . IN_SCST_TARGETS . "/$driver/$target/" .
-			    SCST_LUNS . " ";
+			$cmd = "in " . make_path(IN_SCST_TARGETS, $driver,
+						 $target, SCST_LUNS) . " ";
 		}
 	} else {
 		if ($group) {
@@ -1818,11 +1824,12 @@ sub replaceLun {
 	if (new_sysfs_interface()) {
 		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
 		if ($group) {
-			$cmd = "in " . IN_SCST_TARGETS . "/$driver/$target/" .
-			    SCST_GROUPS . "/$group/" . SCST_LUNS . " ";
+			$cmd = "in " . make_path(IN_SCST_TARGETS, $driver,
+						 $target, SCST_GROUPS,
+						 $group, SCST_LUNS) . " ";
 		} else {
-			$cmd = "in " . IN_SCST_TARGETS . "/$driver/$target/" .
-			    SCST_LUNS . " ";
+			$cmd = "in " . make_path(IN_SCST_TARGETS, $driver,
+						 $target, SCST_LUNS) . " ";
 		}
 	} else {
 		if ($group) {
@@ -1884,11 +1891,12 @@ sub clearLuns {
 	if (new_sysfs_interface()) {
 		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
 		if ($group) {
-			$cmd = "in " . IN_SCST_TARGETS . "/$driver/$target/" .
-			    SCST_GROUPS . "/$group/" . SCST_LUNS . " ";
+			$cmd = "in " .
+			    make_path(IN_SCST_TARGETS, $driver, $target,
+				      SCST_GROUPS, $group, SCST_LUNS) . " ";
 		} else {
-			$cmd = "in " . IN_SCST_TARGETS . "/$driver/$target/" .
-			    SCST_LUNS . " ";
+			$cmd = "in " . make_path(IN_SCST_TARGETS, $driver,
+						 $target, SCST_LUNS) . " ";
 		}
 	} else {
 		if ($group) {
@@ -2344,10 +2352,10 @@ sub setTargetAttribute {
 	if (new_sysfs_interface() &&
 	    ($attribute eq 'enabled' || $attribute eq 'cpu_mask')) {
 		$path = make_path(SCST_ROOT_DIR, SCST_MGMT_IO);
-		$cmd = "in " . IN_SCST_TARGETS . "/$driver/$target " .
-		    ($attribute eq 'enabled' ?
-		     ($value eq '1' ? 'enable' : 'disable') :
-		     "set_$attribute $value");
+		$cmd = "in " . make_path(IN_SCST_TARGETS, $driver, $target) .
+		    " " . ($attribute eq 'enabled' ?
+			   ($value eq '1' ? 'enable' : 'disable') :
+			   "set_$attribute $value");
 	} else {
 		$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
 				  $attribute);
@@ -2492,8 +2500,9 @@ sub setGroupAttribute {
 	my ($path, $cmd);
 	if (new_sysfs_interface() && $attribute eq 'cpu_mask') {
 		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . IN_SCST_TARGETS . "/$driver/$target/" .
-		    SCST_GROUPS . "/$group set_$attribute ";
+		$cmd = "in " . make_path(IN_SCST_TARGETS, $driver, $target,
+					 SCST_GROUPS, $group) .
+					     " set_$attribute ";
 	} else {
 		$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
 				  SCST_GROUPS, $group, $attribute);
@@ -3162,7 +3171,7 @@ sub openDevice {
 	my ($path, $cmd);
 	if (new_sysfs_interface()) {
 		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . IN_SCST_HANDLERS . "/$handler ";
+		$cmd = "in " . make_path(IN_SCST_HANDLERS, $handler) . " ";
 	} else {
 		$path = make_path(SCST_HANDLERS_DIR(), $handler, SCST_MGMT_IO);
 	}
@@ -3204,7 +3213,7 @@ sub closeDevice {
 	my ($path, $cmd);
 	if (new_sysfs_interface()) {
 		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . IN_SCST_HANDLERS . "/$handler ";
+		$cmd = "in " . make_path(IN_SCST_HANDLERS, $handler) . " ";
 	} else {
 		$path = make_path(SCST_HANDLERS_DIR(), $handler, SCST_MGMT_IO);
 	}
@@ -3253,7 +3262,7 @@ sub setDeviceAttribute {
 	     $attribute eq 'threads_num' ||
 	     $attribute eq 'threads_pool_type')) {
 		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . IN_SCST_DEVICES . "/$device set_$attribute ";
+		$cmd = "in " . make_path(IN_SCST_DEVICES, $device) . " set_$attribute ";
 	} else {
 		$path = make_path(SCST_DEVICES_DIR(), $device, $attribute);
 	}
