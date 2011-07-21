@@ -1,5 +1,6 @@
 SCSTADMIN_DIR = scstadmin
 
+MANDIR := $(DESTDIR)$(PREFIX)/usr/local/man/
 INITDIR := $(shell if [ -f /etc/slackware-version ]; then	\
                      echo $(PREFIX)/etc/rc.d;			\
                    else						\
@@ -35,6 +36,14 @@ install:
 	"Scientific Linux, Fedora) or insserv (SLES, openSUSE) package must"  \
 	"be installed first"; false; fi
 	cd $(SCSTADMIN_DIR) && $(MAKE) $@
+	for m in scstadmin/man*/*.[1-9]; do				\
+	  if [ -e $$m ]; then			    			\
+	    d=$(MANDIR)$$(basename $$(dirname $$m));			\
+	    if install -d $$d; then					\
+	      install -m 644 $$m $$d;					\
+	    fi								\
+	  fi								\
+	done
 	install -d $(DESTDIR)$(INITDIR)
 	install -m 755 init.d/scst $(DESTDIR)$(INITDIR)
 	if [ ! -e  $(DESTDIR)$(DEFAULTDIR)/scst ]; then		\
@@ -63,6 +72,12 @@ uninstall:
 	  fi;							\
 	  rm -f $(DESTDIR)$(INITDIR)/scst;			\
 	fi
+	for m in scstadmin/man*/*.[1-9]; do		\
+	  if [ -e $$m ]; then				\
+	    d=$(MANDIR)$$(basename $$(dirname $$m));	\
+	    rm -f $$d/$$(basename $$m);			\
+	  fi						\
+	done
 	cd $(SCSTADMIN_DIR) && $(MAKE) $@
 
 perl-module:

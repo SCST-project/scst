@@ -1,0 +1,200 @@
+.\" -*- nroff -*-
+.\" Copyright 2011 Bart Van Assche <bvanassche@acm.org>. All rights reserved.
+.\" Permission is granted to copy, distribute and/or modify this document
+.\" under the terms of the GNU General Public License, version 2 (GPLv2). 
+.TH scst.conf 5 "July 2011" "scstadmin 2.0.0"
+.SH NAME
+scst.conf \- Main SCST configuration file.
+.SH DESCRIPTION
+.I scst.conf
+is the main SCST configuration file. It contains information about the
+configuration of the SCST core, device handlers, devices, target drivers,
+targets, initiator groups and LUNs. This file is read and applied by the
+.BR scstadmin (1)
+program when the SCST service starts.
+.P
+The format of the
+.I scst.conf
+file is as follows:
+.br
+- Blank lines and lines starting with a hash sign (#) are ignored.
+.br
+- All other lines either define an attribute, mark the start of a new section
+or the end of a section.
+.br
+- An attribute definition consists of an attribute name and an attribute
+value.
+.br
+- Attribute names consist of a sequence of letters, numbers and underscore
+characters (_). Attribute names must not contain blanks.
+.br
+- An attribute name may occur several times in a section with different values.
+.br
+- Attribute values may contain blanks. Any attribute value that contains
+blanks must be surrounded with double quotes.
+.br
+- A line that ends with
+.BR { .
+marks the start of a new section.
+.br
+- A line that contains nothing else than
+.B }
+marks the end of a section.
+.P
+The recognized section names and their arguments are:
+.IP "HANDLER <handler>"
+<handler> is the name of an SCST device handler.
+.IP "DEVICE <name>"
+<name> is either a H:C:I:L quadruplet referring to a local SCSI device
+or an SCST device name.
+.IP "TARGET_DRIVER <driver>"
+<driver> is the name of an SCST target driver.
+.IP "TARGET <target>"
+<target> is the name of an SCST target.
+.IP "LUN <number>"
+.IP "GROUP <group>"
+<group> is the name of an SCST initiator group.
+.IP "INITIATOR <ini>"
+<ini> is either an initiator name or a wildcard pattern matching zero or more
+initiator names. The supported wildcard characters are:
+.BR ! ", " * " and " ? .
+.P
+An example:
+.IP
+# Sample SCST configuration file for scstadmin v2.0.
+.IP
+setup_id 0x1234
+.IP
+HANDLER dev_disk {
+.br
+	DEVICE 1:0:0:0
+.br
+	DEVICE 2:0:0:0
+.br
+}
+.IP
+HANDLER vdisk_fileio {
+.br
+	DEVICE disk1 {
+.br
+		filename /disk1
+.br
+		nv_cache 1
+.br
+	}
+.IP
+	DEVICE disk2 {
+.br
+		filename /disk2
+.br
+		blocksize 4096
+.br
+		removable 1
+.br
+	}
+.br
+}
+.IP
+HANDLER vdisk_blockio {
+.br
+	DEVICE blockio1 {
+.br
+		filename /dev/sda5
+.br
+	}
+.br
+}
+.IP
+HANDLER vcdrom {
+.br
+	DEVICE cdrom1 {
+.br
+		filename /cdrom1.iso
+.br
+	}
+.br
+}
+.IP
+TARGET_DRIVER scst_local {
+.br
+	TARGET scst_local_tgt {
+.br
+		session_name scst_local_host
+.br
+		session_name scst_local_host1
+.IP
+		LUN 0 disk1
+.br
+	}
+.br
+}
+.IP
+TARGET_DRIVER qla2x00t {
+.br
+	TARGET 25:00:00:f0:98:87:92:f3 {
+.br
+		GROUP INI1 {
+.br
+			LUN 0 blockio1
+.br
+			LUN 1 1:0:0:0 {
+.br
+				read_only 1
+.br
+			}
+.br
+			LUN 5 cdrom1
+.IP
+			INITIATOR 25:00:00:f0:99:87:94:a3
+.br
+			INITIATOR 25:00:00:f0:99:87:94:a4
+.br
+		}
+.IP
+		enabled 1
+.br
+	}
+.IP
+	TARGET 25:00:00:f0:98:87:92:f4 {
+.br
+	}
+.br
+}
+.IP
+TARGET_DRIVER iscsi {
+.br
+	IncomingUser "joe 12charsecret"
+.IP
+	TARGET iqn.2006-10.net.vlnb:tgt {
+.br
+		IncomingUser "joe 12charsecret"
+.br
+		IncomingUser "fred 12charsecret2"
+.br
+		IncomingUser "jonas 12charsecret3"
+.br
+		HeaderDigest CRC32C,None
+.IP
+		LUN 0 disk1
+.br
+		LUN 1 disk2
+.br
+		LUN 2 blockio1 {
+.br
+			read_only 1
+.br
+		}
+.IP
+		enabled 1
+.br
+	}
+.IP
+	enabled 1
+.br
+}
+.SH FILES
+.IP "/etc/scst.conf"
+The configuration file read by 
+.BR scstadmin (1).
+.SH "SEE ALSO"
+scstadmin(1), scst(5)

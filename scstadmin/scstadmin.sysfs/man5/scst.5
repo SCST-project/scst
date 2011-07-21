@@ -1,0 +1,37 @@
+.\" -*- nroff -*-
+.\" Copyright 2011 Bart Van Assche <bvanassche@acm.org>. All rights reserved.
+.\" Permission is granted to copy, distribute and/or modify this document
+.\" under the terms of the GNU General Public License, version 2 (GPLv2). 
+.TH scst 5 "July 2011" "scstadmin 2.0.0"
+.SH NAME
+scst \- /etc/init.d/scst configuration file.
+.SH DESCRIPTION
+/etc/default/scst is a configuration file read by the SCST startup script
+/etc/init.d/scst and that controls the behavior of that startup script. This
+file contains zero or more lists of kernel module parameters that are passed
+by the /etc/init.d/scst script to the appropriate kernel module when such a
+kernel module is loaded.
+.P
+The format of the
+.I scst
+file is as follows:
+.br
+- Blank lines and lines starting with a hash sign (#) are ignored.
+.br
+- All other lines must contain a variable definition using the syntax
+<target_driver>_parameters=<value>. If <value> contains blanks, it must be
+surrounded with double quotes. <target_driver> is the name of an SCST target
+driver kernel module.
+.P
+An example:
+.IP
+# Set the ib_srpt kernel module parameter srp_max_req_size to
+.br
+# 4200 bytes and the srpt_sq_size parameter to 2048 elements.
+.br
+ib_srpt_parameters="srp_max_req_size=4200 srpt_sq_size=2048"
+.SH FILES
+.IP /etc/default/scst
+Configuration file interpret and applied by /etc/init.d/scst.
+.SH "SEE ALSO"
+scstadmin(1), scst.conf(5)
