@@ -3850,7 +3850,10 @@ sub make_path {
 	my $path;
 
 	foreach my $element (@_) {
-		$path .= "/$element";
+		if ($path && rindex($path, '/') != length($path) - 1) {
+			$path .= '/';
+		}
+		$path .= $element;
 	}
 
 	return $path;
