@@ -5370,7 +5370,7 @@ static ssize_t scst_dg_tgs_mgmt_show(struct kobject *kobj,
 				    struct kobj_attribute *attr, char *buf)
 {
 	static const char help[] =
-		"Usage: echo \"add group_name\" >mgmt\n"
+		"Usage: echo \"create group_name\" >mgmt\n"
 		"       echo \"del group_name\" >mgmt\n";
 
 	return scnprintf(buf, PAGE_SIZE, help);
@@ -5395,7 +5395,7 @@ static int scst_dg_tgs_mgmt_store_work_fn(struct scst_sysfs_work_item *w)
 	res = -EINVAL;
 	pp = cmd;
 	p = scst_get_next_lexem(&pp);
-	if (strcasecmp(p, "add") == 0) {
+	if (strcasecmp(p, "create") == 0 || strcasecmp(p, "add") == 0) {
 		dev_name = scst_get_next_lexem(&pp);
 		if (!*dev_name)
 			goto out;
@@ -5508,7 +5508,7 @@ static ssize_t scst_device_groups_mgmt_show(struct kobject *kobj,
 					    char *buf)
 {
 	static const char help[] =
-		"Usage: echo \"add group_name\" >mgmt\n"
+		"Usage: echo \"create group_name\" >mgmt\n"
 		"       echo \"del group_name\" >mgmt\n";
 
 	return scnprintf(buf, PAGE_SIZE, help);
@@ -5531,7 +5531,7 @@ static ssize_t scst_device_groups_mgmt_store(struct kobject *kobj,
 
 	res = -EINVAL;
 	p = scst_get_next_lexem(&pp);
-	if (strcasecmp(p, "add") == 0) {
+	if (strcasecmp(p, "create") == 0 || strcasecmp(p, "add") == 0) {
 		group_name = scst_get_next_lexem(&pp);
 		if (!*group_name)
 			goto out;
