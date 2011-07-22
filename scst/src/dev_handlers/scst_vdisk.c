@@ -5062,8 +5062,7 @@ static int vcdrom_open(char *p, char *name)
 		cdrom_empty = 1;
 		TRACE_DBG("%s", "No media");
 	} else if (*filename != '/') {
-		PRINT_ERROR("File path \"%s\" is not "
-			"absolute", filename);
+		PRINT_ERROR("File path \"%s\" is not absolute", filename);
 		res = -EINVAL;
 		goto out;
 	} else
