@@ -83,36 +83,31 @@ clean:
 extraclean: clean
 	rm -f *.orig *.rej
 
-debug2release:
-	sed -i.aa s/"^CFLAGS += \-DEXTRACHECKS"/"#CFLAGS += \-DEXTRACHECKS"/ Makefile
-	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed: wrong original state?"; false; fi
-	sed -i.aa s/"#CFLAGS += \-DTRACING"/"CFLAGS += \-DTRACING"/ Makefile
-	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed: wrong original state?"; false; fi
-	sed -i.aa s/"^CFLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions"/"#CFLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions"/ Makefile
-	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed: wrong original state?"; false; fi
+2release:
+	sed -i.aa s/"^C\?FLAGS += \-DEXTRACHECKS"/"#CFLAGS += \-DEXTRACHECKS"/ Makefile
+	grep "^#CFLAGS += \-DEXTRACHECKS" Makefile >/dev/null
+	sed -i.aa s/"^#\?CFLAGS += \-DTRACING"/"CFLAGS += \-DTRACING"/ Makefile
+	grep "^CFLAGS += \-DTRACING" Makefile >/dev/null
+	sed -i.aa s/"^C\?FLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions"/"#CFLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions"/ Makefile
+	grep "^#CFLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions" Makefile >/dev/null
 	rm Makefile.aa
 
-release2debug:
-	sed -i.aa s/"#CFLAGS += \-DEXTRACHECKS"/"CFLAGS += \-DEXTRACHECKS"/ Makefile
-	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed: wrong original state?"; false; fi
-	sed -i.aa s/"^CFLAGS += \-DTRACING"/"#CFLAGS += \-DTRACING"/ Makefile
-	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed: wrong original state?"; false; fi
-	sed -i.aa s/"#CFLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions"/"CFLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions"/ Makefile
-	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed: wrong original state?"; false; fi
+2debug:
+	sed -i.aa s/"^#\?CFLAGS += \-DEXTRACHECKS"/"CFLAGS += \-DEXTRACHECKS"/ Makefile
+	grep "^CFLAGS += \-DEXTRACHECKS" Makefile >/dev/null
+	sed -i.aa s/"^C\?FLAGS += \-DTRACING"/"#CFLAGS += \-DTRACING"/ Makefile
+	grep "^#CFLAGS += \-DTRACING" Makefile >/dev/null
+	sed -i.aa s/"^#\?CFLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions"/"CFLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions"/ Makefile
+	grep "^CFLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions" Makefile >/dev/null
 	rm Makefile.aa
 
-debug2perf:
-	sed -i.aa s/"^CFLAGS += \-DEXTRACHECKS"/"#CFLAGS += \-DEXTRACHECKS"/ Makefile
-	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed: wrong original state?"; false; fi
-	sed -i.aa s/"^CFLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions"/"#CFLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions"/ Makefile
-	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed: wrong original state?"; false; fi
+2perf:
+	sed -i.aa s/"^C\?FLAGS += \-DEXTRACHECKS"/"#CFLAGS += \-DEXTRACHECKS"/ Makefile
+	grep "^#CFLAGS += \-DEXTRACHECKS" Makefile >/dev/null
+	sed -i.aa s/"^C\?FLAGS += \-DTRACING"/"#CFLAGS += \-DTRACING"/ Makefile
+	grep "^#CFLAGS += \-DTRACING" Makefile >/dev/null
+	sed -i.aa s/"^C\?FLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions"/"#CFLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions"/ Makefile
+	grep "^#CFLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions" Makefile >/dev/null
 	rm Makefile.aa
 
-perf2debug:
-	sed -i.aa s/"#CFLAGS += \-DEXTRACHECKS"/"CFLAGS += \-DEXTRACHECKS"/ Makefile
-	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed: wrong original state?"; false; fi
-	sed -i.aa s/"#CFLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions"/"CFLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions"/ Makefile
-	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed: wrong original state?"; false; fi
-	rm Makefile.aa
-
-.PHONY: all install uninstall clean extraclean debug2release release2debug debug2perf perf2debug
+.PHONY: all install uninstall clean extraclean 2release 2debug 2perf

@@ -5,12 +5,12 @@
 #  Copyright (C) 2004 - 2005 Leonid Stoljar
 #  Copyright (C) 2007 - 2010 ID7 Ltd.
 #  Copyright (C) 2010 - 2011 SCST Ltd.
-#  
+#
 #  This program is free software; you can redistribute it and/or
 #  modify it under the terms of the GNU General Public License
 #  as published by the Free Software Foundation, version 2
 #  of the License.
-# 
+#
 #  This program is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -39,16 +39,13 @@ clean:
 extraclean:
 	cd $(SCST_DIR) && $(MAKE) $@
 
-debug2release:
+2release:
 	cd $(SCST_DIR) && $(MAKE) $@
 
-release2debug:
+2debug:
 	cd $(SCST_DIR) && $(MAKE) $@
 
-debug2perf:
-	cd $(SCST_DIR) && $(MAKE) $@
-
-perf2debug:
+2perf:
 	cd $(SCST_DIR) && $(MAKE) $@
 
 disable_proc:
@@ -68,4 +65,4 @@ help:
 	@echo "         - be sure to compile qla against the correct initiator"
 	@echo "           driver. Read its README for details."
 
-.PHONY: all install uninstall clean extraclean help debug2release release2debug debug2perf perf2debug disable_proc enable_proc
+.PHONY: all install uninstall clean extraclean help 2release 2debug 2perf disable_proc enable_proc

@@ -1640,7 +1640,7 @@ In order to get the maximum performance you should:
 
 IMPORTANT: The development version of SCST in the SVN is optimized for
 =========  development and bug hunting, not for performance. To reconfigure
-	   it for performance you should run "make debug2perf" in the
+	   it for performance you should run "make 2perf" in the
 	   root of your source code (e.g. trunk/). It will set the above
 	   options as needed. The only option it doesn't set is
 	   CONFIG_SCST_TEST_IO_IN_SIRQ, so, if needed, you should change
