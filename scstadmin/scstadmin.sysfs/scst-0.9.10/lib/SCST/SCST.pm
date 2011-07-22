@@ -154,6 +154,15 @@ SCST_C_DGRP_GROUP_EXISTS    => 137,
 SCST_C_TGRP_BAD_ATTRIBUTES   => 140,
 SCST_C_TGRP_ATTRIBUTE_STATIC => 141,
 SCST_C_TGRP_SETATTR_FAIL     => 142,
+
+SCST_C_TGRP_ADD_INI_FAIL     => 150,
+SCST_C_TGRP_REM_INI_FAIL     => 151,
+SCST_C_TGRP_NO_INI           => 152,
+SCST_C_TGRP_INI_EXISTS       => 153,
+
+SCST_C_TGRP_INI_BAD_ATTR     => 160,
+SCST_C_TGRP_INI_ATTR_STATIC  => 161,
+SCST_C_TGRP_INI_SETATTR_FAIL => 162,
 };
 
 my %VERBOSE_ERROR = (
@@ -250,6 +259,15 @@ my %VERBOSE_ERROR = (
 (SCST_C_TGRP_BAD_ATTRIBUTES)   => 'Bad attributes for target group.',
 (SCST_C_TGRP_ATTRIBUTE_STATIC) => 'Target group attribute specified is static.',
 (SCST_C_TGRP_SETATTR_FAIL)     => 'Failed to set target group attribute. See "dmesg" for more information.',
+
+(SCST_C_TGRP_ADD_INI_FAIL)     => 'Failed to add initiator to target group.',
+(SCST_C_TGRP_REM_INI_FAIL)     => 'Failed to remove initiator from target group.',
+(SCST_C_TGRP_NO_INI)           => 'No such initiator exists within target group.',
+(SCST_C_TGRP_INI_EXISTS)       => 'Initiator already exists within target group.',
+
+(SCST_C_TGRP_INI_BAD_ATTR)     => 'Bad attributes for target group initiator.',
+(SCST_C_TGRP_INI_ATTR_STATIC)  => 'Target group initiator attribute specified is static.',
+(SCST_C_TGRP_INI_SETATTR_FAIL) => 'Failed to set target group initiator attribute. See "dmesg" for more information.',
 );
 
 use vars qw(@ISA @EXPORT $VERSION);
@@ -742,20 +760,20 @@ sub deviceGroupDevices {
 	return \@devices;
 }
 
-sub deviceGroupTargetGroups {
+sub targetGroups {
 	my $self = shift;
 	my $group = shift;
 	my @tgroups;
 
 	if ($self->deviceGroupExists($group) != TRUE) {
-		$self->{'err_string'} = "deviceGroupTargetGroups(): Device group '$group' does not exist";
+		$self->{'err_string'} = "targetGroups(): Device group '$group' does not exist";
 		return undef;
 	}
 
 	my $dHandle = new IO::Handle;
 	my $_path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS);
 	if (!(opendir $dHandle, $_path)) {
-		$self->{'err_string'} = "deviceGroupTargetGroups(): Unable to read directory '$_path': $!";
+		$self->{'err_string'} = "targetGroups(): Unable to read directory '$_path': $!";
 		return undef;
 	}
 
@@ -770,6 +788,42 @@ sub deviceGroupTargetGroups {
 	close $dHandle;
 
 	return \@tgroups;
+}
+
+sub targetGroupInitiators {
+	my $self = shift;
+	my $group = shift;
+	my $tgroup = shift;
+	my @initiators;
+
+	if ($self->deviceGroupExists($group) != TRUE) {
+		$self->{'err_string'} = "targetGroupInitiators(): Device group '$group' does not exist";
+		return undef;
+	}
+
+	if ($self->targetGroupExists($group, $tgroup) != TRUE) {
+		$self->{'err_string'} = "targetGroupInitiators(): Target group '$tgroup' does not exist";
+		return undef;
+	}
+
+	my $dHandle = new IO::Handle;
+	my $_path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS, $tgroup);
+	if (!(opendir $dHandle, $_path)) {
+		$self->{'err_string'} = "targetGroups(): Unable to read directory '$_path': $!";
+		return undef;
+	}
+
+	foreach my $ini (readdir($dHandle)) {
+		next if (($ini eq '.') || ($ini eq '..'));
+
+		if (-d make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS, $tgroup, $ini)) {
+			push @initiators, $ini;
+		}
+	}
+
+	close $dHandle;
+
+	return \@initiators;
 }
 
 sub driverExists {
@@ -1620,7 +1674,7 @@ sub addDeviceGroupDevice {
 	return SCST_C_DGRP_ADD_DEV_FAIL;
 }
 
-sub addDeviceGroupTargetGroup {
+sub addTargetGroup {
 	my $self = shift;
 	my $group = shift;
 	my $tgroup = shift;
@@ -1629,7 +1683,7 @@ sub addDeviceGroupTargetGroup {
 	return SCST_C_DEV_GRP_NO_GROUP if (!$rc);
 	return $rc if ($rc > 1);
 
-	$rc = $self->deviceGroupTargetGroupExists($group, $tgroup);
+	$rc = $self->targetGroupExists($group, $tgroup);
 	return SCST_C_DGRP_GROUP_EXISTS if ($rc == TRUE);
 	return $rc if ($rc > 1);
 
@@ -1657,6 +1711,51 @@ sub addDeviceGroupTargetGroup {
 
 	return FALSE if ($self->{'debug'} || $bytes);
 	return SCST_C_DGRP_ADD_GRP_FAIL;
+}
+
+sub addTargetGroupInitiator {
+	my $self = shift;
+	my $group = shift;
+	my $tgroup = shift;
+	my $ini = shift;
+
+	my $rc = $self->deviceGroupExists($group);
+	return SCST_C_DEV_GRP_NO_GROUP if (!$rc);
+	return $rc if ($rc > 1);
+
+	$rc = $self->targetGroupExists($group, $tgroup);
+	return SCST_C_DGRP_NO_GROUP if (!$rc);
+	return $rc if ($rc > 1);
+
+	$rc = $self->targetGroupInitiatorExists($group, $tgroup, $ini);
+	return SCST_C_TGRP_INI_EXISTS if ($rc == TRUE);
+	return $rc if ($rc > 1);
+
+	my ($path, $cmd);
+	if (new_sysfs_interface()) {
+		die("New /sys interface for device groups not yet supported.");
+	} else {
+		$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS,
+				  $tgroup, SCST_MGMT_IO);
+	}
+	$cmd .= "add $ini";
+
+	my $io = new IO::File $path, O_WRONLY;
+
+	return SCST_C_TGRP_ADD_INI_FAIL if (!$io);
+
+	my $bytes;
+
+	if ($self->{'debug'}) {
+		print "DBG($$): $path -> $cmd\n";
+	} else {
+		$bytes = _syswrite($io, $cmd, length($cmd));
+	}
+
+	close $io;
+
+	return FALSE if ($self->{'debug'} || $bytes);
+	return SCST_C_TGRP_ADD_INI_FAIL;
 }
 
 sub removeDeviceGroupDevice {
@@ -1702,7 +1801,7 @@ sub removeDeviceGroupDevice {
 	return SCST_C_DGRP_REM_DEV_FAIL;
 }
 
-sub removeDeviceGroupTargetGroup {
+sub removeTargetGroup {
 	my $self = shift;
 	my $group = shift;
 	my $tgroup = shift;
@@ -1711,7 +1810,7 @@ sub removeDeviceGroupTargetGroup {
 	return SCST_C_DEV_GRP_NO_GROUP if (!$rc);
 	return $rc if ($rc > 1);
 
-	$rc = $self->deviceGroupTargetGroupExists($group, $tgroup);
+	$rc = $self->targetGroupExists($group, $tgroup);
 	return SCST_C_DGRP_NO_GROUP if (!$rc);
 	return $rc if ($rc > 1);
 
@@ -1739,6 +1838,51 @@ sub removeDeviceGroupTargetGroup {
 
 	return FALSE if ($self->{'debug'} || $bytes);
 	return SCST_C_DGRP_REM_GRP_FAIL;
+}
+
+sub removeTargetGroupInitiator {
+	my $self = shift;
+	my $group = shift;
+	my $tgroup = shift;
+	my $ini = shift;
+
+	my $rc = $self->deviceGroupExists($group);
+	return SCST_C_DEV_GRP_NO_GROUP if (!$rc);
+	return $rc if ($rc > 1);
+
+	$rc = $self->targetGroupExists($group, $tgroup);
+	return SCST_C_DGRP_NO_GROUP if (!$rc);
+	return $rc if ($rc > 1);
+
+	$rc = $self->targetGroupInitiatorExists($group, $tgroup, $ini);
+	return SCST_C_TGRP_NO_INI if (!$rc);
+	return $rc if ($rc > 1);
+
+	my ($path, $cmd);
+	if (new_sysfs_interface()) {
+		die("New /sys interface for device groups not yet supported.");
+	} else {
+		$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS,
+				  $tgroup, SCST_MGMT_IO);
+	}
+	$cmd .= "del $ini";
+
+	my $io = new IO::File $path, O_WRONLY;
+
+	return SCST_C_TGRP_REM_INI_FAIL if (!$io);
+
+	my $bytes;
+
+	if ($self->{'debug'}) {
+		print "DBG($$): $path -> $cmd\n";
+	} else {
+		$bytes = _syswrite($io, $cmd, length($cmd));
+	}
+
+	close $io;
+
+	return FALSE if ($self->{'debug'} || $bytes);
+	return SCST_C_TGRP_REM_INI_FAIL;
 }
 
 sub addInitiator {
@@ -3229,26 +3373,26 @@ sub setInitiatorAttribute {
 	return SCST_C_INI_SETATTR_FAIL;
 }
 
-sub deviceGroupTargetGroupAttributes {
+sub targetGroupAttributes {
 	my $self = shift;
 	my $group = shift;
 	my $tgroup = shift;
 	my %attributes;
 
 	if ($self->deviceGroupExists($group) != TRUE) {
-		$self->{'err_string'} = "deviceGroupTargetGroupAttributes(): Device group '$group' does not exist";
+		$self->{'err_string'} = "targetGroupAttributes(): Device group '$group' does not exist";
 		return undef;
 	}
 
-	if ($self->deviceGroupTargetGroupExists($group, $tgroup) != TRUE) {
-		$self->{'err_string'} = "deviceGroupTargetGroupAttributes(): Target Group '$tgroup' does not exist";
+	if ($self->targetGroupExists($group, $tgroup) != TRUE) {
+		$self->{'err_string'} = "targetGroupAttributes(): Target Group '$tgroup' does not exist";
 		return undef;
 	}
 
 	my $pHandle = new IO::Handle;
 	my $_path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS, $tgroup);
 	if (!(opendir $pHandle, $_path)) {
-		$self->{'err_string'} = "deviceGroupTargetGroupAttributes(): Unable to read directory '$_path': $!";
+		$self->{'err_string'} = "targetGroupAttributes(): Unable to read directory '$_path': $!";
 		return undef;
 	}
 
@@ -3274,7 +3418,7 @@ sub deviceGroupTargetGroupAttributes {
 				my $io = new IO::File $pPath, O_RDONLY;
 
 				if (!$io) {
-					$self->{'err_string'} = "deviceGroupTargetGroupAttributes(): Unable to read ".
+					$self->{'err_string'} = "targetGroupAttributes(): Unable to read ".
 					  "target group attribute '$attribute': $!";
 					return undef;
 				}
@@ -3310,7 +3454,95 @@ sub deviceGroupTargetGroupAttributes {
 	return \%attributes;
 }
 
-sub setDeviceGroupTargetGroupAttribute {
+sub targetGroupInitiatorAttributes {
+	my $self = shift;
+	my $group = shift;
+	my $tgroup = shift;
+	my $ini = shift;
+	my %attributes;
+
+	if ($self->deviceGroupExists($group) != TRUE) {
+		$self->{'err_string'} = "targetGroupInitiatorAttributes(): Device group '$group' does not exist";
+		return undef;
+	}
+
+	if ($self->targetGroupExists($group, $tgroup) != TRUE) {
+		$self->{'err_string'} = "targetGroupInitiatorAttributes(): Target Group '$tgroup' does not exist";
+		return undef;
+	}
+
+	if ($self->targetGroupInitiatorExists($group, $tgroup, $ini) != TRUE) {
+		$self->{'err_string'} = "targetGroupInitiatorAttributes(): Initiator '$ini' does not exist";
+		return undef;
+	}
+
+	my $pHandle = new IO::Handle;
+	my $_path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS, $tgroup, $ini);
+	if (!(opendir $pHandle, $_path)) {
+		$self->{'err_string'} = "targetGroupInitiatorAttributes(): Unable to read directory '$_path': $!";
+		return undef;
+	}
+
+	foreach my $attribute (readdir($pHandle)) {
+		next if ($attribute eq '.' || $attribute eq '..' ||
+			 $attribute eq SCST_MGMT_IO);
+		my $pPath = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS,
+				      $tgroup, $ini, $attribute);
+		my $mode = (stat($pPath))[2];
+		if (-d $pPath) {
+			# Skip directories
+		} else {
+			if (!(($mode & S_IRUSR) >> 6)) {
+				$attributes{$attribute}->{'static'} = FALSE;
+				$attributes{$attribute}->{'value'} = undef;
+			} else {
+				my $is_static;
+				if (($mode & S_IWUSR) >> 6) {
+					$is_static = FALSE;
+				} else {
+					$is_static = TRUE;
+				}
+
+				my $io = new IO::File $pPath, O_RDONLY;
+
+				if (!$io) {
+					$self->{'err_string'} = "targetGroupInitiatorAttributes(): Unable to read ".
+					  "target group initiator attribute '$attribute': $!";
+					return undef;
+				}
+
+				my $value = <$io>;
+				chomp $value;
+
+				my $is_key = <$io>;
+				$is_key = new_sysfs_interface() && !$is_static ||
+				    ($is_key =~ /\[key\]/) ? TRUE : FALSE;
+
+				my $key = 0;
+				if ($is_key) {
+					if ($attribute =~ /.*(\d+)$/) {
+						$key = $1;
+						$attribute =~ s/\d+$//;
+					}
+				}
+
+				next if ($attribute eq SCST_MGMT_IO);
+
+				$attributes{$attribute}->{'static'} = $is_static;
+
+				if ($is_key) {
+					$attributes{$attribute}->{'keys'}->{$key}->{'value'} = $value;
+				} else {
+					$attributes{$attribute}->{'value'} = $value;
+				}
+			}
+		}
+	}
+
+	return \%attributes;
+}
+
+sub setTargetGroupAttribute {
 	my $self = shift;
 	my $group = shift;
 	my $tgroup = shift;
@@ -3321,13 +3553,13 @@ sub setDeviceGroupTargetGroupAttribute {
 	return SCST_C_DEV_GRP_NO_GROUP if (!$rc);
 	return $rc if ($rc > 1);
 
-	$rc = $self->deviceGroupTargetGroupExists($group, $tgroup);
+	$rc = $self->targetGroupExists($group, $tgroup);
 	return SCST_C_DGRP_NO_GROUP if (!$rc);
 	return $rc if ($rc > 1);
 
 	return TRUE if (!defined($attribute) || !defined($value));
 
-	my $attributes = $self->deviceGroupTargetGroupAttributes($group, $tgroup);
+	my $attributes = $self->targetGroupAttributes($group, $tgroup);
 
 	return SCST_C_TGRP_BAD_ATTRIBUTES if (!defined($$attributes{$attribute}));
 	return SCST_C_TGRP_ATTRIBUTE_STATIC if ($$attributes{$attribute}->{'static'});
@@ -3349,7 +3581,55 @@ sub setDeviceGroupTargetGroupAttribute {
 	close $io;
 
 	return FALSE if ($self->{'debug'} || $bytes);
-	return SCST_C_GRP_SETATTR_FAIL;
+	return SCST_C_TGRP_SETATTR_FAIL;
+}
+
+sub setTargetGroupInitiatorAttribute {
+	my $self = shift;
+	my $group = shift;
+	my $tgroup = shift;
+	my $ini = shift;
+	my $attribute = shift;
+	my $value = shift;
+
+	my $rc = $self->deviceGroupExists($group);
+	return SCST_C_DEV_GRP_NO_GROUP if (!$rc);
+	return $rc if ($rc > 1);
+
+	$rc = $self->targetGroupExists($group, $tgroup);
+	return SCST_C_DGRP_NO_GROUP if (!$rc);
+	return $rc if ($rc > 1);
+
+	$rc = $self->targetGroupInitiatorExists($group, $tgroup, $ini);
+	return SCST_C_TGRP_NO_INI if (!$rc);
+	return $rc if ($rc > 1);
+
+	return TRUE if (!defined($attribute) || !defined($value));
+
+	my $attributes = $self->targetGroupInitiatorAttributes($group, $tgroup, $ini);
+
+	return SCST_C_TGRP_INI_BAD_ATTR if (!defined($$attributes{$attribute}));
+	return SCST_C_TGRP_INI_ATTR_STATIC if ($$attributes{$attribute}->{'static'});
+
+	my $path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS,
+			     $tgroup, $ini, $attribute);
+
+	my $io = new IO::File $path, O_WRONLY;
+
+	return SCST_C_TGRP_INI_SETATTR_FAIL if (!$io);
+
+	my $bytes;
+
+	if ($self->{'debug'}) {
+		print "DBG($$): $path -> $attribute = $value\n";
+	} else {
+		$bytes = _syswrite($io, $value, length($value));
+	}
+
+	close $io;
+
+	return FALSE if ($self->{'debug'} || $bytes);
+	return SCST_C_TGRP_INI_SETATTR_FAIL;
 }
 
 sub handlers {
@@ -3950,22 +4230,49 @@ sub deviceGroupDeviceExists {
 	return FALSE;
 }
 
-sub deviceGroupTargetGroupExists {
+sub targetGroupExists {
 	my $self = shift;
 	my $group = shift;
 	my $tgroup = shift;
 
 	if ($self->deviceGroupExists($group) != TRUE) {
-		$self->{'err_string'} = "deviceGroupTargetGroupExists(): Device group '$group' does not exist";
+		$self->{'err_string'} = "targetGroupExists(): Device group '$group' does not exist";
 		return undef;
 	}
 
-	my $tgroups = $self->deviceGroupTargetGroups($group);
+	my $tgroups = $self->targetGroups($group);
 
 	return SCST_C_FATAL_ERROR if (!defined($tgroups));
 
 	foreach my $_tgroup (@{$tgroups}) {
 		return TRUE if ($tgroup eq $_tgroup);
+	}
+
+	return FALSE;
+}
+
+sub targetGroupInitiatorExists {
+	my $self = shift;
+	my $group = shift;
+	my $tgroup = shift;
+	my $ini = shift;
+
+	if ($self->deviceGroupExists($group) != TRUE) {
+		$self->{'err_string'} = "targetGroupInitiatorExists(): Device group '$group' does not exist";
+		return undef;
+	}
+
+	if ($self->targetGroupExists($group, $tgroup) != TRUE) {
+		$self->{'err_string'} = "targetGroupInitiatorExists(): Target group '$tgroup' does not exist";
+		return undef;
+	}
+
+	my $initiators = $self->targetGroupInitiators($group, $tgroup);
+
+	return SCST_C_FATAL_ERROR if (!defined($initiators));
+
+	foreach my $_ini (@{$initiators}) {
+		return TRUE if ($ini eq $_ini);
 	}
 
 	return FALSE;
