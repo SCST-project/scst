@@ -64,7 +64,7 @@ static struct scst_trace_log vdisk_local_trace_tbl[] = {
 };
 #define trace_log_tbl			vdisk_local_trace_tbl
 
-#define VDISK_TRACE_TLB_HELP	", order"
+#define VDISK_TRACE_TBL_HELP	", order"
 
 #endif
 
@@ -409,7 +409,7 @@ static struct scst_dev_type vdisk_file_devtype = {
 	.trace_flags =		&trace_flag,
 	.trace_tbl =		vdisk_local_trace_tbl,
 #ifndef CONFIG_SCST_PROC
-	.trace_tbl_help =	VDISK_TRACE_TLB_HELP,
+	.trace_tbl_help =	VDISK_TRACE_TBL_HELP,
 #endif
 #endif
 };
@@ -444,7 +444,7 @@ static struct scst_dev_type vdisk_blk_devtype = {
 	.trace_flags =		&trace_flag,
 	.trace_tbl =		vdisk_local_trace_tbl,
 #ifndef CONFIG_SCST_PROC
-	.trace_tbl_help =	VDISK_TRACE_TLB_HELP,
+	.trace_tbl_help =	VDISK_TRACE_TBL_HELP,
 #endif
 #endif
 };
@@ -476,7 +476,7 @@ static struct scst_dev_type vdisk_null_devtype = {
 	.trace_flags =		&trace_flag,
 	.trace_tbl =		vdisk_local_trace_tbl,
 #ifndef CONFIG_SCST_PROC
-	.trace_tbl_help =	VDISK_TRACE_TLB_HELP,
+	.trace_tbl_help =	VDISK_TRACE_TBL_HELP,
 #endif
 #endif
 };
@@ -509,7 +509,7 @@ static struct scst_dev_type vcdrom_devtype = {
 	.trace_flags =		&trace_flag,
 	.trace_tbl =		vdisk_local_trace_tbl,
 #ifndef CONFIG_SCST_PROC
-	.trace_tbl_help =	VDISK_TRACE_TLB_HELP,
+	.trace_tbl_help =	VDISK_TRACE_TBL_HELP,
 #endif
 #endif
 };
