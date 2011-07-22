@@ -70,7 +70,7 @@
 
 #define SRPT_ID_STRING	"SCST SRP target"
 
-MODULE_AUTHOR("Vu Pham");
+MODULE_AUTHOR("Vu Pham and Bart Van Assche");
 MODULE_DESCRIPTION("InfiniBand SCSI RDMA Protocol target "
 		   "v" DRV_VERSION " (" DRV_RELDATE ")");
 MODULE_LICENSE("Dual BSD/GPL");
