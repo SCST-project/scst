@@ -1,9 +1,6 @@
-# Prefix for /sbin and /man destination paths.
-PREFIX ?= /usr/local
-
 SCSTADMIN_DIR = scstadmin
 
-MANDIR := $(DESTDIR)$(PREFIX)/man
+MANDIR := $(DESTDIR)/usr/local/man
 INITDIR := $(shell if [ -f /etc/slackware-version ]; then	\
                      echo /etc/rc.d;				\
                    else						\
