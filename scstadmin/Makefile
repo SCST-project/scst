@@ -27,7 +27,7 @@ REMOVE_INITD_CMD := $(shell if [ -f /etc/gentoo-release ]; then		\
 DEFAULTDIR := /etc/default
 
 all:
-	cd $(SCSTADMIN_DIR) && $(MAKE) $@ PREFIX=$(PREFIX)
+	cd $(SCSTADMIN_DIR) && $(MAKE) $@
 
 install:
 	@if ! perl -MExtUtils::MakeMaker -e '' >/dev/null 2>&1; then \
@@ -38,7 +38,7 @@ install:
 	echo "Error: the lsb-core (Debian, Ubuntu), redhat-lsb (RHEL, CentOS,"\
 	"Scientific Linux, Fedora) or insserv (SLES, openSUSE) package must"  \
 	"be installed first"; false; fi
-	cd $(SCSTADMIN_DIR) && $(MAKE) $@ PREFIX=$(PREFIX)
+	cd $(SCSTADMIN_DIR) && $(MAKE) $@
 	for m in scstadmin/man*/*.[1-9]; do				\
 	  if [ -e $$m ]; then			    			\
 	    d=$(MANDIR)/$$(basename $$(dirname $$m));			\
@@ -81,19 +81,19 @@ uninstall:
 	    rm -f $$d/$$(basename $$m);			\
 	  fi						\
 	done
-	cd $(SCSTADMIN_DIR) && $(MAKE) $@ PREFIX=$(PREFIX)
+	cd $(SCSTADMIN_DIR) && $(MAKE) $@
 
 perl-module:
-	cd $(SCSTADMIN_DIR) && $(MAKE) $@ PREFIX=$(PREFIX)
+	cd $(SCSTADMIN_DIR) && $(MAKE) $@
 
 clean:
-	cd $(SCSTADMIN_DIR) && $(MAKE) $@ PREFIX=$(PREFIX)
+	cd $(SCSTADMIN_DIR) && $(MAKE) $@
 
 distclean:
-	cd $(SCSTADMIN_DIR) && $(MAKE) $@ PREFIX=$(PREFIX)
+	cd $(SCSTADMIN_DIR) && $(MAKE) $@
 
 extraclean:
-	cd $(SCSTADMIN_DIR) && $(MAKE) $@ PREFIX=$(PREFIX)
+	cd $(SCSTADMIN_DIR) && $(MAKE) $@
 
 disable_proc:
 	-rm -f scstadmin
