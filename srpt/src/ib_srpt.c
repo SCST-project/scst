@@ -1158,7 +1158,7 @@ static int srpt_ch_qp_rts(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 	 * T_tr = 4.096 us * 2**(local ACK timeout) where the local ACK timeout
 	 * is a five-bit value, with zero meaning that the timer is disabled.
 	 */
-	WARN_ON(attr->timeout < 0 || attr->timeout >= (1 << 5));
+	WARN_ON(attr->timeout >= (1 << 5));
 	if (attr->timeout) {
 		T_tr_ns = 1ULL << (12 + attr->timeout);
 		max_compl_time_ms = attr->retry_cnt * 4 * T_tr_ns / 1000000;
