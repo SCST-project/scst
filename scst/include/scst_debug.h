@@ -97,7 +97,7 @@
 
 #define TRACE_MINOR_AND_MGMT_DBG	(TRACE_MINOR|TRACE_MGMT_DEBUG)
 
-#ifndef KERN_CONT
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24) && !defined(RHEL_MAJOR)
 #define KERN_CONT       ""
 #endif
 
