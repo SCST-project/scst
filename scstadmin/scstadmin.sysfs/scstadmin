@@ -1922,6 +1922,7 @@ sub applyConfiguration {
 	foreach my $item (keys %{$CONFIG}) {
 		next if ($item eq 'HANDLER');
 		next if ($item eq 'TARGET_DRIVER');
+		next if ($item eq 'DEVICE_GROUP');
 		$_attributes{$item} = $$CONFIG{$item};
 	}
 
