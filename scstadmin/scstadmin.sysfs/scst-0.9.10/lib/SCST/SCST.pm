@@ -151,18 +151,22 @@ SCST_C_DGRP_REM_GRP_FAIL    => 135,
 SCST_C_DGRP_NO_GROUP        => 136,
 SCST_C_DGRP_GROUP_EXISTS    => 137,
 
-SCST_C_TGRP_BAD_ATTRIBUTES   => 140,
-SCST_C_TGRP_ATTRIBUTE_STATIC => 141,
-SCST_C_TGRP_SETATTR_FAIL     => 142,
+SCST_C_DGRP_BAD_ATTRIBUTES   => 140,
+SCST_C_DGRP_ATTRIBUTE_STATIC => 141,
+SCST_C_DGRP_SETATTR_FAIL     => 142,
 
-SCST_C_TGRP_ADD_INI_FAIL     => 150,
-SCST_C_TGRP_REM_INI_FAIL     => 151,
-SCST_C_TGRP_NO_INI           => 152,
-SCST_C_TGRP_INI_EXISTS       => 153,
+SCST_C_TGRP_BAD_ATTRIBUTES   => 150,
+SCST_C_TGRP_ATTRIBUTE_STATIC => 151,
+SCST_C_TGRP_SETATTR_FAIL     => 152,
 
-SCST_C_TGRP_INI_BAD_ATTR     => 160,
-SCST_C_TGRP_INI_ATTR_STATIC  => 161,
-SCST_C_TGRP_INI_SETATTR_FAIL => 162,
+SCST_C_TGRP_ADD_INI_FAIL     => 160,
+SCST_C_TGRP_REM_INI_FAIL     => 161,
+SCST_C_TGRP_NO_INI           => 162,
+SCST_C_TGRP_INI_EXISTS       => 163,
+
+SCST_C_TGRP_INI_BAD_ATTR     => 170,
+SCST_C_TGRP_INI_ATTR_STATIC  => 171,
+SCST_C_TGRP_INI_SETATTR_FAIL => 172,
 };
 
 my %VERBOSE_ERROR = (
@@ -255,6 +259,10 @@ my %VERBOSE_ERROR = (
 (SCST_C_DGRP_REM_GRP_FAIL)    => 'Failed to remove target group from device group. See "dmesg" for more information.',
 (SCST_C_DGRP_NO_GROUP)        => 'No such target group exists within device group.',
 (SCST_C_DGRP_GROUP_EXISTS)    => 'Target group already exists within device group.',
+
+(SCST_C_DGRP_BAD_ATTRIBUTES)   => 'Bad attributes for device group.',
+(SCST_C_DGRP_ATTRIBUTE_STATIC) => 'Device group attribute specified is static.',
+(SCST_C_DGRP_SETATTR_FAIL)     => 'Failed to set device group attribute. See "dmesg" for more information.',
 
 (SCST_C_TGRP_BAD_ATTRIBUTES)   => 'Bad attributes for target group.',
 (SCST_C_TGRP_ATTRIBUTE_STATIC) => 'Target group attribute specified is static.',
@@ -3373,6 +3381,81 @@ sub setInitiatorAttribute {
 	return SCST_C_INI_SETATTR_FAIL;
 }
 
+sub deviceGroupAttributes {
+	my $self = shift;
+	my $group = shift;
+	my %attributes;
+
+	if ($self->deviceGroupExists($group) != TRUE) {
+		$self->{'err_string'} = "targetGroupAttributes(): Device group '$group' does not exist";
+		return undef;
+	}
+
+	my $pHandle = new IO::Handle;
+	my $_path = make_path(SCST_DEV_GROUP_DIR(), $group);
+	if (!(opendir $pHandle, $_path)) {
+		$self->{'err_string'} = "deviceGroupAttributes(): Unable to read directory '$_path': $!";
+		return undef;
+	}
+
+	foreach my $attribute (readdir($pHandle)) {
+		next if ($attribute eq '.' || $attribute eq '..' ||
+			 $attribute eq SCST_MGMT_IO);
+		my $pPath = make_path(SCST_DEV_GROUP_DIR(), $group, $attribute);
+		my $mode = (stat($pPath))[2];
+		if (-d $pPath) {
+			# Skip directories
+		} else {
+			if (!(($mode & S_IRUSR) >> 6)) {
+				$attributes{$attribute}->{'static'} = FALSE;
+				$attributes{$attribute}->{'value'} = undef;
+			} else {
+				my $is_static;
+				if (($mode & S_IWUSR) >> 6) {
+					$is_static = FALSE;
+				} else {
+					$is_static = TRUE;
+				}
+
+				my $io = new IO::File $pPath, O_RDONLY;
+
+				if (!$io) {
+					$self->{'err_string'} = "deviceGroupAttributes(): Unable to read ".
+					  "device group attribute '$attribute': $!";
+					return undef;
+				}
+
+				my $value = <$io>;
+				chomp $value;
+
+				my $is_key = <$io>;
+				$is_key = new_sysfs_interface() && !$is_static ||
+				    ($is_key =~ /\[key\]/) ? TRUE : FALSE;
+
+				my $key = 0;
+				if ($is_key) {
+					if ($attribute =~ /.*(\d+)$/) {
+						$key = $1;
+						$attribute =~ s/\d+$//;
+					}
+				}
+
+				next if ($attribute eq SCST_MGMT_IO);
+
+				$attributes{$attribute}->{'static'} = $is_static;
+
+				if ($is_key) {
+					$attributes{$attribute}->{'keys'}->{$key}->{'value'} = $value;
+				} else {
+					$attributes{$attribute}->{'value'} = $value;
+				}
+			}
+		}
+	}
+
+	return \%attributes;
+}
+
 sub targetGroupAttributes {
 	my $self = shift;
 	my $group = shift;
@@ -3540,6 +3623,43 @@ sub targetGroupInitiatorAttributes {
 	}
 
 	return \%attributes;
+}
+
+sub setDeviceGroupAttribute {
+	my $self = shift;
+	my $group = shift;
+	my $attribute = shift;
+	my $value = shift;
+
+	my $rc = $self->deviceGroupExists($group);
+	return SCST_C_DEV_GRP_NO_GROUP if (!$rc);
+	return $rc if ($rc > 1);
+
+	return TRUE if (!defined($attribute) || !defined($value));
+
+	my $attributes = $self->deviceGroupAttributes($group);
+
+	return SCST_C_DGRP_BAD_ATTRIBUTES if (!defined($$attributes{$attribute}));
+	return SCST_C_DGRP_ATTRIBUTE_STATIC if ($$attributes{$attribute}->{'static'});
+
+	my $path = make_path(SCST_DEV_GROUP_DIR(), $group, $attribute);
+
+	my $io = new IO::File $path, O_WRONLY;
+
+	return SCST_C_DGRP_SETATTR_FAIL if (!$io);
+
+	my $bytes;
+
+	if ($self->{'debug'}) {
+		print "DBG($$): $path -> $attribute = $value\n";
+	} else {
+		$bytes = _syswrite($io, $value, length($value));
+	}
+
+	close $io;
+
+	return FALSE if ($self->{'debug'} || $bytes);
+	return SCST_C_DGRP_SETATTR_FAIL;
 }
 
 sub setTargetGroupAttribute {
