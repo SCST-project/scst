@@ -1244,9 +1244,6 @@ sub readWorkingConfig {
 		}
 	}
 
-use Data::Dumper;
-print Dumper(\%CURRENT);
-
 	return FALSE;
 }
 
