@@ -1202,6 +1202,20 @@ sub readWorkingConfig {
 		}
 	}
 
+	my $dgroups = $SCST->deviceGroups();
+	immediateExit($SCST->errorString());
+
+	foreach my $dgroup (@{$dgroups}) {
+		$CURRENT{'dgroups'}->{$dgroup}->{'devices'} = $SCST->deviceGroupDevices($dgroup);
+		immediateExit($SCST->errorString());			
+		my $tgroups = $SCST->targetGroups($dgroup);
+		immediateExit($SCST->errorString());
+		foreach my $tgroup (@{$tgroups}) {
+			$CURRENT{'dgroups'}->{$dgroup}->{'tgroups'}->{$tgroup}->{'inits'} =
+			  $SCST->targetGroupInitiators($dgroup, $tgroup);
+		}
+	}
+
 	print "done.\n\n";
 
 	# Perform some basic checks
@@ -1229,6 +1243,9 @@ sub readWorkingConfig {
 			}
 		}
 	}
+
+use Data::Dumper;
+print Dumper(\%CURRENT);
 
 	return FALSE;
 }
@@ -1610,6 +1627,97 @@ sub writeConfiguration {
 		if ($driver_buff) {
 			print $io "TARGET_DRIVER $driver {\n";
 			print $io $driver_buff;
+			print $io "}\n\n";
+		}
+	}
+
+	foreach my $dgroup (sort keys %{$CURRENT{'dgroups'}}) {
+		my $dgroup_buff;
+
+		my $dgroup_attrs = $SCST->deviceGroupAttributes($dgroup);
+
+		my $dgrp_attr_buff;
+		my $dgrp_attr_buff_nk;
+
+		$dgrp_attr_buff = serializeKeyAttr("\t", $dgroup_attrs);
+		$dgrp_attr_buff_nk = serializeNkAttr("\t", $dgroup_attrs) if ($nonkey);
+		$dgrp_attr_buff .= "\n" if ($dgrp_attr_buff);
+		$dgrp_attr_buff_nk .= "\n" if ($dgrp_attr_buff_nk);
+
+		my $tgroups = $CURRENT{'dgroups'}->{$dgroup}->{'tgroups'};
+
+		my $tgroup_buff;
+
+		foreach my $tgroup (sort keys %{$tgroups}) {
+			$tgroup_buff .= "\tTARGET_GROUP $tgroup";
+
+			my $attributes = $SCST->targetGroupAttributes($dgroup, $tgroup);
+
+			my $attribute_buff;
+			my $attribute_buff_nk;
+
+			$attribute_buff .= serializeKeyAttr("\t\t", $attributes);
+			$attribute_buff_nk .= serializeNkAttr("\t\t", $attributes) if ($nonkey);
+			$attribute_buff .= "\n" if ($attribute_buff);
+			$attribute_buff_nk .= "\n" if ($attribute_buff_nk);
+
+			my $inits = $CURRENT{'dgroups'}->{$dgroup}->{'tgroups'}->{$tgroup}->{'inits'};
+
+			my $init_buff;
+			foreach my $init (@{$inits}) {
+				$init_buff .= "\t\tINITIATOR $init";
+
+				my $ini_attrs = $SCST->targetGroupInitiatorAttributes($dgroup, $tgroup, $init);
+
+				my $i_attribute_buff
+				  = serializeKeyAttr("\t\t\t", $ini_attrs);
+				my $i_attribute_buff_nk
+				  = serializeNkAttr("\t\t\t", $ini_attrs) if ($nonkey);
+
+				if ($i_attribute_buff_nk) {
+					$i_attribute_buff .= "\t\t\t# Non-key attributes\n";
+					$i_attribute_buff .= $i_attribute_buff_nk;
+				}
+
+				if ($i_attribute_buff) {
+					$init_buff .= " {\n";
+					$init_buff .= $i_attribute_buff;
+					$init_buff .= "\t\t}\n";
+				} else {
+					$init_buff .= "\n";
+				}
+			}
+
+			if ($attribute_buff_nk) {
+				$attribute_buff .= "\t\t# Non-key attributes\n";
+				$attribute_buff .= $attribute_buff_nk;
+			}
+
+			if ($attribute_buff || $init_buff) {
+				$tgroup_buff .= " {\n";
+
+				$tgroup_buff .= $attribute_buff;
+				$tgroup_buff .= $init_buff;
+
+				$tgroup_buff =~ s/\n\n$/\n/;
+				$tgroup_buff .= "\t}\n\n";
+			} else {
+				$tgroup_buff .= "\n";
+			}
+		}
+
+		if ($dgrp_attr_buff_nk) {
+			$dgrp_attr_buff .= "\t# Non-key attributes\n";
+			$dgrp_attr_buff .= $dgrp_attr_buff_nk;
+		}
+
+		$dgroup_buff .= $dgrp_attr_buff;
+		$dgroup_buff .= $tgroup_buff;
+		$dgroup_buff =~ s/\n\n$/\n/;
+
+		if ($dgroup_buff) {
+			print $io "DEVICE_GROUP $dgroup {\n";
+			print $io $dgroup_buff;
 			print $io "}\n\n";
 		}
 	}
