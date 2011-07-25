@@ -150,6 +150,7 @@ SCST_C_DGRP_ADD_GRP_FAIL    => 134,
 SCST_C_DGRP_REM_GRP_FAIL    => 135,
 SCST_C_DGRP_NO_GROUP        => 136,
 SCST_C_DGRP_GROUP_EXISTS    => 137,
+SCST_C_DGRP_DEVICE_OTHER    => 138,
 
 SCST_C_DGRP_BAD_ATTRIBUTES   => 140,
 SCST_C_DGRP_ATTRIBUTE_STATIC => 141,
@@ -259,6 +260,7 @@ my %VERBOSE_ERROR = (
 (SCST_C_DGRP_REM_GRP_FAIL)    => 'Failed to remove target group from device group. See "dmesg" for more information.',
 (SCST_C_DGRP_NO_GROUP)        => 'No such target group exists within device group.',
 (SCST_C_DGRP_GROUP_EXISTS)    => 'Target group already exists within device group.',
+(SCST_C_DGRP_DEVICE_OTHER)    => 'Device is already assigned to another device group.',
 
 (SCST_C_DGRP_BAD_ATTRIBUTES)   => 'Bad attributes for device group.',
 (SCST_C_DGRP_ATTRIBUTE_STATIC) => 'Device group attribute specified is static.',
@@ -1656,6 +1658,17 @@ sub addDeviceGroupDevice {
 	return SCST_C_DGRP_DEVICE_EXISTS if ($rc == TRUE);
 	return $rc if ($rc > 1);
 
+	# Check all device groups for this device
+	my $dgroups = $self->deviceGroups();
+
+	foreach my $dgroup (@{$dgroups}) {
+		my $devs = $self->deviceGroupDevices($dgroup);
+
+		foreach my $dev (@{$devs}) {
+			return SCST_C_DGRP_DEVICE_OTHER if ($dev eq $device);
+		}
+	}
+
 	my ($path, $cmd);
 	if (new_sysfs_interface()) {
 		die("New /sys interface for device groups not yet supported.");
@@ -1828,7 +1841,7 @@ sub removeTargetGroup {
 	} else {
 		$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS, SCST_MGMT_IO);
 	}
-	$cmd .= "del $group";
+	$cmd .= "del $tgroup";
 
 	my $io = new IO::File $path, O_WRONLY;
 

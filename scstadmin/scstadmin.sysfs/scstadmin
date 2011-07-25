@@ -26,9 +26,9 @@ General Operations
 Query Operations
      -list_handler [<hndlr>] : List all available handlers or specific <hndlr>.
      -list_device [<device>] : List all open devices or specific <device>.
-     -list_dgrp [<group>]    : List all device groups or specific <group>.
-     -list_tgrp [<group>]    
-         [-target <target>   : List all target groups within a device group.
+     -list_dgrp [<dgrp>]     : List all device groups or specific <dgrp>.
+     -list_tgrp [<tgrp>]     : List all target groups within a device group.
+         [-dev_group <dgrp>]
      -list_driver [<driver>] : List all available drivers or specific <driver>.
      -list_target [<target>] : List all available targets or specific <target>.
          [-driver <driver>]
@@ -36,23 +36,27 @@ Query Operations
          [-driver <driver>]
          [-target <target>]
 
+List Attribute Operations
      -list_scst_attr         : List all attributes for SCST.
      -list_hnd_attr <hndlr>  : List all attributes for a given handler.
      -list_dev_attr <device> : List all attributes for a given device.
      -list_drv_attr <driver> : List all attributes for a given driver.
-     -list_dgrp_attr <group> : List all attributes for a given device group.
-     -list_tgrp_attr <group>
-          -target <target>   : List all attributes for a device group/target.
+     -list_dgrp_attr <dgrp>  : List all attributes for a given device group.
+     -list_tgrp_attr <tgrp>  : List all attributes for a device group/target.
+          -dev_group <dgrp>
+     -list_tinit_attr <init> : List all attributes for a target group initiator.
+          -dev_group <dgrp>
+          -tgt_group <tgrp>
      -list_tgt_attr <target> : List all attributes for a given driver/target.
           -driver <driver>
      -list_grp_attr <group>  : List all attributes for a given group.
-         -driver <driver>
-         -target <target>
+          -driver <driver>
+          -target <target>
      -list_lun_attr <lun>    : List all attributes for a driver/target/lun.
           -driver <driver>
           -target <target>
           [-group <group>]
-     -list_ini_attr <ini>    : List all attributes for a driver/target/initiator
+     -list_init_attr <init>  : List all attributes for a driver/target/initiator
           -driver <driver>
           -target <target>
           -group <group>
@@ -68,6 +72,15 @@ Set Attribute Operations
          -attributes <p=v,...>
      -set_drv_attr <driver>  : Sets driver attribute(s) <p> to value <v>.
          -attributes <p=v,...>
+     -set_dgrp_attr <dgrp>   : List all attributes for a given device group.
+         -attributes <p=v,...>
+     -set_tgrp_attr <tgrp>   : List all attributes for a device group/target.
+         -dev_group <dgrp>
+         -attributes <p=v,...>
+     -set_tinit_attr <init>  : List all attributes for a target group initiator.
+         -dev_group <dgrp>
+         -tgt_group <tgrp>
+         -attributes <p=v,...>
      -set_tgt_attr <target>  : Sets target attribute(s) <p> to value <v>.
          -driver <driver>
          -attributes <p=v,...>
@@ -80,7 +93,7 @@ Set Attribute Operations
          -target <target>
          [-group <group>]
          -attributes <p=v,...>
-     -set_ini_attr <ini>     : Sets initiator attribute(s) <p> to value <v>.
+     -set_init_attr <init>   : Sets initiator attribute(s) <p> to value <v>.
          -driver <driver>
          -target <target>
          -group <group>
@@ -109,12 +122,22 @@ Device Operations
          -handler <handler>
 
 Device Group Operations
-     -add_dgrp <group>       : Add device group <group>.
-     -rem_dgrp <group>       : Remove device group <group>.
-     -add_dgrp_dev <group>
-         -device <device>    : Add device <device> to device group <group>.
-     -rem_dgrp_dev <group>
-         -device <device>    : Remove device <device> from device group <group>.  
+     -add_dgrp <dgrp>        : Add device group <dgrp>.
+     -rem_dgrp <dgrp>        : Remove device group <dgrp>.
+     -add_dgrp_dev <device>
+         -dev_group <dgroup> : Add device <device> to device group <dgrp>.
+     -rem_dgrp_dev <device>
+         -dev_group <dgroup> : Remove device <device> from device group <dgrp>.  
+     -add_tgrp <tgrp>
+         -tgt_group <tgrp>   : Add target group <tgrp> to device group <dgrp>.
+     -rem_tgrp <tgrp>
+         -dev_group <dgrp>   : Remove target group <tgrp> from device group.
+     -add_tgrp_init <init>
+         -dev_group <dgrp>
+         -tgt_group <tgrp>   : Add initiator to specified target group.
+     -rem_tgrp_init <init>
+         -dev_group <dgrp>
+         -tgt_group <tgrp>   : Remove initiator from specified target group.
 
 Target Operations
      -add_target <target>    : Add a dynamic target to a capable driver.
@@ -261,8 +284,9 @@ sub getArgs {
 	my $listScstAttr;
 	my $listHandlerAttr;
 	my $listDeviceAttr;
-	my $listDevGroupAttr;
+	my $listDeviceGroupAttr;
 	my $listTargetGroupAttr;
+	my $listTargetGroupInitAttr;
 	my $listGroupAttr;
 	my $listDriverAttr;
 	my $listTargetAttr;
@@ -272,6 +296,9 @@ sub getArgs {
 	my $setScstAttr;
 	my $setHandlerAttr;
 	my $setDeviceAttr;
+	my $setDeviceGroupAttr;
+	my $setTargetGroupAttr;
+	my $setTargetGroupInitAttr;
 	my $setDriverAttr;
 	my $setTargetAttr;
 	my $setGroupAttr;
@@ -291,6 +318,11 @@ sub getArgs {
 	my $removeDevGroup;
 	my $addDevGroupDevice;
 	my $removeDevGroupDevice;
+
+	my $addTargetGroup;
+	my $removeTargetGroup;
+	my $addTargetGroupInit;
+	my $removeTargetGroupInit;
 
 	my $addTarget;
 	my $removeTarget;
@@ -320,6 +352,8 @@ sub getArgs {
 	my $group;
 	my $to;
 	my $device;
+	my $deviceGroup;
+	my $targetGroup;
 
 	my $show_usage;
 	my $nonkey;
@@ -344,22 +378,26 @@ sub getArgs {
 			    'list_scst_attr'	=> \$listScstAttr,
 			    'list_hnd_attr=s'	=> \$listHandlerAttr,
 			    'list_dev_attr=s'	=> \$listDeviceAttr,
-			    'list_dgrp_attr=s'	=> \$listDevGroupAttr,
+			    'list_dgrp_attr=s'	=> \$listDeviceGroupAttr,
 			    'list_tgrp_attr=s'	=> \$listTargetGroupAttr,
+			    'list_tinit_attr=s'	=> \$listTargetGroupInitAttr,
 			    'list_drv_attr=s'	=> \$listDriverAttr,
 			    'list_tgt_attr=s'	=> \$listTargetAttr,
 			    'list_grp_attr=s'	=> \$listGroupAttr,
 			    'list_lun_attr=s'	=> \$listLunAttr,
-			    'list_ini_attr=s'	=> \$listInitiatorAttr,
+			    'list_init_attr=s'	=> \$listInitiatorAttr,
 
 			    'set_scst_attr'	=> \$setScstAttr,
 			    'set_hnd_attr=s'	=> \$setHandlerAttr,
 			    'set_dev_attr=s'	=> \$setDeviceAttr,
+			    'set_dgrp_attr=s'	=> \$setDeviceGroupAttr,
+			    'set_tgrp_attr=s'	=> \$setTargetGroupAttr,
+			    'set_tinit_attr=s'	=> \$setTargetGroupInitAttr,
 			    'set_drv_attr=s'	=> \$setDriverAttr,
 			    'set_tgt_attr=s'	=> \$setTargetAttr,
 			    'set_grp_attr=s'	=> \$setGroupAttr,
 			    'set_lun_attr=s'	=> \$setLunAttr,
-			    'set_ini_attr=s'	=> \$setInitiatorAttr,
+			    'set_init_attr=s'	=> \$setInitiatorAttr,
 
 			    'add_drv_attr=s'	=> \$addDriverAttr,
 			    'add_tgt_attr=s'	=> \$addTargetAttr,
@@ -374,6 +412,11 @@ sub getArgs {
 			    'rem_dgrp=s'	=> \$removeDevGroup,
 			    'add_dgrp_dev=s'	=> \$addDevGroupDevice,
 			    'rem_dgrp_dev=s'	=> \$removeDevGroupDevice,
+
+			    'add_tgrp=s'	=> \$addTargetGroup,
+			    'rem_tgrp=s'	=> \$removeTargetGroup,
+			    'add_tgrp_init=s'	=> \$addTargetGroupInit,
+			    'rem_tgrp_init=s'	=> \$removeTargetGroupInit,
 
 			    'add_target=s'	=> \$addTarget,
 			    'rem_target=s'	=> \$removeTarget,
@@ -403,6 +446,8 @@ sub getArgs {
 			    'group=s'		=> \$group,
 			    'to=s'		=> \$to,
 			    'device=s'		=> \$device,
+			    'dev_group=s'	=> \$deviceGroup,
+			    'tgt_group=s'	=> \$targetGroup,
 
 			    'h'			=> \$show_usage,
 			    'help'		=> \$show_usage,
@@ -430,14 +475,17 @@ sub getArgs {
 	  defined($listDriver) || defined($listTarget) || defined($listGroup) || defined($listSessions) ||
 	  defined($listScstAttr) || defined($listHandlerAttr) || defined($listDeviceAttr) || defined($listDriverAttr) ||
 	  defined($listTargetAttr) || defined($listGroupAttr) || defined($listLunAttr) || defined($listInitiatorAttr) ||
-	  defined($listDevGroupAttr) || defined($listTargetGroupAttr);
+	  defined($listDeviceGroupAttr) || defined($listTargetGroupAttr) || defined($listTargetGroupInitAttr);
 
 	my $set_mode = defined($setScstAttr) + defined($setHandlerAttr) + defined($setDeviceAttr) +
 	  defined($setDriverAttr) + defined($setTargetAttr) + defined($setGroupAttr) +
-	  defined($setLunAttr) + defined($setInitiatorAttr);
+	  defined($setLunAttr) + defined($setInitiatorAttr) + defined($setDeviceGroupAttr) +
+	  defined($setTargetGroupAttr) + defined($setTargetGroupInitAttr);
 
 	my $op_mode = defined($clearConfig) + defined($writeConfig) + defined($checkConfig) +
              defined($openDev) + defined($closeDev) + defined($addDevGroup) + defined($removeDevGroup) +
+	     defined($addTargetGroup) + defined($removeTargetGroup) +
+	     defined($addTargetGroupInit) + defined($removeTargetGroupInit) +
 	     defined($addGroup) + defined($removeGroup) + defined($addDevGroupDevice) + defined($removeDevGroupDevice) +
 	     defined($addInitiator) + defined($removeInitiator) + defined($clearInitiators) +
 	     defined($addDriverAttr) + defined($addTargetAttr) + defined($remDriverAttr) + defined($remTargetAttr) +
@@ -452,6 +500,11 @@ sub getArgs {
 
 	if (defined($clearConfig) && !$force) {
 		print "Please specify -force with -clear_config.\n";
+		exit 1;
+	}
+
+	if (defined($listTargetGroup) && ($deviceGroup eq '')) {
+		print "Please specify -dev_group with -list_tgrp.\n";
 		exit 1;
 	}
 
@@ -471,12 +524,17 @@ sub getArgs {
 	}
 
 	if (defined($listInitiatorAttr) && (($driver eq '') || ($target eq '') || ($group eq ''))) {
-		print "Please specify -driver, -target and -group with -list_ini_attr.\n";
+		print "Please specify -driver, -target and -group with -list_init_attr.\n";
 		exit 1;
 	}
 
-	if (defined($listTargetGroupAttr) && ($target eq '')) {
-		print "Please specify -target with -list_tgrp_attr.\n";
+	if (defined($listTargetGroupAttr) && ($deviceGroup eq '')) {
+		print "Please specify -dev_group with -list_tgrp_attr.\n";
+		exit 1;
+	}
+
+	if (defined($listTargetGroupInitAttr) && (($deviceGroup eq '') || ($targetGroup eq ''))) {
+		print "Please specify -dev_group and -tgt_group with -list_tinit_attr.\n";
 		exit 1;
 	}
 
@@ -492,6 +550,21 @@ sub getArgs {
 
 	if (defined($setDeviceAttr) && ($attributes eq '')) {
 		print "Please specify -attributes with -set_dev_attr.\n";
+		exit 1;
+	}
+
+	if (defined($setDeviceGroupAttr) && ($attributes eq '')) {
+		print "Please specify -attributes with -set_dgrp_attr.\n";
+		exit 1;
+	}
+
+	if (defined($setTargetGroupAttr) && (($deviceGroup eq '') || ($attributes eq ''))) {
+		print "Please specify -dev_group and -attributes with -set_tgrp_attr.\n";
+		exit 1;
+	}
+
+	if (defined($setTargetGroupInitAttr) && (($deviceGroup eq '') || ($targetGroup eq '') || ($attributes eq ''))) {
+		print "Please specify -dev_group -tgt_group and -attributes with -set_tinit_attr.\n";
 		exit 1;
 	}
 
@@ -518,7 +591,7 @@ sub getArgs {
 
 	if (defined($setInitiatorAttr) &&
 	    (($driver eq '') || ($target eq '') || ($group eq '') || ($attributes eq ''))) {
-		print "Please specify -driver -target -group and -attributes with -set_ini_attr.\n";
+		print "Please specify -driver -target -group and -attributes with -set_init_attr.\n";
 		exit 1;
 	}
 
@@ -589,8 +662,19 @@ sub getArgs {
 		exit 1;
 	}
 
-	if ((defined($addDevGroupDevice) || defined($removeDevGroupDevice)) && ($device eq '')) {
-		print "Please specify -device with -add_dgrp_dev/-rem_dgrp_dev.\n";
+	if ((defined($addDevGroupDevice) || defined($removeDevGroupDevice)) && ($deviceGroup eq '')) {
+		print "Please specify -dev_group with -add_dgrp_dev/-rem_dgrp_dev.\n";
+		exit 1;
+	}
+
+	if ((defined($addTargetGroup) || defined($removeTargetGroup)) && ($deviceGroup eq '')) {
+		print "Please specify -dev_group with -add_tgrp/-rem_tgrp.\n";
+		exit 1;
+	}
+
+	if ((defined($addTargetGroupInit) || defined($removeTargetGroupInit)) &&
+	    (($deviceGroup eq '') || ($targetGroup eq ''))) {
+		print "Please specify -dev_group and -tgt_group with -add_tgrp_init/-rem_tgrp_init.\n";
 		exit 1;
 	}
 
@@ -614,19 +698,22 @@ sub getArgs {
 
 	return ($applyConfig, $clearConfig, $writeConfig, $checkConfig,
 		$listScstAttr, $listHandler, $listDevice, $listDeviceGroup, $listTargetGroup, $listDriver, $listTarget, $listGroup,
-		$listSessions, $listHandlerAttr, $listDeviceAttr, $listDriverAttr, $listTargetAttr, $listDevGroupAttr, $listTargetGroupAttr,
+		$listSessions, $listHandlerAttr, $listDeviceAttr, $listDriverAttr, $listTargetAttr,
+		$listDeviceGroupAttr, $listTargetGroupAttr, $listTargetGroupInitAttr,
 		$listGroupAttr, $listLunAttr, $listInitiatorAttr, $setScstAttr, $setHandlerAttr,
 		$setDeviceAttr, $setDriverAttr, $setTargetAttr, $setGroupAttr, $setLunAttr, $setInitiatorAttr,
+		$setDeviceGroupAttr, $setTargetGroupAttr, $setTargetGroupInitAttr,
 		$addDriverAttr, $addTargetAttr, $remDriverAttr, $remTargetAttr,
                 $openDev, $closeDev, $resyncDev,
 		$addDevGroup, $removeDevGroup, $addDevGroupDevice, $removeDevGroupDevice,
+		$addTargetGroup, $removeTargetGroup, $addTargetGroupInit, $removeTargetGroupInit,
 		$addTarget, $removeTarget,
 		$addGroup, $removeGroup,
 		$addInitiator, $removeInitiator, $moveInitiator, $clearInitiators,
 		$addLun, $removeLun, $replaceLun, $clearLuns,
 		$enableTarget, $disableTarget, $issueLip,
 		$handler, \%_attributes,
-		$driver, $target, $group, $to, $device,
+		$driver, $target, $group, $to, $device,, $deviceGroup, $targetGroup,
 		$nonkey, $force);
 }
 
@@ -640,19 +727,22 @@ sub main {
 
 	my ($applyConfig, $clearConfig, $writeConfig, $checkConfig,
 	    $listScstAttr, $listHandler, $listDevice, $listDeviceGroup, $listTargetGroup, $listDriver, $listTarget, $listGroup,
-	    $listSessions, $listHandlerAttr, $listDeviceAttr, $listDriverAttr, $listTargetAttr, $listDevGroupAttr, $listTargetGroupAttr,
+	    $listSessions, $listHandlerAttr, $listDeviceAttr, $listDriverAttr, $listTargetAttr,
+	    $listDeviceGroupAttr, $listTargetGroupAttr, $listTargetGroupInitAttr,
 	    $listGroupAttr, $listLunAttr, $listInitiatorAttr, $setScstAttr, $setHandlerAttr,
 	    $setDeviceAttr, $setDriverAttr, $setTargetAttr, $setGroupAttr, $setLunAttr, $setInitiatorAttr,
+	    $setDeviceGroupAttr, $setTargetGroupAttr, $setTargetGroupInitAttr,
 	    $addDriverAttr, $addTargetAttr, $remDriverAttr, $remTargetAttr,
 	    $openDev, $closeDev, $resyncDev,
 	    $addDevGroup, $removeDevGroup, $addDevGroupDevice, $removeDevGroupDevice,
+	    $addTargetGroup, $removeTargetGroup, $addTargetGroupInit, $removeTargetGroupInit,
 	    $addTarget, $removeTarget,
 	    $addGroup, $removeGroup,
 	    $addInitiator, $removeInitiator, $moveInitiator, $clearInitiators,
 	    $addLun, $removeLun, $replaceLun, $clearLuns,
 	    $enableTarget, $disableTarget, $issueLip,
 	    $handler, $attributes,
-	    $driver, $target, $group, $to, $device,
+	    $driver, $target, $group, $to, $device, $deviceGroup, $targetGroup,
 	    $nonkey, $force) = getArgs();
 
 	$SCST = new SCST::SCST($_DEBUG_);
@@ -701,7 +791,7 @@ sub main {
 			$all_good = TRUE;
 		};
 		defined($listTargetGroup) && do {
-			$rc = listTargetGroups($listTargetGroup, $target);
+			$rc = listTargetGroups($deviceGroup, $listTargetGroup);
 			$all_good = TRUE;
 		};
 		defined($listDriver) && do {
@@ -752,12 +842,16 @@ sub main {
 			$rc = listInitiatorAttributes($driver, $target, $group, $listInitiatorAttr, $nonkey);
 			$all_good = TRUE;
 		};
-		defined($listDevGroupAttr) && do {
-			$rc = listDeviceGroupAttributes($listDevGroupAttr, $nonkey);
+		defined($listDeviceGroupAttr) && do {
+			$rc = listDeviceGroupAttributes($listDeviceGroupAttr, $nonkey);
 			$all_good = TRUE;
 		};
 		defined($listTargetGroupAttr) && do {
-			$rc = listTargetGroupAttributes($listTargetGroupAttr, $target, $nonkey);
+			$rc = listTargetGroupAttributes($deviceGroup, $listTargetGroupAttr, $nonkey);
+			$all_good = TRUE;
+		};
+		defined($listTargetGroupInitAttr) && do {
+			$rc = listTargetGroupInitiatorAttributes($deviceGroup, $targetGroup, $listTargetGroupInitAttr, $nonkey);
 			$all_good = TRUE;
 		};
 		defined($setScstAttr) && do {
@@ -813,6 +907,27 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			my $changes = setInitiatorAttributes($driver, $target, $group, $setInitiatorAttr, $attributes, TRUE);
+			print "\t-> Done, $changes change(s) made.\n";
+			last SWITCH;
+		};
+		defined($setDeviceGroupAttr) && do {
+			last if (prompt());
+			print "\n-> Making requested changes.\n";
+			my $changes = setDeviceGroupAttributes($setDeviceGroupAttr, $attributes, TRUE);
+			print "\t-> Done, $changes change(s) made.\n";
+			last SWITCH;
+		};
+		defined($setTargetGroupAttr) && do {
+			last if (prompt());
+			print "\n-> Making requested changes.\n";
+			my $changes = setTargetGroupAttributes($deviceGroup, $setTargetGroupAttr, $attributes, TRUE);
+			print "\t-> Done, $changes change(s) made.\n";
+			last SWITCH;
+		};
+		defined($setTargetGroupInitAttr) && do {
+			last if (prompt());
+			print "\n-> Making requested changes.\n";
+			my $changes = setTargetGroupInitiatorAttributes($deviceGroup, $targetGroup, $setTargetGroupInitAttr, $attributes, TRUE);
 			print "\t-> Done, $changes change(s) made.\n";
 			last SWITCH;
 		};
@@ -881,13 +996,37 @@ sub main {
 		};
 		defined($addDevGroupDevice) && do {
 			print "\n-> Making requested changes.\n";
-			$rc = addDeviceGroupDevice($addDevGroupDevice, $device);
+			$rc = addDeviceGroupDevice($deviceGroup, $addDevGroupDevice);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
 		defined($removeDevGroupDevice) && do {
 			print "\n-> Making requested changes.\n";
-			$rc = removeDeviceGroupDevice($removeDevGroupDevice, $device, $force);
+			$rc = removeDeviceGroupDevice($deviceGroup, $removeDevGroupDevice, $force);
+			print "\t-> Done.\n";
+			last SWITCH;
+		};
+		defined($addTargetGroup) && do {
+			print "\n-> Making requested changes.\n";
+			$rc = addTargetGroup($deviceGroup, $addTargetGroup);
+			print "\t-> Done.\n";
+			last SWITCH;
+		};
+		defined($removeTargetGroup) && do {
+			print "\n-> Making requested changes.\n";
+			$rc = removeTargetGroup($deviceGroup, $removeTargetGroup, $force);
+			print "\t-> Done.\n";
+			last SWITCH;
+		};
+		defined($addTargetGroupInit) && do {
+			print "\n-> Making requested changes.\n";
+			$rc = addTargetGroupInitiator($deviceGroup, $targetGroup, $addTargetGroupInit);
+			print "\t-> Done.\n";
+			last SWITCH;
+		};
+		defined($removeTargetGroupInit) && do {
+			print "\n-> Making requested changes.\n";
+			$rc = removeTargetGroupInitiator($deviceGroup, $targetGroup, $removeTargetGroupInit, $force);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -3263,6 +3402,24 @@ sub listTargetGroupAttributes {
 sub listTargetGroupInitiatorAttributes {
 	my $group = shift;
 	my $tgroup = shift;
+	my $init = shift;
+	my $nonkey = shift;
+
+	my $attributes = $SCST->targetGroupInitiatorAttributes($group, $tgroup, $init);
+
+	return TRUE if issueWarning($SCST->errorString());
+
+	if (!scalar(keys %{$attributes})) {
+		print "No such device group/target/initiator group '$group/$tgroup/$init' found.\n";
+		return;
+	}
+
+	return listAttributes($attributes, $nonkey);
+}
+
+sub listTargetGroupInitiatorAttributes {
+	my $group = shift;
+	my $tgroup = shift;
 	my $ini = shift;
 	my $nonkey = shift;
 
@@ -3489,6 +3646,105 @@ sub setInitiatorAttributes {
 
 	return setAttributes($driver, $target, $group, $initiator, $attributes,
 	  $_attributes, $error, \&setInitiatorAttribute, $showset);
+}
+
+sub setDeviceGroupAttributes {
+	my $group = shift;
+	my $attributes = shift;
+	my $showset = shift;
+
+	my $error = "\t-> WARNING: Device Group '$group' lacks the settable attribute '%s', ignoring.\n\n";
+
+	my $_attributes = $SCST->deviceGroupAttributes($group);
+
+	return TRUE if issueWarning($SCST->errorString());
+
+	return setAttributes(undef, undef, undef, $group, $attributes,
+	  $_attributes, $error, \&setDeviceGroupAttribute, $showset);
+}
+
+sub setDeviceGroupAttribute {
+	shift;
+	shift;
+	shift;
+	my $group = shift;
+	my $attribute = shift;
+	my $value = shift;
+
+	print "\t-> Setting Device Group attribute '$attribute' to value '$value' for ".
+	  "device group '$group': ";
+
+	my $rc = $SCST->setDeviceGroupAttribute($group, $attribute, $value);
+	print "done.\n";
+
+	return $rc;
+}
+
+sub setTargetGroupAttributes {
+	my $group = shift;
+	my $tgroup = shift;
+	my $attributes = shift;
+	my $showset = shift;
+
+	my $error = "\t-> WARNING: Target Group '$group/$tgroup' lacks the settable attribute '%s', ignoring.\n\n";
+
+	my $_attributes = $SCST->targetGroupAttributes($group, $tgroup);
+
+	return TRUE if issueWarning($SCST->errorString());
+
+	return setAttributes(undef, undef, $group, $tgroup, $attributes,
+	  $_attributes, $error, \&setTargetGroupAttribute, $showset);
+}
+
+sub setTargetGroupAttribute {
+	shift;
+	shift;
+	my $group = shift;
+	my $tgroup = shift;
+	my $attribute = shift;
+	my $value = shift;
+
+	print "\t-> Setting Target Group attribute '$attribute' to value '$value' for ".
+	  "target group '$group/$tgroup': ";
+
+	my $rc = $SCST->setTargetGroupAttribute($group, $tgroup, $attribute, $value);
+	print "done.\n";
+
+	return $rc;
+}
+
+sub setTargetGroupInitiatorAttributes {
+	my $group = shift;
+	my $tgroup = shift;
+	my $init = shift;
+	my $attributes = shift;
+	my $showset = shift;
+
+	my $error = "\t-> WARNING: Initiator '$group/$tgroup/$init' lacks the settable attribute '%s', ignoring.\n\n";
+
+	my $_attributes = $SCST->targetGroupInitiatorAttributes($group, $tgroup, $init);
+
+	return TRUE if issueWarning($SCST->errorString());
+
+	return setAttributes(undef, $group, $tgroup, $init, $attributes,
+	  $_attributes, $error, \&setTargetGroupInitiatorAttribute, $showset);
+}
+
+sub setTargetGroupInitiatorAttribute {
+	shift;
+	my $group = shift;
+	my $tgroup = shift;
+	my $init = shift;
+	my $attribute = shift;
+	my $value = shift;
+
+	print "\t-> Setting Initiator attribute '$attribute' to value '$value' for ".
+	  "initiator '$group/$tgroup/$init': ";
+
+	my $rc = $SCST->setTargetGroupInitiatorAttribute($group, $tgroup, $init, $attribute, $value);
+	print "done.\n";
+
+	return $rc;
 }
 
 # Sets any non-dynamic attributes
@@ -3965,6 +4221,37 @@ sub addDeviceGroup {
 	return FALSE;
 }
 
+sub addTargetGroup {
+	my $group = shift;
+	my $tgroup = shift;
+
+	print "\t-> Adding new target group '$tgroup' to device group '$group': ";
+
+	my $rc = $SCST->addTargetGroup($group, $tgroup);
+
+	print "done.\n";
+
+	immediateExit($SCST->errorString($rc)) if ($rc);
+
+	return FALSE;
+}
+
+sub addTargetGroupInitiator {
+	my $group = shift;
+	my $tgroup = shift;
+	my $init = shift;
+
+	print "\t-> Adding new target group/initiator '$tgroup/$init' to device group '$group': ";
+
+	my $rc = $SCST->addTargetGroupInitiator($group, $tgroup, $init);
+
+	print "done.\n";
+
+	immediateExit($SCST->errorString($rc)) if ($rc);
+
+	return FALSE;
+}
+
 sub removeDeviceGroup {
 	my $group = shift;
 	my $force = shift;
@@ -3983,6 +4270,49 @@ sub removeDeviceGroup {
 	print "\t-> Removing device group '$group': ";
 
 	my $rc = $SCST->removeDeviceGroup($group);
+
+	print "done.\n";
+
+	immediateExit($SCST->errorString($rc)) if ($rc);
+
+	return FALSE;
+}
+
+sub removeTargetGroup {
+	my $group = shift;
+	my $tgroup = shift;
+	my $force = shift;
+
+	if (!$force) {
+		my $inits = $SCST->targetGroupInitiators($group, $tgroup);
+
+		if ($#{$inits} > -1) {
+			print "\n";
+			listTargetGroup($group, $tgroup);
+			immediateExit("Target group is still in use, aborting. Use -force to override.");
+		}
+	}
+
+	print "\t-> Removing target group '$tgroup' from device group '$group': ";
+
+	my $rc = $SCST->removeTargetGroup($group, $tgroup);
+
+	print "done.\n";
+
+	immediateExit($SCST->errorString($rc)) if ($rc);
+
+	return FALSE;
+}
+
+sub removeTargetGroupInitiator {
+	my $group = shift;
+	my $tgroup = shift;
+	my $init = shift;
+	my $force = shift;
+
+	print "\t-> Removing target group/initiator '$tgroup/$init' from device group '$group': ";
+
+	my $rc = $SCST->removeTargetGroupInitiator($group, $tgroup, $init);
 
 	print "done.\n";
 
