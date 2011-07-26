@@ -2242,6 +2242,19 @@ sub applyConfigDeviceGroups {
 					} else {
 						print "\t-> Target Group '$dgroup/$tgroup' is not in configuration. Use -force to remove.\n";
 					}
+				} else {
+					my $inits = $$dgroups{$dgroup}->{'tgroups'}->{$tgroup}->{'inits'};
+
+					foreach my $init (@{$inits}) {
+						if (!defined($$config{'DEVICE_GROUP'}->{$dgroup}->{'TARGET_GROUP'}->{$tgroup}->{'INITIATOR'}->{$init})) {
+							if ($deletions) {
+								removeTargetGroupInitiator($dgroup, $tgroup, $init);
+								$changes++;
+							} else {
+								print "\t-> Initiator '$dgroup/$tgroup/$init' is not in configuration. Use -force to remove.\n";
+							}
+						}
+					}
 				}
 			}
 		}
@@ -2270,6 +2283,26 @@ sub applyConfigDeviceGroups {
 			if (!defined($CURRENT{'dgroups'}->{$dgroup}->{'tgroups'}->{$tgroup})) {
 				addTargetGroup($dgroup, $tgroup);
 				$changes++;
+			}
+
+			my $inits = $$tgroups{$tgroup}->{'INITIATOR'};
+
+			foreach my $init (keys %{$inits}) {
+				if (!groupHasInitiator($CURRENT{'dgroups'}->{$dgroup}->{'tgroups'}->{$tgroup}->{'inits'}, $init)) {
+					addTargetGroupInitiator($dgroup, $tgroup, $init);
+					$changes++;
+				}
+
+				my %_attributes;
+				foreach my $item (keys %{$$inits{$init}}) {
+					$_attributes{$item} = $$inits{$init}->{$item};
+				}
+
+				my $attributes = configToAttr(\%_attributes);
+
+				if (scalar keys %{$attributes}) {
+					$changes += setTargetGroupInitiatorAttributes($dgroup, $tgroup, $init, $attributes);
+				}
 			}
 
 			my %_attributes;
