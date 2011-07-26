@@ -35,6 +35,7 @@ SCST_QUEUE_RES   => 'last_sysfs_mgmt_res',
 IN_SCST_HANDLERS => 'device_driver',
 IN_SCST_DEVICES  => 'device',
 IN_SCST_TARGETS  => 'target_driver',
+IN_SCST_DEV_GROUPS => 'device_groups',
 SCST_ADD_TGT        => 'add_target',
 SCST_ADD_TGT_PARAMS => 'add_target_parameters',
 SCST_TGTT_ATTR      => 'driver_attributes',
@@ -329,15 +330,6 @@ sub SCST_DEVICES_DIR {
 	}
 }
 
-# Device groups.
-sub SCST_DEV_GROUP_DIR {
-	if (-d SCST_ROOT_OLD) {
-		return SCST_ROOT_OLD . '/' . SCST_DEV_GROUPS;
-	} else {
-		die("New /sys interface for device groups not yet supported.");
-	}
-}
-
 # Target drivers.
 sub SCST_TARGETS_DIR {
 	if (-d SCST_ROOT_OLD) {
@@ -345,6 +337,11 @@ sub SCST_TARGETS_DIR {
 	} else {
 		return '/sys/bus/scst_target/drivers';
 	}
+}
+
+# ALUA Device groups.
+sub SCST_DEV_GROUP_DIR {
+	return make_path(SCST_ROOT_DIR(), SCST_DEV_GROUPS);
 }
 
 sub new {
@@ -1583,7 +1580,8 @@ sub addDeviceGroup {
 
 	my ($path, $cmd);
 	if (new_sysfs_interface()) {
-		die("New /sys interface for device groups not yet supported.");
+		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
+		$cmd = "in " . make_path(IN_SCST_DEV_GROUPS) . " ";
 	} else {
 		$path = make_path(SCST_DEV_GROUP_DIR(), SCST_MGMT_IO);
 	}
@@ -1617,7 +1615,8 @@ sub removeDeviceGroup {
 
 	my ($path, $cmd);
 	if (new_sysfs_interface()) {
-		die("New /sys interface for device groups not yet supported.");
+		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
+		$cmd = "in " . make_path(IN_SCST_DEV_GROUPS) . " ";
 	} else {
 		$path = make_path(SCST_DEV_GROUP_DIR(), SCST_MGMT_IO);
 	}
@@ -1671,7 +1670,9 @@ sub addDeviceGroupDevice {
 
 	my ($path, $cmd);
 	if (new_sysfs_interface()) {
-		die("New /sys interface for device groups not yet supported.");
+		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
+		$cmd = "in " . make_path(IN_SCST_DEV_GROUPS, $group,
+					 SCST_DG_DEVICES) . " ";
 	} else {
 		$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_DEVICES, SCST_MGMT_IO);
 	}
@@ -1710,7 +1711,9 @@ sub addTargetGroup {
 
 	my ($path, $cmd);
 	if (new_sysfs_interface()) {
-		die("New /sys interface for device groups not yet supported.");
+		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
+		$cmd = "in " . make_path(IN_SCST_DEV_GROUPS, $group,
+					 SCST_DG_TGROUPS) . " ";
 	} else {
 		$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS, SCST_MGMT_IO);
 	}
@@ -1754,7 +1757,9 @@ sub addTargetGroupTarget {
 
 	my ($path, $cmd);
 	if (new_sysfs_interface()) {
-		die("New /sys interface for device groups not yet supported.");
+		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
+		$cmd = "in " . make_path(IN_SCST_DEV_GROUPS, $group,
+					 SCST_DG_TGROUPS, $tgroup) . " ";
 	} else {
 		$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS,
 				  $tgroup, SCST_MGMT_IO);
@@ -1798,7 +1803,9 @@ sub removeDeviceGroupDevice {
 
 	my ($path, $cmd);
 	if (new_sysfs_interface()) {
-		die("New /sys interface for device groups not yet supported.");
+		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
+		$cmd = "in " . make_path(IN_SCST_DEV_GROUPS, $group,
+					 SCST_DG_DEVICES) . " ";
 	} else {
 		$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_DEVICES, SCST_MGMT_IO);
 	}
@@ -1837,7 +1844,9 @@ sub removeTargetGroup {
 
 	my ($path, $cmd);
 	if (new_sysfs_interface()) {
-		die("New /sys interface for device groups not yet supported.");
+		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
+		$cmd = "in " . make_path(IN_SCST_DEV_GROUPS, $group,
+					 SCST_DG_TGROUPS) . " ";
 	} else {
 		$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS, SCST_MGMT_IO);
 	}
@@ -1881,7 +1890,9 @@ sub removeTargetGroupTarget {
 
 	my ($path, $cmd);
 	if (new_sysfs_interface()) {
-		die("New /sys interface for device groups not yet supported.");
+		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
+		$cmd = "in " . make_path(IN_SCST_DEV_GROUPS, $group,
+					 SCST_DG_TGROUPS, $tgroup) . " ";
 	} else {
 		$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS,
 				  $tgroup, SCST_MGMT_IO);
