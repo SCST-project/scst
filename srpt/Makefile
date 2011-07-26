@@ -106,16 +106,13 @@ extraclean: clean
 2debug:
 	-make clean
 	$(call set_var,build_mode,BUILDMODE,)
-	-cat build_mode
 
 2release:
 	-make clean
 	$(call set_var,build_mode,BUILDMODE,RELEASE)
-	-cat build_mode
 
 2perf:
 	-make clean
 	$(call set_var,build_mode,BUILDMODE,PERF)
-	-cat build_mode
 
 .PHONY: all install clean extraclean 2debug 2release 2perf
