@@ -1587,7 +1587,7 @@ sub addDeviceGroup {
 	} else {
 		$path = make_path(SCST_DEV_GROUP_DIR(), SCST_MGMT_IO);
 	}
-	$cmd .= "add $group";
+	$cmd .= "create $group";
 
 	my $io = new IO::File $path, O_WRONLY;
 
