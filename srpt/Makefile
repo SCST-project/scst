@@ -16,6 +16,10 @@ else
   KDIR ?= /lib/modules/$(KVER)/build
 endif
 
+# Set variable $(2) to value $(3) in file $(1).
+set_var = $(shell { if [ -e "$(1)" ]; then grep -v '^$(2)=' "$(1)"; fi; echo "$(2)=$(3)"; } >/tmp/$(1)-$$$$.tmp && mv /tmp/$(1)-$$$$.tmp $(1))
+
+
 # The file Modules.symvers has been renamed in the 2.6.18 kernel to
 # Module.symvers. Find out which name to use by looking in $(KDIR).
 MODULE_SYMVERS:=$(shell if [ -e $(KDIR)/Module.symvers ]; then \
@@ -99,4 +103,19 @@ clean:
 extraclean: clean
 	rm -f *.orig *.rej
 
-.PHONY: all install clean extraclean
+2debug:
+	-make clean
+	$(call set_var,build_mode,BUILDMODE,)
+	-cat build_mode
+
+2release:
+	-make clean
+	$(call set_var,build_mode,BUILDMODE,RELEASE)
+	-cat build_mode
+
+2perf:
+	-make clean
+	$(call set_var,build_mode,BUILDMODE,PERF)
+	-cat build_mode
+
+.PHONY: all install clean extraclean 2debug 2release 2perf
