@@ -132,10 +132,10 @@ Device Group Operations
          -tgt_group <tgrp>   : Add target group <tgrp> to device group <dgrp>.
      -rem_tgrp <tgrp>
          -dev_group <dgrp>   : Remove target group <tgrp> from device group.
-     -add_tgrp_tgt <tgt>     : Add target to specified target group.
+     -add_tgrp_tgt <tgt>     : Add target <tgt> to specified target group.
          -dev_group <dgrp>
          -tgt_group <tgrp>
-     -rem_tgrp_tgt <tgt>     : Remove target from specified target group.
+     -rem_tgrp_tgt <tgt>     : Remove target <tgt> from specified target group.
          -dev_group <dgrp>
          -tgt_group <tgrp>
 
