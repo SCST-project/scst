@@ -1641,6 +1641,16 @@ sub writeConfiguration {
 		$dgrp_attr_buff .= "\n" if ($dgrp_attr_buff);
 		$dgrp_attr_buff_nk .= "\n" if ($dgrp_attr_buff_nk);
 
+		my $devices_buff;
+
+		my $devices = $CURRENT{'dgroups'}->{$dgroup}->{'devices'};
+
+		foreach my $device (@{$devices}) {
+			$devices_buff .= "\tDEVICE $device\n";
+		}
+
+		$devices_buff .= "\n" if ($devices_buff);
+
 		my $tgroups = $CURRENT{'dgroups'}->{$dgroup}->{'tgroups'};
 
 		my $tgroup_buff;
@@ -1709,6 +1719,7 @@ sub writeConfiguration {
 		}
 
 		$dgroup_buff .= $dgrp_attr_buff;
+		$dgroup_buff .= $devices_buff;
 		$dgroup_buff .= $tgroup_buff;
 		$dgroup_buff =~ s/\n\n$/\n/;
 
@@ -1888,6 +1899,17 @@ sub checkConfiguration {
 		}
 	}
 
+	foreach my $dgroup (keys %{$$CONFIG{'DEVICE_GROUP'}}) {
+		foreach my $device (keys %{$$CONFIG{'DEVICE_GROUP'}->{$dgroup}->{'DEVICE'}}) {
+			if (!defined($cdevices{$device})) {
+				print "\t-> WARNING: Device '$device' associated with device group '$dgroup' ".
+				  "is not defined within configuration, removing it.\n\n";
+				delete $$CONFIG{'DEVICE_GROUP'}->{$dgroup}->{'DEVICE'}->{$device};
+				$warnings++;
+			}
+		}
+	}
+
 	if ($errors) {
 		print "\t-> Done, $errors errors found.\n";
 		return TRUE;
@@ -1916,6 +1938,7 @@ sub applyConfiguration {
 	# Apply config additions
 	$changes += applyConfigDevices($CONFIG, $force);
 	$changes += applyConfigAssignments($CONFIG, $force);
+	$changes += applyConfigDeviceGroups($CONFIG, $force);
 
 	# And SCST attributes..
 	my %_attributes;
@@ -2182,6 +2205,103 @@ sub applyConfigAssignments {
 	return $changes;
 }
 
+sub applyConfigDeviceGroups {
+	my $config = shift;
+	my $deletions = shift;
+	my $changes = 0;
+
+	my $dgroups = $CURRENT{'dgroups'};
+
+	foreach my $dgroup (keys %{$dgroups}) {
+		if (!defined($$config{'DEVICE_GROUP'}->{$dgroup})) {
+			if ($deletions) {
+				removeDeviceGroup($dgroup, TRUE);
+				$changes++;
+			} else {
+				print "\t-> Device Group '$dgroup' is not in configuration. Use -force to remove.\n";
+			}
+		} else {
+			my $devices = $CURRENT{'dgroups'}->{$dgroup}->{'devices'};
+
+			foreach my $device (@{$devices}) {
+				if (!defined($$config{'DEVICE_GROUP'}->{$dgroup}->{'DEVICE'}->{$device})) {
+					if ($deletions) {
+						removeDeviceGroupDevice($dgroup, $device);
+						$changes++;
+					} else {
+						print "\t-> Device '$device' within device group '$dgroup' is not in configuration. Use -force to remove.\n";
+					}
+				}
+			}
+
+			foreach my $tgroup (keys %{$$dgroups{$dgroup}->{'tgroups'}}) {
+				if (!defined($$config{'DEVICE_GROUP'}->{$dgroup}->{'TARGET_GROUP'}->{$tgroup})) {
+					if ($deletions) {
+						removeTargetGroup($dgroup, $tgroup, TRUE);
+						$changes++;
+					} else {
+						print "\t-> Target Group '$dgroup/$tgroup' is not in configuration. Use -force to remove.\n";
+					}
+				}
+			}
+		}
+	}
+
+	$dgroups = $$config{'DEVICE_GROUP'};
+
+	foreach my $dgroup (sort keys %{$dgroups}) {
+		if (!defined($CURRENT{'dgroups'}->{$dgroup})) {
+			addDeviceGroup($dgroup);
+			$changes++;
+		}
+
+		my $devices = $$dgroups{$dgroup}->{'DEVICE'};
+
+		foreach my $device (sort keys %{$devices}) {
+			if (!deviceGroupHasDevice($dgroup, $device)) {
+				addDeviceGroupDevice($dgroup, $device);
+				$changes++;
+			}
+		}
+
+		my $tgroups = $$dgroups{$dgroup}->{'TARGET_GROUP'};
+
+		foreach my $tgroup (sort keys %{$tgroups}) {
+			if (!defined($CURRENT{'dgroups'}->{$dgroup}->{'tgroups'}->{$tgroup})) {
+				addTargetGroup($dgroup, $tgroup);
+				$changes++;
+			}
+
+			my %_attributes;
+			foreach my $item (keys %{$$tgroups{$tgroup}}) {
+				next if ($item eq 'INITIATOR');
+				$_attributes{$item} = $$tgroups{$tgroup}->{$item};
+			}
+
+			my $attributes = configToAttr(\%_attributes);
+
+			if (scalar keys %{$attributes}) {
+				$changes += setTargetGroupAttributes($dgroup, $tgroup, $attributes);
+			}
+		}
+
+		my %_attributes;
+		foreach my $item (keys %{$$dgroups{$dgroup}}) {
+			next if ($item eq 'TARGET_GROUP');
+			next if ($item eq 'DEVICE');
+			$_attributes{$item} = $$dgroups{$dgroup}->{$item};
+		}
+
+		my $attributes = configToAttr(\%_attributes);
+
+		if (scalar keys %{$attributes}) {
+			$changes += setDeviceGroupAttributes($dgroup, $attributes);
+		}
+	}
+
+	return $changes;
+}
+
 sub applyInitiatorAssignments {
 	my $driver = shift;
 	my $target = shift;
@@ -2442,9 +2562,22 @@ sub compareToKeyAttribute {
 }
 
 sub clearConfiguration {
+	my $dgroups = $CURRENT{'dgroups'};
 	my $assignments = $CURRENT{'assign'};
 
 	print "-> Clearing running configuration.\n";
+
+	foreach my $dgroup (sort keys %{$dgroups}) {
+		foreach my $tgroup (sort keys %{$$dgroups{$dgroup}->{'tgroups'}}) {
+			removeTargetGroup($dgroup, $tgroup, TRUE);
+		}
+
+		foreach my $device (@{$$dgroups{$dgroup}->{'devices'}}) {
+			removeDeviceGroupDevice($dgroup, $device, TRUE);
+		}
+
+		removeDeviceGroup($dgroup, TRUE);
+	}
 
 	foreach my $driver (sort keys %{$assignments}) {
 		foreach my $target (sort keys %{$$assignments{$driver}}) {
@@ -5248,6 +5381,19 @@ sub handlerHasDevice {
 	return FALSE if (!defined($CURRENT{'handler'}->{$handler}));
 
 	foreach my $_device (@{$CURRENT{'handler'}->{$handler}}) {
+		return TRUE if ($_device eq $device);
+	}
+
+	return FALSE;
+}
+
+sub deviceGroupHasDevice {
+	my $group = shift;
+	my $device = shift;
+
+	return FALSE if (!defined($CURRENT{'dgroups'}->{$group}));
+
+	foreach my $_device (@{$CURRENT{'dgroups'}->{$group}->{'devices'}}) {
 		return TRUE if ($_device eq $device);
 	}
 
