@@ -13,7 +13,27 @@ SCST consists of multiple kernel modules: the SCST core, SCST target drivers
 and SCST device handlers. The state of each of these kernel modules is
 configurable at runtime. Scstadmin allows query the current state, to modify
 the current state, to save the current state to a file and to restore the SCST
-state from a file.
+state from a file. The relevant SCST concepts are:
+.TP
+.B device
+An SCST device represents local storage that is exported via SCST. An SCST
+device is either a local SCSI device (disk, CD-ROM, tape, ...), a block I/O
+device like a disk or RAID controller or a file on a filesystem.  The SCST
+drivers that control SCST devices are called device handlers.  Examples of
+such device handlers are dev_disk, vdisk_blockio and vdisk_fileio.
+.TP
+.B target
+An SCST target is an interface that allows a remote system to access the
+storage exported via SCST. Each target is controlled by a target
+driver. Examples of target drivers are iscsi_scst, qla2x00t, ib_srpt and
+scst_local.
+.TP
+.B ALUA
+An SCST setup can have multiple storage interfaces. A single SCST server can
+be equipped with multiple interfaces or two SCST servers can have been set up
+in a cluster. If there are multiple paths between an initiator and a target
+system or target cluster then configuring ALUA (Asymmetric Logical Unit
+Access) will make SCST to tell the initiator which path to use.
 .SH OPTIONS
 .PP
 <OPTION> is one of:
@@ -111,11 +131,24 @@ Show name and value of all attributes of the specified LUN. The LUN number
 either refers to a LUN associated with a target or to a LUN associated with
 an initiator group of a target.
 .TP
-.B -list_init_attr <ini> -driver <driver> -target <target> -group <group>
-Show name and value of all attributes of the specified initiator.
-.TP
 .B -list_sessions
 Show all active sessions for all targets.
+.TP
+.B -list_dgrp [<dgrp>]
+If no device group name has been specified, show all defined ALUA device
+groups. If a device group name has been specified, show configuration
+information for that device group only.
+.TP
+.B -list_tgrp [<tgrp>] -dev_group <dgrp>
+If no ALUA target group name has been specified, list the target groups
+associated with the specified device group. If a target group name has been
+specified, show configuration information for that target group.
+.TP
+.B -list_tgrp_attr <tgrp> -dev_group <dgrp>
+Show a list with all ALUA attributes of the specified target group.
+.TP
+.B -list_ttgt_attr <tgt> -dev_group <dgrp> -tgt_group <tgrp>
+Show a list with all ALUA attributes of the specified target.
 .TP
 .B -set_scst_attr -attributes <p=v,...>
 Set the value of one or more SCST core attributes.
@@ -139,9 +172,6 @@ Set the value of one or more initiator group attributes.
 Set the value of one or more LUN attributes. The LUN number either refers to a
 LUN associated with a target or to a LUN associated with an initiator group of
 a target.
-.TP
-.B -set_init_attr <ini> -driver <driver> -target <target> -group <group> -attributes <p=v,...>
-Set the value of an initiator group attribute.
 .TP
 .B -add_drv_attr <driver> -attributes <p=v,...>
 Add one or more new attributes to the specified target driver and set these to
@@ -199,13 +229,15 @@ Move an initiator or initiator name pattern from one initiator group to another.
 .B -clear_inits -driver <driver> -target <target> -group <group>
 Remove all initiators from an initiator group.
 .TP
-.B -add_lun <lun> -driver <driver> -target <target> [-group <group>] -device <device> -attributes <p=v,...>
+.B -add_lun <lun> -driver <driver> -target <target> [-group <group>] \
+     -device <device> -attributes <p=v,...>
 Add a LUN to a target or initiator group.
 .TP
 .B -rem_lun <lun> -driver <driver> -target <target> [-group <group>]
 Remove a LUN from a target or initiator group.
 .TP
-.B -replace_lun <lun> -driver <driver> -target <target> [-group <group>] -device <device> -attributes <p=v,...>
+.B -replace_lun <lun> -driver <driver> -target <target> [-group <group>] \
+     -device <device> -attributes <p=v,...>
 Replace the device associated with a LUN by another device.
 .TP
 .B -clear_luns -driver <driver> -target <target> [-group <group>]
@@ -220,6 +252,13 @@ Disable a target.
 .B -issue_lip [<target>] [-driver <driver>]
 Issue a LIP (Loop Initialization Protocol, fibre channel) for a specific
 target or for all drivers and targets.
+.TP
+.B -set_tgrp_attr <tgrp> -dev_group <dgrp> -attributes <p=v,...>
+Set one or more attributes of the specified ALUA target group.
+.TP
+.B -set_ttgt_attr <tgt> -dev_group <dgrp> -tgt_group <tgrp> \
+     -attributes <p=v,...>
+Set one or more attributes of the specified ALUA target.
 .SH EXAMPLES
 .TP
 .B scstadmin -open_dev disk01 -handler vdisk_fileio -attributes filename=/vdisks/disk01.dsk,read_only
@@ -241,10 +280,10 @@ Enables target mode for the fibre channel HCA port with the specified WWN.
 Save the current configuration to the specified file.
 .SH AUTHORS
 The scstadmin software has been developed by Mark R. Buechler and also
-contains contributions from Bart Van Assche.  Please send feedback about
-scstadmin itself or its documentation to the mailing list
-scst-devel@lists.sourceforge.net. See also
-.br
+contains contributions from Bart Van Assche.
+.SH REPORTING BUGS
+Please send feedback about scstadmin itself or its documentation to the
+mailing list scst-devel@lists.sourceforge.net. See also
 https://lists.sourceforge.net/lists/listinfo/scst-devel for more information
 about this mailing list.
 .SH FILES

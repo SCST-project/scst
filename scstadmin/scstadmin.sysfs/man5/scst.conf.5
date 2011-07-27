@@ -9,7 +9,8 @@ scst.conf \- Main SCST configuration file.
 .I scst.conf
 is the main SCST configuration file. It contains information about the
 configuration of the SCST core, device handlers, devices, target drivers,
-targets, initiator groups and LUNs. This file is read and applied by the
+targets, initiator groups, LUNs and ALUA configuration. This file is read and
+applied by the
 .BR scstadmin (1)
 program when the SCST service starts.
 .P
@@ -17,7 +18,9 @@ The format of the
 .I scst.conf
 file is as follows:
 .br
-- Blank lines and lines starting with a hash sign (#) are ignored.
+- Blank lines and lines starting with a hash sign
+.RB ( # )
+are ignored.
 .br
 - All other lines either define an attribute, mark the start of a new section
 or the end of a section.
@@ -42,22 +45,63 @@ marks the start of a new section.
 marks the end of a section.
 .P
 The recognized section names and their arguments are:
-.IP "HANDLER <handler>"
-<handler> is the name of an SCST device handler.
-.IP "DEVICE <name>"
-<name> is either a H:C:I:L quadruplet referring to a local SCSI device
-or an SCST device name.
-.IP "TARGET_DRIVER <driver>"
-<driver> is the name of an SCST target driver.
-.IP "TARGET <target>"
-<target> is the name of an SCST target.
-.IP "LUN <number>"
-.IP "GROUP <group>"
-<group> is the name of an SCST initiator group.
-.IP "INITIATOR <ini>"
-<ini> is either an initiator name or a wildcard pattern matching zero or more
-initiator names. The supported wildcard characters are:
-.BR ! ", " * " and " ? .
+.TP
+.B "HANDLER <handler>"
+Defines device handler attributes and also which devices are associated with
+the specified device handler. <handler> is the name of an SCST device handler.
+.TP
+.B "DEVICE <name>"
+Defines the name and attributes of an SCST device.  <name> is either a H:C:I:L
+quadruplet referring to a local SCSI device or an SCST device name. A
+.B DEVICE
+section is a subsection of a
+.B HANDLER
+section. 
+.TP
+.B "TARGET_DRIVER <driver>"
+Defines target driver attributes and also which targets are associated with
+the specified target driver. <driver> is the name of an SCST target driver.
+.TP
+.B "TARGET <target>"
+A
+.B TARGET
+section is either a subsection of a
+.B TARGET_DRIVER
+or of a
+.B TARGET_GROUP
+section. The former is the definition of an SCST target while the latter
+is a reference to an SCST target defined on the local system or on
+another system in the same cluster.
+.TP
+.B "LUN <number> <device name>"
+Associates an SCST device with a target and defines its LUN number.
+.RB "A " LUN " section is a subsection of a " TARGET " section."
+.TP
+.B "GROUP <group>"
+Defines an initiator group with the specified name. A
+.B GROUP
+section is a subsection of a
+.B TARGET
+section.
+.TP
+.B "INITIATOR <ini>"
+Associates an initiator name with an initiator group.  <ini> is either an
+initiator name or a wildcard pattern matching zero or more initiator
+names. The supported wildcard characters are:
+.BR ! ", " * " and " ? ". An " INITIATOR
+section is a subsection of a
+.B GROUP
+section.
+.TP
+.B "DEVICE_GROUP <dg>"
+<dg> is the name of a group of devices that share ALUA settings.
+.TP
+.B "TARGET_GROUP <tg>"
+Defines an ALUA target port group. A
+.B TARGET_GROUP
+section is a subsection of a
+.B DEVICE_GROUP
+section.
 .P
 An example:
 .IP
@@ -120,10 +164,40 @@ TARGET_DRIVER scst_local {
 	TARGET scst_local_tgt {
 .br
 		session_name scst_local_host
-.br
-		session_name scst_local_host1
 .IP
 		LUN 0 disk1
+.br
+	}
+.br
+}
+.IP
+TARGET_DRIVER iscsi {
+.br
+	IncomingUser "joe 12charsecret"
+.br
+	enabled 1
+.IP
+	TARGET iqn.2006-10.net.vlnb:tgt {
+.br
+		IncomingUser "joe 12charsecret"
+.br
+		IncomingUser "fred 12charsecret2"
+.br
+		IncomingUser "jonas 12charsecret3"
+.br
+		HeaderDigest CRC32C,None
+.br
+		enabled 1
+.IP
+		LUN 0 disk1
+.br
+		LUN 1 disk2
+.br
+		LUN 2 blockio1 {
+.br
+			read_only 1
+.br
+		}
 .br
 	}
 .br
@@ -133,6 +207,8 @@ TARGET_DRIVER qla2x00t {
 .br
 	TARGET 25:00:00:f0:98:87:92:f3 {
 .br
+		enabled 1
+.IP
 		GROUP INI1 {
 .br
 			LUN 0 blockio1
@@ -150,8 +226,6 @@ TARGET_DRIVER qla2x00t {
 			INITIATOR 25:00:00:f0:99:87:94:a4
 .br
 		}
-.IP
-		enabled 1
 .br
 	}
 .IP
@@ -161,35 +235,95 @@ TARGET_DRIVER qla2x00t {
 .br
 }
 .IP
-TARGET_DRIVER iscsi {
+TARGET_DRIVER ib_srpt {
 .br
-	IncomingUser "joe 12charsecret"
-.IP
-	TARGET iqn.2006-10.net.vlnb:tgt {
+	TARGET ib_srpt_target_0 {
 .br
-		IncomingUser "joe 12charsecret"
-.br
-		IncomingUser "fred 12charsecret2"
-.br
-		IncomingUser "jonas 12charsecret3"
-.br
-		HeaderDigest CRC32C,None
+		enabled 1
 .IP
 		LUN 0 disk1
 .br
 		LUN 1 disk2
 .br
-		LUN 2 blockio1 {
+	}
+.IP
+	TARGET ib_srpt_target_1 {
 .br
-			read_only 1
+		enabled 1
+.IP
+		LUN 0 disk1
+.br
+		LUN 1 disk2
+.br
+	}
+.br
+}
+.IP
+DEVICE_GROUP dgroup1 {
+.br
+	DEVICE disk1
+.IP
+	TARGET_GROUP tgroup1 {
+.br
+		group_id 1
+.br
+		state active
+.IP
+		TARGET ib_srpt_target_0 {
+.br
+			rel_tgt_id 1
 .br
 		}
-.IP
-		enabled 1
 .br
 	}
 .IP
-	enabled 1
+	TARGET_GROUP tgroup2 {
+.br
+		group_id 2
+.br
+		state offline
+.IP
+		TARGET ib_srpt_target_1 {
+.br
+			rel_tgt_id 2
+.br
+		}
+.br
+	}
+.br
+}
+.IP
+DEVICE_GROUP dgroup2 {
+.br
+	DEVICE disk2
+.IP
+	TARGET_GROUP tgroup1 {
+.br
+		group_id 1
+.br
+		state offline
+.IP
+		TARGET ib_srpt_target_0 {
+.br
+			rel_tgt_id 1
+.br
+		}
+.br
+	}
+.IP
+	TARGET_GROUP tgroup2 {
+.br
+		group_id 2
+.br
+		state active
+.IP
+		TARGET ib_srpt_target_1 {
+.br
+			rel_tgt_id 2
+.br
+		}
+.br
+	}
 .br
 }
 .SH FILES
