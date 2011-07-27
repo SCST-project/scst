@@ -16,7 +16,7 @@ Usage:
      -h, -help, --help       : Show this information.
 
 General Operations
-     -config <config>        : Configure SCST given the specified <file>.
+     -config <file>          : Configure SCST given the specified <file>.
      -check_config <file>    : Checks the saved configuration <file>.
      -write_config <file>    : Writes the current configuration to <file>.
      -clear_config           : Clear all SCST configuration.
@@ -2942,11 +2942,6 @@ sub listDriverAttributes {
 	my $attributes = $SCST->driverAttributes($driver);
 
 	return TRUE if issueWarning($SCST->errorString());
-
-	if (!scalar(keys %{$attributes})) {
-		print "No such driver '$driver' found.\n";
-		return;
-	}
 
 	my $rc = listAttributes($attributes, $nonkey);
 	return $rc if ($rc);

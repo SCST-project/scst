@@ -9,6 +9,10 @@ are required.  Ethernet network adapters that support FCoE are called
 Converged Network Adapters (CNA). The standard that makes lossless Ethernet
 communication possible is called DCB or Data Center Bridging.
 
+Since FCoE frames are a kind of Ethernet frames, communication between FCoE
+clients and servers is limited to a single Ethernet broadcast domain.
+
+
 Building and Installing
 =======================
 
