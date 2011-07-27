@@ -341,10 +341,16 @@ out_unlock_put:
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35) && (!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
 static int sgv_shrink(int nr, gfp_t gfpm)
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 0)
 static int sgv_shrink(struct shrinker *shrinker, int nr, gfp_t gfpm)
+#else
+static int sgv_shrink(struct shrinker *shrinker, struct shrink_control *sc)
 #endif
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0)
+	int nr = sc->nr_to_scan;
+#endif
+
 	TRACE_ENTRY();
 
 	if (nr > 0) {
