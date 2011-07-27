@@ -1,7 +1,7 @@
 Summary of changes between versions 2.0.0 and 2.1.0
 ---------------------------------------------------
 
- - Update to kernels up to 2.6.39
+ - Update to kernels up to 3.0
 
  - Complete NPIV support added. Particularly, now SCST core sees
    all the virtual targets and provide separate target-oriented access
