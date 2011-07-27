@@ -31,7 +31,8 @@
 # the KERNEL_VERSION() macro.
 
 function version_code(kver, array) {
-  match(kver, "([0-9]+).([0-9]+).([0-9]+)", array)
+  if (!match(kver, "([0-9]+).([0-9]+).([0-9]+)", array))
+    match(kver, "([0-9]+).([0-9]+)", array)
   return 65536*array[1] + 256*array[2] + array[3]
 }
 
@@ -396,7 +397,7 @@ BEGIN {
     exit 1
   }
   LINUX_VERSION_CODE = version_code(kernel_version)
-  if (LINUX_VERSION_CODE < 2*65536 || LINUX_VERSION_CODE > 3*65536)
+  if (LINUX_VERSION_CODE < 2*65536 || LINUX_VERSION_CODE > 4*65536)
   {
     printf "Error: kernel version (%s) is out of range.\n", kernel_version
     exit 1
