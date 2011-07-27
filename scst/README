@@ -1237,32 +1237,32 @@ other_tgt_id=2
 cd /sys/kernel/scst_tgt/device_groups
 echo del dgroup1         >mgmt
 echo del dgroup2         >mgmt
-echo add dgroup1         >mgmt
+echo create dgroup1      >mgmt
 echo add disk01          >dgroup1/devices/mgmt
-echo add tgroup1         >dgroup1/target_groups/mgmt
+echo create tgroup1      >dgroup1/target_groups/mgmt
 echo ${own_tgt_id}       >dgroup1/target_groups/tgroup1/group_id
 echo add ib_srpt_0       >dgroup1/target_groups/tgroup1/mgmt
 echo ${own_tgt_id}       >dgroup1/target_groups/tgroup1/ib_srpt_0/rel_tgt_id
 if [ ${own_tgt_id} = 1 ]; then
  echo 1                  >dgroup1/target_groups/tgroup1/preferred
 fi
-echo add tgroup2         >dgroup1/target_groups/mgmt
+echo create tgroup2      >dgroup1/target_groups/mgmt
 echo ${other_tgt_id}     >dgroup1/target_groups/tgroup2/group_id
 echo add ib_srpt_0-other >dgroup1/target_groups/tgroup2/mgmt
 echo ${other_tgt_id}     >dgroup1/target_groups/tgroup2/ib_srpt_0-other/rel_tgt_id
 if [ ${other_tgt_id} = 1 ]; then
  echo 1                  >dgroup1/target_groups/tgroup1/preferred
 fi
-echo add dgroup2         >mgmt
+echo create dgroup2      >mgmt
 echo add disk02          >dgroup2/devices/mgmt
-echo add tgroup1         >dgroup2/target_groups/mgmt
+echo create tgroup1      >dgroup2/target_groups/mgmt
 echo ${own_tgt_id}       >dgroup2/target_groups/tgroup1/group_id
 echo add ib_srpt_0       >dgroup2/target_groups/tgroup1/mgmt
 echo ${own_tgt_id}       >dgroup2/target_groups/tgroup1/ib_srpt_0/rel_tgt_id
 if [ ${own_tgt_id} = 2 ]; then
  echo 1                  >dgroup2/target_groups/tgroup1/preferred
 fi
-echo add tgroup2         >dgroup2/target_groups/mgmt
+echo create tgroup2      >dgroup2/target_groups/mgmt
 echo ${other_tgt_id}     >dgroup2/target_groups/tgroup2/group_id
 echo add ib_srpt_0-other >dgroup2/target_groups/tgroup2/mgmt
 echo ${other_tgt_id}     >dgroup2/target_groups/tgroup2/ib_srpt_0-other/rel_tgt_id
