@@ -409,64 +409,6 @@ void scst_sysfs_work_put(struct scst_sysfs_work_item *work)
 }
 EXPORT_SYMBOL(scst_sysfs_work_put);
 
-/**
- * scst_sysfs_queue_wait_work() - waits for the work to complete
- *
- * Returns status of the completed work or -EAGAIN if the work not
- * completed before timeout. In the latter case a user should poll
- * last_sysfs_mgmt_res until it returns the result of the processing.
- */
-int scst_sysfs_queue_wait_work(struct scst_sysfs_work_item *work)
-{
-	int res = 0, rc;
-	unsigned long timeout = 15*HZ;
-
-	TRACE_ENTRY();
-
-	spin_lock(&sysfs_work_lock);
-
-	TRACE_DBG("Adding sysfs work %p to the list", work);
-	list_add_tail(&work->sysfs_work_list_entry, &sysfs_work_list);
-
-	active_sysfs_works++;
-
-	kref_get(&work->sysfs_work_kref);
-
-	spin_unlock(&sysfs_work_lock);
-
-	wake_up(&sysfs_work_waitQ);
-
-	while (1) {
-		rc = wait_for_completion_interruptible_timeout(
-			&work->sysfs_work_done, timeout);
-		if (rc == 0) {
-			if (!mutex_is_locked(&scst_mutex)) {
-				TRACE_DBG("scst_mutex not locked, continue "
-					"waiting (work %p)", work);
-				timeout = 5*HZ;
-				continue;
-			}
-			TRACE_MGMT_DBG("Time out waiting for work %p",
-				work);
-			res = -EAGAIN;
-			goto out_put;
-		} else if (rc < 0) {
-			res = rc;
-			goto out_put;
-		}
-		break;
-	}
-
-	res = work->work_res;
-
-out_put:
-	kref_put(&work->sysfs_work_kref, scst_sysfs_work_release);
-
-	TRACE_EXIT_RES(res);
-	return res;
-}
-EXPORT_SYMBOL(scst_sysfs_queue_wait_work);
-
 /* Called under sysfs_work_lock and drops/reacquire it inside */
 static void scst_process_sysfs_works(void)
 	__releases(&sysfs_work_lock)
@@ -511,9 +453,12 @@ static inline int test_sysfs_work_list(void)
 
 static int sysfs_work_thread_fn(void *arg)
 {
+	bool one_time_only = (bool)arg;
+
 	TRACE_ENTRY();
 
-	PRINT_INFO("User interface thread started, PID %d", current->pid);
+	if (!one_time_only)
+		PRINT_INFO("User interface thread started, PID %d", current->pid);
 
 	current->flags |= PF_NOFREEZE;
 
@@ -521,23 +466,108 @@ static int sysfs_work_thread_fn(void *arg)
 
 	spin_lock(&sysfs_work_lock);
 	while (!kthread_should_stop()) {
+		if (one_time_only && !test_sysfs_work_list())
+			break;
 		wait_event_locked(sysfs_work_waitQ, test_sysfs_work_list(),
 				  lock, sysfs_work_lock);
 		scst_process_sysfs_works();
 	}
 	spin_unlock(&sysfs_work_lock);
 
-	/*
-	 * If kthread_should_stop() is true, we are guaranteed to be
-	 * on the module unload, so both lists must be empty.
-	 */
-	sBUG_ON(!list_empty(&sysfs_work_list));
+	if (!one_time_only) {
+		/*
+		 * If kthread_should_stop() is true, we are guaranteed to be
+		 * on the module unload, so both lists must be empty.
+		 */
+		sBUG_ON(!list_empty(&sysfs_work_list));
 
-	PRINT_INFO("User interface thread PID %d finished", current->pid);
+		PRINT_INFO("User interface thread PID %d finished", current->pid);
+	}
 
 	TRACE_EXIT();
 	return 0;
 }
+
+/**
+ * scst_sysfs_queue_wait_work() - waits for the work to complete
+ *
+ * Returns status of the completed work or -EAGAIN if the work not
+ * completed before timeout. In the latter case a user should poll
+ * last_sysfs_mgmt_res until it returns the result of the processing.
+ */
+int scst_sysfs_queue_wait_work(struct scst_sysfs_work_item *work)
+{
+	int res = 0, rc;
+	unsigned long timeout = 15*HZ;
+	struct task_struct *t;
+	static atomic_t uid_thread_name = ATOMIC_INIT(0);
+
+	TRACE_ENTRY();
+
+	spin_lock(&sysfs_work_lock);
+
+	TRACE_DBG("Adding sysfs work %p to the list", work);
+	list_add_tail(&work->sysfs_work_list_entry, &sysfs_work_list);
+
+	active_sysfs_works++;
+
+	kref_get(&work->sysfs_work_kref);
+
+	spin_unlock(&sysfs_work_lock);
+
+	wake_up(&sysfs_work_waitQ);
+
+	/*
+	 * We can have a dead lock possibility like: the sysfs thread is waiting
+	 * for the last put during some object unregistration and at the same
+	 * time another queued work is having reference on that object taken and
+	 * waiting for attention from the sysfs thread. Generally, all sysfs
+	 * function calling kobject_get() and then queuing sysfs thread job. For
+	 * instance. This is especially dangerous in read only cases, like
+	 * vdev_sysfs_filename_show().
+	 *
+	 * So, to eliminate that deadlock we will create an extra sysfs thread
+	 * for each queued sysfs work. This thread will quit as soon as it will
+	 * see that there is not more queued works to process.
+	 */
+
+	t = kthread_run(sysfs_work_thread_fn, (void *)true, "scst_uid%d",
+		atomic_inc_return(&uid_thread_name));
+	if (IS_ERR(t))
+		PRINT_ERROR("kthread_run() for user interface thread %d "
+			"failed: %d", atomic_read(&uid_thread_name),
+			(int)PTR_ERR(t));
+
+	while (1) {
+		rc = wait_for_completion_interruptible_timeout(
+			&work->sysfs_work_done, timeout);
+		if (rc == 0) {
+			if (!mutex_is_locked(&scst_mutex)) {
+				TRACE_DBG("scst_mutex not locked, continue "
+					"waiting (work %p)", work);
+				timeout = 5*HZ;
+				continue;
+			}
+			TRACE_MGMT_DBG("Time out waiting for work %p",
+				work);
+			res = -EAGAIN;
+			goto out_put;
+		} else if (rc < 0) {
+			res = rc;
+			goto out_put;
+		}
+		break;
+	}
+
+	res = work->work_res;
+
+out_put:
+	kref_put(&work->sysfs_work_kref, scst_sysfs_work_release);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+EXPORT_SYMBOL(scst_sysfs_queue_wait_work);
 
 /* No locks */
 static int scst_check_grab_tgtt_ptr(struct scst_tgt_template *tgtt)
