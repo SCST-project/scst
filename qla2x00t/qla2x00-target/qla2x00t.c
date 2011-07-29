@@ -175,8 +175,8 @@ static bool q2t_is_tgt_enabled(struct scst_tgt *tgt);
 static ssize_t q2t_add_vtarget(const char *target_name, char *params);
 static ssize_t q2t_del_vtarget(const char *target_name);
 #else
-#warning "Patch scst_fc_vport_create was not applied on\
- your kernel. Adding NPIV targets using SCST sysfs interface will be disabled."
+#warning Patch scst_fc_vport_create was not applied on\
+ your kernel. Adding NPIV targets using SCST sysfs interface will be disabled.
 #endif /*((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)) || \
 	  defined(FC_VPORT_CREATE_DEFINED))*/
 
