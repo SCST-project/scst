@@ -813,7 +813,7 @@ err:
 		srpt_free_ioctx(sdev, ring[i], dma_size, dir);
 	kfree(ring);
 out:
-	TRACE_EXIT_RES(ring);
+	TRACE_EXIT_HRES(ring);
 	return ring;
 }
 
