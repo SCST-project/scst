@@ -240,16 +240,24 @@ struct srpt_mgmt_ioctx {
 
 /**
  * enum rdma_ch_state - SRP channel state.
+ * @CH_CONNECTING:    QP is in RTR state; waiting for RTU.
+ * @CH_LIVE:	      QP is in RTS state.
+ * @CH_DISCONNECTING: DREQ has been received and waiting for DREP or DREQ has
+ *                    been sent and waiting for DREP or channel is being closed
+ *                    for another reason.
+ * @CH_DRAINING:      QP is in ERR state; waiting for last WQE event.
+ * @CH_RELEASING:     Last WQE event has been received; releasing resources.
  */
 enum rdma_ch_state {
-	RDMA_CHANNEL_CONNECTING,
-	RDMA_CHANNEL_LIVE,
-	RDMA_CHANNEL_DISCONNECTING
+	CH_CONNECTING,
+	CH_LIVE,
+	CH_DISCONNECTING,
+	CH_DRAINING,
+	CH_RELEASING
 };
 
 /**
  * struct srpt_rdma_ch - RDMA channel.
- * @wait_queue:    Allows the kernel thread to wait for more work.
  * @thread:        Kernel thread that processes the IB queues associated with
  *                 the channel.
  * @cm_id:         IB CM ID associated with the channel.
@@ -277,7 +285,6 @@ enum rdma_ch_state {
  * @sess_name:     SCST session name.
  */
 struct srpt_rdma_ch {
-	wait_queue_head_t	wait_queue;
 	struct task_struct	*thread;
 	struct ib_cm_id		*cm_id;
 	struct ib_qp		*qp;
@@ -351,6 +358,7 @@ struct srpt_device {
 	int srq_size;
 	struct srpt_recv_ioctx **ioctx_ring;
 	struct list_head rch_list;
+	wait_queue_head_t ch_releaseQ;
 	spinlock_t spinlock;
 	struct srpt_port port[2];
 	struct ib_event_handler event_handler;
