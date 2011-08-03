@@ -1365,9 +1365,9 @@ static void vdisk_exec_unmap(struct scst_cmd *cmd, struct scst_vdisk_thr *thr)
 				goto out_put;
 			}
 #else
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_opcode));
-		goto out_put;
+			scst_set_cmd_error(cmd,
+				SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+			goto out_put;
 #endif
 		} else {
 			/*
