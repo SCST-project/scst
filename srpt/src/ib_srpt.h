@@ -130,6 +130,8 @@ enum {
 	DEFAULT_MAX_RSP_SIZE = 256, /* leaves 220 bytes for sense data */
 
 	DEFAULT_MAX_RDMA_SIZE = 65536,
+
+	RDMA_COMPL_TIMEOUT_S = 80,
 };
 
 enum srpt_opcode {
@@ -223,6 +225,7 @@ struct srpt_send_ioctx {
 	struct scst_cmd		*scmnd;
 	scst_data_direction	dir;
 	atomic_t		state;
+	bool			rdma_aborted;
 };
 
 /**

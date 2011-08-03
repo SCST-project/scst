@@ -1067,6 +1067,8 @@ static int srpt_ch_qp_rts(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 	struct ib_qp_attr qp_attr;
 	int attr_mask;
 	int ret;
+	uint64_t T_tr_ns;
+	uint32_t max_compl_time_ms;
 
 	qp_attr.qp_state = IB_QPS_RTS;
 	ret = ib_cm_init_qp_attr(ch->cm_id, &qp_attr, &attr_mask);
@@ -1074,6 +1076,29 @@ static int srpt_ch_qp_rts(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 		goto out;
 
 	qp_attr.max_rd_atomic = 4;
+
+	/*
+	 * From IBTA C9-140: Transport Timer timeout interval
+	 * T_tr = 4.096 us * 2**(local ACK timeout) where the local ACK timeout
+	 * is a five-bit value, with zero meaning that the timer is disabled.
+	 */
+	WARN_ON(qp_attr.timeout < 0 || qp_attr.timeout >= (1 << 5));
+	if (qp_attr.timeout) {
+		T_tr_ns = 1ULL << (12 + qp_attr.timeout);
+		max_compl_time_ms = qp_attr.retry_cnt * 4 * T_tr_ns / 1000000;
+		TRACE_DBG("Session %s: QP local ack timeout = %d or T_tr ="
+			  " %u ms; retry_cnt = %d; max compl. time = %d ms",
+			  ch->sess_name,
+			  qp_attr.timeout, (unsigned)(T_tr_ns / (1000 * 1000)),
+			  qp_attr.retry_cnt, max_compl_time_ms);
+	
+		if (max_compl_time_ms >= RDMA_COMPL_TIMEOUT_S * 1000) {
+			PRINT_ERROR("Maximum RDMA completion time (%d ms)"
+				    " exceeds ib_srpt timeout (%d ms)",
+				    max_compl_time_ms,
+				    1000 * RDMA_COMPL_TIMEOUT_S);
+		}
+	}
 
 	ret = ib_modify_qp(qp, &qp_attr, attr_mask);
 
@@ -2959,13 +2984,14 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 		wr.num_sge = 0;
 		wr.wr_id = encode_wr_id(SRPT_RDMA_ABORT, ioctx->ioctx.index);
 		wr.send_flags = IB_SEND_SIGNALED;
-		while (ch->state == CH_LIVE &&
+		while (atomic_read(&ch->state) == RDMA_CHANNEL_LIVE &&
 		       ib_post_send(ch->qp, &wr, &bad_wr) != 0) {
 			PRINT_INFO("Trying to abort failed RDMA transfer [%d]",
 				   ioctx->ioctx.index);
 			msleep(1000);
 		}
-		while (ch->state != CH_RELEASING && !ioctx->rdma_aborted) {
+		while (atomic_read(&ch->state) != RDMA_CHANNEL_DISCONNECTING &&
+		       !ioctx->rdma_aborted) {
 			PRINT_INFO("Waiting until RDMA abort finished [%d]",
 				   ioctx->ioctx.index);
 			msleep(1000);
@@ -3026,7 +3052,7 @@ out_unmap:
  * srpt_pending_cmd_timeout() - SCST command HCA processing timeout callback.
  *
  * Called by the SCST core if no IB completion notification has been received
- * within max_hw_pending_time seconds.
+ * within RDMA_COMPL_TIMEOUT_S seconds.
  */
 static void srpt_pending_cmd_timeout(struct scst_cmd *scmnd)
 {
@@ -3474,7 +3500,7 @@ static const struct attribute *srpt_sess_attrs[] = {
 static struct scst_tgt_template srpt_template = {
 	.name				 = DRV_NAME,
 	.sg_tablesize			 = SRPT_DEF_SG_TABLESIZE,
-	.max_hw_pending_time		 = 60/*seconds*/,
+	.max_hw_pending_time		 = RDMA_COMPL_TIMEOUT_S,
 #if !defined(CONFIG_SCST_PROC)
 	.enable_target			 = srpt_enable_target,
 	.is_target_enabled		 = srpt_is_target_enabled,
