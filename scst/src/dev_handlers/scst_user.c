@@ -38,7 +38,7 @@
 #ifndef INSIDE_KERNEL_TREE
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
 #warning HIGHMEM kernel configurations are not supported by this module,\
- because nowadays it doesn't worth the effort. Consider changing\
+ because nowadays it is not worth the effort. Consider changing\
  VMSPLIT option or use a 64-bit configuration instead. See README file\
  for details.
 #endif
