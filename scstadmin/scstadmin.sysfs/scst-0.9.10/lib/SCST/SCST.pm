@@ -292,7 +292,7 @@ $TGT_TYPE_VIRTUAL  = 2;
 
 my $TIMEOUT = 300; # Command execution timeout
 
-my $_SCST_MIN_MAJOR_   = 3;
+my $_SCST_MIN_MAJOR_   = 2;
 my $_SCST_MIN_MINOR_   = 0;
 my $_SCST_MIN_RELEASE_ = 0;
 
