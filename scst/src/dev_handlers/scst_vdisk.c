@@ -1370,12 +1370,22 @@ static void vdisk_exec_unmap(struct scst_cmd *cmd, struct scst_vdisk_thr *thr)
 			goto out_put;
 #endif
 		} else {
+			const int block_shift = virt_dev->block_shift;
+
 			/*
 			 * We are guaranteed by thin_provisioned flag
 			 * that truncate_range is not NULL.
 			 */
+			if (((start + len) << block_shift) &
+			    (PAGE_CACHE_SIZE - 1)) {
+				PRINT_ERROR("Invalid UNMAP range [%llu, %llu); "
+					"block size = %d", start, start + len,
+					virt_dev->block_size);
+				goto out_put;
+			}
 			inode->i_op->truncate_range(inode,
-				start, start + len);
+					start << block_shift,
+					((start + len) << block_shift) - 1);
 		}
 	}
 
