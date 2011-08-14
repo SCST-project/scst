@@ -285,7 +285,7 @@ function download_kernel {
     download_file "${kernel_mirror}/v$series/linux-$kver.tar.bz2" \
       || return $?
     if [ "${plevel}" != "" ]; then
-      download_file "${kernel_mirror}/patch-$1.bz2" \
+      download_file "${kernel_mirror}/v$series/patch-$1.bz2" \
         || download_file "${kernel_longterm}/v$series/longterm/v$kver/patch-$1.bz2" \
         || return $?
     fi
