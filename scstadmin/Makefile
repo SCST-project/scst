@@ -21,7 +21,11 @@ REMOVE_INITD_CMD := $(shell if [ -f /etc/gentoo-release ]; then		\
 			    else					\
 			      echo /usr/lib/lsb/remove_initd;		\
 			    fi)
-DEFAULTDIR := /etc/default
+DEFAULTDIR := $(shell if [ -f /etc/gentoo-release ]; then	        \
+                          echo /etc/conf.d;                             \
+		      else                                              \
+                          echo /etc/default;                            \
+		      fi)
 
 all:
 	cd $(SCSTADMIN_DIR) && $(MAKE) $@
@@ -45,7 +49,9 @@ install:
 	  fi								\
 	done
 	install -d $(DESTDIR)$(INITDIR)
-	install -m 755 init.d/scst $(DESTDIR)$(INITDIR)
+	tmp=/tmp/scst-initd-$$$$ && init.d/scst >$$tmp &&               \
+	  install -m 755 $$tmp $(DESTDIR)$(INITDIR)/scst &&             \
+	  rm -f $$tmp
 	if [ ! -e  $(DESTDIR)$(DEFAULTDIR)/scst ]; then		\
 	  install -m 755 default/scst $(DESTDIR)$(DEFAULTDIR);	\
 	fi

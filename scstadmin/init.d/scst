@@ -1,5 +1,18 @@
 #!/bin/sh
 #
+# A script that generates the /etc/init.d/scst script. On systems that support
+# the LSB an LSB compliant init script is generated. On Gentoo systems a Gentoo
+# init script is generated. And on Slackware the LSB init script is used with
+# replacements for the used LSB functions.
+
+if [ -e /etc/gentoo-release ]; then
+  echo "#!/sbin/runscript"
+else
+  echo "#!/bin/sh"
+fi
+
+cat <<"EOF"
+#
 # Copyright (C) 2008 Mark Buechler <mark.buechler@gmail.com>
 # Copyright (C) 2009-2011 Bart Van Assche <bvanassche@acm.org>
 # This software is made available under the GPLv2 license.
@@ -10,6 +23,10 @@
 # * http://refspecs.freestandards.org/LSB_4.1.0/LSB-Core-generic/LSB-Core-generic/iniscrptact.html
 # * http://www.opengroup.org/onlinepubs/009695399/utilities/xcu_chap02.html
 #
+EOF
+
+if [ ! -e /etc/gentoo-release ]; then
+cat <<"EOF"
 ### BEGIN INIT INFO
 # Provides:       scst
 # Required-Start: $syslog $local_fs $network
@@ -38,15 +55,7 @@ if [ -e /lib/lsb/init-functions ]; then
     # Debian, RHEL / Fedora, SLES / openSUSE.
     . /lib/lsb/init-functions
 else
-# Slackware / Gentoo.
-start_daemon() {
-    "$@" >/dev/null 2>&1 &
-}
-killproc() {
-    local exe="`basename "$1"`"
-    killall $exe
-    rm -f "/var/run/$exe.pid"
-}
+# Slackware.
 log_success_msg() {
     echo "$@"
 }
@@ -56,13 +65,30 @@ log_failure_msg() {
 fi
 
 PATH=/bin:/usr/bin:/sbin:/usr/sbin:/usr/local/sbin:/usr/local/bin
-SCST_CFG=/etc/scst.conf
 SCST_DFLT=/etc/default/scst
 
 [ -x "$(which scstadmin)" ] || exit 5
 
 if [ -f $SCST_DFLT ]; then
     . $SCST_DFLT
+fi
+EOF
+fi
+
+cat <<"EOF"
+
+SCST_CFG=/etc/scst.conf
+
+if [ ! -e /lib/lsb/init-functions ]; then
+# Slackware / Gentoo.
+start_daemon() {
+    "$@" >/dev/null 2>&1 &
+}
+killproc() {
+    local exe="`basename "$1"`"
+    killall $exe
+    rm -f "/var/run/$exe.pid"
+}
 fi
 
 # Whether or not there is a "TARGET_DRIVER iscsi" section in scst.conf.
@@ -117,8 +143,8 @@ parse_scst_conf() {
     fi
 }
 
-# Stop SCST. parse_scst_conf must already have been invoked.
-stop() {
+# Unload SCST. parse_scst_conf must already have been invoked.
+unload_scst() {
     for d in $SCST_DAEMONS; do
         killproc $d
     done
@@ -155,15 +181,10 @@ stop() {
     return 0
 }
 
-case "$1" in
-    start)
-        ## Start the service.
-        echo -n "Loading and configuring SCST"
-
+start_scst() {
         if [ -e /sys/module/scst -a -e /sys/module/scst/refcnt ]; then
-            log_failure_msg
             echo Already started
-            exit 1
+            return 1
         fi
 
         parse_scst_conf
@@ -177,10 +198,9 @@ case "$1" in
                                          -e "s/^${m}_parameters=\(.*\)$/\1/p"`"
             if [ ! -e /sys/module/$m ]; then
                 if ! modprobe $m $module_params; then
-                    log_failure_msg
                     echo modprobe $m $module_params failed.
-                    stop
-                    exit 5
+                    unload_scst
+                    return 5
                 fi
             else
                 for pv in $module_params; do
@@ -193,10 +213,9 @@ case "$1" in
 
         for d in $SCST_DAEMONS; do
             if ! start_daemon $d; then
-                log_failure_msg
                 echo "Starting $d failed"
-                stop
-                exit 1
+                unload_scst
+                return 1
             fi
         done
 
@@ -205,74 +224,28 @@ case "$1" in
             tmpout=/tmp/scstadmin-output-$$
             if scstadmin -config $SCST_CFG >$tmpout 2>&1; then
                 rm -f $tmpout
-       	        log_success_msg
+       	        return 0
             else
-                log_failure_msg
                 cat $tmpout
                 rm -f $tmpout
-                stop
-                exit 1
+                unload_scst
+                return 1
             fi
         else
-            log_success_msg
             echo "SCST configuration file $SCST_CFG missing"
+	    return 0
         fi
-        ;;
-    stop)
-        ## Stop the service.
-        echo -n "Stopping SCST"
+}
 
+stop_scst() {
         if ! parse_scst_conf; then
-            log_failure_msg "No $SCST_CFG found"
-            exit 1
+            return 1
         fi
 
-        stop
+        unload_scst
+}
 
-        rc=$?
-        if [ $rc = 0 ]; then
-            log_success_msg
-        else
-            log_failure_msg
-        fi
-        exit $rc
-        ;;
-    restart)
-        ## Stop and restart the service if the service is already running,
-        ## otherwise start the service.
-        if $0 stop; then
-            $0 start
-        fi
-        ;;
-    try-restart)
-        ## Restart the service if the service is already running.
-        $0 status >/dev/null 2>&1 && $0 restart
-        ;;
-    reload)
-        ## Cause the configuration of the service to be reloaded without
-        ## actually stopping and restarting the service.
-        echo -n "Reloading SCST configuration"
-        if scstadmin -config $SCST_CFG >/dev/null 2>&1; then
-            log_success_msg
-        else
-            log_failure_msg
-            exit 1
-        fi
-        ;;
-    force-reload)
-        ## Cause the configuration to be reloaded if the service supports this,
-        ## otherwise restart the service if it is running.
-        echo -n "Reloading SCST configuration"
-        if scstadmin -config $SCST_CFG >/dev/null 2>&1; then
-            log_success_msg
-        else
-            $0 restart
-        fi
-        ;;
-    status)
-        ## Print the current status of the service.
-        echo -n "SCST status: "
-
+scst_status() {
         # Status has a slightly different meaning for the status command:
         # 0 - service running
         # 1 - service dead, but /var/run/  pid  file exists
@@ -284,10 +257,75 @@ case "$1" in
         for m in $SCST_MODULES; do
             if [ ! -e /sys/module/$m ]; then
                 echo "$m: not loaded"
-                exit 3
+                return 3
             fi
         done
-        echo "OK"
+	return 0
+}
+
+EOF
+
+if [ ! -e /etc/gentoo-release ]; then
+cat <<"EOF"
+rc=0
+case "$1" in
+    start)
+        ## Start the service.
+        echo -n "Loading and configuring SCST"
+        start_scst
+	rc=$?
+        ;;
+    stop)
+        ## Stop the service.
+        echo -n "Stopping SCST"
+        stop_scst
+	rc=$?
+        ;;
+    restart)
+        ## Stop and restart the service if the service is already running,
+        ## otherwise start the service.
+        echo -n "Restarting SCST"
+        stop_scst && start_scst
+	rc=$?
+        ;;
+    try-restart)
+        ## Restart the service if the service is already running.
+        echo -n "Trying to restart SCST"
+        scst_status >/dev/null 2>&1 && stop_scst && start_scst
+	rc=$?
+        ;;
+    reload)
+        ## Cause the configuration of the service to be reloaded without
+        ## actually stopping and restarting the service.
+        echo -n "Reloading SCST configuration"
+        if scstadmin -config $SCST_CFG >/dev/null 2>&1; then
+	    rc=0
+	else
+	    rc=1
+	fi
+        ;;
+    force-reload)
+        ## Cause the configuration to be reloaded if the service supports this,
+        ## otherwise restart the service if it is running.
+        echo -n "Reloading SCST configuration"
+        if scstadmin -config $SCST_CFG >/dev/null 2>&1; then
+            rc=0
+        else
+            stop_scst && start_scst
+	    rc=$?
+        fi
+        ;;
+    status)
+        ## Print the current status of the service.
+        echo -n "SCST status: "
+        scst_status
+        rc=$?
+        if [ $rc = 0 ]; then
+	    echo "OK"
+	else
+	    echo "Not running"
+	fi
+        exit 0
         ;;
     *)
         echo "Usage: $0 {start|stop|status|try-restart|restart|force-reload|reload}"
@@ -295,4 +333,35 @@ case "$1" in
         ;;
 esac
 
-exit 0
+if [ $rc = 0 ]; then
+    log_success_msg
+else
+    log_failure_msg
+fi
+
+exit $rc
+EOF
+else
+cat <<"EOF"
+depend() {
+    need localmount
+    need net
+}
+
+checkconfig() {
+     test -e $SCST_CFG
+}
+
+start() {
+    ebegin "Starting SCST"
+    start_scst
+    eend $?
+}
+
+stop() {
+    ebegin "Stopping SCST"
+    stop_scst
+    eend $?
+}
+EOF
+fi
