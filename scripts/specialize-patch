@@ -265,9 +265,6 @@ function handle_if(evaluated)
       || ($0 ~ "SCSI_EXEC_REQ_FIFO_DEFINED" && SCSI_EXEC_REQ_FIFO_DEFINED!="") \
       || ($0 ~ "SCST_IO_CONTEXT" && SCST_IO_CONTEXT != ""))
   {
-    #print $0 " -> " evaluated
-    input_line_count = 1
-    input_line[0] = evaluated
   }
   else
   {
@@ -362,8 +359,15 @@ function process_preprocessor_statement(evaluated, condition) {
 		      || condition && matching_if !~ "^+#if [01]"       \
                          && matching_if !~ "^+#elif [01]"))
   {
-    for (i = 0; i < input_line_count; i++)
-      line[lines++] = input_line[i]
+    if (evaluated == "+#if undecided"                           \
+        || (evaluated !~ "^+#if" && evaluated !~ "^+#elif"))
+    {
+      for (i = 0; i < input_line_count; i++)
+        line[lines++] = input_line[i]
+    } else {
+      line[lines++] = evaluated
+      lines_less_added += input_line_count - 1
+    }
   }
   else
   {
