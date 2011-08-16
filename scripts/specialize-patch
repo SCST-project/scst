@@ -340,8 +340,9 @@ function process_preprocessor_statement(evaluated, condition) {
   {
     output = 1
     for (i = if_nesting_level; i >= 0; i--) {
-      printf "/* debug specialize-patch: (g1) %s: decision[%d] = %s */\n", \
-        evaluated, i, decision[i]
+      if (debug)
+        printf "/* debug specialize-patch: (g1) %s: decision[%d] = %s */\n", \
+          evaluated, i, decision[i]
       output = output && decision[i] != "+#if 0" && decision[i] != "+#elif 0"
     }
     if (output)
