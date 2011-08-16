@@ -311,9 +311,11 @@ function handle_if(evaluated)
 function process_preprocessor_statement(evaluated, condition) {
   evaluated = evaluate($0)
   condition = 1
+  ei = evaluated_if_stmnt[if_nesting_level];
   if (evaluated ~ "^+#if")
   {
     if_nesting_level++
+    evaluated_if_stmnt[if_nesting_level] = evaluated
     evaluated = handle_if(evaluated)
   }
   else if (evaluated ~ "^+#elif")
@@ -337,12 +339,15 @@ function process_preprocessor_statement(evaluated, condition) {
   if (condition)
   {
     output = 1
-    for (i = if_nesting_level; i >= 0; i--)
+    for (i = if_nesting_level; i >= 0; i--) {
+      printf "/* debug specialize-patch: (g1) %s: decision[%d] = %s */\n", \
+        evaluated, i, decision[i]
       output = output && decision[i] != "+#if 0" && decision[i] != "+#elif 0"
+    }
     if (output)
       any_section_output[if_nesting_level] = 1
     if (debug)
-      printf "/* debug specialize-patch: (g) %s: output = %d */\n", \
+      printf "/* debug specialize-patch: (g2) %s: output = %d */\n", \
         evaluated, output
   }
   if (evaluated ~ "^+#define SCSI_EXEC_REQ_FIFO_DEFINED$"   \
@@ -360,11 +365,40 @@ function process_preprocessor_statement(evaluated, condition) {
                          && matching_if !~ "^+#elif [01]"))
   {
     if (evaluated == "+#if undecided"                           \
-        || (evaluated !~ "^+#if" && evaluated !~ "^+#elif"))
+        || (evaluated !~ "^+#if"                                \
+            && evaluated !~ "^+#elif"                           \
+            && evaluated !~ "^+#endif"))
     {
       for (i = 0; i < input_line_count; i++)
         line[lines++] = input_line[i]
     } else {
+      # If the statement being processed is an #else or #endif that is not a
+      # header file include guard and if that statement has a trailing comment,
+      # replace that comment by the partially evaluated matching #if expression.
+      if (evaluated ~ "^+#else" || evaluated ~ "^+#endif") {
+        if ($0 ~ "\\*/") {
+          if ($0 ~ "_H_* \\*/$") {
+            evaluated = $0
+          } else {
+            if (ei ~ "^+#if ")
+              ei = substr(ei, 6)
+            else if (ei ~ "^+#ifdef")
+              ei = substr(ei, 9)
+            evaluated = sprintf("%s /* %s */",
+                                $0 ~ " " ? substr($0, 1, index($0, " ")) : $0,
+                                ei);
+            if (match(evaluated, "([^/ ]*) */\\* defined\\(([^()]*)\\) \\*/",
+                      arg))
+            {
+              evaluated = sprintf("%s /* %s */", arg[1], arg[2])
+            }
+          }
+        } else {
+          evaluated = $0
+        }
+        if (debug)
+          printf "/* debug specialize-patch: (h) %s */\n", evaluated
+      }
       line[lines++] = evaluated
       lines_less_added += input_line_count - 1
     }
