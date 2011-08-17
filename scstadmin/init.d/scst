@@ -349,7 +349,7 @@ depend() {
 }
 
 checkconfig() {
-     test -e $SCST_CFG
+     true
 }
 
 start() {
