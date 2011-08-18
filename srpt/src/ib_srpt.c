@@ -348,7 +348,7 @@ static void srpt_qp_event(struct ib_event *event, struct srpt_rdma_ch *ch)
 		ib_cm_notify(ch->cm_id, event->event);
 #else
 		/* Vanilla 2.6.19 kernel (or before) without OFED. */
-		PRINT_ERROR("%s", "how to perform ib_cm_notify() on a"
+		PRINT_ERROR("how to perform ib_cm_notify() on a"
 			    " vanilla 2.6.18 kernel ???");
 #endif
 		break;
@@ -719,7 +719,7 @@ static void srpt_unregister_mad_agent(struct srpt_device *sdev)
 		sport = &sdev->port[i - 1];
 		WARN_ON(sport->port != i);
 		if (ib_modify_port(sdev->device, i, 0, &port_modify) < 0)
-			PRINT_ERROR("%s", "disabling MAD processing failed.");
+			PRINT_ERROR("disabling MAD processing failed.");
 		if (sport->mad_agent) {
 			ib_unregister_mad_agent(sport->mad_agent);
 			sport->mad_agent = NULL;
@@ -927,7 +927,7 @@ static int srpt_post_send(struct srpt_rdma_ch *ch,
 
 	ret = -ENOMEM;
 	if (srpt_adjust_srq_wr_avail(ch, -1) < 0) {
-		PRINT_WARNING("%s", "IB send queue full (needed 1)");
+		PRINT_WARNING("IB send queue full (needed 1)");
 		goto out;
 	}
 
@@ -1721,14 +1721,14 @@ static u8 srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 
 	switch (srp_tsk->tsk_mgmt_func) {
 	case SRP_TSK_ABORT_TASK:
-		TRACE_DBG("%s", "Processing SRP_TSK_ABORT_TASK");
+		TRACE_DBG("Processing SRP_TSK_ABORT_TASK");
 		ret = scst_rx_mgmt_fn_tag(ch->scst_sess,
 					  SCST_ABORT_TASK,
 					  srp_tsk->task_tag,
 					  SCST_ATOMIC, send_ioctx);
 		break;
 	case SRP_TSK_ABORT_TASK_SET:
-		TRACE_DBG("%s", "Processing SRP_TSK_ABORT_TASK_SET");
+		TRACE_DBG("Processing SRP_TSK_ABORT_TASK_SET");
 		ret = scst_rx_mgmt_fn_lun(ch->scst_sess,
 					  SCST_ABORT_TASK_SET,
 					  (u8 *) &srp_tsk->lun,
@@ -1736,7 +1736,7 @@ static u8 srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 					  SCST_ATOMIC, send_ioctx);
 		break;
 	case SRP_TSK_CLEAR_TASK_SET:
-		TRACE_DBG("%s", "Processing SRP_TSK_CLEAR_TASK_SET");
+		TRACE_DBG("Processing SRP_TSK_CLEAR_TASK_SET");
 		ret = scst_rx_mgmt_fn_lun(ch->scst_sess,
 					  SCST_CLEAR_TASK_SET,
 					  (u8 *) &srp_tsk->lun,
@@ -1744,7 +1744,7 @@ static u8 srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 					  SCST_ATOMIC, send_ioctx);
 		break;
 	case SRP_TSK_LUN_RESET:
-		TRACE_DBG("%s", "Processing SRP_TSK_LUN_RESET");
+		TRACE_DBG("Processing SRP_TSK_LUN_RESET");
 		ret = scst_rx_mgmt_fn_lun(ch->scst_sess,
 					  SCST_LUN_RESET,
 					  (u8 *) &srp_tsk->lun,
@@ -1752,7 +1752,7 @@ static u8 srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 					  SCST_ATOMIC, send_ioctx);
 		break;
 	case SRP_TSK_CLEAR_ACA:
-		TRACE_DBG("%s", "Processing SRP_TSK_CLEAR_ACA");
+		TRACE_DBG("Processing SRP_TSK_CLEAR_ACA");
 		ret = scst_rx_mgmt_fn_lun(ch->scst_sess,
 					  SCST_CLEAR_ACA,
 					  (u8 *) &srp_tsk->lun,
@@ -1760,7 +1760,7 @@ static u8 srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 					  SCST_ATOMIC, send_ioctx);
 		break;
 	default:
-		TRACE_DBG("%s", "Unsupported task management function.");
+		TRACE_DBG("Unsupported task management function.");
 		ret = SCST_MGMT_STATUS_FN_NOT_SUPPORTED;
 	}
 
@@ -1832,16 +1832,16 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 		srpt_handle_tsk_mgmt(ch, recv_ioctx, send_ioctx);
 		break;
 	case SRP_I_LOGOUT:
-		PRINT_ERROR("%s", "Not yet implemented: SRP_I_LOGOUT");
+		PRINT_ERROR("Not yet implemented: SRP_I_LOGOUT");
 		break;
 	case SRP_CRED_RSP:
-		TRACE_DBG("%s", "received SRP_CRED_RSP");
+		TRACE_DBG("received SRP_CRED_RSP");
 		break;
 	case SRP_AER_RSP:
-		TRACE_DBG("%s", "received SRP_AER_RSP");
+		TRACE_DBG("received SRP_AER_RSP");
 		break;
 	case SRP_RSP:
-		PRINT_ERROR("%s", "Received SRP_RSP");
+		PRINT_ERROR("Received SRP_RSP");
 		break;
 	default:
 		PRINT_ERROR("received IU with unknown opcode 0x%x",
@@ -2137,7 +2137,7 @@ static bool __srpt_close_ch(struct srpt_rdma_ch *ch)
 	case CH_LIVE:
 		was_live = true;
 		if (ib_send_cm_dreq(ch->cm_id, NULL, 0) < 0)
-			PRINT_ERROR("%s", "sending CM DREQ failed.");
+			PRINT_ERROR("sending CM DREQ failed.");
 		break;
 	case CH_DISCONNECTING:
 	case CH_DRAINING:
@@ -2392,7 +2392,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		rej->reason = cpu_to_be32(
 				SRP_LOGIN_REJ_UNABLE_ASSOCIATE_CHANNEL);
 		ret = -ENOMEM;
-		PRINT_ERROR("%s", "rejected SRP_LOGIN_REQ because it"
+		PRINT_ERROR("rejected SRP_LOGIN_REQ because it"
 		       " has an invalid target port identifier.");
 		goto reject;
 	}
@@ -2435,7 +2435,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	ret = srpt_create_ch_ib(ch);
 	if (ret) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-		PRINT_ERROR("%s", "rejected SRP_LOGIN_REQ because creating"
+		PRINT_ERROR("rejected SRP_LOGIN_REQ because creating"
 			    " a new RDMA channel failed.");
 		goto free_ring;
 	}
@@ -2488,7 +2488,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 					      ch, NULL, NULL);
 	if (!ch->scst_sess) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-		TRACE_DBG("%s", "Failed to create SCST session");
+		TRACE_DBG("Failed to create SCST session");
 		goto release_channel;
 	}
 
@@ -2632,7 +2632,7 @@ static void srpt_cm_dreq_recv(struct ib_cm_id *cm_id)
 			PRINT_INFO("Received DREQ and sent DREP for session %s",
 				   ch->sess_name);
 		else
-			PRINT_ERROR("%s", "Sending DREP failed");
+			PRINT_ERROR("Sending DREP failed");
 		break;
 	default:
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
@@ -2693,10 +2693,10 @@ static int srpt_cm_handler(struct ib_cm_id *cm_id, struct ib_cm_event *event)
 		srpt_cm_rep_error(cm_id);
 		break;
 	case IB_CM_DREQ_ERROR:
-		PRINT_INFO("%s", "Received IB DREQ ERROR event.");
+		PRINT_INFO("Received IB DREQ ERROR event.");
 		break;
 	case IB_CM_MRA_RECEIVED:
-		PRINT_INFO("%s", "Received IB MRA event");
+		PRINT_INFO("Received IB MRA event");
 		break;
 	default:
 		PRINT_ERROR("received unrecognized IB CM event %d",
@@ -3251,7 +3251,7 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 	 * response is sent. This is fine however.
 	 */
 	if (srpt_post_send(ch, ioctx, rsp_len)) {
-		PRINT_ERROR("%s", "Sending SRP_RSP response failed.");
+		PRINT_ERROR("Sending SRP_RSP response failed.");
 		srpt_put_send_ioctx(ioctx);
 		srpt_undo_inc_req_lim(ch, ioctx->req_lim_delta);
 	}
@@ -3288,7 +3288,7 @@ static int srpt_get_initiator_port_transport_id(struct scst_tgt *tgt,
 
 	tr_id = kzalloc(sizeof(struct spc_rdma_transport_id), GFP_KERNEL);
 	if (!tr_id) {
-		PRINT_ERROR("%s", "Allocation of TransportID failed");
+		PRINT_ERROR("Allocation of TransportID failed");
 		res = -ENOMEM;
 		goto out;
 	}
@@ -4029,14 +4029,14 @@ static int __init srpt_init_module(void)
 #ifdef CONFIG_SCST_PROC
 	ret = class_register(&srpt_class);
 	if (ret) {
-		PRINT_ERROR("%s", "couldn't register class ib_srpt");
+		PRINT_ERROR("couldn't register class ib_srpt");
 		goto out;
 	}
 #endif
 
 	ret = scst_register_target_template(&srpt_template);
 	if (ret < 0) {
-		PRINT_ERROR("%s", "couldn't register with scst");
+		PRINT_ERROR("couldn't register with scst");
 		ret = -ENODEV;
 #ifdef CONFIG_SCST_PROC
 		goto out_unregister_class;
@@ -4047,14 +4047,14 @@ static int __init srpt_init_module(void)
 
 	ret = ib_register_client(&srpt_client);
 	if (ret) {
-		PRINT_ERROR("%s", "couldn't register IB client");
+		PRINT_ERROR("couldn't register IB client");
 		goto out_unregister_target;
 	}
 
 #ifdef CONFIG_SCST_PROC
 	ret = srpt_register_procfs_entry(&srpt_template);
 	if (ret) {
-		PRINT_ERROR("%s", "couldn't register procfs entry");
+		PRINT_ERROR("couldn't register procfs entry");
 		goto out_unregister_client;
 	}
 #endif /*CONFIG_SCST_PROC*/
