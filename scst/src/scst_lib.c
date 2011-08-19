@@ -3751,6 +3751,7 @@ static struct scst_cmd *scst_create_prepare_internal_cmd(
 	res->dev = orig_cmd->dev;
 	res->devt = orig_cmd->devt;
 	res->tgt_dev = orig_cmd->tgt_dev;
+	res->cur_order_data = orig_cmd->tgt_dev->curr_order_data;
 	res->lun = orig_cmd->lun;
 	res->queue_type = SCST_CMD_QUEUE_HEAD_OF_QUEUE;
 	res->data_direction = SCST_DATA_UNKNOWN;
