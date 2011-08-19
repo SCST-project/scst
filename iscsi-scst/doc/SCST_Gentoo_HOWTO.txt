@@ -95,8 +95,8 @@ but with file /vdisks/vdisk2 and it has its blocksize increased from 512
 to 4096 (see notes below), and finaly disk03 is a real disk used as a
 blockdevice. Both disk01 and disk02 are connected to the same target
 with different luns and disk03 is connected to a different target as
-LUN0 that is only accessible from the specified IP addresses, if the
-allowed_target atttribute is not set the target is open to all ip's
+LUN0, if the allowed_target atttribute is not set the target is open
+to all ip's
 
   scstadmin -open_dev disk01 -handler vdisk_fileio -attributes filename=/vdisks/vdisk1,read_only
   scstadmin -open_dev disk02 -handler vdisk_fileio -attributes filename=/vdisks/vdisk2,blocksize=4096
@@ -106,7 +106,6 @@ allowed_target atttribute is not set the target is open to all ip's
   scstadmin -add_lun 0 -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk1 -device disk01
   scstadmin -add_lun 1 -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk1 -device disk02
   scstadmin -add_lun 0 -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk2 -device disk03
-  scstadmin -set_tgt_attr iqn.2011-08.nl.feka:storage.vdisk2 -driver iscsi -attributes allowed_portal=192.168.100.*
   scstadmin -enable_target iqn.2011-08.nl.feka:storage.vdisk1 -driver iscsi
   scstadmin -enable_target iqn.2011-08.nl.feka:storage.vdisk2 -driver iscsi
   scstadmin -set_drv_attr iscsi -attributes enabled=1
@@ -115,15 +114,48 @@ allowed_target atttribute is not set the target is open to all ip's
 
 8. Run SCST automatically at startup
 
-If you have the new baselayout with openRC the SCST init script doesn't
-work and changing it would be a lot of work so local.d is used:
+For SCST 2.1 SVN version r3805 and newer do:
+  rc-update add scst default
 
+For SCST 2.0 and for a SVN version before r3805 and Gentoo with the old baselayout without OpenRC do:
+  rc-update add scst default
+
+For SCST 2.0 and for a SVN version before r3805 and you have the new Gentoo baselayout do:
   echo "/etc/init.d/scst start" >> /etc/local.d/scst.start
   echo "/etc/init.d/scst stop" >> /etc/local.d/scst.stop
   chmod 775 /etc/local.d/scst.*
+(the SCST init script doesn't work with openRC and changing it would be a lot of work so local.d is used as an easy workaround)
 
-If you still run the old baselayout the initscript provided by SCST should work so do:
-  rc-update add scst default
+
+9. Using SCST access control (optional)
+
+SCST listens on all the targets IP addresses and allows access to any
+initiators per default. There are a couple of ways to restict access and
+here I will give some examples. For the full documentation see the
+README file in the scst/iscsi-scst/ directory
+
+To make a target accessible on only one IP address do:
+  scstadmin -set_tgt_attr iqn.2011-08.nl.feka:storage.vdisk1 -driver iscsi -attributes allowed_portal=192.168.100.15
+(Remember the IP address is the address of the target machine, not of
+ the allowed initiator, you can add multiple entries on the same target
+ by repeating the above command, you can also use the wildcards * and ?
+ where the ? stands for any single digit)
+
+To make targets only accessible by specific inititators add a group to
+each target and define the allowed inititiators on each group and add
+the lun to the group instead of the target:
+(remove the old lun if it already exists directly under the target)
+  scstadmin -add_group vCenter -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk2
+  scstadmin -add_group ESXi -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk1
+  scstadmin -add_init iqn.2011-08.nl.feka:vcenterserver  -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk2 -group vCenter
+  scstadmin -add_init iqn.1998-01.com.vmware:esx1-47f53b1d -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk1 -group ESXi
+  scstadmin -add_init iqn.1998-01.com.vmware:esx2-23e64b45 -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk1 -group ESXi
+  scstadmin -rem_lun 0 -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk1 -device disk01
+  scstadmin -rem_lun 1 -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk1 -device disk02
+  scstadmin -rem_lun 0 -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk2 -device disk03
+  scstadmin -add_lun 0 -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk1 -group ESXi -device disk01
+  scstadmin -add_lun 1 -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk1 -group ESXi -device disk02
+  scstadmin -add_lun 0 -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk2 -group vCenter -device disk03
 
 
 ==============================================
@@ -159,6 +191,6 @@ the scst target do this:
 (--setra 1024 means 1024x512bytes)
 
 When running a firewall you need to open TCP Port 3260 on the required
-interface, see below example for iptables.iptables -A INPUT -p TCP -i
-eth0 --dport 3260 -m state --state NEW -j ACCEPT
+interface, see below example for iptables.
+iptables -A INPUT -p TCP -i eth0 --dport 3260 -m state --state NEW -j ACCEPT
 
