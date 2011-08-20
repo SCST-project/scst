@@ -141,7 +141,7 @@ the following additional entry:
 Each target subdirectory contains the following additional entries:
 
  - phys_transport_version - contains and allows to change physical
-   transport version descriptor. It determines by which phisical
+   transport version descriptor. It determines by which physical
    interface this target will look like. See SPC for more details. By
    default, it is not defined (0).
 
