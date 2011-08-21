@@ -104,12 +104,15 @@ using_iscsi() {
 # Parse scst.conf and assign the list of associated kernel modules to
 # SCST_MODULES.
 parse_scst_conf() {
+    SCST_MODULES="scst"
+    SCST_OPT_MODULES=""
+    SCST_DAEMONS=""
     if [ ! -e $SCST_CFG ]; then
         return 1
     fi
     local nonblanks="[^ 	]\{1,\}"
     local blanks="[ 	]\{1,\}"
-    SCST_MODULES="scst `sed -n -e 's/^HANDLER'"$blanks"'\('"$nonblanks"'\)'"$blanks"'{$/\1/p' \
+    SCST_MODULES="$SCST_MODULES `sed -n -e 's/^HANDLER'"$blanks"'\('"$nonblanks"'\)'"$blanks"'{$/\1/p' \
                          -e 's/^\[HANDLER'"$blanks"'\('"$nonblanks"'\)\]$/\1/p' $SCST_CFG \
         | while read h; do
             case "$h" in
