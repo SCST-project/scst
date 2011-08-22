@@ -108,7 +108,7 @@ parse_scst_conf() {
     SCST_OPT_MODULES=""
     SCST_DAEMONS=""
     if [ ! -e $SCST_CFG ]; then
-        return 1
+        return 0
     fi
     local nonblanks="[^ 	]\{1,\}"
     local blanks="[ 	]\{1,\}"
