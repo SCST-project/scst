@@ -55,7 +55,9 @@ static inline void scst_inc_pr_readers_count(struct scst_cmd *cmd,
 	if (!locked)
 		spin_lock_bh(&dev->dev_lock);
 
+#ifdef CONFIG_SMP
 	EXTRACHECKS_BUG_ON(!spin_is_locked(&dev->dev_lock));
+#endif
 
 	dev->pr_readers_count++;
 	cmd->dec_pr_readers_count_needed = 1;
@@ -83,7 +85,9 @@ static inline void scst_dec_pr_readers_count(struct scst_cmd *cmd,
 	if (!locked)
 		spin_lock_bh(&dev->dev_lock);
 
+#ifdef CONFIG_SMP
 	EXTRACHECKS_BUG_ON(!spin_is_locked(&dev->dev_lock));
+#endif
 
 	dev->pr_readers_count--;
 	cmd->dec_pr_readers_count_needed = 0;
