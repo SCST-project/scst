@@ -883,6 +883,9 @@ cache. The following parameters possible for vdisk_fileio:
  - removable - with this flag set the device is reported to remote
    initiators as removable.
 
+ - rotational - if set, this device reported as rotational. Otherwise,
+   it is reported as non-ratational (SSD, etc.)
+
 Handler vdisk_blockio provides BLOCKIO mode to create virtual devices.
 This mode performs direct block I/O with a block device, bypassing the
 page cache for all operations. This mode works ideally with high-end
@@ -891,8 +894,8 @@ between application and disk or need the large block throughput. See
 below for more info.
 
 The following parameters possible for vdisk_blockio: filename,
-blocksize, nv_cache, read_only, removable, thin_provisioned. See
-vdisk_fileio above for description of those parameters.
+blocksize, nv_cache, read_only, removable, rotational, thin_provisioned.
+See vdisk_fileio above for description of those parameters.
 
 Handler vdisk_nullio provides NULLIO mode to create virtual devices. In
 this mode no real I/O is done, but success returned to initiators.
@@ -928,9 +931,11 @@ Each vdisk_fileio's device has the following attributes in
  - nv_cache - contains NV_CACHE status of this virtual device.
 
  - thin_provisioned - contains thin provisioning status of this virtual
-   device
+   device.
 
  - removable - contains removable status of this virtual device.
+
+ - rotational - contains rotational status of this virtual device.
 
  - size_mb - contains size of this virtual device in MB.
 
@@ -969,6 +974,7 @@ For example:
 |-- read_only
 |-- removable
 |-- resync_size
+|-- rotational
 |-- size_mb
 |-- t10_dev_id
 |-- thin_provisioned
@@ -980,7 +986,7 @@ For example:
 
 Each vdisk_blockio's device has the following attributes in
 /sys/kernel/scst_tgt/devices/device_name: blocksize, filename, nv_cache,
-read_only, removable, resync_size, size_mb, t10_dev_id,
+read_only, removable, resync_size, rotational, size_mb, t10_dev_id,
 thin_provisioned, threads_num, threads_pool_type, type, usn. See above
 description of those parameters.
 
