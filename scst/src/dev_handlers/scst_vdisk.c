@@ -1818,16 +1818,11 @@ out:
 	return;
 }
 
-/*
- * <<Following mode pages info copied from ST318451LW with some corrections>>
- *
- * ToDo: revise them
- */
 static int vdisk_err_recov_pg(unsigned char *p, int pcontrol,
 			       struct scst_vdisk_dev *virt_dev)
 {	/* Read-Write Error Recovery page for mode_sense */
-	const unsigned char err_recov_pg[] = {0x1, 0xa, 0xc0, 11, 240, 0, 0, 0,
-					      5, 0, 0xff, 0xff};
+	const unsigned char err_recov_pg[] = {0x1, 0xa, 0xc0, 1, 0, 0, 0, 0,
+					      1, 0, 0xff, 0xff};
 
 	memcpy(p, err_recov_pg, sizeof(err_recov_pg));
 	if (1 == pcontrol)
@@ -1894,8 +1889,8 @@ static int vdisk_format_pg(unsigned char *p, int pcontrol,
 static int vdisk_caching_pg(unsigned char *p, int pcontrol,
 			     struct scst_vdisk_dev *virt_dev)
 {	/* Caching page for mode_sense */
-	const unsigned char caching_pg[] = {0x8, 18, 0x10, 0, 0xff, 0xff, 0, 0,
-		0xff, 0xff, 0xff, 0xff, 0x80, 0x14, 0, 0, 0, 0, 0, 0};
+	const unsigned char caching_pg[] = {0x8, 0x12, 0x0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0x80, 0x14, 0, 0, 0, 0, 0, 0};
 
 	memcpy(p, caching_pg, sizeof(caching_pg));
 	p[2] |= !(virt_dev->wt_flag || virt_dev->nv_cache) ? WCE : 0;
