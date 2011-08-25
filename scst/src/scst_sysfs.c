@@ -2127,6 +2127,7 @@ static int scst_process_rel_tgt_id_store(struct scst_sysfs_work_item *work)
 	int res = 0;
 	struct scst_tgt *tgt = work->tgt_r;
 	unsigned long rel_tgt_id = work->rel_tgt_id;
+	bool enabled;
 
 	TRACE_ENTRY();
 
@@ -2135,8 +2136,12 @@ static int scst_process_rel_tgt_id_store(struct scst_sysfs_work_item *work)
 	TRACE_DBG("Trying to set relative target port id %d",
 		(uint16_t)rel_tgt_id);
 
-	if (tgt->tgtt->is_target_enabled(tgt) &&
-	    rel_tgt_id != tgt->rel_tgt_id) {
+	if (tgt->tgtt->is_target_enabled != NULL)
+		enabled = tgt->tgtt->is_target_enabled(tgt);
+	else
+		enabled = true;
+
+	if (enabled && rel_tgt_id != tgt->rel_tgt_id) {
 		if (!scst_is_relative_target_port_id_unique(rel_tgt_id, tgt)) {
 			PRINT_ERROR("Relative port id %d is not unique",
 				(uint16_t)rel_tgt_id);
@@ -2147,7 +2152,7 @@ static int scst_process_rel_tgt_id_store(struct scst_sysfs_work_item *work)
 
 	if (rel_tgt_id < SCST_MIN_REL_TGT_ID ||
 	    rel_tgt_id > SCST_MAX_REL_TGT_ID) {
-		if ((rel_tgt_id == 0) && !tgt->tgtt->is_target_enabled(tgt))
+		if ((rel_tgt_id == 0) && !enabled)
 			goto set;
 
 		PRINT_ERROR("Invalid relative port id %d",
