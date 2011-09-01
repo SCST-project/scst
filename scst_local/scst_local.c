@@ -84,8 +84,8 @@ static unsigned long scst_local_trace_flag = SCST_LOCAL_DEFAULT_LOG_FLAGS;
 #define scsi_bufflen(cmd) ((cmd)->request_bufflen)
 #endif
 
-#define SCST_LOCAL_VERSION "1.0.0"
-static const char *scst_local_version_date = "20100910";
+#define SCST_LOCAL_VERSION "3.0"
+static const char *scst_local_version_date = "20110901";
 
 /* Some statistics */
 static atomic_t num_aborts = ATOMIC_INIT(0);

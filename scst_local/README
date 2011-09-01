@@ -282,3 +282,5 @@ V0.9 30-Nov-2008 (Mtn View) Cleaned up an additional problem with symbols not
 
 V1.0 10-Sep-2010 (Moscow)   Sysfs management added. Reviewed and cleaned up.
 
+V2.1                        Update for kernels up to 3.0. Cleanups.
+

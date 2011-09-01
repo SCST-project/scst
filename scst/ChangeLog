@@ -1,7 +1,21 @@
+Summary of changes between versions 2.1.0 and 3.0
+-------------------------------------------------
+
+ - Update to kernels up to 3.x
+
+ - New initialization scripts implemented
+
+ - Support for ritational attribute added
+
+ - Bug fixes and other improvements
+
+
 Summary of changes between versions 2.0.0 and 2.1.0
 ---------------------------------------------------
 
  - Update to kernels up to 3.0
+
+ - Support for implicit ALUA added
 
  - Change T10 ID and USN generations to get the random part be CRC32
    from the device name in the first 8 characters as many MPIO
