@@ -37,7 +37,10 @@
 #include <asm/atomic.h>
 #include <linux/kthread.h>
 #include <linux/sched.h>
+#include <linux/delay.h>
+#ifndef INSIDE_KERNEL_TREE
 #include <linux/version.h>
+#endif
 #include <asm/div64.h>
 #include <asm/unaligned.h>
 #include <linux/slab.h>
@@ -1363,12 +1366,22 @@ static void vdisk_exec_unmap(struct scst_cmd *cmd, struct scst_vdisk_thr *thr)
 		goto out_put;
 #endif
 		} else {
+			const int block_shift = virt_dev->block_shift;
+
 			/*
 			 * We are guaranteed by thin_provisioned flag
 			 * that truncate_range is not NULL.
 			 */
+			if (((start + len) << block_shift) &
+			    (PAGE_CACHE_SIZE - 1)) {
+				PRINT_ERROR("Invalid UNMAP range [%llu, %llu); "
+					"block size = %d", start, start + len,
+					virt_dev->block_size);
+				goto out_put;
+			}
 			inode->i_op->truncate_range(inode,
-				start, start + len);
+					start << block_shift,
+					((start + len) << block_shift) - 1);
 		}
 	}
 
@@ -4287,9 +4300,24 @@ static int vdev_sysfs_process_get_filename(struct scst_sysfs_work_item *work)
 
 	dev = work->dev;
 
-	if (mutex_lock_interruptible(&scst_vdisk_mutex) != 0) {
-		res = -EINTR;
-		goto out_put;
+	/*
+	 * Since we have a get() on dev->dev_kobj, we can not simply mutex_lock
+	 * scst_vdisk_mutex, because otherwise we can fall in a deadlock with
+	 * vdisk_del_device(), which is waiting for the last ref to dev_kobj
+	 * under scst_vdisk_mutex.
+	 */
+	while (!mutex_trylock(&scst_vdisk_mutex)) {
+		if ((volatile bool)(dev->dev_unregistering)) {
+			TRACE_MGMT_DBG("Skipping being unregistered dev %s",
+				dev->virt_name);
+			res = -ENOENT;
+			goto out_put;
+		}
+		if (signal_pending(current)) {
+			res = -EINTR;
+			goto out_put;
+		}
+		msleep(100);
 	}
 
 	virt_dev = dev->dh_priv;

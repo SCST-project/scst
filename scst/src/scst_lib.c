@@ -3750,6 +3750,7 @@ static struct scst_cmd *scst_create_prepare_internal_cmd(
 	res->tgt = orig_cmd->tgt;
 	res->dev = orig_cmd->dev;
 	res->tgt_dev = orig_cmd->tgt_dev;
+	res->cur_order_data = orig_cmd->tgt_dev->curr_order_data;
 	res->lun = orig_cmd->lun;
 	res->queue_type = SCST_CMD_QUEUE_HEAD_OF_QUEUE;
 	res->data_direction = SCST_DATA_UNKNOWN;
@@ -6738,7 +6739,9 @@ void scst_unblock_dev(struct scst_device *dev)
 	TRACE_MGMT_DBG("Device UNBLOCK(new %d), dev %s",
 		dev->block_count-1, dev->virt_name);
 
+#ifdef CONFIG_SMP
 	EXTRACHECKS_BUG_ON(!spin_is_locked(&dev->dev_lock));
+#endif
 
 	if (--dev->block_count == 0) {
 		struct scst_cmd *cmd, *tcmd;

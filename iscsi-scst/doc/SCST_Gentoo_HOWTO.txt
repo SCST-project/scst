@@ -1,176 +1,196 @@
-This HOWTO is for iSCSI-SCST v1.x. Updates for v2.x are welcome!
+==============================================
+SCST 2.x Installation on Gentoo Linux
+==============================================
 
-1) If you haven't done so already install a base gentoo installation:
-download: http://www.gentoo.org/main/en/where.xml
-documentation: http://www.gentoo.org/doc/en/handbook/index.xml
+This howto will get you a working SCST installation on Gentoo Linux, it
+will follow the official howto as much as possible with a few exceptions
+because of Gentoo specifics or my preferences. Most of it will also work
+on other Linux Distributions so my changes from the official howto might
+help you get SCST working on another distro.
 
-2) Lets make sure our package info is up2date
-'emerge --sync'
+Prerequisites:
+- A working and up2date Gentoo Linux installation
+- Free storage space
+- Installation of the following packages: gentoo-sources, subversion
+- User with root privileges
+- Read the official iSCSI-SCST howto for more options and information
 
-3) You can get the SCST source files from http://scst.sourceforge.net/downloads.html
-As I want a stable platform I use the downloads from "Download released versions"
-For the iscsi-target we need three files: scst, iscsi-scst and scstadmin.
-You can get these files in varios ways, in the example they are downloaded with links.
-If links is not already installed install it:
-'emerge links'
-Go the the directory where you want the files (the example uses /root) and get the files:
-'cd /root'
-'links http://scst.sourceforge.net/downloads.html'
-and download under stable the three needed files, at this moment they are scst-1.0.1.1.tar.gz, scstadmin-1.0.6.tar.gz and iscsi-scst-1.0.1.1.tar.gz
-after downloading exit links:
-'q'
+Assumptions for this howto:
+- User logged on as root
+- Gentoo Sources version 2.6.39-r3 installed
+- Manual build kernel without initramfs
+- Gentoo AMD64 version
+- Grub bootloader
+- /boot on a separate partition
+- One iSCSI target with 2 LUNS, both LUNS virtual disk files
+- One iSCSI target with one LUN, LUN is a real device
 
-4) Now extract the three downloaded files
-'tar -zxf scst-1.0.1.1.tar.gz'
-'tar -zxf scstadmin-1.0.6.tar.gz'
-'tar -zxf iscsi-scst-1.0.1.1.tar.gz'
+When the above options differ from your environment/setup you will need
+to change some of the commands provided in this howto for things to
+work.
 
-5) Because SCST needs some kernel patches we need to check which kernels are supported.
-'ls /root/scst-1.0.1.1/kernel/'
-This shows a list of kernel patches, we can see now the newest kernel scst 1.0.1.1 has patches for is kernel 2.6.29.
-Now lets see which is the newest gentoo kernel.
-'emerge --search gentoo-sources'
-This shows the current installed kernel (if you are running the gentoo-sources kernel) and the newest version at this moment is 2.6.30-r6.
-As we need an older kernel to use SCST we will need to explicitly tell emerge which kernel we want.
-To find out which kernel we need we can take a look at http://packages.gentoo.org/package/sys-kernel/gentoo-sources
-'links http://packages.gentoo.org/package/sys-kernel/gentoo-sources'
-You will need to scroll down a bit to see the table. At this moment is shows that 2.6.29-r5 is the newest for the x86 and amd64 platform, so we want the 29-r5 kernel.
-'emerge =gentoo-sources-2.6.29-r5'
-The kernel source will now be in /usr/src/linux-2.6.29-gentoo-r5
 
-6) Now we need to patch the kernel sources. First we set the /usr/src/linux link to the new kernel sources.
-'rm /usr/src/linux'
-'ln -s /usr/src/linux-2.6.29-gentoo-r5/ /usr/src/linux'
-There are multiple kernel patches for SCST and not all are required but give better performance or new features.
-Read the documentation from SCST to see what the patches are for and which ones you need/want.
-The kernel patches are in /root/scst-1.0.1.1/kernel/ and /root/iscsi-scst-1.0.1.1/kernel/patches/.
-Now Patch the kernel sources
-'cd /usr/src/linux'
-'patch -p1 < /root/scst-1.0.1.1/kernel/io_context-2.6.29.patch'
-'patch -p1 < /root/scst-1.0.1.1/kernel/scst_exec_req_fifo-2.6.29.patch'
-'patch -p1 < /root/scst-1.0.1.1/kernel/readahead-context-2.6.29.patch'
-'patch -p1 < /root/scst-1.0.1.1/kernel/readahead-2.6.29.patch'
-'patch -p1 < /root/iscsi-scst-1.0.1.1/kernel/patches/put_page_callback-2.6.29.patch'
-? not required 'make clean'
+1. Download the latest SCST version.
 
-7) Lets configure and build the kernel
-'make menuconfig'
-Make sure to enable a few kernel options.
-in Networking Support -> Networking Options:
-"TCP/IP networking" and "TCP/IP zero-copy transfer completion notification"
-in Device Drivers -> SCSI Device Support:
-"SCSI disk support"
-Make sure you include all needed storage and lan drivers
+  cd /root
+  svn co https://scst.svn.sourceforge.net/svnroot/scst/trunk scst
 
------optional, for maximum performance:-----
-in Enable the block layer -> IO Schedulers
-enable "CFQ I/O scheduler"
-set "Default I/O scheduler" to "CFQ"
-in Processor type and features
-set "Preemption Model" to "No Forced Preemption (Server)"
-set "High Memory Support" to "off" (use a 64bit kernel when using more then 1GB of RAM to get the best performance)
-in File systems
-enable "XFS filesystem support" (XFS is much faster then ext3 when using virtual-file-devices for the iSCSI target)
------optional end-----
 
-Build the kernel and install the kernel modules
-'make'
-'make modules_install'
-Now copy the kernel to the boot directory (replace the directory after arch with your architecture, x86 for example)
-'cp arch/x86_64/boot/bzImage /boot/kernel-2.6.29-gentoo-r5'
-Add the new kernel to the configuration as described in the gentoo handbook (with grub you should edit /boot/grub/grub.conf)
-Reboot the system with the new kernel
-'shutdown -r now'
+2. Patch the kernel (Optional but required for the best speed)
 
-8) Lets configure, build and install SCST
-'cd /root/scst-1.0.1.1/src'
-'make all'
-'make install'
+  cd /usr/src/linux-2.6.39-gentoo-r3
+  patch -p1 < /root/scst/iscsi-scst/kernel/patches/put_page_callback-2.6.39.patch
+  patch -p1 < /root/scst/scst/kernel/scst_exec_req_fifo-2.6.39.patch
+  make clean
 
-9) Build and install scstadmin
-'cd /root/scstadmin-1.0.6'
-'make all'
-'make install'
-Remove the scst_disk module from the startup file
-'nano -w /etc/init.d/scst'
-change the line SCST_MODULES="scst scst-disk scst_vdisk" to SCST_MODULES="scst scst_vdisk"
 
-10) Build and install iscsi-scst
-'cd /root/iscsi-scst-1.0.1.1'
-'make all'
-'make install'
-'cp etc/initiators.* /etc'
-'cp etc/iscsi-scstd.conf /etc'
+3. Build the kernel
 
-11) Make SCST init script work
-As the scst init scipt uses lsb init-functions which are not available for gentoo scst can not run yet.
-There are two easy ways to make it work. 1) Modify the SCST init script so it doesn't use init-functions. 2) Get the required init-functions scripts from another distro.
-Choose one these options.
+  make menuconfig
+  Select Networking support -> Networking options -> TCP/IP networking
+  Select Networking support -> Networking options -> TCP/IP zero-copy transfer completion notification
+  Select Device Drivers -> SCSI device support -> SCSI disk support
+  Select Enable the block layer -> IO Schedulers -> CFQ I/O Scheduler
+  Set Enable the Block layer -> IO Schedulers -> Default I/O Scheduler to 'CFQ'
+  Set Processor type and features -> Preemption Model to 'No Forced Preemption (Server)'
+  Exit
+  make
+  make modules_install
 
-11-1) Modify the SCST script
-The simplest way to do this is to remove/replace all lsb init-functions.
-- remove or comment (put a # in front of) the line ". /lib/lsb/init-functions"
-- replace all 'log_failure_msg' with 'echo "failure"' and replace all 'log_success_msg' with 'echo "succes"'
 
-11-2) Get /lib/lsb/init-functions and /etc/rc.status from another distribution
-See an example on how to do this on http://www.gentoo-wiki.info/Rivendell and only do the actions as described under "File creation"
-Now you should have created /etc/rc.status and /lib/lsb/init-functions and set their permissions.
+4. Install the new kernel and reboot the system
 
-12) Configure iSCSI-SCST configuration
-choose a target name and disk names and set it iscsi-scstd.conf, see the comments on the target name requirements in the same file.
-'nano -w /etc/iscsi-scstd.conf'
+  mount /boot
+  cp arch/x86_64/boot/bzImage /boot/kernel-2.6.39-gentoo-r3-SCST
+  nano -w /boot/grub/grub.conf  (add a new boot entry with the newly compiled kernel)
+  umount /boot
+  shutdown -r now
 
------example iscsi-scstd.conf-----
-Target iqn.2009-10.nl.feka:storage.disk.1.vms
-Target iqn.2009-10.nl.feka:storage.disk.2.iso
-Target iqn.2009-10.nl.feka:storage.filedisk.1.backup
------example end-----
 
-13) Configure SCST configuration
-SCSTadmin can create the SCST config but needs SCST to be loaded, unfortunately the initscript does not load SCST when scst.conf is not there.
-Create an empty scst.conf.
-'touch /etc/scst.conf'
-Start SCST
-'/etc/init.d/scst start'
-Create an empty configuration.
-'scstadmin -ClearConfig /etc/scst.conf'
-Add the iSCSI disk(s), make sure to replace the device name(s) in the command(s) below:
-'scstadmin -adddev disk01 -path /dev/sdb1 -handler vdisk -options BLOCKIO' (use this to add a disk/partition/file in BlockIO mode without caching)
-'scstadmin -adddev disk02 -path /dev/sdc -handler vdisk -options NV_CACHE' (use this to add a disk/partition/file in FileIO mode with linux cache)
-'scstadmin -adddev disk03 -path /root/vhdd1 -handler vdisk -options NV_CACHE' (use this to add a disk/partition/file in FileIO mode with linux cache)
-Create a group for each target. (make sure to name the entry after Default_ the same as the names specified in iscsi-scstd.conf)
-'scstadmin -addgroup Default_iqn.2009-10.nl.feka:storage.disk.1.vms'
-'scstadmin -addgroup Default_iqn.2009-10.nl.feka:storage.disk.2.iso'
-'scstadmin -addgroup Default_iqn.2009-10.nl.feka:storage.filedisk.1.backup'
-Assign the device(s) to the group(s).
-'scstadmin -assigndev disk01 -group Default_iqn.2009-10.nl.feka:storage.disk.1.vms -lun 0'
-'scstadmin -assigndev disk02 -group Default_iqn.2009-10.nl.feka:storage.disk.2.iso -lun 0'
-'scstadmin -assigndev disk03 -group Default_iqn.2009-10.nl.feka:storage.filedisk.1.backup -lun 0'
-Save the configuration.
-'scstadmin -WriteConfig /etc/scst.conf'
+5. Build SCST
 
-14) Set initiator connection rights
-As default disable all targets for all initiators.
-Add one line to initiators.deny with "ALL ALL"
-'nano -w /etc/initiators.deny'
+  cd /root/scst
+  make 2perf
+  make scst scst_install
+  make iscsi iscsi_install
+  make scstadm scstadm_install
 
------example initiators.deny-----
-ALL ALL
------example end-----
 
-Add the inititators that may access the targets to initiators.allow.
-Add one line per initiator with all initiators that need access, see the comments in the same file
-'nano -w /etc/initiators.allow'
+6. Make a clean config and start SCST
 
------example initiators.allow-----
-iqn.2009-10.nl.feka:storage.disk.1.vms 192.168.1.1, 192.168.1.2, 192.168.1.3
-iqn.2009-10.nl.feka:storage.disk.2.iso 192.168.1.1, 192.168.1.2, 192.168.1.3
-iqn.2009-10.nl.feka:storage.filedisk.1.backup 192.168.1.10
------example end-----
+  echo "HANDLER vdisk_fileio {" >> /etc/scst.conf
+  echo "}" >> /etc/scst.conf
+  echo ""  >> /etc/scst.conf
+  echo "TARGET_DRIVER iscsi {"  >> /etc/scst.conf
+  echo "      	enabled 0"  >> /etc/scst.conf
+  echo "}"  >> /etc/scst.conf
+  /etc/init.d/scst start
 
-15) Add SCST and iSCSI-SCST to default run-level and start iscsi-scst
-'rc-update add scst default'
-'rc-update add iscsi-scst default'
-'/etc/init.d/iscsi-scst start'
 
-Willem Boterenbrood
+7. Configure SCST
+
+In this example disk01 is a virtual disk that is stored in the file
+/vdisks/vdisk1 and is mounted read_only, disk02 is the same as disk01
+but with file /vdisks/vdisk2 and it has its blocksize increased from 512
+to 4096 (see notes below), and finaly disk03 is a real disk used as a
+blockdevice. Both disk01 and disk02 are connected to the same target
+with different luns and disk03 is connected to a different target as
+LUN0, if the allowed_target atttribute is not set the target is open
+to all ip's
+
+  scstadmin -open_dev disk01 -handler vdisk_fileio -attributes filename=/vdisks/vdisk1,read_only
+  scstadmin -open_dev disk02 -handler vdisk_fileio -attributes filename=/vdisks/vdisk2,blocksize=4096
+  scstadmin -open_dev disk03 -handler vdisk_blockio -attributes filename=/dev/sdc1
+  scstadmin -add_target iqn.2011-08.nl.feka:storage.vdisk1 -driver iscsi
+  scstadmin -add_target iqn.2011-08.nl.feka:storage.vdisk2 -driver iscsi
+  scstadmin -add_lun 0 -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk1 -device disk01
+  scstadmin -add_lun 1 -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk1 -device disk02
+  scstadmin -add_lun 0 -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk2 -device disk03
+  scstadmin -enable_target iqn.2011-08.nl.feka:storage.vdisk1 -driver iscsi
+  scstadmin -enable_target iqn.2011-08.nl.feka:storage.vdisk2 -driver iscsi
+  scstadmin -set_drv_attr iscsi -attributes enabled=1
+  scstadmin -write_config /etc/scst.conf
+
+
+8. Run SCST automatically at startup
+
+For SCST 2.1 SVN version r3805 and newer do:
+  rc-update add scst default
+
+For SCST 2.0 and for a SVN version before r3805 and Gentoo with the old baselayout without OpenRC do:
+  rc-update add scst default
+
+For SCST 2.0 and for a SVN version before r3805 and you have the new Gentoo baselayout do:
+  echo "/etc/init.d/scst start" >> /etc/local.d/scst.start
+  echo "/etc/init.d/scst stop" >> /etc/local.d/scst.stop
+  chmod 775 /etc/local.d/scst.*
+(the SCST init script doesn't work with openRC and changing it would be a lot of work so local.d is used as an easy workaround)
+
+
+9. Using SCST access control (optional)
+
+SCST listens on all the targets IP addresses and allows access to any
+initiators per default. There are a couple of ways to restict access and
+here I will give some examples. For the full documentation see the
+README file in the scst/iscsi-scst/ directory
+
+To make a target accessible on only one IP address do:
+  scstadmin -set_tgt_attr iqn.2011-08.nl.feka:storage.vdisk1 -driver iscsi -attributes allowed_portal=192.168.100.15
+(Remember the IP address is the address of the target machine, not of
+ the allowed initiator, you can add multiple entries on the same target
+ by repeating the above command, you can also use the wildcards * and ?
+ where the ? stands for any single digit)
+
+To make targets only accessible by specific inititators add a group to
+each target and define the allowed inititiators on each group and add
+the lun to the group instead of the target:
+(remove the old lun if it already exists directly under the target)
+  scstadmin -add_group vCenter -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk2
+  scstadmin -add_group ESXi -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk1
+  scstadmin -add_init iqn.2011-08.nl.feka:vcenterserver  -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk2 -group vCenter
+  scstadmin -add_init iqn.1998-01.com.vmware:esx1-47f53b1d -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk1 -group ESXi
+  scstadmin -add_init iqn.1998-01.com.vmware:esx2-23e64b45 -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk1 -group ESXi
+  scstadmin -rem_lun 0 -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk1 -device disk01
+  scstadmin -rem_lun 1 -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk1 -device disk02
+  scstadmin -rem_lun 0 -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk2 -device disk03
+  scstadmin -add_lun 0 -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk1 -group ESXi -device disk01
+  scstadmin -add_lun 1 -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk1 -group ESXi -device disk02
+  scstadmin -add_lun 0 -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk2 -group vCenter -device disk03
+
+
+==============================================
+Notes
+==============================================
+
+SCST's vdisk_fileio handler will use a default blocksize of 512b, this
+is the only safe option for vmware ESXi or older windows versions, for
+best performance with newer windows versions a blocksize of 4096 will be
+much faster.
+
+The TCP/IP zero-copy transfer completion notification provided by the
+put_page_callback patch will only improve performance if your network
+adapter supports TX offloading. You can check this by running ethtool -k
+eth0 (substitute eth0 for the nic you use),  at least "tx-checksumming"
+and "scatter-gather" should be enabled. If your adapter is unable to do
+so consider upgrading to a good server grade nic, both Intel and
+Broadcom make good server grade nics.
+
+If you have an Intel CPU that supports SSE4.2 make sure to add the
+crc32c-intel module to the kernel, so iSCSI-SCST will do all digest
+calculations with hardware acceleration. You can find this option in the
+kernel Cryptographic API -> CRC32c INTEL hardware acceleration
+
+It is recommended to increase the read ahead size to at least 512KB on
+the initiators and the target. To do this for dev/sdb and /dev/sdc on
+the scst target do this:
+
+  nano -w /etc/local.d/blockdev.start
+    blockdev --setra 1024 /dev/sdb
+    blockdev --setra 1024 /dev/sdc
+  chmod 775 /etc/local.d/blockdev.start
+(--setra 1024 means 1024x512bytes)
+
+When running a firewall you need to open TCP Port 3260 on the required
+interface, see below example for iptables.
+iptables -A INPUT -p TCP -i eth0 --dport 3260 -m state --state NEW -j ACCEPT
+
