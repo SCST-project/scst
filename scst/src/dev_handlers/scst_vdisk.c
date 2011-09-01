@@ -37,6 +37,7 @@
 #include <asm/atomic.h>
 #include <linux/kthread.h>
 #include <linux/sched.h>
+#include <linux/delay.h>
 #ifndef INSIDE_KERNEL_TREE
 #include <linux/version.h>
 #endif
@@ -4416,9 +4417,24 @@ static int vdev_sysfs_process_get_filename(struct scst_sysfs_work_item *work)
 
 	dev = work->dev;
 
-	if (mutex_lock_interruptible(&scst_vdisk_mutex) != 0) {
-		res = -EINTR;
-		goto out_put;
+	/*
+	 * Since we have a get() on dev->dev_kobj, we can not simply mutex_lock
+	 * scst_vdisk_mutex, because otherwise we can fall in a deadlock with
+	 * vdisk_del_device(), which is waiting for the last ref to dev_kobj
+	 * under scst_vdisk_mutex.
+	 */
+	while (!mutex_trylock(&scst_vdisk_mutex)) {
+		if ((volatile bool)(dev->dev_unregistering)) {
+			TRACE_MGMT_DBG("Skipping being unregistered dev %s",
+				dev->virt_name);
+			res = -ENOENT;
+			goto out_put;
+		}
+		if (signal_pending(current)) {
+			res = -EINTR;
+			goto out_put;
+		}
+		msleep(100);
 	}
 
 	virt_dev = dev->dh_priv;

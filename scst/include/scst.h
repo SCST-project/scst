@@ -2224,6 +2224,14 @@ struct scst_device {
 	/* Set, if a strictly serialized cmd is waiting blocked */
 	unsigned short strictly_serialized_cmd_waiting:1;
 
+	/*
+	 * Set, if this device is being unregistered. Useful to let sysfs
+	 * attributes know when they should exit immediatelly to prevent
+	 * possible deadlocks with their device unregistration waiting for
+	 * their kobj last put.
+	 */
+	unsigned short dev_unregistering:1;
+
 	/**************************************************************/
 
 	/*************************************************************

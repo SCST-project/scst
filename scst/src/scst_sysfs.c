@@ -522,9 +522,9 @@ int scst_sysfs_queue_wait_work(struct scst_sysfs_work_item *work)
 	 * for the last put during some object unregistration and at the same
 	 * time another queued work is having reference on that object taken and
 	 * waiting for attention from the sysfs thread. Generally, all sysfs
-	 * function calling kobject_get() and then queuing sysfs thread job. For
-	 * instance. This is especially dangerous in read only cases, like
-	 * vdev_sysfs_filename_show().
+	 * functions calling kobject_get() and then queuing sysfs thread job
+	 * affected by this. This is especially dangerous in read only cases,
+	 * like vdev_sysfs_filename_show().
 	 *
 	 * So, to eliminate that deadlock we will create an extra sysfs thread
 	 * for each queued sysfs work. This thread will quit as soon as it will
@@ -548,8 +548,7 @@ int scst_sysfs_queue_wait_work(struct scst_sysfs_work_item *work)
 				timeout = 5*HZ;
 				continue;
 			}
-			TRACE_MGMT_DBG("Time out waiting for work %p",
-				work);
+			TRACE_MGMT_DBG("Time out waiting for work %p", work);
 			res = -EAGAIN;
 			goto out_put;
 		} else if (rc < 0) {
