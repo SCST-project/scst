@@ -67,7 +67,7 @@ unsigned long trace_flag = DEFAULT_LOG_FLAGS;
 #endif /* defined(DEBUG) || defined(TRACING) */
 
 #define DEF_BLOCK_SHIFT		9
-#define VERSION_STR		"2.1.0-rc1"
+#define VERSION_STR		"2.1.0"
 #define THREADS			7
 
 #define MAX_VDEVS		10
