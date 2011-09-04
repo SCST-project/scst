@@ -55,6 +55,12 @@ install:
 	if [ ! -e  $(DESTDIR)$(DEFAULTDIR)/scst ]; then		\
 	  install -m 755 default/scst $(DESTDIR)$(DEFAULTDIR);	\
 	fi
+	@if [ "$(REMOVE_INITD_CMD)" != "none" ]; then		\
+	  $(REMOVE_INITD_CMD) iscsi-scst >/dev/null 2>&1;	\
+	  rm -f $(INITDIR)/iscsi-scst;				\
+	  $(REMOVE_INITD_CMD) qla2x00t >/dev/null 2>&1;		\
+	  rm -f $(INITDIR)/qla2x00t;				\
+	fi
 	@if [ "$(INSTALL_INITD_CMD)" != "none" ]; then			    \
 	  echo;								    \
 	  echo 'If you want SCST to start automatically at boot time, run'  \
