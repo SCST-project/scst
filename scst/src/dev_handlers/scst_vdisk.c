@@ -1381,21 +1381,26 @@ static void vdisk_exec_unmap(struct scst_cmd *cmd, struct scst_vdisk_thr *thr)
 #endif
 		} else {
 			const int block_shift = virt_dev->block_shift;
+			const loff_t a0 = start << block_shift;
+			const loff_t a2 = (start + len) << block_shift;
+			const loff_t a1 = max_t(loff_t, a2 & PAGE_CACHE_MASK,
+						a0);
 
 			/*
-			 * We are guaranteed by thin_provisioned flag
-			 * that truncate_range is not NULL.
+			 * The SCSI UNMAP command discards a range of blocks
+			 * of size (1 << block_shift) while the Linux VFS
+			 * truncate_range() function discards a range of blocks
+			 * of size PAGE_CACHE_SIZE. Hence pass range [a0, a1)
+			 * to truncate_range() instead of range [a0,
+			 * a2). Note: since we do not set TPRZ it is not
+			 * necessary to overwrite the range [a1, a2) with
+			 * zeroes.
 			 */
-			if (((start + len) << block_shift) &
-			    (PAGE_CACHE_SIZE - 1)) {
-				PRINT_ERROR("Invalid UNMAP range [%llu, %llu); "
-					"block size = %d", start, start + len,
-					virt_dev->block_size);
-				goto out_put;
-			}
-			inode->i_op->truncate_range(inode,
-					start << block_shift,
-					((start + len) << block_shift) - 1);
+			WARN_ON(!(a0 <= a1 && a1 <= a2));
+			WARN_ON(!((a1 & (PAGE_CACHE_SIZE - 1)) == 0 ||
+				  a0 == a1));
+			if (a0 < a1)
+				inode->i_op->truncate_range(inode, a0, a1 - 1);
 		}
 	}
 
