@@ -1,0 +1,621 @@
+This patch is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation, version 2
+of the License.
+
+--- scst/include/scst.h
++++ scst/include/scst.h
+@@ -410,6 +410,12 @@ enum scst_exec_context {
+ /* Set if tgt_dev is RESERVED by another session */
+ #define SCST_TGT_DEV_RESERVED		1
+ 
++/* Set if the tgt_dev is in ACA state */
++#define SCST_TGT_DEV_ACA_ACTIVE		2
++
++/* Set if the tgt_dev is handling a task with an ACA attribute */
++#define SCST_TGT_DEV_ACA_CMD_ACTIVE	3
++
+ /* Set if the corresponding context is atomic */
+ #define SCST_TGT_DEV_AFTER_INIT_WR_ATOMIC	5
+ #define SCST_TGT_DEV_AFTER_INIT_OTH_ATOMIC	6
+@@ -1164,6 +1170,12 @@ struct scst_cmd {
+ 	/* Set if hq_cmd_count was incremented */
+ 	unsigned int hq_cmd_inced:1;
+ 
++	/* set if this command goes to the head of the queue (HQ or ACA) */
++	unsigned int hq_cmd:1;
++
++	/* set if this is a naca command */
++	unsigned int naca_cmd:1;
++
+ 	/*
+ 	 * Set if scst_cmd_init_stage1_done() called and the target wants
+ 	 * that the SN for the cmd won't be assigned until scst_restart_cmd()
+@@ -1217,7 +1229,7 @@ struct scst_cmd {
+ #endif
+ 
+ 	/* List entry for tgt_dev's SN related lists */
+-	struct list_head sn_cmd_list_entry;
++	struct list_head deferred_cmd_list_entry;
+ 
+ 	/* Cmd's serial number, used to execute cmd's in order of arrival */
+ 	unsigned long sn;
+@@ -2718,7 +2730,7 @@ int scst_check_local_events(struct scst_cmd *cmd);
+  * Returns the next state of the SCSI target state machine in case if command's
+  * completed abnormally.
+  */
+-int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd);
++int scst_get_cmd_abnormal_done_state(struct scst_cmd *cmd);
+ 
+ /*
+  * Sets state of the SCSI target state machine in case if command's completed
+--- scst/src/scst_lib.c
++++ scst/src/scst_lib.c
+@@ -683,7 +683,7 @@ out_free:
+ }
+ EXPORT_SYMBOL(scst_aen_done);
+ 
+-int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
++int scst_get_cmd_abnormal_done_state(struct scst_cmd *cmd)
+ {
+ 	int res;
+ 
+@@ -693,6 +693,14 @@ EXPORT_SYMBOL(scst_aen_done);
+ 	case SCST_CMD_STATE_INIT_WAIT:
+ 	case SCST_CMD_STATE_INIT:
+ 	case SCST_CMD_STATE_PRE_PARSE:
++		if (cmd->tgt_dev != NULL) {
++			int rc;
++			rc = scst_get_cdb_info(cmd);
++			if (rc == 0) {
++				int cbyte = cmd->cdb[cmd->cdb_len -1];
++				cmd->naca_cmd = (cbyte & CONTROL_BYTE_NACA_BIT) != 0;
++			}
++		}
+ 	case SCST_CMD_STATE_DEV_PARSE:
+ 	case SCST_CMD_STATE_DEV_DONE:
+ 		if (cmd->internal)
+@@ -1221,6 +1229,8 @@ void scst_nexus_loss(struct scst_tgt_dev *tgt_dev,
+ 
+ 	/* With activity suspended the lock isn't needed, but let's be safe */
+ 	spin_lock_bh(&tgt_dev->tgt_dev_lock);
++	clear_bit(SCST_TGT_DEV_ACA_ACTIVE, &tgt_dev->tgt_dev_flags);
++	clear_bit(SCST_TGT_DEV_ACA_CMD_ACTIVE, &tgt_dev->tgt_dev_flags);
+ 	scst_free_all_UA(tgt_dev);
+ 	spin_unlock_bh(&tgt_dev->tgt_dev_lock);
+ 
+@@ -3367,6 +3377,8 @@ void scst_process_reset(struct scst_device *dev,
+ 		struct scst_session *sess = tgt_dev->sess;
+ 
+ 		spin_lock_bh(&tgt_dev->tgt_dev_lock);
++		clear_bit(SCST_TGT_DEV_ACA_ACTIVE, &tgt_dev->tgt_dev_flags);
++		clear_bit(SCST_TGT_DEV_ACA_CMD_ACTIVE, &tgt_dev->tgt_dev_flags);
+ 		scst_free_all_UA(tgt_dev);
+ 		spin_unlock_bh(&tgt_dev->tgt_dev_lock);
+ 
+@@ -3689,14 +3701,13 @@ struct scst_cmd *__scst_check_deferred_commands(st
+ 
+ restart:
+ 	list_for_each_entry_safe(cmd, t, &tgt_dev->deferred_cmd_list,
+-				sn_cmd_list_entry) {
+-		EXTRACHECKS_BUG_ON(cmd->queue_type ==
+-			SCST_CMD_QUEUE_HEAD_OF_QUEUE);
++				deferred_cmd_list_entry) {
++		EXTRACHECKS_BUG_ON(cmd->hq_cmd);
+ 		if (cmd->sn == expected_sn) {
+ 			TRACE_SN("Deferred command %p (sn %ld, set %d) found",
+ 				cmd, cmd->sn, cmd->sn_set);
+ 			tgt_dev->def_cmd_count--;
+-			list_del(&cmd->sn_cmd_list_entry);
++			list_del(&cmd->deferred_cmd_list_entry);
+ 			if (res == NULL)
+ 				res = cmd;
+ 			else {
+@@ -3714,9 +3725,8 @@ restart:
+ 		goto out_unlock;
+ 
+ 	list_for_each_entry(cmd, &tgt_dev->skipped_sn_list,
+-				sn_cmd_list_entry) {
+-		EXTRACHECKS_BUG_ON(cmd->queue_type ==
+-			SCST_CMD_QUEUE_HEAD_OF_QUEUE);
++				deferred_cmd_list_entry) {
++		EXTRACHECKS_BUG_ON(cmd->hq_cmd);
+ 		if (cmd->sn == expected_sn) {
+ 			atomic_t *slot = cmd->sn_slot;
+ 			/*
+@@ -3729,7 +3739,7 @@ restart:
+ 				 (long long unsigned int)cmd->tag,
+ 				 cmd->sn);
+ 			tgt_dev->def_cmd_count--;
+-			list_del(&cmd->sn_cmd_list_entry);
++			list_del(&cmd->deferred_cmd_list_entry);
+ 			spin_unlock_irq(&tgt_dev->sn_lock);
+ 			if (test_and_set_bit(SCST_CMD_CAN_BE_DESTROYED,
+ 					     &cmd->cmd_flags))
+@@ -4019,7 +4029,7 @@ static void scst_unblock_cmds(struct scst_device *
+ 		list_del(&cmd->blocked_cmd_list_entry);
+ 		TRACE_MGMT_DBG("Adding blocked cmd %p to active cmd list", cmd);
+ 		spin_lock(&cmd->cmd_lists->cmd_list_lock);
+-		if (unlikely(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE))
++		if (unlikely(cmd->hq_cmd))
+ 			list_add(&cmd->cmd_list_entry,
+ 				&cmd->cmd_lists->active_cmd_list);
+ 		else
+@@ -4047,7 +4057,7 @@ static void __scst_unblock_deferred(struct scst_tg
+ 		out_of_sn_cmd->out_of_sn = 1;
+ 		spin_lock_irq(&tgt_dev->sn_lock);
+ 		tgt_dev->def_cmd_count++;
+-		list_add_tail(&out_of_sn_cmd->sn_cmd_list_entry,
++		list_add_tail(&out_of_sn_cmd->deferred_cmd_list_entry,
+ 			      &tgt_dev->skipped_sn_list);
+ 		TRACE_SN("out_of_sn_cmd %p with sn %ld added to skipped_sn_list"
+ 			" (expected_sn %ld)", out_of_sn_cmd, out_of_sn_cmd->sn,
+--- scst/src/scst_targ.c
++++ scst/src/scst_targ.c
+@@ -40,6 +40,7 @@ static struct scst_cmd *__scst_find_cmd_by_tag(str
+ 	uint64_t tag);
+ static void scst_proccess_redirect_cmd(struct scst_cmd *cmd,
+ 	enum scst_exec_context context, int check_retries);
++static int scst_set_mcmd_next_state(struct scst_mgmt_cmd *mcmd);
+ 
+ static inline void scst_schedule_tasklet(struct scst_cmd *cmd)
+ {
+@@ -280,7 +281,7 @@ void scst_cmd_init_done(struct scst_cmd *cmd,
+ 		goto active;
+ 	}
+ 
+-	if (unlikely(cmd->queue_type >= SCST_CMD_QUEUE_ACA)) {
++	if (unlikely(cmd->queue_type > SCST_CMD_QUEUE_ACA)) {
+ 		PRINT_ERROR("Unsupported queue type %d", cmd->queue_type);
+ 		scst_set_cmd_error(cmd,
+ 			SCST_LOAD_SENSE(scst_sense_invalid_message));
+@@ -300,6 +301,10 @@ void scst_cmd_init_done(struct scst_cmd *cmd,
+ 	else if (unlikely(cmd->status == SAM_STAT_CHECK_CONDITION)) {
+ 		if (rc == 0) {
+ 			/* Target driver preliminary completed cmd */
++			if (cmd->tgt_dev != NULL) {
++				atomic_inc(&cmd->tgt_dev->tgt_dev_cmd_count);
++				atomic_inc(&cmd->dev->dev_cmd_count);
++			}
+ 			scst_set_cmd_abnormal_done_state(cmd);
+ 		}
+ 	}
+@@ -328,7 +333,7 @@ active:
+ 	case SCST_CONTEXT_THREAD:
+ 		spin_lock_irqsave(&cmd->cmd_lists->cmd_list_lock, flags);
+ 		TRACE_DBG("Adding cmd %p to active cmd list", cmd);
+-		if (unlikely(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE))
++		if (unlikely(cmd->hq_cmd))
+ 			list_add(&cmd->cmd_list_entry,
+ 				&cmd->cmd_lists->active_cmd_list);
+ 		else
+@@ -434,13 +439,8 @@ static int scst_pre_parse(struct scst_cmd *cmd)
+ 		}
+ 	}
+ 
+-	if (unlikely(cmd->cdb[cmd->cdb_len - 1] & CONTROL_BYTE_NACA_BIT)) {
+-		PRINT_ERROR("NACA bit in control byte CDB is not supported "
+-			    "(opcode 0x%02x)", cmd->cdb[0]);
+-		scst_set_cmd_error(cmd,
+-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+-		goto out_xmit;
+-	}
++	cmd->naca_cmd = (cmd->cdb[cmd->cdb_len - 1] & CONTROL_BYTE_NACA_BIT) !=0;
++	TRACE(TRACE_SCSI,"cmd %p NACA bit %d", cmd, cmd->naca_cmd);
+ 
+ 	if (unlikely(cmd->cdb[cmd->cdb_len - 1] & CONTROL_BYTE_LINK_BIT)) {
+ 		PRINT_ERROR("Linked commands are not supported "
+@@ -537,6 +537,9 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
+ 	} else
+ 		state = SCST_CMD_STATE_PREPARE_SPACE;
+ 
++	if (cmd->naca_cmd)
++		cmd->inc_expected_sn_on_done = 1;
++
+ 	if (cmd->data_len == -1)
+ 		cmd->data_len = cmd->bufflen;
+ 
+@@ -1069,7 +1072,7 @@ static void scst_proccess_redirect_cmd(struct scst
+ 			scst_check_retries(cmd->tgt);
+ 		spin_lock_irqsave(&cmd->cmd_lists->cmd_list_lock, flags);
+ 		TRACE_DBG("Adding cmd %p to active cmd list", cmd);
+-		if (unlikely(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE))
++		if (unlikely(cmd->hq_cmd))
+ 			list_add(&cmd->cmd_list_entry,
+ 				&cmd->cmd_lists->active_cmd_list);
+ 		else
+@@ -2252,11 +2255,36 @@ static int scst_send_for_exec(struct scst_cmd **ac
+ 	if (unlikely(cmd->internal))
+ 		goto exec;
+ 
+-	if (unlikely(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE))
++	/* this will cause HQ & ACA commands to goto exec */
++	if (unlikely(cmd->hq_cmd))
+ 		goto exec;
+ 
+ 	sBUG_ON(!cmd->sn_set);
+ 
++	/* Handla ACA */
++	if (unlikely(test_bit(SCST_TGT_DEV_ACA_ACTIVE, &tgt_dev->tgt_dev_flags))) {
++		spin_lock_irq(&tgt_dev->sn_lock);
++		TRACE_DBG("ACA_ACTIVE: handling exec cmd %p queue type %d", cmd, cmd->queue_type);
++		if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
++			TRACE_MGMT_DBG("Aborting out of sn cmd %p "
++					"(tag %llu, sn %lu)", cmd,
++					(long long unsigned)cmd->tag, cmd->sn);
++			spin_unlock_irq(&tgt_dev->sn_lock);
++			scst_set_cmd_abnormal_done_state(cmd);
++			res = SCST_CMD_STATE_RES_CONT_SAME;
++			goto out;
++		}
++
++		/* defer the command */
++		TRACE(TRACE_SCSI, "ACA active for tgt_dev %p: deferring cmd %p",
++			tgt_dev, cmd);
++		list_add_tail(&cmd->deferred_cmd_list_entry,
++				&tgt_dev->deferred_cmd_list);
++		spin_unlock_irq(&tgt_dev->sn_lock);
++		res = SCST_CMD_STATE_RES_CONT_NEXT;
++		goto out;
++	}
++
+ 	expected_sn = tgt_dev->expected_sn;
+ 	/* Optimized for lockless fast path */
+ 	if ((cmd->sn != expected_sn) || (tgt_dev->hq_cmd_count > 0)) {
+@@ -2291,7 +2319,7 @@ static int scst_send_for_exec(struct scst_cmd **ac
+ 				TRACE_SN("Deferring cmd %p (sn=%ld, set %d, "
+ 					"expected_sn=%ld)", cmd, cmd->sn,
+ 					cmd->sn_set, expected_sn);
+-				list_add_tail(&cmd->sn_cmd_list_entry,
++				list_add_tail(&cmd->deferred_cmd_list_entry,
+ 					      &tgt_dev->deferred_cmd_list);
+ 				res = SCST_CMD_STATE_RES_CONT_NEXT;
+ 			}
+@@ -2435,6 +2463,72 @@ static int scst_check_auto_sense(struct scst_cmd *
+ 	return res;
+ }
+ 
++/* called under no locks*/
++static int scst_clear_aca(struct scst_mgmt_cmd* mcmd, struct scst_tgt_dev *tgt_dev)
++{
++	unsigned long flags;
++	struct scst_cmd *cmd, *tcmd;
++	struct scst_session *sess;
++	int res = 0;
++
++	TRACE_ENTRY();
++
++	TRACE_MGMT_DBG("Clearing ACA for tgt_dev %p (lun %lld)",
++			tgt_dev, tgt_dev->lun);
++	if (!test_bit(SCST_TGT_DEV_ACA_ACTIVE, &tgt_dev->tgt_dev_flags)) {
++		/* reject CLEAR_ACA when not in ACA state */
++		TRACE_MGMT_DBG("Rejecting CLEAR_ACA for tgt_dev %p (lun %lld)",
++				tgt_dev, tgt_dev->lun);
++		res = 1;
++		goto out;
++	}
++
++	clear_bit(SCST_TGT_DEV_ACA_ACTIVE, &tgt_dev->tgt_dev_flags);
++	if (test_bit(SCST_TGT_DEV_ACA_CMD_ACTIVE, &tgt_dev->tgt_dev_flags) && (mcmd)) {
++		sess = tgt_dev->sess;
++		spin_lock_irqsave(&sess->sess_list_lock, flags);
++		TRACE_DBG("Searching in search cmd list (sess=%p) "
++				"for an ACA command", sess);
++		list_for_each_entry(cmd, &sess->search_cmd_list,
++				    search_cmd_list_entry) {
++			if ((cmd->tgt_dev == tgt_dev) &&
++			    (cmd->queue_type == SCST_CMD_QUEUE_ACA)) {
++				/* Found the ACA command - abort it */
++				scst_abort_cmd(cmd, mcmd, 0, 0);
++				res = -1;
++				break;
++			}
++		}
++		spin_unlock_irqrestore(&sess->sess_list_lock, flags);
++	}
++
++	spin_lock_irq(&tgt_dev->sn_lock);
++	list_for_each_entry_safe(cmd, tcmd,
++			&tgt_dev->deferred_cmd_list,
++			deferred_cmd_list_entry) {
++
++		TRACE_MGMT_DBG("Move cmd %p (sn %lu) "
++			"from deferred list to active_list",
++			cmd, cmd->sn);
++
++		list_del(&cmd->deferred_cmd_list_entry);
++		spin_lock(&cmd->cmd_lists->cmd_list_lock);
++		list_add_tail(&cmd->cmd_list_entry,
++			&cmd->cmd_lists->active_cmd_list);
++		wake_up(&cmd->cmd_lists->cmd_list_waitQ);
++		spin_unlock(&cmd->cmd_lists->cmd_list_lock);
++		tgt_dev->def_cmd_count--;
++	}
++	spin_unlock_irq(&tgt_dev->sn_lock);
++
++	if (mcmd != NULL)
++		res = scst_set_mcmd_next_state(mcmd);
++
++out:
++	TRACE_EXIT_RES(res);
++	return res;
++}
++
+ static int scst_pre_dev_done(struct scst_cmd *cmd)
+ {
+ 	int res = SCST_CMD_STATE_RES_CONT_SAME, rc;
+@@ -2506,14 +2600,14 @@ static int scst_pre_dev_done(struct scst_cmd *cmd)
+ 			if (buflen > SCST_INQ_BYTE3) {
+ #ifdef CONFIG_SCST_EXTRACHECKS
+ 				if (buffer[SCST_INQ_BYTE3] & SCST_INQ_NORMACA_BIT) {
+-					PRINT_INFO("NormACA set for device: "
+-					    "lun=%lld, type 0x%02x. Clear it, "
+-					    "since it's unsupported.",
++					TRACE_DBG("NormACA set for device: "
++					    "lun=%lld, type 0x%02x "
++					    "NACA is only supported for "
++					    "TST=1 & QErr=0.",
+ 					    (long long unsigned int)cmd->lun,
+ 					    buffer[0]);
+ 				}
+ #endif
+-				buffer[SCST_INQ_BYTE3] &= ~SCST_INQ_NORMACA_BIT;
+ 			} else if (buflen != 0) {
+ 				PRINT_ERROR("%s", "Unable to get INQUIRY "
+ 				    "buffer");
+@@ -2761,9 +2855,6 @@ static int scst_dev_done(struct scst_cmd *cmd)
+ 	if (likely(cmd->dec_on_dev_needed))
+ 		scst_dec_on_dev_cmd(cmd);
+ 
+-	if (cmd->inc_expected_sn_on_done && cmd->sent_for_exec)
+-		scst_inc_check_expected_sn(cmd);
+-
+ 	if (unlikely(cmd->internal))
+ 		cmd->state = SCST_CMD_STATE_FINISHED_INTERNAL;
+ 
+@@ -2794,15 +2885,48 @@ static int scst_pre_xmit_response(struct scst_cmd
+ 		schedule_timeout_uninterruptible(HZ);
+ 	}
+ #endif
++	if (cmd->queue_type == SCST_CMD_QUEUE_ACA)
++		TRACE_DBG("ACA command %p, tgt_dev %p, status %d, naca %d",cmd, cmd->tgt_dev, cmd->status, cmd->naca_cmd);
+ 
+ 	if (likely(cmd->tgt_dev != NULL)) {
++		if (cmd->inc_expected_sn_on_done && cmd->sent_for_exec)
++			scst_inc_check_expected_sn(cmd);
++
++		/* Enter\Exit ACA state */
++		if (cmd->status == SAM_STAT_CHECK_CONDITION) {
++			/* If the command attribute is ACA, exit from ACA state */
++			if ((cmd->queue_type == SCST_CMD_QUEUE_ACA) &&
++			     (test_bit(SCST_TGT_DEV_ACA_ACTIVE, &cmd->tgt_dev->tgt_dev_flags))) {
++				TRACE(TRACE_SCSI, "ACA: tgt_dev %p exits from ACA state "
++						"because of cmd %p", cmd->tgt_dev, cmd);
++				scst_clear_aca(NULL, cmd->tgt_dev);
++			}
++
++			/* If this is a NACA command enter ACA state */
++			if (cmd->naca_cmd) {
++				int cmd_count = atomic_read(&cmd->tgt_dev->tgt_dev_cmd_count);
++				set_bit(SCST_TGT_DEV_ACA_ACTIVE, &cmd->tgt_dev->tgt_dev_flags);
++				TRACE(TRACE_SCSI, "ACA: tgt_dev %p enters ACA state because "
++					"of cmd %p (tgt_dev_cmd_count = %d)",
++					cmd->tgt_dev,
++					cmd,
++					cmd_count);
++
++				PRINT_BUFF_FLAG(TRACE_SCSI, "cdb that caused the ACA state",
++						cmd->cdb, cmd->cdb_len);
++			}
++		}
++
++		if (unlikely(test_bit(SCST_TGT_DEV_ACA_ACTIVE, &cmd->tgt_dev->tgt_dev_flags)))
++			clear_bit(SCST_TGT_DEV_ACA_CMD_ACTIVE, &cmd->tgt_dev->tgt_dev_flags);
++
+ 		atomic_dec(&cmd->tgt_dev->tgt_dev_cmd_count);
+ 		atomic_dec(&cmd->dev->dev_cmd_count);
+ 		/* If expected values not set, expected direction is UNKNOWN */
+ 		if (cmd->expected_data_direction == SCST_DATA_WRITE)
+ 			atomic_dec(&cmd->dev->write_cmd_count);
+ 
+-		if (unlikely(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE))
++		if (unlikely(cmd->hq_cmd))
+ 			scst_on_hq_cmd_response(cmd);
+ 
+ 		if (unlikely(!cmd->sent_for_exec)) {
+@@ -3128,11 +3252,13 @@ ordered:
+ 		break;
+ 
+ 	case SCST_CMD_QUEUE_HEAD_OF_QUEUE:
+-		TRACE_SN("HQ cmd %p (op %x)", cmd, cmd->cdb[0]);
++	case SCST_CMD_QUEUE_ACA:
++		TRACE_SN("HQ or ACA (%d) cmd %p (op %x)", cmd->queue_type, cmd, cmd->cdb[0]);
+ 		spin_lock_irqsave(&tgt_dev->sn_lock, flags);
+ 		tgt_dev->hq_cmd_count++;
+ 		spin_unlock_irqrestore(&tgt_dev->sn_lock, flags);
+ 		cmd->hq_cmd_inced = 1;
++		cmd->hq_cmd = 1;
+ 		goto out;
+ 
+ 	default:
+@@ -3223,7 +3349,9 @@ static int scst_translate_lun(struct scst_cmd *cmd
+  */
+ static int __scst_init_cmd(struct scst_cmd *cmd)
+ {
++	struct scst_tgt_dev *tgt_dev;
+ 	int res = 0;
++	bool done = false;
+ 
+ 	TRACE_ENTRY();
+ 
+@@ -3234,28 +3362,74 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
+ 
+ 		cmd->state = SCST_CMD_STATE_PRE_PARSE;
+ 
+-		cnt = atomic_inc_return(&cmd->tgt_dev->tgt_dev_cmd_count);
+-		if (unlikely(cnt > SCST_MAX_TGT_DEV_COMMANDS)) {
+-			TRACE(TRACE_MGMT_MINOR,
+-				"Too many pending commands (%d) in "
+-				"session, returning BUSY to initiator \"%s\"",
+-				cnt, (cmd->sess->initiator_name[0] == '\0') ?
+-				  "Anonymous" : cmd->sess->initiator_name);
+-			failure = true;
+-		}
++		/* Handle ACA for TST=1 QErr=0*/
++		tgt_dev = cmd->tgt_dev;
++		if (unlikely(test_bit(SCST_TGT_DEV_ACA_ACTIVE,
++					&tgt_dev->tgt_dev_flags))) {
++			/* Terminate commands without ACA attribute,
++			 * Only one ACA command should be handled at a time */
++			if ((cmd->queue_type != SCST_CMD_QUEUE_ACA) ||
++			    test_bit(SCST_TGT_DEV_ACA_CMD_ACTIVE,
++					    &tgt_dev->tgt_dev_flags)) {
++				TRACE(TRACE_SCSI|TRACE_DEBUG,
++					"cmd %p terminated with ACA_ACTIVE "
++					"(queue_type=%d, tgt_dev %p)",
++					cmd, cmd->queue_type,tgt_dev);
++				atomic_inc(&cmd->tgt_dev->tgt_dev_cmd_count);
++				atomic_inc(&cmd->dev->dev_cmd_count);
++				scst_set_cmd_error_status(cmd,
++						SAM_STAT_ACA_ACTIVE);
++				scst_set_cmd_abnormal_done_state(cmd);
++				failure = true;
++				done = true;
++				res = -1;
++			} else {
++				TRACE(TRACE_SCSI|TRACE_DEBUG,
++					"tgt_dev %p received ACA CMD %p ",
++					tgt_dev, cmd);
++				set_bit(SCST_TGT_DEV_ACA_CMD_ACTIVE, &tgt_dev->tgt_dev_flags);
++				atomic_inc(&cmd->tgt_dev->tgt_dev_cmd_count);
++				atomic_inc(&cmd->dev->dev_cmd_count);
++			}
++		} else {
++			/* Terminate commands with ACA attribute when not
++			 * in ACA state*/
++			if (unlikely(cmd->queue_type == SCST_CMD_QUEUE_ACA)) {
++				TRACE(TRACE_SCSI|TRACE_DEBUG,
++					"ACA cmd %p terminated because ITL "
++					"nexus is not in ACA state "
++					"(tgt dev %p)", cmd, tgt_dev);
++				scst_set_cmd_error(cmd,
++					SCST_LOAD_SENSE(scst_sense_invalid_message));
++				scst_set_cmd_abnormal_done_state(cmd);
++				failure = true;
++				done = true;
++				res = -1;
++			}
+ 
+-		cnt = atomic_inc_return(&cmd->dev->dev_cmd_count);
+-		if (unlikely(cnt > SCST_MAX_DEV_COMMANDS)) {
+-			if (!failure) {
++			cnt = atomic_inc_return(&cmd->tgt_dev->tgt_dev_cmd_count);
++			if (unlikely(cnt > SCST_MAX_TGT_DEV_COMMANDS)) {
+ 				TRACE(TRACE_MGMT_MINOR,
+-					"Too many pending device "
+-					"commands (%d), returning BUSY to "
+-					"initiator \"%s\"", cnt,
+-					(cmd->sess->initiator_name[0] == '\0') ?
+-						"Anonymous" :
+-						cmd->sess->initiator_name);
++					"Too many pending commands (%d) in "
++					"session, returning BUSY to initiator \"%s\"",
++					cnt, (cmd->sess->initiator_name[0] == '\0') ?
++					  "Anonymous" : cmd->sess->initiator_name);
+ 				failure = true;
+ 			}
++
++			cnt = atomic_inc_return(&cmd->dev->dev_cmd_count);
++			if (unlikely(cnt > SCST_MAX_DEV_COMMANDS)) {
++				if (!failure) {
++					TRACE(TRACE_MGMT_MINOR,
++						"Too many pending device "
++						"commands (%d), returning BUSY to "
++						"initiator \"%s\"", cnt,
++						(cmd->sess->initiator_name[0] == '\0') ?
++							"Anonymous" :
++							cmd->sess->initiator_name);
++					failure = true;
++				}
++			}
+ 		}
+ 
+ 		/* If expected values not set, expected direction is UNKNOWN */
+@@ -3263,7 +3437,7 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
+ 			atomic_inc(&cmd->dev->write_cmd_count);
+ 
+ 		if (unlikely(failure))
+-			goto out_busy;
++			goto out_failure;
+ 
+ 		if (!cmd->set_sn_on_restart_cmd)
+ 			scst_cmd_set_sn(cmd);
+@@ -3279,9 +3453,11 @@ out:
+ 	TRACE_EXIT_RES(res);
+ 	return res;
+ 
+-out_busy:
+-	scst_set_busy(cmd);
+-	scst_set_cmd_abnormal_done_state(cmd);
++out_failure:
++	if (!done) {
++		scst_set_busy(cmd);
++		scst_set_cmd_abnormal_done_state(cmd);
++	}
+ 	goto out;
+ }
+ 
+@@ -3343,7 +3519,7 @@ restart:
+ 
+ 		spin_lock(&cmd->cmd_lists->cmd_list_lock);
+ 		TRACE_MGMT_DBG("Adding cmd %p to active cmd list", cmd);
+-		if (unlikely(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE))
++		if (unlikely(cmd->hq_cmd))
+ 			list_add(&cmd->cmd_list_entry,
+ 				&cmd->cmd_lists->active_cmd_list);
+ 		else
+@@ -4138,9 +4314,9 @@ static void scst_unblock_aborted_cmds(int scst_mut
+ 			spin_lock(&tgt_dev->sn_lock);
+ 			list_for_each_entry_safe(cmd, tcmd,
+ 					&tgt_dev->deferred_cmd_list,
+-					sn_cmd_list_entry) {
++					deferred_cmd_list_entry) {
+ 				if (__scst_check_unblock_aborted_cmd(cmd,
+-						&cmd->sn_cmd_list_entry)) {
++						&cmd->deferred_cmd_list_entry)) {
+ 					TRACE_MGMT_DBG("Unblocked aborted SN "
+ 						"cmd %p (sn %lu)",
+ 						cmd, cmd->sn);
+@@ -4773,12 +4949,13 @@ static int scst_mgmt_cmd_exec(struct scst_mgmt_cmd
+ 		break;
+ 
+ 	case SCST_CLEAR_ACA:
+-		if (scst_call_dev_task_mgmt_fn(mcmd, mcmd->mcmd_tgt_dev, 1) ==
+-				SCST_DEV_TM_NOT_COMPLETED) {
+-			mcmd->status = SCST_MGMT_STATUS_FN_NOT_SUPPORTED;
+-			/* Nothing to do (yet) */
++		res = scst_clear_aca(mcmd, mcmd->mcmd_tgt_dev);
++		if (res > 0) {
++			res = 0;
++			mcmd->status = SCST_MGMT_STATUS_REJECTED;
++			goto out_done;
+ 		}
+-		goto out_done;
++		break;
+ 
+ 	default:
+ 		PRINT_ERROR("Unknown task management function %d", mcmd->fn);
+--- scst/src/dev_handlers/scst_user.c
++++ scst/src/dev_handlers/scst_user.c
+@@ -1061,8 +1061,9 @@ static void dev_user_add_to_ready(struct scst_user
+ 		do_wake = 1;
+ 	} else {
+ 		if ((ucmd->cmd != NULL) &&
+-		    unlikely((ucmd->cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE))) {
+-			TRACE_DBG("Adding HQ ucmd %p to head of ready cmd list",
++		    unlikely((ucmd->cmd->hq_cmd))) {
++			TRACE_DBG("Adding HQ or ACA (%d) ucmd %p to head of ready cmd list",
++				ucmd->cmd->queue_type,
+ 				ucmd);
+ 			list_add(&ucmd->ready_cmd_list_entry,
+ 				&dev->ready_cmd_list);
