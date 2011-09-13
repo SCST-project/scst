@@ -1110,7 +1110,7 @@ static int srpt_ch_qp_rts(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 	int attr_mask;
 	int ret;
 	uint64_t T_tr_ns;
-	uint32_t max_compl_time_ms;
+	uint32_t T_tr_ms, max_compl_time_ms;
 
 	TRACE_ENTRY();
 
@@ -1133,11 +1133,13 @@ static int srpt_ch_qp_rts(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 	WARN_ON(attr->timeout >= (1 << 5));
 	if (attr->timeout) {
 		T_tr_ns = 1ULL << (12 + attr->timeout);
-		max_compl_time_ms = attr->retry_cnt * 4 * T_tr_ns / 1000000;
+		max_compl_time_ms = attr->retry_cnt * 4 * T_tr_ns;
+		do_div(max_compl_time_ms, 1000000);
+		T_tr_ms = T_tr_ns;
+		do_div(T_tr_ms, 1000000);
 		TRACE_DBG("Session %s: QP local ack timeout = %d or T_tr ="
 			  " %u ms; retry_cnt = %d; max compl. time = %d ms",
-			  ch->sess_name,
-			  attr->timeout, (unsigned)(T_tr_ns / (1000 * 1000)),
+			  ch->sess_name, attr->timeout, T_tr_ms,
 			  attr->retry_cnt, max_compl_time_ms);
 
 		if (max_compl_time_ms >= RDMA_COMPL_TIMEOUT_S * 1000) {
