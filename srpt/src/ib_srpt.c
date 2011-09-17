@@ -2080,8 +2080,10 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 		  ch->cm_id);
 
 	ret = srpt_init_ch_qp(ch, ch->qp);
-	if (ret)
+	if (ret) {
+		PRINT_ERROR("srpt_init_ch_qp() failed (%d)", ret);
 		goto err_destroy_qp;
+	}
 
 out:
 	kfree(qp_init);
@@ -3665,7 +3667,7 @@ static void srpt_add_one(struct ib_device *device)
 	struct srpt_port *sport;
 	struct ib_srq_init_attr srq_attr;
 	char tgt_name[24];
-	int i;
+	int i, ret;
 
 	TRACE_ENTRY();
 
@@ -3721,24 +3723,31 @@ static void srpt_add_one(struct ib_device *device)
 #endif
 #endif /*CONFIG_SCST_PROC*/
 
-	if (ib_query_device(device, &sdev->dev_attr))
+	ret = ib_query_device(device, &sdev->dev_attr);
+	if (ret) {
+		PRINT_ERROR("ib_query_device() failed: %d", ret);
 #ifdef CONFIG_SCST_PROC
 		goto err_dev;
 #else
 		goto unregister_tgt;
 #endif
+	}
 
 	sdev->pd = ib_alloc_pd(device);
-	if (IS_ERR(sdev->pd))
+	if (IS_ERR(sdev->pd)) {
+		PRINT_ERROR("ib_alloc_pd() failed: %ld", PTR_ERR(sdev->pd));
 #ifdef CONFIG_SCST_PROC
 		goto err_dev;
 #else
 		goto unregister_tgt;
 #endif
+	}
 
 	sdev->mr = ib_get_dma_mr(sdev->pd, IB_ACCESS_LOCAL_WRITE);
-	if (IS_ERR(sdev->mr))
+	if (IS_ERR(sdev->mr)) {
+		PRINT_ERROR("ib_get_dma_mr() failed: %ld", PTR_ERR(sdev->mr));
 		goto err_pd;
+	}
 
 	sdev->srq_size = min(srpt_srq_size, sdev->dev_attr.max_srq_wr);
 
@@ -3749,8 +3758,10 @@ static void srpt_add_one(struct ib_device *device)
 	srq_attr.attr.srq_limit = 0;
 
 	sdev->srq = ib_create_srq(sdev->pd, &srq_attr);
-	if (IS_ERR(sdev->srq))
+	if (IS_ERR(sdev->srq)) {
+		PRINT_ERROR("ib_create_srq() failed: %ld", PTR_ERR(sdev->srq));
 		goto err_mr;
+	}
 
 	TRACE_DBG("%s: create SRQ #wr= %d max_allow=%d dev= %s", __func__,
 		  sdev->srq_size, sdev->dev_attr.max_srq_wr, device->name);
@@ -3759,8 +3770,11 @@ static void srpt_add_one(struct ib_device *device)
 		srpt_service_guid = be64_to_cpu(device->node_guid);
 
 	sdev->cm_id = ib_create_cm_id(device, srpt_cm_handler, sdev);
-	if (IS_ERR(sdev->cm_id))
+	if (IS_ERR(sdev->cm_id)) {
+		PRINT_ERROR("ib_create_cm_id() failed: %ld",
+			    PTR_ERR(sdev->cm_id));
 		goto err_srq;
+	}
 
 	/* print out target login information */
 	TRACE_DBG("Target login info: id_ext=%016llx,"
@@ -3773,20 +3787,30 @@ static void srpt_add_one(struct ib_device *device)
 	 * in the system as service_id; therefore, the target_id will change
 	 * if this HCA is gone bad and replaced by different HCA
 	 */
-	if (ib_cm_listen(sdev->cm_id, cpu_to_be64(srpt_service_guid), 0, NULL))
+	ret = ib_cm_listen(sdev->cm_id, cpu_to_be64(srpt_service_guid), 0,
+			   NULL);
+	if (ret) {
+		PRINT_ERROR("ib_cm_listen() failed: %d (cm_id state = %d)",
+			    ret, sdev->cm_id->state);
 		goto err_cm;
+	}
 
 	INIT_IB_EVENT_HANDLER(&sdev->event_handler, sdev->device,
 			      srpt_event_handler);
-	if (ib_register_event_handler(&sdev->event_handler))
+	ret = ib_register_event_handler(&sdev->event_handler);
+	if (ret) {
+		PRINT_ERROR("ib_register_event_handler() failed: %d", ret);
 		goto err_cm;
+	}
 
 	sdev->ioctx_ring = (struct srpt_recv_ioctx **)
 		srpt_alloc_ioctx_ring(sdev, sdev->srq_size,
 				      sizeof(*sdev->ioctx_ring[0]),
 				      srp_max_req_size, DMA_FROM_DEVICE);
-	if (!sdev->ioctx_ring)
+	if (!sdev->ioctx_ring) {
+		PRINT_ERROR("%s", "srpt_alloc_ioctx_ring() failed");
 		goto err_event;
+	}
 
 	for (i = 0; i < sdev->srq_size; ++i)
 		srpt_post_recv(sdev, sdev->ioctx_ring[i]);
