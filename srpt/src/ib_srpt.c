@@ -3767,7 +3767,8 @@ static void srpt_add_one(struct ib_device *device)
 		  sdev->srq_size, sdev->dev_attr.max_srq_wr, device->name);
 
 	if (!srpt_service_guid)
-		srpt_service_guid = be64_to_cpu(device->node_guid);
+		srpt_service_guid = be64_to_cpu(device->node_guid) &
+			~be64_to_cpu(IB_SERVICE_ID_AGN_MASK);
 
 	sdev->cm_id = ib_create_cm_id(device, srpt_cm_handler, sdev);
 	if (IS_ERR(sdev->cm_id)) {
