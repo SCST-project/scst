@@ -3042,7 +3042,7 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 				   ioctx->ioctx.index);
 			msleep(1000);
 		}
-		while (atomic_read(&ch->state) != CH_DISCONNECTING &&
+		while (atomic_read(&ch->state) != CH_RELEASING &&
 		       !ioctx->rdma_aborted) {
 			PRINT_INFO("Waiting until RDMA abort finished [%d]",
 				   ioctx->ioctx.index);
