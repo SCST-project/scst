@@ -1997,9 +1997,9 @@ static int srpt_compl_thread(void *arg)
 	}
 	set_current_state(TASK_RUNNING);
 
+	WARN_ON(ch->state <= CH_LIVE);
 	TRACE_DBG("ch %s: about to invoke scst_unregister_session()",
 		  ch->sess_name);
-	WARN_ON(ch->state != CH_RELEASING);
 	scst_unregister_session(ch->scst_sess, false, srpt_free_ch);
 
 	while (!kthread_should_stop()) {
