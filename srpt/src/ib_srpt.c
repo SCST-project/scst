@@ -3382,10 +3382,12 @@ static int srpt_release_sdev(struct srpt_device *sdev)
 		PRINT_INFO("%s: waiting for session unregistration ...",
 			   sdev->device->name);
 		spin_lock_irq(&sdev->spinlock);
-		list_for_each_entry_safe(ch, next_ch, &sdev->rch_list, list)
-			PRINT_INFO("%s: %d commands in progress",
+		list_for_each_entry_safe(ch, next_ch, &sdev->rch_list, list) {
+			PRINT_INFO("%s: state %d; %d commands in progress",
 				   ch->sess_name,
+				   ch->state,
 				   atomic_read(&ch->scst_sess->sess_cmd_count));
+		}
 		spin_unlock_irq(&sdev->spinlock);
 	}
 
