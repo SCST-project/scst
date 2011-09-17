@@ -305,6 +305,7 @@ struct srpt_rdma_ch {
 	atomic_t		state;
 	struct list_head	list;
 	struct list_head	cmd_wait_list;
+	wait_queue_head_t	last_wqe;
 
 	struct scst_session	*scst_sess;
 	u8			sess_name[36];
