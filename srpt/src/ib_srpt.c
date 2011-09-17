@@ -151,6 +151,7 @@ static void srpt_unregister_procfs_entry(struct scst_tgt_template *tgt);
 #endif /*CONFIG_SCST_PROC*/
 static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 				    struct srpt_send_ioctx *ioctx);
+static void srpt_drain_channel(struct ib_cm_id *cm_id);
 static void srpt_free_ch(struct scst_session *sess);
 
 static enum rdma_ch_state
@@ -354,9 +355,9 @@ static void srpt_qp_event(struct ib_event *event, struct srpt_rdma_ch *ch)
 		break;
 	case IB_EVENT_QP_LAST_WQE_REACHED:
 		if (srpt_test_and_set_ch_state(ch, CH_DRAINING, CH_RELEASING))
-			wake_up_process(ch->thread);
+			wake_up(&ch->last_wqe);
 		else
-			TRACE_DBG("%s: state %d - ignored LAST_WQE.",
+			TRACE_DBG("%s: state %d - ignored Last WQE event.",
 				  ch->sess_name, ch->state);
 		break;
 	default:
@@ -1982,6 +1983,7 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 static int srpt_compl_thread(void *arg)
 {
 	struct srpt_rdma_ch *ch;
+	int ret;
 
 	/* Hibernation / freezing of the SRPT kernel thread is not supported. */
 	current->flags |= PF_NOFREEZE;
@@ -1998,6 +2000,20 @@ static int srpt_compl_thread(void *arg)
 	set_current_state(TASK_RUNNING);
 
 	WARN_ON(ch->state <= CH_LIVE);
+
+	ret = wait_event_timeout(ch->last_wqe, ch->state == CH_RELEASING,
+				 2 * RDMA_COMPL_TIMEOUT_S * HZ);
+	WARN_ON(ret < 0);
+	if (!ret) {
+		PRINT_ERROR("%s: %s has not been received in time.",
+			    ch->sess_name,
+			    ch->state == CH_DISCONNECTING ? "DREP message" :
+			    ch->state == CH_DRAINING ? "Last WQE event" :
+			    "(?)");
+		srpt_drain_channel(ch->cm_id);
+		srpt_test_and_set_ch_state(ch, CH_DRAINING, CH_RELEASING);
+	}
+
 	TRACE_DBG("ch %s: about to invoke scst_unregister_session()",
 		  ch->sess_name);
 	scst_unregister_session(ch->scst_sess, false, srpt_free_ch);
@@ -2421,6 +2437,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	spin_lock_init(&ch->spinlock);
 	ch->state = CH_CONNECTING;
 	INIT_LIST_HEAD(&ch->cmd_wait_list);
+	init_waitqueue_head(&ch->last_wqe);
 	ch->ioctx_ring = (struct srpt_send_ioctx **)
 		srpt_alloc_ioctx_ring(ch->sport->sdev, ch->rq_size,
 				      sizeof(*ch->ioctx_ring[0]),
