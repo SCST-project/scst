@@ -2006,17 +2006,18 @@ static int srpt_compl_thread(void *arg)
 	ret = wait_event_timeout(ch->state_wq, ch->state >= CH_DRAINING,
 				 RDMA_COMPL_TIMEOUT_S * HZ);
 	WARN_ON(ret < 0);
+	if (!ret) {
+		PRINT_ERROR("%s: DREP message has not been received in time.",
+			    ch->sess_name);
+		srpt_drain_channel(ch->cm_id);
+	}
 
 	ret = wait_event_timeout(ch->state_wq, ch->state == CH_RELEASING,
 				 RDMA_COMPL_TIMEOUT_S * HZ);
 	WARN_ON(ret < 0);
 	if (!ret) {
-		PRINT_ERROR("%s: %s has not been received in time.",
-			    ch->sess_name,
-			    ch->state == CH_DISCONNECTING ? "DREP message" :
-			    ch->state == CH_DRAINING ? "Last WQE event" :
-			    "(?)");
-		srpt_drain_channel(ch->cm_id);
+		PRINT_ERROR("%s: Last WQE event has not been received in time.",
+			    ch->sess_name);
 		srpt_test_and_set_ch_state(ch, CH_DRAINING, CH_RELEASING);
 	}
 
