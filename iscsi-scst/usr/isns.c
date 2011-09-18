@@ -58,6 +58,7 @@ struct isns_initiator {
 
 char *isns_server;
 int isns_access_control;
+char isns_entity_target_name[ISCSI_NAME_LEN];
 int isns_timeout = -1;
 
 static LIST_HEAD(qry_list);
@@ -299,16 +300,15 @@ static int isns_scn_register(void)
 	tlv = (struct isns_tlv *)hdr->pdu;
 	max_buf = sizeof(buf) - offsetof(struct isns_hdr, pdu);
 
-	target = list_entry(targets_list.q_forw, struct target, tlist);
-
-	err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_NAME,
+	if (strlen(isns_entity_target_name) < 1) {
+		target = list_entry(targets_list.q_forw, struct target, tlist);
+		err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_NAME,
 			strlen(target->name) + 1, target->name);
-	if (err < 0)
-		goto out;
-	length += err;
+	} else {
+		err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_NAME,
+		strlen(isns_entity_target_name) + 1, isns_entity_target_name);
+	}
 
-	err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_NAME,
-			 strlen(target->name) + 1, target->name);
 	if (err < 0)
 		goto out;
 	length += err;
@@ -502,11 +502,15 @@ int isns_target_register(char *name)
 	tlv = (struct isns_tlv *)hdr->pdu;
 	max_buf = sizeof(buf) - offsetof(struct isns_hdr, pdu);
 
-        target = list_entry(targets_list.q_back, struct target, tlist);
-
-	err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_NAME,
+	if (strlen(isns_entity_target_name) < 1) {
+		target = list_entry(targets_list.q_forw, struct target, tlist);
+		err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_NAME,
 				strlen(target->name) + 1, target->name);
-	if (err < 0)
+	} else {
+		err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_NAME,
+				strlen(isns_entity_target_name) + 1, isns_entity_target_name);
+	}
+if (err < 0)
 		goto out;
         length += err;
 

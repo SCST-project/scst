@@ -375,6 +375,7 @@ extern int iscsi_attr_replace(struct __qelem *attrs_list, const char *sysfs_name
 /* isns.c */
 extern char *isns_server;
 extern int isns_access_control;
+extern char isns_entity_target_name[ISCSI_NAME_LEN];
 extern int isns_timeout;
 extern int isns_init(void);
 extern int isns_handle(int is_timeout);
