@@ -338,14 +338,31 @@ static void srpt_srq_event(struct ib_event *event, void *ctx)
 	TRACE_DBG("SRQ event %d", event->event);
 }
 
+static const char *get_ch_state_name(enum rdma_ch_state s)
+{
+	switch (s) {
+	case CH_CONNECTING:
+		return "connecting";
+	case CH_LIVE:
+		return "live";
+	case CH_DISCONNECTING:
+		return "disconnecting";
+	case CH_DRAINING:
+		return "draining";
+	case CH_RELEASING:
+		return "releasing";
+	}
+	return "???";
+}
+
 /**
  * srpt_qp_event() - IB QP event callback function.
  */
 static void srpt_qp_event(struct ib_event *event, struct srpt_rdma_ch *ch)
 {
-	TRACE_DBG("QP event %d on cm_id=%p sess_name=%s state=%d",
+	TRACE_DBG("QP event %d on cm_id=%p sess_name=%s state=%s",
 		  event->event, ch->cm_id, ch->sess_name,
-		  ch->state);
+		  get_ch_state_name(ch->state));
 
 	switch (event->event) {
 	case IB_EVENT_COMM_EST:
@@ -359,8 +376,8 @@ static void srpt_qp_event(struct ib_event *event, struct srpt_rdma_ch *ch)
 		break;
 	case IB_EVENT_QP_LAST_WQE_REACHED:
 		if (!srpt_test_and_set_ch_state(ch, CH_DRAINING, CH_RELEASING))
-			TRACE_DBG("%s: state %d - ignored Last WQE event.",
-				  ch->sess_name, ch->state);
+			TRACE_DBG("%s: state %s - ignored Last WQE event.",
+				  ch->sess_name, get_ch_state_name(ch->state));
 		break;
 	default:
 		PRINT_ERROR("received unrecognized IB QP event %d",
@@ -2213,7 +2230,8 @@ static void srpt_drain_channel(struct ib_cm_id *cm_id)
 			PRINT_ERROR("Setting queue pair in error state"
 			       " failed: %d", ret);
 	} else
-		TRACE_DBG("Channel already in state %d", ch->state);
+		TRACE_DBG("Channel already in state %s",
+			  get_ch_state_name(ch->state));
 }
 
 static void srpt_free_ch(struct scst_session *sess)
@@ -3408,9 +3426,9 @@ static int srpt_release_sdev(struct srpt_device *sdev)
 			   sdev->device->name);
 		spin_lock_irq(&sdev->spinlock);
 		list_for_each_entry_safe(ch, next_ch, &sdev->rch_list, list) {
-			PRINT_INFO("%s: state %d; %d commands in progress",
+			PRINT_INFO("%s: state %s; %d commands in progress",
 				   ch->sess_name,
-				   ch->state,
+				   get_ch_state_name(ch->state),
 				   atomic_read(&ch->scst_sess->sess_cmd_count));
 			__srpt_close_ch(ch);
 		}
@@ -3546,23 +3564,6 @@ static ssize_t show_req_lim_delta(struct kobject *kobj,
 	if (!ch)
 		return -ENOENT;
 	return sprintf(buf, "%d\n", ch->req_lim_delta);
-}
-
-static const char *get_ch_state_name(enum rdma_ch_state s)
-{
-	switch (s) {
-	case CH_CONNECTING:
-		return "connecting";
-	case CH_LIVE:
-		return "live";
-	case CH_DISCONNECTING:
-		return "disconnecting";
-	case CH_DRAINING:
-		return "draining";
-	case CH_RELEASING:
-		return "releasing";
-	}
-	return "???";
 }
 
 static ssize_t show_ch_state(struct kobject *kobj, struct kobj_attribute *attr,
