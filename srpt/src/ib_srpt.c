@@ -185,7 +185,7 @@ static enum rdma_ch_state srpt_set_ch_state_to_disc(struct srpt_rdma_ch *ch)
 {
 	unsigned long flags;
 	enum rdma_ch_state prev;
-	bool changed_state = false;
+	bool changed = false;
 
 	spin_lock_irqsave(&ch->spinlock, flags);
 	prev = atomic_read(&ch->state);
@@ -193,15 +193,15 @@ static enum rdma_ch_state srpt_set_ch_state_to_disc(struct srpt_rdma_ch *ch)
 	case CH_CONNECTING:
 	case CH_LIVE:
 		atomic_set(&ch->state, CH_DISCONNECTING);
-		changed_state = true;
+		changed = true;
 		break;
 	default:
 		break;
 	}
 	spin_unlock_irqrestore(&ch->spinlock, flags);
 
-	if (changed_state)
-		wake_up(&ch->state_wq);
+	if (changed && thread == MODE_IB_COMPLETION_IN_THREAD)
+		wake_up_process(ch->thread);
 
 	return prev;
 }
@@ -209,7 +209,7 @@ static enum rdma_ch_state srpt_set_ch_state_to_disc(struct srpt_rdma_ch *ch)
 static bool srpt_set_ch_state_to_draining(struct srpt_rdma_ch *ch)
 {
 	unsigned long flags;
-	bool changed_state = false;
+	bool changed = false;
 
 	spin_lock_irqsave(&ch->spinlock, flags);
 	switch (atomic_read(&ch->state)) {
@@ -217,17 +217,16 @@ static bool srpt_set_ch_state_to_draining(struct srpt_rdma_ch *ch)
 	case CH_LIVE:
 	case CH_DISCONNECTING:
 		atomic_set(&ch->state, CH_DRAINING);
-		changed_state = true;
+		changed = true;
 		break;
 	default:
 		break;
 	}
 	spin_unlock_irqrestore(&ch->spinlock, flags);
 
-	if (changed_state)
-		wake_up(&ch->state_wq);
-
-	return changed_state;
+	if (changed && thread == MODE_IB_COMPLETION_IN_THREAD)
+		wake_up_process(ch->thread);
+	return changed;
 }
 
 /**
@@ -247,9 +246,9 @@ srpt_test_and_set_channel_state(struct srpt_rdma_ch *ch,
 	bool changed;
 
 	changed = atomic_cmpxchg(&ch->state, old, new) == old;
-	if (changed)
-		wake_up(&ch->state_wq);
-        return changed;
+	if (changed && thread == MODE_IB_COMPLETION_IN_THREAD)
+		wake_up_process(ch->thread);
+	return changed;
 }
 
 /**
@@ -337,12 +336,10 @@ static void srpt_qp_event(struct ib_event *event, struct srpt_rdma_ch *ch)
 #endif
 		break;
 	case IB_EVENT_QP_LAST_WQE_REACHED:
-		TRACE_DBG("%s: received IB_EVENT_QP_LAST_WQE_REACHED",
-			  ch->sess_name);
-		if (!srpt_test_and_set_channel_state(ch, CH_DRAINING,
-						     CH_RELEASING))
-			TRACE_DBG("%s: state %d - ignored Last WQE event.",
-				  ch->sess_name, atomic_read(&ch->state));
+		TRACE_DBG("%s, state %d: received Last WQE event.",
+			  ch->sess_name, atomic_read(&ch->state));
+		ch->last_wqe_received = true;
+		srpt_test_and_set_channel_state(ch, CH_DRAINING, CH_RELEASING);
 		break;
 	default:
 		PRINT_ERROR("received unrecognized IB QP event %d",
@@ -2178,8 +2175,6 @@ static bool __srpt_close_ch(struct srpt_rdma_ch *ch)
 		/* fall through */
 	case CH_LIVE:
 		was_live = true;
-		if (thread == MODE_IB_COMPLETION_IN_THREAD)
-			wake_up_process(ch->thread);
 		if (ib_send_cm_dreq(ch->cm_id, NULL, 0) < 0)
 			PRINT_ERROR("%s", "sending CM DREQ failed.");
 		break;
@@ -2230,9 +2225,10 @@ static void srpt_drain_channel(struct ib_cm_id *cm_id)
 		if (ret < 0)
 			PRINT_ERROR("Setting queue pair in error state"
 			       " failed: %d", ret);
-	} else
-		TRACE_DBG("Channel already in state %d",
-			  atomic_read(&ch->state));
+		if (ch->last_wqe_received)
+			srpt_test_and_set_channel_state(ch, CH_DRAINING,
+							CH_RELEASING);
+	}
 }
 
 /**
