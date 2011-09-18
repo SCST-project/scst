@@ -316,6 +316,18 @@ static void srpt_srq_event(struct ib_event *event, void *ctx)
 	PRINT_INFO("SRQ event %d", event->event);
 }
 
+static void srpt_release_channel(struct srpt_rdma_ch *ch)
+{
+	TRACE_ENTRY();
+
+	if (srpt_test_and_set_channel_state(ch, CH_DRAINING, CH_RELEASING) &&
+	    thread != MODE_IB_COMPLETION_IN_THREAD) {
+		scst_unregister_session(ch->scst_sess, false, srpt_free_ch);
+	}
+
+	TRACE_EXIT();
+}
+
 /**
  * srpt_qp_event() - QP event callback function.
  */
@@ -339,7 +351,7 @@ static void srpt_qp_event(struct ib_event *event, struct srpt_rdma_ch *ch)
 		TRACE_DBG("%s, state %d: received Last WQE event.",
 			  ch->sess_name, atomic_read(&ch->state));
 		ch->last_wqe_received = true;
-		srpt_test_and_set_channel_state(ch, CH_DRAINING, CH_RELEASING);
+		srpt_release_channel(ch);
 		break;
 	default:
 		PRINT_ERROR("received unrecognized IB QP event %d",
@@ -2226,8 +2238,7 @@ static void srpt_drain_channel(struct ib_cm_id *cm_id)
 			PRINT_ERROR("Setting queue pair in error state"
 			       " failed: %d", ret);
 		if (ch->last_wqe_received)
-			srpt_test_and_set_channel_state(ch, CH_DRAINING,
-							CH_RELEASING);
+			srpt_release_channel(ch);
 	}
 }
 
@@ -2249,10 +2260,11 @@ static void srpt_free_ch(struct scst_session *sess)
 
 	WARN_ON(atomic_read(&ch->state) != CH_RELEASING);
 
-	BUG_ON(!ch->thread);
-	BUG_ON(ch->thread == current);
-	kthread_stop(ch->thread);
-	ch->thread = NULL;
+	if (ch->thread) {
+		BUG_ON(ch->thread == current);
+		kthread_stop(ch->thread);
+		ch->thread = NULL;
+	}
 
 	srpt_destroy_ch_ib(ch);
 
