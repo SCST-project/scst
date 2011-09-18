@@ -2164,7 +2164,8 @@ static bool __srpt_close_ch(struct srpt_rdma_ch *ch)
 		/* fall through */
 	case CH_LIVE:
 		was_live = true;
-		wake_up_process(ch->thread);
+		if (thread == MODE_IB_COMPLETION_IN_THREAD)
+			wake_up_process(ch->thread);
 		if (ib_send_cm_dreq(ch->cm_id, NULL, 0) < 0)
 			PRINT_ERROR("%s", "sending CM DREQ failed.");
 		break;
