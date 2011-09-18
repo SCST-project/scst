@@ -218,14 +218,18 @@ static bool srpt_test_and_set_ch_state(struct srpt_rdma_ch *ch,
 				       enum rdma_ch_state new)
 {
 	unsigned long flags;
-	enum rdma_ch_state prev;
+	bool changed = false;
 
 	spin_lock_irqsave(&ch->spinlock, flags);
-	prev = ch->state;
-	if (prev == old)
+	if (ch->state == old) {
 		ch->state = new;
+		changed = true;
+	}
 	spin_unlock_irqrestore(&ch->spinlock, flags);
-	return prev == old;
+
+	if (changed)
+		wake_up(&ch->state_wq);
+	return changed;
 }
 
 /**
@@ -354,9 +358,7 @@ static void srpt_qp_event(struct ib_event *event, struct srpt_rdma_ch *ch)
 #endif
 		break;
 	case IB_EVENT_QP_LAST_WQE_REACHED:
-		if (srpt_test_and_set_ch_state(ch, CH_DRAINING, CH_RELEASING))
-			wake_up(&ch->last_wqe);
-		else
+		if (!srpt_test_and_set_ch_state(ch, CH_DRAINING, CH_RELEASING))
 			TRACE_DBG("%s: state %d - ignored Last WQE event.",
 				  ch->sess_name, ch->state);
 		break;
@@ -2001,8 +2003,12 @@ static int srpt_compl_thread(void *arg)
 
 	WARN_ON(ch->state <= CH_LIVE);
 
-	ret = wait_event_timeout(ch->last_wqe, ch->state == CH_RELEASING,
-				 2 * RDMA_COMPL_TIMEOUT_S * HZ);
+	ret = wait_event_timeout(ch->state_wq, ch->state >= CH_DRAINING,
+				 RDMA_COMPL_TIMEOUT_S * HZ);
+	WARN_ON(ret < 0);
+
+	ret = wait_event_timeout(ch->state_wq, ch->state == CH_RELEASING,
+				 RDMA_COMPL_TIMEOUT_S * HZ);
 	WARN_ON(ret < 0);
 	if (!ret) {
 		PRINT_ERROR("%s: %s has not been received in time.",
@@ -2438,7 +2444,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	spin_lock_init(&ch->spinlock);
 	ch->state = CH_CONNECTING;
 	INIT_LIST_HEAD(&ch->cmd_wait_list);
-	init_waitqueue_head(&ch->last_wqe);
+	init_waitqueue_head(&ch->state_wq);
 	ch->ioctx_ring = (struct srpt_send_ioctx **)
 		srpt_alloc_ioctx_ring(ch->sport->sdev, ch->rq_size,
 				      sizeof(*ch->ioctx_ring[0]),
