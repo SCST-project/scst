@@ -262,7 +262,6 @@ enum rdma_ch_state {
  *                 the channel.
  * @cm_id:         IB CM ID associated with the channel.
  * @rq_size:       IB receive queue size.
- * @processing_compl: whether or not an IB completion is being processed.
  * @qp:            IB queue pair used for communicating over this channel.
  * @sq_wr_avail:   number of work requests available in the send queue.
  * @cq:            IB completion queue for this channel.
@@ -289,7 +288,6 @@ struct srpt_rdma_ch {
 	struct ib_cm_id		*cm_id;
 	struct ib_qp		*qp;
 	int			rq_size;
-	atomic_t		processing_compl;
 	struct ib_cq		*cq;
 	atomic_t		sq_wr_avail;
 	struct srpt_port	*sport;

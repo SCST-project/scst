@@ -1974,7 +1974,6 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 	struct srpt_rdma_ch *ch = ctx;
 
 	BUG_ON(!ch);
-	atomic_inc(&ch->processing_compl);
 	switch (thread) {
 	case MODE_IB_COMPLETION_IN_THREAD:
 		wake_up_process(ch->thread);
@@ -1986,7 +1985,6 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 		srpt_process_completion(cq, ch, SCST_CONTEXT_TASKLET);
 		break;
 	}
-	atomic_dec(&ch->processing_compl);
 }
 
 static int srpt_compl_thread(void *arg)
@@ -2452,7 +2450,6 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	 * for the SRP protocol to the SCST SCSI command queue size.
 	 */
 	ch->rq_size = min(SRPT_RQ_SIZE, scst_get_max_lun_commands(NULL, 0));
-	atomic_set(&ch->processing_compl, 0);
 	atomic_set(&ch->state, CH_CONNECTING);
 	INIT_LIST_HEAD(&ch->cmd_wait_list);
 
