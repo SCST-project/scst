@@ -185,6 +185,7 @@ static enum rdma_ch_state srpt_set_ch_state_to_disc(struct srpt_rdma_ch *ch)
 {
 	unsigned long flags;
 	enum rdma_ch_state prev;
+	bool changed_state = false;
 
 	spin_lock_irqsave(&ch->spinlock, flags);
 	prev = atomic_read(&ch->state);
@@ -192,11 +193,15 @@ static enum rdma_ch_state srpt_set_ch_state_to_disc(struct srpt_rdma_ch *ch)
 	case CH_CONNECTING:
 	case CH_LIVE:
 		atomic_set(&ch->state, CH_DISCONNECTING);
+		changed_state = true;
 		break;
 	default:
 		break;
 	}
 	spin_unlock_irqrestore(&ch->spinlock, flags);
+
+	if (changed_state)
+		wake_up(&ch->state_wq);
 
 	return prev;
 }
@@ -219,6 +224,9 @@ static bool srpt_set_ch_state_to_draining(struct srpt_rdma_ch *ch)
 	}
 	spin_unlock_irqrestore(&ch->spinlock, flags);
 
+	if (changed_state)
+		wake_up(&ch->state_wq);
+
 	return changed_state;
 }
 
@@ -236,7 +244,12 @@ srpt_test_and_set_channel_state(struct srpt_rdma_ch *ch,
 				enum rdma_ch_state old,
 				enum rdma_ch_state new)
 {
-	return atomic_cmpxchg(&ch->state, old, new) == old;
+	bool changed;
+
+	changed = atomic_cmpxchg(&ch->state, old, new) == old;
+	if (changed)
+		wake_up(&ch->state_wq);
+        return changed;
 }
 
 /**
@@ -326,10 +339,8 @@ static void srpt_qp_event(struct ib_event *event, struct srpt_rdma_ch *ch)
 	case IB_EVENT_QP_LAST_WQE_REACHED:
 		TRACE_DBG("%s: received IB_EVENT_QP_LAST_WQE_REACHED",
 			  ch->sess_name);
-		if (srpt_test_and_set_channel_state(ch, CH_DRAINING,
-						    CH_RELEASING))
-			wake_up(&ch->last_wqe);
-		else
+		if (!srpt_test_and_set_channel_state(ch, CH_DRAINING,
+						     CH_RELEASING))
 			TRACE_DBG("%s: state %d - ignored Last WQE event.",
 				  ch->sess_name, atomic_read(&ch->state));
 		break;
@@ -2007,18 +2018,23 @@ static int srpt_compl_thread(void *arg)
 
 	WARN_ON(atomic_read(&ch->state) <= CH_LIVE);
 
-	ret = wait_event_timeout(ch->last_wqe,
-				 atomic_read(&ch->state) == CH_RELEASING,
-				 2 * RDMA_COMPL_TIMEOUT_S * HZ);
+	ret = wait_event_timeout(ch->state_wq,
+				 atomic_read(&ch->state) >= CH_DRAINING,
+				 RDMA_COMPL_TIMEOUT_S * HZ);
 	WARN_ON(ret < 0);
 	if (!ret) {
-		PRINT_ERROR("%s: %s has not been received in time.",
-			    ch->sess_name,
-			    atomic_read(&ch->state) == CH_DISCONNECTING ?
-			    "DREP message" :
-			    atomic_read(&ch->state) == CH_DRAINING ?
-			    "Last WQE event" : "(?)");
+		PRINT_ERROR("%s: DREP message has not been received in time.",
+			    ch->sess_name);
 		srpt_drain_channel(ch->cm_id);
+	}
+
+	ret = wait_event_timeout(ch->state_wq,
+				 atomic_read(&ch->state) == CH_RELEASING,
+				 RDMA_COMPL_TIMEOUT_S * HZ);
+	WARN_ON(ret < 0);
+	if (!ret) {
+		PRINT_ERROR("%s: Last WQE event has not been received in time.",
+			    ch->sess_name);
 		atomic_set(&ch->state, CH_RELEASING);
 	}
 
@@ -2454,7 +2470,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	INIT_LIST_HEAD(&ch->cmd_wait_list);
 
 	spin_lock_init(&ch->spinlock);
-	init_waitqueue_head(&ch->last_wqe);
+	init_waitqueue_head(&ch->state_wq);
 	ch->ioctx_ring = (struct srpt_send_ioctx **)
 		srpt_alloc_ioctx_ring(ch->sport->sdev, ch->rq_size,
 				      sizeof(*ch->ioctx_ring[0]),
