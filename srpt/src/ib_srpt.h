@@ -305,6 +305,7 @@ struct srpt_rdma_ch {
 	struct list_head	list;
 	struct list_head	cmd_wait_list;
 	bool			last_wqe_received;
+	struct work_struct	unreg_work;
 
 	struct scst_session	*scst_sess;
 	u8			sess_name[36];

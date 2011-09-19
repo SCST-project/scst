@@ -316,13 +316,30 @@ static void srpt_srq_event(struct ib_event *event, void *ctx)
 	PRINT_INFO("SRQ event %d", event->event);
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
+/* A vanilla 2.6.19 or older kernel without backported OFED kernel headers. */
+static void srpt_unreg_sess_work(void *ctx)
+#else
+static void srpt_unreg_sess_work(struct work_struct *work)
+#endif
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
+	struct srpt_rdma_ch *ch = (struct srpt_rdma_ch *)ctx;
+#else
+	struct srpt_rdma_ch *ch = container_of(work, struct srpt_rdma_ch,
+					       unreg_work);
+#endif
+
+	scst_unregister_session(ch->scst_sess, false, srpt_free_ch);
+}
+
 static void srpt_release_channel(struct srpt_rdma_ch *ch)
 {
 	TRACE_ENTRY();
 
 	if (srpt_test_and_set_channel_state(ch, CH_DRAINING, CH_RELEASING) &&
 	    thread != MODE_IB_COMPLETION_IN_THREAD) {
-		scst_unregister_session(ch->scst_sess, false, srpt_free_ch);
+		schedule_work(&ch->unreg_work);
 	}
 
 	TRACE_EXIT();
@@ -2476,6 +2493,15 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	ch->rq_size = min(SRPT_RQ_SIZE, scst_get_max_lun_commands(NULL, 0));
 	atomic_set(&ch->state, CH_CONNECTING);
 	INIT_LIST_HEAD(&ch->cmd_wait_list);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
+	/*
+	 * A vanilla 2.6.19 or older kernel without backported OFED
+	 * kernel headers.
+	 */
+	INIT_WORK(&ch->unreg_work, srpt_unreg_sess_work, ch);
+#else
+	INIT_WORK(&ch->unreg_work, srpt_unreg_sess_work);
+#endif
 
 	spin_lock_init(&ch->spinlock);
 	init_waitqueue_head(&ch->state_wq);
