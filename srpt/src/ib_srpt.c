@@ -2455,8 +2455,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	ch = kzalloc(sizeof *ch, GFP_KERNEL);
 	if (!ch) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-		PRINT_ERROR("%s",
-			    "rejected SRP_LOGIN_REQ because out of memory.");
+		PRINT_ERROR("rejected SRP_LOGIN_REQ because out of memory.");
 		ret = -ENOMEM;
 		goto reject;
 	}
@@ -3847,7 +3846,7 @@ static void srpt_add_one(struct ib_device *device)
 				      sizeof(*sdev->ioctx_ring[0]),
 				      srp_max_req_size, DMA_FROM_DEVICE);
 	if (!sdev->ioctx_ring) {
-		PRINT_ERROR("%s", "srpt_alloc_ioctx_ring() failed");
+		PRINT_ERROR("srpt_alloc_ioctx_ring() failed");
 		goto err_event;
 	}
 
