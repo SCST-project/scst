@@ -154,22 +154,6 @@ static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 static void srpt_drain_channel(struct ib_cm_id *cm_id);
 static void srpt_free_ch(struct scst_session *sess);
 
-static enum rdma_ch_state
-srpt_set_ch_state(struct srpt_rdma_ch *ch, enum rdma_ch_state new_state)
-{
-	unsigned long flags;
-	enum rdma_ch_state prev;
-
-	spin_lock_irqsave(&ch->spinlock, flags);
-	prev = ch->state;
-	ch->state = new_state;
-	spin_unlock_irqrestore(&ch->spinlock, flags);
-
-	if (prev != new_state)
-		wake_up_process(ch->thread);
-	return prev;
-}
-
 static enum rdma_ch_state srpt_set_ch_state_to_disc(struct srpt_rdma_ch *ch)
 {
 	unsigned long flags;
@@ -2490,6 +2474,10 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		goto free_ring;
 	}
 
+	spin_lock_irq(&sdev->spinlock);
+	list_add_tail(&ch->list, &sdev->rch_list);
+	spin_unlock_irq(&sdev->spinlock);
+
 	ch->thread = kthread_run(srpt_compl_thread, ch, "srpt_%s",
 				 ch->sport->sdev->device->name);
 	if (IS_ERR(ch->thread)) {
@@ -2504,7 +2492,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		PRINT_ERROR("rejected SRP_LOGIN_REQ because enabling"
 		       " RTR failed (error code = %d)", ret);
-		goto stop_kthread;
+		goto release_channel;
 	}
 
 	if (use_port_guid_in_session_name) {
@@ -2575,22 +2563,21 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		goto release_channel;
 	}
 
-	spin_lock_irq(&sdev->spinlock);
-	list_add_tail(&ch->list, &sdev->rch_list);
-	spin_unlock_irq(&sdev->spinlock);
-
 	goto out;
 
 release_channel:
-	srpt_set_ch_state(ch, CH_DISCONNECTING);
-	scst_unregister_session(ch->scst_sess, false, NULL);
-	ch->scst_sess = NULL;
-
-stop_kthread:
-	kthread_stop(ch->thread);
-	ch->thread = NULL;
+	srpt_close_ch(ch);
+	/*
+	 * Tell the caller not to free cm_id since srpt_free_ch() will do that.
+	 */
+	ret = 0;
+	goto out;
 
 destroy_ib:
+	spin_lock_irq(&sdev->spinlock);
+	list_del(&ch->list);
+	spin_unlock_irq(&sdev->spinlock);
+
 	srpt_destroy_ch_ib(ch);
 
 free_ring:
