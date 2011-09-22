@@ -2264,11 +2264,6 @@ static void srpt_free_ch(struct scst_session *sess)
 	kthread_stop(ch->thread);
 	ch->thread = NULL;
 
-	/*
-	 * Unregister the session and wait until processing of all commands
-	 * associated with the session has finished.
-	 */
-
 	srpt_destroy_ch_ib(ch);
 
 	srpt_free_ioctx_ring((struct srpt_ioctx **)ch->ioctx_ring,
