@@ -7488,8 +7488,13 @@ out_unlock:
 static uint64_t scst_get_nsec(void)
 {
 	struct timespec ts;
+
 	ktime_get_ts(&ts);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 16)
 	return (uint64_t)ts.tv_sec * 1000000000 + ts.tv_nsec;
+#else
+	return timespec_to_ns(&ts);
+#endif
 }
 
 void scst_set_start_time(struct scst_cmd *cmd)
