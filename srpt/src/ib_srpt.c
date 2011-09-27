@@ -2136,21 +2136,6 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 	if (ret)
 		goto err_destroy_qp;
 
-	if (thread == MODE_IB_COMPLETION_IN_THREAD) {
-		TRACE_DBG("creating IB completion thread for session %s",
-			  ch->sess_name);
-
-		ch->thread = kthread_run(srpt_compl_thread, ch,
-					 "ib_srpt_compl");
-		if (IS_ERR(ch->thread)) {
-			PRINT_ERROR("failed to create kernel thread %ld",
-				    PTR_ERR(ch->thread));
-			ch->thread = NULL;
-			goto err_destroy_qp;
-		}
-	} else
-		ib_req_notify_cq(ch->cq, IB_CQ_NEXT_COMP);
-
 out:
 	kfree(qp_init);
 	return ret;
@@ -2569,8 +2554,27 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		rej->reason = __constant_cpu_to_be32(
 				SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		TRACE_DBG("%s", "Failed to create SCST session");
-		goto release_channel;
+		goto destroy_ib;
 	}
+
+	spin_lock_irq(&sdev->spinlock);
+	list_add_tail(&ch->list, &sdev->rch_list);
+	spin_unlock_irq(&sdev->spinlock);
+
+	if (thread == MODE_IB_COMPLETION_IN_THREAD) {
+		TRACE_DBG("creating IB completion thread for session %s",
+			  ch->sess_name);
+
+		ch->thread = kthread_run(srpt_compl_thread, ch,
+					 "ib_srpt_compl");
+		if (IS_ERR(ch->thread)) {
+			PRINT_ERROR("failed to create kernel thread %ld",
+				    PTR_ERR(ch->thread));
+			ch->thread = NULL;
+			goto unreg_sess;
+		}
+	} else
+		ib_req_notify_cq(ch->cq, IB_CQ_NEXT_COMP);
 
 	TRACE_DBG("Establish connection sess=%p name=%s cm_id=%p",
 		  ch->scst_sess, ch->sess_name, ch->cm_id);
@@ -2605,14 +2609,21 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		goto release_channel;
 	}
 
-	spin_lock_irq(&sdev->spinlock);
-	list_add_tail(&ch->list, &sdev->rch_list);
-	spin_unlock_irq(&sdev->spinlock);
-
 	goto out;
 
 release_channel:
-	atomic_set(&ch->state, CH_DISCONNECTING);
+	srpt_close_ch(ch);
+	/*
+	 * Tell the caller not to free cm_id since srpt_free_ch() will do that.
+	 */
+	ret = 0;
+	goto out;
+
+unreg_sess:
+	spin_lock_irq(&sdev->spinlock);
+	list_del(&ch->list);
+	spin_unlock_irq(&sdev->spinlock);
+
 	scst_unregister_session(ch->scst_sess, false, NULL);
 	ch->scst_sess = NULL;
 
