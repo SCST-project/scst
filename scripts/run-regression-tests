@@ -210,7 +210,8 @@ function compile_scst_unpatched {
     if mkdir -p "${workingdirectory}"  \
        && cd "${workingdirectory}"     \
        && duplicate_scst_source_tree "${scst}"  \
-       && (make -s clean \
+       && (export KCFLAGS=-DCONFIG_SCST_MEASURE_LATENCY; \
+           make -s clean \
            && make -s scst iscsi-scst  \
            && if "${scst_local}" = "true" ; then make -C scst_local clean; fi \
            && if "${scst_local}" = "true" ; then make -C scst_local -s   ; fi \
@@ -240,7 +241,8 @@ function compile_scst_patched {
        && cd "${workingdirectory}"     \
        && duplicate_scst_source_tree "${scst}"  \
        && make -s "$1"                 \
-       && (make -s clean               \
+       && (export KCFLAGS=-DCONFIG_SCST_MEASURE_LATENCY; \
+           make -s clean               \
            && make -s scst iscsi-scst  \
            && if "${scst_local}" = "true" ; then make -C scst_local clean; fi \
            && if "${scst_local}" = "true" ; then make -C scst_local -s   ; fi \
