@@ -3286,7 +3286,7 @@ static ssize_t scst_sess_latency_show(struct kobject *kobj,
 	processed_cmds = sess->processed_cmds;
 
 	res += scnprintf(&buffer[res], SCST_SYSFS_BLOCK_SIZE - res,
-		"\n%-15s %-16d", "Overall ", processed_cmds);
+		"\n%-15s %-16u", "Overall ", processed_cmds);
 
 	if (processed_cmds == 0)
 		processed_cmds = 1;

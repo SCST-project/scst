@@ -669,7 +669,7 @@ static int lat_info_show(struct seq_file *seq, void *v)
 			dev_time = sess->dev_time;
 			processed_cmds = sess->processed_cmds;
 
-			seq_printf(seq, "\n%-15s %-16d", "Overall ",
+			seq_printf(seq, "\n%-15s %-16u", "Overall ",
 				processed_cmds);
 
 			if (processed_cmds == 0)
