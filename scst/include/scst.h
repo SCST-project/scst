@@ -31,6 +31,9 @@
 #include <linux/interrupt.h>
 #include <linux/wait.h>
 #include <linux/cpumask.h>
+#ifdef CONFIG_SCST_MEASURE_LATENCY
+#include <linux/log2.h>
+#endif
 
 /* #define CONFIG_SCST_PROC */
 
@@ -1519,15 +1522,31 @@ struct scst_tgt {
 
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 
+/* Divide two 64-bit numbers with reasonably accuracy. */
+static inline void __scst_time_per_cmd(uint64_t *t, uint64_t n)
+{
+	unsigned shift;
+
+	if (!n)
+		return;
+	shift = max(0, ilog2(n) - 32 + 1);
+	*t >>= shift;
+	n >>= shift;
+	WARN_ON(n != (uint32_t)n);
+	do_div(*t, (uint32_t)n);
+}
+
+#define scst_time_per_cmd(t, n) __scst_time_per_cmd(&(t), (n))
+
 /* Defines extended latency statistics */
 struct scst_ext_latency_stat {
 	uint64_t scst_time_rd, tgt_time_rd, dev_time_rd;
-	unsigned int processed_cmds_rd;
+	uint64_t processed_cmds_rd;
 	uint64_t min_scst_time_rd, min_tgt_time_rd, min_dev_time_rd;
 	uint64_t max_scst_time_rd, max_tgt_time_rd, max_dev_time_rd;
 
 	uint64_t scst_time_wr, tgt_time_wr, dev_time_wr;
-	unsigned int processed_cmds_wr;
+	uint64_t processed_cmds_wr;
 	uint64_t min_scst_time_wr, min_tgt_time_wr, min_dev_time_wr;
 	uint64_t max_scst_time_wr, max_tgt_time_wr, max_dev_time_wr;
 };
@@ -1671,7 +1690,7 @@ struct scst_session {
 	 */
 	spinlock_t lat_lock;
 	uint64_t scst_time, tgt_time, dev_time;
-	unsigned int processed_cmds;
+	uint64_t processed_cmds;
 	uint64_t min_scst_time, min_tgt_time, min_dev_time;
 	uint64_t max_scst_time, max_tgt_time, max_dev_time;
 	struct scst_ext_latency_stat sess_latency_stat[SCST_LATENCY_STATS_NUM];
@@ -2502,7 +2521,7 @@ struct scst_tgt_dev {
 	 * Protected by sess->lat_lock.
 	 */
 	uint64_t scst_time, tgt_time, dev_time;
-	unsigned int processed_cmds;
+	uint64_t processed_cmds;
 	struct scst_ext_latency_stat dev_latency_stat[SCST_LATENCY_STATS_NUM];
 #endif
 };
