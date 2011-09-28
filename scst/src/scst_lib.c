@@ -5292,30 +5292,28 @@ uint64_t scst_unpack_lun(const uint8_t *lun, int len)
 
 	TRACE_BUFF_FLAG(TRACE_DEBUG, "Raw LUN", lun, len);
 
-	if (unlikely(len < 2)) {
-		PRINT_ERROR("Illegal lun length %d, expected 2 bytes or "
-			"more", len);
-		goto out;
-	}
-
-	if (len > 2) {
-		switch (len) {
-		case 8:
-			if ((*((__be64 *)lun) &
-			  cpu_to_be64(0x0000FFFFFFFFFFFFLL)) != 0)
-				goto out_err;
-			break;
-		case 4:
-			if (*((__be16 *)&lun[2]) != 0)
-				goto out_err;
-			break;
-		case 6:
-			if (*((__be32 *)&lun[2]) != 0)
-				goto out_err;
-			break;
-		default:
+	switch (len) {
+	case 2:
+		break;
+	case 8:
+		if ((*((__be64 *)lun) & cpu_to_be64(0x0000FFFFFFFFFFFFLL)) != 0)
 			goto out_err;
-		}
+		break;
+	case 4:
+		if (*((__be16 *)&lun[2]) != 0)
+			goto out_err;
+		break;
+	case 6:
+		if (*((__be32 *)&lun[2]) != 0)
+			goto out_err;
+		break;
+	case 1:
+	case 0:
+		PRINT_ERROR("Illegal lun length %d, expected 2 bytes "
+			    "or more", len);
+		goto out;
+	default:
+		goto out_err;
 	}
 
 	address_method = (*lun) >> 6;	/* high 2 bits of byte 0 */
