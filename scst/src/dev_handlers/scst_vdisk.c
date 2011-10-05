@@ -1425,7 +1425,7 @@ static void vdev_blockio_get_unmap_params(struct scst_vdisk_dev *virt_dev,
 
 	*unmap_gran = 1;
 	*unmap_alignment = 0;
-	*max_unmap_lba = 0xFFFFFFFF;
+	*max_unmap_lba = min_t(loff_t, 0xFFFFFFFF, virt_dev->file_size >> virt_dev->block_shift);
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32) || (defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6)
 	fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
@@ -1642,7 +1642,8 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 				if (virt_dev->blockio) {
 					/*
 					 * OPTIMAL UNMAP GRANULARITY, ALIGNMENT
-					 * and MAXIMUM UNMAP LBA COUNT */
+					 * and MAXIMUM UNMAP LBA COUNT
+					 */
 					uint32_t gran, align, max_lba;
 					vdev_blockio_get_unmap_params(virt_dev,
 						&gran, &align, &max_lba);
@@ -1656,10 +1657,12 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 						buf[32] |= 0x80;
 					}
 				} else {
-					/* MAXIMUM UNMAP LBA COUNT is UNLIMITED */
-					put_unaligned(cpu_to_be32(0xFFFFFFFF),
-					      (uint32_t *)&buf[20]);
-					/* OPTIMAL UNMAP GRANULARITY is 1 */
+					/* MAXIMUM UNMAP LBA COUNT */
+					put_unaligned(cpu_to_be32(
+						min_t(loff_t, 0xFFFFFFFF,
+						      virt_dev->file_size >> virt_dev->block_shift)),
+						(uint32_t *)&buf[20]);
+					/* OPTIMAL UNMAP GRANULARITY */
 					put_unaligned(cpu_to_be32(1),
 						(uint32_t *)&buf[28]);
 				}
