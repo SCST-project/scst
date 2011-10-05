@@ -291,6 +291,16 @@ Notes about ib_srpt
   that time CPU usage will be high.
 
 
+Performance Notes - Target Side
+-------------------------------
+
+When using high-latency storage devices (hard disks), the default value
+choosen by SCST for DEVICE.threads_num should be fine. When using low-latency
+storage devices though (SSDs), DEVICE.threads_num should be set to 1 or 2 in
+/etc/scst.conf in order to reach optimal performance for small block sizes
+(e.g. 4 KB).
+
+
 Performance Notes - Initiator Side
 ----------------------------------
 
