@@ -1065,6 +1065,48 @@ static int dev_user_tape_done(struct scst_cmd *cmd)
 	return res;
 }
 
+static inline bool dev_user_mgmt_ucmd(struct scst_user_cmd *ucmd)
+{
+	return (ucmd->state == UCMD_STATE_TM_EXECING) ||
+	       (ucmd->state == UCMD_STATE_ATTACH_SESS) ||
+	       (ucmd->state == UCMD_STATE_DETACH_SESS);
+}
+
+/* Supposed to be called under cmd_list_lock */
+static inline void dev_user_add_to_ready_head(struct scst_user_cmd *ucmd)
+{
+	struct scst_user_dev *dev = ucmd->dev;
+	struct list_head *entry;
+
+	TRACE_ENTRY();
+
+	__list_for_each(entry, &dev->ready_cmd_list) {
+		struct scst_user_cmd *u = list_entry(entry,
+			struct scst_user_cmd, ready_cmd_list_entry);
+		/*
+		 * Skip other queued mgmt commands to not reverse order
+		 * of them and prevent conditions, where DETACH_SESS or a SCSI
+		 * command comes before ATTACH_SESS for the same session.
+		 */
+		if (unlikely(dev_user_mgmt_ucmd(u)))
+			continue;
+		TRACE_DBG("Adding ucmd %p (state %d) after mgmt ucmd %p (state "
+			"%d)", ucmd, ucmd->state, u, u->state);
+		list_add_tail(&ucmd->ready_cmd_list_entry,
+			&u->ready_cmd_list_entry);
+		goto out;
+	}
+
+	TRACE_DBG("Adding ucmd %p (state %d) to tail "
+		"of mgmt ready cmd list", ucmd, ucmd->state);
+	list_add_tail(&ucmd->ready_cmd_list_entry,
+		&dev->ready_cmd_list);
+
+out:
+	TRACE_EXIT();
+	return;
+}
+
 static void dev_user_add_to_ready(struct scst_user_cmd *ucmd)
 {
 	struct scst_user_dev *dev = ucmd->dev;
@@ -1091,25 +1133,16 @@ static void dev_user_add_to_ready(struct scst_user_cmd *ucmd)
 		 * of our commands completed in NOP timeout to allow the head
 		 * commands to go, then we are really overloaded and/or stuck.
 		 */
-		TRACE_DBG("Adding ucmd %p (state %d) to head of ready "
-			"cmd list", ucmd, ucmd->state);
-		list_add(&ucmd->ready_cmd_list_entry,
-			&dev->ready_cmd_list);
-	} else if (unlikely(ucmd->state == UCMD_STATE_TM_EXECING) ||
-		   unlikely(ucmd->state == UCMD_STATE_ATTACH_SESS) ||
-		   unlikely(ucmd->state == UCMD_STATE_DETACH_SESS)) {
-		TRACE_MGMT_DBG("Adding mgmt ucmd %p (state %d) to head of "
-			"ready cmd list", ucmd, ucmd->state);
-		list_add(&ucmd->ready_cmd_list_entry,
-			&dev->ready_cmd_list);
+		dev_user_add_to_ready_head(ucmd);
+	} else if (unlikely(dev_user_mgmt_ucmd(ucmd))) {
+		dev_user_add_to_ready_head(ucmd);
 		do_wake = 1;
 	} else {
 		if ((ucmd->cmd != NULL) &&
 		    unlikely((ucmd->cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE))) {
 			TRACE_DBG("Adding HQ ucmd %p to head of ready cmd list",
 				ucmd);
-			list_add(&ucmd->ready_cmd_list_entry,
-				&dev->ready_cmd_list);
+			dev_user_add_to_ready_head(ucmd);
 		} else {
 			TRACE_DBG("Adding ucmd %p to ready cmd list", ucmd);
 			list_add_tail(&ucmd->ready_cmd_list_entry,
