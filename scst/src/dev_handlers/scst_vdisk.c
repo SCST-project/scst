@@ -211,7 +211,7 @@ static void vdisk_exec_read(struct scst_cmd *cmd,
 static void vdisk_exec_write(struct scst_cmd *cmd,
 	struct scst_vdisk_thr *thr, loff_t loff);
 static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
-	u64 lba_start, int write);
+	u64 lba_start, int write, int fua);
 static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask,
 	bool report_error);
 static void vdisk_exec_verify(struct scst_cmd *cmd,
@@ -341,6 +341,7 @@ static const struct attribute *vdisk_blockio_attrs[] = {
 	&vdev_size_attr.attr,
 	&vdisk_blocksize_attr.attr,
 	&vdisk_rd_only_attr.attr,
+	&vdisk_wt_attr.attr,
 	&vdisk_nv_cache_attr.attr,
 	&vdisk_removable_attr.attr,
 	&vdisk_rotational_attr.attr,
@@ -446,8 +447,9 @@ static struct scst_dev_type vdisk_blk_devtype = {
 	.add_device =		vdisk_add_blockio_device,
 	.del_device =		vdisk_del_device,
 	.dev_attrs =		vdisk_blockio_attrs,
-	.add_device_parameters = "filename, blocksize, nv_cache, read_only, "
-		"removable, rotational, thin_provisioned",
+	.add_device_parameters = "filename, blocksize, write_through, "
+		"nv_cache, read_only, removable, rotational, "
+		"thin_provisioned",
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
@@ -1054,7 +1056,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	case READ_12:
 	case READ_16:
 		if (virt_dev->blockio) {
-			blockio_exec_rw(cmd, thr, lba_start, 0);
+			blockio_exec_rw(cmd, thr, lba_start, 0, 0);
 			goto out_thr;
 		} else
 			vdisk_exec_read(cmd, thr, loff);
@@ -1065,7 +1067,8 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	case WRITE_16:
 	{
 		if (virt_dev->blockio) {
-			blockio_exec_rw(cmd, thr, lba_start, 1);
+			blockio_exec_rw(cmd, thr, lba_start, 1,
+				fua || virt_dev->wt_flag);
 			goto out_thr;
 		} else
 			vdisk_exec_write(cmd, thr, loff);
@@ -2020,8 +2023,7 @@ static void vdisk_exec_mode_sense(struct scst_cmd *cmd)
 	dev_spec = (virt_dev->dev->rd_only ||
 		     cmd->tgt_dev->acg_dev->rd_only) ? WP : 0;
 
-	if (!virt_dev->blockio)
-		dev_spec |= DPOFUA;
+	dev_spec |= DPOFUA;
 
 	length = scst_get_buf_full(cmd, &address);
 	if (unlikely(length <= 0)) {
@@ -3030,7 +3032,7 @@ static void blockio_endio(struct bio *bio, int error)
 }
 
 static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
-	u64 lba_start, int write)
+	u64 lba_start, int write, int fua)
 {
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	struct block_device *bdev = thr->bdev;
@@ -3118,6 +3120,9 @@ static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
 #if 0 /* It could be win, but could be not, so a performance study is needed */
 				bio->bi_rw |= REQ_SYNC;
 #endif
+				if (fua)
+					bio->bi_rw |= REQ_FUA;
+
 				if (!hbio)
 					hbio = tbio = bio;
 				else
@@ -3736,9 +3741,9 @@ out_destroy:
 static int vdev_blockio_add_device(const char *device_name, char *params)
 {
 	int res = 0;
-	const char *allowed_params[] = { "filename", "read_only", "removable",
-					 "blocksize", "nv_cache", "rotational",
-					 "thin_provisioned", NULL };
+	const char *allowed_params[] = { "filename", "read_only", "write_through",
+					 "removable", "blocksize", "nv_cache",
+					 "rotational", "thin_provisioned", NULL };
 	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
@@ -3750,6 +3755,7 @@ static int vdev_blockio_add_device(const char *device_name, char *params)
 	virt_dev->command_set_version = 0x04C0; /* SBC-3 */
 
 	virt_dev->blockio = 1;
+	virt_dev->wt_flag = DEF_WRITE_THROUGH;
 
 	res = vdev_parse_add_dev_params(virt_dev, params, allowed_params);
 	if (res != 0)
