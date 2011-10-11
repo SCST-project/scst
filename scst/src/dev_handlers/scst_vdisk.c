@@ -4438,8 +4438,7 @@ static int vdev_sysfs_process_get_filename(struct scst_sysfs_work_item *work)
 	 * under scst_vdisk_mutex.
 	 */
 	while (!mutex_trylock(&scst_vdisk_mutex)) {
-		smp_mb();
-		if (dev->dev_unregistering) {
+		if ((volatile bool)(dev->dev_unregistering)) {
 			TRACE_MGMT_DBG("Skipping being unregistered dev %s",
 				dev->virt_name);
 			res = -ENOENT;
