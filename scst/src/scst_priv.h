@@ -106,9 +106,6 @@ extern unsigned long scst_trace_flag;
 
 #define SCST_TGT_RETRY_TIMEOUT               (3/2*HZ)
 
-/* Activities suspending timeout */
-#define SCST_SUSPENDING_TIMEOUT			(90 * HZ)
-
 extern struct mutex scst_mutex2;
 
 extern int scst_threads;

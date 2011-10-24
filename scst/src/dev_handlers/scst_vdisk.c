@@ -3434,7 +3434,7 @@ static int vdisk_resync_size(struct scst_vdisk_dev *virt_dev)
 		goto out;
 	}
 
-	res = scst_suspend_activity(true);
+	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
 	if (res != 0)
 		goto out;
 
@@ -4087,7 +4087,7 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 	}
 	*pp = '\0';
 
-	res = scst_suspend_activity(true);
+	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
 	if (res != 0)
 		goto out;
 

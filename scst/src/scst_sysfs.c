@@ -1131,7 +1131,7 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 		goto out;
 	}
 
-	res = scst_suspend_activity(true);
+	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
 	if (res != 0)
 		goto out;
 
@@ -1531,7 +1531,7 @@ static int __scst_acg_process_io_grouping_type_store(struct scst_tgt *tgt,
 	TRACE_DBG("tgt %p, acg %p, io_grouping_type %d", tgt, acg,
 		io_grouping_type);
 
-	res = scst_suspend_activity(true);
+	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
 	if (res != 0)
 		goto out;
 
@@ -1865,7 +1865,7 @@ static int scst_process_ini_group_mgmt_store(char *buffer,
 		goto out;
 	}
 
-	res = scst_suspend_activity(true);
+	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
 	if (res != 0)
 		goto out;
 
@@ -2510,7 +2510,7 @@ static int scst_process_dev_sysfs_threads_data_store(
 	TRACE_DBG("dev %p, threads_num %d, threads_pool_type %d", dev,
 		threads_num, threads_pool_type);
 
-	res = scst_suspend_activity(true);
+	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
 	if (res != 0)
 		goto out;
 
@@ -3929,7 +3929,7 @@ static int scst_process_acg_ini_mgmt_store(char *buffer,
 			goto out;
 		}
 
-	res = scst_suspend_activity(true);
+	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
 	if (res != 0)
 		goto out;
 

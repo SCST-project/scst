@@ -1648,7 +1648,7 @@ static ssize_t scst_proc_scsi_tgt_gen_write(struct file *file,
 		goto out_free;
 	}
 
-	res = scst_suspend_activity(true);
+	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
 	if (res != 0)
 		goto out_free;
 
@@ -1957,7 +1957,7 @@ static ssize_t scst_proc_groups_devices_write(struct file *file,
 		goto out_free;
 	}
 
-	res = scst_suspend_activity(true);
+	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
 	if (res != 0)
 		goto out_free;
 
@@ -2216,7 +2216,7 @@ static ssize_t scst_proc_groups_names_write(struct file *file,
 		break;
 	}
 
-	rc = scst_suspend_activity(true);
+	rc = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
 	if (rc != 0)
 		goto out_free;
 

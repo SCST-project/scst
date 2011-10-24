@@ -3050,7 +3050,7 @@ static int dev_user_unregister_dev(struct file *file)
 	down_read(&dev->dev_rwsem);
 	mutex_unlock(&dev_priv_mutex);
 
-	res = scst_suspend_activity(true);
+	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
 	if (res != 0)
 		goto out_up;
 
@@ -3105,7 +3105,7 @@ static int dev_user_flush_cache(struct file *file)
 	down_read(&dev->dev_rwsem);
 	mutex_unlock(&dev_priv_mutex);
 
-	res = scst_suspend_activity(true);
+	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
 	if (res != 0)
 		goto out_up;
 
@@ -3332,7 +3332,7 @@ static int dev_user_set_opt(struct file *file, const struct scst_user_opt *opt)
 	down_read(&dev->dev_rwsem);
 	mutex_unlock(&dev_priv_mutex);
 
-	res = scst_suspend_activity(true);
+	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
 	if (res != 0)
 		goto out_up;
 

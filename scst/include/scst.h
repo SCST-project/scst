@@ -3899,7 +3899,14 @@ extern struct lockdep_map scst_suspend_dep_map;
 #else
 #define scst_assert_activity_suspended() do { } while (0)
 #endif
-int scst_suspend_activity(bool interruptible);
+
+/* Default suspending timeout for user interface actions */
+#define SCST_SUSPEND_TIMEOUT_USER	(90 * HZ)
+
+/* No timeout in scst_suspend_activity() */
+#define SCST_SUSPEND_TIMEOUT_UNLIMITED	0
+
+int scst_suspend_activity(unsigned long timeout);
 void scst_resume_activity(void);
 
 void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic);

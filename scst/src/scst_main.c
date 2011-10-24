@@ -636,7 +636,7 @@ again:
 	wait_event(tgt->unreg_waitQ, test_sess_list(tgt));
 	TRACE_DBG("%s", "wait_event() returned");
 
-	scst_suspend_activity(false);
+	scst_suspend_activity(SCST_SUSPEND_TIMEOUT_UNLIMITED);
 	mutex_lock(&scst_mutex);
 
 	mutex_lock(&scst_mutex2);
@@ -685,16 +685,15 @@ int scst_get_cmd_counter(void)
 	return res;
 }
 
-static int scst_susp_wait(bool interruptible)
+static int scst_susp_wait(unsigned long timeout)
 {
 	int res = 0;
 
 	TRACE_ENTRY();
 
-	if (interruptible) {
+	if (timeout != SCST_SUSPEND_TIMEOUT_UNLIMITED) {
 		res = wait_event_interruptible_timeout(scst_dev_cmd_waitQ,
-			(scst_get_cmd_counter() == 0),
-			SCST_SUSPENDING_TIMEOUT);
+			(scst_get_cmd_counter() == 0), timeout);
 		if (res <= 0) {
 			__scst_resume_activity();
 			if (res == 0)
@@ -715,18 +714,20 @@ static int scst_susp_wait(bool interruptible)
  *
  * Description:
  *    Globally suspends any activity and doesn't return, until there are any
- *    active commands (state after SCST_CMD_STATE_INIT). If "interruptible"
- *    is true, it returns after SCST_SUSPENDING_TIMEOUT or if it was interrupted
- *    by a signal with the corresponding error status < 0. If "interruptible"
- *    is false, it will wait virtually forever. On success returns 0.
+ *    active commands (state after SCST_CMD_STATE_INIT). Timeout parameter sets
+ *    max time this function will wait for suspending or interrupted by a
+ *    signal with the corresponding error status < 0. If timeout is
+ *    SCST_SUSPEND_TIMEOUT_UNLIMITED, then it will wait virtually forever.
+ *    On success returns 0.
  *
  *    New arriving commands stay in the suspended state until
  *    scst_resume_activity() is called.
  */
-int scst_suspend_activity(bool interruptible)
+int scst_suspend_activity(unsigned long timeout)
 {
 	int res = 0;
 	bool rep = false;
+	unsigned long cur_time = jiffies, wait_time;
 
 	TRACE_ENTRY();
 
@@ -734,7 +735,7 @@ int scst_suspend_activity(bool interruptible)
 	rwlock_acquire_read(&scst_suspend_dep_map, 0, 0, _RET_IP_);
 #endif
 
-	if (interruptible) {
+	if (timeout != SCST_SUSPEND_TIMEOUT_UNLIMITED) {
 		if (mutex_lock_interruptible(&scst_suspend_mutex) != 0) {
 			res = -EINTR;
 			goto out;
@@ -782,7 +783,7 @@ int scst_suspend_activity(bool interruptible)
 #endif
 	}
 
-	res = scst_susp_wait(interruptible);
+	res = scst_susp_wait(timeout);
 	if (res != 0)
 		goto out_clear;
 
@@ -793,7 +794,22 @@ int scst_suspend_activity(bool interruptible)
 	TRACE_MGMT_DBG("Waiting for %d active commands finally to complete",
 		scst_get_cmd_counter());
 
-	res = scst_susp_wait(interruptible);
+	if (timeout != SCST_SUSPEND_TIMEOUT_UNLIMITED) {
+		unsigned long cur_time1 = jiffies;
+		if (cur_time1 >= cur_time)
+			wait_time = cur_time1 - cur_time;
+		else
+			wait_time = cur_time - cur_time1;
+		/* just in case */
+		if (wait_time >= timeout) {
+			res = -EBUSY;
+			goto out_clear;
+		}
+		wait_time = timeout - wait_time;
+	} else
+		wait_time = SCST_SUSPEND_TIMEOUT_UNLIMITED;
+
+	res = scst_susp_wait(wait_time);
 	if (res != 0)
 		goto out_clear;
 
@@ -895,7 +911,7 @@ static int scst_register_device(struct scsi_device *scsidp)
 	TRACE_ENTRY();
 
 #ifdef CONFIG_SCST_PROC
-	res = scst_suspend_activity(true);
+	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
 	if (res != 0)
 		goto out;
 #endif
@@ -989,7 +1005,7 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 
 	TRACE_ENTRY();
 
-	scst_suspend_activity(false);
+	scst_suspend_activity(SCST_SUSPEND_TIMEOUT_UNLIMITED);
 	mutex_lock(&scst_mutex);
 
 	list_for_each_entry(d, &scst_dev_list, dev_list_entry) {
@@ -1129,7 +1145,7 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 	if (res != 0)
 		goto out;
 
-	res = scst_suspend_activity(true);
+	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
 	if (res != 0)
 		goto out;
 
@@ -1241,7 +1257,7 @@ void scst_unregister_virtual_device(int id)
 
 	TRACE_ENTRY();
 
-	scst_suspend_activity(false);
+	scst_suspend_activity(SCST_SUSPEND_TIMEOUT_UNLIMITED);
 	mutex_lock(&scst_mutex);
 
 	list_for_each_entry(d, &scst_dev_list, dev_list_entry) {
@@ -1347,7 +1363,7 @@ int __scst_register_dev_driver(struct scst_dev_type *dev_type,
 #endif /* !defined(SCSI_EXEC_REQ_FIFO_DEFINED) */
 
 #ifdef CONFIG_SCST_PROC
-	res = scst_suspend_activity(true);
+	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
 	if (res != 0)
 		goto out;
 #endif
@@ -1430,7 +1446,7 @@ void scst_unregister_dev_driver(struct scst_dev_type *dev_type)
 
 	TRACE_ENTRY();
 
-	scst_suspend_activity(false);
+	scst_suspend_activity(SCST_SUSPEND_TIMEOUT_UNLIMITED);
 	mutex_lock(&scst_mutex);
 
 	list_for_each_entry(dt, &scst_dev_type_list, dev_type_list_entry) {
