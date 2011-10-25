@@ -1966,7 +1966,7 @@ static bool srpt_process_completion(struct ib_cq *cq,
 
 	EXTRACHECKS_WARN_ON(cq != ch->cq);
 
-	keep_going = ch->state <= CH_LIVE;
+	keep_going = !ch->last_wqe_received;
 	if (keep_going)
 		ib_req_notify_cq(cq, IB_CQ_NEXT_COMP);
 	while ((n = ib_poll_cq(cq, ARRAY_SIZE(ch->wc), wc)) > 0) {
