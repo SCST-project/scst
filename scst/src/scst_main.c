@@ -795,11 +795,7 @@ int scst_suspend_activity(unsigned long timeout)
 		scst_get_cmd_counter());
 
 	if (timeout != SCST_SUSPEND_TIMEOUT_UNLIMITED) {
-		unsigned long cur_time1 = jiffies;
-		if (cur_time1 >= cur_time)
-			wait_time = cur_time1 - cur_time;
-		else
-			wait_time = cur_time - cur_time1;
+		wait_time = jiffies - cur_time;
 		/* just in case */
 		if (wait_time >= timeout) {
 			res = -EBUSY;
