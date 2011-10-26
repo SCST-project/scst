@@ -1955,20 +1955,17 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 	}
 }
 
-static bool srpt_process_completion(struct ib_cq *cq,
+static void srpt_process_completion(struct ib_cq *cq,
 				    struct srpt_rdma_ch *ch,
 				    enum scst_exec_context rcv_context,
 				    enum scst_exec_context send_context)
 {
 	struct ib_wc *const wc = ch->wc;
 	int i, n;
-	bool keep_going;
 
 	EXTRACHECKS_WARN_ON(cq != ch->cq);
 
-	keep_going = !ch->last_wqe_received;
-	if (keep_going)
-		ib_req_notify_cq(cq, IB_CQ_NEXT_COMP);
+	ib_req_notify_cq(cq, IB_CQ_NEXT_COMP);
 	while ((n = ib_poll_cq(cq, ARRAY_SIZE(ch->wc), wc)) > 0) {
 		for (i = 0; i < n; i++) {
 			if (opcode_from_wr_id(wc[i].wr_id) == SRPT_RECV)
@@ -1980,8 +1977,6 @@ static bool srpt_process_completion(struct ib_cq *cq,
 							     &wc[i]);
 		}
 	}
-
-	return keep_going;
 }
 
 /**
@@ -1997,48 +1992,35 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 static int srpt_compl_thread(void *arg)
 {
 	struct srpt_rdma_ch *ch;
-	int ret;
 
 	/* Hibernation / freezing of the SRPT kernel thread is not supported. */
 	current->flags |= PF_NOFREEZE;
 
 	ch = arg;
 	BUG_ON(!ch);
-	while (!kthread_should_stop()) {
+	while (!kthread_should_stop() && !ch->last_wqe_received) {
 		set_current_state(TASK_INTERRUPTIBLE);
-		if (!srpt_process_completion(ch->cq, ch, SCST_CONTEXT_THREAD,
-					     SCST_CONTEXT_DIRECT))
-			break;
+		srpt_process_completion(ch->cq, ch, SCST_CONTEXT_THREAD,
+					SCST_CONTEXT_DIRECT);
 		schedule();
 	}
 	set_current_state(TASK_RUNNING);
 
-	WARN_ON(ch->state <= CH_LIVE);
+	srpt_process_completion(ch->cq, ch, SCST_CONTEXT_THREAD,
+				SCST_CONTEXT_DIRECT);
 
-	ret = wait_event_timeout(ch->state_wq, ch->state >= CH_DRAINING,
-				 RDMA_COMPL_TIMEOUT_S * HZ);
-	WARN_ON(ret < 0);
-	if (!ret) {
-		PRINT_ERROR("%s: DREP message has not been received in time.",
-			    ch->sess_name);
-		srpt_drain_channel(ch->cm_id);
-	}
-
-	ret = wait_event_timeout(ch->state_wq, ch->state == CH_RELEASING,
-				 RDMA_COMPL_TIMEOUT_S * HZ);
-	WARN_ON(ret < 0);
-	if (!ret) {
-		PRINT_ERROR("%s: Last WQE event has not been received in time.",
-			    ch->sess_name);
-		srpt_test_and_set_ch_state(ch, CH_DRAINING, CH_RELEASING);
-	}
-
+	/*
+	 * Note: scst_unregister_session() must only be invoked after the last
+	 * WQE event has been received.
+	 */
 	TRACE_DBG("ch %s: about to invoke scst_unregister_session()",
 		  ch->sess_name);
 	scst_unregister_session(ch->scst_sess, false, srpt_free_ch);
 
 	while (!kthread_should_stop()) {
 		set_current_state(TASK_INTERRUPTIBLE);
+		srpt_process_completion(ch->cq, ch, SCST_CONTEXT_THREAD,
+					SCST_CONTEXT_DIRECT);
 		schedule();
 	}
 
