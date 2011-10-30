@@ -232,8 +232,8 @@ struct srpt_tsk_mgmt {
  * @free_list:   Node in srpt_rdma_ch.free_list.
  * @sg_cnt:      SG-list size.
  * @mapped_sg_count: ib_dma_map_sg() return value.
- * @n_rdma_ius:  Number of elements in the rdma_ius array.
- * @n_rdma:
+ * @n_rdma_ius:  Size of the rdma_ius array.
+ * @n_rdma:      Number of elements used of the rdma_ius array.
  * @n_rbuf:      Number of data buffers in the received SRP command.
  * @req_lim_delta: Value of the req_lim_delta value field in the latest
  *               SRP response sent.
@@ -259,6 +259,9 @@ struct srpt_send_ioctx {
 	u8			n_rbuf;
 	int			req_lim_delta;
 	struct srpt_tsk_mgmt	tsk_mgmt;
+	u8			rdma_ius_buf[2 * sizeof(struct rdma_iu)
+					     + 2 * sizeof(struct ib_sge)]
+				__aligned(sizeof(uint64_t));
 };
 
 /**

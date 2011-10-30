@@ -2745,7 +2745,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	u32 rsize;
 	u32 tsize;
 	u32 dma_len;
-	int count, nrdma;
+	int count;
 	int i, j, k;
 	int max_sge, nsge;
 
@@ -2777,17 +2777,21 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 
 	ioctx->mapped_sg_count = count;
 
-	nrdma = (count + max_sge - 1) / max_sge + ioctx->n_rbuf;
-	nsge = count + ioctx->n_rbuf;
-	ioctx->rdma_ius = kzalloc(nrdma * sizeof(*riu) +
-				  nsge * sizeof(*riu->sge),
-				  scst_cmd_atomic(scmnd) ?
-				  GFP_ATOMIC : GFP_KERNEL);
-	if (!ioctx->rdma_ius)
-		goto free_mem;
+	{
+		int size, nrdma;
 
-	ioctx->n_rdma_ius = nrdma;
-	sge_array = (void *)(ioctx->rdma_ius + nrdma);
+		nrdma = (count + max_sge - 1) / max_sge + ioctx->n_rbuf;
+		nsge = count + ioctx->n_rbuf;
+		size = nrdma * sizeof(*riu) + nsge * sizeof(*sge);
+		ioctx->rdma_ius = size <= sizeof(ioctx->rdma_ius_buf) ?
+			ioctx->rdma_ius_buf : kmalloc(size,
+			scst_cmd_atomic(scmnd) ? GFP_ATOMIC : GFP_KERNEL);
+		if (!ioctx->rdma_ius)
+			goto free_mem;
+
+		ioctx->n_rdma_ius = nrdma;
+		sge_array = (struct ib_sge *)(ioctx->rdma_ius + nrdma);
+	}
 
 	db = ioctx->rbufs;
 	tsize = (dir == SCST_DATA_READ)
@@ -2924,7 +2928,8 @@ static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	EXTRACHECKS_BUG_ON(!ioctx);
 	EXTRACHECKS_BUG_ON(ioctx->n_rdma && !ioctx->rdma_ius);
 
-	kfree(ioctx->rdma_ius);
+	if (ioctx->rdma_ius != (void *)ioctx->rdma_ius_buf)
+		kfree(ioctx->rdma_ius);
 	ioctx->rdma_ius = NULL;
 	ioctx->n_rdma = 0;
 
