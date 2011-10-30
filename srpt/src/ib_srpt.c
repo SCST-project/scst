@@ -2740,14 +2740,14 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	struct rdma_iu *riu;
 	struct srp_direct_buf *db;
 	dma_addr_t dma_addr;
-	struct ib_sge *sge;
+	struct ib_sge *sge_array, *sge;
 	u64 raddr;
 	u32 rsize;
 	u32 tsize;
 	u32 dma_len;
 	int count, nrdma;
 	int i, j, k;
-	int max_sge;
+	int max_sge, nsge;
 
 	BUG_ON(!ch);
 	BUG_ON(!ioctx);
@@ -2777,19 +2777,17 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 
 	ioctx->mapped_sg_count = count;
 
-	if (ioctx->rdma_ius && ioctx->n_rdma_ius)
-		nrdma = ioctx->n_rdma_ius;
-	else {
-		nrdma = (count + max_sge - 1) / max_sge + ioctx->n_rbuf;
+	nrdma = (count + max_sge - 1) / max_sge + ioctx->n_rbuf;
+	nsge = count + ioctx->n_rbuf;
+	ioctx->rdma_ius = kzalloc(nrdma * sizeof(*riu) +
+				  nsge * sizeof(*riu->sge),
+				  scst_cmd_atomic(scmnd) ?
+				  GFP_ATOMIC : GFP_KERNEL);
+	if (!ioctx->rdma_ius)
+		goto free_mem;
 
-		ioctx->rdma_ius = kzalloc(nrdma * sizeof *riu,
-					  scst_cmd_atomic(scmnd)
-					  ? GFP_ATOMIC : GFP_KERNEL);
-		if (!ioctx->rdma_ius)
-			goto free_mem;
-
-		ioctx->n_rdma_ius = nrdma;
-	}
+	ioctx->n_rdma_ius = nrdma;
+	sge_array = (void *)(ioctx->rdma_ius + nrdma);
 
 	db = ioctx->rbufs;
 	tsize = (dir == SCST_DATA_READ)
@@ -2797,6 +2795,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 		: scst_cmd_get_bufflen(scmnd);
 	dma_len = sg_dma_len(&sg[0]);
 	riu = ioctx->rdma_ius;
+	sge = sge_array;
 
 	/*
 	 * For each remote desc - calculate the #ib_sge.
@@ -2813,6 +2812,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 		riu->raddr = raddr;
 		riu->rkey = be32_to_cpu(db->key);
 		riu->sge_cnt = 0;
+		riu->sge = sge;
 
 		/* calculate how many sge required for this remote_buf */
 		while (rsize > 0 && tsize > 0) {
@@ -2834,33 +2834,21 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 			}
 
 			++riu->sge_cnt;
+			++sge;
 
 			if (rsize > 0 && riu->sge_cnt == max_sge) {
-				++ioctx->n_rdma;
-				riu->sge =
-				    kmalloc(riu->sge_cnt * sizeof *riu->sge,
-					    scst_cmd_atomic(scmnd)
-					    ? GFP_ATOMIC : GFP_KERNEL);
-				if (!riu->sge)
-					goto free_mem;
-
 				++riu;
-				riu->sge_cnt = 0;
 				riu->raddr = raddr;
 				riu->rkey = be32_to_cpu(db->key);
+				riu->sge_cnt = 0;
+				riu->sge = sge;
 			}
 		}
-
-		++ioctx->n_rdma;
-		riu->sge = kmalloc(riu->sge_cnt * sizeof *riu->sge,
-				   scst_cmd_atomic(scmnd)
-				   ? GFP_ATOMIC : GFP_KERNEL);
-		if (!riu->sge)
-			goto free_mem;
 	}
 
-	EXTRACHECKS_WARN_ON(riu - ioctx->rdma_ius != ioctx->n_rdma);
+	ioctx->n_rdma = riu - ioctx->rdma_ius;
 	EXTRACHECKS_WARN_ON(ioctx->n_rdma > ioctx->n_rdma_ius);
+	EXTRACHECKS_WARN_ON(sge - sge_array > nsge);
 
 	db = ioctx->rbufs;
 	tsize = (dir == SCST_DATA_READ)
@@ -2936,11 +2924,9 @@ static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	EXTRACHECKS_BUG_ON(!ioctx);
 	EXTRACHECKS_BUG_ON(ioctx->n_rdma && !ioctx->rdma_ius);
 
-	while (ioctx->n_rdma)
-		kfree(ioctx->rdma_ius[--ioctx->n_rdma].sge);
-
 	kfree(ioctx->rdma_ius);
 	ioctx->rdma_ius = NULL;
+	ioctx->n_rdma = 0;
 
 	if (ioctx->mapped_sg_count) {
 		EXTRACHECKS_BUG_ON(!ioctx->scmnd);
