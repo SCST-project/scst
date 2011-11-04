@@ -39,9 +39,6 @@ else
 all: Modules.symvers Module.symvers
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m
 
-tgt: Modules.symvers Module.symvers
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m
-
 install: all
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
 		modules_install
