@@ -825,6 +825,7 @@ err:
 	while (--i >= 0)
 		srpt_free_ioctx(sdev, ring[i], dma_size, dir);
 	kfree(ring);
+	ring = NULL;
 out:
 	TRACE_EXIT_HRES(ring);
 	return ring;
