@@ -271,15 +271,13 @@ struct srpt_send_ioctx {
  * @CH_DISCONNECTING: DREQ has been received and waiting for DREP or DREQ has
  *                    been sent and waiting for DREP or channel is being closed
  *                    for another reason.
- * @CH_DRAINING:      QP is in ERR state; waiting for last WQE event.
- * @CH_RELEASING:     Last WQE event has been received; releasing resources.
+ * @CH_DRAINING:      QP is in ERR state.
  */
 enum rdma_ch_state {
 	CH_CONNECTING,
 	CH_LIVE,
 	CH_DISCONNECTING,
 	CH_DRAINING,
-	CH_RELEASING
 };
 
 /**

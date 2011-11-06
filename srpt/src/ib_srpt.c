@@ -343,8 +343,6 @@ static const char *get_ch_state_name(enum rdma_ch_state s)
 		return "disconnecting";
 	case CH_DRAINING:
 		return "draining";
-	case CH_RELEASING:
-		return "releasing";
 	}
 	return "???";
 }
@@ -372,7 +370,7 @@ static void srpt_qp_event(struct ib_event *event, struct srpt_rdma_ch *ch)
 		TRACE_DBG("%s, state %s: received Last WQE event.",
 			  ch->sess_name, get_ch_state_name(ch->state));
 		ch->last_wqe_received = true;
-		srpt_test_and_set_ch_state(ch, CH_DRAINING, CH_RELEASING);
+		wake_up_process(ch->thread);
 		break;
 	default:
 		PRINT_ERROR("received unrecognized IB QP event %d",
@@ -2161,7 +2159,6 @@ static bool __srpt_close_ch(struct srpt_rdma_ch *ch)
 		break;
 	case CH_DISCONNECTING:
 	case CH_DRAINING:
-	case CH_RELEASING:
 		break;
 	}
 
@@ -2206,9 +2203,6 @@ static void srpt_drain_channel(struct ib_cm_id *cm_id)
 		if (ret < 0)
 			PRINT_ERROR("Setting queue pair in error state"
 			       " failed: %d", ret);
-		if (ch->last_wqe_received)
-			srpt_test_and_set_ch_state(ch, CH_DRAINING,
-						   CH_RELEASING);
 	}
 }
 
@@ -2224,7 +2218,8 @@ static void srpt_free_ch(struct scst_session *sess)
 	sdev = ch->sport->sdev;
 	BUG_ON(!sdev);
 
-	WARN_ON(ch->state != CH_RELEASING);
+	WARN_ON(ch->state != CH_DRAINING);
+	WARN_ON(!ch->last_wqe_received);
 
 	BUG_ON(!ch->thread);
 	BUG_ON(ch->thread == current);
@@ -3022,7 +3017,7 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 				   ioctx->ioctx.index);
 			msleep(1000);
 		}
-		while (ch->state != CH_RELEASING && !ioctx->rdma_aborted) {
+		while (ch->state != CH_DRAINING && !ioctx->rdma_aborted) {
 			PRINT_INFO("Waiting until RDMA abort finished [%d]",
 				   ioctx->ioctx.index);
 			msleep(1000);
