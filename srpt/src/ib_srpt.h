@@ -155,7 +155,6 @@ struct rdma_iu {
 	u32 rkey;
 	struct ib_sge *sge;
 	u32 sge_cnt;
-	int mem_id;
 };
 
 /**
