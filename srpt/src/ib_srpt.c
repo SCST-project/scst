@@ -99,7 +99,7 @@ MODULE_PARM_DESC(srp_max_req_size,
 		 "Maximum size of SRP request messages in bytes.");
 
 static unsigned int srp_max_rsp_size = DEFAULT_MAX_RSP_SIZE;
-module_param(srp_max_rsp_size, int, 0444);
+module_param(srp_max_rsp_size, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(srp_max_rsp_size,
 		 "Maximum size of SRP response messages in bytes.");
 
@@ -804,7 +804,6 @@ static struct srpt_ioctx **srpt_alloc_ioctx_ring(struct srpt_device *sdev,
 
 	WARN_ON(ioctx_size != sizeof(struct srpt_recv_ioctx) &&
 		ioctx_size != sizeof(struct srpt_send_ioctx));
-	WARN_ON(dma_size != srp_max_req_size && dma_size != srp_max_rsp_size);
 
 	ring = kmalloc(ring_size * sizeof(ring[0]), GFP_KERNEL);
 	if (!ring)
@@ -835,8 +834,6 @@ static void srpt_free_ioctx_ring(struct srpt_ioctx **ioctx_ring,
 				 int dma_size, enum dma_data_direction dir)
 {
 	int i;
-
-	WARN_ON(dma_size != srp_max_req_size && dma_size != srp_max_rsp_size);
 
 	for (i = 0; i < ring_size; ++i)
 		srpt_free_ioctx(sdev, ioctx_ring[i], dma_size, dir);
@@ -2230,7 +2227,7 @@ static void srpt_free_ch(struct scst_session *sess)
 
 	srpt_free_ioctx_ring((struct srpt_ioctx **)ch->ioctx_ring,
 			     sdev, ch->rq_size,
-			     srp_max_rsp_size, DMA_TO_DEVICE);
+			     ch->max_rsp_size, DMA_TO_DEVICE);
 
 	spin_lock_irq(&sdev->spinlock);
 	list_del(&ch->list);
@@ -2432,10 +2429,11 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	ch->state = CH_CONNECTING;
 	INIT_LIST_HEAD(&ch->cmd_wait_list);
 	init_waitqueue_head(&ch->state_wq);
+	ch->max_rsp_size = max_t(uint32_t, srp_max_rsp_size, MIN_MAX_RSP_SIZE);
 	ch->ioctx_ring = (struct srpt_send_ioctx **)
 		srpt_alloc_ioctx_ring(ch->sport->sdev, ch->rq_size,
 				      sizeof(*ch->ioctx_ring[0]),
-				      srp_max_rsp_size, DMA_TO_DEVICE);
+				      ch->max_rsp_size, DMA_TO_DEVICE);
 	if (!ch->ioctx_ring)
 		goto free_ch;
 
@@ -2562,7 +2560,7 @@ destroy_ib:
 free_ring:
 	srpt_free_ioctx_ring((struct srpt_ioctx **)ch->ioctx_ring,
 			     ch->sport->sdev, ch->rq_size,
-			     srp_max_rsp_size, DMA_TO_DEVICE);
+			     ch->max_rsp_size, DMA_TO_DEVICE);
 
 free_ch:
 	kfree(ch);

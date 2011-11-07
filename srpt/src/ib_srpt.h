@@ -319,6 +319,7 @@ struct srpt_rdma_ch {
 	struct ib_cq		*cq;
 	int			rq_size;
 	int			max_sge;
+	int			max_rsp_size;
 	int			sq_wr_avail;
 	struct srpt_port	*sport;
 	u8			i_port_id[16];
