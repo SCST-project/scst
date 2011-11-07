@@ -104,7 +104,7 @@ MODULE_PARM_DESC(srp_max_rsp_size,
 		 "Maximum size of SRP response messages in bytes.");
 
 static int srpt_srq_size = DEFAULT_SRPT_SRQ_SIZE;
-module_param(srpt_srq_size, int, 0444);
+module_param(srpt_srq_size, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(srpt_srq_size,
 		 "Shared receive queue (SRQ) size.");
 
@@ -3736,7 +3736,8 @@ static void srpt_add_one(struct ib_device *device)
 		goto err_pd;
 	}
 
-	sdev->srq_size = min(srpt_srq_size, sdev->dev_attr.max_srq_wr);
+	sdev->srq_size = min(max(srpt_srq_size, MIN_SRPT_SRQ_SIZE),
+			     sdev->dev_attr.max_srq_wr);
 
 	srq_attr.event_handler = srpt_srq_event;
 	srq_attr.srq_context = (void *)sdev;
