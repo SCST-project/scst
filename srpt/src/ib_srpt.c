@@ -1473,7 +1473,11 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 	} else if (opcode == SRPT_RDMA_ABORT) {
 		ioctx->rdma_aborted = true;
 	} else {
-		WARN_ON(opcode != SRPT_RDMA_READ_LAST);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
+		__WARN();
+#else
+		WARN_ON(true);
+#endif
 		PRINT_ERROR("%s[%d]: scmnd == NULL (opcode %d)", __func__,
 			    __LINE__, opcode);
 	}
