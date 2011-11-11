@@ -5052,8 +5052,8 @@ sub readConfigFile {
 	  if (!$io);
 
 	while (my $line = <$io>) {
-		my($test, undef) = split(/\#/, $line, 2);
-		if ($test =~ /\[(.*)\s+.*\]/) {
+		($line, undef) = split(/\#/, $line, 2);
+		if ($line =~ /\[(.*)\s+.*\]/) {
 			my $parm = $1;
 
 			if (($parm eq 'HANDLER') || ($parm eq 'GROUP') ||
@@ -5118,7 +5118,6 @@ sub parseLine {
 	my $hash = shift;
 	my $child = shift;
 
-	($line, undef) = split(/\#/, $line, 2);
 	return if ($line =~ /^\s*$/);
 
 	$line =~ s/^\s+//; $line =~ s/\s+$//;
