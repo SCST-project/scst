@@ -120,7 +120,7 @@ enum {
 	DEFAULT_MAX_REQ_SIZE
 		= sizeof(struct srp_cmd)/*48*/
 		+ sizeof(struct srp_indirect_buf)/*20*/
-		+ 128 * sizeof(struct srp_direct_buf)/*16*/,
+		+ 255 * sizeof(struct srp_direct_buf)/*16*/,
 
 	MIN_MAX_RSP_SIZE = sizeof(struct srp_rsp)/*36*/ + 4,
 	DEFAULT_MAX_RSP_SIZE = 256, /* leaves 220 bytes for sense data */
