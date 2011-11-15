@@ -1965,18 +1965,19 @@ static void srpt_process_completion(struct ib_cq *cq,
 
 	EXTRACHECKS_WARN_ON(cq != ch->cq);
 
-	ib_req_notify_cq(cq, IB_CQ_NEXT_COMP);
-	while ((n = ib_poll_cq(cq, ARRAY_SIZE(ch->wc), wc)) > 0) {
-		for (i = 0; i < n; i++) {
-			if (opcode_from_wr_id(wc[i].wr_id) == SRPT_RECV)
-				srpt_process_rcv_completion(cq, ch, rcv_context,
-							    &wc[i]);
-			else
-				srpt_process_send_completion(cq, ch,
-							     send_context,
-							     &wc[i]);
+	do {
+		while ((n = ib_poll_cq(cq, ARRAY_SIZE(ch->wc), wc)) > 0) {
+			for (i = 0; i < n; i++) {
+				if (opcode_from_wr_id(wc[i].wr_id) == SRPT_RECV)
+					srpt_process_rcv_completion(cq, ch,
+							rcv_context, &wc[i]);
+				else
+					srpt_process_send_completion(cq, ch,
+							send_context, &wc[i]);
+			}
 		}
-	}
+	} while (ib_req_notify_cq(cq, IB_CQ_NEXT_COMP |
+				  IB_CQ_REPORT_MISSED_EVENTS) > 0);
 }
 
 /**
