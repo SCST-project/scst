@@ -279,7 +279,11 @@ function download_kernel {
   local plevel="$(patchlevel $1)"
   local series="$1"
 
-  series="${series:0:3}"
+  if [ "${series:0:2}" = "3." ]; then
+    series="3.x"
+  else
+    series="${series:0:3}"
+  fi
   mkdir -p "${kernel_sources}" || return $?
   test -w "${kernel_sources}" || return $?
   (
@@ -542,7 +546,7 @@ fi
 # Where to store persistenly downloaded kernel tarballs and kernel patches.
 kernel_sources="$HOME/software/downloads"
 # URL for downloading kernel tarballs and kernel patches.
-kernel_mirror="ftp://ftp.eu.kernel.org/pub/linux/kernel"
+kernel_mirror="ftp://ftp.kernel.org/pub/linux/kernel"
 kernel_longterm="http://www.kernel.org/pub/linux/kernel"
 kernel_versions=""
 # Directory in which the regression test output files will be stored. Must be
