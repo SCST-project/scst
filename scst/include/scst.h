@@ -3863,6 +3863,11 @@ static inline int scst_get_out_buf_count(struct scst_cmd *cmd)
 int scst_get_buf_full(struct scst_cmd *cmd, uint8_t **buf);
 void scst_put_buf_full(struct scst_cmd *cmd, uint8_t *buf);
 
+static inline gfp_t scst_cmd_get_gfp_flags(struct scst_cmd *cmd)
+{
+	return cmd->noio_mem_alloc ? GFP_NOIO : GFP_KERNEL;
+}
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20))
 static inline int cancel_delayed_work_sync(struct delayed_work *work)
