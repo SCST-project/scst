@@ -2661,7 +2661,7 @@ static int vdisk_fsync(struct scst_vdisk_thr *thr, loff_t loff,
 
 	if (virt_dev->blockio) {
 		res = vdisk_blockio_flush(thr->bdev, gfp_flags, true);
-		goto out;
+		goto out_check;
 	}
 
 	file = thr->fd;
@@ -2676,6 +2676,8 @@ static int vdisk_fsync(struct scst_vdisk_thr *thr, loff_t loff,
 	res = filemap_write_and_wait_range(file->f_mapping, loff, len);
 #endif
 #endif
+
+out_check:
 	if (unlikely(res != 0)) {
 		PRINT_ERROR("sync range failed (%d)", res);
 		if (cmd != NULL) {
