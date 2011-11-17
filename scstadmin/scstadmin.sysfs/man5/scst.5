@@ -7,10 +7,9 @@
 scst \- /etc/init.d/scst configuration file.
 .SH DESCRIPTION
 /etc/default/scst is a configuration file read by the SCST startup script
-/etc/init.d/scst and that controls the behavior of that startup script. This
-file contains zero or more lists of kernel module parameters that are passed
-by the /etc/init.d/scst script to the appropriate kernel module when such a
-kernel module is loaded.
+/etc/init.d/scst and contains zero or more variables that control the behavior
+of that startup script. Currently there is only one such variable,
+SCST_TARGET_MODULES, and it only has to be set when using the procfs interface.
 .P
 The format of the
 .I scst
@@ -19,19 +18,21 @@ file is as follows:
 - Blank lines and lines starting with a hash sign (#) are ignored.
 .br
 - All other lines must contain a variable definition using the syntax
-<target_driver>_parameters=<value>. If <value> contains blanks, it must be
-surrounded with double quotes. <target_driver> is the name of an SCST target
-driver kernel module.
+<name>=<value>. If <value> contains blanks, it must be
+surrounded with double quotes.
 .P
 An example:
 .IP
-# Set the ib_srpt kernel module parameter srp_max_req_size to
+# When using the procfs interface, the /etc/init.d/scst script
 .br
-# 4200 bytes and the srpt_sq_size parameter to 2048 elements.
+# cannot derive from /etc/scst.conf which target modules will
 .br
-ib_srpt_parameters="srp_max_req_size=4200 srpt_sq_size=2048"
+# be used and hence these have to be specified explicitly.
+.br
+SCST_TARGET_MODULES="scst_local iscsi_scst ib_srpt"
 .SH FILES
 .IP /etc/default/scst
-Configuration file interpret and applied by /etc/init.d/scst.
+Configuration file that controls the behavior of some aspects of
+/etc/init.d/scst.
 .SH "SEE ALSO"
 scstadmin(1), scst.conf(5)

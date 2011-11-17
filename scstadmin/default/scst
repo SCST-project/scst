@@ -1,8 +1,3 @@
-# SCST kernel module parameters
-#
-# An example for ib_srpt: 
-# ib_srpt_parameters="srp_max_req_size=4200"
-
 # When using the procfs interface, specify all SCST target drivers in
 # SCST_TARGET_MODULES. An example:
 # SCST_TARGET_MODULES="scst_local iscsi_scst ib_srpt"

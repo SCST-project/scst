@@ -197,20 +197,12 @@ start_scst() {
         done
 
         for m in $SCST_MODULES; do
-            module_params="`set | sed -n -e "s/^${m}_parameters='\(.*\)'$/\1/p"\
-                                         -e "s/^${m}_parameters=\(.*\)$/\1/p"`"
             if [ ! -e /sys/module/$m ]; then
-                if ! modprobe $m $module_params; then
-                    echo modprobe $m $module_params failed.
+                if ! modprobe $m; then
+                    echo modprobe $m failed.
                     unload_scst
                     return 5
                 fi
-            else
-                for pv in $module_params; do
-                    echo $pv | sed 's/=/ /' \
-                      | { read param value;
-                           echo "$value" >/sys/module/$m/parameters/$param; }
-                done
             fi
         done
 
