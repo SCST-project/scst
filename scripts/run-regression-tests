@@ -175,9 +175,9 @@ EOF
 function test_scst_tree_patches {
   local rc=0
   echo "Testing whether the SCST patches apply cleanly to the SCST tree ..."
-  for p in *.patch srpt/patches/scst_increase_max_tgt_cmds.patch
+  for p in *.patch srpt/patches/scst*.patch
   do
-    if ! patch -p0 -f --dry-run -s <$p &>/dev/null; then
+    if [ -e "$p" ] && ! patch -p0 -f --dry-run -s <$p &>/dev/null; then
       echo "ERROR: patch $p does not apply cleanly."
       rc=1
     fi
