@@ -166,8 +166,8 @@ function evaluate(stmnt, pattern, arg, op, result) {
     while (match(stmnt, pattern, op) != 0)
     {
       result="error"
-      if      (op[2] == "+") result = op[1] * op[3]
-      else if (op[2] == "-") result = op[1] / op[3]
+      if      (op[2] == "+") result = op[1] + op[3]
+      else if (op[2] == "-") result = op[1] - op[3]
       sub(pattern, result, stmnt)
     }
   
