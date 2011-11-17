@@ -292,7 +292,7 @@ function download_kernel {
       || return $?
     if [ "${plevel}" != "" ]; then
       download_file "${kernel_mirror}/v$series/patch-$1.bz2" \
-        || download_file "${kernel_longterm}/longterm/patch-$1.bz2" \
+        || download_file "${kernel_longterm}/v$series/longterm/patch-$1.bz2" \
         || return $?
     fi
   )
