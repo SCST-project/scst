@@ -4994,44 +4994,43 @@ sub _issueLip {
 	my $attributes = $SCST->targetAttributes($driver, $target);
 
 	if (!defined($$attributes{'host'})) {
-		#print "\t-> Driver/target '$driver/$target' has no 'host' attribute, ignoring.\n";
+		print "\t-> Driver/target '$driver/$target' has no 'host' attribute, ignoring.\n";
 		return FALSE;
 	}
 
 	my $dir = new IO::Handle;
 
-	if (!(opendir $dir, $$attributes{'host'}->{'value'}.'/device/fc_host')) {
-		#print "\t-> Driver/target is not a fibre channel target, ignoring.\n";
+	my $host = $$attributes{'host'}->{'value'};
+	my $ldir = $SCST->SCST_TARGETS_DIR."/$driver/$target/host/device/fc_host:$host";
+
+	if (!(opendir $dir, $ldir)) {
+		print "\t-> Driver/target is not a fibre channel target, ignoring.\n";
 		return FALSE;
 	}
 
-	foreach my $host (readdir($dir)) {
-		next if (($host eq '.') || ($host eq '..'));
+	my $lip = $ldir.'/issue_lip';
 
-		my $lip = $$attributes{'host'}->{'value'}.'/device/fc_host/'.$host.'/issue_lip';
+	if (-w $lip) {
+		my $io = new IO::File $lip, O_WRONLY;
 
-		if (-w $lip) {
-			my $io = new IO::File $lip, O_WRONLY;
+		print "WARNING: Failed to open file '$lip' for writing.\n"
+		  if (!$io);
 
-			print "WARNING: Failed to open file '$lip' for writing.\n"
-			  if (!$io);
+		print "\t-> Issuing LIP on fibre channel driver/target '$driver/$target' ($host): ";
 
-			print "\t-> Issuing LIP on fibre channel driver/target '$driver/$target' ($host): ";
+		my $bytes = syswrite($io, 1, 1);
 
-			my $bytes = syswrite($io, 1, 1);
+		print "done.\n";
 
-			print "done.\n";
-
-			if (!$bytes) {
-				print "WARNING: Failed to issue LIP on driver/target '$driver/$target'.\n";
-				$rc = TRUE;
-			}
-
-			close $io;
-		} else {
-			#print "Fibre channel driver/target '$driver/$target' lacks the ability to ".
-			#  "issue LIPs, ignoring.\n";
+		if (!$bytes) {
+			print "WARNING: Failed to issue LIP on driver/target '$driver/$target'.\n";
+			$rc = TRUE;
 		}
+
+		close $io;
+	} else {
+		print "Fibre channel driver/target '$driver/$target' lacks the ability to ".
+		  "issue LIPs, ignoring.\n";
 	}
 
 	close $dir;
