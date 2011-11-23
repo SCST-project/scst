@@ -3493,9 +3493,13 @@ out:
 static int vdev_create(struct scst_dev_type *devt,
 	const char *name, struct scst_vdisk_dev **res_virt_dev)
 {
-	int res = 0;
+	int res;
 	struct scst_vdisk_dev *virt_dev;
 	uint64_t dev_id_num;
+
+	res = -EEXIST;
+	if (vdev_find(name))
+		goto out;
 
 	virt_dev = kzalloc(sizeof(*virt_dev), GFP_KERNEL);
 	if (virt_dev == NULL) {
@@ -3534,6 +3538,7 @@ static int vdev_create(struct scst_dev_type *devt,
 	TRACE_DBG("usn %s", virt_dev->usn);
 
 	*res_virt_dev = virt_dev;
+	res = 0;
 
 out:
 	return res;
@@ -4861,13 +4866,6 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 
 	if (action == 1) {
 		/* open */
-		if (vdev_find(name)) {
-			PRINT_ERROR("Virtual device with name "
-				   "%s already exist", name);
-			res = -EINVAL;
-			goto out_up;
-		}
-
 		while (isspace(*p) && *p != '\0')
 			p++;
 		filename = p;
@@ -5105,14 +5103,6 @@ static int vcdrom_open(char *p, char *name)
 	char *filename;
 	int res = 0;
 	int cdrom_empty;
-
-	virt_dev = vdev_find(name);
-	if (virt_dev) {
-		PRINT_ERROR("Virtual device with name "
-		       "%s already exist", name);
-		res = -EINVAL;
-		goto out;
-	}
 
 	while (isspace(*p) && *p != '\0')
 		p++;
