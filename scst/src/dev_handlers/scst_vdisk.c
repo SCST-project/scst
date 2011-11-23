@@ -730,11 +730,30 @@ out:
 	return res;
 }
 
+/* scst_vdisk_mutex supposed to be held */
+static struct scst_vdisk_dev *vdev_find(const char *name)
+{
+	struct scst_vdisk_dev *res, *vv;
+
+	TRACE_ENTRY();
+
+	res = NULL;
+	list_for_each_entry(vv, &vdev_list, vdev_list_entry) {
+		if (strcmp(vv->name, name) == 0) {
+			res = vv;
+			break;
+		}
+	}
+
+	TRACE_EXIT_HRES((unsigned long)res);
+	return res;
+}
+
 static int vdisk_attach(struct scst_device *dev)
 {
 	int res = 0;
 	loff_t err;
-	struct scst_vdisk_dev *virt_dev = NULL, *vv;
+	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
 
@@ -750,13 +769,7 @@ static int vdisk_attach(struct scst_device *dev)
 	 * scst_vdisk_mutex must be already taken before
 	 * scst_register_virtual_device()
 	 */
-	list_for_each_entry(vv, &vdev_list, vdev_list_entry) {
-		if (strcmp(vv->name, dev->virt_name) == 0) {
-			virt_dev = vv;
-			break;
-		}
-	}
-
+	virt_dev = vdev_find(dev->virt_name);
 	if (virt_dev == NULL) {
 		PRINT_ERROR("Device %s not found", dev->virt_name);
 		res = -EINVAL;
@@ -3537,25 +3550,6 @@ static void vdev_destroy(struct scst_vdisk_dev *virt_dev)
 	return;
 }
 
-/* scst_vdisk_mutex supposed to be held */
-static struct scst_vdisk_dev *vdev_find(const char *name)
-{
-	struct scst_vdisk_dev *res, *vv;
-
-	TRACE_ENTRY();
-
-	res = NULL;
-	list_for_each_entry(vv, &vdev_list, vdev_list_entry) {
-		if (strcmp(vv->name, name) == 0) {
-			res = vv;
-			break;
-		}
-	}
-
-	TRACE_EXIT_HRES((unsigned long)res);
-	return res;
-}
-
 #ifndef CONFIG_SCST_PROC
 
 static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
@@ -4804,7 +4798,7 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 {
 	int res = 0, action;
 	char *p, *name, *filename, *i_buf, *t10_dev_id;
-	struct scst_vdisk_dev *virt_dev, *vv;
+	struct scst_vdisk_dev *virt_dev;
 	uint32_t block_size = DEF_DISK_BLOCKSIZE;
 	int block_shift = DEF_DISK_BLOCKSIZE_SHIFT;
 	size_t slen;
@@ -4867,15 +4861,7 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 
 	if (action == 1) {
 		/* open */
-		virt_dev = NULL;
-		list_for_each_entry(vv, &vdev_list,
-					vdev_list_entry) {
-			if (strcmp(vv->name, name) == 0) {
-				virt_dev = vv;
-				break;
-			}
-		}
-		if (virt_dev) {
+		if (vdev_find(name)) {
 			PRINT_ERROR("Virtual device with name "
 				   "%s already exist", name);
 			res = -EINVAL;
@@ -5005,14 +4991,7 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 			vdev_get_filename(virt_dev), virt_dev->virt_id,
 			virt_dev->block_size);
 	} else if (action == 0) {	/* close */
-		virt_dev = NULL;
-		list_for_each_entry(vv, &vdev_list,
-					vdev_list_entry) {
-			if (strcmp(vv->name, name) == 0) {
-				virt_dev = vv;
-				break;
-			}
-		}
+		virt_dev = vdev_find(name);
 		if (virt_dev == NULL) {
 			PRINT_ERROR("Device %s not found", name);
 			res = -EINVAL;
@@ -5020,14 +4999,7 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 		}
 		vdev_del_device(virt_dev);
 	} else if (action == 2) {	/* resync_size */
-		virt_dev = NULL;
-		list_for_each_entry(vv, &vdev_list,
-					vdev_list_entry) {
-			if (strcmp(vv->name, name) == 0) {
-				virt_dev = vv;
-				break;
-			}
-		}
+		virt_dev = vdev_find(name);
 		if (virt_dev == NULL) {
 			PRINT_ERROR("Device %s not found", name);
 			res = -EINVAL;
@@ -5038,14 +5010,7 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 		if (res != 0)
 			goto out_up;
 	} else if (action == 3) {	/* set T10 device id */
-		virt_dev = NULL;
-		list_for_each_entry(vv, &vdev_list,
-					vdev_list_entry) {
-			if (strcmp(vv->name, name) == 0) {
-				virt_dev = vv;
-				break;
-			}
-		}
+		virt_dev = vdev_find(name);
 		if (virt_dev == NULL) {
 			PRINT_ERROR("Device %s not found", name);
 			res = -EINVAL;
@@ -5136,18 +5101,12 @@ out:
 /* scst_vdisk_mutex supposed to be held */
 static int vcdrom_open(char *p, char *name)
 {
-	struct scst_vdisk_dev *virt_dev, *vv;
+	struct scst_vdisk_dev *virt_dev;
 	char *filename;
 	int res = 0;
 	int cdrom_empty;
 
-	virt_dev = NULL;
-	list_for_each_entry(vv, &vdev_list, vdev_list_entry) {
-		if (strcmp(vv->name, name) == 0) {
-			virt_dev = vv;
-			break;
-		}
-	}
+	virt_dev = vdev_find(name);
 	if (virt_dev) {
 		PRINT_ERROR("Virtual device with name "
 		       "%s already exist", name);
@@ -5219,17 +5178,10 @@ out_free_vdev:
 /* scst_vdisk_mutex supposed to be held */
 static int vcdrom_close(char *name)
 {
-	struct scst_vdisk_dev *virt_dev, *vv;
+	struct scst_vdisk_dev *virt_dev;
 	int res = 0;
 
-	virt_dev = NULL;
-	list_for_each_entry(vv, &vdev_list, vdev_list_entry) {
-		if (strcmp(vv->name, name) == 0) {
-			virt_dev = vv;
-			break;
-		}
-	}
-
+	virt_dev = vdev_find(name);
 	if (virt_dev == NULL) {
 		PRINT_ERROR("Virtual device with name "
 		       "%s not found", name);
