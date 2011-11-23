@@ -1,295 +1,337 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
 <html>
 <head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>
 How to configure QLogic target driver for 22xx/23xx/24xx/25xx adapters
 </title>
+<style type="text/css">
+pre {color:brown;}
+</style>
 <body>
 
-<div style="text-align: center;"> <strong>How to configure QLogic target driver for 22xx/23xx/24xx/25xx adapters. Step by step guide.</strong></br></br></div>
+<div style="text-align: center;"> <strong>How to configure QLogic target driver for 22xx/23xx/24xx/25xx adapters. Step by step guide.</strong><br><br></div>
 
                     <div style="text-align: center;"> <strong>ON TARGET</strong></div><br><br>
 
-1: Get the Linux kernel sources for version >= 2.6.26 from kernel.org</br>
-    <br>I've downloaded kernel version 2.6.26</br>
-    <br><a href="ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-2.6.26.tar.bz2">ftp://ftp.kernel.org/pub/linux/kernel/v2.6/linux-2.6.26.tar.bz2</a></br></br></br>
+<ol>
+<li>
+   Download the appropriate firmware for your QLogic card from <a href="ftp://ftp.qlogic.com/outgoing/linux/firmware">
+   ftp://ftp.qlogic.com/outgoing/linux/firmware/</a> and save it in the
+   /lib/firmware directory.
+   It is strongly recommended to use firmware version 5.x or higher for
+   24xx/25xx adapters. More information about this subject can be found in
+   the following thread on the scst-devel mailing list:
+   <a href="http://sourceforge.net/mailarchive/forum.php?thread_name=4B4CD39F.6020401%40vlnb.net&amp;forum_name=scst-devel">FC
+   session gets closed with qla2x00t</a>.
 
-2: Get the appropiate firmware for your QLogic card from<a href="ftp://ftp.qlogic.com/outgoing/linux/firmware">
-   ftp://ftp.qlogic.com/outgoing/linux/firmware/</a> and put it under /lib/firmware.
-   It is strongly recommended to use firmware version 5.x or higher for 24xx/25xx adapters. See
-   <a href="http://sourceforge.net/mailarchive/forum.php?thread_name=4B4CD39F.6020401%40vlnb.net&forum_name=scst-devel">here</a>
-   for more details why.
+   <br><br>
 
-   </br></br>
+   If no firmware image is available when the QLogic kernel module is loaded,
+   the following error message will appear in the kernel log
+   (/var/log/messages):
 
-    Without a firmware image during boot or when you manually insert the QLogic module, you'll
-    get the following error mesage in the logs(/var/log/messages)
+<pre>qla2xxx 0000:13:00.0: Firmware image unavailable.
+qla2xxx 0000:13:00.0: Failed to initialize adapter</pre>
 
-    </br></br>
+   In this case I had to download ql2300_fw.bin.<br><br><br>
+</li>
 
-    &lt snip &gt</br>
+<li>Install the necessary kernel development packages. On e.g. a Debian system
+these packages can be installed as follows:
+<pre>apt-get install gcc patch linux-headers libcunit1-ncurses libncurses5-dev cramfsprogs bootcd-mkinitramfs subversion lsscsi</pre>
+<br><br></li>
 
-    qla2xxx 0000:13:00.0: Firmware image unavailable.</br>
-    qla2xxx 0000:13:00.0: Failed to initialize adapter</br>
-    &lt snip &gt</br></br>
-
-    In this case I had to download ql2300_fw.bin</br></br></br>
-
-3: Unzip it under /usr/src/</br>
-    [root@proj src ] bunzip2 /usr/src/linux-2.6.26.tar.bz2</br>
-    [root@server src ] tar -xvf /usr/src/linux-2.6.26.tar</br></br></br>
-   
-4: Create symlinks</br>
-    [root@proj src ] pwd</br>
-    /usr/src</br>
-    [root@proj src ] ln -s /usr/src/linux-2.6.26 linux</br>
-    [root@proj src ] ln -s /usr/src/linux-2.6.26 kernel</br></br></br>
-
-5: Get the SCST code. It is possibile either from the <a href="http://scst.sourceforge.net/downloads.html">SCST downloads page</a>
-    or from the SVN code base.</br></br>
+<li>
+  Download the SCST source code. That source code can be downloaded either
+  from the <a href="http://scst.sourceforge.net/downloads.html">SCST
+  downloads page</a> or from the SCST Subversion source code
+  repository.<br><br>
     
-    Below we will consider the case of the downloaded from the SVN code. For the release code everything is the same.
-    You only need unpack all downloaded SCST archives in one directory. It then will contain similar content as
-    ~scst/trunk/ below.</br></br>
+  In what follows it is assumed that the SCST trunk has been retrieved
+  via Subversion. Installing a released SCST version is identical to
+  installing the trunk after all downloaded SCST source code archives have
+  been extracted in a single directory. The structure of that directory will
+  be identical to that of the SCST trunk.
     
-    [root@proj ] svn co https://scst.svn.sourceforge.net/svnroot/scst</br>
-    If the command returns successfully then you'll have 'scst'</br>
-    directory under your current directory ( here it is /root )</br></br>
+<pre>[root@proj ] svn co https://scst.svn.sourceforge.net/svnroot/scst/trunk scst</pre>
+
+  After the above command finished a directory called 'scst' will have been
+  created in the current directory, which is /root in this how-to.
+
+  <br><br><br>
+</li>
+
+<li>
+Find out whether you will need SCSI pass-through and/or the iSCSI
+zero-copy optimization. If not, skip the kernel download, patch, rebuild
+and reboot steps and continue with the <a href="#release">SCST build step</a>.
+<br><br><br>
+
+<li>Decide whether you want to start from a vanilla Linux kernel source tree
+or from the kernel source tree specific to your Linux distribution. Vanilla kernel sources can be downloaded from <a href="http://www.kernel.org/pub/linux/kernel/">http://www.kernel.org/pub/linux/kernel/</a>. Unzip the downloaded archive under /usr/src:
+<pre>[root@proj src ] 
+[root@proj src ] tar -xjf /usr/src/linux-2.6.26.tar.bz2</pre>
+Instructions for obtaining a distribution-specific kernel source tree vary. An example for Debian:
+<pre>[root@proj src ] apt-get install linux-source-2.6
+[root@proj src ] tar xjf linux-source-2.6.32.tar.bz2</pre>
+</li>
+
+<li>
+   Create the necessary symbolic links:
+<pre>[root@proj src ] pwd
+/usr/src
+[root@proj src ] ln -s /usr/src/linux-2.6.26 linux
+[root@proj src ] ln -s /usr/src/linux-2.6.26 kernel</pre>
+</li>
+
+<li>
+  Patch the kernel that has just been downloaded:
+<pre>[root@proj ] cd /usr/src/linux-2.6.26
+[root@proj linux-2.6.26] patch -p1 &lt /root/scst/scst/kernel/scst_exec_req_fifo-2.6.26.patch</pre>
+</li>
+
+<li>
+  Now build the kernel.<br><br>
    
-    You need subversion (open source version control system) installed on
-    your Linux box.</br></br></br>
-
-6:  Change directory to ~scst/trunk/</br>
-    [root@proj trunk]# pwd</br>
-    /root/scst/trunk</br></br>
-
-    [root@proj trunk]# ls</br>
-    AskingQuestions        iscsi-release.patch  mpt                       qla2x00t-release.patch  scripts    scst-full_perf.patch  usr                  www
-    doc                    iscsi-scst           qla2x00t                  qla_isp                 scst       scst-release.patch    usr-full_perf.patch
-    iscsi-full_perf.patch  Makefile             qla2x00t-full_perf.patch  README                  scstadmin  srpt                  usr-release.patch</br></br>
-
-7:  Patch the kernel (the kernel version you've downloaded in step 1)</br>
-    [root@proj ] cp /root/scst/trunk/scst/kernel/scst_exec_req_fifo-2.6.26.patch /usr/src</br></br>
+  Make sure you disable kernel hacking feature and HIGHMEM4G|HIGHMEM64G, i.e.
+<pre>[root@proj ] grep -i highmem /usr/src/linux/.config
+CONFIG_NOHIGHMEM=y
+# CONFIG_HIGHMEM4G is not set
+# CONFIG_HIGHMEM64G is not set</pre>
    
-    [root@proj ] cd /usr/src</br>
-    [root@proj src] patch -p0 &lt scst_exec_req_fifo-2.6.26.patch</br></br></br>
-
-8: Replace the QLogic FC driver code in the kernel source tree with the modified version 
-    of QLogic FC driver code from scst code base.</br></br>
-    [root@proj trunk] pwd</br>
-    /root/scst/trunk</br>
-    [root@proj trunk] mv /usr/src/linux/drivers/scsi/qla2xxx /usr/src/linux/drivers/scsi/qla2xxx_orig</br>
-    [root@proj trunk] ln -s /root/scst/trunk/qla2x00t /usr/src/linux/drivers/scsi/qla2xxx</br></br></br>
+  If you have a system with more than 1GB of memory, consider to change CONFIG_VMSPLIT option to the corresponding value.
    
-9: Now build the kernel.</br></br>
+<pre>[root@proj linux ] pwd
+/usr/src/linux
+[root@proj linux ] make menuconfig
+[root@proj linux ] make bzImage
+[root@proj linux ] make modules
+[root@proj linux ] make modules_install
+[root@proj linux ] make install</pre>
+</li>
+
+<li>
+  Reboot the system and during boot select the freshly built kernel to boot from.<br><br><br>
+</li>
+
+<li>
+  OPTIONAL step: clean up the kernel modules directory before building the
+  SCST kernel modules.<br> This is only necessary if you encounter the
+  following error message: "scst: disagrees about version of symbol
+  struct_module".<br><br>
    
-    Make sure you disable kernel hacking feature, and enable
-    "Device Drivers->SCSI device support->SCSI low level drivers->Qlogic 2xxx target mode support"</br>
-    (i.e. CONFIG_SCSI_QLA2XXX_TARGET=y)</br>
-    Also turn OFF HIGHMEM4G|HIGHMEM64G,</br>
-    i.e.</br>
-    [root@proj ] grep -i highmem /usr/src/linux/.config</br>
-    CONFIG_NOHIGHMEM=y</br>
-    # CONFIG_HIGHMEM4G is not set</br>
-    # CONFIG_HIGHMEM64G is not set</br></br>
+  That error message indicates that a kernel module 
+  load was compiled against kernel headers that did not match the running
+  kernel. Doing a clean rebuild of the kernel and SCST should make the
+  above error go away. To make sure nothing of the old kernel is left,
+  do a clean rebuild of the Linux kernel and SCST as follows:
    
-   If you have system with more than 1GB of memory, consider to change CONFIG_VMSPLIT option to the correspinding value.
-   </br></br>
-    [root@proj linux ] pwd</br>
-    /usr/src/linux</br>
-    [root@proj linux ] make menuconfig</br>
-    [root@proj linux ] make bzImage</br>
-    [root@proj linux ] make modules</br>
-    [root@proj linux ] make modules_install</br>
-    [root@proj linux ] make install</br></br></br>
+<pre>[root@proj linux ] pwd
+/usr/src/linux
+[root@proj linux ] make oldconfig
+[root@proj linux ] make clean
+[root@proj linux ] rm -rf /lib/modules/`uname -r`
+[root@proj linux ] make modules
+[root@proj linux ] make modules_install
+[root@proj linux ] make install
+[root@proj linux ] reboot</pre>
+</li>
+
+<li id="release">
+  Select a build mode that suits your needs, e.g. optimal performance or
+  debugging SCST. The default mode is debug mode. Here is how to switch to
+  release mode:
+<pre>[root@proj trunk ] pwd
+/root/scst
+[root@proj trunk ] make 2release</pre>
+</li>
+
+<li>
+  Now build the SCST kernel modules.<br>
+  But first verify that the link "/lib/modules/`uname -r`/build"<br>
+  points to the kernel headers of the currently running kernel.<br><br>
    
-10: Reboot the machine and during boot select the modified kernel to boot from.</br></br></br>
+    <ol style="list-style-type:lower-alpha">
+      <li>Build SCST.
+<pre>[root@proj ] cd /root/scst/scst/src
+[root@proj ] make all
+[root@proj ] make install</pre>
+      </li>
 
-11:Depending on your requirement (performance/debugging) apply the appropiate
-    patches that comes with choose the appropriate SCST build mode. By default SCST has debug build mode.
-    Here is how to switch to the release mode:</br></br>
-    [root@proj trunk ] pwd</br>
-    /root/scst/trunk</br>
-    [root@proj trunk ] make 2release</br></br></br>
+      <li>Build the QLogic target driver as follows:<br>
+	<ol>
+	  <li>Remove the upstream qla2xxx initiator kernel module and any
+	    previously installed SCST qla2xxx-related kernel modules:
+	    <pre>rm -f /lib/modules/`uname -r`/{kernel/drivers/scsi/qla2xxx,extra}/qla2*</pre>
+	  </li>
+	  <li>Change the working directory to the SCST source tree.
+	    <pre>[root@proj trunk] pwd
+/root/scst</pre></li>
+	  <li>Install the qla2xxx initiator kernel module from the SCST tree:
+	    <pre>[root@proj trunk] BUILD_2X_MODULE=y CONFIG_SCSI_QLA_FC=y CONFIG_SCSI_QLA2XXX_TARGET=y make -s -C qla2x00t/qla2x00-target install</pre>
+	  </li>
+	  <li>Verify that compilation and installation succeeded:
+	    <pre>[root@proj trunk] ls -l /lib/modules/`uname -r`/extra/qla2*
+-rw-r--r--  1 root root  36756 Jun 20 18:46 qla2x00tgt.ko
+-rw-r--r--  1 root root 160192 Jun 20 18:46 qla2xxx_scst.ko   
+</pre>
+	  </li>
+	</ol>
+      </li>
+    </ol>
+</li>
 
-12:OPTIONAL step: do the cleanup before building scst module</br>
-    (Follow step 11 only if you get error "scst: disagrees about version of
-    symbol struct_module")</br></br>
+<li>
+  Insert the kernel modules.<br>  The kernel modules have been installed in
+  '/lib/modules/`you_kernel_version`/extra'.<br>  In addition, scst.h,
+  scst_debug.h as well as Module.symvers or Modules.symvers have been copied
+  to '/usr/local/include/scst'.<br> The first file contains all SCST's public
+  interfaces used by target drivers. The other files allow target drivers to
+  generate debug messages and support the kernel module build process.
+
+<pre>[root@proj scst]# ls -l /lib/modules/`uname -r`/extra
+total 232
+drwxr-xr-x  2 root root   4096 Jun 20 18:43 dev_handlers
+-rw-r--r--  1 root root  36756 Jun 20 18:46 qla2x00tgt.ko
+-rw-r--r--  1 root root 160192 Jun 20 18:46 qla2xxx_scst.ko   
+-rw-r--r--  1 root root 190848 Jun 20 18:43 scst.ko
+
+[root@proj scst]# ls -l /lib/modules/`uname -r`/extra/dev_handlers
+total 192
+-rw-r--r--  1 root root 11757 Jun 20 18:43 scst_cdrom.ko
+-rw-r--r--  1 root root 10111 Jun 20 18:43 scst_changer.ko
+-rw-r--r--  1 root root 12420 Jun 20 18:43 scst_disk.ko
+-rw-r--r--  1 root root 12449 Jun 20 18:43 scst_modisk.ko
+-rw-r--r--  1 root root 10131 Jun 20 18:43 scst_processor.ko
+-rw-r--r--  1 root root 10081 Jun 20 18:43 scst_raid.ko
+-rw-r--r--  1 root root 12563 Jun 20 18:43 scst_tape.ko
+-rw-r--r--  1 root root 37937 Jun 20 18:43 scst_user.ko
+-rw-r--r--  1 root root 50194 Jun 20 18:43 scst_vdisk.ko</pre>
    
-    This error indicates that the kernel module the script was trying to
-    load was compiled against kernel headers that do not match the running
-    kernel. Doing a clean rebuild of the kernel and SCST should make the
-    above error go away. To make sure nothing of the old kernel is left,
-    Do clean rebuild of kernel and SCST :</br>
-    Follow the step below:</br></br>
-   
-    [root@proj linux ] pwd</br>
-    /usr/src/linux</br>
-    [root@proj linux ] make oldconfig</br>
-    [root@proj linux ] make clean</br>
-    [root@proj linux ] rm -rf /lib/modules/`uname -r`</br>
-    [root@proj linux ] make modules</br>
-    [root@proj linux ] make modules_install</br>
-    [root@proj linux ] make install</br>
-    [root@proj linux ] reboot</br></br></br>
+where:
+<ul>
+<li>scst - SCST itself.</li>
+<li>scst_disk - device handler for disks (type 0).</li>
+<li>scst_tape - device handler for tapes (type 1).</li>
+<li>scst_processor - device handler for processors (type 3).</li>
+<li>scst_cdrom - device handler for CDROMs (type 5).</li>
+<li>scst_modisk - device handler for MO disks (type 7).</li>
+<li>scst_changer - device handler for medium changers (type 8).</li>
+<li>scst_raid - device handler for storage array controller (e.g. raid) (type C).</li>
+<li>scst_vdisk - device handler for virtual disks (file, device or ISO CD image)..</li>
+<li>scst_user - user space device handler.</li>
+</ul>
+<br>
 
-13:Now build the modules.</br>
-    But first make sure that the link "/lib/modules/`uname -r`/build"</br>
-    points to the current running kernel sources.</br></br>
-   
-    a) Build scst.</br>
-        [root@proj ] cd /root/scst/trunk/scst/src</br>
-        [root@proj ] make all (here I am building everything)</br>
-        [root@proj ] make install</br></br>
-       
+  You can insert any of these kernel modules with the 'modprobe' program. As
+  you can see, I've inserted all SCST kernel modules !!!
+<pre>[root@proj ] for _mod in scst qla2xxx qla2x00tgt scst_vdisk scst_user scst_disk ...; do modprobe $_mod; done</pre>
 
-    b) Build QLogic target driver</br>
-        [root@proj ] cd /root/scst/trunk/qla2x00t/qla2x00-target/</br>
-        root@proj ] make</br>
-        [root@proj ] make install</br></br></br>
-                
-       
-14:Insert the modules.</br>
-    The driver modules will be installed in '/lib/modules/`you_kernel_version`/extra'.</br>
-    In addition, scst.h, scst_debug.h as well as Module.symvers or
-    Modules.symvers will be copied to '/usr/local/include/scst'.</br> The first
-    file contains all SCST's public data definition, which are used by
-    target drivers. The other ones support debug messages logging and build process.</br></br>
-   
-    [root@proj scst]# ls -l /lib/modules/`uname -r`/extra</br>
-    total 232</br>
-    drwxr-xr-x  2 root root   4096 Jun 20 18:43 dev_handlers</br>
-    -rw-r--r--  1 root root  36756 Jun 20 18:46 qla2x00tgt.ko</br>
-    -rw-r--r--  1 root root 160192 Jun 20 18:46    qla2xxx.ko </br>  
-    -rw-r--r--  1 root root 190848 Jun 20 18:43 scst.ko</br></br>
-   
-    [root@proj scst]# ls -l /lib/modules/`uname -r`/extra/dev_handlers</br>
-    total 192</br>
-    -rw-r--r--  1 root root 11757 Jun 20 18:43 scst_cdrom.ko</br>
-    -rw-r--r--  1 root root 10111 Jun 20 18:43 scst_changer.ko</br>
-    -rw-r--r--  1 root root 12420 Jun 20 18:43 scst_disk.ko</br>
-    -rw-r--r--  1 root root 12449 Jun 20 18:43 scst_modisk.ko</br>
-    -rw-r--r--  1 root root 10131 Jun 20 18:43 scst_processor.ko</br>
-    -rw-r--r--  1 root root 10081 Jun 20 18:43 scst_raid.ko</br>
-    -rw-r--r--  1 root root 12563 Jun 20 18:43 scst_tape.ko</br>
-    -rw-r--r--  1 root root 37937 Jun 20 18:43 scst_user.ko</br>
-    -rw-r--r--  1 root root 50194 Jun 20 18:43 scst_vdisk.ko</br></br>
-   
-    where:</br>
-    - scst - SCST itself</br>
-     - scst_disk - device handler for disks (type 0)</br>
-     - scst_tape - device handler for tapes (type 1)</br>
-     - scst_processor - device handler for processors (type 3)</br>
-     - scst_cdrom - device handler for CDROMs (type 5)</br>
-     - scst_modisk - device handler for MO disks (type 7)</br>
-     - scst_changer - device handler for medium changers (type 8)</br>
-     - scst_raid - device handler for storage array controller (e.g. raid) (type C)</br>
-     - scst_vdisk - device handler for virtual disks (file, device or ISO CD image).</br>
-     - scst_user - user space device handler</br></br>
+  This will result in the following dmesg output:
 
-    You can insert any of these modules by 'modprobe' program, I've inserted all
-    the modules !!!</br>
-    [root@proj ] for _mod in scst qla2xxx qla2x00tgt scst_vdisk scst_user 
-	scst_disk....; do modprobe $_mod; done</br></br>
+<pre>scst: SCST version 2.0.0 loaded successfully (max mem for commands 16251MB, per device 6500MB)
+scst: Enabled features: TRACING
+scst: Target template qla2x00tgt registered successfully
+scst: Virtual device handler vdisk for type 0 registered successfully
+scst: Virtual device handler "scst_user" registered successfully</pre>
+</li>
 
-    &lt snip from dmesg &gt</br></br>
+<li>
+Now let's create our virtual device:
 
-    scst: SCST version 2.0.0 loaded successfully (max mem for commands 16251MB, per device 6500MB)</br>
-    scst: Enabled features: TRACING</br>
-    scst: Target template qla2x00tgt registered successfully</br>
-    scst: Virtual device handler vdisk for type 0 registered successfully</br>
-    scst: Virtual device handler "scst_user" registered successfully</br>
-    --------</br>
-    --------</br>
-    &lt snip from dmesg &gt</br></br></br>
+<pre>[root@proj ] dd if=/dev/zero of=/mnt/disk1 bs=1024k count=512
+512+0 records in
+512+0 records out
 
-15: Now let's create our virtual device:</br></br>
+[root@proj ] ls -l /mnt/disk1
+-rw-r--r--  1 root root 536870912 Jun 23 13:27 /mnt/disk1
 
-   
-    [root@proj ] dd if=/dev/zero of=/mnt/disk1 bs=1024k count=512</br>
-    512+0 records in</br>
-    512+0 records out</br></br>
-   
-    [root@proj ] ls -l /mnt/disk1</br>
-    -rw-r--r--  1 root root 536870912 Jun 23 13:27 /mnt/disk1</br></br>
-   
-    [root@proj ] file /mnt/disk1</br>
-    /mnt/disk1: data</br></br>
+[root@proj ] file /mnt/disk1
+/mnt/disk1: data</pre>
+</li>
 
+<li id="target-mode">
+  To see the device on the initiator we have to add it in the LUNs set of our
+  target.<br>  We must have a LUN with number 0 (LUs numeration must not start
+  from, e.g., 1).<br><br>
 
-16:To see the device remotely, we have to add it to at least in the LUNs set for our target.</br>
-    We must have LUN 0 (LUs numeration must not start from, e.g., 1).</br></br>
+  The simplest way to do that is to write an scstadmin config file:
 
-    The simplest way to do that is to write an scstadmin's config file:</br></br>
+<pre>
+HANDLER vdisk_fileio {
+	DEVICE disk1 {
+		filename /mnt/disk1
+	}
+}
 
-HANDLER vdisk_fileio {<br>
-&nbsp;	DEVICE disk1 {<br>
-&nbsp;&nbsp;	filename /mnt/disk1<br>
-&nbsp;	}<br>
-}</br></br>
+TARGET_DRIVER qla2x00t {
+	TARGET 25:00:00:f0:98:87:92:f3 {
+		LUN 0 disk1
 
-TARGET_DRIVER qla2x00t {<br>
-&nbsp;	TARGET 25:00:00:f0:98:87:92:f3 {<br>
-&nbsp;&nbsp;	LUN 0 disk1<br><br>
+		enabled 1
+	}
+}</pre>
 
-&nbsp;&nbsp;	enabled 1<br>
-&nbsp;	}<br>
-}<br><br>
+Before we can apply that file we have to install scstadmin first:
 
-To use it, we need to install scstadmin:<br><br>
+<pre>[root@proj ]# make -C scstadmin -s install</pre>
 
-[root@proj ]# make<br>
-[root@proj ]# make install<br><br>
+Let's save our configuration file as /etc/scst.conf.<br><br>
 
-Let's save our config file as /etc/scst.conf<br><br>
+That file can be applied via scstadmin:
 
-Now run scstadmin:<br><br>
+<pre>[root@proj ]# scstadmin -config /etc/scst.conf
 
-[root@proj ]# scstadmin -config /etc/scst.conf<br><br>
+Collecting current configuration: done.
 
-Collecting current configuration: done.<br><br>
-
--> Checking configuration file 'qq' for errors.<br>
-	-> Done, 0 warnings found.<br><br>
+-> Checking configuration file 'qq' for errors.
+	-> Done, 0 warnings found.
 	
-	-> Opening device 'disk1' using handler 'vdisk_fileio': done.<br>
-	-> Adding device 'disk1' at LUN 0 to driver/target 'qla2x00t/25:00:00:f0:98:87:92:f3': done.<br>
-	-> Enabling driver/target 'qla2x00t/25:00:00:f0:98:87:92:f3': done.<br><br>
+	-> Opening device 'disk1' using handler 'vdisk_fileio': done.
+	-> Adding device 'disk1' at LUN 0 to driver/target 'qla2x00t/25:00:00:f0:98:87:92:f3': done.
+	-> Enabling driver/target 'qla2x00t/25:00:00:f0:98:87:92:f3': done.
 	
-	All done.<br><br>
+	All done.</pre>
 	
 
-The same can be done directly via SCST's sysfs interface:<br><br>
+The same can be done directly via the sysfs interface of SCST:
+<pre>
+[root@proj ]# echo "add_device disk1 filename=/mnt/disk1" >/sys/kernel/scst_tgt/handlers/vdisk_fileio/mgmt
+[root@proj ]# echo "add disk1 0" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/luns/mgmt
+[root@proj ]# echo "1" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/enabled
+</pre>
+<br><br>
 
-[root@proj ]# echo "add_device disk1 filename=/mnt/disk1" >/sys/kernel/scst_tgt/handlers/vdisk_fileio/mgmt<br>
-[root@proj ]# echo "add disk1 0" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/luns/mgmt<br>
-[root@proj ]# echo "1" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/enabled<br><br>
+  <div style="text-align: center;"><strong>ON INITIATOR</strong></div><br>
+</li>
 
-  <div style="text-align: center;"><strong>ON INITIATOR</strong></div></br>
+<li>
+  A quote from the SCST README:<blockquote><em> Without loading appropriate
+  device handler, corresponding device will be invisible for remote
+  initiators, hence we have to add them manually.</em></blockquote>  But as
+  I've already loaded the device handler (scst_vdisk) on the target, I don't
+  have to perform any additional steps. <br><br>
+</li>
 
-17:&lt snip from README &gt</br>
-    Without loading appropriate device handler, corresponding device
-    will be invisible for remote initiators, hence we have to
-    add them manully.</br> 
-   &lt snip from README &gt</br></br>
+<li>
+  After <a href="#target-mode">enabling the target mode</a> on the target, to
+  see new targets and devices on the initiator you need have to trigger a
+  rescan on the initiator. That is possible either by rebooting the initiator
+  or by unloading and reloading the initiator kernel module.  Automatic
+  discovery isn't supported by all known initiators, so you need a way to make
+  SCSI subsystem on the initiator to do the new devices discovery and hence be
+  able to see the new devices attached.<br><br>
 
-    But as I've already loaded the device handler(scst_vdisk) on the target, 
-    hence I don't need to perform step 17. </br></br>
-   
+  Alternatively, if your initiator already connected to the target and you
+  simply added new devices to it, you can try to run a manual rescan as follows:
 
-18:After enabling the target mode on the target (see step 16),
-   to see new targets and devices you need either to rescan 
-   initiator(s) manually, for example, by rmmod/modprobe the
-   corresponding FC device module on the initiator, or reboot the initiator itself.
-   Automatic discovery isn't supported by all known initiators,
-   so you need a way to make SCSI subsystem on the initiator to do the new devices discovery and hence be able to see
-   the new devices attached.</br></br>
+<pre>[root@initiator ] echo "- - -" >/sys/class/scsi_host/hostX/scan</pre>
+where X is the host number.
+</li>
 
-   Alternatively, if your initiator already connected to the target and you simply added new devices to it, you can try to run
-   a manual rescan by:</br>
+</ol>
 
-   [root@initiator ] echo "- - -" >/sys/class/scsi_host/hostX/scan</br>
-    where X: host number</br></br></br>
- 
 </body>
 </html>   		
-
