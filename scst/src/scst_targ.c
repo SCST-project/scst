@@ -6240,8 +6240,9 @@ static int scst_init_session(struct scst_session *sess)
 
 	sess->acg = scst_find_acg(sess);
 
-	PRINT_INFO("Using security group \"%s\" for initiator \"%s\"",
-		sess->acg->acg_name, sess->initiator_name);
+	PRINT_INFO("Using security group \"%s\" for initiator \"%s\" "
+		"(target %s)", sess->acg->acg_name, sess->initiator_name,
+		sess->tgt->tgt_name);
 
 	list_add_tail(&sess->acg_sess_list_entry, &sess->acg->acg_sess_list);
 
