@@ -4010,11 +4010,18 @@ void scst_free_session(struct scst_session *sess)
 
 	scst_sess_free_tgt_devs(sess);
 
-#ifndef CONFIG_SCST_PROC
 	mutex_unlock(&scst_mutex);
+
+#ifndef CONFIG_SCST_PROC
 	scst_sess_sysfs_del(sess);
-	mutex_lock(&scst_mutex);
 #endif
+	if (sess->unreg_done_fn) {
+		TRACE_DBG("Calling unreg_done_fn(%p)", sess);
+		sess->unreg_done_fn(sess);
+		TRACE_DBG("%s", "unreg_done_fn() returned");
+	}
+
+	mutex_lock(&scst_mutex);
 
 	/*
 	 * The lists delete must be after sysfs del. Otherwise it would break
@@ -4065,11 +4072,6 @@ void scst_free_session_callback(struct scst_session *sess)
 	sess->shut_phase = SCST_SESS_SPH_UNREG_DONE_CALLING;
 	mutex_unlock(&scst_mutex);
 
-	if (sess->unreg_done_fn) {
-		TRACE_DBG("Calling unreg_done_fn(%p)", sess);
-		sess->unreg_done_fn(sess);
-		TRACE_DBG("%s", "unreg_done_fn() returned");
-	}
 	scst_free_session(sess);
 
 	if (c)
