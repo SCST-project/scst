@@ -4374,7 +4374,7 @@ void scst_cmd_tasklet(long p)
  */
 static int scst_mgmt_translate_lun(struct scst_mgmt_cmd *mcmd)
 {
-	struct scst_tgt_dev *tgt_dev = NULL;
+	struct scst_tgt_dev *tgt_dev;
 	struct list_head *head;
 	int res = -1;
 
