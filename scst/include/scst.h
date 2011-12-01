@@ -34,6 +34,7 @@
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 #include <linux/log2.h>
 #endif
+#include <asm/unaligned.h>
 
 /* #define CONFIG_SCST_PROC */
 
@@ -4187,6 +4188,19 @@ if (!(condition)) {							\
 		spin_ ## lock_type(&(lock));				\
 	} while (!(condition));						\
 	finish_wait(&(wq), &__wait);					\
+}
+
+/* Only use get_unaligned_be24() if reading p - 1 is allowed. */
+static inline uint32_t get_unaligned_be24(const uint8_t *const p)
+{
+	return get_unaligned_be32(p - 1) & 0xffffffU;
+}
+
+static inline void put_unaligned_be24(const uint32_t v, uint8_t *const p)
+{
+	p[0] = v >> 16;
+	p[1] = v >>  8;
+	p[2] = v >>  0;
 }
 
 #ifndef CONFIG_SCST_PROC

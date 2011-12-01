@@ -1734,10 +1734,7 @@ inc_dev_cnt:
 
 	/* Set the response header */
 	dev_cnt *= 8;
-	buffer[0] = (dev_cnt >> 24) & 0xff;
-	buffer[1] = (dev_cnt >> 16) & 0xff;
-	buffer[2] = (dev_cnt >> 8) & 0xff;
-	buffer[3] = dev_cnt & 0xff;
+	put_unaligned_be32(dev_cnt, buffer);
 
 	scst_put_buf_full(cmd, buffer);
 

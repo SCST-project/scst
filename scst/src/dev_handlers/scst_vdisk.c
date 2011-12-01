@@ -93,7 +93,6 @@ static struct scst_trace_log vdisk_local_trace_tbl[] = {
 #define SP				0x01	/* save pages */
 #define PS				0x80	/* parameter saveable */
 
-#define	BYTE				8
 #define	DEF_DISK_BLOCKSIZE_SHIFT	9
 #define	DEF_DISK_BLOCKSIZE		(1 << DEF_DISK_BLOCKSIZE_SHIFT)
 #define	DEF_CDROM_BLOCKSIZE_SHIFT	11
@@ -988,9 +987,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	case READ_6:
 	case WRITE_6:
 	case VERIFY_6:
-		lba_start = (((cdb[1] & 0x1f) << (BYTE * 2)) +
-			     (cdb[2] << (BYTE * 1)) +
-			     (cdb[3] << (BYTE * 0)));
+		lba_start = get_unaligned_be24(&cdb[1]) & 0x1f0000U;
 		data_len = cmd->bufflen;
 		break;
 	case READ_10:
@@ -1001,33 +998,19 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	case WRITE_VERIFY:
 	case WRITE_VERIFY_12:
 	case VERIFY_12:
-		lba_start |= ((u64)cdb[2]) << 24;
-		lba_start |= ((u64)cdb[3]) << 16;
-		lba_start |= ((u64)cdb[4]) << 8;
-		lba_start |= ((u64)cdb[5]);
+		lba_start = get_unaligned_be32(&cdb[2]);
 		data_len = cmd->bufflen;
 		break;
 	case READ_16:
 	case WRITE_16:
 	case WRITE_VERIFY_16:
 	case VERIFY_16:
-		lba_start |= ((u64)cdb[2]) << 56;
-		lba_start |= ((u64)cdb[3]) << 48;
-		lba_start |= ((u64)cdb[4]) << 40;
-		lba_start |= ((u64)cdb[5]) << 32;
-		lba_start |= ((u64)cdb[6]) << 24;
-		lba_start |= ((u64)cdb[7]) << 16;
-		lba_start |= ((u64)cdb[8]) << 8;
-		lba_start |= ((u64)cdb[9]);
+		lba_start = get_unaligned_be64(&cdb[2]);
 		data_len = cmd->bufflen;
 		break;
 	case SYNCHRONIZE_CACHE:
-		lba_start |= ((u64)cdb[2]) << 24;
-		lba_start |= ((u64)cdb[3]) << 16;
-		lba_start |= ((u64)cdb[4]) << 8;
-		lba_start |= ((u64)cdb[5]);
-		data_len = ((cdb[7] << (BYTE * 1)) + (cdb[8] << (BYTE * 0)))
-				<< virt_dev->block_shift;
+		lba_start = get_unaligned_be32(&cdb[2]);
+		data_len = get_unaligned_be16(&cdb[7]) << virt_dev->block_shift;
 		if (data_len == 0)
 			data_len = virt_dev->file_size -
 				((loff_t)lba_start << virt_dev->block_shift);
@@ -1329,10 +1312,10 @@ static void vdisk_exec_unmap(struct scst_cmd *cmd, struct scst_vdisk_thr *thr)
 
 	inode = fd->f_dentry->d_inode;
 
-	total_len = cmd->cdb[7] << 8 | cmd->cdb[8]; /* length */
+	total_len = get_unaligned_be16(&cmd->cdb[7]);	/* length */
 	offset = 8;
 
-	descriptor_len = address[2] << 8 | address[3];
+	descriptor_len = get_unaligned_be16(&address[2]);
 
 	TRACE_DBG("total_len %d, descriptor_len %d", total_len, descriptor_len);
 
@@ -1627,8 +1610,7 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			num += buf[num + 3];
 
 			resp_len = num;
-			buf[2] = (resp_len >> 8) & 0xFF;
-			buf[3] = resp_len & 0xFF;
+			put_unaligned_be16(resp_len, &buf[2]);
 			resp_len += 4;
 		} else if ((0xB0 == cmd->cdb[2]) &&
 			   (virt_dev->dev->type == TYPE_DISK)) {
@@ -1924,10 +1906,8 @@ static int vdisk_format_pg(unsigned char *p, int pcontrol,
 					   0, 0, 0, 0, 0x40, 0, 0, 0};
 
 	memcpy(p, format_pg, sizeof(format_pg));
-	p[10] = (DEF_SECTORS >> 8) & 0xff;
-	p[11] = DEF_SECTORS & 0xff;
-	p[12] = (virt_dev->block_size >> 8) & 0xff;
-	p[13] = virt_dev->block_size & 0xff;
+	put_unaligned_be16(DEF_SECTORS, &p[10]);
+	put_unaligned_be16(virt_dev->block_size, &p[12]);
 	if (1 == pcontrol)
 		memset(p + 2, 0, sizeof(format_pg) - 2);
 	return sizeof(format_pg);
@@ -2076,22 +2056,10 @@ static void vdisk_exec_mode_sense(struct scst_cmd *cmd)
 	if (!dbd) {
 		/* Create block descriptor */
 		buf[offset - 1] = 0x08;		/* block descriptor length */
-		if (nblocks >> 32) {
-			buf[offset + 0] = 0xFF;
-			buf[offset + 1] = 0xFF;
-			buf[offset + 2] = 0xFF;
-			buf[offset + 3] = 0xFF;
-		} else {
-			/* num blks */
-			buf[offset + 0] = (nblocks >> (BYTE * 3)) & 0xFF;
-			buf[offset + 1] = (nblocks >> (BYTE * 2)) & 0xFF;
-			buf[offset + 2] = (nblocks >> (BYTE * 1)) & 0xFF;
-			buf[offset + 3] = (nblocks >> (BYTE * 0)) & 0xFF;
-		}
+		put_unaligned_be32(nblocks >> 32 ? 0xffffffffU : nblocks,
+				   &buf[offset]);
 		buf[offset + 4] = 0;			/* density code */
-		buf[offset + 5] = (blocksize >> (BYTE * 2)) & 0xFF;/* blklen */
-		buf[offset + 6] = (blocksize >> (BYTE * 1)) & 0xFF;
-		buf[offset + 7] = (blocksize >> (BYTE * 0)) & 0xFF;
+		put_unaligned_be24(blocksize, &buf[offset + 5]); /* blklen */
 
 		offset += 8;			/* increment offset */
 	}
@@ -2140,10 +2108,8 @@ static void vdisk_exec_mode_sense(struct scst_cmd *cmd)
 
 	if (msense_6)
 		buf[0] = offset - 1;
-	else {
-		buf[0] = ((offset - 2) >> 8) & 0xff;
-		buf[1] = (offset - 2) & 0xff;
-	}
+	else
+		put_unaligned_be16(offset - 2, &buf[0]);
 
 	if (offset > length)
 		offset = length;
@@ -2353,21 +2319,9 @@ static void vdisk_exec_read_capacity(struct scst_cmd *cmd)
 	 * issues a READ_CAPACITY(16) so we can return the TPE bit. By
 	 * returning 0xFFFFFFFF we do that.
 	 */
-	if (nblocks >> 32 || virt_dev->thin_provisioned) {
-		buffer[0] = 0xFF;
-		buffer[1] = 0xFF;
-		buffer[2] = 0xFF;
-		buffer[3] = 0xFF;
-	} else {
-		buffer[0] = ((nblocks - 1) >> (BYTE * 3)) & 0xFF;
-		buffer[1] = ((nblocks - 1) >> (BYTE * 2)) & 0xFF;
-		buffer[2] = ((nblocks - 1) >> (BYTE * 1)) & 0xFF;
-		buffer[3] = ((nblocks - 1) >> (BYTE * 0)) & 0xFF;
-	}
-	buffer[4] = (blocksize >> (BYTE * 3)) & 0xFF;
-	buffer[5] = (blocksize >> (BYTE * 2)) & 0xFF;
-	buffer[6] = (blocksize >> (BYTE * 1)) & 0xFF;
-	buffer[7] = (blocksize >> (BYTE * 0)) & 0xFF;
+	put_unaligned_be32(nblocks >> 32 || virt_dev->thin_provisioned ?
+			   0xffffffffU : nblocks - 1, &buffer[0]);
+	put_unaligned_be32(blocksize, &buffer[4]);
 
 	length = scst_get_buf_full(cmd, &address);
 	if (unlikely(length <= 0)) {
@@ -2420,19 +2374,8 @@ static void vdisk_exec_read_capacity16(struct scst_cmd *cmd)
 
 	memset(buffer, 0, sizeof(buffer));
 
-	buffer[0] = nblocks >> 56;
-	buffer[1] = (nblocks >> 48) & 0xFF;
-	buffer[2] = (nblocks >> 40) & 0xFF;
-	buffer[3] = (nblocks >> 32) & 0xFF;
-	buffer[4] = (nblocks >> 24) & 0xFF;
-	buffer[5] = (nblocks >> 16) & 0xFF;
-	buffer[6] = (nblocks >> 8) & 0xFF;
-	buffer[7] = nblocks & 0xFF;
-
-	buffer[8] = (blocksize >> (BYTE * 3)) & 0xFF;
-	buffer[9] = (blocksize >> (BYTE * 2)) & 0xFF;
-	buffer[10] = (blocksize >> (BYTE * 1)) & 0xFF;
-	buffer[11] = (blocksize >> (BYTE * 0)) & 0xFF;
+	put_unaligned_be64(nblocks, &buffer[0]);
+	put_unaligned_be32(blocksize, &buffer[8]);
 
 	switch (blocksize) {
 	case 512:
@@ -2609,10 +2552,7 @@ static void vdisk_exec_read_toc(struct scst_cmd *cmd)
 		/* Track Number */
 		buffer[off+2] = 0xAA;
 		/* Track Start Address */
-		buffer[off+4] = (nblocks >> (BYTE * 3)) & 0xFF;
-		buffer[off+5] = (nblocks >> (BYTE * 2)) & 0xFF;
-		buffer[off+6] = (nblocks >> (BYTE * 1)) & 0xFF;
-		buffer[off+7] = (nblocks >> (BYTE * 0)) & 0xFF;
+		put_unaligned_be32(nblocks, &buffer[off + 4]);
 		off += 8;
 	}
 

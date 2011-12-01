@@ -5045,12 +5045,9 @@ static int get_trans_len_single(struct scst_cmd *cmd, uint8_t off)
 
 static int get_trans_len_read_pos(struct scst_cmd *cmd, uint8_t off)
 {
-	uint8_t *p = (uint8_t *)cmd->cdb + off;
 	int res = 0;
 
-	cmd->bufflen = 0;
-	cmd->bufflen |= ((u32)p[0]) << 8;
-	cmd->bufflen |= ((u32)p[1]);
+	cmd->bufflen = get_unaligned_be16(cmd->cdb + off);
 
 	switch (cmd->cdb[1] & 0x1f) {
 	case 0:
@@ -5111,12 +5108,7 @@ static int get_trans_len_start_stop(struct scst_cmd *cmd, uint8_t off)
 
 static int get_trans_len_3_read_elem_stat(struct scst_cmd *cmd, uint8_t off)
 {
-	const uint8_t *p = cmd->cdb + off;
-
-	cmd->bufflen = 0;
-	cmd->bufflen |= ((u32)p[0]) << 16;
-	cmd->bufflen |= ((u32)p[1]) << 8;
-	cmd->bufflen |= ((u32)p[2]);
+	cmd->bufflen = get_unaligned_be24(cmd->cdb + off);
 
 	if ((cmd->cdb[6] & 0x2) == 0x2)
 		cmd->op_flags |= SCST_REG_RESERVE_ALLOWED |
@@ -5132,45 +5124,37 @@ static int get_trans_len_1(struct scst_cmd *cmd, uint8_t off)
 
 static int get_trans_len_1_256(struct scst_cmd *cmd, uint8_t off)
 {
-	cmd->bufflen = (u32)cmd->cdb[off];
-	if (cmd->bufflen == 0)
-		cmd->bufflen = 256;
+	/*
+	 * From the READ(6) specification: a TRANSFER LENGTH field set to zero
+	 * specifies that 256 logical blocks shall be read.
+	 *
+	 * Note: while the C standard specifies that the behavior of a
+	 * computation with signed integers that overflows is undefined, the
+	 * same standard guarantees that the result of a computation with
+	 * unsigned integers that cannot be represented will yield the value
+	 * is reduced modulo the largest value that can be represented by the
+	 * resulting type.
+	 */
+	cmd->bufflen = (u8)(cmd->cdb[off] - 1) + 1;
 	return 0;
 }
 
 static int get_trans_len_2(struct scst_cmd *cmd, uint8_t off)
 {
-	const uint8_t *p = cmd->cdb + off;
-
-	cmd->bufflen = 0;
-	cmd->bufflen |= ((u32)p[0]) << 8;
-	cmd->bufflen |= ((u32)p[1]);
-
+	cmd->bufflen = get_unaligned_be16(cmd->cdb + off);
 	return 0;
 }
 
 static int get_trans_len_3(struct scst_cmd *cmd, uint8_t off)
 {
-	const uint8_t *p = cmd->cdb + off;
-
-	cmd->bufflen = 0;
-	cmd->bufflen |= ((u32)p[0]) << 16;
-	cmd->bufflen |= ((u32)p[1]) << 8;
-	cmd->bufflen |= ((u32)p[2]);
+	cmd->bufflen = get_unaligned_be24(cmd->cdb + off);
 
 	return 0;
 }
 
 static int get_trans_len_4(struct scst_cmd *cmd, uint8_t off)
 {
-	const uint8_t *p = cmd->cdb + off;
-
-	cmd->bufflen = 0;
-	cmd->bufflen |= ((u32)p[0]) << 24;
-	cmd->bufflen |= ((u32)p[1]) << 16;
-	cmd->bufflen |= ((u32)p[2]) << 8;
-	cmd->bufflen |= ((u32)p[3]);
-
+	cmd->bufflen = get_unaligned_be32(cmd->cdb + off);
 	return 0;
 }
 
@@ -5182,14 +5166,8 @@ static int get_trans_len_none(struct scst_cmd *cmd, uint8_t off)
 
 static int get_bidi_trans_len_2(struct scst_cmd *cmd, uint8_t off)
 {
-	const uint8_t *p = cmd->cdb + off;
-
-	cmd->bufflen = 0;
-	cmd->bufflen |= ((u32)p[0]) << 8;
-	cmd->bufflen |= ((u32)p[1]);
-
+	cmd->bufflen = get_unaligned_be16(cmd->cdb + off);
 	cmd->out_bufflen = cmd->bufflen;
-
 	return 0;
 }
 
@@ -5738,9 +5716,7 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 				goto out;
 			}
 
-			sector_size =
-			    ((buffer[4] << 24) | (buffer[5] << 16) |
-			     (buffer[6] << 8) | (buffer[7] << 0));
+			sector_size = get_unaligned_be32(&buffer[4]);
 			scst_put_buf_full(cmd, buffer);
 			if (sector_size != 0)
 				sh = scst_calc_block_shift(sector_size);
@@ -5808,8 +5784,7 @@ int scst_tape_generic_dev_done(struct scst_cmd *cmd,
 		TRACE_DBG("%s", "MODE_SENSE");
 		if ((cmd->cdb[2] & 0xC0) == 0) {
 			if (buffer[3] == 8) {
-				bs = (buffer[9] << 16) |
-				    (buffer[10] << 8) | buffer[11];
+				bs = get_unaligned_be24(&buffer[9]);
 				set_block_size(cmd, bs);
 			}
 		}
@@ -5817,8 +5792,7 @@ int scst_tape_generic_dev_done(struct scst_cmd *cmd,
 	case MODE_SELECT:
 		TRACE_DBG("%s", "MODE_SELECT");
 		if (buffer[3] == 8) {
-			bs = (buffer[9] << 16) | (buffer[10] << 8) |
-			    (buffer[11]);
+			bs = get_unaligned_be24(&buffer[9]);
 			set_block_size(cmd, bs);
 		}
 		break;
