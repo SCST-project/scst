@@ -3729,8 +3729,7 @@ static int iscsi_get_initiator_port_transport_id(struct scst_tgt *tgt,
 	tr_id[0] = 0x40 | SCSI_TRANSPORTID_PROTOCOLID_ISCSI;
 	sprintf(&tr_id[4], "%s,i,0x%llx", sess->initiator_name, sid.id64);
 
-	put_unaligned(cpu_to_be16(tr_id_size - 4),
-		(__be16 *)&tr_id[2]);
+	put_unaligned_be16(tr_id_size - 4, &tr_id[2]);
 
 	*transport_id = tr_id;
 

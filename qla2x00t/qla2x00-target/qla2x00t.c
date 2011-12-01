@@ -3668,8 +3668,8 @@ static int q24_do_send_cmd_to_scst(struct q2t_cmd *cmd)
 	else
 		dir = SCST_DATA_NONE;
 	scst_cmd_set_expected(cmd->scst_cmd, dir,
-		be32_to_cpu(get_unaligned((uint32_t *)
-			&atio->fcp_cmnd.add_cdb[atio->fcp_cmnd.add_cdb_len])));
+		get_unaligned_be32(
+			&atio->fcp_cmnd.add_cdb[atio->fcp_cmnd.add_cdb_len]));
 
 	switch (atio->fcp_cmnd.task_attr) {
 	case ATIO_SIMPLE_QUEUE:
@@ -4938,8 +4938,8 @@ static void q24_atio_pkt(scsi_qla_host_t *ha, atio7_entry_t *atio)
 			"add_cdb_len %d, data_length %04x, s_id %x:%x:%x",
 			ha->instance, atio->fcp_cmnd.lun, atio->fcp_cmnd.rddata,
 			atio->fcp_cmnd.wrdata, atio->fcp_cmnd.add_cdb_len,
-			be32_to_cpu(get_unaligned((uint32_t *)
-				&atio->fcp_cmnd.add_cdb[atio->fcp_cmnd.add_cdb_len])),
+			get_unaligned_be32(
+				&atio->fcp_cmnd.add_cdb[atio->fcp_cmnd.add_cdb_len]),
 			atio->fcp_hdr.s_id[0], atio->fcp_hdr.s_id[1],
 			atio->fcp_hdr.s_id[2]);
 		TRACE_BUFFER("Incoming ATIO7 packet data", atio,

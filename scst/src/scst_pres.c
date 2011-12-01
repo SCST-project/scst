@@ -79,7 +79,7 @@ static inline int tid_size(const uint8_t *tid)
 	sBUG_ON(tid == NULL);
 
 	if ((tid[0] & 0x0f) == SCSI_TRANSPORTID_PROTOCOLID_ISCSI)
-		return be16_to_cpu(get_unaligned((__be16 *)&tid[2])) + 4;
+		return get_unaligned_be16(&tid[2]) + 4;
 	else
 		return TID_COMMON_SIZE;
 }
@@ -1370,7 +1370,7 @@ static int scst_pr_register_with_spec_i_pt(struct scst_cmd *cmd,
 
 	action_key = get_unaligned((__be64 *)&buffer[8]);
 
-	ext_size = be32_to_cpu(get_unaligned((__be32 *)&buffer[24]));
+	ext_size = get_unaligned_be32(&buffer[24]);
 	if ((ext_size + 28) > buffer_size) {
 		TRACE_PR("Invalid buffer size %d (max %d)", buffer_size,
 			ext_size + 28);
@@ -1868,7 +1868,7 @@ void scst_pr_register_and_move(struct scst_cmd *cmd, uint8_t *buffer,
 	key = get_unaligned((__be64 *)&buffer[0]);
 	action_key = get_unaligned((__be64 *)&buffer[8]);
 	unreg = (buffer[17] >> 1) & 0x01;
-	tid_buffer_size = be32_to_cpu(get_unaligned((__be32 *)&buffer[20]));
+	tid_buffer_size = get_unaligned_be32(&buffer[20]);
 
 #ifdef CONFIG_SCST_PROC
 	if (aptpl) {
@@ -1934,7 +1934,7 @@ void scst_pr_register_and_move(struct scst_cmd *cmd, uint8_t *buffer,
 
 	transport_id = sess->transport_id;
 	transport_id_move = (uint8_t *)&buffer[24];
-	rel_tgt_id_move = be16_to_cpu(get_unaligned((__be16 *)&buffer[18]));
+	rel_tgt_id_move = get_unaligned_be16(&buffer[18]);
 
 	if ((tid_size(transport_id_move) + 24) > buffer_size) {
 		TRACE_PR("Invalid buffer size %d (%d)",
@@ -2602,7 +2602,7 @@ void scst_pr_read_keys(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 	TRACE_PR("Read Keys (dev %s): PRGen %d", dev->virt_name,
 		dev->pr_generation);
 
-	put_unaligned(cpu_to_be32(dev->pr_generation), (__be32 *)&buffer[0]);
+	put_unaligned_be32(dev->pr_generation, &buffer[0]);
 
 	offset = 8;
 	size = 0;
@@ -2625,7 +2625,7 @@ void scst_pr_read_keys(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 		size += 8;
 	}
 
-	put_unaligned(cpu_to_be32(size), (__be32 *)&buffer[4]);
+	put_unaligned_be32(size, &buffer[4]);
 
 skip:
 	scst_set_resp_data_len(cmd, offset);
@@ -2652,7 +2652,7 @@ void scst_pr_read_reservation(struct scst_cmd *cmd, uint8_t *buffer,
 
 	memset(b, 0, sizeof(b));
 
-	put_unaligned(cpu_to_be32(dev->pr_generation), (__be32 *)&b[0]);
+	put_unaligned_be32(dev->pr_generation, &b[0]);
 
 	if (!dev->pr_is_set) {
 		TRACE_PR("Read Reservation: no reservations for dev %s",
@@ -2749,7 +2749,7 @@ void scst_pr_read_full_status(struct scst_cmd *cmd, uint8_t *buffer,
 	if (buffer_size < 8)
 		goto skip;
 
-	put_unaligned(cpu_to_be32(dev->pr_generation), (__be32 *)&buffer[0]);
+	put_unaligned_be32(dev->pr_generation, &buffer[0]);
 	offset += 8;
 
 	size = 0;
@@ -2773,10 +2773,9 @@ void scst_pr_read_full_status(struct scst_cmd *cmd, uint8_t *buffer,
 				buffer[offset + 13] = (dev->pr_scope << 8) | dev->pr_type;
 			}
 
-			put_unaligned(cpu_to_be16(reg->rel_tgt_id),
-				(__be16 *)&buffer[offset + 18]);
-			put_unaligned(cpu_to_be32(ts),
-				(__be32 *)&buffer[offset + 20]);
+			put_unaligned_be16(reg->rel_tgt_id,
+					   &buffer[offset + 18]);
+			put_unaligned_be32(ts, &buffer[offset + 20]);
 
 			memcpy(&buffer[offset + 24], reg->transport_id, ts);
 
@@ -2785,7 +2784,7 @@ void scst_pr_read_full_status(struct scst_cmd *cmd, uint8_t *buffer,
 		size += rec_len;
 	}
 
-	put_unaligned(cpu_to_be32(size), (__be32 *)&buffer[4]);
+	put_unaligned_be32(size, &buffer[4]);
 
 skip:
 	scst_set_resp_data_len(cmd, offset);

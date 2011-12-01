@@ -1354,9 +1354,9 @@ static void vdisk_exec_unmap(struct scst_cmd *cmd, struct scst_vdisk_thr *thr)
 #endif
 		uint64_t start;
 		uint32_t len;
-		start = be64_to_cpu(get_unaligned((__be64 *)&address[offset]));
+		start = get_unaligned_be64(&address[offset]);
 		offset += 8;
-		len = be32_to_cpu(get_unaligned((__be32 *)&address[offset]));
+		len = get_unaligned_be32(&address[offset]);
 		offset += 8;
 
 		if ((start > virt_dev->nblocks) ||
@@ -1580,8 +1580,8 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			/* Relative target port id */
 			buf[num + 1] = 0x10 | 0x04;
 
-			put_unaligned(cpu_to_be16(cmd->tgt->rel_tgt_id),
-				(__be16 *)&buf[num + 4 + 2]);
+			put_unaligned_be16(cmd->tgt->rel_tgt_id,
+					   &buf[num + 4 + 2]);
 
 			buf[num + 3] = 4;
 			num += buf[num + 3];
@@ -1597,8 +1597,7 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 				/* Target port group id */
 				buf[num + 1] = 0x10 | 0x05;
 
-				put_unaligned(cpu_to_be16(tg_id),
-					      (__be16 *)&buf[num + 4 + 2]);
+				put_unaligned_be16(tg_id, &buf[num + 4 + 2]);
 
 				buf[num + 3] = 4;
 				num += 4 + buf[num + 3];
@@ -1638,15 +1637,14 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			buf[1] = 0xB0;
 			buf[3] = 0x3C;
 			/* Optimal transfer granuality is PAGE_SIZE */
-			put_unaligned(cpu_to_be16(max_t(int,
-					PAGE_SIZE/virt_dev->block_size, 1)),
-				      (uint16_t *)&buf[6]);
+			put_unaligned_be16(max_t(int,
+					PAGE_SIZE/virt_dev->block_size, 1),
+					   &buf[6]);
 			/* Max transfer len is min of sg limit and 8M */
 			max_transfer = min_t(int,
 					cmd->tgt_dev->max_sg_cnt << PAGE_SHIFT,
 					8*1024*1024) / virt_dev->block_size;
-			put_unaligned(cpu_to_be32(max_transfer),
-					(uint32_t *)&buf[8]);
+			put_unaligned_be32(max_transfer, &buf[8]);
 			/*
 			 * Let's have optimal transfer len 512KB. Better to not
 			 * set it at all, because we don't have such limit,
@@ -1654,14 +1652,13 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			 * From other side, too big transfers  are not optimal,
 			 * because SGV cache supports only <4M buffers.
 			 */
-			put_unaligned(cpu_to_be32(min_t(int,
+			put_unaligned_be32(min_t(int,
 					max_transfer,
-					512*1024 / virt_dev->block_size)),
-				      (uint32_t *)&buf[12]);
+					512*1024 / virt_dev->block_size),
+					   &buf[12]);
 			if (virt_dev->thin_provisioned) {
 				/* MAXIMUM UNMAP BLOCK DESCRIPTOR COUNT is UNLIMITED */
-				put_unaligned(cpu_to_be32(0xFFFFFFFF),
-					      (uint32_t *)&buf[24]);
+				put_unaligned_be32(0xFFFFFFFF, &buf[24]);
 				if (virt_dev->blockio) {
 					/*
 					 * OPTIMAL UNMAP GRANULARITY, ALIGNMENT
@@ -1670,24 +1667,21 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 					uint32_t gran, align, max_lba;
 					vdev_blockio_get_unmap_params(virt_dev,
 						&gran, &align, &max_lba);
-					put_unaligned(cpu_to_be32(max_lba),
-					      (uint32_t *)&buf[20]);
-					put_unaligned(cpu_to_be32(gran),
-						(uint32_t *)&buf[28]);
+					put_unaligned_be32(max_lba, &buf[20]);
+					put_unaligned_be32(gran, &buf[28]);
 					if (align != 0) {
-						put_unaligned(cpu_to_be32(align),
-							(uint32_t *)&buf[32]);
+						put_unaligned_be32(align,
+								   &buf[32]);
 						buf[32] |= 0x80;
 					}
 				} else {
 					/* MAXIMUM UNMAP LBA COUNT */
-					put_unaligned(cpu_to_be32(
+					put_unaligned_be32(
 						min_t(loff_t, 0xFFFFFFFF,
-						      virt_dev->file_size >> virt_dev->block_shift)),
-						(uint32_t *)&buf[20]);
+						      virt_dev->file_size >> virt_dev->block_shift),
+						&buf[20]);
 					/* OPTIMAL UNMAP GRANULARITY */
-					put_unaligned(cpu_to_be32(1),
-						(uint32_t *)&buf[28]);
+					put_unaligned_be32(1, &buf[28]);
 				}
 			}
 			resp_len = buf[3] + 4;
@@ -1698,10 +1692,9 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 			buf[3] = 0x3C;
 			if (virt_dev->rotational) {
 				/* 15K RPM */
-				put_unaligned(cpu_to_be16(0x3A98),
-					(uint16_t *)&buf[4]);
+				put_unaligned_be16(0x3A98, &buf[4]);
 			} else
-				put_unaligned(cpu_to_be16(1), (uint16_t *)&buf[4]);
+				put_unaligned_be16(1, &buf[4]);
 			resp_len = buf[3] + 4;
 		} else if ((0xB2 == cmd->cdb[2]) &&
 			   (virt_dev->dev->type == TYPE_DISK) &&
@@ -2343,7 +2336,7 @@ static void vdisk_exec_read_capacity(struct scst_cmd *cmd)
 	nblocks = virt_dev->nblocks;
 
 	if ((cmd->cdb[8] & 1) == 0) {
-		uint64_t lba = be64_to_cpu(get_unaligned((__be64 *)&cmd->cdb[2]));
+		uint64_t lba = get_unaligned_be64(&cmd->cdb[2]);
 		if (lba != 0) {
 			TRACE_DBG("PMI zero and LBA not zero (cmd %p)", cmd);
 			scst_set_cmd_error(cmd,
@@ -2416,7 +2409,7 @@ static void vdisk_exec_read_capacity16(struct scst_cmd *cmd)
 	nblocks = virt_dev->nblocks - 1;
 
 	if ((cmd->cdb[14] & 1) == 0) {
-		uint64_t lba = be64_to_cpu(get_unaligned((__be64 *)&cmd->cdb[2]));
+		uint64_t lba = get_unaligned_be64(&cmd->cdb[2]);
 		if (lba != 0) {
 			TRACE_DBG("PMI zero and LBA not zero (cmd %p)", cmd);
 			scst_set_cmd_error(cmd,
@@ -2522,7 +2515,7 @@ static void vdisk_exec_report_tpgs(struct scst_cmd *cmd)
 	dev = cmd->dev;
 	data_format = cmd->cdb_len > 1 ? cmd->cdb[1] >> 5 : 0;
 	allocation_length = cmd->cdb_len >= 10 ?
-		be32_to_cpu(get_unaligned((__be32 *)(cmd->cdb + 6))) : 1024;
+		get_unaligned_be32(cmd->cdb + 6) : 1024;
 
 	res = scst_tg_get_group_info(&buf, &data_length, dev, data_format);
 	if (res == -ENOMEM) {

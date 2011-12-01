@@ -782,7 +782,7 @@ int scst_tg_get_group_info(void **buf, uint32_t *length,
 
 	p = *buf;
 	/* Return data length. */
-	put_unaligned(cpu_to_be32(ret_data_len), (__be32 *)p);
+	put_unaligned_be32(ret_data_len, p);
 	p += 4;
 	if (data_format == 1) {
 		/* Extended header */
@@ -801,7 +801,7 @@ int scst_tg_get_group_info(void **buf, uint32_t *length,
 			| SCST_TG_SUP_NONOPTIMIZED
 			| SCST_TG_SUP_STANDBY
 			| SCST_TG_SUP_UNAVAILABLE;
-		put_unaligned(cpu_to_be16(tg->group_id), (__be16 *)p);
+		put_unaligned_be16(tg->group_id, p);
 		p += 2;
 		p++;      /* reserved */
 		*p++ = 2; /* status code: implicit transition */
@@ -815,8 +815,7 @@ int scst_tg_get_group_info(void **buf, uint32_t *length,
 			/* Target port descriptor. */
 			p += 2; /* reserved */
 			/* Relative target port identifier. */
-			put_unaligned(cpu_to_be16(rel_tgt_id),
-				      (__be16 *)p);
+			put_unaligned_be16(rel_tgt_id, p);
 			p += 2;
 		}
 	}

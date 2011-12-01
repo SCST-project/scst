@@ -383,26 +383,26 @@ static int disk_cdb_get_transfer_data(const uint8_t *cdb,
 	switch (cdb[0]) {
 	case WRITE_6:
 	case READ_6:
-		lba = be16_to_cpu(get_unaligned((__be16 *)&cdb[2]));
+		lba = get_unaligned_be16(&cdb[2]);
 		len = cdb[4];
 		break;
 	case WRITE_10:
 	case READ_10:
 	case WRITE_VERIFY:
-		lba = be32_to_cpu(get_unaligned((__be32 *)&cdb[2]));
-		len = be16_to_cpu(get_unaligned((__be16 *)&cdb[7]));
+		lba = get_unaligned_be32(&cdb[2]);
+		len = get_unaligned_be16(&cdb[7]);
 		break;
 	case WRITE_12:
 	case READ_12:
 	case WRITE_VERIFY_12:
-		lba = be32_to_cpu(get_unaligned((__be32 *)&cdb[2]));
-		len = be32_to_cpu(get_unaligned((__be32 *)&cdb[6]));
+		lba = get_unaligned_be32(&cdb[2]);
+		len = get_unaligned_be32(&cdb[6]);
 		break;
 	case WRITE_16:
 	case READ_16:
 	case WRITE_VERIFY_16:
-		lba = be64_to_cpu(get_unaligned((__be64 *)&cdb[2]));
-		len = be32_to_cpu(get_unaligned((__be32 *)&cdb[10]));
+		lba = get_unaligned_be64(&cdb[2]);
+		len = get_unaligned_be32(&cdb[10]);
 		break;
 	default:
 		res = -EINVAL;
@@ -430,26 +430,26 @@ static int disk_cdb_set_transfer_data(uint8_t *cdb,
 	switch (cdb[0]) {
 	case WRITE_6:
 	case READ_6:
-		put_unaligned(cpu_to_be16(lba), (__be16 *)&cdb[2]);
+		put_unaligned_be16(lba, &cdb[2]);
 		cdb[4] = len;
 		break;
 	case WRITE_10:
 	case READ_10:
 	case WRITE_VERIFY:
-		put_unaligned(cpu_to_be32(lba), (__be32 *)&cdb[2]);
-		put_unaligned(cpu_to_be16(len), (__be16 *)&cdb[7]);
+		put_unaligned_be32(lba, &cdb[2]);
+		put_unaligned_be16(len, &cdb[7]);
 		break;
 	case WRITE_12:
 	case READ_12:
 	case WRITE_VERIFY_12:
-		put_unaligned(cpu_to_be32(lba), (__be32 *)&cdb[2]);
-		put_unaligned(cpu_to_be32(len), (__be32 *)&cdb[6]);
+		put_unaligned_be32(lba, &cdb[2]);
+		put_unaligned_be32(len, &cdb[6]);
 		break;
 	case WRITE_16:
 	case READ_16:
 	case WRITE_VERIFY_16:
-		put_unaligned(cpu_to_be64(lba), (__be64 *)&cdb[2]);
-		put_unaligned(cpu_to_be32(len), (__be32 *)&cdb[10]);
+		put_unaligned_be64(lba, &cdb[2]);
+		put_unaligned_be32(len, &cdb[10]);
 		break;
 	default:
 		res = -EINVAL;
