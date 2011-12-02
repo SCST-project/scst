@@ -26,6 +26,7 @@
 #include <linux/init.h>
 #include <scsi/scsi_host.h>
 #include <linux/slab.h>
+#include <asm/unaligned.h>
 
 #define LOG_PREFIX             "dev_modisk"
 
@@ -232,8 +233,7 @@ static int modisk_attach(struct scst_device *dev)
 	}
 
 	if (rc == 0) {
-		int sector_size = ((buffer[4] << 24) | (buffer[5] << 16) |
-				       (buffer[6] << 8) | (buffer[7] << 0));
+		uint32_t sector_size = get_unaligned_be32(&buffer[4]);
 		if (sector_size == 0)
 			params->block_shift = MODISK_DEF_BLOCK_SHIFT;
 		else

@@ -26,6 +26,7 @@
 #include <linux/init.h>
 #include <scsi/scsi_host.h>
 #include <linux/slab.h>
+#include <asm/unaligned.h>
 
 #define LOG_PREFIX           "dev_tape"
 
@@ -219,9 +220,7 @@ static int tape_attach(struct scst_device *dev)
 	if (rc == 0) {
 		int medium_type, mode, speed, density;
 		if (buffer[3] == 8) {
-			params->block_size = ((buffer[9] << 16) |
-					    (buffer[10] << 8) |
-					    (buffer[11] << 0));
+			params->block_size = get_unaligned_be24(&buffer[9]);
 		} else
 			params->block_size = TAPE_DEF_BLOCK_SIZE;
 		medium_type = buffer[1];
@@ -336,15 +335,10 @@ static int tape_done(struct scst_cmd *cmd)
 			if ((cmd->sense[2] & 0x0f) == BLANK_CHECK)
 				/* No need for EOM in this case */
 				cmd->sense[2] &= 0xcf;
-			TransferLength = ((cmd->cdb[2] << 16) |
-					  (cmd->cdb[3] << 8) | cmd->cdb[4]);
+			TransferLength = get_unaligned_be24(&cmd->cdb[2]);
 			/* Compute the residual count */
-			if ((cmd->sense[0] & 0x80) != 0) {
-				Residue = ((cmd->sense[3] << 24) |
-					   (cmd->sense[4] << 16) |
-					   (cmd->sense[5] << 8) |
-					   cmd->sense[6]);
-			}
+			if ((cmd->sense[0] & 0x80) != 0)
+				Residue = get_unaligned_be32(&cmd->sense[3]);
 			TRACE_DBG("Checking the sense key "
 				"sn[2]=%x cmd->cdb[0,1]=%x,%x TransLen/Resid"
 				" %d/%d", (int)cmd->sense[2], cmd->cdb[0],
