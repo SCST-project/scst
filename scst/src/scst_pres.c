@@ -2770,7 +2770,7 @@ void scst_pr_read_full_status(struct scst_cmd *cmd, uint8_t *buffer,
 
 			if (dev->pr_is_set && scst_pr_is_holder(dev, reg)) {
 				buffer[offset + 12] = 1;
-				buffer[offset + 13] = (dev->pr_scope << 8) | dev->pr_type;
+				buffer[offset + 13] = (dev->pr_scope << 4) | dev->pr_type;
 			}
 
 			put_unaligned_be16(reg->rel_tgt_id,
