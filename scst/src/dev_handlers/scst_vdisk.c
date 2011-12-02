@@ -210,7 +210,7 @@ static void vdisk_exec_read(struct scst_cmd *cmd,
 static void vdisk_exec_write(struct scst_cmd *cmd,
 	struct scst_vdisk_thr *thr, loff_t loff);
 static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
-	u64 lba_start, int write, int fua);
+			    u64 lba_start, bool write, bool fua);
 static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask,
 	bool report_error);
 static void vdisk_exec_verify(struct scst_cmd *cmd,
@@ -1053,7 +1053,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	case READ_12:
 	case READ_16:
 		if (virt_dev->blockio) {
-			blockio_exec_rw(cmd, thr, lba_start, 0, 0);
+			blockio_exec_rw(cmd, thr, lba_start, false, false);
 			goto out_thr;
 		} else
 			vdisk_exec_read(cmd, thr, loff);
@@ -1064,7 +1064,7 @@ static int vdisk_do_job(struct scst_cmd *cmd)
 	case WRITE_16:
 	{
 		if (virt_dev->blockio) {
-			blockio_exec_rw(cmd, thr, lba_start, 1,
+			blockio_exec_rw(cmd, thr, lba_start, true,
 				fua || virt_dev->wt_flag);
 			goto out_thr;
 		} else
@@ -2992,7 +2992,7 @@ static void blockio_endio(struct bio *bio, int error)
 }
 
 static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
-	u64 lba_start, int write, int fua)
+			    u64 lba_start, bool write, bool fua)
 {
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	struct block_device *bdev = thr->bdev;
