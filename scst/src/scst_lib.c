@@ -933,7 +933,7 @@ static int scst_set_lun_not_supported_inquiry(struct scst_cmd *cmd)
 		}
 
 		if (cmd->bufflen == 0)
-			cmd->bufflen = min_t(int, 36, (cmd->cdb[3] << 8) | cmd->cdb[4]);
+			cmd->bufflen = min_t(int, 36, get_unaligned_be16(&cmd->cdb[3]));
 
 		cmd->sg = scst_alloc(cmd->bufflen, GFP_ATOMIC, &cmd->sg_cnt);
 		if (cmd->sg == NULL) {
