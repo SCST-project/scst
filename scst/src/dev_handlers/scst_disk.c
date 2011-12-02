@@ -363,7 +363,7 @@ static bool disk_on_sg_tablesize_low(struct scst_cmd *cmd)
 struct disk_work {
 	struct scst_cmd *cmd;
 	struct completion disk_work_cmpl;
-	volatile int result;
+	int result;
 	unsigned int left;
 	uint64_t save_lba;
 	unsigned int save_len;
