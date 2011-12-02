@@ -2580,16 +2580,14 @@ static void q2x_init_ctio_ret_entry(ctio_ret_entry_t *ctio_m1,
 	ctio_m1->flags = cpu_to_le16(OF_SSTS | OF_FAST_POST |
 				     OF_NO_DATA | OF_SS_MODE_1);
 	ctio_m1->flags |= cpu_to_le16(OF_INC_RC);
-	if (q2t_need_explicit_conf(prm->tgt->ha, prm->cmd, 0)) {
+	if (q2t_need_explicit_conf(prm->tgt->ha, prm->cmd, 0))
 		ctio_m1->flags |= cpu_to_le16(OF_EXPL_CONF | OF_CONF_REQ);
-	}
+
 	ctio_m1->scsi_status = cpu_to_le16(prm->rq_result);
 	ctio_m1->residual = cpu_to_le32(prm->residual);
 	if (SCST_SENSE_VALID(prm->sense_buffer)) {
-		if (q2t_need_explicit_conf(prm->tgt->ha, prm->cmd, 1)) {
-			ctio_m1->flags |= cpu_to_le16(OF_EXPL_CONF |
-						      OF_CONF_REQ);
-		}
+		if (q2t_need_explicit_conf(prm->tgt->ha, prm->cmd, 1))
+			ctio_m1->flags |= cpu_to_le16(OF_EXPL_CONF | OF_CONF_REQ);
 		ctio_m1->scsi_status |= cpu_to_le16(SS_SENSE_LEN_VALID);
 		ctio_m1->sense_length = cpu_to_le16(prm->sense_buffer_len);
 		memcpy(ctio_m1->sense_data, prm->sense_buffer,
