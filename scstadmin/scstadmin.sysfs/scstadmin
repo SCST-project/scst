@@ -1134,7 +1134,7 @@ sub main {
 		};
 		defined($issueLip) && do {
 			print "\n-> Making requested changes.\n";
-			$rc = issueLip($driver, $issueLip);
+			$rc = issueLip($driver, $issueLip, TRUE);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -4966,9 +4966,10 @@ sub disableDriver {
 sub issueLip {
 	my $driver = shift;
 	my $target = shift;
+	my $warn = shift;
 
 	if (defined($driver) && defined($target)) {
-		return _issueLip($driver, $target);
+		return _issueLip($driver, $target, $warn);
 	} else {
 		my $drivers = $SCST->drivers();
 
@@ -4976,7 +4977,7 @@ sub issueLip {
 			my $targets = $SCST->targets($driver);
 
 			foreach my $target (@{$targets}) {
-				my $rc = _issueLip($driver, $target);
+				my $rc = _issueLip($driver, $target, $warn);
 
 				return $rc if ($rc);
 			}
@@ -4989,11 +4990,12 @@ sub issueLip {
 sub _issueLip {
 	my $driver = shift;
 	my $target = shift;
+	my $warn = shift;
 	my $rc = FALSE;
 
 	my $attributes = $SCST->targetAttributes($driver, $target);
 
-	if (!defined($$attributes{'host'})) {
+	if (!defined($$attributes{'host'}) && $warn) {
 		print "\t-> Driver/target '$driver/$target' has no 'host' attribute, ignoring.\n";
 		return FALSE;
 	}
