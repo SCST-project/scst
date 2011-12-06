@@ -56,7 +56,7 @@
 #define SCST_USER_MAX_PARTIAL_TRANSFERS_OPT		\
 		SCST_USER_PARTIAL_TRANSFERS_SUPPORTED
 
-#ifndef aligned_u64
+#ifndef __KERNEL__
 #define aligned_u64 uint64_t __attribute__((aligned(8)))
 #endif
 
