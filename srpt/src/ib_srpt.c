@@ -2439,8 +2439,10 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		srpt_alloc_ioctx_ring(ch->sport->sdev, ch->rq_size,
 				      sizeof(*ch->ioctx_ring[0]),
 				      ch->max_rsp_size, DMA_TO_DEVICE);
-	if (!ch->ioctx_ring)
+	if (!ch->ioctx_ring) {
+		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		goto free_ch;
+	}
 
 	INIT_LIST_HEAD(&ch->free_list);
 	for (i = 0; i < ch->rq_size; i++) {
@@ -2498,6 +2500,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	ch->thread = kthread_run(srpt_compl_thread, ch, "srpt_%s",
 				 ch->sport->sdev->device->name);
 	if (IS_ERR(ch->thread)) {
+		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		PRINT_ERROR("failed to create kernel thread %ld",
 			    PTR_ERR(ch->thread));
 		ch->thread = NULL;
@@ -2540,9 +2543,10 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 
 	ret = ib_send_cm_rep(cm_id, rep_param);
 	if (ret) {
+		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		PRINT_ERROR("sending SRP_LOGIN_REQ response failed"
 			    " (error code = %d)", ret);
-		goto release_channel;
+		goto reject_and_release;
 	}
 
 	goto out;
@@ -2556,7 +2560,6 @@ reject_and_release:
 	ib_send_cm_rej(cm_id, IB_CM_REJ_CONSUMER_DEFINED, NULL, 0,
 			     (void *)rej, sizeof *rej);
 
-release_channel:
 	srpt_close_ch(ch);
 	/*
 	 * Tell the caller not to free cm_id since srpt_free_ch() will do that.
