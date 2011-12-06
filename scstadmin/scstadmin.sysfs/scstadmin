@@ -5006,8 +5006,11 @@ sub _issueLip {
 	my $ldir = $SCST->SCST_TARGETS_DIR."/$driver/$target/host/device/fc_host:$host";
 
 	if (!(opendir $dir, $ldir)) {
-		print "\t-> Driver/target is not a fibre channel target, ignoring.\n";
-		return FALSE;
+		$ldir = $SCST->SCST_TARGETS_DIR."/$driver/$target/host/device/fc_host/$host";
+		if (!(opendir $dir, $ldir)) {
+			print "\t-> Driver/target is not a fibre channel target, ignoring.\n";
+			return FALSE;
+		}
 	}
 
 	my $lip = $ldir.'/issue_lip';
