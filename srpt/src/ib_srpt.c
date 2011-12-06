@@ -2456,27 +2456,6 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		goto free_ring;
 	}
 
-	spin_lock_irq(&sdev->spinlock);
-	list_add_tail(&ch->list, &sdev->rch_list);
-	spin_unlock_irq(&sdev->spinlock);
-
-	ch->thread = kthread_run(srpt_compl_thread, ch, "srpt_%s",
-				 ch->sport->sdev->device->name);
-	if (IS_ERR(ch->thread)) {
-		PRINT_ERROR("failed to create kernel thread %ld",
-			    PTR_ERR(ch->thread));
-		ch->thread = NULL;
-		goto destroy_ib;
-	}
-
-	ret = srpt_ch_qp_rtr(ch, ch->qp);
-	if (ret) {
-		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-		PRINT_ERROR("rejected SRP_LOGIN_REQ because enabling"
-		       " RTR failed (error code = %d)", ret);
-		goto release_channel;
-	}
-
 	if (use_port_guid_in_session_name) {
 		/*
 		 * If the kernel module parameter use_port_guid_in_session_name
@@ -2509,7 +2488,28 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	if (!ch->scst_sess) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		TRACE_DBG("Failed to create SCST session");
-		goto release_channel;
+		goto destroy_ib;
+	}
+
+	spin_lock_irq(&sdev->spinlock);
+	list_add_tail(&ch->list, &sdev->rch_list);
+	spin_unlock_irq(&sdev->spinlock);
+
+	ch->thread = kthread_run(srpt_compl_thread, ch, "srpt_%s",
+				 ch->sport->sdev->device->name);
+	if (IS_ERR(ch->thread)) {
+		PRINT_ERROR("failed to create kernel thread %ld",
+			    PTR_ERR(ch->thread));
+		ch->thread = NULL;
+		goto unreg_ch;
+	}
+
+	ret = srpt_ch_qp_rtr(ch, ch->qp);
+	if (ret) {
+		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
+		PRINT_ERROR("rejected SRP_LOGIN_REQ because enabling"
+		       " RTR failed (error code = %d)", ret);
+		goto reject_and_release;
 	}
 
 	TRACE_DBG("Establish connection sess=%p name=%s cm_id=%p",
@@ -2547,6 +2547,15 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 
 	goto out;
 
+reject_and_release:
+	PRINT_INFO("Rejecting login with reason %#x", be32_to_cpu(rej->reason));
+	rej->opcode = SRP_LOGIN_REJ;
+	rej->tag = req->tag;
+	rej->buf_fmt = cpu_to_be16(SRP_BUF_FORMAT_DIRECT |
+				   SRP_BUF_FORMAT_INDIRECT);
+	ib_send_cm_rej(cm_id, IB_CM_REJ_CONSUMER_DEFINED, NULL, 0,
+			     (void *)rej, sizeof *rej);
+
 release_channel:
 	srpt_close_ch(ch);
 	/*
@@ -2555,11 +2564,14 @@ release_channel:
 	ret = 0;
 	goto out;
 
-destroy_ib:
+unreg_ch:
 	spin_lock_irq(&sdev->spinlock);
 	list_del(&ch->list);
 	spin_unlock_irq(&sdev->spinlock);
 
+	scst_unregister_session(ch->scst_sess, true, NULL);
+
+destroy_ib:
 	srpt_destroy_ch_ib(ch);
 
 free_ring:
@@ -2571,11 +2583,11 @@ free_ch:
 	kfree(ch);
 
 reject:
+	PRINT_INFO("Rejecting login with reason %#x", be32_to_cpu(rej->reason));
 	rej->opcode = SRP_LOGIN_REJ;
 	rej->tag = req->tag;
 	rej->buf_fmt = cpu_to_be16(SRP_BUF_FORMAT_DIRECT |
 				   SRP_BUF_FORMAT_INDIRECT);
-
 	ib_send_cm_rej(cm_id, IB_CM_REJ_CONSUMER_DEFINED, NULL, 0,
 			     (void *)rej, sizeof *rej);
 
