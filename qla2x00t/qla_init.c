@@ -3769,7 +3769,7 @@ qla24xx_nvram_config(scsi_qla_host_t *ha)
 	}
 #endif
 	/* out-of-order frames reassembly */
-	nv->firmware_options_3 |= BIT_6|BIT_9;
+	nv->firmware_options_3 |= __constant_cpu_to_le32(BIT_6|BIT_9);
 
 	if (ha->enable_class_2) {
 		if (ha->flags.init_done) {
