@@ -105,25 +105,6 @@
 				by pages, taken directly from dio->curr_user_address. Each such page should be referenced
 				by page_cache_get(). That's all.</p>
 
-				<A NAME="VDISK_REFACTOR"></A><h3>Refactoring of command execution path in scst_vdisk handler</h3>
-				
-				<p>At the moment, in scst_vdisk handler command execution function vdisk_do_job() is
-				overcomplicated and not very performance effective. It would be good to replace all those
-				ugly "switch" statements by choosing the handler for each SCSI command by indirect
-				function call on an array of function pointers.</p>
-				
-				<p>I.e., there should be an array vdisk_exec_fns with 256 entries of function pointers:</p>
-
-				 <p>void (*cmd_exec_fn) (struct scst_cmd *cmd)</p>
-				 
-				 <p>Then vdisk_do_job() should look like</p>
-				 
-				 <p><code>static int vdisk_do_job(struct scst_cmd *cmd)<br>
-				 			{<br>
-								<span class="tab">return vdisk_exec_fns[cmd->cdb[0]](cmd);</span><br>
-							}
-				</code></p>
-
 				<A NAME="SG_LIMIT"></A><h3>Solve SG IO count limitation issue in pass-through mode</h3>
 				
 				<p>In the pass-through mode (i.e. using the pass-through device handlers like
