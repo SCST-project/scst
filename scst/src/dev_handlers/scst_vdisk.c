@@ -1279,7 +1279,7 @@ static int vdisk_do_job(struct scst_cmd *cmd, const vdisk_op_fn *ops)
 		else if (s == INVALID_OPCODE)
 			goto out_invalid_opcode;
 		else
-			__WARN();
+			WARN_ON(true);
 	} else
 		goto out_invalid_opcode;
 
@@ -3457,7 +3457,7 @@ out:
 static enum compl_status_e blockio_exec_write_verify(struct vdisk_cmd_params *p)
 {
 	/* Not yet implemented */
-	__WARN();
+	WARN_ON(true);
 	return blockio_exec_write(p);
 }
 
