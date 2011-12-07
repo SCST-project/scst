@@ -420,7 +420,7 @@ typedef struct {
 typedef struct {
 	uint64_t lun;
 	uint8_t  cmnd_ref;
-#ifdef __LITTLE_ENDIAN 
+#ifdef __LITTLE_ENDIAN
 	uint8_t  task_attr:3;
 	uint8_t  reserved:5;
 #else
@@ -433,7 +433,7 @@ typedef struct {
 #define FCP_CMND_TASK_MGMT_LU_RESET		4
 #define FCP_CMND_TASK_MGMT_CLEAR_TASK_SET	2
 #define FCP_CMND_TASK_MGMT_ABORT_TASK_SET	1
-#ifdef __LITTLE_ENDIAN 
+#ifdef __LITTLE_ENDIAN
 	uint8_t  wrdata:1;
 	uint8_t  rddata:1;
 	uint8_t  add_cdb_len:6;
@@ -460,7 +460,7 @@ typedef struct {
 	uint8_t	 entry_type;		    /* Entry type. */
 	uint8_t	 entry_count;		    /* Entry count. */
 	uint8_t  fcp_cmnd_len_low;
-#ifdef __LITTLE_ENDIAN 
+#ifdef __LITTLE_ENDIAN
 	uint8_t  fcp_cmnd_len_high:4;
 	uint8_t  attr:4;
 #else
@@ -642,7 +642,7 @@ typedef struct {
 	uint16_t nport_handle;
 	uint8_t  reserved_2[2];
 	uint8_t  vp_index;
-#ifdef __LITTLE_ENDIAN 
+#ifdef __LITTLE_ENDIAN
 	uint8_t  reserved_3:4;
 	uint8_t  sof_type:4;
 #else
@@ -689,7 +689,7 @@ typedef struct {
 	uint16_t control_flags;
 #define ABTS_CONTR_FLG_TERM_EXCHG	BIT_0
 	uint8_t  vp_index;
-#ifdef __LITTLE_ENDIAN 
+#ifdef __LITTLE_ENDIAN
 	uint8_t  reserved_3:4;
 	uint8_t  sof_type:4;
 #else
@@ -718,7 +718,7 @@ typedef struct {
 	uint16_t nport_handle;
 	uint16_t reserved_1;
 	uint8_t  reserved_2;
-#ifdef __LITTLE_ENDIAN 
+#ifdef __LITTLE_ENDIAN
 	uint8_t  reserved_3:4;
 	uint8_t  sof_type:4;
 #else
