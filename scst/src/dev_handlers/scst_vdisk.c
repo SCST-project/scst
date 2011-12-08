@@ -977,7 +977,7 @@ static enum compl_status_e vdisk_synchronize_cache(struct vdisk_cmd_params *p)
 	const loff_t loff = p->loff;
 	const loff_t data_len = p->data_len;
 	int immed = cdb[1] & 0x2;
-	int res;
+	enum compl_status_e res;
 
 	TRACE(TRACE_ORDER, "SYNCHRONIZE_CACHE: "
 	      "loff=%lld, data_len=%lld, immed=%d",
