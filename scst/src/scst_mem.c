@@ -544,8 +544,7 @@ static void sgv_free_sys_sg_entries(struct scatterlist *sg, int sg_count,
 	for (i = 0; i < sg_count; i++) {
 		struct page *p = sg_page(&sg[i]);
 		int len = sg[i].length;
-		int pages =
-			(len >> PAGE_SHIFT) + ((len & ~PAGE_MASK) != 0);
+		int pages = PAGE_ALIGN(len) >> PAGE_SHIFT;
 
 		TRACE_MEM("page %lx, len %d, pages %d",
 			(unsigned long)p, len, pages);
@@ -632,8 +631,7 @@ static int sgv_alloc_sg_entries(struct scatterlist *sg, int pages,
 	if ((clustering_type != sgv_no_clustering) && (trans_tbl != NULL)) {
 		pg = 0;
 		for (i = 0; i < pages; i++) {
-			int n = (sg[i].length >> PAGE_SHIFT) +
-				((sg[i].length & ~PAGE_MASK) != 0);
+			int n = PAGE_ALIGN(sg[i].length) >> PAGE_SHIFT;
 			trans_tbl[i].pg_count = pg;
 			for (j = 0; j < n; j++)
 				trans_tbl[pg++].sg_num = i+1;
@@ -926,7 +924,7 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 
 	EXTRACHECKS_BUG_ON((gfp_mask & __GFP_NOFAIL) == __GFP_NOFAIL);
 
-	pages = ((size + PAGE_SIZE - 1) >> PAGE_SHIFT);
+	pages = PAGE_ALIGN(size) >> PAGE_SHIFT;
 	if (pool->single_alloc_pages == 0) {
 		int pages_order = get_order(size);
 		cache_num = pages_order;
@@ -1103,9 +1101,7 @@ success:
 	res = obj->sg_entries;
 	*sgv = obj;
 
-	if (size & ~PAGE_MASK)
-		obj->sg_entries[cnt-1].length -=
-			PAGE_SIZE - (size & ~PAGE_MASK);
+	obj->sg_entries[cnt-1].length -= PAGE_ALIGN(size) - size;
 
 	TRACE_MEM("obj=%p, sg_entries %p (size=%d, pages=%d, sg_count=%d, "
 		"count=%d, last_len=%d)", obj, obj->sg_entries, size, pages,
@@ -1211,7 +1207,7 @@ void sgv_pool_free(struct sgv_pool_obj *obj, struct scst_mem_lim *mem_lim)
 		for (i = 0; i < obj->sg_count; i++) {
 			struct page *p = sg_page(&sg[i]);
 			int len = sg[i].length;
-			int pages = (len >> PAGE_SHIFT) + ((len & ~PAGE_MASK) != 0);
+			int pages = PAGE_ALIGN(len) >> PAGE_SHIFT;
 			while (pages > 0) {
 				if (atomic_read(&p->_count) != 1) {
 					PRINT_WARNING("Freeing page %p with "
@@ -1252,7 +1248,7 @@ EXPORT_SYMBOL_GPL(sgv_pool_free);
 struct scatterlist *scst_alloc(int size, gfp_t gfp_mask, int *count)
 {
 	struct scatterlist *res;
-	int pages = (size >> PAGE_SHIFT) + ((size & ~PAGE_MASK) != 0);
+	int pages = PAGE_ALIGN(size) >> PAGE_SHIFT;
 	struct sgv_pool_alloc_fns sys_alloc_fns = {
 		sgv_alloc_sys_pages, sgv_free_sys_sg_entries };
 	int no_fail = ((gfp_mask & __GFP_NOFAIL) == __GFP_NOFAIL);
@@ -1295,8 +1291,7 @@ struct scatterlist *scst_alloc(int size, gfp_t gfp_mask, int *count)
 	if (cnt <= 0)
 		goto out_free;
 
-	if (size & ~PAGE_MASK)
-		res[cnt-1].length -= PAGE_SIZE - (size & ~PAGE_MASK);
+	res[cnt-1].length -= PAGE_ALIGN(size) - size;
 
 	*count = cnt;
 
