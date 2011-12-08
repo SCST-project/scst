@@ -3121,8 +3121,8 @@ static void blockio_endio(struct bio *bio, int error)
 		static DEFINE_SPINLOCK(blockio_endio_lock);
 		unsigned long flags;
 
-		PRINT_ERROR("cmd %p returned error %d", blockio_work->cmd,
-			error);
+		PRINT_ERROR("BLOCKIO for cmd %p finished with error %d",
+			blockio_work->cmd, error);
 
 		/* To protect from several bios finishing simultaneously */
 		spin_lock_irqsave(&blockio_endio_lock, flags);
