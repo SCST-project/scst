@@ -1830,7 +1830,7 @@ static struct scst_user_cmd *__dev_user_get_next_cmd(struct list_head *cmd_list)
 again:
 	u = NULL;
 	if (!list_empty(cmd_list)) {
-		u = list_entry(cmd_list->next, typeof(*u),
+		u = list_first_entry(cmd_list, typeof(*u),
 			       ready_cmd_list_entry);
 
 		TRACE_DBG("Found ready ucmd %p", u);
@@ -3666,7 +3666,7 @@ static int dev_user_cleanup_thread(void *arg)
 			while (!list_empty(&cleanup_list)) {
 				int rc;
 
-				dev = list_entry(cleanup_list.next,
+				dev = list_first_entry(&cleanup_list,
 					typeof(*dev), cleanup_list_entry);
 				list_del(&dev->cleanup_list_entry);
 
@@ -3687,7 +3687,7 @@ static int dev_user_cleanup_thread(void *arg)
 			spin_lock(&cleanup_lock);
 
 			while (!list_empty(&cl_devs)) {
-				dev = list_entry(cl_devs.next, typeof(*dev),
+				dev = list_first_entry(&cl_devs, typeof(*dev),
 					cleanup_list_entry);
 				list_move_tail(&dev->cleanup_list_entry,
 					&cleanup_list);

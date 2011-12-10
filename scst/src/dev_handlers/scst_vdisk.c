@@ -5517,7 +5517,7 @@ static void exit_scst_vdisk(struct scst_dev_type *devtype)
 		if (list_empty(&vdev_list))
 			break;
 
-		virt_dev = list_entry(vdev_list.next, typeof(*virt_dev),
+		virt_dev = list_first_entry(&vdev_list, typeof(*virt_dev),
 				vdev_list_entry);
 
 		vdev_del_device(virt_dev);

@@ -860,7 +860,7 @@ static void __scst_resume_activity(void)
 	spin_lock_irq(&scst_mcmd_lock);
 	if (!list_empty(&scst_delayed_mgmt_cmd_list)) {
 		struct scst_mgmt_cmd *m;
-		m = list_entry(scst_delayed_mgmt_cmd_list.next, typeof(*m),
+		m = list_first_entry(&scst_delayed_mgmt_cmd_list, typeof(*m),
 				mgmt_cmd_list_entry);
 		TRACE_MGMT_DBG("Moving delayed mgmt cmd %p to head of active "
 			"mgmt cmd list", m);

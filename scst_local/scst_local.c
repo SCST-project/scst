@@ -1153,7 +1153,7 @@ static void scst_process_aens(struct scst_local_sess *sess,
 	TRACE_DBG("Target work sess %p", sess);
 
 	while (!list_empty(&sess->aen_work_list)) {
-		work_item = list_entry(sess->aen_work_list.next,
+		work_item = list_first_entry(&sess->aen_work_list,
 				struct scst_aen_work_item, work_list_entry);
 		list_del(&work_item->work_list_entry);
 
