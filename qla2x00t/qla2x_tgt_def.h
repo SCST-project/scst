@@ -417,17 +417,28 @@ typedef struct {
 typedef struct {
 	uint64_t lun;
 	uint8_t  cmnd_ref;
+#ifdef __LITTLE_ENDIAN 
 	uint8_t  task_attr:3;
 	uint8_t  reserved:5;
+#else
+	uint8_t  reserved:5;
+	uint8_t  task_attr:3;
+#endif
 	uint8_t  task_mgmt_flags;
 #define FCP_CMND_TASK_MGMT_CLEAR_ACA		6
 #define FCP_CMND_TASK_MGMT_TARGET_RESET		5
 #define FCP_CMND_TASK_MGMT_LU_RESET		4
 #define FCP_CMND_TASK_MGMT_CLEAR_TASK_SET	2
 #define FCP_CMND_TASK_MGMT_ABORT_TASK_SET	1
+#ifdef __LITTLE_ENDIAN 
 	uint8_t  wrdata:1;
 	uint8_t  rddata:1;
 	uint8_t  add_cdb_len:6;
+#else
+	uint8_t  add_cdb_len:6;
+	uint8_t  rddata:1;
+	uint8_t  wrdata:1;
+#endif
 	uint8_t  cdb[16];
 	/*
 	 * add_cdb is optional and can absent from fcp_cmnd_t. Size 4 only to
@@ -446,8 +457,13 @@ typedef struct {
 	uint8_t	 entry_type;		    /* Entry type. */
 	uint8_t	 entry_count;		    /* Entry count. */
 	uint8_t  fcp_cmnd_len_low;
+#ifdef __LITTLE_ENDIAN 
 	uint8_t  fcp_cmnd_len_high:4;
 	uint8_t  attr:4;
+#else
+	uint8_t  attr:4;
+	uint8_t  fcp_cmnd_len_high:4;
+#endif
 	uint32_t exchange_addr;
 #define ATIO_EXCHANGE_ADDRESS_UNKNOWN		0xFFFFFFFF
 	fcp_hdr_t fcp_hdr;
@@ -623,8 +639,13 @@ typedef struct {
 	uint16_t nport_handle;
 	uint8_t  reserved_2[2];
 	uint8_t  vp_index;
+#ifdef __LITTLE_ENDIAN 
 	uint8_t  reserved_3:4;
 	uint8_t  sof_type:4;
+#else
+	uint8_t  sof_type:4;
+	uint8_t  reserved_3:4;
+#endif
 	uint32_t exchange_address;
 	fcp_hdr_le_t fcp_hdr_le;
 	uint8_t  reserved_4[16];
@@ -665,8 +686,13 @@ typedef struct {
 	uint16_t control_flags;
 #define ABTS_CONTR_FLG_TERM_EXCHG	BIT_0
 	uint8_t  vp_index;
+#ifdef __LITTLE_ENDIAN 
 	uint8_t  reserved_3:4;
 	uint8_t  sof_type:4;
+#else
+	uint8_t  sof_type:4;
+	uint8_t  reserved_3:4;
+#endif
 	uint32_t exchange_address;
 	fcp_hdr_le_t fcp_hdr_le;
 	union {
@@ -689,8 +715,13 @@ typedef struct {
 	uint16_t nport_handle;
 	uint16_t reserved_1;
 	uint8_t  reserved_2;
+#ifdef __LITTLE_ENDIAN 
 	uint8_t  reserved_3:4;
 	uint8_t  sof_type:4;
+#else
+	uint8_t  sof_type:4;
+	uint8_t  reserved_3:4;
+#endif
 	uint32_t exchange_address;
 	fcp_hdr_le_t fcp_hdr_le;
 	uint8_t reserved_4[8];

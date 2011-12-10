@@ -2216,7 +2216,7 @@ static int q24_build_ctio_pkt(struct q2t_prm *prm)
 		ha->cmds[h-1] = prm->cmd;
 
 	pkt->common.handle = h | CTIO_COMPLETION_HANDLE_MARK;
-	pkt->common.nport_handle = prm->cmd->loop_id;
+	pkt->common.nport_handle = cpu_to_le16(prm->cmd->loop_id);
 	pkt->common.timeout = __constant_cpu_to_le16(Q2T_TIMEOUT);
 	pkt->common.initiator_id[0] = atio->fcp_hdr.s_id[2];
 	pkt->common.initiator_id[1] = atio->fcp_hdr.s_id[1];
