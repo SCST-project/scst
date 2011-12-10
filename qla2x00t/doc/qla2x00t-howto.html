@@ -66,7 +66,10 @@ these packages can be installed as follows:
 <li>
 Find out whether you will need SCSI pass-through and/or the iSCSI
 zero-copy optimization. If not, skip the kernel download, patch, rebuild
-and reboot steps and continue with the <a href="#release">SCST build step</a>.
+and reboot steps and continue with the <a href="#release">SCST build step</a>
+after having issued the command below:
+<pre>export BUILD_2X_MODULE=y CONFIG_SCSI_QLA2XXX_TARGET=y</pre>
+
 <br><br><br>
 
 <li>Decide whether you want to start from a vanilla Linux kernel source tree
