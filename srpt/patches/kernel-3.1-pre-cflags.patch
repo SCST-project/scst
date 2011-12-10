@@ -1,0 +1,14 @@
+diff --git a/Makefile b/Makefile
+index d018956..3c3b936 100644
+--- a/Makefile
++++ b/Makefile
+@@ -357,7 +357,8 @@ CFLAGS_GCOV	= -fprofile-arcs -ftest-coverage
+ 
+ # Use LINUXINCLUDE when you must reference the include/ directory.
+ # Needed to be compatible with the O= option
+-LINUXINCLUDE    := -I$(srctree)/arch/$(hdr-arch)/include \
++LINUXINCLUDE    := $(PRE_CFLAGS) \
++                   -I$(srctree)/arch/$(hdr-arch)/include \
+                    -Iarch/$(hdr-arch)/include/generated -Iinclude \
+                    $(if $(KBUILD_SRC), -I$(srctree)/include) \
+                    -include include/generated/autoconf.h
