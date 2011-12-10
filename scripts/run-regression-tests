@@ -27,7 +27,7 @@
 # - Duplicates the entire source tree to the temporary directory and
 #   compiles the SCST source code.
 # - Duplicates the entire source tree to the temporary directory, runs
-#   'make debug2release' and again compiles the SCST source code.
+#   'make 2release' and again compiles the SCST source code.
 # - Checks whether the specified kernel version is present
 #   in the directory specified through option -c.
 # - If the source code of the specified kernel version is not present,
@@ -54,6 +54,8 @@
 # Function definitions #
 ########################
 
+source $(dirname $0)/kernel-version
+
 function usage {
   echo "Usage: $0 [-c <dir>] [-d <dir>] [-f] [-h] [-j <jobs>] [-p <patchdir>] [-q] <kver1> <kver2> ..."
   echo "        -c - cache directory for Linux kernel tarballs."
@@ -63,17 +65,6 @@ function usage {
   echo "        -k - remove temporary files before exiting."
   echo "        -q - download kernel sources silently."
   echo "        <kver1> <kver2> ... - kernel versions to test."
-}
-
-# First three components of the kernel version number.
-function kernel_version {
-  echo "$1" | sed -n 's/^\([0-9]*\.[0-9]*\.[0-9]*\).*$/\1/p'
-}
-
-# Last component of the kernel version, or the empty string if $1 has only
-# three components.
-function patchlevel {
-  echo "$1" | sed -n 's/^\([0-9]*\.[0-9]*\.[0-9]*\)[.-]\(.*\)$/\2/p'
 }
 
 # Create a linux-$1 tree in the current directory, where $1 is a kernel
@@ -184,9 +175,9 @@ EOF
 function test_scst_tree_patches {
   local rc=0
   echo "Testing whether the SCST patches apply cleanly to the SCST tree ..."
-  for p in *.patch srpt/patches/scst_increase_max_tgt_cmds.patch
+  for p in *.patch srpt/patches/scst*.patch
   do
-    if ! patch -p0 -f --dry-run -s <$p &>/dev/null; then
+    if [ -e "$p" ] && ! patch -p0 -f --dry-run -s <$p &>/dev/null; then
       echo "ERROR: patch $p does not apply cleanly."
       rc=1
     fi
@@ -219,7 +210,8 @@ function compile_scst_unpatched {
     if mkdir -p "${workingdirectory}"  \
        && cd "${workingdirectory}"     \
        && duplicate_scst_source_tree "${scst}"  \
-       && (make -s clean \
+       && (export KCFLAGS=-DCONFIG_SCST_MEASURE_LATENCY; \
+           make -s clean \
            && make -s scst iscsi-scst  \
            && if "${scst_local}" = "true" ; then make -C scst_local clean; fi \
            && if "${scst_local}" = "true" ; then make -C scst_local -s   ; fi \
@@ -249,7 +241,8 @@ function compile_scst_patched {
        && cd "${workingdirectory}"     \
        && duplicate_scst_source_tree "${scst}"  \
        && make -s "$1"                 \
-       && (make -s clean               \
+       && (export KCFLAGS=-DCONFIG_SCST_MEASURE_LATENCY; \
+           make -s clean               \
            && make -s scst iscsi-scst  \
            && if "${scst_local}" = "true" ; then make -C scst_local clean; fi \
            && if "${scst_local}" = "true" ; then make -C scst_local -s   ; fi \
@@ -284,16 +277,22 @@ function download_file {
 function download_kernel {
   local kver="$(kernel_version $1)"
   local plevel="$(patchlevel $1)"
+  local series="$1"
 
+  if [ "${series:0:2}" = "3." ]; then
+    series="3.x"
+  else
+    series="${series:0:3}"
+  fi
   mkdir -p "${kernel_sources}" || return $?
   test -w "${kernel_sources}" || return $?
   (
     cd "${kernel_sources}" || return $?
-    download_file "${kernel_mirror}/linux-$(kernel_version $1).tar.bz2" \
+    download_file "${kernel_mirror}/v$series/linux-$kver.tar.bz2" \
       || return $?
     if [ "${plevel}" != "" ]; then
-      download_file "${kernel_mirror}/patch-$1.bz2" \
-        || download_file "${kernel_longterm}/v$(kernel_version $1)/patch-$1.bz2" \
+      download_file "${kernel_mirror}/v$series/patch-$1.bz2" \
+        || download_file "${kernel_longterm}/v$series/longterm/patch-$1.bz2" \
         || return $?
     fi
   )
@@ -547,8 +546,8 @@ fi
 # Where to store persistenly downloaded kernel tarballs and kernel patches.
 kernel_sources="$HOME/software/downloads"
 # URL for downloading kernel tarballs and kernel patches.
-kernel_mirror="ftp://ftp.eu.kernel.org/pub/linux/kernel/v2.6"
-kernel_longterm="http://www.kernel.org/pub/linux/kernel/v2.6/longterm"
+kernel_mirror="ftp://ftp.kernel.org/pub/linux/kernel"
+kernel_longterm="http://www.kernel.org/pub/linux/kernel"
 kernel_versions=""
 # Directory in which the regression test output files will be stored. Must be
 # an absolute path.
@@ -615,8 +614,8 @@ fi
 test_scst_tree_patches || exit $?
 if [ "${run_local_compilation}" = "true" ]; then
   compile_scst_unpatched || exit $?
-  compile_scst_patched debug2release || exit $?
-  compile_scst_patched debug2perf    || exit $?
+  compile_scst_patched 2release || exit $?
+  compile_scst_patched 2perf    || exit $?
   compile_scst_patched enable_proc  || exit $?
 fi
 

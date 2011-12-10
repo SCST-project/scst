@@ -23,6 +23,8 @@
 # Function definitions #
 ########################
 
+source $(dirname $0)/kernel-version
+
 function usage {
   echo "Usage: $0 [-d] [-h] [-m] [-n] [-p <dir>] [-s] [-u] <kernel version>"
   echo "where: "
@@ -45,8 +47,8 @@ function add_patch {
     exit 1
   fi
 
-  sed -e "s:^--- [^ ]*:--- orig/linux-${kernel_version}/$2:" \
-      -e "s:^+++ [^ ]*:+++ linux-${kernel_version}/$2:"      \
+  sed -e "s:^--- [^ ]*:--- orig/linux-${kver}/$2:" \
+      -e "s:^+++ [^ ]*:+++ linux-${kver}/$2:"      \
       < "$1"
 }
 
@@ -67,9 +69,9 @@ function add_file {
   # -- skip *.mod.c.
   if [ "$1" = "${1%.mod.c}" -a "$1" ]; then
     cat <<EOF
-diff -uprN orig/linux-${kernel_version}/$2 linux-${kernel_version}/$2
---- orig/linux-${kernel_version}/$2
-+++ linux-${kernel_version}/$2
+diff -uprN orig/linux-${kver}/$2 linux-${kver}/$2
+--- orig/linux-${kver}/$2
++++ linux-${kver}/$2
 @@ -0,0 +1,$(wc -l "$1" | { read a b; echo $a; }) @@
 EOF
     # Insert a '+'-sign at the start of each line.
@@ -93,9 +95,9 @@ function add_empty_file {
   local a b
 
   cat <<EOF
-diff -uprN orig/linux-${kernel_version}/$1 linux-${kernel_version}/$1
---- orig/linux-${kernel_version}/$1
-+++ linux-${kernel_version}/$1
+diff -uprN orig/linux-${kver}/$1 linux-${kver}/$1
+--- orig/linux-${kver}/$1
++++ linux-${kver}/$1
 @@ -0,0 +1,1 @@
 +
 EOF
@@ -107,7 +109,7 @@ function specialize_patch {
   if [ "${enable_specialize}" = "true" ]; then
     "$(dirname $0)/specialize-patch" \
          ${specialize_patch_options} \
-         -v kernel_version="${kernel_version}" \
+         -v kernel_version="${kver}" \
          -v SCSI_EXEC_REQ_FIFO_DEFINED="${scsi_exec_req_fifo_defined}" \
          -v SCST_IO_CONTEXT="${scst_io_context}" \
     | if [ "${generating_upstream_patch}" = "true" ]; then
@@ -120,7 +122,7 @@ function specialize_patch {
   fi
 }
 
-# Read a patch from stdin, specialize it for kernel version ${kernel_version}
+# Read a patch from stdin, specialize it for kernel version ${kver}
 # and write the output either to stdout or to the file $1 (if not empty),
 # depending on the value of the variable ${multiple_patches}.
 function process_patch {
@@ -207,16 +209,11 @@ if [ $# != 1 ]; then
 fi
 
 # Strip patch level from the kernel version number.
-if [ "${1#[0-9]*.[0-9]*.[0-9]*.[0-9]*}" != "$1" ]; then
-  kernel_version="${1%.[0-9]*}"
-  patch_level="${1#${kernel_version}.}"
-else
-  kernel_version="$1"
-fi
+kver="$(kernel_version "$1")"
 
 # Make sure that for kernel 2.6.33 and later the line
 # "#define CONFIG_SCST_PROC" is removed from scst/include/scst.h.
-if grep -qw scst_sysfs scst/kernel/in-tree/Makefile.scst-${kernel_version} \
+if grep -qw scst_sysfs scst/kernel/in-tree/Makefile.scst-${kver} \
    || [ "${generating_upstream_patch}" = "true" ];
 then
   specialize_patch_options="${specialize_patch_options} -v config_scst_proc_undefined=1"
@@ -243,7 +240,7 @@ fi
 # Patch Generation #
 ####################
 
-for f in fcst/linux-patches/series-${kernel_version}*
+for f in fcst/linux-patches/series-${kver}*
 do
    if [ -e "$f" ]; then
        fcst_patch_series="$f"
@@ -255,8 +252,8 @@ done
 
 scsi_exec_req_fifo_defined=0
 scst_io_context=0
-for p in scst/kernel/*-${kernel_version}.patch \
-         iscsi-scst/kernel/patches/*-${kernel_version}.patch
+for p in scst/kernel/*-${kver}.patch \
+         iscsi-scst/kernel/patches/*-${kver}.patch
 do
   # Exclude the put_page_callback patch when command-line option -u has been
   # specified since the current approach is not considered acceptable for
@@ -271,7 +268,7 @@ do
       scst_io_context=1
     fi
     diffname="${p#scst/kernel/}"
-    diffname="${p%-${kernel_version}.patch}.diff"
+    diffname="${p%-${kver}.patch}.diff"
     process_patch < "$p" "${diffname}"
   fi
 done
@@ -305,10 +302,10 @@ done
 # Directory drivers/
 
 (
-add_patch "scst/kernel/in-tree/Kconfig.drivers.Linux-${kernel_version}.patch" \
+add_patch "scst/kernel/in-tree/Kconfig.drivers.Linux-${kver}.patch" \
           "drivers/Kconfig"
 
-add_patch "scst/kernel/in-tree/Makefile.drivers.Linux-${kernel_version}.patch"\
+add_patch "scst/kernel/in-tree/Makefile.drivers.Linux-${kver}.patch"\
           "drivers/Makefile"
 ) \
 | process_patch "scst_01_drivers_kbuild.diff"
@@ -320,7 +317,7 @@ add_patch "scst/kernel/in-tree/Makefile.drivers.Linux-${kernel_version}.patch"\
 tmpdir="/tmp/scst-$$"
 mkdir -p "${tmpdir}"
 
-tmp_Kconfig="${tmpdir}/Kconfig.scst-${kernel_version}"
+tmp_Kconfig="${tmpdir}/Kconfig.scst-${kver}"
 cat "scst/kernel/in-tree/Kconfig.scst" | \
 if [ -e "${fcst_patch_series}" ]; then
   cat
@@ -329,8 +326,8 @@ else
 fi >"${tmp_Kconfig}"
 add_file "${tmp_Kconfig}" "drivers/scst/Kconfig"
 
-tmp_Makefile="${tmpdir}/Makefile.scst-${kernel_version}"
-cat "scst/kernel/in-tree/Makefile.scst-${kernel_version}" | \
+tmp_Makefile="${tmpdir}/Makefile.scst-${kver}"
+cat "scst/kernel/in-tree/Makefile.scst-${kver}" | \
 if [ "${generating_upstream_patch}" = "true" ]; then
   grep -v 'scst_proc'
 else
@@ -371,7 +368,7 @@ done
 
 # Directory drivers/scst/dev_handlers/
 
-add_file "scst/kernel/in-tree/Makefile.dev_handlers-${kernel_version}" \
+add_file "scst/kernel/in-tree/Makefile.dev_handlers-${kver}" \
          "drivers/scst/dev_handlers/Makefile" \
 | process_patch "scst_11_dev_handlers_makefile.diff"
 
@@ -460,7 +457,7 @@ if [ "${qla2x00t}" = "true" ]; then
   add_file "qla2x00t/qla2x_tgt_def.h" \
            "drivers/scsi/qla2xxx/qla2x_tgt_def.h"
 
-  add_file "qla2x00t/qla2x00-target/Makefile_in-tree-${kernel_version}" \
+  add_file "qla2x00t/qla2x00-target/Makefile_in-tree-${kver}" \
            "drivers/scst/qla2xxx-target/Makefile"
 
   add_file "qla2x00t/qla2x00-target/Kconfig" \
@@ -558,7 +555,7 @@ fi
 
   add_file "scst_local/in-tree/Kconfig" "drivers/scst/scst_local/Kconfig"
 
-  add_file "scst_local/in-tree/Makefile-${kernel_version}" "drivers/scst/scst_local/Makefile"
+  add_file "scst_local/in-tree/Makefile-${kver}" "drivers/scst/scst_local/Makefile"
 
   add_file "scst_local/scst_local.c" "drivers/scst/scst_local/scst_local.c"
 ) \
@@ -569,8 +566,8 @@ fi
 # Directory drivers/scsi/ibmvstgt
 
 {
-  ( cd ibmvstgt && ./generate-in-tree-patches "${kernel_version}" )
-  if [ -e "ibmvstgt/in-tree-patches/${kernel_version}" ]; then
+  ( cd ibmvstgt && ./generate-in-tree-patches "${kver}" )
+  if [ -e "ibmvstgt/in-tree-patches/${kver}" ]; then
     if [ "${multiple_patches}" = "true" ]; then
       cat <<EOF
 [SCSI] ibmvstgt: Port from tgt to SCST
@@ -662,7 +659,7 @@ EOF
       include/scsi/libsrp.h \
       include/scsi/srp.h
     do
-      patch="ibmvstgt/in-tree-patches/${kernel_version}/$(basename $f).patch"
+      patch="ibmvstgt/in-tree-patches/${kver}/$(basename $f).patch"
       if [ -e "${patch}" ]; then
         add_patch "${patch}" $f
       fi
@@ -673,8 +670,8 @@ EOF
 | process_patch "scst_18_ibmvstgt.diff"
 
 {
-  ( cd ibmvstgt && ./generate-in-tree-patches "${kernel_version}" )
-  if [ -e "ibmvstgt/in-tree-patches/${kernel_version}" ]; then
+  ( cd ibmvstgt && ./generate-in-tree-patches "${kver}" )
+  if [ -e "ibmvstgt/in-tree-patches/${kver}" ]; then
     if [ "${multiple_patches}" = "true" ]; then
       cat <<EOF
 [SCSI] tgt: Removal
@@ -741,7 +738,7 @@ EOF
       include/scsi/scsi_tgt.h \
       include/scsi/scsi_tgt_if.h
     do
-      add_patch "ibmvstgt/in-tree-patches/${kernel_version}/$(basename $f).patch" $f
+      add_patch "ibmvstgt/in-tree-patches/${kver}/$(basename $f).patch" $f
     done
   fi
 } \

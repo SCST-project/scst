@@ -31,7 +31,8 @@
 # the KERNEL_VERSION() macro.
 
 function version_code(kver, array) {
-  match(kver, "([0-9]+).([0-9]+).([0-9]+)", array)
+  if (!match(kver, "([0-9]+).([0-9]+).([0-9]+)", array))
+    match(kver, "([0-9]+).([0-9]+)", array)
   return 65536*array[1] + 256*array[2] + array[3]
 }
 
@@ -59,7 +60,7 @@ function evaluate(stmnt, pattern, arg, op, result) {
 
   if (match(stmnt, "^+#ifndef (.*)$", arg))
   {
-    stmnt = "+#if ! defined(" arg[1] ")"
+    stmnt = "+#if !defined(" arg[1] ")"
   }
 
   gsub("LINUX_VERSION_CODE", LINUX_VERSION_CODE, stmnt)
@@ -165,8 +166,8 @@ function evaluate(stmnt, pattern, arg, op, result) {
     while (match(stmnt, pattern, op) != 0)
     {
       result="error"
-      if      (op[2] == "+") result = op[1] * op[3]
-      else if (op[2] == "-") result = op[1] / op[3]
+      if      (op[2] == "+") result = op[1] + op[3]
+      else if (op[2] == "-") result = op[1] - op[3]
       sub(pattern, result, stmnt)
     }
   
@@ -193,6 +194,18 @@ function evaluate(stmnt, pattern, arg, op, result) {
     while (match(stmnt, pattern, op) != 0)
     {
       stmnt = "+#if " (op[1] != 0 ? op[2] : op[1])
+    }
+  
+    pattern="^+#if[ 	]*(!*[ 	]*defined[ 	]*\\([ 	]*[A-Za-z_]*[ 	]*\\))\\&\\&[ 	]*([01])[ 	]*$"
+    while (match(stmnt, pattern, op) != 0)
+    {
+      stmnt = "+#if " (op[2] != 0 ? op[1] : op[2])
+    }
+  
+    pattern="^+#if[ 	]*(!*[ 	]*[A-Za-z_]*[ 	]*)\\&\\&[ 	]*([01])[ 	]*$"
+    while (match(stmnt, pattern, op) != 0)
+    {
+      stmnt = "+#if " (op[2] != 0 ? op[1] : op[2])
     }
   
     pattern="(-*[0-9]+)[ 	]*\\|\\|[ 	]*(-*[0-9]+)"
@@ -228,9 +241,9 @@ function evaluate(stmnt, pattern, arg, op, result) {
 }
 
 
-# Evaluate ! stmnt
+# Evaluate !stmnt
 function invert(stmnt) {
-  return evaluate(gensub("^+#if (.*)$", "+#if ! (\\1)", "g", stmnt))
+  return evaluate(gensub("^+#if (.*)$", "+#if !(\\1)", "g", stmnt))
 }
 
 
@@ -246,14 +259,13 @@ function handle_if(evaluated)
       || $0 ~ "RHEL_MAJOR"         \
       || $0 ~ "RHEL_MINOR"         \
       || $0 ~ "RHEL_RELEASE_CODE"  \
-      || $0 ~ "GENERATING_UPSTREAM_PATCH" \
+      || generating_upstream_patch_defined \
+         && $0 ~ "GENERATING_UPSTREAM_PATCH" \
       || $0 ~ "CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION" \
       || ($0 ~ "CONFIG_SCST_PROC" && config_scst_proc_undefined) \
       || ($0 ~ "SCSI_EXEC_REQ_FIFO_DEFINED" && SCSI_EXEC_REQ_FIFO_DEFINED!="") \
       || ($0 ~ "SCST_IO_CONTEXT" && SCST_IO_CONTEXT != ""))
   {
-    #print $0 " -> " evaluated
-    $0 = evaluated
   }
   else
   {
@@ -268,7 +280,7 @@ function handle_if(evaluated)
     if_stmnt[if_nesting_level] = evaluated
     any_section_output[if_nesting_level] = 0
     decision[if_nesting_level] = evaluated
-    inv_decision[if_nesting_level] = evaluate(sprintf("+#if ! %s", substr(evaluated, 6)))
+    inv_decision[if_nesting_level] = evaluate(sprintf("+#if !%s", substr(evaluated, 6)))
     if (debug)
       printf "/* debug specialize-patch: (f) %s / %s */\n", \
         decision[if_nesting_level], inv_decision[if_nesting_level]
@@ -283,7 +295,7 @@ function handle_if(evaluated)
     evaluated = evaluate(evaluated)
     decision[if_nesting_level] = evaluated
     inv_decision[if_nesting_level] \
-      = evaluate(sprintf("+#if %s && ! %s", \
+      = evaluate(sprintf("+#if %s && !%s", \
                          substr(inv_decision[if_nesting_level], 6), \
                          substr(evaluated, 6)))
     if (debug)
@@ -300,9 +312,11 @@ function handle_if(evaluated)
 function process_preprocessor_statement(evaluated, condition) {
   evaluated = evaluate($0)
   condition = 1
+  ei = evaluated_if_stmnt[if_nesting_level];
   if (evaluated ~ "^+#if")
   {
     if_nesting_level++
+    evaluated_if_stmnt[if_nesting_level] = evaluated
     evaluated = handle_if(evaluated)
   }
   else if (evaluated ~ "^+#elif")
@@ -326,12 +340,17 @@ function process_preprocessor_statement(evaluated, condition) {
   if (condition)
   {
     output = 1
-    for (i = if_nesting_level; i >= 0; i--)
-    {
-      output = output && decision[i] != "+#if 0"
+    for (i = if_nesting_level; i >= 0; i--) {
+      if (debug)
+        printf "/* debug specialize-patch: (g1) %s: decision[%d] = %s */\n", \
+          evaluated, i, decision[i]
+      output = output && decision[i] != "+#if 0" && decision[i] != "+#elif 0"
     }
     if (output)
       any_section_output[if_nesting_level] = 1
+    if (debug)
+      printf "/* debug specialize-patch: (g2) %s: output = %d */\n", \
+        evaluated, output
   }
   if (evaluated ~ "^+#define SCSI_EXEC_REQ_FIFO_DEFINED$"   \
          && SCSI_EXEC_REQ_FIFO_DEFINED != ""                \
@@ -343,10 +362,48 @@ function process_preprocessor_statement(evaluated, condition) {
     discard = 1
     delete_next_blank_line = 1
   }
-  else if (output && (! condition || condition && matching_if !~ "^+#if [01]"))
+  else if (output && (!condition                                       \
+		      || condition && matching_if !~ "^+#if [01]"       \
+                         && matching_if !~ "^+#elif [01]"))
   {
-    for (i = 0; i < input_line_count; i++)
-      line[lines++] = input_line[i]
+    if (evaluated == "+#if undecided"                           \
+        || (evaluated !~ "^+#if"                                \
+            && evaluated !~ "^+#elif"                           \
+            && evaluated !~ "^+#endif"))
+    {
+      for (i = 0; i < input_line_count; i++)
+        line[lines++] = input_line[i]
+    } else {
+      # If the statement being processed is an #else or #endif that is not a
+      # header file include guard and if that statement has a trailing comment,
+      # replace that comment by the partially evaluated matching #if expression.
+      if (evaluated ~ "^+#else" || evaluated ~ "^+#endif") {
+        if ($0 ~ "\\*/") {
+          if ($0 ~ "_H_* \\*/$") {
+            evaluated = $0
+          } else {
+            if (ei ~ "^+#if ")
+              ei = substr(ei, 6)
+            else if (ei ~ "^+#ifdef")
+              ei = substr(ei, 9)
+            evaluated = sprintf("%s /* %s */",
+                                $0 ~ " " ? substr($0, 1, index($0, " ")) : $0,
+                                ei);
+            if (match(evaluated, "([^/ ]*) */\\* defined\\(([^()]*)\\) \\*/",
+                      arg))
+            {
+              evaluated = sprintf("%s /* %s */", arg[1], arg[2])
+            }
+          }
+        } else {
+          evaluated = $0
+        }
+        if (debug)
+          printf "/* debug specialize-patch: (h) %s */\n", evaluated
+      }
+      line[lines++] = evaluated
+      lines_less_added += input_line_count - 1
+    }
   }
   else
   {
@@ -396,7 +453,7 @@ BEGIN {
     exit 1
   }
   LINUX_VERSION_CODE = version_code(kernel_version)
-  if (LINUX_VERSION_CODE < 2*65536 || LINUX_VERSION_CODE > 3*65536)
+  if (LINUX_VERSION_CODE < 2*65536 || LINUX_VERSION_CODE > 4*65536)
   {
     printf "Error: kernel version (%s) is out of range.\n", kernel_version
     exit 1
@@ -517,3 +574,8 @@ END {
   # Dump processed contents of the last read hunk.
   dump_lines()
 }
+
+# Local variables:
+# indent-tabs-mode: nil
+# c-basic-offset: 2
+# End:
