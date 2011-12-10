@@ -940,6 +940,10 @@ Each vdisk_fileio's device has the following attributes in
    created device at creation time based on the device name and
    scst_vdisk_ID scst_vdisk.ko module parameter for procfs (see below)
    or the SCST setup_id when using the sysfs interface (see above).
+   Note: some initiators, e.g. VMware's ESXi, only looks at the first
+   eight characters of t10_dev_id. You have to make sure that these first
+   eight characters are unique or VMware will consider these devices as
+   identical.
 
  - usn - contains the virtual device's serial number of INQUIRY data. It
    is created at the device creation time based on the device name and
