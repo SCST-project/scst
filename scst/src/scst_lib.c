@@ -2749,7 +2749,6 @@ int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
 	struct scst_tgt_dev *tgt_dev;
 	struct scst_session *sess;
 	LIST_HEAD(tmp_tgt_dev_list);
-	bool del_sysfs = true;
 
 	TRACE_ENTRY();
 
@@ -2779,10 +2778,8 @@ int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
 	}
 
 	res = scst_acg_dev_sysfs_create(acg_dev, parent);
-	if (res != 0) {
-		del_sysfs = false;
+	if (res != 0)
 		goto out_free;
-	}
 
 	if (gen_scst_report_luns_changed)
 		scst_report_luns_changed(acg);
@@ -2803,7 +2800,7 @@ out_free:
 			 extra_tgt_dev_list_entry) {
 		scst_free_tgt_dev(tgt_dev);
 	}
-	scst_del_free_acg_dev(acg_dev, del_sysfs);
+	scst_del_free_acg_dev(acg_dev, false);
 	goto out;
 }
 

@@ -2239,7 +2239,7 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 		}
 
 		ucmd->cmd->scst_cmd_done(ucmd->cmd, SCST_CMD_STATE_DEFAULT,
-			SCST_CONTEXT_DIRECT);
+				SCST_CONTEXT_THREAD);
 		/* !! At this point cmd and ucmd can be already freed !! */
 
 		if (flags != NULL)

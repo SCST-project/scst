@@ -1020,12 +1020,14 @@ qla2x00_init_firmware(scsi_qla_host_t *ha, uint16_t size)
 	DEBUG11(printk("qla2x00_init_firmware(%ld): entered.\n",
 	    ha->host_no));
 
+#ifdef CONFIG_SCSI_QLA2XXX_TARGET
 	if (!qla_tgt_mode_enabled(ha) && !qla_ini_mode_enabled(ha)) {
 		DEBUG11(printk("qla2x00_init_firmware(%ld): neither initiator, "
 			"nor target mode enabled, exiting\n", ha->host_no));
 		rval = QLA_SUCCESS;
 		goto out;
 	}
+#endif
 
 #ifdef QL_DEBUG_LEVEL_5
 	if (IS_FWI2_CAPABLE(ha)) {
@@ -2255,12 +2257,14 @@ qla24xx_get_isp_stats(scsi_qla_host_t *ha, struct link_statistics *stats,
 	mbx_cmd_t *mcp = &mc;
 	uint32_t *siter, *diter, dwords;
 
+#ifdef CONFIG_SCSI_QLA2XXX_TARGET
 	if (!qla_tgt_mode_enabled(ha) && !qla_ini_mode_enabled(ha)) {
 		DEBUG2_3_11(printk("%s(%ld): neither initiator, nor target "
 			"mode enabled, no stats returned\n",
 			__func__, ha->host_no));
 		return QLA_FUNCTION_FAILED;
 	}
+#endif
 
 	DEBUG11(printk("%s(%ld): entered.\n", __func__, ha->host_no));
 
