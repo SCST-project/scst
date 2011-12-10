@@ -27,7 +27,7 @@
 # - Duplicates the entire source tree to the temporary directory and
 #   compiles the SCST source code.
 # - Duplicates the entire source tree to the temporary directory, runs
-#   'make 2release' and again compiles the SCST source code.
+#   'make debug2release' and again compiles the SCST source code.
 # - Checks whether the specified kernel version is present
 #   in the directory specified through option -c.
 # - If the source code of the specified kernel version is not present,
@@ -614,8 +614,8 @@ fi
 test_scst_tree_patches || exit $?
 if [ "${run_local_compilation}" = "true" ]; then
   compile_scst_unpatched || exit $?
-  compile_scst_patched 2release || exit $?
-  compile_scst_patched 2perf    || exit $?
+  compile_scst_patched debug2release || exit $?
+  compile_scst_patched debug2perf    || exit $?
   compile_scst_patched enable_proc  || exit $?
 fi
 
