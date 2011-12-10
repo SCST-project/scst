@@ -1183,7 +1183,8 @@ static int scst_pr_check_pr_path(void)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
 	res = path_lookup(SCST_PR_DIR, 0, &nd);
-	scst_pr_path_put(&nd);
+	if (res == 0)
+		scst_pr_path_put(&nd);
 #else
 	res = kern_path(SCST_PR_DIR, 0, &path);
 	if (res == 0)
