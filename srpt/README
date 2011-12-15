@@ -68,7 +68,7 @@ The ib_srpt kernel module supports the following parameters:
   The larger this parameter, the more scatter/gather list elements can be
   sent at once. Use the following formula to compute an appropriate value
   for this parameter: 68 + 16 * (sg_tablesize). The default value of
-  this parameter is 2116, which corresponds to an sg table size of 128.
+  this parameter is 4148, which corresponds to an sg table size of 255.
 * srp_max_rsp_size (number)
   Maximum size of an SRP response message in bytes. Sense data is sent back
   via these messages towards the initiator. The default size is 256 bytes.
