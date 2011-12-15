@@ -24,7 +24,9 @@
 #define __SCST_H
 
 #include <linux/types.h>
+#ifndef INSIDE_KERNEL_TREE
 #include <linux/version.h>
+#endif
 #include <linux/blkdev.h>
 #include <linux/interrupt.h>
 #include <linux/wait.h>

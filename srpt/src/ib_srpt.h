@@ -35,7 +35,6 @@
 #ifndef IB_SRPT_H
 #define IB_SRPT_H
 
-#include <linux/version.h>
 #include <linux/types.h>
 #include <linux/list.h>
 
@@ -48,6 +47,7 @@
 #if defined(INSIDE_KERNEL_TREE)
 #include <scst/scst.h>
 #else
+#include <linux/version.h>
 #include <scst.h>
 #endif
 
