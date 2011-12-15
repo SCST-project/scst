@@ -748,7 +748,7 @@ cache. The following parameters possible for vdisk_fileio:
    initiators as removable.
 
  - rotational - if set, this device reported as rotational. Otherwise,
-   it is reported as non-ratational (SSD, etc.)
+   it is reported as non-rotational (SSD, etc.)
 
 Handler vdisk_blockio provides BLOCKIO mode to create virtual devices.
 This mode performs direct block I/O with a block device, bypassing the
