@@ -1,0 +1,38 @@
+.\" -*- nroff -*-
+.\" Copyright 2011 Bart Van Assche <bvanassche@acm.org>. All rights reserved.
+.\" Permission is granted to copy, distribute and/or modify this document
+.\" under the terms of the GNU General Public License, version 2 (GPLv2). 
+.TH scst 5 "July 2011" "scstadmin 2.0.0"
+.SH NAME
+scst \- /etc/init.d/scst configuration file.
+.SH DESCRIPTION
+/etc/default/scst is a configuration file read by the SCST startup script
+/etc/init.d/scst and contains zero or more variables that control the behavior
+of that startup script. Currently there is only one such variable,
+SCST_TARGET_MODULES, and it only has to be set when using the procfs interface.
+.P
+The format of the
+.I scst
+file is as follows:
+.br
+- Blank lines and lines starting with a hash sign (#) are ignored.
+.br
+- All other lines must contain a variable definition using the syntax
+<name>=<value>. If <value> contains blanks, it must be
+surrounded with double quotes.
+.P
+An example:
+.IP
+# When using the procfs interface, the /etc/init.d/scst script
+.br
+# cannot derive from /etc/scst.conf which target modules will
+.br
+# be used and hence these have to be specified explicitly.
+.br
+SCST_TARGET_MODULES="scst_local iscsi_scst ib_srpt"
+.SH FILES
+.IP /etc/default/scst
+Configuration file that controls the behavior of some aspects of
+/etc/init.d/scst.
+.SH "SEE ALSO"
+scstadmin(1), scst.conf(5)

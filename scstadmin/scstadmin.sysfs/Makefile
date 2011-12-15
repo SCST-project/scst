@@ -1,7 +1,7 @@
-MODULE_VERSION = 0.9.00
+MODULE_VERSION = 0.9.10
 TOOL = scstadmin
 
-SBINDIR := $(PREFIX)/usr/local/sbin
+SBINDIR := /usr/local/sbin
 
 all: perl-module
 

@@ -35,14 +35,33 @@ HANDLER vcdrom {
 TARGET_DRIVER scst_local {
 	TARGET scst_local_tgt {
 		session_name scst_local_host
-		session_name scst_local_host1
 
 		LUN 0 disk1
+		LUN 1 disk2
+	}
+}
+
+TARGET_DRIVER iscsi {
+	IncomingUser "joe 12charsecret"
+	enabled 1
+
+	TARGET iqn.2006-10.net.vlnb:tgt {
+		IncomingUser "joe 12charsecret"
+		HeaderDigest CRC32C,None
+		enabled 1
+
+		LUN 0 disk1
+		LUN 1 disk2
+		LUN 2 blockio1 {
+			read_only 1
+		}
 	}
 }
 
 TARGET_DRIVER qla2x00t {
 	TARGET 25:00:00:f0:98:87:92:f3 {
+		enabled 1
+
 		GROUP INI1 {
 			LUN 0 blockio1
 			LUN 1 1:0:0:0 {
@@ -53,30 +72,68 @@ TARGET_DRIVER qla2x00t {
 			INITIATOR 25:00:00:f0:99:87:94:a3
 			INITIATOR 25:00:00:f0:99:87:94:a4
 		}
-
-		enabled 1
 	}
 
 	TARGET 25:00:00:f0:98:87:92:f4 {
 	}
 }
 
-TARGET_DRIVER iscsi {
-	IncomingUser "joe 12charsecret"
-
-	TARGET iqn.2006-10.net.vlnb:tgt {
-		IncomingUser "joe 12charsecret"
-		HeaderDigest CRC32C,None
+TARGET_DRIVER ib_srpt {
+	TARGET ib_srpt_target_0 {
+		enabled 1
 
 		LUN 0 disk1
 		LUN 1 disk2
-		LUN 2 blockio1 {
-			read_only 1
-		}
-
-		enabled 1
 	}
 
-	enabled 1
+	TARGET ib_srpt_target_1 {
+		enabled 1
+
+		LUN 0 disk1
+		LUN 1 disk2
+	}
 }
 
+DEVICE_GROUP dgroup1 {
+	DEVICE disk1
+
+	TARGET_GROUP tgroup1 {
+		group_id 1
+		state active
+
+		TARGET ib_srpt_target_0 {
+			rel_tgt_id 1
+		}
+	}
+
+	TARGET_GROUP tgroup2 {
+		group_id 2
+		state offline
+
+		TARGET ib_srpt_target_1 {
+			rel_tgt_id 2
+		}
+	}
+}
+
+DEVICE_GROUP dgroup2 {
+	DEVICE disk2
+
+	TARGET_GROUP tgroup1 {
+		group_id 1
+		state offline
+
+		TARGET ib_srpt_target_0 {
+			rel_tgt_id 1
+		}
+	}
+
+	TARGET_GROUP tgroup2 {
+		group_id 2
+		state active
+
+		TARGET ib_srpt_target_1 {
+			rel_tgt_id 2
+		}
+	}
+}

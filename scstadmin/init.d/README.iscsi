@@ -1,2 +1,0 @@
-These init scripts are intended for use with non-iscsi configurations. For
-iscsi, please use one of the init scripts found in iscsi-scst/etc/initd.

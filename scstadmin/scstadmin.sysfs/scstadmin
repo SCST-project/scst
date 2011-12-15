@@ -1,11 +1,13 @@
 #!/usr/bin/perl
-$Version  = 'SCST Configurator v2.0.0';
+
+$Version  = 'SCST Configurator v3.0.0-pre1';
 
 # Configures SCST
 #
 # Author:       Mark R. Buechler
 # License:      GPLv2
-# Copyright (c) 2005-2010 Mark R. Buechler
+# Copyright (c) 2005-2011 Mark R. Buechler
+# Copyright (C) 2011 Bart Van Assche <bvanassche@acm.org>
 
 sub usage
   {
@@ -24,6 +26,9 @@ General Operations
 Query Operations
      -list_handler [<hndlr>] : List all available handlers or specific <hndlr>.
      -list_device [<device>] : List all open devices or specific <device>.
+     -list_dgrp [<dgrp>]     : List all device groups or specific <dgrp>.
+     -list_tgrp [<tgrp>]     : List all target groups within a device group.
+         [-dev_group <dgrp>]
      -list_driver [<driver>] : List all available drivers or specific <driver>.
      -list_target [<target>] : List all available targets or specific <target>.
          [-driver <driver>]
@@ -31,17 +36,27 @@ Query Operations
          [-driver <driver>]
          [-target <target>]
 
+List Attribute Operations
      -list_scst_attr         : List all attributes for SCST.
      -list_hnd_attr <hndlr>  : List all attributes for a given handler.
      -list_dev_attr <device> : List all attributes for a given device.
      -list_drv_attr <driver> : List all attributes for a given driver.
+     -list_dgrp_attr <dgrp>  : List all attributes for a given device group.
+     -list_tgrp_attr <tgrp>  : List all attributes for a device group/target.
+          -dev_group <dgrp>
+     -list_ttgt_attr <tgt>   : List all attributes for a target group target.
+          -dev_group <dgrp>
+          -tgt_group <tgrp>
      -list_tgt_attr <target> : List all attributes for a given driver/target.
           -driver <driver>
+     -list_grp_attr <group>  : List all attributes for a given group.
+          -driver <driver>
+          -target <target>
      -list_lun_attr <lun>    : List all attributes for a driver/target/lun.
           -driver <driver>
           -target <target>
-          -group <group>
-     -list_ini_attr <ini>    : List all attributes for a driver/target/initiator
+          [-group <group>]
+     -list_init_attr <init>  : List all attributes for a driver/target/initiator
           -driver <driver>
           -target <target>
           -group <group>
@@ -57,6 +72,15 @@ Set Attribute Operations
          -attributes <p=v,...>
      -set_drv_attr <driver>  : Sets driver attribute(s) <p> to value <v>.
          -attributes <p=v,...>
+     -set_dgrp_attr <dgrp>   : List all attributes for a given device group.
+         -attributes <p=v,...>
+     -set_tgrp_attr <tgrp>   : List all attributes for a device group/target.
+         -dev_group <dgrp>
+         -attributes <p=v,...>
+     -set_ttgt_attr <tgt>    : List all attributes for a target group target.
+         -dev_group <dgrp>
+         -tgt_group <tgrp>
+         -attributes <p=v,...>
      -set_tgt_attr <target>  : Sets target attribute(s) <p> to value <v>.
          -driver <driver>
          -attributes <p=v,...>
@@ -67,25 +91,25 @@ Set Attribute Operations
      -set_lun_attr <lun>     : Sets LUN attribute(s) <p> to value <v>.
          -driver <driver>
          -target <target>
-         -group <group>
+         [-group <group>]
          -attributes <p=v,...>
-     -set_ini_attr <ini>     : Sets initiator attribute(s) <p> to value <v>.
+     -set_init_attr <init>   : Sets initiator attribute(s) <p> to value <v>.
          -driver <driver>
          -target <target>
          -group <group>
          -attributes <p=v,...>
 
 Add Dynamic Attribute Operations
-     -add_drv_attr <driver>  : Adds driver attribute(s) <p> to value <v>.
+     -add_drv_attr <driver>  : Adds driver attribute(s) <p> with value <v>.
          -attributes <p=v,...>
-     -add_tgt_attr <target>  : Adds target attribute(s) <p> to value <v>.
+     -add_tgt_attr <target>  : Adds target attribute(s) <p> with value <v>.
          -driver <driver>
          -attributes <p=v,...>
 
 Remove Dynamic Attribute Operations
-     -rem_drv_attr <driver>  : Remove driver attribute(s) <p> to value <v>.
+     -rem_drv_attr <driver>  : Remove driver attribute(s) <p> with value <v>.
          -attributes <p=v,...>
-     -rem_tgt_attr <target>  : Remove target attribute(s) <p> to value <v>.
+     -rem_tgt_attr <target>  : Remove target attribute(s) <p> with value <v>.
          -driver <driver>
          -attributes <p=v,...>
 
@@ -96,6 +120,24 @@ Device Operations
      -resync_dev <device>    : Resync the device size with the initiator(s).
      -close_dev <device>     : Closes a device belonging to handler <handler>.
          -handler <handler>
+
+Device Group Operations
+     -add_dgrp <dgrp>        : Add device group <dgrp>.
+     -rem_dgrp <dgrp>        : Remove device group <dgrp>.
+     -add_dgrp_dev <device>
+         -dev_group <dgroup> : Add device <device> to device group <dgrp>.
+     -rem_dgrp_dev <device>
+         -dev_group <dgroup> : Remove device <device> from device group <dgrp>.  
+     -add_tgrp <tgrp>
+         -tgt_group <tgrp>   : Add target group <tgrp> to device group <dgrp>.
+     -rem_tgrp <tgrp>
+         -dev_group <dgrp>   : Remove target group <tgrp> from device group.
+     -add_tgrp_tgt <tgt>     : Add target <tgt> to specified target group.
+         -dev_group <dgrp>
+         -tgt_group <tgrp>
+     -rem_tgrp_tgt <tgt>     : Remove target <tgt> from specified target group.
+         -dev_group <dgrp>
+         -tgt_group <tgrp>
 
 Target Operations
      -add_target <target>    : Add a dynamic target to a capable driver.
@@ -134,23 +176,23 @@ Target LUN Operations
      -add_lun <lun>          : Adds a given device to a group.
          -driver <driver>
          -target <target>
-         -group <group>
+         [-group <group>]
          -device <device>
          -attributes <p=v,...>
      -rem_lun <lun>          : Remove a LUN from a group.
          -driver <driver>
          -target <target>
-         -group <group>
+         [-group <group>]
      -replace_lun <lun>      : Replaces a LUN\'s device with a different one.
          -driver <driver>
          -target <target>
-         -group <group>
+         [-group <group>]
          -device <device>
          -attributes <p=v,...>
      -clear_luns             : Clear all LUNs within a group.
          -driver <driver>
          -target <target>
-         -group <group>
+         [-group <group>]
 
 Target Driver Operations
      -enable_target <t>      : Enable target mode for a given driver & target.
@@ -193,7 +235,7 @@ Examples:
 EndUsage
   }
 
-use SCST::SCST 0.9.0;
+use SCST::SCST 0.9.10;
 use Getopt::Long;
 use IO::File;
 use IO::Dir;
@@ -232,6 +274,8 @@ sub getArgs {
 
 	my $listHandler;
 	my $listDevice;
+	my $listDeviceGroup;
+	my $listTargetGroup;
 	my $listDriver;
 	my $listTarget;
 	my $listGroup;
@@ -240,6 +284,9 @@ sub getArgs {
 	my $listScstAttr;
 	my $listHandlerAttr;
 	my $listDeviceAttr;
+	my $listDeviceGroupAttr;
+	my $listTargetGroupAttr;
+	my $listTargetGroupTargetAttr;
 	my $listGroupAttr;
 	my $listDriverAttr;
 	my $listTargetAttr;
@@ -249,6 +296,9 @@ sub getArgs {
 	my $setScstAttr;
 	my $setHandlerAttr;
 	my $setDeviceAttr;
+	my $setDeviceGroupAttr;
+	my $setTargetGroupAttr;
+	my $setTargetGroupTargetAttr;
 	my $setDriverAttr;
 	my $setTargetAttr;
 	my $setGroupAttr;
@@ -263,6 +313,16 @@ sub getArgs {
 	my $openDev;
 	my $closeDev;
 	my $resyncDev;
+
+	my $addDevGroup;
+	my $removeDevGroup;
+	my $addDevGroupDevice;
+	my $removeDevGroupDevice;
+
+	my $addTargetGroup;
+	my $removeTargetGroup;
+	my $addTargetGroupTarget;
+	my $removeTargetGroupTarget;
 
 	my $addTarget;
 	my $removeTarget;
@@ -292,6 +352,8 @@ sub getArgs {
 	my $group;
 	my $to;
 	my $device;
+	my $deviceGroup;
+	my $targetGroup;
 
 	my $show_usage;
 	my $nonkey;
@@ -306,6 +368,8 @@ sub getArgs {
 
 			    'list_handler:s'	=> \$listHandler,
 			    'list_device:s'	=> \$listDevice,
+			    'list_dgrp:s'	=> \$listDeviceGroup,
+			    'list_tgrp:s'	=> \$listTargetGroup,
 			    'list_driver:s'	=> \$listDriver,
 			    'list_target:s'	=> \$listTarget,
 			    'list_group:s'	=> \$listGroup,
@@ -314,20 +378,26 @@ sub getArgs {
 			    'list_scst_attr'	=> \$listScstAttr,
 			    'list_hnd_attr=s'	=> \$listHandlerAttr,
 			    'list_dev_attr=s'	=> \$listDeviceAttr,
+			    'list_dgrp_attr=s'	=> \$listDeviceGroupAttr,
+			    'list_tgrp_attr=s'	=> \$listTargetGroupAttr,
+			    'list_ttgt_attr=s'	=> \$listTargetGroupTargetAttr,
 			    'list_drv_attr=s'	=> \$listDriverAttr,
 			    'list_tgt_attr=s'	=> \$listTargetAttr,
 			    'list_grp_attr=s'	=> \$listGroupAttr,
 			    'list_lun_attr=s'	=> \$listLunAttr,
-			    'list_ini_attr=s'	=> \$listInitiatorAttr,
+			    'list_init_attr=s'	=> \$listInitiatorAttr,
 
 			    'set_scst_attr'	=> \$setScstAttr,
 			    'set_hnd_attr=s'	=> \$setHandlerAttr,
 			    'set_dev_attr=s'	=> \$setDeviceAttr,
+			    'set_dgrp_attr=s'	=> \$setDeviceGroupAttr,
+			    'set_tgrp_attr=s'	=> \$setTargetGroupAttr,
+			    'set_ttgt_attr=s'	=> \$setTargetGroupTargetAttr,
 			    'set_drv_attr=s'	=> \$setDriverAttr,
 			    'set_tgt_attr=s'	=> \$setTargetAttr,
 			    'set_grp_attr=s'	=> \$setGroupAttr,
 			    'set_lun_attr=s'	=> \$setLunAttr,
-			    'set_ini_attr=s'	=> \$setInitiatorAttr,
+			    'set_init_attr=s'	=> \$setInitiatorAttr,
 
 			    'add_drv_attr=s'	=> \$addDriverAttr,
 			    'add_tgt_attr=s'	=> \$addTargetAttr,
@@ -337,6 +407,16 @@ sub getArgs {
 			    'open_dev=s'	=> \$openDev,
 			    'close_dev=s'	=> \$closeDev,
 			    'resync_dev=s'	=> \$resyncDev,
+
+			    'add_dgrp=s'	=> \$addDevGroup,
+			    'rem_dgrp=s'	=> \$removeDevGroup,
+			    'add_dgrp_dev=s'	=> \$addDevGroupDevice,
+			    'rem_dgrp_dev=s'	=> \$removeDevGroupDevice,
+
+			    'add_tgrp=s'	=> \$addTargetGroup,
+			    'rem_tgrp=s'	=> \$removeTargetGroup,
+			    'add_tgrp_tgt=s'	=> \$addTargetGroupTarget,
+			    'rem_tgrp_tgt=s'	=> \$removeTargetGroupTarget,
 
 			    'add_target=s'	=> \$addTarget,
 			    'rem_target=s'	=> \$removeTarget,
@@ -366,6 +446,8 @@ sub getArgs {
 			    'group=s'		=> \$group,
 			    'to=s'		=> \$to,
 			    'device=s'		=> \$device,
+			    'dev_group=s'	=> \$deviceGroup,
+			    'tgt_group=s'	=> \$targetGroup,
 
 			    'h'			=> \$show_usage,
 			    'help'		=> \$show_usage,
@@ -373,10 +455,14 @@ sub getArgs {
 			    'nonkey'		=> \$nonkey,
 			    'noprompt'		=> \$_NOPROMPT_,
 			    'force'		=> \$force,
-			    'debug'             => \$_DEBUG_) ||
-	    defined($show_usage))
+			    'debug'             => \$_DEBUG_))
 	{
+		exit 1;
+	}
+
+	if (defined($show_usage)) {
 		usage();
+		exit 0;
 	}
 
 	$_DEBUG_ = TRUE if (defined($_DEBUG_));
@@ -385,17 +471,22 @@ sub getArgs {
 	$force = TRUE if (defined($force));
 	$nonkey = TRUE if (defined($nonkey));
 
-	my $query_mode = defined($listHandler) || defined($listDevice) || defined($listDriver) ||
-	  defined($listTarget) || defined($listGroup) || defined($listSessions) || defined($listScstAttr) ||
-	  defined($listHandlerAttr) || defined($listDeviceAttr) || defined($listDriverAttr) ||
-	  defined($listTargetAttr) || defined($listGroupAttr) || defined($listLunAttr) || defined($listInitiatorAttr);
+	my $query_mode = defined($listHandler) || defined($listDevice) || defined($listDeviceGroup) || defined($listTargetGroup) ||
+	  defined($listDriver) || defined($listTarget) || defined($listGroup) || defined($listSessions) ||
+	  defined($listScstAttr) || defined($listHandlerAttr) || defined($listDeviceAttr) || defined($listDriverAttr) ||
+	  defined($listTargetAttr) || defined($listGroupAttr) || defined($listLunAttr) || defined($listInitiatorAttr) ||
+	  defined($listDeviceGroupAttr) || defined($listTargetGroupAttr) || defined($listTargetGroupTargetAttr);
 
 	my $set_mode = defined($setScstAttr) + defined($setHandlerAttr) + defined($setDeviceAttr) +
 	  defined($setDriverAttr) + defined($setTargetAttr) + defined($setGroupAttr) +
-	  defined($setLunAttr) + defined($setInitiatorAttr);
+	  defined($setLunAttr) + defined($setInitiatorAttr) + defined($setDeviceGroupAttr) +
+	  defined($setTargetGroupAttr) + defined($setTargetGroupTargetAttr);
 
 	my $op_mode = defined($clearConfig) + defined($writeConfig) + defined($checkConfig) +
-             defined($openDev) + defined($closeDev) + defined($addGroup) + defined($removeGroup) +
+             defined($openDev) + defined($closeDev) + defined($addDevGroup) + defined($removeDevGroup) +
+	     defined($addTargetGroup) + defined($removeTargetGroup) +
+	     defined($addTargetGroupTarget) + defined($removeTargetGroupTarget) +
+	     defined($addGroup) + defined($removeGroup) + defined($addDevGroupDevice) + defined($removeDevGroupDevice) +
 	     defined($addInitiator) + defined($removeInitiator) + defined($clearInitiators) +
 	     defined($addDriverAttr) + defined($addTargetAttr) + defined($remDriverAttr) + defined($remTargetAttr) +
 	     defined($addTarget) + defined($removeTarget) +
@@ -404,141 +495,187 @@ sub getArgs {
 
 	if (($query_mode + $set_mode + $op_mode) > 1) {
 		print "Please specify only one non-query operation at a time.\n";
-		usage();
+		exit 1;
 	}
 
 	if (defined($clearConfig) && !$force) {
 		print "Please specify -force with -clear_config.\n";
-		usage();
+		exit 1;
+	}
+
+	if (defined($listTargetGroup) && ($deviceGroup eq '')) {
+		print "Please specify -dev_group with -list_tgrp.\n";
+		exit 1;
 	}
 
 	if (defined($listTargetAttr) && ($driver eq '')) {
 		print "Please specify -driver with -list_tgt_attr.\n";
-		usage();
+		exit 1;
 	}
 
 	if (defined($listGroupAttr) && (($driver eq '') || ($target eq ''))) {
-		print "Please specify -driver and -target with -list_grp_attr.\n";
-		usage();
+		print "Please specify -driver, -target and group with -list_grp_attr.\n";
+		exit 1;
 	}
 
 	if (defined($listLunAttr) && (($driver eq '') || ($target eq ''))) {
-		print "Please specify -driver -target and -group with -list_lun_attr.\n";
-		usage();
+		print "Please specify -driver and -target with -list_lun_attr.\n";
+		exit 1;
 	}
 
 	if (defined($listInitiatorAttr) && (($driver eq '') || ($target eq '') || ($group eq ''))) {
-		print "Please specify -driver -target and -group with -list_ini_attr.\n";
-		usage();
+		print "Please specify -driver, -target and -group with -list_init_attr.\n";
+		exit 1;
+	}
+
+	if (defined($listTargetGroupAttr) && ($deviceGroup eq '')) {
+		print "Please specify -dev_group with -list_tgrp_attr.\n";
+		exit 1;
+	}
+
+	if (defined($listTargetGroupTargetAttr) && (($deviceGroup eq '') || ($targetGroup eq ''))) {
+		print "Please specify -dev_group and -tgt_group with -list_ttgt_attr.\n";
+		exit 1;
 	}
 
 	if (defined($setScstAttr) && ($attributes eq '')) {
 		print "Please specify -attributes with -set_scst_attr.\n";
-		usage();
+		exit 1;
 	}
 
 	if (defined($setHandlerAttr) && ($attributes eq '')) {
 		print "Please specify -attributes with -set_hnd_attr.\n";
-		usage();
+		exit 1;
 	}
 
 	if (defined($setDeviceAttr) && ($attributes eq '')) {
 		print "Please specify -attributes with -set_dev_attr.\n";
-		usage();
+		exit 1;
+	}
+
+	if (defined($setDeviceGroupAttr) && ($attributes eq '')) {
+		print "Please specify -attributes with -set_dgrp_attr.\n";
+		exit 1;
+	}
+
+	if (defined($setTargetGroupAttr) && (($deviceGroup eq '') || ($attributes eq ''))) {
+		print "Please specify -dev_group and -attributes with -set_tgrp_attr.\n";
+		exit 1;
+	}
+
+	if (defined($setTargetGroupTargetAttr) && (($deviceGroup eq '') || ($targetGroup eq '') || ($attributes eq ''))) {
+		print "Please specify -dev_group -tgt_group and -attributes with -set_ttgt_attr.\n";
+		exit 1;
 	}
 
 	if (defined($setDriverAttr) && ($attributes eq '')) {
 		print "Please specify -attributes with -set_drv_attr.\n";
-		usage();
+		exit 1;
 	}
 
 	if (defined($setTargetAttr) && (($driver eq '') || ($attributes eq ''))) {
 		print "Please specify -driver and -attributes with -set_tgt_attr.\n";
-		usage();
+		exit 1;
 	}
 
 	if (defined($setGroupAttr) && (($driver eq '') || ($target eq '') || ($attributes eq ''))) {
 		print "Please specify -driver -target and -attributes with -set_grp_attr.\n";
-		usage();
+		exit 1;
 	}
 
 	if (defined($setLunAttr) &&
 	    (($driver eq '') || ($target eq '') || ($attributes eq ''))) {
 		print "Please specify -driver -target -group and -attributes with -set_lun_attr.\n";
-		usage();
+		exit 1;
 	}
 
 	if (defined($setInitiatorAttr) &&
 	    (($driver eq '') || ($target eq '') || ($group eq '') || ($attributes eq ''))) {
-		print "Please specify -driver -target -group and -attributes with -set_ini_attr.\n";
-		usage();
+		print "Please specify -driver -target -group and -attributes with -set_init_attr.\n";
+		exit 1;
 	}
 
 	if (defined($addDriverAttr) && ($attributes eq '')) {
 		print "Please specify -attributes with -add_drv_attr.\n";
-		usage();
+		exit 1;
 	}
 
 	if (defined($addTargetAttr) &&
 	    (($driver eq '') || ($attributes eq ''))) {
 		print "Please specify -driver and -attributes with -add_tgt_attr.\n";
-		usage();
+		exit 1;
 	}
 
 	if (defined($remDriverAttr) && ($attributes eq '')) {
 		print "Please specify -attributes with -rem_drv_attr.\n";
-		usage();
+		exit 1;
 	}
 
 	if (defined($remTargetAttr) &&
 	    (($driver eq '') || ($attributes eq ''))) {
 		print "Please specify -driver and -attributes with -rem_tgt_attr.\n";
-		usage();
+		exit 1;
 	}
 
 	if ((defined($openDev) || defined($closeDev)) && ($handler eq '')) {
 		print "Please specify -handler with -open_dev/-close_dev.\n";
-		usage();
+		exit 1;
 	}
 
 	if (defined($addTarget) && ($driver eq '')) {
 		print "Please specify -driver with -add_target.\n";
-		usage();
+		exit 1;
 	}
 
 	if (defined($removeTarget) && ($driver eq '')) {
 		print "Please specify -driver with -rem_target.\n";
-		usage();
+		exit 1;
 	}
 
 	if ((defined($addGroup) || defined($removeGroup)) &&
 	    (($driver eq '') || ($target eq ''))) {
 		print "Please specify -driver and -target with -add_group/-remove_group.\n";
-		usage();
+		exit 1;
 	}
 
 	if ((defined($addInitiator) || defined($removeInitiator) || defined($clearInitiators)) &&
 	    (($target eq '') || ($driver eq '') || ($group eq ''))) {
 		print "Please specify -driver -target and -group with ".
 		  "-add_init/-remove_init/-clear_inits.\n";
-		usage();
+		exit 1;
 	}
 
 	if (defined($moveInitiator) &&
 	    (($driver eq '') || ($target eq '') || ($group eq '') || ($to eq ''))) {
 		print "Please specify -driver -target -group and -to with -move_init.\n";
-		usage();
+		exit 1;
 	}
 
 	if ((defined($addLun) || defined($replaceLun)) &&
 	    (($driver eq '') || ($target eq '') || ($device eq ''))) {
 		print "Please specify -driver -target and -device with -add_lun/-replace_lun.\n";
-		usage();
+		exit 1;
 	}
 
 	if ((defined($clearLuns) || defined($removeLun)) && (($driver eq '') || ($target eq ''))) {
 		print "Please specify -driver and -target with -rem_lun/-clear_luns.\n";
-		usage();
+		exit 1;
+	}
+
+	if ((defined($addDevGroupDevice) || defined($removeDevGroupDevice)) && ($deviceGroup eq '')) {
+		print "Please specify -dev_group with -add_dgrp_dev/-rem_dgrp_dev.\n";
+		exit 1;
+	}
+
+	if ((defined($addTargetGroup) || defined($removeTargetGroup)) && ($deviceGroup eq '')) {
+		print "Please specify -dev_group with -add_tgrp/-rem_tgrp.\n";
+		exit 1;
+	}
+
+	if ((defined($addTargetGroupTarget) || defined($removeTargetGroupTarget)) &&
+	    (($deviceGroup eq '') || ($targetGroup eq ''))) {
+		print "Please specify -dev_group and -tgt_group with -add_tgrp_init/-rem_tgrp_init.\n";
+		exit 1;
 	}
 
 	$applyConfig = $_DEF_CONFIG_ if (defined($applyConfig) && ($applyConfig eq ''));
@@ -560,19 +697,23 @@ sub getArgs {
 	}
 
 	return ($applyConfig, $clearConfig, $writeConfig, $checkConfig,
-		$listScstAttr, $listHandler, $listDevice, $listDriver, $listTarget, $listGroup,
+		$listScstAttr, $listHandler, $listDevice, $listDeviceGroup, $listTargetGroup, $listDriver, $listTarget, $listGroup,
 		$listSessions, $listHandlerAttr, $listDeviceAttr, $listDriverAttr, $listTargetAttr,
+		$listDeviceGroupAttr, $listTargetGroupAttr, $listTargetGroupTargetAttr,
 		$listGroupAttr, $listLunAttr, $listInitiatorAttr, $setScstAttr, $setHandlerAttr,
 		$setDeviceAttr, $setDriverAttr, $setTargetAttr, $setGroupAttr, $setLunAttr, $setInitiatorAttr,
+		$setDeviceGroupAttr, $setTargetGroupAttr, $setTargetGroupTargetAttr,
 		$addDriverAttr, $addTargetAttr, $remDriverAttr, $remTargetAttr,
                 $openDev, $closeDev, $resyncDev,
+		$addDevGroup, $removeDevGroup, $addDevGroupDevice, $removeDevGroupDevice,
+		$addTargetGroup, $removeTargetGroup, $addTargetGroupTarget, $removeTargetGroupTarget,
 		$addTarget, $removeTarget,
 		$addGroup, $removeGroup,
 		$addInitiator, $removeInitiator, $moveInitiator, $clearInitiators,
 		$addLun, $removeLun, $replaceLun, $clearLuns,
 		$enableTarget, $disableTarget, $issueLip,
 		$handler, \%_attributes,
-		$driver, $target, $group, $to, $device,
+		$driver, $target, $group, $to, $device,, $deviceGroup, $targetGroup,
 		$nonkey, $force);
 }
 
@@ -585,19 +726,23 @@ sub main {
 	if ( $> ) {die("This program must run as root.\n");}
 
 	my ($applyConfig, $clearConfig, $writeConfig, $checkConfig,
-	    $listScstAttr, $listHandler, $listDevice, $listDriver, $listTarget, $listGroup,
+	    $listScstAttr, $listHandler, $listDevice, $listDeviceGroup, $listTargetGroup, $listDriver, $listTarget, $listGroup,
 	    $listSessions, $listHandlerAttr, $listDeviceAttr, $listDriverAttr, $listTargetAttr,
+	    $listDeviceGroupAttr, $listTargetGroupAttr, $listTargetGroupTargetAttr,
 	    $listGroupAttr, $listLunAttr, $listInitiatorAttr, $setScstAttr, $setHandlerAttr,
 	    $setDeviceAttr, $setDriverAttr, $setTargetAttr, $setGroupAttr, $setLunAttr, $setInitiatorAttr,
+	    $setDeviceGroupAttr, $setTargetGroupAttr, $setTargetGroupTargetAttr,
 	    $addDriverAttr, $addTargetAttr, $remDriverAttr, $remTargetAttr,
 	    $openDev, $closeDev, $resyncDev,
+	    $addDevGroup, $removeDevGroup, $addDevGroupDevice, $removeDevGroupDevice,
+	    $addTargetGroup, $removeTargetGroup, $addTargetGroupTarget, $removeTargetGroupTarget,
 	    $addTarget, $removeTarget,
 	    $addGroup, $removeGroup,
 	    $addInitiator, $removeInitiator, $moveInitiator, $clearInitiators,
 	    $addLun, $removeLun, $replaceLun, $clearLuns,
 	    $enableTarget, $disableTarget, $issueLip,
 	    $handler, $attributes,
-	    $driver, $target, $group, $to, $device,
+	    $driver, $target, $group, $to, $device, $deviceGroup, $targetGroup,
 	    $nonkey, $force) = getArgs();
 
 	$SCST = new SCST::SCST($_DEBUG_);
@@ -639,6 +784,14 @@ sub main {
 		};
 		defined($listDevice) && do {
 			$rc = listDevices($listDevice, $nonkey);
+			$all_good = TRUE;
+		};
+		defined($listDeviceGroup) && do {
+			$rc = listDeviceGroups($listDeviceGroup);
+			$all_good = TRUE;
+		};
+		defined($listTargetGroup) && do {
+			$rc = listTargetGroups($deviceGroup, $listTargetGroup);
 			$all_good = TRUE;
 		};
 		defined($listDriver) && do {
@@ -687,6 +840,18 @@ sub main {
 		};
 		defined($listInitiatorAttr) && do {
 			$rc = listInitiatorAttributes($driver, $target, $group, $listInitiatorAttr, $nonkey);
+			$all_good = TRUE;
+		};
+		defined($listDeviceGroupAttr) && do {
+			$rc = listDeviceGroupAttributes($listDeviceGroupAttr, $nonkey);
+			$all_good = TRUE;
+		};
+		defined($listTargetGroupAttr) && do {
+			$rc = listTargetGroupAttributes($deviceGroup, $listTargetGroupAttr, $nonkey);
+			$all_good = TRUE;
+		};
+		defined($listTargetGroupTargetAttr) && do {
+			$rc = listTargetGroupTargetAttributes($deviceGroup, $targetGroup, $listTargetGroupTargetAttr, $nonkey);
 			$all_good = TRUE;
 		};
 		defined($setScstAttr) && do {
@@ -745,6 +910,27 @@ sub main {
 			print "\t-> Done, $changes change(s) made.\n";
 			last SWITCH;
 		};
+		defined($setDeviceGroupAttr) && do {
+			last if (prompt());
+			print "\n-> Making requested changes.\n";
+			my $changes = setDeviceGroupAttributes($setDeviceGroupAttr, $attributes, TRUE);
+			print "\t-> Done, $changes change(s) made.\n";
+			last SWITCH;
+		};
+		defined($setTargetGroupAttr) && do {
+			last if (prompt());
+			print "\n-> Making requested changes.\n";
+			my $changes = setTargetGroupAttributes($deviceGroup, $setTargetGroupAttr, $attributes, TRUE);
+			print "\t-> Done, $changes change(s) made.\n";
+			last SWITCH;
+		};
+		defined($setTargetGroupTargetAttr) && do {
+			last if (prompt());
+			print "\n-> Making requested changes.\n";
+			my $changes = setTargetGroupTargetAttributes($deviceGroup, $targetGroup, $setTargetGroupTargetAttr, $attributes, TRUE);
+			print "\t-> Done, $changes change(s) made.\n";
+			last SWITCH;
+		};
 		defined($addDriverAttr) && do {
 			print "\n-> Making requested changes.\n";
 			$rc = addDriverDynamicAttributes($addDriverAttr, $attributes);
@@ -793,6 +979,54 @@ sub main {
 			print "\n-> Making requested changes.\n";
 			$rc = resyncDevice($resyncDev);
 			$rc = issueLip() if (!$rc);
+			print "\t-> Done.\n";
+			last SWITCH;
+		};
+		defined($addDevGroup) && do {
+			print "\n-> Making requested changes.\n";
+			$rc = addDeviceGroup($addDevGroup);
+			print "\t-> Done.\n";
+			last SWITCH;
+		};
+		defined($removeDevGroup) && do {
+			print "\n-> Making requested changes.\n";
+			$rc = removeDeviceGroup($removeDevGroup, $force);
+			print "\t-> Done.\n";
+			last SWITCH;
+		};
+		defined($addDevGroupDevice) && do {
+			print "\n-> Making requested changes.\n";
+			$rc = addDeviceGroupDevice($deviceGroup, $addDevGroupDevice);
+			print "\t-> Done.\n";
+			last SWITCH;
+		};
+		defined($removeDevGroupDevice) && do {
+			print "\n-> Making requested changes.\n";
+			$rc = removeDeviceGroupDevice($deviceGroup, $removeDevGroupDevice, $force);
+			print "\t-> Done.\n";
+			last SWITCH;
+		};
+		defined($addTargetGroup) && do {
+			print "\n-> Making requested changes.\n";
+			$rc = addTargetGroup($deviceGroup, $addTargetGroup);
+			print "\t-> Done.\n";
+			last SWITCH;
+		};
+		defined($removeTargetGroup) && do {
+			print "\n-> Making requested changes.\n";
+			$rc = removeTargetGroup($deviceGroup, $removeTargetGroup, $force);
+			print "\t-> Done.\n";
+			last SWITCH;
+		};
+		defined($addTargetGroupTarget) && do {
+			print "\n-> Making requested changes.\n";
+			$rc = addTargetGroupTarget($deviceGroup, $targetGroup, $addTargetGroupTarget);
+			print "\t-> Done.\n";
+			last SWITCH;
+		};
+		defined($removeTargetGroupTarget) && do {
+			print "\n-> Making requested changes.\n";
+			$rc = removeTargetGroupTarget($deviceGroup, $targetGroup, $removeTargetGroupTarget, $force);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -900,15 +1134,14 @@ sub main {
 		};
 		defined($issueLip) && do {
 			print "\n-> Making requested changes.\n";
-			$rc = issueLip($driver, $issueLip);
+			$rc = issueLip($driver, $issueLip, TRUE);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
 
 		if (!$all_good) {
 			print "No valid operations specified.\n";
-			usage();
-			exit TRUE;
+			exit 1;
 		}
 	}
 
@@ -969,6 +1202,20 @@ sub readWorkingConfig {
 		}
 	}
 
+	my $dgroups = $SCST->deviceGroups();
+	immediateExit($SCST->errorString());
+
+	foreach my $dgroup (@{$dgroups}) {
+		$CURRENT{'dgroups'}->{$dgroup}->{'devices'} = $SCST->deviceGroupDevices($dgroup);
+		immediateExit($SCST->errorString());			
+		my $tgroups = $SCST->targetGroups($dgroup);
+		immediateExit($SCST->errorString());
+		foreach my $tgroup (@{$tgroups}) {
+			$CURRENT{'dgroups'}->{$dgroup}->{'tgroups'}->{$tgroup}->{'targets'} =
+			  $SCST->targetGroupTargets($dgroup, $tgroup);
+		}
+	}
+
 	print "done.\n\n";
 
 	# Perform some basic checks
@@ -1000,6 +1247,76 @@ sub readWorkingConfig {
 	return FALSE;
 }
 
+# Serialize key attributes.
+# $prefix: output prefix, e.g. "\t\t".
+# $attributes: reference to a hash with attributes and their values.
+# $attr_filter: if specified, reference to a hash with the names of which
+#   (static) attributes to serialize.
+sub serializeKeyAttr {
+    my $prefix = shift;
+    my $attributes = shift;
+    my $attr_filter = shift;
+    my $result;
+    
+    foreach my $attribute (sort keys %{$attributes}) {
+	next if defined($$attributes{$attribute}->{'set'});
+	next if ($$attributes{$attribute}->{'static'} &&
+		 !(defined($attr_filter)
+		   && defined($$attr_filter{$attribute})));
+
+	if (defined($$attributes{$attribute}->{'keys'})) {
+	    foreach my $key (sort keys %{$$attributes{$attribute}->{'keys'}}) {
+		my $value =
+		    $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
+		if ($value ne '') {
+		    if ($value =~ / /) {
+			$value = "\"$value\"";
+		    }
+		    $result .= "$prefix$attribute $value\n";
+		}
+	    }
+	} elsif ($attribute eq 'enabled' || $attribute eq 'hw_target') {
+	    my $value = $$attributes{$attribute}->{'value'};
+	    $result .= "$prefix$attribute $value\n";
+	}
+    }
+
+    return $result;
+}
+
+# Serialize non-key attributes.
+# $prefix: output prefix, e.g. "\t\t".
+# $attributes: reference to a hash with attributes and their values.
+# $attr_filter: if specified, reference to a hash with the names of which
+#   (static) attributes to serialize.
+sub serializeNkAttr {
+    my $prefix = shift;
+    my $attributes = shift;
+    my $attr_filter = shift;
+    my $result;
+    
+    foreach my $attribute (sort keys %{$attributes}) {
+	if (!defined($$attributes{$attribute}->{'set'})
+	    && (!$$attributes{$attribute}->{'static'}
+		|| defined($attr_filter)
+		   && defined($$attr_filter{$attribute}))
+	    && !defined($$attributes{$attribute}->{'keys'})
+	    && $attribute ne 'enabled'
+	    && $attribute ne 'hw_target') {
+	    my $value = $$attributes{$attribute}->{'value'};
+	    if ($value ne '') {
+		if ($value =~ / /) {
+		    $value = "\"$value\"";
+		}
+		$result .= "$prefix$attribute $value\n";
+	    }
+	}
+    }
+
+    return $result;
+}
+
+# Returns 0 upon success and 1 upon error.
 sub writeConfiguration {
 	my $nonkey = shift;
 
@@ -1007,7 +1324,7 @@ sub writeConfiguration {
 		if (!unlink $CONFIGFILE) {
 			print "Failed to save current configuration, specified ".
 			  "file exists and cannot be deleted.\n";
-			return TRUE;
+			return 1;
 		}
 	}
 
@@ -1022,69 +1339,30 @@ sub writeConfiguration {
 
 	print $io "# Automatically generated by $Version.\n\n";
 
-	my $attributes = $SCST->scstAttributes();
-	immediateExit($SCST->errorString());
+	{
+		my $attributes = $SCST->scstAttributes();
+		immediateExit($SCST->errorString());
 
-	my %nattrs;
-
-	foreach my $attribute (sort keys %{$attributes}) {
-		next if (defined($$attributes{$attribute}->{'set'}));
-
-		if (!$$attributes{$attribute}->{'static'}) {
-			if (defined($$attributes{$attribute}->{'keys'})) {
-				foreach my $key (%{$$attributes{$attribute}->{'keys'}}) {
-					my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
-					$value = "\"$value\"" if ($value =~ / /);
-					print $io "$attribute $value\n"
-					  if (defined($value) && ($value ne ''));
-				}
-			} elsif ($nonkey) {
-				my $value = $$attributes{$attribute}->{'value'};
-				$value = "\"$value\"" if ($value =~ / /);
-				$nattrs{$attribute} = $value
-				  if (defined($value) && ($value ne ''));
-			}
+		print $io serializeKeyAttr("", $attributes);
+		if ($nonkey) {
+		    my $nk = serializeNkAttr("", $attributes);
+		    if ($nk) {
+			print $io "# Non-key attributes\n";
+			print $io $nk;
+		    }
 		}
+		print $io "\n";
 	}
-
-	if ($nonkey && (scalar keys %nattrs)) {
-		print $io "# Non-key attributes\n";
-		foreach my $attr (keys %nattrs) {
-			my $value = $nattrs{$attr};
-			print $io "$attr $value\n";
-		}
-	}
-
-	print $io "\n";
 
 	foreach my $handler (sort keys %{$CURRENT{'handler'}}) {
 		my $handler_buff;
 		my $handler_buff_nk;
 
 		my $handler_attrs = $SCST->deviceCreateAttributes($handler);
-		$attributes = $SCST->handlerAttributes($handler);
+		my $attributes = $SCST->handlerAttributes($handler);
 
-		foreach my $attribute (sort keys %{$attributes}) {
-			next if (defined($$attributes{$attribute}->{'set'}));
-
-			if (!$$attributes{$attribute}->{'static'}) {
-				if (defined($$attributes{$attribute}->{'keys'})) {
-					foreach my $key (@{$$attributes{$attribute}->{'keys'}}) {
-						my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
-						$value = "\"$value\"" if ($value =~ / /);
-						$handler_buff .= "\t$attribute $value\n" if (defined($value));
-					}
-				} elsif (($attribute eq 'enabled') || $nonkey) {
-					my $value = $$attributes{$attribute}->{'value'};
-					$value = "\"$value\"" if ($value =~ / /);
-					if ($attribute eq 'enabled') {
-						$handler_buff .= "\t$attribute $value\n" if (defined($value));
-					} else {
-						$handler_buff_nk .= "\t$attribute $value\n" if (defined($value));
-					}
-				}
-			}
-		}
+		$handler_buff = serializeKeyAttr("\t", $attributes);
+		$handler_buff_nk = serializeNkAttr("\t", $attributes) if ($nonkey);
 
 		my $devices = $CURRENT{'handler'}->{$handler};
 
@@ -1092,66 +1370,17 @@ sub writeConfiguration {
 		foreach my $device (sort @{$devices}) {
 			$device_buff .= "\tDEVICE $device";
 
-			$attributes = $SCST->deviceAttributes($device);
+			my $attributes = $SCST->deviceAttributes($device);
 
 			my $attribute_buff;
 			my $attribute_buff_nk;
-			foreach my $attribute (sort keys %{$attributes}) {
-				next if (defined($$attributes{$attribute}->{'set'}));
 
-				if (!defined($$handler_attrs{$attribute})) {
-					if (!$$attributes{$attribute}->{'static'}) {
-						if (defined($$attributes{$attribute}->{'keys'})) {
-							foreach my $key (keys %{$$attributes{$attribute}->{'keys'}}) {
-								my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
-								$value = "\"$value\"" if ($value =~ / /);
-								$attribute_buff .= "\t\t$attribute $value\n"
-								  if (defined($value));
-							}
-						} elsif (($attribute eq 'enabled') || $nonkey) {
-							my $value = $$attributes{$attribute}->{'value'};
-							$value = "\"$value\"" if ($value =~ / /);
-							if ($attribute eq 'enabled') {
-								$attribute_buff .= "\t\t$attribute $value\n"
-								 if (defined($value));
-							} else {
-								$attribute_buff_nk .= "\t\t$attribute $value\n"
-								 if (defined($value));
-							}
-						}
-					}
-				}
-			}
-
+			$attribute_buff = serializeKeyAttr("\t\t", $attributes, $handler_attrs);
+			$attribute_buff_nk = serializeNkAttr("\t\t", $attributes, $handler_attrs) if ($nonkey);
 			$attribute_buff .= "\n" if ($attribute_buff);
 			$attribute_buff_nk .= "\n" if ($attribute_buff_nk);
 
-			if (!defined($$attributes{'scsi_device'})) {
-				my $create_buff;
-
-				foreach my $attribute (sort keys %{$attributes}) {
-					next if (defined($$attributes{$attribute}->{'set'}));
-
-					if (defined($$handler_attrs{$attribute})) {
-						if (defined($$attributes{$attribute}->{'keys'})) {
-							foreach my $key (keys %{$$attributes{$attribute}->{'keys'}}) {
-								my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
-								$value = "\"$value\"" if ($value =~ / /);
-								$create_buff .= "\t\t$attribute $value\n"
-								  if (defined($value));
-							}
-						# Shouldn't be any non-key create attributes
-						}
-					}
-				}
-
-				if ($create_buff) {
-					$attribute_buff .= $create_buff;
-				}
-			}
-
 			if ($attribute_buff_nk) {
-				$attribute_buff .= "\n" if ($attribute_buff);
 				$attribute_buff .= "\t\t# Non-key attributes\n";
 				$attribute_buff .= $attribute_buff_nk;
 			}
@@ -1190,30 +1419,9 @@ sub writeConfiguration {
 
 		my $drv_attr_buff;
 		my $drv_attr_buff_nk;
-		foreach my $attr (keys %{$drv_attrs}) {
-			next if ($$drv_attrs{$attr}->{'static'});
-			next if ($$drv_attrs{$attr}->{'set'});
 
-			if (defined($$drv_attrs{$attr}->{'keys'})) {
-				foreach my $key (keys %{$$drv_attrs{$attr}->{'keys'}}) {
-					my $value = $$drv_attrs{$attr}->{'keys'}->{$key}->{'value'};
-					$value = "\"$value\"" if ($value =~ / /);
-					$drv_attr_buff .= "\t$attr $value\n"
-					  if (defined($value));
-				}
-			} elsif (($attr eq 'enabled') || $nonkey) {
-				my $value = $$drv_attrs{$attr}->{'value'};
-				$value = "\"$value\"" if ($value =~ /\s/);
-				if ($attr eq 'enabled') {
-					$drv_attr_buff .= "\t$attr $value\n"
-					  if (defined($value));
-				} else {
-					$drv_attr_buff_nk .= "\t$attr $value\n"
-					  if (defined($value));
-				}
-			}
-		}
-
+		$drv_attr_buff = serializeKeyAttr("\t", $drv_attrs);
+		$drv_attr_buff_nk = serializeNkAttr("\t", $drv_attrs) if ($nonkey);
 		$drv_attr_buff .= "\n" if ($drv_attr_buff);
 		$drv_attr_buff_nk .= "\n" if ($drv_attr_buff_nk);
 
@@ -1234,31 +1442,8 @@ sub writeConfiguration {
 				$attribute_buff = "\t\tHW_TARGET\n\n";
 			}
 
-			foreach my $attr (keys %{$attributes}) {
-				next if ($$attributes{$attr}->{'static'} &&
-					 !defined($$tgt_attrs{$attr}));
-				next if ($$attributes{$attr}->{'set'});
-
-				if (defined($$attributes{$attr}->{'keys'})) {
-					foreach my $key (keys %{$$attributes{$attr}->{'keys'}}) {
-						my $value = $$attributes{$attr}->{'keys'}->{$key}->{'value'};
-						$value = "\"$value\"" if ($value =~ / /);
-						$attribute_buff .= "\t\t$attr $value\n"
-						  if (defined($value));
-					}
-				} elsif (($attr eq 'hw_target') || ($attr eq 'enabled') || $nonkey) {
-					my $value = $$attributes{$attr}->{'value'};
-					$value = "\"$value\"" if ($value =~ /\s/);
-					if ($attr eq 'enabled') {
-						$attribute_buff .= "\t\t$attr $value\n"
-						  if (defined($value));
-					} else {
-						$attribute_buff_nk .= "\t\t$attr $value\n"
-						  if (defined($value));
-					}
-				}
-			}
-
+			$attribute_buff .= serializeKeyAttr("\t\t", $attributes);
+			$attribute_buff_nk .= serializeNkAttr("\t\t", $attributes) if ($nonkey);
 			$attribute_buff .= "\n" if ($attribute_buff);
 			$attribute_buff_nk .= "\n" if ($attribute_buff_nk);
 
@@ -1271,41 +1456,18 @@ sub writeConfiguration {
 
 				$t_lun_buff .= "\t\tLUN $lun $lun_dev";
 
-				$attributes = $SCST->lunAttributes($driver, $target, $lun);
-
-				my $l_attribute_buff;
-				my $l_attribute_buff_nk;
-				foreach my $attribute (sort keys %{$attributes}) {
-					next if (defined($$attributes{$attribute}->{'set'}));
-
-					if (!$$attributes{$attribute}->{'static'} ||
-					    defined($$lun_attrs{$attribute})) {
-						if (defined($$attributes{$attribute}->{'keys'})) {
-							foreach my $key (keys %{$$attributes{$attribute}->{'keys'}}) {
-								my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
-								$value = "\"$value\"" if ($value =~ / /);
-								$l_attribute_buff .= "\t\t\t$attribute $value\n"
-								  if (defined($value));
-							}
-						} elsif (($attribute eq 'enabled') || $nonkey) {
-							my $value = $$attributes{$attribute}->{'value'};
-							$value = "\"$value\"" if ($value =~ / /);
-							if (defined($$lun_attrs{$attribute})) {
-								$l_attribute_buff .= "\t\t\t$attribute $value\n"
-								  if (defined($value));
-							} elsif ($attribute eq 'enabled') {
-								$l_attribute_buff .= "\t\t\t$attribute $value\n"
-								  if (defined($value));
-							} else {
-								$l_attribute_buff_nk .= "\t\t\t$attribute $value\n"
-								  if (defined($value));
-							}
-						}
-					}
-				}
+				my $attributes = $SCST->lunAttributes($driver, $target, $lun);
+				my $l_attribute_buff =
+				    serializeKeyAttr("\t\t\t",
+						     $attributes,
+						     $lun_attrs);
+				my $l_attribute_buff_nk =
+				    serializeNkAttr("\t\t\t",
+						    $attributes,
+						    $lun_attrs) if ($nonkey);
 
 				if ($l_attribute_buff_nk) {
-					$l_attribute_buff .= "\t\t\t\t# Non-key attributes\n";
+					$l_attribute_buff .= "\t\t\t# Non-key attributes\n";
 					$l_attribute_buff .= $l_attribute_buff_nk;
 				}
 
@@ -1338,38 +1500,17 @@ sub writeConfiguration {
 
 					$lun_buff .= "\t\t\tLUN $lun $lun_dev";
 
-					$attributes = $SCST->lunAttributes($driver, $target, $lun, $group);
+					my $attributes = $SCST->lunAttributes($driver, $target, $lun, $group);
 
-					my $l_attribute_buff;
-					my $l_attribute_buff_nk;
-					foreach my $attribute (sort keys %{$attributes}) {
-						next if (defined($$attributes{$attribute}->{'set'}));
-
-						if (!$$attributes{$attribute}->{'static'} ||
-						    defined($$lun_attrs{$attribute})) {
-							if (defined($$attributes{$attribute}->{'keys'})) {
-								foreach my $key (keys %{$$attributes{$attribute}->{'keys'}}) {
-									my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
-									$value = "\"$value\"" if ($value =~ / /);
-									$l_attribute_buff .= "\t\t\t\t$attribute $value\n"
-									  if (defined($value));
-								}
-							} elsif (($attribute eq 'enabled') || $nonkey) {
-								my $value = $$attributes{$attribute}->{'value'};
-								$value = "\"$value\"" if ($value =~ / /);
-								if (defined($$lun_attrs{$attribute})) {
-									$l_attribute_buff .= "\t\t\t\t$attribute $value\n"
-									  if (defined($value));
-								} elsif ($attribute eq 'enabled') {
-									$l_attribute_buff .= "\t\t\t\t$attribute $value\n"
-									  if (defined($value));
-								} else {
-									$l_attribute_buff_nk .= "\t\t\t\t$attribute $value\n"
-									  if (defined($value));
-								}
-							}
-						}
-					}
+					my $l_attribute_buff
+					    = serializeKeyAttr("\t\t\t\t",
+							       $attributes,
+							       $lun_attrs);
+					my $l_attribute_buff_nk
+					    = serializeNkAttr("\t\t\t\t",
+							      $attributes,
+							      $lun_attrs)
+					    if ($nonkey);
 
 					if ($l_attribute_buff_nk) {
 						$l_attribute_buff .= "\t\t\t\t# Non-key attributes\n";
@@ -1388,38 +1529,20 @@ sub writeConfiguration {
 				my $inits = $CURRENT{'assign'}->{$driver}->{$target}->{'GROUP'}->{$group}->{'INITIATORS'};
 
 				my $init_buff;
-				foreach my $init (@{$inits}) {
+				foreach my $init (sort @{$inits}) {
 					$init_buff .= "\n\t\t\tINITIATOR $init";
 
-					$attributes = $SCST->initiatorAttributes($driver, $target, $group, $init);
+					my $attributes = $SCST->initiatorAttributes($driver, $target, $group, $init);
 
-					my $i_attribute_buff;
-					my $i_attribute_buff_nk;
-					foreach my $attribute (sort keys %{$attributes}) {
-						next if (defined($$attributes{$attribute}->{'set'}));
-
-						if (!$$attributes{$attribute}->{'static'} ||
-						    defined($$ini_attrs{$attribute})) {
-							if (defined($$attributes{$attribute}->{'keys'})) {
-								foreach my $key (keys %{$$attributes{$attribute}->{'keys'}}) {
-									my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
-									$value = "\"$value\"" if ($value =~ / /);
-									$i_attribute_buff .= "\t\t\t\t$attribute $value\n"
-									  if (defined($value));
-								}
-							} elsif (($attribute eq 'enabled') || $nonkey) {
-								my $value = $$attributes{$attribute}->{'value'};
-								$value = "\"$value\"" if ($value =~ / /);
-								if ($attribute eq 'enabled') {
-									$i_attribute_buff .= "\t\t\t\t$attribute $value\n"
-									  if (defined($value));
-								} else {
-									$i_attribute_buff_nk .= "\t\t\t\t$attribute $value\n"
-									  if (defined($value));
-								}
-							}
-						}
-					}
+					my $i_attribute_buff
+					    = serializeKeyAttr("\t\t\t\t",
+							       $attributes,
+							       $ini_attrs);
+					my $i_attribute_buff_nk
+					    = serializeNkAttr("\t\t\t\t",
+							      $attributes,
+							      $ini_attrs)
+					    if ($nonkey);
 
 					if ($i_attribute_buff_nk) {
 						$i_attribute_buff .= "\t\t\t\t# Non-key attributes\n";
@@ -1428,7 +1551,7 @@ sub writeConfiguration {
 
 					if ($i_attribute_buff) {
 						$init_buff .= " {\n";
-						$init_buff .= $attribute_buff;
+						$init_buff .= $i_attribute_buff;
 						$init_buff .= "\t\t\t}\n";
 					} else {
 						$init_buff .= "\n";
@@ -1437,44 +1560,18 @@ sub writeConfiguration {
 
 				if ($lun_buff || $init_buff) {
 					$group_buff .= " {\n";
-
-					if ($lun_buff) {
-						$group_buff .= $lun_buff;
-					}
-
-					if ($init_buff) {
-						$group_buff .= $init_buff;
-					}
+					$group_buff .= $lun_buff;
+					$group_buff .= $init_buff;
 				}
 
 				my $grp_attributes = $SCST->groupAttributes($driver, $target, $group);
-
-				my $g_attribute_buff;
-				my $g_attribute_buff_nk;
-				foreach my $attribute (sort keys %{$grp_attributes}) {
-					next if (defined($$grp_attributes{$attribute}->{'set'}));
-
-					if (!$$grp_attributes{$attribute}->{'static'}) {
-						if (defined($$grp_attributes{$attribute}->{'keys'})) {
-							foreach my $key (keys %{$$grp_attributes{$attribute}->{'keys'}}) {
-								my $value = $$grp_attributes{$attribute}->{'keys'}->{$key}->{'value'};
-								$value = "\"$value\"" if ($value =~ / /);
-								$g_attribute_buff .= "\t\t\t$attribute $value\n"
-								  if (defined($value));
-							}
-						} elsif (($attribute eq 'enabled') || $nonkey) {
-							my $value = $$grp_attributes{$attribute}->{'value'};
-							$value = "\"$value\"" if ($value =~ / /);
-							if ($attribute eq 'enabled') {
-								$g_attribute_buff .= "\t\t\t$attribute $value\n"
-								  if (defined($value));
-							} else {
-								$g_attribute_buff_nk .= "\t\t\t$attribute $value\n"
-								  if (defined($value));
-							}
-						}
-					}
-				}
+				my $g_attribute_buff
+				    = serializeKeyAttr("\t\t\t",
+						       $grp_attributes);
+				my $g_attribute_buff_nk
+				    = serializeNkAttr("\t\t\t",
+						      $grp_attributes)
+				    if ($nonkey);
 
 				if ($g_attribute_buff_nk) {
 					$g_attribute_buff .= "\n" if ($g_attribute_buff);
@@ -1531,9 +1628,111 @@ sub writeConfiguration {
 		}
 	}
 
+	foreach my $dgroup (sort keys %{$CURRENT{'dgroups'}}) {
+		my $dgroup_buff;
+
+		my $dgroup_attrs = $SCST->deviceGroupAttributes($dgroup);
+
+		my $dgrp_attr_buff;
+		my $dgrp_attr_buff_nk;
+
+		$dgrp_attr_buff = serializeKeyAttr("\t", $dgroup_attrs);
+		$dgrp_attr_buff_nk = serializeNkAttr("\t", $dgroup_attrs) if ($nonkey);
+		$dgrp_attr_buff .= "\n" if ($dgrp_attr_buff);
+		$dgrp_attr_buff_nk .= "\n" if ($dgrp_attr_buff_nk);
+
+		my $devices_buff;
+
+		my $devices = $CURRENT{'dgroups'}->{$dgroup}->{'devices'};
+
+		foreach my $device (@{$devices}) {
+			$devices_buff .= "\tDEVICE $device\n";
+		}
+
+		$devices_buff .= "\n" if ($devices_buff);
+
+		my $tgroups = $CURRENT{'dgroups'}->{$dgroup}->{'tgroups'};
+
+		my $tgroup_buff;
+
+		foreach my $tgroup (sort keys %{$tgroups}) {
+			$tgroup_buff .= "\tTARGET_GROUP $tgroup";
+
+			my $attributes = $SCST->targetGroupAttributes($dgroup, $tgroup);
+
+			my $attribute_buff;
+			my $attribute_buff_nk;
+
+			$attribute_buff .= serializeKeyAttr("\t\t", $attributes);
+			$attribute_buff_nk .= serializeNkAttr("\t\t", $attributes) if ($nonkey);
+			$attribute_buff .= "\n" if ($attribute_buff);
+			$attribute_buff_nk .= "\n" if ($attribute_buff_nk);
+
+			my $tgts = $CURRENT{'dgroups'}->{$dgroup}->{'tgroups'}->{$tgroup}->{'targets'};
+
+			my $tgt_buff;
+			foreach my $tgt (@{$tgts}) {
+				$tgt_buff .= "\t\tTARGET $tgt";
+
+				my $tgt_attrs = $SCST->targetGroupTargetAttributes($dgroup, $tgroup, $tgt);
+
+				my $t_attribute_buff
+				  = serializeKeyAttr("\t\t\t", $tgt_attrs);
+				my $t_attribute_buff_nk
+				  = serializeNkAttr("\t\t\t", $tgt_attrs) if ($nonkey);
+
+				if ($t_attribute_buff_nk) {
+					$t_attribute_buff .= "\t\t\t# Non-key attributes\n";
+					$t_attribute_buff .= $t_attribute_buff_nk;
+				}
+
+				if ($t_attribute_buff) {
+					$tgt_buff .= " {\n";
+					$tgt_buff .= $t_attribute_buff;
+					$tgt_buff .= "\t\t}\n";
+				} else {
+					$tgt_buff .= "\n";
+				}
+			}
+
+			if ($attribute_buff_nk) {
+				$attribute_buff .= "\t\t# Non-key attributes\n";
+				$attribute_buff .= $attribute_buff_nk;
+			}
+
+			if ($attribute_buff || $tgt_buff) {
+				$tgroup_buff .= " {\n";
+
+				$tgroup_buff .= $attribute_buff;
+				$tgroup_buff .= $tgt_buff;
+
+				$tgroup_buff =~ s/\n\n$/\n/;
+				$tgroup_buff .= "\t}\n\n";
+			} else {
+				$tgroup_buff .= "\n";
+			}
+		}
+
+		if ($dgrp_attr_buff_nk) {
+			$dgrp_attr_buff .= "\t# Non-key attributes\n";
+			$dgrp_attr_buff .= $dgrp_attr_buff_nk;
+		}
+
+		$dgroup_buff .= $dgrp_attr_buff;
+		$dgroup_buff .= $devices_buff;
+		$dgroup_buff .= $tgroup_buff;
+		$dgroup_buff =~ s/\n\n$/\n/;
+
+		if ($dgroup_buff) {
+			print $io "DEVICE_GROUP $dgroup {\n";
+			print $io $dgroup_buff;
+			print $io "}\n\n";
+		}
+	}
+
 	close $io;
 
-	return FALSE;
+	return 0;
 }
 
 sub checkConfiguration {
@@ -1700,6 +1899,17 @@ sub checkConfiguration {
 		}
 	}
 
+	foreach my $dgroup (keys %{$$CONFIG{'DEVICE_GROUP'}}) {
+		foreach my $device (keys %{$$CONFIG{'DEVICE_GROUP'}->{$dgroup}->{'DEVICE'}}) {
+			if (!defined($cdevices{$device})) {
+				print "\t-> WARNING: Device '$device' associated with device group '$dgroup' ".
+				  "is not defined within configuration, removing it.\n\n";
+				delete $$CONFIG{'DEVICE_GROUP'}->{$dgroup}->{'DEVICE'}->{$device};
+				$warnings++;
+			}
+		}
+	}
+
 	if ($errors) {
 		print "\t-> Done, $errors errors found.\n";
 		return TRUE;
@@ -1728,12 +1938,14 @@ sub applyConfiguration {
 	# Apply config additions
 	$changes += applyConfigDevices($CONFIG, $force);
 	$changes += applyConfigAssignments($CONFIG, $force);
+	$changes += applyConfigDeviceGroups($CONFIG, $force);
 
 	# And SCST attributes..
 	my %_attributes;
 	foreach my $item (keys %{$CONFIG}) {
 		next if ($item eq 'HANDLER');
 		next if ($item eq 'TARGET_DRIVER');
+		next if ($item eq 'DEVICE_GROUP');
 		$_attributes{$item} = $$CONFIG{$item};
 	}
 
@@ -1987,6 +2199,136 @@ sub applyConfigAssignments {
 		    ($$d_attributes{'enabled'}->{'value'} != $$attributes{'enabled'})) {
 			setDriverAttribute($driver, 'enabled', $$attributes{'enabled'});
 			$changes++;
+		}
+	}
+
+	return $changes;
+}
+
+sub applyConfigDeviceGroups {
+	my $config = shift;
+	my $deletions = shift;
+	my $changes = 0;
+
+	my $dgroups = $CURRENT{'dgroups'};
+
+	foreach my $dgroup (keys %{$dgroups}) {
+		if (!defined($$config{'DEVICE_GROUP'}->{$dgroup})) {
+			if ($deletions) {
+				removeDeviceGroup($dgroup, TRUE);
+				$changes++;
+			} else {
+				print "\t-> Device Group '$dgroup' is not in configuration. Use -force to remove.\n";
+			}
+		} else {
+			my $devices = $CURRENT{'dgroups'}->{$dgroup}->{'devices'};
+
+			foreach my $device (@{$devices}) {
+				if (!defined($$config{'DEVICE_GROUP'}->{$dgroup}->{'DEVICE'}->{$device})) {
+					if ($deletions) {
+						removeDeviceGroupDevice($dgroup, $device);
+						$changes++;
+					} else {
+						print "\t-> Device '$device' within device group '$dgroup' is not in configuration. Use -force to remove.\n";
+					}
+				}
+			}
+
+			foreach my $tgroup (keys %{$$dgroups{$dgroup}->{'tgroups'}}) {
+				if (!defined($$config{'DEVICE_GROUP'}->{$dgroup}->{'TARGET_GROUP'}->{$tgroup})) {
+					if ($deletions) {
+						removeTargetGroup($dgroup, $tgroup, TRUE);
+						$changes++;
+					} else {
+						print "\t-> Target Group '$dgroup/$tgroup' is not in configuration. Use -force to remove.\n";
+					}
+				} else {
+					my $tgts = $$dgroups{$dgroup}->{'tgroups'}->{$tgroup}->{'targets'};
+
+					foreach my $tgt (@{$tgts}) {
+						if (!defined($$config{'DEVICE_GROUP'}->{$dgroup}->{'TARGET_GROUP'}->{$tgroup}->{'TARGET'}->{$tgt})) {
+							if ($deletions) {
+								removeTargetGroupTarget($dgroup, $tgroup, $tgt);
+								$changes++;
+							} else {
+								print "\t-> Target '$dgroup/$tgroup/$tgt' is not in configuration. Use -force to remove.\n";
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	$dgroups = $$config{'DEVICE_GROUP'};
+
+	foreach my $dgroup (sort keys %{$dgroups}) {
+		if (!defined($CURRENT{'dgroups'}->{$dgroup})) {
+			addDeviceGroup($dgroup);
+			$changes++;
+		}
+
+		my $devices = $$dgroups{$dgroup}->{'DEVICE'};
+
+		foreach my $device (sort keys %{$devices}) {
+			if (!deviceGroupHasDevice($dgroup, $device)) {
+				addDeviceGroupDevice($dgroup, $device);
+				$changes++;
+			}
+		}
+
+		my $tgroups = $$dgroups{$dgroup}->{'TARGET_GROUP'};
+
+		foreach my $tgroup (sort keys %{$tgroups}) {
+			if (!defined($CURRENT{'dgroups'}->{$dgroup}->{'tgroups'}->{$tgroup})) {
+				addTargetGroup($dgroup, $tgroup);
+				$changes++;
+			}
+
+			my $tgts = $$tgroups{$tgroup}->{'TARGET'};
+
+			foreach my $tgt (keys %{$tgts}) {
+				if (!arrayHasValue($CURRENT{'dgroups'}->{$dgroup}->{'tgroups'}->{$tgroup}->{'targets'}, $tgt)) {
+					addTargetGroupTarget($dgroup, $tgroup, $tgt);
+					$changes++;
+				}
+
+				my %_attributes;
+				foreach my $item (keys %{$$tgts{$tgt}}) {
+					$_attributes{$item} = $$tgts{$tgt}->{$item};
+				}
+
+				my $attributes = configToAttr(\%_attributes);
+
+				if (scalar keys %{$attributes}) {
+					$changes += setTargetGroupTargetAttributes($dgroup, $tgroup, $tgt, $attributes);
+				}
+			}
+
+			my %_attributes;
+			foreach my $item (keys %{$$tgroups{$tgroup}}) {
+				next if ($item eq 'TARGET');
+				$_attributes{$item} = $$tgroups{$tgroup}->{$item};
+			}
+
+			my $attributes = configToAttr(\%_attributes);
+
+			if (scalar keys %{$attributes}) {
+				$changes += setTargetGroupAttributes($dgroup, $tgroup, $attributes);
+			}
+		}
+
+		my %_attributes;
+		foreach my $item (keys %{$$dgroups{$dgroup}}) {
+			next if ($item eq 'TARGET_GROUP');
+			next if ($item eq 'DEVICE');
+			$_attributes{$item} = $$dgroups{$dgroup}->{$item};
+		}
+
+		my $attributes = configToAttr(\%_attributes);
+
+		if (scalar keys %{$attributes}) {
+			$changes += setDeviceGroupAttributes($dgroup, $attributes);
 		}
 	}
 
@@ -2253,9 +2595,22 @@ sub compareToKeyAttribute {
 }
 
 sub clearConfiguration {
+	my $dgroups = $CURRENT{'dgroups'};
 	my $assignments = $CURRENT{'assign'};
 
 	print "-> Clearing running configuration.\n";
+
+	foreach my $dgroup (sort keys %{$dgroups}) {
+		foreach my $tgroup (sort keys %{$$dgroups{$dgroup}->{'tgroups'}}) {
+			removeTargetGroup($dgroup, $tgroup, TRUE);
+		}
+
+		foreach my $device (@{$$dgroups{$dgroup}->{'devices'}}) {
+			removeDeviceGroupDevice($dgroup, $device, TRUE);
+		}
+
+		removeDeviceGroup($dgroup, TRUE);
+	}
 
 	foreach my $driver (sort keys %{$assignments}) {
 		foreach my $target (sort keys %{$$assignments{$driver}}) {
@@ -2452,6 +2807,173 @@ sub listDevice {
 	}
 
 	return listAttributes($attributes, $nonkey);
+}
+
+sub listDeviceGroups {
+	my $group = shift;
+	my $showall = shift;
+
+	return listDeviceGroup($group) if ($group ne '');
+
+	my $groups = $SCST->deviceGroups();
+
+	my $l_group;
+	foreach my $group (@{$groups}) {
+		$l_group = length($group) if ($l_group < length($group));
+	}
+
+	$l_group = 12 if ($l_group < 12);
+
+	print "\tDevice Group\n";
+	print "\t";
+	for (my $x = 0; $x < $l_group; $x++) {
+		print "-";
+	}
+	print "\n";
+
+	foreach my $group (@{$groups}) {
+		print "\t$group\n\n";
+		listTargetGroups($group, undef, TRUE) if ($showall);
+	}
+
+	return FALSE;
+}
+
+sub listDeviceGroup {
+	my $group = shift;
+
+	my $devices = $SCST->deviceGroupDevices($group);
+
+	my $l_device;
+	foreach my $device (@{$devices}) {
+		$l_device = length($device) if ($l_device < length($device));
+	}
+
+	$l_device = 7 if ($l_device < 6);
+
+	print "\tDevices\n";
+	print "\t";
+	for (my $x = 0; $x < $l_device; $x++) {
+		print "-";
+	}
+	print "\n";
+
+	foreach my $device (@{$devices}) {
+		print "\t$device\n";
+	}
+
+	my $tgroups = $SCST->targetGroups($group);
+
+	my $l_tgroup;
+	foreach my $tgroup (@{$tgroups}) {
+		$l_tgroup = length($tgroup) if ($l_tgroup < length($tgroup));
+	}
+
+	$l_tgroup = 12 if ($l_tgroup < 12);
+
+	print "\n\tTarget Groups\n";
+	print "\t";
+	for (my $x = 0; $x < $l_tgroup; $x++) {
+		print "-";
+	}
+	print "\n";
+
+	foreach my $tgroup (@{$tgroups}) {
+		print "\t$tgroup\n";
+	}
+
+	return FALSE;
+}
+
+sub listTargetGroups {
+	my $group = shift;
+	my $tgroup = shift;
+	my $indent = shift;
+
+	return listDeviceGroups(undef, TRUE) if ($group eq '');
+	return listTargetGroup($group, $tgroup) if ($tgroup ne '');
+
+	my $tgroups = $SCST->targetGroups($group);
+
+	my $l_tgroup;
+	foreach my $tgroup (@{$tgroups}) {
+		$l_tgroup = length($tgroup) if ($l_tgroup < length($tgroup));
+	}
+
+	$l_tgroup = 12 if ($l_tgroup < 12);
+
+	print "\n";
+	print "\t" if ($indent);
+	print "\tTarget Groups\n";
+	print "\t";
+	print "\t" if ($indent);
+	for (my $x = 0; $x < $l_tgroup; $x++) {
+		print "-";
+	}
+	print "\n";
+
+	foreach my $tgroup (@{$tgroups}) {
+		print "\t" if ($indent);
+		print "\t$tgroup\n";
+	}
+
+	return FALSE;
+}
+
+sub listTargetGroup {
+	my $group = shift;
+	my $tgroup = shift;
+
+	my $targets = $SCST->targetGroupTargets($group, $tgroup);
+
+	my $l_tgt;
+	foreach my $tgt (@{$targets}) {
+		$l_tgt = length($tgt) if ($l_tgt < length($tgt));
+	}
+
+	$l_tgt = 7 if ($l_tgt < 7);
+
+	print "\tTargets\n";
+	print "\t";
+	for (my $x = 0; $x < $l_tgt; $x++) {
+		print "-";
+	}
+	print "\n";
+
+	foreach my $tgt (@{$targets}) {
+		print "\t$tgt\n";
+	}
+
+	return FALSE;
+}
+
+sub listDeviceGroupDevices {
+	my $group = shift;
+	my $device = shift;
+
+	return listDevice($device) if ($device ne '');
+
+	my $devices = $SCST->deviceGroupDevices($group);
+
+	my $l_device;
+	foreach my $device (@{$devices}) {
+		$l_device = length($device) if ($l_device < length($device));
+	}
+
+	$l_device = 7 if ($l_device < 7);
+
+	print "\tDevices\n";
+	print "\t";
+	for (my $x = 0; $x < $l_device; $x++) {
+		print "-";
+	}
+	print "\n";
+
+	foreach my $device (@{$devices}) {
+		print "\t$device\n";
+	}
+
+	return FALSE;
 }
 
 sub listDrivers {
@@ -3115,6 +3637,76 @@ sub listInitiatorAttributes {
 	return listAttributes($attributes, $nonkey);
 }
 
+sub listDeviceGroupAttributes {
+	my $group = shift;
+	my $nonkey = shift;
+
+	my $attributes = $SCST->deviceGroupAttributes($group);
+
+	return TRUE if issueWarning($SCST->errorString());
+
+	# Special case - as of writing, device group attributes didn't exist.
+	if (!scalar(keys %{$attributes})) {
+		print "No such device group '$group' found or device group as no attributes.\n";
+		return;
+	}
+
+	return listAttributes($attributes, $nonkey);
+}
+
+sub listTargetGroupAttributes {
+	my $group = shift;
+	my $tgroup = shift;
+	my $nonkey = shift;
+
+	my $attributes = $SCST->targetGroupAttributes($group, $tgroup);
+
+	return TRUE if issueWarning($SCST->errorString());
+
+	if (!scalar(keys %{$attributes})) {
+		print "No such device group/target group '$group/$tgroup' found.\n";
+		return;
+	}
+
+	return listAttributes($attributes, $nonkey);
+}
+
+sub listTargetGroupTargetAttributes {
+	my $group = shift;
+	my $tgroup = shift;
+	my $tgt = shift;
+	my $nonkey = shift;
+
+	my $attributes = $SCST->targetGroupTargetAttributes($group, $tgroup, $tgt);
+
+	return TRUE if issueWarning($SCST->errorString());
+
+	if (!scalar(keys %{$attributes})) {
+		print "No such device group/target group/target '$group/$tgroup/$tgt' found.\n";
+		return;
+	}
+
+	return listAttributes($attributes, $nonkey);
+}
+
+sub listTargetGroupTargetAttributes {
+	my $group = shift;
+	my $tgroup = shift;
+	my $tgt = shift;
+	my $nonkey = shift;
+
+	my $attributes = $SCST->targetGroupTargetAttributes($group, $tgroup, $tgt);
+
+	return TRUE if issueWarning($SCST->errorString());
+
+	if (!scalar(keys %{$attributes})) {
+		print "No such target '$tgt' exists within specified target group.\n";
+		return;
+	}
+
+	return listAttributes($attributes, $nonkey);
+}
+
 ####################################################################
 
 sub setScstAttribute {
@@ -3326,6 +3918,105 @@ sub setInitiatorAttributes {
 
 	return setAttributes($driver, $target, $group, $initiator, $attributes,
 	  $_attributes, $error, \&setInitiatorAttribute, $showset);
+}
+
+sub setDeviceGroupAttributes {
+	my $group = shift;
+	my $attributes = shift;
+	my $showset = shift;
+
+	my $error = "\t-> WARNING: Device Group '$group' lacks the settable attribute '%s', ignoring.\n\n";
+
+	my $_attributes = $SCST->deviceGroupAttributes($group);
+
+	return TRUE if issueWarning($SCST->errorString());
+
+	return setAttributes(undef, undef, undef, $group, $attributes,
+	  $_attributes, $error, \&setDeviceGroupAttribute, $showset);
+}
+
+sub setDeviceGroupAttribute {
+	shift;
+	shift;
+	shift;
+	my $group = shift;
+	my $attribute = shift;
+	my $value = shift;
+
+	print "\t-> Setting Device Group attribute '$attribute' to value '$value' for ".
+	  "device group '$group': ";
+
+	my $rc = $SCST->setDeviceGroupAttribute($group, $attribute, $value);
+	print "done.\n";
+
+	return $rc;
+}
+
+sub setTargetGroupAttributes {
+	my $group = shift;
+	my $tgroup = shift;
+	my $attributes = shift;
+	my $showset = shift;
+
+	my $error = "\t-> WARNING: Target Group '$group/$tgroup' lacks the settable attribute '%s', ignoring.\n\n";
+
+	my $_attributes = $SCST->targetGroupAttributes($group, $tgroup);
+
+	return TRUE if issueWarning($SCST->errorString());
+
+	return setAttributes(undef, undef, $group, $tgroup, $attributes,
+	  $_attributes, $error, \&setTargetGroupAttribute, $showset);
+}
+
+sub setTargetGroupAttribute {
+	shift;
+	shift;
+	my $group = shift;
+	my $tgroup = shift;
+	my $attribute = shift;
+	my $value = shift;
+
+	print "\t-> Setting Target Group attribute '$attribute' to value '$value' for ".
+	  "target group '$group/$tgroup': ";
+
+	my $rc = $SCST->setTargetGroupAttribute($group, $tgroup, $attribute, $value);
+	print "done.\n";
+
+	return $rc;
+}
+
+sub setTargetGroupTargetAttributes {
+	my $group = shift;
+	my $tgroup = shift;
+	my $tgt = shift;
+	my $attributes = shift;
+	my $showset = shift;
+
+	my $error = "\t-> WARNING: Target '$group/$tgroup/$tgt' lacks the settable attribute '%s', ignoring.\n\n";
+
+	my $_attributes = $SCST->targetGroupTargetAttributes($group, $tgroup, $tgt);
+
+	return TRUE if issueWarning($SCST->errorString());
+
+	return setAttributes(undef, $group, $tgroup, $tgt, $attributes,
+	  $_attributes, $error, \&setTargetGroupTargetAttribute, $showset);
+}
+
+sub setTargetGroupTargetAttribute {
+	shift;
+	my $group = shift;
+	my $tgroup = shift;
+	my $tgt = shift;
+	my $attribute = shift;
+	my $value = shift;
+
+	print "\t-> Setting target attribute '$attribute' to value '$value' for ".
+	  "target '$group/$tgroup/$tgt': ";
+
+	my $rc = $SCST->setTargetGroupTargetAttribute($group, $tgroup, $tgt, $attribute, $value);
+	print "done.\n";
+
+	return $rc;
 }
 
 # Sets any non-dynamic attributes
@@ -3683,7 +4374,7 @@ sub addTargetDynamicAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	print "\t-> Adding driver attribute '$attribute' with value '$value' ".
+	print "\t-> Adding target attribute '$attribute' with value '$value' ".
 	  "for driver/target '$driver/$target': ";
 	my $rc = $SCST->addTargetDynamicAttribute($driver, $target, $attribute, $value);
 	print "done.\n";
@@ -3784,6 +4475,172 @@ sub resyncDevice {
 	my %attributes = ('resync_size', 1);
 
 	return setDeviceAttributes($device, \%attributes);
+}
+
+####################################################################
+
+sub addDeviceGroup {
+	my $group = shift;
+
+	print "\t-> Adding new device group '$group': ";
+
+	my $rc = $SCST->addDeviceGroup($group);
+
+	print "done.\n";
+
+	immediateExit($SCST->errorString($rc)) if ($rc);
+
+	return FALSE;
+}
+
+sub addTargetGroup {
+	my $group = shift;
+	my $tgroup = shift;
+
+	print "\t-> Adding new target group '$tgroup' to device group '$group': ";
+
+	my $rc = $SCST->addTargetGroup($group, $tgroup);
+
+	print "done.\n";
+
+	immediateExit($SCST->errorString($rc)) if ($rc);
+
+	return FALSE;
+}
+
+sub addTargetGroupTarget {
+	my $group = shift;
+	my $tgroup = shift;
+	my $tgt = shift;
+
+	print "\t-> Adding new target group/target '$tgroup/$tgt' to device group '$group': ";
+
+	my $rc = $SCST->addTargetGroupTarget($group, $tgroup, $tgt);
+
+	print "done.\n";
+
+	immediateExit($SCST->errorString($rc)) if ($rc);
+
+	return FALSE;
+}
+
+sub removeDeviceGroup {
+	my $group = shift;
+	my $force = shift;
+
+	if (!$force) {
+		my $devices = $SCST->deviceGroupDevices($group);
+		my $tgroups = $SCST->targetGroups($group);
+
+		if (($#{$devices} > -1) || ($#{$tgroups} > -1)) {
+			print "\n";
+			listDeviceGroup($group);
+			immediateExit("Device group is still in use, aborting. Use -force to override.");
+		}
+	}
+
+	print "\t-> Removing device group '$group': ";
+
+	my $rc = $SCST->removeDeviceGroup($group);
+
+	print "done.\n";
+
+	immediateExit($SCST->errorString($rc)) if ($rc);
+
+	return FALSE;
+}
+
+sub removeTargetGroup {
+	my $group = shift;
+	my $tgroup = shift;
+	my $force = shift;
+
+	if (!$force) {
+		my $tgts = $SCST->targetGroupTargets($group, $tgroup);
+
+		if ($#{$tgts} > -1) {
+			print "\n";
+			listTargetGroup($group, $tgroup);
+			immediateExit("Target group is still in use, aborting. Use -force to override.");
+		}
+	}
+
+	print "\t-> Removing target group '$tgroup' from device group '$group': ";
+
+	my $rc = $SCST->removeTargetGroup($group, $tgroup);
+
+	print "done.\n";
+
+	immediateExit($SCST->errorString($rc)) if ($rc);
+
+	return FALSE;
+}
+
+sub removeTargetGroupTarget {
+	my $group = shift;
+	my $tgroup = shift;
+	my $tgt = shift;
+	my $force = shift;
+
+	print "\t-> Removing target group/target '$tgroup/$tgt' from device group '$group': ";
+
+	my $rc = $SCST->removeTargetGroupTarget($group, $tgroup, $tgt);
+
+	print "done.\n";
+
+	immediateExit($SCST->errorString($rc)) if ($rc);
+
+	return FALSE;
+}
+
+sub addDeviceGroupDevice {
+	my $group = shift;
+	my $device = shift;
+
+	print "\t-> Adding new device group/device '$group/$device': ";
+
+	my $rc = $SCST->addDeviceGroupDevice($group, $device);
+
+	print "done.\n";
+
+	immediateExit($SCST->errorString($rc)) if ($rc);
+
+	return FALSE;
+}
+
+sub removeDeviceGroupDevice {
+	my $group = shift;
+	my $device = shift;
+	my $force = shift;
+
+	if (!$force) {
+		my $found = FALSE;
+		my $tgroups = $SCST->targetGroups($group);
+
+		foreach my $tgroup (@{$tgroups}) {
+			my $targets = $SCST->targetGroupTargets($group, $tgroup);
+
+			if ($#{$targets} > -1) {
+				print "\n";
+				listTargetGroup($group, $tgroup);
+				$found = TRUE;
+			}
+		}
+
+		if ($found) {
+			immediateExit("Device may still be in use, aborting. Use -force to override.");
+		}
+	}
+
+	print "\t-> Removing device '$device' from target group '$group': ";
+
+	my $rc = $SCST->removeDeviceGroupDevice($group, $device);
+
+	print "done.\n";
+
+	immediateExit($SCST->errorString($rc)) if ($rc);
+
+	return FALSE;
 }
 
 ####################################################################
@@ -4109,9 +4966,10 @@ sub disableDriver {
 sub issueLip {
 	my $driver = shift;
 	my $target = shift;
+	my $warn = shift;
 
 	if (defined($driver) && defined($target)) {
-		return _issueLip($driver, $target);
+		return _issueLip($driver, $target, $warn);
 	} else {
 		my $drivers = $SCST->drivers();
 
@@ -4119,7 +4977,7 @@ sub issueLip {
 			my $targets = $SCST->targets($driver);
 
 			foreach my $target (@{$targets}) {
-				my $rc = _issueLip($driver, $target);
+				my $rc = _issueLip($driver, $target, $warn);
 
 				return $rc if ($rc);
 			}
@@ -4132,49 +4990,52 @@ sub issueLip {
 sub _issueLip {
 	my $driver = shift;
 	my $target = shift;
+	my $warn = shift;
 	my $rc = FALSE;
 
 	my $attributes = $SCST->targetAttributes($driver, $target);
 
-	if (!defined($$attributes{'host'})) {
-		#print "\t-> Driver/target '$driver/$target' has no 'host' attribute, ignoring.\n";
+	if (!defined($$attributes{'host'}) && $warn) {
+		print "\t-> Driver/target '$driver/$target' has no 'host' attribute, ignoring.\n";
 		return FALSE;
 	}
 
 	my $dir = new IO::Handle;
 
-	if (!(opendir $dir, $$attributes{'host'}->{'value'}.'/device/fc_host')) {
-		#print "\t-> Driver/target is not a fibre channel target, ignoring.\n";
-		return FALSE;
+	my $host = $$attributes{'host'}->{'value'};
+	my $ldir = $SCST->SCST_TARGETS_DIR."/$driver/$target/host/device/fc_host:$host";
+
+	if (!(opendir $dir, $ldir)) {
+		$ldir = $SCST->SCST_TARGETS_DIR."/$driver/$target/host/device/fc_host/$host";
+		if (!(opendir $dir, $ldir)) {
+			print "\t-> Driver/target is not a fibre channel target, ignoring.\n";
+			return FALSE;
+		}
 	}
 
-	foreach my $host (readdir($dir)) {
-		next if (($host eq '.') || ($host eq '..'));
+	my $lip = $ldir.'/issue_lip';
 
-		my $lip = $$attributes{'host'}->{'value'}.'/device/fc_host/'.$host.'/issue_lip';
+	if (-w $lip) {
+		my $io = new IO::File $lip, O_WRONLY;
 
-		if (-w $lip) {
-			my $io = new IO::File $lip, O_WRONLY;
+		print "WARNING: Failed to open file '$lip' for writing.\n"
+		  if (!$io);
 
-			print "WARNING: Failed to open file '$lip' for writing.\n"
-			  if (!$io);
+		print "\t-> Issuing LIP on fibre channel driver/target '$driver/$target' ($host): ";
 
-			print "\t-> Issuing LIP on fibre channel driver/target '$driver/$target' ($host): ";
+		my $bytes = syswrite($io, 1, 1);
 
-			my $bytes = syswrite($io, 1, 1);
+		print "done.\n";
 
-			print "done.\n";
-
-			if (!$bytes) {
-				print "WARNING: Failed to issue LIP on driver/target '$driver/$target'.\n";
-				$rc = TRUE;
-			}
-
-			close $io;
-		} else {
-			#print "Fibre channel driver/target '$driver/$target' lacks the ability to ".
-			#  "issue LIPs, ignoring.\n";
+		if (!$bytes) {
+			print "WARNING: Failed to issue LIP on driver/target '$driver/$target'.\n";
+			$rc = TRUE;
 		}
+
+		close $io;
+	} else {
+		print "Fibre channel driver/target '$driver/$target' lacks the ability to ".
+		  "issue LIPs, ignoring.\n";
 	}
 
 	close $dir;
@@ -4195,8 +5056,8 @@ sub readConfigFile {
 	  if (!$io);
 
 	while (my $line = <$io>) {
-		my($test, undef) = split(/\#/, $line, 2);
-		if ($test =~ /\[(.*)\s+.*\]/) {
+		($line, undef) = split(/\#/, $line, 2);
+		if ($line =~ /\[(.*)\s+.*\]/) {
 			my $parm = $1;
 
 			if (($parm eq 'HANDLER') || ($parm eq 'GROUP') ||
@@ -4261,7 +5122,6 @@ sub parseLine {
 	my $hash = shift;
 	my $child = shift;
 
-	($line, undef) = split(/\#/, $line, 2);
 	return if ($line =~ /^\s*$/);
 
 	$line =~ s/^\s+//; $line =~ s/\s+$//;
@@ -4563,12 +5423,25 @@ sub handlerHasDevice {
 	return FALSE;
 }
 
-sub groupHasInitiator {
-	my $initiators = shift;
-	my $initiator = shift;
+sub deviceGroupHasDevice {
+	my $group = shift;
+	my $device = shift;
 
-	foreach my $_initiator (@{$initiators}) {
-		return TRUE if ($_initiator eq $initiator);
+	return FALSE if (!defined($CURRENT{'dgroups'}->{$group}));
+
+	foreach my $_device (@{$CURRENT{'dgroups'}->{$group}->{'devices'}}) {
+		return TRUE if ($_device eq $device);
+	}
+
+	return FALSE;
+}
+
+sub arrayHasValue {
+	my $array = shift;
+	my $value = shift;
+
+	foreach my $item (@{$array}) {
+		return TRUE if ($item eq $value);
 	}
 
 	return FALSE;
@@ -4671,3 +5544,9 @@ sub commitSuicide {
 	print "\n\nAborting immediately.\n";
 	exit 1;
 }
+
+# Local Variables:
+# mode: perl
+# perl-indent-level: 8
+# indent-tabs-mode: t
+# End:

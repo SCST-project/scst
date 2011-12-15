@@ -1,0 +1,3 @@
+# When using the procfs interface, specify all SCST target drivers in
+# SCST_TARGET_MODULES. An example:
+# SCST_TARGET_MODULES="scst_local iscsi_scst ib_srpt"
