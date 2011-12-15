@@ -38,7 +38,7 @@
  * and FIO_REV in usr/fileio/common.h as well.
  */
 #define SCST_VERSION(a, b, c, d)    (((a) << 24) + ((b) << 16) + ((c) << 8) + d)
-#define SCST_VERSION_CODE	    SCST_VERSION(2, 1, 0, 0)
+#define SCST_VERSION_CODE	    SCST_VERSION(2, 2, 0, 0)
 #ifdef CONFIG_SCST_PROC
 #define SCST_VERSION_STRING_SUFFIX  "-procfs"
 #else
