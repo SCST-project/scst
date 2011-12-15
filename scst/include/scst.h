@@ -1069,7 +1069,7 @@ struct scst_tgt_template {
 	/*
 	 * Optional revision to be reported in the SCSI inquiry response. If
 	 * NULL, an SCST device handler specific default value will be used,
-	 * e.g. " 210" for scst_vdisk file I/O.
+	 * e.g. " 220" for scst_vdisk file I/O.
 	 */
 	const char *revision;
 
