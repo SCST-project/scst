@@ -48,17 +48,6 @@ include/iscsi_scst_itf_ver.h: include/iscsi_scst.h
 install: all
 	@install -vD -m 755 usr/iscsi-scstd $(DESTDIR)$(SBINDIR)/iscsi-scstd
 	@install -vD -m 755 usr/iscsi-scst-adm $(DESTDIR)$(SBINDIR)/iscsi-scst-adm
-	if [ -f /etc/debian_version ]; then \
-		install -vD -m 755 etc/initd/initd.debian $(DESTDIR)$(INITDIR)/iscsi-scst; \
-	elif [ -f /etc/redhat-release ]; then \
-		install -vD -m 755 etc/initd/initd.redhat $(DESTDIR)$(INITDIR)/iscsi-scst; \
-	elif [ -f /etc/gentoo-release ]; then \
-		install -vD -m 755 etc/initd/initd.gentoo $(DESTDIR)$(INITDIR)/iscsi-scst; \
-	elif [ -f /etc/slackware-version ]; then \
-		install -vD -m 755 etc/initd/initd $(DESTDIR)$(RCDIR)/iscsi-scst; \
-	else \
-		install -vD -m 755 etc/initd/initd $(DESTDIR)$(INITDIR)/iscsi-scst; \
-	fi
 	@eval `sed -n 's/#define UTS_RELEASE /KERNELRELEASE=/p' $(KDIR)/include/linux/version.h $(KDIR)/include/linux/utsrelease.h 2>/dev/null`; \
 	install -vD -m 644 kernel/iscsi-scst.ko \
 	$(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra/iscsi-scst.ko
