@@ -78,14 +78,8 @@ function extract_kernel_tree {
   mkdir "${tmpdir}" || return $?
   (
     cd "${tmpdir}" || return $?
-    tar xjf "${kernel_sources}/linux-${kver}.tar.bz2" || return $?
-    cd "linux-${kver}" || return $?
-    if [ "${plevel}" != "" ]; then
-      bzip2 -cd "${kernel_sources}/patch-$1.bz2" \
-        | patch -p1 -f -s || return $?
-    fi
-    cd ..
-    mv "linux-${kver}" "../linux-$1" || return $?
+    { xz -cd "${kernel_sources}/linux-$1.tar.xz" | tar xf -; } || return $?
+    mv "linux-$1" ".." || return $?
     if [ "$1" = "2.6.29" -o "$1" = "2.6.29.1" -o "$1" = "2.6.29.2" -o "$1" = "2.6.29.3" ]
     then
       cd "../linux-$1" || return $?
@@ -108,7 +102,7 @@ See also http://lkml.org/lkml/2009/4/5/120
  #define likely_notrace(x)	__builtin_expect(!!(x), 1)
 EOF
     fi
-    if [ "$1" = "2.6.31" -o "${1#2.6.31.}" != "$1" ]
+    if [ "${1#2.6.31}" != "$1" ]
     then
       cd "../linux-$1" || return $?
       patch -f -s -p1 <<'EOF'
@@ -145,8 +139,7 @@ See also http://lkml.org/lkml/2009/9/26/51
  	do {								\
 EOF
     fi
-    if [ "$1" = 2.6.32 -o "${1#2.6.32.}" != "$1" -o "$1" = "2.6.33" \
-	 -o "${1#2.6.33.}" != "$1" ]
+    if [ "${1#2.6.32}" != "$1" -o "${1#2.6.33}" != "$1" ]
     then
       cd "../linux-$1" || return $?
       patch -f -s -p1 <<'EOF'
@@ -288,13 +281,9 @@ function download_kernel {
   test -w "${kernel_sources}" || return $?
   (
     cd "${kernel_sources}" || return $?
-    download_file "${kernel_mirror}/v$series/linux-$kver.tar.bz2" \
+    download_file "${kernel_mirror}/v$series/linux-$1.tar.xz" \
+      || download_file "${kernel_mirror}/v$series/longterm/v${kver}/linux-$1.tar.xz" \
       || return $?
-    if [ "${plevel}" != "" ]; then
-      download_file "${kernel_mirror}/v$series/patch-$1.bz2" \
-        || download_file "${kernel_longterm}/v$series/longterm/patch-$1.bz2" \
-        || return $?
-    fi
   )
 }
 
