@@ -102,7 +102,7 @@ See also http://lkml.org/lkml/2009/4/5/120
  #define likely_notrace(x)	__builtin_expect(!!(x), 1)
 EOF
     fi
-    if [ "$1" = "2.6.31" -o "${1#2.6.31.}" != "$1" ]
+    if [ "${1#2.6.31}" != "$1" ]
     then
       cd "../linux-$1" || return $?
       patch -f -s -p1 <<'EOF'
@@ -139,8 +139,7 @@ See also http://lkml.org/lkml/2009/9/26/51
  	do {								\
 EOF
     fi
-    if [ "$1" = 2.6.32 -o "${1#2.6.32.}" != "$1" -o "$1" = "2.6.33" \
-	 -o "${1#2.6.33.}" != "$1" ]
+    if [ "${1#2.6.32}" != "$1" -o "${1#2.6.33}" != "$1" ]
     then
       cd "../linux-$1" || return $?
       patch -f -s -p1 <<'EOF'
