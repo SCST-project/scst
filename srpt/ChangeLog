@@ -15,17 +15,17 @@ Changes:
   Asynchronous events are triggered by e.g. resetting an InfiniBand switch or
   reconnecting an InfiniBand cable (r878:880). The call stack of the oops is
   as follows:
-    queue_work+0x1a/0x20                                     
-    schedule_work+0x16/0x20                                  
-    srpt_event_handler+0xda/0xe0 [ib_srpt]                   
-    ib_dispatch_event+0x39/0x70 [ib_core]                    
-    mlx4_ib_process_mad+0x3e6/0x430 [mlx4_ib]                
-    ib_post_send_mad+0x374/0x6f0 [ib_mad]                    
-    ? futex_wake+0x105/0x120                                 
-    ib_umad_write+0x4a8/0x5c0 [ib_umad]                      
-    vfs_write+0xcb/0x170                                     
-    sys_write+0x50/0x90                                      
-    system_call_fastpath+0x16/0x1b                           
+    queue_work+0x1a/0x20
+    schedule_work+0x16/0x20
+    srpt_event_handler+0xda/0xe0 [ib_srpt]
+    ib_dispatch_event+0x39/0x70 [ib_core]
+    mlx4_ib_process_mad+0x3e6/0x430 [mlx4_ib]
+    ib_post_send_mad+0x374/0x6f0 [ib_mad]
+    ? futex_wake+0x105/0x120
+    ib_umad_write+0x4a8/0x5c0 [ib_umad]
+    vfs_write+0xcb/0x170
+    sys_write+0x50/0x90
+    system_call_fastpath+0x16/0x1b
 - The login information for HCA's with more than two ports is now displayed
   correctly. Note: no such devices exist yet (r799).
 
