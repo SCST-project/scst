@@ -1,7 +1,30 @@
-Version 1.0.1 (not yet released)
+Version 2.2.0 (not yet released)
+-------------
+Changes compared to version 2.1.0:
+- Changed default value of the kernel module parameter srp_max_req_size from
+  2116 into 4148. That last value corresponds to a table size of 255 elements.
+- "make debug2release" etc. now also affects ib_srpt.
+- Slightly reduced the number of IB interrupts caused by SRP traffic.
+- Fixed a bug that could cause unloading ib_srpt to take up to 120s.
+- Fixed a crash in the I/O context ring allocation that was triggered when
+  trying to allocate more memory than available.
+
+Version 2.1.0 (September 8, 2011)
+-------------
+[ ... ]
+
+Version 2.0.0 (December 21, 2010)
+-------------
+[ ... ]
+
+Version 1.0.1.1 (released on August 14, 2009)
+---------------
+[ ... ]
+
+Version 1.0.1 (released on April 28, 2009)
 -------------
 
-Changes:
+Changes compared to version 1.0.0:
 - Performance has been improved. I/O requests are now handled in soft IRQ
   context instead of on a separate thread, which drastically reduces the
   number of context switches needed for processing I/O (r594).
