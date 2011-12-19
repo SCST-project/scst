@@ -104,20 +104,23 @@
 #ifndef DATASEGS_PER_COMMAND32
 #define DATASEGS_PER_COMMAND32    3
 #define DATASEGS_PER_CONT32       7
-#define QLA_MAX_SG32(ql) \
-   (((ql) > 0) ? (DATASEGS_PER_COMMAND32 + DATASEGS_PER_CONT32*((ql) - 1)) : 0)
+#define QLA_MAX_SG32(ql)						  \
+	(((ql) > 0) ?							  \
+	 (DATASEGS_PER_COMMAND32 + DATASEGS_PER_CONT32 * ((ql) - 1)) : 0)
 
 #define DATASEGS_PER_COMMAND64    2
 #define DATASEGS_PER_CONT64       5
-#define QLA_MAX_SG64(ql) \
-   (((ql) > 0) ? (DATASEGS_PER_COMMAND64 + DATASEGS_PER_CONT64*((ql) - 1)) : 0)
+#define QLA_MAX_SG64(ql)						  \
+	(((ql) > 0) ?							  \
+	 (DATASEGS_PER_COMMAND64 + DATASEGS_PER_CONT64 * ((ql) - 1)) : 0)
 #endif
 
 #ifndef DATASEGS_PER_COMMAND_24XX
 #define DATASEGS_PER_COMMAND_24XX 1
 #define DATASEGS_PER_CONT_24XX    5
-#define QLA_MAX_SG_24XX(ql) \
-   (min(1270, ((ql) > 0) ? (DATASEGS_PER_COMMAND_24XX + DATASEGS_PER_CONT_24XX*((ql) - 1)) : 0))
+#define QLA_MAX_SG_24XX(ql)						\
+	(min(1270, ((ql) > 0) ?						\
+	 (DATASEGS_PER_COMMAND_24XX + DATASEGS_PER_CONT_24XX * ((ql) - 1)) : 0))
 #endif
 
 /********************************************************************\
