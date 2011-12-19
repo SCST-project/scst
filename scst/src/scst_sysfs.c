@@ -3525,7 +3525,7 @@ static struct kobj_attribute session_initiator_name_attr =
 
 #define SCST_SESS_SYSFS_STAT_ATTR(name, exported_name, dir, kb)		\
 static ssize_t scst_sess_sysfs_##exported_name##_show(struct kobject *kobj,	\
-       struct kobj_attribute *attr, char *buf)					\
+	struct kobj_attribute *attr, char *buf)					\
 {										\
 	struct scst_session *sess;						\
 	int res;								\
