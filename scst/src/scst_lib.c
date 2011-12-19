@@ -6316,7 +6316,7 @@ static void __scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
 {
 	int skip_UA = 0;
 	struct scst_tgt_dev_UA *UA_entry_tmp;
-	int len = min((int)sizeof(UA_entry_tmp->UA_sense_buffer), sense_len);
+	int len = min_t(int, sizeof(UA_entry_tmp->UA_sense_buffer), sense_len);
 
 	TRACE_ENTRY();
 

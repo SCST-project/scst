@@ -1464,7 +1464,7 @@ static int dev_user_process_reply_exec(struct scst_user_cmd *ucmd,
 		if (res != 0)
 			goto out_compl;
 
-		sense_len = min((int)cmd->sense_buflen, (int)ereply->sense_len);
+		sense_len = min_t(int, cmd->sense_buflen, ereply->sense_len);
 
 		rc = copy_from_user(cmd->sense,
 			(void __user *)(unsigned long)ereply->psense_buffer,
