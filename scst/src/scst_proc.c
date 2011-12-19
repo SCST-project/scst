@@ -785,7 +785,7 @@ static int __init scst_proc_init_module_log(void)
 {
 	int res = 0;
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING) || \
-    defined(CONFIG_SCST_MEASURE_LATENCY)
+	defined(CONFIG_SCST_MEASURE_LATENCY)
 	struct proc_dir_entry *generic;
 #endif
 

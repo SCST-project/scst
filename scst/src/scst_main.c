@@ -56,8 +56,8 @@ your kernel and CONFIG_SCST_STRICT_SERIALIZING isn't defined. \
 Pass-through dev handlers will not work.
 #endif /* !defined(CONFIG_SCST_STRICT_SERIALIZING) */
 #else  /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30) */
-#warning "Patch scst_exec_req_fifo-<kernel-version> was not applied on\
- your kernel. Pass-through dev handlers will not work."
+#warning Patch scst_exec_req_fifo-<kernel-version> was not applied on \
+your kernel. Pass-through dev handlers will not work.
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30) */
 #endif /* !defined(SCSI_EXEC_REQ_FIFO_DEFINED) */
 
