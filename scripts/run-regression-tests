@@ -78,7 +78,7 @@ function extract_kernel_tree {
   mkdir "${tmpdir}" || return $?
   (
     cd "${tmpdir}" || return $?
-    tar xaf "${kernel_sources}/linux-$1.tar.xz" || return $?
+    { xz -cd "${kernel_sources}/linux-$1.tar.xz" | tar xf -; } || return $?
     mv "linux-$1" ".." || return $?
     if [ "$1" = "2.6.29" -o "$1" = "2.6.29.1" -o "$1" = "2.6.29.2" -o "$1" = "2.6.29.3" ]
     then
