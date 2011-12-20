@@ -1,27 +1,51 @@
 Version 2.2.0 (not yet released)
 -------------
+
 Changes compared to version 2.1.0:
 - Changed default value of the kernel module parameter srp_max_req_size from
   2116 into 4148. That last value corresponds to a table size of 255 elements.
 - "make debug2release" etc. now also affects ib_srpt.
 - Slightly reduced the number of IB interrupts caused by SRP traffic.
-- Fixed a bug that could cause unloading ib_srpt to take up to 120s.
+- Fixed a bug that could cause valid logins to be rejected. The message that
+  is logged in the system log if this happens is:
+    ib_srpt: ***ERROR***: rejected SRP_LOGIN_REQ because creating a new RDMA
+    channel failed
+- Fixed a bug that could cause unloading ib_srpt during I/O to take up to 120s.
 - Fixed a crash in the I/O context ring allocation that was triggered when
   trying to allocate more memory than available.
+- Builds again on 32-bit systems.
 
 Version 2.1.0 (September 8, 2011)
 -------------
-[ ... ]
+
+Corresponds to r3848 on the 2.1.0.x branch
+
+Changes compared to version 2.0.0:
+- Added support for using the HCA node GUID as the SCST target port name
+  instead of ib_srpt_target_<n>.
+- Fixed a bug that could cause removing ib_srpt during I/O to hang.
+- Increased maximum RDMA completion time from 60s to 80s such that disconnecting
+  an IB cable during I/O doesn't trigger complaints about IB completions that
+  arrived too late.
+- Avoided that failed multipart RDMA transfers (e.g. due to disconnecting an IB
+  cable) cause trouble.
+
+Known bugs:
+- Doesn't build on 32-bit systems.
+
 
 Version 2.0.0 (December 21, 2010)
 -------------
-[ ... ]
 
-Version 1.0.1.1 (released on August 14, 2009)
----------------
-[ ... ]
+Changes compared to version 1.0.0:
+- Significantly improved performance by converting the per-channel I/O context
+  ring into separate receive and transmit rings.
+- Fixed a bug that could cause a task management request to cause SRP credits
+  to be lost.
+- Fixed SCSI residual handling.
 
-Version 1.0.1 (released on April 28, 2009)
+
+Version 1.0.1 (April 28, 2009)
 -------------
 
 Changes compared to version 1.0.0:
@@ -55,5 +79,6 @@ Changes compared to version 1.0.0:
 
 Version 1.0.0 (released on July 14, 2008)
 -------------
+
 Almost identical to trunk r440 (only the variables SCST_DIR and EXTRA_CFLAGS
 in the Makefiles are different from trunk r440).
