@@ -2313,7 +2313,8 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	struct srp_login_rsp *rsp;
 	struct srp_login_rej *rej;
 	struct ib_cm_rep_param *rep_param;
-	struct srpt_rdma_ch *ch, *tmp_ch;
+	struct srpt_rdma_ch *ch;
+	struct task_struct *thread;
 	u32 it_iu_len;
 	int i;
 	int ret = 0;
@@ -2373,33 +2374,6 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 			    sdev->scst_tgt->tgt_name, sdev->device->name);
 		goto reject;
 	}
-
-	if ((req->req_flags & SRP_MTCH_ACTION) == SRP_MULTICHAN_SINGLE) {
-		rsp->rsp_flags = SRP_LOGIN_RSP_MULTICHAN_NO_CHAN;
-
-		spin_lock_irq(&sdev->spinlock);
-
-		list_for_each_entry_safe(ch, tmp_ch, &sdev->rch_list, list) {
-			if (!memcmp(ch->i_port_id, req->initiator_port_id, 16)
-			    && !memcmp(ch->t_port_id, req->target_port_id, 16)
-			    && param->port == ch->sport->port
-			    && param->listen_id == ch->sport->sdev->cm_id
-			    && ch->cm_id) {
-				if (!__srpt_close_ch(ch))
-					continue;
-
-				TRACE_DBG("Found existing channel %s; cm_id ="
-					  " %p", ch->sess_name, ch->cm_id);
-
-				rsp->rsp_flags =
-					SRP_LOGIN_RSP_MULTICHAN_TERMINATED;
-			}
-		}
-
-		spin_unlock_irq(&sdev->spinlock);
-
-	} else
-		rsp->rsp_flags = SRP_LOGIN_RSP_MULTICHAN_MAINTAINED;
 
 	if (*(__be64 *)req->target_port_id != cpu_to_be64(srpt_service_guid)
 	    || *(__be64 *)(req->target_port_id + 8) !=
@@ -2493,19 +2467,42 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		goto destroy_ib;
 	}
 
-	spin_lock_irq(&sdev->spinlock);
-	list_add_tail(&ch->list, &sdev->rch_list);
-	spin_unlock_irq(&sdev->spinlock);
-
-	ch->thread = kthread_run(srpt_compl_thread, ch, "srpt_%s",
-				 ch->sport->sdev->device->name);
-	if (IS_ERR(ch->thread)) {
+	thread = kthread_run(srpt_compl_thread, ch, "srpt_%s",
+			     ch->sport->sdev->device->name);
+	if (IS_ERR(thread)) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-		PRINT_ERROR("failed to create kernel thread %ld",
-			    PTR_ERR(ch->thread));
-		ch->thread = NULL;
+		PRINT_ERROR("failed to create kernel thread %ld", PTR_ERR(ch->thread));
 		goto unreg_ch;
 	}
+
+	spin_lock_irq(&sdev->spinlock);
+	if ((req->req_flags & SRP_MTCH_ACTION) == SRP_MULTICHAN_SINGLE) {
+		struct srpt_rdma_ch *ch2;
+
+		rsp->rsp_flags = SRP_LOGIN_RSP_MULTICHAN_NO_CHAN;
+		list_for_each_entry(ch2, &sdev->rch_list, list) {
+			if (!memcmp(ch2->i_port_id, req->initiator_port_id, 16)
+			    && !memcmp(ch2->t_port_id, req->target_port_id, 16)
+			    && param->port == ch2->sport->port
+			    && param->listen_id == ch2->sport->sdev->cm_id
+			    && ch2->cm_id) {
+				if (!__srpt_close_ch(ch2))
+					continue;
+
+				TRACE_DBG("Found and closed existing channel"
+					  " %s; cm_id = %p", ch2->sess_name,
+					  ch2->cm_id);
+
+				rsp->rsp_flags =
+					SRP_LOGIN_RSP_MULTICHAN_TERMINATED;
+			}
+		}
+	} else {
+		rsp->rsp_flags = SRP_LOGIN_RSP_MULTICHAN_MAINTAINED;
+	}
+	list_add_tail(&ch->list, &sdev->rch_list);
+	ch->thread = thread;
+	spin_unlock_irq(&sdev->spinlock);
 
 	ret = srpt_ch_qp_rtr(ch, ch->qp);
 	if (ret) {
@@ -2541,8 +2538,19 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	rep_param->responder_resources = 4;
 	rep_param->initiator_depth = 4;
 
-	ret = ib_send_cm_rep(cm_id, rep_param);
-	if (ret) {
+	spin_lock_irq(&sdev->spinlock);
+	if (ch->state == CH_CONNECTING)
+		ret = ib_send_cm_rep(cm_id, rep_param);
+	else
+		ret = -ECONNABORTED;
+	spin_unlock_irq(&sdev->spinlock);
+
+	switch (ret) {
+	case 0:
+		break;
+	case -ECONNABORTED:
+		goto out_keep_cm_id;
+	default:
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		PRINT_ERROR("sending SRP_LOGIN_REQ response failed"
 			    " (error code = %d)", ret);
@@ -2561,6 +2569,7 @@ reject_and_release:
 			     (void *)rej, sizeof *rej);
 
 	srpt_close_ch(ch);
+out_keep_cm_id:
 	/*
 	 * Tell the caller not to free cm_id since srpt_free_ch() will do that.
 	 */
@@ -2568,10 +2577,6 @@ reject_and_release:
 	goto out;
 
 unreg_ch:
-	spin_lock_irq(&sdev->spinlock);
-	list_del(&ch->list);
-	spin_unlock_irq(&sdev->spinlock);
-
 	scst_unregister_session(ch->scst_sess, true, NULL);
 
 destroy_ib:
