@@ -373,6 +373,7 @@ fcst_extraclean:
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
+	@if [ -d $(FCST_DIR) ]; then cd $(FCST_DIR) && $(MAKE) $@; fi
 
 2release: extraclean
 	cd $(SCST_DIR) && $(MAKE) $@
@@ -383,6 +384,7 @@ fcst_extraclean:
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
+	@if [ -d $(FCST_DIR) ]; then cd $(FCST_DIR) && $(MAKE) $@; fi
 
 2debug: extraclean
 	cd $(SCST_DIR) && $(MAKE) $@
@@ -393,6 +395,7 @@ fcst_extraclean:
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
+	@if [ -d $(FCST_DIR) ]; then cd $(FCST_DIR) && $(MAKE) $@; fi
 
 enable_proc: extraclean
 	cd $(SCST_DIR) && $(MAKE) $@
