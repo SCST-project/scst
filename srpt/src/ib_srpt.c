@@ -2489,9 +2489,9 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 				if (!__srpt_close_ch(ch2))
 					continue;
 
-				TRACE_DBG("Found and closed existing channel"
-					  " %s; cm_id = %p", ch2->sess_name,
-					  ch2->cm_id);
+				PRINT_INFO("Relogin - closed existing channel"
+					   " %s; cm_id = %p", ch2->sess_name,
+					   ch2->cm_id);
 
 				rsp->rsp_flags =
 					SRP_LOGIN_RSP_MULTICHAN_TERMINATED;
