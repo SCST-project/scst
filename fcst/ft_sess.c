@@ -367,9 +367,16 @@ static int ft_prli_locked(struct fc_rport_priv *rdata, u32 spp_len,
 		if (!(fcp_parm & FCP_SPPF_INIT_FCN))
 			return FC_SPP_RESP_CONF;
 		tport = rcu_dereference(rdata->local_port->prov[FC_TYPE_FCP]);
-		if (!tport || !tport->enabled)
-			return 0;	/* not a target for this local port */
-
+		if (!tport) {
+			/* not a target for this local port */
+			return FC_SPP_RESP_CONF;
+		}
+		if (!tport->enabled) {
+			pr_err("Refused login from %#x because target port %s"
+			       " not yet enabled", rdata->ids.port_id,
+			       tport->tgt->tgt_name);
+			return FC_SPP_RESP_CONF;
+		}
 		ret = ft_sess_create(tport, rdata, fcp_parm);
 		if (ret)
 			return ret;
