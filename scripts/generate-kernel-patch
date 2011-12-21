@@ -211,6 +211,13 @@ fi
 # Strip patch level from the kernel version number.
 kver="$(kernel_version "$1")"
 
+# Include fcst in the patch for kernel versions 2.6.33 and later.
+if [ "${kver}" ">" "2.6.32" ]; then
+  include_fcst="true"
+else
+  include_fcst="false"
+fi
+
 # Make sure that for kernel 2.6.33 and later the line
 # "#define CONFIG_SCST_PROC" is removed from scst/include/scst.h.
 if grep -qw scst_sysfs scst/kernel/in-tree/Makefile.scst-${kver} \
@@ -319,7 +326,7 @@ mkdir -p "${tmpdir}"
 
 tmp_Kconfig="${tmpdir}/Kconfig.scst-${kver}"
 cat "scst/kernel/in-tree/Kconfig.scst" | \
-if [ -e "${fcst_patch_series}" ]; then
+if [ "${include_fcst}" ]; then
   cat
 else
   grep -v '^source "drivers/scst/fcst/Kconfig"$'
