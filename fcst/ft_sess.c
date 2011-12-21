@@ -344,6 +344,9 @@ static int ft_prli_locked(struct fc_rport_priv *rdata, u32 spp_len,
 	u32 fcp_parm;
 	int ret;
 
+	if (!rspp)
+		goto fill;
+
 	if (rspp->spp_flags & (FC_SPP_OPA_VAL | FC_SPP_RPA_VAL))
 		return FC_SPP_RESP_NO_PA;
 
@@ -377,6 +380,7 @@ static int ft_prli_locked(struct fc_rport_priv *rdata, u32 spp_len,
 	 * If the initiator indicates RETRY, we must support that, too.
 	 * Don't force RETRY on the initiator, though.
 	 */
+fill:
 	fcp_parm = ntohl(spp->spp_params);	/* response parameters */
 	spp->spp_params = htonl(fcp_parm | FCP_SPPF_TARG_FCN);
 	return FC_SPP_RESP_ACK;
@@ -400,10 +404,8 @@ int ft_prli(struct fc_rport_priv *rdata, u32 spp_len,
 	mutex_lock(&ft_lport_lock);
 	ret = ft_prli_locked(rdata, spp_len, rspp, spp);
 	mutex_unlock(&ft_lport_lock);
-	FT_SESS_DBG("port_id %x flags %x parms %x ret %x\n",
-			rdata->ids.port_id,
-			rspp->spp_flags,
-			ntohl(spp->spp_params), ret);
+	FT_SESS_DBG("port_id %x flags %x parms %x ret %x\n", rdata->ids.port_id,
+		    rspp ? rspp->spp_flags : 0, ntohl(spp->spp_params), ret);
 	return ret;
 }
 
