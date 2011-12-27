@@ -490,7 +490,8 @@ void ft_prlo(struct fc_rport_priv *rdata)
  * Caller has verified that the frame is type FCP.
  * Note that this may be called directly from the softirq context.
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36) \
+	&& (!defined(RHEL_MAJOR) || RHEL_MAJOR -0 <= 5)
 void ft_recv(struct fc_lport *lport, struct fc_seq *sp, struct fc_frame *fp)
 #else
 void ft_recv(struct fc_lport *lport, struct fc_frame *fp)
@@ -508,7 +509,8 @@ void ft_recv(struct fc_lport *lport, struct fc_frame *fp)
 	sess = ft_sess_get(lport, sid);
 	if (!sess) {
 		FT_SESS_DBG("sid %x sess lookup failed\n", sid);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36) \
+	&& (!defined(RHEL_MAJOR) || RHEL_MAJOR -0 <= 5)
 		lport->tt.exch_done(sp);
 #endif
 		/* TBD XXX - if FCP_CMND, send LOGO */
