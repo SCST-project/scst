@@ -5,6 +5,7 @@ Changes compared to version 2.1.0:
 - Changed default value of the kernel module parameter srp_max_req_size from
   2116 into 4148. That last value corresponds to a table size of 255 elements.
 - "make debug2release" etc. now also affects ib_srpt.
+- Removed "thread" kernel module parameter.
 - Slightly reduced the number of IB interrupts caused by SRP traffic.
 - Fixed a bug that could cause valid logins to be rejected. The message that
   is logged in the system log if this happens is:
