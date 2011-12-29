@@ -62,11 +62,18 @@ Index: srpt/src/ib_srpt.c
         /* create cm reply */
 
 * Verify that a SCSI reset works properly by running the following command
-  on an initiator system (note: even with the latest Linux SRP initiator, the
-  command below triggers a kernel bug -- see also
+  on an initiator system (note: with kernel version 2.6.37 and before the
+  command below triggers a bug in the Linux SRP initiator -- see also
   https://bugzilla.kernel.org/show_bug.cgi?id=13893):
 
+  (target)
+    echo add debug > /sys/kernel/scst_tgt/targets/ib_srpt/trace_level
+
+  (initiator)
     sg_reset -d ${initiator_device}
+
+  Verify that the target logged that it has processed a SRP_TSK_LUN_RESET
+  message.
 
 * Run the following command on a target system:
 
@@ -120,6 +127,17 @@ Index: srpt/src/ib_srpt.c
         --loops=1000000 --iodepth=64 --group_reporting --sync=1 --direct=1 \
         --norandommap --ioengine=aio --directory=/mnt --name=test --thread \
         --numjobs=80 --runtime=30
+
+* Test whether aborting multipart RDMA transfers works correctly as follows:
+  - On the target, reload ib_srpt with srpt_sq_size set to 64.
+  - On the initiator, run a direct I/O test with large block sizes, e.g. 128 KB.
+  - Verify that on the target kernel messages similar to the following are
+    logged frequently:
+    ib_srpt: ***ERROR***: srpt_perform_rdmas[2966]: ib_post_send() returned
+    -12 for 1/2
+  - On the target, unload and reload the ib_srpt kernel module.
+  - Verify that no kernel crash occurs on the target.
+  - Repeat the above a few times.
 
 * Repeat the above tests for all three threading modes: thread=0, thread=1
   and thread=2.

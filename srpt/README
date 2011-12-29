@@ -87,22 +87,6 @@ The ib_srpt kernel module supports the following parameters:
   for a credit limit of 128. Changing this parameter to a smaller value may
   cause RDMA requests to be retried and hence may slow down data transfer
   severely.
-* thread (0, 1 or 2, default 1)
-  Defines the context on which SRP requests are processed:
-  * thread=0: do as much processing in IRQ context as possible. Results in
-    lower latency than the other two modes but may trigger soft lockup
-    complaints when multiple initiators are simultaneously processing
-    workloads with large I/O depths. Scalability of this mode is limited
-    - it exploits only a fraction of the power available on multiprocessor
-    systems.
-  * thread=1: dedicates one kernel thread per initiator. Scales well on
-    multiprocessor systems. This is the recommended mode when multiple
-    initiator systems are accessing the same target system simultaneously.
-  * thread=2: makes one CPU process all IB completions and defer further
-    processing to kernel thread context. Scales better than mode thread=0 but
-    not as good as mode thread=1. May trigger soft lockup complaints when
-    multiple initiators are simultaneously processing workloads with large I/O
-    depths.
 * trace_flag (unsigned integer, only available in debug builds)
   The individual bits of the trace_flag parameter define which categories of
   trace messages should be sent to the kernel log and which ones not.
@@ -257,6 +241,20 @@ $ ls /sys/bus/scst_target/drivers/ib_srpt/*/sessions
 0x00000000000000000002c9030005f34b
 
 
+Adding and Removing LUNs Dynamically
+------------------------------------
+
+It is possible to add and/or remove LUNs on the target without restarting
+target or initiator. This can be done either via scstadmin or directly via the
+sysfs interface. Although the SCST core will notify the initiator about LUN
+changes, Linux initiators will ignore these notifications. In order to bring a
+Linux initiator again in sync after a LUN change, the initiator has to be told
+to rescan SCSI devices. Rescanning SCSI devices is e.g. possible via the
+rescsan-scsi-bus.sh script that can be found here:
+http://www.garloff.de/kurt/linux/#rescan-scsi. An example:
+$ rescan-scsi-bus --hosts=${srp_host_id} --channels=0 --ids=0 --luns=0-31
+
+
 High availability
 -----------------
 
@@ -291,6 +289,16 @@ Notes about ib_srpt
 * Unloading the kernel module ib_srpt while I/O is ongoing is supported.
   However, it can take up to two minutes before unloading finishes. During
   that time CPU usage will be high.
+
+
+Performance Notes - Target Side
+-------------------------------
+
+When using high-latency storage devices (hard disks), the default value
+choosen by SCST for DEVICE.threads_num should be fine. When using low-latency
+storage devices though (SSDs), DEVICE.threads_num should be set to 1 or 2 in
+/etc/scst.conf in order to reach optimal performance for small block sizes
+(e.g. 4 KB).
 
 
 Performance Notes - Initiator Side
