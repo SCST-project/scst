@@ -38,23 +38,25 @@ endif
 export PWD    := $(shell pwd)
 export CONFIG_FCST   := m
 
+
+# Set variable $(2) to value $(3) in file $(1).
+set_var = $(shell { if [ -e "$(1)" ]; then grep -v '^$(2)=' "$(1)"; fi; echo "$(2)=$(3)"; } >/tmp/$(1)-$$$$.tmp && mv /tmp/$(1)-$$$$.tmp $(1))
+
+
 #SCST_INC_DIR := /usr/local/include/scst
 #SCST_DIR := $(SCST_INC_DIR)
 SCST_INC_DIR := $(SUBDIRS)/../scst/include
 SCST_DIR := $(shell pwd)/../scst/src
 
-EXTRA_CFLAGS += -I$(SCST_INC_DIR)
+FCSTFLAGS = -DDEBUG_WORK_IN_THREAD -DCONFIG_SCST_TRACING -DCONFIG_SCST_DEBUG \
+	-DCONFIG_SCST_EXTRACHECKS -fno-inline -fno-inline-functions
+FCSTFLAGSRELEASE = -DCONFIG_SCST_TRACING
+FCSTFLAGSPERF =
+EXTRA_CFLAGS += -I$(SCST_INC_DIR) $(FCSTFLAGS$(BUILDMODE))
 
-EXTRA_CFLAGS +=  -DSUPPORT_TARGET
 MODULE_NAME = fcst
 
-EXTRA_CFLAGS += -DMV_DEBUG
-
 INSTALL_DIR := /lib/modules/$(KVER)/extra
-
-#EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
-#EXTRA_CFLAGS += -DDEBUG_WORK_IN_THREAD
-#EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG
 
 ifneq ($(KERNELRELEASE),)
 include $(SUBDIRS)/Makefile_in-tree
@@ -73,7 +75,7 @@ install: all
 ins:
 	./config
 	insmod fcst.ko
-	
+
 SCST_MOD_VERS := $(shell ls $(SCST_DIR)/Modules.symvers 2>/dev/null)
 ifneq ($(SCST_MOD_VERS),)
 Modules.symvers: $(SCST_DIR)/Modules.symvers
@@ -103,5 +105,17 @@ clean:
 
 extraclean: clean
 	rm -f *.orig *.rej
+
+release2debug perf2debug:
+	-$(MAKE) clean
+	$(call set_var,build_mode,BUILDMODE,)
+
+debug2release:
+	-$(MAKE) clean
+	$(call set_var,build_mode,BUILDMODE,RELEASE)
+
+debug2perf:
+	-$(MAKE) clean
+	$(call set_var,build_mode,BUILDMODE,PERF)
 
 .PHONY: all tgt install uninstall clean extraclean

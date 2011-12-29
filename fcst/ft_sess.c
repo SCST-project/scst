@@ -344,6 +344,9 @@ static int ft_prli_locked(struct fc_rport_priv *rdata, u32 spp_len,
 	u32 fcp_parm;
 	int ret;
 
+	if (!rspp)
+		goto fill;
+
 	if (rspp->spp_flags & (FC_SPP_OPA_VAL | FC_SPP_RPA_VAL))
 		return FC_SPP_RESP_NO_PA;
 
@@ -364,9 +367,16 @@ static int ft_prli_locked(struct fc_rport_priv *rdata, u32 spp_len,
 		if (!(fcp_parm & FCP_SPPF_INIT_FCN))
 			return FC_SPP_RESP_CONF;
 		tport = rcu_dereference(rdata->local_port->prov[FC_TYPE_FCP]);
-		if (!tport || !tport->enabled)
-			return 0;	/* not a target for this local port */
-
+		if (!tport) {
+			/* not a target for this local port */
+			return FC_SPP_RESP_CONF;
+		}
+		if (!tport->enabled) {
+			pr_err("Refused login from %#x because target port %s"
+			       " not yet enabled", rdata->ids.port_id,
+			       tport->tgt->tgt_name);
+			return FC_SPP_RESP_CONF;
+		}
 		ret = ft_sess_create(tport, rdata, fcp_parm);
 		if (ret)
 			return ret;
@@ -377,6 +387,7 @@ static int ft_prli_locked(struct fc_rport_priv *rdata, u32 spp_len,
 	 * If the initiator indicates RETRY, we must support that, too.
 	 * Don't force RETRY on the initiator, though.
 	 */
+fill:
 	fcp_parm = ntohl(spp->spp_params);	/* response parameters */
 	spp->spp_params = htonl(fcp_parm | FCP_SPPF_TARG_FCN);
 	return FC_SPP_RESP_ACK;
@@ -400,10 +411,8 @@ int ft_prli(struct fc_rport_priv *rdata, u32 spp_len,
 	mutex_lock(&ft_lport_lock);
 	ret = ft_prli_locked(rdata, spp_len, rspp, spp);
 	mutex_unlock(&ft_lport_lock);
-	FT_SESS_DBG("port_id %x flags %x parms %x ret %x\n",
-			rdata->ids.port_id,
-			rspp->spp_flags,
-			ntohl(spp->spp_params), ret);
+	FT_SESS_DBG("port_id %x flags %x parms %x ret %x\n", rdata->ids.port_id,
+		    rspp ? rspp->spp_flags : 0, ntohl(spp->spp_params), ret);
 	return ret;
 }
 
@@ -481,7 +490,8 @@ void ft_prlo(struct fc_rport_priv *rdata)
  * Caller has verified that the frame is type FCP.
  * Note that this may be called directly from the softirq context.
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36) \
+	&& (!defined(RHEL_MAJOR) || RHEL_MAJOR -0 <= 5)
 void ft_recv(struct fc_lport *lport, struct fc_seq *sp, struct fc_frame *fp)
 #else
 void ft_recv(struct fc_lport *lport, struct fc_frame *fp)
@@ -499,7 +509,8 @@ void ft_recv(struct fc_lport *lport, struct fc_frame *fp)
 	sess = ft_sess_get(lport, sid);
 	if (!sess) {
 		FT_SESS_DBG("sid %x sess lookup failed\n", sid);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36) \
+	&& (!defined(RHEL_MAJOR) || RHEL_MAJOR -0 <= 5)
 		lport->tt.exch_done(sp);
 #endif
 		/* TBD XXX - if FCP_CMND, send LOGO */
