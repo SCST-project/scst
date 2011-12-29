@@ -2,6 +2,9 @@
 # Makefile for ib_srpt.ko.
 #
 
+SCST_SYMVERS_DIR := $(shell if [ -e $$PWD/../scst ]; then	\
+                        echo $$PWD/../scst/src;			\
+                      else echo /usr/local/include/scst; fi)
 SUBDIRS := $(shell pwd)
 
 ifeq ($(KVER),)
@@ -55,7 +58,7 @@ install: all src/ib_srpt.ko
 	$(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra/ib_srpt.ko
 	-/sbin/depmod -aq $(KVER)
 
-src/Module.symvers src/Modules.symvers:
+src/Module.symvers src/Modules.symvers: $(SCST_SYMVERS_DIR)/$(MODULE_SYMVERS)
 	@if $(OFED_KERNEL_IB_RPM_INSTALLED); then                           \
 	  if ! $(OFED_KERNEL_IB_DEVEL_RPM_INSTALLED); then                  \
 	    echo "Error: the OFED package kernel-ib-devel has not yet been" \
@@ -115,6 +118,6 @@ extraclean: clean
 	$(call set_var,build_mode,BUILDMODE,PERF)
 
 release-archive:
-	@version="$$(sed -n 's/^#define DRV_VERSION[ 	]*\"\([0-9.]*\).*/\1/p' src/ib_srpt.c)"; patch -sp0 <release-archive.patch && tar --owner=root --group=root --transform="s|^|srpt-$$version/|" -cjf srpt-$$version.tar.bz2 $$(svn status -v -q | cut -c11- | while read rev1 rev2 user path; do [ -d "$$path" ] || echo "$$path"; done) && patch -Rsp0 <release-archive.patch && ls -l srpt-$$version.tar.bz2
+	@version="$$(sed -n 's/^#define DRV_VERSION[ 	]*\"\([0-9.]*\).*/\1/p' src/ib_srpt.c)"; tar --owner=root --group=root --transform="s|^|srpt-$$version/|" -cjf srpt-$$version.tar.bz2 $$(svn status -v -q | grep -v '^D' | cut -c11- | while read rev1 rev2 user path; do [ -d "$$path" ] || echo "$$path"; done) && ls -l srpt-$$version.tar.bz2
 
 .PHONY: all install clean extraclean 2debug 2release 2perf
