@@ -1473,13 +1473,7 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 	} else if (opcode == SRPT_RDMA_ABORT) {
 		ioctx->rdma_aborted = true;
 	} else {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
-		__WARN();
-#else
-		WARN_ON(true);
-#endif
-		PRINT_ERROR("%s[%d]: scmnd == NULL (opcode %d)", __func__,
-			    __LINE__, opcode);
+		WARN(true, "scmnd == NULL (opcode %d)", opcode);
 	}
 }
 
@@ -2674,11 +2668,7 @@ static void srpt_cm_dreq_recv(struct ib_cm_id *cm_id)
 			PRINT_ERROR("Sending DREP failed");
 		break;
 	default:
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
-		__WARN();
-#else
 		WARN_ON(true);
-#endif
 		break;
 	}
 }
@@ -3188,12 +3178,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 		ioctx->state = SRPT_STATE_CMD_RSP_SENT;
 		break;
 	default:
-		PRINT_ERROR("Unexpected command state %d", state);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
-		__WARN();
-#else
-		WARN_ON(true);
-#endif
+		WARN(true, "Unexpected command state %d", state);
 		break;
 	}
 	spin_unlock(&ioctx->spinlock);
