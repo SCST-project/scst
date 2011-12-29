@@ -2,7 +2,6 @@
 # Makefile for ib_srpt.ko.
 #
 
-SCST_DIR := $(shell pwd)/../scst/src
 SUBDIRS := $(shell pwd)
 
 ifeq ($(KVER),)
@@ -56,7 +55,7 @@ install: all src/ib_srpt.ko
 	$(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra/ib_srpt.ko
 	-/sbin/depmod -aq $(KVER)
 
-src/Module.symvers src/Modules.symvers: $(SCST_DIR)/$(MODULE_SYMVERS)
+src/Module.symvers src/Modules.symvers:
 	@if $(OFED_KERNEL_IB_RPM_INSTALLED); then                           \
 	  if ! $(OFED_KERNEL_IB_DEVEL_RPM_INSTALLED); then                  \
 	    echo "Error: the OFED package kernel-ib-devel has not yet been" \
