@@ -82,6 +82,20 @@ SCST_CFG=/etc/scst.conf
 
 if [ ! -e /lib/lsb/init-functions ]; then
     # Slackware and Gentoo.
+rc_status() {
+  _rc_status_ret=$?
+  for i; do
+    case "$i" in
+      -v)
+        case "${_rc_status_ret}" in
+          0) echo "OK";;
+          *) echo "Not running";;
+        esac
+        ;;
+    esac
+  done
+  return ${_rc_status_ret}
+}
 start_daemon() {
     "$@" >/dev/null 2>&1 &
 }
@@ -314,14 +328,9 @@ case "$1" in
     status)
         ## Print the current status of the service.
         echo -n "SCST status: "
-        scst_status
-        rc=$?
-        if [ $rc = 0 ]; then
-	    echo "OK"
-	else
-	    echo "Not running"
-	fi
-        exit 0
+        scst_status >/dev/null 2>&1
+        rc_status -v
+        exit $?
         ;;
     *)
         echo "Usage: $0 {start|stop|status|try-restart|restart|force-reload|reload}"
