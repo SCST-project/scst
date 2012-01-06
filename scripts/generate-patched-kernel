@@ -53,18 +53,20 @@ function download_file {
 function download_kernel {
   local kver="$(kernel_version $1)"
   local plevel="$(patchlevel $1)"
+  local series="$1"
 
+  if [ "${series:0:2}" = "3." ]; then
+    series="3.x"
+  else
+    series="${series:0:3}"
+  fi
   mkdir -p "${kernel_sources}" || return $?
   test -w "${kernel_sources}" || return $?
   (
     cd "${kernel_sources}" || return $?
-    download_file "${kernel_mirror}/linux-$(kernel_version $1).tar.bz2" \
+    download_file "${kernel_mirror}/v$series/linux-$1.tar.xz" \
+      || download_file "${kernel_mirror}/v$series/longterm/v${kver}/linux-$1.tar.xz" \
       || return $?
-    if [ "${plevel}" != "" ]; then
-      download_file "${kernel_mirror}/patch-$1.bz2" \
-        || download_file "${kernel_longterm}/v$(kernel_version $1)/patch-$1.bz2" \
-        || return $?
-    fi
   )
 }
 
@@ -85,8 +87,8 @@ fi
 # Kernel tree generation #
 ##########################
 
-kernel_mirror="ftp://ftp.eu.kernel.org/pub/linux/kernel/v2.6"
-kernel_longterm="http://www.kernel.org/pub/linux/kernel/v2.6/longterm"
+kernel_mirror="ftp://ftp.kernel.org/pub/linux/kernel"
+kernel_longterm="http://www.kernel.org/pub/linux/kernel"
 kernel_sources="$HOME/software/downloads"
 
 scriptname="$0"
@@ -102,7 +104,11 @@ download_kernel "$1"
 mkdir "${target}" || exit $?
 cd "${target}" || exit $?
 
-tar --strip-components=1 -xjf "${kernel_sources}/linux-${kernel_version}.tar.bz2"
+if [ -e "${kernel_sources}/linux-${kernel_version}.tar.xz" ]; then
+  tar --strip-components=1 -xaf "${kernel_sources}/linux-${kernel_version}.tar.xz"
+else
+  tar --strip-components=1 -xaf "${kernel_sources}/linux-${kernel_version}.tar.bz2"
+fi
 
 if [ ! -z "$patchlevel" ]; then
   echo "==== ${kernel_sources}/patch-$1.bz2"
