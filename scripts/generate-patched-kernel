@@ -23,7 +23,7 @@
 # Function definitions #
 ########################
 
-source $(dirname $0)/kernel-version
+source $(dirname $0)/kernel-functions
 
 function usage {
   echo "Usage: $0 <kernel version>"

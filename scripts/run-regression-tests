@@ -54,7 +54,7 @@
 # Function definitions #
 ########################
 
-source $(dirname $0)/kernel-version
+source $(dirname $0)/kernel-functions
 
 function usage {
   echo "Usage: $0 [-c <dir>] [-d <dir>] [-f] [-h] [-j <jobs>] [-p <patchdir>] [-q] <kver1> <kver2> ..."
