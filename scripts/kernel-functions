@@ -29,10 +29,12 @@ function patchlevel {
 function download_file {
   if [ ! -e "$(basename "$1")" ]; then
     if [ "${quiet_download}" = "false" ]; then
-      wget --spider -q -nc "$1" && echo "Downloading $1 ..."
+      { wget -q -nc -O- "$1" 2>/dev/null | grep -q .; } \
+        && echo "Downloading $1 ..."
     fi
     wget -q -nc "$1"
   fi
+  [ -e "$(basename "$1")" ]
 }
 
 # Make sure the kernel tarball and patch file are present in directory
@@ -51,8 +53,10 @@ function download_kernel {
   test -w "${kernel_sources}" || return $?
   (
     cd "${kernel_sources}" || return $?
-    if download_file "${kernel_mirror}/v$series/patch-$1.xz" \
-         || download_file "${kernel_mirror}/v$series/longterm/v${kver}/patch-$1.xz"; then
+    if [ "$plevel" = "" ] \
+       || download_file "${kernel_mirror}/v$series/patch-$1.xz" \
+       || download_file "${kernel_mirror}/v$series/longterm/v${kver}/patch-$1.xz"
+    then
       download_file "${kernel_mirror}/v$series/linux-${kver}.tar.xz" \
         || download_file "${kernel_mirror}/v$series/longterm/v${kver}/linux-${kver}.tar.xz" \
         || return $?
@@ -62,6 +66,14 @@ function download_kernel {
         || return $?
     fi
   )
+}
+
+function extract_kernel_archive {
+  if [ -e "${kernel_sources}/linux-$1.tar.xz" ]; then
+    xz -cd "${kernel_sources}/linux-$1.tar.xz" | tar xf -
+  else
+    tar xjf "${kernel_sources}/linux-$1.tar.bz2"
+  fi
 }
 
 # Create a linux-$1 tree in the current directory, where $1 is a kernel
@@ -75,17 +87,14 @@ function extract_kernel_tree {
   mkdir "${tmpdir}" || return $?
   (
     cd "${tmpdir}" || return $?
-    if [ -e "${kernel_sources}/patch-$1.xz" \
-         -a -e "${kernel_sources}/linux-${kver}.tar.xz" ]
-    then
-      { xz -cd "${kernel_sources}/linux-${kver}.tar.xz" | tar xf -; } \
-        || return $?
+    if [ "$plevel" != "" -a -e "${kernel_sources}/patch-$1.xz" ]; then
+      extract_kernel_archive $kver || return $?
       mv linux-$kver linux-$1
       ( cd linux-$1 && xz -cd "${kernel_sources}/patch-$1.xz" \
         | patch -p1 -f -s; ) \
         || return $?
     else
-      { xz -cd "${kernel_sources}/linux-$1.xz" | tar xf -; } || return $?
+      extract_kernel_archive $1 || return $?
     fi
     mv "linux-$1" ".." || return $?
     cd "../linux-$1" || return $?
