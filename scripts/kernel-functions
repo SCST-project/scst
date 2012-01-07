@@ -29,7 +29,7 @@ function patchlevel {
 function download_file {
   if [ ! -e "$(basename "$1")" ]; then
     if [ "${quiet_download}" = "false" ]; then
-      echo "Downloading $1 ..."
+      wget --spider -q -nc "$1" && echo "Downloading $1 ..."
     fi
     wget -q -nc "$1"
   fi
@@ -51,9 +51,16 @@ function download_kernel {
   test -w "${kernel_sources}" || return $?
   (
     cd "${kernel_sources}" || return $?
-    download_file "${kernel_mirror}/v$series/linux-$1.tar.xz" \
-      || download_file "${kernel_mirror}/v$series/longterm/v${kver}/linux-$1.tar.xz" \
-      || return $?
+    if download_file "${kernel_mirror}/v$series/patch-$1.xz" \
+         || download_file "${kernel_mirror}/v$series/longterm/v${kver}/patch-$1.xz"; then
+      download_file "${kernel_mirror}/v$series/linux-${kver}.tar.xz" \
+        || download_file "${kernel_mirror}/v$series/longterm/v${kver}/linux-${kver}.tar.xz" \
+        || return $?
+    else
+      download_file "${kernel_mirror}/v$series/linux-$1.tar.xz" \
+        || download_file "${kernel_mirror}/v$series/longterm/v${kver}/linux-$1.tar.xz" \
+        || return $?
+    fi
   )
 }
 
@@ -68,7 +75,18 @@ function extract_kernel_tree {
   mkdir "${tmpdir}" || return $?
   (
     cd "${tmpdir}" || return $?
-    { xz -cd "${kernel_sources}/linux-$1.tar.xz" | tar xf -; } || return $?
+    if [ -e "${kernel_sources}/patch-$1.xz" \
+         -a -e "${kernel_sources}/linux-${kver}.tar.xz" ]
+    then
+      { xz -cd "${kernel_sources}/linux-${kver}.tar.xz" | tar xf -; } \
+        || return $?
+      mv linux-$kver linux-$1
+      ( cd linux-$1 && xz -cd "${kernel_sources}/patch-$1.xz" \
+        | patch -p1 -f -s; ) \
+        || return $?
+    else
+      { xz -cd "${kernel_sources}/linux-$1.xz" | tar xf -; } || return $?
+    fi
     mv "linux-$1" ".." || return $?
     cd "../linux-$1" || return $?
     if [ "$1" = "2.6.29" -o "$1" = "2.6.29.1" -o "$1" = "2.6.29.2" -o "$1" = "2.6.29.3" ]
