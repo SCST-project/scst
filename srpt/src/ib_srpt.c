@@ -299,14 +299,14 @@ static void srpt_event_handler(struct ib_event_handler *handler,
 
 	switch (event->event) {
 	case IB_EVENT_PORT_ERR:
-		port_num = event->element.port_num;
-		if (1 <= port_num && port_num <= sdev->device->phys_port_cnt) {
-			sport = &sdev->port[port_num - 1];
+		port_num = event->element.port_num - 1;
+		if (port_num < sdev->device->phys_port_cnt) {
+			sport = &sdev->port[port_num];
 			sport->lid = 0;
 			sport->sm_lid = 0;
 		} else {
 			WARN(true, "event %d: port_num %d out of range 1..%d\n",
-			     event->event, port_num,
+			     event->event, port_num + 1,
 			     sdev->device->phys_port_cnt);
 		}
 		break;
@@ -316,14 +316,14 @@ static void srpt_event_handler(struct ib_event_handler *handler,
 	case IB_EVENT_SM_CHANGE:
 	case IB_EVENT_CLIENT_REREGISTER:
 		/* Refresh port data asynchronously. */
-		port_num = event->element.port_num;
-		if (1 <= port_num && port_num <= sdev->device->phys_port_cnt) {
-			sport = &sdev->port[port_num - 1];
+		port_num = event->element.port_num - 1;
+		if (port_num < sdev->device->phys_port_cnt) {
+			sport = &sdev->port[port_num];
 			if (!sport->lid && !sport->sm_lid)
 				schedule_work(&sport->work);
 		} else {
 			WARN(true, "event %d: port_num %d out of range 1..%d\n",
-			     event->event, port_num,
+			     event->event, port_num + 1,
 			     sdev->device->phys_port_cnt);
 		}
 		break;
