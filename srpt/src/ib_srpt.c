@@ -166,15 +166,13 @@ static enum rdma_ch_state srpt_set_ch_state_to_disc(struct srpt_rdma_ch *ch)
 	case CH_CONNECTING:
 	case CH_LIVE:
 		ch->state = CH_DISCONNECTING;
+		wake_up_process(ch->thread);
 		changed = true;
 		break;
 	default:
 		break;
 	}
 	spin_unlock_irqrestore(&ch->spinlock, flags);
-
-	if (changed)
-		wake_up_process(ch->thread);
 
 	return prev;
 }
@@ -190,6 +188,7 @@ static bool srpt_set_ch_state_to_draining(struct srpt_rdma_ch *ch)
 	case CH_LIVE:
 	case CH_DISCONNECTING:
 		ch->state = CH_DRAINING;
+		wake_up_process(ch->thread);
 		changed = true;
 		break;
 	default:
@@ -197,8 +196,6 @@ static bool srpt_set_ch_state_to_draining(struct srpt_rdma_ch *ch)
 	}
 	spin_unlock_irqrestore(&ch->spinlock, flags);
 
-	if (changed)
-		wake_up_process(ch->thread);
 	return changed;
 }
 
@@ -217,12 +214,11 @@ static bool srpt_test_and_set_ch_state(struct srpt_rdma_ch *ch,
 	spin_lock_irqsave(&ch->spinlock, flags);
 	if (ch->state == old) {
 		ch->state = new;
+		wake_up_process(ch->thread);
 		changed = true;
 	}
 	spin_unlock_irqrestore(&ch->spinlock, flags);
 
-	if (changed)
-		wake_up_process(ch->thread);
 	return changed;
 }
 
@@ -380,8 +376,11 @@ static void srpt_qp_event(struct ib_event *event, struct srpt_rdma_ch *ch)
 	case IB_EVENT_QP_LAST_WQE_REACHED:
 		TRACE_DBG("%s, state %s: received Last WQE event.",
 			  ch->sess_name, get_ch_state_name(ch->state));
-		ch->last_wqe_received = true;
-		wake_up_process(ch->thread);
+		if (!ch->last_wqe_received) {
+			ch->last_wqe_received = true;
+			BUG_ON(!ch->thread);
+			wake_up_process(ch->thread);
+		}
 		break;
 	default:
 		PRINT_ERROR("received unrecognized IB QP event %d",
@@ -1992,6 +1991,7 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 {
 	struct srpt_rdma_ch *ch = ctx;
 
+	BUG_ON(!ch->thread);
 	wake_up_process(ch->thread);
 }
 
