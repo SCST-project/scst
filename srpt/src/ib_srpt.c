@@ -2023,6 +2023,10 @@ static int srpt_compl_thread(void *arg)
 		  ch->sess_name);
 	scst_unregister_session(ch->scst_sess, false, srpt_free_ch);
 
+	/*
+	 * Some HCAs can queue send completions after the Last WQE
+	 * event. Make sure to process these work completions.
+	 */
 	while (!kthread_should_stop()) {
 		set_current_state(TASK_INTERRUPTIBLE);
 		srpt_process_completion(ch->cq, ch, SCST_CONTEXT_THREAD,
