@@ -350,6 +350,8 @@ static const char *get_ch_state_name(enum rdma_ch_state s)
 		return "disconnecting";
 	case CH_DRAINING:
 		return "draining";
+	case CH_FREEING:
+		return "freeing";
 	}
 	return "???";
 }
@@ -376,11 +378,9 @@ static void srpt_qp_event(struct ib_event *event, struct srpt_rdma_ch *ch)
 	case IB_EVENT_QP_LAST_WQE_REACHED:
 		TRACE_DBG("%s, state %s: received Last WQE event.",
 			  ch->sess_name, get_ch_state_name(ch->state));
-		if (!ch->last_wqe_received) {
-			ch->last_wqe_received = true;
-			BUG_ON(!ch->thread);
-			wake_up_process(ch->thread);
-		}
+		ch->last_wqe_received = true;
+		BUG_ON(!ch->thread);
+		wake_up_process(ch->thread);
 		break;
 	default:
 		PRINT_ERROR("received unrecognized IB QP event %d",
@@ -2027,12 +2027,17 @@ static int srpt_compl_thread(void *arg)
 	 * Some HCAs can queue send completions after the Last WQE
 	 * event. Make sure to process these work completions.
 	 */
-	while (!kthread_should_stop()) {
+	while (ch->state < CH_FREEING) {
 		set_current_state(TASK_INTERRUPTIBLE);
 		srpt_process_completion(ch->cq, ch, SCST_CONTEXT_THREAD,
 					SCST_CONTEXT_DIRECT);
 		schedule();
 	}
+
+	complete(&ch->finished_processing_completions);
+
+	while (!kthread_should_stop())
+		schedule();
 
 	return 0;
 }
@@ -2170,6 +2175,7 @@ static bool __srpt_close_ch(struct srpt_rdma_ch *ch)
 		break;
 	case CH_DISCONNECTING:
 	case CH_DRAINING:
+	case CH_FREEING:
 		break;
 	}
 
@@ -2229,13 +2235,15 @@ static void srpt_free_ch(struct scst_session *sess)
 	sdev = ch->sport->sdev;
 	BUG_ON(!sdev);
 
-	WARN_ON(ch->state != CH_DRAINING);
+	WARN_ON(!srpt_test_and_set_ch_state(ch, CH_DRAINING, CH_FREEING));
 	WARN_ON(!ch->last_wqe_received);
 
 	BUG_ON(!ch->thread);
 	BUG_ON(ch->thread == current);
-	kthread_stop(ch->thread);
-	ch->thread = NULL;
+
+	while (wait_for_completion_timeout(&ch->finished_processing_completions,
+					   10 * HZ) == 0)
+		PRINT_INFO("Waiting for completion processing thread ...");
 
 	srpt_destroy_ch_ib(ch);
 
@@ -2249,9 +2257,12 @@ static void srpt_free_ch(struct scst_session *sess)
 
 	ib_destroy_cm_id(ch->cm_id);
 
-	wake_up(&sdev->ch_releaseQ);
+	kthread_stop(ch->thread);
+	ch->thread = NULL;
 
 	kfree(ch);
+
+	wake_up(&sdev->ch_releaseQ);
 
 	TRACE_EXIT();
 }
@@ -2417,6 +2428,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	ch->state = CH_CONNECTING;
 	INIT_LIST_HEAD(&ch->cmd_wait_list);
 	init_waitqueue_head(&ch->state_wq);
+	init_completion(&ch->finished_processing_completions);
 	ch->max_rsp_size = max_t(uint32_t, srp_max_rsp_size, MIN_MAX_RSP_SIZE);
 	ch->ioctx_ring = (struct srpt_send_ioctx **)
 		srpt_alloc_ioctx_ring(ch->sport->sdev, ch->rq_size,
