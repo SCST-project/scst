@@ -1,3 +1,6 @@
+# iscsi-scstd command-line options. See also man iscsi-scstd.
+# ISCSID_OPTIONS="-u0 -g0 -p3260"
+
 # When using the procfs interface, specify all SCST target drivers in
 # SCST_TARGET_MODULES. An example:
 # SCST_TARGET_MODULES="scst_local iscsi_scst ib_srpt"
