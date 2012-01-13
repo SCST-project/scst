@@ -2609,6 +2609,7 @@ free_ring:
 			     ch->max_rsp_size, DMA_TO_DEVICE);
 
 free_ch:
+	cm_id->context = NULL;
 	kfree(ch);
 
 reject:
@@ -2722,6 +2723,8 @@ static void srpt_cm_drep_recv(struct ib_cm_id *cm_id)
 static int srpt_cm_handler(struct ib_cm_id *cm_id, struct ib_cm_event *event)
 {
 	int ret;
+
+	BUG_ON(!cm_id->context);
 
 	ret = 0;
 	switch (event->event) {
