@@ -3776,12 +3776,15 @@ static void srpt_add_one(struct ib_device *device)
 	sdev->srq_size = min(max(srpt_srq_size, MIN_SRPT_SRQ_SIZE),
 			     sdev->dev_attr.max_srq_wr);
 
+	memset(&srq_attr, 0, sizeof(srq_attr));
 	srq_attr.event_handler = srpt_srq_event;
 	srq_attr.srq_context = (void *)sdev;
 	srq_attr.attr.max_wr = sdev->srq_size;
 	srq_attr.attr.max_sge = 1;
 	srq_attr.attr.srq_limit = 0;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
 	srq_attr.srq_type = IB_SRQT_BASIC;
+#endif
 
 	sdev->srq = ib_create_srq(sdev->pd, &srq_attr);
 	if (IS_ERR(sdev->srq)) {
