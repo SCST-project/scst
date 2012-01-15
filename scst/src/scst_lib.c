@@ -309,7 +309,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 /* 10-bytes length CDB */
 	{0x23, "V   VV V        ", "READ FORMAT CAPACITY",
 	 SCST_DATA_READ, FLAG_NONE, 7, get_trans_len_2},
-	{0x24, "V   VVM         ", "SET WINDOW",
+	{0x24, "    VVM         ", "SET WINDOW",
 	 SCST_DATA_WRITE, FLAG_NONE, 6, get_trans_len_3},
 	{0x25, "M   MM M        ", "READ CAPACITY",
 	 SCST_DATA_READ, SCST_IMPLICIT_HQ|
