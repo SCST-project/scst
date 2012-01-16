@@ -4,16 +4,25 @@
 .\" under the terms of the GNU General Public License, version 2 (GPLv2). 
 .TH scst 5 "July 2011" "scstadmin 2.0.0"
 .SH NAME
-scst \- /etc/init.d/scst configuration file.
+/etc/default/scst \- Configuration file read by /etc/init.d/scst.
 .SH DESCRIPTION
 /etc/default/scst is a configuration file read by the SCST startup script
-/etc/init.d/scst and contains zero or more variables that control the behavior
-of that startup script. Currently there is only one such variable,
-SCST_TARGET_MODULES, and it only has to be set when using the procfs interface.
+/etc/init.d/scst. It contains zero or more variables that control the behavior
+of that startup script. The recognized variables are:
+.TP
+.B ISCSID_OPTIONS
+Specifies which command-line options will be passed to iscsi-scstd by the SCST
+init script when SCST is started. This variable is ignored if no iSCSI target
+entries have been defined in /etc/scst.conf. See also the iscsi-scstd man page
+for more information about the supported command-line options.
+.TP
+.B SCST_TARGET_MODULES
+This variable has only to be set when the procfs interface of SCST is being
+used instead of the sysfs interface. It defines which target modules should be
+loaded by the SCST init script when SCST is started and also which target
+modules should be unloaded when SCST is stopped.
 .P
-The format of the
-.I scst
-file is as follows:
+The format of the /etc/default/scst file is as follows:
 .br
 - Blank lines and lines starting with a hash sign (#) are ignored.
 .br
@@ -23,6 +32,13 @@ surrounded with double quotes.
 .P
 An example:
 .IP
+.br
+# iscsi-scstd command-line options. See also man iscsi-scstd.
+.br
+ISCSID_OPTIONS="-u0 -g0 -p3260"
+.br
+
+.br
 # When using the procfs interface, the /etc/init.d/scst script
 .br
 # cannot derive from /etc/scst.conf which target modules will
@@ -35,4 +51,4 @@ SCST_TARGET_MODULES="scst_local iscsi_scst ib_srpt"
 Configuration file that controls the behavior of some aspects of
 /etc/init.d/scst.
 .SH "SEE ALSO"
-scstadmin(1), scst.conf(5)
+scstadmin(1), scst.conf(5), iscsi-scstd(8)
