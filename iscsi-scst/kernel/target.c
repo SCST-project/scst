@@ -16,6 +16,7 @@
  */
 
 #include <linux/delay.h>
+#include <linux/module.h>
 
 #include "iscsi.h"
 #include "digest.h"

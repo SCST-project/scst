@@ -17,6 +17,10 @@
 
 #include "iscsi.h"
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
+#include <linux/export.h>
+#endif
+
 /* target_mutex supposed to be locked */
 struct iscsi_session *session_lookup(struct iscsi_target *target, u64 sid)
 {

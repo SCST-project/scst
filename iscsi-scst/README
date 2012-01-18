@@ -904,9 +904,14 @@ net/core/utils.c, ignore other failures.
 functions. Replace them by "net_put_page" and "net_get_page"
 correspondingly.
 
-That's all. Then please send your new
+For vanilla kernels that should be all. Then please send your new
 put_page_callback-<kernel-version>.patch to the SCST mailing list
 scst-devel@lists.sourceforge.net.
+
+But some out of tree drivers (some versions of DRBD and Intel e1000 are
+reported to do so) use own pages referencing on the TX path, so they
+should be modified the same way as above as well. (No need to modify RX
+path, because put_page_callback logic used by SCST only on the TX path.)
 
 Credits
 -------

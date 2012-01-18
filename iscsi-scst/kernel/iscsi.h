@@ -21,6 +21,7 @@
 #include <linux/pagemap.h>
 #include <linux/mm.h>
 #include <linux/net.h>
+#include <linux/module.h>
 #include <net/sock.h>
 
 #ifdef INSIDE_KERNEL_TREE

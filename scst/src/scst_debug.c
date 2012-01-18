@@ -20,6 +20,15 @@
  *  GNU General Public License for more details.
  */
 
+#include <linux/version.h>
+
+#ifndef INSIDE_KERNEL_TREE
+#include <linux/version.h>
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
+#include <linux/export.h>
+#endif
+
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/scst.h>
 #include <scst/scst_debug.h>
