@@ -89,7 +89,7 @@ MODULE_PARM_DESC(trace_flag, "SCST trace flags.");
 #endif
 
 static unsigned srp_max_rdma_size = DEFAULT_MAX_RDMA_SIZE;
-module_param(srp_max_rdma_size, int, 0744);
+module_param(srp_max_rdma_size, int, 0644);
 MODULE_PARM_DESC(srp_max_rdma_size,
 		 "Maximum size of SRP RDMA transfers for new connections.");
 
