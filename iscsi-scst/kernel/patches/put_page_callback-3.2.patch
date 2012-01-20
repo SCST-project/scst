@@ -1,6 +1,6 @@
 === modified file 'include/linux/mm_types.h'
 --- old/include/linux/mm_types.h	2012-01-10 22:58:17 +0000
-+++ new/include/linux/mm_types.h	2012-01-10 23:17:47 +0000
++++ new/include/linux/mm_types.h	2012-01-10 23:02:48 +0000
 @@ -149,6 +149,17 @@ struct page {
  	 */
  	void *shadow;
@@ -22,7 +22,7 @@
 
 === modified file 'include/linux/net.h'
 --- old/include/linux/net.h	2012-01-10 22:58:17 +0000
-+++ new/include/linux/net.h	2012-01-10 23:17:47 +0000
++++ new/include/linux/net.h	2012-01-10 23:02:48 +0000
 @@ -61,6 +61,7 @@ typedef enum {
  #include <linux/fcntl.h>	/* For O_CLOEXEC and O_NONBLOCK */
  #include <linux/kmemcheck.h>
@@ -79,7 +79,7 @@
 
 === modified file 'include/linux/skbuff.h'
 --- old/include/linux/skbuff.h	2012-01-10 22:58:17 +0000
-+++ new/include/linux/skbuff.h	2012-01-10 23:17:47 +0000
++++ new/include/linux/skbuff.h	2012-01-10 23:15:31 +0000
 @@ -1712,7 +1712,7 @@ static inline struct page *skb_frag_page
   */
  static inline void __skb_frag_ref(skb_frag_t *frag)
@@ -101,7 +101,7 @@
 
 === modified file 'net/Kconfig'
 --- old/net/Kconfig	2012-01-10 22:58:17 +0000
-+++ new/net/Kconfig	2012-01-10 23:17:47 +0000
++++ new/net/Kconfig	2012-01-10 23:02:48 +0000
 @@ -72,6 +72,18 @@ config INET
  
  	  Short answer: say Y.
@@ -124,7 +124,7 @@
 
 === modified file 'net/core/skbuff.c'
 --- old/net/core/skbuff.c	2012-01-10 22:58:17 +0000
-+++ new/net/core/skbuff.c	2012-01-10 23:17:47 +0000
++++ new/net/core/skbuff.c	2012-01-10 23:02:48 +0000
 @@ -77,13 +77,13 @@ static struct kmem_cache *skbuff_fclone_
  static void sock_pipe_buf_release(struct pipe_inode_info *pipe,
  				  struct pipe_buffer *buf)
@@ -189,7 +189,7 @@
 
 === modified file 'net/ipv4/Makefile'
 --- old/net/ipv4/Makefile	2012-01-10 22:58:17 +0000
-+++ new/net/ipv4/Makefile	2012-01-10 23:17:47 +0000
++++ new/net/ipv4/Makefile	2012-01-10 23:02:48 +0000
 @@ -48,6 +48,7 @@ obj-$(CONFIG_TCP_CONG_LP) += tcp_lp.o
  obj-$(CONFIG_TCP_CONG_YEAH) += tcp_yeah.o
  obj-$(CONFIG_TCP_CONG_ILLINOIS) += tcp_illinois.o
@@ -201,7 +201,7 @@
 
 === modified file 'net/ipv4/ip_output.c'
 --- old/net/ipv4/ip_output.c	2012-01-10 22:58:17 +0000
-+++ new/net/ipv4/ip_output.c	2012-01-10 23:17:47 +0000
++++ new/net/ipv4/ip_output.c	2012-01-10 23:02:48 +0000
 @@ -1232,7 +1232,7 @@ ssize_t	ip_append_page(struct sock *sk,
  		if (skb_can_coalesce(skb, i, page, offset)) {
  			skb_frag_size_add(&skb_shinfo(skb)->frags[i-1], len);
@@ -214,7 +214,7 @@
 
 === modified file 'net/ipv4/tcp.c'
 --- old/net/ipv4/tcp.c	2012-01-10 22:58:17 +0000
-+++ new/net/ipv4/tcp.c	2012-01-10 23:17:47 +0000
++++ new/net/ipv4/tcp.c	2012-01-10 23:02:48 +0000
 @@ -815,7 +815,7 @@ new_segment:
  		if (can_coalesce) {
  			skb_frag_size_add(&skb_shinfo(skb)->frags[i - 1], copy);
@@ -245,4 +245,59 @@
  						TCP_PAGE(sk) = page;
  					}
  				}
+
+=== added file 'net/ipv4/tcp_zero_copy.c'
+--- old/net/ipv4/tcp_zero_copy.c	1970-01-01 00:00:00 +0000
++++ new/net/ipv4/tcp_zero_copy.c	2012-01-10 23:43:22 +0000
+@@ -0,0 +1,50 @@
++/*
++ *	Support routines for TCP zero copy transmit
++ *
++ *	Created by Vladislav Bolkhovitin
++ *
++ *	This program is free software; you can redistribute it and/or
++ *      modify it under the terms of the GNU General Public License
++ *      version 2 as published by the Free Software Foundation.
++ */
++
++#include <linux/export.h>
++#include <linux/skbuff.h>
++
++net_get_page_callback_t net_get_page_callback __read_mostly;
++EXPORT_SYMBOL_GPL(net_get_page_callback);
++
++net_put_page_callback_t net_put_page_callback __read_mostly;
++EXPORT_SYMBOL_GPL(net_put_page_callback);
++
++/*
++ * Caller of this function must ensure that at the moment when it's called
++ * there are no pages in the system with net_priv field set to non-zero
++ * value. Hence, this function, as well as net_get_page() and net_put_page(),
++ * don't need any protection.
++ */
++int net_set_get_put_page_callbacks(
++	net_get_page_callback_t get_callback,
++	net_put_page_callback_t put_callback)
++{
++	int res = 0;
++
++	if ((net_get_page_callback != NULL) && (get_callback != NULL) &&
++	    (net_get_page_callback != get_callback)) {
++		res = -EBUSY;
++		goto out;
++	}
++
++	if ((net_put_page_callback != NULL) && (put_callback != NULL) &&
++	    (net_put_page_callback != put_callback)) {
++		res = -EBUSY;
++		goto out;
++	}
++
++	net_get_page_callback = get_callback;
++	net_put_page_callback = put_callback;
++
++out:
++	return res;
++}
++EXPORT_SYMBOL_GPL(net_set_get_put_page_callbacks);
 
