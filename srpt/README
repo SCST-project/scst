@@ -283,14 +283,6 @@ For more information, see also:
 * http://www.linux-ha.org/wiki/Main_Page
 
 
-Notes about ib_srpt
--------------------
-
-* Unloading the kernel module ib_srpt while I/O is ongoing is supported.
-  However, it can take up to two minutes before unloading finishes. During
-  that time CPU usage will be high.
-
-
 Performance Notes - Target Side
 -------------------------------
 
@@ -313,6 +305,33 @@ Performance Notes - Initiator Side
   * /sys/class/block/${dev}/queue/rq_affinity
   * /proc/irq/${ib_int_no}/smp_affinity
 
+
+Frequently Asked Questions
+--------------------------
+
+Q: Loading the kernel module ib_srpt triggers a kernel panic with a call trace
+   like the one below. What is the cause of this and how can this be solved ?
+
+   Call Trace:
+    [<ffffffffa02f2a50>] srpt_alloc_ioctx+0x60/0xb0 [ib_srpt]
+    [<ffffffffa02f2f0a>] srpt_alloc_ioctx_ring+0xea/0x1e0 [ib_srpt]
+    [<ffffffffa02f32e9>] srpt_add_one+0x2e9/0x670 [ib_srpt]
+    [<ffffffffa015a480>] ib_register_client+0x80/0xa0 [ib_core]
+    [<ffffffffa02421eb>] srpt_init_module+0x1eb/0x235 [ib_srpt]
+    [<ffffffff81000344>] do_one_initcall+0x34/0x1a0
+    [<ffffffff8107a63c>] sys_init_module+0xdc/0x260
+    [<ffffffff81002e3b>] system_call_fastpath+0x16/0x1b
+
+A: This means that you are using a system on which OFED has been installed but
+   that ib_srpt has been compiled against the non-OFED kernel headers instead
+   of the OFED kernel headers. You can fix this by rebuilding ib_srpt against
+   the OFED kernel headers. The ib_srpt makefile should detect the OFED kernel
+   headers automatically - at least if ib_srpt is built after OFED has been
+   installed.
+
+
+Feedback
+--------
 
 Send questions about this driver to scst-devel@lists.sourceforge.net, CC:
 Vu Pham <vuhuong@mellanox.com> and Bart Van Assche <bvanassche@acm.org>.
