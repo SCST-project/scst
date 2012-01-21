@@ -14,6 +14,8 @@ Changes compared to version 2.1.0:
 - Fixed a bug that could cause unloading ib_srpt during I/O to take up to 120s.
 - Fixed a crash in the I/O context ring allocation that was triggered when
   trying to allocate more memory than available.
+- Fixed a bug that caused SRQ creation to fail when using a QLogic HCA (qib driver)
+  and Linux kernel version 3.2 or later.
 - Builds again on 32-bit systems.
 
 Version 2.1.0 (September 8, 2011)
