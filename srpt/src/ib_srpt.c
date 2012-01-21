@@ -89,7 +89,7 @@ MODULE_PARM_DESC(trace_flag, "SCST trace flags.");
 #endif
 
 static unsigned srp_max_rdma_size = DEFAULT_MAX_RDMA_SIZE;
-module_param(srp_max_rdma_size, int, 0744);
+module_param(srp_max_rdma_size, int, 0644);
 MODULE_PARM_DESC(srp_max_rdma_size,
 		 "Maximum size of SRP RDMA transfers for new connections.");
 
@@ -166,15 +166,13 @@ static enum rdma_ch_state srpt_set_ch_state_to_disc(struct srpt_rdma_ch *ch)
 	case CH_CONNECTING:
 	case CH_LIVE:
 		ch->state = CH_DISCONNECTING;
+		wake_up_process(ch->thread);
 		changed = true;
 		break;
 	default:
 		break;
 	}
 	spin_unlock_irqrestore(&ch->spinlock, flags);
-
-	if (changed)
-		wake_up_process(ch->thread);
 
 	return prev;
 }
@@ -190,6 +188,7 @@ static bool srpt_set_ch_state_to_draining(struct srpt_rdma_ch *ch)
 	case CH_LIVE:
 	case CH_DISCONNECTING:
 		ch->state = CH_DRAINING;
+		wake_up_process(ch->thread);
 		changed = true;
 		break;
 	default:
@@ -197,8 +196,6 @@ static bool srpt_set_ch_state_to_draining(struct srpt_rdma_ch *ch)
 	}
 	spin_unlock_irqrestore(&ch->spinlock, flags);
 
-	if (changed)
-		wake_up_process(ch->thread);
 	return changed;
 }
 
@@ -217,12 +214,11 @@ static bool srpt_test_and_set_ch_state(struct srpt_rdma_ch *ch,
 	spin_lock_irqsave(&ch->spinlock, flags);
 	if (ch->state == old) {
 		ch->state = new;
+		wake_up_process(ch->thread);
 		changed = true;
 	}
 	spin_unlock_irqrestore(&ch->spinlock, flags);
 
-	if (changed)
-		wake_up_process(ch->thread);
 	return changed;
 }
 
@@ -286,6 +282,7 @@ static void srpt_event_handler(struct ib_event_handler *handler,
 {
 	struct srpt_device *sdev;
 	struct srpt_port *sport;
+	u8 port_num;
 
 	TRACE_ENTRY();
 
@@ -298,10 +295,15 @@ static void srpt_event_handler(struct ib_event_handler *handler,
 
 	switch (event->event) {
 	case IB_EVENT_PORT_ERR:
-		if (event->element.port_num <= sdev->device->phys_port_cnt) {
-			sport = &sdev->port[event->element.port_num - 1];
+		port_num = event->element.port_num - 1;
+		if (port_num < sdev->device->phys_port_cnt) {
+			sport = &sdev->port[port_num];
 			sport->lid = 0;
 			sport->sm_lid = 0;
+		} else {
+			WARN(true, "event %d: port_num %d out of range 1..%d\n",
+			     event->event, port_num + 1,
+			     sdev->device->phys_port_cnt);
 		}
 		break;
 	case IB_EVENT_PORT_ACTIVE:
@@ -310,10 +312,15 @@ static void srpt_event_handler(struct ib_event_handler *handler,
 	case IB_EVENT_SM_CHANGE:
 	case IB_EVENT_CLIENT_REREGISTER:
 		/* Refresh port data asynchronously. */
-		if (event->element.port_num <= sdev->device->phys_port_cnt) {
-			sport = &sdev->port[event->element.port_num - 1];
+		port_num = event->element.port_num - 1;
+		if (port_num < sdev->device->phys_port_cnt) {
+			sport = &sdev->port[port_num];
 			if (!sport->lid && !sport->sm_lid)
 				schedule_work(&sport->work);
+		} else {
+			WARN(true, "event %d: port_num %d out of range 1..%d\n",
+			     event->event, port_num + 1,
+			     sdev->device->phys_port_cnt);
 		}
 		break;
 	default:
@@ -343,6 +350,8 @@ static const char *get_ch_state_name(enum rdma_ch_state s)
 		return "disconnecting";
 	case CH_DRAINING:
 		return "draining";
+	case CH_FREEING:
+		return "freeing";
 	}
 	return "???";
 }
@@ -370,6 +379,7 @@ static void srpt_qp_event(struct ib_event *event, struct srpt_rdma_ch *ch)
 		TRACE_DBG("%s, state %s: received Last WQE event.",
 			  ch->sess_name, get_ch_state_name(ch->state));
 		ch->last_wqe_received = true;
+		BUG_ON(!ch->thread);
 		wake_up_process(ch->thread);
 		break;
 	default:
@@ -1959,19 +1969,18 @@ static void srpt_process_completion(struct ib_cq *cq,
 
 	EXTRACHECKS_WARN_ON(cq != ch->cq);
 
-	do {
-		while ((n = ib_poll_cq(cq, ARRAY_SIZE(ch->wc), wc)) > 0) {
-			for (i = 0; i < n; i++) {
-				if (opcode_from_wr_id(wc[i].wr_id) == SRPT_RECV)
-					srpt_process_rcv_completion(cq, ch,
-							rcv_context, &wc[i]);
-				else
-					srpt_process_send_completion(cq, ch,
-							send_context, &wc[i]);
-			}
+	ib_req_notify_cq(cq, IB_CQ_NEXT_COMP);
+	while ((n = ib_poll_cq(cq, ARRAY_SIZE(ch->wc), wc)) > 0) {
+		for (i = 0; i < n; i++) {
+			if (opcode_from_wr_id(wc[i].wr_id) == SRPT_RECV)
+				srpt_process_rcv_completion(cq, ch, rcv_context,
+							    &wc[i]);
+			else
+				srpt_process_send_completion(cq, ch,
+							     send_context,
+							     &wc[i]);
 		}
-	} while (ib_req_notify_cq(cq, IB_CQ_NEXT_COMP |
-				  IB_CQ_REPORT_MISSED_EVENTS) > 0);
+	}
 }
 
 /**
@@ -1981,6 +1990,7 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 {
 	struct srpt_rdma_ch *ch = ctx;
 
+	BUG_ON(!ch->thread);
 	wake_up_process(ch->thread);
 }
 
@@ -2012,12 +2022,21 @@ static int srpt_compl_thread(void *arg)
 		  ch->sess_name);
 	scst_unregister_session(ch->scst_sess, false, srpt_free_ch);
 
-	while (!kthread_should_stop()) {
+	/*
+	 * Some HCAs can queue send completions after the Last WQE
+	 * event. Make sure to process these work completions.
+	 */
+	while (ch->state < CH_FREEING) {
 		set_current_state(TASK_INTERRUPTIBLE);
 		srpt_process_completion(ch->cq, ch, SCST_CONTEXT_THREAD,
 					SCST_CONTEXT_DIRECT);
 		schedule();
 	}
+
+	complete(&ch->finished_processing_completions);
+
+	while (!kthread_should_stop())
+		schedule();
 
 	return 0;
 }
@@ -2155,6 +2174,7 @@ static bool __srpt_close_ch(struct srpt_rdma_ch *ch)
 		break;
 	case CH_DISCONNECTING:
 	case CH_DRAINING:
+	case CH_FREEING:
 		break;
 	}
 
@@ -2214,13 +2234,15 @@ static void srpt_free_ch(struct scst_session *sess)
 	sdev = ch->sport->sdev;
 	BUG_ON(!sdev);
 
-	WARN_ON(ch->state != CH_DRAINING);
+	WARN_ON(!srpt_test_and_set_ch_state(ch, CH_DRAINING, CH_FREEING));
 	WARN_ON(!ch->last_wqe_received);
 
 	BUG_ON(!ch->thread);
 	BUG_ON(ch->thread == current);
-	kthread_stop(ch->thread);
-	ch->thread = NULL;
+
+	while (wait_for_completion_timeout(&ch->finished_processing_completions,
+					   10 * HZ) == 0)
+		PRINT_INFO("Waiting for completion processing thread ...");
 
 	srpt_destroy_ch_ib(ch);
 
@@ -2234,9 +2256,12 @@ static void srpt_free_ch(struct scst_session *sess)
 
 	ib_destroy_cm_id(ch->cm_id);
 
-	wake_up(&sdev->ch_releaseQ);
+	kthread_stop(ch->thread);
+	ch->thread = NULL;
 
 	kfree(ch);
+
+	wake_up(&sdev->ch_releaseQ);
 
 	TRACE_EXIT();
 }
@@ -2403,6 +2428,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	ch->state = CH_CONNECTING;
 	INIT_LIST_HEAD(&ch->cmd_wait_list);
 	init_waitqueue_head(&ch->state_wq);
+	init_completion(&ch->finished_processing_completions);
 	ch->max_rsp_size = max_t(uint32_t, srp_max_rsp_size, MIN_MAX_RSP_SIZE);
 	ch->ioctx_ring = (struct srpt_send_ioctx **)
 		srpt_alloc_ioctx_ring(ch->sport->sdev, ch->rq_size,
@@ -2583,6 +2609,7 @@ free_ring:
 			     ch->max_rsp_size, DMA_TO_DEVICE);
 
 free_ch:
+	cm_id->context = NULL;
 	kfree(ch);
 
 reject:
@@ -2696,6 +2723,8 @@ static void srpt_cm_drep_recv(struct ib_cm_id *cm_id)
 static int srpt_cm_handler(struct ib_cm_id *cm_id, struct ib_cm_event *event)
 {
 	int ret;
+
+	BUG_ON(!cm_id->context);
 
 	ret = 0;
 	switch (event->event) {
@@ -3750,11 +3779,15 @@ static void srpt_add_one(struct ib_device *device)
 	sdev->srq_size = min(max(srpt_srq_size, MIN_SRPT_SRQ_SIZE),
 			     sdev->dev_attr.max_srq_wr);
 
+	memset(&srq_attr, 0, sizeof(srq_attr));
 	srq_attr.event_handler = srpt_srq_event;
 	srq_attr.srq_context = (void *)sdev;
 	srq_attr.attr.max_wr = sdev->srq_size;
 	srq_attr.attr.max_sge = 1;
 	srq_attr.attr.srq_limit = 0;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
+	srq_attr.srq_type = IB_SRQT_BASIC;
+#endif
 
 	sdev->srq = ib_create_srq(sdev->pd, &srq_attr);
 	if (IS_ERR(sdev->srq)) {
@@ -3815,8 +3848,7 @@ static void srpt_add_one(struct ib_device *device)
 	for (i = 0; i < sdev->srq_size; ++i)
 		srpt_post_recv(sdev, sdev->ioctx_ring[i]);
 
-	WARN_ON(sdev->device->phys_port_cnt
-		> sizeof(sdev->port)/sizeof(sdev->port[0]));
+	WARN_ON(sdev->device->phys_port_cnt > ARRAY_SIZE(sdev->port));
 
 	for (i = 1; i <= sdev->device->phys_port_cnt; i++) {
 		sport = &sdev->port[i - 1];
