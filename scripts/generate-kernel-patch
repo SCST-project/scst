@@ -295,9 +295,9 @@ scst_13_vdisk="scst/src/dev_handlers/scst_vdisk.c"
 scst_14_tg="scst/src/scst_tg.c"
 separate_patches="scst_03_public_headers scst_04_main scst_05_targ scst_06_lib scst_07_pres scst_08_sysfs scst_09_debug scst_10_sgv scst_user scst_13_vdisk scst_14_tg"
 
-#if [ "${generating_upstream_patch}" = "false" ]; then
-#  separate_patches+=" scst_proc"
-#fi
+if [ "${generating_upstream_patch}" = "false" ]; then
+  separate_patches+=" scst_proc"
+fi
 source_files_in_separate_patch=""
 for s in ${separate_patches}
 do
@@ -335,7 +335,7 @@ add_file "${tmp_Kconfig}" "drivers/scst/Kconfig"
 
 tmp_Makefile="${tmpdir}/Makefile.scst-${kver}"
 cat "scst/kernel/in-tree/Makefile.scst-${kver}" | \
-if false || [ "${generating_upstream_patch}" = "true" ]; then
+if [ "${generating_upstream_patch}" = "true" ]; then
   grep -v 'scst_proc'
 else
   cat
