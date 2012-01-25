@@ -14,6 +14,7 @@
  *  GNU General Public License for more details.
  */
 
+#include <linux/module.h>
 #include "iscsi.h"
 
 /* Protected by target_mgmt_mutex */

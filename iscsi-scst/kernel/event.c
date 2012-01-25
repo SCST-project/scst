@@ -17,6 +17,7 @@
  *
  */
 
+#include <linux/module.h>
 #include <net/tcp.h>
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/iscsi_scst.h>
@@ -32,7 +33,8 @@ static int event_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 {
 	u32 pid;
 
-	pid = NETLINK_CREDS(skb)->pid;
+	pid = NETLINK_CB(skb).pid;
+	WARN_ON(pid == 0);
 
 	iscsid_pid = pid;
 
@@ -101,15 +103,14 @@ static int __event_send(const void *buf, int buf_len)
 
 	len = NLMSG_SPACE(buf_len);
 
-	skb = alloc_skb(NLMSG_SPACE(len), GFP_KERNEL);
+	skb = alloc_skb(len, GFP_KERNEL);
 	if (skb == NULL) {
 		PRINT_ERROR("alloc_skb() failed (len %d)", len);
 		res =  -ENOMEM;
 		goto out;
 	}
 
-	nlh = __nlmsg_put(skb, iscsid_pid, seq++, NLMSG_DONE,
-			  len - sizeof(*nlh), 0);
+	nlh = __nlmsg_put(skb, iscsid_pid, seq++, NLMSG_DONE, buf_len, 0);
 
 	memcpy(NLMSG_DATA(nlh), buf, buf_len);
 	res = netlink_unicast(nl, skb, iscsid_pid, 0);

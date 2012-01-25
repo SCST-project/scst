@@ -46,9 +46,9 @@ static int nl_write(int fd, void *data, int len)
 	struct nlmsghdr nlh = {0};
 
 	iov[0].iov_base = &nlh;
-	iov[0].iov_len = sizeof(nlh);
+	iov[0].iov_len = NLMSG_HDRLEN;
 	iov[1].iov_base = data;
-	iov[1].iov_len = NLMSG_SPACE(len) - sizeof(nlh);
+	iov[1].iov_len = NLMSG_SPACE(len) - NLMSG_HDRLEN;
 
 	nlh.nlmsg_len = NLMSG_SPACE(len);
 	nlh.nlmsg_pid = getpid();
@@ -72,21 +72,25 @@ static int nl_read(int fd, void *data, int len, bool wait)
 	int res;
 
 	iov[0].iov_base = &nlh;
-	iov[0].iov_len = sizeof(nlh);
+	iov[0].iov_len = NLMSG_HDRLEN;
 	iov[1].iov_base = data;
-	iov[1].iov_len = len;
+	iov[1].iov_len = NLMSG_ALIGN(len);
 
 	memset(&msg, 0, sizeof(msg));
-	msg.msg_name= (void *)&src_addr;
+	msg.msg_name = (void *)&src_addr;
 	msg.msg_namelen = sizeof(src_addr);
 	msg.msg_iov = iov;
 	msg.msg_iovlen = 2;
 
 	res = recvmsg(fd, &msg, wait ? 0 : MSG_DONTWAIT);
 	if (res > 0) {
-		res -= sizeof(nlh);
+		res -= NLMSG_HDRLEN;
 		if (res < 0)
 			res = -EPIPE;
+		else if (res < iov[1].iov_len)
+			log_error("read netlink fd (%d) error: received %d"
+				  " bytes but expected %zd bytes (%d)", fd, res,
+				  iov[1].iov_len, len);
 	}
 
 	return res;
@@ -177,7 +181,7 @@ static int handle_e_add_target(int fd, const struct iscsi_kern_event *event)
 		break;
 	}
 
-	offs += rc;
+	offs += min((unsigned)rc, (unsigned)event->param1_size);
 	offs += sprintf(&buf[offs], "; ");
 
 	if (event->param2_size > 0) {
@@ -192,7 +196,7 @@ static int handle_e_add_target(int fd, const struct iscsi_kern_event *event)
 			}
 			break;
 		}
-		offs += rc;
+		offs += min((unsigned)rc, (unsigned)event->param2_size);
 	}
 
 	buf[offs] = '\0';
@@ -414,7 +418,7 @@ static int handle_e_mgmt_cmd(int fd, const struct iscsi_kern_event *event)
 		break;
 	}
 
-	buf[rc] = '\0';
+	buf[min((unsigned)rc, (unsigned)event->param1_size)] = '\0';
 
 	log_debug(1, "Going to parse %s", buf);
 
@@ -503,7 +507,7 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 		break;
 	}
 
-	buf[rc] = '\0';
+	buf[min((unsigned)rc, (unsigned)event->param1_size)] = '\0';
 
 	log_debug(1, "Going to parse name %s", buf);
 
@@ -766,7 +770,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 		break;
 	}
 
-	offs = rc;
+	offs = min((unsigned)rc, (unsigned)event->param1_size);
 	offs += sprintf(&buf[offs], " ");
 
 	while (1) {
@@ -781,7 +785,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 		break;
 	}
 
-	offs += rc;
+	offs += min((unsigned)rc, (unsigned)event->param2_size);
 	buf[offs] = '\0';
 
 	log_debug(1, "Going to parse %s", buf);

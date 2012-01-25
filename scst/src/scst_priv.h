@@ -22,6 +22,9 @@
 
 #include <linux/types.h>
 #include <linux/slab.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
+#include <linux/export.h>
+#endif
 #include <scsi/scsi.h>
 #include <scsi/scsi_cmnd.h>
 #include <scsi/scsi_driver.h>
