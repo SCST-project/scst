@@ -52,11 +52,11 @@ cat <<"EOF"
 #
 
 if [ -e /lib/lsb/init-functions ]; then
-    # Debian, RHEL / Fedora, SLES / openSUSE.
+    # Debian, RHEL, Fedora, SLES and openSUSE.
     SYSTEMD_NO_WRAP="true"
     . /lib/lsb/init-functions
 else
-# Slackware.
+    # Slackware (Gentoo has these functions).
 log_success_msg() {
     echo "$@"
 }
@@ -81,7 +81,7 @@ cat <<"EOF"
 SCST_CFG=/etc/scst.conf
 
 if [ ! -e /lib/lsb/init-functions ]; then
-# Slackware / Gentoo.
+    # Slackware and Gentoo.
 rc_status() {
   _rc_status_ret=$?
   for i; do
