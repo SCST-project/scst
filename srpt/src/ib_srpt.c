@@ -2242,7 +2242,7 @@ static void srpt_free_ch(struct scst_session *sess)
 
 	while (wait_for_completion_timeout(&ch->finished_processing_completions,
 					   10 * HZ) == 0)
-		PRINT_INFO("Waiting for completion processing thread ...");
+		PRINT_INFO("%s", "Waiting for completion processing thread ...");
 
 	srpt_destroy_ch_ib(ch);
 
