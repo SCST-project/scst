@@ -4779,11 +4779,12 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 		}
 
 		if (mstb->done_counted || mstb->finish_counted) {
-			TRACE_MGMT_DBG("cmd %p (tag %llu, sn %u) being "
-				"executed/xmitted (state %d, op %x, proc time "
-				"%ld sec., timeout %d sec.), deferring ABORT "
-				"(cmd_done_wait_count %d, cmd_finish_wait_count "
-				"%d)", cmd, (long long unsigned int)cmd->tag,
+			TRACE(TRACE_SCSI|TRACE_MGMT_DEBUG, "cmd %p (tag %llu, "
+				"sn %u) being executed/xmitted (state %d, "
+				"op %x, proc time %ld sec., timeout %d sec.), "
+				"deferring ABORT (cmd_done_wait_count %d, "
+				"cmd_finish_wait_count %d)", cmd,
+				(long long unsigned int)cmd->tag,
 				cmd->sn, cmd->state, cmd->cdb[0],
 				(long)(jiffies - cmd->start_time) / HZ,
 				cmd->timeout / HZ, mcmd->cmd_done_wait_count,
@@ -4826,7 +4827,8 @@ static int scst_set_mcmd_next_state(struct scst_mgmt_cmd *mcmd)
 			mcmd->state = SCST_MCMD_STATE_AFFECTED_CMDS_DONE;
 			res = 0;
 		} else {
-			TRACE_MGMT_DBG("cmd_done_wait_count(%d) not 0, "
+			TRACE(TRACE_SCSI|TRACE_MGMT_DEBUG,
+				"cmd_done_wait_count(%d) not 0, "
 				"preparing to wait", mcmd->cmd_done_wait_count);
 			mcmd->state = SCST_MCMD_STATE_WAITING_AFFECTED_CMDS_DONE;
 			res = -1;
@@ -4838,7 +4840,8 @@ static int scst_set_mcmd_next_state(struct scst_mgmt_cmd *mcmd)
 			mcmd->state = SCST_MCMD_STATE_DONE;
 			res = 0;
 		} else {
-			TRACE_MGMT_DBG("cmd_finish_wait_count(%d) not 0, "
+			TRACE(TRACE_SCSI|TRACE_MGMT_DEBUG,
+				"cmd_finish_wait_count(%d) not 0, "
 				"preparing to wait",
 				mcmd->cmd_finish_wait_count);
 			mcmd->state = SCST_MCMD_STATE_WAITING_AFFECTED_CMDS_FINISHED;
@@ -5679,11 +5682,11 @@ static void scst_mgmt_cmd_send_done(struct scst_mgmt_cmd *mcmd)
 		mcmd->status = SCST_MGMT_STATUS_TASK_NOT_EXIST;
 
 	if (mcmd->fn < SCST_UNREG_SESS_TM)
-		TRACE(TRACE_MGMT, "TM fn %d finished, "
-			"status %d", mcmd->fn, mcmd->status);
+		TRACE(TRACE_MGMT, "TM fn %d (%p) finished, "
+			"status %d", mcmd->fn, mcmd, mcmd->status);
 	else
-		TRACE_MGMT_DBG("TM fn %d finished, "
-			"status %d", mcmd->fn, mcmd->status);
+		TRACE_MGMT_DBG("TM fn %d (%p) finished, "
+			"status %d", mcmd->fn, mcmd, mcmd->status);
 
 	if (mcmd->fn == SCST_PR_ABORT_ALL) {
 		mcmd->origin_pr_cmd->scst_cmd_done(mcmd->origin_pr_cmd,
@@ -6021,9 +6024,9 @@ int scst_rx_mgmt_fn(struct scst_session *sess,
 	mcmd->cmd_sn = params->cmd_sn;
 
 	if (params->fn < SCST_UNREG_SESS_TM)
-		TRACE(TRACE_MGMT, "TM fn %d", params->fn);
+		TRACE(TRACE_MGMT, "TM fn %d (%p)", params->fn, mcmd);
 	else
-		TRACE_MGMT_DBG("TM fn %d", params->fn);
+		TRACE_MGMT_DBG("TM fn %d (%p)", params->fn, mcmd);
 
 	TRACE_MGMT_DBG("sess=%p, tag_set %d, tag %lld, lun_set %d, "
 		"lun=%lld, cmd_sn_set %d, cmd_sn %d, priv %p", sess,
