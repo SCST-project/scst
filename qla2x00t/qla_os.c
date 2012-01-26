@@ -143,7 +143,7 @@ static int qla2xxx_eh_target_reset(struct scsi_cmnd *);
 static int qla2xxx_eh_bus_reset(struct scsi_cmnd *);
 static int qla2xxx_eh_host_reset(struct scsi_cmnd *);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) && !defined(CONFIG_SUSE_KERNEL)
 static int qla2x00_change_queue_depth(struct scsi_device *, int);
 #else
 static int qla2x00_change_queue_depth(struct scsi_device *sdev, int qdepth,
@@ -1195,7 +1195,7 @@ qla2xxx_slave_destroy(struct scsi_device *sdev)
 	sdev->hostdata = NULL;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) && !defined(CONFIG_SUSE_KERNEL)
 
 static int
 qla2x00_change_queue_depth(struct scsi_device *sdev, int qdepth)
@@ -1257,7 +1257,7 @@ qla2x00_change_queue_depth(struct scsi_device *sdev, int qdepth, int reason)
 	return sdev->queue_depth;
 }
 
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) */
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) && !defined(CONFIG_SUSE_KERNEL) */
 
 static int
 qla2x00_change_queue_type(struct scsi_device *sdev, int tag_type)
