@@ -79,16 +79,6 @@ static struct ft_tport *ft_tport_create(struct fc_lport *lport)
 }
 
 /*
- * Free tport via RCU.
- */
-static void ft_tport_rcu_free(struct rcu_head *rcu)
-{
-	struct ft_tport *tport = container_of(rcu, struct ft_tport, rcu);
-
-	kfree(tport);
-}
-
-/*
  * Delete target local port, if any, associated with the local port.
  * Caller holds ft_lport_lock.
  */
@@ -105,7 +95,7 @@ static void ft_tport_delete(struct ft_tport *tport)
 	BUG_ON(tport != lport->prov[FC_TYPE_FCP]);
 	rcu_assign_pointer(lport->prov[FC_TYPE_FCP], NULL);
 	tport->lport = NULL;
-	call_rcu(&tport->rcu, ft_tport_rcu_free);
+	kfree_rcu(tport, rcu);
 	ft_tport_count--;
 }
 
