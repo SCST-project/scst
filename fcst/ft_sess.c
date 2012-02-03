@@ -78,7 +78,7 @@ static struct ft_tport *ft_tport_create(struct fc_lport *lport)
 	return tport;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 0)
 /*
  * Free tport via RCU.
  */
@@ -107,10 +107,10 @@ static void ft_tport_delete(struct ft_tport *tport)
 	BUG_ON(tport != lport->prov[FC_TYPE_FCP]);
 	rcu_assign_pointer(lport->prov[FC_TYPE_FCP], NULL);
 	tport->lport = NULL;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
-	call_rcu(&tport->rcu, ft_tport_rcu_free);
-#else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0)
 	kfree_rcu(tport, rcu);
+#else
+	call_rcu(&tport->rcu, ft_tport_rcu_free);
 #endif
 	ft_tport_count--;
 }
