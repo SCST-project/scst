@@ -160,7 +160,8 @@ static int handle_e_add_target(int fd, const struct iscsi_kern_event *event)
 
 	/* Params are not 0-terminated */
 
-	size = NLMSG_ALIGN(strlen("Target ") + event->param1_size + 2 + event->param2_size + 1);
+	size = strlen("Target ") + event->param1_size + 2 + event->param2_size +
+		1 + NLMSG_ALIGNTO - 1;
 
 	buf = malloc(size);
 	if (buf == NULL) {
@@ -759,7 +760,8 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 	}
 
 	/* Params are not 0-terminated */
-	size = NLMSG_ALIGN(event->param1_size + 1 + 1 + event->param2_size + 1);
+	size = event->param1_size + 1 + 1 + event->param2_size + 1 +
+		NLMSG_ALIGNTO - 1;
 
 	buf = malloc(size);
 	if (buf == NULL) {
