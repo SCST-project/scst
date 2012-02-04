@@ -382,7 +382,8 @@ void target_del_all(void)
 
 #ifdef CONFIG_SCST_PROC
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19) && \
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 <= 5 && RHEL_MINOR -0 <= 6)
 static struct list_head *seq_list_start(struct list_head *head, loff_t pos)
 {
 	struct list_head *lh;
