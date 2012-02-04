@@ -37,6 +37,8 @@
 
 #define ISCSI_ISNS_SYSFS_ACCESS_CONTROL_ENABLED	"AccessControl"
 
+#define STATIC_ASSERT(e) ((void)sizeof(int[1-2*!(e)]))
+
 static struct sockaddr_nl src_addr, dest_addr;
 
 static int nl_write(int fd, void *data, int len)
@@ -158,7 +160,7 @@ static int handle_e_add_target(int fd, const struct iscsi_kern_event *event)
 
 	/* Params are not 0-terminated */
 
-	size = strlen("Target ") + event->param1_size + 2 + event->param2_size + 1;
+	size = NLMSG_ALIGN(strlen("Target ") + event->param1_size + 2 + event->param2_size + 1);
 
 	buf = malloc(size);
 	if (buf == NULL) {
@@ -397,7 +399,7 @@ static int handle_e_mgmt_cmd(int fd, const struct iscsi_kern_event *event)
 
 	/* Params are not 0-terminated */
 
-	size = event->param1_size + 1;
+	size = NLMSG_ALIGN(event->param1_size + 1);
 
 	buf = malloc(size);
 	if (buf == NULL) {
@@ -486,7 +488,7 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 
 	/* Params are not 0-terminated */
 
-	size = event->param1_size + 1;
+	size = NLMSG_ALIGN(event->param1_size + 1);
 
 	buf = malloc(size);
 	if (buf == NULL) {
@@ -757,7 +759,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 	}
 
 	/* Params are not 0-terminated */
-	size = event->param1_size + 1 + 1 + event->param2_size + 1;
+	size = NLMSG_ALIGN(event->param1_size + 1 + 1 + event->param2_size + 1);
 
 	buf = malloc(size);
 	if (buf == NULL) {
@@ -1047,6 +1049,8 @@ int handle_iscsi_events(int fd, bool wait)
 	 * The way of handling errors by exit() is one of the worst possible,
 	 * but IET developers thought it's OK. ToDo: fix somewhen.
 	 */
+
+	STATIC_ASSERT(sizeof(event) % NLMSG_ALIGNTO == 0);
 
 retry:
 	if ((rc = nl_read(fd, &event, sizeof(event), wait)) < 0) {
