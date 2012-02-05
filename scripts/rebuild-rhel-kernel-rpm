@@ -58,7 +58,7 @@ case "$distro" in
     if [ $releasevermajor = 5 ]; then
       srpm_url=("http://vault.centos.org/${releasever}/os/SRPMS" "http://vault.centos.org/${releasever}/updates/SRPMS")
     else
-      srpm_url=("http://mirror.centos.org/centos/${releasever}/os/SRPMS/Packages" "http://mirror.centos.org/centos/${releasever}/updates/SRPMS")
+      srpm_url=("http://vault.centos.org/${releasever}/os/Source/SPackages" "http://vault.centos.org/${releasever}/updates/Source/SPackages")
     fi
     ;;
   "Red Hat Enterprise Linux"*)
@@ -121,17 +121,6 @@ log "Creating directory ${rpmbuild_dir}"
 
 mkdir -p ${rpmbuild_dir}/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
 
-log "Updating ~/.rpmmacros"
-
-if [ -e ~/.rpmmacros ]; then
-    cp ~/.rpmmacros ~/.rpmmacros.tmp
-else
-    touch ~/.rpmmacros.tmp
-fi
-{ cat ~/.rpmmacros.tmp | grep -v '^%_topdir '; \
-  echo "%_topdir ${rpmbuild_dir}"; } > ~/.rpmmacros
-rm -f ~/.rpmmacros.tmp
-
 log "Installing, unpacking and preparing kernel source files"
 
 mkdir -p ${downloaddir}
@@ -161,8 +150,10 @@ cd ${rpmbuild_dir}
 { rpm -i ${downloaddir}/${kernel_src_rpm} 2>&1 \
   | grep -v ' does not exist'; }
 cd SPECS
-{ rpmbuild -bp --target=${arch} kernel*.spec;   \
-  rc=$?; if [ rc != 0 ]; then exit $rc; fi; } 2>&1 \
+{
+  rpmbuild --define="%_topdir ${rpmbuild_dir}" -bp --target=${arch} kernel*.spec
+  rc=$?; if [ rc != 0 ]; then exit $rc; fi
+} 2>&1 \
   | tee prep-err.log
 
 log "Copying SCST patches to the SOURCES directory"
