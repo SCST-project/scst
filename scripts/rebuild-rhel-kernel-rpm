@@ -147,14 +147,16 @@ sudo yum-builddep -q -y ${downloaddir}/${kernel_src_rpm}
 log "Installing kernel sources in ${rpmbuild_dir}"
 
 cd ${rpmbuild_dir}
-{ rpm -i ${downloaddir}/${kernel_src_rpm} 2>&1 \
-  | grep -v ' does not exist'; }
+rpm --define="%_topdir ${rpmbuild_dir}" -i ${downloaddir}/${kernel_src_rpm} 2>&1 \
+  | grep -v ' does not exist'
 cd SPECS
 {
   rpmbuild --define="%_topdir ${rpmbuild_dir}" -bp --target=${arch} kernel*.spec
-  rc=$?; if [ rc != 0 ]; then exit $rc; fi
-} 2>&1 \
-  | tee prep-err.log
+  rc=$?
+  if [ rc != 0 ]; then
+    exit $rc
+  fi
+} 2>&1 | tee prep-err.log
 
 log "Copying SCST patches to the SOURCES directory"
 
@@ -295,8 +297,13 @@ fi
 log "Rebuilding kernel"
 
 cd ${rpmbuild_dir}/SPECS
-{ rpmbuild -bb --target=${arch} --with baseonly --with firmware --without kabichk kernel*.spec; rc=$?; if [ $rc != 0 ]; then exit $rc; fi; } 2>&1 \
- | tee build.log
+{
+  rpmbuild --define="%_topdir ${rpmbuild_dir}" -bb --target=${arch} --with baseonly --with firmware --without kabichk kernel*.spec
+  rc=$?
+  if [ $rc != 0 ]; then
+    exit $rc
+  fi
+} 2>&1 | tee build.log
 
 
 log "Ready. You can now install the freshly built kernel RPM as follows:\n"\
