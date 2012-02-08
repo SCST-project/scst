@@ -459,9 +459,19 @@ where:
   <item> <bf/SCST_EXEC_REPLY_BACKGROUND/ - tells SCST send to the remote
        initiator GOOD status, but the command not yet completed by the
        user space handler, it is being executed in the background. When
-       it will be completed, the user space handler will call
+       it completed, the user space handler must call
        SCST_USER_REPLY_CMD again with reply_type
-       SCST_EXEC_REPLY_COMPLETED.
+       SCST_EXEC_REPLY_COMPLETED. This mode can be used only for WRITEs
+       and with no mem reuse for them. Also in this mode
+       SCST_USER_ON_FREE_CMD_IGNORE supposed to be used.
+       SCST_USER_ON_FREE_CMD_IGNORE should be OK, because in this mode
+       the user space handler knows when this memory can be reused
+       (SCST_EXEC_REPLY_COMPLETED time). In case if the user space
+       handler finishes before SCST sent reply to the initiator, SCST
+       can still have reference to that memory, but it is harmless,
+       because SCST is not going to touch this memory anyhow in this
+       processing path, because WRITEs are not sending data, so this
+       memory can be safely reused for other needs.
 
    <item> <bf/SCST_EXEC_REPLY_COMPLETED/ - the user space handler completed the command
    </itemize>
