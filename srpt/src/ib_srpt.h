@@ -127,7 +127,7 @@ enum {
 
 	DEFAULT_MAX_RDMA_SIZE = 65536,
 
-	RDMA_COMPL_TIMEOUT_S = 80,
+	RDMA_COMPL_TIMEOUT_S = 600,
 };
 
 enum srpt_opcode {
