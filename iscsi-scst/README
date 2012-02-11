@@ -913,6 +913,11 @@ reported to do so) use own pages referencing on the TX path, so they
 should be modified the same way as above as well. (No need to modify RX
 path, because put_page_callback logic used by SCST only on the TX path.)
 
+In case of DRBD, if you don't do this modification, you can specify
+disable_sendpage parameter for drbd module. But in this case it might be
+better for performance simply not apply put_page_callback patch.
+
+
 Credits
 -------
 
