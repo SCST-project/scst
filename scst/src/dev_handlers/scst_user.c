@@ -106,14 +106,20 @@ struct scst_user_cmd {
 	struct scst_cmd *cmd;
 	struct scst_user_dev *dev;
 
-	atomic_t ucmd_ref;
-
+	/*
+	 * Note, gcc reported to have a long standing bug, when it uses 64-bit
+	 * memory accesses for int bit fields, so, if any neighbor int field
+	 * modified intependently to those bit fields, it must be 64-bit
+	 * aligned to workaround this gcc bug!
+	 */
 	unsigned int buff_cached:1;
 	unsigned int buf_dirty:1;
 	unsigned int background_exec:1;
 	unsigned int aborted:1;
 
 	struct scst_user_cmd *buf_ucmd;
+
+	atomic_t ucmd_ref;
 
 	int cur_data_page;
 	int num_data_pages;

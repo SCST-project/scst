@@ -2276,8 +2276,13 @@ struct scst_device {
 
 	/**************************************************************/
 
-	/* How many cmds alive on this dev */
-	atomic_t dev_cmd_count;
+	/*
+	 * How many cmds alive on this dev. Modified independently to the
+	 * above fields, hence the alignment. Gcc reported to have
+	 * a long standing bug, when it uses 64-bit memory accesses for
+	 * int bit fields, so this alignment must be here to workaroud it.
+	 */
+	atomic_t dev_cmd_count __aligned(sizeof(long));
 
 	spinlock_t dev_lock; /* device lock */
 
