@@ -2746,7 +2746,8 @@ EXPORT_SYMBOL_GPL(scst_create_proc_entry);
 
 int scst_single_seq_open(struct inode *inode, struct file *file)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 23)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 23) \
+	|| defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 5 && RHEL_MINOR -0 >= 7
 	struct scst_proc_data *pdata = container_of(PDE(inode)->proc_fops,
 		struct scst_proc_data, seq_op);
 #else
