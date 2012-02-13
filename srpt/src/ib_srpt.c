@@ -1098,6 +1098,11 @@ static int srpt_init_ch_qp(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 	if (!attr)
 		return -ENOMEM;
 
+	attr->qp_state = IB_QPS_RESET;
+	ret = ib_modify_qp(qp, attr, IB_QP_STATE);
+	WARN(ret < 0, "Transition to IB_QPS_RESET state failed with code: %d\n",
+	     ret);
+
 	attr->qp_state = IB_QPS_INIT;
 	attr->qp_access_flags = IB_ACCESS_LOCAL_WRITE | IB_ACCESS_REMOTE_READ |
 	    IB_ACCESS_REMOTE_WRITE;
