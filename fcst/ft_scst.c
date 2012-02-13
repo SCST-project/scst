@@ -14,7 +14,9 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+
 #include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/types.h>
 #include <scsi/libfc.h>
 #include "fcst.h"
