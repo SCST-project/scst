@@ -2108,6 +2108,8 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 		goto err_destroy_cq;
 	}
 
+	TRACE_DBG("qp_num = %#x", ch->qp->qp_num);
+
 	ch->sq_wr_avail = qp_init->cap.max_send_wr;
 
 	TRACE_DBG("%s: max_cqe= %d max_sge= %d sq_size = %d"
@@ -2117,7 +2119,8 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 
 	ret = srpt_init_ch_qp(ch, ch->qp);
 	if (ret) {
-		PRINT_ERROR("srpt_init_ch_qp() failed (%d)", ret);
+		PRINT_ERROR("srpt_init_ch_qp(%#x) failed (%d)", ch->qp->qp_num,
+			    ret);
 		goto err_destroy_qp;
 	}
 
