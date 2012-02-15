@@ -1151,19 +1151,28 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 	case READ_12:
 	case WRITE_10:
 	case WRITE_12:
-	case VERIFY:
 	case WRITE_VERIFY:
 	case WRITE_VERIFY_12:
-	case VERIFY_12:
 		lba_start = get_unaligned_be32(&cdb[2]);
 		data_len = cmd->bufflen;
 		break;
 	case READ_16:
 	case WRITE_16:
 	case WRITE_VERIFY_16:
-	case VERIFY_16:
 		lba_start = get_unaligned_be64(&cdb[2]);
 		data_len = cmd->bufflen;
+		break;
+	case VERIFY:
+		lba_start = get_unaligned_be32(&cdb[2]);
+		data_len = get_unaligned_be16(&cdb[7]) << virt_dev->block_shift;
+		break;
+	case VERIFY_12:
+		lba_start = get_unaligned_be32(&cdb[2]);
+		data_len = get_unaligned_be32(&cdb[6]) << virt_dev->block_shift;
+		break;
+	case VERIFY_16:
+		lba_start = get_unaligned_be64(&cdb[2]);
+		data_len = get_unaligned_be32(&cdb[10]) << virt_dev->block_shift;
 		break;
 	case SYNCHRONIZE_CACHE:
 		lba_start = get_unaligned_be32(&cdb[2]);
@@ -3364,6 +3373,10 @@ static enum compl_status_e fileio_exec_verify(struct vdisk_cmd_params *p)
 	 * from the file/disk yet.
 	 */
 
+	compare = scst_cmd_get_data_direction(cmd) == SCST_DATA_WRITE;
+	TRACE_DBG("VERIFY with BYTCHK=%d at offset %lld and with len = %lld\n",
+		  compare, loff, p->data_len);
+
 	/* SEEK */
 	old_fs = get_fs();
 	set_fs(get_ds());
@@ -3392,13 +3405,12 @@ static enum compl_status_e fileio_exec_verify(struct vdisk_cmd_params *p)
 		goto out_set_fs;
 	}
 
-	length = scst_get_buf_first(cmd, &address);
-	address_sav = address;
-	if (!length && cmd->data_len) {
-		length = cmd->data_len;
-		compare = 0;
-	} else
-		compare = 1;
+	if (compare) {
+		length = scst_get_buf_first(cmd, &address);
+		address_sav = address;
+	} else {
+		length = p->data_len;
+	}
 
 	while (length > 0) {
 		len_mem = (length > LEN_MEM) ? LEN_MEM : length;
@@ -3430,7 +3442,8 @@ static enum compl_status_e fileio_exec_verify(struct vdisk_cmd_params *p)
 			goto out_set_fs;
 		}
 		length -= len_mem;
-		address += len_mem;
+		if (compare)
+			address += len_mem;
 		if (compare && length <= 0) {
 			scst_put_buf(cmd, address_sav);
 			length = scst_get_buf_next(cmd, &address);

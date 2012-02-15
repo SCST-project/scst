@@ -76,6 +76,10 @@ static int get_trans_len_4(struct scst_cmd *cmd, uint8_t off);
 
 static int get_bidi_trans_len_2(struct scst_cmd *cmd, uint8_t off);
 
+static int get_verify_trans_len_2(struct scst_cmd *cmd, uint8_t off);
+static int get_verify_trans_len_3(struct scst_cmd *cmd, uint8_t off);
+static int get_verify_trans_len_4(struct scst_cmd *cmd, uint8_t off);
+
 /* for special commands */
 static int get_trans_len_block_limit(struct scst_cmd *cmd, uint8_t off);
 static int get_trans_len_read_capacity(struct scst_cmd *cmd, uint8_t off);
@@ -262,10 +266,9 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 			 SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
 	 3, get_trans_len_2},
 	{0x13, "VOVVVV          ", "VERIFY(6)",
-	 SCST_DATA_NONE, SCST_TRANSFER_LEN_TYPE_FIXED|
-			 SCST_VERIFY_BYTCHK_MISMATCH_ALLOWED|
-			 SCST_WRITE_EXCL_ALLOWED,
-	 2, get_trans_len_3},
+	 SCST_DATA_UNKNOWN, SCST_TRANSFER_LEN_TYPE_FIXED|
+			    SCST_WRITE_EXCL_ALLOWED,
+	 2, get_verify_trans_len_3},
 	{0x14, "VOOVVV          ", "RECOVER BUFFERED DATA",
 	 SCST_DATA_READ, SCST_TRANSFER_LEN_TYPE_FIXED|
 			 SCST_WRITE_EXCL_ALLOWED,
@@ -358,10 +361,9 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
 	 7, get_trans_len_2},
 	{0x2F, "O   OO O        ", "VERIFY(10)",
-	 SCST_DATA_NONE, SCST_TRANSFER_LEN_TYPE_FIXED|
-			 SCST_VERIFY_BYTCHK_MISMATCH_ALLOWED|
-			 SCST_WRITE_EXCL_ALLOWED,
-	 7, get_trans_len_2},
+	 SCST_DATA_UNKNOWN, SCST_TRANSFER_LEN_TYPE_FIXED|
+			    SCST_WRITE_EXCL_ALLOWED,
+	 7, get_verify_trans_len_2},
 	{0x33, "O   OO O        ", "SET LIMITS(10)",
 	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
 	{0x34, " O              ", "READ POSITION",
@@ -537,10 +539,9 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
 	 10, get_trans_len_4},
 	{0x8F, "O   OO O        ", "VERIFY(16)",
-	 SCST_DATA_NONE, SCST_TRANSFER_LEN_TYPE_FIXED|
-			 SCST_VERIFY_BYTCHK_MISMATCH_ALLOWED|
-			 SCST_WRITE_EXCL_ALLOWED,
-	 10, get_trans_len_4},
+	 SCST_DATA_UNKNOWN, SCST_TRANSFER_LEN_TYPE_FIXED|
+			    SCST_WRITE_EXCL_ALLOWED,
+	 10, get_verify_trans_len_4},
 	{0x90, "O   OO O        ", "PRE-FETCH(16)",
 	 SCST_DATA_NONE, SCST_WRITE_EXCL_ALLOWED,
 	 0, get_trans_len_none},
@@ -624,10 +625,9 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
 	 6, get_trans_len_4},
 	{0xAF, "O   OO O        ", "VERIFY(12)",
-	 SCST_DATA_NONE, SCST_TRANSFER_LEN_TYPE_FIXED|
-			 SCST_VERIFY_BYTCHK_MISMATCH_ALLOWED|
-			 SCST_WRITE_EXCL_ALLOWED,
-	 6, get_trans_len_4},
+	 SCST_DATA_UNKNOWN, SCST_TRANSFER_LEN_TYPE_FIXED|
+			    SCST_WRITE_EXCL_ALLOWED,
+	 6, get_verify_trans_len_4},
 #if 0 /* No need to support at all */
 	{0xB0, "    OO O        ", "SEARCH DATA HIGH(12)",
 	 SCST_DATA_WRITE, FLAG_NONE, 9, get_trans_len_1},
@@ -5116,6 +5116,59 @@ static int get_trans_len_3_read_elem_stat(struct scst_cmd *cmd, uint8_t off)
 	return 0;
 }
 
+static int get_bidi_trans_len_2(struct scst_cmd *cmd, uint8_t off)
+{
+	cmd->bufflen = get_unaligned_be16(cmd->cdb + off);
+	cmd->out_bufflen = cmd->bufflen;
+	return 0;
+}
+
+/*
+ * get_verify_trans_len_2() - Compute transport len and dir for SCSI VERIFY.
+ *
+ * Whether a data-out buffer is associated with a SCSI VERIFY command depends on
+ * the BYTCHK bit in that command. Check that bit and compute the data out
+ * buffer length and the data transfer direction. 
+ */
+static int get_verify_trans_len_2(struct scst_cmd *cmd, uint8_t off)
+{
+	if (cmd->cdb[1] & BYTCHK) {
+		cmd->bufflen = get_unaligned_be16(cmd->cdb + off);
+		cmd->data_direction = SCST_DATA_WRITE;
+	} else {
+		cmd->bufflen = 0;
+		cmd->data_direction = SCST_DATA_NONE;
+	}
+
+	return 0;
+}
+
+static int get_verify_trans_len_3(struct scst_cmd *cmd, uint8_t off)
+{
+	if (cmd->cdb[1] & BYTCHK) {
+		cmd->bufflen = get_unaligned_be24(cmd->cdb + off);
+		cmd->data_direction = SCST_DATA_WRITE;
+	} else {
+		cmd->bufflen = 0;
+		cmd->data_direction = SCST_DATA_NONE;
+	}
+
+	return 0;
+}
+
+static int get_verify_trans_len_4(struct scst_cmd *cmd, uint8_t off)
+{
+	if (cmd->cdb[1] & BYTCHK) {
+		cmd->bufflen = get_unaligned_be32(cmd->cdb + off);
+		cmd->data_direction = SCST_DATA_WRITE;
+	} else {
+		cmd->bufflen = 0;
+		cmd->data_direction = SCST_DATA_NONE;
+	}
+
+	return 0;
+}
+
 static int get_trans_len_1(struct scst_cmd *cmd, uint8_t off)
 {
 	cmd->bufflen = (u32)cmd->cdb[off];
@@ -5164,12 +5217,6 @@ static int get_trans_len_none(struct scst_cmd *cmd, uint8_t off)
 	return 0;
 }
 
-static int get_bidi_trans_len_2(struct scst_cmd *cmd, uint8_t off)
-{
-	cmd->bufflen = get_unaligned_be16(cmd->cdb + off);
-	cmd->out_bufflen = cmd->bufflen;
-	return 0;
-}
 
 /**
  * scst_get_cdb_info() - fill various info about the command's CDB

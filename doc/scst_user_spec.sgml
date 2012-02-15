@@ -767,9 +767,6 @@ Bits of scst_cdb_flags can be:
 
 <item> <bf/SCST_INFO_VALID/ - bits of op_flags are valid
 
-<item> <bf/SCST_VERIFY_BYTCHK_MISMATCH_ALLOWED/ - mismatch of data_direction with
-   the value supplied by target driver is allowed
-
 <item> <bf/SCST_IMPLICIT_HQ/ - this command is an implicit HEAD OF QUEUE command
 
 <item> <bf/SCST_SKIP_UA/ - Unit Attentions shouldn't be delivered for this command

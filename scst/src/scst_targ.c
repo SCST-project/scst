@@ -532,13 +532,6 @@ static bool scst_is_allowed_to_mismatch_cmd(struct scst_cmd *cmd)
 {
 	bool res = false;
 
-	/* VERIFY commands with BYTCHK unset shouldn't fail here */
-	if ((cmd->op_flags & SCST_VERIFY_BYTCHK_MISMATCH_ALLOWED) &&
-	    (cmd->cdb[1] & BYTCHK) == 0) {
-		res = true;
-		goto out;
-	}
-
 	switch (cmd->cdb[0]) {
 	case TEST_UNIT_READY:
 		/* Crazy VMware people sometimes do TUR with READ direction */
@@ -548,7 +541,6 @@ static bool scst_is_allowed_to_mismatch_cmd(struct scst_cmd *cmd)
 		break;
 	}
 
-out:
 	return res;
 }
 #endif
