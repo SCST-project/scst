@@ -1,4 +1,8 @@
-SCSTADMIN_DIR = scstadmin
+SCSTADMIN_DIR = $(shell if [ ! -h scstadmin ]; then		\
+			    rm -f scstadmin;			\
+			    ln -s scstadmin.sysfs scstadmin;	\
+			fi;					\
+			echo scstadmin)
 
 MANDIR := $(DESTDIR)/usr/local/man
 INITDIR := $(shell if [ -f /etc/slackware-version ]; then	\
