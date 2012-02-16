@@ -5128,7 +5128,7 @@ static int get_bidi_trans_len_2(struct scst_cmd *cmd, uint8_t off)
  *
  * Whether a data-out buffer is associated with a SCSI VERIFY command depends on
  * the BYTCHK bit in that command. Check that bit and compute the data out
- * buffer length and the data transfer direction. 
+ * buffer length and the data transfer direction.
  */
 static int get_verify_trans_len_2(struct scst_cmd *cmd, uint8_t off)
 {
