@@ -5377,19 +5377,14 @@ out_err:
  */
 int scst_calc_block_shift(int sector_size)
 {
-	int block_shift = 0;
-	int t;
+	int block_shift;
 
 	if (sector_size == 0)
 		sector_size = 512;
 
-	t = sector_size;
-	while (1) {
-		if ((t & 1) != 0)
-			break;
-		t >>= 1;
-		block_shift++;
-	}
+	block_shift = ilog2(sector_size);
+	WARN_ON(1 << block_shift != sector_size);
+
 	if (block_shift < 9) {
 		PRINT_ERROR("Wrong sector size %d", sector_size);
 		block_shift = -1;
