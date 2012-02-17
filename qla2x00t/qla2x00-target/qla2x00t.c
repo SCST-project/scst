@@ -2091,15 +2091,15 @@ static int q2t_check_reserve_free_req(scsi_qla_host_t *ha, uint32_t req_cnt)
 		else
 			ha->req_q_cnt = ha->request_q_length -
 			    (ha->req_ring_index - cnt);
-	}
 
-	if (unlikely(ha->req_q_cnt < (req_cnt + 2))) {
-		TRACE(TRACE_OUT_OF_MEM, "qla2x00t(%ld): There is no room in the "
-			"request ring: ha->req_ring_index=%d, ha->req_q_cnt=%d, "
-			"req_cnt=%d", ha->instance, ha->req_ring_index,
-			ha->req_q_cnt, req_cnt);
-		res = SCST_TGT_RES_QUEUE_FULL;
-		goto out;
+		if (unlikely(ha->req_q_cnt < (req_cnt + 2))) {
+			TRACE(TRACE_OUT_OF_MEM, "qla2x00t(%ld): There is no room in the "
+				"request ring: ha->req_ring_index=%d, ha->req_q_cnt=%d, "
+				"req_cnt=%d", ha->instance, ha->req_ring_index,
+				ha->req_q_cnt, req_cnt);
+			res = SCST_TGT_RES_QUEUE_FULL;
+			goto out;
+		}
 	}
 
 	ha->req_q_cnt -= req_cnt;
