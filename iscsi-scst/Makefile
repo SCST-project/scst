@@ -16,6 +16,7 @@ SCST_DIR := $(shell pwd)/../scst/src
 SBINDIR := /usr/local/sbin
 INITDIR := /etc/init.d
 RCDIR := /etc/rc.d
+MANDIR := /usr/local/man
 KMOD := $(shell pwd)/kernel
 INCDIR := $(shell pwd)/include
 
@@ -47,7 +48,10 @@ include/iscsi_scst_itf_ver.h: include/iscsi_scst.h
 
 install: all
 	@install -vD -m 755 usr/iscsi-scstd $(DESTDIR)$(SBINDIR)/iscsi-scstd
+	@install -vD -m 644 doc/manpages/iscsi-scstd.conf.5 $(DESTDIR)$(MANDIR)/man5/iscsi-scstd.conf.5
+	@install -vD -m 644 doc/manpages/iscsi-scstd.8 $(DESTDIR)$(MANDIR)/man8/iscsi-scstd.8
 	@install -vD -m 755 usr/iscsi-scst-adm $(DESTDIR)$(SBINDIR)/iscsi-scst-adm
+	@install -vD -m 644 doc/manpages/iscsi-scst-adm.8 $(DESTDIR)$(MANDIR)/man8/iscsi-scst-adm.8
 	@eval `sed -n 's/#define UTS_RELEASE /KERNELRELEASE=/p' $(KDIR)/include/linux/version.h $(KDIR)/include/linux/utsrelease.h 2>/dev/null`; \
 	install -vD -m 644 kernel/iscsi-scst.ko \
 	$(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra/iscsi-scst.ko
