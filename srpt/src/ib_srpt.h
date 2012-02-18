@@ -337,7 +337,6 @@ struct srpt_rdma_ch {
 	wait_queue_head_t	state_wq;
 	struct list_head	list;
 	struct list_head	cmd_wait_list;
-	struct completion	finished_processing_completions;
 	bool			last_wqe_received;
 
 	struct scst_session	*scst_sess;
