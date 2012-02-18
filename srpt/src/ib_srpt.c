@@ -152,6 +152,7 @@ static void srpt_unregister_procfs_entry(struct scst_tgt_template *tgt);
 static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 				    struct srpt_send_ioctx *ioctx);
 static void srpt_drain_channel(struct ib_cm_id *cm_id);
+static void srpt_destroy_ch_ib(struct srpt_rdma_ch *ch);
 static void srpt_free_ch(struct scst_session *sess);
 
 static enum rdma_ch_state srpt_set_ch_state_to_disc(struct srpt_rdma_ch *ch)
@@ -361,6 +362,8 @@ static const char *get_ch_state_name(enum rdma_ch_state s)
  */
 static void srpt_qp_event(struct ib_event *event, struct srpt_rdma_ch *ch)
 {
+	unsigned long flags;
+
 	TRACE_DBG("QP event %d on cm_id=%p sess_name=%s state=%s",
 		  event->event, ch->cm_id, ch->sess_name,
 		  get_ch_state_name(ch->state));
@@ -378,9 +381,11 @@ static void srpt_qp_event(struct ib_event *event, struct srpt_rdma_ch *ch)
 	case IB_EVENT_QP_LAST_WQE_REACHED:
 		TRACE_DBG("%s, state %s: received Last WQE event.",
 			  ch->sess_name, get_ch_state_name(ch->state));
-		ch->last_wqe_received = true;
 		BUG_ON(!ch->thread);
+		spin_lock_irqsave(&ch->spinlock, flags);
+		ch->last_wqe_received = true;
 		wake_up_process(ch->thread);
+		spin_unlock_irqrestore(&ch->spinlock, flags);
 		break;
 	default:
 		PRINT_ERROR("received unrecognized IB QP event %d",
@@ -2033,10 +2038,13 @@ static int srpt_compl_thread(void *arg)
 		schedule();
 	}
 
-	complete(&ch->finished_processing_completions);
+	ib_destroy_cm_id(ch->cm_id);
 
-	while (!kthread_should_stop())
-		schedule();
+	srpt_destroy_ch_ib(ch);
+
+	/* Avoid that wake_up_process() races with thread exit. */
+	spin_lock_irq(&ch->spinlock);
+	spin_unlock_irq(&ch->spinlock);
 
 	return 0;
 }
@@ -2240,12 +2248,6 @@ static void srpt_free_ch(struct scst_session *sess)
 	BUG_ON(!ch->thread);
 	BUG_ON(ch->thread == current);
 
-	while (wait_for_completion_timeout(&ch->finished_processing_completions,
-					   10 * HZ) == 0)
-		PRINT_INFO("%s", "Waiting for completion processing thread ...");
-
-	srpt_destroy_ch_ib(ch);
-
 	srpt_free_ioctx_ring((struct srpt_ioctx **)ch->ioctx_ring,
 			     sdev, ch->rq_size,
 			     ch->max_rsp_size, DMA_TO_DEVICE);
@@ -2253,8 +2255,6 @@ static void srpt_free_ch(struct scst_session *sess)
 	spin_lock_irq(&sdev->spinlock);
 	list_del(&ch->list);
 	spin_unlock_irq(&sdev->spinlock);
-
-	ib_destroy_cm_id(ch->cm_id);
 
 	kthread_stop(ch->thread);
 	ch->thread = NULL;
@@ -2428,7 +2428,6 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	ch->state = CH_CONNECTING;
 	INIT_LIST_HEAD(&ch->cmd_wait_list);
 	init_waitqueue_head(&ch->state_wq);
-	init_completion(&ch->finished_processing_completions);
 	ch->max_rsp_size = max_t(uint32_t, srp_max_rsp_size, MIN_MAX_RSP_SIZE);
 	ch->ioctx_ring = (struct srpt_send_ioctx **)
 		srpt_alloc_ioctx_ring(ch->sport->sdev, ch->rq_size,
