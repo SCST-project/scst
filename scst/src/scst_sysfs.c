@@ -144,10 +144,10 @@ static int scst_write_trace(const char *buf, size_t length,
 	unsigned long *log_level, unsigned long default_level,
 	const char *name, const struct scst_trace_log *tbl)
 {
-	int res = length;
+	int res;
 	int action;
 	unsigned long level = 0, oldlevel;
-	char *buffer, *p, *e;
+	char *buffer, *p, *pp;
 	const struct scst_trace_log *t;
 	enum {
 		SCST_TRACE_ACTION_ALL	  = 1,
@@ -175,40 +175,27 @@ static int scst_write_trace(const char *buf, size_t length,
 
 	TRACE_DBG("buffer %s", buffer);
 
-	p = buffer;
-	if (!strncasecmp("all", p, 3)) {
+	pp = buffer;
+	p = scst_get_next_lexem(&pp);
+	if (strcasecmp("all", p) == 0) {
 		action = SCST_TRACE_ACTION_ALL;
-	} else if (!strncasecmp("none", p, 4) || !strncasecmp("null", p, 4)) {
+	} else if (strcasecmp("none", p) == 0 || strcasecmp("null", p) == 0) {
 		action = SCST_TRACE_ACTION_NONE;
-	} else if (!strncasecmp("default", p, 7)) {
+	} else if (strcasecmp("default", p) == 0) {
 		action = SCST_TRACE_ACTION_DEFAULT;
-	} else if (!strncasecmp("add", p, 3)) {
-		p += 3;
+	} else if (strcasecmp("add", p) == 0) {
 		action = SCST_TRACE_ACTION_ADD;
-	} else if (!strncasecmp("del", p, 3)) {
-		p += 3;
+	} else if (strcasecmp("del", p) == 0) {
 		action = SCST_TRACE_ACTION_DEL;
-	} else if (!strncasecmp("value", p, 5)) {
-		p += 5;
+	} else if (strcasecmp("value", p) == 0) {
 		action = SCST_TRACE_ACTION_VALUE;
 	} else {
-		if (p[strlen(p) - 1] == '\n')
-			p[strlen(p) - 1] = '\0';
 		PRINT_ERROR("Unknown action \"%s\"", p);
 		res = -EINVAL;
 		goto out_free;
 	}
 
-	switch (action) {
-	case SCST_TRACE_ACTION_ADD:
-	case SCST_TRACE_ACTION_DEL:
-	case SCST_TRACE_ACTION_VALUE:
-		if (!isspace(*p)) {
-			PRINT_ERROR("%s", "Syntax error");
-			res = -EINVAL;
-			goto out_free;
-		}
-	}
+	p = scst_get_next_lexem(&pp);
 
 	switch (action) {
 	case SCST_TRACE_ACTION_ALL:
@@ -222,12 +209,6 @@ static int scst_write_trace(const char *buf, size_t length,
 		break;
 	case SCST_TRACE_ACTION_ADD:
 	case SCST_TRACE_ACTION_DEL:
-		while (isspace(*p) && *p != '\0')
-			p++;
-		e = p;
-		while (!isspace(*e) && *e != '\0')
-			e++;
-		*e = 0;
 		if (tbl) {
 			t = tbl;
 			while (t->token) {
@@ -255,9 +236,11 @@ static int scst_write_trace(const char *buf, size_t length,
 		}
 		break;
 	case SCST_TRACE_ACTION_VALUE:
-		while (isspace(*p) && *p != '\0')
-			p++;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+		res = kstrtoul(p, 0, &level);
+#else
 		res = strict_strtoul(p, 0, &level);
+#endif
 		if (res != 0) {
 			PRINT_ERROR("Invalid trace value \"%s\"", p);
 			res = -EINVAL;
@@ -282,6 +265,8 @@ static int scst_write_trace(const char *buf, size_t length,
 
 	PRINT_INFO("Changed trace level for \"%s\": old 0x%08lx, new 0x%08lx",
 		name, oldlevel, *log_level);
+
+	res = length;
 
 out_free:
 	kfree(buffer);
@@ -889,9 +874,6 @@ static int scst_process_tgtt_mgmt_store(char *buffer,
 		goto out;
 
 	pp = buffer;
-	if (pp[strlen(pp) - 1] == '\n')
-		pp[strlen(pp) - 1] = '\0';
-
 	p = scst_get_next_lexem(&pp);
 
 	if (strcasecmp("add_target", p) == 0) {
@@ -1095,8 +1077,8 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 	struct scst_tgt *tgt, struct scst_acg *acg, bool tgt_kobj)
 {
 	int res, read_only = 0, action;
-	char *p, *e = NULL;
-	unsigned int virt_lun;
+	char *p, *pp, *e;
+	unsigned long virt_lun;
 	struct scst_acg_dev *acg_dev = NULL, *acg_dev_tmp;
 	struct scst_device *d, *dev = NULL;
 	enum {
@@ -1110,20 +1092,15 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 
 	TRACE_DBG("buffer %s", buffer);
 
-	p = buffer;
-	if (p[strlen(p) - 1] == '\n')
-		p[strlen(p) - 1] = '\0';
-	if (strncasecmp("add", p, 3) == 0) {
-		p += 3;
+	pp = buffer;
+	p = scst_get_next_lexem(&pp);
+	if (strcasecmp("add", p) == 0) {
 		action = SCST_LUN_ACTION_ADD;
-	} else if (strncasecmp("del", p, 3) == 0) {
-		p += 3;
+	} else if (strcasecmp("del", p) == 0) {
 		action = SCST_LUN_ACTION_DEL;
-	} else if (!strncasecmp("replace", p, 7)) {
-		p += 7;
+	} else if (strcasecmp("replace", p) == 0) {
 		action = SCST_LUN_ACTION_REPLACE;
-	} else if (!strncasecmp("clear", p, 5)) {
-		p += 5;
+	} else if (strcasecmp("clear", p) == 0) {
 		action = SCST_LUN_ACTION_CLEAR;
 	} else {
 		PRINT_ERROR("Unknown action \"%s\"", p);
@@ -1145,19 +1122,7 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 
 	if ((action != SCST_LUN_ACTION_CLEAR) &&
 	    (action != SCST_LUN_ACTION_DEL)) {
-		if (!isspace(*p)) {
-			PRINT_ERROR("%s", "Syntax error");
-			res = -EINVAL;
-			goto out_unlock;
-		}
-
-		while (isspace(*p) && *p != '\0')
-			p++;
-		e = p; /* save p */
-		while (!isspace(*e) && *e != '\0')
-			e++;
-		*e = '\0';
-
+		p = scst_get_next_lexem(&pp);
 		list_for_each_entry(d, &scst_dev_list, dev_list_entry) {
 			if (!strcmp(d->virt_name, p)) {
 				dev = d;
@@ -1178,20 +1143,19 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 	{
 		bool dev_replaced = false;
 
-		e++;
-		while (isspace(*e) && *e != '\0')
-			e++;
-
-		virt_lun = simple_strtoul(e, &e, 0);
-		if (virt_lun > SCST_MAX_LUN) {
-			PRINT_ERROR("Too big LUN %d (max %d)", virt_lun,
-				SCST_MAX_LUN);
-			res = -EINVAL;
+		e = scst_get_next_lexem(&pp);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+		res = kstrtoul(e, 0, &virt_lun);
+#else
+		res = strict_strtoul(e, 0, &virt_lun);
+#endif
+		if (res != 0 || virt_lun > SCST_MAX_LUN) {
+			PRINT_ERROR("Invalid value or too big LUN %s "
+				"(max %d, res %d)", p, SCST_MAX_LUN, res);
 			goto out_unlock;
 		}
 
-		while (isspace(*e) && *e != '\0')
-			e++;
+		e = scst_get_next_lexem(&pp);
 
 		while (1) {
 			char *pp;
@@ -1223,7 +1187,11 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 				goto out_unlock;
 			}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+			res = kstrtoul(pp, 0, &val);
+#else
 			res = strict_strtoul(pp, 0, &val);
+#endif
 			if (res != 0) {
 				PRINT_ERROR("strict_strtoul() for %s failed: %d "
 					"(device %s)", pp, res, dev->virt_name);
@@ -1252,7 +1220,7 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 
 		if (acg_dev != NULL) {
 			if (action == SCST_LUN_ACTION_ADD) {
-				PRINT_ERROR("virt lun %d already exists in "
+				PRINT_ERROR("virt lun %ld already exists in "
 					"group %s", virt_lun, acg->acg_name);
 				res = -EEXIST;
 				goto out_unlock;
@@ -1291,15 +1259,32 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 		break;
 	}
 	case SCST_LUN_ACTION_DEL:
-		while (isspace(*p) && *p != '\0')
-			p++;
-		virt_lun = simple_strtoul(p, &p, 0);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+		res = kstrtoul(p, 0, &virt_lun);
+#else
+		res = strict_strtoul(p, 0, &virt_lun);
+#endif
+		if (res != 0)
+			goto out_unlock;
+
+		if (scst_get_next_lexem(&pp)[0] != '\0') {
+			PRINT_ERROR("Too many parameters for device %s: %s",
+				    p, dev->virt_name);
+			res = -EINVAL;
+			goto out_unlock;
+		}
 
 		res = scst_acg_del_lun(acg, virt_lun, true);
 		if (res != 0)
 			goto out_unlock;
 		break;
 	case SCST_LUN_ACTION_CLEAR:
+		if (scst_get_next_lexem(&pp)[0] != '\0') {
+			PRINT_ERROR("Too many parameters for device %s: %s",
+				    p, dev->virt_name);
+			res = -EINVAL;
+			goto out_unlock;
+		}
 		PRINT_INFO("Removed all devices from group %s",
 			acg->acg_name);
 		list_for_each_entry_safe(acg_dev, acg_dev_tmp,
@@ -1589,7 +1574,11 @@ static ssize_t __scst_acg_io_grouping_type_store(struct scst_acg *acg,
 			min_t(int, strlen(SCST_IO_GROUPING_NEVER_STR), count)) == 0)
 		io_grouping_type = SCST_IO_GROUPING_NEVER;
 	else {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+		res = kstrtol(buf, 0, &io_grouping_type);
+#else
 		res = strict_strtol(buf, 0, &io_grouping_type);
+#endif
 		if ((res != 0) || (io_grouping_type <= 0)) {
 			PRINT_ERROR("Unknown or not allowed I/O grouping type "
 				"%s", buf);
@@ -1839,7 +1828,7 @@ static int scst_process_ini_group_mgmt_store(char *buffer,
 	struct scst_tgt *tgt)
 {
 	int res, action;
-	char *p, *e = NULL;
+	char *p, *pp;
 	struct scst_acg *a, *acg = NULL;
 	enum {
 		SCST_INI_GROUP_ACTION_CREATE = 1,
@@ -1850,14 +1839,11 @@ static int scst_process_ini_group_mgmt_store(char *buffer,
 
 	TRACE_DBG("tgt %p, buffer %s", tgt, buffer);
 
-	p = buffer;
-	if (p[strlen(p) - 1] == '\n')
-		p[strlen(p) - 1] = '\0';
-	if (strncasecmp("create ", p, 7) == 0) {
-		p += 7;
+	pp = buffer;
+	p = scst_get_next_lexem(&pp);
+	if (strcasecmp("create", p) == 0) {
 		action = SCST_INI_GROUP_ACTION_CREATE;
-	} else if (strncasecmp("del ", p, 4) == 0) {
-		p += 4;
+	} else if (strcasecmp("del", p) == 0) {
 		action = SCST_INI_GROUP_ACTION_DEL;
 	} else {
 		PRINT_ERROR("Unknown action \"%s\"", p);
@@ -1877,13 +1863,7 @@ static int scst_process_ini_group_mgmt_store(char *buffer,
 	if (scst_check_tgt_acg_ptrs(tgt, NULL) != 0)
 		goto out_unlock;
 
-	while (isspace(*p) && *p != '\0')
-		p++;
-	e = p;
-	while (!isspace(*e) && *e != '\0')
-		e++;
-	*e = '\0';
-
+	p = scst_get_next_lexem(&pp);
 	if (p[0] == '\0') {
 		PRINT_ERROR("%s", "Group name required");
 		res = -EINVAL;
@@ -2185,7 +2165,11 @@ static ssize_t scst_rel_tgt_id_store(struct kobject *kobj,
 
 	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+	res = kstrtoul(buf, 0, &rel_tgt_id);
+#else
 	res = strict_strtoul(buf, 0, &rel_tgt_id);
+#endif
 	if (res != 0) {
 		PRINT_ERROR("%s", "Wrong rel_tgt_id");
 		res = -EINVAL;
@@ -2614,7 +2598,11 @@ static ssize_t scst_dev_sysfs_threads_num_store(struct kobject *kobj,
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+	res = kstrtol(buf, 0, &newtn);
+#else
 	res = strict_strtol(buf, 0, &newtn);
+#endif
 	if (res != 0) {
 		PRINT_ERROR("strict_strtol() for %s failed: %d ", buf, res);
 		goto out;
@@ -3885,8 +3873,7 @@ static int scst_process_acg_ini_mgmt_store(char *buffer,
 	struct scst_tgt *tgt, struct scst_acg *acg)
 {
 	int res, action;
-	char *p, *e = NULL;
-	char *name = NULL, *group = NULL;
+	char *p, *pp, *name, *group;
 	struct scst_acg *acg_dest = NULL;
 	struct scst_acn *acn = NULL, *acn_tmp;
 	enum {
@@ -3900,34 +3887,21 @@ static int scst_process_acg_ini_mgmt_store(char *buffer,
 
 	TRACE_DBG("tgt %p, acg %p, buffer %s", tgt, acg, buffer);
 
-	p = buffer;
-	if (p[strlen(p) - 1] == '\n')
-		p[strlen(p) - 1] = '\0';
-
-	if (strncasecmp("add", p, 3) == 0) {
-		p += 3;
+	pp = buffer;
+	p = scst_get_next_lexem(&pp);
+	if (strcasecmp("add", p) == 0) {
 		action = SCST_ACG_ACTION_INI_ADD;
-	} else if (strncasecmp("del", p, 3) == 0) {
-		p += 3;
+	} else if (strcasecmp("del", p) == 0) {
 		action = SCST_ACG_ACTION_INI_DEL;
-	} else if (strncasecmp("clear", p, 5) == 0) {
-		p += 5;
+	} else if (strcasecmp("clear", p) == 0) {
 		action = SCST_ACG_ACTION_INI_CLEAR;
-	} else if (strncasecmp("move", p, 4) == 0) {
-		p += 4;
+	} else if (strcasecmp("move", p) == 0) {
 		action = SCST_ACG_ACTION_INI_MOVE;
 	} else {
 		PRINT_ERROR("Unknown action \"%s\"", p);
 		res = -EINVAL;
 		goto out;
 	}
-
-	if (action != SCST_ACG_ACTION_INI_CLEAR)
-		if (!isspace(*p)) {
-			PRINT_ERROR("%s", "Syntax error");
-			res = -EINVAL;
-			goto out;
-		}
 
 	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
 	if (res != 0)
@@ -3941,18 +3915,9 @@ static int scst_process_acg_ini_mgmt_store(char *buffer,
 	if (scst_check_tgt_acg_ptrs(tgt, acg) != 0)
 		goto out_unlock;
 
-	if (action != SCST_ACG_ACTION_INI_CLEAR)
-		while (isspace(*p) && *p != '\0')
-			p++;
-
 	switch (action) {
 	case SCST_ACG_ACTION_INI_ADD:
-		e = p;
-		while (!isspace(*e) && *e != '\0')
-			e++;
-		*e = '\0';
-		name = p;
-
+		name = scst_get_next_lexem(&pp);
 		if (name[0] == '\0') {
 			PRINT_ERROR("%s", "Invalid initiator name");
 			res = -EINVAL;
@@ -3964,12 +3929,7 @@ static int scst_process_acg_ini_mgmt_store(char *buffer,
 			goto out_unlock;
 		break;
 	case SCST_ACG_ACTION_INI_DEL:
-		e = p;
-		while (!isspace(*e) && *e != '\0')
-			e++;
-		*e = '\0';
-		name = p;
-
+		name = scst_get_next_lexem(&pp);
 		if (name[0] == '\0') {
 			PRINT_ERROR("%s", "Invalid initiator name");
 			res = -EINVAL;
@@ -3994,30 +3954,14 @@ static int scst_process_acg_ini_mgmt_store(char *buffer,
 		scst_check_reassign_sessions();
 		break;
 	case SCST_ACG_ACTION_INI_MOVE:
-		e = p;
-		while (!isspace(*e) && *e != '\0')
-			e++;
-		if (*e == '\0') {
-			PRINT_ERROR("%s", "Too few parameters");
-			res = -EINVAL;
-			goto out_unlock;
-		}
-		*e = '\0';
-		name = p;
-
+		name = scst_get_next_lexem(&pp);
 		if (name[0] == '\0') {
 			PRINT_ERROR("%s", "Invalid initiator name");
 			res = -EINVAL;
 			goto out_unlock;
 		}
 
-		e++;
-		p = e;
-		while (!isspace(*e) && *e != '\0')
-			e++;
-		*e = '\0';
-		group = p;
-
+		group = scst_get_next_lexem(&pp);
 		if (group[0] == '\0') {
 			PRINT_ERROR("%s", "Invalid group name");
 			res = -EINVAL;
@@ -4555,9 +4499,6 @@ static int scst_process_devt_mgmt_store(char *buffer,
 	TRACE_DBG("devt %p, buffer %s", devt, buffer);
 
 	pp = buffer;
-	if (pp[strlen(pp) - 1] == '\n')
-		pp[strlen(pp) - 1] = '\0';
-
 	p = scst_get_next_lexem(&pp);
 
 	if (strcasecmp("add_device", p) == 0) {
@@ -4671,8 +4612,8 @@ static int scst_process_devt_pass_through_mgmt_store(char *buffer,
 	struct scst_dev_type *devt)
 {
 	int res = 0;
-	char *p, *pp, *action;
-	unsigned long host, channel, id, lun;
+	char *pp, *action, *devstr;
+	unsigned int host, channel, id, lun;
 	struct scst_device *d, *dev = NULL;
 
 	TRACE_ENTRY();
@@ -4680,12 +4621,9 @@ static int scst_process_devt_pass_through_mgmt_store(char *buffer,
 	TRACE_DBG("devt %p, buffer %s", devt, buffer);
 
 	pp = buffer;
-	if (pp[strlen(pp) - 1] == '\n')
-		pp[strlen(pp) - 1] = '\0';
-
 	action = scst_get_next_lexem(&pp);
-	p = scst_get_next_lexem(&pp);
-	if (*p == '\0') {
+	devstr = scst_get_next_lexem(&pp);
+	if (*devstr == '\0') {
 		PRINT_ERROR("%s", "Device required");
 		res = -EINVAL;
 		goto out;
@@ -4697,23 +4635,10 @@ static int scst_process_devt_pass_through_mgmt_store(char *buffer,
 		goto out_syntax_err;
 	}
 
-	host = simple_strtoul(p, &p, 0);
-	if ((host == ULONG_MAX) || (*p != ':'))
-		goto out_syntax_err;
-	p++;
-	channel = simple_strtoul(p, &p, 0);
-	if ((channel == ULONG_MAX) || (*p != ':'))
-		goto out_syntax_err;
-	p++;
-	id = simple_strtoul(p, &p, 0);
-	if ((channel == ULONG_MAX) || (*p != ':'))
-		goto out_syntax_err;
-	p++;
-	lun = simple_strtoul(p, &p, 0);
-	if (lun == ULONG_MAX)
+	if (sscanf(devstr, "%u:%u:%u:%u", &host, &channel, &id, &lun) != 4)
 		goto out_syntax_err;
 
-	TRACE_DBG("Dev %ld:%ld:%ld:%ld", host, channel, id, lun);
+	TRACE_DBG("Dev %d:%d:%d:%d", host, channel, id, lun);
 
 	res = mutex_lock_interruptible(&scst_mutex);
 	if (res != 0)
@@ -4730,13 +4655,13 @@ static int scst_process_devt_pass_through_mgmt_store(char *buffer,
 		    d->scsi_dev->id == id &&
 		    d->scsi_dev->lun == lun) {
 			dev = d;
-			TRACE_DBG("Dev %p (%ld:%ld:%ld:%ld) found",
+			TRACE_DBG("Dev %p (%d:%d:%d:%d) found",
 				  dev, host, channel, id, lun);
 			break;
 		}
 	}
 	if (dev == NULL) {
-		PRINT_ERROR("Device %ld:%ld:%ld:%ld not found",
+		PRINT_ERROR("Device %d:%d:%d:%d not found",
 			       host, channel, id, lun);
 		res = -EINVAL;
 		goto out_unlock;
@@ -4780,7 +4705,7 @@ out:
 	return res;
 
 out_syntax_err:
-	PRINT_ERROR("Syntax error on \"%s\"", p);
+	PRINT_ERROR("Syntax error on \"%s\"", buffer);
 	res = -EINVAL;
 	goto out;
 }
@@ -5031,7 +4956,11 @@ static ssize_t scst_tg_tgt_rel_tgt_id_store(struct kobject *kobj,
 	TRACE_ENTRY();
 	tg_tgt = container_of(kobj, struct scst_tg_tgt, kobj);
 	snprintf(ch, sizeof(ch), "%.*s", min_t(int, count, sizeof(ch)-1), buf);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+	res = kstrtoul(ch, 0, &rel_tgt_id);
+#else
 	res = strict_strtoul(ch, 0, &rel_tgt_id);
+#endif
 	if (res)
 		goto out;
 	res = -EINVAL;
@@ -5121,7 +5050,11 @@ static ssize_t scst_tg_group_id_store(struct kobject *kobj,
 	TRACE_ENTRY();
 	tg = container_of(kobj, struct scst_target_group, kobj);
 	snprintf(ch, sizeof(ch), "%.*s", min_t(int, count, sizeof(ch)-1), buf);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+	res = kstrtoul(ch, 0, &group_id);
+#else
 	res = strict_strtoul(ch, 0, &group_id);
+#endif
 	if (res)
 		goto out;
 	res = -EINVAL;
@@ -5161,7 +5094,11 @@ static ssize_t scst_tg_preferred_store(struct kobject *kobj,
 	TRACE_ENTRY();
 	tg = container_of(kobj, struct scst_target_group, kobj);
 	snprintf(ch, sizeof(ch), "%.*s", min_t(int, count, sizeof(ch)-1), buf);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+	res = kstrtoul(ch, 0, &preferred);
+#else
 	res = strict_strtoul(ch, 0, &preferred);
+#endif
 	if (res)
 		goto out;
 	res = -EINVAL;
@@ -5649,7 +5586,11 @@ static ssize_t scst_threads_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+	res = kstrtol(buf, 0, &newtn);
+#else
 	res = strict_strtol(buf, 0, &newtn);
+#endif
 	if (res != 0) {
 		PRINT_ERROR("strict_strtol() for %s failed: %d ", buf, res);
 		goto out;
@@ -5701,7 +5642,11 @@ static ssize_t scst_setup_id_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+	res = kstrtoul(buf, 0, &val);
+#else
 	res = strict_strtoul(buf, 0, &val);
+#endif
 	if (res != 0) {
 		PRINT_ERROR("strict_strtoul() for %s failed: %d ", buf, res);
 		goto out;
@@ -5744,7 +5689,11 @@ static ssize_t scst_max_tasklet_cmd_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+	res = kstrtoul(buf, 0, &val);
+#else
 	res = strict_strtoul(buf, 0, &val);
+#endif
 	if (res != 0) {
 		PRINT_ERROR("strict_strtoul() for %s failed: %d ", buf, res);
 		goto out;

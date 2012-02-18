@@ -427,9 +427,13 @@ static ssize_t scst_local_scsi_transport_version_store(struct kobject *kobj,
 	if (!tgt)
 		goto out_up;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+	res = kstrtoul(buffer, 0, &val);
+#else
 	res = strict_strtoul(buffer, 0, &val);
+#endif
 	if (res != 0) {
-		PRINT_ERROR("strict_strtoul() for %s failed: %zd", buffer, res);
+		PRINT_ERROR("strtoul() for %s failed: %zd", buffer, res);
 		goto out_up;
 	}
 
@@ -489,9 +493,13 @@ static ssize_t scst_local_phys_transport_version_store(struct kobject *kobj,
 	if (!tgt)
 		goto out_up;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+	res = kstrtoul(buffer, 0, &val);
+#else
 	res = strict_strtoul(buffer, 0, &val);
+#endif
 	if (res != 0) {
-		PRINT_ERROR("strict_strtoul() for %s failed: %zd", buffer, res);
+		PRINT_ERROR("strtoul() for %s failed: %zd", buffer, res);
 		goto out_up;
 	}
 

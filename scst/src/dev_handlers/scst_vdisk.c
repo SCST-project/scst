@@ -3760,10 +3760,14 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 			continue;
 		}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+		res = kstrtoul(pp, 0, &val);
+#else
 		res = strict_strtoul(pp, 0, &val);
+#endif
 		if (res != 0) {
-			PRINT_ERROR("strict_strtoul() for %s failed: %d "
-				"(device %s)", pp, res, virt_dev->name);
+			PRINT_ERROR("strtoul() for %s failed: %d (device %s)",
+				    pp, res, virt_dev->name);
 			goto out;
 		}
 
