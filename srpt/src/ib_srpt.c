@@ -1299,7 +1299,7 @@ static void srpt_put_send_ioctx(struct srpt_send_ioctx *ioctx)
  * @context: Preferred execution context.
  */
 static void srpt_abort_cmd(struct srpt_send_ioctx *ioctx,
-				enum scst_exec_context context)
+			   enum scst_exec_context context)
 {
 	struct scst_cmd *scmnd;
 	enum srpt_command_state state;
