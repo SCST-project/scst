@@ -1352,7 +1352,7 @@ static void srpt_abort_cmd(struct srpt_send_ioctx *ioctx,
 		 * Do nothing - defer abort processing until
 		 * srpt_xmit_response() is invoked.
 		 */
-		WARN_ON(!scst_cmd_aborted(scmnd));
+		WARN_ON(!scst_cmd_aborted_on_xmit(scmnd));
 		break;
 	case SRPT_STATE_NEED_DATA:
 		/* SCST_DATA_WRITE - RDMA read error or RDMA read timeout. */
