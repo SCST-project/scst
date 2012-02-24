@@ -3214,7 +3214,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 	}
 	spin_unlock(&ioctx->spinlock);
 
-	if (unlikely(scst_cmd_aborted(scmnd))) {
+	if (unlikely(scst_cmd_aborted_on_xmit(scmnd))) {
 		srpt_adjust_req_lim(ch, 0, 1);
 		srpt_abort_cmd(ioctx, SCST_CONTEXT_SAME);
 		goto out;

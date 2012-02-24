@@ -2768,7 +2768,7 @@ static int q2x_xmit_response(struct scst_cmd *scst_cmd)
 	cmd->data_direction = scst_cmd_get_data_direction(scst_cmd);
 	cmd->dma_data_direction = scst_to_tgt_dma_dir(cmd->data_direction);
 	cmd->offset = scst_cmd_get_ppl_offset(scst_cmd);
-	cmd->aborted = scst_cmd_aborted(scst_cmd);
+	cmd->aborted = scst_cmd_aborted_on_xmit(scst_cmd);
 
 	q2t_check_srr_debug(cmd, &xmit_type);
 

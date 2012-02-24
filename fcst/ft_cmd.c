@@ -223,7 +223,7 @@ int ft_send_response(struct scst_cmd *cmd)
 	ep = fc_seq_exch(fcmd->seq);
 	lport = ep->lp;
 
-	if (scst_cmd_aborted(cmd)) {
+	if (scst_cmd_aborted_on_xmit(cmd)) {
 		FT_IO_DBG("cmd aborted did %x oxid %x\n", ep->did, ep->oxid);
 		scst_set_delivery_status(cmd, SCST_CMD_DELIVERY_ABORTED);
 		goto done;

@@ -3395,11 +3395,28 @@ static inline void scst_cmd_set_noio_mem_alloc(struct scst_cmd *cmd)
 }
 
 /*
- * Returns 1 if the cmd was aborted, so its status is invalid and no
- * reply shall be sent to the remote initiator. A target driver should
- * only clear internal resources, associated with cmd.
+ * Returns true if the cmd was aborted, so the caller should complete it as
+ * soon as possible.
+ *
+ * !! Xmit_response() callback must use scst_cmd_aborted_on_xmit() instead !!
+ * !! to allow status of completed commands aborted by other initiators be !!
+ * !! delivered to their initiators !!
  */
-static inline int scst_cmd_aborted(struct scst_cmd *cmd)
+static inline bool scst_cmd_aborted(struct scst_cmd *cmd)
+{
+	return test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags);
+}
+
+/*
+ * Returns true if the cmd was aborted by its initiator or aborted by another
+ * initiator and not completed, so its status is invalid and no reply shall
+ * be sent to the remote initiator. A target driver should only clear
+ * internal resources, associated with cmd.
+ *
+ * This functions shall be called by all target drivers in the beginning of
+ * xmit_response() callback.
+ */
+static inline bool scst_cmd_aborted_on_xmit(struct scst_cmd *cmd)
 {
 	return test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags) &&
 		!test_bit(SCST_CMD_ABORTED_OTHER, &cmd->cmd_flags);

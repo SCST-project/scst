@@ -439,7 +439,7 @@ static int ibmvstgt_xmit_response(struct scst_cmd *sc)
 	int ret;
 	enum dma_data_direction dir;
 
-	if (unlikely(scst_cmd_aborted(sc))) {
+	if (unlikely(scst_cmd_aborted_on_xmit(sc))) {
 		scst_set_delivery_status(sc, SCST_CMD_DELIVERY_ABORTED);
 		atomic_inc(&vport->req_lim_delta);
 		srp_iu_put(iue);

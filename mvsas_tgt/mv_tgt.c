@@ -778,7 +778,7 @@ static int mvst_xmit_response(struct scst_cmd *scst_cmd)
 	sess = (struct mvst_sess *)
 		scst_sess_get_tgt_priv(scst_cmd_get_session(scst_cmd));
 
-	if (unlikely(scst_cmd_aborted(scst_cmd))) {
+	if (unlikely(scst_cmd_aborted_on_xmit(scst_cmd))) {
 		TRACE_MGMT_DBG("mvst tgt: terminating exchange "
 			"for aborted scst_cmd=%p (tag=%lld)",
 			scst_cmd, scst_cmd_get_tag(scst_cmd));

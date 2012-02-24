@@ -3268,7 +3268,7 @@ static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 
 	EXTRACHECKS_BUG_ON(req->scst_state != ISCSI_CMD_STATE_RESTARTED);
 
-	if (unlikely(scst_cmd_aborted(scst_cmd)))
+	if (unlikely(scst_cmd_aborted_on_xmit(scst_cmd)))
 		set_bit(ISCSI_CMD_ABORTED, &req->prelim_compl_flags);
 
 	if (unlikely(req->prelim_compl_flags != 0)) {

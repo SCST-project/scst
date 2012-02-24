@@ -1188,7 +1188,7 @@ isp_xmit_response(struct scst_cmd *scst_cmd)
     bus_t *bp = tmd->cd_bus;
     tmd_xact_t *xact = &tmd->cd_xact;
 
-    if (unlikely(scst_cmd_aborted(scst_cmd))) {
+    if (unlikely(scst_cmd_aborted_on_xmit(scst_cmd))) {
         scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_ABORTED);
         scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_SAME);
         return (SCST_TGT_RES_SUCCESS);
