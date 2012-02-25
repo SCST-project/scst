@@ -1294,7 +1294,7 @@ static void srpt_put_send_ioctx(struct srpt_send_ioctx *ioctx)
 }
 
 /**
- * srpt_abort_cmd() - Abort a SCSI command.
+ * srpt_abort_cmd() - Make SCST stop processing a SCSI command.
  * @ioctx:   I/O context associated with the SCSI command.
  * @context: Preferred execution context.
  */
