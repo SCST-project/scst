@@ -494,7 +494,14 @@ enum scst_exec_context {
  ** Cmd's async (atomic) flags
  *************************************************************/
 
-/* Set if the cmd is aborted and ABORTED sense will be sent as the result */
+/*
+ * Set if the cmd is aborted and should be unconditionally finished
+ * as soon as possible.
+ *
+ * !! Direct check of this bit must not be done anywhere outside of  !!
+ * !! SCST core! Use the corresponding helper functions listed below !!
+ * !! for that!							     !!
+ */
 #define SCST_CMD_ABORTED		0
 
 /* Set if the cmd is aborted by other initiator */
