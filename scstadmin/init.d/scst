@@ -53,7 +53,6 @@ cat <<"EOF"
 
 if [ -e /lib/lsb/init-functions ]; then
     # Debian, RHEL, Fedora, SLES and openSUSE.
-    SYSTEMD_NO_WRAP="true"
     . /lib/lsb/init-functions
 else
     # Slackware (Gentoo has these functions).
