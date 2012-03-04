@@ -29,35 +29,17 @@ Installation
 
 Proceed as follows to compile and install the SRP target driver:
 
-1. The SRP initiator (ib_srp) included with Linux kernel 2.6.36 and before
-   frequently makes ib_srpt send BUSY responses, which hurts performance.
-   This can be avoided by making SCST's SCSI command queue size identical
-   to that of the initiator by applying the scst_increase_max_tgt_cmds patch:
-
-   cd ${SCST_DIR}
-   patch -p0 < srpt/patches/scst_increase_max_tgt_cmds.patch
-
-   This patch increases SCST's per-device queue size from 48 to 64. This
-   helps to avoid BUSY conditions because the size of the transmit
-   queue in Linux' SRP initiator is also 64.
-
-   Note: avoiding BUSY conditions is also possible by limiting the number of
-   outstanding requests on the initiator. This is possible either by setting
-   nr_requests low enough or by enabling the dynamic queue depth adjustment
-   feature. Dynamic queue depth adjustment is available from kernel version
-   2.6.33 on.  See also scst/README for more information.
-
-2. Now compile and install SRPT:
+1. Now compile and install SRPT:
 
    cd ${SCST_DIR}
    make -s scst_clean scst scst_install
    make -s srpt_clean srpt srpt_install
    make -s scstadm scstadm_install
 
-3. Edit the installed file /etc/init.d/scst and add ib_srpt to the
+2. Edit the installed file /etc/init.d/scst and add ib_srpt to the
    SCST_MODULES variable.
 
-4. Configure SCST such that it will be started during system boot:
+3. Configure SCST such that it will be started during system boot:
 
    chkconfig scst on
 
