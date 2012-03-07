@@ -76,11 +76,11 @@ static int get_trans_len_4(struct scst_cmd *cmd, uint8_t off);
 
 static int get_bidi_trans_len_2(struct scst_cmd *cmd, uint8_t off);
 
+/* for special commands */
+static int get_trans_len_fmt(struct scst_cmd *cmd, uint8_t off);
 static int get_verify_trans_len_2(struct scst_cmd *cmd, uint8_t off);
 static int get_verify_trans_len_3(struct scst_cmd *cmd, uint8_t off);
 static int get_verify_trans_len_4(struct scst_cmd *cmd, uint8_t off);
-
-/* for special commands */
 static int get_trans_len_block_limit(struct scst_cmd *cmd, uint8_t off);
 static int get_trans_len_read_capacity(struct scst_cmd *cmd, uint8_t off);
 static int get_trans_len_serv_act_in(struct scst_cmd *cmd, uint8_t off);
@@ -192,8 +192,8 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 			 SCST_EXCL_ACCESS_ALLOWED,
 	 4, get_trans_len_1},
 	{0x04, "M    O O        ", "FORMAT UNIT",
-	 SCST_DATA_WRITE, SCST_LONG_TIMEOUT|SCST_UNKNOWN_LENGTH|SCST_WRITE_MEDIUM,
-	 0, get_trans_len_none},
+	 SCST_DATA_NONE, SCST_LONG_TIMEOUT|SCST_WRITE_MEDIUM,
+	 0, get_trans_len_fmt},
 	{0x04, "  O             ", "FORMAT",
 	 SCST_DATA_NONE, SCST_WRITE_MEDIUM, 0, get_trans_len_none},
 	{0x05, "VMVVVV  V       ", "READ BLOCK LIMITS",
@@ -5120,6 +5120,16 @@ static int get_bidi_trans_len_2(struct scst_cmd *cmd, uint8_t off)
 {
 	cmd->bufflen = get_unaligned_be16(cmd->cdb + off);
 	cmd->out_bufflen = cmd->bufflen;
+	return 0;
+}
+
+static int get_trans_len_fmt(struct scst_cmd *cmd, uint8_t off)
+{
+	if (cmd->cdb[1] & 0x04/*FMTDATA*/) {
+		cmd->data_direction = SCST_DATA_WRITE;
+		cmd->op_flags |= SCST_UNKNOWN_LENGTH;
+	}
+
 	return 0;
 }
 
