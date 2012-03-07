@@ -1259,6 +1259,7 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 		break;
 	}
 	case SCST_LUN_ACTION_DEL:
+		p = scst_get_next_lexem(&pp);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 		res = kstrtoul(p, 0, &virt_lun);
 #else
