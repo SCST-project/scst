@@ -187,10 +187,7 @@ struct scst_vdisk_thr {
 };
 
 struct vdisk_cmd_params {
-	struct scst_device *dev;
-	struct scst_vdisk_dev *virt_dev;
 	struct scst_cmd *cmd;
-	const uint8_t *cdb;
 	struct scst_vdisk_thr *thr;
 	uint64_t lba_start;
 	loff_t loff;
@@ -971,8 +968,8 @@ static void vdisk_detach_tgt(struct scst_tgt_dev *tgt_dev)
 static enum compl_status_e vdisk_synchronize_cache(struct vdisk_cmd_params *p)
 {
 	struct scst_cmd *cmd = p->cmd;
-	const uint8_t *cdb = p->cdb;
-	struct scst_device *dev = p->dev;
+	const uint8_t *cdb = cmd->cdb;
+	struct scst_device *dev = cmd->dev;
 	struct scst_vdisk_thr *thr = p->thr;
 	const loff_t loff = p->loff;
 	const loff_t data_len = p->data_len;
@@ -1005,8 +1002,12 @@ static enum compl_status_e vdisk_synchronize_cache(struct vdisk_cmd_params *p)
 
 static enum compl_status_e vdisk_exec_start_stop(struct vdisk_cmd_params *p)
 {
-	vdisk_fsync(p->thr, 0, p->virt_dev->file_size, p->dev,
-		    scst_cmd_get_gfp_flags(p->cmd), p->cmd);
+	struct scst_cmd *cmd = p->cmd;
+	struct scst_device *dev = cmd->dev;
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+
+	vdisk_fsync(p->thr, 0, virt_dev->file_size, dev,
+		    scst_cmd_get_gfp_flags(cmd), cmd);
 	return CMD_SUCCEEDED;
 }
 
@@ -1120,9 +1121,6 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 	int fua = 0;
 
 	p->cmd = cmd;
-	p->cdb = cdb;
-	p->dev = cmd->dev;
-	p->virt_dev = p->dev->dh_priv;
 
 	cmd->status = 0;
 	cmd->msg_status = 0;
@@ -1269,7 +1267,7 @@ static int vdisk_do_job(struct scst_cmd *cmd, const vdisk_op_fn *ops)
 	if (unlikely(!vdisk_parse_offset(&p, cmd)))
 		goto out_compl;
 
-	virt_dev = p.virt_dev;
+	virt_dev = cmd->dev->dh_priv;
 	p.thr = virt_dev->nullio ? vdisk_get_nullio_thr() : vdisk_get_thr(cmd, tgt_dev);
 	if (unlikely(p.thr == NULL))
 		goto out_compl;
@@ -2930,8 +2928,12 @@ static enum compl_status_e nullio_exec_write(struct vdisk_cmd_params *p)
 
 static enum compl_status_e blockio_exec_write(struct vdisk_cmd_params *p)
 {
-	blockio_exec_rw(p->cmd, p->thr, p->lba_start, true,
-			p->fua || p->virt_dev->wt_flag);
+	struct scst_cmd *cmd = p->cmd;
+	struct scst_device *dev = cmd->dev;
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+
+	blockio_exec_rw(cmd, p->thr, p->lba_start, true,
+			p->fua || virt_dev->wt_flag);
 	return RUNNING_ASYNC;
 }
 
@@ -3075,8 +3077,8 @@ restart:
 out:
 	/* O_SYNC flag is used for WT devices */
 	if (p->fua)
-		vdisk_fsync(thr, loff, p->data_len, p->dev,
-			    scst_cmd_get_gfp_flags(p->cmd), p->cmd);
+		vdisk_fsync(thr, loff, p->data_len, cmd->dev,
+			    scst_cmd_get_gfp_flags(cmd), cmd);
 
 	TRACE_EXIT();
 	return err >= 0 ? CMD_SUCCEEDED : CMD_FAILED;
