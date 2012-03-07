@@ -1086,7 +1086,6 @@ static const vdisk_op_fn fileio_ops[256] = {
 	[WRITE_VERIFY] = fileio_exec_write_verify,
 	[WRITE_VERIFY_12] = fileio_exec_write_verify,
 	[WRITE_VERIFY_16] = fileio_exec_write_verify,
-	[VERIFY_6] = fileio_exec_verify,
 	[VERIFY] = fileio_exec_verify,
 	[VERIFY_12] = fileio_exec_verify,
 	[VERIFY_16] = fileio_exec_verify,
@@ -1141,7 +1140,6 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 	switch (opcode) {
 	case READ_6:
 	case WRITE_6:
-	case VERIFY_6:
 		lba_start = get_unaligned_be24(&cdb[1]) & 0x1f0000U;
 		data_len = cmd->bufflen;
 		break;

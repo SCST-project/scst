@@ -244,7 +244,6 @@ static int do_exec(struct vdisk_cmd *vcmd)
 	switch (opcode) {
 	case READ_6:
 	case WRITE_6:
-	case VERIFY_6:
 		lba_start = (((cdb[1] & 0x1f) << (BYTE * 2)) +
 			     (cdb[2] << (BYTE * 1)) +
 			     (cdb[3] << (BYTE * 0)));
@@ -394,7 +393,6 @@ static int do_exec(struct vdisk_cmd *vcmd)
 			break;
 		}
 	}
-	case VERIFY_6:
 	case VERIFY:
 	case VERIFY_12:
 	case VERIFY_16:

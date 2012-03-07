@@ -265,7 +265,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 			 SCST_REG_RESERVE_ALLOWED|
 			 SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
 	 3, get_trans_len_2},
-	{0x13, "VOVVVV          ", "VERIFY(6)",
+	{0x13, " O              ", "VERIFY(6)",
 	 SCST_DATA_UNKNOWN, SCST_TRANSFER_LEN_TYPE_FIXED|
 			    SCST_WRITE_EXCL_ALLOWED,
 	 2, get_verify_trans_len_3},
@@ -5416,7 +5416,6 @@ int scst_sbc_generic_parse(struct scst_cmd *cmd,
 	      cmd->op_name, cmd->data_direction, cmd->op_flags, cmd->bufflen);
 
 	switch (cmd->cdb[0]) {
-	case VERIFY_6:
 	case VERIFY:
 	case VERIFY_12:
 	case VERIFY_16:
@@ -5481,7 +5480,6 @@ int scst_cdrom_generic_parse(struct scst_cmd *cmd,
 	cmd->cdb[1] &= 0x1f;
 
 	switch (cmd->cdb[0]) {
-	case VERIFY_6:
 	case VERIFY:
 	case VERIFY_12:
 	case VERIFY_16:
@@ -5541,7 +5539,6 @@ int scst_modisk_generic_parse(struct scst_cmd *cmd,
 	cmd->cdb[1] &= 0x1f;
 
 	switch (cmd->cdb[0]) {
-	case VERIFY_6:
 	case VERIFY:
 	case VERIFY_12:
 	case VERIFY_16:
