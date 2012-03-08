@@ -5125,7 +5125,7 @@ static int get_bidi_trans_len_2(struct scst_cmd *cmd, uint8_t off)
 
 static int get_trans_len_fmt(struct scst_cmd *cmd, uint8_t off)
 {
-	if (cmd->cdb[1] & 0x04/*FMTDATA*/) {
+	if (cmd->cdb[1] & 0x10/*FMTDATA*/) {
 		cmd->data_direction = SCST_DATA_WRITE;
 		cmd->op_flags |= SCST_UNKNOWN_LENGTH;
 	}
