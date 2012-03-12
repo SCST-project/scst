@@ -92,39 +92,6 @@ iSCSI target daemon.\n\
 	exit(1);
 }
 
-static void set_non_blocking(int fd)
-{
-	int res = fcntl(fd, F_GETFL);
-
-	if (res != -1) {
-		res = fcntl(fd, F_SETFL, res | O_NONBLOCK);
-		if (res)
-			log_warning("unable to set fd flags (%s)!", strerror(errno));
-	} else
-		log_warning("unable to get fd flags (%s)!", strerror(errno));
-}
-
-static void sock_set_keepalive(int sock, int timeout)
-{
-	if (timeout) { /* timeout [s] */
-		int opt = 2;
-
-		if (setsockopt(sock, SOL_TCP, TCP_KEEPCNT, &opt, sizeof(opt)))
-			log_warning("unable to set TCP_KEEPCNT on server socket (%s)!", strerror(errno));
-
-		if (setsockopt(sock, SOL_TCP, TCP_KEEPIDLE, &timeout, sizeof(timeout)))
-			log_warning("unable to set TCP_KEEPIDLE on server socket (%s)!", strerror(errno));
-
-		opt = 3;
-		if (setsockopt(sock, SOL_TCP, TCP_KEEPINTVL, &opt, sizeof(opt)))
-			log_warning("unable to set KEEPINTVL on server socket (%s)!", strerror(errno));
-
-		opt = 1;
-		if (setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, &opt, sizeof(opt)))
-			log_warning("unable to set SO_KEEPALIVE on server socket (%s)!", strerror(errno));
-	}
-}
-
 const char *get_error_str(int error)
 {
 	if (error == EAI_SYSTEM)

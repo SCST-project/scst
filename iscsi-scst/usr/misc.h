@@ -106,4 +106,7 @@ static inline int list_length_is_one(const struct __qelem *head)
 #define IPV6_V6ONLY	26
 #endif
 
+extern void set_non_blocking(int fd);
+extern void sock_set_keepalive(int sock, int timeout);
+
 #endif
