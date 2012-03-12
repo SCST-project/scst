@@ -82,38 +82,18 @@ static void dolog(int prio, const char *func, int line, const char *fmt, va_list
 	}
 }
 
-void __log_info(const char *func, int line, const char *fmt, ...)
+void __log(const char *func, int line, int prio, int level, const char *fmt, ...)
 {
-	va_list ap;
-	va_start(ap, fmt);
-	dolog(LOG_INFO, func, line, fmt, ap);
-	va_end(ap);
-}
-
-void __log_warning(const char *func, int line, const char *fmt, ...)
-{
-	va_list ap;
-	va_start(ap, fmt);
-	dolog(LOG_WARNING, func, line, fmt, ap);
-	va_end(ap);
-}
-
-void __log_error(const char *func, int line, const char *fmt, ...)
-{
-	va_list ap;
-	va_start(ap, fmt);
-	dolog(LOG_ERR, func, line, fmt, ap);
-	va_end(ap);
-}
-
-void __log_debug(const char *func, int line, int level, const char *fmt, ...)
-{
-	if (log_level >= level) {
-		va_list ap;
-		va_start(ap, fmt);
-		dolog(LOG_DEBUG, func, line, fmt, ap);
-		va_end(ap);
+	if (level) {
+		prio = LOG_DEBUG;
+		if (log_level < level)
+			return;
 	}
+
+	va_list ap;
+	va_start(ap, fmt);
+	dolog(prio, func, line, fmt, ap);
+	va_end(ap);
 }
 
 /* Definition for __log_pdu buffer */
@@ -145,7 +125,7 @@ static void __dump_line(const char *func, int line_num, int level, unsigned char
 	}
 
 	/* buf is not \0-terminated! */
-	__log_debug(func, line_num, level, "%s %.*s |", line, BUFFER_SIZE, buf);
+	__log(func, line_num, LOG_DEBUG, level, "%s %.*s |", line, BUFFER_SIZE, buf);
 	*cp = 0;
 }
 
@@ -172,19 +152,19 @@ void __log_pdu(const char *func, int line, int level, struct PDU *pdu)
 		return;
 
 	buf = (void *)&pdu->bhs;
-	__log_debug(func, line, level, "BHS: (%p)", buf);
+	__log(func, line, LOG_DEBUG, level, "BHS: (%p)", buf);
 	for (i = 0; i < BHS_SIZE; i++)
 		dump_char(*buf++);
 	dump_line();
 
 	buf = (void *)pdu->ahs;
-	__log_debug(func, line, level, "AHS: (%p)", buf);
+	__log(func, line, LOG_DEBUG, level, "AHS: (%p)", buf);
 	for (i = 0; i < pdu->ahssize; i++)
 		dump_char(*buf++);
 	dump_line();
 
 	buf = (void *)pdu->data;
-	__log_debug(func, line, level, "Data: (%p)", buf);
+	__log(func, line, LOG_DEBUG, level, "Data: (%p)", buf);
 	for (i = 0; i < pdu->datasize; i++)
 		dump_char(*buf++);
 	dump_line();

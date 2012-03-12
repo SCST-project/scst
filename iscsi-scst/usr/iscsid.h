@@ -23,6 +23,7 @@
 #include <sys/poll.h>
 #include <assert.h>
 #include <netdb.h>
+#include <syslog.h>
 
 #include "types.h"
 #ifdef INSIDE_KERNEL_TREE
@@ -264,21 +265,27 @@ extern int log_daemon;
 extern int log_level;
 
 extern void log_init(void);
-extern void __log_info(const char *func, int line, const char *fmt, ...)
-	__attribute__ ((format (printf, 3, 4)));
-extern void __log_warning(const char *func, int line, const char *fmt, ...)
-	__attribute__ ((format (printf, 3, 4)));
-extern void __log_error(const char *func, int line, const char *fmt, ...)
-	__attribute__ ((format (printf, 3, 4)));
-extern void __log_debug(const char *func, int line, int level, const char *fmt, ...)
-	__attribute__ ((format (printf, 4, 5)));
+extern void __log(const char *func, int line, int prio, int level, const char *fmt, ...)
+	__attribute__ ((format (printf, 5, 6)));
 extern void __log_pdu(const char *func, int line, int level, struct PDU *pdu);
 
-#define log_info(args...)	__log_info(__func__, __LINE__, ## args)
-#define log_warning(args...)	__log_warning(__func__, __LINE__, ## args)
-#define log_error(args...)	__log_error(__func__, __LINE__, ## args)
-#define log_debug(args...)	__log_debug(__func__, __LINE__, ## args)
-#define log_pdu(args...)	__log_pdu(__func__, __LINE__, ## args)
+#define log_info(args...)		__log(__func__, __LINE__, LOG_INFO, 0, ## args)
+#define log_warning(args...)		__log(__func__, __LINE__, LOG_WARNING, 0, ## args)
+#define log_error(args...)		__log(__func__, __LINE__, LOG_ERR, 0, ## args)
+#define log_debug(level, args...)	__log(__func__, __LINE__, LOG_DEBUG, level, ## args)
+#define log_pdu(level, args...)		__log_pdu(__func__, __LINE__, level, ## args)
+
+/* Conditional versions of log_* functions. Useful when log priority depends
+ * on some parameter, say recurrence of some event. In these cases the first
+ * occurence could be logged as log_info while the latter ones may be logged
+ * with log_debug. So, if level != 0 then log_debug is called.
+ */
+#define log_info_cond(level, args...)		\
+	__log(__func__, __LINE__, LOG_INFO, level, ## args)
+#define log_warning_cond(level, args...)	\
+	__log(__func__, __LINE__, LOG_WARNING, level, ## args)
+#define log_error_cond(level, args...)		\
+	__log(__func__, __LINE__, LOG_ERR, level, ## args)
 
 /* session.c */
 extern struct session *session_find_name(u32 tid, const char *iname, union iscsi_sid sid);
