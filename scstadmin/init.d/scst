@@ -79,9 +79,7 @@ cat <<"EOF"
 
 SCST_CFG=/etc/scst.conf
 
-if [ ! -e /lib/lsb/init-functions ]; then
-    # Slackware and Gentoo.
-rc_status() {
+show_status() {
   _rc_status_ret=$?
   for i; do
     case "$i" in
@@ -95,6 +93,9 @@ rc_status() {
   done
   return ${_rc_status_ret}
 }
+
+if [ ! -e /lib/lsb/init-functions ]; then
+    # Slackware and Gentoo.
 start_daemon() {
     "$@" >/dev/null 2>&1 &
 }
@@ -332,7 +333,7 @@ case "$1" in
         ## Print the current status of the service.
         echo -n "SCST status: "
         scst_status >/dev/null 2>&1
-        rc_status -v
+        show_status -v
         exit $?
         ;;
     *)
