@@ -505,7 +505,8 @@ static void ft_recv_tm(struct scst_session *scst_sess,
 	struct scst_rx_mgmt_params params;
 	int ret;
 
-	memset(&params, 0, sizeof(params));
+	scst_rx_mgmt_params_init(&params);
+
 	params.lun = fcp->fc_lun;
 	params.lun_len = sizeof(fcp->fc_lun);
 	params.lun_set = 1;

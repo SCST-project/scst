@@ -2837,6 +2837,12 @@ void scst_tgt_cmd_done(struct scst_cmd *cmd,
 int scst_rx_mgmt_fn(struct scst_session *sess,
 	const struct scst_rx_mgmt_params *params);
 
+static inline void scst_rx_mgmt_params_init(
+		struct scst_rx_mgmt_params *params)
+{
+	memset(params, 0, sizeof(*params));
+}
+
 /*
  * Creates new management command using tag and sends it for execution.
  * Can be used for SCST_ABORT_TASK only.
@@ -2852,7 +2858,8 @@ static inline int scst_rx_mgmt_fn_tag(struct scst_session *sess, int fn,
 
 	BUG_ON(fn != SCST_ABORT_TASK);
 
-	memset(&params, 0, sizeof(params));
+	scst_rx_mgmt_params_init(&params);
+
 	params.fn = fn;
 	params.tag = tag;
 	params.tag_set = 1;
@@ -2876,7 +2883,8 @@ static inline int scst_rx_mgmt_fn_lun(struct scst_session *sess, int fn,
 
 	BUG_ON(fn == SCST_ABORT_TASK);
 
-	memset(&params, 0, sizeof(params));
+	scst_rx_mgmt_params_init(&params);
+
 	params.fn = fn;
 	params.lun = lun;
 	params.lun_len = lun_len;

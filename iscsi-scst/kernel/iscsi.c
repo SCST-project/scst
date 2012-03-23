@@ -2531,7 +2531,8 @@ static void execute_task_management(struct iscsi_cmnd *req)
 	} else
 		spin_unlock(&sess->sn_lock);
 
-	memset(&params, 0, sizeof(params));
+	scst_rx_mgmt_params_init(&params);
+
 	params.atomic = SCST_NON_ATOMIC;
 	params.tgt_priv = req;
 
