@@ -18,7 +18,6 @@
  */
 
 #include <linux/module.h>
-#include <net/tcp.h>
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/iscsi_scst.h>
 #else

@@ -20,7 +20,7 @@
 #include <linux/file.h>
 #include <linux/kthread.h>
 #include <linux/delay.h>
-#include <net/tcp.h>
+#include <net/tcp_states.h>
 
 #include "iscsi.h"
 #include "digest.h"
