@@ -62,20 +62,22 @@ static inline int get_current_tid(void)
 }
 
 /**
- * debug_print_prefix() - print debug prefix for a log line
+ * debug_print_with_prefix() - prints a debug message
  *
- * Prints, if requested by trace_flag, debug prefix for each log line
+ * Adds, if requested by trace_flag, debug prefix in the beginning
  */
-int debug_print_prefix(unsigned long trace_flag,
-	const char *prefix, const char *func, int line)
+int debug_print_with_prefix(unsigned long trace_flag, const char *severity,
+	const char *prefix, const char *func, int line, const char *fmt, ...)
 {
-	int i = 0;
+	int i;
 	unsigned long flags;
 	int pid = get_current_tid();
+	va_list args;
 
 	spin_lock_irqsave(&trace_buf_lock, flags);
 
-	trace_buf[0] = '\0';
+	strcpy(trace_buf, severity);
+	i = strlen(trace_buf);
 
 	if (trace_flag & TRACE_PID)
 		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE, "[%d]: ", pid);
@@ -87,13 +89,17 @@ int debug_print_prefix(unsigned long trace_flag,
 	if (trace_flag & TRACE_LINE)
 		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "%i:", line);
 
-	PRINTN(KERN_INFO, "%s", trace_buf);
+	va_start(args, fmt);
+	vsprintf(&trace_buf[i], fmt, args);
+	va_end(args);
+
+	printk(trace_buf);
 
 	spin_unlock_irqrestore(&trace_buf_lock, flags);
 
 	return i;
 }
-EXPORT_SYMBOL(debug_print_prefix);
+EXPORT_SYMBOL(debug_print_with_prefix);
 
 /**
  * debug_print_buffer() - print a buffer

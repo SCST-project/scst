@@ -36,8 +36,7 @@
 #ifdef CONFIG_SCST_DEBUG
 
 #define sBUG() do {						\
-	printk(KERN_CRIT "BUG at %s:%d\n",			\
-	       __FILE__, __LINE__);				\
+	printk(KERN_CRIT "BUG at %s:%d\n",  __FILE__, __LINE__); \
 	local_irq_enable();					\
 	while (in_softirq())					\
 		local_bh_enable();				\
@@ -124,13 +123,8 @@
 #define ___unlikely(a)		unlikely(a)
 #endif
 
-/*
- * We don't print prefix for debug traces to not put additional pressure
- * on the logging system in case of a lot of logging.
- */
-
-int debug_print_prefix(unsigned long trace_flag,
-	const char *prefix, const char *func, int line);
+int debug_print_with_prefix(unsigned long trace_flag, const char *severity,
+	const char *prefix, const char *func, int line, const char *fmt, ...);
 void debug_print_buffer(const void *data, int len);
 const char *debug_transport_id_to_initiator_name(const uint8_t *transport_id);
 
@@ -139,9 +133,8 @@ const char *debug_transport_id_to_initiator_name(const uint8_t *transport_id);
 #define TRACE(trace, format, args...)					\
 do {									\
 	if (___unlikely(trace_flag & (trace))) {			\
-		debug_print_prefix(trace_flag, __LOG_PREFIX,		\
-				       __func__, __LINE__);		\
-		PRINT(KERN_CONT, format, ## args);			\
+		debug_print_with_prefix(trace_flag, KERN_INFO,		\
+			__LOG_PREFIX, __func__, __LINE__, format, ## args); \
 	}								\
 } while (0)
 
@@ -166,8 +159,8 @@ do {                                                                \
 #define PRINT_BUFF_FLAG(flag, message, buff, len)			\
 do {									\
 	if (___unlikely(trace_flag & (flag))) {				\
-		debug_print_prefix(trace_flag, NULL, __func__, __LINE__);\
-		PRINT(KERN_CONT, "%s:", message);			\
+		debug_print_with_prefix(trace_flag, KERN_INFO, NULL,	\
+			__func__, __LINE__, "%s:", message);		\
 		debug_print_buffer(buff, len);				\
 	}								\
 } while (0)
@@ -187,8 +180,8 @@ do {									\
 #define TRACE_DBG_FLAG(trace, format, args...)				\
 do {									\
 	if (trace_flag & (trace)) {					\
-		debug_print_prefix(trace_flag, NULL, __func__, __LINE__);\
-		PRINT(KERN_CONT, format, ## args);			\
+		debug_print_with_prefix(trace_flag, KERN_INFO, NULL,	\
+			__func__, __LINE__, format, ## args);		\
 	}								\
 } while (0)
 
@@ -210,8 +203,8 @@ do {									\
 #define TRACE_BUFFER(message, buff, len)				\
 do {									\
 	if (trace_flag & TRACE_BUFF) {					\
-		debug_print_prefix(trace_flag, NULL, __func__, __LINE__);\
-		PRINT(KERN_CONT, "%s:", message);			\
+		debug_print_with_prefix(trace_flag, KERN_INFO, NULL,	\
+			__func__, __LINE__, "%s:", message);		\
 		debug_print_buffer(buff, len);				\
 	}								\
 } while (0)
@@ -219,40 +212,40 @@ do {									\
 #define TRACE_BUFF_FLAG(flag, message, buff, len)			\
 do {									\
 	if (trace_flag & (flag)) {					\
-		debug_print_prefix(trace_flag, NULL, __func__, __LINE__);\
-		PRINT(KERN_CONT, "%s:", message);			\
+		debug_print_with_prefix(trace_flag, KERN_INFO, NULL,	\
+			__func__, __LINE__, "%s:", message);		\
 		debug_print_buffer(buff, len);				\
 	}								\
 } while (0)
 
 #define PRINT_LOG_FLAG(log_flag, format, args...)			\
 do {									\
-	debug_print_prefix(trace_flag, __LOG_PREFIX, __func__, __LINE__);\
-	PRINT(KERN_CONT, format, ## args);				\
+	debug_print_with_prefix(trace_flag, KERN_INFO, __LOG_PREFIX,	\
+		__func__, __LINE__, format, ## args);			\
 } while (0)
 
 #define PRINT_WARNING(format, args...)					\
 do {									\
-	debug_print_prefix(trace_flag, __LOG_PREFIX, __func__, __LINE__);\
-	PRINT(KERN_CONT, "***WARNING***: " format, ## args);		\
+	debug_print_with_prefix(trace_flag, KERN_WARNING, __LOG_PREFIX,	\
+		__func__, __LINE__, "***WARNING***: " format, ## args);	\
 } while (0)
 
 #define PRINT_ERROR(format, args...)					\
 do {									\
-	debug_print_prefix(trace_flag, __LOG_PREFIX, __func__, __LINE__);\
-	PRINT(KERN_CONT, "***ERROR***: " format, ## args);		\
+	debug_print_with_prefix(trace_flag, KERN_ERR, __LOG_PREFIX,	\
+		__func__, __LINE__, "***ERROR***: " format, ## args);	\
 } while (0)
 
 #define PRINT_CRIT_ERROR(format, args...)				\
 do {									\
-	debug_print_prefix(trace_flag, __LOG_PREFIX, __func__, __LINE__);\
-	PRINT(KERN_CONT, "***CRITICAL ERROR***: " format, ## args);	\
+	debug_print_with_prefix(trace_flag, KERN_CRIT, __LOG_PREFIX,	\
+		__func__, __LINE__, "***CRITICAL ERROR***: " format, ## args); \
 } while (0)
 
 #define PRINT_INFO(format, args...)					\
 do {									\
-	debug_print_prefix(trace_flag, __LOG_PREFIX, __func__, __LINE__);\
-	PRINT(KERN_CONT, format, ## args);				\
+	debug_print_with_prefix(trace_flag, KERN_INFO, __LOG_PREFIX,	\
+		__func__, __LINE__, format, ## args);			\
 } while (0)
 
 #ifndef GENERATING_UPSTREAM_PATCH
@@ -340,20 +333,20 @@ do {								\
 
 #define PRINT_WARNING(format, args...)          \
 do {                                            \
-	PRINT(KERN_INFO, "%s: ***WARNING***: "	\
+	PRINT(KERN_WARNING, "%s: ***WARNING***: " \
 	      format, LOG_PREFIX, ## args);	\
 } while (0)
 
 #define PRINT_ERROR(format, args...)            \
 do {                                            \
-	PRINT(KERN_INFO, "%s: ***ERROR***: "	\
+	PRINT(KERN_ERR, "%s: ***ERROR***: "	\
 	      format, LOG_PREFIX, ## args);	\
 } while (0)
 
 #define PRINT_CRIT_ERROR(format, args...)       \
 do {                                            \
-	PRINT(KERN_INFO, "%s: ***CRITICAL ERROR***: "	\
-		format, LOG_PREFIX, ## args);		\
+	PRINT(KERN_CRIT, "%s: ***CRITICAL ERROR***: " \
+		format, LOG_PREFIX, ## args);	\
 } while (0)
 
 #else
@@ -365,7 +358,7 @@ do {                                            \
 
 #define PRINT_WARNING(format, args...)          \
 do {                                            \
-	PRINT(KERN_INFO, "***WARNING***: "	\
+	PRINT(KERN_WARNING, "***WARNING***: "	\
 		format, ## args);		\
 } while (0)
 
@@ -375,10 +368,10 @@ do {                                            \
 		format, ## args);		\
 } while (0)
 
-#define PRINT_CRIT_ERROR(format, args...)		\
-do {							\
-	PRINT(KERN_CRIT, "***CRITICAL ERROR***: "	\
-		format, ## args);			\
+#define PRINT_CRIT_ERROR(format, args...)	\
+do {						\
+	PRINT(KERN_CRIT, "***CRITICAL ERROR***: " \
+		format, ## args);		\
 } while (0)
 
 #endif /* LOG_PREFIX */
