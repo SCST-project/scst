@@ -2190,7 +2190,7 @@ struct scst_mgmt_cmd {
 
 	uint64_t lun;	/* LUN for this mgmt cmd */
 	/* or (and for iSCSI) */
-	uint64_t tag;	/* tag of the corresponding cmd */
+	uint64_t tag;	/* for ABORT TASK, tag of the cmd to abort */
 
 	uint32_t cmd_sn; /* affected command's highest SN */
 
