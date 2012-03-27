@@ -3693,9 +3693,25 @@ out:
 	return res;
 }
 
-/*
+/**
+ * scst_cmd_set_sn - Assign a slot number to a command.
+ *
+ * Commands that may be executed concurrently are assigned the same slot
+ * number. A command that must be executed after previously received commands
+ * is assigned a new and higher slot number.
+ *
  * No locks, but it must be externally serialized (see comment for
  * scst_cmd_init_done() in scst.h)
+ *
+ * Note: This approach in full compliance with SAM may result in the reordering
+ * of conflicting SIMPLE READ and/or WRITE commands (commands with at least
+ * partially overlapping data ranges and of which at least one of them is a
+ * WRITE command). An initiator is not allowed to submit such conflicting
+ * commands. After having modified data, an initiator must wait for the result
+ * of that operation before rereading or rewriting the modified data range or
+ * use ORDERED subsequent conflicting command(s). See also comments about the
+ * command identifier in SAM-5 or comments about task tags and command
+ * reordering in previous SAM revisions.
  */
 static void scst_cmd_set_sn(struct scst_cmd *cmd)
 {
