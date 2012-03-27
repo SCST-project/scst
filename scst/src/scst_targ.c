@@ -3575,6 +3575,30 @@ out_error:
 	goto out;
 }
 
+static void scst_find_free_slot(struct scst_order_data *order_data)
+{
+	int i = 0;
+
+	/*
+	 * Commands can finish in any order, so we don't know which slot is
+	 * empty.
+	 */
+	while (1) {
+		order_data->cur_sn_slot++;
+		if (order_data->cur_sn_slot ==
+		    order_data->sn_slots + ARRAY_SIZE(order_data->sn_slots))
+			order_data->cur_sn_slot = order_data->sn_slots;
+
+		if (atomic_read(order_data->cur_sn_slot) == 0)
+			break;
+
+		i++;
+		sBUG_ON(i == ARRAY_SIZE(order_data->sn_slots));
+	}
+	TRACE_SN("New cur SN slot %zd",
+		 order_data->cur_sn_slot - order_data->sn_slots);
+}
+
 /**
  * scst_tgt_cmd_done() - the command's processing done
  * @cmd:	SCST command
@@ -3736,27 +3760,8 @@ ordered:
 			spin_lock_irqsave(&order_data->sn_lock, flags);
 			if (order_data->num_free_sn_slots >= 0) {
 				order_data->num_free_sn_slots--;
-				if (order_data->num_free_sn_slots >= 0) {
-					int i = 0;
-					/* Commands can finish in any order, so
-					 * we don't know which slot is empty.
-					 */
-					while (1) {
-						order_data->cur_sn_slot++;
-						if (order_data->cur_sn_slot ==
-						      order_data->sn_slots + ARRAY_SIZE(order_data->sn_slots))
-							order_data->cur_sn_slot = order_data->sn_slots;
-
-						if (atomic_read(order_data->cur_sn_slot) == 0)
-							break;
-
-						i++;
-						sBUG_ON(i == ARRAY_SIZE(order_data->sn_slots));
-					}
-					TRACE_SN("New cur SN slot %zd",
-						order_data->cur_sn_slot -
-						order_data->sn_slots);
-				}
+				if (order_data->num_free_sn_slots >= 0)
+					scst_find_free_slot(order_data);
 			}
 			spin_unlock_irqrestore(&order_data->sn_lock, flags);
 		}
