@@ -5953,6 +5953,7 @@ int scst_rx_mgmt_fn(struct scst_session *sess,
 	case SCST_TARGET_RESET:
 	case SCST_ABORT_ALL_TASKS:
 	case SCST_NEXUS_LOSS:
+	case SCST_UNREG_SESS_TM:
 		break;
 	default:
 		sBUG_ON(!params->lun_set);
@@ -6472,7 +6473,7 @@ void scst_unregister_session(struct scst_session *sess, int wait,
 {
 	unsigned long flags;
 	DECLARE_COMPLETION_ONSTACK(c);
-	int rc, lun;
+	int rc;
 
 	TRACE_ENTRY();
 
@@ -6481,9 +6482,8 @@ void scst_unregister_session(struct scst_session *sess, int wait,
 	sess->unreg_done_fn = unreg_done_fn;
 
 	/* Abort all outstanding commands and clear reservation, if necessary */
-	lun = 0;
 	rc = scst_rx_mgmt_fn_lun(sess, SCST_UNREG_SESS_TM,
-				 &lun, sizeof(lun), SCST_ATOMIC, NULL);
+				 NULL, 0, SCST_ATOMIC, NULL);
 	if (rc != 0) {
 		PRINT_ERROR("SCST_UNREG_SESS_TM failed %d (sess %p)",
 			rc, sess);

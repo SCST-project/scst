@@ -2888,7 +2888,7 @@ static inline int scst_rx_mgmt_fn_lun(struct scst_session *sess, int fn,
 	params.fn = fn;
 	params.lun = lun;
 	params.lun_len = lun_len;
-	params.lun_set = 1;
+	params.lun_set = !!lun;
 	params.atomic = atomic;
 	params.tgt_priv = tgt_priv;
 	return scst_rx_mgmt_fn(sess, &params);
