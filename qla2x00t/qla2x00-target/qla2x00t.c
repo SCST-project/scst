@@ -2584,8 +2584,8 @@ static void q2x_init_ctio_ret_entry(ctio_ret_entry_t *ctio_m1,
 {
 	TRACE_ENTRY();
 
-	prm->sense_buffer_len = min((uint32_t)prm->sense_buffer_len,
-				    (uint32_t)sizeof(ctio_m1->sense_data));
+	prm->sense_buffer_len = min_t(uint32_t, prm->sense_buffer_len,
+				      sizeof(ctio_m1->sense_data));
 
 	ctio_m1->flags = cpu_to_le16(OF_SSTS | OF_FAST_POST |
 				     OF_NO_DATA | OF_SS_MODE_1);
@@ -2791,8 +2791,8 @@ static void q24_init_ctio_ret_entry(ctio7_status0_entry_t *ctio,
 
 	TRACE_ENTRY();
 
-	prm->sense_buffer_len = min((uint32_t)prm->sense_buffer_len,
-				    (uint32_t)sizeof(ctio1->sense_data));
+	prm->sense_buffer_len = min_t(uint32_t, prm->sense_buffer_len,
+				      sizeof(ctio1->sense_data));
 	ctio->flags |= cpu_to_le16(CTIO7_FLAGS_SEND_STATUS);
 	if (q2t_need_explicit_conf(prm->tgt->ha, prm->cmd, 0)) {
 		ctio->flags |= cpu_to_le16(
