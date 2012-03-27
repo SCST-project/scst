@@ -6483,7 +6483,7 @@ void scst_unregister_session(struct scst_session *sess, int wait,
 	/* Abort all outstanding commands and clear reservation, if necessary */
 	lun = 0;
 	rc = scst_rx_mgmt_fn_lun(sess, SCST_UNREG_SESS_TM,
-		(uint8_t *)&lun, sizeof(lun), SCST_ATOMIC, NULL);
+				 &lun, sizeof(lun), SCST_ATOMIC, NULL);
 	if (rc != 0) {
 		PRINT_ERROR("SCST_UNREG_SESS_TM failed %d (sess %p)",
 			rc, sess);

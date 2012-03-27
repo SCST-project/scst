@@ -826,8 +826,7 @@ static int scst_local_device_reset(struct scsi_cmnd *SCpnt)
 	lun = cpu_to_be16(SCpnt->device->lun);
 
 	ret = scst_rx_mgmt_fn_lun(sess->scst_sess, SCST_LUN_RESET,
-			(const uint8_t *)&lun, sizeof(lun), false,
-			&dev_reset_completion);
+			&lun, sizeof(lun), false, &dev_reset_completion);
 
 	/* Now wait for the completion ... */
 	wait_for_completion_interruptible(&dev_reset_completion);
@@ -856,8 +855,7 @@ static int scst_local_target_reset(struct scsi_cmnd *SCpnt)
 	lun = cpu_to_be16(SCpnt->device->lun);
 
 	ret = scst_rx_mgmt_fn_lun(sess->scst_sess, SCST_TARGET_RESET,
-			(const uint8_t *)&lun, sizeof(lun), false,
-			&dev_reset_completion);
+			&lun, sizeof(lun), false, &dev_reset_completion);
 
 	/* Now wait for the completion ... */
 	wait_for_completion_interruptible(&dev_reset_completion);

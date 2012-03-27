@@ -422,7 +422,7 @@ static void close_conn(struct iscsi_conn *conn)
 
 		/* Abort all outstanding commands */
 		rc = scst_rx_mgmt_fn_lun(session->scst_sess,
-			SCST_ABORT_ALL_TASKS_SESS, (uint8_t *)&lun, sizeof(lun),
+			SCST_ABORT_ALL_TASKS_SESS, &lun, sizeof(lun),
 			SCST_NON_ATOMIC, conn);
 		if (rc != 0)
 			PRINT_ERROR("SCST_ABORT_ALL_TASKS_SESS failed %d", rc);
@@ -431,7 +431,7 @@ static void close_conn(struct iscsi_conn *conn)
 		int lun = 0;
 
 		rc = scst_rx_mgmt_fn_lun(session->scst_sess,
-			SCST_NEXUS_LOSS_SESS, (uint8_t *)&lun, sizeof(lun),
+			SCST_NEXUS_LOSS_SESS, &lun, sizeof(lun),
 			SCST_NON_ATOMIC, conn);
 		if (rc != 0)
 			PRINT_ERROR("SCST_NEXUS_LOSS_SESS failed %d", rc);

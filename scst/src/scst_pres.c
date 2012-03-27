@@ -551,7 +551,7 @@ static void scst_pr_abort_reg(struct scst_device *dev,
 	packed_lun = scst_pack_lun(reg->tgt_dev->lun, sess->acg->addr_method);
 
 	rc = scst_rx_mgmt_fn_lun(sess, SCST_PR_ABORT_ALL,
-		(uint8_t *)&packed_lun, sizeof(packed_lun), SCST_NON_ATOMIC,
+		&packed_lun, sizeof(packed_lun), SCST_NON_ATOMIC,
 		pr_cmd);
 	if (rc != 0) {
 		/*

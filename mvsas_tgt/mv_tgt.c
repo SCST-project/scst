@@ -1682,29 +1682,25 @@ static int mvst_handle_task_mgmt(struct mvs_info *mvi,
 	case TMF_CLEAR_ACA:
 		TRACE(TRACE_MGMT, "%s", "TMF_CLEAR_ACA received");
 		rc = scst_rx_mgmt_fn_lun(sess->scst_sess, SCST_CLEAR_ACA,
-					 (uint8_t *)lun, sizeof(lun),
-					 SCST_ATOMIC, cmd);
+					 &lun, sizeof(lun), SCST_ATOMIC, cmd);
 		break;
 
 	case TMF_LU_RESET:
 		TRACE(TRACE_MGMT, "%s", "TMF_LU_RESET received");
 		rc = scst_rx_mgmt_fn_lun(sess->scst_sess, SCST_LUN_RESET,
-					 (uint8_t *)&lun, sizeof(lun),
-					 SCST_ATOMIC, cmd);
+					 &lun, sizeof(lun), SCST_ATOMIC, cmd);
 		break;
 
 	case TMF_CLEAR_TASK_SET:
 		TRACE(TRACE_MGMT, "%s", "TMF_CLEAR_TASK_SET received");
 		rc = scst_rx_mgmt_fn_lun(sess->scst_sess, SCST_CLEAR_TASK_SET,
-					 (uint8_t *)&lun, sizeof(lun),
-					 SCST_ATOMIC, cmd);
+					 &lun, sizeof(lun), SCST_ATOMIC, cmd);
 		break;
 
 	case TMF_ABORT_TASK_SET:
 		TRACE(TRACE_MGMT, "%s", "TMF_ABORT_TASK_SET received");
 		rc = scst_rx_mgmt_fn_lun(sess->scst_sess, SCST_ABORT_TASK_SET,
-					 (uint8_t *)&lun, sizeof(lun),
-					 SCST_ATOMIC, cmd);
+					 &lun, sizeof(lun), SCST_ATOMIC, cmd);
 		break;
 
 	case TMF_ABORT_TASK:

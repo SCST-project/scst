@@ -2877,7 +2877,7 @@ static inline int scst_rx_mgmt_fn_tag(struct scst_session *sess, int fn,
  * Obsolete in favor of scst_rx_mgmt_fn()
  */
 static inline int scst_rx_mgmt_fn_lun(struct scst_session *sess, int fn,
-	const uint8_t *lun, int lun_len, int atomic, void *tgt_priv)
+	const void *lun, int lun_len, int atomic, void *tgt_priv)
 {
 	struct scst_rx_mgmt_params params;
 

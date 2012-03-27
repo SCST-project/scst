@@ -1916,35 +1916,30 @@ mpt_handle_task_mgmt(MPT_STM_PRIV *priv, u32 reply_word,
 	case IMM_NTFY_CLEAR_ACA:
 		TRACE(TRACE_MGMT, "%s", "IMM_NTFY_CLEAR_ACA received");
 		rc = scst_rx_mgmt_fn_lun(sess->scst_sess, SCST_CLEAR_ACA,
-					 (uint8_t *)&lun, sizeof(lun),
-					 SCST_ATOMIC, mcmd);
+					 &lun, sizeof(lun), SCST_ATOMIC, mcmd);
 		break;
 	case IMM_NTFY_TARGET_RESET:
 		TRACE(TRACE_MGMT, "%s", "IMM_NTFY_TARGET_RESET received");
 		rc = scst_rx_mgmt_fn_lun(sess->scst_sess, SCST_TARGET_RESET,
-					 (uint8_t *)&lun, sizeof(lun),
-					 SCST_ATOMIC, mcmd);
+					 &lun, sizeof(lun), SCST_ATOMIC, mcmd);
 		break;
 	case IMM_NTFY_LUN_RESET1:
 	case IMM_NTFY_LUN_RESET2:
 		TRACE(TRACE_MGMT, "%s", "IMM_NTFY_LUN_RESET received");
 		rc = scst_rx_mgmt_fn_lun(sess->scst_sess, SCST_LUN_RESET,
-					 (uint8_t *)&lun, sizeof(lun),
-					 SCST_ATOMIC, mcmd);
+					 &lun, sizeof(lun), SCST_ATOMIC, mcmd);
 		break;
 	case IMM_NTFY_CLEAR_TS:
 		TRACE(TRACE_MGMT, "%s", "IMM_NTFY_CLEAR_TS received");
 		rc = scst_rx_mgmt_fn_lun(sess->scst_sess, SCST_CLEAR_TASK_SET,
-					 (uint8_t *)&lun, sizeof(lun),
-					 SCST_ATOMIC, mcmd);
+					 &lun, sizeof(lun), SCST_ATOMIC, mcmd);
 		break;
 
 	case IMM_NTFY_ABORT_TS1:
 	case IMM_NTFY_ABORT_TS2:
 		TRACE(TRACE_MGMT, "%s", "IMM_NTFY_ABORT_TS received");
 		rc = scst_rx_mgmt_fn_lun(sess->scst_sess, SCST_ABORT_TASK_SET,
-					 (uint8_t *)&lun, sizeof(lun),
-					 SCST_ATOMIC, mcmd);
+					 &lun, sizeof(lun), SCST_ATOMIC, mcmd);
 		break;
 
 	default:

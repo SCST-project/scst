@@ -671,26 +671,22 @@ static int process_tsk_mgmt(struct iu_entry *iue)
 		break;
 	case SRP_TSK_ABORT_TASK_SET:
 		ret = scst_rx_mgmt_fn_lun(sess, SCST_ABORT_TASK_SET,
-					  (u8 *) &srp_tsk->lun,
-					  sizeof srp_tsk->lun,
+					  &srp_tsk->lun, sizeof(srp_tsk->lun),
 					  SCST_ATOMIC, mgmt_ctx);
 		break;
 	case SRP_TSK_CLEAR_TASK_SET:
 		ret = scst_rx_mgmt_fn_lun(sess, SCST_CLEAR_TASK_SET,
-					  (u8 *) &srp_tsk->lun,
-					  sizeof srp_tsk->lun,
+					  &srp_tsk->lun, sizeof(srp_tsk->lun),
 					  SCST_ATOMIC, mgmt_ctx);
 		break;
 	case SRP_TSK_LUN_RESET:
 		ret = scst_rx_mgmt_fn_lun(sess, SCST_LUN_RESET,
-					  (u8 *) &srp_tsk->lun,
-					  sizeof srp_tsk->lun,
+					  &srp_tsk->lun, sizeof(srp_tsk->lun),
 					  SCST_ATOMIC, mgmt_ctx);
 		break;
 	case SRP_TSK_CLEAR_ACA:
 		ret = scst_rx_mgmt_fn_lun(sess, SCST_CLEAR_ACA,
-					  (u8 *) &srp_tsk->lun,
-					  sizeof srp_tsk->lun,
+					  &srp_tsk->lun, sizeof(srp_tsk->lun),
 					  SCST_ATOMIC, mgmt_ctx);
 		break;
 	default:
