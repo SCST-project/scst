@@ -1209,11 +1209,11 @@ void sgv_pool_free(struct sgv_pool_obj *obj, struct scst_mem_lim *mem_lim)
 			int len = sg[i].length;
 			int pages = PAGE_ALIGN(len) >> PAGE_SHIFT;
 			while (pages > 0) {
-				if (atomic_read(&p->_count) != 1) {
+				if (page_count(p) != 1) {
 					PRINT_WARNING("Freeing page %p with "
 						"additional owners (_count %d). "
 						"Data corruption possible!",
-						p, atomic_read(&p->_count));
+						p, page_count(p));
 					WARN_ON(1);
 				}
 				pages--;
