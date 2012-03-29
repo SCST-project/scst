@@ -1471,6 +1471,45 @@ Note, on some real-life workloads write through caching might perform
 better, than write back one with the barrier protection turned on.
 
 
+Errors caching
+..............
+
+When using virtual device in FILEIO mode, the Linux page cache comes
+into picture. The negative side of it is that it's sometimes also
+caching errored pages. That is, if the underlying file experiences IO
+errors, those errors might be cached by the Linux page cache. As a
+result, even when the underlying file recovers and stops failing IOs,
+the initiator may still hit IO errors returned by the Linux page cache,
+until the cache re-reads the errored pages (usually it happens pretty
+soon, but not immediately). To make sure that cached pages are dropped,
+one of the following can be done:
+
+- Detach the SCSI virtual device (del_device) and re-attach it
+  (add_device). This should evict all the cached pages, unless somebody
+  else holds the same "filename" opened.
+
+- Issue a BLKFLSBUF ioctl to the same "filename" you provided for "add_device".
+
+For the second option, a rudimentary C code is required:
+
+fd = open(filename, O_RDWR);
+if (fd < 0) {
+    err = errno;
+    ...
+}
+else {
+   err = ioctl(fd, BLKFLSBUF);
+   if (err < 0) {
+       err = errno;
+       ...
+   }
+   close(fd);
+}
+
+Patch to implement a sysfs entry for the FILEIO handler to accomplish
+the above is welcome.
+
+
 BLOCKIO VDISK mode
 ------------------
 
