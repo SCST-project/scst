@@ -1,0 +1,355 @@
+#!/bin/bash
+#
+#
+# 	SCSTTarget OCF RA. Exports and manages iSCSI SCST targets.
+#
+#   (c) 2012 Riccardo Bicelli
+#                 and Linux-HA contributors
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+#######################################################################
+# Initialization:
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Set portal to none by default
+OCF_RESKEY_portals_default="none"
+: ${OCF_RESKEY_portals=${OCF_RESKEY_portals_default}}
+
+
+# Lockfile, used for selecting a target ID
+LOCKFILE=${HA_RSCTMP}/SCSTTarget-${OCF_RESKEY_implementation}.lock
+ISCSI_DAEMON="/usr/local/sbin/iscsi-scstd"
+SYSFS_PATH="/sys/kernel/scst_tgt/targets/iscsi"
+SCST_BASE="/sys/kernel/scst_tgt"
+ISCSI_BASE="${SCST_BASE}/targets/iscsi"
+#######################################################################
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="SCSTTarget" version="0.1">
+<version>1.0</version>
+
+<longdesc lang="en">
+Manages SCST iSCSI targets. An iSCSI target is a collection of SCSI Logical
+Units (LUs) exported via a daemon that speaks the iSCSI protocol.
+</longdesc>
+<shortdesc lang="en">SCST iSCSI target export agent</shortdesc>
+
+<parameters>
+
+<parameter name="iqn" required="1" unique="1">
+<longdesc lang="en">
+The target iSCSI Qualified Name (IQN). Should follow the conventional
+"iqn.yyyy-mm.&lt;reversed domain name&gt;[:identifier]" syntax.
+</longdesc>
+<shortdesc lang="en">iSCSI target IQN</shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="portals" required="0" unique="0">
+<longdesc lang="en">
+iSCSI network portal addresses. Not supported by all
+implementations. If unset, the default is to create one portal that
+listens on all IP addresses.
+</longdesc>
+<shortdesc lang="en">iSCSI portal addresses</shortdesc>
+<content type="string" default="${OCF_RESKEY_portals_default}"/>
+</parameter>
+
+<parameter name="allowed_initiators" required="0" unique="0">
+<longdesc lang="en">
+TODO: Allowed initiators. A space-separated list of initiators allowed to
+connect to this target. Initiators may be listed in any syntax
+the target implementation allows. If this parameter is empty or
+not set, access to this target will be allowed from any initiator.
+</longdesc>
+<shortdesc lang="en">TODO: List of iSCSI initiators allowed to connect
+to this target</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
+<parameter name="incoming_username" required="0" unique="1">
+<longdesc lang="en">
+A username used for incoming initiator authentication. If unspecified,
+allowed initiators will be able to log in without authentication.
+</longdesc>
+<shortdesc lang="en">Incoming account username</shortdesc>
+<content type="string"/>
+</parameter>
+
+<parameter name="incoming_password" required="0" unique="0">
+<longdesc lang="en">
+A password used for incoming initiator authentication.
+</longdesc>
+<shortdesc lang="en">Incoming account password</shortdesc>
+<content type="string"/>
+</parameter>
+
+<parameter name="additional_parameters" required="0" unique="0">
+<longdesc lang="en">
+Additional target parameters. A space-separated list of "name=value"
+pairs which will be passed through to the iSCSI daemon's management
+interface. The supported parameters are implementation
+dependent. Neither the name nor the value may contain whitespace.
+</longdesc>
+<shortdesc lang="en">List of iSCSI target parameters</shortdesc>
+<content type="string" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"        timeout="10" />
+<action name="stop"         timeout="180" />
+<action name="status "      timeout="10" interval="10" depth="0" />
+<action name="monitor"      timeout="10" interval="10" depth="0" />
+<action name="meta-data"    timeout="5" />
+<action name="validate-all"   timeout="10" />
+</actions>
+</resource-agent>
+END
+}
+
+
+l_load_module () {
+	n=`lsmod | grep -c "^$1 "`
+	if [ $n -gt 0 ];
+	then
+		return 0
+	else
+		modprobe $1> /dev/null 2>&1 || return 1
+		return 0
+	fi
+}
+
+l_start_service () {
+		local running		
+		
+		# Handler modules are loaded in LUN resource agent
+		
+		# Check if modules are loaded
+		if [ ! -d ${SYSFS_PATH} ]; then
+			ocf_log info "Loading scst Modules"
+			l_load_module scst || return 1
+			l_load_module iscsi_scst || return 1
+
+			#Not critical modules, not unloaded on stop.		
+			l_load_module crc32c				
+			l_load_module crc32c_intel
+		fi
+		
+		# Start Daemon
+		if [ ! "$(pidof ${ISCSI_DAEMON})" ]; then
+			ocf_run $ISCSI_DAEMON || return 1
+			ocf_run scstadmin -force -noprompt -clear_config >/dev/null 2>&1
+		fi
+		return 0
+}
+
+l_stop_service () {
+	#Stop SCST Services, if there are no targets active.
+	local TARGET_NOT_PRESENT=true
+
+	#Are there targets active?
+	for i in $( ls "${ISCSI_BASE}" ) ; do
+	if [ -d "${ISCSI_BASE}/${i}" ]; then
+		ocf_log warn "Found target running: ${i}"
+		TARGET_NOT_PRESENT=false
+	fi
+	done
+	
+	#Close sessions
+	for i in `/bin/ls ${ISCSI_BASE}/${OCF_RESKEY_iqn}/sessions`; do
+		ocf_log warn "Force closing session to initiator ${i}"
+        	echo "1" > "${ISCSI_BASE}/${OCF_RESKEY_iqn}/sessions/${i}/force_close"
+    	done
+
+	#Stop process and unload modules
+	if $TARGET_NOT_PRESENT ; then
+		ocf_log warn "Daemon not required, stopping ..."		
+		pkill -TERM -f $ISCSI_DAEMON	
+		rmmod iscsi_scst
+		rmmod scst
+	fi
+}
+
+SCSTTarget_usage() {
+	cat <<END
+usage: $0 {start|stop|status|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+SCSTTarget_start() {
+    SCSTTarget_monitor
+    if [ $? =  $OCF_SUCCESS ]; then
+	return $OCF_SUCCESS
+    fi
+
+    local param
+    local name
+    local value
+    local initiator
+		
+		# Start Service
+		l_start_service		
+		# Set incoming username and password globally
+		if [ "${OCF_RESKEY_incoming_username}" != "" ]; then
+			echo "add_attribute IncomingUser ${OCF_RESKEY_incoming_username} ${OCF_RESKEY_incoming_password}" > ${ISCSI_BASE}/mgmt
+			if [ $? -ne 0 ]; then
+				ocf_log warn "Unable to set CHAP Authentication!"
+			fi
+		fi
+		
+		ocf_log info "target ${OCF_RESKEY_iqn}: Starting..."
+
+		# Create Target
+		echo "add_target ${OCF_RESKEY_iqn}" > ${ISCSI_BASE}/mgmt || exit $OCF_ERR_GENERIC
+		
+		# Set Allowed Portals
+		if [ "${OCF_RESKEY_portals}" != "none" ]; then				
+			for param in ${OCF_RESKEY_portals}; do
+			ocf_log info "Adding allowed portal ${param} to target ${OCF_RESKEY_iqn}"			
+			echo "add_target_attribute ${OCF_RESKEY_iqn} allowed_portal ${param}" > ${ISCSI_BASE}/mgmt
+			if [ $? -ne 0 ]; then
+				ocf_log warn "Unable to set Allowed Portal!"
+			fi
+	  		done			
+		fi
+
+		# Set incoming username and password
+		if [ "${OCF_RESKEY_incoming_username}" != "" ]; then				
+			echo "add_target_attribute ${OCF_RESKEY_iqn} IncomingUser ${OCF_RESKEY_incoming_username} ${OCF_RESKEY_incoming_password}" > ${ISCSI_BASE}/mgmt			
+			if [ $? -ne 0 ]; then
+				ocf_log warn "Unable to set CHAP Authentication!"
+			fi			
+		fi
+		
+		ocf_log info "Enabling target ${OCF_RESKEY_iqn}"	
+		# Enable iSCSI Target
+		echo 1 > "${ISCSI_BASE}/enabled" || exit $OCF_ERR_GENERIC		
+		
+		ocf_log debug "SCST target ${OCF_RESKEY_iqn}: Started."
+		
+		#Debugging purpose
+		#scstadmin -write_config /tmp/scst.conf.start	
+    return $OCF_SUCCESS
+}
+
+SCSTTarget_stop() {
+    SCSTTarget_monitor
+
+    if [ $? =  $OCF_SUCCESS ]; then
+	local param	
+	ocf_log info "target ${OCF_RESKEY_iqn}: Stopping..."
+	
+	# Check if there are connected luns
+    	for i in $( ls "${ISCSI_BASE}/${OCF_RESKEY_iqn}/luns" ) ; do
+    		if [ -d "${ISCSI_BASE}/${OCF_RESKEY_iqn}/luns/${i}" ]; then
+		ocf_log err "Unable to stop target ${OCF_RESKEY_iqn}: lun ${i} connected!"
+		exit $OCF_ERR_GENERIC
+    		fi
+    	done
+	
+	# Disable Target
+	ocf_log info "disabling target ${OCF_RESKEY_iqn}"
+	echo 0 > ${ISCSI_BASE}/${OCF_RESKEY_iqn}/enabled || exit $OCF_ERR_GENERIC
+		
+	#Remove Target
+	ocf_log info "deleting target ${OCF_RESKEY_iqn}"
+	echo "del_target ${OCF_RESKEY_iqn}" > ${ISCSI_BASE}/mgmt
+	if [ $? -ne 0 ]; then
+		ocf_log err "Unable to delete Target ${OCF_RESKY_iqn}"
+		exit $OCF_ERR_GENERIC
+	fi
+	#Debugging purpose
+	#scstadmin -write_config /tmp/scst.conf.stop	
+	
+	#Check if other targets are running, then stop service and unload modules		
+	l_stop_service
+	ocf_log info "target ${OCF_RESKEY_iqn}: Stopped."
+    fi
+    	
+    return $OCF_SUCCESS
+}
+
+SCSTTarget_monitor() {
+	if [ -d "${SYSFS_PATH}/${OCF_RESKEY_iqn}" ]; then	 
+		return $OCF_SUCCESS
+	else    	
+		return $OCF_NOT_RUNNING
+	fi
+}
+
+SCSTTarget_validate() {
+    # Do we have all required variables?
+    local required_vars
+	    required_vars="iqn"
+    for var in ${required_vars}; do
+	param="OCF_RESKEY_${var}"
+	if [ -z "${!param}" ]; then
+	    ocf_log error "Missing resource parameter \"$var\"!"
+	    exit $OCF_ERR_CONFIGURED
+	fi
+    done
+
+    if ! ocf_is_probe; then
+		check_binary scstadmin
+    fi    
+
+    return $OCF_SUCCESS
+}
+
+
+case $1 in
+  meta-data)
+	meta_data
+	exit $OCF_SUCCESS
+	;;
+  usage|help)
+	SCSTTarget_usage
+	exit $OCF_SUCCESS
+	;;
+esac
+
+# Everything except usage and meta-data must pass the validate test
+SCSTTarget_validate
+
+case $__OCF_ACTION in
+start)		SCSTTarget_start;;
+stop)		SCSTTarget_stop;;
+monitor|status)	SCSTTarget_monitor;;
+#reload)		ocf_log err "Reloading..."
+#	        SCSTTarget_start
+#		;;
+validate-all)	;;
+*)		SCSTTarget_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc

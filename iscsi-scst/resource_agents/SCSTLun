@@ -1,0 +1,406 @@
+#!/bin/bash
+#
+#
+#  SCSTLun OCF RA. Exports and manages SCST iSCSI Logical Units.
+#
+#   (c) 2012 Riccardo Bicelli
+#		and Linux-HA contributors
+#
+#   Based on ISCSILogicalUnit from Florian Haas, Dejan Muhamedagic,
+#                 
+#				  
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of version 2 of the GNU General Public License as
+# published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it would be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+# Further, this software is distributed without any warranty that it is
+# free of the rightful claim of any third person regarding infringement
+# or the like.  Any license provided herein, whether implied or
+# otherwise, applies only to this software file.  Patent licenses, if
+# any, provided herein do not apply to combinations of this program with
+# other software, or any other product whatsoever.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write the Free Software Foundation,
+# Inc., 59 Temple Place - Suite 330, Boston MA 02111-1307, USA.
+#
+
+#######################################################################
+# Initialization:
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+# Defaults
+
+# Use a default SCSI ID and SCSI SN that is unique across the cluster,
+# and persistent in the event of resource migration.
+# SCSI IDs are limited to 24 bytes, but only 16 bytes are known to be
+# supported by all iSCSI implementations this RA cares about. Thus,
+# for a default, use the first 16 characters of
+# $OCF_RESOURCE_INSTANCE.
+OCF_RESKEY_scsi_id_default="${OCF_RESOURCE_INSTANCE:0:16}"
+: ${OCF_RESKEY_scsi_id=${OCF_RESKEY_scsi_id_default}}
+# To have a reasonably unique default SCSI SN, use the first 8 bytes
+# of an MD5 hash of of $OCF_RESOURCE_INSTANCE
+sn=`echo -n "${OCF_RESOURCE_INSTANCE}" | openssl md5`
+OCF_RESKEY_scsi_sn_default=${sn:0:8}
+: ${OCF_RESKEY_scsi_sn=${OCF_RESKEY_scsi_sn_default}}
+#######################################################################
+
+meta_data() {
+	cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="SCSTLun" version="0.1">
+<version>1.0</version>
+
+<longdesc lang="en">
+Manages SCST iSCSI Logical Unit. An iSCSI Logical unit is a subdivision of 
+an SCSI Target, exported via a daemon that speaks the iSCSI protocol.
+</longdesc>
+<shortdesc lang="en">Manages iSCSI Logical Units (LUs)</shortdesc>
+
+<parameters>
+
+<parameter name="target_iqn" required="1" unique="0">
+<longdesc lang="en">
+The iSCSI Qualified Name (IQN) that this Logical Unit belongs to.
+</longdesc>
+<shortdesc lang="en">iSCSI target IQN</shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="device_name" required="1" unique="0">
+<longdesc lang="en">
+Device Name assigned in SCST. When using vdisk handlers it could be an
+arbitrary name. When using other handlers (such as dev_tape or dev_changer) it
+must be a pointer to device in form H:C:I:L.
+</longdesc>
+<shortdesc lang="en">Device Name Assigned in SCST</shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="lun" required="1" unique="0">
+<longdesc lang="en">
+The Logical Unit number (LUN) exposed to initiators.
+</longdesc>
+<shortdesc lang="en">Logical Unit number (LUN)</shortdesc>
+<content type="integer" />
+</parameter>
+
+<parameter name="handler" required="0" unique="0">
+<longdesc lang="en">
+The handler used (vdisk_blockio, vdisk_fileio, dev_tape ...).</longdesc>
+<shortdesc lang="en">Handler used</shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="scsi_id" required="1" unique="0">
+<longdesc lang="en">
+The t10 device ID of LUN. If not specified default SCST value will be used.
+Please note that some initiators, like ESXi, are using only some of the first 
+characters to identify LUN, like 4-6 chars.
+</longdesc>
+<shortdesc lang="en">t10 device id</shortdesc>
+<content type="integer" />
+</parameter>
+
+<parameter name="scsi_sn" required="1" unique="0">
+<longdesc lang="en">
+SCSI Serial Number
+</longdesc>
+<shortdesc lang="en">SCSI sn</shortdesc>
+<content type="integer" />
+</parameter>
+
+
+<parameter name="path" required="0" unique="0">
+<longdesc lang="en">
+The path to the block device exposed. A regular file is allowed too.
+</longdesc>
+<shortdesc lang="en">Block device (or file) path</shortdesc>
+<content type="string" />
+</parameter>
+
+<parameter name="additional_parameters" required="0" unique="0">
+<longdesc lang="en">
+Additional LU parameters. A space-separated list of "name=value" pairs
+which will be passed through to the iSCSI daemon's management
+interface. The supported parameters are implementation
+dependent. Neither the name nor the value may contain whitespace.
+</longdesc>
+<shortdesc lang="en">List of iSCSI LU parameters</shortdesc>
+<content type="string" />
+</parameter>
+
+</parameters>
+
+<actions>
+<action name="start"        timeout="15" />
+<action name="stop"         timeout="180" />
+<action name="status"       timeout="10" interval="10" depth="0" />
+<action name="monitor"      timeout="10" interval="10" depth="0" />
+<action name="meta-data"    timeout="5" />
+<action name="validate-all"   timeout="10" />
+</actions>
+</resource-agent>
+END
+}
+
+# Initialization ######################################################
+SYSFS_ROOTPATH="/sys/kernel/scst_tgt"
+SYSFS_PATH="/sys/kernel/scst_tgt/targets/iscsi"
+l_module=""
+SCST_BASE="/sys/kernel/scst_tgt"
+ISCSI_BASE="${SCST_BASE}/targets/iscsi"
+#######################################################################
+
+l_load_module () {
+	n=`lsmod | grep -c "^$1 "`
+	if [ $n -gt 0 ];
+	then
+		return 0
+	else
+		ocf_log info "Loading Kernel Module ${1}"
+		modprobe $1> /dev/null 2>&1 || return 1
+		return 0
+	fi
+}
+
+l_check_module () {
+	case "${OCF_RESKEY_handler}" in
+                dev_cdrom)      l_module=scst_cdrom;;
+                dev_changer)    l_module=scst_changer;;
+                dev_disk*)      l_module=scst_disk;;
+                dev_modisk*)    l_module=scst_modisk;;
+                dev_processor)  l_module=scst_processor;;
+                dev_raid)       l_module=scst_raid;;
+                dev_tape*)      l_module=scst_tape;;
+                dev_user)       l_module=scst_user;;
+                vdisk*|vcdrom)  l_module=scst_vdisk;;
+                *)              l_module=none;;
+        esac
+}
+
+l_start_handler () {
+	#Check Handler, then load module	
+	l_check_module
+	l_load_module $l_module
+}
+
+l_stop_handler () {
+	local HANDLER_NOT_REQUIRED=true;
+	#Check if handler is used for other devices, then unload module.
+	
+	for i in $( ls "${SYSFS_ROOTPATH}/handlers/${OCF_RESKEY_handler}" ) ; do
+	if [ -d ${SYSFS_ROOTPATH}/handlers/${OCF_RESKEY_handler}/${i} ]; then
+		HANDLER_NOT_REQUIRED=false
+		break
+	fi
+	done
+	
+	if $HANDLER_NOT_REQUIRED ; then
+		ocf_log info "Handler ${OCF_RESKEY_handler} not required, unloading kernel module"
+		l_check_module		
+		rmmod $l_module
+		return $?
+	fi
+	return 0	
+}
+
+SCSTLun_usage() {
+	cat <<END
+usage: $0 {start|stop|status|monitor|validate-all|meta-data}
+
+Expects to have a fully populated OCF RA-compliant environment set.
+END
+}
+
+SCSTLun_start() {
+    SCSTLun_monitor
+    if [ $? =  $OCF_SUCCESS ]; then
+	return $OCF_SUCCESS
+    fi
+
+    local params	
+	if [ ! ${OCF_RESKEY_path} == "" ]; then
+		params="filename=${OCF_RESKEY_path}"
+	fi	    
+	if [ ! ${OCF_RESKEY_additional_parameters} == "" ]; then	
+		params="${params} ${OCF_RESKEY_additional_parameters}"
+	fi
+	
+	ocf_log info "Disabling target ${OCF_RESKEY_target_iqn}"
+	echo 0 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/enabled"    	
+	
+	ocf_log info "Starting lun ${OCF_RESKEY_lun} on target ${OCF_RESKEY_target_iqn}"
+	# Load Handler Modules
+	l_start_handler #|| exit $OCF_ERR_GENERIC
+		
+	# Open Device
+	ocf_log info "Opening device ${OCF_RESKEY_device_name}, target ${OCF_RESKEY_target_iqn}"
+	echo "add_device ${OCF_RESKEY_device_name} ${params// /;}" > "${SCST_BASE}/handlers/${OCF_RESKEY_handler}/mgmt"	
+		 if [ $? -ne 0 ]; then
+			ocf_log err "FAILED to open device ${OCF_RESKEY_device_name}"
+			return $OCF_ERR_GENERIC
+		 fi
+	
+	# Set SCSI SN and t10 dev id
+	if [ ! ${OCF_RESKEY_scsi_sn} == "" ]; then
+		ocf_log info "Setting SCSI S/N ${OCF_RESKEY_scsi_sn}"
+		
+		echo "${OCF_RESKEY_scsi_sn}" > "${SCST_BASE}/devices/${OCF_RESKEY_device_name}/usn"
+		if [ $? -ne 0 ]; then
+			ocf_log warn "FAILED to set SCSI S/N!"
+		fi 
+			
+		if [ ! ${OCF_RESKEY_scsi_id} == "" ]; then
+			ocf_log info "Setting SCSI ID ${OCF_RESKEY_scsi_sn}-${OCF_RESKEY_scsi_id}"
+			echo "${OCF_RESKEY_scsi_sn}-${OCF_RESKEY_scsi_id}" > "${SCST_BASE}/devices/${OCF_RESKEY_device_name}/t10_dev_id"
+			if [ $? -ne 0 ]; then
+				ocf_log warn "FAILED to set SCSI ID!"
+		 	fi 
+		fi
+
+	fi	
+	
+	# Assign Device to the Target
+	ocf_log info "Adding LUN ${OCF_RESKEY_lun}, device ${OCF_RESKEY_device_name}, target ${OCF_RESKEY_target_iqn}"
+	echo "add ${OCF_RESKEY_device_name} ${OCF_RESKEY_lun}" > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/luns/mgmt"
+		 if [ $? -ne 0 ]; then
+			ocf_log err "FAILED to add lun ${OCF_RESKEY_lun}"
+			return $OCF_ERR_GENERIC
+		 fi
+	
+	#Enable target
+	ocf_log info "Enabling target ${OCF_RESKEY_target_iqn}"
+	echo 1 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/enabled"
+	
+	ocf_log info "Started lun ${OCF_RESKEY_lun} on target ${OCF_RESKEY_target_iqn}"
+
+	#Debugging purpose
+	#scstadmin -write_config /tmp/scst.conf.start
+    return $OCF_SUCCESS
+}
+
+SCSTLun_stop() {
+    SCSTLun_monitor
+    if [ $? =  $OCF_SUCCESS ]; then
+	ocf_log info "Stopping lun ${OCF_RESKEY_lun} on target ${OCF_RESKEY_target_iqn}"
+	# Disable Target
+	
+	ocf_log info "Disabling target ${OCF_RESKEY_target_iqn}"
+	echo 0 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/enabled"
+
+        # Drop connections
+        for i in $( ls "${SYSFS_PATH}/${OCF_RESKEY_target_iqn}/sessions" ) ; do
+                ocf_log warn "Force closing session to initiator ${i}"
+                echo 1 > "${SYSFS_PATH}/${OCF_RESKEY_target_iqn}/sessions/${i}/force_close"
+        done
+        
+	ocf_log info "Removing LUN ${OCF_RESKEY_lun}, device ${OCF_RESKEY_device_name}, target ${OCF_RESKEY_target_iqn}"
+	echo "del ${OCF_RESKEY_lun}" >${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/luns/mgmt
+	if [ $? -ne 0 ]; then
+		ocf_log err "FAILED to remove LUN ${OCF_RESKEY_lun} from target ${OCF_RESKEY_target_iqn}"
+		#return $OCF_ERR_GENERIC	
+		#Don't exit, try to remove device anyway.
+	fi
+
+        #Close Device
+	ocf_log info "Closing device ${OCF_RESKEY_device_name}"
+	echo "del_device ${OCF_RESKEY_device_name}" > "${SCST_BASE}/handlers/vdisk_fileio/mgmt"
+	if [ $? -ne 0 ]; then
+		ocf_log err "FAILED to remove device ${OCF_RESKEY_device_name}"
+		return $OCF_ERR_GENERIC
+	fi        
+
+        # Enable Target
+	ocf_log info "Enabling target ${OCF_RESKEY_target_iqn}"
+	echo 1 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/enabled"
+	
+	
+	#Debugging purpose
+	#scstadmin -write_config /tmp/scst.conf.stop
+        
+	#Stop Handler
+        l_stop_handler || exit $OCF_ERR_GENERIC
+    fi
+    
+    return $OCF_SUCCESS
+}
+
+SCSTLun_monitor() {
+    #Check if underlying device is configured
+    if [ -e "${SCST_BASE}/handlers/${OCF_RESKEY_handler}/${OCF_RESKEY_device_name}" ]; then
+       return $OCF_SUCCESS
+    fi
+	
+    # Check if lun is running.
+    if [ -e "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/luns/${OCF_RESKEY_lun}" ]; then
+	return $OCF_SUCCESS
+    fi
+
+    return $OCF_NOT_RUNNING
+}
+
+SCSTLun_validate() {
+    # Do we have all required variables?
+    # TODO: make this check more precise considering handler used!
+    
+    for var in target_iqn lun device_name handler; do
+	param="OCF_RESKEY_${var}"
+	if [ -z "${!param}" ]; then
+	    ocf_log error "Missing resource parameter \"$var\"!"
+	    exit $OCF_ERR_CONFIGURED
+	fi
+    done
+
+    if ! ocf_is_probe; then
+    # Do we have all required binaries?
+	check_binary scstadmin
+        
+	# Is the required kernel functionality available?
+	if [ ! -d ${SCST_BASE} ]; then
+		    ocf_log err "${SCST_BASE} does not exist or is not a directory -- check if required modules are loaded."
+		    exit $OCF_ERR_INSTALLED
+	fi
+    fi
+
+    return $OCF_SUCCESS
+}
+
+
+case $1 in
+  meta-data)
+	meta_data
+	exit $OCF_SUCCESS
+	;;
+  usage|help)
+	SCSTLun_usage
+	exit $OCF_SUCCESS
+	;;
+esac
+
+# Everything except usage and meta-data must pass the validate test
+SCSTLun_validate
+
+case $__OCF_ACTION in
+start)		SCSTLun_start;;
+stop)		SCSTLun_stop;;
+monitor|status)	SCSTLun_monitor;;
+#reload)		ocf_log err "Reloading..."
+#	        SCSTLun_start
+#		;;
+validate-all)	;;
+*)		SCSTLun_usage
+		exit $OCF_ERR_UNIMPLEMENTED
+		;;
+esac
+rc=$?
+ocf_log info "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc

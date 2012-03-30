@@ -1,0 +1,62 @@
+SCST ISCSI Resource Agents
+Version 1.0
+
+(c) 2012 Riccardo Bicelli (r.bicelli@gmail.com)
+	and Linux HA Contributors
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of version 2 of the GNU General Public License as
+published by the Free Software Foundation.
+
+If you find this program useful or if you modify it, please write me a
+mail.
+
+INSTALLATION
+
+Place files SCSTTarget and SCSTLun into pacemaker ocf directory (usually 
+/usr/lib/ocf/resource.d or /usr/lib64/ocf/resource.d)
+
+
+
+EXAMPLE OF USAGE
+
+Assumptions: 
+- you are using DRBD as backing device (/dev/drbd1)
+- your target iqn is iqn.2012-02.com.mysuperhasan:vdisk.lun
+- your nic reserved for iscsi is eth2 and your iscsi subnet is 192.168.103.x
+
+This is what your resource configuration in cib notation will look like:
+
+primitive DRBD_VOLUME ocf:linbit:drbd \
+	params drbd_resource="DRBDRESOURCE" \
+	op monitor interval="29" role="Master" \
+	op monitor interval="31" role="Slave"
+primitive ISCSI_IP ocf:heartbeat:IPaddr2 \
+	params ip="192.168.103.20" cidr_netmask="24" nic="eth2" \
+	op monitor interval="10s"
+primitive ISCSI_LUN ocf:scst:SCSTLun \
+	params target_iqn="iqn.2012-02.com.mysuperhasan:vdisk.lun" lun="0" \
+	path="/dev/drbd1" handler="vdisk_fileio" device_name="VDISK-LUN10" \ 		
+	additional_parameters="nv_cache=1" \
+	op monitor interval="10s" timeout="120s"
+primitive ISCSI_TGT ocf:scst:SCSTTarget \
+	params iqn="iqn.2012-02.com.mysuperhasan:vdisk.lun" \
+	portals="192.168.103.20" \
+	op monitor interval="10s" timeout="120s"
+group GR_ISCSI ISCSI_TGT ISCSI_LUN ISCSI_IP
+ms MS_DRBD_VOLUME DRBD_VOLUME \
+	meta master-max="1" master-node-max="1" clone-max="2" \
+	clone-node-max="1" notify="true"
+colocation CO_ISCSI_ON_DRBD_VOLUME inf: GR_ISCSI MS_DRBD_VOLUME:Master
+order OR_DRBD_BEFORE_ISCSI inf: MS_DRBD_VOLUME:promote GR_ISCSI:start
+
+
+
+CURRENT LIMITATIONS
+
+Scripts are tested only with straight drbd or lvm over drbd as backing device, 
+using vdisk_fileio, with one lun per target.
+
+CHAP authentication is configurable, but not yet tested. My current version of SCST
+throws an error while adding chap parameters.
+
