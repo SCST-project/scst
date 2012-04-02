@@ -380,8 +380,6 @@ static int ft_send_xfer_rdy_off(struct scst_cmd *cmd, u32 offset, u32 len)
 	struct fc_exch *ep;
 
 	fcmd = scst_cmd_get_tgt_priv(cmd);
-	if (fcmd->xfer_rdy_len < len + offset)
-		fcmd->xfer_rdy_len = len + offset;
 
 	ep = fc_seq_exch(fcmd->seq);
 	lport = ep->lp;
