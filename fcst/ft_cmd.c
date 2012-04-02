@@ -345,13 +345,27 @@ static void ft_recv_seq(struct fc_seq *sp, struct fc_frame *fp, void *arg)
 	}
 }
 
+static void ft_abort_cmd(struct scst_cmd *cmd, enum scst_exec_context context)
+{
+	scst_data_direction dir;
+
+	dir = scst_cmd_get_data_direction(cmd);
+	if (dir & SCST_DATA_WRITE)
+		scst_rx_data(cmd, SCST_RX_STATUS_ERROR, context);
+	if (dir & SCST_DATA_READ) {
+		scst_set_delivery_status(cmd, SCST_CMD_DELIVERY_ABORTED);
+		scst_tgt_cmd_done(cmd, context);
+	}
+}
+
 /*
  * Command timeout.
  * SCST calls this when the command has taken too long in the device handler.
  */
 void ft_cmd_timeout(struct scst_cmd *cmd)
 {
-	FT_IO_DBG("timeout not implemented\n");	/* XXX TBD */
+	FT_IO_DBG("%p: timeout\n", cmd);
+	ft_abort_cmd(cmd, SCST_CONTEXT_DIRECT);
 }
 
 /*
