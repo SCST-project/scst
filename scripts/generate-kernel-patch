@@ -409,22 +409,6 @@ done \
   do
     add_file "${f}" "drivers/scst/fcst/${f#fcst/}"
   done
-
-  cat <<EOF
-diff --git a/include/scsi/libfc.h b/include/scsi/libfc.h
-index 8f9dfba..efbfe19 100644
---- a/include/scsi/libfc.h
-+++ b/include/scsi/libfc.h
-@@ -902,7 +902,7 @@ struct fc_lport {
- 	struct mutex                   lp_mutex;
- 	struct list_head               list;
- 	struct delayed_work	       retry_work;
--	void			       *prov[FC_FC4_PROV_SIZE];
-+	void			 __rcu *prov[FC_FC4_PROV_SIZE];
- 	struct list_head               lport_list;
- };
- 
-EOF
 } \
 | process_patch "fcst.diff"
 
