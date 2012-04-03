@@ -259,6 +259,30 @@ TARGET_DRIVER ib_srpt {
 .br
 }
 .IP
+TARGET_DRIVER fcst {
+.br
+	TARGET 20:00:00:22:15:81:74:2b {
+.br
+		enabled 1
+.IP
+		LUN 0 disk1
+.br
+		LUN 1 disk2
+.br
+	}
+.IP
+	TARGET 20:00:00:22:15:81:87:f9 {
+.br
+		enabled 1
+.IP
+		LUN 0 disk1
+.br
+		LUN 1 disk2
+.br
+	}
+.br
+}
+.IP
 DEVICE_GROUP dgroup1 {
 .br
 	DEVICE disk1
