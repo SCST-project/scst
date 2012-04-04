@@ -123,8 +123,9 @@
 #define ___unlikely(a)		unlikely(a)
 #endif
 
-int debug_print_with_prefix(unsigned long trace_flag, const char *severity,
-	const char *prefix, const char *func, int line, const char *fmt, ...);
+int __printf(6, 7) debug_print_with_prefix(unsigned long trace_flag,
+	const char *severity, const char *prefix, const char *func, int line,
+	const char *fmt, ...);
 void debug_print_buffer(const void *data, int len);
 const char *debug_transport_id_to_initiator_name(const uint8_t *transport_id);
 
