@@ -342,7 +342,7 @@ if [ "$include_proc_impl" != "true" ]; then
 else
   cat
 fi | \
-if [ "${include_fcst}" ]; then
+if [ "${include_fcst}" -a "${kver}" != "2.6.37" -a "${kver}" != "2.6.38" ]; then
   cat
 else
   sed -e 's: fcst/* : :'
