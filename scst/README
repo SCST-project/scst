@@ -1496,8 +1496,7 @@ fd = open(filename, O_RDWR);
 if (fd < 0) {
     err = errno;
     ...
-}
-else {
+} else {
    err = ioctl(fd, BLKFLSBUF);
    if (err < 0) {
        err = errno;
@@ -1505,9 +1504,6 @@ else {
    }
    close(fd);
 }
-
-Patch to implement a sysfs entry for the FILEIO handler to accomplish
-the above is welcome.
 
 
 BLOCKIO VDISK mode
