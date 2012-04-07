@@ -272,14 +272,12 @@ struct srpt_send_ioctx {
  *                    been sent and waiting for DREP or channel is being closed
  *                    for another reason.
  * @CH_DRAINING:      QP is in ERR state.
- * @CH_FREEING:       QP resources are being freed.
  */
 enum rdma_ch_state {
 	CH_CONNECTING,
 	CH_LIVE,
 	CH_DISCONNECTING,
 	CH_DRAINING,
-	CH_FREEING,
 };
 
 /**

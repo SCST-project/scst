@@ -153,7 +153,6 @@ static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 				    struct srpt_send_ioctx *ioctx);
 static void srpt_drain_channel(struct ib_cm_id *cm_id);
 static void srpt_destroy_ch_ib(struct srpt_rdma_ch *ch);
-static void srpt_free_ch(struct scst_session *sess);
 
 static enum rdma_ch_state srpt_set_ch_state_to_disc(struct srpt_rdma_ch *ch)
 {
@@ -351,8 +350,6 @@ static const char *get_ch_state_name(enum rdma_ch_state s)
 		return "disconnecting";
 	case CH_DRAINING:
 		return "draining";
-	case CH_FREEING:
-		return "freeing";
 	}
 	return "???";
 }
@@ -2002,13 +1999,14 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 static int srpt_compl_thread(void *arg)
 {
 	struct srpt_rdma_ch *ch;
+	struct srpt_device *sdev;
 
 	/* Hibernation / freezing of the SRPT kernel thread is not supported. */
 	current->flags |= PF_NOFREEZE;
 
 	ch = arg;
 	BUG_ON(!ch);
-	while (!kthread_should_stop() && !ch->last_wqe_received) {
+	while (!ch->last_wqe_received) {
 		set_current_state(TASK_INTERRUPTIBLE);
 		srpt_process_completion(ch->cq, ch, SCST_CONTEXT_THREAD,
 					SCST_CONTEXT_DIRECT);
@@ -2016,35 +2014,46 @@ static int srpt_compl_thread(void *arg)
 	}
 	set_current_state(TASK_RUNNING);
 
-	srpt_process_completion(ch->cq, ch, SCST_CONTEXT_THREAD,
-				SCST_CONTEXT_DIRECT);
-
 	/*
-	 * Note: scst_unregister_session() must only be invoked after the last
-	 * WQE event has been received.
+	 * Process all IB (error) completions before invoking
+	 * scst_unregister_session().
 	 */
-	TRACE_DBG("ch %s: about to invoke scst_unregister_session()",
-		  ch->sess_name);
-	scst_unregister_session(ch->scst_sess, false, srpt_free_ch);
-
-	/*
-	 * Some HCAs can queue send completions after the Last WQE
-	 * event. Make sure to process these work completions.
-	 */
-	while (ch->state < CH_FREEING) {
+	for (;;) {
 		set_current_state(TASK_INTERRUPTIBLE);
 		srpt_process_completion(ch->cq, ch, SCST_CONTEXT_THREAD,
 					SCST_CONTEXT_DIRECT);
-		schedule();
+		if (atomic_read(&ch->scst_sess->sess_cmd_count) == 0)
+			break;
+		schedule_timeout(HZ / 10);
 	}
+	set_current_state(TASK_RUNNING);
+
+	TRACE_DBG("ch %s: about to invoke scst_unregister_session()",
+		  ch->sess_name);
+	scst_unregister_session(ch->scst_sess, true, NULL);
+
+	sdev = ch->sport->sdev;
+	srpt_free_ioctx_ring((struct srpt_ioctx **)ch->ioctx_ring,
+			     sdev, ch->rq_size,
+			     ch->max_rsp_size, DMA_TO_DEVICE);
+
+	spin_lock_irq(&sdev->spinlock);
+	list_del(&ch->list);
+	spin_unlock_irq(&sdev->spinlock);
 
 	ib_destroy_cm_id(ch->cm_id);
 
+	/*
+	 * The function call below will wait for the completion handler
+	 * callback to finish and hence ensures that wake_up_process() won't
+	 * be invoked anymore from that callback for the current thread.
+	 */
 	srpt_destroy_ch_ib(ch);
 
-	/* Avoid that wake_up_process() races with thread exit. */
-	spin_lock_irq(&ch->spinlock);
-	spin_unlock_irq(&ch->spinlock);
+	kfree(ch);
+	ch = NULL;
+
+	wake_up(&sdev->ch_releaseQ);
 
 	return 0;
 }
@@ -2182,7 +2191,6 @@ static bool __srpt_close_ch(struct srpt_rdma_ch *ch)
 		break;
 	case CH_DISCONNECTING:
 	case CH_DRAINING:
-	case CH_FREEING:
 		break;
 	}
 
@@ -2228,42 +2236,6 @@ static void srpt_drain_channel(struct ib_cm_id *cm_id)
 			PRINT_ERROR("Setting queue pair in error state"
 			       " failed: %d", ret);
 	}
-}
-
-static void srpt_free_ch(struct scst_session *sess)
-{
-	struct srpt_rdma_ch *ch;
-	struct srpt_device *sdev;
-
-	TRACE_ENTRY();
-
-	ch = scst_sess_get_tgt_priv(sess);
-	BUG_ON(ch->scst_sess != sess);
-	sdev = ch->sport->sdev;
-	BUG_ON(!sdev);
-
-	WARN_ON(!srpt_test_and_set_ch_state(ch, CH_DRAINING, CH_FREEING));
-	WARN_ON(!ch->last_wqe_received);
-
-	BUG_ON(!ch->thread);
-	BUG_ON(ch->thread == current);
-
-	srpt_free_ioctx_ring((struct srpt_ioctx **)ch->ioctx_ring,
-			     sdev, ch->rq_size,
-			     ch->max_rsp_size, DMA_TO_DEVICE);
-
-	spin_lock_irq(&sdev->spinlock);
-	list_del(&ch->list);
-	spin_unlock_irq(&sdev->spinlock);
-
-	kthread_stop(ch->thread);
-	ch->thread = NULL;
-
-	kfree(ch);
-
-	wake_up(&sdev->ch_releaseQ);
-
-	TRACE_EXIT();
 }
 
 #if !defined(CONFIG_SCST_PROC)
@@ -2591,7 +2563,8 @@ reject_and_release:
 	srpt_close_ch(ch);
 out_keep_cm_id:
 	/*
-	 * Tell the caller not to free cm_id since srpt_free_ch() will do that.
+	 * Tell the caller not to free cm_id since srpt_compl_thread() will do
+	 * that.
 	 */
 	ret = 0;
 	goto out;
@@ -2649,16 +2622,7 @@ static void srpt_cm_rtu_recv(struct ib_cm_id *cm_id)
 	BUG_ON(!ch);
 
 	if (srpt_test_and_set_ch_state(ch, CH_CONNECTING, CH_LIVE)) {
-		struct srpt_recv_ioctx *ioctx, *ioctx_tmp;
-
 		ret = srpt_ch_qp_rts(ch, ch->qp);
-
-		list_for_each_entry_safe(ioctx, ioctx_tmp, &ch->cmd_wait_list,
-					 wait_list) {
-			list_del(&ioctx->wait_list);
-			srpt_handle_new_iu(ch, ioctx, NULL,
-					   SCST_CONTEXT_THREAD);
-		}
 		if (ret)
 			srpt_close_ch(ch);
 	}
@@ -2717,7 +2681,7 @@ static void srpt_cm_drep_recv(struct ib_cm_id *cm_id)
  * Note: srpt_cm_handler() must only return a non-zero value when transferring
  * ownership of the cm_id to a channel if srpt_cm_req_recv() failed. Returning
  * a non-zero value in any other case will trigger a race with the
- * ib_destroy_cm_id() call in srpt_free_ch().
+ * ib_destroy_cm_id() call in srpt_compl_thread().
  */
 static int srpt_cm_handler(struct ib_cm_id *cm_id, struct ib_cm_event *event)
 {
