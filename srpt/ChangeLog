@@ -1,4 +1,17 @@
-Version 2.2.0 (not yet released)
+Next release
+------------
+
+Changes compared to version 2.2.0:
+- Made sure that the SCST session is unregistered after an initiator logs out.
+  Due to a race condition sometimes the SCST session was not unregistered.
+- Fixed a QP use-after-free triggered by SRP logout. This could cause the
+  following error messages to appear:
+  ib_srpt: ***ERROR***: srpt_init_ch_qp() failed (-9)
+  ib_srpt: ***ERROR***: rejected SRP_LOGIN_REQ because creating a new RDMA
+  channel failed.
+- Disallowed new logins during module removal.
+
+Version 2.2.0 (January 26, 2012)
 -------------
 
 Changes compared to version 2.1.0:
