@@ -3378,7 +3378,9 @@ static int srpt_release_sdev(struct srpt_device *sdev)
 	WARN_ON_ONCE(irqs_disabled());
 	BUG_ON(!sdev);
 
+	/* Disallow new logins and close all active sessions. */
 	spin_lock_irq(&sdev->spinlock);
+	sdev->enabled = false;
 	list_for_each_entry_safe(ch, next_ch, &sdev->rch_list, list)
 		__srpt_close_ch(ch);
 	spin_unlock_irq(&sdev->spinlock);
