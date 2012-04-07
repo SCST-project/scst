@@ -325,7 +325,9 @@ static void ft_recv_seq(struct fc_seq *sp, struct fc_frame *fp, void *arg)
 	 * the session and all pending commands, so we ignore this response.
 	 */
 	if (IS_ERR(fp)) {
-		FT_IO_DBG("exchange error %ld - not handled\n", -PTR_ERR(fp));
+		FT_IO_DBG("exchange error %ld - aborting cmd\n", -PTR_ERR(fp));
+		scst_rx_mgmt_fn_tag(cmd->sess, SCST_ABORT_TASK, cmd->tag,
+				    SCST_ATOMIC, NULL);
 		return;
 	}
 
@@ -486,6 +488,8 @@ void ft_cmd_tm_done(struct scst_mgmt_cmd *mcmd)
 
 	ft_cmd_tm_dump(mcmd, __func__);
 	fcmd = scst_mgmt_cmd_get_tgt_priv(mcmd);
+	if (!fcmd)
+		return;
 	switch (scst_mgmt_cmd_get_status(mcmd)) {
 	case SCST_MGMT_STATUS_SUCCESS:
 		code = FCP_TMF_CMPL;
