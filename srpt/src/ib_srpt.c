@@ -1810,7 +1810,6 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 			       enum scst_exec_context context)
 {
 	struct srp_cmd *srp_cmd;
-	enum rdma_ch_state ch_state;
 
 	BUG_ON(!ch);
 	BUG_ON(!recv_ioctx);
@@ -1819,9 +1818,8 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 				   recv_ioctx->ioctx.dma, srp_max_req_size,
 				   DMA_FROM_DEVICE);
 
-	ch_state = ch->state;
 	srp_cmd = recv_ioctx->ioctx.buf;
-	if (unlikely(ch_state == CH_CONNECTING)) {
+	if (unlikely(!ch->rtu_received)) {
 		list_add_tail(&recv_ioctx->wait_list, &ch->cmd_wait_list);
 		goto out;
 	}
@@ -1890,6 +1888,22 @@ static void srpt_process_rcv_completion(struct ib_cq *cq,
 	}
 }
 
+static void srpt_process_wait_list(struct srpt_rdma_ch *ch,
+				   enum scst_exec_context context)
+{
+	struct srpt_recv_ioctx *recv_ioctx, *tmp;
+	struct srpt_send_ioctx *send_ioctx;
+
+	list_for_each_entry_safe(recv_ioctx, tmp, &ch->cmd_wait_list,
+				 wait_list) {
+		send_ioctx = srpt_get_send_ioctx(ch);
+		if (!send_ioctx)
+			break;
+		list_del(&recv_ioctx->wait_list);
+		srpt_handle_new_iu(ch, recv_ioctx, send_ioctx, context);
+	}
+}
+
 /**
  * srpt_process_send_completion() - Process an IB send completion.
  *
@@ -1938,18 +1952,10 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 		}
 	}
 
-	while (unlikely(opcode == SRPT_SEND
-			&& !list_empty(&ch->cmd_wait_list)
-			&& ch->state == CH_LIVE
-			&& (send_ioctx = srpt_get_send_ioctx(ch)) != NULL)) {
-		struct srpt_recv_ioctx *recv_ioctx;
-
-		recv_ioctx = list_first_entry(&ch->cmd_wait_list,
-					      struct srpt_recv_ioctx,
-					      wait_list);
-		list_del(&recv_ioctx->wait_list);
-		srpt_handle_new_iu(ch, recv_ioctx, send_ioctx, context);
-	}
+	if (unlikely(opcode == SRPT_SEND &&
+		     ch->rtu_received &&
+		     !list_empty(&ch->cmd_wait_list)))
+		srpt_process_wait_list(ch, context);
 }
 
 static void srpt_process_completion(struct ib_cq *cq,
@@ -1997,11 +2003,25 @@ static int srpt_compl_thread(void *arg)
 
 	ch = arg;
 	BUG_ON(!ch);
-	while (!ch->last_wqe_received) {
-		set_current_state(TASK_INTERRUPTIBLE);
+
+	set_current_state(TASK_INTERRUPTIBLE);
+	while (ch->state < CH_LIVE) {
 		srpt_process_completion(ch->cq, ch, SCST_CONTEXT_THREAD,
 					SCST_CONTEXT_DIRECT);
 		schedule();
+		set_current_state(TASK_INTERRUPTIBLE);
+	}
+	set_current_state(TASK_RUNNING);
+
+	srpt_process_wait_list(ch, SCST_CONTEXT_THREAD);
+	ch->rtu_received = true;
+
+	set_current_state(TASK_INTERRUPTIBLE);
+	while (!ch->last_wqe_received) {
+		srpt_process_completion(ch->cq, ch, SCST_CONTEXT_THREAD,
+					SCST_CONTEXT_DIRECT);
+		schedule();
+		set_current_state(TASK_INTERRUPTIBLE);
 	}
 	set_current_state(TASK_RUNNING);
 
