@@ -2014,6 +2014,7 @@ static int srpt_compl_thread(void *arg)
 	BUG_ON(!ch);
 
 	set_current_state(TASK_INTERRUPTIBLE);
+	barrier();
 	while (ch->state < CH_LIVE) {
 		srpt_process_completion(ch->cq, ch, SCST_CONTEXT_THREAD,
 					SCST_CONTEXT_DIRECT);
@@ -2026,6 +2027,7 @@ static int srpt_compl_thread(void *arg)
 	ch->rtu_received = true;
 
 	set_current_state(TASK_INTERRUPTIBLE);
+	barrier();
 	while (!ch->last_wqe_received) {
 		srpt_process_completion(ch->cq, ch, SCST_CONTEXT_THREAD,
 					SCST_CONTEXT_DIRECT);
