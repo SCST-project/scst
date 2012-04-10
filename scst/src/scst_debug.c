@@ -89,11 +89,11 @@ int debug_print_with_prefix(unsigned long trace_flag, const char *severity,
 	if (trace_flag & TRACE_LINE)
 		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "%i:", line);
 
-	va_start(args, fmt);
-	vsprintf(&trace_buf[i], fmt, args);
-	va_end(args);
+	i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "%s\n", fmt);
 
-	printk(trace_buf);
+	va_start(args, fmt);
+	vprintk(trace_buf, args);
+	va_end(args);
 
 	spin_unlock_irqrestore(&trace_buf_lock, flags);
 
