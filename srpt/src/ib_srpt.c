@@ -2190,6 +2190,8 @@ static bool __srpt_close_ch(struct srpt_rdma_ch *ch)
 	enum rdma_ch_state prev_state;
 	bool was_live;
 
+	BUG_ON(!ch->cm_id);
+
 	sdev = ch->sport->sdev;
 	was_live = false;
 
@@ -2272,6 +2274,17 @@ static int srpt_enable_target(struct scst_tgt *scst_tgt, bool enable)
 
 	spin_lock_irq(&sdev->spinlock);
 	sdev->enabled = enable;
+	if (!enable) {
+		struct srpt_rdma_ch *ch;
+
+		list_for_each_entry(ch, &sdev->rch_list, list) {
+			PRINT_INFO("Closing channel %s (cm_id %p)"
+				   " because target %s has been disabled",
+				   ch->sess_name, ch->cm_id,
+				   sdev->device->name);
+			__srpt_close_ch(ch);
+		}
+	}
 	spin_unlock_irq(&sdev->spinlock);
 
 	return 0;
