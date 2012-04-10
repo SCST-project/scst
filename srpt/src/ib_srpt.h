@@ -302,9 +302,11 @@ enum rdma_ch_state {
  *                 credit algorithm in the SRP spec.
  * @spinlock:      Protects free_list.
  * @free_list:     Head of list with free send I/O contexts.
- * @ioctx_ring:
- * @wc:
+ * @ioctx_ring:    Send I/O context ring.
+ * @wc:            Work completion array.
  * @state:         channel state. See also enum rdma_ch_state.
+ * @rtu_received:  Whether IB CM RTU event has been received and the requests
+ *                 received before that event have been processed.
  * @list:          node for insertion in the srpt_device.rch_list list.
  * @cmd_wait_list: list of SCST commands that arrived before the RTU event. This
  *                 list contains struct srpt_ioctx elements and is protected
@@ -335,6 +337,7 @@ struct srpt_rdma_ch {
 	wait_queue_head_t	state_wq;
 	struct list_head	list;
 	struct list_head	cmd_wait_list;
+	bool			rtu_received;
 	bool			last_wqe_received;
 
 	struct scst_session	*scst_sess;
