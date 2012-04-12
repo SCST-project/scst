@@ -301,25 +301,28 @@ function run_sparse {
   shift
 
   echo "Running sparse on the patched kernel in ${subdir} $@ ..."
-  ( 
-    cd "${outputdir}/linux-$k" \
-    && make -s prepare \
-    && make -s scripts \
-    && if grep -q '^CONFIG_PPC=y$' .config; then LC_ALL=C make -k M=arch/powerpc/lib; fi \
-    && LC_ALL=C make -k C=2 CF=-D__CHECK_ENDIAN__ M="${subdir}" "$@"
-  ) &> "${outputfile}"
-  local errors=$(grep -c ' error:' "${outputfile}")
-  local warnings=$(grep -c ' warning:' "${outputfile}")
-  echo "${errors} errors / ${warnings} warnings."
-  cat "${outputfile}" \
-    | grep -E 'warning:|error:' \
-    | sed -e 's/^[^ ]*:[^ ]*:[^ ]*: //' \
-          -e "s/context imbalance in '[^']*':/context imbalance in <function>:/g" \
-          -e "s/context problem in '[^']*': '[^']*'/context problem in <function>: <function>/g" \
-          -e "s/function '[^']*'/function/g" \
-          -e "s/symbol '[^']*'/symbol/g" \
-    | sort \
-    | uniq -c
+  if (cd "${outputdir}/linux-$k" \
+      && make -s prepare \
+      && make -s scripts \
+      && if grep -q '^CONFIG_PPC=y$' .config; then LC_ALL=C make -k M=arch/powerpc/lib; fi \
+      && LC_ALL=C make -k C=2 CF=-D__CHECK_ENDIAN__ M="${subdir}" "$@"
+    ) &> "${outputfile}"
+  then
+    local errors=$(grep -c ' error:' "${outputfile}")
+    local warnings=$(grep -c ' warning:' "${outputfile}")
+    echo "${errors} errors / ${warnings} warnings."
+    cat "${outputfile}" \
+      | grep -E 'warning:|error:' \
+      | sed -e 's/^[^ ]*:[^ ]*:[^ ]*: //' \
+            -e "s/context imbalance in '[^']*':/context imbalance in <function>:/g" \
+            -e "s/context problem in '[^']*': '[^']*'/context problem in <function>: <function>/g" \
+            -e "s/function '[^']*'/function/g" \
+            -e "s/symbol '[^']*'/symbol/g" \
+      | sort \
+      | uniq -c
+  else
+    echo FAILED
+  fi
   return 0
 }
 
