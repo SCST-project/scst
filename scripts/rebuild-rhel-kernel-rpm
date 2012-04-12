@@ -38,6 +38,9 @@
 ############################################################################
 
 scst_dir="$(dirname "$(dirname "$0")")"
+if [ ${scst_dir:0:1} != "/" ]; then
+  scst_dir="$PWD/${scst_dir}"
+fi
 downloaddir=$HOME/software/downloads
 rpmbuild_dir=$HOME/rpmbuild
 if [ "$1" = "" ]; then
