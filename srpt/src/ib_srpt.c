@@ -2005,7 +2005,10 @@ static int srpt_compl_thread(void *arg)
 	BUG_ON(!ch);
 
 	set_current_state(TASK_INTERRUPTIBLE);
+#if defined(__GNUC__) && ((__GNUC__ -0) * 100 + __GNUC_MINOR__ -0) <= 406
+	/* See also http://gcc.gnu.org/bugzilla/show_bug.cgi?id=52925. */
 	barrier();
+#endif
 	while (ch->state < CH_LIVE) {
 		srpt_process_completion(ch->cq, ch, SCST_CONTEXT_THREAD,
 					SCST_CONTEXT_DIRECT);
@@ -2018,7 +2021,10 @@ static int srpt_compl_thread(void *arg)
 	ch->rtu_received = true;
 
 	set_current_state(TASK_INTERRUPTIBLE);
+#if defined(__GNUC__) && ((__GNUC__ -0) * 100 + __GNUC_MINOR__ -0) <= 406
+	/* See also http://gcc.gnu.org/bugzilla/show_bug.cgi?id=52925. */
 	barrier();
+#endif
 	while (!ch->last_wqe_received) {
 		srpt_process_completion(ch->cq, ch, SCST_CONTEXT_THREAD,
 					SCST_CONTEXT_DIRECT);
