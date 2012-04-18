@@ -1872,7 +1872,7 @@ void scst_check_reassign_sessions(void)
 	return;
 }
 
-static int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
+int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
 {
 	int res;
 
@@ -1937,16 +1937,15 @@ static int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
 	TRACE_EXIT_RES(res);
 	return res;
 }
+EXPORT_SYMBOL_GPL(scst_get_cmd_abnormal_done_state);
 
 /**
  * scst_set_cmd_abnormal_done_state() - set command's next abnormal done state
  *
  * Sets state of the SCSI target state machine to abnormally complete command
  * ASAP.
- *
- * Returns the new state.
  */
-int scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
+void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 {
 	TRACE_ENTRY();
 
@@ -2005,8 +2004,8 @@ int scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 	}
 #endif
 
-	TRACE_EXIT_RES(cmd->state);
-	return cmd->state;
+	TRACE_EXIT();
+	return;
 }
 EXPORT_SYMBOL_GPL(scst_set_cmd_abnormal_done_state);
 
@@ -3375,8 +3374,6 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 
 	spin_lock_init(&tgt_dev->tgt_dev_lock);
 	INIT_LIST_HEAD(&tgt_dev->UA_list);
-	spin_lock_init(&tgt_dev->thr_data_lock);
-	INIT_LIST_HEAD(&tgt_dev->thr_data_list);
 
 	scst_init_order_data(&tgt_dev->tgt_dev_order_data);
 	if (dev->tst == SCST_CONTR_MODE_SEP_TASK_SETS)
@@ -3539,8 +3536,6 @@ static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 	}
 
 	scst_tgt_dev_stop_threads(tgt_dev);
-
-	sBUG_ON(!list_empty(&tgt_dev->thr_data_list));
 
 	kmem_cache_free(scst_tgtd_cachep, tgt_dev);
 
@@ -6360,138 +6355,6 @@ restart:
 
 out_unlock:
 	spin_unlock_irq(&order_data->sn_lock);
-	return res;
-}
-
-/*****************************************************************
- ** The following thr_data functions are necessary, because the
- ** kernel doesn't provide a better way to have threads local
- ** storage
- *****************************************************************/
-
-/**
- * scst_add_thr_data() - add the current thread's local data
- *
- * Adds local to the current thread data to tgt_dev
- * (they will be local for the tgt_dev and current thread).
- */
-void scst_add_thr_data(struct scst_tgt_dev *tgt_dev,
-	struct scst_thr_data_hdr *data,
-	void (*free_fn) (struct scst_thr_data_hdr *data))
-{
-	data->owner_thr = current;
-	atomic_set(&data->ref, 1);
-	EXTRACHECKS_BUG_ON(free_fn == NULL);
-	data->free_fn = free_fn;
-	spin_lock(&tgt_dev->thr_data_lock);
-	list_add_tail(&data->thr_data_list_entry, &tgt_dev->thr_data_list);
-	spin_unlock(&tgt_dev->thr_data_lock);
-}
-EXPORT_SYMBOL_GPL(scst_add_thr_data);
-
-/**
- * scst_del_all_thr_data() - delete all thread's local data
- *
- * Deletes all local to threads data from tgt_dev
- */
-void scst_del_all_thr_data(struct scst_tgt_dev *tgt_dev)
-{
-	spin_lock(&tgt_dev->thr_data_lock);
-	while (!list_empty(&tgt_dev->thr_data_list)) {
-		struct scst_thr_data_hdr *d = list_entry(
-				tgt_dev->thr_data_list.next, typeof(*d),
-				thr_data_list_entry);
-		list_del(&d->thr_data_list_entry);
-		spin_unlock(&tgt_dev->thr_data_lock);
-		scst_thr_data_put(d);
-		spin_lock(&tgt_dev->thr_data_lock);
-	}
-	spin_unlock(&tgt_dev->thr_data_lock);
-	return;
-}
-EXPORT_SYMBOL_GPL(scst_del_all_thr_data);
-
-/**
- * scst_dev_del_all_thr_data() - delete all thread's local data from device
- *
- * Deletes all local to threads data from all tgt_dev's of the device
- */
-void scst_dev_del_all_thr_data(struct scst_device *dev)
-{
-	struct scst_tgt_dev *tgt_dev;
-
-	TRACE_ENTRY();
-
-	mutex_lock(&scst_mutex);
-
-	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
-				dev_tgt_dev_list_entry) {
-		scst_del_all_thr_data(tgt_dev);
-	}
-
-	mutex_unlock(&scst_mutex);
-
-	TRACE_EXIT();
-	return;
-}
-EXPORT_SYMBOL_GPL(scst_dev_del_all_thr_data);
-
-/* thr_data_lock supposed to be held */
-static struct scst_thr_data_hdr *__scst_find_thr_data_locked(
-	struct scst_tgt_dev *tgt_dev, struct task_struct *tsk)
-{
-	struct scst_thr_data_hdr *res = NULL, *d;
-
-	list_for_each_entry(d, &tgt_dev->thr_data_list, thr_data_list_entry) {
-		if (d->owner_thr == tsk) {
-			res = d;
-			scst_thr_data_get(res);
-			break;
-		}
-	}
-	return res;
-}
-
-/**
- * __scst_find_thr_data() - find local to the thread data
- *
- * Finds local to the thread data. Returns NULL, if they not found.
- */
-struct scst_thr_data_hdr *__scst_find_thr_data(struct scst_tgt_dev *tgt_dev,
-	struct task_struct *tsk)
-{
-	struct scst_thr_data_hdr *res;
-
-	spin_lock(&tgt_dev->thr_data_lock);
-	res = __scst_find_thr_data_locked(tgt_dev, tsk);
-	spin_unlock(&tgt_dev->thr_data_lock);
-
-	return res;
-}
-EXPORT_SYMBOL_GPL(__scst_find_thr_data);
-
-bool scst_del_thr_data(struct scst_tgt_dev *tgt_dev, struct task_struct *tsk)
-{
-	bool res;
-	struct scst_thr_data_hdr *td;
-
-	spin_lock(&tgt_dev->thr_data_lock);
-
-	td = __scst_find_thr_data_locked(tgt_dev, tsk);
-	if (td != NULL) {
-		list_del(&td->thr_data_list_entry);
-		res = true;
-	} else
-		res = false;
-
-	spin_unlock(&tgt_dev->thr_data_lock);
-
-	if (td != NULL) {
-		/* the find() fn also gets it */
-		scst_thr_data_put(td);
-		scst_thr_data_put(td);
-	}
-
 	return res;
 }
 

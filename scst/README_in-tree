@@ -750,6 +750,9 @@ cache. The following parameters possible for vdisk_fileio:
  - rotational - if set, this device reported as rotational. Otherwise,
    it is reported as non-rotational (SSD, etc.)
 
+ - zero_copy - if set, then this device uses zero copy access to the
+   page cache. At the moment, only read side zero copy is implemented.
+
 Handler vdisk_blockio provides BLOCKIO mode to create virtual devices.
 This mode performs direct block I/O with a block device, bypassing the
 page cache for all operations. This mode works ideally with high-end

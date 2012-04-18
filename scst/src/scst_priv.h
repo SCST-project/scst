@@ -233,9 +233,6 @@ extern void scst_stop_dev_threads(struct scst_device *dev);
 extern int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev);
 extern void scst_tgt_dev_stop_threads(struct scst_tgt_dev *tgt_dev);
 
-extern bool scst_del_thr_data(struct scst_tgt_dev *tgt_dev,
-	struct task_struct *tsk);
-
 extern struct scst_dev_type scst_null_devtype;
 
 extern struct scst_cmd *__scst_check_deferred_commands(

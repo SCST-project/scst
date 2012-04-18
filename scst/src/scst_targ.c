@@ -597,7 +597,8 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 	} else
 		state = SCST_CMD_STATE_PREPARE_SPACE;
 
-	if (unlikely(state == SCST_CMD_STATE_PRE_XMIT_RESP))
+	if (unlikely(state == SCST_CMD_STATE_PRE_XMIT_RESP) ||
+	    unlikely(state == SCST_CMD_STATE_PREPROCESSING_DONE))
 		goto set_res;
 
 	if (unlikely(!(cmd->op_flags & SCST_INFO_VALID))) {
@@ -815,6 +816,7 @@ set_res:
 	case SCST_CMD_STATE_PREPARE_SPACE:
 	case SCST_CMD_STATE_PARSE:
 	case SCST_CMD_STATE_RDY_TO_XFER:
+	case SCST_CMD_STATE_PREPROCESSING_DONE:
 	case SCST_CMD_STATE_TGT_PRE_EXEC:
 	case SCST_CMD_STATE_EXEC_CHECK_SN:
 	case SCST_CMD_STATE_EXEC_CHECK_BLOCKING:
@@ -852,10 +854,6 @@ set_res:
 		else
 			 cmd->resp_data_len = 0;
 	}
-
-	/* We already completed (with an error) */
-	if (unlikely(cmd->completed))
-		goto out_done;
 
 #ifndef CONFIG_SCST_TEST_IO_IN_SIRQ
 	/*

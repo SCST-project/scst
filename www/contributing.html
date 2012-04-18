@@ -49,50 +49,6 @@
 
 				<h1>Possible SCST extensions and improvements</h1>
 
-				<A NAME="ZC_READ"></A><h3>Zero-copy FILEIO for READ-direction commands</h3>
-
-				<p>At the moment, SCST in FILEIO mode uses standard Linux read() and write() syscalls paths,
-				which copy data from the page cache to the supplied buffer and back. Zero-copy FILEIO
-				would use page cache data directly. This would be a major performance improvement,
-				especially for fast hardware, like Infiniband, because it would eliminate the data copy
-				latency as well as considerably ease CPU and memory bandwidth load. This proposal is limited for
-				READs only, because for WRITEs it is a lot harder to
-				implement, so it is worth to do zero-copy for READs and WRITEs separately.</p>
-				
-				<p>The main idea is to add one more flag to filp_open() "flags" parameter
-				(like O_RDONLY, O_DIRECT, etc.) O_ZEROCOPY, which would be available 
-				only if the caller is from the kernel space. In this case fd->f_op->readv(), 
-				do_sync_readv_writev(), etc. would receive as the pointer to data 
-				buffer not a real data buffer, but pointer to an empty SG vector. Then:</p>
-				
-				<ul>
-				<li><span>Generic buffer allocation in SCST would not be used, instead vdisk_parse() 
-				would allocate the SG vector, but wouldn't fill it with actual pages.</span></li>
-				
-				<li><span>In generic_file_aio_read(), if O_ZEROCOPY flag was set,
-				function do_generic_file_read() would be called with the last parameter set
-				to a pointer to new function file_zero_copy_read_actor() instead of file_read_actor().</span></li>
-				
-				<li><span>Function file_zero_copy_read_actor() would be basically the same as
-				file_read_actor(), but, instead of copy data using __copy_to_user*() functions,
-				it would add the supplied page to the appropriate place in the received in
-				desc->arg.buf SG vector and reference, i.e. page_get(), that page.</span></li>
-				
-				<li><span>In vdisk_devtype.on_free_cmd(), which doesn't exist yet, all pages 
-				from the SG vector would be dereferenced, i.e. page_put(). Then the SG vector itself 
-				would be freed.</span></li>
-				</ul>
-				
-				<p>That's all. For WRITEs the current code path would remain unchanged.</p>
-
-				<A NAME="ZC_WRITE"></A><h3>Zero-copy FILEIO for WRITE-direction commands</h3>
-
-				<p>Implementation should be similar to zero-copy FILEIO for READ commands and should
-				be done after it. All incoming data should be inserted in the page cache, then dereferenced in
-				vdisk_devtype.on_free_cmd(). The main problem is insertion of data pages in the
-				page cache, namely, locking issues related to it. They should be carefully
-				investigated.</p>
-
 				<A NAME="O_DIRECT"></A><h3>Support for O_DIRECT in scst_vdisk handler</h3>
 
 				<p>At the moment, scst_vdisk handler doesn't support O_DIRECT option and possibility to set it
@@ -108,7 +64,7 @@
 				<A NAME="SG_LIMIT"></A><h3>Solve SG IO count limitation issue in pass-through mode</h3>
 				
 				<p>In the pass-through mode (i.e. using the pass-through device handlers like
-				scst_tape, etc) SCSI commands, coming from remote initiators,
+				scst_tape, etc.) SCSI commands, coming from remote initiators,
 				are passed to local SCSI hardware on target as is, without any
 				modifications. As any other hardware, the local SCSI hardware can not
 				handle commands with amount of data and/or segments count in
@@ -122,8 +78,6 @@
 				messages like: "Unable to complete command due to SG IO count
 				limitation" are printed in the kernel logs.</p>
 				
-				<p>
-				
 				<p>The only complete way to fix this problem is to allocate data buffers with number
 				of entries inside the SG IO count limitation. In <a href="sgv_big_order_alloc.diff">sgv_big_order_alloc.diff</a>
 				you can find a possible way to solve this issue.</p>
@@ -132,6 +86,8 @@
 				<a href="sgv_big_order_alloc-sfw5-rc3.diff">sgv_big_order_alloc-sfw5-rc3.diff</a>
 				created by Frank Zago for SCST 2.0.0. It was submitted too late to be included in it.
 				Update for SCST trunk is welcome!</p>
+
+				<p>Note, scst_disk handler already implements a workaround for it.</p>
 
 				<A NAME="MEM_REG"></A><h3>Memory registration</h3>
 				

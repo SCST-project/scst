@@ -677,7 +677,7 @@ static int dev_user_alloc_space(struct scst_user_cmd *ucmd)
 		goto out;
 	else if (rc < 0) {
 		scst_set_busy(cmd);
-		res = scst_set_cmd_abnormal_done_state(cmd);
+		res = scst_get_cmd_abnormal_done_state(cmd);
 		goto out;
 	}
 
@@ -860,7 +860,7 @@ out_invalid:
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 
 out_error:
-	res = scst_set_cmd_abnormal_done_state(cmd);
+	res = scst_get_cmd_abnormal_done_state(cmd);
 	goto out;
 }
 

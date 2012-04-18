@@ -7,6 +7,7 @@
  *  Copyright (C) 2007 Ross Walker <rswwalker at hotmail dot com>
  *  Copyright (C) 2007 - 2010 ID7 Ltd.
  *  Copyright (C) 2010 - 2011 SCST Ltd.
+ *  Copyright (C) 2008 - 2012 Bart Van Assche <bvanassche@acm.org>
  *
  *  SCSI disk (type 0) and CDROM (type 5) dev handler using files
  *  on file systems or block devices (VDISK)
@@ -46,6 +47,7 @@
 #include <linux/slab.h>
 #include <linux/bio.h>
 #include <linux/crc32c.h>
+#include <linux/swap.h>
 
 #define LOG_PREFIX			"dev_vdisk"
 
@@ -148,6 +150,7 @@ struct scst_vdisk_dev {
 	unsigned int wt_flag:1;
 	unsigned int nv_cache:1;
 	unsigned int o_direct_flag:1;
+	unsigned int zero_copy:1;
 	unsigned int media_changed:1;
 	unsigned int prevent_allow_medium_removal:1;
 	unsigned int nullio:1;
@@ -176,23 +179,23 @@ struct scst_vdisk_dev {
 	struct list_head vdev_list_entry;
 
 	struct scst_dev_type *vdev_devt;
-};
 
-struct scst_vdisk_thr {
-	struct scst_thr_data_hdr hdr;
+	int tgt_dev_cnt;
 	struct file *fd;
 	struct block_device *bdev;
-	struct iovec *iv;
-	int iv_count;
 };
 
 struct vdisk_cmd_params {
+	struct scatterlist small_sg[4];
+	struct iovec *iv;
+	int iv_count;
+	struct iovec small_iv[4];
 	struct scst_cmd *cmd;
-	struct scst_vdisk_thr *thr;
 	uint64_t lba_start;
 	loff_t loff;
 	loff_t data_len;
 	int fua;
+	bool use_zero_copy;
 };
 
 enum compl_status_e {
@@ -222,18 +225,21 @@ static int vdisk_attach(struct scst_device *dev);
 static void vdisk_detach(struct scst_device *dev);
 static int vdisk_attach_tgt(struct scst_tgt_dev *tgt_dev);
 static void vdisk_detach_tgt(struct scst_tgt_dev *tgt_dev);
+static int fileio_alloc_data_buf(struct scst_cmd *cmd);
 static int vdisk_parse(struct scst_cmd *);
-static int vdisk_exec(struct scst_cmd *cmd);
 static int vcdrom_parse(struct scst_cmd *);
+static int non_fileio_parse(struct scst_cmd *);
+static int vdisk_exec(struct scst_cmd *cmd);
 static int vcdrom_exec(struct scst_cmd *cmd);
+static int non_fileio_exec(struct scst_cmd *cmd);
+static void fileio_on_free_cmd(struct scst_cmd *cmd);
 static enum compl_status_e nullio_exec_read(struct vdisk_cmd_params *p);
 static enum compl_status_e blockio_exec_read(struct vdisk_cmd_params *p);
 static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p);
 static enum compl_status_e nullio_exec_write(struct vdisk_cmd_params *p);
 static enum compl_status_e blockio_exec_write(struct vdisk_cmd_params *p);
 static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p);
-static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
-			    u64 lba_start, bool write, bool fua);
+static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua);
 static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask,
 	bool report_error);
 static enum compl_status_e fileio_exec_verify(struct vdisk_cmd_params *p);
@@ -251,7 +257,7 @@ static enum compl_status_e vdisk_exec_log(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_read_toc(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_prevent_allow_medium_removal(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_unmap(struct vdisk_cmd_params *p);
-static int vdisk_fsync(struct scst_vdisk_thr *thr, loff_t loff,
+static int vdisk_fsync(struct vdisk_cmd_params *p, loff_t loff,
 	loff_t len, struct scst_device *dev, gfp_t gfp_flags,
 	struct scst_cmd *cmd);
 #ifdef CONFIG_SCST_PROC
@@ -309,6 +315,8 @@ static ssize_t vdev_sysfs_usn_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count);
 static ssize_t vdev_sysfs_usn_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
+static ssize_t vdev_zero_copy_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
 
 static ssize_t vcdrom_sysfs_filename_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count);
@@ -340,6 +348,8 @@ static struct kobj_attribute vdev_t10_dev_id_attr =
 		vdev_sysfs_t10_dev_id_store);
 static struct kobj_attribute vdev_usn_attr =
 	__ATTR(usn, S_IWUSR|S_IRUGO, vdev_sysfs_usn_show, vdev_sysfs_usn_store);
+static struct kobj_attribute vdev_zero_copy_attr =
+	__ATTR(zero_copy, S_IRUGO, vdev_zero_copy_show, NULL);
 
 static struct kobj_attribute vcdrom_filename_attr =
 	__ATTR(filename, S_IRUGO|S_IWUSR, vdev_sysfs_filename_show,
@@ -359,6 +369,7 @@ static const struct attribute *vdisk_fileio_attrs[] = {
 	&vdisk_resync_size_attr.attr,
 	&vdev_t10_dev_id_attr.attr,
 	&vdev_usn_attr.attr,
+	&vdev_zero_copy_attr.attr,
 	NULL,
 };
 
@@ -408,7 +419,7 @@ static DEFINE_RWLOCK(vdisk_serial_rwlock);
 /* Protected by scst_vdisk_mutex */
 static LIST_HEAD(vdev_list);
 
-static struct kmem_cache *vdisk_thr_cachep;
+static struct kmem_cache *vdisk_cmd_param_cachep;
 
 static const vdisk_op_fn fileio_ops[256];
 static const vdisk_op_fn blockio_ops[256];
@@ -431,7 +442,9 @@ static struct scst_dev_type vdisk_file_devtype = {
 	.attach_tgt =		vdisk_attach_tgt,
 	.detach_tgt =		vdisk_detach_tgt,
 	.parse =		vdisk_parse,
+	.alloc_data_buf =	fileio_alloc_data_buf,
 	.exec =			vdisk_exec,
+	.on_free_cmd =		fileio_on_free_cmd,
 	.task_mgmt_fn =		vdisk_task_mgmt_fn,
 	.devt_priv =		(void *)fileio_ops,
 #ifdef CONFIG_SCST_PROC
@@ -443,7 +456,7 @@ static struct scst_dev_type vdisk_file_devtype = {
 	.dev_attrs =		vdisk_fileio_attrs,
 	.add_device_parameters = "filename, blocksize, write_through, "
 		"nv_cache, o_direct, read_only, removable, rotational, "
-		"thin_provisioned",
+		"thin_provisioned, zero_copy",
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
@@ -470,8 +483,8 @@ static struct scst_dev_type vdisk_blk_devtype = {
 	.detach =		vdisk_detach,
 	.attach_tgt =		vdisk_attach_tgt,
 	.detach_tgt =		vdisk_detach_tgt,
-	.parse =		vdisk_parse,
-	.exec =			vdisk_exec,
+	.parse =		non_fileio_parse,
+	.exec =			non_fileio_exec,
 	.task_mgmt_fn =		vdisk_task_mgmt_fn,
 	.devt_priv =		(void *)blockio_ops,
 #ifndef CONFIG_SCST_PROC
@@ -505,8 +518,8 @@ static struct scst_dev_type vdisk_null_devtype = {
 	.detach =		vdisk_detach,
 	.attach_tgt =		vdisk_attach_tgt,
 	.detach_tgt =		vdisk_detach_tgt,
-	.parse =		vdisk_parse,
-	.exec =			vdisk_exec,
+	.parse =		non_fileio_parse,
+	.exec =			non_fileio_exec,
 	.task_mgmt_fn =		vdisk_task_mgmt_fn,
 	.devt_priv =		(void *)nullio_ops,
 #ifndef CONFIG_SCST_PROC
@@ -537,7 +550,9 @@ static struct scst_dev_type vcdrom_devtype = {
 	.attach_tgt =		vdisk_attach_tgt,
 	.detach_tgt =		vdisk_detach_tgt,
 	.parse =		vcdrom_parse,
+	.alloc_data_buf =	fileio_alloc_data_buf,
 	.exec =			vcdrom_exec,
+	.on_free_cmd =		fileio_on_free_cmd,
 	.task_mgmt_fn =		vdisk_task_mgmt_fn,
 #ifdef CONFIG_SCST_PROC
 	.read_proc =		vcdrom_read_proc,
@@ -557,8 +572,6 @@ static struct scst_dev_type vcdrom_devtype = {
 #endif
 #endif
 };
-
-static struct scst_vdisk_thr nullio_thr_data;
 
 #ifdef CONFIG_SCST_PROC
 
@@ -595,6 +608,8 @@ static struct file *vdev_open_fd(const struct scst_vdisk_dev *virt_dev)
 	struct file *fd;
 
 	TRACE_ENTRY();
+
+	sBUG_ON(!virt_dev->filename);
 
 	if (virt_dev->dev->rd_only)
 		open_flags |= O_RDONLY;
@@ -725,6 +740,8 @@ static int vdisk_get_file_size(const char *filename, bool blockio,
 
 	TRACE_ENTRY();
 
+	sBUG_ON(!filename);
+
 	*file_size = 0;
 
 	fd = filp_open(filename, O_LARGEFILE | O_RDONLY, 0600);
@@ -807,6 +824,13 @@ static int vdisk_attach(struct scst_device *dev)
 		goto out;
 	}
 
+	if (virt_dev->zero_copy && virt_dev->o_direct_flag) {
+		PRINT_ERROR("%s: combining zero_copy with o_direct is not"
+			    " supported", virt_dev->filename);
+		res = -EINVAL;
+		goto out;
+	}
+
 	virt_dev->dev = dev;
 
 	dev->rd_only = virt_dev->rd_only;
@@ -870,6 +894,10 @@ static void vdisk_detach(struct scst_device *dev)
 
 	TRACE_ENTRY();
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+	lockdep_assert_held(&scst_mutex);
+#endif
+
 	TRACE_DBG("virt_id %d", dev->virt_id);
 
 	PRINT_INFO("Detached virtual device %s (\"%s\")",
@@ -882,87 +910,62 @@ static void vdisk_detach(struct scst_device *dev)
 	return;
 }
 
-static void vdisk_free_thr_data(struct scst_thr_data_hdr *d)
-{
-	struct scst_vdisk_thr *thr =
-		container_of(d, struct scst_vdisk_thr, hdr);
-
-	TRACE_ENTRY();
-
-	if (thr->fd)
-		filp_close(thr->fd, NULL);
-
-	kfree(thr->iv);
-
-	kmem_cache_free(vdisk_thr_cachep, thr);
-
-	TRACE_EXIT();
-	return;
-}
-
-static struct scst_vdisk_thr *vdisk_init_thr_data(
-	struct scst_tgt_dev *tgt_dev, gfp_t gfp_mask)
-{
-	struct scst_vdisk_thr *res;
-	struct scst_vdisk_dev *virt_dev = tgt_dev->dev->dh_priv;
-
-	TRACE_ENTRY();
-
-	EXTRACHECKS_BUG_ON(virt_dev->nullio);
-
-	res = kmem_cache_zalloc(vdisk_thr_cachep, gfp_mask);
-	if (res == NULL) {
-		PRINT_ERROR("Unable to allocate struct scst_vdisk_thr"
-			    " (size %zd)", sizeof(*res));
-		goto out;
-	}
-
-	if (!virt_dev->cdrom_empty) {
-		res->fd = vdev_open_fd(virt_dev);
-		if (IS_ERR(res->fd)) {
-			PRINT_ERROR("filp_open(%s) returned an error %ld",
-				virt_dev->filename, PTR_ERR(res->fd));
-			goto out_free;
-		}
-		if (virt_dev->blockio)
-			res->bdev = res->fd->f_dentry->d_inode->i_bdev;
-		else
-			res->bdev = NULL;
-	} else
-		res->fd = NULL;
-
-	scst_add_thr_data(tgt_dev, &res->hdr, vdisk_free_thr_data);
-
-out:
-	TRACE_EXIT_HRES((unsigned long)res);
-	return res;
-
-out_free:
-	kmem_cache_free(vdisk_thr_cachep, res);
-	res = NULL;
-	goto out;
-}
-
+/* Invoked with scst_mutex held, so no further locking is necessary here. */
 static int vdisk_attach_tgt(struct scst_tgt_dev *tgt_dev)
 {
+	struct scst_vdisk_dev *virt_dev = tgt_dev->dev->dh_priv;
 	int res = 0;
 
 	TRACE_ENTRY();
 
-	/* Nothing to do */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+	lockdep_assert_held(&scst_mutex);
+#endif
+
+	if (virt_dev->tgt_dev_cnt++ > 0)
+		goto out;
+
+	if (!virt_dev->nullio && !virt_dev->cdrom_empty && virt_dev->filename) {
+		virt_dev->fd = vdev_open_fd(virt_dev);
+		if (IS_ERR(virt_dev->fd)) {
+			PRINT_ERROR("filp_open(%s) returned an error %ld",
+				    virt_dev->filename, PTR_ERR(virt_dev->fd));
+			virt_dev->fd = NULL;
+			goto out;
+		}
+		virt_dev->bdev = virt_dev->blockio ?
+			virt_dev->fd->f_dentry->d_inode->i_bdev : NULL;
+	} else
+		virt_dev->fd = NULL;
+
+out:
 
 	TRACE_EXIT_RES(res);
 	return res;
 }
 
+/* Invoked with scst_mutex held, so no further locking is necessary here. */
 static void vdisk_detach_tgt(struct scst_tgt_dev *tgt_dev)
 {
+	struct scst_vdisk_dev *virt_dev = tgt_dev->dev->dh_priv;
+
 	TRACE_ENTRY();
 
-	scst_del_all_thr_data(tgt_dev);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+	lockdep_assert_held(&scst_mutex);
+#endif
 
+	if (--virt_dev->tgt_dev_cnt > 0)
+		goto out;
+
+	virt_dev->bdev = NULL;
+	if (virt_dev->fd) {
+		filp_close(virt_dev->fd, NULL);
+		virt_dev->fd = NULL;
+	}
+
+out:
 	TRACE_EXIT();
-	return;
 }
 
 static enum compl_status_e vdisk_synchronize_cache(struct vdisk_cmd_params *p)
@@ -970,11 +973,12 @@ static enum compl_status_e vdisk_synchronize_cache(struct vdisk_cmd_params *p)
 	struct scst_cmd *cmd = p->cmd;
 	const uint8_t *cdb = cmd->cdb;
 	struct scst_device *dev = cmd->dev;
-	struct scst_vdisk_thr *thr = p->thr;
 	const loff_t loff = p->loff;
 	const loff_t data_len = p->data_len;
 	int immed = cdb[1] & 0x2;
 	enum compl_status_e res;
+
+	TRACE_ENTRY();
 
 	TRACE(TRACE_ORDER, "SYNCHRONIZE_CACHE: "
 	      "loff=%lld, data_len=%lld, immed=%d",
@@ -986,17 +990,18 @@ static enum compl_status_e vdisk_synchronize_cache(struct vdisk_cmd_params *p)
 		cmd->completed = 1;
 		cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT,
 				   SCST_CONTEXT_SAME);
-		vdisk_fsync(thr, loff, data_len, dev,
+		vdisk_fsync(p, loff, data_len, dev,
 			    scst_cmd_get_gfp_flags(cmd), NULL);
 		/* ToDo: vdisk_fsync() error processing */
 		scst_cmd_put(cmd);
 		res = RUNNING_ASYNC;
 	} else {
-		vdisk_fsync(thr, loff, data_len, dev,
+		vdisk_fsync(p, loff, data_len, dev,
 			    scst_cmd_get_gfp_flags(cmd), cmd);
 		res = CMD_SUCCEEDED;
 	}
 
+	TRACE_EXIT_RES(res);
 	return res;
 }
 
@@ -1006,8 +1011,11 @@ static enum compl_status_e vdisk_exec_start_stop(struct vdisk_cmd_params *p)
 	struct scst_device *dev = cmd->dev;
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 
-	vdisk_fsync(p->thr, 0, virt_dev->file_size, dev,
-		    scst_cmd_get_gfp_flags(cmd), cmd);
+	TRACE_ENTRY();
+
+	vdisk_fsync(p, 0, virt_dev->file_size, dev, scst_cmd_get_gfp_flags(cmd), cmd);
+
+	TRACE_EXIT();
 	return CMD_SUCCEEDED;
 }
 
@@ -1107,7 +1115,10 @@ static const vdisk_op_fn nullio_ops[256] = {
 	SHARED_OPS
 };
 
-/* Compute p->lba_start, p->loff, p->data_len and p->fua. */
+/*
+ * Compute p->lba_start, p->loff, p->data_len and p->fua.
+ * Returns true for success or false otherwise and set error in the commeand.
+ */
 static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 {
 	uint64_t lba_start = 0;
@@ -1117,7 +1128,10 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 	loff_t loff;
 	struct scst_device *dev = cmd->dev;
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+	bool use_zero_copy = false, res;
 	int fua = 0;
+
+	TRACE_ENTRY();
 
 	p->cmd = cmd;
 
@@ -1142,6 +1156,7 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 	case WRITE_6:
 		lba_start = get_unaligned_be24(&cdb[1]) & 0x1f0000U;
 		data_len = cmd->bufflen;
+		use_zero_copy = true;
 		break;
 	case READ_10:
 	case READ_12:
@@ -1151,24 +1166,29 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 	case WRITE_VERIFY_12:
 		lba_start = get_unaligned_be32(&cdb[2]);
 		data_len = cmd->bufflen;
+		use_zero_copy = true;
 		break;
 	case READ_16:
 	case WRITE_16:
 	case WRITE_VERIFY_16:
 		lba_start = get_unaligned_be64(&cdb[2]);
 		data_len = cmd->bufflen;
+		use_zero_copy = true;
 		break;
 	case VERIFY:
 		lba_start = get_unaligned_be32(&cdb[2]);
 		data_len = get_unaligned_be16(&cdb[7]) << virt_dev->block_shift;
+		use_zero_copy = true;
 		break;
 	case VERIFY_12:
 		lba_start = get_unaligned_be32(&cdb[2]);
 		data_len = get_unaligned_be32(&cdb[6]) << virt_dev->block_shift;
+		use_zero_copy = true;
 		break;
 	case VERIFY_16:
 		lba_start = get_unaligned_be64(&cdb[2]);
 		data_len = get_unaligned_be32(&cdb[10]) << virt_dev->block_shift;
+		use_zero_copy = true;
 		break;
 	case SYNCHRONIZE_CACHE:
 		lba_start = get_unaligned_be32(&cdb[2]);
@@ -1178,6 +1198,8 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 				((loff_t)lba_start << virt_dev->block_shift);
 		break;
 	}
+
+	p->use_zero_copy = use_zero_copy && virt_dev->zero_copy;
 
 	loff = (loff_t)lba_start << virt_dev->block_shift;
 	TRACE_DBG("cmd %p, lba_start %lld, loff %lld, data_len %lld", cmd,
@@ -1193,7 +1215,8 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 			   (long long unsigned int)data_len);
 		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
 					scst_sense_block_out_range_error));
-		return false;
+		res = false;
+		goto out;
 	}
 
 	switch (opcode) {
@@ -1214,66 +1237,469 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 	p->loff = loff;
 	p->fua = fua;
 
-	return true;
+	res = true;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
-static struct scst_vdisk_thr *vdisk_get_thr(struct scst_cmd *cmd,
-					    struct scst_tgt_dev *tgt_dev)
+static int fileio_alloc_and_parse(struct scst_cmd *cmd)
 {
-	struct scst_thr_data_hdr *d;
-	struct scst_vdisk_thr *thr;
+	struct vdisk_cmd_params *p;
+	int res = SCST_CMD_STATE_DEFAULT;
 
-	d = scst_find_thr_data(tgt_dev);
-	if (unlikely(d == NULL)) {
-		thr = vdisk_init_thr_data(tgt_dev,
-			    cmd->noio_mem_alloc ? GFP_NOIO : GFP_KERNEL);
-		if (thr == NULL) {
-			scst_set_busy(cmd);
-			goto out;
+	TRACE_ENTRY();
+
+	p = kmem_cache_zalloc(vdisk_cmd_param_cachep, GFP_KERNEL);
+	if (!p) {
+		scst_set_busy(cmd);
+		goto out_err;
+	}
+
+	if (unlikely(!vdisk_parse_offset(p, cmd)))
+		goto out_err_free_cmd_params;
+
+	cmd->dh_priv = p;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_err_free_cmd_params:
+	kmem_cache_free(vdisk_cmd_param_cachep, p);
+
+out_err:
+	res = scst_get_cmd_abnormal_done_state(cmd);
+	goto out;
+}
+
+static int vdisk_get_block_shift(struct scst_cmd *cmd)
+{
+	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
+	return virt_dev->block_shift;
+}
+
+static int vdisk_parse(struct scst_cmd *cmd)
+{
+	scst_sbc_generic_parse(cmd, vdisk_get_block_shift);
+	return fileio_alloc_and_parse(cmd);
+}
+
+static int vcdrom_parse(struct scst_cmd *cmd)
+{
+	scst_cdrom_generic_parse(cmd, vdisk_get_block_shift);
+	return fileio_alloc_and_parse(cmd);
+}
+
+/* blockio and nullio */
+static int non_fileio_parse(struct scst_cmd *cmd)
+{
+	scst_sbc_generic_parse(cmd, vdisk_get_block_shift);
+	return SCST_CMD_STATE_DEFAULT;
+}
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
+/**
+ * finish_read - Release the pages referenced by prepare_read().
+ */
+static void finish_read(struct scatterlist *sg, int sg_cnt)
+{
+	struct page *page;
+	int i;
+
+	TRACE_ENTRY();
+
+	for (i = 0; i < sg_cnt; ++i) {
+		page = sg_page(&sg[i]);
+		EXTRACHECKS_BUG_ON(!page);
+		page_cache_release(page);
+	}
+
+	TRACE_EXIT();
+	return;
+}
+
+/**
+ * prepare_read_page - Bring a single page into the page cache.
+ *
+ * @filp: file pointer
+ * @len: number of bytes to read from the file
+ * @offset: offset of first byte to read (from start of file)
+ * @last: offset of first byte that will not be read - used for readahead
+ * @pageptr: page pointer output variable.
+ *
+ * Returns a negative number if an error occurred, zero upon EOF or a positive
+ * number - the number of bytes that can be read from the file via the returned
+ * page. If a positive number is returned, it is the responsibility of the
+ * caller to release the returned page.
+ *
+ * Based on do_generic_file_read().
+ */
+static int prepare_read_page(struct file *filp, int len,
+			     loff_t offset, loff_t last, struct page **pageptr)
+{
+	struct address_space *mapping = filp->f_mapping;
+	struct inode *inode = mapping->host;
+	struct file_ra_state *ra = &filp->f_ra;
+	struct page *page;
+	unsigned long index, last_index;
+	long end_index, nr;
+	loff_t isize;
+	read_descriptor_t desc = { .count = len };
+	int error;
+
+	TRACE_ENTRY();
+
+	WARN((offset & ~PAGE_CACHE_MASK) + len > PAGE_CACHE_SIZE,
+	     "offset = %lld + %lld, len = %d\n", offset & PAGE_CACHE_MASK,
+	     offset & ~PAGE_CACHE_MASK, len);
+	sBUG_ON(!mapping->a_ops);
+
+	index = offset >> PAGE_CACHE_SHIFT;
+	last_index = (last + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
+
+find_page:
+	page = find_get_page(mapping, index);
+	if (!page) {
+		page_cache_sync_readahead(mapping, ra, filp, index,
+					  last_index - index);
+		page = find_get_page(mapping, index);
+		if (unlikely(!page)) {
+			/*
+			 * Not cached so create a new page.
+			 */
+			page = page_cache_alloc_cold(mapping);
+			if (!page) {
+				error = -ENOMEM;
+				goto err;
+			}
+			error = add_to_page_cache_lru(page, mapping, index,
+						      GFP_KERNEL);
+			if (error) {
+				page_cache_release(page);
+				if (error == -EEXIST)
+					goto find_page;
+				else
+					goto err;
+			} else {
+				goto readpage;
+			}
 		}
-		scst_thr_data_get(&thr->hdr);
+	}
+	if (PageReadahead(page))
+		page_cache_async_readahead(mapping, ra, filp, page,
+					   index, last_index - index);
+	if (!PageUptodate(page)) {
+		if (inode->i_blkbits == PAGE_CACHE_SHIFT ||
+		    !mapping->a_ops->is_partially_uptodate)
+			goto page_not_up_to_date;
+		if (!trylock_page(page))
+			goto page_not_up_to_date;
+		/* Did it get truncated before we got the lock? */
+		if (!page->mapping)
+			goto page_not_up_to_date_locked;
+		if (!mapping->a_ops->is_partially_uptodate(page, &desc,
+						offset & ~PAGE_CACHE_MASK))
+			goto page_not_up_to_date_locked;
+		unlock_page(page);
+	}
+page_ok:
+	/*
+	 * i_size must be checked after we know the page is Uptodate.
+	 *
+	 * Checking i_size after the check allows us to calculate the correct
+	 * value for "nr", which means the zero-filled part of the page is not
+	 * accessed (unless another truncate extends the file - this is
+	 * desired though).
+	 */
+
+	isize = i_size_read(inode);
+	end_index = (isize - 1) >> PAGE_CACHE_SHIFT;
+	if (unlikely(isize == 0 || index > end_index)) {
+		page_cache_release(page);
+		goto eof;
+	}
+
+	/* nr is the maximum number of bytes to copy from this page */
+	if (index < end_index) {
+		nr = PAGE_CACHE_SIZE - (offset & ~PAGE_CACHE_MASK);
 	} else {
-		thr = container_of(d, struct scst_vdisk_thr, hdr);
+		nr = ((isize - 1) & ~PAGE_CACHE_MASK) + 1 -
+			(offset & ~PAGE_CACHE_MASK);
+		if (nr <= 0) {
+			page_cache_release(page);
+			goto eof;
+		}
+	}
+
+	/*
+	 * If users can be writing to this page using arbitrary virtual
+	 * addresses, take care about potential aliasing before reading the
+	 * page on the kernel side.
+	 */
+	if (mapping_writably_mapped(mapping))
+		flush_dcache_page(page);
+
+	mark_page_accessed(page);
+
+	/* Ok, we have the page and it's up to date. */
+	*pageptr = page;
+	TRACE_EXIT_RES(nr);
+	return nr;
+eof:
+	TRACE_EXIT();
+	return 0;
+err:
+	TRACE_EXIT_RES(error);
+	return error;
+
+page_not_up_to_date:
+	/* Try to get exclusive access to the page. */
+	error = lock_page_killable(page);
+	if (unlikely(error != 0)) {
+		page_cache_release(page);
+		goto err;
+	}
+
+page_not_up_to_date_locked:
+	/* Did it get truncated before we got the lock? */
+	if (!page->mapping) {
+		unlock_page(page);
+		page_cache_release(page);
+		goto find_page;
+	}
+
+	/* Did somebody else fill it already? */
+	if (PageUptodate(page)) {
+		unlock_page(page);
+		goto page_ok;
+	}
+
+readpage:
+	/*
+	 * A previous I/O error may have been due to temporary
+	 * failures, eg. multipath errors.
+	 * PG_error will be set again if readpage fails.
+	 */
+	ClearPageError(page);
+	/* Start the actual read. The read will unlock the page. */
+	error = mapping->a_ops->readpage(filp, page);
+	if (unlikely(error)) {
+		if (error == AOP_TRUNCATED_PAGE) {
+			page_cache_release(page);
+			goto find_page;
+		}
+		WARN(error >= 0, "error = %d\n", error);
+		page_cache_release(page);
+		goto err;
+	}
+
+	if (!PageUptodate(page)) {
+		error = lock_page_killable(page);
+		if (unlikely(error != 0)) {
+			page_cache_release(page);
+			goto err;
+		}
+		if (!PageUptodate(page)) {
+			if (page->mapping == NULL) {
+				/*
+				 * invalidate_mapping_pages got it
+				 */
+				unlock_page(page);
+				page_cache_release(page);
+				goto find_page;
+			}
+			unlock_page(page);
+			page_cache_release(page);
+			error = -EIO;
+			goto err;
+		}
+		unlock_page(page);
+	}
+
+	goto page_ok;
+}
+
+/**
+ * prepare_read - Lock page cache pages corresponding to an sg vector
+ * @filp: file the sg vector applies to
+ * @sg: sg vector
+ * @sg_cnt: sg vector size
+ * @offset: file offset the first byte of the first sg element corresponds to
+ */
+static int prepare_read(struct file *filp, struct scatterlist *sg, int sg_cnt,
+			pgoff_t offset)
+{
+	struct page *page;
+	int i, res;
+	loff_t off, last = ((offset + sg_cnt - 1) << PAGE_SHIFT) +
+		sg[sg_cnt - 1].offset + sg[sg_cnt - 1].length;
+
+	TRACE_ENTRY();
+
+	for (i = 0; i < sg_cnt; ++i) {
+		off = (offset + i) << PAGE_SHIFT | sg[i].offset;
+		res = prepare_read_page(filp, sg[i].length, off, last, &page);
+		if (res <= 0)
+			goto err;
+		if (res < sg[i].length) {
+			page_cache_release(page);
+			goto err;
+		}
+		sg_assign_page(&sg[i], page);
+	}
+
+	file_accessed(filp);
+
+out:
+	TRACE_EXIT_RES(i);
+	return i;
+
+err:
+	finish_read(sg, i);
+	i = -EIO;
+	goto out;
+}
+
+/**
+ * alloc_sg - Allocate an SG vector.
+ * @size: number of bytes that will be stored in the pages of the sg vector
+ * @off: first page data offset
+ * @gfp_mask: allocation flags for dynamic sg vector allocation
+ * @small_sg: pointer to a candidate sg vector
+ * @small_sg_size: size of @small_sg
+ * @p_sg_cnt: pointer to an int where the sg vector size will be written
+ */
+static struct scatterlist *alloc_sg(size_t size, unsigned off, gfp_t gfp_mask,
+				    struct scatterlist *small_sg,
+				    int small_sg_size, int *p_sg_cnt)
+{
+	struct scatterlist *sg;
+	int i, sg_cnt, remaining_sz, sg_sz, sg_off;
+
+	TRACE_ENTRY();
+
+	sg_cnt = PAGE_ALIGN(size + off) >> PAGE_SHIFT;
+	sg = sg_cnt <= small_sg_size ? small_sg :
+		kmalloc(sg_cnt * sizeof(*sg), gfp_mask);
+	if (!sg)
+		goto out;
+
+	sg_init_table(sg, sg_cnt);
+	remaining_sz = size;
+	sg_off = off;
+	for (i = 0; i < sg_cnt; ++i) {
+		sg_sz = min_t(int, PAGE_SIZE - sg_off, remaining_sz);
+		sg_set_page(&sg[i], NULL, sg_sz, sg_off);
+		remaining_sz -= sg_sz;
+		sg_off = 0;
+	}
+	*p_sg_cnt = sg_cnt;
+
+out:
+	TRACE_EXIT();
+	return sg;
+}
+
+static int fileio_alloc_data_buf(struct scst_cmd *cmd)
+{
+	struct vdisk_cmd_params *p;
+	struct scst_vdisk_dev *virt_dev;
+	int sg_cnt, nr;
+	const gfp_t gfp_mask = GFP_KERNEL;
+	struct scatterlist *sg;
+
+	TRACE_ENTRY();
+
+	p = cmd->dh_priv;
+	EXTRACHECKS_BUG_ON(!p);
+	virt_dev = cmd->dev->dh_priv;
+	/*
+	 * If the target driver (e.g. scst_local) allocates the sg vector
+	 * itself or the command is a write or bidi command, don't use zero
+	 * copy.
+	 */
+	if (cmd->tgt_data_buf_alloced ||
+	    (cmd->data_direction & SCST_DATA_READ) == 0) {
+		p->use_zero_copy = false;
+	}
+	if (!p->use_zero_copy)
+		goto out;
+
+	EXTRACHECKS_BUG_ON(!(cmd->data_direction & SCST_DATA_READ));
+
+	scst_cmd_set_dh_data_buff_alloced(cmd);
+
+	cmd->sg = alloc_sg(cmd->bufflen, p->loff & ~PAGE_MASK, gfp_mask,
+			   p->small_sg, ARRAY_SIZE(p->small_sg), &cmd->sg_cnt);
+	if (!cmd->sg) {
+		PRINT_ERROR("sg allocation failed (bufflen = %d, off = %lld)\n",
+			    cmd->bufflen, p->loff & ~PAGE_MASK);
+		goto enomem;
+	}
+	sg_cnt = scst_cmd_get_sg_cnt(cmd);
+	sg = cmd->sg;
+	nr = prepare_read(virt_dev->fd, sg, sg_cnt, p->loff >> PAGE_SHIFT);
+	if (nr < 0) {
+		PRINT_ERROR("prepare_read() failed: %d", nr);
+		goto out_free_sg;
 	}
 out:
-	return thr;
-}
+	TRACE_EXIT();
+	return SCST_CMD_STATE_DEFAULT;
 
-static struct scst_vdisk_thr *vdisk_get_nullio_thr(void)
+out_free_sg:
+	kfree(cmd->sg);
+	cmd->sg = NULL;
+	cmd->sg_cnt = 0;
+
+enomem:
+	scst_set_busy(cmd);
+	TRACE_EXIT_RES(-ENOMEM);
+	return scst_get_cmd_abnormal_done_state(cmd);
+}
+#else
+static int fileio_alloc_data_buf(struct scst_cmd *cmd)
 {
-	struct scst_vdisk_thr *thr;
+	struct vdisk_cmd_params *p;
 
-	thr = &nullio_thr_data;
-	scst_thr_data_get(&thr->hdr);
-	return thr;
+	TRACE_ENTRY()
+
+	p = cmd->dh_priv;
+	EXTRACHECKS_BUG_ON(!p);
+	p->use_zero_copy = false;
+
+	TRACE_EXIT();
+	return SCST_CMD_STATE_DEFAULT;
 }
 
-static int vdisk_do_job(struct scst_cmd *cmd, const vdisk_op_fn *ops)
+static void finish_read(struct scatterlist *sg, int sg_cnt)
+{
+}
+#endif
+
+static int vdev_do_job(struct scst_cmd *cmd, const vdisk_op_fn *ops)
 {
 	int res;
 	uint8_t *cdb = cmd->cdb;
 	int opcode = cdb[0];
-	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
-	struct vdisk_cmd_params p;
+	struct vdisk_cmd_params *p = cmd->dh_priv;
 	struct scst_vdisk_dev *virt_dev;
 	vdisk_op_fn op = ops[opcode];
 
 	TRACE_ENTRY();
 
-	memset(&p, 0, sizeof(p));
-
-	if (unlikely(!vdisk_parse_offset(&p, cmd)))
-		goto out_compl;
+	EXTRACHECKS_BUG_ON(!p);
 
 	virt_dev = cmd->dev->dh_priv;
-	p.thr = virt_dev->nullio ? vdisk_get_nullio_thr() : vdisk_get_thr(cmd, tgt_dev);
-	if (unlikely(p.thr == NULL))
-		goto out_compl;
 
-	if (likely(*op)) {
+	EXTRACHECKS_BUG_ON(p->cmd != cmd);
+	EXTRACHECKS_BUG_ON(ops != blockio_ops && ops != fileio_ops && ops != nullio_ops);
+	if (likely(op)) {
 		enum compl_status_e s;
 
-		s = op(&p);
+		s = op(p);
 		if (s == CMD_SUCCEEDED)
 			;
 		else if (s == RUNNING_ASYNC)
@@ -1293,9 +1719,6 @@ out_compl:
 	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
 
 out_thr:
-	if (likely(p.thr != NULL))
-		scst_thr_data_put(&p.thr->hdr);
-
 	res = SCST_EXEC_COMPLETED;
 
 	TRACE_EXIT_RES(res);
@@ -1303,8 +1726,7 @@ out_thr:
 
 out_invalid_opcode:
 	TRACE_DBG("Invalid opcode %d", opcode);
-	scst_set_cmd_error(cmd,
-		    SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 	goto out_compl;
 }
 
@@ -1313,26 +1735,70 @@ static int vdisk_exec(struct scst_cmd *cmd)
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	const vdisk_op_fn *ops = virt_dev->vdev_devt->devt_priv;
 
-	BUG_ON(!ops);
-	return vdisk_do_job(cmd, ops);
+	EXTRACHECKS_BUG_ON(!ops);
+	return vdev_do_job(cmd, ops);
 }
 
-static int vdisk_get_block_shift(struct scst_cmd *cmd)
+static void fileio_on_free_cmd(struct scst_cmd *cmd)
+{
+	struct vdisk_cmd_params *p = cmd->dh_priv;
+	struct scst_vdisk_dev *virt_dev;
+
+	TRACE_ENTRY();
+
+	if (!p)
+		goto out;
+
+	virt_dev = cmd->dev->dh_priv;
+
+	if (p->use_zero_copy) {
+		if ((cmd->data_direction & SCST_DATA_READ) &&
+		    virt_dev->zero_copy)
+			finish_read(cmd->sg, cmd->sg_cnt);
+		if (cmd->sg != p->small_sg)
+			kfree(cmd->sg);
+		cmd->sg_cnt = 0;
+		cmd->sg = NULL;
+		cmd->bufflen = 0;
+		cmd->data_len = 0;
+	}
+
+	if (p->iv != p->small_iv)
+		kfree(p->iv);
+
+	kmem_cache_free(vdisk_cmd_param_cachep, p);
+
+out:
+	TRACE_EXIT();
+	return;
+}
+
+/* blockio and nullio */
+static int non_fileio_exec(struct scst_cmd *cmd)
 {
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
-	return virt_dev->block_shift;
-}
+	const vdisk_op_fn *ops = virt_dev->vdev_devt->devt_priv;
+	struct vdisk_cmd_params p;
+	int res;
 
-static int vdisk_parse(struct scst_cmd *cmd)
-{
-	scst_sbc_generic_parse(cmd, vdisk_get_block_shift);
-	return SCST_CMD_STATE_DEFAULT;
-}
+	EXTRACHECKS_BUG_ON(!ops);
 
-static int vcdrom_parse(struct scst_cmd *cmd)
-{
-	scst_cdrom_generic_parse(cmd, vdisk_get_block_shift);
-	return SCST_CMD_STATE_DEFAULT;
+	memset(&p, 0, sizeof(p));
+	if (unlikely(!vdisk_parse_offset(&p, cmd)))
+		goto err;
+
+	cmd->dh_priv = &p;
+	res = vdev_do_job(cmd, ops);
+	cmd->dh_priv = NULL;
+
+out:
+	return res;
+
+err:
+	res = SCST_EXEC_COMPLETED;
+	cmd->completed = 1;
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
+	goto out;
 }
 
 static int vcdrom_exec(struct scst_cmd *cmd)
@@ -1368,7 +1834,7 @@ static int vcdrom_exec(struct scst_cmd *cmd)
 		spin_unlock(&virt_dev->flags_lock);
 	}
 
-	res = vdisk_do_job(cmd, virt_dev->blockio ? blockio_ops : fileio_ops);
+	res = vdev_do_job(cmd, virt_dev->blockio ? blockio_ops : fileio_ops);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1395,10 +1861,9 @@ static uint64_t vdisk_gen_dev_id_num(const char *virt_dev_name)
 static enum compl_status_e vdisk_exec_unmap(struct vdisk_cmd_params *p)
 {
 	struct scst_cmd *cmd = p->cmd;
-	struct scst_vdisk_thr *thr = p->thr;
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	ssize_t length = 0;
-	struct file *fd = thr->fd;
+	struct file *fd = virt_dev->fd;
 	struct inode *inode;
 	uint8_t *address;
 	int offset, descriptor_len, total_len;
@@ -1550,6 +2015,8 @@ static void vdev_blockio_get_unmap_params(struct scst_vdisk_dev *virt_dev,
 #endif
 
 	TRACE_ENTRY();
+
+	sBUG_ON(!virt_dev->filename);
 
 	*unmap_gran = 1;
 	*unmap_alignment = 0;
@@ -2266,8 +2733,6 @@ static int vdisk_set_wt(struct scst_vdisk_dev *virt_dev, int wt)
 	virt_dev->wt_flag = wt;
 	spin_unlock(&virt_dev->flags_lock);
 
-	scst_dev_del_all_thr_data(virt_dev->dev);
-
 out:
 	TRACE_EXIT_RES(res);
 	return res;
@@ -2718,7 +3183,7 @@ static enum compl_status_e vdisk_exec_prevent_allow_medium_removal(struct vdisk_
 	return CMD_SUCCEEDED;
 }
 
-static int vdisk_fsync(struct scst_vdisk_thr *thr, loff_t loff,
+static int vdisk_fsync(struct vdisk_cmd_params *p, loff_t loff,
 	loff_t len, struct scst_device *dev, gfp_t gfp_flags,
 	struct scst_cmd *cmd)
 {
@@ -2739,11 +3204,11 @@ static int vdisk_fsync(struct scst_vdisk_thr *thr, loff_t loff,
 		goto out;
 
 	if (virt_dev->blockio) {
-		res = vdisk_blockio_flush(thr->bdev, gfp_flags, true);
+		res = vdisk_blockio_flush(virt_dev->bdev, gfp_flags, true);
 		goto out_check;
 	}
 
-	file = thr->fd;
+	file = virt_dev->fd;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
 	res = sync_page_range(file->f_dentry->d_inode, file->f_mapping,
@@ -2771,25 +3236,27 @@ out:
 }
 
 static struct iovec *vdisk_alloc_iv(struct scst_cmd *cmd,
-	struct scst_vdisk_thr *thr)
+				    struct vdisk_cmd_params *p)
 {
 	int iv_count;
 
 	iv_count = min_t(int, scst_get_buf_count(cmd), UIO_MAXIOV);
-	if (iv_count > thr->iv_count) {
-		kfree(thr->iv);
+	if (iv_count > p->iv_count) {
+		if (p->iv != p->small_iv)
+			kfree(p->iv);
+		p->iv_count = 0;
 		/* It can't be called in atomic context */
-		thr->iv = kmalloc(sizeof(*thr->iv) * iv_count, GFP_KERNEL);
-		if (thr->iv == NULL) {
+		p->iv = (iv_count <= ARRAY_SIZE(p->small_iv)) ? p->small_iv :
+			kmalloc(sizeof(*p->iv) * iv_count, GFP_KERNEL);
+		if (p->iv == NULL) {
 			PRINT_ERROR("Unable to allocate iv (%d)", iv_count);
-			scst_set_busy(cmd);
 			goto out;
 		}
-		thr->iv_count = iv_count;
+		p->iv_count = iv_count;
 	}
 
 out:
-	return thr->iv;
+	return p->iv;
 }
 
 static enum compl_status_e nullio_exec_read(struct vdisk_cmd_params *p)
@@ -2799,33 +3266,34 @@ static enum compl_status_e nullio_exec_read(struct vdisk_cmd_params *p)
 
 static enum compl_status_e blockio_exec_read(struct vdisk_cmd_params *p)
 {
-	blockio_exec_rw(p->cmd, p->thr, p->lba_start, false, false);
+	blockio_exec_rw(p, false, false);
 	return RUNNING_ASYNC;
 }
 
 static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 {
 	struct scst_cmd *cmd = p->cmd;
-	struct scst_vdisk_thr *thr = p->thr;
 	loff_t loff = p->loff;
 	mm_segment_t old_fs;
-	loff_t err;
+	loff_t err = 0;
 	ssize_t length, full_len;
 	uint8_t __user *address;
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
-	struct file *fd = thr->fd;
+	struct file *fd = virt_dev->fd;
 	struct iovec *iv;
 	int iv_count, i;
 	bool finished = false;
 
 	TRACE_ENTRY();
 
-	WARN_ON(virt_dev->nullio);
+	EXTRACHECKS_BUG_ON(virt_dev->nullio);
 
-	err = -ENOMEM;
-	iv = vdisk_alloc_iv(cmd, thr);
-	if (iv == NULL)
+	if (p->use_zero_copy)
 		goto out;
+
+	iv = vdisk_alloc_iv(cmd, p);
+	if (iv == NULL)
+		goto out_nomem;
 
 	length = scst_get_buf_first(cmd, (uint8_t __force **)&address);
 	if (unlikely(length < 0)) {
@@ -2865,23 +3333,10 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 		}
 
 		TRACE_DBG("(iv_count %d, full_len %zd)", iv_count, full_len);
-		/* SEEK */
-		if (fd->f_op->llseek)
-			err = fd->f_op->llseek(fd, loff, 0/*SEEK_SET*/);
-		else
-			err = default_llseek(fd, loff, 0/*SEEK_SET*/);
-		if (err != loff) {
-			PRINT_ERROR("lseek trouble %lld != %lld",
-				    (long long unsigned int)err,
-				    (long long unsigned int)loff);
-			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_hardw_error));
-			goto out_set_fs;
-		}
 
 		/* READ */
 		err = vfs_readv(fd, (struct iovec __force __user *)iv, iv_count,
-				&fd->f_pos);
+				&loff);
 
 		if ((err < 0) || (err < full_len)) {
 			PRINT_ERROR("readv() returned %lld from %zd",
@@ -2917,6 +3372,11 @@ out_set_fs:
 	for (i = 0; i < iv_count; i++)
 		scst_put_buf(cmd, (void __force *)(iv[i].iov_base));
 	goto out;
+
+out_nomem:
+	scst_set_busy(cmd);
+	err = 0;
+	goto out;
 }
 
 static enum compl_status_e nullio_exec_write(struct vdisk_cmd_params *p)
@@ -2930,34 +3390,34 @@ static enum compl_status_e blockio_exec_write(struct vdisk_cmd_params *p)
 	struct scst_device *dev = cmd->dev;
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 
-	blockio_exec_rw(cmd, p->thr, p->lba_start, true,
-			p->fua || virt_dev->wt_flag);
+	blockio_exec_rw(p, true, p->fua || virt_dev->wt_flag);
 	return RUNNING_ASYNC;
 }
 
 static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 {
 	struct scst_cmd *cmd = p->cmd;
-	struct scst_vdisk_thr *thr = p->thr;
 	loff_t loff = p->loff;
 	mm_segment_t old_fs;
-	loff_t err;
+	loff_t err = 0;
 	ssize_t length, full_len, saved_full_len;
 	uint8_t __user *address;
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
-	struct file *fd = thr->fd;
+	struct file *fd = virt_dev->fd;
 	struct iovec *iv, *eiv;
 	int i, iv_count, eiv_count;
 	bool finished = false;
 
 	TRACE_ENTRY();
 
-	WARN_ON(virt_dev->nullio);
+	EXTRACHECKS_BUG_ON(virt_dev->nullio);
 
-	err = -ENOMEM;
-	iv = vdisk_alloc_iv(cmd, thr);
+	if (p->use_zero_copy)
+		goto out_sync;
+
+	iv = vdisk_alloc_iv(cmd, p);
 	if (iv == NULL)
-		goto out;
+		goto out_nomem;
 
 	length = scst_get_buf_first(cmd, (uint8_t __force **)&address);
 	if (unlikely(length < 0)) {
@@ -3002,23 +3462,9 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 restart:
 		TRACE_DBG("writing(eiv_count %d, full_len %zd)", eiv_count, full_len);
 
-		/* SEEK */
-		if (fd->f_op->llseek)
-			err = fd->f_op->llseek(fd, loff, 0 /*SEEK_SET */);
-		else
-			err = default_llseek(fd, loff, 0 /*SEEK_SET */);
-		if (err != loff) {
-			PRINT_ERROR("lseek trouble %lld != %lld",
-				    (long long unsigned int)err,
-				    (long long unsigned int)loff);
-			scst_set_cmd_error(cmd,
-				   SCST_LOAD_SENSE(scst_sense_hardw_error));
-			goto out_set_fs;
-		}
-
 		/* WRITE */
 		err = vfs_writev(fd, (struct iovec __force __user *)eiv, eiv_count,
-				 &fd->f_pos);
+				 &loff);
 
 		if (err < 0) {
 			PRINT_ERROR("write() returned %lld from %zd",
@@ -3072,12 +3518,12 @@ restart:
 
 	set_fs(old_fs);
 
-out:
+out_sync:
 	/* O_SYNC flag is used for WT devices */
 	if (p->fua)
-		vdisk_fsync(thr, loff, p->data_len, cmd->dev,
+		vdisk_fsync(p, loff, p->data_len, cmd->dev,
 			    scst_cmd_get_gfp_flags(cmd), cmd);
-
+out:
 	TRACE_EXIT();
 	return err >= 0 ? CMD_SUCCEEDED : CMD_FAILED;
 
@@ -3085,6 +3531,11 @@ out_set_fs:
 	set_fs(old_fs);
 	for (i = 0; i < iv_count; i++)
 		scst_put_buf(cmd, (void __force *)(iv[i].iov_base));
+	goto out_sync;
+
+out_nomem:
+	scst_set_busy(cmd);
+	err = 0;
 	goto out;
 }
 
@@ -3160,11 +3611,12 @@ static void blockio_endio(struct bio *bio, int error)
 #endif
 }
 
-static void blockio_exec_rw(struct scst_cmd *cmd, struct scst_vdisk_thr *thr,
-			    u64 lba_start, bool write, bool fua)
+static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 {
+	struct scst_cmd *cmd = p->cmd;
+	u64 lba_start = p->lba_start;
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
-	struct block_device *bdev = thr->bdev;
+	struct block_device *bdev = virt_dev->bdev;
 	struct request_queue *q = bdev_get_queue(bdev);
 	int length, max_nr_vecs = 0, offset;
 	struct page *page;
@@ -3346,7 +3798,6 @@ static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask,
 static enum compl_status_e fileio_exec_verify(struct vdisk_cmd_params *p)
 {
 	struct scst_cmd *cmd = p->cmd;
-	struct scst_vdisk_thr *thr = p->thr;
 	loff_t loff = p->loff;
 	mm_segment_t old_fs;
 	loff_t err;
@@ -3354,14 +3805,14 @@ static enum compl_status_e fileio_exec_verify(struct vdisk_cmd_params *p)
 	uint8_t *address_sav, *address;
 	int compare;
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
-	struct file *fd = thr->fd;
+	struct file *fd = virt_dev->fd;
 	uint8_t *mem_verify = NULL;
 
 	TRACE_ENTRY();
 
 	sBUG_ON(virt_dev->blockio);
 
-	if (vdisk_fsync(thr, loff, cmd->bufflen, cmd->dev,
+	if (vdisk_fsync(p, loff, cmd->bufflen, cmd->dev,
 			scst_cmd_get_gfp_flags(cmd), cmd) != 0)
 		goto out;
 
@@ -3418,7 +3869,7 @@ static enum compl_status_e fileio_exec_verify(struct vdisk_cmd_params *p)
 
 		if (!virt_dev->nullio)
 			err = vfs_read(fd, (char __force __user *)mem_verify,
-				len_mem, &fd->f_pos);
+				       len_mem, &loff);
 		else
 			err = len_mem;
 		if ((err < 0) || (err < len_mem)) {
@@ -3563,7 +4014,11 @@ static void vdisk_report_registering(const struct scst_vdisk_dev *virt_dev)
 			(j == i) ? "(" : ", ");
 
 	if (virt_dev->thin_provisioned)
-		i += snprintf(&buf[i], sizeof(buf) - i, "%sTHIN PROVISIONED",
+		i += snprintf(&buf[i], sizeof(buf) - i, "%sTHIN_PROVISIONED",
+			(j == i) ? "(" : ", ");
+
+	if (virt_dev->zero_copy)
+		i += snprintf(&buf[i], sizeof(buf) - i, "%sZERO_COPY",
 			(j == i) ? "(" : ", ");
 
 	if (j == i)
@@ -3580,6 +4035,7 @@ static int vdisk_resync_size(struct scst_vdisk_dev *virt_dev)
 	int res = 0;
 
 	sBUG_ON(virt_dev->nullio);
+	sBUG_ON(!virt_dev->filename);
 
 	res = vdisk_get_file_size(virt_dev->filename,
 			virt_dev->blockio, &file_size);
@@ -3598,8 +4054,6 @@ static int vdisk_resync_size(struct scst_vdisk_dev *virt_dev)
 
 	virt_dev->file_size = file_size;
 	virt_dev->nblocks = virt_dev->file_size >> virt_dev->block_shift;
-
-	scst_dev_del_all_thr_data(virt_dev->dev);
 
 	PRINT_INFO("New size of SCSI target virtual disk %s "
 		"(fs=%lldMB, bs=%d, nblocks=%lld, cyln=%lld%s)",
@@ -3800,6 +4254,8 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 			virt_dev->thin_provisioned_manually_set = 1;
 			TRACE_DBG("THIN PROVISIONED %d",
 				virt_dev->thin_provisioned);
+		} else if (!strcasecmp("zero_copy", p)) {
+			virt_dev->zero_copy = !!val;
 		} else if (!strcasecmp("blocksize", p)) {
 			virt_dev->block_size = val;
 			virt_dev->block_shift = scst_calc_block_shift(
@@ -4286,8 +4742,6 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 		virt_dev->media_changed = 1;
 
 	mutex_unlock(&scst_mutex);
-
-	scst_dev_del_all_thr_data(virt_dev->dev);
 
 	if (!virt_dev->cdrom_empty) {
 		PRINT_INFO("Changed SCSI target virtual cdrom %s "
@@ -4853,6 +5307,25 @@ static ssize_t vdev_sysfs_usn_show(struct kobject *kobj,
 	pos = sprintf(buf, "%s\n%s", virt_dev->usn,
 		virt_dev->usn_set ? SCST_SYSFS_KEY_MARK "\n" : "");
 	read_unlock(&vdisk_serial_rwlock);
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static ssize_t vdev_zero_copy_show(struct kobject *kobj,
+					struct kobj_attribute *attr, char *buf)
+{
+	int pos = 0;
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = dev->dh_priv;
+
+	pos = sprintf(buf, "%d\n%s", virt_dev->zero_copy,
+		      virt_dev->zero_copy ? SCST_SYSFS_KEY_MARK "\n" : "");
 
 	TRACE_EXIT_RES(pos);
 	return pos;
@@ -5570,8 +6043,8 @@ static int __init init_scst_vdisk_driver(void)
 {
 	int res;
 
-	vdisk_thr_cachep = KMEM_CACHE(scst_vdisk_thr, SCST_SLAB_FLAGS);
-	if (vdisk_thr_cachep == NULL) {
+	vdisk_cmd_param_cachep = KMEM_CACHE(vdisk_cmd_params, SCST_SLAB_FLAGS);
+	if (vdisk_cmd_param_cachep == NULL) {
 		res = -ENOMEM;
 		goto out;
 	}
@@ -5590,8 +6063,6 @@ static int __init init_scst_vdisk_driver(void)
 
 	vdisk_file_devtype.threads_num = num_threads;
 	vcdrom_devtype.threads_num = num_threads;
-
-	atomic_set(&nullio_thr_data.hdr.ref, 1); /* never destroy it */
 
 	res = init_scst_vdisk(&vdisk_file_devtype);
 	if (res != 0)
@@ -5625,7 +6096,7 @@ out_free_slab:
 	kmem_cache_destroy(blockio_work_cachep);
 
 out_free_vdisk_cache:
-	kmem_cache_destroy(vdisk_thr_cachep);
+	kmem_cache_destroy(vdisk_cmd_param_cachep);
 	goto out;
 }
 
@@ -5637,7 +6108,7 @@ static void __exit exit_scst_vdisk_driver(void)
 	exit_scst_vdisk(&vcdrom_devtype);
 
 	kmem_cache_destroy(blockio_work_cachep);
-	kmem_cache_destroy(vdisk_thr_cachep);
+	kmem_cache_destroy(vdisk_cmd_param_cachep);
 }
 
 module_init(init_scst_vdisk_driver);

@@ -1717,21 +1717,12 @@ void scst_del_threads(struct scst_cmd_threads *cmd_threads, int num)
 	list_for_each_entry_safe_reverse(ct, tmp, &cmd_threads->threads_list,
 				thread_list_entry) {
 		int rc;
-		struct scst_device *dev;
 
 		rc = kthread_stop(ct->cmd_thread);
 		if (rc != 0 && rc != -EINTR)
 			TRACE_MGMT_DBG("kthread_stop() failed: %d", rc);
 
 		list_del(&ct->thread_list_entry);
-
-		list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
-			struct scst_tgt_dev *tgt_dev;
-			list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
-					dev_tgt_dev_list_entry) {
-				scst_del_thr_data(tgt_dev, ct->cmd_thread);
-			}
-		}
 
 		kfree(ct);
 

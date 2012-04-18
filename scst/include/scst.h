@@ -2421,18 +2421,6 @@ struct scst_device {
 };
 
 /*
- * Used to store threads local tgt_dev specific data
- */
-struct scst_thr_data_hdr {
-	/* List entry in tgt_dev->thr_data_list */
-	struct list_head thr_data_list_entry;
-	struct task_struct *owner_thr; /* the owner thread */
-	atomic_t ref;
-	/* Function that will be called on the tgt_dev destruction */
-	void (*free_fn) (struct scst_thr_data_hdr *data);
-};
-
-/*
  * Used to clearly dispose async io_context
  */
 struct scst_async_io_context_keeper {
@@ -2472,10 +2460,6 @@ struct scst_tgt_dev {
 
 	struct scst_order_data *curr_order_data;
 	struct scst_order_data tgt_dev_order_data;
-
-	/* List of scst_thr_data_hdr and lock */
-	spinlock_t thr_data_lock;
-	struct list_head thr_data_list;
 
 	/* Pointer to lists of commands with the lock */
 	struct scst_cmd_threads *active_cmd_threads;
@@ -3974,7 +3958,8 @@ static inline int scst_check_local_events(struct scst_cmd *cmd)
 	return __scst_check_local_events(cmd, true);
 }
 
-int scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd);
+int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd);
+void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd);
 
 struct scst_trace_log {
 	unsigned int val;
@@ -4128,34 +4113,6 @@ void scst_cmd_put(struct scst_cmd *cmd);
 
 struct scatterlist *scst_alloc(int size, gfp_t gfp_mask, int *count);
 void scst_free(struct scatterlist *sg, int count);
-
-void scst_add_thr_data(struct scst_tgt_dev *tgt_dev,
-	struct scst_thr_data_hdr *data,
-	void (*free_fn) (struct scst_thr_data_hdr *data));
-void scst_del_all_thr_data(struct scst_tgt_dev *tgt_dev);
-void scst_dev_del_all_thr_data(struct scst_device *dev);
-struct scst_thr_data_hdr *__scst_find_thr_data(struct scst_tgt_dev *tgt_dev,
-	struct task_struct *tsk);
-
-/* Finds local to the current thread data. Returns NULL, if they not found. */
-static inline struct scst_thr_data_hdr *scst_find_thr_data(
-	struct scst_tgt_dev *tgt_dev)
-{
-	return __scst_find_thr_data(tgt_dev, current);
-}
-
-/* Increase ref counter for the thread data */
-static inline void scst_thr_data_get(struct scst_thr_data_hdr *data)
-{
-	atomic_inc(&data->ref);
-}
-
-/* Decrease ref counter for the thread data */
-static inline void scst_thr_data_put(struct scst_thr_data_hdr *data)
-{
-	if (atomic_dec_and_test(&data->ref))
-		data->free_fn(data);
-}
 
 int scst_calc_block_shift(int sector_size);
 int scst_sbc_generic_parse(struct scst_cmd *cmd,
