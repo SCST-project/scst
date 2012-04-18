@@ -183,6 +183,8 @@ static inline bool scst_set_io_context(struct scst_cmd *cmd,
 {
 	bool res;
 
+	EXTRACHECKS_BUG_ON(old == NULL);
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 	return false;
 #endif
@@ -197,6 +199,7 @@ static inline bool scst_set_io_context(struct scst_cmd *cmd,
 		 * No need for any ref counting action, because io_context
 		 * supposed to be cleared in the end of the caller function.
 		 */
+		*old = current->io_context;
 		current->io_context = cmd->tgt_dev->async_io_context;
 		res = true;
 		TRACE_DBG("io_context %p (tgt_dev %p)", current->io_context,
