@@ -1282,21 +1282,45 @@ static int vdisk_get_block_shift(struct scst_cmd *cmd)
 
 static int vdisk_parse(struct scst_cmd *cmd)
 {
-	scst_sbc_generic_parse(cmd, vdisk_get_block_shift);
-	return fileio_alloc_and_parse(cmd);
+	int res, rc;
+
+	rc = scst_sbc_generic_parse(cmd, vdisk_get_block_shift);
+	if (rc != 0) {
+		res = scst_get_cmd_abnormal_done_state(cmd);
+		goto out;
+	}
+
+	res = fileio_alloc_and_parse(cmd);
+out:
+	return res;
 }
 
 static int vcdrom_parse(struct scst_cmd *cmd)
 {
-	scst_cdrom_generic_parse(cmd, vdisk_get_block_shift);
-	return fileio_alloc_and_parse(cmd);
+	int res, rc;
+	rc = scst_cdrom_generic_parse(cmd, vdisk_get_block_shift);
+	if (rc != 0) {
+		res = scst_get_cmd_abnormal_done_state(cmd);
+		goto out;
+	}
+
+	res = fileio_alloc_and_parse(cmd);
+out:
+	return res;
 }
 
 /* blockio and nullio */
 static int non_fileio_parse(struct scst_cmd *cmd)
 {
-	scst_sbc_generic_parse(cmd, vdisk_get_block_shift);
-	return SCST_CMD_STATE_DEFAULT;
+	int res = SCST_CMD_STATE_DEFAULT, rc;
+
+	rc = scst_sbc_generic_parse(cmd, vdisk_get_block_shift);
+	if (rc != 0) {
+		res = scst_get_cmd_abnormal_done_state(cmd);
+		goto out;
+	}
+out:
+	return res;
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)

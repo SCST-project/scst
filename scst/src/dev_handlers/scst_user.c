@@ -788,8 +788,10 @@ static int dev_user_parse(struct scst_cmd *cmd)
 	case SCST_USER_PARSE_STANDARD:
 		TRACE_DBG("PARSE STANDARD: ucmd %p", ucmd);
 		rc = dev->generic_parse(cmd, dev_user_get_block);
-		if (rc != 0)
-			goto out_invalid;
+		if (rc != 0) {
+			PRINT_ERROR("PARSE failed (ucmd %p, rc %d)", ucmd, rc);
+			goto out_error;
+		}
 		break;
 
 	case SCST_USER_PARSE_EXCEPTION:
@@ -854,10 +856,6 @@ done:
 out:
 	TRACE_EXIT_RES(res);
 	return res;
-
-out_invalid:
-	PRINT_ERROR("PARSE failed (ucmd %p, rc %d)", ucmd, rc);
-	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 
 out_error:
 	res = scst_get_cmd_abnormal_done_state(cmd);
