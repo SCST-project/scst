@@ -2,9 +2,9 @@
  *  Network threads.
  *
  *  Copyright (C) 2004 - 2005 FUJITA Tomonori <tomof@acm.org>
- *  Copyright (C) 2007 - 2011 Vladislav Bolkhovitin
+ *  Copyright (C) 2007 - 2012 Vladislav Bolkhovitin
  *  Copyright (C) 2007 - 2010 ID7 Ltd.
- *  Copyright (C) 2010 - 2011 SCST Ltd.
+ *  Copyright (C) 2010 - 2012 SCST Ltd.
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -1171,6 +1171,7 @@ void iscsi_put_page_callback(struct page *page)
 
 static void check_net_priv(struct iscsi_cmnd *cmd, struct page *page)
 {
+	smp_rmb(); /* to sync with __iscsi_get_page_callback() */
 	if ((atomic_read(&cmd->net_ref_cnt) == 1) && (page->net_priv == cmd)) {
 		TRACE_DBG("sendpage() not called get_page(), zeroing net_priv "
 			"%p (page %p)", page->net_priv, page);

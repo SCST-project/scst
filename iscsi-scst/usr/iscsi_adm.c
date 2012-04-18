@@ -2,9 +2,9 @@
  *  iscsi_adm - manage iSCSI-SCST Target software.
  *
  *  Copyright (C) 2004 - 2005 FUJITA Tomonori <tomof@acm.org>
- *  Copyright (C) 2007 - 2011 Vladislav Bolkhovitin
+ *  Copyright (C) 2007 - 2012 Vladislav Bolkhovitin
  *  Copyright (C) 2007 - 2010 ID7 Ltd.
- *  Copyright (C) 2010 - 2011 SCST Ltd.
+ *  Copyright (C) 2010 - 2012 SCST Ltd.
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License

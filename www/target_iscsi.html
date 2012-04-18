@@ -1,21 +1,156 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html>
-
 <head>
+<meta name="Keywords" content="iSCSI target, iSCSI-SCST">
 <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
-<object><noscript>
-<meta http-equiv="Refresh" content="0; URL=http://iscsi-scst.sourceforge.net">
-</noscript></object>
-<title>Old iSCSI-SCST page</title>
+<meta name="author" content="Daniel Fernandes">
+<meta name="Robots" content="index,follow">
+<link rel="stylesheet" href="images/Orange.css" type="text/css">	
+<title>iSCSI Target Driver</title>
 </head>
 
 <body>
-<script language="JavaScript1.1" type="text/javascript">
-<!--
-location.replace("http://iscsi-scst.sourceforge.net");
-//-->
+<!-- wrap starts here -->
+<div id="wrap"> 
+	<div id="header">	
+		<div class="logoimg"></div><h1 id="logo"><span class="orange"></span></h1>
+		<h2 id=slogan>Generic SCSI Target Subsystem for Linux</h2>
+	</div>		
+		
+	<div id="menu">
+		<ul>
+			<li><a href="http://scst.sourceforge.net">Home</a></li>
+			<li><a href="http://www.sourceforge.net/projects/scst">Main</a></li>
+			<li><a href="http://sourceforge.net/news/?group_id=110471">News</a></li>
+			<li id="current"><a href="targets.html">Drivers</a></li>
+			<li><a href="downloads.html">Downloads</a></li>
+			<li><a href="contributing.html">Contributing</a></li>
+			<li><a href="comparison.html">Comparison</a></li>		
+			<li><a href="users.html">Users</a></li>
+			<li><a href="solutions.html">Solutions</a></li>
+		</ul>
+	</div>
+	
+	<!-- content-wrap starts here -->	
+	<div id="content-wrap">
+			<div id="sidebar">
+				<h1>Target Drivers</h1>
+				<ul class="sidemenu">
+					<li><a href="index.html">ISCSI-SCST</a></li>
+					<li><a href="target_qla2x00t.html">QLogic FC qla2x00t</a></li>
+					<li><a href="target_srp.html">SCSI RDMA Protocol (SRP)</a></li>
+					<li><a href="target_mvsas.html">Marvell SAS adapters</a></li>
+					<li><a href="target_emulex.html">Emulex lpfc FC/FCoE adapters</a></li>
+					<li><a href="target_lsi.html">LSI/MPT adapters</a></li>
+					<li><a href="target_fcoe.html">FCoE Target</a></li>
+					<li><a href="target_local.html">Local Target Driver</a></li>
+					<li><a href="target_old.html">Old Unsupported</a></li>
+				</ul>
+				<h1>User utilities</h1>
+				<ul class="sidemenu">
+					<li><a href="scst_admin.html">SCST Admin Utility</a></li>
+					<li><a href="handler_fileio_tgt.html">FILEIO_TGT handler</a></li>
+				</ul>
+			</div>		
+			
+			<div id="main">
+				<h1>ISCSI target driver iSCSI-SCST</h1>
+				<p>ISCSI-SCST is an iSCSI target driver for SCST. It is a deeply reworked fork of
+				<a href="http://iscsitarget.sourceforge.net/">IET</a> with a lot of fixes and improvements. Reasons of the fork were:</p>
+
+				<ul>
+					<li><span>To be able to use full power of SCST core.</span></li>
+					<li><span>To fix all the problems, corner cases issues and iSCSI standard violations which IET has.</span></li>
+				</ul>
+
+				<p>IET in many corner cases has a lot of problems, like ignoring errors processing, as it is for memory allocations,
+				crashing itself with BUG() macro, as it is for malformed packets from initiators, possible data
+				corruptions, because of, for instance, unsafe task management or sessions reinstatement implementations, etc.
+				There was no way to fix all them without a fork, because it needed a deep code redesign to fix all internal architecture
+				and implementation issues which IET has. As the result of this effort nearly all (>90% overall and almost 100%
+				of the fast path core) of the IET kernel code and 20-25% of the user space code were rewritten.</p>
+				
+				<p>You can find comparison of iSCSI-SCST with IET and other iSCSI targets on the
+				<a href="comparison.html">Comparison</a> page. Some highlights:
+				</p>
+
+				<ul>
+					<li><span>Improved performance. In some cases improvement >100%. Especially it is noticeable
+					with several initiators accessing the same device.</span></li>
+				
+					<li><span>Pass-through mode with one to many relationship, when multiple initiators can connect to
+					exported local SCSI devices. For instance, in this mode you can safely export your parallel
+					SCSI tape or tape library, or VTL on your iSCSI net and multiple initiators can share it without risk of
+					data loss because of the shared usage.</span></li>
+
+					<li><span>Automatic PnP-like reconfiguration, when initiators instantly see any configuration changes on the
+					target, like addition of new LUNs or a LUN resize. No restart or anything like that is needed.</span></li>
+
+					<li><span>Safe implementation of many management and errors recovery facilities as well as better handling of various
+					corner cases, which means better errors recovery stability without putting user data at risk.</span></li>
+
+					<li><span>Advanced devices visibility management, when different initiators can see different set of
+					devices from the same target.</span></li>
+
+					<li><span>O_DIRECT, i.e. "BLOCKIO on files", mode, which has all advantages 
+					of BLOCKIO, but also supports files on file systems. Sometimes, in the appropriate cases, 
+					this mode can make performance difference in 100% or even more.</span></li>
+
+					<li><span>4KB blocks eliminate abysmal write performance issues caused by misaligned partitions. 
+					</span></li>
+
+					<li><span>Virtual CD/DVD-ROMs.</span></li>	
+
+					<li><span>Ability to create target devices emulators in the user space.</span></li>
+
+					<li><span>Ability to create multi-transport SCSI targets, which can export (possibly, the same) 
+					devices over multiple transports.</span></li>
+				</ul>
+
+				<p>If you are an IET user before installation carefully read README files of both iSCSI-SCST and 
+				the SCST core. You can also use a migration tool developed by Scalable Informatics Inc., which will
+				convert your IET machine to an iSCSI-SCST machine. See README for more details.</p>
+
+				<p>The latest stable version is 2.2.0. Requires Linux kernel version 2.6.18.x or higher and SCST version 2.2.0 or higher. 
+				Tested mostly on i386 and x86_64, but should work on any other supported by Linux platform.</p>
+				<p>You can find the latest development version of this driver in the SCST SVN. See the download page how to setup 
+				access to it.</p>
+				
+				<h1>Certification</h1>
+				
+				<p>ISCSI-SCST engine has passed VMware certification as part of
+				<a href="http://scalecomputing.com/products">Scale&rsquo;s Intelligent Clustered Storage</a> technology developed by
+				<a href="http://scalecomputing.com">Scale Computing</a> and
+				<a href="http://www.vmware.com/resources/compatibility/search.php?action=search&amp;deviceCategory=san&amp;partnerId[]=123">storage arrays</a>
+				developed by <a href="http://www.open-e.com/">Open-E, Inc</a>.</p>
+				
+				<p class="post-footer align-right">					
+					<a href="iscsi-scst-howto.txt" class="readmore">HOWTO</a>
+					<a href="SCST_Gentoo_HOWTO.txt" class="readmore">Gentoo HOWTO</a>
+					<a href="http://alpinelinux.org/wiki/High_performance_SCST_iSCSI_Target_on_Linux_software_Raid" class="readmore">Alpine Linux HOWTO</a>
+					<a href="downloads.html" class="readmore">Download</a>				
+					<a href="http://scst.svn.sourceforge.net/" class="readmore">SCST SVN Repository</a>
+				</p>
+	  		</div> 
+	</div>
+</div>		
+<!-- footer starts here -->		
+<div id="footer">
+	<p>&copy; Copyright 2004-2012<b><font class="names"> Vladislav Bolkhovitin/SCST Ltd &amp others.</font></b>&nbsp;&nbsp;
+	Design by: <b><font class="names">Daniel Fernandes</font></b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</p>
+</div>	
+<!-- footer ends here -->
+<!-- Piwik -->
+<script type="text/javascript">
+var pkBaseURL = (("https:" == document.location.protocol) ? "https://apps.sourceforge.net/piwik/scst/" : "http://apps.sourceforge.net/piwik/scst/");
+document.write(unescape("%3Cscript src='" + pkBaseURL + "piwik.js' type='text/javascript'%3E%3C/script%3E"));
+</script><script type="text/javascript">
+piwik_action_name = '';
+piwik_idsite = 1;
+piwik_url = pkBaseURL + "piwik.php";
+piwik_log(piwik_action_name, piwik_idsite, piwik_url);
 </script>
+<object><noscript><p><img src="http://apps.sourceforge.net/piwik/scst/piwik.php?idsite=1" alt="piwik"></p></noscript></object>
+<!-- End Piwik Tag -->
 </body>
-
 </html>
-
