@@ -448,13 +448,6 @@ enum scst_exec_context {
 #define SCST_EXEC_NOT_COMPLETED      1
 
 /*************************************************************
- ** Additional return code for dev handler's task_mgmt_fn()
- *************************************************************/
-
-/* Regular standard actions for the command should be done */
-#define SCST_DEV_TM_NOT_COMPLETED     1
-
-/*************************************************************
  ** Session initialization phases
  *************************************************************/
 
@@ -1261,14 +1254,7 @@ struct scst_dev_type {
 	void (*on_free_cmd) (struct scst_cmd *cmd);
 
 	/*
-	 * Called to execute a task management command.
-	 * Returns:
-	 *  - SCST_MGMT_STATUS_SUCCESS - the command is done with success,
-	 *	no further actions required
-	 *  - The SCST_MGMT_STATUS_* error code if the command is failed and
-	 *	no further actions required
-	 *  - SCST_DEV_TM_NOT_COMPLETED - regular standard actions for the
-	 *      command should be done
+	 * Called to notify dev handler that a task management command received
 	 *
 	 * Can be called under many internal SCST locks, including under
 	 * disabled IRQs, so dev handler should be careful with locking and,
@@ -1280,7 +1266,25 @@ struct scst_dev_type {
 	 *
 	 * OPTIONAL
 	 */
-	int (*task_mgmt_fn) (struct scst_mgmt_cmd *mgmt_cmd,
+	void (*task_mgmt_fn_received) (struct scst_mgmt_cmd *mgmt_cmd,
+		struct scst_tgt_dev *tgt_dev);
+
+	/*
+	 * Called to execute a task management command. On any problem, error
+	 * code (one of SCST_MGMT_STATUS_* codes) should be set using function
+	 * scst_mgmt_cmd_set_status().
+	 *
+	 * Can be called under many internal SCST locks, including under
+	 * disabled IRQs, so dev handler should be careful with locking and,
+	 * if necessary, pass processing somewhere outside (in a work, e.g.)
+	 *
+	 * But at the moment it's called under disabled IRQs only for
+	 * SCST_ABORT_TASK, however dev handler using it should add a BUG_ON
+	 * trap to catch if it's changed in future.
+	 *
+	 * OPTIONAL
+	 */
+	void (*task_mgmt_fn_done) (struct scst_mgmt_cmd *mgmt_cmd,
 		struct scst_tgt_dev *tgt_dev);
 
 	/*
@@ -1928,14 +1932,6 @@ struct scst_cmd {
 	 */
 	unsigned int finished:1;
 
-#ifdef CONFIG_SCST_DEBUG_TM
-	/* Set if the cmd was delayed by task management debugging code */
-	unsigned int tm_dbg_delayed:1;
-
-	/* Set if the cmd must be ignored by task management debugging code */
-	unsigned int tm_dbg_immut:1;
-#endif
-
 	/**************************************************************/
 
 	/* cmd's async flags */
@@ -2111,12 +2107,21 @@ struct scst_cmd {
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 	/*
 	 * Must be the last to allow to work with drivers who don't know
-	 * about this config time option.
+	 * about this config time option!
 	 */
 	uint64_t start, curr_start, parse_time, alloc_buf_time;
 	uint64_t restart_waiting_time, rdy_to_xfer_time;
 	uint64_t pre_exec_time, exec_time, dev_done_time;
 	uint64_t xmit_time, tgt_on_free_time, dev_on_free_time;
+#endif
+
+/* Must be the last for the same reason as SCST_MEASURE_LATENCY! */
+#ifdef CONFIG_SCST_DEBUG_TM
+	/* Set if the cmd was delayed by task management debugging code */
+	unsigned int tm_dbg_delayed:1;
+
+	/* Set if the cmd must be ignored by task management debugging code */
+	unsigned int tm_dbg_immut:1;
 #endif
 };
 
@@ -2172,6 +2177,8 @@ struct scst_mgmt_cmd {
 	unsigned int needs_unblocking:1;
 	unsigned int lun_set:1;		/* set, if lun field is valid */
 	unsigned int cmd_sn_set:1;	/* set, if cmd_sn field is valid */
+	/* Set if dev handler's task_mgmt_fn_received was called */
+	unsigned int task_mgmt_fn_received_called:1;
 
 	/*
 	 * Number of commands to finish before sending response,
@@ -2197,7 +2204,7 @@ struct scst_mgmt_cmd {
 	/* corresponding cmd (to be aborted, found by tag) */
 	struct scst_cmd *cmd_to_abort;
 
-	/* corresponding device for this mgmt cmd (found by lun) */
+	/* corresponding device for this mgmt cmd (found by lun or by tag) */
 	struct scst_tgt_dev *mcmd_tgt_dev;
 
 	/* completion status, one of the SCST_MGMT_STATUS_* constants */
@@ -3533,8 +3540,17 @@ static inline int scst_mgmt_cmd_get_fn(struct scst_mgmt_cmd *mcmd)
 	return mcmd->fn;
 }
 
+static inline void scst_mgmt_cmd_set_status(struct scst_mgmt_cmd *mcmd,
+	int status)
+{
+	/* Don't replace existing, i.e. the first, not success status */
+	if ((mcmd->status == SCST_MGMT_STATUS_SUCCESS) &&
+	    (status != SCST_MGMT_STATUS_RECEIVED_STAGE_COMPLETED))
+		mcmd->status = status;
+}
+
 /*
- * Called by dev handler's task_mgmt_fn() to notify SCST core that mcmd
+ * Called by dev handler's task_mgmt_fn_*() to notify SCST core that mcmd
  * is going to complete asynchronously.
  */
 void scst_prepare_async_mcmd(struct scst_mgmt_cmd *mcmd);

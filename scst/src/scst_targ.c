@@ -4565,8 +4565,7 @@ void scst_async_mcmd_completed(struct scst_mgmt_cmd *mcmd, int status)
 
 	spin_lock_irqsave(&scst_mcmd_lock, flags);
 
-	if (status != SCST_MGMT_STATUS_SUCCESS)
-		mcmd->status = status;
+	scst_mgmt_cmd_set_status(mcmd, status);
 
 	__scst_dec_finish_wait_count(mcmd, &wake);
 
@@ -4622,22 +4621,36 @@ static void scst_finish_cmd_mgmt(struct scst_cmd *cmd)
 	return;
 }
 
-static int scst_call_dev_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
-	struct scst_tgt_dev *tgt_dev, int set_status)
+static void scst_call_dev_task_mgmt_fn_received(struct scst_mgmt_cmd *mcmd,
+	struct scst_tgt_dev *tgt_dev)
 {
-	int res = SCST_DEV_TM_NOT_COMPLETED;
 	struct scst_dev_type *h = tgt_dev->dev->handler;
 
-	if (h->task_mgmt_fn) {
-		TRACE_MGMT_DBG("Calling dev handler %s task_mgmt_fn(fn=%d)",
+	mcmd->task_mgmt_fn_received_called = 1;
+
+	if (h->task_mgmt_fn_received) {
+		TRACE_MGMT_DBG("Calling dev handler %s task_mgmt_fn_received(fn=%d)",
 			h->name, mcmd->fn);
-		res = h->task_mgmt_fn(mcmd, tgt_dev);
-		TRACE_MGMT_DBG("Dev handler %s task_mgmt_fn() returned %d",
-		      h->name, res);
-		if (set_status && (res != SCST_DEV_TM_NOT_COMPLETED))
-			mcmd->status = res;
+		h->task_mgmt_fn_received(mcmd, tgt_dev);
+		TRACE_MGMT_DBG("Dev handler %s task_mgmt_fn_received() returned",
+		      h->name);
 	}
-	return res;
+	return;
+}
+
+static void scst_call_dev_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd,
+	struct scst_tgt_dev *tgt_dev)
+{
+	struct scst_dev_type *h = tgt_dev->dev->handler;
+
+	if (h->task_mgmt_fn_done) {
+		TRACE_MGMT_DBG("Calling dev handler %s task_mgmt_fn_done(fn=%d)",
+			h->name, mcmd->fn);
+		h->task_mgmt_fn_done(mcmd, tgt_dev);
+		TRACE_MGMT_DBG("Dev handler %s task_mgmt_fn_done() returned",
+		      h->name);
+	}
+	return;
 }
 
 static inline int scst_is_strict_mgmt_fn(int mgmt_fn)
@@ -4661,7 +4674,7 @@ static inline int scst_is_strict_mgmt_fn(int mgmt_fn)
  * scst_finish_cmd()
  */
 void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
-	bool other_ini, bool call_dev_task_mgmt_fn)
+	bool other_ini, bool call_dev_task_mgmt_fn_received)
 {
 	unsigned long flags;
 	static DEFINE_SPINLOCK(other_ini_lock);
@@ -4717,8 +4730,9 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 		wake_up(&scst_init_cmd_list_waitQ);
 	}
 
-	if (!cmd->finished && call_dev_task_mgmt_fn && (cmd->tgt_dev != NULL))
-		scst_call_dev_task_mgmt_fn(mcmd, cmd->tgt_dev, 1);
+	if (!cmd->finished && call_dev_task_mgmt_fn_received &&
+	    (cmd->tgt_dev != NULL))
+		scst_call_dev_task_mgmt_fn_received(mcmd, cmd->tgt_dev);
 
 	spin_lock_irqsave(&scst_mcmd_lock, flags);
 	if ((mcmd != NULL) && !cmd->finished) {
@@ -4991,7 +5005,7 @@ static int scst_abort_task_set(struct scst_mgmt_cmd *mcmd)
 
 	scst_unblock_aborted_cmds(0);
 
-	scst_call_dev_task_mgmt_fn(mcmd, tgt_dev, 0);
+	scst_call_dev_task_mgmt_fn_received(mcmd, tgt_dev);
 
 	res = scst_set_mcmd_next_state(mcmd);
 
@@ -5103,7 +5117,7 @@ static int scst_clear_task_set(struct scst_mgmt_cmd *mcmd)
 		}
 	}
 
-	scst_call_dev_task_mgmt_fn(mcmd, mcmd->mcmd_tgt_dev, 0);
+	scst_call_dev_task_mgmt_fn_received(mcmd, mcmd->mcmd_tgt_dev);
 
 	res = scst_set_mcmd_next_state(mcmd);
 
@@ -5124,6 +5138,7 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 	{
 		struct scst_session *sess = mcmd->sess;
 		struct scst_cmd *cmd;
+		struct scst_tgt_dev *tgt_dev;
 
 		spin_lock_irq(&sess->sess_list_lock);
 		cmd = __scst_find_cmd_by_tag(sess, mcmd->tag, true);
@@ -5131,16 +5146,21 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 			TRACE_MGMT_DBG("ABORT TASK: command "
 			      "for tag %llu not found",
 			      (long long unsigned int)mcmd->tag);
-			mcmd->status = SCST_MGMT_STATUS_TASK_NOT_EXIST;
+			scst_mgmt_cmd_set_status(mcmd, SCST_MGMT_STATUS_TASK_NOT_EXIST);
 			spin_unlock_irq(&sess->sess_list_lock);
 			res = scst_set_mcmd_next_state(mcmd);
 			goto out;
 		}
 		__scst_cmd_get(cmd);
+		tgt_dev = cmd->tgt_dev;
+		if (tgt_dev != NULL)
+			mcmd->cpu_cmd_counter = scst_get();
 		spin_unlock_irq(&sess->sess_list_lock);
-		TRACE_DBG("Cmd to abort %p for tag %llu found",
-			cmd, (long long unsigned int)mcmd->tag);
+		TRACE_DBG("Cmd to abort %p for tag %llu found (tgt_dev %p)",
+			cmd, (long long unsigned int)mcmd->tag, tgt_dev);
 		mcmd->cmd_to_abort = cmd;
+		sBUG_ON(mcmd->mcmd_tgt_dev != NULL);
+		mcmd->mcmd_tgt_dev = tgt_dev;
 		mcmd->state = SCST_MCMD_STATE_EXEC;
 		break;
 	}
@@ -5165,7 +5185,7 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 		else if (rc < 0) {
 			PRINT_ERROR("Corresponding device for LUN %lld not "
 				"found", (long long unsigned int)mcmd->lun);
-			mcmd->status = SCST_MGMT_STATUS_LUN_NOT_EXIST;
+			scst_mgmt_cmd_set_status(mcmd, SCST_MGMT_STATUS_LUN_NOT_EXIST);
 			res = scst_set_mcmd_next_state(mcmd);
 		} else
 			res = rc;
@@ -5187,7 +5207,6 @@ static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 	struct scst_device *dev;
 	struct scst_acg *acg = mcmd->sess->acg;
 	struct scst_acg_dev *acg_dev;
-	int cont, c;
 	LIST_HEAD(host_devs);
 
 	TRACE_ENTRY();
@@ -5211,24 +5230,15 @@ static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 		scst_process_reset(dev, mcmd->sess, NULL, mcmd, true);
 		spin_unlock_bh(&dev->dev_lock);
 
-		cont = 0;
-		c = 0;
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 				dev_tgt_dev_list_entry) {
-			cont = 1;
 			if (mcmd->sess == tgt_dev->sess) {
-				rc = scst_call_dev_task_mgmt_fn(mcmd,
-						tgt_dev, 0);
-				if (rc == SCST_DEV_TM_NOT_COMPLETED)
-					c = 1;
-				else if ((rc < 0) &&
-					 (mcmd->status == SCST_MGMT_STATUS_SUCCESS))
-					mcmd->status = rc;
+				scst_call_dev_task_mgmt_fn_received(mcmd, tgt_dev);
 				break;
 			}
 		}
-		if (cont && !c)
-			continue;
+
+		tm_dbg_task_mgmt(dev, "TARGET RESET", 0);
 
 		if (dev->scsi_dev == NULL)
 			continue;
@@ -5242,8 +5252,6 @@ static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 		}
 		if (!found)
 			list_add_tail(&dev->tm_dev_list_entry, &host_devs);
-
-		tm_dbg_task_mgmt(dev, "TARGET RESET", 0);
 	}
 
 	scst_unblock_aborted_cmds(1);
@@ -5272,7 +5280,7 @@ static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 			 * SCSI_TRY_RESET_BUS is also done by
 			 * scsi_reset_provider()
 			 */
-			mcmd->status = SCST_MGMT_STATUS_FAILED;
+			scst_mgmt_cmd_set_status(mcmd, SCST_MGMT_STATUS_FAILED);
 		}
 #else
 	/*
@@ -5315,9 +5323,7 @@ static int scst_lun_reset(struct scst_mgmt_cmd *mcmd)
 	scst_process_reset(dev, mcmd->sess, NULL, mcmd, true);
 	spin_unlock_bh(&dev->dev_lock);
 
-	rc = scst_call_dev_task_mgmt_fn(mcmd, tgt_dev, 1);
-	if (rc != SCST_DEV_TM_NOT_COMPLETED)
-		goto out_tm_dbg;
+	scst_call_dev_task_mgmt_fn_received(mcmd, tgt_dev);
 
 	if (dev->scsi_dev != NULL) {
 		TRACE(TRACE_MGMT, "Resetting host %d bus ",
@@ -5325,7 +5331,7 @@ static int scst_lun_reset(struct scst_mgmt_cmd *mcmd)
 		rc = scsi_reset_provider(dev->scsi_dev, SCSI_TRY_RESET_DEVICE);
 #if 0
 		if (rc != SUCCESS && mcmd->status == SCST_MGMT_STATUS_SUCCESS)
-			mcmd->status = SCST_MGMT_STATUS_FAILED;
+			scst_mgmt_cmd_set_status(mcmd, SCST_MGMT_STATUS_FAILED);
 #else
 		/*
 		 * scsi_reset_provider() returns very weird status, so let's
@@ -5337,7 +5343,6 @@ static int scst_lun_reset(struct scst_mgmt_cmd *mcmd)
 
 	scst_unblock_aborted_cmds(0);
 
-out_tm_dbg:
 	tm_dbg_task_mgmt(mcmd->mcmd_tgt_dev->dev, "LUN RESET", 0);
 
 	res = scst_set_mcmd_next_state(mcmd);
@@ -5391,13 +5396,9 @@ static int scst_abort_all_nexus_loss_sess(struct scst_mgmt_cmd *mcmd,
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		struct list_head *head = &sess->sess_tgt_dev_list[i];
 		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
-			int rc;
-
 			__scst_abort_task_set(mcmd, tgt_dev);
 
-			rc = scst_call_dev_task_mgmt_fn(mcmd, tgt_dev, 0);
-			if (rc < 0 && mcmd->status == SCST_MGMT_STATUS_SUCCESS)
-				mcmd->status = rc;
+			scst_call_dev_task_mgmt_fn_received(mcmd, tgt_dev);
 
 			tm_dbg_task_mgmt(tgt_dev->dev, "NEXUS LOSS SESS or "
 				"ABORT ALL SESS or UNREG SESS",
@@ -5465,17 +5466,11 @@ static int scst_abort_all_nexus_loss_tgt(struct scst_mgmt_cmd *mcmd,
 			struct scst_tgt_dev *tgt_dev;
 			list_for_each_entry(tgt_dev, head,
 					sess_tgt_dev_list_entry) {
-				int rc;
-
 				__scst_abort_task_set(mcmd, tgt_dev);
 
-				if (mcmd->sess == tgt_dev->sess) {
-					rc = scst_call_dev_task_mgmt_fn(
-						mcmd, tgt_dev, 0);
-					if ((rc < 0) &&
-					    (mcmd->status == SCST_MGMT_STATUS_SUCCESS))
-						mcmd->status = rc;
-				}
+				if (mcmd->sess == tgt_dev->sess)
+					scst_call_dev_task_mgmt_fn_received(
+						mcmd, tgt_dev);
 
 				tm_dbg_task_mgmt(tgt_dev->dev, "NEXUS LOSS or "
 					"ABORT ALL", 0);
@@ -5510,14 +5505,14 @@ static int scst_abort_task(struct scst_mgmt_cmd *mcmd)
 			(long long unsigned int)mcmd->lun,
 			(long long unsigned int)cmd->lun,
 			(long long unsigned int)mcmd->tag);
-		mcmd->status = SCST_MGMT_STATUS_REJECTED;
+		scst_mgmt_cmd_set_status(mcmd, SCST_MGMT_STATUS_REJECTED);
 	} else if (mcmd->cmd_sn_set &&
 		   (scst_sn_before(mcmd->cmd_sn, cmd->tgt_sn) ||
 		    (mcmd->cmd_sn == cmd->tgt_sn))) {
 		PRINT_ERROR("ABORT TASK: SN mismatch: mcmd SN %x, "
 			"cmd SN %x, cmd tag %llu", mcmd->cmd_sn,
 			cmd->tgt_sn, (long long unsigned int)mcmd->tag);
-		mcmd->status = SCST_MGMT_STATUS_REJECTED;
+		scst_mgmt_cmd_set_status(mcmd, SCST_MGMT_STATUS_REJECTED);
 	} else {
 		spin_lock_irq(&cmd->sess->sess_list_lock);
 		scst_abort_cmd(cmd, mcmd, 0, 1);
@@ -5542,8 +5537,6 @@ static int scst_mgmt_cmd_exec(struct scst_mgmt_cmd *mcmd)
 	int res = 0;
 
 	TRACE_ENTRY();
-
-	mcmd->status = SCST_MGMT_STATUS_SUCCESS;
 
 	switch (mcmd->fn) {
 	case SCST_ABORT_TASK:
@@ -5589,16 +5582,13 @@ static int scst_mgmt_cmd_exec(struct scst_mgmt_cmd *mcmd)
 		break;
 
 	case SCST_CLEAR_ACA:
-		if (scst_call_dev_task_mgmt_fn(mcmd, mcmd->mcmd_tgt_dev, 1) ==
-				SCST_DEV_TM_NOT_COMPLETED) {
-			mcmd->status = SCST_MGMT_STATUS_FN_NOT_SUPPORTED;
-			/* Nothing to do (yet) */
-		}
+		/* Nothing to do (yet) */
+		scst_mgmt_cmd_set_status(mcmd, SCST_MGMT_STATUS_FN_NOT_SUPPORTED);
 		goto out_done;
 
 	default:
 		PRINT_ERROR("Unknown task management function %d", mcmd->fn);
-		mcmd->status = SCST_MGMT_STATUS_REJECTED;
+		scst_mgmt_cmd_set_status(mcmd, SCST_MGMT_STATUS_REJECTED);
 		goto out_done;
 	}
 
@@ -5629,7 +5619,10 @@ static void scst_call_task_mgmt_affected_cmds_done(struct scst_mgmt_cmd *mcmd)
 
 static int scst_mgmt_affected_cmds_done(struct scst_mgmt_cmd *mcmd)
 {
-	int res;
+	int res, i;
+	struct scst_session *sess = mcmd->sess;
+	struct scst_device *dev;
+	struct scst_tgt_dev *tgt_dev;
 
 	TRACE_ENTRY();
 
@@ -5648,6 +5641,79 @@ static int scst_mgmt_affected_cmds_done(struct scst_mgmt_cmd *mcmd)
 
 	mutex_unlock(&scst_mutex);
 
+	if (!mcmd->task_mgmt_fn_received_called)
+		goto tgt_done;
+
+	switch (mcmd->fn) {
+	case SCST_ABORT_TASK:
+	case SCST_ABORT_TASK_SET:
+	case SCST_CLEAR_TASK_SET:
+	case SCST_PR_ABORT_ALL:
+	case SCST_LUN_RESET:
+		scst_call_dev_task_mgmt_fn_done(mcmd, mcmd->mcmd_tgt_dev);
+		break;
+
+	case SCST_TARGET_RESET:
+	{
+		struct scst_acg *acg = sess->acg;
+		struct scst_acg_dev *acg_dev;
+		mutex_lock(&scst_mutex);
+		list_for_each_entry(acg_dev, &acg->acg_dev_list, acg_dev_list_entry) {
+			dev = acg_dev->dev;
+			list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
+					dev_tgt_dev_list_entry) {
+				if (mcmd->sess == tgt_dev->sess) {
+					scst_call_dev_task_mgmt_fn_done(mcmd, tgt_dev);
+					break;
+				}
+			}
+		}
+		mutex_unlock(&scst_mutex);
+		break;
+	}
+
+	case SCST_ABORT_ALL_TASKS_SESS:
+	case SCST_NEXUS_LOSS_SESS:
+	case SCST_UNREG_SESS_TM:
+		mutex_lock(&scst_mutex);
+		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
+			struct list_head *head = &sess->sess_tgt_dev_list[i];
+			list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
+				scst_call_dev_task_mgmt_fn_done(mcmd, tgt_dev);
+			}
+		}
+		mutex_unlock(&scst_mutex);
+		break;
+
+	case SCST_ABORT_ALL_TASKS:
+	case SCST_NEXUS_LOSS:
+	{
+		struct scst_session *s;
+		struct scst_tgt *tgt = sess->tgt;
+		mutex_lock(&scst_mutex);
+		list_for_each_entry(s, &tgt->sess_list, sess_list_entry) {
+			for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
+				struct list_head *head = &s->sess_tgt_dev_list[i];
+				struct scst_tgt_dev *tgt_dev;
+				list_for_each_entry(tgt_dev, head,
+						sess_tgt_dev_list_entry) {
+					if (mcmd->sess == tgt_dev->sess)
+						scst_call_dev_task_mgmt_fn_done(
+							mcmd, tgt_dev);
+				}
+			}
+		}
+		mutex_unlock(&scst_mutex);
+		break;
+	}
+
+	default:
+		PRINT_ERROR("Wrong task management function %d on "
+			"task_mgmt_fn_done() stage", mcmd->fn);
+		break;
+	}
+
+tgt_done:
 	scst_call_task_mgmt_affected_cmds_done(mcmd);
 
 	res = scst_set_mcmd_next_state(mcmd);
@@ -5665,7 +5731,7 @@ static void scst_mgmt_cmd_send_done(struct scst_mgmt_cmd *mcmd)
 
 	mcmd->state = SCST_MCMD_STATE_FINISHED;
 	if (scst_is_strict_mgmt_fn(mcmd->fn) && (mcmd->completed_cmd_count > 0))
-		mcmd->status = SCST_MGMT_STATUS_TASK_NOT_EXIST;
+		scst_mgmt_cmd_set_status(mcmd, SCST_MGMT_STATUS_TASK_NOT_EXIST);
 
 	if (mcmd->fn < SCST_UNREG_SESS_TM)
 		TRACE(TRACE_MGMT, "TM fn %d (%p) finished, "

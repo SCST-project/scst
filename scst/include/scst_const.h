@@ -151,6 +151,9 @@
 #define SCST_MGMT_STATUS_REJECTED		-255
 #define SCST_MGMT_STATUS_FAILED			-129
 
+/* Extra status meaning that the received stage completed, not done */
+#define SCST_MGMT_STATUS_RECEIVED_STAGE_COMPLETED 200
+
 /*************************************************************
  ** SCSI LUN addressing methods. See also SAM-2 and the
  ** section about eight byte LUNs.

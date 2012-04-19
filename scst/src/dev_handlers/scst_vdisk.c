@@ -277,7 +277,7 @@ static ssize_t vdisk_del_device(const char *device_name);
 static ssize_t vcdrom_add_device(const char *device_name, char *params);
 static ssize_t vcdrom_del_device(const char *device_name);
 #endif
-static int vdisk_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
+static void vdisk_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd,
 	struct scst_tgt_dev *tgt_dev);
 static uint64_t vdisk_gen_dev_id_num(const char *virt_dev_name);
 
@@ -445,7 +445,7 @@ static struct scst_dev_type vdisk_file_devtype = {
 	.alloc_data_buf =	fileio_alloc_data_buf,
 	.exec =			vdisk_exec,
 	.on_free_cmd =		fileio_on_free_cmd,
-	.task_mgmt_fn =		vdisk_task_mgmt_fn,
+	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
 	.devt_priv =		(void *)fileio_ops,
 #ifdef CONFIG_SCST_PROC
 	.read_proc =		vdisk_read_proc,
@@ -485,7 +485,7 @@ static struct scst_dev_type vdisk_blk_devtype = {
 	.detach_tgt =		vdisk_detach_tgt,
 	.parse =		non_fileio_parse,
 	.exec =			non_fileio_exec,
-	.task_mgmt_fn =		vdisk_task_mgmt_fn,
+	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
 	.devt_priv =		(void *)blockio_ops,
 #ifndef CONFIG_SCST_PROC
 	.add_device =		vdisk_add_blockio_device,
@@ -520,7 +520,7 @@ static struct scst_dev_type vdisk_null_devtype = {
 	.detach_tgt =		vdisk_detach_tgt,
 	.parse =		non_fileio_parse,
 	.exec =			non_fileio_exec,
-	.task_mgmt_fn =		vdisk_task_mgmt_fn,
+	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
 	.devt_priv =		(void *)nullio_ops,
 #ifndef CONFIG_SCST_PROC
 	.add_device =		vdisk_add_nullio_device,
@@ -553,7 +553,7 @@ static struct scst_dev_type vcdrom_devtype = {
 	.alloc_data_buf =	fileio_alloc_data_buf,
 	.exec =			vcdrom_exec,
 	.on_free_cmd =		fileio_on_free_cmd,
-	.task_mgmt_fn =		vdisk_task_mgmt_fn,
+	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
 #ifdef CONFIG_SCST_PROC
 	.read_proc =		vcdrom_read_proc,
 	.write_proc =		vcdrom_write_proc,
@@ -3963,7 +3963,7 @@ static enum compl_status_e nullio_exec_write_verify(struct vdisk_cmd_params *p)
 	return CMD_SUCCEEDED;
 }
 
-static int vdisk_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
+static void vdisk_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd,
 	struct scst_tgt_dev *tgt_dev)
 {
 	TRACE_ENTRY();
@@ -3994,7 +3994,7 @@ static int vdisk_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 	}
 
 	TRACE_EXIT();
-	return SCST_DEV_TM_NOT_COMPLETED;
+	return;
 }
 
 static void vdisk_report_registering(const struct scst_vdisk_dev *virt_dev)

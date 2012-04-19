@@ -1084,11 +1084,12 @@ where:
 </itemize>
 
 
-<sect1> SCST_USER_TASK_MGMT
+<sect1> SCST_USER_TASK_MGMT_RECEIVED
 
 <p>
-SCST_USER_TASK_MGMT subcommand returns a task management functions.
-Payload contains struct scst_user_tm, which is defined as the following:
+SCST_USER_TASK_MGMT_RECEIVED subcommand notifies that a task management
+function has been received. Payload contains struct scst_user_tm, which
+is defined as the following:
 
 <verb>
 struct scst_user_tm
@@ -1118,12 +1119,8 @@ where:
 <item> <bf/cmd_sn_set/ - specifies if cmd_sn is valid
 </itemize>
 
-After TM function is completed, the user space device handler shall
-reply using "result" field of the corresponding reply command. It isn't
-necessary to wait for aborted command(s) finished, the result of TM
-function shall be returned immediately. SCST core will take care that
-the reply to the TM function isn't sent before all affection SCSI
-commands finished.
+On this notification dev handler should do the best to ensure that all
+aborted by this TM command SCSI commands complete ASAP.
 
 Possible values of <it/fn/ field:
 
@@ -1146,6 +1143,23 @@ Possible values of <it/fn/ field:
 
 <item> <bf/SCST_ABORT_ALL_TASKS/ - all tasks shall be aborted
 </itemize>
+
+The "result" field of the corresponding reply command is ignored for
+this subcommand.
+
+
+<sect1> SCST_USER_TASK_MGMT_DONE
+
+<p>
+SCST_USER_TASK_MGMT_DONE subcommand notifies that all aborted by task
+management function commands have finished, so the dev handler can
+perform actual actions required by this TM command. For instance, reset
+all MODE PAGES variables to default values.
+
+Payload contains struct scst_user_tm, which was defined above.
+
+After the TM function is completed, the device handler shall reply using
+"result" field of the corresponding reply command.
 
 Possible return values are:
 

@@ -155,19 +155,7 @@ struct scst_user_cmd {
 	int result;
 };
 
-static struct scst_user_cmd *dev_user_alloc_ucmd(struct scst_user_dev *dev,
-	gfp_t gfp_mask);
 static void dev_user_free_ucmd(struct scst_user_cmd *ucmd);
-
-static int dev_user_parse(struct scst_cmd *cmd);
-static int dev_user_alloc_data_buf(struct scst_cmd *cmd);
-static int dev_user_exec(struct scst_cmd *cmd);
-static void dev_user_on_free_cmd(struct scst_cmd *cmd);
-static int dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
-	struct scst_tgt_dev *tgt_dev);
-
-static int dev_user_disk_done(struct scst_cmd *cmd);
-static int dev_user_tape_done(struct scst_cmd *cmd);
 
 static struct page *dev_user_alloc_pages(struct scatterlist *sg,
 	gfp_t gfp_mask, void *priv);
@@ -1071,7 +1059,8 @@ static int dev_user_tape_done(struct scst_cmd *cmd)
 
 static inline bool dev_user_mgmt_ucmd(struct scst_user_cmd *ucmd)
 {
-	return (ucmd->state == UCMD_STATE_TM_EXECING) ||
+	return (ucmd->state == UCMD_STATE_TM_RECEIVED_EXECING) ||
+	       (ucmd->state == UCMD_STATE_TM_DONE_EXECING) ||
 	       (ucmd->state == UCMD_STATE_ATTACH_SESS) ||
 	       (ucmd->state == UCMD_STATE_DETACH_SESS);
 }
@@ -1623,8 +1612,12 @@ unlock_process:
 		res = dev_user_process_reply_on_cache_free(ucmd);
 		break;
 
-	case UCMD_STATE_TM_EXECING:
-		res = dev_user_process_reply_tm_exec(ucmd, reply->result);
+	case UCMD_STATE_TM_RECEIVED_EXECING:
+	case UCMD_STATE_TM_DONE_EXECING:
+		res = dev_user_process_reply_tm_exec(ucmd,
+			(state == UCMD_STATE_TM_RECEIVED_EXECING) ?
+				SCST_MGMT_STATUS_RECEIVED_STAGE_COMPLETED :
+				reply->result);
 		break;
 
 	case UCMD_STATE_ATTACH_SESS:
@@ -2272,7 +2265,8 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 
 	case UCMD_STATE_ON_FREEING:
 	case UCMD_STATE_ON_CACHE_FREEING:
-	case UCMD_STATE_TM_EXECING:
+	case UCMD_STATE_TM_RECEIVED_EXECING:
+	case UCMD_STATE_TM_DONE_EXECING:
 	case UCMD_STATE_ATTACH_SESS:
 	case UCMD_STATE_DETACH_SESS:
 		if (flags != NULL)
@@ -2290,9 +2284,12 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 			dev_user_process_reply_on_cache_free(ucmd);
 			break;
 
-		case UCMD_STATE_TM_EXECING:
+		case UCMD_STATE_TM_RECEIVED_EXECING:
+		case UCMD_STATE_TM_DONE_EXECING:
 			dev_user_process_reply_tm_exec(ucmd,
-						       SCST_MGMT_STATUS_FAILED);
+				(state == UCMD_STATE_TM_RECEIVED_EXECING) ?
+					SCST_MGMT_STATUS_RECEIVED_STAGE_COMPLETED :
+					SCST_MGMT_STATUS_FAILED);
 			break;
 
 		case UCMD_STATE_ATTACH_SESS:
@@ -2430,8 +2427,8 @@ again:
 }
 
 /* Can be called under some spinlock and IRQs off */
-static int dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
-	struct scst_tgt_dev *tgt_dev)
+static void __dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
+	struct scst_tgt_dev *tgt_dev, bool done)
 {
 	struct scst_user_cmd *ucmd;
 	struct scst_user_dev *dev = tgt_dev->dev->dh_priv;
@@ -2477,7 +2474,8 @@ static int dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 	 * stuck commands would affect only related devices.
 	 */
 
-	dev_user_abort_ready_commands(dev);
+	if (!done)
+		dev_user_abort_ready_commands(dev);
 
 	/* We can't afford missing TM command due to memory shortage */
 	ucmd = dev_user_alloc_ucmd(dev, GFP_ATOMIC|__GFP_NOFAIL);
@@ -2491,7 +2489,10 @@ static int dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 		offsetof(struct scst_user_get_cmd, tm_cmd) +
 		sizeof(ucmd->user_cmd.tm_cmd);
 	ucmd->user_cmd.cmd_h = ucmd->h;
-	ucmd->user_cmd.subcode = SCST_USER_TASK_MGMT;
+	if (done)
+		ucmd->user_cmd.subcode = SCST_USER_TASK_MGMT_DONE;
+	else
+		ucmd->user_cmd.subcode = SCST_USER_TASK_MGMT_RECEIVED;
 	ucmd->user_cmd.tm_cmd.sess_h = (unsigned long)tgt_dev;
 	ucmd->user_cmd.tm_cmd.fn = mcmd->fn;
 	ucmd->user_cmd.tm_cmd.cmd_sn = mcmd->cmd_sn;
@@ -2509,7 +2510,10 @@ static int dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 		ucmd->user_cmd.tm_cmd.cmd_h_to_abort, mcmd);
 
 	ucmd->mcmd = mcmd;
-	ucmd->state = UCMD_STATE_TM_EXECING;
+	if (done)
+		ucmd->state = UCMD_STATE_TM_DONE_EXECING;
+	else
+		ucmd->state = UCMD_STATE_TM_RECEIVED_EXECING;
 
 	scst_prepare_async_mcmd(mcmd);
 
@@ -2517,7 +2521,25 @@ static int dev_user_task_mgmt_fn(struct scst_mgmt_cmd *mcmd,
 
 out:
 	TRACE_EXIT();
-	return SCST_DEV_TM_NOT_COMPLETED;
+	return;
+}
+
+static void dev_user_task_mgmt_fn_received(struct scst_mgmt_cmd *mcmd,
+	struct scst_tgt_dev *tgt_dev)
+{
+	TRACE_ENTRY();
+	__dev_user_task_mgmt_fn(mcmd, tgt_dev, false);
+	TRACE_EXIT();
+	return;
+}
+
+static void dev_user_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd,
+	struct scst_tgt_dev *tgt_dev)
+{
+	TRACE_ENTRY();
+	__dev_user_task_mgmt_fn(mcmd, tgt_dev, true);
+	TRACE_EXIT();
+	return;
 }
 
 static int dev_user_attach(struct scst_device *sdev)
@@ -2956,7 +2978,8 @@ static int dev_user_register_dev(struct file *file,
 	dev->devtype.detach_tgt = dev_user_detach_tgt;
 	dev->devtype.exec = dev_user_exec;
 	dev->devtype.on_free_cmd = dev_user_on_free_cmd;
-	dev->devtype.task_mgmt_fn = dev_user_task_mgmt_fn;
+	dev->devtype.task_mgmt_fn_received = dev_user_task_mgmt_fn_received;
+	dev->devtype.task_mgmt_fn_done = dev_user_task_mgmt_fn_done;
 	if (dev_desc->enable_pr_cmds_notifications)
 		dev->devtype.pr_cmds_notifications = 1;
 

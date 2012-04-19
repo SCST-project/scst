@@ -70,7 +70,8 @@
 #define UCMD_STATE_ON_FREEING		4
 #define UCMD_STATE_ON_FREE_SKIPPED	5
 #define UCMD_STATE_ON_CACHE_FREEING	6
-#define UCMD_STATE_TM_EXECING		7
+#define UCMD_STATE_TM_RECEIVED_EXECING	7
+#define UCMD_STATE_TM_DONE_EXECING	8
 
 #define UCMD_STATE_ATTACH_SESS		0x20
 #define UCMD_STATE_DETACH_SESS		0x21
@@ -318,7 +319,9 @@ union scst_user_prealloc_buffer {
 #define SCST_USER_ON_CACHED_MEM_FREE            \
 	_IOR('s', UCMD_STATE_ON_CACHE_FREEING,  \
 	struct scst_user_on_cached_mem_free)
-#define SCST_USER_TASK_MGMT		\
-	_IOWR('s', UCMD_STATE_TM_EXECING, struct scst_user_tm)
+#define SCST_USER_TASK_MGMT_RECEIVED		\
+	_IOWR('s', UCMD_STATE_TM_RECEIVED_EXECING, struct scst_user_tm)
+#define SCST_USER_TASK_MGMT_DONE		\
+	_IOWR('s', UCMD_STATE_TM_DONE_EXECING, struct scst_user_tm)
 
 #endif /* __SCST_USER_H */

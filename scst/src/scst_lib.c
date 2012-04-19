@@ -4404,6 +4404,8 @@ struct scst_mgmt_cmd *scst_alloc_mgmt_cmd(gfp_t gfp_mask)
 	}
 	memset(mcmd, 0, sizeof(*mcmd));
 
+	mcmd->status = SCST_MGMT_STATUS_SUCCESS;
+
 out:
 	TRACE_EXIT();
 	return mcmd;
@@ -7064,7 +7066,7 @@ static const int tm_dbg_on_state_num_passes[] = { 5, 1, 0x7ffffff };
 
 static void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev)
 {
-	if (tgt_dev->lun == 6) {
+	if (tgt_dev->lun == 15) {
 		unsigned long flags;
 
 		if (tm_dbg_tgt_dev != NULL)
@@ -7101,8 +7103,6 @@ static void tm_dbg_timer_fn(unsigned long arg)
 {
 	TRACE_MGMT_DBG("%s", "delayed cmd timer expired");
 	tm_dbg_flags.tm_dbg_release = 1;
-	/* Used to make sure that all woken up threads see the new value */
-	smp_wmb();
 	wake_up_all(&tm_dbg_tgt_dev->active_cmd_threads->cmd_list_waitQ);
 	return;
 }
@@ -7175,8 +7175,8 @@ void tm_dbg_check_released_cmds(void)
 	}
 }
 
-/* Called under scst_tm_dbg_lock */
-static void tm_dbg_change_state(void)
+/* Called under scst_tm_dbg_lock, but can drop it inside, then reget */
+static void tm_dbg_change_state(unsigned long *flags)
 {
 	tm_dbg_flags.tm_dbg_blocked = 0;
 	if (--tm_dbg_on_state_passes == 0) {
@@ -7207,7 +7207,9 @@ static void tm_dbg_change_state(void)
 	}
 
 	TRACE_MGMT_DBG("%s", "Deleting timer");
+	spin_unlock_irqrestore(&scst_tm_dbg_lock, *flags);
 	del_timer_sync(&tm_dbg_timer);
+	spin_lock_irqsave(&scst_tm_dbg_lock, *flags);
 	return;
 }
 
@@ -7230,13 +7232,13 @@ int tm_dbg_check_cmd(struct scst_cmd *cmd)
 		tm_dbg_delayed_cmds_count--;
 		if ((tm_dbg_delayed_cmds_count == 0) &&
 		    (tm_dbg_state == TM_DBG_STATE_ABORT))
-			tm_dbg_change_state();
+			tm_dbg_change_state(&flags);
 		spin_unlock_irqrestore(&scst_tm_dbg_lock, flags);
 	} else if (cmd->tgt_dev && (tm_dbg_tgt_dev == cmd->tgt_dev)) {
-		/* Delay 50th command */
+		/* Delay 5000th command */
 		spin_lock_irqsave(&scst_tm_dbg_lock, flags);
 		if (tm_dbg_flags.tm_dbg_blocked ||
-		    (++tm_dbg_passed_cmds_count % 50) == 0) {
+		    (++tm_dbg_passed_cmds_count % 5000) == 0) {
 			tm_dbg_delay_cmd(cmd);
 			res = 1;
 		} else
@@ -7262,6 +7264,9 @@ void tm_dbg_release_cmd(struct scst_cmd *cmd)
 				"delayed cmd %p (tag=%llu), moving it to "
 				"active cmd list (delayed_cmds_count=%d)",
 				c, c->tag, tm_dbg_delayed_cmds_count);
+
+			if (!(in_atomic() || in_interrupt() || irqs_disabled()))
+				msleep(2000);
 
 			if (!test_bit(SCST_CMD_ABORTED_OTHER,
 					    &cmd->cmd_flags)) {
@@ -7303,7 +7308,7 @@ void tm_dbg_task_mgmt(struct scst_device *dev, const char *fn, int force)
 	if ((tm_dbg_state != TM_DBG_STATE_OFFLINE) || force) {
 		TRACE_MGMT_DBG("%s: freeing %d delayed cmds", fn,
 			tm_dbg_delayed_cmds_count);
-		tm_dbg_change_state();
+		tm_dbg_change_state(&flags);
 		tm_dbg_flags.tm_dbg_release = 1;
 		/*
 		 * Used to make sure that all woken up threads see the new
