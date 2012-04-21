@@ -34,22 +34,6 @@
 # Initialization:
 : ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
 . ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
-
-# Defaults
-
-# Use a default SCSI ID and SCSI SN that is unique across the cluster,
-# and persistent in the event of resource migration.
-# SCSI IDs are limited to 24 bytes, but only 16 bytes are known to be
-# supported by all iSCSI implementations this RA cares about. Thus,
-# for a default, use the first 16 characters of
-# $OCF_RESOURCE_INSTANCE.
-OCF_RESKEY_scsi_id_default="${OCF_RESOURCE_INSTANCE:0:16}"
-: ${OCF_RESKEY_scsi_id=${OCF_RESKEY_scsi_id_default}}
-# To have a reasonably unique default SCSI SN, use the first 8 bytes
-# of an MD5 hash of of $OCF_RESOURCE_INSTANCE
-sn=`echo -n "${OCF_RESOURCE_INSTANCE}" | openssl md5`
-OCF_RESKEY_scsi_sn_default=${sn:0:8}
-: ${OCF_RESKEY_scsi_sn=${OCF_RESKEY_scsi_sn_default}}
 #######################################################################
 
 meta_data() {
@@ -100,7 +84,7 @@ The handler used (vdisk_blockio, vdisk_fileio, dev_tape ...).</longdesc>
 <content type="string" />
 </parameter>
 
-<parameter name="scsi_id" required="1" unique="0">
+<parameter name="scsi_id" required="0" unique="0">
 <longdesc lang="en">
 The t10 device ID of LUN. If not specified default SCST value will be used.
 Please note that some initiators, like ESXi, are using only some of the first 
@@ -110,7 +94,7 @@ characters to identify LUN, like 4-6 chars.
 <content type="integer" />
 </parameter>
 
-<parameter name="scsi_sn" required="1" unique="0">
+<parameter name="scsi_sn" required="0" unique="0">
 <longdesc lang="en">
 SCSI Serial Number
 </longdesc>
@@ -297,10 +281,12 @@ SCSTLun_stop() {
 	ocf_log info "Disabling target ${OCF_RESKEY_target_iqn}"
 	echo 0 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/enabled"
 
-        # Drop connections
-        for i in $( ls "${SYSFS_PATH}/${OCF_RESKEY_target_iqn}/sessions" ) ; do
-                ocf_log warn "Force closing session to initiator ${i}"
-                echo 1 > "${SYSFS_PATH}/${OCF_RESKEY_target_iqn}/sessions/${i}/force_close"
+        # Drop connections, only if session is using lun
+        for i in $( ls "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions" ) ; do                
+		if [ -d "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions/${i}/luns/${OCF_RESKEY_lun}" ]; then
+			ocf_log warn "Force closing session to initiator ${i}"
+	                echo 1 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions/${i}/force_close"
+		fi
         done
         
 	ocf_log info "Removing LUN ${OCF_RESKEY_lun}, device ${OCF_RESKEY_device_name}, target ${OCF_RESKEY_target_iqn}"
