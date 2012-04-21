@@ -2011,7 +2011,7 @@ static int srpt_compl_thread(void *arg)
 #endif
 	while (ch->state < CH_LIVE) {
 		srpt_process_completion(ch->cq, ch, SCST_CONTEXT_THREAD,
-					SCST_CONTEXT_DIRECT);
+					SCST_CONTEXT_THREAD);
 		schedule();
 		set_current_state(TASK_INTERRUPTIBLE);
 	}
@@ -2027,7 +2027,7 @@ static int srpt_compl_thread(void *arg)
 #endif
 	while (!ch->last_wqe_received) {
 		srpt_process_completion(ch->cq, ch, SCST_CONTEXT_THREAD,
-					SCST_CONTEXT_DIRECT);
+					SCST_CONTEXT_THREAD);
 		schedule();
 		set_current_state(TASK_INTERRUPTIBLE);
 	}
@@ -2040,7 +2040,7 @@ static int srpt_compl_thread(void *arg)
 	for (;;) {
 		set_current_state(TASK_INTERRUPTIBLE);
 		srpt_process_completion(ch->cq, ch, SCST_CONTEXT_THREAD,
-					SCST_CONTEXT_DIRECT);
+					SCST_CONTEXT_THREAD);
 		if (atomic_read(&ch->scst_sess->sess_cmd_count) == 0)
 			break;
 		schedule_timeout(HZ / 10);
