@@ -1704,8 +1704,6 @@ err:
 /**
  * srpt_handle_tsk_mgmt() - Process an SRP_TSK_MGMT information unit.
  *
- * Returns SCST_MGMT_STATUS_SUCCESS upon success.
- *
  * Each task management function is performed by calling one of the
  * scst_rx_mgmt_fn*() functions. These functions will either report failure
  * or process the task management function asynchronously. The function
@@ -1717,14 +1715,14 @@ err:
  * For more information about SRP_TSK_MGMT information units, see also section
  * 6.7 in the SRP r16a document.
  */
-static u8 srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
-			       struct srpt_recv_ioctx *recv_ioctx,
-			       struct srpt_send_ioctx *send_ioctx)
+static void srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
+				 struct srpt_recv_ioctx *recv_ioctx,
+				 struct srpt_send_ioctx *send_ioctx)
 {
 	struct srp_tsk_mgmt *srp_tsk;
 	int ret;
 
-	ret = SCST_MGMT_STATUS_FAILED;
+	ret = -EOPNOTSUPP;
 
 	BUG_ON(!send_ioctx);
 	BUG_ON(send_ioctx->ch != ch);
@@ -1773,13 +1771,13 @@ static u8 srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 		break;
 	default:
 		TRACE_DBG("Unsupported task management function.");
-		ret = SCST_MGMT_STATUS_FN_NOT_SUPPORTED;
 	}
 
-	if (ret != SCST_MGMT_STATUS_SUCCESS)
+	if (ret != 0) {
+		PRINT_ERROR("Processing task management function %d failed: %d",
+			    srp_tsk->tsk_mgmt_func, ret);
 		srpt_put_send_ioctx(send_ioctx);
-
-	return ret;
+	}
 }
 
 static u8 scst_to_srp_tsk_mgmt_status(const int scst_mgmt_status)
