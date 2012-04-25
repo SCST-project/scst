@@ -4307,7 +4307,12 @@ int scst_cmd_thread(void *arg)
 		 * io_context 0.
 		 */
 		if (p_cmd_threads->io_context == NULL) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 3, 0)
+			p_cmd_threads->io_context = get_task_io_context(current,
+						GFP_KERNEL, NUMA_NO_NODE);
+#else
 			p_cmd_threads->io_context = get_io_context(GFP_KERNEL, -1);
+#endif
 			TRACE_MGMT_DBG("Alloced new IO context %p "
 				"(p_cmd_threads %p)",
 				p_cmd_threads->io_context,

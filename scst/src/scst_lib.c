@@ -3123,7 +3123,11 @@ static int scst_ioc_keeper_thread(void *arg)
 	sBUG_ON(aic_keeper->aic != NULL);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 3, 0)
+	aic_keeper->aic = get_task_io_context(current, GFP_KERNEL, NUMA_NO_NODE);
+#else
 	aic_keeper->aic = get_io_context(GFP_KERNEL, -1);
+#endif
 #endif
 	TRACE_MGMT_DBG("Alloced new async IO context %p (aic %p)",
 		aic_keeper->aic, aic_keeper);
