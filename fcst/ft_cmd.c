@@ -325,7 +325,9 @@ static void ft_recv_seq(struct fc_seq *sp, struct fc_frame *fp, void *arg)
 	 * the session and all pending commands, so we ignore this response.
 	 */
 	if (IS_ERR(fp)) {
-		FT_IO_DBG("exchange error %ld - not handled\n", -PTR_ERR(fp));
+		FT_IO_DBG("exchange error %ld - aborting cmd\n", -PTR_ERR(fp));
+		scst_rx_mgmt_fn_tag(cmd->sess, SCST_ABORT_TASK, cmd->tag,
+				    SCST_ATOMIC, NULL);
 		return;
 	}
 
@@ -345,13 +347,27 @@ static void ft_recv_seq(struct fc_seq *sp, struct fc_frame *fp, void *arg)
 	}
 }
 
+static void ft_abort_cmd(struct scst_cmd *cmd, enum scst_exec_context context)
+{
+	scst_data_direction dir;
+
+	dir = scst_cmd_get_data_direction(cmd);
+	if (dir & SCST_DATA_WRITE)
+		scst_rx_data(cmd, SCST_RX_STATUS_ERROR, context);
+	if (dir & SCST_DATA_READ) {
+		scst_set_delivery_status(cmd, SCST_CMD_DELIVERY_ABORTED);
+		scst_tgt_cmd_done(cmd, context);
+	}
+}
+
 /*
  * Command timeout.
  * SCST calls this when the command has taken too long in the device handler.
  */
 void ft_cmd_timeout(struct scst_cmd *cmd)
 {
-	FT_IO_DBG("timeout not implemented\n");	/* XXX TBD */
+	FT_IO_DBG("%p: timeout\n", cmd);
+	ft_abort_cmd(cmd, SCST_CONTEXT_DIRECT);
 }
 
 /*
@@ -366,8 +382,6 @@ static int ft_send_xfer_rdy_off(struct scst_cmd *cmd, u32 offset, u32 len)
 	struct fc_exch *ep;
 
 	fcmd = scst_cmd_get_tgt_priv(cmd);
-	if (fcmd->xfer_rdy_len < len + offset)
-		fcmd->xfer_rdy_len = len + offset;
 
 	ep = fc_seq_exch(fcmd->seq);
 	lport = ep->lp;
@@ -474,6 +488,8 @@ void ft_cmd_tm_done(struct scst_mgmt_cmd *mcmd)
 
 	ft_cmd_tm_dump(mcmd, __func__);
 	fcmd = scst_mgmt_cmd_get_tgt_priv(mcmd);
+	if (!fcmd)
+		return;
 	switch (scst_mgmt_cmd_get_status(mcmd)) {
 	case SCST_MGMT_STATUS_SUCCESS:
 		code = FCP_TMF_CMPL;
@@ -506,7 +522,11 @@ static void ft_recv_tm(struct scst_session *scst_sess,
 	int ret;
 
 	memset(&params, 0, sizeof(params));
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+	params.lun = fcp->fc_lun.scsi_lun;
+#else
 	params.lun = fcp->fc_lun;
+#endif
 	params.lun_len = sizeof(fcp->fc_lun);
 	params.lun_set = 1;
 	params.atomic = SCST_ATOMIC;
@@ -589,8 +609,14 @@ static void ft_recv_cmd(struct ft_sess *sess, struct fc_frame *fp)
 	cdb_len += sizeof(fcp->fc_cdb);
 	data_len = ntohl(*(__be32 *)(fcp->fc_cdb + cdb_len));
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+	cmd = scst_rx_cmd(sess->scst_sess, fcp->fc_lun.scsi_lun,
+			  sizeof(fcp->fc_lun), fcp->fc_cdb, cdb_len,
+			  SCST_ATOMIC);
+#else
 	cmd = scst_rx_cmd(sess->scst_sess, fcp->fc_lun, sizeof(fcp->fc_lun),
 			  fcp->fc_cdb, cdb_len, SCST_ATOMIC);
+#endif
 	if (!cmd)
 		goto busy;
 	fcmd->scst_cmd = cmd;

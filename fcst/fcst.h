@@ -102,7 +102,6 @@ struct ft_cmd {
 	struct fc_frame *req_frame;	/* original request frame */
 	u32 write_data_len;		/* data received from initiator */
 	u32 read_data_len;		/* data sent to initiator */
-	u32 xfer_rdy_len;		/* max xfer ready offset */
 	u32 max_lso_payload;		/* max offloaded (LSO) data payload */
 	u16 max_payload;		/* max transmitted data payload */
 	struct scst_cmd *scst_cmd;
