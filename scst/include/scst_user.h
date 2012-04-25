@@ -60,6 +60,10 @@
 #define aligned_u64 uint64_t __attribute__((aligned(8)))
 #endif
 
+#ifndef aligned_i64
+#define aligned_i64 int64_t __attribute__((aligned(8)))
+#endif
+
 /*************************************************************
  ** Private ucmd states
  *************************************************************/
@@ -125,8 +129,11 @@ struct scst_user_scsi_cmd_parse {
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
 	uint16_t cdb_len;
 
+	aligned_i64 lba;
+
 	int32_t timeout;
 	int32_t bufflen;
+	int32_t data_len;
 	int32_t out_bufflen;
 
 	uint32_t op_flags;
@@ -161,6 +168,8 @@ struct scst_user_scsi_cmd_exec {
 
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
 	uint16_t cdb_len;
+
+	aligned_i64 lba;
 
 	int32_t data_len;
 	int32_t bufflen;
@@ -225,6 +234,7 @@ struct scst_user_scsi_cmd_reply_parse {
 			uint8_t queue_type;
 			uint8_t data_direction;
 			uint16_t cdb_len;
+			aligned_i64 lba;
 			uint32_t op_flags;
 			int32_t data_len;
 			int32_t bufflen;

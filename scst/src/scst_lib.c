@@ -67,31 +67,64 @@ static int strncasecmp(const char *s1, const char *s2, size_t n)
 }
 #endif
 
-/* get_trans_len_x extract x bytes from cdb as length starting from off */
-static int get_trans_len_1(struct scst_cmd *cmd, uint8_t off);
-static int get_trans_len_1_256(struct scst_cmd *cmd, uint8_t off);
-static int get_trans_len_2(struct scst_cmd *cmd, uint8_t off);
-static int get_trans_len_3(struct scst_cmd *cmd, uint8_t off);
-static int get_trans_len_4(struct scst_cmd *cmd, uint8_t off);
+struct scst_sdbops;
 
-static int get_bidi_trans_len_2(struct scst_cmd *cmd, uint8_t off);
-
-/* for special commands */
-static int get_trans_len_fmt(struct scst_cmd *cmd, uint8_t off);
-static int get_verify_trans_len_2(struct scst_cmd *cmd, uint8_t off);
-static int get_verify_trans_len_3(struct scst_cmd *cmd, uint8_t off);
-static int get_verify_trans_len_4(struct scst_cmd *cmd, uint8_t off);
-static int get_trans_len_block_limit(struct scst_cmd *cmd, uint8_t off);
-static int get_trans_len_read_capacity(struct scst_cmd *cmd, uint8_t off);
-static int get_trans_len_serv_act_in(struct scst_cmd *cmd, uint8_t off);
-static int get_trans_len_single(struct scst_cmd *cmd, uint8_t off);
-static int get_trans_len_none(struct scst_cmd *cmd, uint8_t off);
-static int get_trans_len_read_pos(struct scst_cmd *cmd, uint8_t off);
-static int get_trans_cdb_len_10(struct scst_cmd *cmd, uint8_t off);
-static int get_trans_len_prevent_allow_medium_removal(struct scst_cmd *cmd,
-	uint8_t off);
-static int get_trans_len_3_read_elem_stat(struct scst_cmd *cmd, uint8_t off);
-static int get_trans_len_start_stop(struct scst_cmd *cmd, uint8_t off);
+static int get_cdb_info_len_10(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_block_limit(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_read_capacity(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_serv_act_in(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_single(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_read_pos(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_prevent_allow_medium_removal(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_start_stop(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_len_3_read_elem_stat(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_len_2(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_fmt(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+	static int get_cdb_info_verify6(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_verify10(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_verify12(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_verify16(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_len_1(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_lba_2_len_1_256(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_bidi_lba_4_len_2(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_len_3(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_len_4(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_none(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_lba_2_none(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_lba_4_len_2(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_lba_4_none(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_lba_4_len_2(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_lba_4_len_4(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_lba_8_len_4(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_lba_8_none(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
 
 /*
 +=====================================-============-======-
@@ -134,13 +167,17 @@ struct scst_sdbops {
 				 * type_reserv    devkey[E]
 				 * type_reserv    devkey[F]
 				 */
-	const char *op_name;	/* SCSI-2 op codes full name */
-	uint8_t direction;	/* init   --> target: SCST_DATA_WRITE
-				 * target --> init:   SCST_DATA_READ
-				 */
-	uint32_t flags;		/* opcode --  various flags */
-	uint8_t off;		/* length offset in cdb */
-	int (*get_trans_len)(struct scst_cmd *cmd, uint8_t off);
+	uint8_t info_lba_off;	/* LBA offset in cdb */
+	uint8_t info_lba_len;	/* LBA length in cdb */
+	uint8_t info_len_off;	/* length offset in cdb */
+	uint8_t info_len_len;	/* length length in cdb */
+	uint8_t info_data_direction; /* init --> target: SCST_DATA_WRITE
+				   * target --> init: SCST_DATA_READ
+				   * target <--> init: SCST_DATA_READ|SCST_DATA_WRITE
+				   */
+	uint32_t info_op_flags;	/* various flags of this opcode */
+	const char *info_op_name;/* op code SCSI full name */
+	int (*get_cdb_info)(struct scst_cmd *cmd, const struct scst_sdbops *sdbops);
 };
 
 static int scst_scsi_op_list[256];
@@ -149,532 +186,1057 @@ static int scst_scsi_op_list[256];
 
 static const struct scst_sdbops scst_scsi_op_table[] = {
 	/*
-	 *      +-------------------> TYPE_IS_DISK      (0)
-	 *      |
-	 *      |+------------------> TYPE_IS_TAPE      (1)
-	 *      ||
-	 *      || +----------------> TYPE_IS_PROCESSOR (3)
-	 *      || |
-	 *      || | +--------------> TYPE_IS_CDROM     (5)
-	 *      || | |
-	 *      || | | +------------> TYPE_IS_MOD       (7)
-	 *      || | | |
-	 *      || | | |+-----------> TYPE_IS_CHANGER   (8)
-	 *      || | | ||
-	 *      || | | ||   +-------> TYPE_IS_RAID      (C)
-	 *      || | | ||   |
-	 *      || | | ||   |
-	 *      0123456789ABCDEF ---> TYPE_IS_????     */
+	 *                       +-------------------> TYPE_IS_DISK      (0)
+	 *                       |
+	 *                       |+------------------> TYPE_IS_TAPE      (1)
+	 *                       ||
+	 *                       || +----------------> TYPE_IS_PROCESSOR (3)
+	 *                       || |
+	 *                       || | +--------------> TYPE_IS_CDROM     (5)
+	 *                       || | |
+	 *                       || | | +------------> TYPE_IS_MOD       (7)
+	 *                       || | | |
+	 *                       || | | |+-----------> TYPE_IS_CHANGER   (8)
+	 *                       || | | ||
+	 *                       || | | ||   +-------> TYPE_IS_RAID      (C)
+	 *                       || | | ||   |
+	 *                       || | | ||   |
+	 *                       0123456789ABCDEF ---> TYPE_IS_????     */
 
 	/* 6-bytes length CDB */
-	{0x00, "MMMMMMMMMMMMMMMM", "TEST UNIT READY",
-	 /* let's be HQ to don't look dead under high load */
-	 SCST_DATA_NONE, SCST_SMALL_TIMEOUT|SCST_IMPLICIT_HQ|
-			 SCST_REG_RESERVE_ALLOWED|
-			 SCST_WRITE_EXCL_ALLOWED|
+	{.ops = 0x00, .devkey = "MMMMMMMMMMMMMMMM",
+	 .info_op_name = "TEST UNIT READY",
+	 .info_data_direction = SCST_DATA_NONE,
+	 /* Let's be HQ to don't look dead under high load */
+	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_IMPLICIT_HQ|
+			 SCST_REG_RESERVE_ALLOWED|SCST_WRITE_EXCL_ALLOWED|
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
 			 SCST_TEST_IO_IN_SIRQ_ALLOWED|
 #endif
 			 SCST_EXCL_ACCESS_ALLOWED,
-	 0, get_trans_len_none},
-	{0x01, " M              ", "REWIND",
-	 SCST_DATA_NONE, SCST_LONG_TIMEOUT|SCST_WRITE_EXCL_ALLOWED,
-	 0, get_trans_len_none},
-	{0x01, "O V OO OO       ", "REZERO UNIT",
-	 SCST_DATA_NONE, SCST_WRITE_EXCL_ALLOWED,
-	 0, get_trans_len_none},
-	{0x02, "VVVVVV  V       ", "REQUEST BLOCK ADDR",
-	 SCST_DATA_NONE, SCST_SMALL_TIMEOUT, 0, get_trans_len_none},
-	{0x03, "MMMMMMMMMMMMMMMM", "REQUEST SENSE",
-	 SCST_DATA_READ, SCST_SMALL_TIMEOUT|SCST_SKIP_UA|SCST_LOCAL_CMD|
-			 SCST_REG_RESERVE_ALLOWED|
-			 SCST_WRITE_EXCL_ALLOWED|
-			 SCST_EXCL_ACCESS_ALLOWED,
-	 4, get_trans_len_1},
-	{0x04, "M    O O        ", "FORMAT UNIT",
-	 SCST_DATA_NONE, SCST_LONG_TIMEOUT|SCST_WRITE_MEDIUM,
-	 0, get_trans_len_fmt},
-	{0x04, "  O             ", "FORMAT",
-	 SCST_DATA_NONE, SCST_WRITE_MEDIUM, 0, get_trans_len_none},
-	{0x05, "VMVVVV  V       ", "READ BLOCK LIMITS",
-	 SCST_DATA_READ, SCST_SMALL_TIMEOUT|
-			 SCST_REG_RESERVE_ALLOWED|
-			 SCST_WRITE_EXCL_ALLOWED|
-			 SCST_EXCL_ACCESS_ALLOWED,
-	 0, get_trans_len_block_limit},
-	{0x07, "        O       ", "INITIALIZE ELEMENT STATUS",
-	 SCST_DATA_NONE, SCST_LONG_TIMEOUT, 0, get_trans_len_none},
-	{0x07, "OVV O  OV       ", "REASSIGN BLOCKS",
-	 SCST_DATA_NONE, SCST_WRITE_MEDIUM, 0, get_trans_len_none},
-	{0x08, "O               ", "READ(6)",
-	 SCST_DATA_READ, SCST_TRANSFER_LEN_TYPE_FIXED|
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x01, .devkey = " M              ",
+	 .info_op_name = "REWIND",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_LONG_TIMEOUT|SCST_WRITE_EXCL_ALLOWED,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x03, .devkey = "MMMMMMMMMMMMMMMM",
+	 .info_op_name = "REQUEST SENSE",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_SKIP_UA|SCST_LOCAL_CMD|
+		 SCST_REG_RESERVE_ALLOWED| SCST_WRITE_EXCL_ALLOWED|
+		 SCST_EXCL_ACCESS_ALLOWED,
+	 .info_len_off = 4, .info_len_len = 1,
+	 .get_cdb_info = get_cdb_info_len_1},
+	{.ops = 0x04, .devkey = "M    O O        ",
+	 .info_op_name = "FORMAT UNIT",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_LONG_TIMEOUT|SCST_WRITE_MEDIUM,
+	 .get_cdb_info = get_cdb_info_fmt},
+	{.ops = 0x04, .devkey = "  O             ",
+	 .info_op_name = "FORMAT",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_WRITE_MEDIUM,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x05, .devkey = "VMVVVV  V       ",
+	 .info_op_name = "READ BLOCK LIMITS",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_REG_RESERVE_ALLOWED|
+	 	SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
+	 .get_cdb_info = get_cdb_info_block_limit},
+	{.ops = 0x07, .devkey = "        O       ",
+	 .info_op_name = "INITIALIZE ELEMENT STATUS",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_LONG_TIMEOUT,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x07, .devkey = "OVV O  OV       ",
+	 .info_op_name = "REASSIGN BLOCKS",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = SCST_WRITE_MEDIUM,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x08, .devkey = "O               ",
+	 .info_op_name = "READ(6)",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
 			 SCST_TEST_IO_IN_SIRQ_ALLOWED|
 #endif
 			 SCST_WRITE_EXCL_ALLOWED,
-	 4, get_trans_len_1_256},
-	{0x08, " MV OO OV       ", "READ(6)",
-	 SCST_DATA_READ, SCST_TRANSFER_LEN_TYPE_FIXED|
+	 .info_lba_off = 2, .info_lba_len = 2,
+	 .info_len_off = 4, .info_len_len = 1,
+	 .get_cdb_info = get_cdb_info_lba_2_len_1_256},
+	{.ops = 0x08, .devkey = " MV OO OV       ",
+	 .info_op_name = "READ(6)",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|
 			 SCST_WRITE_EXCL_ALLOWED,
-	 2, get_trans_len_3},
-	{0x08, "         M      ", "GET MESSAGE(6)",
-	 SCST_DATA_READ, FLAG_NONE, 2, get_trans_len_3},
-	{0x08, "    O           ", "RECEIVE",
-	 SCST_DATA_READ, FLAG_NONE, 2, get_trans_len_3},
-	{0x0A, "O               ", "WRITE(6)",
-	 SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED|
+	 .info_len_off = 2, .info_len_len = 3,
+	 .get_cdb_info = get_cdb_info_len_3},
+	{.ops = 0x08, .devkey = "         M      ",
+	 .info_op_name = "GET MESSAGE(6)",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 2, .info_len_len = 3,
+	 .get_cdb_info = get_cdb_info_len_3},
+	{.ops = 0x08, .devkey = "    O           ",
+	 .info_op_name = "RECEIVE",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 2, .info_len_len = 3,
+	 .get_cdb_info = get_cdb_info_len_3},
+	{.ops = 0x0A, .devkey = "O               ",
+	 .info_op_name = "WRITE(6)",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
 			  SCST_TEST_IO_IN_SIRQ_ALLOWED|
 #endif
 			  SCST_WRITE_MEDIUM,
-	 4, get_trans_len_1_256},
-	{0x0A, " M  O  OV       ", "WRITE(6)",
-	 SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
-	 2, get_trans_len_3},
-	{0x0A, "  M             ", "PRINT",
-	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
-	{0x0A, "         M      ", "SEND MESSAGE(6)",
-	 SCST_DATA_WRITE, FLAG_NONE, 2, get_trans_len_3},
-	{0x0A, "    M           ", "SEND(6)",
-	 SCST_DATA_WRITE, FLAG_NONE, 2, get_trans_len_3},
-	{0x0B, "O   OO OV       ", "SEEK(6)",
-	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
-	{0x0B, "                ", "TRACK SELECT",
-	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
-	{0x0B, "  O             ", "SLEW AND PRINT",
-	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
-	{0x0C, "VVVVVV  V       ", "SEEK BLOCK",
-	 SCST_DATA_NONE, SCST_LONG_TIMEOUT, 0, get_trans_len_none},
-	{0x0D, "VVVVVV  V       ", "PARTITION",
-	 SCST_DATA_NONE, SCST_LONG_TIMEOUT|SCST_WRITE_MEDIUM,
-	 0, get_trans_len_none},
-	{0x0F, "VOVVVV  V       ", "READ REVERSE",
-	 SCST_DATA_READ, SCST_TRANSFER_LEN_TYPE_FIXED|
+	 .info_lba_off = 2, .info_lba_len = 2,
+	 .info_len_off = 4, .info_len_len = 1,
+	 .get_cdb_info = get_cdb_info_lba_2_len_1_256},
+	{.ops = 0x0A, .devkey = " M  O  OV       ",
+	 .info_op_name = "WRITE(6)",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
+	 .info_len_off = 2, .info_len_len = 3,
+	 .get_cdb_info = get_cdb_info_len_3},
+	{.ops = 0x0A, .devkey = "  M             ",
+	 .info_op_name = "PRINT",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = FLAG_NONE,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x0A, .devkey = "         M      ",
+	 .info_op_name = "SEND MESSAGE(6)",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 2, .info_len_len = 3,
+	 .get_cdb_info = get_cdb_info_len_3},
+	{.ops = 0x0A, .devkey = "    M           ",
+	 .info_op_name = "SEND(6)",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 2, .info_len_len = 3,
+	 .get_cdb_info = get_cdb_info_len_3},
+	{.ops = 0x0B, .devkey = "O   OO OV       ",
+	 .info_op_name = "SEEK(6)",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = FLAG_NONE,
+	 .info_lba_off = 2, .info_lba_len = 2,
+	 .get_cdb_info = get_cdb_info_lba_2_none},
+	{.ops = 0x0B, .devkey = "  O             ",
+	 .info_op_name = "SLEW AND PRINT",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = FLAG_NONE,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x0C, .devkey = " VVVVV  V       ",
+	 .info_op_name = "SEEK BLOCK",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_LONG_TIMEOUT,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x0D, .devkey = " VVVVV  V       ",
+	 .info_op_name = "PARTITION",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_LONG_TIMEOUT|SCST_WRITE_MEDIUM,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x0F, .devkey = " OVVVV  V       ",
+	 .info_op_name = "READ REVERSE",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|
 			 SCST_WRITE_EXCL_ALLOWED,
-	 2, get_trans_len_3},
-	{0x10, "VM V V          ", "WRITE FILEMARKS",
-	 SCST_DATA_NONE, SCST_WRITE_MEDIUM, 0, get_trans_len_none},
-	{0x10, "  O O           ", "SYNCHRONIZE BUFFER",
-	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
-	{0x11, "VMVVVV          ", "SPACE",
-	 SCST_DATA_NONE, SCST_LONG_TIMEOUT|
+	 .info_len_off = 12, .info_len_len = 3,
+	 .get_cdb_info = get_cdb_info_len_3},
+	{.ops = 0x10, .devkey = " M V V          ",
+	 .info_op_name = "WRITE FILEMARKS",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = SCST_WRITE_MEDIUM,
+	 .info_len_off = 2, .info_len_len = 3,
+	 .get_cdb_info = get_cdb_info_len_3},
+	{.ops = 0x10, .devkey = "  O O           ",
+	 .info_op_name = "SYNCHRONIZE BUFFER",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = FLAG_NONE,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x11, .devkey = "VMVVVV          ",
+	 .info_op_name = "SPACE",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_LONG_TIMEOUT|
 			 SCST_WRITE_EXCL_ALLOWED,
-	 0, get_trans_len_none},
-	{0x12, "MMMMMMMMMMMMMMMM", "INQUIRY",
-	 SCST_DATA_READ, SCST_SMALL_TIMEOUT|SCST_IMPLICIT_HQ|SCST_SKIP_UA|
-			 SCST_REG_RESERVE_ALLOWED|
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x12, .devkey = "MMMMMMMMMMMMMMMM",
+	 .info_op_name = "INQUIRY",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_IMPLICIT_HQ|SCST_SKIP_UA|
+		SCST_REG_RESERVE_ALLOWED| SCST_WRITE_EXCL_ALLOWED|
+		SCST_EXCL_ACCESS_ALLOWED,
+	 .info_len_off = 3, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0x13, .devkey = " O              ",
+	 .info_op_name = "VERIFY(6)",
+	 .info_data_direction = SCST_DATA_UNKNOWN,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_EXCL_ALLOWED,
+	 .info_len_off = 2, .info_len_len = 3,
+	 .get_cdb_info = get_cdb_info_verify6},
+	{.ops = 0x14, .devkey = " OOVVV          ",
+	 .info_op_name = "RECOVER BUFFERED DATA",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_EXCL_ALLOWED,
+	 .info_len_off = 2, .info_len_len = 3,
+	 .get_cdb_info = get_cdb_info_len_3},
+	{.ops = 0x15, .devkey = "OMOOOOOOOOOOOOOO",
+	 .info_op_name = "MODE SELECT(6)",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = SCST_STRICTLY_SERIALIZED,
+	 .info_len_off = 4, .info_len_len = 1,
+	 .get_cdb_info = get_cdb_info_len_1},
+	{.ops = 0x16, .devkey = "MMMMMMMMMMMMMMMM",
+	 .info_op_name = "RESERVE",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_LOCAL_CMD|SCST_SERIALIZED|
 			 SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
-	 3, get_trans_len_2},
-	{0x13, " O              ", "VERIFY(6)",
-	 SCST_DATA_UNKNOWN, SCST_TRANSFER_LEN_TYPE_FIXED|
-			    SCST_WRITE_EXCL_ALLOWED,
-	 2, get_verify_trans_len_3},
-	{0x14, "VOOVVV          ", "RECOVER BUFFERED DATA",
-	 SCST_DATA_READ, SCST_TRANSFER_LEN_TYPE_FIXED|
-			 SCST_WRITE_EXCL_ALLOWED,
-	 2, get_trans_len_3},
-	{0x15, "OMOOOOOOOOOOOOOO", "MODE SELECT(6)",
-	 SCST_DATA_WRITE, SCST_STRICTLY_SERIALIZED, 4, get_trans_len_1},
-	{0x16, "MMMMMMMMMMMMMMMM", "RESERVE",
-	 SCST_DATA_NONE, SCST_SMALL_TIMEOUT|SCST_LOCAL_CMD|SCST_SERIALIZED|
-			 SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
-	 0, get_trans_len_none},
-	{0x17, "MMMMMMMMMMMMMMMM", "RELEASE",
-	 SCST_DATA_NONE, SCST_SMALL_TIMEOUT|SCST_LOCAL_CMD|SCST_SERIALIZED|
-			 SCST_REG_RESERVE_ALLOWED|
-			 SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
-	 0, get_trans_len_none},
-	{0x18, "OOOOOOOO        ", "COPY",
-	 SCST_DATA_WRITE, SCST_LONG_TIMEOUT, 2, get_trans_len_3},
-	{0x19, "VMVVVV          ", "ERASE",
-	 SCST_DATA_NONE, SCST_LONG_TIMEOUT|SCST_WRITE_MEDIUM,
-	 0, get_trans_len_none},
-	{0x1A, "OMOOOOOOOOOOOOOO", "MODE SENSE(6)",
-	 SCST_DATA_READ, SCST_SMALL_TIMEOUT, 4, get_trans_len_1},
-	{0x1B, "      O         ", "SCAN",
-	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
-	{0x1B, " O              ", "LOAD UNLOAD",
-	 SCST_DATA_NONE, SCST_LONG_TIMEOUT, 0, get_trans_len_none},
-	{0x1B, "  O             ", "STOP PRINT",
-	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
-	{0x1B, "O   OO O    O   ", "START STOP UNIT",
-	 SCST_DATA_NONE, SCST_LONG_TIMEOUT, 0, get_trans_len_start_stop},
-	{0x1C, "OOOOOOOOOOOOOOOO", "RECEIVE DIAGNOSTIC RESULTS",
-	 SCST_DATA_READ, FLAG_NONE, 3, get_trans_len_2},
-	{0x1D, "MMMMMMMMMMMMMMMM", "SEND DIAGNOSTIC",
-	 SCST_DATA_WRITE, FLAG_NONE, 4, get_trans_len_1},
-	{0x1E, "OOOOOOOOOOOOOOOO", "PREVENT ALLOW MEDIUM REMOVAL",
-	 SCST_DATA_NONE, SCST_LONG_TIMEOUT, 0,
-	 get_trans_len_prevent_allow_medium_removal},
-	{0x1F, "            O   ", "PORT STATUS",
-	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x17, .devkey = "MMMMMMMMMMMMMMMM",
+	 .info_op_name = "RELEASE",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_LOCAL_CMD|SCST_SERIALIZED|
+		SCST_REG_RESERVE_ALLOWED|SCST_WRITE_EXCL_ALLOWED|
+		SCST_EXCL_ACCESS_ALLOWED,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x19, .devkey = " MVVVV          ",
+	 .info_op_name = "ERASE",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_LONG_TIMEOUT|SCST_WRITE_MEDIUM,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x1A, .devkey = "OMOOOOOOOOOOOOOO",
+	 .info_op_name = "MODE SENSE(6)",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = SCST_SMALL_TIMEOUT,
+	 .info_len_off = 4, .info_len_len = 1,
+	 .get_cdb_info = get_cdb_info_len_1},
+	{.ops = 0x1B, .devkey = "      O         ",
+	 .info_op_name = "SCAN",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = FLAG_NONE,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x1B, .devkey = " O              ",
+	 .info_op_name = "LOAD UNLOAD",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_LONG_TIMEOUT,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x1B, .devkey = "  O             ",
+	 .info_op_name = "STOP PRINT",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = FLAG_NONE,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x1B, .devkey = "O   OO O    O   ",
+	 .info_op_name = "START STOP UNIT",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_LONG_TIMEOUT,
+	 .get_cdb_info = get_cdb_info_start_stop},
+	{.ops = 0x1C, .devkey = "OOOOOOOOOOOOOOOO",
+	 .info_op_name = "RECEIVE DIAGNOSTIC RESULTS",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 3, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0x1D, .devkey = "MMMMMMMMMMMMMMMM",
+	 .info_op_name = "SEND DIAGNOSTIC",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 3, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0x1E, .devkey = "OOOOOOOOOOOOOOOO",
+	 .info_op_name = "PREVENT ALLOW MEDIUM REMOVAL",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_LONG_TIMEOUT,
+	 .get_cdb_info = get_cdb_info_prevent_allow_medium_removal},
+	{.ops = 0x1F, .devkey = "            O   ",
+	 .info_op_name = "PORT STATUS",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = FLAG_NONE,
+	 .get_cdb_info = get_cdb_info_none},
 
 	 /* 10-bytes length CDB */
-	{0x23, "V   VV V        ", "READ FORMAT CAPACITY",
-	 SCST_DATA_READ, FLAG_NONE, 7, get_trans_len_2},
-	{0x24, "    VVM         ", "SET WINDOW",
-	 SCST_DATA_WRITE, FLAG_NONE, 6, get_trans_len_3},
-	{0x25, "M   MM M        ", "READ CAPACITY",
-	 SCST_DATA_READ, SCST_IMPLICIT_HQ|
-			 SCST_REG_RESERVE_ALLOWED|
-			 SCST_WRITE_EXCL_ALLOWED|
-			 SCST_EXCL_ACCESS_ALLOWED,
-	 0, get_trans_len_read_capacity},
-	{0x25, "      O         ", "GET WINDOW",
-	 SCST_DATA_READ, FLAG_NONE, 6, get_trans_len_3},
-	{0x28, "M   MMMM        ", "READ(10)",
-	 SCST_DATA_READ, SCST_TRANSFER_LEN_TYPE_FIXED|
+	{.ops = 0x23, .devkey = "V   VV V        ",
+	 .info_op_name = "READ FORMAT CAPACITY",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0x24, .devkey = "    VVM         ",
+	 .info_op_name = "SET WINDOW",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 6, .info_len_len = 3,
+	 .get_cdb_info = get_cdb_info_len_3},
+	{.ops = 0x25, .devkey = "M   MM M        ",
+	 .info_op_name = "READ CAPACITY",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = SCST_IMPLICIT_HQ|SCST_REG_RESERVE_ALLOWED|
+		SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
+	 .get_cdb_info = get_cdb_info_read_capacity},
+	{.ops = 0x25, .devkey = "      O         ",
+	 .info_op_name = "GET WINDOW",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 6, .info_len_len = 3,
+	 .get_cdb_info = get_cdb_info_len_3},
+	{.ops = 0x28, .devkey = "M   MMMM        ",
+	 .info_op_name = "READ(10)",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
 			 SCST_TEST_IO_IN_SIRQ_ALLOWED|
 #endif
 			 SCST_WRITE_EXCL_ALLOWED,
-	 7, get_trans_len_2},
-	{0x28, "         O      ", "GET MESSAGE(10)",
-	 SCST_DATA_READ, FLAG_NONE, 7, get_trans_len_2},
-	{0x29, "V   VV O        ", "READ GENERATION",
-	 SCST_DATA_READ, FLAG_NONE, 8, get_trans_len_1},
-	{0x2A, "O   MO M        ", "WRITE(10)",
-	 SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED|
+	 .info_lba_off = 2, .info_lba_len = 4,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_lba_4_len_2},
+	{.ops = 0x28, .devkey = "         O      ",
+	 .info_op_name = "GET MESSAGE(10)",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0x29, .devkey = "V   VV O        ",
+	 .info_op_name = "READ GENERATION",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 8, .info_len_len = 1,
+	 .get_cdb_info = get_cdb_info_len_1},
+	{.ops = 0x2A, .devkey = "O   MO M        ",
+	 .info_op_name = "WRITE(10)",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
 			  SCST_TEST_IO_IN_SIRQ_ALLOWED|
 #endif
 			  SCST_WRITE_MEDIUM,
-	 7, get_trans_len_2},
-	{0x2A, "         O      ", "SEND MESSAGE(10)",
-	 SCST_DATA_WRITE, FLAG_NONE, 7, get_trans_len_2},
-	{0x2A, "      O         ", "SEND(10)",
-	 SCST_DATA_WRITE, FLAG_NONE, 7, get_trans_len_2},
-	{0x2B, " O              ", "LOCATE",
-	 SCST_DATA_NONE, SCST_LONG_TIMEOUT|
-			 SCST_WRITE_EXCL_ALLOWED,
-	 0, get_trans_len_none},
-	{0x2B, "        O       ", "POSITION TO ELEMENT",
-	 SCST_DATA_NONE, SCST_LONG_TIMEOUT, 0, get_trans_len_none},
-	{0x2B, "O   OO O        ", "SEEK(10)",
-	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
-	{0x2C, "V    O O        ", "ERASE(10)",
-	 SCST_DATA_NONE, SCST_LONG_TIMEOUT|SCST_WRITE_MEDIUM,
-	 0, get_trans_len_none},
-	{0x2D, "V   O  O        ", "READ UPDATED BLOCK",
-	 SCST_DATA_READ, SCST_TRANSFER_LEN_TYPE_FIXED, 0, get_trans_len_single},
-	{0x2E, "O   OO O        ", "WRITE AND VERIFY(10)",
-	 SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
-	 7, get_trans_len_2},
-	{0x2F, "O   OO O        ", "VERIFY(10)",
-	 SCST_DATA_UNKNOWN, SCST_TRANSFER_LEN_TYPE_FIXED|
-			    SCST_WRITE_EXCL_ALLOWED,
-	 7, get_verify_trans_len_2},
-	{0x33, "O   OO O        ", "SET LIMITS(10)",
-	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
-	{0x34, " O              ", "READ POSITION",
-	 SCST_DATA_READ, SCST_SMALL_TIMEOUT|
-			 SCST_WRITE_EXCL_ALLOWED,
-	 7, get_trans_len_read_pos},
-	{0x34, "      O         ", "GET DATA BUFFER STATUS",
-	 SCST_DATA_READ, FLAG_NONE, 7, get_trans_len_2},
-	{0x34, "O   OO O        ", "PRE-FETCH",
-	 SCST_DATA_NONE, SCST_WRITE_EXCL_ALLOWED,
-	 0, get_trans_len_none},
-	{0x35, "O   OO O        ", "SYNCHRONIZE CACHE",
-	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
-	{0x36, "O   OO O        ", "LOCK UNLOCK CACHE",
-	 SCST_DATA_NONE, SCST_WRITE_EXCL_ALLOWED,
-	 0, get_trans_len_none},
-	{0x37, "O      O        ", "READ DEFECT DATA(10)",
-	 SCST_DATA_READ, SCST_WRITE_EXCL_ALLOWED,
-	 8, get_trans_len_1},
-	{0x37, "        O       ", "INIT ELEMENT STATUS WRANGE",
-	 SCST_DATA_NONE, SCST_LONG_TIMEOUT, 0, get_trans_len_none},
-	{0x38, "    O  O        ", "MEDIUM SCAN",
-	 SCST_DATA_READ, FLAG_NONE, 8, get_trans_len_1},
-	{0x39, "OOOOOOOO        ", "COMPARE",
-	 SCST_DATA_WRITE, FLAG_NONE, 3, get_trans_len_3},
-	{0x3A, "OOOOOOOO        ", "COPY AND VERIFY",
-	 SCST_DATA_WRITE, FLAG_NONE, 3, get_trans_len_3},
-	{0x3B, "OOOOOOOOOOOOOOOO", "WRITE BUFFER",
-	 SCST_DATA_WRITE, SCST_SMALL_TIMEOUT, 6, get_trans_len_3},
-	{0x3C, "OOOOOOOOOOOOOOOO", "READ BUFFER",
-	 SCST_DATA_READ, SCST_SMALL_TIMEOUT, 6, get_trans_len_3},
-	{0x3D, "    O  O        ", "UPDATE BLOCK",
-	 SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED,
-	 0, get_trans_len_single},
-	{0x3E, "O   OO O        ", "READ LONG",
-	 SCST_DATA_READ, FLAG_NONE, 7, get_trans_len_2},
-	{0x3F, "O   O  O        ", "WRITE LONG",
-	 SCST_DATA_WRITE, SCST_WRITE_MEDIUM, 7, get_trans_len_2},
-	{0x40, "OOOOOOOOOO      ", "CHANGE DEFINITION",
-	 SCST_DATA_WRITE, SCST_SMALL_TIMEOUT, 8, get_trans_len_1},
-	{0x41, "O    O          ", "WRITE SAME",
-	 SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
-	 0, get_trans_len_single},
-	{0x42, "     O          ", "READ SUB-CHANNEL",
-	 SCST_DATA_READ, FLAG_NONE, 7, get_trans_len_2},
-	{0x42, "O               ", "UNMAP",
-	 SCST_DATA_WRITE, SCST_WRITE_MEDIUM, 7, get_trans_len_2},
-	{0x43, "     O          ", "READ TOC/PMA/ATIP",
-	 SCST_DATA_READ, FLAG_NONE, 7, get_trans_len_2},
-	{0x44, " M              ", "REPORT DENSITY SUPPORT",
-	 SCST_DATA_READ, SCST_REG_RESERVE_ALLOWED|
-			 SCST_WRITE_EXCL_ALLOWED|
-			 SCST_EXCL_ACCESS_ALLOWED,
-	 7, get_trans_len_2},
-	{0x44, "     O          ", "READ HEADER",
-	 SCST_DATA_READ, FLAG_NONE, 7, get_trans_len_2},
-	{0x45, "     O          ", "PLAY AUDIO(10)",
-	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
-	{0x46, "     O          ", "GET CONFIGURATION",
-	 SCST_DATA_READ, FLAG_NONE, 7, get_trans_len_2},
-	{0x47, "     O          ", "PLAY AUDIO MSF",
-	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
-	{0x48, "     O          ", "PLAY AUDIO TRACK INDEX",
-	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
-	{0x49, "     O          ", "PLAY TRACK RELATIVE(10)",
-	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
-	{0x4A, "     O          ", "GET EVENT STATUS NOTIFICATION",
-	 SCST_DATA_READ, FLAG_NONE, 7, get_trans_len_2},
-	{0x4B, "     O          ", "PAUSE/RESUME",
-	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
-	{0x4C, "OOOOOOOOOOOOOOOO", "LOG SELECT",
-	 SCST_DATA_WRITE, SCST_STRICTLY_SERIALIZED, 7, get_trans_len_2},
-	{0x4D, "OOOOOOOOOOOOOOOO", "LOG SENSE",
-	 SCST_DATA_READ, SCST_SMALL_TIMEOUT|
-			 SCST_REG_RESERVE_ALLOWED|
-			 SCST_WRITE_EXCL_ALLOWED|
-			 SCST_EXCL_ACCESS_ALLOWED,
-	 7, get_trans_len_2},
-	{0x4E, "     O          ", "STOP PLAY/SCAN",
-	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
-	{0x50, "                ", "XDWRITE",
-	 SCST_DATA_NONE, SCST_WRITE_MEDIUM, 0, get_trans_len_none},
-	{0x51, "     O          ", "READ DISC INFORMATION",
-	 SCST_DATA_READ, FLAG_NONE, 7, get_trans_len_2},
-	{0x51, "                ", "XPWRITE",
-	 SCST_DATA_NONE, SCST_WRITE_MEDIUM, 0, get_trans_len_none},
-	{0x52, "     O          ", "READ TRACK INFORMATION",
-	 SCST_DATA_READ, FLAG_NONE, 7, get_trans_len_2},
-	{0x53, "O               ", "XDWRITEREAD(10)",
-	 SCST_DATA_READ|SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED|
-					 SCST_WRITE_MEDIUM,
-	 7, get_bidi_trans_len_2},
-	{0x53, "     O          ", "RESERVE TRACK",
-	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
-	{0x54, "     O          ", "SEND OPC INFORMATION",
-	 SCST_DATA_WRITE, FLAG_NONE, 7, get_trans_len_2},
-	{0x55, "OOOOOOOOOOOOOOOO", "MODE SELECT(10)",
-	 SCST_DATA_WRITE, SCST_STRICTLY_SERIALIZED, 7, get_trans_len_2},
-	{0x56, "OOOOOOOOOOOOOOOO", "RESERVE(10)",
-	 SCST_DATA_NONE, SCST_SMALL_TIMEOUT|SCST_LOCAL_CMD|SCST_SERIALIZED|
-			 SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
-	 0, get_trans_len_none},
-	{0x57, "OOOOOOOOOOOOOOOO", "RELEASE(10)",
-	 SCST_DATA_NONE, SCST_SMALL_TIMEOUT|SCST_LOCAL_CMD|SCST_SERIALIZED|
-			 SCST_REG_RESERVE_ALLOWED|
-			 SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
-	 0, get_trans_len_none},
-	{0x58, "     O          ", "REPAIR TRACK",
-	 SCST_DATA_NONE, SCST_WRITE_MEDIUM, 0, get_trans_len_none},
-	{0x5A, "OOOOOOOOOOOOOOOO", "MODE SENSE(10)",
-	 SCST_DATA_READ, SCST_SMALL_TIMEOUT, 7, get_trans_len_2},
-	{0x5B, "     O          ", "CLOSE TRACK/SESSION",
-	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
-	{0x5C, "     O          ", "READ BUFFER CAPACITY",
-	 SCST_DATA_READ, FLAG_NONE, 7, get_trans_len_2},
-	{0x5D, "     O          ", "SEND CUE SHEET",
-	 SCST_DATA_WRITE, FLAG_NONE, 6, get_trans_len_3},
-	{0x5E, "OOOOO OOOO      ", "PERSISTENT RESERVE IN",
-	 SCST_DATA_READ, SCST_SMALL_TIMEOUT|
-			 SCST_LOCAL_CMD|SCST_SERIALIZED|
-			 SCST_WRITE_EXCL_ALLOWED|
-			 SCST_EXCL_ACCESS_ALLOWED,
-	 5, get_trans_len_4},
-	{0x5F, "OOOOO OOOO      ", "PERSISTENT RESERVE OUT",
-	 SCST_DATA_WRITE, SCST_SMALL_TIMEOUT|
-			 SCST_LOCAL_CMD|SCST_SERIALIZED|
-			 SCST_WRITE_EXCL_ALLOWED|
-			 SCST_EXCL_ACCESS_ALLOWED,
-	 5, get_trans_len_4},
+	 .info_lba_off = 2, .info_lba_len = 4,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_lba_4_len_2},
+	{.ops = 0x2A, .devkey = "         O      ",
+	 .info_op_name = "SEND MESSAGE(10)",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0x2A, .devkey = "      O         ",
+	 .info_op_name = "SEND(10)",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0x2B, .devkey = " O              ",
+	 .info_op_name = "LOCATE",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_LONG_TIMEOUT|SCST_WRITE_EXCL_ALLOWED,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x2B, .devkey = "        O       ",
+	 .info_op_name = "POSITION TO ELEMENT",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_LONG_TIMEOUT,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x2B, .devkey = "O   OO O        ",
+	 .info_op_name = "SEEK(10)",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = FLAG_NONE,
+	 .info_lba_off = 2, .info_lba_len = 4,
+	 .get_cdb_info = get_cdb_info_lba_4_none},
+	{.ops = 0x2C, .devkey = "V    O O        ",
+	 .info_op_name = "ERASE(10)",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_LONG_TIMEOUT|SCST_WRITE_MEDIUM,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x2D, .devkey = "V   O  O        ",
+	 .info_op_name = "READ UPDATED BLOCK",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED,
+	 .get_cdb_info = get_cdb_info_single},
+	{.ops = 0x2E, .devkey = "O   OO O        ",
+	 .info_op_name = "WRITE AND VERIFY(10)",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
+	 .info_lba_off = 2, .info_lba_len = 4,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_lba_4_len_2},
+	{.ops = 0x2F, .devkey = "O   OO O        ",
+	 .info_op_name = "VERIFY(10)",
+	 .info_data_direction = SCST_DATA_UNKNOWN,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_EXCL_ALLOWED,
+	 .info_lba_off = 2, .info_lba_len = 4,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_verify10},
+	{.ops = 0x33, .devkey = "    OO O        ",
+	 .info_op_name = "SET LIMITS(10)",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = FLAG_NONE,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x34, .devkey = " O              ",
+	 .info_op_name = "READ POSITION",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_WRITE_EXCL_ALLOWED,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_read_pos},
+	{.ops = 0x34, .devkey = "      O         ",
+	 .info_op_name = "GET DATA BUFFER STATUS",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0x34, .devkey = "O   OO O        ",
+	 .info_op_name = "PRE-FETCH",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_WRITE_EXCL_ALLOWED,
+	 .info_lba_off = 2, .info_lba_len = 4,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_lba_4_none},
+	{.ops = 0x35, .devkey = "O   OO O        ",
+	 .info_op_name = "SYNCHRONIZE CACHE(10)",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = FLAG_NONE,
+	 .info_lba_off = 2, .info_lba_len = 4,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_lba_4_none},
+	{.ops = 0x36, .devkey = "O   OO O        ",
+	 .info_op_name = "LOCK UNLOCK CACHE",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_WRITE_EXCL_ALLOWED,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x37, .devkey = "O      O        ",
+	 .info_op_name = "READ DEFECT DATA(10)",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = SCST_WRITE_EXCL_ALLOWED,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0x37, .devkey = "        O       ",
+	 .info_op_name = "INIT ELEMENT STATUS WRANGE",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_LONG_TIMEOUT,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x38, .devkey = "    O  O        ",
+	 .info_op_name = "MEDIUM SCAN",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 8, .info_len_len = 1,
+	 .get_cdb_info = get_cdb_info_len_1},
+	{.ops = 0x3B, .devkey = "OOOOOOOOOOOOOOOO",
+	 .info_op_name = "WRITE BUFFER",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = SCST_SMALL_TIMEOUT,
+	 .info_len_off = 5, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0x3C, .devkey = "OOOOOOOOOOOOOOOO",
+	 .info_op_name = "READ BUFFER",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = SCST_SMALL_TIMEOUT,
+	 .info_len_off = 5, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0x3D, .devkey = "    O  O        ",
+	 .info_op_name = "UPDATE BLOCK",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED,
+	 .get_cdb_info = get_cdb_info_single},
+	{.ops = 0x3E, .devkey = "O   OO O        ",
+	 .info_op_name = "READ LONG",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .info_lba_off = 2, .info_lba_len = 4,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_lba_4_len_2},
+	{.ops = 0x3F, .devkey = "O   O  O        ",
+	 .info_op_name = "WRITE LONG",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = SCST_WRITE_MEDIUM,
+	 .info_lba_off = 2, .info_lba_len = 4,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_lba_4_len_2},
+	{.ops = 0x40, .devkey = "OOOOOOOOOO      ",
+	 .info_op_name = "CHANGE DEFINITION",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = SCST_SMALL_TIMEOUT,
+	 .info_len_off = 8, .info_len_len = 1,
+	 .get_cdb_info = get_cdb_info_len_1},
+	{.ops = 0x41, .devkey = "O    O          ",
+	 .info_op_name = "WRITE SAME(10)",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
+	 .info_lba_off = 2, .info_lba_len = 4,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_lba_4_len_2},
+	{.ops = 0x42, .devkey = "     O          ",
+	 .info_op_name = "READ SUB-CHANNEL",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0x42, .devkey = "O               ",
+	 .info_op_name = "UNMAP",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = SCST_WRITE_MEDIUM,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0x43, .devkey = "     O          ",
+	 .info_op_name = "READ TOC/PMA/ATIP",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0x44, .devkey = " M              ",
+	 .info_op_name = "REPORT DENSITY SUPPORT",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = SCST_REG_RESERVE_ALLOWED|SCST_WRITE_EXCL_ALLOWED|
+			SCST_EXCL_ACCESS_ALLOWED,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0x44, .devkey = "     O          ",
+	 .info_op_name = "READ HEADER",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0x45, .devkey = "     O          ",
+	 .info_op_name = "PLAY AUDIO(10)",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = FLAG_NONE,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x46, .devkey = "     O          ",
+	 .info_op_name = "GET CONFIGURATION",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0x47, .devkey = "     O          ",
+	 .info_op_name = "PLAY AUDIO MSF",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = FLAG_NONE,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x48, .devkey = "     O          ",
+	 .info_op_name = "PLAY AUDIO TRACK INDEX",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = FLAG_NONE,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x49, .devkey = "     O          ",
+	 .info_op_name = "PLAY TRACK RELATIVE(10)",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = FLAG_NONE,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x4A, .devkey = "     O          ",
+	 .info_op_name = "GET EVENT STATUS NOTIFICATION",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0x4B, .devkey = "     O          ",
+	 .info_op_name = "PAUSE/RESUME",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = FLAG_NONE,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x4C, .devkey = "OOOOOOOOOOOOOOOO",
+	 .info_op_name = "LOG SELECT",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = SCST_STRICTLY_SERIALIZED,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0x4D, .devkey = "OOOOOOOOOOOOOOOO",
+	 .info_op_name = "LOG SENSE",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_REG_RESERVE_ALLOWED|
+			SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0x4E, .devkey = "     O          ",
+	 .info_op_name = "STOP PLAY/SCAN",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = FLAG_NONE,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x50, .devkey = "O               ",
+	 .info_op_name = "XDWRITE(10)",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = SCST_WRITE_MEDIUM,
+	 .info_lba_off = 2, .info_lba_len = 4,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_lba_4_len_2},
+	{.ops = 0x51, .devkey = "     O          ",
+	 .info_op_name = "READ DISC INFORMATION",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0x51, .devkey = "O               ",
+	 .info_op_name = "XPWRITE",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = SCST_WRITE_MEDIUM,
+	 .info_lba_off = 2, .info_lba_len = 4,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_lba_4_len_2},
+	{.ops = 0x52, .devkey = "     O          ",
+	 .info_op_name = "READ TRACK INFORMATION",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0x53, .devkey = "O               ",
+	 .info_op_name = "XDWRITEREAD(10)",
+	 .info_data_direction = SCST_DATA_BIDI,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
+	 .info_lba_off = 2, .info_lba_len = 4,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_bidi_lba_4_len_2},
+	{.ops = 0x53, .devkey = "     O          ",
+	 .info_op_name = "RESERVE TRACK",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = FLAG_NONE,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x54, .devkey = "     O          ",
+	 .info_op_name = "SEND OPC INFORMATION",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0x55, .devkey = "OOOOOOOOOOOOOOOO",
+	 .info_op_name = "MODE SELECT(10)",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = SCST_STRICTLY_SERIALIZED,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0x56, .devkey = "OOOOOOOOOOOOOOOO",
+	 .info_op_name = "RESERVE(10)",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_LOCAL_CMD|SCST_SERIALIZED|
+			SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x57, .devkey = "OOOOOOOOOOOOOOOO",
+	 .info_op_name = "RELEASE(10)",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_LOCAL_CMD|SCST_SERIALIZED|
+			SCST_REG_RESERVE_ALLOWED|SCST_WRITE_EXCL_ALLOWED|
+			SCST_EXCL_ACCESS_ALLOWED,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x58, .devkey = "     O          ",
+	 .info_op_name = "REPAIR TRACK",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_WRITE_MEDIUM,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x5A, .devkey = "OOOOOOOOOOOOOOOO",
+	 .info_op_name = "MODE SENSE(10)",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = SCST_SMALL_TIMEOUT,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0x5B, .devkey = "     O          ",
+	 .info_op_name = "CLOSE TRACK/SESSION",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = FLAG_NONE,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x5C, .devkey = "     O          ",
+	 .info_op_name = "READ BUFFER CAPACITY",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 7, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0x5D, .devkey = "     O          ",
+	 .info_op_name = "SEND CUE SHEET",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 6, .info_len_len = 3,
+	 .get_cdb_info = get_cdb_info_len_3},
+	{.ops = 0x5E, .devkey = "OOOOO OOOO      ",
+	 .info_op_name = "PERSISTENT RESERVE IN",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_LOCAL_CMD|SCST_SERIALIZED|
+			SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
+	 .info_len_off = 5, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_len_4},
+	{.ops = 0x5F, .devkey = "OOOOO OOOO      ",
+	 .info_op_name = "PERSISTENT RESERVE OUT",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_LOCAL_CMD|SCST_SERIALIZED|
+			SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
+	 .info_len_off = 5, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_len_4},
 
 	/* 16-bytes length CDB */
-	{0x80, "O   OO O        ", "XDWRITE EXTENDED",
-	 SCST_DATA_NONE, SCST_WRITE_MEDIUM, 0, get_trans_len_none},
-	{0x80, " M              ", "WRITE FILEMARKS",
-	 SCST_DATA_NONE, SCST_WRITE_MEDIUM, 0, get_trans_len_none},
-	{0x81, "O   OO O        ", "REBUILD",
-	 SCST_DATA_WRITE, SCST_WRITE_MEDIUM, 10, get_trans_len_4},
-	{0x82, "O   OO O        ", "REGENERATE",
-	 SCST_DATA_WRITE, SCST_WRITE_MEDIUM, 10, get_trans_len_4},
-	{0x83, "OOOOOOOOOOOOOOOO", "EXTENDED COPY",
-	 SCST_DATA_WRITE, SCST_WRITE_MEDIUM, 10, get_trans_len_4},
-	{0x84, "OOOOOOOOOOOOOOOO", "RECEIVE COPY RESULT",
-	 SCST_DATA_WRITE, FLAG_NONE, 10, get_trans_len_4},
-	{0x86, "OOOOOOOOOO      ", "ACCESS CONTROL IN",
-	 SCST_DATA_NONE, SCST_REG_RESERVE_ALLOWED|
-			 SCST_WRITE_EXCL_ALLOWED|
-			 SCST_EXCL_ACCESS_ALLOWED,
-	 0, get_trans_len_none},
-	{0x87, "OOOOOOOOOO      ", "ACCESS CONTROL OUT",
-	 SCST_DATA_NONE, SCST_REG_RESERVE_ALLOWED|
-			 SCST_WRITE_EXCL_ALLOWED|
-			 SCST_EXCL_ACCESS_ALLOWED,
-	 0, get_trans_len_none},
-	{0x88, "M   MMMM        ", "READ(16)",
-	 SCST_DATA_READ, SCST_TRANSFER_LEN_TYPE_FIXED|
+	{.ops = 0x80, .devkey = " O              ",
+	 .info_op_name = "WRITE FILEMARKS",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = SCST_WRITE_MEDIUM,
+	 .info_len_off = 12, .info_len_len = 3,
+	 .get_cdb_info = get_cdb_info_len_3},
+	{.ops = 0x81, .devkey = "O   OO O        ",
+	 .info_op_name = "REBUILD",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = SCST_WRITE_MEDIUM,
+	 .info_len_off = 10, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_len_4},
+	{.ops = 0x82, .devkey = "O   OO O        ",
+	 .info_op_name = "REGENERATE",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = SCST_WRITE_MEDIUM,
+	 .info_len_off = 10, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_len_4},
+	{.ops = 0x83, .devkey = "OOOOOOOOOOOOOOOO",
+	 .info_op_name = "EXTENDED COPY",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = SCST_WRITE_MEDIUM,
+	 .info_len_off = 10, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_len_4},
+	{.ops = 0x84, .devkey = "OOOOOOOOOOOOOOOO",
+	 .info_op_name = "RECEIVE COPY RESULT",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 10, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_len_4},
+	{.ops = 0x86, .devkey = "OOOOOOOOOO      ",
+	 .info_op_name = "ACCESS CONTROL IN",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_REG_RESERVE_ALLOWED|SCST_WRITE_EXCL_ALLOWED|
+				SCST_EXCL_ACCESS_ALLOWED,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x87, .devkey = "OOOOOOOOOO      ",
+	 .info_op_name = "ACCESS CONTROL OUT",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_REG_RESERVE_ALLOWED|SCST_WRITE_EXCL_ALLOWED|
+				SCST_EXCL_ACCESS_ALLOWED,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x88, .devkey = "M   MMMM        ",
+	 .info_op_name = "READ(16)",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
 			 SCST_TEST_IO_IN_SIRQ_ALLOWED|
 #endif
 			 SCST_WRITE_EXCL_ALLOWED,
-	 10, get_trans_len_4},
-	{0x8A, "O   OO O        ", "WRITE(16)",
-	 SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED|
+	 .info_lba_off = 2, .info_lba_len = 8,
+	 .info_len_off = 10, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_lba_8_len_4},
+	{.ops = 0x8A, .devkey = "O   OO O        ",
+	 .info_op_name = "WRITE(16)",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
 			  SCST_TEST_IO_IN_SIRQ_ALLOWED|
 #endif
 			  SCST_WRITE_MEDIUM,
-	 10, get_trans_len_4},
-	{0x8C, "OOOOOOOOOO      ", "READ ATTRIBUTE",
-	 SCST_DATA_READ, FLAG_NONE, 10, get_trans_len_4},
-	{0x8D, "OOOOOOOOOO      ", "WRITE ATTRIBUTE",
-	 SCST_DATA_WRITE, SCST_WRITE_MEDIUM, 10, get_trans_len_4},
-	{0x8E, "O   OO O        ", "WRITE AND VERIFY(16)",
-	 SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
-	 10, get_trans_len_4},
-	{0x8F, "O   OO O        ", "VERIFY(16)",
-	 SCST_DATA_UNKNOWN, SCST_TRANSFER_LEN_TYPE_FIXED|
-			    SCST_WRITE_EXCL_ALLOWED,
-	 10, get_verify_trans_len_4},
-	{0x90, "O   OO O        ", "PRE-FETCH(16)",
-	 SCST_DATA_NONE, SCST_WRITE_EXCL_ALLOWED,
-	 0, get_trans_len_none},
-	{0x91, "O   OO O        ", "SYNCHRONIZE CACHE(16)",
-	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
-	{0x91, " M              ", "SPACE(16)",
-	 SCST_DATA_NONE, SCST_LONG_TIMEOUT|
-			 SCST_WRITE_EXCL_ALLOWED,
-	 0, get_trans_len_none},
-	{0x92, "O   OO O        ", "LOCK UNLOCK CACHE(16)",
-	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
-	{0x92, " O              ", "LOCATE(16)",
-	 SCST_DATA_NONE, SCST_LONG_TIMEOUT|
-			 SCST_WRITE_EXCL_ALLOWED,
-	 0, get_trans_len_none},
-	{0x93, "O    O          ", "WRITE SAME(16)",
-	 SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
-	 10, get_trans_len_4},
-	{0x93, " M              ", "ERASE(16)",
-	 SCST_DATA_NONE, SCST_LONG_TIMEOUT|SCST_WRITE_MEDIUM,
-	 0, get_trans_len_none},
-	{0x9E, "O               ", "SERVICE ACTION IN",
-	 SCST_DATA_READ, FLAG_NONE, 0, get_trans_len_serv_act_in},
+	 .info_lba_off = 2, .info_lba_len = 8,
+	 .info_len_off = 10, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_lba_8_len_4},
+	{.ops = 0x8C, .devkey = " OOOOOOOOO      ",
+	 .info_op_name = "READ ATTRIBUTE",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 10, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_len_4},
+	{.ops = 0x8D, .devkey = " OOOOOOOOO      ",
+	 .info_op_name = "WRITE ATTRIBUTE",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = SCST_WRITE_MEDIUM,
+	 .info_len_off = 10, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_len_4},
+	{.ops = 0x8E, .devkey = "O   OO O        ",
+	 .info_op_name = "WRITE AND VERIFY(16)",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
+	 .info_lba_off = 2, .info_lba_len = 8,
+	 .info_len_off = 10, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_lba_8_len_4},
+	{.ops = 0x8F, .devkey = "O   OO O        ",
+	 .info_op_name = "VERIFY(16)",
+	 .info_data_direction = SCST_DATA_UNKNOWN,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_EXCL_ALLOWED,
+	 .info_lba_off = 2, .info_lba_len = 8,
+	 .info_len_off = 10, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_verify16},
+	{.ops = 0x90, .devkey = "O   OO O        ",
+	 .info_op_name = "PRE-FETCH(16)",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_WRITE_EXCL_ALLOWED,
+	 .info_lba_off = 2, .info_lba_len = 8,
+	 .get_cdb_info = get_cdb_info_lba_8_none},
+	{.ops = 0x91, .devkey = "O   OO O        ",
+	 .info_op_name = "SYNCHRONIZE CACHE(16)",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = FLAG_NONE,
+	 .info_lba_off = 2, .info_lba_len = 8,
+	 .info_len_off = 10, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_lba_8_none},
+	{.ops = 0x91, .devkey = " M              ",
+	 .info_op_name = "SPACE(16)",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_LONG_TIMEOUT|SCST_WRITE_EXCL_ALLOWED,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x92, .devkey = "O   OO O        ",
+	 .info_op_name = "LOCK UNLOCK CACHE(16)",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = FLAG_NONE,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x92, .devkey = " O              ",
+	 .info_op_name = "LOCATE(16)",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_LONG_TIMEOUT|SCST_WRITE_EXCL_ALLOWED,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x93, .devkey = "O    O          ",
+	 .info_op_name = "WRITE SAME(16)",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
+	 .info_lba_off = 2, .info_lba_len = 8,
+	 .info_len_off = 10, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_lba_8_len_4},
+	{.ops = 0x93, .devkey = " M              ",
+	 .info_op_name = "ERASE(16)",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_LONG_TIMEOUT|SCST_WRITE_MEDIUM,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0x9E, .devkey = "O               ",
+	 .info_op_name = "SERVICE ACTION IN",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .get_cdb_info = get_cdb_info_serv_act_in},
 
 	/* 12-bytes length CDB */
-	{0xA0, "VVVVVVVVVV  M   ", "REPORT LUNS",
-	 SCST_DATA_READ, SCST_SMALL_TIMEOUT|SCST_IMPLICIT_HQ|SCST_SKIP_UA|
+	{.ops = 0xA0, .devkey = "VVVVVVVVVV  M   ",
+	 .info_op_name = "REPORT LUNS",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_IMPLICIT_HQ|SCST_SKIP_UA|
 			 SCST_FULLY_LOCAL_CMD|SCST_LOCAL_CMD|
 			 SCST_REG_RESERVE_ALLOWED|
 			 SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
-	 6, get_trans_len_4},
-	{0xA1, "     O          ", "BLANK",
-	 SCST_DATA_NONE, SCST_LONG_TIMEOUT, 0, get_trans_len_none},
-	{0xA3, "     O          ", "SEND KEY",
-	 SCST_DATA_WRITE, FLAG_NONE, 8, get_trans_len_2},
-	{0xA3, "OOOOO OOOO      ", "REPORT DEVICE IDENTIDIER",
-	 SCST_DATA_READ, SCST_REG_RESERVE_ALLOWED|
-			 SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
-	 6, get_trans_len_4},
-	{0xA3, "            M   ", "MAINTENANCE(IN)",
-	 SCST_DATA_READ, FLAG_NONE, 6, get_trans_len_4},
-	{0xA4, "     O          ", "REPORT KEY",
-	 SCST_DATA_READ, FLAG_NONE, 8, get_trans_len_2},
-	{0xA4, "            O   ", "MAINTENANCE(OUT)",
-	 SCST_DATA_WRITE, FLAG_NONE, 6, get_trans_len_4},
-	{0xA5, "        M       ", "MOVE MEDIUM",
-	 SCST_DATA_NONE, SCST_LONG_TIMEOUT, 0, get_trans_len_none},
-	{0xA5, "     O          ", "PLAY AUDIO(12)",
-	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
-	{0xA6, "     O  O       ", "EXCHANGE/LOAD/UNLOAD MEDIUM",
-	 SCST_DATA_NONE, SCST_LONG_TIMEOUT, 0, get_trans_len_none},
-	{0xA7, "     O          ", "SET READ AHEAD",
-	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
-	{0xA8, "         O      ", "GET MESSAGE(12)",
-	 SCST_DATA_READ, FLAG_NONE, 6, get_trans_len_4},
-	{0xA8, "O   OO O        ", "READ(12)",
-	 SCST_DATA_READ, SCST_TRANSFER_LEN_TYPE_FIXED|
+	 .info_len_off = 6, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_len_4},
+	{.ops = 0xA1, .devkey = "     O          ",
+	 .info_op_name = "BLANK",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_LONG_TIMEOUT,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0xA3, .devkey = "     O          ",
+	 .info_op_name = "SEND KEY",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 8, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0xA3, .devkey = "OOOOO OOOO      ",
+	 .info_op_name = "REPORT DEVICE IDENTIDIER",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = SCST_REG_RESERVE_ALLOWED|SCST_WRITE_EXCL_ALLOWED|
+				SCST_EXCL_ACCESS_ALLOWED,
+	 .info_len_off = 6, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0xA3, .devkey = "            M   ",
+	 .info_op_name = "MAINTENANCE(IN)",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 6, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_len_4},
+	{.ops = 0xA4, .devkey = "     O          ",
+	 .info_op_name = "REPORT KEY",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 8, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0xA4, .devkey = "            O   ",
+	 .info_op_name = "MAINTENANCE(OUT)",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 6, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_len_4},
+	{.ops = 0xA5, .devkey = "        M       ",
+	 .info_op_name = "MOVE MEDIUM",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_LONG_TIMEOUT,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0xA5, .devkey = "     O          ",
+	 .info_op_name = "PLAY AUDIO(12)",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = FLAG_NONE,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0xA6, .devkey = "     O  O       ",
+	 .info_op_name = "EXCHANGE/LOAD/UNLOAD MEDIUM",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_LONG_TIMEOUT,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0xA7, .devkey = "     O          ",
+	 .info_op_name = "SET READ AHEAD",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = FLAG_NONE,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0xA8, .devkey = "         O      ",
+	 .info_op_name = "GET MESSAGE(12)",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 6, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_len_4},
+	{.ops = 0xA8, .devkey = "O   OO O        ",
+	 .info_op_name = "READ(12)",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
 			 SCST_TEST_IO_IN_SIRQ_ALLOWED|
 #endif
 			 SCST_WRITE_EXCL_ALLOWED,
-	 6, get_trans_len_4},
-	{0xA9, "     O          ", "PLAY TRACK RELATIVE(12)",
-	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
-	{0xAA, "O   OO O        ", "WRITE(12)",
-	 SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED|
+	 .info_lba_off = 2, .info_lba_len = 4,
+	 .info_len_off = 6, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_lba_4_len_4},
+	{.ops = 0xA9, .devkey = "     O          ",
+	 .info_op_name = "PLAY TRACK RELATIVE(12)",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = FLAG_NONE,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0xAA, .devkey = "O   OO O        ",
+	 .info_op_name = "WRITE(12)",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
 			  SCST_TEST_IO_IN_SIRQ_ALLOWED|
 #endif
 			  SCST_WRITE_MEDIUM,
-	 6, get_trans_len_4},
-	{0xAA, "         O      ", "SEND MESSAGE(12)",
-	 SCST_DATA_WRITE, FLAG_NONE, 6, get_trans_len_4},
-	{0xAC, "       O        ", "ERASE(12)",
-	 SCST_DATA_NONE, SCST_WRITE_MEDIUM, 0, get_trans_len_none},
-	{0xAC, "     M          ", "GET PERFORMANCE",
-	 SCST_DATA_READ, SCST_UNKNOWN_LENGTH, 0, get_trans_len_none},
-	{0xAD, "     O          ", "READ DVD STRUCTURE",
-	 SCST_DATA_READ, FLAG_NONE, 8, get_trans_len_2},
-	{0xAE, "O   OO O        ", "WRITE AND VERIFY(12)",
-	 SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
-	 6, get_trans_len_4},
-	{0xAF, "O   OO O        ", "VERIFY(12)",
-	 SCST_DATA_UNKNOWN, SCST_TRANSFER_LEN_TYPE_FIXED|
-			    SCST_WRITE_EXCL_ALLOWED,
-	 6, get_verify_trans_len_4},
-#if 0 /* No need to support at all */
-	{0xB0, "    OO O        ", "SEARCH DATA HIGH(12)",
-	 SCST_DATA_WRITE, FLAG_NONE, 9, get_trans_len_1},
-	{0xB1, "    OO O        ", "SEARCH DATA EQUAL(12)",
-	 SCST_DATA_WRITE, FLAG_NONE, 9, get_trans_len_1},
-	{0xB2, "    OO O        ", "SEARCH DATA LOW(12)",
-	 SCST_DATA_WRITE, FLAG_NONE, 9, get_trans_len_1},
-#endif
-	{0xB3, "    OO O        ", "SET LIMITS(12)",
-	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
-	{0xB5, "        O       ", "REQUEST VOLUME ELEMENT ADDRESS",
-	 SCST_DATA_READ, FLAG_NONE, 9, get_trans_len_1},
-	{0xB6, "        O       ", "SEND VOLUME TAG",
-	 SCST_DATA_WRITE, FLAG_NONE, 9, get_trans_len_1},
-	{0xB6, "     M         ", "SET STREAMING",
-	 SCST_DATA_WRITE, FLAG_NONE, 9, get_trans_len_2},
-	{0xB7, "       O        ", "READ DEFECT DATA(12)",
-	 SCST_DATA_READ, SCST_WRITE_EXCL_ALLOWED,
-	 9, get_trans_len_1},
-	{0xB8, "        O       ", "READ ELEMENT STATUS",
-	 SCST_DATA_READ, FLAG_NONE, 7, get_trans_len_3_read_elem_stat},
-	{0xB9, "     O          ", "READ CD MSF",
-	 SCST_DATA_READ, SCST_UNKNOWN_LENGTH, 0, get_trans_len_none},
-	{0xBA, "     O          ", "SCAN",
-	 SCST_DATA_NONE, SCST_LONG_TIMEOUT, 0, get_trans_len_none},
-	{0xBA, "            O   ", "REDUNDANCY GROUP(IN)",
-	 SCST_DATA_READ, FLAG_NONE, 6, get_trans_len_4},
-	{0xBB, "     O          ", "SET SPEED",
-	 SCST_DATA_NONE, FLAG_NONE, 0, get_trans_len_none},
-	{0xBB, "            O   ", "REDUNDANCY GROUP(OUT)",
-	 SCST_DATA_WRITE, FLAG_NONE, 6, get_trans_len_4},
-	{0xBC, "            O   ", "SPARE(IN)",
-	 SCST_DATA_READ, FLAG_NONE, 6, get_trans_len_4},
-	{0xBD, "     O          ", "MECHANISM STATUS",
-	 SCST_DATA_READ, FLAG_NONE, 8, get_trans_len_2},
-	{0xBD, "            O   ", "SPARE(OUT)",
-	 SCST_DATA_WRITE, FLAG_NONE, 6, get_trans_len_4},
-	{0xBE, "     O          ", "READ CD",
-	 SCST_DATA_READ, SCST_TRANSFER_LEN_TYPE_FIXED, 6, get_trans_len_3},
-	{0xBE, "            O   ", "VOLUME SET(IN)",
-	 SCST_DATA_READ, FLAG_NONE, 6, get_trans_len_4},
-	{0xBF, "     O          ", "SEND DVD STRUCTUE",
-	 SCST_DATA_WRITE, FLAG_NONE, 8, get_trans_len_2},
-	{0xBF, "            O   ", "VOLUME SET(OUT)",
-	 SCST_DATA_WRITE, FLAG_NONE, 6, get_trans_len_4},
-	{0xE7, "        V       ", "INIT ELEMENT STATUS WRANGE",
-	 SCST_DATA_NONE, SCST_LONG_TIMEOUT, 0, get_trans_cdb_len_10}
+	 .info_lba_off = 2, .info_lba_len = 4,
+	 .info_len_off = 6, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_lba_4_len_4},
+	{.ops = 0xAA, .devkey = "         O      ",
+	 .info_op_name = "SEND MESSAGE(12)",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 6, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_len_4},
+	{.ops = 0xAC, .devkey = "       O        ",
+	 .info_op_name = "ERASE(12)",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_WRITE_MEDIUM,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0xAC, .devkey = "     M          ",
+	 .info_op_name = "GET PERFORMANCE",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = SCST_UNKNOWN_LENGTH,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0xAD, .devkey = "     O          ",
+	 .info_op_name = "READ DVD STRUCTURE",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 8, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0xAE, .devkey = "O   OO O        ",
+	 .info_op_name = "WRITE AND VERIFY(12)",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
+	 .info_lba_off = 2, .info_lba_len = 4,
+	 .info_len_off = 6, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_lba_4_len_4},
+	{.ops = 0xAF, .devkey = "O   OO O        ",
+	 .info_op_name = "VERIFY(12)",
+	 .info_data_direction = SCST_DATA_UNKNOWN,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_EXCL_ALLOWED,
+	 .info_lba_off = 2, .info_lba_len = 4,
+	 .info_len_off = 6, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_verify12},
+	{.ops = 0xB3, .devkey = "    OO O        ",
+	 .info_op_name = "SET LIMITS(12)",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = FLAG_NONE,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0xB5, .devkey = "        O       ",
+	 .info_op_name = "REQUEST VOLUME ELEMENT ADDRESS",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 9, .info_len_len = 1,
+	 .get_cdb_info = get_cdb_info_len_1},
+	{.ops = 0xB6, .devkey = "        O       ",
+	 .info_op_name = "SEND VOLUME TAG",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 9, .info_len_len = 1,
+	 .get_cdb_info = get_cdb_info_len_1},
+	{.ops = 0xB6, .devkey = "     M         ",
+	 .info_op_name = "SET STREAMING",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 9, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0xB7, .devkey = "       O        ",
+	 .info_op_name = "READ DEFECT DATA(12)",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = SCST_WRITE_EXCL_ALLOWED,
+	 .info_len_off = 9, .info_len_len = 1,
+	 .get_cdb_info = get_cdb_info_len_1},
+	{.ops = 0xB8, .devkey = "        O       ",
+	 .info_op_name = "READ ELEMENT STATUS",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 7, .info_len_len = 3,
+	 .get_cdb_info = get_cdb_info_len_3_read_elem_stat},
+	{.ops = 0xB9, .devkey = "     O          ",
+	 .info_op_name = "READ CD MSF",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = SCST_UNKNOWN_LENGTH,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0xBA, .devkey = "     O          ",
+	 .info_op_name = "SCAN",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_LONG_TIMEOUT,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0xBA, .devkey = "            O   ",
+	 .info_op_name = "REDUNDANCY GROUP(IN)",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 6, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_len_4},
+	{.ops = 0xBB, .devkey = "     O          ",
+	 .info_op_name = "SET SPEED",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = FLAG_NONE,
+	 .get_cdb_info = get_cdb_info_none},
+	{.ops = 0xBB, .devkey = "            O   ",
+	 .info_op_name = "REDUNDANCY GROUP(OUT)",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 6, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_len_4},
+	{.ops = 0xBC, .devkey = "            O   ",
+	 .info_op_name = "SPARE(IN)",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 6, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_len_4},
+	{.ops = 0xBD, .devkey = "     O          ",
+	 .info_op_name = "MECHANISM STATUS",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 8, .info_len_len = 2,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0xBD, .devkey = "            O   ",
+	 .info_op_name = "SPARE(OUT)",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 6, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_len_4},
+	{.ops = 0xBE, .devkey = "     O          ",
+	 .info_op_name = "READ CD",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED,
+	 .info_len_off = 6, .info_len_len = 3,
+	 .get_cdb_info = get_cdb_info_len_3},
+	{.ops = 0xBE, .devkey = "            O   ",
+	 .info_op_name = "VOLUME SET(IN)",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 6, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_len_4},
+	{.ops = 0xBF, .devkey = "     O          ",
+	 .info_op_name = "SEND DVD STRUCTUE",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 8, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_len_2},
+	{.ops = 0xBF, .devkey = "            O   ",
+	 .info_op_name = "VOLUME SET(OUT)",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 6, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_len_4},
+	{.ops = 0xE7, .devkey = "        V       ",
+	 .info_op_name = "INIT ELEMENT STATUS WRANGE",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = SCST_LONG_TIMEOUT,
+	 .get_cdb_info = get_cdb_info_len_10}
 };
 
 #define SCST_CDB_TBL_SIZE	((int)ARRAY_SIZE(scst_scsi_op_table))
@@ -4188,7 +4750,7 @@ struct scst_cmd *scst_alloc_cmd(const uint8_t *cdb,
 	cmd->queue_type = SCST_CMD_QUEUE_SIMPLE;
 	cmd->timeout = SCST_DEFAULT_TIMEOUT;
 	cmd->retries = 0;
-	cmd->data_len = -1;
+	cmd->data_len = SCST_DEF_DATA_LEN;
 	cmd->is_send_status = 1;
 	cmd->resp_data_len = -1;
 	cmd->write_sg = &cmd->sg;
@@ -4999,28 +5561,34 @@ static const int SCST_CDB_LENGTH[8] = { 6, 10, 10, 0, 16, 12, 0, 0 };
 #define SCST_CDB_GROUP(opcode)   ((opcode >> 5) & 0x7)
 #define SCST_GET_CDB_LEN(opcode) SCST_CDB_LENGTH[SCST_CDB_GROUP(opcode)]
 
-/* get_trans_len_x extract x bytes from cdb as length starting from off */
-
-static int get_trans_cdb_len_10(struct scst_cmd *cmd, uint8_t off)
+static int get_cdb_info_len_10(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
 {
 	cmd->cdb_len = 10;
-	cmd->bufflen = 0;
+	/* It supposed to be already zeroed */
+	EXTRACHECKS_BUG_ON(cmd->bufflen != 0);
+	cmd->data_len = cmd->bufflen;
 	return 0;
 }
 
-static int get_trans_len_block_limit(struct scst_cmd *cmd, uint8_t off)
+static int get_cdb_info_block_limit(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
 {
 	cmd->bufflen = 6;
+	cmd->data_len = cmd->bufflen;
 	return 0;
 }
 
-static int get_trans_len_read_capacity(struct scst_cmd *cmd, uint8_t off)
+static int get_cdb_info_read_capacity(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
 {
 	cmd->bufflen = 8;
+	cmd->data_len = cmd->bufflen;
 	return 0;
 }
 
-static int get_trans_len_serv_act_in(struct scst_cmd *cmd, uint8_t off)
+static int get_cdb_info_serv_act_in(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
 {
 	int res = 0;
 
@@ -5029,26 +5597,33 @@ static int get_trans_len_serv_act_in(struct scst_cmd *cmd, uint8_t off)
 	if ((cmd->cdb[1] & 0x1f) == SAI_READ_CAPACITY_16) {
 		cmd->op_name = "READ CAPACITY(16)";
 		cmd->bufflen = get_unaligned_be32(&cmd->cdb[10]);
-		cmd->op_flags |= SCST_IMPLICIT_HQ | SCST_REG_RESERVE_ALLOWED |
-			SCST_WRITE_EXCL_ALLOWED | SCST_EXCL_ACCESS_ALLOWED;
+		cmd->op_flags |= SCST_IMPLICIT_HQ |
+				SCST_REG_RESERVE_ALLOWED |
+				SCST_WRITE_EXCL_ALLOWED |
+				SCST_EXCL_ACCESS_ALLOWED;
 	} else
 		cmd->op_flags |= SCST_UNKNOWN_LENGTH;
+
+	cmd->data_len = cmd->bufflen;
 
 	TRACE_EXIT_RES(res);
 	return res;
 }
 
-static int get_trans_len_single(struct scst_cmd *cmd, uint8_t off)
+static int get_cdb_info_single(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
 {
 	cmd->bufflen = 1;
+	cmd->data_len = cmd->bufflen;
 	return 0;
 }
 
-static int get_trans_len_read_pos(struct scst_cmd *cmd, uint8_t off)
+static int get_cdb_info_read_pos(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
 {
 	int res = 0;
 
-	cmd->bufflen = get_unaligned_be16(cmd->cdb + off);
+	cmd->bufflen = get_unaligned_be16(cmd->cdb + sdbops->info_len_off);
 
 	switch (cmd->cdb[1] & 0x1f) {
 	case 0:
@@ -5080,6 +5655,8 @@ static int get_trans_len_read_pos(struct scst_cmd *cmd, uint8_t off)
 		goto out_inval;
 	}
 
+	cmd->data_len = cmd->bufflen;
+
 out:
 	return res;
 
@@ -5090,8 +5667,8 @@ out_inval:
 	goto out;
 }
 
-static int get_trans_len_prevent_allow_medium_removal(struct scst_cmd *cmd,
-	uint8_t off)
+static int get_cdb_info_prevent_allow_medium_removal(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
 {
 	if ((cmd->cdb[4] & 3) == 0)
 		cmd->op_flags |= SCST_REG_RESERVE_ALLOWED |
@@ -5099,7 +5676,8 @@ static int get_trans_len_prevent_allow_medium_removal(struct scst_cmd *cmd,
 	return 0;
 }
 
-static int get_trans_len_start_stop(struct scst_cmd *cmd, uint8_t off)
+static int get_cdb_info_start_stop(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
 {
 	if ((cmd->cdb[4] & 0xF1) == 0x1)
 		cmd->op_flags |= SCST_REG_RESERVE_ALLOWED |
@@ -5107,9 +5685,11 @@ static int get_trans_len_start_stop(struct scst_cmd *cmd, uint8_t off)
 	return 0;
 }
 
-static int get_trans_len_3_read_elem_stat(struct scst_cmd *cmd, uint8_t off)
+static int get_cdb_info_len_3_read_elem_stat(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
 {
-	cmd->bufflen = get_unaligned_be24(cmd->cdb + off);
+	cmd->bufflen = get_unaligned_be24(cmd->cdb + sdbops->info_len_off);
+	cmd->data_len = cmd->bufflen;
 
 	if ((cmd->cdb[6] & 0x2) == 0x2)
 		cmd->op_flags |= SCST_REG_RESERVE_ALLOWED |
@@ -5117,77 +5697,101 @@ static int get_trans_len_3_read_elem_stat(struct scst_cmd *cmd, uint8_t off)
 	return 0;
 }
 
-static int get_bidi_trans_len_2(struct scst_cmd *cmd, uint8_t off)
+static int get_cdb_info_bidi_lba_4_len_2(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
 {
-	cmd->bufflen = get_unaligned_be16(cmd->cdb + off);
+	cmd->lba = get_unaligned_be32(cmd->cdb + sdbops->info_lba_off);
+	cmd->bufflen = get_unaligned_be16(cmd->cdb + sdbops->info_len_off);
+	cmd->data_len = cmd->bufflen;
 	cmd->out_bufflen = cmd->bufflen;
 	return 0;
 }
 
-static int get_trans_len_fmt(struct scst_cmd *cmd, uint8_t off)
+static int get_cdb_info_fmt(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
 {
 	if (cmd->cdb[1] & 0x10/*FMTDATA*/) {
 		cmd->data_direction = SCST_DATA_WRITE;
 		cmd->op_flags |= SCST_UNKNOWN_LENGTH;
 	}
-
 	return 0;
 }
 
-/*
- * get_verify_trans_len_2() - Compute transport len and dir for SCSI VERIFY.
- *
- * Whether a data-out buffer is associated with a SCSI VERIFY command depends on
- * the BYTCHK bit in that command. Check that bit and compute the data out
- * buffer length and the data transfer direction.
- */
-static int get_verify_trans_len_2(struct scst_cmd *cmd, uint8_t off)
+static int get_cdb_info_verify10(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
 {
+	cmd->lba = get_unaligned_be32(cmd->cdb + sdbops->info_lba_off);
 	if (cmd->cdb[1] & BYTCHK) {
-		cmd->bufflen = get_unaligned_be16(cmd->cdb + off);
+		cmd->bufflen = get_unaligned_be16(cmd->cdb + sdbops->info_len_off);
+		cmd->data_len = cmd->bufflen;
 		cmd->data_direction = SCST_DATA_WRITE;
 	} else {
 		cmd->bufflen = 0;
+		cmd->data_len = get_unaligned_be16(cmd->cdb + sdbops->info_len_off);
 		cmd->data_direction = SCST_DATA_NONE;
 	}
-
 	return 0;
 }
 
-static int get_verify_trans_len_3(struct scst_cmd *cmd, uint8_t off)
+static int get_cdb_info_verify6(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
 {
 	if (cmd->cdb[1] & BYTCHK) {
-		cmd->bufflen = get_unaligned_be24(cmd->cdb + off);
+		cmd->bufflen = get_unaligned_be24(cmd->cdb + sdbops->info_len_off);
+		cmd->data_len = cmd->bufflen;
 		cmd->data_direction = SCST_DATA_WRITE;
 	} else {
 		cmd->bufflen = 0;
+		cmd->data_len = get_unaligned_be24(cmd->cdb + sdbops->info_len_off);
 		cmd->data_direction = SCST_DATA_NONE;
 	}
-
 	return 0;
 }
 
-static int get_verify_trans_len_4(struct scst_cmd *cmd, uint8_t off)
+static int get_cdb_info_verify12(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
 {
+	cmd->lba = get_unaligned_be32(cmd->cdb + sdbops->info_lba_off);
 	if (cmd->cdb[1] & BYTCHK) {
-		cmd->bufflen = get_unaligned_be32(cmd->cdb + off);
+		cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
+		cmd->data_len = cmd->bufflen;
 		cmd->data_direction = SCST_DATA_WRITE;
 	} else {
 		cmd->bufflen = 0;
+		cmd->data_len = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
 		cmd->data_direction = SCST_DATA_NONE;
 	}
-
 	return 0;
 }
 
-static int get_trans_len_1(struct scst_cmd *cmd, uint8_t off)
+static int get_cdb_info_verify16(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
 {
-	cmd->bufflen = (u32)cmd->cdb[off];
+	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
+	if (cmd->cdb[1] & BYTCHK) {
+		cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
+		cmd->data_len = cmd->bufflen;
+		cmd->data_direction = SCST_DATA_WRITE;
+	} else {
+		cmd->bufflen = 0;
+		cmd->data_len = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
+		cmd->data_direction = SCST_DATA_NONE;
+	}
 	return 0;
 }
 
-static int get_trans_len_1_256(struct scst_cmd *cmd, uint8_t off)
+static int get_cdb_info_len_1(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
 {
+	cmd->bufflen = (u32)cmd->cdb[sdbops->info_len_off];
+	cmd->data_len = cmd->bufflen;
+	return 0;
+}
+
+static int get_cdb_info_lba_2_len_1_256(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
+{
+	cmd->lba = get_unaligned_be16(cmd->cdb + sdbops->info_lba_off);
 	/*
 	 * From the READ(6) specification: a TRANSFER LENGTH field set to zero
 	 * specifies that 256 logical blocks shall be read.
@@ -5199,35 +5803,101 @@ static int get_trans_len_1_256(struct scst_cmd *cmd, uint8_t off)
 	 * is reduced modulo the largest value that can be represented by the
 	 * resulting type.
 	 */
-	cmd->bufflen = (u8)(cmd->cdb[off] - 1) + 1;
+	cmd->bufflen = (u8)(cmd->cdb[sdbops->info_len_off] - 1) + 1;
+	cmd->data_len = cmd->bufflen;
 	return 0;
 }
 
-static int get_trans_len_2(struct scst_cmd *cmd, uint8_t off)
+static int get_cdb_info_len_2(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
 {
-	cmd->bufflen = get_unaligned_be16(cmd->cdb + off);
+	cmd->bufflen = get_unaligned_be16(cmd->cdb + sdbops->info_len_off);
+	cmd->data_len = cmd->bufflen;
 	return 0;
 }
 
-static int get_trans_len_3(struct scst_cmd *cmd, uint8_t off)
+static int get_cdb_info_len_3(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
 {
-	cmd->bufflen = get_unaligned_be24(cmd->cdb + off);
-
+	cmd->bufflen = get_unaligned_be24(cmd->cdb + sdbops->info_len_off);
+	cmd->data_len = cmd->bufflen;
 	return 0;
 }
 
-static int get_trans_len_4(struct scst_cmd *cmd, uint8_t off)
+static int get_cdb_info_len_4(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
 {
-	cmd->bufflen = get_unaligned_be32(cmd->cdb + off);
+	cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
+	cmd->data_len = cmd->bufflen;
 	return 0;
 }
 
-static int get_trans_len_none(struct scst_cmd *cmd, uint8_t off)
+static int get_cdb_info_none(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
 {
-	cmd->bufflen = 0;
+	/* All supposed to be already zeroed, except data_len, which is -1 */
+	EXTRACHECKS_BUG_ON(cmd->lba != 0);
+	EXTRACHECKS_BUG_ON(cmd->bufflen != 0);
+	cmd->data_len = cmd->bufflen;
 	return 0;
 }
 
+static int get_cdb_info_lba_2_none(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
+{
+	cmd->lba = get_unaligned_be16(cmd->cdb + sdbops->info_lba_off);
+	/* It supposed to be already zeroed */
+	EXTRACHECKS_BUG_ON(cmd->bufflen != 0);
+	cmd->data_len = cmd->bufflen;
+	return 0;
+}
+
+static int get_cdb_info_lba_4_none(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
+{
+	cmd->lba = get_unaligned_be32(cmd->cdb + sdbops->info_lba_off);
+	/* It supposed to be already zeroed */
+	EXTRACHECKS_BUG_ON(cmd->bufflen != 0); 
+	cmd->data_len = cmd->bufflen;
+	return 0;
+}
+
+static int get_cdb_info_lba_8_none(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
+{
+	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
+	/* It supposed to be already zeroed */
+	EXTRACHECKS_BUG_ON(cmd->bufflen != 0);
+	cmd->data_len = cmd->bufflen;
+	return 0;
+}
+
+static int get_cdb_info_lba_4_len_2(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
+{
+	cmd->lba = get_unaligned_be32(cmd->cdb + sdbops->info_lba_off);
+	cmd->bufflen = get_unaligned_be16(cmd->cdb + sdbops->info_len_off);
+	cmd->data_len = cmd->bufflen;
+	return 0;
+}
+
+static int get_cdb_info_lba_4_len_4(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
+{
+	cmd->lba = get_unaligned_be32(cmd->cdb + sdbops->info_lba_off);
+	cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
+	cmd->data_len = cmd->bufflen;
+	return 0;
+}
+
+static int get_cdb_info_lba_8_len_4(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
+{
+	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
+	cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
+	cmd->data_len = cmd->bufflen;
+	return 0;
+}
 
 /**
  * scst_get_cdb_info() - fill various info about the command's CDB
@@ -5250,9 +5920,8 @@ int scst_get_cdb_info(struct scst_cmd *cmd)
 
 	op = cmd->cdb[0];	/* get clear opcode */
 
-	TRACE_DBG("opcode=%02x, cdblen=%d bytes, tblsize=%d, "
-		"dev_type=%d", op, SCST_GET_CDB_LEN(op), SCST_CDB_TBL_SIZE,
-		dev_type);
+	TRACE_DBG("opcode=%02x, cdblen=%d bytes, dev_type=%d", op,
+		SCST_GET_CDB_LEN(op), dev_type);
 
 	i = scst_scsi_op_list[op];
 	while (i < SCST_CDB_TBL_SIZE && scst_scsi_op_table[i].ops == op) {
@@ -5269,11 +5938,12 @@ int scst_get_cdb_info(struct scst_cmd *cmd)
 			      ptr->devkey[7],	/* worm     */
 			      ptr->devkey[8],	/* changer */
 			      ptr->devkey[9],	/* commdev */
-			      ptr->op_name);
-			TRACE_DBG("direction=%d flags=%d off=%d",
-			      ptr->direction,
-			      ptr->flags,
-			      ptr->off);
+			      ptr->info_op_name);
+			TRACE_DBG("data direction %d, op flags 0x%x, lba off %d, "
+				"lba len %d, len off %d, len len %d",
+				ptr->info_data_direction, ptr->info_op_flags,
+				ptr->info_lba_off, ptr->info_lba_len,
+				ptr->info_len_off, ptr->info_len_len);
 			break;
 		}
 		i++;
@@ -5288,10 +5958,14 @@ int scst_get_cdb_info(struct scst_cmd *cmd)
 	}
 
 	cmd->cdb_len = SCST_GET_CDB_LEN(op);
-	cmd->op_name = ptr->op_name;
-	cmd->data_direction = ptr->direction;
-	cmd->op_flags = ptr->flags | SCST_INFO_VALID;
-	res = (*ptr->get_trans_len)(cmd, ptr->off);
+	cmd->op_name = ptr->info_op_name;
+	cmd->data_direction = ptr->info_data_direction;
+	cmd->op_flags = ptr->info_op_flags | SCST_INFO_VALID;
+	cmd->lba_off = ptr->info_lba_off;
+	cmd->lba_len = ptr->info_lba_len;
+	cmd->len_off = ptr->info_len_off;
+	cmd->len_len = ptr->info_len_len;
+	res = (*ptr->get_cdb_info)(cmd, ptr);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -5423,25 +6097,6 @@ int scst_sbc_generic_parse(struct scst_cmd *cmd,
 	 * therefore change them only if necessary
 	 */
 
-	TRACE_DBG("op_name <%s> direct %d flags %d transfer_len %d",
-	      cmd->op_name, cmd->data_direction, cmd->op_flags, cmd->bufflen);
-
-	switch (cmd->cdb[0]) {
-	case VERIFY:
-	case VERIFY_12:
-	case VERIFY_16:
-		if ((cmd->cdb[1] & BYTCHK) == 0) {
-			cmd->data_len = cmd->bufflen << get_block_shift(cmd);
-			cmd->bufflen = 0;
-			goto set_timeout;
-		} else
-			cmd->data_len = 0;
-		break;
-	default:
-		/* It's all good */
-		break;
-	}
-
 	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED) {
 		int block_shift = get_block_shift(cmd);
 		/*
@@ -5449,10 +6104,10 @@ int scst_sbc_generic_parse(struct scst_cmd *cmd,
 		 * called, when there are existing commands.
 		 */
 		cmd->bufflen = cmd->bufflen << block_shift;
+		cmd->data_len = cmd->data_len << block_shift;
 		cmd->out_bufflen = cmd->out_bufflen << block_shift;
 	}
 
-set_timeout:
 	if ((cmd->op_flags & (SCST_SMALL_TIMEOUT | SCST_LONG_TIMEOUT)) == 0)
 		cmd->timeout = SCST_GENERIC_DISK_REG_TIMEOUT;
 	else if (cmd->op_flags & SCST_SMALL_TIMEOUT)
@@ -5485,33 +6140,15 @@ int scst_cdrom_generic_parse(struct scst_cmd *cmd,
 	 * therefore change them only if necessary
 	 */
 
-	TRACE_DBG("op_name <%s> direct %d flags %d transfer_len %d",
-	      cmd->op_name, cmd->data_direction, cmd->op_flags, cmd->bufflen);
-
 	cmd->cdb[1] &= 0x1f;
-
-	switch (cmd->cdb[0]) {
-	case VERIFY:
-	case VERIFY_12:
-	case VERIFY_16:
-		if ((cmd->cdb[1] & BYTCHK) == 0) {
-			cmd->data_len = cmd->bufflen << get_block_shift(cmd);
-			cmd->bufflen = 0;
-			goto set_timeout;
-		}
-		break;
-	default:
-		/* It's all good */
-		break;
-	}
 
 	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED) {
 		int block_shift = get_block_shift(cmd);
 		cmd->bufflen = cmd->bufflen << block_shift;
+		cmd->data_len = cmd->data_len << block_shift;
 		cmd->out_bufflen = cmd->out_bufflen << block_shift;
 	}
 
-set_timeout:
 	if ((cmd->op_flags & (SCST_SMALL_TIMEOUT | SCST_LONG_TIMEOUT)) == 0)
 		cmd->timeout = SCST_GENERIC_CDROM_REG_TIMEOUT;
 	else if (cmd->op_flags & SCST_SMALL_TIMEOUT)
@@ -5544,33 +6181,15 @@ int scst_modisk_generic_parse(struct scst_cmd *cmd,
 	 * therefore change them only if necessary
 	 */
 
-	TRACE_DBG("op_name <%s> direct %d flags %d transfer_len %d",
-	      cmd->op_name, cmd->data_direction, cmd->op_flags, cmd->bufflen);
-
 	cmd->cdb[1] &= 0x1f;
-
-	switch (cmd->cdb[0]) {
-	case VERIFY:
-	case VERIFY_12:
-	case VERIFY_16:
-		if ((cmd->cdb[1] & BYTCHK) == 0) {
-			cmd->data_len = cmd->bufflen << get_block_shift(cmd);
-			cmd->bufflen = 0;
-			goto set_timeout;
-		}
-		break;
-	default:
-		/* It's all good */
-		break;
-	}
 
 	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED) {
 		int block_shift = get_block_shift(cmd);
 		cmd->bufflen = cmd->bufflen << block_shift;
+		cmd->data_len = cmd->data_len << block_shift;
 		cmd->out_bufflen = cmd->out_bufflen << block_shift;
 	}
 
-set_timeout:
 	if ((cmd->op_flags & (SCST_SMALL_TIMEOUT | SCST_LONG_TIMEOUT)) == 0)
 		cmd->timeout = SCST_GENERIC_MODISK_REG_TIMEOUT;
 	else if (cmd->op_flags & SCST_SMALL_TIMEOUT)
@@ -5603,9 +6222,6 @@ int scst_tape_generic_parse(struct scst_cmd *cmd,
 	 * therefore change them only if necessary
 	 */
 
-	TRACE_DBG("op_name <%s> direct %d flags %d transfer_len %d",
-	      cmd->op_name, cmd->data_direction, cmd->op_flags, cmd->bufflen);
-
 	if (cmd->cdb[0] == READ_POSITION) {
 		int tclp = cmd->cdb[1] & 4;
 		int long_bit = cmd->cdb[1] & 2;
@@ -5619,11 +6235,13 @@ int scst_tape_generic_parse(struct scst_cmd *cmd,
 			cmd->bufflen = 0;
 			cmd->data_direction = SCST_DATA_NONE;
 		}
+		cmd->data_len = cmd->bufflen;
 	}
 
 	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED & cmd->cdb[1]) {
 		int block_size = get_block_size(cmd);
 		cmd->bufflen = cmd->bufflen * block_size;
+		cmd->data_len = cmd->data_len * block_size;
 		cmd->out_bufflen = cmd->out_bufflen * block_size;
 	}
 
@@ -5650,8 +6268,6 @@ static int scst_null_parse(struct scst_cmd *cmd)
 	 * therefore change them only if necessary
 	 */
 
-	TRACE_DBG("op_name <%s> direct %d flags %d transfer_len %d",
-	      cmd->op_name, cmd->data_direction, cmd->op_flags, cmd->bufflen);
 #if 0
 	switch (cmd->cdb[0]) {
 	default:
@@ -5659,6 +6275,7 @@ static int scst_null_parse(struct scst_cmd *cmd)
 		break;
 	}
 #endif
+
 	TRACE_DBG("res %d bufflen %d direct %d",
 	      res, cmd->bufflen, cmd->data_direction);
 
@@ -5749,7 +6366,7 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 	 * therefore change them only if necessary
 	 */
 
-	if ((status == SAM_STAT_GOOD) || (status == SAM_STAT_CONDITION_MET)) {
+	if (likely((status == SAM_STAT_GOOD)) || (status == SAM_STAT_CONDITION_MET)) {
 		switch (opcode) {
 		case READ_CAPACITY:
 		{
@@ -5812,7 +6429,7 @@ int scst_tape_generic_dev_done(struct scst_cmd *cmd,
 	 * therefore change them only if necessary
 	 */
 
-	if (cmd->status != SAM_STAT_GOOD)
+	if (unlikely(cmd->status != SAM_STAT_GOOD))
 		goto out;
 
 	switch (opcode) {
@@ -5863,6 +6480,158 @@ out:
 	return res;
 }
 EXPORT_SYMBOL_GPL(scst_tape_generic_dev_done);
+
+typedef void (*scst_set_cdb_lba_fn_t)(struct scst_cmd *cmd, int64_t lba);
+
+static void scst_set_cdb_lba1(struct scst_cmd *cmd, int64_t lba)
+{
+	TRACE_ENTRY();
+
+	cmd->cdb[cmd->lba_off] = lba;
+
+	TRACE_EXIT();
+	return;
+}
+
+static void scst_set_cdb_lba2(struct scst_cmd *cmd, int64_t lba)
+{
+	TRACE_ENTRY();
+
+	put_unaligned_be16(lba, &cmd->cdb[cmd->lba_off]);
+
+	TRACE_EXIT();
+	return;
+}
+
+static void scst_set_cdb_lba3(struct scst_cmd *cmd, int64_t lba)
+{
+	TRACE_ENTRY();
+
+	put_unaligned_be24(lba, &cmd->cdb[cmd->lba_off]);
+
+	TRACE_EXIT();
+	return;
+}
+
+static void scst_set_cdb_lba4(struct scst_cmd *cmd, int64_t lba)
+{
+	TRACE_ENTRY();
+
+	put_unaligned_be32(lba, &cmd->cdb[cmd->lba_off]);
+
+	TRACE_EXIT();
+	return;
+}
+
+static void scst_set_cdb_lba8(struct scst_cmd *cmd, int64_t lba)
+{
+	TRACE_ENTRY();
+
+	put_unaligned_be64(lba, &cmd->cdb[cmd->lba_off]);
+
+	TRACE_EXIT();
+	return;
+}
+
+static const scst_set_cdb_lba_fn_t scst_set_cdb_lba_fns[9] = {
+	[1] = scst_set_cdb_lba1,
+	[2] = scst_set_cdb_lba2,
+	[3] = scst_set_cdb_lba3,
+	[4] = scst_set_cdb_lba4,
+	[8] = scst_set_cdb_lba8,
+};
+
+int scst_set_cdb_lba(struct scst_cmd *cmd, int64_t lba)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	scst_set_cdb_lba_fns[cmd->lba_len](cmd, lba);
+	res = 0;
+
+	TRACE_DBG("cmd %p, new LBA %lld", cmd, (unsigned long long)lba);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+EXPORT_SYMBOL_GPL(scst_set_cdb_lba);
+
+typedef void (*scst_set_cdb_transf_len_fn_t)(struct scst_cmd *cmd, int len);
+
+static void scst_set_cdb_transf_len1(struct scst_cmd *cmd, int len)
+{
+	TRACE_ENTRY();
+
+	cmd->cdb[cmd->len_off] = len;
+
+	TRACE_EXIT();
+	return;
+}
+
+static void scst_set_cdb_transf_len2(struct scst_cmd *cmd, int len)
+{
+	TRACE_ENTRY();
+
+	put_unaligned_be16(len, &cmd->cdb[cmd->len_off]);
+
+	TRACE_EXIT();
+	return;
+}
+
+static void scst_set_cdb_transf_len3(struct scst_cmd *cmd, int len)
+{
+	TRACE_ENTRY();
+
+	put_unaligned_be24(len, &cmd->cdb[cmd->len_off]);
+
+	TRACE_EXIT();
+	return;
+}
+
+static void scst_set_cdb_transf_len4(struct scst_cmd *cmd, int len)
+{
+	TRACE_ENTRY();
+
+	put_unaligned_be32(len, &cmd->cdb[cmd->len_off]);
+
+	TRACE_EXIT();
+	return;
+}
+
+static void scst_set_cdb_transf_len8(struct scst_cmd *cmd, int len)
+{
+	TRACE_ENTRY();
+
+	put_unaligned_be64(len, &cmd->cdb[cmd->len_off]);
+
+	TRACE_EXIT();
+	return;
+}
+
+static const scst_set_cdb_transf_len_fn_t scst_set_cdb_transf_len_fns[9] = {
+	[1] = scst_set_cdb_transf_len1,
+	[2] = scst_set_cdb_transf_len2,
+	[3] = scst_set_cdb_transf_len3,
+	[4] = scst_set_cdb_transf_len4,
+	[8] = scst_set_cdb_transf_len8,
+};
+
+int scst_set_cdb_transf_len(struct scst_cmd *cmd, int len)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	scst_set_cdb_transf_len_fns[cmd->len_len](cmd, len);
+	res = 0;
+
+	TRACE_DBG("cmd %p, new len %d", cmd, len);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+EXPORT_SYMBOL_GPL(scst_set_cdb_transf_len);
 
 static void scst_check_internal_sense(struct scst_device *dev, int result,
 	uint8_t *sense, int sense_len)
@@ -6953,6 +7722,8 @@ static void __init scst_scsi_op_list_init(void)
 
 	TRACE_ENTRY();
 
+	TRACE_DBG("tblsize=%d", SCST_CDB_TBL_SIZE);
+
 	for (i = 0; i < 256; i++)
 		scst_scsi_op_list[i] = SCST_CDB_TBL_SIZE;
 
@@ -6962,6 +7733,9 @@ static void __init scst_scsi_op_list_init(void)
 			scst_scsi_op_list[op] = i;
 		}
 	}
+
+	TRACE_BUFFER("scst_scsi_op_list", scst_scsi_op_list,
+		sizeof(scst_scsi_op_list));
 
 	TRACE_EXIT();
 	return;

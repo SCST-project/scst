@@ -368,110 +368,16 @@ struct disk_work {
 	struct completion disk_work_cmpl;
 	int result;
 	unsigned int left;
-	uint64_t save_lba;
-	unsigned int save_len;
+	int64_t save_lba;
+	int save_len;
 	struct scatterlist *save_sg;
 	int save_sg_cnt;
 };
 
-static int disk_cdb_get_transfer_data(const uint8_t *cdb,
-	uint64_t *out_lba, unsigned int *out_length)
-{
-	int res;
-	uint64_t lba;
-	unsigned int len;
-
-	TRACE_ENTRY();
-
-	switch (cdb[0]) {
-	case WRITE_6:
-	case READ_6:
-		lba = get_unaligned_be16(&cdb[2]);
-		len = cdb[4];
-		break;
-	case WRITE_10:
-	case READ_10:
-	case WRITE_VERIFY:
-		lba = get_unaligned_be32(&cdb[2]);
-		len = get_unaligned_be16(&cdb[7]);
-		break;
-	case WRITE_12:
-	case READ_12:
-	case WRITE_VERIFY_12:
-		lba = get_unaligned_be32(&cdb[2]);
-		len = get_unaligned_be32(&cdb[6]);
-		break;
-	case WRITE_16:
-	case READ_16:
-	case WRITE_VERIFY_16:
-		lba = get_unaligned_be64(&cdb[2]);
-		len = get_unaligned_be32(&cdb[10]);
-		break;
-	default:
-		res = -EINVAL;
-		goto out;
-	}
-
-	res = 0;
-	*out_lba = lba;
-	*out_length = len;
-
-	TRACE_DBG("LBA %lld, length %d", (unsigned long long)lba, len);
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static int disk_cdb_set_transfer_data(uint8_t *cdb,
-	uint64_t lba, unsigned int len)
-{
-	int res;
-
-	TRACE_ENTRY();
-
-	switch (cdb[0]) {
-	case WRITE_6:
-	case READ_6:
-		put_unaligned_be16(lba, &cdb[2]);
-		cdb[4] = len;
-		break;
-	case WRITE_10:
-	case READ_10:
-	case WRITE_VERIFY:
-		put_unaligned_be32(lba, &cdb[2]);
-		put_unaligned_be16(len, &cdb[7]);
-		break;
-	case WRITE_12:
-	case READ_12:
-	case WRITE_VERIFY_12:
-		put_unaligned_be32(lba, &cdb[2]);
-		put_unaligned_be32(len, &cdb[6]);
-		break;
-	case WRITE_16:
-	case READ_16:
-	case WRITE_VERIFY_16:
-		put_unaligned_be64(lba, &cdb[2]);
-		put_unaligned_be32(len, &cdb[10]);
-		break;
-	default:
-		res = -EINVAL;
-		goto out;
-	}
-
-	res = 0;
-
-	TRACE_DBG("LBA %lld, length %d", (unsigned long long)lba, len);
-	TRACE_BUFFER("New CDB", cdb, SCST_MAX_CDB_SIZE);
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
 static void disk_restore_sg(struct disk_work *work)
 {
-	disk_cdb_set_transfer_data(work->cmd->cdb, work->save_lba, work->save_len);
+	scst_set_cdb_lba(work->cmd, work->save_lba);
+	scst_set_cdb_transf_len(work->cmd, work->save_len);
 	work->cmd->sg = work->save_sg;
 	work->cmd->sg_cnt = work->save_sg_cnt;
 	return;
@@ -546,7 +452,7 @@ static int disk_exec(struct scst_cmd *cmd)
 		goto split;
 	}
 
-	if (likely(cmd->sg_cnt <= sg_tablesize)) {
+	if (cmd->sg_cnt <= sg_tablesize) {
 		res = SCST_EXEC_NOT_COMPLETED;
 		goto out;
 	}
@@ -564,10 +470,10 @@ split:
 	work.cmd = cmd;
 	work.save_sg = cmd->sg;
 	work.save_sg_cnt = cmd->sg_cnt;
-	rc = disk_cdb_get_transfer_data(cmd->cdb, &work.save_lba,
-		&work.save_len);
-	if (rc != 0)
-		goto out_error;
+	work.save_lba = cmd->lba;
+	work.save_len = cmd->bufflen;
+
+	EXTRACHECKS_BUG_ON(work.save_len < 0);
 
 	cmd->status = 0;
 	cmd->msg_status = 0;
@@ -617,8 +523,8 @@ split:
 		     (cur_len >= max_sectors)) {
 			TRACE_DBG("%s", "Execing...");
 
-			disk_cdb_set_transfer_data(cmd->cdb,
-				work.save_lba + offset, cur_len);
+			scst_set_cdb_lba(work.cmd, work.save_lba + offset);
+			scst_set_cdb_transf_len(work.cmd, cur_len);
 			cmd->sg = start_sg;
 			cmd->sg_cnt = cur_sg_cnt;
 

@@ -123,6 +123,7 @@ static int do_parse(struct vdisk_cmd *vcmd)
 
 	reply->queue_type = cmd->queue_type;
 	reply->data_direction = cmd->expected_data_direction;
+	reply->lba = cmd->lba;
 	reply->data_len = cmd->expected_transfer_len;
 	reply->bufflen = cmd->expected_transfer_len;
 	reply->out_bufflen = cmd->expected_out_transfer_len;
@@ -177,8 +178,8 @@ static int do_exec(struct vdisk_cmd *vcmd)
 	struct vdisk_dev *dev = vcmd->dev;
 	struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
 	struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
-	uint64_t lba_start = 0;
-	loff_t data_len = 0;
+	uint64_t lba_start = cmd->lba;
+	loff_t data_len = cmd->data_len;
 	uint8_t *cdb = cmd->cdb;
 	int opcode = cdb[0];
 	loff_t loff;
@@ -240,55 +241,6 @@ static int do_exec(struct vdisk_cmd *vcmd)
 
 	if (cmd->data_direction & SCST_DATA_READ)
 		reply->resp_data_len = cmd->bufflen;
-
-	switch (opcode) {
-	case READ_6:
-	case WRITE_6:
-		lba_start = (((cdb[1] & 0x1f) << (BYTE * 2)) +
-			     (cdb[2] << (BYTE * 1)) +
-			     (cdb[3] << (BYTE * 0)));
-		data_len = cmd->bufflen;
-		break;
-	case READ_10:
-	case READ_12:
-	case WRITE_10:
-	case WRITE_12:
-	case VERIFY:
-	case WRITE_VERIFY:
-	case WRITE_VERIFY_12:
-	case VERIFY_12:
-		lba_start |= ((uint64_t)cdb[2]) << 24;
-		lba_start |= ((uint64_t)cdb[3]) << 16;
-		lba_start |= ((uint64_t)cdb[4]) << 8;
-		lba_start |= ((uint64_t)cdb[5]);
-		data_len = cmd->bufflen;
-		break;
-	case SYNCHRONIZE_CACHE:
-		lba_start |= ((uint64_t)cdb[2]) << 24;
-		lba_start |= ((uint64_t)cdb[3]) << 16;
-		lba_start |= ((uint64_t)cdb[4]) << 8;
-		lba_start |= ((uint64_t)cdb[5]);
-		data_len = ((cdb[7] << (BYTE * 1)) + (cdb[8] << (BYTE * 0)))
-				<< dev->block_shift;
-		if (data_len == 0)
-			data_len = dev->file_size -
-				((loff_t)lba_start << dev->block_shift);
-		break;
-	case READ_16:
-	case WRITE_16:
-	case WRITE_VERIFY_16:
-	case VERIFY_16:
-		lba_start |= ((uint64_t)cdb[2]) << 56;
-		lba_start |= ((uint64_t)cdb[3]) << 48;
-		lba_start |= ((uint64_t)cdb[4]) << 40;
-		lba_start |= ((uint64_t)cdb[5]) << 32;
-		lba_start |= ((uint64_t)cdb[6]) << 24;
-		lba_start |= ((uint64_t)cdb[7]) << 16;
-		lba_start |= ((uint64_t)cdb[8]) << 8;
-		lba_start |= ((uint64_t)cdb[9]);
-		data_len = cmd->bufflen;
-		break;
-	}
 
 	loff = (loff_t)lba_start << dev->block_shift;
 	TRACE_DBG("cmd %d, buf %"PRIx64", lba_start %"PRId64", loff %"PRId64
@@ -381,6 +333,9 @@ static int do_exec(struct vdisk_cmd *vcmd)
 	case SYNCHRONIZE_CACHE:
 	{
 		int immed = cdb[1] & 0x2;
+		if (data_len == 0)
+			data_len = dev->file_size -
+				((loff_t)lba_start << dev->block_shift);
 		TRACE(TRACE_ORDER, "SYNCHRONIZE_CACHE: "
 			"loff=%"PRId64", data_len=%"PRId64", immed=%d",
 			(uint64_t)loff, (uint64_t)data_len, immed);
@@ -1658,7 +1613,7 @@ static void exec_verify(struct vdisk_cmd *vcmd, loff_t loff)
 	struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
 	loff_t err;
 	int length = cmd->bufflen;
-	uint8_t *address = (uint8_t*)(unsigned long)cmd->pbuf;
+	uint8_t *address = (uint8_t *)(unsigned long)cmd->pbuf;
 	int compare;
 	int fd = vcmd->fd;
 	uint8_t mem_verify[128*1024];

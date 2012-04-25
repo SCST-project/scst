@@ -10,7 +10,7 @@ SCST user space device handler module interface descrition
 	<name>Vladislav Bolkhovitin</name>
 </author>
 
-<date>Version 2.1.0</date>
+<date>Version 3.0.0</date>
 
 <toc>
 
@@ -380,6 +380,7 @@ struct scst_user_scsi_cmd_reply_parse
 	uint8_t queue_type;
 	uint8_t data_direction;
 	uint16_t cdb_len;
+	aligned_i64 lba;
 	uint32_t op_flags;
 	int32_t data_len;
 	int32_t bufflen;
@@ -401,13 +402,17 @@ where:
 
 <item> <bf/cdb_len/ - length of CDB
 
+<item> <bf/lba/ - LBA of the command, if any
+
 <item> <bf/op_flags/ - commands flags, one or more scst_cdb_flags bits, see above.
    At least SCST_INFO_VALID must be set for correct processing.
    SCST_IMPLICIT_HQ not implemented (yet) for single stage init target
    drivers (all, except iSCSI), because custom parse can reorder
    commands due to multithreaded processing.
 
-<item> <bf/data_len/ - command's data length
+<item> <bf/data_len/ - command's data length. Could be different from bufflen for
+   commands like VERIFY, which transfer different amount of data, than
+   process, or even none of them
 
 <item> <bf/bufflen/ - command's buffer length
 
@@ -699,8 +704,11 @@ struct scst_user_scsi_cmd_parse
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
 	uint16_t cdb_len;
 
+	aligned_i64 lba;
+
 	uint32_t timeout;
 	int32_t bufflen;
+	int32_t data_len;
 	int32_t out_bufflen;
 
 	uint32_t op_flags;
@@ -726,9 +734,15 @@ where:
 
 <item> <bf/cdb_len/ - SCSI CDB length
 
+<item> <bf/lba/ - LBA of the command, if any
+
 <item> <bf/timeout/ - CDB execution timeout
 
 <item> <bf/bufflen/ - command's buffer length
+
+<item> <bf/data_len/ - command's data length. Could be different from bufflen for
+   commands like VERIFY, which transfer different amount of data, than
+   process, or even none of them
 
 <item> <bf/out_bufflen/ - for bidirectional commands command's OUT, i.e. from
    initiator to target, buffer length
@@ -920,6 +934,8 @@ struct scst_user_scsi_cmd_exec
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
 	uint16_t cdb_len;
 
+	aligned_i64 lba;
+
 	int32_t data_len;
 	int32_t bufflen;
 	int32_t alloc_len;
@@ -948,6 +964,8 @@ where:
 <item> <bf/cdb/ - SCSI CDB
 
 <item> <bf/cdb_len/ - SCSI CDB length
+
+<item> <bf/lba/ - LBA of the command, if any
 
 <item> <bf/data_len/ - command's data length. Could be different from bufflen for
    commands like VERIFY, which transfer different amount of data, than

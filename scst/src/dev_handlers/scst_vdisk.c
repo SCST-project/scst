@@ -191,9 +191,7 @@ struct vdisk_cmd_params {
 	int iv_count;
 	struct iovec small_iv[4];
 	struct scst_cmd *cmd;
-	uint64_t lba_start;
 	loff_t loff;
-	loff_t data_len;
 	int fua;
 	bool use_zero_copy;
 };
@@ -974,7 +972,7 @@ static enum compl_status_e vdisk_synchronize_cache(struct vdisk_cmd_params *p)
 	const uint8_t *cdb = cmd->cdb;
 	struct scst_device *dev = cmd->dev;
 	const loff_t loff = p->loff;
-	const loff_t data_len = p->data_len;
+	int data_len = scst_cmd_get_data_len(cmd);
 	int immed = cdb[1] & 0x2;
 	enum compl_status_e res;
 
@@ -984,6 +982,12 @@ static enum compl_status_e vdisk_synchronize_cache(struct vdisk_cmd_params *p)
 	      "loff=%lld, data_len=%lld, immed=%d",
 	      (long long unsigned int)loff,
 	      (long long unsigned int)data_len, immed);
+
+	if (data_len == 0) {
+		struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+		data_len = virt_dev->file_size -
+			((loff_t)scst_cmd_get_lba(cmd) << virt_dev->block_shift);
+	}
 
 	if (immed) {
 		scst_cmd_get(cmd); /* to protect dev */
@@ -1116,13 +1120,13 @@ static const vdisk_op_fn nullio_ops[256] = {
 };
 
 /*
- * Compute p->lba_start, p->loff, p->data_len and p->fua.
+ * Compute p->loff and p->fua.
  * Returns true for success or false otherwise and set error in the commeand.
  */
 static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 {
-	uint64_t lba_start = 0;
-	loff_t data_len = 0;
+	uint64_t lba_start;
+	int data_len;
 	uint8_t *cdb = cmd->cdb;
 	int opcode = cdb[0];
 	loff_t loff;
@@ -1132,6 +1136,14 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 	int fua = 0;
 
 	TRACE_ENTRY();
+
+	if (unlikely(!(cmd->op_flags & SCST_INFO_VALID))) {
+		PRINT_ERROR("Unknown opcode 0x%02x", cmd->cdb[0]);
+			scst_set_cmd_error(cmd,
+				SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+		res = false;
+		goto out;
+	}
 
 	p->cmd = cmd;
 
@@ -1151,55 +1163,8 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 		break;
 	}
 
-	switch (opcode) {
-	case READ_6:
-	case WRITE_6:
-		lba_start = get_unaligned_be24(&cdb[1]) & 0x1f0000U;
-		data_len = cmd->bufflen;
-		use_zero_copy = true;
-		break;
-	case READ_10:
-	case READ_12:
-	case WRITE_10:
-	case WRITE_12:
-	case WRITE_VERIFY:
-	case WRITE_VERIFY_12:
-		lba_start = get_unaligned_be32(&cdb[2]);
-		data_len = cmd->bufflen;
-		use_zero_copy = true;
-		break;
-	case READ_16:
-	case WRITE_16:
-	case WRITE_VERIFY_16:
-		lba_start = get_unaligned_be64(&cdb[2]);
-		data_len = cmd->bufflen;
-		use_zero_copy = true;
-		break;
-	case VERIFY:
-		lba_start = get_unaligned_be32(&cdb[2]);
-		data_len = get_unaligned_be16(&cdb[7]) << virt_dev->block_shift;
-		use_zero_copy = true;
-		break;
-	case VERIFY_12:
-		lba_start = get_unaligned_be32(&cdb[2]);
-		data_len = get_unaligned_be32(&cdb[6]) << virt_dev->block_shift;
-		use_zero_copy = true;
-		break;
-	case VERIFY_16:
-		lba_start = get_unaligned_be64(&cdb[2]);
-		data_len = get_unaligned_be32(&cdb[10]) << virt_dev->block_shift;
-		use_zero_copy = true;
-		break;
-	case SYNCHRONIZE_CACHE:
-		lba_start = get_unaligned_be32(&cdb[2]);
-		data_len = get_unaligned_be16(&cdb[7]) << virt_dev->block_shift;
-		if (data_len == 0)
-			data_len = virt_dev->file_size -
-				((loff_t)lba_start << virt_dev->block_shift);
-		break;
-	}
-
-	p->use_zero_copy = use_zero_copy && virt_dev->zero_copy;
+	lba_start = scst_cmd_get_lba(cmd);
+	data_len = scst_cmd_get_data_len(cmd);
 
 	loff = (loff_t)lba_start << virt_dev->block_shift;
 	TRACE_DBG("cmd %p, lba_start %lld, loff %lld, data_len %lld", cmd,
@@ -1209,7 +1174,7 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 	if (unlikely(loff < 0) || unlikely(data_len < 0) ||
 	    unlikely((loff + data_len) > virt_dev->file_size)) {
 		PRINT_INFO("Access beyond the end of the device "
-			"(%lld of %lld, len %lld)",
+			"(%lld of %lld, data len %lld)",
 			   (long long unsigned int)loff,
 			   (long long unsigned int)virt_dev->file_size,
 			   (long long unsigned int)data_len);
@@ -1217,6 +1182,15 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 					scst_sense_block_out_range_error));
 		res = false;
 		goto out;
+	}
+
+	switch (opcode) {
+	case READ_6:
+	case READ_10:
+	case READ_12:
+	case READ_16:
+		use_zero_copy = true;
+		break;
 	}
 
 	switch (opcode) {
@@ -1232,10 +1206,9 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 		break;
 	}
 
-	p->lba_start = lba_start;
-	p->data_len = data_len;
 	p->loff = loff;
 	p->fua = fua;
+	p->use_zero_copy = use_zero_copy && virt_dev->zero_copy;
 
 	res = true;
 
@@ -3545,7 +3518,7 @@ restart:
 out_sync:
 	/* O_SYNC flag is used for WT devices */
 	if (p->fua)
-		vdisk_fsync(p, loff, p->data_len, cmd->dev,
+		vdisk_fsync(p, loff, scst_cmd_get_data_len(cmd), cmd->dev,
 			    scst_cmd_get_gfp_flags(cmd), cmd);
 out:
 	TRACE_EXIT();
@@ -3638,7 +3611,7 @@ static void blockio_endio(struct bio *bio, int error)
 static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 {
 	struct scst_cmd *cmd = p->cmd;
-	u64 lba_start = p->lba_start;
+	u64 lba_start = scst_cmd_get_lba(cmd);
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	struct block_device *bdev = virt_dev->bdev;
 	struct request_queue *q = bdev_get_queue(bdev);
@@ -3831,12 +3804,13 @@ static enum compl_status_e fileio_exec_verify(struct vdisk_cmd_params *p)
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	struct file *fd = virt_dev->fd;
 	uint8_t *mem_verify = NULL;
+	int data_len = scst_cmd_get_data_len(cmd);
 
 	TRACE_ENTRY();
 
 	sBUG_ON(virt_dev->blockio);
 
-	if (vdisk_fsync(p, loff, cmd->bufflen, cmd->dev,
+	if (vdisk_fsync(p, loff, data_len, cmd->dev,
 			scst_cmd_get_gfp_flags(cmd), cmd) != 0)
 		goto out;
 
@@ -3849,8 +3823,8 @@ static enum compl_status_e fileio_exec_verify(struct vdisk_cmd_params *p)
 	 */
 
 	compare = scst_cmd_get_data_direction(cmd) == SCST_DATA_WRITE;
-	TRACE_DBG("VERIFY with BYTCHK=%d at offset %lld and with len = %lld\n",
-		  compare, loff, p->data_len);
+	TRACE_DBG("VERIFY with BYTCHK=%d at offset %lld and len %d\n",
+		  compare, loff, data_len);
 
 	/* SEEK */
 	old_fs = get_fs();
@@ -3875,17 +3849,15 @@ static enum compl_status_e fileio_exec_verify(struct vdisk_cmd_params *p)
 	if (mem_verify == NULL) {
 		PRINT_ERROR("Unable to allocate memory %d for verify",
 			       LEN_MEM);
-		scst_set_cmd_error(cmd,
-				   SCST_LOAD_SENSE(scst_sense_hardw_error));
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 		goto out_set_fs;
 	}
 
 	if (compare) {
 		length = scst_get_buf_first(cmd, &address);
 		address_sav = address;
-	} else {
-		length = p->data_len;
-	}
+	} else
+		length = data_len;
 
 	while (length > 0) {
 		len_mem = (length > LEN_MEM) ? LEN_MEM : length;

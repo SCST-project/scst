@@ -1978,8 +1978,12 @@ struct scst_cmd {
 	unsigned short cdb_len;
 	uint8_t cdb_buf[SCST_MAX_CDB_SIZE];
 
-	enum scst_cdb_flags op_flags;
-	const char *op_name;
+	uint8_t lba_off;	/* LBA offset in cdb */
+	uint8_t lba_len;	/* LBA length in cdb */
+	uint8_t len_off;	/* length offset in cdb */
+	uint8_t len_len;	/* length length in cdb */
+	uint32_t op_flags;	/* various flags of this opcode */
+	const char *op_name;	/* op code SCSI full name */
 
 	enum scst_cmd_queue_type queue_type;
 
@@ -2006,9 +2010,10 @@ struct scst_cmd {
 		enum scst_exec_context pref_context);
 
 	struct sgv_pool_obj *sgv;	/* sgv object */
+	int64_t lba;			/* LBA of this cmd in blocks */
 	int bufflen;			/* cmd buffer length */
-	struct scatterlist *sg;		/* cmd data buffer SG vector */
 	int sg_cnt;			/* SG segments count */
+	struct scatterlist *sg;		/* cmd data buffer SG vector */
 
 	/*
 	 * Response data length in data buffer. Must not be set
@@ -3109,6 +3114,12 @@ static inline int scst_cmd_get_sg_cnt(struct scst_cmd *cmd)
 	return cmd->sg_cnt;
 }
 
+/* Returns cmd's LBA */
+static inline int64_t scst_cmd_get_lba(struct scst_cmd *cmd)
+{
+	return cmd->lba;
+}
+
 /*
  * Returns cmd's data buffer length.
  *
@@ -3116,9 +3127,18 @@ static inline int scst_cmd_get_sg_cnt(struct scst_cmd *cmd)
  * this function is not recommended, use scst_get_buf_*()
  * family of functions instead.
  */
-static inline unsigned int scst_cmd_get_bufflen(struct scst_cmd *cmd)
+static inline int scst_cmd_get_bufflen(struct scst_cmd *cmd)
 {
 	return cmd->bufflen;
+}
+
+/*
+ * Returns cmd's data_len. See the corresponding field's description in
+ * struct scst_cmd above.
+ */
+static inline int scst_cmd_get_data_len(struct scst_cmd *cmd)
+{
+	return cmd->data_len;
 }
 
 /*
@@ -3513,6 +3533,9 @@ static inline unsigned int scst_get_active_cmd_count(struct scst_cmd *cmd)
 	else
 		return (unsigned int)-1;
 }
+
+int scst_set_cdb_lba(struct scst_cmd *cmd, int64_t len);
+int scst_set_cdb_transf_len(struct scst_cmd *cmd, int len);
 
 /*
  * Get/Set function for mgmt cmd's target private data

@@ -808,7 +808,9 @@ static int dev_user_parse(struct scst_cmd *cmd)
 			min_t(int, SCST_MAX_CDB_SIZE, cmd->cdb_len));
 		ucmd->user_cmd.parse_cmd.cdb_len = cmd->cdb_len;
 		ucmd->user_cmd.parse_cmd.timeout = cmd->timeout / HZ;
+		ucmd->user_cmd.parse_cmd.lba = cmd->lba;
 		ucmd->user_cmd.parse_cmd.bufflen = cmd->bufflen;
+		ucmd->user_cmd.parse_cmd.data_len = cmd->data_len;
 		ucmd->user_cmd.parse_cmd.out_bufflen = cmd->out_bufflen;
 		ucmd->user_cmd.parse_cmd.queue_type = cmd->queue_type;
 		ucmd->user_cmd.parse_cmd.data_direction = cmd->data_direction;
@@ -913,9 +915,9 @@ static int dev_user_exec(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	TRACE_DBG("Preparing EXEC for user space (ucmd=%p, h=%d, "
+	TRACE_DBG("Preparing EXEC for user space (ucmd=%p, h=%d, lba %lld, "
 		"bufflen %d, data_len %d, ubuff %lx)", ucmd, ucmd->h,
-		cmd->bufflen, cmd->data_len, ucmd->ubuff);
+		(long long)cmd->lba, cmd->bufflen, cmd->data_len, ucmd->ubuff);
 
 	if (cmd->data_direction & SCST_DATA_WRITE)
 		dev_user_flush_dcache(ucmd);
@@ -929,6 +931,7 @@ static int dev_user_exec(struct scst_cmd *cmd)
 	memcpy(ucmd->user_cmd.exec_cmd.cdb, cmd->cdb,
 		min_t(int, SCST_MAX_CDB_SIZE, cmd->cdb_len));
 	ucmd->user_cmd.exec_cmd.cdb_len = cmd->cdb_len;
+	ucmd->user_cmd.exec_cmd.lba = cmd->lba;
 	ucmd->user_cmd.exec_cmd.bufflen = cmd->bufflen;
 	ucmd->user_cmd.exec_cmd.data_len = cmd->data_len;
 	ucmd->user_cmd.exec_cmd.pbuf = ucmd->ubuff;
@@ -1299,7 +1302,7 @@ static int dev_user_process_reply_parse(struct scst_user_cmd *ucmd,
 		goto out_inval;
 
 	if (unlikely((preply->bufflen < 0) || (preply->out_bufflen < 0) ||
-		     (preply->data_len < 0)))
+		     (preply->data_len < 0) || (preply->lba < 0)))
 		goto out_inval;
 
 	if (unlikely(preply->cdb_len > cmd->cdb_len))
@@ -1308,14 +1311,15 @@ static int dev_user_process_reply_parse(struct scst_user_cmd *ucmd,
 	if (!(preply->op_flags & SCST_INFO_VALID))
 		goto out_inval;
 
-	TRACE_DBG("ucmd %p, queue_type %x, data_direction, %x, bufflen %d, "
-		"data_len %d, pbuf %llx, cdb_len %d, op_flags %x", ucmd,
-		preply->queue_type, preply->data_direction, preply->bufflen,
-		preply->data_len, reply->alloc_reply.pbuf, preply->cdb_len,
-		preply->op_flags);
+	TRACE_DBG("ucmd %p, queue_type %x, data_direction, %x, lba %lld, "
+		"bufflen %d, data_len %d, pbuf %llx, cdb_len %d, op_flags %x",
+		ucmd, preply->queue_type, preply->data_direction,
+		(long long)preply->lba, preply->bufflen, preply->data_len,
+		reply->alloc_reply.pbuf, preply->cdb_len, preply->op_flags);
 
 	cmd->queue_type = preply->queue_type;
 	cmd->data_direction = preply->data_direction;
+	cmd->lba = preply->lba;
 	cmd->bufflen = preply->bufflen;
 	cmd->out_bufflen = preply->out_bufflen;
 	cmd->data_len = preply->data_len;

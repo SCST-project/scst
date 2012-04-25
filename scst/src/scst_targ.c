@@ -505,14 +505,14 @@ int scst_pre_parse(struct scst_cmd *cmd)
 		  cmd->queue_type == SCST_CMD_QUEUE_ORDERED));
 #endif
 
-
 	TRACE_DBG("op_name <%s> (cmd %p), direction=%d "
-		"(expected %d, set %s), bufflen=%d, out_bufflen=%d (expected "
-		"len %d, out expected len %d), flags=0x%x", cmd->op_name, cmd,
-		cmd->data_direction, cmd->expected_data_direction,
+		"(expected %d, set %s), bufflen=%d, data_len %d, out_bufflen=%d "
+		"(expected len %d, out expected len %d), flags=0x%x", cmd->op_name,
+		cmd, cmd->data_direction, cmd->expected_data_direction,
 		scst_cmd_is_expected_set(cmd) ? "yes" : "no",
-		cmd->bufflen, cmd->out_bufflen, cmd->expected_transfer_len,
-		cmd->expected_out_transfer_len, cmd->op_flags);
+		cmd->bufflen, cmd->data_len, cmd->out_bufflen,
+		cmd->expected_transfer_len, cmd->expected_out_transfer_len,
+		cmd->op_flags);
 
 	res = 0;
 
@@ -611,6 +611,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 				cmd->expected_out_transfer_len);
 			cmd->data_direction = cmd->expected_data_direction;
 			cmd->bufflen = cmd->expected_transfer_len;
+			cmd->data_len = cmd->bufflen;
 			cmd->out_bufflen = cmd->expected_out_transfer_len;
 		} else {
 			PRINT_ERROR("Unknown opcode 0x%02x for %s and "
@@ -649,14 +650,6 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 
 	EXTRACHECKS_BUG_ON(cmd->cdb_len == 0);
 
-	TRACE(TRACE_SCSI, "op_name <%s> (cmd %p), direction=%d "
-		"(expected %d, set %s), bufflen=%d, out_bufflen=%d, (expected "
-		"len %d, out expected len %d), flags=%x", cmd->op_name, cmd,
-		cmd->data_direction, cmd->expected_data_direction,
-		scst_cmd_is_expected_set(cmd) ? "yes" : "no",
-		cmd->bufflen, cmd->out_bufflen, cmd->expected_transfer_len,
-		cmd->expected_out_transfer_len, cmd->op_flags);
-
 	if (unlikely((cmd->op_flags & SCST_UNKNOWN_LENGTH) != 0)) {
 		if (scst_cmd_is_expected_set(cmd)) {
 			/*
@@ -669,6 +662,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 			 */
 			cmd->bufflen = min(cmd->expected_transfer_len,
 						15*1024*1024);
+			cmd->data_len = cmd->bufflen;
 			if (cmd->data_direction == SCST_DATA_BIDI)
 				cmd->out_bufflen = min(cmd->expected_out_transfer_len,
 							15*1024*1024);
@@ -741,6 +735,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 				cmd->cdb, cmd->cdb_len);
 			cmd->data_direction = cmd->expected_data_direction;
 			cmd->bufflen = cmd->expected_transfer_len;
+			cmd->data_len = cmd->bufflen;
 			cmd->out_bufflen = cmd->expected_out_transfer_len;
 			cmd->resid_possible = 1;
 		}
@@ -799,10 +794,14 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 		goto out_hw_error;
 	}
 
-set_res:
-	if (cmd->data_len == -1)
-		cmd->data_len = cmd->bufflen;
+	if (unlikely(cmd->op_flags & SCST_UNKNOWN_LBA)) {
+		PRINT_ERROR("Unknown LBA (opcode 0x%x, handler %s, "
+			"target %s)", cmd->cdb[0], devt->name, cmd->tgtt->name);
+		PRINT_BUFFER("Failed CDB", cmd->cdb, cmd->cdb_len);
+		goto out_hw_error;
+	}
 
+set_res:
 	if (cmd->bufflen == 0) {
 		/*
 		 * According to SPC bufflen 0 for data transfer commands isn't
@@ -810,6 +809,15 @@ set_res:
 		 */
 		cmd->data_direction = SCST_DATA_NONE;
 	}
+
+	TRACE(TRACE_SCSI, "op_name <%s> (cmd %p), direction=%d "
+		"(expected %d, set %s), bufflen=%d, data len %d, out_bufflen=%d, "
+		"(expected len %d, out expected len %d), flags=0x%x, lba=%lld",
+		cmd->op_name, cmd, cmd->data_direction, cmd->expected_data_direction,
+		scst_cmd_is_expected_set(cmd) ? "yes" : "no",
+		cmd->bufflen, cmd->data_len, cmd->out_bufflen,
+		cmd->expected_transfer_len, cmd->expected_out_transfer_len,
+		cmd->op_flags, (unsigned long long)cmd->lba);
 
 #ifdef CONFIG_SCST_EXTRACHECKS
 	switch (state) {
@@ -871,6 +879,23 @@ set_res:
 #endif
 
 out:
+#ifdef CONFIG_SCST_EXTRACHECKS
+	/*
+	 * At this point either data_len must be initialized, or cmd
+	 * completed (with an error).
+	 */
+	if (unlikely((cmd->data_len == SCST_DEF_DATA_LEN)) &&
+	    (!cmd->completed || ((cmd->state <= SCST_CMD_STATE_REAL_EXEC) &&
+	    			 (cmd->state != SCST_CMD_STATE_PREPROCESSING_DONE)))) {
+		PRINT_CRIT_ERROR("Not initialized data_len for going to "
+			"execute command (cmd %p, data_len %d, completed %d, "
+			"state %d)", cmd, cmd->data_len, cmd->completed,
+			cmd->state);
+		WARN_ON(1);
+		goto out_hw_error;
+	}
+#endif
+
 	TRACE_EXIT_HRES(res);
 	return res;
 
@@ -950,8 +975,8 @@ static int scst_prepare_space(struct scst_cmd *cmd)
 			goto out;
 		}
 
-		TRACE_DBG("Calling dev handler %s (%p) alloc_data_buf(%p)",
-		      devt->name, devt, cmd);
+		TRACE_DBG("Calling dev handler's %s alloc_data_buf(%p)",
+		      devt->name, cmd);
 		scst_set_cur_start(cmd);
 		state = devt->alloc_data_buf(cmd);
 		/*
@@ -2700,6 +2725,8 @@ static int scst_pre_exec_checks(struct scst_cmd *cmd)
 	int res, rc;
 
 	TRACE_ENTRY();
+
+	EXTRACHECKS_BUG_ON(cmd->data_len == SCST_DEF_DATA_LEN);
 
 	rc = __scst_check_local_events(cmd, false);
 	if (unlikely(rc != 0))
