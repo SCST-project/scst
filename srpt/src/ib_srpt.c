@@ -2330,7 +2330,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	struct task_struct *thread;
 	u32 it_iu_len;
 	int i;
-	int ret = 0;
+	int ret;
 
 	EXTRACHECKS_WARN_ON_ONCE(irqs_disabled());
 
@@ -2359,19 +2359,17 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	    be64_to_cpu(*(__be64 *)&sdev->port[param->port - 1].gid.raw[0]),
 	    be64_to_cpu(*(__be64 *)&sdev->port[param->port - 1].gid.raw[8]));
 
+	ret = -ENOMEM;
 	rsp = kzalloc(sizeof *rsp, GFP_KERNEL);
 	rej = kzalloc(sizeof *rej, GFP_KERNEL);
 	rep_param = kzalloc(sizeof *rep_param, GFP_KERNEL);
-
-	if (!rsp || !rej || !rep_param) {
-		ret = -ENOMEM;
+	if (!rsp || !rej || !rep_param)
 		goto out;
-	}
 
+	ret = -EINVAL;
 	if (it_iu_len > srp_max_req_size || it_iu_len < 64) {
 		rej->reason = cpu_to_be32(
 				SRP_LOGIN_REJ_REQ_IT_IU_LENGTH_TOO_LARGE);
-		ret = -EINVAL;
 		PRINT_ERROR("rejected SRP_LOGIN_REQ because its"
 			    " length (%d bytes) is out of range (%d .. %d)",
 			    it_iu_len, 64, srp_max_req_size);
@@ -2381,7 +2379,6 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	if (!srpt_is_target_enabled(sdev->scst_tgt)) {
 		rej->reason = cpu_to_be32(
 				SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-		ret = -EINVAL;
 		PRINT_ERROR("rejected SRP_LOGIN_REQ because the target %s (%s)"
 			    " has not yet been enabled",
 			    sdev->scst_tgt->tgt_name, sdev->device->name);
@@ -2393,18 +2390,17 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	       cpu_to_be64(srpt_service_guid)) {
 		rej->reason = cpu_to_be32(
 				SRP_LOGIN_REJ_UNABLE_ASSOCIATE_CHANNEL);
-		ret = -ENOMEM;
 		PRINT_ERROR("%s", "rejected SRP_LOGIN_REQ because it"
 		       " has an invalid target port identifier.");
 		goto reject;
 	}
 
+	ret = -ENOMEM;
 	ch = kzalloc(sizeof *ch, GFP_KERNEL);
 	if (!ch) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		PRINT_ERROR("%s",
 			    "rejected SRP_LOGIN_REQ because out of memory.");
-		ret = -ENOMEM;
 		goto reject;
 	}
 
@@ -2473,6 +2469,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	TRACE_DBG("registering session %s", ch->sess_name);
 
 	BUG_ON(!sdev->scst_tgt);
+	ret = -ENOMEM;
 	ch->scst_sess = scst_register_session(sdev->scst_tgt, 0, ch->sess_name,
 					      ch, NULL, NULL);
 	if (!ch->scst_sess) {
@@ -2485,7 +2482,8 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 			     ch->sport->sdev->device->name);
 	if (IS_ERR(thread)) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-		PRINT_ERROR("failed to create kernel thread %ld", PTR_ERR(ch->thread));
+		ret = PTR_ERR(ch->thread);
+		PRINT_ERROR("failed to create kernel thread: %d", ret);
 		goto unreg_ch;
 	}
 
@@ -2614,6 +2612,8 @@ reject:
 				   SRP_BUF_FORMAT_INDIRECT);
 	ib_send_cm_rej(cm_id, IB_CM_REJ_CONSUMER_DEFINED, NULL, 0,
 			     (void *)rej, sizeof *rej);
+
+	BUG_ON(ret == 0);
 
 out:
 	kfree(rep_param);
