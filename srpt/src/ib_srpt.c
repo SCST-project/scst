@@ -2380,7 +2380,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		rej->reason = cpu_to_be32(
 				SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		PRINT_ERROR("rejected SRP_LOGIN_REQ because the target %s (%s)"
-			    " has not yet been enabled",
+			    " is not enabled",
 			    sdev->scst_tgt->tgt_name, sdev->device->name);
 		goto reject;
 	}
