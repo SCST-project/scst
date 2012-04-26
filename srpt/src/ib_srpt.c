@@ -2767,7 +2767,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 				 struct srpt_send_ioctx *ioctx,
 				 struct scst_cmd *scmnd)
 {
-	struct scatterlist *sg;
+	struct scatterlist *sg, *cur_sg;
 	int sg_cnt;
 	scst_data_direction dir;
 	struct rdma_iu *riu;
@@ -2842,7 +2842,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	 *      we need to allocate extra rdma_iu to carry extra #ib_sge in
 	 *      another rdma wr
 	 */
-	for (i = 0, j = 0;
+	for (i = 0, j = 0, cur_sg = sg;
 	     j < count && i < ioctx->n_rbuf && tsize > 0; ++i, ++riu, ++db) {
 		rsize = be32_to_cpu(db->len);
 		raddr = be64_to_cpu(db->va);
@@ -2861,8 +2861,10 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 
 				if (tsize > 0) {
 					++j;
-					if (j < count)
-						dma_len = sg_dma_len(&sg[j]);
+					if (j < count) {
+						cur_sg = sg_next(cur_sg);
+						dma_len = sg_dma_len(cur_sg);
+					}
 				}
 			} else {
 				tsize -= rsize;
@@ -2896,7 +2898,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	dma_addr = sg_dma_address(&sg[0]);
 
 	/* this second loop is really mapped sg_addres to rdma_iu->ib_sge */
-	for (i = 0, j = 0;
+	for (i = 0, j = 0, cur_sg = sg;
 	     j < count && i < ioctx->n_rbuf && tsize > 0; ++i, ++riu, ++db) {
 		rsize = be32_to_cpu(db->len);
 		sge = riu->sge;
@@ -2915,9 +2917,10 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 				if (tsize > 0) {
 					++j;
 					if (j < count) {
-						dma_len = sg_dma_len(&sg[j]);
+						cur_sg = sg_next(cur_sg);
+						dma_len = sg_dma_len(cur_sg);
 						dma_addr =
-						    sg_dma_address(&sg[j]);
+						    sg_dma_address(cur_sg);
 					}
 				}
 			} else {
