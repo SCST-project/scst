@@ -886,7 +886,7 @@ out:
 	 */
 	if (unlikely((cmd->data_len == SCST_DEF_DATA_LEN)) &&
 	    (!cmd->completed ||
-	     (((cmd->state <= SCST_CMD_STATE_PRE_XMIT_RESP) ||
+	     (((cmd->state < SCST_CMD_STATE_PRE_XMIT_RESP) ||
 	       (cmd->state >= SCST_CMD_STATE_LAST_ACTIVE)) &&
 	      (cmd->state != SCST_CMD_STATE_PREPROCESSING_DONE)))) {
 		PRINT_CRIT_ERROR("Not initialized data_len for going to "
@@ -894,7 +894,6 @@ out:
 			"completed %d, state %d)", cmd, cmd->data_len,
 			cmd->completed, cmd->state);
 		sBUG();
-		goto out_hw_error;
 	}
 #endif
 
