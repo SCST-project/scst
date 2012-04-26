@@ -5857,7 +5857,7 @@ static int get_cdb_info_lba_4_none(struct scst_cmd *cmd,
 {
 	cmd->lba = get_unaligned_be32(cmd->cdb + sdbops->info_lba_off);
 	/* It supposed to be already zeroed */
-	EXTRACHECKS_BUG_ON(cmd->bufflen != 0); 
+	EXTRACHECKS_BUG_ON(cmd->bufflen != 0);
 	cmd->data_len = cmd->bufflen;
 	return 0;
 }
