@@ -1048,6 +1048,11 @@ static enum compl_status_e vdisk_exec_maintenance_in(struct vdisk_cmd_params *p)
 	return INVALID_OPCODE;
 }
 
+static enum compl_status_e vdisk_exec_send_diagnostic(struct vdisk_cmd_params *p)
+{
+	return CMD_SUCCEEDED;
+}
+
 #define SHARED_OPS							\
 	[SYNCHRONIZE_CACHE] = vdisk_synchronize_cache,			\
 	[MODE_SENSE] = vdisk_exec_mode_sense,				\
@@ -1069,7 +1074,8 @@ static enum compl_status_e vdisk_exec_maintenance_in(struct vdisk_cmd_params *p)
 	[READ_CAPACITY] = vdisk_exec_read_capacity,			\
 	[SERVICE_ACTION_IN] = vdisk_exec_srv_action_in,			\
 	[UNMAP] = vdisk_exec_unmap,					\
-	[MAINTENANCE_IN] = vdisk_exec_maintenance_in,
+	[MAINTENANCE_IN] = vdisk_exec_maintenance_in,			\
+	[SEND_DIAGNOSTIC] = vdisk_exec_send_diagnostic,
 
 static const vdisk_op_fn blockio_ops[256] = {
 	[READ_6] = blockio_exec_read,
