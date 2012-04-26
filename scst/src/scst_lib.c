@@ -242,7 +242,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 .info_op_name = "READ BLOCK LIMITS",
 	 .info_data_direction = SCST_DATA_READ,
 	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_REG_RESERVE_ALLOWED|
-	 	SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
+		SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
 	 .get_cdb_info = get_cdb_info_block_limit},
 	{.ops = 0x07, .devkey = "        O       ",
 	 .info_op_name = "INITIALIZE ELEMENT STATUS",
@@ -367,7 +367,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 .info_op_name = "INQUIRY",
 	 .info_data_direction = SCST_DATA_READ,
 	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_IMPLICIT_HQ|SCST_SKIP_UA|
-		SCST_REG_RESERVE_ALLOWED| SCST_WRITE_EXCL_ALLOWED|
+		SCST_REG_RESERVE_ALLOWED|SCST_WRITE_EXCL_ALLOWED|
 		SCST_EXCL_ACCESS_ALLOWED,
 	 .info_len_off = 3, .info_len_len = 2,
 	 .get_cdb_info = get_cdb_info_len_2},
