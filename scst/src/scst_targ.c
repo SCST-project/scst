@@ -882,16 +882,18 @@ out:
 #ifdef CONFIG_SCST_EXTRACHECKS
 	/*
 	 * At this point either data_len must be initialized, or cmd
-	 * completed (with an error).
+	 * completed (with an error) and correct state set.
 	 */
 	if (unlikely((cmd->data_len == SCST_DEF_DATA_LEN)) &&
-	    (!cmd->completed || ((cmd->state <= SCST_CMD_STATE_REAL_EXEC) &&
-				 (cmd->state != SCST_CMD_STATE_PREPROCESSING_DONE)))) {
+	    (!cmd->completed ||
+	     (((cmd->state <= SCST_CMD_STATE_PRE_XMIT_RESP) ||
+	       (cmd->state >= SCST_CMD_STATE_LAST_ACTIVE)) &&
+	      (cmd->state != SCST_CMD_STATE_PREPROCESSING_DONE)))) {
 		PRINT_CRIT_ERROR("Not initialized data_len for going to "
-			"execute command (cmd %p, data_len %d, completed %d, "
-			"state %d)", cmd, cmd->data_len, cmd->completed,
-			cmd->state);
-		WARN_ON(1);
+			"execute command or bad state (cmd %p, data_len %d, "
+			"completed %d, state %d)", cmd, cmd->data_len,
+			cmd->completed, cmd->state);
+		sBUG();
 		goto out_hw_error;
 	}
 #endif
