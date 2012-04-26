@@ -48,6 +48,9 @@
 #include <linux/bio.h>
 #include <linux/crc32c.h>
 #include <linux/swap.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
+#include <linux/falloc.h>
+#endif
 
 #define LOG_PREFIX			"dev_vdisk"
 
@@ -666,7 +669,6 @@ out:
 
 static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 {
-	struct inode *inode = NULL;
 	struct file *fd = NULL;
 
 	TRACE_ENTRY();
@@ -683,9 +685,8 @@ static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 		goto out_check;
 	}
 
-	inode = fd->f_dentry->d_inode;
-
 	if (virt_dev->blockio) {
+		struct inode *inode = fd->f_dentry->d_inode;
 		if (!S_ISBLK(inode->i_mode)) {
 			PRINT_ERROR("%s is NOT a block device",
 				virt_dev->filename);
@@ -696,12 +697,11 @@ static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 			blk_queue_discard(bdev_get_queue(inode->i_bdev));
 #endif
 	} else {
-		/*
-		 * truncate_range() was chosen rather as a sample. In future,
-		 * when unmap of range of blocks in file become standard, we
-		 * will just switch to the new call.
-		 */
-		virt_dev->dev_thin_provisioned = (inode->i_op->truncate_range != NULL);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
+		virt_dev->dev_thin_provisioned = (fd->f_op->fallocate != NULL);
+#else
+		virt_dev->dev_thin_provisioned = 0;
+#endif
 	}
 
 out_close:
@@ -1861,13 +1861,96 @@ static uint64_t vdisk_gen_dev_id_num(const char *virt_dev_name)
 #endif
 }
 
+/* start and len in blocks */
+static int vdisk_unmap_range(struct scst_cmd *cmd,
+	struct scst_vdisk_dev *virt_dev, uint64_t start, uint32_t len)
+{
+	int res, err;
+	struct file *fd = virt_dev->fd;
+	struct inode *inode = fd->f_dentry->d_inode;;
+
+	TRACE_ENTRY();
+
+	if ((start > virt_dev->nblocks) ||
+	    ((start + len) > virt_dev->nblocks)) {
+		PRINT_ERROR("Device %s: attempt to write beyond max "
+			"size", virt_dev->name);
+		scst_set_cmd_error(cmd,
+			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		res = -EINVAL;
+		goto out;
+	}
+
+	TRACE_DBG("Unmapping lba %lld (blocks %lld)",
+		(unsigned long long)start, (unsigned long long)len);
+
+	if (virt_dev->blockio) {
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 27)
+		gfp_t gfp = scst_cmd_get_gfp_flags(cmd);
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 31)
+		err = blkdev_issue_discard(inode->i_bdev, start, len, gfp);
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)       \
+      && !(LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 34) \
+           && defined(CONFIG_SUSE_KERNEL))
+		err = blkdev_issue_discard(inode->i_bdev, start, len,
+				gfp, DISCARD_FL_WAIT);
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
+		err = blkdev_issue_discard(inode->i_bdev, start, len,
+				gfp, BLKDEV_IFL_WAIT);
+#else
+		err = blkdev_issue_discard(inode->i_bdev, start, len, gfp, 0);
+#endif
+		if (unlikely(err != 0)) {
+			PRINT_ERROR("blkdev_issue_discard() for "
+				"LBA %lld len %d failed: %d",
+				(unsigned long long)start, len, err);
+			scst_set_cmd_error(cmd,
+				SCST_LOAD_SENSE(scst_sense_write_error));
+			res = -EIO;
+			goto out;
+		}
+#else
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+		res = -EIO;
+		goto out;
+#endif
+	} else {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
+		const int block_shift = virt_dev->block_shift;
+		const loff_t s = start << block_shift;
+		const loff_t l = len << block_shift;
+
+		TRACE_DBG("Fallocating range %lld, len %lld",
+			(unsigned long long)s, (unsigned long long)l);
+
+		err = fd->f_op->fallocate(fd,
+			FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, s, l);
+		if (unlikely(err != 0)) {
+			PRINT_ERROR("fallocate() for LBA %lld len %lld "
+				"failed: %d", (unsigned long long)start,
+				(unsigned long long)len, err);
+			scst_set_cmd_error(cmd,
+				SCST_LOAD_SENSE(scst_sense_write_error));
+			res = -EIO;
+			goto out;
+		}
+#else
+		sBUG();
+#endif
+	}
+
+	res = 0;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 static enum compl_status_e vdisk_exec_unmap(struct vdisk_cmd_params *p)
 {
 	struct scst_cmd *cmd = p->cmd;
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	ssize_t length = 0;
-	struct file *fd = virt_dev->fd;
-	struct inode *inode;
 	uint8_t *address;
 	int offset, descriptor_len, total_len;
 
@@ -1900,8 +1983,6 @@ static enum compl_status_e vdisk_exec_unmap(struct vdisk_cmd_params *p)
 		goto out;
 	}
 
-	inode = fd->f_dentry->d_inode;
-
 	total_len = get_unaligned_be16(&cmd->cdb[7]);	/* length */
 	offset = 8;
 
@@ -1922,82 +2003,18 @@ static enum compl_status_e vdisk_exec_unmap(struct vdisk_cmd_params *p)
 	}
 
 	while ((offset - 8) < descriptor_len) {
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 27)
-		int err;
-#endif
+		int rc;
 		uint64_t start;
 		uint32_t len;
+
 		start = get_unaligned_be64(&address[offset]);
 		offset += 8;
 		len = get_unaligned_be32(&address[offset]);
 		offset += 8;
 
-		if ((start > virt_dev->nblocks) ||
-		    ((start + len) > virt_dev->nblocks)) {
-			PRINT_ERROR("Device %s: attempt to write beyond max "
-				"size", virt_dev->name);
-			scst_set_cmd_error(cmd,
-			    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		rc = vdisk_unmap_range(cmd, virt_dev, start, len);
+		if (rc != 0)
 			goto out_put;
-		}
-
-		TRACE_DBG("Unmapping lba %lld (blocks %d)",
-			(unsigned long long)start, len);
-
-		if (virt_dev->blockio) {
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 27)
-			gfp_t gfp = scst_cmd_get_gfp_flags(cmd);
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 31)
-			err = blkdev_issue_discard(inode->i_bdev, start, len,
-					gfp);
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)       \
-      && !(LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 34) \
-           && defined(CONFIG_SUSE_KERNEL))
-			err = blkdev_issue_discard(inode->i_bdev, start, len,
-					gfp, DISCARD_FL_WAIT);
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
-			err = blkdev_issue_discard(inode->i_bdev, start, len,
-					gfp, BLKDEV_IFL_WAIT);
-#else
-			err = blkdev_issue_discard(inode->i_bdev, start, len,
-						   gfp, 0);
-#endif
-			if (unlikely(err != 0)) {
-				PRINT_ERROR("blkdev_issue_discard() for "
-					"LBA %lld len %d failed with err %d",
-					(unsigned long long)start, len, err);
-				scst_set_cmd_error(cmd,
-					SCST_LOAD_SENSE(scst_sense_write_error));
-				goto out_put;
-			}
-#else
-			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_invalid_opcode));
-			goto out_put;
-#endif
-		} else {
-			const int block_shift = virt_dev->block_shift;
-			const loff_t a0 = start << block_shift;
-			const loff_t a2 = (start + len) << block_shift;
-			const loff_t a1 = max_t(loff_t, a2 & PAGE_CACHE_MASK,
-						a0);
-
-			/*
-			 * The SCSI UNMAP command discards a range of blocks
-			 * of size (1 << block_shift) while the Linux VFS
-			 * truncate_range() function discards a range of blocks
-			 * of size PAGE_CACHE_SIZE. Hence pass range [a0, a1)
-			 * to truncate_range() instead of range [a0,
-			 * a2). Note: since we do not set TPRZ it is not
-			 * necessary to overwrite the range [a1, a2) with
-			 * zeroes.
-			 */
-			WARN_ON(!(a0 <= a1 && a1 <= a2));
-			WARN_ON(!((a1 & (PAGE_CACHE_SIZE - 1)) == 0 ||
-				  a0 == a1));
-			if (a0 < a1)
-				inode->i_op->truncate_range(inode, a0, a1 - 1);
-		}
 	}
 
 out_put:
