@@ -1867,7 +1867,7 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 {
 	int res, err;
 	struct file *fd = virt_dev->fd;
-	struct inode *inode = fd->f_dentry->d_inode;;
+	struct inode *inode = fd->f_dentry->d_inode;
 
 	TRACE_ENTRY();
 
