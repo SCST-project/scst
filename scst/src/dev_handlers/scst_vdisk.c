@@ -892,7 +892,7 @@ static void vdisk_detach(struct scst_device *dev)
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
 #endif
 
@@ -916,7 +916,7 @@ static int vdisk_attach_tgt(struct scst_tgt_dev *tgt_dev)
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
 #endif
 
@@ -949,7 +949,7 @@ static void vdisk_detach_tgt(struct scst_tgt_dev *tgt_dev)
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
 #endif
 
