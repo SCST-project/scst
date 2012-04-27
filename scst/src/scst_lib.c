@@ -224,7 +224,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 .info_op_name = "REQUEST SENSE",
 	 .info_data_direction = SCST_DATA_READ,
 	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_SKIP_UA|SCST_LOCAL_CMD|
-		 SCST_REG_RESERVE_ALLOWED| SCST_WRITE_EXCL_ALLOWED|
+		 SCST_REG_RESERVE_ALLOWED|SCST_WRITE_EXCL_ALLOWED|
 		 SCST_EXCL_ACCESS_ALLOWED,
 	 .info_len_off = 4, .info_len_len = 1,
 	 .get_cdb_info = get_cdb_info_len_1},
