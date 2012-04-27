@@ -6085,8 +6085,7 @@ EXPORT_SYMBOL_GPL(scst_calc_block_shift);
  *
  * Generic parse() for SBC (disk) devices
  */
-int scst_sbc_generic_parse(struct scst_cmd *cmd,
-	int (*get_block_shift)(struct scst_cmd *cmd))
+int scst_sbc_generic_parse(struct scst_cmd *cmd)
 {
 	int res = 0;
 
@@ -6098,7 +6097,7 @@ int scst_sbc_generic_parse(struct scst_cmd *cmd,
 	 */
 
 	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED) {
-		int block_shift = get_block_shift(cmd);
+		int block_shift = cmd->dev->block_shift;
 		/*
 		 * No need for locks here, since *_detach() can not be
 		 * called, when there are existing commands.
@@ -6128,8 +6127,7 @@ EXPORT_SYMBOL_GPL(scst_sbc_generic_parse);
  *
  * Generic parse() for MMC (cdrom) devices
  */
-int scst_cdrom_generic_parse(struct scst_cmd *cmd,
-	int (*get_block_shift)(struct scst_cmd *cmd))
+int scst_cdrom_generic_parse(struct scst_cmd *cmd)
 {
 	int res = 0;
 
@@ -6143,7 +6141,7 @@ int scst_cdrom_generic_parse(struct scst_cmd *cmd,
 	cmd->cdb[1] &= 0x1f;
 
 	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED) {
-		int block_shift = get_block_shift(cmd);
+		int block_shift = cmd->dev->block_shift;
 		cmd->bufflen = cmd->bufflen << block_shift;
 		cmd->data_len = cmd->data_len << block_shift;
 		cmd->out_bufflen = cmd->out_bufflen << block_shift;
@@ -6169,8 +6167,7 @@ EXPORT_SYMBOL_GPL(scst_cdrom_generic_parse);
  *
  * Generic parse() for MO disk devices
  */
-int scst_modisk_generic_parse(struct scst_cmd *cmd,
-	int (*get_block_shift)(struct scst_cmd *cmd))
+int scst_modisk_generic_parse(struct scst_cmd *cmd)
 {
 	int res = 0;
 
@@ -6184,7 +6181,7 @@ int scst_modisk_generic_parse(struct scst_cmd *cmd,
 	cmd->cdb[1] &= 0x1f;
 
 	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED) {
-		int block_shift = get_block_shift(cmd);
+		int block_shift = cmd->dev->block_shift;
 		cmd->bufflen = cmd->bufflen << block_shift;
 		cmd->data_len = cmd->data_len << block_shift;
 		cmd->out_bufflen = cmd->out_bufflen << block_shift;
@@ -6210,8 +6207,7 @@ EXPORT_SYMBOL_GPL(scst_modisk_generic_parse);
  *
  * Generic parse() for tape devices
  */
-int scst_tape_generic_parse(struct scst_cmd *cmd,
-	int (*get_block_size)(struct scst_cmd *cmd))
+int scst_tape_generic_parse(struct scst_cmd *cmd)
 {
 	int res = 0;
 
@@ -6239,7 +6235,7 @@ int scst_tape_generic_parse(struct scst_cmd *cmd,
 	}
 
 	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED & cmd->cdb[1]) {
-		int block_size = get_block_size(cmd);
+		int block_size = cmd->dev->block_size;
 		cmd->bufflen = cmd->bufflen * block_size;
 		cmd->data_len = cmd->data_len * block_size;
 		cmd->out_bufflen = cmd->out_bufflen * block_size;
@@ -6288,8 +6284,7 @@ static int scst_null_parse(struct scst_cmd *cmd)
  *
  * Generic parse() for changer devices
  */
-int scst_changer_generic_parse(struct scst_cmd *cmd,
-	int (*nothing)(struct scst_cmd *cmd))
+int scst_changer_generic_parse(struct scst_cmd *cmd)
 {
 	int res = scst_null_parse(cmd);
 
@@ -6307,8 +6302,7 @@ EXPORT_SYMBOL_GPL(scst_changer_generic_parse);
  *
  * Generic parse() for SCSI processor devices
  */
-int scst_processor_generic_parse(struct scst_cmd *cmd,
-	int (*nothing)(struct scst_cmd *cmd))
+int scst_processor_generic_parse(struct scst_cmd *cmd)
 {
 	int res = scst_null_parse(cmd);
 
@@ -6326,8 +6320,7 @@ EXPORT_SYMBOL_GPL(scst_processor_generic_parse);
  *
  * Generic parse() for RAID devices
  */
-int scst_raid_generic_parse(struct scst_cmd *cmd,
-	int (*nothing)(struct scst_cmd *cmd))
+int scst_raid_generic_parse(struct scst_cmd *cmd)
 {
 	int res = scst_null_parse(cmd);
 
@@ -6366,10 +6359,8 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 	 * therefore change them only if necessary
 	 */
 
-	if (likely((status == SAM_STAT_GOOD)) || (status == SAM_STAT_CONDITION_MET)) {
-		switch (opcode) {
-		case READ_CAPACITY:
-		{
+	if (unlikely(opcode == READ_CAPACITY)) {
+		if ((status == SAM_STAT_GOOD) || (status == SAM_STAT_CONDITION_MET)) {
 			/* Always keep track of disk capacity */
 			int buffer_size, sector_size, sh;
 			uint8_t *buffer;
@@ -6391,12 +6382,9 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 				sh = 0;
 			set_block_shift(cmd, sh);
 			TRACE_DBG("block_shift %d", sh);
-			break;
 		}
-		default:
-			/* It's all good */
-			break;
-		}
+	} else {
+		/* It's all good */
 	}
 
 	TRACE_DBG("cmd->is_send_status=%x, cmd->resp_data_len=%d, "

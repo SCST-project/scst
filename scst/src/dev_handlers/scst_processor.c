@@ -124,7 +124,7 @@ static int processor_parse(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_DEFAULT, rc;
 
-	rc = scst_processor_generic_parse(cmd, NULL);
+	rc = scst_processor_generic_parse(cmd);
 	if (rc != 0) {
 		res = scst_get_cmd_abnormal_done_state(cmd);
 		goto out;

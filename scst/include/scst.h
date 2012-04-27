@@ -1998,6 +1998,8 @@ struct scst_cmd {
 	int expected_transfer_len;
 	int expected_out_transfer_len; /* for bidi writes */
 
+	int64_t lba; /* LBA of this cmd in blocks */
+
 	/*
 	 * Cmd data length. Could be different from bufflen for commands like
 	 * VERIFY, which transfer different amount of data (if any), than
@@ -2010,7 +2012,6 @@ struct scst_cmd {
 		enum scst_exec_context pref_context);
 
 	struct sgv_pool_obj *sgv;	/* sgv object */
-	int64_t lba;			/* LBA of this cmd in blocks */
 	int bufflen;			/* cmd buffer length */
 	int sg_cnt;			/* SG segments count */
 	struct scatterlist *sg;		/* cmd data buffer SG vector */
@@ -2322,6 +2323,13 @@ struct scst_device {
 	 * Protected by dev_lock.
 	 */
 	int pr_readers_count;
+
+	/*
+	 * Device block size and block shift if fixed size blocks used. Supposed
+	 * to be read-only or serialized the same way as MODE pages changes.
+	 */
+	int block_size;
+	int block_shift;
 
 	/*
 	 * Set if dev is persistently reserved. Protected by dev_pr_mutex.
@@ -4154,20 +4162,13 @@ struct scatterlist *scst_alloc(int size, gfp_t gfp_mask, int *count);
 void scst_free(struct scatterlist *sg, int count);
 
 int scst_calc_block_shift(int sector_size);
-int scst_sbc_generic_parse(struct scst_cmd *cmd,
-	int (*get_block_shift)(struct scst_cmd *cmd));
-int scst_cdrom_generic_parse(struct scst_cmd *cmd,
-	int (*get_block_shift)(struct scst_cmd *cmd));
-int scst_modisk_generic_parse(struct scst_cmd *cmd,
-	int (*get_block_shift)(struct scst_cmd *cmd));
-int scst_tape_generic_parse(struct scst_cmd *cmd,
-	int (*get_block_size)(struct scst_cmd *cmd));
-int scst_changer_generic_parse(struct scst_cmd *cmd,
-	int (*nothing)(struct scst_cmd *cmd));
-int scst_processor_generic_parse(struct scst_cmd *cmd,
-	int (*nothing)(struct scst_cmd *cmd));
-int scst_raid_generic_parse(struct scst_cmd *cmd,
-	int (*nothing)(struct scst_cmd *cmd));
+int scst_sbc_generic_parse(struct scst_cmd *cmd);
+int scst_cdrom_generic_parse(struct scst_cmd *cmd);
+int scst_modisk_generic_parse(struct scst_cmd *cmd);
+int scst_tape_generic_parse(struct scst_cmd *cmd);
+int scst_changer_generic_parse(struct scst_cmd *cmd);
+int scst_processor_generic_parse(struct scst_cmd *cmd);
+int scst_raid_generic_parse(struct scst_cmd *cmd);
 
 int scst_block_generic_dev_done(struct scst_cmd *cmd,
 	void (*set_block_shift)(struct scst_cmd *cmd, int block_shift));

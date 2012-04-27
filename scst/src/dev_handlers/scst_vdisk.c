@@ -98,10 +98,8 @@ static struct scst_trace_log vdisk_local_trace_tbl[] = {
 #define SP				0x01	/* save pages */
 #define PS				0x80	/* parameter saveable */
 
-#define	DEF_DISK_BLOCKSIZE_SHIFT	9
-#define	DEF_DISK_BLOCKSIZE		(1 << DEF_DISK_BLOCKSIZE_SHIFT)
-#define	DEF_CDROM_BLOCKSIZE_SHIFT	11
-#define	DEF_CDROM_BLOCKSIZE		(1 << DEF_CDROM_BLOCKSIZE_SHIFT)
+#define	DEF_DISK_BLOCK_SHIFT		9
+#define	DEF_CDROM_BLOCK_SHIFT		11
 #define	DEF_SECTORS			56
 #define	DEF_HEADS			255
 #define LEN_MEM				(32 * 1024)
@@ -133,9 +131,7 @@ static struct scst_trace_log vdisk_local_trace_tbl[] = {
 #endif
 
 struct scst_vdisk_dev {
-	uint32_t block_size;
 	uint64_t nblocks;
-	int block_shift;
 	loff_t file_size;	/* in bytes */
 
 	/*
@@ -165,6 +161,9 @@ struct scst_vdisk_dev {
 	unsigned int dev_thin_provisioned:1;
 	unsigned int rotational:1;
 
+	struct file *fd;
+	struct block_device *bdev;
+
 	int virt_id;
 	char name[16+1];	/* Name of the virtual device,
 				   must be <= SCSI Model + 1 */
@@ -184,8 +183,9 @@ struct scst_vdisk_dev {
 	struct scst_dev_type *vdev_devt;
 
 	int tgt_dev_cnt;
-	struct file *fd;
-	struct block_device *bdev;
+
+	/* Only to pass it to attach() callback. Don't use it anywhere else! */
+	int blk_shift;
 };
 
 struct vdisk_cmd_params {
@@ -822,6 +822,9 @@ static int vdisk_attach(struct scst_device *dev)
 		goto out;
 	}
 
+	dev->block_shift = virt_dev->blk_shift;
+	dev->block_size = 1 << dev->block_shift;
+
 	if (virt_dev->zero_copy && virt_dev->o_direct_flag) {
 		PRINT_ERROR("%s: combining zero_copy with o_direct is not"
 			    " supported", virt_dev->filename);
@@ -851,7 +854,7 @@ static int vdisk_attach(struct scst_device *dev)
 	} else
 		virt_dev->file_size = 0;
 
-	virt_dev->nblocks = virt_dev->file_size >> virt_dev->block_shift;
+	virt_dev->nblocks = virt_dev->file_size >> dev->block_shift;
 
 	if (!virt_dev->cdrom_empty) {
 		PRINT_INFO("Attached SCSI target virtual %s %s "
@@ -859,7 +862,7 @@ static int vdisk_attach(struct scst_device *dev)
 		      " cyln=%lld%s)",
 		      (dev->type == TYPE_DISK) ? "disk" : "cdrom",
 		      virt_dev->name, vdev_get_filename(virt_dev),
-		      virt_dev->file_size >> 20, virt_dev->block_size,
+		      virt_dev->file_size >> 20, dev->block_size,
 		      (long long unsigned int)virt_dev->nblocks,
 		      (long long unsigned int)virt_dev->nblocks/64/32,
 		      virt_dev->nblocks < 64*32
@@ -986,7 +989,7 @@ static enum compl_status_e vdisk_synchronize_cache(struct vdisk_cmd_params *p)
 	if (data_len == 0) {
 		struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 		data_len = virt_dev->file_size -
-			((loff_t)scst_cmd_get_lba(cmd) << virt_dev->block_shift);
+			((loff_t)scst_cmd_get_lba(cmd) << dev->block_shift);
 	}
 
 	if (immed) {
@@ -1172,7 +1175,7 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 	lba_start = scst_cmd_get_lba(cmd);
 	data_len = scst_cmd_get_data_len(cmd);
 
-	loff = (loff_t)lba_start << virt_dev->block_shift;
+	loff = (loff_t)lba_start << dev->block_shift;
 	TRACE_DBG("cmd %p, lba_start %lld, loff %lld, data_len %lld", cmd,
 		  (long long unsigned int)lba_start,
 		  (long long unsigned int)loff,
@@ -1253,17 +1256,11 @@ out_err:
 	goto out;
 }
 
-static int vdisk_get_block_shift(struct scst_cmd *cmd)
-{
-	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
-	return virt_dev->block_shift;
-}
-
 static int vdisk_parse(struct scst_cmd *cmd)
 {
 	int res, rc;
 
-	rc = scst_sbc_generic_parse(cmd, vdisk_get_block_shift);
+	rc = scst_sbc_generic_parse(cmd);
 	if (rc != 0) {
 		res = scst_get_cmd_abnormal_done_state(cmd);
 		goto out;
@@ -1277,7 +1274,7 @@ out:
 static int vcdrom_parse(struct scst_cmd *cmd)
 {
 	int res, rc;
-	rc = scst_cdrom_generic_parse(cmd, vdisk_get_block_shift);
+	rc = scst_cdrom_generic_parse(cmd);
 	if (rc != 0) {
 		res = scst_get_cmd_abnormal_done_state(cmd);
 		goto out;
@@ -1293,7 +1290,7 @@ static int non_fileio_parse(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_DEFAULT, rc;
 
-	rc = scst_sbc_generic_parse(cmd, vdisk_get_block_shift);
+	rc = scst_sbc_generic_parse(cmd);
 	if (rc != 0) {
 		res = scst_get_cmd_abnormal_done_state(cmd);
 		goto out;
@@ -1916,7 +1913,8 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 #endif
 	} else {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
-		const int block_shift = virt_dev->block_shift;
+		struct scst_device *dev = cmd->dev;
+		const int block_shift = dev->block_shift;
 		const loff_t s = start << block_shift;
 		const loff_t l = len << block_shift;
 
@@ -2032,6 +2030,7 @@ static void vdev_blockio_get_unmap_params(struct scst_vdisk_dev *virt_dev,
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32) || (defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6)
 	struct file *fd;
 	struct request_queue *q;
+	int block_shift = virt_dev->dev->block_shift;
 #endif
 
 	TRACE_ENTRY();
@@ -2040,7 +2039,7 @@ static void vdev_blockio_get_unmap_params(struct scst_vdisk_dev *virt_dev,
 
 	*unmap_gran = 1;
 	*unmap_alignment = 0;
-	*max_unmap_lba = min_t(loff_t, 0xFFFFFFFF, virt_dev->file_size >> virt_dev->block_shift);
+	*max_unmap_lba = min_t(loff_t, 0xFFFFFFFF, virt_dev->file_size >> block_shift);
 
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32) || (defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6)
 	fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
@@ -2056,9 +2055,9 @@ static void vdev_blockio_get_unmap_params(struct scst_vdisk_dev *virt_dev,
 		goto out_close;
 	}
 
-	*unmap_gran = q->limits.discard_granularity >> virt_dev->block_shift;
-	*unmap_alignment = q->limits.discard_alignment >> virt_dev->block_shift;
-	*max_unmap_lba = q->limits.max_discard_sectors >> (virt_dev->block_shift - 9);
+	*unmap_gran = q->limits.discard_granularity >> block_shift;
+	*unmap_alignment = q->limits.discard_alignment >> block_shift;
+	*max_unmap_lba = q->limits.max_discard_sectors >> (block_shift - 9);
 
 	TRACE_DBG("unmap_gran %d, unmap_alignment %d, max_unmap_lba %u",
 		*unmap_gran, *unmap_alignment, *max_unmap_lba);
@@ -2078,7 +2077,8 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 	int32_t length, i, resp_len = 0;
 	uint8_t *address;
 	uint8_t *buf;
-	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
+	struct scst_device *dev = cmd->dev;
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 	uint16_t tg_id;
 
 	TRACE_ENTRY();
@@ -2107,7 +2107,7 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 		goto out_put;
 	}
 
-	buf[0] = cmd->dev->type;      /* type dev */
+	buf[0] = dev->type;      /* type dev */
 	/* Vital Product */
 	if (cmd->cdb[1] & EVPD) {
 		if (0 == cmd->cdb[2]) {
@@ -2116,7 +2116,7 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 			buf[4] = 0x0; /* this page */
 			buf[5] = 0x80; /* unit serial number */
 			buf[6] = 0x83; /* device identification */
-			if (virt_dev->dev->type == TYPE_DISK) {
+			if (dev->type == TYPE_DISK) {
 				buf[3] += 2;
 				buf[7] = 0xB0; /* block limits */
 				buf[8] = 0xB1; /* block limits */
@@ -2181,7 +2181,7 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 
 			num += 4;
 
-			tg_id = scst_lookup_tg_id(cmd->dev, cmd->tgt);
+			tg_id = scst_lookup_tg_id(dev, cmd->tgt);
 			if (tg_id) {
 				/*
 				 * Target port group designator
@@ -2222,20 +2222,17 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 			resp_len = num;
 			put_unaligned_be16(resp_len, &buf[2]);
 			resp_len += 4;
-		} else if ((0xB0 == cmd->cdb[2]) &&
-			   (virt_dev->dev->type == TYPE_DISK)) {
+		} else if ((0xB0 == cmd->cdb[2]) && (dev->type == TYPE_DISK)) {
 			/* Block Limits */
 			int max_transfer;
 			buf[1] = 0xB0;
 			buf[3] = 0x3C;
 			/* Optimal transfer granuality is PAGE_SIZE */
-			put_unaligned_be16(max_t(int,
-					PAGE_SIZE/virt_dev->block_size, 1),
-					   &buf[6]);
+			put_unaligned_be16(max_t(int, PAGE_SIZE/dev->block_size, 1), &buf[6]);
 			/* Max transfer len is min of sg limit and 8M */
 			max_transfer = min_t(int,
 					cmd->tgt_dev->max_sg_cnt << PAGE_SHIFT,
-					8*1024*1024) / virt_dev->block_size;
+					8*1024*1024) / dev->block_size;
 			put_unaligned_be32(max_transfer, &buf[8]);
 			/*
 			 * Let's have optimal transfer len 512KB. Better to not
@@ -2245,9 +2242,8 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 			 * because SGV cache supports only <4M buffers.
 			 */
 			put_unaligned_be32(min_t(int,
-					max_transfer,
-					512*1024 / virt_dev->block_size),
-					   &buf[12]);
+					max_transfer, 512*1024 / dev->block_size),
+						&buf[12]);
 			if (virt_dev->thin_provisioned) {
 				/* MAXIMUM UNMAP BLOCK DESCRIPTOR COUNT is UNLIMITED */
 				put_unaligned_be32(0xFFFFFFFF, &buf[24]);
@@ -2270,15 +2266,14 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 					/* MAXIMUM UNMAP LBA COUNT */
 					put_unaligned_be32(
 						min_t(loff_t, 0xFFFFFFFF,
-						      virt_dev->file_size >> virt_dev->block_shift),
+						      virt_dev->file_size >> dev->block_shift),
 						&buf[20]);
 					/* OPTIMAL UNMAP GRANULARITY */
 					put_unaligned_be32(1, &buf[28]);
 				}
 			}
 			resp_len = buf[3] + 4;
-		} else if ((0xB1 == cmd->cdb[2]) &&
-			   (virt_dev->dev->type == TYPE_DISK)) {
+		} else if ((0xB1 == cmd->cdb[2]) && (dev->type == TYPE_DISK)) {
 			/* Block Device Characteristics */
 			buf[1] = 0xB1;
 			buf[3] = 0x3C;
@@ -2288,8 +2283,7 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 			} else
 				put_unaligned_be16(1, &buf[4]);
 			resp_len = buf[3] + 4;
-		} else if ((0xB2 == cmd->cdb[2]) &&
-			   (virt_dev->dev->type == TYPE_DISK) &&
+		} else if ((0xB2 == cmd->cdb[2]) && (dev->type == TYPE_DISK) &&
 			   virt_dev->thin_provisioned) {
 			/* Thin Provisioning */
 			buf[1] = 0xB2;
@@ -2320,7 +2314,7 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 		if (cmd->tgtt->fake_aca)
 			buf[3] |= 0x20;
 		buf[4] = 31;/* n - 4 = 35 - 4 = 31 for full 36 byte data */
-		if (scst_impl_alua_configured(cmd->dev))
+		if (scst_impl_alua_configured(dev))
 			buf[5] = SCST_INQ_TPGS_MODE_IMPLICIT;
 		buf[6] = 0x10; /* MultiP 1 */
 		buf[7] = 2; /* CMDQUE 1, BQue 0 => commands queuing supported */
@@ -2518,7 +2512,7 @@ static int vdisk_format_pg(unsigned char *p, int pcontrol,
 
 	memcpy(p, format_pg, sizeof(format_pg));
 	put_unaligned_be16(DEF_SECTORS, &p[10]);
-	put_unaligned_be16(virt_dev->block_size, &p[12]);
+	put_unaligned_be16(virt_dev->dev->block_size, &p[12]);
 	if (1 == pcontrol)
 		memset(p + 2, 0, sizeof(format_pg) - 2);
 	return sizeof(format_pg);
@@ -2616,7 +2610,7 @@ static enum compl_status_e vdisk_exec_mode_sense(struct vdisk_cmd_params *p)
 	}
 
 	virt_dev = cmd->dev->dh_priv;
-	blocksize = virt_dev->block_size;
+	blocksize = cmd->dev->block_size;
 	nblocks = virt_dev->nblocks;
 
 	type = cmd->dev->type;    /* type dev */
@@ -2912,7 +2906,7 @@ static enum compl_status_e vdisk_exec_read_capacity(struct vdisk_cmd_params *p)
 	TRACE_ENTRY();
 
 	virt_dev = cmd->dev->dh_priv;
-	blocksize = virt_dev->block_size;
+	blocksize = cmd->dev->block_size;
 	nblocks = virt_dev->nblocks;
 
 	if ((cmd->cdb[8] & 1) == 0) {
@@ -2974,7 +2968,7 @@ static enum compl_status_e vdisk_exec_read_capacity16(struct vdisk_cmd_params *p
 	TRACE_ENTRY();
 
 	virt_dev = cmd->dev->dh_priv;
-	blocksize = virt_dev->block_size;
+	blocksize = cmd->dev->block_size;
 	nblocks = virt_dev->nblocks - 1;
 
 	if ((cmd->cdb[14] & 1) == 0) {
@@ -3636,6 +3630,7 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 	struct scst_cmd *cmd = p->cmd;
 	u64 lba_start = scst_cmd_get_lba(cmd);
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
+	int block_shift = cmd->dev->block_shift;
 	struct block_device *bdev = virt_dev->bdev;
 	struct request_queue *q = bdev_get_queue(bdev);
 	int length, max_nr_vecs = 0, offset;
@@ -3698,8 +3693,7 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 				bios++;
 				need_new_bio = 0;
 				bio->bi_end_io = blockio_endio;
-				bio->bi_sector = lba_start0 <<
-					(virt_dev->block_shift - 9);
+				bio->bi_sector = lba_start0 << (block_shift - 9);
 				bio->bi_bdev = bdev;
 				bio->bi_private = blockio_work;
 				/*
@@ -3735,7 +3729,7 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 			if (rc < bytes) {
 				sBUG_ON(rc != 0);
 				need_new_bio = 1;
-				lba_start0 += thislen >> virt_dev->block_shift;
+				lba_start0 += thislen >> block_shift;
 				thislen = 0;
 				continue;
 			}
@@ -3746,7 +3740,7 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 			off = 0;
 		}
 
-		lba_start += length >> virt_dev->block_shift;
+		lba_start += length >> block_shift;
 
 		scst_put_sg_page(cmd, page, offset);
 		length = scst_get_sg_page_next(cmd, &page, &offset);
@@ -4072,12 +4066,12 @@ static int vdisk_resync_size(struct scst_vdisk_dev *virt_dev)
 		goto out;
 
 	virt_dev->file_size = file_size;
-	virt_dev->nblocks = virt_dev->file_size >> virt_dev->block_shift;
+	virt_dev->nblocks = virt_dev->file_size >> virt_dev->dev->block_shift;
 
 	PRINT_INFO("New size of SCSI target virtual disk %s "
 		"(fs=%lldMB, bs=%d, nblocks=%lld, cyln=%lld%s)",
 		virt_dev->name, virt_dev->file_size >> 20,
-		virt_dev->block_size,
+		virt_dev->dev->block_size,
 		(long long unsigned int)virt_dev->nblocks,
 		(long long unsigned int)virt_dev->nblocks/64/32,
 		virt_dev->nblocks < 64*32 ? " !WARNING! cyln less "
@@ -4086,7 +4080,6 @@ static int vdisk_resync_size(struct scst_vdisk_dev *virt_dev)
 	scst_capacity_data_changed(virt_dev->dev);
 
 	scst_resume_activity();
-
 out:
 	return res;
 }
@@ -4118,8 +4111,7 @@ static int vdev_create(struct scst_dev_type *devt,
 	virt_dev->rotational = DEF_ROTATIONAL;
 	virt_dev->thin_provisioned = DEF_THIN_PROVISIONED;
 
-	virt_dev->block_size = DEF_DISK_BLOCKSIZE;
-	virt_dev->block_shift = DEF_DISK_BLOCKSIZE_SHIFT;
+	virt_dev->blk_shift = DEF_DISK_BLOCK_SHIFT;
 
 	if (strlen(name) >= sizeof(virt_dev->name)) {
 		PRINT_ERROR("Name %s is too long (max allowed %zd)", name,
@@ -4276,16 +4268,13 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 		} else if (!strcasecmp("zero_copy", p)) {
 			virt_dev->zero_copy = !!val;
 		} else if (!strcasecmp("blocksize", p)) {
-			virt_dev->block_size = val;
-			virt_dev->block_shift = scst_calc_block_shift(
-							virt_dev->block_size);
-			if (virt_dev->block_shift < 9) {
+			virt_dev->blk_shift = scst_calc_block_shift(val);
+			if (virt_dev->blk_shift < 9) {
 				res = -EINVAL;
 				goto out;
 			}
-			TRACE_DBG("block_size %d, block_shift %d",
-				virt_dev->block_size,
-				virt_dev->block_shift);
+			TRACE_DBG("block size %ld, block shift %d",
+				val, virt_dev->blk_shift);
 		} else {
 			PRINT_ERROR("Unknown parameter %s (device %s)", p,
 				virt_dev->name);
@@ -4601,8 +4590,7 @@ static ssize_t __vcdrom_add_device(const char *device_name, char *params)
 	virt_dev->removable = 1;
 	virt_dev->cdrom_empty = 1;
 
-	virt_dev->block_size = DEF_CDROM_BLOCKSIZE;
-	virt_dev->block_shift = DEF_CDROM_BLOCKSIZE_SHIFT;
+	virt_dev->blk_shift = DEF_CDROM_BLOCK_SHIFT;
 
 	res = vdev_parse_add_dev_params(virt_dev, params, allowed_params);
 	if (res != 0)
@@ -4756,7 +4744,7 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 	}
 
 	virt_dev->file_size = err;
-	virt_dev->nblocks = virt_dev->file_size >> virt_dev->block_shift;
+	virt_dev->nblocks = virt_dev->file_size >> virt_dev->dev->block_shift;
 	if (!virt_dev->cdrom_empty)
 		virt_dev->media_changed = 1;
 
@@ -4767,7 +4755,7 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 			"(file=\"%s\", fs=%lldMB, bs=%d, nblocks=%lld,"
 			" cyln=%lld%s)", virt_dev->name,
 			vdev_get_filename(virt_dev),
-			virt_dev->file_size >> 20, virt_dev->block_size,
+			virt_dev->file_size >> 20, virt_dev->dev->block_size,
 			(long long unsigned int)virt_dev->nblocks,
 			(long long unsigned int)virt_dev->nblocks/64/32,
 			virt_dev->nblocks < 64*32 ? " !WARNING! cyln less "
@@ -4882,15 +4870,13 @@ static ssize_t vdisk_sysfs_blocksize_show(struct kobject *kobj,
 {
 	int pos = 0;
 	struct scst_device *dev;
-	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
-	virt_dev = dev->dh_priv;
 
-	pos = sprintf(buf, "%d\n%s", (int)virt_dev->block_size,
-		(virt_dev->block_size == DEF_DISK_BLOCKSIZE) ? "" :
+	pos = sprintf(buf, "%d\n%s", dev->block_size,
+		(dev->block_size == (1 << DEF_DISK_BLOCK_SHIFT)) ? "" :
 			SCST_SYSFS_KEY_MARK "\n");
 
 	TRACE_EXIT_RES(pos);
@@ -5381,7 +5367,7 @@ static int vdisk_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type)
 			continue;
 		seq_printf(seq, "%-17s %-11d %-12d", virt_dev->name,
 			(uint32_t)(virt_dev->file_size >> 20),
-			virt_dev->block_size);
+			1 << virt_dev->blk_shift);
 		c = 0;
 		if (virt_dev->wt_flag) {
 			seq_printf(seq, "WT ");
@@ -5440,8 +5426,8 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 	int res = 0, action;
 	char *p, *name, *filename, *i_buf, *t10_dev_id;
 	struct scst_vdisk_dev *virt_dev;
-	uint32_t block_size = DEF_DISK_BLOCKSIZE;
-	int block_shift = DEF_DISK_BLOCKSIZE_SHIFT;
+	int block_shift = DEF_DISK_BLOCK_SHIFT;
+	uint32_t block_size = 1 << block_shift;
 	size_t slen;
 
 	TRACE_ENTRY();
@@ -5543,8 +5529,7 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 				goto out_free_vdev;
 			}
 		}
-		virt_dev->block_size = block_size;
-		virt_dev->block_shift = block_shift;
+		virt_dev->blk_shift = block_shift;
 
 		while (*p != '\0') {
 			if (!strncmp("WRITE_THROUGH", p, 13)) {
@@ -5623,7 +5608,7 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 			"id %d, block size %d) to "
 			"vdev_list", virt_dev->name,
 			vdev_get_filename(virt_dev), virt_dev->virt_id,
-			virt_dev->block_size);
+			1 << virt_dev->blk_shift);
 	} else if (action == 0) {	/* close */
 		virt_dev = vdev_find(name);
 		if (virt_dev == NULL) {

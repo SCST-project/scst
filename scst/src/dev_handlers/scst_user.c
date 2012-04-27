@@ -69,11 +69,9 @@ struct scst_user_dev {
 	unsigned int d_sense:1;
 	unsigned int has_own_order_mgmt:1;
 
-	int (*generic_parse)(struct scst_cmd *cmd,
-		int (*get_block)(struct scst_cmd *cmd));
+	int (*generic_parse)(struct scst_cmd *cmd);
 
-	int block;
-	int def_block;
+	int def_block_size;
 
 	struct scst_mem_lim udev_mem_lim;
 	struct sgv_pool *pool;
@@ -724,17 +722,6 @@ out:
 	return ucmd;
 }
 
-static int dev_user_get_block(struct scst_cmd *cmd)
-{
-	struct scst_user_dev *dev = cmd->dev->dh_priv;
-	/*
-	 * No need for locks here, since *_detach() can not be
-	 * called, when there are existing commands.
-	 */
-	TRACE_EXIT_RES(dev->block);
-	return dev->block;
-}
-
 static int dev_user_parse(struct scst_cmd *cmd)
 {
 	int rc, res = SCST_CMD_STATE_DEFAULT;
@@ -775,7 +762,7 @@ static int dev_user_parse(struct scst_cmd *cmd)
 	switch (dev->parse_type) {
 	case SCST_USER_PARSE_STANDARD:
 		TRACE_DBG("PARSE STANDARD: ucmd %p", ucmd);
-		rc = dev->generic_parse(cmd, dev_user_get_block);
+		rc = dev->generic_parse(cmd);
 		if (rc != 0) {
 			PRINT_ERROR("PARSE failed (ucmd %p, rc %d)", ucmd, rc);
 			goto out_error;
@@ -784,7 +771,7 @@ static int dev_user_parse(struct scst_cmd *cmd)
 
 	case SCST_USER_PARSE_EXCEPTION:
 		TRACE_DBG("PARSE EXCEPTION: ucmd %p", ucmd);
-		rc = dev->generic_parse(cmd, dev_user_get_block);
+		rc = dev->generic_parse(cmd);
 		if ((rc == 0) && (cmd->op_flags & SCST_INFO_VALID))
 			break;
 		else if (rc == SCST_CMD_STATE_NEED_THREAD_CTX) {
@@ -1021,18 +1008,49 @@ out_reply:
 	goto out;
 }
 
-static void dev_user_set_block(struct scst_cmd *cmd, int block)
+static void dev_user_set_block_shift(struct scst_cmd *cmd, int block_shift)
 {
-	struct scst_user_dev *dev = cmd->dev->dh_priv;
+	struct scst_device *dev = cmd->dev;
+
+	TRACE_ENTRY();
+
 	/*
 	 * No need for locks here, since *_detach() can not be
 	 * called, when there are existing commands.
 	 */
-	TRACE_DBG("dev %p, new block %d", dev, block);
-	if (block != 0)
-		dev->block = block;
-	else
-		dev->block = dev->def_block;
+	TRACE_DBG("dev %p, new block shift %d", dev, block_shift);
+	if (block_shift != 0)
+		dev->block_shift = block_shift;
+	else {
+		struct scst_user_dev *udev = cmd->dev->dh_priv;
+		dev->block_shift = scst_calc_block_shift(udev->def_block_size);
+	}
+	dev->block_size = 1 << dev->block_shift;
+
+	TRACE_EXIT();
+	return;
+}
+
+static void dev_user_set_block_size(struct scst_cmd *cmd, int block_size)
+{
+	struct scst_device *dev = cmd->dev;
+
+	TRACE_ENTRY();
+
+	/*
+	 * No need for locks here, since *_detach() can not be
+	 * called, when there are existing commands.
+	 */
+	TRACE_DBG("dev %p, new block size %d", dev, block_size);
+	if (block_size != 0)
+		dev->block_size = block_size;
+	else {
+		struct scst_user_dev *udev = cmd->dev->dh_priv;
+		dev->block_size = udev->def_block_size;
+	}
+	dev->block_shift = scst_calc_block_shift(dev->block_size);
+
+	TRACE_EXIT();
 	return;
 }
 
@@ -1042,7 +1060,7 @@ static int dev_user_disk_done(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	res = scst_block_generic_dev_done(cmd, dev_user_set_block);
+	res = scst_block_generic_dev_done(cmd, dev_user_set_block_shift);
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -1054,7 +1072,7 @@ static int dev_user_tape_done(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	res = scst_tape_generic_dev_done(cmd, dev_user_set_block);
+	res = scst_tape_generic_dev_done(cmd, dev_user_set_block_size);
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -2567,6 +2585,9 @@ static int dev_user_attach(struct scst_device *sdev)
 		goto out;
 	}
 
+	sdev->block_size = dev->def_block_size;
+	sdev->block_shift = scst_calc_block_shift(sdev->block_size);
+
 	sdev->dh_priv = dev;
 	sdev->tst = dev->tst;
 	sdev->queue_alg = dev->queue_alg;
@@ -2872,7 +2893,7 @@ static int dev_user_register_dev(struct file *file,
 {
 	int res, i;
 	struct scst_user_dev *dev, *d;
-	int block;
+	int block_size;
 
 	TRACE_ENTRY();
 
@@ -2885,19 +2906,18 @@ static int dev_user_register_dev(struct file *file,
 	case TYPE_ROM:
 	case TYPE_MOD:
 		if (dev_desc->block_size == 0) {
-			PRINT_ERROR("Wrong block size %d",
-				    dev_desc->block_size);
+			PRINT_ERROR("Wrong block size %d", dev_desc->block_size);
 			res = -EINVAL;
 			goto out;
 		}
-		block = scst_calc_block_shift(dev_desc->block_size);
-		if (block == -1) {
+		block_size = dev_desc->block_size;
+		if (scst_calc_block_shift(block_size) == -1) {
 			res = -EINVAL;
 			goto out;
 		}
 		break;
 	default:
-		block = dev_desc->block_size;
+		block_size = dev_desc->block_size;
 		break;
 	}
 
@@ -2988,8 +3008,7 @@ static int dev_user_register_dev(struct file *file,
 		dev->devtype.pr_cmds_notifications = 1;
 
 	init_completion(&dev->cleanup_cmpl);
-	dev->block = block;
-	dev->def_block = block;
+	dev->def_block_size = block_size;
 
 	res = __dev_user_set_opt(dev, &dev_desc->opt);
 	if (res != 0)

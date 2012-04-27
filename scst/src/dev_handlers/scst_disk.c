@@ -43,10 +43,6 @@
 
 #define DISK_DEF_BLOCK_SHIFT	9
 
-struct disk_params {
-	int block_shift;
-};
-
 static int disk_attach(struct scst_device *dev);
 static void disk_detach(struct scst_device *dev);
 static int disk_parse(struct scst_cmd *cmd);
@@ -168,7 +164,6 @@ static int disk_attach(struct scst_device *dev)
 	int retries;
 	unsigned char sense_buffer[SCSI_SENSE_BUFFERSIZE];
 	enum dma_data_direction data_dir;
-	struct disk_params *params;
 
 	TRACE_ENTRY();
 
@@ -179,20 +174,12 @@ static int disk_attach(struct scst_device *dev)
 		goto out;
 	}
 
-	params = kzalloc(sizeof(*params), GFP_KERNEL);
-	if (params == NULL) {
-		PRINT_ERROR("Unable to allocate struct disk_params (size %zd)",
-			    sizeof(*params));
-		res = -ENOMEM;
-		goto out;
-	}
-
 	buffer = kmalloc(buffer_size, GFP_KERNEL);
 	if (!buffer) {
 		PRINT_ERROR("Buffer memory allocation (size %d) failure",
 			buffer_size);
 		res = -ENOMEM;
-		goto out_free_params;
+		goto out;
 	}
 
 	/* Clear any existing UA's and get disk capacity (disk block size) */
@@ -232,17 +219,17 @@ static int disk_attach(struct scst_device *dev)
 	if (rc == 0) {
 		uint32_t sector_size = get_unaligned_be32(&buffer[4]);
 		if (sector_size == 0)
-			params->block_shift = DISK_DEF_BLOCK_SHIFT;
+			dev->block_shift = DISK_DEF_BLOCK_SHIFT;
 		else
-			params->block_shift =
-				scst_calc_block_shift(sector_size);
+			dev->block_shift = scst_calc_block_shift(sector_size);
 	} else {
-		params->block_shift = DISK_DEF_BLOCK_SHIFT;
+		dev->block_shift = DISK_DEF_BLOCK_SHIFT;
 		TRACE(TRACE_MINOR, "Read capacity failed: %x, using default "
-			"sector size %d", rc, params->block_shift);
+			"sector size %d", rc, dev->block_shift);
 		PRINT_BUFF_FLAG(TRACE_MINOR, "Returned sense", sense_buffer,
 			sizeof(sense_buffer));
 	}
+	dev->block_size = 1 << dev->block_shift;
 
 	res = scst_obtain_device_parameters(dev);
 	if (res != 0) {
@@ -254,12 +241,6 @@ static int disk_attach(struct scst_device *dev)
 out_free_buf:
 	kfree(buffer);
 
-out_free_params:
-	if (res == 0)
-		dev->dh_priv = params;
-	else
-		kfree(params);
-
 out:
 	TRACE_EXIT_RES(res);
 	return res;
@@ -267,33 +248,15 @@ out:
 
 static void disk_detach(struct scst_device *dev)
 {
-	struct disk_params *params =
-		(struct disk_params *)dev->dh_priv;
-
-	TRACE_ENTRY();
-
-	kfree(params);
-	dev->dh_priv = NULL;
-
-	TRACE_EXIT();
+	/* Nothing to do */
 	return;
-}
-
-static int disk_get_block_shift(struct scst_cmd *cmd)
-{
-	struct disk_params *params = (struct disk_params *)cmd->dev->dh_priv;
-	/*
-	 * No need for locks here, since *_detach() can not be
-	 * called, when there are existing commands.
-	 */
-	return params->block_shift;
 }
 
 static int disk_parse(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_DEFAULT, rc;
 
-	rc = scst_sbc_generic_parse(cmd, disk_get_block_shift);
+	rc = scst_sbc_generic_parse(cmd);
 	if (rc != 0) {
 		res = scst_get_cmd_abnormal_done_state(cmd);
 		goto out;
@@ -306,15 +269,16 @@ out:
 
 static void disk_set_block_shift(struct scst_cmd *cmd, int block_shift)
 {
-	struct disk_params *params = (struct disk_params *)cmd->dev->dh_priv;
+	struct scst_device *dev = cmd->dev;
 	/*
 	 * No need for locks here, since *_detach() can not be
 	 * called, when there are existing commands.
 	 */
 	if (block_shift != 0)
-		params->block_shift = block_shift;
+		dev->block_shift = block_shift;
 	else
-		params->block_shift = DISK_DEF_BLOCK_SHIFT;
+		dev->block_shift = DISK_DEF_BLOCK_SHIFT;
+	dev->block_size = 1 << dev->block_shift;
 	return;
 }
 
@@ -412,14 +376,14 @@ out_complete:
 static int disk_exec(struct scst_cmd *cmd)
 {
 	int res, rc;
-	struct disk_params *params = (struct disk_params *)cmd->dev->dh_priv;
 	struct disk_work work;
+	struct scst_device *dev = cmd->dev;
 	unsigned int offset, cur_len; /* in blocks */
 	struct scatterlist *sg, *start_sg;
 	int cur_sg_cnt;
 	int sg_tablesize = cmd->dev->scsi_dev->host->sg_tablesize;
 	int max_sectors;
-	int num, j;
+	int num, j, block_shift = dev->block_shift;
 
 	TRACE_ENTRY();
 
@@ -427,21 +391,21 @@ static int disk_exec(struct scst_cmd *cmd)
 	 * For PC requests we are going to submit max_hw_sectors used instead
 	 * of max_sectors.
 	 */
-	max_sectors = queue_max_hw_sectors(cmd->dev->scsi_dev->request_queue);
+	max_sectors = queue_max_hw_sectors(dev->scsi_dev->request_queue);
 
-	if (unlikely(((max_sectors << params->block_shift) & ~PAGE_MASK) != 0)) {
-		int mlen = max_sectors << params->block_shift;
+	if (unlikely(((max_sectors << block_shift) & ~PAGE_MASK) != 0)) {
+		int mlen = max_sectors << block_shift;
 		int pg = ((mlen >> PAGE_SHIFT) + ((mlen & ~PAGE_MASK) != 0)) - 1;
 		int adj_len = pg << PAGE_SHIFT;
-		max_sectors = adj_len >> params->block_shift;
+		max_sectors = adj_len >> block_shift;
 		if (max_sectors == 0) {
 			PRINT_ERROR("Too low max sectors %d", max_sectors);
 			goto out_error;
 		}
 	}
 
-	if (unlikely((cmd->bufflen >> params->block_shift) > max_sectors)) {
-		if ((cmd->out_bufflen >> params->block_shift) > max_sectors) {
+	if (unlikely((cmd->bufflen >> block_shift) > max_sectors)) {
+		if ((cmd->out_bufflen >> block_shift) > max_sectors) {
 			PRINT_ERROR("Too limited max_sectors %d for "
 				"bidirectional cmd %x (out_bufflen %d)",
 				max_sectors, cmd->cdb[0], cmd->out_bufflen);
@@ -459,7 +423,7 @@ static int disk_exec(struct scst_cmd *cmd)
 
 split:
 	sBUG_ON(cmd->out_sg_cnt > sg_tablesize);
-	sBUG_ON((cmd->out_bufflen >> params->block_shift) > max_sectors);
+	sBUG_ON((cmd->out_bufflen >> block_shift) > max_sectors);
 
 	/*
 	 * We don't support changing BIDI CDBs (see disk_on_sg_tablesize_low()),
@@ -484,7 +448,7 @@ split:
 		"save_len %d (sg_tablesize %d, max_sectors %d, block_shift %d, "
 		"sizeof(*sg) 0x%zx)", cmd, work.save_sg, work.save_sg_cnt,
 		(unsigned long long)work.save_lba, work.save_len,
-		sg_tablesize, max_sectors, params->block_shift, sizeof(*sg));
+		sg_tablesize, max_sectors, block_shift, sizeof(*sg));
 
 	/*
 	 * If we submit all chunks async'ly, it will be very not trivial what
@@ -510,7 +474,7 @@ split:
 				start_sg = sg;
 		}
 
-		l = sg[j].length >> params->block_shift;
+		l = sg[j].length >> block_shift;
 		cur_len += l;
 		cur_sg_cnt++;
 

@@ -42,10 +42,6 @@
 
 #define MODISK_DEF_BLOCK_SHIFT    10
 
-struct modisk_params {
-	int block_shift;
-};
-
 static int modisk_attach(struct scst_device *);
 static void modisk_detach(struct scst_device *);
 static int modisk_parse(struct scst_cmd *);
@@ -156,7 +152,6 @@ static int modisk_attach(struct scst_device *dev)
 	int retries;
 	unsigned char sense_buffer[SCSI_SENSE_BUFFERSIZE];
 	enum dma_data_direction data_dir;
-	struct modisk_params *params;
 
 	TRACE_ENTRY();
 
@@ -167,14 +162,8 @@ static int modisk_attach(struct scst_device *dev)
 		goto out;
 	}
 
-	params = kzalloc(sizeof(*params), GFP_KERNEL);
-	if (params == NULL) {
-		PRINT_ERROR("Unable to allocate struct modisk_params (size %zd)",
-			sizeof(*params));
-		res = -ENOMEM;
-		goto out;
-	}
-	params->block_shift = MODISK_DEF_BLOCK_SHIFT;
+	dev->block_shift = MODISK_DEF_BLOCK_SHIFT;
+	dev->block_size = 1 << dev->block_shift;
 
 	/*
 	 * If the device is offline, don't try to read capacity or any
@@ -183,7 +172,7 @@ static int modisk_attach(struct scst_device *dev)
 	if (dev->scsi_dev->sdev_state == SDEV_OFFLINE) {
 		TRACE_DBG("%s", "Device is offline");
 		res = -ENODEV;
-		goto out_free_params;
+		goto out;
 	}
 
 	buffer = kmalloc(buffer_size, GFP_KERNEL);
@@ -191,7 +180,7 @@ static int modisk_attach(struct scst_device *dev)
 		PRINT_ERROR("Buffer memory allocation (size %d) failure",
 			buffer_size);
 		res = -ENOMEM;
-		goto out_free_params;
+		goto out;
 	}
 
 	/*
@@ -235,19 +224,19 @@ static int modisk_attach(struct scst_device *dev)
 	if (rc == 0) {
 		uint32_t sector_size = get_unaligned_be32(&buffer[4]);
 		if (sector_size == 0)
-			params->block_shift = MODISK_DEF_BLOCK_SHIFT;
+			dev->block_shift = MODISK_DEF_BLOCK_SHIFT;
 		else
-			params->block_shift =
-				scst_calc_block_shift(sector_size);
+			dev->block_shift = scst_calc_block_shift(sector_size);
 		TRACE_DBG("Sector size is %i scsi_level %d(SCSI_2 %d)",
 		      sector_size, dev->scsi_dev->scsi_level, SCSI_2);
 	} else {
-		params->block_shift = MODISK_DEF_BLOCK_SHIFT;
+		dev->block_shift = MODISK_DEF_BLOCK_SHIFT;
 		TRACE(TRACE_MINOR, "Read capacity failed: %x, using default "
-			"sector size %d", rc, params->block_shift);
+			"sector size %d", rc, dev->block_shift);
 		PRINT_BUFF_FLAG(TRACE_MINOR, "Returned sense", sense_buffer,
 			sizeof(sense_buffer));
 	}
+	dev->block_size = 1 << dev->block_shift;
 
 	res = scst_obtain_device_parameters(dev);
 	if (res != 0) {
@@ -259,12 +248,6 @@ static int modisk_attach(struct scst_device *dev)
 out_free_buf:
 	kfree(buffer);
 
-out_free_params:
-	if (res == 0)
-		dev->dh_priv = params;
-	else
-		kfree(params);
-
 out:
 	TRACE_EXIT_RES(res);
 	return res;
@@ -272,34 +255,15 @@ out:
 
 static void modisk_detach(struct scst_device *dev)
 {
-	struct modisk_params *params =
-		(struct modisk_params *)dev->dh_priv;
-
-	TRACE_ENTRY();
-
-	kfree(params);
-	dev->dh_priv = NULL;
-
-	TRACE_EXIT();
+	/* Nothing to do */
 	return;
-}
-
-static int modisk_get_block_shift(struct scst_cmd *cmd)
-{
-	struct modisk_params *params =
-		(struct modisk_params *)cmd->dev->dh_priv;
-	/*
-	 * No need for locks here, since *_detach() can not be
-	 * called, when there are existing commands.
-	 */
-	return params->block_shift;
 }
 
 static int modisk_parse(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_DEFAULT, rc;
 
-	rc = scst_modisk_generic_parse(cmd, modisk_get_block_shift);
+	rc = scst_modisk_generic_parse(cmd);
 	if (rc != 0) {
 		res = scst_get_cmd_abnormal_done_state(cmd);
 		goto out;
@@ -312,16 +276,16 @@ out:
 
 static void modisk_set_block_shift(struct scst_cmd *cmd, int block_shift)
 {
-	struct modisk_params *params =
-		(struct modisk_params *)cmd->dev->dh_priv;
+	struct scst_device *dev = cmd->dev;
 	/*
 	 * No need for locks here, since *_detach() can not be
 	 * called, when there are existing commands.
 	 */
 	if (block_shift != 0)
-		params->block_shift = block_shift;
+		dev->block_shift = block_shift;
 	else
-		params->block_shift = MODISK_DEF_BLOCK_SHIFT;
+		dev->block_shift = MODISK_DEF_BLOCK_SHIFT;
+	dev->block_size = 1 << dev->block_shift;
 	return;
 }
 
