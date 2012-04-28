@@ -4158,8 +4158,8 @@ void scst_set_resp_data_len(struct scst_cmd *cmd, int resp_data_len);
 void scst_cmd_get(struct scst_cmd *cmd);
 void scst_cmd_put(struct scst_cmd *cmd);
 
-struct scatterlist *scst_alloc(int size, gfp_t gfp_mask, int *count);
-void scst_free(struct scatterlist *sg, int count);
+struct scatterlist *scst_alloc_sg(int size, gfp_t gfp_mask, int *count);
+void scst_free_sg(struct scatterlist *sg, int count);
 
 int scst_calc_block_shift(int sector_size);
 int scst_sbc_generic_parse(struct scst_cmd *cmd);

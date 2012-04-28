@@ -1239,13 +1239,13 @@ void sgv_pool_free(struct sgv_pool_obj *obj, struct scst_mem_lim *mem_lim)
 EXPORT_SYMBOL_GPL(sgv_pool_free);
 
 /**
- * scst_alloc() - allocates an SG vector
+ * scst_alloc_sg() - allocates an SG vector
  *
  * Allocates and returns pointer to SG vector with data size "size".
  * In *count returned the count of entries in the vector.
  * Returns NULL for failure.
  */
-struct scatterlist *scst_alloc(int size, gfp_t gfp_mask, int *count)
+struct scatterlist *scst_alloc_sg(int size, gfp_t gfp_mask, int *count)
 {
 	struct scatterlist *res;
 	int pages = PAGE_ALIGN(size) >> PAGE_SHIFT;
@@ -1283,7 +1283,7 @@ struct scatterlist *scst_alloc(int size, gfp_t gfp_mask, int *count)
 
 	/*
 	 * If we allow use clustering here, we will have troubles in
-	 * scst_free() to figure out how many pages are in the SG vector.
+	 * scst_free_sg() to figure out how many pages are in the SG vector.
 	 * So, let's always don't use clustering.
 	 */
 	cnt = sgv_alloc_sg_entries(res, pages, gfp_mask, sgv_no_clustering,
@@ -1310,14 +1310,14 @@ out_uncheck:
 		sgv_hiwmk_uncheck(pages);
 	goto out;
 }
-EXPORT_SYMBOL_GPL(scst_alloc);
+EXPORT_SYMBOL_GPL(scst_alloc_sg);
 
 /**
- * scst_free() - frees SG vector
+ * scst_free_sg() - frees SG vector
  *
- * Frees SG vector returned by scst_alloc().
+ * Frees SG vector returned by scst_alloc_sg().
  */
-void scst_free(struct scatterlist *sg, int count)
+void scst_free_sg(struct scatterlist *sg, int count)
 {
 	TRACE_MEM("Freeing sg=%p", sg);
 
@@ -1327,7 +1327,7 @@ void scst_free(struct scatterlist *sg, int count)
 	kfree(sg);
 	return;
 }
-EXPORT_SYMBOL_GPL(scst_free);
+EXPORT_SYMBOL_GPL(scst_free_sg);
 
 /* Must be called under sgv_pools_mutex */
 static void sgv_pool_init_cache(struct sgv_pool *pool, int cache_num)

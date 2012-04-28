@@ -478,7 +478,7 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 		if (cmnd->own_sg) {
 			TRACE_DBG("own_sg for req %p", cmnd);
 			if (cmnd->sg != &dummy_sg)
-				scst_free(cmnd->sg, cmnd->sg_cnt);
+				scst_free_sg(cmnd->sg, cmnd->sg_cnt);
 #ifdef CONFIG_SCST_DEBUG
 			cmnd->own_sg = 0;
 			cmnd->sg = NULL;
@@ -501,7 +501,7 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 		if (cmnd->own_sg) {
 			TRACE_DBG("own_sg for rsp %p", cmnd);
 			if ((cmnd->sg != &dummy_sg) && (cmnd->sg != cmnd->rsp_sg))
-				scst_free(cmnd->sg, cmnd->sg_cnt);
+				scst_free_sg(cmnd->sg, cmnd->sg_cnt);
 #ifdef CONFIG_SCST_DEBUG
 			cmnd->own_sg = 0;
 			cmnd->sg = NULL;
@@ -1713,7 +1713,7 @@ static int nop_out_start(struct iscsi_cmnd *cmnd)
 		if (cmnd->pdu.bhs.itt != ISCSI_RESERVED_TAG) {
 			struct scatterlist *sg;
 
-			cmnd->sg = sg = scst_alloc(size, GFP_KERNEL,
+			cmnd->sg = sg = scst_alloc_sg(size, GFP_KERNEL,
 						&cmnd->sg_cnt);
 			if (sg == NULL) {
 				TRACE(TRACE_OUT_OF_MEM, "Allocation of buffer "

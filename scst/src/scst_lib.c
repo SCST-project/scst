@@ -1429,7 +1429,7 @@ static int scst_set_lun_not_supported_request_sense(struct scst_cmd *cmd,
 		if (cmd->bufflen == 0)
 			cmd->bufflen = cmd->cdb[4];
 
-		cmd->sg = scst_alloc(cmd->bufflen, GFP_ATOMIC, &cmd->sg_cnt);
+		cmd->sg = scst_alloc_sg(cmd->bufflen, GFP_ATOMIC, &cmd->sg_cnt);
 		if (cmd->sg == NULL) {
 			PRINT_ERROR("Unable to alloc sg for REQUEST SENSE"
 				"(sense %x/%x/%x)", key, asc, ascq);
@@ -1497,7 +1497,7 @@ static int scst_set_lun_not_supported_inquiry(struct scst_cmd *cmd)
 		if (cmd->bufflen == 0)
 			cmd->bufflen = min_t(int, 36, get_unaligned_be16(&cmd->cdb[3]));
 
-		cmd->sg = scst_alloc(cmd->bufflen, GFP_ATOMIC, &cmd->sg_cnt);
+		cmd->sg = scst_alloc_sg(cmd->bufflen, GFP_ATOMIC, &cmd->sg_cnt);
 		if (cmd->sg == NULL) {
 			PRINT_ERROR("%s", "Unable to alloc sg for INQUIRY "
 				"for not supported LUN");
@@ -5099,7 +5099,7 @@ static void scst_release_space(struct scst_cmd *cmd)
 		    !(cmd->tgt_data_buf_alloced || cmd->dh_data_buf_alloced)) {
 			TRACE_MEM("Freeing sg %p for cmd %p (cnt %d)", cmd->sg,
 				cmd, cmd->sg_cnt);
-			scst_free(cmd->sg, cmd->sg_cnt);
+			scst_free_sg(cmd->sg, cmd->sg_cnt);
 			goto out_zero;
 		} else
 			goto out;
