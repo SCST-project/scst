@@ -693,6 +693,40 @@ both iSCSI-SCST targets will look like:
 `-- version
 
 
+Configuring iscsi-scst via scstadmin
+------------------------------------
+
+All iscsi-scst parameters that were configured in the previous section via the
+sysfs interface can also be set via scstadmin. Here is an example that shows
+how to configure the IP address of the iSNSServer and to enable iSNS access
+control at the same time:
+
+# scstadmin -noprompt -set_drv_attr iscsi -attributes iSNSServer="192.168.1.16 AccessControl"
+
+Collecting current configuration: done.
+
+
+-> Making requested changes.
+        -> Done, 0 change(s) made.
+
+All done.
+
+# scstadmin -list_drv_attr iscsi
+
+Collecting current configuration: done.
+
+        Attribute      Value                       Writable      KEY
+        ------------------------------------------------------------
+        iSNSServer     127.0.0.1 AccessControl     Yes           Yes
+
+        Dynamic attributes available
+        ----------------------------
+        OutgoingUser
+        IncomingUser
+
+All done.
+
+
 Advanced initiators access control
 ----------------------------------
 
