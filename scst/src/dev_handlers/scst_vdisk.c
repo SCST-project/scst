@@ -1058,7 +1058,7 @@ static enum compl_status_e vdisk_exec_send_diagnostic(struct vdisk_cmd_params *p
 
 static enum compl_status_e vdisk_invalid_opcode(struct vdisk_cmd_params *p)
 {
-	TRACE_DBG_SPECIAL("Invalid opcode %d", p->cmd->cdb[0]);
+	TRACE_DBG("Invalid opcode %d", p->cmd->cdb[0]);
 	return INVALID_OPCODE;
 }
 

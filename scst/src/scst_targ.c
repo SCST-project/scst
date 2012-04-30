@@ -881,14 +881,16 @@ set_res:
 out:
 #ifdef CONFIG_SCST_EXTRACHECKS
 	/*
-	 * At this point either data_len must be initialized, or cmd
-	 * completed (with an error) and correct state set.
+	 * At this point either both lba and data_len must be initialized to
+	 * at least 0 for not data transfer commands, or cmd must be
+	 * completed (with an error) and have correct state set.
 	 */
-	if (unlikely((cmd->data_len == SCST_DEF_DATA_LEN)) &&
-	    (!cmd->completed ||
-	     (((cmd->state < SCST_CMD_STATE_PRE_XMIT_RESP) ||
-	       (cmd->state >= SCST_CMD_STATE_LAST_ACTIVE)) &&
-	      (cmd->state != SCST_CMD_STATE_PREPROCESSING_DONE)))) {
+	if (unlikely(((cmd->lba == SCST_DEF_LBA_DATA_LEN) ||
+		       (cmd->data_len == SCST_DEF_LBA_DATA_LEN)) &&
+		      (!cmd->completed ||
+		       (((cmd->state < SCST_CMD_STATE_PRE_XMIT_RESP) ||
+		         (cmd->state >= SCST_CMD_STATE_LAST_ACTIVE)) &&
+		        (cmd->state != SCST_CMD_STATE_PREPROCESSING_DONE))))) {
 		PRINT_CRIT_ERROR("Not initialized data_len for going to "
 			"execute command or bad state (cmd %p, data_len %d, "
 			"completed %d, state %d)", cmd, cmd->data_len,
@@ -2727,7 +2729,8 @@ static int scst_pre_exec_checks(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	EXTRACHECKS_BUG_ON(cmd->data_len == SCST_DEF_DATA_LEN);
+	EXTRACHECKS_BUG_ON(cmd->lba == SCST_DEF_LBA_DATA_LEN);
+	EXTRACHECKS_BUG_ON(cmd->data_len == SCST_DEF_LBA_DATA_LEN);
 
 	rc = __scst_check_local_events(cmd, false);
 	if (unlikely(rc != 0))

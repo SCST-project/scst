@@ -109,7 +109,7 @@ extern unsigned long scst_trace_flag;
 
 #define SCST_TGT_RETRY_TIMEOUT               (3/2*HZ)
 
-#define SCST_DEF_DATA_LEN		     -1
+#define SCST_DEF_LBA_DATA_LEN		     -1
 
 extern struct mutex scst_mutex2;
 

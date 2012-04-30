@@ -4750,7 +4750,8 @@ struct scst_cmd *scst_alloc_cmd(const uint8_t *cdb,
 	cmd->queue_type = SCST_CMD_QUEUE_SIMPLE;
 	cmd->timeout = SCST_DEFAULT_TIMEOUT;
 	cmd->retries = 0;
-	cmd->data_len = SCST_DEF_DATA_LEN;
+	cmd->lba = SCST_DEF_LBA_DATA_LEN;
+	cmd->data_len = SCST_DEF_LBA_DATA_LEN;
 	cmd->is_send_status = 1;
 	cmd->resp_data_len = -1;
 	cmd->write_sg = &cmd->sg;
@@ -5565,6 +5566,7 @@ static int get_cdb_info_len_10(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops)
 {
 	cmd->cdb_len = 10;
+	cmd->lba = 0;
 	/* It supposed to be already zeroed */
 	EXTRACHECKS_BUG_ON(cmd->bufflen != 0);
 	cmd->data_len = cmd->bufflen;
@@ -5574,6 +5576,7 @@ static int get_cdb_info_len_10(struct scst_cmd *cmd,
 static int get_cdb_info_block_limit(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops)
 {
+	cmd->lba = 0;
 	cmd->bufflen = 6;
 	cmd->data_len = cmd->bufflen;
 	return 0;
@@ -5582,6 +5585,7 @@ static int get_cdb_info_block_limit(struct scst_cmd *cmd,
 static int get_cdb_info_read_capacity(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops)
 {
+	cmd->lba = 0;
 	cmd->bufflen = 8;
 	cmd->data_len = cmd->bufflen;
 	return 0;
@@ -5593,6 +5597,8 @@ static int get_cdb_info_serv_act_in(struct scst_cmd *cmd,
 	int res = 0;
 
 	TRACE_ENTRY();
+
+	cmd->lba = 0;
 
 	if ((cmd->cdb[1] & 0x1f) == SAI_READ_CAPACITY_16) {
 		cmd->op_name = "READ CAPACITY(16)";
@@ -5613,6 +5619,7 @@ static int get_cdb_info_serv_act_in(struct scst_cmd *cmd,
 static int get_cdb_info_single(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops)
 {
+	cmd->lba = 0;
 	cmd->bufflen = 1;
 	cmd->data_len = cmd->bufflen;
 	return 0;
@@ -5623,6 +5630,7 @@ static int get_cdb_info_read_pos(struct scst_cmd *cmd,
 {
 	int res = 0;
 
+	cmd->lba = 0;
 	cmd->bufflen = get_unaligned_be16(cmd->cdb + sdbops->info_len_off);
 
 	switch (cmd->cdb[1] & 0x1f) {
@@ -5670,6 +5678,10 @@ out_inval:
 static int get_cdb_info_prevent_allow_medium_removal(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops)
 {
+	cmd->lba = 0;
+	cmd->data_len = 0;
+	/* It supposed to be already zeroed */
+	EXTRACHECKS_BUG_ON(cmd->bufflen != 0);
 	if ((cmd->cdb[4] & 3) == 0)
 		cmd->op_flags |= SCST_REG_RESERVE_ALLOWED |
 			SCST_WRITE_EXCL_ALLOWED | SCST_EXCL_ACCESS_ALLOWED;
@@ -5679,6 +5691,10 @@ static int get_cdb_info_prevent_allow_medium_removal(struct scst_cmd *cmd,
 static int get_cdb_info_start_stop(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops)
 {
+	cmd->lba = 0;
+	cmd->data_len = 0;
+	/* It supposed to be already zeroed */
+	EXTRACHECKS_BUG_ON(cmd->bufflen != 0);
 	if ((cmd->cdb[4] & 0xF1) == 0x1)
 		cmd->op_flags |= SCST_REG_RESERVE_ALLOWED |
 			SCST_WRITE_EXCL_ALLOWED | SCST_EXCL_ACCESS_ALLOWED;
@@ -5688,6 +5704,7 @@ static int get_cdb_info_start_stop(struct scst_cmd *cmd,
 static int get_cdb_info_len_3_read_elem_stat(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops)
 {
+	cmd->lba = 0;
 	cmd->bufflen = get_unaligned_be24(cmd->cdb + sdbops->info_len_off);
 	cmd->data_len = cmd->bufflen;
 
@@ -5710,6 +5727,7 @@ static int get_cdb_info_bidi_lba_4_len_2(struct scst_cmd *cmd,
 static int get_cdb_info_fmt(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops)
 {
+	cmd->lba = 0;
 	if (cmd->cdb[1] & 0x10/*FMTDATA*/) {
 		cmd->data_direction = SCST_DATA_WRITE;
 		cmd->op_flags |= SCST_UNKNOWN_LENGTH;
@@ -5736,6 +5754,7 @@ static int get_cdb_info_verify10(struct scst_cmd *cmd,
 static int get_cdb_info_verify6(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops)
 {
+	cmd->lba = 0;
 	if (cmd->cdb[1] & BYTCHK) {
 		cmd->bufflen = get_unaligned_be24(cmd->cdb + sdbops->info_len_off);
 		cmd->data_len = cmd->bufflen;
@@ -5783,6 +5802,7 @@ static int get_cdb_info_verify16(struct scst_cmd *cmd,
 static int get_cdb_info_len_1(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops)
 {
+	cmd->lba = 0;
 	cmd->bufflen = (u32)cmd->cdb[sdbops->info_len_off];
 	cmd->data_len = cmd->bufflen;
 	return 0;
@@ -5811,6 +5831,7 @@ static int get_cdb_info_lba_2_len_1_256(struct scst_cmd *cmd,
 static int get_cdb_info_len_2(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops)
 {
+	cmd->lba = 0;
 	cmd->bufflen = get_unaligned_be16(cmd->cdb + sdbops->info_len_off);
 	cmd->data_len = cmd->bufflen;
 	return 0;
@@ -5819,6 +5840,7 @@ static int get_cdb_info_len_2(struct scst_cmd *cmd,
 static int get_cdb_info_len_3(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops)
 {
+	cmd->lba = 0;
 	cmd->bufflen = get_unaligned_be24(cmd->cdb + sdbops->info_len_off);
 	cmd->data_len = cmd->bufflen;
 	return 0;
@@ -5827,6 +5849,7 @@ static int get_cdb_info_len_3(struct scst_cmd *cmd,
 static int get_cdb_info_len_4(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops)
 {
+	cmd->lba = 0;
 	cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
 	cmd->data_len = cmd->bufflen;
 	return 0;
@@ -5835,8 +5858,8 @@ static int get_cdb_info_len_4(struct scst_cmd *cmd,
 static int get_cdb_info_none(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops)
 {
-	/* All supposed to be already zeroed, except data_len, which is -1 */
-	EXTRACHECKS_BUG_ON(cmd->lba != 0);
+	cmd->lba = 0;
+	/* It supposed to be already zeroed */
 	EXTRACHECKS_BUG_ON(cmd->bufflen != 0);
 	cmd->data_len = cmd->bufflen;
 	return 0;
