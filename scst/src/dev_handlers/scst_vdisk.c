@@ -926,7 +926,7 @@ static int vdisk_attach_tgt(struct scst_tgt_dev *tgt_dev)
 	if (virt_dev->tgt_dev_cnt++ > 0)
 		goto out;
 
-	if (!virt_dev->nullio && !virt_dev->cdrom_empty && virt_dev->filename) {
+	if (!virt_dev->nullio && !virt_dev->cdrom_empty) {
 		virt_dev->fd = vdev_open_fd(virt_dev);
 		if (IS_ERR(virt_dev->fd)) {
 			PRINT_ERROR("filp_open(%s) returned an error %ld",
@@ -4684,6 +4684,7 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 {
 	loff_t err;
 	char *old_fn, *p, *pp;
+	bool old_empty;
 	const char *filename = NULL;
 	int length = strlen(buffer);
 	int res = 0;
@@ -4710,13 +4711,15 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 	/* To sync with detach*() functions */
 	mutex_lock(&scst_mutex);
 
+	old_empty = virt_dev->cdrom_empty;
+
 	if (*filename == '\0') {
 		virt_dev->cdrom_empty = 1;
 		TRACE_DBG("%s", "No media");
 	} else if (*filename != '/') {
 		PRINT_ERROR("File path \"%s\" is not absolute", filename);
 		res = -EINVAL;
-		goto out_unlock;
+		goto out_e_unlock;
 	} else
 		virt_dev->cdrom_empty = 0;
 
@@ -4727,7 +4730,7 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 		if (fn == NULL) {
 			PRINT_ERROR("%s", "Allocation of filename failed");
 			res = -ENOMEM;
-			goto out_unlock;
+			goto out_e_unlock;
 		}
 
 		virt_dev->filename = fn;
@@ -4783,7 +4786,9 @@ out_free_fn:
 	kfree(virt_dev->filename);
 	virt_dev->filename = old_fn;
 
-out_unlock:
+out_e_unlock:
+	virt_dev->cdrom_empty = old_empty;
+
 	mutex_unlock(&scst_mutex);
 	goto out_resume;
 }
