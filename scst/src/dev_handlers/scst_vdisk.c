@@ -422,9 +422,9 @@ static LIST_HEAD(vdev_list);
 
 static struct kmem_cache *vdisk_cmd_param_cachep;
 
-static const vdisk_op_fn fileio_ops[256];
-static const vdisk_op_fn blockio_ops[256];
-static const vdisk_op_fn nullio_ops[256];
+static vdisk_op_fn fileio_ops[256];
+static vdisk_op_fn blockio_ops[256];
+static vdisk_op_fn nullio_ops[256];
 
 /*
  * Be careful changing "name" field, since it is the name of the corresponding
@@ -1056,6 +1056,12 @@ static enum compl_status_e vdisk_exec_send_diagnostic(struct vdisk_cmd_params *p
 	return CMD_SUCCEEDED;
 }
 
+static enum compl_status_e vdisk_invalid_opcode(struct vdisk_cmd_params *p)
+{
+	TRACE_DBG_SPECIAL("Invalid opcode %d", p->cmd->cdb[0]);
+	return INVALID_OPCODE;
+}
+
 #define SHARED_OPS							\
 	[SYNCHRONIZE_CACHE] = vdisk_synchronize_cache,			\
 	[MODE_SENSE] = vdisk_exec_mode_sense,				\
@@ -1080,7 +1086,7 @@ static enum compl_status_e vdisk_exec_send_diagnostic(struct vdisk_cmd_params *p
 	[MAINTENANCE_IN] = vdisk_exec_maintenance_in,			\
 	[SEND_DIAGNOSTIC] = vdisk_exec_send_diagnostic,
 
-static const vdisk_op_fn blockio_ops[256] = {
+static vdisk_op_fn blockio_ops[256] = {
 	[READ_6] = blockio_exec_read,
 	[READ_10] = blockio_exec_read,
 	[READ_12] = blockio_exec_read,
@@ -1095,7 +1101,7 @@ static const vdisk_op_fn blockio_ops[256] = {
 	SHARED_OPS
 };
 
-static const vdisk_op_fn fileio_ops[256] = {
+static vdisk_op_fn fileio_ops[256] = {
 	[READ_6] = fileio_exec_read,
 	[READ_10] = fileio_exec_read,
 	[READ_12] = fileio_exec_read,
@@ -1113,7 +1119,7 @@ static const vdisk_op_fn fileio_ops[256] = {
 	SHARED_OPS
 };
 
-static const vdisk_op_fn nullio_ops[256] = {
+static vdisk_op_fn nullio_ops[256] = {
 	[READ_6] = nullio_exec_read,
 	[READ_10] = nullio_exec_read,
 	[READ_12] = nullio_exec_read,
@@ -1687,6 +1693,7 @@ static int vdev_do_job(struct scst_cmd *cmd, const vdisk_op_fn *ops)
 	struct vdisk_cmd_params *p = cmd->dh_priv;
 	struct scst_vdisk_dev *virt_dev;
 	vdisk_op_fn op = ops[opcode];
+	enum compl_status_e s;
 
 	TRACE_ENTRY();
 
@@ -1696,23 +1703,18 @@ static int vdev_do_job(struct scst_cmd *cmd, const vdisk_op_fn *ops)
 
 	EXTRACHECKS_BUG_ON(p->cmd != cmd);
 	EXTRACHECKS_BUG_ON(ops != blockio_ops && ops != fileio_ops && ops != nullio_ops);
-	if (likely(op)) {
-		enum compl_status_e s;
 
-		s = op(p);
-		if (s == CMD_SUCCEEDED)
-			;
-		else if (s == RUNNING_ASYNC)
-			goto out_thr;
-		else if (s == CMD_FAILED)
-			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_hardw_error));
-		else if (s == INVALID_OPCODE)
-			goto out_invalid_opcode;
-		else
-			WARN_ON(true);
-	} else
+	s = op(p);
+	if (s == CMD_SUCCEEDED)
+		;
+	else if (s == RUNNING_ASYNC)
+		goto out_thr;
+	else if (s == CMD_FAILED)
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+	else if (s == INVALID_OPCODE)
 		goto out_invalid_opcode;
+	else
+		WARN_ON(true);
 
 out_compl:
 	cmd->completed = 1;
@@ -1725,7 +1727,7 @@ out_thr:
 	return res;
 
 out_invalid_opcode:
-	TRACE_DBG("Invalid opcode %d", opcode);
+	TRACE_DBG("Invalid opcode 0x%x", opcode);
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 	goto out_compl;
 }
@@ -6053,9 +6055,22 @@ static void exit_scst_vdisk(struct scst_dev_type *devtype)
 	return;
 }
 
+static void init_ops(vdisk_op_fn *ops, int count)
+{
+	int i;
+	for (i = 0; i < count; i++)
+		if (ops[i] == NULL)
+			ops[i] = vdisk_invalid_opcode;
+	return;
+}
+
 static int __init init_scst_vdisk_driver(void)
 {
 	int res;
+
+	init_ops(fileio_ops, ARRAY_SIZE(fileio_ops));
+	init_ops(blockio_ops, ARRAY_SIZE(blockio_ops));
+	init_ops(nullio_ops, ARRAY_SIZE(nullio_ops));
 
 	vdisk_cmd_param_cachep = KMEM_CACHE(vdisk_cmd_params, SCST_SLAB_FLAGS);
 	if (vdisk_cmd_param_cachep == NULL) {
