@@ -323,6 +323,10 @@ enum scst_cdb_flags {
 #endif
 #endif
 
+#ifndef WRITE_SAME_16
+#define WRITE_SAME_16	      0x93
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
 /*
  * From <scsi/scsi.h>. See also commit

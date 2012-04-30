@@ -2027,46 +2027,51 @@ static void vdev_blockio_get_unmap_params(struct scst_vdisk_dev *virt_dev,
 	uint32_t *unmap_gran, uint32_t *unmap_alignment,
 	uint32_t *max_unmap_lba)
 {
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32) || (defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6)
-	struct file *fd;
-	struct request_queue *q;
 	int block_shift = virt_dev->dev->block_shift;
-#endif
 
 	TRACE_ENTRY();
 
 	sBUG_ON(!virt_dev->filename);
 
-	*unmap_gran = 1;
-	*unmap_alignment = 0;
-	*max_unmap_lba = min_t(loff_t, 0xFFFFFFFF, virt_dev->file_size >> block_shift);
-
+	if (virt_dev->blockio) {
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32) || (defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6)
-	fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
-	if (IS_ERR(fd)) {
-		PRINT_ERROR("filp_open(%s) returned error %ld",
-			virt_dev->filename, PTR_ERR(fd));
-		goto out;
-	}
+		struct file *fd;
+		struct request_queue *q;
 
-	q = bdev_get_queue(fd->f_dentry->d_inode->i_bdev);
-	if (q == NULL) {
-		PRINT_ERROR("No queue for device %s", virt_dev->filename);
-		goto out_close;
-	}
+		fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
+		if (IS_ERR(fd)) {
+			PRINT_ERROR("filp_open(%s) returned error %ld",
+				virt_dev->filename, PTR_ERR(fd));
+			goto out;
+		}
 
-	*unmap_gran = q->limits.discard_granularity >> block_shift;
-	*unmap_alignment = q->limits.discard_alignment >> block_shift;
-	*max_unmap_lba = q->limits.max_discard_sectors >> (block_shift - 9);
+		q = bdev_get_queue(fd->f_dentry->d_inode->i_bdev);
+		if (q == NULL) {
+			PRINT_ERROR("No queue for device %s", virt_dev->filename);
+			goto out_close;
+		}
 
-	TRACE_DBG("unmap_gran %d, unmap_alignment %d, max_unmap_lba %u",
-		*unmap_gran, *unmap_alignment, *max_unmap_lba);
+		*unmap_gran = q->limits.discard_granularity >> block_shift;
+		*unmap_alignment = q->limits.discard_alignment >> block_shift;
+		*max_unmap_lba = q->limits.max_discard_sectors >> (block_shift - 9);
 
 out_close:
-	filp_close(fd, NULL);
+		filp_close(fd, NULL);
+#else
+		sBUG_ON(1);
+#endif
+	} else {
+		*unmap_gran = 1;
+		*unmap_alignment = 0;
+		*max_unmap_lba = min_t(loff_t, 0xFFFFFFFF, virt_dev->file_size >> block_shift);
+	}
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32) || (defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6)
 out:
 #endif
+	TRACE_DBG("unmap_gran %d, unmap_alignment %d, max_unmap_lba %u",
+			*unmap_gran, *unmap_alignment, *max_unmap_lba);
+
 	TRACE_EXIT();
 	return;
 }
