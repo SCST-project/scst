@@ -2996,9 +2996,9 @@ out:
 	return res;
 }
 
-static int scst_check_auto_sense(struct scst_cmd *cmd)
+static bool scst_check_auto_sense(struct scst_cmd *cmd)
 {
-	int res = 0;
+	bool res = false;
 
 	TRACE_ENTRY();
 
@@ -3010,7 +3010,7 @@ static int scst_check_auto_sense(struct scst_cmd *cmd)
 		      "cmd->host_status=%x, cmd->driver_status=%x (cmd %p)",
 		      cmd->status, cmd->msg_status, cmd->host_status,
 		      cmd->driver_status, cmd);
-		res = 1;
+		res = true;
 	} else if (unlikely(cmd->host_status)) {
 		if ((cmd->host_status == DID_REQUEUE) ||
 		    (cmd->host_status == DID_IMM_RETRY) ||
