@@ -398,13 +398,6 @@ struct srpt_device {
 	spinlock_t		spinlock;
 	struct srpt_port	port[2];
 	struct ib_event_handler	event_handler;
-#ifdef CONFIG_SCST_PROC
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
-	struct class_device	dev;
-#else
-	struct device		dev;
-#endif
-#endif /*CONFIG_SCST_PROC*/
 	struct scst_tgt		*scst_tgt;
 	bool			enabled;
 };
