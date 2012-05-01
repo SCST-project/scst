@@ -4750,8 +4750,11 @@ struct scst_cmd *scst_alloc_cmd(const uint8_t *cdb,
 	cmd->queue_type = SCST_CMD_QUEUE_SIMPLE;
 	cmd->timeout = SCST_DEFAULT_TIMEOUT;
 	cmd->retries = 0;
+#ifdef CONFIG_SCST_EXTRACHECKS
+	/* To ensure they are inited */
 	cmd->lba = SCST_DEF_LBA_DATA_LEN;
 	cmd->data_len = SCST_DEF_LBA_DATA_LEN;
+#endif
 	cmd->is_send_status = 1;
 	cmd->resp_data_len = -1;
 	cmd->write_sg = &cmd->sg;
