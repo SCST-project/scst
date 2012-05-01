@@ -748,7 +748,7 @@ struct scst_tgt_template {
 	 * Shall return 0 in case of success or < 0 (preferably -ENOMEM)
 	 * in case of error, or > 0 if the regular SCST allocation should be
 	 * done. In case of returning successfully,
-	 * scst_cmd->tgt_data_buf_alloced will be set by SCST.
+	 * scst_cmd->tgt_i_data_buf_alloced will be set by SCST.
 	 *
 	 * It is possible that both target driver and dev handler request own
 	 * memory allocation. In this case, data will be memcpy() between
@@ -1596,7 +1596,7 @@ struct scst_session {
 	struct scst_tgt *tgt;	/* corresponding target */
 
 	/* Used for storage of target driver private stuff */
-	void *tgt_priv;
+	void *sess_tgt_priv;
 
 	/* session's async flags */
 	unsigned long sess_aflags;
@@ -1861,10 +1861,10 @@ struct scst_cmd {
 	unsigned int tgt_need_alloc_data_buf:1;
 
 	/*
-	 * Set by SCST if the custom data buffer allocation by the target driver
-	 * succeeded.
+	 * Set by SCST if the custom data buffer allocated by the target driver
+	 * or, for internal commands, by SCST core .
 	 */
-	unsigned int tgt_data_buf_alloced:1;
+	unsigned int tgt_i_data_buf_alloced:1;
 
 	/* Set if custom data buffer allocated by dev handler */
 	unsigned int dh_data_buf_alloced:1;
@@ -2053,16 +2053,16 @@ struct scst_cmd {
 	int out_sg_cnt;			/* WRITE SG segments count */
 
 	/*
-	 * Used if both target driver and dev handler request own memory
-	 * allocation. In other cases, both are equal to sg and sg_cnt
-	 * correspondingly.
+	 * Used if both target driver or SCST core for internal commands and
+	 * dev handler request own memory allocation. In other cases, both
+	 * are equal to sg and sg_cnt correspondingly.
 	 *
 	 * If target driver requests own memory allocations, it MUST use
 	 * functions scst_cmd_get_tgt_sg*() to get sg and sg_cnt! Otherwise,
 	 * it may use functions scst_cmd_get_sg*().
 	 */
-	struct scatterlist *tgt_sg;
-	int tgt_sg_cnt;
+	struct scatterlist *tgt_i_sg;
+	int tgt_i_sg_cnt;
 	struct scatterlist *tgt_out_sg;	/* bidirectional */
 	int tgt_out_sg_cnt;		/* bidirectional */
 
@@ -2082,8 +2082,8 @@ struct scst_cmd {
 	/* Start time when cmd was sent to rdy_to_xfer() or xmit_response() */
 	unsigned long hw_pending_start;
 
-	/* Used for storage of target driver private stuff */
-	void *tgt_priv;
+	/* Used for storage of target driver or internal commands private stuff */
+	void *tgt_i_priv;
 
 	/* Used for storage of dev handler private stuff */
 	void *dh_priv;
@@ -2107,8 +2107,6 @@ struct scst_cmd {
 
 	/* Counter of the corresponding SCST_PR_ABORT_ALL TM commands */
 	struct scst_pr_abort_all_pending_mgmt_cmds_counter *pr_abort_counter;
-
-	struct scst_cmd *orig_cmd; /* Used to issue REQUEST SENSE */
 
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 	/*
@@ -2979,13 +2977,13 @@ void scst_update_hw_pending_start(struct scst_cmd *cmd);
  */
 static inline void *scst_sess_get_tgt_priv(struct scst_session *sess)
 {
-	return sess->tgt_priv;
+	return sess->sess_tgt_priv;
 }
 
 static inline void scst_sess_set_tgt_priv(struct scst_session *sess,
 					      void *val)
 {
-	sess->tgt_priv = val;
+	sess->sess_tgt_priv = val;
 }
 
 uint16_t scst_lookup_tg_id(struct scst_device *dev, struct scst_tgt *tgt);
@@ -3192,25 +3190,34 @@ static inline unsigned int scst_cmd_get_out_bufflen(struct scst_cmd *cmd)
 	return cmd->out_bufflen;
 }
 
-/* Returns pointer to cmd's target's SG data buffer */
+/*
+ * Returns pointer to cmd's target's SG data buffer. Since it's for target
+ * drivers, the "_i_" part is omitted.
+ */
 static inline struct scatterlist *scst_cmd_get_tgt_sg(struct scst_cmd *cmd)
 {
-	return cmd->tgt_sg;
+	return cmd->tgt_i_sg;
 }
 
-/* Returns cmd's target's sg_cnt */
+/*
+ * Returns cmd's target's sg_cnt. Since it's for target
+ * drivers, the "_i_" part is omitted.
+ */
 static inline int scst_cmd_get_tgt_sg_cnt(struct scst_cmd *cmd)
 {
-	return cmd->tgt_sg_cnt;
+	return cmd->tgt_i_sg_cnt;
 }
 
-/* Sets cmd's target's SG data buffer */
+/*
+ * Sets cmd's target's SG data buffer. Since it's for target
+ * drivers, the "_i_" part is omitted.
+ */
 static inline void scst_cmd_set_tgt_sg(struct scst_cmd *cmd,
 	struct scatterlist *sg, int sg_cnt)
 {
-	cmd->tgt_sg = sg;
-	cmd->tgt_sg_cnt = sg_cnt;
-	cmd->tgt_data_buf_alloced = 1;
+	cmd->tgt_i_sg = sg;
+	cmd->tgt_i_sg_cnt = sg_cnt;
+	cmd->tgt_i_data_buf_alloced = 1;
 }
 
 /* Returns pointer to cmd's target's OUT SG data buffer */
@@ -3229,7 +3236,7 @@ static inline int scst_cmd_get_tgt_out_sg_cnt(struct scst_cmd *cmd)
 static inline void scst_cmd_set_tgt_out_sg(struct scst_cmd *cmd,
 	struct scatterlist *sg, int sg_cnt)
 {
-	WARN_ON(!cmd->tgt_data_buf_alloced);
+	WARN_ON(!cmd->tgt_i_data_buf_alloced);
 
 	cmd->tgt_out_sg = sg;
 	cmd->tgt_out_sg_cnt = sg_cnt;
@@ -3340,12 +3347,12 @@ static inline void scst_cmd_set_tag(struct scst_cmd *cmd, uint64_t tag)
  */
 static inline void *scst_cmd_get_tgt_priv(struct scst_cmd *cmd)
 {
-	return cmd->tgt_priv;
+	return cmd->tgt_i_priv;
 }
 
 static inline void scst_cmd_set_tgt_priv(struct scst_cmd *cmd, void *val)
 {
-	cmd->tgt_priv = val;
+	cmd->tgt_i_priv = val;
 }
 
 /*
@@ -3362,16 +3369,17 @@ static inline void scst_cmd_set_tgt_need_alloc_data_buf(struct scst_cmd *cmd)
 }
 
 /*
- * Get/Set functions for tgt_data_buf_alloced flag
+ * Get/Set functions for tgt_i_data_buf_alloced flag. Since they are for target
+ * drivers, the "_i_" part is omitted.
  */
 static inline int scst_cmd_get_tgt_data_buff_alloced(struct scst_cmd *cmd)
 {
-	return cmd->tgt_data_buf_alloced;
+	return cmd->tgt_i_data_buf_alloced;
 }
 
 static inline void scst_cmd_set_tgt_data_buff_alloced(struct scst_cmd *cmd)
 {
-	cmd->tgt_data_buf_alloced = 1;
+	cmd->tgt_i_data_buf_alloced = 1;
 }
 
 /*
@@ -4382,5 +4390,7 @@ void scst_pass_through_cmd_done(void *data, char *sense, int result, int resid);
 int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	void (*done)(void *data, char *sense, int result, int resid));
 #endif
+
+void scst_write_same(struct scst_cmd *cmd);
 
 #endif /* __SCST_H */

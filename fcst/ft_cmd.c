@@ -63,7 +63,7 @@ void ft_cmd_dump(struct scst_cmd *cmd, const char *caller)
 		cmd->bufflen, cmd->out_bufflen);
 	printk(KERN_INFO "%s sg_cnt reg %d in %d tgt %d tgt_in %d\n",
 		prefix, cmd->sg_cnt, cmd->out_sg_cnt,
-		cmd->tgt_sg_cnt, cmd->tgt_out_sg_cnt);
+		cmd->tgt_i_sg_cnt, cmd->tgt_out_sg_cnt);
 
 	buf[0] = '\0';
 	if (cmd->sent_for_exec)
@@ -88,8 +88,8 @@ void ft_cmd_dump(struct scst_cmd *cmd, const char *caller)
 		ft_cmd_flag(buf, sizeof(buf), "hw_pend");
 	if (cmd->tgt_need_alloc_data_buf)
 		ft_cmd_flag(buf, sizeof(buf), "tgt_need_alloc");
-	if (cmd->tgt_data_buf_alloced)
-		ft_cmd_flag(buf, sizeof(buf), "tgt_alloced");
+	if (cmd->tgt_i_data_buf_alloced)
+		ft_cmd_flag(buf, sizeof(buf), "tgt_i_alloced");
 	if (cmd->dh_data_buf_alloced)
 		ft_cmd_flag(buf, sizeof(buf), "dh_alloced");
 	if (cmd->expected_values_set)

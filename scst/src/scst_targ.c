@@ -107,12 +107,23 @@ static bool scst_check_blocked_dev(struct scst_cmd *cmd)
 	bool res;
 	struct scst_device *dev = cmd->dev;
 
+	TRACE_ENTRY();
+
+	if (unlikely(cmd->internal)) {
+		/*
+		 * The original command can already block the device and must
+		 * hold reference to it, so internal command should always pass.
+		 */
+		sBUG_ON(dev->on_dev_cmd_count == 0);
+		res = false;
+		goto out;
+	}
+
 	spin_lock_bh(&dev->dev_lock);
 
 	dev->on_dev_cmd_count++;
 	cmd->dec_on_dev_needed = 1;
-	TRACE_DBG("New inc on_dev_count %d (cmd %p)", dev->on_dev_cmd_count,
-		cmd);
+	TRACE_DBG("New inc on_dev_count %d (cmd %p)", dev->on_dev_cmd_count, cmd);
 
 	scst_inc_pr_readers_count(cmd, true);
 
@@ -135,6 +146,8 @@ static bool scst_check_blocked_dev(struct scst_cmd *cmd)
 
 	spin_unlock_bh(&dev->dev_lock);
 
+out:
+	TRACE_EXIT_RES(res);
 	return res;
 }
 
@@ -506,13 +519,14 @@ int scst_pre_parse(struct scst_cmd *cmd)
 #endif
 
 	TRACE_DBG("op_name <%s> (cmd %p), direction=%d "
-		"(expected %d, set %s), bufflen=%d, data_len %d, out_bufflen=%d "
-		"(expected len %d, out expected len %d), flags=0x%x", cmd->op_name,
-		cmd, cmd->data_direction, cmd->expected_data_direction,
+		"(expected %d, set %s), lba %lld, bufflen=%d, data_len %d, "
+		"out_bufflen=%d (expected len %d, out expected len %d), "
+		"flags=0x%x", cmd->op_name, cmd, cmd->data_direction,
+		cmd->expected_data_direction,
 		scst_cmd_is_expected_set(cmd) ? "yes" : "no",
-		cmd->bufflen, cmd->data_len, cmd->out_bufflen,
-		cmd->expected_transfer_len, cmd->expected_out_transfer_len,
-		cmd->op_flags);
+		(long long)cmd->lba, cmd->bufflen, cmd->data_len,
+		cmd->out_bufflen, cmd->expected_transfer_len,
+		cmd->expected_out_transfer_len, cmd->op_flags);
 
 	res = 0;
 
@@ -811,13 +825,15 @@ set_res:
 	}
 
 	TRACE(TRACE_SCSI, "op_name <%s> (cmd %p), direction=%d "
-		"(expected %d, set %s), bufflen=%d, data len %d, out_bufflen=%d, "
-		"(expected len %d, out expected len %d), flags=0x%x, lba=%lld",
-		cmd->op_name, cmd, cmd->data_direction, cmd->expected_data_direction,
+		"(expected %d, set %s), lba=%lld, bufflen=%d, data len %d, "
+		"out_bufflen=%d, (expected len %d, out expected len %d), "
+		"flags=0x%x", cmd->op_name, cmd, cmd->data_direction,
+		cmd->expected_data_direction,
 		scst_cmd_is_expected_set(cmd) ? "yes" : "no",
+		(unsigned long long)cmd->lba,
 		cmd->bufflen, cmd->data_len, cmd->out_bufflen,
 		cmd->expected_transfer_len, cmd->expected_out_transfer_len,
-		cmd->op_flags, (unsigned long long)cmd->lba);
+		cmd->op_flags);
 
 #ifdef CONFIG_SCST_EXTRACHECKS
 	switch (state) {
@@ -1033,7 +1049,7 @@ static int scst_prepare_space(struct scst_cmd *cmd)
 					goto alloc;
 			}
 
-			cmd->tgt_data_buf_alloced = 1;
+			cmd->tgt_i_data_buf_alloced = 1;
 
 			if (unlikely(orig_bufflen < cmd->bufflen)) {
 				PRINT_ERROR("Target driver allocated data "
@@ -1042,28 +1058,28 @@ static int scst_prepare_space(struct scst_cmd *cmd)
 					cmd->bufflen);
 				goto out_error;
 			}
-			TRACE_MEM("tgt_data_buf_alloced (cmd %p)", cmd);
+			TRACE_MEM("tgt_i_data_buf_alloced (cmd %p)", cmd);
 		} else
 			goto check;
 	}
 
 alloc:
-	if (!cmd->tgt_data_buf_alloced && !cmd->dh_data_buf_alloced) {
+	if (!cmd->tgt_i_data_buf_alloced && !cmd->dh_data_buf_alloced) {
 		r = scst_alloc_space(cmd);
-	} else if (cmd->dh_data_buf_alloced && !cmd->tgt_data_buf_alloced) {
+	} else if (cmd->dh_data_buf_alloced && !cmd->tgt_i_data_buf_alloced) {
 		TRACE_MEM("dh_data_buf_alloced set (cmd %p)", cmd);
 		r = 0;
-	} else if (cmd->tgt_data_buf_alloced && !cmd->dh_data_buf_alloced) {
-		TRACE_MEM("tgt_data_buf_alloced set (cmd %p)", cmd);
-		cmd->sg = cmd->tgt_sg;
-		cmd->sg_cnt = cmd->tgt_sg_cnt;
+	} else if (cmd->tgt_i_data_buf_alloced && !cmd->dh_data_buf_alloced) {
+		TRACE_MEM("tgt_i_data_buf_alloced set (cmd %p)", cmd);
+		cmd->sg = cmd->tgt_i_sg;
+		cmd->sg_cnt = cmd->tgt_i_sg_cnt;
 		cmd->out_sg = cmd->tgt_out_sg;
 		cmd->out_sg_cnt = cmd->tgt_out_sg_cnt;
 		r = 0;
 	} else {
 		TRACE_MEM("Both *_data_buf_alloced set (cmd %p, sg %p, "
-			"sg_cnt %d, tgt_sg %p, tgt_sg_cnt %d)", cmd, cmd->sg,
-			cmd->sg_cnt, cmd->tgt_sg, cmd->tgt_sg_cnt);
+			"sg_cnt %d, tgt_i_sg %p, tgt_i_sg_cnt %d)", cmd, cmd->sg,
+			cmd->sg_cnt, cmd->tgt_i_sg, cmd->tgt_i_sg_cnt);
 		r = 0;
 	}
 
@@ -1495,9 +1511,9 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 		} else if (cmd->tgt_out_sg != NULL) {
 			sg = cmd->tgt_out_sg;
 			sg_cnt = cmd->tgt_out_sg_cnt;
-		} else if (cmd->tgt_sg != NULL) {
-			sg = cmd->tgt_sg;
-			sg_cnt = cmd->tgt_sg_cnt;
+		} else if (cmd->tgt_i_sg != NULL) {
+			sg = cmd->tgt_i_sg;
+			sg_cnt = cmd->tgt_i_sg_cnt;
 		} else {
 			sg = cmd->sg;
 			sg_cnt = cmd->sg_cnt;
@@ -2330,6 +2346,15 @@ int __scst_check_local_events(struct scst_cmd *cmd, bool preempt_tests_only)
 	struct scst_device *dev = cmd->dev;
 
 	TRACE_ENTRY();
+
+	if (unlikely(cmd->internal)) {
+		/*
+		 * The original command passed all checks and not finished yet
+		 */
+		sBUG_ON(cmd->dec_pr_readers_count_needed);
+		res = 0;
+		goto out;
+	}
 
 	/*
 	 * There's no race here, because we need to trace commands sent
@@ -3504,9 +3529,9 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 		    (cmd->data_direction & SCST_DATA_READ)) {
 			int i, j, sg_cnt;
 			struct scatterlist *sg;
-			if (cmd->tgt_sg != NULL) {
-				sg = cmd->tgt_sg;
-				sg_cnt = cmd->tgt_sg_cnt;
+			if (cmd->tgt_i_sg != NULL) {
+				sg = cmd->tgt_i_sg;
+				sg_cnt = cmd->tgt_i_sg_cnt;
 			} else {
 				sg = cmd->sg;
 				sg_cnt = cmd->sg_cnt;
@@ -4297,8 +4322,6 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 
 		case SCST_CMD_STATE_FINISHED_INTERNAL:
 			res = scst_finish_internal_cmd(cmd);
-			EXTRACHECKS_BUG_ON(res ==
-				SCST_CMD_STATE_RES_NEED_THREAD);
 			break;
 
 		default:

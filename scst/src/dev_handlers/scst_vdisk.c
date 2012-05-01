@@ -258,6 +258,7 @@ static enum compl_status_e vdisk_exec_log(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_read_toc(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_prevent_allow_medium_removal(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_unmap(struct vdisk_cmd_params *p);
+static enum compl_status_e vdisk_exec_write_same(struct vdisk_cmd_params *p);
 static int vdisk_fsync(struct vdisk_cmd_params *p, loff_t loff,
 	loff_t len, struct scst_device *dev, gfp_t gfp_flags,
 	struct scst_cmd *cmd);
@@ -1083,6 +1084,8 @@ static enum compl_status_e vdisk_invalid_opcode(struct vdisk_cmd_params *p)
 	[READ_CAPACITY] = vdisk_exec_read_capacity,			\
 	[SERVICE_ACTION_IN] = vdisk_exec_srv_action_in,			\
 	[UNMAP] = vdisk_exec_unmap,					\
+	[WRITE_SAME] = vdisk_exec_write_same,				\
+	[WRITE_SAME_16] = vdisk_exec_write_same,			\
 	[MAINTENANCE_IN] = vdisk_exec_maintenance_in,			\
 	[SEND_DIAGNOSTIC] = vdisk_exec_send_diagnostic,
 
@@ -1626,7 +1629,7 @@ static int fileio_alloc_data_buf(struct scst_cmd *cmd)
 	 * itself or the command is a write or bidi command, don't use zero
 	 * copy.
 	 */
-	if (cmd->tgt_data_buf_alloced ||
+	if (cmd->tgt_i_data_buf_alloced ||
 	    (cmd->data_direction & SCST_DATA_READ) == 0) {
 		p->use_zero_copy = false;
 	}
@@ -1946,6 +1949,66 @@ out:
 	return res;
 }
 
+static void vdisk_exec_write_same_unmap(struct vdisk_cmd_params *p)
+{
+	int rc;
+	struct scst_cmd *cmd = p->cmd;
+	struct scst_device *dev = cmd->dev;
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+
+	TRACE_ENTRY();
+
+	if (unlikely(!virt_dev->thin_provisioned)) {
+		TRACE_DBG("%s", "Device not thin provisioned");
+		scst_set_cmd_error(cmd,
+			SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+		goto out;
+	}
+
+	rc = vdisk_unmap_range(cmd, virt_dev, cmd->lba,
+		cmd->data_len >> dev->block_shift);
+	if (rc != 0)
+		goto out;
+
+out:
+	TRACE_EXIT();
+	return;
+}
+
+static enum compl_status_e vdisk_exec_write_same(struct vdisk_cmd_params *p)
+{
+	struct scst_cmd *cmd = p->cmd;
+	enum compl_status_e res = CMD_SUCCEEDED;
+
+	TRACE_ENTRY();
+
+	if (unlikely(cmd->cdb[1] & 1)) {
+		TRACE_DBG("%s", "ANCHOR not supported");
+		scst_set_cmd_error(cmd,
+			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		goto out;
+	}
+
+	if (unlikely(cmd->cdb[1] & 0xE0)) {
+		TRACE_DBG("%s", "WRPROTECT not supported");
+		scst_set_cmd_error(cmd,
+			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		goto out;
+	}
+
+	if (cmd->cdb[1] & 0x8) {
+		vdisk_exec_write_same_unmap(p);
+		goto out;
+	}
+
+	scst_write_same(cmd);
+	res = RUNNING_ASYNC;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 static enum compl_status_e vdisk_exec_unmap(struct vdisk_cmd_params *p)
 {
 	struct scst_cmd *cmd = p->cmd;
@@ -1957,15 +2020,14 @@ static enum compl_status_e vdisk_exec_unmap(struct vdisk_cmd_params *p)
 	TRACE_ENTRY();
 
 	if (unlikely(!virt_dev->thin_provisioned)) {
-		TRACE_DBG("%s", "Invalid opcode UNMAP");
+		TRACE_DBG("%s", "Device not thin provisioned");
 		scst_set_cmd_error(cmd,
 			SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		goto out;
 	}
 
 	if (unlikely(cmd->cdb[1] & 1)) {
-		/* ANCHOR not supported */
-		TRACE_DBG("%s", "Invalid ANCHOR field");
+		TRACE_DBG("%s", "ANCHOR not supported");
 		scst_set_cmd_error(cmd,
 			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
 		goto out;
