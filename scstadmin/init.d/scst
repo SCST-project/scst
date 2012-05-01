@@ -127,7 +127,8 @@ parse_scst_conf() {
     fi
     local nonblanks="[^ 	]\{1,\}"
     local blanks="[ 	]\{1,\}"
-    SCST_MODULES="$SCST_MODULES `sed -n -e 's/^HANDLER'"$blanks"'\('"$nonblanks"'\)'"$blanks"'{$/\1/p' \
+    local optblanks="[ 	]*"
+    SCST_MODULES="$SCST_MODULES `sed -n -e 's/^HANDLER'"$blanks"'\('"$nonblanks"'\)'"$blanks"'{'"$optblanks"'$/\1/p' \
                          -e 's/^\[HANDLER'"$blanks"'\('"$nonblanks"'\)\]$/\1/p' $SCST_CFG \
         | while read h; do
             case "$h" in
@@ -143,7 +144,7 @@ parse_scst_conf() {
                 *)              echo "$h";;
             esac
         done | sort -u` \
-        `sed -n 's/^TARGET_DRIVER'"$blanks"'\('"$nonblanks"'\)'"$blanks"'{$/\1/p' $SCST_CFG | while read d; do
+        `sed -n 's/^TARGET_DRIVER'"$blanks"'\('"$nonblanks"'\)'"$blanks"'{'"$optblanks"'$/\1/p' $SCST_CFG | while read d; do
             case "$d" in
                 iscsi)    echo iscsi_scst;;
                 qla2x00t) echo qla2x00tgt;;
