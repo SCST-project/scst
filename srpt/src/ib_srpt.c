@@ -2497,7 +2497,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 			     ch->sport->sdev->device->name);
 	if (IS_ERR(thread)) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-		ret = PTR_ERR(ch->thread);
+		ret = PTR_ERR(thread);
 		PRINT_ERROR("failed to create kernel thread: %d", ret);
 		goto unreg_ch;
 	}
