@@ -2342,7 +2342,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	struct srp_login_rsp *rsp;
 	struct srp_login_rej *rej;
 	struct ib_cm_rep_param *rep_param;
-	struct srpt_rdma_ch *ch;
+	struct srpt_rdma_ch *ch = NULL;
 	struct task_struct *thread;
 	u32 it_iu_len;
 	int i;
@@ -2535,7 +2535,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		PRINT_ERROR("rejected SRP_LOGIN_REQ because enabling"
 		       " RTR failed (error code = %d)", ret);
-		goto reject_and_close;
+		goto reject;
 	}
 
 	TRACE_DBG("Establish connection sess=%p name=%s cm_id=%p",
@@ -2575,32 +2575,14 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	case 0:
 		break;
 	case -ECONNABORTED:
-		goto out_keep_cm_id;
+		goto reject;
 	default:
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		PRINT_ERROR("sending SRP_LOGIN_REQ response failed"
 			    " (error code = %d)", ret);
-		goto reject_and_close;
+		goto reject;
 	}
 
-	goto out;
-
-reject_and_close:
-	PRINT_INFO("Rejecting login with reason %#x", be32_to_cpu(rej->reason));
-	rej->opcode = SRP_LOGIN_REJ;
-	rej->tag = req->tag;
-	rej->buf_fmt = cpu_to_be16(SRP_BUF_FORMAT_DIRECT |
-				   SRP_BUF_FORMAT_INDIRECT);
-	ib_send_cm_rej(cm_id, IB_CM_REJ_CONSUMER_DEFINED, NULL, 0,
-			     (void *)rej, sizeof *rej);
-
-	srpt_close_ch(ch);
-out_keep_cm_id:
-	/*
-	 * Tell the caller not to free cm_id since srpt_compl_thread() will do
-	 * that.
-	 */
-	ret = 0;
 	goto out;
 
 unreg_ch:
@@ -2618,16 +2600,25 @@ free_ch:
 	cm_id->context = NULL;
 	kfree(ch);
 
+	BUG_ON(ret == 0);
+
 reject:
 	PRINT_INFO("Rejecting login with reason %#x", be32_to_cpu(rej->reason));
 	rej->opcode = SRP_LOGIN_REJ;
 	rej->tag = req->tag;
 	rej->buf_fmt = cpu_to_be16(SRP_BUF_FORMAT_DIRECT |
 				   SRP_BUF_FORMAT_INDIRECT);
-	ib_send_cm_rej(cm_id, IB_CM_REJ_CONSUMER_DEFINED, NULL, 0,
-			     (void *)rej, sizeof *rej);
+	ib_send_cm_rej(cm_id, IB_CM_REJ_CONSUMER_DEFINED, NULL, 0, rej,
+		       sizeof(*rej));
 
-	BUG_ON(ret == 0);
+	if (ch && ch->thread) {
+		srpt_close_ch(ch);
+		/*
+		 * Tell the caller not to free cm_id since
+		 * srpt_compl_thread() will do that.
+		 */
+		ret = 0;
+	}
 
 out:
 	kfree(rep_param);
