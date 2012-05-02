@@ -2223,6 +2223,9 @@ static bool __srpt_close_ch(struct srpt_rdma_ch *ch)
 
 /**
  * srpt_close_ch() - Close an RDMA channel.
+ *
+ * Note: Must be called from inside an IB CM callback since otherwise it's not
+ * guaranteed that ch->cm_id won't be destroyed from another thread.
  */
 static void srpt_close_ch(struct srpt_rdma_ch *ch)
 {
