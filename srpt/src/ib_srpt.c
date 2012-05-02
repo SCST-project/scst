@@ -2182,10 +2182,10 @@ static void srpt_destroy_ch_ib(struct srpt_rdma_ch *ch)
 }
 
 /**
- * __srpt_close_ch() - Close an RDMA channel by setting the QP error state.
+ * __srpt_close_ch() - Close an RDMA channel.
  *
- * Reset the QP and make sure all resources associated with the channel will
- * be deallocated at an appropriate time.
+ * Make sure all resources associated with the channel will be deallocated at
+ * an appropriate time.
  *
  * Returns true if and only if the channel state has been modified from
  * CH_CONNECTING or CH_LIVE into CH_DISCONNECTING.
