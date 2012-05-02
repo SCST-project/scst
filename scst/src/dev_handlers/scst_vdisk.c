@@ -941,7 +941,6 @@ static int vdisk_attach_tgt(struct scst_tgt_dev *tgt_dev)
 		virt_dev->fd = NULL;
 
 out:
-
 	TRACE_EXIT_RES(res);
 	return res;
 }

@@ -67,6 +67,12 @@ static int strncasecmp(const char *s1, const char *s2, size_t n)
 }
 #endif
 
+#if !((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && defined(SCSI_EXEC_REQ_FIFO_DEFINED)) && !defined(HAVE_SG_COPY)
+static int sg_copy(struct scatterlist *dst_sg, struct scatterlist *src_sg,
+	    int nents_to_copy, size_t copy_len,
+	    enum km_type d_km_type, enum km_type s_km_type);
+#endif
+
 static void scst_destroy_put_cmd(struct scst_cmd *cmd);
 
 struct scst_sdbops;
