@@ -2612,6 +2612,7 @@ reject:
 		       sizeof(*rej));
 
 	if (ch && ch->thread) {
+		srpt_drain_channel(cm_id);
 		srpt_close_ch(ch);
 		/*
 		 * Tell the caller not to free cm_id since
