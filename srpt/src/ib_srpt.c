@@ -3407,7 +3407,7 @@ static int srpt_ch_list_empty(struct srpt_device *sdev)
  */
 static int srpt_release_sdev(struct srpt_device *sdev)
 {
-	struct srpt_rdma_ch *ch, *next_ch;
+	struct srpt_rdma_ch *ch;
 
 	TRACE_ENTRY();
 
@@ -3417,7 +3417,7 @@ static int srpt_release_sdev(struct srpt_device *sdev)
 	/* Disallow new logins and close all active sessions. */
 	spin_lock_irq(&sdev->spinlock);
 	sdev->enabled = false;
-	list_for_each_entry_safe(ch, next_ch, &sdev->rch_list, list)
+	list_for_each_entry(ch, &sdev->rch_list, list)
 		__srpt_close_ch(ch);
 	spin_unlock_irq(&sdev->spinlock);
 
@@ -3426,7 +3426,7 @@ static int srpt_release_sdev(struct srpt_device *sdev)
 		PRINT_INFO("%s: waiting for session unregistration ...",
 			   sdev->device->name);
 		spin_lock_irq(&sdev->spinlock);
-		list_for_each_entry_safe(ch, next_ch, &sdev->rch_list, list) {
+		list_for_each_entry(ch, &sdev->rch_list, list) {
 			PRINT_INFO("%s: state %s; %d commands in progress",
 				   ch->sess_name, get_ch_state_name(ch->state),
 				   atomic_read(&ch->scst_sess->sess_cmd_count));
