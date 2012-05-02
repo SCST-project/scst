@@ -2194,13 +2194,11 @@ static void srpt_destroy_ch_ib(struct srpt_rdma_ch *ch)
  */
 static bool __srpt_close_ch(struct srpt_rdma_ch *ch)
 {
-	struct srpt_device *sdev;
 	enum rdma_ch_state prev_state;
 	bool was_live;
 
 	BUG_ON(!ch->cm_id);
 
-	sdev = ch->sport->sdev;
 	was_live = false;
 
 	prev_state = srpt_set_ch_state_to_disc(ch);
