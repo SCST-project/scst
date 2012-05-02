@@ -2180,10 +2180,10 @@ static void srpt_destroy_ch_ib(struct srpt_rdma_ch *ch)
 }
 
 /**
- * __srpt_close_ch() - Close an RDMA channel by setting the QP error state.
+ * __srpt_close_ch() - Close an RDMA channel.
  *
- * Reset the QP and make sure all resources associated with the channel will
- * be deallocated at an appropriate time.
+ * Make sure all resources associated with the channel will be deallocated at
+ * an appropriate time.
  *
  * Returns true if and only if the channel state has been modified from
  * CH_CONNECTING or CH_LIVE into CH_DISCONNECTING.
@@ -2192,13 +2192,11 @@ static void srpt_destroy_ch_ib(struct srpt_rdma_ch *ch)
  */
 static bool __srpt_close_ch(struct srpt_rdma_ch *ch)
 {
-	struct srpt_device *sdev;
 	enum rdma_ch_state prev_state;
 	bool was_live;
 
 	BUG_ON(!ch->cm_id);
 
-	sdev = ch->sport->sdev;
 	was_live = false;
 
 	prev_state = srpt_set_ch_state_to_disc(ch);
@@ -2223,6 +2221,9 @@ static bool __srpt_close_ch(struct srpt_rdma_ch *ch)
 
 /**
  * srpt_close_ch() - Close an RDMA channel.
+ *
+ * Note: Must be called from inside an IB CM callback since otherwise it's not
+ * guaranteed that ch->cm_id won't be destroyed from another thread.
  */
 static void srpt_close_ch(struct srpt_rdma_ch *ch)
 {
@@ -2339,7 +2340,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	struct srp_login_rsp *rsp;
 	struct srp_login_rej *rej;
 	struct ib_cm_rep_param *rep_param;
-	struct srpt_rdma_ch *ch;
+	struct srpt_rdma_ch *ch = NULL;
 	struct task_struct *thread;
 	u32 it_iu_len;
 	int i;
@@ -2495,7 +2496,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 			     ch->sport->sdev->device->name);
 	if (IS_ERR(thread)) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-		ret = PTR_ERR(ch->thread);
+		ret = PTR_ERR(thread);
 		PRINT_ERROR("failed to create kernel thread: %d", ret);
 		goto unreg_ch;
 	}
@@ -2534,7 +2535,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		PRINT_ERROR("rejected SRP_LOGIN_REQ because enabling"
 		       " RTR failed (error code = %d)", ret);
-		goto reject_and_release;
+		goto reject;
 	}
 
 	TRACE_DBG("Establish connection sess=%p name=%s cm_id=%p",
@@ -2574,32 +2575,14 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	case 0:
 		break;
 	case -ECONNABORTED:
-		goto out_keep_cm_id;
+		goto reject;
 	default:
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		PRINT_ERROR("sending SRP_LOGIN_REQ response failed"
 			    " (error code = %d)", ret);
-		goto reject_and_release;
+		goto reject;
 	}
 
-	goto out;
-
-reject_and_release:
-	PRINT_INFO("Rejecting login with reason %#x", be32_to_cpu(rej->reason));
-	rej->opcode = SRP_LOGIN_REJ;
-	rej->tag = req->tag;
-	rej->buf_fmt = cpu_to_be16(SRP_BUF_FORMAT_DIRECT |
-				   SRP_BUF_FORMAT_INDIRECT);
-	ib_send_cm_rej(cm_id, IB_CM_REJ_CONSUMER_DEFINED, NULL, 0,
-			     (void *)rej, sizeof *rej);
-
-	srpt_close_ch(ch);
-out_keep_cm_id:
-	/*
-	 * Tell the caller not to free cm_id since srpt_compl_thread() will do
-	 * that.
-	 */
-	ret = 0;
 	goto out;
 
 unreg_ch:
@@ -2617,16 +2600,26 @@ free_ch:
 	cm_id->context = NULL;
 	kfree(ch);
 
+	BUG_ON(ret == 0);
+
 reject:
 	PRINT_INFO("Rejecting login with reason %#x", be32_to_cpu(rej->reason));
 	rej->opcode = SRP_LOGIN_REJ;
 	rej->tag = req->tag;
 	rej->buf_fmt = cpu_to_be16(SRP_BUF_FORMAT_DIRECT |
 				   SRP_BUF_FORMAT_INDIRECT);
-	ib_send_cm_rej(cm_id, IB_CM_REJ_CONSUMER_DEFINED, NULL, 0,
-			     (void *)rej, sizeof *rej);
+	ib_send_cm_rej(cm_id, IB_CM_REJ_CONSUMER_DEFINED, NULL, 0, rej,
+		       sizeof(*rej));
 
-	BUG_ON(ret == 0);
+	if (ch && ch->thread) {
+		srpt_drain_channel(cm_id);
+		srpt_close_ch(ch);
+		/*
+		 * Tell the caller not to free cm_id since
+		 * srpt_compl_thread() will do that.
+		 */
+		ret = 0;
+	}
 
 out:
 	kfree(rep_param);
@@ -3409,7 +3402,7 @@ static int srpt_ch_list_empty(struct srpt_device *sdev)
  */
 static int srpt_release_sdev(struct srpt_device *sdev)
 {
-	struct srpt_rdma_ch *ch, *next_ch;
+	struct srpt_rdma_ch *ch;
 
 	TRACE_ENTRY();
 
@@ -3419,7 +3412,7 @@ static int srpt_release_sdev(struct srpt_device *sdev)
 	/* Disallow new logins and close all active sessions. */
 	spin_lock_irq(&sdev->spinlock);
 	sdev->enabled = false;
-	list_for_each_entry_safe(ch, next_ch, &sdev->rch_list, list)
+	list_for_each_entry(ch, &sdev->rch_list, list)
 		__srpt_close_ch(ch);
 	spin_unlock_irq(&sdev->spinlock);
 
@@ -3428,7 +3421,7 @@ static int srpt_release_sdev(struct srpt_device *sdev)
 		PRINT_INFO("%s: waiting for session unregistration ...",
 			   sdev->device->name);
 		spin_lock_irq(&sdev->spinlock);
-		list_for_each_entry_safe(ch, next_ch, &sdev->rch_list, list) {
+		list_for_each_entry(ch, &sdev->rch_list, list) {
 			PRINT_INFO("%s: state %s; %d commands in progress",
 				   ch->sess_name, get_ch_state_name(ch->state),
 				   atomic_read(&ch->scst_sess->sess_cmd_count));
