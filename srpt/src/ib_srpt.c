@@ -2535,7 +2535,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		PRINT_ERROR("rejected SRP_LOGIN_REQ because enabling"
 		       " RTR failed (error code = %d)", ret);
-		goto reject_and_release;
+		goto reject_and_close;
 	}
 
 	TRACE_DBG("Establish connection sess=%p name=%s cm_id=%p",
@@ -2580,12 +2580,12 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		PRINT_ERROR("sending SRP_LOGIN_REQ response failed"
 			    " (error code = %d)", ret);
-		goto reject_and_release;
+		goto reject_and_close;
 	}
 
 	goto out;
 
-reject_and_release:
+reject_and_close:
 	PRINT_INFO("Rejecting login with reason %#x", be32_to_cpu(rej->reason));
 	rej->opcode = SRP_LOGIN_REJ;
 	rej->tag = req->tag;
