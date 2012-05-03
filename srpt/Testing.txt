@@ -142,3 +142,17 @@ Index: srpt/src/ib_srpt.c
   - On the target, unload and reload the ib_srpt kernel module.
   - Verify that no kernel crash occurs on the target.
   - Repeat the above a few times.
+
+* Test whether the code for rejecting a login after the completion thread has
+  been created works fine. Do that as follows:
+  - Insert "ret = -ENOMEM;" after the srpt_ch_qp_rtr() call.
+  - Rebuild, reinstall and restart SCST and ib_srpt on a system running a
+    debug kernel.
+  - Log in a few times from another system.
+  - Verify on the initiator system that each login attempt results in
+    "write error: Connection reset by peer".
+  - Verify on the target that no error messages have been logged in the kernel
+    log, that no completion threads remain (output of "ps aux | grep srpt" must
+    not list any kernel threads) and that no sessions remain
+    (output of "ls /sys/kernel/scst_tgt/targets/ib_srpt/*/sessions" must be
+    empty) and that the amount of free memory remains the same.
