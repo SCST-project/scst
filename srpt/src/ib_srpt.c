@@ -2002,6 +2002,20 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 	wake_up_process(ch->thread);
 }
 
+static void srpt_free_ch(struct kref *kref)
+{
+	struct srpt_rdma_ch *ch = container_of(kref, struct srpt_rdma_ch, kref);
+
+	/*
+	 * The function call below will wait for the completion handler
+	 * callback to finish and hence ensures that wake_up_process() won't
+	 * be invoked anymore from that callback for the current thread.
+	 */
+	srpt_destroy_ch_ib(ch);
+
+	kfree(ch);
+}
+
 static int srpt_compl_thread(void *arg)
 {
 	struct srpt_rdma_ch *ch;
@@ -2028,7 +2042,7 @@ static int srpt_compl_thread(void *arg)
 
 	set_current_state(TASK_INTERRUPTIBLE);
 	barrier();
-	while (!ch->last_wqe_received) {
+	while (!ch->last_wqe_received && ch->state == CH_LIVE) {
 		srpt_process_completion(ch->cq, ch, SCST_CONTEXT_THREAD,
 					SCST_CONTEXT_THREAD);
 		schedule();
@@ -2063,17 +2077,13 @@ static int srpt_compl_thread(void *arg)
 	list_del(&ch->list);
 	spin_unlock_irq(&sdev->spinlock);
 
+	/*
+	 * If the connection is still established, ib_destroy_cm_id() will
+	 * send a DREQ.
+	 */
 	ib_destroy_cm_id(ch->cm_id);
 
-	/*
-	 * The function call below will wait for the completion handler
-	 * callback to finish and hence ensures that wake_up_process() won't
-	 * be invoked anymore from that callback for the current thread.
-	 */
-	srpt_destroy_ch_ib(ch);
-
-	kfree(ch);
-	ch = NULL;
+	kref_put(&ch->kref, srpt_free_ch);
 
 	wake_up(&sdev->ch_releaseQ);
 
@@ -2187,15 +2197,19 @@ static void srpt_destroy_ch_ib(struct srpt_rdma_ch *ch)
  *
  * Returns true if and only if the channel state has been modified from
  * CH_CONNECTING or CH_LIVE into CH_DISCONNECTING.
- *
- * Note: The caller must hold ch->sport->sdev->spinlock.
  */
 static bool __srpt_close_ch(struct srpt_rdma_ch *ch)
+	__releases(&ch->srpt_tgt->spinlock)
+	__acquires(&ch->srpt_tgt->spinlock)
 {
+	struct srpt_device *sdev = ch->sport->sdev;
 	enum rdma_ch_state prev_state;
+	int ret;
 	bool was_live;
 
-	BUG_ON(!ch->cm_id);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&sdev->spinlock);
+#endif
 
 	was_live = false;
 
@@ -2203,17 +2217,25 @@ static bool __srpt_close_ch(struct srpt_rdma_ch *ch)
 
 	switch (prev_state) {
 	case CH_CONNECTING:
-		ib_send_cm_rej(ch->cm_id, IB_CM_REJ_NO_RESOURCES, NULL, 0,
-			       NULL, 0);
-		/* fall through */
 	case CH_LIVE:
 		was_live = true;
-		if (ib_send_cm_dreq(ch->cm_id, NULL, 0) < 0)
-			PRINT_ERROR("%s", "sending CM DREQ failed.");
 		break;
 	case CH_DISCONNECTING:
 	case CH_DRAINING:
 		break;
+	}
+
+	if (was_live) {
+		kref_get(&ch->kref);
+		spin_unlock_irq(&sdev->spinlock);
+
+		ret = srpt_ch_qp_err(ch);
+		if (ret < 0)
+			PRINT_ERROR("Setting queue pair in error state"
+			       " failed: %d", ret);
+		kref_put(&ch->kref, srpt_free_ch);
+
+		spin_lock_irq(&sdev->spinlock);
 	}
 
 	return was_live;
@@ -2221,9 +2243,6 @@ static bool __srpt_close_ch(struct srpt_rdma_ch *ch)
 
 /**
  * srpt_close_ch() - Close an RDMA channel.
- *
- * Note: Must be called from inside an IB CM callback since otherwise it's not
- * guaranteed that ch->cm_id won't be destroyed from another thread.
  */
 static void srpt_close_ch(struct srpt_rdma_ch *ch)
 {
@@ -2263,6 +2282,22 @@ static void srpt_drain_channel(struct ib_cm_id *cm_id)
 	}
 }
 
+static void __srpt_close_all_ch(struct srpt_device *sdev)
+{
+	struct srpt_rdma_ch *ch, *next_ch;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&sdev->spinlock);
+#endif
+
+	list_for_each_entry_safe(ch, next_ch, &sdev->rch_list, list) {
+		PRINT_INFO("Closing channel %s because target %s has been"
+			   " disabled", ch->sess_name,
+			   sdev->scst_tgt->tgt_name);
+		__srpt_close_ch(ch);
+	}
+}
+
 #if !defined(CONFIG_SCST_PROC)
 /**
  * srpt_enable_target() - Allows to enable a target via sysfs.
@@ -2281,17 +2316,8 @@ static int srpt_enable_target(struct scst_tgt *scst_tgt, bool enable)
 
 	spin_lock_irq(&sdev->spinlock);
 	sdev->enabled = enable;
-	if (!enable) {
-		struct srpt_rdma_ch *ch;
-
-		list_for_each_entry(ch, &sdev->rch_list, list) {
-			PRINT_INFO("Closing channel %s (cm_id %p)"
-				   " because target %s has been disabled",
-				   ch->sess_name, ch->cm_id,
-				   sdev->device->name);
-			__srpt_close_ch(ch);
-		}
-	}
+	if (!enable)
+		__srpt_close_all_ch(sdev);
 	spin_unlock_irq(&sdev->spinlock);
 
 	return 0;
@@ -2390,7 +2416,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		goto reject;
 	}
 
-	if (!srpt_is_target_enabled(sdev->scst_tgt)) {
+	if (!sdev->enabled) {
 		rej->reason = cpu_to_be32(
 				SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		PRINT_ERROR("rejected SRP_LOGIN_REQ because the target %s (%s)"
@@ -2418,6 +2444,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		goto reject;
 	}
 
+	kref_init(&ch->kref);
 	memcpy(ch->i_port_id, req->initiator_port_id, 16);
 	memcpy(ch->t_port_id, req->target_port_id, 16);
 	ch->sport = &sdev->port[param->port - 1];
@@ -2502,10 +2529,12 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	}
 
 	spin_lock_irq(&sdev->spinlock);
+
 	if ((req->req_flags & SRP_MTCH_ACTION) == SRP_MULTICHAN_SINGLE) {
 		struct srpt_rdma_ch *ch2;
 
 		rsp->rsp_flags = SRP_LOGIN_RSP_MULTICHAN_NO_CHAN;
+restart:
 		list_for_each_entry(ch2, &sdev->rch_list, list) {
 			if (!memcmp(ch2->i_port_id, req->initiator_port_id, 16)
 			    && !memcmp(ch2->t_port_id, req->target_port_id, 16)
@@ -2520,13 +2549,27 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 
 				rsp->rsp_flags =
 					SRP_LOGIN_RSP_MULTICHAN_TERMINATED;
+
+				goto restart;
 			}
 		}
 	} else {
 		rsp->rsp_flags = SRP_LOGIN_RSP_MULTICHAN_MAINTAINED;
 	}
+
 	list_add_tail(&ch->list, &sdev->rch_list);
 	ch->thread = thread;
+
+	if (!sdev->enabled) {
+		rej->reason = cpu_to_be32(
+				SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
+		PRINT_ERROR("rejected SRP_LOGIN_REQ because the target %s (%s)"
+			    " is not enabled",
+			    sdev->scst_tgt->tgt_name, sdev->device->name);
+		spin_unlock_irq(&sdev->spinlock);
+		goto reject;
+	}
+
 	spin_unlock_irq(&sdev->spinlock);
 
 	ret = srpt_ch_qp_rtr(ch, ch->qp);
@@ -2611,7 +2654,6 @@ reject:
 		       sizeof(*rej));
 
 	if (ch && ch->thread) {
-		srpt_drain_channel(cm_id);
 		srpt_close_ch(ch);
 		/*
 		 * Tell the caller not to free cm_id since
@@ -3411,8 +3453,7 @@ static int srpt_release_sdev(struct srpt_device *sdev)
 	/* Disallow new logins and close all active sessions. */
 	spin_lock_irq(&sdev->spinlock);
 	sdev->enabled = false;
-	list_for_each_entry(ch, &sdev->rch_list, list)
-		__srpt_close_ch(ch);
+	__srpt_close_all_ch(sdev);
 	spin_unlock_irq(&sdev->spinlock);
 
 	while (wait_event_timeout(sdev->ch_releaseQ,
