@@ -156,3 +156,16 @@ Index: srpt/src/ib_srpt.c
     not list any kernel threads) and that no sessions remain
     (output of "ls /sys/kernel/scst_tgt/targets/ib_srpt/*/sessions" must be
     empty) and that the amount of free memory remains the same.
+
+* Run this script on the target to verify that active sessions are closed
+  properly when a target is disabled:
+    e=1
+    while true; do
+      echo $e
+      for f in /sys/kernel/scst_tgt/targets/ib_srpt/*/enabled; do
+        echo $e > $f
+      done
+      e=$((1-e))
+      sleep 10
+    done
+  While this script is running, repeatedly try to log in from another system.
