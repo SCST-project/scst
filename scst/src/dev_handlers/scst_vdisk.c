@@ -967,6 +967,7 @@ static void vdisk_detach_tgt(struct scst_tgt_dev *tgt_dev)
 
 out:
 	TRACE_EXIT();
+	return;
 }
 
 static enum compl_status_e vdisk_synchronize_cache(struct vdisk_cmd_params *p)
