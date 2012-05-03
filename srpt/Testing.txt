@@ -6,7 +6,7 @@ At least the following tests must be run before releasing a new SRPT version:
 * Make sure that SRPT compiles and installs without triggering any
   compiler warning. Use the following command to compile and install SRPT:
 
-  for d in scst srpt; do make -C $d -s clean && make -C $d -s install; done
+  for d in scst srpt; do make -sC $d clean && make -sC $d install; done
 
 * Verify the output of run-regression-tests for kernel versions starting at
   2.6.23 up to and including the latest released kernel.
@@ -22,7 +22,9 @@ At least the following tests must be run before releasing a new SRPT version:
       ${SCST_TRUNK}/scripts/monitor-memory-usage | tee memlog.txt
   * Run the following command on the initiator system:
       target_id="$(/usr/sbin/ibsrpdm -c -d /dev/infiniband/umad0)"
-      for ((i=0;i<100000;i++)); do echo "$target_id" >/sys/class/infiniband_srp/srp-mlx4_0-1/add_target; done
+      for ((i=0;i<100000;i++)); do
+        echo "$target_id" >/sys/class/infiniband_srp/srp-mlx4_0-1/add_target
+      done
 
 * Verify that the following I/O stress test does not report any errors even
   when left running for several hours:
@@ -89,7 +91,7 @@ Index: srpt/src/ib_srpt.c
 * Log in twice from an initiator system, and verify that the first session
   receives a DREQ upon the second login:
 
-    target_id="$(/usr/sbin/ibsrpdm -c -d /dev/infiniband/umad0)"
+    target_id="$(/usr/sbin/ibsrpdm -c -d /dev/infiniband/umad0 | head -n1)"
     dmesg -c
     echo "${target_id}" > /sys/class/infiniband_srp/srp-mlx4_0-1/add_target
     dmesg -c
