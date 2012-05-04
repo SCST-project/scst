@@ -2551,6 +2551,16 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 
 	spin_lock_irq(&sdev->spinlock);
 
+	if (!sdev->enabled) {
+		rej->reason = cpu_to_be32(
+				SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
+		PRINT_ERROR("rejected SRP_LOGIN_REQ because the target %s (%s)"
+			    " is not enabled",
+			    sdev->scst_tgt->tgt_name, sdev->device->name);
+		spin_unlock_irq(&sdev->spinlock);
+		goto reject;
+	}
+
 	if ((req->req_flags & SRP_MTCH_ACTION) == SRP_MULTICHAN_SINGLE) {
 		struct srpt_rdma_ch *ch2;
 
@@ -2580,16 +2590,6 @@ restart:
 
 	list_add_tail(&ch->list, &sdev->rch_list);
 	ch->thread = thread;
-
-	if (!sdev->enabled) {
-		rej->reason = cpu_to_be32(
-				SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-		PRINT_ERROR("rejected SRP_LOGIN_REQ because the target %s (%s)"
-			    " is not enabled",
-			    sdev->scst_tgt->tgt_name, sdev->device->name);
-		spin_unlock_irq(&sdev->spinlock);
-		goto reject;
-	}
 
 	spin_unlock_irq(&sdev->spinlock);
 
@@ -2662,6 +2662,7 @@ free_ring:
 free_ch:
 	cm_id->context = NULL;
 	kfree(ch);
+	ch = NULL;
 
 	BUG_ON(ret == 0);
 
