@@ -2389,17 +2389,37 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 
 	it_iu_len = be32_to_cpu(req->req_it_iu_len);
 
-	PRINT_INFO("Received SRP_LOGIN_REQ with"
-	    " i_port_id 0x%llx:0x%llx, t_port_id 0x%llx:0x%llx and it_iu_len %d"
-	    " on port %d (guid=0x%llx:0x%llx)",
-	    be64_to_cpu(*(__be64 *)&req->initiator_port_id[0]),
-	    be64_to_cpu(*(__be64 *)&req->initiator_port_id[8]),
-	    be64_to_cpu(*(__be64 *)&req->target_port_id[0]),
-	    be64_to_cpu(*(__be64 *)&req->target_port_id[8]),
+	PRINT_INFO("Received SRP_LOGIN_REQ with i_port_id"
+		   " %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x,"
+		   " t_port_id %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x and"
+		   " it_iu_len %d on port %d"
+		   " (guid=%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x)",
+	    be16_to_cpu(*(__be16 *)&req->initiator_port_id[0]),
+	    be16_to_cpu(*(__be16 *)&req->initiator_port_id[2]),
+	    be16_to_cpu(*(__be16 *)&req->initiator_port_id[4]),
+	    be16_to_cpu(*(__be16 *)&req->initiator_port_id[6]),
+	    be16_to_cpu(*(__be16 *)&req->initiator_port_id[8]),
+	    be16_to_cpu(*(__be16 *)&req->initiator_port_id[10]),
+	    be16_to_cpu(*(__be16 *)&req->initiator_port_id[12]),
+	    be16_to_cpu(*(__be16 *)&req->initiator_port_id[14]),
+	    be16_to_cpu(*(__be16 *)&req->target_port_id[0]),
+	    be16_to_cpu(*(__be16 *)&req->target_port_id[2]),
+	    be16_to_cpu(*(__be16 *)&req->target_port_id[4]),
+	    be16_to_cpu(*(__be16 *)&req->target_port_id[6]),
+	    be16_to_cpu(*(__be16 *)&req->target_port_id[8]),
+	    be16_to_cpu(*(__be16 *)&req->target_port_id[10]),
+	    be16_to_cpu(*(__be16 *)&req->target_port_id[12]),
+	    be16_to_cpu(*(__be16 *)&req->target_port_id[14]),
 	    it_iu_len,
 	    param->port,
-	    be64_to_cpu(*(__be64 *)&sdev->port[param->port - 1].gid.raw[0]),
-	    be64_to_cpu(*(__be64 *)&sdev->port[param->port - 1].gid.raw[8]));
+	    be16_to_cpu(*(__be16 *)&sdev->port[param->port - 1].gid.raw[0]),
+	    be16_to_cpu(*(__be16 *)&sdev->port[param->port - 1].gid.raw[2]),
+	    be16_to_cpu(*(__be16 *)&sdev->port[param->port - 1].gid.raw[4]),
+	    be16_to_cpu(*(__be16 *)&sdev->port[param->port - 1].gid.raw[6]),
+	    be16_to_cpu(*(__be16 *)&sdev->port[param->port - 1].gid.raw[8]),
+	    be16_to_cpu(*(__be16 *)&sdev->port[param->port - 1].gid.raw[10]),
+	    be16_to_cpu(*(__be16 *)&sdev->port[param->port - 1].gid.raw[12]),
+	    be16_to_cpu(*(__be16 *)&sdev->port[param->port - 1].gid.raw[14]));
 
 	ret = -ENOMEM;
 	rsp = kzalloc(sizeof *rsp, GFP_KERNEL);
