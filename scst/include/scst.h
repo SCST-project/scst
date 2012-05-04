@@ -441,10 +441,16 @@ enum scst_exec_context {
  ** Return codes for dev handler's exec()
  *************************************************************/
 
-/* The cmd is done, go to other ones */
+/*
+ * The cmd is completed, go to other ones. It doesn't necessary to be really
+ * completed, it can still be being processed. This code means that SCST
+ * core should start performing post processing actions for this cmd, like
+ * increase SN and reactivate deferred commands, if allowed, and start
+ * processing other commands.
+ */
 #define SCST_EXEC_COMPLETED          0
 
-/* The cmd should be sent to SCSI mid-level */
+/* The cmd should continue staying on the EXEC phase */
 #define SCST_EXEC_NOT_COMPLETED      1
 
 /*************************************************************
