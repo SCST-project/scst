@@ -2013,9 +2013,8 @@ static enum compl_status_e vdisk_exec_unmap(struct vdisk_cmd_params *p)
 {
 	struct scst_cmd *cmd = p->cmd;
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
-	ssize_t length = 0;
-	uint8_t *address;
-	int offset, descriptor_len, total_len;
+	struct scst_data_descriptor *pd = cmd->cmd_data_descriptors;
+	int i;
 
 	TRACE_ENTRY();
 
@@ -2033,54 +2032,16 @@ static enum compl_status_e vdisk_exec_unmap(struct vdisk_cmd_params *p)
 		goto out;
 	}
 
-	length = scst_get_buf_full(cmd, &address);
-	if (unlikely(length <= 0)) {
-		if (length == 0)
-			goto out_put;
-		else if (length == -ENOMEM)
-			scst_set_busy(cmd);
-		else
-			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_hardw_error));
+	if (pd == NULL)
 		goto out;
-	}
 
-	total_len = get_unaligned_be16(&cmd->cdb[7]);	/* length */
-	offset = 8;
-
-	descriptor_len = get_unaligned_be16(&address[2]);
-
-	TRACE_DBG("total_len %d, descriptor_len %d", total_len, descriptor_len);
-
-	if (descriptor_len == 0)
-		goto out_put;
-
-	if (unlikely((descriptor_len > (total_len - 8)) ||
-		     ((descriptor_len % 16) != 0))) {
-		PRINT_ERROR("Bad descriptor length: %d < %d - 8",
-			descriptor_len, total_len);
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_parm_list));
-		goto out_put;
-	}
-
-	while ((offset - 8) < descriptor_len) {
-		int rc;
-		uint64_t start;
-		uint32_t len;
-
-		start = get_unaligned_be64(&address[offset]);
-		offset += 8;
-		len = get_unaligned_be32(&address[offset]);
-		offset += 8;
-
-		rc = vdisk_unmap_range(cmd, virt_dev, start, len);
+	for (i = 0; i < cmd->cmd_data_descriptors_cnt; i++) {
+		struct scst_data_descriptor *d = &pd[i];
+		int rc = vdisk_unmap_range(cmd, virt_dev, d->sdd_lba, d->sdd_len);
 		if (rc != 0)
-			goto out_put;
+			goto out;
 	}
 
-out_put:
-	scst_put_buf_full(cmd, address);
 
 out:
 	TRACE_EXIT();

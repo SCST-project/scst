@@ -2114,6 +2114,15 @@ struct scst_cmd {
 	/* Counter of the corresponding SCST_PR_ABORT_ALL TM commands */
 	struct scst_pr_abort_all_pending_mgmt_cmds_counter *pr_abort_counter;
 
+	/*
+	 * List of parsed data descriptors for commands operating with
+	 * several lba and data_len pairs, like UNMAP.
+	 */
+	void *cmd_data_descriptors;
+
+	/* Count of entries in the descriptors array */
+	int cmd_data_descriptors_cnt;
+
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 	/*
 	 * Must be the last to allow to work with drivers who don't know
@@ -2407,7 +2416,7 @@ struct scst_device {
 	/* List of blocked commands, protected by dev_lock. */
 	struct list_head blocked_cmd_list;
 
-	/* A list entry used during TM, protected by scst_mutex */
+	/* A list entry used during TM */
 	struct list_head tm_dev_list_entry;
 
 	int virt_id; /* virtual device internal ID */
@@ -4398,5 +4407,10 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 #endif
 
 void scst_write_same(struct scst_cmd *cmd);
+
+struct scst_data_descriptor {
+        uint64_t sdd_lba;
+        uint64_t sdd_len;
+};
 
 #endif /* __SCST_H */

@@ -73,6 +73,7 @@ static int sg_copy(struct scatterlist *dst_sg, struct scatterlist *src_sg,
 	    enum km_type d_km_type, enum km_type s_km_type);
 #endif
 
+static void scst_free_descriptors(struct scst_cmd *cmd);
 static void scst_destroy_put_cmd(struct scst_cmd *cmd);
 
 struct scst_sdbops;
@@ -685,7 +686,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x42, .devkey = "O               ",
 	 .info_op_name = "UNMAP",
 	 .info_data_direction = SCST_DATA_WRITE,
-	 .info_op_flags = SCST_WRITE_MEDIUM,
+	 .info_op_flags = SCST_WRITE_MEDIUM|SCST_DESCRIPTORS_BASED,
 	 .info_len_off = 7, .info_len_len = 2,
 	 .get_cdb_info = get_cdb_info_len_2},
 	{.ops = 0x43, .devkey = "     O          ",
@@ -4766,7 +4767,7 @@ int scst_finish_internal_cmd(struct scst_cmd *cmd)
 
 	if (cmd->cdb[0] == REQUEST_SENSE)
 		scst_complete_request_sense(cmd);
-	else if (cmd->cdb[0] == WRITE_16) {
+	else {
 		struct scst_i_finish_t *f = cmd->tgt_i_priv;
 		f->scst_i_finish_fn(cmd);
 	}
@@ -5229,6 +5230,9 @@ void scst_free_cmd(struct scst_cmd *cmd)
 					&cmd->cmd_flags);
 		}
 	}
+
+	if (unlikely(cmd->op_flags & SCST_DESCRIPTORS_BASED))
+		scst_free_descriptors(cmd);
 
 	if (cmd->cdb != cmd->cdb_buf)
 		kfree(cmd->cdb);
@@ -6724,6 +6728,57 @@ int scst_raid_generic_parse(struct scst_cmd *cmd)
 }
 EXPORT_SYMBOL_GPL(scst_raid_generic_parse);
 
+int scst_do_internal_parsing(struct scst_cmd *cmd)
+{
+	int res, rc;
+
+	TRACE_ENTRY();
+
+	switch (cmd->dev->type) {
+	case TYPE_DISK:
+		rc = scst_sbc_generic_parse(cmd);
+		break;
+	case TYPE_TAPE:
+		rc = scst_tape_generic_parse(cmd);
+		break;
+	case TYPE_PROCESSOR:
+		rc = scst_processor_generic_parse(cmd);
+		break;
+	case TYPE_ROM:
+		rc = scst_cdrom_generic_parse(cmd);
+		break;
+	case TYPE_MOD:
+		rc = scst_modisk_generic_parse(cmd);
+		break;
+	case TYPE_MEDIUM_CHANGER:
+		rc = scst_changer_generic_parse(cmd);
+		break;
+	case TYPE_RAID:
+		rc = scst_raid_generic_parse(cmd);
+		break;
+	default:
+		PRINT_ERROR("Internal parse for type %d not supported",
+			cmd->dev->type);
+		goto out_hw_err;
+	}
+
+	if (rc != 0)
+		goto out_abn;
+
+	res = SCST_CMD_STATE_DEFAULT;
+
+out:
+	TRACE_EXIT();
+	return res;
+
+out_hw_err:
+	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+
+out_abn:
+	res = scst_get_cmd_abnormal_done_state(cmd);
+	goto out;
+}
+
 /**
  ** Generic dev_done() support routines.
  ** Done via pointer on functions to avoid unneeded dereferences on
@@ -7556,7 +7611,10 @@ void scst_block_dev(struct scst_device *dev)
 		dev->virt_name);
 }
 
-/* dev_lock supposed to be held and BH disabled */
+/*
+ * dev_lock supposed to be held and BH disabled. Returns true if cmd blocked,
+ * hence stop processing it and go to the next command.
+ */
 bool __scst_check_blocked_dev(struct scst_cmd *cmd)
 {
 	int res = false;
@@ -8086,6 +8144,140 @@ char *scst_get_next_token_str(char **input_str)
 	return p;
 }
 EXPORT_SYMBOL_GPL(scst_get_next_token_str);
+
+static bool scst_parse_unmap_descriptors(struct scst_cmd *cmd)
+{
+	int res = false;
+	ssize_t length = 0;
+	uint8_t *address;
+	int i, cnt, offset, descriptor_len, total_len;
+	struct scst_data_descriptor *pd;
+
+	TRACE_ENTRY();
+
+	EXTRACHECKS_BUG_ON(cmd->cmd_data_descriptors != NULL);
+
+	length = scst_get_buf_full(cmd, &address);
+	if (unlikely(length <= 0)) {
+		if (length == 0)
+			goto out_put;
+		else if (length == -ENOMEM)
+			scst_set_busy(cmd);
+		else
+			scst_set_cmd_error(cmd,
+				SCST_LOAD_SENSE(scst_sense_hardw_error));
+		goto out_abn;
+	}
+
+	total_len = get_unaligned_be16(&cmd->cdb[7]);
+	offset = 8;
+
+	descriptor_len = get_unaligned_be16(&address[2]);
+
+	TRACE_DBG("total_len %d, descriptor_len %d", total_len, descriptor_len);
+
+	if (descriptor_len == 0)
+		goto out_put;
+
+	if (unlikely((descriptor_len > (total_len - 8)) ||
+		     ((descriptor_len % 16) != 0))) {
+		PRINT_ERROR("Bad descriptor length: %d < %d - 8",
+			descriptor_len, total_len);
+		scst_set_cmd_error(cmd,
+			SCST_LOAD_SENSE(scst_sense_invalid_field_in_parm_list));
+		goto out_abn_put;
+	}
+
+	cnt = descriptor_len/16;
+	if (cnt == 0)
+		goto out_put;
+
+	pd = kzalloc(sizeof(*pd) * (cnt+1), GFP_KERNEL);
+	if (pd == NULL) {
+		PRINT_ERROR("Unable to kmalloc UNMAP %d descriptors", cnt+1);
+		scst_set_busy(cmd);
+		goto out_abn_put;
+	}
+
+	TRACE_DBG("cnt %d, pd %p", cnt, pd);
+
+	i = 0;
+	while ((offset - 8) < descriptor_len) {
+		struct scst_data_descriptor *d = &pd[i];
+		d->sdd_lba = get_unaligned_be64(&address[offset]);
+		offset += 8;
+		d->sdd_len = get_unaligned_be32(&address[offset]);
+		offset += 8;
+		TRACE_DBG("i %d, lba %lld, len %lld", i,
+			(long long )d->sdd_lba, (long long )d->sdd_len);
+		i++;
+	}
+
+	cmd->cmd_data_descriptors = pd;
+	cmd->cmd_data_descriptors_cnt = cnt;
+
+out_put:
+	scst_put_buf_full(cmd, address);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_abn_put:
+	scst_put_buf_full(cmd, address);
+
+out_abn:
+	scst_set_cmd_abnormal_done_state(cmd);
+	res = true;
+	goto out;
+}
+
+static void scst_free_unmap_descriptors(struct scst_cmd *cmd)
+{
+	TRACE_ENTRY();
+
+	kfree(cmd->cmd_data_descriptors);
+
+	TRACE_EXIT();
+	return;
+}
+
+bool scst_parse_descriptors(struct scst_cmd *cmd)
+{
+	bool res;
+
+	TRACE_ENTRY();
+
+	switch (cmd->cdb[0]) {
+	case UNMAP:
+		res = scst_parse_unmap_descriptors(cmd);
+		break;
+	default:
+		sBUG_ON(1);
+		res = false;
+		break;
+	}
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static void scst_free_descriptors(struct scst_cmd *cmd)
+{
+	TRACE_ENTRY();
+
+	switch (cmd->cdb[0]) {
+	case UNMAP:
+		scst_free_unmap_descriptors(cmd);
+		break;
+	default:
+		sBUG_ON(1);
+		break;
+	}
+
+	TRACE_EXIT();
+	return;
+}
 
 static void __init scst_scsi_op_list_init(void)
 {

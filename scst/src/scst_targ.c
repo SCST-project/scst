@@ -605,10 +605,10 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 		}
 
 		scst_set_parse_time(cmd);
-
-		if (state == SCST_CMD_STATE_DEFAULT)
-			state = SCST_CMD_STATE_PREPARE_SPACE;
 	} else
+		state = scst_do_internal_parsing(cmd);
+
+	if (state == SCST_CMD_STATE_DEFAULT)
 		state = SCST_CMD_STATE_PREPARE_SPACE;
 
 	if (unlikely(state == SCST_CMD_STATE_PRE_XMIT_RESP) ||
@@ -1555,7 +1555,7 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 	cmd->state = SCST_CMD_STATE_EXEC_CHECK_SN;
 
 	if ((cmd->tgtt->pre_exec == NULL) || unlikely(cmd->internal))
-		goto out;
+		goto out_descr;
 
 	TRACE_DBG("Calling pre_exec(%p)", cmd);
 	scst_set_cur_start(cmd);
@@ -1567,7 +1567,7 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 		switch (rc) {
 		case SCST_PREPROCESS_STATUS_ERROR_SENSE_SET:
 			scst_set_cmd_abnormal_done_state(cmd);
-			break;
+			goto out;
 		case SCST_PREPROCESS_STATUS_ERROR_FATAL:
 			set_bit(SCST_CMD_NO_RESP, &cmd->cmd_flags);
 			/* go through */
@@ -1575,11 +1575,18 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 			scst_set_cmd_error(cmd,
 				   SCST_LOAD_SENSE(scst_sense_hardw_error));
 			scst_set_cmd_abnormal_done_state(cmd);
-			break;
+			goto out;
 		default:
 			sBUG();
-			break;
+			goto out;
 		}
+	}
+
+out_descr:
+	if (unlikely(cmd->op_flags & SCST_DESCRIPTORS_BASED)) {
+		bool r = scst_parse_descriptors(cmd);
+		if (unlikely(r))
+			goto out;
 	}
 
 out:

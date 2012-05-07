@@ -701,6 +701,9 @@ static inline void __scst_cmd_put(struct scst_cmd *cmd)
 extern void scst_throttle_cmd(struct scst_cmd *cmd);
 extern void scst_unthrottle_cmd(struct scst_cmd *cmd);
 
+int scst_do_internal_parsing(struct scst_cmd *cmd);
+bool scst_parse_descriptors(struct scst_cmd *cmd);
+
 #ifdef CONFIG_SCST_DEBUG_TM
 extern void tm_dbg_check_released_cmds(void);
 extern int tm_dbg_check_cmd(struct scst_cmd *cmd);
