@@ -693,7 +693,7 @@ static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 				virt_dev->filename);
 			goto out_close;
 		}
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 31)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32) || (defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6)
 		virt_dev->dev_thin_provisioned =
 			blk_queue_discard(bdev_get_queue(inode->i_bdev));
 #endif
