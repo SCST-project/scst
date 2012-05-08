@@ -4409,8 +4409,8 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 void scst_write_same(struct scst_cmd *cmd);
 
 struct scst_data_descriptor {
-        uint64_t sdd_lba;
-        uint64_t sdd_len;
+	uint64_t sdd_lba;
+	uint64_t sdd_len;
 };
 
 #endif /* __SCST_H */

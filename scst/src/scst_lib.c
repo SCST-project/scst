@@ -8209,7 +8209,7 @@ static bool scst_parse_unmap_descriptors(struct scst_cmd *cmd)
 		d->sdd_len = get_unaligned_be32(&address[offset]);
 		offset += 8;
 		TRACE_DBG("i %d, lba %lld, len %lld", i,
-			(long long )d->sdd_lba, (long long )d->sdd_len);
+			(long long)d->sdd_lba, (long long)d->sdd_len);
 		i++;
 	}
 
