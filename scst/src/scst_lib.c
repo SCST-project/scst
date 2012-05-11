@@ -4430,9 +4430,6 @@ struct scst_i_finish_t {
 	void (*scst_i_finish_fn) (struct scst_cmd *cmd);
 };
 
-#define SCST_WRITE_SAME_MAX_EACH_SIZE		(128*1024)
-#define SCST_WRITE_SAME_MAX_IN_FLIGHT_COMMANDS	32
-
 struct scst_write_same_priv {
 	/* Must be the first for scst_finish_internal_cmd()! */
 	struct scst_i_finish_t ws_finish_fn;
@@ -4462,6 +4459,7 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 	static uint8_t write16_cdb[16];
 	struct scatterlist *sg;
 	int sg_cnt, len = blocks << ws_cmd->dev->block_shift;
+	struct sgv_pool_obj *sgv;
 	struct scst_cmd *cmd;
 	int64_t cur_lba;
 
@@ -4501,7 +4499,9 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 		goto set_add;
 	}
 
-	sg = scst_alloc_sg(len, GFP_KERNEL, &sg_cnt);
+	sgv = NULL; /* we don't supply sgv */
+	sg = sgv_pool_alloc(ws_cmd->tgt_dev->pool, len, GFP_KERNEL, 0,
+			&sg_cnt, &sgv, &cmd->dev->dev_mem_lim, NULL);
 	if (sg == NULL) {
 		PRINT_ERROR("Unable to alloc sg for %d blocks", blocks);
 		res = -ENOMEM;
@@ -4514,7 +4514,9 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 	for (i = 0; i < sg_cnt; i++) {
 		int cur_offs = 0;
 		while (cur_offs < sg[i].length) {
-			((int32_t *)(page_address(sg_page(&sg[i]))))[cur_offs] = cur_lba;
+			uint8_t *q;
+			q = &((int8_t *)(page_address(sg_page(&sg[i]))))[cur_offs];
+			*((uint64_t *)q) = cur_lba;
 			cur_offs += ws_cmd->dev->block_size;
 			cur_lba++;
 		}
@@ -4523,13 +4525,14 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 set_add:
 	cmd->tgt_i_sg = sg;
 	cmd->tgt_i_sg_cnt = sg_cnt;
+	cmd->out_sgv = sgv; /* hacky, but it isn't used for WRITE(16) */
 	cmd->tgt_i_data_buf_alloced = 1;
 
 	wsp->ws_cur_lba += blocks;
 	wsp->ws_left_to_send -= blocks;
 	wsp->ws_cur_in_flight++;
 
-	TRACE_DBG("Adding WRITE(16) cmd %p to head of active cmd list", cmd);
+	TRACE_DBG("Adding WRITE(16) cmd %p to active cmd list", cmd);
 	spin_lock_irq(&cmd->cmd_threads->cmd_list_lock);
 	list_add_tail(&cmd->cmd_list_entry, &cmd->cmd_threads->active_cmd_list);
 	spin_unlock_irq(&cmd->cmd_threads->cmd_list_lock);
@@ -4581,7 +4584,7 @@ static void scst_ws_write_cmd_finished(struct scst_cmd *cmd)
 		cmd, ws_cmd, wsp->ws_cur_in_flight);
 
 	if ((ws_cmd->cdb[1] & 0x6) != 0)
-		scst_free_sg(cmd->sg, cmd->sg_cnt);
+		sgv_pool_free(cmd->out_sgv, &cmd->dev->dev_mem_lim);
 
 	cmd->sg = NULL;
 	cmd->sg_cnt = 0;
@@ -4649,7 +4652,7 @@ static void scst_ws_gen_writes(struct scst_write_same_priv *wsp)
 	mutex_lock(&wsp->ws_mutex);
 
 	while ((wsp->ws_left_to_send > 0) &&
-	       (wsp->ws_cur_in_flight < SCST_WRITE_SAME_MAX_IN_FLIGHT_COMMANDS)) {
+	       (wsp->ws_cur_in_flight < SCST_MAX_IN_FLIGHT_INTERNAL_COMMANDS)) {
 		int rc, blocks;
 
 		blocks = min_t(int, wsp->ws_left_to_send, wsp->ws_max_each);
@@ -4717,7 +4720,7 @@ void scst_write_same(struct scst_cmd *cmd)
 
 	wsp->ws_cur_lba = cmd->lba;
 	wsp->ws_left_to_send = cmd->data_len >> cmd->dev->block_shift;
-	wsp->ws_max_each = SCST_WRITE_SAME_MAX_EACH_SIZE >> cmd->dev->block_shift;
+	wsp->ws_max_each = SCST_MAX_EACH_INTERNAL_IO_SIZE >> cmd->dev->block_shift;
 
 	wsp->ws_sg_cnt = min_t(int, wsp->ws_left_to_send, wsp->ws_max_each);
 	wsp->ws_sg = kmalloc(wsp->ws_sg_cnt * sizeof(*wsp->ws_sg), GFP_KERNEL);

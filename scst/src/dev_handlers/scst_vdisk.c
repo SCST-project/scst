@@ -2036,12 +2036,19 @@ static enum compl_status_e vdisk_exec_unmap(struct vdisk_cmd_params *p)
 		goto out;
 
 	for (i = 0; i < cmd->cmd_data_descriptors_cnt; i++) {
-		struct scst_data_descriptor *d = &pd[i];
-		int rc = vdisk_unmap_range(cmd, virt_dev, d->sdd_lba, d->sdd_len);
+		struct scst_data_descriptor *d;
+		int rc;
+
+		if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
+			TRACE_MGMT_DBG("ABORTED set, aborting cmd %p", cmd);
+			goto out;
+		}
+
+		d = &pd[i];
+		rc = vdisk_unmap_range(cmd, virt_dev, d->sdd_lba, d->sdd_len);
 		if (rc != 0)
 			goto out;
 	}
-
 
 out:
 	TRACE_EXIT();

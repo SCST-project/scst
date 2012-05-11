@@ -111,6 +111,9 @@ extern unsigned long scst_trace_flag;
 
 #define SCST_DEF_LBA_DATA_LEN		     -1
 
+#define SCST_MAX_EACH_INTERNAL_IO_SIZE	     (128*1024)
+#define SCST_MAX_IN_FLIGHT_INTERNAL_COMMANDS 32
+
 extern struct mutex scst_mutex2;
 
 extern int scst_threads;
