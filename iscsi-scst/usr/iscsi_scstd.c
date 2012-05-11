@@ -416,7 +416,10 @@ again:
 			switch (conn->state) {
 			case STATE_KERNEL:
 				conn_pass_to_kern(conn, pollfd->fd);
-				conn->state = STATE_CLOSE;
+				if(conn->passed_to_kern)
+					conn->state = STATE_CLOSE;
+				else
+					conn->state = STATE_EXIT;
 				break;
 			case STATE_EXIT:
 			case STATE_CLOSE:
