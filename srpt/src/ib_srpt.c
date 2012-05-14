@@ -2519,7 +2519,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 			 be64_to_cpu(*(__be64 *)(ch->i_port_id + 8)));
 	} else {
 		/*
-		 * Default behavior: use the initator port identifier as the
+		 * Default behavior: use the initiator port identifier as the
 		 * session name.
 		 */
 		snprintf(ch->sess_name, sizeof(ch->sess_name),
