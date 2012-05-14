@@ -144,9 +144,14 @@ MODULE_PARM_DESC(srpt_service_guid,
 		 "Using this value for ioc_guid, id_ext, and cm_listen_id"
 		 " instead of using the node_guid of the first HCA.");
 
+/*
+ * Note: changing any of the two constants below into SCST_CONTEXT_DIRECT is
+ * dangerous because it might cause IB completions to be processed too late
+ * ("IB completion for idx <n> has not been received in time").
+ */
 static const enum scst_exec_context srpt_new_iu_context = SCST_CONTEXT_THREAD;
 static const enum scst_exec_context srpt_xmt_rsp_context = SCST_CONTEXT_THREAD;
-static const enum scst_exec_context srpt_send_context = SCST_CONTEXT_THREAD;
+static const enum scst_exec_context srpt_send_context = SCST_CONTEXT_DIRECT;
 
 static struct ib_client srpt_client;
 static void srpt_unregister_mad_agent(struct srpt_device *sdev);
