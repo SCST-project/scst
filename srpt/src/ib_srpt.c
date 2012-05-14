@@ -144,6 +144,10 @@ MODULE_PARM_DESC(srpt_service_guid,
 		 "Using this value for ioc_guid, id_ext, and cm_listen_id"
 		 " instead of using the node_guid of the first HCA.");
 
+static const enum scst_exec_context srpt_new_iu_context = SCST_CONTEXT_THREAD;
+static const enum scst_exec_context srpt_xmt_rsp_context = SCST_CONTEXT_THREAD;
+static const enum scst_exec_context srpt_send_context = SCST_CONTEXT_THREAD;
+
 static struct ib_client srpt_client;
 static void srpt_unregister_mad_agent(struct srpt_device *sdev);
 #ifdef CONFIG_SCST_PROC
@@ -1864,7 +1868,6 @@ out:
 
 static void srpt_process_rcv_completion(struct ib_cq *cq,
 					struct srpt_rdma_ch *ch,
-					enum scst_exec_context context,
 					struct ib_wc *wc)
 {
 	struct srpt_device *sdev = ch->sport->sdev;
@@ -1879,15 +1882,14 @@ static void srpt_process_rcv_completion(struct ib_cq *cq,
 		if (unlikely(req_lim < 0))
 			PRINT_ERROR("req_lim = %d < 0", req_lim);
 		ioctx = sdev->ioctx_ring[index];
-		srpt_handle_new_iu(ch, ioctx, NULL, context);
+		srpt_handle_new_iu(ch, ioctx, NULL, srpt_new_iu_context);
 	} else {
 		PRINT_INFO("receiving failed for idx %u with status %d",
 			   index, wc->status);
 	}
 }
 
-static void srpt_process_wait_list(struct srpt_rdma_ch *ch,
-				   enum scst_exec_context context)
+static void srpt_process_wait_list(struct srpt_rdma_ch *ch)
 {
 	struct srpt_recv_ioctx *recv_ioctx, *tmp;
 	struct srpt_send_ioctx *send_ioctx;
@@ -1898,7 +1900,8 @@ static void srpt_process_wait_list(struct srpt_rdma_ch *ch,
 		if (!send_ioctx)
 			break;
 		list_del(&recv_ioctx->wait_list);
-		srpt_handle_new_iu(ch, recv_ioctx, send_ioctx, context);
+		srpt_handle_new_iu(ch, recv_ioctx, send_ioctx,
+				   srpt_new_iu_context);
 	}
 }
 
@@ -1919,7 +1922,6 @@ static void srpt_process_wait_list(struct srpt_rdma_ch *ch,
  */
 static void srpt_process_send_completion(struct ib_cq *cq,
 					 struct srpt_rdma_ch *ch,
-					 enum scst_exec_context context,
 					 struct ib_wc *wc)
 {
 	struct srpt_send_ioctx *send_ioctx;
@@ -1931,51 +1933,47 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 	send_ioctx = ch->ioctx_ring[index];
 	if (wc->status == IB_WC_SUCCESS) {
 		if (opcode == SRPT_SEND)
-			srpt_handle_send_comp(ch, send_ioctx, context);
+			srpt_handle_send_comp(ch, send_ioctx,
+					      srpt_send_context);
 		else {
 			EXTRACHECKS_WARN_ON(opcode != SRPT_RDMA_ABORT &&
 					    wc->opcode != IB_WC_RDMA_READ);
-			srpt_handle_rdma_comp(ch, send_ioctx, opcode, context);
+			srpt_handle_rdma_comp(ch, send_ioctx, opcode,
+					      srpt_xmt_rsp_context);
 		}
 	} else {
 		if (opcode == SRPT_SEND) {
 			PRINT_INFO("sending response for idx %u failed with"
 				   " status %d", index, wc->status);
-			srpt_handle_send_err_comp(ch, wc->wr_id, context);
+			srpt_handle_send_err_comp(ch, wc->wr_id,
+						  srpt_send_context);
 		} else if (opcode != SRPT_RDMA_MID) {
 			PRINT_INFO("RDMA t %d for idx %u failed with status %d",
 				   opcode, index, wc->status);
 			srpt_handle_rdma_err_comp(ch, send_ioctx, opcode,
-						  context);
+						  srpt_xmt_rsp_context);
 		}
 	}
 
 	if (unlikely(opcode == SRPT_SEND &&
 		     ch->rtu_received &&
 		     !list_empty(&ch->cmd_wait_list)))
-		srpt_process_wait_list(ch, context);
+		srpt_process_wait_list(ch);
 }
 
-static void srpt_process_completion(struct ib_cq *cq,
-				    struct srpt_rdma_ch *ch,
-				    enum scst_exec_context rcv_context,
-				    enum scst_exec_context send_context)
+static void srpt_process_completion(struct srpt_rdma_ch *ch)
 {
+	struct ib_cq *const cq = ch->cq;
 	struct ib_wc *const wc = ch->wc;
 	int i, n;
-
-	EXTRACHECKS_WARN_ON(cq != ch->cq);
 
 	ib_req_notify_cq(cq, IB_CQ_NEXT_COMP);
 	while ((n = ib_poll_cq(cq, ARRAY_SIZE(ch->wc), wc)) > 0) {
 		for (i = 0; i < n; i++) {
 			if (opcode_from_wr_id(wc[i].wr_id) == SRPT_RECV)
-				srpt_process_rcv_completion(cq, ch, rcv_context,
-							    &wc[i]);
+				srpt_process_rcv_completion(cq, ch, &wc[i]);
 			else
-				srpt_process_send_completion(cq, ch,
-							     send_context,
-							     &wc[i]);
+				srpt_process_send_completion(cq, ch, &wc[i]);
 		}
 	}
 }
@@ -2024,14 +2022,13 @@ static int srpt_compl_thread(void *arg)
 #endif
 #endif
 	while (ch->state < CH_LIVE) {
-		srpt_process_completion(ch->cq, ch, SCST_CONTEXT_THREAD,
-					SCST_CONTEXT_THREAD);
+		srpt_process_completion(ch);
 		schedule();
 		set_current_state(TASK_INTERRUPTIBLE);
 	}
 	set_current_state(TASK_RUNNING);
 
-	srpt_process_wait_list(ch, SCST_CONTEXT_THREAD);
+	srpt_process_wait_list(ch);
 	ch->rtu_received = true;
 
 	set_current_state(TASK_INTERRUPTIBLE);
@@ -2042,8 +2039,7 @@ static int srpt_compl_thread(void *arg)
 #endif
 #endif
 	while (!ch->last_wqe_received && ch->state == CH_LIVE) {
-		srpt_process_completion(ch->cq, ch, SCST_CONTEXT_THREAD,
-					SCST_CONTEXT_THREAD);
+		srpt_process_completion(ch);
 		schedule();
 		set_current_state(TASK_INTERRUPTIBLE);
 	}
@@ -2055,8 +2051,7 @@ static int srpt_compl_thread(void *arg)
 	 */
 	for (;;) {
 		set_current_state(TASK_INTERRUPTIBLE);
-		srpt_process_completion(ch->cq, ch, SCST_CONTEXT_THREAD,
-					SCST_CONTEXT_THREAD);
+		srpt_process_completion(ch);
 		if (atomic_read(&ch->scst_sess->sess_cmd_count) == 0)
 			break;
 		schedule_timeout(HZ / 10);
