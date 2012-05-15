@@ -2282,31 +2282,27 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 					max_transfer, 512*1024 / dev->block_size),
 						&buf[12]);
 			if (virt_dev->thin_provisioned) {
+				uint32_t gran = 1, align = 0, max_lba = 1;
+
 				/* MAXIMUM UNMAP BLOCK DESCRIPTOR COUNT is UNLIMITED */
 				put_unaligned_be32(0xFFFFFFFF, &buf[24]);
 				if (virt_dev->blockio) {
-					/*
-					 * OPTIMAL UNMAP GRANULARITY, ALIGNMENT
-					 * and MAXIMUM UNMAP LBA COUNT
-					 */
-					uint32_t gran, align, max_lba;
 					vdev_blockio_get_unmap_params(virt_dev,
 						&gran, &align, &max_lba);
-					put_unaligned_be32(max_lba, &buf[20]);
-					put_unaligned_be32(gran, &buf[28]);
-					if (align != 0) {
-						put_unaligned_be32(align,
-								   &buf[32]);
-						buf[32] |= 0x80;
-					}
 				} else {
-					/* MAXIMUM UNMAP LBA COUNT */
-					put_unaligned_be32(
-						min_t(loff_t, 0xFFFFFFFF,
-						      virt_dev->file_size >> dev->block_shift),
-						&buf[20]);
-					/* OPTIMAL UNMAP GRANULARITY */
-					put_unaligned_be32(1, &buf[28]);
+					max_lba = min_t(loff_t, 0xFFFFFFFFU,
+							virt_dev->file_size >>
+							dev->block_shift);
+				}
+				/*
+				 * MAXIMUM UNMAP LBA COUNT, OPTIMAL UNMAP
+				 * GRANULARITY and ALIGNMENT
+				 */
+				put_unaligned_be32(max_lba, &buf[20]);
+				put_unaligned_be32(gran, &buf[28]);
+				if (align != 0) {
+					put_unaligned_be32(align, &buf[32]);
+					buf[32] |= 0x80;
 				}
 			}
 			resp_len = buf[3] + 4;
