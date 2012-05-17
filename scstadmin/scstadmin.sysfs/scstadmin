@@ -1442,8 +1442,8 @@ sub writeConfiguration {
 				$attribute_buff = "\t\tHW_TARGET\n\n";
 			}
 
-			$attribute_buff .= serializeKeyAttr("\t\t", $attributes);
-			$attribute_buff_nk .= serializeNkAttr("\t\t", $attributes) if ($nonkey);
+			$attribute_buff .= serializeKeyAttr("\t\t", $attributes, $tgt_attrs);
+			$attribute_buff_nk .= serializeNkAttr("\t\t", $attributes, $tgt_attrs) if ($nonkey);
 			$attribute_buff .= "\n" if ($attribute_buff);
 			$attribute_buff_nk .= "\n" if ($attribute_buff_nk);
 
