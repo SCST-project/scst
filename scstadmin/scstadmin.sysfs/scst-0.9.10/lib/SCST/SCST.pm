@@ -2831,12 +2831,12 @@ sub targetAttributes {
 				$self->{'err_string'} = "targetAttributes(): Unable to read directory '$_session_path': $!";
 				return undef;
 			}
-			my $session_name;
+			my $key = 0;
 			foreach my $e (readdir($pSessHandle)) {
 				next if ($e eq '.' || $e eq '..');
-				$session_name = $e;
+				$attributes{'session_name'}->{'keys'}->{$key}->{'value'} = $e;
+				$key++;
 			}
-			$attributes{'session_name'}->{'keys'}->{'0'}->{'value'} = $session_name;
 		} elsif (-d $pPath) {
 			# Skip directories
 		} else {
