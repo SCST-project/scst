@@ -1821,8 +1821,7 @@ static int vcdrom_exec(struct scst_cmd *cmd)
 
 	if (virt_dev->cdrom_empty && (opcode != INQUIRY)) {
 		TRACE_DBG("%s", "CDROM empty");
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_not_ready));
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_no_medium));
 		goto out_done;
 	}
 

@@ -241,7 +241,8 @@ enum scst_cdb_flags {
 
 /*************************************************************
  ** Sense data for the appropriate errors. Can be used with
- ** scst_set_cmd_error()
+ ** scst_set_cmd_error(). Column order: key, ASC, ASCQ. See
+ ** also http://www.t10.org/lists/asc-num.htm.
  *************************************************************/
 #define scst_sense_no_sense			NO_SENSE,        0x00, 0
 #define scst_sense_hardw_error			HARDWARE_ERROR,  0x44, 0
@@ -264,6 +265,7 @@ enum scst_cdb_flags {
 #define scst_sense_read_error			MEDIUM_ERROR,    0x11, 0
 #define scst_sense_write_error			MEDIUM_ERROR,    0x03, 0
 #define scst_sense_not_ready			NOT_READY,       0x04, 0x10
+#define scst_sense_no_medium			NOT_READY,       0x3a, 0
 #define scst_sense_invalid_message		ILLEGAL_REQUEST, 0x49, 0
 #define scst_sense_cleared_by_another_ini_UA	UNIT_ATTENTION,  0x2F, 0
 #define scst_sense_capacity_data_changed	UNIT_ATTENTION,  0x2A, 0x9
