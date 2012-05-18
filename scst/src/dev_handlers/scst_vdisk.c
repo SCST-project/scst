@@ -2034,8 +2034,7 @@ static enum compl_status_e vdisk_exec_unmap(struct vdisk_cmd_params *p)
 	if (pd == NULL)
 		goto out;
 
-	for (i = 0; i < cmd->cmd_data_descriptors_cnt; i++) {
-		struct scst_data_descriptor *d;
+	for (i = 0; pd[i].sdd_len != 0; i++) {
 		int rc;
 
 		if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
@@ -2043,8 +2042,7 @@ static enum compl_status_e vdisk_exec_unmap(struct vdisk_cmd_params *p)
 			goto out;
 		}
 
-		d = &pd[i];
-		rc = vdisk_unmap_range(cmd, virt_dev, d->sdd_lba, d->sdd_len);
+		rc = vdisk_unmap_range(cmd, virt_dev, pd[i].sdd_lba, pd[i].sdd_len);
 		if (rc != 0)
 			goto out;
 	}

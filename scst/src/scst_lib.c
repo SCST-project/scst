@@ -8217,7 +8217,6 @@ static bool scst_parse_unmap_descriptors(struct scst_cmd *cmd)
 	}
 
 	cmd->cmd_data_descriptors = pd;
-	cmd->cmd_data_descriptors_cnt = cnt;
 
 out_put:
 	scst_put_buf_full(cmd, address);

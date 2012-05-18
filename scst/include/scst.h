@@ -2116,12 +2116,10 @@ struct scst_cmd {
 
 	/*
 	 * List of parsed data descriptors for commands operating with
-	 * several lba and data_len pairs, like UNMAP.
+	 * several lba and data_len pairs, like UNMAP, finished with zero
+	 * length entry.
 	 */
 	void *cmd_data_descriptors;
-
-	/* Count of entries in the descriptors array */
-	int cmd_data_descriptors_cnt;
 
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 	/*
