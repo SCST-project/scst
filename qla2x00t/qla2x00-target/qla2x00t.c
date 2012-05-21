@@ -780,7 +780,7 @@ static void q2t_schedule_sess_for_deletion(struct q2t_sess *sess)
 
 	if (schedule)
 		schedule_delayed_work(&tgt->sess_del_work,
-				jiffies - sess->expires);
+				sess->expires - jiffies);
 
 out:
 	TRACE_EXIT();
@@ -1085,7 +1085,7 @@ put_continue:
 			q2t_sess_put(sess);
 		} else {
 			schedule_delayed_work(&tgt->sess_del_work,
-				jiffies - sess->expires);
+				sess->expires - jiffies);
 			break;
 		}
 	}
