@@ -306,8 +306,9 @@ enum rdma_ch_state {
  * @ioctx_ring:    Send I/O context ring.
  * @wc:            Work completion array.
  * @state:         channel state. See also enum rdma_ch_state.
- * @rtu_received:  Whether IB CM RTU event has been received and the requests
- *                 received before that event have been processed.
+ * @dreq_received: Whether an IB CM DREQ event has been received.
+ * @rtu_received:  Whether an IB CM RTU event has been received and the
+ *                 requests received before that event have been processed.
  * @list:          node for insertion in the srpt_device.rch_list list.
  * @cmd_wait_list: list of SCST commands that arrived before the RTU event. This
  *                 list contains struct srpt_ioctx elements and is protected
@@ -340,6 +341,7 @@ struct srpt_rdma_ch {
 	struct list_head	list;
 	struct list_head	cmd_wait_list;
 	bool			rtu_received;
+	bool			dreq_received;
 	bool			last_wqe_received;
 
 	struct scst_session	*scst_sess;
