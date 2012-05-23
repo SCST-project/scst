@@ -21,6 +21,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <limits.h>
 #include <string.h>
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -617,11 +618,11 @@ static int netmask_match_v4(struct sockaddr *sa1, struct sockaddr *sa2, uint32_t
 
 static int netmask_match(struct sockaddr *sa1, struct sockaddr *sa2, char *buf)
 {
-	int32_t mbit;
+	unsigned long mbit;
 	uint8_t family = sa1->sa_family;
 
 	mbit = strtoul(buf, NULL, 0);
-	if (mbit < 0 ||
+	if (mbit == ULONG_MAX ||
 	    (family == AF_INET && mbit > 31) ||
 	    (family == AF_INET6 && mbit > 127))
 		return 0;
