@@ -2076,6 +2076,14 @@ static int srpt_compl_thread(void *arg)
 	list_del(&ch->list);
 	spin_unlock_irq(&sdev->spinlock);
 
+	if (ch->dreq_received) {
+		if (ib_send_cm_drep(ch->cm_id, NULL, 0) >= 0)
+			PRINT_INFO("Received DREQ and sent DREP for session %s",
+				   ch->sess_name);
+		else
+			PRINT_ERROR("Sending DREP failed");
+	}
+
 	/*
 	 * If the connection is still established, ib_destroy_cm_id() will
 	 * send a DREQ.
@@ -2728,23 +2736,10 @@ static void srpt_cm_rep_error(struct ib_cm_id *cm_id)
  */
 static void srpt_cm_dreq_recv(struct ib_cm_id *cm_id)
 {
-	struct srpt_rdma_ch *ch;
+	struct srpt_rdma_ch *ch = cm_id->context;
 
-	ch = cm_id->context;
-
-	switch (srpt_set_ch_state_to_disc(ch)) {
-	case CH_CONNECTING:
-	case CH_LIVE:
-		if (ib_send_cm_drep(ch->cm_id, NULL, 0) >= 0)
-			PRINT_INFO("Received DREQ and sent DREP for session %s",
-				   ch->sess_name);
-		else
-			PRINT_ERROR("Sending DREP failed");
-		break;
-	default:
-		WARN_ON(true);
-		break;
-	}
+	ch->dreq_received = true;
+	srpt_set_ch_state_to_disc(ch);
 }
 
 /**
