@@ -4495,7 +4495,8 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 	if ((ws_cmd->cdb[1] & 0x6) == 0) {
 		TRACE_DBG("Using direct ws_sg %p (cnt %d)", ws_sg, ws_sg_cnt);
 		sg = ws_sg;
-		sg_cnt = ws_sg_cnt;
+		EXTRACHECKS_BUG_ON(blocks > ws_sg_cnt);
+		sg_cnt = blocks;
 		goto set_add;
 	}
 

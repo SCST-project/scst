@@ -1156,9 +1156,17 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	if (unlikely(!(cmd->op_flags & SCST_INFO_VALID))) {
-		PRINT_ERROR("Unknown opcode 0x%02x", cmd->cdb[0]);
-			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+		/*
+		 * Let's ignore reporting T10/04-262r7 16-byte and 12-byte ATA
+		 * pass-thru commands to not pollute logs (udev(?) checks them
+		 * for some reason). If somebody has their description, please,
+		 * update scst_scsi_op_table.
+		 */
+		if ((cmd->cdb[0] != 0x85) && (cmd->cdb[0] != 0xa1))
+			PRINT_ERROR("Unknown opcode 0x%02x", cmd->cdb[0]);
+		else
+			TRACE(TRACE_MINOR, "Unknown opcode 0x%02x", cmd->cdb[0]);
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		res = false;
 		goto out;
 	}
