@@ -2076,6 +2076,11 @@ static int srpt_compl_thread(void *arg)
 	list_del(&ch->list);
 	spin_unlock_irq(&sdev->spinlock);
 
+	/*
+	 * Note: if a DREQ is received after ch->dreq_received has been read,
+	 * ib_destroy_cm_id() will send a DREP.
+	 *
+	 */
 	if (ch->dreq_received) {
 		if (ib_send_cm_drep(ch->cm_id, NULL, 0) >= 0)
 			PRINT_INFO("Received DREQ and sent DREP for session %s",
