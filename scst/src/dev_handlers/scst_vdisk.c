@@ -1677,7 +1677,7 @@ static int fileio_alloc_data_buf(struct scst_cmd *cmd)
 {
 	struct vdisk_cmd_params *p;
 
-	TRACE_ENTRY()
+	TRACE_ENTRY();
 
 	p = cmd->dh_priv;
 	EXTRACHECKS_BUG_ON(!p);
