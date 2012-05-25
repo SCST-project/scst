@@ -4331,6 +4331,8 @@ static struct scst_cmd *scst_create_prepare_internal_cmd(
 	if (res->tgt_dev != NULL)
 		res->cpu_cmd_counter = scst_get();
 
+	TRACE(TRACE_SCSI, "New internal cmd %p (op 0x%x)", res, res->cdb[0]);
+
 	rc = scst_pre_parse(res);
 	sBUG_ON(rc != 0);
 
