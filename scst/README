@@ -128,7 +128,7 @@ log message: "tgt_dev for LUN 0 not found, command to unexisting LU?"
 It is highly recommended to use scstadmin utility for configuring
 devices and security groups.
 
-The flow of SCST inialization should be as the following:
+The flow of SCST initialization should be as the following:
 
 1. Load of SCST modules with necessary module parameters, if needed.
 
@@ -386,7 +386,7 @@ version. If you need pre-2.6.26 kernel, you need to use obsolete procfs
 interface (see below).
 
 SCST sysfs interface designed to be self descriptive and self
-containing. This means that a high level managament tool for it can be
+containing. This means that a high level management tool for it can be
 written once and automatically support any future sysfs interface
 changes (attributes additions or removals, new target drivers and dev
 handlers, etc.) without any modifications. Scstadmin is an example of
@@ -1150,7 +1150,7 @@ In the SPC-4 standard the following concepts are defined related to ALUA:
 * Target port preference indicator. This indicator is additional information
   next to the asymmetric access state that is provided by the target to an
   initiator and that may impact the decision taken by the initiator about
-  which path that will be choosen.
+  which path that will be chosen.
 
 More detailed information about ALUA can be found in section 5.11.2 of the
 ANSI T10 standard called SPC-4.
@@ -1834,7 +1834,7 @@ sessions, which is enough.
 7. For hardware on target.
 
  - Make sure that your target hardware (e.g. target FC or network card)
-   and underlaying IO hardware (e.g. IO card, like SATA, SCSI or RAID to
+   and underlying IO hardware (e.g. IO card, like SATA, SCSI or RAID to
    which your disks connected) don't share the same PCI bus. You can
    check it using lspci utility. They have to work in parallel, so it
    will be better if they don't compete for the bus. The problem is not
