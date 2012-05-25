@@ -1171,6 +1171,9 @@ information about how to associate iSCSI targets with a single physical
 interface.
 
 Notes:
+- The ALUA specification allows but does not require that SCSI READ and WRITE
+  commands are rejected by ports that are not active. SCST processes READ and
+  WRITE commands received through ports that are not in the active state.
 - In a H.A. setup it is the responsibility of the user to synchronize ALUA
   information between the individual systems running SCST. There are no
   provisions in SCST to exchange ALUA information automatically between
@@ -1183,6 +1186,10 @@ Notes:
   of the user to make sure that the information queried by an initiator is
   consistent independent of the LUN and the target port used by the initiator
   to query this information.
+- Before building a H.A. setup consisting of two or more SCST systems one
+  should evaluate whether it's acceptable that persistent reservation commands
+  and SCSI task management commands will only be processed by a single node
+  instead of being processed by all nodes.
 
 Configuring ALUA in SCST
 ........................
