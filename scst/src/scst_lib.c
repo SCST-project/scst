@@ -138,6 +138,8 @@ static int get_cdb_info_write_same10(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
 static int get_cdb_info_write_same16(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
+static int get_cdb_info_apt(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
 
 /*
 +=====================================-============-======-
@@ -197,6 +199,7 @@ static int scst_scsi_op_list[256];
 
 #define FLAG_NONE 0
 
+/* See also http://www.t10.org/lists/op-num.htm */
 static const struct scst_sdbops scst_scsi_op_table[] = {
 	/*
 	 *                       +-------------------> TYPE_IS_DISK      (0)
@@ -900,6 +903,12 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 .info_op_flags = FLAG_NONE,
 	 .info_len_off = 10, .info_len_len = 4,
 	 .get_cdb_info = get_cdb_info_len_4},
+	{.ops = 0x85, .devkey = "O    O        O ",
+	 .info_op_name = "ATA PASS-THROUGH(16)",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = FLAG_NONE,
+	 .info_lba_off = 7, .info_lba_len = 6,
+	 .get_cdb_info = get_cdb_info_apt},
 	{.ops = 0x86, .devkey = "OOOOOOOOOO      ",
 	 .info_op_name = "ACCESS CONTROL IN",
 	 .info_data_direction = SCST_DATA_NONE,
@@ -1016,6 +1025,12 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 			 SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
 	 .info_len_off = 6, .info_len_len = 4,
 	 .get_cdb_info = get_cdb_info_len_4},
+	{.ops = 0xA1, .devkey = "O    O        O ",
+	 .info_op_name = "ATA PASS-THROUGH(12)",
+	 .info_data_direction = SCST_DATA_NONE,
+	 .info_op_flags = FLAG_NONE,
+	 .info_lba_off = 5, .info_lba_len = 3,
+	 .get_cdb_info = get_cdb_info_apt},
 	{.ops = 0xA1, .devkey = "     O          ",
 	 .info_op_name = "BLANK",
 	 .info_data_direction = SCST_DATA_NONE,
@@ -6297,6 +6312,100 @@ static int get_cdb_info_write_same16(struct scst_cmd *cmd,
 	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
 	cmd->bufflen = 1;
 	cmd->data_len = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
+	return 0;
+}
+
+/**
+ * scst_get_cdb_info_apt() - Parse ATA PASS-THROUGH CDB.
+ *
+ * Parse ATA PASS-THROUGH(12) and ATA PASS-THROUGH(16). See also SAT-3 for a
+ * detailed description of these commands.
+ */
+static int get_cdb_info_apt(struct scst_cmd *cmd,
+			    const struct scst_sdbops *sdbops)
+{
+	const u8 *const cdb = cmd->cdb;
+	const u8 op         = cdb[0];
+	const u8 extend     = cdb[1] & 1;
+	const u8 multiple   = cdb[1] >> 5;
+	const u8 protocol   = (cdb[1] >> 1) & 0xf;
+	const u8 t_type     = (cdb[2] >> 4) & 1;
+	const u8 t_dir      = (cdb[2] >> 3) & 1;
+	const u8 byte_block = (cdb[2] >> 2) & 1;
+	const u8 t_length   = cdb[2] & 3;
+	int bufflen = 0;
+
+	/*
+	 * If the PROTOCOL field contains Fh (i.e., Return Response
+	 * Information), then the SATL shall ignore all fields in the CDB
+	 * except for the PROTOCOL field.
+	 */
+	if (protocol == 0xf)
+		goto out;
+
+	switch (op) {
+	case ATA_12:
+		switch (t_length) {
+		case 0:
+			bufflen = 0;
+			break;
+		case 1:
+			bufflen = cdb[3];
+			break;
+		case 2:
+			bufflen = cdb[4];
+			break;
+		case 3:
+			/*
+			 * Not yet implemented: "The transfer length is an
+			 * unsigned integer specified in the TPSIU (see
+			 * 3.1.97)."
+			 */
+			WARN_ON(true);
+			break;
+		}
+		break;
+	case ATA_16:
+		switch (t_length) {
+		case 0:
+			bufflen = 0;
+			break;
+		case 1:
+			bufflen = extend ? get_unaligned_be16(&cdb[3]) : cdb[4];
+			break;
+		case 2:
+			bufflen = extend ? get_unaligned_be16(&cdb[5]) : cdb[6];
+			break;
+		case 3:
+			WARN_ON(true);
+			break;
+		}
+		break;
+	}
+
+	/* See also "Table 133 - Mapping of BYTE_BLOCK, T_TYPE, and T_LENGTH" */
+	cmd->cdb_len = SCST_GET_CDB_LEN(op);
+	if (t_length != 0 && byte_block != 0) {
+		/*
+		 * "The number of ATA logical sector size (see 3.1.16) blocks
+		 * to be transferred"
+		 */
+		bufflen *= t_type ? cmd->dev->block_size : 512;
+	}
+	/*
+	 * If the T_DIR bit is set to zero, then the SATL shall transfer data
+	 * from the application client to the ATA device. If the T_DIR bit is
+	 * set to one, then the SATL shall transfer data from the ATA device
+	 * to the application client. The SATL shall ignore the T_DIR bit if
+	 * the T_LENGTH field is set to zero.
+	*/
+	cmd->data_direction = (t_length == 0 ? SCST_DATA_NONE : t_dir ?
+			       SCST_DATA_READ : SCST_DATA_WRITE);
+	cmd->lba = 0;
+	cmd->bufflen = bufflen << multiple;
+	cmd->data_len = cmd->bufflen;
+out:
+	cmd->op_flags = SCST_INFO_VALID;
 	return 0;
 }
 
