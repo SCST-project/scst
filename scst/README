@@ -1187,9 +1187,9 @@ Notes:
   consistent independent of the LUN and the target port used by the initiator
   to query this information.
 - Before building a H.A. setup consisting of two or more SCST systems one
-  should evaluate whether it's acceptable that persistent reservation commands
-  and SCSI task management commands will only be processed by a single node
-  instead of being processed by all nodes.
+  should evaluate whether it's acceptable that persistent reservation commands,
+  SCSI task management commands and MODE SELECT commands will only be processed
+  by a single node instead of being processed by all nodes.
 
 Configuring ALUA in SCST
 ........................
