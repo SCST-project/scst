@@ -686,7 +686,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 		PRINT_ERROR("NACA bit in control byte CDB is not supported "
 			    "(opcode 0x%02x)", cmd->cdb[0]);
 		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+			SCST_LOAD_SENSE(scst_sense_invalid_message));
 		goto out_done;
 	}
 
