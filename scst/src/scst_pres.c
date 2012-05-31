@@ -980,6 +980,7 @@ void scst_pr_sync_device_file(struct scst_tgt_dev *tgt_dev, struct scst_cmd *cmd
 	uint64_t sign;
 	uint64_t version;
 	uint8_t pr_is_set, aptpl;
+	struct scst_dev_registrant *reg;
 
 	TRACE_ENTRY();
 
@@ -1046,36 +1047,33 @@ void scst_pr_sync_device_file(struct scst_tgt_dev *tgt_dev, struct scst_cmd *cmd
 	/*
 	 * registration records
 	 */
-	if (!list_empty(&dev->dev_registrants_list)) {
-		struct scst_dev_registrant *reg;
+	list_for_each_entry(reg, &dev->dev_registrants_list,
+			    dev_registrants_list_entry) {
+		uint8_t is_holder = 0;
+		int size;
 
-		list_for_each_entry(reg, &dev->dev_registrants_list,
-					dev_registrants_list_entry) {
-			uint8_t is_holder = 0;
-			int size;
+		is_holder = (dev->pr_holder == reg);
 
-			is_holder = (dev->pr_holder == reg);
+		res = vfs_write(file, (void __force __user *)&is_holder,
+				sizeof(is_holder), &pos);
+		if (res != sizeof(is_holder))
+			goto write_error;
 
-			res = vfs_write(file, (void __force __user *)&is_holder, sizeof(is_holder),
-					&pos);
-			if (res != sizeof(is_holder))
-				goto write_error;
+		size = tid_size(reg->transport_id);
+		res = vfs_write(file, (void __force __user *)reg->transport_id,
+				size, &pos);
+		if (res != size)
+			goto write_error;
 
-			size = tid_size(reg->transport_id);
-			res = vfs_write(file, (void __force __user *)reg->transport_id, size, &pos);
-			if (res != size)
-				goto write_error;
+		res = vfs_write(file, (void __force __user *)&reg->key,
+				sizeof(reg->key), &pos);
+		if (res != sizeof(reg->key))
+			goto write_error;
 
-			res = vfs_write(file, (void __force __user *)&reg->key,
-					sizeof(reg->key), &pos);
-			if (res != sizeof(reg->key))
-				goto write_error;
-
-			res = vfs_write(file, (void __force __user *)&reg->rel_tgt_id,
-					sizeof(reg->rel_tgt_id), &pos);
-			if (res != sizeof(reg->rel_tgt_id))
-				goto write_error;
-		}
+		res = vfs_write(file, (void __force __user *)&reg->rel_tgt_id,
+				sizeof(reg->rel_tgt_id), &pos);
+		if (res != sizeof(reg->rel_tgt_id))
+			goto write_error;
 	}
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
