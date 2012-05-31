@@ -1212,32 +1212,25 @@ out_setfs:
 int scst_pr_init_dev(struct scst_device *dev)
 {
 	int res = 0;
-	uint8_t q;
-	int name_len;
 
 	TRACE_ENTRY();
 
-	name_len = snprintf(&q, sizeof(q), "%s/%s", SCST_PR_DIR, dev->virt_name) + 1;
-	dev->pr_file_name = kmalloc(name_len, GFP_KERNEL);
+	dev->pr_file_name = kasprintf(GFP_KERNEL, "%s/%s", SCST_PR_DIR,
+				      dev->virt_name);
 	if (dev->pr_file_name == NULL) {
 		PRINT_ERROR("Allocation of device '%s' file path failed",
 			dev->virt_name);
 		res = -ENOMEM;
 		goto out;
-	} else
-		snprintf(dev->pr_file_name, name_len, "%s/%s", SCST_PR_DIR,
-			dev->virt_name);
-
-	name_len = snprintf(&q, sizeof(q), "%s/%s.1", SCST_PR_DIR, dev->virt_name) + 1;
-	dev->pr_file_name1 = kmalloc(name_len, GFP_KERNEL);
+	}
+	dev->pr_file_name1 = kasprintf(GFP_KERNEL, "%s/%s.1", SCST_PR_DIR,
+				       dev->virt_name);
 	if (dev->pr_file_name1 == NULL) {
 		PRINT_ERROR("Allocation of device '%s' backup file path failed",
 			dev->virt_name);
 		res = -ENOMEM;
 		goto out_free_name;
-	} else
-		snprintf(dev->pr_file_name1, name_len, "%s/%s.1", SCST_PR_DIR,
-			dev->virt_name);
+	}
 
 #ifndef CONFIG_SCST_PROC
 	res = scst_pr_check_pr_path();
