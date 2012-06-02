@@ -1079,9 +1079,9 @@ void scst_pr_sync_device_file(struct scst_tgt_dev *tgt_dev, struct scst_cmd *cmd
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
 	res = scst_pr_vfs_fsync(file, 0, pos);
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
-	res = vfs_fsync(file, file->f_path.dentry, 0);
+	res = vfs_fsync(file, file->f_path.dentry, 1);
 #else
-	res = vfs_fsync(file, 0);
+	res = vfs_fsync(file, 1);
 #endif
 	if (res != 0) {
 		PRINT_ERROR("fsync() of the PR file failed: %d", res);
@@ -1097,9 +1097,9 @@ void scst_pr_sync_device_file(struct scst_tgt_dev *tgt_dev, struct scst_cmd *cmd
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
 	res = scst_pr_vfs_fsync(file, 0, sizeof(sign));
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
-	res = vfs_fsync(file, file->f_path.dentry, 0);
+	res = vfs_fsync(file, file->f_path.dentry, 1);
 #else
-	res = vfs_fsync(file, 0);
+	res = vfs_fsync(file, 1);
 #endif
 	if (res != 0) {
 		PRINT_ERROR("fsync() of the PR file failed: %d", res);
