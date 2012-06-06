@@ -569,51 +569,6 @@ out:
 
 #ifndef CONFIG_SCST_PROC
 
-/* Abstract vfs_unlink() for different kernel versions (as possible) */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
-static inline void scst_pr_vfs_unlink_and_put(struct nameidata *nd)
-{
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
-	vfs_unlink(nd->dentry->d_parent->d_inode, nd->dentry);
-	dput(nd->dentry);
-	mntput(nd->mnt);
-#else
-	vfs_unlink(nd->path.dentry->d_parent->d_inode,
-		nd->path.dentry);
-	path_put(&nd->path);
-#endif
-}
-#else
-static inline void scst_pr_vfs_unlink_and_put(struct path *path)
-{
-	vfs_unlink(path->dentry->d_parent->d_inode, path->dentry);
-	path_put(path);
-}
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
-static inline void scst_pr_path_put(struct nameidata *nd)
-{
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
-	dput(nd->dentry);
-	mntput(nd->mnt);
-#else
-	path_put(&nd->path);
-#endif
-}
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
-static int scst_pr_vfs_fsync(struct file *file, loff_t loff, loff_t len)
-{
-	int res;
-
-	res = sync_page_range(file->f_dentry->d_inode, file->f_mapping,
-			loff, len);
-	return res;
-}
-#endif
-
 /* Called under scst_mutex */
 static int scst_pr_do_load_device_file(struct scst_device *dev,
 	const char *file_name)
@@ -811,159 +766,15 @@ out:
 	return res;
 }
 
-static int scst_pr_copy_file(const char *src, const char *dest)
-{
-	int res = 0;
-	struct inode *inode;
-	loff_t file_size, pos;
-	uint8_t *buf = NULL;
-	struct file *file_src = NULL, *file_dest = NULL;
-	mm_segment_t old_fs = get_fs();
-
-	TRACE_ENTRY();
-
-	if (src == NULL || dest == NULL) {
-		res = -EINVAL;
-		PRINT_ERROR("%s", "Invalid persistent files path - backup "
-			"skipped");
-		goto out;
-	}
-
-	TRACE_PR("Copying '%s' into '%s'", src, dest);
-
-	set_fs(KERNEL_DS);
-
-	file_src = filp_open(src, O_RDONLY, 0);
-	if (IS_ERR(file_src)) {
-		res = PTR_ERR(file_src);
-		TRACE_PR("Unable to open file '%s' - error %d", src,
-			res);
-		goto out_free;
-	}
-
-	file_dest = filp_open(dest, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-	if (IS_ERR(file_dest)) {
-		res = PTR_ERR(file_dest);
-		TRACE_PR("Unable to open backup file '%s' - error %d", dest,
-			res);
-		goto out_close;
-	}
-
-	inode = file_src->f_dentry->d_inode;
-
-	if (S_ISREG(inode->i_mode))
-		/* Nothing to do */;
-	else if (S_ISBLK(inode->i_mode))
-		inode = inode->i_bdev->bd_inode;
-	else {
-		PRINT_ERROR("Invalid file mode 0x%x", inode->i_mode);
-		res = -EINVAL;
-		set_fs(old_fs);
-		goto out_skip;
-	}
-
-	file_size = inode->i_size;
-
-	buf = vmalloc(file_size);
-	if (buf == NULL) {
-		res = -ENOMEM;
-		PRINT_ERROR("%s", "Unable to allocate temporary buffer");
-		goto out_skip;
-	}
-
-	pos = 0;
-	res = vfs_read(file_src, (void __force __user *)buf, file_size, &pos);
-	if (res != file_size) {
-		PRINT_ERROR("Unable to read file '%s' - error %d", src, res);
-		goto out_skip;
-	}
-
-	pos = 0;
-	res = vfs_write(file_dest, (void __force __user *)buf, file_size, &pos);
-	if (res != file_size) {
-		PRINT_ERROR("Unable to write to '%s' - error %d", dest, res);
-		goto out_skip;
-	}
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
-	res = scst_pr_vfs_fsync(file_dest, 0, file_size);
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
-	res = vfs_fsync(file_dest, file_dest->f_path.dentry, 0);
-#else
-	res = vfs_fsync(file_dest, 0);
-#endif
-	if (res != 0) {
-		PRINT_ERROR("fsync() of the backup PR file failed: %d", res);
-		goto out_skip;
-	}
-
-out_skip:
-	filp_close(file_dest, NULL);
-
-out_close:
-	filp_close(file_src, NULL);
-
-out_free:
-	if (buf != NULL)
-		vfree(buf);
-
-	set_fs(old_fs);
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
 static void scst_pr_remove_device_files(struct scst_tgt_dev *tgt_dev)
 {
 	int res = 0;
 	struct scst_device *dev = tgt_dev->dev;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
-	struct nameidata nd;
-#else
-	struct path path;
-#endif
-	mm_segment_t old_fs = get_fs();
 
 	TRACE_ENTRY();
 
-	set_fs(KERNEL_DS);
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
-	res = dev->pr_file_name ? path_lookup(dev->pr_file_name, 0, &nd) :
-		-ENOENT;
-	if (!res)
-		scst_pr_vfs_unlink_and_put(&nd);
-	else
-		TRACE_DBG("Unable to lookup file '%s' - error %d",
-			dev->pr_file_name, res);
-
-	res = dev->pr_file_name1 ? path_lookup(dev->pr_file_name1, 0, &nd) :
-		-ENOENT;
-	if (!res)
-		scst_pr_vfs_unlink_and_put(&nd);
-	else
-		TRACE_DBG("Unable to lookup file '%s' - error %d",
-			dev->pr_file_name1, res);
-#else
-	res = dev->pr_file_name ? kern_path(dev->pr_file_name, 0, &path) :
-		-ENOENT;
-	if (!res)
-		scst_pr_vfs_unlink_and_put(&path);
-	else
-		TRACE_DBG("Unable to lookup file '%s' - error %d",
-			dev->pr_file_name, res);
-
-	res = dev->pr_file_name1 ? kern_path(dev->pr_file_name1, 0, &path) :
-		-ENOENT;
-	if (!res)
-		scst_pr_vfs_unlink_and_put(&path);
-	else
-		TRACE_DBG("Unable to lookup file '%s' - error %d",
-			dev->pr_file_name1, res);
-#endif
-
-	set_fs(old_fs);
+	res = dev->pr_file_name ? scst_remove_file(dev->pr_file_name) : -ENOENT;
+	res = dev->pr_file_name1 ? scst_remove_file(dev->pr_file_name1) : -ENOENT;
 
 	TRACE_EXIT();
 	return;
@@ -989,7 +800,7 @@ void scst_pr_sync_device_file(struct scst_tgt_dev *tgt_dev, struct scst_cmd *cmd
 		goto out;
 	}
 
-	scst_pr_copy_file(dev->pr_file_name, dev->pr_file_name1);
+	scst_copy_file(dev->pr_file_name, dev->pr_file_name1);
 
 	set_fs(KERNEL_DS);
 
@@ -1077,7 +888,7 @@ void scst_pr_sync_device_file(struct scst_tgt_dev *tgt_dev, struct scst_cmd *cmd
 	}
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
-	res = scst_pr_vfs_fsync(file, 0, pos);
+	res = scst_vfs_fsync(file, 0, pos);
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
 	res = vfs_fsync(file, file->f_path.dentry, 1);
 #else
@@ -1095,7 +906,7 @@ void scst_pr_sync_device_file(struct scst_tgt_dev *tgt_dev, struct scst_cmd *cmd
 		goto write_error;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
-	res = scst_pr_vfs_fsync(file, 0, sizeof(sign));
+	res = scst_vfs_fsync(file, 0, sizeof(sign));
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
 	res = vfs_fsync(file, file->f_path.dentry, 1);
 #else
@@ -1145,7 +956,7 @@ write_error_close:
 
 		rc = path_lookup(dev->pr_file_name, 0,	&nd);
 		if (!rc)
-			scst_pr_vfs_unlink_and_put(&nd);
+			scst_vfs_unlink_and_put(&nd);
 		else
 			TRACE_PR("Unable to lookup '%s' - error %d",
 				dev->pr_file_name, rc);
@@ -1157,7 +968,7 @@ write_error_close:
 
 		rc = kern_path(dev->pr_file_name, 0, &path);
 		if (!rc)
-			scst_pr_vfs_unlink_and_put(&path);
+			scst_vfs_unlink_and_put(&path);
 		else
 			TRACE_PR("Unable to lookup '%s' - error %d",
 				dev->pr_file_name, rc);
@@ -1184,7 +995,7 @@ static int scst_pr_check_pr_path(void)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
 	res = path_lookup(SCST_PR_DIR, 0, &nd);
 	if (res == 0)
-		scst_pr_path_put(&nd);
+		scst_path_put(&nd);
 #else
 	res = kern_path(SCST_PR_DIR, 0, &path);
 	if (res == 0)

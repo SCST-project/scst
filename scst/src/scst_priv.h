@@ -707,6 +707,23 @@ extern void scst_unthrottle_cmd(struct scst_cmd *cmd);
 int scst_do_internal_parsing(struct scst_cmd *cmd);
 bool scst_parse_descriptors(struct scst_cmd *cmd);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
+void scst_vfs_unlink_and_put(struct nameidata *nd);
+#else
+void scst_vfs_unlink_and_put(struct path *path);
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
+void scst_path_put(struct nameidata *nd);
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
+int scst_vfs_fsync(struct file *file, loff_t loff, loff_t len);
+#endif
+
+int scst_copy_file(const char *src, const char *dest);
+int scst_remove_file(const char *name);
+
 #ifdef CONFIG_SCST_DEBUG_TM
 extern void tm_dbg_check_released_cmds(void);
 extern int tm_dbg_check_cmd(struct scst_cmd *cmd);
