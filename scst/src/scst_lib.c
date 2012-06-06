@@ -1633,6 +1633,16 @@ int scst_set_sense(uint8_t *buffer, int len, bool d_sense,
 
 	memset(buffer, 0, len);
 
+	/*
+	 * The RESPONSE CODE field shall be set to 70h in all unit attention
+	 * condition sense data in which:
+	 * a) the ADDITIONAL SENSE CODE field is set to 29h; or
+	 * b) the additional sense code is set to MODE PARAMETERS CHANGED.
+	 */
+	if ((key == UNIT_ATTENTION) &&
+	      ((asc == 0x29) || ((asc == 0x2A) && (ascq == 1))))
+		d_sense = false;
+
 	if (d_sense) {
 		/* Descriptor format */
 		if (len < 8) {
@@ -1794,8 +1804,17 @@ void scst_check_convert_sense(struct scst_cmd *cmd)
 	if ((cmd->sense == NULL) || (cmd->status != SAM_STAT_CHECK_CONDITION))
 		goto out;
 
+	/*
+	 * The RESPONSE CODE field shall be set to 70h in all unit attention
+	 * condition sense data in which:
+	 * a) the ADDITIONAL SENSE CODE field is set to 29h; or
+	 * b) the additional sense code is set to MODE PARAMETERS CHANGED.
+	 */
 	d_sense = scst_get_cmd_dev_d_sense(cmd);
-	if (d_sense && ((cmd->sense[0] == 0x70) || (cmd->sense[0] == 0x71))) {
+	if (d_sense && ((cmd->sense[0] == 0x70) || (cmd->sense[0] == 0x71)) &&
+	    !((cmd->sense[2] == UNIT_ATTENTION) &&
+	      ((cmd->sense[12] == 0x29) ||
+	       ((cmd->sense[12] == 0x2A) && (cmd->sense[13] == 1))))) {
 		TRACE_MGMT_DBG("Converting fixed sense to descriptor (cmd %p)",
 			cmd);
 		if ((cmd->sense_valid_len < 18)) {
@@ -2280,12 +2299,16 @@ out_free:
 }
 EXPORT_SYMBOL(scst_aen_done);
 
-void scst_requeue_ua(struct scst_cmd *cmd)
+void scst_requeue_ua(struct scst_cmd *cmd, const uint8_t *buf, int size)
 {
 	TRACE_ENTRY();
 
-	if (scst_analyze_sense(cmd->sense, cmd->sense_valid_len,
-			SCST_SENSE_ALL_VALID,
+	if (buf == NULL) {
+		buf = cmd->sense;
+		size = cmd->sense_valid_len;
+	}
+
+	if (scst_analyze_sense(buf, size, SCST_SENSE_ALL_VALID,
 			SCST_LOAD_SENSE(scst_sense_reported_luns_data_changed))) {
 		TRACE_MGMT_DBG("Requeuing REPORTED LUNS DATA CHANGED UA "
 			"for delivery failed cmd %p", cmd);
@@ -2295,8 +2318,7 @@ void scst_requeue_ua(struct scst_cmd *cmd)
 		mutex_unlock(&scst_mutex);
 	} else {
 		TRACE_MGMT_DBG("Requeuing UA for delivery failed cmd %p", cmd);
-		scst_check_set_UA(cmd->tgt_dev, cmd->sense,
-			cmd->sense_valid_len, SCST_SET_UA_FLAG_AT_HEAD);
+		scst_check_set_UA(cmd->tgt_dev, buf, size, SCST_SET_UA_FLAG_AT_HEAD);
 	}
 
 	TRACE_EXIT();
@@ -4628,7 +4650,7 @@ static void scst_ws_write_cmd_finished(struct scst_cmd *cmd)
 		if (rc != 0) {
 			/* Requeue possible UA */
 			if (scst_is_ua_sense(cmd->sense, cmd->sense_buflen))
-				scst_requeue_ua(cmd);
+				scst_requeue_ua(cmd, NULL, 0);
 		}
 	}
 
@@ -7330,7 +7352,7 @@ void scst_tgt_dev_del_free_UA(struct scst_tgt_dev *tgt_dev,
 }
 
 /* No locks, no IRQ or IRQ-disabled context allowed */
-int scst_set_pending_UA(struct scst_cmd *cmd)
+int scst_set_pending_UA(struct scst_cmd *cmd, uint8_t *buf, int *size)
 {
 	int res = 0, i;
 	struct scst_tgt_dev_UA *UA_entry;
@@ -7399,9 +7421,23 @@ again:
 		goto again;
 	}
 
-	if (scst_set_cmd_error_sense(cmd, UA_entry->UA_sense_buffer,
-			UA_entry->UA_valid_sense_len) != 0)
-		goto out_unlock;
+	if (buf == NULL) {
+		if (scst_set_cmd_error_sense(cmd, UA_entry->UA_sense_buffer,
+				UA_entry->UA_valid_sense_len) != 0)
+			goto out_unlock;
+	} else {
+		sBUG_ON(*size == 0);
+		if (UA_entry->UA_valid_sense_len > *size) {
+			TRACE(TRACE_MINOR, "%s: Being returned UA truncated "
+				"to size %d (needed %d)", cmd->op_name,
+				*size, UA_entry->UA_valid_sense_len);
+			*size = UA_entry->UA_valid_sense_len;
+		}
+		TRACE_DBG_SPECIAL("Returning UA in buffer %p (size %d)",
+			buf, *size); //!!!
+		memcpy(buf, UA_entry->UA_sense_buffer, *size);
+		*size = UA_entry->UA_valid_sense_len;
+	}
 
 	cmd->ua_ignore = 1;
 

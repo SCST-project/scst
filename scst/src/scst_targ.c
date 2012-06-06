@@ -1839,20 +1839,52 @@ static int scst_request_sense_local(struct scst_cmd *cmd)
 	cmd->host_status = DID_OK;
 	cmd->driver_status = 0;
 
-	spin_lock_bh(&tgt_dev->tgt_dev_lock);
-
-	if (tgt_dev->tgt_dev_valid_sense_len == 0)
-		goto out_unlock_not_completed;
-
-	TRACE(TRACE_SCSI, "%s: Returning stored sense", cmd->op_name);
-
 	buffer_size = scst_get_buf_full(cmd, &buffer);
 	if (unlikely(buffer_size == 0))
-		goto out_unlock_compl;
+		goto out_compl;
 	else if (unlikely(buffer_size < 0))
-		goto out_unlock_hw_err;
+		goto out_hw_err;
 
 	memset(buffer, 0, buffer_size);
+
+	spin_lock_bh(&tgt_dev->tgt_dev_lock);
+
+	if (tgt_dev->tgt_dev_valid_sense_len == 0) {
+		if (test_bit(SCST_TGT_DEV_UA_PENDING, &cmd->tgt_dev->tgt_dev_flags)) {
+			int rc, size = sizeof(tgt_dev->tgt_dev_sense);
+			uint8_t *buf;
+
+			spin_unlock_bh(&tgt_dev->tgt_dev_lock);
+
+			buf = kzalloc(size, GFP_KERNEL);
+			if (buf == NULL)
+				goto out_put_busy;
+
+			rc = scst_set_pending_UA(cmd, buf, &size);
+
+			spin_lock_bh(&tgt_dev->tgt_dev_lock);
+
+			if (rc == 0) {
+				if (tgt_dev->tgt_dev_valid_sense_len == 0) {
+					tgt_dev->tgt_dev_valid_sense_len = size;
+					memcpy(tgt_dev->tgt_dev_sense, buf, size);
+				} else {
+					/*
+					 * Yes, we can loose some of UA data
+					 * here, if UA size is bigger, than
+					 * size, i.e. tgt_dev_sense.
+					 */
+					scst_requeue_ua(cmd, buf, size);
+				}
+			}
+
+			kfree(buf);
+		}
+		if (tgt_dev->tgt_dev_valid_sense_len == 0)
+			goto out_unlock_put_not_completed;
+	}
+
+	TRACE(TRACE_SCSI, "%s: Returning stored/UA sense", cmd->op_name);
 
 	if (((tgt_dev->tgt_dev_sense[0] == 0x70) ||
 	     (tgt_dev->tgt_dev_sense[0] == 0x71)) && (cmd->cdb[1] & 1)) {
@@ -1890,11 +1922,11 @@ static int scst_request_sense_local(struct scst_cmd *cmd)
 		memcpy(buffer, tgt_dev->tgt_dev_sense, sl);
 	}
 
-	scst_put_buf_full(cmd, buffer);
-
 	tgt_dev->tgt_dev_valid_sense_len = 0;
 
 	spin_unlock_bh(&tgt_dev->tgt_dev_lock);
+
+	scst_put_buf_full(cmd, buffer);
 
 	scst_set_resp_data_len(cmd, sl);
 
@@ -1908,19 +1940,20 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 
-out_unlock_hw_err:
-	spin_unlock_bh(&tgt_dev->tgt_dev_lock);
+out_hw_err:
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 	goto out_compl;
 
-out_unlock_not_completed:
+out_put_busy:
+	scst_put_buf_full(cmd, buffer);
+	scst_set_busy(cmd);
+	goto out_compl;
+
+out_unlock_put_not_completed:
 	spin_unlock_bh(&tgt_dev->tgt_dev_lock);
+	scst_put_buf_full(cmd, buffer);
 	res = SCST_EXEC_NOT_COMPLETED;
 	goto out;
-
-out_unlock_compl:
-	spin_unlock_bh(&tgt_dev->tgt_dev_lock);
-	goto out_compl;
 }
 
 static int scst_reserve_local(struct scst_cmd *cmd)
@@ -2420,7 +2453,7 @@ int __scst_check_local_events(struct scst_cmd *cmd, bool preempt_tests_only)
 	if (unlikely(test_bit(SCST_TGT_DEV_UA_PENDING,
 			&cmd->tgt_dev->tgt_dev_flags))) {
 		if (scst_is_ua_command(cmd)) {
-			rc = scst_set_pending_UA(cmd);
+			rc = scst_set_pending_UA(cmd, NULL, NULL);
 			if (rc == 0)
 				goto out_complete;
 		}
@@ -3706,7 +3739,7 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 				res = SCST_CMD_STATE_RES_NEED_THREAD;
 				goto out;
 			}
-			scst_requeue_ua(cmd);
+			scst_requeue_ua(cmd, NULL, 0);
 		}
 	}
 

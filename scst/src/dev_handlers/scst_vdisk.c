@@ -2343,7 +2343,7 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 
 		if (virt_dev->removable)
 			buf[1] = 0x80;      /* removable */
-		buf[2] = 5; /* Device complies to SPC-3 */
+		buf[2] = 6; /* Device complies to SPC-4 */
 		buf[3] = 0x02;	/* Data in format specified in SPC */
 		if (cmd->tgtt->fake_aca)
 			buf[3] |= 0x20;
@@ -2390,9 +2390,9 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 		buf[4] += 58 - 36;
 		num = 0;
 
-		/* SAM-3 T10/1561-D revision 14 */
+		/* SAM-4 T10/1683-D revision 14 */
 		buf[58 + num] = 0x0;
-		buf[58 + num + 1] = 0x76;
+		buf[58 + num + 1] = 0x8B;
 		num += 2;
 
 		/* Physical transport */
@@ -2411,9 +2411,9 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 			num += 2;
 		}
 
-		/* SPC-3 T10/1416-D revision 23 */
-		buf[58 + num] = 0x3;
-		buf[58 + num + 1] = 0x12;
+		/* SPC-4 T10/1731-D revision 23 */
+		buf[58 + num] = 0x4;
+		buf[58 + num + 1] = 0x63;
 		num += 2;
 
 		/* Device command set */
@@ -2956,13 +2956,16 @@ static enum compl_status_e vdisk_exec_read_capacity(struct vdisk_cmd_params *p)
 	/* Last block on the virt_dev is (nblocks-1) */
 	memset(buffer, 0, sizeof(buffer));
 
+#if 0 /* we don't need this workaround anymore */
 	/*
 	 * If we are thinly provisioned, we must ensure that the initiator
-	 * issues a READ_CAPACITY(16) so we can return the TPE bit. By
+	 * issues a READ_CAPACITY(16) so we can return the LBPME bit. By
 	 * returning 0xFFFFFFFF we do that.
 	 */
 	put_unaligned_be32(nblocks >> 32 || virt_dev->thin_provisioned ?
 			   0xffffffffU : nblocks - 1, &buffer[0]);
+#endif
+
 	put_unaligned_be32(blocksize, &buffer[4]);
 
 	length = scst_get_buf_full(cmd, &address);
@@ -3037,14 +3040,14 @@ static enum compl_status_e vdisk_exec_read_capacity16(struct vdisk_cmd_params *p
 	}
 
 	if (virt_dev->thin_provisioned) {
-		buffer[14] |= 0x80;     /* Add TPE */
+		buffer[14] |= 0x80;     /* Add LBPME */
 #if 0  /*
 	* Might be a big performance and functionality win, but might be
 	* dangerous as well, although generally nearly always it should be set,
 	* because nearly all devices should return zero for unmapped blocks.
 	* But let's be on the safe side and disable it for now.
 	*/
-		buffer[14] |= 0x40;     /* Add TPRZ */
+		buffer[14] |= 0x40;     /* Add LBPRZ */
 #endif
 	}
 

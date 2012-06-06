@@ -574,7 +574,7 @@ void scst_dev_check_set_local_UA(struct scst_device *dev,
 
 void scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
 	const uint8_t *sense, int sense_len, int flags);
-int scst_set_pending_UA(struct scst_cmd *cmd);
+int scst_set_pending_UA(struct scst_cmd *cmd, uint8_t *buf, int *size);
 
 void scst_report_luns_changed(struct scst_acg *acg);
 
@@ -585,7 +585,7 @@ void scst_process_reset(struct scst_device *dev,
 	struct scst_mgmt_cmd *mcmd, bool setUA);
 
 bool scst_is_ua_global(const uint8_t *sense, int len);
-void scst_requeue_ua(struct scst_cmd *cmd);
+void scst_requeue_ua(struct scst_cmd *cmd, const uint8_t *buf, int size);
 
 struct scst_aen *scst_alloc_aen(struct scst_session *sess,
 	uint64_t unpacked_lun);
