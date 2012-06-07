@@ -620,7 +620,7 @@ static struct file *vdev_open_fd(const struct scst_vdisk_dev *virt_dev)
 	if (virt_dev->o_direct_flag)
 		open_flags |= O_DIRECT;
 	if (virt_dev->wt_flag && !virt_dev->nv_cache)
-		open_flags |= O_SYNC;
+		open_flags |= O_DSYNC;
 	TRACE_DBG("Opening file %s, flags 0x%x",
 		  virt_dev->filename, open_flags);
 	fd = filp_open(virt_dev->filename, O_LARGEFILE | open_flags, 0600);
@@ -2771,6 +2771,8 @@ out:
 static int vdisk_set_wt(struct scst_vdisk_dev *virt_dev, int wt)
 {
 	int res = 0;
+	struct file *fd;
+	bool old_wt = virt_dev->wt_flag;
 
 	TRACE_ENTRY();
 
@@ -2780,6 +2782,27 @@ static int vdisk_set_wt(struct scst_vdisk_dev *virt_dev, int wt)
 	spin_lock(&virt_dev->flags_lock);
 	virt_dev->wt_flag = wt;
 	spin_unlock(&virt_dev->flags_lock);
+
+	/*
+	 * MODE SELECT is strictly serialized command, so it's safe here
+	 * to reopen fd.
+	 */
+
+	fd = vdev_open_fd(virt_dev);
+	if (IS_ERR(fd)) {
+		PRINT_ERROR("filp_open(%s) returned an error %ld",
+			    virt_dev->filename, PTR_ERR(fd));
+		spin_lock(&virt_dev->flags_lock);
+		virt_dev->wt_flag = old_wt;
+		spin_unlock(&virt_dev->flags_lock);
+		res = PTR_ERR(fd);
+		goto out;
+	}
+
+	if (virt_dev->fd)
+		filp_close(virt_dev->fd, NULL);
+
+	virt_dev->fd = fd;
 
 out:
 	TRACE_EXIT_RES(res);
@@ -2880,8 +2903,7 @@ static enum compl_status_e vdisk_exec_mode_select(struct vdisk_cmd_params *p)
 			}
 			if (vdisk_set_wt(virt_dev,
 			      (address[offset + 2] & WCE) ? 0 : 1) != 0) {
-				scst_set_cmd_error(cmd,
-				    SCST_LOAD_SENSE(scst_sense_hardw_error));
+				scst_set_busy(cmd);
 				goto out_put;
 			}
 			break;
@@ -3570,7 +3592,7 @@ restart:
 	set_fs(old_fs);
 
 out_sync:
-	/* O_SYNC flag is used for WT devices */
+	/* O_DSYNC flag is used for WT devices */
 	if (p->fua)
 		vdisk_fsync(p, loff, scst_cmd_get_data_len(cmd), cmd->dev,
 			    scst_cmd_get_gfp_flags(cmd), cmd);
@@ -3978,7 +4000,7 @@ static enum compl_status_e blockio_exec_write_verify(struct vdisk_cmd_params *p)
 static enum compl_status_e fileio_exec_write_verify(struct vdisk_cmd_params *p)
 {
 	fileio_exec_write(p);
-	/* O_SYNC flag is used for WT devices */
+	/* O_DSYNC flag is used for WT devices */
 	if (scsi_status_is_good(p->cmd->status))
 		fileio_exec_verify(p);
 	return CMD_SUCCEEDED;

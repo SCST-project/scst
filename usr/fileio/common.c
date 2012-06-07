@@ -292,7 +292,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 			}
 
 			exec_write(vcmd, loff);
-			/* O_SYNC flag is used for WT devices */
+			/* O_DSYNC flag is used for WT devices */
 			if (fua)
 				exec_fsync(vcmd);
 		} else {
@@ -318,7 +318,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 			}
 
 			exec_write(vcmd, loff);
-			/* O_SYNC flag is used for WT devices */
+			/* O_DSYNC flag is used for WT devices */
 			if (reply->status == 0)
 				exec_verify(vcmd, loff);
 			else if (fua)
@@ -607,7 +607,7 @@ static int open_dev_fd(struct vdisk_dev *dev)
 	if (dev->o_direct_flag)
 		open_flags |= O_DIRECT;
 	if (dev->wt_flag)
-		open_flags |= O_SYNC;
+		open_flags |= O_DSYNC;
 
 	TRACE_DBG("Opening file %s, flags 0x%x", dev->file_name, open_flags);
 	res = open(dev->file_name, open_flags);
