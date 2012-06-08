@@ -2647,7 +2647,7 @@ static enum compl_status_e vdisk_exec_mode_sense(struct vdisk_cmd_params *p)
 	blocksize = cmd->dev->block_size;
 	nblocks = virt_dev->nblocks;
 
-	type = cmd->dev->type;    /* type dev */
+	type = cmd->dev->type;
 	dbd = cmd->cdb[1] & DBD;
 	pcontrol = (cmd->cdb[2] & 0xc0) >> 6;
 	pcode = cmd->cdb[2] & 0x3f;
@@ -2656,7 +2656,8 @@ static enum compl_status_e vdisk_exec_mode_sense(struct vdisk_cmd_params *p)
 	dev_spec = (virt_dev->dev->rd_only ||
 		     cmd->tgt_dev->acg_dev->rd_only) ? WP : 0;
 
-	dev_spec |= DPOFUA;
+	if (type != TYPE_ROM)
+		dev_spec |= DPOFUA;
 
 	length = scst_get_buf_full(cmd, &address);
 	if (unlikely(length <= 0)) {
@@ -2711,15 +2712,23 @@ static enum compl_status_e vdisk_exec_mode_sense(struct vdisk_cmd_params *p)
 		len = vdisk_err_recov_pg(bp, pcontrol, virt_dev);
 		break;
 	case 0x2:	/* Disconnect-Reconnect page, all devices */
+		if (type == TYPE_ROM)
+			goto out_not_sup;
 		len = vdisk_disconnect_pg(bp, pcontrol, virt_dev);
 		break;
 	case 0x3:       /* Format device page, direct access */
+		if (type == TYPE_ROM)
+			goto out_not_sup;
 		len = vdisk_format_pg(bp, pcontrol, virt_dev);
 		break;
 	case 0x4:	/* Rigid disk geometry */
+		if (type == TYPE_ROM)
+			goto out_not_sup;
 		len = vdisk_rigid_geo_pg(bp, pcontrol, virt_dev);
 		break;
 	case 0x8:	/* Caching page, direct access */
+		if (type == TYPE_ROM)
+			goto out_not_sup;
 		len = vdisk_caching_pg(bp, pcontrol, virt_dev);
 		break;
 	case 0xa:	/* Control Mode page, all devices */
@@ -2729,19 +2738,22 @@ static enum compl_status_e vdisk_exec_mode_sense(struct vdisk_cmd_params *p)
 		len = vdisk_iec_m_pg(bp, pcontrol, virt_dev);
 		break;
 	case 0x3f:	/* Read all Mode pages */
-		len = vdisk_err_recov_pg(bp, pcontrol, virt_dev);
-		len += vdisk_disconnect_pg(bp + len, pcontrol, virt_dev);
-		len += vdisk_format_pg(bp + len, pcontrol, virt_dev);
-		len += vdisk_caching_pg(bp + len, pcontrol, virt_dev);
-		len += vdisk_ctrl_m_pg(bp + len, pcontrol, virt_dev);
-		len += vdisk_iec_m_pg(bp + len, pcontrol, virt_dev);
-		len += vdisk_rigid_geo_pg(bp + len, pcontrol, virt_dev);
+		if (type == TYPE_ROM) {
+			len = vdisk_err_recov_pg(bp, pcontrol, virt_dev);
+			len += vdisk_ctrl_m_pg(bp + len, pcontrol, virt_dev);
+			len += vdisk_iec_m_pg(bp + len, pcontrol, virt_dev);
+		} else {
+			len = vdisk_err_recov_pg(bp, pcontrol, virt_dev);
+			len += vdisk_disconnect_pg(bp + len, pcontrol, virt_dev);
+			len += vdisk_format_pg(bp + len, pcontrol, virt_dev);
+			len += vdisk_caching_pg(bp + len, pcontrol, virt_dev);
+			len += vdisk_ctrl_m_pg(bp + len, pcontrol, virt_dev);
+			len += vdisk_iec_m_pg(bp + len, pcontrol, virt_dev);
+			len += vdisk_rigid_geo_pg(bp + len, pcontrol, virt_dev);
+		}
 		break;
 	default:
-		TRACE_DBG("MODE SENSE: Unsupported page %x", pcode);
-		scst_set_cmd_error(cmd,
-		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
-		goto out_put;
+		goto out_not_sup;
 	}
 
 	offset += len;
@@ -2766,6 +2778,12 @@ out_free:
 out:
 	TRACE_EXIT();
 	return CMD_SUCCEEDED;
+
+out_not_sup:
+	TRACE(TRACE_MINOR, "MODE SENSE: Unsupported page %x", pcode);
+	scst_set_cmd_error(cmd,
+	    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+	goto out_put;
 }
 
 static int vdisk_set_wt(struct scst_vdisk_dev *virt_dev, int wt)
@@ -2844,12 +2862,13 @@ static enum compl_status_e vdisk_exec_mode_select(struct vdisk_cmd_params *p)
 	int32_t length;
 	uint8_t *address;
 	struct scst_vdisk_dev *virt_dev;
-	int mselect_6, offset;
+	int mselect_6, offset, type;
 
 	TRACE_ENTRY();
 
 	virt_dev = cmd->dev->dh_priv;
 	mselect_6 = (MODE_SELECT == cmd->cdb[0]);
+	type = cmd->dev->type;
 
 	length = scst_get_buf_full(cmd, &address);
 	if (unlikely(length <= 0)) {
@@ -2892,7 +2911,7 @@ static enum compl_status_e vdisk_exec_mode_select(struct vdisk_cmd_params *p)
 				scst_sense_invalid_field_in_parm_list));
 			goto out_put;
 		}
-		if ((address[offset] & 0x3f) == 0x8) {
+		if (((address[offset] & 0x3f) == 0x8) && (type != TYPE_ROM)) {
 			/* Caching page */
 			if (address[offset + 1] != 18) {
 				PRINT_ERROR("%s", "MODE SELECT: Invalid "
@@ -2918,7 +2937,7 @@ static enum compl_status_e vdisk_exec_mode_select(struct vdisk_cmd_params *p)
 			}
 			vdisk_ctrl_m_pg_select(&address[offset], virt_dev, cmd);
 		} else {
-			PRINT_ERROR("MODE SELECT: Invalid request %x",
+			TRACE(TRACE_MINOR, "MODE SELECT: Invalid request %x",
 				address[offset] & 0x3f);
 			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
 			    scst_sense_invalid_field_in_parm_list));
@@ -4801,7 +4820,7 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 	if (virt_dev->prevent_allow_medium_removal) {
 		PRINT_ERROR("Prevent medium removal for "
 			"virtual device with name %s", virt_dev->name);
-		res = -EINVAL;
+		res = -EBUSY;
 		goto out_free_fn;
 	}
 
