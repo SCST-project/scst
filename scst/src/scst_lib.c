@@ -7442,8 +7442,7 @@ again:
 				*size, UA_entry->UA_valid_sense_len);
 			*size = UA_entry->UA_valid_sense_len;
 		}
-		TRACE_DBG_SPECIAL("Returning UA in buffer %p (size %d)",
-			buf, *size); //!!!
+		TRACE_DBG("Returning UA in buffer %p (size %d)", buf, *size);
 		memcpy(buf, UA_entry->UA_sense_buffer, *size);
 		*size = UA_entry->UA_valid_sense_len;
 	}
