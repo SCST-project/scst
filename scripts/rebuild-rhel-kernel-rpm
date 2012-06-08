@@ -259,7 +259,7 @@ diff -u SPECS/kernel.spec{.orig,}
    make ARCH=$Arch %{oldconfig_target} > /dev/null
    echo "# $Arch" > configs/$i
 EOF
-elif [ ${kver#2.6.32-131} != $kver ]; then
+elif [ ${kver#2.6.32-131} != $kver -o ${kver#2.6.32-220} != $kver ]; then
 # RHEL/CentOS/SL 6.1
 patch -p1 ${rpmbuild_dir}/SPECS/kernel.spec <<'EOF' || exit $?
 # RHEL/CentOS/SL 6.x
