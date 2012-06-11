@@ -4041,15 +4041,23 @@ static void vdisk_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd,
 		/* Restore default values */
 		struct scst_device *dev = tgt_dev->dev;
 		struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+		int rc;
 
 		dev->tst = DEF_TST;
 		dev->d_sense = DEF_DSENSE;
+		dev->swp = DEF_SWP;
+		dev->tas = DEF_TAS;
+
 		if (virt_dev->wt_flag && !virt_dev->nv_cache)
 			dev->queue_alg = DEF_QUEUE_ALG_WT;
 		else
 			dev->queue_alg = DEF_QUEUE_ALG;
-		dev->swp = DEF_SWP;
-		dev->tas = DEF_TAS;
+
+		rc = vdisk_set_wt(virt_dev, DEF_WRITE_THROUGH);
+		if (rc != 0) {
+			PRINT_CRIT_ERROR("Unable to reset caching mode to %d",
+				DEF_WRITE_THROUGH);
+		}
 
 		spin_lock(&virt_dev->flags_lock);
 		virt_dev->prevent_allow_medium_removal = 0;

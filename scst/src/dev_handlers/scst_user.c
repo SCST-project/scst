@@ -3346,7 +3346,6 @@ static int __dev_user_set_opt(struct scst_user_dev *dev,
 	dev->queue_alg = opt->queue_alg;
 	dev->swp = opt->swp;
 	dev->tas = opt->tas;
-	dev->tst = opt->tst;
 	dev->d_sense = opt->d_sense;
 	dev->has_own_order_mgmt = opt->has_own_order_mgmt;
 	if (dev->sdev != NULL) {

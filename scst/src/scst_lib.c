@@ -8500,22 +8500,21 @@ int scst_copy_file(const char *src, const char *dest)
 		goto out;
 	}
 
-	TRACE_PR("Copying '%s' into '%s'", src, dest);
+	TRACE_DBG("Copying '%s' into '%s'", src, dest);
 
 	set_fs(KERNEL_DS);
 
 	file_src = filp_open(src, O_RDONLY, 0);
 	if (IS_ERR(file_src)) {
 		res = PTR_ERR(file_src);
-		TRACE_PR("Unable to open file '%s' - error %d", src,
-			res);
+		TRACE_DBG("Unable to open file '%s' - error %d", src, res);
 		goto out_free;
 	}
 
 	file_dest = filp_open(dest, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 	if (IS_ERR(file_dest)) {
 		res = PTR_ERR(file_dest);
-		TRACE_PR("Unable to open backup file '%s' - error %d", dest,
+		TRACE_DBG("Unable to open backup file '%s' - error %d", dest,
 			res);
 		goto out_close;
 	}
