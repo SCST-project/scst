@@ -111,7 +111,7 @@ static struct scst_trace_log vdisk_local_trace_tbl[] = {
 #define DEF_ROTATIONAL			1
 #define DEF_THIN_PROVISIONED		0
 
-#define VDISK_NULLIO_SIZE		(3LL*1024*1024*1024*1024/2)
+#define VDISK_NULLIO_SIZE		(5LL*1024*1024*1024*1024/2)
 
 #define DEF_TST				SCST_CONTR_MODE_SEP_TASK_SETS
 
@@ -2994,9 +2994,9 @@ static enum compl_status_e vdisk_exec_read_capacity(struct vdisk_cmd_params *p)
 		}
 	}
 
-	/* Last block on the virt_dev is (nblocks-1) */
 	memset(buffer, 0, sizeof(buffer));
 
+	/* Last block on the virt_dev is (nblocks-1) */
 #if 0 /* we don't need this workaround anymore */
 	/*
 	 * If we are thinly provisioned, we must ensure that the initiator
@@ -3005,6 +3005,8 @@ static enum compl_status_e vdisk_exec_read_capacity(struct vdisk_cmd_params *p)
 	 */
 	put_unaligned_be32(nblocks >> 32 || virt_dev->thin_provisioned ?
 			   0xffffffffU : nblocks - 1, &buffer[0]);
+#else
+	put_unaligned_be32((nblocks >> 32) ? 0xffffffffU : nblocks - 1, &buffer[0]);
 #endif
 
 	put_unaligned_be32(blocksize, &buffer[4]);
