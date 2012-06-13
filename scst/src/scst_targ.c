@@ -1820,7 +1820,7 @@ static int scst_request_sense_local(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	rc = scst_check_local_events(cmd);
+	rc = scst_pre_check_local_events(cmd);
 	if (unlikely(rc != 0))
 		goto out_done;
 
