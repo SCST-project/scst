@@ -249,6 +249,7 @@ static enum compl_status_e fileio_exec_write_verify(struct vdisk_cmd_params *p);
 static enum compl_status_e nullio_exec_write_verify(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_read_capacity(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_read_capacity16(struct vdisk_cmd_params *p);
+static enum compl_status_e vdisk_exec_get_lba_status(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_report_tpgs(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_request_sense(struct vdisk_cmd_params *p);
@@ -1038,6 +1039,8 @@ static enum compl_status_e vdisk_exec_srv_action_in(struct vdisk_cmd_params *p)
 	case SAI_READ_CAPACITY_16:
 		vdisk_exec_read_capacity16(p);
 		return CMD_SUCCEEDED;
+	case SAI_GET_LBA_STATUS:
+		return vdisk_exec_get_lba_status(p);
 	}
 	return INVALID_OPCODE;
 }
@@ -3116,6 +3119,11 @@ static enum compl_status_e vdisk_exec_read_capacity16(struct vdisk_cmd_params *p
 out:
 	TRACE_EXIT();
 	return CMD_SUCCEEDED;
+}
+
+static enum compl_status_e vdisk_exec_get_lba_status(struct vdisk_cmd_params *p)
+{
+	return INVALID_OPCODE;
 }
 
 /* SPC-4 REPORT TARGET PORT GROUPS command */

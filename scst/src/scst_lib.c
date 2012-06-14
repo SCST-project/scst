@@ -6044,15 +6044,25 @@ static int get_cdb_info_serv_act_in(struct scst_cmd *cmd,
 
 	cmd->lba = 0;
 
-	if ((cmd->cdb[1] & 0x1f) == SAI_READ_CAPACITY_16) {
+	switch (cmd->cdb[1] & 0x1f) {
+	case SAI_READ_CAPACITY_16:
 		cmd->op_name = "READ CAPACITY(16)";
 		cmd->bufflen = get_unaligned_be32(&cmd->cdb[10]);
 		cmd->op_flags |= SCST_IMPLICIT_HQ |
 				SCST_REG_RESERVE_ALLOWED |
 				SCST_WRITE_EXCL_ALLOWED |
 				SCST_EXCL_ACCESS_ALLOWED;
-	} else
+		break;
+	case SAI_GET_LBA_STATUS:
+		cmd->op_name = "GET LBA STATUS";
+		cmd->lba = get_unaligned_be64(&cmd->cdb[2]);
+		cmd->bufflen = get_unaligned_be32(&cmd->cdb[10]);
+		cmd->op_flags |= SCST_WRITE_EXCL_ALLOWED;
+		break;
+	default:
 		cmd->op_flags |= SCST_UNKNOWN_LENGTH;
+		break;
+	}
 
 	cmd->data_len = cmd->bufflen;
 
