@@ -320,6 +320,11 @@ enum scst_cdb_flags {
 #define	SAI_READ_CAPACITY_16  0x10
 #endif
 #endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
+#ifndef SAI_GET_LBA_STATUS
+#define SAI_GET_LBA_STATUS    0x12
+#endif
+#endif
 #ifndef GENERATING_UPSTREAM_PATCH
 #ifndef REPORT_LUNS
 #define REPORT_LUNS           0xa0
