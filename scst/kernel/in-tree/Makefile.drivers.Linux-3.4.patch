@@ -1,0 +1,12 @@
+diff --git a/drivers/Makefile b/drivers/Makefile
+index c07be02..615d036 100644
+--- a/drivers/Makefile
++++ b/drivers/Makefile
+@@ -120,6 +120,7 @@ obj-$(CONFIG_VLYNQ)		+= vlynq/
+ obj-$(CONFIG_STAGING)		+= staging/
+ obj-y				+= platform/
+ obj-y				+= ieee802154/
++obj-$(CONFIG_SCST)		+= scst/
+ #common clk code
+ obj-y				+= clk/
+ 
