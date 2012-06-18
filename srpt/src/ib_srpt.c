@@ -2563,7 +2563,6 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 restart:
 		list_for_each_entry(ch2, &sdev->rch_list, list) {
 			if (!memcmp(ch2->i_port_id, req->initiator_port_id, 16)
-			    && !memcmp(ch2->t_port_id, req->target_port_id, 16)
 			    && param->port == ch2->sport->port
 			    && param->listen_id == ch2->sport->sdev->cm_id) {
 				if (!__srpt_close_ch(ch2))
