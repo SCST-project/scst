@@ -4581,8 +4581,12 @@ out:
  */
 static int sg_copy_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
 			size_t *pdst_offs, struct scatterlist *src_sg,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
 			size_t copy_len,
 			enum km_type d_km_type, enum km_type s_km_type)
+#else
+			size_t copy_len)
+#endif
 {
 	int res = 0;
 	struct scatterlist *dst_sg;
@@ -4602,12 +4606,19 @@ static int sg_copy_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
 		void *saddr, *daddr;
 		size_t n;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
 		saddr = kmap_atomic(src_page +
 					 (src_offs >> PAGE_SHIFT), s_km_type) +
 				    (src_offs & ~PAGE_MASK);
 		daddr = kmap_atomic(dst_page +
 					(dst_offs >> PAGE_SHIFT), d_km_type) +
 				    (dst_offs & ~PAGE_MASK);
+#else
+		saddr = kmap_atomic(src_page + (src_offs >> PAGE_SHIFT)) +
+			(src_offs & ~PAGE_MASK);
+		daddr = kmap_atomic(dst_page + (dst_offs >> PAGE_SHIFT)) +
+			(dst_offs & ~PAGE_MASK);
+#endif
 
 		if (((src_offs & ~PAGE_MASK) == 0) &&
 		    ((dst_offs & ~PAGE_MASK) == 0) &&
@@ -4626,8 +4637,13 @@ static int sg_copy_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
 		dst_offs += n;
 		src_offs += n;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
 		kunmap_atomic(saddr, s_km_type);
 		kunmap_atomic(daddr, d_km_type);
+#else
+		kunmap_atomic(saddr);
+		kunmap_atomic(daddr);
+#endif
 
 		res += n;
 		copy_len -= n;
@@ -4668,8 +4684,12 @@ out:
  *    NULL. Returns number of bytes copied.
  */
 static int sg_copy(struct scatterlist *dst_sg, struct scatterlist *src_sg,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
 	    int nents_to_copy, size_t copy_len,
 	    enum km_type d_km_type, enum km_type s_km_type)
+#else
+	    int nents_to_copy, size_t copy_len)
+#endif
 {
 	int res = 0;
 	size_t dst_len, dst_offs;
@@ -4685,7 +4705,11 @@ static int sg_copy(struct scatterlist *dst_sg, struct scatterlist *src_sg,
 
 	do {
 		int copied = sg_copy_elem(&dst_sg, &dst_len, &dst_offs,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
 				src_sg, copy_len, d_km_type, s_km_type);
+#else
+				src_sg, copy_len);
+#endif
 		copy_len -= copied;
 		res += copied;
 		if ((copy_len == 0) || (dst_sg == NULL))
@@ -4846,7 +4870,9 @@ void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir copy_dir)
 {
 	struct scatterlist *src_sg, *dst_sg;
 	unsigned int to_copy;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
 	int atomic = scst_cmd_atomic(cmd);
+#endif
 
 	TRACE_ENTRY();
 
@@ -4878,9 +4904,13 @@ void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir copy_dir)
 		goto out;
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
 	sg_copy(dst_sg, src_sg, 0, to_copy,
 		atomic ? KM_SOFTIRQ0 : KM_USER0,
 		atomic ? KM_SOFTIRQ1 : KM_USER1);
+#else
+	sg_copy(dst_sg, src_sg, 0, to_copy);
+#endif
 
 out:
 	TRACE_EXIT();

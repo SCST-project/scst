@@ -1,6 +1,7 @@
-=== modified file 'block/blk-map.c'
---- old/block/blk-map.c	2012-05-24 00:24:40 +0000
-+++ new/block/blk-map.c	2012-05-24 00:28:35 +0000
+diff --git a/block/blk-map.c b/block/blk-map.c
+index 623e1cd..20349d0 100644
+--- a/block/blk-map.c
++++ b/block/blk-map.c
 @@ -5,6 +5,8 @@
  #include <linux/module.h>
  #include <linux/bio.h>
@@ -10,7 +11,7 @@
  #include <scsi/sg.h>		/* for struct sg_iovec */
  
  #include "blk.h"
-@@ -275,6 +277,339 @@ int blk_rq_unmap_user(struct bio *bio)
+@@ -275,6 +277,337 @@ int blk_rq_unmap_user(struct bio *bio)
  }
  EXPORT_SYMBOL(blk_rq_unmap_user);
  
@@ -50,8 +51,7 @@
 +				unsigned long flags;
 +
 +				local_irq_save(flags);	/* to protect KMs */
-+				sg_copy(bw->src_sgl, bw->sg_table.sgl, 0, 0,
-+					KM_BIO_DST_IRQ, KM_BIO_SRC_IRQ);
++				sg_copy(bw->src_sgl, bw->sg_table.sgl, 0, 0);
 +				local_irq_restore(flags);
 +			}
 +			blk_free_kern_sg_work(bw);
@@ -110,8 +110,7 @@
 +		 * sgl might have the last element in sgl not marked as last in
 +		 * SG chaining.
 +		 */
-+		sg_copy(new_sgl, sgl, 0, to_copy,
-+			KM_USER0, KM_USER1);
++		sg_copy(new_sgl, sgl, 0, to_copy);
 +	}
 +
 +	*pbw = bw;
@@ -350,11 +349,11 @@
  /**
   * blk_rq_map_kern - map kernel data to a request, for REQ_TYPE_BLOCK_PC usage
   * @q:		request queue where request should be inserted
-
-=== modified file 'include/linux/blkdev.h'
---- old/include/linux/blkdev.h	2012-05-24 00:24:40 +0000
-+++ new/include/linux/blkdev.h	2012-05-24 00:28:35 +0000
-@@ -609,6 +609,8 @@ extern unsigned long blk_max_low_pfn, bl
+diff --git a/include/linux/blkdev.h b/include/linux/blkdev.h
+index 4d4ac24..3fa6a30 100644
+--- a/include/linux/blkdev.h
++++ b/include/linux/blkdev.h
+@@ -609,6 +609,8 @@ extern unsigned long blk_max_low_pfn, blk_max_pfn;
  #define BLK_DEFAULT_SG_TIMEOUT	(60 * HZ)
  #define BLK_MIN_SG_TIMEOUT	(7 * HZ)
  
@@ -363,7 +362,7 @@
  #ifdef CONFIG_BOUNCE
  extern int init_emergency_isa_pool(void);
  extern void blk_queue_bounce(struct request_queue *q, struct bio **bio);
-@@ -728,6 +730,9 @@ extern int blk_rq_map_kern(struct reques
+@@ -728,6 +730,9 @@ extern int blk_rq_map_kern(struct request_queue *, struct request *, void *, uns
  extern int blk_rq_map_user_iov(struct request_queue *, struct request *,
  			       struct rq_map_data *, struct sg_iovec *, int,
  			       unsigned int, gfp_t);
@@ -373,10 +372,10 @@
  extern int blk_execute_rq(struct request_queue *, struct gendisk *,
  			  struct request *, int);
  extern void blk_execute_rq_nowait(struct request_queue *, struct gendisk *,
-
-=== modified file 'include/linux/scatterlist.h'
---- old/include/linux/scatterlist.h	2012-05-24 00:24:40 +0000
-+++ new/include/linux/scatterlist.h	2012-05-24 00:28:35 +0000
+diff --git a/include/linux/scatterlist.h b/include/linux/scatterlist.h
+index ac9586d..4b743d7 100644
+--- a/include/linux/scatterlist.h
++++ b/include/linux/scatterlist.h
 @@ -8,6 +8,7 @@
  #include <asm/types.h>
  #include <asm/scatterlist.h>
@@ -385,22 +384,21 @@
  
  struct sg_table {
  	struct scatterlist *sgl;	/* the list */
-@@ -220,6 +221,10 @@ size_t sg_copy_from_buffer(struct scatte
+@@ -220,6 +221,9 @@ size_t sg_copy_from_buffer(struct scatterlist *sgl, unsigned int nents,
  size_t sg_copy_to_buffer(struct scatterlist *sgl, unsigned int nents,
  			 void *buf, size_t buflen);
  
 +int sg_copy(struct scatterlist *dst_sg, struct scatterlist *src_sg,
-+	    int nents_to_copy, size_t copy_len,
-+	    enum km_type d_km_type, enum km_type s_km_type);
++	    int nents_to_copy, size_t copy_len);
 +
  /*
   * Maximum number of entries that will be allocated in one piece, if
   * a list larger than this is required then chaining will be utilized.
-
-=== modified file 'lib/scatterlist.c'
---- old/lib/scatterlist.c	2012-05-24 00:24:40 +0000
-+++ new/lib/scatterlist.c	2012-05-24 00:28:35 +0000
-@@ -517,3 +517,132 @@ size_t sg_copy_to_buffer(struct scatterl
+diff --git a/lib/scatterlist.c b/lib/scatterlist.c
+index 6096e89..1786ca9 100644
+--- a/lib/scatterlist.c
++++ b/lib/scatterlist.c
+@@ -517,3 +517,126 @@ size_t sg_copy_to_buffer(struct scatterlist *sgl, unsigned int nents,
  	return sg_copy_buffer(sgl, nents, buf, buflen, 1);
  }
  EXPORT_SYMBOL(sg_copy_to_buffer);
@@ -412,8 +410,7 @@
 + */
 +static int sg_copy_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
 +			size_t *pdst_offs, struct scatterlist *src_sg,
-+			size_t copy_len,
-+			enum km_type d_km_type, enum km_type s_km_type)
++			size_t copy_len)
 +{
 +	int res = 0;
 +	struct scatterlist *dst_sg;
@@ -433,11 +430,9 @@
 +		void *saddr, *daddr;
 +		size_t n;
 +
-+		saddr = kmap_atomic(src_page +
-+					 (src_offs >> PAGE_SHIFT), s_km_type) +
++		saddr = kmap_atomic(src_page + (src_offs >> PAGE_SHIFT)) +
 +				    (src_offs & ~PAGE_MASK);
-+		daddr = kmap_atomic(dst_page +
-+					(dst_offs >> PAGE_SHIFT), d_km_type) +
++		daddr = kmap_atomic(dst_page + (dst_offs >> PAGE_SHIFT)) +
 +				    (dst_offs & ~PAGE_MASK);
 +
 +		if (((src_offs & ~PAGE_MASK) == 0) &&
@@ -457,8 +452,8 @@
 +		dst_offs += n;
 +		src_offs += n;
 +
-+		kunmap_atomic(saddr, s_km_type);
-+		kunmap_atomic(daddr, d_km_type);
++		kunmap_atomic(saddr);
++		kunmap_atomic(daddr);
 +
 +		res += n;
 +		copy_len -= n;
@@ -490,8 +485,6 @@
 + * @src_sg:	source SG
 + * @nents_to_copy: maximum number of entries to copy
 + * @copy_len:	maximum amount of data to copy. If 0, then copy all.
-+ * @d_km_type:	kmap_atomic type for the destination SG
-+ * @s_km_type:	kmap_atomic type for the source SG
 + *
 + * Description:
 + *    Data from the source SG vector will be copied to the destination SG
@@ -499,8 +492,7 @@
 + *    NULL. Returns number of bytes copied.
 + */
 +int sg_copy(struct scatterlist *dst_sg, struct scatterlist *src_sg,
-+	    int nents_to_copy, size_t copy_len,
-+	    enum km_type d_km_type, enum km_type s_km_type)
++	    int nents_to_copy, size_t copy_len)
 +{
 +	int res = 0;
 +	size_t dst_len, dst_offs;
@@ -516,7 +508,7 @@
 +
 +	do {
 +		int copied = sg_copy_elem(&dst_sg, &dst_len, &dst_offs,
-+				src_sg, copy_len, d_km_type, s_km_type);
++				src_sg, copy_len);
 +		copy_len -= copied;
 +		res += copied;
 +		if ((copy_len == 0) || (dst_sg == NULL))
