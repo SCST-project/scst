@@ -51,11 +51,13 @@ usage () {
 
 scst_svn_repo="https://scst.svn.sourceforge.net/svnroot/scst/trunk"
 sendmail_opts=""
+run_if_unchanged="false"
 
-set -- $(/usr/bin/getopt "hr:" "$@")
+set -- $(/usr/bin/getopt "ahr:" "$@")
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
+    '-a') run_if_unchanged=true; shift;;
     '-h') usage; exit 1;;
     '-r') sendmail_opts="$1 $2"; shift; shift;;
     '--') shift;;
@@ -109,7 +111,7 @@ fi
 
 svn_old_rev="`get_svn_revision ${svn_old_date}`"
 svn_new_rev="`get_svn_revision ${svn_new_date}`"
-if [ "${svn_old_rev}" = "${svn_new_rev}" ]; then
+if [ "${run_if_unchanged}" != "true" -a "${svn_old_rev}" = "${svn_new_rev}" ]; then
   echo "Both {$svn_old_date} and {$svn_new_date} correspond to r${svn_new_rev}"\
        "-- skipping nightly build." >unchanged.log
   exit 0
