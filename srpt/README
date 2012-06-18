@@ -3,7 +3,7 @@ SCSI RDMA Protocol (SRP) Target driver for Linux
 
 The SRP target driver has been designed to work on top of the Linux
 InfiniBand kernel drivers -- either the InfiniBand drivers included
-with a Linux distribution of the OFED InfiniBand drivers. For more
+with a Linux distribution or the OFED InfiniBand drivers. For more
 information about using the SRP target driver in combination with
 OFED, see also README.ofed.
 
