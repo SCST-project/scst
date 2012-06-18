@@ -2308,7 +2308,7 @@ static void __srpt_close_all_ch(struct srpt_device *sdev)
 
 #if !defined(CONFIG_SCST_PROC)
 /**
- * srpt_enable_target() - Allows to enable a target via sysfs.
+ * srpt_enable_target - Set the "enabled" status of a target.
  */
 static int srpt_enable_target(struct scst_tgt *scst_tgt, bool enable)
 {
@@ -2332,7 +2332,7 @@ static int srpt_enable_target(struct scst_tgt *scst_tgt, bool enable)
 }
 
 /**
- * srpt_is_target_enabled() - Allows to query a targets status via sysfs.
+ * srpt_is_target_enabled - Report whether a target is enabled.
  */
 static bool srpt_is_target_enabled(struct scst_tgt *scst_tgt)
 {
@@ -2348,14 +2348,6 @@ static bool srpt_is_target_enabled(struct scst_tgt *scst_tgt)
 	res = sdev->enabled;
 	spin_unlock_irq(&sdev->spinlock);
 	return res;
-}
-#else
-/**
- * srpt_is_target_enabled() - Reports that a target is enabled when using procfs.
- */
-static bool srpt_is_target_enabled(struct scst_tgt *scst_tgt)
-{
-	return true;
 }
 #endif
 
