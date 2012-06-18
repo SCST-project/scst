@@ -35,6 +35,19 @@ Building and installing the SRP target driver is possible as follows:
    make -s scstadm scstadm_install
 
 The ib_srpt kernel module supports the following parameters:
+* one_target_per_port (boolean) and
+* use_node_guid_in_target_name (boolean)
+  ib_srpt can operate in one of the following three modes:
+  1. Access control configuration per HCA and assigning a "ib_srpt_target_<n>"
+     style name to each HCA.
+  2. Access control configuration per HCA and referring to a HCA via its node
+     GUID (e.g. 0002:c903:0005:f34a).
+  3. Access control configuration per HCA port and referring to a HCA via its
+     port GID (e.g. fe80:0000:0000:0000:0002:c903:0005:f34b).
+  Mode (1) is choosen if both one_target_per_port and
+  use_node_guid_in_target_name are false. Mode (2) is choosen if
+  one_target_per_port is false and use_node_guid_in_target_name is true. Mode
+  (3) is choosen if one_target_per_port is true.
 * srp_max_req_size (number)
   Maximum size of an SRP control message in bytes. Examples of SRP control
   messages are: login request, logout request, data transfer request, ...
@@ -68,7 +81,14 @@ The ib_srpt kernel module supports the following parameters:
 Configuring the SRP Target System
 ---------------------------------
 
-First of all, create the file /etc/scst.conf. You can create this file with
+The first step is to choose whether access control will be controlled per
+HCA or per HCA port and to create a modprobe configuration file that reflects
+this choice. An example:
+
+  # cat /etc/modprobe.d/ib_srpt.conf
+  options ib_srpt one_target_per_port=1
+
+Next, create the file /etc/scst.conf. You can create this file with
 the scstadmin tool as follows:
 
   /etc/init.d/scst stop
@@ -121,15 +141,15 @@ The meaning of the parameters in the above command is as follows:
 Target GIDs can be queried e.g. via sysfs:
 
 $ for f in /sys/devices/*/*/*/infiniband/*/ports/*/gids/0; do echo $f; \
-cat $f | cut -c21- | sed 's/://g'; done
+cat $f | sed 's/://g'; done
 /sys/devices/pci0000:00/0000:00:01.0/0000:01:00.0/infiniband/mlx4_0/ports/1/gids/0
-0002c9030005f34b
+fe800000000000000002c9030005f34b
 /sys/devices/pci0000:00/0000:00:01.0/0000:01:00.0/infiniband/mlx4_0/ports/2/gids/0
-0002c9030005f34c
+fe800000000000000002c9030005f34c
 /sys/devices/pci0000:00/0000:00:1c.0/0000:05:00.0/infiniband/mlx4_1/ports/1/gids/0
-0002c9030003cca7
+fe800000000000000002c9030003cca7
 /sys/devices/pci0000:00/0000:00:1c.0/0000:05:00.0/infiniband/mlx4_1/ports/2/gids/0
-0002c9030003cca8
+fe800000000000000002c9030003cca8
 
 Finally run lsscsi to display the details of the newly discovered SCSI disks:
 
@@ -144,46 +164,38 @@ the disk names assigned on the SCST target ("disk01" in the example below):
 Target names
 ------------
 
-The name assigned by the ib_srpt target driver to an SCST target is the node
-GUID of a HCA in hexadecimal form with a colon after every fourth digit. The
-HCA node GUIDs can be obtained via the ibv_devices command, the ibv_devinfo
-command or via sysfs. An example:
+The name assigned by the ib_srpt target driver to an SCST target is either
+ib_srpt_target_<n>, the node GUID of a HCA in hexadecimal form with a colon
+after every fourth digit or the port GUID with a colon afer every fourth
+digit. The HCA node and port GUIDs can be obtained via the ibv_devinfo
+command. An example:
 
-# ibv_devices
-    device                 node GUID
-    ------              ----------------
-    mlx4_1              0002c9030003cca2
-    mlx4_0              0002c9030005f34e
+# ibv_devinfo -v | grep -E '[^a-z]port:|guid|GID'
+node_guid:      0002:c903:0005:f34e
+sys_image_guid: 0002:c903:0005:f351
+  port: 1
+    GID[0]:     fe80:0000:0000:0000:0002:c903:0005:f34f
+  port: 2
+    GID[0]:     fe80:0000:0000:0000:0002:c903:0005:f350
 
-# head /sys/devices/*/*/*/infiniband/*/node_guid
-==> /sys/devices/pci0000:00/0000:00:01.0/0000:01:00.0/infiniband/mlx4_0/node_guid <==
-0002:c903:0005:f34e
+Once the ib_srpt driver has been loaded the available SCST targets can be
+queried as follows:
 
-==> /sys/devices/pci0000:00/0000:00:1c.0/0000:05:00.0/infiniband/mlx4_1/node_guid <==
-0002:c903:0003:cca2
-
-Once the ib_srpt driver has been loaded there will be SCST targets available
-with the HCA node GUID as name:
-
-# ls /sys/bus/scst_target/drivers/ib_srpt/0*
-0002:c903:0003:cca2  0002:c903:0005:f34e
-
-If you need deprecated target names in form ib_srpt_target_X, you should
-set use_node_guid_in_target_name parameter of module ib_srpt to 0.
-
-To move from the deprecated ib_srpt_target_X layout you should replace
-in your scst.conf all ib_srpt_target_X to the corresponding ports names,
-like ib_srpt_target_0 to 0002:c902:0022:16f4, if ibv_devices reported
-for this port/node GUID 0002c902002216f4.
+# (cd /sys/kernel/scst_tgt/targets/ib_srpt && ls -d [0-9a-f]*)
+fe80:0000:0000:0000:0002:c903:0005:f34f
+fe80:0000:0000:0000:0002:c903:0005:f350
 
 
 Session names
 -------------
 
-The ib_srpt target driver uses the 128-bit SRP initiator port identifier for
-the session name. This identifier is sent by the SRP initiator to the SRP
-target via the SRP_LOGIN_REQ information unit. The Linux SRP initiator
-(ib_srp) generates the initiator port identifier as follows:
+The name assigned by the ib_srpt target driver to a session depends on the
+mode in which it is operating. If one_target_per_port=y then the source port
+GID is used as the session name. If one_target_per_port=n then the 128-bit SRP
+initiator port identifier is used as the session name. This identifier is sent
+by the SRP initiator to the SRP target via the SRP_LOGIN_REQ information unit.
+The Linux SRP initiator (ib_srp) generates the initiator port identifier as
+follows:
 - The first eight bytes are the identifier extension ('initiator_ext' parameter
   specified in the login string echoed into the sysfs file 'add_target').
 - The last eight bytes are the GUID of the initiator HCA port used to
@@ -194,24 +206,21 @@ An example:
 [ INITIATOR ]
 
 $ for f in /sys/devices/*/*/*/infiniband/*/ports/*/gids/0; do echo
-f; cat $f | cut -c21-; done
+f; cat $f; done
 /sys/devices/pci0000:00/0000:00:01.0/0000:01:00.0/infiniband/mlx4_0/ports/1/gids/0
-0002:c903:0005:f34b
+fe80:0000:0000:0000:0002:c903:0005:f34b
 /sys/devices/pci0000:00/0000:00:01.0/0000:01:00.0/infiniband/mlx4_0/ports/2/gids/0
-0002:c903:0005:f34c
+fe80:0000:0000:0000:0002:c903:0005:f34c
 /sys/devices/pci0000:00/0000:00:1c.0/0000:05:00.0/infiniband/mlx4_1/ports/1/gids/0
-0002:c903:0003:cca7
+fe80:0000:0000:0000:0002:c903:0003:cca7
 /sys/devices/pci0000:00/0000:00:1c.0/0000:05:00.0/infiniband/mlx4_1/ports/2/gids/0
-0002:c903:0003:cca8
+fe80:0000:0000:0000:0002:c903:0003:cca8
 
 [ TARGET, after login ]
 
-$ ls /sys/bus/scst_target/drivers/ib_srpt/*/sessions
-/sys/bus/scst_target/drivers/ib_srpt/0002:c903:0003:cca2/sessions:
-0x00000000000000000002c9030003cca7
-
-/sys/bus/scst_target/drivers/ib_srpt/0002:c903:0005:f34e/sessions:
-0x00000000000000000002c9030005f34b
+$ (cd /sys/kernel/scst_tgt/targets/ib_srpt/[0-9a-f]* && ls -d sessions/*)
+sessions/fe80:0000:0000:0000:0002:c903:0003:cca7
+sessions/fe80:0000:0000:0000:0002:c903:0005:f34b
 
 
 LUN masking
@@ -224,7 +233,7 @@ identified by their session name (see above). An example of an scst.conf
 file using LUN masking for ib_srpt:
 
 TARGET_DRIVER ib_srpt {
-        TARGET ib_srpt_target_0 {
+        TARGET fe80:0000:0000:0000:0002:c903:0005:f34b {
                 enabled 1
                 rel_tgt_id 1
 
@@ -235,14 +244,14 @@ TARGET_DRIVER ib_srpt {
                         # LUNs visible by initiator system 1
                         LUN 0 disk02
 
-                        INITIATOR 0x00000000000000000002c9030005f34b
+                        INITIATOR fe80:0000:0000:0000:0002:c903:0005:f34b
                 }
 
                 GROUP grp2 {
                         # LUNs visible by initiator system 2
                         LUN 0 disk03
 
-                        INITIATOR 0x00000000000000000002c9030005f34c
+                        INITIATOR fe80:0000:0000:0000:0002:c903:0005:f34c
                 }
         }
 }

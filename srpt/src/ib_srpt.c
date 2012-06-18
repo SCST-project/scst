@@ -132,7 +132,17 @@ static bool use_node_guid_in_target_name;
 #endif
 module_param(use_node_guid_in_target_name, bool, 0444);
 MODULE_PARM_DESC(use_node_guid_in_target_name,
-		 "Use target node GUIDs of HCAs as SCST target names.");
+		 "Use HCA node GUID as SCST target name.");
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31) \
+    || defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
+static int one_target_per_port;
+#else
+static bool one_target_per_port;
+#endif
+module_param(one_target_per_port, bool, 0444);
+MODULE_PARM_DESC(one_target_per_port,
+		 "One SCST target per HCA port instead of one per HCA.");
 
 static int srpt_get_u64_x(char *buffer, struct kernel_param *kp)
 {
@@ -154,6 +164,7 @@ static const enum scst_exec_context srpt_xmt_rsp_context = SCST_CONTEXT_THREAD;
 static const enum scst_exec_context srpt_send_context = SCST_CONTEXT_DIRECT;
 
 static struct ib_client srpt_client;
+static struct scst_tgt_template srpt_template;
 static void srpt_unregister_mad_agent(struct srpt_device *sdev);
 #ifdef CONFIG_SCST_PROC
 static void srpt_unregister_procfs_entry(struct scst_tgt_template *tgt);
@@ -678,6 +689,7 @@ static int srpt_refresh_port(struct srpt_port *sport)
 	struct ib_port_modify port_modify;
 	struct ib_port_attr port_attr;
 	int ret;
+	char tgt_name[40];
 
 	TRACE_ENTRY();
 
@@ -719,6 +731,26 @@ static int srpt_refresh_port(struct srpt_port *sport)
 			sport->mad_agent = NULL;
 			goto err_query_port;
 		}
+	}
+
+	if (one_target_per_port && !sport->srpt_tgt.scst_tgt) {
+		snprintf(tgt_name, sizeof(tgt_name),
+			 "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x",
+			 be16_to_cpu(((__be16 *) sport->gid.raw)[0]),
+			 be16_to_cpu(((__be16 *) sport->gid.raw)[1]),
+			 be16_to_cpu(((__be16 *) sport->gid.raw)[2]),
+			 be16_to_cpu(((__be16 *) sport->gid.raw)[3]),
+			 be16_to_cpu(((__be16 *) sport->gid.raw)[4]),
+			 be16_to_cpu(((__be16 *) sport->gid.raw)[5]),
+			 be16_to_cpu(((__be16 *) sport->gid.raw)[6]),
+			 be16_to_cpu(((__be16 *) sport->gid.raw)[7]));
+		sport->srpt_tgt.scst_tgt = scst_register_target(&srpt_template,
+						       tgt_name);
+		if (sport->srpt_tgt.scst_tgt)
+			scst_tgt_set_tgt_priv(sport->srpt_tgt.scst_tgt, sport);
+		else
+			PRINT_ERROR("Registration of target %s failed.",
+				    tgt_name);
 	}
 
 	TRACE_EXIT_RES(0);
@@ -2012,6 +2044,7 @@ static int srpt_compl_thread(void *arg)
 {
 	struct srpt_rdma_ch *ch;
 	struct srpt_device *sdev;
+	struct srpt_tgt *srpt_tgt;
 
 	/* Hibernation / freezing of the SRPT kernel thread is not supported. */
 	current->flags |= PF_NOFREEZE;
@@ -2072,9 +2105,10 @@ static int srpt_compl_thread(void *arg)
 			     sdev, ch->rq_size,
 			     ch->max_rsp_size, DMA_TO_DEVICE);
 
-	spin_lock_irq(&sdev->spinlock);
+	srpt_tgt = ch->srpt_tgt;
+	spin_lock_irq(&srpt_tgt->spinlock);
 	list_del(&ch->list);
-	spin_unlock_irq(&sdev->spinlock);
+	spin_unlock_irq(&srpt_tgt->spinlock);
 
 	/*
 	 * Note: if a DREQ is received after ch->dreq_received has been read,
@@ -2097,7 +2131,7 @@ static int srpt_compl_thread(void *arg)
 
 	kref_put(&ch->kref, srpt_free_ch);
 
-	wake_up(&sdev->ch_releaseQ);
+	wake_up(&srpt_tgt->ch_releaseQ);
 
 	return 0;
 }
@@ -2217,13 +2251,13 @@ static bool __srpt_close_ch(struct srpt_rdma_ch *ch)
 	__releases(&ch->srpt_tgt->spinlock)
 	__acquires(&ch->srpt_tgt->spinlock)
 {
-	struct srpt_device *sdev = ch->sport->sdev;
+	struct srpt_tgt *srpt_tgt = ch->srpt_tgt;
 	enum rdma_ch_state prev_state;
 	int ret;
 	bool was_live;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
-	lockdep_assert_held(&sdev->spinlock);
+	lockdep_assert_held(&srpt_tgt->spinlock);
 #endif
 
 	was_live = false;
@@ -2242,7 +2276,7 @@ static bool __srpt_close_ch(struct srpt_rdma_ch *ch)
 
 	if (was_live) {
 		kref_get(&ch->kref);
-		spin_unlock_irq(&sdev->spinlock);
+		spin_unlock_irq(&srpt_tgt->spinlock);
 
 		ret = srpt_ch_qp_err(ch);
 		if (ret < 0)
@@ -2250,7 +2284,7 @@ static bool __srpt_close_ch(struct srpt_rdma_ch *ch)
 			       " failed: %d", ret);
 		kref_put(&ch->kref, srpt_free_ch);
 
-		spin_lock_irq(&sdev->spinlock);
+		spin_lock_irq(&srpt_tgt->spinlock);
 	}
 
 	return was_live;
@@ -2261,12 +2295,11 @@ static bool __srpt_close_ch(struct srpt_rdma_ch *ch)
  */
 static void srpt_close_ch(struct srpt_rdma_ch *ch)
 {
-	struct srpt_device *sdev;
+	struct srpt_tgt *srpt_tgt = ch->srpt_tgt;
 
-	sdev = ch->sport->sdev;
-	spin_lock_irq(&sdev->spinlock);
+	spin_lock_irq(&srpt_tgt->spinlock);
 	__srpt_close_ch(ch);
-	spin_unlock_irq(&sdev->spinlock);
+	spin_unlock_irq(&srpt_tgt->spinlock);
 }
 
 /**
@@ -2297,43 +2330,61 @@ static void srpt_drain_channel(struct ib_cm_id *cm_id)
 	}
 }
 
-static void __srpt_close_all_ch(struct srpt_device *sdev)
+static void __srpt_close_all_ch(struct srpt_tgt *srpt_tgt)
 {
 	struct srpt_rdma_ch *ch, *next_ch;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
-	lockdep_assert_held(&sdev->spinlock);
+	lockdep_assert_held(&srpt_tgt->spinlock);
 #endif
 
-	list_for_each_entry_safe(ch, next_ch, &sdev->rch_list, list) {
+	list_for_each_entry_safe(ch, next_ch, &srpt_tgt->rch_list, list) {
 		PRINT_INFO("Closing channel %s because target %s has been"
 			   " disabled", ch->sess_name,
-			   sdev->scst_tgt->tgt_name);
+			   srpt_tgt->scst_tgt->tgt_name);
 		__srpt_close_ch(ch);
 	}
 }
 
 #if !defined(CONFIG_SCST_PROC)
+static struct srpt_tgt* srpt_convert_scst_tgt(struct scst_tgt *scst_tgt)
+{
+	struct srpt_device *sdev;
+	struct srpt_port *sport;
+	struct srpt_tgt *srpt_tgt;
+
+	if (one_target_per_port) {
+		sport = scst_tgt_get_tgt_priv(scst_tgt);
+		BUG_ON(!sport);
+		srpt_tgt = &sport->srpt_tgt;
+	} else {
+		sdev = scst_tgt_get_tgt_priv(scst_tgt);
+		BUG_ON(!sdev);
+		srpt_tgt = &sdev->srpt_tgt;
+	}
+	return srpt_tgt;
+}
+
 /**
  * srpt_enable_target - Set the "enabled" status of a target.
  */
 static int srpt_enable_target(struct scst_tgt *scst_tgt, bool enable)
 {
-	struct srpt_device *sdev = scst_tgt_get_tgt_priv(scst_tgt);
+	struct srpt_tgt *srpt_tgt = srpt_convert_scst_tgt(scst_tgt);
 
 	EXTRACHECKS_WARN_ON_ONCE(irqs_disabled());
 
-	if (!sdev)
+	if (!srpt_tgt)
 		return -ENOENT;
 
 	TRACE_DBG("%s target %s", enable ? "Enabling" : "Disabling",
-		  sdev->device->name);
+		  scst_tgt->tgt_name);
 
-	spin_lock_irq(&sdev->spinlock);
-	sdev->enabled = enable;
+	spin_lock_irq(&srpt_tgt->spinlock);
+	srpt_tgt->enabled = enable;
 	if (!enable)
-		__srpt_close_all_ch(sdev);
-	spin_unlock_irq(&sdev->spinlock);
+		__srpt_close_all_ch(srpt_tgt);
+	spin_unlock_irq(&srpt_tgt->spinlock);
 
 	return 0;
 }
@@ -2343,18 +2394,9 @@ static int srpt_enable_target(struct scst_tgt *scst_tgt, bool enable)
  */
 static bool srpt_is_target_enabled(struct scst_tgt *scst_tgt)
 {
-	struct srpt_device *sdev = scst_tgt_get_tgt_priv(scst_tgt);
-	bool res;
+	struct srpt_tgt *srpt_tgt = srpt_convert_scst_tgt(scst_tgt);
 
-	EXTRACHECKS_WARN_ON_ONCE(irqs_disabled());
-
-	if (!sdev)
-		return false;
-
-	spin_lock_irq(&sdev->spinlock);
-	res = sdev->enabled;
-	spin_unlock_irq(&sdev->spinlock);
-	return res;
+	return srpt_tgt && srpt_tgt->enabled;
 }
 #endif
 
@@ -2368,7 +2410,10 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 			    struct ib_cm_req_event_param *param,
 			    void *private_data)
 {
-	struct srpt_device *sdev = cm_id->context;
+	struct srpt_device *const sdev = cm_id->context;
+	struct srpt_port *const sport = &sdev->port[param->port - 1];
+	struct srpt_tgt *const srpt_tgt = one_target_per_port ?
+					  &sport->srpt_tgt : &sdev->srpt_tgt;
 	struct srp_login_req *req;
 	struct srp_login_rsp *rsp;
 	struct srp_login_rej *rej;
@@ -2443,12 +2488,11 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		goto reject;
 	}
 
-	if (!sdev->enabled) {
+	if (!srpt_tgt->enabled) {
 		rej->reason = cpu_to_be32(
 				SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-		PRINT_ERROR("rejected SRP_LOGIN_REQ because the target %s (%s)"
-			    " is not enabled",
-			    sdev->scst_tgt->tgt_name, sdev->device->name);
+		PRINT_ERROR("rejected SRP_LOGIN_REQ because target %s is not"
+			    " enabled", srpt_tgt->scst_tgt->tgt_name);
 		goto reject;
 	}
 
@@ -2473,7 +2517,8 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	kref_init(&ch->kref);
 	memcpy(ch->i_port_id, req->initiator_port_id, 16);
 	memcpy(ch->t_port_id, req->target_port_id, 16);
-	ch->sport = &sdev->port[param->port - 1];
+	ch->sport = sport;
+	ch->srpt_tgt = srpt_tgt;
 	ch->cm_id = cm_id;
 	cm_id->context = ch;
 	/*
@@ -2509,7 +2554,20 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		goto free_ring;
 	}
 
-	if (use_port_guid_in_session_name) {
+	if (one_target_per_port) {
+		__be16 *const raw_gid = (__be16 *)param->primary_path->dgid.raw;
+
+		snprintf(ch->sess_name, sizeof(ch->sess_name),
+			 "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x",
+			 be16_to_cpu(raw_gid[0]),
+			 be16_to_cpu(raw_gid[1]),
+			 be16_to_cpu(raw_gid[2]),
+			 be16_to_cpu(raw_gid[3]),
+			 be16_to_cpu(raw_gid[4]),
+			 be16_to_cpu(raw_gid[5]),
+			 be16_to_cpu(raw_gid[6]),
+			 be16_to_cpu(raw_gid[7]));
+	} else if (use_port_guid_in_session_name) {
 		/*
 		 * If the kernel module parameter use_port_guid_in_session_name
 		 * has been specified, use a combination of the target port
@@ -2535,9 +2593,9 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 
 	TRACE_DBG("registering session %s", ch->sess_name);
 
-	BUG_ON(!sdev->scst_tgt);
+	BUG_ON(!srpt_tgt->scst_tgt);
 	ret = -ENOMEM;
-	ch->scst_sess = scst_register_session(sdev->scst_tgt, 0, ch->sess_name,
+	ch->scst_sess = scst_register_session(srpt_tgt->scst_tgt, 0, ch->sess_name,
 					      ch, NULL, NULL);
 	if (!ch->scst_sess) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
@@ -2545,8 +2603,8 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		goto destroy_ib;
 	}
 
-	thread = kthread_run(srpt_compl_thread, ch, "srpt_%s",
-			     ch->sport->sdev->device->name);
+	thread = kthread_run(srpt_compl_thread, ch, "srpt_%s-%d",
+			     ch->sport->sdev->device->name, ch->sport->port);
 	if (IS_ERR(thread)) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		ret = PTR_ERR(thread);
@@ -2554,14 +2612,14 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		goto unreg_ch;
 	}
 
-	spin_lock_irq(&sdev->spinlock);
+	spin_lock_irq(&srpt_tgt->spinlock);
 
 	if ((req->req_flags & SRP_MTCH_ACTION) == SRP_MULTICHAN_SINGLE) {
 		struct srpt_rdma_ch *ch2;
 
 		rsp->rsp_flags = SRP_LOGIN_RSP_MULTICHAN_NO_CHAN;
 restart:
-		list_for_each_entry(ch2, &sdev->rch_list, list) {
+		list_for_each_entry(ch2, &srpt_tgt->rch_list, list) {
 			if (!memcmp(ch2->i_port_id, req->initiator_port_id, 16)
 			    && param->port == ch2->sport->port
 			    && param->listen_id == ch2->sport->sdev->cm_id) {
@@ -2582,20 +2640,20 @@ restart:
 		rsp->rsp_flags = SRP_LOGIN_RSP_MULTICHAN_MAINTAINED;
 	}
 
-	list_add_tail(&ch->list, &sdev->rch_list);
+	list_add_tail(&ch->list, &srpt_tgt->rch_list);
 	ch->thread = thread;
 
-	if (!sdev->enabled) {
+	if (!srpt_tgt->enabled) {
 		rej->reason = cpu_to_be32(
 				SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		PRINT_ERROR("rejected SRP_LOGIN_REQ because the target %s (%s)"
 			    " is not enabled",
-			    sdev->scst_tgt->tgt_name, sdev->device->name);
-		spin_unlock_irq(&sdev->spinlock);
+			    srpt_tgt->scst_tgt->tgt_name, sdev->device->name);
+		spin_unlock_irq(&srpt_tgt->spinlock);
 		goto reject;
 	}
 
-	spin_unlock_irq(&sdev->spinlock);
+	spin_unlock_irq(&srpt_tgt->spinlock);
 
 	ret = srpt_ch_qp_rtr(ch, ch->qp);
 	if (ret) {
@@ -2631,12 +2689,12 @@ restart:
 	rep_param->responder_resources = 4;
 	rep_param->initiator_depth = 4;
 
-	spin_lock_irq(&sdev->spinlock);
+	spin_lock_irq(&srpt_tgt->spinlock);
 	if (ch->state == CH_CONNECTING)
 		ret = ib_send_cm_rep(cm_id, rep_param);
 	else
 		ret = -ECONNABORTED;
-	spin_unlock_irq(&sdev->spinlock);
+	spin_unlock_irq(&srpt_tgt->spinlock);
 
 	switch (ret) {
 	case 0:
@@ -3440,46 +3498,46 @@ static int srpt_detect(struct scst_tgt_template *tp)
 	return device_count;
 }
 
-static int srpt_ch_list_empty(struct srpt_device *sdev)
+static int srpt_ch_list_empty(struct srpt_tgt *srpt_tgt)
 {
 	int res;
 
-	spin_lock_irq(&sdev->spinlock);
-	res = list_empty(&sdev->rch_list);
-	spin_unlock_irq(&sdev->spinlock);
+	spin_lock_irq(&srpt_tgt->spinlock);
+	res = list_empty(&srpt_tgt->rch_list);
+	spin_unlock_irq(&srpt_tgt->spinlock);
 
 	return res;
 }
 
 /**
- * srpt_release_sdev() - Free channel resources associated with a target.
+ * srpt_release_sport() - Free channel resources associated with a target.
  */
-static int srpt_release_sdev(struct srpt_device *sdev)
+static int srpt_release_sport(struct srpt_tgt *srpt_tgt)
 {
 	struct srpt_rdma_ch *ch;
 
 	TRACE_ENTRY();
 
 	WARN_ON_ONCE(irqs_disabled());
-	BUG_ON(!sdev);
+	BUG_ON(!srpt_tgt);
 
 	/* Disallow new logins and close all active sessions. */
-	spin_lock_irq(&sdev->spinlock);
-	sdev->enabled = false;
-	__srpt_close_all_ch(sdev);
-	spin_unlock_irq(&sdev->spinlock);
+	spin_lock_irq(&srpt_tgt->spinlock);
+	srpt_tgt->enabled = false;
+	__srpt_close_all_ch(srpt_tgt);
+	spin_unlock_irq(&srpt_tgt->spinlock);
 
-	while (wait_event_timeout(sdev->ch_releaseQ,
-				  srpt_ch_list_empty(sdev), 5 * HZ) <= 0) {
+	while (wait_event_timeout(srpt_tgt->ch_releaseQ,
+				  srpt_ch_list_empty(srpt_tgt), 5 * HZ) <= 0) {
 		PRINT_INFO("%s: waiting for session unregistration ...",
-			   sdev->device->name);
-		spin_lock_irq(&sdev->spinlock);
-		list_for_each_entry(ch, &sdev->rch_list, list) {
+			   srpt_tgt->scst_tgt->tgt_name);
+		spin_lock_irq(&srpt_tgt->spinlock);
+		list_for_each_entry(ch, &srpt_tgt->rch_list, list) {
 			PRINT_INFO("%s: state %s; %d commands in progress",
 				   ch->sess_name, get_ch_state_name(ch->state),
 				   atomic_read(&ch->scst_sess->sess_cmd_count));
 		}
-		spin_unlock_irq(&sdev->spinlock);
+		spin_unlock_irq(&srpt_tgt->spinlock);
 	}
 
 	TRACE_EXIT();
@@ -3493,7 +3551,7 @@ static int srpt_release_sdev(struct srpt_device *sdev)
  */
 static int srpt_release(struct scst_tgt *scst_tgt)
 {
-	struct srpt_device *sdev = scst_tgt_get_tgt_priv(scst_tgt);
+	struct srpt_tgt *srpt_tgt = srpt_convert_scst_tgt(scst_tgt);
 
 	TRACE_ENTRY();
 
@@ -3501,15 +3559,15 @@ static int srpt_release(struct scst_tgt *scst_tgt)
 
 	BUG_ON(!scst_tgt);
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18)
-	WARN_ON(!sdev);
-	if (!sdev)
+	WARN_ON(!srpt_tgt);
+	if (!srpt_tgt)
 		return -ENODEV;
 #else
-	if (WARN_ON(!sdev))
+	if (WARN_ON(!srpt_tgt))
 		return -ENODEV;
 #endif
 
-	srpt_release_sdev(sdev);
+	srpt_release_sport(srpt_tgt);
 
 	scst_tgt_set_tgt_priv(scst_tgt, NULL);
 
@@ -3532,33 +3590,52 @@ static uint16_t srpt_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 static ssize_t show_login_info(struct kobject *kobj,
 			       struct kobj_attribute *attr, char *buf)
 {
-	struct scst_tgt *scst_tgt;
-	struct srpt_device *sdev;
+	struct scst_tgt *scst_tgt = container_of(kobj, struct scst_tgt,
+						 tgt_kobj);
+	struct srpt_tgt *srpt_tgt = srpt_convert_scst_tgt(scst_tgt);
 	struct srpt_port *sport;
-	int i;
-	int len;
+	int i, len;
 
-	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-	sdev = scst_tgt_get_tgt_priv(scst_tgt);
-	len = 0;
-	for (i = 0; i < sdev->device->phys_port_cnt; i++) {
-		sport = &sdev->port[i];
+	if (one_target_per_port) {
+		sport = container_of(srpt_tgt, struct srpt_port, srpt_tgt);
+		len = sprintf(buf,
+			      "tid_ext=%016llx,ioc_guid=%016llx,pkey=ffff,"
+			      "dgid=%04x%04x%04x%04x%04x%04x%04x%04x,"
+			      "service_id=%016llx\n",
+			      srpt_service_guid, srpt_service_guid,
+			      be16_to_cpu(((__be16 *) sport->gid.raw)[0]),
+			      be16_to_cpu(((__be16 *) sport->gid.raw)[1]),
+			      be16_to_cpu(((__be16 *) sport->gid.raw)[2]),
+			      be16_to_cpu(((__be16 *) sport->gid.raw)[3]),
+			      be16_to_cpu(((__be16 *) sport->gid.raw)[4]),
+			      be16_to_cpu(((__be16 *) sport->gid.raw)[5]),
+			      be16_to_cpu(((__be16 *) sport->gid.raw)[6]),
+			      be16_to_cpu(((__be16 *) sport->gid.raw)[7]),
+			      srpt_service_guid);
+	} else {
+		struct srpt_device *sdev;
 
-		len += sprintf(buf + len,
-			       "tid_ext=%016llx,ioc_guid=%016llx,pkey=ffff,"
-			       "dgid=%04x%04x%04x%04x%04x%04x%04x%04x,"
-			       "service_id=%016llx\n",
-			       srpt_service_guid,
-			       srpt_service_guid,
-			       be16_to_cpu(((__be16 *) sport->gid.raw)[0]),
-			       be16_to_cpu(((__be16 *) sport->gid.raw)[1]),
-			       be16_to_cpu(((__be16 *) sport->gid.raw)[2]),
-			       be16_to_cpu(((__be16 *) sport->gid.raw)[3]),
-			       be16_to_cpu(((__be16 *) sport->gid.raw)[4]),
-			       be16_to_cpu(((__be16 *) sport->gid.raw)[5]),
-			       be16_to_cpu(((__be16 *) sport->gid.raw)[6]),
-			       be16_to_cpu(((__be16 *) sport->gid.raw)[7]),
-			       srpt_service_guid);
+		sdev = container_of(srpt_tgt, struct srpt_device, srpt_tgt);
+		len = 0;
+		for (i = 0; i < sdev->device->phys_port_cnt; i++) {
+			sport = &sdev->port[i];
+
+			len += sprintf(buf + len,
+				   "tid_ext=%016llx,ioc_guid=%016llx,pkey=ffff,"
+				   "dgid=%04x%04x%04x%04x%04x%04x%04x%04x,"
+				   "service_id=%016llx\n",
+				   srpt_service_guid,
+				   srpt_service_guid,
+				   be16_to_cpu(((__be16 *) sport->gid.raw)[0]),
+				   be16_to_cpu(((__be16 *) sport->gid.raw)[1]),
+				   be16_to_cpu(((__be16 *) sport->gid.raw)[2]),
+				   be16_to_cpu(((__be16 *) sport->gid.raw)[3]),
+				   be16_to_cpu(((__be16 *) sport->gid.raw)[4]),
+				   be16_to_cpu(((__be16 *) sport->gid.raw)[5]),
+				   be16_to_cpu(((__be16 *) sport->gid.raw)[6]),
+				   be16_to_cpu(((__be16 *) sport->gid.raw)[7]),
+				   srpt_service_guid);
+		}
 	}
 
 	return len;
@@ -3682,6 +3759,7 @@ static void srpt_add_one(struct ib_device *device)
 {
 	struct srpt_device *sdev;
 	struct srpt_port *sport;
+	struct srpt_tgt *srpt_tgt;
 	struct ib_srq_init_attr srq_attr;
 	char tgt_name[24];
 	int i, ret;
@@ -3695,26 +3773,34 @@ static void srpt_add_one(struct ib_device *device)
 		goto err;
 
 	sdev->device = device;
-	INIT_LIST_HEAD(&sdev->rch_list);
-	init_waitqueue_head(&sdev->ch_releaseQ);
-	spin_lock_init(&sdev->spinlock);
 
-	if (use_node_guid_in_target_name) {
-		snprintf(tgt_name, sizeof(tgt_name), "%04x:%04x:%04x:%04x",
-			be16_to_cpu(((__be16 *)&device->node_guid)[0]),
-			be16_to_cpu(((__be16 *)&device->node_guid)[1]),
-			be16_to_cpu(((__be16 *)&device->node_guid)[2]),
-			be16_to_cpu(((__be16 *)&device->node_guid)[3]));
-		sdev->scst_tgt = scst_register_target(&srpt_template, tgt_name);
-	} else
-		sdev->scst_tgt = scst_register_target(&srpt_template, NULL);
-	if (!sdev->scst_tgt) {
-		PRINT_ERROR("SCST registration failed for %s.",
-			    sdev->device->name);
-		goto free_dev;
+	if (!one_target_per_port) {
+		srpt_tgt = &sdev->srpt_tgt;
+		INIT_LIST_HEAD(&srpt_tgt->rch_list);
+		init_waitqueue_head(&srpt_tgt->ch_releaseQ);
+		spin_lock_init(&srpt_tgt->spinlock);
+
+		if (use_node_guid_in_target_name) {
+			snprintf(tgt_name, sizeof(tgt_name),
+				 "%04x:%04x:%04x:%04x",
+				 be16_to_cpu(((__be16 *)&device->node_guid)[0]),
+				 be16_to_cpu(((__be16 *)&device->node_guid)[1]),
+				 be16_to_cpu(((__be16 *)&device->node_guid)[2]),
+				 be16_to_cpu(((__be16 *)&device->node_guid)[3]));
+			srpt_tgt->scst_tgt =
+				scst_register_target(&srpt_template, tgt_name);
+		} else {
+			srpt_tgt->scst_tgt =
+				scst_register_target(&srpt_template, NULL);
+		}
+		if (!srpt_tgt->scst_tgt) {
+			PRINT_ERROR("SCST registration failed for %s.",
+				    sdev->device->name);
+			goto free_dev;
+		}
+
+		scst_tgt_set_tgt_priv(srpt_tgt->scst_tgt, sdev);
 	}
-
-	scst_tgt_set_tgt_priv(sdev->scst_tgt, sdev);
 
 	ret = ib_query_device(device, &sdev->dev_attr);
 	if (ret) {
@@ -3812,6 +3898,11 @@ static void srpt_add_one(struct ib_device *device)
 		sport = &sdev->port[i - 1];
 		sport->sdev = sdev;
 		sport->port = i;
+		if (one_target_per_port) {
+			INIT_LIST_HEAD(&sport->srpt_tgt.rch_list);
+			init_waitqueue_head(&sport->srpt_tgt.ch_releaseQ);
+			spin_lock_init(&sport->srpt_tgt.spinlock);
+		}
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
 		/*
 		 * A vanilla 2.6.19 or older kernel without backported OFED
@@ -3850,7 +3941,8 @@ err_mr:
 err_pd:
 	ib_dealloc_pd(sdev->pd);
 unregister_tgt:
-	scst_unregister_target(sdev->scst_tgt);
+	if (!one_target_per_port)
+		scst_unregister_target(sdev->srpt_tgt.scst_tgt);
 free_dev:
 	kfree(sdev);
 err:
@@ -3895,12 +3987,23 @@ static void srpt_remove_one(struct ib_device *device)
 	ib_destroy_cm_id(sdev->cm_id);
 
 	/*
-	 * Unregistering an SCST target must happen after destroying sdev->cm_id
+	 * SCST target unregistration must happen after destroying sdev->cm_id
 	 * such that no new SRP_LOGIN_REQ information units can arrive while
-	 * destroying the SCST target.
+	 * unregistering the SCST target.
 	 */
-	scst_unregister_target(sdev->scst_tgt);
-	sdev->scst_tgt = NULL;
+	if (one_target_per_port) {
+		for (i = 0; i < sdev->device->phys_port_cnt; i++) {
+			struct srpt_tgt *tgt = &sdev->port[i].srpt_tgt;
+
+			if (tgt->scst_tgt) {
+				scst_unregister_target(tgt->scst_tgt);
+				tgt->scst_tgt = NULL;
+			}
+		}
+	} else {
+		scst_unregister_target(sdev->srpt_tgt.scst_tgt);
+		sdev->srpt_tgt.scst_tgt = NULL;
+	}
 
 	ib_destroy_srq(sdev->srq);
 	ib_dereg_mr(sdev->mr);
@@ -4016,13 +4119,14 @@ static int __init srpt_init_module(void)
 		goto out;
 	}
 
-	if (!use_node_guid_in_target_name)
-		PRINT_WARNING("%s", "Usage of HCA numbers as SCST target names "
-			"is deprecated and will be removed in one of the next "
-			"versions. It is strongly recommended to set "
-			"use_node_guid_in_target_name parameter in 1 and "
-			"update your SCST config file accordingly to use HCAs "
-			"GUIDs.");
+	if (!one_target_per_port)
+		PRINT_WARNING("%s%s", !use_node_guid_in_target_name ?
+			      "Using one target per HCA " :
+			      "Using autogenerated target names ",
+			      "is deprecated and will be removed in one of the "
+			      "next versions. It is strongly recommended to "
+			      "set the one_target_per_port parameter to true "
+			      "and to update your SCST config file.");
 
 	ret = scst_register_target_template(&srpt_template);
 	if (ret < 0) {

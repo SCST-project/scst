@@ -56,6 +56,8 @@
  */
 #define SRP_SERVICE_NAME_PREFIX		"SRP.T10:"
 
+struct srpt_tgt;
+
 enum {
 	/*
 	 * SRP IOControllerProfile attributes for SRP target ports that have
@@ -327,6 +329,7 @@ struct srpt_rdma_ch {
 	int			max_rsp_size;
 	int			sq_wr_avail;
 	struct srpt_port	*sport;
+	struct srpt_tgt		*srpt_tgt;
 	u8			i_port_id[16];
 	u8			t_port_id[16];
 	int			max_ti_iu_len;
@@ -345,7 +348,23 @@ struct srpt_rdma_ch {
 	bool			last_wqe_received;
 
 	struct scst_session	*scst_sess;
-	u8			sess_name[36];
+	u8			sess_name[40];
+};
+
+/**
+ * struct srpt_tgt
+ * @ch_releaseQ:   Enables waiting for removal from rch_list.
+ * @spinlock:  Protects rch_list.
+ * @rch_list:  Per-device channel list -- see also srpt_rdma_ch.list.
+ * @scst_tgt:  SCST target information associated with this HCA.
+ * @enabled:   Whether or not this SCST target is enabled.
+ */
+struct srpt_tgt {
+	wait_queue_head_t	ch_releaseQ;
+	spinlock_t		spinlock;
+	struct list_head	rch_list;
+	struct scst_tgt		*scst_tgt;
+	bool			enabled;
 };
 
 /**
@@ -359,13 +378,14 @@ struct srpt_rdma_ch {
  * @work:      work structure for refreshing the aforementioned cached values.
  */
 struct srpt_port {
-	struct srpt_device *sdev;
-	struct ib_mad_agent *mad_agent;
-	u8 port;
-	u16 sm_lid;
-	u16 lid;
-	union ib_gid gid;
-	struct work_struct work;
+	struct srpt_device	*sdev;
+	struct ib_mad_agent	*mad_agent;
+	u8			port;
+	u16			sm_lid;
+	u16			lid;
+	union ib_gid		gid;
+	struct work_struct	work;
+	struct srpt_tgt		srpt_tgt;
 };
 
 /**
@@ -379,14 +399,8 @@ struct srpt_port {
  *                 ib_client.add() callback.
  * @srq_size:      SRQ size.
  * @ioctx_ring:    Per-HCA SRQ.
- * @rch_list:      Per-device channel list -- see also srpt_rdma_ch.list.
- * @ch_releaseQ:   Enables waiting for removal from rch_list.
- * @spinlock:      Protects rch_list.
  * @port:	   Information about the ports owned by this HCA.
  * @event_handler: Per-HCA asynchronous IB event handler.
- * @dev:           Per-port srpt-<portname> device instance.
- * @scst_tgt:      SCST target information associated with this HCA.
- * @enabled:       Whether or not this SCST target is enabled.
  */
 struct srpt_device {
 	struct ib_device	*device;
@@ -397,13 +411,9 @@ struct srpt_device {
 	struct ib_device_attr	dev_attr;
 	int			srq_size;
 	struct srpt_recv_ioctx	**ioctx_ring;
-	struct list_head	rch_list;
-	wait_queue_head_t	ch_releaseQ;
-	spinlock_t		spinlock;
 	struct srpt_port	port[2];
 	struct ib_event_handler	event_handler;
-	struct scst_tgt		*scst_tgt;
-	bool			enabled;
+	struct srpt_tgt		srpt_tgt;
 };
 
 #endif				/* IB_SRPT_H */
