@@ -20,7 +20,16 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
  * USA
-*/
+ *
+ * Changelog: 
+ * - Praveen Murali <pmurali@logicube.com>   May 15, 2012
+ *   Cleanup and prepare the FIS index before issuing the ATA command
+ *   (during prep: mvs_task_prep_ata). This is to overcome the drive
+ *   detection issue where the SATA drives fail to get detected during
+ *   hotplug since the ATA module (libATA) detects errors set in the FIS
+ *   even though the SATA analyzer shows that the IDENTIFY command was
+ *   successful.
+ */
 
 #include "mv_sas.h"
 
@@ -610,6 +619,10 @@ static int mvs_task_prep_ata(struct mvs_info *mvi,
 			mvi_dev->device_id);
 		return -EBUSY;
 	}
+
+	/* cleanup and prepare the allocated FIS index */
+	memset(SATA_RECEIVED_D2H_FIS(mvi_dev->taskfileset), 0,
+	       sizeof(struct dev_to_host_fis));
 
 	slot = &mvi->slot_info[tag];
 	slot->tx = mvi->tx_prod;
