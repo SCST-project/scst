@@ -2346,7 +2346,7 @@ static void __srpt_close_all_ch(struct srpt_tgt *srpt_tgt)
 	}
 }
 
-static struct srpt_tgt* srpt_convert_scst_tgt(struct scst_tgt *scst_tgt)
+static struct srpt_tgt *srpt_convert_scst_tgt(struct scst_tgt *scst_tgt)
 {
 	struct srpt_device *sdev;
 	struct srpt_port *sport;
