@@ -2346,7 +2346,6 @@ static void __srpt_close_all_ch(struct srpt_tgt *srpt_tgt)
 	}
 }
 
-#if !defined(CONFIG_SCST_PROC)
 static struct srpt_tgt* srpt_convert_scst_tgt(struct scst_tgt *scst_tgt)
 {
 	struct srpt_device *sdev;
@@ -2365,6 +2364,7 @@ static struct srpt_tgt* srpt_convert_scst_tgt(struct scst_tgt *scst_tgt)
 	return srpt_tgt;
 }
 
+#if !defined(CONFIG_SCST_PROC)
 /**
  * srpt_enable_target - Set the "enabled" status of a target.
  */
