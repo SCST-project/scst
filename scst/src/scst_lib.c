@@ -153,6 +153,8 @@ static int get_cdb_info_write_same16(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
 static int get_cdb_info_apt(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
+static int get_cdb_info_min(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
 
 /*
 +=====================================-============-======-
@@ -215,22 +217,36 @@ static int scst_scsi_op_list[256];
 /* See also http://www.t10.org/lists/op-num.htm */
 static const struct scst_sdbops scst_scsi_op_table[] = {
 	/*
-	 *                       +-------------------> TYPE_IS_DISK      (0)
+	 *                       +-------------------> TYPE_DISK      (0)
 	 *                       |
-	 *                       |+------------------> TYPE_IS_TAPE      (1)
+	 *                       |+------------------> TYPE_TAPE      (1)
 	 *                       ||
-	 *                       || +----------------> TYPE_IS_PROCESSOR (3)
-	 *                       || |
-	 *                       || | +--------------> TYPE_IS_CDROM     (5)
-	 *                       || | |
-	 *                       || | | +------------> TYPE_IS_MOD       (7)
-	 *                       || | | |
-	 *                       || | | |+-----------> TYPE_IS_CHANGER   (8)
-	 *                       || | | ||
-	 *                       || | | ||   +-------> TYPE_IS_RAID      (C)
-	 *                       || | | ||   |
-	 *                       || | | ||   |
-	 *                       0123456789ABCDEF ---> TYPE_IS_????     */
+	 *                       ||+-----------------> TYPE_PRINTER   (2)
+	 *                       |||
+	 *                       |||+----------------> TYPE_PROCESSOR (3)
+	 *                       ||||
+	 *                       ||||+---------------> TYPE_WORM      (4)
+	 *                       |||||
+	 *                       |||||+--------------> TYPE_CDROM     (5)
+	 *                       ||||||
+	 *                       ||||||+-------------> TYPE_SCANNER   (6)
+	 *                       |||||||
+	 *                       |||||||+------------> TYPE_MOD       (7)
+	 *                       ||||||||
+	 *                       ||||||||+-----------> TYPE_CHANGER   (8)
+	 *                       |||||||||
+	 *                       |||||||||+----------> TYPE_COMM      (9)
+	 *                       ||||||||||
+	 *                       ||||||||||  +-------> TYPE_RAID      (C)
+	 *                       ||||||||||  |
+	 *                       ||||||||||  |+------> TYPE_ENCLOSURE (D)
+	 *                       ||||||||||  ||
+	 *                       ||||||||||  ||+-----> TYPE_RBC       (E)
+	 *                       ||||||||||  |||
+	 *                       ||||||||||  |||+----> Optical card   (F)
+	 *                       ||||||||||  ||||
+	 *                       ||||||||||  ||||
+	 *                       0123456789ABCDEF -> TYPE_????     */
 
 	/* 6-bytes length CDB */
 	{.ops = 0x00, .devkey = "MMMMMMMMMMMMMMMM",
@@ -1055,19 +1071,12 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 .info_op_flags = FLAG_NONE,
 	 .info_len_off = 8, .info_len_len = 2,
 	 .get_cdb_info = get_cdb_info_len_2},
-	{.ops = 0xA3, .devkey = "OOOOO OOOO      ",
-	 .info_op_name = "REPORT DEVICE IDENTIDIER",
-	 .info_data_direction = SCST_DATA_READ,
-	 .info_op_flags = SCST_REG_RESERVE_ALLOWED|SCST_WRITE_EXCL_ALLOWED|
-				SCST_EXCL_ACCESS_ALLOWED,
-	 .info_len_off = 6, .info_len_len = 2,
-	 .get_cdb_info = get_cdb_info_len_2},
-	{.ops = 0xA3, .devkey = "            M   ",
+	{.ops = 0xA3, .devkey = "OOO O OOOO  MO O",
 	 .info_op_name = "MAINTENANCE(IN)",
 	 .info_data_direction = SCST_DATA_READ,
 	 .info_op_flags = FLAG_NONE,
 	 .info_len_off = 6, .info_len_len = 4,
-	 .get_cdb_info = get_cdb_info_len_4},
+	 .get_cdb_info = get_cdb_info_min},
 	{.ops = 0xA4, .devkey = "     O          ",
 	 .info_op_name = "REPORT KEY",
 	 .info_data_direction = SCST_DATA_READ,
@@ -6482,6 +6491,23 @@ static int get_cdb_info_apt(struct scst_cmd *cmd,
 out:
 	cmd->op_flags = SCST_INFO_VALID;
 	return 0;
+}
+
+/* Parse MAINTENANCE IN */
+static int get_cdb_info_min(struct scst_cmd *cmd,
+			    const struct scst_sdbops *sdbops)
+{
+	switch (cmd->cdb[1]) {
+	case MI_REPORT_IDENTIFYING_INFORMATION:
+	case MI_REPORT_TARGET_PGS: // REPORT TARGET PORT GROUPS
+		cmd->op_flags |= SCST_REG_RESERVE_ALLOWED |
+			SCST_WRITE_EXCL_ALLOWED | SCST_EXCL_ACCESS_ALLOWED;
+		break;
+	default:
+		break;
+	}
+
+	return get_cdb_info_len_4(cmd, sdbops);
 }
 
 /**
