@@ -558,7 +558,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 0, get_trans_len_none},
 	{0x93, "O    O          ", "WRITE SAME(16)",
 	 SCST_DATA_WRITE, SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
-	 10, get_trans_len_4},
+	 10, get_trans_len_single},
 	{0x93, " M              ", "ERASE(16)",
 	 SCST_DATA_NONE, SCST_LONG_TIMEOUT|SCST_WRITE_MEDIUM,
 	 0, get_trans_len_none},
