@@ -1179,8 +1179,6 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 		scst_virt_dev_last_id = 1;
 	}
 
-	res = dev->virt_id;
-
 	res = scst_pr_init_dev(dev);
 	if (res != 0)
 		goto out_free_dev;
