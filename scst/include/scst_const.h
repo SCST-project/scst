@@ -190,7 +190,13 @@ enum scst_cdb_flags {
 	SCST_SKIP_UA =				0x0080,
 	SCST_WRITE_MEDIUM =			0x0100,
 	SCST_LOCAL_CMD =			0x0200,
+
+	/*
+	 * Set if CDB is fully locally handled by SCST. Dev handlers
+	 * parse() and dev_done() not called for such commands
+	 */
 	SCST_FULLY_LOCAL_CMD =			0x0400,
+
 	SCST_REG_RESERVE_ALLOWED =		0x0800,
 	SCST_WRITE_EXCL_ALLOWED =		0x1000,
 	SCST_EXCL_ACCESS_ALLOWED =		0x2000,
@@ -252,8 +258,7 @@ enum scst_cdb_flags {
 #define scst_sense_invalid_field_in_parm_list	ILLEGAL_REQUEST, 0x26, 0
 #define scst_sense_parameter_value_invalid	ILLEGAL_REQUEST, 0x26, 2
 #define scst_sense_invalid_release		ILLEGAL_REQUEST, 0x26, 4
-#define scst_sense_parameter_list_length_invalid \
-						ILLEGAL_REQUEST, 0x1A, 0
+#define scst_sense_parameter_list_length_invalid ILLEGAL_REQUEST, 0x1A, 0
 #define scst_sense_reset_UA			UNIT_ATTENTION,  0x29, 0
 #define scst_sense_nexus_loss_UA		UNIT_ATTENTION,  0x29, 0x7
 #define scst_sense_saving_params_unsup		ILLEGAL_REQUEST, 0x39, 0

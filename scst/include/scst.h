@@ -2935,30 +2935,6 @@ struct scst_cmd *scst_find_cmd(struct scst_session *sess, void *data,
 enum dma_data_direction scst_to_dma_dir(int scst_dir);
 enum dma_data_direction scst_to_tgt_dma_dir(int scst_dir);
 
-/*
- * Returns true, if cmd's CDB is fully locally handled by SCST and false
- * otherwise. Dev handlers parse() and dev_done() not called for such commands.
- */
-static inline bool scst_is_cmd_fully_local(struct scst_cmd *cmd)
-{
-	return (cmd->op_flags & SCST_FULLY_LOCAL_CMD) != 0;
-}
-
-/*
- * Returns true, if cmd's CDB is locally handled by SCST and
- * false otherwise.
- */
-static inline bool scst_is_cmd_local(struct scst_cmd *cmd)
-{
-	return (cmd->op_flags & SCST_LOCAL_CMD) != 0;
-}
-
-/* Returns true, if cmd can deliver UA */
-static inline bool scst_is_ua_command(struct scst_cmd *cmd)
-{
-	return (cmd->op_flags & SCST_SKIP_UA) == 0;
-}
-
 int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 	const char *dev_name);
 void scst_unregister_virtual_device(int id);

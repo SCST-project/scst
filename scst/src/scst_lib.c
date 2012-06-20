@@ -4478,13 +4478,9 @@ static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 	return;
 }
 
-struct scst_i_finish_t {
-	void (*scst_i_finish_fn) (struct scst_cmd *cmd);
-};
-
 struct scst_write_same_priv {
 	/* Must be the first for scst_finish_internal_cmd()! */
-	struct scst_i_finish_t ws_finish_fn;
+	scst_i_finish_fn_t ws_finish_fn;
 
 	struct scst_cmd *ws_orig_cmd;
 
@@ -4508,7 +4504,7 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 	struct scatterlist *ws_sg = wsp->ws_sg;
 	int ws_sg_cnt = wsp->ws_sg_cnt;
 	int res, i;
-	static uint8_t write16_cdb[16];
+	uint8_t write16_cdb[16];
 	struct scatterlist *sg;
 	int sg_cnt, len = blocks << ws_cmd->dev->block_shift;
 	struct sgv_pool_obj *sgv;
@@ -4772,7 +4768,7 @@ void scst_write_same(struct scst_cmd *cmd)
 	}
 
 	mutex_init(&wsp->ws_mutex);
-	wsp->ws_finish_fn.scst_i_finish_fn = scst_ws_write_cmd_finished;
+	wsp->ws_finish_fn = scst_ws_write_cmd_finished;
 	wsp->ws_orig_cmd = cmd;
 
 	wsp->ws_cur_lba = cmd->lba;
@@ -4828,8 +4824,8 @@ int scst_finish_internal_cmd(struct scst_cmd *cmd)
 	if (cmd->cdb[0] == REQUEST_SENSE)
 		scst_complete_request_sense(cmd);
 	else {
-		struct scst_i_finish_t *f = cmd->tgt_i_priv;
-		f->scst_i_finish_fn(cmd);
+		scst_i_finish_fn_t f = cmd->tgt_i_priv;
+		f(cmd);
 	}
 
 	__scst_cmd_put(cmd);
@@ -7841,7 +7837,7 @@ bool __scst_check_blocked_dev(struct scst_cmd *cmd)
 			(long long unsigned int)cmd->tag, cmd->cdb[0],
 			dev->virt_name);
 		goto out_block;
-	} else if (scst_is_strictly_serialized_cmd(cmd)) {
+	} else if ((cmd->op_flags & SCST_STRICTLY_SERIALIZED) == SCST_STRICTLY_SERIALIZED) {
 		TRACE_MGMT_DBG("cmd %p (tag %llu, op %x): blocking further "
 			"cmds on dev %s due to strict serialization", cmd,
 			(long long unsigned int)cmd->tag, cmd->cdb[0],
@@ -7856,7 +7852,8 @@ bool __scst_check_blocked_dev(struct scst_cmd *cmd)
 			goto out_block;
 		} else
 			cmd->unblock_dev = 1;
-	} else if ((dev->dev_double_ua_possible) || scst_is_serialized_cmd(cmd)) {
+	} else if ((dev->dev_double_ua_possible) ||
+		   ((cmd->op_flags & SCST_SERIALIZED) != 0)) {
 		TRACE_MGMT_DBG("cmd %p (tag %llu, op %x): blocking further cmds "
 			"on dev %s due to %s", cmd, (long long unsigned int)cmd->tag,
 			cmd->cdb[0], dev->virt_name,
@@ -7890,10 +7887,6 @@ void scst_unblock_dev(struct scst_device *dev)
 	TRACE_MGMT_DBG("Device UNBLOCK(new %d), dev %s",
 		dev->block_count-1, dev->virt_name);
 
-#ifdef CONFIG_SMP
-	EXTRACHECKS_BUG_ON(!spin_is_locked(&dev->dev_lock));
-#endif
-
 	if (--dev->block_count == 0) {
 		struct scst_cmd *cmd, *tcmd;
 		unsigned long flags;
@@ -7912,7 +7905,7 @@ void scst_unblock_dev(struct scst_device *dev)
 			else
 				list_add_tail(&cmd->cmd_list_entry,
 					&cmd->cmd_threads->active_cmd_list);
-			strictly_serialized = scst_is_strictly_serialized_cmd(cmd);
+			strictly_serialized = ((cmd->op_flags & SCST_STRICTLY_SERIALIZED) == SCST_STRICTLY_SERIALIZED);
 			wake_up(&cmd->cmd_threads->cmd_list_waitQ);
 			spin_unlock(&cmd->cmd_threads->cmd_list_lock);
 			if (dev->strictly_serialized_cmd_waiting && strictly_serialized)

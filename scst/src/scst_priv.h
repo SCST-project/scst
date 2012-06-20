@@ -114,6 +114,8 @@ extern unsigned long scst_trace_flag;
 #define SCST_MAX_EACH_INTERNAL_IO_SIZE	     (128*1024)
 #define SCST_MAX_IN_FLIGHT_INTERNAL_COMMANDS 32
 
+typedef void (*scst_i_finish_fn_t) (struct scst_cmd *cmd);
+
 extern struct mutex scst_mutex2;
 
 extern int scst_threads;
@@ -593,21 +595,6 @@ void scst_free_aen(struct scst_aen *aen);
 
 void scst_gen_aen_or_ua(struct scst_tgt_dev *tgt_dev,
 	int key, int asc, int ascq);
-
-static inline bool scst_is_implicit_hq_cmd(struct scst_cmd *cmd)
-{
-	return (cmd->op_flags & SCST_IMPLICIT_HQ) != 0;
-}
-
-static inline bool scst_is_serialized_cmd(struct scst_cmd *cmd)
-{
-	return (cmd->op_flags & SCST_SERIALIZED) != 0;
-}
-
-static inline bool scst_is_strictly_serialized_cmd(struct scst_cmd *cmd)
-{
-	return (cmd->op_flags & SCST_STRICTLY_SERIALIZED) == SCST_STRICTLY_SERIALIZED;
-}
 
 /*
  * Some notes on devices "blocking". Blocking means that no

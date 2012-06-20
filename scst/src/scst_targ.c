@@ -129,7 +129,7 @@ static bool scst_check_blocked_dev(struct scst_cmd *cmd)
 
 	if (unlikely(dev->block_count > 0) ||
 	    unlikely(dev->dev_double_ua_possible) ||
-	    unlikely(scst_is_serialized_cmd(cmd)))
+	    unlikely((cmd->op_flags & SCST_SERIALIZED) != 0))
 		res = __scst_check_blocked_dev(cmd);
 	else
 		res = false;
@@ -568,7 +568,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	if (likely(!scst_is_cmd_fully_local(cmd))) {
+	if (likely((cmd->op_flags & SCST_FULLY_LOCAL_CMD) == 0)) {
 		if (unlikely(!devt->parse_atomic &&
 			     scst_cmd_atomic(cmd))) {
 			/*
@@ -967,7 +967,7 @@ static int scst_prepare_space(struct scst_cmd *cmd)
 	if (cmd->data_direction == SCST_DATA_NONE)
 		goto done;
 
-	if (likely(!scst_is_cmd_fully_local(cmd)) &&
+	if (likely((cmd->op_flags & SCST_FULLY_LOCAL_CMD) == 0) &&
 	    (devt->alloc_data_buf != NULL)) {
 		int state;
 
@@ -2426,7 +2426,7 @@ int __scst_check_local_events(struct scst_cmd *cmd, bool preempt_tests_only)
 	/* If we had internal bus reset, set the command error unit attention */
 	if ((dev->scsi_dev != NULL) &&
 	    unlikely(dev->scsi_dev->was_reset)) {
-		if (scst_is_ua_command(cmd)) {
+		if ((cmd->op_flags & SCST_SKIP_UA) == 0) {
 			int done = 0;
 			/*
 			 * Prevent more than 1 cmd to be triggered by was_reset
@@ -2452,7 +2452,7 @@ int __scst_check_local_events(struct scst_cmd *cmd, bool preempt_tests_only)
 
 	if (unlikely(test_bit(SCST_TGT_DEV_UA_PENDING,
 			&cmd->tgt_dev->tgt_dev_flags))) {
-		if (scst_is_ua_command(cmd)) {
+		if ((cmd->op_flags & SCST_SKIP_UA) == 0) {
 			rc = scst_set_pending_UA(cmd, NULL, NULL);
 			if (rc == 0)
 				goto out_complete;
@@ -2699,7 +2699,7 @@ static int scst_do_local_exec(struct scst_cmd *cmd)
 		goto out_done;
 	}
 
-	if (!scst_is_cmd_local(cmd)) {
+	if ((cmd->op_flags & SCST_LOCAL_CMD) == 0) {
 		res = SCST_EXEC_NOT_COMPLETED;
 		goto out;
 	}
@@ -2979,7 +2979,7 @@ static int scst_check_sense(struct scst_cmd *cmd)
 	/* If we had internal bus reset behind us, set the command error UA */
 	if ((dev->scsi_dev != NULL) &&
 	    unlikely(cmd->host_status == DID_RESET) &&
-	    scst_is_ua_command(cmd)) {
+	    ((cmd->op_flags & SCST_SKIP_UA) == 0)) {
 		TRACE(TRACE_MGMT, "DID_RESET: was_reset=%d host_status=%x",
 		      dev->scsi_dev->was_reset, cmd->host_status);
 		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_reset_UA));
@@ -3034,7 +3034,7 @@ static int scst_check_sense(struct scst_cmd *cmd)
 	}
 
 	if (unlikely(cmd->double_ua_possible)) {
-		if (scst_is_ua_command(cmd)) {
+		if ((cmd->op_flags & SCST_SKIP_UA) == 0) {
 			TRACE_MGMT_DBG("Clearing dbl_ua_possible flag (dev %p, "
 				"cmd %p)", dev, cmd);
 			/*
@@ -3348,7 +3348,7 @@ static int scst_dev_done(struct scst_cmd *cmd)
 
 	state = SCST_CMD_STATE_PRE_XMIT_RESP;
 
-	if (likely(!scst_is_cmd_fully_local(cmd)) &&
+	if (likely((cmd->op_flags & SCST_FULLY_LOCAL_CMD) == 0) &&
 	    likely(devt->dev_done != NULL)) {
 		int rc;
 
@@ -3804,7 +3804,7 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	if (scst_is_implicit_hq_cmd(cmd) &&
+	if (((cmd->op_flags & SCST_IMPLICIT_HQ) != 0) &&
 	    likely(cmd->queue_type == SCST_CMD_QUEUE_SIMPLE)) {
 		TRACE_SN("Implicit HQ cmd %p", cmd);
 		cmd->queue_type = SCST_CMD_QUEUE_HEAD_OF_QUEUE;

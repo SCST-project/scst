@@ -1832,7 +1832,7 @@ static int vcdrom_exec(struct scst_cmd *cmd)
 		goto out_done;
 	}
 
-	if (virt_dev->media_changed && scst_is_ua_command(cmd)) {
+	if (virt_dev->media_changed && ((cmd->op_flags & SCST_SKIP_UA) == 0)) {
 		spin_lock(&virt_dev->flags_lock);
 		if (virt_dev->media_changed) {
 			virt_dev->media_changed = 0;
