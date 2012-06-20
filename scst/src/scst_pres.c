@@ -2026,17 +2026,17 @@ static void scst_pr_do_preempt(struct scst_cmd *cmd, uint8_t *buffer,
 
 	TRACE_ENTRY();
 
-	key = get_unaligned((__be64 *)&buffer[0]);
-	action_key = get_unaligned((__be64 *)&buffer[8]);
-	scope = (cmd->cdb[2] & 0x0f) >> 4;
-	type = cmd->cdb[2] & 0x0f;
-
 	if (buffer_size != 24) {
 		TRACE_PR("Invalid buffer size %d", buffer_size);
 		scst_set_cmd_error(cmd,
 			SCST_LOAD_SENSE(scst_sense_parameter_list_length_invalid));
 		goto out;
 	}
+
+	key = get_unaligned((__be64 *)&buffer[0]);
+	action_key = get_unaligned((__be64 *)&buffer[8]);
+	scope = (cmd->cdb[2] & 0x0f) >> 4;
+	type = cmd->cdb[2] & 0x0f;
 
 	if (!scst_pr_type_valid(type)) {
 		TRACE_PR("Invalid reservation type %d", type);
