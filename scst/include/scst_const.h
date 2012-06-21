@@ -301,13 +301,13 @@ enum scst_cdb_flags {
 #ifndef VERIFY_12
 #define VERIFY_12                   0xAF
 #endif
-#ifndef GENERATING_UPSTREAM_PATCH
 /*
  * The constants below have been defined in the kernel header <scsi/scsi.h>
  * and hence are not needed when this header file is included in kernel code.
  * The definitions below are only used when this header file is included during
  * compilation of SCST's user space components.
  */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 12)
 #ifndef READ_16
 #define READ_16               0x88
 #endif
@@ -317,11 +317,13 @@ enum scst_cdb_flags {
 #ifndef VERIFY_16
 #define VERIFY_16	      0x8f
 #endif
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 37)
+#endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 38)
 #ifndef MI_REPORT_IDENTIFYING_INFORMATION
 #define MI_REPORT_IDENTIFYING_INFORMATION 0x05
 #endif
 #endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 12)
 #ifndef SERVICE_ACTION_IN
 #define SERVICE_ACTION_IN     0x9e
 #endif
@@ -330,19 +332,21 @@ enum scst_cdb_flags {
 #define	SAI_READ_CAPACITY_16  0x10
 #endif
 #endif
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 32)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
 #ifndef SAI_GET_LBA_STATUS
 #define SAI_GET_LBA_STATUS    0x12
 #endif
 #endif
-#ifndef GENERATING_UPSTREAM_PATCH
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 12)
 #ifndef REPORT_LUNS
 #define REPORT_LUNS           0xa0
 #endif
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
 #ifndef WRITE_SAME_16
 #define WRITE_SAME_16	      0x93
+#endif
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
