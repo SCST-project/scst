@@ -317,6 +317,11 @@ enum scst_cdb_flags {
 #ifndef VERIFY_16
 #define VERIFY_16	      0x8f
 #endif
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 37)
+#ifndef MI_REPORT_IDENTIFYING_INFORMATION
+#define MI_REPORT_IDENTIFYING_INFORMATION 0x05
+#endif
+#endif
 #ifndef SERVICE_ACTION_IN
 #define SERVICE_ACTION_IN     0x9e
 #endif
