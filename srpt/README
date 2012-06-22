@@ -271,6 +271,25 @@ http://www.garloff.de/kurt/linux/#rescan-scsi. An example:
 $ rescan-scsi-bus --hosts=${srp_host_id} --channels=0 --ids=0 --luns=0-31
 
 
+InfiniBand Partitions
+---------------------
+
+Just like a VLAN allows to segment traffic on an Ethernet network partitions
+allow to segment traffic on an InfiniBand network. Each InfiniBand partition
+is identified by a partition key which is a 16-bit number. During fabric
+initialization the subnet manager assigns one or more partition keys to
+each InfiniBand port. For opensm partitions are defined in
+/etc/opensm/partitions.conf. ib_srpt uses the partition with index 0. Which
+partition key corresponds to index 0 can be found out by querying sysfs:
+
+$ head /sys/class/infiniband/*/ports/*/pkeys/0
+==> /sys/class/infiniband/mlx4_0/ports/1/pkeys/0 <==
+0xffff
+
+==> /sys/class/infiniband/mlx4_0/ports/2/pkeys/0 <==
+0xffff
+
+
 High availability
 -----------------
 
