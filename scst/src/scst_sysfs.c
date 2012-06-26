@@ -1830,7 +1830,7 @@ static int scst_process_ini_group_mgmt_store(char *buffer,
 {
 	int res, action;
 	char *p, *pp;
-	struct scst_acg *a, *acg = NULL;
+	struct scst_acg *acg;
 	enum {
 		SCST_INI_GROUP_ACTION_CREATE = 1,
 		SCST_INI_GROUP_ACTION_DEL    = 2,
@@ -1871,14 +1871,7 @@ static int scst_process_ini_group_mgmt_store(char *buffer,
 		goto out_unlock;
 	}
 
-	list_for_each_entry(a, &tgt->tgt_acg_list, acg_list_entry) {
-		if (strcmp(a->acg_name, p) == 0) {
-			TRACE_DBG("group (acg) %p %s found",
-				  a, a->acg_name);
-			acg = a;
-			break;
-		}
-	}
+	acg = scst_tgt_find_acg(tgt, p);
 
 	switch (action) {
 	case SCST_INI_GROUP_ACTION_CREATE:
