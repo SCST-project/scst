@@ -48,7 +48,8 @@ static struct ft_tport *ft_tport_create(struct fc_lport *lport)
 	ft_format_wwn(name, sizeof(name), lport->wwpn);
 	FT_SESS_DBG("create %s\n", name);
 
-	tport = rcu_dereference(lport->prov[FC_TYPE_FCP]);
+	tport = rcu_dereference_protected(lport->prov[FC_TYPE_FCP],
+					  lockdep_is_held(&ft_lport_lock));
 	if (tport) {
 		FT_SESS_DBG("tport alloc %s - already setup\n", name);
 		return tport;
