@@ -3134,7 +3134,7 @@ static enum compl_status_e vdisk_exec_report_tpgs(struct vdisk_cmd_params *p)
 	uint8_t *address;
 	void *buf;
 	int32_t buf_len;
-	uint32_t allocation_length, data_length, length;
+	uint32_t data_length, length;
 	uint8_t data_format;
 	int res;
 
@@ -3154,9 +3154,7 @@ static enum compl_status_e vdisk_exec_report_tpgs(struct vdisk_cmd_params *p)
 			      "least 12 bytes)", cmd->cdb_len);
 
 	dev = cmd->dev;
-	data_format = cmd->cdb_len > 1 ? cmd->cdb[1] >> 5 : 0;
-	allocation_length = cmd->cdb_len >= 10 ?
-		get_unaligned_be32(cmd->cdb + 6) : 1024;
+	data_format = cmd->cdb[1] >> 5;
 
 	res = scst_tg_get_group_info(&buf, &data_length, dev, data_format);
 	if (res == -ENOMEM) {
@@ -3168,7 +3166,7 @@ static enum compl_status_e vdisk_exec_report_tpgs(struct vdisk_cmd_params *p)
 		goto out_put;
 	}
 
-	length = min_t(uint32_t, min(allocation_length, data_length), buf_len);
+	length = min_t(uint32_t, data_length, buf_len);
 	memcpy(address, buf, length);
 	kfree(buf);
 	if (length < cmd->resp_data_len)
