@@ -1868,7 +1868,7 @@ assign:
 			if (res != 0) {
 				PRINT_ERROR("Device handler's %s attach_tgt() "
 				    "failed: %d", handler->name, res);
-				goto out_err_remove_sysfs;
+				goto out_err_detach_tgt;
 			}
 			list_add_tail(&tgt_dev->extra_tgt_dev_list_entry,
 				&attached_tgt_devs);
@@ -1894,7 +1894,6 @@ out_err_detach_tgt:
 		}
 	}
 
-out_err_remove_sysfs:
 	scst_devt_dev_sysfs_del(dev);
 
 out_detach:
