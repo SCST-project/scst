@@ -3148,11 +3148,6 @@ static enum compl_status_e vdisk_exec_report_tpgs(struct vdisk_cmd_params *p)
 		goto out;
 	}
 
-	if (cmd->cdb_len < 12)
-		PRINT_WARNING("received invalid REPORT TARGET PORT GROUPS "
-			      "command - length %d is too small (should be at "
-			      "least 12 bytes)", cmd->cdb_len);
-
 	dev = cmd->dev;
 	data_format = cmd->cdb[1] >> 5;
 
