@@ -6497,9 +6497,14 @@ out:
 static int get_cdb_info_min(struct scst_cmd *cmd,
 			    const struct scst_sdbops *sdbops)
 {
-	switch (cmd->cdb[1]) {
+	switch (cmd->cdb[1] & 0x1f) {
 	case MI_REPORT_IDENTIFYING_INFORMATION:
-	case MI_REPORT_TARGET_PGS: /* REPORT TARGET PORT GROUPS */
+		cmd->op_name = "REPORT IDENTIFYING INFORMATION";
+		cmd->op_flags |= SCST_REG_RESERVE_ALLOWED |
+			SCST_WRITE_EXCL_ALLOWED | SCST_EXCL_ACCESS_ALLOWED;
+		break;
+	case MI_REPORT_TARGET_PGS:
+		cmd->op_name = "REPORT TARGET PORT GROUPS";
 		cmd->op_flags |= SCST_REG_RESERVE_ALLOWED |
 			SCST_WRITE_EXCL_ALLOWED | SCST_EXCL_ACCESS_ALLOWED;
 		break;
