@@ -169,11 +169,11 @@ function generate_kernel_patch {
                   $([ "${mpt_scst}"   = "true" ] && echo "-m") \
                   $([ "${qla2x00t}"   = "true" ] && echo "-q")"
 
-  scripts/generate-kernel-patch ${driver_options} $2 $1 > "${patchfile}"
+  "${scriptsdir}"/generate-kernel-patch ${driver_options} $2 $1 > "${patchfile}"
 
-  scripts/generate-kernel-patch ${driver_options} -n $2 $1 > "${patchfile_m}"
+  "${scriptsdir}"/generate-kernel-patch ${driver_options} -n $2 $1 > "${patchfile_m}"
 
-  scripts/generate-kernel-patch ${driver_options} -p "${outputdir}/${patchdir}" $2 $1
+  "${scriptsdir}"/generate-kernel-patch ${driver_options} -p "${outputdir}/${patchdir}" $2 $1
 }
 
 # Run checkpatch on the generated kernel patch. Assumes that there is a
@@ -404,6 +404,7 @@ if [ ! -e scst -o ! -e iscsi-scst -o ! -e srpt ]; then
   exit 1
 fi
 
+scriptsdir="$(dirname $0)"
 # Where to store persistenly downloaded kernel tarballs and kernel patches.
 kernel_sources="$HOME/software/downloads"
 # URL for downloading kernel tarballs and kernel patches.
