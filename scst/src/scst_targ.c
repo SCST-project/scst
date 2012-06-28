@@ -2631,9 +2631,7 @@ out_complete:
 
 out_error:
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
-	goto out_done;
 
-out_done:
 	res = SCST_EXEC_COMPLETED;
 	/* Report the result */
 	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
