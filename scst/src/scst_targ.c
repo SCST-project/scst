@@ -891,7 +891,8 @@ out:
 	 * at least 0 for not data transfer commands, or cmd must be
 	 * completed (with an error) and have correct state set.
 	 */
-	if (unlikely(((cmd->lba == SCST_DEF_LBA_DATA_LEN) ||
+	if (unlikely((((cmd->lba == SCST_DEF_LBA_DATA_LEN) &&
+			!(cmd->op_flags & SCST_LBA_NOT_VALID)) ||
 		       (cmd->data_len == SCST_DEF_LBA_DATA_LEN)) &&
 		      (!cmd->completed ||
 		       (((cmd->state < SCST_CMD_STATE_PRE_XMIT_RESP) ||

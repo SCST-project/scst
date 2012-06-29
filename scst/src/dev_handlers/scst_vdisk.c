@@ -1195,9 +1195,8 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 
 	EXTRACHECKS_BUG_ON((loff < 0) || unlikely(data_len < 0));
 
-	/* If lba_len is 0, loff doesn't make sense, so this error not possible */
 	if (unlikely((loff + data_len) > virt_dev->file_size) &&
-	    (cmd->lba_len != 0)) {
+	    (!(cmd->op_flags & SCST_LBA_NOT_VALID))) {
 		PRINT_INFO("Access beyond the end of the device "
 			"(%lld of %lld, data len %lld)",
 			   (long long unsigned int)loff,

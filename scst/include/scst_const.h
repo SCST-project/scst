@@ -176,36 +176,47 @@ enum scst_cmd_queue_type {
 	SCST_CMD_QUEUE_ACA
 };
 
-/*************************************************************
- ** CDB flags
- *************************************************************/
+/***************************************************************
+ ** CDB flags. All must be single bit fit in int32. Bit fields
+ ** approach (unsigned int x:1) was not used, because those
+ ** flags supposed to be passed to the user space where another
+ ** compiler with another bitfields layout can be used.
+ ***************************************************************/
 enum scst_cdb_flags {
 	SCST_TRANSFER_LEN_TYPE_FIXED =		0x0001,
 	SCST_SMALL_TIMEOUT =			0x0002,
 	SCST_LONG_TIMEOUT =			0x0004,
 	SCST_UNKNOWN_LBA =			0x0008,
 	SCST_UNKNOWN_LENGTH =			0x0010,
-	SCST_INFO_VALID =			0x0020, /* must be single bit */
-	SCST_IMPLICIT_HQ =			0x0040,
-	SCST_SKIP_UA =				0x0080,
-	SCST_WRITE_MEDIUM =			0x0100,
-	SCST_LOCAL_CMD =			0x0200,
+	SCST_INFO_VALID =			0x0020,
+
+	/*
+	 * Set if LBA not defined for this CDB. The "NOT" approach
+	 * was used to make sure that all dev handlers either init
+	 * cmd->lba or set this flag (for backward compatibility)
+	 */
+	SCST_LBA_NOT_VALID =			0x0040,
+
+	SCST_IMPLICIT_HQ =			0x0080,
+	SCST_SKIP_UA =				0x0100,
+	SCST_WRITE_MEDIUM =			0x0200,
+	SCST_LOCAL_CMD =			0x0400,
 
 	/*
 	 * Set if CDB is fully locally handled by SCST. Dev handlers
 	 * parse() and dev_done() not called for such commands
 	 */
-	SCST_FULLY_LOCAL_CMD =			0x0400,
+	SCST_FULLY_LOCAL_CMD =			0x0800,
 
-	SCST_REG_RESERVE_ALLOWED =		0x0800,
-	SCST_WRITE_EXCL_ALLOWED =		0x1000,
-	SCST_EXCL_ACCESS_ALLOWED =		0x2000,
+	SCST_REG_RESERVE_ALLOWED =		0x1000,
+	SCST_WRITE_EXCL_ALLOWED =		0x4000,
+	SCST_EXCL_ACCESS_ALLOWED =		0x4000,
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
-	SCST_TEST_IO_IN_SIRQ_ALLOWED =		0x4000,
+	SCST_TEST_IO_IN_SIRQ_ALLOWED =		0x8000,
 #endif
-	SCST_SERIALIZED =			0x8000,
-	SCST_STRICTLY_SERIALIZED =	       0x10000|SCST_SERIALIZED,
-	SCST_DESCRIPTORS_BASED =	       0x20000,
+	SCST_SERIALIZED =		       0x10000,
+	SCST_STRICTLY_SERIALIZED =	       0x20000|SCST_SERIALIZED,
+	SCST_DESCRIPTORS_BASED =	       0x40000,
 };
 
 /*************************************************************
