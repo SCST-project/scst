@@ -1247,6 +1247,17 @@ sub readWorkingConfig {
 	return FALSE;
 }
 
+# Escape metacharacters (space, backslash and hash sign).
+sub escapeMeta {
+	my $value = shift;
+
+	$value =~ s/([\\\#])/\\\1/g;
+	if ($value =~ / /) {
+		$value = "\"$value\"";
+	}
+	return $value;
+}
+
 # Serialize key attributes.
 # $prefix: output prefix, e.g. "\t\t".
 # $attributes: reference to a hash with attributes and their values.
@@ -1269,10 +1280,7 @@ sub serializeKeyAttr {
 		my $value =
 		    $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
 		if ($value ne '') {
-		    if ($value =~ / /) {
-			$value = "\"$value\"";
-		    }
-		    $result .= "$prefix$attribute $value\n";
+		    $result .= "$prefix$attribute " . escapeMeta($value) . "\n";
 		}
 	    }
 	} elsif ($attribute eq 'enabled' || $attribute eq 'hw_target') {
@@ -1305,10 +1313,7 @@ sub serializeNkAttr {
 	    && $attribute ne 'hw_target') {
 	    my $value = $$attributes{$attribute}->{'value'};
 	    if ($value ne '') {
-		if ($value =~ / /) {
-		    $value = "\"$value\"";
-		}
-		$result .= "$prefix$attribute $value\n";
+		$result .= "$prefix$attribute " . escapeMeta($value) . "\n";
 	    }
 	}
     }
@@ -5056,7 +5061,8 @@ sub readConfigFile {
 	  if (!$io);
 
 	while (my $line = <$io>) {
-		($line, undef) = split(/\#/, $line, 2);
+		$line =~ s/^\#.*//;
+		$line =~ s/[^\\]\#.*//;
 		if ($line =~ /\[(.*)\s+.*\]/) {
 			my $parm = $1;
 
@@ -5069,6 +5075,7 @@ sub readConfigFile {
 			} 
 		}
 
+		$line =~ s/\\(.)/\1/g;
 		$buffer .= $line;
 	}
 
