@@ -1155,12 +1155,11 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 			goto out_unlock;
 		}
 
-		e = scst_get_next_lexem(&pp);
-
 		while (1) {
-			char *pp;
 			unsigned long val;
-			char *param = scst_get_next_token_str(&e);
+			char *param = scst_get_next_token_str(&pp);
+			char *pp;
+
 			if (param == NULL)
 				break;
 
