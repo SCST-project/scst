@@ -2523,7 +2523,7 @@ void scst_pr_report_caps(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 	buffer[1] = 8;
 
 	buffer[2] = crh << 4 | sip_c << 3 | atp_c << 2 | ptpl_c;
-	buffer[3] = (1 << 7) | (dev->pr_aptpl > 0 ? 1 : 0);
+	buffer[3] = (1 << 7) | (4 << 4) | (dev->pr_aptpl > 0 ? 1 : 0);
 
 	/* All commands supported */
 	buffer[4] = 0xEA;
