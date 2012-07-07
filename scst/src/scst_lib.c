@@ -456,7 +456,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 .info_op_name = "MODE SENSE(6)",
 	 .info_data_direction = SCST_DATA_READ,
 	 .info_op_flags = SCST_SMALL_TIMEOUT |
-	 	 SCST_WRITE_EXCL_ALLOWED,
+		 SCST_WRITE_EXCL_ALLOWED,
 	 .info_len_off = 4, .info_len_len = 1,
 	 .get_cdb_info = get_cdb_info_len_1},
 	{.ops = 0x1B, .devkey = "      O         ",
@@ -676,7 +676,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 .info_op_name = "READ BUFFER",
 	 .info_data_direction = SCST_DATA_READ,
 	 .info_op_flags = SCST_SMALL_TIMEOUT |
-	 	 SCST_WRITE_EXCL_ALLOWED,
+		 SCST_WRITE_EXCL_ALLOWED,
 	 .info_len_off = 5, .info_len_len = 2,
 	 .get_cdb_info = get_cdb_info_len_2},
 	{.ops = 0x3D, .devkey = "    O  O        ",
@@ -869,7 +869,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 .info_op_name = "MODE SENSE(10)",
 	 .info_data_direction = SCST_DATA_READ,
 	 .info_op_flags = SCST_SMALL_TIMEOUT |
-	 	 SCST_WRITE_EXCL_ALLOWED,
+		 SCST_WRITE_EXCL_ALLOWED,
 	 .info_len_off = 7, .info_len_len = 2,
 	 .get_cdb_info = get_cdb_info_len_2},
 	{.ops = 0x5B, .devkey = "     O          ",
