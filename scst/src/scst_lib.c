@@ -931,7 +931,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 .get_cdb_info = get_cdb_info_len_4},
 	{.ops = 0x84, .devkey = "OOOOOOOOOOOOOOOO",
 	 .info_op_name = "RECEIVE COPY RESULT",
-	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_data_direction = SCST_DATA_READ,
 	 .info_op_flags = SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
 	 .info_len_off = 10, .info_len_len = 4,
 	 .get_cdb_info = get_cdb_info_len_4},
