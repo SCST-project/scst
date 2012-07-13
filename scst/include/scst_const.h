@@ -265,32 +265,32 @@ enum scst_cdb_flags {
 #define scst_sense_hardw_error			HARDWARE_ERROR,  0x44, 0
 #define scst_sense_aborted_command		ABORTED_COMMAND, 0x00, 0
 #define scst_sense_invalid_opcode		ILLEGAL_REQUEST, 0x20, 0
+#define scst_sense_block_out_range_error	ILLEGAL_REQUEST, 0x21, 0
 #define scst_sense_invalid_field_in_cdb		ILLEGAL_REQUEST, 0x24, 0
+#define scst_sense_lun_not_supported		ILLEGAL_REQUEST, 0x25, 0
 #define scst_sense_invalid_field_in_parm_list	ILLEGAL_REQUEST, 0x26, 0
 #define scst_sense_parameter_value_invalid	ILLEGAL_REQUEST, 0x26, 2
 #define scst_sense_invalid_release		ILLEGAL_REQUEST, 0x26, 4
-#define scst_sense_parameter_list_length_invalid ILLEGAL_REQUEST, 0x1A, 0
-#define scst_sense_reset_UA			UNIT_ATTENTION,  0x29, 0
-#define scst_sense_nexus_loss_UA		UNIT_ATTENTION,  0x29, 0x7
 #define scst_sense_saving_params_unsup		ILLEGAL_REQUEST, 0x39, 0
-#define scst_sense_lun_not_supported		ILLEGAL_REQUEST, 0x25, 0
+#define scst_sense_invalid_message		ILLEGAL_REQUEST, 0x49, 0
+#define scst_sense_parameter_list_length_invalid ILLEGAL_REQUEST, 0x1A, 0
 #define scst_sense_data_protect			DATA_PROTECT,    0x00, 0
 #define scst_sense_miscompare_error		MISCOMPARE,      0x1D, 0
-#define scst_sense_block_out_range_error	ILLEGAL_REQUEST, 0x21, 0
-#define scst_sense_medium_changed_UA		UNIT_ATTENTION,  0x28, 0
-#define scst_sense_read_error			MEDIUM_ERROR,    0x11, 0
 #define scst_sense_write_error			MEDIUM_ERROR,    0x03, 0
+#define scst_sense_read_error			MEDIUM_ERROR,    0x11, 0
 #define scst_sense_not_ready			NOT_READY,       0x04, 0x10
 #define scst_sense_no_medium			NOT_READY,       0x3a, 0
-#define scst_sense_invalid_message		ILLEGAL_REQUEST, 0x49, 0
-#define scst_sense_cleared_by_another_ini_UA	UNIT_ATTENTION,  0x2F, 0
-#define scst_sense_capacity_data_changed	UNIT_ATTENTION,  0x2A, 0x9
+#define scst_sense_medium_changed_UA		UNIT_ATTENTION,  0x28, 0
+#define scst_sense_reset_UA			UNIT_ATTENTION,  0x29, 0
+#define scst_sense_nexus_loss_UA		UNIT_ATTENTION,  0x29, 0x7
 #define scst_sense_reservation_preempted	UNIT_ATTENTION,  0x2A, 0x03
 #define scst_sense_reservation_released		UNIT_ATTENTION,  0x2A, 0x04
 #define scst_sense_registrations_preempted	UNIT_ATTENTION,  0x2A, 0x05
 #define scst_sense_asym_access_state_changed	UNIT_ATTENTION,  0x2A, 0x06
-#define scst_sense_reported_luns_data_changed	UNIT_ATTENTION,  0x3F, 0xE
+#define scst_sense_capacity_data_changed	UNIT_ATTENTION,  0x2A, 0x9
+#define scst_sense_cleared_by_another_ini_UA	UNIT_ATTENTION,  0x2F, 0
 #define scst_sense_inquery_data_changed		UNIT_ATTENTION,  0x3F, 0x3
+#define scst_sense_reported_luns_data_changed	UNIT_ATTENTION,  0x3F, 0xE
 
 /*************************************************************
  * SCSI opcodes not listed anywhere else
