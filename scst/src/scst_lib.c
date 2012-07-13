@@ -4846,7 +4846,7 @@ int scst_finish_internal_cmd(struct scst_cmd *cmd)
 	if (cmd->cdb[0] == REQUEST_SENSE)
 		scst_complete_request_sense(cmd);
 	else {
-		scst_i_finish_fn_t f = cmd->tgt_i_priv;
+		scst_i_finish_fn_t f = (void *) *((unsigned long long **)cmd->tgt_i_priv);
 		f(cmd);
 	}
 
