@@ -1149,9 +1149,11 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 #else
 		res = strict_strtoul(e, 0, &virt_lun);
 #endif
-		if (res != 0 || virt_lun > SCST_MAX_LUN) {
-			PRINT_ERROR("Invalid value or too big LUN %s "
-				"(max %d, res %d)", p, SCST_MAX_LUN, res);
+		if (res != 0) {
+			PRINT_ERROR("Valid LUN required for dev %s (res %d)", p, res);
+			goto out_unlock;
+		} else if (virt_lun > SCST_MAX_LUN) {
+			PRINT_ERROR("Too big LUN %ld (max %d)", virt_lun, SCST_MAX_LUN);
 			goto out_unlock;
 		}
 
