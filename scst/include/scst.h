@@ -4149,6 +4149,12 @@ int scst_alloc_set_sense(struct scst_cmd *cmd, int atomic,
 int scst_set_sense(uint8_t *buffer, int len, bool d_sense,
 	int key, int asc, int ascq);
 
+#define SCST_INVAL_FIELD_BIT_OFFS_VALID		0x8000
+int scst_set_invalid_field_in_cdb(struct scst_cmd *cmd, int field_offs,
+	int bit_offs);
+int scst_set_invalid_field_in_parm_list(struct scst_cmd *cmd, int field_offs,
+	int bit_offs);
+
 bool scst_is_ua_sense(const uint8_t *sense, int len);
 
 bool scst_analyze_sense(const uint8_t *sense, int len,

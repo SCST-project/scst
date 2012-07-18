@@ -979,7 +979,7 @@ static void iscsi_init_status_rsp(struct iscsi_cmnd *rsp,
 	rsp_hdr->cmd_status = status;
 	rsp_hdr->itt = cmnd_hdr(req)->itt;
 
-	if (SCST_SENSE_VALID(sense_buf)) {
+	if (scst_sense_valid(sense_buf)) {
 		TRACE_DBG("%s", "SENSE VALID");
 
 		sg = rsp->sg = rsp->rsp_sg;

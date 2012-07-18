@@ -1470,7 +1470,7 @@ static int scst_set_lun_not_supported_request_sense(struct scst_cmd *cmd,
 		goto out;
 	}
 
-	if ((cmd->sg != NULL) && SCST_SENSE_VALID(sg_virt(cmd->sg))) {
+	if ((cmd->sg != NULL) && scst_sense_valid(sg_virt(cmd->sg))) {
 		TRACE_MGMT_DBG("cmd %p already has sense set", cmd);
 		res = -EEXIST;
 		goto out;
@@ -1645,13 +1645,95 @@ do_sense:
 
 	cmd->sense_valid_len = scst_set_sense(cmd->sense, cmd->sense_buflen,
 		scst_get_cmd_dev_d_sense(cmd), key, asc, ascq);
-	TRACE_BUFFER("Sense set", cmd->sense, cmd->sense_valid_len);
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
 EXPORT_SYMBOL(scst_set_cmd_error);
+
+static void scst_fill_field_pointer_sense(uint8_t *fp_sense, int field_offs,
+	int bit_offs, bool cdb)
+{
+	/* Sense key specific */
+	fp_sense[0] = 0x80; /* SKSV */
+	if (cdb)
+		fp_sense[0] |= 0x40; /* C/D */
+	if ((bit_offs & SCST_INVAL_FIELD_BIT_OFFS_VALID) != 0)
+		fp_sense[0] |= (8 | (bit_offs & 7));
+	put_unaligned_be16(field_offs, &fp_sense[1]);
+	return;
+}
+
+static int scst_set_invalid_field_in(struct scst_cmd *cmd, int field_offs,
+	int bit_offs, bool cdb)
+{
+	int res, asc = cdb ? 0x24 : 0x26; /* inval field in CDB or param list */
+	int d_sense = scst_get_cmd_dev_d_sense(cmd);
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("cmd %p, cdb %d, bit_offs %d, field_offs %d (d_sense %d)",
+		cmd, cdb, bit_offs, field_offs, d_sense);
+
+	res = scst_set_cmd_error_status(cmd, SAM_STAT_CHECK_CONDITION);
+	if (res != 0)
+		goto out;
+
+	res = scst_alloc_sense(cmd, 1);
+	if (res != 0) {
+		PRINT_ERROR("Lost %s sense data", cdb ? "INVALID FIELD IN CDB" :
+			"INVALID FIELD IN PARAMETERS LIST");
+		goto out;
+	}
+
+	sBUG_ON(cmd->sense_buflen < 18);
+	BUILD_BUG_ON(SCST_SENSE_BUFFERSIZE < 18);
+
+	if (d_sense) {
+		/* Descriptor format */
+		cmd->sense[0] = 0x72;
+		cmd->sense[1] = ILLEGAL_REQUEST;
+		cmd->sense[2] = asc;
+		cmd->sense[3] = 0; /* ASCQ */
+		cmd->sense[7] = 8; /* additional Sense Length */
+		cmd->sense[8] = 2; /* sense key specific descriptor */
+		cmd->sense[9] = 6;
+		scst_fill_field_pointer_sense(&cmd->sense[12], field_offs,
+			bit_offs, cdb);
+		cmd->sense_valid_len = 16;
+	} else {
+		/* Fixed format */
+		cmd->sense[0] = 0x70;
+		cmd->sense[2] = ILLEGAL_REQUEST;
+		cmd->sense[7] = 0x0a; /* additional Sense Length */
+		cmd->sense[12] = asc;
+		cmd->sense[13] = 0; /* ASCQ */
+		scst_fill_field_pointer_sense(&cmd->sense[15], field_offs,
+			bit_offs, cdb);
+		cmd->sense_valid_len = 18;
+	}
+
+	TRACE_BUFFER("Sense set", cmd->sense, cmd->sense_valid_len);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+int scst_set_invalid_field_in_cdb(struct scst_cmd *cmd, int field_offs,
+	int bit_offs)
+{
+	return scst_set_invalid_field_in(cmd, field_offs, bit_offs, true);
+}
+EXPORT_SYMBOL(scst_set_invalid_field_in_cdb);
+
+int scst_set_invalid_field_in_parm_list(struct scst_cmd *cmd, int field_offs,
+	int bit_offs)
+{
+	return scst_set_invalid_field_in(cmd, field_offs, bit_offs, false);
+}
+EXPORT_SYMBOL(scst_set_invalid_field_in_parm_list);
 
 /**
  * scst_set_sense() - set sense from KEY/ASC/ASCQ numbers
@@ -1730,7 +1812,8 @@ bool scst_analyze_sense(const uint8_t *sense, int len, unsigned int valid_mask,
 	bool res = false;
 
 	/* Response Code */
-	if ((sense[0] == 0x70) || (sense[0] == 0x71)) {
+	if ((scst_sense_response_code(sense) == 0x70) || 
+	    (scst_sense_response_code(sense) == 0x71)) {
 		/* Fixed format */
 
 		/* Sense Key */
@@ -1756,7 +1839,8 @@ bool scst_analyze_sense(const uint8_t *sense, int len, unsigned int valid_mask,
 			if (sense[13] != ascq)
 				goto out;
 		}
-	} else if ((sense[0] == 0x72) || (sense[0] == 0x73)) {
+	} else if ((scst_sense_response_code(sense) == 0x72) ||
+		   (scst_sense_response_code(sense) == 0x73)) {
 		/* Descriptor format */
 
 		/* Sense Key */
@@ -1782,8 +1866,11 @@ bool scst_analyze_sense(const uint8_t *sense, int len, unsigned int valid_mask,
 			if (sense[3] != ascq)
 				goto out;
 		}
-	} else
+	} else {
+		PRINT_ERROR("Unknown sense response code 0x%x",
+			scst_sense_response_code(sense));
 		goto out;
+	}
 
 	res = true;
 
@@ -1801,7 +1888,7 @@ EXPORT_SYMBOL(scst_analyze_sense);
  */
 bool scst_is_ua_sense(const uint8_t *sense, int len)
 {
-	if (SCST_SENSE_VALID(sense))
+	if (scst_sense_valid(sense))
 		return scst_analyze_sense(sense, len,
 			SCST_SENSE_KEY_VALID, UNIT_ATTENTION, 0, 0);
 	else
@@ -1829,6 +1916,10 @@ bool scst_is_ua_global(const uint8_t *sense, int len)
  *
  * Checks if sense in the sense buffer, if any, is in the correct format.
  * If not, converts it in the correct format.
+ *
+ * WARNING! This function converts only RESPONSE CODE, ASC and ASC codes,
+ * dropping enverything else, including corresponding descriptors from
+ * descriptor format sense! ToDo: fix it.
  */
 void scst_check_convert_sense(struct scst_cmd *cmd)
 {
@@ -1839,19 +1930,19 @@ void scst_check_convert_sense(struct scst_cmd *cmd)
 	if ((cmd->sense == NULL) || (cmd->status != SAM_STAT_CHECK_CONDITION))
 		goto out;
 
-	/*
-	 * The RESPONSE CODE field shall be set to 70h in all unit attention
-	 * condition sense data in which:
-	 * a) the ADDITIONAL SENSE CODE field is set to 29h; or
-	 * b) the additional sense code is set to MODE PARAMETERS CHANGED.
-	 */
 	d_sense = scst_get_cmd_dev_d_sense(cmd);
-	if (d_sense && ((cmd->sense[0] == 0x70) || (cmd->sense[0] == 0x71)) &&
+	if (d_sense && ((scst_sense_response_code(cmd->sense) == 0x70) ||
+			(scst_sense_response_code(cmd->sense) == 0x71)) &&
+	    /*
+	     * The RESPONSE CODE field shall be set to 70h in all unit attention
+	     * condition sense data in which:
+	     * a) the ADDITIONAL SENSE CODE field is set to 29h; or
+	     * b) the additional sense code is set to MODE PARAMETERS CHANGED.
+	     */
 	    !((cmd->sense[2] == UNIT_ATTENTION) &&
 	      ((cmd->sense[12] == 0x29) ||
 	       ((cmd->sense[12] == 0x2A) && (cmd->sense[13] == 1))))) {
-		TRACE_MGMT_DBG("Converting fixed sense to descriptor (cmd %p)",
-			cmd);
+		TRACE_MGMT_DBG("Converting fixed sense to descriptor (cmd %p)", cmd);
 		if ((cmd->sense_valid_len < 18)) {
 			PRINT_ERROR("Sense too small to convert (%d, "
 				"type: fixed)", cmd->sense_buflen);
@@ -1859,8 +1950,8 @@ void scst_check_convert_sense(struct scst_cmd *cmd)
 		}
 		cmd->sense_valid_len = scst_set_sense(cmd->sense, cmd->sense_buflen,
 			d_sense, cmd->sense[2], cmd->sense[12], cmd->sense[13]);
-	} else if (!d_sense && ((cmd->sense[0] == 0x72) ||
-				(cmd->sense[0] == 0x73))) {
+	} else if (!d_sense && ((scst_sense_response_code(cmd->sense) == 0x72) ||
+				(scst_sense_response_code(cmd->sense) == 0x73))) {
 		TRACE_MGMT_DBG("Converting descriptor sense to fixed (cmd %p)",
 			cmd);
 		if ((cmd->sense_buflen < 18) || (cmd->sense_valid_len < 8)) {
@@ -4474,7 +4565,7 @@ static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 	len = scst_get_buf_full(req_cmd, &buf);
 
 	if (scsi_status_is_good(req_cmd->status) && (len > 0) &&
-	    SCST_SENSE_VALID(buf) && (!SCST_NO_SENSE(buf))) {
+	    scst_sense_valid(buf) && !scst_no_sense(buf)) {
 		PRINT_BUFF_FLAG(TRACE_SCSI, "REQUEST SENSE returned",
 			buf, len);
 		scst_alloc_set_sense(orig_cmd, scst_cmd_atomic(req_cmd), buf,
@@ -4677,14 +4768,14 @@ static void scst_ws_write_cmd_finished(struct scst_cmd *cmd)
 		sBUG_ON(cmd->resp_data_len != 0);
 		if (cmd->status == SAM_STAT_CHECK_CONDITION)
 			rc = scst_set_cmd_error_sense(ws_cmd, cmd->sense,
-				cmd->sense_buflen);
+				cmd->sense_valid_len);
 		else {
 			sBUG_ON(cmd->sense != NULL);
 			rc = scst_set_cmd_error_status(ws_cmd, cmd->status);
 		}
 		if (rc != 0) {
 			/* Requeue possible UA */
-			if (scst_is_ua_sense(cmd->sense, cmd->sense_buflen))
+			if (scst_is_ua_sense(cmd->sense, cmd->sense_valid_len))
 				scst_requeue_ua(cmd, NULL, 0);
 		}
 	}
@@ -4778,7 +4869,7 @@ void scst_write_same(struct scst_cmd *cmd)
 	}
 
 	if (((cmd->cdb[1] & 0x6) == 0x6) || ((cmd->cdb[1] & 0xE0) != 0)) {
-		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		scst_set_invalid_field_in_cdb(cmd, 1, 0);
 		goto out_done;
 	}
 
@@ -6121,7 +6212,7 @@ static int get_cdb_info_read_pos(struct scst_cmd *cmd,
 			PRINT_ERROR("READ POSITION: Invalid non-zero (%d) "
 				"allocation length for service action %x",
 				cmd->bufflen, cmd->cdb[1] & 0x1f);
-			goto out_inval;
+			goto out_inval_field1;
 		}
 		break;
 	}
@@ -6140,7 +6231,7 @@ static int get_cdb_info_read_pos(struct scst_cmd *cmd,
 	default:
 		PRINT_ERROR("READ POSITION: Invalid service action %x",
 			cmd->cdb[1] & 0x1f);
-		goto out_inval;
+		goto out_inval_field1;
 	}
 
 	cmd->data_len = cmd->bufflen;
@@ -6148,9 +6239,8 @@ static int get_cdb_info_read_pos(struct scst_cmd *cmd,
 out:
 	return res;
 
-out_inval:
-	scst_set_cmd_error(cmd,
-		SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+out_inval_field1:
+	scst_set_invalid_field_in_cdb(cmd, 1, 0);
 	res = 1;
 	goto out;
 }
@@ -8090,13 +8180,13 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 				sizeof(sense_buffer));
 #if 0
 			if ((status_byte(rc) == CHECK_CONDITION) &&
-			    SCST_SENSE_VALID(sense_buffer)) {
+			    scst_sense_valid(sense_buffer)) {
 #else
 			/*
 			 * 3ware controller is buggy and returns CONDITION_GOOD
 			 * instead of CHECK_CONDITION
 			 */
-			if (SCST_SENSE_VALID(sense_buffer)) {
+			if (scst_sense_valid(sense_buffer)) {
 #endif
 				PRINT_BUFF_FLAG(TRACE_SCSI, "Returned sense "
 					"data", sense_buffer,
@@ -8185,7 +8275,7 @@ void scst_store_sense(struct scst_cmd *cmd)
 {
 	TRACE_ENTRY();
 
-	if (SCST_SENSE_VALID(cmd->sense) &&
+	if (scst_sense_valid(cmd->sense) &&
 	    !test_bit(SCST_CMD_NO_RESP, &cmd->cmd_flags) &&
 	    (cmd->tgt_dev != NULL)) {
 		struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;

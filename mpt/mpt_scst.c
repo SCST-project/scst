@@ -1641,7 +1641,7 @@ mpt_xmit_response(struct scst_cmd *scst_cmd)
 		goto out_tgt_free;
 	}
 
-	if (SCST_SENSE_VALID(prm.sense_buffer)) {
+	if (scst_sense_valid(prm.sense_buffer)) {
 		mpt_set_sense_info(prm.tgt->priv, prm.cmd->CMD,
 				prm.sense_buffer_len, prm.sense_buffer);
 	}

@@ -905,7 +905,7 @@ static int scst_local_send_resp(struct scsi_cmnd *cmnd,
 		scst_check_restore_sg_buff(scst_cmnd);
 
 		/* Simulate autosense by this driver */
-		if (unlikely(SCST_SENSE_VALID(scst_cmnd->sense)))
+		if (unlikely(scst_sense_valid(scst_cmnd->sense)))
 			copy_sense(cmnd, scst_cmnd);
 	}
 

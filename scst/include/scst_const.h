@@ -5,7 +5,8 @@
  *  Copyright (C) 2007 - 2010 ID7 Ltd.
  *  Copyright (C) 2010 - 2012 SCST Ltd.
  *
- *  Contains common SCST constants.
+ *  Contains common SCST constants. This file supposed to be included
+ *  from both kernel and user spaces.
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -73,7 +74,7 @@
 #define SCST_STANDARD_SENSE_LEN      18
 
 /* Max size of sense */
-#define SCST_SENSE_BUFFERSIZE        96
+#define SCST_SENSE_BUFFERSIZE        252
 
 /*************************************************************
  ** Allowed delivery statuses for cmd's delivery_status
@@ -250,11 +251,20 @@ enum scst_cdb_flags {
  *************************************************************/
 #define SCST_LOAD_SENSE(key_asc_ascq) key_asc_ascq
 
-#define SCST_SENSE_VALID(sense)  ((sense != NULL) && \
-				  ((((const uint8_t *)(sense))[0] & 0x70) == 0x70))
+static inline int scst_sense_valid(const uint8_t *sense)
+{
+	return ((sense != NULL) && ((sense[0] & 0x70) == 0x70));
+}
 
-#define SCST_NO_SENSE(sense)     ((sense != NULL) && \
-				  (((const uint8_t *)(sense))[2] == 0))
+static inline int scst_no_sense(const uint8_t *sense)
+{
+	return ((sense != NULL) && (sense[2] == 0));
+}
+
+static inline int scst_sense_response_code(const uint8_t *sense)
+{
+	return sense[0] & 0x7F;
+}
 
 /*************************************************************
  ** Sense data for the appropriate errors. Can be used with
@@ -266,8 +276,10 @@ enum scst_cdb_flags {
 #define scst_sense_aborted_command		ABORTED_COMMAND, 0x00, 0
 #define scst_sense_invalid_opcode		ILLEGAL_REQUEST, 0x20, 0
 #define scst_sense_block_out_range_error	ILLEGAL_REQUEST, 0x21, 0
+/* Don't use it directly, use scst_set_invalid_field_in_cdb() instead! */
 #define scst_sense_invalid_field_in_cdb		ILLEGAL_REQUEST, 0x24, 0
 #define scst_sense_lun_not_supported		ILLEGAL_REQUEST, 0x25, 0
+/* Don't use it directly, use scst_set_invalid_field_in_parm_list() instead! */
 #define scst_sense_invalid_field_in_parm_list	ILLEGAL_REQUEST, 0x26, 0
 #define scst_sense_parameter_value_invalid	ILLEGAL_REQUEST, 0x26, 2
 #define scst_sense_invalid_release		ILLEGAL_REQUEST, 0x26, 4

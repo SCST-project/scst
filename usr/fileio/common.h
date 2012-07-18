@@ -17,6 +17,7 @@
  */
 
 #include <stdint.h>
+#include <stddef.h>
 
 #include <scst_user.h>
 

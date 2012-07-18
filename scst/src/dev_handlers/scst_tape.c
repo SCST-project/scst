@@ -285,14 +285,14 @@ static int tape_done(struct scst_cmd *cmd)
 	if ((status == SAM_STAT_GOOD) || (status == SAM_STAT_CONDITION_MET))
 		res = scst_tape_generic_dev_done(cmd, tape_set_block_size);
 	else if ((status == SAM_STAT_CHECK_CONDITION) &&
-		   SCST_SENSE_VALID(cmd->sense)) {
+		   scst_sense_valid(cmd->sense)) {
 		struct tape_params *params;
 
-		TRACE_DBG("Extended sense %x", cmd->sense[0] & 0x7F);
+		TRACE_DBG("Extended sense %x", scst_sense_response_code(cmd->sense));
 
-		if ((cmd->sense[0] & 0x7F) != 0x70) {
+		if (scst_sense_response_code(cmd->sense) != 0x70) {
 			PRINT_ERROR("Sense format 0x%x is not supported",
-				cmd->sense[0] & 0x7F);
+				scst_sense_response_code(cmd->sense));
 			scst_set_cmd_error(cmd,
 				SCST_LOAD_SENSE(scst_sense_hardw_error));
 			goto out;

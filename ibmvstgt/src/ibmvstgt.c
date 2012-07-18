@@ -249,7 +249,7 @@ static int send_rsp(struct iu_entry *iue, struct scst_cmd *sc,
 			int sense_data_len;
 
 			sc_sense = scst_cmd_get_sense_buffer(sc);
-			if (SCST_SENSE_VALID(sc_sense)) {
+			if (scst_sense_valid(sc_sense)) {
 				sense_data_len
 					= min(scst_cmd_get_sense_buffer_len(sc),
 					      SRP_RSP_SENSE_DATA_LEN);

@@ -75,6 +75,11 @@ static int set_sense(uint8_t *buffer, int len, int key, int asc, int ascq)
 	return res;
 }
 
+/*
+ * ToDo: implement analogs of scst_set_invalid_field_in_cdb() and
+ * scst_set_invalid_field_in_parm_list()
+ */
+
 void set_cmd_error(struct vdisk_cmd *vcmd, int key, int asc, int ascq)
 {
 	struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;

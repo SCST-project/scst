@@ -2528,7 +2528,7 @@ static int q2t_pre_xmit_response(struct q2t_cmd *cmd,
 		 * in *xmit_response() below
 		 */
 		if (q2t_has_data(cmd)) {
-			if (SCST_SENSE_VALID(prm->sense_buffer) ||
+			if (scst_sense_valid(prm->sense_buffer) ||
 			    (IS_FWI2_CAPABLE(ha) &&
 			     (prm->rq_result != 0))) {
 				prm->add_status_pkt = 1;
@@ -2589,7 +2589,7 @@ static void q2x_init_ctio_ret_entry(ctio_ret_entry_t *ctio_m1,
 
 	ctio_m1->scsi_status = cpu_to_le16(prm->rq_result);
 	ctio_m1->residual = cpu_to_le32(prm->residual);
-	if (SCST_SENSE_VALID(prm->sense_buffer)) {
+	if (scst_sense_valid(prm->sense_buffer)) {
 		if (q2t_need_explicit_conf(prm->tgt->ha, prm->cmd, 1))
 			ctio_m1->flags |= cpu_to_le16(OF_EXPL_CONF | OF_CONF_REQ);
 		ctio_m1->scsi_status |= cpu_to_le16(SS_SENSE_LEN_VALID);
@@ -2795,7 +2795,7 @@ static void q24_init_ctio_ret_entry(ctio7_status0_entry_t *ctio,
 	}
 	ctio->residual = cpu_to_le32(prm->residual);
 	ctio->scsi_status = cpu_to_le16(prm->rq_result);
-	if (SCST_SENSE_VALID(prm->sense_buffer)) {
+	if (scst_sense_valid(prm->sense_buffer)) {
 		int i;
 		ctio1 = (ctio7_status1_entry_t *)ctio;
 		if (q2t_need_explicit_conf(prm->tgt->ha, prm->cmd, 1)) {

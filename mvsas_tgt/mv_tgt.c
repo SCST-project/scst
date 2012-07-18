@@ -440,7 +440,7 @@ static int mvst_prep_resp_frame(struct mvst_prm *prm,
 	req_len += sizeof(struct ssp_frame_header);
 	req_len += 24;
 	if (datapres == SENSE_DATA) {
-		if (SCST_SENSE_VALID(prm->sense_buffer))
+		if (scst_sense_valid(prm->sense_buffer))
 			req_len += prm->sense_buffer_len;
 		else
 			datapres = 0;
@@ -605,7 +605,7 @@ static int  mvst_prep_data_frame(struct mvst_prm *prm,
 	delivery_q->slot_nm = tag;
 
 	if (datapres == SENSE_DATA) {
-		if (SCST_SENSE_VALID(prm->sense_buffer))
+		if (scst_sense_valid(prm->sense_buffer))
 			datapres = SENSE_DATA;
 		else
 			datapres = 0;
@@ -1791,11 +1791,11 @@ static int mvst_notify_unit_attention(struct scst_aen *aen)
 
 	TRACE_ENTRY();
 
-	if (aen->aen_sense[0] == 0x72) {
+	if (scst_sense_response_code(aen->aen_sense) == 0x72) {
 		key = aen->aen_sense[1];	/* Sense Key	*/
 		asc = aen->aen_sense[2]; /* ASC		*/
 		ascq = aen->aen_sense[3]; /* ASCQ */
-	} else if (aen->aen_sense[0] == 0x70) {
+	} else if (scst_sense_response_code(aen->aen_sense) == 0x70) {
 		key = aen->aen_sense[2];	/* Sense Key	*/
 		asc = aen->aen_sense[12]; /* ASC		*/
 		ascq = aen->aen_sense[13]; /* ASCQ */

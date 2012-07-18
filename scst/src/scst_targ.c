@@ -690,11 +690,11 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 		goto out_done;
 	}
 
-	if (unlikely(cmd->cdb[cmd->cdb_len - 1] & CONTROL_BYTE_LINK_BIT)) {
+	if (unlikely(cmd->cdb[cmd->cdb_len-1] & CONTROL_BYTE_LINK_BIT)) {
 		PRINT_ERROR("Linked commands are not supported "
 			    "(opcode 0x%02x)", cmd->cdb[0]);
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		scst_set_invalid_field_in_cdb(cmd, cmd->cdb_len-1,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
 		goto out_done;
 	}
 
@@ -1887,8 +1887,9 @@ static int scst_request_sense_local(struct scst_cmd *cmd)
 
 	TRACE(TRACE_SCSI, "%s: Returning stored/UA sense", cmd->op_name);
 
-	if (((tgt_dev->tgt_dev_sense[0] == 0x70) ||
-	     (tgt_dev->tgt_dev_sense[0] == 0x71)) && (cmd->cdb[1] & 1)) {
+	if (((scst_sense_response_code(tgt_dev->tgt_dev_sense) == 0x70) ||
+	     (scst_sense_response_code(tgt_dev->tgt_dev_sense) == 0x71)) &&
+	     (cmd->cdb[1] & 1)) {
 		PRINT_WARNING("%s: Fixed format of the saved sense, but "
 			"descriptor format requested. Conversion will "
 			"truncated data", cmd->op_name);
@@ -1899,11 +1900,12 @@ static int scst_request_sense_local(struct scst_cmd *cmd)
 		sl = scst_set_sense(buffer, buffer_size, true,
 			tgt_dev->tgt_dev_sense[2], tgt_dev->tgt_dev_sense[12],
 			tgt_dev->tgt_dev_sense[13]);
-	} else if (((tgt_dev->tgt_dev_sense[0] == 0x72) ||
-		    (tgt_dev->tgt_dev_sense[0] == 0x73)) && !(cmd->cdb[1] & 1)) {
+	} else if (((scst_sense_response_code(tgt_dev->tgt_dev_sense) == 0x72) ||
+		    (scst_sense_response_code(tgt_dev->tgt_dev_sense) == 0x73)) &&
+		   !(cmd->cdb[1] & 1)) {
 		PRINT_WARNING("%s: Descriptor format of the "
 			"saved sense, but fixed format requested. Conversion "
-			"will truncated data", cmd->op_name);
+			"will truncate data", cmd->op_name);
 		PRINT_BUFFER("Original sense", tgt_dev->tgt_dev_sense,
 			tgt_dev->tgt_dev_valid_sense_len);
 
@@ -1968,8 +1970,8 @@ static int scst_reserve_local(struct scst_cmd *cmd)
 	if ((cmd->cdb[0] == RESERVE_10) && (cmd->cdb[2] & SCST_RES_3RDPTY)) {
 		PRINT_ERROR("RESERVE_10: 3rdPty RESERVE not implemented "
 		     "(lun=%lld)", (long long unsigned int)cmd->lun);
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		scst_set_invalid_field_in_cdb(cmd, 2,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
 		goto out_done;
 	}
 
@@ -2180,7 +2182,7 @@ static int scst_persistent_reserve_in_local(struct scst_cmd *cmd)
 	default:
 		PRINT_ERROR("Unsupported action %x", action);
 		scst_pr_write_unlock(dev);
-		goto out_err;
+		goto out_unsup_act;
 	}
 
 out_complete:
@@ -2197,9 +2199,9 @@ out_done:
 	TRACE_EXIT_RES(SCST_EXEC_COMPLETED);
 	return SCST_EXEC_COMPLETED;
 
-out_err:
-	scst_set_cmd_error(cmd,
-		   SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+out_unsup_act:
+	scst_set_invalid_field_in_cdb(cmd, 1,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
 	goto out_complete;
 }
 
@@ -2287,8 +2289,8 @@ static int scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 	if ((action != PR_REGISTER) && (action != PR_REGISTER_AND_IGNORE) &&
 	    (action != PR_REGISTER_AND_MOVE) && ((buffer[20] >> 2) & 0x01)) {
 		TRACE_PR("ALL_TG_PT must be zero for action %x", action);
-		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
-					scst_sense_invalid_field_in_cdb));
+		scst_set_cmd_error(cmd,
+			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
 		goto out_put_buf_full;
 	}
 
@@ -2327,8 +2329,8 @@ static int scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 		scst_pr_register_and_move(cmd, buffer, buffer_size);
 		break;
 	default:
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		scst_set_invalid_field_in_cdb(cmd, 1,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
 		goto out_unlock;
 	}
 
@@ -2987,7 +2989,7 @@ static int scst_check_sense(struct scst_cmd *cmd)
 	}
 
 	if (unlikely(cmd->status == SAM_STAT_CHECK_CONDITION) &&
-	    SCST_SENSE_VALID(cmd->sense)) {
+	    scst_sense_valid(cmd->sense)) {
 		PRINT_BUFF_FLAG(TRACE_SCSI, "Sense", cmd->sense,
 			cmd->sense_valid_len);
 
@@ -3060,8 +3062,7 @@ static bool scst_check_auto_sense(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	if (unlikely(cmd->status == SAM_STAT_CHECK_CONDITION) &&
-	    (!SCST_SENSE_VALID(cmd->sense) ||
-	     SCST_NO_SENSE(cmd->sense))) {
+	    (!scst_sense_valid(cmd->sense) || scst_no_sense(cmd->sense))) {
 		TRACE(TRACE_SCSI|TRACE_MINOR_AND_MGMT_DBG, "CHECK_CONDITION, "
 			"but no sense: cmd->status=%x, cmd->msg_status=%x, "
 		      "cmd->host_status=%x, cmd->driver_status=%x (cmd %p)",

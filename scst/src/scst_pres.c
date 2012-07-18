@@ -1189,8 +1189,7 @@ static int scst_pr_register_with_spec_i_pt(struct scst_cmd *cmd,
 		if ((offset + tid_size(transport_id)) > ext_size) {
 			TRACE_PR("Invalid transport_id size %d (max %d)",
 				tid_size(transport_id), ext_size - offset);
-			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_invalid_field_in_parm_list));
+			scst_set_invalid_field_in_parm_list(cmd, 24, 0);
 			res = -EINVAL;
 			goto out;
 		}
@@ -1513,8 +1512,8 @@ void scst_pr_register(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 #ifdef CONFIG_SCST_PROC
 	if (aptpl) {
 		TRACE_PR("%s", "APTL not supported");
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_parm_list));
+		scst_set_invalid_field_in_parm_list(cmd, 20,
+				SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
 		goto out;
 	}
 #endif
@@ -1603,8 +1602,8 @@ void scst_pr_register_and_ignore(struct scst_cmd *cmd, uint8_t *buffer,
 #ifdef CONFIG_SCST_PROC
 	if (aptpl) {
 		TRACE_PR("%s", "APTL not supported");
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_parm_list));
+		scst_set_invalid_field_in_parm_list(cmd, 20,
+				SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
 		goto out;
 	}
 #endif
@@ -1675,8 +1674,8 @@ void scst_pr_register_and_move(struct scst_cmd *cmd, uint8_t *buffer,
 #ifdef CONFIG_SCST_PROC
 	if (aptpl) {
 		TRACE_PR("%s", "APTL not supported");
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_parm_list));
+		scst_set_invalid_field_in_parm_list(cmd, 17,
+				SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
 		goto out;
 	}
 #endif
@@ -1729,8 +1728,7 @@ void scst_pr_register_and_move(struct scst_cmd *cmd, uint8_t *buffer,
 
 	if (action_key == 0) {
 		TRACE_PR("%s", "Action key must be non-zero");
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		scst_set_invalid_field_in_cdb(cmd, 8, 0);
 		goto out;
 	}
 
@@ -1758,8 +1756,7 @@ void scst_pr_register_and_move(struct scst_cmd *cmd, uint8_t *buffer,
 
 	if (tid_equal(transport_id, transport_id_move)) {
 		TRACE_PR("%s", "Equal transport id's");
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_parm_list));
+		scst_set_invalid_field_in_parm_list(cmd, 24, 0);
 		goto out;
 	}
 
@@ -1825,15 +1822,15 @@ void scst_pr_reserve(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 
 	if (!scst_pr_type_valid(type)) {
 		TRACE_PR("Invalid reservation type %d", type);
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		scst_set_invalid_field_in_cdb(cmd, 2,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
 		goto out;
 	}
 
 	if (((cmd->cdb[2] & 0x0f) >> 4) != SCOPE_LU) {
 		TRACE_PR("Invalid reservation scope %d", scope);
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		scst_set_invalid_field_in_cdb(cmd, 2,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
 		goto out;
 	}
 
@@ -2040,8 +2037,8 @@ static void scst_pr_do_preempt(struct scst_cmd *cmd, uint8_t *buffer,
 
 	if (!scst_pr_type_valid(type)) {
 		TRACE_PR("Invalid reservation type %d", type);
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		scst_set_invalid_field_in_cdb(cmd, 1,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
 		goto out;
 	}
 
@@ -2117,8 +2114,7 @@ static void scst_pr_do_preempt(struct scst_cmd *cmd, uint8_t *buffer,
 
 	if (dev->pr_holder->key != action_key) {
 		if (action_key == 0) {
-			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
-				scst_sense_invalid_field_in_parm_list));
+			scst_set_invalid_field_in_parm_list(cmd, 8, 0);
 			goto out;
 		} else {
 			scst_pr_find_registrants_list_key(dev, action_key,

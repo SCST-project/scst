@@ -1883,7 +1883,7 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 		PRINT_ERROR("Device %s: attempt to write beyond max "
 			"size", virt_dev->name);
 		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+			SCST_LOAD_SENSE(scst_sense_block_out_range_error));
 		res = -EINVAL;
 		goto out;
 	}
@@ -1989,15 +1989,15 @@ static enum compl_status_e vdisk_exec_write_same(struct vdisk_cmd_params *p)
 
 	if (unlikely(cmd->cdb[1] & 1)) {
 		TRACE_DBG("%s", "ANCHOR not supported");
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		scst_set_invalid_field_in_cdb(cmd, 1,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
 		goto out;
 	}
 
 	if (unlikely(cmd->cdb[1] & 0xE0)) {
 		TRACE_DBG("%s", "WRPROTECT not supported");
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		scst_set_invalid_field_in_cdb(cmd, 1,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 5);
 		goto out;
 	}
 
@@ -2032,8 +2032,8 @@ static enum compl_status_e vdisk_exec_unmap(struct vdisk_cmd_params *p)
 
 	if (unlikely(cmd->cdb[1] & 1)) {
 		TRACE_DBG("%s", "ANCHOR not supported");
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		scst_set_invalid_field_in_cdb(cmd, 1,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
 		goto out;
 	}
 
@@ -2142,8 +2142,8 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 
 	if (cmd->cdb[1] & CMDDT) {
 		TRACE_DBG("%s", "INQUIRY: CMDDT is unsupported");
-		scst_set_cmd_error(cmd,
-		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		scst_set_invalid_field_in_cdb(cmd, 1,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 1);
 		goto out_put;
 	}
 
@@ -2327,10 +2327,8 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 			buf[5] = 0x80;
 			resp_len = buf[3] + 4;
 		} else {
-			TRACE_DBG("INQUIRY: Unsupported EVPD page %x",
-				cmd->cdb[2]);
-			scst_set_cmd_error(cmd,
-			    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+			TRACE_DBG("INQUIRY: Unsupported EVPD page %x", cmd->cdb[2]);
+			scst_set_invalid_field_in_cdb(cmd, 2, 0);
 			goto out_put;
 		}
 	} else {
@@ -2338,8 +2336,7 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 
 		if (cmd->cdb[2] != 0) {
 			TRACE_DBG("INQUIRY: Unsupported page %x", cmd->cdb[2]);
-			scst_set_cmd_error(cmd,
-			    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+			scst_set_invalid_field_in_cdb(cmd, 2, 0);
 			goto out_put;
 		}
 
@@ -2691,8 +2688,7 @@ static enum compl_status_e vdisk_exec_mode_sense(struct vdisk_cmd_params *p)
 	if (0 != subpcode) {
 		/* TODO: Control Extension page */
 		TRACE_DBG("%s", "MODE SENSE: Only subpage 0 is supported");
-		scst_set_cmd_error(cmd,
-		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		scst_set_invalid_field_in_cdb(cmd, 3, 0);
 		goto out_put;
 	}
 
@@ -2783,8 +2779,7 @@ out:
 
 out_not_sup:
 	TRACE(TRACE_MINOR, "MODE SENSE: Unsupported page %x", pcode);
-	scst_set_cmd_error(cmd,
-	    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+	scst_set_invalid_field_in_cdb(cmd, 2, SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
 	goto out_put;
 }
 
@@ -2886,8 +2881,7 @@ static enum compl_status_e vdisk_exec_mode_select(struct vdisk_cmd_params *p)
 		TRACE(TRACE_MINOR|TRACE_SCSI, "MODE SELECT: Unsupported "
 			"value(s) of PF and/or SP bits (cdb[1]=%x)",
 			cmd->cdb[1]);
-		scst_set_cmd_error(cmd,
-		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		scst_set_invalid_field_in_cdb(cmd, 1, 0);
 		goto out_put;
 	}
 
@@ -2899,18 +2893,16 @@ static enum compl_status_e vdisk_exec_mode_select(struct vdisk_cmd_params *p)
 	if (address[offset - 1] == 8) {
 		offset += 8;
 	} else if (address[offset - 1] != 0) {
-		PRINT_ERROR("%s", "MODE SELECT: Wrong parameters list "
-			"lenght");
-		scst_set_cmd_error(cmd,
-		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_parm_list));
+		PRINT_ERROR("%s", "MODE SELECT: Wrong parameters list lenght");
+		scst_set_invalid_field_in_parm_list(cmd, offset-1, 0);
 		goto out_put;
 	}
 
 	while (length > offset + 2) {
 		if (address[offset] & PS) {
 			PRINT_ERROR("%s", "MODE SELECT: Illegal PS bit");
-			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
-				scst_sense_invalid_field_in_parm_list));
+			scst_set_invalid_field_in_parm_list(cmd, offset,
+				SCST_INVAL_FIELD_BIT_OFFS_VALID | 7);
 			goto out_put;
 		}
 		if (((address[offset] & 0x3f) == 0x8) && (type != TYPE_ROM)) {
@@ -2918,8 +2910,7 @@ static enum compl_status_e vdisk_exec_mode_select(struct vdisk_cmd_params *p)
 			if (address[offset + 1] != 18) {
 				PRINT_ERROR("%s", "MODE SELECT: Invalid "
 					"caching page request");
-				scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
-				    scst_sense_invalid_field_in_parm_list));
+				scst_set_invalid_field_in_parm_list(cmd, offset+1, 0);
 				goto out_put;
 			}
 			if (vdisk_set_wt(virt_dev,
@@ -2933,16 +2924,15 @@ static enum compl_status_e vdisk_exec_mode_select(struct vdisk_cmd_params *p)
 			if (address[offset + 1] != 0xA) {
 				PRINT_ERROR("%s", "MODE SELECT: Invalid "
 					"control page request");
-				scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
-				    scst_sense_invalid_field_in_parm_list));
+				scst_set_invalid_field_in_parm_list(cmd, offset+1, 0);
 				goto out_put;
 			}
 			vdisk_ctrl_m_pg_select(&address[offset], virt_dev, cmd);
 		} else {
 			TRACE(TRACE_MINOR, "MODE SELECT: Invalid request %x",
 				address[offset] & 0x3f);
-			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
-			    scst_sense_invalid_field_in_parm_list));
+			scst_set_invalid_field_in_parm_list(cmd, offset,
+				SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
 			goto out_put;
 		}
 		offset += address[offset + 1];
@@ -2963,8 +2953,7 @@ static enum compl_status_e vdisk_exec_log(struct vdisk_cmd_params *p)
 	TRACE_ENTRY();
 
 	/* No log pages are supported */
-	scst_set_cmd_error(cmd,
-		SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+	scst_set_invalid_field_in_cdb(cmd, 2, SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
 
 	TRACE_EXIT();
 	return CMD_SUCCEEDED;
@@ -3195,8 +3184,8 @@ static enum compl_status_e vdisk_exec_read_toc(struct vdisk_cmd_params *p)
 
 	if (cmd->cdb[2] & 0x0e/*Format*/) {
 		PRINT_ERROR("%s", "READ TOC: invalid requested data format");
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		scst_set_invalid_field_in_cdb(cmd, 2,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 5);
 		goto out;
 	}
 
@@ -3204,8 +3193,7 @@ static enum compl_status_e vdisk_exec_read_toc(struct vdisk_cmd_params *p)
 	    (cmd->cdb[6] > 1 && cmd->cdb[6] != 0xAA)) {
 		PRINT_ERROR("READ TOC: invalid requested track number %x",
 			cmd->cdb[6]);
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		scst_set_invalid_field_in_cdb(cmd, 6, 0);
 		goto out;
 	}
 
