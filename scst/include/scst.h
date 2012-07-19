@@ -3934,6 +3934,7 @@ static inline int scst_get_out_buf_count(struct scst_cmd *cmd)
 }
 
 int scst_get_buf_full(struct scst_cmd *cmd, uint8_t **buf);
+int scst_get_buf_full_sense(struct scst_cmd *cmd, uint8_t **buf);
 void scst_put_buf_full(struct scst_cmd *cmd, uint8_t *buf);
 
 static inline gfp_t scst_cmd_get_gfp_flags(struct scst_cmd *cmd)

@@ -6066,12 +6066,43 @@ out:
 EXPORT_SYMBOL(scst_get_buf_full);
 
 /**
+ * scst_get_buf_full_sense - return linear buffer for command
+ * @cmd:	scst command
+ * @buf:	pointer on the resulting pointer
+ *
+ * Does the same as scst_get_buf_full(), but in case of error
+ * additionally sets in cmd status code and sense.
+ */
+int scst_get_buf_full_sense(struct scst_cmd *cmd, uint8_t **buf)
+{
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	res = scst_get_buf_full(cmd, buf);
+	if (unlikely(res < 0)) {
+		PRINT_ERROR("scst_get_buf_full() failed: %d", res);
+		if (res == -ENOMEM)
+			scst_set_busy(cmd);
+		else
+			scst_set_cmd_error(cmd,
+				SCST_LOAD_SENSE(scst_sense_hardw_error));
+		goto out;
+	}
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+EXPORT_SYMBOL(scst_get_buf_full_sense);
+
+/**
  * scst_put_buf_full - unmaps linear buffer for command
  * @cmd:	scst command
  * @buf:	pointer on the buffer to unmap
  *
- * Reverse operation for scst_get_buf_full. If the buffer was vmalloced(),
- * it vfree() the buffer.
+ * Reverse operation for scst_get_buf_full()/scst_get_buf_full_sense().
+ * If the buffer was vmalloced(), it vfree() the buffer.
  */
 void scst_put_buf_full(struct scst_cmd *cmd, uint8_t *buf)
 {
@@ -7178,8 +7209,9 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 			buffer_size = scst_get_buf_full(cmd, &buffer);
 			if (unlikely(buffer_size <= 0)) {
 				if (buffer_size < 0) {
-					PRINT_ERROR("%s: Unable to get the"
-					" buffer (%d)",	__func__, buffer_size);
+					PRINT_ERROR("%s: Unable to get cmd "
+						"buffer (%d)",	__func__,
+						buffer_size);
 				}
 				goto out;
 			}
@@ -8533,16 +8565,12 @@ static bool scst_parse_unmap_descriptors(struct scst_cmd *cmd)
 
 	EXTRACHECKS_BUG_ON(cmd->cmd_data_descriptors != NULL);
 
-	length = scst_get_buf_full(cmd, &address);
+	length = scst_get_buf_full_sense(cmd, &address);
 	if (unlikely(length <= 0)) {
 		if (length == 0)
 			goto out_put;
-		else if (length == -ENOMEM)
-			scst_set_busy(cmd);
 		else
-			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_hardw_error));
-		goto out_abn;
+			goto out_abn;
 	}
 
 	total_len = get_unaligned_be16(&cmd->cdb[7]);

@@ -2129,16 +2129,10 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 		goto out;
 	}
 
-	length = scst_get_buf_full(cmd, &address);
+	length = scst_get_buf_full_sense(cmd, &address);
 	TRACE_DBG("length %d", length);
-	if (unlikely(length <= 0)) {
-		if (length < 0) {
-			PRINT_ERROR("scst_get_buf_full() failed: %d", length);
-			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_hardw_error));
-		}
+	if (unlikely(length <= 0))
 		goto out_free;
-	}
 
 	if (cmd->cdb[1] & CMDDT) {
 		TRACE_DBG("%s", "INQUIRY: CMDDT is unsupported");
@@ -2465,14 +2459,10 @@ static enum compl_status_e vdisk_exec_request_sense(struct vdisk_cmd_params *p)
 	sl = scst_set_sense(b, sizeof(b), cmd->dev->d_sense,
 		SCST_LOAD_SENSE(scst_sense_no_sense));
 
-	length = scst_get_buf_full(cmd, &address);
+	length = scst_get_buf_full_sense(cmd, &address);
 	TRACE_DBG("length %d", length);
-	if (length < 0) {
-		PRINT_ERROR("scst_get_buf_full() failed: %d)", length);
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_hardw_error));
+	if (length <= 0)
 		goto out;
-	}
 
 	length = min(sl, length);
 	memcpy(address, b, length);
@@ -2658,15 +2648,9 @@ static enum compl_status_e vdisk_exec_mode_sense(struct vdisk_cmd_params *p)
 	if (type != TYPE_ROM)
 		dev_spec |= DPOFUA;
 
-	length = scst_get_buf_full(cmd, &address);
-	if (unlikely(length <= 0)) {
-		if (length < 0) {
-			PRINT_ERROR("scst_get_buf_full() failed: %d", length);
-			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_hardw_error));
-		}
+	length = scst_get_buf_full_sense(cmd, &address);
+	if (unlikely(length <= 0))
 		goto out_free;
-	}
 
 	if (0x3 == pcontrol) {
 		TRACE_DBG("%s", "MODE SENSE: Saving values not supported");
@@ -2867,15 +2851,9 @@ static enum compl_status_e vdisk_exec_mode_select(struct vdisk_cmd_params *p)
 	mselect_6 = (MODE_SELECT == cmd->cdb[0]);
 	type = cmd->dev->type;
 
-	length = scst_get_buf_full(cmd, &address);
-	if (unlikely(length <= 0)) {
-		if (length < 0) {
-			PRINT_ERROR("scst_get_buf_full() failed: %d", length);
-			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_hardw_error));
-		}
+	length = scst_get_buf_full_sense(cmd, &address);
+	if (unlikely(length <= 0))
 		goto out;
-	}
 
 	if (!(cmd->cdb[1] & PF) || (cmd->cdb[1] & SP)) {
 		TRACE(TRACE_MINOR|TRACE_SCSI, "MODE SELECT: Unsupported "
@@ -3002,15 +2980,9 @@ static enum compl_status_e vdisk_exec_read_capacity(struct vdisk_cmd_params *p)
 
 	put_unaligned_be32(blocksize, &buffer[4]);
 
-	length = scst_get_buf_full(cmd, &address);
-	if (unlikely(length <= 0)) {
-		if (length < 0) {
-			PRINT_ERROR("scst_get_buf_full() failed: %d", length);
-			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_hardw_error));
-		}
+	length = scst_get_buf_full_sense(cmd, &address);
+	if (unlikely(length <= 0))
 		goto out;
-	}
 
 	length = min_t(int, length, sizeof(buffer));
 
@@ -3085,15 +3057,9 @@ static enum compl_status_e vdisk_exec_read_capacity16(struct vdisk_cmd_params *p
 #endif
 	}
 
-	length = scst_get_buf_full(cmd, &address);
-	if (unlikely(length <= 0)) {
-		if (length < 0) {
-			PRINT_ERROR("scst_get_buf_full() failed: %d", length);
-			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_hardw_error));
-			}
+	length = scst_get_buf_full_sense(cmd, &address);
+	if (unlikely(length <= 0))
 		goto out;
-	}
 
 	length = min_t(int, length, sizeof(buffer));
 
@@ -3128,13 +3094,9 @@ static enum compl_status_e vdisk_exec_report_tpgs(struct vdisk_cmd_params *p)
 
 	TRACE_ENTRY();
 
-	buf_len = scst_get_buf_full(cmd, &address);
-	if (buf_len < 0) {
-		PRINT_ERROR("scst_get_buf_full() failed: %d", buf_len);
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_hardw_error));
+	buf_len = scst_get_buf_full_sense(cmd, &address);
+	if (buf_len <= 0)
 		goto out;
-	}
 
 	dev = cmd->dev;
 	data_format = cmd->cdb[1] >> 5;
@@ -3197,15 +3159,9 @@ static enum compl_status_e vdisk_exec_read_toc(struct vdisk_cmd_params *p)
 		goto out;
 	}
 
-	length = scst_get_buf_full(cmd, &address);
-	if (unlikely(length <= 0)) {
-		if (length < 0) {
-			PRINT_ERROR("scst_get_buf_full() failed: %d", length);
-			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_hardw_error));
-		}
+	length = scst_get_buf_full_sense(cmd, &address);
+	if (unlikely(length <= 0))
 		goto out;
-	}
 
 	virt_dev = cmd->dev->dh_priv;
 	/* ToDo when you have > 8TB ROM device. */

@@ -1730,11 +1730,9 @@ static int scst_report_luns_local(struct scst_cmd *cmd)
 		goto out_err;
 	}
 
-	buffer_size = scst_get_buf_full(cmd, &buffer);
-	if (unlikely(buffer_size == 0))
+	buffer_size = scst_get_buf_full_sense(cmd, &buffer);
+	if (unlikely(buffer_size <= 0))
 		goto out_compl;
-	else if (unlikely(buffer_size < 0))
-		goto out_hw_err;
 
 	if (buffer_size < 16)
 		goto out_put_err;
@@ -1820,10 +1818,6 @@ out_err:
 	scst_set_cmd_error(cmd,
 		   SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
 	goto out_compl;
-
-out_hw_err:
-	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
-	goto out_compl;
 }
 
 static int scst_request_sense_local(struct scst_cmd *cmd)
@@ -1840,11 +1834,9 @@ static int scst_request_sense_local(struct scst_cmd *cmd)
 	cmd->host_status = DID_OK;
 	cmd->driver_status = 0;
 
-	buffer_size = scst_get_buf_full(cmd, &buffer);
-	if (unlikely(buffer_size == 0))
+	buffer_size = scst_get_buf_full_sense(cmd, &buffer);
+	if (unlikely(buffer_size <= 0))
 		goto out_compl;
-	else if (unlikely(buffer_size < 0))
-		goto out_hw_err;
 
 	memset(buffer, 0, buffer_size);
 
@@ -1942,10 +1934,6 @@ out_compl:
 out:
 	TRACE_EXIT_RES(res);
 	return res;
-
-out_hw_err:
-	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
-	goto out_compl;
 
 out_put_busy:
 	scst_put_buf_full(cmd, buffer);
@@ -2146,12 +2134,9 @@ static int scst_persistent_reserve_in_local(struct scst_cmd *cmd)
 		goto out_done;
 	}
 
-	buffer_size = scst_get_buf_full(cmd, &buffer);
-	if (unlikely(buffer_size <= 0)) {
-		if (buffer_size < 0)
-			scst_set_busy(cmd);
+	buffer_size = scst_get_buf_full_sense(cmd, &buffer);
+	if (unlikely(buffer_size <= 0))
 		goto out_done;
-	}
 
 	scst_pr_write_lock(dev);
 
@@ -2260,12 +2245,9 @@ static int scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 		goto out_done;
 	}
 
-	buffer_size = scst_get_buf_full(cmd, &buffer);
-	if (unlikely(buffer_size <= 0)) {
-		if (buffer_size < 0)
-			scst_set_busy(cmd);
+	buffer_size = scst_get_buf_full_sense(cmd, &buffer);
+	if (unlikely(buffer_size <= 0))
 		goto out_done;
-	}
 
 	/* Check scope */
 	if ((action != PR_REGISTER) && (action != PR_REGISTER_AND_IGNORE) &&
@@ -3143,10 +3125,11 @@ static int scst_pre_dev_done(struct scst_cmd *cmd)
 				address[2] |= 0x80;   /* Write Protect*/
 			else if (length > 3 && cmd->cdb[0] == MODE_SENSE_10)
 				address[3] |= 0x80;   /* Write Protect*/
-			scst_put_buf_full(cmd, address);
 
 			if (err)
 				goto out;
+			else
+				scst_put_buf_full(cmd, address);
 		}
 
 		/*
