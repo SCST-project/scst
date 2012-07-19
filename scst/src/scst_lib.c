@@ -2476,7 +2476,7 @@ static void scst_check_reassign_sess(struct scst_session *sess)
 		goto out;
 	}
 
-	TRACE_MGMT_DBG("sess %p will be reassigned from acg %s to acg %s",
+	PRINT_INFO("sess %p will be reassigned from acg %s to acg %s",
 		sess, sess->acg->acg_name, acg->acg_name);
 
 	old_acg = sess->acg;
@@ -3800,7 +3800,7 @@ out:
 found:
 	if (t->active_cmd_threads == &scst_main_cmd_threads) {
 		res = t;
-		TRACE_MGMT_DBG("Going to share async IO context %p (res %p, "
+		TRACE_DBG("Going to share async IO context %p (res %p, "
 			"ini %s, dev %s, grouping type %d)",
 			t->aic_keeper->aic, res, t->sess->initiator_name,
 			t->dev->virt_name,
@@ -3808,13 +3808,13 @@ found:
 	} else {
 		res = t;
 		if (!*(volatile bool*)&res->active_cmd_threads->io_context_ready) {
-			TRACE_MGMT_DBG("IO context for t %p not yet "
+			TRACE_DBG("IO context for t %p not yet "
 				"initialized, waiting...", t);
 			msleep(100);
 			goto found;
 		}
 		smp_rmb();
-		TRACE_MGMT_DBG("Going to share IO context %p (res %p, ini %s, "
+		TRACE_DBG("Going to share IO context %p (res %p, ini %s, "
 			"dev %s, cmd_threads %p, grouping type %d)",
 			res->active_cmd_threads->io_context, res,
 			t->sess->initiator_name, t->dev->virt_name,
@@ -3866,7 +3866,7 @@ static int scst_ioc_keeper_thread(void *arg)
 	aic_keeper->aic = get_io_context(GFP_KERNEL, -1);
 #endif
 #endif
-	TRACE_MGMT_DBG("Alloced new async IO context %p (aic %p)",
+	TRACE_DBG("Alloced new async IO context %p (aic %p)",
 		aic_keeper->aic, aic_keeper);
 
 	/* We have our own ref counting */
@@ -3907,7 +3907,7 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 			aic_keeper = shared_io_tgt_dev->aic_keeper;
 			kref_get(&aic_keeper->aic_keeper_kref);
 
-			TRACE_MGMT_DBG("Linking async io context %p "
+			TRACE_DBG("Linking async io context %p "
 				"for shared tgt_dev %p (dev %s)",
 				aic_keeper->aic, tgt_dev,
 				tgt_dev->dev->virt_name);
@@ -3937,7 +3937,7 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 			wait_event(aic_keeper->aic_keeper_waitQ,
 				aic_keeper->aic_ready);
 
-			TRACE_MGMT_DBG("Created async io context %p "
+			TRACE_DBG("Created async io context %p "
 				"for not shared tgt_dev %p (dev %s)",
 				aic_keeper->aic, tgt_dev,
 				tgt_dev->dev->virt_name);
@@ -3962,7 +3962,7 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 
 		shared_io_tgt_dev = scst_find_shared_io_tgt_dev(tgt_dev);
 		if (shared_io_tgt_dev != NULL) {
-			TRACE_MGMT_DBG("Linking io context %p for "
+			TRACE_DBG("Linking io context %p for "
 				"shared tgt_dev %p (cmd_threads %p)",
 				shared_io_tgt_dev->active_cmd_threads->io_context,
 				tgt_dev, tgt_dev->active_cmd_threads);
@@ -8568,7 +8568,7 @@ static bool scst_parse_unmap_descriptors(struct scst_cmd *cmd)
 	length = scst_get_buf_full_sense(cmd, &address);
 	if (unlikely(length <= 0)) {
 		if (length == 0)
-			goto out_put;
+			goto out;
 		else
 			goto out_abn;
 	}

@@ -3744,12 +3744,8 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 
 	spin_unlock_irq(&sess->sess_list_lock);
 
-	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
-		TRACE_MGMT_DBG("Aborted cmd %p finished (cmd_ref %d)",
-			cmd, atomic_read(&cmd->cmd_ref));
-
+	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)))
 		scst_finish_cmd_mgmt(cmd);
-	}
 
 	__scst_cmd_put(cmd);
 
@@ -4170,7 +4166,7 @@ static void scst_ioctx_get(struct scst_cmd_threads *p_cmd_threads)
 #else
 			p_cmd_threads->io_context = get_io_context(GFP_KERNEL, -1);
 #endif
-			TRACE_MGMT_DBG("Alloced new IO context %p "
+			TRACE_DBG("Alloced new IO context %p "
 				"(p_cmd_threads %p)", p_cmd_threads->io_context,
 				       p_cmd_threads);
 			/*
@@ -4181,7 +4177,7 @@ static void scst_ioctx_get(struct scst_cmd_threads *p_cmd_threads)
 		} else {
 			current->io_context =
 				ioc_task_link(p_cmd_threads->io_context);
-			TRACE_MGMT_DBG("Linked IO context %p "
+			TRACE_DBG("Linked IO context %p "
 				"(p_cmd_threads %p)", p_cmd_threads->io_context,
 				p_cmd_threads);
 		}
@@ -4682,8 +4678,8 @@ static void scst_finish_cmd_mgmt(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	TRACE_MGMT_DBG("cmd %p finished (tag %llu)",
-		       cmd, (long long unsigned int)cmd->tag);
+	TRACE(TRACE_MGMT, "Aborted cmd %p finished (tag %llu, ref %d)", cmd,
+		(long long unsigned int)cmd->tag, atomic_read(&cmd->cmd_ref));
 
 	spin_lock_irqsave(&scst_mcmd_lock, flags);
 
@@ -4873,7 +4869,7 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 		}
 
 		if (mstb->done_counted || mstb->finish_counted) {
-			TRACE(TRACE_SCSI|TRACE_MGMT_DEBUG, "cmd %p (tag %llu, "
+			PRINT_INFO("cmd %p (tag %llu, "
 				"sn %u) being executed/xmitted (state %d, "
 				"op %x, proc time %ld sec., timeout %d sec.), "
 				"deferring ABORT (cmd_done_wait_count %d, "
@@ -6157,7 +6153,9 @@ int scst_rx_mgmt_fn(struct scst_session *sess,
 	mcmd->cmd_sn = params->cmd_sn;
 
 	if (params->fn < SCST_UNREG_SESS_TM)
-		TRACE(TRACE_MGMT, "TM fn %d (%p)", params->fn, mcmd);
+		TRACE(TRACE_MGMT, "TM fn %d (%p, initiator %s, target %s)",
+			params->fn, mcmd, sess->initiator_name,
+			sess->tgt->tgt_name);
 	else
 		TRACE_MGMT_DBG("TM fn %d (%p)", params->fn, mcmd);
 
