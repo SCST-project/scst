@@ -87,7 +87,6 @@ static int sg_copy(struct scatterlist *dst_sg, struct scatterlist *src_sg,
 #endif
 
 static void scst_free_descriptors(struct scst_cmd *cmd);
-static void scst_destroy_put_cmd(struct scst_cmd *cmd);
 
 struct scst_sdbops;
 
@@ -4494,6 +4493,8 @@ static struct scst_cmd *scst_create_prepare_internal_cmd(
 	if (res->tgt_dev != NULL)
 		res->cpu_cmd_counter = scst_get();
 
+	scst_set_start_time(res);
+
 	TRACE(TRACE_SCSI, "New internal cmd %p (op 0x%x)", res, res->cdb[0]);
 
 	rc = scst_pre_parse(res);
@@ -4710,7 +4711,7 @@ out:
 	return res;
 
 out_destroy:
-	scst_destroy_put_cmd(cmd);
+	scst_destroy_cmd(cmd);
 
 out_busy:
 	scst_set_busy(ws_cmd);
@@ -5312,20 +5313,6 @@ out_free:
 	goto out;
 }
 
-static void scst_destroy_put_cmd(struct scst_cmd *cmd)
-{
-	scst_sess_put(cmd->sess);
-
-	/*
-	 * At this point tgt_dev can be dead, but the pointer remains non-NULL
-	 */
-	if (likely(cmd->tgt_dev != NULL))
-		scst_put(cmd->cpu_cmd_counter);
-
-	scst_destroy_cmd(cmd);
-	return;
-}
-
 /* No locks supposed to be held */
 void scst_free_cmd(struct scst_cmd *cmd)
 {
@@ -5407,7 +5394,7 @@ void scst_free_cmd(struct scst_cmd *cmd)
 		kfree(cmd->cdb);
 
 	if (likely(destroy))
-		scst_destroy_put_cmd(cmd);
+		scst_destroy_cmd(cmd);
 
 	TRACE_EXIT();
 	return;
@@ -7961,7 +7948,7 @@ restart:
 			spin_unlock_irq(&order_data->sn_lock);
 			if (test_and_set_bit(SCST_CMD_CAN_BE_DESTROYED,
 					     &cmd->cmd_flags))
-				scst_destroy_put_cmd(cmd);
+				scst_destroy_cmd(cmd);
 			scst_inc_expected_sn(order_data, slot);
 			expected_sn = order_data->expected_sn;
 			spin_lock_irq(&order_data->sn_lock);

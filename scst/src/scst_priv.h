@@ -352,15 +352,6 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 void scst_free_session(struct scst_session *sess);
 void scst_free_session_callback(struct scst_session *sess);
 
-struct scst_cmd *scst_alloc_cmd(const uint8_t *cdb,
-	unsigned int cdb_len, gfp_t gfp_mask);
-void scst_free_cmd(struct scst_cmd *cmd);
-static inline void scst_destroy_cmd(struct scst_cmd *cmd)
-{
-	kmem_cache_free(scst_cmd_cachep, cmd);
-	return;
-}
-
 void scst_check_retries(struct scst_tgt *tgt);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
@@ -673,6 +664,23 @@ static inline void scst_sess_put(struct scst_session *sess)
 		sess, atomic_read(&sess->refcnt)-1);
 	if (atomic_dec_and_test(&sess->refcnt))
 		scst_sched_session_free(sess);
+}
+
+struct scst_cmd *scst_alloc_cmd(const uint8_t *cdb,
+	unsigned int cdb_len, gfp_t gfp_mask);
+void scst_free_cmd(struct scst_cmd *cmd);
+static inline void scst_destroy_cmd(struct scst_cmd *cmd)
+{
+	scst_sess_put(cmd->sess);
+
+	/*
+	 * At this point tgt_dev can be dead, but the pointer remains non-NULL
+	 */
+	if (likely(cmd->tgt_dev != NULL))
+		scst_put(cmd->cpu_cmd_counter);
+
+	kmem_cache_free(scst_cmd_cachep, cmd);
+	return;
 }
 
 static inline void __scst_cmd_get(struct scst_cmd *cmd)
