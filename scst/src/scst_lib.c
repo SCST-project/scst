@@ -1812,7 +1812,7 @@ bool scst_analyze_sense(const uint8_t *sense, int len, unsigned int valid_mask,
 	bool res = false;
 
 	/* Response Code */
-	if ((scst_sense_response_code(sense) == 0x70) || 
+	if ((scst_sense_response_code(sense) == 0x70) ||
 	    (scst_sense_response_code(sense) == 0x71)) {
 		/* Fixed format */
 
