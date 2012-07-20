@@ -1971,7 +1971,7 @@ out:
 }
 EXPORT_SYMBOL(scst_check_convert_sense);
 
-static int scst_set_cmd_error_sense(struct scst_cmd *cmd, uint8_t *sense,
+int scst_set_cmd_error_sense(struct scst_cmd *cmd, uint8_t *sense,
 	unsigned int len)
 {
 	int res;
@@ -8564,6 +8564,7 @@ static bool scst_parse_unmap_descriptors(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	EXTRACHECKS_BUG_ON(cmd->cmd_data_descriptors != NULL);
+	EXTRACHECKS_BUG_ON(cmd->cmd_data_descriptors_cnt != 0);
 
 	length = scst_get_buf_full_sense(cmd, &address);
 	if (unlikely(length <= 0)) {
@@ -8596,7 +8597,7 @@ static bool scst_parse_unmap_descriptors(struct scst_cmd *cmd)
 	if (cnt == 0)
 		goto out_put;
 
-	pd = kzalloc(sizeof(*pd) * (cnt+1), GFP_KERNEL);
+	pd = kzalloc(sizeof(*pd) * cnt, GFP_KERNEL);
 	if (pd == NULL) {
 		PRINT_ERROR("Unable to kmalloc UNMAP %d descriptors", cnt+1);
 		scst_set_busy(cmd);
@@ -8618,6 +8619,7 @@ static bool scst_parse_unmap_descriptors(struct scst_cmd *cmd)
 	}
 
 	cmd->cmd_data_descriptors = pd;
+	cmd->cmd_data_descriptors_cnt = cnt;
 
 out_put:
 	scst_put_buf_full(cmd, address);
@@ -8640,6 +8642,7 @@ static void scst_free_unmap_descriptors(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	kfree(cmd->cmd_data_descriptors);
+	cmd->cmd_data_descriptors = NULL;
 
 	TRACE_EXIT();
 	return;

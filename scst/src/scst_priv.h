@@ -340,6 +340,8 @@ static inline bool scst_acg_sess_is_empty(struct scst_acg *acg)
 int scst_prepare_request_sense(struct scst_cmd *orig_cmd);
 int scst_finish_internal_cmd(struct scst_cmd *cmd);
 
+int scst_set_cmd_error_sense(struct scst_cmd *cmd, uint8_t *sense,
+	unsigned int len);
 void scst_store_sense(struct scst_cmd *cmd);
 
 int scst_assign_dev_handler(struct scst_device *dev,

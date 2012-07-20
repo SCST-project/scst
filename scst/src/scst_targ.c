@@ -628,7 +628,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 			cmd->data_len = cmd->bufflen;
 			cmd->out_bufflen = cmd->expected_out_transfer_len;
 		} else {
-			PRINT_ERROR("Unknown opcode 0x%02x for %s and "
+			PRINT_WARNING("Unknown opcode 0x%02x for %s and "
 			     "target %s not supplied expected values",
 			     cmd->cdb[0], devt->name, cmd->tgtt->name);
 			scst_set_cmd_error(cmd,
@@ -636,7 +636,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 			goto out_done;
 		}
 #else
-		PRINT_ERROR("Refusing unknown opcode %x", cmd->cdb[0]);
+		PRINT_WARNING("Refusing unknown opcode %x", cmd->cdb[0]);
 		scst_set_cmd_error(cmd,
 			SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		goto out_done;

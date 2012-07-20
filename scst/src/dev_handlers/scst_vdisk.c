@@ -2019,7 +2019,7 @@ static enum compl_status_e vdisk_exec_unmap(struct vdisk_cmd_params *p)
 	struct scst_cmd *cmd = p->cmd;
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	struct scst_data_descriptor *pd = cmd->cmd_data_descriptors;
-	int i;
+	int i, cnt = cmd->cmd_data_descriptors_cnt;
 
 	TRACE_ENTRY();
 
@@ -2040,7 +2040,7 @@ static enum compl_status_e vdisk_exec_unmap(struct vdisk_cmd_params *p)
 	if (pd == NULL)
 		goto out;
 
-	for (i = 0; pd[i].sdd_len != 0; i++) {
+	for (i = 0; i < cnt; i++) {
 		int rc;
 
 		if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
