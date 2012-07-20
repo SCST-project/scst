@@ -1878,6 +1878,9 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 
 	TRACE_ENTRY();
 
+	if (len == 0)
+		goto success;
+
 	if ((start > virt_dev->nblocks) ||
 	    ((start + len) > virt_dev->nblocks)) {
 		PRINT_ERROR("Device %s: attempt to write beyond max "
@@ -1947,6 +1950,7 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 #endif
 	}
 
+success:
 	res = 0;
 
 out:
