@@ -1179,7 +1179,11 @@ void scst_restart_cmd(struct scst_cmd *cmd, int status,
 
 	switch (status) {
 	case SCST_PREPROCESS_STATUS_SUCCESS:
-		if (cmd->data_direction & SCST_DATA_WRITE)
+		if (unlikely(cmd->tgt_dev == NULL)) {
+			cmd->state = SCST_CMD_STATE_PRE_XMIT_RESP;
+			pref_context = SCST_CONTEXT_THREAD;
+			break;
+		} else if (cmd->data_direction & SCST_DATA_WRITE)
 			cmd->state = SCST_CMD_STATE_RDY_TO_XFER;
 		else
 			cmd->state = SCST_CMD_STATE_TGT_PRE_EXEC;
@@ -1575,8 +1579,8 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 
 out_descr:
 	if (unlikely(cmd->op_flags & SCST_DESCRIPTORS_BASED)) {
-		bool r = scst_parse_descriptors(cmd);
-		if (unlikely(r))
+		int r = scst_parse_descriptors(cmd);
+		if (unlikely(r != 0))
 			goto out;
 	}
 

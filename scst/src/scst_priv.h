@@ -686,6 +686,7 @@ static inline void scst_destroy_cmd(struct scst_cmd *cmd)
 static inline void __scst_cmd_get(struct scst_cmd *cmd)
 {
 	atomic_inc(&cmd->cmd_ref);
+	smp_mb__after_atomic_inc();
 	TRACE_DBG("Incrementing cmd %p ref (new value %d)",
 		cmd, atomic_read(&cmd->cmd_ref));
 }
@@ -698,11 +699,11 @@ static inline void __scst_cmd_put(struct scst_cmd *cmd)
 		scst_free_cmd(cmd);
 }
 
-extern void scst_throttle_cmd(struct scst_cmd *cmd);
-extern void scst_unthrottle_cmd(struct scst_cmd *cmd);
+void scst_throttle_cmd(struct scst_cmd *cmd);
+void scst_unthrottle_cmd(struct scst_cmd *cmd);
 
 int scst_do_internal_parsing(struct scst_cmd *cmd);
-bool scst_parse_descriptors(struct scst_cmd *cmd);
+int scst_parse_descriptors(struct scst_cmd *cmd);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
 void scst_vfs_unlink_and_put(struct nameidata *nd);

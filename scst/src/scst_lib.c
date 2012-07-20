@@ -4756,8 +4756,6 @@ static void scst_ws_write_cmd_finished(struct scst_cmd *cmd)
 	cmd->sg = NULL;
 	cmd->sg_cnt = 0;
 
-	EXTRACHECKS_BUG_ON(!cmd->completed);
-
 	mutex_lock(&wsp->ws_mutex);
 
 	wsp->ws_cur_in_flight--;
@@ -4782,13 +4780,13 @@ static void scst_ws_write_cmd_finished(struct scst_cmd *cmd)
 	}
 
 	if (wsp->ws_left_to_send == 0)
-		goto out_check_finished;
+		goto out_check_finish;
 
 	blocks = min_t(int, wsp->ws_left_to_send, wsp->ws_max_each);
 
 	rc = scst_ws_push_single_write(wsp, wsp->ws_cur_lba, blocks);
 	if (rc != 0)
-		goto out_check_finished;
+		goto out_check_finish;
 
 	wake_up(&ws_cmd->cmd_threads->cmd_list_waitQ);
 
@@ -4799,7 +4797,7 @@ out:
 	TRACE_EXIT();
 	return;
 
-out_check_finished:
+out_check_finish:
 	if (wsp->ws_cur_in_flight > 0)
 		goto out_unlock;
 
@@ -8540,9 +8538,9 @@ char *scst_get_next_token_str(char **input_str)
 }
 EXPORT_SYMBOL_GPL(scst_get_next_token_str);
 
-static bool scst_parse_unmap_descriptors(struct scst_cmd *cmd)
+static int scst_parse_unmap_descriptors(struct scst_cmd *cmd)
 {
-	int res = false;
+	int res = 0;
 	ssize_t length = 0;
 	uint8_t *address;
 	int i, cnt, offset, descriptor_len, total_len;
@@ -8620,7 +8618,7 @@ out_abn_put:
 
 out_abn:
 	scst_set_cmd_abnormal_done_state(cmd);
-	res = true;
+	res = -1;
 	goto out;
 }
 
@@ -8635,9 +8633,9 @@ static void scst_free_unmap_descriptors(struct scst_cmd *cmd)
 	return;
 }
 
-bool scst_parse_descriptors(struct scst_cmd *cmd)
+int scst_parse_descriptors(struct scst_cmd *cmd)
 {
-	bool res;
+	int res;
 
 	TRACE_ENTRY();
 
