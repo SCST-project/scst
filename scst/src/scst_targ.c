@@ -4817,6 +4817,9 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 	 */
 	smp_mb__after_set_bit();
 
+	if (cmd->internal)
+		goto out;
+
 	if (cmd->tgt_dev == NULL) {
 		spin_lock_irqsave(&scst_init_lock, flags);
 		scst_init_poll_cnt++;
@@ -4901,6 +4904,7 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 unlock:
 	spin_unlock_irqrestore(&scst_mcmd_lock, flags);
 
+out:
 	tm_dbg_release_cmd(cmd);
 
 	TRACE_EXIT();
