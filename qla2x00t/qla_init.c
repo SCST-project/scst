@@ -4143,10 +4143,11 @@ void
 qla2x00_enable_tgt_mode(scsi_qla_host_t *ha)
 {
 	unsigned long flags;
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 
-	spin_lock_irqsave(&ha->hardware_lock, flags);
+	spin_lock_irqsave(&pha->hardware_lock, flags);
 	qla_set_tgt_mode(ha);
-	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 
 	if (ha->parent)
 		ha = ha->parent;

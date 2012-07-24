@@ -836,10 +836,11 @@ qla2x00_write_nvram_data(scsi_qla_host_t *ha, uint8_t *buf, uint32_t naddr,
 	uint32_t i;
 	uint16_t *wptr;
 	unsigned long flags;
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 
 	ret = QLA_SUCCESS;
 
-	spin_lock_irqsave(&ha->hardware_lock, flags);
+	spin_lock_irqsave(&pha->hardware_lock, flags);
 	qla2x00_lock_nvram_access(ha);
 
 	/* Disable NVRAM write-protection. */
@@ -856,7 +857,7 @@ qla2x00_write_nvram_data(scsi_qla_host_t *ha, uint8_t *buf, uint32_t naddr,
 	qla2x00_set_nvram_protection(ha, stat);
 
 	qla2x00_unlock_nvram_access(ha);
-	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 
 	return ret;
 }
@@ -870,10 +871,11 @@ qla24xx_write_nvram_data(scsi_qla_host_t *ha, uint8_t *buf, uint32_t naddr,
 	uint32_t *dwptr;
 	struct device_reg_24xx __iomem *reg = &ha->iobase->isp24;
 	unsigned long flags;
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 
 	ret = QLA_SUCCESS;
 
-	spin_lock_irqsave(&ha->hardware_lock, flags);
+	spin_lock_irqsave(&pha->hardware_lock, flags);
 	/* Enable flash write. */
 	WRT_REG_DWORD(&reg->ctrl_status,
 	    RD_REG_DWORD(&reg->ctrl_status) | CSRX_FLASH_ENABLE);
@@ -907,7 +909,7 @@ qla24xx_write_nvram_data(scsi_qla_host_t *ha, uint8_t *buf, uint32_t naddr,
 	WRT_REG_DWORD(&reg->ctrl_status,
 	    RD_REG_DWORD(&reg->ctrl_status) & ~CSRX_FLASH_ENABLE);
 	RD_REG_DWORD(&reg->ctrl_status);	/* PCI Posting. */
-	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 
 	return ret;
 }
@@ -986,8 +988,9 @@ qla2x00_beacon_blink(struct scsi_qla_host *ha)
 	uint16_t led_color = 0;
 	unsigned long flags;
 	struct device_reg_2xxx __iomem *reg = &ha->iobase->isp;
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 
-	spin_lock_irqsave(&ha->hardware_lock, flags);
+	spin_lock_irqsave(&pha->hardware_lock, flags);
 
 	/* Save the Original GPIOE. */
 	if (ha->pio_address) {
@@ -1024,7 +1027,7 @@ qla2x00_beacon_blink(struct scsi_qla_host *ha)
 		RD_REG_WORD(&reg->gpiod);
 	}
 
-	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 }
 
 int
@@ -1034,6 +1037,7 @@ qla2x00_beacon_on(struct scsi_qla_host *ha)
 	uint16_t gpio_data;
 	unsigned long flags;
 	struct device_reg_2xxx __iomem *reg = &ha->iobase->isp;
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 
 	ha->fw_options[1] &= ~FO1_SET_EMPHASIS_SWING;
 	ha->fw_options[1] |= FO1_DISABLE_GPIO6_7;
@@ -1045,7 +1049,7 @@ qla2x00_beacon_on(struct scsi_qla_host *ha)
 	}
 
 	/* Turn off LEDs. */
-	spin_lock_irqsave(&ha->hardware_lock, flags);
+	spin_lock_irqsave(&pha->hardware_lock, flags);
 	if (ha->pio_address) {
 		gpio_enable = RD_REG_WORD_PIO(PIO_REG(ha, gpioe));
 		gpio_data = RD_REG_WORD_PIO(PIO_REG(ha, gpiod));
@@ -1071,7 +1075,7 @@ qla2x00_beacon_on(struct scsi_qla_host *ha)
 		WRT_REG_WORD(&reg->gpiod, gpio_data);
 		RD_REG_WORD(&reg->gpiod);
 	}
-	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 
 	/*
 	 * Let the per HBA timer kick off the blinking process based on
@@ -1131,9 +1135,10 @@ qla24xx_beacon_blink(struct scsi_qla_host *ha)
 	uint32_t gpio_data;
 	unsigned long flags;
 	struct device_reg_24xx __iomem *reg = &ha->iobase->isp24;
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 
 	/* Save the Original GPIOD. */
-	spin_lock_irqsave(&ha->hardware_lock, flags);
+	spin_lock_irqsave(&pha->hardware_lock, flags);
 	gpio_data = RD_REG_DWORD(&reg->gpiod);
 
 	/* Enable the gpio_data reg for update. */
@@ -1154,7 +1159,7 @@ qla24xx_beacon_blink(struct scsi_qla_host *ha)
 	/* Set the modified gpio_data values. */
 	WRT_REG_DWORD(&reg->gpiod, gpio_data);
 	gpio_data = RD_REG_DWORD(&reg->gpiod);
-	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 }
 
 int
@@ -1165,6 +1170,8 @@ qla24xx_beacon_on(struct scsi_qla_host *ha)
 	struct device_reg_24xx __iomem *reg = &ha->iobase->isp24;
 
 	if (ha->beacon_blink_led == 0) {
+		scsi_qla_host_t *pha = to_qla_parent(ha);
+
 		/* Enable firmware for update */
 		ha->fw_options[1] |= ADD_FO1_DISABLE_GPIO_LED_CTRL;
 
@@ -1178,7 +1185,7 @@ qla24xx_beacon_on(struct scsi_qla_host *ha)
 			return QLA_FUNCTION_FAILED;
 		}
 
-		spin_lock_irqsave(&ha->hardware_lock, flags);
+		spin_lock_irqsave(&pha->hardware_lock, flags);
 		gpio_data = RD_REG_DWORD(&reg->gpiod);
 
 		/* Enable the gpio_data reg for update. */
@@ -1186,7 +1193,7 @@ qla24xx_beacon_on(struct scsi_qla_host *ha)
 		WRT_REG_DWORD(&reg->gpiod, gpio_data);
 		RD_REG_DWORD(&reg->gpiod);
 
-		spin_unlock_irqrestore(&ha->hardware_lock, flags);
+		spin_unlock_irqrestore(&pha->hardware_lock, flags);
 	}
 
 	/* So all colors blink together. */
@@ -1204,6 +1211,7 @@ qla24xx_beacon_off(struct scsi_qla_host *ha)
 	uint32_t gpio_data;
 	unsigned long flags;
 	struct device_reg_24xx __iomem *reg = &ha->iobase->isp24;
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 
 	ha->beacon_blink_led = 0;
 	ha->beacon_color_state = QLA_LED_ALL_ON;
@@ -1211,14 +1219,14 @@ qla24xx_beacon_off(struct scsi_qla_host *ha)
 	ha->isp_ops->beacon_blink(ha);	/* Will flip to all off. */
 
 	/* Give control back to firmware. */
-	spin_lock_irqsave(&ha->hardware_lock, flags);
+	spin_lock_irqsave(&pha->hardware_lock, flags);
 	gpio_data = RD_REG_DWORD(&reg->gpiod);
 
 	/* Disable the gpio_data reg for update. */
 	gpio_data &= ~GPDX_LED_UPDATE_MASK;
 	WRT_REG_DWORD(&reg->gpiod, gpio_data);
 	RD_REG_DWORD(&reg->gpiod);
-	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 
 	ha->fw_options[1] &= ~ADD_FO1_DISABLE_GPIO_LED_CTRL;
 
@@ -1591,6 +1599,7 @@ qla2x00_suspend_hba(struct scsi_qla_host *ha)
 	int cnt;
 	unsigned long flags;
 	struct device_reg_2xxx __iomem *reg = &ha->iobase->isp;
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 
 	/* Suspend HBA. */
 	scsi_block_requests(ha->host);
@@ -1598,7 +1607,7 @@ qla2x00_suspend_hba(struct scsi_qla_host *ha)
 	set_bit(MBX_UPDATE_FLASH_ACTIVE, &ha->mbx_cmd_flags);
 
 	/* Pause RISC. */
-	spin_lock_irqsave(&ha->hardware_lock, flags);
+	spin_lock_irqsave(&pha->hardware_lock, flags);
 	WRT_REG_WORD(&reg->hccr, HCCR_PAUSE_RISC);
 	RD_REG_WORD(&reg->hccr);
 	if (IS_QLA2100(ha) || IS_QLA2200(ha) || IS_QLA2300(ha)) {
@@ -1610,7 +1619,7 @@ qla2x00_suspend_hba(struct scsi_qla_host *ha)
 	} else {
 		udelay(10);
 	}
-	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 }
 
 static inline void

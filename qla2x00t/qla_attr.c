@@ -40,6 +40,7 @@ qla2x00_store_class2_enabled(struct device *dev,
 	struct device_attribute *attr, const char *buffer, size_t size)
 {
 	struct scsi_qla_host *ha = shost_priv(class_to_shost(dev));
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 	int reset = 0;
 	unsigned long flags;
 	int res = size;
@@ -47,7 +48,7 @@ qla2x00_store_class2_enabled(struct device *dev,
 	if (buffer == NULL)
 		goto out;
 
-	spin_lock_irqsave(&ha->hardware_lock, flags);
+	spin_lock_irqsave(&pha->hardware_lock, flags);
 
 	switch (buffer[0]) {
 	case '0':
@@ -80,7 +81,7 @@ qla2x00_store_class2_enabled(struct device *dev,
 		goto out_unlock;
 	}
 
-	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 
 	if (reset)
 		set_bit(ISP_ABORT_NEEDED, &ha->dpc_flags);
@@ -89,7 +90,7 @@ out:
 	return size;
 
 out_unlock:
-	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 	goto out;
 }
 
@@ -180,12 +181,13 @@ qla2x00_store_expl_conf_enabled(struct device *dev,
 	struct device_attribute *attr, const char *buffer, size_t size)
 {
 	struct scsi_qla_host *ha = shost_priv(class_to_shost(dev));
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 	unsigned long flags;
 
 	if (buffer == NULL)
 		return size;
 
-	spin_lock_irqsave(&ha->hardware_lock, flags);
+	spin_lock_irqsave(&pha->hardware_lock, flags);
 
 	switch (buffer[0]) {
 	case '0':
@@ -206,7 +208,7 @@ qla2x00_store_expl_conf_enabled(struct device *dev,
 		break;
 	}
 
-	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 
 	return size;
 }
@@ -236,12 +238,13 @@ qla2x00_store_ini_mode_force_reverse(struct device *dev,
 	struct device_attribute *attr, const char *buffer, size_t size)
 {
 	struct scsi_qla_host *ha = shost_priv(class_to_shost(dev));
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 	unsigned long flags;
 
 	if (buffer == NULL)
 		return size;
 
-	spin_lock_irqsave(&ha->hardware_lock, flags);
+	spin_lock_irqsave(&pha->hardware_lock, flags);
 
 	switch (buffer[0]) {
 	case '0':
@@ -268,7 +271,7 @@ qla2x00_store_ini_mode_force_reverse(struct device *dev,
 		break;
 	}
 
-	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 
 	set_bit(ISP_ABORT_NEEDED, &ha->dpc_flags);
 	qla2xxx_wake_dpc(ha);
@@ -278,7 +281,7 @@ out:
 	return size;
 
 out_unlock:
-	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 	goto out;
 }
 

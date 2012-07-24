@@ -742,6 +742,7 @@ int
 qla2x00_abort_command(scsi_qla_host_t *ha, srb_t *sp)
 {
 	unsigned long   flags = 0;
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 	fc_port_t	*fcport;
 	int		rval;
 	uint32_t	handle;
@@ -752,12 +753,12 @@ qla2x00_abort_command(scsi_qla_host_t *ha, srb_t *sp)
 
 	fcport = sp->fcport;
 
-	spin_lock_irqsave(&ha->hardware_lock, flags);
+	spin_lock_irqsave(&pha->hardware_lock, flags);
 	for (handle = 1; handle < MAX_OUTSTANDING_COMMANDS; handle++) {
 		if (ha->outstanding_cmds[handle] == sp)
 			break;
 	}
-	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 
 	if (handle == MAX_OUTSTANDING_COMMANDS) {
 		/* command not found */
@@ -2309,7 +2310,7 @@ qla24xx_abort_command(scsi_qla_host_t *ha, srb_t *sp)
 	int		rval;
 	fc_port_t	*fcport;
 	unsigned long   flags = 0;
-
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 	struct abort_entry_24xx *abt;
 	dma_addr_t	abt_dma;
 	uint32_t	handle;
@@ -2318,12 +2319,12 @@ qla24xx_abort_command(scsi_qla_host_t *ha, srb_t *sp)
 
 	fcport = sp->fcport;
 
-	spin_lock_irqsave(&ha->hardware_lock, flags);
+	spin_lock_irqsave(&pha->hardware_lock, flags);
 	for (handle = 1; handle < MAX_OUTSTANDING_COMMANDS; handle++) {
 		if (ha->outstanding_cmds[handle] == sp)
 			break;
 	}
-	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 	if (handle == MAX_OUTSTANDING_COMMANDS) {
 		/* Command not found. */
 		return QLA_FUNCTION_FAILED;
