@@ -964,7 +964,8 @@ with files with names the same as the names of the corresponding
 devices. Also this directory contains backup versions of those files
 with suffix ".1". Those backup files are used in case of power or other
 failure to prevent Persistent Reservation information from corruption
-during update.
+during update. It is safe to assume that each of those files can be up
+to 1KB big.
 
 The Persistent Reservations available on all transports implementing
 get_initiator_port_transport_id() callback. Transports not implementing

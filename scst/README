@@ -1106,7 +1106,8 @@ with files with names the same as the names of the corresponding
 devices. Also this directory contains backup versions of those files
 with suffix ".1". Those backup files are used in case of power or other
 failure to prevent Persistent Reservation information from corruption
-during update.
+during update. It is safe to assume that each of those files can be up
+to 1KB big.
 
 The "Persistence Through Power Loss" feature is not available in the
 procfs build, because the SCST proc interface doesn't allow to keep
