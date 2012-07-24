@@ -2439,6 +2439,11 @@ static inline int q2t_has_data(struct q2t_cmd *cmd)
 	return cmd->bufflen > 0;
 }
 
+/*
+ * Acquires pha->hardware lock and returns with the lock held when
+ * the result == SCST_TGT_RES_SUCCESS. The lock is unlocked if an
+ * error is returned.
+ */
 static int q2t_pre_xmit_response(struct q2t_cmd *cmd,
 	struct q2t_prm *prm, int xmit_type, unsigned long *flags)
 {
@@ -2545,6 +2550,8 @@ static int q2t_pre_xmit_response(struct q2t_cmd *cmd,
 
 	/* Does F/W have an IOCBs for this request */
 	res = q2t_check_reserve_free_req(ha, full_req_cnt);
+
+	/* The following check must match the callers' assumptions */
 	if (unlikely(res != SCST_TGT_RES_SUCCESS))
 		goto out_unlock_free_unmap;
 
