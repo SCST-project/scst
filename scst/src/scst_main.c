@@ -148,15 +148,8 @@ struct list_head scst_sess_shut_list;
 
 wait_queue_head_t scst_dev_cmd_waitQ;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
-#ifdef CONFIG_LOCKDEP
-static struct lock_class_key scst_suspend_key;
-struct lockdep_map scst_suspend_dep_map =
-	STATIC_LOCKDEP_MAP_INIT("scst_suspend_activity", &scst_suspend_key);
-#endif
-#endif
-static struct mutex scst_suspend_mutex;
-/* protected by scst_suspend_mutex */
+static struct mutex scst_cmd_threads_mutex;
+/* protected by scst_cmd_threads_mutex */
 static struct list_head scst_cmd_threads_list;
 
 int scst_threads;
@@ -164,6 +157,20 @@ static struct task_struct *scst_init_cmd_thread;
 static struct task_struct *scst_mgmt_thread;
 static struct task_struct *scst_mgmt_cmd_thread;
 
+/*
+ * Protects global suspending and resuming from being initiated from
+ * several threads simultaneously.
+ */
+static struct mutex scst_suspend_mutex;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+#ifdef CONFIG_LOCKDEP
+static struct lock_class_key scst_suspend_key;
+struct lockdep_map scst_suspend_dep_map =
+	STATIC_LOCKDEP_MAP_INIT("scst_suspend_activity", &scst_suspend_key);
+#endif
+#endif
+
+/* Protected by scst_suspend_mutex */
 static int suspend_count;
 
 static int scst_virt_dev_last_id; /* protected by scst_mutex */
@@ -840,9 +847,11 @@ static void __scst_resume_activity(void)
 	 */
 	smp_mb__after_clear_bit();
 
+	mutex_lock(&scst_cmd_threads_mutex);
 	list_for_each_entry(l, &scst_cmd_threads_list, lists_list_entry) {
 		wake_up_all(&l->cmd_list_waitQ);
 	}
+	mutex_unlock(&scst_cmd_threads_mutex);
 	wake_up_all(&scst_init_cmd_list_waitQ);
 
 	spin_lock_irq(&scst_mcmd_lock);
@@ -1915,10 +1924,10 @@ void scst_init_threads(struct scst_cmd_threads *cmd_threads)
 	INIT_LIST_HEAD(&cmd_threads->threads_list);
 	mutex_init(&cmd_threads->io_context_mutex);
 
-	mutex_lock(&scst_suspend_mutex);
+	mutex_lock(&scst_cmd_threads_mutex);
 	list_add_tail(&cmd_threads->lists_list_entry,
 		&scst_cmd_threads_list);
-	mutex_unlock(&scst_suspend_mutex);
+	mutex_unlock(&scst_cmd_threads_mutex);
 
 	TRACE_EXIT();
 	return;
@@ -1934,9 +1943,9 @@ void scst_deinit_threads(struct scst_cmd_threads *cmd_threads)
 {
 	TRACE_ENTRY();
 
-	mutex_lock(&scst_suspend_mutex);
+	mutex_lock(&scst_cmd_threads_mutex);
 	list_del(&cmd_threads->lists_list_entry);
-	mutex_unlock(&scst_suspend_mutex);
+	mutex_unlock(&scst_cmd_threads_mutex);
 
 	sBUG_ON(cmd_threads->io_context);
 
@@ -2197,6 +2206,7 @@ static int __init init_scst(void)
 	INIT_LIST_HEAD(&scst_sess_shut_list);
 	init_waitqueue_head(&scst_dev_cmd_waitQ);
 	mutex_init(&scst_suspend_mutex);
+	mutex_init(&scst_cmd_threads_mutex);
 	INIT_LIST_HEAD(&scst_cmd_threads_list);
 	cpus_setall(default_cpu_mask);
 
