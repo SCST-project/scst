@@ -1572,6 +1572,14 @@ static struct device scst_local_root = {
 static struct device *scst_local_root;
 #endif
 
+static void scst_local_free_sess(struct scst_session *scst_sess)
+{
+	struct scst_local_sess *sess = scst_sess_get_tgt_priv(scst_sess);
+
+	kfree(sess);
+	return;
+}
+
 static void scst_local_release_adapter(struct device *dev)
 {
 	struct scst_local_sess *sess;
@@ -1597,9 +1605,7 @@ static void scst_local_release_adapter(struct device *dev)
 	cancel_work_sync(&sess->aen_work);
 #endif
 
-	scst_unregister_session(sess->scst_sess, true, NULL);
-
-	kfree(sess);
+	scst_unregister_session(sess->scst_sess, false, scst_local_free_sess);
 
 out:
 	TRACE_EXIT();
