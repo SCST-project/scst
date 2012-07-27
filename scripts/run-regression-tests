@@ -169,11 +169,11 @@ function generate_kernel_patch {
                   $([ "${mpt_scst}"   = "true" ] && echo "-m") \
                   $([ "${qla2x00t}"   = "true" ] && echo "-q")"
 
-  scripts/generate-kernel-patch ${driver_options} $2 $1 > "${patchfile}"
+  "${scriptsdir}"/generate-kernel-patch ${driver_options} $2 $1 > "${patchfile}"
 
-  scripts/generate-kernel-patch ${driver_options} -n $2 $1 > "${patchfile_m}"
+  "${scriptsdir}"/generate-kernel-patch ${driver_options} -n $2 $1 > "${patchfile_m}"
 
-  scripts/generate-kernel-patch ${driver_options} -p "${outputdir}/${patchdir}" $2 $1
+  "${scriptsdir}"/generate-kernel-patch ${driver_options} -p "${outputdir}/${patchdir}" $2 $1
 }
 
 # Run checkpatch on the generated kernel patch. Assumes that there is a
@@ -215,6 +215,40 @@ function patch_and_configure_kernel {
   local kver="$(kernel_version $1)"
   local patchfile="${outputdir}/scst-$1-kernel-matching-line-numbers.patch"
   local patchoutput="${outputdir}/patch-command-output-$1.txt"
+  local disable="				\
+CONFIG_BINARY_PRINTF				\
+CONFIG_BLK_DEV_IO_TRACE				\
+CONFIG_BRANCH_PROFILE_NONE			\
+CONFIG_CONTEXT_SWITCH_TRACER			\
+CONFIG_DEBUG_STRICT_USER_COPY_CHECKS		\
+CONFIG_DYNAMIC_FTRACE				\
+CONFIG_EVENT_TRACE_TEST_SYSCALLS		\
+CONFIG_EVENT_TRACING				\
+CONFIG_FTRACE					\
+CONFIG_FTRACE_MCOUNT_RECORD			\
+CONFIG_FTRACE_NMI_ENTER				\
+CONFIG_FTRACE_SELFTEST				\
+CONFIG_FTRACE_STARTUP_TEST			\
+CONFIG_FTRACE_SYSCALLS				\
+CONFIG_FUNCTION_GRAPH_TRACER			\
+CONFIG_FUNCTION_PROFILER			\
+CONFIG_FUNCTION_TRACER				\
+CONFIG_GENERIC_TRACER				\
+CONFIG_HAVE_FTRACE_NMI_ENTER			\
+CONFIG_IRQSOFF_TRACER				\
+CONFIG_IWLWIFI_DEVICE_TRACING			\
+CONFIG_IWM_TRACING				\
+CONFIG_KVM_MMU_AUDIT				\
+CONFIG_MAC80211_DRIVER_API_TRACER		\
+CONFIG_MMIOTRACE				\
+CONFIG_NET_DROP_MONITOR				\
+CONFIG_NOP_TRACER				\
+CONFIG_SCHED_TRACER				\
+CONFIG_STACK_TRACER				\
+CONFIG_TRACEPOINTS				\
+CONFIG_TRACER_MAX_TRACE				\
+CONFIG_TRACING CONFIG_X86_32                    \
+"
 
   echo "Patching and configuring kernel ..."
   (
@@ -239,8 +273,7 @@ function patch_and_configure_kernel {
          echo "srpt/patches/kernel-${kver}-pre-cflags.patch not found."; \
        fi \
     && make -s allmodconfig &>"${outputdir}/make-config-output.txt" \
-    && sed -i.tmp 's/^CONFIG_DEBUG_STRICT_USER_COPY_CHECKS=y$/CONFIG_DEBUG_STRICT_USER_COPY_CHECKS=n/' .config \
-    && for c in CONFIG_BINARY_PRINTF CONFIG_BLK_DEV_IO_TRACE CONFIG_BRANCH_PROFILE_NONE CONFIG_CONTEXT_SWITCH_TRACER CONFIG_DYNAMIC_FTRACE CONFIG_EVENT_TRACE_TEST_SYSCALLS CONFIG_EVENT_TRACING CONFIG_FTRACE CONFIG_FTRACE_MCOUNT_RECORD CONFIG_FTRACE_NMI_ENTER CONFIG_FTRACE_SELFTEST CONFIG_FTRACE_STARTUP_TEST CONFIG_FTRACE_SYSCALLS CONFIG_FUNCTION_GRAPH_TRACER CONFIG_FUNCTION_PROFILER CONFIG_FUNCTION_TRACER CONFIG_GENERIC_TRACER CONFIG_HAVE_FTRACE_NMI_ENTER CONFIG_IRQSOFF_TRACER CONFIG_IWLWIFI_DEVICE_TRACING CONFIG_IWM_TRACING CONFIG_KVM_MMU_AUDIT CONFIG_MAC80211_DRIVER_API_TRACER CONFIG_MMIOTRACE CONFIG_NET_DROP_MONITOR CONFIG_NOP_TRACER CONFIG_SCHED_TRACER CONFIG_STACK_TRACER CONFIG_TRACEPOINTS CONFIG_TRACER_MAX_TRACE CONFIG_TRACING; do sed -i.tmp "s/^$c=y\$/$c=n/" .config; done \
+    && for c in $disable; do sed -i.tmp "s/^$c=y\$/$c=n/" .config; done \
     && make -s oldconfig &>/dev/null 
   )
 }
@@ -404,6 +437,7 @@ if [ ! -e scst -o ! -e iscsi-scst -o ! -e srpt ]; then
   exit 1
 fi
 
+scriptsdir="$(dirname $0)"
 # Where to store persistenly downloaded kernel tarballs and kernel patches.
 kernel_sources="$HOME/software/downloads"
 # URL for downloading kernel tarballs and kernel patches.

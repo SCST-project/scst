@@ -503,11 +503,11 @@ BEGIN {
   while (match($0, "\\\\$"))
   {
     previous_line = $0
-    sub("\\\\$", "", previous_line)
+    sub("[ \t]*\\\\$", "", previous_line)
     getline
     input_line[input_line_count++] = $0
-    sub("^+", "", $0)
-    $0 = previous_line $0
+    sub("^+[ \t]*", "", $0)
+    $0 = previous_line " " $0
   }
 
   discard = 0
