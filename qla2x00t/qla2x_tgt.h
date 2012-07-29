@@ -122,9 +122,10 @@ qla2x00_send_enable_lun(scsi_qla_host_t *ha, bool enable)
 {
 	if (!IS_FWI2_CAPABLE(ha)) {
 		unsigned long flags;
-		spin_lock_irqsave(&ha->hardware_lock, flags);
+		scsi_qla_host_t *pha = to_qla_parent(ha);
+		spin_lock_irqsave(&pha->hardware_lock, flags);
 		__qla2x00_send_enable_lun(ha, enable);
-		spin_unlock_irqrestore(&ha->hardware_lock, flags);
+		spin_unlock_irqrestore(&pha->hardware_lock, flags);
 	}
 }
 

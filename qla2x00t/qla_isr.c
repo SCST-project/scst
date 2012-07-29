@@ -2018,6 +2018,7 @@ qla2x00_request_irqs(scsi_qla_host_t *ha)
 {
 	int ret;
 	device_reg_t __iomem *reg = ha->iobase;
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 
 	/* If possible, enable MSI-X. */
 	if (!IS_QLA2432(ha) && !IS_QLA2532(ha) && !IS_QLA8432(ha))
@@ -2078,7 +2079,7 @@ skip_msi:
 clear_risc_ints:
 
 	ha->isp_ops->disable_intrs(ha);
-	spin_lock_irq(&ha->hardware_lock);
+	spin_lock_irq(&pha->hardware_lock);
 	if (IS_FWI2_CAPABLE(ha)) {
 		WRT_REG_DWORD(&reg->isp24.hccr, HCCRX_CLR_HOST_INT);
 		WRT_REG_DWORD(&reg->isp24.hccr, HCCRX_CLR_RISC_INT);
@@ -2087,7 +2088,7 @@ clear_risc_ints:
 		WRT_REG_WORD(&reg->isp.hccr, HCCR_CLR_RISC_INT);
 		WRT_REG_WORD(&reg->isp.hccr, HCCR_CLR_HOST_INT);
 	}
-	spin_unlock_irq(&ha->hardware_lock);
+	spin_unlock_irq(&pha->hardware_lock);
 
 fail:
 	return ret;

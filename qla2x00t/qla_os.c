@@ -1307,14 +1307,15 @@ static void
 qla2x00_enable_intrs(scsi_qla_host_t *ha)
 {
 	unsigned long flags = 0;
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 	struct device_reg_2xxx __iomem *reg = &ha->iobase->isp;
 
-	spin_lock_irqsave(&ha->hardware_lock, flags);
+	spin_lock_irqsave(&pha->hardware_lock, flags);
 	ha->interrupts_on = 1;
 	/* enable risc and host interrupts */
 	WRT_REG_WORD(&reg->ictrl, ICR_EN_INT | ICR_EN_RISC);
 	RD_REG_WORD(&reg->ictrl);
-	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 
 }
 
@@ -1322,40 +1323,43 @@ static void
 qla2x00_disable_intrs(scsi_qla_host_t *ha)
 {
 	unsigned long flags = 0;
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 	struct device_reg_2xxx __iomem *reg = &ha->iobase->isp;
 
-	spin_lock_irqsave(&ha->hardware_lock, flags);
+	spin_lock_irqsave(&pha->hardware_lock, flags);
 	ha->interrupts_on = 0;
 	/* disable risc and host interrupts */
 	WRT_REG_WORD(&reg->ictrl, 0);
 	RD_REG_WORD(&reg->ictrl);
-	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 }
 
 static void
 qla24xx_enable_intrs(scsi_qla_host_t *ha)
 {
 	unsigned long flags = 0;
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 	struct device_reg_24xx __iomem *reg = &ha->iobase->isp24;
 
-	spin_lock_irqsave(&ha->hardware_lock, flags);
+	spin_lock_irqsave(&pha->hardware_lock, flags);
 	ha->interrupts_on = 1;
 	WRT_REG_DWORD(&reg->ictrl, ICRX_EN_RISC_INT);
 	RD_REG_DWORD(&reg->ictrl);
-	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 }
 
 static void
 qla24xx_disable_intrs(scsi_qla_host_t *ha)
 {
 	unsigned long flags = 0;
+	scsi_qla_host_t *pha = to_qla_parent(ha);
 	struct device_reg_24xx __iomem *reg = &ha->iobase->isp24;
 
-	spin_lock_irqsave(&ha->hardware_lock, flags);
+	spin_lock_irqsave(&pha->hardware_lock, flags);
 	ha->interrupts_on = 0;
 	WRT_REG_DWORD(&reg->ictrl, 0);
 	RD_REG_DWORD(&reg->ictrl);
-	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 }
 
 static struct isp_operations qla2100_isp_ops = {

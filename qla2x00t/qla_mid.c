@@ -385,6 +385,13 @@ qla24xx_create_vhost(struct fc_vport *fc_vport)
 	/* clone the parent hba */
 	memcpy(vha, ha, sizeof (scsi_qla_host_t));
 
+	memset(&vha->hardware_lock, 0, sizeof(spinlock_t));
+	INIT_LIST_HEAD(&vha->vp_list);
+	spin_lock_init(&vha->dpc_lock);
+	mutex_init(&vha->tgt_mutex);
+	mutex_init(&vha->tgt_host_action_mutex);
+	INIT_LIST_HEAD(&vha->ha_list_entry);
+
 	fc_vport->dd_data = vha;
 
 	vha->node_name = kmalloc(WWN_SIZE * sizeof(char), GFP_KERNEL);
