@@ -20,6 +20,10 @@
 
 #include "qla2x_tgt.h"
 
+#ifndef RHEL_RELEASE_VERSION
+#define RHEL_RELEASE_VERSION(maj, min) 0
+#endif
+
 /*
  * Driver version
  */
@@ -143,7 +147,10 @@ static int qla2xxx_eh_target_reset(struct scsi_cmnd *);
 static int qla2xxx_eh_bus_reset(struct scsi_cmnd *);
 static int qla2xxx_eh_host_reset(struct scsi_cmnd *);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) && !defined(CONFIG_SUSE_KERNEL)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) && \
+	!defined(CONFIG_SUSE_KERNEL) && \
+	(!defined(RHEL_RELEASE_CODE) || \
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
 static int qla2x00_change_queue_depth(struct scsi_device *, int);
 #else
 static int qla2x00_change_queue_depth(struct scsi_device *sdev, int qdepth,
@@ -1195,7 +1202,10 @@ qla2xxx_slave_destroy(struct scsi_device *sdev)
 	sdev->hostdata = NULL;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) && !defined(CONFIG_SUSE_KERNEL)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) && \
+	!defined(CONFIG_SUSE_KERNEL) && \
+	(!defined(RHEL_RELEASE_CODE) || \
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
 
 static int
 qla2x00_change_queue_depth(struct scsi_device *sdev, int qdepth)
@@ -1204,7 +1214,7 @@ qla2x00_change_queue_depth(struct scsi_device *sdev, int qdepth)
 	return sdev->queue_depth;
 }
 
-#else /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) */
+#else /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) && !defined(CONFIG_SUSE_KERNEL) && (!defined(RHEL_RELEASE_CODE) || RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1)) */
 
 static void qla2x00_handle_queue_full(struct scsi_device *sdev, int qdepth)
 {
@@ -1257,7 +1267,7 @@ qla2x00_change_queue_depth(struct scsi_device *sdev, int qdepth, int reason)
 	return sdev->queue_depth;
 }
 
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) && !defined(CONFIG_SUSE_KERNEL) */
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) && !defined(CONFIG_SUSE_KERNEL) && (!defined(RHEL_RELEASE_CODE) || RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1)) */
 
 static int
 qla2x00_change_queue_type(struct scsi_device *sdev, int tag_type)
