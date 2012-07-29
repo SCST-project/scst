@@ -2553,8 +2553,7 @@ static int q2t_pre_xmit_response(struct q2t_cmd *cmd,
 
 	/* Does F/W have an IOCBs for this request */
 	res = q2t_check_reserve_free_req(ha, full_req_cnt);
-	if (unlikely(res != SCST_TGT_RES_SUCCESS) &&
-	    (xmit_type & Q2T_XMIT_DATA))
+	if (unlikely(res != SCST_TGT_RES_SUCCESS))
 		goto out_unlock_free_unmap;
 
 out:
