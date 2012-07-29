@@ -356,6 +356,41 @@ function run_sparse {
   else
     echo FAILED
   fi
+
+  return 0
+}
+
+function run_smatch {
+  local k="$1"
+  local kver="$(kernel_version $1)"
+  local plevel="$(patchlevel $1)"
+  local outputfile="${outputdir}/smatch-$1-output.txt"
+  local subdir="$2"
+  local disable="CONFIG_DYNAMIC_DEBUG"
+  shift
+  shift
+
+  echo "Running smatch on the patched kernel in ${subdir} $@ ..."
+  if (cd "${outputdir}/linux-$k" &&
+      for c in $disable; do sed -i.tmp "s/^$c=y\$/$c=n/" .config; done &&
+      make -s oldconfig &&
+      make -s prepare &&
+      make -s scripts &&
+      if grep -q '^CONFIG_PPC=y$' .config; then LC_ALL=C make -k M=arch/powerpc/lib; fi &&
+      LC_ALL=C make -k CHECK="smatch -p=kernel" C=2 CF=-D__CHECK_ENDIAN__ M="${subdir}" "$@"
+    ) &> "${outputfile}"
+  then
+    local errors=$(grep -c ' error:' "${outputfile}")
+    local warnings=$(grep -c ' warning:' "${outputfile}")
+    echo "${errors} errors / ${warnings} warnings."
+    cat "${outputfile}" |
+      grep -E 'warning:|error:' |
+      sort |
+      uniq -c
+  else
+    echo FAILED
+  fi
+
   return 0
 }
 
@@ -498,6 +533,11 @@ if [ "$(type -p sparse)" = "" ]; then
   echo "See also http://www.kernel.org/pub/software/devel/sparse/."
 fi
 
+if [ "$(type -p smatch)" = "" ]; then
+  echo "Error: smatch has not yet been installed."
+  echo "See also http://smatch.sourceforge.net/."
+fi
+
 if ! mkdir -p "${outputdir}"; then
   if [ -e "${outputdir}" ]; then
     echo "Error: directory ${outputdir} already exists."
@@ -526,6 +566,7 @@ do
   ibmvio="false"
   run_checkpatch="true"
   run_sparse="true"
+  run_smatch="true"
   global_multiple_patches="${multiple_patches}"
   while [ "${kv%-?}" != "${kv}" -o "${kv%-??}" != "${kv}" ]; do
     kv_without_opt="${kv%-?}"
@@ -538,6 +579,7 @@ do
       '-i')  ibmvio="true";;
       '-nc') run_checkpatch="false";;
       '-ns') run_sparse="false";;
+      '-nm') run_smatch="false";;
       '-u')  generate_kernel_patch_options="-u";;
       '-p')  multiple_patches="true";;
       *)     echo "Error: unknown option ${kopt}."; exit 1;;
@@ -568,6 +610,9 @@ do
            ${outputdir}/sparse-$k-ibmvstgt-output.txt
       fi
     fi
+  fi
+  if [ "${run_smatch}" = "true" ]; then
+    run_smatch $k drivers/scst
   fi
   compile_kernel $k drivers/scst
   if [ "${full_check}" = "true" ]; then
