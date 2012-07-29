@@ -1045,6 +1045,14 @@ static void q2t_del_sess_work_fn(struct delayed_work *work)
 
 			q2t_undelete_sess(sess);
 
+			/*
+			 * We need to take extra reference, because we are
+			 * going to drop hardware_lock. Otherwise, we are racing
+			 * with other possible calles of q2t_sess_put() for
+			 * the same sess, e.g. by q2t_clear_tgt_db().
+			 */
+			q2t_sess_get(sess);
+
 			spin_unlock_irqrestore(&pha->hardware_lock, flags);
 			cancel = q2t_check_fcport_exist(ha, sess);
 			spin_lock_irqsave(&pha->hardware_lock, flags);
@@ -1055,7 +1063,7 @@ static void q2t_del_sess_work_fn(struct delayed_work *work)
 					 * sess was again deleted while we were
 					 * discovering it
 					 */
-					continue;
+					goto put_continue;
 				}
 
 				PRINT_INFO("qla2x00t(%ld): cancel deletion of "
@@ -1073,6 +1081,8 @@ static void q2t_del_sess_work_fn(struct delayed_work *work)
 					"deleted", sess);
 				q2t_sess_put(sess);
 			}
+put_continue:
+			q2t_sess_put(sess);
 		} else {
 			schedule_delayed_work(&tgt->sess_del_work,
 				sess->expires - jiffies);
