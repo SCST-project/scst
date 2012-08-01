@@ -384,7 +384,7 @@ function run_smatch {
     local warnings=$(grep -c ' warning:' "${outputfile}")
     echo "${errors} errors / ${warnings} warnings."
     cat "${outputfile}" |
-      grep -E 'warning:|error:' |
+      grep -E ' info:| warning:| error:' |
       sort |
       uniq -c
   else
