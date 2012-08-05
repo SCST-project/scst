@@ -169,3 +169,25 @@ Index: srpt/src/ib_srpt.c
       sleep 10
     done
   While this script is running, repeatedly try to log in from another system.
+
+* Test as follows that module removal with active sessions works fine (this
+  test uses the loopback capability of an IB HCA):
+
+  for ((i=0;i<1;i++)); do
+    /etc/init.d/scst restart
+    while [ -e /sys/module/ib_srp ]; do
+      rmmod ib_srp >/dev/null 2>&1 || sleep 1
+    done
+    modprobe ib_srp
+    cat /sys/kernel/scst_tgt/targets/ib_srpt/*/login_info |
+      sed 's/^t//' |
+      while read target_info; do
+        echo "${target_info}"
+        for dev in /sys/class/infiniband_srp/srp-*; do
+          echo -n "${target_info}" > $dev/add_target &
+        done
+        wait
+      done
+    (cd /sys/class/srp_host && ls)
+    sleep 1
+  done
