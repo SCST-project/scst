@@ -88,9 +88,9 @@ function test_scst_tree_patches {
 # Only copy those files which are administered by Subversion.
 function duplicate_scst_source_tree {
   if [ -e "$1/AskingQuestions" ]; then
-    ( cd "$1" && svn status -v | grep -v '^[D?]' | cut -c3- | awk '{print $4}' \
-      | while read f; do [ ! -d "$f" ] && echo "$f"; done ) \
-    | tar -C "$1" --files-from=- -c -f - | tar -x -f -
+    "${scriptsdir}"/list-source-files "$1" |
+      tar -C "$1" --files-from=- -c -f - |
+      tar -x -f -
   else
     return 1
   fi
@@ -473,6 +473,9 @@ if [ ! -e scst -o ! -e iscsi-scst -o ! -e srpt ]; then
 fi
 
 scriptsdir="$(dirname $0)"
+if [ "${scriptsdir:0:1}" != "/" ]; then
+  scriptsdir="$PWD/${scriptsdir}"
+fi
 # Where to store persistenly downloaded kernel tarballs and kernel patches.
 kernel_sources="$HOME/software/downloads"
 # URL for downloading kernel tarballs and kernel patches.
