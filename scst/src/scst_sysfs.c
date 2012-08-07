@@ -3696,11 +3696,15 @@ restart:
 					 sess->tgt->tgtt->sess_attrs);
 		if (res != 0) {
 			PRINT_ERROR("Can't add attributes for session %s", name);
-			goto out_free;
+			goto out_del;
 		}
 	}
 
 	res = scst_create_sess_luns_link(sess);
+	if (res != 0) {
+		PRINT_ERROR("Can't add LUN links for session %s", name);
+		goto out_del;
+	}
 
 out_free:
 	if (name != sess->initiator_name)
@@ -3708,6 +3712,12 @@ out_free:
 
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_del:
+	kobject_del(&sess->sess_kobj);
+	kobject_put(&sess->sess_kobj);
+	sess->sess_kobj_ready = 0;
+	goto out_free;
 }
 
 /*
