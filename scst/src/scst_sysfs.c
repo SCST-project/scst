@@ -3598,48 +3598,18 @@ int scst_recreate_sess_luns_link(struct scst_session *sess)
 int scst_sess_sysfs_create(struct scst_session *sess)
 {
 	int res = 0;
-	struct scst_session *s;
-	char *name = (char *)sess->initiator_name;
-	int len = strlen(name) + 1, n = 1;
+	const char *name;
 
 	TRACE_ENTRY();
 
-restart:
-	list_for_each_entry(s, &sess->tgt->sess_list, sess_list_entry) {
-		if (!s->sess_kobj_ready)
-			continue;
-
-		if (strcmp(name, kobject_name(&s->sess_kobj)) == 0) {
-			if (s == sess)
-				continue;
-
-			TRACE_DBG("Duplicated session from the same initiator "
-				"%s found", name);
-
-			if (name == sess->initiator_name) {
-				len = strlen(sess->initiator_name);
-				len += 20;
-				name = kmalloc(len, GFP_KERNEL);
-				if (name == NULL) {
-					PRINT_ERROR("Unable to allocate a "
-						"replacement name (size %d)",
-						len);
-				}
-			}
-
-			snprintf(name, len, "%s_%d", sess->initiator_name, n);
-			n++;
-			goto restart;
-		}
-	}
-
+	name = sess->name;
 	TRACE_DBG("Adding session %s to sysfs", name);
 
 	res = kobject_init_and_add(&sess->sess_kobj, &scst_session_ktype,
 			      sess->tgt->tgt_sess_kobj, name);
 	if (res != 0) {
 		PRINT_ERROR("Can't add session %s to sysfs", name);
-		goto out_free;
+		goto out;
 	}
 
 	sess->sess_kobj_ready = 1;
@@ -3659,10 +3629,7 @@ restart:
 		goto out_del;
 	}
 
-out_free:
-	if (name != sess->initiator_name)
-		kfree(name);
-
+out:
 	TRACE_EXIT_RES(res);
 	return res;
 
@@ -3670,7 +3637,7 @@ out_del:
 	kobject_del(&sess->sess_kobj);
 	kobject_put(&sess->sess_kobj);
 	sess->sess_kobj_ready = 0;
-	goto out_free;
+	goto out;
 }
 
 /*

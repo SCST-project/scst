@@ -6513,6 +6513,37 @@ restart:
 	return res;
 }
 
+static char *scst_get_unique_sess_name(struct list_head *sess_list,
+				       const char* initiator_name)
+{
+	char *name = (char *)initiator_name;
+	struct scst_session *s;
+	int len = 0, n = 1;
+
+restart:
+	list_for_each_entry(s, sess_list, sess_list_entry) {
+		if (strcmp(name, s->name) == 0) {
+			TRACE_DBG("Duplicated session from the same initiator "
+				"%s found", name);
+
+			if (name == initiator_name) {
+				len = strlen(initiator_name) + 20;
+				name = kmalloc(len, GFP_KERNEL);
+				if (name == NULL) {
+					PRINT_ERROR("Unable to allocate a "
+						"replacement name (size %d)",
+						len);
+				}
+			}
+
+			snprintf(name, len, "%s_%d", initiator_name, n);
+			n++;
+			goto restart;
+		}
+	}
+	return name;
+}
+
 /**
  * scst_register_session() - register session
  * @tgt:	target
@@ -6560,14 +6591,19 @@ struct scst_session *scst_register_session(struct scst_tgt *tgt, int atomic,
 	const char *initiator_name, void *tgt_priv, void *result_fn_data,
 	void (*result_fn) (struct scst_session *sess, void *data, int result))
 {
-	struct scst_session *sess;
+	struct scst_session *sess = NULL;
+	char *name;
 	int res;
 	unsigned long flags;
 
 	TRACE_ENTRY();
 
+	name = scst_get_unique_sess_name(&tgt->sess_list, initiator_name);
+	if (!name)
+		goto out;
+
 	sess = scst_alloc_session(tgt, atomic ? GFP_ATOMIC : GFP_KERNEL,
-		initiator_name);
+				  name, initiator_name);
 	if (sess == NULL)
 		goto out;
 
@@ -6592,6 +6628,8 @@ struct scst_session *scst_register_session(struct scst_tgt *tgt, int atomic,
 	}
 
 out:
+	if (name != initiator_name)
+		kfree(name);
 	TRACE_EXIT();
 	return sess;
 

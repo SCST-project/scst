@@ -1662,6 +1662,9 @@ struct scst_session {
 	/* Name of attached initiator */
 	const char *initiator_name;
 
+	/* Session name: initiator name + optional _%d. */
+	const char *name;
+
 	/* List entry of sessions per target */
 	struct list_head sess_list_entry;
 

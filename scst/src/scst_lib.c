@@ -5027,7 +5027,8 @@ static void scst_clear_reservation(struct scst_tgt_dev *tgt_dev)
 }
 
 struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
-	const char *initiator_name)
+					const char *name,
+					const char *initiator_name)
 {
 	struct scst_session *sess;
 	int i;
@@ -5063,16 +5064,22 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 	spin_lock_init(&sess->lat_lock);
 #endif
 
+	sess->name = kstrdup(name, gfp_mask);
+	if (!sess->name)
+		goto out_free;
+
 	sess->initiator_name = kstrdup(initiator_name, gfp_mask);
 	if (sess->initiator_name == NULL) {
 		PRINT_ERROR("%s", "Unable to dup sess->initiator_name");
-		goto out_free;
+		goto out_free_sess_name;
 	}
 
 out:
 	TRACE_EXIT();
 	return sess;
 
+out_free_sess_name:
+	kfree(sess->name);
 out_free:
 	kmem_cache_free(scst_sess_cachep, sess);
 	sess = NULL;
@@ -5121,6 +5128,7 @@ void scst_free_session(struct scst_session *sess)
 
 	kfree(sess->transport_id);
 	kfree(sess->initiator_name);
+	kfree(sess->name);
 
 	kmem_cache_free(scst_sess_cachep, sess);
 
