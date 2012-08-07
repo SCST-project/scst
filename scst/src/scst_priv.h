@@ -348,7 +348,6 @@ int scst_assign_dev_handler(struct scst_device *dev,
 	struct scst_dev_type *handler);
 
 struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
-					const char *name,
 					const char *initiator_name);
 void scst_free_session(struct scst_session *sess);
 void scst_free_session_callback(struct scst_session *sess);
