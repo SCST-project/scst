@@ -5093,6 +5093,10 @@ void scst_free_session(struct scst_session *sess)
 	mutex_lock(&scst_mutex);
 
 	scst_sess_free_tgt_devs(sess);
+	TRACE_DBG("Removing sess %p from the list", sess);
+	list_del(&sess->sess_list_entry);
+	TRACE_DBG("Removing session %p from acg %s", sess, sess->acg->acg_name);
+	list_del(&sess->acg_sess_list_entry);
 
 	mutex_unlock(&scst_mutex);
 
@@ -5106,16 +5110,6 @@ void scst_free_session(struct scst_session *sess)
 	}
 
 	mutex_lock(&scst_mutex);
-
-	/*
-	 * The lists delete must be after sysfs del. Otherwise it would break
-	 * logic in scst_sess_sysfs_create() to avoid duplicate sysfs names.
-	 */
-
-	TRACE_DBG("Removing sess %p from the list", sess);
-	list_del(&sess->sess_list_entry);
-	TRACE_DBG("Removing session %p from acg %s", sess, sess->acg->acg_name);
-	list_del(&sess->acg_sess_list_entry);
 
 	/* Called under lock to protect from too early tgt release */
 	wake_up_all(&sess->tgt->unreg_waitQ);
