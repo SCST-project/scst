@@ -96,6 +96,20 @@ function duplicate_scst_source_tree {
   fi
 }
 
+function compile_scst {
+  (
+    export KCFLAGS=-DCONFIG_SCST_MEASURE_LATENCY
+    for p in scst scst_local iscsi-scst srpt qla2x00t $(if [ "${mpt_scst}" = "true" ]; then echo mpt; fi); do
+      if [ "${p%qla2x00t}" != "$p" ]; then
+        BUILD_2X_MODULE=y CONFIG_SCSI_QLA_FC=y CONFIG_SCSI_QLA2XXX_TARGET=y \
+        make -C $p/qla2x00-target || break
+      else
+        make -C $p || break
+      fi
+    done
+  )
+}
+
 # Compile the unpatched SCST source code.
 function compile_scst_unpatched {
   local scst="$PWD"
@@ -107,16 +121,7 @@ function compile_scst_unpatched {
     if mkdir -p "${workingdirectory}"  \
        && cd "${workingdirectory}"     \
        && duplicate_scst_source_tree "${scst}"  \
-       && (export KCFLAGS=-DCONFIG_SCST_MEASURE_LATENCY; \
-           make -s clean \
-           && make -s scst iscsi-scst  \
-           && if "${scst_local}" = "true" ; then make -C scst_local clean; fi \
-           && if "${scst_local}" = "true" ; then make -C scst_local -s   ; fi \
-           && if "${mpt_scst}"   = "true" ; then make -C mpt clean; fi \
-           && if "${mpt_scst}"   = "true" ; then make -C mpt -s   ; fi \
-           && make -C srpt -s clean     \
-           && make -C srpt -s )         \
-           &> "${outputfile}"
+       && compile_scst &> "${outputfile}"
     then
       echo "OK"
     else
@@ -138,16 +143,7 @@ function compile_scst_patched {
        && cd "${workingdirectory}"     \
        && duplicate_scst_source_tree "${scst}"  \
        && make -s "$1"                 \
-       && (export KCFLAGS=-DCONFIG_SCST_MEASURE_LATENCY; \
-           make -s clean               \
-           && make -s scst iscsi-scst  \
-           && if "${scst_local}" = "true" ; then make -C scst_local clean; fi \
-           && if "${scst_local}" = "true" ; then make -C scst_local -s   ; fi \
-           && if "${mpt_scst}"   = "true" ; then make -C mpt clean; fi \
-           && if "${mpt_scst}"   = "true" ; then make -C mpt -s   ; fi \
-           && make -C srpt -s clean     \
-           && make -C srpt -s )         \
-          &> "${outputfile}"
+       && compile_scst &> "${outputfile}"
     then
       echo "OK"
     else
@@ -165,7 +161,7 @@ function generate_kernel_patch {
   local patchfile_m="${outputdir}/scst-$1-kernel-matching-line-numbers.patch"
   local driver_options=""
 
-  driver_options="$([ "${scst_local}" = "true" ] && echo "-l") \
+  driver_options="-l \
                   $([ "${mpt_scst}"   = "true" ] && echo "-m") \
                   $([ "${qla2x00t}"   = "true" ] && echo "-q")"
 
@@ -491,7 +487,6 @@ multiple_patches="false"
 qla2x00t="false"
 remove_temporary_files_at_end="false"
 run_local_compilation="true"
-scst_local="true"
 quiet_download="false"
 
 set -- $(/usr/bin/getopt "c:d:j:hklpq" "$@")
