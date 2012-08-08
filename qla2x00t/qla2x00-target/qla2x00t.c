@@ -4034,10 +4034,10 @@ static int q2t_abort_task(scsi_qla_host_t *ha, notify_entry_t *iocb)
 	if (sess == NULL) {
 		TRACE_MGMT_DBG("qla2x00t(%ld): task abort for unexisting "
 			"session", ha->instance);
-		res = q2t_sched_sess_work(sess->tgt, Q2T_SESS_WORK_ABORT, iocb,
+		res = q2t_sched_sess_work(ha->tgt, Q2T_SESS_WORK_ABORT, iocb,
 			sizeof(*iocb));
 		if (res != 0)
-			sess->tgt->tm_to_unknown = 1;
+			ha->tgt->tm_to_unknown = 1;
 		goto out;
 	}
 
