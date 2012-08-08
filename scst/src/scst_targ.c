@@ -6413,7 +6413,7 @@ bool scst_initiator_has_luns(struct scst_tgt *tgt, const char *initiator_name)
 EXPORT_SYMBOL_GPL(scst_initiator_has_luns);
 
 static char *scst_get_unique_sess_name(struct list_head *sess_list,
-				       const char* initiator_name)
+				       const char *initiator_name)
 {
 	char *name = (char *)initiator_name;
 	struct scst_session *s;
