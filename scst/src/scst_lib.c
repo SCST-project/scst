@@ -5086,8 +5086,10 @@ void scst_free_session(struct scst_session *sess)
 	mutex_lock(&scst_mutex);
 
 	scst_sess_free_tgt_devs(sess);
+
 	TRACE_DBG("Removing sess %p from the list", sess);
 	list_del(&sess->sess_list_entry);
+
 	TRACE_DBG("Removing session %p from acg %s", sess, sess->acg->acg_name);
 	list_del(&sess->acg_sess_list_entry);
 
@@ -5115,8 +5117,8 @@ void scst_free_session(struct scst_session *sess)
 
 	kfree(sess->transport_id);
 	kfree(sess->initiator_name);
-	if (sess->name != sess->initiator_name)
-		kfree(sess->name);
+	if (sess->sess_name != sess->initiator_name)
+		kfree(sess->sess_name);
 
 	kmem_cache_free(scst_sess_cachep, sess);
 
@@ -8641,7 +8643,7 @@ int scst_parse_descriptors(struct scst_cmd *cmd)
 		break;
 	default:
 		sBUG_ON(1);
-		res = false;
+		res = -1;
 		break;
 	}
 

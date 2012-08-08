@@ -6412,6 +6412,7 @@ bool scst_initiator_has_luns(struct scst_tgt *tgt, const char *initiator_name)
 }
 EXPORT_SYMBOL_GPL(scst_initiator_has_luns);
 
+/* Supposed to be called under scst_mutex */
 static char *scst_get_unique_sess_name(struct list_head *sess_list,
 				       const char *initiator_name)
 {
@@ -6426,7 +6427,7 @@ static char *scst_get_unique_sess_name(struct list_head *sess_list,
 
 restart:
 	list_for_each_entry(s, sess_list, sess_list_entry) {
-		if (s->name && strcmp(name, s->name) == 0) {
+		if (s->sess_name && strcmp(name, s->sess_name) == 0) {
 			TRACE_DBG("Duplicated session from the same initiator "
 				"%s found", name);
 
@@ -6485,9 +6486,9 @@ static int scst_init_session(struct scst_session *sess)
 	}
 
 	res = -ENOMEM;
-	sess->name = scst_get_unique_sess_name(&sess->tgt->sess_list,
+	sess->sess_name = scst_get_unique_sess_name(&sess->tgt->sess_list,
 					       sess->initiator_name);
-	if (!sess->name)
+	if (!sess->sess_name)
 		goto failed;
 
 	res = scst_sess_sysfs_create(sess);

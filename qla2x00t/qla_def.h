@@ -2427,8 +2427,9 @@ typedef struct scsi_qla_host {
 	uint16_t	atio_q_length;
 
 	/*
-	 * Protected by tgt_mutex AND hardware_lock for writing and
-	 * tgt_mutex OR hardware_lock for reading.
+	 * Processing Q2T tgt reference. NULL on not enabled targets. Protected
+	 * by tgt_mutex AND hardware_lock for writing and tgt_mutex OR
+	 * hardware_lock for reading.
 	 */
 	struct q2t_tgt	*tgt;
 
@@ -2701,7 +2702,10 @@ typedef struct scsi_qla_host {
 
 	struct mutex	tgt_host_action_mutex;
 
-	/* Protected by tgt_host_action_mutex */
+	/*
+	 * Main Q2T tgt reference, which always points to the target, if the
+	 * target mode addon loaded. Protected by tgt_host_action_mutex.
+	 */
 	struct q2t_tgt	*q2t_tgt;
 
 	struct list_head ha_list_entry;

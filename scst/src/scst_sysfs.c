@@ -3602,7 +3602,7 @@ int scst_sess_sysfs_create(struct scst_session *sess)
 
 	TRACE_ENTRY();
 
-	name = sess->name;
+	name = sess->sess_name;
 	TRACE_DBG("Adding session %s to sysfs", name);
 
 	res = kobject_init_and_add(&sess->sess_kobj, &scst_session_ktype,
