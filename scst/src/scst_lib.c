@@ -3347,6 +3347,7 @@ static void scst_init_order_data(struct scst_order_data *order_data)
 	order_data->cur_sn_slot = &order_data->sn_slots[0];
 	for (i = 0; i < (int)ARRAY_SIZE(order_data->sn_slots); i++)
 		atomic_set(&order_data->sn_slots[i], 0);
+	spin_lock_init(&order_data->init_done_lock);
 	return;
 }
 

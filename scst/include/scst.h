@@ -670,6 +670,12 @@ struct scst_tgt_template {
 	unsigned fake_aca:1;
 
 	/*
+	 * True, if this target adapter can call scst_cmd_init_done() from
+	 * several threads at the same time.
+	 */
+	unsigned multithreaded_init_done:1;
+
+	/*
 	 * Preferred SCSI LUN addressing method.
 	 */
 	enum scst_lun_addr_method preferred_addr_method;
@@ -1796,6 +1802,12 @@ struct scst_order_data {
 	int num_free_sn_slots; /* if it's <0, then all slots are busy */
 	atomic_t *cur_sn_slot;
 	atomic_t sn_slots[15];
+
+	/*
+	 * Used to serialized scst_cmd_init_done() if the corresponding
+	 * session's target template has multithreaded_init_done set
+	 */
+	spinlock_t init_done_lock;
 };
 
 /*

@@ -234,7 +234,7 @@ Compilation options
 There are the following compilation options, that could be commented
 in/out in Makefile:
 
- - CONFIG_SCST_LOCAL_FORCE_DIRECT_PROCESSING - by default, when this option
+ - CONFIG_SCST_LOCAL_DIRECT_PROCESSING - by default, when this option
    is not defined, scst_local reschedules all commands for processing in
    one of the SCST threads. If this option is defined, scst_local tries
    to not do it, if possible (sometimes queuecommand() called under

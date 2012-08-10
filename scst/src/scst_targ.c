@@ -313,7 +313,7 @@ out_redirect:
 	} else {
 		unsigned long flags;
 		spin_lock_irqsave(&scst_init_lock, flags);
-		TRACE_MGMT_DBG("Adding cmd %p to init cmd list)", cmd);
+		TRACE_MGMT_DBG("Adding cmd %p to init cmd list", cmd);
 		list_add_tail(&cmd->cmd_list_entry, &scst_init_cmd_list);
 		if (test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))
 			scst_init_poll_cnt++;
@@ -343,9 +343,11 @@ out_redirect:
  *    for the same session/LUN, i.e. tgt_dev), i.e. they must be
  *    somehow externally serialized. This is needed to have lock free fast
  *    path in scst_cmd_set_sn(). For majority of targets those functions are
- *    naturally serialized by the single source of commands. Only iSCSI
- *    immediate commands with multiple connections per session seems to be an
- *    exception. For it, some mutex/lock shall be used for the serialization.
+ *    naturally serialized by the single source of commands. Only some, like
+ *    iSCSI immediate commands with multiple connections per session or
+ *    scst_local, are exceptions. For it, some mutex/lock must be used for
+ *    the serialization. Or, alternatively, multithreaded_init_done can
+ *    be set in the target's template.
  */
 void scst_cmd_init_done(struct scst_cmd *cmd,
 	enum scst_exec_context pref_context)
@@ -1188,8 +1190,10 @@ void scst_restart_cmd(struct scst_cmd *cmd, int status,
 			cmd->state = SCST_CMD_STATE_RDY_TO_XFER;
 		else
 			cmd->state = SCST_CMD_STATE_TGT_PRE_EXEC;
-		if (cmd->set_sn_on_restart_cmd)
+		if (cmd->set_sn_on_restart_cmd) {
+			EXTRACHECKS_BUG_ON(cmd->tgtt->multithreaded_init_done);
 			scst_cmd_set_sn(cmd);
+		}
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
 		if (cmd->op_flags & SCST_TEST_IO_IN_SIRQ_ALLOWED)
 			break;
@@ -3770,8 +3774,8 @@ out:
  * number. A command that must be executed after previously received commands
  * is assigned a new and higher slot number.
  *
- * No locks, but it must be externally serialized (see comment for
- * scst_cmd_init_done() in scst.h)
+ * No locks expected, but it must be externally serialized (see comment before
+ * scst_cmd_init_done() definition)
  *
  * Note: This approach in full compliance with SAM may result in the reordering
  * of conflicting SIMPLE READ and/or WRITE commands (commands with at least
@@ -4003,8 +4007,16 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 		 */
 		scst_pre_parse(cmd);
 
-		if (!cmd->set_sn_on_restart_cmd)
-			scst_cmd_set_sn(cmd);
+		if (!cmd->set_sn_on_restart_cmd) {
+			if (cmd->tgtt->multithreaded_init_done) {
+				struct scst_order_data *order_data = cmd->cur_order_data;
+				unsigned long flags;
+				spin_lock_irqsave(&order_data->init_done_lock, flags);
+				scst_cmd_set_sn(cmd);
+				spin_unlock_irqrestore(&order_data->init_done_lock, flags);
+			} else
+				scst_cmd_set_sn(cmd);
+		}
 	} else if (res < 0) {
 		TRACE_DBG("Finishing cmd %p", cmd);
 		scst_set_cmd_error(cmd,
