@@ -3291,6 +3291,7 @@ int scst_alloc_tgt(struct scst_tgt_template *tgtt, struct scst_tgt **tgt)
 	}
 
 	INIT_LIST_HEAD(&t->sess_list);
+	INIT_LIST_HEAD(&t->sysfs_sess_list);
 	init_waitqueue_head(&t->unreg_waitQ);
 	t->tgtt = tgtt;
 	t->sg_tablesize = tgtt->sg_tablesize;
@@ -5106,6 +5107,8 @@ void scst_free_session(struct scst_session *sess)
 	}
 
 	mutex_lock(&scst_mutex);
+
+	list_del(&sess->sysfs_sess_list_entry);
 
 	/* Called under lock to protect from too early tgt release */
 	wake_up_all(&sess->tgt->unreg_waitQ);

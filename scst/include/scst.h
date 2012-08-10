@@ -1488,6 +1488,12 @@ struct scst_tgt {
 	/* List of remote sessions per target, protected by scst_mutex */
 	struct list_head sess_list;
 
+	/*
+	 * List of remote sessions registered in sysfs per target, protected
+	 * by scst_mutex.
+	 */
+	struct list_head sysfs_sess_list;
+
 	/* List entry of targets per template (tgts_list) */
 	struct list_head tgt_list_entry;
 
@@ -1673,6 +1679,9 @@ struct scst_session {
 
 	/* List entry of sessions per target */
 	struct list_head sess_list_entry;
+
+	/* Per target list entry for sessions registered in sysfs. */
+	struct list_head sysfs_sess_list_entry;
 
 	/* List entry for the list that keeps session, waiting for the init */
 	struct list_head sess_init_list_entry;

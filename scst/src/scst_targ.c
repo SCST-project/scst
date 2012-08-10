@@ -6440,7 +6440,7 @@ bool scst_initiator_has_luns(struct scst_tgt *tgt, const char *initiator_name)
 EXPORT_SYMBOL_GPL(scst_initiator_has_luns);
 
 /* Supposed to be called under scst_mutex */
-static char *scst_get_unique_sess_name(struct list_head *sess_list,
+static char *scst_get_unique_sess_name(struct list_head *sysfs_sess_list,
 				       const char *initiator_name)
 {
 	char *name = (char *)initiator_name;
@@ -6453,8 +6453,9 @@ static char *scst_get_unique_sess_name(struct list_head *sess_list,
 #endif
 
 restart:
-	list_for_each_entry(s, sess_list, sess_list_entry) {
-		if (s->sess_name && strcmp(name, s->sess_name) == 0) {
+	list_for_each_entry(s, sysfs_sess_list, sysfs_sess_list_entry) {
+		BUG_ON(!s->sess_name);
+		if (strcmp(name, s->sess_name) == 0) {
 			TRACE_DBG("Duplicated session from the same initiator "
 				"%s found", name);
 
@@ -6498,6 +6499,8 @@ static int scst_init_session(struct scst_session *sess)
 	TRACE_DBG("Adding sess %p to tgt->sess_list", sess);
 	list_add_tail(&sess->sess_list_entry, &sess->tgt->sess_list);
 
+	INIT_LIST_HEAD(&sess->sysfs_sess_list_entry);
+
 	if (sess->tgt->tgtt->get_initiator_port_transport_id != NULL) {
 		res = sess->tgt->tgtt->get_initiator_port_transport_id(
 					sess->tgt, sess, &sess->transport_id);
@@ -6513,7 +6516,7 @@ static int scst_init_session(struct scst_session *sess)
 	}
 
 	res = -ENOMEM;
-	sess->sess_name = scst_get_unique_sess_name(&sess->tgt->sess_list,
+	sess->sess_name = scst_get_unique_sess_name(&sess->tgt->sysfs_sess_list,
 					       sess->initiator_name);
 	if (!sess->sess_name)
 		goto failed;
@@ -6521,6 +6524,9 @@ static int scst_init_session(struct scst_session *sess)
 	res = scst_sess_sysfs_create(sess);
 	if (res != 0)
 		goto failed;
+
+	list_add_tail(&sess->sysfs_sess_list_entry,
+		      &sess->tgt->sysfs_sess_list);
 
 	/*
 	 * scst_sess_alloc_tgt_devs() must be called after session added in the
