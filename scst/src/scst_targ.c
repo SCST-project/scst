@@ -4008,14 +4008,15 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 		scst_pre_parse(cmd);
 
 		if (!cmd->set_sn_on_restart_cmd) {
-			if (cmd->tgtt->multithreaded_init_done) {
+			if (!cmd->tgtt->multithreaded_init_done)
+				scst_cmd_set_sn(cmd);
+			else {
 				struct scst_order_data *order_data = cmd->cur_order_data;
 				unsigned long flags;
 				spin_lock_irqsave(&order_data->init_done_lock, flags);
 				scst_cmd_set_sn(cmd);
 				spin_unlock_irqrestore(&order_data->init_done_lock, flags);
-			} else
-				scst_cmd_set_sn(cmd);
+			}
 		}
 	} else if (res < 0) {
 		TRACE_DBG("Finishing cmd %p", cmd);
