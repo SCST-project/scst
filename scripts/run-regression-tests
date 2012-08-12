@@ -381,6 +381,7 @@ function run_smatch {
     echo "${errors} errors / ${warnings} warnings."
     cat "${outputfile}" |
       grep -E ' info:| warning:| error:' |
+      sed 's/^\([^:]*\):[0-9:]* /\1: /' |
       sort |
       uniq -c
   else
