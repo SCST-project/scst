@@ -2459,7 +2459,7 @@ static void scst_check_reassign_sess(struct scst_session *sess)
 	struct list_head *head;
 	struct scst_tgt_dev *tgt_dev;
 	bool luns_changed = false;
-	bool add_failed, something_freed, not_needed_freed = false;
+	bool add_failed, something_freed;
 
 	TRACE_ENTRY();
 
@@ -2484,7 +2484,7 @@ static void scst_check_reassign_sess(struct scst_session *sess)
 retry_add:
 	add_failed = false;
 	list_for_each_entry(acg_dev, &acg->acg_dev_list, acg_dev_list_entry) {
-		unsigned int inq_changed_ua_needed = 0;
+		bool inq_changed_ua_needed = false;
 
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 			head = &sess->sess_tgt_dev_list[i];
@@ -2500,8 +2500,13 @@ retry_add:
 						(unsigned long long)tgt_dev->lun);
 					tgt_dev->acg_dev = acg_dev;
 					goto next;
-				} else if (tgt_dev->lun == acg_dev->lun)
+				} else if (tgt_dev->lun == acg_dev->lun) {
+					TRACE_MGMT_DBG("Replacing LUN %lld",
+						(long long)tgt_dev->lun);
+					scst_free_tgt_dev(tgt_dev);
 					inq_changed_ua_needed = 1;
+					break;
+				}
 			}
 		}
 
@@ -2518,14 +2523,12 @@ retry_add:
 			break;
 		}
 
-		tgt_dev->inq_changed_ua_needed = inq_changed_ua_needed ||
-						 not_needed_freed;
+		tgt_dev->inq_changed_ua_needed = inq_changed_ua_needed;
 next:
 		continue;
 	}
 
 	something_freed = false;
-	not_needed_freed = true;
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		struct scst_tgt_dev *t;
 		head = &sess->sess_tgt_dev_list[i];
