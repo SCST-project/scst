@@ -913,6 +913,31 @@ static void vdisk_detach(struct scst_device *dev)
 	return;
 }
 
+static int vdisk_open_fd(struct scst_vdisk_dev *virt_dev)
+{
+	int res;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&scst_mutex);
+#endif
+	sBUG_ON(!virt_dev->filename);
+
+	virt_dev->fd = vdev_open_fd(virt_dev);
+	if (IS_ERR(virt_dev->fd)) {
+		res = PTR_ERR(virt_dev->fd);
+		virt_dev->fd = NULL;
+		PRINT_ERROR("filp_open(%s) returned error %d",
+			    virt_dev->filename, res);
+		goto out;
+	}
+	virt_dev->bdev = virt_dev->blockio ?
+		virt_dev->fd->f_dentry->d_inode->i_bdev : NULL;
+	res = 0;
+
+out:
+	return res;
+}
+
 /* Invoked with scst_mutex held, so no further locking is necessary here. */
 static int vdisk_attach_tgt(struct scst_tgt_dev *tgt_dev)
 {
@@ -929,15 +954,9 @@ static int vdisk_attach_tgt(struct scst_tgt_dev *tgt_dev)
 		goto out;
 
 	if (!virt_dev->nullio && !virt_dev->cdrom_empty) {
-		virt_dev->fd = vdev_open_fd(virt_dev);
-		if (IS_ERR(virt_dev->fd)) {
-			PRINT_ERROR("filp_open(%s) returned an error %ld",
-				    virt_dev->filename, PTR_ERR(virt_dev->fd));
-			virt_dev->fd = NULL;
+		res = vdisk_open_fd(virt_dev);
+		if (res != 0)
 			goto out;
-		}
-		virt_dev->bdev = virt_dev->blockio ?
-			virt_dev->fd->f_dentry->d_inode->i_bdev : NULL;
 	} else
 		virt_dev->fd = NULL;
 
@@ -4716,6 +4735,7 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 	loff_t err;
 	char *old_fn, *p, *pp;
 	bool old_empty;
+	struct file *old_fd;
 	const char *filename = NULL;
 	int length = strlen(buffer);
 	int res = 0;
@@ -4743,6 +4763,7 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 	mutex_lock(&scst_mutex);
 
 	old_empty = virt_dev->cdrom_empty;
+	old_fd = virt_dev->fd;
 
 	if (*filename == '\0') {
 		virt_dev->cdrom_empty = 1;
@@ -4770,9 +4791,16 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 				virt_dev->blockio, &err);
 		if (res != 0)
 			goto out_free_fn;
+		if (virt_dev->tgt_dev_cnt > 0) {
+			res = vdisk_open_fd(virt_dev);
+			if (res != 0)
+				goto out_free_fn;
+			sBUG_ON(!virt_dev->fd);
+		}
 	} else {
 		err = 0;
 		virt_dev->filename = NULL;
+		virt_dev->fd = NULL;
 	}
 
 	if (virt_dev->prevent_allow_medium_removal) {
@@ -4804,6 +4832,8 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 			virt_dev->name);
 	}
 
+	if (old_fd)
+		filp_close(old_fd, NULL);
 	kfree(old_fn);
 
 out_resume:
@@ -4814,6 +4844,7 @@ out:
 	return res;
 
 out_free_fn:
+	virt_dev->fd = old_fd;
 	kfree(virt_dev->filename);
 	virt_dev->filename = old_fn;
 
