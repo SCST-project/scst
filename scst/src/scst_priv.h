@@ -394,6 +394,7 @@ uint64_t scst_unpack_lun(const uint8_t *lun, int len);
 struct scst_mgmt_cmd *scst_alloc_mgmt_cmd(gfp_t gfp_mask);
 void scst_free_mgmt_cmd(struct scst_mgmt_cmd *mcmd);
 void scst_done_cmd_mgmt(struct scst_cmd *cmd);
+void scst_finish_cmd_mgmt(struct scst_cmd *cmd);
 
 static inline void scst_devt_cleanup(struct scst_dev_type *devt) { }
 

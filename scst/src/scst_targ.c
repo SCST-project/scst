@@ -45,7 +45,6 @@
 
 static void scst_cmd_set_sn(struct scst_cmd *cmd);
 static int __scst_init_cmd(struct scst_cmd *cmd);
-static void scst_finish_cmd_mgmt(struct scst_cmd *cmd);
 static struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess,
 	uint64_t tag, bool to_abort);
 static void scst_process_redirect_cmd(struct scst_cmd *cmd,
@@ -4703,7 +4702,7 @@ void scst_async_mcmd_completed(struct scst_mgmt_cmd *mcmd, int status)
 EXPORT_SYMBOL_GPL(scst_async_mcmd_completed);
 
 /* No locks */
-static void scst_finish_cmd_mgmt(struct scst_cmd *cmd)
+void scst_finish_cmd_mgmt(struct scst_cmd *cmd)
 {
 	struct scst_mgmt_cmd_stub *mstb, *t;
 	bool wake = false;
@@ -4846,9 +4845,6 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 	 */
 	smp_mb__after_set_bit();
 
-	if (cmd->internal)
-		goto out;
-
 	if (cmd->tgt_dev == NULL) {
 		spin_lock_irqsave(&scst_init_lock, flags);
 		scst_init_poll_cnt++;
@@ -4909,12 +4905,12 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 				"sn %u) being executed/xmitted (state %d, "
 				"op %x, proc time %ld sec., timeout %d sec.), "
 				"deferring ABORT (cmd_done_wait_count %d, "
-				"cmd_finish_wait_count %d)", cmd,
+				"cmd_finish_wait_count %d, internal %d)", cmd,
 				(long long unsigned int)cmd->tag,
 				cmd->sn, cmd->state, cmd->cdb[0],
 				(long)(jiffies - cmd->start_time) / HZ,
 				cmd->timeout / HZ, mcmd->cmd_done_wait_count,
-				mcmd->cmd_finish_wait_count);
+				mcmd->cmd_finish_wait_count, cmd->internal);
 			/*
 			 * cmd can't die here or sess_list_lock already taken
 			 * and cmd is in the sess list
@@ -4926,14 +4922,13 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 			mempool_free(mstb, scst_mgmt_stub_mempool);
 		}
 
-		if (cmd->tgtt->on_abort_cmd)
+		if (!cmd->internal && cmd->tgtt->on_abort_cmd)
 			cmd->tgtt->on_abort_cmd(cmd);
 	}
 
 unlock:
 	spin_unlock_irqrestore(&scst_mcmd_lock, flags);
 
-out:
 	tm_dbg_release_cmd(cmd);
 
 	TRACE_EXIT();
@@ -6894,7 +6889,7 @@ static struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess,
 
 	list_for_each_entry(cmd, &sess->sess_cmd_list,
 			sess_cmd_list_entry) {
-		if (cmd->tag == tag) {
+		if ((cmd->tag == tag) && likely(!cmd->internal)) {
 			/*
 			 * We must not count done commands, because
 			 * they were submitted for transmission.
@@ -6965,7 +6960,7 @@ struct scst_cmd *scst_find_cmd(struct scst_session *sess, void *data,
 		 */
 		if (cmd->done)
 			continue;
-		if (cmp_fn(cmd, data))
+		if (cmp_fn(cmd, data) && likely(!cmd->internal))
 			goto out_unlock;
 	}
 

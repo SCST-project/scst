@@ -4473,6 +4473,7 @@ static struct scst_cmd *scst_create_prepare_internal_cmd(
 	struct scst_cmd *res;
 	int rc;
 	gfp_t gfp_mask = scst_cmd_atomic(orig_cmd) ? GFP_ATOMIC : GFP_KERNEL;
+	unsigned long flags;
 
 	TRACE_ENTRY();
 
@@ -4493,6 +4494,17 @@ static struct scst_cmd *scst_create_prepare_internal_cmd(
 	res->lun = orig_cmd->lun;
 	res->queue_type = queue_type;
 	res->data_direction = SCST_DATA_UNKNOWN;
+
+	/*
+	 * We need to keep it here to be able to abort during TM processing.
+	 * They should be aborted to (1) speed up TM processing and (2) to
+	 * guarantee that after a TM command finished the affected device(s)
+	 * is/are in a quiescent state with all affected commands finished and
+	 * others - blocked.
+	 */
+	spin_lock_irqsave(&res->sess->sess_list_lock, flags);
+	list_add_tail(&res->sess_cmd_list_entry, &res->sess->sess_cmd_list);
+	spin_unlock_irqrestore(&res->sess->sess_list_lock, flags);
 
 	scst_sess_get(res->sess);
 	if (res->tgt_dev != NULL)
@@ -4926,6 +4938,7 @@ EXPORT_SYMBOL_GPL(scst_write_same);
 int scst_finish_internal_cmd(struct scst_cmd *cmd)
 {
 	int res;
+	unsigned long flags;
 
 	TRACE_ENTRY();
 
@@ -4936,6 +4949,17 @@ int scst_finish_internal_cmd(struct scst_cmd *cmd)
 			"thread context", cmd);
 		res = SCST_CMD_STATE_RES_NEED_THREAD;
 		goto out;
+	}
+
+	spin_lock_irqsave(&cmd->sess->sess_list_lock, flags);
+	list_del(&cmd->sess_cmd_list_entry);
+	cmd->done = 1;
+	cmd->finished = 1;
+	spin_unlock_irqrestore(&cmd->sess->sess_list_lock, flags);
+
+	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
+		scst_done_cmd_mgmt(cmd);
+		scst_finish_cmd_mgmt(cmd);
 	}
 
 	if (cmd->cdb[0] == REQUEST_SENSE)
