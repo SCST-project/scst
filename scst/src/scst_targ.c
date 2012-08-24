@@ -3013,7 +3013,7 @@ static int scst_check_sense(struct scst_cmd *cmd)
 					cmd->resp_data_len =
 						cmd->dbl_ua_orig_resp_data_len;
 
-					cmd->state = SCST_CMD_STATE_REAL_EXEC;
+					cmd->state = SCST_CMD_STATE_LOCAL_EXEC;
 					cmd->retry = 1;
 					res = 1;
 					goto out;
