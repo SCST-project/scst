@@ -4139,11 +4139,12 @@ out:
 	return res;
 }
 
+/* scst_vdisk_mutex supposed to be held */
 static int vdev_create(struct scst_dev_type *devt,
 	const char *name, struct scst_vdisk_dev **res_virt_dev)
 {
 	int res;
-	struct scst_vdisk_dev *virt_dev;
+	struct scst_vdisk_dev *virt_dev, *vv;
 	uint64_t dev_id_num;
 
 	res = -EEXIST;
@@ -4184,6 +4185,15 @@ static int vdev_create(struct scst_dev_type *devt,
 
 	scnprintf(virt_dev->usn, sizeof(virt_dev->usn), "%llx", dev_id_num);
 	TRACE_DBG("usn %s", virt_dev->usn);
+
+	list_for_each_entry(vv, &vdev_list, vdev_list_entry) {
+		if (strcmp(virt_dev->usn, vv->usn) == 0) {
+			PRINT_ERROR("New usn %s conflicts with one of dev %s",
+				virt_dev->usn, vv->name);
+			res = -EEXIST;
+			goto out_free;
+		}
+	}
 
 	*res_virt_dev = virt_dev;
 	res = 0;
