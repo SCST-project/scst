@@ -971,6 +971,14 @@ static int scn_accept_connection(void)
 	socklen_t slen;
 	int fd, err, opt = 1;
 
+	if (isns_server == NULL) {
+		/*
+		 * Sometimes we have (leftover?) events after disable iSNS
+		 * server, so ignore them
+		 */
+		goto out;
+	}
+
 	slen = sizeof(from);
 	fd = accept(scn_listen_fd, &from.sa, &slen);
 	if (fd < 0) {
@@ -989,6 +997,7 @@ static int scn_accept_connection(void)
 	scn_fd = fd;
 	isns_set_fd(isns_fd, scn_listen_fd, scn_fd);
 
+out:
 	return 0;
 }
 
