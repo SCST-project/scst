@@ -671,7 +671,7 @@ out:
 
 static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 {
-	struct file *fd = NULL;
+	struct file *fd;
 
 	TRACE_ENTRY();
 
@@ -707,8 +707,7 @@ static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 	}
 
 out_close:
-	if (fd != NULL)
-		filp_close(fd, NULL);
+	filp_close(fd, NULL);
 
 out_check:
 	if (virt_dev->thin_provisioned_manually_set) {
