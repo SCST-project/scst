@@ -1270,8 +1270,8 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 			goto out_unlock;
 
 		if (scst_get_next_lexem(&pp)[0] != '\0') {
-			PRINT_ERROR("Too many parameters for device %s: %s",
-				    p, dev->virt_name);
+			PRINT_ERROR("Too many parameters for del LUN %ld: %s",
+				    virt_lun, p);
 			res = -EINVAL;
 			goto out_unlock;
 		}
@@ -1282,8 +1282,7 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 		break;
 	case SCST_LUN_ACTION_CLEAR:
 		if (scst_get_next_lexem(&pp)[0] != '\0') {
-			PRINT_ERROR("Too many parameters for device %s: %s",
-				    p, dev->virt_name);
+			PRINT_ERROR("Too many parameters for clear: %s", p);
 			res = -EINVAL;
 			goto out_unlock;
 		}
@@ -1370,7 +1369,7 @@ static ssize_t scst_luns_mgmt_show(struct kobject *kobj,
 				   char *buf)
 {
 	static const char help[] =
-		"Usage: echo \"add|del H:C:I:L lun [parameters]\" >mgmt\n"
+		"Usage: echo \"add H:C:I:L lun [parameters]\" >mgmt\n"
 		"       echo \"add VNAME lun [parameters]\" >mgmt\n"
 		"       echo \"del lun\" >mgmt\n"
 		"       echo \"replace H:C:I:L lun [parameters]\" >mgmt\n"
