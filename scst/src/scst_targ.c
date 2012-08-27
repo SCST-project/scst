@@ -4780,12 +4780,13 @@ static inline int scst_is_strict_mgmt_fn(int mgmt_fn)
 	switch (mgmt_fn) {
 #ifdef CONFIG_SCST_ABORT_CONSIDER_FINISHED_TASKS_AS_NOT_EXISTING
 	case SCST_ABORT_TASK:
+		return 1;
 #endif
 #if 0
 	case SCST_ABORT_TASK_SET:
 	case SCST_CLEAR_TASK_SET:
-#endif
 		return 1;
+#endif
 	default:
 		return 0;
 	}
