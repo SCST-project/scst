@@ -1348,9 +1348,9 @@ retry:
 					 (struct iovec __force __user *)iop,
 					 count, &off);
 			set_fs(oldfs);
-			TRACE_WRITE("sid %#Lx, cid %u, res %d, iov_len %ld",
+			TRACE_WRITE("sid %#Lx, cid %u, res %d, iov_len %zd",
 				    (long long unsigned int)conn->session->sid,
-				    conn->cid, res, (long)iop->iov_len);
+				    conn->cid, res, iop->iov_len);
 			if (unlikely(res <= 0)) {
 				if (res == -EAGAIN) {
 					conn->write_iop = iop;
