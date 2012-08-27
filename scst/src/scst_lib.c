@@ -4160,7 +4160,7 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	if (res != 0)
 		goto out_pr_clear;
 
-	if (dev->handler && dev->handler->attach_tgt) {
+	if (dev->handler->attach_tgt) {
 		TRACE_DBG("Calling dev handler's attach_tgt(%p)", tgt_dev);
 		res = dev->handler->attach_tgt(tgt_dev);
 		TRACE_DBG("%s", "Dev handler's attach_tgt() returned");
@@ -4191,7 +4191,7 @@ out:
 	return res;
 
 out_detach:
-	if (dev->handler && dev->handler->detach_tgt) {
+	if (dev->handler->detach_tgt) {
 		TRACE_DBG("Calling dev handler's detach_tgt(%p)",
 		      tgt_dev);
 		dev->handler->detach_tgt(tgt_dev);
