@@ -6430,7 +6430,7 @@ static int get_cdb_info_len_1(struct scst_cmd *cmd,
 	cmd->op_flags |= SCST_LBA_NOT_VALID;
 	cmd->lba = 0;
 
-	cmd->bufflen = (u32)cmd->cdb[sdbops->info_len_off];
+	cmd->bufflen = cmd->cdb[sdbops->info_len_off];
 	cmd->data_len = cmd->bufflen;
 	return 0;
 }
