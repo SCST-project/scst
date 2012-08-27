@@ -6821,9 +6821,14 @@ int scst_global_mgmt_thread(void *arg)
 			list_del(&sess->sess_init_list_entry);
 			spin_unlock_irq(&scst_mgmt_lock);
 
-			if (sess->init_phase == SCST_SESS_IPH_INITING)
+			if (sess->init_phase == SCST_SESS_IPH_INITING) {
+				/*
+				 * Note: it's not necessary to free the session
+				 * here if initialization fails. See also the
+				 * comment block above scst_register_session().
+				 */
 				scst_init_session(sess);
-			else {
+			} else {
 				PRINT_CRIT_ERROR("session %p is in "
 					"scst_sess_init_list, but in unknown "
 					"init phase %x", sess,
