@@ -3592,14 +3592,14 @@ static int iscsi_scsi_aen(struct scst_aen *aen)
 	}
 	if (!found) {
 		TRACE_MGMT_DBG("Unable to find alive conn for sess %p", sess);
-		goto out_err;
+		goto out_err_unlock;
 	}
 
 	/* Create a fake request */
 	fake_req = cmnd_alloc(conn, NULL);
 	if (fake_req == NULL) {
 		PRINT_ERROR("%s", "Unable to alloc fake AEN request");
-		goto out_err;
+		goto out_err_unlock;
 	}
 
 	mutex_unlock(&sess->target->target_mutex);
@@ -3641,9 +3641,12 @@ out:
 
 out_err_free_req:
 	req_cmnd_release(fake_req);
+	goto out_set_res;
 
-out_err:
+out_err_unlock:
 	mutex_unlock(&sess->target->target_mutex);
+
+out_set_res:
 	res = SCST_AEN_RES_FAILED;
 	goto out;
 }
