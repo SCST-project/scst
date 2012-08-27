@@ -202,6 +202,8 @@ Target Driver Operations
      -issue_lip [<t>]
         [-driver <driver>]   : Issue a LIP for a specific driver/target or for
                                all drivers and targets.
+     -no_lip                 : Don't automatically issue a LIP after applying
+                               configuration changes.
 
 Options
      -nonkey                 : When writing a config file or listing attributes,
@@ -343,6 +345,7 @@ sub getArgs {
 	my $enableTarget;
 	my $disableTarget;
 	my $issueLip;
+	my $noLip;
 
 	my $handler;
 	my $attributes;
@@ -437,6 +440,7 @@ sub getArgs {
 			    'enable_target=s'	=> \$enableTarget,
 			    'disable_target=s'	=> \$disableTarget,
 			    'issue_lip:s'	=> \$issueLip,
+			    'no_lip'		=> \$noLip,
 
 			    'handler=s'		=> \$handler,
 			    'attributes=s'	=> \$attributes,
@@ -470,6 +474,7 @@ sub getArgs {
 
 	$force = TRUE if (defined($force));
 	$nonkey = TRUE if (defined($nonkey));
+	$noLip = TRUE if (defined($noLip));
 
 	my $query_mode = defined($listHandler) || defined($listDevice) || defined($listDeviceGroup) || defined($listTargetGroup) ||
 	  defined($listDriver) || defined($listTarget) || defined($listGroup) || defined($listSessions) ||
@@ -711,7 +716,7 @@ sub getArgs {
 		$addGroup, $removeGroup,
 		$addInitiator, $removeInitiator, $moveInitiator, $clearInitiators,
 		$addLun, $removeLun, $replaceLun, $clearLuns,
-		$enableTarget, $disableTarget, $issueLip,
+		$enableTarget, $disableTarget, $issueLip, $noLip,
 		$handler, \%_attributes,
 		$driver, $target, $group, $to, $device,, $deviceGroup, $targetGroup,
 		$nonkey, $force);
@@ -740,7 +745,7 @@ sub main {
 	    $addGroup, $removeGroup,
 	    $addInitiator, $removeInitiator, $moveInitiator, $clearInitiators,
 	    $addLun, $removeLun, $replaceLun, $clearLuns,
-	    $enableTarget, $disableTarget, $issueLip,
+	    $enableTarget, $disableTarget, $issueLip, $noLip,
 	    $handler, $attributes,
 	    $driver, $target, $group, $to, $device, $deviceGroup, $targetGroup,
 	    $nonkey, $force) = getArgs();
@@ -759,7 +764,7 @@ sub main {
 			immediateExit("Configuration has errors, aborting.") if ($rc);
 			last if ($force && prompt());
 			my $changes = applyConfiguration($force);
-			$rc = issueLip() if ($changes);
+			$rc = issueLip() if ($changes && !$noLip);
 			last SWITCH;
 		};
 		defined($checkConfig) && do {
@@ -775,7 +780,7 @@ sub main {
 		defined($clearConfig) && do {
 			last if (prompt());
 			$rc = clearConfiguration();
-			$rc = issueLip() if (!$rc);
+			$rc = issueLip() if (!$rc && !$noLip);
 			last SWITCH;
 		};
 		defined($listHandler) && do {
@@ -934,14 +939,14 @@ sub main {
 		defined($addDriverAttr) && do {
 			print "\n-> Making requested changes.\n";
 			$rc = addDriverDynamicAttributes($addDriverAttr, $attributes);
-			$rc = issueLip() if (!$rc);
+			$rc = issueLip() if (!$rc && !$noLip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
 		defined($addTargetAttr) && do {
 			print "\n-> Making requested changes.\n";
 			$rc = addTargetDynamicAttributes($driver, $addTargetAttr, $attributes);
-			$rc = issueLip() if (!$rc);
+			$rc = issueLip() if (!$rc && !$noLip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -949,7 +954,7 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			$rc = removeDriverDynamicAttributes($remDriverAttr, $attributes);
-			$rc = issueLip() if (!$rc);
+			$rc = issueLip() if (!$rc && !$noLip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -957,7 +962,7 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			$rc = removeTargetDynamicAttributes($driver, $remTargetAttr, $attributes);
-			$rc = issueLip() if (!$rc);
+			$rc = issueLip() if (!$rc && !$noLip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -971,14 +976,14 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			$rc = closeDevice($handler, $closeDev, $force);
-			$rc = issueLip() if (!$rc);
+			$rc = issueLip() if (!$rc && !$noLip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
 		defined($resyncDev) && do {
 			print "\n-> Making requested changes.\n";
 			$rc = resyncDevice($resyncDev);
-			$rc = issueLip() if (!$rc);
+			$rc = issueLip() if (!$rc && !$noLip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
