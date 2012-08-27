@@ -552,10 +552,9 @@ static ssize_t iscsi_sess_force_close_store(struct kobject *kobj,
 	scst_sess = container_of(kobj, struct scst_session, sess_kobj);
 	sess = (struct iscsi_session *)scst_sess_get_tgt_priv(scst_sess);
 
-	if (mutex_lock_interruptible(&sess->target->target_mutex) != 0) {
-		res = -EINTR;
+	res = mutex_lock_interruptible(&sess->target->target_mutex);
+	if (res != 0)
 		goto out;
-	}
 
 	iscsi_sess_force_close(sess);
 

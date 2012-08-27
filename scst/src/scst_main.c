@@ -743,10 +743,9 @@ int scst_suspend_activity(unsigned long timeout)
 #endif
 
 	if (timeout != SCST_SUSPEND_TIMEOUT_UNLIMITED) {
-		if (mutex_lock_interruptible(&scst_suspend_mutex) != 0) {
-			res = -EINTR;
+		res = mutex_lock_interruptible(&scst_suspend_mutex);
+		if (res != 0)
 			goto out;
-		}
 	} else
 		mutex_lock(&scst_suspend_mutex);
 

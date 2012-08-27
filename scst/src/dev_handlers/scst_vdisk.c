@@ -4524,10 +4524,9 @@ static ssize_t vdisk_add_fileio_device(const char *device_name, char *params)
 
 	TRACE_ENTRY();
 
-	if (mutex_lock_interruptible(&scst_vdisk_mutex) != 0) {
-		res = -EINTR;
+	res = mutex_lock_interruptible(&scst_vdisk_mutex);
+	if (res != 0)
 		goto out;
-	}
 
 	res = vdev_fileio_add_device(device_name, params);
 
@@ -4544,10 +4543,9 @@ static ssize_t vdisk_add_blockio_device(const char *device_name, char *params)
 
 	TRACE_ENTRY();
 
-	if (mutex_lock_interruptible(&scst_vdisk_mutex) != 0) {
-		res = -EINTR;
+	res = mutex_lock_interruptible(&scst_vdisk_mutex);
+	if (res != 0)
 		goto out;
-	}
 
 	res = vdev_blockio_add_device(device_name, params);
 
@@ -4565,10 +4563,9 @@ static ssize_t vdisk_add_nullio_device(const char *device_name, char *params)
 
 	TRACE_ENTRY();
 
-	if (mutex_lock_interruptible(&scst_vdisk_mutex) != 0) {
-		res = -EINTR;
+	res = mutex_lock_interruptible(&scst_vdisk_mutex);
+	if (res)
 		goto out;
-	}
 
 	res = vdev_nullio_add_device(device_name, params);
 
@@ -4608,10 +4605,9 @@ static ssize_t vdisk_del_device(const char *device_name)
 
 	TRACE_ENTRY();
 
-	if (mutex_lock_interruptible(&scst_vdisk_mutex) != 0) {
-		res = -EINTR;
+	res = mutex_lock_interruptible(&scst_vdisk_mutex);
+	if (res != 0)
 		goto out;
-	}
 
 	virt_dev = vdev_find(device_name);
 	if (virt_dev == NULL) {
@@ -4693,10 +4689,9 @@ static ssize_t vcdrom_add_device(const char *device_name, char *params)
 
 	TRACE_ENTRY();
 
-	if (mutex_lock_interruptible(&scst_vdisk_mutex) != 0) {
-		res = -EINTR;
+	res = mutex_lock_interruptible(&scst_vdisk_mutex);
+	if (res != 0)
 		goto out;
-	}
 
 	res = __vcdrom_add_device(device_name, params);
 
@@ -4715,10 +4710,9 @@ static ssize_t vcdrom_del_device(const char *device_name)
 
 	TRACE_ENTRY();
 
-	if (mutex_lock_interruptible(&scst_vdisk_mutex) != 0) {
-		res = -EINTR;
+	res = mutex_lock_interruptible(&scst_vdisk_mutex);
+	if (res != 0)
 		goto out;
-	}
 
 	virt_dev = vdev_find(device_name);
 	if (virt_dev == NULL) {
@@ -5434,10 +5428,9 @@ static int vdisk_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type)
 
 	TRACE_ENTRY();
 
-	if (mutex_lock_interruptible(&scst_vdisk_mutex) != 0) {
-		res = -EINTR;
+	res = mutex_lock_interruptible(&scst_vdisk_mutex);
+	if (res != 0)
 		goto out;
-	}
 
 	seq_printf(seq, "%-17s %-11s %-11s %-15s %-45s %-16s\n",
 		"Name", "Size(MB)", "Block size", "Options", "File name",
@@ -5525,10 +5518,9 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 		goto out;
 	}
 
-	if (mutex_lock_interruptible(&scst_vdisk_mutex) != 0) {
-		res = -EINTR;
+	res = mutex_lock_interruptible(&scst_vdisk_mutex);
+	if (res != 0)
 		goto out_free;
-	}
 
 	p = i_buf;
 	if (p[strlen(p) - 1] == '\n')
@@ -5777,10 +5769,9 @@ static int vcdrom_read_proc(struct seq_file *seq,
 
 	TRACE_ENTRY();
 
-	if (mutex_lock_interruptible(&scst_vdisk_mutex) != 0) {
-		res = -EINTR;
+	res = mutex_lock_interruptible(&scst_vdisk_mutex);
+	if (res != 0)
 		goto out;
-	}
 
 	seq_printf(seq, "%-17s %-9s %s\n", "Name", "Size(MB)", "File name");
 
@@ -5931,10 +5922,9 @@ static int vcdrom_write_proc(char *buffer, char **start, off_t offset,
 		goto out;
 	}
 
-	if (mutex_lock_interruptible(&scst_vdisk_mutex) != 0) {
-		res = -EINTR;
+	res = mutex_lock_interruptible(&scst_vdisk_mutex);
+	if (res != 0)
 		goto out_free;
-	}
 
 	p = i_buf;
 	if (p[strlen(p) - 1] == '\n')

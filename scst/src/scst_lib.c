@@ -3251,10 +3251,9 @@ int gen_relative_target_port_id(uint16_t *id)
 
 	TRACE_ENTRY();
 
-	if (mutex_lock_interruptible(&scst_mutex) != 0) {
-		res = -EINTR;
+	res = mutex_lock_interruptible(&scst_mutex);
+	if (res != 0)
 		goto out;
-	}
 
 	rti_prev = rti;
 	do {
