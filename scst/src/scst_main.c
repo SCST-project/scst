@@ -598,7 +598,7 @@ static inline int test_sess_list(struct scst_tgt *tgt)
 {
 	int res;
 	mutex_lock(&scst_mutex);
-	res = list_empty(&tgt->sess_list);
+	res = list_empty(&tgt->sysfs_sess_list);
 	mutex_unlock(&scst_mutex);
 	return res;
 }
