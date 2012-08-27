@@ -8504,8 +8504,7 @@ EXPORT_SYMBOL(scst_reassign_persistent_sess_states);
  */
 char *scst_get_next_lexem(char **token_str)
 {
-	char *p = *token_str;
-	char *q;
+	char *p, *q;
 	static const char blank = '\0';
 
 	if ((token_str == NULL) || (*token_str == NULL))
