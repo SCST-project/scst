@@ -2579,7 +2579,7 @@ next:
 					tgt_dev->inq_changed_ua_needed = 0;
 
 					scst_gen_aen_or_ua(tgt_dev,
-						SCST_LOAD_SENSE(scst_sense_inquery_data_changed));
+						SCST_LOAD_SENSE(scst_sense_inquiry_data_changed));
 				}
 			}
 		}

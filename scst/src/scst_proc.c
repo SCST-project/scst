@@ -2072,7 +2072,7 @@ static ssize_t scst_proc_groups_devices_write(struct file *file,
 					TRACE_MGMT_DBG("INQUIRY DATA HAS CHANGED"
 						" on tgt_dev %p", tgt_dev);
 					scst_gen_aen_or_ua(tgt_dev,
-						SCST_LOAD_SENSE(scst_sense_inquery_data_changed));
+						SCST_LOAD_SENSE(scst_sense_inquiry_data_changed));
 				}
 			}
 		}

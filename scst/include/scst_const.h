@@ -301,7 +301,7 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 #define scst_sense_asym_access_state_changed	UNIT_ATTENTION,  0x2A, 0x06
 #define scst_sense_capacity_data_changed	UNIT_ATTENTION,  0x2A, 0x9
 #define scst_sense_cleared_by_another_ini_UA	UNIT_ATTENTION,  0x2F, 0
-#define scst_sense_inquery_data_changed		UNIT_ATTENTION,  0x3F, 0x3
+#define scst_sense_inquiry_data_changed		UNIT_ATTENTION,  0x3F, 0x3
 #define scst_sense_reported_luns_data_changed	UNIT_ATTENTION,  0x3F, 0xE
 
 /*************************************************************

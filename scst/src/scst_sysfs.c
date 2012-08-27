@@ -1252,7 +1252,7 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 					TRACE_MGMT_DBG("INQUIRY DATA HAS CHANGED"
 						" on tgt_dev %p", tgt_dev);
 					scst_gen_aen_or_ua(tgt_dev,
-						SCST_LOAD_SENSE(scst_sense_inquery_data_changed));
+						SCST_LOAD_SENSE(scst_sense_inquiry_data_changed));
 				}
 			}
 		}
