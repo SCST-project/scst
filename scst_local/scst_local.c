@@ -582,11 +582,9 @@ static ssize_t scst_local_transport_id_store(struct kobject *kobj,
 
 	mutex_lock(&sess->tr_id_mutex);
 
-	if (sess->transport_id != NULL) {
-		kfree(sess->transport_id);
-		sess->transport_id = NULL;
-		sess->transport_id_len = 0;
-	}
+	kfree(sess->transport_id);
+	sess->transport_id = NULL;
+	sess->transport_id_len = 0;
 
 	if (size == 0)
 		goto out_res;
