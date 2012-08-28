@@ -185,7 +185,7 @@ struct iscsi_kern_initiator_info {
 
 #define	DEFAULT_NR_QUEUED_CMNDS	32
 #define	MIN_NR_QUEUED_CMNDS	1
-#define	MAX_NR_QUEUED_CMNDS	256
+#define	MAX_NR_QUEUED_CMNDS	2048
 
 #define DEFAULT_RSP_TIMEOUT	90
 #define MIN_RSP_TIMEOUT		2

@@ -1057,7 +1057,17 @@ static int iscsi_register(void __user *arg)
 
 	memset(&reg, 0, sizeof(reg));
 	reg.max_data_seg_len = ISCSI_CONN_IOV_MAX << PAGE_SHIFT;
+
+	/*
+	 * In iSCSI all LUs in a session share queue depth, so let's not
+	 * limit it too much for thousands of LUs VMware and other similar
+	 * systems cases.
+	 */
+#if 0
 	reg.max_queued_cmds = scst_get_max_lun_commands(NULL, NO_SUCH_LUN);
+#else
+	reg.max_queued_cmds = MAX_NR_QUEUED_CMNDS;
+#endif
 
 	res = 0;
 
