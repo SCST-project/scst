@@ -415,6 +415,7 @@ void scst_tg_tgt_remove_by_tgt(struct scst_tgt *tgt);
 #ifndef CONFIG_SCST_PROC
 int scst_dg_sysfs_add(struct kobject *parent, struct scst_dev_group *dg);
 void scst_dg_sysfs_del(struct scst_dev_group *dg);
+void scst_tgt_sysfs_put(struct scst_tgt *tgt);
 int scst_dg_dev_sysfs_add(struct scst_dev_group *dg, struct scst_dg_dev *dgdev);
 void scst_dg_dev_sysfs_del(struct scst_dev_group *dg,
 			   struct scst_dg_dev *dgdev);

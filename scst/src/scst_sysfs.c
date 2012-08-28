@@ -2399,12 +2399,7 @@ out_err:
  */
 void scst_tgt_sysfs_del(struct scst_tgt *tgt)
 {
-	int rc;
-	DECLARE_COMPLETION_ONSTACK(c);
-
 	TRACE_ENTRY();
-
-	tgt->tgt_kobj_release_cmpl = &c;
 
 	kobject_del(tgt->tgt_sess_kobj);
 	kobject_del(tgt->tgt_luns_kobj);
@@ -2414,6 +2409,20 @@ void scst_tgt_sysfs_del(struct scst_tgt *tgt)
 	kobject_put(tgt->tgt_sess_kobj);
 	kobject_put(tgt->tgt_luns_kobj);
 	kobject_put(tgt->tgt_ini_grp_kobj);
+
+	TRACE_EXIT();
+	return;
+}
+
+void scst_tgt_sysfs_put(struct scst_tgt *tgt)
+{
+	int rc;
+	DECLARE_COMPLETION_ONSTACK(c);
+
+	TRACE_ENTRY();
+
+	tgt->tgt_kobj_release_cmpl = &c;
+
 	kobject_put(&tgt->tgt_kobj);
 
 	rc = wait_for_completion_timeout(tgt->tgt_kobj_release_cmpl, HZ);

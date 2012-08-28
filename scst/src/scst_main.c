@@ -618,6 +618,17 @@ void scst_unregister_target(struct scst_tgt *tgt)
 
 	TRACE_ENTRY();
 
+	/*
+	 * Remove the sysfs attributes of a target before invoking
+	 * tgt->tgtt->release(tgt) such that the "enabled" attribute can't be
+	 * accessed during or after the tgt->tgtt->release(tgt) call.
+	 */
+#ifdef CONFIG_SCST_PROC
+	scst_cleanup_proc_target_entries(tgt);
+#else
+	scst_tgt_sysfs_del(tgt);
+#endif
+
 	TRACE_DBG("%s", "Calling target driver's release()");
 	tgt->tgtt->release(tgt);
 	TRACE_DBG("%s", "Target driver's release() returned");
@@ -653,9 +664,7 @@ again:
 
 	scst_tg_tgt_remove_by_tgt(tgt);
 
-#ifdef CONFIG_SCST_PROC
-	scst_cleanup_proc_target_entries(tgt);
-#else
+#ifndef CONFIG_SCST_PROC
 	scst_del_free_acg(tgt->default_acg);
 
 	list_for_each_entry_safe(acg, acg_tmp, &tgt->tgt_acg_list,
@@ -668,7 +677,7 @@ again:
 	scst_resume_activity();
 
 #ifndef CONFIG_SCST_PROC
-	scst_tgt_sysfs_del(tgt);
+	scst_tgt_sysfs_put(tgt);
 #endif
 
 	PRINT_INFO("Target %s for template %s unregistered successfully",
