@@ -289,7 +289,6 @@ int __scst_register_target_template(struct scst_tgt_template *vtt,
 		if (strcmp(t->name, vtt->name) == 0) {
 			PRINT_ERROR("Target driver %s already registered",
 				vtt->name);
-			mutex_unlock(&scst_mutex);
 			goto out_unlock;
 		}
 	}
@@ -964,7 +963,7 @@ static int scst_register_device(struct scsi_device *scsidp)
 		if (dt->type == scsidp->type) {
 			res = scst_assign_dev_handler(dev, dt);
 			if (res != 0)
-				goto out_del;
+				goto out_del_locked;
 			break;
 		}
 	}
@@ -976,7 +975,7 @@ static int scst_register_device(struct scsi_device *scsidp)
 
 	res = scst_dev_sysfs_create(dev);
 	if (res != 0)
-		goto out_del;
+		goto out_del_unlocked;
 #endif
 
 	PRINT_INFO("Attached to scsi%d, channel %d, id %d, lun %d, "
@@ -987,8 +986,15 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 
-out_del:
+#ifndef CONFIG_SCST_PROC
+out_del_unlocked:
 	list_del(&dev->dev_list_entry);
+	scst_free_device(dev);
+	goto out;
+#else
+out_del_locked:
+	list_del(&dev->dev_list_entry);
+#endif
 
 out_free_dev:
 	scst_free_device(dev);
