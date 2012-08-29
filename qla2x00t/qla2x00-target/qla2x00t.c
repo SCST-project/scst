@@ -5407,7 +5407,7 @@ retry:
 
 	rc = qla2x00_get_port_database(ha, fcport, 0);
 	if (rc != QLA_SUCCESS) {
-		PRINT_ERROR("qla2x00t(%ld): Failed to retrieve fcport "
+		TRACE_MGMT_DBG("qla2x00t(%ld): Failed to retrieve fcport "
 			"information -- get_port_database() returned %x "
 			"(loop_id=0x%04x)", ha->instance, rc, loop_id);
 		goto out_free_fcport;
