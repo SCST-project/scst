@@ -523,6 +523,23 @@ int scst_sysfs_queue_wait_work(struct scst_sysfs_work_item *work)
 			"failed: %d", atomic_read(&uid_thread_name),
 			(int)PTR_ERR(t));
 
+#ifdef CONFIG_SCST_DEBUG_SYSFS_EAGAIN
+	{
+		static int cnt;
+
+		if (!work->read_only_action || cnt++ % 4 < 3) {
+			/*
+			 * Helps testing user space code that writes to or
+			 * reads from SCST sysfs variables.
+			 */
+			timeout = 0;
+			rc = 0;
+			res = -EAGAIN;
+			goto out_put;
+		}
+	}
+#endif
+
 	while (1) {
 		rc = wait_for_completion_interruptible_timeout(
 			&work->sysfs_work_done, timeout);
