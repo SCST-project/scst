@@ -3995,18 +3995,10 @@ static inline int cancel_delayed_work_sync(struct delayed_work *work)
 #endif
 #endif
 
-#ifndef RHEL_RELEASE_VERSION
-#define RHEL_RELEASE_VERSION(maj, min) 0
-#endif
-
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 extern struct lockdep_map scst_suspend_dep_map;
-#if !defined(RHEL_RELEASE_CODE) || (RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 4))
-# define scst_assert_activity_suspended()		\
+#define scst_assert_activity_suspended()		\
 	WARN_ON(debug_locks && !lock_is_held(&scst_suspend_dep_map));
-# else
-# define scst_assert_activity_suspended() do { } while (0)
-# endif
 #else
 #define scst_assert_activity_suspended() do { } while (0)
 #endif
