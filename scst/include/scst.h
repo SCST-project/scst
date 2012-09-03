@@ -2633,7 +2633,7 @@ struct scst_acg {
 	/* List of attached acn's, protected by scst_mutex */
 	struct list_head acn_list;
 
-	/* List entry in acg_lists */
+	/* List entry in acg_lists (procfs) or tgt_acg_list (sysfs) */
 	struct list_head acg_list_entry;
 
 	/* Name of this acg */
