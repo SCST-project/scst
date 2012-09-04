@@ -442,12 +442,12 @@ void scst_unregister_target_template(struct scst_tgt_template *vtt)
 	}
 #endif
 
-restart:
-	list_for_each_entry(tgt, &vtt->tgt_list, tgt_list_entry) {
+	while (!list_empty(&vtt->tgt_list)) {
+		tgt = list_first_entry(&vtt->tgt_list, typeof(*tgt),
+				       tgt_list_entry);
 		mutex_unlock(&scst_mutex);
 		scst_unregister_target(tgt);
 		mutex_lock(&scst_mutex);
-		goto restart;
 	}
 
 	mutex_unlock(&scst_mutex);
