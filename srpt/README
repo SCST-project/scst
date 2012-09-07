@@ -321,20 +321,23 @@ For more information, see also:
 Performance Notes - Target Side
 -------------------------------
 
-When using high-latency storage devices (hard disks), the default value
-choosen by SCST for DEVICE.threads_num should be fine. When using low-latency
-storage devices though (SSDs), DEVICE.threads_num should be set to 1 or 2 in
-/etc/scst.conf in order to reach optimal performance for small block sizes
-(e.g. 4 KB).
+* When using high-latency storage devices (hard disks), the default value
+  choosen by SCST for DEVICE.threads_num should be fine. When using
+  low-latency storage devices though (SSDs), DEVICE.threads_num should be set
+  to 1 or 2 in /etc/scst.conf in order to reach optimal performance for small
+  block sizes (e.g. 4 KB).
 
-When multiple InfiniBand HCA's are present in a target system the Linux
-kernel by default will assign the associated interrupt handlers to CPU 0.
-Even irqbalance will often assign the interrupt handlers of multiple HCA's
-to the same CPU. That is unfortunate because it leads to unfair handling of
-SRP sessions. The solution is to assign InfiniBand HCA interrupts manually
-to different CPU's. That's possible by writing looking up the InfiniBand
-interrupt numbers in /proc/interrupts and by writing proper bitmasks into
-/proc/irq/<n>/smp_affinity.
+* When multiple InfiniBand HCA's are present in a target system the Linux
+  kernel by default will assign the associated interrupt handlers to CPU 0.
+  Even irqbalance will often assign the interrupt handlers of multiple HCA's
+  to the same CPU. That is unfortunate because it leads to unfair handling of
+  SRP sessions. The solution is to assign InfiniBand HCA interrupts manually
+  to different CPU's. That's possible by writing looking up the InfiniBand
+  interrupt numbers in /proc/interrupts and by writing proper bitmasks into
+  /proc/irq/<n>/smp_affinity.
+
+* Disabling CONFIG_SCHED_DEBUG and CONFIG_SCHEDSTATS in the kernel config
+  helps.
 
 
 Performance Notes - Initiator Side
