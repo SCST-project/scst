@@ -336,9 +336,6 @@ Performance Notes - Target Side
   interrupt numbers in /proc/interrupts and by writing proper bitmasks into
   /proc/irq/<n>/smp_affinity.
 
-* Disabling CONFIG_SCHED_DEBUG and CONFIG_SCHEDSTATS in the kernel config
-  helps.
-
 
 Performance Notes - Initiator Side
 ----------------------------------
@@ -355,6 +352,15 @@ Performance Notes - Initiator Side
   * /sys/class/block/${dev}/queue/rotational
   * /sys/class/block/${dev}/queue/rq_affinity
   * /proc/irq/${ib_int_no}/smp_affinity
+
+
+Performance Notes - Both Sides
+------------------------------
+
+* Disabling CONFIG_SCHED_DEBUG and CONFIG_SCHEDSTATS in the kernel config
+  helps.
+
+* Use the SLAB memory allocator instead of SLUB.
 
 
 Frequently Asked Questions
