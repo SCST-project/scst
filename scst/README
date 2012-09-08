@@ -289,6 +289,12 @@ in/out in Makefile:
    circle around ABORTs and RESETs code. Needs CONFIG_SCST_DEBUG turned
    on.
 
+ - CONFIG_SCST_DEBUG_SYSFS_EAGAIN - if defined, makes three out of four
+   reads of sysfs attributes fail with -EAGAIN and also makes every sysfs
+   write fail with -EAGAIN. This is useful to test -EAGAIN handling in user
+   space tools like e.g. scstadmin. See also the documentation of the
+   last_sysfs_mgmt_res sysfs attribute for more information.
+
  - CONFIG_SCST_STRICT_SERIALIZING - if defined, makes SCST send all commands to
    underlying SCSI device synchronously, one after one. This makes task
    management more reliable, with cost of some performance penalty. This
