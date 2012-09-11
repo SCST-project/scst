@@ -1498,7 +1498,8 @@ static int dev_user_process_reply_exec(struct scst_user_cmd *ucmd,
 			 * We have an empty SG, so can't call
 			 * scst_set_resp_data_len()
 			 */
-			cmd->resp_data_len = ereply->resp_data_len;
+			WARN_ON(ereply->resp_data_len != 0);
+			cmd->resp_data_len = 0;
 			cmd->resid_possible = 1;
 		} else
 			scst_set_resp_data_len(cmd, ereply->resp_data_len);

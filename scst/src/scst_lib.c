@@ -5987,13 +5987,14 @@ void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir copy_dir)
 	} else {
 		src_sg = cmd->sg;
 		dst_sg = cmd->tgt_i_sg;
-		to_copy = cmd->resp_data_len;
+		to_copy = cmd->adjusted_resp_data_len;
 	}
 
 	TRACE_MEM("cmd %p, copy_dir %d, src_sg %p, dst_sg %p, to_copy %lld",
 		cmd, copy_dir, src_sg, dst_sg, (long long)to_copy);
 
-	if (unlikely(src_sg == NULL) || unlikely(dst_sg == NULL)) {
+	if (unlikely(src_sg == NULL) || unlikely(dst_sg == NULL) ||
+	    unlikely(to_copy == 0)) {
 		/*
 		 * It can happened, e.g., with scst_user for cmd with delay
 		 * alloc, which failed with Check Condition.
