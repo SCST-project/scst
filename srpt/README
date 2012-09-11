@@ -321,6 +321,9 @@ For more information, see also:
 Performance Notes - Target Side
 -------------------------------
 
+* Building the SCST core and the ib_srpt target driver in release mode
+  improves performance compared to debug mode.
+
 * When using high-latency storage devices (hard disks), the default value
   choosen by SCST for DEVICE.threads_num should be fine. When using
   low-latency storage devices though (SSDs), DEVICE.threads_num should be set
@@ -360,7 +363,9 @@ Performance Notes - Both Sides
 * Disabling CONFIG_SCHED_DEBUG and CONFIG_SCHEDSTATS in the kernel config
   helps.
 
-* Use the SLAB memory allocator instead of SLUB.
+* Disable CONFIG_IRQSOFF_TRACER such that CONFIG_TRACE_IRQFLAGS is disabled.
+
+* Using the SLAB memory allocator instead of SLUB may help.
 
 
 Frequently Asked Questions
