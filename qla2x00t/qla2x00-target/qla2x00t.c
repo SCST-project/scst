@@ -5969,23 +5969,31 @@ out:
 static int q2t_enable_tgt(struct scst_tgt *scst_tgt, bool enable)
 {
 	struct q2t_tgt *tgt = (struct q2t_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
-	scsi_qla_host_t *ha = tgt->ha;
-	int res;
+	scsi_qla_host_t *ha;
+	int res = -E_TGT_PRIV_NOT_YET_SET;
+
+	if (tgt == NULL)
+		goto out;
+
+	ha = tgt->ha;
 
 	if (enable)
 		res = q2t_host_action(ha, ENABLE_TARGET_MODE);
 	else
 		res = q2t_host_action(ha, DISABLE_TARGET_MODE);
 
+out:
 	return res;
 }
 
 static bool q2t_is_tgt_enabled(struct scst_tgt *scst_tgt)
 {
 	struct q2t_tgt *tgt = (struct q2t_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
-	scsi_qla_host_t *ha = tgt->ha;
 
-	return qla_tgt_mode_enabled(ha);
+	if (tgt == NULL)
+		return false;
+
+	return qla_tgt_mode_enabled(tgt->ha);
 }
 
 #if ((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)) || \
@@ -6193,16 +6201,19 @@ static ssize_t q2t_show_expl_conf_enabled(struct kobject *kobj,
 	struct scst_tgt *scst_tgt;
 	struct q2t_tgt *tgt;
 	scsi_qla_host_t *ha;
-	ssize_t size;
+	int res = -E_TGT_PRIV_NOT_YET_SET;
 
 	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-	tgt = (struct q2t_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+	tgt = scst_tgt_get_tgt_priv(scst_tgt);
+	if (!tgt)
+		goto out;
 	ha = tgt->ha;
 
-	size = scnprintf(buffer, PAGE_SIZE, "%d\n%s", ha->enable_explicit_conf,
+	res = scnprintf(buffer, PAGE_SIZE, "%d\n%s", ha->enable_explicit_conf,
 		ha->enable_explicit_conf ? SCST_SYSFS_KEY_MARK "\n" : "");
 
-	return size;
+out:
+	return res;
 }
 
 static ssize_t q2t_store_expl_conf_enabled(struct kobject *kobj,
@@ -6211,10 +6222,13 @@ static ssize_t q2t_store_expl_conf_enabled(struct kobject *kobj,
 	struct scst_tgt *scst_tgt;
 	struct q2t_tgt *tgt;
 	scsi_qla_host_t *ha, *pha;
+	int res = -E_TGT_PRIV_NOT_YET_SET;
 	unsigned long flags;
 
 	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-	tgt = (struct q2t_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+	tgt = scst_tgt_get_tgt_priv(scst_tgt);
+	if (!tgt)
+		goto out;
 	ha = tgt->ha;
 	pha = to_qla_parent(ha);
 
@@ -6239,7 +6253,10 @@ static ssize_t q2t_store_expl_conf_enabled(struct kobject *kobj,
 
 	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 
-	return size;
+	res = size;
+
+out:
+	return res;
 }
 
 static ssize_t q2t_abort_isp_store(struct kobject *kobj,
@@ -6248,9 +6265,12 @@ static ssize_t q2t_abort_isp_store(struct kobject *kobj,
 	struct scst_tgt *scst_tgt;
 	struct q2t_tgt *tgt;
 	scsi_qla_host_t *ha;
+	int res = -E_TGT_PRIV_NOT_YET_SET;
 
 	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-	tgt = (struct q2t_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+	tgt = scst_tgt_get_tgt_priv(scst_tgt);
+	if (!tgt)
+		goto out;
 	ha = tgt->ha;
 
 	PRINT_INFO("qla2x00t(%ld): Aborting ISP", ha->instance);
@@ -6258,7 +6278,10 @@ static ssize_t q2t_abort_isp_store(struct kobject *kobj,
 	set_bit(ISP_ABORT_NEEDED, &ha->dpc_flags);
 	qla2x00_wait_for_hba_online(ha);
 
-	return size;
+	res = size;
+
+out:
+	return res;
 }
 
 static ssize_t q2t_version_show(struct kobject *kobj,
@@ -6298,12 +6321,14 @@ static ssize_t q2t_node_name_show(struct kobject *kobj,
 	struct scst_tgt *scst_tgt;
 	struct q2t_tgt *tgt;
 	scsi_qla_host_t *ha;
-	ssize_t res;
+	ssize_t res = -E_TGT_PRIV_NOT_YET_SET;
 	char *wwn;
 	uint8_t *node_name;
 
 	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-	tgt = (struct q2t_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+	tgt = scst_tgt_get_tgt_priv(scst_tgt);
+	if (!tgt)
+		goto out;
 	ha = tgt->ha;
 
 	if (ha->parent == NULL) {
@@ -6335,12 +6360,14 @@ static ssize_t q2t_node_name_store(struct kobject *kobj,
 	struct q2t_tgt *tgt;
 	scsi_qla_host_t *ha;
 	u64 node_name, old_node_name;
-	int res;
+	int res = -E_TGT_PRIV_NOT_YET_SET;
 
 	TRACE_ENTRY();
 
 	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-	tgt = (struct q2t_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+	tgt = scst_tgt_get_tgt_priv(scst_tgt);
+	if (!tgt)
+		goto out;
 	ha = tgt->ha;
 
 	sBUG_ON(ha->parent != NULL);
@@ -6387,11 +6414,13 @@ static ssize_t q2t_vp_parent_host_show(struct kobject *kobj,
 	struct scst_tgt *scst_tgt;
 	struct q2t_tgt *tgt;
 	scsi_qla_host_t *ha;
-	ssize_t res;
+	ssize_t res = -E_TGT_PRIV_NOT_YET_SET;
 	char *wwn;
 
 	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-	tgt = (struct q2t_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+	tgt = scst_tgt_get_tgt_priv(scst_tgt);
+	if (!tgt)
+		goto out;
 	ha = to_qla_parent(tgt->ha);
 
 	res = q2t_get_target_name(ha->port_name, &wwn);

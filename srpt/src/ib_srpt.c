@@ -2365,12 +2365,10 @@ static struct srpt_tgt *srpt_convert_scst_tgt(struct scst_tgt *scst_tgt)
 
 	if (one_target_per_port) {
 		sport = scst_tgt_get_tgt_priv(scst_tgt);
-		BUG_ON(!sport);
-		srpt_tgt = &sport->srpt_tgt;
+		srpt_tgt = sport ? &sport->srpt_tgt : NULL;
 	} else {
 		sdev = scst_tgt_get_tgt_priv(scst_tgt);
-		BUG_ON(!sdev);
-		srpt_tgt = &sdev->srpt_tgt;
+		srpt_tgt = sdev ? &sdev->srpt_tgt : NULL;
 	}
 	return srpt_tgt;
 }
@@ -2386,7 +2384,7 @@ static int srpt_enable_target(struct scst_tgt *scst_tgt, bool enable)
 	EXTRACHECKS_WARN_ON_ONCE(irqs_disabled());
 
 	if (!srpt_tgt)
-		return -ENOENT;
+		return -E_TGT_PRIV_NOT_YET_SET;
 
 	TRACE_DBG("%s target %s", enable ? "Enabling" : "Disabling",
 		  scst_tgt->tgt_name);
@@ -2407,7 +2405,10 @@ static bool srpt_is_target_enabled(struct scst_tgt *scst_tgt)
 {
 	struct srpt_tgt *srpt_tgt = srpt_convert_scst_tgt(scst_tgt);
 
-	return srpt_tgt && srpt_tgt->enabled;
+	if (srpt_tgt)
+		return srpt_tgt->enabled;
+	else
+		return false;
 }
 #endif
 
@@ -3569,14 +3570,7 @@ static int srpt_release(struct scst_tgt *scst_tgt)
 	EXTRACHECKS_WARN_ON_ONCE(irqs_disabled());
 
 	BUG_ON(!scst_tgt);
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18)
-	WARN_ON(!srpt_tgt);
-	if (!srpt_tgt)
-		return -ENODEV;
-#else
-	if (WARN_ON(!srpt_tgt))
-		return -ENODEV;
-#endif
+	BUG_ON(!srpt_tgt);
 
 	srpt_release_sport(srpt_tgt);
 
@@ -3605,11 +3599,14 @@ static ssize_t show_login_info(struct kobject *kobj,
 						 tgt_kobj);
 	struct srpt_tgt *srpt_tgt = srpt_convert_scst_tgt(scst_tgt);
 	struct srpt_port *sport;
-	int i, len;
+	int i, res = -E_TGT_PRIV_NOT_YET_SET;
+
+	if (!srpt_tgt)
+		goto out;
 
 	if (one_target_per_port) {
 		sport = container_of(srpt_tgt, struct srpt_port, srpt_tgt);
-		len = sprintf(buf,
+		res = sprintf(buf,
 			      "tid_ext=%016llx,ioc_guid=%016llx,pkey=ffff,"
 			      "dgid=%04x%04x%04x%04x%04x%04x%04x%04x,"
 			      "service_id=%016llx\n",
@@ -3627,11 +3624,11 @@ static ssize_t show_login_info(struct kobject *kobj,
 		struct srpt_device *sdev;
 
 		sdev = container_of(srpt_tgt, struct srpt_device, srpt_tgt);
-		len = 0;
+		res = 0;
 		for (i = 0; i < sdev->device->phys_port_cnt; i++) {
 			sport = &sdev->port[i];
 
-			len += sprintf(buf + len,
+			res += sprintf(buf + res,
 				   "tid_ext=%016llx,ioc_guid=%016llx,pkey=ffff,"
 				   "dgid=%04x%04x%04x%04x%04x%04x%04x%04x,"
 				   "service_id=%016llx\n",
@@ -3649,7 +3646,8 @@ static ssize_t show_login_info(struct kobject *kobj,
 		}
 	}
 
-	return len;
+out:
+	return res;
 }
 
 static struct kobj_attribute srpt_show_login_info_attr =

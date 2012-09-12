@@ -564,15 +564,22 @@ int ft_tgt_enable(struct scst_tgt *tgt, bool enable)
 	int ret = 0;
 
 	mutex_lock(&ft_lport_lock);
+
 	if (enable) {
 		FT_SESS_DBG("enable tgt %s\n", tgt->tgt_name);
 		tport = scst_tgt_get_tgt_priv(tgt);
+		if (tport == NULL) {
+			ret = -E_TGT_PRIV_NOT_YET_SET;
+			goto out_unlock;
+		}
 		tport->enabled = 1;
 		tport->lport->service_params |= FCP_SPPF_TARG_FCN;
 	} else {
 		FT_SESS_DBG("disable tgt %s\n", tgt->tgt_name);
 		ft_tgt_release(tgt);
 	}
+
+out_unlock:
 	mutex_unlock(&ft_lport_lock);
 	return ret;
 }
@@ -580,6 +587,9 @@ int ft_tgt_enable(struct scst_tgt *tgt, bool enable)
 bool ft_tgt_enabled(struct scst_tgt *tgt)
 {
 	struct ft_tport *tport;
+
+	if (tgt == NULL)
+		return false;
 
 	tport = scst_tgt_get_tgt_priv(tgt);
 	return tport->enabled;

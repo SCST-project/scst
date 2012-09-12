@@ -32,6 +32,10 @@
 #endif
 #include <scsi/scsi.h>
 
+#ifndef __KERNEL__
+#include <errno.h>
+#endif
+
 /*
  * Version numbers, the same as for the kernel.
  *
@@ -575,5 +579,14 @@ enum scst_tg_sup {
 
 #define SCST_MIN_REL_TGT_ID			1
 #define SCST_MAX_REL_TGT_ID			65535
+
+/*
+ * Error code returned by target attribute sysfs methods if invoked after
+ * scst_register_target() finished but before before scst_tgt_set_tgt_priv()
+ * has been invoked.
+ */
+enum {
+	E_TGT_PRIV_NOT_YET_SET = EBUSY
+};
 
 #endif /* __SCST_CONST_H */
