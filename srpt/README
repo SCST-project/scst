@@ -365,7 +365,11 @@ Performance Notes - Both Sides
 
 * Disable CONFIG_IRQSOFF_TRACER such that CONFIG_TRACE_IRQFLAGS is disabled.
 
-* Using the SLAB memory allocator instead of SLUB may help.
+* Consider which memory allocator to use. With recent kernels using the SLUB
+  memory allocator instead of SLAB may help. On multi-socket systems the SLAB
+  memory allocator may result in better performance. Please note that SLAB is
+  tunable while SLUB is not. See also http://lkml.org/lkml/2010/7/9/264 and
+  http://www.ibm.com/developerworks/linux/library/l-linux-slab-allocator/.
 
 
 Frequently Asked Questions
