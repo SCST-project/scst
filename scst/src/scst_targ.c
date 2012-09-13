@@ -521,12 +521,12 @@ int scst_pre_parse(struct scst_cmd *cmd)
 #endif
 
 	TRACE_DBG("op_name <%s> (cmd %p), direction=%d "
-		"(expected %d, set %s), lba %lld, bufflen=%d, data_len %d, "
+		"(expected %d, set %s), lba %lld, bufflen=%d, data_len %lld, "
 		"out_bufflen=%d (expected len %d, out expected len %d), "
 		"flags=0x%x", cmd->op_name, cmd, cmd->data_direction,
 		cmd->expected_data_direction,
 		scst_cmd_is_expected_set(cmd) ? "yes" : "no",
-		(long long)cmd->lba, cmd->bufflen, cmd->data_len,
+		(long long)cmd->lba, cmd->bufflen, (long long)cmd->data_len,
 		cmd->out_bufflen, cmd->expected_transfer_len,
 		cmd->expected_out_transfer_len, cmd->op_flags);
 
@@ -613,8 +613,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 	if (state == SCST_CMD_STATE_DEFAULT)
 		state = SCST_CMD_STATE_PREPARE_SPACE;
 
-	if (unlikely(state == SCST_CMD_STATE_PRE_XMIT_RESP) ||
-	    unlikely(state == SCST_CMD_STATE_PREPROCESSING_DONE))
+	if (unlikely(cmd->status != 0))
 		goto set_res;
 
 	if (unlikely(!(cmd->op_flags & SCST_INFO_VALID))) {
@@ -817,15 +816,15 @@ set_res:
 	}
 
 	TRACE(TRACE_SCSI, "op_name <%s> (cmd %p), direction=%d "
-		"(expected %d, set %s), lba=%lld, bufflen=%d, data len %d, "
+		"(expected %d, set %s), lba=%lld, bufflen=%d, data len %lld, "
 		"out_bufflen=%d, (expected len %d, out expected len %d), "
-		"flags=0x%x", cmd->op_name, cmd, cmd->data_direction,
-		cmd->expected_data_direction,
+		"flags=0x%x, internal %d", cmd->op_name, cmd,
+		cmd->data_direction, cmd->expected_data_direction,
 		scst_cmd_is_expected_set(cmd) ? "yes" : "no",
 		(unsigned long long)cmd->lba,
-		cmd->bufflen, cmd->data_len, cmd->out_bufflen,
+		cmd->bufflen, (long long)cmd->data_len, cmd->out_bufflen,
 		cmd->expected_transfer_len, cmd->expected_out_transfer_len,
-		cmd->op_flags);
+		cmd->op_flags, cmd->internal);
 
 #ifdef CONFIG_SCST_EXTRACHECKS
 	switch (state) {
@@ -901,9 +900,9 @@ out:
 			 (cmd->state >= SCST_CMD_STATE_LAST_ACTIVE)) &&
 			(cmd->state != SCST_CMD_STATE_PREPROCESSING_DONE))))) {
 		PRINT_CRIT_ERROR("Not initialized data_len for going to "
-			"execute command or bad state (cmd %p, data_len %d, "
-			"completed %d, state %d)", cmd, cmd->data_len,
-			cmd->completed, cmd->state);
+			"execute command or bad state (cmd %p, data_len %lld, "
+			"completed %d, state %d)", cmd,
+			(long long)cmd->data_len, cmd->completed, cmd->state);
 		sBUG();
 	}
 #endif

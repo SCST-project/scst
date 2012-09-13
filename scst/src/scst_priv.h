@@ -111,6 +111,9 @@ extern unsigned long scst_trace_flag;
 
 #define SCST_DEF_LBA_DATA_LEN		     -1
 
+/* Used to prevent overflow of int cmd->bufflen. Assumes max blocksize is 4K */
+#define SCST_MAX_VALID_BUFFLEN_MASK	     (~((1 << (32 - 12)) - 1))
+
 #define SCST_MAX_EACH_INTERNAL_IO_SIZE	     (128*1024)
 #define SCST_MAX_IN_FLIGHT_INTERNAL_COMMANDS 32
 

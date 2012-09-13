@@ -1164,7 +1164,8 @@ static int scst_pr_register_with_spec_i_pt(struct scst_cmd *cmd,
 	struct list_head *rollback_list)
 {
 	int res = 0;
-	int offset, ext_size;
+	int offset;
+	unsigned int ext_size;
 	__be64 action_key;
 	struct scst_device *dev = cmd->dev;
 	struct scst_dev_registrant *reg;
@@ -1653,7 +1654,7 @@ void scst_pr_register_and_move(struct scst_cmd *cmd, uint8_t *buffer,
 {
 	int aptpl;
 	int unreg;
-	int tid_buffer_size;
+	unsigned int tid_buffer_size;
 	__be64 key, action_key;
 	struct scst_device *dev = cmd->dev;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;

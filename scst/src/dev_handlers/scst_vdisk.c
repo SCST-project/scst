@@ -995,7 +995,7 @@ static enum compl_status_e vdisk_synchronize_cache(struct vdisk_cmd_params *p)
 	const uint8_t *cdb = cmd->cdb;
 	struct scst_device *dev = cmd->dev;
 	const loff_t loff = p->loff;
-	int data_len = scst_cmd_get_data_len(cmd);
+	int64_t data_len = scst_cmd_get_data_len(cmd);
 	int immed = cdb[1] & 0x2;
 	enum compl_status_e res;
 
@@ -1165,7 +1165,7 @@ static vdisk_op_fn nullio_ops[256] = {
 static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 {
 	uint64_t lba_start;
-	int data_len;
+	int64_t data_len;
 	uint8_t *cdb = cmd->cdb;
 	int opcode = cdb[0];
 	loff_t loff;
@@ -3867,7 +3867,7 @@ static enum compl_status_e fileio_exec_verify(struct vdisk_cmd_params *p)
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	struct file *fd = virt_dev->fd;
 	uint8_t *mem_verify = NULL;
-	int data_len = scst_cmd_get_data_len(cmd);
+	int64_t data_len = scst_cmd_get_data_len(cmd);
 
 	TRACE_ENTRY();
 
@@ -3886,8 +3886,8 @@ static enum compl_status_e fileio_exec_verify(struct vdisk_cmd_params *p)
 	 */
 
 	compare = scst_cmd_get_data_direction(cmd) == SCST_DATA_WRITE;
-	TRACE_DBG("VERIFY with BYTCHK=%d at offset %lld and len %d\n",
-		  compare, loff, data_len);
+	TRACE_DBG("VERIFY with BYTCHK=%d at offset %lld and len %lld\n",
+		  compare, loff, (long long)data_len);
 
 	/* SEEK */
 	old_fs = get_fs();

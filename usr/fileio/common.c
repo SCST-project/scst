@@ -184,7 +184,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 	struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
 	struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
 	uint64_t lba_start = cmd->lba;
-	loff_t data_len = cmd->data_len;
+	int64_t data_len = cmd->data_len;
 	uint8_t *cdb = cmd->cdb;
 	int opcode = cdb[0];
 	loff_t loff;
@@ -250,11 +250,11 @@ static int do_exec(struct vdisk_cmd *vcmd)
 	loff = (loff_t)lba_start << dev->block_shift;
 	TRACE_DBG("cmd %d, buf %"PRIx64", lba_start %"PRId64", loff %"PRId64
 		", data_len %"PRId64, vcmd->cmd->cmd_h, cmd->pbuf, lba_start,
-		(uint64_t)loff, (uint64_t)data_len);
+		(uint64_t)loff, data_len);
 	if ((loff < 0) || (data_len < 0) || ((loff + data_len) > dev->file_size)) {
 	    	PRINT_INFO("Access beyond the end of the device "
 			"(%"PRId64" of %"PRId64", len %"PRId64")", (uint64_t)loff,
-			(uint64_t)dev->file_size, (uint64_t)data_len);
+			(uint64_t)dev->file_size, data_len);
 		set_cmd_error(vcmd, SCST_LOAD_SENSE(
 				scst_sense_block_out_range_error));
 		goto out;
@@ -268,7 +268,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 		if (cdb[1] & 0x8) {
 			TRACE(TRACE_ORDER, "FUA(%d): loff=%"PRId64", "
 				"data_len=%"PRId64, fua, (uint64_t)loff,
-				(uint64_t)data_len);
+				data_len);
 		}
 		break;
 	}
@@ -343,7 +343,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 				((loff_t)lba_start << dev->block_shift);
 		TRACE(TRACE_ORDER, "SYNCHRONIZE_CACHE: "
 			"loff=%"PRId64", data_len=%"PRId64", immed=%d",
-			(uint64_t)loff, (uint64_t)data_len, immed);
+			(uint64_t)loff, data_len, immed);
 		if (immed) {
 			/* ToDo: backgroung exec */
 			exec_fsync(vcmd);
@@ -1617,7 +1617,7 @@ static void exec_verify(struct vdisk_cmd *vcmd, loff_t loff)
 	struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
 	struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
 	loff_t err;
-	int length = cmd->bufflen;
+	int64_t length = cmd->bufflen;
 	uint8_t *address = (uint8_t *)(unsigned long)cmd->pbuf;
 	int compare;
 	int fd = vcmd->fd;
@@ -1655,16 +1655,17 @@ static void exec_verify(struct vdisk_cmd *vcmd, loff_t loff)
 		compare = 1;
 
 	while (length > 0) {
-		int len_mem = (length > (int)sizeof(mem_verify)) ?
+		int64_t len_mem = (length > (int)sizeof(mem_verify)) ?
 					(int)sizeof(mem_verify) : length;
-		TRACE_DBG("Verify: length %d - len_mem %d", length, len_mem);
+		TRACE_DBG("Verify: length %"PRId64" - len_mem %"PRId64,
+			length, len_mem);
 
 		if (!dev->nullio)
 			err = read(fd, (char *)mem_verify, len_mem);
 		else
 			err = len_mem;
 		if ((err < 0) || (err < len_mem)) {
-			PRINT_ERROR("read() returned %"PRId64" from %d "
+			PRINT_ERROR("read() returned %"PRId64" from %"PRId64" "
 				"(errno %d)", (uint64_t)err, len_mem, errno);
 			if (err == -EAGAIN)
 				set_busy(reply);
@@ -1675,7 +1676,7 @@ static void exec_verify(struct vdisk_cmd *vcmd, loff_t loff)
 			goto out;
 		}
 		if (compare && memcmp(address, mem_verify, len_mem) != 0) {
-			TRACE_DBG("Verify: error memcmp length %d", length);
+			TRACE_DBG("Verify: error memcmp length %"PRId64, length);
 			set_cmd_error(vcmd,
 			    SCST_LOAD_SENSE(scst_sense_miscompare_error));
 			goto out;
@@ -1685,7 +1686,7 @@ static void exec_verify(struct vdisk_cmd *vcmd, loff_t loff)
 	}
 
 	if (length < 0) {
-		PRINT_ERROR("Failure: %d", length);
+		PRINT_ERROR("Failure: %"PRId64, length);
 		set_cmd_error(vcmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 	}
 

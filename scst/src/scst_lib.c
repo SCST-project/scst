@@ -6207,6 +6207,8 @@ static int get_cdb_info_serv_act_in(struct scst_cmd *cmd,
 	case SAI_READ_CAPACITY_16:
 		cmd->op_name = "READ CAPACITY(16)";
 		cmd->bufflen = get_unaligned_be32(&cmd->cdb[10]);
+		if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK))
+			goto out_inval_bufflen10;
 		cmd->op_flags |= SCST_IMPLICIT_HQ | SCST_LBA_NOT_VALID |
 				SCST_REG_RESERVE_ALLOWED |
 				SCST_WRITE_EXCL_ALLOWED |
@@ -6216,6 +6218,8 @@ static int get_cdb_info_serv_act_in(struct scst_cmd *cmd,
 		cmd->op_name = "GET LBA STATUS";
 		cmd->lba = get_unaligned_be64(&cmd->cdb[2]);
 		cmd->bufflen = get_unaligned_be32(&cmd->cdb[10]);
+		if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK))
+			goto out_inval_bufflen10;
 		cmd->op_flags |= SCST_WRITE_EXCL_ALLOWED;
 		break;
 	default:
@@ -6225,8 +6229,15 @@ static int get_cdb_info_serv_act_in(struct scst_cmd *cmd,
 
 	cmd->data_len = cmd->bufflen;
 
+out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_inval_bufflen10:
+	PRINT_ERROR("Too big bufflen %x (op %x)", cmd->bufflen, cmd->cdb[0]);
+	scst_set_invalid_field_in_cdb(cmd, 10, 0);
+	res = 1;
+	goto out;
 }
 
 static int get_cdb_info_single(struct scst_cmd *cmd,
@@ -6398,6 +6409,12 @@ static int get_cdb_info_verify12(struct scst_cmd *cmd,
 	cmd->lba = get_unaligned_be32(cmd->cdb + sdbops->info_lba_off);
 	if (cmd->cdb[1] & BYTCHK) {
 		cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
+		if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
+			PRINT_ERROR("Too big bufflen %x (op %x)",
+				cmd->bufflen, cmd->cdb[0]);
+			scst_set_invalid_field_in_cdb(cmd, sdbops->info_len_off, 0);
+			return 1;
+		}
 		cmd->data_len = cmd->bufflen;
 		cmd->data_direction = SCST_DATA_WRITE;
 	} else {
@@ -6414,6 +6431,12 @@ static int get_cdb_info_verify16(struct scst_cmd *cmd,
 	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
 	if (cmd->cdb[1] & BYTCHK) {
 		cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
+		if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
+			PRINT_ERROR("Too big bufflen %x (op %x)",
+				cmd->bufflen, cmd->cdb[0]);
+			scst_set_invalid_field_in_cdb(cmd, sdbops->info_len_off, 0);
+			return 1;
+		}
 		cmd->data_len = cmd->bufflen;
 		cmd->data_direction = SCST_DATA_WRITE;
 	} else {
@@ -6481,6 +6504,12 @@ static int get_cdb_info_len_4(struct scst_cmd *cmd,
 	cmd->op_flags |= SCST_LBA_NOT_VALID;
 	cmd->lba = 0;
 	cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
+	if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
+		PRINT_ERROR("Too big bufflen %x (op %x)", cmd->bufflen,
+			cmd->cdb[0]);
+		scst_set_invalid_field_in_cdb(cmd, sdbops->info_len_off, 0);
+		return 1;
+	}
 	cmd->data_len = cmd->bufflen;
 	return 0;
 }
@@ -6548,6 +6577,12 @@ static int get_cdb_info_lba_4_len_4(struct scst_cmd *cmd,
 {
 	cmd->lba = get_unaligned_be32(cmd->cdb + sdbops->info_lba_off);
 	cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
+	if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
+		PRINT_ERROR("Too big bufflen %x (op %x)", cmd->bufflen,
+			cmd->cdb[0]);
+		scst_set_invalid_field_in_cdb(cmd, sdbops->info_len_off, 0);
+		return 1;
+	}
 	cmd->data_len = cmd->bufflen;
 	return 0;
 }
@@ -6557,6 +6592,12 @@ static int get_cdb_info_lba_8_len_4(struct scst_cmd *cmd,
 {
 	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
 	cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
+	if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
+		PRINT_ERROR("Too big bufflen %x (op %x)", cmd->bufflen,
+			cmd->cdb[0]);
+		scst_set_invalid_field_in_cdb(cmd, sdbops->info_len_off, 0);
+		return 1;
+	}
 	cmd->data_len = cmd->bufflen;
 	return 0;
 }
@@ -6918,8 +6959,8 @@ int scst_sbc_generic_parse(struct scst_cmd *cmd)
 	else if (cmd->op_flags & SCST_LONG_TIMEOUT)
 		cmd->timeout = SCST_GENERIC_DISK_LONG_TIMEOUT;
 
-	TRACE_DBG("res %d, bufflen %d, data_len %d, direct %d",
-	      res, cmd->bufflen, cmd->data_len, cmd->data_direction);
+	TRACE_DBG("res %d, bufflen %d, data_len %lld, direct %d", res,
+		cmd->bufflen, (long long)cmd->data_len, cmd->data_direction);
 
 	TRACE_EXIT_RES(res);
 	return res;
