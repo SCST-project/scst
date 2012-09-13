@@ -2380,11 +2380,12 @@ static struct srpt_tgt *srpt_convert_scst_tgt(struct scst_tgt *scst_tgt)
 static int srpt_enable_target(struct scst_tgt *scst_tgt, bool enable)
 {
 	struct srpt_tgt *srpt_tgt = srpt_convert_scst_tgt(scst_tgt);
+	int res = -E_TGT_PRIV_NOT_YET_SET;
 
 	EXTRACHECKS_WARN_ON_ONCE(irqs_disabled());
 
 	if (!srpt_tgt)
-		return -E_TGT_PRIV_NOT_YET_SET;
+		goto out;
 
 	TRACE_DBG("%s target %s", enable ? "Enabling" : "Disabling",
 		  scst_tgt->tgt_name);
@@ -2395,7 +2396,10 @@ static int srpt_enable_target(struct scst_tgt *scst_tgt, bool enable)
 		__srpt_close_all_ch(srpt_tgt);
 	spin_unlock_irq(&srpt_tgt->spinlock);
 
-	return 0;
+	res = 0;
+
+out:
+	return res;
 }
 
 /**
@@ -2405,10 +2409,7 @@ static bool srpt_is_target_enabled(struct scst_tgt *scst_tgt)
 {
 	struct srpt_tgt *srpt_tgt = srpt_convert_scst_tgt(scst_tgt);
 
-	if (srpt_tgt)
-		return srpt_tgt->enabled;
-	else
-		return false;
+	return srpt_tgt && srpt_tgt->enabled;
 }
 #endif
 
