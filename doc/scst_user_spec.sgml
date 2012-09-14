@@ -382,7 +382,7 @@ struct scst_user_scsi_cmd_reply_parse
 	uint16_t cdb_len;
 	aligned_i64 lba;
 	uint32_t op_flags;
-	int32_t data_len;
+	aligned_i64 data_len;
 	int32_t bufflen;
 	int32_t out_bufflen;
 },
@@ -708,7 +708,7 @@ struct scst_user_scsi_cmd_parse
 
 	uint32_t timeout;
 	int32_t bufflen;
-	int32_t data_len;
+	aligned_i64 data_len;
 	int32_t out_bufflen;
 
 	uint32_t op_flags;
@@ -936,7 +936,7 @@ struct scst_user_scsi_cmd_exec
 
 	aligned_i64 lba;
 
-	int32_t data_len;
+	aligned_i64 data_len;
 	int32_t bufflen;
 	int32_t alloc_len;
 	uint64_t pbuf;
