@@ -49,7 +49,7 @@
 #else
 #define SCST_VERSION_STRING_SUFFIX
 #endif
-#define SCST_VERSION_NAME	    "3.0.0-pre1"
+#define SCST_VERSION_NAME	    "3.0.0-pre2"
 #define SCST_VERSION_STRING	    SCST_VERSION_NAME SCST_VERSION_STRING_SUFFIX
 
 #define SCST_CONST_VERSION "$Revision$"
