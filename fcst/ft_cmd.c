@@ -58,7 +58,7 @@ void ft_cmd_dump(struct scst_cmd *cmd, const char *caller)
 	printk(KERN_INFO "%s exp_dir %x exp_xfer_len %d exp_in_len %d\n",
 		prefix, cmd->expected_data_direction,
 		cmd->expected_transfer_len, cmd->expected_out_transfer_len);
-	printk(KERN_INFO "%s dir %x data_len %d bufflen %d out_bufflen %d\n",
+	printk(KERN_INFO "%s dir %x data_len %lld bufflen %d out_bufflen %d\n",
 		prefix, cmd->data_direction, cmd->data_len,
 		cmd->bufflen, cmd->out_bufflen);
 	printk(KERN_INFO "%s sg_cnt reg %d in %d tgt %d tgt_in %d\n",
