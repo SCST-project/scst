@@ -3699,6 +3699,16 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 	if (blockio_work == NULL)
 		goto out_no_mem;
 
+#if 0
+	{
+		static int err_inj_cntr;
+		if (++err_inj_cntr % 256 == 0) {
+			PRINT_INFO("blockio_exec_rw() error injection");
+			goto out_no_bio;
+		}
+	}
+#endif
+
 	blockio_work->cmd = cmd;
 
 	if (q)
@@ -3829,6 +3839,8 @@ out_no_bio:
 
 out_no_mem:
 	scst_set_busy(cmd);
+	cmd->completed = 1;
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
 	goto out;
 }
 
