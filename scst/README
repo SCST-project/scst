@@ -548,11 +548,12 @@ Every target should have at least the following entries:
    connections. 0 by default.
 
  - addr_method - used LUNs addressing method. Possible values:
-   "Peripheral" and "Flat". Most initiators work well with Peripheral
-   addressing method (default), but some (HP-UX, for instance) may
-   require Flat method. This attribute is also available in the
-   initiators security groups, so you can assign the addressing method
-   on per-initiator basis.
+   "Peripheral", "Flat" or "LUN". Most initiators work well with
+   Peripheral addressing method (default), but some (HP-UX, for instance)
+   may require the Flat method or the LUN method (e.g. IBM systems). This
+   attribute is also available in the initiators security groups, so you
+   can assign the addressing method on per-initiator basis. See also the
+   "Logical unit addressing (LUN)" section in SAM-5 for more information.
 
  - cpu_mask - defines CPU affinity mask for threads serving this target.
    For threads serving LUNs it is used only for devices with
