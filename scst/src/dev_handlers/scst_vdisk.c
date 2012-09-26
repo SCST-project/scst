@@ -5486,7 +5486,7 @@ static int vdisk_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type)
 		}
 		if (virt_dev->removable) {
 			seq_printf(seq, "RM ");
-			c += 4;
+			c += 3;
 		}
 		while (c < 16) {
 			seq_printf(seq, " ");
