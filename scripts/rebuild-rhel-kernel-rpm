@@ -191,12 +191,13 @@ diff -u SPECS/kernel-2.6.spec{.orig,}
  # END OF PATCH DEFINITIONS
  
  BuildRoot: %{_tmppath}/kernel-%{KVERREL}-root
-@@ -12593,6 +12596,9 @@
+@@ -12593,6 +12596,10 @@
  rm -f kernel-%{kversion}-*-debug.config
  %endif
  
 +%patch200 -p1
 +%patch201 -p1
++sed -i.tmp -e 's/^CONFIG_SCSI_QLA_FC=.*/CONFIG_SCSI_QLA_FC=n/' *.config
 +
  # now run oldconfig over all the config files
  for i in *.config
@@ -217,12 +218,13 @@ patch -p1 ${rpmbuild_dir}/SPECS/kernel.spec <<'EOF' || exit $?
  # empty final patch file to facilitate testing of kernel patches
  Patch99999: linux-kernel-test.patch
  
-@@ -733,6 +736,9 @@
+@@ -733,6 +736,10 @@
  rm -f kernel-%{version}-*-debug.config
  %endif
  
 +%patch200 -p1
 +%patch201 -p1
++sed -i.tmp -e 's/^CONFIG_SCSI_QLA_FC=.*/CONFIG_SCSI_QLA_FC=n/' *.config
 +
  # now run oldconfig over all the config files
  for i in *.config
@@ -255,11 +257,12 @@ diff -u SPECS/kernel.spec{.orig,}
  ApplyOptionalPatch linux-kernel-test.patch
  
  # Any further pre-build tree manipulations happen here.
-@@ -917,6 +923,7 @@
+@@ -917,6 +923,8 @@
  for i in *.config
  do
    mv $i .config
 +  echo "CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION=y" >> .config
++  sed -i.tmp -e 's/^CONFIG_SCSI_QLA_FC=.*/CONFIG_SCSI_QLA_FC=n/' .config
    Arch=`head -1 .config | cut -b 3-`
    make ARCH=$Arch %{oldconfig_target} > /dev/null
    echo "# $Arch" > configs/$i
@@ -292,11 +295,12 @@ diff -u SPECS/kernel.spec{.orig,}
  ApplyOptionalPatch linux-kernel-test.patch
  
  # Any further pre-build tree manipulations happen here.
-@@ -917,6 +923,7 @@
+@@ -917,6 +923,8 @@
  for i in *.config
  do
    mv $i .config
 +  echo "CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION=y" >> .config
++  sed -i.tmp -e 's/^CONFIG_SCSI_QLA_FC=.*/CONFIG_SCSI_QLA_FC=n/' .config
    Arch=`head -1 .config | cut -b 3-`
    make ARCH=$Arch %{oldconfig_target} > /dev/null
    echo "# $Arch" > configs/$i
