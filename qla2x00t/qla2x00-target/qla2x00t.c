@@ -1872,7 +1872,7 @@ static void q24_send_task_mgmt_ctio(scsi_qla_host_t *ha,
 	ctio->ox_id = swab16(atio->fcp_hdr.ox_id);
 	ctio->scsi_status = cpu_to_le16(SS_RESPONSE_INFO_LEN_VALID);
 	ctio->response_len = cpu_to_le16(8);
-	((uint32_t *)ctio->sense_data)[0] = cpu_to_be32(resp_code);
+	((uint32_t *)ctio->sense_data)[0] = cpu_to_le32(resp_code);
 
 	TRACE_BUFFER("CTIO7 TASK MGMT packet data", ctio, REQUEST_ENTRY_SIZE);
 
