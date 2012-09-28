@@ -1545,8 +1545,22 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 					do_zero = true;
 			}
 			if (do_zero) {
-				scst_check_restore_sg_buff(cmd);
-				scst_zero_write_rest(cmd);
+				if ((cmd->write_len & ((1 << cmd->dev->block_shift) - 1)) == 0) {
+					scst_check_restore_sg_buff(cmd);
+					scst_zero_write_rest(cmd);
+				} else {
+					/*
+					 * Looks like it's safer in this case to
+					 * return error instead of zeroing
+					 * the rest to prevent initiators lost
+					 * in 4K and 512 bytes blocks, i.e.
+					 * sending commands on 4K blocks devices
+					 * thinking that they have 512 bytes
+					 * blocks, from corrupting data.
+					 */
+					scst_set_cmd_error(cmd,
+						SCST_LOAD_SENSE(scst_sense_invalid_field_in_command_information_unit));
+				}
 			}
 		}
 	}

@@ -303,6 +303,7 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 #define scst_sense_saving_params_unsup		ILLEGAL_REQUEST, 0x39, 0
 #define scst_sense_invalid_message		ILLEGAL_REQUEST, 0x49, 0
 #define scst_sense_parameter_list_length_invalid ILLEGAL_REQUEST, 0x1A, 0
+#define scst_sense_invalid_field_in_command_information_unit ILLEGAL_REQUEST, 0xE, 0x3
 
 /* UNIT_ATTENTION is 6 */
 #define scst_sense_medium_changed_UA		UNIT_ATTENTION,  0x28, 0
