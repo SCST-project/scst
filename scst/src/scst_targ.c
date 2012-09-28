@@ -360,10 +360,11 @@ void scst_cmd_init_done(struct scst_cmd *cmd,
 	scst_set_start_time(cmd);
 
 	TRACE_DBG("Preferred context: %d (cmd %p)", pref_context, cmd);
-	TRACE(TRACE_SCSI, "tag=%llu, lun=%lld, CDB len=%d, queue_type=%x "
-		"(cmd %p, sess %p)", (long long unsigned int)cmd->tag,
-		(long long unsigned int)cmd->lun, cmd->cdb_len,
-		cmd->queue_type, cmd, sess);
+	TRACE(TRACE_SCSI, "lun=%lld, initiator %s, target %s, CDB len=%d, "
+		"queue_type=%x, tag=%llu (cmd %p, sess %p)",
+		(long long unsigned int)cmd->lun, cmd->sess->initiator_name,
+		cmd->tgt->tgt_name, cmd->cdb_len, cmd->queue_type,
+		(long long unsigned int)cmd->tag, cmd, sess);
 	PRINT_BUFF_FLAG(TRACE_SCSI, "Receiving CDB", cmd->cdb, cmd->cdb_len);
 
 #ifdef CONFIG_SCST_EXTRACHECKS

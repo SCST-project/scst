@@ -275,9 +275,22 @@ static inline int scst_sense_response_code(const uint8_t *sense)
  ** scst_set_cmd_error(). Column order: key, ASC, ASCQ. See
  ** also http://www.t10.org/lists/asc-num.htm.
  *************************************************************/
+
+/* NO_SENSE is 0 */
 #define scst_sense_no_sense			NO_SENSE,        0x00, 0
+
+/* NOT_READY is 2 */
+#define scst_sense_not_ready			NOT_READY,       0x04, 0x10
+#define scst_sense_no_medium			NOT_READY,       0x3a, 0
+
+/* MEDIUM_ERROR is 3 */
+#define scst_sense_write_error			MEDIUM_ERROR,    0x03, 0
+#define scst_sense_read_error			MEDIUM_ERROR,    0x11, 0
+
+/* HARDWARE_ERROR is 4 */
 #define scst_sense_hardw_error			HARDWARE_ERROR,  0x44, 0
-#define scst_sense_aborted_command		ABORTED_COMMAND, 0x00, 0
+
+/* ILLEGAL_REQUEST is 5 */
 #define scst_sense_invalid_opcode		ILLEGAL_REQUEST, 0x20, 0
 #define scst_sense_block_out_range_error	ILLEGAL_REQUEST, 0x21, 0
 /* Don't use it directly, use scst_set_invalid_field_in_cdb() instead! */
@@ -290,12 +303,8 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 #define scst_sense_saving_params_unsup		ILLEGAL_REQUEST, 0x39, 0
 #define scst_sense_invalid_message		ILLEGAL_REQUEST, 0x49, 0
 #define scst_sense_parameter_list_length_invalid ILLEGAL_REQUEST, 0x1A, 0
-#define scst_sense_data_protect			DATA_PROTECT,    0x00, 0
-#define scst_sense_miscompare_error		MISCOMPARE,      0x1D, 0
-#define scst_sense_write_error			MEDIUM_ERROR,    0x03, 0
-#define scst_sense_read_error			MEDIUM_ERROR,    0x11, 0
-#define scst_sense_not_ready			NOT_READY,       0x04, 0x10
-#define scst_sense_no_medium			NOT_READY,       0x3a, 0
+
+/* UNIT_ATTENTION is 6 */
 #define scst_sense_medium_changed_UA		UNIT_ATTENTION,  0x28, 0
 #define scst_sense_reset_UA			UNIT_ATTENTION,  0x29, 0
 #define scst_sense_nexus_loss_UA		UNIT_ATTENTION,  0x29, 0x7
@@ -307,6 +316,16 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 #define scst_sense_cleared_by_another_ini_UA	UNIT_ATTENTION,  0x2F, 0
 #define scst_sense_inquiry_data_changed		UNIT_ATTENTION,  0x3F, 0x3
 #define scst_sense_reported_luns_data_changed	UNIT_ATTENTION,  0x3F, 0xE
+
+/* DATA_PROTECT is 7 */
+#define scst_sense_data_protect			DATA_PROTECT,    0x00, 0
+
+/* ABORTED_COMMAND is 0xb */
+#define scst_sense_aborted_command		ABORTED_COMMAND, 0x00, 0
+
+/* MISCOMPARE is 0xe */
+#define scst_sense_miscompare_error		MISCOMPARE,      0x1D, 0
+
 
 /*************************************************************
  * SCSI opcodes not listed anywhere else
