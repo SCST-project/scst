@@ -1560,6 +1560,8 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 					 */
 					scst_set_cmd_error(cmd,
 						SCST_LOAD_SENSE(scst_sense_invalid_field_in_command_information_unit));
+					scst_set_cmd_abnormal_done_state(cmd);
+					goto out;
 				}
 			}
 		}
