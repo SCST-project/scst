@@ -176,14 +176,21 @@ int __init event_init(void)
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22))
 	nl = netlink_kernel_create(NETLINK_ISCSI_SCST, 1, event_recv,
 		THIS_MODULE);
-#else
-#  if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24))
+#elif (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24))
 	nl = netlink_kernel_create(NETLINK_ISCSI_SCST, 1, event_recv, NULL,
 				   THIS_MODULE);
-#  else
+#elif (LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0))
 	nl = netlink_kernel_create(&init_net, NETLINK_ISCSI_SCST, 1,
 				   event_recv_skb, NULL, THIS_MODULE);
-#  endif
+#else
+	{
+		struct netlink_kernel_cfg cfg = {
+			.input = event_recv_skb,
+			.groups = 1,
+		};
+		nl = netlink_kernel_create(&init_net, NETLINK_ISCSI_SCST,
+				   THIS_MODULE, &cfg);
+	}
 #endif
 	if (!nl) {
 		PRINT_ERROR("%s", "netlink_kernel_create() failed");

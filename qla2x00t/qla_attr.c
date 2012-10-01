@@ -1828,7 +1828,14 @@ qla2x00_terminate_rport_io(struct fc_rport *rport)
 		return;
 
 	qla2x00_abort_fcport_cmds(fcport);
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0))
 	scsi_target_unblock(&rport->dev);
+#else
+	/*
+	 * It is not needed here, because the caller (fc_terminate_rport_io())
+	 * calls it.
+	 */
+#endif
 }
 
 static int

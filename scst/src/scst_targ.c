@@ -4210,7 +4210,7 @@ static void scst_ioctx_get(struct scst_cmd_threads *p_cmd_threads)
 			 */
 			put_io_context(p_cmd_threads->io_context);
 		} else {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0)))
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0) && (LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0)))
 #warning IO context sharing functionality disabled on 3.5 kernels due to bug in them. \
 See "http://lkml.org/lkml/2012/7/17/515" for more details.
 			static int q;
