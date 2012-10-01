@@ -67,9 +67,9 @@ install:
 	fi
 	@if [ "$(REMOVE_INITD_CMD)" != "none" ]; then		\
 	  $(REMOVE_INITD_CMD) iscsi-scst >/dev/null 2>&1;	\
-	  rm -f $(INITDIR)/iscsi-scst;				\
+	  rm -f $(DESTDIR)$(INITDIR)/iscsi-scst;		\
 	  $(REMOVE_INITD_CMD) qla2x00t >/dev/null 2>&1;		\
-	  rm -f $(INITDIR)/qla2x00t;				\
+	  rm -f $(DESTDIR)$(INITDIR)/qla2x00t;			\
 	fi
 	@if [ "$(INSTALL_INITD_CMD)" != "none" ]; then			    \
 	  echo;								    \
