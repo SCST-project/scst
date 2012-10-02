@@ -1886,9 +1886,8 @@ static uint64_t vdisk_gen_dev_id_num(const char *virt_dev_name)
 #endif
 }
 
-/* start and len in blocks */
 static int vdisk_unmap_range(struct scst_cmd *cmd,
-	struct scst_vdisk_dev *virt_dev, uint64_t start, uint32_t len)
+	struct scst_vdisk_dev *virt_dev, uint64_t start_lba, uint32_t blocks)
 {
 	int res, err;
 	struct file *fd = virt_dev->fd;
@@ -1896,11 +1895,11 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 
 	TRACE_ENTRY();
 
-	if (len == 0)
+	if (blocks == 0)
 		goto success;
 
-	if ((start > virt_dev->nblocks) ||
-	    ((start + len) > virt_dev->nblocks)) {
+	if ((start_lba > virt_dev->nblocks) ||
+	    ((start_lba + blocks) > virt_dev->nblocks)) {
 		PRINT_ERROR("Device %s: attempt to write beyond max "
 			"size", virt_dev->name);
 		scst_set_cmd_error(cmd,
@@ -1910,28 +1909,28 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 	}
 
 	TRACE_DBG("Unmapping lba %lld (blocks %lld)",
-		(unsigned long long)start, (unsigned long long)len);
+		(unsigned long long)start_lba, (unsigned long long)blocks);
 
 	if (virt_dev->blockio) {
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 27)
 		gfp_t gfp = scst_cmd_get_gfp_flags(cmd);
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 31)
-		err = blkdev_issue_discard(inode->i_bdev, start, len, gfp);
+		err = blkdev_issue_discard(inode->i_bdev, start_lba, blocks, gfp);
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)       \
       && !(LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 34) \
            && defined(CONFIG_SUSE_KERNEL))
-		err = blkdev_issue_discard(inode->i_bdev, start, len,
+		err = blkdev_issue_discard(inode->i_bdev, start_lba, blocks,
 				gfp, DISCARD_FL_WAIT);
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
-		err = blkdev_issue_discard(inode->i_bdev, start, len,
+		err = blkdev_issue_discard(inode->i_bdev, start_lba, blocks,
 				gfp, BLKDEV_IFL_WAIT);
 #else
-		err = blkdev_issue_discard(inode->i_bdev, start, len, gfp, 0);
+		err = blkdev_issue_discard(inode->i_bdev, start_lba, blocks, gfp, 0);
 #endif
 		if (unlikely(err != 0)) {
 			PRINT_ERROR("blkdev_issue_discard() for "
-				"LBA %lld len %d failed: %d",
-				(unsigned long long)start, len, err);
+				"LBA %lld, blocks %d failed: %d",
+				(unsigned long long)start_lba, blocks, err);
 			scst_set_cmd_error(cmd,
 				SCST_LOAD_SENSE(scst_sense_write_error));
 			res = -EIO;
@@ -1946,8 +1945,8 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
 		struct scst_device *dev = cmd->dev;
 		const int block_shift = dev->block_shift;
-		const loff_t s = start << block_shift;
-		const loff_t l = len << block_shift;
+		const loff_t s = start_lba << block_shift;
+		const loff_t l = blocks << block_shift;
 
 		TRACE_DBG("Fallocating range %lld, len %lld",
 			(unsigned long long)s, (unsigned long long)l);
@@ -1956,8 +1955,8 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 			FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, s, l);
 		if (unlikely(err != 0)) {
 			PRINT_ERROR("fallocate() for LBA %lld len %lld "
-				"failed: %d", (unsigned long long)start,
-				(unsigned long long)len, err);
+				"failed: %d", (unsigned long long)start_lba,
+				(unsigned long long)blocks, err);
 			scst_set_cmd_error(cmd,
 				SCST_LOAD_SENSE(scst_sense_write_error));
 			res = -EIO;
@@ -2070,7 +2069,8 @@ static enum compl_status_e vdisk_exec_unmap(struct vdisk_cmd_params *p)
 			goto out;
 		}
 
-		rc = vdisk_unmap_range(cmd, virt_dev, pd[i].sdd_lba, pd[i].sdd_len);
+		rc = vdisk_unmap_range(cmd, virt_dev, pd[i].sdd_lba,
+			pd[i].sdd_blocks);
 		if (rc != 0)
 			goto out;
 	}

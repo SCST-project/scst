@@ -2034,7 +2034,7 @@ struct scst_cmd {
 	int expected_transfer_len;
 	int expected_out_transfer_len; /* for bidi writes */
 
-	int64_t lba; /* LBA of this cmd in blocks */
+	int64_t lba; /* LBA of this cmd */
 
 	/*
 	 * Cmd data length. Could be different from bufflen for commands like
@@ -4418,9 +4418,8 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 #endif
 
 struct scst_data_descriptor {
-	/* Both fields in blocks */
 	uint64_t sdd_lba;
-	uint64_t sdd_len;
+	uint64_t sdd_blocks;
 };
 
 void scst_write_same(struct scst_cmd *cmd);

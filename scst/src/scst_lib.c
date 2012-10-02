@@ -8668,10 +8668,10 @@ static int scst_parse_unmap_descriptors(struct scst_cmd *cmd)
 		struct scst_data_descriptor *d = &pd[i];
 		d->sdd_lba = get_unaligned_be64(&address[offset]);
 		offset += 8;
-		d->sdd_len = get_unaligned_be32(&address[offset]);
+		d->sdd_blocks = get_unaligned_be32(&address[offset]);
 		offset += 8;
-		TRACE_DBG("i %d, lba %lld, len %lld", i,
-			(long long)d->sdd_lba, (long long)d->sdd_len);
+		TRACE_DBG("i %d, lba %lld, blocks %lld", i,
+			(long long)d->sdd_lba, (long long)d->sdd_blocks);
 		i++;
 	}
 
