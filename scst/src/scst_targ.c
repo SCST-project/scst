@@ -4918,16 +4918,23 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 		}
 
 		if (mstb->done_counted || mstb->finish_counted) {
-			PRINT_INFO("cmd %p (tag %llu, "
+			unsigned long t;
+			if (mcmd->fn != SCST_PR_ABORT_ALL)
+				t = TRACE_MGMT;
+			else
+				t = TRACE_MGMT_DEBUG;
+			TRACE(t, "cmd %p (tag %llu, "
 				"sn %u) being executed/xmitted (state %d, "
 				"op %x, proc time %ld sec., timeout %d sec.), "
 				"deferring ABORT (cmd_done_wait_count %d, "
-				"cmd_finish_wait_count %d, internal %d)", cmd,
+				"cmd_finish_wait_count %d, internal %d, mcmd "
+				"fn %d (mcmd %p))", cmd,
 				(long long unsigned int)cmd->tag,
 				cmd->sn, cmd->state, cmd->cdb[0],
 				(long)(jiffies - cmd->start_time) / HZ,
 				cmd->timeout / HZ, mcmd->cmd_done_wait_count,
-				mcmd->cmd_finish_wait_count, cmd->internal);
+				mcmd->cmd_finish_wait_count, cmd->internal,
+				mcmd->fn, mcmd);
 			/*
 			 * cmd can't die here or sess_list_lock already taken
 			 * and cmd is in the sess list
@@ -5873,10 +5880,10 @@ static void scst_mgmt_cmd_send_done(struct scst_mgmt_cmd *mcmd)
 		scst_mgmt_cmd_set_status(mcmd, SCST_MGMT_STATUS_TASK_NOT_EXIST);
 
 	if (mcmd->fn < SCST_UNREG_SESS_TM)
-		TRACE(TRACE_MGMT, "TM fn %d (%p) finished, "
+		TRACE(TRACE_MGMT, "TM fn %d (mcmd %p) finished, "
 			"status %d", mcmd->fn, mcmd, mcmd->status);
 	else
-		TRACE_MGMT_DBG("TM fn %d (%p) finished, "
+		TRACE_MGMT_DBG("TM fn %d (mcmd %p) finished, "
 			"status %d", mcmd->fn, mcmd, mcmd->status);
 
 	if (mcmd->fn == SCST_PR_ABORT_ALL) {
@@ -6203,11 +6210,11 @@ int scst_rx_mgmt_fn(struct scst_session *sess,
 	mcmd->cmd_sn = params->cmd_sn;
 
 	if (params->fn < SCST_UNREG_SESS_TM)
-		TRACE(TRACE_MGMT, "TM fn %d (%p, initiator %s, target %s)",
+		TRACE(TRACE_MGMT, "TM fn %d (mcmd %p, initiator %s, target %s)",
 			params->fn, mcmd, sess->initiator_name,
 			sess->tgt->tgt_name);
 	else
-		TRACE_MGMT_DBG("TM fn %d (%p)", params->fn, mcmd);
+		TRACE_MGMT_DBG("TM fn %d (mcmd %p)", params->fn, mcmd);
 
 	TRACE_MGMT_DBG("sess=%p, tag_set %d, tag %lld, lun_set %d, "
 		"lun=%lld, cmd_sn_set %d, cmd_sn %d, priv %p", sess,
