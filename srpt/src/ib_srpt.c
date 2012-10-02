@@ -446,7 +446,7 @@ static void srpt_get_class_port_info(struct ib_dm_mad *mad)
 	struct ib_class_port_info *cif;
 
 	cif = (struct ib_class_port_info *)mad->data;
-	memset(cif, 0, sizeof *cif);
+	memset(cif, 0, sizeof(*cif));
 	cif->base_version = 1;
 	cif->class_version = 1;
 	cif->resp_time_value = 20;
@@ -502,7 +502,7 @@ static void srpt_get_ioc(struct srpt_device *sdev, u32 slot,
 		return;
 	}
 
-	memset(iocp, 0, sizeof *iocp);
+	memset(iocp, 0, sizeof(*iocp));
 	strcpy(iocp->id_string, SRPT_ID_STRING);
 	iocp->guid = cpu_to_be64(srpt_service_guid);
 	iocp->vendor_id = cpu_to_be32(sdev->dev_attr.vendor_id);
@@ -550,7 +550,7 @@ static void srpt_get_svc_entries(u64 ioc_guid,
 	}
 
 	svc_entries = (struct ib_dm_svc_entries *)mad->data;
-	memset(svc_entries, 0, sizeof *svc_entries);
+	memset(svc_entries, 0, sizeof(*svc_entries));
 	svc_entries->service_entries[0].id = cpu_to_be64(ioc_guid);
 	snprintf(svc_entries->service_entries[0].name,
 		 sizeof(svc_entries->service_entries[0].name),
@@ -642,7 +642,7 @@ static void srpt_mad_recv_handler(struct ib_mad_agent *mad_agent,
 	rsp->ah = ah;
 
 	dm_mad = rsp->mad;
-	memcpy(dm_mad, mad_wc->recv_buf.mad, sizeof *dm_mad);
+	memcpy(dm_mad, mad_wc->recv_buf.mad, sizeof(*dm_mad));
 	dm_mad->mad_hdr.method = IB_MGMT_METHOD_GET_RESP;
 	dm_mad->mad_hdr.status = 0;
 
@@ -693,7 +693,7 @@ static int srpt_refresh_port(struct srpt_port *sport)
 
 	TRACE_ENTRY();
 
-	memset(&port_modify, 0, sizeof port_modify);
+	memset(&port_modify, 0, sizeof(port_modify));
 	port_modify.set_port_cap_mask = IB_PORT_DEVICE_MGMT_SUP;
 	port_modify.clr_port_cap_mask = 0;
 
@@ -713,7 +713,7 @@ static int srpt_refresh_port(struct srpt_port *sport)
 		goto err_query_port;
 
 	if (!sport->mad_agent) {
-		memset(&reg_req, 0, sizeof reg_req);
+		memset(&reg_req, 0, sizeof(reg_req));
 		reg_req.mgmt_class = IB_MGMT_CLASS_DEVICE_MGMT;
 		reg_req.mgmt_class_version = IB_MGMT_BASE_VERSION;
 		set_bit(IB_MGMT_METHOD_GET, reg_req.method_mask);
@@ -1084,14 +1084,14 @@ static int srpt_get_desc_tbl(struct srpt_send_ioctx *ioctx,
 
 		db = (struct srp_direct_buf *)(srp_cmd->add_data
 					       + add_cdb_offset);
-		memcpy(ioctx->rbufs, db, sizeof *db);
+		memcpy(ioctx->rbufs, db, sizeof(*db));
 		*data_len = be32_to_cpu(db->len);
 	} else if (((srp_cmd->buf_fmt & 0xf) == SRP_DATA_DESC_INDIRECT) ||
 		   ((srp_cmd->buf_fmt >> 4) == SRP_DATA_DESC_INDIRECT)) {
 		idb = (struct srp_indirect_buf *)(srp_cmd->add_data
 						  + add_cdb_offset);
 
-		ioctx->n_rbuf = be32_to_cpu(idb->table_desc.len) / sizeof *db;
+		ioctx->n_rbuf = be32_to_cpu(idb->table_desc.len) / sizeof(*db);
 
 		if (ioctx->n_rbuf >
 		    (srp_cmd->data_out_desc_cnt + srp_cmd->data_in_desc_cnt)) {
@@ -1110,7 +1110,7 @@ static int srpt_get_desc_tbl(struct srpt_send_ioctx *ioctx,
 			ioctx->rbufs = &ioctx->single_rbuf;
 		else {
 			ioctx->rbufs =
-				kmalloc(ioctx->n_rbuf * sizeof *db, GFP_ATOMIC);
+				kmalloc(ioctx->n_rbuf * sizeof(*db), GFP_ATOMIC);
 			if (!ioctx->rbufs) {
 				ioctx->n_rbuf = 0;
 				ret = -ENOMEM;
@@ -1119,7 +1119,7 @@ static int srpt_get_desc_tbl(struct srpt_send_ioctx *ioctx,
 		}
 
 		db = idb->desc_list;
-		memcpy(ioctx->rbufs, db, ioctx->n_rbuf * sizeof *db);
+		memcpy(ioctx->rbufs, db, ioctx->n_rbuf * sizeof(*db));
 		*data_len = be32_to_cpu(idb->len);
 	}
 out:
@@ -1137,7 +1137,7 @@ static int srpt_init_ch_qp(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 	struct ib_qp_attr *attr;
 	int ret;
 
-	attr = kzalloc(sizeof *attr, GFP_KERNEL);
+	attr = kzalloc(sizeof(*attr), GFP_KERNEL);
 	if (!attr)
 		return -ENOMEM;
 
@@ -1168,7 +1168,7 @@ static int srpt_ch_qp_rtr(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 	int attr_mask;
 	int ret;
 
-	attr = kzalloc(sizeof *attr, GFP_KERNEL);
+	attr = kzalloc(sizeof(*attr), GFP_KERNEL);
 	if (!attr)
 		return -ENOMEM;
 
@@ -1202,7 +1202,7 @@ static int srpt_ch_qp_rts(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 	uint64_t T_tr_ns;
 	uint32_t T_tr_ms, max_compl_time_ms;
 
-	attr = kzalloc(sizeof *attr, GFP_KERNEL);
+	attr = kzalloc(sizeof(*attr), GFP_KERNEL);
 	if (!attr)
 		return -ENOMEM;
 
@@ -1253,7 +1253,7 @@ static int srpt_ch_qp_err(struct srpt_rdma_ch *ch)
 	struct ib_qp_attr *attr;
 	int ret;
 
-	attr = kzalloc(sizeof *attr, GFP_KERNEL);
+	attr = kzalloc(sizeof(*attr), GFP_KERNEL);
 	if (!attr)
 		return -ENOMEM;
 
@@ -1605,7 +1605,7 @@ static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 
 	srp_rsp = ioctx->ioctx.buf;
 	BUG_ON(!srp_rsp);
-	memset(srp_rsp, 0, sizeof *srp_rsp);
+	memset(srp_rsp, 0, sizeof(*srp_rsp));
 
 	srp_rsp->opcode = SRP_RSP;
 	srp_rsp->req_lim_delta = cpu_to_be32(ioctx->req_lim_delta);
@@ -1657,7 +1657,7 @@ static int srpt_build_tskmgmt_rsp(struct srpt_rdma_ch *ch,
 
 	srp_rsp = ioctx->ioctx.buf;
 	BUG_ON(!srp_rsp);
-	memset(srp_rsp, 0, sizeof *srp_rsp);
+	memset(srp_rsp, 0, sizeof(*srp_rsp));
 
 	srp_rsp->opcode = SRP_RSP;
 	srp_rsp->req_lim_delta = cpu_to_be32(ioctx->req_lim_delta);
@@ -1694,8 +1694,8 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch,
 	atomic = context == SCST_CONTEXT_TASKLET ? SCST_ATOMIC
 		 : SCST_NON_ATOMIC;
 	scmnd = scst_rx_cmd(ch->scst_sess, (u8 *) &srp_cmd->lun,
-			    sizeof srp_cmd->lun, srp_cmd->cdb,
-			    sizeof srp_cmd->cdb, atomic);
+			    sizeof(srp_cmd->lun), srp_cmd->cdb,
+			    sizeof(srp_cmd->cdb), atomic);
 	if (!scmnd) {
 		PRINT_ERROR("0x%llx: allocation of an SCST command failed",
 			    srp_cmd->tag);
@@ -2159,7 +2159,7 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 	EXTRACHECKS_WARN_ON(ch->rq_size < 1);
 
 	ret = -ENOMEM;
-	qp_init = kzalloc(sizeof *qp_init, GFP_KERNEL);
+	qp_init = kzalloc(sizeof(*qp_init), GFP_KERNEL);
 	if (!qp_init)
 		goto out;
 
@@ -2485,9 +2485,9 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	    be16_to_cpu(*(__be16 *)&sdev->port[param->port - 1].gid.raw[14]));
 
 	ret = -ENOMEM;
-	rsp = kzalloc(sizeof *rsp, GFP_KERNEL);
-	rej = kzalloc(sizeof *rej, GFP_KERNEL);
-	rep_param = kzalloc(sizeof *rep_param, GFP_KERNEL);
+	rsp = kzalloc(sizeof(*rsp), GFP_KERNEL);
+	rej = kzalloc(sizeof(*rej), GFP_KERNEL);
+	rep_param = kzalloc(sizeof(*rep_param), GFP_KERNEL);
 	if (!rsp || !rej || !rep_param)
 		goto out;
 
@@ -2520,7 +2520,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	}
 
 	ret = -ENOMEM;
-	ch = kzalloc(sizeof *ch, GFP_KERNEL);
+	ch = kzalloc(sizeof(*ch), GFP_KERNEL);
 	if (!ch) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		PRINT_ERROR("rejected SRP_LOGIN_REQ because out of memory.");
@@ -2694,7 +2694,7 @@ restart:
 	/* create cm reply */
 	rep_param->qp_num = ch->qp->qp_num;
 	rep_param->private_data = (void *)rsp;
-	rep_param->private_data_len = sizeof *rsp;
+	rep_param->private_data_len = sizeof(*rsp);
 	rep_param->rnr_retry_count = 7;
 	rep_param->flow_control = 1;
 	rep_param->failover_accepted = 0;
@@ -3135,7 +3135,7 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 	ioctx->rdma_aborted = false;
 	ret = 0;
 	riu = ioctx->rdma_ius;
-	memset(&wr, 0, sizeof wr);
+	memset(&wr, 0, sizeof(wr));
 
 	for (i = 0; i < n_rdma; ++i, ++riu) {
 		if (dir == SCST_DATA_READ) {
@@ -3778,7 +3778,7 @@ static void srpt_add_one(struct ib_device *device)
 
 	TRACE_DBG("device = %p, device->dma_ops = %p", device, device->dma_ops);
 
-	sdev = kzalloc(sizeof *sdev, GFP_KERNEL);
+	sdev = kzalloc(sizeof(*sdev), GFP_KERNEL);
 	if (!sdev)
 		goto err;
 
