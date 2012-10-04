@@ -4219,25 +4219,13 @@ void scst_nexus_loss(struct scst_tgt_dev *tgt_dev, bool queue_UA)
 {
 	TRACE_ENTRY();
 
-	scst_clear_reservation(tgt_dev);
-
-#if 0 /* Clearing UAs and last sense isn't required by SAM and it looks to be
-       * better to not clear them to not loose important events, so let's
-       * disable it.
-       */
-	/* With activity suspended the lock isn't needed, but let's be safe */
-	spin_lock_bh(&tgt_dev->tgt_dev_lock);
-	scst_free_all_UA(tgt_dev);
-	memset(tgt_dev->tgt_dev_sense, 0, sizeof(tgt_dev->tgt_dev_sense));
-	spin_unlock_bh(&tgt_dev->tgt_dev_lock);
-#endif
-
 	if (queue_UA) {
 		uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
 		int sl = scst_set_sense(sense_buffer, sizeof(sense_buffer),
 				tgt_dev->dev->d_sense,
 				SCST_LOAD_SENSE(scst_sense_nexus_loss_UA));
-		scst_check_set_UA(tgt_dev, sense_buffer, sl, 0);
+		scst_check_set_UA(tgt_dev, sense_buffer, sl,
+			SCST_SET_UA_FLAG_AT_HEAD);
 	}
 
 	TRACE_EXIT();
@@ -8451,18 +8439,18 @@ int scst_get_max_lun_commands(struct scst_session *sess, uint64_t lun)
 EXPORT_SYMBOL(scst_get_max_lun_commands);
 
 /**
- * scst_reassign_persistent_sess_states() - reassigns persistent states
+ * scst_reassign_retained_sess_states() - reassigns retained states
  *
- * Reassigns persistent states from old_sess to new_sess.
+ * Reassigns retained during nexus loss states from old_sess to new_sess.
  */
-void scst_reassign_persistent_sess_states(struct scst_session *new_sess,
+void scst_reassign_retained_sess_states(struct scst_session *new_sess,
 	struct scst_session *old_sess)
 {
 	struct scst_device *dev;
 
 	TRACE_ENTRY();
 
-	TRACE_PR("Reassigning persistent states from old_sess %p to "
+	TRACE_MGMT_DBG("Reassigning retained states from old_sess %p to "
 		"new_sess %p", old_sess, new_sess);
 
 	if ((new_sess == NULL) || (old_sess == NULL)) {
@@ -8510,6 +8498,24 @@ void scst_reassign_persistent_sess_states(struct scst_session *new_sess,
 			continue;
 		}
 
+		/** Reassign regualar reservations **/
+
+		if (dev->dev_reserved &&
+		    !test_bit(SCST_TGT_DEV_RESERVED, &old_tgt_dev->tgt_dev_flags)) {
+			clear_bit(SCST_TGT_DEV_RESERVED, &new_tgt_dev->tgt_dev_flags);
+			set_bit(SCST_TGT_DEV_RESERVED, &old_tgt_dev->tgt_dev_flags);
+			TRACE_DBG("Reservation reassigned from old_tgt_dev %p "
+				"to new_tgt_dev %p", old_tgt_dev, new_tgt_dev);
+		}
+
+		/** Reassign PRs **/
+
+		if ((new_sess->transport_id == NULL) ||
+		    (old_sess->transport_id == NULL)) {
+			TRACE_DBG("%s", "new_sess or old_sess doesn't support PRs");
+			goto next;
+		}
+
 		scst_pr_write_lock(dev);
 
 		if (old_tgt_dev->registrant != NULL) {
@@ -8527,6 +8533,16 @@ void scst_reassign_persistent_sess_states(struct scst_session *new_sess,
 		}
 
 		scst_pr_write_unlock(dev);
+next:
+		/** Reassign other DH specific states **/
+
+		if (dev->handler->reassign_retained_states != NULL) {
+			TRACE_DBG("Calling dev's %s reassign_retained_states(%p, %p)",
+				dev->virt_name, new_tgt_dev, old_tgt_dev);
+			dev->handler->reassign_retained_states(new_tgt_dev, old_tgt_dev);
+			TRACE_DBG("Dev's %s reassign_retained_states() returned",
+				dev->virt_name);
+		}
 	}
 
 	mutex_unlock(&scst_mutex);
@@ -8535,7 +8551,7 @@ out:
 	TRACE_EXIT();
 	return;
 }
-EXPORT_SYMBOL(scst_reassign_persistent_sess_states);
+EXPORT_SYMBOL(scst_reassign_retained_sess_states);
 
 /**
  * scst_get_next_lexem() - parse and return next lexem in the string
