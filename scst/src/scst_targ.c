@@ -2687,6 +2687,19 @@ out_done:
 	goto out;
 }
 
+typedef int (*scst_local_exec_fn)(struct scst_cmd *cmd);
+
+static scst_local_exec_fn scst_local_fns[256] = {
+	[RESERVE] = scst_reserve_local,
+	[RESERVE_10] = scst_reserve_local,
+	[RELEASE] = scst_release_local,
+	[RELEASE_10] = scst_release_local,
+	[PERSISTENT_RESERVE_IN] = scst_persistent_reserve_in_local,
+	[PERSISTENT_RESERVE_OUT] = scst_persistent_reserve_out_local,
+	[REPORT_LUNS] = scst_report_luns_local,
+	[REQUEST_SENSE] = scst_request_sense_local,
+};
+
 static int scst_do_local_exec(struct scst_cmd *cmd)
 {
 	int res;
@@ -2711,31 +2724,7 @@ static int scst_do_local_exec(struct scst_cmd *cmd)
 		goto out;
 	}
 
-	switch (cmd->cdb[0]) {
-	case RESERVE:
-	case RESERVE_10:
-		res = scst_reserve_local(cmd);
-		break;
-	case RELEASE:
-	case RELEASE_10:
-		res = scst_release_local(cmd);
-		break;
-	case PERSISTENT_RESERVE_IN:
-		res = scst_persistent_reserve_in_local(cmd);
-		break;
-	case PERSISTENT_RESERVE_OUT:
-		res = scst_persistent_reserve_out_local(cmd);
-		break;
-	case REPORT_LUNS:
-		res = scst_report_luns_local(cmd);
-		break;
-	case REQUEST_SENSE:
-		res = scst_request_sense_local(cmd);
-		break;
-	default:
-		res = SCST_EXEC_NOT_COMPLETED;
-		break;
-	}
+	res = scst_local_fns[cmd->cdb[0]](cmd);
 
 out:
 	TRACE_EXIT_RES(res);
