@@ -2285,11 +2285,13 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 			buf[3] = 0x3C;
 			/* Optimal transfer granuality is PAGE_SIZE */
 			put_unaligned_be16(max_t(int, PAGE_SIZE/dev->block_size, 1), &buf[6]);
+
 			/* Max transfer len is min of sg limit and 8M */
 			max_transfer = min_t(int,
 					cmd->tgt_dev->max_sg_cnt << PAGE_SHIFT,
 					8*1024*1024) / dev->block_size;
 			put_unaligned_be32(max_transfer, &buf[8]);
+
 			/*
 			 * Let's have optimal transfer len 512KB. Better to not
 			 * set it at all, because we don't have such limit,
@@ -2300,6 +2302,7 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 			put_unaligned_be32(min_t(int,
 					max_transfer, 512*1024 / dev->block_size),
 						&buf[12]);
+
 			if (virt_dev->thin_provisioned) {
 				uint32_t gran = 1, align = 0, max_lba = 1;
 
@@ -2324,6 +2327,10 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 					buf[32] |= 0x80;
 				}
 			}
+
+			/* MAXIMUM WRITE SAME LENGTH (512MB) */
+			put_unaligned_be64((512*1024*1024) >> dev->block_shift, &buf[36]);
+
 			resp_len = buf[3] + 4;
 		} else if ((0xB1 == cmd->cdb[2]) && (dev->type == TYPE_DISK)) {
 			/* Block Device Characteristics */
