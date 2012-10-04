@@ -195,8 +195,6 @@ int iscsi_attr_replace(struct __qelem *attrs_list, const char *sysfs_name,
 
 	a = iscsi_attr_lookup_by_key(attrs_list, key);
 
-	list_add_tail(attr, attrs_list);
-
 	if ((a != NULL) && (a != attr)) {
 		log_error("Attr %s (sysfs_name %s) already exists\n", key,
 			a->sysfs_name);
@@ -216,6 +214,7 @@ int iscsi_attr_replace(struct __qelem *attrs_list, const char *sysfs_name,
 		if (new_val == NULL) {
 			log_error("Unable to duplicate attr_value %s", val);
 			res = -ENOMEM;
+			free(new_key);
 			goto out;
 		}
 	} else
