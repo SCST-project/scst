@@ -242,7 +242,7 @@ static enum compl_status_e blockio_exec_write(struct vdisk_cmd_params *p);
 static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p);
 static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua);
 static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask,
-	bool report_error);
+	bool report_error, struct scst_cmd *cmd, bool async);
 static enum compl_status_e fileio_exec_verify(struct vdisk_cmd_params *p);
 static enum compl_status_e blockio_exec_write_verify(struct vdisk_cmd_params *p);
 static enum compl_status_e fileio_exec_write_verify(struct vdisk_cmd_params *p);
@@ -262,7 +262,7 @@ static enum compl_status_e vdisk_exec_unmap(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_write_same(struct vdisk_cmd_params *p);
 static int vdisk_fsync(struct vdisk_cmd_params *p, loff_t loff,
 	loff_t len, struct scst_device *dev, gfp_t gfp_flags,
-	struct scst_cmd *cmd);
+	struct scst_cmd *cmd, bool async);
 #ifdef CONFIG_SCST_PROC
 static int vdisk_read_proc(struct seq_file *seq,
 	struct scst_dev_type *dev_type);
@@ -654,7 +654,7 @@ static void vdisk_blockio_check_flush_support(struct scst_vdisk_dev *virt_dev)
 		goto out_close;
 	}
 
-	if (vdisk_blockio_flush(inode->i_bdev, GFP_KERNEL, false) != 0) {
+	if (vdisk_blockio_flush(inode->i_bdev, GFP_KERNEL, false, NULL, false) != 0) {
 		PRINT_WARNING("Device %s doesn't support barriers, switching "
 			"to NV_CACHE mode. Read README for more details.",
 			virt_dev->filename);
@@ -1018,14 +1018,14 @@ static enum compl_status_e vdisk_synchronize_cache(struct vdisk_cmd_params *p)
 		cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT,
 				   SCST_CONTEXT_SAME);
 		vdisk_fsync(p, loff, data_len, dev,
-			    scst_cmd_get_gfp_flags(cmd), NULL);
+			    scst_cmd_get_gfp_flags(cmd), NULL, true);
 		/* ToDo: vdisk_fsync() error processing */
 		scst_cmd_put(cmd);
 		res = RUNNING_ASYNC;
 	} else {
 		vdisk_fsync(p, loff, data_len, dev,
-			    scst_cmd_get_gfp_flags(cmd), cmd);
-		res = CMD_SUCCEEDED;
+			    scst_cmd_get_gfp_flags(cmd), cmd, true);
+		res = RUNNING_ASYNC;
 	}
 
 	TRACE_EXIT_RES(res);
@@ -1040,7 +1040,8 @@ static enum compl_status_e vdisk_exec_start_stop(struct vdisk_cmd_params *p)
 
 	TRACE_ENTRY();
 
-	vdisk_fsync(p, 0, virt_dev->file_size, dev, scst_cmd_get_gfp_flags(cmd), cmd);
+	vdisk_fsync(p, 0, virt_dev->file_size, dev, scst_cmd_get_gfp_flags(cmd),
+		cmd, false);
 
 	TRACE_EXIT();
 	return CMD_SUCCEEDED;
@@ -3252,7 +3253,7 @@ static enum compl_status_e vdisk_exec_prevent_allow_medium_removal(struct vdisk_
 
 static int vdisk_fsync(struct vdisk_cmd_params *p, loff_t loff,
 	loff_t len, struct scst_device *dev, gfp_t gfp_flags,
-	struct scst_cmd *cmd)
+	struct scst_cmd *cmd, bool async)
 {
 	int res = 0;
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
@@ -3271,7 +3272,8 @@ static int vdisk_fsync(struct vdisk_cmd_params *p, loff_t loff,
 		goto out;
 
 	if (virt_dev->blockio) {
-		res = vdisk_blockio_flush(virt_dev->bdev, gfp_flags, true);
+		res = vdisk_blockio_flush(virt_dev->bdev, gfp_flags, true,
+			cmd, async);
 		goto out_check;
 	}
 
@@ -3292,8 +3294,16 @@ out_check:
 	if (unlikely(res != 0)) {
 		PRINT_ERROR("sync range failed (%d)", res);
 		if (cmd != NULL) {
-			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_write_error));
+			if (res == -ENOMEM)
+				scst_set_busy(cmd);
+			else
+				scst_set_cmd_error(cmd,
+					SCST_LOAD_SENSE(scst_sense_write_error));
+			if (async) {
+				cmd->completed = 1;
+				cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT,
+					scst_estimate_context());
+			}
 		}
 	}
 
@@ -3589,7 +3599,7 @@ out_sync:
 	/* O_DSYNC flag is used for WT devices */
 	if (p->fua)
 		vdisk_fsync(p, loff, scst_cmd_get_data_len(cmd), cmd->dev,
-			    scst_cmd_get_gfp_flags(cmd), cmd);
+			    scst_cmd_get_gfp_flags(cmd), cmd, false);
 out:
 	TRACE_EXIT();
 	return err >= 0 ? CMD_SUCCEEDED : CMD_FAILED;
@@ -3851,24 +3861,79 @@ out_no_mem:
 	goto out;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
+static void vdev_flush_end_io(struct bio *bio, int error)
+{
+	struct scst_cmd *cmd = bio->bi_private;
+
+	TRACE_ENTRY();
+
+	if (unlikely(error != 0)) {
+		PRINT_ERROR("FLUSH bio failed: %d (cmd %p)",
+			error, cmd);
+		if (cmd != NULL)
+			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_write_error));
+	}
+
+	if (cmd == NULL)
+		goto out_put;
+
+	cmd->completed = 1;
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, scst_estimate_context());
+
+out_put:
+	bio_put(bio);
+
+	TRACE_EXIT();
+	return;
+}
+#endif
+
 static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask,
-	bool report_error)
+	bool report_error, struct scst_cmd *cmd, bool async)
 {
 	int res = 0;
 
 	TRACE_ENTRY();
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
+	if (async) {
+		struct bio *bio = bio_alloc(GFP_KERNEL, 0);
+		if (bio == NULL) {
+			res = -ENOMEM;
+			goto out_rep;
+		}
+		bio->bi_end_io = vdev_flush_end_io;
+		bio->bi_private = cmd;
+		bio->bi_bdev = bdev;
+		submit_bio(WRITE_FLUSH, bio);
+	} else {
+#else
+	{
+#endif
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)           \
     && !(defined(CONFIG_SUSE_KERNEL)                        \
 	 && LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 34))
-	res = blkdev_issue_flush(bdev, NULL);
+		res = blkdev_issue_flush(bdev, NULL);
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
-	res = blkdev_issue_flush(bdev, gfp_mask, NULL, BLKDEV_IFL_WAIT);
+		res = blkdev_issue_flush(bdev, gfp_mask, NULL, BLKDEV_IFL_WAIT);
 #else
-	res = blkdev_issue_flush(bdev, gfp_mask, NULL);
+		res = blkdev_issue_flush(bdev, gfp_mask, NULL);
+#endif
+	}
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
+out_rep:
+#else
+	if (async && (res == 0)) {
+		cmd->completed = 1;
+		cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT,
+			scst_estimate_context());
+	}
 #endif
 	if ((res != 0) && report_error)
-		PRINT_ERROR("blkdev_issue_flush() failed: %d", res);
+		PRINT_ERROR("%s() failed: %d",
+			async ? "bio_alloc" : "blkdev_issue_flush", res);
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -3893,7 +3958,7 @@ static enum compl_status_e fileio_exec_verify(struct vdisk_cmd_params *p)
 	sBUG_ON(virt_dev->blockio);
 
 	if (vdisk_fsync(p, loff, data_len, cmd->dev,
-			scst_cmd_get_gfp_flags(cmd), cmd) != 0)
+			scst_cmd_get_gfp_flags(cmd), cmd, false) != 0)
 		goto out;
 
 	/*
