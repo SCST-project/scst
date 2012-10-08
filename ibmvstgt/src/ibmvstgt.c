@@ -83,7 +83,7 @@
 /* tmp - will replace with SCSI logging stuff */
 #define eprintk(fmt, args...)					\
 do {								\
-	printk(KERN_ERR "%s(%d) " fmt, __func__, __LINE__, ##args); \
+	pr_err("%s(%d) " fmt, __func__, __LINE__, ##args);	\
 } while (0)
 /* #define dprintk eprintk */
 #define dprintk(fmt, args...)
@@ -1503,7 +1503,7 @@ static int __init ibmvstgt_init(void)
 {
 	int err = -ENOMEM;
 
-	printk(KERN_INFO "IBM eServer i/pSeries Virtual SCSI Target Driver\n");
+	pr_info("IBM eServer i/pSeries Virtual SCSI Target Driver\n");
 
 	err = get_system_info();
 	if (err)
@@ -1549,7 +1549,7 @@ out:
 
 static void __exit ibmvstgt_exit(void)
 {
-	printk(KERN_INFO "Unregister IBM virtual SCSI driver\n");
+	pr_info("Unregister IBM virtual SCSI driver\n");
 
 #ifdef CONFIG_SCST_PROC
 	ibmvstgt_unregister_procfs_entry(&ibmvstgt_template);
