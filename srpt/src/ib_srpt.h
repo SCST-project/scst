@@ -340,7 +340,6 @@ struct srpt_rdma_ch {
 	struct srpt_send_ioctx	**ioctx_ring;
 	struct ib_wc		wc[16];
 	enum rdma_ch_state	state;
-	wait_queue_head_t	state_wq;
 	struct list_head	list;
 	struct list_head	cmd_wait_list;
 	bool			rtu_received;
