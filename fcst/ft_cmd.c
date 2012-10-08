@@ -50,18 +50,18 @@ void ft_cmd_dump(struct scst_cmd *cmd, const char *caller)
 	snprintf(prefix, sizeof(prefix), FT_MODULE ": cmd %2x",
 		atomic_inc_return(&serial) & 0xff);
 
-	printk(KERN_INFO "%s %s oid %x oxid %x resp_len %u\n",
+	pr_info("%s %s oid %x oxid %x resp_len %u\n",
 		prefix, caller, ntoh24(fh->fh_s_id), ntohs(fh->fh_ox_id),
 		scst_cmd_get_resp_data_len(cmd));
-	printk(KERN_INFO "%s scst_cmd %p wlen %u rlen %u\n",
+	pr_info("%s scst_cmd %p wlen %u rlen %u\n",
 		prefix, cmd, fcmd->write_data_len, fcmd->read_data_len);
-	printk(KERN_INFO "%s exp_dir %x exp_xfer_len %d exp_in_len %d\n",
+	pr_info("%s exp_dir %x exp_xfer_len %d exp_in_len %d\n",
 		prefix, cmd->expected_data_direction,
 		cmd->expected_transfer_len, cmd->expected_out_transfer_len);
-	printk(KERN_INFO "%s dir %x data_len %lld bufflen %d out_bufflen %d\n",
+	pr_info("%s dir %x data_len %lld bufflen %d out_bufflen %d\n",
 		prefix, cmd->data_direction, cmd->data_len,
 		cmd->bufflen, cmd->out_bufflen);
-	printk(KERN_INFO "%s sg_cnt reg %d in %d tgt %d tgt_in %d\n",
+	pr_info("%s sg_cnt reg %d in %d tgt %d tgt_in %d\n",
 		prefix, cmd->sg_cnt, cmd->out_sg_cnt,
 		cmd->tgt_i_sg_cnt, cmd->tgt_out_sg_cnt);
 
@@ -117,16 +117,16 @@ void ft_cmd_dump(struct scst_cmd *cmd, const char *caller)
 	if (cmd->finished)
 		ft_cmd_flag(buf, sizeof(buf), "fin");
 
-	printk(KERN_INFO "%s flags %s\n", prefix, buf);
-	printk(KERN_INFO "%s lun %lld sn %d tag %lld cmd_flags %lx\n",
+	pr_info("%s flags %s\n", prefix, buf);
+	pr_info("%s lun %lld sn %d tag %lld cmd_flags %lx\n",
 		prefix, cmd->lun, cmd->sn, cmd->tag, cmd->cmd_flags);
-	printk(KERN_INFO "%s tgt_sn %d op_flags %x op %s\n",
+	pr_info("%s tgt_sn %d op_flags %x op %s\n",
 		prefix, cmd->tgt_sn, cmd->op_flags, cmd->op_name);
-	printk(KERN_INFO "%s status %x msg_status %x "
+	pr_info("%s status %x msg_status %x "
 		"host_status %x driver_status %x\n",
 		prefix, cmd->status, cmd->msg_status,
 		cmd->host_status, cmd->driver_status);
-	printk(KERN_INFO "%s cdb_len %d\n", prefix, cmd->cdb_len);
+	pr_info("%s cdb_len %d\n", prefix, cmd->cdb_len);
 	snprintf(buf, sizeof(buf), "%s cdb ", prefix);
 	print_hex_dump(KERN_INFO, buf, DUMP_PREFIX_NONE,
 		16, 4, cmd->cdb, SCST_MAX_CDB_SIZE, 0);
@@ -149,10 +149,10 @@ static void ft_cmd_tm_dump(struct scst_mgmt_cmd *mcmd, const char *caller)
 
 	snprintf(prefix, sizeof(prefix), FT_MODULE ": mcmd");
 
-	printk(KERN_INFO "%s %s oid %x oxid %x lun %lld\n",
+	pr_info("%s %s oid %x oxid %x lun %lld\n",
 		prefix, caller, ntoh24(fh->fh_s_id), ntohs(fh->fh_ox_id),
 		(unsigned long long)mcmd->lun);
-	printk(KERN_INFO "%s state %d fn %d fin_wait %d done_wait %d comp %d\n",
+	pr_info("%s state %d fn %d fin_wait %d done_wait %d comp %d\n",
 		prefix, mcmd->state, mcmd->fn,
 		mcmd->cmd_finish_wait_count, mcmd->cmd_done_wait_count,
 		mcmd->completed_cmd_count);
@@ -163,7 +163,7 @@ static void ft_cmd_tm_dump(struct scst_mgmt_cmd *mcmd, const char *caller)
 		ft_cmd_flag(buf, sizeof(buf), "lun_set");
 	if (mcmd->cmd_sn_set)
 		ft_cmd_flag(buf, sizeof(buf), "cmd_sn_set");
-	printk(KERN_INFO "%s flags %s\n", prefix, buf);
+	pr_info("%s flags %s\n", prefix, buf);
 	if (mcmd->cmd_to_abort)
 		ft_cmd_dump(mcmd->cmd_to_abort, caller);
 }
@@ -340,8 +340,8 @@ static void ft_recv_seq(struct fc_seq *sp, struct fc_frame *fp, void *arg)
 	case FC_RCTL_DD_SOL_CTL:	/* transfer ready */
 	case FC_RCTL_DD_DATA_DESC:	/* transfer ready */
 	default:
-		printk(KERN_INFO "%s: unhandled frame r_ctl %x\n",
-		       __func__, fh->fh_r_ctl);
+		pr_info("%s: unhandled frame r_ctl %x\n", __func__,
+			fh->fh_r_ctl);
 		fc_frame_free(fp);
 		break;
 	}
@@ -753,8 +753,8 @@ void ft_recv_req(struct ft_sess *sess, struct fc_frame *fp)
 		ft_recv_els4(sess, fp);
 		break;
 	default:
-		printk(KERN_INFO "%s: unhandled frame r_ctl %x\n",
-		       __func__, fh->fh_r_ctl);
+		pr_info("%s: unhandled frame r_ctl %x\n", __func__,
+			fh->fh_r_ctl);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 		sess->tport->lport->tt.exch_done(fr_seq(fp));
 #endif
