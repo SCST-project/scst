@@ -342,8 +342,8 @@ function run_sparse {
     local warnings=$(grep -c ' warning:' "${outputfile}")
     echo "${errors} errors / ${warnings} warnings."
     cat "${outputfile}" \
-      | grep -E 'warning:|error:' \
-      | sed -e 's/^[^ ]*:[^ ]*:[^ ]*: //' \
+      | grep -E ' warning:| error:' \
+      | sed -e 's/^[^:]*:[0-9:]* //' \
             -e "s/context imbalance in '[^']*':/context imbalance in <function>:/g" \
             -e "s/context problem in '[^']*': '[^']*'/context problem in <function>: <function>/g" \
             -e "s/function '[^']*'/function/g" \
