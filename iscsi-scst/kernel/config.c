@@ -1223,26 +1223,26 @@ static void iscsi_dump_char(int ch, unsigned char *text, int *pos)
 
 	if (ch < 0) {
 		while ((i % 16) != 0) {
-			printk(KERN_CONT "   ");
+			pr_cont("   ");
 			text[i] = ' ';
 			i++;
 			if ((i % 16) == 0)
-				printk(KERN_CONT " | %.16s |\n", text);
+				pr_cont(" | %.16s |\n", text);
 			else if ((i % 4) == 0)
-				printk(KERN_CONT " |");
+				pr_cont(" |");
 		}
 		i = 0;
 		goto out;
 	}
 
 	text[i] = (ch < 0x20 || (ch >= 0x80 && ch <= 0xa0)) ? ' ' : ch;
-	printk(KERN_CONT " %02x", ch);
+	pr_cont(" %02x", ch);
 	i++;
 	if ((i % 16) == 0) {
-		printk(KERN_CONT " | %.16s |\n", text);
+		pr_cont(" | %.16s |\n", text);
 		i = 0;
 	} else if ((i % 4) == 0)
-		printk(KERN_CONT " |");
+		pr_cont(" |");
 
 out:
 	*pos = i;

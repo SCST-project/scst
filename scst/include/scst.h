@@ -3039,7 +3039,7 @@ static inline bool scst_cmd_atomic(struct scst_cmd *cmd)
 	 */
 	if (unlikely((in_atomic() || in_interrupt() || irqs_disabled()) &&
 		     !res)) {
-		printk(KERN_ERR "ERROR: atomic context and non-atomic cmd!\n");
+		pr_err("ERROR: atomic context and non-atomic cmd!\n");
 		dump_stack();
 		cmd->atomic = 1;
 		res = 1;

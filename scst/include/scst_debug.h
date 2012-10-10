@@ -32,11 +32,47 @@
 #include <linux/bug.h>		/* for WARN_ON_ONCE */
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
+/*
+ * See also the following commits:
+ * d091c2f5 - Introduction of pr_info() etc. in <linux/kernel.h>.
+ * 311d0761 - Introduction of pr_cont() in <linux/kernel.h>.
+ * 968ab183 - Moved pr_info() etc. from <linux/kernel.h> to <linux/printk.h>
+ */
+#ifndef pr_info
+#ifndef pr_fmt
+#define pr_fmt(fmt) fmt
+#endif
+
+#define pr_emerg(fmt, ...) \
+        printk(KERN_EMERG pr_fmt(fmt), ##__VA_ARGS__)
+#define pr_alert(fmt, ...) \
+        printk(KERN_ALERT pr_fmt(fmt), ##__VA_ARGS__)
+#define pr_crit(fmt, ...) \
+        printk(KERN_CRIT pr_fmt(fmt), ##__VA_ARGS__)
+#define pr_err(fmt, ...) \
+        printk(KERN_ERR pr_fmt(fmt), ##__VA_ARGS__)
+#define pr_warning(fmt, ...) \
+        printk(KERN_WARNING pr_fmt(fmt), ##__VA_ARGS__)
+#define pr_warn pr_warning
+#define pr_notice(fmt, ...) \
+        printk(KERN_NOTICE pr_fmt(fmt), ##__VA_ARGS__)
+#define pr_info(fmt, ...) \
+        printk(KERN_INFO pr_fmt(fmt), ##__VA_ARGS__)
+#endif
+#endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
+#ifndef pr_cont
+#define pr_cont(fmt, ...) \
+        printk(KERN_CONT fmt, ##__VA_ARGS__)
+#endif
+#endif
+
 #if !defined(INSIDE_KERNEL_TREE)
 #ifdef CONFIG_SCST_DEBUG
 
 #define sBUG() do {						\
-	printk(KERN_CRIT "BUG at %s:%d\n",  __FILE__, __LINE__); \
+	pr_crit("BUG at %s:%d\n",  __FILE__, __LINE__);		\
 	local_irq_enable();					\
 	while (in_softirq())					\
 		local_bh_enable();				\
@@ -45,8 +81,8 @@
 
 #define sBUG_ON(p) do {						\
 	if (unlikely(p)) {					\
-		printk(KERN_CRIT "BUG at %s:%d (%s)\n",		\
-		       __FILE__, __LINE__, #p);			\
+		pr_crit("BUG at %s:%d (%s)\n",			\
+			__FILE__, __LINE__, #p);		\
 		local_irq_enable();				\
 		while (in_softirq())				\
 			local_bh_enable();			\
