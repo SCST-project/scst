@@ -952,6 +952,39 @@ disable_sendpage parameter for drbd module. But in this case it might be
 better for performance simply not apply put_page_callback patch.
 
 
+Background information about zero-copy data sending
+---------------------------------------------------
+
+As explained above the most efficient operation of the iSCSI-SCST target
+driver is achieved when the following two conditions are met:
+* Data is sent from target to initiator in a zero-copy fashion.
+* Data buffers are cached for reuse (by the so-called sgv pool). 
+Unfortunately the zero-copy API in the Linux kernel (proto.sendpage() /
+tcp_sendpage()) does not yet support completion notifications. Hence the
+put_page_callback patch which adds completion notification support to
+tcp_sendpage(). However, since the put_page_callback patch increases the size
+of the page structure in the Linux kernel that patch is considered
+unacceptable for integration in the mainline kernel [1]. Another approach,
+called skb paged fragment destructors, might get merged in the mainline kernel
+in the future. Version five of that patch series has been posted in May 2012
+[2].
+
+Notes:
+* The current implementation of scst_user is such that iSCSI-SCST only sends
+  data allocated by scst_user in a zero-copy fashion if the put_page_callback
+  patch has been applied. This holds even if scst_user did not use the sgv
+  pool to allocate a data buffer.
+* Zero-copy sending is only possible with network interface drivers that
+  support scatter/gather and checksumming (NETIF_F_SG and NETIF_F_ALL_CSUM
+  respectively). 
+
+References:
+[1] James Bottomley, Linux Kernel Mailing List, December 2008,
+    http://lkml.org/lkml/2008/12/11/213.
+[2] Ian Campbell, [PATCH v5 0/9] skb paged fragment destructors, May 3 2012,
+    linux-netdev, http://marc.info/?l=linux-netdev&m=133605705111948&w=2.
+
+
 Credits
 -------
 

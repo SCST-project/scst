@@ -1,0 +1,46 @@
+SCST, DRBD and Dual Primary Mode
+********************************
+
+Introduction
+------------
+One possible approach to build a highly available storage solution is to
+combine SCST with DRBD. While designing such a solution one has to choose an
+operation mode for DRBD. While single primary mode is the easiest to set up,
+with dual primary mode it becomes possible to balance the load for a single
+LUN over the clustered servers. However, SCST and DRBD settings have to be
+chosen carefully in order to avoid data corruption with dual primary
+mode. One must make sure that SCST only confirms a write as finished to the
+multipath initiator after the data involved in write operation has been
+passed on to DRBD on both nodes.
+
+SCST Configuration
+------------------
+In order to avoid data corruption it is crucial to use the following SCST
+settings for each DRBD block device exported via SCST:
+* One can use either the vdisk_blockio device handler or vdisk_fileio.
+* Caching MUST be disabled: set the nv_cache parameter to 0 in scst.conf.
+* Write-through MUST be enabled: set the write_through parameter to 1 in
+  scst.conf.
+
+DRBD Configuration
+------------------
+As documented in the DRBD manual, dual primary mode only works with the DRBD
+replication protocol C and not with protocol A nor with protocol B.
+
+Initiator Configuration
+-----------------------
+When using VMware, do NOT use multipath I/O in round-robin mode. This mode
+namely depends on persistent reservations to guarantee data
+consistency. When running an SCST cluster, the SCST persistent reservation
+state is not shared between the two nodes.
+
+References
+----------
+* DRBD authors, [Dual Primary Mode], DRBD Manual, 2011.
+* VMware, [iSCSI SAN Configuration Guide 4.1], VMware website, September 2010.
+* Phil White, [VMware ESX, MPIO, SCST and DRBD in Dual Primary Mode], SCST
+  Developers Mailing List, June 2010.
+* Stefan Berger, [SCST and DRBD in Dual Primary Mode], DRBD users mailing
+  list, June 2010.
+* Bart Van Assche [SCST and DRBD in Dual Primary Mode], SCST Developers
+  Mailing List, May 2011. 
