@@ -773,8 +773,8 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 				devt->name, cmd->tgtt->name, cmd->bufflen);
 			PRINT_BUFF_FLAG(TRACE_MINOR, "Suspicious CDB",
 				cmd->cdb, cmd->cdb_len);
-			if ((cmd->data_direction & SCST_DATA_READ) ||
-			    (cmd->data_direction & SCST_DATA_WRITE))
+			if ((cmd->expected_data_direction & SCST_DATA_READ) ||
+			    (cmd->expected_data_direction & SCST_DATA_WRITE))
 				cmd->resid_possible = 1;
 		}
 		if (unlikely(cmd->out_bufflen != cmd->expected_out_transfer_len)) {
@@ -3287,7 +3287,7 @@ static int scst_mode_select_checks(struct scst_cmd *cmd)
 			spin_unlock_bh(&dev->dev_lock);
 
 			if (dev->scsi_dev != NULL)
-				scst_obtain_device_parameters(dev);
+				scst_obtain_device_parameters(dev, cmd->cdb);
 		}
 	} else if ((cmd->status == SAM_STAT_CHECK_CONDITION) &&
 		    scst_is_ua_sense(cmd->sense, cmd->sense_valid_len) &&
@@ -3317,7 +3317,7 @@ static int scst_mode_select_checks(struct scst_cmd *cmd)
 			"(LUN %lld): getting new parameters", cmd->sense[12],
 			(long long unsigned int)cmd->lun);
 
-		scst_obtain_device_parameters(cmd->dev);
+		scst_obtain_device_parameters(cmd->dev, NULL);
 	} else
 		sBUG();
 

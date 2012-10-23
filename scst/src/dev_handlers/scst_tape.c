@@ -226,7 +226,7 @@ static int tape_attach(struct scst_device *dev)
 	dev->block_shift = scst_calc_block_shift(dev->block_size);
 
 obtain:
-	res = scst_obtain_device_parameters(dev);
+	res = scst_obtain_device_parameters(dev, NULL);
 	if (res != 0) {
 		PRINT_ERROR("Failed to obtain control parameters for device "
 			"%s", dev->virt_name);

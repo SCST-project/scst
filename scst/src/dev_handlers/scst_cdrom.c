@@ -139,7 +139,7 @@ static int cdrom_attach(struct scst_device *dev)
 	}
 	dev->block_size = 1 << dev->block_shift;
 
-	res = scst_obtain_device_parameters(dev);
+	res = scst_obtain_device_parameters(dev, NULL);
 	if (res != 0) {
 		PRINT_ERROR("Failed to obtain control parameters for device "
 			"%s", dev->virt_name);

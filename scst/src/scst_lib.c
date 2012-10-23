@@ -8178,11 +8178,18 @@ void scst_unblock_dev(struct scst_device *dev)
 
 /**
  * scst_obtain_device_parameters() - obtain device control parameters
+ * @dev:	device to act on
+ * @mode_select_cdb: original MODE SELECT CDB
  *
- * Issues a MODE SENSE for control mode page data and sets the corresponding
- * dev's parameter from it. Returns 0 on success and not 0 otherwise.
+ * Issues a MODE SENSE for necessary pages data and sets the corresponding
+ * dev's parameter from it. Parameter mode_select_cdb is pointer on original
+ * MODE SELECT CDB, if this function called to refresh parameters after
+ * successfully finished MODE SELECT command detected.
+ *
+ * Returns 0 on success and not 0 otherwise.
  */
-int scst_obtain_device_parameters(struct scst_device *dev)
+int scst_obtain_device_parameters(struct scst_device *dev,
+	const uint8_t *mode_select_cdb)
 {
 	int rc, i;
 	uint8_t cmd[16];
@@ -8192,6 +8199,14 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 	TRACE_ENTRY();
 
 	EXTRACHECKS_BUG_ON(dev->scsi_dev == NULL);
+
+	if (mode_select_cdb != NULL) {
+		if ((mode_select_cdb[2] & 0x3F) != 0x0A) {
+			TRACE_DBG("Not control mode page (%x) change requested, "
+				"skipping", mode_select_cdb[2] & 0x3F);
+			goto out;
+		}
+	}
 
 	for (i = 0; i < 5; i++) {
 		/* Get control mode page */
@@ -8274,7 +8289,8 @@ int scst_obtain_device_parameters(struct scst_device *dev)
 						SCST_SENSE_KEY_VALID,
 						ILLEGAL_REQUEST, 0, 0)) {
 					PRINT_INFO("Device %s doesn't support "
-						"MODE SENSE", dev->virt_name);
+						"MODE SENSE or control mode page",
+						dev->virt_name);
 					break;
 				} else if (scst_analyze_sense(sense_buffer,
 						sizeof(sense_buffer),

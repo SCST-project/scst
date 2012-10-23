@@ -4221,7 +4221,8 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 int scst_tape_generic_dev_done(struct scst_cmd *cmd,
 	void (*set_block_size)(struct scst_cmd *cmd, int block_size));
 
-int scst_obtain_device_parameters(struct scst_device *dev);
+int scst_obtain_device_parameters(struct scst_device *dev,
+	const uint8_t *mode_select_cdb);
 
 void scst_reassign_retained_sess_states(struct scst_session *new_sess,
 	struct scst_session *old_sess);
