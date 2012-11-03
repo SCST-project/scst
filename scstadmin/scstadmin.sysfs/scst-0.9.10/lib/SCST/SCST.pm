@@ -2824,6 +2824,19 @@ sub targetAttributes {
 			$linked =~ s/.*\///;
 			$attributes{$attribute}->{'static'} = TRUE;
 			$attributes{$attribute}->{'value'} = $linked;
+		} elsif ($driver eq 'scst_local' && $attribute eq 'sessions') {
+			my $_session_path = make_path($_path, $attribute);
+			my $pSessHandle = new IO::Handle;
+			if (!(opendir $pSessHandle, $_session_path)) {
+				$self->{'err_string'} = "targetAttributes(): Unable to read directory '$_session_path': $!";
+				return undef;
+			}
+			my $key = 0;
+			foreach my $e (readdir($pSessHandle)) {
+				next if ($e eq '.' || $e eq '..');
+				$attributes{'session_name'}->{'keys'}->{$key}->{'value'} = $e;
+				$key++;
+			}
 		} elsif (-d $pPath) {
 			# Skip directories
 		} else {
