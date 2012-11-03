@@ -57,6 +57,7 @@ install:
 	  install -m 755 $$tmp $(DESTDIR)$(INITDIR)/scst &&             \
 	  rm -f $$tmp
 	if [ ! -e  $(DESTDIR)$(DEFAULTDIR)/scst ]; then		\
+	  mkdir -p $(DESTDIR)$(DEFAULTDIR);			\
 	  install -m 755 default/scst $(DESTDIR)$(DEFAULTDIR);	\
 	fi
 	@if [ "$(REMOVE_INITD_CMD)" != "none" ]; then		\
