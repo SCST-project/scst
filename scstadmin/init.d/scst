@@ -31,8 +31,8 @@ cat <<"EOF"
 # Provides:       scst
 # Required-Start: $syslog $local_fs $network
 # Required-Stop:  $syslog $local_fs $network
-# Default-Start:  2 3 4 5
-# Default-Stop:   0 1 6
+# Default-Start:  3 5
+# Default-Stop:   0 1 2 4 6
 # Description:    SCST - A Generic SCSI Target Subsystem
 ### END INIT INFO
 ### BEGIN CHKCONFIG INFO
