@@ -10,14 +10,20 @@ INITDIR := $(shell if [ -f /etc/slackware-version ]; then	\
                    else						\
                      echo /etc/init.d;				\
                    fi)
-INSTALL_INITD_CMD := $(shell if [ -f /etc/gentoo-release ]; then	\
+INSTALL_INITD_CMD := $(shell if type -p systemctl >/dev/null 2>&1; then	\
+			       echo systemctl enable;			\
+			     elif [ -f /etc/gentoo-release ]; then	\
 			       echo rc-update add;			\
 			     elif [ -f /etc/slackware-version ]; then	\
 			       echo none;				\
 			     else					\
 			       echo /usr/lib/lsb/install_initd;		\
 			     fi)
-INSTALL_INITD_ARGS := $(shell [ -f /etc/gentoo-release ] && echo default)
+INSTALL_INITD_ARGS := $(shell if type -p systemctl >/dev/null 2>&1; then\
+				echo ".service";			\
+			      elif [ -f /etc/gentoo-release ]; then	\
+				echo " default";			\
+			      fi)
 REMOVE_INITD_CMD := $(shell if [ -f /etc/gentoo-release ]; then		\
 			      echo rc-update del;			\
 			    elif [ -f /etc/slackware-version ]; then	\
@@ -71,7 +77,7 @@ install:
 	  echo 'If you want SCST to start automatically at boot time, run'  \
 	      'the following command:';					    \
 	  if [ ! -z "$(DESTDIR)" ]; then echo -n "chroot $(DESTDIR) "; fi;  \
-	  echo '$(INSTALL_INITD_CMD) scst $(INSTALL_INITD_ARGS)';	    \
+	  echo '$(INSTALL_INITD_CMD) scst$(INSTALL_INITD_ARGS)';	    \
 	  echo; \
 	fi
 
