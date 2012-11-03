@@ -144,6 +144,8 @@ out:
 	return res;
 
 out_free:
+	list_del_init(&conn->clist);
+	assert(list_empty(&session->conn_list));
 	session_free(session);
 	conn->sess = NULL;
 	goto out;
