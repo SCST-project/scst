@@ -2614,10 +2614,10 @@ sub deviceAttributes {
 					return undef;
 				}
 
-				my $value = <$io>;
+				my ($value, $is_key) = split("\n", _sysread($io) , 2);
+
 				chomp $value;
 
-				my $is_key = <$io>;
 				$is_key = new_sysfs_interface() &&
 				    (!$is_static || defined($$dca{$attribute}))
 				    || ($is_key =~ /\[key\]/) ? TRUE : FALSE;
@@ -4842,6 +4842,24 @@ sub errorString {
 	return $string;
 }
 
+# Read from the SCST sysfs file $1. Return either the data read or undef if
+# reading failed.
+sub _sysread {
+	my $io = shift;
+	my $deadline = time() + $TIMEOUT;
+	my $result;
+
+	while (time() < $deadline) {
+		my $bytes = sysread($io, $result, 4096);
+		last if (defined($bytes) || $! != EAGAIN);
+		sleep 1;
+	}
+
+	return $result;
+}
+
+# Write the first $3 bytes of $2 into the SCST sysfs file $1. Return either
+# the number of bytes written or undef if writing failed.
 sub _syswrite {
 	my $io = shift;
 	my $cmd = shift;
