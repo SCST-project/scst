@@ -3005,8 +3005,10 @@ static int scst_check_auto_sense(struct scst_cmd *cmd)
 			scst_set_busy(cmd);
 		} else {
 			TRACE(TRACE_SCSI|TRACE_MINOR_AND_MGMT_DBG, "Host "
-				"status %x received, returning HARDWARE ERROR "
-				"instead (cmd %p)", cmd->host_status, cmd);
+				"status 0x%x received, returning HARDWARE ERROR "
+				"instead (cmd %p, op 0x%x, target %s, device "
+				"%s)", cmd->host_status, cmd, cmd->cdb[0],
+				cmd->tgt->tgt_name, cmd->dev->virt_name);
 			scst_set_cmd_error(cmd,
 				SCST_LOAD_SENSE(scst_sense_hardw_error));
 		}
@@ -4114,11 +4116,24 @@ static void scst_ioctx_get(struct scst_cmd_threads *p_cmd_threads)
 			 */
 			put_io_context(p_cmd_threads->io_context);
 		} else {
-			current->io_context =
-				ioc_task_link(p_cmd_threads->io_context);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0)))
+#warning IO context sharing functionality disabled on 3.5 kernels due to bug in them. \
+See "http://lkml.org/lkml/2012/7/17/515" for more details.
+			static int q;
+			if (q == 0) {
+				q++;
+				PRINT_WARNING("%s", "IO context sharing functionality "
+					"disabled on 3.5 kernels due to bug in "
+					"them. See http://lkml.org/lkml/2012/7/17/515 "
+					"for more details.");
+			}
+#else
+			ioc_task_link(p_cmd_threads->io_context);
+			current->io_context = p_cmd_threads->io_context;
 			TRACE_MGMT_DBG("Linked IO context %p "
 				"(p_cmd_threads %p)", p_cmd_threads->io_context,
 				p_cmd_threads);
+#endif
 		}
 		p_cmd_threads->io_context_refcnt++;
 	}
