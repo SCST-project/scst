@@ -656,8 +656,9 @@ static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 			"provisioning, disabling it.",
 			virt_dev->filename);
 #else
-		PRINT_WARNING("Thin provisioning support for kernel 3.5.0 and "
-		    "later has not yet been implemented on the 2.2.x branch");
+		PRINT_WARNING("%s", "Thin provisioning support for kernel 3.5.0"
+			      " and later has not yet been implemented on the"
+			      " 2.2.x branch");
 #endif
 		virt_dev->thin_provisioned = 0;
 	}
