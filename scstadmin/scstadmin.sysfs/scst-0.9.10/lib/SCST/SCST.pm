@@ -4870,35 +4870,32 @@ sub _syswrite {
 
 	my $bytes = syswrite($io, $cmd, $length);
 
-	if (!defined($bytes) && defined($res_file)) {
-		if ($! == EAGAIN) {
-			my $res = new IO::File $res_file, O_RDONLY;
+	if (!defined($bytes) && defined($res_file) && $! == EAGAIN) {
+		my $res_io = new IO::File $res_file, O_RDONLY;
 
-			if (!$res) {
-				cluck("FATAL: Failed opening $res_file: $!");
-				return undef;
-			}
+		if (!$res_io) {
+			cluck("FATAL: Failed opening $res_file: $!");
+			return undef;
+		}
 
-			my $wait = TRUE;
-			my $result;
+		my $res_val;
 
-			while ($wait && (($now + $TIMEOUT) > time())) {
-				sysread($res, $result, 8);
-				$wait = FALSE if ($! != EAGAIN);
+		while (($now + $TIMEOUT) > time()) {
+			if (!defined(sysread($res_io, $res_val, 8)) &&
+			    $! == EAGAIN) {
 				sleep 1;
-			}
-
-			if ($wait) {
-				my $_cmd = $cmd; chomp $_cmd;
-				cluck("Timeout while waiting for command '$_cmd' to complete");
-				$bytes = undef;
 			} else {
-				$bytes = length($cmd) if ($result == 0);
+				last;
 			}
+		}
 
-			close $res;
-		} elsif ($! == EBUSY) {
-			return -1;
+		close $res_io;
+
+		if (!defined($res_val)) {
+			my $_cmd = $cmd; chomp $_cmd;
+			cluck("Timeout while waiting for command '$_cmd' to complete");
+		} elsif ($res_val == 0) {
+			$bytes = $length;
 		}
 	}
 
