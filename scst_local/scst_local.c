@@ -948,6 +948,12 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *SCpnt,
 
 	sess = to_scst_lcl_sess(scsi_get_device(SCpnt->device->host));
 
+	if (sess->unregistering) {
+		SCpnt->result = DID_BAD_TARGET << 16;
+		SCpnt->scsi_done(SCpnt);
+		return 0;
+	}
+
 	scsi_set_resid(SCpnt, 0);
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
@@ -1585,7 +1591,7 @@ static void scst_local_release_adapter(struct device *dev)
 		goto out;
 
 	spin_lock(&sess->aen_lock);
-	sess->unregistering = 1;
+	WARN_ON_ONCE(!sess->unregistering);
 	scst_process_aens(sess, true);
 	spin_unlock(&sess->aen_lock);
 
@@ -1776,6 +1782,10 @@ static void __scst_local_remove_target(struct scst_local_tgt *tgt)
 
 	list_for_each_entry_safe(sess, ts, &tgt->sessions_list,
 					sessions_list_entry) {
+		spin_lock(&sess->aen_lock);
+		sess->unregistering = 1;
+		spin_unlock(&sess->aen_lock);
+
 		scst_local_remove_adapter(sess);
 	}
 
