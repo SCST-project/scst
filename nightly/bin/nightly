@@ -11,8 +11,12 @@
 #----------------------------------------------------------------------------
 
 # Returns the revision number of the source files with date $1.
-get_svn_revision() {
-  svn info -r "{$1}" "${scst_svn_repo}" | sed -n 's/^Revision: //p'
+get_revision() {
+  if svn info . >&/dev/null; then
+    svn info -r "{$1}" "${scst_repo}" | sed -n 's/^Revision: //p'
+  else
+    git log --before="$1" | head -n 1 | cut -f2 -d ' '
+  fi
 }
 
 runcmd () {
@@ -49,7 +53,11 @@ usage () {
 # Startup
 #----------------------------------------------------------------------------
 
-scst_svn_repo="https://scst.svn.sourceforge.net/svnroot/scst/trunk"
+if svn info . >&/dev/null; then
+  scst_repo="https://scst.svn.sourceforge.net/svnroot/scst/trunk"
+else
+  scst_repo="$(dirname "$(dirname "$(cd "$(dirname "$0")" && echo "$PWD")")")"
+fi
 sendmail_opts=""
 run_if_unchanged="false"
 
@@ -83,8 +91,8 @@ ABT_MACHINE="$1"
 # Get times and date
 ABT_START=`date "+%F %H:%M:%S %Z"`
 
-svn_old_date=`date --date=yesterday +%Y-%m-%dT%H:%M:%S`
-svn_new_date=`date --date=today     +%Y-%m-%dT%H:%M:%S`
+old_date=`date --date=yesterday +%Y-%m-%dT%H:%M:%S`
+new_date=`date --date=today     +%Y-%m-%dT%H:%M:%S`
 
 cd $ABT_TOP
 
@@ -109,10 +117,10 @@ fi
 # Check out, build, test
 #----------------------------------------------------------------------------
 
-svn_old_rev="`get_svn_revision ${svn_old_date}`"
-svn_new_rev="`get_svn_revision ${svn_new_date}`"
-if [ "${run_if_unchanged}" != "true" -a "${svn_old_rev}" = "${svn_new_rev}" ]; then
-  echo "Both {$svn_old_date} and {$svn_new_date} correspond to r${svn_new_rev}"\
+old_rev="`get_revision ${old_date}`"
+new_rev="`get_revision ${new_date}`"
+if [ "${run_if_unchanged}" != "true" -a "${old_rev}" = "${new_rev}" ]; then
+  echo "Both {$old_date} and {$new_date} correspond to r${new_rev}"\
        "-- skipping nightly build." >unchanged.log
   exit 0
 fi
@@ -132,20 +140,30 @@ for logfile in old new ; do
 
    # Choose the current SCST, or one from 24 hours ago.
    if [ ${logfile} = "old" ] ; then
-      svn_date="$svn_old_date"
+      date="$old_date"
+      rev="$old_rev"
    else
-      svn_date="$svn_new_date"
+      date="$new_date"
+      rev="$new_rev"
    fi
 
    # Check out and run the tests.
-   runcmd ${logfile} \
-          "Checking out SCST source tree" \
-          "svn co -q -r {${svn_date}} ${scst_svn_repo} ${ABT_TMPDIR}/scst" && \
-   runcmd ${logfile} \
-          "Running regression tests" \
-          "cd ${ABT_TMPDIR}/scst && scripts/run-regression-tests -k -d ${ABT_TMPDIR}/regtest -j ${ABT_JOBS} -q ${ABT_KERNELS}"
-   runcmd ${logfile} \
-          "Cleaning up" \
+   runcmd ${logfile}							\
+          "Checking out SCST source tree"				\
+          "if svn info . >&/dev/null; then				\
+             svn co -q -r {${date}} ${scst_repo} ${ABT_TMPDIR}/scst;	\
+           else								\
+             ( rmdir ${ABT_TMPDIR}/scst &&				\
+               git clone ${scst_repo} ${ABT_TMPDIR}/scst &&		\
+               cd ${ABT_TMPDIR}/scst && git reset --hard ${rev} );	\
+           fi" &&
+   runcmd ${logfile}							\
+          "Running regression tests"					\
+          "cd ${ABT_TMPDIR}/scst &&					\
+           scripts/run-regression-tests -k -d ${ABT_TMPDIR}/regtest	\
+           -j ${ABT_JOBS} -q ${ABT_KERNELS}"
+   runcmd ${logfile}				\
+          "Cleaning up"				\
           "rm -rf ${ABT_TMPDIR}"
 
    tail -n +4 ${logfile}.verbose >>${logfile}.short
@@ -159,7 +177,7 @@ done
 # 'final' shows the difference between the old and new results
 echo                                                >  final
 echo "Nightly build on $ABT_MACHINE ($ABT_DETAILS)" >> final
-echo "started at $ABT_START and compared r${svn_old_rev} with r${svn_new_rev}." \
+echo "started at $ABT_START and compared r${old_rev} with r${new_rev}." \
                                                     >> final
 
 # If the results differ from 24 hours ago, print extra stuff.
