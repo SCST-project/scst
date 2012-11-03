@@ -1,0 +1,42 @@
+#!/bin/bash
+
+list_source_files() {
+  local d r
+
+  d="$(cd "$1" && echo "$PWD")"
+  r="$d"
+  while [ "$r" != "/" -a ! -e "$r/.svn" -a ! -e "$r/.git" -a ! -e "$r/.hg" ]; do
+    r="$(dirname "$r")"
+  done
+
+  if [ -e "$r/.svn" ]; then
+    (
+      cd "$d"
+      svn status -v | \
+      grep -vE '^[D?]|^Performing|^$' | \
+      cut -c41- | \
+      while read f; do
+        if [ -f "$f" ]; then
+          echo "$f"
+        fi
+      done
+    )
+  elif [ -e "$r/.git" ]; then
+    subdir="${d#${r}}"
+    if [ "$r" != "" ]; then
+      ( cd "$d" && git ls-tree --name-only -r HEAD ) | sed "s|^$subdir/||"
+    else
+      echo "Ignored directory $1" >&2
+    fi
+  elif [ -e "$r/.hg" ]; then
+    hg manifest
+  else
+    echo "Not under source control: $1 ?" >&2
+  fi
+}
+
+if [ $# = 0 ]; then
+  list_source_files "$PWD"
+else
+  for d in "$@"; do list_source_files "$d"; done
+fi

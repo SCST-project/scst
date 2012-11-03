@@ -60,9 +60,7 @@ extract_kernel_tree "$1" || exit $?
 
 cd "${target}" || exit $?
 
-svn status -v "$(dirname "$(dirname "$scriptname")")" \
-| grep -vE '^\?|^Performing' \
-| cut -c41- \
+list-source-files "$(dirname "$(dirname "$scriptname")")" \
 | grep -- "-${kernel_version}.*.patch$" \
 | grep -v /in-tree/ \
 | while read p

@@ -88,12 +88,26 @@ function test_scst_tree_patches {
 # Only copy those files which are administered by Subversion.
 function duplicate_scst_source_tree {
   if [ -e "$1/AskingQuestions" ]; then
-    ( cd "$1" && svn status -v | grep -v '^[D?]' | cut -c3- | awk '{print $4}' \
-      | while read f; do [ ! -d "$f" ] && echo "$f"; done ) \
-    | tar -C "$1" --files-from=- -c -f - | tar -x -f -
+    "${scriptsdir}"/list-source-files "$1" |
+      tar -C "$1" --files-from=- -c -f - |
+      tar -x -f -
   else
     return 1
   fi
+}
+
+function compile_scst {
+  (
+    export KCFLAGS=-DCONFIG_SCST_MEASURE_LATENCY
+    for p in scst scst_local iscsi-scst srpt qla2x00t $(if [ "${mpt_scst}" = "true" ]; then echo mpt; fi); do
+      if [ "${p%qla2x00t}" != "$p" ]; then
+        BUILD_2X_MODULE=y CONFIG_SCSI_QLA_FC=y CONFIG_SCSI_QLA2XXX_TARGET=y \
+        make -C $p/qla2x00-target || break
+      else
+        make -C $p || break
+      fi
+    done
+  )
 }
 
 # Compile the unpatched SCST source code.
@@ -107,16 +121,7 @@ function compile_scst_unpatched {
     if mkdir -p "${workingdirectory}"  \
        && cd "${workingdirectory}"     \
        && duplicate_scst_source_tree "${scst}"  \
-       && (export KCFLAGS=-DCONFIG_SCST_MEASURE_LATENCY; \
-           make -s clean \
-           && make -s scst iscsi-scst  \
-           && if "${scst_local}" = "true" ; then make -C scst_local clean; fi \
-           && if "${scst_local}" = "true" ; then make -C scst_local -s   ; fi \
-           && if "${mpt_scst}"   = "true" ; then make -C mpt clean; fi \
-           && if "${mpt_scst}"   = "true" ; then make -C mpt -s   ; fi \
-           && make -C srpt -s clean     \
-           && make -C srpt -s )         \
-           &> "${outputfile}"
+       && compile_scst &> "${outputfile}"
     then
       echo "OK"
     else
@@ -138,16 +143,7 @@ function compile_scst_patched {
        && cd "${workingdirectory}"     \
        && duplicate_scst_source_tree "${scst}"  \
        && make -s "$1"                 \
-       && (export KCFLAGS=-DCONFIG_SCST_MEASURE_LATENCY; \
-           make -s clean               \
-           && make -s scst iscsi-scst  \
-           && if "${scst_local}" = "true" ; then make -C scst_local clean; fi \
-           && if "${scst_local}" = "true" ; then make -C scst_local -s   ; fi \
-           && if "${mpt_scst}"   = "true" ; then make -C mpt clean; fi \
-           && if "${mpt_scst}"   = "true" ; then make -C mpt -s   ; fi \
-           && make -C srpt -s clean     \
-           && make -C srpt -s )         \
-          &> "${outputfile}"
+       && compile_scst &> "${outputfile}"
     then
       echo "OK"
     else
@@ -165,7 +161,7 @@ function generate_kernel_patch {
   local patchfile_m="${outputdir}/scst-$1-kernel-matching-line-numbers.patch"
   local driver_options=""
 
-  driver_options="$([ "${scst_local}" = "true" ] && echo "-l") \
+  driver_options="-l \
                   $([ "${mpt_scst}"   = "true" ] && echo "-m") \
                   $([ "${qla2x00t}"   = "true" ] && echo "-q")"
 
@@ -235,6 +231,7 @@ CONFIG_FUNCTION_PROFILER			\
 CONFIG_FUNCTION_TRACER				\
 CONFIG_GENERIC_TRACER				\
 CONFIG_HAVE_FTRACE_NMI_ENTER			\
+CONFIG_HEADERS_CHECK				\
 CONFIG_IRQSOFF_TRACER				\
 CONFIG_IWLWIFI_DEVICE_TRACING			\
 CONFIG_IWM_TRACING				\
@@ -345,8 +342,8 @@ function run_sparse {
     local warnings=$(grep -c ' warning:' "${outputfile}")
     echo "${errors} errors / ${warnings} warnings."
     cat "${outputfile}" \
-      | grep -E 'warning:|error:' \
-      | sed -e 's/^[^ ]*:[^ ]*:[^ ]*: //' \
+      | grep -E ' warning:| error:' \
+      | sed -e 's/^[^:]*:[0-9:]* //' \
             -e "s/context imbalance in '[^']*':/context imbalance in <function>:/g" \
             -e "s/context problem in '[^']*': '[^']*'/context problem in <function>: <function>/g" \
             -e "s/function '[^']*'/function/g" \
@@ -384,7 +381,8 @@ function run_smatch {
     local warnings=$(grep -c ' warning:' "${outputfile}")
     echo "${errors} errors / ${warnings} warnings."
     cat "${outputfile}" |
-      grep -E 'warning:|error:' |
+      grep -E ' info:| warning:| error:' |
+      sed 's/^\([^:]*\):[0-9:]* /\1: /' |
       sort |
       uniq -c
   else
@@ -473,6 +471,9 @@ if [ ! -e scst -o ! -e iscsi-scst -o ! -e srpt ]; then
 fi
 
 scriptsdir="$(dirname $0)"
+if [ "${scriptsdir:0:1}" != "/" ]; then
+  scriptsdir="$PWD/${scriptsdir}"
+fi
 # Where to store persistenly downloaded kernel tarballs and kernel patches.
 kernel_sources="$HOME/software/downloads"
 # URL for downloading kernel tarballs and kernel patches.
@@ -488,7 +489,6 @@ multiple_patches="false"
 qla2x00t="false"
 remove_temporary_files_at_end="false"
 run_local_compilation="true"
-scst_local="true"
 quiet_download="false"
 
 set -- $(/usr/bin/getopt "c:d:j:hklpq" "$@")
