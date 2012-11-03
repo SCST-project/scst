@@ -639,6 +639,7 @@ static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 		supported = false;
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 5, 0)
 	} else {
 		/*
 		 * truncate_range() was chosen rather as a sample. In future,
@@ -646,12 +647,18 @@ static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 		 * will just switch to the new call.
 		 */
 		supported = (inode->i_op->truncate_range != NULL);
+#endif
 	}
 
 	if (!supported) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 5, 0)
 		PRINT_WARNING("Device %s doesn't support thin "
 			"provisioning, disabling it.",
 			virt_dev->filename);
+#else
+		PRINT_WARNING("Thin provisioning support for kernel 3.5.0 and "
+		    "later has not yet been implemented on the 2.2.x branch");
+#endif
 		virt_dev->thin_provisioned = 0;
 	}
 
@@ -1380,6 +1387,7 @@ static void vdisk_exec_unmap(struct scst_cmd *cmd, struct scst_vdisk_thr *thr)
 			SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		goto out_put;
 #endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 5, 0)
 		} else {
 			const int block_shift = virt_dev->block_shift;
 			const loff_t a0 = start << block_shift;
@@ -1402,6 +1410,7 @@ static void vdisk_exec_unmap(struct scst_cmd *cmd, struct scst_vdisk_thr *thr)
 				  a0 == a1));
 			if (a0 < a1)
 				inode->i_op->truncate_range(inode, a0, a1 - 1);
+#endif
 		}
 	}
 
