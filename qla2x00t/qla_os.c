@@ -4,8 +4,6 @@
  *
  * See LICENSE.qla2xxx for copyright and licensing details.
  */
-#include "qla_def.h"
-
 #include <linux/moduleparam.h>
 #include <linux/vmalloc.h>
 #include <linux/delay.h>
@@ -13,11 +11,16 @@
 #include <linux/mutex.h>
 #include <linux/version.h>
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+#error Kernel 2.6.26 or above is needed to build the qla2x00t driver
+#endif
+
 #include <scsi/scsi_tcq.h>
 #include <scsi/scsicam.h>
 #include <scsi/scsi_transport.h>
 #include <scsi/scsi_transport_fc.h>
 
+#include "qla_def.h"
 #include "qla2x_tgt.h"
 
 #ifndef RHEL_RELEASE_VERSION
