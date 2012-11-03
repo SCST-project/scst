@@ -2386,7 +2386,7 @@ static int scst_dev_handler_type_info_show(struct seq_file *seq, void *v)
 	TRACE_ENTRY();
 
 	seq_printf(seq, "%d - %s\n", dev_type->type,
-		   dev_type->type > (int)ARRAY_SIZE(scst_proc_dev_handler_type)
+		   dev_type->type >= (int)ARRAY_SIZE(scst_proc_dev_handler_type)
 		   ? "unknown" : scst_proc_dev_handler_type[dev_type->type]);
 
 	TRACE_EXIT();
