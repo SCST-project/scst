@@ -159,7 +159,13 @@
 #define ___unlikely(a)		unlikely(a)
 #endif
 
-int __printf(6, 7) debug_print_with_prefix(unsigned long trace_flag,
+int
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 21) || defined(__printf)
+__printf(6, 7)
+#else
+__attribute__((format(printf, 6, 7)))
+#endif
+debug_print_with_prefix(unsigned long trace_flag,
 	const char *severity, const char *prefix, const char *func, int line,
 	const char *fmt, ...);
 void debug_print_buffer(const void *data, int len);
