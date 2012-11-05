@@ -56,6 +56,16 @@
 #include "scst_debug.h"
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 27) && !defined(WARN)
+/* See also commit a8f18b909c0a3f22630846207035c8b84bb252b8 */
+#define WARN(condition, format...) do {		\
+	if (unlikely(condition)) {		\
+		printk(KERN_WARNING format);	\
+		WARN_ON(true);			\
+	}					\
+} while(0);
+#endif
+
 /* Name of this kernel module. */
 #define DRV_NAME		"ib_srpt"
 #define DRV_VERSION		"3.0.0-pre"
