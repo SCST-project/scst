@@ -20,6 +20,11 @@
 #define SCST_PRES_H_
 
 #include <linux/delay.h>
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/scst_debug.h>
+#else
+#include "scst_debug.h"
+#endif
 
 #define PR_REGISTER				0x00
 #define PR_RESERVE				0x01

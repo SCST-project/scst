@@ -39,7 +39,7 @@
  * 311d0761 - Introduction of pr_cont() in <linux/kernel.h>.
  * 968ab183 - Moved pr_info() etc. from <linux/kernel.h> to <linux/printk.h>
  */
-#ifndef pr_info
+#ifndef pr_emerg
 #ifndef pr_fmt
 #define pr_fmt(fmt) fmt
 #endif
@@ -57,6 +57,8 @@
 #define pr_warn pr_warning
 #define pr_notice(fmt, ...) \
         printk(KERN_NOTICE pr_fmt(fmt), ##__VA_ARGS__)
+#endif
+#ifndef pr_info
 #define pr_info(fmt, ...) \
         printk(KERN_INFO pr_fmt(fmt), ##__VA_ARGS__)
 #endif

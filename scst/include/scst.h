@@ -3039,7 +3039,11 @@ static inline bool scst_cmd_atomic(struct scst_cmd *cmd)
 	 */
 	if (unlikely((in_atomic() || in_interrupt() || irqs_disabled()) &&
 		     !res)) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
+		printk(KERN_ERR "ERROR: atomic context and non-atomic cmd!\n");
+#else
 		pr_err("ERROR: atomic context and non-atomic cmd!\n");
+#endif
 		dump_stack();
 		cmd->atomic = 1;
 		res = 1;
