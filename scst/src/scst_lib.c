@@ -34,6 +34,7 @@
 #include <asm/kmap_types.h>
 #include <asm/unaligned.h>
 #include <linux/namei.h>
+#include <linux/mount.h>
 
 #ifndef INSIDE_KERNEL_TREE
 #include <linux/version.h>
