@@ -4673,7 +4673,7 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 	if (sg == NULL) {
 		PRINT_ERROR("Unable to alloc sg for %d blocks", blocks);
 		res = -ENOMEM;
-		goto out_destroy;
+		goto out_free_cmd;
 	}
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
@@ -4715,8 +4715,8 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 
-out_destroy:
-	scst_destroy_cmd(cmd);
+out_free_cmd:
+	__scst_cmd_put(cmd);
 
 out_busy:
 	scst_set_busy(ws_cmd);
@@ -5326,6 +5326,26 @@ out_free:
 	kmem_cache_free(scst_cmd_cachep, cmd);
 	cmd = NULL;
 	goto out;
+}
+
+static void scst_destroy_cmd(struct scst_cmd *cmd)
+{
+	TRACE_ENTRY();
+
+	TRACE_DBG("Destroying cmd %p", cmd);
+
+	scst_sess_put(cmd->sess);
+
+	/*
+	 * At this point tgt_dev can be dead, but the pointer remains non-NULL
+	 */
+	if (likely(cmd->tgt_dev != NULL))
+		scst_put(cmd->cpu_cmd_counter);
+
+	kmem_cache_free(scst_cmd_cachep, cmd);
+
+	TRACE_EXIT();
+	return;
 }
 
 /* No locks supposed to be held */

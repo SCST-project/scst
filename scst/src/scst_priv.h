@@ -674,19 +674,6 @@ static inline void scst_sess_put(struct scst_session *sess)
 struct scst_cmd *scst_alloc_cmd(const uint8_t *cdb,
 	unsigned int cdb_len, gfp_t gfp_mask);
 void scst_free_cmd(struct scst_cmd *cmd);
-static inline void scst_destroy_cmd(struct scst_cmd *cmd)
-{
-	scst_sess_put(cmd->sess);
-
-	/*
-	 * At this point tgt_dev can be dead, but the pointer remains non-NULL
-	 */
-	if (likely(cmd->tgt_dev != NULL))
-		scst_put(cmd->cpu_cmd_counter);
-
-	kmem_cache_free(scst_cmd_cachep, cmd);
-	return;
-}
 
 static inline void __scst_cmd_get(struct scst_cmd *cmd)
 {
