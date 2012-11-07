@@ -95,6 +95,24 @@ struct session *session_find_id(u32 tid, u64 sid)
 	return NULL;
 }
 
+static bool session_id_exists(u32 tid, u64 sid, struct session *exclude)
+{
+	struct session *session;
+	struct target *target;
+
+	if (!(target = target_find_by_id(tid)))
+		return false;
+
+	log_debug(1, "Searching for sid %#" PRIx64, sid);
+
+	list_for_each_entry(session, &target->sessions_list, slist) {
+		if ((session->sid.id64 == sid) && (session != exclude))
+			return true;
+	}
+
+	return false;
+}
+
 int session_create(struct connection *conn)
 {
 	/* We are single threaded, so it doesn't need any protection */
@@ -123,10 +141,10 @@ int session_create(struct connection *conn)
 	}
 
 	while (1) {
-		struct session *s;
+		bool e;
 
-		s = session_find_id(conn->tid, session->sid.id64);
-		if (s != NULL)
+		e = session_id_exists(conn->tid, session->sid.id64, session);
+		if (!e)
 			break;
 
 		log_debug(1, "tsih %x already exists", session->sid.id.tsih);
