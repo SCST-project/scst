@@ -856,7 +856,7 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 			buf[num + 1] = 0x1;	/* Vendor ID */
 			memcpy(&buf[num + 4], VENDOR, 8);
 			snprintf(t10_id, sizeof(buf) - num - 12,
-				"%llx-%s", dev_id_num, dev->name);
+				"%"PRIx64"-%s", dev_id_num, dev->name);
 			i = strlen(t10_id) + 1;
 			TRACE_DBG("t10_dev_id %s", t10_id);
 			buf[num + 3] = 8 + i;
