@@ -1048,7 +1048,7 @@ static void q2t_del_sess_work_fn(struct delayed_work *work)
 			/*
 			 * We need to take extra reference, because we are
 			 * going to drop hardware_lock. Otherwise, we are racing
-			 * with other possible calles of q2t_sess_put() for
+			 * with other possible callers of q2t_sess_put() for
 			 * the same sess, e.g. by q2t_clear_tgt_db().
 			 */
 			q2t_sess_get(sess);
