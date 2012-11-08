@@ -12,6 +12,8 @@ INITDIR := $(shell if [ -f /etc/slackware-version ]; then	\
                    fi)
 INSTALL_INITD_CMD := $(shell if type -p systemctl >/dev/null 2>&1; then	\
 			       echo systemctl enable;			\
+			     elif type -p update-rc.d >/dev/null 2>&1; then\
+			       echo update-rc.d;			\
 			     elif [ -f /etc/gentoo-release ]; then	\
 			       echo rc-update add;			\
 			     elif [ -f /etc/slackware-version ]; then	\
@@ -21,16 +23,25 @@ INSTALL_INITD_CMD := $(shell if type -p systemctl >/dev/null 2>&1; then	\
 			     fi)
 INSTALL_INITD_ARGS := $(shell if type -p systemctl >/dev/null 2>&1; then\
 				echo ".service";			\
+			      elif type -p update-rc.d >/dev/null 2>&1; then\
+			        echo " defaults";			\
 			      elif [ -f /etc/gentoo-release ]; then	\
 				echo " default";			\
 			      fi)
-REMOVE_INITD_CMD := $(shell if [ -f /etc/gentoo-release ]; then		\
+REMOVE_INITD_CMD := $(shell if type -p systemctl >/dev/null 2>&1; then	\
+			       echo systemctl disable;			\
+			    elif type -p update-rc.d >/dev/null 2>&1; then\
+			       echo update-rc.d -f;			\
+			    elif [ -f /etc/gentoo-release ]; then	\
 			      echo rc-update del;			\
 			    elif [ -f /etc/slackware-version ]; then	\
 			      echo none;				\
 			    else					\
 			      echo /usr/lib/lsb/remove_initd;		\
 			    fi)
+REMOVE_INITD_ARGS := $(shell if type -p update-rc.d >/dev/null 2>&1; then\
+			       echo " remove";				\
+			     fi)
 DEFAULTDIR := $(shell if [ -f /etc/gentoo-release ]; then	        \
                           echo /etc/conf.d;                             \
 		      else                                              \
@@ -67,10 +78,10 @@ install:
 	  install -m 755 default/scst $(DESTDIR)$(DEFAULTDIR);	\
 	fi
 	@if [ "$(REMOVE_INITD_CMD)" != "none" ]; then		\
-	  $(REMOVE_INITD_CMD) iscsi-scst >/dev/null 2>&1;	\
-	  rm -f $(DESTDIR)$(INITDIR)/iscsi-scst;		\
-	  $(REMOVE_INITD_CMD) qla2x00t >/dev/null 2>&1;		\
-	  rm -f $(DESTDIR)$(INITDIR)/qla2x00t;			\
+	  for s in iscsi-scst qla2x00t; do			\
+	    $(REMOVE_INITD_CMD) $$s $(REMOVE_INITD_ARGS) >/dev/null 2>&1; \
+	    rm -f $(DESTDIR)$(INITDIR)/$$s;			\
+	  done;							\
 	fi
 	@if [ "$(INSTALL_INITD_CMD)" != "none" ]; then			    \
 	  echo;								    \
@@ -89,9 +100,9 @@ uninstall:
 	if [ -e $(DESTDIR)$(INITDIR)/scst -a "$(REMOVE_INITD_CMD)" != "none" ];\
 	then							\
 	  if [ -z "$(DESTDIR)" ]; then				\
-	    $(REMOVE_INITD_CMD) scst;				\
+	    $(REMOVE_INITD_CMD) scst $(REMOVE_INITD_ARGS);	\
 	  else							\
-	    chroot $(DESTDIR) $(REMOVE_INITD_CMD) scst;		\
+	    chroot $(DESTDIR) $(REMOVE_INITD_CMD) scst $(REMOVE_INITD_ARGS); \
 	  fi;							\
 	  rm -f $(DESTDIR)$(INITDIR)/scst;			\
 	fi
