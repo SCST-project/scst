@@ -62,7 +62,7 @@ install:
 	"be installed first"; false; fi
 	cd $(SCSTADMIN_DIR) && $(MAKE) $@
 	for m in scstadmin/man*/*.[1-9]; do				\
-	  if [ -e $$m ]; then			    			\
+	  if [ -e $$m ]; then						\
 	    d=$(MANDIR)/$$(basename $$(dirname $$m));			\
 	    if install -d $$d; then					\
 	      install -m 644 $$m $$d;					\
