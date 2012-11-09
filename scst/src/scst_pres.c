@@ -406,13 +406,13 @@ static struct scst_dev_registrant *scst_pr_add_registrant(
 		goto out;
 	}
 
-	reg->transport_id = kmalloc(tid_size(transport_id), gfp_flags);
+	reg->transport_id = kmemdup(transport_id, tid_size(transport_id),
+				    gfp_flags);
 	if (reg->transport_id == NULL) {
 		PRINT_ERROR("%s", "Unable to allocate initiator port "
 			"transport id");
 		goto out_free;
 	}
-	memcpy(reg->transport_id, transport_id, tid_size(transport_id));
 
 	reg->rel_tgt_id = rel_tgt_id;
 	reg->key = key;
