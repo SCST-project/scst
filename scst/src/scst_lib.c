@@ -4605,14 +4605,14 @@ struct scst_write_same_priv {
 
 	struct mutex ws_mutex;
 
-	int ws_cur_lba; /* in blocks */
+	int64_t ws_cur_lba; /* in blocks */
 	int ws_left_to_send; /* in blocks */
 
 	int ws_max_each;/* in blocks */
 	int ws_cur_in_flight;
 
-	struct scatterlist *ws_sg;
 	int ws_sg_cnt;
+	struct scatterlist *ws_sg;
 };
 
 /* ws_mutex suppose to be locked */
