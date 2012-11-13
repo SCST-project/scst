@@ -28,6 +28,7 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <ifaddrs.h>
+#include <unistd.h>
 
 #include "iscsid.h"
 
@@ -340,13 +341,16 @@ int target_del(u32 tid, u32 cookie)
 
 	list_del(&target->tlist);
 
-	/* We might need to handle session(s) removal event(s) from the kernel */
-	while (handle_iscsi_events(nl_fd, false) == 0);
+	while (1) {
+		/* We might need to handle session(s) removal event(s) from the kernel */
+		while (handle_iscsi_events(nl_fd, false) == 0);
 
-	if (!list_empty(&target->sessions_list)) {
-		log_error("%s: target %u still has sessions\n", __FUNCTION__,
-			  tid);
-		exit(-1);
+		if (list_empty(&target->sessions_list))
+			break;
+
+		/* We have not yet received session(s) removal event(s), so keep waiting */
+		log_debug(1, "Target %d has sessions, keep waiting", tid);
+		usleep(50000);
 	}
 
 	if (target->tgt_enabled)
