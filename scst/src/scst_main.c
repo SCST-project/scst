@@ -80,9 +80,10 @@ struct mutex scst_mutex;
 EXPORT_SYMBOL_GPL(scst_mutex);
 
 /*
- * Secondary level main mutex, inner for scst_mutex. Needed for
+ * Second level main mutex, inner to scst_mutex and dev_pr_mutex. Needed for
  * __scst_pr_register_all_tg_pt(), since we can't use scst_mutex there,
- * because of the circular locking dependency with dev_pr_mutex.
+ * because its caller already holds dev_pr_mutex, hence circular locking
+ * dependency is possible.
  */
 struct mutex scst_mutex2;
 

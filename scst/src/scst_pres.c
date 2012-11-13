@@ -1212,8 +1212,8 @@ static int scst_pr_register_with_spec_i_pt(struct scst_cmd *cmd,
 			TRACE_PR("Wildcard iSCSI TransportID %s",
 				&transport_id[4]);
 			/*
-			 * We can't use scst_mutex here, because of the
-			 * circular locking dependency with dev_pr_mutex.
+			 * We can't use scst_mutex here because the caller
+			 * already holds dev_pr_mutex.
 			 */
 			spin_lock_bh(&dev->dev_lock);
 			list_for_each_entry(t, &dev->dev_tgt_dev_list,
@@ -1320,8 +1320,8 @@ static void scst_pr_unregister_all_tg_pt(struct scst_device *dev,
 	TRACE_ENTRY();
 
 	/*
-	 * We can't use scst_mutex here, because of the circular locking
-	 * dependency with dev_pr_mutex.
+	 * We can't use scst_mutex here since the caller already holds
+	 * dev_pr_mutex.
 	 */
 	mutex_lock(&scst_mutex2);
 
@@ -1407,8 +1407,8 @@ static int scst_pr_register_all_tg_pt(struct scst_cmd *cmd, uint8_t *buffer,
 	TRACE_ENTRY();
 
 	/*
-	 * We can't use scst_mutex here, because of the circular locking
-	 * dependency with dev_pr_mutex.
+	 * We can't use scst_mutex here because the caller already holds
+	 * dev_pr_mutex.
 	 */
 	mutex_lock(&scst_mutex2);
 
