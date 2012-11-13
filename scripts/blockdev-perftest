@@ -210,8 +210,7 @@ if [ "${perform_write_test}" = "true" -a ! -w "${device}" ]; then
 fi
 
 if [ "${perform_read_test}" = "true" -a                              \
-     $(dd if="${device}" bs=1M count=$(pow2 $(($log2_io_size - 20))) \
-     2>/dev/null | wc --bytes) -lt $(pow2 $log2_io_size) ]
+     "$(($(</sys/class/block/$(basename $device)/size) * 512))" -lt $(pow2 $log2_io_size) ]
 then
   echo "Error: device ${device} contains less than $(pow2 $log2_io_size) bytes."
   exit 1
