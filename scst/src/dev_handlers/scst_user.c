@@ -188,8 +188,10 @@ static int dev_user_exit_dev(struct scst_user_dev *dev);
 
 #ifdef CONFIG_SCST_PROC
 
+#ifdef CONFIG_SCST_DEBUG
 static int dev_user_read_proc(struct seq_file *seq,
 	struct scst_dev_type *dev_type);
+#endif
 
 #else /* CONFIG_SCST_PROC */
 
@@ -228,7 +230,7 @@ static struct scst_dev_type dev_user_devtype = {
 	.name =		DEV_USER_NAME,
 	.type =		-1,
 	.parse =	dev_usr_parse,
-#ifdef CONFIG_SCST_PROC
+#if defined(CONFIG_SCST_PROC) && defined(CONFIG_SCST_DEBUG)
 	.read_proc =    dev_user_read_proc,
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
@@ -3644,6 +3646,7 @@ static ssize_t dev_user_sysfs_commands_show(struct kobject *kobj,
 
 #else /* CONFIG_SCST_PROC */
 
+#ifdef CONFIG_SCST_DEBUG
 /*
  * Called when a file in the /proc/scsi_tgt/scst_user is read
  */
@@ -3681,6 +3684,7 @@ static int dev_user_read_proc(struct seq_file *seq, struct scst_dev_type *dev_ty
 	TRACE_EXIT_RES(res);
 	return res;
 }
+#endif /* CONFIG_SCST_DEBUG */
 #endif /* CONFIG_SCST_PROC */
 
 static inline int test_cleanup_list(void)
