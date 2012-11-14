@@ -13,7 +13,7 @@ At least the following tests must be run before releasing a new SRPT version:
 
 * Verify that SRPT compiles, installs and works fine when following the
   instructions in README.ofed for the latest released OFED distribution and
-  at the latest released CentOS, Ubuntu and openSUSE distributions.
+  with the latest released CentOS, Ubuntu and openSUSE distributions.
 
 * Verify that module loading and unloading works fine.
 
@@ -21,7 +21,7 @@ At least the following tests must be run before releasing a new SRPT version:
   * Run the following command on the target system:
       ${SCST_TRUNK}/scripts/monitor-memory-usage | tee memlog.txt
   * Run the following command on the initiator system:
-      target_id="$(/usr/sbin/ibsrpdm -c -d /dev/infiniband/umad0)"
+      target_id="$(/usr/sbin/ibsrpdm -c -d /dev/infiniband/umad0 | head -n1)"
       for ((i=0;i<100000;i++)); do
         echo "$target_id" >/sys/class/infiniband_srp/srp-mlx4_0-1/add_target
       done
@@ -53,16 +53,15 @@ Index: srpt/src/ib_srpt.c
 ===================================================================
 --- srpt/src/ib_srpt.c  (revision 2412)
 +++ srpt/src/ib_srpt.c  (working copy)
-@@ -2411,7 +2411,7 @@
+@@ -2705,7 +2705,7 @@
  	ch->max_ti_iu_len = it_iu_len;
  	rsp->buf_fmt = cpu_to_be16(SRP_BUF_FORMAT_DIRECT |
  				   SRP_BUF_FORMAT_INDIRECT);
 -	rsp->req_lim_delta = cpu_to_be32(ch->rq_size);
 +	rsp->req_lim_delta = cpu_to_be32(ch->rq_size + 16);
- 	atomic_set(&ch->req_lim, ch->rq_size);
-
- 	/* create cm reply */
-
+ 	ch->req_lim = ch->rq_size;
+ 	ch->req_lim_delta = 0;
+ 
 * Verify that a SCSI reset works properly by running the following command
   on an initiator system (note: with kernel version 2.6.37 and before the
   command below triggers a bug in the Linux SRP initiator -- see also
@@ -112,7 +111,7 @@ Index: srpt/src/ib_srpt.c
 * Test with multiple values of ib_srp_tablesize in the range 1..128.
 
 * Verify that the initiator does not lock up while running the command below
-  (see also https://bugzilla.kernel.org/show_bug.cgi?id=14235):
+  (see also http://bugzilla.kernel.org/show_bug.cgi?id=14235):
 
     dev=...
     fio --bs=512 --buffered=0 --ioengine=libaio --rw=read --invalidate=1 \
@@ -121,12 +120,13 @@ Index: srpt/src/ib_srpt.c
 
 * Test whether queue overflow recovery works correctly as follows:
   - On the target, reload ib_srpt with srpt_sq_size set to 64. Add e.g. the
-    following line at the end of /etc/modprobe.d/99-local.conf:
+    following in /etc/modprobe.d/ib_srpt.conf:
       options ib_srpt srpt_sq_size=64
   - On the initiator, run a direct I/O test with large block sizes, e.g.
-      scripts/blockdev-perftest -f -d -j -m 12 -M 24 /dev/sdb
+      dev=/dev/sd...
+      scripts/blockdev-perftest -f -d -j -m 12 -M 24 $dev
   - On the initiator, run the following two commands in parallel:
-      scripts/blockdev-perftest -r -d -j -m 12 -M 24 /dev/sdb
+      scripts/blockdev-perftest -r -d -j -m 12 -M 24 $dev
       fio --verify=md5 -rw=randwrite --size=10m --bs=4k \
         --loops=1000000 --iodepth=64 --group_reporting --sync=1 --direct=1 \
         --norandommap --ioengine=aio --directory=/mnt --name=test --thread \
