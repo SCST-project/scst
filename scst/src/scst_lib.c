@@ -1478,7 +1478,7 @@ static int scst_set_lun_not_supported_request_sense(struct scst_cmd *cmd,
 
 	if (cmd->sg == NULL) {
 		/*
-		 * If target driver preparing data buffer using alloc_data_buf()
+		 * If target driver preparing data buffer using tgt_alloc_data_buf()
 		 * callback, it is responsible to copy the sense to its buffer
 		 * in xmit_response().
 		 */
@@ -1545,7 +1545,7 @@ static int scst_set_lun_not_supported_inquiry(struct scst_cmd *cmd)
 
 	if (cmd->sg == NULL) {
 		/*
-		 * If target driver preparing data buffer using alloc_data_buf()
+		 * If target driver preparing data buffer using tgt_alloc_data_buf()
 		 * callback, it is responsible to copy the sense to its buffer
 		 * in xmit_response().
 		 */
@@ -4124,7 +4124,7 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 		tgt_dev->curr_order_data = &dev->dev_order_data;
 
 	if (dev->handler->parse_atomic &&
-	    dev->handler->alloc_data_buf_atomic &&
+	    dev->handler->dev_alloc_data_buf_atomic &&
 	    (sess->tgt->tgtt->preprocessing_done == NULL)) {
 		if (sess->tgt->tgtt->rdy_to_xfer_atomic)
 			__set_bit(SCST_TGT_DEV_AFTER_INIT_WR_ATOMIC,

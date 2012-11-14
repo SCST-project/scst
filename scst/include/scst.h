@@ -760,7 +760,7 @@ struct scst_tgt_template {
 	 * Target driver doesn't have to always allocate buffer in this
 	 * function, but if it decide to do it, it must check that
 	 * scst_cmd_get_data_buff_alloced() returns 0, otherwise to avoid
-	 * double buffer allocation and memory leaks alloc_data_buf() shall
+	 * double buffer allocation and memory leaks tgt_alloc_data_buf() shall
 	 * fail.
 	 *
 	 * Shall return 0 in case of success or < 0 (preferably -ENOMEM)
@@ -782,7 +782,7 @@ struct scst_tgt_template {
 	 *
 	 * OPTIONAL.
 	 */
-	int (*alloc_data_buf) (struct scst_cmd *cmd);
+	int (*tgt_alloc_data_buf) (struct scst_cmd *cmd);
 
 	/*
 	 * This function informs the driver that data
@@ -1160,7 +1160,7 @@ struct scst_dev_type {
 	 * the atomic (non-sleeping) context
 	 */
 	unsigned parse_atomic:1;
-	unsigned alloc_data_buf_atomic:1;
+	unsigned dev_alloc_data_buf_atomic:1;
 	unsigned dev_done_atomic:1;
 
 #ifdef CONFIG_SCST_PROC
@@ -1219,7 +1219,7 @@ struct scst_dev_type {
 	 *
 	 * OPTIONAL
 	 */
-	int (*alloc_data_buf) (struct scst_cmd *cmd);
+	int (*dev_alloc_data_buf) (struct scst_cmd *cmd);
 
 	/*
 	 * Called to execute CDB. Useful, for instance, to implement
@@ -1903,8 +1903,8 @@ struct scst_cmd {
 
 	/*
 	 * Set if the target driver wants to alloc data buffers on its own.
-	 * In this case alloc_data_buf() must be provided in the target driver
-	 * template.
+	 * In this case tgt_alloc_data_buf() must be provided in the target
+	 * driver template.
 	 */
 	unsigned int tgt_need_alloc_data_buf:1;
 

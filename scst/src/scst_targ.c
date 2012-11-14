@@ -63,9 +63,9 @@ void scst_post_parse(struct scst_cmd *cmd)
 EXPORT_SYMBOL_GPL(scst_post_parse);
 
 /**
- * scst_post_alloc_data_buf() - do post alloc_data_buf actions
+ * scst_post_alloc_data_buf() - do post dev_alloc_data_buf actions
  *
- * This function must be called by dev handler after its alloc_data_buf()
+ * This function must be called by dev handler after its dev_alloc_data_buf()
  * callback returned SCST_CMD_STATE_STOP before calling
  * scst_process_active_cmd().
  */
@@ -971,46 +971,46 @@ static int scst_prepare_space(struct scst_cmd *cmd)
 		goto done;
 
 	if (likely((cmd->op_flags & SCST_FULLY_LOCAL_CMD) == 0) &&
-	    (devt->alloc_data_buf != NULL)) {
+	    (devt->dev_alloc_data_buf != NULL)) {
 		int state;
 
-		if (unlikely(!devt->alloc_data_buf_atomic &&
+		if (unlikely(!devt->dev_alloc_data_buf_atomic &&
 			     scst_cmd_atomic(cmd))) {
 			/*
 			 * It shouldn't be because of the SCST_TGT_DEV_AFTER_*
 			 * optimization.
 			 */
-			TRACE_MGMT_DBG("Dev handler %s alloc_data_buf() needs "
-				"thread context, rescheduling",
+			TRACE_MGMT_DBG("Dev handler %s dev_alloc_data_buf() "
+				"needs thread context, rescheduling",
 				devt->name);
 			res = SCST_CMD_STATE_RES_NEED_THREAD;
 			goto out;
 		}
 
-		TRACE_DBG("Calling dev handler's %s alloc_data_buf(%p)",
+		TRACE_DBG("Calling dev handler's %s dev_alloc_data_buf(%p)",
 		      devt->name, cmd);
 		scst_set_cur_start(cmd);
-		state = devt->alloc_data_buf(cmd);
+		state = devt->dev_alloc_data_buf(cmd);
 		/*
 		 * Caution: cmd can be already dead here
 		 */
 
 		/* cmd can be already dead here, so we can't dereference devt */
-		TRACE_DBG("Dev handler %p alloc_data_buf() returned %d",
+		TRACE_DBG("Dev handler %p dev_alloc_data_buf() returned %d",
 			devt, state);
 
 		switch (state) {
 		case SCST_CMD_STATE_NEED_THREAD_CTX:
 			scst_set_alloc_buf_time(cmd);
-			TRACE_DBG("Dev handler %s alloc_data_buf() requested "
+			TRACE_DBG("Dev handler %s dev_alloc_data_buf() requested "
 				"thread context, rescheduling", devt->name);
 			res = SCST_CMD_STATE_RES_NEED_THREAD;
 			goto out;
 
 		case SCST_CMD_STATE_STOP:
 			/* cmd can be already dead here, so we can't deref devt */
-			TRACE_DBG("Dev handler %p alloc_data_buf() requested "
-				"stop processing", devt);
+			TRACE_DBG("Dev handler %p dev_alloc_data_buf() "
+				"requested stop processing", devt);
 			res = SCST_CMD_STATE_RES_CONT_NEXT;
 			goto out;
 		}
@@ -1026,11 +1026,11 @@ static int scst_prepare_space(struct scst_cmd *cmd)
 	if (cmd->tgt_need_alloc_data_buf) {
 		int orig_bufflen = cmd->bufflen;
 
-		TRACE_MEM("Custom tgt data buf allocation requested (cmd %p)",
-			cmd);
+		TRACE_MEM("Calling tgt %s tgt_alloc_data_buf(cmd %p)",
+			cmd->tgt->tgt_name, cmd);
 
 		scst_set_cur_start(cmd);
-		r = cmd->tgtt->alloc_data_buf(cmd);
+		r = cmd->tgtt->tgt_alloc_data_buf(cmd);
 		scst_set_alloc_buf_time(cmd);
 
 		if (r > 0)

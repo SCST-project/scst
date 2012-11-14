@@ -2789,7 +2789,7 @@ static void dev_user_setup_functions(struct scst_user_dev *dev)
 	TRACE_ENTRY();
 
 	dev->devtype.parse = dev_user_parse;
-	dev->devtype.alloc_data_buf = dev_user_alloc_data_buf;
+	dev->devtype.dev_alloc_data_buf = dev_user_alloc_data_buf;
 	dev->devtype.dev_done = NULL;
 
 	if (dev->parse_type != SCST_USER_PARSE_CALL) {
@@ -2993,7 +2993,7 @@ static int dev_user_register_dev(struct file *file,
 	dev->devtype.type = dev_desc->type;
 	dev->devtype.threads_num = -1;
 	dev->devtype.parse_atomic = 1;
-	dev->devtype.alloc_data_buf_atomic = 1;
+	dev->devtype.dev_alloc_data_buf_atomic = 1;
 	dev->devtype.dev_done_atomic = 1;
 #ifdef CONFIG_SCST_PROC
 	dev->devtype.no_proc = 1;

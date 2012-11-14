@@ -3880,7 +3880,7 @@ struct scst_tgt_template iscsi_template = {
 	.release = iscsi_target_release,
 	.xmit_response = iscsi_xmit_response,
 #if !defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
-	.alloc_data_buf = iscsi_alloc_data_buf,
+	.tgt_alloc_data_buf = iscsi_alloc_data_buf,
 #endif
 	.preprocessing_done = iscsi_preprocessing_done,
 	.pre_exec = iscsi_pre_exec,
