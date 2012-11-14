@@ -9,7 +9,7 @@
 #include "scst_debug.h"
 #endif
 
-#define SCST_DEV_UA_RETRIES 5
+#define SCST_DEV_RETRIES_ON_UA 5
 #define SCST_PASSTHROUGH_RETRIES	0
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)

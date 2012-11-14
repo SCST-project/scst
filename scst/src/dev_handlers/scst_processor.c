@@ -80,7 +80,7 @@ static int processor_attach(struct scst_device *dev)
 		goto out;
 	}
 
-	retries = SCST_DEV_UA_RETRIES;
+	retries = SCST_DEV_RETRIES_ON_UA;
 	do {
 		TRACE_DBG("%s", "Doing TEST_UNIT_READY");
 		rc = scsi_test_unit_ready(dev->scsi_dev,

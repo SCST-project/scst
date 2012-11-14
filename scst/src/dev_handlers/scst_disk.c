@@ -187,7 +187,7 @@ static int disk_attach(struct scst_device *dev)
 	cmd[0] = READ_CAPACITY;
 	cmd[1] = (dev->scsi_dev->scsi_level <= SCSI_2) ?
 	    ((dev->scsi_dev->lun << 5) & 0xe0) : 0;
-	retries = SCST_DEV_UA_RETRIES;
+	retries = SCST_DEV_RETRIES_ON_UA;
 	while (1) {
 		memset(buffer, 0, buffer_size);
 		memset(sense_buffer, 0, sizeof(sense_buffer));
@@ -211,7 +211,7 @@ static int disk_attach(struct scst_device *dev)
 			break;
 		if (!--retries) {
 			PRINT_ERROR("UA not clear after %d retries",
-				SCST_DEV_UA_RETRIES);
+				SCST_DEV_RETRIES_ON_UA);
 			res = -ENODEV;
 			goto out_free_buf;
 		}
