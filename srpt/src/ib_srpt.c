@@ -2016,10 +2016,51 @@ static void srpt_free_ch(struct kref *kref)
 	kfree(ch);
 }
 
+static void srpt_unreg_sess(struct scst_session *scst_sess)
+{
+	struct srpt_rdma_ch *ch = scst_sess_get_tgt_priv(scst_sess);
+	struct srpt_device *sdev = ch->sport->sdev;
+
+	kthread_stop(ch->thread);
+
+	srpt_free_ioctx_ring((struct srpt_ioctx **)ch->ioctx_ring,
+			     sdev, ch->rq_size,
+			     ch->max_rsp_size, DMA_TO_DEVICE);
+
+	/*
+	 * Note: if a DREQ is received after ch->dreq_received has been read,
+	 * ib_destroy_cm_id() will send a DREP.
+	 *
+	 */
+	if (ch->dreq_received) {
+		if (ib_send_cm_drep(ch->cm_id, NULL, 0) >= 0)
+			PRINT_INFO("Received DREQ and sent DREP for session %s",
+				   ch->sess_name);
+		else
+			PRINT_ERROR("%s", "Sending DREP failed");
+	}
+
+	/*
+	 * If the connection is still established, ib_destroy_cm_id() will
+	 * send a DREQ.
+	 */
+	ib_destroy_cm_id(ch->cm_id);
+
+	/*
+	 * Invoke wake_up() inside the lock to avoid that sdev disappears
+	 * after list_del() and before wake_up() has been invoked.
+	 */
+	spin_lock_irq(&sdev->spinlock);
+	list_del(&ch->list);
+	wake_up(&sdev->ch_releaseQ);
+	spin_unlock_irq(&sdev->spinlock);
+
+	kref_put(&ch->kref, srpt_free_ch);
+}
+
 static int srpt_compl_thread(void *arg)
 {
 	struct srpt_rdma_ch *ch;
-	struct srpt_device *sdev;
 
 	/* Hibernation / freezing of the SRPT kernel thread is not supported. */
 	current->flags |= PF_NOFREEZE;
@@ -2066,34 +2107,10 @@ static int srpt_compl_thread(void *arg)
 
 	TRACE_DBG("ch %s: about to invoke scst_unregister_session()",
 		  ch->sess_name);
-	scst_unregister_session(ch->scst_sess, true, NULL);
+	scst_unregister_session(ch->scst_sess, false, srpt_unreg_sess);
 
-	sdev = ch->sport->sdev;
-	srpt_free_ioctx_ring((struct srpt_ioctx **)ch->ioctx_ring,
-			     sdev, ch->rq_size,
-			     ch->max_rsp_size, DMA_TO_DEVICE);
-
-	spin_lock_irq(&sdev->spinlock);
-	list_del(&ch->list);
-	spin_unlock_irq(&sdev->spinlock);
-
-	if (ch->dreq_received) {
-		if (ib_send_cm_drep(ch->cm_id, NULL, 0) >= 0)
-			PRINT_INFO("Received DREQ and sent DREP for session %s",
-				   ch->sess_name);
-		else
-			PRINT_ERROR("%s", "Sending DREP failed");
-	}
-
-	/*
-	 * If the connection is still established, ib_destroy_cm_id() will
-	 * send a DREQ.
-	 */
-	ib_destroy_cm_id(ch->cm_id);
-
-	kref_put(&ch->kref, srpt_free_ch);
-
-	wake_up(&sdev->ch_releaseQ);
+	while (!kthread_should_stop())
+		schedule_timeout(DIV_ROUND_UP(HZ, 10));
 
 	return 0;
 }
