@@ -991,23 +991,44 @@ out_resume:
 	goto out;
 }
 
+static struct scst_device *__scst_lookup_device(struct scsi_device *scsidp)
+{
+	struct scst_device *d;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&scst_mutex);
+#endif
+
+	list_for_each_entry(d, &scst_dev_list, dev_list_entry)
+		if (d->scsi_dev == scsidp)
+			return d;
+
+	return NULL;
+}
+
 static void scst_unregister_device(struct scsi_device *scsidp)
 {
-	struct scst_device *d, *dev = NULL;
+	struct scst_device *dev;
 	struct scst_acg_dev *acg_dev, *aa;
+	bool activity_suspended = false;
 
 	TRACE_ENTRY();
 
-	scst_suspend_activity(false);
 	mutex_lock(&scst_mutex);
 
-	list_for_each_entry(d, &scst_dev_list, dev_list_entry) {
-		if (d->scsi_dev == scsidp) {
-			dev = d;
-			TRACE_DBG("Device %p found", dev);
-			break;
-		}
+	dev = __scst_lookup_device(scsidp);
+
+	if (dev &&
+	    (!list_empty(&dev->dev_tgt_dev_list) ||
+	     !list_empty(&dev->dev_acg_dev_list))) {
+		mutex_unlock(&scst_mutex);
+
+		scst_suspend_activity(false);
+		activity_suspended = true;
+		mutex_lock(&scst_mutex);
+		dev = __scst_lookup_device(scsidp);
 	}
+
 	if (dev == NULL) {
 		PRINT_ERROR("SCST device for SCSI device %d:%d:%d:%d not found",
 			scsidp->host->host_no, scsidp->channel, scsidp->id,
@@ -1030,7 +1051,8 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 
 	mutex_unlock(&scst_mutex);
 
-	scst_resume_activity();
+	if (activity_suspended)
+		scst_resume_activity();
 
 	scst_dev_sysfs_del(dev);
 
@@ -1046,7 +1068,8 @@ out:
 
 out_unlock:
 	mutex_unlock(&scst_mutex);
-	scst_resume_activity();
+	if (activity_suspended)
+		scst_resume_activity();
 	goto out;
 }
 
