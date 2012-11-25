@@ -1402,7 +1402,7 @@ static ssize_t scst_luns_mgmt_show(struct kobject *kobj,
 				   char *buf)
 {
 	static const char help[] =
-		"Usage: echo \"add|del H:C:I:L lun [parameters]\" >mgmt\n"
+		"Usage: echo \"add H:C:I:L lun [parameters]\" >mgmt\n"
 		"       echo \"add VNAME lun [parameters]\" >mgmt\n"
 		"       echo \"del lun\" >mgmt\n"
 		"       echo \"replace H:C:I:L lun [parameters]\" >mgmt\n"
