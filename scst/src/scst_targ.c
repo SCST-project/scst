@@ -209,6 +209,8 @@ struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
 		goto out;
 
 	cmd->sess = sess;
+	scst_sess_get(sess);
+
 	cmd->tgt = sess->tgt;
 	cmd->tgtt = sess->tgt->tgtt;
 
@@ -218,7 +220,6 @@ struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
 			   SCST_LOAD_SENSE(scst_sense_lun_not_supported));
 
 	TRACE_DBG("cmd %p, sess %p", cmd, sess);
-	scst_sess_get(sess);
 
 out:
 	TRACE_EXIT();
@@ -5947,6 +5948,10 @@ static struct scst_mgmt_cmd *scst_pre_rx_mgmt_cmd(struct scst_session
 	}
 
 	mcmd->sess = sess;
+	scst_sess_get(sess);
+
+	atomic_inc(&sess->sess_cmd_count);
+
 	mcmd->fn = fn;
 	mcmd->state = SCST_MCMD_STATE_INIT;
 	mcmd->tgt_priv = tgt_priv;
@@ -5969,8 +5974,6 @@ static int scst_post_rx_mgmt_cmd(struct scst_session *sess,
 
 	TRACE_ENTRY();
 
-	scst_sess_get(sess);
-
 	if (unlikely(sess->shut_phase != SCST_SESS_SPH_READY)) {
 		PRINT_CRIT_ERROR("New mgmt cmd while shutting down the "
 			"session %p shut_phase %ld", sess, sess->shut_phase);
@@ -5980,7 +5983,6 @@ static int scst_post_rx_mgmt_cmd(struct scst_session *sess,
 	local_irq_save(flags);
 
 	spin_lock(&sess->sess_list_lock);
-	atomic_inc(&sess->sess_cmd_count);
 
 	if (unlikely(sess->init_phase != SCST_SESS_IPH_READY)) {
 		switch (sess->init_phase) {

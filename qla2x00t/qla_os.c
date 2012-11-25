@@ -1768,7 +1768,7 @@ size_t qla2xxx_del_vtarget(u64 *port_name)
 		/* We only allow support on Channel 0 !!! */
 		list_for_each_entry(vport, &fc_host->vports, peers) {
 			if ((vport->channel == 0) &&
-					(vport->port_name == *port_name)) {
+			    (vport->port_name == *port_name)) {
 				match = 1;
 				break;
 			}
