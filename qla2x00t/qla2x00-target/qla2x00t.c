@@ -1274,7 +1274,7 @@ static void q2t_fc_port_added(scsi_qla_host_t *ha, fc_port_t *fcport)
 		sess->conf_compl_supported = fcport->conf_compl_supported;
 	}
 
-	if (sess->local) {
+	if (sess && sess->local) {
 		TRACE(TRACE_MGMT, "qla2x00t(%ld): local session for "
 			"port %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x "
 			"(loop ID %d) became global", ha->instance,
@@ -6634,9 +6634,9 @@ out:
 
 #ifdef CONFIG_SCST_PROC
 out_unreg_target2x:
-#endif
 	scst_unregister_target_template(&tgt2x_template);
 	qla2xxx_tgt_unregister_driver();
+#endif
 
 out_mempool_free:
 	mempool_destroy(q2t_mgmt_cmd_mempool);
