@@ -5883,11 +5883,6 @@ static int q2t_remove_target(scsi_qla_host_t *ha)
 {
 	TRACE_ENTRY();
 
-	if ((ha->q2t_tgt == NULL) || (ha->tgt != NULL)) {
-		PRINT_ERROR("qla2x00t(%ld): Can't remove "
-			"existing target", ha->instance);
-	}
-
 	TRACE_DBG("Unregistering target for host %ld(%p)", ha->host_no, ha);
 	scst_unregister_target(ha->q2t_tgt->scst_tgt);
 	/*
