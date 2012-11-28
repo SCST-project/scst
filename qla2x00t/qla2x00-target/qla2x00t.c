@@ -2026,7 +2026,7 @@ static int q2t_pci_map_calc_cnt(struct q2t_prm *prm)
 
 	sBUG_ON(prm->cmd->sg_cnt == 0);
 
-	prm->sg = (struct scatterlist *)prm->cmd->sg;
+	prm->sg = prm->cmd->sg;
 	prm->seg_cnt = pci_map_sg(prm->tgt->ha->pdev, prm->cmd->sg,
 		prm->cmd->sg_cnt, prm->cmd->dma_data_direction);
 	if (unlikely(prm->seg_cnt == 0))
