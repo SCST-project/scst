@@ -2038,14 +2038,9 @@ static int q2t_pci_map_calc_cnt(struct q2t_prm *prm)
 	 * If greater than four sg entries then we need to allocate
 	 * the continuation entries
 	 */
-	if (prm->seg_cnt > prm->tgt->datasegs_per_cmd) {
-		prm->req_cnt += (uint16_t)(prm->seg_cnt -
-				prm->tgt->datasegs_per_cmd) /
-				prm->tgt->datasegs_per_cont;
-		if (((uint16_t)(prm->seg_cnt - prm->tgt->datasegs_per_cmd)) %
-		    prm->tgt->datasegs_per_cont)
-			prm->req_cnt++;
-	}
+	if (prm->seg_cnt > prm->tgt->datasegs_per_cmd)
+		prm->req_cnt += DIV_ROUND_UP(prm->seg_cnt - prm->tgt->datasegs_per_cmd,
+					     prm->tgt->datasegs_per_cont);
 
 out:
 	TRACE_DBG("seg_cnt=%d, req_cnt=%d, res=%d", prm->seg_cnt,
