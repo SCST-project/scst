@@ -227,7 +227,8 @@ static int scst_local_get_sas_transport_id(struct scst_local_sess *sess,
 	tr_id[11] = 0x50;
 
 	*transport_id = tr_id;
-	*len = tr_id_size;
+	if (len)
+		*len = tr_id_size;
 
 	TRACE_DBG("Created tid '%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X'",
 		tr_id[4], tr_id[5], tr_id[6], tr_id[7],
@@ -243,8 +244,6 @@ static int scst_local_get_initiator_port_transport_id(
 	uint8_t **transport_id)
 {
 	int res = 0;
-	int tr_id_size = 0;
-	uint8_t *tr_id = NULL;
 	struct scst_local_sess *sess;
 
 	TRACE_ENTRY();
@@ -258,26 +257,19 @@ static int scst_local_get_initiator_port_transport_id(
 
 	mutex_lock(&sess->tr_id_mutex);
 
-	if (sess->transport_id == NULL) {
-		res = scst_local_get_sas_transport_id(sess,
-				transport_id, &tr_id_size);
-		goto out_unlock;
+	if (sess->transport_id == NULL)
+		res = scst_local_get_sas_transport_id(sess, transport_id, NULL);
+	else {
+		*transport_id = kmemdup(sess->transport_id,
+					sess->transport_id_len,
+					GFP_KERNEL);
+		if (*transport_id == NULL) {
+			PRINT_ERROR("Allocation of TransportID (size %d) failed",
+				    sess->transport_id_len);
+			res = -ENOMEM;
+		}
 	}
 
-	tr_id_size = sess->transport_id_len;
-	sBUG_ON(tr_id_size == 0);
-
-	tr_id = kzalloc(tr_id_size, GFP_KERNEL);
-	if (tr_id == NULL) {
-		PRINT_ERROR("Allocation of TransportID (size %d) failed",
-			tr_id_size);
-		res = -ENOMEM;
-		goto out;
-	}
-
-	memcpy(tr_id, sess->transport_id, sess->transport_id_len);
-
-out_unlock:
 	mutex_unlock(&sess->tr_id_mutex);
 
 out:
