@@ -254,7 +254,7 @@ static int scst_local_get_initiator_port_transport_id(
 		goto out;
 	}
 
-	sess = (struct scst_local_sess *)scst_sess_get_tgt_priv(scst_sess);
+	sess = scst_sess_get_tgt_priv(scst_sess);
 
 	mutex_lock(&sess->tr_id_mutex);
 
@@ -551,7 +551,7 @@ static ssize_t scst_local_transport_id_show(struct kobject *kobj,
 		return -ENOENT;
 
 	scst_sess = container_of(kobj, struct scst_session, sess_kobj);
-	sess = (struct scst_local_sess *)scst_sess_get_tgt_priv(scst_sess);
+	sess = scst_sess_get_tgt_priv(scst_sess);
 
 	mutex_lock(&sess->tr_id_mutex);
 
@@ -588,7 +588,7 @@ static ssize_t scst_local_transport_id_store(struct kobject *kobj,
 		return -ENOENT;
 
 	scst_sess = container_of(kobj, struct scst_session, sess_kobj);
-	sess = (struct scst_local_sess *)scst_sess_get_tgt_priv(scst_sess);
+	sess = scst_sess_get_tgt_priv(scst_sess);
 
 	mutex_lock(&sess->tr_id_mutex);
 
@@ -1037,7 +1037,7 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *SCpnt,
 		 */
 		if (scsi_sglist(SCpnt)) {
 			sg_init_one(&(tgt_specific->sgl),
-				(void *)scsi_sglist(SCpnt),
+				scsi_sglist(SCpnt),
 				scsi_bufflen(SCpnt));
 			sgl	  = &(tgt_specific->sgl);
 			sgl_count = 1;
@@ -1178,7 +1178,7 @@ static void scst_aen_work_fn(struct work_struct *work)
 #endif
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	struct scst_local_sess *sess = (struct scst_local_sess *)ctx;
+	struct scst_local_sess *sess = ctx;
 #else
 	struct scst_local_sess *sess =
 		container_of(work, struct scst_local_sess, aen_work);
@@ -1205,8 +1205,7 @@ static int scst_local_report_aen(struct scst_aen *aen)
 
 	TRACE_ENTRY();
 
-	sess = (struct scst_local_sess *)scst_sess_get_tgt_priv(
-						scst_aen_get_sess(aen));
+	sess = scst_sess_get_tgt_priv(scst_aen_get_sess(aen));
 	switch (event_fn) {
 	case SCST_AEN_SCSI:
 		/*
@@ -1350,7 +1349,7 @@ static void scst_local_targ_task_mgmt_done(struct scst_mgmt_cmd *mgmt_cmd)
 
 	TRACE_ENTRY();
 
-	compl = (struct completion *)scst_mgmt_cmd_get_tgt_priv(mgmt_cmd);
+	compl = scst_mgmt_cmd_get_tgt_priv(mgmt_cmd);
 	if (compl)
 		complete(compl);
 
@@ -1360,7 +1359,7 @@ static void scst_local_targ_task_mgmt_done(struct scst_mgmt_cmd *mgmt_cmd)
 
 static uint16_t scst_local_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 {
-	struct scst_local_tgt *tgt = (struct scst_local_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+	struct scst_local_tgt *tgt = scst_tgt_get_tgt_priv(scst_tgt);
 
 	/*
 	 * It's OK to not check tgt != NULL here, because new sessions
@@ -1375,7 +1374,7 @@ static uint16_t scst_local_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 
 static uint16_t scst_local_get_phys_transport_version(struct scst_tgt *scst_tgt)
 {
-	struct scst_local_tgt *tgt = (struct scst_local_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+	struct scst_local_tgt *tgt = scst_tgt_get_tgt_priv(scst_tgt);
 
 	/*
 	 * It's OK to not check tgt != NULL here, because new sessions
@@ -1656,7 +1655,7 @@ static int __scst_local_add_adapter(struct scst_local_tgt *tgt,
 	INIT_LIST_HEAD(&sess->aen_work_list);
 
 	sess->scst_sess = scst_register_session(tgt->scst_tgt, 0,
-				initiator_name, (void *)sess, NULL, NULL);
+				initiator_name, sess, NULL, NULL);
 	if (sess->scst_sess == NULL) {
 		PRINT_ERROR("%s", "scst_register_session failed");
 		res = -EFAULT;
