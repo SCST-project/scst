@@ -663,7 +663,7 @@ sub luns {
 
 	my $_path;
 
-	if ($group) {
+	if (defined($group)) {
 		if ($self->groupExists($driver, $target, $group) != TRUE) {
 			$self->{'err_string'} = "initiators(): Group '$group' does not exist";
 			return undef;
@@ -1459,7 +1459,7 @@ sub lunExists {
 	return SCST_C_TGT_EXISTS if (!$rc);
 	return $rc if ($rc > 1);
 
-	if ($group) {
+	if (defined($group)) {
 		my $rc = $self->groupExists($driver, $target, $group);
 		return SCST_C_GRP_NO_GROUP if (!$rc);
 		return $rc if ($rc > 1);
@@ -2165,7 +2165,7 @@ sub addLun {
 	return SCST_C_LUN_BAD_ATTRIBUTES if ($rc == TRUE);
 	return $rc if ($rc > 1);
 
-	if ($group) {
+	if (defined($group)) {
 		$rc = $self->groupExists($driver, $target, $group);
 		return SCST_C_GRP_NO_GROUP if (!$rc);
 		return $rc if ($rc > 1);
@@ -2195,7 +2195,7 @@ sub addLun {
 	my ($path, $cmd);
 	if (new_sysfs_interface()) {
 		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		if ($group) {
+		if (defined($group)) {
 			$cmd = "in " .
 			    make_path(IN_SCST_TARGETS, $driver, $target,
 				      SCST_GROUPS, $group, SCST_LUNS) . " ";
@@ -2204,7 +2204,7 @@ sub addLun {
 						 $target, SCST_LUNS) . " ";
 		}
 	} else {
-		if ($group) {
+		if (defined($group)) {
 			$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
 					  SCST_GROUPS, $group, SCST_LUNS,
 					  SCST_MGMT_IO);
@@ -2213,6 +2213,7 @@ sub addLun {
 					  SCST_LUNS, SCST_MGMT_IO);
 		}
 	}
+	
 	$cmd .= "add $device $lun $o_string";
 
 	my $io = new IO::File $path, O_WRONLY;
@@ -2251,7 +2252,7 @@ sub removeLun {
 	return SCST_C_TGT_NO_TARGET if (!$rc);
 	return $rc if ($rc > 1);
 
-	if ($group) {
+	if (defined($group)) {
 		$rc = $self->groupExists($driver, $target, $group);
 		return SCST_C_GRP_NO_GROUP if (!$rc);
 		return $rc if ($rc > 1);
@@ -2272,7 +2273,7 @@ sub removeLun {
 	my ($path, $cmd);
 	if (new_sysfs_interface()) {
 		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		if ($group) {
+		if (defined($group)) {
 			$cmd = "in " . make_path(IN_SCST_TARGETS, $driver,
 						 $target, SCST_GROUPS, $group,
 						 SCST_LUNS) . " ";
@@ -2281,7 +2282,7 @@ sub removeLun {
 						 $target, SCST_LUNS) . " ";
 		}
 	} else {
-		if ($group) {
+		if (defined($group)) {
 			$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
 					  SCST_GROUPS, $group, SCST_LUNS,
 					  SCST_MGMT_IO);
@@ -2331,7 +2332,7 @@ sub replaceLun {
 	return SCST_C_TGT_NO_TARGET if (!$rc);
 	return $rc if ($rc > 1);
 
-	if ($group) {
+	if (defined($group)) {
 		$rc = $self->groupExists($driver, $target, $group);
 		return SCST_C_GRP_NO_GROUP if (!$rc);
 		return $rc if ($rc > 1);
@@ -2368,7 +2369,7 @@ sub replaceLun {
 	my ($path, $cmd);
 	if (new_sysfs_interface()) {
 		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		if ($group) {
+		if (defined($group)) {
 			$cmd = "in " . make_path(IN_SCST_TARGETS, $driver,
 						 $target, SCST_GROUPS,
 						 $group, SCST_LUNS) . " ";
@@ -2377,7 +2378,7 @@ sub replaceLun {
 						 $target, SCST_LUNS) . " ";
 		}
 	} else {
-		if ($group) {
+		if (defined($group)) {
 			$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
 					  SCST_GROUPS, $group, SCST_LUNS,
 					  SCST_MGMT_IO);
@@ -2422,7 +2423,7 @@ sub clearLuns {
 	return SCST_C_TGT_NO_TARGET if (!$rc);
 	return $rc if ($rc > 1);
 
-	if ($group) {
+	if (defined($group)) {
 		$rc = $self->groupExists($driver, $target, $group);
 		return SCST_C_GRP_NO_GROUP if (!$rc);
 		return $rc if ($rc > 1);
@@ -2435,7 +2436,7 @@ sub clearLuns {
 	my ($path, $cmd);
 	if (new_sysfs_interface()) {
 		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		if ($group) {
+		if (defined($group)) {
 			$cmd = "in " .
 			    make_path(IN_SCST_TARGETS, $driver, $target,
 				      SCST_GROUPS, $group, SCST_LUNS) . " ";
@@ -2444,7 +2445,7 @@ sub clearLuns {
 						 $target, SCST_LUNS) . " ";
 		}
 	} else {
-		if ($group) {
+		if (defined($group)) {
 			$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
 					  SCST_GROUPS, $group, SCST_LUNS,
 					  SCST_MGMT_IO);
@@ -3114,7 +3115,7 @@ sub lunAttributes {
 
 	my ($_path, $luncrattr);
 
-	if ($group) {
+	if (defined($group)) {
 		if ($self->groupExists($driver, $target, $group) != TRUE) {
 			$self->{'err_string'} = "lunAttributes(): Group '$group' does not exist";
 			return undef;
@@ -3227,7 +3228,7 @@ sub setLunAttribute {
 
 	my $path;
 
-	if ($group) {
+	if (defined($group)) {
 		$rc = $self->groupExists($driver, $target, $group);
 		return SCST_C_GRP_NO_GROUP if (!$rc);
 		return $rc if ($rc > 1);
@@ -4500,7 +4501,7 @@ sub lunCreateAttributes {
 	my $_path;
 
 	if (new_sysfs_interface()) {
-		if ($group) {
+		if (defined($group)) {
 			if ($self->groupExists($driver, $target, $group) != TRUE) {
 				$self->{'err_string'} = "lunCreateAttributes(): Group '$group' ".
 				    "does not exist";
@@ -4521,7 +4522,7 @@ sub lunCreateAttributes {
 			$attributes{$attribute} = '';
 		}
 	} else {
-		if ($group) {
+		if (defined($group)) {
 			if ($self->groupExists($driver, $target, $group) != TRUE) {
 				$self->{'err_string'} = "lunCreateAttributes(): Group '$group' ".
 				    "does not exist";
