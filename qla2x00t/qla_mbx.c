@@ -2805,6 +2805,8 @@ qla24xx_report_id_acquisition(scsi_qla_host_t *ha,
 			rptid_entry->port_id[2], rptid_entry->port_id[1],
 			rptid_entry->port_id[0]));
 	} else if (rptid_entry->format == 1) {
+		bool found;
+
 		vp_idx = LSB(stat);
 		DEBUG15(printk("%s:format 1: scsi(%ld): VP[%d] enabled "
 		    "- status %d - "
@@ -2818,11 +2820,14 @@ qla24xx_report_id_acquisition(scsi_qla_host_t *ha,
 		if (MSB(stat) == 1)
 			return;
 
+		found = false;
 		list_for_each_entry(vha, &ha->vp_list, vp_list)
-			if (vp_idx == vha->vp_idx)
+			if (vp_idx == vha->vp_idx) {
+				found = true;
 				break;
+			}
 
-		if (!vha)
+		if (!found)
 			return;
 
 		vha->d_id.b.domain = rptid_entry->port_id[2];
