@@ -2274,7 +2274,7 @@ static int scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 
 	/* Check scope */
 	if ((action != PR_REGISTER) && (action != PR_REGISTER_AND_IGNORE) &&
-	    (action != PR_CLEAR) && ((cmd->cdb[2] & 0x0f) >> 4) != SCOPE_LU) {
+	    (action != PR_CLEAR) && (cmd->cdb[2] >> 4) != SCOPE_LU) {
 		TRACE_PR("Scope must be SCOPE_LU for action %x", action);
 		scst_set_cmd_error(cmd,
 			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));

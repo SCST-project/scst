@@ -1811,7 +1811,7 @@ void scst_pr_reserve(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 	TRACE_ENTRY();
 
 	key = get_unaligned((__be64 *)&buffer[0]);
-	scope = (cmd->cdb[2] & 0x0f) >> 4;
+	scope = cmd->cdb[2] >> 4;
 	type = cmd->cdb[2] & 0x0f;
 
 	if (buffer_size != 24) {
@@ -1828,7 +1828,7 @@ void scst_pr_reserve(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 		goto out;
 	}
 
-	if (((cmd->cdb[2] & 0x0f) >> 4) != SCOPE_LU) {
+	if (scope != SCOPE_LU) {
 		TRACE_PR("Invalid reservation scope %d", scope);
 		scst_set_invalid_field_in_cdb(cmd, 2,
 			SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
@@ -1897,7 +1897,7 @@ void scst_pr_release(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 	TRACE_ENTRY();
 
 	key = get_unaligned((__be64 *)&buffer[0]);
-	scope = (cmd->cdb[2] & 0x0f) >> 4;
+	scope = cmd->cdb[2] >> 4;
 	type = cmd->cdb[2] & 0x0f;
 
 	if (buffer_size != 24) {
@@ -2033,7 +2033,7 @@ static void scst_pr_do_preempt(struct scst_cmd *cmd, uint8_t *buffer,
 
 	key = get_unaligned((__be64 *)&buffer[0]);
 	action_key = get_unaligned((__be64 *)&buffer[8]);
-	scope = (cmd->cdb[2] & 0x0f) >> 4;
+	scope = cmd->cdb[2] >> 4;
 	type = cmd->cdb[2] & 0x0f;
 
 	if (!scst_pr_type_valid(type)) {
