@@ -78,12 +78,15 @@ Index: srpt/src/ib_srpt.c
 
 * Run the following command on a target system:
 
-    while true; do /etc/init.d/scst stop; sleep 3; /etc/init.d/scst start; sleep 5; done
+    while true; do                                                     \
+      /etc/init.d/scst stop; sleep 3; /etc/init.d/scst start; sleep 5; \
+    done
 
   and the following commands on an initiator system:
 
     target_id="$(/usr/sbin/ibsrpdm -c -d /dev/infiniband/umad0)"
-    while true; do date; rmmod ib_srp; modprobe ib_srp; echo "${target_id}" > /sys/class/infiniband_srp/srp-mlx4_0-1/add_target; sleep 2; done
+    while true; do date; rmmod ib_srp; modprobe ib_srp; echo "${target_id}" \
+    > /sys/class/infiniband_srp/srp-mlx4_0-1/add_target; sleep 2; done
 
   and verify that nothing unexpected happens.
 
