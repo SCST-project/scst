@@ -2482,7 +2482,7 @@ struct scst_tgt_dev {
 	/* List entry in dev->dev_tgt_dev_list */
 	struct list_head dev_tgt_dev_list_entry;
 
-	/* Internal tmp list entry */
+	/* Internal tmp list entry. User must hold scst_mutex. */
 	struct list_head extra_tgt_dev_list_entry;
 
 	/* Set if INQUIRY DATA HAS CHANGED UA is needed */

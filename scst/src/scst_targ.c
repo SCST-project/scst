@@ -5149,8 +5149,6 @@ static int scst_clear_task_set(struct scst_mgmt_cmd *mcmd)
 
 	scst_unblock_aborted_cmds(1);
 
-	mutex_unlock(&scst_mutex);
-
 	if (!dev->tas) {
 		uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
 		int sl;
@@ -5164,6 +5162,8 @@ static int scst_clear_task_set(struct scst_mgmt_cmd *mcmd)
 			scst_check_set_UA(tgt_dev, sense_buffer, sl, 0);
 		}
 	}
+
+	mutex_unlock(&scst_mutex);
 
 	scst_call_dev_task_mgmt_fn(mcmd, mcmd->mcmd_tgt_dev, 0);
 
