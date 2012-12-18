@@ -32,7 +32,7 @@ static int event_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 {
 	u32 pid;
 
-#if (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 7, 0))
 	pid = NETLINK_CB(skb).pid;
 #else
 	pid = NETLINK_CB(skb).portid;
@@ -192,7 +192,7 @@ int __init event_init(void)
 			.input = event_recv_skb,
 			.groups = 1,
 		};
-#if (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 7, 0))
 		nl = netlink_kernel_create(&init_net, NETLINK_ISCSI_SCST,
 				   THIS_MODULE, &cfg);
 #else
