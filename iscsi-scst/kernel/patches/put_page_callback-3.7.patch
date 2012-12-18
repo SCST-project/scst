@@ -1,0 +1,397 @@
+=== modified file 'drivers/net/macvtap.c'
+--- old/drivers/net/macvtap.c	2012-12-17 19:41:04 +0000
++++ new/drivers/net/macvtap.c	2012-12-17 23:03:50 +0000
+@@ -536,7 +536,7 @@ static int zerocopy_sg_from_iovec(struct
+ 		num_pages = get_user_pages_fast(base, size, 0, &page[i]);
+ 		if (num_pages != size) {
+ 			for (i = 0; i < num_pages; i++)
+-				put_page(page[i]);
++				net_put_page(page[i]);
+ 			return -EFAULT;
+ 		}
+ 		truesize = size * PAGE_SIZE;
+
+=== modified file 'drivers/net/tun.c'
+--- old/drivers/net/tun.c	2012-12-17 19:41:04 +0000
++++ new/drivers/net/tun.c	2012-12-17 23:03:50 +0000
+@@ -660,7 +660,7 @@ static int zerocopy_sg_from_iovec(struct
+ 		num_pages = get_user_pages_fast(base, size, 0, &page[i]);
+ 		if (num_pages != size) {
+ 			for (i = 0; i < num_pages; i++)
+-				put_page(page[i]);
++				net_put_page(page[i]);
+ 			return -EFAULT;
+ 		}
+ 		truesize = size * PAGE_SIZE;
+
+=== modified file 'drivers/net/vmxnet3/vmxnet3_drv.c'
+--- old/drivers/net/vmxnet3/vmxnet3_drv.c	2012-12-17 19:41:04 +0000
++++ new/drivers/net/vmxnet3/vmxnet3_drv.c	2012-12-17 23:03:50 +0000
+@@ -1370,7 +1370,7 @@ vmxnet3_rq_cleanup(struct vmxnet3_rx_que
+ 					rq->buf_info[ring_idx][i].page) {
+ 				pci_unmap_page(adapter->pdev, rxd->addr,
+ 					       rxd->len, PCI_DMA_FROMDEVICE);
+-				put_page(rq->buf_info[ring_idx][i].page);
++				net_put_page(rq->buf_info[ring_idx][i].page);
+ 				rq->buf_info[ring_idx][i].page = NULL;
+ 			}
+ 		}
+
+=== modified file 'drivers/net/xen-netback/netback.c'
+--- old/drivers/net/xen-netback/netback.c	2012-12-17 19:41:04 +0000
++++ new/drivers/net/xen-netback/netback.c	2012-12-17 23:03:50 +0000
+@@ -1081,7 +1081,7 @@ static void xen_netbk_fill_frags(struct
+ 		skb->truesize += txp->size;
+ 
+ 		/* Take an extra reference to offset xen_netbk_idx_release */
+-		get_page(netbk->mmap_pages[pending_idx]);
++		net_get_page(netbk->mmap_pages[pending_idx]);
+ 		xen_netbk_idx_release(netbk, pending_idx);
+ 	}
+ }
+@@ -1522,7 +1522,7 @@ static void xen_netbk_idx_release(struct
+ 	xenvif_put(vif);
+ 
+ 	netbk->mmap_pages[pending_idx]->mapping = 0;
+-	put_page(netbk->mmap_pages[pending_idx]);
++	net_put_page(netbk->mmap_pages[pending_idx]);
+ 	netbk->mmap_pages[pending_idx] = NULL;
+ }
+ 
+
+=== modified file 'include/linux/mm_types.h'
+--- old/include/linux/mm_types.h	2012-12-17 19:41:04 +0000
++++ new/include/linux/mm_types.h	2012-12-17 23:03:50 +0000
+@@ -175,6 +175,17 @@ struct page {
+ 	 */
+ 	void *shadow;
+ #endif
++
++#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
++	/*
++	 * Used to implement support for notification on zero-copy TCP transfer
++	 * completion. It might look as not good to have this field here and
++	 * it's better to have it in struct sk_buff, but it would make the code
++	 * much more complicated and fragile, since all skb then would have to
++	 * contain only pages with the same value in this field.
++	 */
++	 void *net_priv;
++#endif
+ }
+ /*
+  * The struct page can be forced to be double word aligned so that atomic ops
+
+=== modified file 'include/linux/net.h'
+--- old/include/linux/net.h	2012-12-17 19:41:04 +0000
++++ new/include/linux/net.h	2012-12-17 23:03:50 +0000
+@@ -19,6 +19,7 @@
+ #define _LINUX_NET_H
+ 
+ #include <linux/stringify.h>
++#include <linux/mm.h>
+ #include <linux/random.h>
+ #include <linux/wait.h>
+ #include <linux/fcntl.h>	/* For O_CLOEXEC and O_NONBLOCK */
+@@ -270,6 +271,45 @@ extern int kernel_sock_ioctl(struct sock
+ extern int kernel_sock_shutdown(struct socket *sock,
+ 				enum sock_shutdown_cmd how);
+ 
++#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
++/* Support for notification on zero-copy TCP transfer completion */
++typedef void (*net_get_page_callback_t)(struct page *page);
++typedef void (*net_put_page_callback_t)(struct page *page);
++
++extern net_get_page_callback_t net_get_page_callback;
++extern net_put_page_callback_t net_put_page_callback;
++
++extern int net_set_get_put_page_callbacks(
++	net_get_page_callback_t get_callback,
++	net_put_page_callback_t put_callback);
++
++/*
++ * See comment for net_set_get_put_page_callbacks() why those functions
++ * don't need any protection.
++ */
++static inline void net_get_page(struct page *page)
++{
++	if (page->net_priv != 0)
++		net_get_page_callback(page);
++	get_page(page);
++}
++static inline void net_put_page(struct page *page)
++{
++	if (page->net_priv != 0)
++		net_put_page_callback(page);
++	put_page(page);
++}
++#else
++static inline void net_get_page(struct page *page)
++{
++	get_page(page);
++}
++static inline void net_put_page(struct page *page)
++{
++	put_page(page);
++}
++#endif /* CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION */
++
+ #define MODULE_ALIAS_NETPROTO(proto) \
+ 	MODULE_ALIAS("net-pf-" __stringify(proto))
+ 
+
+=== modified file 'include/linux/skbuff.h'
+--- old/include/linux/skbuff.h	2012-12-17 19:41:04 +0000
++++ new/include/linux/skbuff.h	2012-12-17 23:03:50 +0000
+@@ -1848,7 +1848,7 @@ static inline struct page *skb_frag_page
+  */
+ static inline void __skb_frag_ref(skb_frag_t *frag)
+ {
+-	get_page(skb_frag_page(frag));
++	net_get_page(skb_frag_page(frag));
+ }
+ 
+ /**
+@@ -1871,7 +1871,7 @@ static inline void skb_frag_ref(struct s
+  */
+ static inline void __skb_frag_unref(skb_frag_t *frag)
+ {
+-	put_page(skb_frag_page(frag));
++	net_put_page(skb_frag_page(frag));
+ }
+ 
+ /**
+
+=== modified file 'net/Kconfig'
+--- old/net/Kconfig	2012-12-17 19:41:04 +0000
++++ new/net/Kconfig	2012-12-17 23:03:50 +0000
+@@ -74,6 +74,18 @@ config INET
+ 
+ 	  Short answer: say Y.
+ 
++config TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION
++	bool "TCP/IP zero-copy transfer completion notification"
++        depends on INET
++        default SCST_ISCSI
++	---help---
++	  Adds support for sending a notification upon completion of a
++          zero-copy TCP/IP transfer. This can speed up certain TCP/IP
++          software. Currently this is only used by the iSCSI target driver
++          iSCSI-SCST.
++
++          If unsure, say N.
++
+ if INET
+ source "net/ipv4/Kconfig"
+ source "net/ipv6/Kconfig"
+
+=== modified file 'net/core/skbuff.c'
+--- old/net/core/skbuff.c	2012-12-17 19:41:04 +0000
++++ new/net/core/skbuff.c	2012-12-17 23:03:50 +0000
+@@ -77,13 +77,13 @@ static struct kmem_cache *skbuff_fclone_
+ static void sock_pipe_buf_release(struct pipe_inode_info *pipe,
+ 				  struct pipe_buffer *buf)
+ {
+-	put_page(buf->page);
++	net_put_page(buf->page);
+ }
+ 
+ static void sock_pipe_buf_get(struct pipe_inode_info *pipe,
+ 				struct pipe_buffer *buf)
+ {
+-	get_page(buf->page);
++	net_get_page(buf->page);
+ }
+ 
+ static int sock_pipe_buf_steal(struct pipe_inode_info *pipe,
+@@ -441,7 +441,7 @@ struct sk_buff *__netdev_alloc_skb(struc
+ 		if (likely(data)) {
+ 			skb = build_skb(data, fragsz);
+ 			if (unlikely(!skb))
+-				put_page(virt_to_head_page(data));
++				net_put_page(virt_to_head_page(data));
+ 		}
+ 	} else {
+ 		skb = __alloc_skb(length + NET_SKB_PAD, gfp_mask,
+@@ -494,7 +494,7 @@ static void skb_clone_fraglist(struct sk
+ static void skb_free_head(struct sk_buff *skb)
+ {
+ 	if (skb->head_frag)
+-		put_page(virt_to_head_page(skb->head));
++		net_put_page(virt_to_head_page(skb->head));
+ 	else
+ 		kfree(skb->head);
+ }
+@@ -780,7 +780,7 @@ int skb_copy_ubufs(struct sk_buff *skb,
+ 		if (!page) {
+ 			while (head) {
+ 				struct page *next = (struct page *)head->private;
+-				put_page(head);
++				net_put_page(head);
+ 				head = next;
+ 			}
+ 			return -ENOMEM;
+@@ -1615,7 +1615,7 @@ EXPORT_SYMBOL(skb_copy_bits);
+  */
+ static void sock_spd_release(struct splice_pipe_desc *spd, unsigned int i)
+ {
+-	put_page(spd->pages[i]);
++	net_put_page(spd->pages[i]);
+ }
+ 
+ static struct page *linear_to_page(struct page *page, unsigned int *len,
+@@ -1668,7 +1668,7 @@ static bool spd_fill_page(struct splice_
+ 		spd->partial[spd->nr_pages - 1].len += *len;
+ 		return false;
+ 	}
+-	get_page(page);
++	net_get_page(page);
+ 	spd->pages[spd->nr_pages] = page;
+ 	spd->partial[spd->nr_pages].len = *len;
+ 	spd->partial[spd->nr_pages].offset = offset;
+
+=== modified file 'net/core/sock.c'
+--- old/net/core/sock.c	2012-12-17 19:41:04 +0000
++++ new/net/core/sock.c	2012-12-17 23:03:50 +0000
+@@ -1739,7 +1739,7 @@ bool sk_page_frag_refill(struct sock *sk
+ 		}
+ 		if (pfrag->offset < pfrag->size)
+ 			return true;
+-		put_page(pfrag->page);
++		net_put_page(pfrag->page);
+ 	}
+ 
+ 	/* We restrict high order allocations to users that can afford to wait */
+@@ -2439,7 +2439,7 @@ void sk_common_release(struct sock *sk)
+ 	sk_refcnt_debug_release(sk);
+ 
+ 	if (sk->sk_frag.page) {
+-		put_page(sk->sk_frag.page);
++		net_put_page(sk->sk_frag.page);
+ 		sk->sk_frag.page = NULL;
+ 	}
+ 
+
+=== modified file 'net/ipv4/Makefile'
+--- old/net/ipv4/Makefile	2012-12-17 19:41:04 +0000
++++ new/net/ipv4/Makefile	2012-12-17 23:03:50 +0000
+@@ -51,6 +51,7 @@ obj-$(CONFIG_TCP_CONG_YEAH) += tcp_yeah.
+ obj-$(CONFIG_TCP_CONG_ILLINOIS) += tcp_illinois.o
+ obj-$(CONFIG_MEMCG_KMEM) += tcp_memcontrol.o
+ obj-$(CONFIG_NETLABEL) += cipso_ipv4.o
++obj-$(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION) += tcp_zero_copy.o
+ 
+ obj-$(CONFIG_XFRM) += xfrm4_policy.o xfrm4_state.o xfrm4_input.o \
+ 		      xfrm4_output.o
+
+=== modified file 'net/ipv4/ip_output.c'
+--- old/net/ipv4/ip_output.c	2012-12-17 19:41:04 +0000
++++ new/net/ipv4/ip_output.c	2012-12-17 23:03:50 +0000
+@@ -1002,7 +1002,7 @@ alloc_new_skb:
+ 				__skb_fill_page_desc(skb, i, pfrag->page,
+ 						     pfrag->offset, 0);
+ 				skb_shinfo(skb)->nr_frags = ++i;
+-				get_page(pfrag->page);
++				net_get_page(pfrag->page);
+ 			}
+ 			copy = min_t(int, copy, pfrag->size - pfrag->offset);
+ 			if (getfrag(from,
+@@ -1223,7 +1223,7 @@ ssize_t	ip_append_page(struct sock *sk,
+ 		if (skb_can_coalesce(skb, i, page, offset)) {
+ 			skb_frag_size_add(&skb_shinfo(skb)->frags[i-1], len);
+ 		} else if (i < MAX_SKB_FRAGS) {
+-			get_page(page);
++			net_get_page(page);
+ 			skb_fill_page_desc(skb, i, page, offset, len);
+ 		} else {
+ 			err = -EMSGSIZE;
+
+=== modified file 'net/ipv4/tcp.c'
+--- old/net/ipv4/tcp.c	2012-12-17 19:41:04 +0000
++++ new/net/ipv4/tcp.c	2012-12-17 23:03:50 +0000
+@@ -891,7 +891,7 @@ new_segment:
+ 		if (can_coalesce) {
+ 			skb_frag_size_add(&skb_shinfo(skb)->frags[i - 1], copy);
+ 		} else {
+-			get_page(page);
++			net_get_page(page);
+ 			skb_fill_page_desc(skb, i, page, offset, copy);
+ 		}
+ 
+@@ -1179,7 +1179,7 @@ new_segment:
+ 				} else {
+ 					skb_fill_page_desc(skb, i, pfrag->page,
+ 							   pfrag->offset, copy);
+-					get_page(pfrag->page);
++					net_get_page(pfrag->page);
+ 				}
+ 				pfrag->offset += copy;
+ 			}
+
+=== added file 'net/ipv4/tcp_zero_copy.c'
+--- old/net/ipv4/tcp_zero_copy.c	1970-01-01 00:00:00 +0000
++++ new/net/ipv4/tcp_zero_copy.c	2012-12-17 23:03:50 +0000
+@@ -0,0 +1,50 @@
++/*
++ *	Support routines for TCP zero copy transmit
++ *
++ *	Created by Vladislav Bolkhovitin
++ *
++ *	This program is free software; you can redistribute it and/or
++ *      modify it under the terms of the GNU General Public License
++ *      version 2 as published by the Free Software Foundation.
++ */
++
++#include <linux/export.h>
++#include <linux/skbuff.h>
++
++net_get_page_callback_t net_get_page_callback __read_mostly;
++EXPORT_SYMBOL_GPL(net_get_page_callback);
++
++net_put_page_callback_t net_put_page_callback __read_mostly;
++EXPORT_SYMBOL_GPL(net_put_page_callback);
++
++/*
++ * Caller of this function must ensure that at the moment when it's called
++ * there are no pages in the system with net_priv field set to non-zero
++ * value. Hence, this function, as well as net_get_page() and net_put_page(),
++ * don't need any protection.
++ */
++int net_set_get_put_page_callbacks(
++	net_get_page_callback_t get_callback,
++	net_put_page_callback_t put_callback)
++{
++	int res = 0;
++
++	if ((net_get_page_callback != NULL) && (get_callback != NULL) &&
++	    (net_get_page_callback != get_callback)) {
++		res = -EBUSY;
++		goto out;
++	}
++
++	if ((net_put_page_callback != NULL) && (put_callback != NULL) &&
++	    (net_put_page_callback != put_callback)) {
++		res = -EBUSY;
++		goto out;
++	}
++
++	net_get_page_callback = get_callback;
++	net_put_page_callback = put_callback;
++
++out:
++	return res;
++}
++EXPORT_SYMBOL_GPL(net_set_get_put_page_callbacks);
+
+=== modified file 'net/ipv6/ip6_output.c'
+--- old/net/ipv6/ip6_output.c	2012-12-17 19:41:04 +0000
++++ new/net/ipv6/ip6_output.c	2012-12-17 23:03:50 +0000
+@@ -1517,7 +1517,7 @@ alloc_new_skb:
+ 				__skb_fill_page_desc(skb, i, pfrag->page,
+ 						     pfrag->offset, 0);
+ 				skb_shinfo(skb)->nr_frags = ++i;
+-				get_page(pfrag->page);
++				net_get_page(pfrag->page);
+ 			}
+ 			copy = min_t(int, copy, pfrag->size - pfrag->offset);
+ 			if (getfrag(from,
+
