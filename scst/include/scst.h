@@ -1561,7 +1561,7 @@ struct scst_session {
 	struct scst_tgt *tgt;	/* corresponding target */
 
 	/* Used for storage of target driver private stuff */
-	void *tgt_priv;
+	void *sess_tgt_priv;
 
 	/* session's async flags */
 	unsigned long sess_aflags;
@@ -2942,13 +2942,13 @@ void scst_update_hw_pending_start(struct scst_cmd *cmd);
  */
 static inline void *scst_sess_get_tgt_priv(struct scst_session *sess)
 {
-	return sess->tgt_priv;
+	return sess->sess_tgt_priv;
 }
 
 static inline void scst_sess_set_tgt_priv(struct scst_session *sess,
 					      void *val)
 {
-	sess->tgt_priv = val;
+	sess->sess_tgt_priv = val;
 }
 
 uint16_t scst_lookup_tg_id(struct scst_device *dev, struct scst_tgt *tgt);
