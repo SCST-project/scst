@@ -207,9 +207,9 @@ static int tape_attach(struct scst_device *dev)
 
 	if (rc == 0) {
 		int medium_type, mode, speed, density;
-		if (buffer[3] == 8) {
+		if (buffer[3] == 8)
 			dev->block_size = get_unaligned_be24(&buffer[9]);
-		} else
+		else
 			dev->block_size = TAPE_DEF_BLOCK_SIZE;
 		medium_type = buffer[1];
 		mode = (buffer[2] & 0x70) >> 4;
