@@ -6474,6 +6474,7 @@ restart:
 					PRINT_ERROR("Unable to allocate a "
 						"replacement name (size %d)",
 						len);
+					break;
 				}
 			}
 
