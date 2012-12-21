@@ -1137,7 +1137,6 @@ static int srpt_ch_qp_rtr(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 		goto out;
 
 	attr->max_dest_rd_atomic = 4;
-	TRACE_DBG("qp timeout = %d", attr->timeout);
 
 	ret = ib_modify_qp(qp, attr, attr_mask);
 
@@ -1158,8 +1157,8 @@ static int srpt_ch_qp_rts(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 	struct ib_qp_attr *attr;
 	int attr_mask;
 	int ret;
-	uint64_t T_tr_ns;
-	uint32_t T_tr_ms, max_compl_time_ms;
+	uint64_t T_tr_ns, max_compl_time_ms;
+	uint32_t T_tr_ms;
 
 	attr = kzalloc(sizeof *attr, GFP_KERNEL);
 	if (!attr)
@@ -1187,12 +1186,12 @@ static int srpt_ch_qp_rts(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 		TRACE_DBG("Session %s: QP local ack timeout = %d or T_tr ="
 			  " %u ms; retry_cnt = %d; max compl. time = %d ms",
 			  ch->sess_name, attr->timeout, T_tr_ms,
-			  attr->retry_cnt, max_compl_time_ms);
+			  attr->retry_cnt, (unsigned)max_compl_time_ms);
 
 		if (max_compl_time_ms >= RDMA_COMPL_TIMEOUT_S * 1000) {
 			PRINT_ERROR("Maximum RDMA completion time (%d ms)"
 				    " exceeds ib_srpt timeout (%d ms)",
-				    max_compl_time_ms,
+				    (unsigned)max_compl_time_ms,
 				    1000 * RDMA_COMPL_TIMEOUT_S);
 		}
 	}
