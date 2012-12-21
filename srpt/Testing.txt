@@ -9,7 +9,7 @@ At least the following tests must be run before releasing a new SRPT version:
   for d in scst srpt; do make -sC $d clean && make -sC $d install; done
 
 * Verify the output of run-regression-tests for kernel versions starting at
-  2.6.23 up to and including the latest released kernel.
+  2.6.27 up to and including the latest released kernel.
 
 * Verify that SRPT compiles, installs and works fine when following the
   instructions in README.ofed for the latest released OFED distribution and
