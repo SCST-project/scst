@@ -147,7 +147,7 @@ static int scst_write_trace(const char *buf, size_t length,
 	unsigned long *log_level, unsigned long default_level,
 	const char *name, const struct scst_trace_log *tbl)
 {
-	int res = length;
+	int res;
 	int action;
 	unsigned long level = 0, oldlevel;
 	char *buffer, *p, *e;
@@ -285,6 +285,8 @@ static int scst_write_trace(const char *buf, size_t length,
 
 	PRINT_INFO("Changed trace level for \"%s\": old 0x%08lx, new 0x%08lx",
 		name, oldlevel, *log_level);
+
+	res = length;
 
 out_free:
 	kfree(buffer);
