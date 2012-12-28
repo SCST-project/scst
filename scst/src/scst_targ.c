@@ -1501,8 +1501,8 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	if (unlikely(trace_flag & TRACE_DATA_RECEIVED) &&
 	    (cmd->data_direction & SCST_DATA_WRITE)) {
-		int i, j, sg_cnt;
-		struct scatterlist *sg;
+		int i, sg_cnt;
+		struct scatterlist *sg, *sgi;
 
 		if (cmd->out_sg != NULL) {
 			sg = cmd->out_sg;
@@ -1521,14 +1521,9 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 			PRINT_INFO("Received data for cmd %p (sg_cnt %d, "
 				"sg %p, sg[0].page %p)", cmd, sg_cnt, sg,
 				(void *)sg_page(&sg[0]));
-			for (i = 0, j = 0; i < sg_cnt; ++i, ++j) {
-				if (unlikely(sg_is_chain(&sg[j]))) {
-					sg = sg_chain_ptr(&sg[j]);
-					j = 0;
-				}
-				PRINT_INFO("sg %d", j);
-				PRINT_BUFFER("data", sg_virt(&sg[j]),
-					sg[j].length);
+			for_each_sg(sg, sgi, sg_cnt, i) {
+				PRINT_INFO("sg %d", i);
+				PRINT_BUFFER("data", sg_virt(sgi), sgi->length);
 			}
 		}
 	}
@@ -3554,8 +3549,8 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 		if (unlikely(trace_flag & TRACE_DATA_SEND) &&
 		    (cmd->data_direction & SCST_DATA_READ)) {
-			int i, j, sg_cnt;
-			struct scatterlist *sg;
+			int i, sg_cnt;
+			struct scatterlist *sg, *sgi;
 			if (cmd->tgt_i_sg != NULL) {
 				sg = cmd->tgt_i_sg;
 				sg_cnt = cmd->tgt_i_sg_cnt;
@@ -3569,14 +3564,10 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 					"resp len %d)", cmd, sg_cnt, sg,
 					(void *)sg_page(&sg[0]), sg_virt(sg),
 					cmd->resp_data_len);
-				for (i = 0, j = 0; i < sg_cnt; ++i, ++j) {
-					if (unlikely(sg_is_chain(&sg[j]))) {
-						sg = sg_chain_ptr(&sg[j]);
-						j = 0;
-					}
-					PRINT_INFO("sg %d", j);
-					PRINT_BUFFER("data", sg_virt(&sg[j]),
-						sg[j].length);
+				for_each_sg(sg, sgi, sg_cnt, i) {
+					PRINT_INFO("sg %d", i);
+					PRINT_BUFFER("data", sg_virt(sgi),
+						     sgi->length);
 				}
 			}
 		}

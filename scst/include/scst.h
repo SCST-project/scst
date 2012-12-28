@@ -3743,6 +3743,12 @@ static inline struct scatterlist *sg_next(struct scatterlist *sg)
 	return sg;
 }
 
+#ifndef for_each_sg
+/* See also commit 96b418c960af0d5c7185ff5c4af9376eb37ac9d3 */
+#define for_each_sg(sglist, sg, nr, __i)       \
+	for (__i = 0, sg = (sglist); __i < (nr); __i++, sg = sg_next(sg))
+#endif
+
 #endif /* __BACKPORT_LINUX_SCATTERLIST_H_TO_2_6_23__ */
 
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24) */
