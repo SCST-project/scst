@@ -2865,6 +2865,14 @@ void scst_set_resp_data_len(struct scst_cmd *cmd, int resp_data_len)
 
 	TRACE_DBG("cmd %p, resp_data_len %d", cmd, resp_data_len);
 
+	if (unlikely(resp_data_len > cmd->bufflen)) {
+		PRINT_ERROR("Too big response data len %d (max %d), limiting "
+			"it to the max (dev %s)", resp_data_len, cmd->bufflen,
+			cmd->dev->virt_name);
+		cmd->resp_data_len = cmd->bufflen;
+		goto out;
+	}
+
 	scst_adjust_sg(cmd, cmd->sg, &cmd->sg_cnt, resp_data_len);
 
 	cmd->resid_possible = 1;
