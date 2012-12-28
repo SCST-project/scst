@@ -286,8 +286,6 @@ static int tape_done(struct scst_cmd *cmd)
 		res = scst_tape_generic_dev_done(cmd, tape_set_block_size);
 	else if ((status == SAM_STAT_CHECK_CONDITION) &&
 		   scst_sense_valid(cmd->sense)) {
-		struct tape_params *params;
-
 		TRACE_DBG("Extended sense %x", scst_sense_response_code(cmd->sense));
 
 		if (scst_sense_response_code(cmd->sense) != 0x70) {
@@ -301,7 +299,7 @@ static int tape_done(struct scst_cmd *cmd)
 		if (opcode == READ_6 && !(cmd->cdb[1] & SILI_BIT) &&
 		    (cmd->sense[2] & 0xe0)) {
 			/* EOF, EOM, or ILI */
-			int TransferLength, Residue = 0;
+			unsigned int TransferLength, Residue = 0;
 			if ((cmd->sense[2] & 0x0f) == BLANK_CHECK)
 				/* No need for EOM in this case */
 				cmd->sense[2] &= 0xcf;
@@ -321,8 +319,6 @@ static int tape_done(struct scst_cmd *cmd)
 					 * *_detach() can not be called, when
 					 * there are existing commands.
 					 */
-					params = (struct tape_params *)
-						 cmd->dev->dh_priv;
 					resp_data_len *= cmd->dev->block_size;
 				}
 				scst_set_resp_data_len(cmd, resp_data_len);
