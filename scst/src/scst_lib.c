@@ -2813,10 +2813,9 @@ static void scst_adjust_sg(struct scst_cmd *cmd, struct scatterlist *sg,
 				sg, *sg_cnt, adjust_len, i, j,
 				sg[j].length, left);
 #endif
-			cmd->orig_sg = sg;
 			cmd->p_orig_sg_cnt = sg_cnt;
 			cmd->orig_sg_cnt = *sg_cnt;
-			cmd->orig_sg_entry = j;
+			cmd->orig_sg_entry = &sg[j];
 			cmd->orig_entry_len = sg[j].length;
 			*sg_cnt = (left > 0) ? j+1 : j;
 			sg[j].length = left;
@@ -2836,11 +2835,11 @@ static void scst_adjust_sg(struct scst_cmd *cmd, struct scatterlist *sg,
  */
 void scst_restore_sg_buff(struct scst_cmd *cmd)
 {
-	TRACE_MEM("cmd %p, sg %p, orig_sg_entry %d, "
-		"orig_entry_len %d, orig_sg_cnt %d", cmd, cmd->orig_sg,
+	TRACE_MEM("cmd %p, sg %p, orig_sg_entry %p, "
+		"orig_entry_len %d, orig_sg_cnt %d", cmd, cmd->sg,
 		cmd->orig_sg_entry, cmd->orig_entry_len,
 		cmd->orig_sg_cnt);
-	cmd->orig_sg[cmd->orig_sg_entry].length = cmd->orig_entry_len;
+	cmd->orig_sg_entry->length = cmd->orig_entry_len;
 	*cmd->p_orig_sg_cnt = cmd->orig_sg_cnt;
 	cmd->sg_buff_modified = 0;
 }

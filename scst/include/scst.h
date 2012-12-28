@@ -2137,9 +2137,10 @@ struct scst_cmd {
 	void *dh_priv;
 
 	/* Used to restore sg if it was modified by scst_adjust_sg() */
-	struct scatterlist *orig_sg;
 	int *p_orig_sg_cnt;
-	int orig_sg_cnt, orig_sg_entry, orig_entry_len;
+	int orig_sg_cnt;
+	struct scatterlist *orig_sg_entry;
+	int orig_entry_len;
 
 	/* Used to retry commands in case of double UA */
 	int dbl_ua_orig_resp_data_len, dbl_ua_orig_data_direction;
