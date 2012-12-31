@@ -3753,6 +3753,15 @@ static inline struct scatterlist *sg_next(struct scatterlist *sg)
 
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24) */
 
+static inline struct scatterlist *sg_next_inline(struct scatterlist *sg)
+{
+	sg++;
+	if (unlikely(sg_is_chain(sg)))
+		sg = sg_chain_ptr(sg);
+
+	return sg;
+}
+
 static inline void sg_clear(struct scatterlist *sg)
 {
 	memset(sg, 0, sizeof(*sg));
@@ -3792,16 +3801,13 @@ static inline int __scst_get_buf(struct scst_cmd *cmd, int sg_cnt,
 		goto out;
 	}
 
-	if (unlikely(sg_is_chain(sg)))
-		sg = sg_chain_ptr(sg);
-
 	*buf = page_address(sg_page(sg));
 	*buf += sg->offset;
 
 	res = sg->length;
 
 	cmd->get_sg_buf_entry_num++;
-	cmd->get_sg_buf_cur_sg_entry = ++sg;
+	cmd->get_sg_buf_cur_sg_entry = sg_next_inline(sg);
 
 out:
 	return res;
@@ -3898,15 +3904,12 @@ static inline int __scst_get_sg_page(struct scst_cmd *cmd, int sg_cnt,
 		goto out;
 	}
 
-	if (unlikely(sg_is_chain(sg)))
-		sg = sg_chain_ptr(sg);
-
 	*page = sg_page(sg);
 	*offset = sg->offset;
 	res = sg->length;
 
 	cmd->get_sg_buf_entry_num++;
-	cmd->get_sg_buf_cur_sg_entry = ++sg;
+	cmd->get_sg_buf_cur_sg_entry = sg_next_inline(sg);
 
 out:
 	return res;
