@@ -2078,7 +2078,7 @@ static void scst_adjust_sg(struct scst_cmd *cmd, struct scatterlist *sg,
 			cmd->orig_sg_cnt = *sg_cnt;
 			cmd->orig_sg_entry = j;
 			cmd->orig_entry_len = sg[j].length;
-			*sg_cnt = (left > 0) ? j+1 : j;
+			*sg_cnt = (left > 0) ? i+1 : i;
 			sg[j].length = left;
 			cmd->sg_buff_modified = 1;
 			break;
