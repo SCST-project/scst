@@ -2007,13 +2007,12 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 		srpt_process_wait_list(ch);
 }
 
-static void srpt_process_completion(struct srpt_rdma_ch *ch)
+static void srpt_poll(struct srpt_rdma_ch *ch)
 {
 	struct ib_cq *const cq = ch->cq;
 	struct ib_wc *const wc = ch->wc;
 	int i, n;
 
-	ib_req_notify_cq(cq, IB_CQ_NEXT_COMP);
 	while ((n = ib_poll_cq(cq, ARRAY_SIZE(ch->wc), wc)) > 0) {
 		for (i = 0; i < n; i++) {
 			if (opcode_from_wr_id(wc[i].wr_id) == SRPT_RECV)
@@ -2022,6 +2021,16 @@ static void srpt_process_completion(struct srpt_rdma_ch *ch)
 				srpt_process_send_completion(cq, ch, &wc[i]);
 		}
 	}
+}
+
+static void srpt_process_completion(struct srpt_rdma_ch *ch)
+{
+	struct ib_cq *const cq = ch->cq;
+
+	do {
+		srpt_poll(ch);
+	} while (ib_req_notify_cq(cq, IB_CQ_NEXT_COMP |
+				      IB_CQ_REPORT_MISSED_EVENTS) > 0);
 }
 
 /**
