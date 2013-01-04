@@ -127,4 +127,7 @@ enable_proc:
 	grep "^#define CONFIG_SCST_PROC" $(INCDIR)/iscsi_scst_ver.h >/dev/null
 	rm $(INCDIR)/iscsi_scst_ver.h.aa
 
+release-archive:
+	../scripts/generate-release-archive iscsi-scst "$$(sed -n 's/^#define[[:blank:]]ISCSI_VERSION_STRING[[:blank:]]*\"\([^\"]*\)\".*/\1/p' include/iscsi_scst_ver.h)"
+
 .PHONY: all mods progs install clean extraclean 2release 2debug 2perf disable_proc enable_proc

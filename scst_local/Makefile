@@ -100,5 +100,8 @@ extraclean: clean
 	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions" Makefile >/dev/null
 	rm Makefile.aa
 
+release-archive:
+	../scripts/generate-release-archive scst_local "$$(sed -n 's/^#define[[:blank:]]SCST_LOCAL_VERSION[[:blank:]]*\"\([^\"]*\)\".*/\1/p' scst_local.c)"
+
 .PHONY: all tgt install uninstall clean extraclean 2release 2debug 2perf
 
