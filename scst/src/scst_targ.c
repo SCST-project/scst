@@ -4799,6 +4799,13 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 
 	TRACE_ENTRY();
 
+	/*
+	 * Help Coverity recognize that mcmd != NULL if
+	 * call_dev_task_mgmt_fn_received == true.
+	 */
+	if (call_dev_task_mgmt_fn_received)
+		EXTRACHECKS_BUG_ON(!mcmd);
+
 	TRACE(TRACE_SCSI|TRACE_MGMT_DEBUG, "Aborting cmd %p (tag %llu, op %x)",
 		cmd, (long long unsigned int)cmd->tag, cmd->cdb[0]);
 
