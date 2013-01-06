@@ -108,5 +108,8 @@ perf2debug:
 	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed: wrong original state?"; false; fi
 	rm Makefile.aa
 
+release-archive:
+	../scripts/generate-release-archive scst_local "$$(sed -n 's/^#define[[:blank:]]SCST_LOCAL_VERSION[[:blank:]]*\"\([^\"]*\)\".*/\1/p' scst_local.c)"
+
 .PHONY: all tgt install uninstall clean extraclean debug2release release2debug debug2perf perf2debug
 

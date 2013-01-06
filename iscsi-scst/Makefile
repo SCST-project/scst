@@ -132,4 +132,7 @@ enable_proc:
 	@cmp $(INCDIR)/iscsi_scst_ver.h $(INCDIR)/iscsi_scst_ver.h.aa >/dev/null; if [[ $$? = 0 ]]; then rm $(INCDIR)/iscsi_scst_ver.h.aa; echo "sed failed: wrong original state?"; false; fi
 	rm $(INCDIR)/iscsi_scst_ver.h.aa
 
+release-archive:
+	../scripts/generate-release-archive iscsi-scst "$$(sed -n 's/^#define[[:blank:]]ISCSI_VERSION_STRING[[:blank:]]*\"\([^\"]*\)\".*/\1/p' include/iscsi_scst_ver.h)"
+
 .PHONY: all mods progs install clean extraclean debug2release release2debug debug2perf perf2debug disable_proc enable_proc

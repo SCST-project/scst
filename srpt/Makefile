@@ -118,6 +118,6 @@ debug2perf:
 	$(call set_var,build_mode,BUILDMODE,PERF)
 
 release-archive:
-	@version="$$(sed -n 's/^#define DRV_VERSION[ 	]*\"\([0-9.]*\).*/\1/p' src/ib_srpt.c)"; tar --owner=root --group=root --transform="s|^|srpt-$$version/|" -cjf srpt-$$version.tar.bz2 $$(svn status -v -q | grep -v '^D' | cut -c11- | while read rev1 rev2 user path; do [ -d "$$path" ] || echo "$$path"; done) && ls -l srpt-$$version.tar.bz2
+	../scripts/generate-release-archive srpt "$$(sed -n 's/^#define[[:blank:]]DRV_VERSION[[:blank:]]*\"\([^\"]*\)\".*/\1/p' src/ib_srpt.c)"
 
 .PHONY: all install clean extraclean 2debug 2release 2perf

@@ -67,3 +67,6 @@ extraclean: clean
 .PHONY: all tgt install uninstall clean extraclean
 
 endif
+
+release-archive:
+	../scripts/generate-release-archive qla2x00t "$$(sed -n 's/^#define[[:blank:]]Q2T_VERSION_STRING[[:blank:]]*\"\([^\"]*\)\".*/\1/p' qla2x00-target/qla2x00t.h)"
