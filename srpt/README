@@ -332,20 +332,23 @@ For more information, see also:
 Performance Notes - Target Side
 -------------------------------
 
-When using high-latency storage devices (hard disks), the default value
-choosen by SCST for DEVICE.threads_num should be fine. When using low-latency
-storage devices though (SSDs), DEVICE.threads_num should be set to 1 or 2 in
-/etc/scst.conf in order to reach optimal performance for small block sizes
-(e.g. 4 KB).
+* Building the SCST core and the ib_srpt target driver in release mode
+  improves performance compared to debug mode.
 
-When multiple InfiniBand HCA's are present in a target system the Linux
-kernel by default will assign the associated interrupt handlers to CPU 0.
-Even irqbalance will often assign the interrupt handlers of multiple HCA's
-to the same CPU. That is unfortunate because it leads to unfair handling of
-SRP sessions. The solution is to assign InfiniBand HCA interrupts manually
-to different CPU's. That's possible by writing looking up the InfiniBand
-interrupt numbers in /proc/interrupts and by writing proper bitmasks into
-/proc/irq/<n>/smp_affinity.
+* When using high-latency storage devices (hard disks), the default value
+  choosen by SCST for DEVICE.threads_num should be fine. When using
+  low-latency storage devices though (SSDs), DEVICE.threads_num should be set
+  to 1 or 2 in /etc/scst.conf in order to reach optimal performance for small
+  block sizes (e.g. 4 KB).
+
+* When multiple InfiniBand HCA's are present in a target system the Linux
+  kernel by default will assign the associated interrupt handlers to CPU 0.
+  Even irqbalance will often assign the interrupt handlers of multiple HCA's
+  to the same CPU. That is unfortunate because it leads to unfair handling of
+  SRP sessions. The solution is to assign InfiniBand HCA interrupts manually
+  to different CPU's. That's possible by writing looking up the InfiniBand
+  interrupt numbers in /proc/interrupts and by writing proper bitmasks into
+  /proc/irq/<n>/smp_affinity.
 
 
 Performance Notes - Initiator Side
@@ -363,6 +366,21 @@ Performance Notes - Initiator Side
   * /sys/class/block/${dev}/queue/rotational
   * /sys/class/block/${dev}/queue/rq_affinity
   * /proc/irq/${ib_int_no}/smp_affinity
+
+
+Performance Notes - Both Sides
+------------------------------
+
+* Disabling CONFIG_SCHED_DEBUG and CONFIG_SCHEDSTATS in the kernel config
+  helps.
+
+* Disable CONFIG_IRQSOFF_TRACER such that CONFIG_TRACE_IRQFLAGS is disabled.
+
+* Consider which memory allocator to use. With recent kernels using the SLUB
+  memory allocator instead of SLAB may help. On multi-socket systems the SLAB
+  memory allocator may result in better performance. Please note that SLAB is
+  tunable while SLUB is not. See also http://lkml.org/lkml/2010/7/9/264 and
+  http://www.ibm.com/developerworks/linux/library/l-linux-slab-allocator/.
 
 
 Frequently Asked Questions
