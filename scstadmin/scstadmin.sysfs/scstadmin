@@ -2537,7 +2537,7 @@ sub applyLunAssignments {
 	my $c_luns;
 	my $changes = 0;
 
-	if ($group) {
+	if (defined($group)) {
 		$c_luns = $CURRENT{'assign'}->{$driver}->{$target}->{'GROUP'}->{$group}->{'LUN'};
 	} else {
 		$c_luns = $CURRENT{'assign'}->{$driver}->{$target}->{'LUN'};
@@ -4789,7 +4789,7 @@ sub addLun {
 	my $attributes = shift;
 	my $group = shift;
 
-	if ($group) {
+	if (defined($group)) {
 		print "\t-> Adding device '$device' at LUN $lun to driver/target/group ".
 		  "'$driver/$target/$group': ";
 	} else {
