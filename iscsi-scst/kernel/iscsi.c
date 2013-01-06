@@ -542,7 +542,30 @@ void req_cmnd_release_force(struct iscsi_cmnd *req)
 
 	TRACE_ENTRY();
 
-	TRACE_MGMT_DBG("req %p", req);
+	if (req->force_release_done) {
+		/*
+		 * There are some scenarios when this function can be called
+		 * more, than once, for the same req. For instance, dropped
+		 * command in iscsi_push_cmnd() and then for it
+		 * iscsi_fail_data_waiting_cmnd() during closing (aborting) this
+		 * connection or from iscsi_check_tm_data_wait_timeouts().
+		 */
+		TRACE_MGMT_DBG("Double force release for req %p", req);
+
+		EXTRACHECKS_BUG_ON(!req->release_called);
+		sBUG_ON(req->hashed);
+		sBUG_ON(req->cmd_req);
+		sBUG_ON(req->main_rsp != NULL);
+		sBUG_ON(!list_empty(&req->rx_ddigest_cmd_list));
+		sBUG_ON(!list_empty(&req->rsp_cmd_list));
+		sBUG_ON(req->pending);
+
+		cmnd_put(req);
+		goto out;
+	} else
+		TRACE_MGMT_DBG("req %p", req);
+
+	req->force_release_done = 1;
 
 	sBUG_ON(req == conn->read_cmnd);
 
@@ -601,6 +624,7 @@ void req_cmnd_release_force(struct iscsi_cmnd *req)
 
 	req_cmnd_release(req);
 
+out:
 	TRACE_EXIT();
 	return;
 }

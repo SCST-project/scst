@@ -384,6 +384,7 @@ struct iscsi_cmnd {
 	 * req_cmnd_release() supposed to be called only once.
 	 */
 	unsigned int data_out_in_data_receiving:1;
+	unsigned int force_release_done:1;
 #ifdef CONFIG_SCST_EXTRACHECKS
 	unsigned int on_rx_digest_list:1;
 	unsigned int release_called:1;
