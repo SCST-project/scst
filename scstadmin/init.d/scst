@@ -126,9 +126,9 @@ parse_scst_conf() {
     if [ ! -e $SCST_CFG ]; then
         return 0
     fi
-    local nonblanks="[^ 	]\{1,\}"
-    local blanks="[ 	]\{1,\}"
-    local optblanks="[ 	]*"
+    local nonblanks="[^[:blank:]]\{1,\}"
+    local blanks="[[:blank:]]\{1,\}"
+    local optblanks="[[:blank:]]*"
     SCST_MODULES="$SCST_MODULES `sed -n -e 's/^HANDLER'"$blanks"'\('"$nonblanks"'\)'"$blanks"'{'"$optblanks"'$/\1/p' \
                          -e 's/^\[HANDLER'"$blanks"'\('"$nonblanks"'\)\]$/\1/p' $SCST_CFG \
         | while read h; do
@@ -240,7 +240,7 @@ start_scst() {
             tmpout=/tmp/scstadmin-output-$$
             if scstadmin -config $SCST_CFG >$tmpout 2>&1; then
                 rm -f $tmpout
-       	        return 0
+                return 0
             else
                 cat $tmpout
                 rm -f $tmpout
