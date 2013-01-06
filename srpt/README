@@ -27,7 +27,7 @@ devices. A few examples of supported device handlers are:
 Installation
 ------------
 
-Proceed as follows to compile and install the SRP target driver:
+Building and installing the SRP target driver is possible as follows:
 
 1. The SRP initiator (ib_srp) included with Linux kernel 2.6.36 and before
    frequently makes ib_srpt send BUSY responses, which hurts performance.
@@ -53,13 +53,6 @@ Proceed as follows to compile and install the SRP target driver:
    make -s scst_clean scst scst_install
    make -s srpt_clean srpt srpt_install
    make -s scstadm scstadm_install
-
-3. Edit the installed file /etc/init.d/scst and add ib_srpt to the
-   SCST_MODULES variable.
-
-4. Configure SCST such that it will be started during system boot:
-
-   chkconfig scst on
 
 The ib_srpt kernel module supports the following parameters:
 * srp_max_req_size (number)
