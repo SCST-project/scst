@@ -181,7 +181,12 @@ unload_scst() {
             # occurs, sleep for a short time.
             sleep 1
         fi
-        if [ -e /sys/module/$m/refcnt ] && ! rmmod $m; then
+        i=0
+        while [ -e /sys/module/$m/refcnt ] && ! rmmod $m && [ $i -lt 30 ]; do
+            sleep 1
+            i=$((i+1))
+        done
+        if [ -e /sys/module/$m/refcnt ]; then
             return 1
         fi
     done
