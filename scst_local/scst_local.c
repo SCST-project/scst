@@ -1705,6 +1705,7 @@ out:
 #ifndef CONFIG_SCST_PROC
 unregister_dev:
 	device_unregister(&sess->dev);
+	goto out;
 #endif
 
 unregister_session:
