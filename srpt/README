@@ -241,6 +241,40 @@ $ ls /sys/bus/scst_target/drivers/ib_srpt/*/sessions
 0x00000000000000000002c9030005f34b
 
 
+LUN masking
+-----------
+
+In a straightforward configuration every LUN is visible to every initiator.
+It is possible however to make a different set of LUNs visible to each
+initiator by using the LUN masking feature of SCST. SRP initiators are
+identified by their session name (see above). An example of an scst.conf
+file using LUN masking for ib_srpt:
+
+TARGET_DRIVER ib_srpt {
+        TARGET ib_srpt_target_0 {
+                enabled 1
+                rel_tgt_id 1
+
+                # LUNs visible by all initiators not listed below
+                LUN 0 disk01
+
+                GROUP grp1 {
+                        # LUNs visible by initiator system 1
+                        LUN 0 disk02
+
+                        INITIATOR 0x00000000000000000002c9030005f34b
+                }
+
+                GROUP grp2 {
+                        # LUNs visible by initiator system 2
+                        LUN 0 disk03
+
+                        INITIATOR 0x00000000000000000002c9030005f34c
+                }
+        }
+}
+
+
 Adding and Removing LUNs Dynamically
 ------------------------------------
 
