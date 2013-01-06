@@ -4087,7 +4087,7 @@ static int __init iscsi_init(void)
 	err = net_set_get_put_page_callbacks(iscsi_get_page_callback,
 			iscsi_put_page_callback);
 	if (err != 0) {
-		PRINT_INFO("Unable to set page callbackes: %d", err);
+		PRINT_INFO("Unable to set page callbacks: %d", err);
 		goto out_destroy_mempool;
 	}
 #else
