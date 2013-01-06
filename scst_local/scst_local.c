@@ -1756,12 +1756,12 @@ static int scst_local_add_target(const char *target_name,
 	list_add_tail(&tgt->tgts_list_entry, &scst_local_tgts_list);
 	mutex_unlock(&scst_local_mutex);
 
-	if (out_tgt != NULL)
-		*out_tgt = tgt;
-
 	res = 0;
 
 out:
+	if (out_tgt != NULL)
+		*out_tgt = tgt;
+
 	TRACE_EXIT_RES(res);
 	return res;
 
