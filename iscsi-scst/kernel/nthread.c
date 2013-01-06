@@ -325,14 +325,13 @@ void iscsi_task_mgmt_affected_cmds_done(struct scst_mgmt_cmd *scst_mcmd)
 
 	switch (fn) {
 	case SCST_NEXUS_LOSS_SESS:
-	case SCST_ABORT_ALL_TASKS_SESS:
 	{
 		struct iscsi_conn *conn = (struct iscsi_conn *)priv;
 		struct iscsi_session *sess = conn->session;
 		struct iscsi_conn *c;
 
 		if (sess->sess_reinst_successor != NULL)
-			scst_reassign_persistent_sess_states(
+			scst_reassign_retained_sess_states(
 				sess->sess_reinst_successor->scst_sess,
 				sess->scst_sess);
 
@@ -367,6 +366,11 @@ void iscsi_task_mgmt_affected_cmds_done(struct scst_mgmt_cmd *scst_mcmd)
 		complete_all(&conn->ready_to_free);
 		break;
 	}
+	case SCST_ABORT_ALL_TASKS_SESS:
+	case SCST_ABORT_ALL_TASKS:
+	case SCST_NEXUS_LOSS:
+		sBUG_ON(1);
+		break;
 	default:
 		/* Nothing to do */
 		break;
@@ -383,9 +387,10 @@ static void close_conn(struct iscsi_conn *conn)
 	typeof(jiffies) start_waiting = jiffies;
 	typeof(jiffies) shut_start_waiting = start_waiting;
 	bool pending_reported = 0, wait_expired = 0, shut_expired = 0;
-	bool reinst;
 	uint32_t tid, cid;
 	uint64_t sid;
+	int rc;
+	int lun = 0;
 
 #define CONN_PENDING_TIMEOUT	((typeof(jiffies))10*HZ)
 #define CONN_WAIT_TIMEOUT	((typeof(jiffies))10*HZ)
@@ -412,30 +417,14 @@ static void close_conn(struct iscsi_conn *conn)
 	mutex_lock(&session->target->target_mutex);
 
 	set_bit(ISCSI_CONN_SHUTTINGDOWN, &conn->conn_aflags);
-	reinst = (conn->conn_reinst_successor != NULL);
 
 	mutex_unlock(&session->target->target_mutex);
 
-	if (reinst) {
-		int rc;
-		int lun = 0;
-
-		/* Abort all outstanding commands */
-		rc = scst_rx_mgmt_fn_lun(session->scst_sess,
-			SCST_ABORT_ALL_TASKS_SESS, (uint8_t *)&lun, sizeof(lun),
-			SCST_NON_ATOMIC, conn);
-		if (rc != 0)
-			PRINT_ERROR("SCST_ABORT_ALL_TASKS_SESS failed %d", rc);
-	} else {
-		int rc;
-		int lun = 0;
-
-		rc = scst_rx_mgmt_fn_lun(session->scst_sess,
-			SCST_NEXUS_LOSS_SESS, (uint8_t *)&lun, sizeof(lun),
-			SCST_NON_ATOMIC, conn);
-		if (rc != 0)
-			PRINT_ERROR("SCST_NEXUS_LOSS_SESS failed %d", rc);
-	}
+	rc = scst_rx_mgmt_fn_lun(session->scst_sess,
+		SCST_NEXUS_LOSS_SESS, (uint8_t *)&lun, sizeof(lun),
+		SCST_NON_ATOMIC, conn);
+	if (rc != 0)
+		PRINT_ERROR("SCST_NEXUS_LOSS_SESS failed %d", rc);
 
 	if (conn->read_state != RX_INIT_BHS) {
 		struct iscsi_cmnd *cmnd = conn->read_cmnd;

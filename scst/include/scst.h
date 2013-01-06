@@ -1263,6 +1263,18 @@ struct scst_dev_type {
 		struct scst_tgt_dev *tgt_dev);
 
 	/*
+	 * Called to reassign retained states (mode pages, etc.) from
+	 * old_tgt_dev to new_tgt_dev during nexus loss (iSCSI sessions
+	 * reinstatement, etc.) processing.
+	 *
+	 * Can be called under scst_mutex.
+	 *
+	 * OPTIONAL
+	 */
+	void (*reassign_retained_states) (struct scst_tgt_dev *new_tgt_dev,
+		struct scst_tgt_dev *old_tgt_dev);
+
+	/*
 	 * Called to notify dev handler that its sg_tablesize is too low to
 	 * satisfy this command's data transfer requirements. Should return
 	 * true if exec() callback will split this command's CDB on smaller
@@ -4109,7 +4121,7 @@ int scst_tape_generic_dev_done(struct scst_cmd *cmd,
 
 int scst_obtain_device_parameters(struct scst_device *dev);
 
-void scst_reassign_persistent_sess_states(struct scst_session *new_sess,
+void scst_reassign_retained_sess_states(struct scst_session *new_sess,
 	struct scst_session *old_sess);
 
 int scst_get_max_lun_commands(struct scst_session *sess, uint64_t lun);

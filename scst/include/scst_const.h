@@ -97,8 +97,7 @@
 
 /*
  * Notifies about I_T nexus loss event in the corresponding session.
- * Aborts all tasks there, resets the reservation, if any, and sets
- * up the I_T Nexus loss UA.
+ * Aborts all tasks there and sets up the I_T Nexus loss UA.
  */
 #define SCST_NEXUS_LOSS_SESS		6
 
@@ -107,8 +106,7 @@
 
 /*
  * Notifies about I_T nexus loss event. Aborts all tasks in all sessions
- * of the tgt, resets the reservations, if any,  and sets up the I_T Nexus
- * loss UA.
+ * of the tgt, and sets up in them the I_T Nexus loss UA.
  */
 #define SCST_NEXUS_LOSS			8
 
