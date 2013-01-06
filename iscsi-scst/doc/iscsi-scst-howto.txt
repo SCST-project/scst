@@ -72,7 +72,7 @@ shown below. Verify the contents of the generated file.
 3. Set up /etc/scst.conf
 
 The scst.conf configuration file is loaded at system boot time by the
-shell script /etc/init.d/iscsi-scst. The target, device and LUN
+shell script /etc/init.d/scst. The target, device and LUN
 configuration is defined in this file.
 
 Here is the sample config file. Copy it in /etc/scst.conf
@@ -102,40 +102,31 @@ TARGET_DRIVER iscsi {
 Note that for each SCSI device LUN 0 must exist. This is required by the SCSI
 protocol and is also documented in SCST's README file.
 
-Then run the following commands:
+Then run the following command:
 
-  modprobe scst
-  modprobe scst_vdisk
-  modprobe iscsi-scst
-  iscsi-scstd
-  scstadmin -config /etc/scst.conf
+  /etc/init.d/scst start
 
 You should have the working iSCSI-SCST now. Do the following steps if
 you need to automatically configure it upon reboot.
 
-4. Edit /etc/init.d/iscsi-scst
-
-Add additional modules you need to the ADD_MODULES variable, e.g. scst_disk.
-
-5. Create soft links in /etc/init.d
+4. Create soft links in /etc/init.d
 
 This will make SCST to start automatically upon system boot. Use either
 chkconfig or update-rc.d, depending on the Linux distribution you are using.
 An example for Debian systems such as Ubuntu:
 
-  update-rc.d iscsi-scst defaults
+  update-rc.d scst defaults
 
 On openSUSE you can let SCST start automatically through the following commands:
 
-  insserv iscsi-scst
+  insserv scst
 
-6. Restart SCST and iSCSI-SCST
+5. Restart SCST and iSCSI-SCST
 
 If you don't want to reboot now, you can make the above settings effective via
 the following commands:
 
-  /etc/init.d/iscsi-scst stop
-  /etc/init.d/iscsi-scst start
+  /etc/init.d/scst restart
 
 
 Installing and using iSCSI-SCST without using scstadmin via /sys interface
