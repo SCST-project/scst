@@ -351,6 +351,10 @@ interrupt numbers in /proc/interrupts and by writing proper bitmasks into
 Performance Notes - Initiator Side
 ----------------------------------
 
+* For multithreaded workloads using small block sizes changing rq_affinity
+  into 2 improves IOPS significantly (Linux kernel 3.1 and later; see also
+  commit 5757a6d76cdf6dda2a492c09b985c015e86779b1).
+
 * For latency sensitive applications, using the noop scheduler at the initiator
   side can give significantly better results than with other schedulers.
 
