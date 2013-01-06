@@ -1645,7 +1645,6 @@ static int __scst_local_add_adapter(struct scst_local_tgt *tgt,
 				initiator_name, (void *)sess, NULL, NULL);
 	if (sess->scst_sess == NULL) {
 		PRINT_ERROR("%s", "scst_register_session failed");
-		kfree(sess);
 		res = -EFAULT;
 		goto out_free;
 	}
