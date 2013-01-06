@@ -10,38 +10,44 @@ INITDIR := $(shell if [ -f /etc/slackware-version ]; then	\
                    else						\
                      echo /etc/init.d;				\
                    fi)
-INSTALL_INITD_CMD := $(shell if type -p systemctl >/dev/null 2>&1; then	\
-			       echo systemctl enable;			\
-			     elif type -p update-rc.d >/dev/null 2>&1; then\
-			       echo update-rc.d;			\
-			     elif [ -f /etc/gentoo-release ]; then	\
-			       echo rc-update add;			\
-			     elif [ -f /etc/slackware-version ]; then	\
-			       echo none;				\
-			     else					\
-			       echo /usr/lib/lsb/install_initd;		\
-			     fi)
-INSTALL_INITD_ARGS := $(shell if type -p systemctl >/dev/null 2>&1; then\
-				echo ".service";			\
-			      elif type -p update-rc.d >/dev/null 2>&1; then\
-			        echo " defaults";			\
-			      elif [ -f /etc/gentoo-release ]; then	\
-				echo " default";			\
-			      fi)
-REMOVE_INITD_CMD := $(shell if type -p systemctl >/dev/null 2>&1; then	\
-			       echo systemctl disable;			\
-			    elif type -p update-rc.d >/dev/null 2>&1; then\
-			       echo update-rc.d -f;			\
-			    elif [ -f /etc/gentoo-release ]; then	\
-			      echo rc-update del;			\
-			    elif [ -f /etc/slackware-version ]; then	\
-			      echo none;				\
-			    else					\
-			      echo /usr/lib/lsb/remove_initd;		\
-			    fi)
-REMOVE_INITD_ARGS := $(shell if type -p update-rc.d >/dev/null 2>&1; then\
-			       echo " remove";				\
-			     fi)
+
+ECHO_INSTALL_FN =							\
+	if [ -n "$(DESTDIR)" ]; then					\
+	  chr="chroot $(DESTDIR)";					\
+	else								\
+	  chr="";							\
+	fi;								\
+	if type systemctl >/dev/null 2>&1; then				\
+	    echo $$chr systemctl enable "$(1).service";			\
+	elif type chkconfig >/dev/null 2>&1; then			\
+	    echo $$chr chkconfig --add "$(1)";				\
+	elif type update-rc.d >/dev/null 2>&1; then			\
+	    echo $$chr update-rc.d "$(1)" defaults;			\
+	elif type rc-update >/dev/null 2>&1; then			\
+	    echo $$chr rc-update add "$(1)" default;			\
+	elif type /usr/lib/lsb/install_initd >/dev/null 2>&1; then	\
+	    echo $$chr /usr/lib/lsb/install_initd "$(1)";		\
+	fi
+
+REMOVE_FN =								\
+	if [ -n "$(DESTDIR)" ]; then					\
+	  chr="chroot $(DESTDIR)";					\
+	else								\
+	  chr="";							\
+	fi;								\
+	if type systemctl >/dev/null 2>&1; then				\
+	    $$chr systemctl disable "$(1).service";			\
+	elif type chkconfig >/dev/null 2>&1; then			\
+	    $$chr chkconfig --del "$(1)";				\
+	elif type update-rc.d >/dev/null 2>&1; then			\
+	    $$chr update-rc.d -f "$(1)" remove;				\
+	elif type rc-update >/dev/null 2>&1; then			\
+	    $$chr rc-update del "$(1)";					\
+	elif type /usr/lib/lsb/remove_initd >/dev/null 2>&1; then	\
+	    $$chr /usr/lib/lsb/remove_initd "$(1)";			\
+	fi;								\
+	rm -f $(DESTDIR)$(INITDIR)/$(1)
+
 DEFAULTDIR := $(shell if [ -f /etc/gentoo-release ]; then	        \
                           echo /etc/conf.d;                             \
 		      else                                              \
@@ -77,34 +83,22 @@ install:
 	  mkdir -p $(DESTDIR)$(DEFAULTDIR);			\
 	  install -m 755 default/scst $(DESTDIR)$(DEFAULTDIR);	\
 	fi
-	@if [ "$(REMOVE_INITD_CMD)" != "none" ]; then		\
-	  for s in iscsi-scst qla2x00t; do			\
-	    $(REMOVE_INITD_CMD) $$s $(REMOVE_INITD_ARGS) >/dev/null 2>&1; \
-	    rm -f $(DESTDIR)$(INITDIR)/$$s;			\
-	  done;							\
-	fi
-	@if [ "$(INSTALL_INITD_CMD)" != "none" ]; then			    \
-	  echo;								    \
-	  echo 'If you want SCST to start automatically at boot time, run'  \
-	      'the following command:';					    \
-	  if [ ! -z "$(DESTDIR)" ]; then echo -n "chroot $(DESTDIR) "; fi;  \
-	  echo '$(INSTALL_INITD_CMD) scst$(INSTALL_INITD_ARGS)';	    \
-	  echo; \
-	fi
+	for s in iscsi-scst qla2x00t; do			\
+	  { $(call REMOVE_FN,$$s); } >/dev/null 2>&1;		\
+	done
+	echo
+	echo 'If you want SCST to start automatically at boot time, run'  \
+	     'the following command:'
+	$(call ECHO_INSTALL_FN,scst)
+	echo
 
 uninstall:
 	if [ -e $(DESTDIR)$(DEFAULTDIR)/scst ]; then	\
 	  mv $(DESTDIR)$(DEFAULTDIR)/scst		\
 	    $(DESTDIR)$(DEFAULTDIR)/scst.`date +%F,%T`;	\
 	fi
-	if [ -e $(DESTDIR)$(INITDIR)/scst -a "$(REMOVE_INITD_CMD)" != "none" ];\
-	then							\
-	  if [ -z "$(DESTDIR)" ]; then				\
-	    $(REMOVE_INITD_CMD) scst $(REMOVE_INITD_ARGS);	\
-	  else							\
-	    chroot $(DESTDIR) $(REMOVE_INITD_CMD) scst $(REMOVE_INITD_ARGS); \
-	  fi;							\
-	  rm -f $(DESTDIR)$(INITDIR)/scst;			\
+	if [ -e $(DESTDIR)$(INITDIR)/scst ]; then	\
+	  $(call REMOVE_FN,scst);			\
 	fi
 	for m in scstadmin/man*/*.[1-9]; do		\
 	  if [ -e $$m ]; then				\
