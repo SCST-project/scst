@@ -102,6 +102,8 @@ module_param_named(add_default_tgt, scst_local_add_default_tgt, bool, S_IRUGO);
 MODULE_PARM_DESC(add_default_tgt, "add (default) or not on start default "
 	"target scst_local_tgt with default session scst_local_host");
 
+static struct workqueue_struct *aen_workqueue;
+
 struct scst_aen_work_item {
 	struct list_head work_list_entry;
 	struct scst_aen *aen;
@@ -1239,12 +1241,17 @@ static int scst_local_report_aen(struct scst_aen *aen)
 			goto out;
 		}
 
-		list_add_tail(&work_item->work_list_entry, &sess->aen_work_list);
+		list_add_tail(&work_item->work_list_entry,
+			&sess->aen_work_list);
 		work_item->aen = aen;
 
 		spin_unlock(&sess->aen_lock);
 
-		schedule_work(&sess->aen_work);
+		/*
+		 * We might queue the same item over and over, but that is OK
+		 * It will be ignored by queue_work if it is already queued.
+		 */
+		queue_work(aen_workqueue, &sess->aen_work);
 		break;
 
 	default:
@@ -1588,20 +1595,34 @@ static void scst_local_release_adapter(struct device *dev)
 	if (sess == NULL)
 		goto out;
 
-	spin_lock(&sess->aen_lock);
-	WARN_ON_ONCE(!sess->unregistering);
-	scst_process_aens(sess, true);
-	spin_unlock(&sess->aen_lock);
+	/*
+	 * At this point the SCSI device is almost gone because the SCSI
+	 * Mid Layer calls us when the device is being unregistered. However,
+	 * SCST might have queued some AENs to us that have not yet been
+	 * processed when unregister_device started working.
+	 *
+	 * To prevent a race between us and AEN handling we must flush the
+	 * workqueue before we clean up the AEN list (calling scst_process_aens
+	 * with cleanup_only set to true) and then unregister the session.
+	 *
+	 * For kernels after 2.6.22 it is sufficient to cancel any outstanding
+	 * work.
+	 */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22)
 	/*
 	 * cancel_work_sync() was introduced in 2.6.22. We can only wait until
 	 * all scheduled work is done.
 	 */
-	flush_scheduled_work();
+	flush_workqueue(aen_workqueue);
 #else
 	cancel_work_sync(&sess->aen_work);
 #endif
+
+	spin_lock(&sess->aen_lock);
+	WARN_ON_ONCE(!sess->unregistering);
+	scst_process_aens(sess, true);
+	spin_unlock(&sess->aen_lock);
 
 	scst_unregister_session(sess->scst_sess, false, scst_local_free_sess);
 
@@ -1883,6 +1904,16 @@ static int __init scst_local_init(void)
 		goto driver_unreg;
 	}
 
+	/*
+	 * We don't expect much work on this queue, so only create a
+	 * single thread workqueue rather than one on each core.
+	 */
+	aen_workqueue = create_singlethread_workqueue("scstlclaen");
+	if (!aen_workqueue) {
+		PRINT_ERROR("%s", "Unable to create scst_local workqueue");
+		goto tgt_templ_unreg;
+	}
+
 #ifndef CONFIG_SCST_PROC
 	/*
 	 *  If we are using sysfs, then don't add a default target unless
@@ -1896,7 +1927,7 @@ static int __init scst_local_init(void)
 
 	ret = scst_local_add_target("scst_local_tgt", &tgt);
 	if (ret != 0)
-		goto tgt_templ_unreg;
+		goto workqueue_unreg;
 
 	ret = scst_local_add_adapter(tgt, "scst_local_host");
 	if (ret != 0)
@@ -1908,6 +1939,9 @@ out:
 
 tgt_unreg:
 	scst_local_remove_target(tgt);
+
+workqueue_unreg:
+	destroy_workqueue(aen_workqueue);
 
 tgt_templ_unreg:
 	scst_unregister_target_template(&scst_local_targ_tmpl);
@@ -1946,6 +1980,8 @@ static void __exit scst_local_exit(void)
 		__scst_local_remove_target(tgt);
 	}
 	mutex_unlock(&scst_local_mutex);
+
+	destroy_workqueue(aen_workqueue);
 
 	driver_unregister(&scst_local_driver);
 	bus_unregister(&scst_local_lld_bus);
