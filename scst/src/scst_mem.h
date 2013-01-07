@@ -70,7 +70,12 @@ struct sgv_pool_alloc_fns {
 		void *priv);
 	void (*free_pages_fn)(struct scatterlist *sg, int sg_count,
 		void *priv);
-};
+}
+#ifdef CONSTIFY_PLUGIN
+/* Avoid that the Grsecurity gcc constify_plugin constifies this structure. */
+__attribute__((no_const))
+#endif
+;
 
 /*
  * SGV pool
