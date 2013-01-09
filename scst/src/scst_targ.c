@@ -2612,11 +2612,12 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 	rc = scst_scsi_exec_async(cmd, cmd, scst_pass_through_cmd_done);
 #endif
 	if (unlikely(rc != 0)) {
-		PRINT_ERROR("scst pass-through exec failed: %x", rc);
-		if (((int)rc == -EINVAL) &&
-		    (cmd->bufflen > queue_max_hw_sectors(scsi_dev->request_queue)))
+		PRINT_ERROR("scst pass-through exec failed: %d", rc);
+		/* "Sectors" are hardcoded as 512 bytes in the kernel */
+		if (rc == -EINVAL &&
+		    (cmd->bufflen >> 9) > queue_max_hw_sectors(scsi_dev->request_queue))
 			PRINT_ERROR("Too low max_hw_sectors %d sectors on %s "
-				"to serve command %x with bufflen %db."
+				"to serve command %#x with bufflen %d bytes."
 				"See README for more details.",
 				queue_max_hw_sectors(scsi_dev->request_queue),
 				dev->virt_name, cmd->cdb[0], cmd->bufflen);
