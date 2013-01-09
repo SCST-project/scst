@@ -339,8 +339,6 @@ int target_del(u32 tid, u32 cookie)
 	if (!target)
 		return -ENOENT;
 
-	list_del(&target->tlist);
-
 	while (1) {
 		/* We might need to handle session(s) removal event(s) from the kernel */
 		while (handle_iscsi_events(nl_fd, false) == 0);
@@ -352,6 +350,13 @@ int target_del(u32 tid, u32 cookie)
 		log_debug(1, "Target %d has sessions, keep waiting", tid);
 		usleep(50000);
 	}
+
+	/*
+	 * Remove target from the list after waiting for all sessions
+	 * deleted, because we are looking for this target in list during
+	 * each session delete.
+	 */
+	list_del(&target->tlist);
 
 	if (target->tgt_enabled)
 		isns_target_deregister(target->name);
