@@ -1330,15 +1330,7 @@ sub serializeNkAttr {
 sub writeConfiguration {
 	my $nonkey = shift;
 
-	if (-f $CONFIGFILE) {
-		if (!unlink $CONFIGFILE) {
-			print "Failed to save current configuration, specified ".
-			  "file exists and cannot be deleted.\n";
-			return 1;
-		}
-	}
-
-	my $io = new IO::File $CONFIGFILE, O_CREAT|O_WRONLY;
+	my $io = new IO::File $CONFIGFILE, O_CREAT|O_WRONLY|O_TRUNC;
 
 	if (!$io) {
 		print "Failed to save configuration to file '$CONFIGFILE': $!\n";
