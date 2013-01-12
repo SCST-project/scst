@@ -1,5 +1,5 @@
-Next release
-------------
+Version 2.2.1 (January 12, 2013)
+-------------
 
 Changes compared to version 2.2.0:
 - Made sure that the SCST session is unregistered after an initiator logs out.
