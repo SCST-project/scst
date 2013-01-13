@@ -2,6 +2,9 @@
 # Makefile for ib_srpt.ko.
 #
 
+SCST_INC_DIR := $(shell if [ -e "$$PWD/../scst" ];			\
+			then echo "$$PWD/../scst/include";		\
+			else echo "/usr/local/include/scst"; fi)
 SCST_SYMVERS_DIR := $(shell if [ -e $$PWD/../scst ]; then	\
                         echo $$PWD/../scst/src;			\
                       else echo /usr/local/include/scst; fi)
@@ -50,7 +53,7 @@ OFED_SRPT_INSTALLED:=$(shell if [ -e $(OFED_SRPT_PATH) ]; then echo true; else e
 
 all: src/$(MODULE_SYMVERS)
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src \
-	  PRE_CFLAGS="$(OFED_CFLAGS)" modules
+	  PRE_CFLAGS="$(OFED_CFLAGS)" SCST_INC_DIR=$(SCST_INC_DIR) modules
 
 install: all src/ib_srpt.ko
 	@eval `sed -n 's/#define UTS_RELEASE /KERNELRELEASE=/p' $(KDIR)/include/linux/version.h $(KDIR)/include/linux/utsrelease.h 2>/dev/null`; \

@@ -43,11 +43,6 @@ export CONFIG_FCST   := m
 set_var = $(shell { if [ -e "$(1)" ]; then grep -v '^$(2)=' "$(1)"; fi; echo "$(2)=$(3)"; } >/tmp/$(1)-$$$$.tmp && mv /tmp/$(1)-$$$$.tmp $(1))
 
 
-#SCST_INC_DIR := /usr/local/include/scst
-#SCST_DIR := $(SCST_INC_DIR)
-SCST_INC_DIR := $(SUBDIRS)/../scst/include
-SCST_DIR := $(shell pwd)/../scst/src
-
 FCSTFLAGS = -DDEBUG_WORK_IN_THREAD -DCONFIG_SCST_TRACING -DCONFIG_SCST_DEBUG \
 	-DCONFIG_SCST_EXTRACHECKS -fno-inline -fno-inline-functions
 FCSTFLAGSRELEASE = -DCONFIG_SCST_TRACING
@@ -61,15 +56,23 @@ INSTALL_DIR := /lib/modules/$(KVER)/extra
 ifneq ($(KERNELRELEASE),)
 include $(SUBDIRS)/Makefile_in-tree
 else
+SCST_INC_DIR := $(shell if [ -e "$$PWD/../scst" ];			\
+                  then echo "$$PWD/../scst/include";			\
+                  else echo "/usr/local/include/scst"; fi)
+SCST_DIR := $(shell if [ -e "$$PWD/../scst" ]; then echo "$$PWD/../scst/src"; \
+		else echo "/usr/local/include/scst"; fi)
+
 all: Modules.symvers Module.symvers
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m
+	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
+	  SCST_INC_DIR=$(SCST_INC_DIR)
 
 tgt: Modules.symvers Module.symvers
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=n
+	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=n \
+	  SCST_INC_DIR=$(SCST_INC_DIR)
 
 install: all
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
-		modules_install
+	  SCST_INC_DIR=$(SCST_INC_DIR) modules_install
 	-depmod -a $(KVER)
 
 ins:

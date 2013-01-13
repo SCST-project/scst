@@ -1,7 +1,3 @@
-SCST_INC_DIR := $(shell d="$(dir $(lastword $(MAKEFILE_LIST)))";	\
-                  if [ -e "$$d../../scst" ];				\
-                  then echo "$$d../../scst/include";			\
-                  else echo "/usr/local/include/scst"; fi)
 EXTRA_CFLAGS += -I$(SCST_INC_DIR)
 
 -include $(SUBDIRS)/../build_mode
