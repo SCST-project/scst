@@ -128,4 +128,7 @@ enable_proc:
 	-rm -f scstadmin
 	ln -s scstadmin.procfs scstadmin
 
+release-archive:
+	../scripts/generate-release-archive scst "$$(sed -n 's/^\$$Version[[:blank:]]*=[[:blank:]]*'"'"'SCST Configurator v\([^'"'"']*\)'"'"'.*/\1/p' scstadmin.sysfs/scstadmin)"
+
 .PHONY: all install uninstall perl-module clean distclean extraclean disable_proc enable_proc
