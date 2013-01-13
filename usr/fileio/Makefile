@@ -115,4 +115,7 @@ perf2debug:
 	@cmp Makefile Makefile.aa >/dev/null; if [[ $$? = 0 ]]; then rm Makefile.aa; echo "sed failed: wrong original state?"; false; fi
 	rm Makefile.aa
 
+release-archive:
+	../../scripts/generate-release-archive fileio_tgt "$$(sed -n 's/^#define[[:blank:]]VERSION_STR[[:blank:]]*\"\([^\"]*\)\".*/\1/p' fileio.c)"
+
 .PHONY: all install uninstall clean extraclean debug2release release2debug debug2perf perf2debug
