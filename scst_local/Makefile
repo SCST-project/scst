@@ -12,7 +12,7 @@ KMOD 		:= $(shell pwd)/kernel
 
 enable-Wextra = $(shell uname_r="$$(uname -r)"; if [ "$${uname_r%.el5}" = "$${uname_r}" ]; then echo "$(1)"; fi)
 
-EXTRA_CFLAGS	+= -I$(SCST_INC_DIR) -I$(SCST_DIR)
+EXTRA_CFLAGS	+= -I$(SCST_INC_DIR)
 EXTRA_CFLAGS	+= $(call enable-Wextra,-Wextra -Wno-unused-parameter\
 	-Wno-missing-field-initializers)
 
