@@ -4,10 +4,6 @@
 
 SHELL=/bin/bash
 
-#SCST_INC_DIR := /usr/local/include/scst
-#SCST_DIR := $(SCST_INC_DIR)
-SCST_INC_DIR	:= $(SUBDIRS)/../scst/include/
-SCST_DIR	:= $(shell pwd)/../scst/src
 KMOD 		:= $(shell pwd)/kernel
 
 enable-Wextra = $(shell uname_r="$$(uname -r)"; if [ "$${uname_r%.el5}" = "$${uname_r}" ]; then echo "$(1)"; fi)
@@ -36,12 +32,20 @@ ifneq ($(PATCHLEVEL),)
 obj-m	:= scst_local.o
 else
 
+SCST_INC_DIR := $(shell if [ -e "$$PWD/../scst" ];			\
+			then echo "$$PWD/../scst/include";		\
+			else echo "/usr/local/include/scst"; fi)
+SCST_DIR := $(shell if [ -e "$$PWD/../scst" ];				\
+		    then echo "$$PWD/../scst/src";			\
+		    else echo "/usr/local/include/scst"; fi)
+
 all: Modules.symvers Module.symvers
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m
+	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
+		SCST_INC_DIR=$(SCST_INC_DIR)
 
 install: all
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
-		modules_install
+		SCST_INC_DIR=$(SCST_INC_DIR) modules_install
 	-/sbin/depmod -aq $(KVER)
 
 SCST_MOD_VERS := $(shell ls $(SCST_DIR)/Modules.symvers 2>/dev/null)

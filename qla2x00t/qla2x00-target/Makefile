@@ -30,11 +30,6 @@
 
 SHELL=/bin/bash
 
-#SCST_INC_DIR := /usr/local/include/scst
-#SCST_DIR := $(SCST_INC_DIR)
-SCST_INC_DIR := $(SUBDIRS)/../../scst/include
-SCST_DIR := $(shell pwd)/../../scst/src
-
 EXTRA_CFLAGS += -I$(SCST_INC_DIR)
 
 INSTALL_DIR := /lib/modules/$(shell uname -r)/extra
@@ -72,20 +67,29 @@ obj-m := qla2x00tgt.o
 qla2x00tgt-objs := qla2x00t.o
 else
 
+SCST_INC_DIR := $(shell if [ -e "$$PWD/../../scst" ];			\
+                  then echo "$$PWD/../../scst/include";			\
+                  else echo "/usr/local/include/scst"; fi)
+SCST_DIR := $(shell if [ -e "$$PWD/../../scst" ];			\
+		    then echo "$$PWD/../../scst/src";			\
+		    else echo "/usr/local/include/scst"; fi)
+
 ifneq ($(BUILD_2X_MODULE),)
 # We need to make qla2xxx_scst before Module.symvers
 .NOTPARALLEL:
 endif
 
 all: $(QLA2XXX_SCST) Modules.symvers Module.symvers
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m
+	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
+	  SCST_INC_DIR=$(SCST_INC_DIR)
 
 install: all
 ifneq ($(BUILD_2X_MODULE),)
-	$(MAKE) SUBDIRS=$(QLA2XXX_DIR) -C $(QLA2XXX_DIR) $@
+	$(MAKE) SUBDIRS=$(QLA2XXX_DIR) -C $(QLA2XXX_DIR) $@ \
+	  SCST_INC_DIR=$(SCST_INC_DIR)
 endif
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
-		modules_install
+	  SCST_INC_DIR=$(SCST_INC_DIR) modules_install
 	-/sbin/depmod -a $(KVER)
 
 uninstall:
