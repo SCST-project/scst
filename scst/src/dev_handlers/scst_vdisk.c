@@ -243,6 +243,7 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p);
 static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua);
 static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask,
 	bool report_error, struct scst_cmd *cmd, bool async);
+static enum compl_status_e blockio_exec_verify(struct vdisk_cmd_params *p);
 static enum compl_status_e fileio_exec_verify(struct vdisk_cmd_params *p);
 static enum compl_status_e blockio_exec_write_verify(struct vdisk_cmd_params *p);
 static enum compl_status_e fileio_exec_write_verify(struct vdisk_cmd_params *p);
@@ -1125,6 +1126,9 @@ static vdisk_op_fn blockio_ops[256] = {
 	[WRITE_VERIFY] = blockio_exec_write_verify,
 	[WRITE_VERIFY_12] = blockio_exec_write_verify,
 	[WRITE_VERIFY_16] = blockio_exec_write_verify,
+	[VERIFY] = blockio_exec_verify,
+	[VERIFY_12] = blockio_exec_verify,
+	[VERIFY_16] = blockio_exec_verify,
 	SHARED_OPS
 };
 
@@ -4123,6 +4127,12 @@ static enum compl_status_e blockio_exec_write_verify(struct vdisk_cmd_params *p)
 	/* Not yet implemented */
 	WARN_ON(true);
 	return blockio_exec_write(p);
+}
+
+static enum compl_status_e blockio_exec_verify(struct vdisk_cmd_params *p)
+{
+	/* Not yet implemented */
+	return CMD_SUCCEEDED;
 }
 
 static enum compl_status_e fileio_exec_write_verify(struct vdisk_cmd_params *p)
