@@ -6250,7 +6250,7 @@ out:
 	return res;
 
 out_inval_bufflen10:
-	PRINT_ERROR("Too big bufflen %x (op %x)", cmd->bufflen, cmd->cdb[0]);
+	PRINT_ERROR("Too big bufflen %d (op %x)", cmd->bufflen, cmd->cdb[0]);
 	scst_set_invalid_field_in_cdb(cmd, 10, 0);
 	res = 1;
 	goto out;
@@ -6426,7 +6426,7 @@ static int get_cdb_info_verify12(struct scst_cmd *cmd,
 	if (cmd->cdb[1] & BYTCHK) {
 		cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
 		if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
-			PRINT_ERROR("Too big bufflen %x (op %x)",
+			PRINT_ERROR("Too big bufflen %d (op %x)",
 				cmd->bufflen, cmd->cdb[0]);
 			scst_set_invalid_field_in_cdb(cmd, sdbops->info_len_off, 0);
 			return 1;
@@ -6448,7 +6448,7 @@ static int get_cdb_info_verify16(struct scst_cmd *cmd,
 	if (cmd->cdb[1] & BYTCHK) {
 		cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
 		if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
-			PRINT_ERROR("Too big bufflen %x (op %x)",
+			PRINT_ERROR("Too big bufflen %d (op %x)",
 				cmd->bufflen, cmd->cdb[0]);
 			scst_set_invalid_field_in_cdb(cmd, sdbops->info_len_off, 0);
 			return 1;
@@ -6521,7 +6521,7 @@ static int get_cdb_info_len_4(struct scst_cmd *cmd,
 	cmd->lba = 0;
 	cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
 	if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
-		PRINT_ERROR("Too big bufflen %x (op %x)", cmd->bufflen,
+		PRINT_ERROR("Too big bufflen %d (op %x)", cmd->bufflen,
 			cmd->cdb[0]);
 		scst_set_invalid_field_in_cdb(cmd, sdbops->info_len_off, 0);
 		return 1;
@@ -6594,7 +6594,7 @@ static int get_cdb_info_lba_4_len_4(struct scst_cmd *cmd,
 	cmd->lba = get_unaligned_be32(cmd->cdb + sdbops->info_lba_off);
 	cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
 	if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
-		PRINT_ERROR("Too big bufflen %x (op %x)", cmd->bufflen,
+		PRINT_ERROR("Too big bufflen %d (op %x)", cmd->bufflen,
 			cmd->cdb[0]);
 		scst_set_invalid_field_in_cdb(cmd, sdbops->info_len_off, 0);
 		return 1;
@@ -6609,7 +6609,7 @@ static int get_cdb_info_lba_8_len_4(struct scst_cmd *cmd,
 	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
 	cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
 	if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
-		PRINT_ERROR("Too big bufflen %x (op %x)", cmd->bufflen,
+		PRINT_ERROR("Too big bufflen %d (op %x)", cmd->bufflen,
 			cmd->cdb[0]);
 		scst_set_invalid_field_in_cdb(cmd, sdbops->info_len_off, 0);
 		return 1;
