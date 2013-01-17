@@ -615,17 +615,10 @@ static inline atomic_t *scst_get(void)
 	atomic_t *a;
 	/*
 	 * We don't mind if we because of preemption inc counter from another
-	 * CPU as soon in the majority cases we will the correct one. So, let's
-	 * have preempt_disable/enable only in the debug build to avoid warning.
+	 * CPU as soon in the majority cases we will the correct one.
 	 */
-#ifdef CONFIG_DEBUG_PREEMPT
-	preempt_disable();
-#endif
-	a = &scst_percpu_infos[smp_processor_id()].cpu_cmd_count;
+	a = &scst_percpu_infos[raw_smp_processor_id()].cpu_cmd_count;
 	atomic_inc(a);
-#ifdef CONFIG_DEBUG_PREEMPT
-	preempt_enable();
-#endif
 	TRACE_DBG("Incrementing cpu_cmd_count %p (new value %d)",
 		a, atomic_read(a));
 	/* See comment about smp_mb() in scst_suspend_activity() */
