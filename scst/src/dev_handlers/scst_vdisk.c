@@ -1572,7 +1572,7 @@ readpage:
 static int prepare_read(struct file *filp, struct scatterlist *sg, int sg_cnt,
 			pgoff_t offset)
 {
-	struct page *page;
+	struct page *page = NULL;
 	int i, res;
 	loff_t off, last = ((offset + sg_cnt - 1) << PAGE_SHIFT) +
 		sg[sg_cnt - 1].offset + sg[sg_cnt - 1].length;
