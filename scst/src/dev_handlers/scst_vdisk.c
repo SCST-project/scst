@@ -4007,7 +4007,7 @@ static enum compl_status_e fileio_exec_verify(struct vdisk_cmd_params *p)
 	mm_segment_t old_fs;
 	loff_t err;
 	ssize_t length, len_mem = 0;
-	uint8_t *address_sav, *address;
+	uint8_t *address_sav, *address = NULL;
 	int compare;
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	struct file *fd = virt_dev->fd;
