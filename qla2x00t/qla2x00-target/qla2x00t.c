@@ -4300,7 +4300,8 @@ static void q24_handle_srr(scsi_qla_host_t *ha, struct srr_ctio *sctio,
 		break;
 	case SRR_IU_DATA_IN:
 		cmd->bufflen = scst_cmd_get_adjusted_resp_data_len(cmd->scst_cmd);
-		if (q2t_has_data(cmd)) {
+		if (q2t_has_data(cmd) &&
+		    (scst_cmd_get_data_direction(cmd->scst_cmd) & SCST_DATA_READ)) {
 			uint32_t offset;
 			int xmit_type;
 			offset = le32_to_cpu(imm->imm.notify_entry24.srr_rel_offs);
@@ -4313,16 +4314,18 @@ static void q24_handle_srr(scsi_qla_host_t *ha, struct srr_ctio *sctio,
 			__q24_xmit_response(cmd, xmit_type);
 		} else {
 			PRINT_ERROR("qla2x00t(%ld): SRR for in data for cmd "
-				"without them (tag %d, SCSI status %d), "
-				"reject", ha->instance, cmd->tag,
-				scst_cmd_get_status(cmd->scst_cmd));
+				"without them (tag %d, SCSI status %d, dir %d),"
+				" reject", ha->instance, cmd->tag,
+				scst_cmd_get_status(cmd->scst_cmd),
+				scst_cmd_get_data_direction(cmd->scst_cmd));
 			goto out_reject;
 		}
 		break;
 	case SRR_IU_DATA_OUT:
 		cmd->bufflen = scst_cmd_get_write_fields(cmd->scst_cmd,
 					&cmd->sg, &cmd->sg_cnt);
-		if (q2t_has_data(cmd)) {
+		if (q2t_has_data(cmd) &&
+		    (scst_cmd_get_data_direction(cmd->scst_cmd) & SCST_DATA_WRITE)) {
 			uint32_t offset;
 			int xmit_type;
 			offset = le32_to_cpu(imm->imm.notify_entry24.srr_rel_offs);
@@ -4336,9 +4339,10 @@ static void q24_handle_srr(scsi_qla_host_t *ha, struct srr_ctio *sctio,
 				__q2t_rdy_to_xfer(cmd);
 		} else {
 			PRINT_ERROR("qla2x00t(%ld): SRR for out data for cmd "
-				"without them (tag %d, SCSI status %d), "
-				"reject", ha->instance, cmd->tag,
-				scst_cmd_get_status(cmd->scst_cmd));
+				"without them (tag %d, SCSI status %d, dir %d),"
+				" reject", ha->instance, cmd->tag,
+				scst_cmd_get_status(cmd->scst_cmd),
+				scst_cmd_get_data_direction(cmd->scst_cmd));
 			goto out_reject;
 		}
 		break;
