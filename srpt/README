@@ -343,6 +343,13 @@ Performance Notes - Target Side
 Performance Notes - Initiator Side
 ----------------------------------
 
+* Choose a proper value for the ib_srp kernel module parameter
+  cmd_sg_entries. The default value 12 works well for buffered reads while
+  the throughput for write-dominated workloads improves by changing this value
+  into 255. One way to set this kernel module parameter is as follows:
+
+  echo options ib_srp cmd_sg_entries=255 >>/etc/modprobe.d/ib_srp.conf
+
 * For multithreaded workloads using small block sizes changing rq_affinity
   into 2 improves IOPS significantly (Linux kernel 3.1 and later; see also
   commit 5757a6d76cdf6dda2a492c09b985c015e86779b1).
