@@ -2009,7 +2009,7 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 		scst_cmd_set_queue_type(scst_cmd, SCST_CMD_QUEUE_UNTAGGED);
 		break;
 	default:
-		PRINT_ERROR("Unknown task code %x, use ORDERED instead",
+		PRINT_WARNING("Unknown task code %x, use ORDERED instead",
 			req_hdr->flags & ISCSI_CMD_ATTR_MASK);
 		scst_cmd_set_queue_type(scst_cmd, SCST_CMD_QUEUE_ORDERED);
 		break;

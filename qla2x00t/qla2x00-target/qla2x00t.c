@@ -3625,7 +3625,7 @@ static int q2x_do_send_cmd_to_scst(struct q2t_cmd *cmd)
 		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_UNTAGGED);
 		break;
 	default:
-		PRINT_ERROR("qla2x00t: unknown task code %x, use "
+		PRINT_WARNING("qla2x00t: unknown task code %x, use "
 			"ORDERED instead", atio->task_codes);
 		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_ORDERED);
 		break;
@@ -3702,7 +3702,7 @@ static int q24_do_send_cmd_to_scst(struct q2t_cmd *cmd)
 		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_UNTAGGED);
 		break;
 	default:
-		PRINT_ERROR("qla2x00t: unknown task code %x, use "
+		PRINT_WARNING("qla2x00t: unknown task code %x, use "
 			"ORDERED instead", atio->fcp_cmnd.task_attr);
 		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_ORDERED);
 		break;
