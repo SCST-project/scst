@@ -1082,6 +1082,11 @@ static enum compl_status_e vdisk_exec_send_diagnostic(struct vdisk_cmd_params *p
 	return CMD_SUCCEEDED;
 }
 
+static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
+{
+	return CMD_SUCCEEDED;
+}
+
 static enum compl_status_e vdisk_invalid_opcode(struct vdisk_cmd_params *p)
 {
 	TRACE_DBG("Invalid opcode %d", p->cmd->cdb[0]);
@@ -1112,7 +1117,8 @@ static enum compl_status_e vdisk_invalid_opcode(struct vdisk_cmd_params *p)
 	[WRITE_SAME] = vdisk_exec_write_same,				\
 	[WRITE_SAME_16] = vdisk_exec_write_same,			\
 	[MAINTENANCE_IN] = vdisk_exec_maintenance_in,			\
-	[SEND_DIAGNOSTIC] = vdisk_exec_send_diagnostic,
+	[SEND_DIAGNOSTIC] = vdisk_exec_send_diagnostic,			\
+	[FORMAT_UNIT] = vdisk_exec_format_unit,
 
 static vdisk_op_fn blockio_ops[256] = {
 	[READ_6] = blockio_exec_read,

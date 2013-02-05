@@ -6380,6 +6380,9 @@ static int get_cdb_info_fmt(struct scst_cmd *cmd,
 	cmd->op_flags |= SCST_LBA_NOT_VALID;
 	cmd->lba = 0;
 
+	/* It is not really supported anyway */
+	cmd->data_len = 0;
+
 	if (cmd->cdb[1] & 0x10/*FMTDATA*/) {
 		cmd->data_direction = SCST_DATA_WRITE;
 		cmd->op_flags |= SCST_UNKNOWN_LENGTH;
