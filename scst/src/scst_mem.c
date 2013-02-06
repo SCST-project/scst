@@ -1670,6 +1670,7 @@ out_unlock:
 
 out_free:
 	kfree(pool);
+	pool = NULL;
 	goto out_unlock;
 }
 EXPORT_SYMBOL_GPL(sgv_pool_create);
