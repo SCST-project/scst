@@ -2870,7 +2870,7 @@ void scst_set_resp_data_len(struct scst_cmd *cmd, int resp_data_len)
 	if (unlikely(resp_data_len > cmd->bufflen)) {
 		PRINT_ERROR("Too big response data len %d (max %d), limiting "
 			"it to the max (dev %s)", resp_data_len, cmd->bufflen,
-			cmd->dev->virt_name);
+			cmd->dev ? cmd->dev->virt_name : "(no LUN)");
 		cmd->resp_data_len = cmd->bufflen;
 		goto out;
 	}
