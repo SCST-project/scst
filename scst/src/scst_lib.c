@@ -5768,7 +5768,7 @@ static int sg_copy_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
 		src_len -= n;
 		dst_len -= n;
 		if (dst_len == 0) {
-			dst_sg = sg_next(dst_sg);
+			dst_sg = sg_next_inline(dst_sg);
 			if (dst_sg == NULL)
 				goto out;
 			dst_page = sg_page(dst_sg);
@@ -5834,7 +5834,7 @@ static int sg_copy(struct scatterlist *dst_sg, struct scatterlist *src_sg,
 		if (nents_to_copy == 0)
 			goto out;
 
-		src_sg = sg_next(src_sg);
+		src_sg = sg_next_inline(src_sg);
 	} while (src_sg != NULL);
 
 out:

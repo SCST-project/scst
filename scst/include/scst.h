@@ -3737,12 +3737,6 @@ static inline void sg_set_page(struct scatterlist *sg, struct page *page,
 	sg->length = len;
 }
 
-static inline struct scatterlist *sg_next(struct scatterlist *sg)
-{
-	sg++;
-	return sg;
-}
-
 #ifndef for_each_sg
 /* See also commit 96b418c960af0d5c7185ff5c4af9376eb37ac9d3 */
 #define for_each_sg(sglist, sg, nr, __i)       \
