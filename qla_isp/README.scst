@@ -19,8 +19,8 @@ INSTALLATION
 Build driver with the following command
 $ make
 
-Copy the firmware image appropriate for your HBA from the Qlogic FTP server
-ftp://ftp.qlogic.com/outgoing/linux/firmware/ to one of the Linux firmware
+Copy the firmware image appropriate for your HBA from the Qlogic server
+http://ldriver.qlogic.com/firmware/ to one of the Linux firmware
 loader directories (e.g. /lib/firmware, see the udev/hotplug documentation
 for your distribution).
 
