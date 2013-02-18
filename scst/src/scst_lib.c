@@ -3380,7 +3380,9 @@ int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev)
 	}
 
 	dev->handler = &scst_null_devtype;
+#ifdef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
 	atomic_set(&dev->dev_cmd_count, 0);
+#endif
 	scst_init_mem_lim(&dev->dev_mem_lim);
 	spin_lock_init(&dev->dev_lock);
 	INIT_LIST_HEAD(&dev->blocked_cmd_list);

@@ -38,11 +38,6 @@
 #include "scst_priv.h"
 #include "scst_pres.h"
 
-#if 0 /* Let's disable it for now to see if users will complain about it */
-/* Deleting it don't forget to delete dev_cmd_count */
-#define CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
-#endif
-
 static void scst_cmd_set_sn(struct scst_cmd *cmd);
 static int __scst_init_cmd(struct scst_cmd *cmd);
 static struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess,

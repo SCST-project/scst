@@ -36,6 +36,10 @@
 #endif
 #include <asm/unaligned.h>
 
+#if 0 /* Let's disable it for now to see if users will complain about it */
+#define CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
+#endif
+
 /* #define CONFIG_SCST_PROC */
 
 #ifdef CONFIG_SCST_PROC
@@ -2351,14 +2355,17 @@ struct scst_device {
 	/**************************************************************/
 
 	/*
-	 * How many cmds alive on this dev. Modified independently to the
-	 * above fields, hence the alignment. Gcc reported to have
-	 * a long standing bug, when it uses 64-bit memory accesses for
-	 * int bit fields, so this alignment must be here to workaroud it.
+	 * Device lock. Modified independently to the above fields, hence
+	 * the alignment. Gcc reported to have a long standing bug, when
+	 * it uses 64-bit memory accesses for int bit fields, so this
+	 * alignment must be here to workaroud it.
 	 */
-	atomic_t dev_cmd_count __aligned(sizeof(long));
+	spinlock_t dev_lock __aligned(sizeof(long));
 
-	spinlock_t dev_lock; /* device lock */
+#ifdef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
+	/* How many cmds alive on this dev */
+	atomic_t dev_cmd_count;
+#endif
 
 	/*
 	 * How many times device was blocked for new cmds execution.
