@@ -575,7 +575,6 @@ static void init_max_params(void)
 	    (session_keys[key_max_xmit_data_length].max != -1) ||
 	    (session_keys[key_max_burst_length].local_def != -1) ||
 	    (session_keys[key_max_burst_length].max != -1) ||
-	    (session_keys[key_first_burst_length].local_def != -1) ||
 	    (session_keys[key_first_burst_length].max != -1)) {
 		log_error("Wrong session_keys initialization");
 		exit(-1);
@@ -602,7 +601,9 @@ static void init_max_params(void)
 	session_keys[key_max_burst_length].max = iscsi_init_params.max_data_seg_len;
 
 	/* FirstBurstLength */
-	session_keys[key_first_burst_length].local_def = iscsi_init_params.max_data_seg_len;
+	session_keys[key_first_burst_length].local_def =
+		min((int)session_keys[key_first_burst_length].local_def,
+		    iscsi_init_params.max_data_seg_len);
 	session_keys[key_first_burst_length].max = iscsi_init_params.max_data_seg_len;
 
 	return;
