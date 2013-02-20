@@ -2469,7 +2469,7 @@ static ssize_t scst_dev_sysfs_type_show(struct kobject *kobj,
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
-	pos = sprintf(buf, "%d - %s\n", dev->type,
+	pos = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d - %s\n", dev->type,
 		(unsigned)dev->type >= ARRAY_SIZE(scst_dev_handler_types) ?
 		      "unknown" : scst_dev_handler_types[dev->type]);
 

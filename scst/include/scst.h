@@ -1079,7 +1079,7 @@ struct scst_tgt_template {
 	/* Device number in /proc */
 	int proc_dev_num;
 #else
-	struct kobject tgtt_kobj; /* kobject for this struct */
+	struct kobject tgtt_kobj; /* target driver sysfs entry */
 
 	/* Number of currently active sysfs mgmt works (scst_sysfs_work_item) */
 	int tgtt_active_sysfs_works_count;
@@ -1730,7 +1730,7 @@ struct scst_session {
 #ifndef CONFIG_SCST_PROC
 	unsigned int sess_kobj_ready:1;
 
-	struct kobject sess_kobj; /* kobject for this struct */
+	struct kobject sess_kobj; /* session sysfs entry */
 #endif
 
 	/*
@@ -2493,7 +2493,7 @@ struct scst_device {
 	/* sysfs release completion */
 	struct completion *dev_kobj_release_cmpl;
 
-	struct kobject dev_kobj; /* kobject for this struct */
+	struct kobject dev_kobj; /* device sysfs entry */
 	struct kobject *dev_exp_kobj; /* exported groups */
 
 	/* Export number in the dev's sysfs list. Protected by scst_mutex */
@@ -2589,7 +2589,7 @@ struct scst_tgt_dev {
 	/* sysfs release completion */
 	struct completion *tgt_dev_kobj_release_cmpl;
 
-	struct kobject tgt_dev_kobj; /* kobject for this struct */
+	struct kobject tgt_dev_kobj; /* sessions' LUNs sysfs entry */
 #endif
 
 #ifdef CONFIG_SCST_MEASURE_LATENCY
@@ -2625,8 +2625,7 @@ struct scst_acg_dev {
 	struct list_head acg_dev_list_entry;
 
 #ifndef CONFIG_SCST_PROC
-	/* kobject for this structure */
-	struct kobject acg_dev_kobj;
+	struct kobject acg_dev_kobj; /* targets' LUNs sysfs entry */
 
 	/* sysfs release completion */
 	struct completion *acg_dev_kobj_release_cmpl;
@@ -2676,8 +2675,7 @@ struct scst_acg {
 	struct completion *acg_kobj_release_cmpl;
 
 #ifndef CONFIG_SCST_PROC
-	/* kobject for this structure */
-	struct kobject acg_kobj;
+	struct kobject acg_kobj; /* targets' ini_groups sysfs entry */
 
 	struct kobject *luns_kobj;
 	struct kobject *initiators_kobj;
