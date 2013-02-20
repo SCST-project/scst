@@ -1,12 +1,12 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html>
 <head>
-<meta name="Keywords" content="SCSI target">
+<meta name="Keywords" content="Fibre Channel target, Emulex target, FC target, FCoE target">
 <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
 <meta name="author" content="Daniel Fernandes">
 <meta name="Robots" content="index,follow">
 <link rel="stylesheet" href="images/Orange.css" type="text/css">	
-<title>Local Target Driver</title>
+<title>Emulex lpfc FC/FCoE target driver</title>
 </head>
 
 <body>
@@ -55,28 +55,43 @@
 			</div>		
 	
 	  		<div id="main"> 
-				<h1>Target driver for local access</h1>
+				<h1>Target driver for Emulex lpfc FC/FCoE adapters</h1>
+				<p><img src="images/t_emulex.gif" width="100" height="120" class="float-left" alt="SCST Emulex">
+				<p>Target driver for Emulex lpfc FC/FCoE adapters is developed by the Emulex team.</p>
 
-				<p>This driver allows you to access devices that are exported via SCST
-				directly on the same Linux system that they are exported from. </p>
+				<p>The driver allows for lpfc adapters to be placed in initiator and/or target mode. Those in
+				initiator mode will continue to function with the SCSI subsystem as usual. A lpfc_scst helper
+				module is then loaded that binds the target mode adapters with the SCST subsystem
+				for use as FCP targets. NPIV is also supported, allowing virtual ports to be created with
+				individual SCST target instances bound to them.</p>
 				
-				<p>It makes no assumptions in the code about the device types on the target, so
-				any device handlers that you load in SCST will be visible, including tapes
-				and so forth.</p>
+				<p>The lpfc SCST driver kit is part of the lpfcxxxx SourceForge project located at
+				<a href="https://sourceforge.net/projects/lpfcxxxx" class="readmore">Emulex Linux Drivers</a> page.</p>
+
+				<p>You can find version which can compile on RHEL5 platforms
+				<a href="lpfc_scst1123.tar.bz2" class="readmore">here</a>. Thanks to Chris Worley who supplied it.</p>
+
+				<p>This driver compatible only with SCST 1.x. To update it for 2.x you should perform the following steps: </p>
 				
-				<p>Additionally, this driver allows creation of fully functional target drivers in user space.
-				See README for more details.</p>
+				<ol>
+					<li><span>Replace on line #1503 &quot;scst_unregister(tgtport->scst_tgt)&quot; on
+					&quot;scst_unregister_target(tgtport->scst_tgt)&quot;</span></li>
+					
+					<li><span>Replace on line #1570 &quot;tgtport->scst_tgt = scst_register(&amp;scst_data, wwpn)&quot;
+					on &quot;tgtport->scst_tgt = scst_register_target(&amp;scst_data, wwpn)&quot;</span></li>
+					
+					<li><span>Replace on line #1784 &quot;wwpn, login_handle, tm_session_reg_callback)&quot; on
+					&quot;wwpn, NULL, login_handle, tm_session_reg_callback)&quot;</span></li>
+				</ol>
 				
-				<p>This driver was made by Richard Sharpe.</p>
-				
-				<p>It is on the beta stage. The latest stabe version is 1.0.0. You can download
-				the latest development version from the SCST SVN repository. See the
-				download page how to setup access to it. </p><br><br><br>
-				<p class="post-footer align-right">					
-					<a href="downloads.html" class="readmore">Download</a>				
-					<a href="http://scst.svn.sourceforge.net/" class="readmore">SCST SVN Repository</a>	
+				<p> Patch to put this driver in the SCST SVN trunk is welcome!</p>
+
+				<br><br>
+				<p class="post-footer align-right">
+					<a href="http://lpfcxxxx.sourceforge.net/README" class="readmore">README</a>	
+					<a href="http://lpfcxxxx.sourceforge.net/HOWTO.lpfc" class="readmore">HOWTO</a>	
 				</p>
-				<table border=0><tr><td height="300px">&nbsp;</td></tr></table>								
+				<table border=0><tr><td height="300px">&nbsp;</td></tr></table>
 	  		</div>
 	<!-- content-wrap ends here -->	
 	</div>
