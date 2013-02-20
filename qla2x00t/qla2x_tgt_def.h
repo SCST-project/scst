@@ -1,11 +1,11 @@
 /*
  *  qla2x_tgt_def.h
  *
- *  Copyright (C) 2004 - 2012 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004 - 2013 Vladislav Bolkhovitin <vst@vlnb.net>
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
  *  Copyright (C) 2006 Nathaniel Clark <nate@misrule.us>
  *  Copyright (C) 2007 - 2010 ID7 Ltd.
- *  Copyright (C) 2010 - 2012 SCST Ltd.
+ *  Copyright (C) 2010 - 2013 SCST Ltd.
  *
  *  Additional file for the target driver support.
  *
