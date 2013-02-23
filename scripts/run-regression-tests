@@ -200,7 +200,10 @@ function run_checkpatch  {
     local errors=$(grep -c '^ERROR' "${outputfile}")
     local warnings=$(grep -c '^WARNING' "${outputfile}")
     echo "${errors} errors / ${warnings} warnings."
-    grep -E '^WARNING|^ERROR' "${outputfile}" | sort | uniq -c
+    grep -E '^WARNING|^ERROR' "${outputfile}" |
+      sort |
+      sed 's/^WARNING: Avoid CamelCase:.*/WARNING: Avoid CamelCase/' |
+      uniq -c
   else
     echo "Skipping checkpatch step for kernel $1."
   fi
