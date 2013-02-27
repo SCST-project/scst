@@ -163,13 +163,13 @@ static void scst_check_unblock_dev(struct scst_cmd *cmd)
 		scst_dec_pr_readers_count(cmd, true);
 
 	if (unlikely(cmd->unblock_dev)) {
-		TRACE_MGMT_DBG("cmd %p (tag %llu): unblocking dev %s", cmd,
+		TRACE_BLOCK("cmd %p (tag %llu): unblocking dev %s", cmd,
 			(long long unsigned int)cmd->tag, dev->virt_name);
 		cmd->unblock_dev = 0;
 		scst_unblock_dev(dev);
 	} else if (unlikely(dev->strictly_serialized_cmd_waiting)) {
 		if (dev->on_dev_cmd_count == 0) {
-			TRACE_MGMT_DBG("Strictly serialized cmd waiting: "
+			TRACE_BLOCK("Strictly serialized cmd waiting: "
 				"unblocking dev %s", dev->virt_name);
 			scst_unblock_dev(dev);
 		}
@@ -246,7 +246,7 @@ static int scst_init_cmd(struct scst_cmd *cmd, enum scst_exec_context *context)
 
 	/* See the comment in scst_do_job_init() */
 	if (unlikely(!list_empty(&scst_init_cmd_list))) {
-		TRACE_MGMT_DBG("%s", "init cmd list busy");
+		TRACE_DBG("%s", "init cmd list busy");
 		goto out_redirect;
 	}
 	/*
@@ -307,7 +307,7 @@ out_redirect:
 	} else {
 		unsigned long flags;
 		spin_lock_irqsave(&scst_init_lock, flags);
-		TRACE_MGMT_DBG("Adding cmd %p to init cmd list", cmd);
+		TRACE_DBG("Adding cmd %p to init cmd list", cmd);
 		list_add_tail(&cmd->cmd_list_entry, &scst_init_cmd_list);
 		if (test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))
 			scst_init_poll_cnt++;
@@ -1808,7 +1808,7 @@ out_compl:
 						ua->UA_valid_sense_len,
 						SCST_SENSE_ALL_VALID,
 						SCST_LOAD_SENSE(scst_sense_reported_luns_data_changed))) {
-					TRACE_MGMT_DBG("Freeing not needed "
+					TRACE_DBG("Freeing not needed "
 						"REPORTED LUNS DATA CHANGED UA "
 						"%p", ua);
 					scst_tgt_dev_del_free_UA(tgt_dev, ua);
@@ -2984,9 +2984,9 @@ static int scst_check_sense(struct scst_cmd *cmd)
 					SCST_SENSE_ASC_VALID,
 					0, SCST_SENSE_ASC_UA_RESET, 0)) {
 				if (cmd->double_ua_possible) {
-					TRACE_MGMT_DBG("Double UA "
+					TRACE_DBG("Double UA "
 						"detected for device %p", dev);
-					TRACE_MGMT_DBG("Retrying cmd"
+					TRACE_DBG("Retrying cmd"
 						" %p (tag %llu)", cmd,
 						(long long unsigned)cmd->tag);
 
@@ -3021,7 +3021,7 @@ static int scst_check_sense(struct scst_cmd *cmd)
 
 	if (unlikely(cmd->double_ua_possible)) {
 		if ((cmd->op_flags & SCST_SKIP_UA) == 0) {
-			TRACE_MGMT_DBG("Clearing dbl_ua_possible flag (dev %p, "
+			TRACE_DBG("Clearing dbl_ua_possible flag (dev %p, "
 				"cmd %p)", dev, cmd);
 			/*
 			 * Lock used to protect other flags in the bitfield
@@ -4077,13 +4077,13 @@ restart:
 		 * same tgt_dev, but scst_cmd_init_done*() doesn't guarantee
 		 * the order in case of simultaneous such calls anyway.
 		 */
-		TRACE_MGMT_DBG("Deleting cmd %p from init cmd list", cmd);
+		TRACE_DBG("Deleting cmd %p from init cmd list", cmd);
 		smp_wmb(); /* enforce the required order */
 		list_del(&cmd->cmd_list_entry);
 		spin_unlock(&scst_init_lock);
 
 		spin_lock(&cmd->cmd_threads->cmd_list_lock);
-		TRACE_MGMT_DBG("Adding cmd %p to active cmd list", cmd);
+		TRACE_DBG("Adding cmd %p to active cmd list", cmd);
 		if (unlikely(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE))
 			list_add(&cmd->cmd_list_entry,
 				&cmd->cmd_threads->active_cmd_list);

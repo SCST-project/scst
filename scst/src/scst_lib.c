@@ -8099,7 +8099,7 @@ out:
 void scst_block_dev(struct scst_device *dev)
 {
 	dev->block_count++;
-	TRACE_MGMT_DBG("Device BLOCK (new count %d), dev %s", dev->block_count,
+	TRACE_BLOCK("Device BLOCK (new count %d), dev %s", dev->block_count,
 		dev->virt_name);
 }
 
@@ -8121,19 +8121,19 @@ bool __scst_check_blocked_dev(struct scst_cmd *cmd)
 		goto out;
 
 	if (dev->block_count > 0) {
-		TRACE_MGMT_DBG("Delaying cmd %p due to blocking "
+		TRACE_BLOCK("Delaying cmd %p due to blocking "
 			"(tag %llu, op %x, dev %s)", cmd,
 			(long long unsigned int)cmd->tag, cmd->cdb[0],
 			dev->virt_name);
 		goto out_block;
 	} else if ((cmd->op_flags & SCST_STRICTLY_SERIALIZED) == SCST_STRICTLY_SERIALIZED) {
-		TRACE_MGMT_DBG("cmd %p (tag %llu, op %x): blocking further "
+		TRACE_BLOCK("cmd %p (tag %llu, op %x): blocking further "
 			"cmds on dev %s due to strict serialization", cmd,
 			(long long unsigned int)cmd->tag, cmd->cdb[0],
 			dev->virt_name);
 		scst_block_dev(dev);
 		if (dev->on_dev_cmd_count > 1) {
-			TRACE_MGMT_DBG("Delaying strictly serialized cmd %p "
+			TRACE_BLOCK("Delaying strictly serialized cmd %p "
 				"(dev %s, on_dev_cmds to wait %d)", cmd,
 				dev->virt_name, dev->on_dev_cmd_count-1);
 			EXTRACHECKS_BUG_ON(dev->strictly_serialized_cmd_waiting);
@@ -8143,7 +8143,7 @@ bool __scst_check_blocked_dev(struct scst_cmd *cmd)
 			cmd->unblock_dev = 1;
 	} else if ((dev->dev_double_ua_possible) ||
 		   ((cmd->op_flags & SCST_SERIALIZED) != 0)) {
-		TRACE_MGMT_DBG("cmd %p (tag %llu, op %x): blocking further cmds "
+		TRACE_BLOCK("cmd %p (tag %llu, op %x): blocking further cmds "
 			"on dev %s due to %s", cmd, (long long unsigned int)cmd->tag,
 			cmd->cdb[0], dev->virt_name,
 			dev->dev_double_ua_possible ? "possible double reset UA" :
@@ -8151,7 +8151,7 @@ bool __scst_check_blocked_dev(struct scst_cmd *cmd)
 		scst_block_dev(dev);
 		cmd->unblock_dev = 1;
 	} else
-		TRACE_MGMT_DBG("No blocks for device %s", dev->virt_name);
+		TRACE_BLOCK("No blocks for device %s", dev->virt_name);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -8173,7 +8173,7 @@ void scst_unblock_dev(struct scst_device *dev)
 {
 	TRACE_ENTRY();
 
-	TRACE_MGMT_DBG("Device UNBLOCK(new %d), dev %s",
+	TRACE_BLOCK("Device UNBLOCK(new %d), dev %s",
 		dev->block_count-1, dev->virt_name);
 
 	if (--dev->block_count == 0) {
@@ -8185,7 +8185,7 @@ void scst_unblock_dev(struct scst_device *dev)
 					 blocked_cmd_list_entry) {
 			bool strictly_serialized;
 			list_del(&cmd->blocked_cmd_list_entry);
-			TRACE_MGMT_DBG("Adding blocked cmd %p to active cmd "
+			TRACE_BLOCK("Adding blocked cmd %p to active cmd "
 					"list", cmd);
 			spin_lock(&cmd->cmd_threads->cmd_list_lock);
 			if (cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE)
