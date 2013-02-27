@@ -9025,7 +9025,8 @@ int __init scst_lib_init(void)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 	scsi_io_context_cache = kmem_cache_create("scst_scsi_io_context",
 					sizeof(struct scsi_io_context),
-					0, 0, NULL);
+					__alignof__(struct scsi_io_context),
+					0, NULL);
 	if (!scsi_io_context_cache) {
 		PRINT_ERROR("%s", "Can't init scsi io context cache");
 		res = -ENOMEM;

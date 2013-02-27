@@ -1373,7 +1373,8 @@ static void sgv_pool_init_cache(struct sgv_pool *pool, int cache_num)
 		sizeof(pool->cache_names[cache_num]),
 		"%s-%uK", pool->name, (pages << PAGE_SHIFT) >> 10);
 	pool->caches[cache_num] = kmem_cache_create(
-		pool->cache_names[cache_num], size, 0, SCST_SLAB_FLAGS, NULL
+		pool->cache_names[cache_num], size,
+		__alignof__(struct sgv_pool_obj), SCST_SLAB_FLAGS, NULL
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23))
 		, NULL);
 #else
