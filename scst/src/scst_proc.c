@@ -167,7 +167,7 @@ static char *scst_proc_help_string =
 "                            buff, mem, sg, out_of_mem, special, scsi,\n"
 "                            mgmt, minor, mgmt_dbg]\n"
 "     Additionally for /proc/scsi_tgt/trace_level there are these TOKENs\n"
-"       [scsi_serializing, retry, recv_bot, send_bot, recv_top, send_top]\n"
+"       [scsi_serializing, retry, recv_bot, send_bot, recv_top, send_top, pr, block]\n"
 "   echo \"dump_prs dev_name\" >/proc/scsi_tgt/trace_level\n"
 #endif
 ;

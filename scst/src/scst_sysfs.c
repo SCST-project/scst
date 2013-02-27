@@ -136,7 +136,7 @@ static ssize_t scst_trace_level_show(const struct scst_trace_log *local_tbl,
 		"		       special, scsi, mgmt, minor,\n"
 		"		       mgmt_dbg, scsi_serializing,\n"
 		"		       retry, recv_bot, send_bot, recv_top, pr,\n"
-		"		       send_top%s]\n", help != NULL ? help : "");
+		"		       block, send_top%s]\n", help != NULL ? help : "");
 
 	return pos;
 }
