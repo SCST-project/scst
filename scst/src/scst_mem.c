@@ -1246,7 +1246,7 @@ EXPORT_SYMBOL_GPL(sgv_pool_free);
  * Returns NULL for failure.
  *
  * Please don't use it for massive commands data buffers, because it
- * isn't fair and don't accout per device memory limits. Use sgv_pool_alloc()
+ * isn't fair and don't account per device memory limits. Use sgv_pool_alloc()
  * instead.
  */
 struct scatterlist *scst_alloc_sg(int size, gfp_t gfp_mask, int *count)

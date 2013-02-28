@@ -4443,8 +4443,8 @@ int scst_cmd_thread(void *arg)
 
 	TRACE_ENTRY();
 
-	PRINT_INFO("Processing thread %s (PID %d) started", current->comm,
-		current->pid);
+	TRACE(TRACE_MINOR, "Processing thread %s (PID %d) started",
+		current->comm, current->pid);
 
 #if 0
 	set_user_nice(current, 10);
@@ -4472,8 +4472,8 @@ int scst_cmd_thread(void *arg)
 
 	scst_ioctx_put(p_cmd_threads);
 
-	PRINT_INFO("Processing thread %s (PID %d) finished", current->comm,
-		current->pid);
+	TRACE(TRACE_MINOR, "Processing thread %s (PID %d) finished",
+		current->comm, current->pid);
 
 	TRACE_EXIT();
 	return 0;

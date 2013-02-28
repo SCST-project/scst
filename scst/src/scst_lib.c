@@ -2350,7 +2350,7 @@ void scst_report_luns_changed(struct scst_acg *acg)
 
 	TRACE_ENTRY();
 
-	TRACE_MGMT_DBG("REPORTED LUNS DATA CHANGED (acg %s)", acg->acg_name);
+	TRACE_DBG("REPORTED LUNS DATA CHANGED (acg %s)", acg->acg_name);
 
 	list_for_each_entry(sess, &acg->acg_sess_list, acg_sess_list_entry) {
 		scst_report_luns_changed_sess(sess);
@@ -2467,17 +2467,18 @@ static void scst_check_reassign_sess(struct scst_session *sess)
 	if (sess->shut_phase != SCST_SESS_SPH_READY)
 		goto out;
 
-	TRACE_MGMT_DBG("Checking reassignment for sess %p (initiator %s)",
+	TRACE_DBG("Checking reassignment for sess %p (initiator %s)",
 		sess, sess->initiator_name);
 
 	acg = scst_find_acg(sess);
 	if (acg == sess->acg) {
-		TRACE_MGMT_DBG("No reassignment for sess %p", sess);
+		TRACE_DBG("No reassignment for sess %p", sess);
 		goto out;
 	}
 
-	PRINT_INFO("sess %p will be reassigned from acg %s to acg %s",
-		sess, sess->acg->acg_name, acg->acg_name);
+	PRINT_INFO("sess %p (initiator %s) will be reassigned from acg %s to "
+		"acg %s", sess, sess->initiator_name, sess->acg->acg_name,
+		acg->acg_name);
 
 	old_acg = sess->acg;
 	sess->acg = NULL; /* to catch implicit dependencies earlier */
