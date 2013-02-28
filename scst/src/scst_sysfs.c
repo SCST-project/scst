@@ -91,7 +91,7 @@ static struct scst_trace_log scst_local_trace_tbl[] = {
 	{ TRACE_SCSI_SERIALIZING,	"scsi_serializing"	},
 	{ TRACE_DATA_SEND,              "data_send"		},
 	{ TRACE_DATA_RECEIVED,          "data_received"		},
-	{ TRACE_BLOCKING,		"block" 		},
+	{ TRACE_BLOCKING,		"block"			},
 	{ 0,				NULL			}
 };
 
