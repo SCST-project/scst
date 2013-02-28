@@ -2289,20 +2289,18 @@ static void q2t_load_cont_data_segments(struct q2t_prm *prm)
 		for (cnt = 0;
 		     cnt < prm->tgt->datasegs_per_cont && prm->seg_cnt;
 		     cnt++, prm->seg_cnt--) {
-			*dword_ptr++ =
-			    cpu_to_le32(pci_dma_lo32
-					(sg_dma_address(prm->sg)));
+			dma_addr_t dma_addr = sg_dma_address(prm->sg);
+
+			*dword_ptr++ = cpu_to_le32(pci_dma_lo32(dma_addr));
 			if (enable_64bit_addressing) {
 				*dword_ptr++ =
-				    cpu_to_le32(pci_dma_hi32
-						(sg_dma_address
-						 (prm->sg)));
+				    cpu_to_le32(pci_dma_hi32(dma_addr));
 			}
 			*dword_ptr++ = cpu_to_le32(sg_dma_len(prm->sg));
 
 			TRACE_SG("S/G Segment Cont. phys_addr=%llx:%llx, len=%d",
-			      (long long unsigned int)pci_dma_hi32(sg_dma_address(prm->sg)),
-			      (long long unsigned int)pci_dma_lo32(sg_dma_address(prm->sg)),
+			      (long long unsigned int)pci_dma_hi32(dma_addr),
+			      (long long unsigned int)pci_dma_lo32(dma_addr),
 			      (int)sg_dma_len(prm->sg));
 
 			prm->sg = sg_next_inline(prm->sg);
@@ -2354,17 +2352,16 @@ static void q2x_load_data_segments(struct q2t_prm *prm)
 	for (cnt = 0;
 	     (cnt < prm->tgt->datasegs_per_cmd) && prm->seg_cnt;
 	     cnt++, prm->seg_cnt--) {
-		*dword_ptr++ =
-		    cpu_to_le32(pci_dma_lo32(sg_dma_address(prm->sg)));
-		if (enable_64bit_addressing) {
-			*dword_ptr++ =
-			    cpu_to_le32(pci_dma_hi32(sg_dma_address(prm->sg)));
-		}
+		dma_addr_t dma_addr = sg_dma_address(prm->sg);
+
+		*dword_ptr++ = cpu_to_le32(pci_dma_lo32(dma_addr));
+		if (enable_64bit_addressing)
+			*dword_ptr++ = cpu_to_le32(pci_dma_hi32(dma_addr));
 		*dword_ptr++ = cpu_to_le32(sg_dma_len(prm->sg));
 
 		TRACE_SG("S/G Segment phys_addr=%llx:%llx, len=%d",
-		      (long long unsigned int)pci_dma_hi32(sg_dma_address(prm->sg)),
-		      (long long unsigned int)pci_dma_lo32(sg_dma_address(prm->sg)),
+		      (long long unsigned int)pci_dma_hi32(dma_addr),
+		      (long long unsigned int)pci_dma_lo32(dma_addr),
 		      (int)sg_dma_len(prm->sg));
 
 		prm->sg = sg_next_inline(prm->sg);
@@ -2417,19 +2414,16 @@ static void q24_load_data_segments(struct q2t_prm *prm)
 	for (cnt = 0;
 	     (cnt < prm->tgt->datasegs_per_cmd) && prm->seg_cnt;
 	     cnt++, prm->seg_cnt--) {
-		*dword_ptr++ =
-		    cpu_to_le32(pci_dma_lo32(sg_dma_address(prm->sg)));
-		if (enable_64bit_addressing) {
-			*dword_ptr++ =
-			    cpu_to_le32(pci_dma_hi32(sg_dma_address(prm->sg)));
-		}
+		dma_addr_t dma_addr = sg_dma_address(prm->sg);
+
+		*dword_ptr++ = cpu_to_le32(pci_dma_lo32(dma_addr));
+		if (enable_64bit_addressing)
+			*dword_ptr++ = cpu_to_le32(pci_dma_hi32(dma_addr));
 		*dword_ptr++ = cpu_to_le32(sg_dma_len(prm->sg));
 
 		TRACE_SG("S/G Segment phys_addr=%llx:%llx, len=%d",
-		      (long long unsigned int)pci_dma_hi32(sg_dma_address(
-								prm->sg)),
-		      (long long unsigned int)pci_dma_lo32(sg_dma_address(
-								prm->sg)),
+		      (long long unsigned int)pci_dma_hi32(dma_addr),
+		      (long long unsigned int)pci_dma_lo32(dma_addr),
 		      (int)sg_dma_len(prm->sg));
 
 		prm->sg = sg_next_inline(prm->sg);
