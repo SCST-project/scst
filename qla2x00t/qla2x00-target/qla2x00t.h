@@ -196,7 +196,6 @@ struct q2t_sess {
 struct q2t_cmd {
 	struct q2t_sess *sess;
 	int state;
-	struct scst_cmd *scst_cmd;
 
 	unsigned int conf_compl_supported:1;/* to save extra sess dereferences */
 	unsigned int sg_mapped:1;
@@ -220,6 +219,8 @@ struct q2t_cmd {
 		atio7_entry_t atio7;
 		atio_entry_t atio2x;
 	} __packed atio;
+
+	struct scst_cmd scst_cmd;
 };
 
 struct q2t_sess_work_param {

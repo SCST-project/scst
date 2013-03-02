@@ -179,6 +179,78 @@ static void scst_check_unblock_dev(struct scst_cmd *cmd)
 	return;
 }
 
+static void __scst_rx_cmd(struct scst_cmd *cmd, struct scst_session *sess,
+	const uint8_t *lun, int lun_len, gfp_t gfp_mask)
+{
+	TRACE_ENTRY();
+
+	cmd->sess = sess;
+	scst_sess_get(sess);
+
+	cmd->tgt = sess->tgt;
+	cmd->tgtt = sess->tgt->tgtt;
+
+	cmd->lun = scst_unpack_lun(lun, lun_len);
+	if (unlikely(cmd->lun == NO_SUCH_LUN))
+		scst_set_cmd_error(cmd,
+			   SCST_LOAD_SENSE(scst_sense_lun_not_supported));
+
+	TRACE_DBG("cmd %p, sess %p", cmd, sess);
+
+	TRACE_EXIT();
+	return;
+}
+
+/**
+ * scst_rx_cmd_prealloced() - notify SCST that new command received
+ * @cmd:	new cmd to initialized
+ * @sess:	SCST session
+ * @lun:	LUN for the command
+ * @lun_len:	length of the LUN in bytes
+ * @cdb:	CDB of the command
+ * @cdb_len:	length of the CDB in bytes
+ * @atomic:	true, if current context is atomic
+ *
+ * Description:
+ *    Initializes new prealloced SCST command. Returns 0 on success or
+ *    negative error code otherwise.
+ *
+ *    Must not be called in parallel with scst_unregister_session() for the
+ *    same session.
+ *
+ *    Cmd supposed to be zeroed!
+ */
+int scst_rx_cmd_prealloced(struct scst_cmd *cmd, struct scst_session *sess,
+	const uint8_t *lun, int lun_len, const uint8_t *cdb,
+	unsigned int cdb_len, bool atomic)
+{
+	int res;
+	gfp_t gfp_mask = atomic ? GFP_ATOMIC : GFP_KERNEL;
+
+	TRACE_ENTRY();
+
+#ifdef CONFIG_SCST_EXTRACHECKS
+	if (unlikely(sess->shut_phase != SCST_SESS_SPH_READY)) {
+		PRINT_CRIT_ERROR("%s",
+			"New cmd while shutting down the session");
+		sBUG();
+	}
+#endif
+
+	res = scst_pre_init_cmd(cmd, cdb, cdb_len, gfp_mask);
+	if (unlikely(res != 0))
+		goto out;
+
+	__scst_rx_cmd(cmd, sess, lun, lun_len, gfp_mask);
+
+	cmd->pre_alloced = 1;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+EXPORT_SYMBOL(scst_rx_cmd_prealloced);
+
 /**
  * scst_rx_cmd() - create new command
  * @sess:	SCST session
@@ -197,9 +269,10 @@ static void scst_check_unblock_dev(struct scst_cmd *cmd)
  */
 struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
 	const uint8_t *lun, int lun_len, const uint8_t *cdb,
-	unsigned int cdb_len, int atomic)
+	unsigned int cdb_len, bool atomic)
 {
 	struct scst_cmd *cmd;
+	gfp_t gfp_mask = atomic ? GFP_ATOMIC : GFP_KERNEL;
 
 	TRACE_ENTRY();
 
@@ -211,22 +284,15 @@ struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
 	}
 #endif
 
-	cmd = scst_alloc_cmd(cdb, cdb_len, atomic ? GFP_ATOMIC : GFP_KERNEL);
-	if (unlikely(cmd == NULL))
+	cmd = scst_alloc_cmd(cdb, cdb_len, gfp_mask);
+	if (cmd == NULL) {
+		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of scst_cmd failed");
 		goto out;
+	}
 
-	cmd->sess = sess;
-	scst_sess_get(sess);
+	__scst_rx_cmd(cmd, sess, lun, lun_len,  gfp_mask);
 
-	cmd->tgt = sess->tgt;
-	cmd->tgtt = sess->tgt->tgtt;
-
-	cmd->lun = scst_unpack_lun(lun, lun_len);
-	if (unlikely(cmd->lun == NO_SUCH_LUN))
-		scst_set_cmd_error(cmd,
-			   SCST_LOAD_SENSE(scst_sense_lun_not_supported));
-
-	TRACE_DBG("cmd %p, sess %p", cmd, sess);
+	cmd->pre_alloced = 0;
 
 out:
 	TRACE_EXIT();

@@ -5273,18 +5273,22 @@ out_err:
 }
 EXPORT_SYMBOL(scst_cmd_set_ext_cdb);
 
-struct scst_cmd *scst_alloc_cmd(const uint8_t *cdb,
+int scst_pre_init_cmd(struct scst_cmd *cmd, const uint8_t *cdb,
 	unsigned int cdb_len, gfp_t gfp_mask)
 {
-	struct scst_cmd *cmd;
+	int res;
 
 	TRACE_ENTRY();
 
-	cmd = kmem_cache_zalloc(scst_cmd_cachep, gfp_mask);
-	if (cmd == NULL) {
-		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of scst_cmd failed");
-		goto out;
+#ifdef CONFIG_SCST_EXTRACHECKS
+	/* cmd supposed to be zeroed */
+	{
+		int i;
+		uint8_t *b = (uint8_t *)cmd;
+		for (i = 0; i < sizeof(*cmd); i++)
+			EXTRACHECKS_BUG_ON(b[i] != 0);
 	}
+#endif
 
 	cmd->state = SCST_CMD_STATE_INIT_WAIT;
 	cmd->start_time = jiffies;
@@ -5310,25 +5314,53 @@ struct scst_cmd *scst_alloc_cmd(const uint8_t *cdb,
 
 	if (unlikely(cdb_len == 0)) {
 		PRINT_ERROR("%s", "Wrong CDB len 0, finishing cmd");
-		goto out_free;
+		res = -EINVAL;
+		goto out;
 	} else if (cdb_len <= SCST_MAX_CDB_SIZE) {
 		/* Duplicate memcpy to save a branch on the most common path */
 		memcpy(cmd->cdb, cdb, cdb_len);
 	} else {
 		if (unlikely(cdb_len > SCST_MAX_LONG_CDB_SIZE)) {
 			PRINT_ERROR("Too big CDB (%d), finishing cmd", cdb_len);
-			goto out_free;
+			res = -EINVAL;
+			goto out;
 		}
 		cmd->cdb = kmalloc(cdb_len, gfp_mask);
 		if (unlikely(cmd->cdb == NULL)) {
 			PRINT_ERROR("Unable to alloc extended CDB (size %d)",
 				cdb_len);
-			goto out_free;
+			res = -ENOMEM;
+			goto out;
 		}
 		memcpy(cmd->cdb, cdb, cdb_len);
 	}
 
 	cmd->cdb_len = cdb_len;
+
+	res = 0;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+struct scst_cmd *scst_alloc_cmd(const uint8_t *cdb,
+	unsigned int cdb_len, gfp_t gfp_mask)
+{
+	struct scst_cmd *cmd;
+	int rc;
+
+	TRACE_ENTRY();
+
+	cmd = kmem_cache_zalloc(scst_cmd_cachep, gfp_mask);
+	if (cmd == NULL) {
+		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of scst_cmd failed");
+		goto out;
+	}
+
+	rc = scst_pre_init_cmd(cmd, cdb, cdb_len, gfp_mask);
+	if (unlikely(rc != 0))
+		goto out_free;
 
 out:
 	TRACE_EXIT();
@@ -5342,6 +5374,8 @@ out_free:
 
 static void scst_destroy_cmd(struct scst_cmd *cmd)
 {
+	bool pre_alloced = cmd->pre_alloced;
+
 	TRACE_ENTRY();
 
 	TRACE_DBG("Destroying cmd %p", cmd);
@@ -5354,7 +5388,20 @@ static void scst_destroy_cmd(struct scst_cmd *cmd)
 	if (likely(cmd->tgt_dev != NULL))
 		scst_put(cmd->cpu_cmd_counter);
 
-	kmem_cache_free(scst_cmd_cachep, cmd);
+	EXTRACHECKS_BUG_ON(cmd->pre_alloced && cmd->internal);
+
+	if ((cmd->tgtt->on_free_cmd != NULL) && likely(!cmd->internal)) {
+		TRACE_DBG("Calling target's on_free_cmd(%p)", cmd);
+		scst_set_cur_start(cmd);
+		cmd->tgtt->on_free_cmd(cmd);
+		scst_set_tgt_on_free_time(cmd);
+		TRACE_DBG("%s", "Target's on_free_cmd() returned");
+	}
+
+	/* At this point cmd can be already freed! */
+
+	if (!pre_alloced)
+		kmem_cache_free(scst_cmd_cachep, cmd);
 
 	TRACE_EXIT();
 	return;
@@ -5382,14 +5429,6 @@ void scst_free_cmd(struct scst_cmd *cmd)
 	 */
 	if (!cmd->tgt_i_data_buf_alloced)
 		scst_check_restore_sg_buff(cmd);
-
-	if ((cmd->tgtt->on_free_cmd != NULL) && likely(!cmd->internal)) {
-		TRACE_DBG("Calling target's on_free_cmd(%p)", cmd);
-		scst_set_cur_start(cmd);
-		cmd->tgtt->on_free_cmd(cmd);
-		scst_set_tgt_on_free_time(cmd);
-		TRACE_DBG("%s", "Target's on_free_cmd() returned");
-	}
 
 	if (likely(cmd->dev != NULL)) {
 		struct scst_dev_type *devt = cmd->devt;

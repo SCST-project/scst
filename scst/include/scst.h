@@ -753,6 +753,13 @@ struct scst_tgt_template {
 	 * Necessary, because for aborted commands xmit_response() could not
 	 * be called. Could be called on IRQ context.
 	 *
+	 * This callback is called when the last reference to cmd is dropped,
+	 * which can be much later after scst_tgt_cmd_done() called by the
+	 * target driver, so it is not recommended that the target driver
+	 * clean hardware or connection related cmd resources in this callback.
+	 * It is recommended to clean them before calling scst_tgt_cmd_done()
+	 * instead.
+	 *
 	 * OPTIONAL
 	 */
 	void (*on_free_cmd) (struct scst_cmd *cmd);
@@ -1984,6 +1991,9 @@ struct scst_cmd {
 	 */
 	unsigned int finished:1;
 
+	/* Set if cmd was pre-alloced by target driver */
+	unsigned int pre_alloced:1;
+
 	/**************************************************************/
 
 	/* cmd's async flags */
@@ -2867,7 +2877,10 @@ bool scst_initiator_has_luns(struct scst_tgt *tgt, const char *initiator_name);
 
 struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
 	const uint8_t *lun, int lun_len, const uint8_t *cdb,
-	unsigned int cdb_len, int atomic);
+	unsigned int cdb_len, bool atomic);
+int scst_rx_cmd_prealloced(struct scst_cmd *cmd, struct scst_session *sess,
+	const uint8_t *lun, int lun_len, const uint8_t *cdb,
+	unsigned int cdb_len, bool atomic);
 void scst_cmd_init_done(struct scst_cmd *cmd,
 	enum scst_exec_context pref_context);
 

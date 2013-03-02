@@ -2453,7 +2453,7 @@ static int q2t_pre_xmit_response(struct q2t_cmd *cmd,
 	scsi_qla_host_t *ha = tgt->ha;
 	scsi_qla_host_t *pha = to_qla_parent(ha);
 	uint16_t full_req_cnt;
-	struct scst_cmd *scst_cmd = cmd->scst_cmd;
+	struct scst_cmd *scst_cmd = &cmd->scst_cmd;
 
 	TRACE_ENTRY();
 
@@ -2751,7 +2751,7 @@ static int q2x_xmit_response(struct scst_cmd *scst_cmd)
 {
 	int xmit_type = Q2T_XMIT_DATA, res;
 	int is_send_status = scst_cmd_get_is_send_status(scst_cmd);
-	struct q2t_cmd *cmd = (struct q2t_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
+	struct q2t_cmd *cmd = container_of(scst_cmd, struct q2t_cmd, scst_cmd);
 
 #ifdef CONFIG_SCST_EXTRACHECKS
 	sBUG_ON(!q2t_has_data(cmd) && !is_send_status);
@@ -3026,7 +3026,7 @@ static int q2t_rdy_to_xfer(struct scst_cmd *scst_cmd)
 
 	TRACE(TRACE_SCSI, "qla2x00t: tag=%lld", scst_cmd_get_tag(scst_cmd));
 
-	cmd = (struct q2t_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
+	cmd = container_of(scst_cmd, struct q2t_cmd, scst_cmd);
 	cmd->bufflen = scst_cmd_get_write_fields(scst_cmd, &cmd->sg,
 		&cmd->sg_cnt);
 	cmd->data_direction = scst_cmd_get_data_direction(scst_cmd);
@@ -3100,9 +3100,9 @@ out_unlock:
 
 	if (do_tgt_cmd_done) {
 		if (!ha_locked && !in_interrupt())
-			scst_tgt_cmd_done(cmd->scst_cmd, SCST_CONTEXT_DIRECT);
+			scst_tgt_cmd_done(&cmd->scst_cmd, SCST_CONTEXT_DIRECT);
 		else
-			scst_tgt_cmd_done(cmd->scst_cmd, SCST_CONTEXT_TASKLET);
+			scst_tgt_cmd_done(&cmd->scst_cmd, SCST_CONTEXT_TASKLET);
 		/* !! At this point cmd could be already freed !! */
 	}
 
@@ -3177,9 +3177,9 @@ out_unlock:
 
 	if (do_tgt_cmd_done) {
 		if (!ha_locked && !in_interrupt())
-			scst_tgt_cmd_done(cmd->scst_cmd, SCST_CONTEXT_DIRECT);
+			scst_tgt_cmd_done(&cmd->scst_cmd, SCST_CONTEXT_DIRECT);
 		else
-			scst_tgt_cmd_done(cmd->scst_cmd, SCST_CONTEXT_TASKLET);
+			scst_tgt_cmd_done(&cmd->scst_cmd, SCST_CONTEXT_TASKLET);
 		/* !! At this point cmd could be already freed !! */
 	}
 
@@ -3206,8 +3206,7 @@ static void q2t_on_free_cmd(struct scst_cmd *scst_cmd)
 	TRACE(TRACE_SCSI, "qla2x00t: Freeing command %p, tag %lld",
 		scst_cmd, scst_cmd_get_tag(scst_cmd));
 
-	cmd = (struct q2t_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
-	scst_cmd_set_tgt_priv(scst_cmd, NULL);
+	cmd = container_of(scst_cmd, struct q2t_cmd, scst_cmd);
 
 	q2t_free_cmd(cmd);
 
@@ -3236,8 +3235,7 @@ static int q2t_prepare_srr_ctio(scsi_qla_host_t *ha, struct q2t_cmd *cmd,
 		goto out;
 	}
 
-	if (cmd->scst_cmd != NULL)
-		scst_update_hw_pending_start(cmd->scst_cmd);
+	scst_update_hw_pending_start(&cmd->scst_cmd);
 
 	sc = kzalloc(sizeof(*sc), GFP_ATOMIC);
 	if (sc != NULL) {
@@ -3410,7 +3408,7 @@ static struct q2t_cmd *q2t_ctio_to_cmd(scsi_qla_host_t *ha, uint32_t handle,
 			goto out;
 		}
 
-		cmd = (struct q2t_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
+		cmd = container_of(scst_cmd, struct q2t_cmd, scst_cmd);
 		TRACE_DBG("Found q2t_cmd %p (tag %d)", cmd, tag);
 	}
 
@@ -3455,7 +3453,7 @@ static void q2t_do_ctio_completion(scsi_qla_host_t *ha, uint32_t handle,
 		goto out;
 	}
 
-	scst_cmd = cmd->scst_cmd;
+	scst_cmd = &cmd->scst_cmd;
 
 	if (cmd->sg_mapped)
 		q2t_unmap_sg(ha, cmd);
@@ -3565,7 +3563,7 @@ static void q2x_ctio_completion(scsi_qla_host_t *ha, uint32_t handle)
 /* pha->hardware_lock supposed to be held on entry */
 static int q2x_do_send_cmd_to_scst(struct q2t_cmd *cmd)
 {
-	int res = 0;
+	int res;
 	struct q2t_sess *sess = cmd->sess;
 	uint16_t lun;
 	atio_entry_t *atio = &cmd->atio.atio2x;
@@ -3576,19 +3574,14 @@ static int q2x_do_send_cmd_to_scst(struct q2t_cmd *cmd)
 
 	/* make it be in network byte order */
 	lun = swab16(le16_to_cpu(atio->lun));
-	cmd->scst_cmd = scst_rx_cmd(sess->scst_sess, (uint8_t *)&lun,
-				    sizeof(lun), atio->cdb, Q2T_MAX_CDB_LEN,
-				    SCST_ATOMIC);
-
-	if (cmd->scst_cmd == NULL) {
-		PRINT_ERROR("%s", "qla2x00t: scst_rx_cmd() failed");
-		res = -EFAULT;
+	res = scst_rx_cmd_prealloced(&cmd->scst_cmd, sess->scst_sess,
+				(uint8_t *)&lun, sizeof(lun), atio->cdb,
+				Q2T_MAX_CDB_LEN, SCST_ATOMIC);
+	if (res != 0)
 		goto out;
-	}
 
 	cmd->tag = atio->rx_id;
-	scst_cmd_set_tag(cmd->scst_cmd, cmd->tag);
-	scst_cmd_set_tgt_priv(cmd->scst_cmd, cmd);
+	scst_cmd_set_tag(&cmd->scst_cmd, cmd->tag);
 
 	if ((atio->execution_codes & (ATIO_EXEC_READ | ATIO_EXEC_WRITE)) ==
 				(ATIO_EXEC_READ | ATIO_EXEC_WRITE))
@@ -3599,29 +3592,29 @@ static int q2x_do_send_cmd_to_scst(struct q2t_cmd *cmd)
 		dir = SCST_DATA_WRITE;
 	else
 		dir = SCST_DATA_NONE;
-	scst_cmd_set_expected(cmd->scst_cmd, dir,
+	scst_cmd_set_expected(&cmd->scst_cmd, dir,
 		le32_to_cpu(atio->data_length));
 
 	switch (atio->task_codes) {
 	case ATIO_SIMPLE_QUEUE:
-		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_SIMPLE);
+		scst_cmd_set_queue_type(&cmd->scst_cmd, SCST_CMD_QUEUE_SIMPLE);
 		break;
 	case ATIO_HEAD_OF_QUEUE:
-		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_HEAD_OF_QUEUE);
+		scst_cmd_set_queue_type(&cmd->scst_cmd, SCST_CMD_QUEUE_HEAD_OF_QUEUE);
 		break;
 	case ATIO_ORDERED_QUEUE:
-		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_ORDERED);
+		scst_cmd_set_queue_type(&cmd->scst_cmd, SCST_CMD_QUEUE_ORDERED);
 		break;
 	case ATIO_ACA_QUEUE:
-		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_ACA);
+		scst_cmd_set_queue_type(&cmd->scst_cmd, SCST_CMD_QUEUE_ACA);
 		break;
 	case ATIO_UNTAGGED:
-		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_UNTAGGED);
+		scst_cmd_set_queue_type(&cmd->scst_cmd, SCST_CMD_QUEUE_UNTAGGED);
 		break;
 	default:
 		PRINT_WARNING("qla2x00t: unknown task code %x, use "
 			"ORDERED instead", atio->task_codes);
-		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_ORDERED);
+		scst_cmd_set_queue_type(&cmd->scst_cmd, SCST_CMD_QUEUE_ORDERED);
 		break;
 	}
 
@@ -3633,8 +3626,8 @@ static int q2x_do_send_cmd_to_scst(struct q2t_cmd *cmd)
 
 	TRACE_DBG("Context %x", context);
 	TRACE(TRACE_SCSI, "qla2x00t: START Command (tag %d, queue_type %d)",
-		cmd->tag, scst_cmd_get_queue_type(cmd->scst_cmd));
-	scst_cmd_init_done(cmd->scst_cmd, context);
+		cmd->tag, scst_cmd_get_queue_type(&cmd->scst_cmd));
+	scst_cmd_init_done(&cmd->scst_cmd, context);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -3644,7 +3637,7 @@ out:
 /* pha->hardware_lock supposed to be held on entry */
 static int q24_do_send_cmd_to_scst(struct q2t_cmd *cmd)
 {
-	int res = 0;
+	int res;
 	struct q2t_sess *sess = cmd->sess;
 	atio7_entry_t *atio = &cmd->atio.atio7;
 	scst_data_direction dir;
@@ -3652,20 +3645,15 @@ static int q24_do_send_cmd_to_scst(struct q2t_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	cmd->scst_cmd = scst_rx_cmd(sess->scst_sess,
+	res = scst_rx_cmd_prealloced(&cmd->scst_cmd, sess->scst_sess,
 		(uint8_t *)&atio->fcp_cmnd.lun, sizeof(atio->fcp_cmnd.lun),
 		atio->fcp_cmnd.cdb, sizeof(atio->fcp_cmnd.cdb) +
 			atio->fcp_cmnd.add_cdb_len, SCST_ATOMIC);
-
-	if (cmd->scst_cmd == NULL) {
-		PRINT_ERROR("%s", "qla2x00t: scst_rx_cmd() failed");
-		res = -EFAULT;
+	if (res != 0)
 		goto out;
-	}
 
 	cmd->tag = atio->exchange_addr;
-	scst_cmd_set_tag(cmd->scst_cmd, cmd->tag);
-	scst_cmd_set_tgt_priv(cmd->scst_cmd, cmd);
+	scst_cmd_set_tag(&cmd->scst_cmd, cmd->tag);
 
 	if (atio->fcp_cmnd.rddata && atio->fcp_cmnd.wrdata)
 		dir = SCST_DATA_BIDI;
@@ -3675,30 +3663,30 @@ static int q24_do_send_cmd_to_scst(struct q2t_cmd *cmd)
 		dir = SCST_DATA_WRITE;
 	else
 		dir = SCST_DATA_NONE;
-	scst_cmd_set_expected(cmd->scst_cmd, dir,
+	scst_cmd_set_expected(&cmd->scst_cmd, dir,
 		get_unaligned_be32(
 			&atio->fcp_cmnd.add_cdb[atio->fcp_cmnd.add_cdb_len]));
 
 	switch (atio->fcp_cmnd.task_attr) {
 	case ATIO_SIMPLE_QUEUE:
-		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_SIMPLE);
+		scst_cmd_set_queue_type(&cmd->scst_cmd, SCST_CMD_QUEUE_SIMPLE);
 		break;
 	case ATIO_HEAD_OF_QUEUE:
-		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_HEAD_OF_QUEUE);
+		scst_cmd_set_queue_type(&cmd->scst_cmd, SCST_CMD_QUEUE_HEAD_OF_QUEUE);
 		break;
 	case ATIO_ORDERED_QUEUE:
-		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_ORDERED);
+		scst_cmd_set_queue_type(&cmd->scst_cmd, SCST_CMD_QUEUE_ORDERED);
 		break;
 	case ATIO_ACA_QUEUE:
-		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_ACA);
+		scst_cmd_set_queue_type(&cmd->scst_cmd, SCST_CMD_QUEUE_ACA);
 		break;
 	case ATIO_UNTAGGED:
-		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_UNTAGGED);
+		scst_cmd_set_queue_type(&cmd->scst_cmd, SCST_CMD_QUEUE_UNTAGGED);
 		break;
 	default:
 		PRINT_WARNING("qla2x00t: unknown task code %x, use "
 			"ORDERED instead", atio->fcp_cmnd.task_attr);
-		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_ORDERED);
+		scst_cmd_set_queue_type(&cmd->scst_cmd, SCST_CMD_QUEUE_ORDERED);
 		break;
 	}
 
@@ -3710,8 +3698,8 @@ static int q24_do_send_cmd_to_scst(struct q2t_cmd *cmd)
 
 	TRACE_DBG("Context %x", context);
 	TRACE(TRACE_SCSI, "qla2x00t: START Command %p (tag %d, queue type %x)",
-		cmd, cmd->tag, scst_cmd_get_queue_type(cmd->scst_cmd));
-	scst_cmd_init_done(cmd->scst_cmd, context);
+		cmd, cmd->tag, scst_cmd_get_queue_type(&cmd->scst_cmd));
+	scst_cmd_init_done(&cmd->scst_cmd, context);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -4293,9 +4281,9 @@ static void q24_handle_srr(scsi_qla_host_t *ha, struct srr_ctio *sctio,
 		__q24_xmit_response(cmd, Q2T_XMIT_STATUS);
 		break;
 	case SRR_IU_DATA_IN:
-		cmd->bufflen = scst_cmd_get_adjusted_resp_data_len(cmd->scst_cmd);
+		cmd->bufflen = scst_cmd_get_adjusted_resp_data_len(&cmd->scst_cmd);
 		if (q2t_has_data(cmd) &&
-		    (scst_cmd_get_data_direction(cmd->scst_cmd) & SCST_DATA_READ)) {
+		    (scst_cmd_get_data_direction(&cmd->scst_cmd) & SCST_DATA_READ)) {
 			uint32_t offset;
 			int xmit_type;
 			offset = le32_to_cpu(imm->imm.notify_entry24.srr_rel_offs);
@@ -4310,16 +4298,16 @@ static void q24_handle_srr(scsi_qla_host_t *ha, struct srr_ctio *sctio,
 			PRINT_ERROR("qla2x00t(%ld): SRR for in data for cmd "
 				"without them (tag %d, SCSI status %d, dir %d),"
 				" reject", ha->instance, cmd->tag,
-				scst_cmd_get_status(cmd->scst_cmd),
-				scst_cmd_get_data_direction(cmd->scst_cmd));
+				scst_cmd_get_status(&cmd->scst_cmd),
+				scst_cmd_get_data_direction(&cmd->scst_cmd));
 			goto out_reject;
 		}
 		break;
 	case SRR_IU_DATA_OUT:
-		cmd->bufflen = scst_cmd_get_write_fields(cmd->scst_cmd,
+		cmd->bufflen = scst_cmd_get_write_fields(&cmd->scst_cmd,
 					&cmd->sg, &cmd->sg_cnt);
 		if (q2t_has_data(cmd) &&
-		    (scst_cmd_get_data_direction(cmd->scst_cmd) & SCST_DATA_WRITE)) {
+		    (scst_cmd_get_data_direction(&cmd->scst_cmd) & SCST_DATA_WRITE)) {
 			uint32_t offset;
 			int xmit_type;
 			offset = le32_to_cpu(imm->imm.notify_entry24.srr_rel_offs);
@@ -4335,8 +4323,8 @@ static void q24_handle_srr(scsi_qla_host_t *ha, struct srr_ctio *sctio,
 			PRINT_ERROR("qla2x00t(%ld): SRR for out data for cmd "
 				"without them (tag %d, SCSI status %d, dir %d),"
 				" reject", ha->instance, cmd->tag,
-				scst_cmd_get_status(cmd->scst_cmd),
-				scst_cmd_get_data_direction(cmd->scst_cmd));
+				scst_cmd_get_status(&cmd->scst_cmd),
+				scst_cmd_get_data_direction(&cmd->scst_cmd));
 			goto out_reject;
 		}
 		break;
@@ -4357,7 +4345,7 @@ out_reject:
 		NOTIFY_ACK_SRR_FLAGS_REJECT_EXPL_NO_EXPL);
 	if (cmd->state == Q2T_STATE_NEED_DATA) {
 		cmd->state = Q2T_STATE_DATA_IN;
-		scst_rx_data(cmd->scst_cmd, SCST_RX_STATUS_ERROR,
+		scst_rx_data(&cmd->scst_cmd, SCST_RX_STATUS_ERROR,
 			SCST_CONTEXT_THREAD);
 	} else
 		q24_send_term_exchange(ha, cmd, &cmd->atio.atio7, 1);
@@ -4386,7 +4374,7 @@ static void q2x_handle_srr(scsi_qla_host_t *ha, struct srr_ctio *sctio,
 		__q2x_xmit_response(cmd, Q2T_XMIT_STATUS);
 		break;
 	case SRR_IU_DATA_IN:
-		cmd->bufflen = scst_cmd_get_adjusted_resp_data_len(cmd->scst_cmd);
+		cmd->bufflen = scst_cmd_get_adjusted_resp_data_len(&cmd->scst_cmd);
 		if (q2t_has_data(cmd)) {
 			uint32_t offset;
 			int xmit_type;
@@ -4402,12 +4390,12 @@ static void q2x_handle_srr(scsi_qla_host_t *ha, struct srr_ctio *sctio,
 			PRINT_ERROR("qla2x00t(%ld): SRR for in data for cmd "
 				"without them (tag %d, SCSI status %d), "
 				"reject", ha->instance, cmd->tag,
-				scst_cmd_get_status(cmd->scst_cmd));
+				scst_cmd_get_status(&cmd->scst_cmd));
 			goto out_reject;
 		}
 		break;
 	case SRR_IU_DATA_OUT:
-		cmd->bufflen = scst_cmd_get_write_fields(cmd->scst_cmd,
+		cmd->bufflen = scst_cmd_get_write_fields(&cmd->scst_cmd,
 					&cmd->sg, &cmd->sg_cnt);
 		if (q2t_has_data(cmd)) {
 			uint32_t offset;
@@ -4425,7 +4413,7 @@ static void q2x_handle_srr(scsi_qla_host_t *ha, struct srr_ctio *sctio,
 			PRINT_ERROR("qla2x00t(%ld): SRR for out data for cmd "
 				"without them (tag %d, SCSI status %d), "
 				"reject", ha->instance, cmd->tag,
-				scst_cmd_get_status(cmd->scst_cmd));
+				scst_cmd_get_status(&cmd->scst_cmd));
 			goto out_reject;
 		}
 		break;
@@ -4446,7 +4434,7 @@ out_reject:
 		NOTIFY_ACK_SRR_FLAGS_REJECT_EXPL_NO_EXPL);
 	if (cmd->state == Q2T_STATE_NEED_DATA) {
 		cmd->state = Q2T_STATE_DATA_IN;
-		scst_rx_data(cmd->scst_cmd, SCST_RX_STATUS_ERROR,
+		scst_rx_data(&cmd->scst_cmd, SCST_RX_STATUS_ERROR,
 			SCST_CONTEXT_THREAD);
 	} else
 		q2x_send_term_exchange(ha, cmd, &cmd->atio.atio2x, 1);
@@ -4529,17 +4517,17 @@ restart:
 		cmd = sctio->cmd;
 
 		/* Restore the originals, except bufflen */
-		cmd->offset = scst_cmd_get_ppl_offset(cmd->scst_cmd);
+		cmd->offset = scst_cmd_get_ppl_offset(&cmd->scst_cmd);
 		if (cmd->free_sg) {
 			kfree(cmd->sg);
 			cmd->free_sg = 0;
 		}
-		cmd->sg = scst_cmd_get_sg(cmd->scst_cmd);
-		cmd->sg_cnt = scst_cmd_get_sg_cnt(cmd->scst_cmd);
+		cmd->sg = scst_cmd_get_sg(&cmd->scst_cmd);
+		cmd->sg_cnt = scst_cmd_get_sg_cnt(&cmd->scst_cmd);
 
 		TRACE_MGMT_DBG("SRR cmd %p (scst_cmd %p, tag %d, op %x), "
-			"sg_cnt=%d, offset=%d", cmd, cmd->scst_cmd,
-			cmd->tag, cmd->scst_cmd->cdb[0], cmd->sg_cnt,
+			"sg_cnt=%d, offset=%d", cmd, &cmd->scst_cmd,
+			cmd->tag, cmd->scst_cmd.cdb[0], cmd->sg_cnt,
 			cmd->offset);
 
 		if (IS_FWI2_CAPABLE(ha))
@@ -5685,7 +5673,7 @@ static void q2t_cleanup_hw_pending_cmd(scsi_qla_host_t *ha, struct q2t_cmd *cmd)
 
 static void q2t_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd)
 {
-	struct q2t_cmd *cmd = (struct q2t_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
+	struct q2t_cmd *cmd = container_of(scst_cmd, struct q2t_cmd, scst_cmd);
 	struct q2t_tgt *tgt = cmd->tgt;
 	scsi_qla_host_t *ha = tgt->ha;
 	scsi_qla_host_t *pha = to_qla_parent(ha);
