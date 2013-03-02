@@ -250,9 +250,9 @@ Deleting a LUN from a group
 
 Run the following command:
 
-echo "del disk1" > /sys/kernel/scst_tgt/targets/iscsi/iqn.2007-05.com.example\:storage.iscsi-scst-1/luns/mgmt
+echo "del X" > /sys/kernel/scst_tgt/targets/iscsi/iqn.2007-05.com.example\:storage.iscsi-scst-1/luns/mgmt
 
-This will remove the LUN "disk1" from the target iqn.2007-05.com.example:storage.iscsi-scst-1.
+This will remove the LUN X from the target iqn.2007-05.com.example:storage.iscsi-scst-1.
 
 For more information about LUN masking, refer to SCST README, section
 "Access and devices visibility management (LUN masking)".
