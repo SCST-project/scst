@@ -248,7 +248,7 @@ Compilation options
 -------------------
 
 There are the following compilation options, that could be commented
-in/out in Makefile:
+in/out in Makefile and scst.h:
 
  - CONFIG_SCST_DEBUG - if defined, turns on some debugging code,
    including some logging. Makes the driver considerably bigger and slower,
@@ -1688,9 +1688,9 @@ In order to get the maximum performance you should:
 
 1. For SCST:
 
- - Disable in Makefile CONFIG_SCST_STRICT_SERIALIZING, CONFIG_SCST_EXTRACHECKS,
-   CONFIG_SCST_TRACING, CONFIG_SCST_DEBUG*, CONFIG_SCST_STRICT_SECURITY,
-   CONFIG_SCST_MEASURE_LATENCY
+ - Disable in Makefile and scst.h CONFIG_SCST_STRICT_SERIALIZING,
+   CONFIG_SCST_EXTRACHECKS, CONFIG_SCST_TRACING, CONFIG_SCST_DEBUG*,
+   CONFIG_SCST_STRICT_SECURITY, CONFIG_SCST_MEASURE_LATENCY
 
 2. For target drivers:
 

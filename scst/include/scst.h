@@ -40,6 +40,11 @@
 #define CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
 #endif
 
+/* #define CONFIG_SCST_MEASURE_LATENCY */
+
+/* #define CONFIG_SCST_DEBUG_TM */
+/* #define CONFIG_SCST_TM_DBG_GO_OFFLINE */
+
 /* #define CONFIG_SCST_PROC */
 
 #ifdef CONFIG_SCST_PROC
