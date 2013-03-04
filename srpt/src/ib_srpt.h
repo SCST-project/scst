@@ -252,7 +252,7 @@ struct srpt_send_ioctx {
 	spinlock_t		spinlock;
 	enum srpt_command_state	state;
 	bool			rdma_aborted;
-	struct scst_cmd		*scmnd;
+	struct scst_cmd		scmnd;
 	scst_data_direction	dir;
 	int			sg_cnt;
 	int			mapped_sg_count;

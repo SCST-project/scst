@@ -1303,7 +1303,7 @@ static struct srpt_send_ioctx *srpt_get_send_ioctx(struct srpt_rdma_ch *ch)
 	ioctx->n_rdma_ius = 0;
 	ioctx->rdma_ius = NULL;
 	ioctx->mapped_sg_count = 0;
-	ioctx->scmnd = NULL;
+	memset(&ioctx->scmnd, 0, sizeof(ioctx->scmnd));
 
 	return ioctx;
 }
@@ -1319,8 +1319,6 @@ static void srpt_put_send_ioctx(struct srpt_send_ioctx *ioctx)
 	BUG_ON(!ioctx);
 	ch = ioctx->ch;
 	BUG_ON(!ch);
-
-	ioctx->scmnd = NULL;
 
 	/*
 	 * If the WARN_ON() below gets triggered this means that
@@ -1381,7 +1379,7 @@ static void srpt_abort_cmd(struct srpt_send_ioctx *ioctx,
 	if (state == SRPT_STATE_DONE)
 		goto out;
 
-	scmnd = ioctx->scmnd;
+	scmnd = &ioctx->scmnd;
 	WARN_ON(!scmnd);
 	if (!scmnd)
 		goto out;
@@ -1411,7 +1409,6 @@ static void srpt_abort_cmd(struct srpt_send_ioctx *ioctx,
 		 * not been received in time.
 		 */
 		srpt_unmap_sg_to_ib_sge(ioctx->ch, ioctx);
-		srpt_put_send_ioctx(ioctx);
 		scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_ABORTED);
 		scst_tgt_cmd_done(scmnd, context);
 		break;
@@ -1451,7 +1448,7 @@ static void srpt_handle_send_err_comp(struct srpt_rdma_ch *ch, u64 wr_id,
 	index = idx_from_wr_id(wr_id);
 	ioctx = ch->ioctx_ring[index];
 	state = ioctx->state;
-	scmnd = ioctx->scmnd;
+	scmnd = &ioctx->scmnd;
 
 	EXTRACHECKS_WARN_ON(state != SRPT_STATE_CMD_RSP_SENT
 			    && state != SRPT_STATE_MGMT_RSP_SENT
@@ -1495,12 +1492,11 @@ static void srpt_handle_send_comp(struct srpt_rdma_ch *ch,
 	if (state != SRPT_STATE_DONE) {
 		struct scst_cmd *scmnd;
 
-		scmnd = ioctx->scmnd;
+		scmnd = &ioctx->scmnd;
 		EXTRACHECKS_WARN_ON((state == SRPT_STATE_MGMT_RSP_SENT)
 				    != (scmnd == NULL));
 		if (scmnd) {
 			srpt_unmap_sg_to_ib_sge(ch, ioctx);
-			srpt_put_send_ioctx(ioctx);
 			scst_tgt_cmd_done(scmnd, context);
 		} else
 			srpt_put_send_ioctx(ioctx);
@@ -1523,7 +1519,7 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 	EXTRACHECKS_WARN_ON(ioctx->n_rdma <= 0);
 	srpt_adjust_srq_wr_avail(ch, ioctx->n_rdma);
 
-	scmnd = ioctx->scmnd;
+	scmnd = &ioctx->scmnd;
 	if (opcode == SRPT_RDMA_READ_LAST && scmnd) {
 		if (srpt_test_and_set_cmd_state(ioctx, SRPT_STATE_NEED_DATA,
 						SRPT_STATE_DATA_IN))
@@ -1549,7 +1545,7 @@ static void srpt_handle_rdma_err_comp(struct srpt_rdma_ch *ch,
 	struct scst_cmd *scmnd;
 	enum srpt_command_state state;
 
-	scmnd = ioctx->scmnd;
+	scmnd = &ioctx->scmnd;
 	state = ioctx->state;
 	if (scmnd) {
 		switch (opcode) {
@@ -1701,16 +1697,15 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch,
 
 	atomic = context == SCST_CONTEXT_TASKLET ? SCST_ATOMIC
 		 : SCST_NON_ATOMIC;
-	scmnd = scst_rx_cmd(ch->scst_sess, (u8 *) &srp_cmd->lun,
-			    sizeof(srp_cmd->lun), srp_cmd->cdb,
-			    sizeof(srp_cmd->cdb), atomic);
-	if (!scmnd) {
-		PRINT_ERROR("0x%llx: allocation of an SCST command failed",
+	scmnd = &send_ioctx->scmnd;
+	ret = scst_rx_cmd_prealloced(scmnd, ch->scst_sess, (u8 *) &srp_cmd->lun,
+				     sizeof(srp_cmd->lun), srp_cmd->cdb,
+				     sizeof(srp_cmd->cdb), atomic);
+	if (ret) {
+		PRINT_ERROR("tag 0x%llx: SCST command initialization failed",
 			    srp_cmd->tag);
 		goto err;
 	}
-
-	send_ioctx->scmnd = scmnd;
 
 	ret = srpt_get_desc_tbl(send_ioctx, srp_cmd, &dir, &data_len);
 	if (ret) {
@@ -3108,9 +3103,8 @@ static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	ioctx->n_rdma = 0;
 
 	if (ioctx->mapped_sg_count) {
-		EXTRACHECKS_BUG_ON(!ioctx->scmnd);
 		EXTRACHECKS_WARN_ON(ioctx
-				    != scst_cmd_get_tgt_priv(ioctx->scmnd));
+				    != scst_cmd_get_tgt_priv(&ioctx->scmnd));
 		sg = ioctx->sg;
 		EXTRACHECKS_WARN_ON(!sg);
 		dir = ioctx->dir;
@@ -3491,6 +3485,10 @@ out:
  */
 static void srpt_on_free_cmd(struct scst_cmd *scmnd)
 {
+	struct srpt_send_ioctx *ioctx;
+
+	ioctx = scst_cmd_get_tgt_priv(scmnd);
+	srpt_put_send_ioctx(ioctx);
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
