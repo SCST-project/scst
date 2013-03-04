@@ -1403,7 +1403,7 @@ static void srpt_abort_cmd(struct srpt_send_ioctx *ioctx,
 		break;
 	case SRPT_STATE_NEED_DATA:
 		/* SCST_DATA_WRITE - RDMA read error or RDMA read timeout. */
-		scst_rx_data(ioctx->scmnd, SCST_RX_STATUS_ERROR, context);
+		scst_rx_data(scmnd, SCST_RX_STATUS_ERROR, context);
 		break;
 	case SRPT_STATE_CMD_RSP_SENT:
 		/*
@@ -1527,8 +1527,7 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 	if (opcode == SRPT_RDMA_READ_LAST && scmnd) {
 		if (srpt_test_and_set_cmd_state(ioctx, SRPT_STATE_NEED_DATA,
 						SRPT_STATE_DATA_IN))
-			scst_rx_data(ioctx->scmnd, SCST_RX_STATUS_SUCCESS,
-				     context);
+			scst_rx_data(scmnd, SCST_RX_STATUS_SUCCESS, context);
 		else
 			PRINT_ERROR("%s[%d]: wrong state = %d", __func__,
 				    __LINE__, ioctx->state);
