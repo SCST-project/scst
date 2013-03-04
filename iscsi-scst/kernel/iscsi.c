@@ -3918,7 +3918,7 @@ int iscsi_threads_pool_get(const cpumask_t *cpu_mask,
 
 	TRACE_DBG("%s", "Creating new iSCSI thread pool");
 
-	p = kzalloc(sizeof(*p), GFP_KERNEL);
+	p = kzalloc(L1_CACHE_ALIGN(sizeof(*p)), GFP_KERNEL);
 	if (p == NULL) {
 		PRINT_ERROR("Unable to allocate iSCSI thread pool (size %zd)",
 			sizeof(*p));

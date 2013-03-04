@@ -3373,7 +3373,7 @@ int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev)
 
 	TRACE_ENTRY();
 
-	dev = kzalloc(sizeof(*dev), gfp_mask);
+	dev = kzalloc(L1_CACHE_ALIGN(sizeof(*dev)), gfp_mask);
 	if (dev == NULL) {
 		PRINT_ERROR("%s", "Allocation of scst_device failed");
 		res = -ENOMEM;
@@ -5249,9 +5249,10 @@ void scst_cmd_set_ext_cdb(struct scst_cmd *cmd,
 		goto out;
 	}
 
-	cmd->cdb = kmalloc(len, gfp_mask);
+	cmd->cdb = kmalloc(L1_CACHE_ALIGN(len), gfp_mask);
 	if (unlikely(cmd->cdb == NULL)) {
-		PRINT_ERROR("Unable to alloc extended CDB (size %d)", len);
+		PRINT_ERROR("Unable to alloc extended CDB (size %d)",
+			L1_CACHE_ALIGN(len));
 		goto out_err;
 	}
 
@@ -5325,10 +5326,10 @@ int scst_pre_init_cmd(struct scst_cmd *cmd, const uint8_t *cdb,
 			res = -EINVAL;
 			goto out;
 		}
-		cmd->cdb = kmalloc(cdb_len, gfp_mask);
+		cmd->cdb = kmalloc(L1_CACHE_ALIGN(cdb_len), gfp_mask);
 		if (unlikely(cmd->cdb == NULL)) {
 			PRINT_ERROR("Unable to alloc extended CDB (size %d)",
-				cdb_len);
+				L1_CACHE_ALIGN(cdb_len));
 			res = -ENOMEM;
 			goto out;
 		}

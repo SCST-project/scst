@@ -77,7 +77,8 @@ struct iscsi_thread_pool {
 	struct list_head rd_list;
 	wait_queue_head_t rd_waitQ;
 
-	spinlock_t wr_lock;
+	/* It's used by another thread, hence aligned */
+	spinlock_t wr_lock ____cacheline_aligned_in_smp;
 	struct list_head wr_list;
 	wait_queue_head_t wr_waitQ;
 

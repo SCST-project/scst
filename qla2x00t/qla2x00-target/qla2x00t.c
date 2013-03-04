@@ -1155,7 +1155,7 @@ static struct q2t_sess *q2t_create_sess(scsi_qla_host_t *ha, fc_port_t *fcport,
 
 	/* We are under tgt_mutex, so a new sess can't be added behind us */
 
-	sess = kzalloc(sizeof(*sess), GFP_KERNEL);
+	sess = kzalloc(L1_CACHE_ALIGN(sizeof(*sess)), GFP_KERNEL);
 	if (sess == NULL) {
 		PRINT_ERROR("qla2x00t(%ld): session allocation failed, "
 			"all commands from port %02x:%02x:%02x:%02x:"
@@ -5736,7 +5736,7 @@ static int q2t_add_target(scsi_qla_host_t *ha)
 
 	sBUG_ON((ha->q2t_tgt != NULL) || (ha->tgt != NULL));
 
-	tgt = kzalloc(sizeof(*tgt), GFP_KERNEL);
+	tgt = kzalloc(L1_CACHE_ALIGN(sizeof(*tgt)), GFP_KERNEL);
 	if (tgt == NULL) {
 		PRINT_ERROR("qla2x00t: %s", "Allocation of tgt failed");
 		res = -ENOMEM;

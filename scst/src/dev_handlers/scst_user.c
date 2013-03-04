@@ -1196,9 +1196,8 @@ static int dev_user_map_buf(struct scst_user_cmd *ucmd, unsigned long ubuff,
 
 	ucmd->num_data_pages = num_pg;
 
-	ucmd->data_pages =
-		kmalloc(sizeof(*ucmd->data_pages) * ucmd->num_data_pages,
-			  GFP_KERNEL);
+	ucmd->data_pages = kmalloc(L1_CACHE_ALIGN(sizeof(*ucmd->data_pages) * ucmd->num_data_pages),
+				  GFP_KERNEL);
 	if (ucmd->data_pages == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "Unable to allocate data_pages array "
 			"(num_data_pages=%d)", ucmd->num_data_pages);
@@ -2931,7 +2930,7 @@ static int dev_user_register_dev(struct file *file,
 		goto out;
 	}
 
-	dev = kzalloc(sizeof(*dev), GFP_KERNEL);
+	dev = kzalloc(L1_CACHE_ALIGN(sizeof(*dev)), GFP_KERNEL);
 	if (dev == NULL) {
 		res = -ENOMEM;
 		goto out_put;

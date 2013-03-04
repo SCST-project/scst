@@ -1629,7 +1629,7 @@ static struct scatterlist *alloc_sg(size_t size, unsigned off, gfp_t gfp_mask,
 
 	sg_cnt = PAGE_ALIGN(size + off) >> PAGE_SHIFT;
 	sg = sg_cnt <= small_sg_size ? small_sg :
-		kmalloc(sg_cnt * sizeof(*sg), gfp_mask);
+		kmalloc(L1_CACHE_ALIGN(sg_cnt * sizeof(*sg)), gfp_mask);
 	if (!sg)
 		goto out;
 
@@ -3387,7 +3387,7 @@ static struct iovec *vdisk_alloc_iv(struct scst_cmd *cmd,
 		p->iv_count = 0;
 		/* It can't be called in atomic context */
 		p->iv = (iv_count <= ARRAY_SIZE(p->small_iv)) ? p->small_iv :
-			kmalloc(sizeof(*p->iv) * iv_count, GFP_KERNEL);
+			kmalloc(L1_CACHE_ALIGN(sizeof(*p->iv) * iv_count), GFP_KERNEL);
 		if (p->iv == NULL) {
 			PRINT_ERROR("Unable to allocate iv (%d)", iv_count);
 			goto out;
@@ -4307,7 +4307,7 @@ static int vdev_create(struct scst_dev_type *devt,
 	if (vdev_find(name))
 		goto out;
 
-	virt_dev = kzalloc(sizeof(*virt_dev), GFP_KERNEL);
+	virt_dev = kzalloc(L1_CACHE_ALIGN(sizeof(*virt_dev)), GFP_KERNEL);
 	if (virt_dev == NULL) {
 		PRINT_ERROR("Allocation of virtual device %s failed",
 			devt->name);

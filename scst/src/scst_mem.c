@@ -660,7 +660,7 @@ static int sgv_alloc_arrays(struct sgv_pool_obj *obj,
 
 	sz = pages_to_alloc * sizeof(obj->sg_entries[0]);
 
-	obj->sg_entries = kmalloc(sz, gfp_mask);
+	obj->sg_entries = kmalloc(L1_CACHE_ALIGN(sz), gfp_mask);
 	if (unlikely(obj->sg_entries == NULL)) {
 		TRACE(TRACE_OUT_OF_MEM, "Allocation of sgv_pool_obj "
 			"SG vector failed (size %d)", sz);
@@ -680,7 +680,7 @@ static int sgv_alloc_arrays(struct sgv_pool_obj *obj,
 			 */
 		} else {
 			tsz = pages_to_alloc * sizeof(obj->trans_tbl[0]);
-			obj->trans_tbl = kzalloc(tsz, gfp_mask);
+			obj->trans_tbl = kzalloc(L1_CACHE_ALIGN(tsz), gfp_mask);
 			if (unlikely(obj->trans_tbl == NULL)) {
 				TRACE(TRACE_OUT_OF_MEM, "Allocation of "
 					"trans_tbl failed (size %d)", tsz);
@@ -1021,7 +1021,7 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 
 		sz = sizeof(*obj) + pages * sizeof(obj->sg_entries[0]);
 
-		obj = kmalloc(sz, gfp_mask);
+		obj = kmalloc(L1_CACHE_ALIGN(sz), gfp_mask);
 		if (unlikely(obj == NULL)) {
 			TRACE(TRACE_OUT_OF_MEM, "Allocation of "
 				"sgv_pool_obj failed (size %d)", size);
@@ -1374,7 +1374,7 @@ static void sgv_pool_init_cache(struct sgv_pool *pool, int cache_num)
 		"%s-%uK", pool->name, (pages << PAGE_SHIFT) >> 10);
 	pool->caches[cache_num] = kmem_cache_create(
 		pool->cache_names[cache_num], size,
-		__alignof__(struct sgv_pool_obj), SCST_SLAB_FLAGS, NULL
+		0, SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN, NULL
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23))
 		, NULL);
 #else
@@ -1651,7 +1651,7 @@ struct sgv_pool *sgv_pool_create(const char *name,
 		}
 	}
 
-	pool = kzalloc(sizeof(*pool), GFP_KERNEL);
+	pool = kzalloc(L1_CACHE_ALIGN(sizeof(*pool)), GFP_KERNEL);
 	if (pool == NULL) {
 		PRINT_ERROR("Allocation of sgv_pool failed (size %zd)",
 			sizeof(*pool));

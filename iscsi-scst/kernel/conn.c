@@ -850,7 +850,7 @@ static int iscsi_conn_alloc(struct iscsi_session *session,
 	struct iscsi_conn *conn;
 	int res = 0;
 
-	conn = kzalloc(sizeof(*conn), GFP_KERNEL);
+	conn = kzalloc(L1_CACHE_ALIGN(sizeof(*conn)), GFP_KERNEL);
 	if (!conn) {
 		res = -ENOMEM;
 		goto out_err;
