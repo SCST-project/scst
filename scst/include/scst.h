@@ -1749,10 +1749,6 @@ struct scst_session {
 	void (*unreg_done_fn) (struct scst_session *sess);
 
 #ifdef CONFIG_SCST_MEASURE_LATENCY
-	/*
-	 * Must be the last to allow to work with drivers who don't know
-	 * about this config time option.
-	 */
 	spinlock_t lat_lock;
 	uint64_t scst_time, tgt_time, dev_time;
 	uint64_t processed_cmds;
@@ -2178,17 +2174,12 @@ struct scst_cmd {
 	int cmd_data_descriptors_cnt;
 
 #ifdef CONFIG_SCST_MEASURE_LATENCY
-	/*
-	 * Must be the last to allow to work with drivers who don't know
-	 * about this config time option!
-	 */
 	uint64_t start, curr_start, parse_time, alloc_buf_time;
 	uint64_t restart_waiting_time, rdy_to_xfer_time;
 	uint64_t pre_exec_time, exec_time, dev_done_time;
 	uint64_t xmit_time, tgt_on_free_time, dev_on_free_time;
 #endif
 
-/* Must be the last for the same reason as SCST_MEASURE_LATENCY! */
 #ifdef CONFIG_SCST_DEBUG_TM
 	/* Set if the cmd was delayed by task management debugging code */
 	unsigned int tm_dbg_delayed:1;
@@ -2619,9 +2610,6 @@ struct scst_tgt_dev {
 
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 	/*
-	 * Must be the last to allow to work with drivers who don't know
-	 * about this config time option.
-	 *
 	 * Protected by sess->lat_lock.
 	 */
 	uint64_t scst_time, tgt_time, dev_time;
