@@ -543,12 +543,6 @@ enum scst_exec_context {
 /* Set if tgt_dev is RESERVED by another session */
 #define SCST_TGT_DEV_RESERVED		1
 
-/* Set if the corresponding context should be atomic */
-#define SCST_TGT_DEV_AFTER_INIT_WR_ATOMIC	5
-#define SCST_TGT_DEV_AFTER_EXEC_ATOMIC		6
-
-#define SCST_TGT_DEV_CLUST_POOL			11
-
 /*************************************************************
  ** I/O grouping types. Changing them don't forget to change
  ** the corresponding *_STR values in scst_const.h!
@@ -2333,7 +2327,7 @@ struct scst_device {
 	unsigned short dev_double_ua_possible:1;
 
 	/* If set, dev is read only */
-	unsigned short rd_only:1;
+	unsigned short dev_rd_only:1;
 
 	/* Set, if a strictly serialized cmd is waiting blocked */
 	unsigned short strictly_serialized_cmd_waiting:1;
@@ -2542,6 +2536,22 @@ struct scst_tgt_dev {
 	struct sgv_pool *pool;
 	int max_sg_cnt;
 
+	/*************************************************************
+	 ** Tgt_dev's flags
+	 *************************************************************/
+
+	/* Set if tgt_dev is read only (to save extra dereferences) */
+	unsigned int tgt_dev_rd_only:1;
+
+	/* Set if the corresponding context should be atomic */
+	unsigned int tgt_dev_after_init_wr_atomic:1;
+	unsigned int tgt_dev_after_exec_atimic:1;
+
+	/* Set if tgt_dev uses clustered SGV pool */
+	unsigned int tgt_dev_clust_pool:1;
+
+	/**************************************************************/
+
 	/*
 	 * Tgt_dev's async flags. Modified independently to the neighbour
 	 * fields.
@@ -2629,7 +2639,7 @@ struct scst_acg_dev {
 	uint64_t lun; /* device's LUN in this acg */
 
 	/* If set, the corresponding LU is read only */
-	unsigned int rd_only:1;
+	unsigned int acg_dev_rd_only:1;
 
 	struct scst_acg *acg; /* parent acg */
 

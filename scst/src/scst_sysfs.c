@@ -3730,7 +3730,7 @@ static ssize_t scst_lun_rd_only_show(struct kobject *kobj,
 
 	acg_dev = container_of(kobj, struct scst_acg_dev, acg_dev_kobj);
 
-	if (acg_dev->rd_only || acg_dev->dev->rd_only)
+	if (acg_dev->acg_dev_rd_only || acg_dev->dev->dev_rd_only)
 		return sprintf(buf, "%d\n%s\n", 1, SCST_SYSFS_KEY_MARK);
 	else
 		return sprintf(buf, "%d\n", 0);

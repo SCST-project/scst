@@ -2532,7 +2532,7 @@ static int scst_groups_devices_show(struct seq_file *seq, void *v)
 		seq_printf(seq, "%-60s%-13lld%s\n",
 			       acg_dev->dev->virt_name,
 			       (long long unsigned int)acg_dev->lun,
-			       acg_dev->rd_only ? "RO" : "");
+			       acg_dev->acg_dev_rd_only ? "RO" : "");
 	}
 	mutex_unlock(&scst_mutex);
 

@@ -90,7 +90,7 @@ void scst_sgv_pool_use_norm(struct scst_tgt_dev *tgt_dev)
 {
 	tgt_dev->gfp_mask = __GFP_NOWARN;
 	tgt_dev->pool = sgv_norm_pool;
-	clear_bit(SCST_TGT_DEV_CLUST_POOL, &tgt_dev->tgt_dev_flags);
+	tgt_dev->tgt_dev_clust_pool = 0;
 }
 
 void scst_sgv_pool_use_norm_clust(struct scst_tgt_dev *tgt_dev)
@@ -98,7 +98,7 @@ void scst_sgv_pool_use_norm_clust(struct scst_tgt_dev *tgt_dev)
 	TRACE_MEM("%s", "Use clustering");
 	tgt_dev->gfp_mask = __GFP_NOWARN;
 	tgt_dev->pool = sgv_norm_clust_pool;
-	set_bit(SCST_TGT_DEV_CLUST_POOL, &tgt_dev->tgt_dev_flags);
+	tgt_dev->tgt_dev_clust_pool = 1;
 }
 
 void scst_sgv_pool_use_dma(struct scst_tgt_dev *tgt_dev)
@@ -106,7 +106,7 @@ void scst_sgv_pool_use_dma(struct scst_tgt_dev *tgt_dev)
 	TRACE_MEM("%s", "Use ISA DMA memory");
 	tgt_dev->gfp_mask = __GFP_NOWARN | GFP_DMA;
 	tgt_dev->pool = sgv_dma_pool;
-	clear_bit(SCST_TGT_DEV_CLUST_POOL, &tgt_dev->tgt_dev_flags);
+	tgt_dev->tgt_dev_clust_pool = 0;
 }
 
 /* Must be no locks */

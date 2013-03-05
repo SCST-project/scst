@@ -345,8 +345,7 @@ static int scst_init_cmd(struct scst_cmd *cmd, enum scst_exec_context *context)
 		 */
 		BUILD_BUG_ON(SCST_DATA_UNKNOWN != 0);
 		if ((cmd->data_direction | cmd->expected_data_direction) & SCST_DATA_WRITE) {
-			if (!test_bit(SCST_TGT_DEV_AFTER_INIT_WR_ATOMIC,
-					&cmd->tgt_dev->tgt_dev_flags))
+			if (!cmd->tgt_dev->tgt_dev_after_init_wr_atomic)
 				*context = SCST_CONTEXT_THREAD;
 		} else
 			*context = SCST_CONTEXT_THREAD;
@@ -1712,8 +1711,7 @@ static inline enum scst_exec_context scst_optimize_post_exec_context(
 	if (((context == SCST_CONTEXT_SAME) && scst_cmd_atomic(cmd)) ||
 	    (context == SCST_CONTEXT_TASKLET) ||
 	    (context == SCST_CONTEXT_DIRECT_ATOMIC)) {
-		if (!test_bit(SCST_TGT_DEV_AFTER_EXEC_ATOMIC,
-				&cmd->tgt_dev->tgt_dev_flags))
+		if (!cmd->tgt_dev->tgt_dev_after_exec_atimic)
 			context = SCST_CONTEXT_THREAD;
 	}
 	return context;
@@ -2765,8 +2763,7 @@ static int scst_do_local_exec(struct scst_cmd *cmd)
 
 	/* Check READ_ONLY device status */
 	if ((cmd->op_flags & SCST_WRITE_MEDIUM) &&
-	    (tgt_dev->acg_dev->rd_only || cmd->dev->swp ||
-	     cmd->dev->rd_only)) {
+	    (tgt_dev->tgt_dev_rd_only || cmd->dev->swp)) {
 		PRINT_WARNING("Attempt of write access to read-only device: "
 			"initiator %s, LUN %lld, op %x",
 			cmd->sess->initiator_name, cmd->lun, cmd->cdb[0]);
@@ -3174,8 +3171,7 @@ static int scst_pre_dev_done(struct scst_cmd *cmd)
 		unsigned char type = cmd->dev->type;
 		if (unlikely((cmd->cdb[0] == MODE_SENSE ||
 			      cmd->cdb[0] == MODE_SENSE_10)) &&
-		    (cmd->tgt_dev->acg_dev->rd_only || cmd->dev->swp ||
-		     cmd->dev->rd_only) &&
+		    (cmd->tgt_dev->tgt_dev_rd_only || cmd->dev->swp) &&
 		    (type == TYPE_DISK ||
 		     type == TYPE_WORM ||
 		     type == TYPE_MOD ||

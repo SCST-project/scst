@@ -2676,7 +2676,7 @@ static int dev_user_attach_tgt(struct scst_tgt_dev *tgt_dev)
 	 * memory for SCST local commands, like REPORT LUNS, where there is no
 	 * corresponding ucmd. Otherwise we will crash in dev_user_alloc_sg().
 	 */
-	if (test_bit(SCST_TGT_DEV_CLUST_POOL, &tgt_dev->tgt_dev_flags))
+	if (tgt_dev->tgt_dev_clust_pool)
 		tgt_dev->dh_priv = dev->pool_clust;
 	else
 		tgt_dev->dh_priv = dev->pool;
@@ -2694,7 +2694,7 @@ static int dev_user_attach_tgt(struct scst_tgt_dev *tgt_dev)
 	ucmd->user_cmd.sess.sess_h = (unsigned long)tgt_dev;
 	ucmd->user_cmd.sess.lun = (uint64_t)tgt_dev->lun;
 	ucmd->user_cmd.sess.threads_num = tgt_dev->sess->tgt->tgtt->threads_num;
-	ucmd->user_cmd.sess.rd_only = tgt_dev->acg_dev->rd_only;
+	ucmd->user_cmd.sess.rd_only = tgt_dev->tgt_dev_rd_only;
 	if (tgtt->get_phys_transport_version != NULL)
 		ucmd->user_cmd.sess.phys_transport_version =
 			tgtt->get_phys_transport_version(tgt);

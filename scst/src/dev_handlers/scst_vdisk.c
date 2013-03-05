@@ -606,7 +606,8 @@ static const char *vdev_get_filename(const struct scst_vdisk_dev *virt_dev)
 }
 
 /* Returns fd, use IS_ERR(fd) to get error status */
-static struct file *vdev_open_fd(const struct scst_vdisk_dev *virt_dev)
+static struct file *vdev_open_fd(const struct scst_vdisk_dev *virt_dev,
+	bool read_only)
 {
 	int open_flags = 0;
 	struct file *fd;
@@ -615,7 +616,7 @@ static struct file *vdev_open_fd(const struct scst_vdisk_dev *virt_dev)
 
 	sBUG_ON(!virt_dev->filename);
 
-	if (virt_dev->dev->rd_only)
+	if (read_only)
 		open_flags |= O_RDONLY;
 	else
 		open_flags |= O_RDWR;
@@ -836,7 +837,7 @@ static int vdisk_attach(struct scst_device *dev)
 
 	virt_dev->dev = dev;
 
-	dev->rd_only = virt_dev->rd_only;
+	dev->dev_rd_only = virt_dev->rd_only;
 
 	if (!virt_dev->cdrom_empty) {
 		if (virt_dev->nullio)
@@ -913,7 +914,7 @@ static void vdisk_detach(struct scst_device *dev)
 	return;
 }
 
-static int vdisk_open_fd(struct scst_vdisk_dev *virt_dev)
+static int vdisk_open_fd(struct scst_vdisk_dev *virt_dev, bool read_only)
 {
 	int res;
 
@@ -922,7 +923,7 @@ static int vdisk_open_fd(struct scst_vdisk_dev *virt_dev)
 #endif
 	sBUG_ON(!virt_dev->filename);
 
-	virt_dev->fd = vdev_open_fd(virt_dev);
+	virt_dev->fd = vdev_open_fd(virt_dev, read_only);
 	if (IS_ERR(virt_dev->fd)) {
 		res = PTR_ERR(virt_dev->fd);
 		virt_dev->fd = NULL;
@@ -954,7 +955,7 @@ static int vdisk_attach_tgt(struct scst_tgt_dev *tgt_dev)
 		goto out;
 
 	if (!virt_dev->nullio && !virt_dev->cdrom_empty) {
-		res = vdisk_open_fd(virt_dev);
+		res = vdisk_open_fd(virt_dev, tgt_dev->tgt_dev_rd_only);
 		if (res != 0) {
 			virt_dev->tgt_dev_cnt--;
 			goto out;
@@ -2685,8 +2686,7 @@ static enum compl_status_e vdisk_exec_mode_sense(struct vdisk_cmd_params *p)
 	pcode = cmd->cdb[2] & 0x3f;
 	subpcode = cmd->cdb[3];
 	msense_6 = (MODE_SENSE == cmd->cdb[0]);
-	dev_spec = (virt_dev->dev->rd_only ||
-		     cmd->tgt_dev->acg_dev->rd_only) ? WP : 0;
+	dev_spec = cmd->tgt_dev->tgt_dev_rd_only ? WP : 0;
 
 	if (type != TYPE_ROM)
 		dev_spec |= DPOFUA;
@@ -2810,7 +2810,7 @@ out_not_sup:
 	goto out_put;
 }
 
-static int vdisk_set_wt(struct scst_vdisk_dev *virt_dev, int wt)
+static int vdisk_set_wt(struct scst_vdisk_dev *virt_dev, int wt, bool read_only)
 {
 	int res = 0;
 	struct file *fd;
@@ -2830,7 +2830,7 @@ static int vdisk_set_wt(struct scst_vdisk_dev *virt_dev, int wt)
 	 * to reopen fd.
 	 */
 
-	fd = vdev_open_fd(virt_dev);
+	fd = vdev_open_fd(virt_dev, read_only);
 	if (IS_ERR(fd)) {
 		PRINT_ERROR("filp_open(%s) returned an error %ld",
 			    virt_dev->filename, PTR_ERR(fd));
@@ -2934,8 +2934,8 @@ static enum compl_status_e vdisk_exec_mode_select(struct vdisk_cmd_params *p)
 				scst_set_invalid_field_in_parm_list(cmd, offset+1, 0);
 				goto out_put;
 			}
-			if (vdisk_set_wt(virt_dev,
-			      (address[offset + 2] & WCE) ? 0 : 1) != 0) {
+			if (vdisk_set_wt(virt_dev, (address[offset + 2] & WCE) ? 0 : 1,
+					cmd->tgt_dev->tgt_dev_rd_only) != 0) {
 				scst_set_busy(cmd);
 				goto out_put;
 			}
@@ -4176,7 +4176,8 @@ static void vdisk_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd,
 		else
 			dev->queue_alg = DEF_QUEUE_ALG;
 
-		rc = vdisk_set_wt(virt_dev, DEF_WRITE_THROUGH);
+		rc = vdisk_set_wt(virt_dev, DEF_WRITE_THROUGH,
+			tgt_dev->tgt_dev_rd_only);
 		if (rc != 0) {
 			PRINT_CRIT_ERROR("Unable to reset caching mode to %d",
 				DEF_WRITE_THROUGH);
@@ -4952,7 +4953,7 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 		if (res != 0)
 			goto out_free_fn;
 		if (virt_dev->tgt_dev_cnt > 0) {
-			res = vdisk_open_fd(virt_dev);
+			res = vdisk_open_fd(virt_dev, true);
 			if (res != 0)
 				goto out_free_fn;
 			sBUG_ON(!virt_dev->fd);
@@ -5609,7 +5610,7 @@ static int vdisk_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type)
 			c += 3;
 		}
 		if (virt_dev->dev != NULL) {
-			if (virt_dev->dev->rd_only) {
+			if (virt_dev->dev->dev_rd_only) {
 				seq_printf(seq, "RO ");
 				c += 3;
 			}

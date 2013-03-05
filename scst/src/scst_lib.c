@@ -2495,7 +2495,7 @@ retry_add:
 					sess_tgt_dev_list_entry) {
 				if ((tgt_dev->dev == acg_dev->dev) &&
 				    (tgt_dev->lun == acg_dev->lun) &&
-				    (tgt_dev->acg_dev->rd_only == acg_dev->rd_only)) {
+				    (tgt_dev->acg_dev->acg_dev_rd_only == acg_dev->acg_dev_rd_only)) {
 					TRACE_MGMT_DBG("sess %p: tgt_dev %p for "
 						"LUN %lld stays the same",
 						sess, tgt_dev,
@@ -3512,7 +3512,7 @@ int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
 		res = -ENOMEM;
 		goto out;
 	}
-	acg_dev->rd_only = read_only;
+	acg_dev->acg_dev_rd_only = read_only;
 
 	TRACE_DBG("Adding acg_dev %p to acg_dev_list and dev_acg_dev_list",
 		acg_dev);
@@ -4099,6 +4099,7 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	tgt_dev->dev = dev;
 	tgt_dev->lun = acg_dev->lun;
 	tgt_dev->acg_dev = acg_dev;
+	tgt_dev->tgt_dev_rd_only = acg_dev->acg_dev_rd_only || dev->dev_rd_only;
 	tgt_dev->sess = sess;
 	atomic_set(&tgt_dev->tgt_dev_cmd_count, 0);
 
@@ -4139,14 +4140,11 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	    dev->handler->dev_alloc_data_buf_atomic &&
 	    (sess->tgt->tgtt->preprocessing_done == NULL)) {
 		if (sess->tgt->tgtt->rdy_to_xfer_atomic)
-			__set_bit(SCST_TGT_DEV_AFTER_INIT_WR_ATOMIC,
-				&tgt_dev->tgt_dev_flags);
+			tgt_dev->tgt_dev_after_init_wr_atomic = 1;
 	}
 	if (dev->handler->dev_done_atomic &&
-	    sess->tgt->tgtt->xmit_response_atomic) {
-		__set_bit(SCST_TGT_DEV_AFTER_EXEC_ATOMIC,
-			&tgt_dev->tgt_dev_flags);
-	}
+	    sess->tgt->tgtt->xmit_response_atomic)
+		tgt_dev->tgt_dev_after_exec_atimic = 1;
 
 	sl = scst_set_sense(sense_buffer, sizeof(sense_buffer),
 		dev->d_sense, SCST_LOAD_SENSE(scst_sense_reset_UA));
