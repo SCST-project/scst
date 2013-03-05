@@ -23,6 +23,11 @@
 #ifndef __SCST_H
 #define __SCST_H
 
+/** See README for description of those conditional defines **/
+/* #define CONFIG_SCST_MEASURE_LATENCY */
+/* #define CONFIG_SCST_DEBUG_TM */
+/* #define CONFIG_SCST_TM_DBG_GO_OFFLINE */
+
 #include <linux/types.h>
 #ifndef INSIDE_KERNEL_TREE
 #include <linux/version.h>
@@ -39,11 +44,6 @@
 #if 0 /* Let's disable it for now to see if users will complain about it */
 #define CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
 #endif
-
-/* #define CONFIG_SCST_MEASURE_LATENCY */
-
-/* #define CONFIG_SCST_DEBUG_TM */
-/* #define CONFIG_SCST_TM_DBG_GO_OFFLINE */
 
 /* #define CONFIG_SCST_PROC */
 
