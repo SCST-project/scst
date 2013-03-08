@@ -1,10 +1,14 @@
+ifndef PREFIX
+        PREFIX=/usr/local
+endif
+
 SCSTADMIN_DIR = $(shell if [ ! -h scstadmin ]; then		\
 			    rm -f scstadmin;			\
 			    ln -s scstadmin.sysfs scstadmin;	\
 			fi;					\
 			echo scstadmin)
 
-MANDIR := $(DESTDIR)/usr/local/man
+MANDIR := $(DESTDIR)$(PREFIX)/man
 INITDIR := $(shell if [ -f /etc/slackware-version ]; then	\
                      echo /etc/rc.d;				\
                    else						\

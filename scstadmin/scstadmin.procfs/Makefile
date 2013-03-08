@@ -1,7 +1,11 @@
+ifndef PREFIX
+        PREFIX=/usr/local
+endif
+
 MODULE_VERSION = 0.8.22
 TOOL = scstadmin
 
-SBINDIR := $(PREFIX)/usr/local/sbin
+SBINDIR := $(PREFIX)$(PREFIX)/sbin
 
 all: perl-module
 

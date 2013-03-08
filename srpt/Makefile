@@ -1,13 +1,16 @@
 #
 # Makefile for ib_srpt.ko.
 #
+ifndef PREFIX
+	PREFIX=/usr/local
+endif
 
 SCST_INC_DIR := $(shell if [ -e "$$PWD/../scst" ];			\
 			then echo "$$PWD/../scst/include";		\
-			else echo "/usr/local/include/scst"; fi)
+			else echo "$(PREFIX)/include/scst"; fi)
 SCST_SYMVERS_DIR := $(shell if [ -e $$PWD/../scst ]; then	\
                         echo $$PWD/../scst/src;			\
-                      else echo /usr/local/include/scst; fi)
+                      else echo $(PREFIX)/include/scst; fi)
 SUBDIRS := $(shell pwd)
 
 ifeq ($(KVER),)

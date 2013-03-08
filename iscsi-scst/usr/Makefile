@@ -15,6 +15,10 @@
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 #  GNU General Public License for more details.
 
+ifndef PREFIX
+        PREFIX=/usr/local
+endif
+
 SRCS_D = iscsid.c iscsi_scstd.c conn.c session.c target.c message.c ctldev.c \
 		log.c chap.c event.c param.c config.c isns.c md5.c sha1.c \
 		misc.c
@@ -24,7 +28,7 @@ SRCS_ADM = iscsi_adm.c param.c
 OBJS_ADM = $(SRCS_ADM:.c=.o)
 
 SCST_INC_DIR := ../../scst/include
-#SCST_INC_DIR := /usr/local/include/scst
+#SCST_INC_DIR := $(PREFIX)/include/scst
 
 CFLAGS += -O2 -fno-inline -Wall -Wextra -Wstrict-prototypes -Wno-sign-compare \
 	-Wimplicit-function-declaration -Wno-unused-parameter \

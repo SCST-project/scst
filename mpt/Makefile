@@ -20,7 +20,11 @@
 #    - install and uninstall must be made as root
 #
 
-#SCST_INC_DIR := /usr/local/include/scst
+ifndef PREFIX
+        PREFIX=/usr/local
+endif
+
+#SCST_INC_DIR := $(PREFIX)/include/scst
 #SCST_DIR := $(SCST_INC_DIR)
 SCST_INC_DIR := $(SUBDIRS)/../scst/include
 SCST_DIR := $(shell pwd)/../scst/src

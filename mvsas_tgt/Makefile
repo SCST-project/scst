@@ -25,6 +25,9 @@
 #    - install and uninstall must be made as root
 #
 
+ifndef PREFIX
+        PREFIX=/usr/local
+endif
 
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
@@ -38,7 +41,7 @@ endif
 export PWD    := $(shell pwd)
 export LIBSAS := m
 
-#SCST_INC_DIR := /usr/local/include/scst
+#SCST_INC_DIR := $(PREFIX)/include/scst
 #SCST_DIR := $(SCST_INC_DIR)
 SCST_INC_DIR := $(SUBDIRS)/../scst/include
 SCST_DIR := $(shell pwd)/../scst/src

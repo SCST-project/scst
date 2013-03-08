@@ -28,6 +28,10 @@
 #    - install and uninstall must be made as root
 #
 
+ifndef PREFIX
+        PREFIX=/usr/local
+endif
+
 SHELL=/bin/bash
 
 EXTRA_CFLAGS += -I$(SCST_INC_DIR)
@@ -69,10 +73,10 @@ else
 
 SCST_INC_DIR := $(shell if [ -e "$$PWD/../../scst" ];			\
                   then echo "$$PWD/../../scst/include";			\
-                  else echo "/usr/local/include/scst"; fi)
+                  else echo "$(PREFIX)/include/scst"; fi)
 SCST_DIR := $(shell if [ -e "$$PWD/../../scst" ];			\
 		    then echo "$$PWD/../../scst/src";			\
-		    else echo "/usr/local/include/scst"; fi)
+		    else echo "$(PREFIX)/include/scst"; fi)
 
 ifneq ($(BUILD_2X_MODULE),)
 # We need to make qla2xxx_scst before Module.symvers

@@ -2,6 +2,10 @@
 # A Makefile for the scst-local ...
 #
 
+ifndef PREFIX
+        PREFIX=/usr/local
+endif
+
 SHELL=/bin/bash
 
 KMOD 		:= $(shell pwd)/kernel
@@ -34,10 +38,10 @@ else
 
 SCST_INC_DIR := $(shell if [ -e "$$PWD/../scst" ];			\
 			then echo "$$PWD/../scst/include";		\
-			else echo "/usr/local/include/scst"; fi)
+			else echo "$(PREFIX)/include/scst"; fi)
 SCST_DIR := $(shell if [ -e "$$PWD/../scst" ];				\
 		    then echo "$$PWD/../scst/src";			\
-		    else echo "/usr/local/include/scst"; fi)
+		    else echo "$(PREFIX)/include/scst"; fi)
 
 all: Modules.symvers Module.symvers
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \

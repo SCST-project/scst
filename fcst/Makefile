@@ -26,6 +26,10 @@
 #    - install and uninstall must be made as root
 #
 
+ifndef PREFIX
+        PREFIX=/usr/local
+endif
+
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
     KVER = $(shell uname -r)
@@ -58,9 +62,9 @@ include $(SUBDIRS)/Makefile_in-tree
 else
 SCST_INC_DIR := $(shell if [ -e "$$PWD/../scst" ];			\
                   then echo "$$PWD/../scst/include";			\
-                  else echo "/usr/local/include/scst"; fi)
+                  else echo "$(PREFIX)/include/scst"; fi)
 SCST_DIR := $(shell if [ -e "$$PWD/../scst" ]; then echo "$$PWD/../scst/src"; \
-		else echo "/usr/local/include/scst"; fi)
+		else echo "$(PREFIX)/include/scst"; fi)
 
 all: Modules.symvers Module.symvers
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \

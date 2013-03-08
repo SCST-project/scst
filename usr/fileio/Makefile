@@ -15,6 +15,10 @@
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 #  GNU General Public License for more details.
 
+ifndef PREFIX
+        PREFIX=/usr/local
+endif
+
 SHELL=/bin/bash
 
 SRCS_F = fileio.c common.c debug.c crc32.c
@@ -24,8 +28,8 @@ OBJS_F = $(SRCS_F:.c=.o)
 #OBJS_C = $(SRCS_C:.c=.o)
 
 SCST_INC_DIR := ../../scst/include
-#SCST_INC_DIR := /usr/local/include/scst
-INSTALL_DIR := /usr/local/bin/scst
+#SCST_INC_DIR := $(PREFIX)/include/scst
+INSTALL_DIR := $(PREFIX)/bin/scst
 
 CFLAGS += -O2 -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes \
 	-I$(SCST_INC_DIR) -D_GNU_SOURCE -D__USE_FILE_OFFSET64 \
