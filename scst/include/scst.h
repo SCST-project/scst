@@ -80,15 +80,6 @@ typedef _Bool bool;
 #define __aligned __attribute__((aligned))
 #endif
 
-/*
- * If kthread_create() is not #define, then kthread_create_on_node()
- * doesn't exist.
- */
-#ifndef kthread_create
-#define kthread_create_on_node(threadfn, data, node, namefmt, arg...) \
-	kthread_create(threadfn, data, namefmt, ##arg)
-#endif
-
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 32)
 #ifndef O_DSYNC
 #define O_DSYNC O_SYNC
