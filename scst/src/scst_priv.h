@@ -758,8 +758,6 @@ void scst_set_pre_exec_time(struct scst_cmd *cmd);
 void scst_set_exec_time(struct scst_cmd *cmd);
 void scst_set_dev_done_time(struct scst_cmd *cmd);
 void scst_set_xmit_time(struct scst_cmd *cmd);
-void scst_set_tgt_on_free_time(struct scst_cmd *cmd);
-void scst_set_dev_on_free_time(struct scst_cmd *cmd);
 void scst_update_lat_stats(struct scst_cmd *cmd);
 
 #else
@@ -774,8 +772,6 @@ static inline void scst_set_pre_exec_time(struct scst_cmd *cmd) {}
 static inline void scst_set_exec_time(struct scst_cmd *cmd) {}
 static inline void scst_set_dev_done_time(struct scst_cmd *cmd) {}
 static inline void scst_set_xmit_time(struct scst_cmd *cmd) {}
-static inline void scst_set_tgt_on_free_time(struct scst_cmd *cmd) {}
-static inline void scst_set_dev_on_free_time(struct scst_cmd *cmd) {}
 static inline void scst_update_lat_stats(struct scst_cmd *cmd) {}
 
 #endif /* CONFIG_SCST_MEASURE_LATENCY */

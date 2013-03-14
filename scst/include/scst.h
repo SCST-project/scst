@@ -2177,7 +2177,7 @@ struct scst_cmd {
 	uint64_t start, curr_start, parse_time, alloc_buf_time;
 	uint64_t restart_waiting_time, rdy_to_xfer_time;
 	uint64_t pre_exec_time, exec_time, dev_done_time;
-	uint64_t xmit_time, tgt_on_free_time, dev_on_free_time;
+	uint64_t xmit_time;
 #endif
 
 #ifdef CONFIG_SCST_DEBUG_TM

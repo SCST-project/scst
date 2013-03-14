@@ -5391,9 +5391,7 @@ static void scst_destroy_cmd(struct scst_cmd *cmd)
 
 	if ((cmd->tgtt->on_free_cmd != NULL) && likely(!cmd->internal)) {
 		TRACE_DBG("Calling target's on_free_cmd(%p)", cmd);
-		scst_set_cur_start(cmd);
 		cmd->tgtt->on_free_cmd(cmd);
-		scst_set_tgt_on_free_time(cmd);
 		TRACE_DBG("%s", "Target's on_free_cmd() returned");
 	}
 
@@ -5434,9 +5432,7 @@ void scst_free_cmd(struct scst_cmd *cmd)
 		if (devt->on_free_cmd != NULL) {
 			TRACE_DBG("Calling dev handler %s on_free_cmd(%p)",
 				devt->name, cmd);
-			scst_set_cur_start(cmd);
 			devt->on_free_cmd(cmd);
-			scst_set_dev_on_free_time(cmd);
 			TRACE_DBG("Dev handler %s on_free_cmd() returned",
 				devt->name);
 		}
@@ -9539,18 +9535,6 @@ void scst_set_xmit_time(struct scst_cmd *cmd)
 	TRACE_DBG("cmd %p: xmit_time %lld", cmd, cmd->xmit_time);
 }
 
-void scst_set_tgt_on_free_time(struct scst_cmd *cmd)
-{
-	cmd->tgt_on_free_time += scst_get_nsec() - cmd->curr_start;
-	TRACE_DBG("cmd %p: tgt_on_free_time %lld", cmd, cmd->tgt_on_free_time);
-}
-
-void scst_set_dev_on_free_time(struct scst_cmd *cmd)
-{
-	cmd->dev_on_free_time += scst_get_nsec() - cmd->curr_start;
-	TRACE_DBG("cmd %p: dev_on_free_time %lld", cmd, cmd->dev_on_free_time);
-}
-
 void scst_update_lat_stats(struct scst_cmd *cmd)
 {
 	uint64_t finish, scst_time, tgt_time, dev_time;
@@ -9582,13 +9566,10 @@ void scst_update_lat_stats(struct scst_cmd *cmd)
 	scst_time = finish - cmd->start - (cmd->parse_time +
 		cmd->alloc_buf_time + cmd->restart_waiting_time +
 		cmd->rdy_to_xfer_time + cmd->pre_exec_time +
-		cmd->exec_time + cmd->dev_done_time + cmd->xmit_time +
-		cmd->tgt_on_free_time + cmd->dev_on_free_time);
+		cmd->exec_time + cmd->dev_done_time + cmd->xmit_time);
 	tgt_time = cmd->alloc_buf_time + cmd->restart_waiting_time +
-		cmd->rdy_to_xfer_time + cmd->pre_exec_time +
-		cmd->xmit_time + cmd->tgt_on_free_time;
-	dev_time = cmd->parse_time + cmd->exec_time + cmd->dev_done_time +
-		cmd->dev_on_free_time;
+		cmd->rdy_to_xfer_time + cmd->pre_exec_time;
+	dev_time = cmd->parse_time + cmd->exec_time + cmd->dev_done_time;
 
 	spin_lock_bh(&sess->lat_lock);
 
