@@ -1797,7 +1797,10 @@ EXPORT_SYMBOL(qla2xxx_del_vtarget);
 /*
  * PCI driver interface
  */
-static int __devinit
+static int
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 8, 0))
+__devinit
+#endif
 qla2x00_probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 {
 	int	ret = -ENODEV;
