@@ -4906,14 +4906,16 @@ static ssize_t scst_dg_devs_mgmt_store(struct kobject *kobj,
 	if (res)
 		goto out;
 
-	work->buf = cmd;
+	swap(work->buf, cmd);
 	work->kobj = kobj;
 	kobject_get(kobj);
 	res = scst_sysfs_queue_wait_work(work);
+	if (res)
+		goto out;
+	res = count;
 
 out:
-	if (res == 0)
-		res = count;
+	kfree(cmd);
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -5187,14 +5189,16 @@ static ssize_t scst_tg_state_store(struct kobject *kobj,
 	if (res)
 		goto out;
 
-	work->buf = cmd;
+	swap(work->buf, cmd);
 	work->kobj = kobj;
 	kobject_get(kobj);
 	res = scst_sysfs_queue_wait_work(work);
+	if (res)
+		goto out;
+	res = count;
 
 out:
-	if (res == 0)
-		res = count;
+	kfree(cmd);
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -5269,14 +5273,16 @@ static ssize_t scst_tg_mgmt_store(struct kobject *kobj,
 	if (res)
 		goto out;
 
-	work->buf = cmd;
+	swap(work->buf, cmd);
 	work->kobj = kobj;
 	kobject_get(kobj);
 	res = scst_sysfs_queue_wait_work(work);
+	if (res)
+		goto out;
+	res = count;
 
 out:
-	if (res == 0)
-		res = count;
+	kfree(cmd);
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -5390,14 +5396,16 @@ static ssize_t scst_dg_tgs_mgmt_store(struct kobject *kobj,
 	if (res)
 		goto out;
 
-	work->buf = cmd;
+	swap(work->buf, cmd);
 	work->kobj = kobj;
 	kobject_get(kobj);
 	res = scst_sysfs_queue_wait_work(work);
+	if (res)
+		goto out;
+	res = count;
 
 out:
-	if (res == 0)
-		res = count;
+	kfree(cmd);
 	TRACE_EXIT_RES(res);
 	return res;
 }
