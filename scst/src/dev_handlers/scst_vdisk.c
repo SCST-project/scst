@@ -3853,6 +3853,15 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 				if (fua)
 					bio->bi_rw |= REQ_FUA;
 
+				if (cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
+					bio->bi_rw |= REQ_META;
+					bio->bi_rw |= REQ_PRIO;
+#else
+					bio->bi_rw |= BIO_RW_META;
+#endif
+				}
+
 				if (!hbio)
 					hbio = tbio = bio;
 				else
