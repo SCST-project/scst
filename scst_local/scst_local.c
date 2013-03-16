@@ -1128,11 +1128,6 @@ static int scst_local_targ_pre_exec(struct scst_cmd *scst_cmd)
 	return res;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33) || \
-    defined(CONFIG_SUSE_KERNEL) || \
-    !(!defined(RHEL_RELEASE_CODE) || \
-     RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
-
 static int scst_local_get_max_queue_depth(struct scsi_device *sdev)
 {
 	int res;
@@ -1149,6 +1144,11 @@ static int scst_local_get_max_queue_depth(struct scsi_device *sdev)
 	TRACE_EXIT_RES(res);
 	return res;
 }
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33) || \
+    defined(CONFIG_SUSE_KERNEL) || \
+    !(!defined(RHEL_RELEASE_CODE) || \
+     RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
 
 static int scst_local_change_queue_depth(struct scsi_device *sdev, int depth,
 	int reason)
@@ -1196,6 +1196,16 @@ out:
 	return res;
 }
 
+#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33) || defined(CONFIG_SUSE_KERNEL) || !(!defined(RHEL_RELEASE_CODE) || RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1)) */
+
+static int scst_local_change_queue_depth(struct scsi_device *sdev, int qdepth)
+{
+	scsi_adjust_queue_depth(sdev, scsi_get_tag_type(sdev), qdepth);
+	return sdev->queue_depth;
+}
+
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33) || defined(CONFIG_SUSE_KERNEL) || !(!defined(RHEL_RELEASE_CODE) || RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1)) */
+
 static int scst_local_slave_alloc(struct scsi_device *sdev)
 {
 	queue_flag_set_unlocked(QUEUE_FLAG_BIDI, sdev->request_queue);
@@ -1221,8 +1231,6 @@ static int scst_local_slave_configure(struct scsi_device *sdev)
 	TRACE_EXIT();
 	return 0;
 }
-
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) && !defined(CONFIG_SUSE_KERNEL) && (!defined(RHEL_RELEASE_CODE) || RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1)) */
 
 /* Must be called under sess->aen_lock. Drops then reacquires it inside. */
 static void scst_process_aens(struct scst_local_sess *sess,
@@ -1527,14 +1535,9 @@ static struct scsi_host_template scst_lcl_ini_driver_template = {
 #else
 	.queuecommand			= scst_local_queuecommand,
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33) || \
-    defined(CONFIG_SUSE_KERNEL) || \
-    !(!defined(RHEL_RELEASE_CODE) || \
-     RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
 	.change_queue_depth		= scst_local_change_queue_depth,
 	.slave_alloc			= scst_local_slave_alloc,
 	.slave_configure		= scst_local_slave_configure,
-#endif
 	.eh_abort_handler		= scst_local_abort,
 	.eh_device_reset_handler	= scst_local_device_reset,
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 25))
