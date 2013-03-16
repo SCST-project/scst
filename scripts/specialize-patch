@@ -93,15 +93,19 @@ function evaluate(stmnt, pattern, arg, op, result) {
     gsub("RHEL_MINOR", RHEL_MINOR, stmnt)
   }
 
+  gsub("defined\\(RHEL_RELEASE_VERSION\\)", "1", stmnt)
   if (RHEL_MAJOR == "" || RHEL_MINOR == "")
   {
     gsub("defined\\(RHEL_RELEASE_CODE\\)", "0", stmnt)
     gsub("RHEL_RELEASE_CODE", "", stmnt)
+    gsub("RHEL_RELEASE_VERSION\\([^,)]*,[ 	]*[^,)]*\\)", "0", stmnt)
   }
   else
   {
     gsub("defined\\(RHEL_RELEASE_CODE\\)", "1", stmnt)
     gsub("RHEL_RELEASE_CODE", RHEL_MAJOR * 256 + RHEL_MINOR, stmnt)
+    stmnt = gensub("RHEL_RELEASE_VERSION\\(([^,)]*),[ 	]*([^,)]*)\\)",
+                   "(\\1) * 256 + (\\2)", "g", stmnt)
   }
 
   if (SCSI_EXEC_REQ_FIFO_DEFINED != "")
