@@ -6889,6 +6889,7 @@ __be64 scst_pack_lun(const uint64_t lun, enum scst_lun_addr_method addr_method)
 	TRACE_EXIT_HRES(res >> 48);
 	return cpu_to_be64(res);
 }
+EXPORT_SYMBOL(scst_pack_lun);
 
 /*
  * Function to extract a LUN number from an 8-byte LUN structure in network byte
@@ -6951,6 +6952,7 @@ out_err:
 	PRINT_ERROR("%s", "Multi-level LUN unimplemented");
 	goto out;
 }
+EXPORT_SYMBOL(scst_unpack_lun);
 
 /**
  ** Generic parse() support routines.

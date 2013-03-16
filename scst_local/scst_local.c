@@ -41,6 +41,10 @@
 #include <scst_debug.h>
 #endif
 
+#ifndef RHEL_RELEASE_VERSION
+#define RHEL_RELEASE_VERSION(maj, min) 0
+#endif
+
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
 #define SG_MAX_SINGLE_ALLOC	(PAGE_SIZE / sizeof(struct scatterlist))
 #endif
@@ -870,7 +874,7 @@ static int scst_local_target_reset(struct scsi_cmnd *SCpnt)
 }
 #endif
 
-static void copy_sense(struct scsi_cmnd *cmnd, struct scst_cmd *scst_cmnd)
+static void scst_local_copy_sense(struct scsi_cmnd *cmnd, struct scst_cmd *scst_cmnd)
 {
 	int scst_cmnd_sense_len = scst_cmd_get_sense_buffer_len(scst_cmnd);
 
@@ -906,7 +910,7 @@ static int scst_local_send_resp(struct scsi_cmnd *cmnd,
 
 		/* Simulate autosense by this driver */
 		if (unlikely(scst_sense_valid(scst_cmnd->sense)))
-			copy_sense(cmnd, scst_cmnd);
+			scst_local_copy_sense(cmnd, scst_cmnd);
 	}
 
 	cmnd->result = scsi_result;
@@ -1123,6 +1127,102 @@ static int scst_local_targ_pre_exec(struct scst_cmd *scst_cmd)
 	TRACE_EXIT_RES(res);
 	return res;
 }
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33) || \
+    defined(CONFIG_SUSE_KERNEL) || \
+    !(!defined(RHEL_RELEASE_CODE) || \
+     RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
+
+static int scst_local_get_max_queue_depth(struct scsi_device *sdev)
+{
+	int res;
+	struct scst_local_sess *sess;
+	__be16 lun;
+
+	TRACE_ENTRY();
+
+	sess = to_scst_lcl_sess(scsi_get_device(sdev->host));
+	lun = cpu_to_be16(sdev->lun);
+	res = scst_get_max_lun_commands(sess->scst_sess,
+			scst_unpack_lun((const uint8_t *)&lun, sizeof(lun)));
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int scst_local_change_queue_depth(struct scsi_device *sdev, int depth,
+	int reason)
+{
+	int res, mqd;
+
+	TRACE_ENTRY();
+
+	switch (reason) {
+	case SCSI_QDEPTH_DEFAULT:
+		mqd = scst_local_get_max_queue_depth(sdev);
+		if (mqd < depth) {
+			PRINT_INFO("Requested queue depth %d is too big "
+				"(possible max %d (sdev %p)", depth, mqd, sdev);
+			res = -EINVAL;
+			goto out;
+		}
+
+		PRINT_INFO("Setting queue depth %d as default (sdev %p, "
+			"current %d)", depth, sdev, sdev->queue_depth);
+		scsi_adjust_queue_depth(sdev, scsi_get_tag_type(sdev), depth);
+		break;
+
+	case SCSI_QDEPTH_QFULL:
+		TRACE(TRACE_FLOW_CONTROL, "QUEUE FULL on sdev %p, setting "
+			"qdepth %d (cur %d)", sdev, depth, sdev->queue_depth);
+		scsi_track_queue_full(sdev, depth);
+		break;
+
+	case SCSI_QDEPTH_RAMP_UP:
+		TRACE(TRACE_FLOW_CONTROL, "Ramping up qdepth on sdev %p to %d "
+			"(cur %d)", sdev, depth, sdev->queue_depth);
+		scsi_adjust_queue_depth(sdev, scsi_get_tag_type(sdev), depth);
+		break;
+
+	default:
+		res = -EOPNOTSUPP;
+		goto out;
+	}
+
+	res = sdev->queue_depth;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int scst_local_slave_alloc(struct scsi_device *sdev)
+{
+	queue_flag_set_unlocked(QUEUE_FLAG_BIDI, sdev->request_queue);
+	return 0;
+}
+
+static int scst_local_slave_configure(struct scsi_device *sdev)
+{
+	int mqd;
+
+	TRACE_ENTRY();
+
+	mqd = scst_local_get_max_queue_depth(sdev);
+
+	PRINT_INFO("Configuring queue depth %d on sdev %p (tagged supported %d)",
+		mqd, sdev, sdev->tagged_supported);
+
+	if (sdev->tagged_supported)
+		scsi_activate_tcq(sdev, mqd);
+	else
+		scsi_deactivate_tcq(sdev, mqd);
+
+	TRACE_EXIT();
+	return 0;
+}
+
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) && !defined(CONFIG_SUSE_KERNEL) && (!defined(RHEL_RELEASE_CODE) || RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1)) */
 
 /* Must be called under sess->aen_lock. Drops then reacquires it inside. */
 static void scst_process_aens(struct scst_local_sess *sess,
@@ -1427,15 +1527,36 @@ static struct scsi_host_template scst_lcl_ini_driver_template = {
 #else
 	.queuecommand			= scst_local_queuecommand,
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33) || \
+    defined(CONFIG_SUSE_KERNEL) || \
+    !(!defined(RHEL_RELEASE_CODE) || \
+     RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
+	.change_queue_depth		= scst_local_change_queue_depth,
+	.slave_alloc			= scst_local_slave_alloc,
+	.slave_configure		= scst_local_slave_configure,
+#endif
 	.eh_abort_handler		= scst_local_abort,
 	.eh_device_reset_handler	= scst_local_device_reset,
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 25))
 	.eh_target_reset_handler	= scst_local_target_reset,
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33) || \
+    defined(CONFIG_SUSE_KERNEL) || \
+    !(!defined(RHEL_RELEASE_CODE) || \
+     RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
+	.can_queue			= 2048,
+	/*
+	 * Set it low for the "Drop back to untagged" case in
+	 * scsi_track_queue_full(). We are adjusting it to a better
+	 * default in slave_configure()
+	 */
+	.cmd_per_lun			= 3,
+#else
 	.can_queue			= 256,
+	.cmd_per_lun			= 32,
+#endif
 	.this_id			= -1,
 	.sg_tablesize			= 0xFFFF,
-	.cmd_per_lun			= 32,
 	.max_sectors			= 0xffff,
 	/* Possible pass-through backend device may not support clustering */
 	.use_clustering			= DISABLE_CLUSTERING,
