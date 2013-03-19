@@ -100,12 +100,14 @@ extern unsigned long scst_trace_flag;
  **/
 #define SCST_MAX_TGT_DEV_COMMANDS            64
 
+#ifdef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
 /**
  ** Maximum count of uncompleted commands that could be queued on any device.
  ** Then initiators sending commands to this device will start getting
  ** TASK QUEUE FULL status.
  **/
 #define SCST_MAX_DEV_COMMANDS                256
+#endif
 
 #define SCST_TGT_RETRY_TIMEOUT               (3/2*HZ)
 
