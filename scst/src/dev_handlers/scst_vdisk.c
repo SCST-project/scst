@@ -3854,10 +3854,22 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 					bio->bi_rw |= REQ_FUA;
 
 				if (cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36) || \
+	defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6
 					bio->bi_rw |= REQ_META;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
+					/*
+					 * Priority boosting was separated
+					 * from REQ_META in commit 65299a3b
+					 * (kernel 3.1.0).
+					 */
 					bio->bi_rw |= REQ_PRIO;
-#else
+#endif
+#elif !defined(RHEL_MAJOR) || RHEL_MAJOR -0 >= 6
+					/*
+					 * BIO_* and REQ_* flags were unified
+					 * in commit 7b6d91da (kernel 2.6.36).
+					 */
 					bio->bi_rw |= BIO_RW_META;
 #endif
 				}
