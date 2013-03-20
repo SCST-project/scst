@@ -3599,6 +3599,10 @@ sub targetGroupTargetAttributes {
 
 	my $pHandle = new IO::Handle;
 	my $_path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS, $tgroup, $tgt);
+	if (-l $_path) {
+		return \%attributes;
+	}
+
 	if (!(opendir $pHandle, $_path)) {
 		$self->{'err_string'} = "targetGroupTargetAttributes(): Unable to read directory '$_path': $!";
 		return undef;
