@@ -833,7 +833,7 @@ int conn_free(struct iscsi_conn *conn)
 
 	free_page((unsigned long)conn->read_iov);
 
-	kfree(conn);
+	kmem_cache_free(iscsi_conn_cache, conn);
 
 	if (list_empty(&session->conn_list)) {
 		sBUG_ON(session->sess_reinst_successor != NULL);
@@ -850,7 +850,7 @@ static int iscsi_conn_alloc(struct iscsi_session *session,
 	struct iscsi_conn *conn;
 	int res = 0;
 
-	conn = kzalloc(L1_CACHE_ALIGN(sizeof(*conn)), GFP_KERNEL);
+	conn = kmem_cache_zalloc(iscsi_conn_cache, GFP_KERNEL);
 	if (!conn) {
 		res = -ENOMEM;
 		goto out_err;
@@ -941,7 +941,7 @@ out_free_iov:
 	free_page((unsigned long)conn->read_iov);
 
 out_err_free_conn:
-	kfree(conn);
+	kmem_cache_free(iscsi_conn_cache, conn);
 
 out_err:
 	goto out;

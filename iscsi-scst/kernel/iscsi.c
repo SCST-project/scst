@@ -51,7 +51,12 @@ static struct kmem_cache *iscsi_cmnd_cache;
 static DEFINE_MUTEX(iscsi_threads_pool_mutex);
 static LIST_HEAD(iscsi_thread_pools_list);
 
+static struct kmem_cache *iscsi_thread_pool_cache;
+
 static struct iscsi_thread_pool *iscsi_main_thread_pool;
+
+struct kmem_cache *iscsi_conn_cache;
+struct kmem_cache *iscsi_sess_cache;
 
 static struct page *dummy_page;
 static struct scatterlist dummy_sg;
@@ -3892,6 +3897,48 @@ struct scst_tgt_template iscsi_template = {
 	.get_scsi_transport_version = iscsi_get_scsi_transport_version,
 };
 
+static void __iscsi_threads_pool_put(struct iscsi_thread_pool *p)
+{
+	struct iscsi_thread *t, *tt;
+
+	TRACE_ENTRY();
+
+	p->thread_pool_ref--;
+	if (p->thread_pool_ref > 0) {
+		TRACE_DBG("iSCSI thread pool %p still has %d references)",
+			p, p->thread_pool_ref);
+		goto out;
+	}
+
+	TRACE_DBG("Freeing iSCSI thread pool %p", p);
+
+	list_for_each_entry_safe(t, tt, &p->threads_list, threads_list_entry) {
+		kthread_stop(t->thr);
+		list_del(&t->threads_list_entry);
+		kfree(t);
+	}
+
+	list_del(&p->thread_pools_list_entry);
+
+	kmem_cache_free(iscsi_thread_pool_cache, p);
+
+out:
+	TRACE_EXIT();
+	return;
+}
+
+void iscsi_threads_pool_put(struct iscsi_thread_pool *p)
+{
+	TRACE_ENTRY();
+
+	mutex_lock(&iscsi_threads_pool_mutex);
+	__iscsi_threads_pool_put(p);
+	mutex_unlock(&iscsi_threads_pool_mutex);
+
+	TRACE_EXIT();
+	return;
+}
+
 int iscsi_threads_pool_get(const cpumask_t *cpu_mask,
 	struct iscsi_thread_pool **out_pool)
 {
@@ -3918,7 +3965,7 @@ int iscsi_threads_pool_get(const cpumask_t *cpu_mask,
 
 	TRACE_DBG("%s", "Creating new iSCSI thread pool");
 
-	p = kzalloc(L1_CACHE_ALIGN(sizeof(*p)), GFP_KERNEL);
+	p = kmem_cache_zalloc(iscsi_thread_pool_cache, GFP_KERNEL);
 	if (p == NULL) {
 		PRINT_ERROR("Unable to allocate iSCSI thread pool (size %zd)",
 			sizeof(*p));
@@ -3957,6 +4004,8 @@ int iscsi_threads_pool_get(const cpumask_t *cpu_mask,
 		for_each_cpu(i, cpu_mask)
 			count++;
 	}
+
+	list_add_tail(&p->thread_pools_list_entry, &iscsi_thread_pools_list);
 
 	for (j = 0; j < 2; j++) {
 		int (*fn)(void *);
@@ -4004,7 +4053,6 @@ int iscsi_threads_pool_get(const cpumask_t *cpu_mask,
 		}
 	}
 
-	list_add_tail(&p->thread_pools_list_entry, &iscsi_thread_pools_list);
 	res = 0;
 
 	TRACE_DBG("Created iSCSI thread pool %p", p);
@@ -4012,53 +4060,15 @@ int iscsi_threads_pool_get(const cpumask_t *cpu_mask,
 out_unlock:
 	mutex_unlock(&iscsi_threads_pool_mutex);
 
-	if (out_pool != NULL)
-		*out_pool = p;
+	*out_pool = p;
 
 	TRACE_EXIT_RES(res);
 	return res;
 
 out_free:
-	list_for_each_entry_safe(t, tt, &p->threads_list, threads_list_entry) {
-		kthread_stop(t->thr);
-		list_del(&t->threads_list_entry);
-		kfree(t);
-	}
+	__iscsi_threads_pool_put(p);
+	p = NULL;
 	goto out_unlock;
-}
-
-void iscsi_threads_pool_put(struct iscsi_thread_pool *p)
-{
-	struct iscsi_thread *t, *tt;
-
-	TRACE_ENTRY();
-
-	mutex_lock(&iscsi_threads_pool_mutex);
-
-	p->thread_pool_ref--;
-	if (p->thread_pool_ref > 0) {
-		TRACE_DBG("iSCSI thread pool %p still has %d references)",
-			p, p->thread_pool_ref);
-		goto out_unlock;
-	}
-
-	TRACE_DBG("Freeing iSCSI thread pool %p", p);
-
-	list_for_each_entry_safe(t, tt, &p->threads_list, threads_list_entry) {
-		kthread_stop(t->thr);
-		list_del(&t->threads_list_entry);
-		kfree(t);
-	}
-
-	list_del(&p->thread_pools_list_entry);
-
-	kfree(p);
-
-out_unlock:
-	mutex_unlock(&iscsi_threads_pool_mutex);
-
-	TRACE_EXIT();
-	return;
 }
 
 static int __init iscsi_init(void)
@@ -4111,10 +4121,30 @@ static int __init iscsi_init(void)
 	if (err < 0)
 		goto out_reg;
 
-	iscsi_cmnd_cache = KMEM_CACHE(iscsi_cmnd, SCST_SLAB_FLAGS);
+	iscsi_cmnd_cache = KMEM_CACHE(iscsi_cmnd, SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN);
 	if (!iscsi_cmnd_cache) {
 		err = -ENOMEM;
 		goto out_event;
+	}
+
+	iscsi_thread_pool_cache = KMEM_CACHE(iscsi_thread_pool,
+					SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN);
+	if (!iscsi_thread_pool_cache) {
+		err = -ENOMEM;
+		goto out_kmem_cmd;
+	}
+
+	iscsi_conn_cache = KMEM_CACHE(iscsi_conn, SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN);
+	if (!iscsi_conn_cache) {
+		err = -ENOMEM;
+		goto out_kmem_tp;
+	}
+
+	iscsi_sess_cache = KMEM_CACHE(iscsi_session,
+				SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN);
+	if (!iscsi_sess_cache) {
+		err = -ENOMEM;
+		goto out_kmem_conn;
 	}
 
 	err = scst_register_target_template(&iscsi_template);
@@ -4147,6 +4177,15 @@ out_reg_tmpl:
 	scst_unregister_target_template(&iscsi_template);
 
 out_kmem:
+	kmem_cache_destroy(iscsi_sess_cache);
+
+out_kmem_conn:
+	kmem_cache_destroy(iscsi_conn_cache);
+
+out_kmem_tp:
+	kmem_cache_destroy(iscsi_thread_pool_cache);
+
+out_kmem_cmd:
 	kmem_cache_destroy(iscsi_cmnd_cache);
 
 out_event:
@@ -4181,6 +4220,9 @@ static void __exit iscsi_exit(void)
 #endif
 	event_exit();
 
+	kmem_cache_destroy(iscsi_sess_cache);
+	kmem_cache_destroy(iscsi_conn_cache);
+	kmem_cache_destroy(iscsi_thread_pool_cache);
 	kmem_cache_destroy(iscsi_cmnd_cache);
 
 	scst_unregister_target_template(&iscsi_template);

@@ -135,6 +135,8 @@ extern mempool_t *scst_aen_mempool;
 
 extern struct kmem_cache *scst_cmd_cachep;
 extern struct kmem_cache *scst_sess_cachep;
+extern struct kmem_cache *scst_dev_cachep;
+extern struct kmem_cache *scst_tgt_cachep;
 extern struct kmem_cache *scst_tgtd_cachep;
 extern struct kmem_cache *scst_acgd_cachep;
 

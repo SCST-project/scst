@@ -242,6 +242,8 @@ static struct scst_tgt_template tgt2x_template = {
 };
 
 static struct kmem_cache *q2t_cmd_cachep;
+static struct kmem_cache *q2t_sess_cachep;
+static struct kmem_cache *q2t_tgt_cachep;
 static struct kmem_cache *q2t_mgmt_cmd_cachep;
 static mempool_t *q2t_mgmt_cmd_mempool;
 
@@ -629,7 +631,7 @@ static void q2t_free_session_done(struct scst_session *scst_sess)
 
 	TRACE_MGMT_DBG("Unregistration of sess %p finished", sess);
 
-	kfree(sess);
+	kmem_cache_free(q2t_sess_cachep, sess);
 
 	if (tgt == NULL)
 		goto out;
@@ -1155,7 +1157,7 @@ static struct q2t_sess *q2t_create_sess(scsi_qla_host_t *ha, fc_port_t *fcport,
 
 	/* We are under tgt_mutex, so a new sess can't be added behind us */
 
-	sess = kzalloc(L1_CACHE_ALIGN(sizeof(*sess)), GFP_KERNEL);
+	sess = kmem_cache_zalloc(q2t_sess_cachep, GFP_KERNEL);
 	if (sess == NULL) {
 		PRINT_ERROR("qla2x00t(%ld): session allocation failed, "
 			"all commands from port %02x:%02x:%02x:%02x:"
@@ -1229,7 +1231,7 @@ out_free_sess_wwn:
 	/* go through */
 
 out_free_sess:
-	kfree(sess);
+	kmem_cache_free(q2t_sess_cachep, sess);
 	sess = NULL;
 	goto out;
 }
@@ -1442,7 +1444,7 @@ static int q2t_target_release(struct scst_tgt *scst_tgt)
 
 	TRACE_MGMT_DBG("Release of tgt %p finished", tgt);
 
-	kfree(tgt);
+	kmem_cache_free(q2t_tgt_cachep, tgt);
 
 	TRACE_EXIT();
 	return 0;
@@ -5748,7 +5750,7 @@ static int q2t_add_target(scsi_qla_host_t *ha)
 
 	sBUG_ON((ha->q2t_tgt != NULL) || (ha->tgt != NULL));
 
-	tgt = kzalloc(L1_CACHE_ALIGN(sizeof(*tgt)), GFP_KERNEL);
+	tgt = kmem_cache_zalloc(q2t_tgt_cachep, GFP_KERNEL);
 	if (tgt == NULL) {
 		PRINT_ERROR("qla2x00t: %s", "Allocation of tgt failed");
 		res = -ENOMEM;
@@ -5864,7 +5866,7 @@ out:
 
 out_free:
 	ha->q2t_tgt = NULL;
-	kfree(tgt);
+	kmem_cache_free(q2t_tgt_cachep, tgt);
 	goto out;
 }
 
@@ -6603,16 +6605,28 @@ static int __init q2t_init(void)
 	PRINT_INFO("qla2x00t: Initializing QLogic Fibre Channel HBA Driver "
 		"target mode addon version %s", Q2T_VERSION_STRING);
 
-	q2t_cmd_cachep = KMEM_CACHE(q2t_cmd, SCST_SLAB_FLAGS);
+	q2t_cmd_cachep = KMEM_CACHE(q2t_cmd, SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN);
 	if (q2t_cmd_cachep == NULL) {
 		res = -ENOMEM;
 		goto out;
 	}
 
+	q2t_sess_cachep = KMEM_CACHE(q2t_sess, SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN);
+	if (q2t_sess_cachep == NULL) {
+		res = -ENOMEM;
+		goto out_cmd_free;
+	}
+
+	q2t_tgt_cachep = KMEM_CACHE(q2t_tgt, SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN);
+	if (q2t_tgt_cachep == NULL) {
+		res = -ENOMEM;
+		goto out_sess_free;
+	}
+
 	q2t_mgmt_cmd_cachep = KMEM_CACHE(q2t_mgmt_cmd, SCST_SLAB_FLAGS);
 	if (q2t_mgmt_cmd_cachep == NULL) {
 		res = -ENOMEM;
-		goto out_cmd_free;
+		goto out_tgt_free;
 	}
 
 	q2t_mgmt_cmd_mempool = mempool_create(25, mempool_alloc_slab,
@@ -6653,6 +6667,12 @@ out_mempool_free:
 out_kmem_free:
 	kmem_cache_destroy(q2t_mgmt_cmd_cachep);
 
+out_tgt_free:
+	kmem_cache_destroy(q2t_tgt_cachep);
+
+out_sess_free:
+	kmem_cache_destroy(q2t_sess_cachep);
+
 out_cmd_free:
 	kmem_cache_destroy(q2t_cmd_cachep);
 	goto out;
@@ -6683,6 +6703,8 @@ static void __exit q2t_exit(void)
 
 	mempool_destroy(q2t_mgmt_cmd_mempool);
 	kmem_cache_destroy(q2t_mgmt_cmd_cachep);
+	kmem_cache_destroy(q2t_tgt_cachep);
+	kmem_cache_destroy(q2t_sess_cachep);
 	kmem_cache_destroy(q2t_cmd_cachep);
 
 	/* Let's make lockdep happy */

@@ -1747,7 +1747,8 @@ static int __scst_local_add_adapter(struct scst_local_tgt *tgt,
 
 	TRACE_ENTRY();
 
-	sess = kzalloc(L1_CACHE_ALIGN(sizeof(*sess)), GFP_KERNEL);
+	/* It's read-mostly, so cache alignment isn't needed */
+	sess = kzalloc(sizeof(*sess), GFP_KERNEL);
 	if (NULL == sess) {
 		PRINT_ERROR("Unable to alloc scst_lcl_host (size %zu)",
 			sizeof(*sess));

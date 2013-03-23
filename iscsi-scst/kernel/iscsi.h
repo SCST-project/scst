@@ -518,6 +518,9 @@ extern struct mutex target_mgmt_mutex;
 extern int ctr_open_state;
 extern const struct file_operations ctr_fops;
 
+extern struct kmem_cache *iscsi_conn_cache;
+extern struct kmem_cache *iscsi_sess_cache;
+
 /* iscsi.c */
 extern struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *,
 	struct iscsi_cmnd *parent);

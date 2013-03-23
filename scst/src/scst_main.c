@@ -107,6 +107,8 @@ static struct kmem_cache *scst_sense_cachep;
 mempool_t *scst_sense_mempool;
 static struct kmem_cache *scst_aen_cachep;
 mempool_t *scst_aen_mempool;
+struct kmem_cache *scst_tgt_cachep;
+struct kmem_cache *scst_dev_cachep;
 struct kmem_cache *scst_tgtd_cachep;
 struct kmem_cache *scst_sess_cachep;
 struct kmem_cache *scst_acgd_cachep;
@@ -2268,8 +2270,20 @@ static int __init init_scst(void)
 		scst_threads = scst_num_cpus;
 	}
 
+/* Used for rarely used or read-mostly on fast path structures */
 #define INIT_CACHEP(p, s, o) do {					\
 		p = KMEM_CACHE(s, SCST_SLAB_FLAGS);			\
+		TRACE_MEM("Slab create: %s at %p size %zd", #s, p,	\
+			  sizeof(struct s));				\
+		if (p == NULL) {					\
+			res = -ENOMEM;					\
+			goto o;						\
+		}							\
+	} while (0)
+
+/* Used for structures with fast path write access */
+#define INIT_CACHEP_ALIGN(p, s, o) do {					\
+		p = KMEM_CACHE(s, SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN);	\
 		TRACE_MEM("Slab create: %s at %p size %zd", #s, p,	\
 			  sizeof(struct s));				\
 		if (p == NULL) {					\
@@ -2289,10 +2303,13 @@ static int __init init_scst(void)
 			    out_destroy_ua_cache);
 	}
 	INIT_CACHEP(scst_aen_cachep, scst_aen, out_destroy_sense_cache);
-	INIT_CACHEP(scst_cmd_cachep, scst_cmd, out_destroy_aen_cache);
-	INIT_CACHEP(scst_sess_cachep, scst_session, out_destroy_cmd_cache);
-	INIT_CACHEP(scst_tgtd_cachep, scst_tgt_dev, out_destroy_sess_cache);
-	INIT_CACHEP(scst_acgd_cachep, scst_acg_dev, out_destroy_tgt_cache);
+	INIT_CACHEP_ALIGN(scst_cmd_cachep, scst_cmd, out_destroy_aen_cache);
+	INIT_CACHEP_ALIGN(scst_sess_cachep, scst_session, out_destroy_cmd_cache);
+	INIT_CACHEP_ALIGN(scst_dev_cachep, scst_device, out_destroy_sess_cache);
+	INIT_CACHEP_ALIGN(scst_tgt_cachep, scst_tgt, out_destroy_dev_cache);
+	/* They are read-mostly */
+	INIT_CACHEP(scst_tgtd_cachep, scst_tgt_dev, out_destroy_tgt_cache);
+	INIT_CACHEP(scst_acgd_cachep, scst_acg_dev, out_destroy_tgtd_cache);
 
 	scst_mgmt_mempool = mempool_create(64, mempool_alloc_slab,
 		mempool_free_slab, scst_mgmt_cachep);
@@ -2452,8 +2469,14 @@ out_destroy_mgmt_mempool:
 out_destroy_acg_cache:
 	kmem_cache_destroy(scst_acgd_cachep);
 
-out_destroy_tgt_cache:
+out_destroy_tgtd_cache:
 	kmem_cache_destroy(scst_tgtd_cachep);
+
+out_destroy_tgt_cache:
+	kmem_cache_destroy(scst_tgt_cachep);
+
+out_destroy_dev_cache:
+	kmem_cache_destroy(scst_dev_cachep);
 
 out_destroy_sess_cache:
 	kmem_cache_destroy(scst_sess_cachep);
@@ -2528,6 +2551,8 @@ static void __exit exit_scst(void)
 	DEINIT_CACHEP(scst_cmd_cachep);
 	DEINIT_CACHEP(scst_sess_cachep);
 	DEINIT_CACHEP(scst_tgtd_cachep);
+	DEINIT_CACHEP(scst_dev_cachep);
+	DEINIT_CACHEP(scst_tgt_cachep);
 	DEINIT_CACHEP(scst_acgd_cachep);
 
 	scst_lib_exit();

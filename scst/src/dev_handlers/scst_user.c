@@ -212,6 +212,8 @@ static int dev_usr_parse(struct scst_cmd *cmd);
 
 /** Data **/
 
+static struct kmem_cache *user_dev_cachep;
+
 static struct kmem_cache *user_cmd_cachep;
 static struct kmem_cache *user_get_cmd_cachep;
 
@@ -1196,8 +1198,8 @@ static int dev_user_map_buf(struct scst_user_cmd *ucmd, unsigned long ubuff,
 
 	ucmd->num_data_pages = num_pg;
 
-	ucmd->data_pages = kmalloc(L1_CACHE_ALIGN(sizeof(*ucmd->data_pages) * ucmd->num_data_pages),
-				  GFP_KERNEL);
+	ucmd->data_pages = kmalloc(sizeof(*ucmd->data_pages) * ucmd->num_data_pages,
+				   GFP_KERNEL);
 	if (ucmd->data_pages == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "Unable to allocate data_pages array "
 			"(num_data_pages=%d)", ucmd->num_data_pages);
@@ -2930,7 +2932,7 @@ static int dev_user_register_dev(struct file *file,
 		goto out;
 	}
 
-	dev = kzalloc(L1_CACHE_ALIGN(sizeof(*dev)), GFP_KERNEL);
+	dev = kmem_cache_zalloc(user_dev_cachep, GFP_KERNEL);
 	if (dev == NULL) {
 		res = -ENOMEM;
 		goto out_put;
@@ -3079,7 +3081,7 @@ out_free0:
 out_deinit_threads:
 	scst_deinit_threads(&dev->udev_cmd_threads);
 
-	kfree(dev);
+	kmem_cache_free(user_dev_cachep, dev);
 
 out_put:
 	module_put(THIS_MODULE);
@@ -3127,7 +3129,7 @@ static int dev_user_unregister_dev(struct file *file)
 
 	up_write(&dev->dev_rwsem); /* to make lockdep happy */
 
-	kfree(dev);
+	kmem_cache_free(user_dev_cachep, dev);
 
 out_resume:
 	scst_resume_activity();
@@ -3508,7 +3510,7 @@ static int __dev_user_release(void *arg)
 {
 	struct scst_user_dev *dev = arg;
 	dev_user_exit_dev(dev);
-	kfree(dev);
+	kmem_cache_free(user_dev_cachep, dev);
 	return 0;
 }
 
@@ -3788,13 +3790,22 @@ static int __init init_scst_user(void)
 #endif
 #endif
 
-	user_cmd_cachep = KMEM_CACHE(scst_user_cmd, SCST_SLAB_FLAGS);
-	if (user_cmd_cachep == NULL) {
+	user_dev_cachep = KMEM_CACHE(scst_user_dev,
+				SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN);
+	if (user_dev_cachep == NULL) {
 		res = -ENOMEM;
 		goto out;
 	}
 
-	user_get_cmd_cachep = KMEM_CACHE(max_get_reply, SCST_SLAB_FLAGS);
+	user_cmd_cachep = KMEM_CACHE(scst_user_cmd,
+				SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN);
+	if (user_cmd_cachep == NULL) {
+		res = -ENOMEM;
+		goto out_dev_cache;
+	}
+
+	user_get_cmd_cachep = KMEM_CACHE(max_get_reply,
+				SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN);
 	if (user_get_cmd_cachep == NULL) {
 		res = -ENOMEM;
 		goto out_cache;
@@ -3889,6 +3900,9 @@ out_cache1:
 
 out_cache:
 	kmem_cache_destroy(user_cmd_cachep);
+
+out_dev_cache:
+	kmem_cache_destroy(user_dev_cachep);
 	goto out;
 }
 
@@ -3917,6 +3931,7 @@ static void __exit exit_scst_user(void)
 
 	kmem_cache_destroy(user_get_cmd_cachep);
 	kmem_cache_destroy(user_cmd_cachep);
+	kmem_cache_destroy(user_dev_cachep);
 
 	TRACE_EXIT();
 	return;

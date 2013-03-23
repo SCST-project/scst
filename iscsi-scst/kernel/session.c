@@ -43,7 +43,7 @@ static int iscsi_session_alloc(struct iscsi_target *target,
 	struct iscsi_session *session;
 	char *name = NULL;
 
-	session = kzalloc(L1_CACHE_ALIGN(sizeof(*session)), GFP_KERNEL);
+	session = kmem_cache_zalloc(iscsi_sess_cache, GFP_KERNEL);
 	if (!session)
 		return -ENOMEM;
 
@@ -114,7 +114,7 @@ err_unreg:
 err:
 	if (session) {
 		kfree(session->initiator_name);
-		kfree(session);
+		kmem_cache_free(iscsi_sess_cache, session);
 #ifdef CONFIG_SCST_PROC
 		kfree(name);
 #endif
@@ -277,7 +277,7 @@ out_err_unlock:
 static void __session_free(struct iscsi_session *session)
 {
 	kfree(session->initiator_name);
-	kfree(session);
+	kmem_cache_free(iscsi_sess_cache, session);
 }
 
 static void iscsi_unreg_sess_done(struct scst_session *scst_sess)

@@ -3296,7 +3296,7 @@ int scst_alloc_tgt(struct scst_tgt_template *tgtt, struct scst_tgt **tgt)
 
 	TRACE_ENTRY();
 
-	t = kzalloc(sizeof(*t), GFP_KERNEL);
+	t = kmem_cache_zalloc(scst_tgt_cachep, GFP_KERNEL);
 	if (t == NULL) {
 		PRINT_ERROR("%s", "Allocation of tgt failed");
 		res = -ENOMEM;
@@ -3343,7 +3343,7 @@ void scst_free_tgt(struct scst_tgt *tgt)
 	kfree(tgt->default_group_name);
 #endif
 
-	kfree(tgt);
+	kmem_cache_free(scst_tgt_cachep, tgt);
 
 	TRACE_EXIT();
 	return;
@@ -3373,7 +3373,7 @@ int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev)
 
 	TRACE_ENTRY();
 
-	dev = kzalloc(L1_CACHE_ALIGN(sizeof(*dev)), gfp_mask);
+	dev = kmem_cache_zalloc(scst_dev_cachep, gfp_mask);
 	if (dev == NULL) {
 		PRINT_ERROR("%s", "Allocation of scst_device failed");
 		res = -ENOMEM;
@@ -3427,7 +3427,7 @@ void scst_free_device(struct scst_device *dev)
 	scst_deinit_threads(&dev->dev_cmd_threads);
 
 	kfree(dev->virt_name);
-	kfree(dev);
+	kmem_cache_free(scst_dev_cachep, dev);
 
 	TRACE_EXIT();
 	return;
@@ -5247,10 +5247,10 @@ void scst_cmd_set_ext_cdb(struct scst_cmd *cmd,
 		goto out;
 	}
 
-	cmd->cdb = kmalloc(L1_CACHE_ALIGN(len), gfp_mask);
+	/* It's read-mostly, so cache alignment isn't needed */
+	cmd->cdb = kmalloc(len, gfp_mask);
 	if (unlikely(cmd->cdb == NULL)) {
-		PRINT_ERROR("Unable to alloc extended CDB (size %d)",
-			L1_CACHE_ALIGN(len));
+		PRINT_ERROR("Unable to alloc extended CDB (size %d)", len);
 		goto out_err;
 	}
 
@@ -5324,10 +5324,11 @@ int scst_pre_init_cmd(struct scst_cmd *cmd, const uint8_t *cdb,
 			res = -EINVAL;
 			goto out;
 		}
-		cmd->cdb = kmalloc(L1_CACHE_ALIGN(cdb_len), gfp_mask);
+		/* It's read-mostly, so cache alignment isn't needed */
+		cmd->cdb = kmalloc(cdb_len, gfp_mask);
 		if (unlikely(cmd->cdb == NULL)) {
 			PRINT_ERROR("Unable to alloc extended CDB (size %d)",
-				L1_CACHE_ALIGN(cdb_len));
+				cdb_len);
 			res = -ENOMEM;
 			goto out;
 		}
@@ -9063,7 +9064,7 @@ int __init scst_lib_init(void)
 	scsi_io_context_cache = kmem_cache_create("scst_scsi_io_context",
 					sizeof(struct scsi_io_context),
 					__alignof__(struct scsi_io_context),
-					0, NULL);
+					SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN, NULL);
 	if (!scsi_io_context_cache) {
 		PRINT_ERROR("%s", "Can't init scsi io context cache");
 		res = -ENOMEM;

@@ -69,6 +69,8 @@ static struct shrinker *sgv_shrinker;
 static struct shrinker sgv_shrinker;
 #endif
 
+static struct kmem_cache *sgv_pool_cachep;
+
 /*
  * Protected by sgv_pools_mutex AND sgv_pools_lock for writes,
  * either one for reads.
@@ -660,7 +662,7 @@ static int sgv_alloc_arrays(struct sgv_pool_obj *obj,
 
 	sz = pages_to_alloc * sizeof(obj->sg_entries[0]);
 
-	obj->sg_entries = kmalloc(L1_CACHE_ALIGN(sz), gfp_mask);
+	obj->sg_entries = kmalloc(sz, gfp_mask);
 	if (unlikely(obj->sg_entries == NULL)) {
 		TRACE(TRACE_OUT_OF_MEM, "Allocation of sgv_pool_obj "
 			"SG vector failed (size %d)", sz);
@@ -680,7 +682,7 @@ static int sgv_alloc_arrays(struct sgv_pool_obj *obj,
 			 */
 		} else {
 			tsz = pages_to_alloc * sizeof(obj->trans_tbl[0]);
-			obj->trans_tbl = kzalloc(L1_CACHE_ALIGN(tsz), gfp_mask);
+			obj->trans_tbl = kzalloc(tsz, gfp_mask);
 			if (unlikely(obj->trans_tbl == NULL)) {
 				TRACE(TRACE_OUT_OF_MEM, "Allocation of "
 					"trans_tbl failed (size %d)", tsz);
@@ -1021,7 +1023,7 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 
 		sz = sizeof(*obj) + pages * sizeof(obj->sg_entries[0]);
 
-		obj = kmalloc(L1_CACHE_ALIGN(sz), gfp_mask);
+		obj = kmalloc(sz, gfp_mask);
 		if (unlikely(obj == NULL)) {
 			TRACE(TRACE_OUT_OF_MEM, "Allocation of "
 				"sgv_pool_obj failed (size %d)", size);
@@ -1571,7 +1573,7 @@ static void sgv_pool_destroy(struct sgv_pool *pool)
 		pool->caches[i] = NULL;
 	}
 
-	kfree(pool);
+	kmem_cache_free(sgv_pool_cachep, pool);
 
 	TRACE_EXIT();
 	return;
@@ -1651,7 +1653,7 @@ struct sgv_pool *sgv_pool_create(const char *name,
 		}
 	}
 
-	pool = kzalloc(L1_CACHE_ALIGN(sizeof(*pool)), GFP_KERNEL);
+	pool = kmem_cache_zalloc(sgv_pool_cachep, GFP_KERNEL);
 	if (pool == NULL) {
 		PRINT_ERROR("Allocation of sgv_pool failed (size %zd)",
 			sizeof(*pool));
@@ -1670,7 +1672,7 @@ out_unlock:
 	return pool;
 
 out_free:
-	kfree(pool);
+	kmem_cache_free(sgv_pool_cachep, pool);
 	pool = NULL;
 	goto out_unlock;
 }
@@ -1732,6 +1734,10 @@ int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark)
 
 	TRACE_ENTRY();
 
+	sgv_pool_cachep = KMEM_CACHE(sgv_pool, SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN);
+	if (sgv_pool_cachep == NULL)
+		goto out_err;
+
 	sgv_hi_wmk = mem_hwmark;
 	sgv_lo_wmk = mem_lwmark;
 
@@ -1739,7 +1745,7 @@ int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark)
 
 	sgv_norm_pool = sgv_pool_create("sgv", sgv_no_clustering, 0, false, 0);
 	if (sgv_norm_pool == NULL)
-		goto out_err;
+		goto out_free_pool;
 
 	sgv_norm_clust_pool = sgv_pool_create("sgv-clust",
 		sgv_full_clustering, 0, false, 0);
@@ -1769,6 +1775,9 @@ out_free_clust:
 out_free_norm:
 	sgv_pool_destroy(sgv_norm_pool);
 
+out_free_pool:
+	kmem_cache_destroy(sgv_pool_cachep);
+
 out_err:
 	res = -ENOMEM;
 	goto out;
@@ -1789,6 +1798,8 @@ void scst_sgv_pools_deinit(void)
 	sgv_pool_destroy(sgv_norm_clust_pool);
 
 	flush_scheduled_work();
+
+	kmem_cache_destroy(sgv_pool_cachep);
 
 	TRACE_EXIT();
 	return;
