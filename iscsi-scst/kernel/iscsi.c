@@ -3944,7 +3944,7 @@ int iscsi_threads_pool_get(const cpumask_t *cpu_mask,
 {
 	int res;
 	struct iscsi_thread_pool *p;
-	struct iscsi_thread *t, *tt;
+	struct iscsi_thread *t;
 	int i, j, count;
 
 	TRACE_ENTRY();
