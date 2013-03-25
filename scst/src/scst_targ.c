@@ -1333,66 +1333,59 @@ static int scst_rdy_to_xfer(struct scst_cmd *cmd)
 		goto out;
 	}
 
-	while (1) {
-		int finished_cmds = atomic_read(&cmd->tgt->finished_cmds);
+	res = SCST_CMD_STATE_RES_CONT_NEXT;
+	cmd->state = SCST_CMD_STATE_DATA_WAIT;
 
-		res = SCST_CMD_STATE_RES_CONT_NEXT;
-		cmd->state = SCST_CMD_STATE_DATA_WAIT;
-
-		if (tgtt->on_hw_pending_cmd_timeout != NULL) {
-			struct scst_session *sess = cmd->sess;
-			cmd->hw_pending_start = jiffies;
-			cmd->cmd_hw_pending = 1;
-			if (!test_bit(SCST_SESS_HW_PENDING_WORK_SCHEDULED, &sess->sess_aflags)) {
-				TRACE_DBG("Sched HW pending work for sess %p "
-					"(max time %d)", sess,
-					tgtt->max_hw_pending_time);
-				set_bit(SCST_SESS_HW_PENDING_WORK_SCHEDULED,
-					&sess->sess_aflags);
-				schedule_delayed_work(&sess->hw_pending_work,
-					tgtt->max_hw_pending_time * HZ);
-			}
+	if (tgtt->on_hw_pending_cmd_timeout != NULL) {
+		struct scst_session *sess = cmd->sess;
+		cmd->hw_pending_start = jiffies;
+		cmd->cmd_hw_pending = 1;
+		if (!test_bit(SCST_SESS_HW_PENDING_WORK_SCHEDULED, &sess->sess_aflags)) {
+			TRACE_DBG("Sched HW pending work for sess %p "
+				"(max time %d)", sess,
+				tgtt->max_hw_pending_time);
+			set_bit(SCST_SESS_HW_PENDING_WORK_SCHEDULED,
+				&sess->sess_aflags);
+			schedule_delayed_work(&sess->hw_pending_work,
+				tgtt->max_hw_pending_time * HZ);
 		}
+	}
 
-		scst_set_cur_start(cmd);
+	scst_set_cur_start(cmd);
 
-		TRACE_DBG("Calling rdy_to_xfer(%p)", cmd);
+	TRACE_DBG("Calling rdy_to_xfer(%p)", cmd);
 #ifdef CONFIG_SCST_DEBUG_RETRY
-		if (((scst_random() % 100) == 75))
-			rc = SCST_TGT_RES_QUEUE_FULL;
-		else
+	if (((scst_random() % 100) == 75))
+		rc = SCST_TGT_RES_QUEUE_FULL;
+	else
 #endif
-			rc = tgtt->rdy_to_xfer(cmd);
-		TRACE_DBG("rdy_to_xfer() returned %d", rc);
+		rc = tgtt->rdy_to_xfer(cmd);
+	TRACE_DBG("rdy_to_xfer() returned %d", rc);
 
-		if (likely(rc == SCST_TGT_RES_SUCCESS))
-			goto out;
+	if (likely(rc == SCST_TGT_RES_SUCCESS))
+		goto out;
 
-		scst_set_rdy_to_xfer_time(cmd);
+	scst_set_rdy_to_xfer_time(cmd);
 
-		cmd->cmd_hw_pending = 0;
+	cmd->cmd_hw_pending = 0;
 
-		/* Restore the previous state */
-		cmd->state = SCST_CMD_STATE_RDY_TO_XFER;
+	/* Restore the previous state */
+	cmd->state = SCST_CMD_STATE_RDY_TO_XFER;
 
-		switch (rc) {
-		case SCST_TGT_RES_QUEUE_FULL:
-			if (scst_queue_retry_cmd(cmd, finished_cmds) == 0)
-				break;
-			else
-				continue;
+	switch (rc) {
+	case SCST_TGT_RES_QUEUE_FULL:
+		scst_queue_retry_cmd(cmd);
+		goto out;
 
-		case SCST_TGT_RES_NEED_THREAD_CTX:
-			TRACE_DBG("Target driver %s "
-			      "rdy_to_xfer() requested thread "
-			      "context, rescheduling", tgtt->name);
-			res = SCST_CMD_STATE_RES_NEED_THREAD;
-			goto out;
+	case SCST_TGT_RES_NEED_THREAD_CTX:
+		TRACE_DBG("Target driver %s "
+		      "rdy_to_xfer() requested thread "
+		      "context, rescheduling", tgtt->name);
+		res = SCST_CMD_STATE_RES_NEED_THREAD;
+		goto out;
 
-		default:
-			goto out_error_rc;
-		}
-		break;
+	default:
+		goto out_error_rc;
 	}
 
 out:
@@ -3596,113 +3589,103 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 		goto out;
 	}
 
-	while (1) {
-		int finished_cmds = atomic_read(&cmd->tgt->finished_cmds);
+	res = SCST_CMD_STATE_RES_CONT_NEXT;
+	cmd->state = SCST_CMD_STATE_XMIT_WAIT;
 
-		res = SCST_CMD_STATE_RES_CONT_NEXT;
-		cmd->state = SCST_CMD_STATE_XMIT_WAIT;
-
-		TRACE_DBG("Calling xmit_response(%p)", cmd);
+	TRACE_DBG("Calling xmit_response(%p)", cmd);
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-		if (unlikely(trace_flag & TRACE_DATA_SEND) &&
-		    (cmd->data_direction & SCST_DATA_READ)) {
-			int i, sg_cnt;
-			struct scatterlist *sg, *sgi;
-			if (cmd->tgt_i_sg != NULL) {
-				sg = cmd->tgt_i_sg;
-				sg_cnt = cmd->tgt_i_sg_cnt;
-			} else {
-				sg = cmd->sg;
-				sg_cnt = cmd->sg_cnt;
-			}
-			if (sg != NULL) {
-				PRINT_INFO("Xmitting data for cmd %p "
-					"(sg_cnt %d, sg %p, sg[0].page %p, buf %p, "
-					"resp len %d)", cmd, sg_cnt, sg,
-					(void *)sg_page(&sg[0]), sg_virt(sg),
-					cmd->resp_data_len);
-				for_each_sg(sg, sgi, sg_cnt, i) {
-					PRINT_INFO("sg %d", i);
-					PRINT_BUFFER("data", sg_virt(sgi),
-						     sgi->length);
-				}
+	if (unlikely(trace_flag & TRACE_DATA_SEND) &&
+	    (cmd->data_direction & SCST_DATA_READ)) {
+		int i, sg_cnt;
+		struct scatterlist *sg, *sgi;
+		if (cmd->tgt_i_sg != NULL) {
+			sg = cmd->tgt_i_sg;
+			sg_cnt = cmd->tgt_i_sg_cnt;
+		} else {
+			sg = cmd->sg;
+			sg_cnt = cmd->sg_cnt;
+		}
+		if (sg != NULL) {
+			PRINT_INFO("Xmitting data for cmd %p "
+				"(sg_cnt %d, sg %p, sg[0].page %p, buf %p, "
+				"resp len %d)", cmd, sg_cnt, sg,
+				(void *)sg_page(&sg[0]), sg_virt(sg),
+				cmd->resp_data_len);
+			for_each_sg(sg, sgi, sg_cnt, i) {
+				PRINT_INFO("sg %d", i);
+				PRINT_BUFFER("data", sg_virt(sgi),
+					     sgi->length);
 			}
 		}
+	}
 #endif
 
-		if (tgtt->on_hw_pending_cmd_timeout != NULL) {
-			struct scst_session *sess = cmd->sess;
-			cmd->hw_pending_start = jiffies;
-			cmd->cmd_hw_pending = 1;
-			if (!test_bit(SCST_SESS_HW_PENDING_WORK_SCHEDULED, &sess->sess_aflags)) {
-				TRACE_DBG("Sched HW pending work for sess %p "
-					"(max time %d)", sess,
-					tgtt->max_hw_pending_time);
-				set_bit(SCST_SESS_HW_PENDING_WORK_SCHEDULED,
-					&sess->sess_aflags);
-				schedule_delayed_work(&sess->hw_pending_work,
-					tgtt->max_hw_pending_time * HZ);
-			}
+	if (tgtt->on_hw_pending_cmd_timeout != NULL) {
+		struct scst_session *sess = cmd->sess;
+		cmd->hw_pending_start = jiffies;
+		cmd->cmd_hw_pending = 1;
+		if (!test_bit(SCST_SESS_HW_PENDING_WORK_SCHEDULED, &sess->sess_aflags)) {
+			TRACE_DBG("Sched HW pending work for sess %p "
+				"(max time %d)", sess,
+				tgtt->max_hw_pending_time);
+			set_bit(SCST_SESS_HW_PENDING_WORK_SCHEDULED,
+				&sess->sess_aflags);
+			schedule_delayed_work(&sess->hw_pending_work,
+				tgtt->max_hw_pending_time * HZ);
 		}
+	}
 
-		scst_set_cur_start(cmd);
+	scst_set_cur_start(cmd);
 
 #ifdef CONFIG_SCST_DEBUG_RETRY
-		if (((scst_random() % 100) == 77))
-			rc = SCST_TGT_RES_QUEUE_FULL;
-		else
+	if (((scst_random() % 100) == 77))
+		rc = SCST_TGT_RES_QUEUE_FULL;
+	else
 #endif
-			rc = tgtt->xmit_response(cmd);
-		TRACE_DBG("xmit_response() returned %d", rc);
+		rc = tgtt->xmit_response(cmd);
+	TRACE_DBG("xmit_response() returned %d", rc);
 
-		if (likely(rc == SCST_TGT_RES_SUCCESS))
-			goto out;
+	if (likely(rc == SCST_TGT_RES_SUCCESS))
+		goto out;
 
-		scst_set_xmit_time(cmd);
+	scst_set_xmit_time(cmd);
 
-		cmd->cmd_hw_pending = 0;
+	cmd->cmd_hw_pending = 0;
 
-		/* Restore the previous state */
-		cmd->state = SCST_CMD_STATE_XMIT_RESP;
+	/* Restore the previous state */
+	cmd->state = SCST_CMD_STATE_XMIT_RESP;
 
-		switch (rc) {
-		case SCST_TGT_RES_QUEUE_FULL:
-			if (scst_queue_retry_cmd(cmd, finished_cmds) == 0)
-				break;
-			else
-				continue;
+	switch (rc) {
+	case SCST_TGT_RES_QUEUE_FULL:
+		scst_queue_retry_cmd(cmd);
+		goto out;
 
-		case SCST_TGT_RES_NEED_THREAD_CTX:
-			TRACE_DBG("Target driver %s xmit_response() "
-			      "requested thread context, rescheduling",
-			      tgtt->name);
-			res = SCST_CMD_STATE_RES_NEED_THREAD;
-			goto out;
+	case SCST_TGT_RES_NEED_THREAD_CTX:
+		TRACE_DBG("Target driver %s xmit_response() "
+		      "requested thread context, rescheduling",
+		      tgtt->name);
+		res = SCST_CMD_STATE_RES_NEED_THREAD;
+		goto out;
 
-		default:
-			goto out_error;
+	default:
+		if (rc == SCST_TGT_RES_FATAL_ERROR) {
+			PRINT_ERROR("Target driver %s xmit_response() returned "
+				"fatal error", tgtt->name);
+		} else {
+			PRINT_ERROR("Target driver %s xmit_response() returned "
+				"invalid value %d", tgtt->name, rc);
 		}
-		break;
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+		cmd->state = SCST_CMD_STATE_FINISHED;
+		res = SCST_CMD_STATE_RES_CONT_SAME;
+		goto out;
 	}
 
 out:
 	/* Caution: cmd can be already dead here */
 	TRACE_EXIT_HRES(res);
 	return res;
-
-out_error:
-	if (rc == SCST_TGT_RES_FATAL_ERROR) {
-		PRINT_ERROR("Target driver %s xmit_response() returned "
-			"fatal error", tgtt->name);
-	} else {
-		PRINT_ERROR("Target driver %s xmit_response() returned "
-			"invalid value %d", tgtt->name, rc);
-	}
-	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
-	cmd->state = SCST_CMD_STATE_FINISHED;
-	res = SCST_CMD_STATE_RES_CONT_SAME;
-	goto out;
 }
 
 static void scst_find_free_slot(struct scst_order_data *order_data)

@@ -3034,50 +3034,31 @@ out:
 EXPORT_SYMBOL(__scst_get_resid);
 
 /* No locks */
-int scst_queue_retry_cmd(struct scst_cmd *cmd, int finished_cmds)
+void scst_queue_retry_cmd(struct scst_cmd *cmd)
 {
 	struct scst_tgt *tgt = cmd->tgt;
-	int res = 0;
 	unsigned long flags;
 
 	TRACE_ENTRY();
 
 	spin_lock_irqsave(&tgt->tgt_lock, flags);
+
 	tgt->retry_cmds++;
-	/*
-	 * Memory barrier is needed here, because we need the exact order
-	 * between the read and write between retry_cmds and finished_cmds to
-	 * not miss the case when a command finished while we queueing it for
-	 * retry after the finished_cmds check.
-	 */
-	smp_mb();
-	TRACE_RETRY("TGT QUEUE FULL: incrementing retry_cmds %d",
-	      tgt->retry_cmds);
-	if (finished_cmds != atomic_read(&tgt->finished_cmds)) {
-		/* At least one cmd finished, so try again */
-		tgt->retry_cmds--;
-		TRACE_RETRY("Some command(s) finished, direct retry "
-		      "(finished_cmds=%d, tgt->finished_cmds=%d, "
-		      "retry_cmds=%d)", finished_cmds,
-		      atomic_read(&tgt->finished_cmds), tgt->retry_cmds);
-		res = -1;
-		goto out_unlock_tgt;
-	}
 
 	TRACE_RETRY("Adding cmd %p to retry cmd list", cmd);
 	list_add_tail(&cmd->cmd_list_entry, &tgt->retry_cmd_list);
 
 	if (!tgt->retry_timer_active) {
+		TRACE_DBG("Activating retry timer for tgt %p", tgt);
 		tgt->retry_timer.expires = jiffies + SCST_TGT_RETRY_TIMEOUT;
 		add_timer(&tgt->retry_timer);
 		tgt->retry_timer_active = 1;
 	}
 
-out_unlock_tgt:
 	spin_unlock_irqrestore(&tgt->tgt_lock, flags);
 
-	TRACE_EXIT_RES(res);
-	return res;
+	TRACE_EXIT();
+	return;
 }
 
 /**
@@ -3310,7 +3291,6 @@ int scst_alloc_tgt(struct scst_tgt_template *tgtt, struct scst_tgt **tgt)
 	t->sg_tablesize = tgtt->sg_tablesize;
 	spin_lock_init(&t->tgt_lock);
 	INIT_LIST_HEAD(&t->retry_cmd_list);
-	atomic_set(&t->finished_cmds, 0);
 	init_timer(&t->retry_timer);
 	t->retry_timer.data = (unsigned long)t;
 	t->retry_timer.function = scst_tgt_retry_timer_fn;
@@ -5489,13 +5469,6 @@ void scst_check_retries(struct scst_tgt *tgt)
 
 	TRACE_ENTRY();
 
-	/*
-	 * We don't worry about overflow of finished_cmds, because we check
-	 * only for its change.
-	 */
-	atomic_inc(&tgt->finished_cmds);
-	/* See comment in scst_queue_retry_cmd() */
-	smp_mb__after_atomic_inc();
 	if (unlikely(tgt->retry_cmds > 0)) {
 		struct scst_cmd *c, *tc;
 		unsigned long flags;
@@ -5540,6 +5513,15 @@ static void scst_tgt_retry_timer_fn(unsigned long arg)
 	spin_unlock_irqrestore(&tgt->tgt_lock, flags);
 
 	scst_check_retries(tgt);
+
+	spin_lock_irqsave(&tgt->tgt_lock, flags);
+	if ((tgt->retry_cmds > 0) && !tgt->retry_timer_active) {
+		TRACE_DBG("Reactivating retry timer for tgt %p", tgt);
+		tgt->retry_timer.expires = jiffies + SCST_TGT_RETRY_TIMEOUT;
+		add_timer(&tgt->retry_timer);
+		tgt->retry_timer_active = 1;
+	}
+	spin_unlock_irqrestore(&tgt->tgt_lock, flags);
 
 	TRACE_EXIT();
 	return;

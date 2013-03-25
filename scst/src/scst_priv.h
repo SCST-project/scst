@@ -109,7 +109,7 @@ extern unsigned long scst_trace_flag;
 #define SCST_MAX_DEV_COMMANDS                256
 #endif
 
-#define SCST_TGT_RETRY_TIMEOUT               (3/2*HZ)
+#define SCST_TGT_RETRY_TIMEOUT               1 /* 1 jiffy */
 
 #define SCST_DEF_LBA_DATA_LEN		     -1
 
@@ -304,7 +304,7 @@ void scst_zero_write_rest(struct scst_cmd *cmd);
 void scst_limit_sg_write_len(struct scst_cmd *cmd);
 void scst_adjust_resp_data_len(struct scst_cmd *cmd);
 
-int scst_queue_retry_cmd(struct scst_cmd *cmd, int finished_cmds);
+void scst_queue_retry_cmd(struct scst_cmd *cmd);
 
 int scst_alloc_tgt(struct scst_tgt_template *tgtt, struct scst_tgt **tgt);
 void scst_free_tgt(struct scst_tgt *tgt);

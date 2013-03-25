@@ -1544,7 +1544,6 @@ struct scst_tgt {
 	 */
 	bool retry_timer_active;
 	struct timer_list retry_timer;
-	atomic_t finished_cmds;
 	int retry_cmds;
 	spinlock_t tgt_lock;
 	struct list_head retry_cmd_list;

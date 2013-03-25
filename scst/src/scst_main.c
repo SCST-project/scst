@@ -2306,10 +2306,9 @@ static int __init init_scst(void)
 	INIT_CACHEP_ALIGN(scst_cmd_cachep, scst_cmd, out_destroy_aen_cache);
 	INIT_CACHEP_ALIGN(scst_sess_cachep, scst_session, out_destroy_cmd_cache);
 	INIT_CACHEP_ALIGN(scst_dev_cachep, scst_device, out_destroy_sess_cache);
-	INIT_CACHEP_ALIGN(scst_tgt_cachep, scst_tgt, out_destroy_dev_cache);
-	/* They are read-mostly */
+	INIT_CACHEP(scst_tgt_cachep, scst_tgt, out_destroy_dev_cache); /* read-mostly */
 	INIT_CACHEP(scst_tgtd_cachep, scst_tgt_dev, out_destroy_tgt_cache);
-	INIT_CACHEP(scst_acgd_cachep, scst_acg_dev, out_destroy_tgtd_cache);
+	INIT_CACHEP(scst_acgd_cachep, scst_acg_dev, out_destroy_tgtd_cache); /* read-mostly */
 
 	scst_mgmt_mempool = mempool_create(64, mempool_alloc_slab,
 		mempool_free_slab, scst_mgmt_cachep);
