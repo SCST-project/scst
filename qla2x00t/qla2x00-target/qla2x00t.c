@@ -6611,13 +6611,15 @@ static int __init q2t_init(void)
 		goto out;
 	}
 
-	q2t_sess_cachep = KMEM_CACHE(q2t_sess, SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN);
+	/* it's read-mostly */
+	q2t_sess_cachep = KMEM_CACHE(q2t_sess, SCST_SLAB_FLAGS);
 	if (q2t_sess_cachep == NULL) {
 		res = -ENOMEM;
 		goto out_cmd_free;
 	}
 
-	q2t_tgt_cachep = KMEM_CACHE(q2t_tgt, SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN);
+	/* it's read-mostly */
+	q2t_tgt_cachep = KMEM_CACHE(q2t_tgt, SCST_SLAB_FLAGS);
 	if (q2t_tgt_cachep == NULL) {
 		res = -ENOMEM;
 		goto out_sess_free;
