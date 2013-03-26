@@ -1419,10 +1419,10 @@ static void srpt_abort_cmd(struct srpt_send_ioctx *ioctx,
 		 * management commands. Note: the SCST core frees these
 		 * commands immediately after srpt_tsk_mgmt_done() returned.
 		 */
-		WARN_ON("ERROR: unexpected command state");
+		WARN(true, "Unexpected command state %d", state);
 		break;
 	default:
-		WARN_ON("ERROR: unexpected command state");
+		WARN(true, "Unexpected command state %d", state);
 		break;
 	}
 
