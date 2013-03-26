@@ -9452,7 +9452,7 @@ out_unlock:
 
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 
-static uint64_t scst_get_nsec(void)
+static uint64_t scst_get_usec(void)
 {
 	struct timespec ts;
 
@@ -9460,68 +9460,72 @@ static uint64_t scst_get_nsec(void)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 16)
 	return (uint64_t)ts.tv_sec * 1000000000 + ts.tv_nsec;
 #else
-	return timespec_to_ns(&ts);
+#if (BITS_PER_LONG > 32)
+	return timespec_to_ns(&ts) / 1000;
+#else
+	return timespec_to_ns(&ts) >> 10;
+#endif
 #endif
 }
 
 void scst_set_start_time(struct scst_cmd *cmd)
 {
-	cmd->start = scst_get_nsec();
+	cmd->start = scst_get_usec();
 	TRACE_DBG("cmd %p: start %lld", cmd, cmd->start);
 }
 
 void scst_set_cur_start(struct scst_cmd *cmd)
 {
-	cmd->curr_start = scst_get_nsec();
+	cmd->curr_start = scst_get_usec();
 	TRACE_DBG("cmd %p: cur_start %lld", cmd, cmd->curr_start);
 }
 
 void scst_set_parse_time(struct scst_cmd *cmd)
 {
-	cmd->parse_time += scst_get_nsec() - cmd->curr_start;
+	cmd->parse_time += scst_get_usec() - cmd->curr_start;
 	TRACE_DBG("cmd %p: parse_time %lld", cmd, cmd->parse_time);
 }
 
 void scst_set_alloc_buf_time(struct scst_cmd *cmd)
 {
-	cmd->alloc_buf_time += scst_get_nsec() - cmd->curr_start;
+	cmd->alloc_buf_time += scst_get_usec() - cmd->curr_start;
 	TRACE_DBG("cmd %p: alloc_buf_time %lld", cmd, cmd->alloc_buf_time);
 }
 
 void scst_set_restart_waiting_time(struct scst_cmd *cmd)
 {
-	cmd->restart_waiting_time += scst_get_nsec() - cmd->curr_start;
+	cmd->restart_waiting_time += scst_get_usec() - cmd->curr_start;
 	TRACE_DBG("cmd %p: restart_waiting_time %lld", cmd,
 		cmd->restart_waiting_time);
 }
 
 void scst_set_rdy_to_xfer_time(struct scst_cmd *cmd)
 {
-	cmd->rdy_to_xfer_time += scst_get_nsec() - cmd->curr_start;
+	cmd->rdy_to_xfer_time += scst_get_usec() - cmd->curr_start;
 	TRACE_DBG("cmd %p: rdy_to_xfer_time %lld", cmd, cmd->rdy_to_xfer_time);
 }
 
 void scst_set_pre_exec_time(struct scst_cmd *cmd)
 {
-	cmd->pre_exec_time += scst_get_nsec() - cmd->curr_start;
+	cmd->pre_exec_time += scst_get_usec() - cmd->curr_start;
 	TRACE_DBG("cmd %p: pre_exec_time %lld", cmd, cmd->pre_exec_time);
 }
 
 void scst_set_exec_time(struct scst_cmd *cmd)
 {
-	cmd->exec_time += scst_get_nsec() - cmd->curr_start;
+	cmd->exec_time += scst_get_usec() - cmd->curr_start;
 	TRACE_DBG("cmd %p: exec_time %lld", cmd, cmd->exec_time);
 }
 
 void scst_set_dev_done_time(struct scst_cmd *cmd)
 {
-	cmd->dev_done_time += scst_get_nsec() - cmd->curr_start;
+	cmd->dev_done_time += scst_get_usec() - cmd->curr_start;
 	TRACE_DBG("cmd %p: dev_done_time %lld", cmd, cmd->dev_done_time);
 }
 
 void scst_set_xmit_time(struct scst_cmd *cmd)
 {
-	cmd->xmit_time += scst_get_nsec() - cmd->curr_start;
+	cmd->xmit_time += scst_get_usec() - cmd->curr_start;
 	TRACE_DBG("cmd %p: xmit_time %lld", cmd, cmd->xmit_time);
 }
 
@@ -9533,7 +9537,7 @@ void scst_update_lat_stats(struct scst_cmd *cmd)
 	int i;
 	struct scst_ext_latency_stat *latency_stat, *dev_latency_stat;
 
-	finish = scst_get_nsec();
+	finish = scst_get_usec();
 
 	/* Determine the IO size for extended latency statistics */
 	data_len = cmd->bufflen;

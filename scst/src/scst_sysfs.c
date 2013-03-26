@@ -3195,7 +3195,7 @@ static ssize_t scst_sess_latency_show(struct kobject *kobj,
 	res += scnprintf(&buffer[res], SCST_SYSFS_BLOCK_SIZE - res,
 		"%-15s %-15s %-46s %-46s %-46s\n",
 		"T-L names", "Total commands", "SCST latency",
-		"Target latency", "Dev latency (min/avg/max/all ns)");
+		"Target latency", "Dev latency (min/avg/max/all us)");
 
 	spin_lock_bh(&sess->lat_lock);
 

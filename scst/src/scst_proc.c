@@ -488,7 +488,7 @@ static int lat_info_show(struct seq_file *seq, void *v)
 			if (!header_printed) {
 				seq_printf(seq, "%-15s %-15s %-46s %-46s %-46s\n",
 					"T-L names", "Total commands", "SCST latency",
-					"Target latency", "Dev latency (min/avg/max/all ns)");
+					"Target latency", "Dev latency (min/avg/max/all us)");
 				header_printed = true;
 			}
 
