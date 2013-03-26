@@ -2334,8 +2334,8 @@ struct scst_device {
 
 	/*************************************************************
 	 ** Dev's control mode page related values. Updates serialized
-	 ** by scst_block_dev(). Modified independently to the above and
-	 ** below fields, hence the alignment.
+	 ** by scst_block_dev(). Modified independently to the above
+	 ** fields, hence the alignment.
 	 *************************************************************/
 
 	unsigned int queue_alg:4 __aligned(sizeof(long));
@@ -2380,12 +2380,7 @@ struct scst_device {
 	/* Corresponding real SCSI device, could be NULL for virtual devices */
 	struct scsi_device *scsi_dev;
 
-	/*
-	 * Device lock. Modified independently to the above fields, hence
-	 * the alignment. Gcc reported to have a long standing bug, when
-	 * it uses 64-bit memory accesses for int bit fields, so this
-	 * alignment must be here to workaroud it.
-	 */
+	/* Device lock */
 	spinlock_t dev_lock ____cacheline_aligned_in_smp;
 
 #ifdef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
