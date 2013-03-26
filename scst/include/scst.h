@@ -1662,7 +1662,7 @@ struct scst_session {
 	 * very beginning, because otherwise they can be missed during
 	 * TM processing.
 	 */
-	struct list_head sess_cmd_list;
+	struct list_head sess_cmd_list ____cacheline_aligned_in_smp;
 
 	spinlock_t sess_list_lock; /* protects sess_cmd_list, etc */
 
@@ -2303,7 +2303,7 @@ struct scst_dev_registrant {
  * SCST device
  */
 struct scst_device {
-	unsigned short type;	/* SCSI type of the device */
+	unsigned int type;	/* SCSI type of the device */
 
 	/*************************************************************
 	 ** Dev's flags. Updates serialized by dev_lock or suspended
@@ -2311,16 +2311,16 @@ struct scst_device {
 	 *************************************************************/
 
 	/* Set if dev is RESERVED */
-	unsigned short dev_reserved:1;
+	unsigned int dev_reserved:1;
 
 	/* Set if double reset UA is possible */
-	unsigned short dev_double_ua_possible:1;
+	unsigned int dev_double_ua_possible:1;
 
 	/* If set, dev is read only */
-	unsigned short dev_rd_only:1;
+	unsigned int dev_rd_only:1;
 
 	/* Set, if a strictly serialized cmd is waiting blocked */
-	unsigned short strictly_serialized_cmd_waiting:1;
+	unsigned int strictly_serialized_cmd_waiting:1;
 
 	/*
 	 * Set, if this device is being unregistered. Useful to let sysfs
@@ -2328,7 +2328,7 @@ struct scst_device {
 	 * possible deadlocks with their device unregistration waiting for
 	 * their kobj last put.
 	 */
-	unsigned short dev_unregistering:1;
+	unsigned int dev_unregistering:1;
 
 	/**************************************************************/
 
@@ -2352,37 +2352,6 @@ struct scst_device {
 	unsigned int has_own_order_mgmt:1;
 
 	/**************************************************************/
-
-	/*
-	 * Device lock. Modified independently to the above fields, hence
-	 * the alignment. Gcc reported to have a long standing bug, when
-	 * it uses 64-bit memory accesses for int bit fields, so this
-	 * alignment must be here to workaroud it.
-	 */
-	spinlock_t dev_lock __aligned(sizeof(long));
-
-#ifdef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
-	/* How many cmds alive on this dev */
-	atomic_t dev_cmd_count;
-#endif
-
-	/*
-	 * How many times device was blocked for new cmds execution.
-	 * Protected by dev_lock.
-	 */
-	int block_count;
-
-	/*
-	 * How many there are "on_dev" commands, i.e. ones who passed
-	 * scst_check_blocked_dev(). Protected by dev_lock.
-	 */
-	int on_dev_cmd_count;
-
-	/*
-	 * How many threads are checking commands for PR allowance.
-	 * Protected by dev_lock.
-	 */
-	int pr_readers_count;
 
 	/*
 	 * Device block size and block shift if fixed size blocks used. Supposed
@@ -2411,11 +2380,42 @@ struct scst_device {
 	/* Corresponding real SCSI device, could be NULL for virtual devices */
 	struct scsi_device *scsi_dev;
 
-	/* List of commands with lock, if dedicated threads are used */
-	struct scst_cmd_threads dev_cmd_threads;
+	/*
+	 * Device lock. Modified independently to the above fields, hence
+	 * the alignment. Gcc reported to have a long standing bug, when
+	 * it uses 64-bit memory accesses for int bit fields, so this
+	 * alignment must be here to workaroud it.
+	 */
+	spinlock_t dev_lock ____cacheline_aligned_in_smp;
+
+#ifdef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
+	/* How many cmds alive on this dev */
+	atomic_t dev_cmd_count;
+#endif
+
+	/*
+	 * How many times device was blocked for new cmds execution.
+	 * Protected by dev_lock.
+	 */
+	int block_count;
+
+	/*
+	 * How many there are "on_dev" commands, i.e. ones who passed
+	 * scst_check_blocked_dev(). Protected by dev_lock.
+	 */
+	int on_dev_cmd_count;
+
+	/*
+	 * How many threads are checking commands for PR allowance.
+	 * Protected by dev_lock.
+	 */
+	int pr_readers_count;
 
 	/* Memory limits for this device */
 	struct scst_mem_lim dev_mem_lim;
+
+	/* List of commands with lock, if dedicated threads are used */
+	struct scst_cmd_threads dev_cmd_threads;
 
 	/*************************************************************
 	 ** Persistent reservation fields. Protected by dev_pr_mutex.
@@ -2552,7 +2552,7 @@ struct scst_tgt_dev {
 	void *dh_priv;
 
 	/* How many cmds alive on this dev in this session */
-	atomic_t tgt_dev_cmd_count;
+	atomic_t tgt_dev_cmd_count ____cacheline_aligned_in_smp;
 
 	struct scst_order_data *curr_order_data;
 	struct scst_order_data tgt_dev_order_data;
