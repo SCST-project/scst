@@ -2872,6 +2872,11 @@ void scst_set_resp_data_len(struct scst_cmd *cmd, int resp_data_len)
 		PRINT_ERROR("Too big response data len %d (max %d), limiting "
 			"it to the max (dev %s)", resp_data_len, cmd->bufflen,
 			cmd->dev ? cmd->dev->virt_name : "(no LUN)");
+		/*
+		 * It's a bug in the lower level code, so dump stack to know
+		 * who is the cause
+		 */
+		dump_stack();
 		cmd->resp_data_len = cmd->bufflen;
 		goto out;
 	}
