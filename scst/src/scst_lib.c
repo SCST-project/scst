@@ -5496,7 +5496,7 @@ void scst_check_retries(struct scst_tgt *tgt)
 			spin_unlock(&c->cmd_threads->cmd_list_lock);
 
 			need_wake_up++;
-			if (need_wake_up >= 2) /* "slow start" */
+			if (need_wake_up >= 20) /* "slow start" */
 				break;
 		}
 		spin_unlock_irqrestore(&tgt->tgt_lock, flags);
