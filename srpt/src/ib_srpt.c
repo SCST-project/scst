@@ -2900,6 +2900,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 				 struct srpt_send_ioctx *ioctx,
 				 struct scst_cmd *scmnd)
 {
+	struct ib_device *dev;
 	struct scatterlist *sg, *cur_sg;
 	int sg_cnt;
 	scst_data_direction dir;
@@ -2918,6 +2919,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	BUG_ON(!ch);
 	BUG_ON(!ioctx);
 	BUG_ON(!scmnd);
+	dev = ch->sport->sdev->device;
 	max_sge = ch->max_sge;
 	dir = scst_cmd_get_data_direction(scmnd);
 	BUG_ON(dir == SCST_DATA_NONE);
@@ -2963,7 +2965,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	tsize = (dir == SCST_DATA_READ)
 		? scst_cmd_get_adjusted_resp_data_len(scmnd)
 		: scst_cmd_get_bufflen(scmnd);
-	dma_len = sg_dma_len(&sg[0]);
+	dma_len = ib_sg_dma_len(dev, &sg[0]);
 	riu = ioctx->rdma_ius;
 	sge = sge_array;
 
@@ -2996,7 +2998,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 					++j;
 					if (j < count) {
 						cur_sg = __sg_next_inline(cur_sg);
-						dma_len = sg_dma_len(cur_sg);
+						dma_len = ib_sg_dma_len(dev, cur_sg);
 					}
 				}
 			} else {
@@ -3027,8 +3029,8 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 		? scst_cmd_get_adjusted_resp_data_len(scmnd)
 		: scst_cmd_get_bufflen(scmnd);
 	riu = ioctx->rdma_ius;
-	dma_len = sg_dma_len(&sg[0]);
-	dma_addr = sg_dma_address(&sg[0]);
+	dma_len = ib_sg_dma_len(dev, &sg[0]);
+	dma_addr = ib_sg_dma_address(dev, &sg[0]);
 
 	/* this second loop is really mapped sg_addres to rdma_iu->ib_sge */
 	for (i = 0, j = 0, cur_sg = sg;
@@ -3051,9 +3053,9 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 					++j;
 					if (j < count) {
 						cur_sg = __sg_next_inline(cur_sg);
-						dma_len = sg_dma_len(cur_sg);
+						dma_len = ib_sg_dma_len(dev, cur_sg);
 						dma_addr =
-						    sg_dma_address(cur_sg);
+						    ib_sg_dma_address(dev, cur_sg);
 					}
 				}
 			} else {
