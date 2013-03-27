@@ -139,6 +139,7 @@ enum srpt_opcode {
 	SRPT_RDMA_ABORT,
 	SRPT_RDMA_READ_LAST,
 	SRPT_RDMA_WRITE_LAST,
+	SRPT_RDMA_ZEROLENGTH_WRITE,
 };
 
 static inline u64 encode_wr_id(enum srpt_opcode opcode, u32 idx)

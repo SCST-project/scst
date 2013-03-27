@@ -1937,22 +1937,21 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 					 struct srpt_rdma_ch *ch,
 					 struct ib_wc *wc)
 {
-	struct srpt_send_ioctx *send_ioctx;
 	uint32_t index;
 	enum srpt_opcode opcode;
 
 	index = idx_from_wr_id(wc->wr_id);
 	opcode = opcode_from_wr_id(wc->wr_id);
-	send_ioctx = ch->ioctx_ring[index];
 	if (wc->status == IB_WC_SUCCESS) {
-		if (opcode == SRPT_SEND)
-			srpt_handle_send_comp(ch, send_ioctx,
+		if (opcode == SRPT_SEND) {
+			srpt_handle_send_comp(ch, ch->ioctx_ring[index],
 					      srpt_send_context);
-		else {
-			EXTRACHECKS_WARN_ON(opcode != SRPT_RDMA_ABORT &&
-					    wc->opcode != IB_WC_RDMA_READ);
-			srpt_handle_rdma_comp(ch, send_ioctx, opcode,
+		} else if (opcode == SRPT_RDMA_READ_LAST ||
+			   opcode == SRPT_RDMA_ABORT) {
+			srpt_handle_rdma_comp(ch, ch->ioctx_ring[index], opcode,
 					      srpt_xmt_rsp_context);
+		} else if (opcode != SRPT_RDMA_ZEROLENGTH_WRITE) {
+			WARN(true, "unexpected opcode %d", opcode);
 		}
 	} else {
 		if (opcode == SRPT_SEND) {
@@ -1960,11 +1959,15 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 				   " status %d", index, wc->status);
 			srpt_handle_send_err_comp(ch, wc->wr_id,
 						  srpt_send_context);
-		} else if (opcode != SRPT_RDMA_MID) {
+		} else if (opcode == SRPT_RDMA_READ_LAST ||
+			   opcode == SRPT_RDMA_WRITE_LAST) {
 			PRINT_INFO("RDMA t %d for idx %u failed with status %d",
 				   opcode, index, wc->status);
-			srpt_handle_rdma_err_comp(ch, send_ioctx, opcode,
-						  srpt_xmt_rsp_context);
+			srpt_handle_rdma_err_comp(ch, ch->ioctx_ring[index],
+						  opcode, srpt_xmt_rsp_context);
+		} else if (opcode != SRPT_RDMA_MID &&
+			   opcode != SRPT_RDMA_ZEROLENGTH_WRITE) {
+			WARN(true, "unexpected opcode %d", opcode);
 		}
 	}
 
@@ -2738,6 +2741,25 @@ static void srpt_cm_rej_recv(struct ib_cm_id *cm_id)
 }
 
 /**
+ * srpt_zerolength_write() - Perform a zero-length RDMA write.
+ *
+ * A quote from the InfiniBand specification: C9-88: For an HCA responder
+ * using Reliable Connection service, for each zero-length RDMA READ or WRITE
+ * request, the R_Key shall not be validated, even if the request includes
+ * Immediate data.
+ */
+static int srpt_zerolength_write(struct srpt_rdma_ch *ch)
+{
+	struct ib_send_wr wr, *bad_wr;
+
+	memset(&wr, 0, sizeof(wr));
+	wr.opcode = IB_WR_RDMA_WRITE;
+	wr.wr_id = encode_wr_id(SRPT_RDMA_ZEROLENGTH_WRITE, 0xffffffffUL);
+	wr.send_flags = IB_SEND_SIGNALED;
+	return ib_post_send(ch->qp, &wr, &bad_wr);
+}
+
+/**
  * srpt_cm_rtu_recv() - Process IB CM RTU_RECEIVED and USER_ESTABLISHED events.
  *
  * An IB_CM_RTU_RECEIVED message indicates that the connection is established
@@ -2752,6 +2774,7 @@ static void srpt_cm_rtu_recv(struct ib_cm_id *cm_id)
 	if (ret == 0) {
 		smp_mb();
 		ch->rts = true;
+		WARN_ON(srpt_zerolength_write(ch) < 0);
 	} else {
 		srpt_close_ch(ch);
 	}
