@@ -2472,7 +2472,7 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 		resp_len = buf[4] + 5;
 	}
 
-	sBUG_ON(resp_len >= INQ_BUF_SZ);
+	sBUG_ON(resp_len > INQ_BUF_SZ);
 
 	if (length > resp_len)
 		length = resp_len;
