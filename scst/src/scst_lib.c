@@ -9458,7 +9458,7 @@ static uint64_t scst_get_usec(void)
 
 	ktime_get_ts(&ts);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 16)
-	return (uint64_t)ts.tv_sec * 1000000000 + ts.tv_nsec;
+	return ((uint64_t)ts.tv_sec * 1000000000 + ts.tv_nsec) / 1000;
 #else
 #if (BITS_PER_LONG > 32)
 	return timespec_to_ns(&ts) / 1000;
