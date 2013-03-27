@@ -268,15 +268,13 @@ struct srpt_send_ioctx {
 
 /**
  * enum rdma_ch_state - SRP channel state.
- * @CH_CONNECTING:    QP is in RTR state; waiting for RTU.
- * @CH_LIVE:	      QP is in RTS state.
+ * @CH_LIVE:	      QP is in RTR, RTU or RTS state.
  * @CH_DISCONNECTING: DREQ has been received and waiting for DREP or DREQ has
  *                    been sent and waiting for DREP or channel is being closed
  *                    for another reason.
  * @CH_DRAINING:      QP is in ERR state.
  */
 enum rdma_ch_state {
-	CH_CONNECTING,
 	CH_LIVE,
 	CH_DISCONNECTING,
 	CH_DRAINING,
@@ -309,8 +307,7 @@ enum rdma_ch_state {
  * @wc:            Work completion array.
  * @state:         channel state. See also enum rdma_ch_state.
  * @dreq_received: Whether an IB CM DREQ event has been received.
- * @rtu_received:  Whether an IB CM RTU event has been received and the
- *                 requests received before that event have been processed.
+ * @rts:           Whether the QP is in the RTS state.
  * @list:          node for insertion in the srpt_device.rch_list list.
  * @cmd_wait_list: list of SCST commands that arrived before the RTU event. This
  *                 list contains struct srpt_ioctx elements and is protected
@@ -342,7 +339,7 @@ struct srpt_rdma_ch {
 	enum rdma_ch_state	state;
 	struct list_head	list;
 	struct list_head	cmd_wait_list;
-	bool			rtu_received;
+	bool			rts;
 	bool			dreq_received;
 	bool			last_wqe_received;
 
