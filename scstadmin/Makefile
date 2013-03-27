@@ -65,11 +65,6 @@ install:
 	@if ! perl -MExtUtils::MakeMaker -e '' >/dev/null 2>&1; then \
 	echo Error: the Perl module ExtUtils::MakeMaker must be installed \
 	first; false; fi
-	@if [ ! -e /etc/slackware-version -a ! -e /etc/gentoo-release	      \
-	      -a ! -e /lib/lsb/init-functions ]; then			      \
-	echo "Error: the lsb-core (Debian, Ubuntu), redhat-lsb (RHEL, CentOS,"\
-	"Scientific Linux, Fedora) or insserv (SLES, openSUSE) package must"  \
-	"be installed first"; false; fi
 	cd $(SCSTADMIN_DIR) && $(MAKE) $@
 	for m in scstadmin/man*/*.[1-9]; do				\
 	  if [ -e $$m ]; then						\
