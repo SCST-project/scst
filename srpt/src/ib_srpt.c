@@ -2995,7 +2995,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 				if (tsize > 0) {
 					++j;
 					if (j < count) {
-						cur_sg = sg_next_inline(cur_sg);
+						cur_sg = __sg_next_inline(cur_sg);
 						dma_len = sg_dma_len(cur_sg);
 					}
 				}
@@ -3050,7 +3050,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 				if (tsize > 0) {
 					++j;
 					if (j < count) {
-						cur_sg = sg_next_inline(cur_sg);
+						cur_sg = __sg_next_inline(cur_sg);
 						dma_len = sg_dma_len(cur_sg);
 						dma_addr =
 						    sg_dma_address(cur_sg);

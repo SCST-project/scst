@@ -3756,13 +3756,21 @@ static inline void sg_set_page(struct scatterlist *sg, struct page *page,
 
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24) */
 
-static inline struct scatterlist *sg_next_inline(struct scatterlist *sg)
+static inline struct scatterlist *__sg_next_inline(struct scatterlist *sg)
 {
 	sg++;
 	if (unlikely(sg_is_chain(sg)))
 		sg = sg_chain_ptr(sg);
 
 	return sg;
+}
+
+static inline struct scatterlist *sg_next_inline(struct scatterlist *sg)
+{
+	if (sg_is_last(sg))
+		return NULL;
+
+	return __sg_next_inline(sg);
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
@@ -3822,7 +3830,7 @@ static inline int __scst_get_buf(struct scst_cmd *cmd, int sg_cnt,
 	res = sg->length;
 
 	cmd->get_sg_buf_entry_num++;
-	cmd->get_sg_buf_cur_sg_entry = sg_next_inline(sg);
+	cmd->get_sg_buf_cur_sg_entry = __sg_next_inline(sg);
 
 out:
 	return res;
@@ -3924,7 +3932,7 @@ static inline int __scst_get_sg_page(struct scst_cmd *cmd, int sg_cnt,
 	res = sg->length;
 
 	cmd->get_sg_buf_entry_num++;
-	cmd->get_sg_buf_cur_sg_entry = sg_next_inline(sg);
+	cmd->get_sg_buf_cur_sg_entry = __sg_next_inline(sg);
 
 out:
 	return res;
