@@ -193,6 +193,7 @@ static enum rdma_ch_state srpt_set_ch_state_to_disc(struct srpt_rdma_ch *ch)
 	spin_lock_irqsave(&ch->spinlock, flags);
 	prev = ch->state;
 	switch (prev) {
+	case CH_CONNECTING:
 	case CH_LIVE:
 		ch->state = CH_DISCONNECTING;
 		wake_up_process(ch->thread);
@@ -213,6 +214,7 @@ static bool srpt_set_ch_state_to_draining(struct srpt_rdma_ch *ch)
 
 	spin_lock_irqsave(&ch->spinlock, flags);
 	switch (ch->state) {
+	case CH_CONNECTING:
 	case CH_LIVE:
 	case CH_DISCONNECTING:
 		ch->state = CH_DRAINING;
@@ -221,6 +223,29 @@ static bool srpt_set_ch_state_to_draining(struct srpt_rdma_ch *ch)
 		break;
 	default:
 		break;
+	}
+	spin_unlock_irqrestore(&ch->spinlock, flags);
+
+	return changed;
+}
+
+/**
+ * srpt_test_and_set_ch_state() - Test and set the channel state.
+ *
+ * Returns true if and only if the channel state has been set to the new state.
+ */
+static bool srpt_test_and_set_ch_state(struct srpt_rdma_ch *ch,
+				       enum rdma_ch_state old,
+				       enum rdma_ch_state new)
+{
+	unsigned long flags;
+	bool changed = false;
+
+	spin_lock_irqsave(&ch->spinlock, flags);
+	if (ch->state == old) {
+		ch->state = new;
+		wake_up_process(ch->thread);
+		changed = true;
 	}
 	spin_unlock_irqrestore(&ch->spinlock, flags);
 
@@ -347,6 +372,8 @@ static void srpt_srq_event(struct ib_event *event, void *ctx)
 static const char *get_ch_state_name(enum rdma_ch_state s)
 {
 	switch (s) {
+	case CH_CONNECTING:
+		return "connecting";
 	case CH_LIVE:
 		return "live";
 	case CH_DISCONNECTING:
@@ -1834,7 +1861,7 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 				   DMA_FROM_DEVICE);
 
 	srp_cmd = recv_ioctx->ioctx.buf;
-	if (unlikely(!ch->rts)) {
+	if (unlikely(ch->state == CH_CONNECTING)) {
 		list_add_tail(&recv_ioctx->wait_list, &ch->cmd_wait_list);
 		goto out;
 	}
@@ -1971,7 +1998,8 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 		}
 	}
 
-	if (unlikely(ch->rts && !list_empty(&ch->cmd_wait_list)))
+	if (unlikely(!list_empty(&ch->cmd_wait_list) &&
+		     ch->state != CH_CONNECTING))
 		srpt_process_wait_list(ch);
 }
 
@@ -2086,7 +2114,7 @@ static int srpt_compl_thread(void *arg)
 	barrier();
 #endif
 #endif
-	while (!ch->last_wqe_received && ch->state == CH_LIVE) {
+	while (!ch->last_wqe_received && ch->state <= CH_LIVE) {
 		srpt_process_completion(ch);
 		schedule();
 		set_current_state(TASK_INTERRUPTIBLE);
@@ -2225,7 +2253,7 @@ static void srpt_destroy_ch_ib(struct srpt_rdma_ch *ch)
  * an appropriate time.
  *
  * Returns true if and only if the channel state has been modified from
- * CH_LIVE into CH_DISCONNECTING.
+ * CH_CONNECTING or CH_LIVE into CH_DISCONNECTING.
  */
 static bool __srpt_close_ch(struct srpt_rdma_ch *ch)
 	__releases(&ch->srpt_tgt->spinlock)
@@ -2245,6 +2273,7 @@ static bool __srpt_close_ch(struct srpt_rdma_ch *ch)
 	prev_state = srpt_set_ch_state_to_disc(ch);
 
 	switch (prev_state) {
+	case CH_CONNECTING:
 	case CH_LIVE:
 		was_live = true;
 		break;
@@ -2508,7 +2537,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	 */
 	ch->rq_size = min(SRPT_RQ_SIZE, scst_get_max_lun_commands(NULL, 0));
 	spin_lock_init(&ch->spinlock);
-	ch->state = CH_LIVE;
+	ch->state = CH_CONNECTING;
 	INIT_LIST_HEAD(&ch->cmd_wait_list);
 	ch->max_rsp_size = max_t(uint32_t, srp_max_rsp_size, MIN_MAX_RSP_SIZE);
 	ch->ioctx_ring = (struct srpt_send_ioctx **)
@@ -2670,7 +2699,7 @@ restart:
 	rep_param->initiator_depth = 4;
 
 	spin_lock_irq(&srpt_tgt->spinlock);
-	if (ch->state == CH_LIVE)
+	if (ch->state == CH_CONNECTING)
 		ret = ib_send_cm_rep(cm_id, rep_param);
 	else
 		ret = -ECONNABORTED;
@@ -2771,9 +2800,8 @@ static void srpt_cm_rtu_recv(struct ib_cm_id *cm_id)
 	int ret;
 
 	ret = srpt_ch_qp_rts(ch, ch->qp);
-	if (ret == 0) {
-		smp_mb();
-		ch->rts = true;
+	if (ret == 0 && srpt_test_and_set_ch_state(ch, CH_CONNECTING,
+						   CH_LIVE)) {
 		WARN_ON(srpt_zerolength_write(ch) < 0);
 	} else {
 		srpt_close_ch(ch);
