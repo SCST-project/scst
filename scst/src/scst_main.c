@@ -2305,21 +2305,20 @@ static int __init init_scst(void)
 	INIT_CACHEP(scst_aen_cachep, scst_aen, out_destroy_sense_cache); /* read-mostly */
 	INIT_CACHEP_ALIGN(scst_cmd_cachep, scst_cmd, out_destroy_aen_cache);
 #ifdef CONFIG_SCST_MEASURE_LATENCY
-	INIT_CACHEP_ALIGN(
+	INIT_CACHEP_ALIGN(scst_sess_cachep, scst_session,
+			  out_destroy_cmd_cache);
 #else
 	/* Big enough with read-mostly head and tail */
-	INIT_CACHEP(
+	INIT_CACHEP(scst_sess_cachep, scst_session, out_destroy_cmd_cache);
 #endif
-		scst_sess_cachep, scst_session, out_destroy_cmd_cache);
 	INIT_CACHEP(scst_dev_cachep, scst_device, out_destroy_sess_cache); /* big enough */
 	INIT_CACHEP(scst_tgt_cachep, scst_tgt, out_destroy_dev_cache); /* read-mostly */
 #ifdef CONFIG_SCST_MEASURE_LATENCY
-	INIT_CACHEP_ALIGN(
+	INIT_CACHEP_ALIGN(scst_tgtd_cachep, scst_tgt_dev, out_destroy_tgt_cache); /* big enough */
 #else
 	/* Big enough with read-mostly head and tail */
-	INIT_CACHEP(
+	INIT_CACHEP(scst_tgtd_cachep, scst_tgt_dev, out_destroy_tgt_cache); /* big enough */
 #endif
-		scst_tgtd_cachep, scst_tgt_dev, out_destroy_tgt_cache); /* big enough */
 	INIT_CACHEP(scst_acgd_cachep, scst_acg_dev, out_destroy_tgtd_cache); /* read-mostly */
 
 	scst_mgmt_mempool = mempool_create(64, mempool_alloc_slab,
