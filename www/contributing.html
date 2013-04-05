@@ -198,32 +198,6 @@
 				with some programs depending on the result of GET CONFIGURATION command execution.</p>
 
 				<p>It would be good to add support for it in the SCST core.</p>
-
-				<A NAME="Per_Device_Suspend"></A><h3>Per-device suspending</h3>
-
-				<p>Currently before doing any management operations SCST core performs so called "activities suspending", i.e.
-				it suspends new coming SCSI commands and wait until currently being executed ones finished. It allows to
-				simplify internal locking and reference counting a lot, but has a drawback that it is global, i.e. affects
-				all devices and SCSI commands, even ones which don't participate in the management operation. In the majority
-				of regular cases it works pretty well, but sometimes it can be a problem.
-				For instance, if a SCSI command needs a big amount of execution time (hours for some tapes operations),
-				the management command and all other SCSI commands will wait until it's finished. Even worse, if a user space
-				dev handler hangs and stops processing commands, any SCST management command will not be able to complete and fail
-				with timeout until the user space dev handler gets killed.</p>
-
-				<p>The global suspending should be changed to more fine-grained per-device suspending
-				and only for cases where it's really needed, like device unregistration. This is a very tricky task, because
-				all the internal SCST locking should be reimplemented.</p>
-
-				<A NAME="ACA"></A><h3>Auto Contingent Allegiance (ACA)</h3>
-
-				<p>Auto Contingent Allegiance (ACA) - is a powerful SCSI state, where in case of some special conditions,
-				like a command finished with an error, all subsequent SCSI commands are delayed or aborted by SCSI device.
-				It is necessary to protect order of queued commands after errors. See SAM for more details.</p>
-
-				<p>There is a patch <a href="aca.diff">aca.diff</a> implementing ACA for SCST 1.0. Update of it for SCST 3.0
-				is welcome!</p>
-
 			</div>
 	</div>
 </div>
