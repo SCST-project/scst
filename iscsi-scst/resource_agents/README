@@ -60,3 +60,9 @@ using vdisk_fileio, with one lun per target.
 CHAP authentication is configurable, but not yet tested. My current version of SCST
 throws an error while adding chap parameters.
 
+
+
+GIT REPOSITORY
+
+You can find the latest version in git repository https://github.com/rbicelli/scst-ocf.git
+
