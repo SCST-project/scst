@@ -296,52 +296,82 @@ my $_SCST_MIN_MAJOR_   = 2;
 my $_SCST_MIN_MINOR_   = 0;
 my $_SCST_MIN_RELEASE_ = 0;
 
+my $_new_sysfs_interface;
 sub new_sysfs_interface {
-	return !(-d SCST_ROOT_OLD);
+	if (!defined($_new_sysfs_interface)) {
+		$_new_sysfs_interface = !(-d SCST_ROOT_OLD) ? TRUE : FALSE;
+	}
+	return $_new_sysfs_interface;
 }
 
+my $_scst_root_dir;
 sub SCST_ROOT_DIR {
-	return -d SCST_ROOT_OLD ? SCST_ROOT_OLD : SCST_ROOT_NEW;
+	if (!defined($_scst_root_dir)) {
+		$_scst_root_dir = (-d SCST_ROOT_OLD ? SCST_ROOT_OLD :
+				   SCST_ROOT_NEW);
+	}
+	return $_scst_root_dir;
 }
 
+my $_scst_sgv_dir;
 sub SCST_SGV_DIR {
-	return SCST_ROOT_DIR() . '/sgv'
+	if (!defined($_scst_sgv_dir)) {
+		$_scst_sgv_dir = SCST_ROOT_DIR() . '/sgv';
+	}
+	return $_scst_sgv_dir;
 }
 
+my $_scst_queue_res_path = "";
 sub SCST_QUEUE_RES_PATH {
-	return -d SCST_ROOT_OLD ? SCST_ROOT_OLD . '/' . SCST_QUEUE_RES : undef;
+	if ($_scst_queue_res_path = "") {
+		$_scst_queue_res_path = (-d SCST_ROOT_OLD ?
+					 SCST_ROOT_OLD . '/' . SCST_QUEUE_RES :
+					 undef);
+	}
+	return $_scst_queue_res_path;
 }
 
 # Device handlers.
+my $_scst_handlers_dir;
 sub SCST_HANDLERS_DIR {
-	if (-d SCST_ROOT_OLD) {
-		return SCST_ROOT_OLD . '/' . SCST_HANDLERS;
-	} else {
-		return '/sys/bus/scst_tgt_dev/drivers';
+	if (!defined($_scst_handlers_dir)) {
+		$_scst_handlers_dir = (-d SCST_ROOT_OLD ?
+				       SCST_ROOT_OLD . '/' . SCST_HANDLERS :
+				       '/sys/bus/scst_tgt_dev/drivers');
 	}
+	return $_scst_handlers_dir;
 }
 
 # Device instances.
+my $_scst_devices_dir;
 sub SCST_DEVICES_DIR {
-	if (-d SCST_ROOT_OLD) {
-		return SCST_ROOT_OLD . '/' . SCST_DEVICES;
-	} else {
-		return '/sys/bus/scst_tgt_dev/devices';
+	if (!defined($_scst_devices_dir)) {
+		$_scst_devices_dir = (-d SCST_ROOT_OLD ?
+				      SCST_ROOT_OLD . '/' . SCST_DEVICES :
+				      '/sys/bus/scst_tgt_dev/devices');
 	}
+	return $_scst_devices_dir;
 }
 
 # Target drivers.
+my $_scst_targets_dir;
 sub SCST_TARGETS_DIR {
-	if (-d SCST_ROOT_OLD) {
-		return SCST_ROOT_OLD . '/' . SCST_TARGETS;
-	} else {
-		return '/sys/bus/scst_target/drivers';
+	if (!defined($_scst_targets_dir)) {
+		$_scst_targets_dir = (-d SCST_ROOT_OLD ?
+				      SCST_ROOT_OLD . '/' . SCST_TARGETS :
+				      '/sys/bus/scst_target/drivers');
 	}
+	return $_scst_targets_dir;
 }
 
 # ALUA Device groups.
+my $_scst_dev_group_dir;
 sub SCST_DEV_GROUP_DIR {
-	return make_path(SCST_ROOT_DIR(), SCST_DEV_GROUPS);
+	if (!defined($_scst_dev_group_dir)) {
+		$_scst_dev_group_dir = make_path(SCST_ROOT_DIR(),
+						 SCST_DEV_GROUPS);
+	}
+	return $_scst_dev_group_dir;
 }
 
 sub new {
@@ -508,28 +538,28 @@ sub setScstAttribute {
 	return SCST_C_SETATTR_FAIL;
 }
 
+my @_drivers;
 sub drivers {
 	my $self = shift;
-	my @drivers;
 
-	my $dHandle = new IO::Handle;
-	my $_path = SCST_TARGETS_DIR();
-	if (!(opendir $dHandle, $_path)) {
-		$self->{'err_string'} = "drivers(): Unable to read directory '$_path': $!";
-		return undef;
-	}
+	if (!@_drivers) {
+		my $dHandle = new IO::Handle;
+		my $_path = SCST_TARGETS_DIR();
+		if (opendir $dHandle, $_path) {
+			foreach my $driver (readdir($dHandle)) {
+				next if (($driver eq '.') || ($driver eq '..'));
 
-	foreach my $driver (readdir($dHandle)) {
-		next if (($driver eq '.') || ($driver eq '..'));
-
-		if (-d make_path(SCST_TARGETS_DIR(), $driver)) {
-			push @drivers, $driver;
+				if (-d make_path(SCST_TARGETS_DIR(), $driver)) {
+					push @_drivers, $driver;
+				}
+			}
+			close $dHandle;
+		} else {
+			$self->{'err_string'} = "drivers(): Unable to read directory '$_path': $!";
 		}
 	}
 
-	close $dHandle;
-
-	return \@drivers;
+	return \@_drivers;
 }
 
 
