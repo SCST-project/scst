@@ -1544,6 +1544,9 @@ static int scst_set_lun_not_supported_inquiry(struct scst_cmd *cmd)
 	}
 
 	if (cmd->sg == NULL) {
+		if (cmd->bufflen == 0)
+			cmd->bufflen = min_t(int, 36, get_unaligned_be16(&cmd->cdb[3]));
+
 		/*
 		 * If target driver preparing data buffer using tgt_alloc_data_buf()
 		 * callback, it is responsible to copy the sense to its buffer
@@ -1556,9 +1559,6 @@ static int scst_set_lun_not_supported_inquiry(struct scst_cmd *cmd)
 				"LUN for cmd %p", cmd);
 			goto go;
 		}
-
-		if (cmd->bufflen == 0)
-			cmd->bufflen = min_t(int, 36, get_unaligned_be16(&cmd->cdb[3]));
 
 		cmd->sg = scst_alloc_sg(cmd->bufflen, GFP_ATOMIC, &cmd->sg_cnt);
 		if (cmd->sg == NULL) {
