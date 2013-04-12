@@ -3523,8 +3523,8 @@ int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
 		scst_report_luns_changed(acg);
 
 	PRINT_INFO("Added device %s to group %s (LUN %lld, "
-		"rd_only %d)", dev->virt_name, acg->acg_name,
-		(long long unsigned int)lun, read_only);
+		"rd_only %d) to target %s", dev->virt_name, acg->acg_name,
+		(long long unsigned int)lun, read_only, acg->tgt->tgt_name);
 
 	if (out_acg_dev != NULL)
 		*out_acg_dev = acg_dev;
@@ -3575,8 +3575,8 @@ int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun,
 	if (gen_scst_report_luns_changed)
 		scst_report_luns_changed(acg);
 
-	PRINT_INFO("Removed LUN %lld from group %s", (unsigned long long)lun,
-		acg->acg_name);
+	PRINT_INFO("Removed LUN %lld from group %s (target %s)",
+		(unsigned long long)lun, acg->acg_name, acg->tgt->tgt_name);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -4363,7 +4363,8 @@ int scst_acg_add_acn(struct scst_acg *acg, const char *name)
 
 out:
 	if (res == 0) {
-		PRINT_INFO("Added name %s to group %s", name, acg->acg_name);
+		PRINT_INFO("Added name %s to group %s (target %s)", name,
+			acg->acg_name, acg->tgt->tgt_name);
 		scst_check_reassign_sessions();
 	}
 
@@ -4436,8 +4437,8 @@ int scst_acg_remove_name(struct scst_acg *acg, const char *name, bool reassign)
 	}
 
 	if (res == 0) {
-		PRINT_INFO("Removed name '%s' from group '%s'", name,
-			acg->acg_name);
+		PRINT_INFO("Removed name %s from group %s (target %s)", name,
+			acg->acg_name, acg->tgt->tgt_name);
 		if (reassign)
 			scst_check_reassign_sessions();
 	} else
