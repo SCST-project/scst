@@ -34,6 +34,7 @@ CFLAGS += -O2 -fno-inline -Wall -Wextra -Wstrict-prototypes -Wno-sign-compare \
 	-Wimplicit-function-declaration -Wno-unused-parameter \
 	-Wno-missing-field-initializers -g -I../include -I$(SCST_INC_DIR)
 CFLAGS += -D_GNU_SOURCE # required for glibc >= 2.8
+CFLAGS += $(LOCAL_CFLAGS)
 
 PROGRAMS = iscsi-scstd iscsi-scst-adm
 LIBS =

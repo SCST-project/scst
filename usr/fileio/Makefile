@@ -41,6 +41,7 @@ CFLAGS += -DEXTRACHECKS
 #CFLAGS += -DTRACING
 CFLAGS += -DDEBUG -g -fno-inline -fno-inline-functions
 CFLAGS += -W -Wno-unused-parameter
+CFLAGS += $(LOCAL_CFLAGS)
 
 #CFLAGS += -DDEBUG_NOMEM
 #CFLAGS += -DDEBUG_SENSE
