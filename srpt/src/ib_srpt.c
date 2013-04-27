@@ -1493,13 +1493,12 @@ static void srpt_handle_send_comp(struct srpt_rdma_ch *ch,
 		struct scst_cmd *scmnd;
 
 		scmnd = &ioctx->scmnd;
-		EXTRACHECKS_WARN_ON((state == SRPT_STATE_MGMT_RSP_SENT)
-				    != (scmnd == NULL));
-		if (scmnd) {
+		if (state != SRPT_STATE_MGMT_RSP_SENT) {
 			srpt_unmap_sg_to_ib_sge(ch, ioctx);
 			scst_tgt_cmd_done(scmnd, context);
-		} else
+		} else {
 			srpt_put_send_ioctx(ioctx);
+		}
 	} else {
 		PRINT_ERROR("IB completion has been received too late for"
 			    " wr_id = %u.", ioctx->ioctx.index);
