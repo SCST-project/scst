@@ -1550,33 +1550,28 @@ static void srpt_handle_rdma_err_comp(struct srpt_rdma_ch *ch,
 
 	scmnd = &ioctx->scmnd;
 	state = ioctx->state;
-	if (scmnd) {
-		switch (opcode) {
-		case SRPT_RDMA_READ_LAST:
-			if (ioctx->n_rdma <= 0) {
-				PRINT_ERROR("Received invalid RDMA read error"
-					    " completion with idx %d",
-					    ioctx->ioctx.index);
-				break;
-			}
-			srpt_adjust_srq_wr_avail(ch, ioctx->n_rdma);
-			if (state == SRPT_STATE_NEED_DATA)
-				srpt_abort_cmd(ioctx, context);
-			else
-				PRINT_ERROR("%s[%d]: wrong state = %d",
-					    __func__, __LINE__, state);
-			break;
-		case SRPT_RDMA_WRITE_LAST:
-			scst_set_delivery_status(scmnd,
-						 SCST_CMD_DELIVERY_ABORTED);
-			break;
-		default:
-			PRINT_ERROR("%s[%d]: opcode = %u", __func__, __LINE__,
-				    opcode);
+	switch (opcode) {
+	case SRPT_RDMA_READ_LAST:
+		if (ioctx->n_rdma <= 0) {
+			PRINT_ERROR("Received invalid RDMA read error"
+				    " completion with idx %d",
+				    ioctx->ioctx.index);
 			break;
 		}
-	} else
-		PRINT_ERROR("%s[%d]: scmnd == NULL", __func__, __LINE__);
+		srpt_adjust_srq_wr_avail(ch, ioctx->n_rdma);
+		if (state == SRPT_STATE_NEED_DATA)
+			srpt_abort_cmd(ioctx, context);
+		else
+			PRINT_ERROR("%s[%d]: wrong state = %d", __func__,
+				    __LINE__, state);
+		break;
+	case SRPT_RDMA_WRITE_LAST:
+		scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_ABORTED);
+		break;
+	default:
+		PRINT_ERROR("%s[%d]: opcode = %u", __func__, __LINE__, opcode);
+		break;
+	}
 }
 
 /**
