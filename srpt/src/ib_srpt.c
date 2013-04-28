@@ -1462,14 +1462,18 @@ static void srpt_handle_send_err_comp(struct srpt_rdma_ch *ch, u64 wr_id,
 	if (state == SRPT_STATE_CMD_RSP_SENT
 	    || state == SRPT_STATE_MGMT_RSP_SENT)
 		srpt_undo_inc_req_lim(ch, ioctx->req_lim_delta);
-	if (state != SRPT_STATE_DONE) {
-		if (scmnd)
-			srpt_abort_cmd(ioctx, context);
-		else
-			srpt_put_send_ioctx(ioctx);
-	} else
+	switch (state) {
+	default:
+		srpt_abort_cmd(ioctx, context);
+		break;
+	case SRPT_STATE_MGMT_RSP_SENT:
+		srpt_put_send_ioctx(ioctx);
+		break;
+	case SRPT_STATE_DONE:
 		PRINT_ERROR("Received more than one IB error completion"
 			    " for wr_id = %u.", (unsigned)index);
+		break;
+	}
 }
 
 /**
