@@ -5082,32 +5082,58 @@ static ssize_t scst_tg_preferred_show(struct kobject *kobj,
 			 tg->preferred, SCST_SYSFS_KEY_MARK "\n");
 }
 
-static ssize_t scst_tg_preferred_store(struct kobject *kobj,
-				       struct kobj_attribute *attr,
-				       const char *buf, size_t count)
+static int scst_tg_preferred_store_work_fn(struct scst_sysfs_work_item *w)
 {
 	struct scst_target_group *tg;
 	unsigned long preferred;
-	char ch[8];
+	char *cmd;
 	int res;
 
 	TRACE_ENTRY();
-	tg = container_of(kobj, struct scst_target_group, kobj);
-	snprintf(ch, sizeof(ch), "%.*s", min_t(int, count, sizeof(ch)-1), buf);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
-	res = kstrtoul(ch, 0, &preferred);
-#else
-	res = strict_strtoul(ch, 0, &preferred);
-#endif
+	cmd = w->buf;
+	tg = container_of(w->kobj, struct scst_target_group, kobj);
+	res = strict_strtoul(cmd, 0, &preferred);
 	if (res)
 		goto out;
 	res = -EINVAL;
 	if (preferred != 0 && preferred != 1)
 		goto out;
-	tg->preferred = preferred;
-	res = count;
+	res = scst_tg_set_preferred(tg, preferred);
+
 out:
+	kobject_put(w->kobj);
 	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t scst_tg_preferred_store(struct kobject *kobj,
+				       struct kobj_attribute *attr,
+				       const char *buf, size_t count)
+{
+	char *cmd;
+	struct scst_sysfs_work_item *work;
+	int res;
+
+	res = -ENOMEM;
+	cmd = kasprintf(GFP_KERNEL, "%.*s", (int)count, buf);
+	if (!cmd)
+		goto out;
+
+	res = scst_alloc_sysfs_work(scst_tg_preferred_store_work_fn, false,
+				    &work);
+	if (res)
+		goto out;
+
+	swap(work->buf, cmd);
+	work->kobj = kobj;
+	kobject_get(kobj);
+	res = scst_sysfs_queue_wait_work(work);
+	if (res)
+		goto out;
+	res = count;
+
+out:
+	kfree(cmd);
 	return res;
 }
 
@@ -5115,36 +5141,26 @@ static struct kobj_attribute scst_tg_preferred =
 	__ATTR(preferred, S_IRUGO | S_IWUSR, scst_tg_preferred_show,
 	       scst_tg_preferred_store);
 
-static struct { enum scst_tg_state s; const char *n; } scst_tg_state_names[] = {
-	{ SCST_TG_STATE_OPTIMIZED,	"active"	},
-	{ SCST_TG_STATE_NONOPTIMIZED,	"nonoptimized"	},
-	{ SCST_TG_STATE_STANDBY,	"standby"	},
-	{ SCST_TG_STATE_UNAVAILABLE,	"unavailable"	},
-	{ SCST_TG_STATE_OFFLINE,	"offline"	},
-	{ SCST_TG_STATE_TRANSITIONING,	"transitioning"	},
-};
-
 static ssize_t scst_tg_state_show(struct kobject *kobj,
 				  struct kobj_attribute *attr,
 				  char *buf)
 {
 	struct scst_target_group *tg;
-	int i;
+	const char *n;
 
 	tg = container_of(kobj, struct scst_target_group, kobj);
-	for (i = ARRAY_SIZE(scst_tg_state_names) - 1; i >= 0; i--)
-		if (scst_tg_state_names[i].s == tg->state)
-			break;
+	n = scst_alua_state_name(tg->state);
 
 	return scnprintf(buf, PAGE_SIZE, "%s\n" SCST_SYSFS_KEY_MARK "\n",
-			 i >= 0 ? scst_tg_state_names[i].n : "???");
+			 n ? n : "???");
 }
 
 static int scst_tg_state_store_work_fn(struct scst_sysfs_work_item *w)
 {
 	struct scst_target_group *tg;
 	char *cmd, *p;
-	int i, res;
+	int res;
+	enum scst_tg_state s;
 
 	TRACE_ENTRY();
 
@@ -5155,14 +5171,13 @@ static int scst_tg_state_store_work_fn(struct scst_sysfs_work_item *w)
 	if (p)
 		*p = '\0';
 
-	for (i = ARRAY_SIZE(scst_tg_state_names) - 1; i >= 0; i--)
-		if (strcmp(scst_tg_state_names[i].n, cmd) == 0)
-			break;
+	s = scst_alua_name_to_state(cmd);
 
 	res = -EINVAL;
-	if (i < 0)
+	if (s == SCST_TG_STATE_UNDEFINED)
 		goto out;
-	res = scst_tg_set_state(tg, scst_tg_state_names[i].s);
+	res = scst_tg_set_state(tg, s);
+
 out:
 	kobject_put(w->kobj);
 	TRACE_EXIT_RES(res);

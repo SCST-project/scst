@@ -278,6 +278,8 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 #define scst_sense_no_sense			NO_SENSE,        0x00, 0
 
 /* NOT_READY is 2 */
+#define scst_sense_tp_transitioning		NOT_READY,	 0x04, 0x0A
+#define scst_sense_tp_unav			NOT_READY,	 0x04, 0x0C
 #define scst_sense_not_ready			NOT_READY,       0x04, 0x10
 #define scst_sense_no_medium			NOT_READY,       0x3a, 0
 
@@ -354,6 +356,10 @@ static inline int scst_sense_response_code(const uint8_t *sense)
  * The definitions below are only used when this header file is included during
  * compilation of SCST's user space components.
  */
+#ifndef GET_EVENT_STATUS_NOTIFICATION
+/* Upstream commit 93aae17a (v2.6.38) */
+#define GET_EVENT_STATUS_NOTIFICATION 0x4a
+#endif
 #ifndef READ_16
 #define READ_16               0x88
 #endif
@@ -496,6 +502,7 @@ enum {
  * See also the documentation of the REPORT TARGET PORT GROUPS command in SPC-4.
  */
 enum scst_tg_state {
+	SCST_TG_STATE_UNDEFINED         =  -1,
 	SCST_TG_STATE_OPTIMIZED		= 0x0,
 	SCST_TG_STATE_NONOPTIMIZED	= 0x1,
 	SCST_TG_STATE_STANDBY		= 0x2,

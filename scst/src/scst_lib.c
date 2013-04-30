@@ -4180,6 +4180,8 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	head = &sess->sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_FN(tgt_dev->lun)];
 	list_add_tail(&tgt_dev->sess_tgt_dev_list_entry, head);
 
+	scst_tg_init_tgt_dev(tgt_dev);
+
 	*out_tgt_dev = tgt_dev;
 
 out:

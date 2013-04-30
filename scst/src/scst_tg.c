@@ -15,6 +15,7 @@
  *  GNU General Public License for more details.
  */
 
+#include <linux/moduleparam.h>
 #include <asm/unaligned.h>
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/scst.h>
@@ -23,7 +24,53 @@
 #endif
 #include "scst_priv.h"
 
+struct alua_state_and_name {
+	enum scst_tg_state s;
+	char *n;
+};
+
+static const struct alua_state_and_name scst_tg_state_names[] = {
+	{ SCST_TG_STATE_OPTIMIZED,	"active"	},
+	{ SCST_TG_STATE_NONOPTIMIZED,	"nonoptimized"	},
+	{ SCST_TG_STATE_STANDBY,	"standby"	},
+	{ SCST_TG_STATE_UNAVAILABLE,	"unavailable"	},
+	{ SCST_TG_STATE_OFFLINE,	"offline"	},
+	{ SCST_TG_STATE_TRANSITIONING,	"transitioning"	},
+};
+
 static struct list_head scst_dev_group_list;
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31) || \
+	defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
+static int alua_invariant_check;
+#else
+static bool alua_invariant_check;
+#endif
+module_param(alua_invariant_check, bool, 0644);
+MODULE_PARM_DESC(alua_invariant_check,
+		 "Enables a run-time ALUA state invariant check.");
+
+const char *scst_alua_state_name(enum scst_tg_state s)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(scst_tg_state_names); i++)
+		if (scst_tg_state_names[i].s == s)
+			return scst_tg_state_names[i].n;
+
+	return NULL;
+}
+
+enum scst_tg_state scst_alua_name_to_state(const char *n)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(scst_tg_state_names); i++)
+		if (strcmp(scst_tg_state_names[i].n, n) == 0)
+			return scst_tg_state_names[i].s;
+
+	return SCST_TG_STATE_UNDEFINED;
+}
 
 /* Look up a device by name. */
 static struct scst_device *__lookup_dev(const char *name)
@@ -77,6 +124,21 @@ __lookup_tg_by_name(struct scst_dev_group *dg, const char *name)
 	list_for_each_entry(tg, &dg->tg_list, entry)
 		if (strcmp(tg->name, name) == 0)
 			return tg;
+
+	return NULL;
+}
+
+/* Look up a target group by target port. */
+static struct scst_target_group *
+__lookup_tg_by_tgt(struct scst_dev_group *dg, const struct scst_tgt *tgt)
+{
+	struct scst_target_group *tg;
+	struct scst_tg_tgt *tg_tgt;
+
+	list_for_each_entry(tg, &dg->tg_list, entry)
+		list_for_each_entry(tg_tgt, &tg->tgt_list, entry)
+			if (tg_tgt->tgt == tgt)
+				return tg;
 
 	return NULL;
 }
@@ -165,6 +227,223 @@ static struct kobj_type scst_tg_tgt_ktype = {
 	.release = scst_release_tg_tgt,
 };
 
+/*
+ * Whether or not to accept a command in the ALUA unavailable and transitioning
+ * states.
+ */
+static bool scst_tg_accept(struct scst_cmd *cmd)
+{
+	switch (cmd->cdb[0]) {
+	case TEST_UNIT_READY:
+	case GET_EVENT_STATUS_NOTIFICATION:
+	case INQUIRY:
+	case MODE_SENSE:
+	case MODE_SENSE_10:
+	case READ_CAPACITY:
+	case REPORT_LUNS:
+	case REQUEST_SENSE:
+		return true;
+	case SERVICE_ACTION_IN:
+		switch (cmd->cdb[1] & 0x1f) {
+		case SAI_READ_CAPACITY_16:
+			return true;
+		}
+		break;
+	case MAINTENANCE_IN:
+		switch (cmd->cdb[1] & 0x1f) {
+		case MI_REPORT_TARGET_PGS:
+			return true;
+		}
+		break;
+	case MAINTENANCE_OUT:
+		switch (cmd->cdb[1] & 0x1f) {
+		case MO_SET_TARGET_PGS:
+			return true;
+		}
+		break;
+	}
+
+	return false;
+}
+
+/*
+ * Whether or not to accept a command in the ALUA unavailable state.
+ */
+static bool scst_tg_accept_unav(struct scst_cmd *cmd)
+{
+	bool process_cmd = scst_tg_accept(cmd);
+
+	if (!process_cmd)
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_tp_unav));
+
+	return process_cmd;
+}
+
+/*
+ * Whether or not to accept a command in the ALUA transitioning state.
+ */
+static bool scst_tg_accept_transitioning(struct scst_cmd *cmd)
+{
+	bool process_cmd = scst_tg_accept(cmd);
+
+	if (!process_cmd)
+		scst_set_cmd_error(cmd,
+			SCST_LOAD_SENSE(scst_sense_tp_transitioning));
+
+	return process_cmd;
+}
+
+static bool (*scst_alua_filter[])(struct scst_cmd *cmd) = {
+	[SCST_TG_STATE_OPTIMIZED]	= NULL,
+	[SCST_TG_STATE_NONOPTIMIZED]	= NULL,
+	[SCST_TG_STATE_STANDBY]		= NULL,
+	[SCST_TG_STATE_UNAVAILABLE]	= scst_tg_accept_unav,
+	[SCST_TG_STATE_LBA_DEPENDENT]	= NULL,
+	[SCST_TG_STATE_OFFLINE]		= scst_tg_accept_unav,
+	[SCST_TG_STATE_TRANSITIONING]	= scst_tg_accept_transitioning,
+};
+
+/*
+ * Check whether the tgt_dev ALUA filter is consistent with the target group
+ * ALUA state.
+ */
+static void scst_check_alua_invariant(void)
+{
+	struct scst_device *dev;
+	struct scst_tgt_dev *tgt_dev;
+	struct scst_dev_group *dg;
+	struct scst_target_group *tg;
+	enum scst_tg_state expected_state;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&scst_mutex);
+#endif
+
+	if (!alua_invariant_check)
+		return;
+
+	list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
+		dg = __lookup_dg_by_dev(dev);
+		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
+				    dev_tgt_dev_list_entry) {
+			tg = dg ? __lookup_tg_by_tgt(dg, tgt_dev->acg_dev->acg->tgt) :
+				  NULL;
+			expected_state = tg ? tg->state : SCST_TG_STATE_OPTIMIZED;
+			if (tgt_dev->alua_filter != scst_alua_filter[expected_state]) {
+				PRINT_ERROR("LUN %s/%s/%s/%lld/%s: ALUA filter"
+					" %p <> %p",
+					tgt_dev->acg_dev->acg->tgt->tgt_name,
+					tgt_dev->acg_dev->acg->acg_name ? :
+					"(default)",
+					tgt_dev->sess->initiator_name,
+					tgt_dev->lun,
+					tgt_dev->dev->virt_name ? : "(null)",
+					tgt_dev->alua_filter,
+					scst_alua_filter[expected_state]);
+			}
+		}
+	}
+}
+
+/* Update the ALUA filter of a tgt_dev */
+static void scst_update_tgt_dev_alua_filter(struct scst_tgt_dev *tgt_dev,
+					    enum scst_tg_state state)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&scst_mutex);
+#endif
+
+	tgt_dev->alua_filter = scst_alua_filter[state];
+}
+
+/* Update the ALUA filter after an ALUA state change and generate UA */
+static void scst_tg_change_tgt_dev_state(struct scst_tgt_dev *tgt_dev,
+					 enum scst_tg_state state,
+					 bool gen_ua)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&scst_mutex);
+#endif
+
+	TRACE_MGMT_DBG("ALUA state of tgt_dev %p has changed", tgt_dev);
+	scst_update_tgt_dev_alua_filter(tgt_dev, state);
+	if (gen_ua)
+		scst_gen_aen_or_ua(tgt_dev,
+			SCST_LOAD_SENSE(scst_sense_asym_access_state_changed));
+}
+
+/* Initialize ALUA state of LUN tgt_dev */
+void scst_tg_init_tgt_dev(struct scst_tgt_dev *tgt_dev)
+{
+	struct scst_dev_group *dg;
+	struct scst_target_group *tg;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&scst_mutex);
+#endif
+
+	dg = __lookup_dg_by_dev(tgt_dev->dev);
+	if (dg) {
+		tg = __lookup_tg_by_tgt(dg, tgt_dev->acg_dev->acg->tgt);
+		if (tg) {
+			scst_tg_change_tgt_dev_state(tgt_dev, tg->state, true);
+			scst_check_alua_invariant();
+		}
+	}
+}
+
+/*
+ * Update the ALUA filter of all tgt_devs associated with target group @tg
+ * and target @tgt.
+ */
+static void scst_update_tgt_alua_filter(struct scst_target_group *tg,
+					struct scst_tgt *tgt)
+{
+	struct scst_dg_dev *dgd;
+	struct scst_tgt_dev *tgt_dev;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&scst_mutex);
+#endif
+
+	list_for_each_entry(dgd, &tg->dg->dev_list, entry) {
+		list_for_each_entry(tgt_dev, &dgd->dev->dev_tgt_dev_list,
+				    dev_tgt_dev_list_entry) {
+			if (tgt_dev->acg_dev->acg->tgt == tgt)
+				scst_update_tgt_dev_alua_filter(tgt_dev,
+								tg->state);
+		}
+	}
+
+	scst_check_alua_invariant();
+}
+
+/*
+ * Reset the ALUA filter of all tgt_devs associated with target group @tg
+ * and target @tgt.
+ */
+static void scst_reset_tgt_alua_filter(struct scst_target_group *tg,
+				       struct scst_tgt *tgt)
+{
+	struct scst_dg_dev *dgd;
+	struct scst_tgt_dev *tgt_dev;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&scst_mutex);
+#endif
+
+	list_for_each_entry(dgd, &tg->dg->dev_list, entry) {
+		list_for_each_entry(tgt_dev, &dgd->dev->dev_tgt_dev_list,
+				    dev_tgt_dev_list_entry) {
+			if (tgt_dev->acg_dev->acg->tgt == tgt)
+				scst_update_tgt_dev_alua_filter(tgt_dev,
+						      SCST_TG_STATE_OPTIMIZED);
+		}
+	}
+
+	scst_check_alua_invariant();
+}
+
 /**
  * scst_tg_tgt_add() - Add a target to a target group.
  */
@@ -204,6 +483,7 @@ int scst_tg_tgt_add(struct scst_target_group *tg, const char *name)
 	if (res)
 		goto out_unlock;
 	list_add_tail(&tg_tgt->entry, &tg->tgt_list);
+	scst_update_tgt_alua_filter(tg, tgt);
 	res = 0;
 	mutex_unlock(&scst_mutex);
 out:
@@ -222,6 +502,7 @@ static void __scst_tg_tgt_remove(struct scst_target_group *tg,
 	TRACE_ENTRY();
 	list_del(&tg_tgt->entry);
 	scst_tg_tgt_sysfs_del(tg, tg_tgt);
+	scst_reset_tgt_alua_filter(tg, tg_tgt->tgt);
 	kobject_put(&tg_tgt->kobj);
 	TRACE_EXIT();
 }
@@ -379,16 +660,28 @@ out:
 	return res;
 }
 
-int scst_tg_set_state(struct scst_target_group *tg, enum scst_tg_state state)
+/*
+ * Update the ALUA filter of those LUNs (tgt_dev) whose target port is a member
+ * of target group @tg and that export a device that is a member of the device
+ * group @tg->dg.
+ */
+static void __scst_tg_set_state(struct scst_target_group *tg,
+				enum scst_tg_state state,
+				struct scst_tgt *no_ua_tgt)
 {
 	struct scst_dg_dev *dg_dev;
 	struct scst_device *dev;
 	struct scst_tgt_dev *tgt_dev;
-	int res;
+	struct scst_tg_tgt *tg_tgt;
+	struct scst_tgt *tgt;
 
-	res = mutex_lock_interruptible(&scst_mutex);
-	if (res)
-		goto out;
+	sBUG_ON(state >= ARRAY_SIZE(scst_alua_filter));
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&scst_mutex);
+#endif
+
+	if (tg->state == state)
+		return;
 
 	tg->state = state;
 
@@ -396,12 +689,106 @@ int scst_tg_set_state(struct scst_target_group *tg, enum scst_tg_state state)
 		dev = dg_dev->dev;
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 				    dev_tgt_dev_list_entry) {
-			TRACE_MGMT_DBG("ALUA state of tgt_dev %p has changed",
-				       tgt_dev);
-			scst_gen_aen_or_ua(tgt_dev,
-			 SCST_LOAD_SENSE(scst_sense_asym_access_state_changed));
+			tgt = tgt_dev->sess->tgt;
+			list_for_each_entry(tg_tgt, &tg->tgt_list, entry) {
+				if (tg_tgt->tgt == tgt) {
+					scst_tg_change_tgt_dev_state(tgt_dev,
+						state, tgt != no_ua_tgt);
+					break;
+				}
+			}
 		}
 	}
+
+	scst_check_alua_invariant();
+
+	PRINT_INFO("Changed ALUA state of %s/%s into %s", tg->dg->name,
+		   tg->name, scst_alua_state_name(state));
+}
+
+int scst_tg_set_state(struct scst_target_group *tg, enum scst_tg_state state)
+{
+	int res;
+
+	res = -EINVAL;
+	if (state >= ARRAY_SIZE(scst_alua_filter))
+		goto out;
+
+	res = mutex_lock_interruptible(&scst_mutex);
+	if (res)
+		goto out;
+
+	__scst_tg_set_state(tg, state, NULL);
+
+	mutex_unlock(&scst_mutex);
+out:
+	return res;
+}
+
+/*
+ * Generate an ASYMMETRIC ACCESS STATE CHANGED check condition after the value
+ * of the "preferred" state of a target port group has been changed. Although
+ * not required by SPC-4, generating this check condition terminates an
+ * initiator-side STPG loop. An initiator typically retries an STPG after
+ * having received a LOGICAL UNIT NOT ACCESSIBLE, ASYMMETRIC ACCESS STATE
+ * TRANSITION but stops resending an STPG when it receives an ASYMMETRIC
+ * ACCESS STATE CHANGED check condition.
+ */
+static void __scst_gen_alua_state_changed_ua(struct scst_target_group *tg)
+{
+	struct scst_dg_dev *dg_dev;
+	struct scst_device *dev;
+	struct scst_tgt_dev *tgt_dev;
+	struct scst_tg_tgt *tg_tgt;
+	struct scst_tgt *tgt;
+
+	list_for_each_entry(dg_dev, &tg->dg->dev_list, entry) {
+		dev = dg_dev->dev;
+		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
+				    dev_tgt_dev_list_entry) {
+			tgt = tgt_dev->sess->tgt;
+			list_for_each_entry(tg_tgt, &tg->tgt_list, entry) {
+				if (tg_tgt->tgt == tgt) {
+					scst_gen_aen_or_ua(tgt_dev,
+			SCST_LOAD_SENSE(scst_sense_asym_access_state_changed));
+					break;
+				}
+			}
+		}
+	}
+}
+
+static void __scst_tg_set_preferred(struct scst_target_group *tg,
+				    bool preferred)
+{
+	bool prev_preferred;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&scst_mutex);
+#endif
+
+	if (tg->preferred == preferred)
+		return;
+
+	prev_preferred = tg->preferred;
+	tg->preferred = preferred;
+
+	PRINT_INFO("Changed preferred state of %s/%s from %d into %d",
+		   tg->dg->name, tg->name, prev_preferred,
+		   preferred);
+
+	__scst_gen_alua_state_changed_ua(tg);
+}
+
+int scst_tg_set_preferred(struct scst_target_group *tg,
+				 bool preferred)
+{
+	int res;
+
+	res = mutex_lock_interruptible(&scst_mutex);
+	if (res)
+		goto out;
+	__scst_tg_set_preferred(tg, preferred);
 	mutex_unlock(&scst_mutex);
 out:
 	return res;
@@ -410,6 +797,50 @@ out:
 /*
  * Device group contents manipulation.
  */
+
+/*
+ * Update the ALUA filter of all tgt_devs associated with device group @dg
+ * and device @dev.
+ */
+static void scst_update_dev_alua_filter(struct scst_dev_group *dg,
+					struct scst_device *dev)
+{
+	struct scst_tgt_dev *tgt_dev;
+	struct scst_target_group *tg;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&scst_mutex);
+#endif
+
+	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
+			    dev_tgt_dev_list_entry) {
+		tg = __lookup_tg_by_tgt(dg, tgt_dev->acg_dev->acg->tgt);
+		if (tg)
+			scst_update_tgt_dev_alua_filter(tgt_dev, tg->state);
+	}
+
+	scst_check_alua_invariant();
+}
+
+/*
+ * Reset the ALUA filter of all tgt_devs associated with device @dev. Note:
+ * each device is member of at most one device group.
+ */
+static void scst_reset_dev_alua_filter(struct scst_device *dev)
+{
+	struct scst_tgt_dev *tgt_dev;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&scst_mutex);
+#endif
+
+	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
+			    dev_tgt_dev_list_entry)
+		scst_update_tgt_dev_alua_filter(tgt_dev,
+						SCST_TG_STATE_OPTIMIZED);
+
+	scst_check_alua_invariant();
+}
 
 /**
  * scst_dg_dev_add() - Add a device to a device group.
@@ -443,6 +874,7 @@ int scst_dg_dev_add(struct scst_dev_group *dg, const char *name)
 	if (res)
 		goto out_unlock;
 	list_add_tail(&dgdev->entry, &dg->dev_list);
+	scst_update_dev_alua_filter(dg, dev);
 	mutex_unlock(&scst_mutex);
 
 out:
@@ -460,6 +892,7 @@ static void __scst_dg_dev_remove(struct scst_dev_group *dg,
 {
 	list_del(&dgdev->entry);
 	scst_dg_dev_sysfs_del(dg, dgdev);
+	scst_reset_dev_alua_filter(dgdev->dev);
 	kfree(dgdev);
 }
 
@@ -581,6 +1014,8 @@ static void __scst_dg_remove(struct scst_dev_group *dg)
 
 	list_del(&dg->entry);
 	scst_dg_sysfs_del(dg);
+	list_for_each_entry(tg, &dg->tg_list, entry)
+		__scst_tg_set_state(tg, SCST_TG_STATE_OPTIMIZED, NULL);
 	while (!list_empty(&dg->dev_list)) {
 		dgdev = list_first_entry(&dg->dev_list, struct scst_dg_dev,
 					 entry);

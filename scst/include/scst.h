@@ -2595,6 +2595,9 @@ struct scst_tgt_dev {
 	unsigned short tgt_dev_valid_sense_len;
 	uint8_t tgt_dev_sense[SCST_SENSE_BUFFERSIZE];
 
+	/* ALUA command filter */
+	bool (*alua_filter)(struct scst_cmd *cmd);
+
 #ifndef CONFIG_SCST_PROC
 	/* sysfs release completion */
 	struct completion *tgt_dev_kobj_release_cmpl;

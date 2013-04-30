@@ -3992,6 +3992,7 @@ static int scst_translate_lun(struct scst_cmd *cmd)
  */
 static int __scst_init_cmd(struct scst_cmd *cmd)
 {
+	bool (*alua_filter)(struct scst_cmd *cmd);
 	int res = 0;
 
 	TRACE_ENTRY();
@@ -4031,6 +4032,12 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 
 		if (unlikely(failure))
 			goto out_busy;
+
+		alua_filter = ACCESS_ONCE(cmd->tgt_dev->alua_filter);
+		if (unlikely(alua_filter && !alua_filter(cmd))) {
+			scst_set_cmd_abnormal_done_state(cmd);
+			goto out;
+		}
 
 		/*
 		 * SCST_IMPLICIT_HQ for unknown commands not implemented for
