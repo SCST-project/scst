@@ -5092,7 +5092,11 @@ static int scst_tg_preferred_store_work_fn(struct scst_sysfs_work_item *w)
 	TRACE_ENTRY();
 	cmd = w->buf;
 	tg = container_of(w->kobj, struct scst_target_group, kobj);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+	res = kstrtoul(cmd, 0, &preferred);
+#else
 	res = strict_strtoul(cmd, 0, &preferred);
+#endif
 	if (res)
 		goto out;
 	res = -EINVAL;
