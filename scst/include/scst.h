@@ -998,6 +998,19 @@ struct scst_tgt_template {
 	ssize_t (*mgmt_cmd) (char *cmd);
 
 	/*
+	 * Forcibly close a session. Note: this function may operate
+	 * asynchronously - there is no guarantee the session will actually
+	 * have been closed at the time this function returns. May be called
+	 * with scst_mutex held. Activity may be suspended while this function
+	 * is invoked. May sleep but must not wait until session
+	 * unregistration finished. Must return 0 upon success and -EINTR if
+	 * the session has not been closed because a signal has been received.
+	 *
+	 * OPTIONAL
+	 */
+	int (*close_session)(struct scst_session *sess);
+
+	/*
 	 * Should return physical transport version. Used in the corresponding
 	 * INQUIRY version descriptor. See SPC for the list of available codes.
 	 *

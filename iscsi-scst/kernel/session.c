@@ -540,36 +540,6 @@ static ssize_t iscsi_sess_reinstating_show(struct kobject *kobj,
 static struct kobj_attribute iscsi_sess_attr_reinstating =
 	__ATTR(reinstating, S_IRUGO, iscsi_sess_reinstating_show, NULL);
 
-static ssize_t iscsi_sess_force_close_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
-{
-	int res;
-	struct scst_session *scst_sess;
-	struct iscsi_session *sess;
-
-	TRACE_ENTRY();
-
-	scst_sess = container_of(kobj, struct scst_session, sess_kobj);
-	sess = (struct iscsi_session *)scst_sess_get_tgt_priv(scst_sess);
-
-	res = mutex_lock_interruptible(&sess->target->target_mutex);
-	if (res != 0)
-		goto out;
-
-	iscsi_sess_force_close(sess);
-
-	mutex_unlock(&sess->target->target_mutex);
-
-	res = count;
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static struct kobj_attribute iscsi_sess_attr_force_close =
-	__ATTR(force_close, S_IWUSR, NULL, iscsi_sess_force_close_store);
-
 const struct attribute *iscsi_sess_attrs[] = {
 	&iscsi_sess_attr_initial_r2t.attr,
 	&iscsi_sess_attr_immediate_data.attr,
@@ -582,7 +552,6 @@ const struct attribute *iscsi_sess_attrs[] = {
 	&iscsi_sess_attr_data_digest.attr,
 	&iscsi_attr_sess_sid.attr,
 	&iscsi_sess_attr_reinstating.attr,
-	&iscsi_sess_attr_force_close.attr,
 	NULL,
 };
 

@@ -3822,6 +3822,24 @@ out_err:
 	return;
 }
 
+static int iscsi_close_sess(struct scst_session *scst_sess)
+{
+	struct iscsi_session *sess = scst_sess_get_tgt_priv(scst_sess);
+	struct iscsi_target *target = sess->target;
+	int res;
+
+	res = mutex_lock_interruptible(&target->target_mutex);
+	if (res)
+		goto out;
+	iscsi_sess_force_close(sess);
+	mutex_unlock(&target->target_mutex);
+
+	res = 0;
+
+out:
+	return res;
+}
+
 static int iscsi_target_detect(struct scst_tgt_template *templ)
 {
 	/* Nothing to do */
@@ -3869,6 +3887,7 @@ struct scst_tgt_template iscsi_template = {
 	.add_target = iscsi_sysfs_add_target,
 	.del_target = iscsi_sysfs_del_target,
 	.mgmt_cmd = iscsi_sysfs_mgmt_cmd,
+	.close_session = iscsi_close_sess,
 	.tgtt_optional_attributes = "IncomingUser, OutgoingUser",
 	.tgt_optional_attributes = "IncomingUser, OutgoingUser, allowed_portal",
 #endif

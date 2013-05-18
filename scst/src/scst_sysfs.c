@@ -3553,6 +3553,28 @@ SCST_SESS_SYSFS_STAT_ATTR(cmd_count, bidi_cmd_count, SCST_DATA_BIDI, 0);
 SCST_SESS_SYSFS_STAT_ATTR(io_byte_count, bidi_io_count_kb, SCST_DATA_BIDI, 1);
 SCST_SESS_SYSFS_STAT_ATTR(cmd_count, none_cmd_count, SCST_DATA_NONE, 0);
 
+
+static ssize_t scst_sess_force_close_store(struct kobject *kobj,
+					   struct kobj_attribute *attr,
+					   const char *buf, size_t count)
+{
+	struct scst_session *sess = container_of(kobj, struct scst_session,
+						 sess_kobj);
+	int res;
+
+	res = sess->tgt->tgtt->close_session(sess);
+	if (res < 0)
+		goto out;
+	res = count;
+
+out:
+	return res;
+}
+
+static struct kobj_attribute session_force_close_attr =
+	__ATTR(force_close, S_IWUSR, NULL, scst_sess_force_close_store);
+
+
 static struct attribute *scst_session_attrs[] = {
 	&session_commands_attr.attr,
 	&session_active_commands_attr.attr,
@@ -3639,6 +3661,16 @@ int scst_sess_sysfs_create(struct scst_session *sess)
 	}
 
 	sess->sess_kobj_ready = 1;
+
+	if (sess->tgt->tgtt->close_session) {
+		res = sysfs_create_file(&sess->sess_kobj,
+					&session_force_close_attr.attr);
+		if (res != 0) {
+			PRINT_ERROR("Adding force_close sysfs attribute to session %s failed (%d)",
+				    name, res);
+			goto out_del;
+		}
+	}
 
 	if (sess->tgt->tgtt->sess_attrs) {
 		res = sysfs_create_files(&sess->sess_kobj,

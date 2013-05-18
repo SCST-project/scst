@@ -102,6 +102,7 @@ static int q2t_cut_cmd_data_head(struct q2t_cmd *cmd, unsigned int offset);
 static void q2t_clear_tgt_db(struct q2t_tgt *tgt, bool local_only);
 static void q2t_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd);
 static int q2t_unreg_sess(struct q2t_sess *sess);
+static int q2t_close_session(struct scst_session *scst_sess);
 static uint16_t q2t_get_scsi_transport_version(struct scst_tgt *scst_tgt);
 static uint16_t q2t_get_phys_transport_version(struct scst_tgt *scst_tgt);
 
@@ -219,6 +220,7 @@ static struct scst_tgt_template tgt2x_template = {
 	.rdy_to_xfer = q2t_rdy_to_xfer,
 	.on_free_cmd = q2t_on_free_cmd,
 	.task_mgmt_fn_done = q2t_task_mgmt_fn_done,
+	.close_session = q2t_close_session,
 	.get_initiator_port_transport_id = q2t_get_initiator_port_transport_id,
 	.get_scsi_transport_version = q2t_get_scsi_transport_version,
 	.get_phys_transport_version = q2t_get_phys_transport_version,
@@ -794,6 +796,20 @@ static void q2t_schedule_sess_for_deletion(struct q2t_sess *sess)
 out:
 	TRACE_EXIT();
 	return;
+}
+
+static int q2t_close_session(struct scst_session *scst_sess)
+{
+	struct q2t_sess *sess = scst_sess_get_tgt_priv(scst_sess);
+	scsi_qla_host_t *ha = sess->tgt->ha;
+	scsi_qla_host_t *pha = to_qla_parent(ha);
+	unsigned long flags;
+
+	spin_lock_irqsave(&pha->hardware_lock, flags);
+	q2t_schedule_sess_for_deletion(sess);
+	spin_unlock_irqrestore(&pha->hardware_lock, flags);
+
+	return 0;
 }
 
 /* pha->hardware_lock supposed to be held on entry */
