@@ -3822,6 +3822,7 @@ out_err:
 	return;
 }
 
+#ifndef CONFIG_SCST_PROC
 static int iscsi_close_sess(struct scst_session *scst_sess)
 {
 	struct iscsi_session *sess = scst_sess_get_tgt_priv(scst_sess);
@@ -3839,6 +3840,7 @@ static int iscsi_close_sess(struct scst_session *scst_sess)
 out:
 	return res;
 }
+#endif
 
 static int iscsi_target_detect(struct scst_tgt_template *templ)
 {
