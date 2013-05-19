@@ -428,7 +428,6 @@ static void ft_send_resp_status(struct fc_frame *rx_fp, u32 status,
 	struct fc_exch *ep;
 #endif
 
-	sp = fr_seq(rx_fp);
 	fh = fc_frame_header_get(rx_fp);
 	FT_IO_DBG("FCP error response: did %x oxid %x status %x code %x\n",
 		  ntoh24(fh->fh_s_id), ntohs(fh->fh_ox_id), status, code);
@@ -454,6 +453,7 @@ static void ft_send_resp_status(struct fc_frame *rx_fp, u32 status,
 	}
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
+	sp = fr_seq(rx_fp);
 	sp = lport->tt.seq_start_next(sp);
 	ep = fc_seq_exch(sp);
 	fc_fill_fc_hdr(fp, FC_RCTL_DD_CMD_STATUS, ep->did, ep->sid, FC_TYPE_FCP,
@@ -464,6 +464,7 @@ out:
 	lport->tt.exch_done(sp);
 #else
 	fc_fill_reply_hdr(fp, rx_fp, FC_RCTL_DD_CMD_STATUS, 0);
+	sp = fr_seq(rx_fp);
 	if (sp)
 		lport->tt.seq_send(lport, sp, fp);
 	else
