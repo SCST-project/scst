@@ -112,15 +112,7 @@ extern struct scst_tgt_template ft_scst_template;
 /*
  * libfc interface.
  */
-int ft_prli(struct fc_rport_priv *, u32 spp_len,
-	    const struct fc_els_spp *, struct fc_els_spp *);
-void ft_prlo(struct fc_rport_priv *);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36) \
-	&& (!defined(RHEL_MAJOR) || RHEL_MAJOR -0 <= 5)
-void ft_recv(struct fc_lport *, struct fc_seq *, struct fc_frame *);
-#else
-void ft_recv(struct fc_lport *, struct fc_frame *);
-#endif
+extern struct fc4_prov ft_prov;
 
 /*
  * SCST interface.

@@ -31,16 +31,6 @@ MODULE_PARM_DESC(debug_logging, "log levels bigmask");
 
 DEFINE_MUTEX(ft_lport_lock);
 
-/*
- * Provider ops for libfc.
- */
-static struct fc4_prov ft_prov = {
-	.prli = ft_prli,
-	.prlo = ft_prlo,
-	.recv = ft_recv,
-	.module = THIS_MODULE,
-};
-
 static struct notifier_block ft_notifier = {
 	.notifier_call = ft_lport_notify
 };

@@ -482,7 +482,7 @@ static struct ft_sess *ft_sess_lookup_delete(struct fc_rport_priv *rdata)
 /*
  * Handle PRLO.
  */
-void ft_prlo(struct fc_rport_priv *rdata)
+static void ft_prlo(struct fc_rport_priv *rdata)
 {
 	struct ft_sess *sess;
 
@@ -620,3 +620,13 @@ int ft_report_aen(struct scst_aen *aen)
 		    aen->event_fn, sess->port_id, scst_aen_get_lun(aen));
 	return SCST_AEN_RES_FAILED;	/* XXX TBD */
 }
+
+/*
+ * Provider ops for libfc.
+ */
+struct fc4_prov ft_prov = {
+	.prli = ft_prli,
+	.prlo = ft_prlo,
+	.recv = ft_recv,
+	.module = THIS_MODULE,
+};
