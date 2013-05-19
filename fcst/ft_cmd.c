@@ -464,11 +464,13 @@ out:
 	lport->tt.exch_done(sp);
 #else
 	fc_fill_reply_hdr(fp, rx_fp, FC_RCTL_DD_CMD_STATUS, 0);
-	sp = fr_seq(rx_fp);
-	if (sp)
+	sp = fr_seq(fp);
+	if (sp) {
 		lport->tt.seq_send(lport, sp, fp);
-	else
+		lport->tt.exch_done(sp);
+	} else {
 		lport->tt.frame_send(lport, fp);
+	}
 #endif
 }
 
