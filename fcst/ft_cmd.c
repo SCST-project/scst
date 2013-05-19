@@ -679,7 +679,8 @@ err:
 busy:
 	FT_IO_DBG("cmd allocation failure - sending BUSY\n");
 	ft_send_resp_status(fp, SAM_STAT_BUSY, 0);
-	ft_cmd_done(fcmd);
+	if (fcmd)
+		ft_cmd_done(fcmd);
 }
 
 /*
