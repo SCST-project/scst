@@ -154,10 +154,10 @@ int ft_send_read_data(struct scst_cmd *cmd)
 			frame_len -= tlen;
 		}
 
-		mem_len -= tlen;
 		mem_off += tlen;
-		remaining -= tlen;
+		mem_len -= tlen;
 		frame_off += tlen;
+		remaining -= tlen;
 
 		if (frame_len)
 			continue;
@@ -211,15 +211,11 @@ void ft_recv_write_data(struct scst_cmd *cmd, struct fc_frame *fp)
 
 	fcmd = scst_cmd_get_tgt_priv(cmd);
 	fh = fc_frame_header_get(fp);
-	frame_len = fr_len(fp);
-	rel_off = ntohl(fh->fh_parm_offset);
-
-	FT_IO_DBG("sid %x oxid %x payload_len %zd rel_off %x\n",
-		  ntoh24(fh->fh_s_id), ntohs(fh->fh_ox_id),
-		  frame_len - sizeof(*fh), rel_off);
 
 	if (!(ntoh24(fh->fh_f_ctl) & FC_FC_REL_OFF))
 		goto drop;
+	rel_off = ntohl(fh->fh_parm_offset);
+	frame_len = fr_len(fp);
 	if (frame_len <= sizeof(*fh))
 		goto drop;
 	frame_len -= sizeof(*fh);
