@@ -418,7 +418,7 @@ static void ft_send_resp_status(struct fc_frame *rx_fp, u32 status,
 				enum fcp_resp_rsp_codes code)
 {
 	struct fc_frame *fp;
-	struct fc_frame_header *fh;
+	const struct fc_frame_header *fh;
 	size_t len;
 	struct fcp_resp_with_ext *fcp;
 	struct fcp_resp_rsp_info *info;
