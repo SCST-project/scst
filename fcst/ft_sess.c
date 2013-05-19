@@ -505,7 +505,6 @@ void ft_prlo(struct fc_rport_priv *rdata)
 
 /*
  * Handle incoming FCP request.
- *
  * Caller has verified that the frame is type FCP.
  * Note that this may be called directly from the softirq context.
  */
