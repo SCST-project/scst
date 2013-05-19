@@ -418,12 +418,12 @@ static void ft_send_resp_status(struct fc_frame *rx_fp, u32 status,
 				enum fcp_resp_rsp_codes code)
 {
 	struct fc_frame *fp;
+	struct fc_seq *sp;
 	const struct fc_frame_header *fh;
 	size_t len;
 	struct fcp_resp_with_ext *fcp;
 	struct fcp_resp_rsp_info *info;
 	struct fc_lport *lport;
-	struct fc_seq *sp;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 	struct fc_exch *ep;
 #endif
