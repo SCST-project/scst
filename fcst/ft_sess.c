@@ -166,6 +166,14 @@ int ft_lport_notify(struct notifier_block *nb, unsigned long event, void *arg)
 }
 
 /*
+ * Hash function for FC_IDs.
+ */
+static u32 ft_sess_hash(u32 port_id)
+{
+	return hash_32(port_id, FT_SESS_HASH_BITS);
+}
+
+/*
  * Find session in local port.
  * Sessions and hash lists are RCU-protected.
  * A reference is taken which must be eventually freed.
@@ -182,7 +190,7 @@ static struct ft_sess *ft_sess_get(struct fc_lport *lport, u32 port_id)
 	if (!tport)
 		goto out;
 
-	head = &tport->hash[hash_32(port_id, FT_SESS_HASH_BITS)];
+	head = &tport->hash[ft_sess_hash(port_id)];
 	hlist_for_each_entry_rcu(sess, pos, head, hash) {
 		if (sess->port_id == port_id) {
 			kref_get(&sess->kref);
@@ -217,7 +225,7 @@ static int ft_sess_create(struct ft_tport *tport, struct fc_rport_priv *rdata,
 		return FC_SPP_RESP_CONF;
 	}
 
-	head = &tport->hash[hash_32(port_id, FT_SESS_HASH_BITS)];
+	head = &tport->hash[ft_sess_hash(port_id)];
 	hlist_for_each_entry_rcu(sess, pos, head, hash) {
 		if (sess->port_id == port_id) {
 			sess->params = fcp_parm;
@@ -282,7 +290,7 @@ static struct ft_sess *ft_sess_delete(struct ft_tport *tport, u32 port_id)
 	struct hlist_node *pos;
 	struct ft_sess *sess;
 
-	head = &tport->hash[hash_32(port_id, FT_SESS_HASH_BITS)];
+	head = &tport->hash[ft_sess_hash(port_id)];
 	hlist_for_each_entry_rcu(sess, pos, head, hash) {
 		if (sess->port_id == port_id) {
 			ft_sess_unhash(sess);
