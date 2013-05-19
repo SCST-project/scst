@@ -16,6 +16,7 @@
  */
 #include <linux/kernel.h>
 #include <linux/types.h>
+#include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/hash.h>
 #include <asm/unaligned.h>
@@ -462,35 +463,25 @@ static void ft_sess_put(struct ft_sess *sess)
 }
 
 /*
- * Delete ft_sess for PRLO.
- * Called with ft_lport_lock held.
- */
-static struct ft_sess *ft_sess_lookup_delete(struct fc_rport_priv *rdata)
-{
-	struct ft_sess *sess;
-	struct ft_tport *tport;
-
-	tport = rcu_dereference(rdata->local_port->prov[FC_TYPE_FCP]);
-	if (!tport)
-		return NULL;
-	sess = ft_sess_delete(tport, rdata->ids.port_id);
-	if (sess)
-		sess->params = 0;
-	return sess;
-}
-
-/*
  * Handle PRLO.
  */
 static void ft_prlo(struct fc_rport_priv *rdata)
 {
 	struct ft_sess *sess;
+	struct ft_tport *tport;
 
 	mutex_lock(&ft_lport_lock);
-	sess = ft_sess_lookup_delete(rdata);
-	mutex_unlock(&ft_lport_lock);
-	if (!sess)
+	tport = rcu_dereference(rdata->local_port->prov[FC_TYPE_FCP]);
+	if (!tport) {
+		mutex_unlock(&ft_lport_lock);
 		return;
+	}
+	sess = ft_sess_delete(tport, rdata->ids.port_id);
+	if (!sess) {
+		mutex_unlock(&ft_lport_lock);
+		return;
+	}
+	mutex_unlock(&ft_lport_lock);
 
 	/*
 	 * Release the session hold from the table.
@@ -516,11 +507,7 @@ void ft_recv(struct fc_lport *lport, struct fc_frame *fp)
 #endif
 {
 	struct ft_sess *sess;
-	struct fc_frame_header *fh;
-	u32 sid;
-
-	fh = fc_frame_header_get(fp);
-	sid = ntoh24(fh->fh_s_id);
+	u32 sid = fc_frame_sid(fp);
 
 	FT_SESS_DBG("sid %x preempt %x\n", sid, preempt_count());
 
