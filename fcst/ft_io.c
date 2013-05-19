@@ -27,99 +27,6 @@
 #include "fcst.h"
 
 /*
- * Receive write data frame.
- */
-void ft_recv_write_data(struct scst_cmd *cmd, struct fc_frame *fp)
-{
-	struct ft_cmd *fcmd;
-	struct fc_frame_header *fh;
-	unsigned int bufflen;
-	u32 rel_off;
-	size_t frame_len;
-	size_t mem_len;
-	size_t tlen;
-	void *from;
-	void *to;
-	int dir;
-	u8 *buf;
-
-	dir = scst_cmd_get_data_direction(cmd);
-	if (dir == SCST_DATA_BIDI) {
-		mem_len = scst_get_out_buf_first(cmd, &buf);
-		bufflen = scst_cmd_get_out_bufflen(cmd);
-	} else {
-		mem_len = scst_get_buf_first(cmd, &buf);
-		bufflen = scst_cmd_get_bufflen(cmd);
-	}
-	to = buf;
-
-	fcmd = scst_cmd_get_tgt_priv(cmd);
-	fh = fc_frame_header_get(fp);
-	frame_len = fr_len(fp);
-	rel_off = ntohl(fh->fh_parm_offset);
-
-	FT_IO_DBG("sid %x oxid %x payload_len %zd rel_off %x\n",
-		  ntoh24(fh->fh_s_id), ntohs(fh->fh_ox_id),
-		  frame_len - sizeof(*fh), rel_off);
-
-	if (!(ntoh24(fh->fh_f_ctl) & FC_FC_REL_OFF))
-		goto drop;
-	if (frame_len <= sizeof(*fh))
-		goto drop;
-	frame_len -= sizeof(*fh);
-	from = fc_frame_payload_get(fp, 0);
-
-	if (rel_off >= bufflen)
-		goto drop;
-	if (frame_len + rel_off > bufflen)
-		frame_len = bufflen - rel_off;
-
-	while (frame_len) {
-		if (!mem_len) {
-			if (dir == SCST_DATA_BIDI) {
-				scst_put_out_buf(cmd, buf);
-				mem_len = scst_get_out_buf_next(cmd, &buf);
-			} else {
-				scst_put_buf(cmd, buf);
-				mem_len = scst_get_buf_next(cmd, &buf);
-			}
-			to = buf;
-			if (!mem_len)
-				break;
-		}
-		if (rel_off) {
-			if (rel_off >= mem_len) {
-				rel_off -= mem_len;
-				mem_len = 0;
-				continue;
-			}
-			mem_len -= rel_off;
-			to += rel_off;
-			rel_off = 0;
-		}
-
-		tlen = min(mem_len, frame_len);
-		memcpy(to, from, tlen);
-
-		from += tlen;
-		frame_len -= tlen;
-		mem_len -= tlen;
-		to += tlen;
-		fcmd->write_data_len += tlen;
-	}
-	if (mem_len) {
-		if (dir == SCST_DATA_BIDI)
-			scst_put_out_buf(cmd, buf);
-		else
-			scst_put_buf(cmd, buf);
-	}
-	if (fcmd->write_data_len == cmd->data_len)
-		scst_rx_data(cmd, SCST_RX_STATUS_SUCCESS, SCST_CONTEXT_THREAD);
-drop:
-	fc_frame_free(fp);
-}
-
-/*
  * Send read data back to initiator.
  */
 int ft_send_read_data(struct scst_cmd *cmd)
@@ -273,4 +180,97 @@ int ft_send_read_data(struct scst_cmd *cmd)
 		return SCST_TGT_RES_QUEUE_FULL;
 	}
 	return SCST_TGT_RES_SUCCESS;
+}
+
+/*
+ * Receive write data frame.
+ */
+void ft_recv_write_data(struct scst_cmd *cmd, struct fc_frame *fp)
+{
+	struct ft_cmd *fcmd;
+	struct fc_frame_header *fh;
+	unsigned int bufflen;
+	u32 rel_off;
+	size_t frame_len;
+	size_t mem_len;
+	size_t tlen;
+	void *from;
+	void *to;
+	int dir;
+	u8 *buf;
+
+	dir = scst_cmd_get_data_direction(cmd);
+	if (dir == SCST_DATA_BIDI) {
+		mem_len = scst_get_out_buf_first(cmd, &buf);
+		bufflen = scst_cmd_get_out_bufflen(cmd);
+	} else {
+		mem_len = scst_get_buf_first(cmd, &buf);
+		bufflen = scst_cmd_get_bufflen(cmd);
+	}
+	to = buf;
+
+	fcmd = scst_cmd_get_tgt_priv(cmd);
+	fh = fc_frame_header_get(fp);
+	frame_len = fr_len(fp);
+	rel_off = ntohl(fh->fh_parm_offset);
+
+	FT_IO_DBG("sid %x oxid %x payload_len %zd rel_off %x\n",
+		  ntoh24(fh->fh_s_id), ntohs(fh->fh_ox_id),
+		  frame_len - sizeof(*fh), rel_off);
+
+	if (!(ntoh24(fh->fh_f_ctl) & FC_FC_REL_OFF))
+		goto drop;
+	if (frame_len <= sizeof(*fh))
+		goto drop;
+	frame_len -= sizeof(*fh);
+	from = fc_frame_payload_get(fp, 0);
+
+	if (rel_off >= bufflen)
+		goto drop;
+	if (frame_len + rel_off > bufflen)
+		frame_len = bufflen - rel_off;
+
+	while (frame_len) {
+		if (!mem_len) {
+			if (dir == SCST_DATA_BIDI) {
+				scst_put_out_buf(cmd, buf);
+				mem_len = scst_get_out_buf_next(cmd, &buf);
+			} else {
+				scst_put_buf(cmd, buf);
+				mem_len = scst_get_buf_next(cmd, &buf);
+			}
+			to = buf;
+			if (!mem_len)
+				break;
+		}
+		if (rel_off) {
+			if (rel_off >= mem_len) {
+				rel_off -= mem_len;
+				mem_len = 0;
+				continue;
+			}
+			mem_len -= rel_off;
+			to += rel_off;
+			rel_off = 0;
+		}
+
+		tlen = min(mem_len, frame_len);
+		memcpy(to, from, tlen);
+
+		from += tlen;
+		frame_len -= tlen;
+		mem_len -= tlen;
+		to += tlen;
+		fcmd->write_data_len += tlen;
+	}
+	if (mem_len) {
+		if (dir == SCST_DATA_BIDI)
+			scst_put_out_buf(cmd, buf);
+		else
+			scst_put_buf(cmd, buf);
+	}
+	if (fcmd->write_data_len == cmd->data_len)
+		scst_rx_data(cmd, SCST_RX_STATUS_SUCCESS, SCST_CONTEXT_THREAD);
+drop:
+	fc_frame_free(fp);
 }
