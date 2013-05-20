@@ -512,6 +512,13 @@ static void ft_prlo(struct fc_rport_priv *rdata)
 	rdata->prli_count--;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
+static inline u32 fc_frame_sid(const struct fc_frame *fp)
+{
+	return ntoh24(fc_frame_header_get(fp)->fh_s_id);
+}
+#endif
+
 /*
  * Handle incoming FCP request.
  * Caller has verified that the frame is type FCP.
