@@ -265,7 +265,7 @@ void ft_recv_write_data(struct scst_cmd *cmd, struct fc_frame *fp)
 		else
 			scst_put_buf(cmd, buf);
 	}
-	if (fcmd->write_data_len == cmd->data_len)
+	if (fcmd->write_data_len == cmd->bufflen)
 		scst_rx_data(cmd, SCST_RX_STATUS_SUCCESS, SCST_CONTEXT_THREAD);
 drop:
 	fc_frame_free(fp);
