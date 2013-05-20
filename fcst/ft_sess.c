@@ -440,8 +440,8 @@ fill:
  *
  * Returns spp response code.
  */
-int ft_prli(struct fc_rport_priv *rdata, u32 spp_len,
-	    const struct fc_els_spp *rspp, struct fc_els_spp *spp)
+static int ft_prli(struct fc_rport_priv *rdata, u32 spp_len,
+		   const struct fc_els_spp *rspp, struct fc_els_spp *spp)
 {
 	int ret;
 
@@ -526,9 +526,10 @@ static inline u32 fc_frame_sid(const struct fc_frame *fp)
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36) \
 	&& (!defined(RHEL_MAJOR) || RHEL_MAJOR -0 <= 5)
-void ft_recv(struct fc_lport *lport, struct fc_seq *sp, struct fc_frame *fp)
+static void ft_recv(struct fc_lport *lport, struct fc_seq *sp,
+		    struct fc_frame *fp)
 #else
-void ft_recv(struct fc_lport *lport, struct fc_frame *fp)
+static void ft_recv(struct fc_lport *lport, struct fc_frame *fp)
 #endif
 {
 	struct ft_sess *sess;
