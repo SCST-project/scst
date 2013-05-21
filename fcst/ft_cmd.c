@@ -461,7 +461,7 @@ static void ft_send_resp_status(struct fc_frame *rx_fp, u32 status,
 
 	lport->tt.seq_send(lport, sp, fp);
 out:
-	lport->tt.exch_done(sp);
+	lport->tt.exch_done(fr_seq(rx_fp));
 #else
 	fc_fill_reply_hdr(fp, rx_fp, FC_RCTL_DD_CMD_STATUS, 0);
 	sp = fr_seq(fp);
