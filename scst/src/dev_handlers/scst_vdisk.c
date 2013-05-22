@@ -346,7 +346,7 @@ static struct kobj_attribute vdisk_nv_cache_attr =
 static struct kobj_attribute vdisk_o_direct_attr =
 	__ATTR(o_direct, S_IRUGO, vdisk_sysfs_o_direct_show, NULL);
 static struct kobj_attribute vdev_dummy_attr =
-	__ATTR(dummy, S_IWUSR|S_IRUGO, vdev_sysfs_dummy_show, NULL);
+	__ATTR(dummy, S_IRUGO, vdev_sysfs_dummy_show, NULL);
 static struct kobj_attribute vdisk_removable_attr =
 	__ATTR(removable, S_IRUGO, vdisk_sysfs_removable_show, NULL);
 static struct kobj_attribute vdisk_filename_attr =
