@@ -107,6 +107,7 @@ static struct scst_trace_log vdisk_local_trace_tbl[] = {
 #define DEF_WRITE_THROUGH		0
 #define DEF_NV_CACHE			0
 #define DEF_O_DIRECT			0
+#define DEF_DUMMY			0
 #define DEF_REMOVABLE			0
 #define DEF_ROTATIONAL			1
 #define DEF_THIN_PROVISIONED		0
@@ -155,6 +156,7 @@ struct scst_vdisk_dev {
 	unsigned int nullio:1;
 	unsigned int blockio:1;
 	unsigned int cdrom_empty:1;
+	unsigned int dummy:1;
 	unsigned int removable:1;
 	unsigned int thin_provisioned:1;
 	unsigned int thin_provisioned_manually_set:1;
@@ -305,6 +307,8 @@ static ssize_t vdisk_sysfs_nv_cache_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdisk_sysfs_o_direct_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
+static ssize_t vdev_sysfs_dummy_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
 static ssize_t vdisk_sysfs_removable_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdev_sysfs_filename_show(struct kobject *kobj,
@@ -341,6 +345,8 @@ static struct kobj_attribute vdisk_nv_cache_attr =
 	__ATTR(nv_cache, S_IRUGO, vdisk_sysfs_nv_cache_show, NULL);
 static struct kobj_attribute vdisk_o_direct_attr =
 	__ATTR(o_direct, S_IRUGO, vdisk_sysfs_o_direct_show, NULL);
+static struct kobj_attribute vdev_dummy_attr =
+	__ATTR(dummy, S_IWUSR|S_IRUGO, vdev_sysfs_dummy_show, NULL);
 static struct kobj_attribute vdisk_removable_attr =
 	__ATTR(removable, S_IRUGO, vdisk_sysfs_removable_show, NULL);
 static struct kobj_attribute vdisk_filename_attr =
@@ -397,6 +403,7 @@ static const struct attribute *vdisk_nullio_attrs[] = {
 	&vdev_size_attr.attr,
 	&vdisk_blocksize_attr.attr,
 	&vdisk_rd_only_attr.attr,
+	&vdev_dummy_attr.attr,
 	&vdisk_removable_attr.attr,
 	&vdev_t10_dev_id_attr.attr,
 	&vdev_usn_attr.attr,
@@ -530,7 +537,8 @@ static struct scst_dev_type vdisk_null_devtype = {
 	.add_device =		vdisk_add_nullio_device,
 	.del_device =		vdisk_del_device,
 	.dev_attrs =		vdisk_nullio_attrs,
-	.add_device_parameters = "blocksize, read_only, removable, rotational",
+	.add_device_parameters = "blocksize, read_only, dummy, removable,"
+		" rotational",
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
@@ -2178,7 +2186,8 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 		goto out_put;
 	}
 
-	buf[0] = dev->type;      /* type dev */
+	buf[0] = virt_dev->dummy ? SCSI_INQ_PQ_NOT_CON << 5 | 0x1f :
+		 SCSI_INQ_PQ_CON << 5 | dev->type;
 	/* Vital Product */
 	if (cmd->cdb[1] & EVPD) {
 		if (0 == cmd->cdb[2]) {
@@ -4267,6 +4276,10 @@ static void vdisk_report_registering(const struct scst_vdisk_dev *virt_dev)
 		i += snprintf(&buf[i], sizeof(buf) - i, "%sZERO_COPY",
 			(j == i) ? "(" : ", ");
 
+	if (virt_dev->dummy)
+		i += snprintf(&buf[i], sizeof(buf) - i, "%sDUMMY",
+			(j == i) ? "(" : ", ");
+
 	if (j == i)
 		PRINT_INFO("%s", buf);
 	else
@@ -4342,6 +4355,7 @@ static int vdev_create(struct scst_dev_type *devt,
 	virt_dev->vdev_devt = devt;
 
 	virt_dev->rd_only = DEF_RD_ONLY;
+	virt_dev->dummy = DEF_DUMMY;
 	virt_dev->removable = DEF_REMOVABLE;
 	virt_dev->rotational = DEF_ROTATIONAL;
 	virt_dev->thin_provisioned = DEF_THIN_PROVISIONED;
@@ -4395,7 +4409,7 @@ static void vdev_destroy(struct scst_vdisk_dev *virt_dev)
 #ifndef CONFIG_SCST_PROC
 
 static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
-	char *params, const char *allowed_params[])
+	char *params, const char *const allowed_params[])
 {
 	int res = 0;
 	unsigned long val;
@@ -4417,7 +4431,7 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 		}
 
 		if (allowed_params != NULL) {
-			const char **a = allowed_params;
+			const char *const *a = allowed_params;
 			bool allowed = false;
 
 			while (*a != NULL) {
@@ -4498,6 +4512,13 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 		} else if (!strcasecmp("read_only", p)) {
 			virt_dev->rd_only = val;
 			TRACE_DBG("READ ONLY %d", virt_dev->rd_only);
+		} else if (!strcasecmp("dummy", p)) {
+			if (val > 1) {
+				res = -EINVAL;
+				goto out;
+			}
+			virt_dev->dummy = val;
+			TRACE_DBG("DUMMY %d", virt_dev->dummy);
 		} else if (!strcasecmp("removable", p)) {
 			virt_dev->removable = val;
 			TRACE_DBG("REMOVABLE %d", virt_dev->removable);
@@ -4597,7 +4618,7 @@ out_destroy:
 static int vdev_blockio_add_device(const char *device_name, char *params)
 {
 	int res = 0;
-	const char *allowed_params[] = { "filename", "read_only", "write_through",
+	const char *const allowed_params[] = { "filename", "read_only", "write_through",
 					 "removable", "blocksize", "nv_cache",
 					 "rotational", "thin_provisioned", NULL };
 	struct scst_vdisk_dev *virt_dev;
@@ -4653,8 +4674,10 @@ out_destroy:
 static int vdev_nullio_add_device(const char *device_name, char *params)
 {
 	int res = 0;
-	const char *allowed_params[] = { "read_only", "removable",
-					 "blocksize", "rotational", NULL };
+	static const char *const allowed_params[] = {
+		"read_only", "dummy", "removable", "blocksize", "rotational",
+		NULL
+	};
 	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
@@ -5238,6 +5261,17 @@ static ssize_t vdisk_sysfs_o_direct_show(struct kobject *kobj,
 
 	TRACE_EXIT_RES(pos);
 	return pos;
+}
+
+static ssize_t vdev_sysfs_dummy_show(struct kobject *kobj,
+				     struct kobj_attribute *attr, char *buf)
+{
+	struct scst_device *dev = container_of(kobj, struct scst_device,
+					       dev_kobj);
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+
+	return sprintf(buf, "%d\n%s", virt_dev->dummy,
+		 virt_dev->dummy != DEF_DUMMY ? SCST_SYSFS_KEY_MARK "\n" : "");
 }
 
 static ssize_t vdisk_sysfs_removable_show(struct kobject *kobj,

@@ -149,6 +149,16 @@ HANDLER vdisk_blockio {
 .br
 }
 .IP
+HANDLER vdisk_nullio {
+.br
+	DEVICE dummy {
+.br
+		dummy 1
+.br
+	}
+.br
+}
+.IP
 HANDLER vcdrom {
 .br
 	DEVICE cdrom1 {
@@ -208,6 +218,9 @@ TARGET_DRIVER qla2x00t {
 	TARGET 25:00:00:f0:98:87:92:f3 {
 .br
 		enabled 1
+.br
+		LUN 0 dummy
+.br
 .IP
 		GROUP INI1 {
 .br
