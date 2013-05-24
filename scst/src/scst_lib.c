@@ -7922,7 +7922,7 @@ static void __scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
 	list_for_each_entry(UA_entry_tmp, &tgt_dev->UA_list,
 			    UA_list_entry) {
 		if (memcmp(sense, UA_entry_tmp->UA_sense_buffer, len) == 0) {
-			TRACE_MGMT_DBG("UA already exists (dev %s, "
+			TRACE_DBG("UA already exists (dev %s, "
 				"initiator %s)", tgt_dev->dev->virt_name,
 				tgt_dev->sess->initiator_name);
 			skip_UA = 1;
