@@ -174,7 +174,9 @@ static struct ft_sess *ft_sess_get(struct fc_lport *lport, u32 port_id)
 {
 	struct ft_tport *tport;
 	struct hlist_head *head;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0)
 	struct hlist_node *pos;
+#endif
 	struct ft_sess *sess = NULL;
 
 	rcu_read_lock();
@@ -183,7 +185,11 @@ static struct ft_sess *ft_sess_get(struct fc_lport *lport, u32 port_id)
 		goto out;
 
 	head = &tport->hash[hash_32(port_id, FT_SESS_HASH_BITS)];
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0)
 	hlist_for_each_entry_rcu(sess, pos, head, hash) {
+#else
+	hlist_for_each_entry_rcu(sess, head, hash) {
+#endif
 		if (sess->port_id == port_id) {
 			kref_get(&sess->kref);
 			rcu_read_unlock();
@@ -207,7 +213,9 @@ static int ft_sess_create(struct ft_tport *tport, struct fc_rport_priv *rdata,
 	struct ft_sess *sess;
 	struct scst_session *scst_sess;
 	struct hlist_head *head;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0)
 	struct hlist_node *pos;
+#endif
 	u32 port_id;
 	char name[FT_NAMELEN];
 
@@ -218,7 +226,11 @@ static int ft_sess_create(struct ft_tport *tport, struct fc_rport_priv *rdata,
 	}
 
 	head = &tport->hash[hash_32(port_id, FT_SESS_HASH_BITS)];
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0)
 	hlist_for_each_entry_rcu(sess, pos, head, hash) {
+#else
+	hlist_for_each_entry_rcu(sess, head, hash) {
+#endif
 		if (sess->port_id == port_id) {
 			sess->params = fcp_parm;
 			return 0;
@@ -279,11 +291,17 @@ static void ft_sess_unhash(struct ft_sess *sess)
 static struct ft_sess *ft_sess_delete(struct ft_tport *tport, u32 port_id)
 {
 	struct hlist_head *head;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0)
 	struct hlist_node *pos;
+#endif
 	struct ft_sess *sess;
 
 	head = &tport->hash[hash_32(port_id, FT_SESS_HASH_BITS)];
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0)
 	hlist_for_each_entry_rcu(sess, pos, head, hash) {
+#else
+	hlist_for_each_entry_rcu(sess, head, hash) {
+#endif
 		if (sess->port_id == port_id) {
 			ft_sess_unhash(sess);
 			return sess;
@@ -543,7 +561,9 @@ int ft_tgt_release(struct scst_tgt *tgt)
 {
 	struct ft_tport *tport;
 	struct hlist_head *head;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0)
 	struct hlist_node *pos;
+#endif
 	struct ft_sess *sess;
 
 	tport = scst_tgt_get_tgt_priv(tgt);
@@ -551,7 +571,11 @@ int ft_tgt_release(struct scst_tgt *tgt)
 	tport->lport->service_params &= ~FCP_SPPF_TARG_FCN;
 
 	for (head = tport->hash; head < &tport->hash[FT_SESS_HASH_SIZE]; head++)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0)
 		hlist_for_each_entry_rcu(sess, pos, head, hash)
+#else
+		hlist_for_each_entry_rcu(sess, head, hash)
+#endif
 			ft_sess_close(sess);
 
 	synchronize_rcu();
