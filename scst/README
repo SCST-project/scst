@@ -902,6 +902,15 @@ Intended to be used for performance measurements at the same way as
 blocksize, read_only, removable. See vdisk_fileio above for description
 of those parameters.
 
+vdisk_nullio also has extra attribute:
+
+ - dummy - if this flag is set, LUNs corresponding to this device will
+   not appear at the initiator side. This is because SCST will set the
+   PERIPHERAL QUALIFIER qualifier field to 1 (not connected) and the
+   PERIPHERAL DEVICE TYPE to 0x1f (no device) in the INQUIRY response.
+   See also SPC-4 for more information. It is designed to be used as a
+   "dummy" placeholder on LUN 0, if LUN 0 is not desired.
+
 Handler vcdrom allows emulation of a virtual CDROM device using an ISO
 file as backend. It doesn't have any parameters.
 
@@ -992,7 +1001,7 @@ description of those parameters.
 Each vdisk_nullio's device has the following attributes in
 /sys/kernel/scst_tgt/devices/device_name: blocksize, read_only,
 removable, size_mb, t10_dev_id, threads_num, threads_pool_type, type,
-usn. See above description of those parameters.
+usn, dummy. See above description of those parameters.
 
 Each vcdrom's device has the following attributes in
 /sys/kernel/scst_tgt/devices/device_name: filename, size_mb,
