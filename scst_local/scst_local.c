@@ -1095,9 +1095,11 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *SCpnt,
 	 * DIRECT contexts disabled, so this option doesn't have any
 	 * real effect.
 	 */
+#ifdef CONFIG_SMP
 	if (spin_is_locked(SCpnt->device->host->host_lock))
 		scst_cmd_init_done(scst_cmd, SCST_CONTEXT_THREAD);
 	else
+#endif
 		scst_cmd_init_done(scst_cmd, scst_estimate_context());
 #else
 	scst_cmd_init_done(scst_cmd, SCST_CONTEXT_THREAD);
