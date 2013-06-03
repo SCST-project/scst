@@ -174,6 +174,13 @@ static u32 ft_sess_hash(u32 port_id)
 	return hash_32(port_id, FT_SESS_HASH_BITS);
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 7, 0)
+static inline int __must_check kref_get_unless_zero(struct kref *kref)
+{
+        return atomic_add_unless(&kref->refcount, 1, 0);
+}
+#endif
+
 /*
  * Find session in local port.
  * Sessions and hash lists are RCU-protected.
@@ -512,7 +519,7 @@ static void ft_prlo(struct fc_rport_priv *rdata)
 	rdata->prli_count--;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36) && !defined(RHEL_MAJOR)
 static inline u32 fc_frame_sid(const struct fc_frame *fp)
 {
 	return ntoh24(fc_frame_header_get(fp)->fh_s_id);
