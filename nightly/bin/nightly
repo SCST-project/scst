@@ -53,10 +53,11 @@ usage () {
 # Startup
 #----------------------------------------------------------------------------
 
+scst_rootdir="$(dirname "$(dirname "$(cd "$(dirname "$0")" && echo "$PWD")")")"
 if svn info . >/dev/null 2>&1; then
-  scst_repo="https://scst.svn.sourceforge.net/svnroot/scst/trunk"
+  scst_repo="$(svn info "$scst_rootdir" | sed -n 's/^URL: //p')"
 else
-  scst_repo="$(dirname "$(dirname "$(cd "$(dirname "$0")" && echo "$PWD")")")"
+  scst_repo="$scst_rootdir"
 fi
 sendmail_opts=""
 run_if_unchanged="false"
@@ -220,5 +221,5 @@ fi
 # Use the conf/<tag>.sendmail script to email the results.
 conf/$ABT_MACHINE.sendmail \
    ${sendmail_opts} \
-   "$changed_str$ABT_START nightly build ($ABT_MACHINE, $ABT_DETAILS)" \
+   "$changed_str$ABT_START $(basename "$scst_repo") nightly build ($ABT_MACHINE, $ABT_DETAILS)" \
    final > sendmail.log 2>&1
