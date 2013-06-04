@@ -26,6 +26,7 @@
 #include "scst_debug.h"
 #endif
 
+/* PERSISTENT RESERVE OUT service action code */
 #define PR_REGISTER				0x00
 #define PR_RESERVE				0x01
 #define PR_RELEASE				0x02
@@ -35,11 +36,13 @@
 #define PR_REGISTER_AND_IGNORE			0x06
 #define PR_REGISTER_AND_MOVE			0x07
 
+/* PERSISTENT RESERVE IN service action code */
 #define PR_READ_KEYS				0x00
 #define PR_READ_RESERVATION			0x01
 #define PR_REPORT_CAPS				0x02
 #define PR_READ_FULL_STATUS			0x03
 
+/* Persistent reservation TYPE field */
 #define TYPE_UNSPECIFIED			(-1)
 #define TYPE_WRITE_EXCLUSIVE			0x01
 #define TYPE_EXCLUSIVE_ACCESS			0x03
@@ -48,6 +51,7 @@
 #define TYPE_WRITE_EXCLUSIVE_ALL_REG		0x07
 #define TYPE_EXCLUSIVE_ACCESS_ALL_REG		0x08
 
+/* Persistent reservation SCOPE field */
 #define SCOPE_LU				0x00
 
 static inline void scst_inc_pr_readers_count(struct scst_cmd *cmd,
