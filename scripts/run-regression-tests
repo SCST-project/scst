@@ -338,7 +338,7 @@ function run_sparse {
       && make -s prepare \
       && make -s scripts \
       && if grep -q '^CONFIG_PPC=y$' .config; then LC_ALL=C make -k M=arch/powerpc/lib; fi \
-      && LC_ALL=C make -k C=2 CF=-D__CHECK_ENDIAN__ M="${subdir}" "$@"
+      && LC_ALL=C make -k C=2 CF="-D__CHECK_ENDIAN__ -DCONFIG_SPARSE_RCU_POINTER" M="${subdir}" "$@"
     ) &> "${outputfile}"
   then
     local errors=$(grep -c ' error:' "${outputfile}")
