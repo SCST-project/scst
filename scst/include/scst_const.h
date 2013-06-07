@@ -186,9 +186,10 @@ enum scst_cmd_queue_type {
  ** compiler with another bitfields layout can be used.
  ***************************************************************/
 enum scst_cdb_flags {
-	SCST_TRANSFER_LEN_TYPE_FIXED =		0x0001,
-	SCST_SMALL_TIMEOUT =			0x0002,
-	SCST_LONG_TIMEOUT =			0x0004,
+	SCST_SMALL_TIMEOUT =			0x0001,
+	SCST_LONG_TIMEOUT =			0x0002,
+#define	SCST_BOTH_TIMEOUTS	(SCST_SMALL_TIMEOUT | SCST_LONG_TIMEOUT)
+	SCST_TRANSFER_LEN_TYPE_FIXED =		0x0004,
 	SCST_UNKNOWN_LBA =			0x0008,
 	SCST_UNKNOWN_LENGTH =			0x0010,
 	SCST_INFO_VALID =			0x0020,

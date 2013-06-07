@@ -6977,11 +6977,9 @@ int scst_calc_block_shift(int sector_size)
 EXPORT_SYMBOL_GPL(scst_calc_block_shift);
 
 /**
- * scst_sbc_generic_parse() - generic SBC parsing
- *
- * Generic parse() for SBC (disk) devices
+ * scst_generic_parse() - Generic parse() for devices supporting an LBA
  */
-int scst_sbc_generic_parse(struct scst_cmd *cmd)
+static inline int scst_generic_parse(struct scst_cmd *cmd, const int timeout[3])
 {
 	int res = 0;
 
@@ -7003,18 +7001,33 @@ int scst_sbc_generic_parse(struct scst_cmd *cmd)
 		cmd->out_bufflen = cmd->out_bufflen << block_shift;
 	}
 
-	if ((cmd->op_flags & (SCST_SMALL_TIMEOUT | SCST_LONG_TIMEOUT)) == 0)
-		cmd->timeout = SCST_GENERIC_DISK_REG_TIMEOUT;
-	else if (cmd->op_flags & SCST_SMALL_TIMEOUT)
-		cmd->timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT;
-	else if (cmd->op_flags & SCST_LONG_TIMEOUT)
-		cmd->timeout = SCST_GENERIC_DISK_LONG_TIMEOUT;
+	cmd->timeout = timeout[cmd->op_flags & SCST_BOTH_TIMEOUTS];
 
 	TRACE_DBG("res %d, bufflen %d, data_len %lld, direct %d", res,
 		cmd->bufflen, (long long)cmd->data_len, cmd->data_direction);
 
 	TRACE_EXIT_RES(res);
 	return res;
+}
+
+ /**
+ * scst_sbc_generic_parse() - generic SBC parsing
+  *
+ * Generic parse() for SBC (disk) devices
+  */
+int scst_sbc_generic_parse(struct scst_cmd *cmd)
+{
+	static const int disk_timeout[] = {
+		[0] = SCST_GENERIC_DISK_REG_TIMEOUT,
+		[SCST_SMALL_TIMEOUT] = SCST_GENERIC_DISK_SMALL_TIMEOUT,
+		[SCST_LONG_TIMEOUT] = SCST_GENERIC_DISK_LONG_TIMEOUT,
+		[SCST_BOTH_TIMEOUTS] = SCST_GENERIC_DISK_LONG_TIMEOUT,
+	};
+	BUILD_BUG_ON(SCST_SMALL_TIMEOUT != 1);
+	BUILD_BUG_ON(SCST_LONG_TIMEOUT != 2);
+	BUILD_BUG_ON(SCST_BOTH_TIMEOUTS != 3);
+
+	return scst_generic_parse(cmd, disk_timeout);
 }
 EXPORT_SYMBOL_GPL(scst_sbc_generic_parse);
 
@@ -7025,36 +7038,18 @@ EXPORT_SYMBOL_GPL(scst_sbc_generic_parse);
  */
 int scst_cdrom_generic_parse(struct scst_cmd *cmd)
 {
-	int res = 0;
-
-	TRACE_ENTRY();
-
-	/*
-	 * SCST sets good defaults for cmd->data_direction and cmd->bufflen,
-	 * therefore change them only if necessary
-	 */
+	static const int cdrom_timeout[] = {
+		[0] = SCST_GENERIC_CDROM_REG_TIMEOUT,
+		[SCST_SMALL_TIMEOUT] = SCST_GENERIC_CDROM_SMALL_TIMEOUT,
+		[SCST_LONG_TIMEOUT] = SCST_GENERIC_CDROM_LONG_TIMEOUT,
+		[SCST_BOTH_TIMEOUTS] = SCST_GENERIC_CDROM_LONG_TIMEOUT,
+	};
+	BUILD_BUG_ON(SCST_SMALL_TIMEOUT != 1);
+	BUILD_BUG_ON(SCST_LONG_TIMEOUT != 2);
+	BUILD_BUG_ON(SCST_BOTH_TIMEOUTS != 3);
 
 	cmd->cdb[1] &= 0x1f;
-
-	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED) {
-		int block_shift = cmd->dev->block_shift;
-		cmd->bufflen = cmd->bufflen << block_shift;
-		cmd->data_len = cmd->data_len << block_shift;
-		cmd->out_bufflen = cmd->out_bufflen << block_shift;
-	}
-
-	if ((cmd->op_flags & (SCST_SMALL_TIMEOUT | SCST_LONG_TIMEOUT)) == 0)
-		cmd->timeout = SCST_GENERIC_CDROM_REG_TIMEOUT;
-	else if (cmd->op_flags & SCST_SMALL_TIMEOUT)
-		cmd->timeout = SCST_GENERIC_CDROM_SMALL_TIMEOUT;
-	else if (cmd->op_flags & SCST_LONG_TIMEOUT)
-		cmd->timeout = SCST_GENERIC_CDROM_LONG_TIMEOUT;
-
-	TRACE_DBG("res=%d, bufflen=%d, direct=%d", res, cmd->bufflen,
-		cmd->data_direction);
-
-	TRACE_EXIT();
-	return res;
+	return scst_generic_parse(cmd, cdrom_timeout);
 }
 EXPORT_SYMBOL_GPL(scst_cdrom_generic_parse);
 
@@ -7065,36 +7060,18 @@ EXPORT_SYMBOL_GPL(scst_cdrom_generic_parse);
  */
 int scst_modisk_generic_parse(struct scst_cmd *cmd)
 {
-	int res = 0;
-
-	TRACE_ENTRY();
-
-	/*
-	 * SCST sets good defaults for cmd->data_direction and cmd->bufflen,
-	 * therefore change them only if necessary
-	 */
+	static const int modisk_timeout[] = {
+		[0] = SCST_GENERIC_MODISK_REG_TIMEOUT,
+		[SCST_SMALL_TIMEOUT] = SCST_GENERIC_MODISK_SMALL_TIMEOUT,
+		[SCST_LONG_TIMEOUT] = SCST_GENERIC_MODISK_LONG_TIMEOUT,
+		[SCST_BOTH_TIMEOUTS] = SCST_GENERIC_MODISK_LONG_TIMEOUT,
+	};
+	BUILD_BUG_ON(SCST_SMALL_TIMEOUT != 1);
+	BUILD_BUG_ON(SCST_LONG_TIMEOUT != 2);
+	BUILD_BUG_ON(SCST_BOTH_TIMEOUTS != 3);
 
 	cmd->cdb[1] &= 0x1f;
-
-	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED) {
-		int block_shift = cmd->dev->block_shift;
-		cmd->bufflen = cmd->bufflen << block_shift;
-		cmd->data_len = cmd->data_len << block_shift;
-		cmd->out_bufflen = cmd->out_bufflen << block_shift;
-	}
-
-	if ((cmd->op_flags & (SCST_SMALL_TIMEOUT | SCST_LONG_TIMEOUT)) == 0)
-		cmd->timeout = SCST_GENERIC_MODISK_REG_TIMEOUT;
-	else if (cmd->op_flags & SCST_SMALL_TIMEOUT)
-		cmd->timeout = SCST_GENERIC_MODISK_SMALL_TIMEOUT;
-	else if (cmd->op_flags & SCST_LONG_TIMEOUT)
-		cmd->timeout = SCST_GENERIC_MODISK_LONG_TIMEOUT;
-
-	TRACE_DBG("res=%d, bufflen=%d, direct=%d", res, cmd->bufflen,
-		cmd->data_direction);
-
-	TRACE_EXIT_RES(res);
-	return res;
+	return scst_generic_parse(cmd, modisk_timeout);
 }
 EXPORT_SYMBOL_GPL(scst_modisk_generic_parse);
 
