@@ -848,6 +848,7 @@ out_clear:
 
 out_resume:
 	__scst_resume_activity();
+	EXTRACHECKS_BUG_ON(suspend_count != 0);
 	goto out_up;
 }
 EXPORT_SYMBOL_GPL(scst_suspend_activity);
