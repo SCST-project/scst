@@ -712,11 +712,9 @@ static int scst_susp_wait(unsigned long timeout)
 	if (timeout != SCST_SUSPEND_TIMEOUT_UNLIMITED) {
 		res = wait_event_interruptible_timeout(scst_dev_cmd_waitQ,
 			(scst_get_cmd_counter() == 0), timeout);
-		if (res <= 0) {
-			__scst_resume_activity();
-			if (res == 0)
-				res = -EBUSY;
-		} else
+		if (res == 0)
+			res = -EBUSY;
+		else if (res > 0)
 			res = 0;
 	} else
 		wait_event(scst_dev_cmd_waitQ, scst_get_cmd_counter() == 0);
@@ -816,7 +814,7 @@ int scst_suspend_activity(unsigned long timeout)
 		/* just in case */
 		if (wait_time >= timeout) {
 			res = -EBUSY;
-			goto out_clear;
+			goto out_resume;
 		}
 		wait_time = timeout - wait_time;
 	} else
@@ -824,7 +822,7 @@ int scst_suspend_activity(unsigned long timeout)
 
 	res = scst_susp_wait(wait_time);
 	if (res != 0)
-		goto out_clear;
+		goto out_resume;
 
 	if (rep)
 		PRINT_INFO("%s", "All active commands completed");
@@ -847,10 +845,14 @@ out_clear:
 	clear_bit(SCST_FLAG_SUSPENDING, &scst_flags);
 	/* See comment about smp_mb() above */
 	smp_mb__after_clear_bit();
+
+out_resume:
+	__scst_resume_activity();
 	goto out_up;
 }
 EXPORT_SYMBOL_GPL(scst_suspend_activity);
 
+/* scst_suspend_mutex supposed to be locked */
 static void __scst_resume_activity(void)
 {
 	struct scst_cmd_threads *l;
