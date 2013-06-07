@@ -55,7 +55,7 @@ usage () {
 
 scst_rootdir="$(dirname "$(dirname "$(cd "$(dirname "$0")" && echo "$PWD")")")"
 if svn info . >/dev/null 2>&1; then
-  scst_repo="$(svn info "$scst_rootdir" | sed -n 's/^URL: //p')"
+  scst_repo="$(svn info "$scst_rootdir" | sed -n -e 's|\+ssh://[^@]*@|://|' -e 's/^URL: //p')"
 else
   scst_repo="$scst_rootdir"
 fi
