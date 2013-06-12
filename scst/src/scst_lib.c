@@ -6976,12 +6976,25 @@ int scst_calc_block_shift(int sector_size)
 }
 EXPORT_SYMBOL_GPL(scst_calc_block_shift);
 
+/*
+ * Test whether the result of a shift-left operation would be larger than
+ * what fits in a variable with the type of @a.
+ */
+#define shift_left_overflows(a, b)					\
+	({								\
+		typeof (a) _minus_one = -1LL;				\
+		bool _a_is_signed = _minus_one < 0;			\
+		int _shift = sizeof(1ULL) * 8 - ((b) + _a_is_signed);	\
+		_shift < 0 || ((a) & ~((1ULL << _shift) - 1)) != 0;	\
+	})
+
 /**
  * scst_generic_parse() - Generic parse() for devices supporting an LBA
  */
 static inline int scst_generic_parse(struct scst_cmd *cmd, const int timeout[3])
 {
-	int res = 0;
+	const int block_shift = cmd->dev->block_shift;
+	int res = -EINVAL;
 
 	TRACE_ENTRY();
 
@@ -6991,7 +7004,6 @@ static inline int scst_generic_parse(struct scst_cmd *cmd, const int timeout[3])
 	 */
 
 	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED) {
-		int block_shift = cmd->dev->block_shift;
 		/*
 		 * No need for locks here, since *_detach() can not be
 		 * called, when there are existing commands.
@@ -7001,8 +7013,20 @@ static inline int scst_generic_parse(struct scst_cmd *cmd, const int timeout[3])
 		cmd->out_bufflen = cmd->out_bufflen << block_shift;
 	}
 
-	cmd->timeout = timeout[cmd->op_flags & SCST_BOTH_TIMEOUTS];
+	if (unlikely(!(cmd->op_flags & SCST_LBA_NOT_VALID) &&
+		     shift_left_overflows(cmd->lba, block_shift))) {
+		PRINT_WARNING("offset %llu * %u >= 2**63 for device %s (len %lld)",
+			   cmd->lba, 1 << block_shift, cmd->dev->virt_name,
+			   cmd->data_len);
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
+					scst_sense_block_out_range_error));
+		goto out;
+	}
 
+	cmd->timeout = timeout[cmd->op_flags & SCST_BOTH_TIMEOUTS];
+	res = 0;
+
+out:
 	TRACE_DBG("res %d, bufflen %d, data_len %lld, direct %d", res,
 		cmd->bufflen, (long long)cmd->data_len, cmd->data_direction);
 
