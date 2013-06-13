@@ -806,8 +806,9 @@ int scst_suspend_activity(unsigned long timeout)
 	/* See comment about smp_mb() above */
 	smp_mb__after_clear_bit();
 
-	TRACE_MGMT_DBG("Waiting for %d active commands finally to complete",
-		scst_get_cmd_counter());
+	if (scst_get_cmd_counter() != 0)
+		TRACE_MGMT_DBG("Waiting for %d active commands finally to "
+			"complete", scst_get_cmd_counter());
 
 	if (timeout != SCST_SUSPEND_TIMEOUT_UNLIMITED) {
 		wait_time = jiffies - cur_time;

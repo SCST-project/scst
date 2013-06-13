@@ -7742,19 +7742,18 @@ int scst_set_pending_UA(struct scst_cmd *cmd, uint8_t *buf, int *size)
 		goto out;
 	}
 
-	TRACE_MGMT_DBG("Setting pending UA cmd %p (dev %s, initiator %s)", cmd,
-		cmd->dev->virt_name, cmd->sess->initiator_name);
-
 	spin_lock_bh(&cmd->tgt_dev->tgt_dev_lock);
 
 again:
 	/* UA list could be cleared behind us, so retest */
 	if (list_empty(&cmd->tgt_dev->UA_list)) {
-		TRACE_DBG("%s",
-		      "SCST_TGT_DEV_UA_PENDING set, but UA_list empty");
+		TRACE_DBG("SCST_TGT_DEV_UA_PENDING set, but UA_list empty");
 		res = -1;
 		goto out_unlock;
-	}
+	} else
+		TRACE_MGMT_DBG("Setting pending UA cmd %p (tgt_dev %p, dev %s, "
+			"initiator %s)", cmd->tgt_dev, cmd, cmd->dev->virt_name,
+			cmd->sess->initiator_name);
 
 	UA_entry = list_first_entry(&cmd->tgt_dev->UA_list, typeof(*UA_entry),
 			      UA_list_entry);
@@ -7898,7 +7897,8 @@ static void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
 
 	set_bit(SCST_TGT_DEV_UA_PENDING, &tgt_dev->tgt_dev_flags);
 
-	TRACE_MGMT_DBG("Adding new UA to tgt_dev %p", tgt_dev);
+	TRACE_MGMT_DBG("Adding new UA to tgt_dev %p (dev %s, initiator %s)",
+		tgt_dev, tgt_dev->dev->virt_name, tgt_dev->sess->initiator_name);
 
 	if (flags & SCST_SET_UA_FLAG_AT_HEAD)
 		list_add(&UA_entry->UA_list_entry, &tgt_dev->UA_list);
