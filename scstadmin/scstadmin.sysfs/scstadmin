@@ -1532,7 +1532,7 @@ sub writeConfiguration {
 
 				my $init_buff;
 				foreach my $init (sort @{$inits}) {
-					$init_buff .= "\n\t\t\tINITIATOR $init";
+					$init_buff .= "\n\t\t\tINITIATOR " . escapeMeta($init);
 
 					my $attributes = $SCST->initiatorAttributes($driver, $target, $group, $init);
 
