@@ -3122,7 +3122,7 @@ static int scst_check_hw_pending_cmd(struct scst_cmd *cmd,
 		goto out;
 	}
 
-	TRACE_MGMT_DBG("Cmd %p HW pending for too long %ld (state %x)",
+	TRACE(TRACE_MGMT, "Cmd %p HW pending for too long %ld (state %x)",
 		cmd, (cur_time - cmd->hw_pending_start) / HZ,
 		cmd->state);
 
