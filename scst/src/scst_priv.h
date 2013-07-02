@@ -195,17 +195,15 @@ struct scst_cmd_thread_t {
 static inline bool scst_set_io_context(struct scst_cmd *cmd,
 	struct io_context **old)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
+	return false;
+#else
+#ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
+	return false;
+#else
 	bool res;
 
 	EXTRACHECKS_BUG_ON(old == NULL);
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-	return false;
-#endif
-
-#ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
-	return false;
-#endif
 
 	if (cmd->cmd_threads == &scst_main_cmd_threads) {
 		EXTRACHECKS_BUG_ON(in_interrupt());
@@ -223,6 +221,8 @@ static inline bool scst_set_io_context(struct scst_cmd *cmd,
 		res = false;
 
 	return res;
+#endif
+#endif
 }
 
 static inline void scst_reset_io_context(struct scst_tgt_dev *tgt_dev,
