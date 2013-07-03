@@ -2786,41 +2786,38 @@ next:
 static void scst_adjust_sg(struct scst_cmd *cmd, struct scatterlist *sg,
 	int *sg_cnt, int adjust_len)
 {
-	int i, j, l;
+	struct scatterlist *sgi;
+	int i, l;
 
 	TRACE_ENTRY();
 
 	l = 0;
-	for (i = 0, j = 0; i < *sg_cnt; i++, j++) {
+	for_each_sg(sg, sgi, *sg_cnt, i) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24)
-		TRACE_DBG("i %d, j %d, sg_cnt %d, sg %p, page_link %lx", i, j,
-			*sg_cnt, sg, sg[j].page_link);
+		TRACE_DBG("i %d, sg_cnt %d, sg %p, page_link %lx", i,
+			*sg_cnt, sg, sgi->page_link);
 #else
-		TRACE_DBG("i %d, j %d, sg_cnt %d, sg %p, page_link %lx", i, j,
+		TRACE_DBG("i %d, sg_cnt %d, sg %p, page_link %lx", i,
 			*sg_cnt, sg, 0UL);
 #endif
-		if (unlikely(sg_is_chain(&sg[j]))) {
-			sg = sg_chain_ptr(&sg[j]);
-			j = 0;
-		}
-		l += sg[j].length;
+		l += sgi->length;
 		if (l >= adjust_len) {
-			int left = adjust_len - (l - sg[j].length);
+			int left = adjust_len - (l - sgi->length);
 #ifdef CONFIG_SCST_DEBUG
 			TRACE(TRACE_SG_OP|TRACE_MEMORY, "cmd %p (tag %llu), "
-				"sg %p, sg_cnt %d, adjust_len %d, i %d, j %d, "
+				"sg %p, sg_cnt %d, adjust_len %d, i %d, "
 				"sg[j].length %d, left %d",
 				cmd, (long long unsigned int)cmd->tag,
-				sg, *sg_cnt, adjust_len, i, j,
-				sg[j].length, left);
+				sg, *sg_cnt, adjust_len, i,
+				sgi->length, left);
 #endif
 			cmd->p_orig_sg_cnt = sg_cnt;
 			cmd->orig_sg_cnt = *sg_cnt;
-			cmd->orig_sg_entry = &sg[j];
-			cmd->orig_entry_offs = sg[j].offset;
-			cmd->orig_entry_len = sg[j].length;
+			cmd->orig_sg_entry = sgi;
+			cmd->orig_entry_offs = sgi->offset;
+			cmd->orig_entry_len = sgi->length;
 			*sg_cnt = (left > 0) ? i+1 : i;
-			sg[j].length = left;
+			sgi->length = left;
 			cmd->sg_buff_modified = 1;
 			break;
 		}
