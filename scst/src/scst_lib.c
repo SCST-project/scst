@@ -6995,6 +6995,8 @@ static inline int scst_generic_parse(struct scst_cmd *cmd, const int timeout[3])
 
 	TRACE_ENTRY();
 
+	EXTRACHECKS_BUG_ON(block_shift < 0);
+
 	/*
 	 * SCST sets good defaults for cmd->data_direction and cmd->bufflen,
 	 * therefore change them only if necessary

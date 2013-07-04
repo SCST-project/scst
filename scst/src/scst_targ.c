@@ -1596,7 +1596,8 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 					do_zero = true;
 			}
 			if (do_zero) {
-				if ((cmd->write_len & ((1 << cmd->dev->block_shift) - 1)) == 0) {
+				if (!(cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED) ||
+				    (cmd->write_len & ((1 << cmd->dev->block_shift) - 1)) == 0) {
 					scst_check_restore_sg_buff(cmd);
 					scst_zero_write_rest(cmd);
 				} else {

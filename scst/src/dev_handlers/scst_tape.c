@@ -166,7 +166,7 @@ static int tape_attach(struct scst_device *dev)
 	}
 
 	dev->block_size = TAPE_DEF_BLOCK_SIZE;
-	dev->block_shift = scst_calc_block_shift(dev->block_size);
+	dev->block_shift = -1; /* not used */
 
 	buffer = kmalloc(buffer_size, GFP_KERNEL);
 	if (!buffer) {
@@ -223,7 +223,7 @@ static int tape_attach(struct scst_device *dev)
 		res = -ENODEV;
 		goto out_free_buf;
 	}
-	dev->block_shift = scst_calc_block_shift(dev->block_size);
+	dev->block_shift = -1; /* not used */
 
 obtain:
 	res = scst_obtain_device_parameters(dev, NULL);
@@ -270,7 +270,7 @@ static void tape_set_block_size(struct scst_cmd *cmd, int block_size)
 	 * there are existing commands.
 	 */
 	dev->block_size = block_size;
-	dev->block_shift = scst_calc_block_shift(dev->block_size);
+	dev->block_shift = -1; /* not used */
 	return;
 }
 

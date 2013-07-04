@@ -1053,7 +1053,7 @@ static void dev_user_set_block_size(struct scst_cmd *cmd, int block_size)
 		struct scst_user_dev *udev = cmd->dev->dh_priv;
 		dev->block_size = udev->def_block_size;
 	}
-	dev->block_shift = scst_calc_block_shift(dev->block_size);
+	dev->block_shift = -1; /* not used */
 
 	TRACE_EXIT();
 	return;
@@ -2591,7 +2591,16 @@ static int dev_user_attach(struct scst_device *sdev)
 	}
 
 	sdev->block_size = dev->def_block_size;
-	sdev->block_shift = scst_calc_block_shift(sdev->block_size);
+	switch (sdev->type) {
+	case TYPE_DISK:
+	case TYPE_ROM:
+	case TYPE_MOD:
+		sdev->block_shift = scst_calc_block_shift(sdev->block_size);
+		break;
+	default:
+		sdev->block_shift = -1; /* not used */
+		break;
+	}
 
 	sdev->dh_priv = dev;
 	sdev->tst = dev->tst;
