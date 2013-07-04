@@ -448,7 +448,7 @@ enum scst_exec_context {
 /*
  * Fatal error, if returned by xmit_response() the cmd will
  * be destroyed, if by any other function, xmit_response()
- * will be called with HARDWARE ERROR sense data
+ * will be called with READ or WRITE FAILED sense data
  */
 #define SCST_TGT_RES_FATAL_ERROR     -3
 

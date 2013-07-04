@@ -3539,9 +3539,11 @@ static void q2t_do_ctio_completion(scsi_qla_host_t *ha, uint32_t handle,
 
 		cmd->state = Q2T_STATE_DATA_IN;
 
-		if (unlikely(status != CTIO_SUCCESS))
-			rx_status = SCST_RX_STATUS_ERROR;
-		else
+		if (unlikely(status != CTIO_SUCCESS)) {
+			scst_set_cmd_error(&cmd->scst_cmd,
+				SCST_LOAD_SENSE(scst_sense_write_error));
+			rx_status = SCST_RX_STATUS_ERROR_SENSE_SET;
+		} else
 			cmd->write_data_transferred = 1;
 
 		TRACE_DBG("Data received, context %x, rx_status %d",
@@ -4375,7 +4377,9 @@ out_reject:
 		NOTIFY_ACK_SRR_FLAGS_REJECT_EXPL_NO_EXPL);
 	if (cmd->state == Q2T_STATE_NEED_DATA) {
 		cmd->state = Q2T_STATE_DATA_IN;
-		scst_rx_data(&cmd->scst_cmd, SCST_RX_STATUS_ERROR,
+		scst_set_cmd_error(&cmd->scst_cmd,
+				SCST_LOAD_SENSE(scst_sense_write_error));
+		scst_rx_data(&cmd->scst_cmd, SCST_RX_STATUS_ERROR_SENSE_SET,
 			SCST_CONTEXT_THREAD);
 	} else
 		q24_send_term_exchange(ha, cmd, &cmd->atio.atio7, 1);
@@ -4464,7 +4468,9 @@ out_reject:
 		NOTIFY_ACK_SRR_FLAGS_REJECT_EXPL_NO_EXPL);
 	if (cmd->state == Q2T_STATE_NEED_DATA) {
 		cmd->state = Q2T_STATE_DATA_IN;
-		scst_rx_data(&cmd->scst_cmd, SCST_RX_STATUS_ERROR,
+		scst_set_cmd_error(&cmd->scst_cmd,
+				SCST_LOAD_SENSE(scst_sense_write_error));
+		scst_rx_data(&cmd->scst_cmd, SCST_RX_STATUS_ERROR_SENSE_SET,
 			SCST_CONTEXT_THREAD);
 	} else
 		q2x_send_term_exchange(ha, cmd, &cmd->atio.atio2x, 1);

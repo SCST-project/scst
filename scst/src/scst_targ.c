@@ -1171,7 +1171,10 @@ out_no_space:
 	goto out;
 
 out_error:
-	scst_set_cmd_error(cmd,	SCST_LOAD_SENSE(scst_sense_hardw_error));
+	if (cmd->data_direction & SCST_DATA_WRITE)
+		scst_set_cmd_error(cmd,	SCST_LOAD_SENSE(scst_sense_write_error));
+	else
+		scst_set_cmd_error(cmd,	SCST_LOAD_SENSE(scst_sense_read_error));
 	scst_set_cmd_abnormal_done_state(cmd);
 	res = SCST_CMD_STATE_RES_CONT_SAME;
 	goto out;
@@ -1400,7 +1403,7 @@ out_error_rc:
 		PRINT_ERROR("Target driver %s rdy_to_xfer() returned invalid "
 			    "value %d", tgtt->name, rc);
 	}
-	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_write_error));
 
 out_dev_done:
 	scst_set_cmd_abnormal_done_state(cmd);

@@ -4084,7 +4084,7 @@ static enum compl_status_e fileio_exec_verify(struct vdisk_cmd_params *p)
 				    (long long unsigned int)err,
 				    (long long unsigned int)loff);
 			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_hardw_error));
+				SCST_LOAD_SENSE(scst_sense_read_error));
 			goto out_set_fs;
 		}
 	}
@@ -4093,7 +4093,7 @@ static enum compl_status_e fileio_exec_verify(struct vdisk_cmd_params *p)
 	if (mem_verify == NULL) {
 		PRINT_ERROR("Unable to allocate memory %d for verify",
 			       LEN_MEM);
-		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+		scst_set_busy(cmd);
 		goto out_set_fs;
 	}
 

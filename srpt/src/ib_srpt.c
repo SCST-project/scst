@@ -1401,7 +1401,9 @@ static void srpt_abort_cmd(struct srpt_send_ioctx *ioctx,
 		break;
 	case SRPT_STATE_NEED_DATA:
 		/* SCST_DATA_WRITE - RDMA read error or RDMA read timeout. */
-		scst_rx_data(scmnd, SCST_RX_STATUS_ERROR, context);
+		scst_set_cmd_error(scmnd,
+				SCST_LOAD_SENSE(scst_sense_write_error));
+		scst_rx_data(scmnd, SCST_RX_STATUS_ERROR_SENSE_SET, context);
 		break;
 	case SRPT_STATE_CMD_RSP_SENT:
 		/*

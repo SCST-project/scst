@@ -935,14 +935,14 @@ out:
 			"(target %s, initiator %s, device %s)",
 			tgt_dev->sess->tgt->tgt_name,
 			tgt_dev->sess->initiator_name, dev->virt_name);
-#if 0	/*
-	 * Looks like it's safer to return SUCCESS and expect operator's
-	 * intervention to be able to save the PR's state next time, than
-	 * to return HARDWARE ERROR and screw up all the interaction with
-	 * the affected initiator.
-	 */
-	if (cmd != NULL)
-		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+#if 0 /*
+       * Looks like it's safer to return SUCCESS and expect operator's
+       * intervention to be able to save the PR's state next time, than
+       * to return HARDWARE ERROR and screw up all the interaction with
+       * the affected initiator.
+       */
+		if (cmd != NULL)
+			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 #endif
 	}
 
