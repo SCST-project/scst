@@ -565,7 +565,7 @@ struct scst_tgt *scst_register_target(struct scst_tgt_template *vtt,
 	mutex_unlock(&scst_mutex);
 
 #ifdef CONFIG_SCST_PROC
-	PRINT_INFO("Target %s (rel ID %d) for template %s registered "
+	PRINT_INFO("Target %s (relative target id %d) for template %s registered "
 		"successfully", tgt->tgt_name, tgt->rel_tgt_id, vtt->name);
 #else
 	PRINT_INFO("Target %s for template %s registered successfully",
