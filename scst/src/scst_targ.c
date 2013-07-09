@@ -2539,53 +2539,77 @@ out_uncomplete:
 }
 EXPORT_SYMBOL_GPL(__scst_check_local_events);
 
-/* No locks */
-void scst_inc_expected_sn(struct scst_order_data *order_data, atomic_t *slot)
+/* No locks. Returns true, if expected_sn was incremented. */
+bool scst_inc_expected_sn(struct scst_cmd *cmd)
 {
-	if (slot == NULL)
+	bool res = false;
+	struct scst_order_data *order_data = cmd->cur_order_data;
+	atomic_t *slot = cmd->sn_slot;
+
+	TRACE_ENTRY();
+
+	/*
+	 * !! At this point any pointer in cmd, except cur_order_data	!!
+	 * !! and sn_slot could be already destroyed!			!!
+	 */
+
+	EXTRACHECKS_BUG_ON(!cmd->sn_set);
+
+	/*
+	 * Optimized for lockless fast path of sequence of SIMPLE or
+	 * ORDERED commands
+	 */
+
+	atomic_dec(&order_data->sn_cmd_count);
+
+	if (slot == NULL) {
+		/* SIMPLE command can have slot NULL as well, if there was no free slots */
+		EXTRACHECKS_BUG_ON((cmd->queue_type != SCST_CMD_QUEUE_SIMPLE) &&
+				   (cmd->queue_type != SCST_CMD_QUEUE_ORDERED));
+		smp_mb(); /* sync with scst_inc_cur_sn() */
 		goto inc;
+	}
 
-	/* Optimized for lockless fast path */
-
-	TRACE_SN("Slot %zd, *cur_sn_slot %d", slot - order_data->sn_slots,
+	TRACE_SN("Slot %zd, value %d", slot - order_data->sn_slots,
 		atomic_read(slot));
 
 	if (!atomic_dec_and_test(slot))
 		goto out;
 
-	TRACE_SN("Slot is 0 (num_free_sn_slots=%d)",
-		order_data->num_free_sn_slots);
-	if (order_data->num_free_sn_slots < (int)ARRAY_SIZE(order_data->sn_slots)-1) {
-		spin_lock_irq(&order_data->sn_lock);
-		if (likely(order_data->num_free_sn_slots < (int)ARRAY_SIZE(order_data->sn_slots)-1)) {
-			if (order_data->num_free_sn_slots < 0)
-				order_data->cur_sn_slot = slot;
-			/* To be in-sync with SIMPLE case in scst_cmd_set_sn() */
-			smp_mb();
-			order_data->num_free_sn_slots++;
-			TRACE_SN("Incremented num_free_sn_slots (%d)",
-				order_data->num_free_sn_slots);
-
-		}
-		spin_unlock_irq(&order_data->sn_lock);
-	}
+	/* atomic_dec_and_test() implies memory barrier to sync with scst_inc_cur_sn() */
 
 inc:
-	/*
-	 * No protection of expected_sn is needed, because only one thread
-	 * at time can be here (serialized by sn). Also it is supposed that
-	 * there could not be half-incremented halves.
-	 */
-	order_data->expected_sn++;
-	/*
-	 * Write must be before def_cmd_count read to be in sync. with
-	 * scst_post_exec_sn(). See comment in scst_exec_check_sn().
-	 */
-	smp_mb();
-	TRACE_SN("Next expected_sn: %d", order_data->expected_sn);
+	if (order_data->expected_sn != order_data->curr_sn) {
+		bool lock = (atomic_read(&order_data->sn_cmd_count) == 0);
+		/*
+		 * No protection of expected_sn is needed, because only one
+		 * thread at time can be here (serialized by sn). Lock is to
+		 * sync with curr_sn decrement in scst_inc_cur_sn(). It
+		 * is supposed that there could not be half-incremented halves.
+		 */
+		if (lock)
+			spin_lock_irq(&order_data->sn_lock);
+		if (likely(order_data->expected_sn != order_data->curr_sn)) {
+			order_data->expected_sn++;
+			TRACE_SN("New expected_sn: %d", order_data->expected_sn);
+			res = true;
+			/*
+			 * Write must be before def_cmd_count read to be in
+			 * sync with scst_post_exec_sn(). See comment in
+			 * scst_exec_check_sn(). Just in case if lock isn't used
+			 * or spin_unlock() isn't memory a barrier. Although,
+			 * checking of def_cmd_count is far from here, but
+			 * who knows, let's be safer.
+			 */
+			smp_mb();
+		}
+		if (lock)
+			spin_unlock_irq(&order_data->sn_lock);
+	}
 
 out:
-	return;
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 /* No locks */
@@ -2595,20 +2619,21 @@ static struct scst_cmd *scst_post_exec_sn(struct scst_cmd *cmd,
 	/* For HQ commands SN is not set */
 	bool inc_expected_sn = !cmd->inc_expected_sn_on_done &&
 			       cmd->sn_set && !cmd->retry;
-	struct scst_order_data *order_data = cmd->cur_order_data;
-	struct scst_cmd *res;
+	struct scst_cmd *res = NULL;
 
 	TRACE_ENTRY();
 
-	if (inc_expected_sn)
-		scst_inc_expected_sn(order_data, cmd->sn_slot);
+	if (inc_expected_sn) {
+		bool rc = scst_inc_expected_sn(cmd);
+		if (!rc)
+			goto out;
+		if (make_active)
+			scst_make_deferred_commands_active(cmd->cur_order_data);
+		else
+			res = scst_check_deferred_commands(cmd->cur_order_data);
+	}
 
-	if (make_active) {
-		scst_make_deferred_commands_active(order_data);
-		res = NULL;
-	} else
-		res = scst_check_deferred_commands(order_data);
-
+out:
 	TRACE_EXIT_HRES(res);
 	return res;
 }
@@ -2909,6 +2934,8 @@ done:
 		if (cmd == NULL)
 			break;
 
+		EXTRACHECKS_BUG_ON(cmd->state != SCST_CMD_STATE_EXEC_CHECK_SN);
+
 		cmd->state = SCST_CMD_STATE_EXEC_CHECK_BLOCKING;
 
 		if (unlikely(scst_check_blocked_dev(cmd)))
@@ -2963,11 +2990,11 @@ static int scst_exec_check_sn(struct scst_cmd **active_cmd)
 		order_data->def_cmd_count++;
 		/*
 		 * Memory barrier is needed here to implement lockless fast
-		 * path. We need the exact order of read and write between
+		 * path. We need the exact order of reads and writes between
 		 * def_cmd_count and expected_sn. Otherwise, we can miss case,
 		 * when expected_sn was changed to be equal to cmd->sn while
-		 * we are queueing cmd the deferred list after the expected_sn
-		 * below. It will lead to a forever stuck command. But with
+		 * we are queueing cmd into the deferred list after expected_sn
+		 * read below. It will lead to a forever stuck command. But with
 		 * the barrier in such case __scst_check_deferred_commands()
 		 * will be called and it will take sn_lock, so we will be
 		 * synchronized.
@@ -3377,14 +3404,6 @@ out:
 	return res;
 }
 
-static void scst_inc_check_expected_sn(struct scst_cmd *cmd)
-{
-	if (likely(cmd->sn_set))
-		scst_inc_expected_sn(cmd->cur_order_data, cmd->sn_slot);
-
-	scst_make_deferred_commands_active(cmd->cur_order_data);
-}
-
 static int scst_dev_done(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_RES_CONT_SAME;
@@ -3469,8 +3488,11 @@ static int scst_dev_done(struct scst_cmd *cmd)
 
 	scst_check_unblock_dev(cmd);
 
-	if (cmd->inc_expected_sn_on_done && cmd->sent_for_exec)
-		scst_inc_check_expected_sn(cmd);
+	if (cmd->inc_expected_sn_on_done && cmd->sent_for_exec && cmd->sn_set) {
+		bool rc = scst_inc_expected_sn(cmd);
+		if (rc)
+			scst_make_deferred_commands_active(cmd->cur_order_data);
+	}
 
 	if (unlikely(cmd->internal))
 		cmd->state = SCST_CMD_STATE_FINISHED_INTERNAL;
@@ -3535,8 +3557,7 @@ static int scst_pre_xmit_response(struct scst_cmd *cmd)
 			scst_on_hq_cmd_response(cmd);
 
 		if (unlikely(!cmd->sent_for_exec)) {
-			TRACE_SN("cmd %p was not sent to mid-lev"
-				" (sn %d, set %d)",
+			TRACE_SN("cmd %p was not sent for exec (sn %d, set %d)",
 				cmd, cmd->sn, cmd->sn_set);
 			scst_unblock_deferred(cmd->cur_order_data, cmd);
 			cmd->sent_for_exec = 1;
@@ -3692,30 +3713,6 @@ out:
 	return res;
 }
 
-static void scst_find_free_slot(struct scst_order_data *order_data)
-{
-	int i = 0;
-
-	/*
-	 * Commands can finish in any order, so we don't know which slot is
-	 * empty.
-	 */
-	while (1) {
-		order_data->cur_sn_slot++;
-		if (order_data->cur_sn_slot ==
-		    order_data->sn_slots + ARRAY_SIZE(order_data->sn_slots))
-			order_data->cur_sn_slot = order_data->sn_slots;
-
-		if (atomic_read(order_data->cur_sn_slot) == 0)
-			break;
-
-		i++;
-		sBUG_ON(i == ARRAY_SIZE(order_data->sn_slots));
-	}
-	TRACE_SN("New cur SN slot %zd",
-		 order_data->cur_sn_slot - order_data->sn_slots);
-}
-
 /**
  * scst_tgt_cmd_done() - the command's processing done
  * @cmd:	SCST command
@@ -3806,15 +3803,36 @@ out:
 	return res;
 }
 
+/* Called only from scst_cmd_set_sn() with the same locking expectations */
+static inline void scst_inc_cur_sn(struct scst_order_data *order_data)
+{
+	if (atomic_read(&order_data->sn_cmd_count) > 0) {
+		unsigned long flags;
+		order_data->curr_sn++;
+		TRACE_SN("Incremented curr_sn %d", order_data->curr_sn);
+		smp_mb(); /* sync with scst_inc_expected_sn() */
+		if (unlikely(atomic_read(&order_data->sn_cmd_count) == 0)) {
+			spin_lock_irqsave(&order_data->sn_lock, flags);
+			if (order_data->expected_sn == (order_data->curr_sn-1)) {
+				order_data->curr_sn--;
+				TRACE_SN("Decremented curr_sn %d", order_data->curr_sn);
+			}
+			spin_unlock_irqrestore(&order_data->sn_lock, flags);
+		}
+	}
+	return;
+}
+
 /**
- * scst_cmd_set_sn - Assign a slot number to a command.
+ * scst_cmd_set_sn - Assign SN and a slot number to a command.
  *
  * Commands that may be executed concurrently are assigned the same slot
  * number. A command that must be executed after previously received commands
  * is assigned a new and higher slot number.
  *
  * No locks expected, but it must be externally serialized (see comment before
- * scst_cmd_init_done() definition)
+ * scst_cmd_init_done() definition) to protect SIMPLE and ORDERED commands
+ * lockless fast path.
  *
  * Note: This approach in full compliance with SAM may result in the reordering
  * of conflicting SIMPLE READ and/or WRITE commands (commands with at least
@@ -3841,7 +3859,10 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 
 	EXTRACHECKS_BUG_ON(cmd->sn_set || cmd->hq_cmd_inced);
 
-	/* Optimized for lockless fast path */
+	/*
+	 * Optimized for lockless fast path of sequence of SIMPLE or
+	 * ORDERED commands.
+	 */
 
 	scst_check_debug_sn(cmd);
 
@@ -3858,45 +3879,54 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 		cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
 	}
 
+again:
 	switch (cmd->queue_type) {
 	case SCST_CMD_QUEUE_SIMPLE:
-	case SCST_CMD_QUEUE_UNTAGGED:
-		if (likely(order_data->num_free_sn_slots >= 0)) {
-			/*
-			 * atomic_inc_return() implies memory barrier to sync
-			 * with scst_inc_expected_sn()
-			 */
-			if (atomic_inc_return(order_data->cur_sn_slot) == 1) {
-				order_data->curr_sn++;
-				TRACE_SN("Incremented curr_sn %d",
-					order_data->curr_sn);
+		if (order_data->prev_cmd_ordered) {
+			if (atomic_read(order_data->cur_sn_slot) != 0) {
+				atomic_t *old_cur_sn_slot = order_data->cur_sn_slot;
+				while (1) {
+					order_data->cur_sn_slot++;
+					if (order_data->cur_sn_slot == order_data->sn_slots + ARRAY_SIZE(order_data->sn_slots))
+						order_data->cur_sn_slot = order_data->sn_slots;
+					if (atomic_read(order_data->cur_sn_slot) == 0)
+						break;
+					if (order_data->cur_sn_slot == old_cur_sn_slot) {
+						static int q;
+						if (q++ < 10)
+							PRINT_WARNING("Not enough SN slots");
+						goto ordered;
+					}
+				}
+				TRACE_SN("New cur SN slot %zd",
+					order_data->cur_sn_slot - order_data->sn_slots);
 			}
-			cmd->sn_slot = order_data->cur_sn_slot;
-			cmd->sn = order_data->curr_sn;
-
+			scst_inc_cur_sn(order_data);
 			order_data->prev_cmd_ordered = 0;
-		} else {
-			TRACE(TRACE_MINOR, "***WARNING*** Not enough SN slots "
-				"%zd", ARRAY_SIZE(order_data->sn_slots));
-			goto ordered;
 		}
+
+		atomic_inc(order_data->cur_sn_slot);
+
+		cmd->sn_slot = order_data->cur_sn_slot;
+		cmd->sn = order_data->curr_sn;
+		cmd->sn_set = 1;
+
+		atomic_inc(&order_data->sn_cmd_count);
+		TRACE_SN("New sn_cmd_count: %d", atomic_read(&order_data->sn_cmd_count));
 		break;
 
 	case SCST_CMD_QUEUE_ORDERED:
 		TRACE_SN("ORDERED cmd %p (op %x)", cmd, cmd->cdb[0]);
 ordered:
-		if (!order_data->prev_cmd_ordered) {
-			spin_lock_irqsave(&order_data->sn_lock, flags);
-			if (order_data->num_free_sn_slots >= 0) {
-				order_data->num_free_sn_slots--;
-				if (order_data->num_free_sn_slots >= 0)
-					scst_find_free_slot(order_data);
-			}
-			spin_unlock_irqrestore(&order_data->sn_lock, flags);
-		}
 		order_data->prev_cmd_ordered = 1;
-		order_data->curr_sn++;
+
+		scst_inc_cur_sn(order_data);
+
 		cmd->sn = order_data->curr_sn;
+		cmd->sn_set = 1;
+
+		atomic_inc(&order_data->sn_cmd_count);
+		TRACE_SN("New sn_cmd_count: %d", atomic_read(&order_data->sn_cmd_count));
 		break;
 
 	case SCST_CMD_QUEUE_HEAD_OF_QUEUE:
@@ -3907,18 +3937,20 @@ ordered:
 		cmd->hq_cmd_inced = 1;
 		goto out;
 
+	case SCST_CMD_QUEUE_UNTAGGED: /* put here with goto for better fast path */
+		/* It is processed as SIMPLE */
+		cmd->queue_type = SCST_CMD_QUEUE_SIMPLE;
+		goto again;
+
 	default:
 		sBUG();
 	}
 
 	TRACE_SN("cmd(%p)->sn: %d (order_data %p, *cur_sn_slot %d, "
-		"num_free_sn_slots %d, prev_cmd_ordered %ld, "
-		"cur_sn_slot %zd)", cmd, cmd->sn, order_data,
-		atomic_read(order_data->cur_sn_slot),
-		order_data->num_free_sn_slots, order_data->prev_cmd_ordered,
+		"sn_cmd_count %d, prev_cmd_ordered %ld, cur_sn_slot %zd)", cmd,
+		cmd->sn, order_data, atomic_read(order_data->cur_sn_slot),
+		atomic_read(&order_data->sn_cmd_count), order_data->prev_cmd_ordered,
 		order_data->cur_sn_slot - order_data->sn_slots);
-
-	cmd->sn_set = 1;
 
 out:
 	TRACE_EXIT();
@@ -5073,7 +5105,9 @@ static bool __scst_check_unblock_aborted_cmd(struct scst_cmd *cmd,
 	return res;
 }
 
-static void scst_unblock_aborted_cmds(int scst_mutex_held)
+void scst_unblock_aborted_cmds(const struct scst_tgt *tgt,
+	const struct scst_session *sess, const struct scst_device *device,
+	bool scst_mutex_held)
 {
 	struct scst_device *dev;
 
@@ -5085,14 +5119,23 @@ static void scst_unblock_aborted_cmds(int scst_mutex_held)
 	list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
 		struct scst_cmd *cmd, *tcmd;
 		struct scst_tgt_dev *tgt_dev;
+
+		if ((device != NULL) && (device != dev))
+			continue;
+
 		spin_lock_bh(&dev->dev_lock);
 		local_irq_disable();
 		list_for_each_entry_safe(cmd, tcmd, &dev->blocked_cmd_list,
 					blocked_cmd_list_entry) {
+
+			if ((tgt != NULL) && (tgt != cmd->tgt))
+				continue;
+			if ((sess != NULL) && (sess != cmd->sess))
+				continue;
+
 			if (__scst_check_unblock_aborted_cmd(cmd,
 					&cmd->blocked_cmd_list_entry)) {
-				TRACE_MGMT_DBG("Unblock aborted blocked cmd %p",
-					cmd);
+				TRACE_MGMT_DBG("Unblock aborted blocked cmd %p", cmd);
 			}
 		}
 		local_irq_enable();
@@ -5106,11 +5149,16 @@ static void scst_unblock_aborted_cmds(int scst_mutex_held)
 			list_for_each_entry_safe(cmd, tcmd,
 					&order_data->deferred_cmd_list,
 					sn_cmd_list_entry) {
+
+				if ((tgt != NULL) && (tgt != cmd->tgt))
+					continue;
+				if ((sess != NULL) && (sess != cmd->sess))
+					continue;
+
 				if (__scst_check_unblock_aborted_cmd(cmd,
 						&cmd->sn_cmd_list_entry)) {
 					TRACE_MGMT_DBG("Unblocked aborted SN "
-						"cmd %p (sn %u)",
-						cmd, cmd->sn);
+						"cmd %p (sn %u)", cmd, cmd->sn);
 					order_data->def_cmd_count--;
 				}
 			}
@@ -5187,7 +5235,7 @@ static int scst_abort_task_set(struct scst_mgmt_cmd *mcmd)
 
 	tm_dbg_task_mgmt(mcmd->mcmd_tgt_dev->dev, "ABORT TASK SET/PR ABORT", 0);
 
-	scst_unblock_aborted_cmds(0);
+	scst_unblock_aborted_cmds(tgt_dev->sess->tgt, tgt_dev->sess, tgt_dev->dev, false);
 
 	scst_call_dev_task_mgmt_fn_received(mcmd, tgt_dev);
 
@@ -5283,7 +5331,7 @@ static int scst_clear_task_set(struct scst_mgmt_cmd *mcmd)
 
 	tm_dbg_task_mgmt(mcmd->mcmd_tgt_dev->dev, "CLEAR TASK SET", 0);
 
-	scst_unblock_aborted_cmds(1);
+	scst_unblock_aborted_cmds(NULL, NULL, dev, true);
 
 	if (!dev->tas) {
 		uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
@@ -5438,7 +5486,7 @@ static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 			list_add_tail(&dev->tm_dev_list_entry, &host_devs);
 	}
 
-	scst_unblock_aborted_cmds(1);
+	scst_unblock_aborted_cmds(NULL, NULL, NULL, true);
 
 	/*
 	 * We suppose here that for all commands that already on devices
@@ -5525,7 +5573,7 @@ static int scst_lun_reset(struct scst_mgmt_cmd *mcmd)
 		dev->scsi_dev->was_reset = 0;
 	}
 
-	scst_unblock_aborted_cmds(0);
+	scst_unblock_aborted_cmds(NULL, NULL, dev, false);
 
 	tm_dbg_task_mgmt(mcmd->mcmd_tgt_dev->dev, "LUN RESET", 0);
 
@@ -5590,7 +5638,7 @@ static int scst_abort_all_nexus_loss_sess(struct scst_mgmt_cmd *mcmd,
 		}
 	}
 
-	scst_unblock_aborted_cmds(1);
+	scst_unblock_aborted_cmds(NULL, sess, NULL, true);
 
 	mutex_unlock(&scst_mutex);
 
@@ -5662,7 +5710,7 @@ static int scst_abort_all_nexus_loss_tgt(struct scst_mgmt_cmd *mcmd,
 		}
 	}
 
-	scst_unblock_aborted_cmds(1);
+	scst_unblock_aborted_cmds(tgt, NULL, NULL, true);
 
 	mutex_unlock(&scst_mutex);
 
@@ -5702,7 +5750,7 @@ static int scst_abort_task(struct scst_mgmt_cmd *mcmd)
 		scst_abort_cmd(cmd, mcmd, 0, 1);
 		spin_unlock_irq(&cmd->sess->sess_list_lock);
 
-		scst_unblock_aborted_cmds(0);
+		scst_unblock_aborted_cmds(cmd->tgt, cmd->sess, cmd->dev, false);
 	}
 
 	res = scst_set_mcmd_next_state(mcmd);

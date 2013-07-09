@@ -1819,15 +1819,16 @@ struct scst_cmd_threads {
  * Used to execute cmd's in order of arrival, honoring SCSI task attributes
  */
 struct scst_order_data {
+	spinlock_t sn_lock;
 	/*
 	 * Protected by sn_lock, except expected_sn, which is protected by
 	 * itself. Curr_sn must have the same size as expected_sn to
 	 * overflow simultaneously.
 	 */
 	int def_cmd_count;
-	spinlock_t sn_lock;
 	unsigned int expected_sn;
 	unsigned int curr_sn;
+	atomic_t sn_cmd_count;
 	int hq_cmd_count;
 	struct list_head deferred_cmd_list;
 	struct list_head skipped_sn_list;
@@ -1838,7 +1839,6 @@ struct scst_order_data {
 	 */
 	unsigned long prev_cmd_ordered;
 
-	int num_free_sn_slots; /* if it's <0, then all slots are busy */
 	atomic_t *cur_sn_slot;
 	atomic_t sn_slots[15];
 

@@ -270,7 +270,7 @@ static inline void scst_make_deferred_commands_active(
 {
 	struct scst_cmd *c;
 
-	c = __scst_check_deferred_commands(order_data);
+	c = scst_check_deferred_commands(order_data);
 	if (c != NULL) {
 		TRACE_SN("Adding cmd %p to active cmd list", c);
 		spin_lock_irq(&c->cmd_threads->cmd_list_lock);
@@ -283,7 +283,7 @@ static inline void scst_make_deferred_commands_active(
 	return;
 }
 
-void scst_inc_expected_sn(struct scst_order_data *order_data, atomic_t *slot);
+bool scst_inc_expected_sn(struct scst_cmd *cmd);
 int scst_check_hq_cmd(struct scst_cmd *cmd);
 
 void scst_unblock_deferred(struct scst_order_data *order_data,
@@ -559,18 +559,10 @@ void scst_acn_sysfs_del(struct scst_acn *acn);
 
 #endif /* CONFIG_SCST_PROC */
 
-void __scst_dev_check_set_UA(struct scst_device *dev, struct scst_cmd *exclude,
-	const uint8_t *sense, int sense_len);
 void scst_tgt_dev_del_free_UA(struct scst_tgt_dev *tgt_dev,
 			      struct scst_tgt_dev_UA *ua);
-static inline void scst_dev_check_set_UA(struct scst_device *dev,
-	struct scst_cmd *exclude, const uint8_t *sense, int sense_len)
-{
-	spin_lock_bh(&dev->dev_lock);
-	__scst_dev_check_set_UA(dev, exclude, sense, sense_len);
-	spin_unlock_bh(&dev->dev_lock);
-	return;
-}
+void scst_dev_check_set_UA(struct scst_device *dev,
+	struct scst_cmd *exclude, const uint8_t *sense, int sense_len);
 void scst_dev_check_set_local_UA(struct scst_device *dev,
 	struct scst_cmd *exclude, const uint8_t *sense, int sense_len);
 
@@ -588,6 +580,9 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 void scst_process_reset(struct scst_device *dev,
 	struct scst_session *originator, struct scst_cmd *exclude_cmd,
 	struct scst_mgmt_cmd *mcmd, bool setUA);
+void scst_unblock_aborted_cmds(const struct scst_tgt *tgt,
+	const struct scst_session *sess, const struct scst_device *device,
+	bool scst_mutex_held);
 
 bool scst_is_ua_global(const uint8_t *sense, int len);
 void scst_requeue_ua(struct scst_cmd *cmd, const uint8_t *buf, int size);

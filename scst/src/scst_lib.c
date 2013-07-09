@@ -3337,9 +3337,9 @@ static void scst_init_order_data(struct scst_order_data *order_data)
 	spin_lock_init(&order_data->sn_lock);
 	INIT_LIST_HEAD(&order_data->deferred_cmd_list);
 	INIT_LIST_HEAD(&order_data->skipped_sn_list);
-	order_data->curr_sn = (typeof(order_data->curr_sn))(-300);
-	order_data->expected_sn = order_data->curr_sn + 1;
-	order_data->num_free_sn_slots = ARRAY_SIZE(order_data->sn_slots)-1;
+	order_data->curr_sn = (typeof(order_data->curr_sn))(-20);
+	order_data->expected_sn = order_data->curr_sn;
+	atomic_set(&order_data->sn_cmd_count, 0);
 	order_data->cur_sn_slot = &order_data->sn_slots[0];
 	for (i = 0; i < (int)ARRAY_SIZE(order_data->sn_slots); i++)
 		atomic_set(&order_data->sn_slots[i], 0);
@@ -7621,13 +7621,17 @@ enum dma_data_direction scst_to_tgt_dma_dir(int scst_dir)
 }
 EXPORT_SYMBOL(scst_to_tgt_dma_dir);
 
-/* Called under dev_lock and BH off */
+/*
+ * Called under dev_lock and BH off.
+ *
+ * !! scst_unblock_aborted_cmds() must be called after this function !!
+ */
 void scst_process_reset(struct scst_device *dev,
 	struct scst_session *originator, struct scst_cmd *exclude_cmd,
 	struct scst_mgmt_cmd *mcmd, bool setUA)
 {
 	struct scst_tgt_dev *tgt_dev;
-	struct scst_cmd *cmd, *tcmd;
+	struct scst_cmd *cmd;
 
 	TRACE_ENTRY();
 
@@ -7681,20 +7685,6 @@ void scst_process_reset(struct scst_device *dev,
 			}
 		}
 		spin_unlock_irq(&sess->sess_list_lock);
-	}
-
-	list_for_each_entry_safe(cmd, tcmd, &dev->blocked_cmd_list,
-				blocked_cmd_list_entry) {
-		if (test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)) {
-			list_del(&cmd->blocked_cmd_list_entry);
-			TRACE_MGMT_DBG("Adding aborted blocked cmd %p "
-				"to active cmd list", cmd);
-			spin_lock_irq(&cmd->cmd_threads->cmd_list_lock);
-			list_add_tail(&cmd->cmd_list_entry,
-				&cmd->cmd_threads->active_cmd_list);
-			wake_up(&cmd->cmd_threads->cmd_list_waitQ);
-			spin_unlock_irq(&cmd->cmd_threads->cmd_list_lock);
-		}
 	}
 
 	if (setUA) {
@@ -7971,24 +7961,46 @@ void scst_dev_check_set_local_UA(struct scst_device *dev,
 	return;
 }
 
-/* Called under dev_lock and BH off */
-void __scst_dev_check_set_UA(struct scst_device *dev,
+/*
+ * Called under dev_lock and BH off. Returns true if scst_unblock_aborted_cmds()
+ * should be called outside of the dev_lock.
+ */
+static bool __scst_dev_check_set_UA(struct scst_device *dev,
 	struct scst_cmd *exclude, const uint8_t *sense, int sense_len)
 {
+	bool res = false;
+
 	TRACE_ENTRY();
 
 	TRACE_MGMT_DBG("Processing UA dev %s", dev->virt_name);
 
 	/* Check for reset UA */
 	if (scst_analyze_sense(sense, sense_len, SCST_SENSE_ASC_VALID,
-				0, SCST_SENSE_ASC_UA_RESET, 0))
+				0, SCST_SENSE_ASC_UA_RESET, 0)) {
 		scst_process_reset(dev,
 				   (exclude != NULL) ? exclude->sess : NULL,
 				   exclude, NULL, false);
+		res = true;
+	}
 
 	scst_dev_check_set_local_UA(dev, exclude, sense, sense_len);
 
-	TRACE_EXIT();
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+void scst_dev_check_set_UA(struct scst_device *dev,
+	struct scst_cmd *exclude, const uint8_t *sense, int sense_len)
+{
+	bool rc;
+
+	spin_lock_bh(&dev->dev_lock);
+	rc = __scst_dev_check_set_UA(dev, exclude, sense, sense_len);
+	spin_unlock_bh(&dev->dev_lock);
+
+	if (rc)
+		scst_unblock_aborted_cmds(NULL, NULL, dev, false);
+
 	return;
 }
 
@@ -8027,16 +8039,24 @@ struct scst_cmd *__scst_check_deferred_commands(struct scst_order_data *order_da
 restart:
 	list_for_each_entry_safe(cmd, t, &order_data->deferred_cmd_list,
 				sn_cmd_list_entry) {
-		EXTRACHECKS_BUG_ON(cmd->queue_type ==
-			SCST_CMD_QUEUE_HEAD_OF_QUEUE);
+		EXTRACHECKS_BUG_ON((cmd->queue_type != SCST_CMD_QUEUE_SIMPLE) &&
+				   (cmd->queue_type != SCST_CMD_QUEUE_ORDERED));
 		if (cmd->sn == expected_sn) {
 			TRACE_SN("Deferred command %p (sn %d, set %d) found",
 				cmd, cmd->sn, cmd->sn_set);
 			order_data->def_cmd_count--;
 			list_del(&cmd->sn_cmd_list_entry);
-			if (res == NULL)
+			if (res == NULL) {
 				res = cmd;
-			else {
+				if ((cmd->sn_slot == NULL) && !cmd->done) {
+					/*
+					 * Then there can be only one command
+					 * with this SN, so there's no point
+					 * to iterate further.
+					 */
+					goto out_unlock;
+				}
+			} else {
 				spin_lock(&cmd->cmd_threads->cmd_list_lock);
 				TRACE_SN("Adding cmd %p to active cmd list",
 					cmd);
@@ -8044,6 +8064,7 @@ restart:
 					&cmd->cmd_threads->active_cmd_list);
 				wake_up(&cmd->cmd_threads->cmd_list_waitQ);
 				spin_unlock(&cmd->cmd_threads->cmd_list_lock);
+				/* !! At this point cmd can be already dead !! */
 			}
 		}
 	}
@@ -8052,26 +8073,22 @@ restart:
 
 	list_for_each_entry(cmd, &order_data->skipped_sn_list,
 				sn_cmd_list_entry) {
-		EXTRACHECKS_BUG_ON(cmd->queue_type ==
-			SCST_CMD_QUEUE_HEAD_OF_QUEUE);
+		EXTRACHECKS_BUG_ON(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE);
 		if (cmd->sn == expected_sn) {
-			atomic_t *slot = cmd->sn_slot;
 			/*
-			 * !! At this point any pointer in cmd, except !!
-			 * !! sn_slot and sn_cmd_list_entry, could be	!!
-			 * !! already destroyed				!!
+			 * !! At this point any pointer in cmd, except	     !!
+			 * !! cur_order_data, sn_slot and sn_cmd_list_entry, !!
+			 * !! could be already destroyed!		     !!
 			 */
 			TRACE_SN("cmd %p (tag %llu) with skipped sn %d found",
-				 cmd,
-				 (long long unsigned int)cmd->tag,
-				 cmd->sn);
+				 cmd, (long long unsigned int)cmd->tag, cmd->sn);
 			order_data->def_cmd_count--;
 			list_del(&cmd->sn_cmd_list_entry);
 			spin_unlock_irq(&order_data->sn_lock);
+			scst_inc_expected_sn(cmd);
 			if (test_and_set_bit(SCST_CMD_CAN_BE_DESTROYED,
 					     &cmd->cmd_flags))
 				scst_destroy_cmd(cmd);
-			scst_inc_expected_sn(order_data, slot);
 			expected_sn = order_data->expected_sn;
 			spin_lock_irq(&order_data->sn_lock);
 			goto restart;
@@ -8088,10 +8105,9 @@ static void __scst_unblock_deferred(struct scst_order_data *order_data,
 {
 	EXTRACHECKS_BUG_ON(!out_of_sn_cmd->sn_set);
 
-	if (out_of_sn_cmd->sn == order_data->expected_sn) {
-		scst_inc_expected_sn(order_data, out_of_sn_cmd->sn_slot);
-		scst_make_deferred_commands_active(order_data);
-	} else {
+	if (out_of_sn_cmd->sn == order_data->expected_sn)
+		scst_inc_expected_sn(out_of_sn_cmd);
+	else {
 		out_of_sn_cmd->out_of_sn = 1;
 		spin_lock_irq(&order_data->sn_lock);
 		order_data->def_cmd_count++;
@@ -8101,7 +8117,13 @@ static void __scst_unblock_deferred(struct scst_order_data *order_data,
 			" (expected_sn %d)", out_of_sn_cmd, out_of_sn_cmd->sn,
 			order_data->expected_sn);
 		spin_unlock_irq(&order_data->sn_lock);
+		/*
+		 * expected_sn could change while we there, so we need to
+		 * recheck deferred commands on this path as well
+		 */
 	}
+
+	scst_make_deferred_commands_active(order_data);
 
 	return;
 }
