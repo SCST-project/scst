@@ -357,6 +357,10 @@ Performance Notes - Initiator Side
 * For latency sensitive applications, using the noop scheduler at the initiator
   side can give significantly better results than with other schedulers.
 
+* The SRP initiator limits by default the queue depth to 64 commands. If your
+  workload benefits from a larger queue depth, enlarge the queue depth by
+  setting the max_cmd_per_lun parameter in the SRP login string.
+
 * The following parameters have a small but measurable impact on SRP
   performance:
   * /sys/class/block/${dev}/queue/rotational
