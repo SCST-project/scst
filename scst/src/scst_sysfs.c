@@ -3199,7 +3199,7 @@ static ssize_t scst_sess_latency_show(struct kobject *kobj,
 
 	spin_lock_bh(&sess->lat_lock);
 
-	for (i = 0; i < SCST_LATENCY_STATS_NUM ; i++) {
+	for (i = 0; i < SCST_LATENCY_STATS_NUM; i++) {
 		uint64_t scst_time_wr, tgt_time_wr, dev_time_wr;
 		uint64_t processed_cmds_wr;
 		uint64_t scst_time_rd, tgt_time_rd, dev_time_rd;
