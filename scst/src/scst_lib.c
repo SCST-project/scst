@@ -6979,7 +6979,7 @@ EXPORT_SYMBOL_GPL(scst_calc_block_shift);
  */
 #define shift_left_overflows(a, b)					\
 	({								\
-		typeof (a) _minus_one = -1LL;				\
+		typeof(a) _minus_one = -1LL;				\
 		bool _a_is_signed = _minus_one < 0;			\
 		int _shift = sizeof(1ULL) * 8 - ((b) + _a_is_signed);	\
 		_shift < 0 || ((a) & ~((1ULL << _shift) - 1)) != 0;	\
