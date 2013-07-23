@@ -2562,6 +2562,9 @@ struct scst_tgt_dev {
 	/* How many cmds alive on this dev in this session */
 	atomic_t tgt_dev_cmd_count ____cacheline_aligned_in_smp;
 
+	/* ALUA command filter */
+	bool (*alua_filter)(struct scst_cmd *cmd);
+
 	struct scst_order_data *curr_order_data;
 	struct scst_order_data tgt_dev_order_data;
 
@@ -2607,9 +2610,6 @@ struct scst_tgt_dev {
 	 */
 	unsigned short tgt_dev_valid_sense_len;
 	uint8_t tgt_dev_sense[SCST_SENSE_BUFFERSIZE];
-
-	/* ALUA command filter */
-	bool (*alua_filter)(struct scst_cmd *cmd);
 
 #ifndef CONFIG_SCST_PROC
 	/* sysfs release completion */
