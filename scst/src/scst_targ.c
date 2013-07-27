@@ -714,8 +714,6 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 		goto out_done;
 	}
 
-	EXTRACHECKS_BUG_ON(cmd->cdb_len == 0);
-
 	if (unlikely((cmd->op_flags & SCST_UNKNOWN_LENGTH) != 0)) {
 		if (scst_cmd_is_expected_set(cmd)) {
 			/*
