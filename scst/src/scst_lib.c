@@ -5434,8 +5434,9 @@ void scst_free_cmd(struct scst_cmd *cmd)
 
 	if (likely(cmd->tgt_dev != NULL)) {
 #ifdef CONFIG_SCST_EXTRACHECKS
-		if (unlikely(!cmd->sent_for_exec) && !cmd->internal) {
-			PRINT_ERROR("Finishing not executed cmd %p (opcode "
+		if (unlikely(!cmd->expected_sn_check_passed) && cmd->sn_set &&
+		    !cmd->internal && !cmd->out_of_sn) {
+			PRINT_ERROR("Finishing not SN checked cmd %p (opcode "
 			    "%d, target %s, LUN %lld, sn %d, expected_sn %d)",
 			    cmd, cmd->cdb[0], cmd->tgtt->name,
 			    (long long unsigned int)cmd->lun,

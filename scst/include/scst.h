@@ -1872,11 +1872,17 @@ struct scst_cmd {
 	 ** Cmd's flags
 	 *************************************************************/
 
-	/*
-	 * Set if expected_sn should be incremented, i.e. cmd was sent
-	 * for execution
-	 */
+	/* Set if cmd was sent for execution to optimize aborts waiting */
 	unsigned int sent_for_exec:1;
+
+	/* Set if cmd passed scst_inc_expected_sn() */
+	unsigned int expected_sn_check_passed:1;
+
+	/* Set if cmd's SN was set */
+	unsigned int sn_set:1;
+
+	/* Set if increment expected_sn in cmd->scst_cmd_done() */
+	unsigned int inc_expected_sn_on_done:1;
 
 	/* Set if the cmd's action is completed */
 	unsigned int completed:1;
@@ -1955,9 +1961,6 @@ struct scst_cmd {
 	 */
 	unsigned int preprocessing_only:1;
 
-	/* Set if cmd's SN was set */
-	unsigned int sn_set:1;
-
 	/* Set if hq_cmd_count was incremented */
 	unsigned int hq_cmd_inced:1;
 
@@ -1979,9 +1982,6 @@ struct scst_cmd {
 
 	/* Set if the cmd was done or aborted out of its SN */
 	unsigned int out_of_sn:1;
-
-	/* Set if increment expected_sn in cmd->scst_cmd_done() */
-	unsigned int inc_expected_sn_on_done:1;
 
 	/* Set if tgt_sn field is valid */
 	unsigned int tgt_sn_set:1;
