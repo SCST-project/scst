@@ -971,7 +971,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 		isns_access_control = 0;
 		isns_server = strdup(pp);
 		if (isns_server == NULL) {
-			log_error("Unable to dublicate iSNS server name %s", pp);
+			log_error("Unable to duplicate iSNS server name %s", pp);
 			res = -ENOMEM;
 			goto out_free;
 		}

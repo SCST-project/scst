@@ -1076,7 +1076,7 @@ static int iscsi_set_prelim_r2t_len_to_receive(struct iscsi_cmnd *req)
 		/*
 		 * We have to close connection, because otherwise a data
 		 * corruption is possible if we allow to receive data
-		 * for this request in another request with dublicated ITT.
+		 * for this request in another request with duplicated ITT.
 		 */
 		mark_conn_closed(req->conn);
 		goto out;
@@ -1875,7 +1875,7 @@ int cmnd_rx_continue(struct iscsi_cmnd *req)
 			/*
 			 * We have to close connection, because otherwise a data
 			 * corruption is possible if we allow to receive data
-			 * for this request in another request with dublicated
+			 * for this request in another request with duplicated
 			 * ITT.
 			 */
 			goto out_close;

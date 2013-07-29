@@ -614,7 +614,7 @@ static int mgmt_cmd_callback(void __user *ptr)
 	case E_GET_ATTR_VALUE:
 		info->data = kstrdup(cinfo.value, GFP_KERNEL);
 		if (info->data == NULL) {
-			PRINT_ERROR("Can't dublicate value %s", cinfo.value);
+			PRINT_ERROR("Can't duplicate value %s", cinfo.value);
 			info->info_status = -ENOMEM;
 			goto out_complete;
 		}
