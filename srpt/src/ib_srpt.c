@@ -3790,6 +3790,14 @@ static struct scst_proc_data srpt_log_proc_data = {
 
 #endif /*CONFIG_SCST_PROC*/
 
+/* Note: the caller must have zero-initialized *@srpt_tgt. */
+static void srpt_init_tgt(struct srpt_tgt *srpt_tgt)
+{
+	INIT_LIST_HEAD(&srpt_tgt->rch_list);
+	init_waitqueue_head(&srpt_tgt->ch_releaseQ);
+	spin_lock_init(&srpt_tgt->spinlock);
+}
+
 /**
  * srpt_add_one() - Infiniband device addition callback function.
  */
@@ -3814,9 +3822,7 @@ static void srpt_add_one(struct ib_device *device)
 
 	if (!one_target_per_port) {
 		srpt_tgt = &sdev->srpt_tgt;
-		INIT_LIST_HEAD(&srpt_tgt->rch_list);
-		init_waitqueue_head(&srpt_tgt->ch_releaseQ);
-		spin_lock_init(&srpt_tgt->spinlock);
+		srpt_init_tgt(srpt_tgt);
 
 		if (use_node_guid_in_target_name) {
 			snprintf(tgt_name, sizeof(tgt_name),
@@ -3936,11 +3942,8 @@ static void srpt_add_one(struct ib_device *device)
 		sport = &sdev->port[i - 1];
 		sport->sdev = sdev;
 		sport->port = i;
-		if (one_target_per_port) {
-			INIT_LIST_HEAD(&sport->srpt_tgt.rch_list);
-			init_waitqueue_head(&sport->srpt_tgt.ch_releaseQ);
-			spin_lock_init(&sport->srpt_tgt.spinlock);
-		}
+		if (one_target_per_port)
+			srpt_init_tgt(&sport->srpt_tgt);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
 		/*
 		 * A vanilla 2.6.19 or older kernel without backported OFED
