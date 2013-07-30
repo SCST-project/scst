@@ -1281,12 +1281,14 @@ sub serializeKeyAttr {
 		   && defined($$attr_filter{$attribute})));
 
 	if (defined($$attributes{$attribute}->{'keys'})) {
-	    foreach my $key (sort keys %{$$attributes{$attribute}->{'keys'}}) {
+	    my @values;
+	    foreach my $key (keys %{$$attributes{$attribute}->{'keys'}}) {
 		my $value =
 		    $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
-		if ($value ne '') {
-		    $result .= "$prefix$attribute " . escapeMeta($value) . "\n";
-		}
+		push (@values, $value) if ($value ne '');
+	    }
+	    foreach my $value (sort @values) {
+		$result .= "$prefix$attribute " . escapeMeta($value) . "\n";
 	    }
 	} elsif ($attribute eq 'enabled' || $attribute eq 'hw_target') {
 	    my $value = $$attributes{$attribute}->{'value'};
