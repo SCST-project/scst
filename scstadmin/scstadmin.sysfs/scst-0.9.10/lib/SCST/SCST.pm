@@ -464,9 +464,9 @@ sub scstAttributes {
 
 				my $key = 0;
 				if ($is_key) {
-					if ($attribute =~ /.*(\d+)$/) {
-						$key = $1;
-						$attribute =~ s/\d+$//;
+					if ($attribute =~ /^([^\d]+)(\d+)$/) {
+						$attribute = $1;
+						$key = $2;
 					}
 				}
 
@@ -2655,9 +2655,9 @@ sub deviceAttributes {
 
 				my $key = 0;
 				if ($is_key) {
-					if ($attribute =~ /.*(\d+)$/) {
-						$key = $1;
-						$attribute =~ s/\d+$//;
+					if ($attribute =~ /^([^\d]+)(\d+)$/) {
+						$attribute = $1;
+						$key = $2;
 					}
 				}
 
@@ -2738,9 +2738,9 @@ sub driverAttributes {
 
 				my $key = 0;
 				if ($is_key) {
-					if ($attribute =~ /.*(\d+)$/) {
-						$key = $1;
-						$attribute =~ s/\d+$//;
+					if ($attribute =~ /^([^\d]+)(\d+)$/) {
+						$attribute = $1;
+						$key = $2;
 					}
 				}
 
@@ -2901,9 +2901,9 @@ sub targetAttributes {
 
 				my $key = 0;
 				if ($is_key) {
-					if ($attribute =~ /.*(\d+)$/) {
-						$key = $1;
-						$attribute =~ s/\d+$//;
+					if ($attribute =~ /^([^\d]+)(\d+)$/) {
+						$attribute = $1;
+						$key = $2;
 					}
 				}
 
@@ -3046,9 +3046,9 @@ sub groupAttributes {
 
 				my $key = 0;
 				if ($is_key) {
-					if ($attribute =~ /.*(\d+)$/) {
-						$key = $1;
-						$attribute =~ s/\d+$//;
+					if ($attribute =~ /^([^\d]+)(\d+)$/) {
+						$attribute = $1;
+						$key = $2;
 					}
 				}
 
@@ -3217,9 +3217,9 @@ sub lunAttributes {
 
 				my $key = 0;
 				if ($is_key) {
-					if ($attribute =~ /.*(\d+)$/) {
-						$key = $1;
-						$attribute =~ s/\d+$//;
+					if ($attribute =~ /^([^\d]+)(\d+)$/) {
+						$attribute = $1;
+						$key = $2;
 					}
 				}
 
@@ -3374,9 +3374,9 @@ sub initiatorAttributes {
 
 				my $key = 0;
 				if ($is_key) {
-					if ($attribute =~ /.*(\d+)$/) {
-						$key = $1;
-						$attribute =~ s/\d+$//;
+					if ($attribute =~ /^([^\d]+)(\d+)$/) {
+						$attribute = $1;
+						$key = $2;
 					}
 				}
 
@@ -3502,9 +3502,9 @@ sub deviceGroupAttributes {
 
 				my $key = 0;
 				if ($is_key) {
-					if ($attribute =~ /.*(\d+)$/) {
-						$key = $1;
-						$attribute =~ s/\d+$//;
+					if ($attribute =~ /^([^\d]+)(\d+)$/) {
+						$attribute = $1;
+						$key = $2;
 					}
 				}
 
@@ -3583,9 +3583,9 @@ sub targetGroupAttributes {
 
 				my $key = 0;
 				if ($is_key) {
-					if ($attribute =~ /.*(\d+)$/) {
-						$key = $1;
-						$attribute =~ s/\d+$//;
+					if ($attribute =~ /^([^\d]+)(\d+)$/) {
+						$attribute = $1;
+						$key = $2;
 					}
 				}
 
@@ -3675,9 +3675,9 @@ sub targetGroupTargetAttributes {
 
 				my $key = 0;
 				if ($is_key) {
-					if ($attribute =~ /.*(\d+)$/) {
-						$key = $1;
-						$attribute =~ s/\d+$//;
+					if ($attribute =~ /^([^\d]+)(\d+)$/) {
+						$attribute = $1;
+						$key = $2;
 					}
 				}
 
@@ -3954,9 +3954,9 @@ sub handlerAttributes {
 
 		my $key = 0;
 		if ($is_key) {
-			if ($attribute =~ /.*(\d+)$/) {
-				$key = $1;
-				$attribute =~ s/\d+$//;
+			if ($attribute =~ /^([^\d]+)(\d+)$/) {
+				$attribute = $1;
+				$key = $2;
 			}
 		}
 
