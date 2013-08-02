@@ -2552,9 +2552,6 @@ bool scst_inc_expected_sn(struct scst_cmd *cmd)
 	 */
 
 	EXTRACHECKS_BUG_ON(!cmd->sn_set);
-	EXTRACHECKS_BUG_ON(cmd->expected_sn_check_passed);
-
-	cmd->expected_sn_check_passed = 1;
 
 	/*
 	 * Optimized for lockless fast path of sequence of SIMPLE or
@@ -2618,8 +2615,8 @@ static struct scst_cmd *scst_post_exec_sn(struct scst_cmd *cmd,
 	bool make_active)
 {
 	/* For HQ commands SN is not set */
-	bool inc_expected_sn = !cmd->inc_expected_sn_on_done && cmd->sn_set &&
-			       !cmd->expected_sn_check_passed && !cmd->retry;
+	bool inc_expected_sn = !cmd->inc_expected_sn_on_done &&
+			       cmd->sn_set && !cmd->retry;
 	struct scst_cmd *res = NULL;
 
 	TRACE_ENTRY();
@@ -3489,7 +3486,7 @@ static int scst_dev_done(struct scst_cmd *cmd)
 
 	scst_check_unblock_dev(cmd);
 
-	if (cmd->inc_expected_sn_on_done && cmd->sn_set) {
+	if (cmd->inc_expected_sn_on_done && cmd->sent_for_exec && cmd->sn_set) {
 		bool rc = scst_inc_expected_sn(cmd);
 		if (rc)
 			scst_make_deferred_commands_active(cmd->cur_order_data);
@@ -3557,10 +3554,11 @@ static int scst_pre_xmit_response(struct scst_cmd *cmd)
 		if (unlikely(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE))
 			scst_on_hq_cmd_response(cmd);
 
-		if (unlikely(!cmd->expected_sn_check_passed)) {
-			TRACE_SN("cmd %p was not SN passed (sn %d, set %d)",
+		if (unlikely(!cmd->sent_for_exec)) {
+			TRACE_SN("cmd %p was not sent for exec (sn %d, set %d)",
 				cmd, cmd->sn, cmd->sn_set);
 			scst_unblock_deferred(cmd->cur_order_data, cmd);
+			cmd->sent_for_exec = 1;
 		}
 	}
 
@@ -3870,15 +3868,12 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 	cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
 #endif
 
-	if ((cmd->dev->queue_alg == SCST_CONTR_MODE_QUEUE_ALG_RESTRICTED_REORDER) &&
-	    (likely(cmd->queue_type != SCST_CMD_QUEUE_HEAD_OF_QUEUE))) {
+	if (cmd->dev->queue_alg == SCST_CONTR_MODE_QUEUE_ALG_RESTRICTED_REORDER) {
 		/*
 		 * Not the best way, but good enough until there is a
 		 * possibility to specify queue type during pass-through
 		 * commands submission.
 		 */
-		TRACE_SN("Restricted reorder dev %s (cmd %p)",
-			cmd->dev->virt_name, cmd);
 		cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
 	}
 
@@ -3918,11 +3913,6 @@ again:
 		TRACE_SN("New sn_cmd_count: %d", atomic_read(&order_data->sn_cmd_count));
 		break;
 
-	case SCST_CMD_QUEUE_UNTAGGED: /* put here with goto for better fast path */
-		/* It is processed further as SIMPLE */
-		cmd->queue_type = SCST_CMD_QUEUE_SIMPLE;
-		goto again;
-
 	case SCST_CMD_QUEUE_ORDERED:
 		TRACE_SN("ORDERED cmd %p (op %x)", cmd, cmd->cdb[0]);
 ordered:
@@ -3944,6 +3934,11 @@ ordered:
 		spin_unlock_irqrestore(&order_data->sn_lock, flags);
 		cmd->hq_cmd_inced = 1;
 		goto out;
+
+	case SCST_CMD_QUEUE_UNTAGGED: /* put here with goto for better fast path */
+		/* It is processed as SIMPLE */
+		cmd->queue_type = SCST_CMD_QUEUE_SIMPLE;
+		goto again;
 
 	default:
 		sBUG();
