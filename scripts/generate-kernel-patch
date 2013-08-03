@@ -109,7 +109,7 @@ function specialize_patch {
   if [ "${enable_specialize}" = "true" ]; then
     "$(dirname $0)/specialize-patch" \
          ${specialize_patch_options} \
-         -v kernel_version="${full_kver}" \
+         -v kernel_version="${kver3}" \
          -v SCSI_EXEC_REQ_FIFO_DEFINED="${scsi_exec_req_fifo_defined}" \
          -v SCST_IO_CONTEXT="${scst_io_context}" \
     | if [ "${generating_upstream_patch}" = "true" ]; then
@@ -209,8 +209,13 @@ if [ $# != 1 ]; then
 fi
 
 # Strip patch level from the kernel version number.
-full_kver="$1"
 kver="$(kernel_version "$1")"
+# kver3: first three components of the version number.
+if [ "${1#2.}" != "$1" ]; then
+  kver3="$kver"
+else
+  kver3="$1"
+fi
 
 # Include fcst in the patch for kernel versions 2.6.33 and later.
 if [ "${kver}" ">" "2.6.32" ]; then
