@@ -174,7 +174,8 @@ static u32 ft_sess_hash(u32 port_id)
 	return hash_32(port_id, FT_SESS_HASH_BITS);
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 1, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 7, 0)
+/* See also commit 4b20db3 (kref: Implement kref_get_unless_zero v3) */
 static inline int __must_check kref_get_unless_zero(struct kref *kref)
 {
 	return atomic_add_unless(&kref->refcount, 1, 0);
