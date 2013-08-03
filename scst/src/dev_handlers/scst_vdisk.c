@@ -2615,14 +2615,14 @@ static int vdisk_ctrl_m_pg(unsigned char *p, int pcontrol,
 
 	memcpy(p, ctrl_m_pg, sizeof(ctrl_m_pg));
 	switch (pcontrol) {
-	case 0:
+	case 0: /* current */
 		p[2] |= virt_dev->dev->tst << 5;
 		p[2] |= virt_dev->dev->d_sense << 2;
 		p[3] |= virt_dev->dev->queue_alg << 4;
 		p[4] |= virt_dev->dev->swp << 3;
 		p[5] |= virt_dev->dev->tas << 6;
 		break;
-	case 1:
+	case 1: /* changeable */
 		memset(p + 2, 0, sizeof(ctrl_m_pg) - 2);
 #if 0	/*
 	 * It's too early to implement it, since we can't control the
@@ -2635,7 +2635,7 @@ static int vdisk_ctrl_m_pg(unsigned char *p, int pcontrol,
 		p[4] |= 1 << 3;		/* SWP */
 		p[5] |= 1 << 6;		/* TAS */
 		break;
-	case 2:
+	case 2: /* default */
 		p[2] |= DEF_TST << 5;
 		p[2] |= DEF_DSENSE << 2;
 		if (virt_dev->wt_flag || virt_dev->nv_cache)
@@ -2645,6 +2645,7 @@ static int vdisk_ctrl_m_pg(unsigned char *p, int pcontrol,
 		p[4] |= DEF_SWP << 3;
 		p[5] |= DEF_TAS << 6;
 		break;
+	case 3: /* saved, blocked by the caller */
 	default:
 		sBUG();
 	}
