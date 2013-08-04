@@ -108,6 +108,14 @@ or
    problem to the SCST mailing list scst-devel@lists.sourceforge.net.
 
 
+IMPORTANT: This patch does not support compound pages, so not working with
+=========  network drivers using them. Sings of that is either when
+	   iSCSI-SCST keeps closing connections, because no reply from
+	   initiator for too long time, or system crashes on NULL
+	   pointer dereference in iscsi_get_page_callback. You can find
+	   list of such drivers by searching in drivers/net for
+	   __GFP_COMP word in their source code.
+
 Usage
 -----
 
