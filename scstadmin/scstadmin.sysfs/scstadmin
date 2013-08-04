@@ -1957,6 +1957,8 @@ sub applyConfiguration {
 	$changes += applyConfigAssignments($CONFIG, $force);
 	$changes += applyConfigAlua($CONFIG, $force);
 	$changes += applyConfigDeviceGroups($CONFIG, $force);
+	$changes += applyConfigEnableTargets($CONFIG, $force);
+	$changes += applyConfigEnableDrivers($CONFIG, $force);
 
 	# And SCST attributes..
 	my %_attributes;
@@ -2191,17 +2193,13 @@ sub applyConfigAssignments {
 		}
 
 		my %_attributes;
-		my %special;
 		foreach my $item (keys %{$$assignments{$driver}}) {
 			if ($item eq 'TARGET') {
 				$changes += applyTargetAssignments($driver, $$assignments{$driver}->{$item},
 				  $deletions);
 			} elsif ($item ne 'enabled') {
-				# Enable driver last
+				# Enabling a driver happens in applyConfigEnableDrivers()
 				$_attributes{$item} = $$assignments{$driver}->{$item};
-			} else {
-				$special{$item} = $$assignments{$driver}->{$item};
-
 			}
 		}
 
@@ -2210,8 +2208,27 @@ sub applyConfigAssignments {
 		if (scalar keys %{$attributes}) {
 			$changes += setDriverAttributes($driver, $attributes, $deletions);
 		}
+	}
 
-		$attributes = configToAttr(\%special);
+	return $changes;
+}
+
+sub applyConfigEnableDrivers {
+	my $config = shift;
+	my $deletions = shift;
+	my $changes = 0;
+
+	my $assignments = $$config{'TARGET_DRIVER'};
+
+	foreach my $driver (sort keys %{$assignments}) {
+		my %_attributes;
+		foreach my $item (keys %{$$assignments{$driver}}) {
+			if ($item eq 'enabled') {
+				$_attributes{$item} = $$assignments{$driver}->{$item};
+			}
+		}
+
+		my $attributes = configToAttr(\%_attributes);
 		my $d_attributes = $SCST->driverAttributes($driver);
 
 		if (defined($$d_attributes{'enabled'}) &&
@@ -2498,25 +2515,47 @@ sub applyTargetAssignments {
 		filterCreateAttributes($possible, $attributes, TRUE);
 		$changes += setTargetAttributes($driver, $target, $attributes, $deletions);
 
-		%_attributes = ();
 		foreach my $item (keys %{$$targets{$target}}) {
 			if ($item eq 'GROUP') {
 				$changes += applyGroupAssignments($driver, $target, $$targets{$target}->{$item});
 				$changes += applyInitiatorAssignments($driver, $target, $$targets{$target}->{$item}, $deletions);
 			} elsif ($item eq 'LUN') {
 				$changes += applyLunAssignments($driver, $target, undef, $$targets{$target}->{$item});
-			} elsif ($item eq 'enabled') {
-				$_attributes{$item} = $$targets{$target}->{$item};
 			}
 		}
+	}
 
-		$attributes = configToAttr(\%_attributes);
-		my $t_attributes = $SCST->targetAttributes($driver, $target);
+	return $changes;
+}
 
-		if (defined($$t_attributes{'enabled'}) &&
-		    ($$t_attributes{'enabled'}->{'value'} != $$attributes{'enabled'})) {
-			setTargetAttribute($driver, $target, 'enabled', $$attributes{'enabled'});
-			$changes++;
+sub applyConfigEnableTargets {
+	my $config = shift;
+	my $deletions = shift;
+	my $changes = 0;
+
+	my $assignments = $$config{'TARGET_DRIVER'};
+
+	foreach my $driver (sort keys %{$assignments}) {
+		foreach my $driver_item (keys %{$$assignments{$driver}}) {
+			next if ($driver_item ne 'TARGET');
+			my $targets = $$assignments{$driver}->{$driver_item};
+			foreach my $target (sort keys %{$targets}) {
+				my %_attributes = ();
+				foreach my $target_item (keys %{$$targets{$target}}) {
+					if ($target_item eq 'enabled') {
+						$_attributes{$target_item} = $$targets{$target}->{$target_item};
+					}
+				}
+
+				my $attributes = configToAttr(\%_attributes);
+				my $t_attributes = $SCST->targetAttributes($driver, $target);
+
+				if (defined($$t_attributes{'enabled'}) &&
+				    ($$t_attributes{'enabled'}->{'value'} != $$attributes{'enabled'})) {
+					setTargetAttribute($driver, $target, 'enabled', $$attributes{'enabled'});
+					$changes++;
+				}
+			}
 		}
 	}
 
