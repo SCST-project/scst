@@ -143,6 +143,10 @@ SCST_C_DEV_GRP_EXISTS       => 121,
 SCST_C_DEV_GRP_ADD_FAIL     => 122,
 SCST_C_DEV_GRP_REM_FAIL     => 123,
 
+SCST_C_ALUA_BAD_ATTRIBUTES   => 125,
+SCST_C_ALUA_ATTRIBUTE_STATIC => 126,
+SCST_C_ALUA_SETATTR_FAIL     => 127,
+
 SCST_C_DGRP_ADD_DEV_FAIL    => 130,
 SCST_C_DGRP_REM_DEV_FAIL    => 131,
 SCST_C_DGRP_NO_DEVICE       => 132,
@@ -741,6 +745,57 @@ sub luns {
 	close $lHandle;
 
 	return \%luns;
+}
+
+sub aluaAttributes {
+	my $self = shift;
+	my %attributes;
+
+	my $pHandle = new IO::Handle;
+	my $_path = SCST_DEV_GROUP_DIR();
+	if (!(opendir $pHandle, $_path)) {
+		$self->{'err_string'} = "deviceGroupsAttributes(): Unable to read directory '$_path': $!";
+		return undef;
+	}
+
+	foreach my $attribute (readdir($pHandle)) {
+		next if ($attribute eq '.' || $attribute eq '..' ||
+			 $attribute eq SCST_MGMT_IO || $attribute eq 'uevent');
+		my $pPath = make_path(SCST_DEV_GROUP_DIR(), $attribute);
+		my $mode = (stat($pPath))[2];
+
+		if (!($mode & S_IRUSR)) {
+			$attributes{$attribute}->{'static'} = FALSE;
+			$attributes{$attribute}->{'value'} = undef;
+		} else {
+			my $is_static = !($mode & S_IWUSR);
+			my $io = new IO::File $pPath, O_RDONLY;
+
+			if (!$io) {
+				$self->{'err_string'} = "deviceGroupsAttributes(): Unable to read device attribute '$attribute': $!";
+				return undef;
+			}
+
+			my $value = <$io>;
+			chomp $value;
+
+			my $second_line = <$io>;
+			if (new_sysfs_interface() && !$is_static
+			    || ($second_line =~ /\[key\]/)) {
+				my $key = 0;
+				if ($attribute =~ /^([^\d]+)(\d+)$/) {
+					$attribute = $1;
+					$key = $2;
+				}
+				$attributes{$attribute}->{'keys'}->{$key}->{'value'} = $value;
+			} else {
+				$attributes{$attribute}->{'value'} = $value;
+			}
+			$attributes{$attribute}->{'static'} = $is_static;
+		}
+	}
+
+	return \%attributes;
 }
 
 sub deviceGroups {
@@ -3695,6 +3750,36 @@ sub targetGroupTargetAttributes {
 	}
 
 	return \%attributes;
+}
+
+sub setAluaAttribute {
+	my $self = shift;
+	my $attribute = shift;
+	my $value = shift;
+
+	return TRUE if (!defined($attribute) || !defined($value));
+
+	my $attributes = $self->aluaAttributes();
+
+	return SCST_C_ALUA_BAD_ATTRIBUTES if (!defined($$attributes{$attribute}));
+	return SCST_C_ALUA_ATTRIBUTE_STATIC if ($$attributes{$attribute}->{'static'});
+
+	my $path = make_path(SCST_DEV_GROUP_DIR(), $attribute);
+	my $io = new IO::File $path, O_WRONLY;
+
+	return SCST_C_ALUA_SETATTR_FAIL if (!$io);
+
+	my $bytes;
+
+	if ($self->{'debug'}) {
+		print "DBG($$): $value > $path\n";
+	} else {
+		$bytes = _syswrite($io, $value, length($value));
+	}
+
+	close $io;
+
+	return ($self->{'debug'} || $bytes) ? 0 : SCST_C_ALUA_SETATTR_FAIL;
 }
 
 sub setDeviceGroupAttribute {

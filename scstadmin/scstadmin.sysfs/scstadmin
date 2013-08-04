@@ -1632,6 +1632,19 @@ sub writeConfiguration {
 		}
 	}
 
+	my $dga = $SCST->aluaAttributes();
+	my $dga_buff = serializeKeyAttr("\t", $dga);
+	my $dga_buff_nk = serializeNkAttr("\t", $dga) if ($nonkey);
+	if ($dga_buff_nk) {
+		$dga_buff .= "\t# Non-key attributes\n";
+		$dga_buff .= $dga_buff_nk;
+	}
+	if ($dga_buff) {
+		print $io "ALUA {\n";
+		print $io $dga_buff;
+		print $io "}\n\n";
+	}
+
 	foreach my $dgroup (sort keys %{$CURRENT{'dgroups'}}) {
 		my $dgroup_buff;
 
@@ -1942,6 +1955,7 @@ sub applyConfiguration {
 	# Apply config additions
 	$changes += applyConfigDevices($CONFIG, $force);
 	$changes += applyConfigAssignments($CONFIG, $force);
+	$changes += applyConfigAlua($CONFIG, $force);
 	$changes += applyConfigDeviceGroups($CONFIG, $force);
 
 	# And SCST attributes..
@@ -1949,6 +1963,7 @@ sub applyConfiguration {
 	foreach my $item (keys %{$CONFIG}) {
 		next if ($item eq 'HANDLER');
 		next if ($item eq 'TARGET_DRIVER');
+		next if ($item eq 'ALUA');
 		next if ($item eq 'DEVICE_GROUP');
 		$_attributes{$item} = $$CONFIG{$item};
 	}
@@ -2207,6 +2222,19 @@ sub applyConfigAssignments {
 	}
 
 	return $changes;
+}
+
+sub applyConfigAlua {
+	my $config = shift;
+	my $deletions = shift;
+
+	my $alua_attr = $$config{'ALUA'};
+	my %_attributes;
+	foreach my $item (keys %{$alua_attr}) {
+		$_attributes{$item} = $alua_attr->{$item};
+	}
+	my $attributes = configToAttr(\%_attributes);
+	return setAluaAttributes($attributes);
 }
 
 sub applyConfigDeviceGroups {
@@ -3922,6 +3950,35 @@ sub setInitiatorAttributes {
 
 	return setAttributes($driver, $target, $group, $initiator, $attributes,
 	  $_attributes, $error, \&setInitiatorAttribute, $showset);
+}
+
+sub setAluaAttributes {
+	my $attributes = shift;
+	my $showset = shift;
+
+	my $error = "\t-> WARNING: no settable ALUA attribute '%s', ignoring.\n\n";
+
+	my $_attributes = $SCST->aluaAttributes();
+
+	return TRUE if issueWarning($SCST->errorString());
+
+	return setAttributes(undef, undef, undef, undef, $attributes,
+	  $_attributes, $error, \&setAluaAttribute, $showset);
+}
+
+sub setAluaAttribute {
+	shift;
+	shift;
+	shift;
+	shift;
+	my $attribute = shift;
+	my $value = shift;
+
+	print "\t-> Setting ALUA attribute '$attribute' to value '$value': ";
+	my $rc = $SCST->setAluaAttribute($attribute, $value);
+	print "done.\n";
+
+	return $rc;
 }
 
 sub setDeviceGroupAttributes {
