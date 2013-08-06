@@ -259,19 +259,25 @@ to the target, but this is OPTIONAL.
 MUST be 0 by default.
 
 SCST core will automatically create for all targets the following
-attributes:
+attribute:
 
 1. "rel_tgt_id" - allows to read or write SCSI Relative Target Port
 Identifier attribute.
-
-2. "hw_target" - allows to distinguish hardware and virtual targets, if
-the target driver supports both.
 
 To provide OPTIONAL force close session functionality target drivers
 MUST implement it using "force_close" write only session's attribute,
 which on write to it MUST close the corresponding session.
 
 See SCST core's README for more info about those attributes.
+
+If a target driver supports both physical, i.e. hardware, and virtual
+targets, as, for instance, NPIV Fibre Channel targets, to allow to
+distinguish between them the physical targets MUST have "hw_target"
+attribute, which MUST have value 1. The virtual targets MUST have
+"parent_host" attribute, which MUST contain name of the parent hardware
+target. Also, such target drivers MUST create virtual targets using
+"add_target" command to mgmt attribute (see above), which MUST specify
+the parent target for new virtual targets using "parent_host" attribute.
 
 
 II. Rules for dev handlers
