@@ -670,7 +670,7 @@ static int q2t_unreg_sess(struct q2t_sess *sess)
 	sBUG_ON(sess->sess_ref != 0);
 
 	TRACE_MGMT_DBG("Deleting sess %p from tgt %p", sess, sess->tgt);
-	list_del(&sess->sess_list_entry);
+	list_del_init(&sess->sess_list_entry);
 
 	if (sess->deleted)
 		list_del(&sess->del_list_entry);
@@ -806,7 +806,10 @@ static int q2t_close_session(struct scst_session *scst_sess)
 	unsigned long flags;
 
 	spin_lock_irqsave(&pha->hardware_lock, flags);
-	q2t_schedule_sess_for_deletion(sess);
+	if (!list_empty(&sess->sess_list_entry)) {
+		list_del_init(&sess->sess_list_entry);
+		q2t_sess_put(sess);
+	}
 	spin_unlock_irqrestore(&pha->hardware_lock, flags);
 
 	return 0;
