@@ -2116,7 +2116,7 @@ struct scst_cmd {
 	int get_sg_buf_entry_num;
 
 	/* Bidirectional transfers support */
-	int out_bufflen;			/* WRITE buffer length */
+	int out_bufflen;		/* WRITE buffer length */
 	struct sgv_pool_obj *out_sgv;	/* WRITE sgv object */
 	struct scatterlist *out_sg;	/* WRITE data buffer SG vector */
 	int out_sg_cnt;			/* WRITE SG segments count */
