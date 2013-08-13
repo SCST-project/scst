@@ -147,9 +147,9 @@ EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions
 #EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG_SN
 #EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG_SYSFS_EAGAIN
 
-# If defined, makes SCST zero allocated data buffers. 
-# Undefining it considerably improves performance and eases CPU load, 
-# but could create a security hole (information leakage), so 
+# If defined, makes SCST zero allocated data buffers.
+# Undefining it considerably improves performance and eases CPU load,
+# but could create a security hole (information leakage), so
 # enable it if you have strict security requirements.
 #EXTRA_CFLAGS += -DSCST_STRICT_SECURITY
 
