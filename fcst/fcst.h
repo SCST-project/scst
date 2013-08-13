@@ -64,10 +64,10 @@ struct ft_sess {
 	u32 max_lso_payload;		/* max offloaded payload size */
 	u64 port_name;			/* port name for transport ID */
 	struct ft_tport *tport;
+	struct scst_session *scst_sess;
 	struct hlist_node hash;		/* linkage in ft_sess_hash table */
 	struct rcu_head rcu;
 	struct kref kref;		/* ref for hash and outstanding I/Os */
-	struct scst_session *scst_sess;
 };
 
 /*
