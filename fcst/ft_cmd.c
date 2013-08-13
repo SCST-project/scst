@@ -563,7 +563,6 @@ static void ft_recv_tm(struct scst_session *scst_sess,
  */
 static void ft_recv_cmd(struct ft_sess *sess, struct fc_frame *fp)
 {
-	static atomic_t serial;
 	struct fc_seq *sp;
 	struct scst_cmd *cmd;
 	struct ft_cmd *fcmd;
@@ -577,7 +576,6 @@ static void ft_recv_cmd(struct ft_sess *sess, struct fc_frame *fp)
 	fcmd = kzalloc(sizeof(*fcmd), GFP_ATOMIC);
 	if (!fcmd)
 		goto busy;
-	fcmd->serial = atomic_inc_return(&serial);	/* debug only */
 	fcmd->max_payload = sess->max_payload;
 	fcmd->max_lso_payload = sess->max_lso_payload;
 	fcmd->req_frame = fp;

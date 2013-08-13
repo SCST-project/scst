@@ -95,7 +95,6 @@ struct ft_tport {
  * Commands
  */
 struct ft_cmd {
-	int serial;			/* order received, for debugging */
 	struct fc_seq *seq;		/* sequence in exchange mgr */
 	struct fc_frame *req_frame;	/* original request frame */
 	u32 write_data_len;		/* data received from initiator */
