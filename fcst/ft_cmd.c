@@ -191,13 +191,9 @@ static void ft_cmd_done(struct ft_cmd *fcmd)
  */
 void ft_cmd_free(struct scst_cmd *cmd)
 {
-	struct ft_cmd *fcmd;
+	struct ft_cmd *fcmd = scst_cmd_get_tgt_priv(cmd);
 
-	fcmd = scst_cmd_get_tgt_priv(cmd);
-	if (fcmd) {
-		scst_cmd_set_tgt_priv(cmd, NULL);
-		ft_cmd_done(fcmd);
-	}
+	ft_cmd_done(fcmd);
 }
 
 /*
