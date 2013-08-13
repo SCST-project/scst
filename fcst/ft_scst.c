@@ -21,10 +21,6 @@
 #include <scsi/libfc.h>
 #include "fcst.h"
 
-MODULE_AUTHOR("Joe Eykholt <jeykholt@cisco.com>");
-MODULE_DESCRIPTION("Fibre-Channel SCST target");
-MODULE_LICENSE("GPL v2");
-
 unsigned int ft_debug_logging;
 module_param_named(debug_logging, ft_debug_logging, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(debug_logging, "log levels bigmask");
@@ -74,7 +70,6 @@ static int __init ft_module_init(void)
 	fc_lport_iterate(ft_lport_add, NULL);
 	return 0;
 }
-module_init(ft_module_init);
 
 static void __exit ft_module_exit(void)
 {
@@ -85,4 +80,9 @@ static void __exit ft_module_exit(void)
 	scst_unregister_target_template(&ft_scst_template);
 	synchronize_rcu();
 }
+
+MODULE_AUTHOR("Joe Eykholt <jeykholt@cisco.com>");
+MODULE_DESCRIPTION("SCST FCoE target driver v" FT_VERSION);
+MODULE_LICENSE("GPL v2");
+module_init(ft_module_init);
 module_exit(ft_module_exit);
