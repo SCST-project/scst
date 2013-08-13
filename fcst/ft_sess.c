@@ -202,7 +202,7 @@ static struct ft_sess *ft_sess_get(struct fc_lport *lport, u32 port_id)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0)
 	struct hlist_node *pos;
 #endif
-	struct ft_sess *sess = NULL;
+	struct ft_sess *sess;
 
 	rcu_read_lock();
 	tport = rcu_dereference(lport->prov[FC_TYPE_FCP]);
