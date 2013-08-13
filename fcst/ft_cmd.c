@@ -201,7 +201,7 @@ void ft_cmd_free(struct scst_cmd *cmd)
 }
 
 /*
- * Send response, after data if applicable.
+ * Send response.
  */
 int ft_send_response(struct scst_cmd *cmd)
 {
