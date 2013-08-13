@@ -205,7 +205,11 @@ static struct ft_sess *ft_sess_get(struct fc_lport *lport, u32 port_id)
 	struct ft_sess *sess;
 
 	rcu_read_lock();
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
+	tport = rcu_dereference_protected(lport->prov[FC_TYPE_FCP], true);
+#else
 	tport = rcu_dereference(lport->prov[FC_TYPE_FCP]);
+#endif
 	if (!tport)
 		goto out;
 
