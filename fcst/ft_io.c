@@ -94,6 +94,16 @@ int ft_send_read_data(struct scst_cmd *cmd)
 
 	/* no scatter/gather in skb for odd word length due to fc_seq_send() */
 	use_sg = !(remaining % 4) && lport->sg_supp;
+	/*
+	 * Note: since libfc_function_template.seq_send() sends frames
+	 * asynchronously and since the SCST data buffer is freed as soon as
+	 * scst_tgt_cmd_done() has been invoked, data has to be copied into
+	 * the skb instead of only copying a pointer to the data. To do: defer
+	 * invocation of scst_tgt_cmd_done() until sending the data frames
+	 * finished once the paged fragment destructor or an equivalent is
+	 * upstream.
+	 */
+	use_sg = false;
 
 	while (remaining) {
 		if (!loop_limit) {
