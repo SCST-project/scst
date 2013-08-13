@@ -321,7 +321,8 @@ static void ft_recv_seq(struct fc_seq *sp, struct fc_frame *fp, void *arg)
 	 * the session and all pending commands, so we ignore this response.
 	 */
 	if (IS_ERR(fp)) {
-		FT_IO_DBG("exchange error %ld - aborting cmd\n", -PTR_ERR(fp));
+		pr_err("exchange error %ld - aborting cmd %p / tag %lld\n",
+		       -PTR_ERR(fp), cmd, cmd->tag);
 		scst_rx_mgmt_fn_tag(cmd->sess, SCST_ABORT_TASK, cmd->tag,
 				    SCST_ATOMIC, NULL);
 		return;
