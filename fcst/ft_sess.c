@@ -407,7 +407,7 @@ static int ft_prli_locked(struct fc_rport_priv *rdata, u32 spp_len,
 	/*
 	 * If both target and initiator bits are off, the SPP is invalid.
 	 */
-	fcp_parm = ntohl(rspp->spp_params);	/* requested parameters */
+	fcp_parm = ntohl(rspp->spp_params);
 	if (!(fcp_parm & (FCP_SPPF_INIT_FCN | FCP_SPPF_TARG_FCN)))
 		return FC_SPP_RESP_INVL;
 
@@ -442,7 +442,7 @@ static int ft_prli_locked(struct fc_rport_priv *rdata, u32 spp_len,
 	 * Don't force RETRY on the initiator, though.
 	 */
 fill:
-	fcp_parm = ntohl(spp->spp_params);	/* response parameters */
+	fcp_parm = ntohl(spp->spp_params);
 	spp->spp_params = htonl(fcp_parm | FCP_SPPF_TARG_FCN);
 	return FC_SPP_RESP_ACK;
 }
