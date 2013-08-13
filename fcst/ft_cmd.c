@@ -468,7 +468,7 @@ out:
 
 /*
  * Send error or task management response.
- * Always frees the fcmd and associated state.
+ * Always frees the cmd and associated state.
  */
 static void ft_send_resp_code(struct ft_cmd *fcmd, enum fcp_resp_rsp_codes code)
 {
