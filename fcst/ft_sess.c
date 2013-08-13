@@ -494,9 +494,6 @@ static void ft_sess_put(struct ft_sess *sess)
 	kref_put(&sess->kref, ft_sess_free);
 }
 
-/*
- * Handle PRLO.
- */
 static void ft_prlo(struct fc_rport_priv *rdata)
 {
 	struct ft_sess *sess;
@@ -515,13 +512,6 @@ static void ft_prlo(struct fc_rport_priv *rdata)
 	}
 	mutex_unlock(&ft_lport_lock);
 
-	/*
-	 * Release the session hold from the table.
-	 * When all command-starting threads have returned,
-	 * kref will call ft_sess_free which will unregister
-	 * the session.
-	 * fcmds referencing the session are safe.
-	 */
 	ft_sess_put(sess);		/* release from table */
 	rdata->prli_count--;
 }
