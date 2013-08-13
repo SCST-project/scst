@@ -298,7 +298,10 @@ int ft_send_response(struct scst_cmd *cmd)
 	fc_fill_fc_hdr(fp, FC_RCTL_DD_CMD_STATUS, ep->did, ep->sid, FC_TYPE_FCP,
 		       FC_FC_EX_CTX | FC_FC_LAST_SEQ | FC_FC_END_SEQ, 0);
 
-	lport->tt.seq_send(lport, fcmd->seq, fp);
+	error = lport->tt.seq_send(lport, fcmd->seq, fp);
+	if (error < 0)
+		pr_err("Sending response for exchange with OX_ID %#x and RX_ID"
+		       " %#x failed: %d\n", ep->oxid, ep->rxid, error);
 done:
 	lport->tt.exch_done(fcmd->seq);
 	scst_tgt_cmd_done(cmd, SCST_CONTEXT_SAME);
