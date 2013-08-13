@@ -490,9 +490,8 @@ static void ft_sess_free(struct kref *kref)
 
 static void ft_sess_put(struct ft_sess *sess)
 {
-	int sess_held = atomic_read(&sess->kref.refcount);
-
-	BUG_ON(!sess_held);
+	BUG_ON(!sess);
+	BUG_ON(atomic_read(&sess->kref.refcount) <= 0);
 	kref_put(&sess->kref, ft_sess_free);
 }
 
