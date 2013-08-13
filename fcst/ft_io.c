@@ -265,8 +265,15 @@ void ft_recv_write_data(struct scst_cmd *cmd, struct fc_frame *fp)
 		else
 			scst_put_buf(cmd, buf);
 	}
-	if (fcmd->write_data_len == bufflen)
-		scst_rx_data(cmd, SCST_RX_STATUS_SUCCESS, SCST_CONTEXT_THREAD);
+	if (fcmd->write_data_len == bufflen) {
+		spin_lock(&fcmd->lock);
+		if (fcmd->state == FT_STATE_NEED_DATA) {
+			fcmd->state = FT_STATE_DATA_IN;
+			scst_rx_data(cmd, SCST_RX_STATUS_SUCCESS,
+				     SCST_CONTEXT_THREAD);
+		}
+		spin_unlock(&fcmd->lock);
+	}
 drop:
 	fc_frame_free(fp);
 }

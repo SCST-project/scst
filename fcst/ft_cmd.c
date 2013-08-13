@@ -168,6 +168,89 @@ static void ft_cmd_tm_dump(struct scst_mgmt_cmd *mcmd, const char *caller)
 		ft_cmd_dump(mcmd->cmd_to_abort, caller);
 }
 
+/**
+ * ft_set_cmd_state() - set the state of a command
+ */
+static enum ft_cmd_state ft_set_cmd_state(struct ft_cmd *fcmd,
+					  enum ft_cmd_state new)
+{
+	enum ft_cmd_state previous;
+
+	spin_lock(&fcmd->lock);
+	previous = fcmd->state;
+	if (previous != FT_STATE_DONE)
+		fcmd->state = new;
+	spin_unlock(&fcmd->lock);
+
+	return previous;
+}
+
+/**
+ * ft_test_and_set_cmd_state() - test and set the state of a command
+ *
+ * Returns true if and only if the previous command state was equal to 'old'.
+ */
+bool ft_test_and_set_cmd_state(struct ft_cmd *fcmd, enum ft_cmd_state old,
+			       enum ft_cmd_state new)
+{
+	enum ft_cmd_state previous;
+
+	WARN_ON(old == FT_STATE_DONE);
+	WARN_ON(new == FT_STATE_NEW);
+
+	spin_lock(&fcmd->lock);
+	previous = fcmd->state;
+	if (previous == old)
+		fcmd->state = new;
+	spin_unlock(&fcmd->lock);
+
+	return previous == old;
+}
+
+static void ft_abort_cmd(struct scst_cmd *cmd)
+{
+	struct ft_cmd *fcmd = scst_cmd_get_tgt_priv(cmd);
+	struct fc_seq *sp = fcmd->seq;
+	struct fc_exch *ep = fc_seq_exch(sp);
+	struct fc_lport *lport = ep->lp;
+
+	pr_err("%s: cmd %p ox_id %#x rx_id %#x state %d\n", __func__, cmd,
+	       ep->oxid, ep->rxid, fcmd->state);
+
+	lport->tt.exch_done(sp);
+
+	spin_lock(&fcmd->lock);
+	switch (fcmd->state) {
+	case FT_STATE_NEW:
+	case FT_STATE_DATA_IN:
+	case FT_STATE_MGMT:
+		/*
+		 * Do nothing - defer abort processing until
+		 * srpt_xmit_response() is invoked.
+		 */
+		break;
+	case FT_STATE_NEED_DATA:
+		/* SCST_DATA_WRITE */
+		fcmd->state = FT_STATE_DATA_IN;
+		scst_rx_data(cmd, SCST_RX_STATUS_ERROR_FATAL,
+			     SCST_CONTEXT_THREAD);
+		break;
+	case FT_STATE_CMD_RSP_SENT:
+		/*
+		 * ft_send_response() is either in progress or has finished.
+		 * Wait until the SCST core has invoked ft_cmd_done().
+		 */
+		break;
+	case FT_STATE_MGMT_RSP_SENT:
+	default:
+		pr_info("Unexpected command state %d\n", fcmd->state);
+		__WARN();
+		fcmd->state = FT_STATE_DONE;
+		break;
+	}
+	spin_unlock(&fcmd->lock);
+}
+
 /*
  * Free command and associated frame.
  */
@@ -219,9 +302,12 @@ int ft_send_response(struct scst_cmd *cmd)
 	ep = fc_seq_exch(fcmd->seq);
 	lport = ep->lp;
 
+	WARN_ON(fcmd->state != FT_STATE_NEW && fcmd->state != FT_STATE_DATA_IN);
+	ft_set_cmd_state(fcmd, FT_STATE_CMD_RSP_SENT);
+
 	if (scst_cmd_aborted_on_xmit(cmd)) {
 		FT_IO_DBG("cmd aborted did %x oxid %x\n", ep->did, ep->oxid);
-		scst_set_delivery_status(cmd, SCST_CMD_DELIVERY_ABORTED);
+		ft_abort_cmd(cmd);
 		goto done;
 	}
 
@@ -326,8 +412,7 @@ static void ft_recv_seq(struct fc_seq *sp, struct fc_frame *fp, void *arg)
 	if (IS_ERR(fp)) {
 		pr_err("exchange error %ld - aborting cmd %p / tag %lld\n",
 		       -PTR_ERR(fp), cmd, cmd->tag);
-		scst_rx_mgmt_fn_tag(cmd->sess, SCST_ABORT_TASK, cmd->tag,
-				    SCST_ATOMIC, NULL);
+		ft_abort_cmd(cmd);
 		return;
 	}
 
@@ -347,19 +432,6 @@ static void ft_recv_seq(struct fc_seq *sp, struct fc_frame *fp, void *arg)
 	}
 }
 
-static void ft_abort_cmd(struct scst_cmd *cmd, enum scst_exec_context context)
-{
-	scst_data_direction dir;
-
-	dir = scst_cmd_get_data_direction(cmd);
-	if (dir & SCST_DATA_WRITE)
-		scst_rx_data(cmd, SCST_RX_STATUS_ERROR, context);
-	if (dir & SCST_DATA_READ) {
-		scst_set_delivery_status(cmd, SCST_CMD_DELIVERY_ABORTED);
-		scst_tgt_cmd_done(cmd, context);
-	}
-}
-
 /*
  * Command timeout.
  * SCST calls this when the command has taken too long in the device handler.
@@ -367,7 +439,7 @@ static void ft_abort_cmd(struct scst_cmd *cmd, enum scst_exec_context context)
 void ft_cmd_timeout(struct scst_cmd *cmd)
 {
 	FT_IO_DBG("%p: timeout\n", cmd);
-	ft_abort_cmd(cmd, SCST_CONTEXT_DIRECT);
+	ft_abort_cmd(cmd);
 }
 
 /*
@@ -388,6 +460,9 @@ int ft_send_xfer_rdy(struct scst_cmd *cmd)
 	fp = fc_frame_alloc(lport, sizeof(*txrdy));
 	if (!fp)
 		return SCST_TGT_RES_QUEUE_FULL;
+
+	WARN_ON(!ft_test_and_set_cmd_state(fcmd, FT_STATE_NEW,
+					   FT_STATE_NEED_DATA));
 
 	txrdy = fc_frame_payload_get(fp, sizeof(*txrdy));
 	memset(txrdy, 0, sizeof(*txrdy));
@@ -485,6 +560,9 @@ void ft_cmd_tm_done(struct scst_mgmt_cmd *mcmd)
 	fcmd = scst_mgmt_cmd_get_tgt_priv(mcmd);
 	if (!fcmd)
 		return;
+
+	ft_set_cmd_state(fcmd, FT_STATE_MGMT_RSP_SENT);
+
 	switch (scst_mgmt_cmd_get_status(mcmd)) {
 	case SCST_MGMT_STATUS_SUCCESS:
 		code = FCP_TMF_CMPL;
@@ -515,6 +593,8 @@ static void ft_recv_tm(struct scst_session *scst_sess,
 {
 	struct scst_rx_mgmt_params params;
 	int ret;
+
+	ft_set_cmd_state(fcmd, FT_STATE_MGMT);
 
 	scst_rx_mgmt_params_init(&params);
 
@@ -583,6 +663,7 @@ static void ft_recv_cmd(struct ft_sess *sess, struct fc_frame *fp)
 	fcmd->max_payload = sess->max_payload;
 	fcmd->max_lso_payload = sess->max_lso_payload;
 	fcmd->req_frame = fp;
+	spin_lock_init(&fcmd->lock);
 
 	fcp = fc_frame_payload_get(fp, sizeof(*fcp));
 	if (!fcp)
@@ -615,6 +696,7 @@ static void ft_recv_cmd(struct ft_sess *sess, struct fc_frame *fp)
 		goto busy;
 	fcmd->scst_cmd = cmd;
 	scst_cmd_set_tgt_priv(cmd, fcmd);
+	cmd->state = FT_STATE_NEW;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 	sp = fr_seq(fp);

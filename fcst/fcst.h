@@ -91,6 +91,30 @@ struct ft_tport {
 	struct scst_tgt *tgt;
 };
 
+/**
+ * enum ft_cmd_state - SCSI command state managed by fcst
+ * @FT_STATE_NEW:           New command arrived and is being processed.
+ * @FT_STATE_NEED_DATA:     Processing a write or bidir command and waiting
+ *                          for data arrival.
+ * @FT_STATE_DATA_IN:       Data for the write or bidir command arrived and is
+ *                          being processed.
+ * @FT_STATE_CMD_RSP_SENT:  Response with SCSI status has been sent.
+ * @FT_STATE_MGMT:          Processing a SCSI task management function.
+ * @FT_STATE_MGMT_RSP_SENT: Response for task management function has been sent.
+ * @FT_STATE_DONE:          Command processing finished successfully, command
+ *                          processing has been aborted or command processing
+ *                          failed.
+ */
+enum ft_cmd_state {
+	FT_STATE_NEW		= 0,
+	FT_STATE_NEED_DATA	= 1,
+	FT_STATE_DATA_IN	= 2,
+	FT_STATE_CMD_RSP_SENT	= 3,
+	FT_STATE_MGMT		= 4,
+	FT_STATE_MGMT_RSP_SENT	= 5,
+	FT_STATE_DONE		= 6,
+};
+
 /*
  * Commands
  */
@@ -102,6 +126,8 @@ struct ft_cmd {
 	u32 max_lso_payload;		/* max offloaded (LSO) data payload */
 	u16 max_payload;		/* max transmitted data payload */
 	struct scst_cmd *scst_cmd;
+	struct spinlock lock;		/* protects state */
+	enum ft_cmd_state state;
 };
 
 extern struct list_head ft_lport_list;
@@ -139,6 +165,8 @@ void ft_lport_del(struct fc_lport *, void *);
  * other internal functions.
  */
 int ft_thread(void *);
+bool ft_test_and_set_cmd_state(struct ft_cmd *fcmd, enum ft_cmd_state old,
+			       enum ft_cmd_state new);
 void ft_recv_req(struct ft_sess *, struct fc_frame *);
 void ft_recv_write_data(struct scst_cmd *, struct fc_frame *);
 int ft_send_read_data(struct scst_cmd *);
