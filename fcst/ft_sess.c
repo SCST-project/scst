@@ -461,12 +461,11 @@ static int ft_prli(struct fc_rport_priv *rdata, u32 spp_len,
 {
 	int ret;
 
-	FT_SESS_DBG("starting PRLI port_id %x\n", rdata->ids.port_id);
 	mutex_lock(&ft_lport_lock);
 	ret = ft_prli_locked(rdata, spp_len, rspp, spp);
 	mutex_unlock(&ft_lport_lock);
-	FT_SESS_DBG("port_id %x flags %x parms %x ret %x\n", rdata->ids.port_id,
-		    rspp ? rspp->spp_flags : 0, ntohl(spp->spp_params), ret);
+	FT_SESS_DBG("port_id %x flags %x ret %x\n",
+	       rdata->ids.port_id, rspp ? rspp->spp_flags : 0, ret);
 	return ret;
 }
 
