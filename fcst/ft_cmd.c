@@ -373,7 +373,7 @@ void ft_cmd_timeout(struct scst_cmd *cmd)
 /*
  * Send TX_RDY (transfer ready).
  */
-static int ft_send_xfer_rdy_off(struct scst_cmd *cmd, u32 offset, u32 len)
+int ft_send_xfer_rdy(struct scst_cmd *cmd)
 {
 	struct ft_cmd *fcmd;
 	struct fc_frame *fp;
@@ -391,22 +391,14 @@ static int ft_send_xfer_rdy_off(struct scst_cmd *cmd, u32 offset, u32 len)
 
 	txrdy = fc_frame_payload_get(fp, sizeof(*txrdy));
 	memset(txrdy, 0, sizeof(*txrdy));
-	txrdy->ft_data_ro = htonl(offset);
-	txrdy->ft_burst_len = htonl(len);
+	txrdy->ft_data_ro = 0;
+	txrdy->ft_burst_len = htonl(scst_cmd_get_bufflen(cmd));
 
 	fcmd->seq = lport->tt.seq_start_next(fcmd->seq);
 	fc_fill_fc_hdr(fp, FC_RCTL_DD_DATA_DESC, ep->did, ep->sid, FC_TYPE_FCP,
 		       FC_FC_EX_CTX | FC_FC_END_SEQ | FC_FC_SEQ_INIT, 0);
 	lport->tt.seq_send(lport, fcmd->seq, fp);
 	return SCST_TGT_RES_SUCCESS;
-}
-
-/*
- * Send TX_RDY (transfer ready).
- */
-int ft_send_xfer_rdy(struct scst_cmd *cmd)
-{
-	return ft_send_xfer_rdy_off(cmd, 0, scst_cmd_get_bufflen(cmd));
 }
 
 /*
