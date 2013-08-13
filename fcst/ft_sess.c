@@ -216,7 +216,8 @@ static struct ft_sess *ft_sess_get(struct fc_lport *lport, u32 port_id)
 	hlist_for_each_entry_rcu(sess, head, hash) {
 #endif
 		if (sess->port_id == port_id) {
-			kref_get(&sess->kref);
+			if (!kref_get_unless_zero(&sess->kref))
+				sess = NULL;
 			rcu_read_unlock();
 			FT_SESS_DBG("port_id %x found %p\n", port_id, sess);
 			return sess;
