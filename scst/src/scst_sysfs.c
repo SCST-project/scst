@@ -2298,8 +2298,10 @@ int scst_create_tgt_attr(struct scst_tgt *tgt, struct kobj_attribute *attribute)
 		PRINT_ERROR("Can't add attribute %s for tgt %s",
 			attribute->attr.name, tgt->tgt_name);
 		res = -ENOMEM;
+		goto out;
 	}
 
+out:
 	return res;
 }
 EXPORT_SYMBOL(scst_create_tgt_attr);
@@ -2316,9 +2318,10 @@ int scst_create_tgt_driver_attr(struct scst_tgt_template *tgtt,
 	if (res != 0) {
 		PRINT_ERROR("Can't add attribute %s for target driver %s",
 			attribute->attr.name, tgtt->name);
-		res = -ENOMEM;
+		goto out;
 	}
 
+out:
 	return res;
 }
 EXPORT_SYMBOL(scst_create_tgt_driver_attr);
