@@ -4191,6 +4191,9 @@ static inline struct kobject *scst_sysfs_get_tgtt_kobj(
 	return &tgtt->tgtt_kobj;
 }
 
+int scst_create_tgtt_attr(struct scst_tgt_template *tgtt,
+	struct kobj_attribute *attribute);
+
 /*
  * Returns target's root sysfs kobject.
  * The driver can create own files/directories/links here.
@@ -4200,6 +4203,9 @@ static inline struct kobject *scst_sysfs_get_tgt_kobj(
 {
 	return &tgt->tgt_kobj;
 }
+
+int scst_create_tgt_attr(struct scst_tgt *tgt,
+	struct kobj_attribute *attribute);
 
 /*
  * Returns device handler's root sysfs kobject.
@@ -4211,6 +4217,9 @@ static inline struct kobject *scst_sysfs_get_devt_kobj(
 	return &devt->devt_kobj;
 }
 
+int scst_create_devt_attr(struct scst_dev_type *devt,
+	struct kobj_attribute *attribute);
+
 /*
  * Returns device's root sysfs kobject.
  * The driver can create own files/directories/links here.
@@ -4220,6 +4229,9 @@ static inline struct kobject *scst_sysfs_get_dev_kobj(
 {
 	return &dev->dev_kobj;
 }
+
+int scst_create_dev_attr(struct scst_device *dev,
+	struct kobj_attribute *attribute);
 
 /*
  * Returns session's root sysfs kobject.
@@ -4474,9 +4486,6 @@ int scst_alloc_sysfs_work(int (*sysfs_work_fn)(struct scst_sysfs_work_item *),
 int scst_sysfs_queue_wait_work(struct scst_sysfs_work_item *work);
 void scst_sysfs_work_get(struct scst_sysfs_work_item *work);
 void scst_sysfs_work_put(struct scst_sysfs_work_item *work);
-int scst_create_tgt_attr(struct scst_tgt *tgt, struct kobj_attribute *attribute);
-int scst_create_tgt_driver_attr(struct scst_tgt_template *tgtt,
-	struct kobj_attribute *attribute);
 
 #endif /* CONFIG_SCST_PROC */
 

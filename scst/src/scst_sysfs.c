@@ -984,6 +984,26 @@ static struct kobj_attribute scst_tgtt_mgmt =
 	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_tgtt_mgmt_show,
 	       scst_tgtt_mgmt_store);
 
+/*
+ * Creates an attribute entry for target driver.
+ */
+int scst_create_tgtt_attr(struct scst_tgt_template *tgtt,
+	struct kobj_attribute *attribute)
+{
+	int res;
+
+	res = sysfs_create_file(&tgtt->tgtt_kobj, &attribute->attr);
+	if (res != 0) {
+		PRINT_ERROR("Can't add attribute %s for target driver %s",
+			attribute->attr.name, tgtt->name);
+		goto out;
+	}
+
+out:
+	return res;
+}
+EXPORT_SYMBOL(scst_create_tgtt_attr);
+
 int scst_tgtt_sysfs_create(struct scst_tgt_template *tgtt)
 {
 	int res = 0;
@@ -2284,10 +2304,9 @@ out:
 static struct kobj_attribute scst_tgt_comment =
 	__ATTR(comment, S_IRUGO | S_IWUSR, scst_tgt_comment_show,
 	       scst_tgt_comment_store);
-
 /*
  * Creates an attribute entry for one target. Allows for target driver to
- * specify an attribute that is not for every target.
+ * create an attribute that is not for every target.
  */
 int scst_create_tgt_attr(struct scst_tgt *tgt, struct kobj_attribute *attribute)
 {
@@ -2304,26 +2323,6 @@ out:
 	return res;
 }
 EXPORT_SYMBOL(scst_create_tgt_attr);
-
-/*
- * Creates an attribute entry for target driver.
- */
-int scst_create_tgt_driver_attr(struct scst_tgt_template *tgtt,
-	struct kobj_attribute *attribute)
-{
-	int res;
-
-	res = sysfs_create_file(&tgtt->tgtt_kobj, &attribute->attr);
-	if (res != 0) {
-		PRINT_ERROR("Can't add attribute %s for target driver %s",
-			attribute->attr.name, tgtt->name);
-		goto out;
-	}
-
-out:
-	return res;
-}
-EXPORT_SYMBOL(scst_create_tgt_driver_attr);
 
 /*
  * Supposed to be called under scst_mutex. In case of error will drop,
@@ -2811,6 +2810,27 @@ static void scst_sysfs_dev_release(struct kobject *kobj)
 	TRACE_EXIT();
 	return;
 }
+
+/*
+ * Creates an attribute entry for one SCST device. Allows for dev handlers to
+ * create an attribute that is not for every device.
+ */
+int scst_create_dev_attr(struct scst_device *dev,
+	struct kobj_attribute *attribute)
+{
+	int res;
+
+	res = sysfs_create_file(&dev->dev_kobj, &attribute->attr);
+	if (res != 0) {
+		PRINT_ERROR("Can't add attribute %s for dev %s",
+			attribute->attr.name, dev->virt_name);
+		goto out;
+	}
+
+out:
+	return res;
+}
+EXPORT_SYMBOL(scst_create_dev_attr);
 
 int scst_devt_dev_sysfs_create(struct scst_device *dev)
 {
@@ -4796,6 +4816,26 @@ static ssize_t scst_devt_pass_through_mgmt_store(struct kobject *kobj,
 static struct kobj_attribute scst_devt_pass_through_mgmt =
 	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_devt_pass_through_mgmt_show,
 	       scst_devt_pass_through_mgmt_store);
+
+/*
+ * Creates an attribute entry for dev handler.
+ */
+int scst_create_devt_attr(struct scst_dev_type *devt,
+	struct kobj_attribute *attribute)
+{
+	int res;
+
+	res = sysfs_create_file(&devt->devt_kobj, &attribute->attr);
+	if (res != 0) {
+		PRINT_ERROR("Can't add attribute %s for dev handler %s",
+			attribute->attr.name, devt->name);
+		goto out;
+	}
+
+out:
+	return res;
+}
+EXPORT_SYMBOL(scst_create_devt_attr);
 
 int scst_devt_sysfs_create(struct scst_dev_type *devt)
 {
