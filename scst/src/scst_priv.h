@@ -57,6 +57,7 @@ extern unsigned long scst_trace_flag;
 
 #define TRACE_RETRY(args...)	TRACE_DBG_FLAG(TRACE_RTRY, args)
 #define TRACE_SN(args...)	TRACE_DBG_FLAG(TRACE_SCSI_SERIALIZING, args)
+#define TRACE_SN_SPECIAL(args...) TRACE_DBG_FLAG(TRACE_SCSI_SERIALIZING|TRACE_SPECIAL, args)
 
 #else /* CONFIG_SCST_DEBUG */
 
@@ -69,6 +70,7 @@ extern unsigned long scst_trace_flag;
 
 #define TRACE_RETRY(args...)
 #define TRACE_SN(args...)
+#define TRACE_SN_SPECIAL(args...)
 
 #endif
 
@@ -252,38 +254,41 @@ extern void scst_tgt_dev_stop_threads(struct scst_tgt_dev *tgt_dev);
 
 extern struct scst_dev_type scst_null_devtype;
 
+extern struct scst_cmd *__scst_check_deferred_commands_locked(
+	struct scst_order_data *order_data, bool return_first);
 extern struct scst_cmd *__scst_check_deferred_commands(
-	struct scst_order_data *order_data);
+	struct scst_order_data *order_data, bool return_first);
 
 /* Used to save the function call on the fast path */
 static inline struct scst_cmd *scst_check_deferred_commands(
-	struct scst_order_data *order_data)
+	struct scst_order_data *order_data, bool return_first)
 {
 	if (order_data->def_cmd_count == 0)
 		return NULL;
 	else
-		return __scst_check_deferred_commands(order_data);
+		return __scst_check_deferred_commands(order_data, return_first);
 }
 
 static inline void scst_make_deferred_commands_active(
 	struct scst_order_data *order_data)
 {
-	struct scst_cmd *c;
-
-	c = scst_check_deferred_commands(order_data);
-	if (c != NULL) {
-		TRACE_SN("Adding cmd %p to active cmd list", c);
-		spin_lock_irq(&c->cmd_threads->cmd_list_lock);
-		list_add_tail(&c->cmd_list_entry,
-			&c->cmd_threads->active_cmd_list);
-		wake_up(&c->cmd_threads->cmd_list_waitQ);
-		spin_unlock_irq(&c->cmd_threads->cmd_list_lock);
-	}
-
+	scst_check_deferred_commands(order_data, false);
 	return;
 }
 
-bool scst_inc_expected_sn(struct scst_cmd *cmd);
+/*
+ * sn_lock supposed to be locked and IRQs off. Might drop then reacquire
+ * it inside.
+ */
+static inline void scst_make_deferred_commands_active_locked(
+	struct scst_order_data *order_data)
+{
+	if (order_data->def_cmd_count != 0)
+		__scst_check_deferred_commands_locked(order_data, false);
+	return;
+}
+
+bool scst_inc_expected_sn(const struct scst_cmd const * const cmd);
 int scst_check_hq_cmd(struct scst_cmd *cmd);
 
 void scst_unblock_deferred(struct scst_order_data *order_data,

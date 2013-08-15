@@ -3339,7 +3339,6 @@ static void scst_init_order_data(struct scst_order_data *order_data)
 	INIT_LIST_HEAD(&order_data->skipped_sn_list);
 	order_data->curr_sn = (typeof(order_data->curr_sn))(-20);
 	order_data->expected_sn = order_data->curr_sn;
-	atomic_set(&order_data->sn_cmd_count, 0);
 	order_data->cur_sn_slot = &order_data->sn_slots[0];
 	for (i = 0; i < (int)ARRAY_SIZE(order_data->sn_slots); i++)
 		atomic_set(&order_data->sn_slots[i], 0);
@@ -5433,24 +5432,15 @@ void scst_free_cmd(struct scst_cmd *cmd)
 	}
 
 	if (likely(cmd->tgt_dev != NULL)) {
-#ifdef CONFIG_SCST_EXTRACHECKS
-		if (unlikely(!cmd->sent_for_exec) && !cmd->internal) {
-			PRINT_ERROR("Finishing not executed cmd %p (opcode "
-			    "%d, target %s, LUN %lld, sn %d, expected_sn %d)",
-			    cmd, cmd->cdb[0], cmd->tgtt->name,
-			    (long long unsigned int)cmd->lun,
-			    cmd->sn, cmd->cur_order_data->expected_sn);
-			scst_unblock_deferred(cmd->cur_order_data, cmd);
-		}
-#endif
-
+		EXTRACHECKS_BUG_ON(!test_bit(SCST_CMD_INC_EXPECTED_SN_PASSED,
+				      &cmd->cmd_flags) && cmd->sn_set && !cmd->out_of_sn);
 		if (unlikely(cmd->out_of_sn)) {
+			destroy = test_and_set_bit(SCST_CMD_CAN_BE_DESTROYED,
+					&cmd->cmd_flags);
 			TRACE_SN("Out of SN cmd %p (tag %llu, sn %d), "
 				"destroy=%d", cmd,
 				(long long unsigned int)cmd->tag,
 				cmd->sn, destroy);
-			destroy = test_and_set_bit(SCST_CMD_CAN_BE_DESTROYED,
-					&cmd->cmd_flags);
 		}
 	}
 
@@ -8025,16 +8015,21 @@ static void scst_free_all_UA(struct scst_tgt_dev *tgt_dev)
 	return;
 }
 
-/* No locks */
-struct scst_cmd *__scst_check_deferred_commands(struct scst_order_data *order_data)
+/*
+ * sn_lock supposed to be locked and IRQs off. Might drop then reacquire
+ * it inside.
+ */
+struct scst_cmd *__scst_check_deferred_commands_locked(
+	struct scst_order_data *order_data, bool return_first)
 {
 	struct scst_cmd *res = NULL, *cmd, *t;
 	typeof(order_data->expected_sn) expected_sn = order_data->expected_sn;
+	bool activate = !return_first, first = true, found = false;
 
-	spin_lock_irq(&order_data->sn_lock);
+	TRACE_ENTRY();
 
 	if (unlikely(order_data->hq_cmd_count != 0))
-		goto out_unlock;
+		goto out;
 
 restart:
 	list_for_each_entry_safe(cmd, t, &order_data->deferred_cmd_list,
@@ -8042,34 +8037,42 @@ restart:
 		EXTRACHECKS_BUG_ON((cmd->queue_type != SCST_CMD_QUEUE_SIMPLE) &&
 				   (cmd->queue_type != SCST_CMD_QUEUE_ORDERED));
 		if (cmd->sn == expected_sn) {
+			bool stop = (cmd->sn_slot == NULL);
+
 			TRACE_SN("Deferred command %p (sn %d, set %d) found",
 				cmd, cmd->sn, cmd->sn_set);
+
 			order_data->def_cmd_count--;
 			list_del(&cmd->sn_cmd_list_entry);
-			if (res == NULL) {
-				res = cmd;
-				if ((cmd->sn_slot == NULL) && !cmd->done) {
-					/*
-					 * Then there can be only one command
-					 * with this SN, so there's no point
-					 * to iterate further.
-					 */
-					goto out_unlock;
-				}
-			} else {
+
+			if (activate) {
 				spin_lock(&cmd->cmd_threads->cmd_list_lock);
-				TRACE_SN("Adding cmd %p to active cmd list",
-					cmd);
+				TRACE_SN("Adding cmd %p to active cmd list", cmd);
 				list_add_tail(&cmd->cmd_list_entry,
 					&cmd->cmd_threads->active_cmd_list);
 				wake_up(&cmd->cmd_threads->cmd_list_waitQ);
 				spin_unlock(&cmd->cmd_threads->cmd_list_lock);
 				/* !! At this point cmd can be already dead !! */
 			}
+			if (first) {
+				if (!activate)
+					res = cmd;
+				if (stop) {
+					/*
+					 * Then there can be only one command
+					 * with this SN, so there's no point
+					 * to iterate further.
+					 */
+					goto out;
+				}
+				first = false;
+				activate = true;
+			}
+			found = true;
 		}
 	}
-	if (res != NULL)
-		goto out_unlock;
+	if (found)
+		goto out;
 
 	list_for_each_entry(cmd, &order_data->skipped_sn_list,
 				sn_cmd_list_entry) {
@@ -8095,19 +8098,42 @@ restart:
 		}
 	}
 
-out_unlock:
-	spin_unlock_irq(&order_data->sn_lock);
+out:
+	TRACE_EXIT_HRES((unsigned long)res);
 	return res;
 }
 
-static void __scst_unblock_deferred(struct scst_order_data *order_data,
+/* No locks */
+struct scst_cmd *__scst_check_deferred_commands(
+	struct scst_order_data *order_data, bool return_first)
+{
+	struct scst_cmd *res;
+
+	TRACE_ENTRY();
+
+	spin_lock_irq(&order_data->sn_lock);
+	res = __scst_check_deferred_commands_locked(order_data, return_first);
+	spin_unlock_irq(&order_data->sn_lock);
+
+	TRACE_EXIT_HRES((unsigned long)res);
+	return res;
+}
+
+void scst_unblock_deferred(struct scst_order_data *order_data,
 	struct scst_cmd *out_of_sn_cmd)
 {
-	EXTRACHECKS_BUG_ON(!out_of_sn_cmd->sn_set);
+	TRACE_ENTRY();
 
-	if (out_of_sn_cmd->sn == order_data->expected_sn)
+	if (!out_of_sn_cmd->sn_set) {
+		TRACE_SN("cmd %p without sn", out_of_sn_cmd);
+		goto out;
+	}
+
+	if (out_of_sn_cmd->sn == order_data->expected_sn) {
+		TRACE_SN("out of sn cmd %p (expected sn %d)",
+			out_of_sn_cmd, order_data->expected_sn);
 		scst_inc_expected_sn(out_of_sn_cmd);
-	else {
+	} else {
 		out_of_sn_cmd->out_of_sn = 1;
 		spin_lock_irq(&order_data->sn_lock);
 		order_data->def_cmd_count++;
@@ -8124,21 +8150,6 @@ static void __scst_unblock_deferred(struct scst_order_data *order_data,
 	}
 
 	scst_make_deferred_commands_active(order_data);
-
-	return;
-}
-
-void scst_unblock_deferred(struct scst_order_data *order_data,
-	struct scst_cmd *out_of_sn_cmd)
-{
-	TRACE_ENTRY();
-
-	if (!out_of_sn_cmd->sn_set) {
-		TRACE_SN("cmd %p without sn", out_of_sn_cmd);
-		goto out;
-	}
-
-	__scst_unblock_deferred(order_data, out_of_sn_cmd);
 
 out:
 	TRACE_EXIT();
@@ -9435,42 +9446,25 @@ int tm_dbg_is_release(void)
 #ifdef CONFIG_SCST_DEBUG_SN
 void scst_check_debug_sn(struct scst_cmd *cmd)
 {
-	static DEFINE_SPINLOCK(lock);
-	static int type;
-	static int cnt;
-	unsigned long flags;
 	int old = cmd->queue_type;
 
-	spin_lock_irqsave(&lock, flags);
-
-	if (cnt == 0) {
-		if ((scst_random() % 1000) == 500) {
-			if ((scst_random() % 3) == 1)
-				type = SCST_CMD_QUEUE_HEAD_OF_QUEUE;
-			else
-				type = SCST_CMD_QUEUE_ORDERED;
-			do {
-				cnt = scst_random() % 10;
-			} while (cnt == 0);
-		} else
-			goto out_unlock;
+	/* To simulate from time to time queue flushing */
+	if (!in_interrupt() && (scst_random() % 120) == 8) {
+		int t = scst_random() % 1200;
+		TRACE_SN("Delaying IO on %d ms", t);
+		msleep(t);
 	}
 
-	cmd->queue_type = type;
-	cnt--;
-
-	if (((scst_random() % 1000) == 750))
+	if ((scst_random() % 15) == 7)
 		cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
-	else if (((scst_random() % 1000) == 751))
+	else if ((scst_random() % 1000) == 751)
 		cmd->queue_type = SCST_CMD_QUEUE_HEAD_OF_QUEUE;
-	else if (((scst_random() % 1000) == 752))
+	else if ((scst_random() % 1000) == 752)
 		cmd->queue_type = SCST_CMD_QUEUE_SIMPLE;
 
-	TRACE_SN("DbgSN changed cmd %p: %d/%d (cnt %d)", cmd, old,
-		cmd->queue_type, cnt);
-
-out_unlock:
-	spin_unlock_irqrestore(&lock, flags);
+	if (old != cmd->queue_type)
+		TRACE_SN("DbgSN queue type changed for cmd %p from %d to %d",
+			cmd, old, cmd->queue_type);
 	return;
 }
 #endif /* CONFIG_SCST_DEBUG_SN */

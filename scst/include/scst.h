@@ -533,6 +533,11 @@ enum scst_exec_context {
  */
 #define SCST_CMD_DEVICE_TAS		4
 
+#ifdef CONFIG_SCST_EXTRACHECKS
+/* Set if scst_inc_expected_sn() passed for this cmd */
+#define SCST_CMD_INC_EXPECTED_SN_PASSED	10
+#endif
+
 /*************************************************************
  ** Tgt_dev's async. flags (tgt_dev_flags)
  *************************************************************/
@@ -1819,25 +1824,25 @@ struct scst_cmd_threads {
  * Used to execute cmd's in order of arrival, honoring SCSI task attributes
  */
 struct scst_order_data {
-	spinlock_t sn_lock;
 	/*
-	 * Protected by sn_lock, except expected_sn, which is protected by
-	 * itself. Curr_sn must have the same size as expected_sn to
-	 * overflow simultaneously.
+	 * All fields, when needed, protected by sn_lock. Curr_sn must have
+	 * the same type as expected_sn to overflow simultaneously!
 	 */
+
+	struct list_head skipped_sn_list;
+	struct list_head deferred_cmd_list;
+
+	spinlock_t sn_lock;
+
+	int hq_cmd_count;
+
+	/* Set if the prev cmd was ORDERED */
+	bool prev_cmd_ordered;
+
 	int def_cmd_count;
 	unsigned int expected_sn;
 	unsigned int curr_sn;
-	atomic_t sn_cmd_count;
-	int hq_cmd_count;
-	struct list_head deferred_cmd_list;
-	struct list_head skipped_sn_list;
-
-	/*
-	 * Set if the prev cmd was ORDERED. Size and, hence, alignment must
-	 * allow unprotected modifications independently to the neighbour fields.
-	 */
-	unsigned long prev_cmd_ordered;
+	int pending_simple_inc_expected_sn;
 
 	atomic_t *cur_sn_slot;
 	atomic_t sn_slots[15];
@@ -1873,10 +1878,18 @@ struct scst_cmd {
 	 *************************************************************/
 
 	/*
-	 * Set if expected_sn should be incremented, i.e. cmd was sent
-	 * for execution
+	 * Set if cmd was sent for execution to optimize aborts waiting.
+	 * Also it is a sign under contract that if inc_expected_sn_on_done
+	 * is not set, the thread setting it is committing obligation to
+	 * call scst_inc_expected_sn() after this cmd was sent to exec.
 	 */
 	unsigned int sent_for_exec:1;
+
+	/* Set if cmd's SN was set */
+	unsigned int sn_set:1;
+
+	/* Set if increment expected_sn in cmd->scst_cmd_done() */
+	unsigned int inc_expected_sn_on_done:1;
 
 	/* Set if the cmd's action is completed */
 	unsigned int completed:1;
@@ -1955,9 +1968,6 @@ struct scst_cmd {
 	 */
 	unsigned int preprocessing_only:1;
 
-	/* Set if cmd's SN was set */
-	unsigned int sn_set:1;
-
 	/* Set if hq_cmd_count was incremented */
 	unsigned int hq_cmd_inced:1;
 
@@ -1979,9 +1989,6 @@ struct scst_cmd {
 
 	/* Set if the cmd was done or aborted out of its SN */
 	unsigned int out_of_sn:1;
-
-	/* Set if increment expected_sn in cmd->scst_cmd_done() */
-	unsigned int inc_expected_sn_on_done:1;
 
 	/* Set if tgt_sn field is valid */
 	unsigned int tgt_sn_set:1;

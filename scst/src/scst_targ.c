@@ -2537,8 +2537,17 @@ out_uncomplete:
 }
 EXPORT_SYMBOL_GPL(__scst_check_local_events);
 
-/* No locks. Returns true, if expected_sn was incremented. */
-bool scst_inc_expected_sn(struct scst_cmd *cmd)
+/*
+ * No locks. Returns true, if expected_sn was incremented.
+ *
+ * !! At this point cmd can be processed in parallel by some other thread!
+ * !! As consecuence, no pointer in cmd, except cur_order_data and
+ * !! sn_slot, can be touched here! The same is for aasignments to cmd's
+ * !! fields. As protection cmd declared as const.
+ *
+ * Overall, cmd is passed here only for extra correctness checking.
+ */
+bool scst_inc_expected_sn(const struct scst_cmd *cmd)
 {
 	bool res = false;
 	struct scst_order_data *order_data = cmd->cur_order_data;
@@ -2546,27 +2555,17 @@ bool scst_inc_expected_sn(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	/*
-	 * !! At this point any pointer in cmd, except cur_order_data	!!
-	 * !! and sn_slot could be already destroyed!			!!
-	 */
-
 	EXTRACHECKS_BUG_ON(!cmd->sn_set);
 
-	/*
-	 * Optimized for lockless fast path of sequence of SIMPLE or
-	 * ORDERED commands
-	 */
+#ifdef CONFIG_SCST_EXTRACHECKS
+	sBUG_ON(test_bit(SCST_CMD_INC_EXPECTED_SN_PASSED, &cmd->cmd_flags));
+	set_bit(SCST_CMD_INC_EXPECTED_SN_PASSED, &((struct scst_cmd *)cmd)->cmd_flags);
+#endif
 
-	atomic_dec(&order_data->sn_cmd_count);
+	/* Optimized for lockless fast path of sequence of SIMPLE commands */
 
-	if (slot == NULL) {
-		/* SIMPLE command can have slot NULL as well, if there was no free slots */
-		EXTRACHECKS_BUG_ON((cmd->queue_type != SCST_CMD_QUEUE_SIMPLE) &&
-				   (cmd->queue_type != SCST_CMD_QUEUE_ORDERED));
-		smp_mb(); /* sync with scst_inc_cur_sn() */
-		goto inc;
-	}
+	if (slot == NULL)
+		goto ordered;
 
 	TRACE_SN("Slot %zd, value %d", slot - order_data->sn_slots,
 		atomic_read(slot));
@@ -2574,40 +2573,50 @@ bool scst_inc_expected_sn(struct scst_cmd *cmd)
 	if (!atomic_dec_and_test(slot))
 		goto out;
 
-	/* atomic_dec_and_test() implies memory barrier to sync with scst_inc_cur_sn() */
+	/*
+	 * atomic_dec_and_test() implies memory barrier to sync with
+	 * scst_inc_cur_sn() for pending_simple_inc_expected_sn
+	 */
 
-inc:
-	if (order_data->expected_sn != order_data->curr_sn) {
-		bool lock = (atomic_read(&order_data->sn_cmd_count) == 0);
-		/*
-		 * No protection of expected_sn is needed, because only one
-		 * thread at time can be here (serialized by sn). Lock is to
-		 * sync with curr_sn decrement in scst_inc_cur_sn(). It
-		 * is supposed that there could not be half-incremented halves.
-		 */
-		if (lock)
-			spin_lock_irq(&order_data->sn_lock);
-		if (likely(order_data->expected_sn != order_data->curr_sn)) {
-			order_data->expected_sn++;
-			TRACE_SN("New expected_sn: %d", order_data->expected_sn);
-			res = true;
-			/*
-			 * Write must be before def_cmd_count read to be in
-			 * sync with scst_post_exec_sn(). See comment in
-			 * scst_exec_check_sn(). Just in case if lock isn't used
-			 * or spin_unlock() isn't memory a barrier. Although,
-			 * checking of def_cmd_count is far from here, but
-			 * who knows, let's be safer.
-			 */
-			smp_mb();
-		}
-		if (lock)
-			spin_unlock_irq(&order_data->sn_lock);
-	}
+	if (likely(order_data->pending_simple_inc_expected_sn == 0))
+		goto out;
+
+	spin_lock_irq(&order_data->sn_lock);
+
+	if (unlikely(order_data->pending_simple_inc_expected_sn == 0))
+		goto out_unlock;
+
+	order_data->pending_simple_inc_expected_sn--;
+	TRACE_SN("New dec pending_simple_inc_expected_sn: %d",
+		order_data->pending_simple_inc_expected_sn);
+	EXTRACHECKS_BUG_ON(order_data->pending_simple_inc_expected_sn < 0);
+
+inc_expected_sn_locked:
+	order_data->expected_sn++;
+	/*
+	 * Write must be before def_cmd_count read to be in
+	 * sync with scst_post_exec_sn(). See comment in
+	 * scst_exec_check_sn(). Just in case if spin_unlock() isn't
+	 * memory a barrier. Although, checking of def_cmd_count
+	 * is far from here, but who knows, let's be safer.
+	 */
+	smp_mb();
+	TRACE_SN("New expected_sn: %d", order_data->expected_sn);
+	res = true;
+
+out_unlock:
+	spin_unlock_irq(&order_data->sn_lock);
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+ordered:
+	/* SIMPLE command can have slot NULL as well, if there were no free slots */
+	EXTRACHECKS_BUG_ON((cmd->queue_type != SCST_CMD_QUEUE_SIMPLE) &&
+			   (cmd->queue_type != SCST_CMD_QUEUE_ORDERED));
+	spin_lock_irq(&order_data->sn_lock);
+	goto inc_expected_sn_locked;
 }
 
 /* No locks */
@@ -2628,7 +2637,7 @@ static struct scst_cmd *scst_post_exec_sn(struct scst_cmd *cmd,
 		if (make_active)
 			scst_make_deferred_commands_active(cmd->cur_order_data);
 		else
-			res = scst_check_deferred_commands(cmd->cur_order_data);
+			res = scst_check_deferred_commands(cmd->cur_order_data, true);
 	}
 
 out:
@@ -2892,6 +2901,17 @@ static int scst_exec_check_blocking(struct scst_cmd **active_cmd)
 	while (1) {
 		int rc;
 
+#ifdef CONFIG_SCST_DEBUG_SN
+		if ((scst_random() % 120) == 7) {
+			int t = scst_random() % 200;
+			TRACE_SN("Delaying IO on %d ms", t);
+			msleep(t);
+		}
+#endif
+		/*
+		 * After sent_for_exec set, scst_post_exec_sn() must be called
+		 * before exiting this function!
+		 */
 		cmd->sent_for_exec = 1;
 		/*
 		 * To sync with scst_abort_cmd(). The above assignment must
@@ -2980,7 +3000,7 @@ static int scst_exec_check_sn(struct scst_cmd **active_cmd)
 
 	sBUG_ON(!cmd->sn_set);
 
-	expected_sn = order_data->expected_sn;
+	expected_sn = ACCESS_ONCE(order_data->expected_sn);
 	/* Optimized for lockless fast path */
 	if ((cmd->sn != expected_sn) || (order_data->hq_cmd_count > 0)) {
 		spin_lock_irq(&order_data->sn_lock);
@@ -3553,12 +3573,14 @@ static int scst_pre_xmit_response(struct scst_cmd *cmd)
 #endif
 		if (unlikely(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE))
 			scst_on_hq_cmd_response(cmd);
-
-		if (unlikely(!cmd->sent_for_exec)) {
-			TRACE_SN("cmd %p was not sent for exec (sn %d, set %d)",
-				cmd, cmd->sn, cmd->sn_set);
+		else if (unlikely(!cmd->sent_for_exec)) {
+			/*
+			 * scst_post_exec_sn() can't be called in parallel
+			 * due to the sent_for_exec contract obligation
+			 */
+			TRACE_SN("cmd %p was not sent for exec (sn %d, "
+				"set %d)", cmd, cmd->sn, cmd->sn_set);
 			scst_unblock_deferred(cmd->cur_order_data, cmd);
-			cmd->sent_for_exec = 1;
 		}
 	}
 
@@ -3801,23 +3823,21 @@ out:
 	return res;
 }
 
-/* Called only from scst_cmd_set_sn() with the same locking expectations */
-static inline void scst_inc_cur_sn(struct scst_order_data *order_data)
+/* Must be called under sn_lock with IRQs off */
+static inline void scst_inc_expected_sn_idle(struct scst_order_data *order_data)
 {
-	if (atomic_read(&order_data->sn_cmd_count) > 0) {
-		unsigned long flags;
-		order_data->curr_sn++;
-		TRACE_SN("Incremented curr_sn %d", order_data->curr_sn);
-		smp_mb(); /* sync with scst_inc_expected_sn() */
-		if (unlikely(atomic_read(&order_data->sn_cmd_count) == 0)) {
-			spin_lock_irqsave(&order_data->sn_lock, flags);
-			if (order_data->expected_sn == (order_data->curr_sn-1)) {
-				order_data->curr_sn--;
-				TRACE_SN("Decremented curr_sn %d", order_data->curr_sn);
-			}
-			spin_unlock_irqrestore(&order_data->sn_lock, flags);
-		}
-	}
+	order_data->expected_sn++;
+	/*
+	 * Write must be before def_cmd_count read to be in
+	 * sync with scst_post_exec_sn(). See comment in
+	 * scst_exec_check_sn(). Just in case if spin_unlock() isn't
+	 * memory a barrier. Although, checking of def_cmd_count
+	 * is far from here, but who knows, let's be safer.
+	 */
+	smp_mb();
+	TRACE_SN("New expected_sn: %d", order_data->expected_sn);
+
+	scst_make_deferred_commands_active_locked(order_data);
 	return;
 }
 
@@ -3828,9 +3848,7 @@ static inline void scst_inc_cur_sn(struct scst_order_data *order_data)
  * number. A command that must be executed after previously received commands
  * is assigned a new and higher slot number.
  *
- * No locks expected, but it must be externally serialized (see comment before
- * scst_cmd_init_done() definition) to protect SIMPLE and ORDERED commands
- * lockless fast path.
+ * No locks expected.
  *
  * Note: This approach in full compliance with SAM may result in the reordering
  * of conflicting SIMPLE READ and/or WRITE commands (commands with at least
@@ -3857,24 +3875,26 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 
 	EXTRACHECKS_BUG_ON(cmd->sn_set || cmd->hq_cmd_inced);
 
-	/*
-	 * Optimized for lockless fast path of sequence of SIMPLE or
-	 * ORDERED commands.
-	 */
+	/* Optimized for lockless fast path of sequence of SIMPLE commands */
 
 	scst_check_debug_sn(cmd);
 
 #ifdef CONFIG_SCST_STRICT_SERIALIZING
-	cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
+	if (likely(cmd->queue_type != SCST_CMD_QUEUE_HEAD_OF_QUEUE))
+		cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
 #endif
 
 	if (cmd->dev->queue_alg == SCST_CONTR_MODE_QUEUE_ALG_RESTRICTED_REORDER) {
-		/*
-		 * Not the best way, but good enough until there is a
-		 * possibility to specify queue type during pass-through
-		 * commands submission.
-		 */
-		cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
+		if (likely(cmd->queue_type != SCST_CMD_QUEUE_HEAD_OF_QUEUE)) {
+			/*
+			 * Not the best way, but good enough until there is a
+			 * possibility to specify queue type during pass-through
+			 * commands submission.
+			 */
+			TRACE_SN("Restricted reorder dev %s (cmd %p)",
+				cmd->dev->virt_name, cmd);
+			cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
+		}
 	}
 
 again:
@@ -3882,49 +3902,83 @@ again:
 	case SCST_CMD_QUEUE_SIMPLE:
 		if (order_data->prev_cmd_ordered) {
 			if (atomic_read(order_data->cur_sn_slot) != 0) {
-				atomic_t *old_cur_sn_slot = order_data->cur_sn_slot;
-				while (1) {
-					order_data->cur_sn_slot++;
-					if (order_data->cur_sn_slot == order_data->sn_slots + ARRAY_SIZE(order_data->sn_slots))
-						order_data->cur_sn_slot = order_data->sn_slots;
-					if (atomic_read(order_data->cur_sn_slot) == 0)
-						break;
-					if (order_data->cur_sn_slot == old_cur_sn_slot) {
-						static int q;
-						if (q++ < 10)
-							PRINT_WARNING("Not enough SN slots");
-						goto ordered;
-					}
+				order_data->cur_sn_slot++;
+				if (order_data->cur_sn_slot == order_data->sn_slots +
+								ARRAY_SIZE(order_data->sn_slots))
+					order_data->cur_sn_slot = order_data->sn_slots;
+				if (unlikely(atomic_read(order_data->cur_sn_slot) != 0)) {
+					static int q;
+					if (q++ < 10)
+						PRINT_WARNING("Not enough SN slots "
+							"(dev %s)", cmd->dev->virt_name);
+					goto ordered;
 				}
 				TRACE_SN("New cur SN slot %zd",
 					order_data->cur_sn_slot - order_data->sn_slots);
 			}
-			scst_inc_cur_sn(order_data);
+
+			order_data->curr_sn++;
+			TRACE_SN("Incremented curr_sn %d", order_data->curr_sn);
+
 			order_data->prev_cmd_ordered = 0;
+			/*
+			 * expected_sn will be/was incremented by the
+			 * previous ORDERED cmd
+			 */
 		}
 
-		atomic_inc(order_data->cur_sn_slot);
-
 		cmd->sn_slot = order_data->cur_sn_slot;
+		atomic_inc(cmd->sn_slot);
 		cmd->sn = order_data->curr_sn;
 		cmd->sn_set = 1;
-
-		atomic_inc(&order_data->sn_cmd_count);
-		TRACE_SN("New sn_cmd_count: %d", atomic_read(&order_data->sn_cmd_count));
 		break;
+
+	case SCST_CMD_QUEUE_UNTAGGED: /* put here with goto for better SIMPLE fast path */
+		/* It is processed further as SIMPLE */
+		cmd->queue_type = SCST_CMD_QUEUE_SIMPLE;
+		goto again;
 
 	case SCST_CMD_QUEUE_ORDERED:
 		TRACE_SN("ORDERED cmd %p (op %x)", cmd, cmd->cdb[0]);
 ordered:
-		order_data->prev_cmd_ordered = 1;
+		order_data->curr_sn++;
+		TRACE_SN("Incremented curr_sn %d", order_data->curr_sn);
 
-		scst_inc_cur_sn(order_data);
+		if (order_data->prev_cmd_ordered) {
+			TRACE_SN("Prev cmd ordered set");
+			/*
+			 * expected_sn will be/was incremented by the
+			 * previous ORDERED cmd
+			 */
+		} else {
+			order_data->prev_cmd_ordered = 1;
+
+			spin_lock_irqsave(&order_data->sn_lock, flags);
+
+			/*
+			 * If no commands are going to reach
+			 * scst_inc_expected_sn(), inc expected_sn here.
+			 */
+			if (atomic_read(order_data->cur_sn_slot) == 0)
+				scst_inc_expected_sn_idle(order_data);
+			else {
+				order_data->pending_simple_inc_expected_sn++;
+				TRACE_SN("New inc pending_simple_inc_expected_sn: %d",
+					order_data->pending_simple_inc_expected_sn);
+				smp_mb(); /* to sync with scst_inc_expected_sn() */
+				if (unlikely(atomic_read(order_data->cur_sn_slot) == 0)) {
+					order_data->pending_simple_inc_expected_sn--;
+					TRACE_SN("New dec pending_simple_inc_expected_sn: %d",
+						order_data->pending_simple_inc_expected_sn);
+					EXTRACHECKS_BUG_ON(order_data->pending_simple_inc_expected_sn < 0);
+					scst_inc_expected_sn_idle(order_data);
+				}
+			}
+			spin_unlock_irqrestore(&order_data->sn_lock, flags);
+		}
 
 		cmd->sn = order_data->curr_sn;
 		cmd->sn_set = 1;
-
-		atomic_inc(&order_data->sn_cmd_count);
-		TRACE_SN("New sn_cmd_count: %d", atomic_read(&order_data->sn_cmd_count));
 		break;
 
 	case SCST_CMD_QUEUE_HEAD_OF_QUEUE:
@@ -3935,19 +3989,14 @@ ordered:
 		cmd->hq_cmd_inced = 1;
 		goto out;
 
-	case SCST_CMD_QUEUE_UNTAGGED: /* put here with goto for better fast path */
-		/* It is processed as SIMPLE */
-		cmd->queue_type = SCST_CMD_QUEUE_SIMPLE;
-		goto again;
-
 	default:
 		sBUG();
 	}
 
 	TRACE_SN("cmd(%p)->sn: %d (order_data %p, *cur_sn_slot %d, "
-		"sn_cmd_count %d, prev_cmd_ordered %ld, cur_sn_slot %zd)", cmd,
+		"prev_cmd_ordered %d, cur_sn_slot %zd)", cmd,
 		cmd->sn, order_data, atomic_read(order_data->cur_sn_slot),
-		atomic_read(&order_data->sn_cmd_count), order_data->prev_cmd_ordered,
+		order_data->prev_cmd_ordered,
 		order_data->cur_sn_slot - order_data->sn_slots);
 
 out:
