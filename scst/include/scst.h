@@ -4467,6 +4467,9 @@ int scst_alloc_sysfs_work(int (*sysfs_work_fn)(struct scst_sysfs_work_item *),
 int scst_sysfs_queue_wait_work(struct scst_sysfs_work_item *work);
 void scst_sysfs_work_get(struct scst_sysfs_work_item *work);
 void scst_sysfs_work_put(struct scst_sysfs_work_item *work);
+int scst_create_tgt_attr(struct scst_tgt *tgt, struct kobj_attribute *attribute);
+int scst_create_tgt_driver_attr(struct scst_tgt_template *tgtt,
+	struct kobj_attribute *attribute);
 
 #endif /* CONFIG_SCST_PROC */
 

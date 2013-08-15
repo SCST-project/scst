@@ -2286,6 +2286,44 @@ static struct kobj_attribute scst_tgt_comment =
 	       scst_tgt_comment_store);
 
 /*
+ * Creates an attribute entry for one target. Allows for target driver to
+ * specify an attribute that is not for every target.
+ */
+int scst_create_tgt_attr(struct scst_tgt *tgt, struct kobj_attribute *attribute)
+{
+	int res;
+
+	res = sysfs_create_file(&tgt->tgt_kobj, &attribute->attr);
+	if (res != 0) {
+		PRINT_ERROR("Can't add attribute %s for tgt %s",
+			attribute->attr.name, tgt->tgt_name);
+		res = -ENOMEM;
+	}
+
+	return res;
+}
+EXPORT_SYMBOL(scst_create_tgt_attr);
+
+/*
+ * Creates an attribute entry for target driver.
+ */
+int scst_create_tgt_driver_attr(struct scst_tgt_template *tgtt,
+	struct kobj_attribute *attribute)
+{
+	int res;
+
+	res = sysfs_create_file(&tgtt->tgtt_kobj, &attribute->attr);
+	if (res != 0) {
+		PRINT_ERROR("Can't add attribute %s for target driver %s",
+			attribute->attr.name, tgtt->name);
+		res = -ENOMEM;
+	}
+
+	return res;
+}
+EXPORT_SYMBOL(scst_create_tgt_driver_attr);
+
+/*
  * Supposed to be called under scst_mutex. In case of error will drop,
  * then reacquire it.
  */
