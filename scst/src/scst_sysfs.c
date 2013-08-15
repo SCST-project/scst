@@ -2297,7 +2297,6 @@ int scst_create_tgt_attr(struct scst_tgt *tgt, struct kobj_attribute *attribute)
 	if (res != 0) {
 		PRINT_ERROR("Can't add attribute %s for tgt %s",
 			attribute->attr.name, tgt->tgt_name);
-		res = -ENOMEM;
 		goto out;
 	}
 
