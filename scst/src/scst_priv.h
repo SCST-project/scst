@@ -288,7 +288,7 @@ static inline void scst_make_deferred_commands_active_locked(
 	return;
 }
 
-bool scst_inc_expected_sn(const struct scst_cmd const * const cmd);
+bool scst_inc_expected_sn(const struct scst_cmd *cmd);
 int scst_check_hq_cmd(struct scst_cmd *cmd);
 
 void scst_unblock_deferred(struct scst_order_data *order_data,
