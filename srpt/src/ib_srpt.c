@@ -1380,9 +1380,6 @@ static void srpt_abort_cmd(struct srpt_send_ioctx *ioctx,
 		goto out;
 
 	scmnd = &ioctx->scmnd;
-	WARN_ON(!scmnd);
-	if (!scmnd)
-		goto out;
 
 	WARN_ON(ioctx != scst_cmd_get_tgt_priv(scmnd));
 
