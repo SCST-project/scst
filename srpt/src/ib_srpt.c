@@ -1482,29 +1482,22 @@ static void srpt_handle_send_comp(struct srpt_rdma_ch *ch,
 				  struct srpt_send_ioctx *ioctx,
 				  enum scst_exec_context context)
 {
-	enum srpt_command_state state;
-
 	srpt_adjust_srq_wr_avail(ch, 1);
 
-	state = srpt_set_cmd_state(ioctx, SRPT_STATE_DONE);
-
-	EXTRACHECKS_WARN_ON(state != SRPT_STATE_CMD_RSP_SENT
-			    && state != SRPT_STATE_MGMT_RSP_SENT
-			    && state != SRPT_STATE_DONE);
-
-	if (state != SRPT_STATE_DONE) {
-		struct scst_cmd *scmnd;
-
-		scmnd = &ioctx->scmnd;
-		if (state != SRPT_STATE_MGMT_RSP_SENT) {
-			srpt_unmap_sg_to_ib_sge(ch, ioctx);
-			scst_tgt_cmd_done(scmnd, context);
-		} else {
-			srpt_put_send_ioctx(ioctx);
-		}
-	} else {
+	switch (srpt_set_cmd_state(ioctx, SRPT_STATE_DONE)) {
+	case SRPT_STATE_CMD_RSP_SENT:
+		srpt_unmap_sg_to_ib_sge(ch, ioctx);
+		scst_tgt_cmd_done(&ioctx->scmnd, context);
+		break;
+	case SRPT_STATE_MGMT_RSP_SENT:
+		srpt_put_send_ioctx(ioctx);
+		break;
+	case SRPT_STATE_DONE:
 		PRINT_ERROR("IB completion has been received too late for"
 			    " wr_id = %u.", ioctx->ioctx.index);
+		break;
+	default:
+		EXTRACHECKS_WARN_ON(true);
 	}
 }
 
