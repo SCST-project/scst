@@ -1155,7 +1155,7 @@ static int srpt_init_ch_qp(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 	attr->qp_access_flags = IB_ACCESS_LOCAL_WRITE | IB_ACCESS_REMOTE_READ |
 	    IB_ACCESS_REMOTE_WRITE;
 	attr->port_num = ch->sport->port;
-	attr->pkey_index = 0;
+	attr->pkey_index = ch->pkey_index;
 
 	ret = ib_modify_qp(qp, attr,
 			   IB_QP_STATE | IB_QP_ACCESS_FLAGS | IB_QP_PORT |
@@ -2515,6 +2515,14 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	}
 
 	kref_init(&ch->kref);
+	ret = ib_find_pkey(sdev->device, sport->port,
+			   be16_to_cpu(param->primary_path->pkey),
+			   &ch->pkey_index);
+	if (ret < 0) {
+		ch->pkey_index = 0;
+		PRINT_ERROR("Translating pkey %#x failed (%d) - using index 0",
+			    be16_to_cpu(param->primary_path->pkey), ret);
+	}
 	memcpy(ch->i_port_id, req->initiator_port_id, 16);
 	memcpy(ch->t_port_id, req->target_port_id, 16);
 	ch->sport = sport;
