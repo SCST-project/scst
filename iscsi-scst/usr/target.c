@@ -68,7 +68,7 @@ static int __wildcmp(const char *wild, const char *string, int recursion_level)
 		if ((*wild == '!') && (recursion_level == 0))
 			return !__wildcmp(++wild, string, ++recursion_level);
 
-		if ((*wild != *string) && (*wild != '?'))
+		if ((tolower(*wild) != tolower(*string)) && (*wild != '?'))
 			return 0;
 
 		wild++;
@@ -85,7 +85,7 @@ static int __wildcmp(const char *wild, const char *string, int recursion_level)
 
 			mp = wild;
 			cp = string+1;
-		} else if ((*wild == *string) || (*wild == '?')) {
+		} else if ((tolower(*wild) == tolower(*string)) || (*wild == '?')) {
 			wild++;
 			string++;
 		} else {
