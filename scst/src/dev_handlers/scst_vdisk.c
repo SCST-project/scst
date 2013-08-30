@@ -3515,7 +3515,7 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 
 out:
 	TRACE_EXIT();
-	return err >= 0 ? CMD_SUCCEEDED : CMD_FAILED;
+	return CMD_SUCCEEDED;
 
 out_set_fs:
 	set_fs(old_fs);
@@ -3675,7 +3675,7 @@ out_sync:
 			    scst_cmd_get_gfp_flags(cmd), cmd, false);
 out:
 	TRACE_EXIT();
-	return err >= 0 ? CMD_SUCCEEDED : CMD_FAILED;
+	return CMD_SUCCEEDED;
 
 out_set_fs:
 	set_fs(old_fs);
