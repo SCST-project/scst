@@ -695,6 +695,7 @@ err:
  */
 static int srpt_refresh_port(struct srpt_port *sport)
 {
+	static const union ib_gid zero_gid;
 	struct ib_mad_reg_req reg_req;
 	struct ib_port_modify port_modify;
 	struct ib_port_attr port_attr;
@@ -754,8 +755,14 @@ static int srpt_refresh_port(struct srpt_port *sport)
 			 be16_to_cpu(((__be16 *) sport->gid.raw)[5]),
 			 be16_to_cpu(((__be16 *) sport->gid.raw)[6]),
 			 be16_to_cpu(((__be16 *) sport->gid.raw)[7]));
-		sport->srpt_tgt.scst_tgt = scst_register_target(&srpt_template,
-						       tgt_name);
+		/*
+		 * Skip target registration if the port mode has been changed
+		 * from IB into Ethernet after the add_client() callback
+		 * started and before the port GID has been queried.
+		 */
+		if (memcmp(&sport->gid, &zero_gid, sizeof(zero_gid)) != 0)
+			sport->srpt_tgt.scst_tgt =
+				scst_register_target(&srpt_template, tgt_name);
 		if (sport->srpt_tgt.scst_tgt)
 			scst_tgt_set_tgt_priv(sport->srpt_tgt.scst_tgt, sport);
 		else
