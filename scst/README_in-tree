@@ -1440,11 +1440,8 @@ intensive writes from VMware on a target disk, which uses LVM in the
 snapshot mode. In this case value like 16 or even 8-10 depending of your
 backstorage speed could be more appropriate.
 
-Unfortunately, currently SCST lacks dynamic I/O flow control, when the
-queue depth on the target is dynamically decreased/increased based on
-how slow/fast the backstorage speed comparing to the target link. So,
-there are 6 possible actions, which you can do to workaround or fix this
-issue in this case:
+There are 6 possible actions, which you can do to workaround or fix such
+issues:
 
 1. Ignore incoming task management (TM) commands. It's fine if there are
 not too many of them, so average performance isn't hurt and the
@@ -1481,10 +1478,11 @@ By default, this timeout is 30 or 60 seconds, depending on your distribution.
 
 5. Increase speed of the target's backstorage.
 
-6. Implement in SCST dynamic I/O flow control. This will be an ultimate
-solution. See "Dynamic I/O flow control" section on
-http://scst.sourceforge.net/contributing.html page for possible
-implementation idea.
+6. Implement in SCST dynamic I/O flow control, so queue depth on the
+target is dynamically decreased/increased based on how slow/fast the
+backstorage speed comparing to the target link. See "Dynamic I/O flow
+control" section on http://scst.sourceforge.net/contributing.html page
+for possible implementation idea.
 
 Next, consider the case of too slow link between initiator and target,
 when the initiator tries to simultaneously push N commands to the target
