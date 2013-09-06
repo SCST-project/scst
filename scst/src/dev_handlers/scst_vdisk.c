@@ -652,7 +652,7 @@ static void vdisk_blockio_check_flush_support(struct scst_vdisk_dev *virt_dev)
 
 	fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
 	if (IS_ERR(fd)) {
-		PRINT_ERROR("filp_open(%s) returned error %ld",
+		PRINT_ERROR("filp_open(%s) failed: %ld",
 			virt_dev->filename, PTR_ERR(fd));
 		goto out;
 	}
@@ -692,7 +692,7 @@ static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 
 	fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
 	if (IS_ERR(fd)) {
-		PRINT_ERROR("filp_open(%s) returned error %ld",
+		PRINT_ERROR("filp_open(%s) failed: %ld",
 			virt_dev->filename, PTR_ERR(fd));
 		goto out_check;
 	}
@@ -756,7 +756,7 @@ static int vdisk_get_file_size(const char *filename, bool blockio,
 	fd = filp_open(filename, O_LARGEFILE | O_RDONLY, 0600);
 	if (IS_ERR(fd)) {
 		res = PTR_ERR(fd);
-		PRINT_ERROR("filp_open(%s) returned error %d", filename, res);
+		PRINT_ERROR("filp_open(%s) failed: %d", filename, res);
 		goto out;
 	}
 
@@ -935,7 +935,7 @@ static int vdisk_open_fd(struct scst_vdisk_dev *virt_dev, bool read_only)
 	if (IS_ERR(virt_dev->fd)) {
 		res = PTR_ERR(virt_dev->fd);
 		virt_dev->fd = NULL;
-		PRINT_ERROR("filp_open(%s) returned error %d",
+		PRINT_ERROR("filp_open(%s) failed: %d",
 			    virt_dev->filename, res);
 		goto out;
 	}
@@ -2120,7 +2120,7 @@ static void vdev_blockio_get_unmap_params(struct scst_vdisk_dev *virt_dev,
 
 		fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
 		if (IS_ERR(fd)) {
-			PRINT_ERROR("filp_open(%s) returned error %ld",
+			PRINT_ERROR("filp_open(%s) failed: %ld",
 				virt_dev->filename, PTR_ERR(fd));
 			goto out;
 		}
