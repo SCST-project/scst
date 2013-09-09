@@ -703,6 +703,7 @@ static int srpt_refresh_port(struct srpt_port *sport)
 
 	TRACE_ENTRY();
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37) /* commit a3f5adaf4 */
 	switch (rdma_port_get_link_layer(sport->sdev->device, sport->port)) {
 	case IB_LINK_LAYER_UNSPECIFIED:
 	case IB_LINK_LAYER_INFINIBAND:
@@ -711,6 +712,7 @@ static int srpt_refresh_port(struct srpt_port *sport)
 	default:
 		return 0;
 	}
+#endif
 
 	memset(&port_modify, 0, sizeof(port_modify));
 	port_modify.set_port_cap_mask = IB_PORT_DEVICE_MGMT_SUP;
