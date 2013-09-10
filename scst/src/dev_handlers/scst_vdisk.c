@@ -162,6 +162,7 @@ struct scst_vdisk_dev {
 	unsigned int thin_provisioned_manually_set:1;
 	unsigned int dev_thin_provisioned:1;
 	unsigned int rotational:1;
+	unsigned long format_active:1;
 
 	struct file *fd;
 	struct block_device *bdev;
@@ -286,6 +287,8 @@ static ssize_t vcdrom_del_device(const char *device_name);
 static void vdisk_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd,
 	struct scst_tgt_dev *tgt_dev);
 static uint64_t vdisk_gen_dev_id_num(const char *virt_dev_name);
+static int vdisk_unmap_range(struct scst_cmd *cmd,
+	struct scst_vdisk_dev *virt_dev, uint64_t start_lba, uint32_t blocks);
 
 /** SYSFS **/
 
@@ -1093,6 +1096,32 @@ static enum compl_status_e vdisk_exec_send_diagnostic(struct vdisk_cmd_params *p
 
 static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 {
+	struct scst_cmd *cmd = p->cmd;
+	struct scst_device *dev = cmd->dev;
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+
+	if (cmd->cdb[1] & 0x10/*FMTDATA*/) {
+		PRINT_ERROR("FORMAT UNIT: FMTDATA not supported (dev %s)",
+			dev->virt_name);
+		scst_set_invalid_field_in_cdb(cmd, 1,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
+		goto out;
+	}
+
+	if (!virt_dev->thin_provisioned)
+		goto out;
+
+	spin_lock(&virt_dev->flags_lock);
+	virt_dev->format_active = 1;
+	spin_unlock(&virt_dev->flags_lock);
+
+	vdisk_unmap_range(cmd, virt_dev, 0, virt_dev->nblocks);
+
+	spin_lock(&virt_dev->flags_lock);
+	virt_dev->format_active = 0;
+	spin_unlock(&virt_dev->flags_lock);
+
+out:
 	return CMD_SUCCEEDED;
 }
 
@@ -1753,6 +1782,23 @@ static int vdev_do_job(struct scst_cmd *cmd, const vdisk_op_fn *ops)
 
 	EXTRACHECKS_BUG_ON(p->cmd != cmd);
 	EXTRACHECKS_BUG_ON(ops != blockio_ops && ops != fileio_ops && ops != nullio_ops);
+
+	/*
+	 * No need to make it volatile, because at worst we will have a couple
+	 * extra commands refused after formatting actually finished, which is
+	 * acceptable
+	 */
+	if (unlikely(virt_dev->format_active)) {
+		switch (cmd->cdb[0]) {
+		case INQUIRY:
+		case REPORT_LUNS:
+		case REQUEST_SENSE:
+			break;
+		default:
+			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_format_in_progress));
+			goto out_compl;
+		}
+	}
 
 	s = op(p);
 	if (s == CMD_SUCCEEDED)
