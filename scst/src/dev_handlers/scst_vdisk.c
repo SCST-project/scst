@@ -1914,7 +1914,6 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 {
 	int res, err;
 	struct file *fd = virt_dev->fd;
-	struct inode *inode = fd->f_dentry->d_inode;
 
 	TRACE_ENTRY();
 
@@ -1935,6 +1934,7 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 		(unsigned long long)start_lba, (unsigned long long)blocks);
 
 	if (virt_dev->blockio) {
+		struct inode *inode = fd->f_dentry->d_inode;
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 27)
 		gfp_t gfp = scst_cmd_get_gfp_flags(cmd);
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 31)
@@ -3278,7 +3278,7 @@ static int vdisk_fsync_blockio(struct vdisk_cmd_params *p, loff_t loff,
 	loff_t len, struct scst_device *dev, gfp_t gfp_flags,
 	struct scst_cmd *cmd, bool async)
 {
-	int res = 0;
+	int res;
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 
 	TRACE_ENTRY();
@@ -3298,10 +3298,9 @@ static int vdisk_fsync_blockio(struct vdisk_cmd_params *p, loff_t loff,
 }
 
 static int vdisk_fsync_fileio(struct vdisk_cmd_params *p, loff_t loff,
-	loff_t len, struct scst_device *dev, gfp_t gfp_flags,
-	struct scst_cmd *cmd, bool async)
+	loff_t len, struct scst_device *dev, struct scst_cmd *cmd, bool async)
 {
-	int res = 0;
+	int res;
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 	struct file *file;
 
@@ -3326,7 +3325,6 @@ static int vdisk_fsync_fileio(struct vdisk_cmd_params *p, loff_t loff,
 	res = filemap_write_and_wait_range(file->f_mapping, loff, len);
 #endif
 #endif
-
 	if (unlikely(res != 0)) {
 		PRINT_ERROR("sync range failed (%d)", res);
 		if (cmd != NULL) {
@@ -3378,7 +3376,7 @@ static int vdisk_fsync(struct vdisk_cmd_params *p, loff_t loff,
 	if (virt_dev->blockio)
 		res = vdisk_fsync_blockio(p, loff, len, dev, gfp_flags, cmd, async);
 	else
-		res = vdisk_fsync_fileio(p, loff, len, dev, gfp_flags, cmd, async);
+		res = vdisk_fsync_fileio(p, loff, len, dev, cmd, async);
 
 out:
 	TRACE_EXIT_RES(res);
