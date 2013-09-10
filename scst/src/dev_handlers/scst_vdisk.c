@@ -1785,8 +1785,8 @@ static int vdev_do_job(struct scst_cmd *cmd, const vdisk_op_fn *ops)
 
 	/*
 	 * No need to make it volatile, because at worst we will have a couple
-	 * extra commands refused after formatting actually finished, which is
-	 * acceptable
+	 * of extra commands refused after formatting actually finished, which
+	 * is acceptable.
 	 */
 	if (unlikely(virt_dev->format_active)) {
 		switch (cmd->cdb[0]) {
