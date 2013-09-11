@@ -731,16 +731,18 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 			if (cmd->data_direction == SCST_DATA_BIDI)
 				cmd->out_bufflen = min(cmd->expected_out_transfer_len,
 							15*1024*1024);
-			cmd->op_flags &= ~SCST_UNKNOWN_LENGTH;
 		} else {
-			PRINT_ERROR("Unknown data transfer length for opcode "
-				"0x%x (handler %s, target %s)", cmd->cdb[0],
-				devt->name, cmd->tgtt->name);
-			PRINT_BUFFER("Failed CDB", cmd->cdb, cmd->cdb_len);
-			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_invalid_message));
-			goto out_done;
+			if (cmd->bufflen == 0) {
+				PRINT_ERROR("Unknown data transfer length for opcode "
+					"0x%x (handler %s, target %s)", cmd->cdb[0],
+					devt->name, cmd->tgtt->name);
+				PRINT_BUFFER("Failed CDB", cmd->cdb, cmd->cdb_len);
+				scst_set_cmd_error(cmd,
+					SCST_LOAD_SENSE(scst_sense_invalid_message));
+				goto out_done;
+			} /* else we have a guess, so proceed further */
 		}
+		cmd->op_flags &= ~SCST_UNKNOWN_LENGTH;
 	}
 
 	if (unlikely(cmd->cdb[cmd->cdb_len - 1] & CONTROL_BYTE_NACA_BIT)) {

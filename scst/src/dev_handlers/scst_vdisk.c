@@ -167,6 +167,8 @@ struct scst_vdisk_dev {
 	struct file *fd;
 	struct block_device *bdev;
 
+	uint64_t format_progress_to_do, format_progress_done;
+
 	int virt_id;
 	char name[16+1];	/* Name of the virtual device,
 				   must be <= SCSI Model + 1 */
@@ -1096,33 +1098,185 @@ static enum compl_status_e vdisk_exec_send_diagnostic(struct vdisk_cmd_params *p
 
 static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 {
+	int res = CMD_SUCCEEDED;
 	struct scst_cmd *cmd = p->cmd;
 	struct scst_device *dev = cmd->dev;
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+	int prot_type = 0, pinfo;
+	bool immed = false;
 
-	if (cmd->cdb[1] & 0x10/*FMTDATA*/) {
-		PRINT_ERROR("FORMAT UNIT: FMTDATA not supported (dev %s)",
-			dev->virt_name);
+	TRACE_ENTRY();
+
+	pinfo = (cmd->cdb[1] & 0xC0) >> 6;
+	if (((cmd->cdb[1] & 0x10) == 0) && (pinfo != 0)) {
+		/* FMTDATA zero and FMTPINFO not zero are illegal */
 		scst_set_invalid_field_in_cdb(cmd, 1,
-			SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 6);
 		goto out;
 	}
 
-	if (!virt_dev->thin_provisioned)
+	if (cmd->cdb[1] & 0x10) { /* FMTDATA */
+		int length, prot_usage;
+		uint8_t *buf;
+		bool err = false;
+
+		length = scst_get_buf_full_sense(cmd, &buf);
+		TRACE_DBG("length %d", length);
+		if (unlikely(length <= 0))
+			goto out;
+
+		TRACE_BUFF_FLAG(TRACE_DEBUG, "Format buf", buf, 64);
+
+		if (length < 4) {
+			PRINT_ERROR("FORMAT UNIT: too small parameters list "
+				"header %d (dev %s)", length, dev->virt_name);
+			scst_set_cmd_error(cmd,
+				SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+			err = true;
+			goto out_put;
+		}
+
+		prot_usage = buf[0] & 7;
+		immed = buf[1] & 2;
+
+		if ((buf[1] & 8) != 0) {
+			PRINT_ERROR("FORMAT UNIT: initialization pattern not "
+				"supported");
+			scst_set_invalid_field_in_parm_list(cmd, 1,
+				SCST_INVAL_FIELD_BIT_OFFS_VALID | 3);
+			err = true;
+			goto out_put;
+		}
+
+		if (cmd->cdb[1] & 0x20) { /* LONGLIST */
+			if (length < 8) {
+				PRINT_ERROR("FORMAT UNIT: too small long "
+					"parameters list header %d (dev %s)",
+					length, dev->virt_name);
+				scst_set_cmd_error(cmd,
+					SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+				err = true;
+				goto out_put;
+			}
+			if ((buf[3] & 0xF0) != 0) {
+				PRINT_ERROR("FORMAT UNIT: P_I_INFORMATION must "
+					"be 0 (dev %s)", dev->virt_name);
+				scst_set_invalid_field_in_parm_list(cmd, 3,
+					SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
+				err = true;
+				goto out_put;
+			}
+			if ((buf[3] & 0xF) != 0) {
+				PRINT_ERROR("FORMAT UNIT: PROTECTION INTERVAL "
+					"EXPONENT %d not supported (dev %s)",
+					buf[3] & 0xF, dev->virt_name);
+				scst_set_invalid_field_in_parm_list(cmd, 3,
+					SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
+				err = true;
+				goto out_put;
+			}
+		} else {
+			/* Nothing to do */
+		}
+
+out_put:
+		scst_put_buf_full(cmd, buf);
+		if (err)
+			goto out;
+
+		switch (pinfo) {
+		case 0:
+			switch (prot_usage) {
+			case 0:
+				prot_type = 0;
+				break;
+			default:
+				scst_set_invalid_field_in_parm_list(cmd, 0,
+					SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+				goto out;
+			}
+			break;
+		case 1:
+			switch (prot_usage) {
+			default:
+				scst_set_invalid_field_in_parm_list(cmd, 0,
+					SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+				goto out;
+			}
+			break;
+		case 2:
+			switch (prot_usage) {
+			case 0:
+				prot_type = 1;
+				break;
+			default:
+				scst_set_invalid_field_in_parm_list(cmd, 0,
+					SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+				goto out;
+			}
+			break;
+		case 3:
+			switch (prot_usage) {
+			case 0:
+				prot_type = 2;
+				break;
+			case 1:
+				prot_type = 3;
+				break;
+			default:
+				scst_set_invalid_field_in_parm_list(cmd, 0,
+					SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+				goto out;
+			}
+			break;
+		default:
+			sBUG_ON(1);
+			break;
+		}
+	}
+
+	TRACE_DBG("prot_type %d, pinfo %d, immed %d (cmd %p)", prot_type,
+		pinfo, immed, cmd);
+
+	if (prot_type != 0) {
+		PRINT_ERROR("FORMAT UNIT: DIF type %d not supported (dev %s)",
+			prot_type, dev->virt_name);
+		scst_set_invalid_field_in_cdb(cmd, 1,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 6);
 		goto out;
+	}
+
+	if (immed) {
+		scst_cmd_get(cmd); /* to protect dev */
+		cmd->completed = 1;
+		cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
+		res = RUNNING_ASYNC;
+	}
 
 	spin_lock(&virt_dev->flags_lock);
 	virt_dev->format_active = 1;
 	spin_unlock(&virt_dev->flags_lock);
 
-	vdisk_unmap_range(cmd, virt_dev, 0, virt_dev->nblocks);
+	virt_dev->format_progress_done = 0;
+	virt_dev->format_progress_to_do = 100;
 
+	if (virt_dev->thin_provisioned) {
+		int rc = vdisk_unmap_range(cmd, virt_dev, 0, virt_dev->nblocks);
+		if (rc != 0)
+			goto finished;
+	}
+
+finished:
 	spin_lock(&virt_dev->flags_lock);
 	virt_dev->format_active = 0;
 	spin_unlock(&virt_dev->flags_lock);
 
+	if (immed)
+		scst_cmd_put(cmd);
+
 out:
-	return CMD_SUCCEEDED;
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 static enum compl_status_e vdisk_invalid_opcode(struct vdisk_cmd_params *p)
@@ -2549,14 +2703,50 @@ out:
 static enum compl_status_e vdisk_exec_request_sense(struct vdisk_cmd_params *p)
 {
 	struct scst_cmd *cmd = p->cmd;
+	struct scst_device *dev = cmd->dev;
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 	int32_t length, sl;
 	uint8_t *address;
 	uint8_t b[SCST_STANDARD_SENSE_LEN];
 
 	TRACE_ENTRY();
 
-	sl = scst_set_sense(b, sizeof(b), cmd->dev->d_sense,
-		SCST_LOAD_SENSE(scst_sense_no_sense));
+	/*
+	 * No need to make it volatile, because at worst we will have a couple
+	 * of extra commands refused after formatting actually finished, which
+	 * is acceptable.
+	 */
+	if (virt_dev->format_active) {
+		uint64_t d, div;
+		uint16_t v;
+
+		div = virt_dev->format_progress_to_do >> 16;
+		d = virt_dev->format_progress_done;
+		do_div(d, div);
+		v = d;
+
+		TRACE_DBG("Format progress %d", v);
+
+		sl = scst_set_sense(b, sizeof(b), dev->d_sense,
+			SCST_LOAD_SENSE(scst_sense_format_in_progress));
+
+		BUILD_BUG_ON(SCST_STANDARD_SENSE_LEN < 18);
+		if (dev->d_sense) {
+			uint8_t *p = &b[7];
+			int o = 8;
+			*p += 8;
+			b[o] = 2;
+			b[o+1] = 6;
+			b[o+4] = 0x80;
+			put_unaligned_be16(v, &b[o+5]);
+		} else {
+			b[15] = 0x80;
+			put_unaligned_be16(v, &b[16]);
+		}
+		TRACE_BUFF_FLAG(TRACE_DEBUG, "Format sense", b, sizeof(b));
+	} else
+		sl = scst_set_sense(b, sizeof(b), cmd->dev->d_sense,
+			SCST_LOAD_SENSE(scst_sense_no_sense));
 
 	length = scst_get_buf_full_sense(cmd, &address);
 	TRACE_DBG("length %d", length);
