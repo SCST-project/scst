@@ -2732,6 +2732,13 @@ struct scst_acn {
 
 /**
  * struct scst_dev_group - A group of SCST devices (struct scst_device).
+ * @name:        Name of this device group.
+ * @entry:       Entry in scst_dev_group_list.
+ * @dev_list:    List of scst_dg_dev structures; protected by scst_mutex.
+ * @tg_list:     List of scst_target_group structures; protected by scst_mutex.
+ * @kobj:        For making this object visible in sysfs.
+ * @dev_kobj:    Sysfs devices directory.
+ * @tg_kobj:     Sysfs target groups directory.
  *
  * Each device is member of zero or one device groups. With each device group
  * there are zero or more target groups associated.
@@ -2756,6 +2763,14 @@ struct scst_dg_dev {
 
 /**
  * struct scst_target_group - A group of SCSI targets (struct scst_tgt).
+ * @dg:          Pointer to the device group that contains this target group.
+ * @name:        Name of this target group.
+ * @group_id:    SPC-4 target port group ID.
+ * @state:       SPC-4 target port group ALUA state.
+ * @preferred:   Value of the SPC-4 target port group PREF attribute.
+ * @entry:       Entry in scst_dev_group.tg_list.
+ * @tgt_list:    list of scst_tg_tgt elements; protected by scst_mutex.
+ * @kobj:        For making this object visible in sysfs.
  *
  * Such a group is either a primary target port group or a secondary
  * port group. See also SPC-4 for more information.
