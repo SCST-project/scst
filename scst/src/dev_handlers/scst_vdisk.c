@@ -838,6 +838,8 @@ static int vdisk_attach(struct scst_device *dev)
 		goto out;
 	}
 
+	virt_dev->dev = dev;
+
 	dev->block_shift = virt_dev->blk_shift;
 	dev->block_size = 1 << dev->block_shift;
 
@@ -847,8 +849,6 @@ static int vdisk_attach(struct scst_device *dev)
 		res = -EINVAL;
 		goto out;
 	}
-
-	virt_dev->dev = dev;
 
 	dev->dev_rd_only = virt_dev->rd_only;
 
@@ -3741,7 +3741,6 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 		if (finished)
 			break;
 
-		loff += full_len;
 		length = scst_get_buf_next(cmd, (uint8_t __force **)&address);
 	};
 
@@ -3896,7 +3895,6 @@ restart:
 		if (finished)
 			break;
 
-		loff += saved_full_len;
 		length = scst_get_buf_next(cmd, (uint8_t __force **)&address);
 	}
 
