@@ -162,7 +162,7 @@ struct scst_vdisk_dev {
 	unsigned int thin_provisioned_manually_set:1;
 	unsigned int dev_thin_provisioned:1;
 	unsigned int rotational:1;
-	unsigned long format_active:1;
+	unsigned int format_active:1;
 
 	struct file *fd;
 	struct block_device *bdev;
