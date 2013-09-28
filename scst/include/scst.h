@@ -169,6 +169,11 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 }
 #endif
 
+#ifndef __list_for_each
+/* ToDo: cleanup when both are the same for all relevant kernels */
+#define __list_for_each list_for_each
+#endif
+
 #define SCST_INTERFACE_VERSION	    \
 		SCST_VERSION_STRING "$Revision$" SCST_CONST_VERSION
 
