@@ -1517,7 +1517,7 @@ void scst_pr_register(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 
 #ifdef CONFIG_SCST_PROC
 	if (aptpl) {
-		TRACE_PR("%s", "APTL not supported");
+		TRACE_PR("%s", "APTPL not supported");
 		scst_set_invalid_field_in_parm_list(cmd, 20,
 				SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
 		goto out;
@@ -1609,7 +1609,7 @@ void scst_pr_register_and_ignore(struct scst_cmd *cmd, uint8_t *buffer,
 
 #ifdef CONFIG_SCST_PROC
 	if (aptpl) {
-		TRACE_PR("%s", "APTL not supported");
+		TRACE_PR("%s", "APTPL not supported");
 		scst_set_invalid_field_in_parm_list(cmd, 20,
 				SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
 		goto out;
@@ -1682,7 +1682,7 @@ void scst_pr_register_and_move(struct scst_cmd *cmd, uint8_t *buffer,
 
 #ifdef CONFIG_SCST_PROC
 	if (aptpl) {
-		TRACE_PR("%s", "APTL not supported");
+		TRACE_PR("%s", "APTPL not supported");
 		scst_set_invalid_field_in_parm_list(cmd, 17,
 				SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
 		goto out;
