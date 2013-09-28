@@ -1,0 +1,12 @@
+diff --git a/drivers/Makefile b/drivers/Makefile
+index a16a8d0..afc60b5 100644
+--- a/drivers/Makefile
++++ b/drivers/Makefile
+@@ -125,6 +125,7 @@ obj-$(CONFIG_SSB)		+= ssb/
+ obj-$(CONFIG_BCMA)		+= bcma/
+ obj-$(CONFIG_VHOST_NET)		+= vhost/
+ obj-$(CONFIG_VLYNQ)		+= vlynq/
++obj-$(CONFIG_SCST)		+= scst/
+ obj-$(CONFIG_STAGING)		+= staging/
+ obj-y				+= platform/
+ #common clk code
