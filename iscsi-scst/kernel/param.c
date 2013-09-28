@@ -80,7 +80,7 @@ const char *iscsi_get_digest_name(int val, char *res)
 
 static void log_params(struct iscsi_sess_params *params)
 {
-	char digest_name[64];
+	char hdigest_name[64], ddigest_name[64];
 
 	PRINT_INFO("Negotiated parameters: InitialR2T %s, ImmediateData %s, "
 		"MaxConnections %d, MaxRecvDataSegmentLength %d, "
@@ -100,8 +100,8 @@ static void log_params(struct iscsi_sess_params *params)
 		params->error_recovery_level);
 	PRINT_INFO("    HeaderDigest %s, DataDigest %s, OFMarker %s, "
 		"IFMarker %s, OFMarkInt %d, IFMarkInt %d",
-		iscsi_get_digest_name(params->header_digest, digest_name),
-		iscsi_get_digest_name(params->data_digest, digest_name),
+		iscsi_get_digest_name(params->header_digest, hdigest_name),
+		iscsi_get_digest_name(params->data_digest, ddigest_name),
 		iscsi_get_bool_value(params->ofmarker),
 		iscsi_get_bool_value(params->ifmarker),
 		params->ofmarkint, params->ifmarkint);
