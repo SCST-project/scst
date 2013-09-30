@@ -2150,7 +2150,6 @@ static int scst_persistent_reserve_in_local(struct scst_cmd *cmd)
 		break;
 	default:
 		PRINT_ERROR("Unsupported action %x", action);
-		scst_pr_write_unlock(dev);
 		goto out_err;
 	}
 
