@@ -126,7 +126,7 @@ struct ft_cmd {
 	u32 max_lso_payload;		/* max offloaded (LSO) data payload */
 	u16 max_payload;		/* max transmitted data payload */
 	struct scst_cmd *scst_cmd;
-	struct spinlock lock;		/* protects state */
+	spinlock_t lock;		/* protects state */
 	enum ft_cmd_state state;
 };
 
