@@ -4859,6 +4859,11 @@ void scst_write_same(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
+	if (unlikely(cmd->data_len <= 0)) {
+		scst_set_invalid_field_in_cdb(cmd, cmd->len_off, 0);
+		goto out_done;
+	}
+
 	if (cmd->sg_cnt != 1) {
 		PRINT_ERROR("WRITE SAME must contain only single block of data "
 			"in a single SG (cmd %p)", cmd);
