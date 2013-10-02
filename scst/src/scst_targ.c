@@ -1588,19 +1588,23 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 
 	if (unlikely(cmd->resid_possible)) {
 		if (cmd->data_direction & SCST_DATA_WRITE) {
-			bool do_zero = false;
+			bool remainder = false;
 			if (cmd->data_direction & SCST_DATA_READ) {
 				if (cmd->write_len != cmd->out_bufflen)
-					do_zero = true;
+					remainder = true;
 			} else {
 				if (cmd->write_len != cmd->bufflen)
-					do_zero = true;
+					remainder = true;
 			}
-			if (do_zero) {
+			if (remainder) {
 				if (!(cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED) ||
 				    (cmd->write_len & ((1 << cmd->dev->block_shift) - 1)) == 0) {
+#if 0 /* dangerous, because can override valid data by zeros */
 					scst_check_restore_sg_buff(cmd);
 					scst_zero_write_rest(cmd);
+#else
+					/* do nothing */
+#endif
 				} else {
 					/*
 					 * Looks like it's safer in this case to
@@ -3109,6 +3113,8 @@ static int scst_check_sense(struct scst_cmd *cmd)
 					cmd->sense = NULL;
 
 					scst_check_restore_sg_buff(cmd);
+					if (cmd->data_direction & SCST_DATA_WRITE)
+						scst_set_write_len(cmd);
 
 					sBUG_ON(cmd->dbl_ua_orig_resp_data_len < 0);
 					cmd->data_direction =
