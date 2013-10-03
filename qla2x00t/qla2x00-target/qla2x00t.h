@@ -141,7 +141,10 @@ struct q2t_tgt {
 	/* Count of sessions refering q2t_tgt. Protected by hardware_lock. */
 	int sess_count;
 
-	/* Protected by hardware_lock. Addition also protected by tgt_mutex. */
+	/*
+	 * Protected by hardware_lock. Adding new sessions (not undelete)
+	 * also protected by tgt_mutex.
+	 */
 	struct list_head sess_list;
 
 	/* Protected by hardware_lock */
@@ -188,7 +191,6 @@ struct q2t_sess {
 
 	struct list_head sess_list_entry;
 	unsigned long expires;
-	struct list_head del_list_entry;
 
 	uint8_t port_name[WWN_SIZE];
 };
