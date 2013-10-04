@@ -5076,7 +5076,7 @@ static void q24_atio_pkt(scsi_qla_host_t *ha, atio7_entry_t *atio)
 				sizeof(atio->fcp_cmnd.cdb));
 		if (unlikely(atio->exchange_addr ==
 				ATIO_EXCHANGE_ADDRESS_UNKNOWN)) {
-			TRACE(TRACE_OUT_OF_MEM, "qla2x00t(%ld): ATIO_TYPE7 "
+			TRACE(TRACE_MINOR, "qla2x00t(%ld): ATIO_TYPE7 "
 				"received with UNKNOWN exchange address, "
 				"sending QUEUE_FULL", ha->instance);
 			q24_send_busy(ha, atio, SAM_STAT_TASK_SET_FULL);
