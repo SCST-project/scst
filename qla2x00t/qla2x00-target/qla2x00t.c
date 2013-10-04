@@ -1136,6 +1136,7 @@ static void q2t_undelete_sess(struct q2t_sess *sess)
 	TRACE_ENTRY();
 
 	sBUG_ON(!sess->deleted);
+	sBUG_ON(!list_entry_in_list(&sess->sess_list_entry));
 
 	TRACE_MGMT_DBG("Undeleting sess %p", sess);
 	list_move(&sess->sess_list_entry, &sess->tgt->sess_list);
@@ -1175,8 +1176,12 @@ static void q2t_del_sess_work_fn(struct delayed_work *work)
 			cancel = q2t_check_fcport_exist(ha, sess);
 			spin_lock_irqsave(&pha->hardware_lock, flags);
 
-			if (!sess->deleted) {
-				/* sess was undeleted while we were thinking */
+			if (!sess->deleted ||
+			    !list_entry_in_list(&sess->sess_list_entry)) {
+				/*
+				 * session has been undeleted or got ready to
+				 * be destroyed while we were entering here
+				 */
 				goto put_continue;
 			}
 
