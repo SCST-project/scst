@@ -5323,7 +5323,7 @@ uint64_t scst_unpack_lun(const uint8_t *lun, int len)
 		switch (len) {
 		case 8:
 			if ((*((__be64 *)lun) &
-			  __constant_cpu_to_be64(0x0000FFFFFFFFFFFFLL)) != 0)
+			  cpu_to_be64(0x0000FFFFFFFFFFFFLL)) != 0)
 				goto out_err;
 			break;
 		case 4:

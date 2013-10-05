@@ -3649,7 +3649,7 @@ static int iscsi_scsi_aen(struct scst_aen *aen)
 	rsp_hdr->opcode = ISCSI_OP_ASYNC_MSG;
 	rsp_hdr->flags = ISCSI_FLG_FINAL;
 	rsp_hdr->lun = lun; /* it's already in SCSI form */
-	rsp_hdr->ffffffff = __constant_cpu_to_be32(0xffffffff);
+	rsp_hdr->ffffffff = cpu_to_be32(0xffffffff);
 	rsp_hdr->async_event = ISCSI_ASYNC_SCSI;
 
 	sg = rsp->sg = rsp->rsp_sg;

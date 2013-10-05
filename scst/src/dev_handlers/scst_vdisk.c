@@ -1610,13 +1610,13 @@ static void vdisk_exec_inquiry(struct scst_cmd *cmd)
 				      (uint32_t *)&buf[12]);
 			if (virt_dev->thin_provisioned) {
 				/* MAXIMUM UNMAP LBA COUNT is UNLIMITED */
-				put_unaligned(__constant_cpu_to_be32(0xFFFFFFFF),
+				put_unaligned(cpu_to_be32(0xFFFFFFFF),
 					      (uint32_t *)&buf[20]);
 				/* MAXIMUM UNMAP BLOCK DESCRIPTOR COUNT is UNLIMITED */
-				put_unaligned(__constant_cpu_to_be32(0xFFFFFFFF),
+				put_unaligned(cpu_to_be32(0xFFFFFFFF),
 					      (uint32_t *)&buf[24]);
 				/* OPTIMAL UNMAP GRANULARITY is 1 */
-				put_unaligned(__constant_cpu_to_be32(1),
+				put_unaligned(cpu_to_be32(1),
 					      (uint32_t *)&buf[28]);
 			}
 			resp_len = buf[3] + 4;
