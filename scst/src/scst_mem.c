@@ -236,8 +236,8 @@ static int sgv_shrink_pool(struct sgv_pool *pool, int nr, int min_interval,
 
 	while (!list_empty(&pool->sorted_recycling_list) &&
 			(atomic_read(&sgv_pages_total) > sgv_lo_wmk)) {
-		struct sgv_pool_obj *obj = list_entry(
-			pool->sorted_recycling_list.next,
+		struct sgv_pool_obj *obj = list_first_entry(
+			&pool->sorted_recycling_list,
 			struct sgv_pool_obj, sorted_recycling_list_entry);
 
 		if (sgv_purge_from_cache(obj, min_interval, cur_time)) {
@@ -295,7 +295,7 @@ static int __sgv_shrink(int nr, int min_interval)
 				goto out_unlock;
 			}
 
-			pool = list_entry(sgv_active_pools_list.next,
+			pool = list_first_entry(&sgv_active_pools_list,
 					typeof(*pool),
 					sgv_active_pools_list_entry);
 		}
@@ -400,8 +400,8 @@ static void sgv_purge_work_fn(struct delayed_work *work)
 	pool->purge_work_scheduled = false;
 
 	while (!list_empty(&pool->sorted_recycling_list)) {
-		struct sgv_pool_obj *obj = list_entry(
-			pool->sorted_recycling_list.next,
+		struct sgv_pool_obj *obj = list_first_entry(
+			&pool->sorted_recycling_list,
 			struct sgv_pool_obj, sorted_recycling_list_entry);
 
 		if (sgv_purge_from_cache(obj, pool->purge_interval, cur_time)) {
@@ -719,7 +719,7 @@ static struct sgv_pool_obj *sgv_get_obj(struct sgv_pool *pool, int cache_num,
 	}
 
 	if (likely(!list_empty(&pool->recycling_lists[cache_num]))) {
-		obj = list_entry(pool->recycling_lists[cache_num].next,
+		obj = list_first_entry(&pool->recycling_lists[cache_num],
 			 struct sgv_pool_obj, recycling_list_entry);
 
 		list_del(&obj->sorted_recycling_list_entry);
@@ -1525,7 +1525,7 @@ void sgv_pool_flush(struct sgv_pool *pool)
 		spin_lock_bh(&pool->sgv_pool_lock);
 
 		while (!list_empty(&pool->recycling_lists[i])) {
-			obj = list_entry(pool->recycling_lists[i].next,
+			obj = list_first_entry(&pool->recycling_lists[i],
 				struct sgv_pool_obj, recycling_list_entry);
 
 			__sgv_purge_from_cache(obj);

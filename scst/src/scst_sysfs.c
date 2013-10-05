@@ -424,7 +424,7 @@ static void scst_process_sysfs_works(void)
 	TRACE_ENTRY();
 
 	while (!list_empty(&sysfs_work_list)) {
-		work = list_entry(sysfs_work_list.next,
+		work = list_first_entry(&sysfs_work_list,
 			struct scst_sysfs_work_item, sysfs_work_list_entry);
 		list_del(&work->sysfs_work_list_entry);
 		spin_unlock(&sysfs_work_lock);

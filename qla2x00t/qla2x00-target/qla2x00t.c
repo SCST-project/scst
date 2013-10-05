@@ -695,7 +695,7 @@ static int q2t_reset(scsi_qla_host_t *ha, void *iocb, int mcmd)
 		atomic_inc(&ha->tgt->tgt_global_resets_count);
 		q2t_clear_tgt_db(ha->tgt, 1);
 		if (!list_empty(&ha->tgt->sess_list)) {
-			sess = list_entry(ha->tgt->sess_list.next,
+			sess = list_first_entry(&ha->tgt->sess_list,
 				typeof(*sess), sess_list_entry);
 			switch (mcmd) {
 			case Q2T_NEXUS_LOSS_SESS:
@@ -1038,7 +1038,7 @@ static void q2t_del_sess_work_fn(struct delayed_work *work)
 
 	spin_lock_irqsave(&pha->hardware_lock, flags);
 	while (!list_empty(&tgt->del_sess_list)) {
-		sess = list_entry(tgt->del_sess_list.next, typeof(*sess),
+		sess = list_first_entry(&tgt->del_sess_list, typeof(*sess),
 				del_list_entry);
 		if (time_after_eq(jiffies, sess->expires)) {
 			bool cancel;

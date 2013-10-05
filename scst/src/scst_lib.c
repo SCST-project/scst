@@ -1312,7 +1312,7 @@ void scst_set_initial_UA(struct scst_session *sess, int key, int asc, int ascq)
 			if (!list_empty(&tgt_dev->UA_list)) {
 				struct scst_tgt_dev_UA *ua;
 
-				ua = list_entry(tgt_dev->UA_list.next,
+				ua = list_first_entry(&tgt_dev->UA_list,
 					typeof(*ua), UA_list_entry);
 				if (scst_analyze_sense(ua->UA_sense_buffer,
 						ua->UA_valid_sense_len,
@@ -6192,7 +6192,7 @@ again:
 		goto out_unlock;
 	}
 
-	UA_entry = list_entry(cmd->tgt_dev->UA_list.next, typeof(*UA_entry),
+	UA_entry = list_first_entry(&cmd->tgt_dev->UA_list, typeof(*UA_entry),
 			      UA_list_entry);
 
 	TRACE_DBG("next %p UA_entry %p",

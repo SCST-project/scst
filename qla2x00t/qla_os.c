@@ -2614,7 +2614,7 @@ qla2x00_do_work(struct scsi_qla_host *ha)
 
 	spin_lock_irq(&pha->hardware_lock);
 	while (!list_empty(&ha->work_list)) {
-		e = list_entry(ha->work_list.next, struct qla_work_evt, list);
+		e = list_first_entry(&ha->work_list, struct qla_work_evt, list);
 		list_del_init(&e->list);
 		spin_unlock_irq(&pha->hardware_lock);
 

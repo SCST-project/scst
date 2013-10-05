@@ -642,7 +642,7 @@ static struct iscsi_cmnd *iscsi_get_send_cmnd(struct iscsi_conn *conn)
 
 	spin_lock_bh(&conn->write_list_lock);
 	if (!list_empty(&conn->write_list)) {
-		cmnd = list_entry(conn->write_list.next, struct iscsi_cmnd,
+		cmnd = list_first_entry(&conn->write_list, struct iscsi_cmnd,
 				write_list_entry);
 		cmd_del_from_write_list(cmnd);
 		cmnd->write_processing_started = 1;
@@ -1017,7 +1017,7 @@ static void scst_do_job_rd(struct iscsi_thread_pool *p)
 
 	while (!list_empty(&p->rd_list)) {
 		int closed = 0, rc;
-		struct iscsi_conn *conn = list_entry(p->rd_list.next,
+		struct iscsi_conn *conn = list_first_entry(&p->rd_list,
 			typeof(*conn), rd_list_entry);
 
 		list_del(&conn->rd_list_entry);
@@ -1786,7 +1786,7 @@ static void scst_do_job_wr(struct iscsi_thread_pool *p)
 
 	while (!list_empty(&p->wr_list)) {
 		int rc;
-		struct iscsi_conn *conn = list_entry(p->wr_list.next,
+		struct iscsi_conn *conn = list_first_entry(&p->wr_list,
 			typeof(*conn), wr_list_entry);
 
 		TRACE_DBG("conn %p, wr_state %x, wr_space_ready %d, "

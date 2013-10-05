@@ -4350,7 +4350,7 @@ static void scst_do_job_active(struct list_head *cmd_list,
 	TRACE_ENTRY();
 
 	while (!list_empty(cmd_list)) {
-		struct scst_cmd *cmd = list_entry(cmd_list->next, typeof(*cmd),
+		struct scst_cmd *cmd = list_first_entry(cmd_list, typeof(*cmd),
 					cmd_list_entry);
 		TRACE_DBG("Deleting cmd %p from active cmd list", cmd);
 		list_del(&cmd->cmd_list_entry);
@@ -5886,7 +5886,7 @@ int scst_tm_thread(void *arg)
 		while (!list_empty(&scst_active_mgmt_cmd_list)) {
 			int rc;
 			struct scst_mgmt_cmd *mcmd;
-			mcmd = list_entry(scst_active_mgmt_cmd_list.next,
+			mcmd = list_first_entry(&scst_active_mgmt_cmd_list,
 					  typeof(*mcmd), mgmt_cmd_list_entry);
 			TRACE_MGMT_DBG("Deleting mgmt cmd %p from active cmd "
 				"list", mcmd);
@@ -6715,7 +6715,7 @@ int scst_global_mgmt_thread(void *arg)
 		}
 
 		while (!list_empty(&scst_sess_init_list)) {
-			sess = list_entry(scst_sess_init_list.next,
+			sess = list_first_entry(&scst_sess_init_list,
 				typeof(*sess), sess_init_list_entry);
 			TRACE_DBG("Removing sess %p from scst_sess_init_list",
 				sess);
@@ -6736,7 +6736,7 @@ int scst_global_mgmt_thread(void *arg)
 		}
 
 		while (!list_empty(&scst_sess_shut_list)) {
-			sess = list_entry(scst_sess_shut_list.next,
+			sess = list_first_entry(&scst_sess_shut_list,
 				typeof(*sess), sess_shut_list_entry);
 			TRACE_DBG("Removing sess %p from scst_sess_shut_list",
 				sess);

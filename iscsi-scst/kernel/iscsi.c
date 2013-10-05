@@ -758,7 +758,7 @@ static inline struct iscsi_cmnd *iscsi_alloc_main_rsp(struct iscsi_cmnd *parent)
 
 static void iscsi_cmnds_init_write(struct list_head *send, int flags)
 {
-	struct iscsi_cmnd *rsp = list_entry(send->next, struct iscsi_cmnd,
+	struct iscsi_cmnd *rsp = list_first_entry(send, struct iscsi_cmnd,
 						write_list_entry);
 	struct iscsi_conn *conn = rsp->conn;
 	struct list_head *pos, *next;
@@ -2986,7 +2986,7 @@ static void iscsi_push_cmnd(struct iscsi_cmnd *cmnd)
 
 			if (list_empty(&session->pending_list))
 				break;
-			cmnd = list_entry(session->pending_list.next,
+			cmnd = list_first_entry(&session->pending_list,
 					  struct iscsi_cmnd,
 					  pending_list_entry);
 			if (cmnd->pdu.bhs.sn != cmd_sn)
@@ -3390,9 +3390,9 @@ static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 	 * There's no need for protection, since we are not going to
 	 * dereference them.
 	 */
-	wr_rsp = list_entry(conn->write_list.next, struct iscsi_cmnd,
+	wr_rsp = list_first_entry(&conn->write_list, struct iscsi_cmnd,
 			write_list_entry);
-	our_rsp = list_entry(req->rsp_cmd_list.next, struct iscsi_cmnd,
+	our_rsp = list_first_entry(&req->rsp_cmd_list, struct iscsi_cmnd,
 			rsp_cmd_list_entry);
 	if (wr_rsp == our_rsp) {
 		/*
@@ -3930,7 +3930,7 @@ int iscsi_threads_pool_get(const cpumask_t *cpu_mask,
 		if (!list_empty(&iscsi_thread_pools_list)) {
 			PRINT_WARNING("%s", "Using global iSCSI thread pool "
 				"instead");
-			p = list_entry(iscsi_thread_pools_list.next,
+			p = list_first_entry(&iscsi_thread_pools_list,
 				struct iscsi_thread_pool,
 				thread_pools_list_entry);
 		} else
