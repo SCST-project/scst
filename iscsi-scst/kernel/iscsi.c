@@ -2905,11 +2905,15 @@ void cmnd_tx_end(struct iscsi_cmnd *cmnd)
 
 	if (unlikely(cmnd->should_close_conn)) {
 		if (cmnd->should_close_all_conn) {
+			struct iscsi_target *target = cmnd->conn->session->target;
+
 			PRINT_INFO("Closing all connections for target %x at "
-				"initiator's %s request",
-				cmnd->conn->session->target->tid,
+				"initiator's %s request", target->tid,
 				conn->session->initiator_name);
-			target_del_all_sess(cmnd->conn->session->target, 0);
+
+			mutex_lock(&target->target_mutex);
+			target_del_all_sess(target, 0);
+			mutex_unlock(&target->target_mutex);
 		} else {
 			PRINT_INFO("Closing connection at initiator's %s "
 				"request", conn->session->initiator_name);
