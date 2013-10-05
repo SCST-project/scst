@@ -3096,10 +3096,9 @@ out_unlock:
 		spin_unlock_irqrestore(&pha->hardware_lock, flags);
 
 	if (do_tgt_cmd_done) {
-		if (!ha_locked && !in_interrupt()) {
-			msleep(250); /* just in case */
+		if (!ha_locked && !in_interrupt())
 			scst_tgt_cmd_done(cmd->scst_cmd, SCST_CONTEXT_DIRECT);
-		} else
+		else
 			scst_tgt_cmd_done(cmd->scst_cmd, SCST_CONTEXT_TASKLET);
 		/* !! At this point cmd could be already freed !! */
 	}
@@ -3174,10 +3173,9 @@ out_unlock:
 		spin_unlock_irqrestore(&pha->hardware_lock, flags);
 
 	if (do_tgt_cmd_done) {
-		if (!ha_locked && !in_interrupt()) {
-			msleep(250); /* just in case */
+		if (!ha_locked && !in_interrupt())
 			scst_tgt_cmd_done(cmd->scst_cmd, SCST_CONTEXT_DIRECT);
-		} else
+		else
 			scst_tgt_cmd_done(cmd->scst_cmd, SCST_CONTEXT_TASKLET);
 		/* !! At this point cmd could be already freed !! */
 	}
