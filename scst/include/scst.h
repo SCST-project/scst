@@ -150,6 +150,15 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 #define __list_for_each list_for_each
 #endif
 
+/*
+ * Returns true if entry is in its list. Entry must be deleted from the
+ * list by using list_del_init()!
+ */
+static inline bool list_entry_in_list(const struct list_head *entry)
+{
+	return !list_empty(entry);
+}
+
 #define SCST_INTERFACE_VERSION	    \
 		SCST_VERSION_STRING "$Revision$" SCST_CONST_VERSION
 
