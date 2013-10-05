@@ -3955,7 +3955,7 @@ int iscsi_threads_pool_get(const cpumask_t *cpu_mask,
 	INIT_LIST_HEAD(&p->threads_list);
 
 	if (cpu_mask == NULL)
-		count = max((int)num_online_cpus(), 2);
+		count = max_t(int, num_online_cpus(), 2);
 	else {
 		count = 0;
 		for_each_cpu(i, cpu_mask)
