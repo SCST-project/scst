@@ -3311,18 +3311,27 @@ out:
 /*
  * pha->hardware_lock supposed to be held on entry. Might drop it, then reacquire
  */
-static int q2t_term_ctio_exchange(scsi_qla_host_t *ha, void *ctio,
+static bool q2t_term_ctio_exchange(scsi_qla_host_t *ha, void *ctio,
 	struct q2t_cmd *cmd, uint32_t status)
 {
-	int term = 0;
+	bool term = false;
+
+	TRACE_ENTRY();
 
 	if (IS_FWI2_CAPABLE(ha)) {
+		if (cmd == NULL) {
+			/*
+			 * We can't get loop ID from CTIO7 and
+			 * ATIO7 from NULL cmd.
+			 */
+			goto out;
+		}
 		if (ctio != NULL) {
 			ctio7_fw_entry_t *c = (ctio7_fw_entry_t *)ctio;
 			term = !(c->flags &
 				__constant_cpu_to_le16(OF_TERM_EXCH));
 		} else
-			term = 1;
+			term = true;
 		if (term) {
 			q24_send_term_exchange(ha, cmd,
 				&cmd->atio.atio7, 1);
@@ -3330,20 +3339,23 @@ static int q2t_term_ctio_exchange(scsi_qla_host_t *ha, void *ctio,
 	} else {
 		if (status != CTIO_SUCCESS)
 			q2x_modify_command_count(ha, 1, 0);
-#if 0 /* seems, it isn't needed */
+#if 0 /* Seems, it isn't needed. If enable it, add support for NULL cmd! */
 		if (ctio != NULL) {
 			ctio_common_entry_t *c = (ctio_common_entry_t *)ctio;
 			term = !(c->flags &
 				__constant_cpu_to_le16(
 					CTIO7_FLAGS_TERMINATE));
 		} else
-			term = 1;
+			term = true;
 		if (term) {
 			q2x_send_term_exchange(ha, cmd,
 				&cmd->atio.atio2x, 1);
 		}
 #endif
 	}
+
+out:
+	TRACE_EXIT_RES(term);
 	return term;
 }
 
