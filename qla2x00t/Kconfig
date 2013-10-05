@@ -24,7 +24,7 @@ config SCSI_QLA_FC
 
 	Firmware images can be retrieved from:
 
-		ftp://ftp.qlogic.com/outgoing/linux/firmware/
+		http://ldriver.qlogic.com/firmware/
 
 config SCSI_QLA2XXX_TARGET
 	bool "QLogic 2xxx target mode support"
