@@ -809,6 +809,7 @@ qla2xxx_eh_abort(struct scsi_cmnd *cmd)
 
 		spin_unlock_irqrestore(&pha->hardware_lock, flags);
 		if (ha->isp_ops->abort_command(ha, sp)) {
+			ret = FAILED;
 			DEBUG2(printk("%s(%ld): abort_command "
 			    "mbx failed.\n", __func__, ha->host_no));
 		} else {
