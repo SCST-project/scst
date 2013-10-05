@@ -1105,7 +1105,6 @@ static struct q2t_sess *q2t_create_sess(scsi_qla_host_t *ha, fc_port_t *fcport,
 	bool local)
 {
 	char *wwn_str;
-	const int wwn_str_len = 3*WWN_SIZE+2;
 	struct q2t_tgt *tgt = ha->tgt;
 	struct q2t_sess *sess;
 	scsi_qla_host_t *pha = to_qla_parent(ha);
@@ -1169,7 +1168,12 @@ static struct q2t_sess *q2t_create_sess(scsi_qla_host_t *ha, fc_port_t *fcport,
 	BUILD_BUG_ON(sizeof(sess->port_name) != sizeof(fcport->port_name));
 	memcpy(sess->port_name, fcport->port_name, sizeof(sess->port_name));
 
-	wwn_str = kmalloc(wwn_str_len, GFP_KERNEL);
+	wwn_str = kasprintf(GFP_KERNEL,
+			    "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
+			    fcport->port_name[0], fcport->port_name[1],
+			    fcport->port_name[2], fcport->port_name[3],
+			    fcport->port_name[4], fcport->port_name[5],
+			    fcport->port_name[6], fcport->port_name[7]);
 	if (wwn_str == NULL) {
 		PRINT_ERROR("qla2x00t(%ld): Allocation of wwn_str failed. "
 			"All commands from port %02x:%02x:%02x:%02x:%02x:%02x:"
@@ -1180,12 +1184,6 @@ static struct q2t_sess *q2t_create_sess(scsi_qla_host_t *ha, fc_port_t *fcport,
 			fcport->port_name[6], fcport->port_name[7]);
 		goto out_free_sess;
 	}
-
-	sprintf(wwn_str, "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
-		fcport->port_name[0], fcport->port_name[1],
-		fcport->port_name[2], fcport->port_name[3],
-		fcport->port_name[4], fcport->port_name[5],
-		fcport->port_name[6], fcport->port_name[7]);
 
 	/* Let's do the session creation async'ly */
 	sess->scst_sess = scst_register_session(tgt->scst_tgt, 1, wwn_str,
