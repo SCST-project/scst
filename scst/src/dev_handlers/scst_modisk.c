@@ -1,10 +1,10 @@
 /*
  *  scst_modisk.c
  *
- *  Copyright (C) 2004 - 2012 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004 - 2013 Vladislav Bolkhovitin <vst@vlnb.net>
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
  *  Copyright (C) 2007 - 2010 ID7 Ltd.
- *  Copyright (C) 2010 - 2012 SCST Ltd.
+ *  Copyright (C) 2010 - 2013 SCST Ltd.
  *
  *  SCSI MO disk (type 7) dev handler
  *  &
