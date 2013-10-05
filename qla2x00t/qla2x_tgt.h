@@ -103,7 +103,7 @@ __qla2x00_send_enable_lun(scsi_qla_host_t *ha, int enable)
 		qla_clear_tgt_mode(ha);
 #if defined(QL_DEBUG_LEVEL_2) || defined(QL_DEBUG_LEVEL_3)
 	if (!pkt)
-		printk(KERN_ERR "%s: **** FAILED ****\n", __func__);
+		pr_err("%s: **** FAILED ****\n", __func__);
 #endif
 
 	return;

@@ -1007,13 +1007,13 @@ int __del_conn(struct iscsi_session *session, struct iscsi_kern_conn_info *info)
 void iscsi_extracheck_is_rd_thread(struct iscsi_conn *conn)
 {
 	if (unlikely(current != conn->rd_task)) {
-		printk(KERN_EMERG "conn %p rd_task != current %p (pid %d)\n",
-			conn, current, current->pid);
+		pr_emerg("conn %p rd_task != current %p (pid %d)\n",
+			 conn, current, current->pid);
 		while (in_softirq())
 			local_bh_enable();
-		printk(KERN_EMERG "rd_state %x\n", conn->rd_state);
-		printk(KERN_EMERG "rd_task %p\n", conn->rd_task);
-		printk(KERN_EMERG "rd_task->pid %d\n", conn->rd_task->pid);
+		pr_emerg("rd_state %x\n", conn->rd_state);
+		pr_emerg("rd_task %p\n", conn->rd_task);
+		pr_emerg("rd_task->pid %d\n", conn->rd_task->pid);
 		BUG();
 	}
 }
@@ -1021,13 +1021,13 @@ void iscsi_extracheck_is_rd_thread(struct iscsi_conn *conn)
 void iscsi_extracheck_is_wr_thread(struct iscsi_conn *conn)
 {
 	if (unlikely(current != conn->wr_task)) {
-		printk(KERN_EMERG "conn %p wr_task != current %p (pid %d)\n",
-			conn, current, current->pid);
+		pr_emerg("conn %p wr_task != current %p (pid %d)\n",
+			 conn, current, current->pid);
 		while (in_softirq())
 			local_bh_enable();
-		printk(KERN_EMERG "wr_state %x\n", conn->wr_state);
-		printk(KERN_EMERG "wr_task %p\n", conn->wr_task);
-		printk(KERN_EMERG "wr_task->pid %d\n", conn->wr_task->pid);
+		pr_emerg("wr_state %x\n", conn->wr_state);
+		pr_emerg("wr_task %p\n", conn->wr_task);
+		pr_emerg("wr_task->pid %d\n", conn->wr_task->pid);
 		BUG();
 	}
 }
