@@ -169,6 +169,9 @@ completion supported" or not). No major performance degradation was
 noticed, if it is enabled. Supported only for 23xx+. Disabled by
 default.
 
+For NPIV targets this option is set on their parent targets and shared
+among all NPIV targets on this hardware target.
+
 
 Class 2
 -------

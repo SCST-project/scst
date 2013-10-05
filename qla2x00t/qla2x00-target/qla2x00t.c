@@ -160,12 +160,6 @@ static ssize_t q2t_vp_parent_host_show(struct kobject *kobj,
 static struct kobj_attribute q2t_vp_parent_host_attr =
 	__ATTR(parent_host, S_IRUGO, q2t_vp_parent_host_show, NULL);
 
-static const struct attribute *q2t_tgt_attrs[] = {
-	&q2t_expl_conf_attr.attr,
-	&q2t_abort_isp_attr.attr,
-	NULL,
-};
-
 #endif /* CONFIG_SCST_PROC */
 
 static int q2t_enable_tgt(struct scst_tgt *tgt, bool enable);
@@ -226,7 +220,6 @@ static struct scst_tgt_template tgt2x_template = {
 	  defined(FC_VPORT_CREATE_DEFINED))*/
 	.add_target_parameters = "node_name, parent_host",
 	.tgtt_attrs = q2t_attrs,
-	.tgt_attrs = q2t_tgt_attrs,
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags = Q2T_DEFAULT_LOG_FLAGS,
@@ -5838,29 +5831,49 @@ static int q2t_add_target(scsi_qla_host_t *ha)
 				&q2t_hw_target_attr.attr);
 		if (rc != 0)
 			PRINT_ERROR("qla2x00t(%ld): Unable to create "
-				"\"hw_target\" file for target %s",
-				ha->instance, scst_get_tgt_name(tgt->scst_tgt));
+				"\"%s\" file for target %s",
+				ha->instance, q2t_hw_target_attr.attr.name,
+				scst_get_tgt_name(tgt->scst_tgt));
+
+		rc = sysfs_create_file(scst_sysfs_get_tgt_kobj(tgt->scst_tgt),
+				&q2t_expl_conf_attr.attr);
+		if (rc != 0)
+			PRINT_ERROR("qla2x00t(%ld): Unable to create "
+				"\"%s\" file for target %s",
+				ha->instance, q2t_expl_conf_attr.attr.name,
+				scst_get_tgt_name(tgt->scst_tgt));
+
+		rc = sysfs_create_file(scst_sysfs_get_tgt_kobj(tgt->scst_tgt),
+				&q2t_abort_isp_attr.attr);
+		if (rc != 0)
+			PRINT_ERROR("qla2x00t(%ld): Unable to create "
+				"\"%s\" file for target %s",
+				ha->instance, q2t_abort_isp_attr.attr.name,
+				scst_get_tgt_name(tgt->scst_tgt));
 
 		rc = sysfs_create_file(scst_sysfs_get_tgt_kobj(tgt->scst_tgt),
 				&q2t_hw_node_name_attr.attr);
 		if (rc != 0)
 			PRINT_ERROR("qla2x00t(%ld): Unable to create "
-				"\"node_name\" file for HW target %s",
-				ha->instance, scst_get_tgt_name(tgt->scst_tgt));
+				"\"%s\" file for HW target %s",
+				ha->instance, q2t_hw_node_name_attr.attr.name,
+				scst_get_tgt_name(tgt->scst_tgt));
 	} else {
 		rc = sysfs_create_file(scst_sysfs_get_tgt_kobj(tgt->scst_tgt),
 				&q2t_vp_node_name_attr.attr);
 		if (rc != 0)
 			PRINT_ERROR("qla2x00t(%ld): Unable to create "
-				"\"node_name\" file for NPIV target %s",
-				ha->instance, scst_get_tgt_name(tgt->scst_tgt));
+				"\"%s\" file for NPIV target %s",
+				ha->instance, q2t_hw_node_name_attr.attr.name,
+				scst_get_tgt_name(tgt->scst_tgt));
 
 		rc = sysfs_create_file(scst_sysfs_get_tgt_kobj(tgt->scst_tgt),
 				&q2t_vp_parent_host_attr.attr);
 		if (rc != 0)
 			PRINT_ERROR("qla2x00t(%ld): Unable to create "
-				"\"parent_host\" file for NPIV target %s",
-				ha->instance, scst_get_tgt_name(tgt->scst_tgt));
+				"\"%s\" file for NPIV target %s",
+				ha->instance, q2t_vp_parent_host_attr.attr.name,
+				scst_get_tgt_name(tgt->scst_tgt));
 	}
 
 #endif
