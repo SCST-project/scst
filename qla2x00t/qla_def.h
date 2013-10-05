@@ -94,6 +94,68 @@
 #define LSD(x)	((uint32_t)((uint64_t)(x)))
 #define MSD(x)	((uint32_t)((((uint64_t)(x)) >> 16) >> 16))
 
+/* CT IU */
+typedef struct{
+	uint8_t revision;
+	uint8_t in_id[3];
+	uint8_t gs_type;
+	uint8_t gs_subtype;
+	uint8_t options;
+	uint8_t reserved0;
+	uint16_t command;
+	uint16_t max_rsp_size;
+	uint8_t fragment_id;
+	uint8_t reserved1[3];
+} ct_iu_t;
+
+/* CT request format */
+typedef struct {
+	ct_iu_t ct_iu;
+	union {
+		struct {
+			uint8_t reserved;
+			uint8_t port_id[3];
+		} port_id;
+
+		struct {
+			uint8_t port_type;
+			uint8_t domain;
+			uint8_t area;
+			uint8_t reserved;
+		} gid_pt;
+
+		struct {
+			uint8_t reserved;
+			uint8_t port_id[3];
+			uint8_t fc4_types[32];
+		} rft_id;
+
+		struct {
+			uint8_t reserved;
+			uint8_t port_id[3];
+			uint16_t reserved2;
+			uint8_t fc4_feature;
+			uint8_t fc4_type;
+		} rff_id;
+
+		struct {
+			uint8_t reserved;
+			uint8_t port_id[3];
+			uint8_t node_name[8];
+		} rnn_id;
+
+		struct {
+			uint8_t node_name[8];
+			uint8_t name_len;
+			uint8_t sym_node_name[255];
+		} rsnn_nn;
+
+		struct {
+			uint8_t hba_indentifier[8];
+		} ghat;
+	} extended;
+} fc_ct_request_t;
+
 /*
  * I/O register
 */
@@ -2251,6 +2313,7 @@ typedef struct scsi_qla_host {
 #define REGISTER_FDMI_NEEDED	26
 #define FCPORT_UPDATE_NEEDED	27
 #define VP_DPC_NEEDED		28	/* wake up for VP dpc handling */
+#define FCOE_CTX_RESET_NEEDED	18	/* Initiate FCoE context reset */
 
 	uint32_t	device_flags;
 #define DFLG_LOCAL_DEVICES		BIT_0
@@ -2275,6 +2338,7 @@ typedef struct scsi_qla_host {
 #define DT_ISP5432			BIT_10
 #define DT_ISP2532			BIT_11
 #define DT_ISP8432			BIT_12
+#define DT_ISP8021			BIT_14
 #define DT_ISP_LAST			(DT_ISP8432 << 1)
 
 #define DT_IIDMA			BIT_26
@@ -2298,6 +2362,7 @@ typedef struct scsi_qla_host {
 #define IS_QLA5432(ha)	(DT_MASK(ha) & DT_ISP5432)
 #define IS_QLA2532(ha)	(DT_MASK(ha) & DT_ISP2532)
 #define IS_QLA8432(ha)	(DT_MASK(ha) & DT_ISP8432)
+#define IS_QLA82XX(ha)	(DT_MASK(ha) & DT_ISP8021)
 
 #define IS_QLA23XX(ha)	(IS_QLA2300(ha) || IS_QLA2312(ha) || IS_QLA2322(ha) || \
     			 IS_QLA6312(ha) || IS_QLA6322(ha))
@@ -2474,6 +2539,9 @@ typedef struct scsi_qla_host {
 	struct sns_cmd_pkt	*sns_cmd;
 	dma_addr_t		sns_cmd_dma;
 
+	char			*pass_thru;
+	dma_addr_t		pass_thru_dma;
+
 #define SFP_DEV_SIZE	256
 #define SFP_BLOCK_SIZE	64
 	void			*sfp_data;
@@ -2515,6 +2583,7 @@ typedef struct scsi_qla_host {
 	struct mutex vport_lock;	/* Virtual port synchronization */
 	struct completion mbx_cmd_comp;	/* Serialize mbx access */
 	struct completion mbx_intr_comp;  /* Used for completion notification */
+	struct completion pass_thru_intr_comp; /* For pass thru notification */
 
 	uint32_t	mbx_flags;
 #define  MBX_IN_PROGRESS	BIT_0
@@ -2675,6 +2744,10 @@ typedef struct scsi_qla_host {
 #define VP_ERR_ADAP_NORESOURCES	5
 	uint16_t	max_npiv_vports;	/* 63 or 125 per topoloty */
 	int		cur_vport_count;
+
+	/* Pass through support */
+	int		pass_thru_cmd_result;
+	int		pass_thru_cmd_in_process;
 
 	struct qla_chip_state_84xx *cs84xx;
 } scsi_qla_host_t;
