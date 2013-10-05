@@ -115,7 +115,7 @@ static ssize_t q2t_version_show(struct kobject *kobj,
 struct kobj_attribute q2t_version_attr =
 	__ATTR(version, S_IRUGO, q2t_version_show, NULL);
 
-static const struct attribute *q2t_attrs[] = {
+static const struct attribute *q2tt_attrs[] = {
 	&q2t_version_attr.attr,
 	NULL,
 };
@@ -233,7 +233,7 @@ static struct scst_tgt_template tgt2x_template = {
 #endif /*((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)) || \
 	  defined(FC_VPORT_CREATE_DEFINED))*/
 	.add_target_parameters = "node_name, parent_host",
-	.tgtt_attrs = q2t_attrs,
+	.tgtt_attrs = q2tt_attrs,
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags = Q2T_DEFAULT_LOG_FLAGS,
@@ -373,8 +373,8 @@ static inline int q2t_issue_marker(scsi_qla_host_t *ha, int ha_locked)
 	return QLA_SUCCESS;
 }
 
-static inline
-scsi_qla_host_t *q2t_find_host_by_d_id(scsi_qla_host_t *ha, uint8_t *d_id)
+static inline scsi_qla_host_t *q2t_find_host_by_d_id(scsi_qla_host_t *ha,
+	uint8_t *d_id)
 {
 	if ((ha->d_id.b.area != d_id[1]) || (ha->d_id.b.domain != d_id[0]))
 		return NULL;
@@ -393,8 +393,8 @@ scsi_qla_host_t *q2t_find_host_by_d_id(scsi_qla_host_t *ha, uint8_t *d_id)
 	return NULL;
 }
 
-static inline
-scsi_qla_host_t *q2t_find_host_by_vp_idx(scsi_qla_host_t *ha, uint16_t vp_idx)
+static inline scsi_qla_host_t *q2t_find_host_by_vp_idx(scsi_qla_host_t *ha,
+	uint16_t vp_idx)
 {
 	if (ha->vp_idx == vp_idx)
 		return ha;
