@@ -153,7 +153,7 @@ static int qla2xxx_eh_host_reset(struct scsi_cmnd *);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) && \
 	!defined(CONFIG_SUSE_KERNEL) && \
 	(!defined(RHEL_RELEASE_CODE) || \
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 2))
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
 static int qla2x00_change_queue_depth(struct scsi_device *, int);
 #else
 static int qla2x00_change_queue_depth(struct scsi_device *sdev, int qdepth,
@@ -1209,7 +1209,7 @@ qla2xxx_slave_destroy(struct scsi_device *sdev)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) && \
 	!defined(CONFIG_SUSE_KERNEL) && \
 	(!defined(RHEL_RELEASE_CODE) || \
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 2))
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
 
 static int
 qla2x00_change_queue_depth(struct scsi_device *sdev, int qdepth)
@@ -1218,7 +1218,7 @@ qla2x00_change_queue_depth(struct scsi_device *sdev, int qdepth)
 	return sdev->queue_depth;
 }
 
-#else /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) && !defined(CONFIG_SUSE_KERNEL) && (!defined(RHEL_RELEASE_CODE) || RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 2)) */
+#else /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) && !defined(CONFIG_SUSE_KERNEL) && (!defined(RHEL_RELEASE_CODE) || RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1)) */
 
 static void qla2x00_handle_queue_full(struct scsi_device *sdev, int qdepth)
 {
@@ -1271,7 +1271,7 @@ qla2x00_change_queue_depth(struct scsi_device *sdev, int qdepth, int reason)
 	return sdev->queue_depth;
 }
 
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) && !defined(CONFIG_SUSE_KERNEL) && (!defined(RHEL_RELEASE_CODE) || RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 2)) */
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) && !defined(CONFIG_SUSE_KERNEL) && (!defined(RHEL_RELEASE_CODE) || RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1)) */
 
 static int
 qla2x00_change_queue_type(struct scsi_device *sdev, int tag_type)
