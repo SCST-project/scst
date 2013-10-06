@@ -221,7 +221,7 @@ struct iscsi_conn {
 	 * All 2 protected by wr_lock. Modified independently to the
 	 * above field, hence the alignment.
 	 */
-	unsigned short wr_state __attribute__((aligned(sizeof(long))));
+	unsigned short wr_state __aligned(sizeof(long));
 	unsigned short wr_space_ready:1;
 
 	struct list_head wr_list_entry;
@@ -465,8 +465,7 @@ struct iscsi_cmnd {
 			 * modified independently to the above field, hence the
 			 * alignment.
 			 */
-			int not_processed_rsp_cnt
-				 __attribute__((aligned(sizeof(long))));
+			int not_processed_rsp_cnt __aligned(sizeof(long));
 		};
 
 		/* Response only fields */

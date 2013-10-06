@@ -149,7 +149,7 @@ typedef struct {
 	uint16_t reserved_5;
 	uint16_t timeout;		/* 0 = 30 seconds, 0xFFFF = disable */
 	uint16_t reserved_6[20];
-} __attribute__((packed)) elun_entry_t;
+} __packed elun_entry_t;
 #define ENABLE_LUN_SUCCESS          0x01
 #define ENABLE_LUN_RC_NONZERO       0x04
 #define ENABLE_LUN_INVALID_REQUEST  0x06
@@ -180,7 +180,7 @@ typedef struct {
 	uint16_t reserved_5;
 	uint16_t timeout;		    /* 0 = 30 seconds, 0xFFFF = disable */
 	uint16_t reserved_7[20];
-} __attribute__((packed)) modify_lun_entry_t;
+} __packed modify_lun_entry_t;
 #define MODIFY_LUN_SUCCESS	0x01
 #define MODIFY_LUN_CMD_ADD BIT_0
 #define MODIFY_LUN_CMD_SUB BIT_1
@@ -220,7 +220,7 @@ typedef struct {
 	uint16_t srr_ox_id;
 	uint8_t reserved_2[30];
 	uint16_t ox_id;
-} __attribute__((packed)) notify_entry_t;
+} __packed notify_entry_t;
 #endif
 
 #ifndef NOTIFY_ACK_TYPE
@@ -251,7 +251,7 @@ typedef struct {
 	uint8_t  srr_reject_code_expl;
 	uint8_t  reserved_2[26];
 	uint16_t ox_id;
-} __attribute__((packed)) nack_entry_t;
+} __packed nack_entry_t;
 #define NOTIFY_ACK_SRR_FLAGS_ACCEPT	0
 #define NOTIFY_ACK_SRR_FLAGS_REJECT	1
 
@@ -288,7 +288,7 @@ typedef struct {
 	uint8_t  initiator_port_name[WWN_SIZE]; /* on qla23xx */
 	uint16_t reserved_32[6];
 	uint16_t ox_id;
-} __attribute__((packed)) atio_entry_t;
+} __packed atio_entry_t;
 #endif
 
 #ifndef CONTINUE_TGT_IO_TYPE
@@ -315,7 +315,7 @@ typedef struct {
 	uint16_t scsi_status;
 	uint32_t transfer_length;
 	uint32_t dseg_0_address[0];
-} __attribute__((packed)) ctio_common_entry_t;
+} __packed ctio_common_entry_t;
 #define ATIO_PATH_INVALID       0x07
 #define ATIO_CANT_PROV_CAP      0x16
 #define ATIO_CDB_VALID          0x3D
@@ -334,7 +334,7 @@ typedef struct {
 	uint32_t dseg_1_length;		    /* Data segment 1 length. */
 	uint32_t dseg_2_address;	    /* Data segment 2 address. */
 	uint32_t dseg_2_length;		    /* Data segment 2 length. */
-} __attribute__((packed)) ctio_entry_t;
+} __packed ctio_entry_t;
 #define CTIO_SUCCESS			0x01
 #define CTIO_ABORTED			0x02
 #define CTIO_INVALID_RX_ID		0x08
@@ -372,7 +372,7 @@ typedef struct {
 	uint16_t scsi_status;
 	uint16_t response_length;
 	uint8_t	 sense_data[26];
-} __attribute__((packed)) ctio_ret_entry_t;
+} __packed ctio_ret_entry_t;
 #endif
 
 #define ATIO_TYPE7 0x06 /* Accept target I/O entry for 24xx */
@@ -390,7 +390,7 @@ typedef struct {
 	uint16_t ox_id;
 	uint16_t rx_id;
 	uint32_t parameter;
-} __attribute__((packed)) fcp_hdr_t;
+} __packed fcp_hdr_t;
 
 typedef struct {
 	uint8_t  d_id[3];
@@ -405,7 +405,7 @@ typedef struct {
 	uint16_t rx_id;
 	uint16_t ox_id;
 	uint32_t parameter;
-} __attribute__((packed)) fcp_hdr_le_t;
+} __packed fcp_hdr_le_t;
 
 #define F_CTL_EXCH_CONTEXT_RESP	BIT_23
 #define F_CTL_SEQ_CONTEXT_RESIP	BIT_22
@@ -450,7 +450,7 @@ typedef struct {
 	 */
 	uint8_t  add_cdb[4];
 	/* uint32_t data_length; */
-} __attribute__((packed)) fcp_cmnd_t;
+} __packed fcp_cmnd_t;
 
 /*
  * ISP queue - Accept Target I/O (ATIO) type 7 entry for 24xx structure
@@ -471,7 +471,7 @@ typedef struct {
 #define ATIO_EXCHANGE_ADDRESS_UNKNOWN		0xFFFFFFFF
 	fcp_hdr_t fcp_hdr;
 	fcp_cmnd_t fcp_cmnd;
-} __attribute__((packed)) atio7_entry_t;
+} __packed atio7_entry_t;
 
 #define CTIO_TYPE7 0x12 /* Continue target I/O entry (for 24xx) */
 
@@ -495,7 +495,7 @@ typedef struct {
 	uint8_t  initiator_id[3];
 	uint8_t  reserved;
 	uint32_t exchange_addr;
-} __attribute__((packed)) ctio7_common_entry_t;
+} __packed ctio7_common_entry_t;
 
 typedef struct {
 	ctio7_common_entry_t common;
@@ -510,7 +510,7 @@ typedef struct {
 	uint32_t reserved3;
 	uint32_t dseg_0_address[2];	    /* Data segment 0 address. */
 	uint32_t dseg_0_length;		    /* Data segment 0 length. */
-} __attribute__((packed)) ctio7_status0_entry_t;
+} __packed ctio7_status0_entry_t;
 
 typedef struct {
 	ctio7_common_entry_t common;
@@ -522,7 +522,7 @@ typedef struct {
 	uint16_t response_len;
 	uint16_t reserved;
 	uint8_t sense_data[24];
-} __attribute__((packed)) ctio7_status1_entry_t;
+} __packed ctio7_status1_entry_t;
 
 typedef struct {
 	uint8_t	 entry_type;		    /* Entry type. */
@@ -543,7 +543,7 @@ typedef struct {
 	uint16_t reserved3;
 	uint32_t relative_offset;
 	uint8_t  reserved4[24];
-} __attribute__((packed)) ctio7_fw_entry_t;
+} __packed ctio7_fw_entry_t;
 
 /* CTIO7 flags values */
 #define CTIO7_FLAGS_SEND_STATUS		BIT_15
@@ -587,7 +587,7 @@ typedef struct {
 	uint8_t  reserved_6;
 	uint16_t reserved_7;
 	uint16_t ox_id;
-} __attribute__((packed)) notify24xx_entry_t;
+} __packed notify24xx_entry_t;
 
 #define ELS_PLOGI			0x3
 #define ELS_FLOGI			0x4
@@ -625,7 +625,7 @@ typedef struct {
 	uint8_t  srr_reject_code;
 	uint8_t  reserved_5[7];
 	uint16_t ox_id;
-} __attribute__((packed)) nack24xx_entry_t;
+} __packed nack24xx_entry_t;
 
 /*
  * ISP queue - ABTS received/response entries structure definition for 24xx.
@@ -653,7 +653,7 @@ typedef struct {
 	fcp_hdr_le_t fcp_hdr_le;
 	uint8_t  reserved_4[16];
 	uint32_t exchange_addr_to_abort;
-} __attribute__((packed)) abts24_recv_entry_t;
+} __packed abts24_recv_entry_t;
 
 #define ABTS_PARAM_ABORT_SEQ		BIT_0
 
@@ -667,7 +667,7 @@ typedef struct {
 	uint16_t ox_id;
 	uint16_t high_seq_cnt;
 	uint16_t low_seq_cnt;
-} __attribute__((packed)) ba_acc_le_t;
+} __packed ba_acc_le_t;
 
 typedef struct {
 	uint8_t vendor_uniq;
@@ -676,7 +676,7 @@ typedef struct {
 #define BA_RJT_REASON_CODE_INVALID_COMMAND	0x1
 #define BA_RJT_REASON_CODE_UNABLE_TO_PERFORM	0x9
 	uint8_t reserved;
-} __attribute__((packed)) ba_rjt_le_t;
+} __packed ba_rjt_le_t;
 
 typedef struct {
 	uint8_t	 entry_type;		    /* Entry type. */
@@ -701,10 +701,10 @@ typedef struct {
 	union {
 		ba_acc_le_t ba_acct;
 		ba_rjt_le_t ba_rjt;
-	} __attribute__((packed)) payload;
+	} __packed payload;
 	uint32_t reserved_4;
 	uint32_t exchange_addr_to_abort;
-} __attribute__((packed)) abts24_resp_entry_t;
+} __packed abts24_resp_entry_t;
 
 typedef struct {
 	uint8_t	 entry_type;		    /* Entry type. */
@@ -732,7 +732,7 @@ typedef struct {
 #define ABTS_RESP_SUBCODE_ERR_ABORTED_EXCH_NOT_TERM	0x1E
 	uint32_t error_subcode2;
 	uint32_t exchange_addr_to_abort;
-} __attribute__((packed)) abts24_resp_fw_entry_t;
+} __packed abts24_resp_fw_entry_t;
 
 /********************************************************************\
  * Type Definitions used by initiator & target halves

@@ -221,7 +221,7 @@ struct q2t_cmd {
 	union {
 		atio7_entry_t atio7;
 		atio_entry_t atio2x;
-	} __attribute__((packed)) atio;
+	} __packed atio;
 };
 
 struct q2t_sess_work_param {
@@ -249,7 +249,7 @@ struct q2t_mgmt_cmd {
 		notify_entry_t notify_entry;
 		notify24xx_entry_t notify_entry24;
 		abts24_recv_entry_t abts;
-	} __attribute__((packed)) orig_iocb;
+	} __packed orig_iocb;
 };
 
 struct q2t_prm {
@@ -273,7 +273,7 @@ struct srr_imm {
 	union {
 		notify_entry_t notify_entry;
 		notify24xx_entry_t notify_entry24;
-	} __attribute__((packed)) imm;
+	} __packed imm;
 };
 
 struct srr_ctio {

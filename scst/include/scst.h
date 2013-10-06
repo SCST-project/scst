@@ -62,6 +62,11 @@ typedef _Bool bool;
 #define false 0
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21) && !defined(RHEL_MAJOR)
+#define __packed __attribute__((packed))
+#define __aligned __attribute__((aligned))
+#endif
+
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/scst_sgv.h>
 #else
@@ -2274,7 +2279,7 @@ struct scst_device {
 	 ** below fields, hence the alignment.
 	 *************************************************************/
 
-	unsigned int queue_alg:4  __attribute__((aligned(sizeof(long))));
+	unsigned int queue_alg:4 __aligned(sizeof(long));
 	unsigned int tst:3;
 	unsigned int tas:1;
 	unsigned int swp:1;
@@ -2316,7 +2321,7 @@ struct scst_device {
 	 * Set if dev is persistently reserved. Protected by dev_pr_mutex.
 	 * Modified independently to the above field, hence the alignment.
 	 */
-	unsigned int pr_is_set:1 __attribute__((aligned(sizeof(long))));
+	unsigned int pr_is_set:1 __aligned(sizeof(long));
 
 	/*
 	 * Set if there is a thread changing or going to change PR state(s).
@@ -2346,7 +2351,7 @@ struct scst_device {
 	 * True if persist through power loss is activated. Modified
 	 * independently to the above field, hence the alignment.
 	 */
-	unsigned short pr_aptpl:1 __attribute__((aligned(sizeof(long))));
+	unsigned short pr_aptpl:1 __aligned(sizeof(long));
 
 	/* Persistent reservation type */
 	uint8_t pr_type;

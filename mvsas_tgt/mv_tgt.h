@@ -83,7 +83,7 @@ extern unsigned long mvst_trace_flag;
 #define DEBUG(x)	do {} while (0);
 #endif
 
-#define    BUFFER_PACKED               __attribute__((packed))
+#define BUFFER_PACKED		__packed
 #define MVST_TARGET_MAGIC	0xFFF1
 #define MVST_INITIATOR_MAGIC   0xFFF2
 
