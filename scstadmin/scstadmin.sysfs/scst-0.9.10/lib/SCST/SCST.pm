@@ -1472,7 +1472,6 @@ sub removeVirtualTarget {
 
 	close $io;
 
-	return SCST_C_TGT_BUSY if ($bytes == -1);
 	return FALSE if ($self->{'debug'} || $bytes);
 	return SCST_C_TGT_REM_FAIL;
 }
