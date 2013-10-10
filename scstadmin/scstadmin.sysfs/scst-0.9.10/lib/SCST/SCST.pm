@@ -597,6 +597,8 @@ sub targets {
 
 	close $tHandle;
 
+	@targets = sort(@targets);
+
 	return \@targets;
 }
 
