@@ -23,6 +23,9 @@ perl-module:
 	perl Makefile.PL;
 	$(MAKE) -C scst-$(MODULE_VERSION)
 
+test:
+	$(MAKE) -C scst-$(MODULE_VERSION) test
+
 clean:
 	-$(MAKE) -C scst-$(MODULE_VERSION) clean
 

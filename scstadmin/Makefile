@@ -117,6 +117,9 @@ uninstall:
 perl-module:
 	cd $(SCSTADMIN_DIR) && $(MAKE) $@
 
+test:
+	$(MAKE) -C scstadmin test
+
 dist-gzip:
 	name=$(shell basename $$PWD) &&					\
 	mkdir $${name}-$(VERSION) &&					\
