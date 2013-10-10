@@ -2512,7 +2512,9 @@ sub applyTargetAssignments {
 		}
 
 		my $attributes = configToAttr(\%_attributes);
-		filterCreateAttributes($possible, $attributes, TRUE);
+		if ($SCST->targetType($driver, $target) == $SCST::SCST::TGT_TYPE_VIRTUAL) {
+			filterCreateAttributes($possible, $attributes, TRUE);
+		}
 		$changes += setTargetAttributes($driver, $target, $attributes, $deletions);
 
 		foreach my $item (keys %{$$targets{$target}}) {
