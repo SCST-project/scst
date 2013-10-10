@@ -1561,7 +1561,7 @@ sub lunExists {
 	return $rc if ($rc > 1);
 
 	$rc = $self->targetExists($driver, $target);
-	return SCST_C_TGT_EXISTS if (!$rc);
+	return SCST_C_TGT_NO_TARGET if (!$rc);
 	return $rc if ($rc > 1);
 
 	if (defined($group)) {
