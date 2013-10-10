@@ -3388,10 +3388,11 @@ sub setLunAttribute {
 	}
 
 	$rc = $self->lunExists($driver, $target, $lun, $group);
-	return SCST_C_GRP_NO_LUN if (!$rc);
+	return (defined($group) ? SCST_C_GRP_NO_LUN : SCST_C_TGT_NO_LUN)
+	    if (!$rc);
 	return $rc if ($rc > 1);
 
-	my $attributes = $self->lunAttributes($driver, $target, $group, $lun);
+	my $attributes = $self->lunAttributes($driver, $target, $lun, $group);
 
 	return SCST_C_LUN_BAD_ATTRIBUTES if (!defined($$attributes{$attribute}));
 	return SCST_C_LUN_ATTRIBUTE_STATIC if ($$attributes{$attribute}->{'static'});
