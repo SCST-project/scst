@@ -572,6 +572,8 @@ sub targets {
 	my $driver = shift;
 	my @targets;
 
+	return undef if (!defined($driver));
+
 	if ($self->driverExists($driver) != TRUE) {
 		$self->{'err_string'} = "targets(): Driver '$driver' is not available";
 		return undef;
@@ -603,6 +605,8 @@ sub groups {
 	my $driver = shift;
 	my $target = shift;
 	my @groups;
+
+	return undef if (!defined($driver) || !defined($target));
 
 	if ($self->driverExists($driver) != TRUE) {
 		$self->{'err_string'} = "groups(): Driver '$driver' is not available";
@@ -642,6 +646,9 @@ sub initiators {
 	my $target = shift;
 	my $group = shift;
 	my @initiators;
+
+	return undef if (!defined($driver) || !defined($target) ||
+			 !defined($group));
 
 	if ($self->driverExists($driver) != TRUE) {
 		$self->{'err_string'} = "initiators(): Driver '$driver' is not available";
@@ -684,6 +691,8 @@ sub luns {
 	my $target = shift;
 	my $group = shift;
 	my %luns;
+
+	return undef if (!defined($driver) || !defined($target));
 
 	if ($self->driverExists($driver) != TRUE) {
 		$self->{'err_string'} = "luns(): Driver '$driver' is not available";
@@ -827,6 +836,8 @@ sub deviceGroupDevices {
 	my $group = shift;
 	my @devices;
 
+	return undef if (!defined($group));
+
 	if ($self->deviceGroupExists($group) != TRUE) {
 		$self->{'err_string'} = "deviceGroupDevices(): Device group '$group' does not exist";
 		return undef;
@@ -856,6 +867,8 @@ sub targetGroups {
 	my $self = shift;
 	my $group = shift;
 	my @tgroups;
+
+	return undef if (!defined($group));
 
 	if ($self->deviceGroupExists($group) != TRUE) {
 		$self->{'err_string'} = "targetGroups(): Device group '$group' does not exist";
@@ -887,6 +900,8 @@ sub targetGroupTargets {
 	my $group = shift;
 	my $tgroup = shift;
 	my @targets;
+
+	return undef if (!defined($group) || !defined($tgroup));
 
 	if ($self->deviceGroupExists($group) != TRUE) {
 		$self->{'err_string'} = "targetGroupTargets(): Device group '$group' does not exist";
@@ -922,6 +937,8 @@ sub driverExists {
 	my $self = shift;
 	my $driver = shift;
 
+	return FALSE if (!defined($driver));
+
 	my $drivers = $self->drivers();
 
 	return SCST_C_FATAL_ERROR if (!defined($drivers));
@@ -938,6 +955,8 @@ sub driverDynamicAttributes {
 	my $driver = shift;
 	my %attributes;
 	my $available;
+
+	return undef if (!defined($driver));
 
 	if ($self->driverExists($driver) != TRUE) {
 		$self->{'err_string'} = "driverDynamicAttributes(): Driver '$driver' ".
@@ -1150,6 +1169,8 @@ sub targetType {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
+
+	return undef if (!defined($driver) || !defined($target));
 
 	if ($self->driverIsVirtualCapable($driver)) {
 		my $attribs = $self->targetAttributes($driver, $target);
@@ -1566,6 +1587,9 @@ sub addGroup {
 	my $target = shift;
 	my $group = shift;
 
+	return SCST_C_GRP_ADD_FAIL if (!defined($driver) || !defined($target) ||
+				       !defined($group));
+
 	my $rc = $self->driverExists($driver);
 	return SCST_C_DRV_NO_DRIVER if (!$rc);
 	return $rc if ($rc > 1);
@@ -1613,6 +1637,9 @@ sub removeGroup {
 	my $target = shift;
 	my $group = shift;
 
+	return SCST_C_GRP_REM_FAIL if (!defined($driver) || !defined($target) ||
+				       !defined($group));
+
 	my $rc = $self->driverExists($driver);
 	return SCST_C_DRV_NO_DRIVER if (!$rc);
 	return $rc if ($rc > 1);
@@ -1658,6 +1685,8 @@ sub addDeviceGroup {
 	my $self = shift;
 	my $group = shift;
 
+	return SCST_C_DEV_GRP_ADD_FAIL if (!defined($group));
+
 	my $rc = $self->deviceGroupExists($group);
 	return SCST_C_DEV_GRP_EXISTS if ($rc == TRUE);
 	return $rc if ($rc > 1);
@@ -1692,6 +1721,8 @@ sub addDeviceGroup {
 sub removeDeviceGroup {
 	my $self = shift;
 	my $group = shift;
+
+	return SCST_C_DEV_GRP_REM_FAIL if (!defined($group));
 
 	my $rc = $self->deviceGroupExists($group);
 	return SCST_C_DEV_GRP_NO_GROUP if (!$rc);
@@ -1728,6 +1759,8 @@ sub addDeviceGroupDevice {
 	my $self = shift;
 	my $group = shift;
 	my $device = shift;
+
+	return SCST_C_DGRP_ADD_DEV_FAIL if (!defined($group) || !defined($device));
 
 	my $rc = $self->deviceGroupExists($group);
 	return SCST_C_DEV_GRP_NO_GROUP if (!$rc);
@@ -1785,6 +1818,8 @@ sub addTargetGroup {
 	my $group = shift;
 	my $tgroup = shift;
 
+	return SCST_C_DGRP_ADD_GRP_FAIL if (!defined($group) || !defined($tgroup));
+
 	my $rc = $self->deviceGroupExists($group);
 	return SCST_C_DEV_GRP_NO_GROUP if (!$rc);
 	return $rc if ($rc > 1);
@@ -1826,6 +1861,8 @@ sub addTargetGroupTarget {
 	my $group = shift;
 	my $tgroup = shift;
 	my $tgt = shift;
+
+	return SCST_C_TGRP_ADD_TGT_FAIL if (!defined($group) || !defined($tgroup) || !defined($tgt));
 
 	my $rc = $self->deviceGroupExists($group);
 	return SCST_C_DEV_GRP_NO_GROUP if (!$rc);
@@ -1873,6 +1910,8 @@ sub removeDeviceGroupDevice {
 	my $group = shift;
 	my $device = shift;
 
+	return SCST_C_DGRP_REM_DEV_FAIL if (!defined($group) || !defined($device));
+
 	my $rc = $self->deviceGroupExists($group);
 	return SCST_C_DEV_GRP_NO_GROUP if (!$rc);
 	return $rc if ($rc > 1);
@@ -1918,6 +1957,8 @@ sub removeTargetGroup {
 	my $group = shift;
 	my $tgroup = shift;
 
+	return SCST_C_DGRP_REM_GRP_FAIL if (!defined($group) || !defined($tgroup));
+
 	my $rc = $self->deviceGroupExists($group);
 	return SCST_C_DEV_GRP_NO_GROUP if (!$rc);
 	return $rc if ($rc > 1);
@@ -1959,6 +2000,8 @@ sub removeTargetGroupTarget {
 	my $group = shift;
 	my $tgroup = shift;
 	my $tgt = shift;
+
+	return SCST_C_TGRP_REM_TGT_FAIL if (!defined($group) || !defined($tgroup) || !defined($tgt));
 
 	my $rc = $self->deviceGroupExists($group);
 	return SCST_C_DEV_GRP_NO_GROUP if (!$rc);
@@ -2007,6 +2050,10 @@ sub addInitiator {
 	my $target = shift;
 	my $group = shift;
 	my $initiator = shift;
+
+	return SCST_C_GRP_ADD_INI_FAIL
+	    if (!defined($driver) || !defined($target) ||
+		!defined($group) || !defined($initiator));
 
 	my $rc = $self->driverExists($driver);
 	return SCST_C_DRV_NO_DRIVER if (!$rc);
@@ -2061,6 +2108,10 @@ sub removeInitiator {
 	my $target = shift;
 	my $group = shift;
 	my $initiator = shift;
+
+	return SCST_C_GRP_REM_INI_FAIL if (!defined($driver) ||
+					   !defined($target) ||
+					   !defined($initiator));
 
 	my $rc = $self->driverExists($driver);
 	return SCST_C_DRV_NO_DRIVER if (!$rc);
@@ -2230,8 +2281,12 @@ sub addLun {
 	my $attributes = shift;
 	my $group = shift;
 
-	my $err;
-	my $err2;
+	my $err = defined($group) ? SCST_C_GRP_ADD_LUN_FAIL :
+	    SCST_C_TGT_ADD_LUN_FAIL;
+
+	return $err if (!defined($driver) || !defined($target) ||
+			!defined($device) || !defined($lun) ||
+			!defined($attributes));
 
 	my $rc = $self->driverExists($driver);
 	return SCST_C_DRV_NO_DRIVER if (!$rc);
@@ -2249,6 +2304,8 @@ sub addLun {
 	return SCST_C_LUN_BAD_ATTRIBUTES if ($rc == TRUE);
 	return $rc if ($rc > 1);
 
+	my $err2;
+
 	if (defined($group)) {
 		$rc = $self->groupExists($driver, $target, $group);
 		return SCST_C_GRP_NO_GROUP if (!$rc);
@@ -2261,8 +2318,6 @@ sub addLun {
 		$err  = SCST_C_TGT_ADD_LUN_FAIL;
 		$err2 = SCST_C_TGT_LUN_EXISTS;
 	}
-
-	return $err if (!defined($lun));
 
 	$rc = $self->lunExists($driver, $target, $lun, $group);
 	return $err2 if ($rc == TRUE);
@@ -2325,8 +2380,10 @@ sub removeLun {
 	my $lun = shift;
 	my $group = shift;
 
-	my $err;
-	my $err2;
+	my $err = defined($group) ? SCST_C_GRP_REM_LUN_FAIL :
+	    SCST_C_TGT_ADD_LUN_FAIL;
+
+	return $err if (!defined($driver) || !defined($target) || !defined($lun));
 
 	my $rc = $self->driverExists($driver);
 	return SCST_C_DRV_NO_DRIVER if (!$rc);
@@ -2336,15 +2393,15 @@ sub removeLun {
 	return SCST_C_TGT_NO_TARGET if (!$rc);
 	return $rc if ($rc > 1);
 
+	my $err2;
+
 	if (defined($group)) {
 		$rc = $self->groupExists($driver, $target, $group);
 		return SCST_C_GRP_NO_GROUP if (!$rc);
 		return $rc if ($rc > 1);
 
-		$err  = SCST_C_GRP_REM_LUN_FAIL;
 		$err2 = SCST_C_GRP_NO_LUN;
 	} else {
-		$err  = SCST_C_TGT_ADD_LUN_FAIL;
 		$err2 = SCST_C_TGT_NO_LUN;
 	}
 
@@ -2497,7 +2554,10 @@ sub clearLuns {
 	my $target = shift;
 	my $group = shift;
 
-	my $err;
+	my $err = defined($group) ? SCST_C_GRP_CLR_LUN_FAIL :
+	    SCST_C_TGT_CLR_LUN_FAIL;
+
+	return $err if (!defined($driver) || !defined($target));
 
 	my $rc = $self->driverExists($driver);
 	return SCST_C_DRV_NO_DRIVER if (!$rc);
@@ -2511,10 +2571,6 @@ sub clearLuns {
 		$rc = $self->groupExists($driver, $target, $group);
 		return SCST_C_GRP_NO_GROUP if (!$rc);
 		return $rc if ($rc > 1);
-
-		$err = SCST_C_GRP_CLR_LUN_FAIL;
-	} else {
-		$err = SCST_C_TGT_CLR_LUN_FAIL
 	}
 
 	my ($path, $cmd);
@@ -2878,6 +2934,8 @@ sub targetAttributes {
 	my $driver = shift;
 	my $target = shift;
 	my %attributes;
+
+	return undef if (!defined($driver) || !defined($target));
 
 	if ($self->driverExists($driver) != TRUE) {
 		$self->{'err_string'} = "targetAttributes(): Driver '$driver' is not available";
@@ -3302,6 +3360,10 @@ sub setLunAttribute {
 	my $value = shift;
 	my $group = shift;
 
+	return SCST_C_LUN_SETATTR_FAIL
+	    if (!defined($driver) || !defined($target) || !defined($lun) ||
+		!defined($attribute) || !defined($value));
+
 	my $rc = $self->driverExists($driver);
 	return SCST_C_DRV_NO_DRIVER if (!$rc);
 	return $rc if ($rc > 1);
@@ -3328,8 +3390,6 @@ sub setLunAttribute {
 	$rc = $self->lunExists($driver, $target, $lun, $group);
 	return SCST_C_GRP_NO_LUN if (!$rc);
 	return $rc if ($rc > 1);
-
-	return TRUE if (!defined($attribute) || !defined($value));
 
 	my $attributes = $self->lunAttributes($driver, $target, $group, $lun);
 
@@ -4228,6 +4288,10 @@ sub openDevice {
 	my $device = shift;
 	my $attributes = shift;
 
+	return SCST_C_DEV_OPEN_FAIL if (!defined($handler) ||
+					!defined($device) ||
+					!defined($attributes));
+
 	my $rc = $self->handlerExists($handler);
 	return SCST_C_HND_NO_HANDLER if (!$rc);
 	return $rc if ($rc > 1);
@@ -4281,6 +4345,9 @@ sub closeDevice {
 	my $self = shift;
 	my $handler = shift;
 	my $device = shift;
+
+	return SCST_C_DEV_CLOSE_FAIL if (!defined($handler) ||
+					 !defined($device));
 
 	my $rc = $self->handlerExists($handler);
 	return SCST_C_HND_NO_HANDLER if (!$rc);
@@ -4785,6 +4852,8 @@ sub sessions {
 	my $driver = shift;
 	my $target = shift;
 	my %_sessions;
+
+	return undef if (!defined($driver) || !defined($target));
 
 	if ($self->driverExists($driver) != TRUE) {
 		$self->{'err_string'} = "sessions(): Driver '$driver' ".
