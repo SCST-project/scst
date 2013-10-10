@@ -211,7 +211,8 @@ Options
      -force                  : Force all configuration changes,
                                even deletions (DANGER!).
      -noprompt               : Do not prompt or pause. Use with caution!
-  
+     -cont_on_err            : Continue after an error occurred.
+
 Debugging (limited support)
      -debug                  : Debug mode - don\'t do anything destructive.
 
@@ -258,6 +259,7 @@ my $CONFIG;
 my $CONFIGFILE;
 my $_DEBUG_;
 my $_NOPROMPT_;
+my $_CONT_ON_ERR_;
 
 my %CURRENT;
 
@@ -458,6 +460,7 @@ sub getArgs {
 
 			    'nonkey'		=> \$nonkey,
 			    'noprompt'		=> \$_NOPROMPT_,
+			    'cont_on_err'       => \$_CONT_ON_ERR_,
 			    'force'		=> \$force,
 			    'debug'             => \$_DEBUG_))
 	{
@@ -471,6 +474,7 @@ sub getArgs {
 
 	$_DEBUG_ = TRUE if (defined($_DEBUG_));
 	$_NOPROMPT_ = TRUE if (defined($_NOPROMPT_));
+	$_CONT_ON_ERR_ = TRUE if (defined($_CONT_ON_ERR_));
 
 	$force = TRUE if (defined($force));
 	$nonkey = TRUE if (defined($nonkey));
@@ -2017,13 +2021,13 @@ sub applyConfigDevices {
 				my $attributes = configToAttr(\%_attributes);
 				my $create_attrs = configToAttr(\%_attributes);
 				my $possible = $SCST->deviceCreateAttributes($handler);
-				immediateExit($SCST->errorString());
+				condExit($SCST->errorString());
 				filterCreateAttributes($possible, $create_attrs, FALSE);
 				filterCreateAttributes($possible, $attributes, TRUE);
 
 				if (handlerHasDevice($handler, $device)) {
 					my $old_create_attrs = $SCST->deviceAttributes($device);
-					immediateExit($SCST->errorString());
+					condExit($SCST->errorString());
 					filterCreateAttributes($possible, $old_create_attrs, FALSE);
 
 					if (compareToKeyAttribute($create_attrs, $old_create_attrs)) {
@@ -2103,9 +2107,9 @@ sub applyConfigAssignments {
 				} else {
 					my $c_attrs = configToAttr($$config{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'LUN'}->{$lun}->{$device});
 					my $o_attrs = $SCST->lunAttributes($driver, $target, $lun);
-					immediateExit($SCST->errorString());
+					condExit($SCST->errorString());
 					my $possible = $SCST->lunCreateAttributes($driver, $target);
-					immediateExit($SCST->errorString());
+					condExit($SCST->errorString());
 
 					filterCreateAttributes($possible, $c_attrs, FALSE);
 
@@ -2146,9 +2150,9 @@ sub applyConfigAssignments {
 					} else {
 						my $c_attrs = configToAttr($$config{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'GROUP'}->{$group}->{'LUN'}->{$lun}->{$device});
 						my $o_attrs = $SCST->lunAttributes($driver, $target, $lun, $group);
-						immediateExit($SCST->errorString());
+						condExit($SCST->errorString());
 						my $possible = $SCST->lunCreateAttributes($driver, $target, $group);
-						immediateExit($SCST->errorString());
+						condExit($SCST->errorString());
 
 						filterCreateAttributes($possible, $c_attrs, FALSE);
 
@@ -2189,7 +2193,7 @@ sub applyConfigAssignments {
 
 	foreach my $driver (sort keys %{$assignments}) {
 		if (!defined($CURRENT{'assign'}->{$driver})) {
-			immediateExit("Target driver '$driver' is not loaded or available.");
+			condExit("Target driver '$driver' is not loaded or available.");
 		}
 
 		my %_attributes;
@@ -2459,7 +2463,7 @@ sub applyTargetAssignments {
 
 			if ($deletions && $isVirtual) {
 				my $rc = removeVirtualTarget($driver, $target);
-				immediateExit($SCST->errorString($rc)) if ($rc);
+				condExit($SCST->errorString($rc));
 				$changes++;
 			} else {
 				print "\t-> Virtual target '$target' for driver '$driver' is not in configuration. ".
@@ -2479,7 +2483,7 @@ sub applyTargetAssignments {
 	foreach my $target (sort keys %{$targets}) {
 		if (!defined($CURRENT{'assign'}->{$driver}->{$target})) {
 			if (!$is_virtual) {
-				immediateExit("Target '$target' for driver '$driver' does not exist.");
+				condExit("Target '$target' for driver '$driver' does not exist.");
 			} else {
 				my %_attributes;
 
@@ -2492,13 +2496,13 @@ sub applyTargetAssignments {
 				my $attributes = configToAttr(\%_attributes);
 
 				if (defined($$attributes{'HW_TARGET'})) {
-					immediateExit("Hardware target '$target' for driver '$driver' does not exist.");
+					condExit("Hardware target '$target' for driver '$driver' does not exist.");
 				}					
 
 				filterCreateAttributes($possible, $attributes, FALSE);
 
 				my $rc = addVirtualTarget($driver, $target, $attributes);
-				immediateExit($SCST->errorString($rc)) if ($rc);
+				condExit($SCST->errorString($rc));
 				$changes++ if (!$rc);
 			}
 		}
@@ -4299,7 +4303,7 @@ sub addDriverDynamicAttribute {
 	my $rc = $SCST->addDriverDynamicAttribute($driver, $attribute, $value);
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc); 
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4338,7 +4342,7 @@ sub removeDriverDynamicAttribute {
 	my $rc = $SCST->removeDriverDynamicAttribute($driver, $attribute, $value);
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4360,7 +4364,7 @@ sub setTargetAttribute {
 	my $rc = $SCST->setTargetAttribute($driver, $target, $attribute, $value);
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4481,7 +4485,7 @@ sub addTargetDynamicAttribute {
 	my $rc = $SCST->addTargetDynamicAttribute($driver, $target, $attribute, $value);
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc); 
+	condExit($SCST->errorString($rc)); 
 
 	return FALSE;
 }
@@ -4523,7 +4527,7 @@ sub removeTargetDynamicAttribute {
 	my $rc = $SCST->removeTargetDynamicAttribute($driver, $target, $attribute, $value);
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4541,7 +4545,7 @@ sub openDevice {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4567,7 +4571,7 @@ sub closeDevice {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4590,7 +4594,7 @@ sub addDeviceGroup {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4605,7 +4609,7 @@ sub addTargetGroup {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4621,7 +4625,7 @@ sub addTargetGroupTarget {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4647,7 +4651,7 @@ sub removeDeviceGroup {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4673,7 +4677,7 @@ sub removeTargetGroup {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4690,7 +4694,7 @@ sub removeTargetGroupTarget {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4705,7 +4709,7 @@ sub addDeviceGroupDevice {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4740,7 +4744,7 @@ sub removeDeviceGroupDevice {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4758,7 +4762,7 @@ sub addGroup {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4785,7 +4789,7 @@ sub removeGroup {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4819,7 +4823,7 @@ sub addInitiator {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4837,7 +4841,7 @@ sub removeInitiator {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4855,7 +4859,7 @@ sub moveInitiator {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4871,7 +4875,7 @@ sub clearInitiators {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4898,7 +4902,7 @@ sub addLun {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4921,7 +4925,7 @@ sub removeLun {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4941,7 +4945,7 @@ sub replaceLun {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4961,7 +4965,7 @@ sub clearLuns {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4983,7 +4987,7 @@ sub clearDriverDynamicAttributes {
 					my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
 					my $rc = $SCST->removeDriverDynamicAttribute($driver, $attribute, $value);
 
-					immediateExit($SCST->errorString($rc)) if ($rc);
+					condExit($SCST->errorString($rc));
 				}
 			}
 		}
@@ -5012,7 +5016,7 @@ sub clearTargetDynamicAttributes {
 					my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
 					my $rc = $SCST->removeTargetDynamicAttribute($driver, $target, $attribute, $value);
 
-					immediateExit($SCST->errorString($rc)) if ($rc);
+					condExit($SCST->errorString($rc));
 				}
 			}
 		}
@@ -5410,7 +5414,7 @@ sub readOldConfigFile {
 			addAllGroupsToTarget(\%config, \%new, $driver, $target);
 			$has_enabled = TRUE;
 		} else {
-			immediateExit("Unable to determine target driver information for target '$wwn'. ".
+			condExit("Unable to determine target driver information for target '$wwn'. ".
 			  "Please ensure this target driver is loaded.");
 		}
 	}
@@ -5614,6 +5618,19 @@ sub immediateExit {
 	print "$error\n\n";
 
 	exit 1;
+}
+
+# If an error occurred, exit if -cont_on_err has not been specified.
+sub condExit {
+	my $error = shift;
+
+	if (!$error) {
+		;
+	} elsif ($_CONT_ON_ERR_) {
+		print "$error\n";
+	} else {
+		immediateExit($error);
+	}
 }
 
 sub issueWarning {
