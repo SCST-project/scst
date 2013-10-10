@@ -1553,8 +1553,6 @@ static void sgv_pool_destroy(struct sgv_pool *pool)
 
 	TRACE_ENTRY();
 
-	cancel_delayed_work_sync(&pool->sgv_purge_work);
-
 	sgv_pool_flush(pool);
 
 	mutex_lock(&sgv_pools_mutex);
@@ -1566,6 +1564,8 @@ static void sgv_pool_destroy(struct sgv_pool *pool)
 #ifndef CONFIG_SCST_PROC
 	scst_sgv_sysfs_del(pool);
 #endif
+
+	cancel_delayed_work_sync(&pool->sgv_purge_work);
 
 	for (i = 0; i < pool->max_caches; i++) {
 		if (pool->caches[i])
@@ -1796,8 +1796,6 @@ void scst_sgv_pools_deinit(void)
 	sgv_pool_destroy(sgv_dma_pool);
 	sgv_pool_destroy(sgv_norm_pool);
 	sgv_pool_destroy(sgv_norm_clust_pool);
-
-	flush_scheduled_work();
 
 	kmem_cache_destroy(sgv_pool_cachep);
 
