@@ -1038,6 +1038,9 @@ sub addDriverDynamicAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
+	return SCST_C_DRV_ADDATTR_FAIL
+	    if (!defined($driver) || !defined($attribute) || !defined($value));
+
 	my $rc = $self->driverExists($driver);
 	return SCST_C_DRV_NO_DRIVER if (!$rc);
 	return $rc if ($rc > 1);
@@ -1081,6 +1084,9 @@ sub removeDriverDynamicAttribute {
 	my $driver = shift;
 	my $attribute = shift;
 	my $value = shift;
+
+	return SCST_C_DRV_REMATTR_FAIL
+	    if (!defined($driver) || !defined($attribute) || !defined($value));
 
 	my $rc = $self->driverExists($driver);
 	return SCST_C_DRV_NO_DRIVER if (!$rc);
@@ -1253,6 +1259,8 @@ sub targetDynamicAttributes {
 	my %attributes;
 	my $available;
 
+	return undef if (!defined($driver));
+
 	if ($self->driverExists($driver) != TRUE) {
 		$self->{'err_string'} = "targetDynamicAttributes(): Driver '$driver' ".
 		  "is not available";
@@ -1334,6 +1342,10 @@ sub addTargetDynamicAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
+	return SCST_C_TGT_ADDATTR_FAIL
+	    if (!defined($driver) || !defined($target) ||
+		!defined($attribute) || !defined($value));
+
 	my $rc = $self->driverExists($driver);
 	return SCST_C_DRV_NO_DRIVER if (!$rc);
 	return $rc if ($rc > 1);
@@ -1381,6 +1393,10 @@ sub removeTargetDynamicAttribute {
 	my $target = shift;
 	my $attribute = shift;
 	my $value = shift;
+
+	return SCST_C_TGT_REMATTR_FAIL
+	    if (!defined($driver) || !defined($target) ||
+		!defined($attribute) || !defined($value));
 
 	my $rc = $self->driverExists($driver);
 	return SCST_C_DRV_NO_DRIVER if (!$rc);
@@ -1503,7 +1519,7 @@ sub groupExists {
 	my $target = shift;
 	my $group = shift;
 
-	return FALSE if (!defined($group));
+	return FALSE if (!defined($driver) || !defined($target) || !defined($group));
 
 	my $rc = $self->targetExists($driver, $target);
 
@@ -1528,7 +1544,8 @@ sub initiatorExists {
 	my $group = shift;
 	my $initiator = shift;
 
-	return FALSE if (!defined($initiator));
+	return FALSE if (!defined($driver) || !defined($target) ||
+			 !defined($group) || !defined($initiator));
 
 	my $rc = $self->groupExists($driver, $target, $group);
 
@@ -1553,7 +1570,8 @@ sub lunExists {
 	my $lun = shift;
 	my $group = shift;
 
-	return FALSE if (!defined($lun));
+	return FALSE if (!defined($driver) || !defined($target) ||
+			 !defined($lun));
 
 
 	my $rc = $self->driverExists($driver);
@@ -3886,6 +3904,9 @@ sub setTargetGroupAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
+	return TRUE if (!defined($group) || !defined($tgroup) ||
+			!defined($attribute) || !defined($value));
+
 	my $rc = $self->deviceGroupExists($group);
 	return SCST_C_DEV_GRP_NO_GROUP if (!$rc);
 	return $rc if ($rc > 1);
@@ -3929,6 +3950,10 @@ sub setTargetGroupTargetAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
+	return TRUE if (!defined($group) || !defined($tgroup) ||
+			!defined($tgt) || !defined($attribute) ||
+			!defined($value));
+
 	my $rc = $self->deviceGroupExists($group);
 	return SCST_C_DEV_GRP_NO_GROUP if (!$rc);
 	return $rc if ($rc > 1);
@@ -3940,8 +3965,6 @@ sub setTargetGroupTargetAttribute {
 	$rc = $self->targetGroupTargetExists($group, $tgroup, $tgt);
 	return SCST_C_TGRP_NO_TGT if (!$rc);
 	return $rc if ($rc > 1);
-
-	return TRUE if (!defined($attribute) || !defined($value));
 
 	my $attributes = $self->targetGroupTargetAttributes($group, $tgroup, $tgt);
 
