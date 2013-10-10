@@ -464,7 +464,7 @@ sub scstAttributes {
 
 				my $is_key = <$io>;
 				$is_key = new_sysfs_interface() && !$is_static ||
-				    ($is_key =~ /\[key\]/) ? TRUE : FALSE;
+				    $is_key && $is_key =~ /\[key\]/;
 
 				my $key = 0;
 				if ($is_key) {
@@ -1206,7 +1206,7 @@ sub addVirtualTarget {
 	return SCST_C_TGT_BAD_ATTRIBUTES if ($rc == TRUE);
 	return $rc if ($rc > 1);
 
-	my $o_string;
+	my $o_string = "";
 	foreach my $attribute (keys %{$attributes}) {
 		if (ref($$attributes{$attribute}) eq 'ARRAY') {
 			foreach my $value (@{$$attributes{$attribute}}) {
@@ -2323,7 +2323,7 @@ sub addLun {
 	return $err2 if ($rc == TRUE);
 	return $rc if ($rc > 1);
 
-	my $o_string;
+	my $o_string = "";
 	foreach my $attribute (keys %{$attributes}) {
 		my $value = $$attributes{$attribute};
 		$o_string .= "$attribute=$value; ";
@@ -2499,7 +2499,7 @@ sub replaceLun {
 
 	return SCST_C_LUN_DEV_EXISTS if ($$luns{$lun} eq $device);
 
-	my $o_string;
+	my $o_string = "";
 	foreach my $attribute (keys %{$attributes}) {
 		my $value = $$attributes{$attribute};
 		$o_string .= "$attribute=$value; ";
@@ -2761,7 +2761,7 @@ sub deviceAttributes {
 
 				$is_key = new_sysfs_interface() &&
 				    (!$is_static || defined($$dca{$attribute}))
-				    || ($is_key =~ /\[key\]/) ? TRUE : FALSE;
+				    || $is_key && $is_key =~ /\[key\]/;
 
 				my $key = 0;
 				if ($is_key) {
@@ -2844,7 +2844,7 @@ sub driverAttributes {
 
 				my $is_key = <$io>;
 				$is_key = new_sysfs_interface() && !$is_static ||
-				    ($is_key =~ /\[key\]/) ? TRUE : FALSE;
+				    $is_key && $is_key =~ /\[key\]/;
 
 				my $key = 0;
 				if ($is_key) {
@@ -3005,11 +3005,11 @@ sub targetAttributes {
 				}
 
 				my $value = <$io>;
-				chomp $value;
+				chomp $value if (defined($value));
 
 				my $is_key = <$io>;
 				$is_key = new_sysfs_interface() && !$is_static ||
-				    ($is_key =~ /\[key\]/) ? TRUE : FALSE;
+				    $is_key && $is_key =~ /\[key\]/;
 
 				my $key = 0;
 				if ($is_key) {
@@ -3154,7 +3154,7 @@ sub groupAttributes {
 
 				my $is_key = <$io>;
 				$is_key = new_sysfs_interface() && !$is_static ||
-				    ($is_key =~ /\[key\]/) ? TRUE : FALSE;
+				    $is_key && $is_key =~ /\[key\]/;
 
 				my $key = 0;
 				if ($is_key) {
@@ -3325,7 +3325,7 @@ sub lunAttributes {
 				$is_key = new_sysfs_interface() &&
 				    (!$is_static ||
 				     defined($$luncrattr{$attribute})) ||
-				    ($is_key =~ /\[key\]/) ? TRUE : FALSE;
+				    $is_key && $is_key =~ /\[key\]/;
 
 				my $key = 0;
 				if ($is_key) {
@@ -3484,7 +3484,7 @@ sub initiatorAttributes {
 
 				my $is_key = <$io>;
 				$is_key = new_sysfs_interface() && !$is_static ||
-				    ($is_key =~ /\[key\]/) ? TRUE : FALSE;
+				    $is_key && $is_key =~ /\[key\]/;
 
 				my $key = 0;
 				if ($is_key) {
@@ -3612,7 +3612,7 @@ sub deviceGroupAttributes {
 
 				my $is_key = <$io>;
 				$is_key = new_sysfs_interface() && !$is_static ||
-				    ($is_key =~ /\[key\]/) ? TRUE : FALSE;
+				    $is_key && $is_key =~ /\[key\]/;
 
 				my $key = 0;
 				if ($is_key) {
@@ -3693,7 +3693,7 @@ sub targetGroupAttributes {
 
 				my $is_key = <$io>;
 				$is_key = new_sysfs_interface() && !$is_static ||
-				    ($is_key =~ /\[key\]/) ? TRUE : FALSE;
+				    $is_key && $is_key =~ /\[key\]/;
 
 				my $key = 0;
 				if ($is_key) {
@@ -3785,7 +3785,7 @@ sub targetGroupTargetAttributes {
 
 				my $is_key = <$io>;
 				$is_key = new_sysfs_interface() && !$is_static ||
-				    ($is_key =~ /\[key\]/) ? TRUE : FALSE;
+				    $is_key && $is_key =~ /\[key\]/;
 
 				my $key = 0;
 				if ($is_key) {
@@ -4090,11 +4090,11 @@ sub handlerAttributes {
 		}
 
 		my $value = <$io>;
-		chomp $value;
+		chomp $value if (defined($value));
 
 		my $is_key = <$io>;
 		$is_key = new_sysfs_interface() && !$is_static ||
-		    ($is_key =~ /\[key\]/) ? TRUE : FALSE;
+		    $is_key && $is_key =~ /\[key\]/;
 
 		my $key = 0;
 		if ($is_key) {
@@ -4304,7 +4304,7 @@ sub openDevice {
 	return SCST_C_DEV_EXISTS if ($rc == TRUE);
 	return $rc if ($rc > 1);
 
-	my $o_string;
+	my $o_string = "";
 	foreach my $attribute (keys %{$attributes}) {
 		my $value = $$attributes{$attribute};
 		$o_string .= "$attribute=$value; ";
