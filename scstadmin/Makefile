@@ -2,13 +2,20 @@ ifndef PREFIX
         PREFIX=/usr/local
 endif
 
+VERSION = $(shell echo -n "$$(sed -n 's/^[[:blank:]]*\$$VERSION[[:blank:]]*=[[:blank:]]*[\"'"'"']\([0-9.]*\)[\"'"'"'];$$/\1/p' scstadmin/scst-*/lib/SCST/SCST.pm).";	\
+		   if svn info >/dev/null 2>&1;				\
+		   then svn info | sed -n 's/^Revision:[[:blank:]]*/r/p';\
+		   else git show | sed -n 's/^commit[[:blank:]]*\(.......\).*/\1/p'; \
+		   fi)
+
 SCSTADMIN_DIR = $(shell if [ ! -h scstadmin ]; then		\
 			    rm -f scstadmin;			\
 			    ln -s scstadmin.sysfs scstadmin;	\
 			fi;					\
 			echo scstadmin)
 
-MANDIR := $(DESTDIR)$(PREFIX)/man
+MANDIR ?= $(DESTDIR)$(PREFIX)/man
+
 INITDIR := $(shell if [ -f /etc/slackware-version ]; then	\
                      echo /etc/rc.d;				\
                    else						\
@@ -109,6 +116,29 @@ uninstall:
 
 perl-module:
 	cd $(SCSTADMIN_DIR) && $(MAKE) $@
+
+dist-gzip:
+	name=$(shell basename $$PWD) &&					\
+	mkdir $${name}-$(VERSION) &&					\
+	{ ../scripts/list-source-files | tar -T- -cf- |			\
+	  tar -C $${name}-$(VERSION) -xf-; } &&				\
+	rm -f $${name}-$(VERSION).tar.bz2 &&				\
+	tar -cjf $${name}-$(VERSION).tar.bz2 $${name}-$(VERSION) &&	\
+	rm -rf $${name}-$(VERSION)
+
+rpm:
+	name=$(shell basename $$PWD) &&					\
+	rpmtopdir="$$(if [ $$(id -u) = 0 ]; then echo /usr/src/packages;\
+		      else echo $$PWD/rpmbuilddir; fi)" &&		\
+	$(MAKE) dist-gzip &&						\
+	rm -rf $${rpmtopdir} &&						\
+	mkdir -p $${rpmtopdir}/{BUILD,RPMS,SOURCES,SPECS,SRPMS} &&	\
+	cp $${name}-$(VERSION).tar.bz2 $${rpmtopdir}/SOURCES &&		\
+	rpmbuild --define="%_topdir $${rpmtopdir}"			\
+		 --define="%rpm_version $(VERSION)"			\
+		 --define="%make $(MAKE)"				\
+		 -ba $${name}.spec &&					\
+	rm -f $${name}-$(VERSION).tar.bz2
 
 clean:
 	cd $(SCSTADMIN_DIR) && $(MAKE) $@
