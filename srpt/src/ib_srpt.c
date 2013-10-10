@@ -1976,7 +1976,7 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 			   opcode == SRPT_RDMA_ABORT) {
 			srpt_handle_rdma_comp(ch, ch->ioctx_ring[index], opcode,
 					      srpt_xmt_rsp_context);
-		} else if (opcode != SRPT_RDMA_ZEROLENGTH_WRITE) {
+		} else {
 			WARN(true, "unexpected opcode %d", opcode);
 		}
 	} else {
@@ -1991,8 +1991,7 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 				   opcode, index, wc->status);
 			srpt_handle_rdma_err_comp(ch, ch->ioctx_ring[index],
 						  opcode, srpt_xmt_rsp_context);
-		} else if (opcode != SRPT_RDMA_MID &&
-			   opcode != SRPT_RDMA_ZEROLENGTH_WRITE) {
+		} else if (opcode != SRPT_RDMA_MID) {
 			WARN(true, "unexpected opcode %d", opcode);
 		}
 	}
@@ -2777,25 +2776,6 @@ static void srpt_cm_rej_recv(struct ib_cm_id *cm_id)
 }
 
 /**
- * srpt_zerolength_write() - Perform a zero-length RDMA write.
- *
- * A quote from the InfiniBand specification: C9-88: For an HCA responder
- * using Reliable Connection service, for each zero-length RDMA READ or WRITE
- * request, the R_Key shall not be validated, even if the request includes
- * Immediate data.
- */
-static int srpt_zerolength_write(struct srpt_rdma_ch *ch)
-{
-	struct ib_send_wr wr, *bad_wr;
-
-	memset(&wr, 0, sizeof(wr));
-	wr.opcode = IB_WR_RDMA_WRITE;
-	wr.wr_id = encode_wr_id(SRPT_RDMA_ZEROLENGTH_WRITE, 0xffffffffUL);
-	wr.send_flags = IB_SEND_SIGNALED;
-	return ib_post_send(ch->qp, &wr, &bad_wr);
-}
-
-/**
  * srpt_cm_rtu_recv() - Process IB CM RTU_RECEIVED and USER_ESTABLISHED events.
  *
  * An IB_CM_RTU_RECEIVED message indicates that the connection is established
@@ -2809,7 +2789,7 @@ static void srpt_cm_rtu_recv(struct ib_cm_id *cm_id)
 	ret = srpt_ch_qp_rts(ch, ch->qp);
 	if (ret == 0 && srpt_test_and_set_ch_state(ch, CH_CONNECTING,
 						   CH_LIVE)) {
-		WARN_ON(srpt_zerolength_write(ch) < 0);
+		wake_up_process(ch->thread);
 	} else {
 		srpt_close_ch(ch);
 	}
