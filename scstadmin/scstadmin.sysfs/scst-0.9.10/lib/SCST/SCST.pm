@@ -1007,8 +1007,6 @@ sub checkDriverDynamicAttributes {
 	my $driver = shift;
 	my $check = shift;
 
-	return FALSE if (!defined($check));
-
 	my $rc = $self->driverExists($driver);
 	return SCST_C_DRV_NO_DRIVER if (!$rc);
 	return $rc if (!$rc > 1);
@@ -1016,6 +1014,8 @@ sub checkDriverDynamicAttributes {
 	my $available = $self->driverDynamicAttributes($driver);
 
 	return SCST_C_FATAL_ERROR if (!defined($available));
+
+	return FALSE if (!defined($check));
 
 	if (ref($check) eq 'HASH') {
 		foreach my $attribute (keys %{$check}) {
