@@ -4,7 +4,7 @@ use strict;
 use Test;
 
 BEGIN {
-    plan tests => 179;
+    plan tests => 181;
 }
 
 use Data::Dumper;
@@ -17,7 +17,20 @@ sub addTargets {
     ok($SCST->{'err_string'},
        "targets(): Driver 'no-such-driver' is not available");
 
-    ok(Dumper($SCST->drivers()), Dumper(['iscsi', 'scst_local']));
+    my %drivers = map { $_ => 1 } @{$SCST->drivers()};
+    ok(exists($drivers{'iscsi'}));
+    ok(exists($drivers{'scst_local'}));
+
+    my $all_hw_tgt = 1;
+    for my $driver (@{$SCST->drivers()}) {
+	for my $target (@{$SCST->targets($driver)}) {
+	    if ($SCST->targetType($driver, $target) !=
+		$SCST::SCST::TGT_TYPE_HARDWARE) {
+		$all_hw_tgt = undef;
+	    }
+	}
+    }
+    ok($all_hw_tgt);
 
     ok(Dumper($SCST->targets()), Dumper(undef));
     ok(Dumper($SCST->targets('no-such-driver')), Dumper(undef));

@@ -4,7 +4,7 @@ use strict;
 use Test;
 
 BEGIN {
-    plan tests => 56;
+    plan tests => 57;
 }
 
 use Data::Dumper;
@@ -13,7 +13,9 @@ use SCST::SCST;
 sub setup {
     my $SCST = shift;
 
-    ok(Dumper($SCST->drivers()), Dumper(['iscsi', 'scst_local']));
+    my %drivers = map { $_ => 1 } @{$SCST->drivers()};
+    ok(exists($drivers{'iscsi'}));
+    ok(exists($drivers{'scst_local'}));
 
     ok($SCST->openDevice("vdisk_fileio", "disk01",
 			 { 'filename' => '/proc/cpuinfo' }), 0);
