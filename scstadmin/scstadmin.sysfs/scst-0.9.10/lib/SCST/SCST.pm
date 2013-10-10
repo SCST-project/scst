@@ -327,7 +327,7 @@ sub SCST_SGV_DIR {
 
 my $_scst_queue_res_path = "";
 sub SCST_QUEUE_RES_PATH {
-	if ($_scst_queue_res_path = "") {
+	if ($_scst_queue_res_path eq "") {
 		$_scst_queue_res_path = (-d SCST_ROOT_OLD ?
 					 SCST_ROOT_OLD . '/' . SCST_QUEUE_RES :
 					 undef);
