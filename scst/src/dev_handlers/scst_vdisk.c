@@ -2576,8 +2576,19 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 			   virt_dev->thin_provisioned) {
 			/* Thin Provisioning */
 			buf[1] = 0xB2;
-			buf[3] = 2;
-			buf[5] = 0x80;
+			buf[3] = 4;
+			buf[5] = 0xE0;
+#if 0 /*
+       * Might be a big performance and functionality win, but might be
+       * dangerous as well, although generally nearly always it should be set,
+       * because nearly all devices should return zero for unmapped blocks.
+       * But let's be on the safe side and disable it for now.
+       *
+       * Changing it change also READ CAPACITY(16)!
+       */
+			buf[5] |= 0x40; /* LBPRZ */
+#endif
+			buf[6] = 2; /* thin provisioned */
 			resp_len = buf[3] + 4;
 		} else {
 			TRACE_DBG("INQUIRY: Unsupported EVPD page %x", cmd->cdb[2]);
@@ -3342,12 +3353,14 @@ static enum compl_status_e vdisk_exec_read_capacity16(struct vdisk_cmd_params *p
 
 	if (virt_dev->thin_provisioned) {
 		buffer[14] |= 0x80;     /* Add LBPME */
-#if 0  /*
-	* Might be a big performance and functionality win, but might be
-	* dangerous as well, although generally nearly always it should be set,
-	* because nearly all devices should return zero for unmapped blocks.
-	* But let's be on the safe side and disable it for now.
-	*/
+#if 0 /*
+       * Might be a big performance and functionality win, but might be
+       * dangerous as well, although generally nearly always it should be set,
+       * because nearly all devices should return zero for unmapped blocks.
+       * But let's be on the safe side and disable it for now.
+       *
+       * Changing it change also 0xB2 INQUIRY page!
+       */
 		buffer[14] |= 0x40;     /* Add LBPRZ */
 #endif
 	}
