@@ -2486,7 +2486,7 @@ static void scst_check_reassign_sess(struct scst_session *sess)
 		acg->acg_name);
 
 	old_acg = sess->acg;
-	sess->acg = acg;
+	sess->acg = NULL; /* to catch implicit dependencies earlier */
 
 retry_add:
 	add_failed = false;
@@ -2558,6 +2558,8 @@ next:
 		TRACE_MGMT_DBG("sess %p: Retrying adding new tgt_devs", sess);
 		goto retry_add;
 	}
+
+	sess->acg = acg;
 
 	TRACE_DBG("Moving sess %p from acg %s to acg %s", sess,
 		old_acg->acg_name, acg->acg_name);

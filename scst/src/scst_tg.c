@@ -426,7 +426,7 @@ void scst_tg_init_tgt_dev(struct scst_tgt_dev *tgt_dev)
 	if (dg) {
 		tg = __lookup_tg_by_tgt(dg, tgt_dev->acg_dev->acg->tgt);
 		if (tg) {
-			scst_tg_change_tgt_dev_state(tgt_dev, tg->state, true);
+			scst_update_tgt_dev_alua_filter(tgt_dev, tg->state);
 			scst_check_alua_invariant();
 		}
 	}
