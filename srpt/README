@@ -117,14 +117,14 @@ First of all, load the SRP kernel module as follows:
 
    modprobe ib_srp
 
-Next, discover the new SRP target by running the ibsrpdm command:
+Next, discover the new SRP target by running the srp_daemon command:
 
-   ibsrpdm -c
+   for d in /dev/infiniband/umad*; do srp_daemon -oacd$d; done
 
 If you want to let the initiator system log in to all SRP targets available
-in the same InfiniBand subnet that is possible as follows:
+in the same InfiniBand subnet that is possible as follows (-e = execute):
 
-   ibsrpdm -c | while read target_info; do echo "${target_info}" > /sys/class/infiniband_srp/${SRP_HCA_NAME}/add_target; done
+   for d in /dev/infiniband/umad*; do srp_daemon -oecd$d; done
 
 If you want to let the initiator log in to a specific target you can do that
 e.g. as follows:
