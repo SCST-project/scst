@@ -6843,6 +6843,7 @@ int scst_get_cdb_info(struct scst_cmd *cmd)
 		/* opcode not found or now not used */
 		TRACE(TRACE_MINOR, "Unknown opcode 0x%x for type %d", op,
 		      dev_type);
+		cmd->op_flags |= SCST_LBA_NOT_VALID;
 		res = -1;
 		goto out;
 	}
