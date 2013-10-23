@@ -5629,7 +5629,7 @@ int scst_alloc_space(struct scst_cmd *cmd)
 
 	cmd->sg = sgv_pool_alloc(tgt_dev->pool, cmd->bufflen, gfp_mask, flags,
 			&cmd->sg_cnt, &cmd->sgv, &cmd->dev->dev_mem_lim, NULL);
-	if (cmd->sg == NULL)
+	if (unlikely(cmd->sg == NULL))
 		goto out;
 
 	if (unlikely(cmd->sg_cnt > tgt_dev->max_sg_cnt))
@@ -5642,7 +5642,7 @@ int scst_alloc_space(struct scst_cmd *cmd)
 	cmd->out_sg = sgv_pool_alloc(tgt_dev->pool, cmd->out_bufflen, gfp_mask,
 			 flags, &cmd->out_sg_cnt, &cmd->out_sgv,
 			 &cmd->dev->dev_mem_lim, NULL);
-	if (cmd->out_sg == NULL)
+	if (unlikely(cmd->out_sg == NULL))
 		goto out_sg_free;
 
 	if (unlikely(cmd->out_sg_cnt > tgt_dev->max_sg_cnt))
