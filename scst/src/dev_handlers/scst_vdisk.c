@@ -3177,7 +3177,7 @@ static enum compl_status_e vdisk_exec_mode_select(struct vdisk_cmd_params *p)
 	if (address[offset - 1] == 8) {
 		offset += 8;
 	} else if (address[offset - 1] != 0) {
-		PRINT_ERROR("%s", "MODE SELECT: Wrong parameters list lenght");
+		PRINT_ERROR("%s", "MODE SELECT: Wrong parameters list length");
 		scst_set_invalid_field_in_parm_list(cmd, offset-1, 0);
 		goto out_put;
 	}

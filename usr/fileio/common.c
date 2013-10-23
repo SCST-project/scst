@@ -1248,7 +1248,7 @@ static void exec_mode_select(struct vdisk_cmd *vcmd)
 		offset += 8;
 	} else if (address[offset - 1] != 0) {
 		PRINT_ERROR("%s", "MODE SELECT: Wrong parameters list "
-			"lenght");
+			"length");
 		set_cmd_error(vcmd,
 		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_parm_list));
 		goto out;
