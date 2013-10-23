@@ -777,7 +777,7 @@ Bits of scst_cdb_flags can be:
 
 <item> <bf/SCST_LONG_TIMEOUT/ - this command needs a long timeout
 
-<item> <bf/SCST_UNKNOWN_LENGTH/ - data buffer lenght for this command is unknown
+<item> <bf/SCST_UNKNOWN_LENGTH/ - data buffer length for this command is unknown
 
 <item> <bf/SCST_INFO_VALID/ - bits of op_flags are valid
 

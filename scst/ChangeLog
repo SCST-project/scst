@@ -92,7 +92,7 @@ Summary of changes between versions 1.0.0 and 1.0.1
 
  - Makefiles made more packager friendly (Ruben Laban)
 
- - Support for variable lenght CDB added
+ - Support for variable length CDB added
 
  - Support for Async. Event Notifications added
  
