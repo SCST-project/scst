@@ -202,7 +202,7 @@ Target Driver Operations
      -issue_lip [<t>]
         [-driver <driver>]   : Issue a LIP for a specific driver/target or for
                                all drivers and targets.
-     -no_lip                 : Don't automatically issue a LIP after applying
+     -no_lip                 : Don\'t automatically issue a LIP after applying
                                configuration changes.
 
 Options
