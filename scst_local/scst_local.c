@@ -1880,7 +1880,6 @@ static int scst_local_add_target(const char *target_name,
 
 	tgt->scst_tgt = scst_register_target(&scst_local_targ_tmpl, target_name);
 	if (tgt->scst_tgt == NULL) {
-		PRINT_ERROR("%s", "scst_register_target() failed:");
 		res = -EFAULT;
 		goto out_free;
 	}
