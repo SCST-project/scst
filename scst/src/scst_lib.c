@@ -315,7 +315,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 .info_lba_off = 2, .info_lba_len = 2,
 	 .info_len_off = 4, .info_len_len = 1,
 	 .get_cdb_info = get_cdb_info_lba_2_len_1_256},
-	{.ops = 0x08, .devkey = " MV OO OV       ",
+	{.ops = 0x08, .devkey = " MV  O OV       ",
 	 .info_op_name = "READ(6)",
 	 .info_data_direction = SCST_DATA_READ,
 	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|
