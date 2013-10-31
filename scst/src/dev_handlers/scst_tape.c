@@ -313,7 +313,7 @@ static int tape_done(struct scst_cmd *cmd)
 				cmd->cdb[1], TransferLength, Residue);
 			if (TransferLength > Residue) {
 				int resp_data_len = TransferLength - Residue;
-				if (cmd->cdb[1] & SCST_TRANSFER_LEN_TYPE_FIXED) {
+				if (cmd->cdb[1] & 1) {
 					/*
 					 * No need for locks here, since
 					 * *_detach() can not be called, when

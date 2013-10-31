@@ -7130,7 +7130,7 @@ int scst_tape_generic_parse(struct scst_cmd *cmd)
 		cmd->data_len = cmd->bufflen;
 	}
 
-	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED & cmd->cdb[1]) {
+	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED && cmd->cdb[1] & 1) {
 		int block_size = cmd->dev->block_size;
 		cmd->bufflen = cmd->bufflen * block_size;
 		cmd->data_len = cmd->data_len * block_size;
