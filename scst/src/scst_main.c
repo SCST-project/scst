@@ -613,7 +613,6 @@ static inline int test_sess_list(struct scst_tgt *tgt)
  */
 void scst_unregister_target(struct scst_tgt *tgt)
 {
-	struct scst_session *sess;
 	struct scst_tgt_template *vtt = tgt->tgtt;
 #ifndef CONFIG_SCST_PROC
 	struct scst_acg *acg, *acg_tmp;
@@ -636,21 +635,26 @@ void scst_unregister_target(struct scst_tgt *tgt)
 	tgt->tgtt->release(tgt);
 	TRACE_DBG("%s", "Target driver's release() returned");
 
+#if 0 /* Looks not needed. For scst_local it's bad, see this commit log message */
 	mutex_lock(&scst_mutex);
 again:
-	list_for_each_entry(sess, &tgt->sess_list, sess_list_entry) {
-		if (sess->shut_phase == SCST_SESS_SPH_READY) {
-			/*
-			 * Sometimes it's hard for target driver to track all
-			 * its sessions (see scst_local, eg), so let's help it.
-			 */
-			mutex_unlock(&scst_mutex);
-			scst_unregister_session(sess, 0, NULL);
-			mutex_lock(&scst_mutex);
-			goto again;
+	{
+		struct scst_session *sess;
+		list_for_each_entry(sess, &tgt->sess_list, sess_list_entry) {
+			if (sess->shut_phase == SCST_SESS_SPH_READY) {
+				/*
+				 * Sometimes it's hard for target driver to
+				 * track all its sessions, so let's help it.
+				 */
+				mutex_unlock(&scst_mutex);
+				scst_unregister_session(sess, 0, NULL);
+				mutex_lock(&scst_mutex);
+				goto again;
+			}
 		}
 	}
 	mutex_unlock(&scst_mutex);
+#endif
 
 	TRACE_DBG("%s", "Waiting for sessions shutdown");
 	wait_event(tgt->unreg_waitQ, test_sess_list(tgt));
