@@ -2077,7 +2077,6 @@ out:
 
 static void scst_sgv_sysfs_del(struct sgv_pool *pool)
 {
-	int rc;
 	DECLARE_COMPLETION_ONSTACK(c);
 
 	TRACE_ENTRY();
@@ -2085,17 +2084,8 @@ static void scst_sgv_sysfs_del(struct sgv_pool *pool)
 	pool->sgv_kobj_release_cmpl = &c;
 
 	kobject_del(&pool->sgv_kobj);
-	kobject_put(&pool->sgv_kobj);
 
-	rc = wait_for_completion_timeout(pool->sgv_kobj_release_cmpl, HZ);
-	if (rc == 0) {
-		PRINT_INFO("Waiting for releasing sysfs entry "
-			"for SGV pool %s (%d refs)...", pool->name,
-			atomic_read(&pool->sgv_kobj.kref.refcount));
-		wait_for_completion(pool->sgv_kobj_release_cmpl);
-		PRINT_INFO("Done waiting for releasing sysfs "
-			"entry for SGV pool %s", pool->name);
-	}
+	scst_kobject_put_and_wait(&pool->sgv_kobj, "SGV pool", &c);
 
 	TRACE_EXIT();
 }

@@ -4210,6 +4210,9 @@ const struct sysfs_ops *scst_sysfs_get_sysfs_ops(void);
 struct sysfs_ops *scst_sysfs_get_sysfs_ops(void);
 #endif
 
+void scst_kobject_put_and_wait(struct kobject *kobj, const char *category,
+			       struct completion *c);
+
 /*
  * Returns target driver's root sysfs kobject.
  * The driver can create own files/directories/links here.
