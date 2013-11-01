@@ -1083,6 +1083,7 @@ out_free:
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(scst_kobject_put_and_wait);
 
 /*
  * Must not be called under scst_mutex, due to possible deadlock with
