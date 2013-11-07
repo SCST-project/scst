@@ -370,9 +370,9 @@ static void scst_check_alua_invariant(void)
 			    __lookup_tg_by_tgt(dg, tgt_dev->acg_dev->acg->tgt) :
 			    NULL;
 			expected_state = tg ? tg->state :
-			    SCST_TG_STATE_OPTIMIZED;
+				SCST_TG_STATE_OPTIMIZED;
 			if (tgt_dev->alua_filter !=
-			       scst_alua_filter[expected_state]) {
+				   scst_alua_filter[expected_state]) {
 				PRINT_ERROR("LUN %s/%s/%s/%lld/%s: ALUA filter"
 					" %p <> %p",
 					tgt_dev->acg_dev->acg->tgt->tgt_name,
