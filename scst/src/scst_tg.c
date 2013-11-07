@@ -3,7 +3,7 @@
  *
  *  SCSI target group related code.
  *
- *  Copyright (C) 2011 Bart Van Assche <bvanassche@acm.org>.
+ *  Copyright (C) 2011-2013 Bart Van Assche <bvanassche@acm.org>.
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -1195,14 +1195,12 @@ EXPORT_SYMBOL_GPL(scst_lookup_tg_id);
 bool scst_impl_alua_configured(struct scst_device *dev)
 {
 	struct scst_dev_group *dg;
-	bool res;
 
 	mutex_lock(&scst_mutex);
 	dg = __lookup_dg_by_dev(dev);
-	res = dg != NULL;
 	mutex_unlock(&scst_mutex);
 
-	return res;
+	return dg != NULL;
 }
 EXPORT_SYMBOL_GPL(scst_impl_alua_configured);
 
