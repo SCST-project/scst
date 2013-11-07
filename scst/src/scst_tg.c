@@ -366,10 +366,13 @@ static void scst_check_alua_invariant(void)
 		dg = __lookup_dg_by_dev(dev);
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 				    dev_tgt_dev_list_entry) {
-			tg = dg ? __lookup_tg_by_tgt(dg, tgt_dev->acg_dev->acg->tgt) :
-				  NULL;
-			expected_state = tg ? tg->state : SCST_TG_STATE_OPTIMIZED;
-			if (tgt_dev->alua_filter != scst_alua_filter[expected_state]) {
+			tg = dg ?
+			    __lookup_tg_by_tgt(dg, tgt_dev->acg_dev->acg->tgt) :
+			    NULL;
+			expected_state = tg ? tg->state :
+			    SCST_TG_STATE_OPTIMIZED;
+			if (tgt_dev->alua_filter !=
+			       scst_alua_filter[expected_state]) {
 				PRINT_ERROR("LUN %s/%s/%s/%lld/%s: ALUA filter"
 					" %p <> %p",
 					tgt_dev->acg_dev->acg->tgt->tgt_name,
