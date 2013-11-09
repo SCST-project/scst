@@ -580,19 +580,26 @@ static void conn_nop_in_delayed_work_fn(struct delayed_work *work)
 	struct iscsi_conn *conn = container_of(work, struct iscsi_conn,
 		nop_in_delayed_work);
 #endif
+	unsigned long next_timeout = 0;
 
 	TRACE_ENTRY();
 
 	if (time_after_eq(jiffies, conn->last_rcv_time +
 				conn->nop_in_interval)) {
-		iscsi_send_nop_in(conn);
+		if (list_empty(&conn->nop_req_list))
+			iscsi_send_nop_in(conn);
+		next_timeout = conn->nop_in_interval;
 	}
 
 	if ((conn->nop_in_interval > 0) &&
 	    !test_bit(ISCSI_CONN_SHUTTINGDOWN, &conn->conn_aflags)) {
-		TRACE_DBG("Reschedule Nop-In work for conn %p", conn);
+		if (next_timeout == 0)
+			next_timeout = conn->nop_in_interval -
+						(jiffies - conn->last_rcv_time);
+		TRACE_DBG("Reschedule Nop-In work for conn %p in %lu", conn,
+			  next_timeout + ISCSI_ADD_SCHED_TIME);
 		schedule_delayed_work(&conn->nop_in_delayed_work,
-			conn->nop_in_interval + ISCSI_ADD_SCHED_TIME);
+				      next_timeout + ISCSI_ADD_SCHED_TIME);
 	}
 
 	TRACE_EXIT();
