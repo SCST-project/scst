@@ -4211,7 +4211,8 @@ struct sysfs_ops *scst_sysfs_get_sysfs_ops(void);
 #endif
 
 void scst_kobject_put_and_wait(struct kobject *kobj, const char *category,
-			       struct completion *c);
+			       struct completion *c,
+			       struct lockdep_map *dep_map);
 
 /*
  * Returns target driver's root sysfs kobject.
@@ -4481,6 +4482,12 @@ struct scst_sysfs_work_item {
 	int (*sysfs_work_fn)(struct scst_sysfs_work_item *work);
 	struct completion sysfs_work_done;
 	char *buf;
+	/*
+	 * If the caller of scst_sysfs_queue_wait_work() holds a reference on
+	 * a kobject, must point at the lockdep_map structure associated with
+	 * that kobject.
+	 */
+	struct lockdep_map *dep_map;
 
 	union {
 		struct scst_dev_type *devt;
@@ -4518,6 +4525,12 @@ int scst_alloc_sysfs_work(int (*sysfs_work_fn)(struct scst_sysfs_work_item *),
 int scst_sysfs_queue_wait_work(struct scst_sysfs_work_item *work);
 void scst_sysfs_work_get(struct scst_sysfs_work_item *work);
 void scst_sysfs_work_put(struct scst_sysfs_work_item *work);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+#ifdef CONFIG_LOCKDEP
+extern struct lockdep_map scst_dev_dep_map;
+#endif
+#endif
 
 #endif /* CONFIG_SCST_PROC */
 

@@ -41,6 +41,14 @@
 /* Max pages freed from a pool per shrinking iteration */
 #define MAX_PAGES_PER_POOL	50
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+#ifdef CONFIG_LOCKDEP
+static struct lock_class_key scst_pool_key;
+struct lockdep_map scst_pool_dep_map =
+	STATIC_LOCKDEP_MAP_INIT("scst_pool_kref", &scst_pool_key);
+#endif
+#endif
+
 static struct sgv_pool *sgv_norm_clust_pool, *sgv_norm_pool, *sgv_dma_pool;
 
 static atomic_t sgv_pages_total = ATOMIC_INIT(0);
@@ -2085,7 +2093,8 @@ static void scst_sgv_sysfs_del(struct sgv_pool *pool)
 
 	kobject_del(&pool->sgv_kobj);
 
-	scst_kobject_put_and_wait(&pool->sgv_kobj, "SGV pool", &c);
+	scst_kobject_put_and_wait(&pool->sgv_kobj, "SGV pool", &c,
+				  &scst_pool_dep_map);
 
 	TRACE_EXIT();
 }

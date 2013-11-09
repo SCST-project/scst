@@ -22,6 +22,14 @@
 #include "iscsi.h"
 #include "digest.h"
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+#ifdef CONFIG_LOCKDEP
+static struct lock_class_key scst_conn_key;
+struct lockdep_map scst_conn_dep_map =
+	STATIC_LOCKDEP_MAP_INIT("iscsi_conn_kref", &scst_conn_key);
+#endif
+#endif
+
 static int print_conn_state(char *p, size_t size, struct iscsi_conn *conn)
 {
 	int pos = 0;
@@ -245,7 +253,9 @@ static void conn_sysfs_del(struct iscsi_conn *conn)
 
 	kobject_del(&conn->conn_kobj);
 
-	scst_kobject_put_and_wait(&conn->conn_kobj, "conn", &c);
+	scst_kobject_put_and_wait(&conn->conn_kobj, "conn",
+				  conn->conn_kobj_release_cmpl,
+				  &scst_conn_dep_map);
 
 	TRACE_EXIT();
 	return;
