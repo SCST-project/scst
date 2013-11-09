@@ -3818,6 +3818,14 @@ void iscsi_send_nop_in(struct iscsi_conn *conn)
 	list_add_tail(&rsp->nop_req_list_entry, &conn->nop_req_list);
 	spin_unlock_bh(&conn->nop_req_list_lock);
 
+	/*
+	 * Start NopRsp timer now to catch case where send buffer is full due
+	 * to connection being down, so this is never even sent to tcp layer.
+	 * This prevent us from having to wait for the CmdRsp timer which
+	 * is normally much longer.
+	 */
+	req_add_to_write_timeout_list(req);
+
 out_err_free_req:
 	req_cmnd_release(req);
 
