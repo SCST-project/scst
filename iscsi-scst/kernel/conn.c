@@ -520,7 +520,7 @@ static void conn_rsp_timer_fn(unsigned long arg)
 		cmnd = list_first_entry(&conn->write_timeout_list,
 				struct iscsi_cmnd, write_timeout_list_entry);
 
-		timeout_time = j + iscsi_get_timeout(cmnd) + ISCSI_ADD_SCHED_TIME;
+		timeout_time = iscsi_get_timeout_time(cmnd) + ISCSI_ADD_SCHED_TIME;
 
 		if (unlikely(time_after_eq(j, iscsi_get_timeout_time(cmnd)))) {
 			if (!conn->closing) {
