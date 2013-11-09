@@ -139,7 +139,7 @@ Each target subdirectory contains the following entries:
  - NopInInterval - defines interval between NOP-In requests, which the
    target will send on idle connections to check if the initiator is
    still alive. If there is no NOP-Out reply from the initiator in
-   RspTimeout time, the corresponding connection will be closed. Default
+   NopInTimeout seconds, the corresponding connection will be closed. Default
    is 30 seconds. If it's set to 0, then NOP-In requests are disabled.
 
  - NopInTimeout - defines the maximum time in seconds a NOP-In request
