@@ -4210,9 +4210,20 @@ const struct sysfs_ops *scst_sysfs_get_sysfs_ops(void);
 struct sysfs_ops *scst_sysfs_get_sysfs_ops(void);
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29) && defined(CONFIG_LOCKDEP)
+#define SCST_SET_DEP_MAP(work, dm) do { (work)->dep_map = dm; } while (0)
+#define SCST_KOBJECT_PUT_AND_WAIT(kobj, category, c, dep_map) \
+	scst_kobject_put_and_wait(kobj, category, c, dep_map)
 void scst_kobject_put_and_wait(struct kobject *kobj, const char *category,
 			       struct completion *c,
 			       struct lockdep_map *dep_map);
+#else
+#define SCST_SET_DEP_MAP(work, dm) do { } while (0)
+#define SCST_KOBJECT_PUT_AND_WAIT(kobj, category, c, dep_map) \
+	scst_kobject_put_and_wait(kobj, category, c)
+void scst_kobject_put_and_wait(struct kobject *kobj, const char *category,
+			       struct completion *c);
+#endif
 
 /*
  * Returns target driver's root sysfs kobject.

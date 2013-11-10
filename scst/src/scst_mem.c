@@ -2093,7 +2093,7 @@ static void scst_sgv_sysfs_del(struct sgv_pool *pool)
 
 	kobject_del(&pool->sgv_kobj);
 
-	scst_kobject_put_and_wait(&pool->sgv_kobj, "SGV pool", &c,
+	SCST_KOBJECT_PUT_AND_WAIT(&pool->sgv_kobj, "SGV pool", &c,
 				  &scst_pool_dep_map);
 
 	TRACE_EXIT();

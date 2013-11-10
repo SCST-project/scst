@@ -5362,7 +5362,7 @@ static ssize_t vcdrom_sysfs_filename_store(struct kobject *kobj,
 	work->buf = i_buf;
 	work->dev = dev;
 
-	work->dep_map = &scst_dev_dep_map;
+	SCST_SET_DEP_MAP(work, &scst_dev_dep_map);
 	kobject_get(&dev->dev_kobj);
 
 	res = scst_sysfs_queue_wait_work(work);
@@ -5652,7 +5652,7 @@ static ssize_t vdev_sysfs_filename_show(struct kobject *kobj,
 
 	work->dev = dev;
 
-	work->dep_map = &scst_dev_dep_map;
+	SCST_SET_DEP_MAP(work, &scst_dev_dep_map);
 	kobject_get(&dev->dev_kobj);
 
 	scst_sysfs_work_get(work);
@@ -5709,7 +5709,7 @@ static ssize_t vdisk_sysfs_resync_size_store(struct kobject *kobj,
 
 	work->dev = dev;
 
-	work->dep_map = &scst_dev_dep_map;
+	SCST_SET_DEP_MAP(work, &scst_dev_dep_map);
 	kobject_get(&dev->dev_kobj);
 
 	res = scst_sysfs_queue_wait_work(work);

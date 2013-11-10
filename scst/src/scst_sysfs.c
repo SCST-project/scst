@@ -1106,8 +1106,11 @@ out_del:
 }
 
 void scst_kobject_put_and_wait(struct kobject *kobj, const char *category,
-			       struct completion *c,
-			       struct lockdep_map *dep_map)
+			       struct completion *c
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29) && defined(CONFIG_LOCKDEP)
+			       , struct lockdep_map *dep_map
+#endif
+			       )
 {
 	char *name;
 
@@ -1158,7 +1161,7 @@ void scst_tgtt_sysfs_del(struct scst_tgt_template *tgtt)
 
 	kobject_del(&tgtt->tgtt_kobj);
 
-	scst_kobject_put_and_wait(&tgtt->tgtt_kobj, "target template", &c,
+	SCST_KOBJECT_PUT_AND_WAIT(&tgtt->tgtt_kobj, "target template", &c,
 				  &scst_tgtt_dep_map);
 
 	TRACE_EXIT();
@@ -2178,7 +2181,7 @@ static ssize_t scst_tgt_enable_store(struct kobject *kobj,
 	work->tgt = tgt;
 	work->enable = enable;
 
-	work->dep_map = &scst_tgt_dep_map;
+	SCST_SET_DEP_MAP(work, &scst_tgt_dep_map);
 	kobject_get(&tgt->tgt_kobj);
 
 	res = scst_sysfs_queue_wait_work(work);
@@ -2294,7 +2297,7 @@ static ssize_t scst_rel_tgt_id_store(struct kobject *kobj,
 	work->tgt_r = tgt;
 	work->rel_tgt_id = rel_tgt_id;
 
-	work->dep_map = &scst_tgt_dep_map;
+	SCST_SET_DEP_MAP(work, &scst_tgt_dep_map);
 	kobject_get(&tgt->tgt_kobj);
 
 	res = scst_sysfs_queue_wait_work(work);
@@ -2558,7 +2561,7 @@ void scst_tgt_sysfs_put(struct scst_tgt *tgt)
 
 	tgt->tgt_kobj_release_cmpl = &c;
 
-	scst_kobject_put_and_wait(&tgt->tgt_kobj, "target", &c,
+	SCST_KOBJECT_PUT_AND_WAIT(&tgt->tgt_kobj, "target", &c,
 				  &scst_tgt_dep_map);
 
 	TRACE_EXIT();
@@ -3070,7 +3073,7 @@ void scst_dev_sysfs_del(struct scst_device *dev)
 
 	kobject_put(dev->dev_exp_kobj);
 
-	scst_kobject_put_and_wait(&dev->dev_kobj, "device", &c,
+	SCST_KOBJECT_PUT_AND_WAIT(&dev->dev_kobj, "device", &c,
 				  &scst_dev_dep_map);
 
 	TRACE_EXIT();
@@ -3274,7 +3277,7 @@ void scst_tgt_dev_sysfs_del(struct scst_tgt_dev *tgt_dev)
 
 	kobject_del(&tgt_dev->tgt_dev_kobj);
 
-	scst_kobject_put_and_wait(&tgt_dev->tgt_dev_kobj, "tgt_dev", &c,
+	SCST_KOBJECT_PUT_AND_WAIT(&tgt_dev->tgt_dev_kobj, "tgt_dev", &c,
 				  &scst_tgt_dev_dep_map);
 
 	TRACE_EXIT();
@@ -3501,7 +3504,7 @@ static ssize_t scst_sess_latency_store(struct kobject *kobj,
 
 	work->sess = sess;
 
-	work->dep_map = &sess->dep_map;
+	SCST_SET_DEP_MAP(work, &sess->dep_map);
 	kobject_get(&sess->sess_kobj);
 
 	res = scst_sysfs_queue_wait_work(work);
@@ -3583,7 +3586,7 @@ static ssize_t scst_sess_sysfs_active_commands_show(struct kobject *kobj,
 
 	work->sess = sess;
 
-	work->dep_map = &scst_sess_dep_map;
+	SCST_SET_DEP_MAP(work, &scst_sess_dep_map);
 	kobject_get(&sess->sess_kobj);
 
 	res = scst_sysfs_queue_wait_work(work);
@@ -3830,7 +3833,7 @@ void scst_sess_sysfs_del(struct scst_session *sess)
 
 	kobject_del(&sess->sess_kobj);
 
-	scst_kobject_put_and_wait(&sess->sess_kobj, "session", &c,
+	SCST_KOBJECT_PUT_AND_WAIT(&sess->sess_kobj, "session", &c,
 				  &scst_sess_dep_map);
 
 out:
@@ -3907,7 +3910,7 @@ void scst_acg_dev_sysfs_del(struct scst_acg_dev *acg_dev)
 
 	kobject_del(&acg_dev->acg_dev_kobj);
 
-	scst_kobject_put_and_wait(&acg_dev->acg_dev_kobj, "acg_dev", &c,
+	SCST_KOBJECT_PUT_AND_WAIT(&acg_dev->acg_dev_kobj, "acg_dev", &c,
 				  &scst_acg_dev_dep_map);
 
 	TRACE_EXIT();
@@ -4292,7 +4295,7 @@ void scst_acg_sysfs_del(struct scst_acg *acg)
 	kobject_put(acg->luns_kobj);
 	kobject_put(acg->initiators_kobj);
 
-	scst_kobject_put_and_wait(&acg->acg_kobj, "acg", &c,
+	SCST_KOBJECT_PUT_AND_WAIT(&acg->acg_kobj, "acg", &c,
 				  &scst_acg_dep_map);
 
 	TRACE_EXIT();
@@ -4933,7 +4936,7 @@ void scst_devt_sysfs_del(struct scst_dev_type *devt)
 
 	kobject_del(&devt->devt_kobj);
 
-	scst_kobject_put_and_wait(&devt->devt_kobj, "dev handler template", &c,
+	SCST_KOBJECT_PUT_AND_WAIT(&devt->devt_kobj, "dev handler template", &c,
 				  &scst_devt_dep_map);
 
 	TRACE_EXIT();
@@ -5035,7 +5038,7 @@ static ssize_t scst_dg_devs_mgmt_store(struct kobject *kobj,
 
 	swap(work->buf, cmd);
 	work->kobj = kobj;
-	work->dep_map = &scst_dg_dep_map;
+	SCST_SET_DEP_MAP(work, &scst_dg_dep_map);
 	kobject_get(kobj);
 	res = scst_sysfs_queue_wait_work(work);
 	if (res)
@@ -5258,7 +5261,7 @@ static ssize_t scst_tg_preferred_store(struct kobject *kobj,
 
 	swap(work->buf, cmd);
 	work->kobj = kobj;
-	work->dep_map = &scst_tg_dep_map;
+	SCST_SET_DEP_MAP(work, &scst_tg_dep_map);
 	kobject_get(kobj);
 	res = scst_sysfs_queue_wait_work(work);
 	if (res)
@@ -5339,7 +5342,7 @@ static ssize_t scst_tg_state_store(struct kobject *kobj,
 
 	swap(work->buf, cmd);
 	work->kobj = kobj;
-	work->dep_map = &scst_tg_dep_map;
+	SCST_SET_DEP_MAP(work, &scst_tg_dep_map);
 	kobject_get(kobj);
 	res = scst_sysfs_queue_wait_work(work);
 	if (res)
@@ -5424,7 +5427,7 @@ static ssize_t scst_tg_mgmt_store(struct kobject *kobj,
 
 	swap(work->buf, cmd);
 	work->kobj = kobj;
-	work->dep_map = &scst_tg_dep_map;
+	SCST_SET_DEP_MAP(work, &scst_tg_dep_map);
 	kobject_get(kobj);
 	res = scst_sysfs_queue_wait_work(work);
 	if (res)
@@ -5548,7 +5551,7 @@ static ssize_t scst_dg_tgs_mgmt_store(struct kobject *kobj,
 
 	swap(work->buf, cmd);
 	work->kobj = kobj;
-	work->dep_map = &scst_dg_dep_map;
+	SCST_SET_DEP_MAP(work, &scst_dg_dep_map);
 	kobject_get(kobj);
 	res = scst_sysfs_queue_wait_work(work);
 	if (res)
