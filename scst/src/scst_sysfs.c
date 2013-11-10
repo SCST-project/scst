@@ -3504,7 +3504,7 @@ static ssize_t scst_sess_latency_store(struct kobject *kobj,
 
 	work->sess = sess;
 
-	SCST_SET_DEP_MAP(work, &sess->dep_map);
+	SCST_SET_DEP_MAP(work, &scst_sess_dep_map);
 	kobject_get(&sess->sess_kobj);
 
 	res = scst_sysfs_queue_wait_work(work);
