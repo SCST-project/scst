@@ -4211,7 +4211,7 @@ struct sysfs_ops *scst_sysfs_get_sysfs_ops(void);
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29) && defined(CONFIG_LOCKDEP)
-#define SCST_SET_DEP_MAP(work, dm) do { (work)->dep_map = dm; } while (0)
+#define SCST_SET_DEP_MAP(work, dm) ((work)->dep_map = (dm))
 #define SCST_KOBJECT_PUT_AND_WAIT(kobj, category, c, dep_map) \
 	scst_kobject_put_and_wait(kobj, category, c, dep_map)
 void scst_kobject_put_and_wait(struct kobject *kobj, const char *category,
