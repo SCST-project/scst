@@ -253,7 +253,7 @@ static void conn_sysfs_del(struct iscsi_conn *conn)
 
 	kobject_del(&conn->conn_kobj);
 
-	scst_kobject_put_and_wait(&conn->conn_kobj, "conn",
+	SCST_KOBJECT_PUT_AND_WAIT(&conn->conn_kobj, "conn",
 				  conn->conn_kobj_release_cmpl,
 				  &scst_conn_dep_map);
 
