@@ -915,6 +915,8 @@ sub targetGroupTargets {
 
 	close $dHandle;
 
+	@targets = sort(@targets);
+
 	return \@targets;
 }
 
