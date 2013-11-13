@@ -35,6 +35,10 @@ struct iscsi_target *target_lookup_by_id(u32 id)
 {
 	struct iscsi_target *target;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&target_mgmt_mutex);
+#endif
+
 	list_for_each_entry(target, &target_list, target_list_entry) {
 		if (target->tid == id)
 			return target;
@@ -46,6 +50,10 @@ struct iscsi_target *target_lookup_by_id(u32 id)
 static struct iscsi_target *target_lookup_by_name(const char *name)
 {
 	struct iscsi_target *target;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&target_mgmt_mutex);
+#endif
 
 	list_for_each_entry(target, &target_list, target_list_entry) {
 		if (!strcmp(target->name, name))
@@ -63,6 +71,10 @@ static int iscsi_target_create(struct iscsi_kern_target_info *info, u32 tid,
 	struct iscsi_target *target;
 
 	TRACE_MGMT_DBG("Creating target tid %u, name %s", tid, name);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&target_mgmt_mutex);
+#endif
 
 	len = strlen(name);
 	if (!len) {
@@ -131,6 +143,10 @@ int __add_target(struct iscsi_kern_target_info *info)
 	int i, rc;
 	unsigned long attrs_ptr_long;
 	struct iscsi_kern_attr __user *attrs_ptr;
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&target_mgmt_mutex);
 #endif
 
 	if (nr_targets > MAX_NR_TARGETS) {
@@ -247,6 +263,10 @@ int __del_target(u32 id)
 	struct iscsi_target *target;
 	int err;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&target_mgmt_mutex);
+#endif
+
 	target = target_lookup_by_id(id);
 	if (!target) {
 		err = -ENOENT;
@@ -283,6 +303,10 @@ void target_del_session(struct iscsi_target *target,
 
 	TRACE_MGMT_DBG("Deleting session %p", session);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&target->target_mutex);
+#endif
+
 	if (!list_empty(&session->conn_list)) {
 		struct iscsi_conn *conn, *tc;
 		list_for_each_entry_safe(conn, tc, &session->conn_list,
@@ -306,6 +330,10 @@ void target_del_all_sess(struct iscsi_target *target, int flags)
 	struct iscsi_session *session, *ts;
 
 	TRACE_ENTRY();
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&target->target_mutex);
+#endif
 
 	if (!list_empty(&target->session_list)) {
 		TRACE_MGMT_DBG("Deleting all sessions from target %p", target);

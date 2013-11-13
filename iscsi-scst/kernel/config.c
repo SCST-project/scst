@@ -398,6 +398,10 @@ static int add_session(void __user *ptr)
 
 	TRACE_ENTRY();
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&target_mgmt_mutex);
+#endif
+
 	info = kzalloc(sizeof(*info), GFP_KERNEL);
 	if (info == NULL) {
 		PRINT_ERROR("Can't alloc info (size %zd)", sizeof(*info));

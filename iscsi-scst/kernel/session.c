@@ -26,6 +26,10 @@ struct iscsi_session *session_lookup(struct iscsi_target *target, u64 sid)
 {
 	struct iscsi_session *session;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&target->target_mutex);
+#endif
+
 	list_for_each_entry(session, &target->session_list,
 			session_list_entry) {
 		if (session->sid == sid)
@@ -42,6 +46,10 @@ static int iscsi_session_alloc(struct iscsi_target *target,
 	unsigned int i;
 	struct iscsi_session *session;
 	char *name = NULL;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&target_mgmt_mutex);
+#endif
 
 	session = kmem_cache_zalloc(iscsi_sess_cache, GFP_KERNEL);
 	if (!session)
@@ -131,6 +139,10 @@ void sess_reinst_finished(struct iscsi_session *sess)
 
 	TRACE_MGMT_DBG("Enabling reinstate successor sess %p", sess);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&sess->target->target_mutex);
+#endif
+
 	sBUG_ON(!sess->sess_reinstating);
 
 	list_for_each_entry(c, &sess->conn_list, conn_list_entry) {
@@ -153,6 +165,10 @@ int __add_session(struct iscsi_target *target,
 	struct iscsi_kern_params_info *params_info;
 
 	TRACE_MGMT_DBG("Adding session SID %llx", info->sid);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&target_mgmt_mutex);
+#endif
 
 	err = iscsi_session_alloc(target, info, &new_sess);
 	if (err != 0)
@@ -303,6 +319,10 @@ int session_free(struct iscsi_session *session, bool del)
 	TRACE_MGMT_DBG("Freeing session %p (SID %llx)",
 		session, session->sid);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&session->target->target_mutex);
+#endif
+
 	sBUG_ON(!list_empty(&session->conn_list));
 	if (unlikely(atomic_read(&session->active_cmds) != 0)) {
 		PRINT_CRIT_ERROR("active_cmds not 0 (%d)!!",
@@ -357,6 +377,10 @@ int __del_session(struct iscsi_target *target, u64 sid)
 {
 	struct iscsi_session *session;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&target->target_mutex);
+#endif
+
 	session = session_lookup(target, sid);
 	if (!session)
 		return -ENOENT;
@@ -377,6 +401,10 @@ void iscsi_sess_force_close(struct iscsi_session *sess)
 
 	TRACE_ENTRY();
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&sess->target->target_mutex);
+#endif
+
 	PRINT_INFO("Deleting session %llx with initiator %s (%p)",
 		(long long unsigned int)sess->sid, sess->initiator_name, sess);
 
@@ -396,6 +424,10 @@ static void iscsi_session_info_show(struct seq_file *seq,
 				    struct iscsi_target *target)
 {
 	struct iscsi_session *session;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&target->target_mutex);
+#endif
 
 	list_for_each_entry(session, &target->session_list,
 			    session_list_entry) {
