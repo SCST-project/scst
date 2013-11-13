@@ -460,7 +460,7 @@ sub scstAttributes {
 				}
 
 				my $value = <$io>;
-				chomp $value;
+				chomp $value if (defined($value));
 
 				my $is_key = <$io>;
 				$is_key = new_sysfs_interface() && !$is_static ||
