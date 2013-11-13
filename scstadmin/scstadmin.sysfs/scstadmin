@@ -3754,7 +3754,7 @@ sub listTargetGroupTargetAttributes {
 	my $tgt = shift;
 	my $nonkey = shift;
 
-	my $attributes = $SCST->targetGroupTargetAttributes($group, $tgroup, $tgt);
+	my $attributes = $SCST->targetGroupTargetAttributes($group, $tgroup, $tgt, TRUE);
 
 	return TRUE if issueWarning($SCST->errorString());
 
@@ -4082,7 +4082,7 @@ sub setTargetGroupTargetAttributes {
 
 	my $error = "\t-> WARNING: Target '$group/$tgroup/$tgt' lacks the settable attribute '%s', ignoring.\n\n";
 
-	my $_attributes = $SCST->targetGroupTargetAttributes($group, $tgroup, $tgt);
+	my $_attributes = $SCST->targetGroupTargetAttributes($group, $tgroup, $tgt, TRUE);
 
 	return TRUE if issueWarning($SCST->errorString());
 

@@ -3591,11 +3591,12 @@ sub targetGroupTargetAttributes {
 	my $group = shift;
 	my $tgroup = shift;
 	my $tgt = shift;
+	my $local_tgt = shift;
 	my %attributes;
 
 	my $pHandle = new IO::Handle;
 	my $_path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS, $tgroup, $tgt);
-	if (-l $_path) {
+	if (-l $_path && !$local_tgt) {
 		return \%attributes;
 	}
 
