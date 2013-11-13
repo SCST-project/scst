@@ -3766,24 +3766,6 @@ sub listTargetGroupTargetAttributes {
 	return listAttributes($attributes, $nonkey);
 }
 
-sub listTargetGroupTargetAttributes {
-	my $group = shift;
-	my $tgroup = shift;
-	my $tgt = shift;
-	my $nonkey = shift;
-
-	my $attributes = $SCST->targetGroupTargetAttributes($group, $tgroup, $tgt);
-
-	return TRUE if issueWarning($SCST->errorString());
-
-	if (!scalar(keys %{$attributes})) {
-		print "No such target '$tgt' exists within specified target group.\n";
-		return;
-	}
-
-	return listAttributes($attributes, $nonkey);
-}
-
 ####################################################################
 
 sub setScstAttribute {
