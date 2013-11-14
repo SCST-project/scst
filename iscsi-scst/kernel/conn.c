@@ -93,7 +93,7 @@ void conn_info_show(struct seq_file *seq, struct iscsi_session *session)
 	char buf[64];
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
-	lockdep_assert_held(&target->target_mutex);
+	lockdep_assert_held(&session->target->target_mutex);
 #endif
 
 	list_for_each_entry(conn, &session->conn_list, conn_list_entry) {
