@@ -699,6 +699,173 @@ again:
 }
 EXPORT_SYMBOL(scst_unregister_target);
 
+static const char *const scst_cmd_state_name[] = {
+	[SCST_CMD_STATE_PARSE]				= "PARSE",
+	[SCST_CMD_STATE_PREPARE_SPACE]			= "PREPARE_SPACE",
+	[SCST_CMD_STATE_PREPROCESSING_DONE]		= "PREP_DONE",
+	[SCST_CMD_STATE_RDY_TO_XFER]			= "RDY_TO_XFER",
+	[SCST_CMD_STATE_TGT_PRE_EXEC]			= "TGT_PRE_EXEC",
+	[SCST_CMD_STATE_EXEC_CHECK_SN]			= "EXEC_CHECK_SN",
+	[SCST_CMD_STATE_PRE_DEV_DONE]			= "PRE_DEV_DONE",
+	[SCST_CMD_STATE_MODE_SELECT_CHECKS]		= "MODE_SELECT_CHECKS",
+	[SCST_CMD_STATE_DEV_DONE]			= "DEV_DONE",
+	[SCST_CMD_STATE_PRE_XMIT_RESP]			= "PRE_XMIT_RESP",
+	[SCST_CMD_STATE_XMIT_RESP]			= "XMIT_RESP",
+	[SCST_CMD_STATE_FINISHED]			= "FINISHED",
+	[SCST_CMD_STATE_FINISHED_INTERNAL]		= "FINISHED_INTERNAL",
+	[SCST_CMD_STATE_INIT_WAIT]			= "INIT_WAIT",
+	[SCST_CMD_STATE_INIT]				= "INIT",
+	[SCST_CMD_STATE_PREPROCESSING_DONE_CALLED]	= "PREP_DONE_CALLED",
+	[SCST_CMD_STATE_DATA_WAIT]			= "DATA_WAIT",
+	[SCST_CMD_STATE_EXEC_CHECK_BLOCKING]		= "EXEC_CHECK_BLOCKING",
+	[SCST_CMD_STATE_LOCAL_EXEC]			= "LOCAL_EXEC",
+	[SCST_CMD_STATE_REAL_EXEC]			= "REAL_EXEC",
+	[SCST_CMD_STATE_EXEC_WAIT]			= "EXEC_WAIT",
+	[SCST_CMD_STATE_XMIT_WAIT]			= "XMIT_WAIT",
+};
+
+static void scst_get_cmd_state_name(char *name, int len, unsigned state)
+{
+	if (state < ARRAY_SIZE(scst_cmd_state_name) &&
+	    scst_cmd_state_name[state])
+		strlcpy(name, scst_cmd_state_name[state], len);
+	else
+		snprintf(name, len, "%d", state);
+}
+
+static char *scst_dump_cdb(char *buf, int buf_len, struct scst_cmd *cmd)
+{
+	char *p = buf, *end = buf + buf_len;
+	int i;
+
+	for (i = 0; i < cmd->cdb_len && p < end; i++)
+		p += scnprintf(p, end - p, "%s%02x", i ? " " : "", cmd->cdb[i]);
+
+	return buf;
+}
+
+void scst_trace_cmds(scst_show_fn show, void *arg)
+{
+	struct scst_tgt_template *t;
+	struct scst_tgt *tgt;
+	struct scst_session *sess;
+	struct scst_cmd *cmd;
+	struct scst_tgt_dev *tgt_dev;
+	char state_name[32];
+	char cdb[64];
+
+	mutex_lock(&scst_mutex);
+	list_for_each_entry(t, &scst_template_list, scst_template_list_entry) {
+		list_for_each_entry(tgt, &t->tgt_list, tgt_list_entry) {
+			list_for_each_entry(sess, &tgt->sess_list,
+					    sess_list_entry) {
+				spin_lock_irq(&sess->sess_list_lock);
+				list_for_each_entry(cmd, &sess->sess_cmd_list,
+						    sess_cmd_list_entry) {
+					tgt_dev = cmd->tgt_dev;
+					scst_dump_cdb(cdb, sizeof(cdb), cmd);
+					scst_get_cmd_state_name(state_name,
+							    sizeof(state_name),
+							    cmd->state);
+					show(arg, "cmd %p: state %s; tgtt %s; "
+						"tgt %s; session %s; grp %s; "
+						"LUN %lld; ini %s; cdb %s\n",
+						cmd, state_name, t->name,
+						tgt->tgt_name, sess->sess_name,
+						tgt_dev ? (tgt_dev->acg_dev->acg->acg_name ?
+							     	: "(default)") : "?",
+						cmd->lun, sess->initiator_name, cdb);
+				}
+				spin_unlock_irq(&sess->sess_list_lock);
+			}
+		}
+	}
+	mutex_unlock(&scst_mutex);
+	return;
+}
+
+static const char *const scst_tm_fn_name[] = {
+	[SCST_ABORT_TASK]	= "ABORT_TASK",
+	[SCST_ABORT_TASK_SET]	= "ABORT_TASK_SET",
+	[SCST_CLEAR_ACA]	= "CLEAR_ACA",
+	[SCST_CLEAR_TASK_SET]	= "CLEAR_TASK_SET",
+	[SCST_LUN_RESET]	= "LUN_RESET",
+	[SCST_TARGET_RESET]	= "TARGET_RESET",
+	[SCST_NEXUS_LOSS_SESS]	= "NEXUS_LOSS_SESS",
+	[SCST_ABORT_ALL_TASKS_SESS] = "ABORT_ALL_TASKS_SESS",
+	[SCST_NEXUS_LOSS] =	"NEXUS_LOSS",
+	[SCST_ABORT_ALL_TASKS] = "ABORT_ALL_TASKS",
+	[SCST_UNREG_SESS_TM] =	"UNREG_SESS_TM",
+	[SCST_PR_ABORT_ALL] =	"PR_ABORT_ALL",
+};
+
+static void scst_get_tm_fn_name(char *name, int len, unsigned fn)
+{
+	if (fn < ARRAY_SIZE(scst_tm_fn_name) && scst_tm_fn_name[fn])
+		strlcpy(name, scst_tm_fn_name[fn], len);
+	else
+		snprintf(name, len, "%d", fn);
+	return;
+}
+
+static const char *const scst_mcmd_state_name[] = {
+	[SCST_MCMD_STATE_INIT] =	"INIT",
+	[SCST_MCMD_STATE_EXEC] =	"EXEC",
+	[SCST_MCMD_STATE_WAITING_AFFECTED_CMDS_DONE] = "WAITING_AFFECTED_CMDS_DONE",
+	[SCST_MCMD_STATE_AFFECTED_CMDS_DONE] = "AFFECTED_CMDS_DONE",
+	[SCST_MCMD_STATE_WAITING_AFFECTED_CMDS_FINISHED] = "WAITING_AFFECTED_CMDS_FINISHED",
+	[SCST_MCMD_STATE_DONE] =	"DONE",
+	[SCST_MCMD_STATE_FINISHED] =	"FINISHED",
+};
+
+static void scst_get_mcmd_state_name(char *name, int len, unsigned state)
+{
+	if (state < ARRAY_SIZE(scst_mcmd_state_name) &&
+	    scst_mcmd_state_name[state])
+		strlcpy(name, scst_mcmd_state_name[state], len);
+	else
+		snprintf(name, len, "%d", state);
+	return;
+}
+
+void scst_trace_mcmds(scst_show_fn show, void *arg)
+{
+	struct scst_mgmt_cmd *mcmd;
+	char fn_name[16], state_name[32];
+
+	spin_lock_irq(&scst_mcmd_lock);
+	list_for_each_entry(mcmd, &scst_active_mgmt_cmd_list,
+			    mgmt_cmd_list_entry) {
+		scst_get_tm_fn_name(fn_name, sizeof(fn_name), mcmd->fn);
+		scst_get_mcmd_state_name(state_name, sizeof(state_name),
+					 mcmd->state);
+		show(arg, "mcmd %p: state %s; tgtt %s; tgt %s; session %s; fn %s;"
+		     " LUN %lld; tag %lld; cmd_done_wait_count %d\n",
+		     mcmd, state_name, mcmd->sess->tgt->tgtt->name,
+		     mcmd->sess->tgt->tgt_name, mcmd->sess->sess_name, fn_name,
+		     mcmd->lun, mcmd->tag, mcmd->cmd_done_wait_count);
+	}
+	spin_unlock_irq(&scst_mcmd_lock);
+	return;
+}
+
+static void __printf(2, 3) scst_to_syslog(void *arg, const char *fmt, ...)
+{
+	bool *header_printed = arg;
+	va_list args;
+
+	if (!*header_printed) {
+		PRINT_INFO("Pending commands:");
+		*header_printed = true;
+	}
+
+	va_start(args, fmt);
+	printk(KERN_INFO "    ");
+	vprintk(fmt, args);
+	va_end(args);
+	return;
+}
+
 int scst_get_cmd_counter(void)
 {
 	int i, res = 0;
@@ -709,13 +876,32 @@ int scst_get_cmd_counter(void)
 
 static int scst_susp_wait(unsigned long timeout)
 {
-	int res = 0;
+	int res;
+	unsigned long t;
+	bool hp = false;
+#define SCST_SUSP_WAIT_REPORT_TIMEOUT (5UL * HZ)
 
 	TRACE_ENTRY();
 
+	if (timeout == SCST_SUSPEND_TIMEOUT_UNLIMITED)
+		t = SCST_SUSP_WAIT_REPORT_TIMEOUT;
+	else
+		t = min(timeout, SCST_SUSP_WAIT_REPORT_TIMEOUT);
+
+	res = wait_event_interruptible_timeout(scst_dev_cmd_waitQ,
+			(scst_get_cmd_counter() == 0), t);
+	if (res > 0) {
+		res = 0;
+		goto out;
+	} else if ((res < 0) && (timeout != SCST_SUSPEND_TIMEOUT_UNLIMITED))
+		goto out;
+
+	scst_trace_cmds(scst_to_syslog, &hp);
+	scst_trace_mcmds(scst_to_syslog, &hp);
+
 	if (timeout != SCST_SUSPEND_TIMEOUT_UNLIMITED) {
 		res = wait_event_interruptible_timeout(scst_dev_cmd_waitQ,
-			(scst_get_cmd_counter() == 0), timeout);
+			(scst_get_cmd_counter() == 0), timeout - t);
 		if (res == 0)
 			res = -EBUSY;
 		else if (res > 0)
@@ -723,10 +909,12 @@ static int scst_susp_wait(unsigned long timeout)
 	} else
 		wait_event(scst_dev_cmd_waitQ, scst_get_cmd_counter() == 0);
 
+out:
 	TRACE_MGMT_DBG("wait_event() returned %d", res);
 
 	TRACE_EXIT_RES(res);
 	return res;
+#undef SCST_SUSP_WAIT_REPORT_TIMEOUT
 }
 
 /**

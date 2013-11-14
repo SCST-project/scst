@@ -751,6 +751,10 @@ int gen_relative_target_port_id(uint16_t *id);
 bool scst_is_relative_target_port_id_unique(uint16_t id,
 	const struct scst_tgt *t);
 
+typedef void __printf(2, 3) (*scst_show_fn)(void *arg, const char *fmt, ...);
+void scst_trace_cmds(scst_show_fn show, void *arg);
+void scst_trace_mcmds(scst_show_fn show, void *arg);
+
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 
 void scst_set_start_time(struct scst_cmd *cmd);

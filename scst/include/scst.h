@@ -193,6 +193,9 @@ static inline bool list_entry_in_list(const struct list_head *entry)
  ** "active" states, then - "passive" ones. This is to have
  ** more efficient generated code of the corresponding
  ** "switch" statements.
+ **
+ ** !! Adding new states don't forget to update scst_cmd_state_name
+ ** !! as well!
  *************************************************************/
 enum {
 	/* Dev handler's parse() is going to be called */
@@ -293,6 +296,9 @@ enum {
 
 /*************************************************************
  ** States of mgmt command processing state machine
+ **
+ ** !! Adding new states don't forget to update
+ ** !! scst_mcmd_state_name as well!
  *************************************************************/
 enum {
 	/* LUN translation (mcmd->tgt_dev assignment) */

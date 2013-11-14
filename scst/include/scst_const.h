@@ -98,7 +98,12 @@
 #define SCST_LUN_RESET			4
 #define SCST_TARGET_RESET		5
 
-/** SCST extensions **/
+/**
+ ** SCST extensions
+ **
+ ** !! Adding new extensions don't forget to update
+ ** !! scst_tm_fn_name as well!
+ **/
 
 /*
  * Notifies about I_T nexus loss event in the corresponding session.

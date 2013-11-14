@@ -437,6 +437,12 @@ following entries:
    Those threads used with async. dev handlers, for instance, vdisk
    BLOCKIO or NULLIO.
 
+ - trace_cmds - shows current SCST commands up to size of the sysfs
+   buffer (4KB)
+
+ - trace_mcmds - shows current SCST management commands up to size of
+   the sysfs buffer (4KB)
+
  - trace_level - allows to enable and disable various tracing
    facilities. See content of this file for help how to use it. See also
    section "Dealing with massive logs" for more info how to make correct

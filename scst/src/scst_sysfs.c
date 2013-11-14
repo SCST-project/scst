@@ -5683,6 +5683,8 @@ static const struct attribute *scst_device_groups_attrs[] = {
  ** SCST sysfs root directory implementation
  **/
 
+static struct kobject scst_sysfs_root_kobj;
+
 static ssize_t scst_threads_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
@@ -5909,6 +5911,109 @@ static struct kobj_attribute scst_main_trace_level_attr =
 
 #endif /* defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING) */
 
+static void __printf(2, 3) scst_append(void *arg, const char *fmt, ...)
+{
+	char *buf = arg;
+	int len = strlen(buf);
+	va_list args;
+
+	va_start(args, fmt);
+	vscnprintf(buf + len, SCST_SYSFS_BLOCK_SIZE - len, fmt, args);
+	va_end(args);
+}
+
+static int scst_process_show_trace_cmds(struct scst_sysfs_work_item *work)
+{
+	int ret = -ENOMEM;
+
+	work->res_buf = kmalloc(SCST_SYSFS_BLOCK_SIZE, GFP_KERNEL);
+	if (!work->res_buf)
+		goto put;
+	work->res_buf[0] = '\0';
+	scst_trace_cmds(scst_append, work->res_buf);
+	ret = 0;
+
+put:
+	kobject_put(&scst_sysfs_root_kobj);
+	return ret;
+}
+
+static ssize_t scst_show_trace_cmds(struct kobject *kobj,
+				    struct kobj_attribute *attr, char *buf)
+{
+	struct scst_sysfs_work_item *work;
+	int res;
+
+	res = scst_alloc_sysfs_work(scst_process_show_trace_cmds, true,
+				    &work);
+	if (res != 0)
+		goto out;
+
+	kobject_get(&scst_sysfs_root_kobj);
+	scst_sysfs_work_get(work);
+	res = scst_sysfs_queue_wait_work(work);
+	if (res != 0)
+		goto put;
+
+	res = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s", work->res_buf);
+
+put:
+	scst_sysfs_work_put(work);
+
+out:
+	return res;
+
+}
+
+static struct kobj_attribute scst_trace_cmds_attr =
+	__ATTR(trace_cmds, S_IRUGO, scst_show_trace_cmds, NULL);
+
+static int scst_process_show_trace_mcmds(struct scst_sysfs_work_item *work)
+{
+	int ret = -ENOMEM;
+
+	work->res_buf = kmalloc(SCST_SYSFS_BLOCK_SIZE, GFP_KERNEL);
+	if (!work->res_buf)
+		goto put;
+	work->res_buf[0] = '\0';
+	scst_trace_mcmds(scst_append, work->res_buf);
+	ret = 0;
+
+put:
+	kobject_put(&scst_sysfs_root_kobj);
+	return ret;
+}
+
+static ssize_t scst_show_trace_mcmds(struct kobject *kobj,
+				      struct kobj_attribute *attr, char *buf)
+{
+	struct scst_sysfs_work_item *work;
+	int res;
+
+	res = scst_alloc_sysfs_work(scst_process_show_trace_mcmds, true,
+				    &work);
+	if (res != 0)
+		goto out;
+
+	kobject_get(&scst_sysfs_root_kobj);
+	scst_sysfs_work_get(work);
+	res = scst_sysfs_queue_wait_work(work);
+	if (res != 0)
+		goto put;
+
+	res = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s", work->res_buf);
+
+put:
+	scst_sysfs_work_put(work);
+
+out:
+	return res;
+
+}
+
+static struct kobj_attribute scst_trace_mcmds_attr =
+	__ATTR(trace_mcmds, S_IRUGO, scst_show_trace_mcmds, NULL);
+
 static ssize_t scst_version_show(struct kobject *kobj,
 				 struct kobj_attribute *attr,
 				 char *buf)
@@ -5998,6 +6103,8 @@ static struct attribute *scst_sysfs_root_default_attrs[] = {
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	&scst_main_trace_level_attr.attr,
 #endif
+	&scst_trace_cmds_attr.attr,
+	&scst_trace_mcmds_attr.attr,
 	&scst_version_attr.attr,
 	&scst_last_sysfs_mgmt_res_attr.attr,
 	NULL,
@@ -6225,8 +6332,6 @@ out:
 	return res;
 }
 EXPORT_SYMBOL_GPL(scst_wait_info_completion);
-
-static struct kobject scst_sysfs_root_kobj;
 
 int __init scst_sysfs_init(void)
 {
