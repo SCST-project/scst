@@ -773,7 +773,7 @@ void scst_trace_cmds(scst_show_fn show, void *arg)
 						cmd, state_name, t->name,
 						tgt->tgt_name, sess->sess_name,
 						tgt_dev ? (tgt_dev->acg_dev->acg->acg_name ?
-							     	: "(default)") : "?",
+								: "(default)") : "?",
 						cmd->lun, sess->initiator_name, cdb);
 				}
 				spin_unlock_irq(&sess->sess_list_lock);
