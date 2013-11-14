@@ -23,9 +23,9 @@
 #include "digest.h"
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
-#ifdef CONFIG_LOCKDEP
+#if defined(CONFIG_LOCKDEP) && !defined(CONFIG_SCST_PROC)
 static struct lock_class_key scst_conn_key;
-struct lockdep_map scst_conn_dep_map =
+static struct lockdep_map scst_conn_dep_map =
 	STATIC_LOCKDEP_MAP_INIT("iscsi_conn_kref", &scst_conn_key);
 #endif
 #endif

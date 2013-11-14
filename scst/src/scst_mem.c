@@ -42,9 +42,9 @@
 #define MAX_PAGES_PER_POOL	50
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
-#ifdef CONFIG_LOCKDEP
+#if defined(CONFIG_LOCKDEP) && !defined(CONFIG_SCST_PROC)
 static struct lock_class_key scst_pool_key;
-struct lockdep_map scst_pool_dep_map =
+static struct lockdep_map scst_pool_dep_map =
 	STATIC_LOCKDEP_MAP_INIT("scst_pool_kref", &scst_pool_key);
 #endif
 #endif
