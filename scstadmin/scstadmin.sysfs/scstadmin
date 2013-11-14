@@ -765,7 +765,7 @@ sub main {
 		defined($applyConfig) && do {
 			$CONFIGFILE = $applyConfig;
 			$rc = checkConfiguration();
-			immediateExit("Configuration has errors, aborting.") if ($rc);
+			condExit("Configuration has errors, aborting.") if ($rc);
 			last if ($force && prompt());
 			my $changes = applyConfiguration($force);
 			$rc = issueLip() if ($changes && !$noLip);
