@@ -5906,7 +5906,7 @@ static int vdisk_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type)
 
 	list_for_each_entry(virt_dev, &vdev_list, vdev_list_entry) {
 		int c;
-		if (virt_dev->dev->type != TYPE_DISK)
+		if (virt_dev->dev && virt_dev->dev->type != TYPE_DISK)
 			continue;
 		seq_printf(seq, "%-17s %-11d %-12d", virt_dev->name,
 			(uint32_t)(virt_dev->file_size >> 20),
