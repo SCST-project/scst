@@ -186,6 +186,10 @@ enum scst_cmd_queue_type {
  ** compiler with another bitfields layout can be used.
  ***************************************************************/
 enum scst_cdb_flags {
+	/*
+	 * !! Both timeouts must be the lowest bits to match
+	 * !! scst_generic_parse() expectations!
+	 */
 	SCST_SMALL_TIMEOUT =			0x0001,
 	SCST_LONG_TIMEOUT =			0x0002,
 #define	SCST_BOTH_TIMEOUTS	(SCST_SMALL_TIMEOUT | SCST_LONG_TIMEOUT)
