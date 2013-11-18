@@ -3607,6 +3607,35 @@ static uint16_t srpt_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 }
 
 #if !defined(CONFIG_SCST_PROC)
+static ssize_t srpt_show_device(struct kobject *kobj,
+				struct kobj_attribute *attr, char *buf)
+{
+	struct scst_tgt *scst_tgt = container_of(kobj, struct scst_tgt,
+						 tgt_kobj);
+	struct srpt_tgt *srpt_tgt = srpt_convert_scst_tgt(scst_tgt);
+	struct srpt_device *sdev;
+	int res = -E_TGT_PRIV_NOT_YET_SET;
+
+	if (!srpt_tgt)
+		goto out;
+
+	if (one_target_per_port) {
+		struct srpt_port *sport;
+
+		sport = container_of(srpt_tgt, struct srpt_port, srpt_tgt);
+		sdev = sport->sdev;
+	} else {
+		sdev = container_of(srpt_tgt, struct srpt_device, srpt_tgt);
+	}
+	res = sprintf(buf, "%s\n", sdev->device->name);
+
+out:
+	return res;
+}
+
+static struct kobj_attribute srpt_device_attr =
+	__ATTR(device, S_IRUGO, srpt_show_device, NULL);
+
 static ssize_t show_login_info(struct kobject *kobj,
 			       struct kobj_attribute *attr, char *buf)
 {
@@ -3669,6 +3698,7 @@ static struct kobj_attribute srpt_show_login_info_attr =
 	__ATTR(login_info, S_IRUGO, show_login_info, NULL);
 
 static const struct attribute *srpt_tgt_attrs[] = {
+	&srpt_device_attr.attr,
 	&srpt_show_login_info_attr.attr,
 	NULL
 };
