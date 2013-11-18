@@ -2661,9 +2661,9 @@ restart:
 	if (!srpt_tgt->enabled) {
 		rej->reason = cpu_to_be32(
 				SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-		PRINT_ERROR("rejected SRP_LOGIN_REQ because the target %s (%s)"
-			    " is not enabled",
-			    srpt_tgt->scst_tgt->tgt_name, sdev->device->name);
+		PRINT_INFO("rejected SRP_LOGIN_REQ because the target %s (%s)"
+			   " is not enabled",
+			   srpt_tgt->scst_tgt->tgt_name, sdev->device->name);
 		spin_unlock_irq(&srpt_tgt->spinlock);
 		goto reject;
 	}
