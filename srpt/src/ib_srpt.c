@@ -2406,6 +2406,14 @@ static bool srpt_is_target_enabled(struct scst_tgt *scst_tgt)
 
 	return srpt_tgt && srpt_tgt->enabled;
 }
+
+static int srpt_close_session(struct scst_session *sess)
+{
+	struct srpt_rdma_ch *ch = scst_sess_get_tgt_priv(sess);
+
+	srpt_close_ch(ch);
+	return 0;
+}
 #endif
 
 /**
@@ -3517,14 +3525,6 @@ static int srpt_detect(struct scst_tgt_template *tp)
 	return device_count;
 }
 
-static int srpt_close_session(struct scst_session *sess)
-{
-	struct srpt_rdma_ch *ch = scst_sess_get_tgt_priv(sess);
-
-	srpt_close_ch(ch);
-	return 0;
-}
-
 static int srpt_ch_list_empty(struct srpt_tgt *srpt_tgt)
 {
 	int res;
@@ -3744,12 +3744,12 @@ static struct scst_tgt_template srpt_template = {
 #endif
 	.detect				 = srpt_detect,
 	.release			 = srpt_release,
+	.close_session			 = srpt_close_session,
 	.xmit_response			 = srpt_xmit_response,
 	.rdy_to_xfer			 = srpt_rdy_to_xfer,
 	.on_hw_pending_cmd_timeout	 = srpt_pending_cmd_timeout,
 	.on_free_cmd			 = srpt_on_free_cmd,
 	.task_mgmt_fn_done		 = srpt_tsk_mgmt_done,
-	.close_session			 = srpt_close_session,
 	.get_initiator_port_transport_id = srpt_get_initiator_port_transport_id,
 	.get_scsi_transport_version	 = srpt_get_scsi_transport_version,
 };
