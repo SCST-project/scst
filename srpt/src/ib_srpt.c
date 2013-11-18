@@ -1786,31 +1786,31 @@ static void srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 		TRACE_DBG("Processing SRP_TSK_ABORT_TASK");
 		ret = scst_rx_mgmt_fn_tag(ch->scst_sess, SCST_ABORT_TASK,
 					  srp_tsk->task_tag,
-					  SCST_ATOMIC, send_ioctx);
+					  in_interrupt(), send_ioctx);
 		break;
 	case SRP_TSK_ABORT_TASK_SET:
 		TRACE_DBG("Processing SRP_TSK_ABORT_TASK_SET");
 		ret = scst_rx_mgmt_fn_lun(ch->scst_sess, SCST_ABORT_TASK_SET,
 					  &srp_tsk->lun, sizeof(srp_tsk->lun),
-					  SCST_ATOMIC, send_ioctx);
+					  in_interrupt(), send_ioctx);
 		break;
 	case SRP_TSK_CLEAR_TASK_SET:
 		TRACE_DBG("Processing SRP_TSK_CLEAR_TASK_SET");
 		ret = scst_rx_mgmt_fn_lun(ch->scst_sess, SCST_CLEAR_TASK_SET,
 					  &srp_tsk->lun, sizeof(srp_tsk->lun),
-					  SCST_ATOMIC, send_ioctx);
+					  in_interrupt(), send_ioctx);
 		break;
 	case SRP_TSK_LUN_RESET:
 		TRACE_DBG("Processing SRP_TSK_LUN_RESET");
 		ret = scst_rx_mgmt_fn_lun(ch->scst_sess, SCST_LUN_RESET,
 					  &srp_tsk->lun, sizeof(srp_tsk->lun),
-					  SCST_ATOMIC, send_ioctx);
+					  in_interrupt(), send_ioctx);
 		break;
 	case SRP_TSK_CLEAR_ACA:
 		TRACE_DBG("Processing SRP_TSK_CLEAR_ACA");
 		ret = scst_rx_mgmt_fn_lun(ch->scst_sess, SCST_CLEAR_ACA,
 					  &srp_tsk->lun, sizeof(srp_tsk->lun),
-					  SCST_ATOMIC, send_ioctx);
+					  in_interrupt(), send_ioctx);
 		break;
 	default:
 		TRACE_DBG("Unsupported task management function.");
