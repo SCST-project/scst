@@ -2499,8 +2499,8 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	if (!srpt_tgt->enabled) {
 		rej->reason = cpu_to_be32(
 				SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-		PRINT_ERROR("rejected SRP_LOGIN_REQ because target %s is not"
-			    " enabled", srpt_tgt->scst_tgt->tgt_name);
+		PRINT_INFO("rejected SRP_LOGIN_REQ because target %s is not"
+			   " enabled", srpt_tgt->scst_tgt->tgt_name);
 		goto reject;
 	}
 
