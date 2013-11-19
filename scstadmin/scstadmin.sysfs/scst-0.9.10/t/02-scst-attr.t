@@ -11,7 +11,7 @@ use SCST::SCST;
 
 sub getScstThreadCount {
     my $SCST = shift;
-    my $scstAttributes = $SCST->scstAttributes();
+    my ($scstAttributes, $errorString) = $SCST->scstAttributes();
     my $threadHash = $scstAttributes->{'threads'};
     return exists($threadHash->{'keys'}) ? $threadHash->{'keys'}->{'0'}->{'value'} : $threadHash->{'value'};
 }

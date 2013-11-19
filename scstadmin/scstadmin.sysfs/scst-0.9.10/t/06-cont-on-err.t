@@ -29,7 +29,8 @@ use File::Temp qw/tempfile/;
 sub setup {
     my $SCST = shift;
 
-    my %drivers = map { $_ => 1 } @{$SCST->drivers()};
+    my ($drivers, $errorString) = $SCST->drivers();
+    my %drivers = map { $_ => 1 } @{$drivers};
     ok(exists($drivers{'ib_srpt'}));
 }
 

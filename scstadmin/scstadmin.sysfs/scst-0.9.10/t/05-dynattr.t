@@ -4,7 +4,7 @@ use strict;
 use Test;
 
 BEGIN {
-    plan tests => 57;
+    plan tests => 55;
 }
 
 use Data::Dumper;
@@ -13,7 +13,8 @@ use SCST::SCST;
 sub setup {
     my $SCST = shift;
 
-    my %drivers = map { $_ => 1 } @{$SCST->drivers()};
+    my ($drivers, $errorString) = $SCST->drivers();
+    my %drivers = map { $_ => 1 } @{$drivers};
     ok(exists($drivers{'iscsi'}));
     ok(exists($drivers{'scst_local'}));
 
@@ -28,13 +29,14 @@ sub setup {
 sub testDriverDynAttr {
     my $SCST = shift;
 
-    ok($SCST->driverDynamicAttributes(), undef);
-    ok($SCST->driverDynamicAttributes('no-such-driver'), undef);
-    ok($SCST->{'err_string'},
-       "driverDynamicAttributes(): Driver 'no-such-driver' is not available");
-    ok(Dumper($SCST->driverDynamicAttributes('scst_local')), Dumper({}));
+    ok(Dumper($SCST->driverDynamicAttributes()),
+       Dumper(undef, "Too few arguments"));
+    ok(Dumper($SCST->driverDynamicAttributes('no-such-driver')),
+       Dumper(undef, "driverDynamicAttributes(): Driver 'no-such-driver' is " .
+	      "not available"));
+    ok(Dumper($SCST->driverDynamicAttributes('scst_local')), Dumper({}, undef));
     ok(Dumper($SCST->driverDynamicAttributes('iscsi')),
-       Dumper({ 'IncomingUser' => '', 'OutgoingUser' => '' }));
+       Dumper({ 'IncomingUser' => '', 'OutgoingUser' => '' }, undef));
     ok($SCST->checkDriverDynamicAttributes('no-such-driver'),
        $SCST->SCST_C_DRV_NO_DRIVER);
     ok($SCST->checkDriverDynamicAttributes('no-such-driver', { }),
@@ -60,7 +62,8 @@ sub testDriverDynAttr {
 					'bar 12CharSecret'), 0);
     ok($SCST->addDriverDynamicAttribute('iscsi', 'IncomingUser',
 					'joe 12charsecret'), 0);
-    ok(Dumper($SCST->driverAttributes('iscsi')->{'IncomingUser'}),
+    my ($da, $errorString) = $SCST->driverAttributes('iscsi');
+    ok(Dumper($da->{'IncomingUser'}),
        Dumper({ 'keys' => { '0' => { 'value' => 'bar 12CharSecret' },
 	                    '1' => { 'value' => 'joe 12charsecret' } },
 	        'static' => 0 }));
@@ -73,21 +76,23 @@ sub testDriverDynAttr {
 					   'joe 12charsecret'), 0);
     ok($SCST->removeDriverDynamicAttribute('iscsi', 'IncomingUser',
 					   'bar 12CharSecret'), 0);
-    ok(!exists($SCST->driverAttributes('iscsi')->{'IncomingUser'}));
+    ($da, $errorString) = $SCST->driverAttributes('iscsi');
+    ok(!exists($da->{'IncomingUser'}));
 }
 
 sub testTargetDynAttr {
     my $SCST = shift;
 
-    ok($SCST->targetDynamicAttributes(), undef);
-    ok($SCST->targetDynamicAttributes('no-such-driver'), undef);
-    ok($SCST->{'err_string'},
-       "targetDynamicAttributes(): Driver 'no-such-driver' is not available");
-    ok(Dumper($SCST->targetDynamicAttributes('scst_local')), Dumper({}));
+    ok(Dumper($SCST->targetDynamicAttributes()),
+       Dumper(undef, "Too few arguments"));
+    ok(Dumper($SCST->targetDynamicAttributes('no-such-driver')),
+       Dumper(undef, "targetDynamicAttributes(): Driver 'no-such-driver' is" .
+	      " not available"));
+    ok(Dumper($SCST->targetDynamicAttributes('scst_local')), Dumper({}, undef));
     ok(Dumper($SCST->targetDynamicAttributes('iscsi')),
        Dumper({ 'IncomingUser' => '',
 		'OutgoingUser' => '',
-		'allowed_portal' => '' }));
+		'allowed_portal' => '' }, undef));
     ok($SCST->checkTargetDynamicAttributes('no-such-driver'),
        $SCST->SCST_C_DRV_NO_DRIVER);
     ok($SCST->checkTargetDynamicAttributes('no-such-driver', { }),
@@ -116,7 +121,8 @@ sub testTargetDynAttr {
 					'bar 12CharSecret'), 0);
     ok($SCST->addTargetDynamicAttribute('iscsi', 'tgt1', 'IncomingUser',
 					'joe 12charsecret'), 0);
-    ok(Dumper($SCST->targetAttributes('iscsi', 'tgt1')->{'IncomingUser'}),
+    my ($ta, $errorString) = $SCST->targetAttributes('iscsi', 'tgt1');
+    ok(Dumper($ta->{'IncomingUser'}),
        Dumper({ 'keys' => { '0' => { 'value' => 'bar 12CharSecret' },
 	                    '1' => { 'value' => 'joe 12charsecret' } },
 	        'static' => 0 }));
@@ -132,7 +138,8 @@ sub testTargetDynAttr {
 					   'joe 12charsecret'), 0);
     ok($SCST->removeTargetDynamicAttribute('iscsi', 'tgt1', 'IncomingUser',
 					   'bar 12CharSecret'), 0);
-    ok(!exists($SCST->targetAttributes('iscsi', 'tgt1')->{'IncomingUser'}));
+    ($ta, $errorString) = $SCST->targetAttributes('iscsi', 'tgt1');
+    ok(!exists($ta->{'IncomingUser'}));
 }
 
 sub teardown {
