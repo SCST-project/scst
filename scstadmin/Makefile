@@ -135,7 +135,9 @@ rpm:
 		      else echo $$PWD/rpmbuilddir; fi)" &&		\
 	$(MAKE) dist-gzip &&						\
 	rm -rf $${rpmtopdir} &&						\
-	mkdir -p $${rpmtopdir}/{BUILD,RPMS,SOURCES,SPECS,SRPMS} &&	\
+	for d in BUILD RPMS SOURCES SPECS SRPMS; do			\
+	  mkdir -p $${rpmtopdir}/$$d;					\
+	done &&								\
 	cp $${name}-$(VERSION).tar.bz2 $${rpmtopdir}/SOURCES &&		\
 	rpmbuild --define="%_topdir $${rpmtopdir}"			\
 		 --define="%rpm_version $(VERSION)"			\
