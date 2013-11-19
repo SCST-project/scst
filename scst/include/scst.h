@@ -2501,6 +2501,9 @@ struct scst_device {
 	/* List of blocked commands, protected by dev_lock. */
 	struct list_head blocked_cmd_list;
 
+	/* MAXIMUM WRITE SAME LENGTH in bytes */
+	uint64_t max_write_same_len;
+
 	/* A list entry used during TM */
 	struct list_head tm_dev_list_entry;
 

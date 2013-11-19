@@ -4870,7 +4870,7 @@ void scst_write_same(struct scst_cmd *cmd)
 	}
 
 	if (cmd->sg_cnt != 1) {
-		PRINT_ERROR("WRITE SAME must contain only single block of data "
+		PRINT_WARNING("WRITE SAME must contain only single block of data "
 			"in a single SG (cmd %p)", cmd);
 		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_parameter_value_invalid));
 		goto out_done;
@@ -4878,6 +4878,14 @@ void scst_write_same(struct scst_cmd *cmd)
 
 	if (((cmd->cdb[1] & 0x6) == 0x6) || ((cmd->cdb[1] & 0xE0) != 0)) {
 		scst_set_invalid_field_in_cdb(cmd, 1, 0);
+		goto out_done;
+	}
+
+	if (unlikely((uint64_t)cmd->data_len > cmd->dev->max_write_same_len)) {
+		PRINT_WARNING("Invalid WRITE SAME data len %lld (max allowed "
+			"%lld)", (long long)cmd->data_len,
+			(long long)cmd->dev->max_write_same_len);
+		scst_set_invalid_field_in_cdb(cmd, cmd->len_off, 0);
 		goto out_done;
 	}
 

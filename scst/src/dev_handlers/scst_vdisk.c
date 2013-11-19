@@ -2558,8 +2558,9 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 				}
 			}
 
-			/* MAXIMUM WRITE SAME LENGTH (512MB) */
-			put_unaligned_be64((512*1024*1024) >> dev->block_shift, &buf[36]);
+			/* MAXIMUM WRITE SAME LENGTH (measured in blocks) */
+			put_unaligned_be64(dev->max_write_same_len >>
+					   dev->block_shift, &buf[36]);
 
 			resp_len = buf[3] + 4;
 		} else if ((0xB1 == cmd->cdb[2]) && (dev->type == TYPE_DISK)) {
