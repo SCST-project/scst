@@ -1713,7 +1713,7 @@ static inline enum scst_exec_context scst_optimize_post_exec_context(
 	if (((context == SCST_CONTEXT_SAME) && scst_cmd_atomic(cmd)) ||
 	    (context == SCST_CONTEXT_TASKLET) ||
 	    (context == SCST_CONTEXT_DIRECT_ATOMIC)) {
-		if (!cmd->tgt_dev->tgt_dev_after_exec_atimic)
+		if (!cmd->tgt_dev->tgt_dev_after_exec_atomic)
 			context = SCST_CONTEXT_THREAD;
 	}
 	return context;

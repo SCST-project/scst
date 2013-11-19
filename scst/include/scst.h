@@ -2576,7 +2576,7 @@ struct scst_tgt_dev {
 
 	/* Set if the corresponding context should be atomic */
 	unsigned int tgt_dev_after_init_wr_atomic:1;
-	unsigned int tgt_dev_after_exec_atimic:1;
+	unsigned int tgt_dev_after_exec_atomic:1;
 
 	/* Set if tgt_dev uses clustered SGV pool */
 	unsigned int tgt_dev_clust_pool:1;

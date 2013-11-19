@@ -4130,7 +4130,7 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	}
 	if (dev->handler->dev_done_atomic &&
 	    sess->tgt->tgtt->xmit_response_atomic)
-		tgt_dev->tgt_dev_after_exec_atimic = 1;
+		tgt_dev->tgt_dev_after_exec_atomic = 1;
 
 	sl = scst_set_sense(sense_buffer, sizeof(sense_buffer),
 		dev->d_sense, SCST_LOAD_SENSE(scst_sense_reset_UA));
