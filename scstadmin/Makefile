@@ -69,6 +69,8 @@ all:
 	cd $(SCSTADMIN_DIR) && $(MAKE) $@
 
 install:
+	@if [ -z "$(DESTDIR)" ] && rpm -q scstadmin >/dev/null 2>&1; then \
+	echo Error: the scstadmin RPM must be uninstalled first; false; fi
 	@if ! perl -MExtUtils::MakeMaker -e '' >/dev/null 2>&1; then \
 	echo Error: the Perl module ExtUtils::MakeMaker must be installed \
 	first; false; fi
