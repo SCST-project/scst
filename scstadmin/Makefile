@@ -68,7 +68,7 @@ DEFAULTDIR := $(shell if [ -f /etc/gentoo-release ]; then	        \
 all:
 	cd $(SCSTADMIN_DIR) && $(MAKE) $@
 
-install:
+install install_vendor:
 	@if [ -z "$(DESTDIR)" ] && rpm -q scstadmin >/dev/null 2>&1; then \
 	echo Error: the scstadmin RPM must be uninstalled first; false; fi
 	@if ! perl -MExtUtils::MakeMaker -e '' >/dev/null 2>&1; then \

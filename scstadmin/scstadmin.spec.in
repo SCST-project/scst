@@ -25,8 +25,8 @@ Authors:
 --------
     Mark R. Buechler, Bart Van Assche and others
 
-%define scstadmin_perl_installsiteman3dir \
-  %(perl -V:installsiteman3dir | sed "s|.*='||;s|'.*||")
+%define scstadmin_perl_installvendorman3dir \
+  %(perl -V:installvendorman3dir | sed "s|.*='||;s|'.*||")
 %define scstadmin_perl_process_packlist \
 set -x;\
 if test -n "$RPM_BUILD_ROOT" -a -d $RPM_BUILD_ROOT%perl_vendorarch/auto; then \
@@ -49,7 +49,7 @@ export PREFIX=%{_prefix} DESTDIR=%{buildroot} MANDIR=%{buildroot}%{_mandir}
 
 %install
 export PREFIX=%{_prefix} DESTDIR=%{buildroot} MANDIR=%{buildroot}%{_mandir}
-%{make} install
+%{make} install_vendor
 %scstadmin_perl_process_packlist
 rm -rf %{buildroot}/var/adm/perl-modules/scst
 
@@ -68,10 +68,10 @@ rm -f /usr/local/man/man5/scst.conf.5*
 %config(noreplace) /etc/default/scst
 /etc/init.d/scst
 %{_sbindir}/scstadmin
-%{perl_sitelib}/SCST
-%{perl_sitearch}/auto/SCST-SCST
+%{perl_vendorlib}/SCST
+%{perl_vendorarch}/auto/SCST-SCST
 %{_mandir}/man1/scstadmin.1*
-%{scstadmin_perl_installsiteman3dir}/SCST::SCST.3pm*
+%{scstadmin_perl_installvendorman3dir}/SCST::SCST.3pm*
 %{_mandir}/man5/scst.5*
 %{_mandir}/man5/scst.conf.5*
 

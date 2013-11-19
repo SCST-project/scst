@@ -9,8 +9,8 @@ SBINDIR := $(PREFIX)/sbin
 
 all: perl-module
 
-install: all
-	$(MAKE) -C scst-$(MODULE_VERSION) install DESTDIR=$(DESTDIR)
+install install_vendor: all
+	$(MAKE) -C scst-$(MODULE_VERSION) $@ DESTDIR=$(DESTDIR)
 	install -d $(DESTDIR)$(SBINDIR)
 	install -m 755 $(TOOL) $(DESTDIR)$(SBINDIR)
 
