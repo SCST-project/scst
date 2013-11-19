@@ -23,5 +23,5 @@ if ($> == 0) {
 	      "modprobe ib_srpt && " .
 	      "modprobe qla2x00tgt && " .
 	      "modprobe scst_vdisk && " .
-	      "/usr/local/sbin/iscsi-scstd"), 0);
+	      "iscsi-scstd"), 0);
 }
