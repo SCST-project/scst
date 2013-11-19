@@ -1,3 +1,6 @@
+%define rpm_version @rpm_version@
+%define make %{expand:%%(echo ${MAKE:-make})}
+
 Name:		scstadmin
 Version:        %{rpm_version}
 Release:        1
@@ -6,7 +9,6 @@ Group:		Productivity/Networking/Other
 License:	GPLv2
 Vendor:		http://scst.sourceforge.net/
 URL:		http://scst.sourceforge.net/
-BuildRequires:	make perl
 
 Source:		%{name}-%{version}.tar.bz2
 BuildRoot:	%{_tmppath}/%{name}-%{version}-build

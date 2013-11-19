@@ -139,10 +139,10 @@ rpm:
 	  mkdir -p $${rpmtopdir}/$$d;					\
 	done &&								\
 	cp $${name}-$(VERSION).tar.bz2 $${rpmtopdir}/SOURCES &&		\
-	rpmbuild --define="%_topdir $${rpmtopdir}"			\
-		 --define="%rpm_version $(VERSION)"			\
-		 --define="%make $(MAKE)"				\
-		 -ba $${name}.spec &&					\
+	sed "s/@rpm_version@/$(VERSION)/g"				\
+		<$${name}.spec.in >$${name}.spec &&			\
+	MAKE="$(MAKE)"							\
+	rpmbuild --define="%_topdir $${rpmtopdir}" -ba $${name}.spec &&	\
 	rm -f $${name}-$(VERSION).tar.bz2
 
 clean:
