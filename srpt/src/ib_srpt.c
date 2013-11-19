@@ -2406,14 +2406,6 @@ static bool srpt_is_target_enabled(struct scst_tgt *scst_tgt)
 
 	return srpt_tgt && srpt_tgt->enabled;
 }
-
-static int srpt_close_session(struct scst_session *sess)
-{
-	struct srpt_rdma_ch *ch = scst_sess_get_tgt_priv(sess);
-
-	srpt_close_ch(ch);
-	return 0;
-}
 #endif
 
 /**
@@ -3523,6 +3515,14 @@ static int srpt_detect(struct scst_tgt_template *tp)
 	TRACE_EXIT_RES(device_count);
 
 	return device_count;
+}
+
+static int srpt_close_session(struct scst_session *sess)
+{
+	struct srpt_rdma_ch *ch = scst_sess_get_tgt_priv(sess);
+
+	srpt_close_ch(ch);
+	return 0;
 }
 
 static int srpt_ch_list_empty(struct srpt_tgt *srpt_tgt)
