@@ -2086,10 +2086,13 @@ struct scst_cmd {
 	int timeout; /* CDB execution timeout in seconds */
 	int retries; /* Amount of retries that will be done by SCSI mid-level */
 
-	/* SCSI data direction, one of SCST_DATA_* constants */
+	/*
+	 * Data direction derived from the opcode and the ANSI T10 SCSI specs.
+	 * One of SCST_DATA_* constants.
+	 */
 	scst_data_direction data_direction;
 
-	/* Remote initiator supplied values, if any */
+	/* Values supplied by the initiator in the transport layer header, if any */
 	scst_data_direction expected_data_direction;
 	int expected_transfer_len;
 	int expected_out_transfer_len; /* for bidi writes */
