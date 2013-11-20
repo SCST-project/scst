@@ -7862,7 +7862,10 @@ out:
 	return res;
 }
 
-/* Called under tgt_dev_lock and BH off */
+/*
+ * Called under tgt_dev_lock and BH off, except when guaranteed that
+ * there's only one user of tgt_dev.
+ */
 static void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
 	const uint8_t *sense, int sense_len, int flags)
 {
