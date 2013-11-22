@@ -8,7 +8,7 @@ How to configure QLogic target driver for 22xx/23xx/24xx/25xx adapters
 </title>
 <style type="text/css">
 pre {color:brown;}
-body > ol > li {padding-bottom:3ex;}
+body > ol > li {padding-bottom:1ex;}
 </style>
 <body>
 
@@ -35,12 +35,12 @@ body > ol > li {padding-bottom:3ex;}
 <pre>qla2xxx 0000:13:00.0: Firmware image unavailable.
 qla2xxx 0000:13:00.0: Failed to initialize adapter</pre>
 
-   In this case I had to download ql2300_fw.bin.
+   In this case I had to download ql2500_fw.bin.
 </li>
 
 <li>Install the necessary kernel development packages. On a Debian system
 these packages can be installed as follows:
-<pre>[root@proj ]# apt-get install gcc libncurses5-dev linux-headers lsscsi patch subversion</pre>
+<pre>[root@proj ]# apt-get install gcc libncurses5-dev linux-headers-`uname -r` lsscsi patch subversion</pre>
 On RHEL/CentOS/SL systems these packages can be installed as follows:
 <pre>[root@proj ]# yum install gcc ncurses-devel kernel-devel lsscsi patch subversion</pre>
 And on SUSE systems these packages can be installed by running the following command:
@@ -59,16 +59,10 @@ And on SUSE systems these packages can be installed by running the following com
   been extracted in a single directory. The structure of that directory will
   be identical to that of the SCST trunk.
     
-<pre>[root@proj ]# svn co https://scst.svn.sourceforge.net/svnroot/scst/trunk scst</pre>
+<pre>[root@proj ]# svn co https://svn.code.sf.net/p/scst/svn/trunk scst</pre>
 
   After the above command finished a directory called 'scst' will have been
   created in the current directory, which is /root in this how-to.
-</li>
-
-<li>
-Unload the qla2xxx kernel module provided by your Linux distribution and blacklist it:
-<pre>[root@proj ]# rmmod qla2xxx
-[root@proj ]# echo blacklist qla2xxx >/etc/modprobe.d/blacklist-qla2xxx.conf</pre>
 </li>
 
 <li>
@@ -79,48 +73,48 @@ and reboot steps and continue with the <a href="#release">SCST build step</a>.
 
 <li>Decide whether you want to start from a vanilla Linux kernel source tree
 or from the kernel source tree specific to your Linux distribution. Vanilla kernel sources can be downloaded from <a href="http://www.kernel.org/pub/linux/kernel/">http://www.kernel.org/pub/linux/kernel/</a>. Unzip the downloaded archive under /usr/src:
-<pre>[root@proj src ]# tar -xjf /usr/src/linux-2.6.26.tar.bz2</pre>
+<pre>[root@proj ]# cd /usr/src
+[root@proj src ]# tar -xjf /usr/src/linux-3.11.8.tar.bz2</pre>
 Instructions for obtaining a distribution-specific kernel source tree vary. An example for Debian:
-<pre>[root@proj src ]# apt-get install linux-source-2.6
-[root@proj src ]# tar xjf linux-source-2.6.32.tar.bz2</pre>
-</li>
-
-<li>
-   Create the necessary symbolic links:
-<pre>[root@proj src ]# pwd
-/usr/src
-[root@proj src ]# ln -s /usr/src/linux-2.6.26 linux
-[root@proj src ]# ln -s /usr/src/linux-2.6.26 kernel</pre>
+<pre>[root@proj src ]# apt-get install linux-source-`uname -r`
+[root@proj src ]# tar xjf linux-source-`uname -r`.tar.bz2</pre>
 </li>
 
 <li>
   Patch the kernel that has just been downloaded:
-<pre>[root@proj ]# cd /usr/src/linux-2.6.26
-[root@proj linux-2.6.26]# patch -p1 &lt /root/scst/scst/kernel/scst_exec_req_fifo-2.6.26.patch</pre>
+<pre>[root@proj src ]# ln -s linux-3.11 linux
+[root@proj src ]# cd linux
+[root@proj linux ]# patch -p1 &lt /root/scst/scst/kernel/scst_exec_req_fifo-3.11.patch</pre>
 </li>
 
-<li>
-  Now build the kernel.<br><br>
+<li>The next step is to configure the kernel:
+<pre>[root@proj linux ]# pwd
+/usr/src/linux
+[root@proj linux ]# make menuconfig</pre>
    
-  Make sure you disable kernel hacking feature and HIGHMEM4G|HIGHMEM64G, i.e.
-<pre>[root@proj ]# grep -i highmem /usr/src/linux/.config
+  If you have built a 32-bit kernel make sure to disable HIGHMEM4G and
+  HIGHMEM64G, i.e.
+<pre>[root@proj linux ]# grep -i highmem .config
 CONFIG_NOHIGHMEM=y
 # CONFIG_HIGHMEM4G is not set
 # CONFIG_HIGHMEM64G is not set</pre>
    
-  If you have a system with more than 1GB of memory, consider to change CONFIG_VMSPLIT option to the corresponding value.
-   
-<pre>[root@proj linux ]# pwd
-/usr/src/linux
-[root@proj linux ]# make menuconfig
-[root@proj linux ]# make bzImage
-[root@proj linux ]# make modules
-[root@proj linux ]# make modules_install
-[root@proj linux ]# make install</pre>
+  If you have built a 32-bit kernel on a system with more than 1GB of memory,
+  consider to change CONFIG_VMSPLIT option to an appropriate value.
+</li>
+<li>Next, build and install the kernel:
+<pre>[root@proj linux ]# make -j$(ls -1d /sys/devices/system/cpu/cpu[0-9]* | wc -l) bzImage modules
+[root@proj linux ]# make modules_install install</pre>
 </li>
 
 <li>
   Reboot the system and during boot select the freshly built kernel to boot from.
+</li>
+
+<li>
+Unload the qla2xxx kernel module provided by your Linux distribution and blacklist it:
+<pre>[root@proj ]# echo blacklist qla2xxx >/etc/modprobe.d/blacklist-qla2xxx.conf
+[root@proj ]# rmmod qla2xxx</pre>
 </li>
 
 <li>
@@ -129,62 +123,43 @@ CONFIG_NOHIGHMEM=y
   following error message: "scst: disagrees about version of symbol
   struct_module".<br><br>
    
-  That error message indicates that a kernel module 
-  load was compiled against kernel headers that did not match the running
-  kernel. Doing a clean rebuild of the kernel and SCST should make the
-  above error go away. To make sure nothing of the old kernel is left,
-  do a clean rebuild of the Linux kernel and SCST as follows:
+  That error message indicates that a kernel module was compiled against
+  kernel headers that did not match the running kernel. Doing a clean rebuild
+  of the kernel and SCST should make the above error go away. To make sure
+  nothing of the old kernel is left, do a clean rebuild of the Linux kernel
+  and SCST as follows:
    
-<pre>[root@proj linux ] pwd
+<pre>[root@proj linux ]# pwd
 /usr/src/linux
-[root@proj linux ] make oldconfig
-[root@proj linux ] make clean
-[root@proj linux ] rm -rf /lib/modules/`uname -r`
-[root@proj linux ] make modules
-[root@proj linux ] make modules_install
-[root@proj linux ] make install
-[root@proj linux ] reboot</pre>
+[root@proj linux ]# make oldconfig
+[root@proj linux ]# make clean
+[root@proj linux ]# rm -rf /lib/modules/`uname -r`
+[root@proj linux ]# make -j$(ls -1d /sys/devices/system/cpu/cpu[0-9]* | wc -l) bzImage modules
+[root@proj linux ]# make modules_install install
+[root@proj linux ]# reboot</pre>
 </li>
 
 <li id="release">
   Select a build mode that suits your needs, e.g. optimal performance or
   debugging SCST. The default mode is debug mode. Here is how to switch to
   release mode:
-<pre>[root@proj trunk ] pwd
+<pre>[root@proj scst ]# pwd
 /root/scst
-[root@proj trunk ] make 2release</pre>
+[root@proj scst ]# make 2release</pre>
 </li>
 
 <li>
-  Now build the SCST kernel modules.<br>
-  But first verify that the link "/lib/modules/`uname -r`/build"<br>
-  points to the kernel headers of the currently running kernel.<br><br>
-   
-    <ol style="list-style-type:lower-alpha">
-      <li>Build SCST.
-<pre>[root@proj ]# cd /root/scst/scst/src
-[root@proj ]# make all
-[root@proj ]# make install</pre>
-      </li>
+  Now build the SCST kernel modules. But first verify that the link
+  "/lib/modules/`uname -r`/build" points to the kernel headers of the
+  currently running kernel. Build and install SCST, e.g. as follows:
+<pre>[root@proj ]# cd /root/scst
+[root@proj scst ]# BUILD_2X_MODULE=y CONFIG_SCSI_QLA_FC=y CONFIG_SCSI_QLA2XXX_TARGET=y make all install</pre>
 
-      <li>Build the QLogic target driver as follows:<br>
-	<ol>
-	  <li>Change the working directory to the SCST source tree.
-	    <pre>[root@proj trunk]# pwd
-/root/scst</pre></li>
-	  <li>Install the qla2xxx initiator kernel module from the SCST tree:
-	    <pre>[root@proj trunk]# BUILD_2X_MODULE=y CONFIG_SCSI_QLA_FC=y CONFIG_SCSI_QLA2XXX_TARGET=y \
-make -s -C qla2x00t/qla2x00-target install</pre>
-	  </li>
-	  <li>Verify that compilation and installation succeeded:
-	    <pre>[root@proj trunk]# ls -l /lib/modules/`uname -r`/extra/qla2*
+  Verify that compilation and installation succeeded:
+	<pre>[root@proj scst]# ls -l /lib/modules/`uname -r`/extra/qla2*
 -rw-r--r--  1 root root  36756 Jun 20 18:46 qla2x00tgt.ko
 -rw-r--r--  1 root root 160192 Jun 20 18:46 qla2xxx_scst.ko   
 </pre>
-	  </li>
-	</ol>
-      </li>
-    </ol>
 </li>
 
 <li>
@@ -245,15 +220,12 @@ scst: Virtual device handler "scst_user" registered successfully</pre>
 <li>
 Back up and rebuild the initial RAM disk such that the qla2xxx kernel module in
 that RAM disk will be replaced by qla2xxx_scst. How to do this depends on your
-Linux distribution. For Debian systems, the initial RAM disk can be
-rebuilt by running the following command:
-<pre>[root@proj ]# update-initrd -c -k $(uname -r)</pre>
-For Ubuntu systems:
-<pre>[root@proj ]# update-initramfs -c -k $(uname -r)</pre>
-For RHEL/CentOS/SL systems:
-<pre>[root@proj ]# mkinitrd -f /boot/initramfs-$(uname -r).img $(uname -r)</pre>
-And for SUSE systems:
-<pre>[root@proj ]# mkinitrd</pre>
+Linux distribution. The initial RAM disk can be rebuilt e.g. as follows:
+<pre>[root@proj ]# type update-initrd >/dev/null 2>&amp;1 &amp;&amp; update-initrd -c -k `uname -r`
+[root@proj ]# type update-initramfs >/dev/null 2>&amp;1 &amp;&amp; update-initramfs -c -k `uname -r`
+[root@proj ]# if type mkinitrd >/dev/null 2>&amp;1; then
+if { rpm -q sles-release || rpm -q openSUSE-release; } >/dev/null 2>&amp;1;
+then mkinitrd; else mkinitrd -f /boot/initramfs-`uname -r`.img `uname -r`; fi; fi</pre>
 </li>
 
 <li>
@@ -270,35 +242,50 @@ Now let's create our virtual device:
 /mnt/disk1: data</pre>
 </li>
 
+<li>The next step is to install scstadmin:
+  <pre>[root@proj ]# make -C scstadmin -s install</pre>
+</li>
+
 <li id="target-mode">
   To see the device on the initiator we have to add it in the LUNs set of our
   target.<br>  We must have a LUN with number 0 (LUs numeration must not start
   from, e.g., 1).<br><br>
 
-  The simplest way to do that is to write an scstadmin config file:
+  The simplest way to do that is to generate an scstadmin config file, e.g. as
+  follows:
 
-<pre>
+<pre>modprobe qla2x00tgt
+find /sys/kernel/scst_tgt/targets/qla2x00t -name enabled | \
+while read f; do echo 1 >$f & done; wait
+find /sys -name issue_lip | while read f; do echo 1 >$f & done; wait
+{
+cat &lt;&lt;EOF
 HANDLER vdisk_fileio {
-	DEVICE disk1 {
-		filename /mnt/disk1
-	}
+        DEVICE disk1 {
+                filename /mnt/disk1
+        }
 }
+EOF
+for p in /sys/kernel/scst_tgt/targets/qla2x00t/*; do
+[ -d $p ] || continue
+cat &lt;&lt;EOF
 
 TARGET_DRIVER qla2x00t {
-	TARGET 25:00:00:f0:98:87:92:f3 {
-		LUN 0 disk1
+        TARGET $(basename $p) {
+                enabled 1
 
-		enabled 1
-	}
-}</pre>
+                LUN 0 disk1
+        }
+}
+EOF
+done
+} >scst.conf</pre>
 
-Before we can apply that file we have to install scstadmin first:
+Check the generated config file. If it looks fine to you, move it to the
+default location:
+<pre>mv -i scst.conf /etc/scst.conf</pre>
 
-<pre>[root@proj ]# make -C scstadmin -s install</pre>
-
-Let's save our configuration file as /etc/scst.conf.<br><br>
-
-That file can be applied via scstadmin:
+The SCST configuration in that file can be applied via scstadmin:
 
 <pre>[root@proj ]# scstadmin -config /etc/scst.conf
 
@@ -320,11 +307,28 @@ The same can be done directly via the sysfs interface of SCST:
 [root@proj ]# echo "add disk1 0" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/luns/mgmt
 [root@proj ]# echo "1" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/enabled
 </pre>
-<br><br>
-
-  <div style="text-align: center;"><strong>ON INITIATOR</strong></div><br>
 </li>
+<li>If you want to configure LUN masking the next step is to configure
+  one initiator group per initiator. To do that you need to discover the
+  initiator port WWNs. One way to discover these is as follows:
+  <pre>[root@proj ]# ls -d /sys/kernel/scst_tgt/targets/qla2x00t/*/sessions/*|sed 's,.*/,,' | sort -u
+10:00:00:00:c9:95:c7:1a
+10:00:00:00:c9:95:c7:1b
+21:00:00:24:ff:46:c0:84
+21:00:00:24:ff:46:c0:85
+21:00:00:24:ff:6c:ca:d8
+21:00:00:24:ff:6c:ca:d9
+21:00:00:24:ff:6c:ca:da
+21:00:00:24:ff:6c:ca:db</pre>
+  More information about initiator group configuration together with an
+  example can be found in the scst.conf man page.</li>
+</ol>
 
+<br>
+<div style="text-align: center;"><strong>ON INITIATOR</strong></div>
+<br>
+
+<ol>
 <li>
   A quote from the SCST README:<blockquote><em> Without loading appropriate
   device handler, corresponding device will be invisible for remote
