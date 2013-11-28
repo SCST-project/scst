@@ -8631,7 +8631,7 @@ void scst_reassign_retained_sess_states(struct scst_session *new_sess,
 			continue;
 		}
 
-		/** Reassign regualar reservations **/
+		/** Reassign regular reservations **/
 
 		if (dev->dev_reserved &&
 		    !test_bit(SCST_TGT_DEV_RESERVED, &old_tgt_dev->tgt_dev_flags)) {
