@@ -52,6 +52,12 @@ FCST_DIR=fcst
 ISCSI_DIR=iscsi-scst
 #ISCSI_DESTDIR=../../../iscsi_scst_inst
 
+VERSION = $(shell echo -n "$$(sed -n 's/^\#define[[:blank:]]SCST_VERSION_NAME[[:blank:]]*\"\([^-]*\).*\"/\1/p' scst/include/scst_const.h).";		\
+		   if svn info >/dev/null 2>&1;				\
+		   then svn info | sed -n 's/^Revision:[[:blank:]]*/r/p';\
+		   else git show | sed -n 's/^commit[[:blank:]]*\(.......\).*/\1/p'; \
+		   fi)
+
 help:
 	@echo "		all               : make all"
 	@echo "		clean             : clean files"
@@ -366,6 +372,40 @@ fcst_clean:
 
 fcst_extraclean:
 	cd $(FCST_DIR) && $(MAKE) extraclean
+
+scst-dist-gzip:
+	name=scst &&							\
+	mkdir $${name}-$(VERSION) &&					\
+	{ scripts/list-source-files | \
+	  grep -E '^doc/|^fcst/|^iscsi-scst/|^Makefile|^qla2x00t/|^scst.spec|^scst/|^scst_local/|^srpt/'|\
+	  tar -T- -cf- |						\
+	  tar -C $${name}-$(VERSION) -xf-; } &&				\
+	rm -f $${name}-$(VERSION).tar.bz2 &&				\
+	tar -cjf $${name}-$(VERSION).tar.bz2 $${name}-$(VERSION) &&	\
+	rm -rf $${name}-$(VERSION)
+
+scst-rpm:
+	name=scst &&							\
+	rpmtopdir="$$(if [ $$(id -u) = 0 ]; then echo /usr/src/packages;\
+		    else echo $$PWD/rpmbuilddir; fi)" &&		\
+	$(MAKE) scst-dist-gzip &&					\
+	rm -rf $${rpmtopdir} &&						\
+	for d in BUILD RPMS SOURCES SPECS SRPMS; do			\
+	  mkdir -p $${rpmtopdir}/$$d;					\
+	done &&								\
+	cp $${name}-$(VERSION).tar.bz2 $${rpmtopdir}/SOURCES &&		\
+	sed "s/@rpm_version@/$(VERSION)/g"				\
+		<$${name}.spec.in >$${name}.spec;			\
+	MAKE="$(MAKE)"							\
+	rpmbuild --define="%_topdir $${rpmtopdir}" -ba $${name}.spec &&	\
+	rm -f $${name}-$(VERSION).tar.bz2
+
+rpm:
+	$(MAKE) scst-rpm
+	$(MAKE) -C scstadmin rpm
+	@echo
+	@echo "The following RPMs have been built:"
+	@find -name '*.rpm'
 
 2perf: extraclean
 	cd $(SCST_DIR) && $(MAKE) $@

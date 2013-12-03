@@ -1,0 +1,136 @@
+%define kmod_name scst
+%define kver %{expand:%%(echo ${KVER:-$(uname -r)})}
+%define kernel_rpm %{expand:%%(						\
+	  krpm="$(rpm -qf /boot/vmlinuz-%{kver} 2>/dev/null |		\
+		grep -v 'is not owned by any package' | head -n 1)";	\
+	  if [ -n "$krpm" ]; then					\
+	    echo "/boot/vmlinuz-%{kver}";				\
+	  else								\
+	    echo "%{nil}";					 	\
+	  fi								\
+	)}
+%define rpm_version @rpm_version@
+%define make %{expand:%%(echo ${MAKE:-make})}
+
+Name:		%{kmod_name}-%{kver}
+Version:        %{rpm_version}
+Release:        1
+Summary:	SCST mid-layer kernel driver
+Group:		System/Kernel
+License:	GPLv2
+Vendor:		http://scst.sourceforge.net/
+URL:		http://scst.sourceforge.net/
+
+Source:		%{kmod_name}-%{version}.tar.bz2
+BuildRoot:	%{_tmppath}/%{name}-%{version}-build
+AutoReqProv:	no
+
+%description
+A generic SCSI target subsystem for Linux that allows to convert any Linux
+server into a sophisticated storage server. The three layers in SCST are the
+target driver layer; the SCSI target core and the device handler layer. SCST
+target drivers realize communication with an initiator and implement a storage
+protocol like iSCSI, FC or SRP. SCST device handlers implement a SCSI
+interface on top of local storage. Examples of such local storage are SCSI
+RAID controller (dev_disk handler), block device (vdisk_blockio handler), file
+(vdisk_fileio handler) or custom block device behavior implemented in user
+space (scst_user).
+
+Authors:
+--------
+    Vladislav Bolkhovitin, Bart Van Assche and others
+
+%package devel
+Summary:	SCST mid-layer kernel driver development package
+Group:		Development/Kernel
+AutoReqProv:	no
+
+%description devel
+A generic SCSI target subsystem for Linux (SCST) that allows to convert
+any Linux server into a sophisticated storage server. SCST target drivers
+implement protocols like iSCSI, FC or SRP. SCST device handlers either
+provide access to a local SCSI RAID controller (dev_disk), block device
+(vdisk_blockio), file (vdisk_fileio) or custom block device behavior
+implemented in user space (scst_user).
+
+Authors:
+--------
+    Vladislav Bolkhovitin, Bart Van Assche and others
+
+%prep
+
+%setup -q -n %{kmod_name}-%{version}
+
+%build
+export KVER=%{kver} PREFIX=%{_prefix}
+export BUILD_2X_MODULE=y CONFIG_SCSI_QLA_FC=y CONFIG_SCSI_QLA2XXX_TARGET=y
+for d in scst fcst iscsi-scst qla2x00t/qla2x00-target scst_local srpt; do
+    %{make} -C $d
+done
+
+%install
+export KVER=%{kver} PREFIX=%{_prefix} MANDIR=%{_mandir}
+export BUILD_2X_MODULE=y CONFIG_SCSI_QLA_FC=y CONFIG_SCSI_QLA2XXX_TARGET=y
+for d in scst iscsi-scst srpt; do
+    DESTDIR=%{buildroot} %{make} -C $d install
+done
+for d in fcst qla2x00t/qla2x00-target scst_local; do
+    INSTALL_MOD_PATH=%{buildroot} %{make} -C $d install
+done
+rm -f %{buildroot}/lib/modules/%{kver}/[Mm]odule*
+
+%clean
+rm -rf %{buildroot}
+
+%pre
+# Remove files installed by "make install"
+rm -f /usr/local/man/man5/iscsi-scstd.conf.5
+rm -f /usr/local/man/man8/iscsi-scst-adm.8
+rm -f /usr/local/man/man8/iscsi-scstd.8
+rm -f /usr/local/sbin/iscsi-scst-adm
+rm -f /usr/local/sbin/iscsi-scstd
+rm -rf /usr/local/include/scst
+
+%post
+/sbin/depmod -a %{kver}
+
+%files
+%defattr(-,root,root)
+%dir /lib/modules/%{kver}/extra
+/lib/modules/%{kver}/extra/fcst.ko
+/lib/modules/%{kver}/extra/ib_srpt.ko
+/lib/modules/%{kver}/extra/iscsi-scst.ko
+/lib/modules/%{kver}/extra/qla2x00tgt.ko
+/lib/modules/%{kver}/extra/qla2xxx_scst.ko
+/lib/modules/%{kver}/extra/scst.ko
+/lib/modules/%{kver}/extra/scst_local.ko
+%dir /lib/modules/%{kver}/extra/dev_handlers
+/lib/modules/%{kver}/extra/dev_handlers/scst_cdrom.ko
+/lib/modules/%{kver}/extra/dev_handlers/scst_changer.ko
+/lib/modules/%{kver}/extra/dev_handlers/scst_disk.ko
+/lib/modules/%{kver}/extra/dev_handlers/scst_modisk.ko
+/lib/modules/%{kver}/extra/dev_handlers/scst_processor.ko
+/lib/modules/%{kver}/extra/dev_handlers/scst_raid.ko
+/lib/modules/%{kver}/extra/dev_handlers/scst_tape.ko
+/lib/modules/%{kver}/extra/dev_handlers/scst_user.ko
+/lib/modules/%{kver}/extra/dev_handlers/scst_vdisk.ko
+%{_mandir}/man5/iscsi-scstd.conf.5.gz
+%{_mandir}/man8/iscsi-scst-adm.8.gz
+%{_mandir}/man8/iscsi-scstd.8.gz
+%{_sbindir}/iscsi-scst-adm
+%{_sbindir}/iscsi-scstd
+%dir /var/lib/scst
+
+%files devel
+%defattr(-,root,root)
+%dir /usr/include/scst
+/usr/include/scst/Module.symvers
+/usr/include/scst/scst.h
+/usr/include/scst/scst_const.h
+/usr/include/scst/scst_debug.h
+/usr/include/scst/scst_sgv.h
+/usr/include/scst/scst_user.h
+
+%changelog
+* Fri Nov 22 2013 Bart Van Assche <bvanassche@acm.org>
+- Initial spec file.

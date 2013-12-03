@@ -21,7 +21,7 @@ SCST_DIR := $(shell if [ -e "$$PWD/../scst" ]; then echo "$$PWD/../scst/src"; \
 SBINDIR := $(PREFIX)/sbin
 INITDIR := /etc/init.d
 RCDIR := /etc/rc.d
-MANDIR := $(PREFIX)/man
+MANDIR ?= $(PREFIX)/man
 KMOD := $(shell pwd)/kernel
 INCDIR := $(shell pwd)/include
 

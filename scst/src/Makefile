@@ -75,6 +75,10 @@ MODS_VERS := $(shell ls Modules.symvers 2>/dev/null)
 MOD_VERS := $(shell ls Module.symvers 2>/dev/null)
 
 install: all
+	@if [ -z "$(DESTDIR)" ] && \
+        { rpm -q scst || rpm -q scst-devel; } >/dev/null 2>&1; then \
+	echo Error: the scst and/or scst-devel RPMs must be uninstalled first; \
+	false; fi
 	-rm -f $(INSTALL_DIR)/scsi_tgt.ko
 	install -d $(INSTALL_DIR)
 	install -d $(INSTALL_DIR)/dev_handlers
