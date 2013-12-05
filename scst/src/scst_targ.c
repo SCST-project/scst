@@ -1520,6 +1520,9 @@ void scst_rx_data(struct scst_cmd *cmd, int status,
 		break;
 
 	case SCST_RX_STATUS_ERROR_SENSE_SET:
+		if (!cmd->write_not_received_set)
+			scst_cmd_set_write_not_received_data_len(cmd,
+				cmd->expected_transfer_len);
 		scst_set_cmd_abnormal_done_state(cmd);
 		pref_context = SCST_CONTEXT_THREAD;
 		break;
@@ -1528,6 +1531,9 @@ void scst_rx_data(struct scst_cmd *cmd, int status,
 		set_bit(SCST_CMD_NO_RESP, &cmd->cmd_flags);
 		/* go through */
 	case SCST_RX_STATUS_ERROR:
+		if (!cmd->write_not_received_set)
+			scst_cmd_set_write_not_received_data_len(cmd,
+				cmd->expected_transfer_len);
 		scst_set_cmd_error(cmd,
 			   SCST_LOAD_SENSE(scst_sense_hardw_error));
 		scst_set_cmd_abnormal_done_state(cmd);
@@ -1537,6 +1543,9 @@ void scst_rx_data(struct scst_cmd *cmd, int status,
 	default:
 		PRINT_ERROR("scst_rx_data() received unknown status %x",
 			status);
+		if (!cmd->write_not_received_set)
+			scst_cmd_set_write_not_received_data_len(cmd,
+				cmd->expected_transfer_len);
 		scst_set_cmd_abnormal_done_state(cmd);
 		pref_context = SCST_CONTEXT_THREAD;
 		break;

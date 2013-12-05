@@ -2943,6 +2943,8 @@ void scst_cmd_set_write_not_received_data_len(struct scst_cmd *cmd,
 {
 	TRACE_ENTRY();
 
+	cmd->write_not_received_set = 1;
+
 	if (!cmd->expected_values_set) {
 		/*
 		 * No expected values set, so no residuals processing.

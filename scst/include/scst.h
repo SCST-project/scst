@@ -2028,6 +2028,9 @@ struct scst_cmd {
 	/* Set if cmd was pre-alloced by target driver */
 	unsigned int pre_alloced:1;
 
+	/* Set if scst_cmd_set_write_not_received_data_len() was called */
+	unsigned int write_not_received_set:1;
+
 	/**************************************************************/
 
 	/* cmd's async flags */
