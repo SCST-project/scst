@@ -305,6 +305,8 @@ int scst_init_thread(void *arg);
 int scst_tm_thread(void *arg);
 int scst_global_mgmt_thread(void *arg);
 
+void scst_cmd_set_write_no_data_received(struct scst_cmd *cmd);
+
 void scst_zero_write_rest(struct scst_cmd *cmd);
 void scst_limit_sg_write_len(struct scst_cmd *cmd);
 void scst_adjust_resp_data_len(struct scst_cmd *cmd);

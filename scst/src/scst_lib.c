@@ -2985,6 +2985,27 @@ out:
 }
 EXPORT_SYMBOL(scst_cmd_set_write_not_received_data_len);
 
+void scst_cmd_set_write_no_data_received(struct scst_cmd *cmd)
+{
+	int w;
+
+	TRACE_ENTRY();
+
+	EXTRACHECKS_BUG_ON(cmd->expected_values_set &&
+		((cmd->expected_data_direction & SCST_DATA_WRITE) == 0));
+
+	if ((cmd->expected_data_direction & SCST_DATA_READ) &&
+	    (cmd->expected_data_direction & SCST_DATA_WRITE))
+		w = cmd->expected_out_transfer_len;
+	else
+		w = cmd->expected_transfer_len;
+
+	scst_cmd_set_write_not_received_data_len(cmd, w);
+
+	TRACE_EXIT();
+	return;
+}
+
 /**
  * __scst_get_resid() - returns residuals for cmd
  *
