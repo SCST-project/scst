@@ -142,8 +142,6 @@ extern struct kmem_cache *scst_tgt_cachep;
 extern struct kmem_cache *scst_tgtd_cachep;
 extern struct kmem_cache *scst_acgd_cachep;
 
-extern spinlock_t scst_main_lock;
-
 extern unsigned long scst_flags;
 extern struct list_head scst_template_list;
 extern struct list_head scst_dev_list;
