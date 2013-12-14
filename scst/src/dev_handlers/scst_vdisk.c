@@ -2587,7 +2587,7 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
        *
        * Changing it change also READ CAPACITY(16)!
        */
-			buf[5] |= 0x40; /* LBPRZ */
+			buf[5] |= 0x4; /* LBPRZ */
 #endif
 			buf[6] = 2; /* thin provisioned */
 			resp_len = buf[3] + 4;
