@@ -5,12 +5,12 @@ endif
 MODULE_VERSION = 0.8.22
 TOOL = scstadmin
 
-SBINDIR := $(PREFIX)$(PREFIX)/sbin
+SBINDIR := $(PREFIX)/sbin
 
 all: perl-module
 
-install: all
-	$(MAKE) -C scst-$(MODULE_VERSION) install
+install install_vendor: all
+	$(MAKE) -C scst-$(MODULE_VERSION) $@ DESTDIR=$(DESTDIR)
 	install -d $(DESTDIR)$(SBINDIR)
 	install -m 755 $(TOOL) $(DESTDIR)$(SBINDIR)
 
@@ -22,6 +22,9 @@ perl-module:
 	@cd ./scst-$(MODULE_VERSION); \
 	perl Makefile.PL;
 	$(MAKE) -C scst-$(MODULE_VERSION)
+
+test:
+	$(MAKE) -C scst-$(MODULE_VERSION) test
 
 clean:
 	-$(MAKE) -C scst-$(MODULE_VERSION) clean
