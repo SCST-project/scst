@@ -5907,7 +5907,10 @@ static int vdisk_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type)
 
 	list_for_each_entry(virt_dev, &vdev_list, vdev_list_entry) {
 		int c;
-		if (virt_dev->dev && virt_dev->dev->type != TYPE_DISK)
+
+		sBUG_ON(!virt_dev->dev);
+
+		if (virt_dev->dev->type != TYPE_DISK)
 			continue;
 		seq_printf(seq, "%-17s %-11d %-12d", virt_dev->name,
 			(uint32_t)(virt_dev->file_size >> 20),
@@ -5921,12 +5924,7 @@ static int vdisk_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type)
 			seq_printf(seq, "NV ");
 			c += 3;
 		}
-		if (virt_dev->dev != NULL) {
-			if (virt_dev->dev->dev_rd_only) {
-				seq_printf(seq, "RO ");
-				c += 3;
-			}
-		} else if (virt_dev->rd_only) {
+		if (virt_dev->dev->dev_rd_only) {
 			seq_printf(seq, "RO ");
 			c += 3;
 		}
