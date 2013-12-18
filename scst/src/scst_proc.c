@@ -40,6 +40,21 @@
 #include "scst_mem.h"
 #include "scst_pres.h"
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+#include <../fs/proc/internal.h> /* PDE() */
+#elif !defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6 || RHEL_MINOR -0 < 5
+/*
+ * See also commits "procfs: new helper - PDE_DATA(inode)"
+ * (d9dda78bad879595d8c4220a067fc029d6484a16) and "proc: Make the PROC_I() and
+ * PDE() macros internal to procfs"
+ * (c30480b92cf497aa3b463367a82f1c2fdc5c46e9).
+ */
+static inline void *PDE_DATA(const struct inode *inode)
+{
+	return PROC_I(inode)->pde->data;
+}
+#endif
+
 static int scst_proc_init_groups(void);
 static void scst_proc_cleanup_groups(void);
 static int scst_proc_assign_handler(char *buf);
@@ -255,7 +270,7 @@ int scst_proc_log_entry_write(struct file *file, const char __user *buf,
 	unsigned long level = 0, oldlevel;
 	char *buffer, *p, *e;
 	const struct scst_trace_log *t;
-	char *data = (char *)PDE(file->f_dentry->d_inode)->data;
+	char *data = PDE_DATA(file->f_dentry->d_inode);
 
 	TRACE_ENTRY();
 
@@ -1371,8 +1386,7 @@ static ssize_t scst_proc_scsi_tgt_write(struct file *file,
 					const char __user *buf,
 					size_t length, loff_t *off)
 {
-	struct scst_tgt *vtt =
-		(struct scst_tgt *)PDE(file->f_dentry->d_inode)->data;
+	struct scst_tgt *vtt = PDE_DATA(file->f_dentry->d_inode);
 	ssize_t res = 0;
 	char *buffer;
 	char *start;
@@ -1527,8 +1541,7 @@ static ssize_t scst_proc_scsi_dev_handler_write(struct file *file,
 						const char __user *buf,
 						size_t length, loff_t *off)
 {
-	struct scst_dev_type *dev_type =
-		(struct scst_dev_type *)PDE(file->f_dentry->d_inode)->data;
+	struct scst_dev_type *dev_type = PDE_DATA(file->f_dentry->d_inode);
 	ssize_t res = 0;
 	char *buffer;
 	char *start;
@@ -1896,8 +1909,7 @@ static ssize_t scst_proc_groups_devices_write(struct file *file,
 	int res, action, rc, read_only = 0;
 	char *buffer, *p, *e = NULL;
 	unsigned int virt_lun;
-	struct scst_acg *acg =
-		(struct scst_acg *)PDE(file->f_dentry->d_inode)->data;
+	struct scst_acg *acg = PDE_DATA(file->f_dentry->d_inode);
 	struct scst_acg_dev *acg_dev = NULL, *acg_dev_tmp;
 	struct scst_device *d, *dev = NULL;
 
@@ -2134,8 +2146,7 @@ static ssize_t scst_proc_groups_names_write(struct file *file,
 {
 	int res = length, rc = 0, action;
 	char *buffer, *p, *pp = NULL;
-	struct scst_acg *acg =
-		(struct scst_acg *)PDE(file->f_dentry->d_inode)->data;
+	struct scst_acg *acg = PDE_DATA(file->f_dentry->d_inode);
 	struct scst_acn *n, *nn;
 
 	TRACE_ENTRY();
@@ -2723,13 +2734,24 @@ struct proc_dir_entry *scst_create_proc_entry(struct proc_dir_entry *root,
 		mode_t mode;
 
 		mode = S_IFREG | S_IRUGO | (pdata->seq_op.write ? S_IWUSR : 0);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
+		p = proc_create_data(name, mode, root, &pdata->seq_op,
+				     pdata->data);
+#else
+		/*
+		 * See also "proc: introduce proc_create_data to setup de->data"
+		 * (commit 59b7435149eab2dd06dd678742faff6049cb655f) and also
+		 * "proc: Kill create_proc_entry()"
+		 * (commit 80e928f7ebb958f4d79d4099d1c5c0a015a23b93).
+		 */
 		p = create_proc_entry(name, mode, root);
-		if (p == NULL) {
-			PRINT_ERROR("Fail to create entry %s in /proc", name);
-		} else {
+		if (p) {
 			p->proc_fops = &pdata->seq_op;
 			p->data = pdata->data;
 		}
+#endif
+		if (!p)
+			PRINT_ERROR("Fail to create entry %s in /proc", name);
 	}
 
 	TRACE_EXIT();
@@ -2747,7 +2769,7 @@ int scst_single_seq_open(struct inode *inode, struct file *file)
 	struct scst_proc_data *pdata = container_of(inode->i_fop,
 		struct scst_proc_data, seq_op);
 #endif
-	return single_open(file, pdata->show, PDE(inode)->data);
+	return single_open(file, pdata->show, PDE_DATA(inode));
 }
 EXPORT_SYMBOL_GPL(scst_single_seq_open);
 
