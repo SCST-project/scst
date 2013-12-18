@@ -572,7 +572,7 @@ static void process_login(struct iu_entry *iue)
 	BUG_ON(!target->tgt);
 	BUG_ON(!vport);
 
-	memset(iu, 0, max(sizeof *rsp, sizeof *rej));
+	memset(iu, 0, max(sizeof(*rsp), sizeof(*rej)));
 
 	snprintf(name, sizeof(name), "%x", vport->dma_dev->unit_address);
 
@@ -626,7 +626,7 @@ reject:
 	rej->buf_fmt = cpu_to_be16(SRP_BUF_FORMAT_DIRECT
 				   | SRP_BUF_FORMAT_INDIRECT);
 
-	send_iu(iue, sizeof *rsp, VIOSRP_SRP_FORMAT);
+	send_iu(iue, sizeof(*rsp), VIOSRP_SRP_FORMAT);
 }
 
 /**
@@ -655,7 +655,7 @@ static int process_tsk_mgmt(struct iu_entry *iue)
 	dprintk("%p %u\n", iue, srp_tsk->tsk_mgmt_func);
 
 	ret = SCST_MGMT_STATUS_FAILED;
-	mgmt_ctx = kmalloc(sizeof *mgmt_ctx, GFP_ATOMIC);
+	mgmt_ctx = kmalloc(sizeof(*mgmt_ctx), GFP_ATOMIC);
 	if (!mgmt_ctx)
 		goto err;
 
