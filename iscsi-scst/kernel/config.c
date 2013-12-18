@@ -215,11 +215,21 @@ int __init iscsi_procfs_init(void)
 		goto out;
 
 	for (i = 0; i < ARRAY_SIZE(iscsi_proc_entries); i++) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
+		ent = proc_create(iscsi_proc_entries[i].name, 0, proc_iscsi_dir,
+				  iscsi_proc_entries[i].fops);
+#else
+		/*
+		 * proc_create() was introduced via commit "proc: fix
+		 * ->open'less usage due to ->proc_fops flip"
+		 * (2d3a4e3666325a9709cc8ea2e88151394e8f20fc).
+		 */
 		ent = create_proc_entry(iscsi_proc_entries[i].name, 0,
 					proc_iscsi_dir);
 		if (ent)
 			ent->proc_fops = iscsi_proc_entries[i].fops;
-		else {
+#endif
+		if (!ent) {
 			err = -ENOMEM;
 			goto err;
 		}

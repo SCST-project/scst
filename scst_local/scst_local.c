@@ -279,6 +279,7 @@ out:
 
 #ifdef CONFIG_SCST_PROC
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
 static int scst_local_proc_info(struct Scsi_Host *host, char *buffer,
 				char **start, off_t offset, int length,
 				int inout)
@@ -309,6 +310,16 @@ static int scst_local_proc_info(struct Scsi_Host *host, char *buffer,
 	TRACE_EXIT_RES(len);
 	return len;
 }
+#else
+static int scst_local_show_info(struct seq_file *file, struct Scsi_Host *host)
+{
+	return seq_printf(file, "scst_local adapter driver, version "
+		"%s [%s]\nAborts=%d, Device Resets=%d, Target Resets=%d\n",
+		SCST_LOCAL_VERSION, scst_local_version_date,
+		atomic_read(&num_aborts), atomic_read(&num_dev_resets),
+		atomic_read(&num_target_resets));
+}
+#endif
 
 static const char *scst_local_info(struct Scsi_Host *shp)
 {
@@ -1419,7 +1430,15 @@ static struct scst_tgt_template scst_local_targ_tmpl = {
 
 static struct scsi_host_template scst_lcl_ini_driver_template = {
 #ifdef CONFIG_SCST_PROC
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
+	/*
+	 * scsi_host_template.proc_info has been removed via commit "scsi: bury
+	 * ->proc_info()" (70ef457dc92bdd03c0c8d640fce45909166983a1).
+	 */
 	.proc_info			= scst_local_proc_info,
+#else
+	.show_info			= scst_local_show_info,
+#endif
 	.proc_name			= SCST_LOCAL_NAME,
 	.info				= scst_local_info,
 #endif
