@@ -21,9 +21,8 @@
 # The recommended way to use this script is as follows:
 # - Create an additional user, e.g. builder
 # - Add a line to the sudoers file that allows that user to invoke yum and
-#   yum-builddep.
-# - Add the source repositories in /etc/yum.repos.d.
-# - One way to do that is by invoking the following shell commands as root:
+#   yum-builddep. One way to do that is by invoking the following shell
+#   commands as root:
 #     useradd builder
 #     echo 'builder ALL=(ALL) NOPASSWD: /usr/bin/yum, /usr/bin/yum-builddep' >>/etc/sudoers
 #     visudo -sc
