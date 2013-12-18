@@ -1750,7 +1750,7 @@ static u8 srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 		ret = scst_rx_mgmt_fn_lun(ch->scst_sess,
 					  SCST_ABORT_TASK_SET,
 					  (u8 *) &srp_tsk->lun,
-					  sizeof srp_tsk->lun,
+					  sizeof(srp_tsk->lun),
 					  SCST_ATOMIC, send_ioctx);
 		break;
 	case SRP_TSK_CLEAR_TASK_SET:
@@ -1758,7 +1758,7 @@ static u8 srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 		ret = scst_rx_mgmt_fn_lun(ch->scst_sess,
 					  SCST_CLEAR_TASK_SET,
 					  (u8 *) &srp_tsk->lun,
-					  sizeof srp_tsk->lun,
+					  sizeof(srp_tsk->lun),
 					  SCST_ATOMIC, send_ioctx);
 		break;
 	case SRP_TSK_LUN_RESET:
@@ -1766,7 +1766,7 @@ static u8 srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 		ret = scst_rx_mgmt_fn_lun(ch->scst_sess,
 					  SCST_LUN_RESET,
 					  (u8 *) &srp_tsk->lun,
-					  sizeof srp_tsk->lun,
+					  sizeof(srp_tsk->lun),
 					  SCST_ATOMIC, send_ioctx);
 		break;
 	case SRP_TSK_CLEAR_ACA:
@@ -1774,7 +1774,7 @@ static u8 srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 		ret = scst_rx_mgmt_fn_lun(ch->scst_sess,
 					  SCST_CLEAR_ACA,
 					  (u8 *) &srp_tsk->lun,
-					  sizeof srp_tsk->lun,
+					  sizeof(srp_tsk->lun),
 					  SCST_ATOMIC, send_ioctx);
 		break;
 	default:
