@@ -44,7 +44,11 @@ fi
 downloaddir=$HOME/software/downloads
 rpmbuild_dir=$HOME/rpmbuild
 if [ "$1" = "" ]; then
-  kernel="kernel-$(uname -r)"
+  if echo "$(uname -r)" | grep -q uek; then
+    kernel="kernel-uek-$(uname -r)"
+  else
+    kernel="kernel-$(uname -r)"
+  fi
 else
   kernel="$1"
 fi
@@ -56,7 +60,7 @@ distro="$(sed -n -e 's/^\(.*\) release .*$/\1/p' /etc/issue)"
 if [ -n "$2" ]; then
   releasever="$2"
 else
-  releasever="$(sed -n -e 's/^.* release \([0-9.]*\) .*$/\1/p' /etc/issue)"
+  releasever="$(sed -n -e 's/^.* release \([0-9.]*\).*$/\1/p' /etc/issue)"
 fi
 releasevermajor="$(echo $releasever | cut -f1 -d.)"
 releaseverminor="$(echo $releasever | cut -f2 -d.)"
@@ -71,6 +75,9 @@ case "$distro" in
     ;;
   "Red Hat Enterprise Linux"*)
     srpm_url=("http://ftp.redhat.com/pub/redhat/linux/enterprise/${releasevermajor}Server/en/os/SRPMS")
+    ;;
+  "Oracle Linux Server")
+    srpm_url=("http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/${releaseverminor}/base/x86_64/getPackageSource" "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/latest/x86_64/getPackageSource" "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/UEK/latest/x86_64/getPackageSource")
     ;;
   "Scientific Linux")
     if [ "$releasevermajor" = 6 ]; then
@@ -143,7 +150,7 @@ if [ ! -e ${downloaddir}/${kernel_src_rpm} ]; then
     fi
   done
   if [ ! -e ${downloaddir}/${kernel_src_rpm} ]; then
-    echo "Downloading kernel source failed. Has the yum source repository been configured in /etc/yum.repos.d ?"
+    echo "Downloading kernel source RPM ${kernel_src_rpm} failed."
     exit 1
   fi
 fi
