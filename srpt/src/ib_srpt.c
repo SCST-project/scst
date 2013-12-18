@@ -2034,7 +2034,7 @@ static void srpt_unreg_sess(struct scst_session *scst_sess)
 			PRINT_INFO("Received DREQ and sent DREP for session %s",
 				   ch->sess_name);
 		else
-			PRINT_ERROR("%s", "Sending DREP failed");
+			PRINT_ERROR("Sending DREP failed");
 	}
 
 	/*
@@ -2453,8 +2453,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	ch = kzalloc(sizeof(*ch), GFP_KERNEL);
 	if (!ch) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-		PRINT_ERROR("%s",
-			    "rejected SRP_LOGIN_REQ because out of memory.");
+		PRINT_ERROR("rejected SRP_LOGIN_REQ because out of memory.");
 		goto reject;
 	}
 
@@ -3878,7 +3877,7 @@ static void srpt_add_one(struct ib_device *device)
 				      sizeof(*sdev->ioctx_ring[0]),
 				      srp_max_req_size, DMA_FROM_DEVICE);
 	if (!sdev->ioctx_ring) {
-		PRINT_ERROR("%s", "srpt_alloc_ioctx_ring() failed");
+		PRINT_ERROR("srpt_alloc_ioctx_ring() failed");
 		goto err_event;
 	}
 
@@ -4112,7 +4111,7 @@ static int __init srpt_init_module(void)
 	}
 
 	if (!use_node_guid_in_target_name)
-		PRINT_WARNING("%s", "Usage of HCA numbers as SCST target names "
+		PRINT_WARNING("Usage of HCA numbers as SCST target names "
 			"is deprecated and will be removed in one of the next "
 			"versions. It is strongly recommended to set "
 			"use_node_guid_in_target_name parameter in 1 and "
