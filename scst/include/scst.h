@@ -92,6 +92,12 @@ typedef _Bool bool;
 #include "scst_sgv.h"
 #endif
 
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 20)
+#ifndef __printf
+#define __printf(a, b) __attribute__((format(printf,a,b)))
+#endif
+#endif
+
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_CPUMASK_H)
 #define nr_cpu_ids NR_CPUS
 #endif
@@ -3786,6 +3792,8 @@ static inline struct scatterlist *sg_chain_ptr(struct scatterlist *sg)
 {
 	return NULL;
 }
+
+#define sg_is_last(sg) false
 
 #ifndef sg_page
 static inline struct page *sg_page(struct scatterlist *sg)

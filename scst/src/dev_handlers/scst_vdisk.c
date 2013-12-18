@@ -2134,8 +2134,8 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 		(unsigned long long)start_lba, (unsigned long long)blocks);
 
 	if (virt_dev->blockio) {
-		struct inode *inode = fd->f_dentry->d_inode;
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 27)
+		struct inode *inode = fd->f_dentry->d_inode;
 		gfp_t gfp = scst_cmd_get_gfp_flags(cmd);
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 31)
 		err = blkdev_issue_discard(inode->i_bdev, start_lba, blocks, gfp);
