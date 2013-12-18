@@ -178,7 +178,7 @@ int scst_tg_tgt_add(struct scst_target_group *tg, const char *name)
 	BUG_ON(!tg);
 	BUG_ON(!name);
 	res = -ENOMEM;
-	tg_tgt = kzalloc(sizeof *tg_tgt, GFP_KERNEL);
+	tg_tgt = kzalloc(sizeof(*tg_tgt), GFP_KERNEL);
 	if (!tg_tgt)
 		goto out;
 	tg_tgt->tg = tg;
@@ -298,7 +298,7 @@ int scst_tg_add(struct scst_dev_group *dg, const char *name)
 
 	TRACE_ENTRY();
 	res = -ENOMEM;
-	tg = kzalloc(sizeof *tg, GFP_KERNEL);
+	tg = kzalloc(sizeof(*tg), GFP_KERNEL);
 	if (!tg)
 		goto out;
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 24)
@@ -424,7 +424,7 @@ int scst_dg_dev_add(struct scst_dev_group *dg, const char *name)
 	int res;
 
 	res = -ENOMEM;
-	dgdev = kzalloc(sizeof *dgdev, GFP_KERNEL);
+	dgdev = kzalloc(sizeof(*dgdev), GFP_KERNEL);
 	if (!dgdev)
 		goto out;
 

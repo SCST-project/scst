@@ -105,7 +105,7 @@ static char *next_key(char **data, int *datasize, char **value)
 static struct buf_segment *conn_alloc_buf_segment(struct connection *conn,
 						   size_t sz)
 {
-	struct buf_segment *seg = malloc(sizeof *seg + sz);
+	struct buf_segment *seg = malloc(sizeof(*seg) + sz);
 
 	if (seg) {
 		seg->len = 0;
@@ -640,7 +640,7 @@ static void cmnd_reject(struct connection *conn, u8 reason)
 	conn_free_rsp_buf_list(conn);
 	seg = conn_alloc_buf_segment(conn, data_sz);
 
-	memset(rej, 0x0, sizeof *rej);
+	memset(rej, 0x0, sizeof(*rej));
 	rej->opcode = ISCSI_OP_REJECT_MSG;
 	rej->reason = reason;
 	rej->ffffffff = ISCSI_RESERVED_TAG;
