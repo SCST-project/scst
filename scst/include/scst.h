@@ -141,12 +141,9 @@ static inline void cpumask_copy(cpumask_t *dstp,
 }
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26) && !defined(RHEL_MAJOR)
-static inline int set_cpus_allowed_ptr(struct task_struct *p,
-				       const cpumask_t *new_mask)
-{
-	return set_cpus_allowed(p, *new_mask);
-}
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26) && \
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
+#define set_cpus_allowed_ptr(p, new_mask) set_cpus_allowed((p), *(new_mask))
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31)
