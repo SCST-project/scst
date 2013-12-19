@@ -228,7 +228,7 @@ static bool sgv_purge_from_cache(struct sgv_pool_obj *obj, int min_interval,
 
 /* No locks */
 static int sgv_shrink_pool(struct sgv_pool *pool, int nr, int min_interval,
-	unsigned long cur_time)
+	unsigned long cur_time, int *out_freed)
 {
 	int freed = 0;
 
@@ -276,12 +276,14 @@ static int sgv_shrink_pool(struct sgv_pool *pool, int nr, int min_interval,
 	spin_unlock_bh(&pool->sgv_pool_lock);
 
 out:
+	*out_freed += freed;
+
 	TRACE_EXIT_RES(nr);
 	return nr;
 }
 
 /* No locks */
-static int __sgv_shrink(int nr, int min_interval)
+static int __sgv_shrink(int nr, int min_interval, int *out_freed)
 {
 	struct sgv_pool *pool;
 	unsigned long cur_time = jiffies;
@@ -330,7 +332,7 @@ static int __sgv_shrink(int nr, int min_interval)
 
 		spin_unlock_bh(&sgv_pools_lock);
 
-		nr = sgv_shrink_pool(pool, nr, min_interval, cur_time);
+		nr = sgv_shrink_pool(pool, nr, min_interval, cur_time, out_freed);
 
 		sgv_pool_put(pool);
 	}
@@ -349,6 +351,45 @@ out_unlock_put:
 	goto out;
 }
 
+unsigned long sgv_can_be_shrinked(struct shrinker *shrinker,
+	struct shrink_control *sc)
+{
+	unsigned long res;
+	struct sgv_pool *pool;
+	int inactive_pages = 0;
+
+	TRACE_ENTRY();
+
+	spin_lock_bh(&sgv_pools_lock);
+	list_for_each_entry(pool, &sgv_active_pools_list,
+			sgv_active_pools_list_entry) {
+		if (pool->purge_interval > 0)
+			inactive_pages += pool->inactive_cached_pages;
+	}
+	spin_unlock_bh(&sgv_pools_lock);
+
+	res = max((int)0, inactive_pages - sgv_lo_wmk);
+	TRACE_MEM("Can free %ld (total %d)", res, atomic_read(&sgv_pages_total));
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
+unsigned long sgv_scan_shrink(struct shrinker *shrinker,
+	struct shrink_control *sc)
+{
+	int freed = 0;
+
+	TRACE_ENTRY();
+
+	__sgv_shrink(sc->nr_to_scan, SGV_MIN_SHRINK_INTERVAL, &freed);
+	TRACE_MEM("Freed %d", freed);
+
+	TRACE_EXIT_RES(freed);
+	return freed;
+}
+#else /* if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0) */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35) && (!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
 static int sgv_shrink(int nr, gfp_t gfpm)
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 0)
@@ -360,32 +401,20 @@ static int sgv_shrink(struct shrinker *shrinker, struct shrink_control *sc)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0)
 	int nr = sc->nr_to_scan;
 #endif
+	int freed = 0;
 
 	TRACE_ENTRY();
 
 	if (nr > 0) {
-		nr = __sgv_shrink(nr, SGV_MIN_SHRINK_INTERVAL);
+		nr = __sgv_shrink(nr, SGV_MIN_SHRINK_INTERVAL, &freed);
 		TRACE_MEM("Left %d", nr);
-	} else {
-		struct sgv_pool *pool;
-		int inactive_pages = 0;
-
-		spin_lock_bh(&sgv_pools_lock);
-		list_for_each_entry(pool, &sgv_active_pools_list,
-				sgv_active_pools_list_entry) {
-			if (pool->purge_interval > 0)
-				inactive_pages += pool->inactive_cached_pages;
-		}
-		spin_unlock_bh(&sgv_pools_lock);
-
-		nr = max((int)0, inactive_pages - sgv_lo_wmk);
-		TRACE_MEM("Can free %d (total %d)", nr,
-			atomic_read(&sgv_pages_total));
-	}
+	} else
+		nr = sgv_can_be_shrinked(shrinker, sc);
 
 	TRACE_EXIT_RES(nr);
 	return nr;
 }
+#endif /* if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0) */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
 static void sgv_purge_work_fn(void *p)
@@ -831,10 +860,12 @@ static int sgv_hiwmk_check(int pages_to_alloc)
 	pages += atomic_read(&sgv_pages_total);
 
 	if (unlikely(pages > sgv_hi_wmk)) {
+		int freed = 0;
+
 		pages -= sgv_hi_wmk;
 		atomic_inc(&sgv_releases_on_hiwmk);
 
-		pages = __sgv_shrink(pages, 0);
+		pages = __sgv_shrink(pages, 0, &freed);
 		if (pages > 0) {
 			TRACE(TRACE_OUT_OF_MEM, "Requested amount of "
 			    "memory (%d pages) for being executed "
@@ -1768,7 +1799,12 @@ int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark)
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23))
 	sgv_shrinker = set_shrinker(DEFAULT_SEEKS, sgv_shrink);
 #else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
+	sgv_shrinker.count_objects = sgv_can_be_shrinked;
+	sgv_shrinker.scan_objects = sgv_scan_shrink;
+#else
 	sgv_shrinker.shrink = sgv_shrink;
+#endif
 	sgv_shrinker.seeks = DEFAULT_SEEKS;
 	register_shrinker(&sgv_shrinker);
 #endif
