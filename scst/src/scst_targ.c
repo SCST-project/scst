@@ -226,7 +226,7 @@ int scst_rx_cmd_prealloced(struct scst_cmd *cmd, struct scst_session *sess,
 	unsigned int cdb_len, bool atomic)
 {
 	int res;
-	gfp_t gfp_mask = atomic ? GFP_ATOMIC : GFP_KERNEL;
+	gfp_t gfp_mask = atomic ? GFP_ATOMIC : cmd->cmd_gfp_mask;
 
 	TRACE_ENTRY();
 
@@ -273,7 +273,7 @@ struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
 	unsigned int cdb_len, bool atomic)
 {
 	struct scst_cmd *cmd;
-	gfp_t gfp_mask = atomic ? GFP_ATOMIC : GFP_KERNEL;
+	gfp_t gfp_mask = atomic ? GFP_ATOMIC : GFP_NOIO;
 
 	TRACE_ENTRY();
 
@@ -2708,7 +2708,7 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 	rc = scst_exec_req(scsi_dev, cmd->cdb, cmd->cdb_len,
 			cmd->data_direction, cmd->sg, cmd->bufflen,
 			cmd->sg_cnt, cmd->timeout, cmd->retries, cmd,
-			scst_pass_through_cmd_done, GFP_KERNEL);
+			scst_pass_through_cmd_done, cmd->cmd_gfp_mask);
 #else
 	rc = scst_scsi_exec_async(cmd, cmd, scst_pass_through_cmd_done);
 #endif

@@ -1343,7 +1343,7 @@ static inline void tm_dbg_deinit_tgt_dev(struct scst_tgt_dev *tgt_dev) {}
 int scst_alloc_sense(struct scst_cmd *cmd, int atomic)
 {
 	int res = 0;
-	gfp_t gfp_mask = atomic ? GFP_ATOMIC : (GFP_KERNEL|__GFP_NOFAIL);
+	gfp_t gfp_mask = atomic ? GFP_ATOMIC : (cmd->cmd_gfp_mask|__GFP_NOFAIL);
 
 	TRACE_ENTRY();
 
@@ -4482,7 +4482,7 @@ static struct scst_cmd *scst_create_prepare_internal_cmd(
 {
 	struct scst_cmd *res;
 	int rc;
-	gfp_t gfp_mask = scst_cmd_atomic(orig_cmd) ? GFP_ATOMIC : GFP_KERNEL;
+	gfp_t gfp_mask = scst_cmd_atomic(orig_cmd) ? GFP_ATOMIC : orig_cmd->cmd_gfp_mask;
 	unsigned long flags;
 
 	TRACE_ENTRY();
@@ -5318,6 +5318,7 @@ int scst_pre_init_cmd(struct scst_cmd *cmd, const uint8_t *cdb,
 	cmd->start_time = jiffies;
 	atomic_set(&cmd->cmd_ref, 1);
 	cmd->cmd_threads = &scst_main_cmd_threads;
+	cmd->cmd_gfp_mask = GFP_KERNEL;
 	INIT_LIST_HEAD(&cmd->mgmt_cmd_list);
 	cmd->cdb = cmd->cdb_buf;
 	cmd->queue_type = SCST_CMD_QUEUE_SIMPLE;
@@ -5652,7 +5653,7 @@ int scst_alloc_space(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	gfp_mask = tgt_dev->gfp_mask | (atomic ? GFP_ATOMIC : GFP_KERNEL);
+	gfp_mask = tgt_dev->tgt_dev_gfp_mask | (atomic ? GFP_ATOMIC : cmd->cmd_gfp_mask);
 
 	flags = atomic ? SGV_POOL_NO_ALLOC_ON_CACHE_MISS : 0;
 	if (cmd->no_sgv)
@@ -5933,7 +5934,7 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	struct request *rq;
 	struct scsi_io_context *sioc;
 	int write = (cmd->data_direction & SCST_DATA_WRITE) ? WRITE : READ;
-	gfp_t gfp = scst_cmd_get_gfp_flags(cmd);
+	gfp_t gfp = cmd->cmd_gfp_mask;
 	int cmd_len = cmd->cdb_len;
 
 	sioc = kmem_cache_zalloc(scsi_io_context_cache, gfp);

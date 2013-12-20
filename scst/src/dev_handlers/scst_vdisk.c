@@ -1034,14 +1034,12 @@ static enum compl_status_e vdisk_synchronize_cache(struct vdisk_cmd_params *p)
 		cmd->completed = 1;
 		cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT,
 				   SCST_CONTEXT_SAME);
-		vdisk_fsync(p, loff, data_len, dev,
-			    scst_cmd_get_gfp_flags(cmd), NULL, true);
+		vdisk_fsync(p, loff, data_len, dev, cmd->cmd_gfp_mask, NULL, true);
 		/* ToDo: vdisk_fsync() error processing */
 		scst_cmd_put(cmd);
 		res = RUNNING_ASYNC;
 	} else {
-		vdisk_fsync(p, loff, data_len, dev,
-			    scst_cmd_get_gfp_flags(cmd), cmd, true);
+		vdisk_fsync(p, loff, data_len, dev, cmd->cmd_gfp_mask, cmd, true);
 		res = RUNNING_ASYNC;
 	}
 
@@ -1057,8 +1055,7 @@ static enum compl_status_e vdisk_exec_start_stop(struct vdisk_cmd_params *p)
 
 	TRACE_ENTRY();
 
-	vdisk_fsync(p, 0, virt_dev->file_size, dev, scst_cmd_get_gfp_flags(cmd),
-		cmd, false);
+	vdisk_fsync(p, 0, virt_dev->file_size, dev, cmd->cmd_gfp_mask, cmd, false);
 
 	TRACE_EXIT();
 	return CMD_SUCCEEDED;
@@ -1472,7 +1469,7 @@ static int fileio_alloc_and_parse(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	p = kmem_cache_zalloc(vdisk_cmd_param_cachep, GFP_KERNEL);
+	p = kmem_cache_zalloc(vdisk_cmd_param_cachep, cmd->cmd_gfp_mask);
 	if (!p) {
 		scst_set_busy(cmd);
 		goto out_err;
@@ -2136,7 +2133,7 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 	if (virt_dev->blockio) {
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 27)
 		struct inode *inode = fd->f_dentry->d_inode;
-		gfp_t gfp = scst_cmd_get_gfp_flags(cmd);
+		gfp_t gfp = cmd->cmd_gfp_mask;
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 31)
 		err = blkdev_issue_discard(inode->i_bdev, start_lba, blocks, gfp);
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)       \
@@ -2373,7 +2370,7 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 
 	TRACE_ENTRY();
 
-	buf = kzalloc(INQ_BUF_SZ, GFP_KERNEL);
+	buf = kzalloc(INQ_BUF_SZ, cmd->cmd_gfp_mask);
 	if (buf == NULL) {
 		scst_set_busy(cmd);
 		goto out;
@@ -2934,7 +2931,7 @@ static enum compl_status_e vdisk_exec_mode_sense(struct vdisk_cmd_params *p)
 
 	TRACE_ENTRY();
 
-	buf = kzalloc(MSENSE_BUF_SZ, GFP_KERNEL);
+	buf = kzalloc(MSENSE_BUF_SZ, cmd->cmd_gfp_mask);
 	if (buf == NULL) {
 		scst_set_busy(cmd);
 		goto out;
@@ -3651,7 +3648,7 @@ static struct iovec *vdisk_alloc_iv(struct scst_cmd *cmd,
 		p->iv_count = 0;
 		/* It can't be called in atomic context */
 		p->iv = (iv_count <= ARRAY_SIZE(p->small_iv)) ? p->small_iv :
-			kmalloc(sizeof(*p->iv) * iv_count, GFP_KERNEL);
+			kmalloc(sizeof(*p->iv) * iv_count, cmd->cmd_gfp_mask);
 		if (p->iv == NULL) {
 			PRINT_ERROR("Unable to allocate iv (%d)", iv_count);
 			goto out;
@@ -3924,7 +3921,7 @@ out_sync:
 	/* O_DSYNC flag is used for WT devices */
 	if (p->fua)
 		vdisk_fsync(p, loff, scst_cmd_get_data_len(cmd), cmd->dev,
-			    scst_cmd_get_gfp_flags(cmd), cmd, false);
+			    cmd->cmd_gfp_mask, cmd, false);
 out:
 	TRACE_EXIT();
 	return CMD_SUCCEEDED;
@@ -4027,7 +4024,7 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 	int need_new_bio;
 	struct scst_blockio_work *blockio_work;
 	int bios = 0;
-	gfp_t gfp_mask = scst_cmd_get_gfp_flags(cmd);
+	gfp_t gfp_mask = cmd->cmd_gfp_mask;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	struct blk_plug plug;
 #endif
@@ -4244,7 +4241,7 @@ static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask,
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
 	if (async) {
-		struct bio *bio = bio_alloc(GFP_KERNEL, 0);
+		struct bio *bio = bio_alloc(gfp_mask, 0);
 		if (bio == NULL) {
 			res = -ENOMEM;
 			goto out_rep;
@@ -4308,7 +4305,7 @@ static enum compl_status_e fileio_exec_verify(struct vdisk_cmd_params *p)
 	sBUG_ON(virt_dev->blockio);
 
 	if (vdisk_fsync(p, loff, data_len, cmd->dev,
-			scst_cmd_get_gfp_flags(cmd), cmd, false) != 0)
+			cmd->cmd_gfp_mask, cmd, false) != 0)
 		goto out;
 
 	/*

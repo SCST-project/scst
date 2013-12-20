@@ -1948,14 +1948,6 @@ struct scst_cmd {
 	unsigned int cmd_hw_pending:1;
 
 	/*
-	 * Set, if for this cmd required to not have any IO or FS calls on
-	 * memory buffers allocations, at least for READ and WRITE commands.
-	 * Needed for cases like file systems mounted over scst_local's
-	 * devices.
-	 */
-	unsigned noio_mem_alloc:1;
-
-	/*
 	 * Set if the target driver wants to alloc data buffers on its own.
 	 * In this case tgt_alloc_data_buf() must be provided in the target
 	 * driver template.
@@ -2038,6 +2030,15 @@ struct scst_cmd {
 
 	/* cmd's async flags */
 	unsigned long cmd_flags;
+
+	/*
+	 * GFP mask with which memory on READ or WRITE data path for this cmd
+	 * should be allocated, if the current context is not ATOMIC. Useful
+	 * for cases like if this cmd required to not have any IO or FS calls
+	 * on allocations, like for file systems mounted over scst_local's
+	 * devices.
+	 */
+	gfp_t cmd_gfp_mask;
 
 	/* Keeps status of cmd's status/data delivery to remote initiator */
 	int delivery_status;
@@ -2569,8 +2570,16 @@ struct scst_tgt_dev {
 	struct scst_device *dev; /* to save extra dereferences */
 	uint64_t lun;		 /* to save extra dereferences */
 
-	gfp_t gfp_mask;
+	/*
+	 * Extra flags in GFP mask for data buffers allocations of this
+	 * tgt_dev's cmds
+	 */
+	gfp_t tgt_dev_gfp_mask;
+
+	/* SGV pool from which buffers of this tgt_dev's cmds should be allocated */
 	struct sgv_pool *pool;
+
+	/* Max number of allowed in this tgt_dev SG segments */
 	int max_sg_cnt;
 
 	/*************************************************************
@@ -3545,16 +3554,13 @@ static inline void scst_cmd_set_tgt_sn(struct scst_cmd *cmd, uint32_t tgt_sn)
 }
 
 /*
- * Get/Set functions for noio_mem_alloc
+ * Forbids for this cmd any IO-causing allocations.
+ *
+ * !! Must be called before scst_cmd_init_done() !!
  */
-static inline bool scst_cmd_get_noio_mem_alloc(struct scst_cmd *cmd)
-{
-	return cmd->noio_mem_alloc;
-}
-
 static inline void scst_cmd_set_noio_mem_alloc(struct scst_cmd *cmd)
 {
-	cmd->noio_mem_alloc = 1;
+	cmd->cmd_gfp_mask = GFP_NOIO;
 }
 
 /*
@@ -4082,9 +4088,9 @@ int scst_get_buf_full(struct scst_cmd *cmd, uint8_t **buf);
 int scst_get_buf_full_sense(struct scst_cmd *cmd, uint8_t **buf);
 void scst_put_buf_full(struct scst_cmd *cmd, uint8_t *buf);
 
-static inline gfp_t scst_cmd_get_gfp_flags(struct scst_cmd *cmd)
+static inline gfp_t scst_cmd_get_gfp_mask(struct scst_cmd *cmd)
 {
-	return cmd->noio_mem_alloc ? GFP_NOIO : GFP_KERNEL;
+	return cmd->cmd_gfp_mask;
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
