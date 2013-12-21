@@ -894,8 +894,10 @@ static int scst_susp_wait(unsigned long timeout)
 	} else if ((res < 0) && (timeout != SCST_SUSPEND_TIMEOUT_UNLIMITED))
 		goto out;
 
-	scst_trace_cmds(scst_to_syslog, &hp);
-	scst_trace_mcmds(scst_to_syslog, &hp);
+	if (res == 0) {
+		scst_trace_cmds(scst_to_syslog, &hp);
+		scst_trace_mcmds(scst_to_syslog, &hp);
+	}
 
 	if (timeout != SCST_SUSPEND_TIMEOUT_UNLIMITED) {
 		res = wait_event_interruptible_timeout(scst_dev_cmd_waitQ,
@@ -904,8 +906,10 @@ static int scst_susp_wait(unsigned long timeout)
 			res = -EBUSY;
 		else if (res > 0)
 			res = 0;
-	} else
+	} else {
 		wait_event(scst_dev_cmd_waitQ, scst_get_cmd_counter() == 0);
+		res = 0;
+	}
 
 out:
 	TRACE_MGMT_DBG("wait_event() returned %d", res);
