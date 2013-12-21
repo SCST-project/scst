@@ -93,7 +93,7 @@ esac
 
 function log {
     echo
-    echo "$@"
+    printf "$@"
     echo
 }
 
@@ -325,5 +325,4 @@ cd ${rpmbuild_dir}/SPECS
 } 2>&1 | tee build.log
 
 
-log "Ready. You can now install the freshly built kernel RPM as follows:\n"\
-    "sudo rpm -ivh --force $HOME/rpmbuild/RPMS/${arch}/kernel-*.rpm"
+log "Ready. You can now install the freshly built kernel RPM as follows:\nsudo rpm -ivh --force $HOME/rpmbuild/RPMS/${arch}/kernel-*.rpm"
