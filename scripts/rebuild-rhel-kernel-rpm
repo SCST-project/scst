@@ -21,9 +21,8 @@
 # The recommended way to use this script is as follows:
 # - Create an additional user, e.g. builder
 # - Add a line to the sudoers file that allows that user to invoke yum and
-#   yum-builddep.
-# - Add the source repositories in /etc/yum.repos.d.
-# - One way to do that is by invoking the following shell commands as root:
+#   yum-builddep. One way to do that is by invoking the following shell
+#   commands as root:
 #     useradd builder
 #     echo 'builder ALL=(ALL) NOPASSWD: /usr/bin/yum, /usr/bin/yum-builddep' >>/etc/sudoers
 #     visudo -sc
@@ -44,7 +43,11 @@ fi
 downloaddir=$HOME/software/downloads
 rpmbuild_dir=$HOME/rpmbuild
 if [ "$1" = "" ]; then
-  kernel="kernel-$(uname -r)"
+  if echo "$(uname -r)" | grep -q uek; then
+    kernel="kernel-uek-$(uname -r)"
+  else
+    kernel="kernel-$(uname -r)"
+  fi
 else
   kernel="$1"
 fi
@@ -56,7 +59,7 @@ distro="$(sed -n -e 's/^\(.*\) release .*$/\1/p' /etc/issue)"
 if [ -n "$2" ]; then
   releasever="$2"
 else
-  releasever="$(sed -n -e 's/^.* release \([0-9.]*\) .*$/\1/p' /etc/issue)"
+  releasever="$(sed -n -e 's/^.* release \([0-9.]*\).*$/\1/p' /etc/issue)"
 fi
 releasevermajor="$(echo $releasever | cut -f1 -d.)"
 releaseverminor="$(echo $releasever | cut -f2 -d.)"
@@ -71,6 +74,9 @@ case "$distro" in
     ;;
   "Red Hat Enterprise Linux"*)
     srpm_url=("http://ftp.redhat.com/pub/redhat/linux/enterprise/${releasevermajor}Server/en/os/SRPMS")
+    ;;
+  "Oracle Linux Server")
+    srpm_url=("http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/${releaseverminor}/base/x86_64/getPackageSource" "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/latest/x86_64/getPackageSource" "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/UEK/latest/x86_64/getPackageSource")
     ;;
   "Scientific Linux")
     if [ "$releasevermajor" = 6 ]; then
@@ -87,7 +93,7 @@ esac
 
 function log {
     echo
-    echo "$@"
+    printf "$@"
     echo
 }
 
@@ -107,6 +113,13 @@ function copy_patch {
     exit 1
   fi
   ln -s "$p" "$2"
+}
+
+function rpmbuild {
+    /usr/bin/rpmbuild				\
+	--define="%_topdir ${rpmbuild_dir}"	\
+	--define="%buildid .scst"		\
+	"$@"
 }
 
 if [ -e ${rpmbuild_dir} ]; then
@@ -143,7 +156,7 @@ if [ ! -e ${downloaddir}/${kernel_src_rpm} ]; then
     fi
   done
   if [ ! -e ${downloaddir}/${kernel_src_rpm} ]; then
-    echo "Downloading kernel source failed. Has the yum source repository been configured in /etc/yum.repos.d ?"
+    echo "Downloading kernel source RPM ${kernel_src_rpm} failed."
     exit 1
   fi
 fi
@@ -159,7 +172,7 @@ rpm --define="%_topdir ${rpmbuild_dir}" -i ${downloaddir}/${kernel_src_rpm} 2>&1
   | grep -v ' does not exist'
 cd SPECS
 {
-  rpmbuild --define="%_topdir ${rpmbuild_dir}" -bp --target=${arch} kernel*.spec
+  rpmbuild -bp --target=${arch} kernel*.spec
   rc=$?
   if [ rc != 0 ]; then
     exit $rc
@@ -268,8 +281,9 @@ diff -u SPECS/kernel.spec{.orig,}
    echo "# $Arch" > configs/$i
 EOF
 elif [ ${kver#2.6.32-131} != $kver -o ${kver#2.6.32-220} != $kver \
-       -o ${kver#2.6.32-279} != $kver ]; then
-# RHEL/CentOS/SL 6.1, 6.2 or 6.3
+       -o ${kver#2.6.32-279} != $kver -o ${kver#2.6.32-358} != $kver \
+       -o ${kver#2.6.32-431} != $kver ]; then
+# RHEL/CentOS/SL 6.1, 6.2, 6.3, 6.4 or 6.5
 patch -p1 ${rpmbuild_dir}/SPECS/kernel.spec <<'EOF' || exit $?
 # RHEL/CentOS/SL 6.x
 diff -u SPECS/kernel.spec{.orig,}
@@ -305,13 +319,15 @@ diff -u SPECS/kernel.spec{.orig,}
    make ARCH=$Arch %{oldconfig_target} > /dev/null
    echo "# $Arch" > configs/$i
 EOF
+else
+    log "Unrecognized kernel version ${kver}"
 fi
 
 log "Rebuilding kernel"
 
 cd ${rpmbuild_dir}/SPECS
 {
-  rpmbuild --define="%_topdir ${rpmbuild_dir}" -bb --target=${arch} --with baseonly --with firmware --without kabichk kernel*.spec
+  rpmbuild -bb --target=${arch} --with baseonly --with firmware --without kabichk kernel*.spec
   rc=$?
   if [ $rc != 0 ]; then
     exit $rc
@@ -319,5 +335,4 @@ cd ${rpmbuild_dir}/SPECS
 } 2>&1 | tee build.log
 
 
-log "Ready. You can now install the freshly built kernel RPM as follows:\n"\
-    "sudo rpm -ivh --force $HOME/rpmbuild/RPMS/${arch}/kernel-*.rpm"
+log "Ready. You can now install the freshly built kernel RPM as follows:\nsudo rpm -ivh --force $HOME/rpmbuild/RPMS/${arch}/kernel-*.rpm"
