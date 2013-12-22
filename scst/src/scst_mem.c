@@ -351,8 +351,7 @@ out_unlock_put:
 	goto out;
 }
 
-unsigned long sgv_can_be_shrinked(struct shrinker *shrinker,
-	struct shrink_control *sc)
+unsigned long __sgv_can_be_shrinked(void)
 {
 	unsigned long res;
 	struct sgv_pool *pool;
@@ -376,6 +375,12 @@ unsigned long sgv_can_be_shrinked(struct shrinker *shrinker,
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
+unsigned long sgv_can_be_shrinked(struct shrinker *shrinker,
+				  struct shrink_control *sc)
+{
+	return __sgv_can_be_shrinked();
+}
+
 unsigned long sgv_scan_shrink(struct shrinker *shrinker,
 	struct shrink_control *sc)
 {
@@ -409,7 +414,7 @@ static int sgv_shrink(struct shrinker *shrinker, struct shrink_control *sc)
 		nr = __sgv_shrink(nr, SGV_MIN_SHRINK_INTERVAL, &freed);
 		TRACE_MEM("Left %d", nr);
 	} else
-		nr = sgv_can_be_shrinked(shrinker, sc);
+		nr = __sgv_can_be_shrinked();
 
 	TRACE_EXIT_RES(nr);
 	return nr;
