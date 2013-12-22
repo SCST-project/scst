@@ -115,6 +115,13 @@ function copy_patch {
   ln -s "$p" "$2"
 }
 
+function rpmbuild {
+    /usr/bin/rpmbuild				\
+	--define="%_topdir ${rpmbuild_dir}"	\
+	--define="%buildid .scst"		\
+	"$@"
+}
+
 if [ -e ${rpmbuild_dir} ]; then
   echo "You have to remove the ${rpmbuild_dir} directory before starting $0"
   exit 1
@@ -165,7 +172,7 @@ rpm --define="%_topdir ${rpmbuild_dir}" -i ${downloaddir}/${kernel_src_rpm} 2>&1
   | grep -v ' does not exist'
 cd SPECS
 {
-  rpmbuild --define="%_topdir ${rpmbuild_dir}" -bp --target=${arch} kernel*.spec
+  rpmbuild -bp --target=${arch} kernel*.spec
   rc=$?
   if [ rc != 0 ]; then
     exit $rc
@@ -320,7 +327,7 @@ log "Rebuilding kernel"
 
 cd ${rpmbuild_dir}/SPECS
 {
-  rpmbuild --define="%_topdir ${rpmbuild_dir}" -bb --target=${arch} --with baseonly --with firmware --without kabichk kernel*.spec
+  rpmbuild -bb --target=${arch} --with baseonly --with firmware --without kabichk kernel*.spec
   rc=$?
   if [ $rc != 0 ]; then
     exit $rc
