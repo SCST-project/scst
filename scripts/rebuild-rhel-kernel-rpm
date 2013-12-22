@@ -274,8 +274,9 @@ diff -u SPECS/kernel.spec{.orig,}
    echo "# $Arch" > configs/$i
 EOF
 elif [ ${kver#2.6.32-131} != $kver -o ${kver#2.6.32-220} != $kver \
-       -o ${kver#2.6.32-279} != $kver ]; then
-# RHEL/CentOS/SL 6.1, 6.2 or 6.3
+       -o ${kver#2.6.32-279} != $kver -o ${kver#2.6.32-358} != $kver \
+       -o ${kver#2.6.32-431} != $kver ]; then
+# RHEL/CentOS/SL 6.1, 6.2, 6.3, 6.4 or 6.5
 patch -p1 ${rpmbuild_dir}/SPECS/kernel.spec <<'EOF' || exit $?
 # RHEL/CentOS/SL 6.x
 diff -u SPECS/kernel.spec{.orig,}
@@ -311,6 +312,8 @@ diff -u SPECS/kernel.spec{.orig,}
    make ARCH=$Arch %{oldconfig_target} > /dev/null
    echo "# $Arch" > configs/$i
 EOF
+else
+    log "Unrecognized kernel version ${kver}"
 fi
 
 log "Rebuilding kernel"
