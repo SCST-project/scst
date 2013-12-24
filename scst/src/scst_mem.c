@@ -351,7 +351,7 @@ out_unlock_put:
 	goto out;
 }
 
-unsigned long __sgv_can_be_shrinked(void)
+static unsigned long __sgv_can_be_shrinked(void)
 {
 	unsigned long res;
 	struct sgv_pool *pool;
@@ -375,14 +375,14 @@ unsigned long __sgv_can_be_shrinked(void)
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
-unsigned long sgv_can_be_shrinked(struct shrinker *shrinker,
-				  struct shrink_control *sc)
+static unsigned long sgv_can_be_shrinked(struct shrinker *shrinker,
+					 struct shrink_control *sc)
 {
 	return __sgv_can_be_shrinked();
 }
 
-unsigned long sgv_scan_shrink(struct shrinker *shrinker,
-	struct shrink_control *sc)
+static unsigned long sgv_scan_shrink(struct shrinker *shrinker,
+				     struct shrink_control *sc)
 {
 	int freed = 0;
 
