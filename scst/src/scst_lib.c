@@ -8932,7 +8932,11 @@ void scst_vfs_unlink_and_put(struct nameidata *nd)
 #else
 void scst_vfs_unlink_and_put(struct path *path)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0)
 	vfs_unlink(path->dentry->d_parent->d_inode, path->dentry);
+#else
+	vfs_unlink(path->dentry->d_parent->d_inode, path->dentry, NULL);
+#endif
 	path_put(path);
 }
 #endif
