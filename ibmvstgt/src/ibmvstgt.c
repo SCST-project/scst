@@ -1435,7 +1435,7 @@ out:
 }
 #endif /*CONFIG_SCST_PROC*/
 
-static struct vio_device_id ibmvstgt_device_table[] __devinitdata = {
+static struct vio_device_id ibmvstgt_device_table[] = {
 	{"v-scsi-host", "IBM,v-scsi-host"},
 	{"",""}
 };
