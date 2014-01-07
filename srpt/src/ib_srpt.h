@@ -230,7 +230,7 @@ struct srpt_tsk_mgmt {
  * @rdma_aborted: If initiating a multipart RDMA transfer failed, whether
  *               the already initiated transfers have finished.
  * @scmnd:       SCST command data structure.
- * @dir:
+ * @dir:         Data direction.
  * @free_list:   Node in srpt_rdma_ch.free_list.
  * @sg_cnt:      SG-list size.
  * @mapped_sg_count: ib_dma_map_sg() return value.
@@ -239,7 +239,8 @@ struct srpt_tsk_mgmt {
  * @n_rbuf:      Number of data buffers in the received SRP command.
  * @req_lim_delta: Value of the req_lim_delta value field in the latest
  *               SRP response sent.
- * @tsk_mgmt:
+ * @tsk_mgmt:    SRPT task management function context information.
+ * @rdma_ius_buf: DMA mapping context information.
  */
 struct srpt_send_ioctx {
 	struct srpt_ioctx	ioctx;
@@ -292,9 +293,11 @@ enum rdma_ch_state {
  * @kref:          Per-channel reference count.
  * @rq_size:       IB receive queue size.
  * @max_sge:       Maximum length of RDMA scatter list.
+ * @max_rsp_size:  Maximum size of an SRP response messages in bytes.
  * @sq_wr_avail:   number of work requests available in the send queue.
  * @sport:         pointer to the information of the HCA port used by this
  *                 channel.
+ * @srpt_tgt:      Target port used by this channel.
  * @i_port_id:     128-bit initiator port identifier copied from SRP_LOGIN_REQ.
  * @t_port_id:     128-bit target port identifier copied from SRP_LOGIN_REQ.
  * @max_ti_iu_len: maximum target-to-initiator information unit length.
@@ -309,6 +312,7 @@ enum rdma_ch_state {
  * @wc:            Work completion array.
  * @state:         channel state. See also enum rdma_ch_state.
  * @dreq_received: Whether an IB CM DREQ event has been received.
+ * @last_wqe_received: Whether the Last WQE QP event has been received.
  * @list:          node for insertion in the srpt_device.rch_list list.
  * @cmd_wait_list: list of SCST commands that arrived before the RTU event. This
  *                 list contains struct srpt_ioctx elements and is protected
@@ -374,6 +378,8 @@ struct srpt_tgt {
  * @lid:       cached value of the port's lid.
  * @gid:       cached value of the port's gid.
  * @work:      work structure for refreshing the aforementioned cached values.
+ * @srpt_tgt:  Target port information. Only used if one-target-per-port
+ *             mode is enabled.
  */
 struct srpt_port {
 	struct srpt_device	*sdev;
@@ -399,6 +405,8 @@ struct srpt_port {
  * @ioctx_ring:    Per-HCA SRQ.
  * @port:	   Information about the ports owned by this HCA.
  * @event_handler: Per-HCA asynchronous IB event handler.
+ * @srpt_tgt:      Target port information. Only used if one-target-per-port
+ *                 mode is disabled.
  */
 struct srpt_device {
 	struct ib_device	*device;
