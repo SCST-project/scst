@@ -386,6 +386,17 @@ Performance Notes - Both Sides
 Frequently Asked Questions
 --------------------------
 
+Q: Every now and then "SRP abort called" and "SRP reset_device called"
+   messages are logged at the initiator side. Around the same time I see the
+   following message in the target log: "ib_srpt: ***ERROR***: Command ...: IB
+   completion for idx ... has not been received in time (SRPT command state
+   ...)". What is the meaning of these messages mean and how can I fix this ?
+
+A: This means that a timeout occurred while a HCA was waiting for an
+   acknowledge message. Check the IB network for bad IB cables, bad HCA's
+   and/or bad switch ports. Also make sure that the HCA firmware is up to
+   date.
+
 Q: Loading the kernel module ib_srpt triggers a kernel panic with a call trace
    like the one below. What is the cause of this and how can this be solved ?
 
