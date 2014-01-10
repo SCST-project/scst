@@ -1828,7 +1828,7 @@ qla2x00_terminate_rport_io(struct fc_rport *rport)
 		return;
 
 	qla2x00_abort_fcport_cmds(fcport);
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0))
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0) && !defined(CONFIG_SUSE_KERNEL)
 	scsi_target_unblock(&rport->dev);
 #else
 	/*
