@@ -79,6 +79,7 @@ fi
 cat <<"EOF"
 
 SCST_CFG=/etc/scst.conf
+ISCSI_DAEMON="$(which iscsi-scstd)"
 
 show_status() {
   _rc_status_ret=$?
@@ -159,7 +160,7 @@ parse_scst_conf() {
                 SCST_OPT_MODULES="crc32c-intel $SCST_OPT_MODULES";;
         esac
         SCST_OPT_MODULES="crc32c $SCST_OPT_MODULES"
-        SCST_DAEMONS="/usr/local/sbin/iscsi-scstd $SCST_DAEMONS"
+        SCST_DAEMONS="${ISCSI_DAEMON} $SCST_DAEMONS"
     fi
 }
 

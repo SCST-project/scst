@@ -1,0 +1,80 @@
+%define rpm_version @rpm_version@
+%define make %{expand:%%(echo ${MAKE:-make})}
+
+Name:		scstadmin
+Version:        %{rpm_version}
+Release:        1
+Summary:	SCST configuration tool
+Group:		Productivity/Networking/Other
+License:	GPLv2
+Vendor:		http://scst.sourceforge.net/
+URL:		http://scst.sourceforge.net/
+
+Source:		%{name}-%{version}.tar.bz2
+BuildRoot:	%{_tmppath}/%{name}-%{version}-build
+AutoReqProv:	yes
+
+%description
+A tool for configuring SCST via the SCST sysfs interface. Allows to save,
+restore and modify any aspect of the SCST configuration. An extensive set of
+commands is available to modify any configurable parameter of target drivers,
+target ports, SCST devices, LUNs, initiator groups and ALUA configuration
+information.
+
+Authors:
+--------
+    Mark R. Buechler, Bart Van Assche and others
+
+%define scstadmin_perl_installvendorman3dir \
+  %(perl -V:installvendorman3dir | sed "s|.*='||;s|'.*||")
+%define scstadmin_perl_process_packlist \
+set -x;\
+if test -n "$RPM_BUILD_ROOT" -a -d $RPM_BUILD_ROOT%perl_vendorarch/auto; then \
+  find $RPM_BUILD_ROOT%perl_vendorarch/auto -name .packlist -print0 | \
+  xargs -0 -r rm; \
+  if [ %{_target_cpu} == noarch ]; then \
+      find $RPM_BUILD_ROOT%perl_vendorarch/auto -depth -type d -print0 | \
+      xargs -0 -r rmdir; \
+    fi; \
+  fi; \
+  rm -f $RPM_BUILD_ROOT%{perl_archlib}/perllocal.pod; set +x
+
+%prep
+
+%setup -q
+
+%build
+export PREFIX=%{_prefix} DESTDIR=%{buildroot} MANDIR=%{buildroot}%{_mandir}
+%{make}
+
+%install
+export PREFIX=%{_prefix} DESTDIR=%{buildroot} MANDIR=%{buildroot}%{_mandir}
+%{make} install_vendor
+%scstadmin_perl_process_packlist
+rm -rf %{buildroot}/var/adm/perl-modules/scst
+
+%clean
+rm -rf %{buildroot}
+
+%pre
+rm -f /usr/local/sbin/scstadmin
+rm -f /usr/local/man/man1/scstadmin.1*
+rm -f /usr/local/man/man3/SCST::SCST.3pm*
+rm -f /usr/local/man/man5/scst.5*
+rm -f /usr/local/man/man5/scst.conf.5*
+
+%files
+%defattr(-,root,root)
+%config(noreplace) /etc/default/scst
+/etc/init.d/scst
+%{_sbindir}/scstadmin
+%{perl_vendorlib}/SCST
+%{perl_vendorarch}/auto/SCST-SCST
+%{_mandir}/man1/scstadmin.1*
+%{scstadmin_perl_installvendorman3dir}/SCST::SCST.3pm*
+%{_mandir}/man5/scst.5*
+%{_mandir}/man5/scst.conf.5*
+
+%changelog
+* Fri Oct 04 2013 Bart Van Assche <bvanassche@acm.org>
+- Initial spec file.

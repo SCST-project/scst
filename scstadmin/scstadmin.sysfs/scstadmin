@@ -202,7 +202,7 @@ Target Driver Operations
      -issue_lip [<t>]
         [-driver <driver>]   : Issue a LIP for a specific driver/target or for
                                all drivers and targets.
-     -no_lip                 : Don't automatically issue a LIP after applying
+     -no_lip                 : Don\'t automatically issue a LIP after applying
                                configuration changes.
 
 Options
@@ -211,7 +211,8 @@ Options
      -force                  : Force all configuration changes,
                                even deletions (DANGER!).
      -noprompt               : Do not prompt or pause. Use with caution!
-  
+     -cont_on_err            : Continue after an error occurred.
+
 Debugging (limited support)
      -debug                  : Debug mode - don\'t do anything destructive.
 
@@ -258,6 +259,7 @@ my $CONFIG;
 my $CONFIGFILE;
 my $_DEBUG_;
 my $_NOPROMPT_;
+my $_CONT_ON_ERR_;
 
 my %CURRENT;
 
@@ -458,6 +460,7 @@ sub getArgs {
 
 			    'nonkey'		=> \$nonkey,
 			    'noprompt'		=> \$_NOPROMPT_,
+			    'cont_on_err'       => \$_CONT_ON_ERR_,
 			    'force'		=> \$force,
 			    'debug'             => \$_DEBUG_))
 	{
@@ -471,6 +474,7 @@ sub getArgs {
 
 	$_DEBUG_ = TRUE if (defined($_DEBUG_));
 	$_NOPROMPT_ = TRUE if (defined($_NOPROMPT_));
+	$_CONT_ON_ERR_ = TRUE if (defined($_CONT_ON_ERR_));
 
 	$force = TRUE if (defined($force));
 	$nonkey = TRUE if (defined($nonkey));
@@ -761,7 +765,7 @@ sub main {
 		defined($applyConfig) && do {
 			$CONFIGFILE = $applyConfig;
 			$rc = checkConfiguration();
-			immediateExit("Configuration has errors, aborting.") if ($rc);
+			condExit("Configuration has errors, aborting.") if ($rc);
 			last if ($force && prompt());
 			my $changes = applyConfiguration($force);
 			$rc = issueLip() if ($changes && !$noLip);
@@ -1166,58 +1170,58 @@ sub readWorkingConfig {
 
 	# Get current handlers/devices
 
-	my $handlers = $SCST->handlers();
-	immediateExit($SCST->errorString());
+	my ($handlers, $errorString) = $SCST->handlers();
+	immediateExit($errorString);
 
 	foreach my $handler (@{$handlers}) {
-		my $devices = $SCST->devicesByHandler($handler);
-		immediateExit($SCST->errorString());
+		my ($devices, $errorString) = $SCST->devicesByHandler($handler);
+		immediateExit($errorString);
 		$CURRENT{'handler'}->{$handler} = $devices;
 	}
 
 	# Get current assignments
 
-	my $drivers = $SCST->drivers();
-	immediateExit($SCST->errorString());
+	my ($drivers, $errorString) = $SCST->drivers();
+	immediateExit($errorString);
 
 	foreach my $driver (@{$drivers}) {
 		my %empty;
 		$CURRENT{'assign'}->{$driver} = \%empty;
-		my $targets = $SCST->targets($driver);
-		immediateExit($SCST->errorString());
+		my ($targets, $errorString) = $SCST->targets($driver);
+		immediateExit($errorString);
 		foreach my $target (@{$targets}) {
 			my %empty;
 			$CURRENT{'assign'}->{$driver}->{$target} = \%empty;
 
-			my $luns = $SCST->luns($driver, $target);
+			my ($luns, $errorString) = $SCST->luns($driver, $target);
 
 			$CURRENT{'assign'}->{$driver}->{$target}->{'LUN'} = $luns if (defined($luns));
 
-			my $groups = $SCST->groups($driver, $target);
-			immediateExit($SCST->errorString());
+			my ($groups, $errorString) = $SCST->groups($driver, $target);
+			immediateExit($errorString);
 			foreach my $group (@{$groups}) {
-				$CURRENT{'assign'}->{$driver}->{$target}->{'GROUP'}->{$group}->{'INITIATORS'} =
-				  $SCST->initiators($driver, $target, $group);
-				immediateExit($SCST->errorString());
-
-				$CURRENT{'assign'}->{$driver}->{$target}->{'GROUP'}->{$group}->{'LUN'} =
-				  $SCST->luns($driver, $target, $group);
-				immediateExit($SCST->errorString());
+				my ($initiators, $errorString) = $SCST->initiators($driver, $target, $group);
+				immediateExit($errorString);
+				$CURRENT{'assign'}->{$driver}->{$target}->{'GROUP'}->{$group}->{'INITIATORS'} = $initiators;
+				my ($luns, $errorString) = $SCST->luns($driver, $target, $group);
+				$CURRENT{'assign'}->{$driver}->{$target}->{'GROUP'}->{$group}->{'LUN'} = $luns;
+				immediateExit($errorString);
 			}
 		}
 	}
 
-	my $dgroups = $SCST->deviceGroups();
-	immediateExit($SCST->errorString());
+	my ($dgroups, $errorString) = $SCST->deviceGroups();
+	immediateExit($errorString);
 
 	foreach my $dgroup (@{$dgroups}) {
-		$CURRENT{'dgroups'}->{$dgroup}->{'devices'} = $SCST->deviceGroupDevices($dgroup);
-		immediateExit($SCST->errorString());			
-		my $tgroups = $SCST->targetGroups($dgroup);
-		immediateExit($SCST->errorString());
+		my ($dgd, $errorString) = $SCST->deviceGroupDevices($dgroup);
+		immediateExit($errorString);			
+		$CURRENT{'dgroups'}->{$dgroup}->{'devices'} = $dgd;
+		my ($tgroups, $errorString) = $SCST->targetGroups($dgroup);
+		immediateExit($errorString);
 		foreach my $tgroup (@{$tgroups}) {
-			$CURRENT{'dgroups'}->{$dgroup}->{'tgroups'}->{$tgroup}->{'targets'} =
-			  $SCST->targetGroupTargets($dgroup, $tgroup);
+			my ($tgt, $errorString) = $SCST->targetGroupTargets($dgroup, $tgroup);
+			$CURRENT{'dgroups'}->{$dgroup}->{'tgroups'}->{$tgroup}->{'targets'} = $tgt;
 		}
 	}
 
@@ -1281,12 +1285,14 @@ sub serializeKeyAttr {
 		   && defined($$attr_filter{$attribute})));
 
 	if (defined($$attributes{$attribute}->{'keys'})) {
-	    foreach my $key (sort keys %{$$attributes{$attribute}->{'keys'}}) {
+	    my @values;
+	    foreach my $key (keys %{$$attributes{$attribute}->{'keys'}}) {
 		my $value =
 		    $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
-		if ($value ne '') {
-		    $result .= "$prefix$attribute " . escapeMeta($value) . "\n";
-		}
+		push (@values, $value) if ($value ne '');
+	    }
+	    foreach my $value (sort @values) {
+		$result .= "$prefix$attribute " . escapeMeta($value) . "\n";
 	    }
 	} elsif ($attribute eq 'enabled' || $attribute eq 'hw_target') {
 	    my $value = $$attributes{$attribute}->{'value'};
@@ -1342,8 +1348,8 @@ sub writeConfiguration {
 	print $io "# Automatically generated by $Version.\n\n";
 
 	{
-		my $attributes = $SCST->scstAttributes();
-		immediateExit($SCST->errorString());
+		my ($attributes, $errorString) = $SCST->scstAttributes();
+		immediateExit($errorString);
 
 		print $io serializeKeyAttr("", $attributes);
 		if ($nonkey) {
@@ -1360,8 +1366,8 @@ sub writeConfiguration {
 		my $handler_buff;
 		my $handler_buff_nk;
 
-		my $handler_attrs = $SCST->deviceCreateAttributes($handler);
-		my $attributes = $SCST->handlerAttributes($handler);
+		my ($handler_attrs, $errorString) = $SCST->deviceCreateAttributes($handler);
+		my ($attributes, $errorString) = $SCST->handlerAttributes($handler);
 
 		$handler_buff = serializeKeyAttr("\t", $attributes);
 		$handler_buff_nk = serializeNkAttr("\t", $attributes) if ($nonkey);
@@ -1372,7 +1378,7 @@ sub writeConfiguration {
 		foreach my $device (sort @{$devices}) {
 			$device_buff .= "\tDEVICE $device";
 
-			my $attributes = $SCST->deviceAttributes($device);
+			my ($attributes, $errorString) = $SCST->deviceAttributes($device);
 
 			my $attribute_buff;
 			my $attribute_buff_nk;
@@ -1417,7 +1423,7 @@ sub writeConfiguration {
 	foreach my $driver (sort keys %{$CURRENT{'assign'}}) {
 		my $driver_buff;
 
-		my $drv_attrs = $SCST->driverAttributes($driver);
+		my ($drv_attrs, $errorString) = $SCST->driverAttributes($driver);
 
 		my $drv_attr_buff;
 		my $drv_attr_buff_nk;
@@ -1428,13 +1434,13 @@ sub writeConfiguration {
 		$drv_attr_buff_nk .= "\n" if ($drv_attr_buff_nk);
 
 		my $targets = $CURRENT{'assign'}->{$driver};
-		my $tgt_attrs = $SCST->targetCreateAttributes($driver);
+		my ($tgt_attrs, $errorString) = $SCST->targetCreateAttributes($driver);
 
 		my $target_buff;
 		foreach my $target (sort keys %{$targets}) {
 			$target_buff .= "\tTARGET $target";
 
-			my $attributes = $SCST->targetAttributes($driver, $target);
+			my ($attributes, $errorString) = $SCST->targetAttributes($driver, $target);
 
 			my $attribute_buff;
 			my $attribute_buff_nk;
@@ -1450,7 +1456,7 @@ sub writeConfiguration {
 			$attribute_buff_nk .= "\n" if ($attribute_buff_nk);
 
 			my $luns = $CURRENT{'assign'}->{$driver}->{$target}->{'LUN'};
-			my $lun_attrs = $SCST->lunCreateAttributes($driver, $target);
+			my ($lun_attrs, $errorString) = $SCST->lunCreateAttributes($driver, $target);
 
 			my $t_lun_buff;
 			foreach my $lun (sort numerically keys %{$luns}) {
@@ -1458,7 +1464,7 @@ sub writeConfiguration {
 
 				$t_lun_buff .= "\t\tLUN $lun $lun_dev";
 
-				my $attributes = $SCST->lunAttributes($driver, $target, $lun);
+				my ($attributes, $errorString) = $SCST->lunAttributes($driver, $target, $lun);
 				my $l_attribute_buff =
 				    serializeKeyAttr("\t\t\t",
 						     $attributes,
@@ -1489,8 +1495,8 @@ sub writeConfiguration {
 
 			my $group_buff;
 			foreach my $group (sort keys %{$groups}) {
-				my $lun_attrs = $SCST->lunCreateAttributes($driver, $target, $group);
-				my $ini_attrs = $SCST->initiatorCreateAttributes($driver, $target, $group);
+				my ($lun_attrs, $errorString) = $SCST->lunCreateAttributes($driver, $target, $group);
+				my ($ini_attrs, $errorString) = $SCST->initiatorCreateAttributes($driver, $target, $group);
 
 				$group_buff .= "\t\tGROUP $group";
 
@@ -1502,7 +1508,7 @@ sub writeConfiguration {
 
 					$lun_buff .= "\t\t\tLUN $lun $lun_dev";
 
-					my $attributes = $SCST->lunAttributes($driver, $target, $lun, $group);
+					my ($attributes, $errorString) = $SCST->lunAttributes($driver, $target, $lun, $group);
 
 					my $l_attribute_buff
 					    = serializeKeyAttr("\t\t\t\t",
@@ -1532,9 +1538,9 @@ sub writeConfiguration {
 
 				my $init_buff;
 				foreach my $init (sort @{$inits}) {
-					$init_buff .= "\n\t\t\tINITIATOR $init";
+					$init_buff .= "\n\t\t\tINITIATOR " . escapeMeta($init);
 
-					my $attributes = $SCST->initiatorAttributes($driver, $target, $group, $init);
+					my ($attributes, $errorString) = $SCST->initiatorAttributes($driver, $target, $group, $init);
 
 					my $i_attribute_buff
 					    = serializeKeyAttr("\t\t\t\t",
@@ -1566,7 +1572,7 @@ sub writeConfiguration {
 					$group_buff .= $init_buff;
 				}
 
-				my $grp_attributes = $SCST->groupAttributes($driver, $target, $group);
+				my ($grp_attributes, $errorString) = $SCST->groupAttributes($driver, $target, $group);
 				my $g_attribute_buff
 				    = serializeKeyAttr("\t\t\t",
 						       $grp_attributes);
@@ -1630,10 +1636,23 @@ sub writeConfiguration {
 		}
 	}
 
+	my ($dga, $errorString) = $SCST->aluaAttributes();
+	my $dga_buff = serializeKeyAttr("\t", $dga);
+	my $dga_buff_nk = serializeNkAttr("\t", $dga) if ($nonkey);
+	if ($dga_buff_nk) {
+		$dga_buff .= "\t# Non-key attributes\n";
+		$dga_buff .= $dga_buff_nk;
+	}
+	if ($dga_buff) {
+		print $io "ALUA {\n";
+		print $io $dga_buff;
+		print $io "}\n\n";
+	}
+
 	foreach my $dgroup (sort keys %{$CURRENT{'dgroups'}}) {
 		my $dgroup_buff;
 
-		my $dgroup_attrs = $SCST->deviceGroupAttributes($dgroup);
+		my ($dgroup_attrs, $errorString) = $SCST->deviceGroupAttributes($dgroup);
 
 		my $dgrp_attr_buff;
 		my $dgrp_attr_buff_nk;
@@ -1660,7 +1679,7 @@ sub writeConfiguration {
 		foreach my $tgroup (sort keys %{$tgroups}) {
 			$tgroup_buff .= "\tTARGET_GROUP $tgroup";
 
-			my $attributes = $SCST->targetGroupAttributes($dgroup, $tgroup);
+			my ($attributes, $errorString) = $SCST->targetGroupAttributes($dgroup, $tgroup);
 
 			my $attribute_buff;
 			my $attribute_buff_nk;
@@ -1676,7 +1695,7 @@ sub writeConfiguration {
 			foreach my $tgt (@{$tgts}) {
 				$tgt_buff .= "\t\tTARGET $tgt";
 
-				my $tgt_attrs = $SCST->targetGroupTargetAttributes($dgroup, $tgroup, $tgt);
+				my ($tgt_attrs, $errorString) = $SCST->targetGroupTargetAttributes($dgroup, $tgroup, $tgt);
 
 				my $t_attribute_buff
 				  = serializeKeyAttr("\t\t\t", $tgt_attrs);
@@ -1940,13 +1959,17 @@ sub applyConfiguration {
 	# Apply config additions
 	$changes += applyConfigDevices($CONFIG, $force);
 	$changes += applyConfigAssignments($CONFIG, $force);
+	$changes += applyConfigAlua($CONFIG, $force);
 	$changes += applyConfigDeviceGroups($CONFIG, $force);
+	$changes += applyConfigEnableTargets($CONFIG, $force);
+	$changes += applyConfigEnableDrivers($CONFIG, $force);
 
 	# And SCST attributes..
 	my %_attributes;
 	foreach my $item (keys %{$CONFIG}) {
 		next if ($item eq 'HANDLER');
 		next if ($item eq 'TARGET_DRIVER');
+		next if ($item eq 'ALUA');
 		next if ($item eq 'DEVICE_GROUP');
 		$_attributes{$item} = $$CONFIG{$item};
 	}
@@ -1970,7 +1993,7 @@ sub applyConfigDevices {
 	foreach my $handler (keys %{$handlers}) {
 		foreach my $device (@{$$handlers{$handler}}) {
 			if (!defined($$config{'HANDLER'}->{$handler}->{'DEVICE'}->{$device})) {
-				my $attributes = $SCST->deviceAttributes($device);
+				my ($attributes, $errorString) = $SCST->deviceAttributes($device);
 
 				if ($deletions) {
 					closeDevice($handler, $device, $deletions);
@@ -1997,14 +2020,14 @@ sub applyConfigDevices {
 
 				my $attributes = configToAttr(\%_attributes);
 				my $create_attrs = configToAttr(\%_attributes);
-				my $possible = $SCST->deviceCreateAttributes($handler);
-				immediateExit($SCST->errorString());
+				my ($possible, $errorString) = $SCST->deviceCreateAttributes($handler);
+				condExit($errorString);
 				filterCreateAttributes($possible, $create_attrs, FALSE);
 				filterCreateAttributes($possible, $attributes, TRUE);
 
 				if (handlerHasDevice($handler, $device)) {
-					my $old_create_attrs = $SCST->deviceAttributes($device);
-					immediateExit($SCST->errorString());
+					my ($old_create_attrs, $errorString) = $SCST->deviceAttributes($device);
+					condExit($errorString);
 					filterCreateAttributes($possible, $old_create_attrs, FALSE);
 
 					if (compareToKeyAttribute($create_attrs, $old_create_attrs)) {
@@ -2083,10 +2106,10 @@ sub applyConfigAssignments {
 					}
 				} else {
 					my $c_attrs = configToAttr($$config{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'LUN'}->{$lun}->{$device});
-					my $o_attrs = $SCST->lunAttributes($driver, $target, $lun);
-					immediateExit($SCST->errorString());
-					my $possible = $SCST->lunCreateAttributes($driver, $target);
-					immediateExit($SCST->errorString());
+					my ($o_attrs, $errorString) = $SCST->lunAttributes($driver, $target, $lun);
+					condExit($errorString);
+					my ($possible, $errorString) = $SCST->lunCreateAttributes($driver, $target);
+					condExit($errorString);
 
 					filterCreateAttributes($possible, $c_attrs, FALSE);
 
@@ -2126,10 +2149,10 @@ sub applyConfigAssignments {
 						}
 					} else {
 						my $c_attrs = configToAttr($$config{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'GROUP'}->{$group}->{'LUN'}->{$lun}->{$device});
-						my $o_attrs = $SCST->lunAttributes($driver, $target, $lun, $group);
-						immediateExit($SCST->errorString());
-						my $possible = $SCST->lunCreateAttributes($driver, $target, $group);
-						immediateExit($SCST->errorString());
+						my ($o_attrs, $errorString) = $SCST->lunAttributes($driver, $target, $lun, $group);
+						condExit($errorString);
+						my ($possible, $errorString) = $SCST->lunCreateAttributes($driver, $target, $group);
+						condExit($errorString);
 
 						filterCreateAttributes($possible, $c_attrs, FALSE);
 
@@ -2170,21 +2193,17 @@ sub applyConfigAssignments {
 
 	foreach my $driver (sort keys %{$assignments}) {
 		if (!defined($CURRENT{'assign'}->{$driver})) {
-			immediateExit("Target driver '$driver' is not loaded or available.");
+			condExit("Target driver '$driver' is not loaded or available.");
 		}
 
 		my %_attributes;
-		my %special;
 		foreach my $item (keys %{$$assignments{$driver}}) {
 			if ($item eq 'TARGET') {
 				$changes += applyTargetAssignments($driver, $$assignments{$driver}->{$item},
 				  $deletions);
 			} elsif ($item ne 'enabled') {
-				# Enable driver last
+				# Enabling a driver happens in applyConfigEnableDrivers()
 				$_attributes{$item} = $$assignments{$driver}->{$item};
-			} else {
-				$special{$item} = $$assignments{$driver}->{$item};
-
 			}
 		}
 
@@ -2193,9 +2212,28 @@ sub applyConfigAssignments {
 		if (scalar keys %{$attributes}) {
 			$changes += setDriverAttributes($driver, $attributes, $deletions);
 		}
+	}
 
-		$attributes = configToAttr(\%special);
-		my $d_attributes = $SCST->driverAttributes($driver);
+	return $changes;
+}
+
+sub applyConfigEnableDrivers {
+	my $config = shift;
+	my $deletions = shift;
+	my $changes = 0;
+
+	my $assignments = $$config{'TARGET_DRIVER'};
+
+	foreach my $driver (sort keys %{$assignments}) {
+		my %_attributes;
+		foreach my $item (keys %{$$assignments{$driver}}) {
+			if ($item eq 'enabled') {
+				$_attributes{$item} = $$assignments{$driver}->{$item};
+			}
+		}
+
+		my $attributes = configToAttr(\%_attributes);
+		my ($d_attributes, $errorString) = $SCST->driverAttributes($driver);
 
 		if (defined($$d_attributes{'enabled'}) &&
 		    ($$d_attributes{'enabled'}->{'value'} != $$attributes{'enabled'})) {
@@ -2205,6 +2243,19 @@ sub applyConfigAssignments {
 	}
 
 	return $changes;
+}
+
+sub applyConfigAlua {
+	my $config = shift;
+	my $deletions = shift;
+
+	my $alua_attr = $$config{'ALUA'};
+	my %_attributes;
+	foreach my $item (keys %{$alua_attr}) {
+		$_attributes{$item} = $alua_attr->{$item};
+	}
+	my $attributes = configToAttr(\%_attributes);
+	return setAluaAttributes($attributes);
 }
 
 sub applyConfigDeviceGroups {
@@ -2412,7 +2463,7 @@ sub applyTargetAssignments {
 
 			if ($deletions && $isVirtual) {
 				my $rc = removeVirtualTarget($driver, $target);
-				immediateExit($SCST->errorString($rc)) if ($rc);
+				condExit($SCST->errorString($rc));
 				$changes++;
 			} else {
 				print "\t-> Virtual target '$target' for driver '$driver' is not in configuration. ".
@@ -2423,16 +2474,16 @@ sub applyTargetAssignments {
 
 	my $possible;
 
-	my $is_virtual = $SCST->driverIsVirtualCapable($driver);
+	my ($is_virtual, $errorString) = $SCST->driverIsVirtualCapable($driver);
 
 	if ($is_virtual) {
-		$possible = $SCST->targetCreateAttributes($driver);
+		($possible, $errorString) = $SCST->targetCreateAttributes($driver);
 	}
 
 	foreach my $target (sort keys %{$targets}) {
 		if (!defined($CURRENT{'assign'}->{$driver}->{$target})) {
 			if (!$is_virtual) {
-				immediateExit("Target '$target' for driver '$driver' does not exist.");
+				condExit("Target '$target' for driver '$driver' does not exist.");
 			} else {
 				my %_attributes;
 
@@ -2445,13 +2496,13 @@ sub applyTargetAssignments {
 				my $attributes = configToAttr(\%_attributes);
 
 				if (defined($$attributes{'HW_TARGET'})) {
-					immediateExit("Hardware target '$target' for driver '$driver' does not exist.");
+					condExit("Hardware target '$target' for driver '$driver' does not exist.");
 				}					
 
 				filterCreateAttributes($possible, $attributes, FALSE);
 
 				my $rc = addVirtualTarget($driver, $target, $attributes);
-				immediateExit($SCST->errorString($rc)) if ($rc);
+				condExit($SCST->errorString($rc));
 				$changes++ if (!$rc);
 			}
 		}
@@ -2465,28 +2516,52 @@ sub applyTargetAssignments {
 		}
 
 		my $attributes = configToAttr(\%_attributes);
-		filterCreateAttributes($possible, $attributes, TRUE);
+		if ($SCST->targetType($driver, $target) == $SCST::SCST::TGT_TYPE_VIRTUAL) {
+			filterCreateAttributes($possible, $attributes, TRUE);
+		}
 		$changes += setTargetAttributes($driver, $target, $attributes, $deletions);
 
-		%_attributes = ();
 		foreach my $item (keys %{$$targets{$target}}) {
 			if ($item eq 'GROUP') {
 				$changes += applyGroupAssignments($driver, $target, $$targets{$target}->{$item});
 				$changes += applyInitiatorAssignments($driver, $target, $$targets{$target}->{$item}, $deletions);
 			} elsif ($item eq 'LUN') {
 				$changes += applyLunAssignments($driver, $target, undef, $$targets{$target}->{$item});
-			} elsif ($item eq 'enabled') {
-				$_attributes{$item} = $$targets{$target}->{$item};
 			}
 		}
+	}
 
-		$attributes = configToAttr(\%_attributes);
-		my $t_attributes = $SCST->targetAttributes($driver, $target);
+	return $changes;
+}
 
-		if (defined($$t_attributes{'enabled'}) &&
-		    ($$t_attributes{'enabled'}->{'value'} != $$attributes{'enabled'})) {
-			setTargetAttribute($driver, $target, 'enabled', $$attributes{'enabled'});
-			$changes++;
+sub applyConfigEnableTargets {
+	my $config = shift;
+	my $deletions = shift;
+	my $changes = 0;
+
+	my $assignments = $$config{'TARGET_DRIVER'};
+
+	foreach my $driver (sort keys %{$assignments}) {
+		foreach my $driver_item (keys %{$$assignments{$driver}}) {
+			next if ($driver_item ne 'TARGET');
+			my $targets = $$assignments{$driver}->{$driver_item};
+			foreach my $target (sort keys %{$targets}) {
+				my %_attributes = ();
+				foreach my $target_item (keys %{$$targets{$target}}) {
+					if ($target_item eq 'enabled') {
+						$_attributes{$target_item} = $$targets{$target}->{$target_item};
+					}
+				}
+
+				my $attributes = configToAttr(\%_attributes);
+				my ($t_attributes, $errorString) = $SCST->targetAttributes($driver, $target);
+
+				if (defined($$t_attributes{'enabled'}) &&
+				    ($$t_attributes{'enabled'}->{'value'} != $$attributes{'enabled'})) {
+					setTargetAttribute($driver, $target, 'enabled', $$attributes{'enabled'});
+					$changes++;
+				}
+			}
 		}
 	}
 
@@ -2638,17 +2713,17 @@ sub clearConfiguration {
 
 	foreach my $handler (sort keys %{$handlers}) {
 		foreach my $device (@{$$handlers{$handler}}) {
-			my $attributes = $SCST->deviceAttributes($device);
+			my ($attributes, $errorString) = $SCST->deviceAttributes($device);
 			closeDevice($handler, $device, TRUE);
 		}
 	}
 
 	# Todo - check return code
 
-	my $drivers = $SCST->drivers();
+	my ($drivers, $errorString) = $SCST->drivers();
 
 	foreach my $driver (@{$drivers}) {
-		my $targets = $SCST->targets($driver);
+		my ($targets, $errorString) = $SCST->targets($driver);
 
 		foreach my $target (@{$targets}) {
 			disableTarget($driver, $target);
@@ -2668,10 +2743,10 @@ sub addVirtualTarget {
 	my $attributes = shift;
 
 	# Enable all hardware targets before creating virtual ones
-	my $targets = $SCST->targets($driver);
+	my ($targets, $errorString) = $SCST->targets($driver);
 
 	foreach my $_target (@{$targets}) {
-		my $attributes = $SCST->targetAttributes($driver, $_target);
+		my ($attributes, $errorString) = $SCST->targetAttributes($driver, $_target);
 
 		if (defined($$attributes{'hw_target'}) &&
 		    !$$attributes{'enabled'}->{'value'}) {
@@ -2704,7 +2779,7 @@ sub listHandlers {
 
 	return listHandler($handler) if ($handler);
 
-	my $handlers = $SCST->handlers();
+	my ($handlers, $errorString) = $SCST->handlers();
 
 	my $l_handler;
 	foreach my $handler (@{$handlers}) {
@@ -2730,7 +2805,7 @@ sub listHandler {
 	my %toprint;
 
 	my $got_handler = ($handler ne '');
-	my $handlers = $SCST->handlers();
+	my ($handlers, $errorString) = $SCST->handlers();
 
 	my $l_device;
 	my $l_handler;
@@ -2743,7 +2818,7 @@ sub listHandler {
 
 			$l_handler = length($handler) if ($l_handler < length($handler));
 
-			my $devices = $SCST->devicesByHandler($handler);
+			my ($devices, $errorString) = $SCST->devicesByHandler($handler);
 
 			if ($#{$devices} == -1) {
 				push @{$devices}, '-';
@@ -2764,7 +2839,7 @@ sub listHandler {
 		print "\n";
 
 		foreach my $handler (keys %toprint) {
-			my $devices = $SCST->devicesByHandler($handler);
+			my ($devices, $errorString) = $SCST->devicesByHandler($handler);
 			my $first = TRUE;
 
 			if ($#{$devices} == -1) {
@@ -2799,9 +2874,9 @@ sub listDevice {
 	my $device = shift;
 	my $nonkey = shift;
 
-	my $attributes = $SCST->deviceAttributes($device);
+	my ($attributes, $errorString) = $SCST->deviceAttributes($device);
 
-	return TRUE if issueWarning($SCST->errorString());
+	return TRUE if issueWarning($errorString);
 
 	if (!scalar(keys %{$attributes})) {
 		print "No such device '$device' exists.\n";
@@ -2817,7 +2892,7 @@ sub listDeviceGroups {
 
 	return listDeviceGroup($group) if ($group ne '');
 
-	my $groups = $SCST->deviceGroups();
+	my ($groups, $errorString) = $SCST->deviceGroups();
 
 	my $l_group;
 	foreach my $group (@{$groups}) {
@@ -2844,7 +2919,7 @@ sub listDeviceGroups {
 sub listDeviceGroup {
 	my $group = shift;
 
-	my $devices = $SCST->deviceGroupDevices($group);
+	my ($devices, $errorString) = $SCST->deviceGroupDevices($group);
 
 	my $l_device;
 	foreach my $device (@{$devices}) {
@@ -2864,7 +2939,7 @@ sub listDeviceGroup {
 		print "\t$device\n";
 	}
 
-	my $tgroups = $SCST->targetGroups($group);
+	my ($tgroups, $errorString) = $SCST->targetGroups($group);
 
 	my $l_tgroup;
 	foreach my $tgroup (@{$tgroups}) {
@@ -2895,7 +2970,7 @@ sub listTargetGroups {
 	return listDeviceGroups(undef, TRUE) if ($group eq '');
 	return listTargetGroup($group, $tgroup) if ($tgroup ne '');
 
-	my $tgroups = $SCST->targetGroups($group);
+	my ($tgroups, $errorString) = $SCST->targetGroups($group);
 
 	my $l_tgroup;
 	foreach my $tgroup (@{$tgroups}) {
@@ -2926,7 +3001,7 @@ sub listTargetGroup {
 	my $group = shift;
 	my $tgroup = shift;
 
-	my $targets = $SCST->targetGroupTargets($group, $tgroup);
+	my ($targets, $errorString) = $SCST->targetGroupTargets($group, $tgroup);
 
 	my $l_tgt;
 	foreach my $tgt (@{$targets}) {
@@ -2955,7 +3030,7 @@ sub listDeviceGroupDevices {
 
 	return listDevice($device) if ($device ne '');
 
-	my $devices = $SCST->deviceGroupDevices($group);
+	my ($devices, $errorString) = $SCST->deviceGroupDevices($group);
 
 	my $l_device;
 	foreach my $device (@{$devices}) {
@@ -2983,7 +3058,7 @@ sub listDrivers {
 
 	return listTargets($driver, undef) if ($driver ne '');
 
-	my $drivers = $SCST->drivers();
+	my ($drivers, $errorString) = $SCST->drivers();
 
 	my $l_driver;
 	foreach my $driver (@{$drivers}) {
@@ -3013,7 +3088,7 @@ sub listTargets {
 
 	my $got_driver = ($driver ne '');
 
-	my $drivers = $SCST->drivers();
+	my ($drivers, $errorString) = $SCST->drivers();
 
 	my $l_driver;
 	my $l_target;
@@ -3026,7 +3101,7 @@ sub listTargets {
 
 			$l_driver = length($driver) if ($l_driver < length($driver));
 
-			my $targets = $SCST->targets($driver);
+			my ($targets, $errorString) = $SCST->targets($driver);
 
 			foreach my $target (@{$targets}) {
 				$l_target = length($target) if ($l_target < length($target));
@@ -3045,7 +3120,7 @@ sub listTargets {
 		my %p;
 
 		foreach my $driver (keys %toprint) {
-			my $targets = $SCST->targets($driver);
+			my ($targets, $errorString) = $SCST->targets($driver);
 
 			foreach my $target (@{$targets}) {
 				if (!defined($p{$driver})) {
@@ -3064,17 +3139,17 @@ sub listTargets {
 }
 
 sub listSessions {
-	my $drivers = $SCST->drivers();
+	my ($drivers, $errorString) = $SCST->drivers();
 
 	foreach my $driver (@{$drivers}) {
-		my $targets = $SCST->targets($driver);
+		my ($targets, $errorString) = $SCST->targets($driver);
 
 		foreach my $target (@{$targets}) {
 			my $had_sessions = FALSE;
 
 			print "Driver/Target: $driver/$target\n\n";
 
-			my $sessions = $SCST->sessions($driver, $target);
+			my ($sessions, $errorString) = $SCST->sessions($driver, $target);
 			foreach my $session (keys %{$sessions}) {
 				print "\tSession: $session\n\n";
 
@@ -3112,12 +3187,13 @@ sub listGroup {
 	my $group = shift;
 	my $luns = shift;
 	my $initiators = shift;
+	my $errorString;
 
-	$luns = $SCST->luns($driver, $target, $group) if (!$luns);
-	$initiators = $SCST->initiators($driver, $target, $group)
-	  if (($initiators eq '') && ($group ne ''));
-
-	return TRUE if issueWarning($SCST->errorString());
+	($luns, $errorString) = $SCST->luns($driver, $target, $group) if (!$luns);
+	if (($initiators eq '') && ($group ne '')) {
+		($initiators, $errorString) = $SCST->initiators($driver, $target, $group);
+		return TRUE if issueWarning($errorString);
+	}
 
 	if ((keys %{$luns}) || ($#{$initiators} > -1)) {
 		my $l_device;
@@ -3193,13 +3269,13 @@ sub listGroups {
 	my $got_target = $target;
 	my $got_driver = $driver;
 
-	my $drivers = $SCST->drivers();
+	my ($drivers, $errorString) = $SCST->drivers();
 
 	foreach my $_driver (@{$drivers}) {
 		$driver = $_driver if (!$got_driver);
 
 		if ($driver eq $_driver) {
-			my $targets = $SCST->targets($driver);
+			my ($targets, $errorString) = $SCST->targets($driver);
 			foreach my $_target (@{$targets}) {
 				$target = $_target if (!$got_target);
 
@@ -3212,7 +3288,7 @@ sub listGroups {
 
 					print "\n";
 
-					my $groups = $SCST->groups($driver, $target);
+					my ($groups, $errorString) = $SCST->groups($driver, $target);
 					foreach my $_group (@{$groups}) {
 						$group = $_group if (!$got_group);
 
@@ -3245,10 +3321,12 @@ sub listGroups {
 sub listExported {
 	my $device = shift;
 	my $attributes = shift;
+	my $errorString;
 
-	$attributes = $SCST->deviceAttributes($device) if (!$attributes);
-
-	return TRUE if issueWarning($SCST->errorString());
+	if (!$attributes) {
+		($attributes, $errorString) = $SCST->deviceAttributes($device) ;
+		return TRUE if issueWarning($errorString);
+	}
 
 	if (keys %{$$attributes{'exported'}}) {
 		my $exported = $$attributes{'exported'}->{'value'};
@@ -3416,9 +3494,9 @@ sub listAttributes {
 sub listScstAttributes {
 	my $nonkey = shift;
 
-	my $attributes = $SCST->scstAttributes();
+	my ($attributes, $errorString) = $SCST->scstAttributes();
 
-	return TRUE if issueWarning($SCST->errorString());
+	return TRUE if issueWarning($errorString);
 
 	if (!scalar(keys %{$attributes})) {
 		print "FATAL: Unable to get a list of SCST attributes! Please make sure SCST is loaded.\n";
@@ -3432,9 +3510,9 @@ sub listHandlerAttributes {
 	my $handler = shift;
 	my $nonkey = shift;
 
-	my $attributes = $SCST->handlerAttributes($handler);
+	my ($attributes, $errorString) = $SCST->handlerAttributes($handler);
 
-	return TRUE if issueWarning($SCST->errorString());
+	return TRUE if issueWarning($errorString);
 
 	if (!scalar(keys %{$attributes})) {
 		print "No such handler '$handler' found.\n";
@@ -3444,9 +3522,9 @@ sub listHandlerAttributes {
 	my $rc = listAttributes($attributes, $nonkey);
 	return $rc if $rc;
 
-	$attributes = $SCST->deviceCreateAttributes($handler);
+	($attributes, $errorString) = $SCST->deviceCreateAttributes($handler);
 
-	return TRUE if issueWarning($SCST->errorString());
+	return TRUE if issueWarning($errorString);
 	return TRUE if (!scalar keys %{$attributes});
 
 	print "\n\tDevice CREATE attributes available\n";
@@ -3463,16 +3541,16 @@ sub listDriverAttributes {
 	my $driver = shift;
 	my $nonkey = shift;
 
-	my $attributes = $SCST->driverAttributes($driver);
+	my ($attributes, $errorString) = $SCST->driverAttributes($driver);
 
-	return TRUE if issueWarning($SCST->errorString());
+	return TRUE if issueWarning($errorString);
 
 	my $rc = listAttributes($attributes, $nonkey);
 	return $rc if ($rc);
 
 	if ($SCST->driverIsVirtualCapable($driver)) {
-		$attributes = $SCST->driverDynamicAttributes($driver);
-		return TRUE if issueWarning($SCST->errorString());
+		($attributes, $errorString) = $SCST->driverDynamicAttributes($driver);
+		return TRUE if issueWarning($errorString);
 
 		if (scalar keys %{$attributes}) {
 			print "\n\tDynamic attributes available\n";
@@ -3483,9 +3561,9 @@ sub listDriverAttributes {
 			}
 		}
 
-		my $attributes = $SCST->targetCreateAttributes($driver);
+		my ($attributes, $errorString) = $SCST->targetCreateAttributes($driver);
 
-		return TRUE if issueWarning($SCST->errorString());
+		return TRUE if issueWarning($errorString);
 		return TRUE if (!scalar keys %{$attributes});
 
 		print "\n\tTarget CREATE attributes available:\n";
@@ -3504,9 +3582,9 @@ sub listTargetAttributes {
 	my $target = shift;
 	my $nonkey = shift;
 
-	my $attributes = $SCST->targetAttributes($driver, $target);
+	my ($attributes, $errorString) = $SCST->targetAttributes($driver, $target);
 
-	return TRUE if issueWarning($SCST->errorString());
+	return TRUE if issueWarning($errorString);
 
 	if (!scalar(keys %{$attributes})) {
 		print "No such driver/target '$driver/$target' found.\n";
@@ -3517,8 +3595,8 @@ sub listTargetAttributes {
 	return $rc if $rc;
 
 	if ($SCST->driverIsVirtualCapable($driver)) {
-		$attributes = $SCST->targetDynamicAttributes($driver);
-		return TRUE if issueWarning($SCST->errorString());
+		($attributes, $errorString) = $SCST->targetDynamicAttributes($driver);
+		return TRUE if issueWarning($errorString);
 
 		if (scalar keys %{$attributes}) {
 			print "\n\tDynamic attributes available\n";
@@ -3530,9 +3608,9 @@ sub listTargetAttributes {
 		}
 	}
 
-	$attributes = $SCST->lunCreateAttributes($driver, $target);
+	($attributes, $errorString) = $SCST->lunCreateAttributes($driver, $target);
 
-	return TRUE if issueWarning($SCST->errorString());
+	return TRUE if issueWarning($errorString);
 	return TRUE if (!scalar keys %{$attributes});
 
 	print "\n\tLUN CREATE attributes available\n";
@@ -3551,9 +3629,9 @@ sub listGroupAttributes {
 	my $group = shift;
 	my $nonkey = shift;
 
-	my $attributes = $SCST->groupAttributes($driver, $target, $group);
+	my ($attributes, $errorString) = $SCST->groupAttributes($driver, $target, $group);
 
-	return TRUE if issueWarning($SCST->errorString());
+	return TRUE if issueWarning($errorString);
 
 	if (!scalar(keys %{$attributes})) {
 		print "No such driver/target/group '$driver/$target/$group' found.\n";
@@ -3563,9 +3641,9 @@ sub listGroupAttributes {
 	my $rc = listAttributes($attributes, $nonkey);
 	return $rc if $rc;
 
-	$attributes = $SCST->lunCreateAttributes($driver, $target, $group);
+	($attributes, $errorString) = $SCST->lunCreateAttributes($driver, $target, $group);
 
-	return TRUE if issueWarning($SCST->errorString());
+	return TRUE if issueWarning($errorString);
 	return TRUE if (!scalar keys %{$attributes});
 
 	print "\n\tLUN CREATE attributes available\n";
@@ -3575,9 +3653,9 @@ sub listGroupAttributes {
 		print "\t$attribute\n";
 	}
 
-	$attributes = $SCST->initiatorCreateAttributes($driver, $target, $group);
+	($attributes, $errorString) = $SCST->initiatorCreateAttributes($driver, $target, $group);
 
-	return TRUE if issueWarning($SCST->errorString());
+	return TRUE if issueWarning($errorString);
 	return TRUE if (!scalar keys %{$attributes});
 
 	print "\n\tInitiator CREATE attributes available\n";
@@ -3597,9 +3675,9 @@ sub listLunAttributes {
 	my $lun = shift;
 	my $nonkey = shift;
 
-	my $attributes = $SCST->lunAttributes($driver, $target, $lun, $group);
+	my ($attributes, $errorString) = $SCST->lunAttributes($driver, $target, $lun, $group);
 
-	return TRUE if issueWarning($SCST->errorString());
+	return TRUE if issueWarning($errorString);
 
 	if (!scalar(keys %{$attributes})) {
 		if ($group ne '') {
@@ -3620,16 +3698,16 @@ sub listInitiatorAttributes {
 	my $initiator = shift;
 	my $nonkey = shift;
 
-	my $attributes = $SCST->initiatorAttributes($driver, $target, $group, $initiator);
+	my ($attributes, $errorString) = $SCST->initiatorAttributes($driver, $target, $group, $initiator);
 
 	# As if writing, initiators didn't have attributes. This will
 	# allow us to support it in the future.
-	if ($SCST->errorString() =~ /Not a directory/) {
+	if ($errorString =~ /Not a directory/) {
 		print "Initiators do not (yet) have attributes.\n";
 		return;
 	}
 
-	return TRUE if issueWarning($SCST->errorString());
+	return TRUE if issueWarning($errorString);
 
 	if (!scalar(keys %{$attributes})) {
 		print "No such driver/target/group/initiator '$driver/$target/$group/$initiator' found.\n";
@@ -3643,9 +3721,9 @@ sub listDeviceGroupAttributes {
 	my $group = shift;
 	my $nonkey = shift;
 
-	my $attributes = $SCST->deviceGroupAttributes($group);
+	my ($attributes, $errorString) = $SCST->deviceGroupAttributes($group);
 
-	return TRUE if issueWarning($SCST->errorString());
+	return TRUE if issueWarning($errorString);
 
 	# Special case - as of writing, device group attributes didn't exist.
 	if (!scalar(keys %{$attributes})) {
@@ -3661,9 +3739,9 @@ sub listTargetGroupAttributes {
 	my $tgroup = shift;
 	my $nonkey = shift;
 
-	my $attributes = $SCST->targetGroupAttributes($group, $tgroup);
+	my ($attributes, $errorString) = $SCST->targetGroupAttributes($group, $tgroup);
 
-	return TRUE if issueWarning($SCST->errorString());
+	return TRUE if issueWarning($errorString);
 
 	if (!scalar(keys %{$attributes})) {
 		print "No such device group/target group '$group/$tgroup' found.\n";
@@ -3679,30 +3757,12 @@ sub listTargetGroupTargetAttributes {
 	my $tgt = shift;
 	my $nonkey = shift;
 
-	my $attributes = $SCST->targetGroupTargetAttributes($group, $tgroup, $tgt);
+	my ($attributes, $errorString) = $SCST->targetGroupTargetAttributes($group, $tgroup, $tgt, TRUE);
 
-	return TRUE if issueWarning($SCST->errorString());
+	return TRUE if issueWarning($errorString);
 
 	if (!scalar(keys %{$attributes})) {
 		print "No such device group/target group/target '$group/$tgroup/$tgt' found.\n";
-		return;
-	}
-
-	return listAttributes($attributes, $nonkey);
-}
-
-sub listTargetGroupTargetAttributes {
-	my $group = shift;
-	my $tgroup = shift;
-	my $tgt = shift;
-	my $nonkey = shift;
-
-	my $attributes = $SCST->targetGroupTargetAttributes($group, $tgroup, $tgt);
-
-	return TRUE if issueWarning($SCST->errorString());
-
-	if (!scalar(keys %{$attributes})) {
-		print "No such target '$tgt' exists within specified target group.\n";
 		return;
 	}
 
@@ -3731,9 +3791,9 @@ sub setScstAttributes {
 	my $showset = shift;
 
 	my $error = "\t-> WARNING: SCST lacks the settable attribute '%s', ignoring.\n\n";
-	my $_attributes = $SCST->scstAttributes();
+	my ($_attributes, $errorString) = $SCST->scstAttributes();
 
-	return TRUE if issueWarning($SCST->errorString());
+	return TRUE if issueWarning($errorString);
 
 	return setAttributes(undef, undef, undef, undef, $attributes,
 	  $_attributes, $error, \&setScstAttribute, $showset);
@@ -3761,9 +3821,9 @@ sub setDeviceAttributes {
 
 	my $error = "\t-> WARNING: Device '$device' lacks the settable ".
 	  "attribute '%s', ignoring.\n\n";
-	my $_attributes = $SCST->deviceAttributes($device);
+	my ($_attributes, $errorString) = $SCST->deviceAttributes($device);
 
-	return TRUE if issueWarning($SCST->errorString());
+	return TRUE if issueWarning($errorString);
 
 	return setAttributes(undef, undef, undef, $device, $attributes,
 	  $_attributes, $error, \&setDeviceAttribute, $showset);
@@ -3791,9 +3851,9 @@ sub setHandlerAttributes {
 
 	my $error = "\t-> WARNING: Handler '$handler' lacks the settable ".
 	  "attribute '%s', ignoring.\n\n";
-	my $_attributes = $SCST->handlerAttributes($handler);
+	my ($_attributes, $errorString) = $SCST->handlerAttributes($handler);
 
-	return TRUE if issueWarning($SCST->errorString());
+	return TRUE if issueWarning($errorString);
 
 	return setAttributes(undef, undef, undef, $handler, $attributes,
 	  $_attributes, $error, \&setHandlerAttribute, $showset);
@@ -3824,9 +3884,9 @@ sub setGroupAttributes {
 
 	my $error = "\t-> WARNING: Driver/target/group '$driver/$target/$group' lacks the settable ".
 	  "attribute '%s', ignoring.\n\n";
-	my $_attributes = $SCST->groupAttributes($driver, $target, $group);
+	my ($_attributes, $errorString) = $SCST->groupAttributes($driver, $target, $group);
 
-	return TRUE if issueWarning($SCST->errorString());
+	return TRUE if issueWarning($errorString);
 
 	return setAttributes(undef, $driver, $target, $group, $attributes,
 	  $_attributes, $error, \&setGroupAttribute, $showset);
@@ -3871,9 +3931,9 @@ sub setLunAttributes {
 		  "attribute '%s', ignoring.\n\n";
 	}
 
-	my $_attributes = $SCST->lunAttributes($driver, $target, $lun, $group);
+	my ($_attributes, $errorString) = $SCST->lunAttributes($driver, $target, $lun, $group);
 
-	return TRUE if issueWarning($SCST->errorString());
+	return TRUE if issueWarning($errorString);
 
 	return setAttributes($driver, $target, $lun, $group, $attributes,
 	  $_attributes, $error, \&setLunAttribute, $showset);
@@ -3904,13 +3964,13 @@ sub setInitiatorAttributes {
 	my $attributes = shift;
 	my $showset = shift;
 
-	my $_attributes = $SCST->initiatorAttributes($driver, $target, $group, $initiator);
+	my ($_attributes, $errorString) = $SCST->initiatorAttributes($driver, $target, $group, $initiator);
 
-	return TRUE if issueWarning($SCST->errorString());
+	return TRUE if issueWarning($errorString);
 
 	# As if writing, initiators didn't have attributes. This will
 	# allow us to support it in the future.
-	if ($SCST->errorString() =~ /Not a directory/) {
+	if ($errorString =~ /Not a directory/) {
 		print "Initiators do not (yet) have attributes.\n";
 		return;
 	}
@@ -3922,6 +3982,35 @@ sub setInitiatorAttributes {
 	  $_attributes, $error, \&setInitiatorAttribute, $showset);
 }
 
+sub setAluaAttributes {
+	my $attributes = shift;
+	my $showset = shift;
+
+	my $error = "\t-> WARNING: no settable ALUA attribute '%s', ignoring.\n\n";
+
+	my ($_attributes, $errorString) = $SCST->aluaAttributes();
+
+	return TRUE if issueWarning($errorString);
+
+	return setAttributes(undef, undef, undef, undef, $attributes,
+	  $_attributes, $error, \&setAluaAttribute, $showset);
+}
+
+sub setAluaAttribute {
+	shift;
+	shift;
+	shift;
+	shift;
+	my $attribute = shift;
+	my $value = shift;
+
+	print "\t-> Setting ALUA attribute '$attribute' to value '$value': ";
+	my $rc = $SCST->setAluaAttribute($attribute, $value);
+	print "done.\n";
+
+	return $rc;
+}
+
 sub setDeviceGroupAttributes {
 	my $group = shift;
 	my $attributes = shift;
@@ -3929,9 +4018,9 @@ sub setDeviceGroupAttributes {
 
 	my $error = "\t-> WARNING: Device Group '$group' lacks the settable attribute '%s', ignoring.\n\n";
 
-	my $_attributes = $SCST->deviceGroupAttributes($group);
+	my ($_attributes, $errorString) = $SCST->deviceGroupAttributes($group);
 
-	return TRUE if issueWarning($SCST->errorString());
+	return TRUE if issueWarning($errorString);
 
 	return setAttributes(undef, undef, undef, $group, $attributes,
 	  $_attributes, $error, \&setDeviceGroupAttribute, $showset);
@@ -3962,9 +4051,9 @@ sub setTargetGroupAttributes {
 
 	my $error = "\t-> WARNING: Target Group '$group/$tgroup' lacks the settable attribute '%s', ignoring.\n\n";
 
-	my $_attributes = $SCST->targetGroupAttributes($group, $tgroup);
+	my ($_attributes, $errorString) = $SCST->targetGroupAttributes($group, $tgroup);
 
-	return TRUE if issueWarning($SCST->errorString());
+	return TRUE if issueWarning($errorString);
 
 	return setAttributes(undef, undef, $group, $tgroup, $attributes,
 	  $_attributes, $error, \&setTargetGroupAttribute, $showset);
@@ -3996,9 +4085,9 @@ sub setTargetGroupTargetAttributes {
 
 	my $error = "\t-> WARNING: Target '$group/$tgroup/$tgt' lacks the settable attribute '%s', ignoring.\n\n";
 
-	my $_attributes = $SCST->targetGroupTargetAttributes($group, $tgroup, $tgt);
+	my ($_attributes, $errorString) = $SCST->targetGroupTargetAttributes($group, $tgroup, $tgt, TRUE);
 
-	return TRUE if issueWarning($SCST->errorString());
+	return TRUE if issueWarning($errorString);
 
 	return setAttributes(undef, $group, $tgroup, $tgt, $attributes,
 	  $_attributes, $error, \&setTargetGroupTargetAttribute, $showset);
@@ -4098,9 +4187,9 @@ sub setDriverAttributes {
 	my $changes = 0;
 
 	my $driverCap = $SCST->driverIsVirtualCapable($driver);
-	my $_attributes = $SCST->driverAttributes($driver);
+	my ($_attributes, $errorString) = $SCST->driverAttributes($driver);
 
-	return 0 if issueWarning($SCST->errorString());
+	return 0 if issueWarning($errorString);
 
 	# build caches for easier matching
 	foreach my $attribute (keys %{$attributes}) {
@@ -4171,9 +4260,9 @@ sub addDriverDynamicAttributes {
 	my $driver = shift;
 	my $attributes = shift;
 
-	my $_attributes = $SCST->driverAttributes($driver);
+	my ($_attributes, $errorString) = $SCST->driverAttributes($driver);
 
-	return TRUE if issueWarning($SCST->errorString());
+	return TRUE if issueWarning($errorString);
 
 	my $existing = cacheAttributes($_attributes);
 
@@ -4199,7 +4288,7 @@ sub addDriverDynamicAttribute {
 	my $rc = $SCST->addDriverDynamicAttribute($driver, $attribute, $value);
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc); 
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4208,9 +4297,9 @@ sub removeDriverDynamicAttributes {
 	my $driver = shift;
 	my $attributes = shift;
 
-	my $_attributes = $SCST->driverAttributes($driver);
+	my ($_attributes, $errorString) = $SCST->driverAttributes($driver);
 
-	return TRUE if issueWarning($SCST->errorString());
+	return TRUE if issueWarning($errorString);
 
 	my $existing = cacheAttributes($_attributes);
 
@@ -4238,7 +4327,7 @@ sub removeDriverDynamicAttribute {
 	my $rc = $SCST->removeDriverDynamicAttribute($driver, $attribute, $value);
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4260,7 +4349,7 @@ sub setTargetAttribute {
 	my $rc = $SCST->setTargetAttribute($driver, $target, $attribute, $value);
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4274,9 +4363,9 @@ sub setTargetAttributes {
 	my $changes = 0;
 
 	my $driverCap = $SCST->driverIsVirtualCapable($driver);
-	my $_attributes = $SCST->targetAttributes($driver, $target);
+	my ($_attributes, $errorString) = $SCST->targetAttributes($driver, $target);
 
-	return 0 if issueWarning($SCST->errorString());
+	return 0 if issueWarning($errorString);
 
 	# build caches for easier matching
 	foreach my $attribute (keys %{$attributes}) {
@@ -4350,9 +4439,9 @@ sub addTargetDynamicAttributes {
 	my $target = shift;
 	my $attributes = shift;
 
-	my $_attributes = $SCST->targetAttributes($driver, $target);
+	my ($_attributes, $errorString) = $SCST->targetAttributes($driver, $target);
 
-	return TRUE if issueWarning($SCST->errorString());
+	return TRUE if issueWarning($errorString);
 
 	my $existing = cacheAttributes($_attributes);
 
@@ -4381,7 +4470,7 @@ sub addTargetDynamicAttribute {
 	my $rc = $SCST->addTargetDynamicAttribute($driver, $target, $attribute, $value);
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc); 
+	condExit($SCST->errorString($rc)); 
 
 	return FALSE;
 }
@@ -4391,9 +4480,9 @@ sub removeTargetDynamicAttributes {
 	my $target = shift;
 	my $attributes = shift;
 
-	my $_attributes = $SCST->targetAttributes($driver, $target);
+	my ($_attributes, $errorString) = $SCST->targetAttributes($driver, $target);
 
-	return TRUE if issueWarning($SCST->errorString());
+	return TRUE if issueWarning($errorString);
 
 	my $existing = cacheAttributes($_attributes);
 
@@ -4423,7 +4512,7 @@ sub removeTargetDynamicAttribute {
 	my $rc = $SCST->removeTargetDynamicAttribute($driver, $target, $attribute, $value);
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4441,7 +4530,7 @@ sub openDevice {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4451,7 +4540,7 @@ sub closeDevice {
 	my $device = shift;
 	my $force = shift;
 
-	my $attributes = $SCST->deviceAttributes($device);
+	my ($attributes, $errorString) = $SCST->deviceAttributes($device);
 
 	if (!$force) {
 		if (keys %{$$attributes{'exported'}}) {
@@ -4467,7 +4556,7 @@ sub closeDevice {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4490,7 +4579,7 @@ sub addDeviceGroup {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4505,7 +4594,7 @@ sub addTargetGroup {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4521,7 +4610,7 @@ sub addTargetGroupTarget {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4531,8 +4620,8 @@ sub removeDeviceGroup {
 	my $force = shift;
 
 	if (!$force) {
-		my $devices = $SCST->deviceGroupDevices($group);
-		my $tgroups = $SCST->targetGroups($group);
+		my ($devices, $errorString) = $SCST->deviceGroupDevices($group);
+		my ($tgroups, $errorString) = $SCST->targetGroups($group);
 
 		if (($#{$devices} > -1) || ($#{$tgroups} > -1)) {
 			print "\n";
@@ -4547,7 +4636,7 @@ sub removeDeviceGroup {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4558,7 +4647,7 @@ sub removeTargetGroup {
 	my $force = shift;
 
 	if (!$force) {
-		my $tgts = $SCST->targetGroupTargets($group, $tgroup);
+		my ($tgts, $errorString) = $SCST->targetGroupTargets($group, $tgroup);
 
 		if ($#{$tgts} > -1) {
 			print "\n";
@@ -4573,7 +4662,7 @@ sub removeTargetGroup {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4590,7 +4679,7 @@ sub removeTargetGroupTarget {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4605,7 +4694,7 @@ sub addDeviceGroupDevice {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4617,10 +4706,10 @@ sub removeDeviceGroupDevice {
 
 	if (!$force) {
 		my $found = FALSE;
-		my $tgroups = $SCST->targetGroups($group);
+		my ($tgroups, $errorString) = $SCST->targetGroups($group);
 
 		foreach my $tgroup (@{$tgroups}) {
-			my $targets = $SCST->targetGroupTargets($group, $tgroup);
+			my ($targets, $errorString) = $SCST->targetGroupTargets($group, $tgroup);
 
 			if ($#{$targets} > -1) {
 				print "\n";
@@ -4640,7 +4729,7 @@ sub removeDeviceGroupDevice {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4658,7 +4747,7 @@ sub addGroup {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4670,8 +4759,8 @@ sub removeGroup {
 	my $force = shift;
 
 	if (!$force) {
-		my $luns = $SCST->luns($driver, $target, $group);
-		my $initiators = $SCST->initiators($driver, $target, $group);
+		my ($luns, $errorString) = $SCST->luns($driver, $target, $group);
+		my ($initiators, $errorString) = $SCST->initiators($driver, $target, $group);
 
 		if ((keys %{$luns}) || ($#{$initiators} > -1)) {
 			listGroup($driver, $target, $group, $luns, $initiators);
@@ -4685,7 +4774,7 @@ sub removeGroup {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4719,7 +4808,7 @@ sub addInitiator {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4737,7 +4826,7 @@ sub removeInitiator {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4755,7 +4844,7 @@ sub moveInitiator {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4771,7 +4860,7 @@ sub clearInitiators {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4798,7 +4887,7 @@ sub addLun {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4821,7 +4910,7 @@ sub removeLun {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4841,7 +4930,7 @@ sub replaceLun {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4861,7 +4950,7 @@ sub clearLuns {
 
 	print "done.\n";
 
-	immediateExit($SCST->errorString($rc)) if ($rc);
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -4873,8 +4962,8 @@ sub clearDriverDynamicAttributes {
 
 	print "\t-> Removing all dynamic attributes from driver '$driver': ";
 
-	my $attributes = $SCST->driverAttributes($driver);
-	my $dynamic = $SCST->driverDynamicAttributes($driver);
+	my ($attributes, $errorString) = $SCST->driverAttributes($driver);
+	my ($dynamic, $errorString) = $SCST->driverDynamicAttributes($driver);
 
 	foreach my $attribute (keys %{$attributes}) {
 		if (defined($$dynamic{$attribute})) {
@@ -4883,7 +4972,7 @@ sub clearDriverDynamicAttributes {
 					my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
 					my $rc = $SCST->removeDriverDynamicAttribute($driver, $attribute, $value);
 
-					immediateExit($SCST->errorString($rc)) if ($rc);
+					condExit($SCST->errorString($rc));
 				}
 			}
 		}
@@ -4902,8 +4991,8 @@ sub clearTargetDynamicAttributes {
 
 	print "\t-> Removing all dynamic attributes from driver/target '$driver/$target': ";
 
-	my $attributes = $SCST->targetAttributes($driver, $target);
-	my $dynamic = $SCST->targetDynamicAttributes($driver);
+	my ($attributes, $errorString) = $SCST->targetAttributes($driver, $target);
+	my ($dynamic, $errorString) = $SCST->targetDynamicAttributes($driver);
 
 	foreach my $attribute (keys %{$attributes}) {
 		if (defined($$dynamic{$attribute})) {
@@ -4912,7 +5001,7 @@ sub clearTargetDynamicAttributes {
 					my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
 					my $rc = $SCST->removeTargetDynamicAttribute($driver, $target, $attribute, $value);
 
-					immediateExit($SCST->errorString($rc)) if ($rc);
+					condExit($SCST->errorString($rc));
 				}
 			}
 		}
@@ -4949,7 +5038,7 @@ sub enableDriver {
 	my $driver = shift;
 	my %attributes = ('enabled', 1);
 
-	my $attrs = $SCST->driverAttributes($driver);
+	my ($attrs, $errorString) = $SCST->driverAttributes($driver);
 	return TRUE if (!defined($$attrs{'enabled'}));
 
 	return setDriverAttributes($driver, \%attributes);
@@ -4959,7 +5048,7 @@ sub disableDriver {
 	my $driver = shift;
 	my %attributes = ('enabled', 0);
 
-	my $attrs = $SCST->driverAttributes($driver);
+	my ($attrs, $errorString) = $SCST->driverAttributes($driver);
 	return TRUE if (!defined($$attrs{'enabled'}));
 
 	return setDriverAttributes($driver, \%attributes);
@@ -4973,10 +5062,10 @@ sub issueLip {
 	if (defined($driver) && defined($target)) {
 		return _issueLip($driver, $target, $warn);
 	} else {
-		my $drivers = $SCST->drivers();
+		my ($drivers, $errorString) = $SCST->drivers();
 
 		foreach my $driver(@{$drivers}) {
-			my $targets = $SCST->targets($driver);
+			my ($targets, $errorString) = $SCST->targets($driver);
 
 			foreach my $target (@{$targets}) {
 				my $rc = _issueLip($driver, $target, $warn);
@@ -4995,7 +5084,7 @@ sub _issueLip {
 	my $warn = shift;
 	my $rc = FALSE;
 
-	my $attributes = $SCST->targetAttributes($driver, $target);
+	my ($attributes, $errorString) = $SCST->targetAttributes($driver, $target);
 
 	if (!defined($$attributes{'host'}) && $warn) {
 		print "\t-> Driver/target '$driver/$target' has no 'host' attribute, ignoring.\n";
@@ -5244,7 +5333,7 @@ sub readOldConfigFile {
 		}
 	}
 
-	my $drivers = $SCST->drivers();
+	my ($drivers, $errorString) = $SCST->drivers();
 	my %added_targets;
 
 	# Handle default groups
@@ -5256,7 +5345,7 @@ sub readOldConfigFile {
 				my($device, $lun) = split(/\,/, $device);
 
 				foreach my $driver (@{$drivers}) {
-					my $targets = $SCST->targets($driver);
+					my ($targets, $errorString) = $SCST->targets($driver);
 
 					foreach my $target (@{$targets}) {
 						$new{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'LUN'}->{$lun}->{$device} = {};
@@ -5269,7 +5358,7 @@ sub readOldConfigFile {
 			my $found_t = FALSE;
 			# Find the associated target
 			foreach my $driver (@{$drivers}) {
-				my $targets = $SCST->targets($driver);
+				my ($targets, $errorString) = $SCST->targets($driver);
 
 				foreach my $target (@{$targets}) {
 					if ($target eq $group_t) {
@@ -5310,7 +5399,7 @@ sub readOldConfigFile {
 			addAllGroupsToTarget(\%config, \%new, $driver, $target);
 			$has_enabled = TRUE;
 		} else {
-			immediateExit("Unable to determine target driver information for target '$wwn'. ".
+			condExit("Unable to determine target driver information for target '$wwn'. ".
 			  "Please ensure this target driver is loaded.");
 		}
 	}
@@ -5321,7 +5410,7 @@ sub readOldConfigFile {
 
 		# Fill in with known targets, all disabled.
 		foreach my $driver (@{$drivers}) {
-			my $targets = $SCST->targets($driver);
+			my ($targets, $errorString) = $SCST->targets($driver);
 
 			foreach my $target (@{$targets}) {
 				addAllGroupsToTarget(\%config, \%new, $driver, $target);
@@ -5340,7 +5429,7 @@ sub readOldConfigFile {
 	foreach my $driver (keys %{$new{'TARGET_DRIVER'}}) {
 		next if ($driver =~ /^qla/);
 
-		my $attributes = $SCST->driverAttributes($driver);
+		my ($attributes, $errorString) = $SCST->driverAttributes($driver);
 
 		if (defined($$attributes{'enabled'})) {
 			$new{'TARGET_DRIVER'}->{$driver}->{'enabled'}->{'1'} = {};
@@ -5514,6 +5603,19 @@ sub immediateExit {
 	print "$error\n\n";
 
 	exit 1;
+}
+
+# If an error occurred, exit if -cont_on_err has not been specified.
+sub condExit {
+	my $error = shift;
+
+	if (!$error) {
+		;
+	} elsif ($_CONT_ON_ERR_) {
+		print "$error\n";
+	} else {
+		immediateExit($error);
+	}
 }
 
 sub issueWarning {
