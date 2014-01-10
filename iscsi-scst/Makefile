@@ -5,19 +5,23 @@
 # removes any old dependencies. DON'T put your own dependencies here
 # unless it's something special (not a .c file).
 
+ifndef PREFIX
+        PREFIX=/usr/local
+endif
+
 SHELL=/bin/bash
 
 SUBDIRS := $(shell pwd)
 
 SCST_INC_DIR := $(shell if [ -e "$$PWD/../scst" ];			\
                   then echo "$$PWD/../scst/include";			\
-                  else echo "/usr/local/include/scst"; fi)
+                  else echo "$(PREFIX)/include/scst"; fi)
 SCST_DIR := $(shell if [ -e "$$PWD/../scst" ]; then echo "$$PWD/../scst/src"; \
-		else echo "/usr/local/include/scst"; fi)
-SBINDIR := /usr/local/sbin
+		else echo "$(PREFIX)/include/scst"; fi)
+SBINDIR := $(PREFIX)/sbin
 INITDIR := /etc/init.d
 RCDIR := /etc/rc.d
-MANDIR := /usr/local/man
+MANDIR ?= $(PREFIX)/man
 KMOD := $(shell pwd)/kernel
 INCDIR := $(shell pwd)/include
 
