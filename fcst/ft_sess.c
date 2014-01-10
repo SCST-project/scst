@@ -16,6 +16,7 @@
  */
 #include <linux/kernel.h>
 #include <linux/types.h>
+#include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/hash.h>
 #include <asm/unaligned.h>
@@ -166,6 +167,31 @@ int ft_lport_notify(struct notifier_block *nb, unsigned long event, void *arg)
 }
 
 /*
+ * Hash function for FC_IDs.
+ */
+static u32 ft_sess_hash(u32 port_id)
+{
+	return hash_32(port_id, FT_SESS_HASH_BITS);
+}
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 8, 0) &&		      \
+	! (LINUX_VERSION_CODE >> 8 == KERNEL_VERSION(3, 4, 0) >> 8 && \
+	   LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 41)) &&	      \
+	! (LINUX_VERSION_CODE >> 8 == KERNEL_VERSION(3, 2, 0) >> 8 && \
+	   LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 44)) &&	      \
+	!defined(CONFIG_SUSE_KERNEL)
+/*
+ * See also commit 4b20db3 (kref: Implement kref_get_unless_zero v3 -- v3.8).
+ * See also commit e3a5505 in branch stable/linux-3.4.y (v3.4.41).
+ * See also commit 3fa8ee5 in branch stable/linux-3.2.y (v3.2.44).
+ */
+static inline int __must_check kref_get_unless_zero(struct kref *kref)
+{
+	return atomic_add_unless(&kref->refcount, 1, 0);
+}
+#endif
+
+/*
  * Find session in local port.
  * Sessions and hash lists are RCU-protected.
  * A reference is taken which must be eventually freed.
@@ -177,21 +203,26 @@ static struct ft_sess *ft_sess_get(struct fc_lport *lport, u32 port_id)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0)
 	struct hlist_node *pos;
 #endif
-	struct ft_sess *sess = NULL;
+	struct ft_sess *sess;
 
 	rcu_read_lock();
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
+	tport = rcu_dereference_protected(lport->prov[FC_TYPE_FCP], true);
+#else
 	tport = rcu_dereference(lport->prov[FC_TYPE_FCP]);
+#endif
 	if (!tport)
 		goto out;
 
-	head = &tport->hash[hash_32(port_id, FT_SESS_HASH_BITS)];
+	head = &tport->hash[ft_sess_hash(port_id)];
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0)
 	hlist_for_each_entry_rcu(sess, pos, head, hash) {
 #else
 	hlist_for_each_entry_rcu(sess, head, hash) {
 #endif
 		if (sess->port_id == port_id) {
-			kref_get(&sess->kref);
+			if (!kref_get_unless_zero(&sess->kref))
+				sess = NULL;
 			rcu_read_unlock();
 			FT_SESS_DBG("port_id %x found %p\n", port_id, sess);
 			return sess;
@@ -225,7 +256,7 @@ static int ft_sess_create(struct ft_tport *tport, struct fc_rport_priv *rdata,
 		return FC_SPP_RESP_CONF;
 	}
 
-	head = &tport->hash[hash_32(port_id, FT_SESS_HASH_BITS)];
+	head = &tport->hash[ft_sess_hash(port_id)];
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0)
 	hlist_for_each_entry_rcu(sess, pos, head, hash) {
 #else
@@ -296,7 +327,7 @@ static struct ft_sess *ft_sess_delete(struct ft_tport *tport, u32 port_id)
 #endif
 	struct ft_sess *sess;
 
-	head = &tport->hash[hash_32(port_id, FT_SESS_HASH_BITS)];
+	head = &tport->hash[ft_sess_hash(port_id)];
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0)
 	hlist_for_each_entry_rcu(sess, pos, head, hash) {
 #else
@@ -382,7 +413,7 @@ static int ft_prli_locked(struct fc_rport_priv *rdata, u32 spp_len,
 	/*
 	 * If both target and initiator bits are off, the SPP is invalid.
 	 */
-	fcp_parm = ntohl(rspp->spp_params);	/* requested parameters */
+	fcp_parm = ntohl(rspp->spp_params);
 	if (!(fcp_parm & (FCP_SPPF_INIT_FCN | FCP_SPPF_TARG_FCN)))
 		return FC_SPP_RESP_INVL;
 
@@ -395,7 +426,13 @@ static int ft_prli_locked(struct fc_rport_priv *rdata, u32 spp_len,
 
 		if (!(fcp_parm & FCP_SPPF_INIT_FCN))
 			return FC_SPP_RESP_CONF;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
+		tport = rcu_dereference_protected(
+					rdata->local_port->prov[FC_TYPE_FCP],
+					lockdep_is_held(&ft_lport_lock));
+#else
 		tport = rcu_dereference(rdata->local_port->prov[FC_TYPE_FCP]);
+#endif
 		if (!tport) {
 			/* not a target for this local port */
 			return FC_SPP_RESP_CONF;
@@ -417,7 +454,7 @@ static int ft_prli_locked(struct fc_rport_priv *rdata, u32 spp_len,
 	 * Don't force RETRY on the initiator, though.
 	 */
 fill:
-	fcp_parm = ntohl(spp->spp_params);	/* response parameters */
+	fcp_parm = ntohl(spp->spp_params);
 	spp->spp_params = htonl(fcp_parm | FCP_SPPF_TARG_FCN);
 	return FC_SPP_RESP_ACK;
 }
@@ -431,17 +468,16 @@ fill:
  *
  * Returns spp response code.
  */
-int ft_prli(struct fc_rport_priv *rdata, u32 spp_len,
-	    const struct fc_els_spp *rspp, struct fc_els_spp *spp)
+static int ft_prli(struct fc_rport_priv *rdata, u32 spp_len,
+		   const struct fc_els_spp *rspp, struct fc_els_spp *spp)
 {
 	int ret;
 
-	FT_SESS_DBG("starting PRLI port_id %x\n", rdata->ids.port_id);
 	mutex_lock(&ft_lport_lock);
 	ret = ft_prli_locked(rdata, spp_len, rspp, spp);
 	mutex_unlock(&ft_lport_lock);
-	FT_SESS_DBG("port_id %x flags %x parms %x ret %x\n", rdata->ids.port_id,
-		    rspp ? rspp->spp_flags : 0, ntohl(spp->spp_params), ret);
+	FT_SESS_DBG("port_id %x flags %x ret %x\n",
+	       rdata->ids.port_id, rspp ? rspp->spp_flags : 0, ret);
 	return ret;
 }
 
@@ -465,73 +501,60 @@ static void ft_sess_free(struct kref *kref)
 
 static void ft_sess_put(struct ft_sess *sess)
 {
-	int sess_held = atomic_read(&sess->kref.refcount);
-
-	BUG_ON(!sess_held);
+	BUG_ON(!sess);
+	BUG_ON(atomic_read(&sess->kref.refcount) <= 0);
 	kref_put(&sess->kref, ft_sess_free);
 }
 
-/*
- * Delete ft_sess for PRLO.
- * Called with ft_lport_lock held.
- */
-static struct ft_sess *ft_sess_lookup_delete(struct fc_rport_priv *rdata)
+static void ft_prlo(struct fc_rport_priv *rdata)
 {
 	struct ft_sess *sess;
 	struct ft_tport *tport;
 
-	tport = rcu_dereference(rdata->local_port->prov[FC_TYPE_FCP]);
-	if (!tport)
-		return NULL;
-	sess = ft_sess_delete(tport, rdata->ids.port_id);
-	if (sess)
-		sess->params = 0;
-	return sess;
-}
-
-/*
- * Handle PRLO.
- */
-void ft_prlo(struct fc_rport_priv *rdata)
-{
-	struct ft_sess *sess;
-
 	mutex_lock(&ft_lport_lock);
-	sess = ft_sess_lookup_delete(rdata);
-	mutex_unlock(&ft_lport_lock);
-	if (!sess)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
+	tport = rcu_dereference_protected(rdata->local_port->prov[FC_TYPE_FCP],
+					  lockdep_is_held(&ft_lport_lock));
+#else
+	tport = rcu_dereference(rdata->local_port->prov[FC_TYPE_FCP]);
+#endif
+	if (!tport) {
+		mutex_unlock(&ft_lport_lock);
 		return;
+	}
+	sess = ft_sess_delete(tport, rdata->ids.port_id);
+	if (!sess) {
+		mutex_unlock(&ft_lport_lock);
+		return;
+	}
+	mutex_unlock(&ft_lport_lock);
 
-	/*
-	 * Release the session hold from the table.
-	 * When all command-starting threads have returned,
-	 * kref will call ft_sess_free which will unregister
-	 * the session.
-	 * fcmds referencing the session are safe.
-	 */
 	ft_sess_put(sess);		/* release from table */
 	rdata->prli_count--;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36) && !defined(RHEL_MAJOR)
+static inline u32 fc_frame_sid(const struct fc_frame *fp)
+{
+	return ntoh24(fc_frame_header_get(fp)->fh_s_id);
+}
+#endif
+
 /*
  * Handle incoming FCP request.
- *
  * Caller has verified that the frame is type FCP.
  * Note that this may be called directly from the softirq context.
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36) \
 	&& (!defined(RHEL_MAJOR) || RHEL_MAJOR -0 <= 5)
-void ft_recv(struct fc_lport *lport, struct fc_seq *sp, struct fc_frame *fp)
+static void ft_recv(struct fc_lport *lport, struct fc_seq *sp,
+		    struct fc_frame *fp)
 #else
-void ft_recv(struct fc_lport *lport, struct fc_frame *fp)
+static void ft_recv(struct fc_lport *lport, struct fc_frame *fp)
 #endif
 {
 	struct ft_sess *sess;
-	struct fc_frame_header *fh;
-	u32 sid;
-
-	fh = fc_frame_header_get(fp);
-	sid = ntoh24(fh->fh_s_id);
+	u32 sid = fc_frame_sid(fp);
 
 	FT_SESS_DBG("sid %x preempt %x\n", sid, preempt_count());
 
@@ -588,15 +611,22 @@ int ft_tgt_enable(struct scst_tgt *tgt, bool enable)
 	int ret = 0;
 
 	mutex_lock(&ft_lport_lock);
+
 	if (enable) {
 		FT_SESS_DBG("enable tgt %s\n", tgt->tgt_name);
 		tport = scst_tgt_get_tgt_priv(tgt);
+		if (tport == NULL) {
+			ret = -EBUSY;
+			goto out_unlock;
+		}
 		tport->enabled = 1;
 		tport->lport->service_params |= FCP_SPPF_TARG_FCN;
 	} else {
 		FT_SESS_DBG("disable tgt %s\n", tgt->tgt_name);
 		ft_tgt_release(tgt);
 	}
+
+out_unlock:
 	mutex_unlock(&ft_lport_lock);
 	return ret;
 }
@@ -604,6 +634,9 @@ int ft_tgt_enable(struct scst_tgt *tgt, bool enable)
 bool ft_tgt_enabled(struct scst_tgt *tgt)
 {
 	struct ft_tport *tport;
+
+	if (tgt == NULL)
+		return false;
 
 	tport = scst_tgt_get_tgt_priv(tgt);
 	return tport->enabled;
@@ -627,3 +660,13 @@ int ft_report_aen(struct scst_aen *aen)
 		    aen->event_fn, sess->port_id, scst_aen_get_lun(aen));
 	return SCST_AEN_RES_FAILED;	/* XXX TBD */
 }
+
+/*
+ * Provider ops for libfc.
+ */
+struct fc4_prov ft_prov = {
+	.prli = ft_prli,
+	.prlo = ft_prlo,
+	.recv = ft_recv,
+	.module = THIS_MODULE,
+};
