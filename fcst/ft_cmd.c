@@ -598,7 +598,9 @@ static void ft_recv_tm(struct scst_session *scst_sess,
 
 	scst_rx_mgmt_params_init(&params);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0) || \
+	defined(CONFIG_SUSE_KERNEL) && \
+	LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 101)
 	params.lun = fcp->fc_lun.scsi_lun;
 #else
 	params.lun = fcp->fc_lun;
@@ -684,7 +686,9 @@ static void ft_recv_cmd(struct ft_sess *sess, struct fc_frame *fp)
 	cdb_len += sizeof(fcp->fc_cdb);
 	data_len = ntohl(*(__be32 *)(fcp->fc_cdb + cdb_len));
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0) || \
+	defined(CONFIG_SUSE_KERNEL) && \
+	LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 101)
 	cmd = scst_rx_cmd(sess->scst_sess, fcp->fc_lun.scsi_lun,
 			  sizeof(fcp->fc_lun), fcp->fc_cdb, cdb_len,
 			  SCST_ATOMIC);

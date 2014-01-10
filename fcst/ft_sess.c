@@ -178,7 +178,8 @@ static u32 ft_sess_hash(u32 port_id)
 	! (LINUX_VERSION_CODE >> 8 == KERNEL_VERSION(3, 4, 0) >> 8 && \
 	   LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 41)) &&	      \
 	! (LINUX_VERSION_CODE >> 8 == KERNEL_VERSION(3, 2, 0) >> 8 && \
-	   LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 44))
+	   LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 44)) &&	      \
+	!defined(CONFIG_SUSE_KERNEL)
 /*
  * See also commit 4b20db3 (kref: Implement kref_get_unless_zero v3 -- v3.8).
  * See also commit e3a5505 in branch stable/linux-3.4.y (v3.4.41).
