@@ -608,19 +608,18 @@ int ft_tgt_release(struct scst_tgt *tgt)
 	return 0;
 }
 
+/* Caller must hold a reference on tgt->tgt_kobj. */
 int ft_tgt_enable(struct scst_tgt *tgt, bool enable)
 {
 	struct ft_tport *tport;
 	int ret = 0;
-
-	mutex_lock(&ft_lport_lock);
 
 	if (enable) {
 		FT_SESS_DBG("enable tgt %s\n", tgt->tgt_name);
 		tport = scst_tgt_get_tgt_priv(tgt);
 		if (tport == NULL) {
 			ret = -E_TGT_PRIV_NOT_YET_SET;
-			goto out_unlock;
+			goto out;
 		}
 		tport->enabled = 1;
 		tport->lport->service_params |= FCP_SPPF_TARG_FCN;
@@ -629,8 +628,7 @@ int ft_tgt_enable(struct scst_tgt *tgt, bool enable)
 		ft_tgt_release(tgt);
 	}
 
-out_unlock:
-	mutex_unlock(&ft_lport_lock);
+out:
 	return ret;
 }
 
