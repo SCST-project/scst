@@ -24,6 +24,8 @@
 #include <scsi/fc/fc_els.h>
 #include "fcst.h"
 
+static void ft_sess_put(struct ft_sess *sess);
+
 static int ft_tport_count;
 
 static ssize_t ft_format_wwn(char *buf, size_t len, u64 wwn)
@@ -357,6 +359,7 @@ static void ft_sess_close(struct ft_sess *sess)
 		return;
 	FT_SESS_DBG("port_id %x\n", port_id);
 	ft_sess_unhash(sess);
+	ft_sess_put(sess);
 	/* XXX should send LOGO or PRLO to rport */
 }
 
