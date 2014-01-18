@@ -36,12 +36,24 @@
 #include <linux/pci.h>
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+/*
+ * See also commit "proc: Make the PROC_I() and PDE() macros internal to
+ * procfs" (c30480b92cf497aa3b463367a82f1c2fdc5c46e9).
+ */
+#include <../fs/proc/internal.h> /* PDE() */
+#endif
+
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/scst.h>
 #include <scst/scst_debug.h>
 #else
 #include "scst.h"
 #include <scst_debug.h>
+#endif
+
+#ifndef CONFIG_SCST_PROC
+#error Building the mpt driver requires procfs mode
 #endif
 
 #include "mpt_scst.h"
@@ -69,7 +81,7 @@ static char *mpt_state_string[] = {
 
 #ifdef CONFIG_SCST_DEBUG
 #define SCST_DEFAULT_MPT_LOG_FLAGS (TRACE_FUNCTION | TRACE_PID | \
-        TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_MGMT_MINOR | \
+        TRACE_OUT_OF_MEM | TRACE_MGMT | \
         TRACE_MGMT_DEBUG | TRACE_MINOR | TRACE_SPECIAL)
 #else
 # ifdef CONFIG_SCST_TRACING
@@ -213,7 +225,7 @@ mpt_target_show(struct seq_file *seq, void *v)
 	return 0;
 }
 
-static int
+static ssize_t
 mpt_proc_target_write(struct file *file, const char __user *buf,
 			size_t length, loff_t *off)
 {
@@ -366,7 +378,7 @@ mptstm_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     }
 
     tgt = kmalloc(sizeof(*tgt), GFP_KERNEL);
-    TRACE_MEM("kmalloc(GFP_KERNEL) for tgt (%d), %p",
+    TRACE_MEM("kmalloc(GFP_KERNEL) for tgt (%zd), %p",
 	      sizeof(*tgt), tgt);
     if (tgt == NULL) {
 	    TRACE(TRACE_OUT_OF_MEM, "%s",
@@ -949,7 +961,7 @@ stmapp_tgt_command(MPT_STM_PRIV *priv, u32 reply_word)
 	}
 
 	cmd = kmalloc(sizeof(*cmd), GFP_ATOMIC);
-	TRACE_MEM("kmalloc(GFP_ATOMIC) for cmd (%d): %p", sizeof(*cmd), cmd);
+	TRACE_MEM("kmalloc(GFP_ATOMIC) for cmd (%zd): %p", sizeof(*cmd), cmd);
 	if (cmd == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of cmd failed");
 		res = -ENOMEM;
@@ -1076,7 +1088,7 @@ mpt_dump_sge(MPT_SGE *sge, struct scatterlist *sg)
 		TRACE_BUFFER("sge data", address, min(sge->length, (u32)0x10));
 	}
 	if (sg) {
-		TRACE_DBG("sg %p, page %p, %p, offset %d, dma address %x, len %d",
+		TRACE_DBG("sg %p, page %p, %p, offset %d, dma address %llx, len %d",
 				sg, sg_page(sg), page_address(sg_page(sg)),
 				sg->offset, sg->dma_address, sg->length);
 		TRACE_BUFFER("sg data", page_address(sg_page(sg)), (u32)0x10);
@@ -1539,7 +1551,7 @@ stmapp_pending_sense(struct mpt_cmd *mpt_cmd)
 					 * and cached length */
 					prm.bufflen = min((size_t)cdb[4],
 						(size_t)SCSI_SENSE_BUFFERSIZE);
-					prm.bufflen = min(prm.bufflen,
+					prm.bufflen = min((size_t)prm.bufflen,
 						(size_t)(priv->pending_sense_buffer[init_index][7]
 							 + 8));
 					sg_set_page(&sg,
@@ -1652,7 +1664,7 @@ mpt_xmit_response(struct scst_cmd *scst_cmd)
 			flags |= TARGET_ASSIST_FLAGS_AUTO_STATUS;
 		}
 		if (scst_get_may_need_dma_sync(scst_cmd)) {
-			dma_sync_sg(&(prm.tgt->priv->ioc->pcidev->dev),
+			dma_sync_sg_for_cpu(&(prm.tgt->priv->ioc->pcidev->dev),
 				scst_cmd->sg, scst_cmd->sg_cnt,
 				scst_to_tgt_dma_dir(scst_cmd_get_data_direction(scst_cmd)));
 		}
@@ -1900,7 +1912,7 @@ mpt_handle_task_mgmt(MPT_STM_PRIV *priv, u32 reply_word,
 	}
 
 	mcmd = kmalloc(sizeof(*mcmd), GFP_ATOMIC);
-	TRACE_MEM("kmalloc(GFP_ATOMIC) for mcmd (%d): %p",
+	TRACE_MEM("kmalloc(GFP_ATOMIC) for mcmd (%zd): %p",
 		  sizeof(*mcmd), mcmd);
 	if (mcmd == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "%s", "Allocation of mgmt cmd failed");
@@ -2077,7 +2089,7 @@ stm_reply(MPT_ADAPTER *ioc, MPT_FRAME_HDR *mf_req, MPT_FRAME_HDR *mf_rep)
 			return (0);
 		}
 		if (rep->MsgLength > sizeof(*rep)/sizeof(u32)) {
-			TRACE_DBG("MsgLength is %d, %d",
+			TRACE_DBG("MsgLength is %d, %zd",
 					rep->MsgLength, sizeof(*rep)/sizeof(u32));
 			WARN_ON(1);
 			/*
@@ -3133,7 +3145,7 @@ stm_send_target_status(MPT_STM_PRIV *priv,
 		 */
 		sense_size = min(sizeof(rsp->SenseData),
 				       (size_t)SCSI_SENSE_BUFFERSIZE);
-		TRACE_DBG("caching %d bytes pending sense", sense_size);
+		TRACE_DBG("caching %zd bytes pending sense", sense_size);
 		memcpy(priv->pending_sense_buffer[init_index],
 				rsp->SenseData, sense_size);
 		TRACE_BUFFER("priv->pending_sense_buffer",
@@ -4551,15 +4563,28 @@ stm_wait_for(MPT_STM_PRIV *priv, volatile int *flag, int seconds, int sleep)
 static int __init
 _mpt_stm_init(void)
 {
+	static char function_name[sizeof(__func__)];
 	int i;
 
 	TRACE_ENTRY();
+
+	if (function_name[0] == '\0')
+		strcpy(function_name, __func__);
 
 	for (i = 0; i < MPT_MAX_ADAPTERS; i++) {
 		mpt_stm_priv[i] = NULL;
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
+	/*
+	 * See also patch "mptfusion: Extra debug prints added relavent to
+	 * Device missing delay error handling" (commit ID
+	 * 213aaca3e5727f3eb56002b04a1405db34a54ed8).
+	 */
 	stm_context = mpt_register(stm_reply, MPTSTM_DRIVER);
+#else
+	stm_context = mpt_register(stm_reply, MPTSTM_DRIVER, function_name);
+#endif
 	if (stm_context < 0) {
 		printk(KERN_ERR MYNAM
 				": failed to register with MPT driver core\n");
@@ -5468,7 +5493,8 @@ static int mpt_log_info_show(struct seq_file *seq, void *v)
 	return res;
 }
 
-static int mpt_proc_log_entry_write(struct file *file, const char __user *buf,
+static ssize_t mpt_proc_log_entry_write(struct file *file,
+					const char __user *buf,
 					size_t length, loff_t *off)
 {
 	int res = 0;
