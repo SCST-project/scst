@@ -29,9 +29,7 @@ endif
 SCST_INC_DIR := $(SUBDIRS)/../scst/include
 SCST_DIR := $(shell pwd)/../scst/src
 
-FUSION_INC_DIR := drivers/message/fusion
-
-EXTRA_CFLAGS += -I$(SCST_INC_DIR) -I$(FUSION_INC_DIR) -Iinclude/scsi
+EXTRA_CFLAGS += -I$(SCST_INC_DIR)
 
 EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS 
 #EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
