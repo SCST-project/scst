@@ -258,7 +258,7 @@ static int __devinit mvs_94xx_init(struct mvs_info *mvi)
 
 		/* set phy int mask */
 		tmp = PHYEV_RDY_CH | PHYEV_BROAD_CH |
-			PHYEV_ID_DONE  | PHYEV_DCDR_ERR | PHYEV_CRC_ERR ;
+			PHYEV_ID_DONE  | PHYEV_DCDR_ERR | PHYEV_CRC_ERR;
 		mvs_write_port_irq_mask(mvi, i, tmp);
 
 		msleep(100);

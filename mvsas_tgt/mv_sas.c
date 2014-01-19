@@ -876,7 +876,7 @@ static int mvs_task_prep_ssp(struct mvs_info *mvi,
 #else
 		memcpy(buf_cmd + 12, &task->ssp_task.cmd->request->cmd, 16);
 #endif
-	} else{
+	} else {
 		buf_cmd[10] = tmf->tmf;
 		switch (tmf->tmf) {
 		case TMF_ABORT_TASK:
@@ -1684,7 +1684,7 @@ int mvs_query_task(struct sas_task *task)
 	int rc = TMF_RESP_FUNC_FAILED;
 
 	if (task->lldd_task && task->task_proto & SAS_PROTOCOL_SSP) {
-		struct scsi_cmnd * cmnd = (struct scsi_cmnd *)task->uldd_task;
+		struct scsi_cmnd *cmnd = (struct scsi_cmnd *)task->uldd_task;
 		struct domain_device *dev = task->dev;
 		struct mvs_device *mvi_dev = dev->lldd_dev;
 		struct mvs_info *mvi = mvi_dev->mvi_info;
@@ -1730,7 +1730,7 @@ int mvs_abort_task(struct sas_task *task)
 	}
 
 	if (task->lldd_task && task->task_proto & SAS_PROTOCOL_SSP) {
-		struct scsi_cmnd * cmnd = (struct scsi_cmnd *)task->uldd_task;
+		struct scsi_cmnd *cmnd = (struct scsi_cmnd *)task->uldd_task;
 
 		int_to_scsilun(cmnd->device->lun, &lun);
 		rc = mvs_find_tag(mvi, task, &tag);

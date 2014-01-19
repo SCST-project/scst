@@ -96,8 +96,8 @@ enum hw_registers {
 	MVS_P0_VSR_DATA		= 0x254, /* phy0 VSR data */
 					 /* phys 1-3 follow after this */
 					 /* multiplexing */
-	MVS_P4_VSR_ADDR 	= 0x250, /* phy4 VSR address */
-	MVS_P4_VSR_DATA 	= 0x254, /* phy4 VSR data */
+	MVS_P4_VSR_ADDR		= 0x250, /* phy4 VSR address */
+	MVS_P4_VSR_DATA		= 0x254, /* phy4 VSR data */
 	MVS_PA_VSR_ADDR		= 0x290, /* All port VSR addr */
 	MVS_PA_VSR_PORT		= 0x294, /* All port VSR data */
 };
@@ -191,13 +191,13 @@ struct mvs_prd {
 	__le32			im_len;
 } __attribute__ ((packed));
 
-#define SPI_CTRL_REG_94XX           	0xc800
-#define SPI_ADDR_REG_94XX            	0xc804
-#define SPI_WR_DATA_REG_94XX         0xc808
-#define SPI_RD_DATA_REG_94XX         	0xc80c
-#define SPI_CTRL_READ_94XX         	(1U << 2)
-#define SPI_ADDR_VLD_94XX         	(1U << 1)
-#define SPI_CTRL_SpiStart_94XX     	(1U << 0)
+#define SPI_CTRL_REG_94XX	0xc800
+#define SPI_ADDR_REG_94XX	0xc804
+#define SPI_WR_DATA_REG_94XX	0xc808
+#define SPI_RD_DATA_REG_94XX	0xc80c
+#define SPI_CTRL_READ_94XX	(1U << 2)
+#define SPI_ADDR_VLD_94XX	(1U << 1)
+#define SPI_CTRL_SpiStart_94XX	(1U << 0)
 
 #define mv_ffc(x)   ffz(x)
 

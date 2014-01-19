@@ -62,25 +62,21 @@ extern unsigned long mvst_trace_flag;
 */
 #undef ENTER_TRACE
 #if defined(ENTER_TRACE)
-#define ENTER(x)		\
-	do {printk(KERN_NOTICE "mvsas : Entering %s()\n", x); } while (0)
-#define LEAVE(x)		\
-	do {printk(KERN_NOTICE "mvsas : Leaving %s()\n", x); } while (0)
-#define ENTER_INTR(x)	\
-	do {printk(KERN_NOTICE "mvsas : Entering %s()\n", x); } while (0)
-#define LEAVE_INTR(x)	\
-	do {printk(KERN_NOTICE "mvsas : Leaving %s()\n", x); } while (0)
+#define ENTER(x)	printk(KERN_NOTICE "mvsas : Entering %s()\n", x)
+#define LEAVE(x)	printk(KERN_NOTICE "mvsas : Leaving %s()\n", x)
+#define ENTER_INTR(x)	printk(KERN_NOTICE "mvsas : Entering %s()\n", x)
+#define LEAVE_INTR(x)	printk(KERN_NOTICE "mvsas : Leaving %s()\n", x)
 #else
 #define ENTER(x)	do {} while (0)
 #define LEAVE(x)	do {} while (0)
-#define ENTER_INTR(x) 	do {} while (0)
+#define ENTER_INTR(x)	do {} while (0)
 #define LEAVE_INTR(x)   do {} while (0)
 #endif
 
 #ifdef MV_DEBUG
-#define DEBUG(x)	do {x; } while (0);
+#define DEBUG(x)	(x)
 #else
-#define DEBUG(x)	do {} while (0);
+#define DEBUG(x)	do {} while (0)
 #endif
 
 #define BUFFER_PACKED		__packed
@@ -99,8 +95,8 @@ extern unsigned long mvst_trace_flag;
 #define MVST_TMF	0x1
 
 /* defines for address frame types */
-#define ADDRESS_IDENTIFY_FRAME 				0x00
-#define ADDRESS_OPEN_FRAME 					0x01
+#define ADDRESS_IDENTIFY_FRAME	0x00
+#define ADDRESS_OPEN_FRAME	0x01
 
 /* defines for target mode action */
 #define MVSAS_ENABLE_TGT	0x01
@@ -122,8 +118,8 @@ extern unsigned long mvst_trace_flag;
 
 /* TM failed */
 #define MVST_TM_COMPL		0x00
-#define MVST_TM_INVALID_FR 	0x02
-#define MVST_TM_NOT_SUPPORT 	0x04
+#define MVST_TM_INVALID_FR	0x02
+#define MVST_TM_NOT_SUPPORT	0x04
 #define MVST_TM_FAILED		0x05
 #define MVST_TM_SUCCEED	0x08
 #define MVST_TM_INCRT_LUN	0x09
@@ -136,7 +132,7 @@ extern unsigned long mvst_trace_flag;
 #define MVST_EXEC_READ          0x1
 #define MVST_EXEC_WRITE         0x2
 
-enum mvst_msg_state{
+enum mvst_msg_state {
 	MSG_QUEUE_IDLE = 0,
 	MSG_QUEUE_PROC,
 	MSG_QUEUE_NO_START
@@ -157,9 +153,9 @@ struct mvst_msg {
 
 #define MSG_QUEUE_DEPTH (MVS_MAX_PHYS)
 
-#define 	MVST_TGT_PORT			1
-#define 	MVST_INIT_PORT			2
-#define 	MVST_INIT_TGT_PORT		3
+#define MVST_TGT_PORT			1
+#define MVST_INIT_PORT			2
+#define MVST_INIT_TGT_PORT		3
 
 struct mvst_msg_queue {
 	u8 msg_state;
@@ -286,7 +282,7 @@ struct mvs_cmd_header {
 /* DWORD 10 - 11 */
 	__le64	prd_tbl;		/* PRD tbl address */
 /* DWORD 12-15 */
-	__le32   	reserved[4];
+	__le32	reserved[4];
 } BUFFER_PACKED;
 
 /* for command table */
@@ -390,17 +386,17 @@ struct mv_ssp_response_iu {
 	u8     data[0];
 } BUFFER_PACKED;
 
-#define 	NO_DATA 			0
-#define 	RESPONSE_DATA 		1
-#define 	SENSE_DATA 		2
+#define NO_DATA				0
+#define RESPONSE_DATA			1
+#define SENSE_DATA			2
 
-#define 	TASK_MANAGE_COMP				0x00
-#define 	INVALID_FRAME					0x02
-#define	TASK_MANAGE_UNSUPPORT		0x04
-#define	TASK_MANAGE_FAILED 			0x05
-#define 	TASK_MANAGE_SUCCESS			0x08
-#define	INCORRECT_LOGICAL_UNIT		0x09
-#define 	OVERLAPPED_TAG			 	0x0a
+#define TASK_MANAGE_COMP				0x00
+#define INVALID_FRAME					0x02
+#define TASK_MANAGE_UNSUPPORT		0x04
+#define TASK_MANAGE_FAILED				0x05
+#define TASK_MANAGE_SUCCESS			0x08
+#define INCORRECT_LOGICAL_UNIT		0x09
+#define OVERLAPPED_TAG					0x0a
 
 
 /* SSP Command Table */
@@ -467,7 +463,7 @@ struct mvs_compl_queue {
 } BUFFER_PACKED;
 
 
-enum mvst_tgt_host_action_t{
+enum mvst_tgt_host_action_t {
 	DISABLE_TARGET_MODE = 0,
 	ENABLE_TARGET_MODE = 1,
 	EXIT_TARGET_MODE = 0xff
@@ -495,8 +491,8 @@ struct mvst_sess {
 
 /* Open Address Frame */
 struct open_address_frame {
-	union{
-		struct{
+	union {
+		struct {
 #if defined(__BIG_ENDIAN_BITFIELD)
 			u8   initiator:1;
 			u8   protocol:3;
@@ -513,7 +509,6 @@ struct open_address_frame {
 			u8   feature:4;
 #endif /* __BIG_ENDIAN_BITFIELD */
 		__be16   connect_tag;
-		;
 		};
 		struct {
 		__be16 received_tag;
@@ -553,7 +548,7 @@ struct mvst_cmd {
 	dma_addr_t dma_handle;
 	struct mvst_port	*cmd_tgt_port;
 	u32	transfer_len;
-	u32 	finished_len;
+	u32	finished_len;
 	void *transfer_buf;
 	void *org_transfer_buf;
 };
@@ -606,7 +601,7 @@ struct mvst_port {
 	int	port_id;
 	u8	port_attached;
 	u8	wide_port_phymap;	/* save phy id */
-	u8 	port_attr;
+	u8	port_attr;
 	u64  sas_addr;
 	u64  att_sas_addr;
 	struct list_head	slot_list;
@@ -623,10 +618,10 @@ int  mvst_init(void);
 void mvst_int_port(struct mvs_info *mvi, u32 id);
 u32 mvst_check_port(struct mvs_info *mvi, u8 phy_id);
 void mvst_init_tgt_port(struct mvs_info *mvi);
-#define	MVST_IN_TARGET_MODE(mvi)	(mvi->flags & MVF_TARGET_MODE_ENABLE)
-#define 	PHY_IN_TARGET_MODE(dev) (dev & PORT_DEV_SSP_TRGT) ? 1 : 0
+#define MVST_IN_TARGET_MODE(mvi)	((mvi)->flags & MVF_TARGET_MODE_ENABLE)
+#define PHY_IN_TARGET_MODE(dev)		(((dev) & PORT_DEV_SSP_TRGT) ? 1 : 0)
 
 #endif	/* #ifdef _MVSAST_H */
-#endif 	/*SUPPORT_TARGET*/
+#endif	/*SUPPORT_TARGET*/
 
 

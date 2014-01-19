@@ -163,7 +163,7 @@ enum hw_register_bits {
 	TXQ_CMD_SSP_FREE_LIST	= 4,	/* add to SSP target free list */
 	TXQ_CMD_SLOT_RESET	= 7,	/* reset command slot */
 	TXQ_MODE_I		= (1U << 28),	/* mode: 0=target,1=initiator */
-	TXQ_MODE_TARGET 	= 0,
+	TXQ_MODE_TARGET		= 0,
 	TXQ_MODE_INITIATOR	= 1,
 	TXQ_PRIO_HI		= (1U << 27),	/* priority: 0=normal, 1=high */
 	TXQ_PRI_NORMAL		= 0,
@@ -442,7 +442,7 @@ enum error_info_rec {
 	CMD_PI_ERR	= (1U << 30),	/* Protection info error.  see flags2 */
 	RSP_OVER	= (1U << 29),	/* rsp buffer overflow */
 	RETRY_LIM	= (1U << 28),	/* FIS/frame retry limit exceeded */
-	UNK_FIS 	= (1U << 27),	/* unknown FIS */
+	UNK_FIS		= (1U << 27),	/* unknown FIS */
 	DMA_TERM	= (1U << 26),	/* DMA terminate primitive rx'd */
 	SYNC_ERR	= (1U << 25),	/* SYNC rx'd during frame xmit */
 	TFILE_ERR	= (1U << 24),	/* SATA taskfile Error bit set */
@@ -455,9 +455,9 @@ enum error_info_rec {
 	NAK		= (1U << 14),	/* NAK rx'd */
 	ACK_NAK_TO	= (1U << 13),	/* ACK/NAK timeout */
 	CXN_CLOSED	= (1U << 12),	/* cxn closed w/out ack/nak */
-	OPEN_TO 	= (1U << 11),	/* I_T nexus lost, open cxn timeout */
+	OPEN_TO		= (1U << 11),	/* I_T nexus lost, open cxn timeout */
 	PATH_BLOCKED	= (1U << 10),	/* I_T nexus lost, pathway blocked */
-	NO_DEST 	= (1U << 9),	/* I_T nexus lost, no destination */
+	NO_DEST		= (1U << 9),	/* I_T nexus lost, no destination */
 	STP_RES_BSY	= (1U << 8),	/* STP resources busy */
 	BREAK		= (1U << 7),	/* break received */
 	BAD_DEST	= (1U << 6),	/* bad destination */
@@ -465,8 +465,8 @@ enum error_info_rec {
 	BAD_RATE	= (1U << 4),	/* cxn rate not supported */
 	WRONG_DEST	= (1U << 3),	/* wrong destination error */
 	CREDIT_TO	= (1U << 2),	/* credit timeout */
-	WDOG_TO 	= (1U << 1),	/* watchdog timeout */
-	BUF_PAR 	= (1U << 0),	/* buffer parity error */
+	WDOG_TO		= (1U << 1),	/* watchdog timeout */
+	BUF_PAR		= (1U << 0),	/* buffer parity error */
 };
 
 enum error_info_rec_2 {
@@ -506,7 +506,7 @@ enum datapres_field {
 };
 
 /* define task management IU */
-struct mvs_tmf_task{
+struct mvs_tmf_task {
 	u8 tmf;
 	u16 tag_of_task_to_be_managed;
 };

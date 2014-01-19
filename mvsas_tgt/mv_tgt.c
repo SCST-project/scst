@@ -1982,7 +1982,7 @@ static u8 mvst_response_ssp_command(struct mvs_info *mvi, uint32_t rx_desc)
 
 	}
 	/*
-	 else if(slot->slot_tgt_port->port_attr == MVST_INIT_PORT){
+	 else if (slot->slot_tgt_port->port_attr == MVST_INIT_PORT) {
 		mv_dprintk("Found recevied command[%p] but not set
 		as tgt port[0x%x].\n", slot->slot_scst_cmd,
 		slot->slot_tgt_port->port_attr);
@@ -2118,7 +2118,7 @@ static void mvst_enable_tgt_port(struct mvs_info *mvi, u8 phyid)
 	struct asd_sas_phy *sas_phy;
 	u8 id = 0;
 
-#if 	0
+#if 0
 	u8 j = 0, i = 0
 	/*enable all the phy within the same port*/
 	for (id = 0, j = 0; id < mvi->chip->n_phy; id++) {

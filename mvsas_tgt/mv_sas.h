@@ -83,7 +83,7 @@ extern const struct mvs_dispatch mvs_94xx_dispatch;
 
 #define for_each_phy(__lseq_mask, __mc, __lseq)			\
 	for ((__mc) = (__lseq_mask), (__lseq) = 0;		\
-					(__mc) != 0 ;		\
+					(__mc) != 0;		\
 					(++__lseq), (__mc) >>= 1)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
@@ -197,13 +197,13 @@ struct mvs_dispatch {
 };
 
 struct mvs_chip_info {
-	u32 		n_host;
-	u32 		n_phy;
-	u32 		fis_offs;
-	u32 		fis_count;
-	u32 		srs_sz;
-	u32 		sg_width;
-	u32 		slot_width;
+	u32			n_host;
+	u32			n_phy;
+	u32			fis_offs;
+	u32			fis_count;
+	u32			srs_sz;
+	u32			sg_width;
+	u32			slot_width;
 	const struct mvs_dispatch *dispatch;
 };
 
@@ -223,7 +223,7 @@ struct mvs_cmd_hdr {
 	__le32			lens;	/* cmd, max resp frame len */
 	__le32			tags;	/* targ port xfer tag; tag */
 	__le32			data_len;	/* data xfer len */
-	__le64			cmd_tbl;  	/* command table address */
+	__le64			cmd_tbl;	/* command table address */
 	__le64			open_frame;	/* open addr frame address */
 	__le64			status_buf;	/* status buffer address */
 	__le64			prd_tbl;		/* PRD tbl address */
@@ -238,7 +238,7 @@ struct mvs_port {
 };
 
 struct mvs_phy {
-	struct mvs_info 		*mvi;
+	struct mvs_info			*mvi;
 	struct mvs_port		*port;
 	struct asd_sas_phy	sas_phy;
 	struct sas_identify	identify;
@@ -403,12 +403,12 @@ struct mvs_info {
 #ifndef DISABLE_HOTPLUG_DMA_FIX
 	void *bulk_buffer;
 	dma_addr_t bulk_buffer_dma;
-#define TRASH_BUCKET_SIZE    	0x20000
+#define TRASH_BUCKET_SIZE	0x20000
 #endif
 	struct mvs_slot_info slot_info[0];
 };
 
-struct mvs_prv_info{
+struct mvs_prv_info {
 	u8 n_host;
 	u8 n_phy;
 	u16 reserve;
@@ -455,7 +455,7 @@ int mvs_queue_command(struct sas_task *task, const int num,
 int mvs_abort_task(struct sas_task *task);
 int mvs_abort_task_set(struct domain_device *dev, u8 *lun);
 int mvs_clear_aca(struct domain_device *dev, u8 *lun);
-int mvs_clear_task_set(struct domain_device *dev, u8 * lun);
+int mvs_clear_task_set(struct domain_device *dev, u8 *lun);
 void mvs_port_formed(struct asd_sas_phy *sas_phy);
 void mvs_port_deformed(struct asd_sas_phy *sas_phy);
 int mvs_dev_found(struct domain_device *dev);

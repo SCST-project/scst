@@ -30,28 +30,23 @@
 static u8    SPICmd[16];
 
 #ifndef IDENTIFY_SPI
-u8   DEFAULT_SPI_CMD[16] =
-{
-    0x06, 0x04, 0x05, 0x01, 0x03, 0x02, 0x52, 0x62, 0x15
+u8 DEFAULT_SPI_CMD[16] = {
+	0x06, 0x04, 0x05, 0x01, 0x03, 0x02, 0x52, 0x62, 0x15
 };
 #else
-static u8   ATMEL_SPI_CMD[16] =
-{
-    0x06, 0x04, 0x05, 0x01, 0x03, 0x02, 0x52, 0x62, 0x15
+static u8 ATMEL_SPI_CMD[16] = {
+	0x06, 0x04, 0x05, 0x01, 0x03, 0x02, 0x52, 0x62, 0x15
 };
-static u8   WINBOND_SPI_CMD[16] =
-{
-    0x06, 0x04, 0x05, 0x01, 0x03, 0x02, 0x20, 0xC7, 0xAB
+static u8 WINBOND_SPI_CMD[16] = {
+	0x06, 0x04, 0x05, 0x01, 0x03, 0x02, 0x20, 0xC7, 0xAB
 };
 
-static u8   ATMEL_SPI_CMD_41a_021[16] =
-{
-/*  0     1	2     3     4     5     6     7     8     9     10    11*/
-    0x06, 0x04, 0x05, 0x01, 0x03, 0x02, 0xD8, 0x60, 0x9F, 0x36, 0x39, 0x3C
+static u8 ATMEL_SPI_CMD_41a_021[16] = {
+	/* 0     1     2     3     4     5     6     7     8     9    10   11*/
+	0x06, 0x04, 0x05, 0x01, 0x03, 0x02, 0xD8, 0x60, 0x9F, 0x36, 0x39, 0x3C
 };
 
-static u8	EON_F20_SPI_CMD[16] =
-{
+static u8 EON_F20_SPI_CMD[16] = {
 	0x06, 0x04, 0x05, 0x01, 0x03, 0x02, 0x20, 0x60, 0x90
 };
 #endif
@@ -261,9 +256,9 @@ static int spi_readbuf(struct mvs_info *mvi, u32 addr, u8 *data, u32 count)
 static u8 mvverifychecksum(u8 *address, u32 Size)
 {
 	u8	checkSum = 0;
-	u32 	temp = 0;
+	u32	temp = 0;
 
-	for (temp = 0; temp < Size ; temp++)
+	for (temp = 0; temp < Size; temp++)
 		checkSum += address[temp];
 
 	return	checkSum;
@@ -272,7 +267,8 @@ static u8 mvverifychecksum(u8 *address, u32 Size)
 static bool mvui_init_param(struct mvs_info *mvi,
 			    struct hba_info_main *hba_info_para)
 {
-	u32 	param_flash_addr = PARA_OFF;
+	u32	param_flash_addr = PARA_OFF;
+
 	if (!mvi)
 		return false;
 
@@ -282,14 +278,14 @@ static bool mvui_init_param(struct mvs_info *mvi,
 	}
 	mv_dprintk("Init flash rom ok,flash type is 0x%x.\n", mvi->flashid);
 	/* step 1 read param from flash offset = 0x3FFF00 */
-	spi_readbuf(mvi, param_flash_addr, \
-			(u8 *)hba_info_para, FLASH_PARA_SIZE);
+	spi_readbuf(mvi, param_flash_addr, (u8 *)hba_info_para,
+		    FLASH_PARA_SIZE);
 
 	/* step 2 check the signature first */
-	if (hba_info_para->signature[0] == 'M' && \
-	    hba_info_para->signature[1] == 'R' && \
-	    hba_info_para->signature[2] == 'V' && \
-	    hba_info_para->signature[3] == 'L' && \
+	if (hba_info_para->signature[0] == 'M' &&
+	    hba_info_para->signature[1] == 'R' &&
+	    hba_info_para->signature[2] == 'V' &&
+	    hba_info_para->signature[3] == 'L' &&
 	    (!mvverifychecksum((u8 *)hba_info_para, FLASH_PARA_SIZE))) {
 		return true;
 	}

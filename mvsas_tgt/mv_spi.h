@@ -46,20 +46,20 @@
 
 #define SPI_INS_WREN			0
 #define SPI_INS_WRDI			1
-#define SPI_INS_RDSR				2
-#define SPI_INS_WRSR	         	3
+#define SPI_INS_RDSR			2
+#define SPI_INS_WRSR			3
 #define SPI_INS_READ			4
 #define SPI_INS_RPOG			5
 #define SPI_INS_SERASE			6
 #define SPI_INS_CERASE			7
-#define SPI_INS_RDID				8
+#define SPI_INS_RDID			8
 #define SPI_INS_PRSEC			9
 #define SPI_INS_UPTSEC			10
-#define SPI_INS_RDPT				11
+#define SPI_INS_RDPT			11
 
 
 #define MAX_PD_IN_PD_PAGE_FLASH		128
-#define FLASH_PARA_SIZE 	(sizeof(struct hba_info_main))
+#define FLASH_PARA_SIZE		(sizeof(struct hba_info_main))
 #define rounding_mask(x, mask)  (((x)+(mask))&~(mask))
 #define rounding(value, align)  rounding_mask(value,   \
 						 (typeof(value)) (align-1))
@@ -67,7 +67,7 @@
 
 #define PAGE_INTERVAL_DISTANCE		0x100
 
-struct hba_info_main{
+struct hba_info_main {
 	u8	signature[4];
 	u8	reserve[52];
 	u64	sas_address[8];

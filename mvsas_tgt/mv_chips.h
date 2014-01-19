@@ -33,12 +33,12 @@
 				mr32(reg);	\
 			} while (0)
 
-#define iow32(reg, val) 	outl(val, (unsigned long)(regs + reg))
-#define ior32(reg) 		inl((unsigned long)(regs + reg))
-#define iow16(reg, val) 	outw((unsigned long)(val, regs + reg))
-#define ior16(reg) 		inw((unsigned long)(regs + reg))
-#define iow8(reg, val) 		outb((unsigned long)(val, regs + reg))
-#define ior8(reg) 		inb((unsigned long)(regs + reg))
+#define iow32(reg, val)	outl(val, (unsigned long)(regs + reg))
+#define ior32(reg)	inl((unsigned long)(regs + reg))
+#define iow16(reg, val)	outw((unsigned long)(val, regs + reg))
+#define ior16(reg)	inw((unsigned long)(regs + reg))
+#define iow8(reg, val)	outb((unsigned long)(val, regs + reg))
+#define ior8(reg)	inb((unsigned long)(regs + reg))
 
 static inline u32 mvs_cr32(struct mvs_info *mvi, u32 addr)
 {

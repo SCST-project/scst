@@ -136,13 +136,13 @@ struct mvs_prd {
 	__le32			len;		/* 16-bit length */
 };
 
-#define SPI_CTRL_REG				0xc0
+#define SPI_CTRL_REG			0xc0
 #define SPI_CTRL_VENDOR_ENABLE		(1U<<29)
-#define SPI_CTRL_SPIRDY         		(1U<<22)
-#define SPI_CTRL_SPISTART			(1U<<20)
+#define SPI_CTRL_SPIRDY			(1U<<22)
+#define SPI_CTRL_SPISTART		(1U<<20)
 
-#define SPI_CMD_REG		0xc4
-#define SPI_DATA_REG		0xc8
+#define SPI_CMD_REG			0xc4
+#define SPI_DATA_REG			0xc8
 
 #define SPI_CTRL_REG_64XX		0x10
 #define SPI_CMD_REG_64XX		0x14

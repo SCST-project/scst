@@ -87,8 +87,8 @@ static struct scsi_host_template mvs_sht = {
 };
 
 static struct sas_domain_function_template mvs_transport_ops = {
-	.lldd_dev_found 	= mvs_dev_found,
-	.lldd_dev_gone	= mvs_dev_gone,
+	.lldd_dev_found		= mvs_dev_found,
+	.lldd_dev_gone		= mvs_dev_gone,
 
 	.lldd_execute_task	= mvs_queue_command,
 	.lldd_control_phy	= mvs_phy_control,
@@ -98,7 +98,7 @@ static struct sas_domain_function_template mvs_transport_ops = {
 	.lldd_clear_aca         = mvs_clear_aca,
 	.lldd_clear_task_set    = mvs_clear_task_set,
 	.lldd_I_T_nexus_reset	= mvs_I_T_nexus_reset,
-	.lldd_lu_reset 		= mvs_lu_reset,
+	.lldd_lu_reset			= mvs_lu_reset,
 	.lldd_query_task	= mvs_query_task,
 
 	.lldd_port_formed	= mvs_port_formed,
@@ -728,8 +728,8 @@ static struct pci_device_id __devinitdata mvs_pci_table[] = {
 	{ PCI_VDEVICE(MARVELL, 0x6320), chip_6320 },
 	{ PCI_VDEVICE(MARVELL, 0x6340), chip_6440 },
 	{
-		.vendor 	= PCI_VENDOR_ID_MARVELL,
-		.device 	= 0x6440,
+		.vendor		= PCI_VENDOR_ID_MARVELL,
+		.device		= 0x6440,
 		.subvendor	= PCI_ANY_ID,
 		.subdevice	= 0x6480,
 		.class		= 0,
@@ -741,8 +741,8 @@ static struct pci_device_id __devinitdata mvs_pci_table[] = {
 	{ PCI_VDEVICE(MARVELL, 0x9480), chip_9480 },
 	{ PCI_VDEVICE(MARVELL, 0x9180), chip_9180 },
 	{
-		.vendor 	= 0x1b4b,
-		.device 	= 0x9480,
+		.vendor		= 0x1b4b,
+		.device		= 0x9480,
 		.subvendor	= PCI_ANY_ID,
 		.subdevice	= 0x9480,
 		.class		= 0,
