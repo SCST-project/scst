@@ -64,12 +64,20 @@
 #endif
 #define MV_MAX_U32			0xffffffff
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+#define __devexit
+#define __devexit_p(f) f
+#define __devinit
+#define __devinitdata
+#endif
+
 extern struct mvs_tgt_initiator mvs_tgt;
 extern struct mvs_info *tgt_mvi;
 extern const struct mvs_dispatch mvs_64xx_dispatch;
 extern const struct mvs_dispatch mvs_94xx_dispatch;
-#define DEV_IS_EXPANDER(type)	\
-	((type == EDGE_DEV) || (type == FANOUT_DEV))
+#define DEV_IS_EXPANDER(type)		       \
+	((type) == SAS_EDGE_EXPANDER_DEVICE || \
+	 (type) == SAS_FANOUT_EXPANDER_DEVICE)
 
 #define bit(n) ((u32)1 << n)
 
@@ -253,9 +261,34 @@ struct mvs_phy {
 	enum sas_linkrate	maximum_linkrate;
 };
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
+/*
+ * See also commit "sas: unify the pointlessly separated enums
+ * sas_dev_type and sas_device_type"
+ * (aa9f8328fc51460e15da129caf622b6560fa8c99).
+ */
+#define SAS_PHY_UNUSED		   NO_DEVICE /*0*/
+#define SAS_END_DEVICE		   SAS_END_DEV /*1*/
+#define SAS_EDGE_EXPANDER_DEVICE   EDGE_DEV /*2*/
+#define SAS_FANOUT_EXPANDER_DEVICE FANOUT_DEV /* 3 */
+#define SAS_SATA_DEV		   SATA_DEV /* 5 */
+#define SAS_SATA_PM		   SATA_PM /* 7 */
+#define SAS_SATA_PM_PORT	   SATA_PM_PORT/* 8 */
+#define SAS_SATA_PENDING	   SATA_PENDING /* 9 */
+#endif
+
 struct mvs_device {
 	struct list_head	dev_entry;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
+	/*
+	 * See also commit "sas: unify the pointlessly separated enums
+	 * sas_dev_type and sas_device_type"
+	 * (aa9f8328fc51460e15da129caf622b6560fa8c99).
+	 */
 	enum sas_dev_type dev_type;
+#else
+	enum sas_device_type dev_type;
+#endif
 	struct mvs_info *mvi_info;
 	struct domain_device *sas_device;
 	u32 attached_phy;

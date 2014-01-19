@@ -867,7 +867,15 @@ static int mvs_task_prep_ssp(struct mvs_info *mvi,
 	if (ssp_hdr->frame_type != SSP_TASK) {
 		buf_cmd[9] = fburst | task->ssp_task.task_attr |
 				(task->ssp_task.task_prio << 3);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 11, 0)
+		/*
+		 * See also patch "libsas: implement > 16 byte CDB support"
+		 * (commit ID e73823f7a2c921dcf068d34ea03bd682498d9e42).
+		 */
 		memcpy(buf_cmd + 12, &task->ssp_task.cdb, 16);
+#else
+		memcpy(buf_cmd + 12, &task->ssp_task.cmd->request->cmd, 16);
+#endif
 	} else{
 		buf_cmd[10] = tmf->tmf;
 		switch (tmf->tmf) {
@@ -887,7 +895,7 @@ static int mvs_task_prep_ssp(struct mvs_info *mvi,
 	return 0;
 }
 
-#define	DEV_IS_GONE(mvi_dev)	((!mvi_dev || (mvi_dev->dev_type == NO_DEVICE)))
+#define	DEV_IS_GONE(mvi_dev)	((!mvi_dev || (mvi_dev->dev_type == SAS_PHY_UNUSED)))
 static int mvs_task_exec(struct sas_task *task, const int num, gfp_t gfp_flags,
 				struct completion *completion, int is_tmf,
 				struct mvs_tmf_task *tmf)
@@ -911,7 +919,7 @@ static int mvs_task_exec(struct sas_task *task, const int num, gfp_t gfp_flags,
 		 * libsas will use dev->port, should
 		 * not call task_done for sata
 		 */
-		if (dev->dev_type != SATA_DEV)
+		if (dev->dev_type != SAS_SATA_DEV)
 			t->task_done(t);
 		return 0;
 	}
@@ -1229,10 +1237,10 @@ void mvs_update_phyinfo(struct mvs_info *mvi, int i, int get_st)
 			phy->identify.device_type =
 				phy->att_dev_info & PORT_DEV_TYPE_MASK;
 
-			if (phy->identify.device_type == SAS_END_DEV)
+			if (phy->identify.device_type == SAS_END_DEVICE)
 				phy->identify.target_port_protocols =
 							SAS_PROTOCOL_SSP;
-			else if (phy->identify.device_type != NO_DEVICE)
+			else if (phy->identify.device_type != SAS_PHY_UNUSED)
 				phy->identify.target_port_protocols =
 							SAS_PROTOCOL_SMP;
 			if (oob_done)
@@ -1333,7 +1341,7 @@ struct mvs_device *mvs_alloc_dev(struct mvs_info *mvi)
 {
 	u32 dev;
 	for (dev = 0; dev < MVS_MAX_DEVICES; dev++) {
-		if (mvi->devices[dev].dev_type == NO_DEVICE) {
+		if (mvi->devices[dev].dev_type == SAS_PHY_UNUSED) {
 			mvi->devices[dev].device_id = dev;
 			return &mvi->devices[dev];
 		}
@@ -1351,7 +1359,7 @@ void mvs_free_dev(struct mvs_device *mvi_dev)
 	u32 id = mvi_dev->device_id;
 	memset(mvi_dev, 0, sizeof(*mvi_dev));
 	mvi_dev->device_id = id;
-	mvi_dev->dev_type = NO_DEVICE;
+	mvi_dev->dev_type = SAS_PHY_UNUSED;
 	mvi_dev->dev_status = MVS_DEV_NORMAL;
 	mvi_dev->taskfileset = MVS_ID_NOT_MAPPED;
 }
@@ -1438,14 +1446,28 @@ void mvs_dev_gone(struct domain_device *dev)
 
 static  struct sas_task *mvs_alloc_task(void)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0)
 	struct sas_task *task = kzalloc(sizeof(struct sas_task), GFP_KERNEL);
+#else
+	struct sas_task *task = sas_alloc_slow_task(GFP_KERNEL);
+#endif
 
 	if (task) {
 		INIT_LIST_HEAD(&task->list);
 		spin_lock_init(&task->task_state_lock);
 		task->task_state_flags = SAS_TASK_STATE_PENDING;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0)
+		/*
+		 * See also patch "libsas: trim sas_task of slow path
+		 * infrastructure" (commit ID
+		 * f0bf750c2d25c3a2131ececbff63c7878e0e3765).
+		 */
 		init_timer(&task->timer);
 		init_completion(&task->completion);
+#else
+		init_timer(&task->slow_task->timer);
+		init_completion(&task->slow_task->completion);
+#endif
 	}
 	return task;
 }
@@ -1460,9 +1482,15 @@ static  void mvs_free_task(struct sas_task *task)
 
 static void mvs_task_done(struct sas_task *task)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0)
 	if (!del_timer(&task->timer))
 		return;
 	complete(&task->completion);
+#else
+	if (!del_timer(&task->slow_task->timer))
+		return;
+	complete(&task->slow_task->completion);
+#endif
 }
 
 static void mvs_tmf_timedout(unsigned long data)
@@ -1470,7 +1498,11 @@ static void mvs_tmf_timedout(unsigned long data)
 	struct sas_task *task = (struct sas_task *)data;
 
 	task->task_state_flags |= SAS_TASK_STATE_ABORTED;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0)
 	complete(&task->completion);
+#else
+	complete(&task->slow_task->completion);
+#endif
 }
 
 /* XXX */
@@ -1480,6 +1512,7 @@ static int mvs_exec_internal_tmf_task(struct domain_device *dev,
 {
 	int res, retry;
 	struct sas_task *task = NULL;
+	struct timer_list *t;
 
 	for (retry = 0; retry < 3; retry++) {
 		task = mvs_alloc_task();
@@ -1492,20 +1525,28 @@ static int mvs_exec_internal_tmf_task(struct domain_device *dev,
 		memcpy(&task->ssp_task, parameter, para_len);
 		task->task_done = mvs_task_done;
 
-		task->timer.data = (unsigned long) task;
-		task->timer.function = mvs_tmf_timedout;
-		task->timer.expires = jiffies + MVS_TASK_TIMEOUT*HZ;
-		add_timer(&task->timer);
-
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0)
+		t = &task->timer;
+#else
+		t = &task->slow_task->timer;
+#endif
+		t->data = (unsigned long) task;
+		t->function = mvs_tmf_timedout;
+		t->expires = jiffies + MVS_TASK_TIMEOUT*HZ;
+		add_timer(t);
 		res = mvs_task_exec(task, 1, GFP_KERNEL, NULL, 1, tmf);
 
 		if (res) {
-			del_timer(&task->timer);
+			del_timer(t);
 			mv_printk("executing internel task failed:%d\n", res);
 			goto ex_err;
 		}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0)
 		wait_for_completion(&task->completion);
+#else
+		wait_for_completion(&task->slow_task->completion);
+#endif
 		res = -TMF_RESP_FUNC_FAILED;
 		/* Even TMF timed out, return direct. */
 		if ((task->task_state_flags & SAS_TASK_STATE_ABORTED)) {
@@ -1516,7 +1557,7 @@ static int mvs_exec_internal_tmf_task(struct domain_device *dev,
 		}
 
 		if (task->task_status.resp == SAS_TASK_COMPLETE &&
-		    task->task_status.stat == SAM_GOOD) {
+		    task->task_status.stat == SAM_STAT_GOOD) {
 			res = TMF_RESP_FUNC_COMPLETE;
 			break;
 		}
@@ -1572,10 +1613,20 @@ static int mvs_debug_issue_ssp_tmf(struct domain_device *dev,
 static int mvs_debug_I_T_nexus_reset(struct domain_device *dev)
 {
 	int rc;
-	struct sas_phy *phy = sas_find_local_phy(dev);
-	int reset_type = (dev->dev_type == SATA_DEV ||
+	int reset_type = (dev->dev_type == SAS_SATA_DEV ||
 			(dev->tproto & SAS_PROTOCOL_STP)) ? 0 : 1;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
+	struct sas_phy *phy = sas_find_local_phy(dev);
 	rc = sas_phy_reset(phy, reset_type);
+	/*
+	 * See also commit "libsas: fix sas_find_local_phy(), take phy
+	 * references" (f41a0c441c3fe43e79ebeb75584dbb5bfa83e5cd).
+	 */
+#else
+	struct sas_phy *phy = sas_get_local_phy(dev);
+	rc = sas_phy_reset(phy, reset_type);
+	sas_put_local_phy(phy);
+#endif
 	msleep(2000);
 	return rc;
 }
@@ -1757,7 +1808,7 @@ static int mvs_sata_done(struct mvs_info *mvi, struct sas_task *task,
 	struct mvs_device *mvi_dev = task->dev->lldd_dev;
 	struct task_status_struct *tstat = &task->task_status;
 	struct ata_task_resp *resp = (struct ata_task_resp *)tstat->buf;
-	int stat = SAM_GOOD;
+	int stat = SAM_STAT_GOOD;
 
 	resp->frame_len = sizeof(struct dev_to_host_fis);
 	memcpy(&resp->ending_fis[0],
@@ -1783,13 +1834,13 @@ static int mvs_slot_err(struct mvs_info *mvi, struct sas_task *task,
 
 	MVS_CHIP_DISP->command_active(mvi, slot_idx);
 
-	stat = SAM_CHECK_COND;
+	stat = SAM_STAT_CHECK_CONDITION;
 	switch (task->task_proto) {
 	case SAS_PROTOCOL_SSP:
 		stat = SAS_ABORTED_TASK;
 		break;
 	case SAS_PROTOCOL_SMP:
-		stat = SAM_CHECK_COND;
+		stat = SAM_STAT_CHECK_CONDITION;
 		break;
 
 	case SAS_PROTOCOL_SATA:
@@ -1880,7 +1931,7 @@ int mvs_slot_complete(struct mvs_info *mvi, u32 rx_desc, u32 flags)
 	case SAS_PROTOCOL_SSP:
 		/* hw says status == 0, datapres == 0 */
 		if (rx_desc & RXQ_GOOD) {
-			tstat->stat = SAM_GOOD;
+			tstat->stat = SAM_STAT_GOOD;
 			tstat->resp = SAS_TASK_COMPLETE;
 		}
 		/* response frame present */
@@ -1889,20 +1940,28 @@ int mvs_slot_complete(struct mvs_info *mvi, u32 rx_desc, u32 flags)
 						sizeof(struct mvs_err_info);
 			sas_ssp_task_response(mvi->dev, task, iu);
 		} else
-			tstat->stat = SAM_CHECK_COND;
+			tstat->stat = SAM_STAT_CHECK_CONDITION;
 		break;
 
 	case SAS_PROTOCOL_SMP: {
 		struct scatterlist *sg_resp = &task->smp_task.smp_resp;
-		tstat->stat = SAM_GOOD;
+		tstat->stat = SAM_STAT_GOOD;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
 		to = kmap_atomic(sg_page(sg_resp), KM_IRQ0);
+#else
+		to = kmap_atomic(sg_page(sg_resp));
+#endif
 		memcpy(to + sg_resp->offset,
 			slot->response + sizeof(struct mvs_err_info),
 			sg_dma_len(sg_resp));
 		memcpy(to + sg_resp->offset,
 			slot->response + sizeof(struct mvs_err_info),
 			sg_resp->length);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
 		kunmap_atomic(to, KM_IRQ0);
+#else
+		kunmap_atomic(to);
+#endif
 		break;
 		}
 
@@ -1914,7 +1973,7 @@ int mvs_slot_complete(struct mvs_info *mvi, u32 rx_desc, u32 flags)
 		}
 
 	default:
-		tstat->stat = SAM_CHECK_COND;
+		tstat->stat = SAM_STAT_CHECK_CONDITION;
 		break;
 	}
 
