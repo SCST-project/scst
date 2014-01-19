@@ -229,7 +229,7 @@ static ssize_t mpt_proc_target_write(struct file *file, const char __user *buf,
 	char tmp[32+1];
 
 	TRACE_ENTRY();
-	res = min(32, (int)length);
+	res = min_t(int, 32, length);
 	if (copy_from_user(tmp, buf, res)) {
 		res = -EFAULT;
 		goto out;
@@ -335,13 +335,10 @@ static inline MPT_FRAME_HDR *mpt_msg_frame_alloc(MPT_ADAPTER *ioc, int index)
 
 	mf = mpt_get_msg_frame(stm_context, _IOC_ID);
 
-	if (mf == NULL) {
-		sBUG_ON(1);
-	}
+	sBUG_ON(mf == NULL);
 
-	if (index != -1) {
+	if (index != -1)
 		priv->current_mf[index] = mf;
-	}
 
 	TRACE_DBG("%s: alloc mf index %d, %p, %d", ioc->name,
 			MF_TO_INDEX(mf), mf, index);
@@ -364,9 +361,8 @@ static int mptstm_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	TRACE_ENTRY();
 	ret = mpt_stm_adapter_install(ioc);
-	if (ret != 0) {
+	if (ret != 0)
 		goto out;
-	}
 
 	tgt = kmalloc(sizeof(*tgt), GFP_KERNEL);
 	TRACE_MEM("kmalloc(GFP_KERNEL) for tgt (%zd), %p",
@@ -390,8 +386,8 @@ static int mptstm_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	tgt->scst_tgt = scst_register_target(&tgt_template, MYNAM);
 	if (tgt->scst_tgt == NULL) {
-		PRINT_ERROR(MYNAM ": scst_register_target() "
-			    "failed for host %p", pdev);
+		PRINT_ERROR(MYNAM ": scst_register_target() failed for host %p",
+			    pdev);
 
 		ret = -ENODEV;
 		goto out;
@@ -415,7 +411,7 @@ static int mptstm_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 
 	scst_tgt_set_tgt_priv(tgt->scst_tgt, tgt);
 	mpt_stm_priv[ioc->id]->tgt = tgt;
-	_mpt_ada_nums ++;
+	_mpt_ada_nums++;
 
 out:
 
@@ -430,9 +426,8 @@ static void mptstm_remove(struct pci_dev *pdev)
 	MPT_STM_PRIV *priv;
 
 	priv = mpt_stm_priv[ioc->id];
-	if (priv != NULL) {
+	if (priv != NULL)
 		mpt_stm_adapter_dispose(priv);
-	}
 }
 
 static struct mpt_pci_driver mptstm_driver = {
@@ -455,9 +450,8 @@ static int mpt_target_detect(struct scst_tgt_template *templ)
 
 	TRACE_ENTRY();
 	ret = _mpt_stm_init();
-	if (ret != 0) {
+	if (ret != 0)
 		goto out;
-	}
 
 	if (mpt_device_driver_register(&mptstm_driver, MPTSTM_DRIVER)) {
 		printk(KERN_WARNING MYNAM
@@ -805,42 +799,42 @@ void stm_tgt_reply(MPT_ADAPTER *ioc, u32 reply_word)
 		if (IsScsi(priv)) {
 			switch (atomic_read(&priv->pending_sense[init_index])) {
 				/* attempt to send status and sense succeeded */
-				case MPT_STATUS_SENSE_ATTEMPT:
-					atomic_set(&priv->pending_sense[init_index],
-						MPT_STATUS_SENSE_IDLE);
-					/* ToDo: check and set scst_set_delivery_status(), if necessary */
-					scst_tgt_cmd_done(scst_cmd, context);
-					break;
+			case MPT_STATUS_SENSE_ATTEMPT:
+				atomic_set(&priv->pending_sense[init_index],
+					   MPT_STATUS_SENSE_IDLE);
+				/* ToDo: check and set scst_set_delivery_status(), if necessary */
+				scst_tgt_cmd_done(scst_cmd, context);
+				break;
 
 				/* we tried to send status and sense
 				 * simltaneously and failed.  Prepare to handle
 				 * the next command without SCST if it is
 				 * REQUEST_SENSE */
-				case MPT_STATUS_SENSE_NOT_SENT:
-					atomic_set(&priv->pending_sense[init_index],
-						MPT_STATUS_SENSE_HANDLE_RQ);
-					/* ToDo: check and set scst_set_delivery_status(), if necessary */
-					scst_tgt_cmd_done(scst_cmd, context);
-					break;
+			case MPT_STATUS_SENSE_NOT_SENT:
+				atomic_set(&priv->pending_sense[init_index],
+					   MPT_STATUS_SENSE_HANDLE_RQ);
+				/* ToDo: check and set scst_set_delivery_status(), if necessary */
+				scst_tgt_cmd_done(scst_cmd, context);
+				break;
 
 				/* we've handled REQUEST_SENSE ourselves and
 				 * we're done with the command.  Clean up */
-				case MPT_STATUS_SENSE_HANDLE_RQ:
-					TRACE_DBG("%s: clearing pending sense",
-							ioc->name);
-					atomic_set(&priv->pending_sense[init_index],
-							MPT_STATUS_SENSE_IDLE);
-					mpt_on_free_cmd(scst_cmd);
-					/* scst_cmd alloced in stmapp_pending_sense */
-					kfree(scst_cmd);
-					break;
+			case MPT_STATUS_SENSE_HANDLE_RQ:
+				TRACE_DBG("%s: clearing pending sense",
+					  ioc->name);
+				atomic_set(&priv->pending_sense[init_index],
+					   MPT_STATUS_SENSE_IDLE);
+				mpt_on_free_cmd(scst_cmd);
+				/* scst_cmd alloced in stmapp_pending_sense */
+				kfree(scst_cmd);
+				break;
 
-				default:
-					/* nothing much to do here, we aren't
-					 * handling cached sense/status */
-					/* ToDo: check and set scst_set_delivery_status(), if necessary */
-					scst_tgt_cmd_done(scst_cmd, context);
-					break;
+			default:
+				/* nothing much to do here, we aren't
+				 * handling cached sense/status */
+				/* ToDo: check and set scst_set_delivery_status(), if necessary */
+				scst_tgt_cmd_done(scst_cmd, context);
+				break;
 			}
 		} else {
 			/* ToDo: check and set scst_set_delivery_status(), if necessary */
@@ -894,7 +888,7 @@ static int mpt_is_task_mgm(MPT_STM_PRIV *priv, u32 reply_word, int *lun)
 {
 	int task_mgmt = 0, index;
 	CMD *cmd;
-	//struct mpt_tgt *tgt = priv->tgt;
+	/*struct mpt_tgt *tgt = priv->tgt;*/
 
 	TRACE_ENTRY();
 
@@ -934,9 +928,8 @@ static void stmapp_tgt_command(MPT_STM_PRIV *priv, u32 reply_word)
 	tgt = priv->tgt;
 
 	task_mgmt = mpt_is_task_mgm(priv, reply_word, &lun);
-	if (task_mgmt) {
+	if (task_mgmt)
 		mpt_handle_task_mgmt(priv, reply_word, task_mgmt, lun);
-	}
 
 	init_index = GET_INITIATOR_INDEX(reply_word);
 
@@ -1045,8 +1038,7 @@ static int mpt_target_release(struct scst_tgt *scst_tgt)
 	return 0;
 }
 
-struct mpt_prm
-{
+struct mpt_prm {
 	struct mpt_tgt *tgt;
 	uint16_t seg_cnt;
 	unsigned short use_sg;
@@ -1066,11 +1058,12 @@ static inline void mpt_dump_sge(MPT_SGE *sge, struct scatterlist *sg)
 	if (sge) {
 		void *address = NULL;
 		struct page *page = NULL;
+
 		address = bus_to_virt(sge->address);
 		page = virt_to_page(address);
 		TRACE_DBG("address %p, length %x, count %d, page %p",
 				address, sge->length, page_count(page), page);
-		TRACE_BUFFER("sge data", address, min(sge->length, (u32)0x10));
+		TRACE_BUFFER("sge data", address, min_t(u32, sge->length, 0x10));
 	}
 	if (sg) {
 		TRACE_DBG("sg %p, page %p, %p, offset %d, dma address %llx, len %d",
@@ -1106,9 +1099,8 @@ static inline void mpt_sge_to_sgl(struct mpt_prm *prm, MPT_STM_PRIV *priv,
 		sgl->sge[i].address = sg_dma_address(&prm->sg[i]);
 
 		TRACE_DBG("%d, %d", bufflen, prm->sg[i].length);
-		if (bufflen < prm->sg[i].length) {
+		if (bufflen < prm->sg[i].length)
 			sgl->sge[i].length = bufflen;
-		}
 		mpt_dump_sge(&sgl->sge[i], &prm->sg[i]);
 		bufflen -= sgl->sge[i].length;
 	}
@@ -1128,35 +1120,32 @@ static inline void mpt_set_sense_info(MPT_STM_PRIV *priv, CMD *cmd, int len,
 	TRACE_ENTRY();
 
 	if (IsScsi(priv)) {
-		SCSI_RSP    *rsp = (SCSI_RSP *)cmd->rsp;
+		SCSI_RSP *rsp = (SCSI_RSP *)cmd->rsp;
 
 		rsp->Status = STS_CHECK_CONDITION;
 		rsp->Valid |= SCSI_SENSE_LEN_VALID;
 		rsp->SenseDataListLength = cpu_to_be32(len);
 		info = rsp->SenseData;
-		if (rsp->Valid & SCSI_RSP_LEN_VALID) {
+		if (rsp->Valid & SCSI_RSP_LEN_VALID)
 			info += be32_to_cpu(rsp->PktFailuresListLength);
-		}
 	} else if (IsSas(priv)) {
-		SSP_RSP     *rsp = (SSP_RSP *)cmd->rsp;
+		SSP_RSP *rsp = (SSP_RSP *)cmd->rsp;
 
 		rsp->Status = STS_CHECK_CONDITION;
 		rsp->DataPres |= SSP_SENSE_LEN_VALID;
 		rsp->SenseDataLength = cpu_to_be32(len);
 		info = rsp->ResponseSenseData;
-		if (rsp->DataPres & SSP_RSP_LEN_VALID) {
+		if (rsp->DataPres & SSP_RSP_LEN_VALID)
 			info += be32_to_cpu(rsp->ResponseDataLength);
-		}
 	} else {
-		FCP_RSP     *rsp = (FCP_RSP *)cmd->rsp;
+		FCP_RSP *rsp = (FCP_RSP *)cmd->rsp;
 
 		rsp->FcpStatus = STS_CHECK_CONDITION;
 		rsp->FcpFlags |= FCP_SENSE_LEN_VALID;
 		rsp->FcpSenseLength = cpu_to_be32(len);
 		info = rsp->FcpSenseData - sizeof(rsp->FcpResponseData);
-		if (rsp->FcpFlags & FCP_RSP_LEN_VALID) {
+		if (rsp->FcpFlags & FCP_RSP_LEN_VALID)
 			info += be32_to_cpu(rsp->FcpResponseLength);
-		}
 	}
 
 	sBUG_ON(info == NULL);
@@ -1179,12 +1168,11 @@ static int mpt_send_tgt_data(MPT_STM_PRIV *priv, u32 reply_word, int index,
 	dma_addr_t dma_addr;
 
 	TRACE_ENTRY();
-	req = (TargetAssistRequest_t *)mpt_msg_frame_alloc(ioc,index);
+	req = (TargetAssistRequest_t *)mpt_msg_frame_alloc(ioc, index);
 	memset(req, 0, sizeof(*req));
 
-	if (priv->exiting) {
+	if (priv->exiting)
 		flags &= ~TARGET_ASSIST_FLAGS_REPOST_CMD_BUFFER;
-	}
 
 	if (priv->io_state[index] & IO_STATE_HIGH_PRIORITY) {
 		flags |= TARGET_ASSIST_FLAGS_HIGH_PRIORITY;
@@ -1305,8 +1293,8 @@ static int mpt_send_tgt_data(MPT_STM_PRIV *priv, u32 reply_word, int index,
 	if (trace_mpi) {
 		u32 *p = (u32 *)req;
 		int i;
-		//dma_addr_t _data;
-		//u8 *_buf;
+		/*dma_addr_t _data;*/
+		/*u8 *_buf;*/
 
 		TRACE(TRACE_MPI, "%s stm_send_target_data %d",
 		      ioc->name, index);
@@ -1354,8 +1342,9 @@ static int mpt_send_tgt_data(MPT_STM_PRIV *priv, u32 reply_word, int index,
 
 
 	if (priv->io_state[index] & IO_STATE_HIGH_PRIORITY) {
-		res =mpt_send_handshake_request(stm_context, _IOC_ID,
-					   ioc->req_sz, (u32 *)req _HS_SLEEP);
+		res = mpt_send_handshake_request(stm_context, _IOC_ID,
+						 ioc->req_sz,
+						 (u32 *)req _HS_SLEEP);
 	} else {
 		mpt_put_msg_frame(stm_context, _IOC_ID, (MPT_FRAME_HDR *)req);
 	}
@@ -1388,9 +1377,8 @@ static void mpt_send_target_data(struct mpt_prm *prm, int flags)
 	lun = prm->cmd->CMD->lun;
 	tag = prm->cmd->CMD->tag;
 
-	if (prm->data_direction == SCST_DATA_READ) {
+	if (prm->data_direction == SCST_DATA_READ)
 		flags |= TARGET_ASSIST_FLAGS_DATA_DIRECTION;
-	}
 
 	length = prm->bufflen;
 	offset = 0;
@@ -1530,11 +1518,11 @@ static int stmapp_pending_sense(struct mpt_cmd *mpt_cmd)
 					/* smallest amount of data between
 					 * requested length, buffer size,
 					 * and cached length */
-					prm.bufflen = min((size_t)cdb[4],
-						(size_t)SCSI_SENSE_BUFFERSIZE);
-					prm.bufflen = min((size_t)prm.bufflen,
-						(size_t)(priv->pending_sense_buffer[init_index][7]
-							 + 8));
+					prm.bufflen = min_t(size_t, cdb[4],
+						SCSI_SENSE_BUFFERSIZE);
+					prm.bufflen = min_t(size_t, prm.bufflen,
+						priv->pending_sense_buffer[init_index][7]
+							 + 8);
 					sg_set_page(&sg,
 						virt_to_page(priv->pending_sense_buffer[init_index]),
 						prm.bufflen,
@@ -1587,8 +1575,8 @@ static int mpt_xmit_response(struct scst_cmd *scst_cmd)
 	struct mpt_sess *sess;
 	struct mpt_prm prm = { 0 };
 	int is_send_status;
-	//uint16_t full_req_cnt;
-	//int data_sense_flag = 0;
+	/*uint16_t full_req_cnt;*/
+	/*int data_sense_flag = 0;*/
 
 	TRACE_ENTRY();
 
@@ -1640,9 +1628,9 @@ static int mpt_xmit_response(struct scst_cmd *scst_cmd)
 
 	if (scst_cmd_get_resp_data_len(scst_cmd) > 0) {
 		int flags = 0;
-		if (prm.rq_result == 0) {
+
+		if (prm.rq_result == 0)
 			flags |= TARGET_ASSIST_FLAGS_AUTO_STATUS;
-		}
 		if (scst_get_may_need_dma_sync(scst_cmd)) {
 			dma_sync_sg_for_cpu(&(prm.tgt->priv->ioc->pcidev->dev),
 				scst_cmd->sg, scst_cmd->sg_cnt,
@@ -1650,9 +1638,8 @@ static int mpt_xmit_response(struct scst_cmd *scst_cmd)
 		}
 		mpt_send_target_data(&prm, flags);
 
-		if (prm.rq_result == 0) {
+		if (prm.rq_result == 0)
 			goto out;
-		}
 	}
 	{
 		int flags = 0;
@@ -1662,18 +1649,17 @@ static int mpt_xmit_response(struct scst_cmd *scst_cmd)
 		int tag = prm.cmd->CMD->tag;
 		MPT_STM_PRIV *priv = prm.tgt->priv;
 
-		if (prm.rq_result == 0) {
+		if (prm.rq_result == 0)
 			flags |= TARGET_STATUS_SEND_FLAGS_AUTO_GOOD_STATUS;
-		}
 
 		flags |= TARGET_STATUS_SEND_FLAGS_REPOST_CMD_BUFFER;
 		priv->io_state[index] |= IO_STATE_AUTO_REPOST;
 
-		TRACE_DBG("scst cmd %p, index %d, flags %d",
-				scst_cmd, index, flags);
+		TRACE_DBG("scst cmd %p, index %d, flags %d", scst_cmd, index,
+			  flags);
 
-		stm_send_target_status(priv, reply_word, index,
-				flags, lun, tag);
+		stm_send_target_status(priv, reply_word, index, flags, lun,
+				       tag);
 	}
 
 out:
@@ -1900,7 +1886,7 @@ static int mpt_handle_task_mgmt(MPT_STM_PRIV *priv, u32 reply_word,
 	mcmd->sess = sess;
 	mcmd->task_mgmt = task_mgmt;
 
-	switch(task_mgmt) {
+	switch (task_mgmt) {
 	case IMM_NTFY_CLEAR_ACA:
 		TRACE(TRACE_MGMT, "%s", "IMM_NTFY_CLEAR_ACA received");
 		rc = scst_rx_mgmt_fn_lun(sess->scst_sess, SCST_CLEAR_ACA,
@@ -2438,7 +2424,7 @@ static void stm_target_cleanup(MPT_STM_PRIV *priv, int index)
 	*io_state &= ~IO_STATE_REDO_COMMAND;
 	*io_state &= ~IO_STATE_REQUEST_ABORTED;
 	*io_state &= ~IO_STATE_INCOMPLETE;
-	//  *io_state &= ~IO_STATE_AUTO_REPOST;
+	/*  *io_state &= ~IO_STATE_AUTO_REPOST;*/
 	*io_state &= ~IO_STATE_ABORTED;
 	*io_state &= ~IO_STATE_POSTED;
 	if ((*io_state & ~IO_STATE_HIGH_PRIORITY) == IO_STATE_AUTO_REPOST) {
@@ -4906,7 +4892,7 @@ static void stmapp_srr_process(MPT_STM_PRIV *priv, int rx_id, int r_ctl,
 						  ioc->name);
 					if (offset != rel_off) {
 						if (offset != rel_off + dat_len) {
-							//cmd->offset = offset;
+							/*cmd->offset = offset;*/
 							*io_state |= IO_STATE_ADJUST_OFFSET;
 						} else {
 							*io_state |= IO_STATE_CONVERT_TA_TO_TSS;
