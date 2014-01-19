@@ -251,22 +251,26 @@ typedef struct _MPT_STM_PRIV {
 #define MPT_STM_SIMPLE SGESimple64_t
 #define MPT_STM_CHAIN SGEChain64_t
 #define MPI_SGE_FLAGS_MPT_STM_ADDRESSING MPI_SGE_FLAGS_64_BIT_ADDRESSING
-#define stm_get_dma_addr(x, y)				\
-	x = le32_to_cpu(y.Low);				\
-	if (sizeof(dma_addr_t) == sizeof(u64))		\
-		x |= (u64)le32_to_cpu(y.High)<<32;
-#define stm_set_dma_addr(x, y)				\
-	x.Low = cpu_to_le32(y);				\
-	if (sizeof(dma_addr_t) == sizeof(u64))		\
-		x.High = cpu_to_le32((u64)y>>32);	\
-	else						\
-		x.High = 0;
+#define stm_get_dma_addr(x, y)					\
+	do {							\
+		(x) = le32_to_cpu((y).Low);				\
+		if (sizeof(dma_addr_t) == sizeof(u64))		\
+			(x) |= (u64)le32_to_cpu((y).High)<<32;	\
+	} while (0)
+#define stm_set_dma_addr(x, y)					\
+	do {							\
+		(x).Low = cpu_to_le32((y));				\
+		if (sizeof(dma_addr_t) == sizeof(u64))		\
+			(x).High = cpu_to_le32((u64)(y)>>32);	\
+		else						\
+			(x).High = 0;				\
+	} while (0)
 #else
 #define MPT_STM_SIMPLE SGESimple32_t
 #define MPT_STM_CHAIN SGEChain32_t
 #define MPI_SGE_FLAGS_MPT_STM_ADDRESSING MPI_SGE_FLAGS_32_BIT_ADDRESSING
-#define stm_get_dma_addr(x, y) x = le32_to_cpu(y);
-#define stm_set_dma_addr(x, y) x = cpu_to_le32(y);
+#define stm_get_dma_addr(x, y) ((x) = le32_to_cpu((y)))
+#define stm_set_dma_addr(x, y) ((x) = cpu_to_le32((y)))
 #endif
 
 #ifndef MPT_MAX_ADAPTERS
