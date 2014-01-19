@@ -141,11 +141,11 @@ static void stm_set_scsi_port_page1(MPT_STM_PRIV *priv, int sleep);
 
 #ifdef CONFIG_SCST_DEBUG
 #define trace_flag mpt_trace_flag
-unsigned long mpt_trace_flag = TRACE_FUNCTION | TRACE_OUT_OF_MEM | TRACE_SPECIAL;
+static unsigned long mpt_trace_flag = TRACE_FUNCTION | TRACE_OUT_OF_MEM | TRACE_SPECIAL;
 #else
 # ifdef CONFIG_SCST_TRACING
 #define trace_flag mpt_trace_flag
-unsigned long mpt_trace_flag = TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_SPECIAL;
+static unsigned long mpt_trace_flag = TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_SPECIAL;
 # endif
 #endif
 
@@ -564,7 +564,7 @@ static struct scst_cmd *_stm_target_command(MPT_STM_PRIV *priv, int reply_word,
 	}
 	TRACE_DBG("scst cmd %p, index %d", priv->scst_cmd[index], index);
 
-	WARN_ON(priv->scst_cmd[index] != 0);
+	WARN_ON(priv->scst_cmd[index] != NULL);
 	priv->scst_cmd[index] = scst_cmd;
 
 	scst_cmd_set_tag(scst_cmd, tag);
@@ -702,7 +702,7 @@ static void stm_data_done(MPT_ADAPTER *ioc, u32 reply_word,
 	TRACE_EXIT();
 }
 
-void stm_tgt_reply(MPT_ADAPTER *ioc, u32 reply_word)
+static void stm_tgt_reply(MPT_ADAPTER *ioc, u32 reply_word)
 {
 	MPT_STM_PRIV *priv = mpt_stm_priv[ioc->id];
 	int index, init_index;
@@ -1466,7 +1466,7 @@ static int stmapp_pending_sense(struct mpt_cmd *mpt_cmd)
 	SCSI_CMD *scsi_cmd = NULL;
 	CMD *cmd;
 	u8 *cdb;
-	struct mpt_prm prm = { 0 };
+	struct mpt_prm prm = { NULL };
 	struct scst_cmd *scst_cmd;
 	struct scatterlist sg;
 
@@ -1573,7 +1573,7 @@ static int mpt_xmit_response(struct scst_cmd *scst_cmd)
 {
 	int res = SCST_TGT_RES_SUCCESS;
 	struct mpt_sess *sess;
-	struct mpt_prm prm = { 0 };
+	struct mpt_prm prm = { NULL };
 	int is_send_status;
 	/*uint16_t full_req_cnt;*/
 	/*int data_sense_flag = 0;*/
@@ -1727,7 +1727,7 @@ static int mpt_rdy_to_xfer(struct scst_cmd *scst_cmd)
 	int res = SCST_TGT_RES_SUCCESS;
 	struct mpt_sess *sess;
 	/*unsigned long flags = 0;*/
-	struct mpt_prm prm = { 0 };
+	struct mpt_prm prm = { NULL };
 
 	TRACE_ENTRY();
 
