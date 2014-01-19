@@ -415,16 +415,25 @@ int mvs_slave_alloc(struct scsi_device *scsi_dev)
 
 int mvs_slave_configure(struct scsi_device *sdev)
 {
-	struct domain_device *dev = sdev_to_domain_dev(sdev);
 	int ret = sas_slave_configure(sdev);
 
 	if (ret)
 		return ret;
 
-	if (!dev_is_sata(dev))
-		sas_change_queue_depth(sdev,
-			MVS_QUEUE_SIZE,
-			SCSI_QDEPTH_DEFAULT);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33) ||	\
+	defined(CONFIG_SUSE_KERNEL) ||			\
+	(defined(RHEL_MAJOR) &&				\
+	 (RHEL_MAJOR -0 > 6 ||				\
+	  (RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 >= 1)))
+	{
+		struct domain_device *dev = sdev_to_domain_dev(sdev);
+
+		if (!dev_is_sata(dev))
+			sas_change_queue_depth(sdev, MVS_QUEUE_SIZE,
+					       SCSI_QDEPTH_DEFAULT);
+	}
+#endif
+
 	return 0;
 }
 
