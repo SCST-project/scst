@@ -24,8 +24,8 @@
 #include <linux/version.h>
 #include <scsi/scsi_device.h>
 
-#include <asm/uaccess.h>
-#include <asm/io.h>
+#include <linux/uaccess.h>
+#include <linux/io.h>
 #include <asm/div64.h>
 #endif
 
