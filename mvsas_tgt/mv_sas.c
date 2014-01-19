@@ -206,7 +206,7 @@ void mvs_get_sas_addr(void *buf, u32 buflen)
 	/*memcpy(buf, "\x50\x05\x04\x30\x11\xab\x64\x40", 8);*/
 }
 
-struct mvs_info *mvs_find_dev_mvi(struct domain_device *dev)
+static struct mvs_info *mvs_find_dev_mvi(struct domain_device *dev)
 {
 	unsigned long i = 0, j = 0, hi = 0;
 	struct sas_ha_struct *sha = dev->port->ha;
@@ -235,7 +235,7 @@ struct mvs_info *mvs_find_dev_mvi(struct domain_device *dev)
 }
 
 /* FIXME */
-int mvs_find_dev_phyno(struct domain_device *dev, int *phyno)
+static int mvs_find_dev_phyno(struct domain_device *dev, int *phyno)
 {
 	unsigned long i = 0, j = 0, n = 0, num = 0;
 	struct mvs_device *mvi_dev = dev->lldd_dev;
@@ -1337,7 +1337,7 @@ void mvs_port_deformed(struct asd_sas_phy *sas_phy)
 	mvs_port_notify_deformed(sas_phy, 1);
 }
 
-struct mvs_device *mvs_alloc_dev(struct mvs_info *mvi)
+static struct mvs_device *mvs_alloc_dev(struct mvs_info *mvi)
 {
 	u32 dev;
 	for (dev = 0; dev < MVS_MAX_DEVICES; dev++) {
@@ -1354,7 +1354,7 @@ struct mvs_device *mvs_alloc_dev(struct mvs_info *mvi)
 	return NULL;
 }
 
-void mvs_free_dev(struct mvs_device *mvi_dev)
+static void mvs_free_dev(struct mvs_device *mvi_dev)
 {
 	u32 id = mvi_dev->device_id;
 	memset(mvi_dev, 0, sizeof(*mvi_dev));
@@ -1364,7 +1364,7 @@ void mvs_free_dev(struct mvs_device *mvi_dev)
 	mvi_dev->taskfileset = MVS_ID_NOT_MAPPED;
 }
 
-int mvs_dev_found_notify(struct domain_device *dev, int lock)
+static int mvs_dev_found_notify(struct domain_device *dev, int lock)
 {
 	unsigned long flags = 0;
 	int res = 0;
@@ -1418,7 +1418,7 @@ int mvs_dev_found(struct domain_device *dev)
 	return mvs_dev_found_notify(dev, 1);
 }
 
-void mvs_dev_gone_notify(struct domain_device *dev)
+static void mvs_dev_gone_notify(struct domain_device *dev)
 {
 	unsigned long flags = 0;
 	struct mvs_device *mvi_dev = dev->lldd_dev;
@@ -1861,6 +1861,8 @@ static int mvs_slot_err(struct mvs_info *mvi, struct sas_task *task,
 
 
 int mvs_slot_complete(struct mvs_info *mvi, u32 rx_desc, u32 flags)
+	__releases(&mvi->lock)
+	__acquires(&mvi->lock)
 {
 	u32 slot_idx = rx_desc & RXQ_SLOT_MASK;
 	struct mvs_slot_info *slot = &mvi->slot_info[slot_idx];

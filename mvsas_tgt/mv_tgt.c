@@ -68,10 +68,9 @@ static int mvst_start_sas_target(struct mvs_info *mvi, u8 id);
 static int mvst_restart_free_list(struct mvs_info *mvi, u8 slot_id);
 static uint16_t mvst_get_scsi_transport_version(struct scst_tgt *scst_tgt);
 
-struct kmem_cache *mvst_cmd_cachep;
-struct mvst_msg_queue tgt_msg_queue;
+static struct kmem_cache *mvst_cmd_cachep;
 
-struct scst_tgt_template tgt_template = {
+static struct scst_tgt_template tgt_template = {
 	.name = MVST_NAME,
 	.sg_tablesize = 0,
 	.use_clustering = 1,
@@ -133,30 +132,6 @@ mvst_prep_prd(struct mvst_prm *prm, struct mvs_prd *buf_prd)
 	MVS_CHIP_DISP->make_prd(prm->sg, prm->sg_cnt, buf_prd);
 }
 
-
-void
-mvst_fixup_payload(u32 *payload, u32 nr_pl_dwords)
-{
-	u32 tmp;
-
-	while (nr_pl_dwords--) {
-		tmp = *payload;
-		tmp = ((tmp & 0x000000FF) << 24)	|
-				((tmp & 0x0000FF00) << 8)	|
-				((tmp & 0x00FF0000) >> 8)	|
-				((tmp & 0xFF000000) >> 24);
-	*payload = tmp;
-	payload++;
-    }
-}
-
-void
-memory_dword_copy(u32 *dst, u32 *src, u32 nr_bytes)
-{
-	nr_bytes /= sizeof(u32);
-	while (nr_bytes--)
-		*dst++ = *src++;
-}
 
 static inline int test_tgt_sess_count(struct mvst_tgt *tgt,
 				struct mvs_info *mvi)
@@ -523,7 +498,7 @@ static int mvst_prep_resp_frame(struct mvst_prm *prm,
 static int
 mvst_send_resp(struct mvs_info *mvi, struct mvst_cmd *cmd)
 {
-	struct mvst_prm prm = { 0 };
+	struct mvst_prm prm = { NULL };
 	struct scst_cmd *scst_cmd = cmd->scst_cmd;
 	u16 pass = 0;
 	struct mvs_slot_info *slot;
@@ -760,7 +735,7 @@ static int mvst_xmit_response(struct scst_cmd *scst_cmd)
 	struct mvst_sess *sess;
 	int is_send_status;
 	unsigned long flags = 0;
-	struct mvst_prm prm = { 0 };
+	struct mvst_prm prm = { NULL };
 	struct mvs_info	*mvi;
 
 	TRACE_ENTRY();
@@ -1038,7 +1013,7 @@ static int mvst_rdy_to_xfer(struct scst_cmd *scst_cmd)
 	int res = SCST_TGT_RES_SUCCESS;
 	struct mvst_sess *sess;
 	unsigned long flags = 0;
-	struct mvst_prm prm = { 0 };
+	struct mvst_prm prm = { NULL };
 	struct mvs_slot_info *slot;
 	u32 rc = 0, pass = 0;
 	struct mvs_info *mvi;
@@ -1432,8 +1407,9 @@ out:
 
 }
 
-struct mvst_port *mvst_get_port_by_sasaddr(struct mvs_info *mvi,
-				u64 dst_sas_addr, u64 src_sas_addr)
+static struct mvst_port *mvst_get_port_by_sasaddr(struct mvs_info *mvi,
+						  u64 dst_sas_addr,
+						  u64 src_sas_addr)
 {
 	int n = 0;
 	for (n = 0; n < mvi->chip->n_phy; n++) {
@@ -1470,10 +1446,8 @@ struct mvst_port *mvst_get_port_by_sasaddr(struct mvs_info *mvi,
 	return &mvi->tgt_port[n];
 }
 
-int mvst_build_cmd(struct mvs_info *mvi,
-				struct mvs_slot_info *slot,
-				struct mvst_cmd **pcmd,
-				int cmd_type)
+static int mvst_build_cmd(struct mvs_info *mvi, struct mvs_slot_info *slot,
+			  struct mvst_cmd **pcmd, int cmd_type)
 {
 	int res = 0;
 	u64 src_sas_addr, dst_sas_addr;
@@ -1552,8 +1526,8 @@ out:
 
 
 /* mvi->lock supposed to be held on entry */
-int mvst_send_cmd_to_scst(struct mvs_info *mvi,
-				struct mvs_slot_info *slot)
+static int mvst_send_cmd_to_scst(struct mvs_info *mvi,
+				 struct mvs_slot_info *slot)
 {
 	int res = 0;
 	u64 initiator_sas_addr;
@@ -1868,7 +1842,7 @@ static inline int mvst_send_notify_ack(struct mvst_cmd *cmd, int status)
 	int res = 0;
 	u8 buf[4] = {0, 0, 0, 0};
 	struct mvs_slot_info *resp_slot;
-	struct mvst_prm prm = { 0 };
+	struct mvst_prm prm = { NULL };
 	struct mvs_info *mvi = cmd->sess->tgt->mvi;
 
 	TRACE_ENTRY();
@@ -1935,7 +1909,7 @@ static int mvst_send_busy(struct mvs_info *mvi, struct mvs_slot_info *slot)
 	int res = 0;
 	struct mvs_slot_info *resp_slot;
 	struct mvst_cmd *cmd = NULL;
-	struct mvst_prm prm = { 0 };
+	struct mvst_prm prm = { NULL };
 
 	TRACE_ENTRY();
 
@@ -2086,18 +2060,6 @@ static u8 mvst_response_ssp_command(struct mvs_info *mvi, uint32_t rx_desc)
 out:
 	TRACE_EXIT();
 	return rc;
-}
-
-void mvs_enable_taget_xmt(struct mvs_info *mvi, int PhyId)
-{
-	void __iomem *regs = mvi->regs;
-	u32 tmp;
-
-	tmp = mr32(MVS_PCS);
-#ifdef SUPPORT_TARGET
-	tmp |= PCS_RSP_RX_EN;
-#endif
-	mw32(MVS_PCS, tmp);
 }
 
 static void mvst_register_tgt_handler(struct mvs_info *mvi)
@@ -2710,50 +2672,13 @@ out:
 	return res;
 }
 
-void mvs_tgt_unregister_driver(void)
+static void mvs_tgt_unregister_driver(void)
 {
 	ENTER(__func__);
 	memset(&mvs_tgt, 0, sizeof(mvs_tgt));
 	LEAVE(__func__);
 	return;
 }
-
-void mvst_msg_insert(struct mvst_msg_queue *msg_queue,
-	void *data, unsigned int event, u64 param)
-{
-	struct mvst_msg *msg;
-	unsigned long flags;
-
-	mv_dprintk("msg insert %d.\n", event);
-	spin_lock_irqsave(&msg_queue->msg_lock, flags);
-	if (list_empty(&msg_queue->free)) {
-		/* should wreck some havoc ...*/
-		PRINT_ERROR("%s :Message queue is full.", __func__);
-		spin_unlock_irqrestore(&msg_queue->msg_lock, flags);
-		return;
-	}
-
-	msg = list_entry(msg_queue->free.next, struct mvst_msg, msg_entry);
-	msg->data = data;
-	msg->msg  = event;
-
-	switch (event) {
-	case EVENT_DEVICE_REMOVAL:
-	case EVENT_DEVICE_ARRIVAL:
-		msg->param = param;
-		break;
-	default:
-		msg->param = param;
-		break;
-	}
-
-	list_move_tail(&msg->msg_entry, &msg_queue->tasks);
-	spin_unlock_irqrestore(&msg_queue->msg_lock, flags);
-
-	if (msg_queue->msg_task)
-		wake_up_process(msg_queue->msg_task);
-}
-
 
 void mvst_init_tgt_port(struct mvs_info *mvi)
 {

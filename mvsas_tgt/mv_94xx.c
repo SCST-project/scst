@@ -599,8 +599,8 @@ static void mvs_94xx_phy_work_around(struct mvs_info *mvi, int i)
 	mvs_write_port_vsr_data(mvi, i, tmp);
 }
 
-void mvs_94xx_phy_set_link_rate(struct mvs_info *mvi, u32 phy_id,
-			struct sas_phy_linkrates *rates)
+static void mvs_94xx_phy_set_link_rate(struct mvs_info *mvi, u32 phy_id,
+				       struct sas_phy_linkrates *rates)
 {
 	u32 lrmax = 0;
 	u32 tmp;
@@ -656,26 +656,23 @@ static void mvs_94xx_clear_active_cmds(struct mvs_info *mvi)
 }
 
 
-u32 mvs_94xx_spi_read_data(struct mvs_info *mvi)
+static u32 mvs_94xx_spi_read_data(struct mvs_info *mvi)
 {
 	void __iomem *regs = mvi->regs_ex - 0x10200;
+
 	return mr32(SPI_RD_DATA_REG_94XX);
 }
 
-void mvs_94xx_spi_write_data(struct mvs_info *mvi, u32 data)
+static void mvs_94xx_spi_write_data(struct mvs_info *mvi, u32 data)
 {
 	void __iomem *regs = mvi->regs_ex - 0x10200;
-	 mw32(SPI_RD_DATA_REG_94XX, data);
+
+	mw32(SPI_RD_DATA_REG_94XX, data);
 }
 
 
-int mvs_94xx_spi_buildcmd(struct mvs_info *mvi,
-				u32      *dwCmd,
-				u8       cmd,
-				u8       read,
-				u8       length,
-				u32      addr
-				)
+static int mvs_94xx_spi_buildcmd(struct mvs_info *mvi, u32 *dwCmd, u8 cmd,
+				 u8 read, u8 length, u32 addr)
 {
 	void __iomem *regs = mvi->regs_ex - 0x10200;
 	u32  dwTmp;
@@ -694,15 +691,16 @@ int mvs_94xx_spi_buildcmd(struct mvs_info *mvi,
 }
 
 
-int mvs_94xx_spi_issuecmd(struct mvs_info *mvi, u32 cmd)
+static int mvs_94xx_spi_issuecmd(struct mvs_info *mvi, u32 cmd)
 {
 	void __iomem *regs = mvi->regs_ex - 0x10200;
+
 	mw32(SPI_CTRL_REG_94XX, cmd | SPI_CTRL_SpiStart_94XX);
 
 	return 0;
 }
 
-int mvs_94xx_spi_waitdataready(struct mvs_info *mvi, u32 timeout)
+static int mvs_94xx_spi_waitdataready(struct mvs_info *mvi, u32 timeout)
 {
 	void __iomem *regs = mvi->regs_ex - 0x10200;
 	u32   i, dwTmp;
@@ -718,7 +716,8 @@ int mvs_94xx_spi_waitdataready(struct mvs_info *mvi, u32 timeout)
 }
 
 #ifndef DISABLE_HOTPLUG_DMA_FIX
-void mvs_94xx_fix_dma(dma_addr_t buf_dma, int buf_len, int from, void *prd)
+static void mvs_94xx_fix_dma(dma_addr_t buf_dma, int buf_len, int from,
+			     void *prd)
 {
 	int i;
 	struct mvs_prd *buf_prd = prd;

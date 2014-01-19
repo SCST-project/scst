@@ -553,11 +553,12 @@ static u8 mvs_64xx_assign_reg_set(struct mvs_info *mvi, u8 *tfs)
 	return MVS_ID_NOT_MAPPED;
 }
 
-void mvs_64xx_make_prd(struct scatterlist *scatter, int nr, void *prd)
+static void mvs_64xx_make_prd(struct scatterlist *scatter, int nr, void *prd)
 {
 	int i;
 	struct scatterlist *sg;
 	struct mvs_prd *buf_prd = prd;
+
 	for_each_sg(scatter, sg, nr, i) {
 		buf_prd->addr = cpu_to_le64(sg_dma_address(sg));
 		buf_prd->len = cpu_to_le32(sg_dma_len(sg));
@@ -624,8 +625,8 @@ static void mvs_64xx_phy_work_around(struct mvs_info *mvi, int i)
 	mvs_write_port_vsr_data(mvi, i, tmp);
 }
 
-void mvs_64xx_phy_set_link_rate(struct mvs_info *mvi, u32 phy_id,
-			struct sas_phy_linkrates *rates)
+static void mvs_64xx_phy_set_link_rate(struct mvs_info *mvi, u32 phy_id,
+				       struct sas_phy_linkrates *rates)
 {
 	u32 lrmin = 0, lrmax = 0;
 	u32 tmp;
@@ -713,26 +714,23 @@ static void mvs_64xx_clear_active_cmds(struct mvs_info *mvi)
 }
 
 
-u32 mvs_64xx_spi_read_data(struct mvs_info *mvi)
+static u32 mvs_64xx_spi_read_data(struct mvs_info *mvi)
 {
 	void __iomem *regs = mvi->regs_ex;
+
 	return ior32(SPI_DATA_REG_64XX);
 }
 
-void mvs_64xx_spi_write_data(struct mvs_info *mvi, u32 data)
+static void mvs_64xx_spi_write_data(struct mvs_info *mvi, u32 data)
 {
 	void __iomem *regs = mvi->regs_ex;
-	 iow32(SPI_DATA_REG_64XX, data);
+
+	iow32(SPI_DATA_REG_64XX, data);
 }
 
 
-int mvs_64xx_spi_buildcmd(struct mvs_info *mvi,
-			u32      *dwCmd,
-			u8       cmd,
-			u8       read,
-			u8       length,
-			u32      addr
-			)
+static int mvs_64xx_spi_buildcmd(struct mvs_info *mvi, u32 *dwCmd, u8 cmd,
+				 u8 read, u8 length, u32 addr)
 {
 	u32  dwTmp;
 
@@ -750,7 +748,7 @@ int mvs_64xx_spi_buildcmd(struct mvs_info *mvi,
 }
 
 
-int mvs_64xx_spi_issuecmd(struct mvs_info *mvi, u32 cmd)
+static int mvs_64xx_spi_issuecmd(struct mvs_info *mvi, u32 cmd)
 {
 	void __iomem *regs = mvi->regs_ex;
 	int     retry;
@@ -765,7 +763,7 @@ int mvs_64xx_spi_issuecmd(struct mvs_info *mvi, u32 cmd)
 	return 0;
 }
 
-int mvs_64xx_spi_waitdataready(struct mvs_info *mvi, u32 timeout)
+static int mvs_64xx_spi_waitdataready(struct mvs_info *mvi, u32 timeout)
 {
 	void __iomem *regs = mvi->regs_ex;
 	u32 i, dwTmp;
@@ -781,7 +779,8 @@ int mvs_64xx_spi_waitdataready(struct mvs_info *mvi, u32 timeout)
 }
 
 #ifndef DISABLE_HOTPLUG_DMA_FIX
-void mvs_64xx_fix_dma(dma_addr_t buf_dma, int buf_len, int from, void *prd)
+static void mvs_64xx_fix_dma(dma_addr_t buf_dma, int buf_len, int from,
+			     void *prd)
 {
 	int i;
 	struct mvs_prd *buf_prd = prd;

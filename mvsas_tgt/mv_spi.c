@@ -35,74 +35,31 @@ u8   DEFAULT_SPI_CMD[16] =
     0x06, 0x04, 0x05, 0x01, 0x03, 0x02, 0x52, 0x62, 0x15
 };
 #else
-u8   ATMEL_SPI_CMD[16] =
+static u8   ATMEL_SPI_CMD[16] =
 {
     0x06, 0x04, 0x05, 0x01, 0x03, 0x02, 0x52, 0x62, 0x15
 };
-u8   MXIC_SPI_CMD[16] =
-{
-    0x06, 0x04, 0x05, 0x01, 0x03, 0x02, 0x20, 0x60, 0x90
-};
-u8   WINBOND_SPI_CMD[16] =
+static u8   WINBOND_SPI_CMD[16] =
 {
     0x06, 0x04, 0x05, 0x01, 0x03, 0x02, 0x20, 0xC7, 0xAB
 };
 
-u8   ATMEL_SPI_CMD_41a_021[16] =
+static u8   ATMEL_SPI_CMD_41a_021[16] =
 {
 /*  0     1	2     3     4     5     6     7     8     9     10    11*/
     0x06, 0x04, 0x05, 0x01, 0x03, 0x02, 0xD8, 0x60, 0x9F, 0x36, 0x39, 0x3C
 };
 
-u8	EON_F20_SPI_CMD[16] =
+static u8	EON_F20_SPI_CMD[16] =
 {
 	0x06, 0x04, 0x05, 0x01, 0x03, 0x02, 0x20, 0x60, 0x90
 };
 #endif
 
-
-
-
-int spi_rdsr(struct mvs_info *mvi, u8 *sr)
-{
-	u32  dwTmp;
-
-	MVS_CHIP_DISP->spi_buildcmd(mvi, &dwTmp,
-			(u8)SPICmd[SPI_INS_RDSR],
-			1,
-			1,
-			-1);
-	MVS_CHIP_DISP->spi_issuecmd(mvi, dwTmp);
-
-	if (0 == MVS_CHIP_DISP->spi_waitdataready(mvi, 10000)) {
-		dwTmp = MVS_CHIP_DISP->spi_read_data(mvi);
-		*sr = (u8)dwTmp;
-		return 0;
-	} else {
-		mv_dprintk("timeout\n");
-	}
-	return -1;
-}
-
-int spi_pollisr(struct mvs_info *mvi, u8 mask, u8 bit, u32 timeout)
-{
-	u32  i;
-	u8   sr;
-
-	for (i = 0; i < timeout; i++) {
-		if (0 == spi_rdsr(mvi, &sr)) {
-			if ((sr & mask) == bit)
-				return 0;
-		}
-		msleep(20);
-	}
-	return -1;
-}
-
 #ifdef IDENTIFY_SPI
 #define SPI_IDENTIFY_TIMER		10000
 
-int spi_atmelidentify(struct mvs_info *mvi)
+static int spi_atmelidentify(struct mvs_info *mvi)
 {
 	u32  dwtmp;
 	MVS_CHIP_DISP->spi_buildcmd(mvi, &dwtmp,
@@ -125,7 +82,7 @@ int spi_atmelidentify(struct mvs_info *mvi)
 	return -1;
 }
 
-int spi_atmelidentify_41a_021(struct mvs_info *mvi)
+static int spi_atmelidentify_41a_021(struct mvs_info *mvi)
 {
 	u32  dwTmp;
 	MVS_CHIP_DISP->spi_buildcmd(mvi, &dwTmp,
@@ -155,7 +112,7 @@ int spi_atmelidentify_41a_021(struct mvs_info *mvi)
 }
 
 
-int spi_winbondidentify(struct mvs_info *mvi)
+static int spi_winbondidentify(struct mvs_info *mvi)
 {
 	u32  dwTmp;
 
@@ -180,31 +137,7 @@ int spi_winbondidentify(struct mvs_info *mvi)
 	return -1;
 }
 
-int spi_mxicidentify(struct mvs_info *mvi)
-{
-	u32  dwTmp;
-
-	MVS_CHIP_DISP->spi_buildcmd(mvi, &dwTmp,
-		MXIC_SPI_CMD[SPI_INS_RDID],
-		1,
-		2,
-		0);
-	MVS_CHIP_DISP->spi_issuecmd(mvi, dwTmp);
-
-	if (0 == MVS_CHIP_DISP->spi_waitdataready(mvi, SPI_IDENTIFY_TIMER)) {
-		dwTmp = MVS_CHIP_DISP->spi_read_data(mvi);
-		switch (dwTmp) {
-		case 0x11C2:
-			mvi->flashid = MX25L2005;
-			mvi->flashsize = 256L * 1024;
-			mvi->flashsectSize = 4L * 1024;
-			return 0;
-		}
-	}
-	return -1;
-}
-
-int spi_eonidentify_f20(struct mvs_info *mvi)
+static int spi_eonidentify_f20(struct mvs_info *mvi)
 {
 	u32  dwTmp;
 
@@ -232,7 +165,7 @@ int spi_eonidentify_f20(struct mvs_info *mvi)
 #endif
 
 
-int spi_init(struct mvs_info *mvi)
+static int spi_init(struct mvs_info *mvi)
 {
 	u32  i;
 #ifndef IDENTIFY_SPI
@@ -270,7 +203,7 @@ int spi_init(struct mvs_info *mvi)
 #endif
 }
 
-int spi_read(struct mvs_info *mvi, u32 addr, u8 *data, u8 size)
+static int spi_read(struct mvs_info *mvi, u32 addr, u8 *data, u8 size)
 {
 	u32  i, dwTmp;
 
@@ -294,7 +227,7 @@ int spi_read(struct mvs_info *mvi, u32 addr, u8 *data, u8 size)
 	return -1;
 }
 
-int spi_readbuf(struct mvs_info *mvi, u32 addr, u8 *data, u32 count)
+static int spi_readbuf(struct mvs_info *mvi, u32 addr, u8 *data, u32 count)
 {
 	u32      i, j;
 	u32      tmpAddr, tmpdata, addrend;
@@ -325,7 +258,7 @@ int spi_readbuf(struct mvs_info *mvi, u32 addr, u8 *data, u32 count)
     return 0;
 }
 
-u8	mvverifychecksum(u8 *address, u32 Size)
+static u8 mvverifychecksum(u8 *address, u32 Size)
 {
 	u8	checkSum = 0;
 	u32 	temp = 0;
@@ -336,149 +269,8 @@ u8	mvverifychecksum(u8 *address, u32 Size)
 	return	checkSum;
 }
 
-u8	mvcalculatechecksum(u8 *address, u32 size)
-{
-	u8 checkSum;
-	u32 temp = 0;
-	checkSum = 0;
-
-	for (temp = 0; temp < size; temp++)
-		checkSum += address[temp];
-
-	checkSum = (~checkSum) + 1;
-	return checkSum;
-}
-
-int spi_wren(struct mvs_info *mvi)
-{
-	u32  dwTmp;
-
-	MVS_CHIP_DISP->spi_buildcmd(mvi,  &dwTmp,
-		(u8)SPICmd[SPI_INS_WREN],
-		0,
-		0,
-		-1);
-	MVS_CHIP_DISP->spi_issuecmd(mvi, dwTmp);
-
-	if (0 != MVS_CHIP_DISP->spi_waitdataready(mvi, 10000))
-		return -1;
-	if (0 == spi_pollisr(mvi, 0x03, 0x02, 300000))
-		return 0;
-	return -1;
-}
-
-int spi_rdpt(struct mvs_info *mvi, u32 addr, u8 *data)
-{
-	u32   dwTmp;
-
-	MVS_CHIP_DISP->spi_buildcmd(mvi,  &dwTmp,
-		(u8)SPICmd[SPI_INS_RDPT],
-		1,
-		1,
-		addr);
-	MVS_CHIP_DISP->spi_issuecmd(mvi, dwTmp);
-
-	if (0 == MVS_CHIP_DISP->spi_waitdataready(mvi, 10000)) {
-		dwTmp = MVS_CHIP_DISP->spi_read_data(mvi);
-		*data = (u8)dwTmp;
-		return 0;
-	} else {
-		mv_dprintk("SPI_RDPT timeout\n");
-	}
-	return -1;
-}
-
-int spi_sectunprotect(struct mvs_info *mvi, u32 addr)
-{
-	u32 dwTmp;
-	u8 protect_sect = 0xFF;
-	if (-1 == spi_rdpt(mvi, addr, &protect_sect))
-		return -1;
-
-	if (protect_sect == 0)
-		return 0;
-
-	if (-1 == spi_wren(mvi))
-		return -1;
-
-	MVS_CHIP_DISP->spi_buildcmd(mvi,  &dwTmp,
-		(u8)SPICmd[SPI_INS_UPTSEC],
-		0,
-		0,
-		addr);
-	MVS_CHIP_DISP->spi_issuecmd(mvi, dwTmp);
-	if (0 != MVS_CHIP_DISP->spi_waitdataready(mvi, 10000))
-		return -1;
-	if (0 == spi_pollisr(mvi, 0x03, 0, 300000))
-		return 0;
-	mv_dprintk("error SPI_SectUnprotect \n");
-	return -1;
-}
-
-int spi_secterase(struct mvs_info *mvi, u32 addr)
-{
-	u32  dwTmp;
-
-	if (-1 == spi_wren(mvi))
-		return -1;
-
-	if ((mvi->flashid == AT25DF041A) || (mvi->flashid == AT25DF021)) {
-		if (-1 == spi_sectunprotect(mvi, addr)) {
-			mv_dprintk("Un protect error.\n");
-			return -1;
-		}
-	}
-	MVS_CHIP_DISP->spi_buildcmd(mvi,  &dwTmp,
-		(u8)SPICmd[SPI_INS_SERASE],
-		0,
-		0,
-		addr);
-	MVS_CHIP_DISP->spi_issuecmd(mvi, dwTmp);
-	if (0 != MVS_CHIP_DISP->spi_waitdataready(mvi, 10000))
-		return -1;
-	if (0 == spi_pollisr(mvi, 0x03, 0, 300000))
-		return 0;
-	mv_dprintk("error SPI_SectErase\n");
-	return -1;
-}
-
-int spi_write(struct mvs_info *mvi, u32 addr, u32 data)
-{
-	u32 dwTmp;
-
-	spi_wren(mvi);
-	MVS_CHIP_DISP->spi_write_data(mvi, data);
-	MVS_CHIP_DISP->spi_buildcmd(mvi,  &dwTmp,
-		(u8)SPICmd[SPI_INS_RPOG],
-		0,
-		4,
-		addr);
-	MVS_CHIP_DISP->spi_issuecmd(mvi, dwTmp);
-
-	if (0 != MVS_CHIP_DISP->spi_waitdataready(mvi, 10000)) {
-		mv_dprintk("timeout\n");
-		return -1;
-	}
-	if (0 == spi_pollisr(mvi, 0x01, 0, 5000))
-		return 0;
-	mv_dprintk("timeout\n");
-	return -1;
-}
-
-int spi_writebuf(struct mvs_info *mvi, u32 addr, u32 *data, u32 count)
-{
-	u32  i;
-
-	for (i = 0; i < count; i += 4) {
-		if (-1 == spi_write(mvi, addr + i, *(u32 *)&data[i])) {
-			mv_dprintk("Write failed at %5.5x\n", addr+i);
-			return -1;
-		}
-	}
-	return 0;
-}
-
-bool mvui_init_param(struct mvs_info *mvi, struct hba_info_main *hba_info_para)
+static bool mvui_init_param(struct mvs_info *mvi,
+			    struct hba_info_main *hba_info_para)
 {
 	u32 	param_flash_addr = PARA_OFF;
 	if (!mvi)

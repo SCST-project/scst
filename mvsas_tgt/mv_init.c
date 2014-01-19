@@ -44,9 +44,9 @@ static const struct mvs_chip_info mvs_chips[] = {
 struct mvs_info *tgt_mvi;
 struct mvs_tgt_initiator mvs_tgt;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
-struct class_device_attribute *mvst_host_attrs[];
+static struct class_device_attribute *mvst_host_attrs[];
 #else
-struct device_attribute *mvst_host_attrs[];
+static struct device_attribute *mvst_host_attrs[];
 #endif
 #endif
 
@@ -241,7 +241,7 @@ static int __devinit mvs_alloc(struct mvs_info *mvi, struct Scsi_Host *shost)
 	unsigned long buf_size;
 	void *buf;
 	dma_addr_t buf_dma;
-	struct mvs_slot_info *slot = 0;
+	struct mvs_slot_info *slot = NULL;
 
 	if (mvi->flags & MVF_FLAG_SOC)
 		slot_nr = MVS_SOC_SLOTS;
@@ -350,7 +350,7 @@ int mvs_ioremap(struct mvs_info *mvi, int bar, int bar_ex)
 				mvi->regs_ex = ioremap_nocache(res_start,
 						res_len);
 		} else
-			mvi->regs_ex = (void *)res_start;
+			mvi->regs_ex = (void __iomem *)res_start;
 		if (!mvi->regs_ex)
 			goto err_out;
 	}
@@ -972,7 +972,7 @@ static DEVICE_ATTR(target_mode,
 			 mvs_show_tgt_enabled,
 			 mvs_store_tgt_enabled);
 
-struct device_attribute *mvst_host_attrs[] = {
+static struct device_attribute *mvst_host_attrs[] = {
 	&dev_attr_target_mode,
 	NULL,
 };
@@ -983,7 +983,6 @@ struct device_attribute *mvst_host_attrs[] = {
 
 
 /* task handler */
-struct task_struct *mvs_th;
 static int __init mvs_init(void)
 {
 	int rc;
