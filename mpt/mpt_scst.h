@@ -70,17 +70,16 @@ typedef MPI_TARGET_SSP_TASK_BUFFER SSP_TASK;
 #define FCP_SENSE_LEN_VALID	(1<<1)
 #define FCP_RSP_LEN_VALID	(1<<0)
 
-typedef struct _FCP_RSP  /* this struct is wrong in rev 1.02.04 of mpi_targ.h */
-{
-    U8      Reserved0[8];                               /* 00h */
-    U8      Reserved1[2];                               /* 08h */
-    U8      FcpFlags;                                   /* 0Ah */
-    U8      FcpStatus;                                  /* 0Bh */
-    U32     FcpResid;                                   /* 0Ch */
-    U32     FcpSenseLength;                             /* 10h */
-    U32     FcpResponseLength;                          /* 14h */
-    U8      FcpResponseData[8];                         /* 18h */
-    U8      FcpSenseData[32]; /* Pad to 64 bytes */     /* 20h */
+typedef struct _FCP_RSP { /*this struct is wrong in rev 1.02.04 of mpi_targ.h*/
+	U8      Reserved0[8];                               /* 00h */
+	U8      Reserved1[2];                               /* 08h */
+	U8      FcpFlags;                                   /* 0Ah */
+	U8      FcpStatus;                                  /* 0Bh */
+	U32     FcpResid;                                   /* 0Ch */
+	U32     FcpSenseLength;                             /* 10h */
+	U32     FcpResponseLength;                          /* 14h */
+	U8      FcpResponseData[8];                         /* 18h */
+	U8      FcpSenseData[32]; /* Pad to 64 bytes */     /* 20h */
 } FCP_RSP;
 
 #define SCSI_SENSE_LEN_VALID	(1<<1)
@@ -101,11 +100,11 @@ typedef MPI_TARGET_SSP_RSP_IU SSP_RSP;
  */
 
 #define IsFc(priv)      \
-    (priv->ioc->pfacts[0].PortType == MPI_PORTFACTS_PORTTYPE_FC)
+	(priv->ioc->pfacts[0].PortType == MPI_PORTFACTS_PORTTYPE_FC)
 #define IsScsi(priv)    \
-    (priv->ioc->pfacts[0].PortType == MPI_PORTFACTS_PORTTYPE_SCSI)
+	(priv->ioc->pfacts[0].PortType == MPI_PORTFACTS_PORTTYPE_SCSI)
 #define IsSas(priv)    \
-    (priv->ioc->pfacts[0].PortType == MPI_PORTFACTS_PORTTYPE_SAS)
+	(priv->ioc->pfacts[0].PortType == MPI_PORTFACTS_PORTTYPE_SAS)
 
 #define ABORT_ALL		(-1)
 
@@ -129,13 +128,12 @@ typedef MPI_TARGET_SSP_RSP_IU SSP_RSP;
 #define ADISC			0x52
 #define RSCN			0x61
 
-typedef struct _MPT_SGE
-{
-    u32			length;
+typedef struct _MPT_SGE {
+	u32			length;
 #if MPT_STM_64_BIT_DMA
-    u64			address;
+	u64			address;
 #else
-    u32			address;
+	u32			address;
 #endif
 } MPT_SGE;
 
@@ -143,81 +141,79 @@ typedef struct _MPT_SGE
 #define NUM_CHAINS	(NUM_SGES/8)	/* one chain for every 8 SGEs */
 
 typedef struct _CMD {
-    u8			cmd[64];
-    u8			rsp[64];
-    MPT_SGE		chain_sge[NUM_SGES+NUM_CHAINS];
-    u32			reply_word;
-    int			alias;
-    int			lun;
-    int			tag;
+	u8			cmd[64];
+	u8			rsp[64];
+	MPT_SGE		chain_sge[NUM_SGES+NUM_CHAINS];
+	u32			reply_word;
+	int			alias;
+	int			lun;
+	int			tag;
 } CMD;
 
 typedef struct _FC_ELS {
-    u32			fc_els[32];
+	u32			fc_els[32];
 } FC_ELS;
 
 typedef struct _MPT_STM_HW {
-    CMD			cmd_buf[NUM_CMD_BUFFERS];
-    FC_ELS		fc_link_serv_buf[NUM_ELS_BUFFERS];
-    u32			config_buf[256];
-    u32			ctsend_buf[256];
-    u32			exlink_buf[32];
+	CMD			cmd_buf[NUM_CMD_BUFFERS];
+	FC_ELS		fc_link_serv_buf[NUM_ELS_BUFFERS];
+	u32			config_buf[256];
+	u32			ctsend_buf[256];
+	u32			exlink_buf[32];
 } MPT_STM_HW;
 
-typedef struct _MPT_SGL
-{
-    u32			num_sges;
-    MPT_SGE		sge[NUM_SGES];
+typedef struct _MPT_SGL {
+	u32			num_sges;
+	MPT_SGE		sge[NUM_SGES];
 } MPT_SGL;
 
-typedef struct _MPT_STM_PRIV
-{
-    MPT_ADAPTER		*ioc;
-    int			enable_target_mode;
-    int			fcp2_capable;
-    int			num_sge_chain;
-    int			num_sge_target_assist;
-    int			num_cmd_buffers;
-    int			num_els_buffers;
-    int			num_aliases;
-    MPT_STM_HW		*hw;
-    dma_addr_t		hw_dma;
-    U64			wwnn;
-    U64			wwpn;
-    int			port_id;
-    int			scsi_port_config;
-    int			scsi_id_config;
-    int			protocol;
-    volatile int	port_flags;
-    volatile int	port_speed;
-    volatile int	port_state;
-    volatile int	device_changed;
-    int			port_enable_loginfo;
-    volatile int	port_enable_pending;
-    volatile int	target_mode_abort_pending;
-    volatile int	link_serv_abort_pending;
-    volatile int	fc_primitive_send_pending;
-    volatile int	ex_link_service_send_pending;
-    volatile int	config_pending;
-    volatile int	in_reset;
-    volatile int	poll_enabled;
-    volatile int	exiting;
-    MPT_FRAME_HDR	*config_mf;
-    ConfigReply_t	config_rep;
-    volatile int	io_state[NUM_CMD_BUFFERS];
-    volatile int	els_state[NUM_ELS_BUFFERS];
-    MPT_FRAME_HDR	*current_mf[NUM_CMD_BUFFERS];
-    MPT_FRAME_HDR	*status_deferred_mf[NUM_CMD_BUFFERS];
-    MPT_SGL		sgl;
-    SCSIPortPage0_t SCSIPortPage0;
-    SCSIPortPage1_t SCSIPortPage1;
-    SCSIPortPage2_t SCSIPortPage2;
+typedef struct _MPT_STM_PRIV {
+	MPT_ADAPTER		*ioc;
+	int			enable_target_mode;
+	int			fcp2_capable;
+	int			num_sge_chain;
+	int			num_sge_target_assist;
+	int			num_cmd_buffers;
+	int			num_els_buffers;
+	int			num_aliases;
+	MPT_STM_HW		*hw;
+	dma_addr_t		hw_dma;
+	U64			wwnn;
+	U64			wwpn;
+	int			port_id;
+	int			scsi_port_config;
+	int			scsi_id_config;
+	int			protocol;
+	volatile int	port_flags;
+	volatile int	port_speed;
+	volatile int	port_state;
+	volatile int	device_changed;
+	int			port_enable_loginfo;
+	volatile int	port_enable_pending;
+	volatile int	target_mode_abort_pending;
+	volatile int	link_serv_abort_pending;
+	volatile int	fc_primitive_send_pending;
+	volatile int	ex_link_service_send_pending;
+	volatile int	config_pending;
+	volatile int	in_reset;
+	volatile int	poll_enabled;
+	volatile int	exiting;
+	MPT_FRAME_HDR	*config_mf;
+	ConfigReply_t	config_rep;
+	volatile int	io_state[NUM_CMD_BUFFERS];
+	volatile int	els_state[NUM_ELS_BUFFERS];
+	MPT_FRAME_HDR	*current_mf[NUM_CMD_BUFFERS];
+	MPT_FRAME_HDR	*status_deferred_mf[NUM_CMD_BUFFERS];
+	MPT_SGL		sgl;
+	SCSIPortPage0_t SCSIPortPage0;
+	SCSIPortPage1_t SCSIPortPage1;
+	SCSIPortPage2_t SCSIPortPage2;
 #define NUM_SCSI_DEVICES       16
-    SCSIDevicePage1_t SCSIDevicePage1[NUM_SCSI_DEVICES];
-    struct mpt_tgt *tgt;
-    struct scst_cmd *scst_cmd[NUM_CMD_BUFFERS];
-    atomic_t pending_sense[NUM_SCSI_DEVICES];
-    u8 pending_sense_buffer[NUM_SCSI_DEVICES][SCSI_SENSE_BUFFERSIZE];
+	SCSIDevicePage1_t SCSIDevicePage1[NUM_SCSI_DEVICES];
+	struct mpt_tgt *tgt;
+	struct scst_cmd *scst_cmd[NUM_CMD_BUFFERS];
+	atomic_t pending_sense[NUM_SCSI_DEVICES];
+	u8 pending_sense_buffer[NUM_SCSI_DEVICES][SCSI_SENSE_BUFFERSIZE];
 } MPT_STM_PRIV;
 
 #define IO_STATE_POSTED			0x1
@@ -255,24 +251,22 @@ typedef struct _MPT_STM_PRIV
 #define MPT_STM_SIMPLE SGESimple64_t
 #define MPT_STM_CHAIN SGEChain64_t
 #define MPI_SGE_FLAGS_MPT_STM_ADDRESSING MPI_SGE_FLAGS_64_BIT_ADDRESSING
-#define stm_get_dma_addr(x, y)                \
-    x = le32_to_cpu(y.Low);                   \
-    if (sizeof(dma_addr_t) == sizeof(u64))    \
-        x |= (u64)le32_to_cpu(y.High)<<32;
-#define stm_set_dma_addr(x, y)                \
-    x.Low = cpu_to_le32(y);                   \
-    if (sizeof(dma_addr_t) == sizeof(u64))    \
-        x.High = cpu_to_le32((u64)y>>32);     \
-    else                                      \
-        x.High = 0;
+#define stm_get_dma_addr(x, y)				\
+	x = le32_to_cpu(y.Low);				\
+	if (sizeof(dma_addr_t) == sizeof(u64))		\
+		x |= (u64)le32_to_cpu(y.High)<<32;
+#define stm_set_dma_addr(x, y)				\
+	x.Low = cpu_to_le32(y);				\
+	if (sizeof(dma_addr_t) == sizeof(u64))		\
+		x.High = cpu_to_le32((u64)y>>32);	\
+	else						\
+		x.High = 0;
 #else
 #define MPT_STM_SIMPLE SGESimple32_t
 #define MPT_STM_CHAIN SGEChain32_t
 #define MPI_SGE_FLAGS_MPT_STM_ADDRESSING MPI_SGE_FLAGS_32_BIT_ADDRESSING
-#define stm_get_dma_addr(x, y)                \
-    x = le32_to_cpu(y);
-#define stm_set_dma_addr(x, y)                \
-    x = cpu_to_le32(y);
+#define stm_get_dma_addr(x, y) x = le32_to_cpu(y);
+#define stm_set_dma_addr(x, y) x = cpu_to_le32(y);
 #endif
 
 #ifndef MPT_MAX_ADAPTERS
@@ -340,8 +334,7 @@ typedef struct _MPT_STM_PRIV
 #define MPT_STATUS_SENSE_NOT_SENT  2 /* sense couldn't be sent with status */
 #define MPT_STATUS_SENSE_HANDLE_RQ 3 /* REQUEST SENSE handled with cached sense */
 
-struct mpt_cmd
-{
+struct mpt_cmd {
 	struct mpt_sess *sess;
 	struct scst_cmd *scst_cmd;
 	MPT_STM_PRIV *priv;
@@ -352,8 +345,7 @@ struct mpt_cmd
 	dma_addr_t dma_handle;
 };
 
-struct mpt_sess
-{
+struct mpt_sess {
 	struct scst_session *scst_sess;
 	struct mpt_tgt *tgt;
 	int init_index;
@@ -361,8 +353,7 @@ struct mpt_sess
 	struct list_head delayed_cmds;
 };
 
-struct mpt_tgt
-{
+struct mpt_tgt {
 	struct scst_tgt *scst_tgt;
 	MPT_STM_PRIV *priv;
 	int datasegs_per_cmd, datasegs_per_cont;
@@ -373,8 +364,7 @@ struct mpt_tgt
 	int target_enable;
 };
 
-struct mpt_mgmt_cmd
-{
+struct mpt_mgmt_cmd {
 	struct mpt_sess *sess;
 	int task_mgmt;
 };
