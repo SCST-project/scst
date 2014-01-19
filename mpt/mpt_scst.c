@@ -57,7 +57,7 @@
 #define MYNAM "mpt_scst"
 
 #ifdef CONFIG_SCST_TRACING
-static int trace_mpi = 0;
+static int trace_mpi;
 
 #define TRACE_MPI	0x80000000
 
@@ -89,8 +89,8 @@ static char *mpt_state_string[] = {
 static MPT_STM_PRIV *mpt_stm_priv[MPT_MAX_ADAPTERS+1];
 
 static int set_aliases_in_fcportpage1 = 1;
-static int num_aliases = 0;
-static int stm_context = 0;
+static int num_aliases;
+static int stm_context;
 
 static int mpt_stm_adapter_online(MPT_STM_PRIV *priv);
 static void mpt_stm_adapter_dispose(MPT_STM_PRIV *priv);
@@ -349,7 +349,7 @@ static inline MPT_FRAME_HDR *mpt_msg_frame_alloc(MPT_ADAPTER *ioc, int index)
 	return mf;
 }
 
-static int _mpt_ada_nums = 0;
+static int _mpt_ada_nums;
 
 static int mptstm_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
