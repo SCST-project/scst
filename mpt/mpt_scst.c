@@ -1969,7 +1969,7 @@ static int stm_reply(MPT_ADAPTER *ioc, MPT_FRAME_HDR *mf_req,
 		 *  this is an event notification -- do nothing for now
 		 *  (this short-cuts the switch() below and avoids the printk)
 		 */
-		return (0);
+		return 0;
 	}
 #endif
 	ioc_status = le16_to_cpu(rep->IOCStatus);
@@ -1996,7 +1996,7 @@ static int stm_reply(MPT_ADAPTER *ioc, MPT_FRAME_HDR *mf_req,
 		 *  don't free the message frame, since we're remembering it
 		 *  in priv->config_mf, and we'll be using it over and over
 		 */
-		return (0);
+		return 0;
 
 	case MPI_FUNCTION_PORT_ENABLE:
 		/*
@@ -2004,7 +2004,7 @@ static int stm_reply(MPT_ADAPTER *ioc, MPT_FRAME_HDR *mf_req,
 		 */
 		priv->port_enable_loginfo = le32_to_cpu(rep->IOCLogInfo);
 		priv->port_enable_pending = 0;
-		return (1);
+		return 1;
 
 	case MPI_FUNCTION_TARGET_CMD_BUFFER_POST:
 	case MPI_FUNCTION_TARGET_CMD_BUF_LIST_POST:
@@ -2024,13 +2024,13 @@ static int stm_reply(MPT_ADAPTER *ioc, MPT_FRAME_HDR *mf_req,
 		if (priv->target_mode_abort_pending &&
 		    ioc_status == MPI_IOCSTATUS_TARGET_ABORTED) {
 			TRACE_EXIT();
-			return (0);
+			return 0;
 		}
 		if (ioc_status == MPI_IOCSTATUS_TARGET_PRIORITY_IO) {
 			stm_tgt_reply_high_pri(ioc,
 					       (TargetCmdBufferPostErrorReply_t *)rep);
 			TRACE_EXIT();
-			return (0);
+			return 0;
 		}
 		TRACE_DBG(":%s TargetCmdBufPostReq IOCStatus = %04x",
 			  ioc->name, ioc_status);
@@ -2042,13 +2042,13 @@ static int stm_reply(MPT_ADAPTER *ioc, MPT_FRAME_HDR *mf_req,
 			 *  endless loop
 			 */
 			WARN_ON(1);
-			return (0);
+			return 0;
 		}
 		if (ioc_status == MPI_IOCSTATUS_TARGET_NO_CONNECTION) {
 			printk(KERN_ERR MYNAM
 			       ": %s: Got MPI_IOCSTATUS_TARGET_NO_CONNECTION\n",
 			       ioc->name);
-			return (0);
+			return 0;
 		}
 		if (rep->MsgLength > sizeof(*rep)/sizeof(u32)) {
 			TRACE_DBG("MsgLength is %d, %zd",
@@ -2062,10 +2062,10 @@ static int stm_reply(MPT_ADAPTER *ioc, MPT_FRAME_HDR *mf_req,
 			 */
 			((TargetErrorReply_t *)rep)->TransferCount = 0;
 			stm_target_reply_error(ioc, (TargetErrorReply_t *)rep);
-			return (0);
+			return 0;
 		}
 		WARN_ON(1);
-		return (1);
+		return 1;
 
 	case MPI_FUNCTION_TARGET_CMD_BUF_BASE_POST:
 		/*
@@ -2075,7 +2075,7 @@ static int stm_reply(MPT_ADAPTER *ioc, MPT_FRAME_HDR *mf_req,
 			printk(KERN_ERR MYNAM ":%s TargetCmdBufPostBaseReq IOCStatus = %04x\n",
 			       ioc->name, ioc_status);
 		}
-		return (1);
+		return 1;
 
 	case MPI_FUNCTION_TARGET_ASSIST:
 		/*
@@ -2090,7 +2090,7 @@ static int stm_reply(MPT_ADAPTER *ioc, MPT_FRAME_HDR *mf_req,
 			       ioc->name, ioc_status);
 		}
 		stm_target_reply_error(ioc, (TargetErrorReply_t *)rep);
-		return (0);
+		return 0;
 
 	case MPI_FUNCTION_TARGET_STATUS_SEND:
 		/*
@@ -2117,7 +2117,7 @@ static int stm_reply(MPT_ADAPTER *ioc, MPT_FRAME_HDR *mf_req,
 			}
 		}
 		stm_target_reply_error(ioc, (TargetErrorReply_t *)rep);
-		return (0);
+		return 0;
 
 	case MPI_FUNCTION_TARGET_MODE_ABORT: {
 		TargetModeAbort_t		*req = (TargetModeAbort_t *)mf_req;
@@ -2174,7 +2174,7 @@ static int stm_reply(MPT_ADAPTER *ioc, MPT_FRAME_HDR *mf_req,
 			}
 		}
 		TRACE_EXIT_RES(1);
-		return (1);
+		return 1;
 	}
 
 	case MPI_FUNCTION_FC_LINK_SRVC_BUF_POST:
@@ -2187,7 +2187,7 @@ static int stm_reply(MPT_ADAPTER *ioc, MPT_FRAME_HDR *mf_req,
 		if (ioc_status != MPI_IOCSTATUS_SUCCESS) {
 			if (priv->link_serv_abort_pending &&
 			    ioc_status == MPI_IOCSTATUS_FC_ABORTED) {
-				return (0);
+				return 0;
 			}
 			printk(KERN_ERR MYNAM ":%s FcLinkServBufPostReq IOCStatus = %04x\n",
 			       ioc->name, ioc_status);
@@ -2195,9 +2195,9 @@ static int stm_reply(MPT_ADAPTER *ioc, MPT_FRAME_HDR *mf_req,
 		if (rep->MsgLength > sizeof(*rep)/sizeof(u32)) {
 			stm_link_service_reply(ioc,
 					       (LinkServiceBufferPostReply_t *)rep);
-			return (0);
+			return 0;
 		}
-		return (1);
+		return 1;
 
 	case MPI_FUNCTION_FC_LINK_SRVC_RSP:
 		/*
@@ -2211,7 +2211,7 @@ static int stm_reply(MPT_ADAPTER *ioc, MPT_FRAME_HDR *mf_req,
 		stm_link_service_rsp_reply(ioc,
 					   (LinkServiceRspRequest_t *)mf_req,
 					   (LinkServiceRspReply_t *)mf_rep);
-		return (1);
+		return 1;
 
 	case MPI_FUNCTION_FC_ABORT:
 		/*
@@ -2222,7 +2222,7 @@ static int stm_reply(MPT_ADAPTER *ioc, MPT_FRAME_HDR *mf_req,
 			       ioc->name, ioc_status);
 		}
 		priv->link_serv_abort_pending = 0;
-		return (1);
+		return 1;
 
 	case MPI_FUNCTION_FC_PRIMITIVE_SEND:
 		/*
@@ -2233,7 +2233,7 @@ static int stm_reply(MPT_ADAPTER *ioc, MPT_FRAME_HDR *mf_req,
 			       ioc->name, ioc_status);
 		}
 		priv->fc_primitive_send_pending = 0;
-		return (1);
+		return 1;
 
 	case MPI_FUNCTION_FC_EX_LINK_SRVC_SEND:
 		/*
@@ -2244,7 +2244,7 @@ static int stm_reply(MPT_ADAPTER *ioc, MPT_FRAME_HDR *mf_req,
 			       ioc->name, ioc_status);
 		}
 		priv->ex_link_service_send_pending = 0;
-		return (1);
+		return 1;
 
 	default:
 		/*
@@ -2273,7 +2273,7 @@ static int stm_reply(MPT_ADAPTER *ioc, MPT_FRAME_HDR *mf_req,
 		break;
 	}
 	TRACE_EXIT();
-	return (0);
+	return 0;
 }
 
 /*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=*/
@@ -2452,7 +2452,7 @@ static int stm_event_process(MPT_ADAPTER *ioc, EventNotificationReply_t *rep)
 
 	TRACE_ENTRY();
 	if (priv == NULL) {
-		return (1);
+		return 1;
 	}
 
 	ioc_status = le16_to_cpu(rep->IOCStatus);
@@ -2557,7 +2557,7 @@ static int stm_event_process(MPT_ADAPTER *ioc, EventNotificationReply_t *rep)
 	}
 	TRACE_EXIT();
 
-	return (1);
+	return 1;
 }
 
 /*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=*/
@@ -2568,7 +2568,7 @@ static int stm_reset_process(MPT_ADAPTER *ioc, int phase)
 
 	TRACE_ENTRY();
 	if (priv == NULL)
-		return (1);
+		return 1;
 
 	if (phase == MPT_IOC_PRE_RESET) {
 		printk(KERN_ERR MYNAM ":%s IOC will be reset\n",
@@ -2587,7 +2587,7 @@ static int stm_reset_process(MPT_ADAPTER *ioc, int phase)
 
 	TRACE_EXIT();
 
-	return (1);
+	return 1;
 }
 
 /*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=*/
@@ -3161,7 +3161,7 @@ static int stm_send_target_status(MPT_STM_PRIV *priv, u32 reply_word, int index,
 		priv->status_deferred_mf[index] = (MPT_FRAME_HDR *)req;
 		priv->io_state[index] |= IO_STATE_STATUS_DEFERRED;
 		TRACE_EXIT_RES(1);
-		return (1);
+		return 1;
 	}
 	priv->io_state[index] |= IO_STATE_STATUS_SENT;
 
@@ -3186,7 +3186,7 @@ static int stm_send_target_status(MPT_STM_PRIV *priv, u32 reply_word, int index,
 		mpt_put_msg_frame(stm_context, _IOC_ID, (MPT_FRAME_HDR *)req);
 	}
 	TRACE_EXIT_RES(1);
-	return (1);
+	return 1;
 }
 
 /*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=*/
@@ -3285,7 +3285,7 @@ static int stm_target_mode_abort_command(MPT_STM_PRIV *priv, u32 reply_word,
 	}
 	TRACE_EXIT();
 
-	return (0);
+	return 0;
 }
 
 /*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=*/
@@ -3314,7 +3314,7 @@ static int stm_target_mode_abort_request(MPT_STM_PRIV *priv, u32 reply_word,
 	}
 	TRACE_EXIT();
 
-	return (0);
+	return 0;
 }
 
 /*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=*/
@@ -3392,7 +3392,7 @@ static int stm_target_mode_abort(MPT_STM_PRIV *priv)
 	}
 
 	TRACE_EXIT();
-	return (0);
+	return 0;
 }
 
 /*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=*/
@@ -3497,7 +3497,7 @@ static int stm_login_port(MPT_STM_PRIV *priv, int port_id, int sleep)
 	mpt_put_msg_frame(stm_context, _IOC_ID, mf);
 
 	if (stm_wait_for(priv, &priv->ex_link_service_send_pending, 5, sleep) < 0)
-		return (-1);
+		return -1;
 
 	req = (ExLinkServiceSendRequest_t *)mpt_msg_frame_alloc(ioc,-1);
 	memset(req, 0, sizeof(*req));
@@ -3722,16 +3722,16 @@ static int stm_get_hard_address(MPT_STM_PRIV *priv, int port_id,
 	mpt_put_msg_frame(stm_context, _IOC_ID, mf);
 
 	if (stm_wait_for(priv, &priv->ex_link_service_send_pending, 5, sleep) < 0)
-		return (-1);
+		return -1;
 
 	if ((be32_to_cpu(buf[0]) >> 24) != LS_ACC)
-		return (-2);
+		return -2;
 
 	*hard_address = be32_to_cpu(buf[1]);
 
 	TRACE_EXIT();
 
-	return (0);
+	return 0;
 }
 #endif
 
@@ -3753,7 +3753,7 @@ static int stm_scsi_configuration(MPT_STM_PRIV *priv, int sleep)
 	TRACE_ENTRY();
 	memset(priv->hw->config_buf, 0, sizeof(priv->hw->config_buf));
 	if (stm_get_config_page(priv, MPI_CONFIG_PAGETYPE_SCSI_PORT, 2, 0, sleep)) {
-		return (-1);
+		return -1;
 	}
 	ScsiPort2 = &priv->SCSIPortPage2;
 	memcpy(&priv->SCSIPortPage2, priv->hw->config_buf, sizeof(SCSIPortPage2_t));
@@ -3762,7 +3762,7 @@ static int stm_scsi_configuration(MPT_STM_PRIV *priv, int sleep)
 
 	memset(priv->hw->config_buf, 0, sizeof(priv->hw->config_buf));
 	if (stm_get_config_page(priv, MPI_CONFIG_PAGETYPE_SCSI_PORT, 0, 0, sleep)) {
-		return (-1);
+		return -1;
 	}
 	memcpy(&priv->SCSIPortPage0, priv->hw->config_buf, sizeof(SCSIPortPage0_t));
 	ScsiPort0 = &priv->SCSIPortPage0;
@@ -3812,7 +3812,7 @@ static int stm_scsi_configuration(MPT_STM_PRIV *priv, int sleep)
 	}
 	TRACE_EXIT();
 
-	return (0);
+	return 0;
 }
 
 /*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=*/
@@ -3848,7 +3848,7 @@ static void stm_set_scsi_port_page1(MPT_STM_PRIV *priv, int sleep)
 /*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=*/
 static int stm_sas_configuration(MPT_STM_PRIV *priv, int sleep)
 {
-	return (0);
+	return 0;
 }
 
 /*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=*/
@@ -3872,7 +3872,7 @@ static int stm_fc_configuration(MPT_STM_PRIV *priv, int sleep)
 	TRACE_ENTRY();
 	memset(priv->hw->config_buf, 0, sizeof(priv->hw->config_buf));
 	if (stm_get_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 0, 0, sleep)) {
-		return (-1);
+		return -1;
 	}
 	FcPort0 = (FCPortPage0_t *)priv->hw->config_buf;
 	flags = le32_to_cpu(FcPort0->Flags) &
@@ -3995,7 +3995,7 @@ static int stm_fc_configuration(MPT_STM_PRIV *priv, int sleep)
 	}
 	TRACE_EXIT();
 
-	return (0);
+	return 0;
 }
 
 /*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=*/
@@ -4005,17 +4005,17 @@ static int stm_fc_enable_els(MPT_STM_PRIV *priv, int els, int sleep)
 	TRACE_ENTRY();
 	memset(priv->hw->config_buf, 0, sizeof(priv->hw->config_buf));
 	if (stm_get_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 8, 0, sleep)) {
-		return (-1);
+		return -1;
 	}
 	FcPort8 = (FCPortPage8_t *)priv->hw->config_buf;
 	/* clear the ELS bit */
 	FcPort8->BitVector[els / 32] &= ~cpu_to_le32(1 << (els & 31));
 	if (stm_set_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 8, 0, sleep)) {
-		return (-1);
+		return -1;
 	}
 	TRACE_EXIT();
 
-	return (0);
+	return 0;
 }
 
 #if 0
@@ -4026,16 +4026,16 @@ static int stm_fc_enable_immediate_errors(MPT_STM_PRIV *priv, int sleep)
 
 	memset(priv->hw->config_buf, 0, sizeof(priv->hw->config_buf));
 	if (stm_get_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 1, 0, sleep)) {
-		return (-1);
+		return -1;
 	}
 	FcPort1 = (FCPortPage1_t *)priv->hw->config_buf;
 	/* set the Immediate Error Reply bit */
 	FcPort1->Flags |= cpu_to_le32(MPI_FCPORTPAGE1_FLAGS_IMMEDIATE_ERROR_REPLY);
 	if (stm_set_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 1, 0, sleep)) {
-		return (-1);
+		return -1;
 	}
 
-	return (0);
+	return 0;
 }
 
 /*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=*/
@@ -4045,17 +4045,17 @@ static int stm_fc_enable_target_mode_oxid(MPT_STM_PRIV *priv, int sleep)
 	TRACE_ENTRY();
 	memset(priv->hw->config_buf, 0, sizeof(priv->hw->config_buf));
 	if (stm_get_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 1, 0, sleep)) {
-		return (-1);
+		return -1;
 	}
 	FcPort1 = (FCPortPage1_t *)priv->hw->config_buf;
 	/* set the Target Mode OX_ID bit */
 	FcPort1->Flags |= cpu_to_le32(MPI_FCPORTPAGE1_FLAGS_TARGET_MODE_OXID);
 	if (stm_set_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 1, 0, sleep)) {
-		return (-1);
+		return -1;
 	}
 	TRACE_EXIT();
 
-	return (0);
+	return 0;
 }
 
 /*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=*/
@@ -4065,7 +4065,7 @@ static int stm_fc_set_wwn(MPT_STM_PRIV *priv, WwnFormat_t *wwn, int sleep)
 	TRACE_ENTRY();
 	memset(priv->hw->config_buf, 0, sizeof(priv->hw->config_buf));
 	if (stm_get_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 1, 0, sleep)) {
-		return (-1);
+		return -1;
 	}
 	FcPort1 = (FCPortPage1_t *)priv->hw->config_buf;
 	/* set the WWPN and WWNN */
@@ -4077,12 +4077,12 @@ static int stm_fc_set_wwn(MPT_STM_PRIV *priv, WwnFormat_t *wwn, int sleep)
 	FcPort1->Flags |=
 		cpu_to_le32(MPI_FCPORTPAGE1_FLAGS_FORCE_USE_NOSEEPROM_WWNS);
 	if (stm_set_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 1, 0, sleep)) {
-		return (-1);
+		return -1;
 	}
 
 	stm_reset_link(priv);
 	TRACE_EXIT();
-	return (0);
+	return 0;
 }
 #endif
 
@@ -4094,7 +4094,7 @@ static int stm_fc_enable_aliases(MPT_STM_PRIV *priv, int num_aliases, int sleep)
 	TRACE_ENTRY();
 	memset(priv->hw->config_buf, 0, sizeof(priv->hw->config_buf));
 	if (stm_get_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 1, 0, sleep)) {
-		return (-1);
+		return -1;
 	}
 	FcPort1 = (FCPortPage1_t *)priv->hw->config_buf;
 	if (set_aliases_in_fcportpage1) {
@@ -4111,10 +4111,10 @@ static int stm_fc_enable_aliases(MPT_STM_PRIV *priv, int num_aliases, int sleep)
 		FcPort1->TopologyConfig = MPI_FCPORTPAGE1_TOPOLOGY_NLPORT;
 	}
 	if (stm_set_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 1, 0, sleep)) {
-		return (-1);
+		return -1;
 	}
 	TRACE_EXIT();
-	return (0);
+	return 0;
 }
 
 /*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=*/
@@ -4138,13 +4138,13 @@ static int stm_get_config_page(MPT_STM_PRIV *priv, int type, int number,
 			printk(KERN_ERR MYNAM
 			       ":%s timed out getting config page header\n", ioc->name);
 		}
-		return (-1);
+		return -1;
 	}
 
 	if (priv->in_reset) {
 		printk(KERN_ERR MYNAM
 		       ":%s reset while getting config page header\n", ioc->name);
-		return (-1);
+		return -1;
 	}
 
 	ioc_status = le16_to_cpu(rep->IOCStatus) & MPI_IOCSTATUS_MASK;
@@ -4164,7 +4164,7 @@ static int stm_get_config_page(MPT_STM_PRIV *priv, int type, int number,
 			       ":%s   type = %d, number = %d, address = %x\n",
 			       ioc->name, type, number, address);
 		}
-		return (-1);
+		return -1;
 	}
 
 	i = stm_do_config_action(priv, MPI_CONFIG_ACTION_PAGE_READ_CURRENT,
@@ -4174,13 +4174,13 @@ static int stm_get_config_page(MPT_STM_PRIV *priv, int type, int number,
 			printk(KERN_ERR MYNAM
 			       ":%s timed out getting config page = %d\n", ioc->name, type);
 		}
-		return (-1);
+		return -1;
 	}
 
 	if (priv->in_reset) {
 		printk(KERN_ERR MYNAM
 		       ":%s reset while getting config page\n", ioc->name);
-		return (-1);
+		return -1;
 	}
 
 	ioc_status = le16_to_cpu(rep->IOCStatus) & MPI_IOCSTATUS_MASK;
@@ -4197,7 +4197,7 @@ static int stm_get_config_page(MPT_STM_PRIV *priv, int type, int number,
 			       ":%s   type = %d, number = %d, address = %x\n",
 			       ioc->name, type, number, address);
 		}
-		return (-1);
+		return -1;
 	}
 
 #ifdef CONFIG_SCST_TRACING
@@ -4215,7 +4215,7 @@ static int stm_get_config_page(MPT_STM_PRIV *priv, int type, int number,
 #endif
 	TRACE_EXIT();
 
-	return (0);
+	return 0;
 }
 
 /*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=*/
@@ -4239,13 +4239,13 @@ static int stm_set_config_page(MPT_STM_PRIV *priv, int type, int number,
 			printk(KERN_ERR MYNAM
 			       ":%s timed out getting config page header\n", ioc->name);
 		}
-		return (-1);
+		return -1;
 	}
 
 	if (priv->in_reset) {
 		printk(KERN_ERR MYNAM
 		       ":%s reset while getting config page header\n", ioc->name);
-		return (-1);
+		return -1;
 	}
 
 	ioc_status = le16_to_cpu(rep->IOCStatus) & MPI_IOCSTATUS_MASK;
@@ -4265,7 +4265,7 @@ static int stm_set_config_page(MPT_STM_PRIV *priv, int type, int number,
 			       ":%s   type = %d, number = %d, address = %x\n",
 			       ioc->name, type, number, address);
 		}
-		return (-1);
+		return -1;
 	}
 
 	*(ConfigPageHeader_t *)priv->hw->config_buf = rep->Header;
@@ -4277,13 +4277,13 @@ static int stm_set_config_page(MPT_STM_PRIV *priv, int type, int number,
 			printk(KERN_ERR MYNAM
 			       ":%s timed out setting config page\n", ioc->name);
 		}
-		return (-1);
+		return -1;
 	}
 
 	if (priv->in_reset) {
 		printk(KERN_ERR MYNAM
 		       ":%s reset while setting config page\n", ioc->name);
-		return (-1);
+		return -1;
 	}
 
 	ioc_status = le16_to_cpu(rep->IOCStatus) & MPI_IOCSTATUS_MASK;
@@ -4299,7 +4299,7 @@ static int stm_set_config_page(MPT_STM_PRIV *priv, int type, int number,
 		printk(KERN_ERR MYNAM
 		       ":%s   Header = %08x\n",
 		       ioc->name, le32_to_cpu(*(u32 *)priv->hw->config_buf));
-		return (-1);
+		return -1;
 	}
 
 #ifdef CONFIG_SCST_TRACING
@@ -4317,7 +4317,7 @@ static int stm_set_config_page(MPT_STM_PRIV *priv, int type, int number,
 #endif
 	TRACE_EXIT();
 
-	return (0);
+	return 0;
 }
 
 /*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=*/
@@ -4335,7 +4335,7 @@ static int stm_do_config_action(MPT_STM_PRIV *priv, int action, int type,
 	if (priv->in_reset) {
 		printk(KERN_ERR MYNAM ":%s reset while doing config action %x\n",
 		       ioc->name, action);
-		return (-1);
+		return -1;
 	}
 
 	/*
@@ -4347,7 +4347,7 @@ static int stm_do_config_action(MPT_STM_PRIV *priv, int action, int type,
 		if (mf == NULL) {
 			printk(KERN_ERR MYNAM
 			       ":%s failed to get message frame\n", ioc->name);
-			return (-1);
+			return -1;
 		} else {
 			TRACE_DBG(
 				  "%s in stm_do_config_action, got mf index %d",
@@ -4443,13 +4443,13 @@ stm_wait_for(MPT_STM_PRIV *priv, volatile int *flag, int seconds, int sleep)
 	TRACE_ENTRY();
 	for (i = 0; i < seconds * ((sleep == CAN_SLEEP) ? HZ : 1000); i++) {
 		if (!(*flag)) {
-			return (0);
+			return 0;
 		}
 		if (mpt_GetIocState(ioc, 1) != MPI_IOC_STATE_OPERATIONAL) {
 			printk(KERN_ERR MYNAM
 			       ":%s IOC is not operational (doorbell = %x)\n",
 			       ioc->name, mpt_GetIocState(ioc, 0));
-			return (-1);
+			return -1;
 		}
 		if (sleep == CAN_SLEEP) {
 			set_current_state(TASK_INTERRUPTIBLE);
@@ -4469,7 +4469,7 @@ stm_wait_for(MPT_STM_PRIV *priv, volatile int *flag, int seconds, int sleep)
 	printk(KERN_ERR MYNAM ":%s timed out in stm_wait_for!\n", ioc->name);
 	TRACE_EXIT();
 
-	return (-1);
+	return -1;
 }
 
 static int __init _mpt_stm_init(void)
@@ -4499,7 +4499,7 @@ static int __init _mpt_stm_init(void)
 	if (stm_context < 0) {
 		printk(KERN_ERR MYNAM
 		       ": failed to register with MPT driver core\n");
-		return (-EBUSY);
+		return -EBUSY;
 	}
 
 	if (mpt_event_register(stm_context, stm_event_process)) {
@@ -4529,7 +4529,7 @@ static int mpt_stm_adapter_install(MPT_ADAPTER *ioc)
 	if (priv == NULL) {
 		printk(KERN_ERR MYNAM
 		       ":%s failed to allocate private structure\n", ioc->name);
-		return (-1);
+		return -1;
 	}
 	memset(priv, 0, sizeof(*priv));
 	if (ioc->pfacts[0].ProtocolFlags & MPI_PORTFACTS_PROTOCOL_TARGET) {
@@ -4559,7 +4559,7 @@ static int mpt_stm_adapter_install(MPT_ADAPTER *ioc)
 		printk(KERN_ERR MYNAM
 		       ":%s failed to allocate hardware structure\n", ioc->name);
 		kfree(priv);
-		return (-1);
+		return -1;
 	}
 	memset(priv->hw, 0, sizeof(*priv->hw));
 	printk(KERN_INFO ":%s priv = %p, priv->hw = %p, priv->hw_dma = %llx\n",
@@ -4588,7 +4588,7 @@ static int mpt_stm_adapter_install(MPT_ADAPTER *ioc)
 
 	TRACE_EXIT();
 
-	return (0);
+	return 0;
 }
 
 static int mpt_stm_adapter_online(MPT_STM_PRIV *priv)
@@ -4692,7 +4692,7 @@ static int mpt_stm_adapter_online(MPT_STM_PRIV *priv)
 	}
 	TRACE_EXIT();
 
-	return (0);
+	return 0;
 }
 
 static void _mpt_stm_exit(void)
