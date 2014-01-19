@@ -36,14 +36,6 @@
 #include <linux/pci.h>
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
-/*
- * See also commit "proc: Make the PROC_I() and PDE() macros internal to
- * procfs" (c30480b92cf497aa3b463367a82f1c2fdc5c46e9).
- */
-#include <../fs/proc/internal.h> /* PDE() */
-#endif
-
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/scst.h>
 #include <scst/scst_debug.h>
@@ -52,8 +44,12 @@
 #include <scst_debug.h>
 #endif
 
-#ifndef CONFIG_SCST_PROC
-#error Building the mpt driver requires procfs mode
+#if defined(CONFIG_SCST_PROC) && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+/*
+ * See also commit "proc: Make the PROC_I() and PDE() macros internal to
+ * procfs" (c30480b92cf497aa3b463367a82f1c2fdc5c46e9).
+ */
+#include <../fs/proc/internal.h> /* PDE() */
 #endif
 
 #include "mpt_scst.h"
@@ -152,6 +148,7 @@ unsigned long mpt_trace_flag = TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_SPECIAL;
 # endif
 #endif
 
+#ifdef CONFIG_SCST_PROC
 static int
 mpt_target_show(struct seq_file *seq, void *v)
 {
@@ -284,6 +281,7 @@ static struct scst_proc_data mpt_target_proc_data = {
 	SCST_DEF_RW_SEQ_OP(mpt_proc_target_write)
 	.show = mpt_target_show,
 };
+#endif
 
 static int mpt_target_detect(struct scst_tgt_template *temp1);
 static int mpt_target_release(struct scst_tgt *scst_tgt);
@@ -367,9 +365,11 @@ mptstm_probe(struct pci_dev *pdev, const struct pci_device_id *id)
     MPT_ADAPTER	*ioc = pci_get_drvdata(pdev);
     int ret = 0;
     struct mpt_tgt *tgt;
+#ifdef CONFIG_SCST_PROC
     struct proc_dir_entry *p;
     struct proc_dir_entry *root;
     char name[4];
+#endif
 
     TRACE_ENTRY();
     ret = mpt_stm_adapter_install(ioc);
@@ -406,6 +406,7 @@ mptstm_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	    goto out;
     }
 
+#ifdef CONFIG_SCST_PROC
     root = scst_proc_get_tgt_root(&tgt_template);
     scnprintf(name, sizeof(name), "%d", ioc->id);
     mpt_target_proc_data.data = (void *)tgt;
@@ -419,6 +420,7 @@ mptstm_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 	    ret = -ENOMEM;
 	    goto out;
     }
+#endif
 
     scst_tgt_set_tgt_priv(tgt->scst_tgt, tgt);
     mpt_stm_priv[ioc->id]->tgt = tgt;
@@ -5479,6 +5481,7 @@ stmapp_set_sense_info(MPT_STM_PRIV *priv,
 
 #define MPT_PROC_LOG_ENTRY_NAME "trace_level"
 
+#ifdef CONFIG_SCST_PROC
 #include <linux/proc_fs.h>
 
 static int mpt_log_info_show(struct seq_file *seq, void *v)
@@ -5513,10 +5516,12 @@ static struct scst_proc_data mpt_log_proc_data = {
 	.show = mpt_log_info_show,
 };
 #endif
+#endif
 
 static int mpt_proc_log_entry_build(struct scst_tgt_template *templ)
 {
 	int res = 0;
+#ifdef CONFIG_SCST_PROC
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	struct proc_dir_entry *p, *root;
 
@@ -5541,11 +5546,13 @@ out:
 
 	TRACE_EXIT_RES(res);
 #endif
+#endif
 	return res;
 }
 
 static void mpt_proc_log_entry_clean(struct scst_tgt_template *templ)
 {
+#ifdef CONFIG_SCST_PROC
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	struct proc_dir_entry *root;
 
@@ -5557,6 +5564,7 @@ static void mpt_proc_log_entry_clean(struct scst_tgt_template *templ)
 		remove_proc_entry(MPT_PROC_LOG_ENTRY_NAME, root);
 	}
 	TRACE_EXIT();
+#endif
 #endif
 }
 
