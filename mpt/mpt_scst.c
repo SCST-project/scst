@@ -2257,7 +2257,7 @@ static int stm_reply(MPT_ADAPTER *ioc, MPT_FRAME_HDR *mf_req,
 			int i;
 
 			for (i = 0; i < 16; i++) {
-				printk("%s mf_req[%02x] = %08x\n",
+				printk(KERN_ERR "%s mf_req[%02x] = %08x\n",
 				       ioc->name, i * 4, le32_to_cpu(p[i]));
 			}
 		}
@@ -2266,7 +2266,7 @@ static int stm_reply(MPT_ADAPTER *ioc, MPT_FRAME_HDR *mf_req,
 			int i;
 
 			for (i = 0; i < 16; i++) {
-				printk("%s mf_rep[%02x] = %08x\n",
+				printk(KERN_ERR "%s mf_rep[%02x] = %08x\n",
 				       ioc->name, i * 4, le32_to_cpu(p[i]));
 			}
 		}
@@ -2427,11 +2427,10 @@ static void stm_target_cleanup(MPT_STM_PRIV *priv, int index)
 	/*  *io_state &= ~IO_STATE_AUTO_REPOST;*/
 	*io_state &= ~IO_STATE_ABORTED;
 	*io_state &= ~IO_STATE_POSTED;
-	if ((*io_state & ~IO_STATE_HIGH_PRIORITY) == IO_STATE_AUTO_REPOST) {
+	if ((*io_state & ~IO_STATE_HIGH_PRIORITY) == IO_STATE_AUTO_REPOST)
 		*io_state = IO_STATE_POSTED;
-	} else if ((*io_state & ~IO_STATE_HIGH_PRIORITY) == 0) {
+	else if ((*io_state & ~IO_STATE_HIGH_PRIORITY) == 0)
 		stm_cmd_buf_post(priv, index);
-	}
 	TRACE_EXIT();
 }
 
@@ -2451,15 +2450,14 @@ static int stm_event_process(MPT_ADAPTER *ioc, EventNotificationReply_t *rep)
 	int				rate;
 
 	TRACE_ENTRY();
-	if (priv == NULL) {
+	if (priv == NULL)
 		return 1;
-	}
 
 	ioc_status = le16_to_cpu(rep->IOCStatus);
 	event = le32_to_cpu(rep->Event);
 
 	if (ioc_status & MPI_IOCSTATUS_FLAG_LOG_INFO_AVAILABLE) {
-		printk("%s Event = %x, IOCLogInfo = %08x\n",
+		printk(KERN_DEBUG "%s Event = %x, IOCLogInfo = %08x\n",
 		       ioc->name, event, le32_to_cpu(rep->IOCLogInfo));
 	}
 
@@ -2480,18 +2478,18 @@ static int stm_event_process(MPT_ADAPTER *ioc, EventNotificationReply_t *rep)
 		break;
 
 	case MPI_EVENT_RESCAN:
-		printk("%s Rescan\n", ioc->name);
+		printk(KERN_DEBUG "%s Rescan\n", ioc->name);
 		break;
 
 	case MPI_EVENT_IOC_BUS_RESET:
 		scsi_data = (EventDataScsi_t *)rep->Data;
-		printk("%s IOC Bus Reset on port %d\n",
+		printk(KERN_DEBUG "%s IOC Bus Reset on port %d\n",
 		       ioc->name, scsi_data->BusPort);
 		break;
 
 	case MPI_EVENT_EXT_BUS_RESET:
 		scsi_data = (EventDataScsi_t *)rep->Data;
-		printk("%s Ext Bus Reset on port %d\n",
+		printk(KERN_DEBUG "%s Ext Bus Reset on port %d\n",
 		       ioc->name, scsi_data->BusPort);
 		/*
 		 * clear any pending sense flags on bus reset
@@ -2506,7 +2504,7 @@ static int stm_event_process(MPT_ADAPTER *ioc, EventNotificationReply_t *rep)
 
 	case MPI_EVENT_LINK_STATUS_CHANGE:
 		link_status_data = (EventDataLinkStatus_t *)rep->Data;
-		printk("%s Link is now %s\n",
+		printk(KERN_DEBUG "%s Link is now %s\n",
 		       ioc->name, link_status_data->State ? "Up" : "Down");
 		break;
 
@@ -2518,7 +2516,7 @@ static int stm_event_process(MPT_ADAPTER *ioc, EventNotificationReply_t *rep)
 	case MPI_EVENT_LOOP_STATE_CHANGE:
 		loop_state_data = (EventDataLoopState_t *)rep->Data;
 		if (loop_state_data->Type == MPI_EVENT_LOOP_STATE_CHANGE_LIP) {
-			printk("%s LIP Reset\n", ioc->name);
+			printk(KERN_DEBUG "%s LIP Reset\n", ioc->name);
 			break;
 		} /* fall-through */
 
@@ -2527,7 +2525,7 @@ static int stm_event_process(MPT_ADAPTER *ioc, EventNotificationReply_t *rep)
 		rate = (sas_phy_link_status_data->LinkRates &
 			MPI_EVENT_SAS_PLS_LR_CURRENT_MASK) >>
 			MPI_EVENT_SAS_PLS_LR_CURRENT_SHIFT;
-		printk("%s Phy %d Handle %x is now %s\n",
+		printk(KERN_DEBUG "%s Phy %d Handle %x is now %s\n",
 		       ioc->name, sas_phy_link_status_data->PhyNum,
 		       le16_to_cpu(sas_phy_link_status_data->DevHandle),
 		       rate == MPI_EVENT_SAS_PLS_LR_RATE_UNKNOWN ? "offline" :
@@ -2538,11 +2536,11 @@ static int stm_event_process(MPT_ADAPTER *ioc, EventNotificationReply_t *rep)
 		break;
 
 	default:
-		printk("%s event = %d, ack = %d, length = %d\n",
+		printk(KERN_DEBUG "%s event = %d, ack = %d, length = %d\n",
 		       ioc->name, le32_to_cpu(rep->Event),
 		       rep->AckRequired, le16_to_cpu(rep->EventDataLength));
 		for (i = 0; i < le16_to_cpu(rep->EventDataLength); i++) {
-			printk("%s data[%d] = %08x\n",
+			printk(KERN_DEBUG "%s data[%d] = %08x\n",
 			       ioc->name, i, le32_to_cpu(rep->Data[i]));
 		}
 		break;
@@ -2550,9 +2548,8 @@ static int stm_event_process(MPT_ADAPTER *ioc, EventNotificationReply_t *rep)
 
 	if (event == MPI_EVENT_EXT_BUS_RESET) {
 #if 0
-		if (IsScsi(priv)) {
+		if (IsScsi(priv))
 			memset(priv->luns->drop, 0, sizeof(priv->luns->drop));
-		}
 #endif
 	}
 	TRACE_EXIT();
@@ -2836,13 +2833,12 @@ static void stm_cmd_buf_post(MPT_STM_PRIV *priv, int index)
 	/*
 	 *  get a free message frame, and post a command buffer
 	 */
-	req = (TargetCmdBufferPostRequest_t *)mpt_msg_frame_alloc(ioc,-1);
+	req = (TargetCmdBufferPostRequest_t *)mpt_msg_frame_alloc(ioc, -1);
 	memset(req, 0, sizeof(*req));
 
 #ifdef CMD_BUFFER_POST_FLAGS_HIGH_PRIORITY
-	if (priv->io_state[index] & IO_STATE_HIGH_PRIORITY) {
+	if (priv->io_state[index] & IO_STATE_HIGH_PRIORITY)
 		req->BufferPostFlags = CMD_BUFFER_POST_FLAGS_HIGH_PRIORITY;
-	}
 #else
 	priv->io_state[index] &= ~IO_STATE_HIGH_PRIORITY;
 #endif
@@ -2894,12 +2890,11 @@ static void stm_cmd_buf_post_base(MPT_STM_PRIV *priv, int post_all)
 	dma_addr_t				dma_addr;
 
 	TRACE_ENTRY();
-	req = (TargetCmdBufferPostBaseRequest_t *)mpt_msg_frame_alloc(ioc,-1);
+	req = (TargetCmdBufferPostBaseRequest_t *)mpt_msg_frame_alloc(ioc, -1);
 	memset(req, 0, sizeof(*req));
 
-	if (post_all) {
+	if (post_all)
 		req->BufferPostFlags = CMD_BUFFER_POST_BASE_FLAGS_AUTO_POST_ALL;
-	}
 	req->Function = MPI_FUNCTION_TARGET_CMD_BUF_BASE_POST;
 	req->TotalCmdBuffers = cpu_to_le16(priv->num_cmd_buffers);
 	req->CmdBufferLength = cpu_to_le16(sizeof(priv->hw->cmd_buf[0].cmd));
@@ -2911,11 +2906,9 @@ static void stm_cmd_buf_post_base(MPT_STM_PRIV *priv, int post_all)
 	req->BaseAddressHigh = cpu_to_le32((u64)dma_addr>>32);
 #endif
 
-	if (post_all) {
-		for (i = 0; i < priv->num_cmd_buffers; i++) {
+	if (post_all)
+		for (i = 0; i < priv->num_cmd_buffers; i++)
 			priv->io_state[i] |= IO_STATE_POSTED;
-		}
-	}
 
 #ifdef CONFIG_SCST_TRACING
 	if (trace_mpi) {
@@ -2942,7 +2935,7 @@ static void stm_cmd_buf_post_list(MPT_STM_PRIV *priv, int index)
 	TargetCmdBufferPostListRequest_t	*req;
 
 	TRACE_ENTRY();
-	req = (TargetCmdBufferPostListRequest_t *)mpt_msg_frame_alloc(ioc,-1);
+	req = (TargetCmdBufferPostListRequest_t *)mpt_msg_frame_alloc(ioc, -1);
 	memset(req, 0, sizeof(*req));
 
 	req->Function = MPI_FUNCTION_TARGET_CMD_BUF_LIST_POST;
@@ -2978,7 +2971,7 @@ static void stm_link_serv_buf_post(MPT_STM_PRIV *priv, int index)
 	dma_addr_t				dma_addr;
 
 	TRACE_ENTRY();
-	req = (LinkServiceBufferPostRequest_t *)mpt_msg_frame_alloc(ioc,-1);
+	req = (LinkServiceBufferPostRequest_t *)mpt_msg_frame_alloc(ioc, -1);
 	memset(req, 0, sizeof(*req));
 
 	req->BufferCount = 1;
@@ -3030,7 +3023,7 @@ static int stm_send_target_status(MPT_STM_PRIV *priv, u32 reply_word, int index,
 	dma_addr_t			dma_addr;
 
 	TRACE_ENTRY();
-	req = (TargetStatusSendRequest_t *)mpt_msg_frame_alloc(ioc,index);
+	req = (TargetStatusSendRequest_t *)mpt_msg_frame_alloc(ioc, index);
 	memset(req, 0, sizeof(*req));
 
 	if (priv->exiting) {
@@ -3094,33 +3087,28 @@ static int stm_send_target_status(MPT_STM_PRIV *priv, u32 reply_word, int index,
 				atomic_set(&priv->pending_sense[init_index],
 					   MPT_STATUS_SENSE_ATTEMPT);
 			}
-			if (rsp->Valid & SCSI_RSP_LEN_VALID) {
+			if (rsp->Valid & SCSI_RSP_LEN_VALID)
 				length += be32_to_cpu(rsp->PktFailuresListLength);
-			}
 		} else if (IsSas(priv)) {
 			SSP_RSP	*rsp = (SSP_RSP *)cmd->rsp;
 
 			length += sizeof(*rsp);
 			length -= sizeof(rsp->ResponseSenseData);
 			status = rsp->Status;
-			if (rsp->DataPres & SSP_SENSE_LEN_VALID) {
+			if (rsp->DataPres & SSP_SENSE_LEN_VALID)
 				length += be32_to_cpu(rsp->SenseDataLength);
-			}
-			if (rsp->DataPres & SSP_RSP_LEN_VALID) {
+			if (rsp->DataPres & SSP_RSP_LEN_VALID)
 				length += be32_to_cpu(rsp->ResponseDataLength);
-			}
 		} else {
 			FCP_RSP	*rsp = (FCP_RSP *)cmd->rsp;
 
 			length += sizeof(*rsp);
 			length -= sizeof(rsp->FcpSenseData) + sizeof(rsp->FcpResponseData);
 			status = rsp->FcpStatus;
-			if (flags & TARGET_STATUS_SEND_FLAGS_CONFIRMED) {
+			if (flags & TARGET_STATUS_SEND_FLAGS_CONFIRMED)
 				rsp->FcpFlags |= FCP_REQUEST_CONFIRM;
-			}
-			if (rsp->FcpFlags & FCP_SENSE_LEN_VALID) {
+			if (rsp->FcpFlags & FCP_SENSE_LEN_VALID)
 				length += be32_to_cpu(rsp->FcpSenseLength);
-			}
 			if (rsp->FcpFlags & FCP_RSP_LEN_VALID) {
 				length += be32_to_cpu(rsp->FcpResponseLength);
 				/* FCP_RSP_LEN_VALID will only be set for Task Mgmt responses */
@@ -3200,7 +3188,7 @@ static void stm_send_els(MPT_STM_PRIV *priv, LinkServiceBufferPostReply_t *rep,
 	dma_addr_t			dma_addr;
 
 	TRACE_ENTRY();
-	req = (LinkServiceRspRequest_t *)mpt_msg_frame_alloc(ioc,-1);
+	req = (LinkServiceRspRequest_t *)mpt_msg_frame_alloc(ioc, -1);
 	memset(req, 0, sizeof(*req));
 
 	req->RspLength = (u8)length;
@@ -3244,7 +3232,7 @@ static int stm_port_enable(MPT_STM_PRIV *priv)
 	int ret;
 
 	TRACE_ENTRY();
-	req = (PortEnable_t *)mpt_msg_frame_alloc(ioc,-1);
+	req = (PortEnable_t *)mpt_msg_frame_alloc(ioc, -1);
 	memset(req, 0, sizeof(*req));
 
 	req->Function = MPI_FUNCTION_PORT_ENABLE;
@@ -3268,7 +3256,7 @@ static int stm_target_mode_abort_command(MPT_STM_PRIV *priv, u32 reply_word,
 	TargetModeAbort_t	*req;
 
 	TRACE_ENTRY();
-	req = (TargetModeAbort_t *)mpt_msg_frame_alloc(ioc,-1);
+	req = (TargetModeAbort_t *)mpt_msg_frame_alloc(ioc, -1);
 	memset(req, 0, sizeof(*req));
 
 	req->AbortType = TARGET_MODE_ABORT_TYPE_EXACT_IO;
@@ -3296,7 +3284,7 @@ static int stm_target_mode_abort_request(MPT_STM_PRIV *priv, u32 reply_word,
 	TargetModeAbort_t	*req;
 
 	TRACE_ENTRY();
-	req = (TargetModeAbort_t *)mpt_msg_frame_alloc(ioc,-1);
+	req = (TargetModeAbort_t *)mpt_msg_frame_alloc(ioc, -1);
 	memset(req, 0, sizeof(*req));
 
 	req->AbortType = TARGET_MODE_ABORT_TYPE_EXACT_IO_REQUEST;
@@ -3325,7 +3313,7 @@ static int stm_target_mode_abort_all(MPT_STM_PRIV *priv)
 	int ret;
 	TRACE_ENTRY();
 
-	req = (TargetModeAbort_t *)mpt_msg_frame_alloc(ioc,-1);
+	req = (TargetModeAbort_t *)mpt_msg_frame_alloc(ioc, -1);
 	memset(req, 0, sizeof(*req));
 
 	req->AbortType = TARGET_MODE_ABORT_TYPE_ALL_CMD_BUFFERS;
@@ -3359,11 +3347,9 @@ static int stm_target_mode_abort(MPT_STM_PRIV *priv)
 	TRACE_ENTRY();
 	while (1) {
 		n = 0;
-		for (i = 0; i< priv->num_cmd_buffers; i++) {
-			if (priv->io_state[i] & IO_STATE_AUTO_REPOST) {
+		for (i = 0; i < priv->num_cmd_buffers; i++)
+			if (priv->io_state[i] & IO_STATE_AUTO_REPOST)
 				n++;
-			}
-		}
 
 		if (n == 0)
 			break;
@@ -3377,11 +3363,9 @@ static int stm_target_mode_abort(MPT_STM_PRIV *priv)
 		stm_target_mode_abort_all(priv);
 
 		n = 0;
-		for (i = 0; i< priv->num_cmd_buffers; i++) {
-			if (priv->io_state[i] & IO_STATE_POSTED) {
+		for (i = 0; i < priv->num_cmd_buffers; i++)
+			if (priv->io_state[i] & IO_STATE_POSTED)
 				n++;
-			}
-		}
 
 		if (n == priv->num_cmd_buffers)
 			break;
@@ -3404,7 +3388,7 @@ static int stm_link_serv_abort(MPT_STM_PRIV *priv)
 
 	TRACE_ENTRY();
 
-	req = (FcAbortRequest_t *)mpt_msg_frame_alloc(ioc,-1);
+	req = (FcAbortRequest_t *)mpt_msg_frame_alloc(ioc, -1);
 	memset(req, 0, sizeof(*req));
 
 	req->AbortType = FC_ABORT_TYPE_ALL_FC_BUFFERS;
@@ -3429,7 +3413,7 @@ static int stm_reset_link(MPT_STM_PRIV *priv)
 	int ret;
 
 	TRACE_ENTRY();
-	req = (FcPrimitiveSendRequest_t *)mpt_msg_frame_alloc(ioc,-1);
+	req = (FcPrimitiveSendRequest_t *)mpt_msg_frame_alloc(ioc, -1);
 	memset(req, 0, sizeof(*req));
 
 	req->SendFlags = MPI_FC_PRIM_SEND_FLAGS_RESET_LINK;
@@ -3457,7 +3441,7 @@ static int stm_login_port(MPT_STM_PRIV *priv, int port_id, int sleep)
 	dma_addr_t			dma_addr;
 
 	TRACE_ENTRY();
-	req = (ExLinkServiceSendRequest_t *)mpt_msg_frame_alloc(ioc,-1);
+	req = (ExLinkServiceSendRequest_t *)mpt_msg_frame_alloc(ioc, -1);
 	memset(req, 0, sizeof(*req));
 
 	req->Function = MPI_FUNCTION_FC_EX_LINK_SRVC_SEND;
@@ -3499,7 +3483,7 @@ static int stm_login_port(MPT_STM_PRIV *priv, int port_id, int sleep)
 	if (stm_wait_for(priv, &priv->ex_link_service_send_pending, 5, sleep) < 0)
 		return -1;
 
-	req = (ExLinkServiceSendRequest_t *)mpt_msg_frame_alloc(ioc,-1);
+	req = (ExLinkServiceSendRequest_t *)mpt_msg_frame_alloc(ioc, -1);
 	memset(req, 0, sizeof(*req));
 
 	req->Function = MPI_FUNCTION_FC_EX_LINK_SRVC_SEND;
@@ -3558,7 +3542,7 @@ static int stm_logout_port(MPT_STM_PRIV *priv, int port_id, int sleep)
 	dma_addr_t			dma_addr;
 
 	TRACE_ENTRY();
-	req = (ExLinkServiceSendRequest_t *)mpt_msg_frame_alloc(ioc,-1);
+	req = (ExLinkServiceSendRequest_t *)mpt_msg_frame_alloc(ioc, -1);
 	memset(req, 0, sizeof(*req));
 
 	req->Function = MPI_FUNCTION_FC_EX_LINK_SRVC_SEND;
@@ -3616,7 +3600,7 @@ static int stm_process_logout_port(MPT_STM_PRIV *priv, int port_id, int sleep)
 	dma_addr_t			dma_addr;
 
 	TRACE_ENTRY();
-	req = (ExLinkServiceSendRequest_t *)mpt_msg_frame_alloc(ioc,-1);
+	req = (ExLinkServiceSendRequest_t *)mpt_msg_frame_alloc(ioc, -1);
 	memset(req, 0, sizeof(*req));
 
 	req->Function = MPI_FUNCTION_FC_EX_LINK_SRVC_SEND;
@@ -3677,7 +3661,7 @@ static int stm_get_hard_address(MPT_STM_PRIV *priv, int port_id,
 	dma_addr_t			dma_addr;
 
 	TRACE_ENTRY();
-	req = (ExLinkServiceSendRequest_t *)mpt_msg_frame_alloc(ioc,-1);
+	req = (ExLinkServiceSendRequest_t *)mpt_msg_frame_alloc(ioc, -1);
 	memset(req, 0, sizeof(*req));
 
 	req->Function = MPI_FUNCTION_FC_EX_LINK_SRVC_SEND;
@@ -3752,18 +3736,16 @@ static int stm_scsi_configuration(MPT_STM_PRIV *priv, int sleep)
 
 	TRACE_ENTRY();
 	memset(priv->hw->config_buf, 0, sizeof(priv->hw->config_buf));
-	if (stm_get_config_page(priv, MPI_CONFIG_PAGETYPE_SCSI_PORT, 2, 0, sleep)) {
+	if (stm_get_config_page(priv, MPI_CONFIG_PAGETYPE_SCSI_PORT, 2, 0, sleep))
 		return -1;
-	}
 	ScsiPort2 = &priv->SCSIPortPage2;
 	memcpy(&priv->SCSIPortPage2, priv->hw->config_buf, sizeof(SCSIPortPage2_t));
 
 	TRACE_DBG("%s scsi id is %d", ioc->name, priv->port_id);
 
 	memset(priv->hw->config_buf, 0, sizeof(priv->hw->config_buf));
-	if (stm_get_config_page(priv, MPI_CONFIG_PAGETYPE_SCSI_PORT, 0, 0, sleep)) {
+	if (stm_get_config_page(priv, MPI_CONFIG_PAGETYPE_SCSI_PORT, 0, 0, sleep))
 		return -1;
-	}
 	memcpy(&priv->SCSIPortPage0, priv->hw->config_buf, sizeof(SCSIPortPage0_t));
 	ScsiPort0 = &priv->SCSIPortPage0;
 
@@ -3788,7 +3770,7 @@ static int stm_scsi_configuration(MPT_STM_PRIV *priv, int sleep)
 			 * amount of data except at the slowest transfer
 			 * factors */
 			sync = max(0x32, sync);
-			printk("forcing FAST-5 negotiation due to broken fw 0x%08X\n",
+			printk(KERN_ERR "forcing FAST-5 negotiation due to broken fw 0x%08X\n",
 			       ioc->facts.FWVersion.Word);
 		}
 		flags = le16_to_cpu(ScsiPort2->DeviceSettings[i].DeviceFlags);
@@ -3871,9 +3853,8 @@ static int stm_fc_configuration(MPT_STM_PRIV *priv, int sleep)
 
 	TRACE_ENTRY();
 	memset(priv->hw->config_buf, 0, sizeof(priv->hw->config_buf));
-	if (stm_get_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 0, 0, sleep)) {
+	if (stm_get_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 0, 0, sleep))
 		return -1;
-	}
 	FcPort0 = (FCPortPage0_t *)priv->hw->config_buf;
 	flags = le32_to_cpu(FcPort0->Flags) &
 		MPI_FCPORTPAGE0_FLAGS_ATTACH_TYPE_MASK;
@@ -3923,12 +3904,11 @@ static int stm_fc_configuration(MPT_STM_PRIV *priv, int sleep)
 		priv->port_speed = current_speed;
 		priv->port_state = port_state;
 		priv->device_changed = 1;
-		if (attach) {
-			printk("%s link is online, type is %s, speed is %s\n",
+		if (attach)
+			printk(KERN_INFO "%s link is online, type is %s, speed is %s\n",
 			       ioc->name, attach, speed);
-		} else {
-			printk("%s link is offline\n", ioc->name);
-		}
+		else
+			printk(KERN_INFO "%s link is offline\n", ioc->name);
 	}
 
 	wwnn.Low = le32_to_cpu(FcPort0->WWNN.Low);
@@ -3948,14 +3928,12 @@ static int stm_fc_configuration(MPT_STM_PRIV *priv, int sleep)
 		priv->port_id = port_id;
 		priv->protocol = protocol;
 		priv->device_changed = 1;
-		if (attach) {
-			printk("%s port is wwn %08x%08x, port id %x\n",
+		if (attach)
+			printk(KERN_INFO "%s port is wwn %08x%08x, port id %x\n",
 			       ioc->name, wwpn.High, wwpn.Low, port_id);
-		} else {
-			printk(
-			       "%s port is wwn %08x%08x\n",
+		else
+			printk(KERN_INFO "%s port is wwn %08x%08x\n",
 			       ioc->name, wwpn.High, wwpn.Low);
-		}
 	}
 
 	page = MPI_FC_DEVICE_PAGE0_PGAD_FORM_NEXT_DID + 0xffffff;
@@ -3974,19 +3952,18 @@ static int stm_fc_configuration(MPT_STM_PRIV *priv, int sleep)
 		wwpn.High = le32_to_cpu(FcDevice0->WWPN.High);
 		port_id = le32_to_cpu(FcDevice0->PortIdentifier);
 		protocol = FcDevice0->Protocol;
-		if (FcDevice0->Flags & MPI_FC_DEVICE_PAGE0_FLAGS_TARGETID_BUS_VALID) {
+		if (FcDevice0->Flags & MPI_FC_DEVICE_PAGE0_FLAGS_TARGETID_BUS_VALID)
 			target = FcDevice0->CurrentTargetID;
-		} else {
+		else
 			target = -1;
-		}
 
 #if 0
-		printk("%s using ADISC to get hard address of port id %x\n",
+		printk(KERN_INFO "%s using ADISC to get hard address of port id %x\n",
 		       ioc->name, port_id);
 		if (stm_get_hard_address(priv, port_id, &i, sleep))
-			printk("%s ADISC failed!\n", ioc->name);
+			printk(KERN_ERR "%s ADISC failed!\n", ioc->name);
 		else
-			printk("%s port id's %x hard address is %x\n",
+			printk(KERN_INFO "%s port id's %x hard address is %x\n",
 			       ioc->name, port_id, i);
 #endif
 
@@ -4004,15 +3981,13 @@ static int stm_fc_enable_els(MPT_STM_PRIV *priv, int els, int sleep)
 	FCPortPage8_t	*FcPort8;
 	TRACE_ENTRY();
 	memset(priv->hw->config_buf, 0, sizeof(priv->hw->config_buf));
-	if (stm_get_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 8, 0, sleep)) {
+	if (stm_get_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 8, 0, sleep))
 		return -1;
-	}
 	FcPort8 = (FCPortPage8_t *)priv->hw->config_buf;
 	/* clear the ELS bit */
 	FcPort8->BitVector[els / 32] &= ~cpu_to_le32(1 << (els & 31));
-	if (stm_set_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 8, 0, sleep)) {
+	if (stm_set_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 8, 0, sleep))
 		return -1;
-	}
 	TRACE_EXIT();
 
 	return 0;
@@ -4025,15 +4000,13 @@ static int stm_fc_enable_immediate_errors(MPT_STM_PRIV *priv, int sleep)
 	FCPortPage1_t	*FcPort1;
 
 	memset(priv->hw->config_buf, 0, sizeof(priv->hw->config_buf));
-	if (stm_get_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 1, 0, sleep)) {
+	if (stm_get_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 1, 0, sleep))
 		return -1;
-	}
 	FcPort1 = (FCPortPage1_t *)priv->hw->config_buf;
 	/* set the Immediate Error Reply bit */
 	FcPort1->Flags |= cpu_to_le32(MPI_FCPORTPAGE1_FLAGS_IMMEDIATE_ERROR_REPLY);
-	if (stm_set_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 1, 0, sleep)) {
+	if (stm_set_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 1, 0, sleep))
 		return -1;
-	}
 
 	return 0;
 }
@@ -4042,17 +4015,16 @@ static int stm_fc_enable_immediate_errors(MPT_STM_PRIV *priv, int sleep)
 static int stm_fc_enable_target_mode_oxid(MPT_STM_PRIV *priv, int sleep)
 {
 	FCPortPage1_t	*FcPort1;
+
 	TRACE_ENTRY();
 	memset(priv->hw->config_buf, 0, sizeof(priv->hw->config_buf));
-	if (stm_get_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 1, 0, sleep)) {
+	if (stm_get_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 1, 0, sleep))
 		return -1;
-	}
 	FcPort1 = (FCPortPage1_t *)priv->hw->config_buf;
 	/* set the Target Mode OX_ID bit */
 	FcPort1->Flags |= cpu_to_le32(MPI_FCPORTPAGE1_FLAGS_TARGET_MODE_OXID);
-	if (stm_set_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 1, 0, sleep)) {
+	if (stm_set_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 1, 0, sleep))
 		return -1;
-	}
 	TRACE_EXIT();
 
 	return 0;
@@ -4062,11 +4034,11 @@ static int stm_fc_enable_target_mode_oxid(MPT_STM_PRIV *priv, int sleep)
 static int stm_fc_set_wwn(MPT_STM_PRIV *priv, WwnFormat_t *wwn, int sleep)
 {
 	FCPortPage1_t	*FcPort1;
+
 	TRACE_ENTRY();
 	memset(priv->hw->config_buf, 0, sizeof(priv->hw->config_buf));
-	if (stm_get_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 1, 0, sleep)) {
+	if (stm_get_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 1, 0, sleep))
 		return -1;
-	}
 	FcPort1 = (FCPortPage1_t *)priv->hw->config_buf;
 	/* set the WWPN and WWNN */
 	FcPort1->NoSEEPROMWWPN.Low = cpu_to_le32(wwn->PortNameLow);
@@ -4076,9 +4048,8 @@ static int stm_fc_set_wwn(MPT_STM_PRIV *priv, WwnFormat_t *wwn, int sleep)
 	/* set the Ignore SEEPROM WWNs bit */
 	FcPort1->Flags |=
 		cpu_to_le32(MPI_FCPORTPAGE1_FLAGS_FORCE_USE_NOSEEPROM_WWNS);
-	if (stm_set_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 1, 0, sleep)) {
+	if (stm_set_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 1, 0, sleep))
 		return -1;
-	}
 
 	stm_reset_link(priv);
 	TRACE_EXIT();
@@ -4093,26 +4064,22 @@ static int stm_fc_enable_aliases(MPT_STM_PRIV *priv, int num_aliases, int sleep)
 
 	TRACE_ENTRY();
 	memset(priv->hw->config_buf, 0, sizeof(priv->hw->config_buf));
-	if (stm_get_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 1, 0, sleep)) {
+	if (stm_get_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 1, 0, sleep))
 		return -1;
-	}
 	FcPort1 = (FCPortPage1_t *)priv->hw->config_buf;
 	if (set_aliases_in_fcportpage1) {
 		/* set the number of aliases requested */
 		FcPort1->NumRequestedAliases = (u8)num_aliases;
 	} else {
 		/* make sure the value in the page is low enough */
-		if (FcPort1->NumRequestedAliases > NUM_ALIASES) {
+		if (FcPort1->NumRequestedAliases > NUM_ALIASES)
 			FcPort1->NumRequestedAliases = NUM_ALIASES;
-		}
 	}
 
-	if (num_aliases > 0) {
+	if (num_aliases > 0)
 		FcPort1->TopologyConfig = MPI_FCPORTPAGE1_TOPOLOGY_NLPORT;
-	}
-	if (stm_set_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 1, 0, sleep)) {
+	if (stm_set_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 1, 0, sleep))
 		return -1;
-	}
 	TRACE_EXIT();
 	return 0;
 }
@@ -4134,10 +4101,9 @@ static int stm_get_config_page(MPT_STM_PRIV *priv, int type, int number,
 	i = stm_do_config_action(priv, MPI_CONFIG_ACTION_PAGE_HEADER,
 				 type, number, address, 0, sleep);
 	if (i) {
-		if (!priv->in_reset) {
+		if (!priv->in_reset)
 			printk(KERN_ERR MYNAM
 			       ":%s timed out getting config page header\n", ioc->name);
-		}
 		return -1;
 	}
 
@@ -4148,11 +4114,10 @@ static int stm_get_config_page(MPT_STM_PRIV *priv, int type, int number,
 	}
 
 	ioc_status = le16_to_cpu(rep->IOCStatus) & MPI_IOCSTATUS_MASK;
-	if (type > MPI_CONFIG_PAGETYPE_EXTENDED) {
+	if (type > MPI_CONFIG_PAGETYPE_EXTENDED)
 		length = le16_to_cpu(rep->ExtPageLength);
-	} else {
+	else
 		length = rep->Header.PageLength;
-	}
 	if (ioc_status != MPI_IOCSTATUS_SUCCESS || length == 0) {
 		if (ioc_status != MPI_IOCSTATUS_CONFIG_INVALID_PAGE) {
 			printk(KERN_ERR MYNAM
@@ -4249,11 +4214,10 @@ static int stm_set_config_page(MPT_STM_PRIV *priv, int type, int number,
 	}
 
 	ioc_status = le16_to_cpu(rep->IOCStatus) & MPI_IOCSTATUS_MASK;
-	if (type > MPI_CONFIG_PAGETYPE_EXTENDED) {
+	if (type > MPI_CONFIG_PAGETYPE_EXTENDED)
 		length = le16_to_cpu(rep->ExtPageLength);
-	} else {
+	else
 		length = rep->Header.PageLength;
-	}
 	if (ioc_status != MPI_IOCSTATUS_SUCCESS || length == 0) {
 		if (ioc_status != MPI_IOCSTATUS_CONFIG_INVALID_PAGE) {
 			printk(KERN_ERR MYNAM
@@ -4273,10 +4237,9 @@ static int stm_set_config_page(MPT_STM_PRIV *priv, int type, int number,
 	i = stm_do_config_action(priv, MPI_CONFIG_ACTION_PAGE_WRITE_CURRENT,
 				 type, number, address, length, sleep);
 	if (i) {
-		if (!priv->in_reset) {
+		if (!priv->in_reset)
 			printk(KERN_ERR MYNAM
 			       ":%s timed out setting config page\n", ioc->name);
-		}
 		return -1;
 	}
 
@@ -4343,7 +4306,7 @@ static int stm_do_config_action(MPT_STM_PRIV *priv, int action, int type,
 	 */
 	mf = priv->config_mf;
 	if (mf == NULL) {
-		mf = mpt_msg_frame_alloc(ioc,-1);
+		mf = mpt_msg_frame_alloc(ioc, -1);
 		if (mf == NULL) {
 			printk(KERN_ERR MYNAM
 			       ":%s failed to get message frame\n", ioc->name);
@@ -4424,9 +4387,8 @@ static void stm_wait(MPT_STM_PRIV *priv, int milliseconds, int sleep)
 			schedule_timeout(milliseconds);
 		} else {
 #ifndef __linux__
-			if (priv->poll_enabled) {
+			if (priv->poll_enabled)
 				_mpt_poll(priv->ioc);
-			}
 #endif
 			mdelay(milliseconds);
 		}
@@ -4442,9 +4404,8 @@ stm_wait_for(MPT_STM_PRIV *priv, volatile int *flag, int seconds, int sleep)
 
 	TRACE_ENTRY();
 	for (i = 0; i < seconds * ((sleep == CAN_SLEEP) ? HZ : 1000); i++) {
-		if (!(*flag)) {
+		if (!(*flag))
 			return 0;
-		}
 		if (mpt_GetIocState(ioc, 1) != MPI_IOC_STATE_OPERATIONAL) {
 			printk(KERN_ERR MYNAM
 			       ":%s IOC is not operational (doorbell = %x)\n",
@@ -4456,9 +4417,8 @@ stm_wait_for(MPT_STM_PRIV *priv, volatile int *flag, int seconds, int sleep)
 			schedule_timeout(1);
 		} else {
 #ifndef __linux__
-			if (priv->poll_enabled) {
+			if (priv->poll_enabled)
 				_mpt_poll(priv->ioc);
-			}
 #endif
 			mdelay(1);
 		}
@@ -4482,9 +4442,8 @@ static int __init _mpt_stm_init(void)
 	if (function_name[0] == '\0')
 		strcpy(function_name, __func__);
 
-	for (i = 0; i < MPT_MAX_ADAPTERS; i++) {
+	for (i = 0; i < MPT_MAX_ADAPTERS; i++)
 		mpt_stm_priv[i] = NULL;
-	}
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 	/*
@@ -4532,9 +4491,8 @@ static int mpt_stm_adapter_install(MPT_ADAPTER *ioc)
 		return -1;
 	}
 	memset(priv, 0, sizeof(*priv));
-	if (ioc->pfacts[0].ProtocolFlags & MPI_PORTFACTS_PROTOCOL_TARGET) {
+	if (ioc->pfacts[0].ProtocolFlags & MPI_PORTFACTS_PROTOCOL_TARGET)
 		priv->enable_target_mode = 1;
-	}
 
 	priv->ioc = ioc;
 
@@ -4543,12 +4501,10 @@ static int mpt_stm_adapter_install(MPT_ADAPTER *ioc)
 				       offsetof(TargetAssistRequest_t, SGL)) / sizeof(MPT_STM_SIMPLE);
 
 	priv->num_cmd_buffers = NUM_CMD_BUFFERS;
-	if (priv->num_cmd_buffers > ioc->pfacts[0].MaxPostedCmdBuffers) {
+	if (priv->num_cmd_buffers > ioc->pfacts[0].MaxPostedCmdBuffers)
 		priv->num_cmd_buffers = ioc->pfacts[0].MaxPostedCmdBuffers;
-	}
-	if (priv->num_cmd_buffers > ioc->req_depth - 16) {
+	if (priv->num_cmd_buffers > ioc->req_depth - 16)
 		priv->num_cmd_buffers = ioc->req_depth - 16;
-	}
 	priv->num_els_buffers = NUM_ELS_BUFFERS;
 
 	priv->poll_enabled = 1;
@@ -4568,9 +4524,8 @@ static int mpt_stm_adapter_install(MPT_ADAPTER *ioc)
 	mpt_stm_priv[ioc->id] = priv;
 
 	max_aliases = 0;
-	if (IsScsi(priv)) {
+	if (IsScsi(priv))
 		max_aliases = 14;
-	}
 	if (IsFc(priv)) {
 		memset(priv->hw->config_buf, 0, sizeof(priv->hw->config_buf));
 		if (!stm_get_config_page(priv, MPI_CONFIG_PAGETYPE_FC_PORT, 0, 0,
@@ -4580,11 +4535,10 @@ static int mpt_stm_adapter_install(MPT_ADAPTER *ioc)
 		}
 	}
 
-	if (num_aliases < max_aliases) {
+	if (num_aliases < max_aliases)
 		priv->num_aliases = num_aliases;
-	} else {
+	else
 		priv->num_aliases = max_aliases;
-	}
 
 	TRACE_EXIT();
 
@@ -4642,27 +4596,23 @@ static int mpt_stm_adapter_online(MPT_STM_PRIV *priv)
 	for (i = 0; i < priv->num_cmd_buffers; i++)
 		priv->io_state[i] = 0;
 
-	if (IsScsi(priv)) {
+	if (IsScsi(priv))
 		stm_scsi_configuration(priv, NO_SLEEP);
-	}
 
-	if (IsSas(priv)) {
+	if (IsSas(priv))
 		stm_sas_configuration(priv, NO_SLEEP);
-	}
 
 	if (priv->enable_target_mode) {
 		if (IsSas(priv)) {
 			stm_cmd_buf_post_base(priv, 1);
 		} else {
-			for (i = 0; i < priv->num_cmd_buffers; i++) {
+			for (i = 0; i < priv->num_cmd_buffers; i++)
 				stm_cmd_buf_post(priv, i);
-			}
 		}
 
 		if (IsFc(priv)) {
-			for (i = 0; i < priv->num_els_buffers; i++) {
+			for (i = 0; i < priv->num_els_buffers; i++)
 				stm_link_serv_buf_post(priv, i);
-			}
 
 			stm_fc_enable_els(priv, RSCN, NO_SLEEP);
 
@@ -4676,17 +4626,15 @@ static int mpt_stm_adapter_online(MPT_STM_PRIV *priv)
 
 	stm_port_enable(priv);
 
-	if (IsFc(priv)) {
+	if (IsFc(priv))
 		stm_reset_link(priv);
-	}
 
 	if (IsFc(priv)) {
 		/* wait up to 5 seconds for the link to come up */
 		for (i = 0; i < 50; i++) {
 			stm_fc_configuration(priv, NO_SLEEP);
-			if (priv->port_flags != MPI_FCPORTPAGE0_FLAGS_ATTACH_NO_INIT) {
+			if (priv->port_flags != MPI_FCPORTPAGE0_FLAGS_ATTACH_NO_INIT)
 				break;
-			}
 			mdelay(100);
 		}
 	}
@@ -4723,21 +4671,17 @@ static void mpt_stm_adapter_dispose(MPT_STM_PRIV *priv)
 	if (mpt_GetIocState(ioc, 1) == MPI_IOC_STATE_OPERATIONAL) {
 		if (priv->enable_target_mode && priv->tgt->target_enable) {
 			stm_target_mode_abort(priv);
-
-			if (IsFc(priv)) {
+			if (IsFc(priv))
 				stm_link_serv_abort(priv);
-			}
 		}
 	}
 
 	mpt_stm_priv[ioc->id] = NULL;
-	if (priv->hw != NULL) {
+	if (priv->hw != NULL)
 		pci_free_consistent(ioc->pcidev, sizeof(*priv->hw),
 				    priv->hw, priv->hw_dma);
-	}
-	if (priv->config_mf != NULL) {
+	if (priv->config_mf != NULL)
 		mpt_free_msg_frame(_HANDLE_IOC_ID, priv->config_mf);
-	}
 	kfree(priv);
 
 	TRACE_EXIT();
@@ -4748,15 +4692,15 @@ static void stmapp_set_status(MPT_STM_PRIV *priv, CMD *cmd, int status)
 {
 	TRACE_ENTRY();
 	if (IsScsi(priv)) {
-		SCSI_RSP	*rsp = (SCSI_RSP *)cmd->rsp;
+		SCSI_RSP *rsp = (SCSI_RSP *)cmd->rsp;
 
 		rsp->Status = (u8)status;
 	} else if (IsSas(priv)) {
-		SSP_RSP		*rsp = (SSP_RSP *)cmd->rsp;
+		SSP_RSP *rsp = (SSP_RSP *)cmd->rsp;
 
 		rsp->Status = (u8)status;
 	} else {
-		FCP_RSP		*rsp = (FCP_RSP *)cmd->rsp;
+		FCP_RSP *rsp = (FCP_RSP *)cmd->rsp;
 
 		rsp->FcpStatus = (u8)status;
 	}
@@ -4776,13 +4720,11 @@ static void stmapp_abts_process(MPT_STM_PRIV *priv, int rx_id,
 	TRACE_ENTRY();
 	io_state = priv->io_state + rx_id;
 
-	if (*io_state & IO_STATE_ABORTED) {
+	if (*io_state & IO_STATE_ABORTED)
 		return;
-	}
 
-	if (*io_state & IO_STATE_POSTED) {
+	if (*io_state & IO_STATE_POSTED)
 		return;
-	}
 
 	cmd = priv->hw->cmd_buf + rx_id;
 
@@ -4817,17 +4759,17 @@ static void stmapp_srr_process(MPT_STM_PRIV *priv, int rx_id, int r_ctl,
 			       int index)
 {
 #ifdef CONFIG_SCST_DEBUG
-	MPT_ADAPTER		*ioc = priv->ioc;
+	MPT_ADAPTER	*ioc = priv->ioc;
 #endif
 	FC_ELS		*fc_els_buf;
 	volatile int	*io_state;
-	u32			msg_context;
-	CMD			*cmd;
-	int			need_abort = 0;
-	u32			rel_off;
-	u32			dat_len;
-	u32			adjust;
-	u32			block_size = 512;
+	u32		msg_context;
+	CMD		*cmd;
+	int		need_abort = 0;
+	u32		rel_off;
+	u32		dat_len;
+	u32		adjust;
+	u32		block_size = 512;
 
 	TRACE_ENTRY();
 	fc_els_buf = &priv->hw->fc_link_serv_buf[index];
@@ -4983,9 +4925,8 @@ static void stmapp_srr_convert_ta_to_tss(MPT_STM_PRIV *priv, int index)
 	mpt_free_msg_frame(_HANDLE_IOC_ID, priv->current_mf[index]);
 
 	flags = TARGET_STATUS_SEND_FLAGS_AUTO_GOOD_STATUS;
-	if (*io_state & IO_STATE_AUTO_REPOST) {
+	if (*io_state & IO_STATE_AUTO_REPOST)
 		flags |= TARGET_STATUS_SEND_FLAGS_REPOST_CMD_BUFFER;
-	}
 	stm_send_target_status(priv, reply_word, index, flags, lun, tag);
 	TRACE_EXIT();
 }
@@ -5034,9 +4975,8 @@ static void stmapp_srr_adjust_offset(MPT_STM_PRIV *priv, int index)
 			n = 0;
 		} else {
 			length = MPI_SGE_LENGTH(flags_length);
-			if (offset + length > new_offset) {
+			if (offset + length > new_offset)
 				break;
-			}
 			offset += length;
 			sge_simple++;
 			n++;
@@ -5059,9 +4999,8 @@ static void stmapp_srr_adjust_offset(MPT_STM_PRIV *priv, int index)
 			memmove(&req->SGL, sge_simple,
 				(priv->num_sge_target_assist - n) *
 				sizeof(MPT_STM_SIMPLE));
-			if (req->ChainOffset != 0) {
+			if (req->ChainOffset != 0)
 				req->ChainOffset -= n * sizeof(MPT_STM_SIMPLE) / sizeof(u32);
-			}
 		} else {
 			/* we have to build a chain on top of the first SGE */
 			length = le16_to_cpu(sge_chain->Length) -
@@ -5111,7 +5050,7 @@ static void stmapp_target_error_prioprity_io(MPT_STM_PRIV *priv, u32 reply_word,
 
 	stm_target_cleanup(priv, index);
 	*io_state = IO_STATE_HIGH_PRIORITY;
-	printk(KERN_ERR MYNAM ": HIGH_PRIORITY %s\n", __FUNCTION__);
+	printk(KERN_ERR MYNAM ": HIGH_PRIORITY %s\n", __func__);
 
 	cmd = priv->hw->cmd_buf + index;
 	memset(cmd->rsp, 0, sizeof(cmd->rsp));
@@ -5332,35 +5271,32 @@ static void stmapp_set_sense_info(MPT_STM_PRIV *priv, CMD *cmd, int sense_key,
 
 	TRACE_ENTRY();
 	if (IsScsi(priv)) {
-		SCSI_RSP	*rsp = (SCSI_RSP *)cmd->rsp;
+		SCSI_RSP *rsp = (SCSI_RSP *)cmd->rsp;
 
 		rsp->Status = STS_CHECK_CONDITION;
 		rsp->Valid |= SCSI_SENSE_LEN_VALID;
 		rsp->SenseDataListLength = cpu_to_be32(14);
 		info = rsp->SenseData;
-		if (rsp->Valid & SCSI_RSP_LEN_VALID) {
+		if (rsp->Valid & SCSI_RSP_LEN_VALID)
 			info += be32_to_cpu(rsp->PktFailuresListLength);
-		}
 	} else if (IsSas(priv)) {
-		SSP_RSP		*rsp = (SSP_RSP *)cmd->rsp;
+		SSP_RSP *rsp = (SSP_RSP *)cmd->rsp;
 
 		rsp->Status = STS_CHECK_CONDITION;
 		rsp->DataPres |= SSP_SENSE_LEN_VALID;
 		rsp->SenseDataLength = cpu_to_be32(14);
 		info = rsp->ResponseSenseData;
-		if (rsp->DataPres & SSP_RSP_LEN_VALID) {
+		if (rsp->DataPres & SSP_RSP_LEN_VALID)
 			info += be32_to_cpu(rsp->ResponseDataLength);
-		}
 	} else {
-		FCP_RSP		*rsp = (FCP_RSP *)cmd->rsp;
+		FCP_RSP *rsp = (FCP_RSP *)cmd->rsp;
 
 		rsp->FcpStatus = STS_CHECK_CONDITION;
 		rsp->FcpFlags |= FCP_SENSE_LEN_VALID;
 		rsp->FcpSenseLength = cpu_to_be32(14);
 		info = rsp->FcpSenseData - sizeof(rsp->FcpResponseData);
-		if (rsp->FcpFlags & FCP_RSP_LEN_VALID) {
+		if (rsp->FcpFlags & FCP_RSP_LEN_VALID)
 			info += be32_to_cpu(rsp->FcpResponseLength);
-		}
 	}
 
 	info[0] = 0x70;
@@ -5424,7 +5360,6 @@ static int mpt_proc_log_entry_build(struct scst_tgt_template *templ)
 
 	root = scst_proc_get_tgt_root(templ);
 	if (root) {
-
 		mpt_log_proc_data.data = (void *)templ->name;
 		p = scst_create_proc_entry(root, MPT_PROC_LOG_ENTRY_NAME,
 					&mpt_log_proc_data);
@@ -5454,10 +5389,9 @@ static void mpt_proc_log_entry_clean(struct scst_tgt_template *templ)
 	TRACE_ENTRY();
 
 	root = scst_proc_get_tgt_root(templ);
-
-	if (root) {
+	if (root)
 		remove_proc_entry(MPT_PROC_LOG_ENTRY_NAME, root);
-	}
+
 	TRACE_EXIT();
 #endif
 #endif
@@ -5474,9 +5408,8 @@ static int __init mpt_target_init(void)
 		goto out;
 
 	res = mpt_proc_log_entry_build(&tgt_template);
-	if (res < 0) {
+	if (res < 0)
 		goto out_unreg_target;
-	}
 
 out:
 	TRACE_EXIT_RES(res);
