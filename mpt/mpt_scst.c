@@ -44,14 +44,6 @@
 #include <scst_debug.h>
 #endif
 
-#if defined(CONFIG_SCST_PROC) && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
-/*
- * See also commit "proc: Make the PROC_I() and PDE() macros internal to
- * procfs" (c30480b92cf497aa3b463367a82f1c2fdc5c46e9).
- */
-#include <../fs/proc/internal.h> /* PDE() */
-#endif
-
 #include "mpt_scst.h"
 
 #define MYNAM "mpt_scst"
@@ -223,7 +215,11 @@ static ssize_t mpt_proc_target_write(struct file *file, const char __user *buf,
 				     size_t length, loff_t *off)
 {
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
 	struct mpt_tgt *tgt = (struct mpt_tgt *)PDE(file->f_dentry->d_inode)->data;
+#else
+	struct mpt_tgt *tgt = (struct mpt_tgt *)PDE_DATA(file->f_dentry->d_inode);
+#endif
 	MPT_ADAPTER *ioc = tgt->priv->ioc;
 	int res = 0;
 	char tmp[32+1];
