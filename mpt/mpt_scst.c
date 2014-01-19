@@ -286,8 +286,8 @@ static void mpt_inquiry_no_tagged_commands(MPT_STM_PRIV *priv,
 static int mpt_rdy_to_xfer(struct scst_cmd *scst_cmd);
 static void mpt_on_free_cmd(struct scst_cmd *scst_cmd);
 static void mpt_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd);
-static int mpt_handle_task_mgmt(MPT_STM_PRIV * priv, u32 reply_word,
-		int task_mgmt, int lun);
+static int mpt_handle_task_mgmt(MPT_STM_PRIV *priv, u32 reply_word,
+				int task_mgmt, int lun);
 static int mpt_send_cmd_to_scst(struct mpt_cmd *cmd,
 	enum scst_exec_context context);
 
