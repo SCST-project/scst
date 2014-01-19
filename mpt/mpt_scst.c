@@ -605,6 +605,7 @@ static void mpt_alloc_session_done(struct scst_session *scst_sess, void *data,
 				kfree(cmd);
 			}
 		}
+		__clear_bit(MPT_SESS_INITING, &sess->sess_flags);
 	} else {
 		PRINT_INFO(MYNAM ": Session initialization failed, "
 			   "sending BUSY status to all deferred commands %p",
@@ -625,8 +626,6 @@ static void mpt_alloc_session_done(struct scst_session *scst_sess, void *data,
 		if (atomic_dec_and_test(&tgt->sess_count))
 			wake_up_all(&tgt->waitQ);
 	}
-
-	__clear_bit(MPT_SESS_INITING, &sess->sess_flags);
 
 	TRACE_EXIT();
 	return;
@@ -4488,7 +4487,7 @@ static int mpt_stm_adapter_install(MPT_ADAPTER *ioc)
 	if (priv == NULL) {
 		printk(KERN_ERR MYNAM
 		       ":%s failed to allocate private structure\n", ioc->name);
-		return -1;
+		return -ENOMEM;
 	}
 	memset(priv, 0, sizeof(*priv));
 	if (ioc->pfacts[0].ProtocolFlags & MPI_PORTFACTS_PROTOCOL_TARGET)
