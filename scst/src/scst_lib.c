@@ -8047,6 +8047,8 @@ static void scst_free_all_UA(struct scst_tgt_dev *tgt_dev)
  */
 struct scst_cmd *__scst_check_deferred_commands_locked(
 	struct scst_order_data *order_data, bool return_first)
+	__releases(&order_data->sn_lock)
+	__acquires(&order_data->sn_lock)
 {
 	struct scst_cmd *res = NULL, *cmd, *t;
 	typeof(order_data->expected_sn) expected_sn = order_data->expected_sn;
