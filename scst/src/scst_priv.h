@@ -564,6 +564,54 @@ void scst_acn_sysfs_del(struct scst_acn *acn);
 
 #endif /* CONFIG_SCST_PROC */
 
+/*
+ * Check SPC-2 reservation state.
+ * Must not be called from atomic context.
+ */
+static inline bool scst_dev_reserved(struct scst_device *dev)
+{
+	return dev->reserved_by;
+}
+
+/*
+ * Whether @sess holds a reservation on @dev.
+ * The caller may but does not have to hold dev->dev_lock.
+ */
+static inline bool scst_is_reservation_holder(struct scst_device *dev,
+					      struct scst_session *sess)
+{
+	EXTRACHECKS_BUG_ON(sess == NULL);
+	return dev->reserved_by == sess;
+}
+
+/*
+ * Whether another session than @sess holds a reservation on @dev.
+ * The caller may but does not have to hold dev->dev_lock.
+ */
+static inline bool scst_is_not_reservation_holder(struct scst_device *dev,
+						  struct scst_session *sess)
+{
+	struct scst_session *reserved_by = dev->reserved_by;
+
+	EXTRACHECKS_BUG_ON(sess == NULL);
+	return reserved_by != NULL && reserved_by != sess;
+}
+
+static inline void scst_reserve_dev(struct scst_device *dev,
+				    struct scst_session *sess)
+{
+	EXTRACHECKS_BUG_ON(sess == NULL);
+	dev->reserved_by = sess;
+}
+
+static inline void scst_clear_dev_reservation(struct scst_device *dev)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&dev->dev_lock);
+#endif
+	dev->reserved_by = NULL;
+}
+
 void scst_tgt_dev_del_free_UA(struct scst_tgt_dev *tgt_dev,
 			      struct scst_tgt_dev_UA *ua);
 void scst_dev_check_set_UA(struct scst_device *dev,

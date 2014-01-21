@@ -568,9 +568,6 @@ enum scst_exec_context {
 /* Set if tgt_dev has Unit Attention sense */
 #define SCST_TGT_DEV_UA_PENDING		0
 
-/* Set if tgt_dev is RESERVED by another session */
-#define SCST_TGT_DEV_RESERVED		1
-
 /*************************************************************
  ** I/O grouping types. Changing them don't forget to change
  ** the corresponding *_STR values in scst_const.h!
@@ -2355,13 +2352,13 @@ struct scst_dev_registrant {
 struct scst_device {
 	unsigned int type;	/* SCSI type of the device */
 
+	/* Set if reserved via the SPC-2 SCSI RESERVE command. */
+	struct scst_session *reserved_by;
+
 	/*************************************************************
 	 ** Dev's flags. Updates serialized by dev_lock or suspended
 	 ** activity
 	 *************************************************************/
-
-	/* Set if dev is RESERVED */
-	unsigned int dev_reserved:1;
 
 	/* Set if double reset UA is possible */
 	unsigned int dev_double_ua_possible:1;

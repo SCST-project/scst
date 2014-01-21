@@ -2037,7 +2037,6 @@ static int scst_reserve_local(struct scst_cmd *cmd)
 {
 	int res = SCST_EXEC_NOT_COMPLETED;
 	struct scst_device *dev;
-	struct scst_tgt_dev *tgt_dev_tmp;
 
 	TRACE_ENTRY();
 
@@ -2079,21 +2078,12 @@ static int scst_reserve_local(struct scst_cmd *cmd)
 	}
 
 	spin_lock_bh(&dev->dev_lock);
-
-	if (test_bit(SCST_TGT_DEV_RESERVED, &cmd->tgt_dev->tgt_dev_flags)) {
+	if (scst_is_not_reservation_holder(dev, cmd->sess)) {
 		spin_unlock_bh(&dev->dev_lock);
 		scst_set_cmd_error_status(cmd, SAM_STAT_RESERVATION_CONFLICT);
 		goto out_done;
 	}
-
-	list_for_each_entry(tgt_dev_tmp, &dev->dev_tgt_dev_list,
-			    dev_tgt_dev_list_entry) {
-		if (cmd->tgt_dev != tgt_dev_tmp)
-			set_bit(SCST_TGT_DEV_RESERVED,
-				&tgt_dev_tmp->tgt_dev_flags);
-	}
-	dev->dev_reserved = 1;
-
+	scst_reserve_dev(dev, cmd->sess);
 	spin_unlock_bh(&dev->dev_lock);
 
 out:
@@ -2113,7 +2103,6 @@ out_done:
 static int scst_release_local(struct scst_cmd *cmd)
 {
 	int res = SCST_EXEC_NOT_COMPLETED;
-	struct scst_tgt_dev *tgt_dev_tmp;
 	struct scst_device *dev;
 
 	TRACE_ENTRY();
@@ -2142,7 +2131,12 @@ static int scst_release_local(struct scst_cmd *cmd)
 	 * is closed (see scst_free_tgt_dev()), but this actually doesn't
 	 * matter, so use lock and no retest for DEV_RESERVED bits again
 	 */
-	if (test_bit(SCST_TGT_DEV_RESERVED, &cmd->tgt_dev->tgt_dev_flags)) {
+	if (scst_is_not_reservation_holder(dev, cmd->sess)) {
+		/*
+		 * SPC-2 requires to report SCSI status GOOD if a RELEASE
+		 * command fails because a reservation is held by another
+		 * session.
+		 */
 		res = SCST_EXEC_COMPLETED;
 		cmd->status = 0;
 		cmd->msg_status = 0;
@@ -2150,13 +2144,7 @@ static int scst_release_local(struct scst_cmd *cmd)
 		cmd->driver_status = 0;
 		cmd->completed = 1;
 	} else {
-		list_for_each_entry(tgt_dev_tmp,
-				    &dev->dev_tgt_dev_list,
-				    dev_tgt_dev_list_entry) {
-			clear_bit(SCST_TGT_DEV_RESERVED,
-				&tgt_dev_tmp->tgt_dev_flags);
-		}
-		dev->dev_reserved = 0;
+		scst_clear_dev_reservation(dev);
 	}
 
 	spin_unlock_bh(&dev->dev_lock);
@@ -2205,7 +2193,7 @@ static int scst_persistent_reserve_in_local(struct scst_cmd *cmd)
 		goto out_done;
 	}
 
-	if (dev->dev_reserved) {
+	if (scst_dev_reserved(dev)) {
 		TRACE_PR("PR command rejected, because device %s holds regular "
 			"reservation", dev->virt_name);
 		scst_set_cmd_error_status(cmd, SAM_STAT_RESERVATION_CONFLICT);
@@ -2309,7 +2297,7 @@ static int scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 	TRACE(TRACE_SCSI, "PR action %x for '%s' (LUN %llx) from '%s'", action,
 	    dev->virt_name, tgt_dev->lun, session->initiator_name);
 
-	if (dev->dev_reserved) {
+	if (scst_dev_reserved(dev)) {
 		TRACE_PR("PR command rejected, because device %s holds regular "
 			"reservation", dev->virt_name);
 		scst_set_cmd_error_status(cmd, SAM_STAT_RESERVATION_CONFLICT);
@@ -2464,8 +2452,7 @@ int __scst_check_local_events(struct scst_cmd *cmd, bool preempt_tests_only)
 		cmd->double_ua_possible = 1;
 
 	/* Reserve check before Unit Attention */
-	if (unlikely(test_bit(SCST_TGT_DEV_RESERVED,
-			      &tgt_dev->tgt_dev_flags))) {
+	if (unlikely(scst_is_not_reservation_holder(dev, tgt_dev->sess))) {
 		if ((cmd->op_flags & SCST_REG_RESERVE_ALLOWED) == 0) {
 			scst_set_cmd_error_status(cmd,
 				SAM_STAT_RESERVATION_CONFLICT);
@@ -3308,11 +3295,9 @@ static int scst_pre_dev_done(struct scst_cmd *cmd)
 			cmd, cmd->status);
 
 		if ((cmd->cdb[0] == RESERVE) || (cmd->cdb[0] == RESERVE_10)) {
-			if (!test_bit(SCST_TGT_DEV_RESERVED,
-					&cmd->tgt_dev->tgt_dev_flags)) {
-				struct scst_tgt_dev *tgt_dev_tmp;
-				struct scst_device *dev = cmd->dev;
+			struct scst_device *dev = cmd->dev;
 
+			if (scst_is_reservation_holder(dev, cmd->sess)) {
 				TRACE(TRACE_SCSI, "RESERVE failed lun=%lld, "
 					"status=%x",
 					(long long unsigned int)cmd->lun,
@@ -3320,15 +3305,8 @@ static int scst_pre_dev_done(struct scst_cmd *cmd)
 				PRINT_BUFF_FLAG(TRACE_SCSI, "Sense", cmd->sense,
 					cmd->sense_valid_len);
 
-				/* Clearing the reservation */
 				spin_lock_bh(&dev->dev_lock);
-				list_for_each_entry(tgt_dev_tmp,
-						    &dev->dev_tgt_dev_list,
-						    dev_tgt_dev_list_entry) {
-					clear_bit(SCST_TGT_DEV_RESERVED,
-						&tgt_dev_tmp->tgt_dev_flags);
-				}
-				dev->dev_reserved = 0;
+				scst_clear_dev_reservation(dev);
 				spin_unlock_bh(&dev->dev_lock);
 			}
 		}

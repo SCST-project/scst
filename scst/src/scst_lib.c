@@ -4197,8 +4197,6 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 
 	spin_lock_bh(&dev->dev_lock);
 	list_add_tail(&tgt_dev->dev_tgt_dev_list_entry, &dev->dev_tgt_dev_list);
-	if (dev->dev_reserved)
-		__set_bit(SCST_TGT_DEV_RESERVED, &tgt_dev->tgt_dev_flags);
 	spin_unlock_bh(&dev->dev_lock);
 
 	head = &sess->sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_FN(tgt_dev->lun)];
@@ -5057,16 +5055,9 @@ static void scst_clear_reservation(struct scst_tgt_dev *tgt_dev)
 	TRACE_ENTRY();
 
 	spin_lock_bh(&dev->dev_lock);
-	if (dev->dev_reserved &&
-	    !test_bit(SCST_TGT_DEV_RESERVED, &tgt_dev->tgt_dev_flags)) {
+	if (scst_is_reservation_holder(dev, tgt_dev->sess)) {
 		/* This is one who holds the reservation */
-		struct scst_tgt_dev *tgt_dev_tmp;
-		list_for_each_entry(tgt_dev_tmp, &dev->dev_tgt_dev_list,
-				    dev_tgt_dev_list_entry) {
-			clear_bit(SCST_TGT_DEV_RESERVED,
-				    &tgt_dev_tmp->tgt_dev_flags);
-		}
-		dev->dev_reserved = 0;
+		scst_clear_dev_reservation(dev);
 		release = 1;
 	}
 	spin_unlock_bh(&dev->dev_lock);
@@ -7668,22 +7659,12 @@ void scst_process_reset(struct scst_device *dev,
 	TRACE_ENTRY();
 
 	/* Clear RESERVE'ation, if necessary */
-	if (dev->dev_reserved) {
-		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
-				    dev_tgt_dev_list_entry) {
-			TRACE_MGMT_DBG("Clearing RESERVE'ation for "
-				"tgt_dev LUN %lld",
-				(long long unsigned int)tgt_dev->lun);
-			clear_bit(SCST_TGT_DEV_RESERVED,
-				  &tgt_dev->tgt_dev_flags);
-		}
-		dev->dev_reserved = 0;
-		/*
-		 * There is no need to send RELEASE, since the device is going
-		 * to be reset. Actually, since we can be in RESET TM
-		 * function, it might be dangerous.
-		 */
-	}
+	scst_clear_dev_reservation(dev);
+	/*
+	 * There is no need to send RELEASE, since the device is going
+	 * to be reset. Actually, since we can be in RESET TM
+	 * function, it might be dangerous.
+	 */
 
 	dev->dev_double_ua_possible = 1;
 
@@ -8657,10 +8638,8 @@ void scst_reassign_retained_sess_states(struct scst_session *new_sess,
 
 		/** Reassign regular reservations **/
 
-		if (dev->dev_reserved &&
-		    !test_bit(SCST_TGT_DEV_RESERVED, &old_tgt_dev->tgt_dev_flags)) {
-			clear_bit(SCST_TGT_DEV_RESERVED, &new_tgt_dev->tgt_dev_flags);
-			set_bit(SCST_TGT_DEV_RESERVED, &old_tgt_dev->tgt_dev_flags);
+		if (scst_is_reservation_holder(dev, old_sess)) {
+			scst_reserve_dev(dev, new_sess);
 			TRACE_DBG("Reservation reassigned from old_tgt_dev %p "
 				"to new_tgt_dev %p", old_tgt_dev, new_tgt_dev);
 		}
