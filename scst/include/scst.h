@@ -86,6 +86,14 @@ typedef _Bool bool;
 #endif
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+/*
+ * See also patch "Move ACCESS_ONCE() to <linux/compiler.h>" (commit ID
+ * 9c3cdc1f83a6e07092392ff4aba6466517dbd1d0).
+ */
+#define ACCESS_ONCE(x) (*(volatile typeof(x) *)&(x))
+#endif
+
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/scst_sgv.h>
 #else
