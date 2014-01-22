@@ -1064,13 +1064,13 @@ enable barriers on your backend file system on the target (for direct
 /dev/sdX devices this is, indeed, impossible), or need a good UPS to
 protect yourself from not committed data loss. Some info about barriers
 from the XFS point of view could be found at
-http://oss.sgi.com/projects/xfs/faq.html#wcache. On Linux initiators for
-Ext3 and ReiserFS file systems the barrier protection could be turned on
-using "barrier=1" and "barrier=flush" mount options correspondingly. You
-can check if the barriers turn on or off by looking in /proc/mounts.
-Windows and, AFAIK, other UNIX'es don't need any special explicit
-options and do necessary barrier actions on write-back caching devices
-by default.
+http://xfs.org/index.php/XFS_FAQ#Write_barrier_support. On Linux
+initiators for Ext3 and ReiserFS file systems the barrier protection
+could be turned on using "barrier=1" and "barrier=flush" mount options
+correspondingly. You can check if the barriers turn on or off by looking
+in /proc/mounts. Windows and, AFAIK, other UNIX'es don't need any
+special explicit options and do necessary barrier actions on write-back
+caching devices by default.
 
 To limit this data loss with write back caching you can use files in
 /proc/sys/vm to limit amount of unflushed data in the system cache.
