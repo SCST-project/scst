@@ -3167,14 +3167,14 @@ out:
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
 static void scst_hw_pending_work_fn(void *p)
 #else
-static void scst_hw_pending_work_fn(struct delayed_work *work)
+static void scst_hw_pending_work_fn(struct work_struct *work)
 #endif
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
 	struct scst_session *sess = (struct scst_session *)p;
 #else
 	struct scst_session *sess = container_of(work, struct scst_session,
-					hw_pending_work);
+						 hw_pending_work.work);
 #endif
 	struct scst_tgt_template *tgtt = sess->tgt->tgtt;
 	struct scst_cmd *cmd;
@@ -5096,8 +5096,7 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 	INIT_LIST_HEAD(&sess->init_deferred_cmd_list);
 	INIT_LIST_HEAD(&sess->init_deferred_mcmd_list);
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20))
-	INIT_DELAYED_WORK(&sess->hw_pending_work,
-		(void (*)(struct work_struct *))scst_hw_pending_work_fn);
+	INIT_DELAYED_WORK(&sess->hw_pending_work, scst_hw_pending_work_fn);
 #else
 	INIT_WORK(&sess->hw_pending_work, scst_hw_pending_work_fn, sess);
 #endif

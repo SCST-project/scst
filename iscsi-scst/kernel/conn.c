@@ -599,14 +599,14 @@ out:
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
 static void conn_nop_in_delayed_work_fn(void *p)
 #else
-static void conn_nop_in_delayed_work_fn(struct delayed_work *work)
+static void conn_nop_in_delayed_work_fn(struct work_struct *work)
 #endif
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
 	struct iscsi_conn *conn = (struct iscsi_conn *)p;
 #else
 	struct iscsi_conn *conn = container_of(work, struct iscsi_conn,
-		nop_in_delayed_work);
+					       nop_in_delayed_work.work);
 #endif
 	unsigned long next_timeout = 0;
 
@@ -933,7 +933,7 @@ static int iscsi_conn_alloc(struct iscsi_session *session,
 	conn->nop_in_ttt = 0;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20))
 	INIT_DELAYED_WORK(&conn->nop_in_delayed_work,
-		(void (*)(struct work_struct *))conn_nop_in_delayed_work_fn);
+			  conn_nop_in_delayed_work_fn);
 #else
 	INIT_WORK(&conn->nop_in_delayed_work, conn_nop_in_delayed_work_fn,
 		conn);

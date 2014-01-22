@@ -424,7 +424,7 @@ static int sgv_shrink(struct shrinker *shrinker, struct shrink_control *sc)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
 static void sgv_purge_work_fn(void *p)
 #else
-static void sgv_purge_work_fn(struct delayed_work *work)
+static void sgv_purge_work_fn(struct work_struct *work)
 #endif
 {
 	unsigned long cur_time = jiffies;
@@ -432,7 +432,7 @@ static void sgv_purge_work_fn(struct delayed_work *work)
 	struct sgv_pool *pool = (struct sgv_pool *)p;
 #else
 	struct sgv_pool *pool = container_of(work, struct sgv_pool,
-					sgv_purge_work);
+					     sgv_purge_work.work);
 #endif
 
 	TRACE_ENTRY();
@@ -1500,8 +1500,7 @@ static int sgv_pool_init(struct sgv_pool *pool, const char *name,
 		INIT_LIST_HEAD(&pool->recycling_lists[i]);
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20))
-	INIT_DELAYED_WORK(&pool->sgv_purge_work,
-		(void (*)(struct work_struct *))sgv_purge_work_fn);
+	INIT_DELAYED_WORK(&pool->sgv_purge_work, sgv_purge_work_fn);
 #else
 	INIT_WORK(&pool->sgv_purge_work, sgv_purge_work_fn, pool);
 #endif

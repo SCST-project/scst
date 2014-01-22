@@ -1146,10 +1146,10 @@ static void q2t_undelete_sess(struct q2t_sess *sess)
 	return;
 }
 
-static void q2t_del_sess_work_fn(struct delayed_work *work)
+static void q2t_del_sess_work_fn(struct work_struct *work)
 {
 	struct q2t_tgt *tgt = container_of(work, struct q2t_tgt,
-					sess_del_work);
+					   sess_del_work.work);
 	scsi_qla_host_t *ha = tgt->ha;
 	scsi_qla_host_t *pha = to_qla_parent(ha);
 	struct q2t_sess *sess;
@@ -5875,8 +5875,7 @@ static int q2t_add_target(scsi_qla_host_t *ha)
 	init_waitqueue_head(&tgt->waitQ);
 	INIT_LIST_HEAD(&tgt->sess_list);
 	INIT_LIST_HEAD(&tgt->del_sess_list);
-	INIT_DELAYED_WORK(&tgt->sess_del_work,
-		(void (*)(struct work_struct *))q2t_del_sess_work_fn);
+	INIT_DELAYED_WORK(&tgt->sess_del_work, q2t_del_sess_work_fn);
 	spin_lock_init(&tgt->sess_work_lock);
 	INIT_WORK(&tgt->sess_work, q2t_sess_work_fn);
 	INIT_LIST_HEAD(&tgt->sess_works_list);
