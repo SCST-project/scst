@@ -36,7 +36,7 @@ static struct notifier_block ft_notifier = {
  * XXX - re-check uninitialized fields
  */
 struct scst_tgt_template ft_scst_template = {
-	.sg_tablesize = 128,		/* XXX get true limit from libfc */
+	.sg_tablesize = 0xffff,
 	.xmit_response_atomic = 1,
 	.rdy_to_xfer_atomic = 1,
 	.xmit_response =	ft_send_response,
