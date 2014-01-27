@@ -1987,8 +1987,10 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 						  srpt_send_context);
 		} else if (opcode == SRPT_RDMA_READ_LAST ||
 			   opcode == SRPT_RDMA_WRITE_LAST) {
-			PRINT_INFO("RDMA t %d for idx %u failed with status %d",
-				   opcode, index, wc->status);
+			PRINT_INFO("RDMA t %d for idx %u failed with status %d."
+				   " If this has not been triggered by a cable"
+				   " pull, please check the involved IB HCA's"
+				   " and cables.", opcode, index, wc->status);
 			srpt_handle_rdma_err_comp(ch, ch->ioctx_ring[index],
 						  opcode, srpt_xmt_rsp_context);
 		} else if (opcode != SRPT_RDMA_MID) {
