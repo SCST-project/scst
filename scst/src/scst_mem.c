@@ -1,9 +1,8 @@
 /*
  *  scst_mem.c
  *
- *  Copyright (C) 2006 - 2013 Vladislav Bolkhovitin <vst@vlnb.net>
- *  Copyright (C) 2007 - 2010 ID7 Ltd.
- *  Copyright (C) 2010 - 2013 SCST Ltd.
+ *  Copyright (C) 2006 - 2014 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2007 - 2014 Fusion-io, Inc.
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License

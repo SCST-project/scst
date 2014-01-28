@@ -1,6 +1,6 @@
 /*
- *  Copyright (C) 2007 - 2013 Vladislav Bolkhovitin
- *  Copyright (C) 2010 - 2013 SCST Ltd.
+ *  Copyright (C) 2007 - 2014 Vladislav Bolkhovitin
+ *  Copyright (C) 2007 - 2014 Fusion-io, Inc.
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
