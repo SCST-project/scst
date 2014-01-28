@@ -108,5 +108,6 @@ static inline int list_length_is_one(const struct __qelem *head)
 
 extern void set_non_blocking(int fd);
 extern void sock_set_keepalive(int sock, int timeout);
+extern int create_and_open_dev(const char *dev, int readonly);
 
 #endif

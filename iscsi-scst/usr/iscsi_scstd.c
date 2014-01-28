@@ -170,6 +170,39 @@ static void create_listen_socket(struct pollfd *array)
 		exit(1);
 }
 
+static struct connection *alloc_and_init_conn(int fd)
+{
+	struct pollfd *pollfd;
+	struct connection *conn = NULL;
+	int i;
+
+	for (i = 0; i < INCOMING_MAX; i++) {
+		if (!incoming[i])
+			break;
+	}
+	if (i >= INCOMING_MAX) {
+		log_error("Unable to find incoming slot? %d\n", i);
+		goto out;
+	}
+
+	conn = conn_alloc();
+	if (!conn) {
+		log_error("Fail to allocate %s", "conn\n");
+		goto out;
+	}
+
+	conn->fd = fd;
+	incoming[i] = conn;
+
+	pollfd = &poll_array[POLL_INCOMING + i];
+	pollfd->fd = fd;
+	pollfd->events = POLLIN;
+	pollfd->revents = 0;
+
+out:
+	return conn;
+}
+
 static int transmit_sock(int fd, bool start)
 {
 	int opt = start;
@@ -184,9 +217,8 @@ static void accept_connection(int listen)
 		struct sockaddr_in6 sin6;
 	} from, to;
 	socklen_t namesize;
-	struct pollfd *pollfd;
 	struct connection *conn;
-	int fd, i, rc;
+	int fd, rc;
 	char initiator_addr[ISCSI_PORTAL_LEN], initiator_port[NI_MAXSERV];
 	char target_portal[ISCSI_PORTAL_LEN], target_portal_port[NI_MAXSERV];
 
@@ -245,36 +277,20 @@ static void accept_connection(int listen)
 		goto out_close;
 	}
 
-	for (i = 0; i < INCOMING_MAX; i++) {
-		if (!incoming[i])
-			break;
-	}
-	if (i >= INCOMING_MAX) {
-		log_error("Unable to find incoming slot? %d\n", i);
+	conn = alloc_and_init_conn(fd);
+	if (!conn)
 		goto out_close;
-	}
 
-	if (!(conn = conn_alloc())) {
-		log_error("Fail to allocate %s", "conn\n");
-		goto out_close;
-	}
-
-	conn->fd = fd;
 	conn->target_portal = strdup(target_portal);
 	if (conn->target_portal == NULL) {
 		log_error("Unable to duplicate target portal %s", target_portal);
 		goto out_free;
 	}
 
-	incoming[i] = conn;
 	conn->transmit = transmit_sock;
 	conn_read_pdu(conn);
 
 	set_non_blocking(fd);
-	pollfd = &poll_array[POLL_INCOMING + i];
-	pollfd->fd = fd;
-	pollfd->events = POLLIN;
-	pollfd->revents = 0;
 
 	incoming_cnt++;
 

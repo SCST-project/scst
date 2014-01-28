@@ -28,59 +28,17 @@
 
 #include "iscsid.h"
 
-#define CTL_DEVICE	"/dev/iscsi-scst-ctl"
+#define CTL_DEVICE	"iscsi-scst-ctl"
 
 int kernel_open(void)
 {
-	FILE *f;
-	char devname[256];
-	char buf[256];
-	int devn;
 	int ctlfd = -1;
 	int err;
 	struct iscsi_kern_register_info reg;
 
-	if (!(f = fopen("/proc/devices", "r"))) {
-		err = -errno;
-		perror("Cannot open control path to the driver");
-		goto out_err;
-	}
-
-	devn = 0;
-	while (!feof(f)) {
-		if (!fgets(buf, sizeof(buf), f)) {
-			break;
-		}
-		if (sscanf(buf, "%d %s", &devn, devname) != 2) {
-			continue;
-		}
-		if (!strcmp(devname, "iscsi-scst-ctl")) {
-			break;
-		}
-		devn = 0;
-	}
-
-	fclose(f);
-	if (!devn) {
-		err = -ENOENT;
-		printf("cannot find iscsictl in /proc/devices - "
-		     "make sure the module is loaded\n");
-		goto out_err;
-	}
-
-	unlink(CTL_DEVICE);
-	if (mknod(CTL_DEVICE, (S_IFCHR | 0600), (devn << 8))) {
-		err = -errno;
-		printf("cannot create %s %s\n", CTL_DEVICE, strerror(errno));
-		goto out_err;
-	}
-
-	ctlfd = open(CTL_DEVICE, O_RDWR);
-	if (ctlfd < 0) {
-		err = -errno;
-		printf("cannot open %s %s\n", CTL_DEVICE, strerror(errno));
-		goto out_err;
-	}
+	ctlfd = create_and_open_dev(CTL_DEVICE, 0);
+	if (ctlfd < 0)
+		goto out;
 
 	memset(&reg, 0, sizeof(reg));
 	reg.version = (uintptr_t)ISCSI_SCST_INTERFACE_VERSION;
@@ -104,7 +62,6 @@ out:
 out_close:
 	close(ctlfd);
 
-out_err:
 	ctlfd = err;
 	goto out;
 }
