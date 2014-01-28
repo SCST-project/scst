@@ -38,5 +38,6 @@ EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions
 
 obj-m		+= iscsi-scst.o
 iscsi-scst-objs	:= iscsi.o nthread.o config.o digest.o \
-	conn.o session.o target.o event.o param.o
+	conn.o session.o target.o event.o param.o \
+	iscsit_transport.o
 

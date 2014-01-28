@@ -33,6 +33,7 @@
 #endif
 #include "iscsi_hdr.h"
 #include "iscsi_dbg.h"
+#include "iscsit_transport.h"
 
 #define iscsi_sense_crc_error			ABORTED_COMMAND, 0x47, 0x05
 #define iscsi_sense_unexpected_unsolicited_data	ABORTED_COMMAND, 0x0C, 0x0C
@@ -191,6 +192,8 @@ struct iscsi_session {
 #define ISCSI_CONN_WR_STATE_PROCESSING		3
 
 struct iscsi_conn {
+	struct iscsit_transport *transport;
+
 	struct iscsi_session *session; /* owning session */
 
 	/* Both protected by session->sn_lock */
