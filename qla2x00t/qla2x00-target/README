@@ -1,7 +1,7 @@
 Target driver for QLogic 22xx/23xx/24xx/25xx Fibre Channel cards
 ================================================================
 
-Version 3.0.0, XX XXXXX 2013
+Version 3.0.0, XX XXXXX 2014
 ----------------------------
 
 This driver consists from two parts: the target mode driver itself and

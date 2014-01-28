@@ -1,12 +1,12 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html>
 <head>
-<meta name="Keywords" content="Fibre Channel target, Emulex target, FC target, FCoE target">
+<meta name="Keywords" content="iSCSI target, iSCSI-SCST">
 <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
 <meta name="author" content="Daniel Fernandes">
 <meta name="Robots" content="index,follow">
 <link rel="stylesheet" href="images/Orange.css" type="text/css">	
-<title>Emulex lpfc FC/FCoE target driver</title>
+<title>iSCSI Target Driver</title>
 </head>
 
 <body>
@@ -14,12 +14,12 @@
 <div id="wrap"> 
 	<div id="header">	
 		<div class="logoimg"></div><h1 id="logo"><span class="orange"></span></h1>
-		<h2 id=slogan>Generic SCSI Target Subsystem for Linux</h2>	
+		<h2 id=slogan>Generic SCSI Target Subsystem for Linux</h2>
 	</div>		
 		
 	<div id="menu">
 		<ul>
-			<li><a href="index.html">Home</a></li>
+			<li><a href="http://scst.sourceforge.net">Home</a></li>
 			<li><a href="http://www.sourceforge.net/projects/scst">Main</a></li>
 			<li><a href="http://sourceforge.net/news/?group_id=110471">News</a></li>
 			<li id="current"><a href="targets.html">Drivers</a></li>
@@ -32,7 +32,7 @@
 	</div>
 	
 	<!-- content-wrap starts here -->	
-	<div id="content-wrap">  
+	<div id="content-wrap">
 			<div id="sidebar">
 				<h1>Target Drivers</h1>
 				<ul class="sidemenu">
@@ -54,39 +54,19 @@
 					<li><a href="handler_fileio_tgt.html">FILEIO_TGT handler</a></li>
 				</ul>
 			</div>		
-	
-	  		<div id="main"> 
-				<h1>Target driver for Emulex lpfc FC/FCoE adapters</h1>
-				<p><img src="images/t_emulex.gif" width="100" height="120" class="float-left" alt="SCST Emulex">
-
-				<p>The ocs_fc_scst target driver for Emulex lpfc FC/FCoE adapters is developed by the Emulex team
-				and is available at the <a href="http://www.emulex.com/products/onecore-storage-software-development-kit/overview.html" class="readmore">Emulex OneCore SDK</a>
-				developer site. Register for free at the <a href="http://www.emulex.com/products/onecore-storage-software-development-kit/developer-portal-access.html" class="readmore">Developer Portal Access</a>
-				page to get the source code and documentation. The Emulex OneCore SDK is built around the Emulex SLI-4
-				(Service Level Interface) API and is compatible with Emulex 16 Gb/s Fibre Channel HBAs (LPe16000 series)
-				and Ethernet based target mode FCoE UCNAs (OCe11102-F series).</p>
-
-				<p>The ocs_fc_scst driver allows for lpfc adapters to be placed in initiator and/or target mode.
-				The driver effectively maps SCST to the Emulex SLI-4 interface allowing a simple transition to Emulex 16Gb/s
-				fibre channel technology for existing or new SCST users. NPIV is also supported, allowing virtual
-				ports to be created with individual SCST target instances bound to them.
-
-				<p>Documented for use with RHEL/Centos 6.x based distributions, ocs_fc_scst works with the stable SCST 2.2.1
-				as well as the development versions of 2.2.x and 3.0.x.</p>
-
-				<p>Please note that the drivers on <a href="http://sourceforge.net/projects/lpfcxxxx/" class="readmore">SourceForge Emulex Drivers</a>
-				are now very old, not maintained and so are not recommended for new designs.</p>
-
-				<br><br>
-				<p class="post-footer align-right">
-					<a href="http://www.emulex.com/products/onecore-storage-software-development-kit/overview.html" class="readmore">Emulex OneCore SDK</a>	
+			
+			<div id="main">
+				<h1>iSCSI Extensions for RDMA (iSER) driver for iSCSI-SCST</h1>
+				<p>ISER extension for ISCSI-SCST has been developed by Yan Burman and Mellanox Technologies (thank you!).</p>
+				
+				<p>It is currently in a beta stage. You can download it from the "iser" SCST SVN branch.</p>
+				<br><br><br>
+				<p class="post-footer align-right">					
+					<a href="http://sourceforge.net/p/scst/svn/HEAD/tree/" class="readmore">SCST SVN Repository</a>
 				</p>
-				<table border=0><tr><td height="300px">&nbsp;</td></tr></table>
-	  		</div>
-	<!-- content-wrap ends here -->	
+				<table border=0><tr><td height="300px">&nbsp;</td></tr></table>								
+	  		</div> 
 	</div>
-	
-<!-- wrap ends here -->
 </div>		
 <!-- footer starts here -->		
 <div id="footer">

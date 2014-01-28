@@ -3,9 +3,8 @@
  *
  *  Copyright (C) 2004 Xiranet Communications GmbH <arne.redlich@xiranet.com>
  *  Copyright (C) 2002 - 2003 Ardis Technolgies <roman@ardistech.com>,
- *  Copyright (C) 2007 - 2013 Vladislav Bolkhovitin
- *  Copyright (C) 2007 - 2010 ID7 Ltd.
- *  Copyright (C) 2010 - 2013 SCST Ltd.
+ *  Copyright (C) 2007 - 2014 Vladislav Bolkhovitin
+ *  Copyright (C) 2007 - 2014 Fusion-io, Inc.
  *
  *  and code taken from UNH iSCSI software:
  *  Copyright (C) 2001-2003 InterOperability Lab (IOL)
