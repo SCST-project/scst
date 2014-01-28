@@ -127,6 +127,8 @@ struct connection {
 	} auth;
 
 	struct __qelem clist;
+
+	int (*transmit)(int fd, bool start);
 };
 
 #define IOSTATE_FREE		0

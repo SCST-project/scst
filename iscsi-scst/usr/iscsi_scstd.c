@@ -170,6 +170,12 @@ static void create_listen_socket(struct pollfd *array)
 		exit(1);
 }
 
+static int transmit_sock(int fd, bool start)
+{
+	int opt = start;
+	return setsockopt(fd, SOL_TCP, TCP_CORK, &opt, sizeof(opt));
+}
+
 static void accept_connection(int listen)
 {
 	union {
@@ -261,6 +267,7 @@ static void accept_connection(int listen)
 	}
 
 	incoming[i] = conn;
+	conn->transmit = transmit_sock;
 	conn_read_pdu(conn);
 
 	set_non_blocking(fd);
@@ -297,7 +304,7 @@ void isns_set_fd(int isns, int scn_listen, int scn)
 
 static void event_conn(struct connection *conn, struct pollfd *pollfd)
 {
-	int res, opt;
+	int res;
 
 again:
 	switch (conn->iostate) {
@@ -368,8 +375,7 @@ again:
 	case IOSTATE_WRITE_AHS:
 	case IOSTATE_WRITE_DATA:
 	      write_again:
-		opt = 1;
-		setsockopt(pollfd->fd, SOL_TCP, TCP_CORK, &opt, sizeof(opt));
+		conn->transmit(pollfd->fd, true);
 		res = write(pollfd->fd, conn->buffer, conn->rwsize);
 		if (res < 0) {
 			if (errno != EINTR && errno != EAGAIN) {
@@ -409,8 +415,7 @@ again:
 				goto write_again;
 			}
 		case IOSTATE_WRITE_DATA:
-			opt = 0;
-			setsockopt(pollfd->fd, SOL_TCP, TCP_CORK, &opt, sizeof(opt));
+			conn->transmit(pollfd->fd, false);
 			cmnd_finish(conn);
 
 			switch (conn->state) {
