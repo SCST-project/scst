@@ -1099,6 +1099,7 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 	struct scst_cmd *cmd = p->cmd;
 	struct scst_device *dev = cmd->dev;
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+	uint8_t *buf;
 	int prot_type = 0, pinfo;
 	bool immed = false;
 
@@ -1114,8 +1115,6 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 
 	if (cmd->cdb[1] & 0x10) { /* FMTDATA */
 		int length, prot_usage;
-		uint8_t *buf;
-		bool err = false;
 
 		length = scst_get_buf_full_sense(cmd, &buf);
 		TRACE_DBG("length %d", length);
@@ -1129,7 +1128,6 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 				"header %d (dev %s)", length, dev->virt_name);
 			scst_set_cmd_error(cmd,
 				SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
-			err = true;
 			goto out_put;
 		}
 
@@ -1141,7 +1139,6 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 				"supported");
 			scst_set_invalid_field_in_parm_list(cmd, 1,
 				SCST_INVAL_FIELD_BIT_OFFS_VALID | 3);
-			err = true;
 			goto out_put;
 		}
 
@@ -1152,7 +1149,6 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 					length, dev->virt_name);
 				scst_set_cmd_error(cmd,
 					SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
-				err = true;
 				goto out_put;
 			}
 			if ((buf[3] & 0xF0) != 0) {
@@ -1160,7 +1156,6 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 					"be 0 (dev %s)", dev->virt_name);
 				scst_set_invalid_field_in_parm_list(cmd, 3,
 					SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
-				err = true;
 				goto out_put;
 			}
 			if ((buf[3] & 0xF) != 0) {
@@ -1169,17 +1164,13 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 					buf[3] & 0xF, dev->virt_name);
 				scst_set_invalid_field_in_parm_list(cmd, 3,
 					SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
-				err = true;
 				goto out_put;
 			}
 		} else {
 			/* Nothing to do */
 		}
 
-out_put:
 		scst_put_buf_full(cmd, buf);
-		if (err)
-			goto out;
 
 		switch (pinfo) {
 		case 0:
@@ -1274,6 +1265,10 @@ finished:
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_put:
+	scst_put_buf_full(cmd, buf);
+	goto out;
 }
 
 static enum compl_status_e vdisk_invalid_opcode(struct vdisk_cmd_params *p)
