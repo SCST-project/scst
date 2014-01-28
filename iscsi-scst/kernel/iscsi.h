@@ -59,6 +59,9 @@ struct iscsi_sess_params {
 	int ifmarker;
 	int ofmarkint;
 	int ifmarkint;
+	int rdma_extensions;
+	int target_recv_data_length;
+	int initiator_recv_data_length;
 };
 
 struct iscsi_tgt_params {

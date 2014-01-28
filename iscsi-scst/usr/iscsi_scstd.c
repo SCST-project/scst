@@ -31,6 +31,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/un.h>
+#include <sys/ioctl.h>
 
 #include <netinet/in.h>
 #include <netinet/tcp.h>
@@ -199,14 +200,155 @@ static struct connection *alloc_and_init_conn(int fd)
 	pollfd->events = POLLIN;
 	pollfd->revents = 0;
 
+	conn_read_pdu(conn);
+	set_non_blocking(fd);
+
 out:
 	return conn;
+}
+
+static int transmit_iser(int fd, bool start)
+{
+	int opt = start;
+	return ioctl(fd, RDMA_CORK, &opt, sizeof(opt));
+}
+
+static void create_iser_listen_socket(struct pollfd *array)
+{
+	struct addrinfo hints, *res, *res0;
+	char servname[64];
+	int rc, i;
+	int iser_fd;
+	struct isert_addr_info info;
+
+	iser_fd = create_and_open_dev("isert_scst", 1);
+
+	poll_array[POLL_ISER_LISTEN].fd = iser_fd;
+	if (iser_fd != -1) {
+		poll_array[POLL_ISER_LISTEN].events = POLLIN;
+
+		/* RDMAExtensions */
+		session_keys[key_rdma_extensions].max = 1;
+		session_keys[key_rdma_extensions].local_def = 1;
+	} else {
+		poll_array[POLL_ISER_LISTEN].events = 0;
+		return;
+	}
+
+	memset(servname, 0, sizeof(servname));
+	snprintf(servname, sizeof(servname), "%d", server_port);
+
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_flags = AI_PASSIVE;
+
+	rc = getaddrinfo(server_address, servname, &hints, &res0);
+	if (rc != 0) {
+		log_error("Unable to get address info (%s)!",
+			get_error_str(rc));
+		exit(1);
+	}
+
+	i = 0;
+	for (res = res0; res && i < ISERT_MAX_PORTALS; res = res->ai_next) {
+		memcpy(&info.addr, res->ai_addr, res->ai_addrlen);
+		info.addr_len = res->ai_addrlen;
+
+		rc = ioctl(iser_fd, SET_LISTEN_ADDR, &info);
+		if (rc != 0) {
+			log_error("Unable to set address info (%s)!",
+				strerror(rc));
+		}
+		++i;
+	}
+
+	freeaddrinfo(res0);
+}
+
+static int iser_getsockname(int fd, struct sockaddr *name, socklen_t *namelen)
+{
+	struct isert_addr_info addr;
+	int ret;
+
+	ret = ioctl(fd, GET_PORTAL_ADDR, &addr, sizeof(addr));
+	if (ret)
+		return ret;
+
+	memcpy(name, &addr.addr, addr.addr_len);
+	*namelen = addr.addr_len;
+
+	return ret;
+}
+
+static int iser_is_discovery(int fd)
+{
+	int val = 1;
+
+	return ioctl(fd, DISCOVERY_SESSION, &val, sizeof(val));
+}
+
+static void iser_accept(int fd)
+{
+	char buff[256];
+	int ret, conn_fd;
+	struct connection *conn;
+	char target_portal[ISCSI_PORTAL_LEN], target_portal_port[NI_MAXSERV];
+	struct isert_addr_info addr;
+
+	ret = read(fd, buff, sizeof(buff));
+	if (ret == -1)
+		return;
+
+	conn_fd = open(buff, O_RDWR);
+	if (conn_fd == -1) {
+		log_error("open(iser_connection) %s failed: %s\n",
+			buff, strerror(errno));
+		return;
+	}
+
+	ret = ioctl(conn_fd, GET_PORTAL_ADDR, &addr, sizeof(addr));
+	if (ret)
+		return;
+
+	ret = getnameinfo((struct sockaddr *)&addr, sizeof(addr), target_portal,
+			 sizeof(target_portal), target_portal_port,
+			 sizeof(target_portal_port),
+			 NI_NUMERICHOST | NI_NUMERICSERV);
+	if (ret != 0) {
+		log_error("Target portal getnameinfo() failed: %s!",
+			get_error_str(ret));
+		return;
+	}
+
+	conn = alloc_and_init_conn(conn_fd);
+	if (!conn)
+		return;
+
+	conn->target_portal = strdup(target_portal);
+	if (conn->target_portal == NULL) {
+		log_error("Unable to duplicate target portal %s", target_portal);
+		conn_free(conn);
+		return;
+	}
+
+	conn->transmit = transmit_iser;
+	conn->getsockname = iser_getsockname;
+	conn->is_discovery = iser_is_discovery;
+	conn->is_iser = true;
+	incoming_cnt++;
+
+	log_info("iSER connect\n");
 }
 
 static int transmit_sock(int fd, bool start)
 {
 	int opt = start;
 	return setsockopt(fd, SOL_TCP, TCP_CORK, &opt, sizeof(opt));
+}
+
+static int tcp_is_discovery(int fd)
+{
+	return 0;
 }
 
 static void accept_connection(int listen)
@@ -288,6 +430,8 @@ static void accept_connection(int listen)
 	}
 
 	conn->transmit = transmit_sock;
+	conn->getsockname = getsockname;
+	conn->is_discovery = tcp_is_discovery;
 	conn_read_pdu(conn);
 
 	set_non_blocking(fd);
@@ -469,6 +613,7 @@ static void event_loop(void)
 	int res, i;
 
 	create_listen_socket(poll_array + POLL_LISTEN);
+	create_iser_listen_socket(poll_array);
 
 	poll_array[POLL_IPC].fd = ipc_fd;
 	poll_array[POLL_IPC].events = POLLIN;
@@ -541,6 +686,9 @@ static void event_loop(void)
 
 		if (poll_array[POLL_SCN].revents)
 			isns_scn_handle(0);
+
+		if (poll_array[POLL_ISER_LISTEN].revents)
+			iser_accept(poll_array[POLL_ISER_LISTEN].fd);
 
 		for (i = 0; i < INCOMING_MAX; i++) {
 			struct connection *conn = incoming[i];

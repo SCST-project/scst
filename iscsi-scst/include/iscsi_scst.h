@@ -62,6 +62,13 @@ enum {
 	key_ifmarker,
 	key_ofmarkint,
 	key_ifmarkint,
+	key_rdma_extensions,
+	key_target_recv_data_length,
+	key_initiator_recv_data_length,
+	key_max_ahs_length,
+	key_tagged_buffer_for_solicited_data_only,
+	key_iser_hello_required,
+	key_max_outstanding_unexpected_pdus,
 	session_key_last,
 };
 

@@ -99,12 +99,13 @@ static void log_params(struct iscsi_sess_params *params)
 		iscsi_get_bool_value(params->data_sequence_inorder),
 		params->error_recovery_level);
 	PRINT_INFO("    HeaderDigest %s, DataDigest %s, OFMarker %s, "
-		"IFMarker %s, OFMarkInt %d, IFMarkInt %d",
+		"IFMarker %s, OFMarkInt %d, IFMarkInt %d, RDMAExtensions %s",
 		iscsi_get_digest_name(params->header_digest, hdigest_name),
 		iscsi_get_digest_name(params->data_digest, ddigest_name),
 		iscsi_get_bool_value(params->ofmarker),
 		iscsi_get_bool_value(params->ifmarker),
-		params->ofmarkint, params->ifmarkint);
+		params->ofmarkint, params->ifmarkint,
+		iscsi_get_bool_value(params->rdma_extensions));
 }
 
 /* target_mutex supposed to be locked */
@@ -136,6 +137,11 @@ static void sess_params_check(struct iscsi_kern_params_info *info)
 	CHECK_PARAM(info, iparams, ofmarker, 0, 0);
 	CHECK_PARAM(info, iparams, ifmarker, 0, 0);
 
+	/* iSER related parameters */
+	CHECK_PARAM(info, iparams, rdma_extensions, 0, 1);
+	CHECK_PARAM(info, iparams, target_recv_data_length, 512, max_len);
+	CHECK_PARAM(info, iparams, initiator_recv_data_length, 512, max_len);
+
 	return;
 }
 
@@ -164,6 +170,11 @@ static void sess_params_set(struct iscsi_sess_params *params,
 	SET_PARAM(params, info, iparams, ifmarker);
 	SET_PARAM(params, info, iparams, ofmarkint);
 	SET_PARAM(params, info, iparams, ifmarkint);
+
+	/* iSER related parameters */
+	SET_PARAM(params, info, iparams, rdma_extensions);
+	SET_PARAM(params, info, iparams, target_recv_data_length);
+	SET_PARAM(params, info, iparams, initiator_recv_data_length);
 	return;
 }
 
@@ -191,6 +202,11 @@ static void sess_params_get(struct iscsi_sess_params *params,
 	GET_PARAM(params, info, iparams, ifmarker);
 	GET_PARAM(params, info, iparams, ofmarkint);
 	GET_PARAM(params, info, iparams, ifmarkint);
+
+	/* iSER related parameters */
+	GET_PARAM(params, info, iparams, rdma_extensions);
+	GET_PARAM(params, info, iparams, target_recv_data_length);
+	GET_PARAM(params, info, iparams, initiator_recv_data_length);
 	return;
 }
 

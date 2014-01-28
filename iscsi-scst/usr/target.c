@@ -239,10 +239,11 @@ void target_list_build(struct connection *conn, char *target_name)
 	char portal[NI_MAXHOST];
 	int family, i;
 
-	if (getsockname(conn->fd, (struct sockaddr *) &ss1, &slen)) {
+	if (conn->getsockname(conn->fd, (struct sockaddr *) &ss1, &slen)) {
 		log_error("getsockname failed: %m");
 		return;
 	}
+
 	family = ss1.ss_family;
 
 	list_for_each_entry(target, &targets_list, tlist) {

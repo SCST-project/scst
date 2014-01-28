@@ -28,8 +28,10 @@
 #include "types.h"
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/iscsi_scst.h>
+#include <scst/isert_scst.h>
 #else
 #include "iscsi_scst.h"
+#include "isert_scst.h"
 #endif
 #include "iscsi_hdr.h"
 #include "param.h"
@@ -128,7 +130,11 @@ struct connection {
 
 	struct __qelem clist;
 
+	bool is_iser;
+
 	int (*transmit)(int fd, bool start);
+	int (*getsockname)(int fd, struct sockaddr *name, socklen_t *namelen);
+	int (*is_discovery)(int fd);
 };
 
 #define IOSTATE_FREE		0
@@ -224,6 +230,7 @@ extern int conn_blocked;
 enum {
 	POLL_LISTEN,
 	POLL_IPC = POLL_LISTEN + LISTEN_MAX,
+	POLL_ISER_LISTEN,
 	POLL_NL,
 	POLL_ISNS,
 	POLL_SCN_LISTEN,

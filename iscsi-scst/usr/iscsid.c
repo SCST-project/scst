@@ -42,6 +42,10 @@ static struct iscsi_key login_keys[] = {
 	{"InitiatorAlias",},
 	{"SessionType",},
 	{"TargetName",},
+	{"InitiatorRecvDataSegmentLength",},
+	{"MaxAHSLength",},
+	{"TaggedBufferForSolicitedDataOnly",},
+	{"iSERHelloRequired",},
 	{NULL,},
 };
 
@@ -370,6 +374,26 @@ static void text_scan_login(struct connection *conn)
 				}
 			}
 
+			if (conn->is_iser) {
+				switch (idx) {
+				case key_rdma_extensions:
+					if (val != 1) {
+						login_rsp_ini_err(conn, ISCSI_STATUS_INIT_ERR);
+						goto out;
+					}
+					break;
+				case key_initial_r2t:
+					val = 1;
+					break;
+				case key_immediate_data:
+					val = 0;
+					break;
+				}
+			} else if (idx == key_rdma_extensions && val != 0) {
+				login_rsp_ini_err(conn, ISCSI_STATUS_INIT_ERR);
+				goto out;
+			}
+
 			params_check_val(session_keys, idx, &val);
 			params_set_val(session_keys, conn->session_params, idx, &val);
 
@@ -503,6 +527,11 @@ static void login_start(struct connection *conn)
 
 	if (session_type) {
 		if (!strcmp(session_type, "Discovery")) {
+			int ret = conn->is_discovery(conn->fd);
+			if (ret) {
+				login_rsp_tgt_err(conn, ISCSI_STATUS_MISSING_FIELDS);
+				return;
+			}
 			conn->session_type = SESSION_DISCOVERY;
 		} else if (strcmp(session_type, "Normal")) {
 			login_rsp_ini_err(conn, ISCSI_STATUS_INV_SESSION_TYPE);

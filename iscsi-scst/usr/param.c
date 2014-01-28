@@ -383,5 +383,13 @@ struct iscsi_key session_keys[] = {
 	{"IFMarker", 0, 0, 0, 0, 0, &and_ops},
 	{"OFMarkInt", 2048, 2048, 1, 65535, 0, &marker_ops},
 	{"IFMarkInt", 2048, 2048, 1, 65535, 0, &marker_ops},
+	{"RDMAExtensions", 0, 0, 0, 0, 1, &and_ops},
+	{"TargetRecvDataSegmentLength", 8192, -1, 512, -1, 0, &minimum_ops},
+	{"InitiatorRecvDataSegmentLength", 8192, -1, 512, -1, 0, &minimum_ops},
+	{"MaxAHSLength", 256, 0, 0, -1, 0, &minimum_ops},
+	{"TaggedBufferForSolicitedDataOnly", 0, 0, 0, 0, 0, &and_ops},
+	{"iSERHelloRequired", 0, 0, 0, 0, 0, &and_ops},
+	{"MaxOutstandingUnexpectedPDUs", 0, 0, 0, -1, 0, &minimum_ops},
 	{NULL,},
 };
+
