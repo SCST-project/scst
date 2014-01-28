@@ -10,7 +10,7 @@ static struct iscsit_transport *__iscsit_get_transport(enum iscsit_transport_typ
 {
 	struct iscsit_transport *t;
 
-	list_for_each_entry(t, &transport_list, list) {
+	list_for_each_entry(t, &transport_list, transport_list_entry) {
 		if (t->transport_type == type)
 			return t;
 	}
@@ -34,7 +34,7 @@ int iscsit_register_transport(struct iscsit_transport *t)
 	struct iscsit_transport *tmp;
 	int ret = 0;
 
-	INIT_LIST_HEAD(&t->list);
+	INIT_LIST_HEAD(&t->transport_list_entry);
 
 	mutex_lock(&transport_mutex);
 	tmp = __iscsit_get_transport(t->transport_type);
@@ -43,7 +43,7 @@ int iscsit_register_transport(struct iscsit_transport *t)
 			    t->transport_type);
 		ret = -EEXIST;
 	} else {
-		list_add_tail(&t->list, &transport_list);
+		list_add_tail(&t->transport_list_entry, &transport_list);
 		PRINT_INFO("Registered iSCSI transport: %s\n", t->name);
 	}
 	mutex_unlock(&transport_mutex);
@@ -55,7 +55,7 @@ EXPORT_SYMBOL(iscsit_register_transport);
 void iscsit_unregister_transport(struct iscsit_transport *t)
 {
 	mutex_lock(&transport_mutex);
-	list_del(&t->list);
+	list_del(&t->transport_list_entry);
 	mutex_unlock(&transport_mutex);
 
 	PRINT_INFO("Unregistered iSCSI transport: %s\n", t->name);

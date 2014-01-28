@@ -11,7 +11,7 @@
 #include <scst.h>
 #endif
 
-/* forward declarations */
+/* Forward declarations */
 struct iscsi_session;
 struct iscsi_kern_conn_info;
 struct iscsi_conn;
@@ -49,12 +49,14 @@ struct iscsit_transport {
 	int (*iscsit_receive_cmnd_data)(struct iscsi_cmnd *cmnd);
 	void (*iscsit_close_all_portals)(void);
 
+#if !defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 	unsigned int need_alloc_write_buf:1;
+#endif
 
 	struct module *owner;
 	const char name[SCST_MAX_NAME];
 	enum iscsit_transport_type transport_type;
-	struct list_head list;
+	struct list_head transport_list_entry;
 };
 
 extern int iscsit_register_transport(struct iscsit_transport *t);
