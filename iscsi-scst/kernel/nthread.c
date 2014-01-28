@@ -598,7 +598,7 @@ static int close_conn_thr(void *arg)
 }
 
 /* No locks */
-static void start_close_conn(struct iscsi_conn *conn)
+void start_close_conn(struct iscsi_conn *conn)
 {
 	struct task_struct *t;
 
@@ -614,6 +614,7 @@ static void start_close_conn(struct iscsi_conn *conn)
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(start_close_conn);
 
 static inline void iscsi_conn_init_read(struct iscsi_conn *conn,
 	void __user *data, size_t len)
@@ -638,7 +639,7 @@ static void iscsi_conn_prepare_read_ahs(struct iscsi_conn *conn,
 	return;
 }
 
-static struct iscsi_cmnd *iscsi_get_send_cmnd(struct iscsi_conn *conn)
+struct iscsi_cmnd *iscsi_get_send_cmnd(struct iscsi_conn *conn)
 {
 	struct iscsi_cmnd *cmnd = NULL;
 
@@ -677,6 +678,7 @@ static struct iscsi_cmnd *iscsi_get_send_cmnd(struct iscsi_conn *conn)
 out:
 	return cmnd;
 }
+EXPORT_SYMBOL(iscsi_get_send_cmnd);
 
 /* Returns number of bytes left to receive or <0 for error */
 static int do_recv(struct iscsi_conn *conn)

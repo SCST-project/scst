@@ -237,7 +237,7 @@ static void conn_sysfs_del(struct iscsi_conn *conn)
 	return;
 }
 
-static int conn_sysfs_add(struct iscsi_conn *conn)
+int conn_sysfs_add(struct iscsi_conn *conn)
 {
 	int res;
 	struct iscsi_session *session = conn->session;
@@ -311,7 +311,7 @@ out_err:
 	conn_sysfs_del(conn);
 	goto out;
 }
-
+EXPORT_SYMBOL(conn_sysfs_add);
 #endif /* CONFIG_SCST_PROC */
 
 /* target_mutex supposed to be locked */
@@ -419,6 +419,7 @@ void mark_conn_closed(struct iscsi_conn *conn)
 {
 	__mark_conn_closed(conn, ISCSI_CONN_ACTIVE_CLOSE);
 }
+EXPORT_SYMBOL(mark_conn_closed);
 
 static void __iscsi_state_change(struct sock *sk)
 {
@@ -846,35 +847,11 @@ void conn_free(struct iscsi_conn *conn)
 	}
 }
 
-/* target_mutex supposed to be locked */
-int iscsi_conn_alloc(struct iscsi_session *session,
-	struct iscsi_kern_conn_info *info, struct iscsi_conn **new_conn,
-	struct iscsit_transport *t)
+int iscsi_init_conn(struct iscsi_session *session,
+		    struct iscsi_kern_conn_info *info,
+		    struct iscsi_conn *conn)
 {
-	struct iscsi_conn *conn;
-	int res = 0;
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
-	lockdep_assert_held(&session->target->target_mutex);
-#endif
-
-	conn = kmem_cache_zalloc(iscsi_conn_cache, GFP_KERNEL);
-	if (!conn) {
-		res = -ENOMEM;
-		goto out_err;
-	}
-
-	TRACE_MGMT_DBG("Creating connection %p for sid %#Lx, cid %u", conn,
-		       (long long unsigned int)session->sid, info->cid);
-
-	conn->transport = t;
-
-	/* Changing it, change ISCSI_CONN_IOV_MAX as well !! */
-	conn->read_iov = (struct iovec *)get_zeroed_page(GFP_KERNEL);
-	if (conn->read_iov == NULL) {
-		res = -ENOMEM;
-		goto out_err_free_conn;
-	}
+	int res;
 
 	atomic_set(&conn->conn_ref_cnt, 0);
 	conn->session = session;
@@ -890,7 +867,7 @@ int iscsi_conn_alloc(struct iscsi_session *session,
 	conn->ddigest_type = session->sess_params.data_digest;
 	res = digest_init(conn);
 	if (res != 0)
-		goto out_free_iov;
+		return res;
 
 	conn->target = session->target;
 	spin_lock_init(&conn->cmd_list_lock);
@@ -924,6 +901,44 @@ int iscsi_conn_alloc(struct iscsi_session *session,
 		schedule_delayed_work(&conn->nop_in_delayed_work,
 			conn->nop_in_interval + ISCSI_ADD_SCHED_TIME);
 	}
+
+	return 0;
+}
+EXPORT_SYMBOL(iscsi_init_conn);
+
+/* target_mutex supposed to be locked */
+int iscsi_conn_alloc(struct iscsi_session *session,
+	struct iscsi_kern_conn_info *info, struct iscsi_conn **new_conn,
+	struct iscsit_transport *t)
+{
+	struct iscsi_conn *conn;
+	int res = 0;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&session->target->target_mutex);
+#endif
+
+	conn = kmem_cache_zalloc(iscsi_conn_cache, GFP_KERNEL);
+	if (!conn) {
+		res = -ENOMEM;
+		goto out_err;
+	}
+
+	TRACE_MGMT_DBG("Creating connection %p for sid %#Lx, cid %u", conn,
+		       (long long unsigned int)session->sid, info->cid);
+
+	conn->transport = t;
+
+	/* Changing it, change ISCSI_CONN_IOV_MAX as well !! */
+	conn->read_iov = (struct iovec *)get_zeroed_page(GFP_KERNEL);
+	if (conn->read_iov == NULL) {
+		res = -ENOMEM;
+		goto out_err_free_conn;
+	}
+
+	res = iscsi_init_conn(session, info, conn);
+	if (res != 0)
+		goto out_free_iov;
 
 	conn->file = fget(info->fd);
 

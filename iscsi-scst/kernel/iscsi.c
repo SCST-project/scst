@@ -65,11 +65,9 @@ static struct scatterlist dummy_sg;
 static void cmnd_remove_data_wait_hash(struct iscsi_cmnd *cmnd);
 static void iscsi_send_task_mgmt_resp(struct iscsi_cmnd *req, int status);
 static void iscsi_check_send_delayed_tm_resp(struct iscsi_session *sess);
-static void req_cmnd_release(struct iscsi_cmnd *req);
 static int cmnd_insert_data_wait_hash(struct iscsi_cmnd *cmnd);
 static void iscsi_cmnd_init_write(struct iscsi_cmnd *rsp, int flags);
 static void iscsi_set_resid_no_scst_cmd(struct iscsi_cmnd *rsp);
-static void iscsi_set_resid(struct iscsi_cmnd *rsp);
 
 static void iscsi_set_not_received_data_len(struct iscsi_cmnd *req,
 	unsigned int not_received)
@@ -310,14 +308,9 @@ void iscsi_fail_data_waiting_cmnd(struct iscsi_cmnd *cmnd)
 	return;
 }
 
-struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *conn,
-			      struct iscsi_cmnd *parent)
+void iscsi_cmnd_init(struct iscsi_conn *conn, struct iscsi_cmnd *cmnd,
+		     struct iscsi_cmnd *parent)
 {
-	struct iscsi_cmnd *cmnd;
-
-	/* ToDo: __GFP_NOFAIL?? */
-	cmnd = kmem_cache_zalloc(iscsi_cmnd_cache, GFP_KERNEL|__GFP_NOFAIL);
-
 	atomic_set(&cmnd->ref_cnt, 1);
 	cmnd->scst_state = ISCSI_CMD_STATE_NEW;
 	cmnd->conn = conn;
@@ -326,9 +319,6 @@ struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *conn,
 	if (parent == NULL) {
 		conn_get(conn);
 
-#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
-		atomic_set(&cmnd->net_ref_cnt, 0);
-#endif
 		INIT_LIST_HEAD(&cmnd->rsp_cmd_list);
 		INIT_LIST_HEAD(&cmnd->rx_ddigest_cmd_list);
 		cmnd->target_task_tag = ISCSI_RESERVED_TAG_CPU32;
@@ -336,6 +326,24 @@ struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *conn,
 		spin_lock_bh(&conn->cmd_list_lock);
 		list_add_tail(&cmnd->cmd_list_entry, &conn->cmd_list);
 		spin_unlock_bh(&conn->cmd_list_lock);
+	}
+}
+EXPORT_SYMBOL(iscsi_cmnd_init);
+
+struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *conn,
+			      struct iscsi_cmnd *parent)
+{
+	struct iscsi_cmnd *cmnd;
+
+	/* ToDo: __GFP_NOFAIL?? */
+	cmnd = kmem_cache_zalloc(iscsi_cmnd_cache, GFP_KERNEL|__GFP_NOFAIL);
+
+	iscsi_cmnd_init(conn, cmnd, parent);
+
+	if (parent == NULL) {
+#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
+		atomic_set(&cmnd->net_ref_cnt, 0);
+#endif
 	}
 
 	TRACE_DBG("conn %p, parent %p, cmnd %p", conn, parent, cmnd);
@@ -533,6 +541,7 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(cmnd_done);
 
 /*
  * Corresponding conn may also get destroyed after this function, except only
@@ -635,7 +644,7 @@ out:
 	return;
 }
 
-static void req_cmnd_pre_release(struct iscsi_cmnd *req)
+void req_cmnd_pre_release(struct iscsi_cmnd *req)
 {
 	struct iscsi_cmnd *c, *t;
 
@@ -695,12 +704,13 @@ static void req_cmnd_pre_release(struct iscsi_cmnd *req)
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(req_cmnd_pre_release);
 
 /*
  * Corresponding conn may also get destroyed after this function, except only
  * if it's called from the read thread!
  */
-static void req_cmnd_release(struct iscsi_cmnd *req)
+void req_cmnd_release(struct iscsi_cmnd *req)
 {
 	TRACE_ENTRY();
 
@@ -710,6 +720,7 @@ static void req_cmnd_release(struct iscsi_cmnd *req)
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(req_cmnd_release);
 
 /*
  * Corresponding conn may also get destroyed after this function, except only
@@ -729,6 +740,7 @@ void rsp_cmnd_release(struct iscsi_cmnd *cmnd)
 	cmnd_put(cmnd);
 	return;
 }
+EXPORT_SYMBOL(rsp_cmnd_release);
 
 static struct iscsi_cmnd *iscsi_alloc_rsp(struct iscsi_cmnd *parent)
 {
@@ -877,7 +889,7 @@ static void iscsi_set_resid_no_scst_cmd(struct iscsi_cmnd *rsp)
 	return;
 }
 
-static void iscsi_set_resid(struct iscsi_cmnd *rsp)
+void iscsi_set_resid(struct iscsi_cmnd *rsp)
 {
 	struct iscsi_cmnd *req = rsp->parent_req;
 	struct scst_cmd *scst_cmd = req->scst_cmd;
@@ -931,6 +943,7 @@ out:
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(iscsi_set_resid);
 
 static void send_data_rsp(struct iscsi_cmnd *req, u8 status, int send_status)
 {
@@ -1041,7 +1054,7 @@ static void iscsi_init_status_rsp(struct iscsi_cmnd *rsp,
 	return;
 }
 
-static inline struct iscsi_cmnd *create_status_rsp(struct iscsi_cmnd *req,
+struct iscsi_cmnd *create_status_rsp(struct iscsi_cmnd *req,
 	int status, const u8 *sense_buf, int sense_len)
 {
 	struct iscsi_cmnd *rsp;
@@ -1057,6 +1070,7 @@ static inline struct iscsi_cmnd *create_status_rsp(struct iscsi_cmnd *req,
 	TRACE_EXIT_HRES((unsigned long)rsp);
 	return rsp;
 }
+EXPORT_SYMBOL(create_status_rsp);
 
 static void iscsi_tcp_send_data_rsp(struct iscsi_cmnd *req, u8 *sense,
 				    int sense_len, u8 status,
@@ -1252,7 +1266,7 @@ static inline int iscsi_get_allowed_cmds(struct iscsi_session *sess)
 	return res;
 }
 
-static __be32 cmnd_set_sn(struct iscsi_cmnd *cmnd, int set_stat_sn)
+__be32 cmnd_set_sn(struct iscsi_cmnd *cmnd, int set_stat_sn)
 {
 	struct iscsi_conn *conn = cmnd->conn;
 	struct iscsi_session *sess = conn->session;
@@ -1271,6 +1285,7 @@ static __be32 cmnd_set_sn(struct iscsi_cmnd *cmnd, int set_stat_sn)
 	spin_unlock(&sess->sn_lock);
 	return res;
 }
+EXPORT_SYMBOL(cmnd_set_sn);
 
 /* Called under sn_lock */
 static void update_stat_sn(struct iscsi_cmnd *cmnd)
@@ -1822,14 +1837,88 @@ out:
 	return err;
 }
 
-int cmnd_rx_continue(struct iscsi_cmnd *req)
+int iscsi_cmnd_set_write_buf(struct iscsi_cmnd *req)
 {
 	struct iscsi_conn *conn = req->conn;
 	struct iscsi_session *session = conn->session;
 	struct iscsi_scsi_cmd_hdr *req_hdr = cmnd_hdr(req);
 	struct scst_cmd *scst_cmd = req->scst_cmd;
-	scst_data_direction dir;
 	bool unsolicited_data_expected = false;
+	int res = 0;
+
+	req->bufflen = scst_cmd_get_write_fields(scst_cmd, &req->sg,
+			&req->sg_cnt);
+	unsolicited_data_expected = !(req_hdr->flags & ISCSI_CMD_FINAL);
+
+	if (unlikely(session->sess_params.initial_r2t &&
+	    unsolicited_data_expected)) {
+		PRINT_ERROR("Initiator %s violated negotiated "
+			"parameters: initial R2T is required (ITT %x, "
+			"op  %x)", session->initiator_name,
+			req->pdu.bhs.itt, req_hdr->scb[0]);
+		res = -EINVAL;
+		goto out_close;
+	}
+
+	if (unlikely(!session->sess_params.immediate_data &&
+	    req->pdu.datasize)) {
+		PRINT_ERROR("Initiator %s violated negotiated "
+			"parameters: forbidden immediate data sent "
+			"(ITT %x, op  %x)", session->initiator_name,
+			req->pdu.bhs.itt, req_hdr->scb[0]);
+		res = -EINVAL;
+		goto out_close;
+	}
+
+	if (unlikely(session->sess_params.first_burst_length < req->pdu.datasize)) {
+		PRINT_ERROR("Initiator %s violated negotiated "
+			"parameters: immediate data len (%d) > "
+			"first_burst_length (%d) (ITT %x, op  %x)",
+			session->initiator_name,
+			req->pdu.datasize,
+			session->sess_params.first_burst_length,
+			req->pdu.bhs.itt, req_hdr->scb[0]);
+		res = -EINVAL;
+		goto out_close;
+	}
+
+	req->r2t_len_to_receive = be32_to_cpu(req_hdr->data_length) -
+				  req->pdu.datasize;
+
+	/*
+	 * In case of residual overflow req->r2t_len_to_receive and
+	 * req->pdu.datasize might be > req->bufflen
+	 */
+
+	res = cmnd_insert_data_wait_hash(req);
+
+	if (unsolicited_data_expected) {
+		req->outstanding_r2t = 1;
+		req->r2t_len_to_send = req->r2t_len_to_receive -
+			min_t(unsigned int,
+			      session->sess_params.first_burst_length -
+					req->pdu.datasize,
+			      req->r2t_len_to_receive);
+	} else
+		req->r2t_len_to_send = req->r2t_len_to_receive;
+
+	if (likely(res == 0))
+		req_add_to_write_timeout_list(req);
+
+out_close:
+	return res;
+}
+EXPORT_SYMBOL(iscsi_cmnd_set_write_buf);
+
+int cmnd_rx_continue(struct iscsi_cmnd *req)
+{
+	struct iscsi_conn *conn = req->conn;
+	struct iscsi_scsi_cmd_hdr *req_hdr = cmnd_hdr(req);
+	struct scst_cmd *scst_cmd = req->scst_cmd;
+	scst_data_direction dir;
+#ifdef CONFIG_SCST_DEBUG
+	bool unsolicited_data_expected = false;
+#endif
 	int res = 0;
 
 	TRACE_ENTRY();
@@ -1857,48 +1946,7 @@ int cmnd_rx_continue(struct iscsi_cmnd *req)
 	/* For prelim completed commands sg & K can be already set! */
 
 	if (dir & SCST_DATA_WRITE) {
-		req->bufflen = scst_cmd_get_write_fields(scst_cmd, &req->sg,
-				&req->sg_cnt);
-		unsolicited_data_expected = !(req_hdr->flags & ISCSI_CMD_FINAL);
-
-		if (unlikely(session->sess_params.initial_r2t &&
-		    unsolicited_data_expected)) {
-			PRINT_ERROR("Initiator %s violated negotiated "
-				"parameters: initial R2T is required (ITT %x, "
-				"op  %x)", session->initiator_name,
-				req->pdu.bhs.itt, req_hdr->scb[0]);
-			goto out_close;
-		}
-
-		if (unlikely(!session->sess_params.immediate_data &&
-		    req->pdu.datasize)) {
-			PRINT_ERROR("Initiator %s violated negotiated "
-				"parameters: forbidden immediate data sent "
-				"(ITT %x, op  %x)", session->initiator_name,
-				req->pdu.bhs.itt, req_hdr->scb[0]);
-			goto out_close;
-		}
-
-		if (unlikely(session->sess_params.first_burst_length < req->pdu.datasize)) {
-			PRINT_ERROR("Initiator %s violated negotiated "
-				"parameters: immediate data len (%d) > "
-				"first_burst_length (%d) (ITT %x, op  %x)",
-				session->initiator_name,
-				req->pdu.datasize,
-				session->sess_params.first_burst_length,
-				req->pdu.bhs.itt, req_hdr->scb[0]);
-			goto out_close;
-		}
-
-		req->r2t_len_to_receive = be32_to_cpu(req_hdr->data_length) -
-					  req->pdu.datasize;
-
-		/*
-		 * In case of residual overflow req->r2t_len_to_receive and
-		 * req->pdu.datasize might be > req->bufflen
-		 */
-
-		res = cmnd_insert_data_wait_hash(req);
+		res = iscsi_cmnd_set_write_buf(req);
 		if (unlikely(res != 0)) {
 			/*
 			 * We have to close connection, because otherwise a data
@@ -1908,18 +1956,6 @@ int cmnd_rx_continue(struct iscsi_cmnd *req)
 			 */
 			goto out_close;
 		}
-
-		if (unsolicited_data_expected) {
-			req->outstanding_r2t = 1;
-			req->r2t_len_to_send = req->r2t_len_to_receive -
-				min_t(unsigned int,
-				      session->sess_params.first_burst_length -
-						req->pdu.datasize,
-				      req->r2t_len_to_receive);
-		} else
-			req->r2t_len_to_send = req->r2t_len_to_receive;
-
-		req_add_to_write_timeout_list(req);
 
 		if (req->pdu.datasize) {
 			res = cmnd_prepare_recv_pdu(conn, req, 0, req->pdu.datasize);
@@ -3179,6 +3215,7 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
+EXPORT_SYMBOL(cmnd_rx_start);
 
 void cmnd_rx_end(struct iscsi_cmnd *cmnd)
 {
@@ -3210,6 +3247,7 @@ out:
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(cmnd_rx_end);
 
 static ssize_t iscsi_tcp_get_initiator_ip(struct iscsi_conn *conn,
 	char *buf, int size)

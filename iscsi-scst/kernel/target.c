@@ -346,6 +346,7 @@ void target_del_all_sess(struct iscsi_target *target, int flags)
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(target_del_all_sess);
 
 void target_del_all(void)
 {
