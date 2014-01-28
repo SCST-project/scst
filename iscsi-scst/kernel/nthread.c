@@ -24,6 +24,7 @@
 
 #include "iscsi.h"
 #include "digest.h"
+#include "iscsit_transport.h"
 
 /* Read data states */
 enum rx_state {
@@ -408,10 +409,10 @@ static void close_conn(struct iscsi_conn *conn)
 
 	if (conn->active_close) {
 		/* We want all our already send operations to complete */
-		conn->sock->ops->shutdown(conn->sock, RCV_SHUTDOWN);
+		conn->transport->iscsit_conn_close(conn, RCV_SHUTDOWN);
 	} else {
-		conn->sock->ops->shutdown(conn->sock,
-			RCV_SHUTDOWN|SEND_SHUTDOWN);
+		conn->transport->iscsit_conn_close(conn,
+				RCV_SHUTDOWN|SEND_SHUTDOWN);
 	}
 
 	mutex_lock(&session->target->target_mutex);
@@ -487,15 +488,13 @@ static void close_conn(struct iscsi_conn *conn)
 			}
 		}
 
-		iscsi_make_conn_wr_active(conn);
+		conn->transport->iscsit_make_conn_wr_active(conn);
 
 		/* That's for active close only, actually */
 		if (time_after(jiffies, start_waiting + CONN_WAIT_TIMEOUT) &&
 		    !wait_expired) {
-			TRACE_CONN_CLOSE("Wait time expired (conn %p, "
-				"sk_state %d)",
-				conn, conn->sock->sk->sk_state);
-			conn->sock->ops->shutdown(conn->sock, SEND_SHUTDOWN);
+			TRACE_CONN_CLOSE("Wait time expired (conn %p)", conn);
+			conn->transport->iscsit_conn_close(conn, SEND_SHUTDOWN);
 			wait_expired = 1;
 			shut_start_waiting = jiffies;
 		}
@@ -505,9 +504,8 @@ static void close_conn(struct iscsi_conn *conn)
 				conn->deleting ? CONN_DEL_SHUT_TIMEOUT :
 						 CONN_REG_SHUT_TIMEOUT)) {
 			TRACE_CONN_CLOSE("Wait time after shutdown expired "
-				"(conn %p, sk_state %d)", conn,
-				conn->sock->sk->sk_state);
-			conn->sock->sk->sk_prot->disconnect(conn->sock->sk, 0);
+				"(conn %p)", conn);
+			conn->transport->iscsit_conn_close(conn, 0);
 			shut_expired = 1;
 		}
 
@@ -523,17 +521,21 @@ static void close_conn(struct iscsi_conn *conn)
 
 		trace_conn_close(conn);
 
-		/* It might never be called for being closed conn */
-		__iscsi_write_space_ready(conn);
+		if (!conn->session->sess_params.rdma_extensions) {
+			/* It might never be called for being closed conn */
+			__iscsi_write_space_ready(conn);
 
-		iscsi_check_closewait(conn);
+			iscsi_check_closewait(conn);
+		}
 	}
 
-	write_lock_bh(&conn->sock->sk->sk_callback_lock);
-	conn->sock->sk->sk_state_change = conn->old_state_change;
-	conn->sock->sk->sk_data_ready = conn->old_data_ready;
-	conn->sock->sk->sk_write_space = conn->old_write_space;
-	write_unlock_bh(&conn->sock->sk->sk_callback_lock);
+	if (!conn->session->sess_params.rdma_extensions) {
+		write_lock_bh(&conn->sock->sk->sk_callback_lock);
+		conn->sock->sk->sk_state_change = conn->old_state_change;
+		conn->sock->sk->sk_data_ready = conn->old_data_ready;
+		conn->sock->sk->sk_write_space = conn->old_write_space;
+		write_unlock_bh(&conn->sock->sk->sk_callback_lock);
+	}
 
 	while (1) {
 		bool t;
@@ -832,7 +834,7 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 		switch (conn->read_state) {
 		case RX_INIT_BHS:
 			EXTRACHECKS_BUG_ON(conn->read_cmnd != NULL);
-			cmnd = cmnd_alloc(conn, NULL);
+			cmnd = conn->transport->iscsit_alloc_cmd(conn, NULL);
 			conn->read_cmnd = cmnd;
 			iscsi_conn_init_read(cmnd->conn,
 				(void __force __user *)&cmnd->pdu.bhs,

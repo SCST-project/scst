@@ -21,6 +21,7 @@
 
 #include "iscsi.h"
 #include "digest.h"
+#include "iscsit_transport.h"
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 #if defined(CONFIG_LOCKDEP) && !defined(CONFIG_SCST_PROC)
@@ -158,42 +159,7 @@ struct kobj_type iscsi_conn_ktype = {
 static ssize_t iscsi_get_initiator_ip(struct iscsi_conn *conn,
 	char *buf, int size)
 {
-	int pos;
-	struct sock *sk;
-
-	TRACE_ENTRY();
-
-	sk = conn->sock->sk;
-	switch (sk->sk_family) {
-	case AF_INET:
-		pos = scnprintf(buf, size,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,33)
-			 "%u.%u.%u.%u", NIPQUAD(inet_sk(sk)->daddr));
-#else
-			"%pI4", &inet_sk(sk)->inet_daddr);
-#endif
-		break;
-	case AF_INET6:
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,29)
-		pos = scnprintf(buf, size,
-			 "[%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x]",
-			 NIP6(inet6_sk(sk)->daddr));
-#else
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0)
-		pos = scnprintf(buf, size, "[%p6]", &inet6_sk(sk)->daddr);
-#else
-		pos = scnprintf(buf, size, "[%p6]", &sk->sk_v6_daddr);
-#endif
-#endif
-		break;
-	default:
-		pos = scnprintf(buf, size, "Unknown family %d",
-			sk->sk_family);
-		break;
-	}
-
-	TRACE_EXIT_RES(pos);
-	return pos;
+	return conn->transport->iscsit_get_initiator_ip(conn, buf, size);
 }
 
 static ssize_t iscsi_conn_ip_show(struct kobject *kobj,
@@ -431,7 +397,7 @@ void iscsi_make_conn_wr_active(struct iscsi_conn *conn)
 	return;
 }
 
-void __mark_conn_closed(struct iscsi_conn *conn, int flags)
+void iscsi_tcp_mark_conn_closed(struct iscsi_conn *conn, int flags)
 {
 	spin_lock_bh(&conn->conn_thr_pool->rd_lock);
 	conn->closing = 1;
@@ -442,6 +408,11 @@ void __mark_conn_closed(struct iscsi_conn *conn, int flags)
 	spin_unlock_bh(&conn->conn_thr_pool->rd_lock);
 
 	iscsi_make_conn_rd_active(conn);
+}
+
+void __mark_conn_closed(struct iscsi_conn *conn, int flags)
+{
+	conn->transport->iscsit_mark_conn_closed(conn, flags);
 }
 
 void mark_conn_closed(struct iscsi_conn *conn)
@@ -746,7 +717,7 @@ void conn_reinst_finished(struct iscsi_conn *conn)
 	return;
 }
 
-static void conn_activate(struct iscsi_conn *conn)
+int conn_activate(struct iscsi_conn *conn)
 {
 	TRACE_MGMT_DBG("Enabling conn %p", conn);
 
@@ -772,7 +743,7 @@ static void conn_activate(struct iscsi_conn *conn)
 	 */
 	__iscsi_state_change(conn->sock->sk);
 
-	return;
+	return 0;
 }
 
 /*
@@ -814,8 +785,19 @@ out:
 	return res;
 }
 
+void iscsi_tcp_conn_free(struct iscsi_conn *conn)
+{
+	fput(conn->file);
+	conn->file = NULL;
+	conn->sock = NULL;
+
+	free_page((unsigned long)conn->read_iov);
+
+	kmem_cache_free(iscsi_conn_cache, conn);
+}
+
 /* target_mutex supposed to be locked */
-int conn_free(struct iscsi_conn *conn)
+void conn_free(struct iscsi_conn *conn)
 {
 	struct iscsi_session *session = conn->session;
 
@@ -856,25 +838,18 @@ int conn_free(struct iscsi_conn *conn)
 
 	list_del(&conn->conn_list_entry);
 
-	fput(conn->file);
-	conn->file = NULL;
-	conn->sock = NULL;
-
-	free_page((unsigned long)conn->read_iov);
-
-	kmem_cache_free(iscsi_conn_cache, conn);
+	conn->transport->iscsit_conn_free(conn);
 
 	if (list_empty(&session->conn_list)) {
 		sBUG_ON(session->sess_reinst_successor != NULL);
 		session_free(session, true);
 	}
-
-	return 0;
 }
 
 /* target_mutex supposed to be locked */
-static int iscsi_conn_alloc(struct iscsi_session *session,
-	struct iscsi_kern_conn_info *info, struct iscsi_conn **new_conn)
+int iscsi_conn_alloc(struct iscsi_session *session,
+	struct iscsi_kern_conn_info *info, struct iscsi_conn **new_conn,
+	struct iscsit_transport *t)
 {
 	struct iscsi_conn *conn;
 	int res = 0;
@@ -891,6 +866,8 @@ static int iscsi_conn_alloc(struct iscsi_session *session,
 
 	TRACE_MGMT_DBG("Creating connection %p for sid %#Lx, cid %u", conn,
 		       (long long unsigned int)session->sid, info->cid);
+
+	conn->transport = t;
 
 	/* Changing it, change ISCSI_CONN_IOV_MAX as well !! */
 	conn->read_iov = (struct iovec *)get_zeroed_page(GFP_KERNEL);
@@ -986,6 +963,7 @@ int __add_conn(struct iscsi_session *session, struct iscsi_kern_conn_info *info)
 	struct iscsi_conn *conn, *new_conn = NULL;
 	int err;
 	bool reinstatement = false;
+	struct iscsit_transport *t;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&session->target->target_mutex);
@@ -1001,7 +979,13 @@ int __add_conn(struct iscsi_session *session, struct iscsi_kern_conn_info *info)
 		goto out;
 	}
 
-	err = iscsi_conn_alloc(session, info, &new_conn);
+	t = iscsit_get_transport(ISCSI_TCP);
+	if (!t) {
+		err = -ENOENT;
+		goto out;
+	}
+
+	err = t->iscsit_conn_alloc(session, info, &new_conn, t);
 	if (err != 0)
 		goto out;
 
@@ -1013,7 +997,7 @@ int __add_conn(struct iscsi_session *session, struct iscsi_kern_conn_info *info)
 		__mark_conn_closed(conn, 0);
 	}
 
-	conn_activate(new_conn);
+	err = t->iscsit_conn_activate(new_conn);
 
 out:
 	return err;

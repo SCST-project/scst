@@ -349,12 +349,21 @@ void target_del_all_sess(struct iscsi_target *target, int flags)
 
 void target_del_all(void)
 {
+	struct iscsit_transport *transport;
 	struct iscsi_target *target, *t;
 	bool first = true;
 
 	TRACE_ENTRY();
 
 	TRACE_MGMT_DBG("%s", "Deleting all targets");
+
+	transport = iscsit_get_transport(ISCSI_TCP);
+	if (transport && transport->iscsit_close_all_portals)
+		transport->iscsit_close_all_portals();
+
+	transport = iscsit_get_transport(ISCSI_RDMA);
+	if (transport && transport->iscsit_close_all_portals)
+		transport->iscsit_close_all_portals();
 
 	/* Not the best, ToDo */
 	while (1) {

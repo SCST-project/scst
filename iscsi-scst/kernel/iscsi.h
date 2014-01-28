@@ -555,7 +555,7 @@ extern struct iscsi_conn *conn_lookup(struct iscsi_session *, u16);
 extern void conn_reinst_finished(struct iscsi_conn *);
 extern int __add_conn(struct iscsi_session *, struct iscsi_kern_conn_info *);
 extern int __del_conn(struct iscsi_session *, struct iscsi_kern_conn_info *);
-extern int conn_free(struct iscsi_conn *);
+extern void conn_free(struct iscsi_conn *);
 extern void iscsi_make_conn_rd_active(struct iscsi_conn *conn);
 #define ISCSI_CONN_ACTIVE_CLOSE		1
 #define ISCSI_CONN_DELETING		2
@@ -829,4 +829,11 @@ static inline void iscsi_extracheck_is_rd_thread(struct iscsi_conn *conn) {}
 static inline void iscsi_extracheck_is_wr_thread(struct iscsi_conn *conn) {}
 #endif
 
+extern int iscsi_conn_alloc(struct iscsi_session *session,
+	struct iscsi_kern_conn_info *info, struct iscsi_conn **new_conn,
+	struct iscsit_transport *t);
+
+extern int conn_activate(struct iscsi_conn *conn);
+extern void iscsi_tcp_mark_conn_closed(struct iscsi_conn *conn, int flags);
+extern void iscsi_tcp_conn_free(struct iscsi_conn *conn);
 #endif	/* __ISCSI_H__ */
