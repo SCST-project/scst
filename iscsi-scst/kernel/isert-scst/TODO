@@ -1,0 +1,10 @@
+* In login, handle declarative statements correctly:
+	use text_key_add() to add target declarative keys.
+* Add suppport for immediate data in iSER
+* Add suppport for data-out in iSER
+* Look into allocating wr and sg entries dynamically from kmem_cache instead of embedding them into iser_cmnd
+* Look into seperating between RX pdu and TX pdu
+* Do not signal every "response sent" notification
+* Make the code NUMA aware
+* Add support for AHS
+

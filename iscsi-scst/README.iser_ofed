@@ -1,0 +1,117 @@
+iSCSI Extensins for RDMA (iSER) Target driver for Linux
+=================================================
+
+Introduction
+------------
+
+The iSER target driver has been designed to work on top of the Linux
+InfiniBand kernel drivers. While all recent Linux distributions
+include recent versions of the InfiniBand drivers, the only way to
+obtain the latest available InfiniBand drivers is by installing the
+OFED or MLNX_OFED (for Mellanox drivers) software stack.
+
+The OFED stack is distributed by the OpenFabrics Alliance (OFA). The
+mission of the OpenFabrics Alliance is to is to develop, distribute
+and promote a unified, transport-independent, open-source software
+stack for RDMA-capable fabrics and networks, including InfiniBand and
+Ethernet.
+
+The MLNX_OFED is distributed by Mellanox and can be obtained from
+http://www.mellanox.com/page/products_dyn?product_family=26
+
+Note: because during OFED installation the distro-provided InfiniBand
+kernel drivers are replaced, doing so voids the support contract
+offered by your Linux distributor.
+
+Please follow the instructions below carefully. Skipping a step may
+result in kernel modules that fail to load, a kernel oops or even a
+system that does no longer boot.
+
+
+Verifying the kernel version
+----------------------------
+
+Before installing the OFED distribution, it is very important to check
+the OFED release notes. Each OFED distribution has been tested
+carefully, but only against the kernel versions specified in
+docs/OFED_release_notes.txt (you can find this document in the OFED
+distribution). Make sure that you are using a supported kernel / OFED
+combination. As an example, if you want to use OFED 1.5.1 on an Ubuntu
+system, you will have to start with replacing the Ubuntu kernel by a
+kernel from kernel.org since OFED 1.5.1 has not been tested on any
+Ubuntu kernel.
+
+
+Compiling iSER against OFED
+--------------------------
+
+Make sure that all necessary packages needed for kernel compilation
+have been installed (kernel headers, gcc, binutils, ...).
+
+Unload any loaded InfiniBand drivers:
+
+  /etc/init.d/opensmd stop
+  /etc/init.d/openibd stop
+
+Remove any distro-provided InfiniBand drivers:
+
+  rm -rf /lib/modules/$(uname -r)/kernel/drivers/infiniband
+  rm -rf /lib/modules/$(uname -r)/kernel/drivers/net/mlx4
+
+Now locate the file Makefile.lib and patch it such that it supports
+the variable PRE_CFLAGS:
+
+  if [ -e /lib/modules/$(uname -r)/build/scripts/Makefile.lib ]; then
+    cd /lib/modules/$(uname -r)/build
+  else
+    cd /usr/src/linux-$(uname -r)
+  fi
+  patch -p1 < ${SCST_DIR}/srpt/patches/kernel-${KV}-pre-cflags.patch
+
+Next, download and install an OFED pacakge.
+
+For MLNX_OFED, just run the mlnxofedinstall script inside the MLNX_OFED directory.
+
+For the OFED package.Make sure to enable
+at least the kernel-ib and kernel-ib-devel packages. An example:
+
+  wget http://www.openfabrics.org/downloads/OFED/ofed-1.5.1/OFED-1.5.1.tgz
+  tar xzf OFED-1.5.1.tgz
+  cd OFED-1.5.1
+  cat <<EOF >ofed.conf
+  libibverbs=y
+  libibverbs-utils=y
+  libmthca=y
+  libmlx4=y
+  libcxgb3=y
+  libnes=y
+  libipathverbs=y
+  librdmacm=y
+  librdmacm-utils=y
+  mstflint=y
+  ofed-docs=y
+  ofed-scripts=y
+  kernel-ib=y
+  kernel-ib-devel=y
+  ibvexdmtools=y
+  qlgc_vnic_daemon=y
+  core=y
+  mthca=y
+  mlx4=y
+  mlx4_en=y
+  cxgb3=y
+  nes=y
+  ipath=y
+  ipoib=y
+  opensm=y
+  opensm-libs=y
+  srpt=n
+  srptools=y
+  perftest=y
+  EOF
+  ./install.pl -c ofed.conf
+
+Now continue with the installation instructions you can find in the
+ISCSI-SCST README file. The Makefile included with ISCSI-SCST detects
+whether OFED has been installed, and if so, compiles ISCSIS-SCST with
+the OFED kernel headers instead of with the regular kernel headers.

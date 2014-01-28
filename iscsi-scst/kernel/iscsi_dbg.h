@@ -17,6 +17,10 @@
 #ifndef ISCSI_DBG_H
 #define ISCSI_DBG_H
 
+#ifdef LOG_PREFIX
+#undef LOG_PREFIX
+#endif
+
 #define LOG_PREFIX "iscsi-scst"
 
 #ifdef INSIDE_KERNEL_TREE
@@ -54,7 +58,9 @@ extern unsigned long iscsi_get_flow_ctrl_or_mgmt_dbg_log_flag(
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 extern unsigned long iscsi_trace_flag;
+#ifndef trace_flag
 #define trace_flag iscsi_trace_flag
+#endif
 #endif
 
 #define TRACE_CONN_CLOSE(args...)	TRACE_DBG_FLAG(TRACE_DEBUG|TRACE_CONN_OC, args)

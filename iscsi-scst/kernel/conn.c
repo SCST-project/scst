@@ -994,7 +994,10 @@ int __add_conn(struct iscsi_session *session, struct iscsi_kern_conn_info *info)
 		goto out;
 	}
 
-	t = iscsit_get_transport(ISCSI_TCP);
+	if (session->sess_params.rdma_extensions)
+		t = iscsit_get_transport(ISCSI_RDMA);
+	else
+		t = iscsit_get_transport(ISCSI_TCP);
 	if (!t) {
 		err = -ENOENT;
 		goto out;

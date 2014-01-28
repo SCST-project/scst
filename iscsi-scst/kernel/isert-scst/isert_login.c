@@ -1,0 +1,940 @@
+/*
+* This file is part of iser target kernel module.
+*
+* Copyright (c) 2013 Mellanox Technologies. All rights reserved.
+* Copyright (c) 2013 Yan Burman (yanb@mellanox.com)
+*
+* This software is available to you under a choice of one of two
+* licenses.  You may choose to be licensed under the terms of the GNU
+* General Public License (GPL) Version 2, available from the file
+* COPYING in the main directory of this source tree, or the
+* OpenIB.org BSD license below:
+*
+*     Redistribution and use in source and binary forms, with or
+*     without modification, are permitted provided that the following
+*     conditions are met:
+*
+*            - Redistributions of source code must retain the above
+*              copyright notice, this list of conditions and the following
+*              disclaimer.
+*
+*            - Redistributions in binary form must reproduce the above
+*              copyright notice, this list of conditions and the following
+*              disclaimer in the documentation and/or other materials
+*              provided with the distribution.
+*
+* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+* NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+* BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+* ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+* CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+* SOFTWARE.
+*/
+
+#include <linux/module.h>
+#include <linux/kernel.h>
+#include <linux/slab.h>		/* kmalloc() */
+#include <linux/fs.h>		/* everything... */
+#include <linux/errno.h>	/* error codes */
+#include <linux/poll.h>
+#include <linux/freezer.h>
+#include <linux/file.h>
+
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/iscsi.h>
+#else
+#include "iscsi.h"
+#endif
+
+#include "isert.h"
+#include "isert_dbg.h"
+#include "iser_datamover.h"
+
+static unsigned int n_devs;
+
+static int isert_major;
+
+static struct isert_conn_dev *isert_conn_devices;
+
+static struct isert_listener_dev isert_listen_dev;
+
+static struct class *isert_class;
+
+static struct isert_conn_dev *get_available_dev(struct isert_listener_dev *dev,
+						struct iscsi_conn *conn)
+{
+	unsigned int i;
+	struct isert_conn_dev *res = NULL;
+
+	spin_lock(&dev->conn_lock);
+	for (i = 0; i < n_devs; ++i) {
+		if (!isert_conn_devices[i].occupied) {
+			res = &isert_conn_devices[i];
+			res->occupied = 1;
+			res->conn = conn;
+			isert_set_priv(conn, res);
+			list_add(&res->conn_list_entry, &dev->new_conn_list);
+			break;
+		}
+	}
+	spin_unlock(&dev->conn_lock);
+
+	return res;
+}
+
+static void isert_del_timer(struct isert_conn_dev *dev)
+{
+	if (dev->timer_active) {
+		del_timer_sync(&dev->tmo_timer);
+		dev->timer_active = 0;
+	}
+}
+
+static void release_dev(struct isert_conn_dev *dev)
+{
+	isert_del_timer(dev);
+
+	spin_lock(&isert_listen_dev.conn_lock);
+	dev->occupied = 0;
+	list_del_init(&dev->conn_list_entry);
+	dev->state = CS_INIT;
+	spin_unlock(&isert_listen_dev.conn_lock);
+}
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+static void isert_login_close_conn_fn(void *ctx)
+#else
+static void isert_login_close_conn_fn(struct work_struct *work)
+#endif
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	struct isert_close_conn_work *conn_work = ctx;
+#else
+	struct isert_close_conn_work *conn_work = container_of(work,
+		struct isert_close_conn_work, close_work);
+#endif
+	struct iscsi_conn *conn = conn_work->conn;
+
+	isert_close_connection(conn);
+
+	kfree(conn_work);
+}
+
+static void isert_conn_timer_fn(unsigned long arg)
+{
+	struct isert_conn_dev *conn_dev = (struct isert_conn_dev *)arg;
+	struct isert_close_conn_work *conn_work;
+
+	TRACE_ENTRY();
+
+	conn_dev->timer_active = 0;
+
+	PRINT_ERROR("Timeout on connection %p\n", conn_dev->conn);
+
+	conn_work = kmalloc(sizeof(*conn_work), GFP_ATOMIC);
+	if (unlikely(!conn_work)) {
+		PRINT_CRIT_ERROR("Unable to allocate isert_close_conn_work for conn %p\n",
+				 conn_dev->conn);
+		goto out;
+	}
+
+	conn_work->conn = conn_dev->conn;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	INIT_WORK(&conn_work->close_work, isert_login_close_conn_fn,
+		  conn_work);
+#else
+	INIT_WORK(&conn_work->close_work, isert_login_close_conn_fn);
+#endif
+	schedule_work(&conn_work->close_work);
+
+out:
+	TRACE_EXIT();
+}
+
+static int add_new_connection(struct isert_listener_dev *dev,
+			      struct iscsi_conn *conn)
+{
+	struct isert_conn_dev *conn_dev = get_available_dev(dev, conn);
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	if (!conn_dev) {
+		res = -ENOSPC;
+		goto out;
+	}
+
+	init_timer(&conn_dev->tmo_timer);
+	conn_dev->tmo_timer.function = isert_conn_timer_fn;
+	conn_dev->tmo_timer.expires = jiffies + 120 * HZ;
+	conn_dev->tmo_timer.data = (unsigned long)conn_dev;
+	add_timer(&conn_dev->tmo_timer);
+	conn_dev->timer_active = 1;
+	wake_up(&dev->waitqueue);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static bool have_new_connection(struct isert_listener_dev *dev)
+{
+	bool ret;
+
+	spin_lock(&dev->conn_lock);
+	ret = !list_empty(&dev->new_conn_list);
+	spin_unlock(&dev->conn_lock);
+
+	return ret;
+}
+
+int isert_conn_alloc(struct iscsi_session *session,
+		     struct iscsi_kern_conn_info *info,
+		     struct iscsi_conn **new_conn,
+		     struct iscsit_transport *t)
+{
+	int res = 0;
+	struct isert_conn_dev *dev;
+	struct iscsi_conn *conn;
+	struct iscsi_cmnd *cmnd;
+	struct file *filp = fget(info->fd);
+
+	TRACE_ENTRY();
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&session->target->target_mutex);
+#endif
+
+	if (unlikely(!filp)) {
+		res = -EBADF;
+		goto out;
+	}
+
+	dev = filp->private_data;
+
+	cmnd = dev->login_rsp;
+
+	sBUG_ON(cmnd == NULL);
+	dev->login_rsp = NULL;
+
+	*new_conn = dev->conn;
+	res = isert_set_session_params(dev->conn, &session->sess_params,
+				       &session->tgt_params);
+
+	if (!res)
+		dev->conn = NULL;
+
+	fput(filp);
+
+	conn = *new_conn;
+
+	if (unlikely(res))
+		goto cleanup_conn;
+
+	conn->transport = t;
+
+	res = iscsi_init_conn(session, info, conn);
+	if (unlikely(res))
+		goto cleanup_conn;
+
+#ifndef CONFIG_SCST_PROC
+	res = conn_sysfs_add(conn);
+	if (unlikely(res))
+		goto cleanup_iscsi_conn;
+#endif
+
+	list_add_tail(&conn->conn_list_entry, &session->conn_list);
+
+	conn->rd_state = 1;
+	res = isert_login_rsp_tx(cmnd, true, false);
+	vunmap(dev->sg_virt);
+	dev->sg_virt = NULL;
+
+	if (unlikely(res))
+		goto cleanup_iscsi_conn;
+
+	goto out;
+
+cleanup_iscsi_conn:
+	if (conn->nop_in_interval > 0)
+		cancel_delayed_work_sync(&conn->nop_in_delayed_work);
+	list_del(&conn->conn_list_entry);
+cleanup_conn:
+	conn->session = NULL;
+	isert_close_connection(conn);
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static unsigned int isert_listen_poll(struct file *filp,
+				      struct poll_table_struct *wait)
+{
+	struct isert_listener_dev *dev = filp->private_data;
+	unsigned int mask = 0;
+
+	poll_wait(filp, &dev->waitqueue, wait);
+
+	if (have_new_connection(dev))
+		mask |= POLLIN | POLLRDNORM;
+
+	return mask;
+}
+
+static int isert_listen_open(struct inode *inode, struct file *filp)
+{
+	struct isert_listener_dev *dev;
+
+	dev = container_of(inode->i_cdev, struct isert_listener_dev, cdev);
+
+	if (!atomic_dec_and_test(&dev->available)) {
+		atomic_inc(&dev->available);
+		return -EBUSY; /* already open */
+	}
+
+	filp->private_data = dev; /* for other methods */
+
+	return 0;
+}
+
+static int isert_listen_release(struct inode *inode, struct file *filp)
+{
+	struct isert_listener_dev *dev = filp->private_data;
+	struct isert_conn_dev *conn_dev;
+
+	/* No need for locking here, since the chardev is being closed */
+	while (!list_empty(&dev->new_conn_list)) {
+		conn_dev = list_first_entry(&dev->new_conn_list,
+					    struct isert_conn_dev,
+					    conn_list_entry);
+
+		isert_del_timer(conn_dev);
+		if (conn_dev->conn) {
+			isert_close_connection(conn_dev->conn);
+			conn_dev->conn = NULL;
+		}
+		list_del(&conn_dev->conn_list_entry);
+	}
+
+	atomic_inc(&dev->available);
+	return 0;
+}
+
+static ssize_t isert_listen_read(struct file *filp, char __user *buf,
+				 size_t count, loff_t *f_pos)
+{
+	struct isert_listener_dev *dev = filp->private_data;
+	struct isert_conn_dev *conn_dev;
+	int res = 0;
+	char k_buff[sizeof("/dev/") + sizeof(ISER_CONN_DEV_PREFIX) + 3 + 1];
+
+	TRACE_ENTRY();
+
+	if (!have_new_connection(dev)) {
+		if (filp->f_flags & O_NONBLOCK)
+			return -EAGAIN;
+		res = wait_event_freezable(dev->waitqueue,
+			!have_new_connection(dev));
+		if (res < 0)
+			goto out;
+	}
+
+	sBUG_ON(list_empty(&dev->new_conn_list));
+
+	spin_lock(&dev->conn_lock);
+	conn_dev = list_first_entry(&dev->new_conn_list, struct isert_conn_dev,
+				    conn_list_entry);
+	list_move(&conn_dev->conn_list_entry, &dev->curr_conn_list);
+	spin_unlock(&dev->conn_lock);
+
+	res = snprintf(k_buff, sizeof(k_buff), "/dev/"ISER_CONN_DEV_PREFIX"%d",
+		       conn_dev->idx);
+	++res; /* copy trailing \0 as well */
+
+	if (copy_to_user(buf, k_buff, res))
+		res = -EFAULT;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static long isert_listen_ioctl(struct file *filp, unsigned int cmd,
+			       unsigned long arg)
+{
+	struct isert_listener_dev *dev = filp->private_data;
+	int res = 0, rc;
+	void __user *ptr = (void __user *)arg;
+	void *portal;
+
+	TRACE_ENTRY();
+
+	switch (cmd) {
+	case SET_LISTEN_ADDR:
+		rc = copy_from_user(&dev->info, ptr, sizeof(dev->info));
+		if (rc != 0) {
+			PRINT_ERROR("Failed to copy %d user's bytes\n", rc);
+			res = -EFAULT;
+			goto out;
+		}
+
+		if (dev->free_portal_idx >= ISERT_MAX_PORTALS) {
+			PRINT_ERROR("Maximum number of portals exceeded: %d\n",
+				    ISERT_MAX_PORTALS);
+			res = -EINVAL;
+			goto out;
+		}
+
+		portal = isert_portal_add((struct sockaddr *)&dev->info.addr,
+					  dev->info.addr_len);
+		if (!portal) {
+			PRINT_ERROR("Unable to add portal of size %zu\n",
+				    dev->info.addr_len);
+			res = -EINVAL;
+			goto out;
+		}
+		dev->portal_h[dev->free_portal_idx++] = portal;
+		break;
+
+	default:
+		PRINT_ERROR("Invalid ioctl cmd %x", cmd);
+		res = -EINVAL;
+	}
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+int isert_conn_established(struct iscsi_conn *iscsi_conn,
+			   struct sockaddr *from_addr, int addr_len)
+{
+	return add_new_connection(&isert_listen_dev, iscsi_conn);
+}
+
+int isert_connection_closed(struct iscsi_conn *iscsi_conn)
+{
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	if (iscsi_conn->rd_state) {
+		res = isert_handle_close_connection(iscsi_conn);
+	} else {
+		struct isert_conn_dev *dev = isert_get_priv(iscsi_conn);
+
+		if (dev) {
+			isert_del_timer(dev);
+			dev->state = CS_DISCONNECTED;
+			if (dev->login_req) {
+				res = isert_task_abort(dev->login_req);
+				dev->login_req = NULL;
+			}
+
+			dev->conn = NULL;
+			wake_up(&dev->waitqueue);
+		}
+
+		isert_free_connection(iscsi_conn);
+	}
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static bool will_read_block(struct isert_conn_dev *dev)
+{
+	bool res;
+
+	spin_lock(&dev->pdu_lock);
+	res = (dev->login_req == NULL) && (dev->state != CS_DISCONNECTED);
+	spin_unlock(&dev->pdu_lock);
+
+	return res;
+}
+
+static int isert_open(struct inode *inode, struct file *filp)
+{
+	struct isert_conn_dev *dev; /* device information */
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	dev = container_of(inode->i_cdev, struct isert_conn_dev, cdev);
+
+	if (!atomic_dec_and_test(&dev->available)) {
+		atomic_inc(&dev->available);
+		res = -EBUSY; /* already open */
+		goto out;
+	}
+
+	filp->private_data = dev; /* for other methods */
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int isert_release(struct inode *inode, struct file *filp)
+{
+	struct isert_conn_dev *dev = filp->private_data;
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	vunmap(dev->sg_virt);
+	dev->is_discovery = 0;
+
+	if (dev->conn) {
+		isert_close_connection(dev->conn);
+		dev->conn = NULL;
+	}
+
+	release_dev(dev);
+	atomic_inc(&dev->available);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static char *isert_vmap_sg(struct page **pages, struct scatterlist *sgl,
+			   int n_ents)
+{
+	unsigned int i;
+	struct scatterlist *sg;
+	void *vaddr;
+
+	for_each_sg(sgl, sg, n_ents, i)
+		pages[i] = sg_page(sg);
+
+	vaddr = vmap(pages, n_ents, 0, PAGE_KERNEL);
+
+	return vaddr;
+}
+
+static ssize_t isert_read(struct file *filp, char __user *buf, size_t count,
+			  loff_t *f_pos)
+{
+	struct isert_conn_dev *dev = filp->private_data;
+	size_t to_read;
+
+	if (will_read_block(dev)) {
+		int ret;
+		if (filp->f_flags & O_NONBLOCK)
+			return -EAGAIN;
+		ret = wait_event_freezable(dev->waitqueue,
+			!will_read_block(dev));
+		if (ret < 0)
+			return ret;
+	}
+
+	if (dev->state == CS_DISCONNECTED)
+		return -EPIPE;
+
+	to_read = min(count, dev->read_len);
+	if (copy_to_user(buf, dev->read_buf, to_read))
+		return -EFAULT;
+
+	dev->read_len -= to_read;
+	dev->read_buf += to_read;
+
+	switch (dev->state) {
+	case CS_REQ_BHS:
+		if (dev->read_len == 0) {
+			dev->read_len = dev->login_req->bufflen;
+			dev->sg_virt = isert_vmap_sg(dev->pages,
+						     dev->login_req->sg,
+						     dev->login_req->sg_cnt);
+			if (!dev->sg_virt)
+				return -ENOMEM;
+			dev->read_buf = dev->sg_virt + ISER_HDRS_SZ;
+			dev->state = CS_REQ_DATA;
+		}
+		break;
+
+	case CS_REQ_DATA:
+		if (dev->read_len == 0) {
+			vunmap(dev->sg_virt);
+			dev->sg_virt = NULL;
+
+			spin_lock(&dev->pdu_lock);
+			dev->login_req = NULL;
+			dev->state = CS_REQ_FINISHED;
+			spin_unlock(&dev->pdu_lock);
+		}
+		break;
+
+	default:
+		sBUG();
+	}
+
+	return to_read;
+}
+
+static ssize_t isert_write(struct file *filp, const char __user *buf,
+			   size_t count, loff_t *f_pos)
+{
+	struct isert_conn_dev *dev = filp->private_data;
+	size_t to_write;
+
+	if (dev->state == CS_DISCONNECTED)
+		return -EPIPE;
+
+	to_write = min(count, dev->write_len);
+	if (copy_from_user(dev->write_buf, buf, to_write))
+		return -EFAULT;
+
+	dev->write_len -= to_write;
+	dev->write_buf += to_write;
+
+	switch (dev->state) {
+	case CS_RSP_BHS:
+		if (dev->write_len == 0) {
+			dev->state = CS_RSP_DATA;
+			dev->sg_virt = isert_vmap_sg(dev->pages,
+						     dev->login_rsp->sg,
+						     dev->login_rsp->sg_cnt);
+			if (!dev->sg_virt)
+				return -ENOMEM;
+			dev->write_buf = dev->sg_virt + ISER_HDRS_SZ;
+			dev->write_len = dev->login_rsp->bufflen -
+					 sizeof(dev->login_rsp->pdu.bhs);
+			iscsi_cmnd_get_length(&dev->login_rsp->pdu);
+		}
+		break;
+
+	case CS_RSP_DATA:
+		break;
+
+	default:
+		sBUG();
+	}
+
+	return to_write;
+}
+
+static bool is_last_login_rsp(struct iscsi_login_rsp_hdr *rsp)
+{
+	return (rsp->flags & ISCSI_FLG_TRANSIT) &&
+	       ((rsp->flags & ISCSI_FLG_NSG_MASK) == ISCSI_FLG_NSG_FULL_FEATURE);
+}
+
+static long isert_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+{
+	struct isert_conn_dev *dev = filp->private_data;
+	int res = 0, rc;
+	int val;
+	void __user *ptr = (void __user *)arg;
+	struct iscsi_cmnd *cmnd;
+
+	TRACE_ENTRY();
+
+	if (dev->state == CS_DISCONNECTED) {
+		res = -EPIPE;
+		goto out;
+	}
+
+	switch (cmd) {
+	case RDMA_CORK:
+		rc = copy_from_user(&val, ptr, sizeof(val));
+		if (unlikely(rc != 0)) {
+			PRINT_ERROR("Failed to copy %d user's bytes", rc);
+			res = -EFAULT;
+			goto out;
+		}
+		if (val) {
+			if (!dev->login_rsp) {
+				cmnd = isert_alloc_login_rsp_pdu(dev->conn);
+				if (!cmnd) {
+					res = -ENOMEM;
+					goto out;
+				}
+				dev->login_rsp = cmnd;
+				dev->write_buf = (char *)&cmnd->pdu.bhs;
+				dev->write_len = sizeof(cmnd->pdu.bhs);
+				dev->state = CS_RSP_BHS;
+			}
+		} else {
+			struct iscsi_login_rsp_hdr *rsp;
+			bool last;
+
+			if (!dev->login_rsp) {
+				res = -EINVAL;
+				goto out;
+			}
+
+			dev->state = CS_RSP_FINISHED;
+			rsp = (struct iscsi_login_rsp_hdr *)(&dev->login_rsp->pdu.bhs);
+			last = is_last_login_rsp(rsp);
+
+			dev->login_rsp->bufflen -= dev->write_len;
+
+			if (!last || dev->is_discovery) {
+				res = isert_login_rsp_tx(dev->login_rsp,
+							last,
+							dev->is_discovery);
+				vunmap(dev->sg_virt);
+				dev->sg_virt = NULL;
+				dev->login_rsp = NULL;
+			}
+		}
+		break;
+
+	case GET_PORTAL_ADDR:
+		{
+			struct isert_addr_info addr;
+
+			res = isert_get_target_addr(dev->conn,
+						   (struct sockaddr *)&addr.addr,
+						   &addr.addr_len);
+			if (unlikely(res))
+				goto out;
+
+			rc = copy_to_user(ptr, &addr, sizeof(addr));
+			if (rc)
+				res = -EFAULT;
+		}
+		break;
+
+	case DISCOVERY_SESSION:
+		rc = copy_from_user(&val, ptr, sizeof(val));
+		if (unlikely(rc != 0)) {
+			PRINT_ERROR("Failed to copy %d user's bytes", rc);
+			res = -EFAULT;
+			goto out;
+		}
+		dev->is_discovery = val;
+		break;
+
+	default:
+		PRINT_ERROR("Invalid ioctl cmd %x", cmd);
+		res = -EINVAL;
+	}
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static unsigned int isert_poll(struct file *filp,
+			       struct poll_table_struct *wait)
+{
+	struct isert_conn_dev *dev = filp->private_data;
+	unsigned int mask = 0;
+
+	poll_wait(filp, &dev->waitqueue, wait);
+
+	if (!dev->conn)
+		mask |= POLLHUP | POLLERR;
+	if (!will_read_block(dev))
+		mask |= POLLIN | POLLRDNORM;
+
+	mask |= POLLOUT | POLLWRNORM;
+
+	return mask;
+}
+
+int isert_login_req_rx(struct iscsi_cmnd *login_req)
+{
+	struct isert_conn_dev *dev = isert_get_priv(login_req->conn);
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	if (!dev) {
+		PRINT_ERROR("Received PDU %p on invalid connection\n",
+			    login_req);
+		res = -EINVAL;
+		goto out;
+	}
+
+	sBUG_ON(dev->login_req != NULL);
+
+	spin_lock(&dev->pdu_lock);
+	dev->login_req = login_req;
+	dev->read_len = sizeof(login_req->pdu.bhs);
+	dev->read_buf = (char *)&login_req->pdu.bhs;
+	dev->state = CS_REQ_BHS;
+	spin_unlock(&dev->pdu_lock);
+
+	wake_up(&dev->waitqueue);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static dev_t devno;
+
+static const struct file_operations listener_fops = {
+	.owner		= THIS_MODULE,
+	.llseek		= no_llseek,
+	.read		= isert_listen_read,
+	.unlocked_ioctl	= isert_listen_ioctl,
+	.compat_ioctl	= isert_listen_ioctl,
+	.poll		= isert_listen_poll,
+	.open		= isert_listen_open,
+	.release	= isert_listen_release,
+};
+
+static const struct file_operations conn_fops = {
+	.owner		= THIS_MODULE,
+	.llseek		= no_llseek,
+	.read		= isert_read,
+	.write		= isert_write,
+	.unlocked_ioctl	= isert_ioctl,
+	.compat_ioctl	= isert_ioctl,
+	.poll		= isert_poll,
+	.open		= isert_open,
+	.release	= isert_release,
+};
+
+static void __init isert_setup_cdev(struct isert_conn_dev *dev,
+				    unsigned int index)
+{
+	int err;
+
+	TRACE_ENTRY();
+
+	dev->devno = MKDEV(isert_major, index + 1);
+
+	cdev_init(&dev->cdev, &conn_fops);
+	dev->cdev.owner = THIS_MODULE;
+	dev->cdev.ops = &conn_fops;
+	dev->idx = index;
+	init_waitqueue_head(&dev->waitqueue);
+	dev->login_req = NULL;
+	dev->login_rsp = NULL;
+	spin_lock_init(&dev->pdu_lock);
+	atomic_set(&dev->available, 1);
+	dev->state = CS_INIT;
+	err = cdev_add(&dev->cdev, dev->devno, 1);
+	/* Fail gracefully if need be */
+	if (err)
+		PRINT_ERROR("Error %d adding "ISER_CONN_DEV_PREFIX"%d", err,
+			    index);
+
+	dev->dev = device_create(isert_class, NULL, dev->devno, NULL,
+				 ISER_CONN_DEV_PREFIX"%d", index);
+
+	TRACE_EXIT();
+}
+
+static void __init isert_setup_listener_cdev(struct isert_listener_dev *dev)
+{
+	int err;
+
+	TRACE_ENTRY();
+
+	dev->devno = MKDEV(isert_major, 0);
+
+	cdev_init(&dev->cdev, &listener_fops);
+	dev->cdev.owner = THIS_MODULE;
+	dev->cdev.ops = &listener_fops;
+	init_waitqueue_head(&dev->waitqueue);
+	INIT_LIST_HEAD(&dev->new_conn_list);
+	INIT_LIST_HEAD(&dev->curr_conn_list);
+	spin_lock_init(&dev->conn_lock);
+	atomic_set(&dev->available, 1);
+	err = cdev_add(&dev->cdev, dev->devno, 1);
+	/* Fail gracefully if need be */
+	if (err)
+		PRINT_ERROR("Error %d adding isert_scst", err);
+
+	dev->dev = device_create(isert_class, NULL, dev->devno, NULL,
+				 "isert_scst");
+
+	TRACE_EXIT();
+}
+
+int __init isert_init_login_devs(unsigned int ndevs)
+{
+	int res;
+	unsigned int i;
+
+	TRACE_ENTRY();
+
+	n_devs = ndevs;
+
+	res = alloc_chrdev_region(&devno, 0, n_devs,
+			"isert_scst");
+	isert_major = MAJOR(devno);
+
+	if (res < 0) {
+		PRINT_ERROR("isert: can't get major %d\n", isert_major);
+		goto out;
+	}
+
+	/*
+	 * allocate the devices -- we can't have them static, as the number
+	 * can be specified at load time
+	 */
+	isert_conn_devices = kzalloc(n_devs * sizeof(struct isert_conn_dev),
+				     GFP_KERNEL);
+	if (!isert_conn_devices) {
+		res = -ENOMEM;
+		goto fail;  /* Make this more graceful */
+	}
+
+	isert_class = class_create(THIS_MODULE, "isert_scst");
+
+	isert_setup_listener_cdev(&isert_listen_dev);
+
+	/* Initialize each device. */
+	for (i = 0; i < n_devs; i++)
+		isert_setup_cdev(&isert_conn_devices[i], i);
+
+	res = isert_datamover_init();
+	if (res) {
+		PRINT_ERROR("Unable to initialize datamover: %d\n", res);
+		goto fail;
+	}
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+fail:
+	isert_cleanup_login_devs();
+	goto out;
+}
+
+void isert_close_all_portals(void)
+{
+	int i;
+
+	for (i = 0; i < isert_listen_dev.free_portal_idx; ++i)
+		isert_portal_remove(isert_listen_dev.portal_h[i]);
+	isert_listen_dev.free_portal_idx = 0;
+}
+
+void isert_cleanup_login_devs(void)
+{
+	int i;
+
+	TRACE_ENTRY();
+
+	isert_close_all_portals();
+
+	isert_datamover_cleanup();
+
+	if (isert_conn_devices) {
+		for (i = 0; i < n_devs; i++) {
+			device_destroy(isert_class,
+				       isert_conn_devices[i].devno);
+			cdev_del(&isert_conn_devices[i].cdev);
+		}
+		kfree(isert_conn_devices);
+	}
+
+	device_destroy(isert_class, isert_listen_dev.devno);
+	cdev_del(&isert_listen_dev.cdev);
+
+	if (isert_class)
+		class_destroy(isert_class);
+
+	unregister_chrdev_region(devno, n_devs);
+
+	TRACE_EXIT();
+}

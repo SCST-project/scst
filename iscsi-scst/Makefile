@@ -24,6 +24,7 @@ RCDIR := /etc/rc.d
 MANDIR ?= $(PREFIX)/man
 KMOD := $(shell pwd)/kernel
 INCDIR := $(shell pwd)/include
+ISERTMOD := $(KMOD)/isert-scst
 
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
@@ -38,8 +39,49 @@ endif
 
 all: include/iscsi_scst_itf_ver.h progs mods
 
+ISER_SYMVERS:=$(KMOD)/Module.symvers
+OFED_CFLAGS:=
+
+MLNX_OFED:=$(shell if $( ofed_info | grep MLNX_OFED $) >/dev/null 2>/dev/null; then echo true; else echo false; fi)
+
+ifeq ($(MLNX_OFED),true)
+	# Whether MLNX_OFED for ubuntu has been installed
+	MLNX_OFED_IB_UBUNTU_INSTALLED:=$(shell if dpkg -s mlnx-ofed-kernel-dkms >/dev/null 2>/dev/null; then echo true; else echo false; fi)
+
+	# Whether MLNX_OFED for RedHat has been installed
+	MLNX_OFED_IB_RH_INSTALLED:=$(shell if rpm -q mlnx-ofa_kernel-devel >&/dev/null; then echo true; else echo false; fi)
+
+	# Check if we have custom compiled kernel modules
+        ifeq ($(MLNX_OFED_IB_RH_INSTALLED),false)
+	MLNX_OFED_IB_RH_INSTALLED:=$(shell if rpm -q kernel-ib-devel >&/dev/null; then echo true; else echo false; fi)
+	endif
+
+	ifeq ($(MLNX_OFED_IB_UBUNTU_INSTALLED),true)
+	OFED_VERS=$(shell dpkg -s mlnx-ofed-kernel-dkms | awk -F\- '/Version/ {print $$1}' | awk '{print $$2}')
+	OFED_CFLAGS:=-I/var/lib/dkms/mlnx-ofed-kernel/$(OFED_VERS)/build/include -include /var/lib/dkms/mlnx-ofed-kernel/$(OFED_VERS)/build/include/linux/compat-2.6.h
+	ISER_SYMVERS:="$(ISER_SYMVERS) /var/lib/dkms/mlnx-ofed-kernel/$(OFED_VERS)/build/Module.symvers"
+	endif
+
+	ifeq ($(MLNX_OFED_IB_RH_INSTALLED),true)
+	OFED_CFLAGS:=-I/usr/src/ofa_kernel/default/include -include /usr/src/ofa_kernel/default/include/linux/compat-2.6.h
+	ISER_SYMVERS:="$(ISER_SYMVERS) /usr/src/ofa_kernel/default/Module.symvers"
+	endif
+else
+	# Whether or not the OFED kernel-ib-devel RPM has been installed.
+	OFED_KERNEL_IB_DEVEL_RPM_INSTALLED:=$(shell if rpm -q kernel-ib-devel 2>/dev/null | grep -q $$(uname -r | sed 's/-/_/g'); then echo true; else echo false; fi)
+
+	ifeq ($(OFED_KERNEL_IB_DEVEL_RPM_INSTALLED),true)
+	# Read OFED's config.mk, which contains the definition of the variable
+	# BACKPORT_INCLUDES.
+	include /usr/src/ofa_kernel/config.mk
+	OFED_CFLAGS:=$(shell echo $(BACKPORT_INCLUDES) -I/usr/src/ofa_kernel/include)
+	ISER_SYMVERS:="$(ISER_SYMVERS) /usr/src/ofa_kernel/Module.symvers"
+	endif
+endif
+
 mods: Modules.symvers Module.symvers
 	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(KMOD) modules
+	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(ISERTMOD) PRE_CFLAGS="$(OFED_CFLAGS)" KBUILD_EXTRA_SYMBOLS=$(ISER_SYMVERS) modules
 
 progs:
 	$(MAKE) -C usr SCST_INC_DIR=$(SCST_INC_DIR)
@@ -60,6 +102,8 @@ install: all
 	@eval `sed -n 's/#define UTS_RELEASE /KERNELRELEASE=/p' $(KDIR)/include/linux/version.h $(KDIR)/include/linux/utsrelease.h 2>/dev/null`; \
 	install -vD -m 644 kernel/iscsi-scst.ko \
 	$(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra/iscsi-scst.ko
+	install -vD -m 644 kernel/isert-scst/isert-scst.ko \
+	$(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra/isert-scst.ko
 	-/sbin/depmod -aq $(KVER)
 
 SCST_MOD_VERS := $(shell ls $(SCST_DIR)/Modules.symvers 2>/dev/null)
@@ -67,6 +111,7 @@ ifneq ($(SCST_MOD_VERS),)
 Modules.symvers: $(SCST_DIR)/Modules.symvers
 	echo $(SCST_MOD_VERS)
 	cp $(SCST_DIR)/Modules.symvers kernel/
+	cp $(SCST_DIR)/Modules.symvers kernel/isert-scst
 else
 .PHONY: Modules.symvers
 endif
@@ -76,6 +121,7 @@ SCST_MOD_VERS := $(shell ls $(SCST_DIR)/Module.symvers 2>/dev/null)
 ifneq ($(SCST_MOD_VERS),)
 Module.symvers: $(SCST_DIR)/Module.symvers
 	cp $(SCST_DIR)/Module.symvers kernel/
+	cp $(SCST_DIR)/Module.symvers kernel/isert-scst
 else
 .PHONY: Module.symvers
 endif
@@ -83,17 +129,24 @@ endif
 clean:
 	$(MAKE) -C usr $@
 	$(MAKE) -C $(KDIR) SUBDIRS=$(KMOD) $@
+	$(MAKE) -C $(KDIR) SUBDIRS=$(ISERTMOD) $@
 	rm -f kernel/Modules.symvers kernel/Module.symvers \
 		kernel/Module.markers kernel/modules.order \
+		kernel/isert-scst/Modules.symvers kernel/isert-scst/Module.symvers \
+		kernel/isert-scst/Module.markers kernel/isert-scst/modules.order \
 		include/iscsi_scst_itf_ver.h
 
 extraclean:
 	$(MAKE) -C usr $@
 	$(MAKE) -C $(KDIR) SUBDIRS=$(KMOD) clean
+	$(MAKE) -C $(KDIR) SUBDIRS=$(ISERTMOD) clean
 	rm -f kernel/Modules.symvers kernel/Module.symvers \
 		kernel/Module.markers kernel/modules.order \
+		kernel/isert-scst/Modules.symvers kernel/isert-scst/Module.symvers \
+		kernel/isert-scst/Module.markers kernel/isert-scst/modules.order \
 		include/iscsi_scst_itf_ver.h \
-		kernel/*.orig kernel/*.rej
+		kernel/*.orig kernel/*.rej \
+		kernel/isert-scst/*.orig kernel/isert-scst/*.rej
 
 2release:
 	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ $(KMOD)/Makefile
@@ -103,6 +156,13 @@ extraclean:
 	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/ $(KMOD)/Makefile
 	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions" $(KMOD)/Makefile >/dev/null
 	rm $(KMOD)/Makefile.aa
+	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ $(ISERTMOD)/Makefile
+	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS" $(ISERTMOD)/Makefile >/dev/null
+	sed -i.aa s/"^#\?EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/"EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/ $(ISERTMOD)/Makefile
+	grep "^EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING" $(ISERTMOD)/Makefile >/dev/null
+	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/ $(ISERTMOD)/Makefile
+	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions" $(ISERTMOD)/Makefile >/dev/null
+	rm $(ISERTMOD)/Makefile.aa
 
 2debug:
 	sed -i.aa s/"^#\?EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ $(KMOD)/Makefile
@@ -112,6 +172,13 @@ extraclean:
 	sed -i.aa s/"^#\?EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/"EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/ $(KMOD)/Makefile
 	grep "^EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions" $(KMOD)/Makefile >/dev/null
 	rm $(KMOD)/Makefile.aa
+	sed -i.aa s/"^#\?EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ $(ISERTMOD)/Makefile
+	grep "^EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS" $(ISERTMOD)/Makefile >/dev/null
+	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/ $(ISERTMOD)/Makefile
+	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING" $(ISERTMOD)/Makefile >/dev/null
+	sed -i.aa s/"^#\?EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/"EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/ $(ISERTMOD)/Makefile
+	grep "^EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions" $(ISERTMOD)/Makefile >/dev/null
+	rm $(ISERTMOD)/Makefile.aa
 
 2perf:
 	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ $(KMOD)/Makefile
@@ -121,6 +188,13 @@ extraclean:
 	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/ $(KMOD)/Makefile
 	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions" $(KMOD)/Makefile >/dev/null
 	rm $(KMOD)/Makefile.aa
+	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ $(ISERTMOD)/Makefile
+	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS" $(ISERTMOD)/Makefile >/dev/null
+	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/ $(ISERTMOD)/Makefile
+	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING" $(ISERTMOD)/Makefile >/dev/null
+	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/ $(ISERTMOD)/Makefile
+	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions" $(ISERTMOD)/Makefile >/dev/null
+	rm $(ISERTMOD)/Makefile.aa
 
 disable_proc:
 	sed -i.aa s/"^#\?define CONFIG_SCST_PROC"/"\/* #define CONFIG_SCST_PROC *\/"/ $(INCDIR)/iscsi_scst_ver.h
