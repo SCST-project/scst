@@ -652,7 +652,7 @@ static void vdisk_blockio_check_flush_support(struct scst_vdisk_dev *virt_dev)
 
 	TRACE_ENTRY();
 
-	if (!virt_dev->blockio || virt_dev->rd_only || virt_dev->nv_cache)
+	if (!virt_dev->blockio || virt_dev->rd_only || virt_dev->nv_cache || virt_dev->wt_flag)
 		goto out;
 
 	fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
