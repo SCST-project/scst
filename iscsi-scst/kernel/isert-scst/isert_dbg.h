@@ -23,6 +23,7 @@
 #endif
 
 #define LOG_PREFIX "isert" /* Prefix for SCST tracing macros. */
+
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/scst_debug.h>
 #else

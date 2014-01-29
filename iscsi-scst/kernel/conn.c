@@ -311,6 +311,7 @@ out_err:
 	goto out;
 }
 EXPORT_SYMBOL(conn_sysfs_add);
+
 #endif /* CONFIG_SCST_PROC */
 
 /* target_mutex supposed to be locked */

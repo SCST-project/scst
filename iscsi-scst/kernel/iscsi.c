@@ -1915,9 +1915,6 @@ int cmnd_rx_continue(struct iscsi_cmnd *req)
 	struct iscsi_scsi_cmd_hdr *req_hdr = cmnd_hdr(req);
 	struct scst_cmd *scst_cmd = req->scst_cmd;
 	scst_data_direction dir;
-#ifdef CONFIG_SCST_DEBUG
-	bool unsolicited_data_expected = false;
-#endif
 	int res = 0;
 
 	TRACE_ENTRY();
@@ -1977,11 +1974,9 @@ int cmnd_rx_continue(struct iscsi_cmnd *req)
 	}
 
 trace:
-	TRACE_DBG("req=%p, dir=%d, unsolicited_data_expected=%d, "
-		"r2t_len_to_receive=%d, r2t_len_to_send=%d, bufflen=%d, "
-		"own_sg %d", req, dir, unsolicited_data_expected,
-		req->r2t_len_to_receive, req->r2t_len_to_send, req->bufflen,
-		req->own_sg);
+	TRACE_DBG("req=%p, dir=%d, r2t_len_to_receive=%d, r2t_len_to_send=%d, "
+		"bufflen=%d, own_sg %d", req, dir, req->r2t_len_to_receive,
+		req->r2t_len_to_send, req->bufflen, req->own_sg);
 
 out:
 	TRACE_EXIT_RES(res);
