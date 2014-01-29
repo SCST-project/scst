@@ -6825,7 +6825,6 @@ int scst_get_cdb_info(struct scst_cmd *cmd)
 	int dev_type = cmd->dev->type;
 	int i, res = 0;
 	uint8_t op;
-	uint8_t control;
 	const struct scst_sdbops *ptr = NULL;
 
 	TRACE_ENTRY();
@@ -6871,7 +6870,8 @@ int scst_get_cdb_info(struct scst_cmd *cmd)
 	}
 
 	cmd->cdb_len = SCST_GET_CDB_LEN(op);
-	control = cmd->cdb[cmd->cdb_len - 1];
+	cmd->cmd_naca = (cmd->cdb[cmd->cdb_len - 1] & CONTROL_BYTE_NACA_BIT);
+	cmd->cmd_linked = (cmd->cdb[cmd->cdb_len - 1] & CONTROL_BYTE_LINK_BIT);
 	cmd->op_name = ptr->info_op_name;
 	cmd->data_direction = ptr->info_data_direction;
 	cmd->op_flags = ptr->info_op_flags | SCST_INFO_VALID;
@@ -6880,24 +6880,6 @@ int scst_get_cdb_info(struct scst_cmd *cmd)
 	cmd->len_off = ptr->info_len_off;
 	cmd->len_len = ptr->info_len_len;
 	res = (*ptr->get_cdb_info)(cmd, ptr);
-
-	if (unlikely(control & CONTROL_BYTE_NACA_BIT)) {
-		PRINT_ERROR("NACA bit in control byte CDB is not supported "
-			    "(opcode 0x%02x)", cmd->cdb[0]);
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_message));
-		res = 1; /* command invalid */
-		goto out;
-	}
-
-	if (unlikely(control & CONTROL_BYTE_LINK_BIT)) {
-		PRINT_ERROR("Linked commands are not supported "
-			    "(opcode 0x%02x)", cmd->cdb[0]);
-		scst_set_invalid_field_in_cdb(cmd, cmd->cdb_len-1,
-			SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
-		res = 1; /* command invalid */
-		goto out;
-	}
 
 out:
 	TRACE_EXIT_RES(res);

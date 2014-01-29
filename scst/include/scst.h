@@ -1951,6 +1951,9 @@ struct scst_cmd {
 	/* Set if cmd is queued as hw pending */
 	unsigned int cmd_hw_pending:1;
 
+	/* Set if cmd has NACA bit set in CDB */
+	unsigned int cmd_naca:1;
+
 	/*
 	 * Set if the target driver wants to alloc data buffers on its own.
 	 * In this case tgt_alloc_data_buf() must be provided in the target
@@ -2029,6 +2032,9 @@ struct scst_cmd {
 
 	/* Set if scst_cmd_set_write_not_received_data_len() was called */
 	unsigned int write_not_received_set:1;
+
+	/* Set if cmd has LINK bit set in CDB */
+	unsigned int cmd_linked:1;
 
 	/**************************************************************/
 

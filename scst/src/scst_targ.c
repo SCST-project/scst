@@ -744,6 +744,22 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 		cmd->op_flags &= ~SCST_UNKNOWN_LENGTH;
 	}
 
+	if (unlikely(cmd->cmd_naca)) {
+		PRINT_ERROR("NACA bit in control byte CDB is not supported "
+			    "(opcode 0x%02x)", cmd->cdb[0]);
+		scst_set_cmd_error(cmd,
+			SCST_LOAD_SENSE(scst_sense_invalid_message));
+		goto out_done;
+	}
+
+	if (unlikely(cmd->cmd_linked)) {
+		PRINT_ERROR("Linked commands are not supported "
+			    "(opcode 0x%02x)", cmd->cdb[0]);
+		scst_set_invalid_field_in_cdb(cmd, cmd->cdb_len-1,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+		goto out_done;
+	}
+
 	if (cmd->dh_data_buf_alloced &&
 	    unlikely((orig_bufflen > cmd->bufflen))) {
 		PRINT_ERROR("Dev handler supplied data buffer (size %d), "
