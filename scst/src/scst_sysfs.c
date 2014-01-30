@@ -1185,11 +1185,6 @@ static void scst_tgt_release(struct kobject *kobj)
 	return;
 }
 
-static struct kobj_type tgt_ktype = {
-	.sysfs_ops = &scst_sysfs_ops,
-	.release = scst_tgt_release,
-};
-
 static int __scst_process_luns_mgmt_store(char *buffer,
 	struct scst_tgt *tgt, struct scst_acg *acg, bool tgt_kobj)
 {
@@ -2405,6 +2400,21 @@ out:
 }
 EXPORT_SYMBOL(scst_create_tgt_attr);
 
+static struct attribute *scst_tgt_attrs[] = {
+	&scst_rel_tgt_id.attr,
+	&scst_tgt_comment.attr,
+	&scst_tgt_addr_method.attr,
+	&scst_tgt_io_grouping_type.attr,
+	&scst_tgt_cpu_mask.attr,
+	NULL,
+};
+
+static struct kobj_type tgt_ktype = {
+	.sysfs_ops	= &scst_sysfs_ops,
+	.release	= scst_tgt_release,
+	.default_attrs	= scst_tgt_attrs,
+};
+
 /*
  * Supposed to be called under scst_mutex. In case of error will drop,
  * then reacquire it.
@@ -2465,45 +2475,6 @@ int scst_tgt_sysfs_create(struct scst_tgt *tgt)
 	if (res != 0) {
 		PRINT_ERROR("Can't add attribute %s for tgt %s",
 			scst_ini_group_mgmt.attr.name, tgt->tgt_name);
-		goto out_err;
-	}
-
-	res = sysfs_create_file(&tgt->tgt_kobj,
-			&scst_rel_tgt_id.attr);
-	if (res != 0) {
-		PRINT_ERROR("Can't add attribute %s for tgt %s",
-			scst_rel_tgt_id.attr.name, tgt->tgt_name);
-		goto out_err;
-	}
-
-	res = sysfs_create_file(&tgt->tgt_kobj,
-			&scst_tgt_comment.attr);
-	if (res != 0) {
-		PRINT_ERROR("Can't add attribute %s for tgt %s",
-			scst_tgt_comment.attr.name, tgt->tgt_name);
-		goto out_err;
-	}
-
-	res = sysfs_create_file(&tgt->tgt_kobj,
-			&scst_tgt_addr_method.attr);
-	if (res != 0) {
-		PRINT_ERROR("Can't add attribute %s for tgt %s",
-			scst_tgt_addr_method.attr.name, tgt->tgt_name);
-		goto out_err;
-	}
-
-	res = sysfs_create_file(&tgt->tgt_kobj,
-			&scst_tgt_io_grouping_type.attr);
-	if (res != 0) {
-		PRINT_ERROR("Can't add attribute %s for tgt %s",
-			scst_tgt_io_grouping_type.attr.name, tgt->tgt_name);
-		goto out_err;
-	}
-
-	res = sysfs_create_file(&tgt->tgt_kobj, &scst_tgt_cpu_mask.attr);
-	if (res != 0) {
-		PRINT_ERROR("Can't add attribute %s for tgt %s",
-			scst_tgt_cpu_mask.attr.name, tgt->tgt_name);
 		goto out_err;
 	}
 
