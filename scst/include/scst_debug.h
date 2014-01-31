@@ -53,7 +53,6 @@
         printk(KERN_ERR pr_fmt(fmt), ##__VA_ARGS__)
 #define pr_warning(fmt, ...) \
         printk(KERN_WARNING pr_fmt(fmt), ##__VA_ARGS__)
-#define pr_warn pr_warning
 #define pr_notice(fmt, ...) \
         printk(KERN_NOTICE pr_fmt(fmt), ##__VA_ARGS__)
 #endif
@@ -66,6 +65,15 @@
 #ifndef pr_cont
 #define pr_cont(fmt, ...) \
         printk(KERN_CONT fmt, ##__VA_ARGS__)
+#endif
+#endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
+/*
+ * See also patch "kernel.h: add pr_warn for symmetry to dev_warn,
+ * netdev_warn" (commit fc62f2f19edf46c9bdbd1a54725b56b18c43e94f).
+ */
+#ifndef pr_warn
+#define pr_warn pr_warning
 #endif
 #endif
 
