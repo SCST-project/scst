@@ -1942,9 +1942,6 @@ struct scst_cmd {
 	/* Set if the device was blocked by scst_check_blocked_dev() */
 	unsigned int unblock_dev:1;
 
-	/* Set if this cmd incremented dev->pr_readers_count */
-	unsigned int dec_pr_readers_count_needed:1;
-
 	/* Set if scst_dec_on_dev_cmd() call is needed on the cmd's finish */
 	unsigned int dec_on_dev_needed:1;
 
@@ -2420,18 +2417,6 @@ struct scst_device {
 	int block_size;
 	int block_shift;
 
-	/*
-	 * Set if dev is persistently reserved. Protected by dev_pr_mutex.
-	 * Modified independently to the above field, hence the alignment.
-	 */
-	unsigned int pr_is_set:1 __aligned(sizeof(long));
-
-	/*
-	 * Set if there is a thread changing or going to change PR state(s).
-	 * Protected by dev_pr_mutex.
-	 */
-	unsigned int pr_writer_active:1;
-
 	struct scst_dev_type *handler;	/* corresponding dev handler */
 
 	/* Used for storage of dev handler private stuff */
@@ -2460,27 +2445,28 @@ struct scst_device {
 	 */
 	int on_dev_cmd_count;
 
-	/*
-	 * How many threads are checking commands for PR allowance.
-	 * Protected by dev_lock.
-	 */
-	int pr_readers_count;
-
 	/* Memory limits for this device */
 	struct scst_mem_lim dev_mem_lim;
 
 	/* List of commands with lock, if dedicated threads are used */
 	struct scst_cmd_threads dev_cmd_threads;
 
-	/*************************************************************
-	 ** Persistent reservation fields. Protected by dev_pr_mutex.
-	 *************************************************************/
+	/**********************************************************************
+	 * Persistent reservation fields. Protected as follows:
+	 * - Reading PR data must be protected via scst_pr_read_lock() /
+	 *   scst_pr_read_unlock().
+	 * - Modifying PR data modifications must be protected via
+	 *   scst_pr_write_lock() / scst_pr_write_unlock().
+	 **********************************************************************/
 
 	/*
-	 * True if persist through power loss is activated. Modified
-	 * independently to the above field, hence the alignment.
+	 * Set if dev is persistently reserved. Modified independently
+	 * to the above field, hence the alignment.
 	 */
-	unsigned short pr_aptpl:1 __aligned(sizeof(long));
+	unsigned short pr_is_set:1 __aligned(sizeof(long));
+
+	/* True if persist through power loss is activated. */
+	unsigned short pr_aptpl:1;
 
 	/* Persistent reservation type */
 	uint8_t pr_type;
@@ -2499,6 +2485,8 @@ struct scst_device {
 
 	/* List of dev's registrants */
 	struct list_head dev_registrants_list;
+
+	/* End of persistent reservation fields protected by dev_pr_mutex. */
 
 	/*
 	 * Count of connected tgt_devs from transports, which don't support

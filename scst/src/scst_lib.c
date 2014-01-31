@@ -5433,8 +5433,7 @@ void scst_free_cmd(struct scst_cmd *cmd)
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)))
 		TRACE_MGMT_DBG("Freeing aborted cmd %p", cmd);
 
-	EXTRACHECKS_BUG_ON(cmd->unblock_dev || cmd->dec_on_dev_needed ||
-		cmd->dec_pr_readers_count_needed);
+	EXTRACHECKS_BUG_ON(cmd->unblock_dev || cmd->dec_on_dev_needed);
 
 	/*
 	 * Target driver can already free sg buffer before calling
