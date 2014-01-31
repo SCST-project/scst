@@ -4710,6 +4710,12 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 		}
 
 		if (!strcasecmp("filename", p)) {
+			if (virt_dev->filename) {
+				PRINT_ERROR("%s specified more than once"
+					    " (device %s)", p, virt_dev->name);
+				res = -EINVAL;
+				goto out;
+			}
 			if (*pp != '/') {
 				PRINT_ERROR("Filename %s must be global "
 					"(device %s)", pp, virt_dev->name);
