@@ -469,9 +469,17 @@ static struct scst_dev_type vdisk_file_devtype = {
 	.add_device =		vdisk_add_fileio_device,
 	.del_device =		vdisk_del_device,
 	.dev_attrs =		vdisk_fileio_attrs,
-	.add_device_parameters = "filename, blocksize, write_through, "
-		"nv_cache, o_direct, read_only, removable, rotational, "
-		"thin_provisioned, zero_copy",
+	.add_device_parameters =
+		"blocksize, "
+		"filename, "
+		"nv_cache, "
+		"o_direct, "
+		"read_only, "
+		"removable, "
+		"rotational, "
+		"thin_provisioned, "
+		"write_through, "
+		"zero_copy",
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
@@ -506,9 +514,15 @@ static struct scst_dev_type vdisk_blk_devtype = {
 	.add_device =		vdisk_add_blockio_device,
 	.del_device =		vdisk_del_device,
 	.dev_attrs =		vdisk_blockio_attrs,
-	.add_device_parameters = "filename, blocksize, write_through, "
-		"nv_cache, read_only, removable, rotational, "
-		"thin_provisioned",
+	.add_device_parameters =
+		"blocksize, "
+		"filename, "
+		"nv_cache, "
+		"read_only, "
+		"removable, "
+		"rotational, "
+		"thin_provisioned, "
+		"write_through",
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
@@ -541,8 +555,12 @@ static struct scst_dev_type vdisk_null_devtype = {
 	.add_device =		vdisk_add_nullio_device,
 	.del_device =		vdisk_del_device,
 	.dev_attrs =		vdisk_nullio_attrs,
-	.add_device_parameters = "blocksize, read_only, dummy, removable,"
-		" rotational",
+	.add_device_parameters =
+		"blocksize, "
+		"dummy, "
+		"read_only, "
+		"removable, "
+		"rotational",
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
