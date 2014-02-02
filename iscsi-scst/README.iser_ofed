@@ -72,6 +72,13 @@ Next, download and install an OFED pacakge.
 
 For MLNX_OFED, just run the mlnxofedinstall script inside the MLNX_OFED directory.
 
+NOTE TO ADVANCED USERS:
+------------------------
+If you are installing MLNX_OFED by manually selecting which RPMs/DEBs to install,
+make sure ofed_scripts package is one of them, since it is required for correct OFED
+version detection by iscsi-scst makefile.
+
+
 For the OFED package.Make sure to enable
 at least the kernel-ib and kernel-ib-devel packages. An example:
 
