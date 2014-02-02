@@ -1070,7 +1070,7 @@ static void isert_kref_free(struct kref *kref)
 
 	isert_free_conn_resources(isert_conn);
 
-	rdma_destroy_qp(isert_conn->cm_id);
+	isert_conn_qp_destroy(isert_conn);
 
 	mutex_lock(&dev_list_mutex);
 	isert_dev->cq_qps[cq->idx]--;
