@@ -29,7 +29,13 @@ list_source_files() {
       echo "Ignored directory $1" >&2
     fi
   elif [ -e "$r/.hg" ]; then
-    hg manifest
+    subdir="${d#${r}}"
+    if [ -n "${subdir}" ]; then
+      subdir="${subdir#/}/"
+      hg manifest | sed -n "s|^$subdir||p"
+    else
+      hg manifest
+    fi
   else
     echo "Not under source control: $1 ?" >&2
   fi
