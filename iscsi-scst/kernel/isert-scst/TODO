@@ -7,4 +7,5 @@
 * Do not signal every "response sent" notification
 * Make the code NUMA aware
 * Add support for AHS
+* Add support for bidi commands
 
