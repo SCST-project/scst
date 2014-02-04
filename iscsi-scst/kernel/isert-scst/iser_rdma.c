@@ -1120,6 +1120,15 @@ static void isert_sched_conn_closed(struct isert_connection *isert_conn)
 	isert_conn_queue_work(&isert_conn->close_work);
 }
 
+static int isert_cm_timewait_exit_handler(struct rdma_cm_id *cm_id,
+					  struct rdma_cm_event *event)
+{
+	struct isert_connection *isert_conn = cm_id->qp->qp_context;
+
+	isert_sched_conn_closed(isert_conn);
+	return 0;
+}
+
 static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
 				     struct rdma_cm_event *event)
 {
@@ -1157,6 +1166,11 @@ static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
 
 	isert_conn->state = ISER_CONN_HANDSHAKE;
 
+	mutex_lock(&dev_list_mutex);
+	list_add_tail(&isert_conn->portal_node, &portal->conn_list);
+	list_add_tail(&isert_conn->dev_node, &isert_dev->conn_list);
+	mutex_unlock(&dev_list_mutex);
+
 	/* initiator is dst, target is src */
 	memcpy(&isert_conn->peer_addr, &cm_id->route.addr.dst_addr,
 	       sizeof(isert_conn->peer_addr));
@@ -1176,15 +1190,9 @@ static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
 
 	err = rdma_accept(cm_id, &tgt_conn_param);
 	if (unlikely(err)) {
-		module_put(THIS_MODULE);
 		pr_err("Failed to accept conn request, err:%d\n", err);
 		goto fail_accept;
 	}
-
-	mutex_lock(&dev_list_mutex);
-	list_add_tail(&isert_conn->portal_node, &portal->conn_list);
-	list_add_tail(&isert_conn->dev_node, &isert_dev->conn_list);
-	mutex_unlock(&dev_list_mutex);
 
 	pr_info("iser accepted connection cm_id:%p\n", cm_id);
 out:
@@ -1192,12 +1200,10 @@ out:
 	return err;
 
 fail_accept:
-	isert_conn_free(isert_conn);
-	mutex_lock(&dev_list_mutex);
-	list_del(&isert_conn->portal_node);
-	list_del(&isert_conn->dev_node);
-	mutex_unlock(&dev_list_mutex);
-	isert_conn_qp_destroy(isert_conn);
+	set_bit(ISERT_CONNECTION_ABORTED, &isert_conn->flags);
+	isert_cm_timewait_exit_handler(cm_id, NULL);
+	err = 0;
+	goto out;
 
 fail_conn_create:
 	if (new_isert_dev) {
@@ -1260,15 +1266,6 @@ static int isert_cm_disconnect_handler(struct rdma_cm_id *cm_id,
 
 	isert_conn_disconnect(isert_conn);
 
-	return 0;
-}
-
-static int isert_cm_timewait_exit_handler(struct rdma_cm_id *cm_id,
-					  struct rdma_cm_event *event)
-{
-	struct isert_connection *isert_conn = cm_id->qp->qp_context;
-
-	isert_sched_conn_closed(isert_conn);
 	return 0;
 }
 
