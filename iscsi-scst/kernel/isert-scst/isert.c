@@ -459,11 +459,12 @@ static ssize_t isert_get_initiator_ip(struct iscsi_conn *conn,
 
 	switch (ss.ss_family) {
 	case AF_INET:
-		pos = scnprintf(buf, size,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
+		pos = scnprintf(buf, size,
 			 "%u.%u.%u.%u",
 			 NIPQUAD(((struct sockaddr_in *)&ss)->sin_addr.s_addr));
 #else
+		pos = scnprintf(buf, size,
 			"%pI4", &((struct sockaddr_in *)&ss)->sin_addr.s_addr);
 #endif
 		break;

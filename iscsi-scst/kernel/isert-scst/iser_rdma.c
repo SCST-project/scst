@@ -1461,28 +1461,31 @@ int isert_portal_listen(struct isert_portal *portal,
 
 	switch (sa->sa_family) {
 	case AF_INET:
-		pr_info("iser portal cm_id:%p listens on: "
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
+		pr_info("iser portal cm_id:%p listens on: "
 			 NIPQUAD_FMT ":%d\n", portal->cm_id,
 			 NIPQUAD(((struct sockaddr_in *)sa)->sin_addr.s_addr),
+			(int)ntohs(((struct sockaddr_in *)sa)->sin_port));
 #else
+		pr_info("iser portal cm_id:%p listens on: "
 			"%pI4:%d\n", portal->cm_id,
 			&((struct sockaddr_in *)sa)->sin_addr.s_addr,
-#endif
 			(int)ntohs(((struct sockaddr_in *)sa)->sin_port));
-
+#endif
 		break;
 	case AF_INET6:
-		pr_info("iser portal cm_id:%p listens on: "
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
+		pr_info("iser portal cm_id:%p listens on: "
 			 NIP6_FMT " %d\n",
 			 portal->cm_id,
 			 NIP6(((struct sockaddr_in6 *)sa)->sin6_addr.s_addr),
+			(int)ntohs(((struct sockaddr_in6 *)sa)->sin6_port));
 #else
+		pr_info("iser portal cm_id:%p listens on: "
 			"%pI6 %d\n", portal->cm_id,
 			&((struct sockaddr_in6 *)sa)->sin6_addr,
-#endif
 			(int)ntohs(((struct sockaddr_in6 *)sa)->sin6_port));
+#endif
 		break;
 	default:
 		pr_err("Unknown address family\n");
