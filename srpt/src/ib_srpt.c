@@ -2340,17 +2340,21 @@ static void srpt_drain_channel(struct ib_cm_id *cm_id)
 
 static void __srpt_close_all_ch(struct srpt_tgt *srpt_tgt)
 {
-	struct srpt_rdma_ch *ch, *next_ch;
+	struct srpt_rdma_ch *ch;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&srpt_tgt->spinlock);
 #endif
 
-	list_for_each_entry_safe(ch, next_ch, &srpt_tgt->rch_list, list) {
+restart:
+	list_for_each_entry(ch, &srpt_tgt->rch_list, list) {
+		if (ch->state >= CH_DISCONNECTING)
+			continue;
 		PRINT_INFO("Closing channel %s because target %s has been"
 			   " disabled", ch->sess_name,
 			   srpt_tgt->scst_tgt->tgt_name);
-		__srpt_close_ch(ch);
+		WARN_ON_ONCE(!__srpt_close_ch(ch));
+		goto restart;
 	}
 }
 
