@@ -960,6 +960,14 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *SCpnt,
 
 	TRACE_DBG("lun %d, cmd: 0x%02X", SCpnt->device->lun, SCpnt->cmnd[0]);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
+	/*
+	 * We save a pointer to the done routine in SCpnt->scsi_done and
+	 * we save that as tgt specific stuff below.
+	 */
+	SCpnt->scsi_done = done;
+#endif
+
 	sess = to_scst_lcl_sess(scsi_get_device(SCpnt->device->host));
 
 	if (sess->unregistering) {
@@ -983,12 +991,6 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *SCpnt,
 	}
 	tgt_specific->cmnd = SCpnt;
 	tgt_specific->done = done;
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
-	/*
-	 * We save a pointer to the done routine in SCpnt->scsi_done and
-	 * we save that as tgt specific stuff below.
-	 */
-	SCpnt->scsi_done = done;
 #endif
 
 	/*
