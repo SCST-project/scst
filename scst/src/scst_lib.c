@@ -4645,7 +4645,7 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 	uint8_t write16_cdb[16];
 	struct scatterlist *sg;
 	int sg_cnt, len = blocks << ws_cmd->dev->block_shift;
-	struct sgv_pool_obj *sgv;
+	struct sgv_pool_obj *sgv = NULL;
 	struct scst_cmd *cmd;
 	int64_t cur_lba;
 
@@ -4686,7 +4686,6 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 		goto set_add;
 	}
 
-	sgv = NULL; /* we don't supply sgv */
 	sg = sgv_pool_alloc(ws_cmd->tgt_dev->pool, len, GFP_KERNEL, 0,
 			&sg_cnt, &sgv, &cmd->dev->dev_mem_lim, NULL);
 	if (sg == NULL) {
