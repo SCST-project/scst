@@ -1129,7 +1129,12 @@ static void dev_user_add_to_ready(struct scst_user_cmd *ucmd)
 {
 	struct scst_user_dev *dev = ucmd->dev;
 	unsigned long flags;
-	int do_wake = in_interrupt();
+	/*
+	 * Note, a separate softIRQ check is required for real-time kernels
+	 * (CONFIG_PREEMPT_RT_FULL=y) since on such kernels softIRQ's are
+	 * served in thread context. See also http://lwn.net/Articles/302043/.
+	 */
+	int do_wake = in_interrupt() || in_serving_softirq();
 
 	TRACE_ENTRY();
 
