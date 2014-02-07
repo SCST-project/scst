@@ -1547,7 +1547,7 @@ out:
 	return res;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 /**
  * finish_read - Release the pages referenced by prepare_read().
  */
