@@ -119,6 +119,13 @@ typedef _Bool bool;
 #define nr_cpumask_bits NR_CPUS
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
+#ifndef swap
+#define swap(a, b) \
+	do { typeof(a) __tmp = (a); (a) = (b); (b) = __tmp; } while (0)
+#endif
+#endif
+
 /* verify cpu argument to cpumask_* operators */
 static inline unsigned int cpumask_check(unsigned int cpu)
 {
