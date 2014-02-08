@@ -941,23 +941,34 @@ set_res:
 
 out:
 #ifdef CONFIG_SCST_EXTRACHECKS
-	/*
-	 * At this point either both lba and data_len must be initialized to
-	 * at least 0 for not data transfer commands, or cmd must be
-	 * completed (with an error) and have correct state set.
-	 */
-	if (unlikely((((cmd->lba == SCST_DEF_LBA_DATA_LEN) &&
-			!(cmd->op_flags & SCST_LBA_NOT_VALID)) ||
-		       (cmd->data_len == SCST_DEF_LBA_DATA_LEN)) &&
-		      (!cmd->completed ||
-		       (((cmd->state < SCST_CMD_STATE_PRE_XMIT_RESP) ||
-			 (cmd->state >= SCST_CMD_STATE_LAST_ACTIVE)) &&
-			(cmd->state != SCST_CMD_STATE_PREPROCESSING_DONE))))) {
-		PRINT_CRIT_ERROR("Not initialized data_len for going to "
-			"execute command or bad state (cmd %p, data_len %lld, "
-			"completed %d, state %d)", cmd,
-			(long long)cmd->data_len, cmd->completed, cmd->state);
-		sBUG();
+	if (unlikely(cmd->completed)) {
+		/* Command completed with error */
+		bool valid_state = (cmd->state == SCST_CMD_STATE_PREPROCESSING_DONE) ||
+				   ((cmd->state >= SCST_CMD_STATE_PRE_XMIT_RESP) &&
+				    (cmd->state < SCST_CMD_STATE_LAST_ACTIVE));
+
+		if (!valid_state) {
+			PRINT_CRIT_ERROR("Bad state for completed cmd "
+				"(cmd %p, state %d)", cmd, cmd->state);
+			sBUG();
+		}
+	} else if (cmd->state != SCST_CMD_STATE_PARSE) {
+		/*
+		 * Ready to execute. At this point both lba and data_len must
+		 * be initialized or marked non-applicable.
+		 */
+		bool bad_lba = (cmd->lba == SCST_DEF_LBA_DATA_LEN) &&
+			       !(cmd->op_flags & SCST_LBA_NOT_VALID);
+		bool bad_data_len = (cmd->data_len == SCST_DEF_LBA_DATA_LEN);
+
+		if (unlikely(bad_lba || bad_data_len)) {
+			PRINT_CRIT_ERROR("Uninitialized lba or data_len for "
+				"ready-to-execute command (cmd %p, lba %lld, "
+				"data_len %lld, state %d)", cmd,
+				(long long)cmd->lba, (long long)cmd->data_len,
+				cmd->state);
+			sBUG();
+		}
 	}
 #endif
 
