@@ -186,6 +186,16 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 }
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
+/*
+ * See also patch "sched: Fix softirq time accounting" (commit ID
+ * 75e1056f5c57050415b64cb761a3acc35d91f013).
+ */
+#ifndef in_serving_softirq
+#define in_serving_softirq() in_softirq()
+#endif
+#endif
+
 #ifndef __list_for_each
 /* ToDo: cleanup when both are the same for all relevant kernels */
 #define __list_for_each list_for_each
