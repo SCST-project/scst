@@ -2973,7 +2973,7 @@ static int dev_user_register_dev(struct file *file,
 	dev->pool = sgv_pool_create(dev->devtype.name, sgv_no_clustering,
 					dev_desc->sgv_single_alloc_pages,
 					dev_desc->sgv_shared,
-					dev_desc->sgv_purge_interval);
+					dev_desc->sgv_purge_interval * HZ);
 	if (dev->pool == NULL) {
 		res = -ENOMEM;
 		goto out_deinit_threads;
@@ -2990,7 +2990,7 @@ static int dev_user_register_dev(struct file *file,
 					sgv_tail_clustering,
 					dev_desc->sgv_single_alloc_pages,
 					dev_desc->sgv_shared,
-					dev_desc->sgv_purge_interval);
+					dev_desc->sgv_purge_interval * HZ);
 		if (dev->pool_clust == NULL) {
 			res = -ENOMEM;
 			goto out_free0;
