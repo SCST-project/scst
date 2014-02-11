@@ -296,18 +296,18 @@ static void iser_accept(int fd)
 
 	ret = read(fd, buff, sizeof(buff));
 	if (ret == -1)
-		return;
+		goto out;
 
 	conn_fd = open(buff, O_RDWR);
 	if (conn_fd == -1) {
 		log_error("open(iser_connection) %s failed: %s\n",
 			buff, strerror(errno));
-		return;
+		goto out;
 	}
 
 	ret = ioctl(conn_fd, GET_PORTAL_ADDR, &addr, sizeof(addr));
 	if (ret)
-		return;
+		goto out_close;
 
 	ret = getnameinfo((struct sockaddr *)&addr, sizeof(addr), target_portal,
 			 sizeof(target_portal), target_portal_port,
@@ -316,18 +316,17 @@ static void iser_accept(int fd)
 	if (ret != 0) {
 		log_error("Target portal getnameinfo() failed: %s!",
 			get_error_str(ret));
-		return;
+		goto out_close;
 	}
 
 	conn = alloc_and_init_conn(conn_fd);
 	if (!conn)
-		return;
+		goto out_close;
 
 	conn->target_portal = strdup(target_portal);
 	if (conn->target_portal == NULL) {
 		log_error("Unable to duplicate target portal %s", target_portal);
-		conn_free(conn);
-		return;
+		goto out_free;
 	}
 
 	conn->transmit = transmit_iser;
@@ -337,6 +336,16 @@ static void iser_accept(int fd)
 	incoming_cnt++;
 
 	log_info("iSER connect\n");
+
+out:
+	return;
+
+out_free:
+	conn_free(conn);
+
+out_close:
+	close(conn_fd);
+	goto out;
 }
 
 static int transmit_sock(int fd, bool start)
