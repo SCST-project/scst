@@ -319,6 +319,11 @@ static void iser_accept(int fd)
 		goto out_close;
 	}
 
+	if (conn_blocked) {
+		log_warning("Connection refused due to blocking\n");
+		goto out_close;
+	}
+
 	conn = alloc_and_init_conn(conn_fd);
 	if (!conn)
 		goto out_close;
