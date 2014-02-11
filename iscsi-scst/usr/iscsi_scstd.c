@@ -442,8 +442,6 @@ static void accept_connection(int listen)
 	conn->is_discovery = tcp_is_discovery;
 	conn_read_pdu(conn);
 
-	set_non_blocking(fd);
-
 	incoming_cnt++;
 
 out:
