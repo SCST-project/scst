@@ -81,7 +81,7 @@ install: all
 ins:
 	./config
 	insmod mvsas.ko
-	
+
 SCST_MOD_VERS := $(shell ls $(SCST_DIR)/Modules.symvers 2>/dev/null)
 ifneq ($(SCST_MOD_VERS),)
 Modules.symvers: $(SCST_DIR)/Modules.symvers
