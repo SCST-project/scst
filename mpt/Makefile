@@ -38,7 +38,16 @@ EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG
 
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
-    KDIR := /lib/modules/$(shell uname -r)/build
+    KVER := $(shell uname -r)
+    KDIR := /lib/modules/$(KVER)/build
+  else
+    ifeq ($(KERNELRELEASE),)
+      KVER := $(strip $(shell \
+	cat $(KDIR)/include/config/kernel.release 2>/dev/null || \
+	make -s -C $(KDIR) kernelversion))
+    else
+      KVER := $(KERNELRELEASE)
+    endif
   endif
 else
   KDIR := /lib/modules/$(KVER)/build
@@ -50,6 +59,7 @@ EXTRA_CFLAGS += -I$(LSI_INC_DIR)
 ifneq ($(PATCHLEVEL),)
 obj-m += mpt_scst.o
 else
+######### BEGIN OUT-OF-TREE RULES #########
 
 all: Modules.symvers Module.symvers
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m
@@ -80,7 +90,9 @@ endif
 
 uninstall:
 	rm -f $(INSTALL_DIR)/mpt_scst.ko
-	-/sbin/depmod -a
+	-/sbin/depmod -a $(KVER)
+
+########## END OUT-OF-TREE RULES ##########
 endif
 
 clean:

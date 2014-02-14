@@ -2,10 +2,6 @@
 # A Makefile for the scst-local ...
 #
 
-ifndef PREFIX
-        PREFIX=/usr/local
-endif
-
 SHELL=/bin/bash
 
 KMOD 		:= $(shell pwd)/kernel
@@ -24,17 +20,28 @@ EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
 
 EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions
 
+ifneq ($(PATCHLEVEL),)
+obj-m	:= scst_local.o
+else
+######### BEGIN OUT-OF-TREE RULES #########
+
+ifndef PREFIX
+        PREFIX=/usr/local
+endif
+
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
-    KDIR := /lib/modules/$(shell uname -r)/build
+    KVER := $(shell uname -r)
+    KDIR := /lib/modules/$(KVER)/build
+  else
+    KVER := $(strip $(shell						\
+	cat $(KDIR)/include/config/kernel.release 2>/dev/null ||	\
+	make -s -C $(KDIR) kernelversion))
   endif
 else
   KDIR := /lib/modules/$(KVER)/build
 endif
 
-ifneq ($(PATCHLEVEL),)
-obj-m	:= scst_local.o
-else
 
 SCST_INC_DIR := $(shell if [ -e "$$PWD/../scst" ];			\
 			then echo "$$PWD/../scst/include";		\
@@ -71,6 +78,8 @@ endif
 uninstall:
 	rm -f $(INSTALL_DIR)/scst_local.ko
 	-/sbin/depmod -a $(KVER)
+
+########## END OUT-OF-TREE RULES ##########
 endif
 
 clean:

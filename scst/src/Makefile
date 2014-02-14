@@ -54,10 +54,16 @@ obj-$(CONFIG_SCST)   += scst.o dev_handlers/
 obj-$(BUILD_DEV) += $(DEV_HANDLERS_DIR)/
 
 else
+######### BEGIN OUT-OF-TREE RULES #########
+
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
-    KVER = $(shell uname -r)
+    KVER := $(shell uname -r)
     KDIR := /lib/modules/$(KVER)/build
+  else
+    KVER := $(strip $(shell						\
+	cat $(KDIR)/include/config/kernel.release 2>/dev/null ||	\
+	make -s -C $(KDIR) kernelversion))
   endif
 else
   KDIR := /lib/modules/$(KVER)/build
@@ -118,13 +124,11 @@ uninstall:
 	-rmdir $(INSTALL_DIR) 2>/dev/null
 	-/sbin/depmod -a $(KVER)
 	rm -rf $(INSTALL_DIR_H)
+
+########## END OUT-OF-TREE RULES ##########
 endif
 
-ifeq ($(KVER),)
-INSTALL_DIR := $(DESTDIR)/lib/modules/$(shell uname -r)/extra
-else
 INSTALL_DIR := $(DESTDIR)/lib/modules/$(KVER)/extra
-endif
 INSTALL_DIR_H := $(DESTDIR)$(PREFIX)/include/scst
 
 enable-Wextra = $(shell uname_r="$$(uname -r)"; if [ "$${uname_r%.el5}" = "$${uname_r}" ]; then echo "$(1)"; fi)

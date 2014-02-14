@@ -27,13 +27,19 @@ INCDIR := $(shell pwd)/include
 
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
-    KVER = $(shell uname -r)
-    KDIR ?= /lib/modules/$(KVER)/build
+    KVER := $(shell uname -r)
+    KDIR := /lib/modules/$(KVER)/build
   else
-    KVER = $$KERNELRELEASE
+    ifeq ($(KERNELRELEASE),)
+      KVER := $(strip $(shell						\
+	cat $(KDIR)/include/config/kernel.release 2>/dev/null ||	\
+	make -s -C $(KDIR) kernelversion))
+    else
+      KVER := $(KERNELRELEASE)
+    endif
   endif
 else
-  KDIR ?= /lib/modules/$(KVER)/build
+  KDIR := /lib/modules/$(KVER)/build
 endif
 
 all: include/iscsi_scst_itf_ver.h progs mods

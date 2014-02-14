@@ -27,15 +27,9 @@
 #    - install and uninstall must be made as root
 #
 
-ifndef PREFIX
-        PREFIX=/usr/local
-endif
-
 SHELL=/bin/bash
 
 EXTRA_CFLAGS += -I$(SCST_INC_DIR)
-
-INSTALL_DIR := /lib/modules/$(shell uname -r)/extra
 
 EXTRA_CFLAGS += -W -Wno-unused-parameter -Wno-missing-field-initializers
 
@@ -47,8 +41,16 @@ EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions
 
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
-    KVER = $(shell uname -r)
+    KVER := $(shell uname -r)
     KDIR := /lib/modules/$(KVER)/build
+  else
+    ifeq ($(KERNELRELEASE),)
+      KVER := $(strip $(shell						\
+	cat $(KDIR)/include/config/kernel.release 2>/dev/null ||	\
+	make -s -C $(KDIR) kernelversion))
+    else
+      KVER := $(KERNELRELEASE)
+    endif
   endif
 else
   KDIR := /lib/modules/$(KVER)/build
@@ -69,6 +71,13 @@ ifneq ($(PATCHLEVEL),)
 obj-m := qla2x00tgt.o
 qla2x00tgt-objs := qla2x00t.o
 else
+######### BEGIN OUT-OF-TREE RULES #########
+
+ifndef PREFIX
+        PREFIX=/usr/local
+endif
+
+INSTALL_DIR := /lib/modules/$(KVER)/extra
 
 SCST_INC_DIR := $(shell if [ -e "$$PWD/../../scst" ];			\
                   then echo "$$PWD/../../scst/include";			\
@@ -130,6 +139,7 @@ else
 .PHONY: Module.symvers
 endif
 
+########## END OUT-OF-TREE RULES ##########
 endif
 
 clean:

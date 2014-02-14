@@ -20,18 +20,20 @@ SHELL = /bin/bash
 
 # Define the location to the kernel src. Can be defined here or on
 # the command line during the build process.  If KDIR is defined,
-# we will set an appropriate value for KVER by running "make
-# kernelversion" in the kernel source tree.  KVER can still be
-# overrode by the user via the command line or by defining it in
-# this Makefile.  If KDIR and KVER are not defined by the user,
-# the current running kernel version is used to define KVER.
+# we will determine an appropriate value for KVER from the kernel
+# source tree.  KVER can still be overridden by the user via the
+# command line or by defining it in this Makefile.  If KDIR and KVER
+# are not defined by the user, the current running kernel version is
+# used to define KVER.
 
 #export KDIR=/usr/src/linux-2.6
 #export KVER=2.6.x
 
 ifdef KDIR
      ifndef KVER
-          export KVER = $(strip $(shell make -s -C $(KDIR) kernelversion))
+          export KVER = $(strip $(shell					 \
+		cat $(KDIR)/include/config/kernel.release 2>/dev/null || \
+		make -s -C $(KDIR) kernelversion))
      endif
 endif
 

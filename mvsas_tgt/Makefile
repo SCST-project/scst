@@ -31,11 +31,23 @@ endif
 
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
-    KVER = $(shell uname -r)
+    KVER := $(shell uname -r)
     KDIR := /lib/modules/$(KVER)/build
+  else
+    ifeq ($(KERNELRELEASE),)
+      KVER := $(strip $(shell \
+	cat $(KDIR)/include/config/kernel.release 2>/dev/null || \
+	make -s -C $(KDIR) kernelversion))
+    else
+      KVER := $(KERNELRELEASE)
+    endif
   endif
 else
   KDIR := /lib/modules/$(KVER)/build
+endif
+
+ifeq ($(INSTALL_MOD_PATH),)
+  export INSTALL_MOD_PATH := $(DESTDIR)
 endif
 
 export PWD    := $(shell pwd)
@@ -53,7 +65,7 @@ MODULE_NAME = mvsas_tgt
 
 EXTRA_CFLAGS += -DMV_DEBUG
 
-INSTALL_DIR := /lib/modules/$(shell uname -r)/extra
+INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
 #EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
 #EXTRA_CFLAGS += -DDEBUG_WORK_IN_THREAD
@@ -68,6 +80,8 @@ mvsas-y := mv_init.o  \
            mv_94xx.o  \
            mv_spi.o
 else
+######### BEGIN OUT-OF-TREE RULES #########
+
 all: Modules.symvers Module.symvers
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m
 
@@ -102,6 +116,8 @@ endif
 uninstall:
 	rm -f $(INSTALL_DIR)/$(MODULE_NAME).ko
 	-/sbin/depmod -a $(KVER)
+
+########## END OUT-OF-TREE RULES ##########
 endif
 
 clean:

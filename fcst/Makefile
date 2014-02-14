@@ -26,19 +26,6 @@
 #    - install and uninstall must be made as root
 #
 
-ifndef PREFIX
-        PREFIX=/usr/local
-endif
-
-ifeq ($(KVER),)
-  ifeq ($(KDIR),)
-    KVER = $(shell uname -r)
-    KDIR := /lib/modules/$(KVER)/build
-  endif
-else
-  KDIR := /lib/modules/$(KVER)/build
-endif
-
 export PWD    := $(shell pwd)
 export CONFIG_FCST   := m
 
@@ -55,11 +42,30 @@ EXTRA_CFLAGS += -I$(SCST_INC_DIR) $(FCSTFLAGS$(BUILDMODE))
 
 MODULE_NAME = fcst
 
-INSTALL_DIR := /lib/modules/$(KVER)/extra
-
 ifneq ($(KERNELRELEASE),)
 include $(SUBDIRS)/Makefile_in-tree
 else
+######### BEGIN OUT-OF-TREE RULES #########
+
+ifndef PREFIX
+        PREFIX=/usr/local
+endif
+
+ifeq ($(KVER),)
+  ifeq ($(KDIR),)
+    KVER := $(shell uname -r)
+    KDIR := /lib/modules/$(KVER)/build
+  else
+    KVER := $(strip $(shell						\
+	cat $(KDIR)/include/config/kernel.release 2>/dev/null ||	\
+	make -s -C $(KDIR) kernelversion))
+  endif
+else
+  KDIR := /lib/modules/$(KVER)/build
+endif
+
+INSTALL_DIR := /lib/modules/$(KVER)/extra
+
 SCST_INC_DIR := $(shell if [ -e "$$PWD/../scst" ];			\
                   then echo "$$PWD/../scst/include";			\
                   else echo "$(PREFIX)/include/scst"; fi)
@@ -102,6 +108,8 @@ endif
 uninstall:
 	rm -f $(INSTALL_DIR)/$(MODULE_NAME).ko
 	-/sbin/depmod -a $(KVER)
+
+########## END OUT-OF-TREE RULES ##########
 endif
 
 clean:
