@@ -59,10 +59,9 @@ all: src/$(MODULE_SYMVERS)
 	  PRE_CFLAGS="$(OFED_CFLAGS)" SCST_INC_DIR=$(SCST_INC_DIR) modules
 
 install: all src/ib_srpt.ko
-	@eval `sed -n 's/#define UTS_RELEASE /KERNELRELEASE=/p' $(KDIR)/include/linux/version.h $(KDIR)/include/linux/utsrelease.h 2>/dev/null`; \
-	install -vD -m 644 src/ib_srpt.ko \
-	$(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra/ib_srpt.ko
-	-/sbin/depmod -aq $(KVER)
+	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src		   \
+	  PRE_CFLAGS="$(OFED_CFLAGS)" SCST_INC_DIR=$(SCST_INC_DIR) \
+	  modules_install
 
 src/Module.symvers src/Modules.symvers: $(SCST_SYMVERS_DIR)/$(MODULE_SYMVERS)
 	@if $(OFED_KERNEL_IB_RPM_INSTALLED); then                           \
