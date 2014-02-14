@@ -77,7 +77,6 @@ tgt: Modules.symvers Module.symvers
 install: all
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
 		modules_install
-	-depmod -a $(KVER)
 
 ins:
 	./config

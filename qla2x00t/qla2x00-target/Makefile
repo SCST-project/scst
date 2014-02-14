@@ -93,7 +93,6 @@ ifneq ($(BUILD_2X_MODULE),)
 endif
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
 	  SCST_INC_DIR=$(SCST_INC_DIR) modules_install
-	-/sbin/depmod -a $(KVER)
 
 uninstall:
 ifneq ($(BUILD_2X_MODULE),)

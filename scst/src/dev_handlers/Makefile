@@ -57,7 +57,6 @@ all:
 install: all
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) \
 		modules_install
-	-/sbin/depmod -a $(KVER)
 
 uninstall:
 	rm -f $(INSTALL_DIR)/dev_handlers/scst_*.ko

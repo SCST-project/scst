@@ -50,7 +50,6 @@ all:
 install: all
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
 		modules_install
-	-/sbin/depmod -aq $(KVER)
 
 uninstall:
 	rm -f $(INSTALL_DIR)/qla2xxxt.ko
