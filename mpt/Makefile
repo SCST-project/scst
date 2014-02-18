@@ -53,6 +53,11 @@ else
   KDIR := /lib/modules/$(KVER)/build
 endif
 
+ifeq ($(INSTALL_MOD_PATH),)
+  export INSTALL_MOD_PATH := $(DESTDIR)
+endif
+
+INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 LSI_INC_DIR := $(KDIR)/drivers/message/fusion
 EXTRA_CFLAGS += -I$(LSI_INC_DIR)
 
@@ -90,7 +95,7 @@ endif
 
 uninstall:
 	rm -f $(INSTALL_DIR)/mpt_scst.ko
-	-/sbin/depmod -a $(KVER)
+	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
 
 ########## END OUT-OF-TREE RULES ##########
 endif

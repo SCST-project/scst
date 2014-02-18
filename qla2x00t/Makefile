@@ -44,6 +44,12 @@ else
   KDIR := /lib/modules/$(KVER)/build
 endif
 
+ifeq ($(INSTALL_MOD_PATH),)
+  export INSTALL_MOD_PATH := $(DESTDIR)
+endif
+
+INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
+
 ifneq ($(PATCHLEVEL),)
 obj-m := qla2xxx_scst.o
 qla2xxx_scst-objs := qla_os.o qla_init.o qla_mbx.o qla_iocb.o qla_isr.o qla_gs.o \
@@ -59,7 +65,7 @@ install: all
 
 uninstall:
 	rm -f $(INSTALL_DIR)/qla2xxxt.ko
-	-/sbin/depmod -a $(KVER)
+	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
 
 ########## END OUT-OF-TREE RULES ##########
 endif

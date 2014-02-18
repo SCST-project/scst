@@ -61,7 +61,11 @@ else
   KDIR := /lib/modules/$(KVER)/build
 endif
 
-INSTALL_DIR := /lib/modules/$(KVER)/extra
+ifeq ($(INSTALL_MOD_PATH),)
+  export INSTALL_MOD_PATH := $(DESTDIR)
+endif
+
+INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
 all:
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)

@@ -115,7 +115,7 @@ endif
 
 uninstall:
 	rm -f $(INSTALL_DIR)/$(MODULE_NAME).ko
-	-/sbin/depmod -a $(KVER)
+	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
 
 ########## END OUT-OF-TREE RULES ##########
 endif

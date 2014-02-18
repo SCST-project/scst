@@ -56,6 +56,10 @@ else
   KDIR := /lib/modules/$(KVER)/build
 endif
 
+ifeq ($(INSTALL_MOD_PATH),)
+  export INSTALL_MOD_PATH := $(DESTDIR)
+endif
+
 ifeq ($(BUILD_2X_MODULE),)
 QLA2XXX_INC_DIR := $(KDIR)/drivers/scsi/qla2xxx
 else
@@ -77,14 +81,14 @@ ifndef PREFIX
         PREFIX=/usr/local
 endif
 
-INSTALL_DIR := /lib/modules/$(KVER)/extra
+INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
 SCST_INC_DIR := $(shell if [ -e "$$PWD/../../scst" ];			\
                   then echo "$$PWD/../../scst/include";			\
-                  else echo "$(PREFIX)/include/scst"; fi)
+                  else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
 SCST_DIR := $(shell if [ -e "$$PWD/../../scst" ];			\
 		    then echo "$$PWD/../../scst/src";			\
-		    else echo "$(PREFIX)/include/scst"; fi)
+		    else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
 
 ifneq ($(BUILD_2X_MODULE),)
 # We need to make qla2xxx_scst before Module.symvers
@@ -108,7 +112,7 @@ ifneq ($(BUILD_2X_MODULE),)
 	$(MAKE) SUBDIRS=$(QLA2XXX_DIR) -C $(QLA2XXX_DIR) $@
 endif
 	rm -f $(INSTALL_DIR)/qla2[23x]00tgt.ko
-	-/sbin/depmod -a $(KVER)
+	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
 
 ifneq ($(BUILD_2X_MODULE),)
 qla2xxx_scst:

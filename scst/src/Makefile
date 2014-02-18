@@ -69,6 +69,10 @@ else
   KDIR := /lib/modules/$(KVER)/build
 endif
 
+ifeq ($(INSTALL_MOD_PATH),)
+  export INSTALL_MOD_PATH := $(DESTDIR)
+endif
+
 all:
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_DEV=m
 
@@ -103,7 +107,7 @@ ifneq ($(MOD_VERS),)
 	rm -f $(INSTALL_DIR_H)/Modules.symvers
 	install -m 644 Module.symvers $(INSTALL_DIR_H)
 endif
-	-/sbin/depmod -a $(KVER)
+	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
 	mkdir -p $(DESTDIR)/var/lib/scst/pr
 	@echo "****************************************************************"
 	@echo "*!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!*"
@@ -122,13 +126,13 @@ uninstall:
 	cd $(DEV_HANDLERS_DIR) && $(MAKE) $@
 	rm -f $(INSTALL_DIR)/scst.ko
 	-rmdir $(INSTALL_DIR) 2>/dev/null
-	-/sbin/depmod -a $(KVER)
+	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
 	rm -rf $(INSTALL_DIR_H)
 
 ########## END OUT-OF-TREE RULES ##########
 endif
 
-INSTALL_DIR := $(DESTDIR)/lib/modules/$(KVER)/extra
+INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 INSTALL_DIR_H := $(DESTDIR)$(PREFIX)/include/scst
 
 enable-Wextra = $(shell uname_r="$$(uname -r)"; if [ "$${uname_r%.el5}" = "$${uname_r}" ]; then echo "$(1)"; fi)

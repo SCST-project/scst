@@ -7,10 +7,10 @@ endif
 
 SCST_INC_DIR := $(shell if [ -e "$$PWD/../scst" ];			\
 			then echo "$$PWD/../scst/include";		\
-			else echo "$(PREFIX)/include/scst"; fi)
+			else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
 SCST_SYMVERS_DIR := $(shell if [ -e $$PWD/../scst ]; then	\
                         echo $$PWD/../scst/src;			\
-                      else echo $(PREFIX)/include/scst; fi)
+                      else echo $(DESTDIR)$(PREFIX)/include/scst; fi)
 SUBDIRS := $(shell pwd)
 
 ifeq ($(KVER),)
@@ -29,6 +29,12 @@ ifeq ($(KVER),)
 else
   KDIR := /lib/modules/$(KVER)/build
 endif
+
+ifeq ($(INSTALL_MOD_PATH),)
+  export INSTALL_MOD_PATH := $(DESTDIR)
+endif
+
+INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
 # Set variable $(2) to value $(3) in file $(1).
 set_var = $(shell { if [ -e "$(1)" ]; then grep -v '^$(2)=' "$(1)"; fi; echo "$(2)=$(3)"; } >/tmp/$(1)-$$$$.tmp && mv /tmp/$(1)-$$$$.tmp $(1))

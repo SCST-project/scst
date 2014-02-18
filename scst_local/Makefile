@@ -42,13 +42,18 @@ else
   KDIR := /lib/modules/$(KVER)/build
 endif
 
+ifeq ($(INSTALL_MOD_PATH),)
+  export INSTALL_MOD_PATH := $(DESTDIR)
+endif
+
+INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
 SCST_INC_DIR := $(shell if [ -e "$$PWD/../scst" ];			\
 			then echo "$$PWD/../scst/include";		\
-			else echo "$(PREFIX)/include/scst"; fi)
+			else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
 SCST_DIR := $(shell if [ -e "$$PWD/../scst" ];				\
 		    then echo "$$PWD/../scst/src";			\
-		    else echo "$(PREFIX)/include/scst"; fi)
+		    else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
 
 all: Modules.symvers Module.symvers
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
@@ -77,7 +82,7 @@ endif
 
 uninstall:
 	rm -f $(INSTALL_DIR)/scst_local.ko
-	-/sbin/depmod -a $(KVER)
+	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
 
 ########## END OUT-OF-TREE RULES ##########
 endif
