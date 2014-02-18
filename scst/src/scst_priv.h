@@ -120,6 +120,26 @@ extern unsigned long scst_trace_flag;
 #define SCST_MAX_EACH_INTERNAL_IO_SIZE	     (128*1024)
 #define SCST_MAX_IN_FLIGHT_INTERNAL_COMMANDS 32
 
+/*
+ * Compatibility with real-time (CONFIG_PREEMPT_RT_FULL) kernels.
+ * In such kernels:
+ * - Interrupt handlers run in kernel thread context (see e.g.
+ *   http://lwn.net/Articles/302043/).
+ * - spin_lock() calls can sleep (see e.g. http://lwn.net/Articles/271817/).
+ * - local_irq functions manipulate preemptibility, not HW interruptibility
+ *   (see also http://lwn.net/Articles/146861).
+ * For the upstream kernels up to at least kernel 3.14 _nort functions are
+ * only defined if a CONFIG PREEMPT RT patch has been applied to the kernel.
+ * See https://rt.wiki.kernel.org/index.php/CONFIG_PREEMPT_RT_Patch.
+ */
+#ifndef local_irq_enable_nort
+/* Kernel does not have CONFIG_PREEMPT_RT patch */
+#define local_irq_enable_nort()		local_irq_enable()
+#define local_irq_disable_nort()	local_irq_disable()
+#define local_irq_save_nort(flags)	local_irq_save(flags)
+#define local_irq_restore_nort(flags)	local_irq_restore(flags)
+#endif
+
 typedef void (*scst_i_finish_fn_t) (struct scst_cmd *cmd);
 
 extern struct mutex scst_mutex2;

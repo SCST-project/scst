@@ -5160,7 +5160,7 @@ void scst_unblock_aborted_cmds(const struct scst_tgt *tgt,
 			continue;
 
 		spin_lock_bh(&dev->dev_lock);
-		local_irq_disable();
+		local_irq_disable_nort();
 		list_for_each_entry_safe(cmd, tcmd, &dev->blocked_cmd_list,
 					blocked_cmd_list_entry) {
 
@@ -5174,10 +5174,10 @@ void scst_unblock_aborted_cmds(const struct scst_tgt *tgt,
 				TRACE_MGMT_DBG("Unblock aborted blocked cmd %p", cmd);
 			}
 		}
-		local_irq_enable();
+		local_irq_enable_nort();
 		spin_unlock_bh(&dev->dev_lock);
 
-		local_irq_disable();
+		local_irq_disable_nort();
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 					dev_tgt_dev_list_entry) {
 			struct scst_order_data *order_data = tgt_dev->curr_order_data;
@@ -5200,7 +5200,7 @@ void scst_unblock_aborted_cmds(const struct scst_tgt *tgt,
 			}
 			spin_unlock(&order_data->sn_lock);
 		}
-		local_irq_enable();
+		local_irq_enable_nort();
 	}
 
 	if (!scst_mutex_held)
@@ -6238,7 +6238,7 @@ static int scst_post_rx_mgmt_cmd(struct scst_session *sess,
 		sBUG();
 	}
 
-	local_irq_save(flags);
+	local_irq_save_nort(flags);
 
 	spin_lock(&sess->sess_list_lock);
 
@@ -6267,7 +6267,7 @@ static int scst_post_rx_mgmt_cmd(struct scst_session *sess,
 	list_add_tail(&mcmd->mgmt_cmd_list_entry, &scst_active_mgmt_cmd_list);
 	spin_unlock(&scst_mcmd_lock);
 
-	local_irq_restore(flags);
+	local_irq_restore_nort(flags);
 
 	wake_up(&scst_mgmt_cmd_list_waitQ);
 
@@ -6277,7 +6277,7 @@ out:
 
 out_unlock:
 	spin_unlock(&sess->sess_list_lock);
-	local_irq_restore(flags);
+	local_irq_restore_nort(flags);
 	goto out;
 }
 

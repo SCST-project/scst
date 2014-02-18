@@ -8267,7 +8267,7 @@ void scst_unblock_dev(struct scst_device *dev)
 		struct scst_cmd *cmd, *tcmd;
 		unsigned long flags;
 
-		local_irq_save(flags);
+		local_irq_save_nort(flags);
 		list_for_each_entry_safe(cmd, tcmd, &dev->blocked_cmd_list,
 					 blocked_cmd_list_entry) {
 			bool strictly_serialized;
@@ -8287,7 +8287,7 @@ void scst_unblock_dev(struct scst_device *dev)
 			if (dev->strictly_serialized_cmd_waiting && strictly_serialized)
 				break;
 		}
-		local_irq_restore(flags);
+		local_irq_restore_nort(flags);
 
 		dev->strictly_serialized_cmd_waiting = 0;
 	}

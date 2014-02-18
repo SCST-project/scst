@@ -36,9 +36,19 @@ qla2x00_poll(scsi_qla_host_t *ha)
 {
 	unsigned long flags;
 
+#ifdef CONFIG_PREEMPT_RT_FULL
+	local_irq_save_nort(flags);
+#else
 	local_irq_save(flags);
+#endif
+
 	ha->isp_ops->intr_handler(0, ha);
+
+#ifdef CONFIG_PREEMPT_RT_FULL
+	local_irq_restore_nort(flags);
+#else
 	local_irq_restore(flags);
+#endif
 }
 
 static __inline__ scsi_qla_host_t *
