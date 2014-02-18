@@ -61,7 +61,6 @@ SCST_DIR := $(shell pwd)/../scst/src
 EXTRA_CFLAGS += -I$(SCST_INC_DIR)
 
 EXTRA_CFLAGS +=  -DSUPPORT_TARGET
-MODULE_NAME = mvsas_tgt
 
 EXTRA_CFLAGS += -DMV_DEBUG
 
@@ -114,7 +113,7 @@ else
 endif
 
 uninstall:
-	rm -f $(INSTALL_DIR)/$(MODULE_NAME).ko
+	rm -f $(INSTALL_DIR)/mvsas.ko
 	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
 
 ########## END OUT-OF-TREE RULES ##########

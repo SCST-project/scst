@@ -75,6 +75,10 @@ install: all src/ib_srpt.ko
 	  PRE_CFLAGS="$(OFED_CFLAGS)" SCST_INC_DIR=$(SCST_INC_DIR) \
 	  modules_install
 
+uninstall:
+	rm -f $(INSTALL_DIR)/ib_srpt.ko
+	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
+
 src/Module.symvers src/Modules.symvers: $(SCST_SYMVERS_DIR)/$(MODULE_SYMVERS)
 	@if $(OFED_KERNEL_IB_RPM_INSTALLED); then                           \
 	  if ! $(OFED_KERNEL_IB_DEVEL_RPM_INSTALLED); then                  \

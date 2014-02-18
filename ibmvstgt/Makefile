@@ -40,6 +40,10 @@ all: src/$(MODULE_SYMVERS)
 install: all src/ibmvstgt.ko
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src modules_install
 
+uninstall:
+	rm -f $(INSTALL_DIR)/libsrp.ko $(INSTALL_DIR)/ibmvstgt.ko
+	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
+
 src/Module.symvers src/Modules.symvers: $(SCST_DIR)/$(MODULE_SYMVERS)
 	cp $< $@;
 

@@ -64,7 +64,7 @@ install: all
 		modules_install
 
 uninstall:
-	rm -f $(INSTALL_DIR)/qla2xxxt.ko
+	rm -f $(INSTALL_DIR)/qla2xxx_scst.ko
 	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
 
 ########## END OUT-OF-TREE RULES ##########

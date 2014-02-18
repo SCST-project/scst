@@ -72,6 +72,15 @@ install: all
 	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(KMOD) \
 	  modules_install
 
+uninstall:
+	rm -f $(DESTDIR)$(SBINDIR)/iscsi-scstd \
+		$(DESTDIR)$(MANDIR)/man5/iscsi-scstd.conf.5 \
+		$(DESTDIR)$(MANDIR)/man8/iscsi-scstd.8 \
+		$(DESTDIR)$(SBINDIR)/iscsi-scst-adm \
+		$(DESTDIR)$(MANDIR)/man8/iscsi-scst-adm.8 \
+		$(INSTALL_DIR)/iscsi-scst.ko
+	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
+
 SCST_MOD_VERS := $(shell ls $(SCST_DIR)/Modules.symvers 2>/dev/null)
 ifneq ($(SCST_MOD_VERS),)
 Modules.symvers: $(SCST_DIR)/Modules.symvers
