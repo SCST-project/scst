@@ -691,6 +691,9 @@ static int dev_user_alloc_space(struct scst_user_cmd *ucmd)
 	ucmd->user_cmd.alloc_cmd.data_direction = cmd->data_direction;
 	ucmd->user_cmd.alloc_cmd.sn = cmd->tgt_sn;
 
+	TRACE_DBG("Preparing ALLOC_MEM for user space (ucmd=%p, h=%d, "
+		"alloc_len %d)", ucmd, ucmd->h, ucmd->user_cmd.alloc_cmd.alloc_len);
+
 	dev_user_add_to_ready(ucmd);
 
 	res = SCST_CMD_STATE_STOP;
@@ -987,6 +990,7 @@ static void dev_user_on_free_cmd(struct scst_cmd *cmd)
 		goto out_reply;
 	}
 
+	TRACE_DBG("Preparing ON_FREE_CMD (pbuff 0x%lx)", ucmd->ubuff);
 	ucmd->user_cmd_payload_len =
 		offsetof(struct scst_user_get_cmd, on_free_cmd) +
 		sizeof(ucmd->user_cmd.on_free_cmd);
@@ -1291,6 +1295,7 @@ out_process:
 	scst_post_alloc_data_buf(cmd);
 	scst_process_active_cmd(cmd, false);
 
+	TRACE_DBG("%s", "ALLOC_MEM finished");
 	TRACE_EXIT_RES(res);
 	return res;
 
@@ -1355,6 +1360,8 @@ static int dev_user_process_reply_parse(struct scst_user_cmd *ucmd,
 
 out_process:
 	scst_post_parse(cmd);
+	TRACE_DBG("%s", "PARSE finished");
+
 	scst_process_active_cmd(cmd, false);
 
 	TRACE_EXIT_RES(res);
@@ -1413,6 +1420,7 @@ static int dev_user_process_reply_on_free(struct scst_user_cmd *ucmd)
 	dev_user_free_sgv(ucmd);
 	ucmd_put(ucmd);
 
+	TRACE_DBG("%s", "ON_FREE_CMD finished");
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -1427,6 +1435,7 @@ static int dev_user_process_reply_on_cache_free(struct scst_user_cmd *ucmd)
 
 	ucmd_put(ucmd);
 
+	TRACE_MEM("%s", "ON_CACHED_MEM_FREE finished");
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -1540,6 +1549,7 @@ out_compl:
 	/* !! At this point cmd can be already freed !! */
 
 out:
+	TRACE_DBG("%s", "EXEC finished");
 	TRACE_EXIT_RES(res);
 	return res;
 
