@@ -19,10 +19,10 @@
 SHELL = /bin/bash
 
 # Define the location to the kernel src. Can be defined here or on
-# the command line during the build process.  If KDIR is defined,
+# the command line during the build process. If KDIR is defined,
 # we will determine an appropriate value for KVER from the kernel
-# source tree.  KVER can still be overridden by the user via the
-# command line or by defining it in this Makefile.  If KDIR and KVER
+# source tree. KVER can still be overridden by the user via the
+# command line or by defining it in this Makefile. If KDIR and KVER
 # are not defined by the user, the current running kernel version is
 # used to define KVER.
 
