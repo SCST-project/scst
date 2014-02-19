@@ -2143,21 +2143,23 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 		(unsigned long long)start_lba, (unsigned long long)blocks);
 
 	if (virt_dev->blockio) {
+		sector_t start_sector = start_lba << (cmd->dev->block_shift - 9);
+		sector_t nr_sects = blocks << (cmd->dev->block_shift - 9);
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 27)
 		struct inode *inode = fd->f_dentry->d_inode;
 		gfp_t gfp = cmd->cmd_gfp_mask;
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 31)
-		err = blkdev_issue_discard(inode->i_bdev, start_lba, blocks, gfp);
+		err = blkdev_issue_discard(inode->i_bdev, start_sector, nr_sects, gfp);
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)       \
       && !(LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 34) \
            && defined(CONFIG_SUSE_KERNEL))
-		err = blkdev_issue_discard(inode->i_bdev, start_lba, blocks,
+		err = blkdev_issue_discard(inode->i_bdev, start_sector, nr_sects,
 				gfp, DISCARD_FL_WAIT);
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
-		err = blkdev_issue_discard(inode->i_bdev, start_lba, blocks,
+		err = blkdev_issue_discard(inode->i_bdev, start_sector, nr_sects,
 				gfp, BLKDEV_IFL_WAIT);
 #else
-		err = blkdev_issue_discard(inode->i_bdev, start_lba, blocks, gfp, 0);
+		err = blkdev_issue_discard(inode->i_bdev, start_sector, nr_sects, gfp, 0);
 #endif
 		if (unlikely(err != 0)) {
 			PRINT_ERROR("blkdev_issue_discard() for "
