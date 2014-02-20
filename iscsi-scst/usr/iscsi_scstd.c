@@ -306,8 +306,11 @@ static void iser_accept(int fd)
 	}
 
 	ret = ioctl(conn_fd, GET_PORTAL_ADDR, &addr, sizeof(addr));
-	if (ret)
+	if (ret) {
+		log_error("ioctl(GET_PORTAL_ADDR) failed: %s\n",
+			  strerror(errno));
 		goto out_close;
+	}
 
 	ret = getnameinfo((struct sockaddr *)&addr, sizeof(addr), target_portal,
 			 sizeof(target_portal), target_portal_port,
