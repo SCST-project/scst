@@ -162,6 +162,7 @@ static int add_new_connection(struct isert_listener_dev *dev,
 	TRACE_ENTRY();
 
 	if (!conn_dev) {
+		PRINT_WARNING("%s", "Unable to allocate new connection");
 		res = -ENOSPC;
 		goto out;
 	}
