@@ -952,7 +952,7 @@ static int isert_conn_qp_create(struct isert_connection *isert_conn)
 	}
 	isert_conn->qp = cm_id->qp;
 
-	pr_info("iser created cm_id:%p qp:%p\n", cm_id, cm_id->qp);
+	pr_info("iser created cm_id:%p qp:0x%X\n", cm_id, cm_id->qp->qp_num);
 
 out:
 	TRACE_EXIT_RES(err);
