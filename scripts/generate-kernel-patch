@@ -268,9 +268,13 @@ done
 scsi_exec_req_fifo_defined=0
 scst_io_context=0
 for p in scst/kernel/*-${kver}.patch \
-         $(if [ ${kver} = 3.7 ] && [ "$1" = "3.7.10" -o  "$1" ">" "3.7.10" ];
-           then echo iscsi-scst/kernel/patches/*-3.7.10.patch;
-	   else echo iscsi-scst/kernel/patches/*-${kver}.patch; fi)
+         $(if [ ${kver} = 3.7 ] && [ "${1#3.7.}" -ge 10 ]; then
+		echo iscsi-scst/kernel/patches/*-3.7.10.patch;
+	   elif [ ${kver} = 3.13 ] && [ "${1#3.13.}" -ge 3 ]; then
+		echo iscsi-scst/kernel/patches/*-3.13.3.patch;
+	   else
+		echo iscsi-scst/kernel/patches/*-${kver}.patch;
+	   fi)
 do
   # Exclude the put_page_callback patch when command-line option -u has been
   # specified since the current approach is not considered acceptable for
