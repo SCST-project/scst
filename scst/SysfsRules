@@ -266,7 +266,11 @@ Identifier attribute.
 
 To provide OPTIONAL force close session functionality target drivers
 MUST implement it using "force_close" write only session's attribute,
-which on write to it MUST close the corresponding session.
+which on write to it MUST close the corresponding session. The
+recommended way to implement it is to add close_session callback to the
+target driver's struct scst_tgt_template. This way allows SCST on
+initiators' security groups deletion to automatically force close
+sessions in those groups.
 
 See SCST core's README for more info about those attributes.
 
