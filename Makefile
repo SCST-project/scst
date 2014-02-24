@@ -389,7 +389,6 @@ scst-rpm:
 	rpmtopdir="$$(if [ $$(id -u) = 0 ]; then echo /usr/src/packages;\
 		    else echo $$PWD/rpmbuilddir; fi)" &&		\
 	$(MAKE) scst-dist-gzip &&					\
-	rm -rf $${rpmtopdir} &&						\
 	for d in BUILD RPMS SOURCES SPECS SRPMS; do			\
 	  mkdir -p $${rpmtopdir}/$$d;					\
 	done &&								\
