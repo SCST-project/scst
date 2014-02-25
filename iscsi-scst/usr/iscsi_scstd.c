@@ -332,6 +332,8 @@ static void iser_accept(int fd)
 		goto out_close;
 	}
 
+	log_info("iSER Connect to %s:%s", target_portal, target_portal_port);
+
 	if (conn_blocked) {
 		log_warning("Connection refused due to blocking\n");
 		goto out_close;
@@ -353,8 +355,6 @@ static void iser_accept(int fd)
 	conn->is_discovery = iser_is_discovery;
 	conn->is_iser = true;
 	incoming_cnt++;
-
-	log_info("iSER connect\n");
 
 out:
 	return;
