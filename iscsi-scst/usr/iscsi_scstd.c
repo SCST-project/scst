@@ -212,6 +212,16 @@ static int transmit_iser(int fd, bool start)
 	return ioctl(fd, RDMA_CORK, &opt, sizeof(opt));
 }
 
+static int cork_transmit_iser(int fd)
+{
+	return transmit_iser(fd, true);
+}
+
+static int uncork_transmit_iser(int fd)
+{
+	return transmit_iser(fd, false);
+}
+
 static void create_iser_listen_socket(struct pollfd *array)
 {
 	struct addrinfo hints, *res, *res0;
@@ -337,7 +347,8 @@ static void iser_accept(int fd)
 		goto out_free;
 	}
 
-	conn->transmit = transmit_iser;
+	conn->cork_transmit = cork_transmit_iser;
+	conn->uncork_transmit = uncork_transmit_iser;
 	conn->getsockname = iser_getsockname;
 	conn->is_discovery = iser_is_discovery;
 	conn->is_iser = true;
@@ -360,6 +371,16 @@ static int transmit_sock(int fd, bool start)
 {
 	int opt = start;
 	return setsockopt(fd, SOL_TCP, TCP_CORK, &opt, sizeof(opt));
+}
+
+static int cork_transmit_sock(int fd)
+{
+	return transmit_sock(fd, true);
+}
+
+static int uncork_transmit_sock(int fd)
+{
+	return transmit_sock(fd, false);
 }
 
 static int tcp_is_discovery(int fd)
@@ -445,7 +466,8 @@ static void accept_connection(int listen)
 		goto out_free;
 	}
 
-	conn->transmit = transmit_sock;
+	conn->cork_transmit = cork_transmit_sock;
+	conn->uncork_transmit = uncork_transmit_sock;
 	conn->getsockname = getsockname;
 	conn->is_discovery = tcp_is_discovery;
 	conn_read_pdu(conn);
@@ -549,7 +571,7 @@ again:
 	case IOSTATE_WRITE_AHS:
 	case IOSTATE_WRITE_DATA:
 	      write_again:
-		conn->transmit(pollfd->fd, true);
+		conn->cork_transmit(pollfd->fd);
 		res = write(pollfd->fd, conn->buffer, conn->rwsize);
 		if (res < 0) {
 			if (errno != EINTR && errno != EAGAIN) {
@@ -589,7 +611,7 @@ again:
 				goto write_again;
 			}
 		case IOSTATE_WRITE_DATA:
-			conn->transmit(pollfd->fd, false);
+			conn->uncork_transmit(pollfd->fd);
 			cmnd_finish(conn);
 
 			switch (conn->state) {

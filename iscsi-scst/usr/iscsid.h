@@ -131,7 +131,8 @@ struct connection {
 
 	bool is_iser;
 
-	int (*transmit)(int fd, bool start);
+	int (*cork_transmit)(int fd);
+	int (*uncork_transmit)(int fd);
 	int (*getsockname)(int fd, struct sockaddr *name, socklen_t *namelen);
 	int (*is_discovery)(int fd);
 };
