@@ -82,6 +82,7 @@ static struct scst_trace_log vdisk_local_trace_tbl[] = {
 #define SCST_FIO_REV			" 300"
 
 #define MAX_USN_LEN			(20+1) /* For '\0' */
+#define MAX_INQ_VEND_SPECIFIC_LEN	(INQ_BUF_SZ - 96)
 
 #define INQ_BUF_SZ			256
 #define EVPD				0x01
@@ -175,11 +176,22 @@ struct scst_vdisk_dev {
 				   scst_mutex and suspended activities */
 	uint16_t command_set_version;
 
-	/* All 4 protected by vdisk_serial_rwlock */
+	/* All 14 protected by vdisk_serial_rwlock */
+	unsigned int t10_vend_id_set:1;   /* true if t10_vend_id manually set */
+	/* true if vend_specific_id manually set */
+	unsigned int vend_specific_id_set:1;
+	unsigned int prod_id_set:1;          /* true if prod_id manually set */
+	unsigned int prod_rev_lvl_set:1; /* true if prod_rev_lvl manually set */
 	unsigned int t10_dev_id_set:1; /* true if t10_dev_id manually set */
 	unsigned int usn_set:1; /* true if usn manually set */
+	char t10_vend_id[8 + 1];
+	char vend_specific_id[32 + 1];
+	char prod_id[16 + 1];
+	char prod_rev_lvl[4 + 1];
 	char t10_dev_id[16+8+2]; /* T10 device ID */
 	char usn[MAX_USN_LEN];
+	uint8_t inq_vend_specific[MAX_INQ_VEND_SPECIFIC_LEN];
+	int inq_vend_specific_len;
 
 	struct scst_device *dev;
 	struct list_head vdev_list_entry;
@@ -319,6 +331,22 @@ static ssize_t vdev_sysfs_filename_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdisk_sysfs_resync_size_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count);
+static ssize_t vdev_sysfs_t10_vend_id_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count);
+static ssize_t vdev_sysfs_t10_vend_id_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
+static ssize_t vdev_sysfs_vend_specific_id_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count);
+static ssize_t vdev_sysfs_vend_specific_id_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
+static ssize_t vdev_sysfs_prod_id_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count);
+static ssize_t vdev_sysfs_prod_id_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
+static ssize_t vdev_sysfs_prod_rev_lvl_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count);
+static ssize_t vdev_sysfs_prod_rev_lvl_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
 static ssize_t vdev_sysfs_t10_dev_id_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count);
 static ssize_t vdev_sysfs_t10_dev_id_show(struct kobject *kobj,
@@ -326,6 +354,10 @@ static ssize_t vdev_sysfs_t10_dev_id_show(struct kobject *kobj,
 static ssize_t vdev_sysfs_usn_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count);
 static ssize_t vdev_sysfs_usn_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
+static ssize_t vdev_sysfs_inq_vend_specific_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count);
+static ssize_t vdev_sysfs_inq_vend_specific_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdev_zero_copy_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
@@ -357,11 +389,28 @@ static struct kobj_attribute vdisk_filename_attr =
 	__ATTR(filename, S_IRUGO, vdev_sysfs_filename_show, NULL);
 static struct kobj_attribute vdisk_resync_size_attr =
 	__ATTR(resync_size, S_IWUSR, NULL, vdisk_sysfs_resync_size_store);
+static struct kobj_attribute vdev_t10_vend_id_attr =
+	__ATTR(t10_vend_id, S_IWUSR|S_IRUGO, vdev_sysfs_t10_vend_id_show,
+	       vdev_sysfs_t10_vend_id_store);
+static struct kobj_attribute vdev_vend_specific_id_attr =
+	__ATTR(vend_specific_id, S_IWUSR|S_IRUGO,
+	       vdev_sysfs_vend_specific_id_show,
+	       vdev_sysfs_vend_specific_id_store);
+static struct kobj_attribute vdev_prod_id_attr =
+	__ATTR(prod_id, S_IWUSR|S_IRUGO, vdev_sysfs_prod_id_show,
+	       vdev_sysfs_prod_id_store);
+static struct kobj_attribute vdev_prod_rev_lvl_attr =
+	__ATTR(prod_rev_lvl, S_IWUSR|S_IRUGO, vdev_sysfs_prod_rev_lvl_show,
+	       vdev_sysfs_prod_rev_lvl_store);
 static struct kobj_attribute vdev_t10_dev_id_attr =
 	__ATTR(t10_dev_id, S_IWUSR|S_IRUGO, vdev_sysfs_t10_dev_id_show,
 		vdev_sysfs_t10_dev_id_store);
 static struct kobj_attribute vdev_usn_attr =
 	__ATTR(usn, S_IWUSR|S_IRUGO, vdev_sysfs_usn_show, vdev_sysfs_usn_store);
+static struct kobj_attribute vdev_inq_vend_specific_attr =
+	__ATTR(inq_vend_specific, S_IWUSR|S_IRUGO,
+	       vdev_sysfs_inq_vend_specific_show,
+	       vdev_sysfs_inq_vend_specific_store);
 static struct kobj_attribute vdev_zero_copy_attr =
 	__ATTR(zero_copy, S_IRUGO, vdev_zero_copy_show, NULL);
 
@@ -381,8 +430,13 @@ static const struct attribute *vdisk_fileio_attrs[] = {
 	&vdisk_removable_attr.attr,
 	&vdisk_filename_attr.attr,
 	&vdisk_resync_size_attr.attr,
+	&vdev_t10_vend_id_attr.attr,
+	&vdev_vend_specific_id_attr.attr,
+	&vdev_prod_id_attr.attr,
+	&vdev_prod_rev_lvl_attr.attr,
 	&vdev_t10_dev_id_attr.attr,
 	&vdev_usn_attr.attr,
+	&vdev_inq_vend_specific_attr.attr,
 	&vdev_zero_copy_attr.attr,
 	NULL,
 };
@@ -397,8 +451,13 @@ static const struct attribute *vdisk_blockio_attrs[] = {
 	&vdisk_rotational_attr.attr,
 	&vdisk_filename_attr.attr,
 	&vdisk_resync_size_attr.attr,
+	&vdev_t10_vend_id_attr.attr,
+	&vdev_vend_specific_id_attr.attr,
+	&vdev_prod_id_attr.attr,
+	&vdev_prod_rev_lvl_attr.attr,
 	&vdev_t10_dev_id_attr.attr,
 	&vdev_usn_attr.attr,
+	&vdev_inq_vend_specific_attr.attr,
 	&vdisk_tp_attr.attr,
 	NULL,
 };
@@ -409,8 +468,13 @@ static const struct attribute *vdisk_nullio_attrs[] = {
 	&vdisk_rd_only_attr.attr,
 	&vdev_dummy_attr.attr,
 	&vdisk_removable_attr.attr,
+	&vdev_t10_vend_id_attr.attr,
+	&vdev_vend_specific_id_attr.attr,
+	&vdev_prod_id_attr.attr,
+	&vdev_prod_rev_lvl_attr.attr,
 	&vdev_t10_dev_id_attr.attr,
 	&vdev_usn_attr.attr,
+	&vdev_inq_vend_specific_attr.attr,
 	&vdisk_rotational_attr.attr,
 	NULL,
 };
@@ -418,8 +482,13 @@ static const struct attribute *vdisk_nullio_attrs[] = {
 static const struct attribute *vcdrom_attrs[] = {
 	&vdev_size_attr.attr,
 	&vcdrom_filename_attr.attr,
+	&vdev_t10_vend_id_attr.attr,
+	&vdev_vend_specific_id_attr.attr,
+	&vdev_prod_id_attr.attr,
+	&vdev_prod_rev_lvl_attr.attr,
 	&vdev_t10_dev_id_attr.attr,
 	&vdev_usn_attr.attr,
+	&vdev_inq_vend_specific_attr.attr,
 	NULL,
 };
 
@@ -428,7 +497,10 @@ static const struct attribute *vcdrom_attrs[] = {
 /* Protects vdisks addition/deletion and related activities, like search */
 static DEFINE_MUTEX(scst_vdisk_mutex);
 
-/* Protects devices t10_dev_id and usn */
+/*
+ * Protects the device attributes t10_vend_id, vend_specific_id, prod_id,
+ * prod_rev_lvl, t10_dev_id, usn and inq_vend_specific.
+ */
 static DEFINE_RWLOCK(vdisk_serial_rwlock);
 
 /* Protected by scst_vdisk_mutex */
@@ -2235,6 +2307,28 @@ out:
 	return;
 }
 
+/*
+ * Copy a zero-terminated string into a fixed-size byte array and fill the
+ * trailing bytes with @fill_byte.
+ */
+static void scst_copy_and_fill_b(char *dst, const char *src, int len,
+				 uint8_t fill_byte)
+{
+	int cpy_len = min_t(int, strlen(src), len);
+
+	memcpy(dst, src, cpy_len);
+	memset(dst + cpy_len, fill_byte, len - cpy_len);
+}
+
+/*
+ * Copy a zero-terminated string into a fixed-size char array and fill the
+ * trailing characters with spaces.
+ */
+static void scst_copy_and_fill(char *dst, const char *src, int len)
+{
+	scst_copy_and_fill_b(dst, src, len, ' ');
+}
+
 static enum compl_status_e vdisk_exec_write_same(struct vdisk_cmd_params *p)
 {
 	struct scst_cmd *cmd = p->cmd;
@@ -2445,16 +2539,10 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 			/* T10 vendor identifier field format (faked) */
 			buf[num + 0] = 0x2;	/* ASCII */
 			buf[num + 1] = 0x1;	/* Vendor ID */
-			if (cmd->tgtt->vendor)
-				memcpy(&buf[num + 4], cmd->tgtt->vendor, 8);
-			else if (virt_dev->blockio)
-				memcpy(&buf[num + 4], SCST_BIO_VENDOR, 8);
-			else
-				memcpy(&buf[num + 4], SCST_FIO_VENDOR, 8);
-
 			read_lock(&vdisk_serial_rwlock);
-			i = strlen(virt_dev->t10_dev_id);
-			memcpy(&buf[num + 12], virt_dev->t10_dev_id, i);
+			scst_copy_and_fill(&buf[num + 4], virt_dev->t10_vend_id, 8);
+			i = strlen(virt_dev->vend_specific_id);
+			memcpy(&buf[num + 12], virt_dev->vend_specific_id, i);
 			read_unlock(&vdisk_serial_rwlock);
 
 			buf[num + 3] = 8 + i;
@@ -2608,7 +2696,7 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 			goto out_put;
 		}
 	} else {
-		int len, num;
+		int num;
 
 		if (cmd->cdb[2] != 0) {
 			TRACE_DBG("INQUIRY: Unsupported page %x", cmd->cdb[2]);
@@ -2628,37 +2716,30 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 		buf[6] = 0x10; /* MultiP 1 */
 		buf[7] = 2; /* CMDQUE 1, BQue 0 => commands queuing supported */
 
+		read_lock(&vdisk_serial_rwlock);
+
 		/*
 		 * 8 byte ASCII Vendor Identification of the target
 		 * - left aligned.
 		 */
-		if (cmd->tgtt->vendor)
-			memcpy(&buf[8], cmd->tgtt->vendor, 8);
-		else if (virt_dev->blockio)
-			memcpy(&buf[8], SCST_BIO_VENDOR, 8);
-		else
-			memcpy(&buf[8], SCST_FIO_VENDOR, 8);
+		scst_copy_and_fill(&buf[8], virt_dev->t10_vend_id, 8);
 
 		/*
 		 * 16 byte ASCII Product Identification of the target - left
 		 * aligned.
 		 */
-		memset(&buf[16], ' ', 16);
-		if (cmd->tgtt->get_product_id)
-			cmd->tgtt->get_product_id(cmd->tgt_dev, &buf[16], 16);
-		else {
-			len = min_t(size_t, strlen(virt_dev->name), 16);
-			memcpy(&buf[16], virt_dev->name, len);
-		}
+		scst_copy_and_fill(&buf[16], virt_dev->prod_id, 16);
 
 		/*
 		 * 4 byte ASCII Product Revision Level of the target - left
 		 * aligned.
 		 */
-		if (cmd->tgtt->revision)
-			memcpy(&buf[32], cmd->tgtt->revision, 4);
-		else
-			memcpy(&buf[32], SCST_FIO_REV, 4);
+		scst_copy_and_fill(&buf[32], virt_dev->prod_rev_lvl, 4);
+
+		/* Vendor specific information. */
+		if (virt_dev->inq_vend_specific_len <= 20)
+			memcpy(&buf[36], virt_dev->inq_vend_specific,
+			       virt_dev->inq_vend_specific_len);
 
 		/** Version descriptors **/
 
@@ -2699,12 +2780,13 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 		}
 
 		/* Vendor specific information. */
-		if (cmd->tgtt->get_vend_specific) {
-			/* Skip to byte 96. */
-			num = 96 - 58;
-			num += cmd->tgtt->get_vend_specific(cmd->tgt_dev,
-						    &buf[96], INQ_BUF_SZ - 96);
+		if (virt_dev->inq_vend_specific_len > 20) {
+			memcpy(&buf[96], virt_dev->inq_vend_specific,
+			       virt_dev->inq_vend_specific_len);
+			num = 96 - 58 + virt_dev->inq_vend_specific_len;
 		}
+
+		read_unlock(&vdisk_serial_rwlock);
 
 		buf[4] += num;
 		resp_len = buf[4] + 5;
@@ -4640,6 +4722,20 @@ static int vdev_create(struct scst_dev_type *devt,
 		"%llx-%s", dev_id_num, virt_dev->name);
 	TRACE_DBG("t10_dev_id %s", virt_dev->t10_dev_id);
 
+	sprintf(virt_dev->t10_vend_id, "%.*s",
+		(int)(sizeof(virt_dev->t10_vend_id) - 1),
+		virt_dev->blockio ? SCST_BIO_VENDOR : SCST_FIO_VENDOR);
+
+	sprintf(virt_dev->vend_specific_id, "%.*s",
+		(int)(sizeof(virt_dev->vend_specific_id) - 1),
+		virt_dev->t10_dev_id);
+
+	sprintf(virt_dev->prod_id, "%.*s", (int)(sizeof(virt_dev->prod_id) - 1),
+		virt_dev->name);
+
+	sprintf(virt_dev->prod_rev_lvl, "%.*s",
+		(int)(sizeof(virt_dev->prod_rev_lvl) - 1), SCST_FIO_REV);
+
 	scnprintf(virt_dev->usn, sizeof(virt_dev->usn), "%llx", dev_id_num);
 	TRACE_DBG("usn %s", virt_dev->usn);
 
@@ -5739,6 +5835,239 @@ out:
 	return res;
 }
 
+static ssize_t vdev_sysfs_t10_vend_id_store(struct kobject *kobj,
+					    struct kobj_attribute *attr,
+					    const char *buf, size_t count)
+{
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+	char *p;
+	int res, len;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = dev->dh_priv;
+	p = memchr(buf, '\n', count);
+	len = p ? p - buf : count;
+
+	if (len >= sizeof(virt_dev->t10_vend_id)) {
+		PRINT_ERROR("T10 vendor id is too long (max %zd characters)",
+			    sizeof(virt_dev->t10_vend_id));
+		res = -EINVAL;
+		goto out;
+	}
+
+	write_lock(&vdisk_serial_rwlock);
+	sprintf(virt_dev->t10_vend_id, "%.*s", len, buf);
+	virt_dev->t10_vend_id_set = 1;
+	write_unlock(&vdisk_serial_rwlock);
+
+	res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t vdev_sysfs_t10_vend_id_show(struct kobject *kobj,
+					   struct kobj_attribute *attr,
+					   char *buf)
+{
+	int pos;
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = dev->dh_priv;
+
+	read_lock(&vdisk_serial_rwlock);
+	pos = sprintf(buf, "%s\n%s", virt_dev->t10_vend_id,
+		      virt_dev->t10_vend_id_set ? SCST_SYSFS_KEY_MARK "\n" :
+		      "");
+	read_unlock(&vdisk_serial_rwlock);
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static ssize_t vdev_sysfs_vend_specific_id_store(struct kobject *kobj,
+						 struct kobj_attribute *attr,
+						 const char *buf, size_t count)
+{
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+	char *p;
+	int res, len;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = dev->dh_priv;
+	p = memchr(buf, '\n', count);
+	len = p ? p - buf : count;
+
+	if (len >= sizeof(virt_dev->vend_specific_id)) {
+		PRINT_ERROR("Vendor specific id is too long (max %zd"
+			    " characters)",
+			    sizeof(virt_dev->vend_specific_id) - 1);
+		res = -EINVAL;
+		goto out;
+	}
+
+	write_lock(&vdisk_serial_rwlock);
+	sprintf(virt_dev->vend_specific_id, "%.*s", len, buf);
+	virt_dev->vend_specific_id_set = 1;
+	write_unlock(&vdisk_serial_rwlock);
+
+	res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t vdev_sysfs_vend_specific_id_show(struct kobject *kobj,
+						struct kobj_attribute *attr,
+						char *buf)
+{
+	int pos;
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = dev->dh_priv;
+
+	read_lock(&vdisk_serial_rwlock);
+	pos = sprintf(buf, "%s\n%s", virt_dev->vend_specific_id,
+		      virt_dev->vend_specific_id_set ?
+		      SCST_SYSFS_KEY_MARK "\n" : "");
+	read_unlock(&vdisk_serial_rwlock);
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static ssize_t vdev_sysfs_prod_id_store(struct kobject *kobj,
+					struct kobj_attribute *attr,
+					const char *buf, size_t count)
+{
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+	char *p;
+	int res, len;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = dev->dh_priv;
+	p = memchr(buf, '\n', count);
+	len = p ? p - buf : count;
+
+	if (len >= sizeof(virt_dev->prod_id)) {
+		PRINT_ERROR("Product id is too long (max %zd characters)",
+			    sizeof(virt_dev->prod_id));
+		res = -EINVAL;
+		goto out;
+	}
+
+	write_lock(&vdisk_serial_rwlock);
+	sprintf(virt_dev->prod_id, "%.*s", len, buf);
+	virt_dev->prod_id_set = 1;
+	write_unlock(&vdisk_serial_rwlock);
+
+	res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t vdev_sysfs_prod_id_show(struct kobject *kobj,
+				       struct kobj_attribute *attr,
+				       char *buf)
+{
+	int pos;
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = dev->dh_priv;
+
+	read_lock(&vdisk_serial_rwlock);
+	pos = sprintf(buf, "%s\n%s", virt_dev->prod_id,
+		      virt_dev->prod_id_set ? SCST_SYSFS_KEY_MARK "\n" : "");
+	read_unlock(&vdisk_serial_rwlock);
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static ssize_t vdev_sysfs_prod_rev_lvl_store(struct kobject *kobj,
+					     struct kobj_attribute *attr,
+					     const char *buf, size_t count)
+{
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+	char *p;
+	int res, len;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = dev->dh_priv;
+	p = memchr(buf, '\n', count);
+	len = p ? p - buf : count;
+
+	if (len >= sizeof(virt_dev->prod_rev_lvl)) {
+		PRINT_ERROR("Product revision level is too long (max %zd"
+			    " characters)",
+			    sizeof(virt_dev->prod_rev_lvl));
+		res = -EINVAL;
+		goto out;
+	}
+
+	write_lock(&vdisk_serial_rwlock);
+	sprintf(virt_dev->prod_rev_lvl, "%.*s", len, buf);
+	virt_dev->prod_rev_lvl_set = 1;
+	write_unlock(&vdisk_serial_rwlock);
+
+	res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t vdev_sysfs_prod_rev_lvl_show(struct kobject *kobj,
+					    struct kobj_attribute *attr,
+					    char *buf)
+{
+	int pos;
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = dev->dh_priv;
+
+	read_lock(&vdisk_serial_rwlock);
+	pos = sprintf(buf, "%s\n%s", virt_dev->prod_rev_lvl,
+		      virt_dev->prod_rev_lvl_set ? SCST_SYSFS_KEY_MARK "\n" :
+		      "");
+	read_unlock(&vdisk_serial_rwlock);
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
 static ssize_t vdev_sysfs_t10_dev_id_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count)
 {
@@ -5876,6 +6205,55 @@ static ssize_t vdev_sysfs_usn_show(struct kobject *kobj,
 	read_unlock(&vdisk_serial_rwlock);
 
 	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static ssize_t vdev_sysfs_inq_vend_specific_store(struct kobject *kobj,
+						  struct kobj_attribute *attr,
+						  const char *buf, size_t count)
+{
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+	char *p;
+	int res = -EINVAL, len;
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = dev->dh_priv;
+	p = memchr(buf, '\n', count);
+	len = p ? p - buf : count;
+	if (len > MAX_INQ_VEND_SPECIFIC_LEN)
+		goto out;
+
+	write_lock(&vdisk_serial_rwlock);
+	memcpy(virt_dev->inq_vend_specific, buf, len);
+	virt_dev->inq_vend_specific_len = len;
+	write_unlock(&vdisk_serial_rwlock);
+
+	res = count;
+
+out:
+	return res;
+}
+
+static ssize_t vdev_sysfs_inq_vend_specific_show(struct kobject *kobj,
+						 struct kobj_attribute *attr,
+						 char *buf)
+{
+	int pos;
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = dev->dh_priv;
+
+	read_lock(&vdisk_serial_rwlock);
+	pos = snprintf(buf, PAGE_SIZE, "%.*s\n%s",
+		       virt_dev->inq_vend_specific_len,
+		       virt_dev->inq_vend_specific,
+		       virt_dev->inq_vend_specific_len ?
+		       SCST_SYSFS_KEY_MARK "\n" : "");
+	read_unlock(&vdisk_serial_rwlock);
+
 	return pos;
 }
 

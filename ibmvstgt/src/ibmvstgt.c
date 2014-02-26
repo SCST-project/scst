@@ -1069,28 +1069,6 @@ static void handle_crq(struct work_struct *work)
 	}
 }
 
-static void ibmvstgt_get_product_id(const struct scst_tgt_dev *tgt_dev,
-				    char *buf, const int size)
-{
-	WARN_ON(size != 16);
-
-	/*
-	 * AIX uses hardcoded device names. The AIX SCSI initiator even won't
-	 * work unless we use the names VDASD and VOPTA.
-	 */
-	switch (tgt_dev->dev->type) {
-	case TYPE_DISK:
-		memcpy(buf, "VDASD blkdev    ", 16);
-		break;
-	case TYPE_ROM:
-		memcpy(buf, "VOPTA blkdev    ", 16);
-		break;
-	default:
-		snprintf(buf, size, "(devtype %d)     ", tgt_dev->dev->type);
-		break;
-	}
-}
-
 /*
  * Extract target, bus and LUN information from a 64-bit LUN in CPU-order.
  */
@@ -1236,12 +1214,8 @@ static struct scst_tgt_template ibmvstgt_template = {
 #else
 	.sg_tablesize		= SCSI_MAX_SG_SEGMENTS,
 #endif
-	.vendor			= "IBM     ",
-	.revision		= "0001",
 	.fake_aca		= true,
-	.get_product_id		= ibmvstgt_get_product_id,
 	.get_serial		= ibmvstgt_get_serial,
-	.get_vend_specific	= ibmvstgt_get_serial,
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags	= DEFAULT_IBMVSTGT_TRACE_FLAGS,
