@@ -2379,9 +2379,6 @@ struct scst_dev_registrant {
 struct scst_device {
 	unsigned int type;	/* SCSI type of the device */
 
-	/* Set if reserved via the SPC-2 SCSI RESERVE command. */
-	struct scst_session *reserved_by;
-
 	/*************************************************************
 	 ** Dev's flags. Updates serialized by dev_lock or suspended
 	 ** activity
@@ -2467,6 +2464,9 @@ struct scst_device {
 
 	/* List of commands with lock, if dedicated threads are used */
 	struct scst_cmd_threads dev_cmd_threads;
+
+	/* Set if reserved via the SPC-2 SCSI RESERVE command. */
+	struct scst_session *reserved_by;
 
 	/**********************************************************************
 	 * Persistent reservation fields. Protected as follows:
