@@ -35,7 +35,6 @@
 
 #include <linux/module.h>
 #include <linux/kernel.h>
-#include <linux/slab.h>		/* kmalloc() */
 #include <linux/fs.h>		/* everything... */
 #include <linux/errno.h>	/* error codes */
 #include <linux/poll.h>
@@ -103,29 +102,10 @@ static void release_dev(struct isert_conn_dev *dev)
 	spin_unlock(&isert_listen_dev.conn_lock);
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static void isert_login_close_conn_fn(void *ctx)
-#else
-static void isert_login_close_conn_fn(struct work_struct *work)
-#endif
-{
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	struct isert_close_conn_work *conn_work = ctx;
-#else
-	struct isert_close_conn_work *conn_work = container_of(work,
-		struct isert_close_conn_work, close_work);
-#endif
-	struct iscsi_conn *conn = conn_work->conn;
-
-	isert_close_connection(conn);
-
-	kfree(conn_work);
-}
-
 static void isert_conn_timer_fn(unsigned long arg)
 {
 	struct isert_conn_dev *conn_dev = (struct isert_conn_dev *)arg;
-	struct isert_close_conn_work *conn_work;
+	struct iscsi_conn *conn = conn_dev->conn;
 
 	TRACE_ENTRY();
 
@@ -133,23 +113,8 @@ static void isert_conn_timer_fn(unsigned long arg)
 
 	PRINT_ERROR("Timeout on connection %p\n", conn_dev->conn);
 
-	conn_work = kmalloc(sizeof(*conn_work), GFP_ATOMIC);
-	if (unlikely(!conn_work)) {
-		PRINT_CRIT_ERROR("Unable to allocate isert_close_conn_work for conn %p\n",
-				 conn_dev->conn);
-		goto out;
-	}
+	schedule_work(&conn->close_work);
 
-	conn_work->conn = conn_dev->conn;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	INIT_WORK(&conn_work->close_work, isert_login_close_conn_fn,
-		  conn_work);
-#else
-	INIT_WORK(&conn_work->close_work, isert_login_close_conn_fn);
-#endif
-	schedule_work(&conn_work->close_work);
-
-out:
 	TRACE_EXIT();
 }
 
@@ -189,6 +154,22 @@ static bool have_new_connection(struct isert_listener_dev *dev)
 	spin_unlock(&dev->conn_lock);
 
 	return ret;
+}
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+static void isert_close_conn_fn(void *ctx)
+#else
+static void isert_close_conn_fn(struct work_struct *work)
+#endif
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	struct iscsi_conn *conn = ctx;
+#else
+	struct iscsi_conn *conn = container_of(work,
+		struct iscsi_conn, close_work);
+#endif
+
+	isert_close_connection(conn);
 }
 
 int isert_conn_alloc(struct iscsi_session *session,
@@ -235,6 +216,12 @@ int isert_conn_alloc(struct iscsi_session *session,
 		goto cleanup_conn;
 
 	conn->transport = t;
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	INIT_WORK(&conn->close_work, isert_close_conn_fn, conn);
+#else
+	INIT_WORK(&conn->close_work, isert_close_conn_fn);
+#endif
 
 	res = iscsi_init_conn(session, info, conn);
 	if (unlikely(res))

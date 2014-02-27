@@ -52,41 +52,8 @@ module_param(isert_nr_devs, uint, S_IRUGO);
 MODULE_PARM_DESC(isert_nr_devs,
 		 "Maximum concurrent number of connection requests to handle.");
 
-static void isert_do_close_conn(struct iscsi_conn *conn)
-{
-	isert_close_connection(conn);
-	start_close_conn(conn);
-}
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static void isert_close_conn_fn(void *ctx)
-#else
-static void isert_close_conn_fn(struct work_struct *work)
-#endif
-{
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	struct isert_close_conn_work *conn_work = ctx;
-#else
-	struct isert_close_conn_work *conn_work = container_of(work,
-		struct isert_close_conn_work, close_work);
-#endif
-	struct iscsi_conn *conn = conn_work->conn;
-
-	/* Take care of case where our connection is being closed
-	 * without being connected to a session - if connection allocation
-	 * failed for some reason */
-	if (unlikely(!conn->session))
-		isert_free_connection(conn);
-	else
-		isert_do_close_conn(conn);
-
-	kfree(conn_work);
-}
-
 static void isert_mark_conn_closed(struct iscsi_conn *conn, int flags)
 {
-	struct isert_close_conn_work *conn_work;
-
 	TRACE_ENTRY();
 	if (flags & ISCSI_CONN_ACTIVE_CLOSE)
 		conn->active_close = 1;
@@ -97,25 +64,9 @@ static void isert_mark_conn_closed(struct iscsi_conn *conn, int flags)
 
 	if (!conn->closing) {
 		conn->closing = 1;
-
-		conn_work = kmalloc(sizeof(*conn_work), GFP_ATOMIC);
-		if (unlikely(!conn_work)) {
-			PRINT_CRIT_ERROR("Unable to allocate isert_close_conn_work for conn %p\n",
-					 conn);
-			goto out;
-		}
-
-		conn_work->conn = conn;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-		INIT_WORK(&conn_work->close_work, isert_close_conn_fn,
-			  conn_work);
-#else
-		INIT_WORK(&conn_work->close_work, isert_close_conn_fn);
-#endif
-		schedule_work(&conn_work->close_work);
+		schedule_work(&conn->close_work);
 	}
 
-out:
 	TRACE_EXIT();
 }
 
@@ -326,6 +277,13 @@ static void isert_conn_free(struct iscsi_conn *conn)
 int isert_handle_close_connection(struct iscsi_conn *conn)
 {
 	isert_mark_conn_closed(conn, 0);
+	/* Take care of case where our connection is being closed
+	 * without being connected to a session - if connection allocation
+	 * failed for some reason */
+	if (unlikely(!conn->session))
+		isert_free_connection(conn);
+	else
+		start_close_conn(conn);
 	return 0;
 }
 

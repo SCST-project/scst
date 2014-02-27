@@ -118,7 +118,7 @@ int isert_post_send(struct isert_connection *isert_conn,
 	return err;
 }
 
-static void isert_conn_disconnect(struct isert_connection *isert_conn)
+void isert_conn_disconnect(struct isert_connection *isert_conn)
 {
 	int err = rdma_disconnect(isert_conn->cm_id);
 	if (unlikely(err))
@@ -310,7 +310,7 @@ static void isert_recv_completion_handler(struct isert_wr *wr)
 
 	if (unlikely(err)) {
 		pr_err("err:%d while handling iser pdu\n", err);
-		isert_conn_close(wr->conn, 0);
+		isert_conn_disconnect(wr->conn);
 	}
 
 	TRACE_EXIT();
@@ -1022,8 +1022,6 @@ static struct isert_connection *isert_conn_create(struct rdma_cm_id *cm_id,
 
 	kref_init(&isert_conn->kref);
 
-	init_waitqueue_head(&isert_conn->waitQ);
-
 	pr_info("iser created connection cm_id:%p\n", cm_id);
 	TRACE_EXIT();
 	return isert_conn;
@@ -1045,17 +1043,6 @@ fail_get:
 
 /* start closing process;
  * only when all buffers released, can free */
-void isert_conn_close(struct isert_connection *isert_conn, int do_flush)
-{
-	isert_conn_disconnect(isert_conn);
-	if (do_flush) {
-		wait_event_interruptible(isert_conn->waitQ,
-					 test_bit(ISERT_TIMEWAIT_RECEIVED,
-						  &isert_conn->flags));
-		flush_workqueue(isert_conn->cq_desc->cq_workqueue);
-	}
-}
-
 static void isert_kref_free(struct kref *kref)
 {
 	struct isert_connection *isert_conn = container_of(kref,
@@ -1067,6 +1054,8 @@ static void isert_kref_free(struct kref *kref)
 	TRACE_ENTRY();
 
 	pr_info("isert_conn_free conn:%p\n", isert_conn);
+
+	flush_workqueue(isert_conn->cq_desc->cq_workqueue);
 
 	isert_free_conn_resources(isert_conn);
 
@@ -1099,9 +1088,6 @@ static void isert_conn_closed_do_work(struct work_struct *work)
 {
 	struct isert_connection *isert_conn =
 		container_of(work, struct isert_connection, close_work);
-
-	set_bit(ISERT_TIMEWAIT_RECEIVED, &isert_conn->flags);
-	wake_up_interruptible(&isert_conn->waitQ);
 
 	/* notify upper layer */
 	if (!test_bit(ISERT_CONNECTION_ABORTED, &isert_conn->flags))

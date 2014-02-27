@@ -102,8 +102,7 @@ struct isert_cq {
 	int			idx;
 };
 
-#define ISERT_TIMEWAIT_RECEIVED		0
-#define ISERT_CONNECTION_ABORTED	1
+#define ISERT_CONNECTION_ABORTED	0
 
 struct isert_connection {
 	struct iscsi_conn	iscsi ____cacheline_aligned;
@@ -157,7 +156,6 @@ struct isert_connection {
 	struct list_head	dev_node;
 	struct list_head	portal_node;
 
-	wait_queue_head_t	waitQ;
 	unsigned long		flags;
 	struct work_struct	close_work;
 	struct kref		kref;
@@ -227,8 +225,8 @@ int isert_post_send(struct isert_connection *isert_conn,
 
 int isert_alloc_conn_resources(struct isert_connection *isert_conn);
 void isert_free_conn_resources(struct isert_connection *isert_conn);
-void isert_conn_close(struct isert_connection *isert_conn, int do_flush);
 void isert_conn_free(struct isert_connection *isert_conn);
+void isert_conn_disconnect(struct isert_connection *isert_conn);
 
 static inline struct isert_connection *isert_conn_alloc(void)
 {

@@ -272,7 +272,8 @@ int isert_close_connection(struct iscsi_conn *iscsi_conn)
 {
 	struct isert_connection *isert_conn = (struct isert_connection *)iscsi_conn;
 
-	isert_conn_close(isert_conn, 1);
+	isert_conn_disconnect(isert_conn);
+
 	return 0;
 }
 

@@ -81,11 +81,6 @@ struct isert_listener_dev {
 	int free_portal_idx;
 };
 
-struct isert_close_conn_work {
-	struct work_struct	close_work;
-	struct iscsi_conn	*conn;
-};
-
 enum isert_conn_dev_state {
 	CS_INIT,
 	CS_REQ_BHS,

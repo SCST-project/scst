@@ -310,6 +310,7 @@ struct iscsi_conn {
 #else
 	struct work_struct nop_in_delayed_work;
 #endif
+	struct work_struct close_work;
 	unsigned int nop_in_interval; /* in jiffies */
 	unsigned int nop_in_timeout; /* in jiffies */
 	struct list_head nop_req_list;
