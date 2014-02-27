@@ -93,13 +93,27 @@ static void isert_del_timer(struct isert_conn_dev *dev)
 
 static void release_dev(struct isert_conn_dev *dev)
 {
-	isert_del_timer(dev);
+	kref_init(&dev->kref);
 
 	spin_lock(&isert_listen_dev.conn_lock);
 	dev->occupied = 0;
 	list_del_init(&dev->conn_list_entry);
 	dev->state = CS_INIT;
+	atomic_set(&dev->available, 1);
 	spin_unlock(&isert_listen_dev.conn_lock);
+}
+
+static void isert_kref_release_dev(struct kref *kref)
+{
+	struct isert_conn_dev *dev = container_of(kref,
+						  struct isert_conn_dev,
+						  kref);
+	release_dev(dev);
+}
+
+static void isert_dev_release(struct isert_conn_dev *dev)
+{
+	kref_put(&dev->kref, isert_kref_release_dev);
 }
 
 static void isert_conn_timer_fn(unsigned long arg)
@@ -233,9 +247,10 @@ int isert_conn_alloc(struct iscsi_session *session,
 		goto cleanup_iscsi_conn;
 #endif
 
-	list_add_tail(&conn->conn_list_entry, &session->conn_list);
-
 	conn->rd_state = 1;
+	isert_dev_release(dev);
+
+	list_add_tail(&conn->conn_list_entry, &session->conn_list);
 	res = isert_login_rsp_tx(cmnd, true, false);
 	vunmap(dev->sg_virt);
 	dev->sg_virt = NULL;
@@ -335,6 +350,7 @@ static ssize_t isert_listen_read(struct file *filp, char __user *buf,
 	conn_dev = list_first_entry(&dev->new_conn_list, struct isert_conn_dev,
 				    conn_list_entry);
 	list_move(&conn_dev->conn_list_entry, &dev->curr_conn_list);
+	kref_get(&conn_dev->kref);
 	spin_unlock(&dev->conn_lock);
 
 	res = snprintf(k_buff, sizeof(k_buff), "/dev/"ISER_CONN_DEV_PREFIX"%d",
@@ -423,6 +439,7 @@ int isert_connection_closed(struct iscsi_conn *iscsi_conn)
 
 			dev->conn = NULL;
 			wake_up(&dev->waitqueue);
+			isert_dev_release(dev);
 		}
 
 		isert_free_connection(iscsi_conn);
@@ -480,8 +497,9 @@ static int isert_release(struct inode *inode, struct file *filp)
 		dev->conn = NULL;
 	}
 
-	release_dev(dev);
-	atomic_inc(&dev->available);
+	isert_del_timer(dev);
+
+	isert_dev_release(dev);
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -797,6 +815,7 @@ static void __init isert_setup_cdev(struct isert_conn_dev *dev,
 	dev->login_rsp = NULL;
 	spin_lock_init(&dev->pdu_lock);
 	atomic_set(&dev->available, 1);
+	kref_init(&dev->kref);
 	dev->state = CS_INIT;
 	err = cdev_add(&dev->cdev, dev->devno, 1);
 	/* Fail gracefully if need be */

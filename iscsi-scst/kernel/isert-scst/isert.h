@@ -115,6 +115,7 @@ struct isert_conn_dev {
 	int is_discovery;
 	struct timer_list tmo_timer;
 	int timer_active;
+	struct kref kref;
 };
 
 #define ISER_CONN_DEV_PREFIX "isert/conn"
