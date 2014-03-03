@@ -811,7 +811,17 @@ Each vdisk_fileio's device has the following attributes in
 
  - o_direct - contains O_DIRECT status of this virtual device.
 
+ - inq_vend_specific - Vendor specific data that will be reported via
+   either bytes 36..55 or bytes 96..256 of the INQUIRY response, depending
+   on whether this field is <= 20 or > 20 bytes long.
+
  - nv_cache - contains NV_CACHE status of this virtual device.
+
+ - prod_id - PRODUCT IDENTIFICATION as reported via the INQUIRY response.
+   The default value for this field is the SCST device name.
+
+ - prod_rev_lvl - PRODUCT REVISION LEVEL as reported via the INQUIRY
+   response. The default value for this field is " 300".
 
  - thin_provisioned - contains thin provisioning status of this virtual
    device.
@@ -828,6 +838,10 @@ Each vdisk_fileio's device has the following attributes in
    created device at creation time based on the device name and
    scst_vdisk_ID scst_vdisk.ko module parameter (see below).
 
+ - t10_vend_id - Contents of the T10 VENDOR IDENTIFICATION field of the
+   INQUIRY response. The default value for this field is "SCST_BIO" for
+   vdisk_block devices and "SCST_FIO" for vdisk_fileio devices.
+
  - usn - contains the virtual device's serial number of INQUIRY data. It
    is created at the device creation time based on the device name and
    scst_vdisk_ID scst_vdisk.ko module parameter (see below).
@@ -837,6 +851,10 @@ Each vdisk_fileio's device has the following attributes in
  - resync_size - write only attribute, which makes vdisk_fileio to
    rescan size of the backend file. It is useful if you changed it, for
    instance, if you resized it.
+
+ - vend_specific_id - Vendor specific ID as reported via the Device
+   Identification VPD page (83h). The default value for this attribute
+   is the value of the t10_dev_id attribute.
 
 For example:
 

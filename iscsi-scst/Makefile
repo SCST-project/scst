@@ -15,9 +15,9 @@ SUBDIRS := $(shell pwd)
 
 SCST_INC_DIR := $(shell if [ -e "$$PWD/../scst" ];			\
                   then echo "$$PWD/../scst/include";			\
-                  else echo "$(PREFIX)/include/scst"; fi)
+                  else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
 SCST_DIR := $(shell if [ -e "$$PWD/../scst" ]; then echo "$$PWD/../scst/src"; \
-		else echo "$(PREFIX)/include/scst"; fi)
+		else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
 SBINDIR := $(PREFIX)/sbin
 INITDIR := /etc/init.d
 RCDIR := /etc/rc.d
@@ -28,14 +28,26 @@ ISERTMOD := $(KMOD)/isert-scst
 
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
-    KVER = $(shell uname -r)
-    KDIR ?= /lib/modules/$(KVER)/build
+    KVER := $(shell uname -r)
+    KDIR := /lib/modules/$(KVER)/build
   else
-    KVER = $$KERNELRELEASE
+    ifeq ($(KERNELRELEASE),)
+      KVER := $(strip $(shell						\
+	cat $(KDIR)/include/config/kernel.release 2>/dev/null ||	\
+	make -s -C $(KDIR) kernelversion))
+    else
+      KVER := $(KERNELRELEASE)
+    endif
   endif
 else
-  KDIR ?= /lib/modules/$(KVER)/build
+  KDIR := /lib/modules/$(KVER)/build
 endif
+
+ifeq ($(INSTALL_MOD_PATH),)
+  export INSTALL_MOD_PATH := $(DESTDIR)
+endif
+
+INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
 all: include/iscsi_scst_itf_ver.h progs mods
 
@@ -99,12 +111,20 @@ install: all
 	@install -vD -m 644 doc/manpages/iscsi-scstd.8 $(DESTDIR)$(MANDIR)/man8/iscsi-scstd.8
 	@install -vD -m 755 usr/iscsi-scst-adm $(DESTDIR)$(SBINDIR)/iscsi-scst-adm
 	@install -vD -m 644 doc/manpages/iscsi-scst-adm.8 $(DESTDIR)$(MANDIR)/man8/iscsi-scst-adm.8
-	@eval `sed -n 's/#define UTS_RELEASE /KERNELRELEASE=/p' $(KDIR)/include/linux/version.h $(KDIR)/include/linux/utsrelease.h 2>/dev/null`; \
-	install -vD -m 644 kernel/iscsi-scst.ko \
-	$(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra/iscsi-scst.ko
-	install -vD -m 644 kernel/isert-scst/isert-scst.ko \
-	$(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra/isert-scst.ko
-	-/sbin/depmod -aq $(KVER)
+	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(KMOD) \
+	  modules_install
+	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(ISERTMOD) \
+	  modules_install
+
+uninstall:
+	rm -f $(DESTDIR)$(SBINDIR)/iscsi-scstd \
+		$(DESTDIR)$(MANDIR)/man5/iscsi-scstd.conf.5 \
+		$(DESTDIR)$(MANDIR)/man8/iscsi-scstd.8 \
+		$(DESTDIR)$(SBINDIR)/iscsi-scst-adm \
+		$(DESTDIR)$(MANDIR)/man8/iscsi-scst-adm.8 \
+		$(INSTALL_DIR)/iscsi-scst.ko \
+		$(INSTALL_DIR)/isert-scst.ko
+	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
 
 SCST_MOD_VERS := $(shell ls $(SCST_DIR)/Modules.symvers 2>/dev/null)
 ifneq ($(SCST_MOD_VERS),)

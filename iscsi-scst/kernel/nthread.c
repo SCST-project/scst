@@ -1403,6 +1403,8 @@ retry:
 	if (sg != write_cmnd->rsp_sg) {
 		offset = conn->write_offset + sg[0].offset;
 		idx = offset >> PAGE_SHIFT;
+		if (offset + sg[0].offset >= PAGE_SIZE)
+			offset += sg[0].offset;
 		offset &= ~PAGE_MASK;
 		length = min(size, (int)PAGE_SIZE - offset);
 		TRACE_WRITE("write_offset %d, sg_size %d, idx %d, offset %d, "

@@ -54,63 +54,6 @@
 /* Persistent reservation SCOPE field */
 #define SCOPE_LU				0x00
 
-static inline void scst_inc_pr_readers_count(struct scst_cmd *cmd,
-	bool locked)
-{
-	struct scst_device *dev = cmd->dev;
-
-	EXTRACHECKS_BUG_ON(cmd->dec_pr_readers_count_needed);
-
-	if (!locked)
-		spin_lock_bh(&dev->dev_lock);
-
-#ifdef CONFIG_SMP
-	EXTRACHECKS_BUG_ON(!spin_is_locked(&dev->dev_lock));
-#endif
-
-	dev->pr_readers_count++;
-	cmd->dec_pr_readers_count_needed = 1;
-	TRACE_DBG("New inc pr_readers_count %d (cmd %p)", dev->pr_readers_count,
-		cmd);
-
-	if (!locked)
-		spin_unlock_bh(&dev->dev_lock);
-	return;
-}
-
-static inline void scst_dec_pr_readers_count(struct scst_cmd *cmd,
-	bool locked)
-{
-	struct scst_device *dev = cmd->dev;
-
-	if (unlikely(!cmd->dec_pr_readers_count_needed)) {
-		PRINT_ERROR("__scst_check_local_events(x, false) should not "
-			"be called twice (cmd %p, op %x)! Use "
-			"scst_check_local_events() instead.", cmd, cmd->cdb[0]);
-		WARN_ON(1);
-		goto out;
-	}
-
-	if (!locked)
-		spin_lock_bh(&dev->dev_lock);
-
-#ifdef CONFIG_SMP
-	EXTRACHECKS_BUG_ON(!spin_is_locked(&dev->dev_lock));
-#endif
-
-	dev->pr_readers_count--;
-	cmd->dec_pr_readers_count_needed = 0;
-	TRACE_DBG("New dec pr_readers_count %d (cmd %p)", dev->pr_readers_count,
-		cmd);
-
-	if (!locked)
-		spin_unlock_bh(&dev->dev_lock);
-
-out:
-	EXTRACHECKS_BUG_ON(dev->pr_readers_count < 0);
-	return;
-}
-
 static inline bool scst_pr_type_valid(uint8_t type)
 {
 	switch (type) {
@@ -126,73 +69,24 @@ static inline bool scst_pr_type_valid(uint8_t type)
 	}
 }
 
-static inline bool scst_pr_read_lock(struct scst_cmd *cmd)
+static inline void scst_pr_read_lock(struct scst_device *dev)
 {
-	struct scst_device *dev = cmd->dev;
-	bool unlock = false;
-
-	TRACE_ENTRY();
-
-	smp_mb(); /* to sync with scst_pr_write_lock() */
-	if (unlikely(dev->pr_writer_active)) {
-		unlock = true;
-		scst_dec_pr_readers_count(cmd, false);
-		mutex_lock(&dev->dev_pr_mutex);
-	}
-
-	TRACE_EXIT_RES(unlock);
-	return unlock;
+	mutex_lock(&dev->dev_pr_mutex);
 }
 
-static inline void scst_pr_read_unlock(struct scst_cmd *cmd, bool unlock)
+static inline void scst_pr_read_unlock(struct scst_device *dev)
 {
-	struct scst_device *dev = cmd->dev;
-
-	TRACE_ENTRY();
-
-	if (unlikely(unlock))
-		mutex_unlock(&dev->dev_pr_mutex);
-	else
-		scst_dec_pr_readers_count(cmd, false);
-
-	TRACE_EXIT();
-	return;
+	mutex_unlock(&dev->dev_pr_mutex);
 }
 
 static inline void scst_pr_write_lock(struct scst_device *dev)
 {
-	TRACE_ENTRY();
-
 	mutex_lock(&dev->dev_pr_mutex);
-
-	dev->pr_writer_active = 1;
-	/* to sync with scst_pr_read_lock() and unlock() */
-	smp_mb();
-
-	while (true) {
-		int readers;
-		spin_lock_bh(&dev->dev_lock);
-		readers = dev->pr_readers_count;
-		spin_unlock_bh(&dev->dev_lock);
-		if (readers == 0)
-			break;
-		TRACE_DBG("Waiting for %d readers (dev %p)", readers, dev);
-		msleep(1);
-	}
-
-	TRACE_EXIT();
-	return;
 }
 
 static inline void scst_pr_write_unlock(struct scst_device *dev)
 {
-	TRACE_ENTRY();
-
-	dev->pr_writer_active = 0;
 	mutex_unlock(&dev->dev_pr_mutex);
-
-	TRACE_EXIT();
-	return;
 }
 
 int scst_pr_init_dev(struct scst_device *dev);

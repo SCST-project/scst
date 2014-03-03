@@ -119,8 +119,6 @@ static bool scst_check_blocked_dev(struct scst_cmd *cmd)
 	cmd->dec_on_dev_needed = 1;
 	TRACE_DBG("New inc on_dev_count %d (cmd %p)", dev->on_dev_cmd_count, cmd);
 
-	scst_inc_pr_readers_count(cmd, true);
-
 	if (unlikely(dev->block_count > 0) ||
 	    unlikely(dev->dev_double_ua_possible) ||
 	    unlikely((cmd->op_flags & SCST_SERIALIZED) != 0))
@@ -134,8 +132,6 @@ static bool scst_check_blocked_dev(struct scst_cmd *cmd)
 		cmd->dec_on_dev_needed = 0;
 		TRACE_DBG("New dec on_dev_count %d (cmd %p)",
 			dev->on_dev_cmd_count, cmd);
-
-		scst_dec_pr_readers_count(cmd, true);
 	}
 
 	spin_unlock_bh(&dev->dev_lock);
@@ -158,9 +154,6 @@ static void scst_check_unblock_dev(struct scst_cmd *cmd)
 		TRACE_DBG("New dec on_dev_count %d (cmd %p)",
 			dev->on_dev_cmd_count, cmd);
 	}
-
-	if (unlikely(cmd->dec_pr_readers_count_needed))
-		scst_dec_pr_readers_count(cmd, true);
 
 	if (unlikely(cmd->unblock_dev)) {
 		TRACE_BLOCK("cmd %p (tag %llu): unblocking dev %s", cmd,
@@ -744,7 +737,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 		cmd->op_flags &= ~SCST_UNKNOWN_LENGTH;
 	}
 
-	if (unlikely(cmd->cdb[cmd->cdb_len - 1] & CONTROL_BYTE_NACA_BIT)) {
+	if (unlikely(cmd->cmd_naca)) {
 		PRINT_ERROR("NACA bit in control byte CDB is not supported "
 			    "(opcode 0x%02x)", cmd->cdb[0]);
 		scst_set_cmd_error(cmd,
@@ -752,7 +745,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 		goto out_done;
 	}
 
-	if (unlikely(cmd->cdb[cmd->cdb_len-1] & CONTROL_BYTE_LINK_BIT)) {
+	if (unlikely(cmd->cmd_linked)) {
 		PRINT_ERROR("Linked commands are not supported "
 			    "(opcode 0x%02x)", cmd->cdb[0]);
 		scst_set_invalid_field_in_cdb(cmd, cmd->cdb_len-1,
@@ -948,23 +941,34 @@ set_res:
 
 out:
 #ifdef CONFIG_SCST_EXTRACHECKS
-	/*
-	 * At this point either both lba and data_len must be initialized to
-	 * at least 0 for not data transfer commands, or cmd must be
-	 * completed (with an error) and have correct state set.
-	 */
-	if (unlikely((((cmd->lba == SCST_DEF_LBA_DATA_LEN) &&
-			!(cmd->op_flags & SCST_LBA_NOT_VALID)) ||
-		       (cmd->data_len == SCST_DEF_LBA_DATA_LEN)) &&
-		      (!cmd->completed ||
-		       (((cmd->state < SCST_CMD_STATE_PRE_XMIT_RESP) ||
-			 (cmd->state >= SCST_CMD_STATE_LAST_ACTIVE)) &&
-			(cmd->state != SCST_CMD_STATE_PREPROCESSING_DONE))))) {
-		PRINT_CRIT_ERROR("Not initialized data_len for going to "
-			"execute command or bad state (cmd %p, data_len %lld, "
-			"completed %d, state %d)", cmd,
-			(long long)cmd->data_len, cmd->completed, cmd->state);
-		sBUG();
+	if (unlikely(cmd->completed)) {
+		/* Command completed with error */
+		bool valid_state = (cmd->state == SCST_CMD_STATE_PREPROCESSING_DONE) ||
+				   ((cmd->state >= SCST_CMD_STATE_PRE_XMIT_RESP) &&
+				    (cmd->state < SCST_CMD_STATE_LAST_ACTIVE));
+
+		if (!valid_state) {
+			PRINT_CRIT_ERROR("Bad state for completed cmd "
+				"(cmd %p, state %d)", cmd, cmd->state);
+			sBUG();
+		}
+	} else if (cmd->state != SCST_CMD_STATE_PARSE) {
+		/*
+		 * Ready to execute. At this point both lba and data_len must
+		 * be initialized or marked non-applicable.
+		 */
+		bool bad_lba = (cmd->lba == SCST_DEF_LBA_DATA_LEN) &&
+			       !(cmd->op_flags & SCST_LBA_NOT_VALID);
+		bool bad_data_len = (cmd->data_len == SCST_DEF_LBA_DATA_LEN);
+
+		if (unlikely(bad_lba || bad_data_len)) {
+			PRINT_CRIT_ERROR("Uninitialized lba or data_len for "
+				"ready-to-execute command (cmd %p, lba %lld, "
+				"data_len %lld, state %d)", cmd,
+				(long long)cmd->lba, (long long)cmd->data_len,
+				cmd->state);
+			sBUG();
+		}
 	}
 #endif
 
@@ -2211,7 +2215,7 @@ static int scst_persistent_reserve_in_local(struct scst_cmd *cmd)
 	if (unlikely(buffer_size <= 0))
 		goto out_done;
 
-	scst_pr_write_lock(dev);
+	scst_pr_read_lock(dev);
 
 	/* We can be aborted by another PR command while waiting for the lock */
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
@@ -2246,7 +2250,7 @@ out_complete:
 	cmd->completed = 1;
 
 out_unlock:
-	scst_pr_write_unlock(dev);
+	scst_pr_read_unlock(dev);
 
 	scst_put_buf_full(cmd, buffer);
 
@@ -2303,6 +2307,12 @@ static int scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 		goto out_done;
 	}
 
+	buffer_size = scst_get_buf_full_sense(cmd, &buffer);
+	if (unlikely(buffer_size <= 0))
+		goto out_done;
+
+	scst_pr_write_lock(dev);
+
 	/*
 	 * Check if tgt_dev already registered. Also by this check we make
 	 * sure that table "PERSISTENT RESERVE OUT service actions that are
@@ -2314,12 +2324,8 @@ static int scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 	    (tgt_dev->registrant == NULL)) {
 		TRACE_PR("'%s' not registered", cmd->sess->initiator_name);
 		scst_set_cmd_error_status(cmd, SAM_STAT_RESERVATION_CONFLICT);
-		goto out_done;
+		goto out_unlock;
 	}
-
-	buffer_size = scst_get_buf_full_sense(cmd, &buffer);
-	if (unlikely(buffer_size <= 0))
-		goto out_done;
 
 	/* Check scope */
 	if ((action != PR_REGISTER) && (action != PR_REGISTER_AND_IGNORE) &&
@@ -2327,7 +2333,7 @@ static int scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 		TRACE_PR("Scope must be SCOPE_LU for action %x", action);
 		scst_set_cmd_error(cmd,
 			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
-		goto out_put_buf_full;
+		goto out_unlock;
 	}
 
 	/* Check SPEC_I_PT (PR_REGISTER_AND_MOVE has another format) */
@@ -2336,7 +2342,7 @@ static int scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 		TRACE_PR("SPEC_I_PT must be zero for action %x", action);
 		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
 					scst_sense_invalid_field_in_cdb));
-		goto out_put_buf_full;
+		goto out_unlock;
 	}
 
 	/* Check ALL_TG_PT (PR_REGISTER_AND_MOVE has another format) */
@@ -2345,10 +2351,8 @@ static int scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 		TRACE_PR("ALL_TG_PT must be zero for action %x", action);
 		scst_set_cmd_error(cmd,
 			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
-		goto out_put_buf_full;
+		goto out_unlock;
 	}
-
-	scst_pr_write_lock(dev);
 
 	/* We can be aborted by another PR command while waiting for the lock */
 	aborted = test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags);
@@ -2400,7 +2404,6 @@ static int scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 out_unlock:
 	scst_pr_write_unlock(dev);
 
-out_put_buf_full:
 	scst_put_buf_full(cmd, buffer);
 
 out_done:
@@ -2438,7 +2441,6 @@ int __scst_check_local_events(struct scst_cmd *cmd, bool preempt_tests_only)
 		/*
 		 * The original command passed all checks and not finished yet
 		 */
-		sBUG_ON(cmd->dec_pr_readers_count_needed);
 		res = 0;
 		goto out;
 	}
@@ -2455,7 +2457,7 @@ int __scst_check_local_events(struct scst_cmd *cmd, bool preempt_tests_only)
 		if ((cmd->op_flags & SCST_REG_RESERVE_ALLOWED) == 0) {
 			scst_set_cmd_error_status(cmd,
 				SAM_STAT_RESERVATION_CONFLICT);
-			goto out_dec_pr_readers_count;
+			goto out_complete;
 		}
 	}
 
@@ -2466,8 +2468,7 @@ int __scst_check_local_events(struct scst_cmd *cmd, bool preempt_tests_only)
 					SAM_STAT_RESERVATION_CONFLICT);
 				goto out_complete;
 			}
-		} else
-			scst_dec_pr_readers_count(cmd, false);
+		}
 	}
 
 	/*
@@ -2520,10 +2521,6 @@ int __scst_check_local_events(struct scst_cmd *cmd, bool preempt_tests_only)
 out:
 	TRACE_EXIT_RES(res);
 	return res;
-
-out_dec_pr_readers_count:
-	if (cmd->dec_pr_readers_count_needed)
-		scst_dec_pr_readers_count(cmd, false);
 
 out_complete:
 	res = 1;
@@ -5163,7 +5160,7 @@ void scst_unblock_aborted_cmds(const struct scst_tgt *tgt,
 			continue;
 
 		spin_lock_bh(&dev->dev_lock);
-		local_irq_disable();
+		local_irq_disable_nort();
 		list_for_each_entry_safe(cmd, tcmd, &dev->blocked_cmd_list,
 					blocked_cmd_list_entry) {
 
@@ -5177,10 +5174,10 @@ void scst_unblock_aborted_cmds(const struct scst_tgt *tgt,
 				TRACE_MGMT_DBG("Unblock aborted blocked cmd %p", cmd);
 			}
 		}
-		local_irq_enable();
+		local_irq_enable_nort();
 		spin_unlock_bh(&dev->dev_lock);
 
-		local_irq_disable();
+		local_irq_disable_nort();
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 					dev_tgt_dev_list_entry) {
 			struct scst_order_data *order_data = tgt_dev->curr_order_data;
@@ -5203,7 +5200,7 @@ void scst_unblock_aborted_cmds(const struct scst_tgt *tgt,
 			}
 			spin_unlock(&order_data->sn_lock);
 		}
-		local_irq_enable();
+		local_irq_enable_nort();
 	}
 
 	if (!scst_mutex_held)
@@ -6241,7 +6238,7 @@ static int scst_post_rx_mgmt_cmd(struct scst_session *sess,
 		sBUG();
 	}
 
-	local_irq_save(flags);
+	local_irq_save_nort(flags);
 
 	spin_lock(&sess->sess_list_lock);
 
@@ -6270,7 +6267,7 @@ static int scst_post_rx_mgmt_cmd(struct scst_session *sess,
 	list_add_tail(&mcmd->mgmt_cmd_list_entry, &scst_active_mgmt_cmd_list);
 	spin_unlock(&scst_mcmd_lock);
 
-	local_irq_restore(flags);
+	local_irq_restore_nort(flags);
 
 	wake_up(&scst_mgmt_cmd_list_waitQ);
 
@@ -6280,7 +6277,7 @@ out:
 
 out_unlock:
 	spin_unlock(&sess->sess_list_lock);
-	local_irq_restore(flags);
+	local_irq_restore_nort(flags);
 	goto out;
 }
 

@@ -2,10 +2,6 @@
 # A Makefile for the scst-local ...
 #
 
-ifndef PREFIX
-        PREFIX=/usr/local
-endif
-
 SHELL=/bin/bash
 
 KMOD 		:= $(shell pwd)/kernel
@@ -24,24 +20,40 @@ EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
 
 EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions
 
+ifneq ($(PATCHLEVEL),)
+obj-m	:= scst_local.o
+else
+######### BEGIN OUT-OF-TREE RULES #########
+
+ifndef PREFIX
+        PREFIX=/usr/local
+endif
+
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
-    KDIR := /lib/modules/$(shell uname -r)/build
+    KVER := $(shell uname -r)
+    KDIR := /lib/modules/$(KVER)/build
+  else
+    KVER := $(strip $(shell						\
+	cat $(KDIR)/include/config/kernel.release 2>/dev/null ||	\
+	make -s -C $(KDIR) kernelversion))
   endif
 else
   KDIR := /lib/modules/$(KVER)/build
 endif
 
-ifneq ($(PATCHLEVEL),)
-obj-m	:= scst_local.o
-else
+ifeq ($(INSTALL_MOD_PATH),)
+  export INSTALL_MOD_PATH := $(DESTDIR)
+endif
+
+INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
 SCST_INC_DIR := $(shell if [ -e "$$PWD/../scst" ];			\
 			then echo "$$PWD/../scst/include";		\
-			else echo "$(PREFIX)/include/scst"; fi)
+			else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
 SCST_DIR := $(shell if [ -e "$$PWD/../scst" ];				\
 		    then echo "$$PWD/../scst/src";			\
-		    else echo "$(PREFIX)/include/scst"; fi)
+		    else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
 
 all: Modules.symvers Module.symvers
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
@@ -50,7 +62,6 @@ all: Modules.symvers Module.symvers
 install: all
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
 		SCST_INC_DIR=$(SCST_INC_DIR) modules_install
-	-/sbin/depmod -aq $(KVER)
 
 SCST_MOD_VERS := $(shell ls $(SCST_DIR)/Modules.symvers 2>/dev/null)
 ifneq ($(SCST_MOD_VERS),)
@@ -71,7 +82,9 @@ endif
 
 uninstall:
 	rm -f $(INSTALL_DIR)/scst_local.ko
-	-/sbin/depmod -a $(KVER)
+	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
+
+########## END OUT-OF-TREE RULES ##########
 endif
 
 clean:

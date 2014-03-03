@@ -7,14 +7,26 @@ SUBDIRS := $(shell pwd)
 
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
-    KVER = $(shell uname -r)
-    KDIR ?= /lib/modules/$(KVER)/build
+    KVER := $(shell uname -r)
+    KDIR := /lib/modules/$(KVER)/build
   else
-    KVER = $$KERNELRELEASE
+    ifeq ($(KERNELRELEASE),)
+      KVER := $(strip $(shell						\
+	cat $(KDIR)/include/config/kernel.release 2>/dev/null ||	\
+	make -s -C $(KDIR) kernelversion))
+    else
+      KVER := $(KERNELRELEASE)
+    endif
   endif
 else
-  KDIR ?= /lib/modules/$(KVER)/build
+  KDIR := /lib/modules/$(KVER)/build
 endif
+
+ifeq ($(INSTALL_MOD_PATH),)
+  export INSTALL_MOD_PATH := $(DESTDIR)
+endif
+
+INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
 # The file Modules.symvers has been renamed in the 2.6.18 kernel to
 # Module.symvers. Find out which name to use by looking in $(KDIR).
@@ -26,11 +38,11 @@ all: src/$(MODULE_SYMVERS)
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src modules
 
 install: all src/ibmvstgt.ko
-	@eval `sed -n 's/#define UTS_RELEASE /KERNELRELEASE=/p' $(KDIR)/include/linux/version.h $(KDIR)/include/linux/utsrelease.h 2>/dev/null`; \
-	for m in libsrp.ko ibmvstgt.ko; do \
-	install -vD -m 644 src/$$m \
-	$(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra/$$m; done
-	-/sbin/depmod -aq $(KVER)
+	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src modules_install
+
+uninstall:
+	rm -f $(INSTALL_DIR)/libsrp.ko $(INSTALL_DIR)/ibmvstgt.ko
+	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
 
 src/Module.symvers src/Modules.symvers: $(SCST_DIR)/$(MODULE_SYMVERS)
 	cp $< $@;

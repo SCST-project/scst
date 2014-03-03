@@ -7,22 +7,34 @@ endif
 
 SCST_INC_DIR := $(shell if [ -e "$$PWD/../scst" ];			\
 			then echo "$$PWD/../scst/include";		\
-			else echo "$(PREFIX)/include/scst"; fi)
+			else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
 SCST_SYMVERS_DIR := $(shell if [ -e $$PWD/../scst ]; then	\
                         echo $$PWD/../scst/src;			\
-                      else echo $(PREFIX)/include/scst; fi)
+                      else echo $(DESTDIR)$(PREFIX)/include/scst; fi)
 SUBDIRS := $(shell pwd)
 
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
-    KVER = $(shell uname -r)
-    KDIR ?= /lib/modules/$(KVER)/build
+    KVER := $(shell uname -r)
+    KDIR := /lib/modules/$(KVER)/build
   else
-    KVER = $$KERNELRELEASE
+    ifeq ($(KERNELRELEASE),)
+      KVER := $(strip $(shell						\
+	cat $(KDIR)/include/config/kernel.release 2>/dev/null ||	\
+	make -s -C $(KDIR) kernelversion))
+    else
+      KVER := $(KERNELRELEASE)
+    endif
   endif
 else
-  KDIR ?= /lib/modules/$(KVER)/build
+  KDIR := /lib/modules/$(KVER)/build
 endif
+
+ifeq ($(INSTALL_MOD_PATH),)
+  export INSTALL_MOD_PATH := $(DESTDIR)
+endif
+
+INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
 # Set variable $(2) to value $(3) in file $(1).
 set_var = $(shell { if [ -e "$(1)" ]; then grep -v '^$(2)=' "$(1)"; fi; echo "$(2)=$(3)"; } >/tmp/$(1)-$$$$.tmp && mv /tmp/$(1)-$$$$.tmp $(1))
@@ -59,10 +71,13 @@ all: src/$(MODULE_SYMVERS)
 	  PRE_CFLAGS="$(OFED_CFLAGS)" SCST_INC_DIR=$(SCST_INC_DIR) modules
 
 install: all src/ib_srpt.ko
-	@eval `sed -n 's/#define UTS_RELEASE /KERNELRELEASE=/p' $(KDIR)/include/linux/version.h $(KDIR)/include/linux/utsrelease.h 2>/dev/null`; \
-	install -vD -m 644 src/ib_srpt.ko \
-	$(DESTDIR)$(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra/ib_srpt.ko
-	-/sbin/depmod -aq $(KVER)
+	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src		   \
+	  PRE_CFLAGS="$(OFED_CFLAGS)" SCST_INC_DIR=$(SCST_INC_DIR) \
+	  modules_install
+
+uninstall:
+	rm -f $(INSTALL_DIR)/ib_srpt.ko
+	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
 
 src/Module.symvers src/Modules.symvers: $(SCST_SYMVERS_DIR)/$(MODULE_SYMVERS)
 	@if $(OFED_KERNEL_IB_RPM_INSTALLED); then                           \

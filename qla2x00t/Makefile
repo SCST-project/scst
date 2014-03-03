@@ -16,6 +16,7 @@ extraclean: clean
 .PHONY: clean extraclean
 
 else
+######### BEGIN OUT-OF-TREE RULES #########
 
 SHELL=/bin/bash
 
@@ -32,11 +33,22 @@ endif
 
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
-    KDIR := /lib/modules/$(shell uname -r)/build
+    KVER := $(shell uname -r)
+    KDIR := /lib/modules/$(KVER)/build
+  else
+    KVER := $(strip $(shell						\
+	cat $(KDIR)/include/config/kernel.release 2>/dev/null ||	\
+	make -s -C $(KDIR) kernelversion))
   endif
 else
   KDIR := /lib/modules/$(KVER)/build
 endif
+
+ifeq ($(INSTALL_MOD_PATH),)
+  export INSTALL_MOD_PATH := $(DESTDIR)
+endif
+
+INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
 ifneq ($(PATCHLEVEL),)
 obj-m := qla2xxx_scst.o
@@ -50,11 +62,12 @@ all:
 install: all
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
 		modules_install
-	-/sbin/depmod -aq $(KVER)
 
 uninstall:
-	rm -f $(INSTALL_DIR)/qla2xxxt.ko
-	-/sbin/depmod -a $(KVER)
+	rm -f $(INSTALL_DIR)/qla2xxx_scst.ko
+	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
+
+########## END OUT-OF-TREE RULES ##########
 endif
 
 clean:

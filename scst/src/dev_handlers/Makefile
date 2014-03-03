@@ -46,10 +46,26 @@ obj-$(CONFIG_SCST_VDISK)	+= scst_vdisk.o
 obj-$(CONFIG_SCST_USER)		+= scst_user.o
 
 else
-ifeq ($(KDIR),)
-  KVER = $(shell uname -r)
+######### BEGIN OUT-OF-TREE RULES #########
+
+ifeq ($(KVER),)
+  ifeq ($(KDIR),)
+    KVER := $(shell uname -r)
+    KDIR := /lib/modules/$(KVER)/build
+  else
+    KVER := $(strip $(shell						\
+	cat $(KDIR)/include/config/kernel.release 2>/dev/null ||	\
+	make -s -C $(KDIR) kernelversion))
+  endif
+else
   KDIR := /lib/modules/$(KVER)/build
 endif
+
+ifeq ($(INSTALL_MOD_PATH),)
+  export INSTALL_MOD_PATH := $(DESTDIR)
+endif
+
+INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
 all:
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)
@@ -57,16 +73,11 @@ all:
 install: all
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) \
 		modules_install
-	-/sbin/depmod -a $(KVER)
 
 uninstall:
 	rm -f $(INSTALL_DIR)/dev_handlers/scst_*.ko
-endif
 
-ifeq ($(KVER),)
-INSTALL_DIR := /lib/modules/$(shell uname -r)/extra
-else
-INSTALL_DIR := /lib/modules/$(KVER)/extra
+########## END OUT-OF-TREE RULES ##########
 endif
 
 enable-Wextra = $(shell uname_r="$$(uname -r)"; if [ "$${uname_r%.el5}" = "$${uname_r}" ]; then echo "$(1)"; fi)

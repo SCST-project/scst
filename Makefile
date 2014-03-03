@@ -19,19 +19,21 @@
 SHELL = /bin/bash
 
 # Define the location to the kernel src. Can be defined here or on
-# the command line during the build process.  If KDIR is defined,
-# we will set an appropriate value for KVER by running "make
-# kernelversion" in the kernel source tree.  KVER can still be
-# overrode by the user via the command line or by defining it in
-# this Makefile.  If KDIR and KVER are not defined by the user,
-# the current running kernel version is used to define KVER.
+# the command line during the build process. If KDIR is defined,
+# we will determine an appropriate value for KVER from the kernel
+# source tree. KVER can still be overridden by the user via the
+# command line or by defining it in this Makefile. If KDIR and KVER
+# are not defined by the user, the current running kernel version is
+# used to define KVER.
 
 #export KDIR=/usr/src/linux-2.6
 #export KVER=2.6.x
 
 ifdef KDIR
      ifndef KVER
-          export KVER = $(strip $(shell make -s -C $(KDIR) kernelversion))
+          export KVER = $(strip $(shell					 \
+		cat $(KDIR)/include/config/kernel.release 2>/dev/null || \
+		make -s -C $(KDIR) kernelversion))
      endif
 endif
 
@@ -49,7 +51,6 @@ MVSAS_DIR=mvsas_tgt
 FCST_DIR=fcst
 
 ISCSI_DIR=iscsi-scst
-#ISCSI_DESTDIR=../../../iscsi_scst_inst
 
 VERSION = $(shell echo -n "$$(sed -n 's/^\#define[[:blank:]]SCST_VERSION_NAME[[:blank:]]*\"\([^-]*\).*\"/\1/p' scst/include/scst_const.h).";		\
 		   if svn info >/dev/null 2>&1;				\
@@ -153,7 +154,7 @@ install:
 #	@if [ -d $(QLA_ISP_DIR) ]; then cd $(QLA_ISP_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
-	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) DESTDIR=$(ISCSI_DESTDIR) $@; fi
+	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
 
@@ -271,7 +272,7 @@ iscsi:
 	cd $(ISCSI_DIR) && $(MAKE) all
 
 iscsi_install:
-	cd $(ISCSI_DIR) && $(MAKE) DESTDIR=$(ISCSI_DESTDIR) install
+	cd $(ISCSI_DIR) && $(MAKE) install
 
 iscsi_uninstall:
 	cd $(ISCSI_DIR) && $(MAKE) uninstall
@@ -388,7 +389,6 @@ scst-rpm:
 	rpmtopdir="$$(if [ $$(id -u) = 0 ]; then echo /usr/src/packages;\
 		    else echo $$PWD/rpmbuilddir; fi)" &&		\
 	$(MAKE) scst-dist-gzip &&					\
-	rm -rf $${rpmtopdir} &&						\
 	for d in BUILD RPMS SOURCES SPECS SRPMS; do			\
 	  mkdir -p $${rpmtopdir}/$$d;					\
 	done &&								\

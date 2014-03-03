@@ -38,18 +38,33 @@ EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG
 
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
-    KDIR := /lib/modules/$(shell uname -r)/build
+    KVER := $(shell uname -r)
+    KDIR := /lib/modules/$(KVER)/build
+  else
+    ifeq ($(KERNELRELEASE),)
+      KVER := $(strip $(shell \
+	cat $(KDIR)/include/config/kernel.release 2>/dev/null || \
+	make -s -C $(KDIR) kernelversion))
+    else
+      KVER := $(KERNELRELEASE)
+    endif
   endif
 else
   KDIR := /lib/modules/$(KVER)/build
 endif
 
+ifeq ($(INSTALL_MOD_PATH),)
+  export INSTALL_MOD_PATH := $(DESTDIR)
+endif
+
+INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 LSI_INC_DIR := $(KDIR)/drivers/message/fusion
 EXTRA_CFLAGS += -I$(LSI_INC_DIR)
 
 ifneq ($(PATCHLEVEL),)
 obj-m += mpt_scst.o
 else
+######### BEGIN OUT-OF-TREE RULES #########
 
 all: Modules.symvers Module.symvers
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m
@@ -60,7 +75,6 @@ tgt: Modules.symvers Module.symvers
 install: all
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
 		modules_install
-	-/sbin/depmod -a
 
 SCST_MOD_VERS := $(shell ls $(SCST_DIR)/Modules.symvers 2>/dev/null)
 ifneq ($(SCST_MOD_VERS),)
@@ -81,7 +95,9 @@ endif
 
 uninstall:
 	rm -f $(INSTALL_DIR)/mpt_scst.ko
-	-/sbin/depmod -a
+	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
+
+########## END OUT-OF-TREE RULES ##########
 endif
 
 clean:

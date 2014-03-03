@@ -54,13 +54,23 @@ obj-$(CONFIG_SCST)   += scst.o dev_handlers/
 obj-$(BUILD_DEV) += $(DEV_HANDLERS_DIR)/
 
 else
+######### BEGIN OUT-OF-TREE RULES #########
+
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
-    KVER = $(shell uname -r)
+    KVER := $(shell uname -r)
     KDIR := /lib/modules/$(KVER)/build
+  else
+    KVER := $(strip $(shell						\
+	cat $(KDIR)/include/config/kernel.release 2>/dev/null ||	\
+	make -s -C $(KDIR) kernelversion))
   endif
 else
   KDIR := /lib/modules/$(KVER)/build
+endif
+
+ifeq ($(INSTALL_MOD_PATH),)
+  export INSTALL_MOD_PATH := $(DESTDIR)
 endif
 
 all:
@@ -97,7 +107,7 @@ ifneq ($(MOD_VERS),)
 	rm -f $(INSTALL_DIR_H)/Modules.symvers
 	install -m 644 Module.symvers $(INSTALL_DIR_H)
 endif
-	-/sbin/depmod -a $(KVER)
+	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
 	mkdir -p $(DESTDIR)/var/lib/scst/pr
 	@echo "****************************************************************"
 	@echo "*!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!*"
@@ -106,7 +116,7 @@ endif
 	@echo "*!!  target drivers, custom dev handlers and necessary user  !!*"
 	@echo "*!!  space applications. Otherwise, because of the versions  !!*"
 	@echo "*!!  mismatch, you could have many problems and crashes.     !!*"
-	@echo "*!!  See IMPORTANT note in the \"Installation\" section of     !!*"
+	@echo "*!!  See IMPORTANT note in the \"Installation\" section of   !!*"
 	@echo "*!!  SCST's README file for more info.                       !!*"
 	@echo "*!!                                                          !!*"
 	@echo "*!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!*"
@@ -116,15 +126,13 @@ uninstall:
 	cd $(DEV_HANDLERS_DIR) && $(MAKE) $@
 	rm -f $(INSTALL_DIR)/scst.ko
 	-rmdir $(INSTALL_DIR) 2>/dev/null
-	-/sbin/depmod -a $(KVER)
+	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
 	rm -rf $(INSTALL_DIR_H)
+
+########## END OUT-OF-TREE RULES ##########
 endif
 
-ifeq ($(KVER),)
-INSTALL_DIR := $(DESTDIR)/lib/modules/$(shell uname -r)/extra
-else
-INSTALL_DIR := $(DESTDIR)/lib/modules/$(KVER)/extra
-endif
+INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 INSTALL_DIR_H := $(DESTDIR)$(PREFIX)/include/scst
 
 enable-Wextra = $(shell uname_r="$$(uname -r)"; if [ "$${uname_r%.el5}" = "$${uname_r}" ]; then echo "$(1)"; fi)

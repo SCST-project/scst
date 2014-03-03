@@ -26,19 +26,6 @@
 #    - install and uninstall must be made as root
 #
 
-ifndef PREFIX
-        PREFIX=/usr/local
-endif
-
-ifeq ($(KVER),)
-  ifeq ($(KDIR),)
-    KVER = $(shell uname -r)
-    KDIR := /lib/modules/$(KVER)/build
-  endif
-else
-  KDIR := /lib/modules/$(KVER)/build
-endif
-
 export PWD    := $(shell pwd)
 export CONFIG_FCST   := m
 
@@ -55,16 +42,39 @@ EXTRA_CFLAGS += -I$(SCST_INC_DIR) $(FCSTFLAGS$(BUILDMODE))
 
 MODULE_NAME = fcst
 
-INSTALL_DIR := /lib/modules/$(KVER)/extra
-
 ifneq ($(KERNELRELEASE),)
 include $(SUBDIRS)/Makefile_in-tree
 else
+######### BEGIN OUT-OF-TREE RULES #########
+
+ifndef PREFIX
+        PREFIX=/usr/local
+endif
+
+ifeq ($(KVER),)
+  ifeq ($(KDIR),)
+    KVER := $(shell uname -r)
+    KDIR := /lib/modules/$(KVER)/build
+  else
+    KVER := $(strip $(shell						\
+	cat $(KDIR)/include/config/kernel.release 2>/dev/null ||	\
+	make -s -C $(KDIR) kernelversion))
+  endif
+else
+  KDIR := /lib/modules/$(KVER)/build
+endif
+
+ifeq ($(INSTALL_MOD_PATH),)
+  export INSTALL_MOD_PATH := $(DESTDIR)
+endif
+
+INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
+
 SCST_INC_DIR := $(shell if [ -e "$$PWD/../scst" ];			\
                   then echo "$$PWD/../scst/include";			\
-                  else echo "$(PREFIX)/include/scst"; fi)
+                  else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
 SCST_DIR := $(shell if [ -e "$$PWD/../scst" ]; then echo "$$PWD/../scst/src"; \
-		else echo "$(PREFIX)/include/scst"; fi)
+		else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
 
 all: Modules.symvers Module.symvers
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
@@ -77,7 +87,6 @@ tgt: Modules.symvers Module.symvers
 install: all
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
 	  SCST_INC_DIR=$(SCST_INC_DIR) modules_install
-	-depmod -a $(KVER)
 
 ins:
 	./config
@@ -102,7 +111,9 @@ endif
 
 uninstall:
 	rm -f $(INSTALL_DIR)/$(MODULE_NAME).ko
-	-/sbin/depmod -a $(KVER)
+	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
+
+########## END OUT-OF-TREE RULES ##########
 endif
 
 clean:

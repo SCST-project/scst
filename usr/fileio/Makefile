@@ -28,7 +28,7 @@ OBJS_F = $(SRCS_F:.c=.o)
 
 SCST_INC_DIR := ../../scst/include
 #SCST_INC_DIR := $(PREFIX)/include/scst
-INSTALL_DIR := $(PREFIX)/bin/scst
+INSTALL_DIR := $(DESTDIR)$(PREFIX)/bin/scst
 
 CFLAGS += -O2 -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes \
 	-I$(SCST_INC_DIR) -D_GNU_SOURCE -D__USE_FILE_OFFSET64 \

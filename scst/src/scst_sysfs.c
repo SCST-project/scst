@@ -1185,11 +1185,6 @@ static void scst_tgt_release(struct kobject *kobj)
 	return;
 }
 
-static struct kobj_type tgt_ktype = {
-	.sysfs_ops = &scst_sysfs_ops,
-	.release = scst_tgt_release,
-};
-
 static int __scst_process_luns_mgmt_store(char *buffer,
 	struct scst_tgt *tgt, struct scst_acg *acg, bool tgt_kobj)
 {
@@ -2405,6 +2400,97 @@ out:
 }
 EXPORT_SYMBOL(scst_create_tgt_attr);
 
+#define SCST_TGT_SYSFS_STAT_ATTR(member_name, attr, dir, result_op)	\
+static int scst_tgt_sysfs_##attr##_show_work_fn(			\
+				struct scst_sysfs_work_item *work)	\
+{									\
+	struct scst_tgt *tgt = work->tgt;				\
+	struct scst_session *sess;					\
+	int res;							\
+	uint64_t c = 0;							\
+									\
+	BUILD_BUG_ON((unsigned)(dir) >= ARRAY_SIZE(sess->io_stats));	\
+									\
+	res = mutex_lock_interruptible(&scst_mutex);			\
+	if (res)							\
+		goto out;						\
+	list_for_each_entry(sess, &tgt->sess_list, sess_list_entry)	\
+		c += sess->io_stats[(dir)].member_name;			\
+	mutex_unlock(&scst_mutex);					\
+									\
+	work->res_buf = kasprintf(GFP_KERNEL, "%llu\n", c result_op);	\
+	res = work->res_buf ? 0 : -ENOMEM;				\
+									\
+out:									\
+	kobject_put(&tgt->tgt_kobj);					\
+	return res;							\
+}									\
+									\
+static ssize_t scst_tgt_sysfs_##attr##_show(struct kobject *kobj,	\
+					    struct kobj_attribute *attr, \
+					    char *buf)			\
+{									\
+	struct scst_tgt *tgt =						\
+		container_of(kobj, struct scst_tgt, tgt_kobj);		\
+	struct scst_sysfs_work_item *work;				\
+	int res;							\
+									\
+	res = scst_alloc_sysfs_work(scst_tgt_sysfs_##attr##_show_work_fn, \
+				    true, &work);			\
+	if (res)							\
+		goto out;						\
+									\
+	work->tgt = tgt;						\
+	SCST_SET_DEP_MAP(work, &scst_tgt_dep_map);			\
+	kobject_get(&tgt->tgt_kobj);					\
+	scst_sysfs_work_get(work);					\
+	res = scst_sysfs_queue_wait_work(work);				\
+	if (res == 0)							\
+		res = scnprintf(buf, PAGE_SIZE, "%s", work->res_buf);	\
+	scst_sysfs_work_put(work);					\
+									\
+out:									\
+	return res;							\
+}									\
+									\
+static struct kobj_attribute scst_tgt_##attr##_attr =			\
+	__ATTR(attr, S_IRUGO, scst_tgt_sysfs_##attr##_show, NULL);
+
+SCST_TGT_SYSFS_STAT_ATTR(cmd_count, unknown_cmd_count, SCST_DATA_UNKNOWN, >> 0);
+SCST_TGT_SYSFS_STAT_ATTR(cmd_count, write_cmd_count, SCST_DATA_WRITE, >> 0);
+SCST_TGT_SYSFS_STAT_ATTR(io_byte_count, write_io_count_kb, SCST_DATA_WRITE,
+			 >> 10);
+SCST_TGT_SYSFS_STAT_ATTR(cmd_count, read_cmd_count, SCST_DATA_READ, >> 0);
+SCST_TGT_SYSFS_STAT_ATTR(io_byte_count, read_io_count_kb, SCST_DATA_READ,
+			 >> 10);
+SCST_TGT_SYSFS_STAT_ATTR(cmd_count, bidi_cmd_count, SCST_DATA_BIDI, >> 0);
+SCST_TGT_SYSFS_STAT_ATTR(io_byte_count, bidi_io_count_kb, SCST_DATA_BIDI,
+			 >> 10);
+SCST_TGT_SYSFS_STAT_ATTR(cmd_count, none_cmd_count, SCST_DATA_NONE, >> 0);
+
+static struct attribute *scst_tgt_attrs[] = {
+	&scst_rel_tgt_id.attr,
+	&scst_tgt_comment.attr,
+	&scst_tgt_addr_method.attr,
+	&scst_tgt_io_grouping_type.attr,
+	&scst_tgt_cpu_mask.attr,
+	&scst_tgt_unknown_cmd_count_attr.attr,
+	&scst_tgt_write_cmd_count_attr.attr,
+	&scst_tgt_write_io_count_kb_attr.attr,
+	&scst_tgt_read_cmd_count_attr.attr,
+	&scst_tgt_read_io_count_kb_attr.attr,
+	&scst_tgt_bidi_cmd_count_attr.attr,
+	&scst_tgt_bidi_io_count_kb_attr.attr,
+	&scst_tgt_none_cmd_count_attr.attr,
+	NULL,
+};
+
+static struct kobj_type tgt_ktype = {
+	.sysfs_ops	= &scst_sysfs_ops,
+	.release	= scst_tgt_release,
+	.default_attrs	= scst_tgt_attrs,
+};
+
 /*
  * Supposed to be called under scst_mutex. In case of error will drop,
  * then reacquire it.
@@ -2465,45 +2551,6 @@ int scst_tgt_sysfs_create(struct scst_tgt *tgt)
 	if (res != 0) {
 		PRINT_ERROR("Can't add attribute %s for tgt %s",
 			scst_ini_group_mgmt.attr.name, tgt->tgt_name);
-		goto out_err;
-	}
-
-	res = sysfs_create_file(&tgt->tgt_kobj,
-			&scst_rel_tgt_id.attr);
-	if (res != 0) {
-		PRINT_ERROR("Can't add attribute %s for tgt %s",
-			scst_rel_tgt_id.attr.name, tgt->tgt_name);
-		goto out_err;
-	}
-
-	res = sysfs_create_file(&tgt->tgt_kobj,
-			&scst_tgt_comment.attr);
-	if (res != 0) {
-		PRINT_ERROR("Can't add attribute %s for tgt %s",
-			scst_tgt_comment.attr.name, tgt->tgt_name);
-		goto out_err;
-	}
-
-	res = sysfs_create_file(&tgt->tgt_kobj,
-			&scst_tgt_addr_method.attr);
-	if (res != 0) {
-		PRINT_ERROR("Can't add attribute %s for tgt %s",
-			scst_tgt_addr_method.attr.name, tgt->tgt_name);
-		goto out_err;
-	}
-
-	res = sysfs_create_file(&tgt->tgt_kobj,
-			&scst_tgt_io_grouping_type.attr);
-	if (res != 0) {
-		PRINT_ERROR("Can't add attribute %s for tgt %s",
-			scst_tgt_io_grouping_type.attr.name, tgt->tgt_name);
-		goto out_err;
-	}
-
-	res = sysfs_create_file(&tgt->tgt_kobj, &scst_tgt_cpu_mask.attr);
-	if (res != 0) {
-		PRINT_ERROR("Can't add attribute %s for tgt %s",
-			scst_tgt_cpu_mask.attr.name, tgt->tgt_name);
 		goto out_err;
 	}
 

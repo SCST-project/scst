@@ -100,7 +100,7 @@ note:
 2. In example "add 2:0:0:0 1" the '1' is the LUN in the target, LUN 0 must 
    exist with a target. 
 3. When one device is added to target disk group, target driver will notify
-   initator the changing of the phy mode and arriving of the disk, but some
+   initiator the changing of the phy mode and arriving of the disk, but some
    initiator driver don't support phy mode changing well, so 'rmmod' and 
    'modprobe'/'insmod' the initiator driver is neccessary.
 

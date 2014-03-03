@@ -76,11 +76,11 @@ set_frequency_scaling() {
   if [ ! -e $syscpu/cpufreq ]; then
     return
   fi
-  local governor=$(<$syscpu/cpu0/cpufreq/scaling_governor)
-  local cpuinfo_min_freq=$(<$syscpu/cpu0/cpufreq/cpuinfo_min_freq)
-  local cpuinfo_max_freq=$(<$syscpu/cpu0/cpufreq/cpuinfo_max_freq)
-  local scaling_min_freq=$(<$syscpu/cpu0/cpufreq/scaling_min_freq)
-  local scaling_max_freq=$(<$syscpu/cpu0/cpufreq/scaling_max_freq)
+  local governor=$(cat $syscpu/cpu0/cpufreq/scaling_governor)
+  local cpuinfo_min_freq=$(cat $syscpu/cpu0/cpufreq/cpuinfo_min_freq)
+  local cpuinfo_max_freq=$(cat $syscpu/cpu0/cpufreq/cpuinfo_max_freq)
+  local scaling_min_freq=$(cat $syscpu/cpu0/cpufreq/scaling_min_freq)
+  local scaling_max_freq=$(cat $syscpu/cpu0/cpufreq/scaling_max_freq)
   if [ -w $syscpu/cpu0/cpufreq/scaling_governor ]; then
     for d in $syscpu/cpu*/cpufreq
     do
@@ -210,7 +210,7 @@ if [ "${perform_write_test}" = "true" -a ! -w "${device}" ]; then
 fi
 
 if [ "${perform_read_test}" = "true" -a                              \
-     "$(($(</sys/class/block/$(basename $device)/size) * 512))" -lt $(pow2 $log2_io_size) ]
+     "$(($(cat /sys/class/block/$(basename $device)/size) * 512))" -lt $(pow2 $log2_io_size) ]
 then
   echo "Error: device ${device} contains less than $(pow2 $log2_io_size) bytes."
   exit 1

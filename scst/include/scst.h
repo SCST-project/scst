@@ -119,6 +119,13 @@ typedef _Bool bool;
 #define nr_cpumask_bits NR_CPUS
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
+#ifndef swap
+#define swap(a, b) \
+	do { typeof(a) __tmp = (a); (a) = (b); (b) = __tmp; } while (0)
+#endif
+#endif
+
 /* verify cpu argument to cpumask_* operators */
 static inline unsigned int cpumask_check(unsigned int cpu)
 {
@@ -177,6 +184,16 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 {
 	return q->max_hw_sectors;
 }
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
+/*
+ * See also patch "sched: Fix softirq time accounting" (commit ID
+ * 75e1056f5c57050415b64cb761a3acc35d91f013).
+ */
+#ifndef in_serving_softirq
+#define in_serving_softirq() in_softirq()
+#endif
 #endif
 
 #ifndef __list_for_each
@@ -1140,29 +1157,6 @@ struct scst_tgt_template {
 #endif
 
 	/*
-	 * Optional vendor to be reported via the SCSI inquiry data. If NULL,
-	 * an SCST device handler specific default value will be used, e.g.
-	 * "SCST_FIO" for scst_vdisk file I/O.
-	 */
-	const char *vendor;
-
-	/*
-	 * Optional method that sets the product ID in [buf, buf+size) based
-	 * on the device type (byte 0 of the SCSI inquiry data, which contains
-	 * the peripheral qualifier in the highest three bits and the
-	 * peripheral device type in the lower five bits).
-	 */
-	void (*get_product_id)(const struct scst_tgt_dev *tgt_dev,
-				   char *buf, int size);
-
-	/*
-	 * Optional revision to be reported in the SCSI inquiry response. If
-	 * NULL, an SCST device handler specific default value will be used,
-	 * e.g. " 210" for scst_vdisk file I/O.
-	 */
-	const char *revision;
-
-	/*
 	 * Optional method that writes the serial number of a target device in
 	 * [buf, buf+size) and returns the number of bytes written.
 	 *
@@ -1175,13 +1169,6 @@ struct scst_tgt_template {
 	 */
 	int (*get_serial)(const struct scst_tgt_dev *tgt_dev, char *buf,
 			  int size);
-
-	/*
-	 * Optional method that writes the SCSI inquiry vendor-specific data in
-	 * [buf, buf+size) and returns the number of bytes written.
-	 */
-	int (*get_vend_specific)(const struct scst_tgt_dev *tgt_dev, char *buf,
-				 int size);
 };
 
 /*
@@ -1942,14 +1929,14 @@ struct scst_cmd {
 	/* Set if the device was blocked by scst_check_blocked_dev() */
 	unsigned int unblock_dev:1;
 
-	/* Set if this cmd incremented dev->pr_readers_count */
-	unsigned int dec_pr_readers_count_needed:1;
-
 	/* Set if scst_dec_on_dev_cmd() call is needed on the cmd's finish */
 	unsigned int dec_on_dev_needed:1;
 
 	/* Set if cmd is queued as hw pending */
 	unsigned int cmd_hw_pending:1;
+
+	/* Set if cmd has NACA bit set in CDB */
+	unsigned int cmd_naca:1;
 
 	/*
 	 * Set if the target driver wants to alloc data buffers on its own.
@@ -2029,6 +2016,9 @@ struct scst_cmd {
 
 	/* Set if scst_cmd_set_write_not_received_data_len() was called */
 	unsigned int write_not_received_set:1;
+
+	/* Set if cmd has LINK bit set in CDB */
+	unsigned int cmd_linked:1;
 
 	/**************************************************************/
 
@@ -2359,9 +2349,6 @@ struct scst_dev_registrant {
 struct scst_device {
 	unsigned int type;	/* SCSI type of the device */
 
-	/* Set if reserved via the SPC-2 SCSI RESERVE command. */
-	struct scst_session *reserved_by;
-
 	/*************************************************************
 	 ** Dev's flags. Updates serialized by dev_lock or suspended
 	 ** activity
@@ -2414,18 +2401,6 @@ struct scst_device {
 	int block_size;
 	int block_shift;
 
-	/*
-	 * Set if dev is persistently reserved. Protected by dev_pr_mutex.
-	 * Modified independently to the above field, hence the alignment.
-	 */
-	unsigned int pr_is_set:1 __aligned(sizeof(long));
-
-	/*
-	 * Set if there is a thread changing or going to change PR state(s).
-	 * Protected by dev_pr_mutex.
-	 */
-	unsigned int pr_writer_active:1;
-
 	struct scst_dev_type *handler;	/* corresponding dev handler */
 
 	/* Used for storage of dev handler private stuff */
@@ -2454,27 +2429,31 @@ struct scst_device {
 	 */
 	int on_dev_cmd_count;
 
-	/*
-	 * How many threads are checking commands for PR allowance.
-	 * Protected by dev_lock.
-	 */
-	int pr_readers_count;
-
 	/* Memory limits for this device */
 	struct scst_mem_lim dev_mem_lim;
 
 	/* List of commands with lock, if dedicated threads are used */
 	struct scst_cmd_threads dev_cmd_threads;
 
-	/*************************************************************
-	 ** Persistent reservation fields. Protected by dev_pr_mutex.
-	 *************************************************************/
+	/* Set if reserved via the SPC-2 SCSI RESERVE command. */
+	struct scst_session *reserved_by;
+
+	/**********************************************************************
+	 * Persistent reservation fields. Protected as follows:
+	 * - Reading PR data must be protected via scst_pr_read_lock() /
+	 *   scst_pr_read_unlock().
+	 * - Modifying PR data modifications must be protected via
+	 *   scst_pr_write_lock() / scst_pr_write_unlock().
+	 **********************************************************************/
 
 	/*
-	 * True if persist through power loss is activated. Modified
-	 * independently to the above field, hence the alignment.
+	 * Set if dev is persistently reserved. Modified independently
+	 * to the above field, hence the alignment.
 	 */
-	unsigned short pr_aptpl:1 __aligned(sizeof(long));
+	unsigned short pr_is_set:1 __aligned(sizeof(long));
+
+	/* True if persist through power loss is activated. */
+	unsigned short pr_aptpl:1;
 
 	/* Persistent reservation type */
 	uint8_t pr_type;
@@ -2493,6 +2472,8 @@ struct scst_device {
 
 	/* List of dev's registrants */
 	struct list_head dev_registrants_list;
+
+	/* End of persistent reservation fields protected by dev_pr_mutex. */
 
 	/*
 	 * Count of connected tgt_devs from transports, which don't support

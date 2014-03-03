@@ -80,6 +80,14 @@
 #if !defined(INSIDE_KERNEL_TREE)
 #ifdef CONFIG_SCST_DEBUG
 
+#ifdef __CHECKER__
+/*
+ * Avoid that the while (...) local_bh_enable() loop confuses the lock checking
+ * code in smatch.
+ */
+#define sBUG()		BUG()
+#define sBUG_ON(p)	BUG_ON((p))
+#else
 #define sBUG() do {						\
 	pr_crit("BUG at %s:%d\n",  __FILE__, __LINE__);		\
 	local_irq_enable();					\
@@ -98,6 +106,7 @@
 		BUG();						\
 	}							\
 } while (0)
+#endif
 
 #else
 

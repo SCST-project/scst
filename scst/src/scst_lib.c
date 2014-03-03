@@ -4645,7 +4645,7 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 	uint8_t write16_cdb[16];
 	struct scatterlist *sg;
 	int sg_cnt, len = blocks << ws_cmd->dev->block_shift;
-	struct sgv_pool_obj *sgv;
+	struct sgv_pool_obj *sgv = NULL;
 	struct scst_cmd *cmd;
 	int64_t cur_lba;
 
@@ -4686,7 +4686,6 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 		goto set_add;
 	}
 
-	sgv = NULL; /* we don't supply sgv */
 	sg = sgv_pool_alloc(ws_cmd->tgt_dev->pool, len, GFP_KERNEL, 0,
 			&sg_cnt, &sgv, &cmd->dev->dev_mem_lim, NULL);
 	if (sg == NULL) {
@@ -5433,8 +5432,7 @@ void scst_free_cmd(struct scst_cmd *cmd)
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)))
 		TRACE_MGMT_DBG("Freeing aborted cmd %p", cmd);
 
-	EXTRACHECKS_BUG_ON(cmd->unblock_dev || cmd->dec_on_dev_needed ||
-		cmd->dec_pr_readers_count_needed);
+	EXTRACHECKS_BUG_ON(cmd->unblock_dev || cmd->dec_on_dev_needed);
 
 	/*
 	 * Target driver can already free sg buffer before calling
@@ -6687,7 +6685,7 @@ static int get_cdb_info_write_same16(struct scst_cmd *cmd,
 }
 
 /**
- * scst_get_cdb_info_apt() - Parse ATA PASS-THROUGH CDB.
+ * get_cdb_info_apt() - Parse ATA PASS-THROUGH CDB.
  *
  * Parse ATA PASS-THROUGH(12) and ATA PASS-THROUGH(16). See also SAT-3 for a
  * detailed description of these commands.
@@ -6870,6 +6868,8 @@ int scst_get_cdb_info(struct scst_cmd *cmd)
 	}
 
 	cmd->cdb_len = SCST_GET_CDB_LEN(op);
+	cmd->cmd_naca = (cmd->cdb[cmd->cdb_len - 1] & CONTROL_BYTE_NACA_BIT);
+	cmd->cmd_linked = (cmd->cdb[cmd->cdb_len - 1] & CONTROL_BYTE_LINK_BIT);
 	cmd->op_name = ptr->info_op_name;
 	cmd->data_direction = ptr->info_data_direction;
 	cmd->op_flags = ptr->info_op_flags | SCST_INFO_VALID;
@@ -8267,7 +8267,7 @@ void scst_unblock_dev(struct scst_device *dev)
 		struct scst_cmd *cmd, *tcmd;
 		unsigned long flags;
 
-		local_irq_save(flags);
+		local_irq_save_nort(flags);
 		list_for_each_entry_safe(cmd, tcmd, &dev->blocked_cmd_list,
 					 blocked_cmd_list_entry) {
 			bool strictly_serialized;
@@ -8287,7 +8287,7 @@ void scst_unblock_dev(struct scst_device *dev)
 			if (dev->strictly_serialized_cmd_waiting && strictly_serialized)
 				break;
 		}
-		local_irq_restore(flags);
+		local_irq_restore_nort(flags);
 
 		dev->strictly_serialized_cmd_waiting = 0;
 	}

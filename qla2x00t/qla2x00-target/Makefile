@@ -27,15 +27,9 @@
 #    - install and uninstall must be made as root
 #
 
-ifndef PREFIX
-        PREFIX=/usr/local
-endif
-
 SHELL=/bin/bash
 
 EXTRA_CFLAGS += -I$(SCST_INC_DIR)
-
-INSTALL_DIR := /lib/modules/$(shell uname -r)/extra
 
 EXTRA_CFLAGS += -W -Wno-unused-parameter -Wno-missing-field-initializers
 
@@ -47,11 +41,23 @@ EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions
 
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
-    KVER = $(shell uname -r)
+    KVER := $(shell uname -r)
     KDIR := /lib/modules/$(KVER)/build
+  else
+    ifeq ($(KERNELRELEASE),)
+      KVER := $(strip $(shell						\
+	cat $(KDIR)/include/config/kernel.release 2>/dev/null ||	\
+	make -s -C $(KDIR) kernelversion))
+    else
+      KVER := $(KERNELRELEASE)
+    endif
   endif
 else
   KDIR := /lib/modules/$(KVER)/build
+endif
+
+ifeq ($(INSTALL_MOD_PATH),)
+  export INSTALL_MOD_PATH := $(DESTDIR)
 endif
 
 ifeq ($(BUILD_2X_MODULE),)
@@ -69,13 +75,20 @@ ifneq ($(PATCHLEVEL),)
 obj-m := qla2x00tgt.o
 qla2x00tgt-objs := qla2x00t.o
 else
+######### BEGIN OUT-OF-TREE RULES #########
+
+ifndef PREFIX
+        PREFIX=/usr/local
+endif
+
+INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
 SCST_INC_DIR := $(shell if [ -e "$$PWD/../../scst" ];			\
                   then echo "$$PWD/../../scst/include";			\
-                  else echo "$(PREFIX)/include/scst"; fi)
+                  else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
 SCST_DIR := $(shell if [ -e "$$PWD/../../scst" ];			\
 		    then echo "$$PWD/../../scst/src";			\
-		    else echo "$(PREFIX)/include/scst"; fi)
+		    else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
 
 ifneq ($(BUILD_2X_MODULE),)
 # We need to make qla2xxx_scst before Module.symvers
@@ -93,14 +106,13 @@ ifneq ($(BUILD_2X_MODULE),)
 endif
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
 	  SCST_INC_DIR=$(SCST_INC_DIR) modules_install
-	-/sbin/depmod -a $(KVER)
 
 uninstall:
 ifneq ($(BUILD_2X_MODULE),)
 	$(MAKE) SUBDIRS=$(QLA2XXX_DIR) -C $(QLA2XXX_DIR) $@
 endif
 	rm -f $(INSTALL_DIR)/qla2[23x]00tgt.ko
-	-/sbin/depmod -a $(KVER)
+	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
 
 ifneq ($(BUILD_2X_MODULE),)
 qla2xxx_scst:
@@ -131,6 +143,7 @@ else
 .PHONY: Module.symvers
 endif
 
+########## END OUT-OF-TREE RULES ##########
 endif
 
 clean:

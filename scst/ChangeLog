@@ -75,7 +75,7 @@ Summary of changes between versions 1.0.1 and 1.0.2
  - Automatic sessions reassignment implemented with corresponding atomic
    management commands added
 
- - Generation of INQUERY DATA HAS CHANGED Unit Attention or AEN for
+ - Generation of INQUIRY DATA HAS CHANGED Unit Attention or AEN for
    changed devices during automatic sessions reassignment added
 
  - Requeue global Unit Attentions on delivery failure added

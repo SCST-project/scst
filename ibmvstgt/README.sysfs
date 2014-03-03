@@ -32,6 +32,17 @@ more information):
 2:0:0:0 ram000  ram001  ram002  ram003  ram004  ram005  ram006  ram007
 ram008  ram009  ram010  ram011  ram012  ram013  ram014  ram015
 
+Next, set the vendor ID, product ID etc. fields via sysfs. These fields
+must be set to the following values to allow AIX initiators to recognize
+SCST devices:
+* The Vendor ID (t10_vend_id) must be set to "IBM".
+* The Product ID (prod_id) must be set either to "VDASD blkdev" for SCSI disks
+  or "VOPTA blkdev" for a SCSI CD-ROM.
+* The Product Revision Level (prod_rev_lvl) must be set to "0001".
+* The Vendor Specific Information in the INQUIRY response (inq_vend_specific)
+  must be set to the serial number. The serial number is available in the
+  "usn" sysfs attribute.
+
 After this step a LUN has to be assigned to each exported SCSI device. Some
 non-Linux initiator operating systems only accept LUN numbes that are
 multiples of 256 and require that the LUN addressing method is used.

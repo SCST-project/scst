@@ -1584,6 +1584,8 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 
 	buff_offs = offset;
 	idx = (offset + sg[0].offset) >> PAGE_SHIFT;
+	if (offset + sg[0].offset >= PAGE_SIZE)
+		offset += sg[0].offset;
 	offset &= ~PAGE_MASK;
 
 	conn->read_msg.msg_iov = conn->read_iov;
