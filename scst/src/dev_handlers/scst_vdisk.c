@@ -307,7 +307,13 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 
 #ifndef CONFIG_SCST_PROC
 
+static ssize_t vdev_sysfs_size_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count);
 static ssize_t vdev_sysfs_size_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
+static ssize_t vdev_sysfs_size_mb_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count);
+static ssize_t vdev_sysfs_size_mb_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdisk_sysfs_blocksize_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
@@ -365,8 +371,16 @@ static ssize_t vdev_zero_copy_show(struct kobject *kobj,
 static ssize_t vcdrom_sysfs_filename_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count);
 
-static struct kobj_attribute vdev_size_attr =
-	__ATTR(size_mb, S_IRUGO, vdev_sysfs_size_show, NULL);
+static struct kobj_attribute vdev_size_ro_attr =
+	__ATTR(size, S_IRUGO, vdev_sysfs_size_show, NULL);
+static struct kobj_attribute vdev_size_rw_attr =
+	__ATTR(size, S_IWUSR|S_IRUGO, vdev_sysfs_size_show,
+	       vdev_sysfs_size_store);
+static struct kobj_attribute vdev_size_mb_ro_attr =
+	__ATTR(size_mb, S_IRUGO, vdev_sysfs_size_mb_show, NULL);
+static struct kobj_attribute vdev_size_mb_rw_attr =
+	__ATTR(size_mb, S_IWUSR|S_IRUGO, vdev_sysfs_size_mb_show,
+	       vdev_sysfs_size_mb_store);
 static struct kobj_attribute vdisk_blocksize_attr =
 	__ATTR(blocksize, S_IRUGO, vdisk_sysfs_blocksize_show, NULL);
 static struct kobj_attribute vdisk_rd_only_attr =
@@ -419,7 +433,8 @@ static struct kobj_attribute vcdrom_filename_attr =
 		vcdrom_sysfs_filename_store);
 
 static const struct attribute *vdisk_fileio_attrs[] = {
-	&vdev_size_attr.attr,
+	&vdev_size_ro_attr.attr,
+	&vdev_size_mb_ro_attr.attr,
 	&vdisk_blocksize_attr.attr,
 	&vdisk_rd_only_attr.attr,
 	&vdisk_wt_attr.attr,
@@ -442,7 +457,8 @@ static const struct attribute *vdisk_fileio_attrs[] = {
 };
 
 static const struct attribute *vdisk_blockio_attrs[] = {
-	&vdev_size_attr.attr,
+	&vdev_size_ro_attr.attr,
+	&vdev_size_mb_ro_attr.attr,
 	&vdisk_blocksize_attr.attr,
 	&vdisk_rd_only_attr.attr,
 	&vdisk_wt_attr.attr,
@@ -463,7 +479,8 @@ static const struct attribute *vdisk_blockio_attrs[] = {
 };
 
 static const struct attribute *vdisk_nullio_attrs[] = {
-	&vdev_size_attr.attr,
+	&vdev_size_rw_attr.attr,
+	&vdev_size_mb_rw_attr.attr,
 	&vdisk_blocksize_attr.attr,
 	&vdisk_rd_only_attr.attr,
 	&vdev_dummy_attr.attr,
@@ -480,7 +497,8 @@ static const struct attribute *vdisk_nullio_attrs[] = {
 };
 
 static const struct attribute *vcdrom_attrs[] = {
-	&vdev_size_attr.attr,
+	&vdev_size_ro_attr.attr,
+	&vdev_size_mb_ro_attr.attr,
 	&vcdrom_filename_attr.attr,
 	&vdev_t10_vend_id_attr.attr,
 	&vdev_vend_specific_id_attr.attr,
@@ -632,7 +650,9 @@ static struct scst_dev_type vdisk_null_devtype = {
 		"dummy, "
 		"read_only, "
 		"removable, "
-		"rotational",
+		"rotational, "
+		"size, "
+		"size_mb",
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
@@ -942,17 +962,15 @@ static int vdisk_attach(struct scst_device *dev)
 	dev->dev_rd_only = virt_dev->rd_only;
 
 	if (!virt_dev->cdrom_empty) {
-		if (virt_dev->nullio)
-			err = VDISK_NULLIO_SIZE;
-		else {
+		if (!virt_dev->nullio) {
 			res = vdisk_get_file_size(virt_dev->filename,
 				virt_dev->blockio, &err);
 			if (res != 0)
 				goto out;
-		}
-		virt_dev->file_size = err;
+			virt_dev->file_size = err;
 
-		TRACE_DBG("size of file: %lld", (long long unsigned int)err);
+			TRACE_DBG("size of file: %lld", err);
+		}
 
 		vdisk_blockio_check_flush_support(virt_dev);
 		vdisk_check_tp_support(virt_dev);
@@ -4898,6 +4916,10 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 				virt_dev->thin_provisioned);
 		} else if (!strcasecmp("zero_copy", p)) {
 			virt_dev->zero_copy = !!val;
+		} else if (!strcasecmp("size", p)) {
+			virt_dev->file_size = val;
+		} else if (!strcasecmp("size_mb", p)) {
+			virt_dev->file_size = val * 1024 * 1024;
 		} else if (!strcasecmp("blocksize", p)) {
 			virt_dev->blk_shift = scst_calc_block_shift(val);
 			if (virt_dev->blk_shift < 9) {
@@ -4914,6 +4936,12 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 		}
 	}
 
+	if (virt_dev->file_size % (1 << virt_dev->blk_shift) != 0) {
+		PRINT_ERROR("Device size %lld is not a multiple of the block"
+			    " size %d", virt_dev->file_size,
+			    1 << virt_dev->blk_shift);
+		res = -EINVAL;
+	}
 out:
 	TRACE_EXIT_RES(res);
 	return res;
@@ -5042,7 +5070,7 @@ static int vdev_nullio_add_device(const char *device_name, char *params)
 	int res = 0;
 	static const char *const allowed_params[] = {
 		"read_only", "dummy", "removable", "blocksize", "rotational",
-		NULL
+		"size", "size_mb", NULL
 	};
 	struct scst_vdisk_dev *virt_dev;
 
@@ -5055,6 +5083,7 @@ static int vdev_nullio_add_device(const char *device_name, char *params)
 	virt_dev->command_set_version = 0x04C0; /* SBC-3 */
 
 	virt_dev->nullio = 1;
+	virt_dev->file_size = VDISK_NULLIO_SIZE;
 
 	res = vdev_parse_add_dev_params(virt_dev, params, allowed_params);
 	if (res != 0)
@@ -5492,22 +5521,128 @@ out_free:
 	goto out;
 }
 
-static ssize_t vdev_sysfs_size_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static int vdev_size_process_store(struct scst_sysfs_work_item *work)
 {
-	int pos = 0;
+	struct scst_device *dev = work->dev;
+	struct scst_vdisk_dev *virt_dev;
+	unsigned long long new_size;
+	int size_shift, res = -EINVAL;
+
+	if (sscanf(work->buf, "%d %lld", &size_shift, &new_size) != 2 ||
+	    new_size > (ULONG_MAX >> size_shift))
+		goto put;
+
+	new_size <<= size_shift;
+
+	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
+	if (res)
+		goto put;
+
+	/* To sync with detach*() functions */
+	res = mutex_lock_interruptible(&scst_mutex);
+	if (res)
+		goto resume;
+
+	virt_dev = dev->dh_priv;
+	if (!virt_dev->nullio) {
+		sBUG();
+		res = -EPERM;
+	} else if (new_size % (1 << virt_dev->blk_shift) == 0) {
+		virt_dev->file_size = new_size;
+		virt_dev->nblocks = virt_dev->file_size >> dev->block_shift;
+	} else {
+		res = -EINVAL;
+	}
+
+	mutex_unlock(&scst_mutex);
+
+	if (res == 0)
+		scst_capacity_data_changed(dev);
+
+resume:
+	scst_resume_activity();
+
+put:
+	kobject_put(&dev->dev_kobj);
+	return res;
+}
+
+static ssize_t vdev_size_store(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf,
+		size_t count, int size_shift)
+{
+	struct scst_device *dev = container_of(kobj, struct scst_device,
+					       dev_kobj);
+	struct scst_sysfs_work_item *work;
+	char *new_size;
+	int res = -ENOMEM;
+
+
+	new_size = kasprintf(GFP_KERNEL, "%d %.*s", size_shift, (int)count,
+			     buf);
+	if (!new_size)
+		goto out;
+
+	res = scst_alloc_sysfs_work(vdev_size_process_store, false, &work);
+	if (res)
+		goto out_free;
+
+	work->buf = new_size;
+	work->dev = dev;
+
+	SCST_SET_DEP_MAP(work, &scst_dev_dep_map);
+	kobject_get(&dev->dev_kobj);
+
+	res = scst_sysfs_queue_wait_work(work);
+	if (res == 0)
+		res = count;
+
+out:
+	return res;
+
+out_free:
+	kfree(buf);
+	goto out;
+}
+
+static ssize_t vdev_sysfs_size_store(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	return vdev_size_store(kobj, attr, buf, count, 0);
+}
+
+static ssize_t vdev_size_show(struct kobject *kobj, struct kobj_attribute *attr,
+			      char *buf, int size_shift)
+{
 	struct scst_device *dev;
 	struct scst_vdisk_dev *virt_dev;
-
-	TRACE_ENTRY();
+	unsigned long long size;
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
+	size = ACCESS_ONCE(virt_dev->file_size);
 
-	pos = sprintf(buf, "%lld\n", virt_dev->file_size / 1024 / 1024);
+	return sprintf(buf, "%llu\n%s", size >> size_shift,
+		       virt_dev->nullio && size != VDISK_NULLIO_SIZE ?
+		       SCST_SYSFS_KEY_MARK "\n" : "");
+}
 
-	TRACE_EXIT_RES(pos);
-	return pos;
+static ssize_t vdev_sysfs_size_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	return vdev_size_show(kobj, attr, buf, 0);
+}
+
+static ssize_t vdev_sysfs_size_mb_store(struct kobject *kobj,
+		struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	return vdev_size_store(kobj, attr, buf, count, 20);
+}
+
+static ssize_t vdev_sysfs_size_mb_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	return vdev_size_show(kobj, attr, buf, 20);
 }
 
 static ssize_t vdisk_sysfs_blocksize_show(struct kobject *kobj,
