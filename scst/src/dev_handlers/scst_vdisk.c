@@ -5545,8 +5545,8 @@ static int vdev_size_process_store(struct scst_sysfs_work_item *work)
 
 	virt_dev = dev->dh_priv;
 	if (!virt_dev->nullio) {
-		sBUG();
 		res = -EPERM;
+		sBUG();
 	} else if (new_size % (1 << virt_dev->blk_shift) == 0) {
 		virt_dev->file_size = new_size;
 		virt_dev->nblocks = virt_dev->file_size >> dev->block_shift;
