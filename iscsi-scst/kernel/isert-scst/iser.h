@@ -215,7 +215,6 @@ int isert_portal_listen(struct isert_portal *portal,
 void isert_portal_release(struct isert_portal *portal);
 void isert_portal_list_release_all(void);
 struct isert_portal *isert_portal_start(struct sockaddr *sa, size_t addr_len);
-struct isert_portal *isert_portal_add_addr_any(u16 port);
 
 /* iser connection */
 int isert_post_recv(struct isert_connection *isert_conn,

@@ -1531,17 +1531,3 @@ struct isert_portal *isert_portal_start(struct sockaddr *sa, size_t addr_len)
 	return portal;
 }
 
-struct isert_portal *isert_portal_add_addr_any(u16 port)
-{
-	struct sockaddr_storage sa_any;
-	size_t addr_len;
-	struct isert_portal *portal;
-
-	create_sockaddr_any((struct sockaddr *)&sa_any, port, &addr_len);
-
-	portal = isert_portal_start((struct sockaddr *)&sa_any, addr_len);
-	if (IS_ERR(portal))
-		portal = NULL;
-
-	return portal;
-}

@@ -90,17 +90,6 @@ out:
 	return ret;
 }
 
-void create_sockaddr_any(struct sockaddr *sa, u16 port, size_t *addr_len)
-{
-	struct sockaddr_in *sa_any = (struct sockaddr_in *)sa;
-
-	memset(sa_any, 0, sizeof(*sa_any));
-	sa_any->sin_family = AF_INET;
-	sa_any->sin_port = cpu_to_be16(port);
-	sa_any->sin_addr.s_addr = cpu_to_be32(INADDR_ANY);
-	*addr_len = sizeof(*sa_any);
-}
-
 void *isert_portal_add(struct sockaddr *saddr, size_t addr_len)
 {
 	struct isert_portal *portal = isert_portal_start(saddr, addr_len);

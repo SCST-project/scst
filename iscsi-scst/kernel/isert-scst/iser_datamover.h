@@ -7,7 +7,6 @@
 int isert_datamover_init(void);
 int isert_datamover_cleanup(void);
 
-void create_sockaddr_any(struct sockaddr *sa, u16 port, size_t *addr_len);
 void *isert_portal_add(struct sockaddr *sa, size_t addr_len);
 int isert_portal_remove(void *portal_h);
 
