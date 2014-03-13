@@ -1393,10 +1393,17 @@ struct isert_portal *isert_portal_create(void)
 	struct rdma_cm_id *cm_id;
 	int err;
 
+	if (!try_module_get(THIS_MODULE)) {
+		pr_err("Unable increment module reference\n");
+		portal = ERR_PTR(-EINVAL);
+		goto out;
+	}
+
 	portal = kzalloc(sizeof(*portal), GFP_KERNEL);
-	if (!portal) {
+	if (unlikely(!portal)) {
 		pr_err("Unable to allocate struct portal\n");
-		return ERR_PTR(-ENOMEM);
+		portal = ERR_PTR(-ENOMEM);
+		goto err_alloc;
 	}
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 0) && !defined(RHEL_MAJOR)
@@ -1405,10 +1412,10 @@ struct isert_portal *isert_portal_create(void)
 	cm_id = rdma_create_id(isert_cm_evt_handler, portal, RDMA_PS_TCP,
 			       IB_QPT_RC);
 #endif
-	if (IS_ERR(cm_id)) {
+	if (unlikely(IS_ERR(cm_id))) {
 		err = PTR_ERR(cm_id);
 		pr_err("Failed to create rdma id, err:%d\n", err);
-		return ERR_PTR(err);
+		goto create_id_err;
 	}
 	portal->cm_id = cm_id;
 
@@ -1420,7 +1427,15 @@ struct isert_portal *isert_portal_create(void)
 #endif
 
 	pr_info("Created iser portal cm_id:%p\n", cm_id);
+out:
 	return portal;
+
+create_id_err:
+	kfree(portal);
+	portal = ERR_PTR(err);
+err_alloc:
+	module_put(THIS_MODULE);
+	goto out;
 }
 
 int isert_portal_listen(struct isert_portal *portal,
@@ -1495,6 +1510,8 @@ void isert_portal_release(struct isert_portal *portal)
 	mutex_unlock(&dev_list_mutex);
 
 	isert_portal_list_remove(portal);
+
+	module_put(THIS_MODULE);
 }
 
 struct isert_portal *isert_portal_start(struct sockaddr *sa, size_t addr_len)
