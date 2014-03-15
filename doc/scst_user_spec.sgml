@@ -26,7 +26,7 @@ This document assumes that the reader is familiar with the SCST
 architecture and the states through which SCSI commands go during
 processing in SCST. Module scst_user basically only provides hooks to
 them. Their description could be found on the SCST web page on
-http://scst.st.net.
+http://scst.sf.net.
 
 
 <sect> User space API
