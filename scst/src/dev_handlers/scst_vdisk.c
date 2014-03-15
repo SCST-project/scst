@@ -4741,8 +4741,7 @@ static int vdev_create(struct scst_dev_type *devt,
 	TRACE_DBG("t10_dev_id %s", virt_dev->t10_dev_id);
 
 	sprintf(virt_dev->t10_vend_id, "%.*s",
-		(int)(sizeof(virt_dev->t10_vend_id) - 1),
-		virt_dev->blockio ? SCST_BIO_VENDOR : SCST_FIO_VENDOR);
+		(int)sizeof(virt_dev->t10_vend_id) - 1, SCST_FIO_VENDOR);
 
 	sprintf(virt_dev->vend_specific_id, "%.*s",
 		(int)(sizeof(virt_dev->vend_specific_id) - 1),
@@ -5027,6 +5026,8 @@ static int vdev_blockio_add_device(const char *device_name, char *params)
 
 	virt_dev->blockio = 1;
 	virt_dev->wt_flag = DEF_WRITE_THROUGH;
+	sprintf(virt_dev->t10_vend_id, "%.*s",
+		(int)sizeof(virt_dev->t10_vend_id) - 1, SCST_BIO_VENDOR);
 
 	res = vdev_parse_add_dev_params(virt_dev, params, allowed_params);
 	if (res != 0)
@@ -6637,6 +6638,9 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 				virt_dev->blockio = 1;
 				/* Bad hack for anyway going out procfs */
 				virt_dev->vdev_devt = &vdisk_blk_devtype;
+				sprintf(virt_dev->t10_vend_id, "%.*s",
+					(int)sizeof(virt_dev->t10_vend_id) - 1,
+					SCST_BIO_VENDOR);
 				TRACE_DBG("%s", "BLOCKIO");
 			} else if (!strncmp("REMOVABLE", p, 9)) {
 				p += 9;
