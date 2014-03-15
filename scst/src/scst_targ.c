@@ -2036,6 +2036,74 @@ out_unlock_put_not_completed:
 	goto out;
 }
 
+static int scst_report_supported_tm_fns(struct scst_cmd *cmd)
+{
+	int res = SCST_EXEC_COMPLETED;
+	int length, resp_len = 0;
+	uint8_t *address;
+	uint8_t buf[16];
+
+	TRACE_ENTRY();
+
+	length = scst_get_buf_full_sense(cmd, &address);
+	TRACE_DBG("length %d", length);
+	if (unlikely(length <= 0))
+		goto out_compl;
+
+	memset(buf, 0, sizeof(buf));
+
+	buf[0] = 0xD8; /* ATS, ATSS, CTSS, LURS */
+	buf[1] = 0;
+	if ((cmd->cdb[2] & 0x80) == 0)
+		resp_len = 4;
+	else {
+		buf[3] = 0x0C;
+#if 1
+		buf[4] = 1; /* TMFTMOV */
+		buf[6] = 0x80; /* ATTS */
+		put_unaligned_be32(30, &buf[8]); /* long timeout - 30 sec. */
+		put_unaligned_be32(150, &buf[12]); /* short timeout - 15 sec. */
+#endif
+		resp_len = 16;
+	}
+
+	if (length > resp_len)
+		length = resp_len;
+	memcpy(address, buf, length);
+
+	scst_put_buf_full(cmd, address);
+	if (length < cmd->resp_data_len)
+		scst_set_resp_data_len(cmd, length);
+
+out_compl:
+	cmd->completed = 1;
+
+	/* Report the result */
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int scst_maintenance_in(struct scst_cmd *cmd)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	switch (cmd->cdb[1] & 0x1f) {
+	case MI_REPORT_SUPPORTED_TASK_MANAGEMENT_FUNCTIONS:
+		res = scst_report_supported_tm_fns(cmd);
+		break;
+	default:
+		res = SCST_EXEC_NOT_COMPLETED;
+		break;
+	}
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 static int scst_reserve_local(struct scst_cmd *cmd)
 {
 	int res = SCST_EXEC_NOT_COMPLETED;
@@ -2777,6 +2845,7 @@ static scst_local_exec_fn scst_local_fns[256] = {
 	[PERSISTENT_RESERVE_OUT] = scst_persistent_reserve_out_local,
 	[REPORT_LUNS] = scst_report_luns_local,
 	[REQUEST_SENSE] = scst_request_sense_local,
+	[MAINTENANCE_IN] = scst_maintenance_in,
 };
 
 static int scst_do_local_exec(struct scst_cmd *cmd)

@@ -6799,7 +6799,8 @@ static int get_cdb_info_min(struct scst_cmd *cmd,
 		break;
 	case MI_REPORT_SUPPORTED_TASK_MANAGEMENT_FUNCTIONS:
 		cmd->op_name = "REPORT SUPPORTED TASK MANAGEMENT FUNCTIONS";
-		cmd->op_flags |= SCST_WRITE_EXCL_ALLOWED;
+		cmd->op_flags |= SCST_WRITE_EXCL_ALLOWED |
+				SCST_LOCAL_CMD | SCST_FULLY_LOCAL_CMD;
 		break;
 	default:
 		break;
