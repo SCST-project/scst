@@ -2632,7 +2632,7 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 			buf[1] = 0xB0;
 			buf[3] = 0x3C;
 			buf[4] = 1; /* WSNZ set */
-			buf[5] = 0xff; /* Maximum compare and write length */
+			buf[5] = 0xFF; /* No MAXIMUM COMPARE AND WRITE LENGTH limit */
 			/* Optimal transfer granuality is PAGE_SIZE */
 			put_unaligned_be16(max_t(int, PAGE_SIZE/dev->block_size, 1), &buf[6]);
 
