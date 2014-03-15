@@ -276,6 +276,7 @@ static enum compl_status_e vdisk_exec_read_toc(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_prevent_allow_medium_removal(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_unmap(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_write_same(struct vdisk_cmd_params *p);
+static enum compl_status_e vdisk_exec_caw(struct vdisk_cmd_params *p);
 static int vdisk_fsync(loff_t loff,
 	loff_t len, struct scst_device *dev, gfp_t gfp_flags,
 	struct scst_cmd *cmd, bool async);
@@ -1406,6 +1407,7 @@ static enum compl_status_e vdisk_invalid_opcode(struct vdisk_cmd_params *p)
 	[UNMAP] = vdisk_exec_unmap,					\
 	[WRITE_SAME] = vdisk_exec_write_same,				\
 	[WRITE_SAME_16] = vdisk_exec_write_same,			\
+	[COMPARE_AND_WRITE] = vdisk_exec_caw,				\
 	[MAINTENANCE_IN] = vdisk_exec_maintenance_in,			\
 	[SEND_DIAGNOSTIC] = vdisk_exec_send_diagnostic,			\
 	[FORMAT_UNIT] = vdisk_exec_format_unit,
@@ -1543,6 +1545,7 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 	case WRITE_10:
 	case WRITE_12:
 	case WRITE_16:
+	case COMPARE_AND_WRITE:
 		fua = (cdb[1] & 0x8);
 		if (fua) {
 			TRACE(TRACE_ORDER, "FUA: loff=%lld, "
@@ -2629,6 +2632,7 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 			buf[1] = 0xB0;
 			buf[3] = 0x3C;
 			buf[4] = 1; /* WSNZ set */
+			buf[5] = 0xff; /* Maximum compare and write length */
 			/* Optimal transfer granuality is PAGE_SIZE */
 			put_unaligned_be16(max_t(int, PAGE_SIZE/dev->block_size, 1), &buf[6]);
 
@@ -3739,7 +3743,9 @@ static int vdisk_fsync(loff_t loff,
 		goto out;
 	}
 
-	if (virt_dev->blockio)
+	if (virt_dev->nullio)
+		;
+	else if (virt_dev->blockio)
 		res = vdisk_fsync_blockio(loff, len, dev, gfp_flags, cmd, async);
 	else
 		res = vdisk_fsync_fileio(loff, len, dev, cmd, async);
@@ -4502,6 +4508,29 @@ out:
 	return ret;
 }
 
+static ssize_t fileio_write_sync(struct file *fd, void *buf, size_t len,
+				 loff_t *loff)
+{
+	mm_segment_t old_fs;
+	ssize_t ret;
+
+	old_fs = get_fs();
+	set_fs(get_ds());
+
+	if (fd->f_op->llseek)
+		ret = fd->f_op->llseek(fd, *loff, 0/*SEEK_SET*/);
+	else
+		ret = default_llseek(fd, *loff, 0/*SEEK_SET*/);
+	if (ret < 0)
+		goto out;
+
+	ret = vfs_write(fd, (char __force __user *)buf, len, loff);
+
+out:
+	set_fs(old_fs);
+
+	return ret;
+}
 static ssize_t vdev_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 			      size_t len, loff_t *loff)
 {
@@ -4511,6 +4540,26 @@ static ssize_t vdev_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 		return blockio_rw_sync(virt_dev, buf, len, loff, 0/*read*/);
 	else
 		return fileio_read_sync(virt_dev->fd, buf, len, loff);
+}
+
+static ssize_t vdev_write_sync(struct scst_vdisk_dev *virt_dev, void *buf,
+			       size_t len, loff_t *loff)
+{
+	int rw;
+
+	if (virt_dev->nullio) {
+		return len;
+	} else if (virt_dev->blockio) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36)
+		rw = REQ_WRITE;
+#else
+		rw = 1 << BIO_RW;
+#endif
+
+		return blockio_rw_sync(virt_dev, buf, len, loff, rw);
+	} else {
+		return fileio_write_sync(virt_dev->fd, buf, len, loff);
+	}
 }
 
 static enum compl_status_e vdev_exec_verify(struct vdisk_cmd_params *p)
@@ -4604,6 +4653,106 @@ out_free:
 
 out:
 	TRACE_EXIT();
+	return CMD_SUCCEEDED;
+}
+
+/* COMPARE AND WRITE */
+static enum compl_status_e vdisk_exec_caw(struct vdisk_cmd_params *p)
+{
+	struct scst_cmd *cmd = p->cmd;
+	struct scst_device *dev = cmd->dev;
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+	uint32_t data_len = scst_cmd_get_data_len(cmd);
+	int length, i;
+	uint8_t *caw_buf = NULL, *read_buf = NULL;
+	loff_t loff, read, written;
+
+	if (unlikely(cmd->cdb[1] & 0xE0)) {
+		TRACE_DBG("%s", "WRPROTECT not supported");
+		scst_set_invalid_field_in_cdb(cmd, 1,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 5);
+		goto out;
+	}
+
+	/*
+	 * A NUMBER OF LOGICAL BLOCKS field set to zero specifies that no read
+	 * operations shall be performed, no logical block data shall be
+	 * transferred from the Data-Out Buffer, no compare operations shall
+	 * be performed, and no write operations shall be performed. This
+	 * condition shall not be considered an error.
+	 */
+	if (data_len == 0)
+		goto out;
+
+	length = scst_get_buf_full(cmd, &caw_buf);
+	read_buf = vmalloc(data_len);
+	if (length < 0 || !read_buf) {
+		PRINT_ERROR("scst_get_buf_full() failed: %d", length);
+		if (length == -ENOMEM || !read_buf)
+			scst_set_busy(cmd);
+		else
+			scst_set_cmd_error(cmd,
+				SCST_LOAD_SENSE(scst_sense_hardw_error));
+		goto out;
+	}
+
+	WARN_ON_ONCE(length != 2 * data_len);
+
+	loff = p->loff;
+	read = vdev_read_sync(virt_dev, read_buf, data_len, &loff);
+	if (read < data_len) {
+		PRINT_ERROR("COMPARE AND WRITE / READ returned %lld from %d",
+			    read, data_len);
+		if (read == -EAGAIN)
+			scst_set_busy(cmd);
+		else
+			scst_set_cmd_error(cmd,
+				    SCST_LOAD_SENSE(scst_sense_read_error));
+		goto out;
+	}
+
+	if (memcmp(caw_buf, read_buf, data_len) != 0) {
+		for (i = 0; i < data_len && caw_buf[i] == read_buf[i]; i++)
+			;
+		/*
+		 * SBC-3 $5.2: if the compare operation does not indicate a
+		 * match, then terminate the command with CHECK CONDITION
+		 * status with the sense key set to MISCOMPARE and the
+		 * additional sense code set to MISCOMPARE DURING VERIFY
+		 * OPERATION. In the sense data (see 4.18 and SPC-4) the
+		 * offset from the start of the Data-Out Buffer to the first
+		 * byte of data that was not equal shall be reported in the
+		 * INFORMATION field.
+		 */
+		scst_set_cmd_error_and_inf(cmd,
+			SCST_LOAD_SENSE(scst_sense_miscompare_error),
+			p->loff + i);
+		goto out;
+	}
+
+	loff = p->loff;
+	written = vdev_write_sync(virt_dev, caw_buf + data_len, data_len,
+				  &loff);
+	if (written < data_len) {
+		PRINT_ERROR("COMPARE AND WRITE / WRITE wrote %lld / %d",
+			    written, data_len);
+		if (written == -EAGAIN)
+			scst_set_busy(cmd);
+		else
+			scst_set_cmd_error(cmd,
+				SCST_LOAD_SENSE(scst_sense_write_error));
+		goto out;
+	}
+	if (p->fua)
+		vdisk_fsync(loff, scst_cmd_get_data_len(cmd), cmd->dev,
+			    cmd->cmd_gfp_mask, cmd, false);
+
+out:
+	if (read_buf)
+		vfree(read_buf);
+	if (caw_buf)
+		scst_put_buf_full(cmd, caw_buf);
+
 	return CMD_SUCCEEDED;
 }
 

@@ -150,6 +150,8 @@ static int get_cdb_info_write_same10(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
 static int get_cdb_info_write_same16(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
+static int get_cdb_info_compare_and_write(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
 static int get_cdb_info_apt(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
 static int get_cdb_info_min(struct scst_cmd *cmd,
@@ -966,6 +968,14 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 .info_lba_off = 2, .info_lba_len = 8,
 	 .info_len_off = 10, .info_len_len = 4,
 	 .get_cdb_info = get_cdb_info_lba_8_len_4},
+	{.ops = 0x89, .devkey = "O               ",
+	 .info_op_name = "COMPARE AND WRITE",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM|
+			  SCST_SERIALIZED,
+	 .info_lba_off = 2, .info_lba_len = 8,
+	 .info_len_off = 13, .info_len_len = 1,
+	 .get_cdb_info = get_cdb_info_compare_and_write},
 	{.ops = 0x8A, .devkey = "O   OO O        ",
 	 .info_op_name = "WRITE(16)",
 	 .info_data_direction = SCST_DATA_WRITE,
@@ -1655,6 +1665,38 @@ out:
 	return res;
 }
 EXPORT_SYMBOL(scst_set_cmd_error);
+
+int scst_set_cmd_error_and_inf(struct scst_cmd *cmd, int key, int asc,
+				int ascq, uint64_t information)
+{
+	int res;
+
+	res = scst_set_cmd_error(cmd, key, asc, ascq);
+	if (res)
+		goto out;
+
+	switch (cmd->sense[0] & 0x7f) {
+	case 0x70:
+		/* Fixed format */
+		cmd->sense[0] |= 0x80; /* Information field is valid */
+		put_unaligned_be32(information, &cmd->sense[3]);
+		break;
+	case 0x72:
+		/* Descriptor format */
+		cmd->sense[7] = 12; /* additional sense length */
+		cmd->sense[8 + 0] = 0; /* descriptor type: Information */
+		cmd->sense[8 + 1] = 10; /* Additional length */
+		cmd->sense[8 + 2] = 0x80; /* VALID */
+		put_unaligned_be64(information, &cmd->sense[8 + 4]);
+		break;
+	default:
+		sBUG();
+	}
+
+out:
+	return res;
+}
+EXPORT_SYMBOL(scst_set_cmd_error_and_inf);
 
 static void scst_fill_field_pointer_sense(uint8_t *fp_sense, int field_offs,
 	int bit_offs, bool cdb)
@@ -6681,6 +6723,15 @@ static int get_cdb_info_write_same16(struct scst_cmd *cmd,
 	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
 	cmd->bufflen = 1;
 	cmd->data_len = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
+	return 0;
+}
+
+static int get_cdb_info_compare_and_write(struct scst_cmd *cmd,
+					  const struct scst_sdbops *sdbops)
+{
+	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
+	cmd->data_len = cmd->cdb[sdbops->info_len_off];
+	cmd->bufflen = 2 * cmd->data_len;
 	return 0;
 }
 

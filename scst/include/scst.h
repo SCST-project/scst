@@ -3035,6 +3035,8 @@ int scst_get_cdb_info(struct scst_cmd *cmd);
 
 int scst_set_cmd_error_status(struct scst_cmd *cmd, int status);
 int scst_set_cmd_error(struct scst_cmd *cmd, int key, int asc, int ascq);
+int scst_set_cmd_error_and_inf(struct scst_cmd *cmd, int key, int asc,
+			       int ascq, uint64_t information);
 void scst_set_busy(struct scst_cmd *cmd);
 
 void scst_check_convert_sense(struct scst_cmd *cmd);
