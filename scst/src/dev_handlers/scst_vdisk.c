@@ -259,8 +259,7 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p);
 static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua);
 static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask,
 	bool report_error, struct scst_cmd *cmd, bool async);
-static enum compl_status_e blockio_exec_verify(struct vdisk_cmd_params *p);
-static enum compl_status_e fileio_exec_verify(struct vdisk_cmd_params *p);
+static enum compl_status_e vdev_exec_verify(struct vdisk_cmd_params *p);
 static enum compl_status_e blockio_exec_write_verify(struct vdisk_cmd_params *p);
 static enum compl_status_e fileio_exec_write_verify(struct vdisk_cmd_params *p);
 static enum compl_status_e nullio_exec_write_verify(struct vdisk_cmd_params *p);
@@ -1423,9 +1422,9 @@ static vdisk_op_fn blockio_ops[256] = {
 	[WRITE_VERIFY] = blockio_exec_write_verify,
 	[WRITE_VERIFY_12] = blockio_exec_write_verify,
 	[WRITE_VERIFY_16] = blockio_exec_write_verify,
-	[VERIFY] = blockio_exec_verify,
-	[VERIFY_12] = blockio_exec_verify,
-	[VERIFY_16] = blockio_exec_verify,
+	[VERIFY] = vdev_exec_verify,
+	[VERIFY_12] = vdev_exec_verify,
+	[VERIFY_16] = vdev_exec_verify,
 	SHARED_OPS
 };
 
@@ -1441,9 +1440,9 @@ static vdisk_op_fn fileio_ops[256] = {
 	[WRITE_VERIFY] = fileio_exec_write_verify,
 	[WRITE_VERIFY_12] = fileio_exec_write_verify,
 	[WRITE_VERIFY_16] = fileio_exec_write_verify,
-	[VERIFY] = fileio_exec_verify,
-	[VERIFY_12] = fileio_exec_verify,
-	[VERIFY_16] = fileio_exec_verify,
+	[VERIFY] = vdev_exec_verify,
+	[VERIFY_12] = vdev_exec_verify,
+	[VERIFY_16] = vdev_exec_verify,
 	SHARED_OPS
 };
 
@@ -4400,31 +4399,141 @@ out:
 	return res;
 }
 
-static enum compl_status_e fileio_exec_verify(struct vdisk_cmd_params *p)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
+static int blockio_end_sync_io(struct bio *bio, unsigned int bytes_done,
+			       int error)
+#else
+static void blockio_end_sync_io(struct bio *bio, int error)
+#endif
+{
+	struct completion *c = bio->bi_private;
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
+	if (bio->bi_size)
+		return 1;
+#endif
+
+	if (!bio_flagged(bio, BIO_UPTODATE) && error == 0) {
+		PRINT_ERROR("Not up to date bio with error 0; returning -EIO");
+		error = -EIO;
+	}
+
+	bio->bi_private = (void *)(unsigned long)error;
+	complete(c);
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
+	return 0;
+#else
+	return;
+#endif
+}
+
+static ssize_t blockio_rw_sync(struct scst_vdisk_dev *virt_dev, void *buf,
+			       size_t len, loff_t *loff, unsigned rw)
+{
+	DECLARE_COMPLETION_ONSTACK(c);
+	int block_shift = virt_dev->dev->block_shift;
+	struct block_device *bdev = virt_dev->bdev;
+	struct bio *bio;
+	void *p;
+	int max_nr_vecs, rc;
+	unsigned bytes, off;
+	ssize_t ret = -ENOMEM;
+
+	max_nr_vecs = min(bio_get_nr_vecs(bdev), BIO_MAX_PAGES);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+	bio = bio_kmalloc(GFP_KERNEL, max_nr_vecs);
+#else
+	bio = bio_alloc(GFP_KERNEL, max_nr_vecs);
+#endif
+
+	if (!bio)
+		goto out;
+
+	bio->bi_rw = rw;
+	bio->bi_bdev = bdev;
+	bio->bi_end_io = blockio_end_sync_io;
+	bio->bi_private = &c;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0)
+	bio->bi_sector = *loff << (block_shift - 9);
+#else
+	bio->bi_iter.bi_sector = *loff << (block_shift - 9);
+#endif
+	for (p = buf; p < buf + len; p += bytes) {
+		off = offset_in_page(p);
+		bytes = PAGE_SIZE - off;
+		rc = bio_add_page(bio, virt_to_page(p), bytes, off);
+		if (WARN_ON_ONCE(rc < bytes))
+			goto free;
+	}
+	submit_bio(rw, bio);
+	wait_for_completion(&c);
+	ret = (unsigned long)bio->bi_private ? : len;
+
+free:
+	bio_put(bio);
+
+out:
+	return ret;
+}
+
+static ssize_t fileio_read_sync(struct file *fd, void *buf, size_t len,
+				loff_t *loff)
+{
+	mm_segment_t old_fs;
+	ssize_t ret;
+
+	old_fs = get_fs();
+	set_fs(get_ds());
+
+	if (fd->f_op->llseek)
+		ret = fd->f_op->llseek(fd, *loff, 0/*SEEK_SET*/);
+	else
+		ret = default_llseek(fd, *loff, 0/*SEEK_SET*/);
+	if (ret < 0)
+		goto out;
+
+	ret = vfs_read(fd, (char __force __user *)buf, len, loff);
+
+out:
+	set_fs(old_fs);
+
+	return ret;
+}
+
+static ssize_t vdev_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
+			      size_t len, loff_t *loff)
+{
+	if (virt_dev->nullio)
+		return len;
+	else if (virt_dev->blockio)
+		return blockio_rw_sync(virt_dev, buf, len, loff, 0/*read*/);
+	else
+		return fileio_read_sync(virt_dev->fd, buf, len, loff);
+}
+
+static enum compl_status_e vdev_exec_verify(struct vdisk_cmd_params *p)
 {
 	struct scst_cmd *cmd = p->cmd;
 	loff_t loff = p->loff;
-	mm_segment_t old_fs;
 	loff_t err;
 	ssize_t length, len_mem = 0;
 	uint8_t *address_sav, *address = NULL;
 	int compare;
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
-	struct file *fd = virt_dev->fd;
 	uint8_t *mem_verify = NULL;
 	int64_t data_len = scst_cmd_get_data_len(cmd);
 
 	TRACE_ENTRY();
-
-	sBUG_ON(virt_dev->blockio);
 
 	if (vdisk_fsync(loff, data_len, cmd->dev,
 			cmd->cmd_gfp_mask, cmd, false) != 0)
 		goto out;
 
 	/*
-	 * Until the cache is cleared prior the verifying, there is not
-	 * much point in this code. ToDo.
+	 * For file I/O, unless the cache is cleared prior the verifying,
+	 * there is not much point in this code. ToDo.
 	 *
 	 * Nevertherless, this code is valuable if the data have not been read
 	 * from the file/disk yet.
@@ -4434,31 +4543,12 @@ static enum compl_status_e fileio_exec_verify(struct vdisk_cmd_params *p)
 	TRACE_DBG("VERIFY with BYTCHK=%d at offset %lld and len %lld\n",
 		  compare, loff, (long long)data_len);
 
-	/* SEEK */
-	old_fs = get_fs();
-	set_fs(get_ds());
-
-	if (!virt_dev->nullio) {
-		if (fd->f_op->llseek)
-			err = fd->f_op->llseek(fd, loff, 0/*SEEK_SET*/);
-		else
-			err = default_llseek(fd, loff, 0/*SEEK_SET*/);
-		if (err != loff) {
-			PRINT_ERROR("lseek trouble %lld != %lld",
-				    (long long unsigned int)err,
-				    (long long unsigned int)loff);
-			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_read_error));
-			goto out_set_fs;
-		}
-	}
-
 	mem_verify = vmalloc(LEN_MEM);
 	if (mem_verify == NULL) {
 		PRINT_ERROR("Unable to allocate memory %d for verify",
 			       LEN_MEM);
 		scst_set_busy(cmd);
-		goto out_set_fs;
+		goto out;
 	}
 
 	if (compare) {
@@ -4471,11 +4561,7 @@ static enum compl_status_e fileio_exec_verify(struct vdisk_cmd_params *p)
 		len_mem = (length > LEN_MEM) ? LEN_MEM : length;
 		TRACE_DBG("Verify: length %zd - len_mem %zd", length, len_mem);
 
-		if (!virt_dev->nullio)
-			err = vfs_read(fd, (char __force __user *)mem_verify,
-				       len_mem, &loff);
-		else
-			err = len_mem;
+		err = vdev_read_sync(virt_dev, mem_verify, len_mem, &loff);
 		if ((err < 0) || (err < len_mem)) {
 			PRINT_ERROR("verify() returned %lld from %zd",
 				    (long long unsigned int)err, len_mem);
@@ -4487,14 +4573,14 @@ static enum compl_status_e fileio_exec_verify(struct vdisk_cmd_params *p)
 			}
 			if (compare)
 				scst_put_buf(cmd, address_sav);
-			goto out_set_fs;
+			goto out_free;
 		}
 		if (compare && memcmp(address, mem_verify, len_mem) != 0) {
 			TRACE_DBG("Verify: error memcmp length %zd", length);
 			scst_set_cmd_error(cmd,
 			    SCST_LOAD_SENSE(scst_sense_miscompare_error));
 			scst_put_buf(cmd, address_sav);
-			goto out_set_fs;
+			goto out_free;
 		}
 		length -= len_mem;
 		if (compare)
@@ -4512,8 +4598,7 @@ static enum compl_status_e fileio_exec_verify(struct vdisk_cmd_params *p)
 		    SCST_LOAD_SENSE(scst_sense_hardw_error));
 	}
 
-out_set_fs:
-	set_fs(old_fs);
+out_free:
 	if (mem_verify)
 		vfree(mem_verify);
 
@@ -4529,18 +4614,12 @@ static enum compl_status_e blockio_exec_write_verify(struct vdisk_cmd_params *p)
 	return blockio_exec_write(p);
 }
 
-static enum compl_status_e blockio_exec_verify(struct vdisk_cmd_params *p)
-{
-	/* Not yet implemented */
-	return CMD_SUCCEEDED;
-}
-
 static enum compl_status_e fileio_exec_write_verify(struct vdisk_cmd_params *p)
 {
 	fileio_exec_write(p);
 	/* O_DSYNC flag is used for WT devices */
 	if (scsi_status_is_good(p->cmd->status))
-		fileio_exec_verify(p);
+		vdev_exec_verify(p);
 	return CMD_SUCCEEDED;
 }
 
