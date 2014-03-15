@@ -277,7 +277,7 @@ static enum compl_status_e vdisk_exec_read_toc(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_prevent_allow_medium_removal(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_unmap(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_write_same(struct vdisk_cmd_params *p);
-static int vdisk_fsync(struct vdisk_cmd_params *p, loff_t loff,
+static int vdisk_fsync(loff_t loff,
 	loff_t len, struct scst_device *dev, gfp_t gfp_flags,
 	struct scst_cmd *cmd, bool async);
 #ifdef CONFIG_SCST_PROC
@@ -1141,12 +1141,12 @@ static enum compl_status_e vdisk_synchronize_cache(struct vdisk_cmd_params *p)
 		cmd->completed = 1;
 		cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT,
 				   SCST_CONTEXT_SAME);
-		vdisk_fsync(p, loff, data_len, dev, cmd->cmd_gfp_mask, NULL, true);
+		vdisk_fsync(loff, data_len, dev, cmd->cmd_gfp_mask, NULL, true);
 		/* ToDo: vdisk_fsync() error processing */
 		scst_cmd_put(cmd);
 		res = RUNNING_ASYNC;
 	} else {
-		vdisk_fsync(p, loff, data_len, dev, cmd->cmd_gfp_mask, cmd, true);
+		vdisk_fsync(loff, data_len, dev, cmd->cmd_gfp_mask, cmd, true);
 		res = RUNNING_ASYNC;
 	}
 
@@ -1162,7 +1162,7 @@ static enum compl_status_e vdisk_exec_start_stop(struct vdisk_cmd_params *p)
 
 	TRACE_ENTRY();
 
-	vdisk_fsync(p, 0, virt_dev->file_size, dev, cmd->cmd_gfp_mask, cmd, false);
+	vdisk_fsync(0, virt_dev->file_size, dev, cmd->cmd_gfp_mask, cmd, false);
 
 	TRACE_EXIT();
 	return CMD_SUCCEEDED;
@@ -3641,7 +3641,7 @@ static enum compl_status_e vdisk_exec_prevent_allow_medium_removal(struct vdisk_
 	return CMD_SUCCEEDED;
 }
 
-static int vdisk_fsync_blockio(struct vdisk_cmd_params *p, loff_t loff,
+static int vdisk_fsync_blockio(loff_t loff,
 	loff_t len, struct scst_device *dev, gfp_t gfp_flags,
 	struct scst_cmd *cmd, bool async)
 {
@@ -3664,7 +3664,7 @@ static int vdisk_fsync_blockio(struct vdisk_cmd_params *p, loff_t loff,
 	return res;
 }
 
-static int vdisk_fsync_fileio(struct vdisk_cmd_params *p, loff_t loff,
+static int vdisk_fsync_fileio(loff_t loff,
 	loff_t len, struct scst_device *dev, struct scst_cmd *cmd, bool async)
 {
 	int res;
@@ -3715,7 +3715,7 @@ static int vdisk_fsync_fileio(struct vdisk_cmd_params *p, loff_t loff,
 	return res;
 }
 
-static int vdisk_fsync(struct vdisk_cmd_params *p, loff_t loff,
+static int vdisk_fsync(loff_t loff,
 	loff_t len, struct scst_device *dev, gfp_t gfp_flags,
 	struct scst_cmd *cmd, bool async)
 {
@@ -3741,9 +3741,9 @@ static int vdisk_fsync(struct vdisk_cmd_params *p, loff_t loff,
 	}
 
 	if (virt_dev->blockio)
-		res = vdisk_fsync_blockio(p, loff, len, dev, gfp_flags, cmd, async);
+		res = vdisk_fsync_blockio(loff, len, dev, gfp_flags, cmd, async);
 	else
-		res = vdisk_fsync_fileio(p, loff, len, dev, cmd, async);
+		res = vdisk_fsync_fileio(loff, len, dev, cmd, async);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -4034,7 +4034,7 @@ restart:
 out_sync:
 	/* O_DSYNC flag is used for WT devices */
 	if (p->fua)
-		vdisk_fsync(p, loff, scst_cmd_get_data_len(cmd), cmd->dev,
+		vdisk_fsync(loff, scst_cmd_get_data_len(cmd), cmd->dev,
 			    cmd->cmd_gfp_mask, cmd, false);
 out:
 	TRACE_EXIT();
@@ -4418,7 +4418,7 @@ static enum compl_status_e fileio_exec_verify(struct vdisk_cmd_params *p)
 
 	sBUG_ON(virt_dev->blockio);
 
-	if (vdisk_fsync(p, loff, data_len, cmd->dev,
+	if (vdisk_fsync(loff, data_len, cmd->dev,
 			cmd->cmd_gfp_mask, cmd, false) != 0)
 		goto out;
 
