@@ -175,7 +175,8 @@ Get rid of sparse errors on sk_buff.protocol.
 EOF
     fi
     if [ "${1#3.13}" != "$1" ]; then
-      patch -f -s -p1 <<'EOF'
+      if [ "$1" = "3.13" ] || [ "${1#3.13.}" -lt 6 ]; then
+        patch -f -s -p1 <<'EOF'
 From 7b4ec8dd7d4ac467e9eee4d49f2c9574d773efbb Mon Sep 17 00:00:00 2001
 From: Johannes Berg <johannes.berg@intel.com>
 Date: Thu, 16 Jan 2014 10:18:48 +1030
@@ -212,6 +213,7 @@ index 3f2793d..96e45ea 100644
  	__used							\
  	__attribute__((section("___ksymtab" sec "+" #sym), unused))	\
 EOF
+      fi
     fi
   )
   rmdir "${tmpdir}"
