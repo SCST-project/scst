@@ -113,7 +113,7 @@ src/Module.symvers src/Modules.symvers: $(SCST_SYMVERS_DIR)/$(MODULE_SYMVERS)
 	         "installed.";                                              \
 	    false;                                                          \
 	  else                                                              \
-	    echo "  Building against non-OFED InfiniBand kernel headers.";  \
+	    echo "  Building against in-tree InfiniBand kernel headers.";   \
 	    cp $< $@;                                                       \
 	  fi;                                                               \
 	fi
