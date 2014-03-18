@@ -2132,6 +2132,10 @@ static int srpt_compl_thread(void *arg)
 			break;
 		schedule_timeout(HZ / 10);
 	}
+	if (!ch->last_wqe_received) {
+		schedule_timeout(HZ);
+		srpt_process_completion(ch);
+	}
 	set_current_state(TASK_RUNNING);
 
 	TRACE_DBG("ch %s: about to invoke scst_unregister_session()",
