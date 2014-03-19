@@ -241,16 +241,9 @@ int isert_conn_alloc(struct iscsi_session *session,
 	if (unlikely(res))
 		goto cleanup_conn;
 
-#ifndef CONFIG_SCST_PROC
-	res = conn_sysfs_add(conn);
-	if (unlikely(res))
-		goto cleanup_iscsi_conn;
-#endif
-
 	conn->rd_state = 1;
 	isert_dev_release(dev);
 
-	list_add_tail(&conn->conn_list_entry, &session->conn_list);
 	res = isert_login_rsp_tx(cmnd, true, false);
 	vunmap(dev->sg_virt);
 	dev->sg_virt = NULL;
@@ -258,12 +251,19 @@ int isert_conn_alloc(struct iscsi_session *session,
 	if (unlikely(res))
 		goto cleanup_iscsi_conn;
 
+#ifndef CONFIG_SCST_PROC
+	res = conn_sysfs_add(conn);
+	if (unlikely(res))
+		goto cleanup_iscsi_conn;
+#endif
+
+	list_add_tail(&conn->conn_list_entry, &session->conn_list);
+
 	goto out;
 
 cleanup_iscsi_conn:
 	if (conn->nop_in_interval > 0)
 		cancel_delayed_work_sync(&conn->nop_in_delayed_work);
-	list_del(&conn->conn_list_entry);
 cleanup_conn:
 	conn->session = NULL;
 	isert_close_connection(conn);
