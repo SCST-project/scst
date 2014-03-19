@@ -322,7 +322,38 @@ following entries:
    complete, an management tool should poll this file. If the operation
    hasn't yet completed, it will also return EAGAIN. But after it's
    completed, it will return the result of this operation (0 for success
-   or -errno for error).
+   or -errno for error). The following two shell functions show how to do
+   this:
+
+# Read the SCST sysfs attribute $1. See also scst/README for more information.
+scst_sysfs_read() {
+    local EAGAIN val
+
+    EAGAIN="Resource temporarily unavailable"
+    while true; do
+        if val="$(LC_ALL=C cat "$1" 2>&1)"; then
+            echo -n "${val%\[key\]}"
+            return 0
+	elif [ "${val/*: }" != "$EAGAIN" ]; then
+            return 1
+        fi
+        sleep 1
+    done
+}
+
+# Write $1 into the SCST sysfs attribute $2. See also scst/README for more
+# information.
+scst_sysfs_write() {
+    local EAGAIN status
+
+    EAGAIN="Resource temporarily unavailable"
+    if status="$(LC_ALL=C; (echo -n "$1" > "$2") 2>&1)"; then
+        return 0
+    elif [ "${status/*: }" != "$EAGAIN" ]; then
+        return 1
+    fi
+    scst_sysfs_read /sys/kernel/scst_tgt/last_sysfs_mgmt_res >/dev/null
+}
 
 "Devices" subdirectory contains subdirectories for each SCST devices.
 
