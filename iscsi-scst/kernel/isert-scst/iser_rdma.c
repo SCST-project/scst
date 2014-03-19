@@ -41,7 +41,6 @@
 #include "iser_datamover.h"
 
 #define ISER_CQ_ENTRIES		(128 * 1024)
-#define ISER_MAX_WCE		2048
 #define ISER_LISTEN_BACKLOG	8
 
 static DEFINE_MUTEX(dev_list_mutex);

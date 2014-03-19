@@ -381,6 +381,13 @@ int isert_alloc_conn_resources(struct isert_connection *isert_conn)
 	isert_conn->repost_threshold = 32;
 	to_alloc = isert_conn->queue_depth * 2 + isert_conn->repost_threshold;
 
+	if (unlikely(to_alloc > ISER_MAX_WCE)) {
+		pr_err("QueuedCommands larger than %d not supported\n",
+		       (ISER_MAX_WCE - isert_conn->repost_threshold) / 2);
+		err = -EINVAL;
+		goto out;
+	}
+
 	for (i = 0; i < to_alloc; i++) {
 		pdu = isert_rx_pdu_alloc(isert_conn, t_datasz);
 		if (unlikely(!pdu)) {

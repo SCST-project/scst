@@ -58,6 +58,7 @@ struct isert_wr {
 #define ISER_MAX_RDMAS		5
 
 #define ISER_SQ_SIZE		128
+#define ISER_MAX_WCE		2048
 
 struct isert_cmnd {
 	struct iscsi_cmnd	iscsi ____cacheline_aligned;
