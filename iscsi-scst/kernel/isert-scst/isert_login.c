@@ -243,6 +243,7 @@ int isert_conn_alloc(struct iscsi_session *session,
 
 	conn->rd_state = 1;
 	isert_dev_release(dev);
+	isert_set_priv(conn, NULL);
 
 	res = isert_login_rsp_tx(cmnd, true, false);
 	vunmap(dev->sg_virt);
@@ -262,6 +263,7 @@ int isert_conn_alloc(struct iscsi_session *session,
 	goto out;
 
 cleanup_iscsi_conn:
+	conn->rd_state = 0;
 	if (conn->nop_in_interval > 0)
 		cancel_delayed_work_sync(&conn->nop_in_delayed_work);
 cleanup_conn:
