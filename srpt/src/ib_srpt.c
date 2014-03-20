@@ -2009,30 +2009,45 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 		srpt_process_wait_list(ch);
 }
 
-static void srpt_poll(struct srpt_rdma_ch *ch)
+static void srpt_process_one_compl(struct srpt_rdma_ch *ch, struct ib_wc *wc)
+{
+	struct ib_cq *const cq = ch->cq;
+
+	if (opcode_from_wr_id(wc->wr_id) == SRPT_RECV)
+		srpt_process_rcv_completion(cq, ch, wc);
+	else
+		srpt_process_send_completion(cq, ch, wc);
+}
+
+static int srpt_poll(struct srpt_rdma_ch *ch, int budget)
 {
 	struct ib_cq *const cq = ch->cq;
 	struct ib_wc *const wc = ch->wc;
-	int i, n;
+	int i, n, processed = 0;
 
-	while ((n = ib_poll_cq(cq, ARRAY_SIZE(ch->wc), wc)) > 0) {
-		for (i = 0; i < n; i++) {
-			if (opcode_from_wr_id(wc[i].wr_id) == SRPT_RECV)
-				srpt_process_rcv_completion(cq, ch, &wc[i]);
-			else
-				srpt_process_send_completion(cq, ch, &wc[i]);
-		}
+	while ((n = ib_poll_cq(cq, min_t(int, ARRAY_SIZE(ch->wc), budget),
+			       wc)) > 0) {
+		for (i = 0; i < n; i++)
+			srpt_process_one_compl(ch, &wc[i]);
+		budget -= n;
+		processed += n;
 	}
+
+	return processed;
 }
 
-static void srpt_process_completion(struct srpt_rdma_ch *ch)
+static int srpt_process_completion(struct srpt_rdma_ch *ch, int budget)
 {
 	struct ib_cq *const cq = ch->cq;
+	int processed = 0, n = budget;
 
 	do {
-		srpt_poll(ch);
-	} while (ib_req_notify_cq(cq, IB_CQ_NEXT_COMP |
-				      IB_CQ_REPORT_MISSED_EVENTS) > 0);
+		processed += srpt_poll(ch, n);
+		n = ib_req_notify_cq(cq, IB_CQ_NEXT_COMP |
+				     IB_CQ_REPORT_MISSED_EVENTS);
+	} while (n > 0);
+
+	return processed;
 }
 
 /**
@@ -2042,7 +2057,6 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 {
 	struct srpt_rdma_ch *ch = ctx;
 
-	BUG_ON(!ch->thread);
 	wake_up_process(ch->thread);
 }
 
@@ -2105,6 +2119,7 @@ static void srpt_unreg_sess(struct scst_session *scst_sess)
 
 static int srpt_compl_thread(void *arg)
 {
+	enum { poll_budget = 65536 };
 	struct srpt_rdma_ch *ch;
 
 	/* Hibernation / freezing of the SRPT kernel thread is not supported. */
@@ -2121,8 +2136,10 @@ static int srpt_compl_thread(void *arg)
 #endif
 #endif
 	while (!ch->last_wqe_received && ch->state <= CH_LIVE) {
-		srpt_process_completion(ch);
-		schedule();
+		if (srpt_process_completion(ch, poll_budget) >= poll_budget)
+			cond_resched();
+		else
+			schedule();
 		set_current_state(TASK_INTERRUPTIBLE);
 	}
 	set_current_state(TASK_RUNNING);
@@ -2133,14 +2150,14 @@ static int srpt_compl_thread(void *arg)
 	 */
 	for (;;) {
 		set_current_state(TASK_INTERRUPTIBLE);
-		srpt_process_completion(ch);
+		srpt_process_completion(ch, poll_budget);
 		if (atomic_read(&ch->scst_sess->sess_cmd_count) == 0)
 			break;
 		schedule_timeout(HZ / 10);
 	}
 	if (!ch->last_wqe_received) {
 		schedule_timeout(HZ);
-		srpt_process_completion(ch);
+		srpt_process_completion(ch, poll_budget);
 	}
 	set_current_state(TASK_RUNNING);
 
@@ -3191,12 +3208,16 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 		wr.num_sge = 0;
 		wr.wr_id = encode_wr_id(SRPT_RDMA_ABORT, ioctx->ioctx.index);
 		wr.send_flags = IB_SEND_SIGNALED;
+		PRINT_INFO("Trying to abort failed RDMA transfer [%d]",
+			   ioctx->ioctx.index);
 		while (ch->state == CH_LIVE &&
 		       ib_post_send(ch->qp, &wr, &bad_wr) != 0) {
 			PRINT_INFO("Trying to abort failed RDMA transfer [%d]",
 				   ioctx->ioctx.index);
 			msleep(1000);
 		}
+		PRINT_INFO("Waiting until RDMA abort finished [%d]",
+			   ioctx->ioctx.index);
 		while (ch->state != CH_DRAINING && !ioctx->rdma_aborted) {
 			PRINT_INFO("Waiting until RDMA abort finished [%d]",
 				   ioctx->ioctx.index);
