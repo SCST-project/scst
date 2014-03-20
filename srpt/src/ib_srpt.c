@@ -1688,18 +1688,15 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch,
 	scst_data_direction dir;
 	u64 data_len;
 	int ret;
-	int atomic;
 
 	BUG_ON(!send_ioctx);
 
 	srp_cmd = recv_ioctx->ioctx.buf;
 
-	atomic = context == SCST_CONTEXT_TASKLET ? SCST_ATOMIC
-		 : SCST_NON_ATOMIC;
 	scmnd = &send_ioctx->scmnd;
 	ret = scst_rx_cmd_prealloced(scmnd, ch->scst_sess, (u8 *) &srp_cmd->lun,
 				     sizeof(srp_cmd->lun), srp_cmd->cdb,
-				     sizeof(srp_cmd->cdb), atomic);
+				     sizeof(srp_cmd->cdb), in_interrupt());
 	if (ret) {
 		PRINT_ERROR("tag 0x%llx: SCST command initialization failed",
 			    srp_cmd->tag);
