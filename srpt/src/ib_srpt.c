@@ -2367,6 +2367,7 @@ static void srpt_drain_channel(struct ib_cm_id *cm_id)
 
 static void __srpt_close_all_ch(struct srpt_tgt *srpt_tgt)
 {
+	struct srpt_nexus *nexus;
 	struct srpt_rdma_ch *ch;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
@@ -2374,14 +2375,16 @@ static void __srpt_close_all_ch(struct srpt_tgt *srpt_tgt)
 #endif
 
 restart:
-	list_for_each_entry(ch, &srpt_tgt->rch_list, list) {
-		if (ch->state >= CH_DISCONNECTING)
-			continue;
-		PRINT_INFO("Closing channel %s because target %s has been"
-			   " disabled", ch->sess_name,
-			   srpt_tgt->scst_tgt->tgt_name);
-		WARN_ON_ONCE(!__srpt_close_ch(ch));
-		goto restart;
+	list_for_each_entry(nexus, &srpt_tgt->nexus_list, entry) {
+		list_for_each_entry(ch, &nexus->ch_list, list) {
+			if (ch->state >= CH_DISCONNECTING)
+				continue;
+			PRINT_INFO("Closing channel %s because target %s has"
+				   " been disabled", ch->sess_name,
+				   srpt_tgt->scst_tgt->tgt_name);
+			WARN_ON_ONCE(!__srpt_close_ch(ch));
+			goto restart;
+		}
 	}
 }
 
@@ -2399,6 +2402,48 @@ static struct srpt_tgt *srpt_convert_scst_tgt(struct scst_tgt *scst_tgt)
 		srpt_tgt = sdev ? &sdev->srpt_tgt : NULL;
 	}
 	return srpt_tgt;
+}
+
+/*
+ * Look up (i_port_id, t_port_id) in srpt_tgt->nexus_list. Create an entry if
+ * it does not yet exist.
+ */
+static struct srpt_nexus *srpt_get_nexus(struct srpt_tgt *srpt_tgt,
+					 u8 i_port_id[16], u8 t_port_id[16])
+{
+	unsigned long flags;
+	struct srpt_nexus *nexus = NULL, *tmp_nexus = NULL, *n;
+
+	for (;;) {
+		spin_lock_irqsave(&srpt_tgt->spinlock, flags);
+		list_for_each_entry(n, &srpt_tgt->nexus_list, entry) {
+			if (memcmp(n->i_port_id, i_port_id, 16) == 0 &&
+			    memcmp(n->t_port_id, t_port_id, 16) == 0) {
+				nexus = n;
+				break;
+			}
+		}
+		if (!nexus && tmp_nexus) {
+			list_add_tail(&tmp_nexus->entry, &srpt_tgt->nexus_list);
+			swap(nexus, tmp_nexus);
+		}
+		spin_unlock_irqrestore(&srpt_tgt->spinlock, flags);
+
+		if (nexus)
+			break;
+		tmp_nexus = kzalloc(sizeof(*nexus), GFP_KERNEL);
+		if (!tmp_nexus) {
+			nexus = ERR_PTR(-ENOMEM);
+			break;
+		}
+		INIT_LIST_HEAD(&tmp_nexus->ch_list);
+		memcpy(tmp_nexus->i_port_id, i_port_id, 16);
+		memcpy(tmp_nexus->t_port_id, t_port_id, 16);
+	}
+
+	kfree(tmp_nexus);
+
+	return nexus;
 }
 
 #if !defined(CONFIG_SCST_PROC)
@@ -2455,10 +2500,11 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	struct srpt_port *const sport = &sdev->port[param->port - 1];
 	struct srpt_tgt *const srpt_tgt = one_target_per_port ?
 					  &sport->srpt_tgt : &sdev->srpt_tgt;
+	struct srpt_nexus *nexus;
 	struct srp_login_req *req;
-	struct srp_login_rsp *rsp;
-	struct srp_login_rej *rej;
-	struct ib_cm_rep_param *rep_param;
+	struct srp_login_rsp *rsp = NULL;
+	struct srp_login_rej *rej = NULL;
+	struct ib_cm_rep_param *rep_param = NULL;
 	struct srpt_rdma_ch *ch = NULL;
 	struct task_struct *thread;
 	u32 it_iu_len;
@@ -2512,6 +2558,13 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	    be16_to_cpu(*(__be16 *)&sdev->port[param->port - 1].gid.raw[12]),
 	    be16_to_cpu(*(__be16 *)&sdev->port[param->port - 1].gid.raw[14]));
 
+	nexus = srpt_get_nexus(srpt_tgt, req->initiator_port_id,
+			       req->target_port_id);
+	if (IS_ERR(nexus)) {
+		ret = PTR_ERR(nexus);
+		goto out;
+	}
+
 	ret = -ENOMEM;
 	rsp = kzalloc(sizeof(*rsp), GFP_KERNEL);
 	rej = kzalloc(sizeof(*rej), GFP_KERNEL);
@@ -2564,8 +2617,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		PRINT_ERROR("Translating pkey %#x failed (%d) - using index 0",
 			    be16_to_cpu(param->primary_path->pkey), ret);
 	}
-	memcpy(ch->i_port_id, req->initiator_port_id, 16);
-	memcpy(ch->t_port_id, req->target_port_id, 16);
+	ch->nexus = nexus;
 	ch->sport = sport;
 	ch->srpt_tgt = srpt_tgt;
 	ch->cm_id = cm_id;
@@ -2627,7 +2679,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 			 "0x%016llx%016llx",
 			 be64_to_cpu(*(__be64 *)
 				&sdev->port[param->port - 1].gid.raw[8]),
-			 be64_to_cpu(*(__be64 *)(ch->i_port_id + 8)));
+			 be64_to_cpu(*(__be64 *)(nexus->i_port_id + 8)));
 	} else {
 		/*
 		 * Default behavior: use the initiator port identifier as the
@@ -2635,16 +2687,16 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		 */
 		snprintf(ch->sess_name, sizeof(ch->sess_name),
 			 "0x%016llx%016llx",
-			 be64_to_cpu(*(__be64 *)ch->i_port_id),
-			 be64_to_cpu(*(__be64 *)(ch->i_port_id + 8)));
+			 be64_to_cpu(*(__be64 *)nexus->i_port_id),
+			 be64_to_cpu(*(__be64 *)(nexus->i_port_id + 8)));
 	}
 
 	TRACE_DBG("registering session %s", ch->sess_name);
 
 	BUG_ON(!srpt_tgt->scst_tgt);
 	ret = -ENOMEM;
-	ch->scst_sess = scst_register_session(srpt_tgt->scst_tgt, 0, ch->sess_name,
-					      ch, NULL, NULL);
+	ch->scst_sess = scst_register_session(srpt_tgt->scst_tgt, 0,
+					      ch->sess_name, ch, NULL, NULL);
 	if (!ch->scst_sess) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		TRACE_DBG("Failed to create SCST session");
@@ -2667,28 +2719,19 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 
 		rsp->rsp_flags = SRP_LOGIN_RSP_MULTICHAN_NO_CHAN;
 restart:
-		list_for_each_entry(ch2, &srpt_tgt->rch_list, list) {
-			if (!memcmp(ch2->i_port_id, req->initiator_port_id, 16)
-			    && param->port == ch2->sport->port
-			    && param->listen_id == ch2->sport->sdev->cm_id) {
-				if (!__srpt_close_ch(ch2))
-					continue;
-
-				PRINT_INFO("Relogin - closed existing channel"
-					   " %s; cm_id = %p", ch2->sess_name,
-					   ch2->cm_id);
-
-				rsp->rsp_flags =
-					SRP_LOGIN_RSP_MULTICHAN_TERMINATED;
-
-				goto restart;
-			}
+		list_for_each_entry(ch2, &nexus->ch_list, list) {
+			if (!__srpt_close_ch(ch2))
+				continue;
+			PRINT_INFO("Relogin - closed existing channel %s",
+				   ch2->sess_name);
+			rsp->rsp_flags = SRP_LOGIN_RSP_MULTICHAN_TERMINATED;
+			goto restart;
 		}
 	} else {
 		rsp->rsp_flags = SRP_LOGIN_RSP_MULTICHAN_MAINTAINED;
 	}
 
-	list_add_tail(&ch->list, &srpt_tgt->rch_list);
+	list_add_tail(&ch->list, &nexus->ch_list);
 	ch->thread = thread;
 
 	if (!srpt_tgt->enabled) {
@@ -3496,7 +3539,8 @@ static int srpt_get_initiator_port_transport_id(struct scst_tgt *tgt,
 
 	res = 0;
 	tr_id->protocol_identifier = SCSI_TRANSPORTID_PROTOCOLID_SRP;
-	memcpy(tr_id->i_port_id, ch->i_port_id, sizeof(ch->i_port_id));
+	memcpy(tr_id->i_port_id, ch->nexus->i_port_id,
+	       sizeof(tr_id->i_port_id));
 
 	*transport_id = (uint8_t *)tr_id;
 
@@ -3560,12 +3604,15 @@ static int srpt_close_session(struct scst_session *sess)
 	return 0;
 }
 
-static int srpt_ch_list_empty(struct srpt_tgt *srpt_tgt)
+static bool srpt_ch_list_empty(struct srpt_tgt *srpt_tgt)
 {
-	int res;
+	struct srpt_nexus *nexus;
+	bool res = true;
 
 	spin_lock_irq(&srpt_tgt->spinlock);
-	res = list_empty(&srpt_tgt->rch_list);
+	list_for_each_entry(nexus, &srpt_tgt->nexus_list, entry)
+		if (!list_empty(&nexus->ch_list))
+			res = false;
 	spin_unlock_irq(&srpt_tgt->spinlock);
 
 	return res;
@@ -3576,6 +3623,7 @@ static int srpt_ch_list_empty(struct srpt_tgt *srpt_tgt)
  */
 static int srpt_release_sport(struct srpt_tgt *srpt_tgt)
 {
+	struct srpt_nexus *nexus, *next_n;
 	struct srpt_rdma_ch *ch;
 
 	TRACE_ENTRY();
@@ -3594,13 +3642,23 @@ static int srpt_release_sport(struct srpt_tgt *srpt_tgt)
 		PRINT_INFO("%s: waiting for session unregistration ...",
 			   srpt_tgt->scst_tgt->tgt_name);
 		spin_lock_irq(&srpt_tgt->spinlock);
-		list_for_each_entry(ch, &srpt_tgt->rch_list, list) {
-			PRINT_INFO("%s: state %s; %d commands in progress",
-				   ch->sess_name, get_ch_state_name(ch->state),
+		list_for_each_entry(nexus, &srpt_tgt->nexus_list, entry) {
+			list_for_each_entry(ch, &nexus->ch_list, list) {
+				PRINT_INFO("%s: state %s; %d commands in"
+					   " progress", ch->sess_name,
+					   get_ch_state_name(ch->state),
 				   atomic_read(&ch->scst_sess->sess_cmd_count));
+			}
 		}
 		spin_unlock_irq(&srpt_tgt->spinlock);
 	}
+
+	spin_lock_irq(&srpt_tgt->spinlock);
+	list_for_each_entry_safe(nexus, next_n, &srpt_tgt->nexus_list, entry) {
+		list_del(&nexus->entry);
+		kfree(nexus);
+	}
+	spin_unlock_irq(&srpt_tgt->spinlock);
 
 	TRACE_EXIT();
 	return 0;
@@ -3845,7 +3903,7 @@ static struct scst_proc_data srpt_log_proc_data = {
 /* Note: the caller must have zero-initialized *@srpt_tgt. */
 static void srpt_init_tgt(struct srpt_tgt *srpt_tgt)
 {
-	INIT_LIST_HEAD(&srpt_tgt->rch_list);
+	INIT_LIST_HEAD(&srpt_tgt->nexus_list);
 	init_waitqueue_head(&srpt_tgt->ch_releaseQ);
 	spin_lock_init(&srpt_tgt->spinlock);
 }
