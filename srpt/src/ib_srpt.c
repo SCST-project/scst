@@ -181,7 +181,6 @@ static void srpt_unregister_procfs_entry(struct scst_tgt_template *tgt);
 #endif /*CONFIG_SCST_PROC*/
 static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 				    struct srpt_send_ioctx *ioctx);
-static void srpt_drain_channel(struct ib_cm_id *cm_id);
 static void srpt_destroy_ch_ib(struct srpt_rdma_ch *ch);
 
 static bool srpt_set_ch_state(struct srpt_rdma_ch *ch, enum rdma_ch_state new)
@@ -329,8 +328,6 @@ static const char *get_ch_state_name(enum rdma_ch_state s)
 		return "live";
 	case CH_DISCONNECTING:
 		return "disconnecting";
-	case CH_DRAINING:
-		return "draining";
 	}
 	return "???";
 }
@@ -2037,19 +2034,6 @@ static void srpt_unreg_sess(struct scst_session *scst_sess)
 			     ch->max_rsp_size, DMA_TO_DEVICE);
 
 	/*
-	 * Note: if a DREQ is received after ch->dreq_received has been read,
-	 * ib_destroy_cm_id() will send a DREP.
-	 *
-	 */
-	if (ch->dreq_received) {
-		if (ib_send_cm_drep(ch->cm_id, NULL, 0) >= 0)
-			PRINT_INFO("Received DREQ and sent DREP for session %s",
-				   ch->sess_name);
-		else
-			PRINT_ERROR("Sending DREP failed");
-	}
-
-	/*
 	 * If the connection is still established, ib_destroy_cm_id() will
 	 * send a DREQ.
 	 */
@@ -2251,8 +2235,9 @@ static bool __srpt_close_ch(struct srpt_rdma_ch *ch)
 
 		ret = srpt_ch_qp_err(ch);
 		if (ret < 0)
-			PRINT_ERROR("Setting queue pair in error state"
-			       " failed: %d", ret);
+			PRINT_ERROR("%s: changing queue pair into error state"
+				    " failed: %d", ch->sess_name, ret);
+
 		kref_put(&ch->kref, srpt_free_ch);
 
 		spin_lock_irq(&srpt_tgt->spinlock);
@@ -2273,34 +2258,6 @@ static void srpt_close_ch(struct srpt_rdma_ch *ch)
 	spin_unlock_irq(&srpt_tgt->spinlock);
 }
 
-/**
- * srpt_drain_channel() - Drain a channel by resetting the IB queue pair.
- * @cm_id: Pointer to the CM ID of the channel to be drained.
- *
- * Note: Must be called from inside srpt_cm_handler to avoid a race between
- * accessing sdev->spinlock and the call to kfree(sdev) in srpt_remove_one()
- * (the caller of srpt_cm_handler holds the cm_id spinlock; srpt_remove_one()
- * waits until all target sessions for the associated IB device have been
- * unregistered and target session registration involves a call to
- * ib_destroy_cm_id(), which locks the cm_id spinlock and hence waits until
- * this function has finished).
- */
-static void srpt_drain_channel(struct ib_cm_id *cm_id)
-{
-	struct srpt_rdma_ch *ch;
-	int ret;
-
-	WARN_ON_ONCE(irqs_disabled());
-
-	ch = cm_id->context;
-	if (srpt_set_ch_state(ch, CH_DRAINING)) {
-		ret = srpt_ch_qp_err(ch);
-		if (ret < 0)
-			PRINT_ERROR("Setting queue pair in error state"
-			       " failed: %d", ret);
-	}
-}
-
 static void __srpt_close_all_ch(struct srpt_tgt *srpt_tgt)
 {
 	struct srpt_nexus *nexus;
@@ -2313,12 +2270,11 @@ static void __srpt_close_all_ch(struct srpt_tgt *srpt_tgt)
 restart:
 	list_for_each_entry(nexus, &srpt_tgt->nexus_list, entry) {
 		list_for_each_entry(ch, &nexus->ch_list, list) {
-			if (ch->state >= CH_DISCONNECTING)
+			if (ib_send_cm_dreq(ch->cm_id, NULL, 0) < 0)
 				continue;
 			PRINT_INFO("Closing channel %s because target %s has"
 				   " been disabled", ch->sess_name,
 				   srpt_tgt->scst_tgt->tgt_name);
-			WARN_ON_ONCE(!__srpt_close_ch(ch));
 			goto restart;
 		}
 	}
@@ -2656,7 +2612,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		rsp->rsp_flags = SRP_LOGIN_RSP_MULTICHAN_NO_CHAN;
 restart:
 		list_for_each_entry(ch2, &nexus->ch_list, list) {
-			if (!__srpt_close_ch(ch2))
+			if (ib_send_cm_dreq(ch2->cm_id, NULL, 0) < 0)
 				continue;
 			PRINT_INFO("Relogin - closed existing channel %s",
 				   ch2->sess_name);
@@ -2784,7 +2740,6 @@ out:
 static void srpt_cm_rej_recv(struct ib_cm_id *cm_id)
 {
 	PRINT_INFO("Received InfiniBand REJ packet for cm_id %p.", cm_id);
-	srpt_drain_channel(cm_id);
 }
 
 /**
@@ -2816,25 +2771,32 @@ static void srpt_cm_rtu_recv(struct ib_cm_id *cm_id)
 
 static void srpt_cm_timewait_exit(struct ib_cm_id *cm_id)
 {
+	struct srpt_rdma_ch *ch = cm_id->context;
+
 	PRINT_INFO("Received InfiniBand TimeWait exit for cm_id %p.", cm_id);
-	srpt_drain_channel(cm_id);
+	srpt_close_ch(ch);
 }
 
 static void srpt_cm_rep_error(struct ib_cm_id *cm_id)
 {
 	PRINT_INFO("Received InfiniBand REP error for cm_id %p.", cm_id);
-	srpt_drain_channel(cm_id);
 }
 
 /**
  * srpt_cm_dreq_recv() - Process reception of a DREQ message.
  */
-static void srpt_cm_dreq_recv(struct ib_cm_id *cm_id)
+static int srpt_cm_dreq_recv(struct ib_cm_id *cm_id)
 {
 	struct srpt_rdma_ch *ch = cm_id->context;
+	int ret;
 
-	ch->dreq_received = true;
-	srpt_set_ch_state(ch, CH_DISCONNECTING);
+	ret = ib_send_cm_drep(cm_id, NULL, 0);
+	if (ret < 0)
+		PRINT_ERROR("%s: sending DREP failed", ch->sess_name);
+
+	srpt_close_ch(ch);
+
+	return ret;
 }
 
 /**
@@ -2842,8 +2804,10 @@ static void srpt_cm_dreq_recv(struct ib_cm_id *cm_id)
  */
 static void srpt_cm_drep_recv(struct ib_cm_id *cm_id)
 {
+	struct srpt_rdma_ch *ch = cm_id->context;
+
 	PRINT_INFO("Received InfiniBand DREP message for cm_id %p.", cm_id);
-	srpt_drain_channel(cm_id);
+	srpt_close_ch(ch);
 }
 
 /**
@@ -2876,7 +2840,7 @@ static int srpt_cm_handler(struct ib_cm_id *cm_id, struct ib_cm_event *event)
 		srpt_cm_rtu_recv(cm_id);
 		break;
 	case IB_CM_DREQ_RECEIVED:
-		srpt_cm_dreq_recv(cm_id);
+		ret = srpt_cm_dreq_recv(cm_id);
 		break;
 	case IB_CM_DREP_RECEIVED:
 		srpt_cm_drep_recv(cm_id);
@@ -3204,7 +3168,7 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 		}
 		PRINT_INFO("Waiting until RDMA abort finished [%d]",
 			   ioctx->ioctx.index);
-		while (ch->state != CH_DRAINING && !ioctx->rdma_aborted) {
+		while (ch->state == CH_LIVE && !ioctx->rdma_aborted) {
 			PRINT_INFO("Waiting until RDMA abort finished [%d]",
 				   ioctx->ioctx.index);
 			msleep(1000);
@@ -3543,7 +3507,7 @@ static int srpt_close_session(struct scst_session *sess)
 {
 	struct srpt_rdma_ch *ch = scst_sess_get_tgt_priv(sess);
 
-	srpt_close_ch(ch);
+	ib_send_cm_dreq(ch->cm_id, NULL, 0);
 	return 0;
 }
 
