@@ -318,6 +318,7 @@ enum rdma_ch_state {
  * @ioctx_ring:    Send I/O context ring.
  * @wc:            Work completion array.
  * @state:         channel state. See also enum rdma_ch_state.
+ * @processing_wait_list: Whether or not cmd_wait_list is being processed.
  * @dreq_received: Whether an IB CM DREQ event has been received.
  * @last_wqe_received: Whether the Last WQE QP event has been received.
  * @list:          node for insertion in the srpt_device.rch_list list.
@@ -353,6 +354,7 @@ struct srpt_rdma_ch {
 	struct list_head	list;
 	struct list_head	cmd_wait_list;
 	uint16_t		pkey_index;
+	bool			processing_wait_list;
 	bool			dreq_received;
 	bool			last_wqe_received;
 

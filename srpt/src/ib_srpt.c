@@ -1837,11 +1837,12 @@ static u8 scst_to_srp_tsk_mgmt_status(const int scst_mgmt_status)
  * @recv_ioctx: SRPT I/O context associated with the information unit.
  * @context: SCST command processing context.
  */
-static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
-			       struct srpt_recv_ioctx *recv_ioctx,
-			       struct srpt_send_ioctx *send_ioctx,
-			       enum scst_exec_context context)
+static struct srpt_send_ioctx *
+srpt_handle_new_iu(struct srpt_rdma_ch *ch,
+		   struct srpt_recv_ioctx *recv_ioctx,
+		   enum scst_exec_context context)
 {
+	struct srpt_send_ioctx *send_ioctx = NULL;
 	struct srp_cmd *srp_cmd;
 
 	BUG_ON(!ch);
@@ -1852,20 +1853,17 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 				   DMA_FROM_DEVICE);
 
 	srp_cmd = recv_ioctx->ioctx.buf;
-	if (unlikely(ch->state == CH_CONNECTING)) {
-		list_add_tail(&recv_ioctx->wait_list, &ch->cmd_wait_list);
-		goto out;
-	}
+	if (unlikely(ch->state == CH_CONNECTING))
+		goto push;
 
 	if (srp_cmd->opcode == SRP_CMD || srp_cmd->opcode == SRP_TSK_MGMT) {
-		if (!send_ioctx)
-			send_ioctx = srpt_get_send_ioctx(ch);
-		if (unlikely(!send_ioctx)) {
-			list_add_tail(&recv_ioctx->wait_list,
-				      &ch->cmd_wait_list);
-			goto out;
-		}
+		send_ioctx = srpt_get_send_ioctx(ch);
+		if (unlikely(!send_ioctx))
+			goto push;
 	}
+
+	if (!list_empty(&recv_ioctx->wait_list))
+		list_del_init(&recv_ioctx->wait_list);
 
 	switch (srp_cmd->opcode) {
 	case SRP_CMD:
@@ -1893,8 +1891,15 @@ static void srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 	}
 
 	srpt_post_recv(ch->sport->sdev, recv_ioctx);
+
 out:
-	return;
+	return send_ioctx;
+
+push:
+	if (list_empty(&recv_ioctx->wait_list))
+		list_add_tail(&recv_ioctx->wait_list,
+			      &ch->cmd_wait_list);
+	goto out;
 }
 
 static void srpt_process_rcv_completion(struct ib_cq *cq,
@@ -1913,7 +1918,7 @@ static void srpt_process_rcv_completion(struct ib_cq *cq,
 		if (unlikely(req_lim < 0))
 			PRINT_ERROR("req_lim = %d < 0", req_lim);
 		ioctx = sdev->ioctx_ring[index];
-		srpt_handle_new_iu(ch, ioctx, NULL, srpt_new_iu_context);
+		srpt_handle_new_iu(ch, ioctx, srpt_new_iu_context);
 	} else {
 		PRINT_INFO("receiving failed for idx %u with status %d",
 			   index, wc->status);
@@ -1923,17 +1928,16 @@ static void srpt_process_rcv_completion(struct ib_cq *cq,
 static void srpt_process_wait_list(struct srpt_rdma_ch *ch)
 {
 	struct srpt_recv_ioctx *recv_ioctx, *tmp;
-	struct srpt_send_ioctx *send_ioctx;
+
+	ch->processing_wait_list = true;
 
 	list_for_each_entry_safe(recv_ioctx, tmp, &ch->cmd_wait_list,
 				 wait_list) {
-		send_ioctx = srpt_get_send_ioctx(ch);
-		if (!send_ioctx)
+		if (!srpt_handle_new_iu(ch, recv_ioctx, srpt_new_iu_context))
 			break;
-		list_del(&recv_ioctx->wait_list);
-		srpt_handle_new_iu(ch, recv_ioctx, send_ioctx,
-				   srpt_new_iu_context);
 	}
+
+	ch->processing_wait_list = false;
 }
 
 /**
@@ -1991,7 +1995,8 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 	}
 
 	if (unlikely(!list_empty(&ch->cmd_wait_list) &&
-		     ch->state != CH_CONNECTING))
+		     ch->state != CH_CONNECTING &&
+		     !ch->processing_wait_list))
 		srpt_process_wait_list(ch);
 }
 
@@ -3950,8 +3955,10 @@ static void srpt_add_one(struct ib_device *device)
 		goto err_event;
 	}
 
-	for (i = 0; i < sdev->srq_size; ++i)
+	for (i = 0; i < sdev->srq_size; ++i) {
+		INIT_LIST_HEAD(&sdev->ioctx_ring[i]->wait_list);
 		srpt_post_recv(sdev, sdev->ioctx_ring[i]);
+	}
 
 	WARN_ON(sdev->device->phys_port_cnt > ARRAY_SIZE(sdev->port));
 
