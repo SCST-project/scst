@@ -184,7 +184,7 @@ static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 static void srpt_drain_channel(struct ib_cm_id *cm_id);
 static void srpt_destroy_ch_ib(struct srpt_rdma_ch *ch);
 
-static enum rdma_ch_state srpt_set_ch_state_to_disc(struct srpt_rdma_ch *ch)
+static bool srpt_set_ch_state(struct srpt_rdma_ch *ch, enum rdma_ch_state new)
 {
 	unsigned long flags;
 	enum rdma_ch_state prev;
@@ -192,57 +192,7 @@ static enum rdma_ch_state srpt_set_ch_state_to_disc(struct srpt_rdma_ch *ch)
 
 	spin_lock_irqsave(&ch->spinlock, flags);
 	prev = ch->state;
-	switch (prev) {
-	case CH_CONNECTING:
-	case CH_LIVE:
-		ch->state = CH_DISCONNECTING;
-		wake_up_process(ch->thread);
-		changed = true;
-		break;
-	default:
-		break;
-	}
-	spin_unlock_irqrestore(&ch->spinlock, flags);
-
-	return prev;
-}
-
-static bool srpt_set_ch_state_to_draining(struct srpt_rdma_ch *ch)
-{
-	unsigned long flags;
-	bool changed = false;
-
-	spin_lock_irqsave(&ch->spinlock, flags);
-	switch (ch->state) {
-	case CH_CONNECTING:
-	case CH_LIVE:
-	case CH_DISCONNECTING:
-		ch->state = CH_DRAINING;
-		wake_up_process(ch->thread);
-		changed = true;
-		break;
-	default:
-		break;
-	}
-	spin_unlock_irqrestore(&ch->spinlock, flags);
-
-	return changed;
-}
-
-/**
- * srpt_test_and_set_ch_state() - Test and set the channel state.
- *
- * Returns true if and only if the channel state has been set to the new state.
- */
-static bool srpt_test_and_set_ch_state(struct srpt_rdma_ch *ch,
-				       enum rdma_ch_state old,
-				       enum rdma_ch_state new)
-{
-	unsigned long flags;
-	bool changed = false;
-
-	spin_lock_irqsave(&ch->spinlock, flags);
-	if (ch->state == old) {
+	if (new > prev) {
 		ch->state = new;
 		wake_up_process(ch->thread);
 		changed = true;
@@ -2287,7 +2237,6 @@ static bool __srpt_close_ch(struct srpt_rdma_ch *ch)
 	__acquires(&ch->srpt_tgt->spinlock)
 {
 	struct srpt_tgt *srpt_tgt = ch->srpt_tgt;
-	enum rdma_ch_state prev_state;
 	int ret;
 	bool was_live;
 
@@ -2295,20 +2244,7 @@ static bool __srpt_close_ch(struct srpt_rdma_ch *ch)
 	lockdep_assert_held(&srpt_tgt->spinlock);
 #endif
 
-	was_live = false;
-
-	prev_state = srpt_set_ch_state_to_disc(ch);
-
-	switch (prev_state) {
-	case CH_CONNECTING:
-	case CH_LIVE:
-		was_live = true;
-		break;
-	case CH_DISCONNECTING:
-	case CH_DRAINING:
-		break;
-	}
-
+	was_live = srpt_set_ch_state(ch, CH_DISCONNECTING);
 	if (was_live) {
 		kref_get(&ch->kref);
 		spin_unlock_irq(&srpt_tgt->spinlock);
@@ -2357,7 +2293,7 @@ static void srpt_drain_channel(struct ib_cm_id *cm_id)
 	WARN_ON_ONCE(irqs_disabled());
 
 	ch = cm_id->context;
-	if (srpt_set_ch_state_to_draining(ch)) {
+	if (srpt_set_ch_state(ch, CH_DRAINING)) {
 		ret = srpt_ch_qp_err(ch);
 		if (ret < 0)
 			PRINT_ERROR("Setting queue pair in error state"
@@ -2863,12 +2799,19 @@ static void srpt_cm_rtu_recv(struct ib_cm_id *cm_id)
 	int ret;
 
 	ret = srpt_ch_qp_rts(ch, ch->qp);
-	if (ret == 0 && srpt_test_and_set_ch_state(ch, CH_CONNECTING,
-						   CH_LIVE)) {
-		wake_up_process(ch->thread);
-	} else {
+	if (ret < 0) {
+		PRINT_ERROR("%s: QP transition to RTS failed", ch->sess_name);
 		srpt_close_ch(ch);
+		return;
 	}
+	/*
+	 * Note: calling srpt_close_ch() if the transition to the LIVE state
+	 * fails is not necessary since that means that that function has
+	 * already been invoked from another thread.
+	 */
+	if (!srpt_set_ch_state(ch, CH_LIVE))
+		PRINT_ERROR("%s: Channel transition to LIVE state failed",
+			    ch->sess_name);
 }
 
 static void srpt_cm_timewait_exit(struct ib_cm_id *cm_id)
@@ -2891,7 +2834,7 @@ static void srpt_cm_dreq_recv(struct ib_cm_id *cm_id)
 	struct srpt_rdma_ch *ch = cm_id->context;
 
 	ch->dreq_received = true;
-	srpt_set_ch_state_to_disc(ch);
+	srpt_set_ch_state(ch, CH_DISCONNECTING);
 }
 
 /**
