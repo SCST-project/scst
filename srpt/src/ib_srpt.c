@@ -328,6 +328,8 @@ static const char *get_ch_state_name(enum rdma_ch_state s)
 		return "live";
 	case CH_DISCONNECTING:
 		return "disconnecting";
+	case CH_DISCONNECTED:
+		return "disconnected";
 	}
 	return "???";
 }
@@ -337,8 +339,6 @@ static const char *get_ch_state_name(enum rdma_ch_state s)
  */
 static void srpt_qp_event(struct ib_event *event, struct srpt_rdma_ch *ch)
 {
-	unsigned long flags;
-
 	TRACE_DBG("QP event %d on cm_id=%p sess_name=%s state=%s",
 		  event->event, ch->cm_id, ch->sess_name,
 		  get_ch_state_name(ch->state));
@@ -356,11 +356,6 @@ static void srpt_qp_event(struct ib_event *event, struct srpt_rdma_ch *ch)
 	case IB_EVENT_QP_LAST_WQE_REACHED:
 		TRACE_DBG("%s, state %s: received Last WQE event.",
 			  ch->sess_name, get_ch_state_name(ch->state));
-		BUG_ON(!ch->thread);
-		spin_lock_irqsave(&ch->spinlock, flags);
-		ch->last_wqe_received = true;
-		wake_up_process(ch->thread);
-		spin_unlock_irqrestore(&ch->spinlock, flags);
 		break;
 	default:
 		PRINT_ERROR("received unrecognized IB QP event %d",
@@ -980,6 +975,25 @@ out:
 	if (ret < 0)
 		srpt_adjust_srq_wr_avail(ch, 1);
 	return ret;
+}
+
+/**
+ * srpt_zerolength_write() - Perform a zero-length RDMA write.
+ *
+ * A quote from the InfiniBand specification: C9-88: For an HCA responder
+ * using Reliable Connection service, for each zero-length RDMA READ or WRITE
+ * request, the R_Key shall not be validated, even if the request includes
+ * Immediate data.
+ */
+static int srpt_zerolength_write(struct srpt_rdma_ch *ch)
+{
+	struct ib_send_wr wr, *bad_wr;
+
+	memset(&wr, 0, sizeof(wr));
+	wr.opcode = IB_WR_RDMA_WRITE;
+	wr.wr_id = encode_wr_id(SRPT_RDMA_ZEROLENGTH_WRITE, 0xffffffffUL);
+	wr.send_flags = IB_SEND_SIGNALED;
+	return ib_post_send(ch->qp, &wr, &bad_wr);
 }
 
 /**
@@ -1928,6 +1942,8 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 			   opcode == SRPT_RDMA_ABORT) {
 			srpt_handle_rdma_comp(ch, ch->ioctx_ring[index], opcode,
 					      srpt_xmt_rsp_context);
+		} else if (opcode == SRPT_RDMA_ZEROLENGTH_WRITE) {
+			WARN_ON_ONCE(!srpt_set_ch_state(ch, CH_DISCONNECTED));
 		} else {
 			WARN(true, "unexpected opcode %d", opcode);
 		}
@@ -1945,6 +1961,8 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 				   " and cables.", opcode, index, wc->status);
 			srpt_handle_rdma_err_comp(ch, ch->ioctx_ring[index],
 						  opcode, srpt_xmt_rsp_context);
+		} else if (opcode == SRPT_RDMA_ZEROLENGTH_WRITE) {
+			WARN_ON_ONCE(!srpt_set_ch_state(ch, CH_DISCONNECTED));
 		} else if (opcode != SRPT_RDMA_MID) {
 			WARN(true, "unexpected opcode %d", opcode);
 		}
@@ -2011,11 +2029,6 @@ static void srpt_free_ch(struct kref *kref)
 {
 	struct srpt_rdma_ch *ch = container_of(kref, struct srpt_rdma_ch, kref);
 
-	/*
-	 * The function call below will wait for the completion handler
-	 * callback to finish and hence ensures that wake_up_process() won't
-	 * be invoked anymore from that callback for the current thread.
-	 */
 	srpt_destroy_ch_ib(ch);
 
 	kfree(ch);
@@ -2062,36 +2075,12 @@ static int srpt_compl_thread(void *arg)
 	ch = arg;
 	BUG_ON(!ch);
 
-	set_current_state(TASK_INTERRUPTIBLE);
-#if defined(__GNUC__)
-#if (__GNUC__ * 100 + __GNUC_MINOR__) <= 406
-	/* See also http://gcc.gnu.org/bugzilla/show_bug.cgi?id=52925. */
-	barrier();
-#endif
-#endif
-	while (!ch->last_wqe_received && ch->state <= CH_LIVE) {
+	while (ch->state < CH_DISCONNECTED) {
+		set_current_state(TASK_INTERRUPTIBLE);
 		if (srpt_process_completion(ch, poll_budget) >= poll_budget)
 			cond_resched();
 		else
 			schedule();
-		set_current_state(TASK_INTERRUPTIBLE);
-	}
-	set_current_state(TASK_RUNNING);
-
-	/*
-	 * Process all IB (error) completions before invoking
-	 * scst_unregister_session().
-	 */
-	for (;;) {
-		set_current_state(TASK_INTERRUPTIBLE);
-		srpt_process_completion(ch, poll_budget);
-		if (atomic_read(&ch->scst_sess->sess_cmd_count) == 0)
-			break;
-		schedule_timeout(HZ / 10);
-	}
-	if (!ch->last_wqe_received) {
-		schedule_timeout(HZ);
-		srpt_process_completion(ch, poll_budget);
 	}
 	set_current_state(TASK_RUNNING);
 
@@ -2237,6 +2226,13 @@ static bool __srpt_close_ch(struct srpt_rdma_ch *ch)
 		if (ret < 0)
 			PRINT_ERROR("%s: changing queue pair into error state"
 				    " failed: %d", ch->sess_name, ret);
+
+		ret = srpt_zerolength_write(ch);
+		if (ret < 0) {
+			PRINT_ERROR("%s: queuing zero-length write failed: %d",
+				    ch->sess_name, ret);
+			WARN_ON_ONCE(!srpt_set_ch_state(ch, CH_DISCONNECTED));
+		}
 
 		kref_put(&ch->kref, srpt_free_ch);
 
@@ -3168,7 +3164,7 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 		}
 		PRINT_INFO("Waiting until RDMA abort finished [%d]",
 			   ioctx->ioctx.index);
-		while (ch->state == CH_LIVE && !ioctx->rdma_aborted) {
+		while (ch->state < CH_DISCONNECTED && !ioctx->rdma_aborted) {
 			PRINT_INFO("Waiting until RDMA abort finished [%d]",
 				   ioctx->ioctx.index);
 			msleep(1000);

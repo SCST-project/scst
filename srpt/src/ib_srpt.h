@@ -147,6 +147,7 @@ enum srpt_opcode {
 	SRPT_RDMA_ABORT,
 	SRPT_RDMA_READ_LAST,
 	SRPT_RDMA_WRITE_LAST,
+	SRPT_RDMA_ZEROLENGTH_WRITE,
 };
 
 static inline u64 encode_wr_id(enum srpt_opcode opcode, u32 idx)
@@ -282,11 +283,13 @@ struct srpt_send_ioctx {
  * @CH_DISCONNECTING: DREQ has been received and waiting for DREP or DREQ has
  *                    been sent and waiting for DREP or channel is being closed
  *                    for another reason.
+ * @CH_DISCONNECTED:  Last WQE has been received.
  */
 enum rdma_ch_state {
 	CH_CONNECTING,
 	CH_LIVE,
 	CH_DISCONNECTING,
+	CH_DISCONNECTED,
 };
 
 /**
@@ -317,7 +320,6 @@ enum rdma_ch_state {
  * @wc:            Work completion array.
  * @state:         channel state. See also enum rdma_ch_state.
  * @processing_wait_list: Whether or not cmd_wait_list is being processed.
- * @last_wqe_received: Whether the Last WQE QP event has been received.
  * @list:          Entry in srpt_nexus.ch_list;
  * @cmd_wait_list: list of SCST commands that arrived before the RTU event. This
  *                 list contains struct srpt_ioctx elements and is protected
@@ -351,7 +353,6 @@ struct srpt_rdma_ch {
 	struct list_head	cmd_wait_list;
 	uint16_t		pkey_index;
 	bool			processing_wait_list;
-	bool			last_wqe_received;
 
 	struct scst_session	*scst_sess;
 	u8			sess_name[40];
