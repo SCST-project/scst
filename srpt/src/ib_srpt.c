@@ -1856,14 +1856,14 @@ srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 	BUG_ON(!ch);
 	BUG_ON(!recv_ioctx);
 
+	if (unlikely(ch->state == CH_CONNECTING))
+		goto push;
+
 	ib_dma_sync_single_for_cpu(ch->sport->sdev->device,
 				   recv_ioctx->ioctx.dma, srp_max_req_size,
 				   DMA_FROM_DEVICE);
 
 	srp_cmd = recv_ioctx->ioctx.buf;
-	if (unlikely(ch->state == CH_CONNECTING))
-		goto push;
-
 	if (srp_cmd->opcode == SRP_CMD || srp_cmd->opcode == SRP_TSK_MGMT) {
 		send_ioctx = srpt_get_send_ioctx(ch);
 		if (unlikely(!send_ioctx))
