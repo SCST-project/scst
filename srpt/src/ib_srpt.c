@@ -1057,6 +1057,7 @@ static int srpt_get_desc_tbl(struct srpt_send_ioctx *ioctx,
 	struct srp_direct_buf *db;
 	unsigned add_cdb_offset;
 	int ret;
+	u8 fmt;
 
 	/*
 	 * The pointer computations below will only be compiled correctly
@@ -1081,13 +1082,18 @@ static int srpt_get_desc_tbl(struct srpt_send_ioctx *ioctx,
 	 * buffer descriptor format, and the highest four bits contain the
 	 * DATA-OUT buffer descriptor format.
 	 */
-	*dir = SCST_DATA_NONE;
-	if (srp_cmd->buf_fmt & 0xf)
+	fmt = srp_cmd->buf_fmt;
+	if (fmt & 0xf) {
 		/* DATA-IN: transfer data from target to initiator (read). */
 		*dir = SCST_DATA_READ;
-	else if (srp_cmd->buf_fmt >> 4)
+		fmt = fmt & 0xf;
+	} else if (fmt >> 4) {
 		/* DATA-OUT: transfer data from initiator to target (write). */
 		*dir = SCST_DATA_WRITE;
+		fmt = fmt >> 4;
+	} else {
+		*dir = SCST_DATA_NONE;
+	}
 
 	/*
 	 * According to the SRP spec, the lower two bits of the 'ADDITIONAL
@@ -1095,8 +1101,7 @@ static int srpt_get_desc_tbl(struct srpt_send_ioctx *ioctx,
 	 * is four times the value specified in bits 3..7. Hence the "& ~3".
 	 */
 	add_cdb_offset = srp_cmd->add_cdb_len & ~3;
-	if (((srp_cmd->buf_fmt & 0xf) == SRP_DATA_DESC_DIRECT) ||
-	    ((srp_cmd->buf_fmt >> 4) == SRP_DATA_DESC_DIRECT)) {
+	if (fmt == SRP_DATA_DESC_DIRECT) {
 		ioctx->n_rbuf = 1;
 		ioctx->rbufs = &ioctx->single_rbuf;
 
@@ -1104,8 +1109,7 @@ static int srpt_get_desc_tbl(struct srpt_send_ioctx *ioctx,
 					       + add_cdb_offset);
 		memcpy(ioctx->rbufs, db, sizeof(*db));
 		*data_len = be32_to_cpu(db->len);
-	} else if (((srp_cmd->buf_fmt & 0xf) == SRP_DATA_DESC_INDIRECT) ||
-		   ((srp_cmd->buf_fmt >> 4) == SRP_DATA_DESC_INDIRECT)) {
+	} else if (fmt == SRP_DATA_DESC_INDIRECT) {
 		idb = (struct srp_indirect_buf *)(srp_cmd->add_data
 						  + add_cdb_offset);
 
@@ -1139,7 +1143,11 @@ static int srpt_get_desc_tbl(struct srpt_send_ioctx *ioctx,
 		db = idb->desc_list;
 		memcpy(ioctx->rbufs, db, ioctx->n_rbuf * sizeof(*db));
 		*data_len = be32_to_cpu(idb->len);
+	} else if (fmt != 0) {
+		PRINT_ERROR("Unsupported data format %d\n", fmt);
+		ret = -EINVAL;
 	}
+
 out:
 	return ret;
 }
