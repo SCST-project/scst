@@ -1852,6 +1852,7 @@ srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 {
 	struct srpt_send_ioctx *send_ioctx = NULL;
 	struct srp_cmd *srp_cmd;
+	u8 opcode;
 
 	BUG_ON(!ch);
 	BUG_ON(!recv_ioctx);
@@ -1864,7 +1865,8 @@ srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 				   DMA_FROM_DEVICE);
 
 	srp_cmd = recv_ioctx->ioctx.buf;
-	if (srp_cmd->opcode == SRP_CMD || srp_cmd->opcode == SRP_TSK_MGMT) {
+	opcode = srp_cmd->opcode;
+	if (opcode == SRP_CMD || opcode == SRP_TSK_MGMT) {
 		send_ioctx = srpt_get_send_ioctx(ch);
 		if (unlikely(!send_ioctx))
 			goto push;
@@ -1873,7 +1875,7 @@ srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 	if (!list_empty(&recv_ioctx->wait_list))
 		list_del_init(&recv_ioctx->wait_list);
 
-	switch (srp_cmd->opcode) {
+	switch (opcode) {
 	case SRP_CMD:
 		srpt_handle_cmd(ch, recv_ioctx, send_ioctx, context);
 		break;
@@ -1893,8 +1895,7 @@ srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 		PRINT_ERROR("Received SRP_RSP");
 		break;
 	default:
-		PRINT_ERROR("received IU with unknown opcode 0x%x",
-			    srp_cmd->opcode);
+		PRINT_ERROR("received IU with unknown opcode 0x%x", opcode);
 		break;
 	}
 
