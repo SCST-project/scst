@@ -40,6 +40,8 @@ INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 set_var = $(shell { if [ -e "$(1)" ]; then grep -v '^$(2)=' "$(1)"; fi; echo "$(2)=$(3)"; } >/tmp/$(1)-$$$$.tmp && mv /tmp/$(1)-$$$$.tmp $(1))
 
 
+SRC_FILES=$(shell $(shell pwd)/../scripts/list-source-files | grep '\.[ch]$$')
+
 # The file Modules.symvers has been renamed in the 2.6.18 kernel to
 # Module.symvers. Find out which name to use by looking in $(KDIR).
 MODULE_SYMVERS:=$(shell if [ -e $(KDIR)/Module.symvers ]; then \
@@ -140,5 +142,8 @@ extraclean: clean
 
 release-archive:
 	../scripts/generate-release-archive srpt "$$(sed -n 's/^#define[[:blank:]]DRV_VERSION[[:blank:]]*\"\([^\"]*\)\".*/\1/p' src/ib_srpt.c)"
+
+kerneldoc.html: $(SRC_FILES)
+	$(KDIR)/scripts/kernel-doc -html $(SRC_FILES) >$@
 
 .PHONY: all install clean extraclean 2debug 2release 2perf
