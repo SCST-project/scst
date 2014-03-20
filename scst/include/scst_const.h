@@ -421,7 +421,7 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 #define UNMAP 0x42
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 12)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 0)
 /*
  * From <scsi/scsi.h>. See also commit
  * 1c68cc1626341665a8bd1d2c7dfffd7fc852a79c.
