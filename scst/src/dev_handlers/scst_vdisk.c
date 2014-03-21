@@ -4589,7 +4589,7 @@ static enum compl_status_e vdev_exec_verify(struct vdisk_cmd_params *p)
 	 */
 
 	compare = scst_cmd_get_data_direction(cmd) == SCST_DATA_WRITE;
-	TRACE_DBG("VERIFY with BYTCHK=%d at offset %lld and len %lld\n",
+	TRACE_DBG("VERIFY with compare %d at offset %lld and len %lld\n",
 		  compare, loff, (long long)data_len);
 
 	mem_verify = vmalloc(LEN_MEM);

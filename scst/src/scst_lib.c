@@ -6478,8 +6478,16 @@ static int get_cdb_info_fmt(struct scst_cmd *cmd,
 static int get_cdb_info_verify10(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops)
 {
+	if (unlikely(cmd->cdb[1] & 4)) {
+		PRINT_ERROR("VERIFY(10): BYTCHK 1x not supported (dev %s)",
+				cmd->dev ? cmd->dev->virt_name : NULL);
+		scst_set_invalid_field_in_cdb(cmd, 1,
+			2 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+		return 1;
+	}
+
 	cmd->lba = get_unaligned_be32(cmd->cdb + sdbops->info_lba_off);
-	if (cmd->cdb[1] & BYTCHK) {
+	if (cmd->cdb[1] & 2) {
 		cmd->bufflen = get_unaligned_be16(cmd->cdb + sdbops->info_len_off);
 		cmd->data_len = cmd->bufflen;
 		cmd->data_direction = SCST_DATA_WRITE;
@@ -6497,7 +6505,15 @@ static int get_cdb_info_verify6(struct scst_cmd *cmd,
 	cmd->op_flags |= SCST_LBA_NOT_VALID;
 	cmd->lba = 0;
 
-	if (cmd->cdb[1] & BYTCHK) {
+	if (unlikely(cmd->cdb[1] & 4)) {
+		PRINT_ERROR("VERIFY(6): BYTCHK 1x not supported (dev %s)",
+				cmd->dev ? cmd->dev->virt_name : NULL);
+		scst_set_invalid_field_in_cdb(cmd, 1,
+			2 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+		return 1;
+	}
+
+	if (cmd->cdb[1] & 2) { /* BYTCHK 01 */
 		cmd->bufflen = get_unaligned_be24(cmd->cdb + sdbops->info_len_off);
 		cmd->data_len = cmd->bufflen;
 		cmd->data_direction = SCST_DATA_WRITE;
@@ -6512,8 +6528,16 @@ static int get_cdb_info_verify6(struct scst_cmd *cmd,
 static int get_cdb_info_verify12(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops)
 {
+	if (unlikely(cmd->cdb[1] & 4)) {
+		PRINT_ERROR("VERIFY(12): BYTCHK 1x not supported (dev %s)",
+				cmd->dev ? cmd->dev->virt_name : NULL);
+		scst_set_invalid_field_in_cdb(cmd, 1,
+			2 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+		return 1;
+	}
+
 	cmd->lba = get_unaligned_be32(cmd->cdb + sdbops->info_lba_off);
-	if (cmd->cdb[1] & BYTCHK) {
+	if (cmd->cdb[1] & 2) { /* BYTCHK 01 */
 		cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
 		if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
 			PRINT_ERROR("Too big bufflen %d (op %x)",
@@ -6534,8 +6558,16 @@ static int get_cdb_info_verify12(struct scst_cmd *cmd,
 static int get_cdb_info_verify16(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops)
 {
+	if (unlikely(cmd->cdb[1] & 4)) {
+		PRINT_ERROR("VERIFY(16): BYTCHK 1x not supported (dev %s)",
+				cmd->dev ? cmd->dev->virt_name : NULL);
+		scst_set_invalid_field_in_cdb(cmd, 1,
+			2 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+		return 1;
+	}
+
 	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
-	if (cmd->cdb[1] & BYTCHK) {
+	if (cmd->cdb[1] & 2) { /* BYTCHK 01 */
 		cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
 		if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
 			PRINT_ERROR("Too big bufflen %d (op %x)",
