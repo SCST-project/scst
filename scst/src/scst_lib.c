@@ -4573,6 +4573,24 @@ out:
 	return res;
 }
 
+static void scst_prelim_finish_internal_cmd(struct scst_cmd *cmd)
+{
+	unsigned long flags;
+
+	TRACE_ENTRY();
+
+	sBUG_ON(!cmd->internal);
+
+	spin_lock_irqsave(&cmd->sess->sess_list_lock, flags);
+	list_del(&cmd->sess_cmd_list_entry);
+	spin_unlock_irqrestore(&cmd->sess->sess_list_lock, flags);
+
+	__scst_cmd_put(cmd);
+
+	TRACE_EXIT();
+	return;
+}
+
 int scst_prepare_request_sense(struct scst_cmd *orig_cmd)
 {
 	int res = 0;
@@ -4776,7 +4794,7 @@ out:
 	return res;
 
 out_free_cmd:
-	__scst_cmd_put(cmd);
+	scst_prelim_finish_internal_cmd(cmd);
 
 out_busy:
 	scst_set_busy(ws_cmd);
