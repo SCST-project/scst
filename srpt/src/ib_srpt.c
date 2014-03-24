@@ -1335,6 +1335,7 @@ static void srpt_abort_cmd(struct srpt_send_ioctx *ioctx,
 		ioctx->state = SRPT_STATE_DATA_IN;
 		break;
 	case SRPT_STATE_DATA_IN:
+		break;
 	case SRPT_STATE_CMD_RSP_SENT:
 	case SRPT_STATE_MGMT_RSP_SENT:
 		ioctx->state = SRPT_STATE_DONE;
