@@ -2185,15 +2185,8 @@ err_destroy_cq:
 
 static void srpt_destroy_ch_ib(struct srpt_rdma_ch *ch)
 {
-	TRACE_ENTRY();
-
-	while (ib_poll_cq(ch->cq, ARRAY_SIZE(ch->wc), ch->wc) > 0)
-		;
-
 	ib_destroy_qp(ch->qp);
 	ib_destroy_cq(ch->cq);
-
-	TRACE_EXIT();
 }
 
 /**
