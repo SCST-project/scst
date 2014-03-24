@@ -1936,6 +1936,8 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 			srpt_handle_rdma_comp(ch, ch->ioctx_ring[index], opcode,
 					      srpt_xmt_rsp_context);
 		} else if (opcode == SRPT_RDMA_ZEROLENGTH_WRITE) {
+			WARN_ONCE(true, "%s: QP not in error state\n",
+				  ch->sess_name);
 			WARN_ON_ONCE(!srpt_set_ch_state(ch, CH_DISCONNECTED));
 		} else {
 			WARN(true, "unexpected opcode %d\n", opcode);
