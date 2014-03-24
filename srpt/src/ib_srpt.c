@@ -925,15 +925,7 @@ static int srpt_post_recv(struct srpt_device *sdev,
 
 static int srpt_adjust_srq_wr_avail(struct srpt_rdma_ch *ch, int delta)
 {
-	int res;
-	unsigned long flags;
-
-	spin_lock_irqsave(&ch->spinlock, flags);
-	ch->sq_wr_avail += delta;
-	res = ch->sq_wr_avail;
-	spin_unlock_irqrestore(&ch->spinlock, flags);
-
-	return res;
+	return atomic_add_return(delta, &ch->sq_wr_avail);
 }
 
 /**
@@ -2158,7 +2150,7 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 
 	TRACE_DBG("qp_num = %#x", ch->qp->qp_num);
 
-	ch->sq_wr_avail = qp_init->cap.max_send_wr;
+	atomic_set(&ch->sq_wr_avail, qp_init->cap.max_send_wr);
 
 	TRACE_DBG("%s: max_cqe= %d max_sge= %d sq_size = %d"
 		  " cm_id= %p", __func__, ch->cq->cqe,

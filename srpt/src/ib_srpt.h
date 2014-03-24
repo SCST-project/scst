@@ -338,7 +338,7 @@ struct srpt_rdma_ch {
 	int			rq_size;
 	int			max_sge;
 	int			max_rsp_size;
-	int			sq_wr_avail;
+	atomic_t		sq_wr_avail;
 	struct srpt_port	*sport;
 	struct srpt_tgt		*srpt_tgt;
 	int			max_ti_iu_len;
