@@ -249,7 +249,7 @@ struct srpt_tsk_mgmt {
  * @req_lim_delta: Value of the req_lim_delta value field in the latest
  *               SRP response sent.
  * @tsk_mgmt:    SRPT task management function context information.
- * @rdma_ius_buf: DMA mapping context information.
+ * @rdma_ius_buf: Inline rdma_ius buffer for small requests.
  */
 struct srpt_send_ioctx {
 	struct srpt_ioctx	ioctx;
