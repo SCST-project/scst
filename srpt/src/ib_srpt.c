@@ -2348,8 +2348,8 @@ static int srpt_enable_target(struct scst_tgt *scst_tgt, bool enable)
 	if (!srpt_tgt)
 		goto out;
 
-	TRACE_DBG("%s target %s", enable ? "Enabling" : "Disabling",
-		  scst_tgt->tgt_name);
+	PRINT_INFO("%s target %s", enable ? "Enabling" : "Disabling",
+		   scst_tgt->tgt_name);
 
 	spin_lock_irq(&srpt_tgt->spinlock);
 	srpt_tgt->enabled = enable;
