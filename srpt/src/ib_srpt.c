@@ -1392,10 +1392,10 @@ static void srpt_abort_cmd(struct srpt_send_ioctx *ioctx,
 		 * management commands. Note: the SCST core frees these
 		 * commands immediately after srpt_tsk_mgmt_done() returned.
 		 */
-		WARN(true, "Unexpected command state %d", state);
+		WARN(true, "Unexpected command state %d\n", state);
 		break;
 	default:
-		WARN(true, "Unexpected command state %d", state);
+		WARN(true, "Unexpected command state %d\n", state);
 		break;
 	}
 
@@ -1499,7 +1499,7 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 	} else if (opcode == SRPT_RDMA_ABORT) {
 		ioctx->rdma_aborted = true;
 	} else {
-		WARN(true, "scmnd == NULL (opcode %d)", opcode);
+		WARN(true, "scmnd == NULL (opcode %d)\n", opcode);
 	}
 }
 
@@ -1945,7 +1945,7 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 		} else if (opcode == SRPT_RDMA_ZEROLENGTH_WRITE) {
 			WARN_ON_ONCE(!srpt_set_ch_state(ch, CH_DISCONNECTED));
 		} else {
-			WARN(true, "unexpected opcode %d", opcode);
+			WARN(true, "unexpected opcode %d\n", opcode);
 		}
 	} else {
 		if (opcode == SRPT_SEND) {
@@ -1964,7 +1964,7 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 		} else if (opcode == SRPT_RDMA_ZEROLENGTH_WRITE) {
 			WARN_ON_ONCE(!srpt_set_ch_state(ch, CH_DISCONNECTED));
 		} else if (opcode != SRPT_RDMA_MID) {
-			WARN(true, "unexpected opcode %d", opcode);
+			WARN(true, "unexpected opcode %d\n", opcode);
 		}
 	}
 
@@ -3311,7 +3311,7 @@ static int srpt_xmit_response(struct scst_cmd *scmnd)
 		ioctx->state = SRPT_STATE_CMD_RSP_SENT;
 		break;
 	default:
-		WARN(true, "Unexpected command state %d", state);
+		WARN(true, "Unexpected command state %d\n", state);
 		break;
 	}
 
