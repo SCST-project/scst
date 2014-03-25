@@ -100,9 +100,12 @@ void conn_info_show(struct seq_file *seq, struct iscsi_session *session)
 			snprintf(buf, sizeof(buf),
 				 "[%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x]",
 				 NIP6(inet6_sk(sk)->daddr));
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0)
 			snprintf(buf, sizeof(buf), "[%p6]",
 				&inet6_sk(sk)->daddr);
+#else
+			snprintf(buf, sizeof(buf), "[%p6]",
+				&sk->sk_v6_daddr);
 #endif
 			break;
 		default:
@@ -164,8 +167,11 @@ static ssize_t iscsi_get_initiator_ip(struct iscsi_conn *conn,
 			 "[%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x]",
 			 NIP6(inet6_sk(sk)->daddr));
 #else
-		pos = scnprintf(buf, size, "[%p6]",
-			&inet6_sk(sk)->daddr);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0)
+		pos = scnprintf(buf, size, "[%p6]", &inet6_sk(sk)->daddr);
+#else
+		pos = scnprintf(buf, size, "[%p6]", &sk->sk_v6_daddr);
+#endif
 #endif
 		break;
 	default:
