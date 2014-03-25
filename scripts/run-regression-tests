@@ -96,6 +96,17 @@ function duplicate_scst_source_tree {
   fi
 }
 
+function make_rpm {
+    local outputfile="${outputdir}/make-rpm-output.txt"
+
+    echo "Testing whether 'make rpm' works fine ..."
+    if make rpm > "${outputfile}" 2>&1; then
+	echo "OK"
+    else
+	echo "FAILED"
+    fi
+}
+
 function compile_scst {
   (
     export KCFLAGS=-DCONFIG_SCST_MEASURE_LATENCY
@@ -555,6 +566,9 @@ if [ "${run_local_compilation}" = "true" ]; then
   compile_scst_patched debug2release || exit $?
   compile_scst_patched debug2perf    || exit $?
   compile_scst_patched enable_proc  || exit $?
+  if type rpmbuild >/dev/null 2>&1; then
+      make_rpm || exit $?
+  fi
 fi
 
 first_iteration="true"
