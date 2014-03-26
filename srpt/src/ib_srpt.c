@@ -1404,10 +1404,27 @@ void srpt_on_abort_cmd(struct scst_cmd *cmd)
 	struct srpt_rdma_ch *ch = ioctx->ch;
 
 	if (ch->state >= CH_DISCONNECTED) {
-		PRINT_ERROR("Cmd %p: IB completion for idx %u has not"
-			    " been received in time (SRPT command state %d)",
-			    cmd, ioctx->ioctx.index, ioctx->state);
-		srpt_abort_cmd(ioctx, SCST_CONTEXT_THREAD);
+		switch (ioctx->state) {
+		case SRPT_STATE_NEW:
+		case SRPT_STATE_DATA_IN:
+		case SRPT_STATE_MGMT:
+		case SRPT_STATE_DONE:
+			/*
+			 * An SCST command thread is busy processing the
+			 * command associated with the I/O context, so wait
+			 * until that processing has finished.
+			 */
+			break;
+		case SRPT_STATE_NEED_DATA:
+		case SRPT_STATE_CMD_RSP_SENT:
+		case SRPT_STATE_MGMT_RSP_SENT:
+			PRINT_ERROR("Cmd %p: IB completion for idx %u has not"
+				    " been received in time (SRPT command state"
+				    " %d)", cmd, ioctx->ioctx.index,
+				    ioctx->state);
+			srpt_abort_cmd(ioctx, SCST_CONTEXT_THREAD);
+			break;
+		}
 	}
 }
 
