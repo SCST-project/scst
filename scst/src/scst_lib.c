@@ -4279,7 +4279,7 @@ out_free:
 	goto out;
 }
 
-/* No locks supposed to be held, scst_mutex - held */
+/* scst_mutex supposed to be held */
 void scst_nexus_loss(struct scst_tgt_dev *tgt_dev, bool queue_UA)
 {
 	TRACE_ENTRY();
