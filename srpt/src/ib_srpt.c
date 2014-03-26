@@ -1417,40 +1417,30 @@ void srpt_on_abort_cmd(struct scst_cmd *cmd)
 static void srpt_handle_send_err_comp(struct srpt_rdma_ch *ch, u64 wr_id,
 				      enum scst_exec_context context)
 {
-	struct srpt_send_ioctx *ioctx;
-	enum srpt_command_state state;
-	struct scst_cmd *scmnd;
-	u32 index;
+	u32 index = idx_from_wr_id(wr_id);
+	struct srpt_send_ioctx *ioctx = ch->ioctx_ring[index];
+	enum srpt_command_state state = ioctx->state;
 
 	srpt_adjust_srq_wr_avail(ch, 1);
 
-	index = idx_from_wr_id(wr_id);
-	ioctx = ch->ioctx_ring[index];
-	state = ioctx->state;
-	scmnd = &ioctx->scmnd;
-
-	EXTRACHECKS_WARN_ON(state != SRPT_STATE_CMD_RSP_SENT
-			    && state != SRPT_STATE_MGMT_RSP_SENT
-			    && state != SRPT_STATE_NEED_DATA
-			    && state != SRPT_STATE_DONE);
-
-	/*
-	 * If SRP_RSP sending failed, undo the ch->req_lim and ch->req_lim_delta
-	 * changes.
-	 */
-	if (state == SRPT_STATE_CMD_RSP_SENT
-	    || state == SRPT_STATE_MGMT_RSP_SENT)
-		srpt_undo_inc_req_lim(ch, ioctx->req_lim_delta);
 	switch (state) {
-	default:
+	case SRPT_STATE_NEED_DATA:
+		srpt_abort_cmd(ioctx, context);
+		break;
+	case SRPT_STATE_CMD_RSP_SENT:
+		srpt_undo_inc_req_lim(ch, ioctx->req_lim_delta);
 		srpt_abort_cmd(ioctx, context);
 		break;
 	case SRPT_STATE_MGMT_RSP_SENT:
+		srpt_undo_inc_req_lim(ch, ioctx->req_lim_delta);
 		srpt_put_send_ioctx(ioctx);
 		break;
 	case SRPT_STATE_DONE:
 		PRINT_ERROR("Received more than one IB error completion"
 			    " for wr_id = %u.", (unsigned)index);
+		break;
+	default:
+		EXTRACHECKS_WARN_ON(true);
 		break;
 	}
 }
