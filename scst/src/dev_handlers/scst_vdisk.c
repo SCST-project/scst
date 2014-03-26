@@ -3375,7 +3375,7 @@ static enum compl_status_e vdisk_exec_read_capacity(struct vdisk_cmd_params *p)
 	nblocks = virt_dev->nblocks;
 
 	if ((cmd->cdb[8] & 1) == 0) {
-		uint64_t lba = get_unaligned_be64(&cmd->cdb[2]);
+		uint32_t lba = get_unaligned_be32(&cmd->cdb[2]);
 		if (lba != 0) {
 			TRACE_DBG("PMI zero and LBA not zero (cmd %p)", cmd);
 			scst_set_cmd_error(cmd,
