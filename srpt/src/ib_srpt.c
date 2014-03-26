@@ -1311,42 +1311,31 @@ static void srpt_put_send_ioctx(struct srpt_send_ioctx *ioctx)
  * srpt_abort_cmd() - Make SCST stop processing a SCSI command.
  * @ioctx:   I/O context associated with the SCSI command.
  * @context: Preferred execution context.
+ *
+ * Must only be called when the I/O context is in a state where it is waiting
+ * for the HCA.
  */
 static void srpt_abort_cmd(struct srpt_send_ioctx *ioctx,
 			   enum scst_exec_context context)
 {
-	struct scst_cmd *scmnd;
-	enum srpt_command_state state;
+	struct scst_cmd *scmnd = &ioctx->scmnd;
+	enum srpt_command_state state = ioctx->state;
 
 	TRACE_ENTRY();
 
-	BUG_ON(!ioctx);
-
-	/*
-	 * If the command is in a state where the target core is waiting for
-	 * the ib_srpt driver, change the state to the next state. Changing
-	 * the state of the command from SRPT_STATE_NEED_DATA to
-	 * SRPT_STATE_DATA_IN ensures that srpt_xmit_response() will call this
-	 * function a second time.
-	 */
-	state = ioctx->state;
 	switch (state) {
 	case SRPT_STATE_NEED_DATA:
 		ioctx->state = SRPT_STATE_DATA_IN;
-		break;
-	case SRPT_STATE_DATA_IN:
 		break;
 	case SRPT_STATE_CMD_RSP_SENT:
 	case SRPT_STATE_MGMT_RSP_SENT:
 		ioctx->state = SRPT_STATE_DONE;
 		break;
 	default:
+		WARN_ONCE(true, "%s: unexpected I/O context state %d\n",
+			  __func__, state);
 		break;
 	}
-	if (state == SRPT_STATE_DONE)
-		goto out;
-
-	scmnd = &ioctx->scmnd;
 
 	WARN_ON(ioctx != scst_cmd_get_tgt_priv(scmnd));
 
@@ -1357,11 +1346,7 @@ static void srpt_abort_cmd(struct srpt_send_ioctx *ioctx,
 	case SRPT_STATE_NEW:
 	case SRPT_STATE_DATA_IN:
 	case SRPT_STATE_MGMT:
-		/*
-		 * Do nothing - defer abort processing until
-		 * srpt_xmit_response() is invoked.
-		 */
-		WARN_ON(!scst_cmd_aborted_on_xmit(scmnd));
+	case SRPT_STATE_DONE:
 		break;
 	case SRPT_STATE_NEED_DATA:
 		/* SCST_DATA_WRITE - RDMA read error or RDMA read timeout. */
@@ -1387,13 +1372,7 @@ static void srpt_abort_cmd(struct srpt_send_ioctx *ioctx,
 		 */
 		WARN(true, "Unexpected command state %d\n", state);
 		break;
-	default:
-		WARN(true, "Unexpected command state %d\n", state);
-		break;
 	}
-
-out:
-	;
 
 	TRACE_EXIT();
 }
