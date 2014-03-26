@@ -1760,8 +1760,7 @@ static ssize_t __scst_acg_black_hole_show(struct scst_acg *acg, char *buf)
 {
 	int res, t = acg->acg_black_hole_type;
 
-	res = sprintf(buf, "%d\n%s\n", t,
-		(t != SCST_ACG_BLACK_HOLE_NONE) ? SCST_SYSFS_KEY_MARK : "");
+	res = sprintf(buf, "%d\n", t);
 
 	return res;
 }
