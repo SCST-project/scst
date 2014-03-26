@@ -593,7 +593,7 @@ enum scst_exec_context {
 #define SCST_TGT_DEV_UA_PENDING		0
 
 /* Cache of acg->acg_black_hole_type */
-#define SCST_TGT_DEV_BLACK_HOLE	1
+#define SCST_TGT_DEV_BLACK_HOLE		1
 
 /*************************************************************
  ** I/O grouping types. Changing them don't forget to change
