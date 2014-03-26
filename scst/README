@@ -580,7 +580,7 @@ Every target should have at least the following entries:
    mapping to the corresponding hardware port. It isn't anyhow used by
    SCST.
 
- - enabled - using this attribute you can enable or disable this target/
+ - enabled - using this attribute you can enable or disable this target.
    It allows to finish configuring it before it starts accepting new
    connections. 0 by default.
 
@@ -591,6 +591,28 @@ Every target should have at least the following entries:
    attribute is also available in the initiators security groups, so you
    can assign the addressing method on per-initiator basis. See also the
    "Logical unit addressing (LUN)" section in SAM-5 for more information.
+
+ - black_hole - if set, all LUNs in the corresponding initiator group,
+   default target group in this case, start "swallowing" requests from
+   initiators. Possible values are:
+
+    * 0 - disable black hole mode
+
+    * 1 - immediately abort all coming commands
+
+    * 2 - immediately abort all coming commands and drop all coming TM
+      commands
+
+    * 3 - immediately abort all coming data transfer commands. This is
+      the most evil mode, because it is not too well handled by many
+      initiator OS'es, including Linux, so they may never recover from
+      it.
+
+    * 4 - immediately abort all coming data transfer commands and drop all
+      coming TM commands
+
+   CAUTION! With some target drivers modes 2 and 4 can cause internal
+   resources leaks, so don't abuse those options!
 
  - cpu_mask - defines CPU affinity mask for threads serving this target.
    For threads serving LUNs it is used only for devices with
@@ -750,7 +772,7 @@ commands by looking inside this file.
 
 Each security group's subdirectory contains 2 subdirectories: initiators
 and luns as well as the following attributes: addr_method, cpu_mask and
-io_grouping_type. See above description of them.
+io_grouping_type, black_hole. See above description of them.
 
 Each "initiators" subdirectory contains list of added to this groups
 initiator as well as as well as file "mgmt". This file has the following

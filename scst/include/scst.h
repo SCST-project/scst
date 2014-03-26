@@ -592,6 +592,9 @@ enum scst_exec_context {
 /* Set if tgt_dev has Unit Attention sense */
 #define SCST_TGT_DEV_UA_PENDING		0
 
+/* Cache of acg->acg_black_hole_type */
+#define SCST_TGT_DEV_BLACK_HOLE	1
+
 /*************************************************************
  ** I/O grouping types. Changing them don't forget to change
  ** the corresponding *_STR values in scst_const.h!
@@ -2726,6 +2729,33 @@ struct scst_acg {
 	cpumask_t acg_cpu_mask;
 
 	unsigned int tgt_acg:1;
+
+/* Not a black hole */
+#define SCST_ACG_BLACK_HOLE_NONE	0
+
+/* Immediately abort all coming commands */
+#define SCST_ACG_BLACK_HOLE_CMD		1
+
+/*
+ * Immediately abort all coming commands and drop all coming TM commands.
+ *
+ * CAUTION! With some target drivers it can cause internal resources
+ * leaks, so don't abuse this option!
+ */
+#define SCST_ACG_BLACK_HOLE_ALL		2
+
+/* Immediately abort all coming data transfer commands */
+#define SCST_ACG_BLACK_HOLE_DATA_CMD	3
+
+/*
+ * Immediately abort all coming data transfer commands and drop all
+ * coming TM commands.
+ *
+ * CAUTION! With some target drivers it can cause internal resources
+ * leaks, so don't abuse this option!
+ */
+#define SCST_ACG_BLACK_HOLE_DATA_MCMD	4
+	volatile int acg_black_hole_type;
 
 	/* sysfs release completion */
 	struct completion *acg_kobj_release_cmpl;

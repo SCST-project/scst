@@ -1756,6 +1756,125 @@ static struct kobj_attribute scst_tgt_io_grouping_type =
 	       scst_tgt_io_grouping_type_show,
 	       scst_tgt_io_grouping_type_store);
 
+static ssize_t __scst_acg_black_hole_show(struct scst_acg *acg, char *buf)
+{
+	int res, t = acg->acg_black_hole_type;
+
+	res = sprintf(buf, "%d\n%s\n", t,
+		(t != SCST_ACG_BLACK_HOLE_NONE) ? SCST_SYSFS_KEY_MARK : "");
+
+	return res;
+}
+
+static ssize_t __scst_acg_black_hole_store(struct scst_acg *acg,
+	const char *buf, size_t count)
+{
+	int res = 0;
+	int prev, t;
+	struct scst_session *sess;
+
+	prev = acg->acg_black_hole_type;
+
+	if ((buf == NULL) || (count == 0)) {
+		res = 0;
+		goto out;
+	}
+
+	mutex_lock(&scst_mutex);
+
+	BUILD_BUG_ON((SCST_ACG_BLACK_HOLE_NONE != 0) ||
+		     (SCST_ACG_BLACK_HOLE_CMD != 1) ||
+		     (SCST_ACG_BLACK_HOLE_ALL != 2) ||
+		     (SCST_ACG_BLACK_HOLE_DATA_CMD != 3) ||
+		     (SCST_ACG_BLACK_HOLE_DATA_MCMD != 4));
+	switch (buf[0]) {
+	case '0':
+		acg->acg_black_hole_type = SCST_ACG_BLACK_HOLE_NONE;
+		break;
+	case '1':
+		acg->acg_black_hole_type = SCST_ACG_BLACK_HOLE_CMD;
+		break;
+	case '2':
+		acg->acg_black_hole_type = SCST_ACG_BLACK_HOLE_ALL;
+		break;
+	case '3':
+		acg->acg_black_hole_type = SCST_ACG_BLACK_HOLE_DATA_CMD;
+		break;
+	case '4':
+		acg->acg_black_hole_type = SCST_ACG_BLACK_HOLE_DATA_MCMD;
+		break;
+	default:
+		PRINT_ERROR("%s: Requested action not understood: %s",
+		       __func__, buf);
+		res = -EINVAL;
+		goto out_unlock;
+	}
+
+	t = acg->acg_black_hole_type;
+
+	if (prev == t)
+		goto out_unlock;
+
+	list_for_each_entry(sess, &acg->acg_sess_list, acg_sess_list_entry) {
+		int i;
+		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
+			struct list_head *head = &sess->sess_tgt_dev_list[i];
+			struct scst_tgt_dev *tgt_dev;
+			list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
+				if (t != SCST_ACG_BLACK_HOLE_NONE)
+					set_bit(SCST_TGT_DEV_BLACK_HOLE, &tgt_dev->tgt_dev_flags);
+				else
+					clear_bit(SCST_TGT_DEV_BLACK_HOLE, &tgt_dev->tgt_dev_flags);
+			}
+		}
+	}
+
+	PRINT_INFO("Black hole set to %d for ACG %s", t, acg->acg_name);
+
+out_unlock:
+	mutex_unlock(&scst_mutex);
+
+out:
+	return res;
+}
+
+static ssize_t scst_tgt_black_hole_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct scst_acg *acg;
+	struct scst_tgt *tgt;
+
+	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	acg = tgt->default_acg;
+
+	return __scst_acg_black_hole_show(acg, buf);
+}
+
+static ssize_t scst_tgt_black_hole_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	struct scst_acg *acg;
+	struct scst_tgt *tgt;
+
+	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	acg = tgt->default_acg;
+
+	res = __scst_acg_black_hole_store(acg, buf, count);
+	if (res != 0)
+		goto out;
+
+	res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute scst_tgt_black_hole =
+	__ATTR(black_hole, S_IRUGO | S_IWUSR,
+	       scst_tgt_black_hole_show, scst_tgt_black_hole_store);
+
 static ssize_t __scst_acg_cpu_mask_show(struct scst_acg *acg, char *buf)
 {
 	int res;
@@ -2473,6 +2592,7 @@ static struct attribute *scst_tgt_attrs[] = {
 	&scst_tgt_comment.attr,
 	&scst_tgt_addr_method.attr,
 	&scst_tgt_io_grouping_type.attr,
+	&scst_tgt_black_hole.attr,
 	&scst_tgt_cpu_mask.attr,
 	&scst_tgt_unknown_cmd_count_attr.attr,
 	&scst_tgt_write_cmd_count_attr.attr,
@@ -4285,6 +4405,39 @@ static struct kobj_attribute scst_acg_io_grouping_type =
 	       scst_acg_io_grouping_type_show,
 	       scst_acg_io_grouping_type_store);
 
+static ssize_t scst_acg_black_hole_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct scst_acg *acg;
+
+	acg = container_of(kobj, struct scst_acg, acg_kobj);
+
+	return __scst_acg_black_hole_show(acg, buf);
+}
+
+static ssize_t scst_acg_black_hole_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	struct scst_acg *acg;
+
+	acg = container_of(kobj, struct scst_acg, acg_kobj);
+
+	res = __scst_acg_black_hole_store(acg, buf, count);
+	if (res != 0)
+		goto out;
+
+	res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute scst_acg_black_hole =
+	__ATTR(black_hole, S_IRUGO | S_IWUSR,
+	       scst_acg_black_hole_show, scst_acg_black_hole_store);
+
 static ssize_t scst_acg_cpu_mask_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
@@ -4405,6 +4558,13 @@ int scst_acg_sysfs_create(struct scst_tgt *tgt,
 	if (res != 0) {
 		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
 			scst_acg_io_grouping_type.attr.name, tgt->tgt_name);
+		goto out_del;
+	}
+
+	res = sysfs_create_file(&acg->acg_kobj, &scst_acg_black_hole.attr);
+	if (res != 0) {
+		PRINT_ERROR("Can't add tgt attr %s for tgt %s",
+			scst_acg_black_hole.attr.name, tgt->tgt_name);
 		goto out_del;
 	}
 

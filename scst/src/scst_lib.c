@@ -4152,6 +4152,10 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	tgt_dev->tgt_dev_rd_only = acg_dev->acg_dev_rd_only || dev->dev_rd_only;
 	tgt_dev->sess = sess;
 	atomic_set(&tgt_dev->tgt_dev_cmd_count, 0);
+	if (sess->acg->acg_black_hole_type != SCST_ACG_BLACK_HOLE_NONE)
+		set_bit(SCST_TGT_DEV_BLACK_HOLE, &tgt_dev->tgt_dev_flags);
+	else
+		clear_bit(SCST_TGT_DEV_BLACK_HOLE, &tgt_dev->tgt_dev_flags);
 
 	scst_sgv_pool_use_norm(tgt_dev);
 

@@ -972,6 +972,32 @@ out:
 	}
 #endif
 
+	if (unlikely(test_bit(SCST_TGT_DEV_BLACK_HOLE, &cmd->tgt_dev->tgt_dev_flags))) {
+		struct scst_session *sess = cmd->sess;
+		bool abort = false;
+		switch (sess->acg->acg_black_hole_type) {
+		case SCST_ACG_BLACK_HOLE_CMD:
+		case SCST_ACG_BLACK_HOLE_ALL:
+			abort = true;
+			break;
+		case SCST_ACG_BLACK_HOLE_DATA_CMD:
+		case SCST_ACG_BLACK_HOLE_DATA_MCMD:
+			if (cmd->data_direction != SCST_DATA_NONE)
+				abort = true;
+			break;
+		default:
+			break;
+		}
+		if (abort) {
+			TRACE_MGMT_DBG("Black hole: aborting cmd %p (op %x, "
+				"initiator %s)", cmd, cmd->cdb[0],
+				sess->initiator_name);
+			spin_lock_irq(&sess->sess_list_lock);
+			scst_abort_cmd(cmd, NULL, false, false);
+			spin_unlock_irq(&sess->sess_list_lock);
+		}
+	}
+
 	TRACE_EXIT_HRES(res);
 	return res;
 
@@ -5466,9 +5492,19 @@ static int scst_clear_task_set(struct scst_mgmt_cmd *mcmd)
  * >0, if it should be requeued, <0 otherwise */
 static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 {
-	int res = 0, rc;
+	int res = 0, rc, t;
 
 	TRACE_ENTRY();
+
+	t = mcmd->sess->acg->acg_black_hole_type;
+
+	if (unlikely((t == SCST_ACG_BLACK_HOLE_ALL) ||
+		     (t == SCST_ACG_BLACK_HOLE_DATA_MCMD))) {
+		TRACE_MGMT_DBG("Dropping mcmd %p (fn %d, initiator %s)", mcmd,
+			mcmd->fn, mcmd->sess->initiator_name);
+		mcmd->state = SCST_MCMD_STATE_FINISHED;
+		goto out;
+	}
 
 	switch (mcmd->fn) {
 	case SCST_ABORT_TASK:
