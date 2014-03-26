@@ -1506,11 +1506,9 @@ static void srpt_handle_rdma_err_comp(struct srpt_rdma_ch *ch,
 				      enum srpt_opcode opcode,
 				      enum scst_exec_context context)
 {
-	struct scst_cmd *scmnd;
-	enum srpt_command_state state;
+	struct scst_cmd *scmnd = &ioctx->scmnd;
+	enum srpt_command_state state = ioctx->state;
 
-	scmnd = &ioctx->scmnd;
-	state = ioctx->state;
 	switch (opcode) {
 	case SRPT_RDMA_READ_LAST:
 		if (ioctx->n_rdma <= 0) {
@@ -1527,6 +1525,12 @@ static void srpt_handle_rdma_err_comp(struct srpt_rdma_ch *ch,
 				    __LINE__, state);
 		break;
 	case SRPT_RDMA_WRITE_LAST:
+		/*
+		 * Note: if an RDMA write error completion is received that
+		 * means that a SEND has also been posted. Defer further
+		 * processing of the associated command until the send error
+		 * completion has been received.
+		 */
 		scst_set_delivery_status(scmnd, SCST_CMD_DELIVERY_ABORTED);
 		break;
 	default:
