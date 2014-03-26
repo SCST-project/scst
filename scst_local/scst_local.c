@@ -1657,11 +1657,6 @@ static int scst_local_driver_remove(struct device *dev)
 	TRACE_ENTRY();
 
 	sess = to_scst_lcl_sess(dev);
-	if (!sess) {
-		PRINT_ERROR("%s", "Unable to locate sess info");
-		return -ENODEV;
-	}
-
 	scsi_remove_host(sess->shost);
 	scsi_host_put(sess->shost);
 
@@ -1726,8 +1721,6 @@ static void scst_local_release_adapter(struct device *dev)
 	TRACE_ENTRY();
 
 	sess = to_scst_lcl_sess(dev);
-	if (sess == NULL)
-		goto out;
 
 	/*
 	 * At this point the SCSI device is almost gone because the SCSI
@@ -1760,7 +1753,6 @@ static void scst_local_release_adapter(struct device *dev)
 
 	scst_unregister_session(sess->scst_sess, false, scst_local_free_sess);
 
-out:
 	TRACE_EXIT();
 	return;
 }
