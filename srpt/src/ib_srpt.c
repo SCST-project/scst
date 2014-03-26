@@ -1489,12 +1489,11 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 				  enum srpt_opcode opcode,
 				  enum scst_exec_context context)
 {
-	struct scst_cmd *scmnd;
+	struct scst_cmd *scmnd = &ioctx->scmnd;
 
 	EXTRACHECKS_WARN_ON(ioctx->n_rdma <= 0);
 	srpt_adjust_srq_wr_avail(ch, ioctx->n_rdma);
 
-	scmnd = &ioctx->scmnd;
 	if (opcode == SRPT_RDMA_READ_LAST && scmnd) {
 		if (srpt_test_and_set_cmd_state(ioctx, SRPT_STATE_NEED_DATA,
 						SRPT_STATE_DATA_IN))
