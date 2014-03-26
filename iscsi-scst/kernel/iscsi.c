@@ -61,7 +61,8 @@ static struct page *dummy_page;
 static struct scatterlist dummy_sg;
 
 static void cmnd_remove_data_wait_hash(struct iscsi_cmnd *cmnd);
-static void iscsi_send_task_mgmt_resp(struct iscsi_cmnd *req, int status);
+static void iscsi_send_task_mgmt_resp(struct iscsi_cmnd *req, int status,
+	bool dropped);
 static void iscsi_check_send_delayed_tm_resp(struct iscsi_session *sess);
 static void req_cmnd_release(struct iscsi_cmnd *req);
 static int cmnd_insert_data_wait_hash(struct iscsi_cmnd *cmnd);
@@ -2660,7 +2661,7 @@ static void execute_task_management(struct iscsi_cmnd *req)
 
 reject:
 	if (rc != 0)
-		iscsi_send_task_mgmt_resp(req, status);
+		iscsi_send_task_mgmt_resp(req, status, false);
 
 	return;
 }
@@ -3488,7 +3489,8 @@ out:
 	return;
 }
 
-static void iscsi_send_task_mgmt_resp(struct iscsi_cmnd *req, int status)
+static void iscsi_send_task_mgmt_resp(struct iscsi_cmnd *req, int status,
+	bool drop)
 {
 	struct iscsi_cmnd *rsp;
 	struct iscsi_task_mgt_hdr *req_hdr =
@@ -3500,7 +3502,26 @@ static void iscsi_send_task_mgmt_resp(struct iscsi_cmnd *req, int status)
 	TRACE_ENTRY();
 
 	TRACE_MGMT_DBG("TM req %p finished", req);
-	TRACE(TRACE_MGMT, "iSCSI TM fn %d finished, status %d", fn, status);
+	TRACE(TRACE_MGMT, "iSCSI TM fn %d finished, status %d, dropped %d",
+		fn, status, drop);
+
+	if (drop) {
+		spin_lock(&sess->sn_lock);
+		sess->tm_active--;
+		spin_unlock(&sess->sn_lock);
+		if (fn == ISCSI_FUNCTION_TARGET_COLD_RESET) {
+			struct iscsi_target *target = req->conn->session->target;
+
+			PRINT_INFO("Closing all connections for target %x at "
+				"COLD RESET from initiator %s", target->tid,
+				req->conn->session->initiator_name);
+
+			mutex_lock(&target->target_mutex);
+			target_del_all_sess(target, 0);
+			mutex_unlock(&target->target_mutex);
+		}
+		goto out_release;
+	}
 
 	rsp = iscsi_alloc_rsp(req);
 	rsp_hdr = (struct iscsi_task_rsp_hdr *)&rsp->pdu.bhs;
@@ -3569,8 +3590,7 @@ static void iscsi_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd)
 	int fn = scst_mgmt_cmd_get_fn(scst_mcmd);
 	struct iscsi_cmnd *req = (struct iscsi_cmnd *)
 				scst_mgmt_cmd_get_tgt_priv(scst_mcmd);
-	int status =
-		iscsi_get_mgmt_response(scst_mgmt_cmd_get_status(scst_mcmd));
+	int status = iscsi_get_mgmt_response(scst_mgmt_cmd_get_status(scst_mcmd));
 
 	if ((status == ISCSI_RESPONSE_UNKNOWN_TASK) &&
 	    (fn == SCST_ABORT_TASK)) {
@@ -3592,7 +3612,7 @@ static void iscsi_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd)
 		sBUG_ON(1);
 		break;
 	default:
-		iscsi_send_task_mgmt_resp(req, status);
+		iscsi_send_task_mgmt_resp(req, status, scst_mgmt_cmd_dropped(scst_mcmd));
 		scst_mgmt_cmd_set_tgt_priv(scst_mcmd, NULL);
 		break;
 	}

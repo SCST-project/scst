@@ -465,16 +465,19 @@ Every target should have at least the following entries:
     * 2 - immediately abort all coming commands and drop all coming TM
       commands
 
-    * 3 - immediately abort all coming data transfer commands. This is
-      the most evil mode, because it is not too well handled by many
-      initiator OS'es, including Linux, so they may never recover from
-      it.
+    * 3 - immediately abort all coming data transfer commands.
 
     * 4 - immediately abort all coming data transfer commands and drop all
       coming TM commands
 
-   CAUTION! With some target drivers modes 2 and 4 can cause internal
-   resources leaks, so don't abuse those options!
+   Modes 3 and 4 are the most evil ones, because they are not too well
+   handled by many initiator OS'es, including Linux, so they may never
+   recover from it.
+
+   Note, dropping TM commands, i.e. not sending response on them,
+   implemented not for all target drivers. If it's implemented for your
+   particular target driver or not, you can find out by checking traces
+   or the target driver's source code.
 
  - cpu_mask - defines CPU affinity mask for threads serving this target.
    For threads serving LUNs it is used only for devices with

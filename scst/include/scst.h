@@ -2289,6 +2289,7 @@ struct scst_mgmt_cmd {
 	unsigned int cmd_sn_set:1;	/* set, if cmd_sn field is valid */
 	/* Set if dev handler's task_mgmt_fn_received was called */
 	unsigned int task_mgmt_fn_received_called:1;
+	unsigned int mcmd_dropped:1; /* set if mcmd was dropped */
 
 	/*
 	 * Number of commands to finish before sending response,
@@ -3717,12 +3718,6 @@ static inline int scst_mgmt_cmd_get_status(struct scst_mgmt_cmd *mcmd)
 	return mcmd->status;
 }
 
-/* Returns mgmt cmd's TM fn */
-static inline int scst_mgmt_cmd_get_fn(struct scst_mgmt_cmd *mcmd)
-{
-	return mcmd->fn;
-}
-
 static inline void scst_mgmt_cmd_set_status(struct scst_mgmt_cmd *mcmd,
 	int status)
 {
@@ -3730,6 +3725,18 @@ static inline void scst_mgmt_cmd_set_status(struct scst_mgmt_cmd *mcmd,
 	if ((mcmd->status == SCST_MGMT_STATUS_SUCCESS) &&
 	    (status != SCST_MGMT_STATUS_RECEIVED_STAGE_COMPLETED))
 		mcmd->status = status;
+}
+
+/* Returns mgmt cmd's TM fn */
+static inline int scst_mgmt_cmd_get_fn(struct scst_mgmt_cmd *mcmd)
+{
+	return mcmd->fn;
+}
+
+/* Returns true if mgmt cmd should be dropped, i.e. response not sent */
+static inline bool scst_mgmt_cmd_dropped(struct scst_mgmt_cmd *mcmd)
+{
+	return mcmd->mcmd_dropped;
 }
 
 /*

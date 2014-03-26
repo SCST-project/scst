@@ -5497,13 +5497,11 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 	TRACE_ENTRY();
 
 	t = mcmd->sess->acg->acg_black_hole_type;
-
 	if (unlikely((t == SCST_ACG_BLACK_HOLE_ALL) ||
 		     (t == SCST_ACG_BLACK_HOLE_DATA_MCMD))) {
 		TRACE_MGMT_DBG("Dropping mcmd %p (fn %d, initiator %s)", mcmd,
 			mcmd->fn, mcmd->sess->initiator_name);
-		mcmd->state = SCST_MCMD_STATE_FINISHED;
-		goto out;
+		mcmd->mcmd_dropped = 1;
 	}
 
 	switch (mcmd->fn) {
