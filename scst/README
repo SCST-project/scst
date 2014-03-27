@@ -1021,6 +1021,10 @@ Each vdisk_fileio's device has the following attributes in
  - prod_rev_lvl - PRODUCT REVISION LEVEL as reported via the INQUIRY
    response. The default value for this field is " 300".
 
+ - scsi_device_name - optional SCSI target device name to which this
+   SCST device belongs to (in SCSI terminology all SCST devices called
+   Logical Units). See SPC for more info.
+
  - thin_provisioned - contains thin provisioning status of this virtual
    device.
 

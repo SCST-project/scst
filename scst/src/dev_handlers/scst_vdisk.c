@@ -182,12 +182,14 @@ struct scst_vdisk_dev {
 	unsigned int vend_specific_id_set:1;
 	unsigned int prod_id_set:1;          /* true if prod_id manually set */
 	unsigned int prod_rev_lvl_set:1; /* true if prod_rev_lvl manually set */
+	unsigned int scsi_device_name_set:1; /* true if scsi_device_name manually set */
 	unsigned int t10_dev_id_set:1; /* true if t10_dev_id manually set */
 	unsigned int usn_set:1; /* true if usn manually set */
 	char t10_vend_id[8 + 1];
 	char vend_specific_id[32 + 1];
 	char prod_id[16 + 1];
 	char prod_rev_lvl[4 + 1];
+	char scsi_device_name[256 + 1];
 	char t10_dev_id[16+8+2]; /* T10 device ID */
 	char usn[MAX_USN_LEN];
 	uint8_t inq_vend_specific[MAX_INQ_VEND_SPECIFIC_LEN];
@@ -353,6 +355,10 @@ static ssize_t vdev_sysfs_prod_rev_lvl_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count);
 static ssize_t vdev_sysfs_prod_rev_lvl_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
+static ssize_t vdev_sysfs_scsi_device_name_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count);
+static ssize_t vdev_sysfs_scsi_device_name_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
 static ssize_t vdev_sysfs_t10_dev_id_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count);
 static ssize_t vdev_sysfs_t10_dev_id_show(struct kobject *kobj,
@@ -416,6 +422,9 @@ static struct kobj_attribute vdev_prod_id_attr =
 static struct kobj_attribute vdev_prod_rev_lvl_attr =
 	__ATTR(prod_rev_lvl, S_IWUSR|S_IRUGO, vdev_sysfs_prod_rev_lvl_show,
 	       vdev_sysfs_prod_rev_lvl_store);
+static struct kobj_attribute vdev_scsi_device_name_attr =
+	__ATTR(scsi_device_name, S_IWUSR|S_IRUGO, vdev_sysfs_scsi_device_name_show,
+	       vdev_sysfs_scsi_device_name_store);
 static struct kobj_attribute vdev_t10_dev_id_attr =
 	__ATTR(t10_dev_id, S_IWUSR|S_IRUGO, vdev_sysfs_t10_dev_id_show,
 		vdev_sysfs_t10_dev_id_store);
@@ -449,6 +458,7 @@ static const struct attribute *vdisk_fileio_attrs[] = {
 	&vdev_vend_specific_id_attr.attr,
 	&vdev_prod_id_attr.attr,
 	&vdev_prod_rev_lvl_attr.attr,
+	&vdev_scsi_device_name_attr.attr,
 	&vdev_t10_dev_id_attr.attr,
 	&vdev_usn_attr.attr,
 	&vdev_inq_vend_specific_attr.attr,
@@ -471,6 +481,7 @@ static const struct attribute *vdisk_blockio_attrs[] = {
 	&vdev_vend_specific_id_attr.attr,
 	&vdev_prod_id_attr.attr,
 	&vdev_prod_rev_lvl_attr.attr,
+	&vdev_scsi_device_name_attr.attr,
 	&vdev_t10_dev_id_attr.attr,
 	&vdev_usn_attr.attr,
 	&vdev_inq_vend_specific_attr.attr,
@@ -489,6 +500,7 @@ static const struct attribute *vdisk_nullio_attrs[] = {
 	&vdev_vend_specific_id_attr.attr,
 	&vdev_prod_id_attr.attr,
 	&vdev_prod_rev_lvl_attr.attr,
+	&vdev_scsi_device_name_attr.attr,
 	&vdev_t10_dev_id_attr.attr,
 	&vdev_usn_attr.attr,
 	&vdev_inq_vend_specific_attr.attr,
@@ -504,6 +516,7 @@ static const struct attribute *vcdrom_attrs[] = {
 	&vdev_vend_specific_id_attr.attr,
 	&vdev_prod_id_attr.attr,
 	&vdev_prod_rev_lvl_attr.attr,
+	&vdev_scsi_device_name_attr.attr,
 	&vdev_t10_dev_id_attr.attr,
 	&vdev_usn_attr.attr,
 	&vdev_inq_vend_specific_attr.attr,
@@ -517,7 +530,7 @@ static DEFINE_MUTEX(scst_vdisk_mutex);
 
 /*
  * Protects the device attributes t10_vend_id, vend_specific_id, prod_id,
- * prod_rev_lvl, t10_dev_id, usn and inq_vend_specific.
+ * prod_rev_lvl, scsi_device_name, t10_dev_id, usn and inq_vend_specific.
  */
 static DEFINE_RWLOCK(vdisk_serial_rwlock);
 
@@ -2556,6 +2569,23 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 			int num = 4;
 
 			buf[1] = 0x83;
+
+			read_lock(&vdisk_serial_rwlock);
+			i = strlen(virt_dev->scsi_device_name);
+			if (i > 0) {
+				/* SCSI target device name */
+				buf[num + 0] = 0x3;	/* ASCII */
+				buf[num + 1] = 0x20 | 0x8; /* Target device SCSI name */
+				i += 4 - i % 4; /* align to required 4 bytes */
+				scst_copy_and_fill_b(&buf[num + 4], virt_dev->scsi_device_name, i, '\0');
+
+				buf[num + 3] = i;
+				num += buf[num + 3];
+
+				num += 4;
+			}
+			read_unlock(&vdisk_serial_rwlock);
+
 			/* T10 vendor identifier field format (faked) */
 			buf[num + 0] = 0x2;	/* ASCII */
 			buf[num + 1] = 0x1;	/* Vendor ID */
@@ -4981,6 +5011,9 @@ static int vdev_create(struct scst_dev_type *devt,
 	sprintf(virt_dev->prod_rev_lvl, "%.*s",
 		(int)(sizeof(virt_dev->prod_rev_lvl) - 1), SCST_FIO_REV);
 
+	sprintf(virt_dev->scsi_device_name, "%.*s",
+		(int)(sizeof(virt_dev->scsi_device_name) - 1), "");
+
 	scnprintf(virt_dev->usn, sizeof(virt_dev->usn), "%llx", dev_id_num);
 	TRACE_DBG("usn %s", virt_dev->usn);
 
@@ -6426,6 +6459,66 @@ static ssize_t vdev_sysfs_prod_rev_lvl_show(struct kobject *kobj,
 	pos = sprintf(buf, "%s\n%s", virt_dev->prod_rev_lvl,
 		      virt_dev->prod_rev_lvl_set ? SCST_SYSFS_KEY_MARK "\n" :
 		      "");
+	read_unlock(&vdisk_serial_rwlock);
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static ssize_t vdev_sysfs_scsi_device_name_store(struct kobject *kobj,
+					     struct kobj_attribute *attr,
+					     const char *buf, size_t count)
+{
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+	char *p;
+	int res, len;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = dev->dh_priv;
+	p = memchr(buf, '\n', count);
+	len = p ? p - buf : count;
+
+	if (len >= sizeof(virt_dev->scsi_device_name)) {
+		PRINT_ERROR("SCSI device namel is too long (max %zd characters)",
+			sizeof(virt_dev->scsi_device_name));
+		res = -EINVAL;
+		goto out;
+	}
+
+	write_lock(&vdisk_serial_rwlock);
+	sprintf(virt_dev->scsi_device_name, "%.*s", len, buf);
+	if (strlen(virt_dev->scsi_device_name) > 0)
+		virt_dev->scsi_device_name_set = 1;
+	else
+		virt_dev->scsi_device_name_set = 0;
+	write_unlock(&vdisk_serial_rwlock);
+
+	res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t vdev_sysfs_scsi_device_name_show(struct kobject *kobj,
+					    struct kobj_attribute *attr,
+					    char *buf)
+{
+	int pos;
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = dev->dh_priv;
+
+	read_lock(&vdisk_serial_rwlock);
+	pos = sprintf(buf, "%s\n%s", virt_dev->scsi_device_name,
+		      virt_dev->scsi_device_name_set ? SCST_SYSFS_KEY_MARK "\n" : "");
 	read_unlock(&vdisk_serial_rwlock);
 
 	TRACE_EXIT_RES(pos);
