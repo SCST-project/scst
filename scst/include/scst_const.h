@@ -264,12 +264,12 @@ enum scst_cdb_flags {
 
 static inline int scst_sense_valid(const uint8_t *sense)
 {
-	return ((sense != NULL) && ((sense[0] & 0x70) == 0x70));
+	return (sense != NULL) && ((sense[0] & 0x70) == 0x70);
 }
 
 static inline int scst_no_sense(const uint8_t *sense)
 {
-	return ((sense != NULL) && (sense[2] == 0));
+	return (sense != NULL) && (sense[2] == 0);
 }
 
 static inline int scst_sense_response_code(const uint8_t *sense)
