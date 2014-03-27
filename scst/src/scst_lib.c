@@ -3873,7 +3873,7 @@ found:
 			t->acg_dev->acg->acg_io_grouping_type);
 	} else {
 		res = t;
-		if (!*(volatile bool*)&res->active_cmd_threads->io_context_ready) {
+		if (!*(volatile bool *)&res->active_cmd_threads->io_context_ready) {
 			TRACE_DBG("IO context for t %p not yet "
 				"initialized, waiting...", t);
 			msleep(100);
