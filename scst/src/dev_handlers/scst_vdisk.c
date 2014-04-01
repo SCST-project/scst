@@ -4468,7 +4468,6 @@ static ssize_t blockio_rw_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 			       size_t len, loff_t *loff, unsigned rw)
 {
 	DECLARE_COMPLETION_ONSTACK(c);
-	int block_shift = virt_dev->dev->block_shift;
 	struct block_device *bdev = virt_dev->bdev;
 	struct bio *bio;
 	void *p;
@@ -4492,9 +4491,9 @@ static ssize_t blockio_rw_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 	bio->bi_end_io = blockio_end_sync_io;
 	bio->bi_private = &c;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0)
-	bio->bi_sector = *loff << (block_shift - 9);
+	bio->bi_sector = *loff >> 9;
 #else
-	bio->bi_iter.bi_sector = *loff << (block_shift - 9);
+	bio->bi_iter.bi_sector = *loff >> 9;
 #endif
 	for (p = buf; p < buf + len; p += bytes) {
 		off = offset_in_page(p);
