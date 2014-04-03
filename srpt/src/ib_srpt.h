@@ -133,9 +133,12 @@ enum {
 	RDMA_COMPL_TIMEOUT_S = 80,
 };
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 1, 0) &&	\
-	!(defined(CONFIG_SUSE_KERNEL) &&		\
-	LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 76))
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 1, 0) &&			\
+	!(defined(CONFIG_SUSE_KERNEL) &&				\
+	LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 76)) &&		\
+	!(defined(RHEL_MAJOR) &&					\
+	(RHEL_MAJOR -0 > 6 ||						\
+	RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 >= 5))
 /* See also patch "IB/core: Add GID change event" (commit 761d90ed4). */
 enum { IB_EVENT_GID_CHANGE = 18 };
 #endif
