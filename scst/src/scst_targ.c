@@ -2087,7 +2087,7 @@ static int scst_report_supported_tm_fns(struct scst_cmd *cmd)
 #if 1
 		buf[4] = 1; /* TMFTMOV */
 		buf[6] = 0x80; /* ATTS */
-		put_unaligned_be32(30, &buf[8]); /* long timeout - 30 sec. */
+		put_unaligned_be32(300, &buf[8]); /* long timeout - 30 sec. */
 		put_unaligned_be32(150, &buf[12]); /* short timeout - 15 sec. */
 #endif
 		resp_len = 16;
