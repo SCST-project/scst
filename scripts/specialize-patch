@@ -151,13 +151,13 @@ function evaluate(stmnt, pattern, arg, op, result) {
   {
     last_stmnt = stmnt
 
-    pattern = "\\([[:blank:]]*([0-9]+)[[:blank:]]*\\)"
+    pattern = "![[:blank:]]*(-*[0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
-      sub(pattern, op[1], stmnt)
+      sub(pattern, op[1] == 0, stmnt)
     }
     
-    pattern = "![[:blank:]]*([0-9]+)"
+    pattern = "![[:blank:]]*\\([[:blank:]]*(-*[0-9]+)[[:blank:]]*\\)"
     while (match(stmnt, pattern, op) != 0)
     {
       sub(pattern, op[1] == 0, stmnt)
@@ -203,6 +203,12 @@ function evaluate(stmnt, pattern, arg, op, result) {
       sub(pattern, result, stmnt)
     }
   
+    pattern="(-*[0-9]+)[[:blank:]]*\\&\\&[[:blank:]]*\\([[:blank:]]*(-*[0-9]+)[[:blank:]]*\\)"
+    while (match(stmnt, pattern, op) != 0)
+    {
+      sub(pattern, (op[1] != 0) && (op[2] != 0), stmnt)
+    }
+
     pattern="(-*[0-9]+)[[:blank:]]*\\&\\&[[:blank:]]*(-*[0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
