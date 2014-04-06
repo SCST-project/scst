@@ -264,12 +264,12 @@ enum scst_cdb_flags {
 
 static inline int scst_sense_valid(const uint8_t *sense)
 {
-	return ((sense != NULL) && ((sense[0] & 0x70) == 0x70));
+	return (sense != NULL) && ((sense[0] & 0x70) == 0x70);
 }
 
 static inline int scst_no_sense(const uint8_t *sense)
 {
-	return ((sense != NULL) && (sense[2] == 0));
+	return (sense != NULL) && (sense[2] == 0);
 }
 
 static inline int scst_sense_response_code(const uint8_t *sense)
@@ -421,6 +421,16 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 #define UNMAP 0x42
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 0)
+/*
+ * From <scsi/scsi.h>. See also commit
+ * 1c68cc1626341665a8bd1d2c7dfffd7fc852a79c.
+ */
+#ifndef COMPARE_AND_WRITE
+#define COMPARE_AND_WRITE     0x89
+#endif
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
 /*
  * From <linux/fs.h>. See also commit
@@ -550,7 +560,6 @@ enum scst_tg_sup {
  ** Misc SCSI constants
  *************************************************************/
 #define SCST_SENSE_ASC_UA_RESET      0x29
-#define BYTCHK			     0x02
 #define POSITION_LEN_SHORT           20
 #define POSITION_LEN_LONG            32
 

@@ -1272,7 +1272,20 @@ Where:
 	<item><bf/SCST_SMALL_TIMEOUT/ - set if CDB requires small timeout
 
 	<item><bf/SCST_LONG_TIMEOUT/ - set if CDB requires long timeout
-	
+
+	<item><bf/SCST_SERIALIZED/ - set if a command requires serialization
+	against commands that are received later. If the flag SCST_SERIALIZED
+	has been set, execution of commands for the same device that are
+	received later will be postponed until execution of the serialized
+	command has finished.
+
+	<item><bf/SCST_STRICTLY_SERIALIZED/ - set if a command must not
+	be executed concurrently against any other command received for the
+	same device. Processing of a strictly serialized command only starts
+	after processing of all previously received commands has finished and
+	no new commands are started as long as execution of a strictly
+	serialized command is in progress.
+
 	</itemize>
 
 <item><bf/direction/ - one of the <bf/SCST_DATA_*/ constants (see below)

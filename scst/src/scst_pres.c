@@ -2457,7 +2457,7 @@ void scst_pr_read_reservation(struct scst_cmd *cmd, uint8_t *buffer,
 	if (buffer_size < 8) {
 		TRACE_PR("buffer_size too small: %d. expected >= 8 "
 			"(buffer %p)", buffer_size, buffer);
-		goto skip;
+		goto out;
 	}
 
 	memset(b, 0, sizeof(b));
@@ -2491,10 +2491,10 @@ void scst_pr_read_reservation(struct scst_cmd *cmd, uint8_t *buffer,
 		size = 24;
 	}
 
-	memset(buffer, 0, buffer_size);
-	memcpy(buffer, b, min(size, buffer_size));
-
-skip:
+out:
+	size = min(size, buffer_size);
+	memcpy(buffer, b, size);
+	memset(buffer + size, 0, buffer_size - size);
 	scst_set_resp_data_len(cmd, size);
 
 	TRACE_EXIT();

@@ -150,6 +150,8 @@ static int get_cdb_info_write_same10(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
 static int get_cdb_info_write_same16(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
+static int get_cdb_info_compare_and_write(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
 static int get_cdb_info_apt(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
 static int get_cdb_info_min(struct scst_cmd *cmd,
@@ -966,6 +968,14 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 .info_lba_off = 2, .info_lba_len = 8,
 	 .info_len_off = 10, .info_len_len = 4,
 	 .get_cdb_info = get_cdb_info_lba_8_len_4},
+	{.ops = 0x89, .devkey = "O               ",
+	 .info_op_name = "COMPARE AND WRITE",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM|
+			  SCST_SERIALIZED,
+	 .info_lba_off = 2, .info_lba_len = 8,
+	 .info_len_off = 13, .info_len_len = 1,
+	 .get_cdb_info = get_cdb_info_compare_and_write},
 	{.ops = 0x8A, .devkey = "O   OO O        ",
 	 .info_op_name = "WRITE(16)",
 	 .info_data_direction = SCST_DATA_WRITE,
@@ -1655,6 +1665,38 @@ out:
 	return res;
 }
 EXPORT_SYMBOL(scst_set_cmd_error);
+
+int scst_set_cmd_error_and_inf(struct scst_cmd *cmd, int key, int asc,
+				int ascq, uint64_t information)
+{
+	int res;
+
+	res = scst_set_cmd_error(cmd, key, asc, ascq);
+	if (res)
+		goto out;
+
+	switch (cmd->sense[0] & 0x7f) {
+	case 0x70:
+		/* Fixed format */
+		cmd->sense[0] |= 0x80; /* Information field is valid */
+		put_unaligned_be32(information, &cmd->sense[3]);
+		break;
+	case 0x72:
+		/* Descriptor format */
+		cmd->sense[7] = 12; /* additional sense length */
+		cmd->sense[8 + 0] = 0; /* descriptor type: Information */
+		cmd->sense[8 + 1] = 10; /* Additional length */
+		cmd->sense[8 + 2] = 0x80; /* VALID */
+		put_unaligned_be64(information, &cmd->sense[8 + 4]);
+		break;
+	default:
+		sBUG();
+	}
+
+out:
+	return res;
+}
+EXPORT_SYMBOL(scst_set_cmd_error_and_inf);
 
 static void scst_fill_field_pointer_sense(uint8_t *fp_sense, int field_offs,
 	int bit_offs, bool cdb)
@@ -3831,7 +3873,7 @@ found:
 			t->acg_dev->acg->acg_io_grouping_type);
 	} else {
 		res = t;
-		if (!*(volatile bool*)&res->active_cmd_threads->io_context_ready) {
+		if (!*(volatile bool *)&res->active_cmd_threads->io_context_ready) {
 			TRACE_DBG("IO context for t %p not yet "
 				"initialized, waiting...", t);
 			msleep(100);
@@ -4110,6 +4152,10 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	tgt_dev->tgt_dev_rd_only = acg_dev->acg_dev_rd_only || dev->dev_rd_only;
 	tgt_dev->sess = sess;
 	atomic_set(&tgt_dev->tgt_dev_cmd_count, 0);
+	if (sess->acg->acg_black_hole_type != SCST_ACG_BLACK_HOLE_NONE)
+		set_bit(SCST_TGT_DEV_BLACK_HOLE, &tgt_dev->tgt_dev_flags);
+	else
+		clear_bit(SCST_TGT_DEV_BLACK_HOLE, &tgt_dev->tgt_dev_flags);
 
 	scst_sgv_pool_use_norm(tgt_dev);
 
@@ -4233,7 +4279,7 @@ out_free:
 	goto out;
 }
 
-/* No locks supposed to be held, scst_mutex - held */
+/* scst_mutex supposed to be held */
 void scst_nexus_loss(struct scst_tgt_dev *tgt_dev, bool queue_UA)
 {
 	TRACE_ENTRY();
@@ -4531,6 +4577,24 @@ out:
 	return res;
 }
 
+static void scst_prelim_finish_internal_cmd(struct scst_cmd *cmd)
+{
+	unsigned long flags;
+
+	TRACE_ENTRY();
+
+	sBUG_ON(!cmd->internal);
+
+	spin_lock_irqsave(&cmd->sess->sess_list_lock, flags);
+	list_del(&cmd->sess_cmd_list_entry);
+	spin_unlock_irqrestore(&cmd->sess->sess_list_lock, flags);
+
+	__scst_cmd_put(cmd);
+
+	TRACE_EXIT();
+	return;
+}
+
 int scst_prepare_request_sense(struct scst_cmd *orig_cmd)
 {
 	int res = 0;
@@ -4734,7 +4798,7 @@ out:
 	return res;
 
 out_free_cmd:
-	__scst_cmd_put(cmd);
+	scst_prelim_finish_internal_cmd(cmd);
 
 out_busy:
 	scst_set_busy(ws_cmd);
@@ -6436,8 +6500,16 @@ static int get_cdb_info_fmt(struct scst_cmd *cmd,
 static int get_cdb_info_verify10(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops)
 {
+	if (unlikely(cmd->cdb[1] & 4)) {
+		PRINT_ERROR("VERIFY(10): BYTCHK 1x not supported (dev %s)",
+				cmd->dev ? cmd->dev->virt_name : NULL);
+		scst_set_invalid_field_in_cdb(cmd, 1,
+			2 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+		return 1;
+	}
+
 	cmd->lba = get_unaligned_be32(cmd->cdb + sdbops->info_lba_off);
-	if (cmd->cdb[1] & BYTCHK) {
+	if (cmd->cdb[1] & 2) {
 		cmd->bufflen = get_unaligned_be16(cmd->cdb + sdbops->info_len_off);
 		cmd->data_len = cmd->bufflen;
 		cmd->data_direction = SCST_DATA_WRITE;
@@ -6455,7 +6527,15 @@ static int get_cdb_info_verify6(struct scst_cmd *cmd,
 	cmd->op_flags |= SCST_LBA_NOT_VALID;
 	cmd->lba = 0;
 
-	if (cmd->cdb[1] & BYTCHK) {
+	if (unlikely(cmd->cdb[1] & 4)) {
+		PRINT_ERROR("VERIFY(6): BYTCHK 1x not supported (dev %s)",
+				cmd->dev ? cmd->dev->virt_name : NULL);
+		scst_set_invalid_field_in_cdb(cmd, 1,
+			2 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+		return 1;
+	}
+
+	if (cmd->cdb[1] & 2) { /* BYTCHK 01 */
 		cmd->bufflen = get_unaligned_be24(cmd->cdb + sdbops->info_len_off);
 		cmd->data_len = cmd->bufflen;
 		cmd->data_direction = SCST_DATA_WRITE;
@@ -6470,8 +6550,16 @@ static int get_cdb_info_verify6(struct scst_cmd *cmd,
 static int get_cdb_info_verify12(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops)
 {
+	if (unlikely(cmd->cdb[1] & 4)) {
+		PRINT_ERROR("VERIFY(12): BYTCHK 1x not supported (dev %s)",
+				cmd->dev ? cmd->dev->virt_name : NULL);
+		scst_set_invalid_field_in_cdb(cmd, 1,
+			2 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+		return 1;
+	}
+
 	cmd->lba = get_unaligned_be32(cmd->cdb + sdbops->info_lba_off);
-	if (cmd->cdb[1] & BYTCHK) {
+	if (cmd->cdb[1] & 2) { /* BYTCHK 01 */
 		cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
 		if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
 			PRINT_ERROR("Too big bufflen %d (op %x)",
@@ -6492,8 +6580,16 @@ static int get_cdb_info_verify12(struct scst_cmd *cmd,
 static int get_cdb_info_verify16(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops)
 {
+	if (unlikely(cmd->cdb[1] & 4)) {
+		PRINT_ERROR("VERIFY(16): BYTCHK 1x not supported (dev %s)",
+				cmd->dev ? cmd->dev->virt_name : NULL);
+		scst_set_invalid_field_in_cdb(cmd, 1,
+			2 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+		return 1;
+	}
+
 	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
-	if (cmd->cdb[1] & BYTCHK) {
+	if (cmd->cdb[1] & 2) { /* BYTCHK 01 */
 		cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
 		if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
 			PRINT_ERROR("Too big bufflen %d (op %x)",
@@ -6684,6 +6780,15 @@ static int get_cdb_info_write_same16(struct scst_cmd *cmd,
 	return 0;
 }
 
+static int get_cdb_info_compare_and_write(struct scst_cmd *cmd,
+					  const struct scst_sdbops *sdbops)
+{
+	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
+	cmd->data_len = cmd->cdb[sdbops->info_len_off];
+	cmd->bufflen = 2 * cmd->data_len;
+	return 0;
+}
+
 /**
  * get_cdb_info_apt() - Parse ATA PASS-THROUGH CDB.
  *
@@ -6799,7 +6904,8 @@ static int get_cdb_info_min(struct scst_cmd *cmd,
 		break;
 	case MI_REPORT_SUPPORTED_TASK_MANAGEMENT_FUNCTIONS:
 		cmd->op_name = "REPORT SUPPORTED TASK MANAGEMENT FUNCTIONS";
-		cmd->op_flags |= SCST_WRITE_EXCL_ALLOWED;
+		cmd->op_flags |= SCST_WRITE_EXCL_ALLOWED |
+				SCST_LOCAL_CMD | SCST_FULLY_LOCAL_CMD;
 		break;
 	default:
 		break;

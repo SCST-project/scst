@@ -411,7 +411,7 @@ Q: Loading the kernel module ib_srpt triggers a kernel panic with a call trace
     [<ffffffff81002e3b>] system_call_fastpath+0x16/0x1b
 
 A: This means that you are using a system on which OFED has been installed but
-   that ib_srpt has been compiled against the non-OFED kernel headers instead
+   that ib_srpt has been compiled against the in-tree kernel headers instead
    of the OFED kernel headers. You can fix this by rebuilding ib_srpt against
    the OFED kernel headers. The ib_srpt makefile should detect the OFED kernel
    headers automatically - at least if ib_srpt is built after OFED has been

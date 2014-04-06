@@ -322,7 +322,38 @@ following entries:
    complete, an management tool should poll this file. If the operation
    hasn't yet completed, it will also return EAGAIN. But after it's
    completed, it will return the result of this operation (0 for success
-   or -errno for error).
+   or -errno for error). The following two shell functions show how to do
+   this:
+
+# Read the SCST sysfs attribute $1. See also scst/README for more information.
+scst_sysfs_read() {
+    local EAGAIN val
+
+    EAGAIN="Resource temporarily unavailable"
+    while true; do
+        if val="$(LC_ALL=C cat "$1" 2>&1)"; then
+            echo -n "${val%\[key\]}"
+            return 0
+	elif [ "${val/*: }" != "$EAGAIN" ]; then
+            return 1
+        fi
+        sleep 1
+    done
+}
+
+# Write $1 into the SCST sysfs attribute $2. See also scst/README for more
+# information.
+scst_sysfs_write() {
+    local EAGAIN status
+
+    EAGAIN="Resource temporarily unavailable"
+    if status="$(LC_ALL=C; (echo -n "$1" > "$2") 2>&1)"; then
+        return 0
+    elif [ "${status/*: }" != "$EAGAIN" ]; then
+        return 1
+    fi
+    scst_sysfs_read /sys/kernel/scst_tgt/last_sysfs_mgmt_res >/dev/null
+}
 
 "Devices" subdirectory contains subdirectories for each SCST devices.
 
@@ -411,7 +442,7 @@ Every target should have at least the following entries:
    mapping to the corresponding hardware port. It isn't anyhow used by
    SCST.
 
- - enabled - using this attribute you can enable or disable this target/
+ - enabled - using this attribute you can enable or disable this target.
    It allows to finish configuring it before it starts accepting new
    connections. 0 by default.
 
@@ -422,6 +453,31 @@ Every target should have at least the following entries:
    attribute is also available in the initiators security groups, so you
    can assign the addressing method on per-initiator basis. See also the
    "Logical unit addressing (LUN)" section in SAM-5 for more information.
+
+ - black_hole - if set, all LUNs in the corresponding initiator group,
+   default target group in this case, start "swallowing" requests from
+   initiators. Possible values are:
+
+    * 0 - disable black hole mode
+
+    * 1 - immediately abort all coming commands
+
+    * 2 - immediately abort all coming commands and drop all coming TM
+      commands
+
+    * 3 - immediately abort all coming data transfer commands.
+
+    * 4 - immediately abort all coming data transfer commands and drop all
+      coming TM commands
+
+   Modes 3 and 4 are the most evil ones, because they are not too well
+   handled by many initiator OS'es, including Linux, so they may never
+   recover from it.
+
+   Note, dropping TM commands, i.e. not sending response on them,
+   implemented not for all target drivers. If it's implemented for your
+   particular target driver or not, you can find out by checking traces
+   or the target driver's source code.
 
  - cpu_mask - defines CPU affinity mask for threads serving this target.
    For threads serving LUNs it is used only for devices with
@@ -581,7 +637,7 @@ commands by looking inside this file.
 
 Each security group's subdirectory contains 2 subdirectories: initiators
 and luns as well as the following attributes: addr_method, cpu_mask and
-io_grouping_type. See above description of them.
+io_grouping_type, black_hole. See above description of them.
 
 Each "initiators" subdirectory contains list of added to this groups
 initiator as well as as well as file "mgmt". This file has the following
@@ -822,6 +878,10 @@ Each vdisk_fileio's device has the following attributes in
 
  - prod_rev_lvl - PRODUCT REVISION LEVEL as reported via the INQUIRY
    response. The default value for this field is " 300".
+
+ - scsi_device_name - optional SCSI target device name to which this
+   SCST device belongs to (in SCSI terminology all SCST devices called
+   Logical Units). See SPC for more info.
 
  - thin_provisioned - contains thin provisioning status of this virtual
    device.

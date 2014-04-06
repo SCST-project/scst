@@ -1235,25 +1235,25 @@ static struct q2t_sess *q2t_create_sess(scsi_qla_host_t *ha, fc_port_t *fcport,
 	spin_lock_irq(&pha->hardware_lock);
 	sess = q2t_find_sess_by_port_name_include_deleted(tgt, fcport->port_name);
 	if (sess != NULL) {
-			TRACE_MGMT_DBG("Double sess %p found (s_id %x:%x:%x, "
-				"loop_id %d), updating to d_id %x:%x:%x, "
-				"loop_id %d", sess, sess->s_id.b.domain,
-				sess->s_id.b.area, sess->s_id.b.al_pa,
-				sess->loop_id, fcport->d_id.b.domain,
-				fcport->d_id.b.area, fcport->d_id.b.al_pa,
-				fcport->loop_id);
+		TRACE_MGMT_DBG("Double sess %p found (s_id %x:%x:%x, "
+			"loop_id %d), updating to d_id %x:%x:%x, "
+			"loop_id %d", sess, sess->s_id.b.domain,
+			sess->s_id.b.area, sess->s_id.b.al_pa,
+			sess->loop_id, fcport->d_id.b.domain,
+			fcport->d_id.b.area, fcport->d_id.b.al_pa,
+			fcport->loop_id);
 
-			if (sess->deleted)
-				q2t_undelete_sess(sess);
+		if (sess->deleted)
+			q2t_undelete_sess(sess);
 
-			q2t_sess_get(sess);
-			sess->s_id = fcport->d_id;
-			sess->loop_id = fcport->loop_id;
-			sess->conf_compl_supported = fcport->conf_compl_supported;
-			if (sess->local && !local)
-				sess->local = 0;
-			spin_unlock_irq(&pha->hardware_lock);
-			goto out;
+		q2t_sess_get(sess);
+		sess->s_id = fcport->d_id;
+		sess->loop_id = fcport->loop_id;
+		sess->conf_compl_supported = fcport->conf_compl_supported;
+		if (sess->local && !local)
+			sess->local = 0;
+		spin_unlock_irq(&pha->hardware_lock);
+		goto out;
 	}
 	spin_unlock_irq(&pha->hardware_lock);
 

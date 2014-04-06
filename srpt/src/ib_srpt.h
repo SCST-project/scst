@@ -56,6 +56,7 @@
  */
 #define SRP_SERVICE_NAME_PREFIX		"SRP.T10:"
 
+struct srpt_nexus;
 struct srpt_tgt;
 
 enum {
@@ -132,6 +133,16 @@ enum {
 	RDMA_COMPL_TIMEOUT_S = 80,
 };
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 1, 0) &&			\
+	!(defined(CONFIG_SUSE_KERNEL) &&				\
+	LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 76)) &&		\
+	!(defined(RHEL_MAJOR) &&					\
+	(RHEL_MAJOR -0 > 6 ||						\
+	RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 >= 5))
+/* See also patch "IB/core: Add GID change event" (commit 761d90ed4). */
+enum { IB_EVENT_GID_CHANGE = 18 };
+#endif
+
 enum srpt_opcode {
 	SRPT_RECV,
 	SRPT_SEND,
@@ -139,6 +150,7 @@ enum srpt_opcode {
 	SRPT_RDMA_ABORT,
 	SRPT_RDMA_READ_LAST,
 	SRPT_RDMA_WRITE_LAST,
+	SRPT_RDMA_ZEROLENGTH_WRITE,
 };
 
 static inline u64 encode_wr_id(enum srpt_opcode opcode, u32 idx)
@@ -240,7 +252,7 @@ struct srpt_tsk_mgmt {
  * @req_lim_delta: Value of the req_lim_delta value field in the latest
  *               SRP response sent.
  * @tsk_mgmt:    SRPT task management function context information.
- * @rdma_ius_buf: DMA mapping context information.
+ * @rdma_ius_buf: Inline rdma_ius buffer for small requests.
  */
 struct srpt_send_ioctx {
 	struct srpt_ioctx	ioctx;
@@ -274,19 +286,20 @@ struct srpt_send_ioctx {
  * @CH_DISCONNECTING: DREQ has been received and waiting for DREP or DREQ has
  *                    been sent and waiting for DREP or channel is being closed
  *                    for another reason.
- * @CH_DRAINING:      QP is in ERR state.
+ * @CH_DISCONNECTED:  Last WQE has been received.
  */
 enum rdma_ch_state {
 	CH_CONNECTING,
 	CH_LIVE,
 	CH_DISCONNECTING,
-	CH_DRAINING,
+	CH_DISCONNECTED,
 };
 
 /**
  * struct srpt_rdma_ch - RDMA channel.
  * @thread:        Kernel thread that processes the IB queues associated with
  *                 the channel.
+ * @nexus:         I_T nexus this channel is associated with.
  * @cm_id:         IB CM ID associated with the channel.
  * @qp:            IB queue pair used for communicating over this channel.
  * @cq:            IB completion queue for this channel.
@@ -298,8 +311,6 @@ enum rdma_ch_state {
  * @sport:         pointer to the information of the HCA port used by this
  *                 channel.
  * @srpt_tgt:      Target port used by this channel.
- * @i_port_id:     128-bit initiator port identifier copied from SRP_LOGIN_REQ.
- * @t_port_id:     128-bit target port identifier copied from SRP_LOGIN_REQ.
  * @max_ti_iu_len: maximum target-to-initiator information unit length.
  * @req_lim:       request limit: maximum number of requests that may be sent
  *                 by the initiator without having received a response.
@@ -311,9 +322,8 @@ enum rdma_ch_state {
  * @ioctx_ring:    Send I/O context ring.
  * @wc:            Work completion array.
  * @state:         channel state. See also enum rdma_ch_state.
- * @dreq_received: Whether an IB CM DREQ event has been received.
- * @last_wqe_received: Whether the Last WQE QP event has been received.
- * @list:          node for insertion in the srpt_device.rch_list list.
+ * @processing_wait_list: Whether or not cmd_wait_list is being processed.
+ * @list:          Entry in srpt_nexus.ch_list;
  * @cmd_wait_list: list of SCST commands that arrived before the RTU event. This
  *                 list contains struct srpt_ioctx elements and is protected
  *                 against concurrent modification by the cm_id spinlock.
@@ -323,6 +333,7 @@ enum rdma_ch_state {
  */
 struct srpt_rdma_ch {
 	struct task_struct	*thread;
+	struct srpt_nexus	*nexus;
 	struct ib_cm_id		*cm_id;
 	struct ib_qp		*qp;
 	struct ib_cq		*cq;
@@ -330,11 +341,9 @@ struct srpt_rdma_ch {
 	int			rq_size;
 	int			max_sge;
 	int			max_rsp_size;
-	int			sq_wr_avail;
+	atomic_t		sq_wr_avail;
 	struct srpt_port	*sport;
 	struct srpt_tgt		*srpt_tgt;
-	u8			i_port_id[16];
-	u8			t_port_id[16];
 	int			max_ti_iu_len;
 	int			req_lim;
 	int			req_lim_delta;
@@ -346,25 +355,38 @@ struct srpt_rdma_ch {
 	struct list_head	list;
 	struct list_head	cmd_wait_list;
 	uint16_t		pkey_index;
-	bool			dreq_received;
-	bool			last_wqe_received;
+	bool			processing_wait_list;
 
 	struct scst_session	*scst_sess;
 	u8			sess_name[40];
 };
 
 /**
+ * struct srpt_nexus - I_T nexus
+ * @entry:     srpt_tgt.nexus_list list node.
+ * @ch_list:   struct srpt_rdma_ch list. Protected by srpt_tgt.spinlock
+ * @i_port_id: 128-bit initiator port identifier copied from SRP_LOGIN_REQ.
+ * @t_port_id: 128-bit target port identifier copied from SRP_LOGIN_REQ.
+ */
+struct srpt_nexus {
+	struct list_head	entry;
+	struct list_head	ch_list;
+	u8			i_port_id[16];
+	u8			t_port_id[16];
+};
+
+/**
  * struct srpt_tgt
- * @ch_releaseQ:   Enables waiting for removal from rch_list.
- * @spinlock:  Protects rch_list.
- * @rch_list:  Per-device channel list -- see also srpt_rdma_ch.list.
- * @scst_tgt:  SCST target information associated with this HCA.
- * @enabled:   Whether or not this SCST target is enabled.
+ * @ch_releaseQ: Enables waiting for removal from nexus_list.
+ * @spinlock:    Protects nexus_list.
+ * @nexus_list:  Per-device I_T nexus list.
+ * @scst_tgt:    SCST target information associated with this HCA.
+ * @enabled:     Whether or not this SCST target is enabled.
  */
 struct srpt_tgt {
 	wait_queue_head_t	ch_releaseQ;
 	spinlock_t		spinlock;
-	struct list_head	rch_list;
+	struct list_head	nexus_list;
 	struct scst_tgt		*scst_tgt;
 	bool			enabled;
 };
