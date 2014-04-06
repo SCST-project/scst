@@ -3414,11 +3414,11 @@ sub listAttributes {
 
 	my $found = FALSE;
 
-	foreach my $attribute (keys %{$attributes}) {
+	foreach my $attribute (sort keys %{$attributes}) {
 		my $first = TRUE;
 
 		if (defined($$attributes{$attribute}->{'keys'})) {
-			foreach my $key (keys %{$$attributes{$attribute}->{'keys'}}) {
+			foreach my $key (sort keys %{$$attributes{$attribute}->{'keys'}}) {
 				my $value = $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
 				my $static = ($$attributes{$attribute}->{'static'}) ? 'No' : 'Yes';
 				$value = '<not set>' if ($value eq '');
