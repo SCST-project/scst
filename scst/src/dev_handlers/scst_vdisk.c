@@ -4566,7 +4566,7 @@ static ssize_t vdev_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 	if (virt_dev->nullio)
 		return len;
 	else if (virt_dev->blockio)
-		return blockio_rw_sync(virt_dev, buf, len, loff, 0/*read*/);
+		return blockio_rw_sync(virt_dev, buf, len, loff, READ_SYNC);
 	else
 		return fileio_read_sync(virt_dev->fd, buf, len, loff);
 }
@@ -4574,21 +4574,12 @@ static ssize_t vdev_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 static ssize_t vdev_write_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 			       size_t len, loff_t *loff)
 {
-	int rw;
-
-	if (virt_dev->nullio) {
+	if (virt_dev->nullio)
 		return len;
-	} else if (virt_dev->blockio) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36)
-		rw = REQ_WRITE;
-#else
-		rw = 1 << BIO_RW;
-#endif
-
-		return blockio_rw_sync(virt_dev, buf, len, loff, rw);
-	} else {
+	else if (virt_dev->blockio)
+		return blockio_rw_sync(virt_dev, buf, len, loff, WRITE_SYNC);
+	else
 		return fileio_write_sync(virt_dev->fd, buf, len, loff);
-	}
 }
 
 static enum compl_status_e vdev_exec_verify(struct vdisk_cmd_params *p)
