@@ -1420,6 +1420,7 @@ static enum compl_status_e vdisk_invalid_opcode(struct vdisk_cmd_params *p)
 	[UNMAP] = vdisk_exec_unmap,					\
 	[WRITE_SAME] = vdisk_exec_write_same,				\
 	[WRITE_SAME_16] = vdisk_exec_write_same,			\
+	[COMPARE_AND_WRITE] = vdisk_exec_caw,				\
 	[MAINTENANCE_IN] = vdisk_exec_maintenance_in,			\
 	[SEND_DIAGNOSTIC] = vdisk_exec_send_diagnostic,			\
 	[FORMAT_UNIT] = vdisk_exec_format_unit,
@@ -1451,7 +1452,6 @@ static vdisk_op_fn fileio_ops[256] = {
 	[WRITE_10] = fileio_exec_write,
 	[WRITE_12] = fileio_exec_write,
 	[WRITE_16] = fileio_exec_write,
-	[COMPARE_AND_WRITE] = vdisk_exec_caw,
 	[WRITE_VERIFY] = fileio_exec_write_verify,
 	[WRITE_VERIFY_12] = fileio_exec_write_verify,
 	[WRITE_VERIFY_16] = fileio_exec_write_verify,
