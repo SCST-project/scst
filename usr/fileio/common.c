@@ -335,6 +335,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 		}
 		break;
 	case SYNCHRONIZE_CACHE:
+	case SYNCHRONIZE_CACHE_16:
 	{
 		int immed = cdb[1] & 0x2;
 		if (data_len == 0)

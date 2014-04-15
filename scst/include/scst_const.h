@@ -413,6 +413,10 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 #define WRITE_SAME_16	      0x93
 #endif
 
+#ifndef SYNCHRONIZE_CACHE_16
+#define SYNCHRONIZE_CACHE_16  0x91
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
 /*
  * From <scsi/scsi.h>. See also commit

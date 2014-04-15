@@ -1399,6 +1399,7 @@ static enum compl_status_e vdisk_invalid_opcode(struct vdisk_cmd_params *p)
 
 #define SHARED_OPS							\
 	[SYNCHRONIZE_CACHE] = vdisk_synchronize_cache,			\
+	[SYNCHRONIZE_CACHE_16] = vdisk_synchronize_cache,		\
 	[MODE_SENSE] = vdisk_exec_mode_sense,				\
 	[MODE_SENSE_10] = vdisk_exec_mode_sense,			\
 	[MODE_SELECT] = vdisk_exec_mode_select,				\
