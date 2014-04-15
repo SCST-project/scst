@@ -1377,7 +1377,7 @@ static void srpt_abort_cmd(struct srpt_send_ioctx *ioctx,
 	TRACE_EXIT();
 }
 
-void srpt_on_abort_cmd(struct scst_cmd *cmd)
+static void srpt_on_abort_cmd(struct scst_cmd *cmd)
 {
 	struct srpt_send_ioctx *ioctx = scst_cmd_get_tgt_priv(cmd);
 	struct srpt_rdma_ch *ch = ioctx->ch;
