@@ -265,6 +265,7 @@ static enum compl_status_e vdev_exec_verify(struct vdisk_cmd_params *p);
 static enum compl_status_e blockio_exec_write_verify(struct vdisk_cmd_params *p);
 static enum compl_status_e fileio_exec_write_verify(struct vdisk_cmd_params *p);
 static enum compl_status_e nullio_exec_write_verify(struct vdisk_cmd_params *p);
+static enum compl_status_e nullio_exec_verify(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_read_capacity(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_read_capacity16(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_get_lba_status(struct vdisk_cmd_params *p);
@@ -1474,6 +1475,9 @@ static vdisk_op_fn nullio_ops[256] = {
 	[WRITE_VERIFY] = nullio_exec_write_verify,
 	[WRITE_VERIFY_12] = nullio_exec_write_verify,
 	[WRITE_VERIFY_16] = nullio_exec_write_verify,
+	[VERIFY] = nullio_exec_verify,
+	[VERIFY_12] = nullio_exec_verify,
+	[VERIFY_16] = nullio_exec_verify,
 	SHARED_OPS
 };
 
@@ -4795,6 +4799,11 @@ static enum compl_status_e fileio_exec_write_verify(struct vdisk_cmd_params *p)
 }
 
 static enum compl_status_e nullio_exec_write_verify(struct vdisk_cmd_params *p)
+{
+	return CMD_SUCCEEDED;
+}
+
+static enum compl_status_e nullio_exec_verify(struct vdisk_cmd_params *p)
 {
 	return CMD_SUCCEEDED;
 }
