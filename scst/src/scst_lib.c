@@ -122,7 +122,7 @@ static int get_cdb_info_verify16(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
 static int get_cdb_info_len_1(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
-static int get_cdb_info_lba_2_len_1_256(struct scst_cmd *cmd,
+static int get_cdb_info_lba_3_len_1_256(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
 static int get_cdb_info_bidi_lba_4_len_2(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
@@ -313,9 +313,9 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 			 SCST_TEST_IO_IN_SIRQ_ALLOWED|
 #endif
 			 SCST_WRITE_EXCL_ALLOWED,
-	 .info_lba_off = 2, .info_lba_len = 2,
+	 .info_lba_off = 1, .info_lba_len = 3,
 	 .info_len_off = 4, .info_len_len = 1,
-	 .get_cdb_info = get_cdb_info_lba_2_len_1_256},
+	 .get_cdb_info = get_cdb_info_lba_3_len_1_256},
 	{.ops = 0x08, .devkey = " MV  O OV       ",
 	 .info_op_name = "READ(6)",
 	 .info_data_direction = SCST_DATA_READ,
@@ -343,9 +343,9 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 			  SCST_TEST_IO_IN_SIRQ_ALLOWED|
 #endif
 			  SCST_WRITE_MEDIUM,
-	 .info_lba_off = 2, .info_lba_len = 2,
+	 .info_lba_off = 1, .info_lba_len = 3,
 	 .info_len_off = 4, .info_len_len = 1,
-	 .get_cdb_info = get_cdb_info_lba_2_len_1_256},
+	 .get_cdb_info = get_cdb_info_lba_3_len_1_256},
 	{.ops = 0x0A, .devkey = " M  O  OV       ",
 	 .info_op_name = "WRITE(6)",
 	 .info_data_direction = SCST_DATA_WRITE,
@@ -6618,10 +6618,11 @@ static int get_cdb_info_len_1(struct scst_cmd *cmd,
 	return 0;
 }
 
-static int get_cdb_info_lba_2_len_1_256(struct scst_cmd *cmd,
+static int get_cdb_info_lba_3_len_1_256(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops)
 {
-	cmd->lba = get_unaligned_be16(cmd->cdb + sdbops->info_lba_off);
+	cmd->lba = (cmd->cdb[sdbops->info_lba_off] & 0x1F) << 16;
+	cmd->lba |= get_unaligned_be16(cmd->cdb + sdbops->info_lba_off + 1);
 	/*
 	 * From the READ(6) specification: a TRANSFER LENGTH field set to zero
 	 * specifies that 256 logical blocks shall be read.
