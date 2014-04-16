@@ -1121,8 +1121,6 @@ static int srpt_init_ch_qp(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 		return -ENOMEM;
 
 	attr->qp_state = IB_QPS_INIT;
-	attr->qp_access_flags = IB_ACCESS_LOCAL_WRITE | IB_ACCESS_REMOTE_READ |
-	    IB_ACCESS_REMOTE_WRITE;
 	attr->port_num = ch->sport->port;
 	attr->pkey_index = ch->pkey_index;
 
@@ -1156,6 +1154,7 @@ static int srpt_ch_qp_rtr(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 	if (ret)
 		goto out;
 
+	attr->qp_access_flags = 0;
 	attr->max_dest_rd_atomic = 4;
 
 	ret = ib_modify_qp(qp, attr, attr_mask);
@@ -1189,6 +1188,7 @@ static int srpt_ch_qp_rts(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 	if (ret)
 		goto out;
 
+	attr->qp_access_flags = 0;
 	attr->max_rd_atomic = 4;
 
 	/*
