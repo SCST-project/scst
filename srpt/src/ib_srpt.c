@@ -1126,11 +1126,9 @@ static int srpt_init_ch_qp(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 
 	ret = ib_find_cached_pkey(ch->sport->sdev->device, ch->sport->port,
 				  ch->pkey, &attr->pkey_index);
-	if (ret < 0) {
-		attr->pkey_index = 0;
+	if (ret < 0)
 		PRINT_ERROR("Translating pkey %#x failed (%d) - using index 0",
 			    ch->pkey, ret);
-	}
 
 	ret = ib_modify_qp(qp, attr,
 			   IB_QP_STATE | IB_QP_ACCESS_FLAGS | IB_QP_PORT |
