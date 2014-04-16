@@ -2229,7 +2229,7 @@ static int scst_report_supported_opcodes(struct scst_cmd *cmd)
 		buf = address;
 		inline_buf = true;
 	} else {
-		buf = vzalloc(buf_len); /* it can be big */
+		buf = vmalloc(buf_len); /* it can be big */
 		if (buf == NULL) {
 			PRINT_ERROR("Unable to allocate REPORT SUPPORTED "
 				"OPERATION CODES buffer with size %d", buf_len);
@@ -2239,7 +2239,7 @@ static int scst_report_supported_opcodes(struct scst_cmd *cmd)
 		inline_buf = false;
 	}
 
-	memset(buf, 0, sizeof(buf));
+	memset(buf, 0, buf_len);
 
 	switch(options) {
 	case 0: /* all */

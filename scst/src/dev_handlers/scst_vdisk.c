@@ -1824,17 +1824,18 @@ static vdisk_op_fn nullio_ops[256] = {
 	SHARED_OPS
 };
 
+#define VDISK_OPCODE_DESCRIPTORS					\
+	/* &scst_op_descr_get_lba_status, */				\
+	&scst_op_descr_read_capacity16,					\
+	&scst_op_descr_write_same10,					\
+	&scst_op_descr_write_same16,					\
+	&scst_op_descr_unmap,						\
+	&scst_op_descr_format_unit,					\
+	&scst_op_descr_cwr,
+
 static const struct scst_opcode_descriptor *vdisk_opcode_descriptors[] = {
 	SHARED_OPCODE_DESCRIPTORS
-#if 0 /* it's INVALID OPCODE currently */
-	&scst_op_descr_get_lba_status,
-#endif
-	&scst_op_descr_read_capacity16,
-	&scst_op_descr_write_same10,
-	&scst_op_descr_write_same16,
-	&scst_op_descr_unmap,
-	&scst_op_descr_format_unit,
-	&scst_op_descr_cwr,
+	VDISK_OPCODE_DESCRIPTORS
 	SCST_OPCODE_DESCRIPTORS
 };
 
