@@ -4651,7 +4651,12 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 					bio->bi_rw |= REQ_FUA;
 
 				if (cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36) || \
+	defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6
 					bio->bi_rw |= REQ_SYNC;
+#else
+					bio->bi_rw |= 1 << BIO_RW_SYNCIO;
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36) || \
 	defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6
 					bio->bi_rw |= REQ_META;
