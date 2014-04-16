@@ -2241,7 +2241,7 @@ static int scst_report_supported_opcodes(struct scst_cmd *cmd)
 
 	memset(buf, 0, buf_len);
 
-	switch(options) {
+	switch (options) {
 	case 0: /* all */
 		put_unaligned_be32(buf_len - 3, &buf[0]);
 		offs = 4;
