@@ -2377,6 +2377,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 {
 	struct srpt_device *const sdev = cm_id->context;
 	struct srpt_port *const sport = &sdev->port[param->port - 1];
+	const __be16 *const raw_port_gid = (__be16 *)sport->gid.raw;
 	struct srpt_tgt *const srpt_tgt = one_target_per_port ?
 					  &sport->srpt_tgt : &sdev->srpt_tgt;
 	struct srpt_nexus *nexus;
@@ -2428,14 +2429,14 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	    be16_to_cpu(*(__be16 *)&req->target_port_id[14]),
 	    it_iu_len,
 	    param->port,
-	    be16_to_cpu(*(__be16 *)&sdev->port[param->port - 1].gid.raw[0]),
-	    be16_to_cpu(*(__be16 *)&sdev->port[param->port - 1].gid.raw[2]),
-	    be16_to_cpu(*(__be16 *)&sdev->port[param->port - 1].gid.raw[4]),
-	    be16_to_cpu(*(__be16 *)&sdev->port[param->port - 1].gid.raw[6]),
-	    be16_to_cpu(*(__be16 *)&sdev->port[param->port - 1].gid.raw[8]),
-	    be16_to_cpu(*(__be16 *)&sdev->port[param->port - 1].gid.raw[10]),
-	    be16_to_cpu(*(__be16 *)&sdev->port[param->port - 1].gid.raw[12]),
-	    be16_to_cpu(*(__be16 *)&sdev->port[param->port - 1].gid.raw[14]));
+	    be16_to_cpu(raw_port_gid[0]),
+	    be16_to_cpu(raw_port_gid[1]),
+	    be16_to_cpu(raw_port_gid[2]),
+	    be16_to_cpu(raw_port_gid[3]),
+	    be16_to_cpu(raw_port_gid[4]),
+	    be16_to_cpu(raw_port_gid[5]),
+	    be16_to_cpu(raw_port_gid[6]),
+	    be16_to_cpu(raw_port_gid[7]));
 
 	nexus = srpt_get_nexus(srpt_tgt, req->initiator_port_id,
 			       req->target_port_id);
@@ -2534,18 +2535,16 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	}
 
 	if (one_target_per_port) {
-		__be16 *const raw_gid = (__be16 *)param->primary_path->dgid.raw;
-
 		snprintf(ch->sess_name, sizeof(ch->sess_name),
 			 "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x",
-			 be16_to_cpu(raw_gid[0]),
-			 be16_to_cpu(raw_gid[1]),
-			 be16_to_cpu(raw_gid[2]),
-			 be16_to_cpu(raw_gid[3]),
-			 be16_to_cpu(raw_gid[4]),
-			 be16_to_cpu(raw_gid[5]),
-			 be16_to_cpu(raw_gid[6]),
-			 be16_to_cpu(raw_gid[7]));
+			 be16_to_cpu(raw_port_gid[0]),
+			 be16_to_cpu(raw_port_gid[1]),
+			 be16_to_cpu(raw_port_gid[2]),
+			 be16_to_cpu(raw_port_gid[3]),
+			 be16_to_cpu(raw_port_gid[4]),
+			 be16_to_cpu(raw_port_gid[5]),
+			 be16_to_cpu(raw_port_gid[6]),
+			 be16_to_cpu(raw_port_gid[7]));
 	} else if (use_port_guid_in_session_name) {
 		/*
 		 * If the kernel module parameter use_port_guid_in_session_name
