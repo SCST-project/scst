@@ -1389,7 +1389,7 @@ struct scst_dev_type {
 		int *out_supp_opcodes_cnt);
 
 	/*
-	 * Called to put (release) array of supported opcodes returned 
+	 * Called to put (release) array of supported opcodes returned
 	 * by get_supported_opcodes() callback.
 	 *
 	 * OPTIONAL
