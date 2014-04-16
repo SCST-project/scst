@@ -88,6 +88,240 @@ static int sg_copy(struct scatterlist *dst_sg, struct scatterlist *src_sg,
 
 static void scst_free_descriptors(struct scst_cmd *cmd);
 
+const struct scst_opcode_descriptor scst_op_descr_inquiry = {
+	.od_opcode = INQUIRY,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 6,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { INQUIRY, 1, 0xFF, 0xFF, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+EXPORT_SYMBOL(scst_op_descr_inquiry);
+
+const struct scst_opcode_descriptor scst_op_descr_tur = {
+	.od_opcode = TEST_UNIT_READY,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 6,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { TEST_UNIT_READY, 0, 0, 0, 0, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+EXPORT_SYMBOL(scst_op_descr_tur);
+
+const struct scst_opcode_descriptor scst_op_descr_log_select = {
+	.od_opcode = LOG_SELECT,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 10,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { LOG_SELECT, 3, 0xFF, 0xFF, 0, 0, 0, 0xFF, 0xFF, \
+			       SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+EXPORT_SYMBOL(scst_op_descr_log_select);
+
+const struct scst_opcode_descriptor scst_op_descr_log_sense = {
+	.od_opcode = LOG_SENSE,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 10,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { LOG_SENSE, 1, 0xFF, 0xFF, 0, 0xFF, 0xFF, 0xFF, 0xFF, \
+			       SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+EXPORT_SYMBOL(scst_op_descr_log_sense);
+
+const struct scst_opcode_descriptor scst_op_descr_mode_select6 = {
+	.od_opcode = MODE_SELECT,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 6,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { MODE_SELECT, 0x11, 0, 0, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+EXPORT_SYMBOL(scst_op_descr_mode_select6);
+
+const struct scst_opcode_descriptor scst_op_descr_mode_sense6 = {
+	.od_opcode = MODE_SENSE,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 6,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { MODE_SENSE, 8, 0xFF, 0xFF, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+EXPORT_SYMBOL(scst_op_descr_mode_sense6);
+
+const struct scst_opcode_descriptor scst_op_descr_mode_select10 = {
+	.od_opcode = MODE_SELECT_10,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 10,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { MODE_SELECT_10, 0x11, 0, 0, 0, 0, 0, 0xFF, 0xFF, \
+			       SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+EXPORT_SYMBOL(scst_op_descr_mode_select10);
+
+const struct scst_opcode_descriptor scst_op_descr_mode_sense10 = {
+	.od_opcode = MODE_SENSE_10,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 10,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { MODE_SENSE_10, 0x18, 0xFF, 0xFF, 0, 0, 0, 0xFF, 0xFF, \
+			       SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+EXPORT_SYMBOL(scst_op_descr_mode_sense10);
+
+const struct scst_opcode_descriptor scst_op_descr_rtpg = {
+	.od_opcode = MAINTENANCE_IN,
+	.od_serv_action = MI_REPORT_TARGET_PGS,
+	.od_serv_action_valid = 1,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 12,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { MAINTENANCE_IN, 0xE0|MI_REPORT_TARGET_PGS, 0, 0, \
+			       0, 0, 0xFF, 0xFF, 0xFF, 0xFF, 0, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+EXPORT_SYMBOL(scst_op_descr_rtpg);
+
+const struct scst_opcode_descriptor scst_op_descr_stpg = {
+	.od_opcode = MAINTENANCE_OUT,
+	.od_serv_action = MO_SET_TARGET_PGS,
+	.od_serv_action_valid = 1,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 12,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { MAINTENANCE_IN, MO_SET_TARGET_PGS, 0, 0, 0, 0, \
+			       0xFF, 0xFF, 0xFF, 0xFF, 0, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+EXPORT_SYMBOL(scst_op_descr_stpg);
+
+const struct scst_opcode_descriptor scst_op_descr_send_diagnostic = {
+	.od_opcode = SEND_DIAGNOSTIC,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 6,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { SEND_DIAGNOSTIC, 0xF7, 0, 0xFF, 0xFF, \
+			       SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+EXPORT_SYMBOL(scst_op_descr_send_diagnostic);
+
+const struct scst_opcode_descriptor scst_op_descr_reserve6 = {
+	.od_opcode = RESERVE,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 6,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { RESERVE, 0, 0, 0, 0, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+EXPORT_SYMBOL(scst_op_descr_reserve6);
+
+const struct scst_opcode_descriptor scst_op_descr_release6 = {
+	.od_opcode = RELEASE,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 6,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { RELEASE, 0, 0, 0, 0, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+EXPORT_SYMBOL(scst_op_descr_release6);
+
+const struct scst_opcode_descriptor scst_op_descr_reserve10 = {
+	.od_opcode = RESERVE_10,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 10,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { RESERVE_10, 0, 0, 0, 0, 0, 0, 0, 0, \
+			       SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+EXPORT_SYMBOL(scst_op_descr_reserve10);
+
+const struct scst_opcode_descriptor scst_op_descr_release10 = {
+	.od_opcode = RELEASE_10,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 10,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { RELEASE_10, 0, 0, 0, 0, 0, 0, 0, 0, \
+			       SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+EXPORT_SYMBOL(scst_op_descr_release10);
+
+const struct scst_opcode_descriptor scst_op_descr_pr_in = {
+	.od_opcode = PERSISTENT_RESERVE_IN,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 10,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { PERSISTENT_RESERVE_IN, 0x1F, 0, 0, 0, 0, 0, 0xFF, 0xFF, \
+			       SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+EXPORT_SYMBOL(scst_op_descr_pr_in);
+
+const struct scst_opcode_descriptor scst_op_descr_pr_out = {
+	.od_opcode = PERSISTENT_RESERVE_OUT,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 10,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { PERSISTENT_RESERVE_OUT, 0x1F, 0xFF, 0, 0, 0xFF, \
+			       0xFF, 0xFF, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+EXPORT_SYMBOL(scst_op_descr_pr_out);
+
+const struct scst_opcode_descriptor scst_op_descr_report_luns = {
+	.od_opcode = REPORT_LUNS,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 12,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { REPORT_LUNS, 0, 0xFF, 0, 0, 0, 0xFF, 0xFF, \
+			       0xFF, 0xFF, 0, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+EXPORT_SYMBOL(scst_op_descr_report_luns);
+
+const struct scst_opcode_descriptor scst_op_descr_request_sense = {
+	.od_opcode = REQUEST_SENSE,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 6,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { REQUEST_SENSE, 1, 0, 0, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+EXPORT_SYMBOL(scst_op_descr_request_sense);
+
+const struct scst_opcode_descriptor scst_op_descr_report_supp_tm_fns = {
+	.od_opcode = MAINTENANCE_IN,
+	.od_serv_action = MI_REPORT_SUPPORTED_TASK_MANAGEMENT_FUNCTIONS,
+	.od_serv_action_valid = 1,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 12,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { MAINTENANCE_IN, MI_REPORT_SUPPORTED_TASK_MANAGEMENT_FUNCTIONS, \
+			       0x80, 0, 0, 0, 0xFF, 0xFF, 0xFF, \
+			       0xFF, 0, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+EXPORT_SYMBOL(scst_op_descr_report_supp_tm_fns);
+
+const struct scst_opcode_descriptor scst_op_descr_report_supp_opcodes = {
+	.od_opcode = MAINTENANCE_IN,
+	.od_serv_action = MI_REPORT_SUPPORTED_OPERATION_CODES,
+	.od_serv_action_valid = 1,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 12,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { MAINTENANCE_IN, MI_REPORT_SUPPORTED_OPERATION_CODES, \
+			       0x87, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, \
+			       0xFF, 0, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+EXPORT_SYMBOL(scst_op_descr_report_supp_opcodes);
+
 struct scst_sdbops;
 
 static int get_cdb_info_len_10(struct scst_cmd *cmd,
@@ -6901,7 +7135,8 @@ static int get_cdb_info_min(struct scst_cmd *cmd,
 		break;
 	case MI_REPORT_SUPPORTED_OPERATION_CODES:
 		cmd->op_name = "REPORT SUPPORTED OPERATION CODES";
-		cmd->op_flags |= SCST_WRITE_EXCL_ALLOWED;
+		cmd->op_flags |= SCST_WRITE_EXCL_ALLOWED |
+				SCST_LOCAL_CMD | SCST_FULLY_LOCAL_CMD;
 		break;
 	case MI_REPORT_SUPPORTED_TASK_MANAGEMENT_FUNCTIONS:
 		cmd->op_name = "REPORT SUPPORTED TASK MANAGEMENT FUNCTIONS";

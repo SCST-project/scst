@@ -571,6 +571,7 @@ enum scst_tg_sup {
  ** Various timeouts
  *************************************************************/
 #define SCST_DEFAULT_TIMEOUT			(30 * HZ)
+#define SCST_DEFAULT_NOMINAL_TIMEOUT_SEC	1
 
 #define SCST_GENERIC_CHANGER_TIMEOUT		(3 * HZ)
 #define SCST_GENERIC_CHANGER_LONG_TIMEOUT	(14000 * HZ)
@@ -586,8 +587,8 @@ enum scst_tg_sup {
 #define SCST_GENERIC_MODISK_REG_TIMEOUT		(900 * HZ)
 #define SCST_GENERIC_MODISK_LONG_TIMEOUT	(14000 * HZ)
 
-#define SCST_GENERIC_DISK_SMALL_TIMEOUT		(3 * HZ)
-#define SCST_GENERIC_DISK_REG_TIMEOUT		(30 * HZ)
+#define SCST_GENERIC_DISK_SMALL_TIMEOUT		(10 * HZ)
+#define SCST_GENERIC_DISK_REG_TIMEOUT		(60 * HZ)
 #define SCST_GENERIC_DISK_LONG_TIMEOUT		(3600 * HZ)
 
 #define SCST_GENERIC_RAID_TIMEOUT		(3 * HZ)

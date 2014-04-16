@@ -661,6 +661,7 @@ struct scst_acg;
 struct scst_acg_dev;
 struct scst_acn;
 struct scst_aen;
+struct scst_opcode_descriptor;
 
 /*
  * SCST uses 64-bit numbers to represent LUN's internally. The value
@@ -1373,6 +1374,29 @@ struct scst_dev_type {
 	 * MUST HAVE, if dev handler supports CDB splitting.
 	 */
 	bool (*on_sg_tablesize_low) (struct scst_cmd *cmd);
+
+	/*
+	 * Called to return array of supported opcodes in out_supp_opcodes
+	 * argument with out_supp_opcodes_cnt elements count or execute
+	 * REPORT SUPPORTED OPERATION CODES command in place. Must return
+	 * 0 on success or any other code otherwise. In the latter case,
+	 * cmd supposed to have correct sense set.
+	 *
+	 * OPTIONAL
+	 */
+	int (*get_supported_opcodes) (struct scst_cmd *cmd,
+		const struct scst_opcode_descriptor ***out_supp_opcodes,
+		int *out_supp_opcodes_cnt);
+
+	/*
+	 * Called to put (release) array of supported opcodes returned 
+	 * by get_supported_opcodes() callback.
+	 *
+	 * OPTIONAL
+	 */
+	void (*put_supported_opcodes) (struct scst_cmd *cmd,
+		const struct scst_opcode_descriptor **supp_opcodes,
+		int supp_opcodes_cnt);
 
 	/*
 	 * Called when new device is attaching to the dev handler
@@ -2895,6 +2919,58 @@ struct scst_aen {
 	/* Keeps status of AEN's delivery to remote initiator */
 	int delivery_status;
 };
+
+#define SCST_OD_DEFAULT_CONTROL_BYTE	0
+
+struct scst_opcode_descriptor {
+	uint16_t od_serv_action;
+	uint8_t od_opcode;
+	uint8_t od_serv_action_valid:1;
+	uint8_t od_support:3; /* SUPPORT bits */
+	uint16_t od_cdb_size;
+	uint8_t od_comm_specific_timeout;
+	uint32_t od_nominal_timeout;
+	uint32_t od_recommended_timeout;
+	uint8_t od_cdb_usage_bits[];
+} __packed;
+
+extern const struct scst_opcode_descriptor scst_op_descr_log_select;
+extern const struct scst_opcode_descriptor scst_op_descr_log_sense;
+extern const struct scst_opcode_descriptor scst_op_descr_mode_select6;
+extern const struct scst_opcode_descriptor scst_op_descr_mode_sense6;
+extern const struct scst_opcode_descriptor scst_op_descr_mode_select10;
+extern const struct scst_opcode_descriptor scst_op_descr_mode_sense10;
+extern const struct scst_opcode_descriptor scst_op_descr_rtpg;
+extern const struct scst_opcode_descriptor scst_op_descr_stpg;
+extern const struct scst_opcode_descriptor scst_op_descr_send_diagnostic;
+
+extern const struct scst_opcode_descriptor scst_op_descr_inquiry;
+extern const struct scst_opcode_descriptor scst_op_descr_tur;
+extern const struct scst_opcode_descriptor scst_op_descr_reserve6;
+extern const struct scst_opcode_descriptor scst_op_descr_release6;
+extern const struct scst_opcode_descriptor scst_op_descr_reserve10;
+extern const struct scst_opcode_descriptor scst_op_descr_release10;
+extern const struct scst_opcode_descriptor scst_op_descr_pr_in;
+extern const struct scst_opcode_descriptor scst_op_descr_pr_out;
+extern const struct scst_opcode_descriptor scst_op_descr_report_luns;
+extern const struct scst_opcode_descriptor scst_op_descr_request_sense;
+extern const struct scst_opcode_descriptor scst_op_descr_report_supp_tm_fns;
+extern const struct scst_opcode_descriptor scst_op_descr_report_supp_opcodes;
+
+#define SCST_OPCODE_DESCRIPTORS			\
+	&scst_op_descr_inquiry,			\
+	&scst_op_descr_tur,			\
+	&scst_op_descr_reserve6,		\
+	&scst_op_descr_release6,		\
+	&scst_op_descr_reserve10,		\
+	&scst_op_descr_release10,		\
+	&scst_op_descr_pr_in,			\
+	&scst_op_descr_pr_out,			\
+	&scst_op_descr_report_luns,		\
+	&scst_op_descr_request_sense,		\
+	&scst_op_descr_report_supp_opcodes,	\
+	&scst_op_descr_report_supp_tm_fns,
+
 
 #ifndef smp_mb__after_set_bit
 /* There is no smp_mb__after_set_bit() in the kernel */

@@ -2111,6 +2111,208 @@ out_compl:
 	return res;
 }
 
+static int scst_report_supported_opcodes(struct scst_cmd *cmd)
+{
+	int res = SCST_EXEC_COMPLETED;
+	int length, buf_len, i, offs;
+	uint8_t *address;
+	uint8_t *buf;
+	bool inline_buf;
+	bool rctd = cmd->cdb[2] >> 7;
+	int options = cmd->cdb[2] & 7;
+	int req_opcode = cmd->cdb[3];
+	int req_sa = get_unaligned_be16(&cmd->cdb[4]);
+	const struct scst_opcode_descriptor *op = NULL;
+	const struct scst_opcode_descriptor **supp_opcodes = NULL;
+	int supp_opcodes_cnt;
+
+	TRACE_ENTRY();
+
+	if (cmd->devt->get_supported_opcodes == NULL) {
+		TRACE(TRACE_MINOR, "Unknown opcode 0x%02x", cmd->cdb[0]);
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+		goto out_compl;
+	} else {
+		int rc = cmd->devt->get_supported_opcodes(cmd, &supp_opcodes,
+				&supp_opcodes_cnt);
+		if (rc != 0)
+			goto out_compl;
+	}
+
+	TRACE_DBG("cmd %p, options %d, req_opcode %x, req_sa %x, rctd %d",
+		cmd, options, req_opcode, req_sa, rctd);
+
+	switch (options) {
+	case 0: /* all */
+		buf_len = 4;
+		for (i = 0; i < supp_opcodes_cnt; i++) {
+			buf_len += 8;
+			if (rctd)
+				buf_len += 12;
+		}
+		break;
+	case 1:
+		buf_len = 0;
+		for (i = 0; i < supp_opcodes_cnt; i++) {
+			if (req_opcode == supp_opcodes[i]->od_opcode) {
+				op = supp_opcodes[i];
+				if (op->od_serv_action_valid) {
+					TRACE(TRACE_MINOR, "Requested opcode %x "
+						"with unexpected service action "
+						"(dev %s, initiator %s)",
+						req_opcode, cmd->dev->virt_name,
+						cmd->sess->initiator_name);
+					scst_set_invalid_field_in_cdb(cmd, 2,
+						SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+					goto out_compl;
+				}
+				buf_len = 4 + op->od_cdb_size;
+				if (rctd)
+					buf_len += 12;
+				break;
+			}
+		}
+		if (op == NULL) {
+			TRACE(TRACE_MINOR, "Requested opcode %x not found "
+				"(dev %s, initiator %s)", req_opcode,
+				cmd->dev->virt_name, cmd->sess->initiator_name);
+			buf_len = 4;
+		}
+		break;
+	case 2:
+		buf_len = 0;
+		for (i = 0; i < supp_opcodes_cnt; i++) {
+			if (req_opcode == supp_opcodes[i]->od_opcode) {
+				op = supp_opcodes[i];
+				if (!op->od_serv_action_valid) {
+					TRACE(TRACE_MINOR, "Requested opcode %x "
+						"without expected service action "
+						"(dev %s, initiator %s)",
+						req_opcode, cmd->dev->virt_name,
+						cmd->sess->initiator_name);
+					scst_set_invalid_field_in_cdb(cmd, 2,
+						SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+					goto out_compl;
+				}
+				if (req_sa != op->od_serv_action) {
+					op = NULL; /* reset it */
+					continue;
+				}
+				buf_len = 4 + op->od_cdb_size;
+				if (rctd)
+					buf_len += 12;
+				break;
+			}
+		}
+		if (op == NULL) {
+			TRACE(TRACE_MINOR, "Requested opcode %x/%x not found "
+				"(dev %s, initiator %s)", req_opcode, req_sa,
+				cmd->dev->virt_name, cmd->sess->initiator_name);
+			buf_len = 4;
+		}
+		break;
+	default:
+		PRINT_ERROR("REPORT SUPPORTED OPERATION CODES: REPORTING OPTIONS "
+			"%x not supported (dev %s, initiator %s)", options,
+			cmd->dev->virt_name, cmd->sess->initiator_name);
+		scst_set_invalid_field_in_cdb(cmd, 2,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+		goto out_compl;
+	}
+
+	length = scst_get_buf_full_sense(cmd, &address);
+	TRACE_DBG("length %d, buf_len %d, op %p", length, buf_len, op);
+	if (unlikely(length <= 0))
+		goto out_compl;
+
+	if (length >= buf_len) {
+		buf = address;
+		inline_buf = true;
+	} else {
+		buf = vzalloc(buf_len); /* it can be big */
+		if (buf == NULL) {
+			PRINT_ERROR("Unable to allocate REPORT SUPPORTED "
+				"OPERATION CODES buffer with size %d", buf_len);
+			scst_set_busy(cmd);
+			goto out_err_put;
+		}
+		inline_buf = false;
+	}
+
+	memset(buf, 0, sizeof(buf));
+
+	switch(options) {
+	case 0: /* all */
+		put_unaligned_be32(buf_len - 3, &buf[0]);
+		offs = 4;
+		for (i = 0; i < supp_opcodes_cnt; i++) {
+			op = supp_opcodes[i];
+			buf[offs] = op->od_opcode;
+			if (op->od_serv_action_valid) {
+				put_unaligned_be16(op->od_serv_action, &buf[offs + 2]);
+				buf[offs + 5] |= 1;
+			}
+			put_unaligned_be16(op->od_cdb_size, &buf[offs + 6]);
+			offs += 8;
+			if (rctd) {
+				buf[(offs - 8) + 5] |= 2;
+				buf[offs + 1] = 0xA;
+				buf[offs + 3] = op->od_comm_specific_timeout;
+				put_unaligned_be32(op->od_nominal_timeout, &buf[offs + 4]);
+				put_unaligned_be32(op->od_recommended_timeout, &buf[offs + 8]);
+				offs += 12;
+			}
+		}
+		break;
+	case 1:
+	case 2:
+		if (op != NULL) {
+			buf[1] |= op->od_support;
+			put_unaligned_be16(op->od_cdb_size, &buf[2]);
+			memcpy(&buf[4], op->od_cdb_usage_bits, op->od_cdb_size);
+			if (rctd) {
+				buf[1] |= 0x80;
+				offs = 4 + op->od_cdb_size;
+				buf[offs + 1] = 0xA;
+				buf[offs + 3] = op->od_comm_specific_timeout;
+				put_unaligned_be32(op->od_nominal_timeout, &buf[offs + 4]);
+				put_unaligned_be32(op->od_recommended_timeout, &buf[offs + 8]);
+			}
+		}
+		break;
+	default:
+		sBUG_ON(1);
+		goto out_compl;
+	}
+
+	if (length > buf_len)
+		length = buf_len;
+	if (!inline_buf) {
+		memcpy(address, buf, length);
+		vfree(buf);
+	}
+
+	scst_put_buf_full(cmd, address);
+	if (length < cmd->resp_data_len)
+		scst_set_resp_data_len(cmd, length);
+
+out_compl:
+	if ((supp_opcodes != NULL) && (cmd->devt->put_supported_opcodes != NULL))
+		cmd->devt->put_supported_opcodes(cmd, supp_opcodes, supp_opcodes_cnt);
+
+	cmd->completed = 1;
+
+	/* Report the result */
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
+
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_err_put:
+	scst_put_buf_full(cmd, address);
+	goto out_compl;
+}
+
 static int scst_maintenance_in(struct scst_cmd *cmd)
 {
 	int res;
@@ -2120,6 +2322,9 @@ static int scst_maintenance_in(struct scst_cmd *cmd)
 	switch (cmd->cdb[1] & 0x1f) {
 	case MI_REPORT_SUPPORTED_TASK_MANAGEMENT_FUNCTIONS:
 		res = scst_report_supported_tm_fns(cmd);
+		break;
+	case MI_REPORT_SUPPORTED_OPERATION_CODES:
+		res = scst_report_supported_opcodes(cmd);
 		break;
 	default:
 		res = SCST_EXEC_NOT_COMPLETED;
