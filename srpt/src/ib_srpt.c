@@ -2287,7 +2287,8 @@ static struct srpt_tgt *srpt_convert_scst_tgt(struct scst_tgt *scst_tgt)
  * it does not yet exist.
  */
 static struct srpt_nexus *srpt_get_nexus(struct srpt_tgt *srpt_tgt,
-					 u8 i_port_id[16], u8 t_port_id[16])
+					 const u8 i_port_id[16],
+					 const u8 t_port_id[16])
 {
 	unsigned long flags;
 	struct srpt_nexus *nexus = NULL, *tmp_nexus = NULL, *n;
