@@ -327,7 +327,7 @@ enum rdma_ch_state {
  * @cmd_wait_list: list of SCST commands that arrived before the RTU event. This
  *                 list contains struct srpt_ioctx elements and is protected
  *                 against concurrent modification by the cm_id spinlock.
- * @pkey_index:    P_Key index of the IB partition for this SRP channel.
+ * @pkey:          P_Key of the IB partition for this SRP channel.
  * @scst_sess:     SCST session information associated with this SRP channel.
  * @sess_name:     SCST session name.
  */
@@ -354,7 +354,7 @@ struct srpt_rdma_ch {
 	enum rdma_ch_state	state;
 	struct list_head	list;
 	struct list_head	cmd_wait_list;
-	uint16_t		pkey_index;
+	uint16_t		pkey;
 	bool			processing_wait_list;
 
 	struct scst_session	*scst_sess;

@@ -41,6 +41,7 @@
 #include <linux/kthread.h>
 #include <linux/string.h>
 #include <linux/delay.h>
+#include <rdma/ib_cache.h>
 #include <asm/atomic.h>
 #if defined(CONFIG_SCST_PROC)
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
@@ -1122,7 +1123,14 @@ static int srpt_init_ch_qp(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 
 	attr->qp_state = IB_QPS_INIT;
 	attr->port_num = ch->sport->port;
-	attr->pkey_index = ch->pkey_index;
+
+	ret = ib_find_cached_pkey(ch->sport->sdev->device, ch->sport->port,
+				  ch->pkey, &attr->pkey_index);
+	if (ret < 0) {
+		attr->pkey_index = 0;
+		PRINT_ERROR("Translating pkey %#x failed (%d) - using index 0",
+			    ch->pkey, ret);
+	}
 
 	ret = ib_modify_qp(qp, attr,
 			   IB_QP_STATE | IB_QP_ACCESS_FLAGS | IB_QP_PORT |
@@ -2489,14 +2497,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	}
 
 	kref_init(&ch->kref);
-	ret = ib_find_pkey(sdev->device, sport->port,
-			   be16_to_cpu(param->primary_path->pkey),
-			   &ch->pkey_index);
-	if (ret < 0) {
-		ch->pkey_index = 0;
-		PRINT_ERROR("Translating pkey %#x failed (%d) - using index 0",
-			    be16_to_cpu(param->primary_path->pkey), ret);
-	}
+	ch->pkey = be16_to_cpu(param->primary_path->pkey);
 	ch->nexus = nexus;
 	ch->sport = sport;
 	ch->srpt_tgt = srpt_tgt;
