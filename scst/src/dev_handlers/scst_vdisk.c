@@ -4626,7 +4626,11 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 				bios++;
 				need_new_bio = 0;
 				bio->bi_end_io = blockio_endio;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+				bio->bi_iter.bi_sector = lba_start0 << (block_shift - 9);
+#else
 				bio->bi_sector = lba_start0 << (block_shift - 9);
+#endif
 				bio->bi_bdev = bdev;
 				bio->bi_private = blockio_work;
 				/*
