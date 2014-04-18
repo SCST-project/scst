@@ -65,7 +65,7 @@ struct sgv_pool_cache_acc {
  * SGV pool allocation functions
  */
 struct sgv_pool_alloc_fns {
-	struct page *(*alloc_pages_fn)(struct scatterlist *sg, gfp_t gfp_mask,
+	struct page * (*alloc_pages_fn)(struct scatterlist *sg, gfp_t gfp_mask,
 		void *priv);
 	void (*free_pages_fn)(struct scatterlist *sg, int sg_count,
 		void *priv);

@@ -82,7 +82,7 @@ void sgv_pool_put(struct sgv_pool *pool);
 void sgv_pool_flush(struct sgv_pool *pool);
 
 void sgv_pool_set_allocator(struct sgv_pool *pool,
-	struct page *(*alloc_pages_fn)(struct scatterlist *, gfp_t, void *),
+	struct page * (*alloc_pages_fn)(struct scatterlist *, gfp_t, void *),
 	void (*free_pages_fn)(struct scatterlist *, int, void *));
 
 struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
