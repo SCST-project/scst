@@ -334,8 +334,12 @@ enum rdma_ch_state {
 struct srpt_rdma_ch {
 	struct task_struct	*thread;
 	struct srpt_nexus	*nexus;
-	struct ib_cm_id		*cm_id;
 	struct ib_qp		*qp;
+	union {
+		struct {
+			struct ib_cm_id		*cm_id;
+		} ib_cm;
+	};
 	struct ib_cq		*cq;
 	struct kref		kref;
 	int			rq_size;

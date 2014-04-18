@@ -340,14 +340,14 @@ static const char *get_ch_state_name(enum rdma_ch_state s)
  */
 static void srpt_qp_event(struct ib_event *event, struct srpt_rdma_ch *ch)
 {
-	TRACE_DBG("QP event %d on cm_id=%p sess_name=%s state=%s",
-		  event->event, ch->cm_id, ch->sess_name,
+	TRACE_DBG("QP event %d on ch=%p sess_name=%s state=%s",
+		  event->event, ch, ch->sess_name,
 		  get_ch_state_name(ch->state));
 
 	switch (event->event) {
 	case IB_EVENT_COMM_EST:
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20) || defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
-		ib_cm_notify(ch->cm_id, event->event);
+		ib_cm_notify(ch->ib_cm.cm_id, event->event);
 #else
 		/* Vanilla 2.6.19 kernel (or before) without OFED. */
 		PRINT_ERROR("how to perform ib_cm_notify() on a"
@@ -1156,7 +1156,7 @@ static int srpt_ch_qp_rtr(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 		return -ENOMEM;
 
 	attr->qp_state = IB_QPS_RTR;
-	ret = ib_cm_init_qp_attr(ch->cm_id, attr, &attr_mask);
+	ret = ib_cm_init_qp_attr(ch->ib_cm.cm_id, attr, &attr_mask);
 	if (ret)
 		goto out;
 
@@ -1190,7 +1190,7 @@ static int srpt_ch_qp_rts(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 		return -ENOMEM;
 
 	attr->qp_state = IB_QPS_RTS;
-	ret = ib_cm_init_qp_attr(ch->cm_id, attr, &attr_mask);
+	ret = ib_cm_init_qp_attr(ch->ib_cm.cm_id, attr, &attr_mask);
 	if (ret)
 		goto out;
 
@@ -1736,9 +1736,9 @@ static void srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 	srp_tsk = recv_ioctx->ioctx.buf;
 
 	TRACE_DBG("recv_tsk_mgmt= %d for task_tag= %lld"
-		  " using tag= %lld cm_id= %p sess= %p",
+		  " using tag= %lld ch= %p sess= %p",
 		  srp_tsk->tsk_mgmt_func, srp_tsk->task_tag, srp_tsk->tag,
-		  ch->cm_id, ch->scst_sess);
+		  ch, ch->scst_sess);
 
 	send_ioctx->tsk_mgmt.tag = srp_tsk->tag;
 
@@ -2053,7 +2053,7 @@ static void srpt_unreg_sess(struct scst_session *scst_sess)
 	 * If the connection is still established, ib_destroy_cm_id() will
 	 * send a DREQ.
 	 */
-	ib_destroy_cm_id(ch->cm_id);
+	ib_destroy_cm_id(ch->ib_cm.cm_id);
 
 	/*
 	 * Invoke wake_up() inside the lock to avoid that srpt_tgt disappears
@@ -2163,10 +2163,9 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 
 	atomic_set(&ch->sq_wr_avail, qp_init->cap.max_send_wr);
 
-	TRACE_DBG("%s: max_cqe= %d max_sge= %d sq_size = %d"
-		  " cm_id= %p", __func__, ch->cq->cqe,
-		  qp_init->cap.max_send_sge, qp_init->cap.max_send_wr,
-		  ch->cm_id);
+	TRACE_DBG("%s: max_cqe= %d max_sge= %d sq_size = %d ch= %p", __func__,
+		  ch->cq->cqe, qp_init->cap.max_send_sge,
+		  qp_init->cap.max_send_wr, ch);
 
 	ret = srpt_init_ch_qp(ch, ch->qp);
 	if (ret) {
@@ -2262,7 +2261,7 @@ static void __srpt_close_all_ch(struct srpt_tgt *srpt_tgt)
 restart:
 	list_for_each_entry(nexus, &srpt_tgt->nexus_list, entry) {
 		list_for_each_entry(ch, &nexus->ch_list, list) {
-			if (ib_send_cm_dreq(ch->cm_id, NULL, 0) < 0)
+			if (ib_send_cm_dreq(ch->ib_cm.cm_id, NULL, 0) < 0)
 				continue;
 			PRINT_INFO("Closing channel %s because target %s has"
 				   " been disabled", ch->sess_name,
@@ -2377,11 +2376,11 @@ static bool srpt_is_target_enabled(struct scst_tgt *scst_tgt)
  * Ownership of the cm_id is transferred to the SCST session if this function
  * returns zero. Otherwise the caller remains the owner of cm_id.
  */
-static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
+static int srpt_cm_req_recv(struct ib_cm_id *ib_cm_id,
 			    u8 port_num, __be16 pkey,
 			    const struct srp_login_req *req)
 {
-	struct srpt_device *const sdev = cm_id->context;
+	struct srpt_device *const sdev = ib_cm_id->context;
 	struct srpt_port *const sport = &sdev->port[port_num - 1];
 	const __be16 *const raw_port_gid = (__be16 *)sport->gid.raw;
 	struct srpt_tgt *const srpt_tgt = one_target_per_port ?
@@ -2496,8 +2495,8 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	ch->nexus = nexus;
 	ch->sport = sport;
 	ch->srpt_tgt = srpt_tgt;
-	ch->cm_id = cm_id;
-	cm_id->context = ch;
+	ch->ib_cm.cm_id = ib_cm_id;
+	ib_cm_id->context = ch;
 	/*
 	 * Avoid QUEUE_FULL conditions by limiting the number of buffers used
 	 * for the SRP protocol to the SCST SCSI command queue size.
@@ -2594,7 +2593,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		rsp->rsp_flags = SRP_LOGIN_RSP_MULTICHAN_NO_CHAN;
 restart:
 		list_for_each_entry(ch2, &nexus->ch_list, list) {
-			if (ib_send_cm_dreq(ch2->cm_id, NULL, 0) < 0)
+			if (ib_send_cm_dreq(ch2->ib_cm.cm_id, NULL, 0) < 0)
 				continue;
 			PRINT_INFO("Relogin - closed existing channel %s",
 				   ch2->sess_name);
@@ -2628,8 +2627,8 @@ restart:
 		goto reject;
 	}
 
-	TRACE_DBG("Establish connection sess=%p name=%s cm_id=%p",
-		  ch->scst_sess, ch->sess_name, ch->cm_id);
+	TRACE_DBG("Establish connection sess=%p name=%s ch=%p",
+		  ch->scst_sess, ch->sess_name, ch);
 
 	/* create srp_login_response */
 	rsp->opcode = SRP_LOGIN_RSP;
@@ -2654,7 +2653,7 @@ restart:
 	rep_param->responder_resources = 4;
 	rep_param->initiator_depth = 4;
 
-	ret = ib_send_cm_rep(cm_id, rep_param);
+	ret = ib_send_cm_rep(ib_cm_id, rep_param);
 
 	switch (ret) {
 	case 0:
@@ -2682,7 +2681,7 @@ free_ring:
 			     ch->max_rsp_size, DMA_TO_DEVICE);
 
 free_ch:
-	cm_id->context = NULL;
+	ib_cm_id->context = NULL;
 	kfree(ch);
 	ch = NULL;
 
@@ -2694,7 +2693,7 @@ reject:
 	rej->tag = req->tag;
 	rej->buf_fmt = cpu_to_be16(SRP_BUF_FORMAT_DIRECT |
 				   SRP_BUF_FORMAT_INDIRECT);
-	ib_send_cm_rej(cm_id, IB_CM_REJ_CONSUMER_DEFINED, NULL, 0, rej,
+	ib_send_cm_rej(ib_cm_id, IB_CM_REJ_CONSUMER_DEFINED, NULL, 0, rej,
 		       sizeof(*rej));
 
 	if (ch && ch->thread) {
@@ -2720,14 +2719,13 @@ static void srpt_cm_rej_recv(struct ib_cm_id *cm_id)
 }
 
 /**
- * srpt_cm_rtu_recv() - Process IB CM RTU_RECEIVED and USER_ESTABLISHED events.
+ * srpt_cm_rtu_recv() - Process RTU event.
  *
- * An IB_CM_RTU_RECEIVED message indicates that the connection is established
- * and that the recipient may begin transmitting (RTU = ready to use).
+ * An RTU (read to use) message indicates that the connection has been
+ * established and that the recipient may begin transmitting.
  */
-static void srpt_cm_rtu_recv(struct ib_cm_id *cm_id)
+static void srpt_cm_rtu_recv(struct srpt_rdma_ch *ch)
 {
-	struct srpt_rdma_ch *ch = cm_id->context;
 	int ret;
 
 	ret = srpt_ch_qp_rts(ch, ch->qp);
@@ -2746,11 +2744,9 @@ static void srpt_cm_rtu_recv(struct ib_cm_id *cm_id)
 			    ch->sess_name);
 }
 
-static void srpt_cm_timewait_exit(struct ib_cm_id *cm_id)
+static void srpt_cm_timewait_exit(struct srpt_rdma_ch *ch)
 {
-	struct srpt_rdma_ch *ch = cm_id->context;
-
-	PRINT_INFO("Received InfiniBand TimeWait exit for cm_id %p.", cm_id);
+	PRINT_INFO("Received InfiniBand TimeWait exit for ch %p.", ch);
 	srpt_close_ch(ch);
 }
 
@@ -2762,12 +2758,11 @@ static void srpt_cm_rep_error(struct ib_cm_id *cm_id)
 /**
  * srpt_cm_dreq_recv() - Process reception of a DREQ message.
  */
-static int srpt_cm_dreq_recv(struct ib_cm_id *cm_id)
+static int srpt_cm_dreq_recv(struct srpt_rdma_ch *ch)
 {
-	struct srpt_rdma_ch *ch = cm_id->context;
 	int ret;
 
-	ret = ib_send_cm_drep(cm_id, NULL, 0);
+	ret = ib_send_cm_drep(ch->ib_cm.cm_id, NULL, 0);
 	if (ret < 0)
 		PRINT_ERROR("%s: sending DREP failed", ch->sess_name);
 
@@ -2779,11 +2774,9 @@ static int srpt_cm_dreq_recv(struct ib_cm_id *cm_id)
 /**
  * srpt_cm_drep_recv() - Process reception of a DREP message.
  */
-static void srpt_cm_drep_recv(struct ib_cm_id *cm_id)
+static void srpt_cm_drep_recv(struct srpt_rdma_ch *ch)
 {
-	struct srpt_rdma_ch *ch = cm_id->context;
-
-	PRINT_INFO("Received InfiniBand DREP message for cm_id %p.", cm_id);
+	PRINT_INFO("Received InfiniBand DREP message for ch %p.", ch);
 	srpt_close_ch(ch);
 }
 
@@ -2815,16 +2808,16 @@ static int srpt_cm_handler(struct ib_cm_id *cm_id, struct ib_cm_event *event)
 		break;
 	case IB_CM_RTU_RECEIVED:
 	case IB_CM_USER_ESTABLISHED:
-		srpt_cm_rtu_recv(cm_id);
+		srpt_cm_rtu_recv(cm_id->context);
 		break;
 	case IB_CM_DREQ_RECEIVED:
-		ret = srpt_cm_dreq_recv(cm_id);
+		ret = srpt_cm_dreq_recv(cm_id->context);
 		break;
 	case IB_CM_DREP_RECEIVED:
-		srpt_cm_drep_recv(cm_id);
+		srpt_cm_drep_recv(cm_id->context);
 		break;
 	case IB_CM_TIMEWAIT_EXIT:
-		srpt_cm_timewait_exit(cm_id);
+		srpt_cm_timewait_exit(cm_id->context);
 		break;
 	case IB_CM_REP_ERROR:
 		srpt_cm_rep_error(cm_id);
@@ -3485,7 +3478,7 @@ static int srpt_close_session(struct scst_session *sess)
 {
 	struct srpt_rdma_ch *ch = scst_sess_get_tgt_priv(sess);
 
-	ib_send_cm_dreq(ch->cm_id, NULL, 0);
+	ib_send_cm_dreq(ch->ib_cm.cm_id, NULL, 0);
 	return 0;
 }
 
@@ -3799,6 +3792,7 @@ static void srpt_init_tgt(struct srpt_tgt *srpt_tgt)
  */
 static void srpt_add_one(struct ib_device *device)
 {
+	struct ib_cm_id *cm_id;
 	struct srpt_device *sdev;
 	struct srpt_port *sport;
 	struct srpt_tgt *srpt_tgt;
@@ -3886,12 +3880,12 @@ static void srpt_add_one(struct ib_device *device)
 		srpt_service_guid = be64_to_cpu(device->node_guid) &
 			~be64_to_cpu(IB_SERVICE_ID_AGN_MASK);
 
-	sdev->cm_id = ib_create_cm_id(device, srpt_cm_handler, sdev);
-	if (IS_ERR(sdev->cm_id)) {
-		PRINT_ERROR("ib_create_cm_id() failed: %ld",
-			    PTR_ERR(sdev->cm_id));
+	cm_id = ib_create_cm_id(device, srpt_cm_handler, sdev);
+	if (IS_ERR(cm_id)) {
+		PRINT_ERROR("ib_create_cm_id() failed: %ld", PTR_ERR(cm_id));
 		goto err_srq;
 	}
+	sdev->cm_id = cm_id;
 
 	/* print out target login information */
 	TRACE_DBG("Target login info: id_ext=%016llx,"
