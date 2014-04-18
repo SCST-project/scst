@@ -2201,7 +2201,7 @@ void scst_pr_preempt(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 static void scst_cmd_done_pr_preempt(struct scst_cmd *cmd, int next_state,
 	enum scst_exec_context pref_context)
 {
-	void (*saved_cmd_done) (struct scst_cmd *cmd, int next_state,
+	void (*saved_cmd_done)(struct scst_cmd *cmd, int next_state,
 		enum scst_exec_context pref_context);
 
 	TRACE_ENTRY();

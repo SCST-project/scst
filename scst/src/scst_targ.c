@@ -7085,7 +7085,7 @@ restart:
  */
 struct scst_session *scst_register_session(struct scst_tgt *tgt, int atomic,
 	const char *initiator_name, void *tgt_priv, void *result_fn_data,
-	void (*result_fn) (struct scst_session *sess, void *data, int result))
+	void (*result_fn)(struct scst_session *sess, void *data, int result))
 {
 	struct scst_session *sess;
 	int res;
@@ -7183,7 +7183,7 @@ EXPORT_SYMBOL(scst_register_session_non_gpl);
  *   Otherwise, your target driver could wait for those commands forever.
  */
 void scst_unregister_session(struct scst_session *sess, int wait,
-	void (*unreg_done_fn) (struct scst_session *sess))
+	void (*unreg_done_fn)(struct scst_session *sess))
 {
 	unsigned long flags;
 	DECLARE_COMPLETION_ONSTACK(c);
@@ -7396,8 +7396,8 @@ static struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess,
  * Returns the command on success or NULL otherwise.
  */
 struct scst_cmd *scst_find_cmd(struct scst_session *sess, void *data,
-			       int (*cmp_fn) (struct scst_cmd *cmd,
-					      void *data))
+			       int (*cmp_fn)(struct scst_cmd *cmd,
+					     void *data))
 {
 	struct scst_cmd *cmd = NULL;
 	unsigned long flags = 0;
