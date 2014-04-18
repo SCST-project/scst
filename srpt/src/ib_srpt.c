@@ -1182,8 +1182,6 @@ static int srpt_ch_qp_rts(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 	struct ib_qp_attr *attr;
 	int attr_mask;
 	int ret;
-	uint64_t T_tr_ns, max_compl_time_ms;
-	uint32_t T_tr_ms;
 
 	attr = kzalloc(sizeof(*attr), GFP_KERNEL);
 	if (!attr)
@@ -1196,31 +1194,6 @@ static int srpt_ch_qp_rts(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 
 	attr->qp_access_flags = 0;
 	attr->max_rd_atomic = 4;
-
-	/*
-	 * From IBTA C9-140: Transport Timer timeout interval
-	 * T_tr = 4.096 us * 2**(local ACK timeout) where the local ACK timeout
-	 * is a five-bit value, with zero meaning that the timer is disabled.
-	 */
-	WARN_ON(attr->timeout >= (1 << 5));
-	if (attr->timeout) {
-		T_tr_ns = 1ULL << (12 + attr->timeout);
-		max_compl_time_ms = attr->retry_cnt * 4 * T_tr_ns;
-		do_div(max_compl_time_ms, 1000000);
-		T_tr_ms = T_tr_ns;
-		do_div(T_tr_ms, 1000000);
-		TRACE_DBG("Session %s: QP local ack timeout = %d or T_tr ="
-			  " %u ms; retry_cnt = %d; max compl. time = %d ms",
-			  ch->sess_name, attr->timeout, T_tr_ms,
-			  attr->retry_cnt, (unsigned)max_compl_time_ms);
-
-		if (max_compl_time_ms >= RDMA_COMPL_TIMEOUT_S * 1000) {
-			PRINT_ERROR("Maximum RDMA completion time (%d ms)"
-				    " exceeds ib_srpt timeout (%d ms)",
-				    (unsigned)max_compl_time_ms,
-				    1000 * RDMA_COMPL_TIMEOUT_S);
-		}
-	}
 
 	ret = ib_modify_qp(qp, attr, attr_mask);
 
@@ -2691,6 +2664,44 @@ static void srpt_cm_rej_recv(struct ib_cm_id *cm_id)
 	PRINT_INFO("Received InfiniBand REJ packet for cm_id %p.", cm_id);
 }
 
+static void srpt_check_timeout(struct srpt_rdma_ch *ch)
+{
+	struct ib_qp_attr attr;
+	struct ib_qp_init_attr iattr;
+	uint64_t T_tr_ns, max_compl_time_ms;
+	uint32_t T_tr_ms;
+
+	if (ib_query_qp(ch->qp, &attr, IB_QP_TIMEOUT, &iattr) < 0) {
+		PRINT_ERROR("Querying QP attributes failed");
+		return;
+	}
+
+	/*
+	 * From IBTA C9-140: Transport Timer timeout interval
+	 * T_tr = 4.096 us * 2**(local ACK timeout) where the local ACK timeout
+	 * is a five-bit value, with zero meaning that the timer is disabled.
+	 */
+	WARN_ON(attr.timeout >= (1 << 5));
+	if (attr.timeout) {
+		T_tr_ns = 1ULL << (12 + attr.timeout);
+		max_compl_time_ms = attr.retry_cnt * 4 * T_tr_ns;
+		do_div(max_compl_time_ms, 1000000);
+		T_tr_ms = T_tr_ns;
+		do_div(T_tr_ms, 1000000);
+		TRACE_DBG("Session %s: QP local ack timeout = %d or T_tr ="
+			  " %u ms; retry_cnt = %d; max compl. time = %d ms",
+			  ch->sess_name, attr.timeout, T_tr_ms,
+			  attr.retry_cnt, (unsigned)max_compl_time_ms);
+
+		if (max_compl_time_ms >= RDMA_COMPL_TIMEOUT_S * 1000) {
+			PRINT_ERROR("Maximum RDMA completion time (%d ms)"
+				    " exceeds ib_srpt timeout (%d ms)",
+				    (unsigned)max_compl_time_ms,
+				    1000 * RDMA_COMPL_TIMEOUT_S);
+		}
+	}
+}
+
 /**
  * srpt_cm_rtu_recv() - Process RTU event.
  *
@@ -2707,6 +2718,9 @@ static void srpt_cm_rtu_recv(struct srpt_rdma_ch *ch)
 		srpt_close_ch(ch);
 		return;
 	}
+
+	srpt_check_timeout(ch);
+
 	/*
 	 * Note: calling srpt_close_ch() if the transition to the LIVE state
 	 * fails is not necessary since that means that that function has
