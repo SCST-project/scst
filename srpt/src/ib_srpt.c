@@ -2059,10 +2059,10 @@ static void srpt_unreg_sess(struct scst_session *scst_sess)
 	 * Invoke wake_up() inside the lock to avoid that srpt_tgt disappears
 	 * after list_del() and before wake_up() has been invoked.
 	 */
-	spin_lock_irq(&srpt_tgt->spinlock);
+	mutex_lock(&srpt_tgt->mutex);
 	list_del(&ch->list);
 	wake_up(&srpt_tgt->ch_releaseQ);
-	spin_unlock_irq(&srpt_tgt->spinlock);
+	mutex_unlock(&srpt_tgt->mutex);
 
 	kref_put(&ch->kref, srpt_free_ch);
 }
@@ -2192,7 +2192,7 @@ static void srpt_destroy_ch_ib(struct srpt_rdma_ch *ch)
 }
 
 /**
- * __srpt_close_ch() - Close an RDMA channel.
+ * srpt_close_ch() - Close an RDMA channel.
  *
  * Make sure all resources associated with the channel will be deallocated at
  * an appropriate time.
@@ -2200,22 +2200,14 @@ static void srpt_destroy_ch_ib(struct srpt_rdma_ch *ch)
  * Returns true if and only if the channel state has been modified from
  * CH_CONNECTING or CH_LIVE into CH_DISCONNECTING.
  */
-static bool __srpt_close_ch(struct srpt_rdma_ch *ch)
-	__releases(&ch->srpt_tgt->spinlock)
-	__acquires(&ch->srpt_tgt->spinlock)
+static bool srpt_close_ch(struct srpt_rdma_ch *ch)
 {
-	struct srpt_tgt *srpt_tgt = ch->srpt_tgt;
 	int ret;
 	bool was_live;
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
-	lockdep_assert_held(&srpt_tgt->spinlock);
-#endif
 
 	was_live = srpt_set_ch_state(ch, CH_DISCONNECTING);
 	if (was_live) {
 		kref_get(&ch->kref);
-		spin_unlock_irq(&srpt_tgt->spinlock);
 
 		ret = srpt_ch_qp_err(ch);
 		if (ret < 0)
@@ -2230,23 +2222,9 @@ static bool __srpt_close_ch(struct srpt_rdma_ch *ch)
 		}
 
 		kref_put(&ch->kref, srpt_free_ch);
-
-		spin_lock_irq(&srpt_tgt->spinlock);
 	}
 
 	return was_live;
-}
-
-/**
- * srpt_close_ch() - Close an RDMA channel.
- */
-static void srpt_close_ch(struct srpt_rdma_ch *ch)
-{
-	struct srpt_tgt *srpt_tgt = ch->srpt_tgt;
-
-	spin_lock_irq(&srpt_tgt->spinlock);
-	__srpt_close_ch(ch);
-	spin_unlock_irq(&srpt_tgt->spinlock);
 }
 
 static void __srpt_close_all_ch(struct srpt_tgt *srpt_tgt)
@@ -2255,10 +2233,9 @@ static void __srpt_close_all_ch(struct srpt_tgt *srpt_tgt)
 	struct srpt_rdma_ch *ch;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
-	lockdep_assert_held(&srpt_tgt->spinlock);
+	lockdep_assert_held(&srpt_tgt->mutex);
 #endif
 
-restart:
 	list_for_each_entry(nexus, &srpt_tgt->nexus_list, entry) {
 		list_for_each_entry(ch, &nexus->ch_list, list) {
 			if (ib_send_cm_dreq(ch->ib_cm.cm_id, NULL, 0) < 0)
@@ -2266,7 +2243,6 @@ restart:
 			PRINT_INFO("Closing channel %s because target %s has"
 				   " been disabled", ch->sess_name,
 				   srpt_tgt->scst_tgt->tgt_name);
-			goto restart;
 		}
 	}
 }
@@ -2295,11 +2271,10 @@ static struct srpt_nexus *srpt_get_nexus(struct srpt_tgt *srpt_tgt,
 					 const u8 i_port_id[16],
 					 const u8 t_port_id[16])
 {
-	unsigned long flags;
 	struct srpt_nexus *nexus = NULL, *tmp_nexus = NULL, *n;
 
 	for (;;) {
-		spin_lock_irqsave(&srpt_tgt->spinlock, flags);
+		mutex_lock(&srpt_tgt->mutex);
 		list_for_each_entry(n, &srpt_tgt->nexus_list, entry) {
 			if (memcmp(n->i_port_id, i_port_id, 16) == 0 &&
 			    memcmp(n->t_port_id, t_port_id, 16) == 0) {
@@ -2311,7 +2286,7 @@ static struct srpt_nexus *srpt_get_nexus(struct srpt_tgt *srpt_tgt,
 			list_add_tail(&tmp_nexus->entry, &srpt_tgt->nexus_list);
 			swap(nexus, tmp_nexus);
 		}
-		spin_unlock_irqrestore(&srpt_tgt->spinlock, flags);
+		mutex_unlock(&srpt_tgt->mutex);
 
 		if (nexus)
 			break;
@@ -2347,11 +2322,11 @@ static int srpt_enable_target(struct scst_tgt *scst_tgt, bool enable)
 	PRINT_INFO("%s target %s", enable ? "Enabling" : "Disabling",
 		   scst_tgt->tgt_name);
 
-	spin_lock_irq(&srpt_tgt->spinlock);
+	mutex_lock(&srpt_tgt->mutex);
 	srpt_tgt->enabled = enable;
 	if (!enable)
 		__srpt_close_all_ch(srpt_tgt);
-	spin_unlock_irq(&srpt_tgt->spinlock);
+	mutex_unlock(&srpt_tgt->mutex);
 
 	res = 0;
 
@@ -2585,20 +2560,18 @@ static int srpt_cm_req_recv(struct ib_cm_id *ib_cm_id,
 		goto unreg_ch;
 	}
 
-	spin_lock_irq(&srpt_tgt->spinlock);
+	mutex_lock(&srpt_tgt->mutex);
 
 	if ((req->req_flags & SRP_MTCH_ACTION) == SRP_MULTICHAN_SINGLE) {
 		struct srpt_rdma_ch *ch2;
 
 		rsp->rsp_flags = SRP_LOGIN_RSP_MULTICHAN_NO_CHAN;
-restart:
 		list_for_each_entry(ch2, &nexus->ch_list, list) {
 			if (ib_send_cm_dreq(ch2->ib_cm.cm_id, NULL, 0) < 0)
 				continue;
 			PRINT_INFO("Relogin - closed existing channel %s",
 				   ch2->sess_name);
 			rsp->rsp_flags = SRP_LOGIN_RSP_MULTICHAN_TERMINATED;
-			goto restart;
 		}
 	} else {
 		rsp->rsp_flags = SRP_LOGIN_RSP_MULTICHAN_MAINTAINED;
@@ -2613,11 +2586,11 @@ restart:
 		PRINT_INFO("rejected SRP_LOGIN_REQ because the target %s (%s)"
 			   " is not enabled",
 			   srpt_tgt->scst_tgt->tgt_name, sdev->device->name);
-		spin_unlock_irq(&srpt_tgt->spinlock);
+		mutex_unlock(&srpt_tgt->mutex);
 		goto reject;
 	}
 
-	spin_unlock_irq(&srpt_tgt->spinlock);
+	mutex_unlock(&srpt_tgt->mutex);
 
 	ret = srpt_ch_qp_rtr(ch, ch->qp);
 	if (ret) {
@@ -3487,11 +3460,11 @@ static bool srpt_ch_list_empty(struct srpt_tgt *srpt_tgt)
 	struct srpt_nexus *nexus;
 	bool res = true;
 
-	spin_lock_irq(&srpt_tgt->spinlock);
+	mutex_lock(&srpt_tgt->mutex);
 	list_for_each_entry(nexus, &srpt_tgt->nexus_list, entry)
 		if (!list_empty(&nexus->ch_list))
 			res = false;
-	spin_unlock_irq(&srpt_tgt->spinlock);
+	mutex_unlock(&srpt_tgt->mutex);
 
 	return res;
 }
@@ -3510,16 +3483,16 @@ static int srpt_release_sport(struct srpt_tgt *srpt_tgt)
 	BUG_ON(!srpt_tgt);
 
 	/* Disallow new logins and close all active sessions. */
-	spin_lock_irq(&srpt_tgt->spinlock);
+	mutex_lock(&srpt_tgt->mutex);
 	srpt_tgt->enabled = false;
 	__srpt_close_all_ch(srpt_tgt);
-	spin_unlock_irq(&srpt_tgt->spinlock);
+	mutex_unlock(&srpt_tgt->mutex);
 
 	while (wait_event_timeout(srpt_tgt->ch_releaseQ,
 				  srpt_ch_list_empty(srpt_tgt), 5 * HZ) <= 0) {
 		PRINT_INFO("%s: waiting for session unregistration ...",
 			   srpt_tgt->scst_tgt->tgt_name);
-		spin_lock_irq(&srpt_tgt->spinlock);
+		mutex_lock(&srpt_tgt->mutex);
 		list_for_each_entry(nexus, &srpt_tgt->nexus_list, entry) {
 			list_for_each_entry(ch, &nexus->ch_list, list) {
 				PRINT_INFO("%s: state %s; %d commands in"
@@ -3528,15 +3501,15 @@ static int srpt_release_sport(struct srpt_tgt *srpt_tgt)
 				   atomic_read(&ch->scst_sess->sess_cmd_count));
 			}
 		}
-		spin_unlock_irq(&srpt_tgt->spinlock);
+		mutex_unlock(&srpt_tgt->mutex);
 	}
 
-	spin_lock_irq(&srpt_tgt->spinlock);
+	mutex_lock(&srpt_tgt->mutex);
 	list_for_each_entry_safe(nexus, next_n, &srpt_tgt->nexus_list, entry) {
 		list_del(&nexus->entry);
 		kfree(nexus);
 	}
-	spin_unlock_irq(&srpt_tgt->spinlock);
+	mutex_unlock(&srpt_tgt->mutex);
 
 	TRACE_EXIT();
 	return 0;
@@ -3784,7 +3757,7 @@ static void srpt_init_tgt(struct srpt_tgt *srpt_tgt)
 {
 	INIT_LIST_HEAD(&srpt_tgt->nexus_list);
 	init_waitqueue_head(&srpt_tgt->ch_releaseQ);
-	spin_lock_init(&srpt_tgt->spinlock);
+	mutex_init(&srpt_tgt->mutex);
 }
 
 /**

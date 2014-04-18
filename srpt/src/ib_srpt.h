@@ -368,7 +368,7 @@ struct srpt_rdma_ch {
 /**
  * struct srpt_nexus - I_T nexus
  * @entry:     srpt_tgt.nexus_list list node.
- * @ch_list:   struct srpt_rdma_ch list. Protected by srpt_tgt.spinlock
+ * @ch_list:   struct srpt_rdma_ch list. Protected by srpt_tgt.mutex.
  * @i_port_id: 128-bit initiator port identifier copied from SRP_LOGIN_REQ.
  * @t_port_id: 128-bit target port identifier copied from SRP_LOGIN_REQ.
  */
@@ -382,14 +382,14 @@ struct srpt_nexus {
 /**
  * struct srpt_tgt
  * @ch_releaseQ: Enables waiting for removal from nexus_list.
- * @spinlock:    Protects nexus_list.
+ * @mutex:       Protects @nexus_list and srpt_nexus.ch_list.
  * @nexus_list:  Per-device I_T nexus list.
  * @scst_tgt:    SCST target information associated with this HCA.
  * @enabled:     Whether or not this SCST target is enabled.
  */
 struct srpt_tgt {
 	wait_queue_head_t	ch_releaseQ;
-	spinlock_t		spinlock;
+	struct mutex		mutex;
 	struct list_head	nexus_list;
 	struct scst_tgt		*scst_tgt;
 	bool			enabled;
