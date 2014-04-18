@@ -502,7 +502,7 @@ void __iscsi_write_space_ready(struct iscsi_conn *conn)
 
 	spin_lock_bh(&p->wr_lock);
 	conn->wr_space_ready = 1;
-	if ((conn->wr_state == ISCSI_CONN_WR_STATE_SPACE_WAIT)) {
+	if (conn->wr_state == ISCSI_CONN_WR_STATE_SPACE_WAIT) {
 		TRACE_DBG("wr space ready (conn %p)", conn);
 		list_add_tail(&conn->wr_list_entry, &p->wr_list);
 		conn->wr_state = ISCSI_CONN_WR_STATE_IN_LIST;
