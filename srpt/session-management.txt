@@ -2,7 +2,8 @@
             ==============================
 
 The following actions related to SRP sessions can all occur concurrently:
-* IB communication manager (CM) invokes srpt_cm_handler().
+* The communication manager invokes either srpt_ib_cm_handler() or
+  srpt_rdma_cm_handler().
 * HCA driver invokes the queue pair (QP) completion handler srpt_completion().
 * HCA driver invokes the QP async event handler srpt_qp_event().
 * HCA transfers data between initiator and target via RDMA.
@@ -11,7 +12,7 @@ The following actions related to SRP sessions can all occur concurrently:
 
 The actions that occur over the lifetime of a session are as follows:
 - A REQ message is received from the initiator.
-- srpt_cm_req_recv() is invoked and allocates a queue pair and creates a
+- srpt_cm_req_recv() is invoked, allocates a queue pair and creates a
   completion thread.
 - If the connection request is not accepted, a REJ message is sent and
   srpt_close_ch() is invoked. The srpt_close_ch() call causes the completion
@@ -21,14 +22,12 @@ The actions that occur over the lifetime of a session are as follows:
   invoked. That function changes the queue pair state into RTS, the channel
   state into CH_LIVE and wakes up the completion thread.
 - RDMA communication starts and continues until either a DREQ message is
-  received or sent. The function ib_send_cm_dreq() can get invoked
-  either because a target port is disabled or from inside the
-  srpt_close_session() function.
+  received or sent. A DREQ is sent either because a target port is disabled or
+  from inside the srpt_close_session() function.
 - After a DREQ has been sent either a DREP will be received
   (srpt_cm_drep_recv()) or the TimeWait state will be reached and will be left
   (srpt_cm_timewait_exit()).
-- srpt_cm_dre[pq]_recv() and srpt_cm_timewait_exit() all invoke
-  srpt_close_ch().
+- srpt_cm_drep_recv() and srpt_cm_timewait_exit() invoke srpt_close_ch().
 - srpt_close_ch() changes the channel state into CH_DISCONNECTING, the
   queue pair state into IB_QPS_ERR and queues a zero-length write.
 - Upon receipt of the zero-length write completion the channel state is

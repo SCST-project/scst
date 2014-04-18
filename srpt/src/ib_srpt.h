@@ -41,6 +41,7 @@
 #include <rdma/ib_verbs.h>
 #include <rdma/ib_sa.h>
 #include <rdma/ib_cm.h>
+#include <rdma/rdma_cm.h>
 #include <scsi/srp.h>
 #if defined(INSIDE_KERNEL_TREE)
 #include <scst/scst.h>
@@ -339,6 +340,9 @@ struct srpt_rdma_ch {
 		struct {
 			struct ib_cm_id		*cm_id;
 		} ib_cm;
+		struct {
+			struct rdma_cm_id	*cm_id;
+		} rdma_cm;
 	};
 	struct ib_cq		*cq;
 	struct kref		kref;
@@ -359,6 +363,7 @@ struct srpt_rdma_ch {
 	struct list_head	list;
 	struct list_head	cmd_wait_list;
 	uint16_t		pkey;
+	bool			using_rdma_cm;
 	bool			processing_wait_list;
 
 	struct scst_session	*scst_sess;
@@ -446,6 +451,25 @@ struct srpt_device {
 	struct srpt_port	port[2];
 	struct ib_event_handler	event_handler;
 	struct srpt_tgt		srpt_tgt;
+};
+
+/**
+ * struct srp_login_req_rdma - RDMA/CM login parameters.
+ *
+ * RDMA/CM over InfiniBand can only carry 92 - 36 = 56 bytes of private
+ * data. srp_login_req_rdma contains the same information as
+ * struct srp_login_req but with the reserved data removed.
+ *
+ * To do: Move this structure to <scsi/srp.h>.
+ */
+struct srp_login_req_rdma {
+	u64	tag;
+	__be16	req_buf_fmt;
+	u8	req_flags;
+	u8	opcode;
+	__be32	req_it_iu_len;
+	u8	initiator_port_id[16];
+	u8	target_port_id[16];
 };
 
 #endif				/* IB_SRPT_H */
