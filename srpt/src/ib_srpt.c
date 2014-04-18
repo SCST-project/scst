@@ -2378,16 +2378,15 @@ static bool srpt_is_target_enabled(struct scst_tgt *scst_tgt)
  * returns zero. Otherwise the caller remains the owner of cm_id.
  */
 static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
-			    struct ib_cm_req_event_param *param,
-			    void *private_data)
+			    u8 port_num, __be16 pkey,
+			    const struct srp_login_req *req)
 {
 	struct srpt_device *const sdev = cm_id->context;
-	struct srpt_port *const sport = &sdev->port[param->port - 1];
+	struct srpt_port *const sport = &sdev->port[port_num - 1];
 	const __be16 *const raw_port_gid = (__be16 *)sport->gid.raw;
 	struct srpt_tgt *const srpt_tgt = one_target_per_port ?
 					  &sport->srpt_tgt : &sdev->srpt_tgt;
 	struct srpt_nexus *nexus;
-	struct srp_login_req *req;
 	struct srp_login_rsp *rsp = NULL;
 	struct srp_login_rej *rej = NULL;
 	struct ib_cm_rep_param *rep_param = NULL;
@@ -2400,15 +2399,13 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	EXTRACHECKS_WARN_ON_ONCE(irqs_disabled());
 
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18)
-	WARN_ON(!sdev || !private_data);
-	if (!sdev || !private_data)
+	WARN_ON(!sdev || !req);
+	if (!sdev || !req)
 		return -EINVAL;
 #else
-	if (WARN_ON(!sdev || !private_data))
+	if (WARN_ON(!sdev || !req))
 		return -EINVAL;
 #endif
-
-	req = (struct srp_login_req *)private_data;
 
 	it_iu_len = be32_to_cpu(req->req_it_iu_len);
 
@@ -2434,7 +2431,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	    be16_to_cpu(*(__be16 *)&req->target_port_id[12]),
 	    be16_to_cpu(*(__be16 *)&req->target_port_id[14]),
 	    it_iu_len,
-	    param->port,
+	    port_num,
 	    be16_to_cpu(raw_port_gid[0]),
 	    be16_to_cpu(raw_port_gid[1]),
 	    be16_to_cpu(raw_port_gid[2]),
@@ -2495,7 +2492,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 	}
 
 	kref_init(&ch->kref);
-	ch->pkey = be16_to_cpu(param->primary_path->pkey);
+	ch->pkey = be16_to_cpu(pkey);
 	ch->nexus = nexus;
 	ch->sport = sport;
 	ch->srpt_tgt = srpt_tgt;
@@ -2555,7 +2552,7 @@ static int srpt_cm_req_recv(struct ib_cm_id *cm_id,
 		snprintf(ch->sess_name, sizeof(ch->sess_name),
 			 "0x%016llx%016llx",
 			 be64_to_cpu(*(__be64 *)
-				&sdev->port[param->port - 1].gid.raw[8]),
+				&sdev->port[port_num - 1].gid.raw[8]),
 			 be64_to_cpu(*(__be64 *)(nexus->i_port_id + 8)));
 	} else {
 		/*
@@ -2814,7 +2811,8 @@ static int srpt_cm_handler(struct ib_cm_id *cm_id, struct ib_cm_event *event)
 	ret = 0;
 	switch (event->event) {
 	case IB_CM_REQ_RECEIVED:
-		ret = srpt_cm_req_recv(cm_id, &event->param.req_rcvd,
+		ret = srpt_cm_req_recv(cm_id, event->param.req_rcvd.port,
+				       event->param.req_rcvd.primary_path->pkey,
 				       event->private_data);
 		break;
 	case IB_CM_REJ_RECEIVED:
