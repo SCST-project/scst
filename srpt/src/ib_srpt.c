@@ -4283,7 +4283,8 @@ static int __init srpt_init_module(void)
 	if (rdma_cm_port) {
 		struct sockaddr_in addr;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0) || \
+	defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6
 		rdma_cm_id = rdma_create_id(srpt_rdma_cm_handler, NULL,
 					    RDMA_PS_TCP, IB_QPT_RC);
 #else
