@@ -4283,8 +4283,13 @@ static int __init srpt_init_module(void)
 	if (rdma_cm_port) {
 		struct sockaddr_in addr;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0)
 		rdma_cm_id = rdma_create_id(srpt_rdma_cm_handler, NULL,
 					    RDMA_PS_TCP, IB_QPT_RC);
+#else
+		rdma_cm_id = rdma_create_id(srpt_rdma_cm_handler, NULL,
+					    RDMA_PS_TCP);
+#endif
 		if (IS_ERR(rdma_cm_id)) {
 			rdma_cm_id = NULL;
 			PRINT_ERROR("RDMA/CM ID creation failed");
