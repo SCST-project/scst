@@ -2654,17 +2654,12 @@ restart:
 	rep_param->responder_resources = 4;
 	rep_param->initiator_depth = 4;
 
-	spin_lock_irq(&srpt_tgt->spinlock);
-	if (ch->state == CH_CONNECTING)
-		ret = ib_send_cm_rep(cm_id, rep_param);
-	else
-		ret = -ECONNABORTED;
-	spin_unlock_irq(&srpt_tgt->spinlock);
+	ret = ib_send_cm_rep(cm_id, rep_param);
 
 	switch (ret) {
 	case 0:
 		break;
-	case -ECONNABORTED:
+	case -EINVAL:
 		goto reject;
 	default:
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
