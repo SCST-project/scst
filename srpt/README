@@ -30,9 +30,13 @@ Installation
 Building and installing the SRP target driver is possible as follows:
 
    cd ${SCST_DIR}
-   make -s scst_clean scst scst_install
-   make -s srpt_clean srpt srpt_install
-   make -s scstadm scstadm_install
+   if type -p rpm >/dev/null; then
+      make -s rpm
+      sudo rpm -U rpmbuilddir/RPMS/*/*rpm scstadmin/rpmbuilddir/RPMS/*/*rpm
+   else
+      make -s scst_clean srpt_clean scst srpt scstadmin
+      sudo make -s scst_install srpt_install scstadm_install
+   fi
 
 The ib_srpt kernel module supports the following parameters:
 * one_target_per_port (boolean) and
@@ -166,9 +170,9 @@ Target names
 
 The name assigned by the ib_srpt target driver to an SCST target is either
 ib_srpt_target_<n>, the node GUID of a HCA in hexadecimal form with a colon
-after every fourth digit or the port GUID with a colon afer every fourth
-digit. The HCA node and port GUIDs can be obtained via the ibv_devinfo
-command. An example:
+after every fourth digit or the port GID with a colon afer every fourth
+digit. The HCA node GUID and the port GIDs can be obtained via the
+ibv_devinfo command. An example:
 
 # ibv_devinfo -v | grep -E '[^a-z]port:|guid|GID'
 node_guid:      0002:c903:0005:f34e
@@ -359,7 +363,8 @@ Performance Notes - Initiator Side
 
 * The SRP initiator limits by default the queue depth to 64 commands. If your
   workload benefits from a larger queue depth, enlarge the queue depth by
-  setting the max_cmd_per_lun parameter in the SRP login string.
+  setting the max_cmd_per_lun and queue_size parameters in the SRP login
+  string.
 
 * The following parameters have a small but measurable impact on SRP
   performance:
@@ -372,7 +377,7 @@ Performance Notes - Both Sides
 ------------------------------
 
 * Disabling CONFIG_SCHED_DEBUG and CONFIG_SCHEDSTATS in the kernel config
-  helps.
+  improves performance.
 
 * Disable CONFIG_IRQSOFF_TRACER such that CONFIG_TRACE_IRQFLAGS is disabled.
 
@@ -421,5 +426,4 @@ A: This means that you are using a system on which OFED has been installed but
 Feedback
 --------
 
-Send questions about this driver to scst-devel@lists.sourceforge.net, CC:
-Vu Pham <vuhuong@mellanox.com> and Bart Van Assche <bvanassche@acm.org>.
+Send questions about this driver to scst-devel@lists.sourceforge.net.
