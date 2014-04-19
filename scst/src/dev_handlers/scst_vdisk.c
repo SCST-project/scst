@@ -5117,7 +5117,10 @@ static enum compl_status_e vdisk_exec_caw(struct vdisk_cmd_params *p)
 		goto out;
 	}
 
-	WARN_ON_ONCE(length != 2 * data_len);
+	if (length != 2 * data_len) {
+		scst_set_invalid_field_in_cdb(cmd, 13, 0);
+		goto out;
+	}
 
 	loff = p->loff;
 	read = vdev_read_sync(virt_dev, read_buf, data_len, &loff);
