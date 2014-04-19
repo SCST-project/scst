@@ -4870,8 +4870,10 @@ static ssize_t blockio_rw_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 {
 	DECLARE_COMPLETION_ONSTACK(c);
 	struct block_device *bdev = virt_dev->bdev;
+	const bool is_vmalloc = is_vmalloc_addr(buf);
 	struct bio *bio;
 	void *p;
+	struct page *q;
 	int max_nr_vecs, rc;
 	unsigned bytes, off;
 	ssize_t ret = -ENOMEM;
@@ -4898,8 +4900,9 @@ static ssize_t blockio_rw_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 #endif
 	for (p = buf; p < buf + len; p += bytes) {
 		off = offset_in_page(p);
-		bytes = PAGE_SIZE - off;
-		rc = bio_add_page(bio, virt_to_page(p), bytes, off);
+		bytes = min_t(size_t, PAGE_SIZE - off, buf + len - p);
+		q = is_vmalloc ? vmalloc_to_page(p) : virt_to_page(p);
+		rc = bio_add_page(bio, q, bytes, off);
 		if (WARN_ON_ONCE(rc < bytes))
 			goto free;
 	}
