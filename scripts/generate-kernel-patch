@@ -268,7 +268,9 @@ done
 scsi_exec_req_fifo_defined=0
 scst_io_context=0
 for p in scst/kernel/*-${kver}.patch \
-         $(if [ "${1#3.7.}" != "$1" ] && [ "${1#3.7.}" -ge 10 ]; then
+         $(if [ "${1#3.2.}" != "$1" ] && [ "${1#3.2.}" -ge 57 ]; then
+		echo iscsi-scst/kernel/patches/*-3.2.57.patch;
+	   elif [ "${1#3.7.}" != "$1" ] && [ "${1#3.7.}" -ge 10 ]; then
 		echo iscsi-scst/kernel/patches/*-3.7.10.patch;
 	   elif [ "${1#3.10.}" != "$1" ] && [ "${1#3.10.}" -ge 30 ]; then
 		echo iscsi-scst/kernel/patches/*-3.10.30.patch;
