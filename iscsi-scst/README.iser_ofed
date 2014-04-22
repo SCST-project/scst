@@ -80,7 +80,8 @@ version detection by iscsi-scst makefile.
 
 
 For the OFED package.Make sure to enable
-at least the kernel-ib and kernel-ib-devel packages. An example:
+at least the kernel-ib and kernel-ib-devel packages (compat-rdma and compat-rdma-devel for OFED 3.5 and above).
+An example:
 
   wget http://www.openfabrics.org/downloads/OFED/ofed-1.5.1/OFED-1.5.1.tgz
   tar xzf OFED-1.5.1.tgz

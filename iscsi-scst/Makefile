@@ -54,7 +54,7 @@ all: include/iscsi_scst_itf_ver.h progs mods
 ISER_SYMVERS:=$(KMOD)/Module.symvers
 OFED_CFLAGS:=
 
-MLNX_OFED:=$(shell if $( ofed_info | grep MLNX_OFED $) >/dev/null 2>/dev/null; then echo true; else echo false; fi)
+MLNX_OFED:=$(shell if ofed_info | grep MLNX_OFED 2>/dev/null; then echo true; else echo false; fi)
 
 ifeq ($(MLNX_OFED),true)
 	# Whether MLNX_OFED for ubuntu has been installed
@@ -82,12 +82,20 @@ else
 	# Whether or not the OFED kernel-ib-devel RPM has been installed.
 	OFED_KERNEL_IB_DEVEL_RPM_INSTALLED:=$(shell if rpm -q kernel-ib-devel 2>/dev/null | grep -q $$(uname -r | sed 's/-/_/g'); then echo true; else echo false; fi)
 
+	# Whether or not the OFED compat-rdma-devel RPM has been installed.
+	OFED_COMPAT_RDMA_DEVEL_RPM_INSTALLED:=$(shell if rpm -q compat-rdma-devel 2>/dev/null | grep -q $$(uname -r | sed 's/-/_/g'); then echo true; else echo false; fi)
+
 	ifeq ($(OFED_KERNEL_IB_DEVEL_RPM_INSTALLED),true)
 	# Read OFED's config.mk, which contains the definition of the variable
 	# BACKPORT_INCLUDES.
 	include /usr/src/ofa_kernel/config.mk
 	OFED_CFLAGS:=$(shell echo $(BACKPORT_INCLUDES) -I/usr/src/ofa_kernel/include)
 	ISER_SYMVERS:="$(ISER_SYMVERS) /usr/src/ofa_kernel/Module.symvers"
+	endif
+
+	ifeq ($(OFED_COMPAT_RDMA_DEVEL_RPM_INSTALLED),true)
+	OFED_CFLAGS:=-I/usr/src/compat-rdma/include -include /usr/src/compat-rdma/include/linux/compat-2.6.h
+	ISER_SYMVERS:="$(ISER_SYMVERS) /usr/src/compat-rdma/Module.symvers"
 	endif
 endif
 
