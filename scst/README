@@ -1466,34 +1466,29 @@ Report target port groups:
 Initiator Support
 .................
 
-On Linux systems implicit ALUA support is provided by the scsi_dh_alua driver
-of the device mapper. You will have to modify at least the following in
-/etc/multipath.conf:
-* path_checker scsi_dh_alua
-* prio_callout "/sbin/mpath_prio_alua /dev/%n"
+On Linux systems implicit ALUA support is provided by the scsi_dh_alua kernel
+driver in combination with the user space multipathd daemon. You will have to
+modify at least the following in /etc/multipath.conf to enable implicit ALUA:
+* hardware_handler      "1 alua"
+* prio                  alua
+* path_grouping_policy  group_by_prio
 
-If your distribution does not provide a /sbin/mpath_prio_alua script, you can
-use the following implementation:
-$ cat /sbin/mpath_prio_alua
-#!/bin/bash
-# Given a SCSI device node, query the target port group asymmetric access
-# state and report it in numeric form.
-tpg_id="$(sg_vpd --page=di "$1" | sed -n 's/.*Target port group: //p')"
-aas="$(sg_rtpg "$1" \
-| grep -A1 "target port group id : $tpg_id" \
-| tail -n 1 \
-| sed 's/.*target port group asymmetric access state : //')"
-echo $((aas))
+Note: newer versions of multipathd support a parameter called
+"detect_prio". It can be more convenient to enable this parameter instead of
+setting the parameter "prio" to "alua" for only those LUNs that support ALUA.
 
 More information about how to configure the device mapper and the scsi_dh_alua
-driver can be found in the manual of your Linux distribution.
+driver can be found in the manual of your Linux distribution ("man
+multipath.conf").
 
 Windows initiator systems support ALUA from Windows Server 2008 on. For more
-information, see also:
-* Microsoft, Multipathing Support in Windows Server 2008, MSDN
-(http://blogs.msdn.com/b/san/archive/2008/07/27/multipathing-support-in-windows-server-2008.aspx).
+information about ALUA support in Windows Server, see also:
+* Microsoft, Windows Server 2008 R2 Multipath I/O Overview, MSDN
+  (http://technet.microsoft.com/en-us/library/cc725907.aspx).
+* Microsoft, Multipathing Support in Windows Server 2008, July 2008, MSDN
+  (http://blogs.msdn.com/b/san/archive/2008/07/27/multipathing-support-in-windows-server-2008.aspx).
 * Microsoft, ALUA MPIO Logo Test, MSDN
-(http://msdn.microsoft.com/en-us/library/gg607458%28v=vs.85%29.aspx).
+  (http://msdn.microsoft.com/en-us/library/gg607458%28v=vs.85%29.aspx).
 
 
 Caching
