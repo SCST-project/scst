@@ -244,6 +244,12 @@ static int vdisk_attach(struct scst_device *dev);
 static void vdisk_detach(struct scst_device *dev);
 static int vdisk_attach_tgt(struct scst_tgt_dev *tgt_dev);
 static void vdisk_detach_tgt(struct scst_tgt_dev *tgt_dev);
+static int vdisk_get_supported_opcodes(struct scst_cmd *cmd,
+	const struct scst_opcode_descriptor ***out_supp_opcodes,
+	int *out_supp_opcodes_cnt);
+static int vcdrom_get_supported_opcodes(struct scst_cmd *cmd,
+	const struct scst_opcode_descriptor ***out_supp_opcodes,
+	int *out_supp_opcodes_cnt);
 static int fileio_alloc_data_buf(struct scst_cmd *cmd);
 static int vdisk_parse(struct scst_cmd *);
 static int vcdrom_parse(struct scst_cmd *);
@@ -265,6 +271,7 @@ static enum compl_status_e vdev_exec_verify(struct vdisk_cmd_params *p);
 static enum compl_status_e blockio_exec_write_verify(struct vdisk_cmd_params *p);
 static enum compl_status_e fileio_exec_write_verify(struct vdisk_cmd_params *p);
 static enum compl_status_e nullio_exec_write_verify(struct vdisk_cmd_params *p);
+static enum compl_status_e nullio_exec_verify(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_read_capacity(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_read_capacity16(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_get_lba_status(struct vdisk_cmd_params *p);
@@ -564,6 +571,7 @@ static struct scst_dev_type vdisk_file_devtype = {
 	.exec =			vdisk_exec,
 	.on_free_cmd =		fileio_on_free_cmd,
 	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
+	.get_supported_opcodes = vdisk_get_supported_opcodes,
 	.devt_priv =		(void *)fileio_ops,
 #ifdef CONFIG_SCST_PROC
 	.read_proc =		vdisk_read_proc,
@@ -612,6 +620,7 @@ static struct scst_dev_type vdisk_blk_devtype = {
 	.parse =		non_fileio_parse,
 	.exec =			non_fileio_exec,
 	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
+	.get_supported_opcodes = vdisk_get_supported_opcodes,
 	.devt_priv =		(void *)blockio_ops,
 #ifndef CONFIG_SCST_PROC
 	.add_device =		vdisk_add_blockio_device,
@@ -654,6 +663,7 @@ static struct scst_dev_type vdisk_null_devtype = {
 	.exec =			non_fileio_exec,
 	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
 	.devt_priv =		(void *)nullio_ops,
+	.get_supported_opcodes = vdisk_get_supported_opcodes,
 #ifndef CONFIG_SCST_PROC
 	.add_device =		vdisk_add_nullio_device,
 	.del_device =		vdisk_del_device,
@@ -693,6 +703,7 @@ static struct scst_dev_type vcdrom_devtype = {
 	.exec =			vcdrom_exec,
 	.on_free_cmd =		fileio_on_free_cmd,
 	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
+	.get_supported_opcodes = vcdrom_get_supported_opcodes,
 #ifdef CONFIG_SCST_PROC
 	.read_proc =		vcdrom_read_proc,
 	.write_proc =		vcdrom_write_proc,
@@ -1397,8 +1408,314 @@ static enum compl_status_e vdisk_invalid_opcode(struct vdisk_cmd_params *p)
 	return INVALID_OPCODE;
 }
 
+#define VDEV_DEF_RDPROTECT	0
+#define VDEV_DEF_WRPROTECT	0
+#define VDEV_DEF_VRPROTECT	0
+
+#define VDEF_DEF_GROUP_NUM	0
+
+static const struct scst_opcode_descriptor scst_op_descr_cwr = {
+	.od_opcode = COMPARE_AND_WRITE,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 16,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { COMPARE_AND_WRITE, VDEV_DEF_WRPROTECT | 0x18,
+			       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+			       0, 0, 0, 0xFF, VDEF_DEF_GROUP_NUM,
+			       SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+
+static const struct scst_opcode_descriptor scst_op_descr_format_unit = {
+	.od_opcode = FORMAT_UNIT,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 6,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_LONG_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { FORMAT_UNIT, 0xF0, 0, 0, 0, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+
+static const struct scst_opcode_descriptor scst_op_descr_get_lba_status = {
+	.od_opcode = SERVICE_ACTION_IN,
+	.od_serv_action = SAI_GET_LBA_STATUS,
+	.od_serv_action_valid = 1,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 16,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { SERVICE_ACTION_IN, SAI_GET_LBA_STATUS,
+			       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+			       0xFF, 0xFF, 0xFF, 0xFF, 0,
+			       SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+
+static const struct scst_opcode_descriptor scst_op_descr_allow_medium_removal = {
+	.od_opcode = ALLOW_MEDIUM_REMOVAL,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 6,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { ALLOW_MEDIUM_REMOVAL, 0, 0, 0, 3, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+
+static const struct scst_opcode_descriptor scst_op_descr_read6 = {
+	.od_opcode = READ_6,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 6,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { READ_6, 0x1F,
+			       0xFF, 0xFF, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+
+static const struct scst_opcode_descriptor scst_op_descr_read10 = {
+	.od_opcode = READ_10,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 10,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { READ_10, VDEV_DEF_RDPROTECT | 0x18,
+			       0xFF, 0xFF, 0xFF, 0xFF, VDEF_DEF_GROUP_NUM,
+			       0xFF, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+
+static const struct scst_opcode_descriptor scst_op_descr_read12 = {
+	.od_opcode = READ_12,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 12,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { READ_12, VDEV_DEF_RDPROTECT | 0x18,
+			       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+			       VDEF_DEF_GROUP_NUM, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+
+static const struct scst_opcode_descriptor scst_op_descr_read16 = {
+	.od_opcode = READ_16,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 16,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { READ_16, VDEV_DEF_RDPROTECT | 0x18,
+			       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+			       0xFF, 0xFF, 0xFF, 0xFF, VDEF_DEF_GROUP_NUM,
+			       SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+
+static const struct scst_opcode_descriptor scst_op_descr_read_capacity = {
+	.od_opcode = READ_CAPACITY,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 10,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { READ_CAPACITY, 0, 0, 0, 0, 0, 0,
+			       0, 0, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+
+static const struct scst_opcode_descriptor scst_op_descr_read_capacity16 = {
+	.od_opcode = SERVICE_ACTION_IN,
+	.od_serv_action = SAI_READ_CAPACITY_16,
+	.od_serv_action_valid = 1,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 16,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { SERVICE_ACTION_IN, SAI_READ_CAPACITY_16,
+			       0, 0, 0, 0, 0, 0, 0, 0,
+			       0xFF, 0xFF, 0xFF, 0xFF, 0,
+			       SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+
+static const struct scst_opcode_descriptor scst_op_descr_start_stop_unit = {
+	.od_opcode = START_STOP,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 6,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { START_STOP, 1, 0, 0xF, 0xF7, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+
+static const struct scst_opcode_descriptor scst_op_descr_sync_cache10 = {
+	.od_opcode = SYNCHRONIZE_CACHE,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 10,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { SYNCHRONIZE_CACHE, 2,
+			       0xFF, 0xFF, 0xFF, 0xFF, VDEF_DEF_GROUP_NUM,
+			       0xFF, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+
+static const struct scst_opcode_descriptor scst_op_descr_sync_cache16 = {
+	.od_opcode = SYNCHRONIZE_CACHE_16,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 16,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { SYNCHRONIZE_CACHE_16, 2,
+			       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+			       0xFF, 0xFF, 0xFF, 0xFF, VDEF_DEF_GROUP_NUM,
+			       SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+
+static const struct scst_opcode_descriptor scst_op_descr_unmap = {
+	.od_opcode = UNMAP,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 10,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { UNMAP, 0, 0, 0, 0, 0, VDEF_DEF_GROUP_NUM,
+			       0xFF, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+
+static const struct scst_opcode_descriptor scst_op_descr_verify10 = {
+	.od_opcode = VERIFY,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 10,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { VERIFY, VDEV_DEF_VRPROTECT | 0x16,
+			       0xFF, 0xFF, 0xFF, 0xFF, VDEF_DEF_GROUP_NUM,
+			       0xFF, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+
+static const struct scst_opcode_descriptor scst_op_descr_verify12 = {
+	.od_opcode = VERIFY_12,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 12,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { VERIFY_12, VDEV_DEF_VRPROTECT | 0x16,
+			       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+			       VDEF_DEF_GROUP_NUM, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+
+static const struct scst_opcode_descriptor scst_op_descr_verify16 = {
+	.od_opcode = VERIFY_16,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 16,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { VERIFY_16, VDEV_DEF_VRPROTECT | 0x16,
+			       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+			       0xFF, 0xFF, 0xFF, 0xFF, VDEF_DEF_GROUP_NUM,
+			       SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+
+static const struct scst_opcode_descriptor scst_op_descr_write6 = {
+	.od_opcode = WRITE_6,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 6,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { WRITE_6, 0x1F,
+			       0xFF, 0xFF, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+
+static const struct scst_opcode_descriptor scst_op_descr_write10 = {
+	.od_opcode = WRITE_10,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 10,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { WRITE_10, VDEV_DEF_WRPROTECT | 0x1A,
+			       0xFF, 0xFF, 0xFF, 0xFF, VDEF_DEF_GROUP_NUM,
+			       0xFF, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+
+static const struct scst_opcode_descriptor scst_op_descr_write12 = {
+	.od_opcode = WRITE_12,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 12,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { WRITE_12, VDEV_DEF_WRPROTECT | 0x1A,
+			       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+			       VDEF_DEF_GROUP_NUM, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+
+static const struct scst_opcode_descriptor scst_op_descr_write16 = {
+	.od_opcode = WRITE_16,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 16,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { WRITE_16, VDEV_DEF_WRPROTECT | 0x1A,
+			       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+			       0xFF, 0xFF, 0xFF, 0xFF, VDEF_DEF_GROUP_NUM,
+			       SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+
+static const struct scst_opcode_descriptor scst_op_descr_write_verify10 = {
+	.od_opcode = WRITE_VERIFY,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 10,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { WRITE_VERIFY, VDEV_DEF_WRPROTECT | 0x16,
+			       0xFF, 0xFF, 0xFF, 0xFF, VDEF_DEF_GROUP_NUM,
+			       0xFF, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+
+static const struct scst_opcode_descriptor scst_op_descr_write_verify12 = {
+	.od_opcode = WRITE_VERIFY_12,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 12,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { WRITE_VERIFY_12, VDEV_DEF_WRPROTECT | 0x16,
+			       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+			       VDEF_DEF_GROUP_NUM, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+
+static const struct scst_opcode_descriptor scst_op_descr_write_verify16 = {
+	.od_opcode = WRITE_VERIFY_16,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 16,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { WRITE_VERIFY_16, VDEV_DEF_WRPROTECT | 0x16,
+			       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+			       0xFF, 0xFF, 0xFF, 0xFF, VDEF_DEF_GROUP_NUM,
+			       SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+
+static const struct scst_opcode_descriptor scst_op_descr_write_same10 = {
+	.od_opcode = WRITE_SAME,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 10,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { WRITE_SAME, VDEV_DEF_WRPROTECT | 0x8,
+			       0xFF, 0xFF, 0xFF, 0xFF, VDEF_DEF_GROUP_NUM,
+			       0xFF, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+
+static const struct scst_opcode_descriptor scst_op_descr_write_same16 = {
+	.od_opcode = WRITE_SAME_16,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 16,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { WRITE_SAME_16, VDEV_DEF_WRPROTECT | 0x8,
+			       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+			       0xFF, 0xFF, 0xFF, 0xFF, VDEF_DEF_GROUP_NUM,
+			       SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+
+static const struct scst_opcode_descriptor scst_op_descr_read_toc = {
+	.od_opcode = READ_TOC,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 10,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { READ_TOC, 0, 0xF, 0, 0, 0, 0xFF,
+			       0xFF, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+
 #define SHARED_OPS							\
 	[SYNCHRONIZE_CACHE] = vdisk_synchronize_cache,			\
+	[SYNCHRONIZE_CACHE_16] = vdisk_synchronize_cache,		\
 	[MODE_SENSE] = vdisk_exec_mode_sense,				\
 	[MODE_SENSE_10] = vdisk_exec_mode_sense,			\
 	[MODE_SELECT] = vdisk_exec_mode_select,				\
@@ -1420,9 +1737,38 @@ static enum compl_status_e vdisk_invalid_opcode(struct vdisk_cmd_params *p)
 	[UNMAP] = vdisk_exec_unmap,					\
 	[WRITE_SAME] = vdisk_exec_write_same,				\
 	[WRITE_SAME_16] = vdisk_exec_write_same,			\
+	[COMPARE_AND_WRITE] = vdisk_exec_caw,				\
 	[MAINTENANCE_IN] = vdisk_exec_maintenance_in,			\
 	[SEND_DIAGNOSTIC] = vdisk_exec_send_diagnostic,			\
 	[FORMAT_UNIT] = vdisk_exec_format_unit,
+
+#define SHARED_OPCODE_DESCRIPTORS					\
+	&scst_op_descr_sync_cache10,					\
+	&scst_op_descr_sync_cache16,					\
+	&scst_op_descr_mode_sense6,					\
+	&scst_op_descr_mode_sense10,					\
+	&scst_op_descr_mode_select6,					\
+	&scst_op_descr_mode_select10,					\
+	&scst_op_descr_log_select,					\
+	&scst_op_descr_log_sense,					\
+	&scst_op_descr_start_stop_unit,					\
+	&scst_op_descr_read_capacity,					\
+	&scst_op_descr_send_diagnostic,					\
+	&scst_op_descr_rtpg,						\
+	&scst_op_descr_read6,						\
+	&scst_op_descr_read10,						\
+	&scst_op_descr_read12,						\
+	&scst_op_descr_read16,						\
+	&scst_op_descr_write6,						\
+	&scst_op_descr_write10,						\
+	&scst_op_descr_write12,						\
+	&scst_op_descr_write16,						\
+	&scst_op_descr_write_verify10,					\
+	&scst_op_descr_write_verify12,					\
+	&scst_op_descr_write_verify16,					\
+	&scst_op_descr_verify10,					\
+	&scst_op_descr_verify12,					\
+	&scst_op_descr_verify16,
 
 static vdisk_op_fn blockio_ops[256] = {
 	[READ_6] = blockio_exec_read,
@@ -1451,7 +1797,6 @@ static vdisk_op_fn fileio_ops[256] = {
 	[WRITE_10] = fileio_exec_write,
 	[WRITE_12] = fileio_exec_write,
 	[WRITE_16] = fileio_exec_write,
-	[COMPARE_AND_WRITE] = vdisk_exec_caw,
 	[WRITE_VERIFY] = fileio_exec_write_verify,
 	[WRITE_VERIFY_12] = fileio_exec_write_verify,
 	[WRITE_VERIFY_16] = fileio_exec_write_verify,
@@ -1473,8 +1818,51 @@ static vdisk_op_fn nullio_ops[256] = {
 	[WRITE_VERIFY] = nullio_exec_write_verify,
 	[WRITE_VERIFY_12] = nullio_exec_write_verify,
 	[WRITE_VERIFY_16] = nullio_exec_write_verify,
+	[VERIFY] = nullio_exec_verify,
+	[VERIFY_12] = nullio_exec_verify,
+	[VERIFY_16] = nullio_exec_verify,
 	SHARED_OPS
 };
+
+#define VDISK_OPCODE_DESCRIPTORS					\
+	/* &scst_op_descr_get_lba_status, */				\
+	&scst_op_descr_read_capacity16,					\
+	&scst_op_descr_write_same10,					\
+	&scst_op_descr_write_same16,					\
+	&scst_op_descr_unmap,						\
+	&scst_op_descr_format_unit,					\
+	&scst_op_descr_cwr,
+
+static const struct scst_opcode_descriptor *vdisk_opcode_descriptors[] = {
+	SHARED_OPCODE_DESCRIPTORS
+	VDISK_OPCODE_DESCRIPTORS
+	SCST_OPCODE_DESCRIPTORS
+};
+
+static const struct scst_opcode_descriptor *vcdrom_opcode_descriptors[] = {
+	SHARED_OPCODE_DESCRIPTORS
+	&scst_op_descr_allow_medium_removal,
+	&scst_op_descr_read_toc,
+	SCST_OPCODE_DESCRIPTORS
+};
+
+static int vdisk_get_supported_opcodes(struct scst_cmd *cmd,
+	const struct scst_opcode_descriptor ***out_supp_opcodes,
+	int *out_supp_opcodes_cnt)
+{
+	*out_supp_opcodes = vdisk_opcode_descriptors;
+	*out_supp_opcodes_cnt = ARRAY_SIZE(vdisk_opcode_descriptors);
+	return 0;
+}
+
+static int vcdrom_get_supported_opcodes(struct scst_cmd *cmd,
+	const struct scst_opcode_descriptor ***out_supp_opcodes,
+	int *out_supp_opcodes_cnt)
+{
+	*out_supp_opcodes = vcdrom_opcode_descriptors;
+	*out_supp_opcodes_cnt = ARRAY_SIZE(vcdrom_opcode_descriptors);
+	return 0;
+}
 
 /*
  * Compute p->loff and p->fua.
@@ -2248,9 +2636,9 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 		(unsigned long long)start_lba, (unsigned long long)blocks);
 
 	if (virt_dev->blockio) {
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 27)
 		sector_t start_sector = start_lba << (cmd->dev->block_shift - 9);
 		sector_t nr_sects = blocks << (cmd->dev->block_shift - 9);
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 27)
 		struct inode *inode = fd->f_dentry->d_inode;
 		gfp_t gfp = cmd->cmd_gfp_mask;
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 31)
@@ -3530,6 +3918,7 @@ out:
 
 static enum compl_status_e vdisk_exec_get_lba_status(struct vdisk_cmd_params *p)
 {
+	/* Changing it don't forget to add it to vdisk_opcode_descriptors! */
 	return INVALID_OPCODE;
 }
 
@@ -4237,7 +4626,11 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 				bios++;
 				need_new_bio = 0;
 				bio->bi_end_io = blockio_endio;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+				bio->bi_iter.bi_sector = lba_start0 << (block_shift - 9);
+#else
 				bio->bi_sector = lba_start0 << (block_shift - 9);
+#endif
 				bio->bi_bdev = bdev;
 				bio->bi_private = blockio_work;
 				/*
@@ -4262,6 +4655,14 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 					bio->bi_rw |= REQ_FUA;
 
 				if (cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36) || \
+	defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6
+					bio->bi_rw |= REQ_SYNC;
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+					bio->bi_rw |= 1 << BIO_RW_SYNCIO;
+#else
+					bio->bi_rw |= 1 << BIO_RW_SYNC;
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36) || \
 	defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6
 					bio->bi_rw |= REQ_META;
@@ -4469,8 +4870,10 @@ static ssize_t blockio_rw_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 {
 	DECLARE_COMPLETION_ONSTACK(c);
 	struct block_device *bdev = virt_dev->bdev;
+	const bool is_vmalloc = is_vmalloc_addr(buf);
 	struct bio *bio;
 	void *p;
+	struct page *q;
 	int max_nr_vecs, rc;
 	unsigned bytes, off;
 	ssize_t ret = -ENOMEM;
@@ -4497,8 +4900,9 @@ static ssize_t blockio_rw_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 #endif
 	for (p = buf; p < buf + len; p += bytes) {
 		off = offset_in_page(p);
-		bytes = PAGE_SIZE - off;
-		rc = bio_add_page(bio, virt_to_page(p), bytes, off);
+		bytes = min_t(size_t, PAGE_SIZE - off, buf + len - p);
+		q = is_vmalloc ? vmalloc_to_page(p) : virt_to_page(p);
+		rc = bio_add_page(bio, q, bytes, off);
 		if (WARN_ON_ONCE(rc < bytes))
 			goto free;
 	}
@@ -4566,7 +4970,7 @@ static ssize_t vdev_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 	if (virt_dev->nullio)
 		return len;
 	else if (virt_dev->blockio)
-		return blockio_rw_sync(virt_dev, buf, len, loff, 0/*read*/);
+		return blockio_rw_sync(virt_dev, buf, len, loff, READ_SYNC);
 	else
 		return fileio_read_sync(virt_dev->fd, buf, len, loff);
 }
@@ -4574,21 +4978,12 @@ static ssize_t vdev_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 static ssize_t vdev_write_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 			       size_t len, loff_t *loff)
 {
-	int rw;
-
-	if (virt_dev->nullio) {
+	if (virt_dev->nullio)
 		return len;
-	} else if (virt_dev->blockio) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36)
-		rw = REQ_WRITE;
-#else
-		rw = 1 << BIO_RW;
-#endif
-
-		return blockio_rw_sync(virt_dev, buf, len, loff, rw);
-	} else {
+	else if (virt_dev->blockio)
+		return blockio_rw_sync(virt_dev, buf, len, loff, WRITE_SYNC);
+	else
 		return fileio_write_sync(virt_dev->fd, buf, len, loff);
-	}
 }
 
 static enum compl_status_e vdev_exec_verify(struct vdisk_cmd_params *p)
@@ -4725,7 +5120,10 @@ static enum compl_status_e vdisk_exec_caw(struct vdisk_cmd_params *p)
 		goto out;
 	}
 
-	WARN_ON_ONCE(length != 2 * data_len);
+	if (length != 2 * data_len) {
+		scst_set_invalid_field_in_cdb(cmd, 13, 0);
+		goto out;
+	}
 
 	loff = p->loff;
 	read = vdev_read_sync(virt_dev, read_buf, data_len, &loff);
@@ -4802,6 +5200,11 @@ static enum compl_status_e fileio_exec_write_verify(struct vdisk_cmd_params *p)
 }
 
 static enum compl_status_e nullio_exec_write_verify(struct vdisk_cmd_params *p)
+{
+	return CMD_SUCCEEDED;
+}
+
+static enum compl_status_e nullio_exec_verify(struct vdisk_cmd_params *p)
 {
 	return CMD_SUCCEEDED;
 }

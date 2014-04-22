@@ -41,6 +41,7 @@
 #include <rdma/ib_verbs.h>
 #include <rdma/ib_sa.h>
 #include <rdma/ib_cm.h>
+#include <rdma/rdma_cm.h>
 #include <scsi/srp.h>
 #if defined(INSIDE_KERNEL_TREE)
 #include <scst/scst.h>
@@ -327,15 +328,22 @@ enum rdma_ch_state {
  * @cmd_wait_list: list of SCST commands that arrived before the RTU event. This
  *                 list contains struct srpt_ioctx elements and is protected
  *                 against concurrent modification by the cm_id spinlock.
- * @pkey_index:    P_Key index of the IB partition for this SRP channel.
+ * @pkey:          P_Key of the IB partition for this SRP channel.
  * @scst_sess:     SCST session information associated with this SRP channel.
  * @sess_name:     SCST session name.
  */
 struct srpt_rdma_ch {
 	struct task_struct	*thread;
 	struct srpt_nexus	*nexus;
-	struct ib_cm_id		*cm_id;
 	struct ib_qp		*qp;
+	union {
+		struct {
+			struct ib_cm_id		*cm_id;
+		} ib_cm;
+		struct {
+			struct rdma_cm_id	*cm_id;
+		} rdma_cm;
+	};
 	struct ib_cq		*cq;
 	struct kref		kref;
 	int			rq_size;
@@ -354,7 +362,8 @@ struct srpt_rdma_ch {
 	enum rdma_ch_state	state;
 	struct list_head	list;
 	struct list_head	cmd_wait_list;
-	uint16_t		pkey_index;
+	uint16_t		pkey;
+	bool			using_rdma_cm;
 	bool			processing_wait_list;
 
 	struct scst_session	*scst_sess;
@@ -364,7 +373,7 @@ struct srpt_rdma_ch {
 /**
  * struct srpt_nexus - I_T nexus
  * @entry:     srpt_tgt.nexus_list list node.
- * @ch_list:   struct srpt_rdma_ch list. Protected by srpt_tgt.spinlock
+ * @ch_list:   struct srpt_rdma_ch list. Protected by srpt_tgt.mutex.
  * @i_port_id: 128-bit initiator port identifier copied from SRP_LOGIN_REQ.
  * @t_port_id: 128-bit target port identifier copied from SRP_LOGIN_REQ.
  */
@@ -378,14 +387,14 @@ struct srpt_nexus {
 /**
  * struct srpt_tgt
  * @ch_releaseQ: Enables waiting for removal from nexus_list.
- * @spinlock:    Protects nexus_list.
+ * @mutex:       Protects @nexus_list and srpt_nexus.ch_list.
  * @nexus_list:  Per-device I_T nexus list.
  * @scst_tgt:    SCST target information associated with this HCA.
  * @enabled:     Whether or not this SCST target is enabled.
  */
 struct srpt_tgt {
 	wait_queue_head_t	ch_releaseQ;
-	spinlock_t		spinlock;
+	struct mutex		mutex;
 	struct list_head	nexus_list;
 	struct scst_tgt		*scst_tgt;
 	bool			enabled;
@@ -442,6 +451,25 @@ struct srpt_device {
 	struct srpt_port	port[2];
 	struct ib_event_handler	event_handler;
 	struct srpt_tgt		srpt_tgt;
+};
+
+/**
+ * struct srp_login_req_rdma - RDMA/CM login parameters.
+ *
+ * RDMA/CM over InfiniBand can only carry 92 - 36 = 56 bytes of private
+ * data. srp_login_req_rdma contains the same information as
+ * struct srp_login_req but with the reserved data removed.
+ *
+ * To do: Move this structure to <scsi/srp.h>.
+ */
+struct srp_login_req_rdma {
+	u64	tag;
+	__be16	req_buf_fmt;
+	u8	req_flags;
+	u8	opcode;
+	__be32	req_it_iu_len;
+	u8	initiator_port_id[16];
+	u8	target_port_id[16];
 };
 
 #endif				/* IB_SRPT_H */

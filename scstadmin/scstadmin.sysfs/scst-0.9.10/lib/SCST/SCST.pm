@@ -741,7 +741,7 @@ sub luns {
 
 	close $lHandle;
 
-	return (\%luns, undef);
+	return \%luns;
 }
 
 sub aluaAttributes {

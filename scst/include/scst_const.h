@@ -413,6 +413,10 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 #define WRITE_SAME_16	      0x93
 #endif
 
+#ifndef SYNCHRONIZE_CACHE_16
+#define SYNCHRONIZE_CACHE_16  0x91
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
 /*
  * From <scsi/scsi.h>. See also commit
@@ -567,6 +571,7 @@ enum scst_tg_sup {
  ** Various timeouts
  *************************************************************/
 #define SCST_DEFAULT_TIMEOUT			(30 * HZ)
+#define SCST_DEFAULT_NOMINAL_TIMEOUT_SEC	1
 
 #define SCST_GENERIC_CHANGER_TIMEOUT		(3 * HZ)
 #define SCST_GENERIC_CHANGER_LONG_TIMEOUT	(14000 * HZ)
@@ -582,8 +587,8 @@ enum scst_tg_sup {
 #define SCST_GENERIC_MODISK_REG_TIMEOUT		(900 * HZ)
 #define SCST_GENERIC_MODISK_LONG_TIMEOUT	(14000 * HZ)
 
-#define SCST_GENERIC_DISK_SMALL_TIMEOUT		(3 * HZ)
-#define SCST_GENERIC_DISK_REG_TIMEOUT		(30 * HZ)
+#define SCST_GENERIC_DISK_SMALL_TIMEOUT		(10 * HZ)
+#define SCST_GENERIC_DISK_REG_TIMEOUT		(60 * HZ)
 #define SCST_GENERIC_DISK_LONG_TIMEOUT		(3600 * HZ)
 
 #define SCST_GENERIC_RAID_TIMEOUT		(3 * HZ)

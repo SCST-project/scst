@@ -661,6 +661,7 @@ struct scst_acg;
 struct scst_acg_dev;
 struct scst_acn;
 struct scst_aen;
+struct scst_opcode_descriptor;
 
 /*
  * SCST uses 64-bit numbers to represent LUN's internally. The value
@@ -763,7 +764,7 @@ struct scst_tgt_template {
 	 *
 	 * MUST HAVE
 	 */
-	int (*xmit_response) (struct scst_cmd *cmd);
+	int (*xmit_response)(struct scst_cmd *cmd);
 
 	/*
 	 * This function informs the driver that data
@@ -787,7 +788,7 @@ struct scst_tgt_template {
 	 *
 	 * OPTIONAL
 	 */
-	int (*rdy_to_xfer) (struct scst_cmd *cmd);
+	int (*rdy_to_xfer)(struct scst_cmd *cmd);
 
 	/*
 	 * Called if cmd stays inside the target hardware, i.e. after
@@ -797,7 +798,7 @@ struct scst_tgt_template {
 	 *
 	 * OPTIONAL
 	 */
-	void (*on_hw_pending_cmd_timeout) (struct scst_cmd *cmd);
+	void (*on_hw_pending_cmd_timeout)(struct scst_cmd *cmd);
 
 	/*
 	 * Called to notify the driver that the command is about to be freed.
@@ -813,7 +814,7 @@ struct scst_tgt_template {
 	 *
 	 * OPTIONAL
 	 */
-	void (*on_free_cmd) (struct scst_cmd *cmd);
+	void (*on_free_cmd)(struct scst_cmd *cmd);
 
 	/*
 	 * This function allows target driver to handle data buffer
@@ -844,7 +845,7 @@ struct scst_tgt_template {
 	 *
 	 * OPTIONAL.
 	 */
-	int (*tgt_alloc_data_buf) (struct scst_cmd *cmd);
+	int (*tgt_alloc_data_buf)(struct scst_cmd *cmd);
 
 	/*
 	 * This function informs the driver that data
@@ -871,7 +872,7 @@ struct scst_tgt_template {
 	 *
 	 * OPTIONAL.
 	 */
-	void (*preprocessing_done) (struct scst_cmd *cmd);
+	void (*preprocessing_done)(struct scst_cmd *cmd);
 
 	/*
 	 * This function informs the driver that the said command is about
@@ -884,7 +885,7 @@ struct scst_tgt_template {
 	 *
 	 * OPTIONAL
 	 */
-	int (*pre_exec) (struct scst_cmd *cmd);
+	int (*pre_exec)(struct scst_cmd *cmd);
 
 	/*
 	 * This function informs the driver that all affected by the
@@ -897,7 +898,7 @@ struct scst_tgt_template {
 	 *
 	 * OPTIONAL
 	 */
-	void (*task_mgmt_affected_cmds_done) (struct scst_mgmt_cmd *mgmt_cmd);
+	void (*task_mgmt_affected_cmds_done)(struct scst_mgmt_cmd *mgmt_cmd);
 
 	/*
 	 * This function informs the driver that the corresponding task
@@ -910,7 +911,7 @@ struct scst_tgt_template {
 	 *
 	 * MUST HAVE if the target supports task management.
 	 */
-	void (*task_mgmt_fn_done) (struct scst_mgmt_cmd *mgmt_cmd);
+	void (*task_mgmt_fn_done)(struct scst_mgmt_cmd *mgmt_cmd);
 
 	/*
 	 * Called to notify target driver that the command is being aborted.
@@ -919,7 +920,7 @@ struct scst_tgt_template {
 	 *
 	 * OPTIONAL
 	 */
-	void (*on_abort_cmd) (struct scst_cmd *cmd);
+	void (*on_abort_cmd)(struct scst_cmd *cmd);
 
 	/*
 	 * This function should detect the target adapters that
@@ -930,7 +931,7 @@ struct scst_tgt_template {
 	 *
 	 * MUST HAVE
 	 */
-	int (*detect) (struct scst_tgt_template *tgt_template);
+	int (*detect)(struct scst_tgt_template *tgt_template);
 
 	/*
 	 * This function should free up the resources allocated to the device.
@@ -940,7 +941,7 @@ struct scst_tgt_template {
 	 *
 	 * MUST HAVE
 	 */
-	int (*release) (struct scst_tgt *tgt);
+	int (*release)(struct scst_tgt *tgt);
 
 	/*
 	 * This function is used for Asynchronous Event Notifications.
@@ -959,7 +960,7 @@ struct scst_tgt_template {
 	 *
 	 * MUST HAVE, if low-level protocol supports AENs.
 	 */
-	int (*report_aen) (struct scst_aen *aen);
+	int (*report_aen)(struct scst_aen *aen);
 
 #ifdef CONFIG_SCST_PROC
 	/*
@@ -969,8 +970,8 @@ struct scst_tgt_template {
 	 *
 	 * OPTIONAL
 	 */
-	int (*read_proc) (struct seq_file *seq, struct scst_tgt *tgt);
-	int (*write_proc) (char *buffer, char **start, off_t offset,
+	int (*read_proc)(struct seq_file *seq, struct scst_tgt *tgt);
+	int (*write_proc)(char *buffer, char **start, off_t offset,
 		int length, int *eof, struct scst_tgt *tgt);
 #endif
 
@@ -988,7 +989,7 @@ struct scst_tgt_template {
 	 *
 	 * SHOULD HAVE, because it's required for Persistent Reservations.
 	 */
-	int (*get_initiator_port_transport_id) (struct scst_tgt *tgt,
+	int (*get_initiator_port_transport_id)(struct scst_tgt *tgt,
 		struct scst_session *sess, uint8_t **transport_id);
 
 	/*
@@ -1003,14 +1004,14 @@ struct scst_tgt_template {
 	 * If you are sure your target driver doesn't need enabling target,
 	 * you should set enabled_attr_not_needed in 1.
 	 */
-	int (*enable_target) (struct scst_tgt *tgt, bool enable);
+	int (*enable_target)(struct scst_tgt *tgt, bool enable);
 
 	/*
 	 * This function shows if particular target is enabled or not.
 	 *
 	 * SHOULD HAVE, see above why.
 	 */
-	bool (*is_target_enabled) (struct scst_tgt *tgt);
+	bool (*is_target_enabled)(struct scst_tgt *tgt);
 
 	/*
 	 * This function adds a virtual target.
@@ -1030,7 +1031,7 @@ struct scst_tgt_template {
 	 *
 	 * MUST HAVE if virtual targets are supported.
 	 */
-	ssize_t (*add_target) (const char *target_name, char *params);
+	ssize_t (*add_target)(const char *target_name, char *params);
 
 	/*
 	 * This function deletes a virtual target. See comment for add_target
@@ -1038,7 +1039,7 @@ struct scst_tgt_template {
 	 *
 	 * MUST HAVE if virtual targets are supported.
 	 */
-	ssize_t (*del_target) (const char *target_name);
+	ssize_t (*del_target)(const char *target_name);
 
 	/*
 	 * This function called if not "add_target" or "del_target" command is
@@ -1047,7 +1048,7 @@ struct scst_tgt_template {
 	 *
 	 * OPTIONAL.
 	 */
-	ssize_t (*mgmt_cmd) (char *cmd);
+	ssize_t (*mgmt_cmd)(char *cmd);
 
 	/*
 	 * Forcibly close a session. Note: this function may operate
@@ -1068,7 +1069,7 @@ struct scst_tgt_template {
 	 *
 	 * OPTIONAL
 	 */
-	uint16_t (*get_phys_transport_version) (struct scst_tgt *tgt);
+	uint16_t (*get_phys_transport_version)(struct scst_tgt *tgt);
 
 	/*
 	 * Should return SCSI transport version. Used in the corresponding
@@ -1076,7 +1077,7 @@ struct scst_tgt_template {
 	 *
 	 * OPTIONAL
 	 */
-	uint16_t (*get_scsi_transport_version) (struct scst_tgt *tgt);
+	uint16_t (*get_scsi_transport_version)(struct scst_tgt *tgt);
 
 	/*
 	 * Name of the template. Must be unique to identify
@@ -1244,7 +1245,7 @@ struct scst_dev_type {
 	 *
 	 * MUST HAVE
 	 */
-	int (*parse) (struct scst_cmd *cmd);
+	int (*parse)(struct scst_cmd *cmd);
 
 	/*
 	 * This function allows dev handler to handle data buffer
@@ -1264,7 +1265,7 @@ struct scst_dev_type {
 	 *
 	 * OPTIONAL
 	 */
-	int (*dev_alloc_data_buf) (struct scst_cmd *cmd);
+	int (*dev_alloc_data_buf)(struct scst_cmd *cmd);
 
 	/*
 	 * Called to execute CDB. Useful, for instance, to implement
@@ -1286,7 +1287,7 @@ struct scst_dev_type {
 	 * OPTIONAL, if not set, the commands will be sent directly to SCSI
 	 * device.
 	 */
-	int (*exec) (struct scst_cmd *cmd);
+	int (*exec)(struct scst_cmd *cmd);
 
 	/*
 	 * Called to notify dev handler about the result of cmd execution
@@ -1305,7 +1306,7 @@ struct scst_dev_type {
 	 *
 	 * OPTIONAL
 	 */
-	int (*dev_done) (struct scst_cmd *cmd);
+	int (*dev_done)(struct scst_cmd *cmd);
 
 	/*
 	 * Called to notify dev hander that the command is about to be freed.
@@ -1314,7 +1315,7 @@ struct scst_dev_type {
 	 *
 	 * OPTIONAL
 	 */
-	void (*on_free_cmd) (struct scst_cmd *cmd);
+	void (*on_free_cmd)(struct scst_cmd *cmd);
 
 	/*
 	 * Called to notify dev handler that a task management command received
@@ -1329,7 +1330,7 @@ struct scst_dev_type {
 	 *
 	 * OPTIONAL
 	 */
-	void (*task_mgmt_fn_received) (struct scst_mgmt_cmd *mgmt_cmd,
+	void (*task_mgmt_fn_received)(struct scst_mgmt_cmd *mgmt_cmd,
 		struct scst_tgt_dev *tgt_dev);
 
 	/*
@@ -1347,7 +1348,7 @@ struct scst_dev_type {
 	 *
 	 * OPTIONAL
 	 */
-	void (*task_mgmt_fn_done) (struct scst_mgmt_cmd *mgmt_cmd,
+	void (*task_mgmt_fn_done)(struct scst_mgmt_cmd *mgmt_cmd,
 		struct scst_tgt_dev *tgt_dev);
 
 	/*
@@ -1359,7 +1360,7 @@ struct scst_dev_type {
 	 *
 	 * OPTIONAL
 	 */
-	void (*reassign_retained_states) (struct scst_tgt_dev *new_tgt_dev,
+	void (*reassign_retained_states)(struct scst_tgt_dev *new_tgt_dev,
 		struct scst_tgt_dev *old_tgt_dev);
 
 	/*
@@ -1372,7 +1373,30 @@ struct scst_dev_type {
 	 *
 	 * MUST HAVE, if dev handler supports CDB splitting.
 	 */
-	bool (*on_sg_tablesize_low) (struct scst_cmd *cmd);
+	bool (*on_sg_tablesize_low)(struct scst_cmd *cmd);
+
+	/*
+	 * Called to return array of supported opcodes in out_supp_opcodes
+	 * argument with out_supp_opcodes_cnt elements count or execute
+	 * REPORT SUPPORTED OPERATION CODES command in place. Must return
+	 * 0 on success or any other code otherwise. In the latter case,
+	 * cmd supposed to have correct sense set.
+	 *
+	 * OPTIONAL
+	 */
+	int (*get_supported_opcodes)(struct scst_cmd *cmd,
+		const struct scst_opcode_descriptor ***out_supp_opcodes,
+		int *out_supp_opcodes_cnt);
+
+	/*
+	 * Called to put (release) array of supported opcodes returned
+	 * by get_supported_opcodes() callback.
+	 *
+	 * OPTIONAL
+	 */
+	void (*put_supported_opcodes)(struct scst_cmd *cmd,
+		const struct scst_opcode_descriptor **supp_opcodes,
+		int supp_opcodes_cnt);
 
 	/*
 	 * Called when new device is attaching to the dev handler
@@ -1380,14 +1404,14 @@ struct scst_dev_type {
 	 *
 	 * OPTIONAL
 	 */
-	int (*attach) (struct scst_device *dev);
+	int (*attach)(struct scst_device *dev);
 
 	/*
 	 * Called when a device is detaching from the dev handler.
 	 *
 	 * OPTIONAL
 	 */
-	void (*detach) (struct scst_device *dev);
+	void (*detach)(struct scst_device *dev);
 
 	/*
 	 * Called when new tgt_dev (session) is attaching to the dev handler.
@@ -1395,14 +1419,14 @@ struct scst_dev_type {
 	 *
 	 * OPTIONAL
 	 */
-	int (*attach_tgt) (struct scst_tgt_dev *tgt_dev);
+	int (*attach_tgt)(struct scst_tgt_dev *tgt_dev);
 
 	/*
 	 * Called when tgt_dev (session) is detaching from the dev handler.
 	 *
 	 * OPTIONAL
 	 */
-	void (*detach_tgt) (struct scst_tgt_dev *tgt_dev);
+	void (*detach_tgt)(struct scst_tgt_dev *tgt_dev);
 
 #ifdef CONFIG_SCST_PROC
 	/*
@@ -1412,8 +1436,8 @@ struct scst_dev_type {
 	 *
 	 * OPTIONAL
 	 */
-	int (*read_proc) (struct seq_file *seq, struct scst_dev_type *dev_type);
-	int (*write_proc) (char *buffer, char **start, off_t offset,
+	int (*read_proc)(struct seq_file *seq, struct scst_dev_type *dev_type);
+	int (*write_proc)(char *buffer, char **start, off_t offset,
 		int length, int *eof, struct scst_dev_type *dev_type);
 #else
 	/*
@@ -1434,7 +1458,7 @@ struct scst_dev_type {
 	 *
 	 * MUST HAVE if virtual devices are supported.
 	 */
-	ssize_t (*add_device) (const char *device_name, char *params);
+	ssize_t (*add_device)(const char *device_name, char *params);
 
 	/*
 	 * This function deletes a virtual device. See comment for add_device
@@ -1442,7 +1466,7 @@ struct scst_dev_type {
 	 *
 	 * MUST HAVE if virtual devices are supported.
 	 */
-	ssize_t (*del_device) (const char *device_name);
+	ssize_t (*del_device)(const char *device_name);
 
 	/*
 	 * This function called if not "add_device" or "del_device" command is
@@ -1451,7 +1475,7 @@ struct scst_dev_type {
 	 *
 	 * OPTIONAL.
 	 */
-	ssize_t (*mgmt_cmd) (char *cmd);
+	ssize_t (*mgmt_cmd)(char *cmd);
 #endif
 
 	/*
@@ -1778,9 +1802,9 @@ struct scst_session {
 	 * and scst_unregister_session()
 	 */
 	void *reg_sess_data;
-	void (*init_result_fn) (struct scst_session *sess, void *data,
+	void (*init_result_fn)(struct scst_session *sess, void *data,
 				int result);
-	void (*unreg_done_fn) (struct scst_session *sess);
+	void (*unreg_done_fn)(struct scst_session *sess);
 
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 	spinlock_t lat_lock;
@@ -1803,7 +1827,7 @@ struct scst_pr_abort_all_pending_mgmt_cmds_counter {
 	atomic_t pr_abort_pending_cnt;
 
 	/* Saved completion routine */
-	void (*saved_cmd_done) (struct scst_cmd *cmd, int next_state,
+	void (*saved_cmd_done)(struct scst_cmd *cmd, int next_state,
 		enum scst_exec_context pref_context);
 
 	/*
@@ -2111,7 +2135,7 @@ struct scst_cmd {
 	int64_t data_len;
 
 	/* Completion routine */
-	void (*scst_cmd_done) (struct scst_cmd *cmd, int next_state,
+	void (*scst_cmd_done)(struct scst_cmd *cmd, int next_state,
 		enum scst_exec_context pref_context);
 
 	struct sgv_pool_obj *sgv;	/* sgv object */
@@ -2896,6 +2920,58 @@ struct scst_aen {
 	int delivery_status;
 };
 
+#define SCST_OD_DEFAULT_CONTROL_BYTE	0
+
+struct scst_opcode_descriptor {
+	uint16_t od_serv_action;
+	uint8_t od_opcode;
+	uint8_t od_serv_action_valid:1;
+	uint8_t od_support:3; /* SUPPORT bits */
+	uint16_t od_cdb_size;
+	uint8_t od_comm_specific_timeout;
+	uint32_t od_nominal_timeout;
+	uint32_t od_recommended_timeout;
+	uint8_t od_cdb_usage_bits[];
+} __packed;
+
+extern const struct scst_opcode_descriptor scst_op_descr_log_select;
+extern const struct scst_opcode_descriptor scst_op_descr_log_sense;
+extern const struct scst_opcode_descriptor scst_op_descr_mode_select6;
+extern const struct scst_opcode_descriptor scst_op_descr_mode_sense6;
+extern const struct scst_opcode_descriptor scst_op_descr_mode_select10;
+extern const struct scst_opcode_descriptor scst_op_descr_mode_sense10;
+extern const struct scst_opcode_descriptor scst_op_descr_rtpg;
+extern const struct scst_opcode_descriptor scst_op_descr_stpg;
+extern const struct scst_opcode_descriptor scst_op_descr_send_diagnostic;
+
+extern const struct scst_opcode_descriptor scst_op_descr_inquiry;
+extern const struct scst_opcode_descriptor scst_op_descr_tur;
+extern const struct scst_opcode_descriptor scst_op_descr_reserve6;
+extern const struct scst_opcode_descriptor scst_op_descr_release6;
+extern const struct scst_opcode_descriptor scst_op_descr_reserve10;
+extern const struct scst_opcode_descriptor scst_op_descr_release10;
+extern const struct scst_opcode_descriptor scst_op_descr_pr_in;
+extern const struct scst_opcode_descriptor scst_op_descr_pr_out;
+extern const struct scst_opcode_descriptor scst_op_descr_report_luns;
+extern const struct scst_opcode_descriptor scst_op_descr_request_sense;
+extern const struct scst_opcode_descriptor scst_op_descr_report_supp_tm_fns;
+extern const struct scst_opcode_descriptor scst_op_descr_report_supp_opcodes;
+
+#define SCST_OPCODE_DESCRIPTORS			\
+	&scst_op_descr_inquiry,			\
+	&scst_op_descr_tur,			\
+	&scst_op_descr_reserve6,		\
+	&scst_op_descr_release6,		\
+	&scst_op_descr_reserve10,		\
+	&scst_op_descr_release10,		\
+	&scst_op_descr_pr_in,			\
+	&scst_op_descr_pr_out,			\
+	&scst_op_descr_report_luns,		\
+	&scst_op_descr_request_sense,		\
+	&scst_op_descr_report_supp_opcodes,	\
+	&scst_op_descr_report_supp_tm_fns,
+
+
 #ifndef smp_mb__after_set_bit
 /* There is no smp_mb__after_set_bit() in the kernel */
 #define smp_mb__after_set_bit()                 smp_mb()
@@ -2935,11 +3011,11 @@ void scst_unregister_target(struct scst_tgt *tgt);
 
 struct scst_session *scst_register_session(struct scst_tgt *tgt, int atomic,
 	const char *initiator_name, void *tgt_priv, void *result_fn_data,
-	void (*result_fn) (struct scst_session *sess, void *data, int result));
+	void (*result_fn)(struct scst_session *sess, void *data, int result));
 struct scst_session *scst_register_session_non_gpl(struct scst_tgt *tgt,
 	const char *initiator_name, void *tgt_priv);
 void scst_unregister_session(struct scst_session *sess, int wait,
-	void (*unreg_done_fn) (struct scst_session *sess));
+	void (*unreg_done_fn)(struct scst_session *sess));
 void scst_unregister_session_non_gpl(struct scst_session *sess);
 
 int __scst_register_dev_driver(struct scst_dev_type *dev_type,
@@ -3078,8 +3154,8 @@ void scst_capacity_data_changed(struct scst_device *dev);
 
 struct scst_cmd *scst_find_cmd_by_tag(struct scst_session *sess, uint64_t tag);
 struct scst_cmd *scst_find_cmd(struct scst_session *sess, void *data,
-			       int (*cmp_fn) (struct scst_cmd *cmd,
-					      void *data));
+			       int (*cmp_fn)(struct scst_cmd *cmd,
+					     void *data));
 
 enum dma_data_direction scst_to_dma_dir(int scst_dir);
 enum dma_data_direction scst_to_tgt_dma_dir(int scst_dir);
