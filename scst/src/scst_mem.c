@@ -606,7 +606,7 @@ static void sgv_free_sys_sg_entries(struct scatterlist *sg, int sg_count,
 	}
 }
 
-static struct page * sgv_alloc_sys_pages(struct scatterlist *sg,
+static struct page *sgv_alloc_sys_pages(struct scatterlist *sg,
 	gfp_t gfp_mask, void *priv)
 {
 	struct page *page = alloc_pages(gfp_mask, 0);
@@ -1632,7 +1632,7 @@ static void sgv_pool_destroy(struct sgv_pool *pool)
  *    See the SGV pool documentation for more details.
  */
 void sgv_pool_set_allocator(struct sgv_pool *pool,
-	struct page * (*alloc_pages_fn)(struct scatterlist *, gfp_t, void *),
+	struct page *(*alloc_pages_fn)(struct scatterlist *, gfp_t, void *),
 	void (*free_pages_fn)(struct scatterlist *, int, void *))
 {
 	pool->alloc_fns.alloc_pages_fn = alloc_pages_fn;
