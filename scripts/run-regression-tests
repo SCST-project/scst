@@ -213,6 +213,7 @@ function run_checkpatch  {
     echo "${errors} errors / ${warnings} warnings."
     grep -E '^WARNING|^ERROR' "${outputfile}" |
       sort |
+      grep -v 'WARNING: missing space after return type' |
       sed 's/^WARNING: Avoid CamelCase:.*/WARNING: Avoid CamelCase/' |
       uniq -c
   else
