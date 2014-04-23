@@ -2825,7 +2825,7 @@ static void srpt_cm_rtu_recv(struct srpt_rdma_ch *ch)
 
 static void srpt_cm_timewait_exit(struct srpt_rdma_ch *ch)
 {
-	PRINT_INFO("Received InfiniBand TimeWait exit for ch %p.", ch);
+	PRINT_INFO("Received CM TimeWait exit for ch %s.", ch->sess_name);
 	srpt_close_ch(ch);
 }
 
