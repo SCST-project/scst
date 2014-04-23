@@ -41,7 +41,6 @@
 #include <rdma/ib_verbs.h>
 #include <rdma/ib_sa.h>
 #include <rdma/ib_cm.h>
-#include <rdma/rdma_cm.h>
 #include <scsi/srp.h>
 #if defined(INSIDE_KERNEL_TREE)
 #include <scst/scst.h>
@@ -49,6 +48,10 @@
 #include <linux/version.h>
 #include <scst.h>
 #endif
+#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 == 5
+#define vlan_dev_vlan_id(dev) (panic("RHEL 5 misses vlan_dev_vlan_id()"),0)
+#endif
+#include <rdma/rdma_cm.h>
 #include "ib_dm_mad.h"
 
 /*
