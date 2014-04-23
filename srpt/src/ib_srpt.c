@@ -2851,7 +2851,7 @@ static int srpt_cm_dreq_recv(struct srpt_rdma_ch *ch)
  */
 static void srpt_cm_drep_recv(struct srpt_rdma_ch *ch)
 {
-	PRINT_INFO("Received InfiniBand DREP message for ch %p.", ch);
+	PRINT_INFO("Received CM DREP message for ch %s.", ch->sess_name);
 	srpt_close_ch(ch);
 }
 
@@ -2898,10 +2898,10 @@ static int srpt_cm_handler(struct ib_cm_id *cm_id, struct ib_cm_event *event)
 		srpt_cm_rep_error(ch);
 		break;
 	case IB_CM_DREQ_ERROR:
-		PRINT_INFO("Received IB DREQ ERROR event.");
+		PRINT_INFO("Received CM DREQ ERROR event.");
 		break;
 	case IB_CM_MRA_RECEIVED:
-		PRINT_INFO("Received IB MRA event");
+		PRINT_INFO("Received CM MRA event");
 		break;
 	default:
 		PRINT_ERROR("received unrecognized IB CM event %d",
