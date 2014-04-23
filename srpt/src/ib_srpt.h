@@ -139,7 +139,8 @@ enum {
 	LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 76)) &&		\
 	!(defined(RHEL_MAJOR) &&					\
 	(RHEL_MAJOR -0 > 6 ||						\
-	RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 >= 5))
+	RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 >= 5 ||			\
+	RHEL_MAJOR -0 == 5 && RHEL_MINOR -0 >= 9))
 /* See also patch "IB/core: Add GID change event" (commit 761d90ed4). */
 enum { IB_EVENT_GID_CHANGE = 18 };
 #endif
