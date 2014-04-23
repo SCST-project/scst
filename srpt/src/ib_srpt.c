@@ -2751,9 +2751,9 @@ static int srpt_rdma_cm_req_recv(struct rdma_cm_id *cm_id,
 				cm_id->route.path_rec->pkey, &req);
 }
 
-static void srpt_cm_rej_recv(struct ib_cm_id *cm_id)
+static void srpt_cm_rej_recv(struct srpt_rdma_ch *ch)
 {
-	PRINT_INFO("Received InfiniBand REJ packet for cm_id %p.", cm_id);
+	PRINT_INFO("Received CM REJ for ch %s.", ch->sess_name);
 }
 
 static void srpt_check_timeout(struct srpt_rdma_ch *ch)
@@ -2829,9 +2829,9 @@ static void srpt_cm_timewait_exit(struct srpt_rdma_ch *ch)
 	srpt_close_ch(ch);
 }
 
-static void srpt_cm_rep_error(struct ib_cm_id *cm_id)
+static void srpt_cm_rep_error(struct srpt_rdma_ch *ch)
 {
-	PRINT_INFO("Received InfiniBand REP error for cm_id %p.", cm_id);
+	PRINT_INFO("Received CM REP error for ch %s.", ch->sess_name);
 }
 
 /**
@@ -2864,6 +2864,7 @@ static void srpt_cm_drep_recv(struct srpt_rdma_ch *ch)
  */
 static int srpt_cm_handler(struct ib_cm_id *cm_id, struct ib_cm_event *event)
 {
+	struct srpt_rdma_ch *ch = cm_id->context;
 	int ret;
 
 	BUG_ON(!cm_id->context);
@@ -2875,23 +2876,23 @@ static int srpt_cm_handler(struct ib_cm_id *cm_id, struct ib_cm_event *event)
 					  event->private_data);
 		break;
 	case IB_CM_REJ_RECEIVED:
-		srpt_cm_rej_recv(cm_id);
+		srpt_cm_rej_recv(ch);
 		break;
 	case IB_CM_RTU_RECEIVED:
 	case IB_CM_USER_ESTABLISHED:
-		srpt_cm_rtu_recv((struct srpt_rdma_ch *)cm_id->context);
+		srpt_cm_rtu_recv(ch);
 		break;
 	case IB_CM_DREQ_RECEIVED:
-		ret = srpt_cm_dreq_recv((struct srpt_rdma_ch *)cm_id->context);
+		ret = srpt_cm_dreq_recv(ch);
 		break;
 	case IB_CM_DREP_RECEIVED:
-		srpt_cm_drep_recv((struct srpt_rdma_ch *)cm_id->context);
+		srpt_cm_drep_recv(ch);
 		break;
 	case IB_CM_TIMEWAIT_EXIT:
-		srpt_cm_timewait_exit((struct srpt_rdma_ch *)cm_id->context);
+		srpt_cm_timewait_exit(ch);
 		break;
 	case IB_CM_REP_ERROR:
-		srpt_cm_rep_error(cm_id);
+		srpt_cm_rep_error(ch);
 		break;
 	case IB_CM_DREQ_ERROR:
 		PRINT_INFO("Received IB DREQ ERROR event.");
@@ -2911,6 +2912,7 @@ static int srpt_cm_handler(struct ib_cm_id *cm_id, struct ib_cm_event *event)
 static int srpt_rdma_cm_handler(struct rdma_cm_id *cm_id,
 				struct rdma_cm_event *event)
 {
+	struct srpt_rdma_ch *ch = cm_id->context;
 	int ret = 0;
 
 	switch (event->event) {
@@ -2918,13 +2920,13 @@ static int srpt_rdma_cm_handler(struct rdma_cm_id *cm_id,
 		ret = srpt_rdma_cm_req_recv(cm_id, event);
 		break;
 	case RDMA_CM_EVENT_ESTABLISHED:
-		srpt_cm_rtu_recv(cm_id->context);
+		srpt_cm_rtu_recv(ch);
 		break;
 	case RDMA_CM_EVENT_DISCONNECTED:
-		srpt_cm_dreq_recv(cm_id->context);
+		srpt_cm_dreq_recv(ch);
 		break;
 	case RDMA_CM_EVENT_TIMEWAIT_EXIT:
-		srpt_cm_timewait_exit(cm_id->context);
+		srpt_cm_timewait_exit(ch);
 		break;
 	case RDMA_CM_EVENT_DEVICE_REMOVAL:
 		break;
