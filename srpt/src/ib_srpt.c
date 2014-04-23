@@ -335,6 +335,8 @@ static const char *get_ch_state_name(enum rdma_ch_state s)
 		return "live";
 	case CH_DISCONNECTING:
 		return "disconnecting";
+	case CH_DRAINING:
+		return "draining";
 	case CH_DISCONNECTED:
 		return "disconnected";
 	}
@@ -2179,6 +2181,8 @@ static int srpt_disconnect_ch(struct srpt_rdma_ch *ch)
 {
 	int ret;
 
+	srpt_set_ch_state(ch, CH_DISCONNECTING);
+
 	if (ch->using_rdma_cm) {
 		ret = rdma_disconnect(ch->rdma_cm.cm_id);
 	} else {
@@ -2196,34 +2200,33 @@ static int srpt_disconnect_ch(struct srpt_rdma_ch *ch)
  * Make sure all resources associated with the channel will be deallocated at
  * an appropriate time.
  *
- * Returns true if and only if the channel state has been modified from
- * CH_CONNECTING or CH_LIVE into CH_DISCONNECTING.
+ * Returns true if and only if the channel state has been modified into
+ * CH_DRAINING.
  */
 static bool srpt_close_ch(struct srpt_rdma_ch *ch)
 {
 	int ret;
-	bool was_live;
 
-	was_live = srpt_set_ch_state(ch, CH_DISCONNECTING);
-	if (was_live) {
-		kref_get(&ch->kref);
+	if (!srpt_set_ch_state(ch, CH_DRAINING))
+		return false;
 
-		ret = srpt_ch_qp_err(ch);
-		if (ret < 0)
-			PRINT_ERROR("%s: changing queue pair into error state"
-				    " failed: %d", ch->sess_name, ret);
+	kref_get(&ch->kref);
 
-		ret = srpt_zerolength_write(ch);
-		if (ret < 0) {
-			PRINT_ERROR("%s: queuing zero-length write failed: %d",
-				    ch->sess_name, ret);
-			WARN_ON_ONCE(!srpt_set_ch_state(ch, CH_DISCONNECTED));
-		}
+	ret = srpt_ch_qp_err(ch);
+	if (ret < 0)
+		PRINT_ERROR("%s: changing queue pair into error state"
+			    " failed: %d", ch->sess_name, ret);
 
-		kref_put(&ch->kref, srpt_free_ch);
+	ret = srpt_zerolength_write(ch);
+	if (ret < 0) {
+		PRINT_ERROR("%s: queuing zero-length write failed: %d",
+			    ch->sess_name, ret);
+		WARN_ON_ONCE(!srpt_set_ch_state(ch, CH_DISCONNECTED));
 	}
 
-	return was_live;
+	kref_put(&ch->kref, srpt_free_ch);
+
+	return true;
 }
 
 static void __srpt_close_all_ch(struct srpt_tgt *srpt_tgt)
@@ -2919,17 +2922,25 @@ static int srpt_rdma_cm_handler(struct rdma_cm_id *cm_id,
 	case RDMA_CM_EVENT_CONNECT_REQUEST:
 		ret = srpt_rdma_cm_req_recv(cm_id, event);
 		break;
+	case RDMA_CM_EVENT_REJECTED:
+		srpt_cm_rej_recv(ch);
+		break;
 	case RDMA_CM_EVENT_ESTABLISHED:
 		srpt_cm_rtu_recv(ch);
 		break;
 	case RDMA_CM_EVENT_DISCONNECTED:
-		srpt_cm_dreq_recv(ch);
+		if (ch->state < CH_DISCONNECTING)
+			srpt_cm_dreq_recv(ch);
+		else
+			srpt_cm_drep_recv(ch);
 		break;
 	case RDMA_CM_EVENT_TIMEWAIT_EXIT:
 		srpt_cm_timewait_exit(ch);
 		break;
-	case RDMA_CM_EVENT_DEVICE_REMOVAL:
+	case RDMA_CM_EVENT_UNREACHABLE:
+		srpt_cm_rep_error(ch);
 		break;
+	case RDMA_CM_EVENT_DEVICE_REMOVAL:
 	case RDMA_CM_EVENT_ADDR_CHANGE:
 		break;
 	default:

@@ -285,15 +285,17 @@ struct srpt_send_ioctx {
  * enum rdma_ch_state - SRP channel state.
  * @CH_CONNECTING:    QP is in RTR state; waiting for RTU.
  * @CH_LIVE:	      QP is in RTS state.
- * @CH_DISCONNECTING: DREQ has been received and waiting for DREP or DREQ has
- *                    been sent and waiting for DREP or channel is being closed
- *                    for another reason.
- * @CH_DISCONNECTED:  Last WQE has been received.
+ * @CH_DISCONNECTING: DREQ has been sent and waiting for DREP or DREQ has
+ *                    been received.
+ * @CH_DRAINING:      DREP has been received or waiting for DREP timed out
+ *                    and last work request has been queued.
+ * @CH_DISCONNECTED:  Last completion has been received.
  */
 enum rdma_ch_state {
 	CH_CONNECTING,
 	CH_LIVE,
 	CH_DISCONNECTING,
+	CH_DRAINING,
 	CH_DISCONNECTED,
 };
 
