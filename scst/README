@@ -1352,70 +1352,48 @@ The steps involved in configuring ALUA are:
 
 As an example, in a H.A. setup with two systems each having one InfiniBand
 HCA controlled by the ib_srpt driver and where each system exports two LUNs
-could be configured as follows:
+the following configuration can be used in scst.conf on both systems:
 
-own_tgt_id=1
-other_tgt_id=2
-cd /sys/kernel/scst_tgt/device_groups
-echo del dgroup1         >mgmt
-echo del dgroup2         >mgmt
-echo create dgroup1      >mgmt
-echo add disk01          >dgroup1/devices/mgmt
-echo create tgroup1      >dgroup1/target_groups/mgmt
-echo ${own_tgt_id}       >dgroup1/target_groups/tgroup1/group_id
-echo add ib_srpt_0       >dgroup1/target_groups/tgroup1/mgmt
-echo ${own_tgt_id}       >dgroup1/target_groups/tgroup1/ib_srpt_0/rel_tgt_id
-if [ ${own_tgt_id} = 1 ]; then
- echo 1                  >dgroup1/target_groups/tgroup1/preferred
-fi
-echo create tgroup2      >dgroup1/target_groups/mgmt
-echo ${other_tgt_id}     >dgroup1/target_groups/tgroup2/group_id
-echo add ib_srpt_0-other >dgroup1/target_groups/tgroup2/mgmt
-echo ${other_tgt_id}     >dgroup1/target_groups/tgroup2/ib_srpt_0-other/rel_tgt_id
-if [ ${other_tgt_id} = 1 ]; then
- echo 1                  >dgroup1/target_groups/tgroup2/preferred
-fi
-echo create dgroup2      >mgmt
-echo add disk02          >dgroup2/devices/mgmt
-echo create tgroup1      >dgroup2/target_groups/mgmt
-echo ${own_tgt_id}       >dgroup2/target_groups/tgroup1/group_id
-echo add ib_srpt_0       >dgroup2/target_groups/tgroup1/mgmt
-echo ${own_tgt_id}       >dgroup2/target_groups/tgroup1/ib_srpt_0/rel_tgt_id
-if [ ${own_tgt_id} = 2 ]; then
- echo 1                  >dgroup2/target_groups/tgroup1/preferred
-fi
-echo create tgroup2      >dgroup2/target_groups/mgmt
-echo ${other_tgt_id}     >dgroup2/target_groups/tgroup2/group_id
-echo add ib_srpt_0-other >dgroup2/target_groups/tgroup2/mgmt
-echo ${other_tgt_id}     >dgroup2/target_groups/tgroup2/ib_srpt_0-other/rel_tgt_id
-if [ ${other_tgt_id} = 2 ]; then
- echo 1                  >dgroup2/target_groups/tgroup2/preferred
-fi
+DEVICE_GROUP dgroup1 {
+	DEVICE disk01
 
-The second system in the same H.A. setup can be configured with the same
-commands but with the values of ${own_rel_tgt_id} and ${other_rel_tgt_id}
-swapped.
+	TARGET_GROUP tgroup1 {
+		group_id 256
+		preferred 1
+		state active
+		TARGET fe80:0000:0000:0000:0002:c903:00fa:b7e1 {
+			rel_tgt_id 1
+		}
+	}
+	TARGET_GROUP tgroup2 {
+		group_id 257
+		state standby
+		TARGET fe80:0000:0000:0000:0002:c903:00fa:b7f2 {
+			rel_tgt_id 2
+		}
+	}
+}
 
-The result of the above commands is:
+DEVICE_GROUP dgroup2 {
+	DEVICE disk02
 
-$ find -type f | grep -v '/mgmt$' | cut -c3- | sort | \
-  while read f; do echo $f =  $(head -n 1 $f); done
-dgroup1/target_groups/tgroup1/group_id = 1
-dgroup1/target_groups/tgroup1/ib_srpt_0/rel_tgt_id = 1
-dgroup1/target_groups/tgroup1/preferred = 1
-dgroup1/target_groups/tgroup1/state = active
-dgroup1/target_groups/tgroup2/group_id = 2
-dgroup1/target_groups/tgroup2/ib_srpt_0-other/rel_tgt_id = 2
-dgroup1/target_groups/tgroup2/preferred = 0
-dgroup1/target_groups/tgroup2/state = active
-dgroup2/target_groups/tgroup1/group_id = 1
-dgroup2/target_groups/tgroup1/ib_srpt_0/rel_tgt_id = 1
-dgroup2/target_groups/tgroup1/preferred = 1
-dgroup2/target_groups/tgroup1/state = active
-dgroup2/target_groups/tgroup2/group_id = 2
-dgroup2/target_groups/tgroup2/ib_srpt_0-other/rel_tgt_id = 2
-dgroup2/target_groups/tgroup2/preferred = 0
-dgroup2/target_groups/tgroup2/state = active
+	TARGET_GROUP tgroup1 {
+		group_id 256
+		state standby
+		TARGET fe80:0000:0000:0000:0002:c903:00fa:b7e1 {
+			rel_tgt_id 1
+		}
+	}
+	TARGET_GROUP tgroup2 {
+		group_id 257
+		preferred 1
+		state active
+		TARGET fe80:0000:0000:0000:0002:c903:00fa:b7f2 {
+			rel_tgt_id 2
+		}
+	}
+}
+
 
 Checking the Target Configuration
 .................................
@@ -1446,7 +1424,7 @@ configured on the target:
 
 # sg_rtpg /dev/sdb
 Report target port groups:
-  target port group id : 0x1 , Pref=1
+  target port group id : 0x100 , Pref=1
     target port group asymmetric access state : 0x00
     T_SUP : 0, O_SUP : 0, LBD_SUP : 0, U_SUP : 1, S_SUP : 1, AN_SUP : 1, AO_SUP : 1
     status code : 0x02
@@ -1454,7 +1432,7 @@ Report target port groups:
     target port count : 01
     Relative target port ids:
       0x01
-  target port group id : 0x2 , Pref=0
+  target port group id : 0x101 , Pref=0
     target port group asymmetric access state : 0x00
     T_SUP : 0, O_SUP : 0, LBD_SUP : 0, U_SUP : 1, S_SUP : 1, AN_SUP : 1, AO_SUP : 1
     status code : 0x02
@@ -1462,6 +1440,24 @@ Report target port groups:
     target port count : 01
     Relative target port ids:
       0x02
+
+The relative target port ID and the target port group ID for a certain path
+can be queried e.g. as follows:
+
+# sg_vpd -p di /dev/sdb
+Device Identification VPD page:
+  Addressed logical unit:
+    designator type: T10 vendor identification,  code set: ASCII
+      vendor id: SCST_FIO
+      vendor specific: 27cddc71-disk01
+    designator type: EUI-64 based,  code set: Binary
+      0x3237636464633731
+  Target port:
+    designator type: Relative target port,  code set: Binary
+      Relative target port: 0x1
+    designator type: Target port group,  code set: Binary
+      Target port group: 0x100
+
 
 Initiator Support
 .................
@@ -1472,14 +1468,37 @@ modify at least the following in /etc/multipath.conf to enable implicit ALUA:
 * hardware_handler      "1 alua"
 * prio                  alua
 * path_grouping_policy  group_by_prio
+* path_checker          tur
 
 Note: newer versions of multipathd support a parameter called
 "detect_prio". It can be more convenient to enable this parameter instead of
 setting the parameter "prio" to "alua" for only those LUNs that support ALUA.
 
+# multipath -ll
+23237636464633731 dm-3 SCST_FIO,disk01          
+size=1.0G features='3 queue_if_no_path pg_init_retries 50' hwhandler='1 alua' wp=rw
+|-+- policy='service-time 0' prio=1 status=active
+| `- 10:0:0:0   sdd 8:48  active ready running
+`-+- policy='service-time 0' prio=130 status=enabled
+  `- 11:0:0:0   sde 8:64  active ready running
+23133326137346538 dm-4 SCST_FIO,disk02          
+size=1.0G features='3 queue_if_no_path pg_init_retries 50' hwhandler='1 alua' wp=rw
+|-+- policy='service-time 0' prio=130 status=active
+| `- 10:0:0:2   sdn 8:208 active ready running
+`-+- policy='service-time 0' prio=1 status=enabled
+  `- 11:0:0:2   sdp 8:240 active ready running
+
+The following information can be derived from the above output:
+* That the hardware handler (hw_handler) has been set to "1 alua".
+* That multipathd created two priority groups - one with priority 1 and one
+  with priority 130.
+* That the SRP path with SCSI host number 10 will be used for communication
+  with LUN "disk01" and that the SRP path with SCSI host number 11 will be used
+  for communication with LUN "disk02".
+
 More information about how to configure the device mapper and the scsi_dh_alua
 driver can be found in the manual of your Linux distribution ("man
-multipath.conf").
+multipath.conf", "man multipath" and "man multipathd").
 
 Windows initiator systems support ALUA from Windows Server 2008 on. For more
 information about ALUA support in Windows Server, see also:
