@@ -4360,7 +4360,8 @@ out_deinit:
 
 /*
  * scst_mutex supposed to be held, there must not be parallel activity in this
- * session.
+ * session. May be invoked from inside scst_check_reassign_sessions() which
+ * means that sess->acg can be NULL.
  */
 static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	struct scst_acg_dev *acg_dev, struct scst_tgt_dev **out_tgt_dev)
@@ -4388,7 +4389,7 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	tgt_dev->tgt_dev_rd_only = acg_dev->acg_dev_rd_only || dev->dev_rd_only;
 	tgt_dev->sess = sess;
 	atomic_set(&tgt_dev->tgt_dev_cmd_count, 0);
-	if (sess->acg->acg_black_hole_type != SCST_ACG_BLACK_HOLE_NONE)
+	if (acg_dev->acg->acg_black_hole_type != SCST_ACG_BLACK_HOLE_NONE)
 		set_bit(SCST_TGT_DEV_BLACK_HOLE, &tgt_dev->tgt_dev_flags);
 	else
 		clear_bit(SCST_TGT_DEV_BLACK_HOLE, &tgt_dev->tgt_dev_flags);
