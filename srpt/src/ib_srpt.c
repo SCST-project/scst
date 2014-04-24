@@ -2177,23 +2177,6 @@ static void srpt_destroy_ch_ib(struct srpt_rdma_ch *ch)
 	ib_destroy_cq(ch->cq);
 }
 
-static int srpt_disconnect_ch(struct srpt_rdma_ch *ch)
-{
-	int ret;
-
-	srpt_set_ch_state(ch, CH_DISCONNECTING);
-
-	if (ch->using_rdma_cm) {
-		ret = rdma_disconnect(ch->rdma_cm.cm_id);
-	} else {
-		ret = ib_send_cm_dreq(ch->ib_cm.cm_id, NULL, 0);
-		if (ret < 0)
-			ret = ib_send_cm_drep(ch->ib_cm.cm_id, NULL, 0);
-	}
-
-	return ret;
-}
-
 /**
  * srpt_close_ch() - Close an RDMA channel.
  *
@@ -2227,6 +2210,36 @@ static bool srpt_close_ch(struct srpt_rdma_ch *ch)
 	kref_put(&ch->kref, srpt_free_ch);
 
 	return true;
+}
+
+/*
+ * Change the channel state into CH_DISCONNECTING. If a channel has not yet
+ * reached the connected state, close it. If a channel is in the connected
+ * state, send a DREQ. If a DREQ has been received, send a DREP. Note: it is
+ * the responsibility of the caller to ensure that this function is not
+ * invoked concurrently with the code that accepts a connection. This means
+ * that this function must either be invoked from inside a CM callback
+ * function or that it must be invoked with the srpt_tgt.mutex held.
+ */
+static int srpt_disconnect_ch(struct srpt_rdma_ch *ch)
+{
+	int ret;
+
+	if (!srpt_set_ch_state(ch, CH_DISCONNECTING))
+		return -ENOTCONN;
+
+	if (ch->using_rdma_cm) {
+		ret = rdma_disconnect(ch->rdma_cm.cm_id);
+	} else {
+		ret = ib_send_cm_dreq(ch->ib_cm.cm_id, NULL, 0);
+		if (ret < 0)
+			ret = ib_send_cm_drep(ch->ib_cm.cm_id, NULL, 0);
+	}
+
+	if (ret < 0 && srpt_close_ch(ch))
+		ret = 0;
+
+	return ret;
 }
 
 static void __srpt_close_all_ch(struct srpt_tgt *srpt_tgt)
@@ -2647,10 +2660,20 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 		rep_param->ib_cm.initiator_depth = 4;
 	}
 
-	if (ch->using_rdma_cm)
-		ret = rdma_accept(rdma_cm_id, &rep_param->rdma_cm);
-	else
-		ret = ib_send_cm_rep(ib_cm_id, &rep_param->ib_cm);
+	/*
+	 * Hold the srpt_tgt mutex while accepting a connection to avoid that
+	 * srpt_disconnect_ch() is invoked concurrently with this code.
+	 */
+	mutex_lock(&srpt_tgt->mutex);
+	if (srpt_tgt->enabled && ch->state == CH_CONNECTING) {
+		if (ch->using_rdma_cm)
+			ret = rdma_accept(rdma_cm_id, &rep_param->rdma_cm);
+		else
+			ret = ib_send_cm_rep(ib_cm_id, &rep_param->ib_cm);
+	} else {
+		ret = -EINVAL;
+	}
+	mutex_unlock(&srpt_tgt->mutex);
 
 	switch (ret) {
 	case 0:
@@ -3592,8 +3615,11 @@ static int srpt_detect(struct scst_tgt_template *tp)
 static int srpt_close_session(struct scst_session *sess)
 {
 	struct srpt_rdma_ch *ch = scst_sess_get_tgt_priv(sess);
+	struct srpt_tgt *srpt_tgt = ch->srpt_tgt;
 
+	mutex_lock(&srpt_tgt->mutex);
 	srpt_disconnect_ch(ch);
+	mutex_unlock(&srpt_tgt->mutex);
 
 	return 0;
 }
