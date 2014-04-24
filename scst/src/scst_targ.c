@@ -3334,7 +3334,7 @@ static int scst_exec_check_sn(struct scst_cmd **active_cmd)
 				TRACE_SN("Deferring cmd %p (sn=%d, set %d, "
 					"expected_sn=%d)", cmd, cmd->sn,
 					cmd->sn_set, expected_sn);
-				list_add_tail(&cmd->sn_cmd_list_entry,
+				list_add_tail(&cmd->deferred_cmd_list_entry,
 					      &order_data->deferred_cmd_list);
 				res = SCST_CMD_STATE_RES_CONT_NEXT;
 			}
@@ -5515,7 +5515,7 @@ void scst_unblock_aborted_cmds(const struct scst_tgt *tgt,
 			spin_lock(&order_data->sn_lock);
 			list_for_each_entry_safe(cmd, tcmd,
 					&order_data->deferred_cmd_list,
-					sn_cmd_list_entry) {
+					deferred_cmd_list_entry) {
 
 				if ((tgt != NULL) && (tgt != cmd->tgt))
 					continue;
@@ -5523,7 +5523,7 @@ void scst_unblock_aborted_cmds(const struct scst_tgt *tgt,
 					continue;
 
 				if (__scst_check_unblock_aborted_cmd(cmd,
-						&cmd->sn_cmd_list_entry)) {
+						&cmd->deferred_cmd_list_entry)) {
 					TRACE_MGMT_DBG("Unblocked aborted SN "
 						"cmd %p (sn %u)", cmd, cmd->sn);
 					order_data->def_cmd_count--;

@@ -8430,7 +8430,7 @@ struct scst_cmd *__scst_check_deferred_commands_locked(
 
 restart:
 	list_for_each_entry_safe(cmd, t, &order_data->deferred_cmd_list,
-				sn_cmd_list_entry) {
+				deferred_cmd_list_entry) {
 		EXTRACHECKS_BUG_ON((cmd->queue_type != SCST_CMD_QUEUE_SIMPLE) &&
 				   (cmd->queue_type != SCST_CMD_QUEUE_ORDERED));
 		if (cmd->sn == expected_sn) {
@@ -8440,7 +8440,7 @@ restart:
 				cmd, cmd->sn, cmd->sn_set);
 
 			order_data->def_cmd_count--;
-			list_del(&cmd->sn_cmd_list_entry);
+			list_del(&cmd->deferred_cmd_list_entry);
 
 			if (activate) {
 				spin_lock(&cmd->cmd_threads->cmd_list_lock);
@@ -8472,18 +8472,19 @@ restart:
 		goto out;
 
 	list_for_each_entry(cmd, &order_data->skipped_sn_list,
-				sn_cmd_list_entry) {
+				deferred_cmd_list_entry) {
 		EXTRACHECKS_BUG_ON(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE);
 		if (cmd->sn == expected_sn) {
 			/*
 			 * !! At this point any pointer in cmd, except	     !!
-			 * !! cur_order_data, sn_slot and sn_cmd_list_entry, !!
-			 * !! could be already destroyed!		     !!
+			 * !! cur_order_data, sn_slot and		     !!
+			 * !! deferred_cmd_list_entry, could be already	     !!
+			 * !! destroyed!				     !!
 			 */
 			TRACE_SN("cmd %p (tag %llu) with skipped sn %d found",
 				 cmd, (long long unsigned int)cmd->tag, cmd->sn);
 			order_data->def_cmd_count--;
-			list_del(&cmd->sn_cmd_list_entry);
+			list_del(&cmd->deferred_cmd_list_entry);
 			spin_unlock_irq(&order_data->sn_lock);
 			scst_inc_expected_sn(cmd);
 			if (test_and_set_bit(SCST_CMD_CAN_BE_DESTROYED,
@@ -8534,7 +8535,7 @@ void scst_unblock_deferred(struct scst_order_data *order_data,
 		out_of_sn_cmd->out_of_sn = 1;
 		spin_lock_irq(&order_data->sn_lock);
 		order_data->def_cmd_count++;
-		list_add_tail(&out_of_sn_cmd->sn_cmd_list_entry,
+		list_add_tail(&out_of_sn_cmd->deferred_cmd_list_entry,
 			      &order_data->skipped_sn_list);
 		TRACE_SN("out_of_sn_cmd %p with sn %d added to skipped_sn_list"
 			" (expected_sn %d)", out_of_sn_cmd, out_of_sn_cmd->sn,

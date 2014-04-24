@@ -2078,8 +2078,8 @@ struct scst_cmd {
 
 	unsigned long start_time;
 
-	/* List entry for tgt_dev's SN related lists */
-	struct list_head sn_cmd_list_entry;
+	/* List entry for tgt_dev's deferred (SN, etc.) lists */
+	struct list_head deferred_cmd_list_entry;
 
 	/* Cmd's serial number, used to execute cmd's in order of arrival */
 	unsigned int sn;
