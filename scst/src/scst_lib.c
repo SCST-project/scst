@@ -7343,9 +7343,10 @@ EXPORT_SYMBOL_GPL(scst_calc_block_shift);
 #define shift_left_overflows(a, b)					\
 	({								\
 		typeof(a) _minus_one = -1LL;				\
+		typeof(a) _plus_one = 1;				\
 		bool _a_is_signed = _minus_one < 0;			\
-		int _shift = sizeof(1ULL) * 8 - ((b) + _a_is_signed);	\
-		_shift < 0 || ((a) & ~((1ULL << _shift) - 1)) != 0;	\
+		int _shift = sizeof(a) * 8 - ((b) + _a_is_signed);	\
+		_shift < 0 || ((a) & ~((_plus_one << _shift) - 1)) != 0;\
 	})
 
 /**
@@ -7370,6 +7371,20 @@ static inline int scst_generic_parse(struct scst_cmd *cmd, const int timeout[3])
 		 * No need for locks here, since *_detach() can not be
 		 * called, when there are existing commands.
 		 */
+		bool overflow = shift_left_overflows(cmd->bufflen, block_shift) ||
+				shift_left_overflows(cmd->data_len, block_shift) ||
+				shift_left_overflows(cmd->out_bufflen, block_shift);
+		if (unlikely(overflow)) {
+			PRINT_WARNING("bufflen %u, data_len %llu or out_bufflen"
+				      " %u too large for device %s (block size"
+				      " %u)", cmd->bufflen, cmd->data_len,
+				      cmd->out_bufflen, cmd->dev->virt_name,
+				      1 << block_shift);
+			PRINT_BUFFER("CDB", cmd->cdb, cmd->cdb_len);
+			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
+					scst_sense_block_out_range_error));
+			goto out;
+		}
 		cmd->bufflen = cmd->bufflen << block_shift;
 		cmd->data_len = cmd->data_len << block_shift;
 		cmd->out_bufflen = cmd->out_bufflen << block_shift;
