@@ -54,19 +54,22 @@ OFED_KERNEL_IB_RPM:=$(shell for r in kernel-ib mlnx-ofa_kernel compat-rdma; do r
 OFED_KERNEL_IB_DEVEL_RPM:=$(shell for r in kernel-ib-devel mlnx-ofa_kernel-devel compat-rdma-devel; do rpm -q $$r 2>/dev/null | grep -q "^$$r" && echo $$r && break; done)
 
 ifeq ($(OFED_KERNEL_IB_RPM),kernel-ib)
+OFED_KERNEL_DIR:=/usr/src/ofa_kernel
 # Read OFED 1.x's config.mk, which contains the definition of the variable
 # BACKPORT_INCLUDES.
-include /usr/src/ofa_kernel/config.mk
-OFED_MODULE_SYMVERS:=/usr/src/ofa_kernel/Module.symvers
-OFED_CFLAGS:=$(BACKPORT_INCLUDES) -I/usr/src/ofa_kernel/include
+include $(OFED_KERNEL_DIR)/config.mk
+OFED_CFLAGS:=$(BACKPORT_INCLUDES) -I$(OFED_KERNEL_DIR)/include
 endif
 ifeq ($(OFED_KERNEL_IB_RPM),mlnx-ofa_kernel)
-OFED_MODULE_SYMVERS:=/usr/src/ofa_kernel/default/Module.symvers
-OFED_CFLAGS:=-I/usr/src/ofa_kernel/default/include
+OFED_KERNEL_DIR:=/usr/src/ofa_kernel/default
+OFED_CFLAGS:=-I$(OFED_KERNEL_DIR)/default/include
 endif
 ifeq ($(OFED_KERNEL_IB_RPM),compat-rdma)
-OFED_MODULE_SYMVERS:=/usr/src/compat-rdma/Module.symvers
-OFED_CFLAGS:=-I/usr/src/compat-rdma/include
+OFED_KERNEL_DIR:=/usr/src/compat-rdma
+OFED_CFLAGS:=-I$(OFED_KERNEL_DIR)/include
+endif
+ifneq ($(OFED_KERNEL_IB_RPM),)
+OFED_MODULE_SYMVERS:=$(OFED_KERNEL_DIR)/Module.symvers
 endif
 
 # Path of the OFED ib_srpt.ko kernel module.
@@ -93,7 +96,7 @@ src/Module.symvers src/Modules.symvers: $(SCST_SYMVERS_DIR)/$(MODULE_SYMVERS)
 	@if [ -n "$(OFED_KERNEL_IB_RPM)" ]; then                            \
 	  if [ -z "$(OFED_KERNEL_IB_DEVEL_RPM)" ]; then                     \
 	    echo "Error: the OFED package $(OFED_KERNEL_IB_RPM)-devel has"  \
-	         " not yet been installed.";                                \
+	         "not yet been installed.";                                 \
 	    false;                                                          \
 	  elif [ -e /lib/modules/$(KVER)/kernel/drivers/infiniband ]; then  \
 	    echo "Error: the distro-provided InfiniBand kernel drivers"     \
