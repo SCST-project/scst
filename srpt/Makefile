@@ -47,19 +47,27 @@ SRC_FILES=$(wildcard */*.[ch])
 MODULE_SYMVERS:=$(shell if [ -e $(KDIR)/Module.symvers ]; then \
 		       echo Module.symvers; else echo Modules.symvers; fi)
 
-# Whether or not the OFED kernel modules have been installed.
-OFED_KERNEL_IB_RPM_INSTALLED:=$(shell if rpm -q kernel-ib 2>/dev/null | grep -q $$(uname -r | sed 's/-/_/g'); then echo true; else echo false; fi)
+# Name of the OFED kernel RPM.
+OFED_KERNEL_IB_RPM:=$(shell for r in kernel-ib mlnx-ofa_kernel compat-rdma; do rpm -q $$r 2>/dev/null | grep -q "^$$r" && echo $$r && break; done)
 
-# Whether or not the OFED kernel-ib-devel RPM has been installed.
-OFED_KERNEL_IB_DEVEL_RPM_INSTALLED:=$(shell if rpm -q kernel-ib-devel 2>/dev/null | grep -q $$(uname -r | sed 's/-/_/g'); then echo true; else echo false; fi)
+# Name of the OFED kernel development RPM.
+OFED_KERNEL_IB_DEVEL_RPM:=$(shell for r in kernel-ib-devel mlnx-ofa_kernel-devel compat-rdma-devel; do rpm -q $$r 2>/dev/null | grep -q "^$$r" && echo $$r && break; done)
 
-ifeq ($(OFED_KERNEL_IB_DEVEL_RPM_INSTALLED),true)
-# Read OFED's config.mk, which contains the definition of the variable
+ifeq ($(OFED_KERNEL_IB_RPM),kernel-ib)
+# Read OFED 1.x's config.mk, which contains the definition of the variable
 # BACKPORT_INCLUDES.
 include /usr/src/ofa_kernel/config.mk
+OFED_MODULE_SYMVERS:=/usr/src/ofa_kernel/Module.symvers
+OFED_CFLAGS:=$(BACKPORT_INCLUDES) -I/usr/src/ofa_kernel/include
 endif
-
-OFED_CFLAGS:=$(shell if $(OFED_KERNEL_IB_DEVEL_RPM_INSTALLED); then echo $(BACKPORT_INCLUDES) -I/usr/src/ofa_kernel/include; fi)
+ifeq ($(OFED_KERNEL_IB_RPM),mlnx-ofa_kernel)
+OFED_MODULE_SYMVERS:=/usr/src/ofa_kernel/default/Module.symvers
+OFED_CFLAGS:=-I/usr/src/ofa_kernel/default/include
+endif
+ifeq ($(OFED_KERNEL_IB_RPM),compat-rdma)
+OFED_MODULE_SYMVERS:=/usr/src/compat-rdma/Module.symvers
+OFED_CFLAGS:=-I/usr/src/compat-rdma/include
+endif
 
 # Path of the OFED ib_srpt.ko kernel module.
 OFED_SRPT_PATH:=/lib/modules/$(KVER)/updates/kernel/drivers/infiniband/ulp/srpt/ib_srpt.ko
@@ -82,14 +90,15 @@ uninstall:
 	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
 
 src/Module.symvers src/Modules.symvers: $(SCST_SYMVERS_DIR)/$(MODULE_SYMVERS)
-	@if $(OFED_KERNEL_IB_RPM_INSTALLED); then                           \
-	  if ! $(OFED_KERNEL_IB_DEVEL_RPM_INSTALLED); then                  \
-	    echo "Error: the OFED package kernel-ib-devel has not yet been" \
-	         "installed.";                                              \
+	@if [ -n "$(OFED_KERNEL_IB_RPM)" ]; then                            \
+	  if [ -z "$(OFED_KERNEL_IB_DEVEL_RPM)" ]; then                     \
+	    echo "Error: the OFED package $(OFED_KERNEL_IB_RPM)-devel has"  \
+	         " not yet been installed.";                                \
 	    false;                                                          \
 	  elif [ -e /lib/modules/$(KVER)/kernel/drivers/infiniband ]; then  \
 	    echo "Error: the distro-provided InfiniBand kernel drivers"     \
-	         "must be removed first.";                                  \
+	         "must be removed first"                                    \
+	         " (/lib/modules/$(KVER)/kernel/drivers/infiniband).";      \
 	    false;                                                          \
 	  elif $(OFED_SRPT_INSTALLED); then                                 \
 	    echo "Error: OFED has been built with srpt=y in ofed.conf.";    \
@@ -97,21 +106,22 @@ src/Module.symvers src/Modules.symvers: $(SCST_SYMVERS_DIR)/$(MODULE_SYMVERS)
 	    false;                                                          \
 	  elif [ -e $(KDIR)/scripts/Makefile.lib ]                          \
 	       && ! grep -wq '^c_flags .*PRE_CFLAGS'                        \
-                  $(KDIR)/scripts/Makefile.lib                              \
+	          $(KDIR)/scripts/Makefile.lib                              \
 	       && ! grep -wq '^LINUXINCLUDE .*PRE_CFLAGS'                   \
-                  $(KDIR)/Makefile; then                                    \
+	          $(KDIR)/Makefile; then                                    \
 	    echo "Error: the kernel build system has not yet been patched.";\
 	    false;                                                          \
 	  else                                                              \
-	    echo "  Building against OFED InfiniBand kernel headers.";      \
+	    echo "  Building against $(OFED_KERNEL_IB_RPM) InfiniBand"      \
+	         "kernel headers.";                                         \
 	    (                                                               \
 	      grep -v drivers/infiniband/ $<;                               \
-	      cat /usr/src/ofa_kernel/Module.symvers                        \
+	      cat $(OFED_MODULE_SYMVERS)                                    \
 	    ) >$@;                                                          \
 	  fi                                                                \
 	else                                                                \
-	  if $(OFED_KERNEL_IB_DEVEL_RPM_INSTALLED); then                    \
-	    echo "Error: the OFED package kernel-ib has not yet been"       \
+	  if [ -n "$(OFED_KERNEL_IB_DEVEL_RPM)" ]; then                     \
+	    echo "Error: the OFED kernel package has not yet been"          \
 	         "installed.";                                              \
 	    false;                                                          \
 	  else                                                              \
