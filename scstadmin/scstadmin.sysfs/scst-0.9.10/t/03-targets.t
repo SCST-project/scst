@@ -274,10 +274,10 @@ sub lunTest {
        Dumper(undef, "luns(): Target 'no-such-target' is not available"));
     ok(Dumper($SCST->luns('scst_local', 'local1')),
        Dumper({ '0' => 'disk01', '1' => 'disk02', '2' => 'disk01',
-		'3' => 'disk02' }, undef));
+		'3' => 'disk02' }));
     ok(Dumper($SCST->luns('scst_local', 'local1', 'group1')),
        Dumper({ '0' => 'disk01', '2' => 'disk02', '4' => 'disk01',
-		'6' => 'disk02' }, undef));
+		'6' => 'disk02' }));
 
     ok(lunReadOnly($SCST, 'scst_local', 'local1', 0), '0');
     ok($SCST->setLunAttribute(), $SCST->SCST_C_LUN_SETATTR_FAIL);
@@ -302,11 +302,11 @@ sub lunTest {
     ok($SCST->replaceLun('scst_local', 'local1', 0, 'disk02', {}), 0);
     ok(Dumper($SCST->luns('scst_local', 'local1')),
        Dumper({ '0' => 'disk02', '1' => 'disk02', '2' => 'disk01',
-		'3' => 'disk02' }, undef));
+		'3' => 'disk02' }));
     ok($SCST->replaceLun('scst_local', 'local1', 0, 'disk01', {}), 0);
     ok(Dumper($SCST->luns('scst_local', 'local1')),
        Dumper({ '0' => 'disk01', '1' => 'disk02', '2' => 'disk01',
-		'3' => 'disk02' }, undef));
+		'3' => 'disk02' }));
 
     ok($SCST->clearLuns(undef, undef), $SCST->SCST_C_TGT_CLR_LUN_FAIL);
     ok($SCST->clearLuns(undef, undef, 'group1'),
@@ -322,16 +322,16 @@ sub lunTest {
     ok($SCST->removeLun('scst_local', 'local1', '8', 'group1'),
        $SCST->SCST_C_GRP_NO_LUN);
     ok($SCST->clearLuns('scst_local', 'local1'), 0);
-    ok(Dumper($SCST->luns('scst_local', 'local1')), Dumper({ }, undef));
+    ok(Dumper($SCST->luns('scst_local', 'local1')), Dumper({ }));
     ok(Dumper($SCST->luns('scst_local', 'local1', 'group1')),
        Dumper({ '0' => 'disk01', '2' => 'disk02', '4' => 'disk01',
-		'6' => 'disk02' }, undef));
+		'6' => 'disk02' }));
     ok($SCST->removeLun('scst_local', 'local1', '4', 'group1'), 0);
     ok(Dumper($SCST->luns('scst_local', 'local1', 'group1')),
-       Dumper({ '0' => 'disk01', '2' => 'disk02', '6' => 'disk02' }, undef));
+       Dumper({ '0' => 'disk01', '2' => 'disk02', '6' => 'disk02' }));
     ok($SCST->clearLuns('scst_local', 'local1', 'group1'), 0);
     ok(Dumper($SCST->luns('scst_local', 'local1', 'group1')),
-       Dumper({ }, undef));
+       Dumper({ }));
 
     ok($SCST->removeInitiator('scst_local', 'local1', 'group1', 'ini1'), 0);
     ok($SCST->removeGroup('scst_local', 'local1', 'group1'), 0);
