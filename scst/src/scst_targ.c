@@ -4787,8 +4787,11 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 			PRINT_CRIT_ERROR("cmd (%p) in state %d, but shouldn't "
 				"be", cmd, cmd->state);
 			sBUG();
+#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 < 6
+			/* For suppressing a gcc compiler warning */
 			res = SCST_CMD_STATE_RES_CONT_NEXT;
 			break;
+#endif
 		}
 	} while (res == SCST_CMD_STATE_RES_CONT_SAME);
 
@@ -4820,8 +4823,10 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 				cmd->state);
 			spin_unlock_irq(&cmd->cmd_threads->cmd_list_lock);
 			sBUG();
+#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 < 6
 			spin_lock_irq(&cmd->cmd_threads->cmd_list_lock);
 			break;
+#endif
 		}
 #endif
 		wake_up(&cmd->cmd_threads->cmd_list_waitQ);
@@ -6419,8 +6424,11 @@ static int scst_process_mgmt_cmd(struct scst_mgmt_cmd *mcmd)
 				mcmd->cmd_finish_wait_count,
 				mcmd->cmd_done_wait_count);
 			sBUG();
+#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 < 6
+			/* For suppressing a gcc compiler warning */
 			res = -1;
 			goto out;
+#endif
 		}
 	}
 
