@@ -4926,20 +4926,15 @@ void scst_cmd_tasklet(long p)
 }
 
 /*
- * Returns 0 on success, < 0 if there is no device handler or
- * > 0 if SCST_FLAG_SUSPENDED set and SCST_FLAG_SUSPENDING - not.
- * No locks, protection is done by the suspended activity.
+ * Returns 0 on success, or > 0 if SCST_FLAG_SUSPENDED set and
+ * SCST_FLAG_SUSPENDING - not. No locks, protection is done by the
+ * suspended activity.
  */
-static int scst_mgmt_translate_lun(struct scst_mgmt_cmd *mcmd)
+static int scst_get_mgmt(struct scst_mgmt_cmd *mcmd)
 {
-	struct scst_tgt_dev *tgt_dev;
-	struct list_head *head;
-	int res = -1;
+	int res = 0;
 
 	TRACE_ENTRY();
-
-	TRACE_DBG("Finding tgt_dev for mgmt cmd %p (lun %lld)", mcmd,
-	      (long long unsigned int)mcmd->lun);
 
 	mcmd->cpu_cmd_counter = scst_get();
 
@@ -4950,6 +4945,33 @@ static int scst_mgmt_translate_lun(struct scst_mgmt_cmd *mcmd)
 		res = 1;
 		goto out;
 	}
+
+out:
+	TRACE_EXIT_HRES(res);
+	return res;
+}
+
+/*
+ * Returns 0 on success, < 0 if there is no device handler or
+ * > 0 if SCST_FLAG_SUSPENDED set and SCST_FLAG_SUSPENDING - not.
+ * No locks, protection is done by the suspended activity.
+ */
+static int scst_mgmt_translate_lun(struct scst_mgmt_cmd *mcmd)
+{
+	struct scst_tgt_dev *tgt_dev;
+	struct list_head *head;
+	int res;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("Finding tgt_dev for mgmt cmd %p (lun %lld)", mcmd,
+	      (long long unsigned int)mcmd->lun);
+
+	res = scst_get_mgmt(mcmd);
+	if (unlikely(res != 0))
+		goto out;
+
+	res = -1;
 
 	head = &mcmd->sess->sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_FN(mcmd->lun)];
 	list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
@@ -5762,6 +5784,21 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 	}
 
 	case SCST_TARGET_RESET:
+		/*
+		 * Needed to protect against race, when a device added after
+		 * blocking, so unblocking then will make dev->block_count
+		 * of the new device negative.
+		 */
+		rc = scst_get_mgmt(mcmd);
+		if (rc == 0) {
+			mcmd->state = SCST_MCMD_STATE_EXEC;
+			mcmd->scst_get_called = 1;
+		} else {
+			EXTRACHECKS_BUG_ON(rc < 0);
+			res = rc;
+		}
+		break;
+
 	case SCST_NEXUS_LOSS_SESS:
 	case SCST_ABORT_ALL_TASKS_SESS:
 	case SCST_NEXUS_LOSS:

@@ -2311,6 +2311,7 @@ struct scst_mgmt_cmd {
 	unsigned int needs_unblocking:1;
 	unsigned int lun_set:1;		/* set, if lun field is valid */
 	unsigned int cmd_sn_set:1;	/* set, if cmd_sn field is valid */
+	unsigned int scst_get_called:1;	/* set, if scst_get() was called */
 	/* Set if dev handler's task_mgmt_fn_received was called */
 	unsigned int task_mgmt_fn_received_called:1;
 	unsigned int mcmd_dropped:1; /* set if mcmd was dropped */

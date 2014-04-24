@@ -5884,7 +5884,7 @@ void scst_free_mgmt_cmd(struct scst_mgmt_cmd *mcmd)
 
 	scst_sess_put(mcmd->sess);
 
-	if (mcmd->mcmd_tgt_dev != NULL)
+	if ((mcmd->mcmd_tgt_dev != NULL) || mcmd->scst_get_called)
 		scst_put(mcmd->cpu_cmd_counter);
 
 	mempool_free(mcmd, scst_mgmt_mempool);
