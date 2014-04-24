@@ -4378,7 +4378,8 @@ static void __exit srpt_cleanup_module(void)
 {
 	TRACE_ENTRY();
 
-	rdma_destroy_id(rdma_cm_id);
+	if (rdma_cm_id)
+		rdma_destroy_id(rdma_cm_id);
 	ib_unregister_client(&srpt_client);
 #ifdef CONFIG_SCST_PROC
 	srpt_unregister_procfs_entry(&srpt_template);
