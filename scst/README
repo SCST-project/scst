@@ -1470,9 +1470,12 @@ modify at least the following in /etc/multipath.conf to enable implicit ALUA:
 * path_grouping_policy  group_by_prio
 * path_checker          tur
 
-Note: newer versions of multipathd support a parameter called
-"detect_prio". It can be more convenient to enable this parameter instead of
-setting the parameter "prio" to "alua" for only those LUNs that support ALUA.
+Notes:
+- Newer versions of multipathd support a parameter called
+  "detect_prio". It can be more convenient to enable this parameter instead of
+  setting the parameter "prio" to "alua" for only those LUNs that support ALUA.
+- Older versions of multipathd (e.g. RHEL 5 and SLES 10 SP1) need
+  'prio_callout "/sbin/mpath_prio_alua /dev/%n"' instead of 'prio alua'.
 
 # multipath -ll
 23237636464633731 dm-3 SCST_FIO,disk01          
