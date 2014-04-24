@@ -1540,7 +1540,10 @@ void scst_rx_data(struct scst_cmd *cmd, int status,
 			break;
 #endif
 
-		/* Small context optimization */
+		/*
+		 * Make sure that the exec phase runs in thread context since
+		 * invoking I/O functions from atomic context is not allowed.
+		 */
 		if ((pref_context == SCST_CONTEXT_TASKLET) ||
 		    (pref_context == SCST_CONTEXT_DIRECT_ATOMIC) ||
 		    ((pref_context == SCST_CONTEXT_SAME) &&
