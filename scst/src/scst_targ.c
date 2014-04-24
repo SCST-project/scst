@@ -3294,7 +3294,7 @@ static int scst_exec_check_sn(struct scst_cmd **active_cmd)
 	if (unlikely(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE))
 		goto exec;
 
-	sBUG_ON(!cmd->sn_set);
+	EXTRACHECKS_BUG_ON(!cmd->sn_set);
 
 	expected_sn = ACCESS_ONCE(order_data->expected_sn);
 	/* Optimized for lockless fast path */

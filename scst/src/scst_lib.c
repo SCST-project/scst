@@ -5759,8 +5759,8 @@ void scst_free_cmd(struct scst_cmd *cmd)
 	}
 
 	if (likely(cmd->tgt_dev != NULL)) {
-		EXTRACHECKS_BUG_ON(!test_bit(SCST_CMD_INC_EXPECTED_SN_PASSED,
-				      &cmd->cmd_flags) && cmd->sn_set && !cmd->out_of_sn);
+		EXTRACHECKS_BUG_ON(cmd->sn_set && !cmd->out_of_sn &&
+			!test_bit(SCST_CMD_INC_EXPECTED_SN_PASSED, &cmd->cmd_flags));
 		if (unlikely(cmd->out_of_sn)) {
 			destroy = test_and_set_bit(SCST_CMD_CAN_BE_DESTROYED,
 					&cmd->cmd_flags);
@@ -8009,7 +8009,7 @@ void scst_process_reset(struct scst_device *dev,
 	dev->dev_double_ua_possible = 1;
 
 	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
-		dev_tgt_dev_list_entry) {
+			dev_tgt_dev_list_entry) {
 		struct scst_session *sess = tgt_dev->sess;
 
 #if 0 /* Clearing UAs and last sense isn't required by SAM and it
