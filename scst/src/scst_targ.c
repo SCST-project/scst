@@ -5687,6 +5687,18 @@ static int scst_clear_task_set(struct scst_mgmt_cmd *mcmd)
 
 		list_for_each_entry(tgt_dev, &UA_tgt_devs,
 				extra_tgt_dev_list_entry) {
+			/*
+			 * Potentially, setting UA here, when the aborted
+			 * commands are still running, can lead to a situation
+			 * that one of them could take it, then that would be
+			 * detected and the UA requeued. But, meanwhile, one or
+			 * more subsequent, i.e. not aborted, commands can
+			 * "leak" executed normally. So, as result, the
+			 * UA would be delivered one or more commands "later".
+			 * However, that should be OK, because, if multiple
+			 * commands are being executed in parallel, you can't
+			 * control exact order of UA delivery anyway.
+			 */
 			scst_check_set_UA(tgt_dev, sense_buffer, sl, 0);
 		}
 	}

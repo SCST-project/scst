@@ -565,6 +565,27 @@ static void scst_pr_abort_reg(struct scst_device *dev,
 		 */
 		PRINT_ERROR("SCST_PR_ABORT_ALL failed %d (sess %p)",
 			rc, sess);
+		goto out;
+	}
+
+	if ((reg->tgt_dev != pr_cmd->tgt_dev) && !dev->tas) {
+		uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
+		int sl;
+		sl = scst_set_sense(sense_buffer, sizeof(sense_buffer),
+			dev->d_sense,
+			SCST_LOAD_SENSE(scst_sense_cleared_by_another_ini_UA));
+		/*
+		 * Potentially, setting UA here, when the aborted commands are
+		 * still running, can lead to a situation that one of them could
+		 * take it, then that would be detected and the UA requeued.
+		 * But, meanwhile, one or more subsequent, i.e. not aborted,
+		 * commands can "leak" executed normally. So, as result, the
+		 * UA would be delivered one or more commands "later". However,
+		 * that should be OK, because, if multiple commands are being
+		 * executed in parallel, you can't control exact order of UA
+		 * delivery anyway.
+		 */
+		scst_check_set_UA(reg->tgt_dev, sense_buffer, sl, 0);
 	}
 
 out:
