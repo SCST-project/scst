@@ -2132,7 +2132,8 @@ static int scst_report_supported_opcodes(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	if (cmd->devt->get_supported_opcodes == NULL) {
-		TRACE(TRACE_MINOR, "Unknown opcode 0x%02x", cmd->cdb[0]);
+		TRACE(TRACE_MINOR, "REPORT SUPPORTED OPCODES not supported by "
+			"dev handler %s", cmd->devt->name);
 		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		goto out_compl;
 	} else {
