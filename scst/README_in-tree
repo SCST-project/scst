@@ -803,12 +803,14 @@ cache. The following parameters possible for vdisk_fileio:
    will go from the initiator. This option overrides "write_through"
    option. Disabled by default.
 
- - tst - sets TST field of SCSI Control mode page. See SPC-4 for more
-   details about this field as well as about possible values.
-
  - thin_provisioned - enables thin provisioning facility, when remote
    initiators can unmap blocks of storage, if they don't need them
    anymore. Backend storage also must support this facility.
+
+ - tst - allows to specify TST control mode page field. It specifies
+   the type of task set in the device. Possible values are: 0 - the
+   device maintains one task set for all I_T nexuses and 1 - the device
+   maintains separate task sets for each I_T nexus. Default - 1.
 
  - removable - with this flag set the device is reported to remote
    initiators as removable.
@@ -826,16 +828,17 @@ storage HBAs and for applications that either do not need caching
 between application and disk or need the large block throughput. See
 below for more info.
 
-The following parameters possible for vdisk_blockio: filename,
-blocksize, nv_cache, read_only, removable, rotational, thin_provisioned,
-tst. See vdisk_fileio above for description of those parameters.
+The following common with vdisk_fileio parameters are possible for
+vdisk_blockio: filename, blocksize, nv_cache, write_through, read_only,
+removable, rotational, thin_provisioned, tst. See vdisk_fileio above for
+description of those parameters.
 
 Handler vdisk_nullio provides NULLIO mode to create virtual devices. In
 this mode no real I/O is done, but success returned to initiators.
 Intended to be used for performance measurements at the same way as
 "*_perf" handlers. The following parameters possible for vdisk_nullio:
-blocksize, read_only, removable. See vdisk_fileio above for description
-of those parameters.
+blocksize, read_only, removable, tst. See vdisk_fileio above for
+description of those parameters.
 
 vdisk_nullio also has extra attribute:
 
@@ -847,7 +850,7 @@ vdisk_nullio also has extra attribute:
    "dummy" placeholder on LUN 0, if LUN 0 is not desired.
 
 Handler vcdrom allows emulation of a virtual CDROM device using an ISO
-file as backend. It doesn't have any parameters.
+file as backend. It has only single parameter: tst.
 
 For example:
 
@@ -959,11 +962,11 @@ above description of those parameters.
 Each vdisk_nullio's device has the following attributes in
 /sys/kernel/scst_tgt/devices/device_name: blocksize, read_only,
 removable, size_mb, t10_dev_id, threads_num, threads_pool_type, type,
-usn, dummy. See above description of those parameters.
+tst, usn, dummy. See above description of those parameters.
 
 Each vcdrom's device has the following attributes in
 /sys/kernel/scst_tgt/devices/device_name: filename, size_mb,
-t10_dev_id, threads_num, threads_pool_type, type, usn. See above
+t10_dev_id, threads_num, threads_pool_type, type, usn, tst. See above
 description of those parameters. Exception is filename attribute. For
 vcdrom it is writable. Writing to it allows to virtually insert or
 change virtual CD media in the virtual CDROM device. For example:
