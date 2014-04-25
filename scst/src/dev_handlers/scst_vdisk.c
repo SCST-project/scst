@@ -38,6 +38,7 @@
 #include <linux/kthread.h>
 #include <linux/sched.h>
 #include <linux/delay.h>
+#include <linux/namei.h>
 #ifndef INSIDE_KERNEL_TREE
 #include <linux/version.h>
 #endif
@@ -114,18 +115,18 @@ static struct scst_trace_log vdisk_local_trace_tbl[] = {
 
 #define VDISK_NULLIO_SIZE		(5LL*1024*1024*1024*1024/2)
 
-#define DEF_TST				SCST_CONTR_MODE_SEP_TASK_SETS
+#define DEF_TST				SCST_TST_1_SEP_TASK_SETS
 
 /*
  * Since we can't control backstorage device's reordering, we have to always
  * report unrestricted reordering.
  */
-#define DEF_QUEUE_ALG_WT	SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER
-#define DEF_QUEUE_ALG		SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER
+#define DEF_QUEUE_ALG_WT	SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER
+#define DEF_QUEUE_ALG		SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER
 #define DEF_SWP			0
 #define DEF_TAS			0
 
-#define DEF_DSENSE		SCST_CONTR_MODE_FIXED_SENSE
+#define DEF_DSENSE		SCST_D_SENSE_0_FIXED_SENSE
 
 #ifdef CONFIG_SCST_PROC
 #define VDISK_PROC_HELP		"help"
@@ -162,6 +163,8 @@ struct scst_vdisk_dev {
 	unsigned int thin_provisioned_manually_set:1;
 	unsigned int dev_thin_provisioned:1;
 	unsigned int rotational:1;
+	unsigned int wt_flag_saved:1;
+	unsigned int tst:3;
 	unsigned int format_active:1;
 
 	struct file *fd;
@@ -216,6 +219,8 @@ struct vdisk_cmd_params {
 	int fua;
 	bool use_zero_copy;
 };
+
+static bool vdev_saved_mode_pages_enabled = true;
 
 enum compl_status_e {
 #if defined(SCST_DEBUG)
@@ -332,6 +337,8 @@ static ssize_t vdisk_sysfs_wt_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdisk_sysfs_tp_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
+static ssize_t vdisk_sysfs_tst_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
 static ssize_t vdisk_sysfs_rotational_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdisk_sysfs_nv_cache_show(struct kobject *kobj,
@@ -402,6 +409,8 @@ static struct kobj_attribute vdisk_wt_attr =
 	__ATTR(write_through, S_IRUGO, vdisk_sysfs_wt_show, NULL);
 static struct kobj_attribute vdisk_tp_attr =
 	__ATTR(thin_provisioned, S_IRUGO, vdisk_sysfs_tp_show, NULL);
+static struct kobj_attribute vdisk_tst_attr =
+	__ATTR(tst, S_IRUGO, vdisk_sysfs_tst_show, NULL);
 static struct kobj_attribute vdisk_rotational_attr =
 	__ATTR(rotational, S_IRUGO, vdisk_sysfs_rotational_show, NULL);
 static struct kobj_attribute vdisk_nv_cache_attr =
@@ -455,6 +464,7 @@ static const struct attribute *vdisk_fileio_attrs[] = {
 	&vdisk_rd_only_attr.attr,
 	&vdisk_wt_attr.attr,
 	&vdisk_tp_attr.attr,
+	&vdisk_tst_attr.attr,
 	&vdisk_rotational_attr.attr,
 	&vdisk_nv_cache_attr.attr,
 	&vdisk_o_direct_attr.attr,
@@ -480,6 +490,7 @@ static const struct attribute *vdisk_blockio_attrs[] = {
 	&vdisk_rd_only_attr.attr,
 	&vdisk_wt_attr.attr,
 	&vdisk_nv_cache_attr.attr,
+	&vdisk_tst_attr.attr,
 	&vdisk_removable_attr.attr,
 	&vdisk_rotational_attr.attr,
 	&vdisk_filename_attr.attr,
@@ -501,6 +512,7 @@ static const struct attribute *vdisk_nullio_attrs[] = {
 	&vdev_size_mb_rw_attr.attr,
 	&vdisk_blocksize_attr.attr,
 	&vdisk_rd_only_attr.attr,
+	&vdisk_tst_attr.attr,
 	&vdev_dummy_attr.attr,
 	&vdisk_removable_attr.attr,
 	&vdev_t10_vend_id_attr.attr,
@@ -519,6 +531,7 @@ static const struct attribute *vcdrom_attrs[] = {
 	&vdev_size_ro_attr.attr,
 	&vdev_size_mb_ro_attr.attr,
 	&vcdrom_filename_attr.attr,
+	&vdisk_tst_attr.attr,
 	&vdev_t10_vend_id_attr.attr,
 	&vdev_vend_specific_id_attr.attr,
 	&vdev_prod_id_attr.attr,
@@ -589,6 +602,7 @@ static struct scst_dev_type vdisk_file_devtype = {
 		"removable, "
 		"rotational, "
 		"thin_provisioned, "
+		"tst, "
 		"write_through, "
 		"zero_copy",
 #endif
@@ -634,6 +648,7 @@ static struct scst_dev_type vdisk_blk_devtype = {
 		"removable, "
 		"rotational, "
 		"thin_provisioned, "
+		"tst, "
 		"write_through",
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
@@ -675,7 +690,8 @@ static struct scst_dev_type vdisk_null_devtype = {
 		"removable, "
 		"rotational, "
 		"size, "
-		"size_mb",
+		"size_mb, "
+		"tst",
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
@@ -711,7 +727,7 @@ static struct scst_dev_type vcdrom_devtype = {
 	.add_device =		vcdrom_add_device,
 	.del_device =		vcdrom_del_device,
 	.dev_attrs =		vcdrom_attrs,
-	.add_device_parameters = NULL,
+	.add_device_parameters = "tst",
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
@@ -944,6 +960,262 @@ static struct scst_vdisk_dev *vdev_find(const char *name)
 	return res;
 }
 
+#define VDEV_WT_LABEL			"WRITE_THROUGH"
+#define VDEV_MODE_PAGES_BUF_SIZE	(64*1024)
+#define VDEV_MODE_PAGES_DIR		"/var/lib/scst/vdev_mode_pages"
+
+static int __vdev_save_mode_pages(const struct scst_vdisk_dev *virt_dev,
+	uint8_t *buf, int size)
+{
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	if (virt_dev->wt_flag != DEF_WRITE_THROUGH) {
+		res += scnprintf(&buf[res], size - res, "%s=%d\n",
+			VDEV_WT_LABEL, virt_dev->wt_flag);
+		if (res >= size-1)
+			goto out_overflow;
+	}
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_overflow:
+	PRINT_ERROR("Mode pages buffer overflow (size %d)", size);
+	res = -EOVERFLOW;
+	goto out;
+}
+
+static int vdev_save_mode_pages(const struct scst_vdisk_dev *virt_dev)
+{
+	int res, rc, offs;
+	uint8_t *buf;
+	int size;
+	char *name, *name1;
+
+	TRACE_ENTRY();
+
+	size = VDEV_MODE_PAGES_BUF_SIZE;
+
+	buf = vzalloc(size);
+	if (buf == NULL) {
+		PRINT_ERROR("Unable to alloc mode pages buffer (size %d)", size);
+		res = -ENOMEM;
+		goto out;
+	}
+
+	name = kasprintf(GFP_KERNEL, "%s/%s", VDEV_MODE_PAGES_DIR, virt_dev->name);
+	if (name == NULL) {
+		PRINT_ERROR("Unable to create name %s/%s", VDEV_MODE_PAGES_DIR,
+			virt_dev->name);
+		res = -ENOMEM;
+		goto out_vfree;
+	}
+
+	name1 = kasprintf(GFP_KERNEL, "%s/%s1", VDEV_MODE_PAGES_DIR, virt_dev->name);
+	if (name1 == NULL) {
+		PRINT_ERROR("Unable to create name %s/%s1", VDEV_MODE_PAGES_DIR,
+			virt_dev->name);
+		res = -ENOMEM;
+		goto out_free_name;
+	}
+
+	offs = scst_save_global_mode_pages(virt_dev->dev, buf, size);
+	if (offs < 0) {
+		res = offs;
+		goto out_free_name1;
+	}
+
+	rc = __vdev_save_mode_pages(virt_dev, &buf[offs], size - offs);
+	if (rc < 0) {
+		res = rc;
+		goto out_free_name1;
+	}
+
+	offs += rc;
+	if (offs == 0) {
+		res = 0;
+		scst_remove_file(name);
+		scst_remove_file(name1);
+		goto out_free_name1;
+	}
+
+	res = scst_write_file_transactional(name, name1,
+			virt_dev->name, strlen(virt_dev->name), buf, offs);
+
+out_free_name1:
+	kfree(name1);
+
+out_free_name:
+	kfree(name);
+
+out_vfree:
+	vfree(buf);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int vdev_restore_wt(struct scst_vdisk_dev *virt_dev, unsigned int val)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	if (val > 1) {
+		PRINT_ERROR("Invalid value %d for parameter %s (device %s)",
+			val, VDEV_WT_LABEL, virt_dev->name);
+		res = -EINVAL;
+		goto out;
+	}
+
+	virt_dev->wt_flag = val;
+	virt_dev->wt_flag_saved = val;
+
+	PRINT_INFO("WT_FLAG restored to %d for vdev %s", virt_dev->wt_flag,
+		virt_dev->name);
+
+	res = 0;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/* Params are NULL-terminated */
+static int __vdev_load_mode_pages(struct scst_vdisk_dev *virt_dev, char *params)
+{
+	int res;
+	char *param, *p, *pp;
+	unsigned long val;
+
+	TRACE_ENTRY();
+
+	while (1) {
+		param = scst_get_next_token_str(&params);
+		if (param == NULL)
+			break;
+
+		p = scst_get_next_lexem(&param);
+		if (*p == '\0')
+			break;
+
+		pp = scst_get_next_lexem(&param);
+		if (*pp == '\0')
+			goto out_need_param;
+
+		if (scst_get_next_lexem(&param)[0] != '\0')
+			goto out_too_many;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+		res = kstrtoul(pp, 0, &val);
+#else
+		res = strict_strtoul(pp, 0, &val);
+#endif
+		if (res != 0)
+			goto out_strtoul_failed;
+
+		if (strcasecmp(VDEV_WT_LABEL, p) == 0)
+			res = vdev_restore_wt(virt_dev, val);
+		else {
+			TRACE_DBG("Unknown parameter %s", p);
+			res = -EINVAL;
+			break;
+		}
+		if (res != 0)
+			goto out;
+	}
+
+	res = 0;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_strtoul_failed:
+	PRINT_ERROR("strtoul() for %s failed: %d (device %s)", pp, res,
+		virt_dev->name);
+	goto out;
+
+out_need_param:
+	PRINT_ERROR("Parameter %s value missed for device %s", p, virt_dev->name);
+	res = -EINVAL;
+	goto out;
+
+out_too_many:
+	PRINT_ERROR("Too many parameter's %s values (device %s)", p, virt_dev->name);
+	res = -EINVAL;
+	goto out;
+}
+
+static int vdev_load_mode_pages(struct scst_vdisk_dev *virt_dev)
+{
+	int res;
+	struct scst_device *dev = virt_dev->dev;
+	uint8_t *buf;
+	int size;
+	char *name, *name1, *params;
+
+	TRACE_ENTRY();
+
+	size = VDEV_MODE_PAGES_BUF_SIZE;
+
+	buf = vzalloc(size);
+	if (buf == NULL) {
+		PRINT_ERROR("Unable to alloc mode pages buffer (size %d)", size);
+		res = -ENOMEM;
+		goto out;
+	}
+
+	name = kasprintf(GFP_KERNEL, "%s/%s", VDEV_MODE_PAGES_DIR, virt_dev->name);
+	if (name == NULL) {
+		PRINT_ERROR("Unable to create name %s/%s", VDEV_MODE_PAGES_DIR,
+			virt_dev->name);
+		res = -ENOMEM;
+		goto out_vfree;
+	}
+
+	name1 = kasprintf(GFP_KERNEL, "%s/%s1", VDEV_MODE_PAGES_DIR, virt_dev->name);
+	if (name1 == NULL) {
+		PRINT_ERROR("Unable to create name %s/%s1", VDEV_MODE_PAGES_DIR,
+			virt_dev->name);
+		res = -ENOMEM;
+		goto out_free_name;
+	}
+
+	size = scst_read_file_transactional(name, name1,
+			virt_dev->name, strlen(virt_dev->name), buf, size-1);
+	if (size <= 0) {
+		res = size;
+		goto out_free_name1;
+	}
+
+	buf[size-1] = '\0';
+
+	res = scst_restore_global_mode_pages(dev, &buf[strlen(virt_dev->name)+1],
+				&params);
+	if ((res != 0) || (params == NULL))
+		goto out_free_name1;
+
+	res = __vdev_load_mode_pages(virt_dev, params);
+
+out_free_name1:
+	kfree(name1);
+
+out_free_name:
+	kfree(name);
+
+out_vfree:
+	vfree(buf);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 static int vdisk_attach(struct scst_device *dev)
 {
 	int res = 0;
@@ -1021,14 +1293,25 @@ static int vdisk_attach(struct scst_device *dev)
 
 	dev->dh_priv = virt_dev;
 
-	dev->tst = DEF_TST;
+	dev->tst = virt_dev->tst;
 	dev->d_sense = DEF_DSENSE;
+	dev->d_sense_saved = DEF_DSENSE;
+	dev->d_sense_default = DEF_DSENSE;
 	if (virt_dev->wt_flag && !virt_dev->nv_cache)
 		dev->queue_alg = DEF_QUEUE_ALG_WT;
 	else
 		dev->queue_alg = DEF_QUEUE_ALG;
+	dev->queue_alg_saved = dev->queue_alg;
+	dev->queue_alg_default = dev->queue_alg;
 	dev->swp = DEF_SWP;
+	dev->swp_saved = DEF_SWP;
+	dev->swp_default = DEF_SWP;
 	dev->tas = DEF_TAS;
+	dev->tas_saved = DEF_TAS;
+	dev->tas_default = DEF_TAS;
+
+	if (vdev_saved_mode_pages_enabled)
+		vdev_load_mode_pages(virt_dev);
 
 out:
 	TRACE_EXIT();
@@ -3383,21 +3666,46 @@ static int vdisk_format_pg(unsigned char *p, int pcontrol,
 static int vdisk_caching_pg(unsigned char *p, int pcontrol,
 			     struct scst_vdisk_dev *virt_dev)
 {	/* Caching page for mode_sense */
-	const unsigned char caching_pg[] = {0x8, 0x12, 0x0, 0, 0, 0, 0, 0,
+	unsigned char caching_pg[] = {0x8, 0x12, 0x0, 0, 0, 0, 0, 0,
 		0, 0, 0, 0, 0x80, 0x14, 0, 0, 0, 0, 0, 0};
 
-	memcpy(p, caching_pg, sizeof(caching_pg));
-	p[2] |= !(virt_dev->wt_flag || virt_dev->nv_cache) ? WCE : 0;
-	if (1 == pcontrol)
+	if (!virt_dev->nv_cache && vdev_saved_mode_pages_enabled)
+		caching_pg[0] |= 0x80;
+
+	switch (pcontrol) {
+	case 0: /* current */
+		memcpy(p, caching_pg, sizeof(caching_pg));
+		p[2] |= (virt_dev->wt_flag || virt_dev->nv_cache) ? 0 : WCE;
+		break;
+	case 1: /* changeable */
 		memset(p + 2, 0, sizeof(caching_pg) - 2);
+		if (!virt_dev->nv_cache)
+			p[2] |= WCE;
+		break;
+	case 2: /* default */
+		memcpy(p, caching_pg, sizeof(caching_pg));
+		p[2] |= (DEF_WRITE_THROUGH || virt_dev->nv_cache) ? 0: WCE;
+		break;
+	case 3: /* saved */
+		memcpy(p, caching_pg, sizeof(caching_pg));
+		p[2] |= (virt_dev->wt_flag_saved || virt_dev->nv_cache) ? 0: WCE;
+		break;
+	default:
+		sBUG_ON(1);
+		break;
+	}
+
 	return sizeof(caching_pg);
 }
 
 static int vdisk_ctrl_m_pg(unsigned char *p, int pcontrol,
 			    struct scst_vdisk_dev *virt_dev)
 {	/* Control mode page for mode_sense */
-	const unsigned char ctrl_m_pg[] = {0xa, 0xa, 0, 0, 0, 0, 0, 0,
+	unsigned char ctrl_m_pg[] = {0xa, 0xa, 0, 0, 0, 0, 0, 0,
 					   0, 0, 0x2, 0x4b};
+
+	if (vdev_saved_mode_pages_enabled)
+		ctrl_m_pg[0] |= 0x80;
 
 	memcpy(p, ctrl_m_pg, sizeof(ctrl_m_pg));
 	switch (pcontrol) {
@@ -3411,27 +3719,31 @@ static int vdisk_ctrl_m_pg(unsigned char *p, int pcontrol,
 	case 1: /* changeable */
 		memset(p + 2, 0, sizeof(ctrl_m_pg) - 2);
 #if 0	/*
-	 * It's too early to implement it, since we can't control the
-	 * backstorage device parameters. ToDo
+	 * See comment in struct scst_device definition.
+	 *
+	 * If enable it, fix the default and saved cases below!
 	 */
 		p[2] |= 7 << 5;		/* TST */
-		p[3] |= 0xF << 4;	/* QUEUE ALGORITHM MODIFIER */
 #endif
 		p[2] |= 1 << 2;		/* D_SENSE */
+		p[3] |= 0xF << 4;	/* QUEUE ALGORITHM MODIFIER */
 		p[4] |= 1 << 3;		/* SWP */
 		p[5] |= 1 << 6;		/* TAS */
 		break;
 	case 2: /* default */
-		p[2] |= DEF_TST << 5;
-		p[2] |= DEF_DSENSE << 2;
-		if (virt_dev->wt_flag || virt_dev->nv_cache)
-			p[3] |= DEF_QUEUE_ALG_WT << 4;
-		else
-			p[3] |= DEF_QUEUE_ALG << 4;
-		p[4] |= DEF_SWP << 3;
-		p[5] |= DEF_TAS << 6;
+		p[2] |= virt_dev->tst << 5;
+		p[2] |= virt_dev->dev->d_sense_default << 2;
+		p[3] |= virt_dev->dev->queue_alg_default << 4;
+		p[4] |= virt_dev->dev->swp_default << 3;
+		p[5] |= virt_dev->dev->tas_default << 6;
 		break;
-	case 3: /* saved, blocked by the caller */
+	case 3: /* saved */
+		p[2] |= virt_dev->dev->tst << 5;
+		p[2] |= virt_dev->dev->d_sense_saved << 2;
+		p[3] |= virt_dev->dev->queue_alg_saved << 4;
+		p[4] |= virt_dev->dev->swp_saved << 3;
+		p[5] |= virt_dev->dev->tas_saved << 6;
+		break;
 	default:
 		sBUG();
 	}
@@ -3491,7 +3803,7 @@ static enum compl_status_e vdisk_exec_mode_sense(struct vdisk_cmd_params *p)
 	if (unlikely(length <= 0))
 		goto out_free;
 
-	if (0x3 == pcontrol) {
+	if (!vdev_saved_mode_pages_enabled && (0x3 == pcontrol)) {
 		TRACE_DBG("%s", "MODE SENSE: Saving values not supported");
 		scst_set_cmd_error(cmd,
 		    SCST_LOAD_SENSE(scst_sense_saving_params_unsup));
@@ -3648,31 +3960,119 @@ out:
 }
 
 static void vdisk_ctrl_m_pg_select(unsigned char *p,
-	struct scst_vdisk_dev *virt_dev, struct scst_cmd *cmd)
+	struct scst_vdisk_dev *virt_dev, struct scst_cmd *cmd, bool save)
 {
 	struct scst_device *dev = virt_dev->dev;
 	int old_swp = dev->swp, old_tas = dev->tas, old_dsense = dev->d_sense;
+	int old_queue_alg = dev->queue_alg;
+	int rc;
 
-#if 0 /* Not implemented yet, see comment in vdisk_ctrl_m_pg() */
-	dev->tst = (p[2] >> 5) & 1;
-	dev->queue_alg = p[3] >> 4;
-#else
-	if ((dev->tst != ((p[2] >> 5) & 1)) || (dev->queue_alg != (p[3] >> 4))) {
-		TRACE(TRACE_MINOR|TRACE_SCSI, "%s", "MODE SELECT: Changing of "
-			"TST and QUEUE ALGORITHM not supported");
+	TRACE_ENTRY();
+
+	if (save && !vdev_saved_mode_pages_enabled) {
+		TRACE(TRACE_MINOR|TRACE_SCSI, "MODE SELECT: saved control page "
+			"not supported");
 		scst_set_cmd_error(cmd,
 		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
-		return;
+		goto out;
+	}
+
+#if 0 /* Not implemented yet, see comment in struct scst_device */
+	dev->tst = (p[2] >> 5) & 1;
+#else
+	if (dev->tst != ((p[2] >> 5) & 1)) {
+		TRACE(TRACE_MINOR|TRACE_SCSI, "%s", "MODE SELECT: Changing of "
+			"TST not supported");
+		scst_set_cmd_error(cmd,
+		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		goto out;
 	}
 #endif
+	dev->queue_alg = p[3] >> 4;
 	dev->swp = (p[4] & 0x8) >> 3;
 	dev->tas = (p[5] & 0x40) >> 6;
 	dev->d_sense = (p[2] & 0x4) >> 2;
 
+	if ((dev->swp == old_swp) && (dev->tas == old_tas) &&
+	    (dev->d_sense == old_dsense) && (dev->queue_alg == old_queue_alg))
+		goto out;
+
+	if (!save)
+		goto out_ok;
+
+	rc = vdev_save_mode_pages(virt_dev);
+	if (rc != 0) {
+		dev->swp = old_swp;
+		dev->tas = old_tas;
+		dev->d_sense = old_dsense;
+		dev->queue_alg = old_queue_alg;
+		/* Hopefully, the error is temporary */
+		scst_set_busy(cmd);
+		goto out;
+	}
+
+	dev->swp_saved = dev->swp;
+	dev->tas_saved = dev->tas;
+	dev->d_sense_saved = dev->d_sense;
+	dev->queue_alg_saved = dev->queue_alg;
+
+out_ok:
 	PRINT_INFO("Device %s: new control mode page parameters: SWP %x "
-		"(was %x), TAS %x (was %x), D_SENSE %d (was %d)",
-		virt_dev->name, dev->swp, old_swp, dev->tas, old_tas,
-		dev->d_sense, old_dsense);
+		"(was %x), TAS %x (was %x), D_SENSE %d (was %d), "
+		"QUEUE ALG %d (was %d)", virt_dev->name, dev->swp,
+		old_swp, dev->tas, old_tas, dev->d_sense, old_dsense,
+		dev->queue_alg, old_queue_alg);
+
+out:
+	TRACE_EXIT();
+	return;
+}
+
+static void vdisk_caching_m_pg_select(unsigned char *p,
+	struct scst_vdisk_dev *virt_dev, struct scst_cmd *cmd, bool save,
+	bool read_only)
+{
+	int old_wt = virt_dev->wt_flag, new_wt, rc;
+
+	TRACE_ENTRY();
+
+	if (save && (!vdev_saved_mode_pages_enabled || virt_dev->nv_cache)) {
+		TRACE(TRACE_MINOR|TRACE_SCSI, "MODE SELECT: saved cache page "
+			"not supported");
+		scst_set_cmd_error(cmd,
+		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		goto out;
+	}
+
+	new_wt = (p[2] & WCE) ? 0 : 1;
+
+	if (new_wt == old_wt)
+		goto out;
+
+	if (vdisk_set_wt(virt_dev, new_wt, read_only) != 0) {
+		scst_set_busy(cmd);
+		goto out;
+	}
+
+	if (!save)
+		goto out_ok;
+
+	rc = vdev_save_mode_pages(virt_dev);
+	if (rc != 0) {
+		vdisk_set_wt(virt_dev, old_wt, read_only);
+		/* Hopefully, the error is temporary */
+		scst_set_busy(cmd);
+		goto out;
+	}
+
+	virt_dev->wt_flag_saved = virt_dev->wt_flag;
+
+out_ok:
+	PRINT_INFO("Device %s: new wt_flag: %x (was %x)", virt_dev->name,
+		virt_dev->wt_flag, old_wt);
+
+out:
+	TRACE_EXIT();
 	return;
 }
 
@@ -3694,10 +4094,9 @@ static enum compl_status_e vdisk_exec_mode_select(struct vdisk_cmd_params *p)
 	if (unlikely(length <= 0))
 		goto out;
 
-	if (!(cmd->cdb[1] & PF) || (cmd->cdb[1] & SP)) {
+	if (!(cmd->cdb[1] & PF)) {
 		TRACE(TRACE_MINOR|TRACE_SCSI, "MODE SELECT: Unsupported "
-			"value(s) of PF and/or SP bits (cdb[1]=%x)",
-			cmd->cdb[1]);
+			"PF bit zero (cdb[1]=%x)", cmd->cdb[1]);
 		scst_set_invalid_field_in_cdb(cmd, 1, 0);
 		goto out_put;
 	}
@@ -3730,11 +4129,8 @@ static enum compl_status_e vdisk_exec_mode_select(struct vdisk_cmd_params *p)
 				scst_set_invalid_field_in_parm_list(cmd, offset+1, 0);
 				goto out_put;
 			}
-			if (vdisk_set_wt(virt_dev, (address[offset + 2] & WCE) ? 0 : 1,
-					cmd->tgt_dev->tgt_dev_rd_only) != 0) {
-				scst_set_busy(cmd);
-				goto out_put;
-			}
+			vdisk_caching_m_pg_select(&address[offset], virt_dev,
+				cmd, cmd->cdb[1] & SP, cmd->tgt_dev->tgt_dev_rd_only);
 			break;
 		} else if ((address[offset] & 0x3f) == 0xA) {
 			/* Control page */
@@ -3744,7 +4140,8 @@ static enum compl_status_e vdisk_exec_mode_select(struct vdisk_cmd_params *p)
 				scst_set_invalid_field_in_parm_list(cmd, offset+1, 0);
 				goto out_put;
 			}
-			vdisk_ctrl_m_pg_select(&address[offset], virt_dev, cmd);
+			vdisk_ctrl_m_pg_select(&address[offset], virt_dev, cmd,
+				cmd->cdb[1] & SP);
 		} else {
 			TRACE(TRACE_MINOR, "MODE SELECT: Invalid request %x",
 				address[offset] & 0x3f);
@@ -5220,15 +5617,12 @@ static void vdisk_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd,
 		struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 		int rc;
 
-		dev->tst = DEF_TST;
-		dev->d_sense = DEF_DSENSE;
-		dev->swp = DEF_SWP;
-		dev->tas = DEF_TAS;
+		dev->d_sense = dev->d_sense_saved;
+		dev->swp = dev->swp_saved;
+		dev->tas = dev->tas_saved;
+		dev->queue_alg = dev->queue_alg_saved;
 
-		if (virt_dev->wt_flag && !virt_dev->nv_cache)
-			dev->queue_alg = DEF_QUEUE_ALG_WT;
-		else
-			dev->queue_alg = DEF_QUEUE_ALG;
+		dev->tst = virt_dev->tst;
 
 		rc = vdisk_set_wt(virt_dev, DEF_WRITE_THROUGH,
 			tgt_dev->tgt_dev_rd_only);
@@ -5287,6 +5681,10 @@ static void vdisk_report_registering(const struct scst_vdisk_dev *virt_dev)
 	if (virt_dev->removable)
 		i += snprintf(&buf[i], sizeof(buf) - i, "%sREMOVABLE",
 			(j == i) ? "(" : ", ");
+
+	if (virt_dev->tst != DEF_TST)
+		i += snprintf(&buf[i], sizeof(buf) - i, "%sTST %d",
+			(j == i) ? "(" : ", ", virt_dev->tst);
 
 	if (virt_dev->rotational)
 		i += snprintf(&buf[i], sizeof(buf) - i, "%sROTATIONAL",
@@ -5383,6 +5781,7 @@ static int vdev_create(struct scst_dev_type *devt,
 	virt_dev->removable = DEF_REMOVABLE;
 	virt_dev->rotational = DEF_ROTATIONAL;
 	virt_dev->thin_provisioned = DEF_THIN_PROVISIONED;
+	virt_dev->tst = DEF_TST;
 
 	virt_dev->blk_shift = DEF_DISK_BLOCK_SHIFT;
 
@@ -5571,6 +5970,15 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 		} else if (!strcasecmp("rotational", p)) {
 			virt_dev->rotational = val;
 			TRACE_DBG("ROTATIONAL %d", virt_dev->rotational);
+		} else if (!strcasecmp("tst", p)) {
+			if ((val != SCST_TST_0_SINGLE_TASK_SET) &&
+			    (val != SCST_TST_1_SEP_TASK_SETS)) {
+				PRINT_ERROR("Invalid TST value %d", (int)val);
+				res = -EINVAL;
+				goto out;
+			}
+			virt_dev->tst = val;
+			TRACE_DBG("TST %d", virt_dev->tst);
 		} else if (!strcasecmp("thin_provisioned", p)) {
 			virt_dev->thin_provisioned = val;
 			virt_dev->thin_provisioned_manually_set = 1;
@@ -5676,7 +6084,7 @@ static int vdev_blockio_add_device(const char *device_name, char *params)
 	int res = 0;
 	const char *const allowed_params[] = { "filename", "read_only", "write_through",
 					 "removable", "blocksize", "nv_cache",
-					 "rotational", "thin_provisioned", NULL };
+					 "rotational", "thin_provisioned", "tst", NULL };
 	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
@@ -5734,7 +6142,7 @@ static int vdev_nullio_add_device(const char *device_name, char *params)
 	int res = 0;
 	static const char *const allowed_params[] = {
 		"read_only", "dummy", "removable", "blocksize", "rotational",
-		"size", "size_mb", NULL
+		"size", "size_mb", "tst", NULL
 	};
 	struct scst_vdisk_dev *virt_dev;
 
@@ -5891,7 +6299,7 @@ out:
 static ssize_t __vcdrom_add_device(const char *device_name, char *params)
 {
 	int res = 0;
-	const char *allowed_params[] = { NULL }; /* no params */
+	const char *allowed_params[] = { "tst", NULL };
 	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
@@ -6456,6 +6864,27 @@ static ssize_t vdisk_sysfs_removable_show(struct kobject *kobj,
 
 	if ((virt_dev->dev->type != TYPE_ROM) &&
 	    (virt_dev->removable != DEF_REMOVABLE))
+		pos += sprintf(&buf[pos], "%s\n", SCST_SYSFS_KEY_MARK);
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static ssize_t vdisk_sysfs_tst_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int pos = 0;
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = dev->dh_priv;
+
+	pos = sprintf(buf, "%d\n", virt_dev->tst);
+
+	if (virt_dev->tst != DEF_TST)
 		pos += sprintf(&buf[pos], "%s\n", SCST_SYSFS_KEY_MARK);
 
 	TRACE_EXIT_RES(pos);
@@ -7848,6 +8277,46 @@ static void init_ops(vdisk_op_fn *ops, int count)
 	return;
 }
 
+static int __init vdev_check_mode_pages_path(void)
+{
+	int res;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
+	struct nameidata nd;
+#else
+	struct path path;
+#endif
+	mm_segment_t old_fs = get_fs();
+
+	TRACE_ENTRY();
+
+	set_fs(KERNEL_DS);
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
+	res = path_lookup(VDEV_MODE_PAGES_DIR, 0, &nd);
+	if (res == 0)
+		scst_path_put(&nd);
+#else
+	res = kern_path(VDEV_MODE_PAGES_DIR, 0, &path);
+	if (res == 0)
+		path_put(&path);
+#endif
+	if (res != 0) {
+		PRINT_WARNING("Unable to find %s (err %d), saved mode pages "
+			"disabled. You should create this directory manually "
+			"or reinstall SCST", VDEV_MODE_PAGES_DIR, res);
+		vdev_saved_mode_pages_enabled = false;
+		goto out_setfs;
+	}
+
+out_setfs:
+	set_fs(old_fs);
+
+	res = 0; /* always succeed */
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 static int __init init_scst_vdisk_driver(void)
 {
 	int res;
@@ -7855,6 +8324,10 @@ static int __init init_scst_vdisk_driver(void)
 	init_ops(fileio_ops, ARRAY_SIZE(fileio_ops));
 	init_ops(blockio_ops, ARRAY_SIZE(blockio_ops));
 	init_ops(nullio_ops, ARRAY_SIZE(nullio_ops));
+
+	res = vdev_check_mode_pages_path();
+	if (res != 0)
+		goto out;
 
 	vdisk_cmd_param_cachep = KMEM_CACHE(vdisk_cmd_params,
 					SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN);

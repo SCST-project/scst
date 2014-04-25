@@ -495,20 +495,20 @@ enum {
 /*************************************************************
  ** Values for the control mode page TST field
  *************************************************************/
-#define SCST_CONTR_MODE_ONE_TASK_SET  0
-#define SCST_CONTR_MODE_SEP_TASK_SETS 1
+#define SCST_TST_0_SINGLE_TASK_SET  0
+#define SCST_TST_1_SEP_TASK_SETS 1
 
 /*******************************************************************
  ** Values for the control mode page QUEUE ALGORITHM MODIFIER field
  *******************************************************************/
-#define SCST_CONTR_MODE_QUEUE_ALG_RESTRICTED_REORDER   0
-#define SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER 1
+#define SCST_QUEUE_ALG_0_RESTRICTED_REORDER   0
+#define SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER 1
 
 /*************************************************************
  ** Values for the control mode page D_SENSE field
  *************************************************************/
-#define SCST_CONTR_MODE_FIXED_SENSE  0
-#define SCST_CONTR_MODE_DESCR_SENSE 1
+#define SCST_D_SENSE_0_FIXED_SENSE  0
+#define SCST_D_SENSE_1_DESCR_SENSE 1
 
 /*************************************************************
  ** TransportID protocol identifiers

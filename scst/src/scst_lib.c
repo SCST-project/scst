@@ -3676,7 +3676,7 @@ int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev)
 	INIT_LIST_HEAD(&dev->dev_tgt_dev_list);
 	INIT_LIST_HEAD(&dev->dev_acg_dev_list);
 	dev->dev_double_ua_possible = 1;
-	dev->queue_alg = SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER;
+	dev->queue_alg = SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER;
 
 	mutex_init(&dev->dev_pr_mutex);
 	dev->pr_generation = 0;
@@ -4422,7 +4422,7 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	INIT_LIST_HEAD(&tgt_dev->UA_list);
 
 	scst_init_order_data(&tgt_dev->tgt_dev_order_data);
-	if (dev->tst == SCST_CONTR_MODE_SEP_TASK_SETS)
+	if (dev->tst == SCST_TST_1_SEP_TASK_SETS)
 		tgt_dev->curr_order_data = &tgt_dev->tgt_dev_order_data;
 	else
 		tgt_dev->curr_order_data = &dev->dev_order_data;
@@ -8738,7 +8738,7 @@ int scst_obtain_device_parameters(struct scst_device *dev,
 
 			dev->tst = buffer[4+2] >> 5;
 			q = buffer[4+3] >> 4;
-			if (q > SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER) {
+			if (q > SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER) {
 				PRINT_ERROR("Too big QUEUE ALG %x, dev %s",
 					dev->queue_alg, dev->virt_name);
 			}
@@ -9266,6 +9266,245 @@ static void scst_free_descriptors(struct scst_cmd *cmd)
 	return;
 }
 
+/**
+ ** We currently have only few saved parameters and it is impossible to get
+ ** pointer on a bit field, so let's have a simple straightforward
+ ** implementation.
+ **/
+
+#define SCST_TAS_LABEL		"TAS"
+#define SCST_SWP_LABEL		"SWP"
+#define SCST_DSENSE_LABEL	"D_SENSE"
+#define SCST_QUEUE_ALG_LABEL	"QUEUE_ALG"
+
+int scst_save_global_mode_pages(const struct scst_device *dev,
+	uint8_t *buf, int size)
+{
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	if (dev->tas != dev->tas_default) {
+		res += scnprintf(&buf[res], size - res, "%s=%d\n",
+			SCST_TAS_LABEL, dev->tas);
+		if (res >= size-1)
+			goto out_overflow;
+	}
+
+	if (dev->swp != dev->swp_default) {
+		res += scnprintf(&buf[res], size - res, "%s=%d\n",
+			SCST_SWP_LABEL, dev->swp);
+		if (res >= size-1)
+			goto out_overflow;
+	}
+
+	if (dev->d_sense != dev->d_sense_default) {
+		res += scnprintf(&buf[res], size - res, "%s=%d\n",
+			SCST_DSENSE_LABEL, dev->d_sense);
+		if (res >= size-1)
+			goto out_overflow;
+	}
+
+	if (dev->queue_alg != dev->queue_alg_default) {
+		res += scnprintf(&buf[res], size - res, "%s=%d\n",
+			SCST_QUEUE_ALG_LABEL, dev->queue_alg);
+		if (res >= size-1)
+			goto out_overflow;
+	}
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_overflow:
+	PRINT_ERROR("Global mode pages buffer overflow (size %d)", size);
+	res = -EOVERFLOW;
+	goto out;
+}
+EXPORT_SYMBOL_GPL(scst_save_global_mode_pages);
+
+static int scst_restore_tas(struct scst_device *dev, unsigned int val)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	if (val > 1) {
+		PRINT_ERROR("Invalid value %d for parameter %s (device %s)",
+			val, SCST_TAS_LABEL, dev->virt_name);
+		res = -EINVAL;
+		goto out;
+	}
+
+	dev->tas = val;
+	dev->tas_saved = val;
+
+	PRINT_INFO("%s restored to %d for device %s", SCST_TAS_LABEL,
+		dev->tas, dev->virt_name);
+
+	res = 0;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int scst_restore_swp(struct scst_device *dev, unsigned int val)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	if (val > 1) {
+		PRINT_ERROR("Invalid value %d for parameter %s (device %s)",
+			val, SCST_SWP_LABEL, dev->virt_name);
+		res = -EINVAL;
+		goto out;
+	}
+
+	dev->swp = val;
+	dev->swp_saved = val;
+
+	PRINT_INFO("%s restored to %d for device %s", SCST_SWP_LABEL,
+		dev->swp, dev->virt_name);
+
+	res = 0;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int scst_restore_dsense(struct scst_device *dev, unsigned int val)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	if (val > 1) {
+		PRINT_ERROR("Invalid value %d for parameter %s (device %s)",
+			val, SCST_DSENSE_LABEL, dev->virt_name);
+		res = -EINVAL;
+		goto out;
+	}
+
+	dev->d_sense = val;
+	dev->d_sense_saved = val;
+
+	PRINT_INFO("%s restored to %d for device %s", SCST_DSENSE_LABEL,
+		dev->d_sense, dev->virt_name);
+
+	res = 0;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int scst_restore_queue_alg(struct scst_device *dev, unsigned int val)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	if ((val != SCST_QUEUE_ALG_0_RESTRICTED_REORDER) &&
+	    (val != SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER)) {
+		PRINT_ERROR("Invalid value %d for parameter %s (device %s)",
+			val, SCST_QUEUE_ALG_LABEL, dev->virt_name);
+		res = -EINVAL;
+		goto out;
+	}
+
+	dev->queue_alg = val;
+	dev->queue_alg_saved = val;
+
+	PRINT_INFO("%s restored to %d for device %s", SCST_QUEUE_ALG_LABEL,
+		dev->queue_alg, dev->virt_name);
+
+	res = 0;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/* Params are NULL-terminated */
+int scst_restore_global_mode_pages(struct scst_device *dev, char *params,
+	char **last_param)
+{
+	int res;
+	char *param, *p, *pp;
+	unsigned long val;
+
+	TRACE_ENTRY();
+
+	while (1) {
+		param = scst_get_next_token_str(&params);
+		if (param == NULL)
+			break;
+
+		p = scst_get_next_lexem(&param);
+		if (*p == '\0')
+			break;
+
+		pp = scst_get_next_lexem(&param);
+		if (*pp == '\0')
+			goto out_need_param;
+
+		if (scst_get_next_lexem(&param)[0] != '\0')
+			goto out_too_many;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+		res = kstrtoul(pp, 0, &val);
+#else
+		res = strict_strtoul(pp, 0, &val);
+#endif
+		if (res != 0)
+			goto out_strtoul_failed;
+
+		if (strcasecmp(SCST_TAS_LABEL, p) == 0)
+			res = scst_restore_tas(dev, val);
+		else if (strcasecmp(SCST_SWP_LABEL, p) == 0)
+			res = scst_restore_swp(dev, val);
+		else if (strcasecmp(SCST_DSENSE_LABEL, p) == 0)
+			res = scst_restore_dsense(dev, val);
+		else if (strcasecmp(SCST_QUEUE_ALG_LABEL, p) == 0)
+			res = scst_restore_queue_alg(dev, val);
+		else {
+			TRACE_DBG("Unknown parameter %s", p);
+			scst_restore_token_str(p, param);
+			*last_param = p;
+			goto out;
+		}
+		if (res != 0)
+			goto out;
+	}
+
+	*last_param = NULL;
+	res = 0;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_strtoul_failed:
+	PRINT_ERROR("strtoul() for %s failed: %d (device %s)", pp, res,
+		dev->virt_name);
+	goto out;
+
+out_need_param:
+	PRINT_ERROR("Parameter %s value missed for device %s", p, dev->virt_name);
+	res = -EINVAL;
+	goto out;
+
+out_too_many:
+	PRINT_ERROR("Too many parameter's %s values (device %s)", p, dev->virt_name);
+	res = -EINVAL;
+	goto out;
+}
+EXPORT_SYMBOL_GPL(scst_restore_global_mode_pages);
+
+
 /* Abstract vfs_unlink() for different kernel versions (as possible) */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
 void scst_vfs_unlink_and_put(struct nameidata *nd)
@@ -9450,6 +9689,195 @@ int scst_remove_file(const char *name)
 	TRACE_EXIT_RES(res);
 	return res;
 }
+EXPORT_SYMBOL_GPL(scst_remove_file);
+
+/* Returns 0 on success, error code otherwise */
+int scst_write_file_transactional(const char *name, const char *name1,
+	const char *signature, int signature_len, const uint8_t *buf, int size)
+{
+	int res;
+	struct file *file;
+	mm_segment_t old_fs = get_fs();
+	loff_t pos = 0;
+	char n = '\n';
+
+	TRACE_ENTRY();
+
+	res = scst_copy_file(name, name1);
+	if ((res != 0) && (res != -ENOENT))
+		goto out;
+
+	set_fs(KERNEL_DS);
+
+	file = filp_open(name, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	if (IS_ERR(file)) {
+		res = PTR_ERR(file);
+		PRINT_ERROR("Unable to (re)create file '%s' - error %d",
+			name, res);
+		goto out_set_fs;
+	}
+
+	TRACE_DBG("Writing file '%s'", name);
+
+	pos = signature_len+1;
+
+	res = vfs_write(file, (void __force __user *)buf, size, &pos);
+	if (res != size)
+		goto write_error;
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
+	res = scst_vfs_fsync(file, 0, pos);
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+	res = vfs_fsync(file, file->f_path.dentry, 1);
+#else
+	res = vfs_fsync(file, 1);
+#endif
+	if (res != 0) {
+		PRINT_ERROR("fsync() of file %s failed: %d", name, res);
+		goto write_error_close;
+	}
+
+	pos = 0;
+	res = vfs_write(file, (void __force __user *)signature, signature_len, &pos);
+	if (res != signature_len)
+		goto write_error;
+
+	res = vfs_write(file, (void __force __user *)&n, sizeof(n), &pos);
+	if (res != sizeof(n))
+		goto write_error;
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
+	res = scst_vfs_fsync(file, 0, sizeof(signature));
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+	res = vfs_fsync(file, file->f_path.dentry, 1);
+#else
+	res = vfs_fsync(file, 1);
+#endif
+	if (res != 0) {
+		PRINT_ERROR("fsync() of file %s failed: %d", name, res);
+		goto write_error_close;
+	}
+
+	res = 0;
+
+	filp_close(file, NULL);
+
+out_set_fs:
+	set_fs(old_fs);
+
+	if (res == 0)
+		scst_remove_file(name1);
+	else
+		scst_remove_file(name);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+write_error:
+	PRINT_ERROR("Error writing to '%s' - error %d", name, res);
+
+write_error_close:
+	filp_close(file, NULL);
+	if (res > 0)
+		res = -EIO;
+	goto out_set_fs;
+}
+EXPORT_SYMBOL_GPL(scst_write_file_transactional);
+
+static int __scst_read_file_transactional(const char *file_name,
+	const char *signature, int signature_len, uint8_t *buf, int size)
+{
+	int res;
+	struct file *file = NULL;
+	struct inode *inode;
+	loff_t file_size, pos;
+	mm_segment_t old_fs;
+
+	TRACE_ENTRY();
+
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+
+	TRACE_DBG("Loading file '%s'", file_name);
+
+	file = filp_open(file_name, O_RDONLY, 0);
+	if (IS_ERR(file)) {
+		res = PTR_ERR(file);
+		TRACE_DBG("Unable to open file '%s' - error %d", file_name, res);
+		goto out;
+	}
+
+	inode = file->f_dentry->d_inode;
+
+	if (S_ISREG(inode->i_mode))
+		/* Nothing to do */;
+	else if (S_ISBLK(inode->i_mode))
+		inode = inode->i_bdev->bd_inode;
+	else {
+		PRINT_ERROR("Invalid file mode 0x%x", inode->i_mode);
+		res = -EINVAL;
+		goto out_close;
+	}
+
+	file_size = inode->i_size;
+
+	if (file_size > size) {
+		PRINT_ERROR("Supplied buffer (%d) too small (need %d)", size,
+			(int)file_size);
+		res = -EOVERFLOW;
+		goto out_close;
+	}
+
+	pos = 0;
+	res = vfs_read(file, (void __force __user *)buf, file_size, &pos);
+	if (res != file_size) {
+		PRINT_ERROR("Unable to read file '%s' - error %d", file_name, res);
+		if (res > 0)
+			res = -EIO;
+		goto out_close;
+	}
+
+	if (memcmp(buf, signature, signature_len) != 0) {
+		res = -EINVAL;
+		PRINT_ERROR("Invalid signature in file %s", file_name);
+		goto out_close;
+	}
+
+out_close:
+	filp_close(file, NULL);
+
+out:
+	set_fs(old_fs);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/*
+ * Returns read data size on success, error code otherwise. The first
+ * signature_len+1 bytes of the read data contain signature, so should be
+ * skipped.
+ */
+int scst_read_file_transactional(const char *name, const char *name1,
+	const char *signature, int signature_len, uint8_t *buf, int size)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	res = __scst_read_file_transactional(name, signature, signature_len, buf, size);
+	if (res <= 0)
+		res = __scst_read_file_transactional(name1, signature,
+			signature_len, buf, size);
+
+	if (res > 0)
+		TRACE_BUFFER("Read data", buf, res);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+EXPORT_SYMBOL_GPL(scst_read_file_transactional);
 
 static void __init scst_scsi_op_list_init(void)
 {

@@ -779,7 +779,6 @@ int scst_vfs_fsync(struct file *file, loff_t loff, loff_t len);
 #endif
 
 int scst_copy_file(const char *src, const char *dest);
-int scst_remove_file(const char *name);
 
 #ifdef CONFIG_SCST_DEBUG_TM
 extern void tm_dbg_check_released_cmds(void);

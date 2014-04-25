@@ -570,7 +570,7 @@ int scst_pre_parse(struct scst_cmd *cmd)
 #else
 	cmd->inc_expected_sn_on_done = devt->exec_sync ||
 		(!dev->has_own_order_mgmt &&
-		 (dev->queue_alg == SCST_CONTR_MODE_QUEUE_ALG_RESTRICTED_REORDER ||
+		 (dev->queue_alg == SCST_QUEUE_ALG_0_RESTRICTED_REORDER ||
 		  cmd->queue_type == SCST_CMD_QUEUE_ORDERED));
 #endif
 
@@ -2358,7 +2358,7 @@ static int scst_reserve_local(struct scst_cmd *cmd)
 
 	/*
 	 * There's no need to block this device, even for
-	 * SCST_CONTR_MODE_ONE_TASK_SET, or anyhow else protect reservations
+	 * SCST_TST_0_SINGLE_TASK_SET, or anyhow else protect reservations
 	 * changes, because:
 	 *
 	 * 1. The reservation changes are (rather) atomic, i.e., in contrast
@@ -2367,7 +2367,7 @@ static int scst_reserve_local(struct scst_cmd *cmd)
 	 *
 	 * 2. It's a duty of initiators to ensure order of regular commands
 	 *    around the reservation command either by ORDERED attribute, or by
-	 *    queue draining, or etc. For case of SCST_CONTR_MODE_ONE_TASK_SET
+	 *    queue draining, or etc. For case of SCST_TST_0_SINGLE_TASK_SET
 	 *    there are no target drivers which can ensure even for ORDERED
 	 *    commands order of their delivery, so, because initiators know
 	 *    it, also there's no point to do any extra protection actions.
@@ -4177,7 +4177,7 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 		cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
 #endif
 
-	if (cmd->dev->queue_alg == SCST_CONTR_MODE_QUEUE_ALG_RESTRICTED_REORDER) {
+	if (cmd->dev->queue_alg == SCST_QUEUE_ALG_0_RESTRICTED_REORDER) {
 		if (likely(cmd->queue_type != SCST_CMD_QUEUE_HEAD_OF_QUEUE)) {
 			/*
 			 * Not the best way, but good enough until there is a
@@ -6183,8 +6183,7 @@ static int scst_mgmt_cmd_exec(struct scst_mgmt_cmd *mcmd)
 		break;
 
 	case SCST_CLEAR_TASK_SET:
-		if (mcmd->mcmd_tgt_dev->dev->tst ==
-				SCST_CONTR_MODE_SEP_TASK_SETS)
+		if (mcmd->mcmd_tgt_dev->dev->tst == SCST_TST_1_SEP_TASK_SETS)
 			res = scst_abort_task_set(mcmd);
 		else
 			res = scst_clear_task_set(mcmd);

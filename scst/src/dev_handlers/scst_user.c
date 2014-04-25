@@ -2620,8 +2620,14 @@ static int dev_user_attach(struct scst_device *sdev)
 	sdev->tst = dev->tst;
 	sdev->queue_alg = dev->queue_alg;
 	sdev->swp = dev->swp;
+	sdev->swp_saved = dev->swp;
+	sdev->swp_default = dev->swp;
 	sdev->tas = dev->tas;
+	sdev->tas_saved = dev->tas;
+	sdev->tas_default = dev->tas;
 	sdev->d_sense = dev->d_sense;
+	sdev->d_sense_saved = dev->d_sense;
+	sdev->d_sense_default = dev->d_sense;
 	sdev->has_own_order_mgmt = dev->has_own_order_mgmt;
 
 	dev->sdev = sdev;
@@ -3350,10 +3356,10 @@ static int __dev_user_set_opt(struct scst_user_dev *dev,
 		goto out;
 	}
 
-	if (((opt->tst != SCST_CONTR_MODE_ONE_TASK_SET) &&
-	     (opt->tst != SCST_CONTR_MODE_SEP_TASK_SETS)) ||
-	    ((opt->queue_alg != SCST_CONTR_MODE_QUEUE_ALG_RESTRICTED_REORDER) &&
-	     (opt->queue_alg != SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER)) ||
+	if (((opt->tst != SCST_TST_0_SINGLE_TASK_SET) &&
+	     (opt->tst != SCST_TST_1_SEP_TASK_SETS)) ||
+	    ((opt->queue_alg != SCST_QUEUE_ALG_0_RESTRICTED_REORDER) &&
+	     (opt->queue_alg != SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER)) ||
 	    (opt->swp > 1) || (opt->tas > 1) || (opt->has_own_order_mgmt > 1) ||
 	    (opt->d_sense > 1)) {
 		PRINT_ERROR("Invalid SCSI option (tst %x, queue_alg %x, swp %x,"
@@ -3363,6 +3369,16 @@ static int __dev_user_set_opt(struct scst_user_dev *dev,
 		res = -EINVAL;
 		goto out;
 	}
+
+#if 1
+	if ((dev->tst != opt->tst) && (dev->sdev != NULL) &&
+	    !list_empty(&dev->sdev->dev_tgt_dev_list)) {
+		PRINT_ERROR("On the fly setting of TST not supported. "
+			"See comment in struct scst_device.");
+		res = -EINVAL;
+		goto out;
+	}
+#endif
 
 	dev->parse_type = opt->parse_type;
 	dev->on_free_cmd_type = opt->on_free_cmd_type;

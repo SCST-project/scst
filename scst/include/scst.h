@@ -2414,10 +2414,31 @@ struct scst_device {
 	unsigned int swp:1;
 	unsigned int d_sense:1;
 
+	/**
+	 ** Saved and default versions of them, which supported. TST is not
+	 ** among them, because it's hard to switch curr_order_data on the
+	 ** fly. To ensure that no commands lost, we need to flush the previous
+	 ** curr_order_data at first and with one being active command (MODE
+	 ** SELECT), we don't have facility for that at the moment. Suspending
+	 ** activities will hang waiting for the active MODE SELECT. ToDo.
+	 **/
+
+	unsigned int queue_alg_saved:4;
+	unsigned int queue_alg_default:4;
+
+	unsigned int tas_saved:1;
+	unsigned int tas_default:1;
+
+	unsigned int swp_saved:1;
+	unsigned int swp_default:1;
+
+	unsigned int d_sense_saved:1;
+	unsigned int d_sense_default:1;
+
 	/*
 	 * Set if device implements own ordered commands management. If not set
-	 * and queue_alg is SCST_CONTR_MODE_QUEUE_ALG_RESTRICTED_REORDER,
-	 * expected_sn will be incremented only after commands finished.
+	 * and queue_alg is SCST_QUEUE_ALG_0_RESTRICTED_REORDER, expected_sn
+	 * will be incremented only after commands finished.
 	 */
 	unsigned int has_own_order_mgmt:1;
 
@@ -4694,5 +4715,17 @@ void scst_write_same(struct scst_cmd *cmd);
 
 __be64 scst_pack_lun(const uint64_t lun, enum scst_lun_addr_method addr_method);
 uint64_t scst_unpack_lun(const uint8_t *lun, int len);
+
+int scst_save_global_mode_pages(const struct scst_device *dev,
+	uint8_t *buf, int size);
+int scst_restore_global_mode_pages(struct scst_device *dev, char *params,
+	char **last_param);
+
+int scst_read_file_transactional(const char *name, const char *name1,
+	const char *signature, int signature_len, uint8_t *buf, int size);
+int scst_write_file_transactional(const char *name, const char *name1,
+	const char *signature, int signature_len, const uint8_t *buf, int size);
+
+int scst_remove_file(const char *name);
 
 #endif /* __SCST_H */

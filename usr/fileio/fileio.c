@@ -383,9 +383,9 @@ int start(int argc, char **argv)
 		desc.opt.on_free_cmd_type = on_free_cmd_type;
 		desc.opt.memory_reuse_type = memory_reuse_type;
 
-		desc.opt.tst = SCST_CONTR_MODE_SEP_TASK_SETS;
-		desc.opt.queue_alg = SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER;
-		desc.opt.d_sense = SCST_CONTR_MODE_FIXED_SENSE;
+		desc.opt.tst = SCST_TST_1_SEP_TASK_SETS;
+		desc.opt.queue_alg = SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER;
+		desc.opt.d_sense = SCST_D_SENSE_0_FIXED_SENSE;
 
 		res = ioctl(devs[i].scst_usr_fd, SCST_USER_REGISTER_DEVICE, &desc);
 		if (res != 0) {
