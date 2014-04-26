@@ -4083,7 +4083,7 @@ static void vdisk_ctrl_m_pg_select(unsigned char *p,
 
 	if ((dev->swp == old_swp) && (dev->tas == old_tas) &&
 	    (dev->d_sense == old_dsense) && (dev->queue_alg == old_queue_alg) &&
-	    (dev->qerr == old_qerr) && dev->tmf_only == old_tmf_only)
+	    (dev->qerr == old_qerr) && (dev->tmf_only == old_tmf_only))
 		goto out;
 
 	if (!save)

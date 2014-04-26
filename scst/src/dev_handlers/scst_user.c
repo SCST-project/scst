@@ -3366,20 +3366,6 @@ static int __dev_user_set_opt(struct scst_user_dev *dev,
 
 	if (((opt->tst != SCST_TST_0_SINGLE_TASK_SET) &&
 	     (opt->tst != SCST_TST_1_SEP_TASK_SETS)) ||
-	    ((opt->queue_alg != SCST_QUEUE_ALG_0_RESTRICTED_REORDER) &&
-	     (opt->queue_alg != SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER)) ||
-	    (opt->swp > 1) || (opt->tas > 1) || (opt->has_own_order_mgmt > 1) ||
-	    (opt->d_sense > 1)) {
-		PRINT_ERROR("Invalid SCSI option (tst %x, queue_alg %x, swp %x,"
-			" tas %x, d_sense %d, has_own_order_mgmt %x)", opt->tst,
-			opt->queue_alg, opt->swp, opt->tas, opt->d_sense,
-			opt->has_own_order_mgmt);
-		res = -EINVAL;
-		goto out;
-	}
-
-	if (((opt->tst != SCST_TST_0_SINGLE_TASK_SET) &&
-	     (opt->tst != SCST_TST_1_SEP_TASK_SETS)) ||
 	    (opt->tmf_only > 1) ||
 	    ((opt->queue_alg != SCST_QUEUE_ALG_0_RESTRICTED_REORDER) &&
 	     (opt->queue_alg != SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER)) ||
@@ -3392,6 +3378,8 @@ static int __dev_user_set_opt(struct scst_user_dev *dev,
 			"has_own_order_mgmt %x)",
 			opt->tst, opt->tmf_only, opt->queue_alg, opt->qerr,
 			opt->swp, opt->tas, opt->d_sense, opt->has_own_order_mgmt);
+		res = -EINVAL;
+		goto out;
 	}
 
 #if 1
