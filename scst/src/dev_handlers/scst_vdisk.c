@@ -3692,11 +3692,11 @@ static int vdisk_caching_pg(unsigned char *p, int pcontrol,
 		break;
 	case 2: /* default */
 		memcpy(p, caching_pg, sizeof(caching_pg));
-		p[2] |= (DEF_WRITE_THROUGH || virt_dev->nv_cache) ? 0: WCE;
+		p[2] |= (DEF_WRITE_THROUGH || virt_dev->nv_cache) ? 0 : WCE;
 		break;
 	case 3: /* saved */
 		memcpy(p, caching_pg, sizeof(caching_pg));
-		p[2] |= (virt_dev->wt_flag_saved || virt_dev->nv_cache) ? 0: WCE;
+		p[2] |= (virt_dev->wt_flag_saved || virt_dev->nv_cache) ? 0 : WCE;
 		break;
 	default:
 		sBUG_ON(1);
