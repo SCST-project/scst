@@ -577,12 +577,12 @@ int scst_pre_parse(struct scst_cmd *cmd)
 	TRACE_DBG("op_name <%s> (cmd %p), direction=%d "
 		"(expected %d, set %s), lba %lld, bufflen=%d, data_len %lld, "
 		"out_bufflen=%d (expected len %d, out expected len %d), "
-		"flags=0x%x", cmd->op_name, cmd, cmd->data_direction,
+		"flags=0x%x, naca %d", cmd->op_name, cmd, cmd->data_direction,
 		cmd->expected_data_direction,
 		scst_cmd_is_expected_set(cmd) ? "yes" : "no",
 		(long long)cmd->lba, cmd->bufflen, (long long)cmd->data_len,
 		cmd->out_bufflen, cmd->expected_transfer_len,
-		cmd->expected_out_transfer_len, cmd->op_flags);
+		cmd->expected_out_transfer_len, cmd->op_flags, cmd->cmd_naca);
 
 	res = 0;
 
@@ -893,7 +893,8 @@ set_res:
 	case SCST_CMD_STATE_REAL_EXEC:
 	case SCST_CMD_STATE_PRE_DEV_DONE:
 	case SCST_CMD_STATE_DEV_DONE:
-	case SCST_CMD_STATE_PRE_XMIT_RESP:
+	case SCST_CMD_STATE_PRE_XMIT_RESP1:
+	case SCST_CMD_STATE_PRE_XMIT_RESP2:
 	case SCST_CMD_STATE_XMIT_RESP:
 	case SCST_CMD_STATE_FINISHED:
 	case SCST_CMD_STATE_FINISHED_INTERNAL:
@@ -1304,7 +1305,9 @@ void scst_restart_cmd(struct scst_cmd *cmd, int status,
 		break;
 
 	case SCST_PREPROCESS_STATUS_ERROR_FATAL:
+		set_bit(SCST_CMD_ABORTED, &cmd->cmd_flags);
 		set_bit(SCST_CMD_NO_RESP, &cmd->cmd_flags);
+		cmd->delivery_status = SCST_CMD_DELIVERY_FAILED;
 		/* go through */
 	case SCST_PREPROCESS_STATUS_ERROR:
 		if (cmd->sense != NULL)
@@ -1559,7 +1562,9 @@ void scst_rx_data(struct scst_cmd *cmd, int status,
 		break;
 
 	case SCST_RX_STATUS_ERROR_FATAL:
+		set_bit(SCST_CMD_ABORTED, &cmd->cmd_flags);
 		set_bit(SCST_CMD_NO_RESP, &cmd->cmd_flags);
+		cmd->delivery_status = SCST_CMD_DELIVERY_FAILED;
 		/* go through */
 	case SCST_RX_STATUS_ERROR:
 		if (!cmd->write_not_received_set)
@@ -1679,7 +1684,9 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 			scst_set_cmd_abnormal_done_state(cmd);
 			goto out;
 		case SCST_PREPROCESS_STATUS_ERROR_FATAL:
+			set_bit(SCST_CMD_ABORTED, &cmd->cmd_flags);
 			set_bit(SCST_CMD_NO_RESP, &cmd->cmd_flags);
+			cmd->delivery_status = SCST_CMD_DELIVERY_FAILED;
 			/* go through */
 		case SCST_PREPROCESS_STATUS_ERROR:
 			scst_set_cmd_error(cmd,
@@ -1808,7 +1815,8 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state,
 
 #ifdef CONFIG_SCST_EXTRACHECKS
 	if ((next_state != SCST_CMD_STATE_PRE_DEV_DONE) &&
-	    (next_state != SCST_CMD_STATE_PRE_XMIT_RESP) &&
+	    (next_state != SCST_CMD_STATE_PRE_XMIT_RESP1) &&
+	    (next_state != SCST_CMD_STATE_PRE_XMIT_RESP2) &&
 	    (next_state != SCST_CMD_STATE_FINISHED) &&
 	    (next_state != SCST_CMD_STATE_FINISHED_INTERNAL)) {
 		PRINT_ERROR("%s() received invalid cmd state %d (opcode %d)",
@@ -3723,7 +3731,7 @@ static int scst_dev_done(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	state = SCST_CMD_STATE_PRE_XMIT_RESP;
+	state = SCST_CMD_STATE_PRE_XMIT_RESP1;
 
 	if (likely((cmd->op_flags & SCST_FULLY_LOCAL_CMD) == 0) &&
 	    likely(devt->dev_done != NULL)) {
@@ -3754,7 +3762,8 @@ static int scst_dev_done(struct scst_cmd *cmd)
 
 	switch (state) {
 #ifdef CONFIG_SCST_EXTRACHECKS
-	case SCST_CMD_STATE_PRE_XMIT_RESP:
+	case SCST_CMD_STATE_PRE_XMIT_RESP1:
+	case SCST_CMD_STATE_PRE_XMIT_RESP2:
 	case SCST_CMD_STATE_PARSE:
 	case SCST_CMD_STATE_PREPARE_SPACE:
 	case SCST_CMD_STATE_RDY_TO_XFER:
@@ -3809,7 +3818,8 @@ static int scst_dev_done(struct scst_cmd *cmd)
 		cmd->state = SCST_CMD_STATE_FINISHED_INTERNAL;
 
 #ifndef CONFIG_SCST_TEST_IO_IN_SIRQ
-	if (cmd->state != SCST_CMD_STATE_PRE_XMIT_RESP) {
+#ifdef CONFIG_SCST_EXTRACHECKS
+	if (cmd->state != SCST_CMD_STATE_PRE_XMIT_RESP1) {
 		/* We can't allow atomic command on the exec stages */
 		if (scst_cmd_atomic(cmd)) {
 			switch (state) {
@@ -3826,13 +3836,58 @@ static int scst_dev_done(struct scst_cmd *cmd)
 		}
 	}
 #endif
+#endif
 
 out:
 	TRACE_EXIT_HRES(res);
 	return res;
 }
 
-static int scst_pre_xmit_response(struct scst_cmd *cmd)
+static int scst_pre_xmit_response2(struct scst_cmd *cmd)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+again:
+	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)))
+		scst_xmit_process_aborted_cmd(cmd);
+	else if (unlikely(cmd->status == SAM_STAT_CHECK_CONDITION)) {
+		if (cmd->tgt_dev != NULL) {
+			int rc = scst_process_check_condition(cmd);
+			/* !! At this point cmd can be already dead !! */
+			if (rc == -1) {
+				res = SCST_CMD_STATE_RES_CONT_NEXT;
+				goto out;
+			} else if (rc == 1)
+				goto again;
+		}
+	}
+
+	if (unlikely(test_bit(SCST_CMD_NO_RESP, &cmd->cmd_flags))) {
+		EXTRACHECKS_BUG_ON(!test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags));
+		TRACE_MGMT_DBG("Flag NO_RESP set for cmd %p (tag %llu), "
+			"skipping", cmd, (long long unsigned int)cmd->tag);
+		cmd->state = SCST_CMD_STATE_FINISHED;
+		goto out_same;
+	}
+
+	if (unlikely(cmd->resid_possible))
+		scst_adjust_resp_data_len(cmd);
+	else
+		cmd->adjusted_resp_data_len = cmd->resp_data_len;
+
+	cmd->state = SCST_CMD_STATE_XMIT_RESP;
+
+out_same:
+	res = SCST_CMD_STATE_RES_CONT_SAME;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int scst_pre_xmit_response1(struct scst_cmd *cmd)
 {
 	int res;
 
@@ -3880,29 +3935,10 @@ static int scst_pre_xmit_response(struct scst_cmd *cmd)
 	cmd->done = 1;
 	smp_mb(); /* to sync with scst_abort_cmd() */
 
-	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)))
-		scst_xmit_process_aborted_cmd(cmd);
-	else if (unlikely(cmd->status == SAM_STAT_CHECK_CONDITION))
-		scst_store_sense(cmd);
+	cmd->state = SCST_CMD_STATE_PRE_XMIT_RESP2;
+	res = scst_pre_xmit_response2(cmd);
 
-	if (unlikely(test_bit(SCST_CMD_NO_RESP, &cmd->cmd_flags))) {
-		TRACE_MGMT_DBG("Flag NO_RESP set for cmd %p (tag %llu), "
-			"skipping", cmd, (long long unsigned int)cmd->tag);
-		cmd->state = SCST_CMD_STATE_FINISHED;
-		res = SCST_CMD_STATE_RES_CONT_SAME;
-		goto out;
-	}
-
-	if (unlikely(cmd->resid_possible))
-		scst_adjust_resp_data_len(cmd);
-	else
-		cmd->adjusted_resp_data_len = cmd->resp_data_len;
-
-	cmd->state = SCST_CMD_STATE_XMIT_RESP;
-	res = SCST_CMD_STATE_RES_CONT_SAME;
-
-out:
-	TRACE_EXIT_HRES(res);
+	TRACE_EXIT_RES(res);
 	return res;
 }
 
@@ -4073,6 +4109,7 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 
 	if (unlikely(cmd->delivery_status != SCST_CMD_DELIVERY_SUCCESS)) {
 		if ((cmd->tgt_dev != NULL) &&
+		    (cmd->status == SAM_STAT_CHECK_CONDITION) &&
 		    scst_is_ua_sense(cmd->sense, cmd->sense_valid_len)) {
 			/* This UA delivery failed, so we need to requeue it */
 			if (scst_cmd_atomic(cmd) &&
@@ -4766,10 +4803,14 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 			res = scst_dev_done(cmd);
 			break;
 
-		case SCST_CMD_STATE_PRE_XMIT_RESP:
-			res = scst_pre_xmit_response(cmd);
-			EXTRACHECKS_BUG_ON(res ==
-				SCST_CMD_STATE_RES_NEED_THREAD);
+		case SCST_CMD_STATE_PRE_XMIT_RESP1:
+			res = scst_pre_xmit_response1(cmd);
+			EXTRACHECKS_BUG_ON(res == SCST_CMD_STATE_RES_NEED_THREAD);
+			break;
+
+		case SCST_CMD_STATE_PRE_XMIT_RESP2:
+			res = scst_pre_xmit_response2(cmd);
+			EXTRACHECKS_BUG_ON(res == SCST_CMD_STATE_RES_NEED_THREAD);
 			break;
 
 		case SCST_CMD_STATE_XMIT_RESP:

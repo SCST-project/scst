@@ -62,7 +62,9 @@ struct scst_user_dev {
 	unsigned int blocking:1;
 	unsigned int cleanup_done:1;
 	unsigned int tst:3;
+	unsigned int tmf_only:1;
 	unsigned int queue_alg:4;
+	unsigned int qerr:2;
 	unsigned int tas:1;
 	unsigned int swp:1;
 	unsigned int d_sense:1;
@@ -2618,7 +2620,13 @@ static int dev_user_attach(struct scst_device *sdev)
 
 	sdev->dh_priv = dev;
 	sdev->tst = dev->tst;
+	sdev->tmf_only = dev->tmf_only;
+	sdev->tmf_only_saved = dev->tmf_only;
+	sdev->tmf_only_default = dev->tmf_only;
 	sdev->queue_alg = dev->queue_alg;
+	sdev->qerr = dev->qerr;
+	sdev->qerr_saved = dev->qerr;
+	sdev->qerr_default = dev->qerr;
 	sdev->swp = dev->swp;
 	sdev->swp_saved = dev->swp;
 	sdev->swp_default = dev->swp;
@@ -3370,6 +3378,22 @@ static int __dev_user_set_opt(struct scst_user_dev *dev,
 		goto out;
 	}
 
+	if (((opt->tst != SCST_TST_0_SINGLE_TASK_SET) &&
+	     (opt->tst != SCST_TST_1_SEP_TASK_SETS)) ||
+	    (opt->tmf_only > 1) ||
+	    ((opt->queue_alg != SCST_QUEUE_ALG_0_RESTRICTED_REORDER) &&
+	     (opt->queue_alg != SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER)) ||
+	    ((opt->qerr == SCST_QERR_2_RESERVED) ||
+	     (opt->qerr > SCST_QERR_3_ABORT_THIS_NEXUS_ONLY)) ||
+	    (opt->swp > 1) || (opt->tas > 1) || (opt->has_own_order_mgmt > 1) ||
+	    (opt->d_sense > 1)) {
+		PRINT_ERROR("Invalid SCSI option (tst %x, tmf_only %x, "
+			"queue_alg %x, qerr %x, swp %x, tas %x, d_sense %d, "
+			"has_own_order_mgmt %x)",
+			opt->tst, opt->tmf_only, opt->queue_alg, opt->qerr,
+			opt->swp, opt->tas, opt->d_sense, opt->has_own_order_mgmt);
+	}
+
 #if 1
 	if ((dev->tst != opt->tst) && (dev->sdev != NULL) &&
 	    !list_empty(&dev->sdev->dev_tgt_dev_list)) {
@@ -3387,14 +3411,18 @@ static int __dev_user_set_opt(struct scst_user_dev *dev,
 	dev->partial_len = opt->partial_len;
 
 	dev->tst = opt->tst;
+	dev->tmf_only = opt->tmf_only;
 	dev->queue_alg = opt->queue_alg;
+	dev->qerr = opt->qerr;
 	dev->swp = opt->swp;
 	dev->tas = opt->tas;
 	dev->d_sense = opt->d_sense;
 	dev->has_own_order_mgmt = opt->has_own_order_mgmt;
 	if (dev->sdev != NULL) {
 		dev->sdev->tst = opt->tst;
+		dev->sdev->tmf_only = opt->tmf_only;
 		dev->sdev->queue_alg = opt->queue_alg;
+		dev->sdev->qerr = opt->qerr;
 		dev->sdev->swp = opt->swp;
 		dev->sdev->tas = opt->tas;
 		dev->sdev->d_sense = opt->d_sense;
@@ -3465,7 +3493,9 @@ static int dev_user_get_opt(struct file *file, void __user *arg)
 	opt.partial_transfers_type = dev->partial_transfers_type;
 	opt.partial_len = dev->partial_len;
 	opt.tst = dev->tst;
+	opt.tmf_only = dev->tmf_only;
 	opt.queue_alg = dev->queue_alg;
+	opt.qerr = dev->qerr;
 	opt.tas = dev->tas;
 	opt.swp = dev->swp;
 	opt.d_sense = dev->d_sense;

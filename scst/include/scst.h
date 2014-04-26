@@ -225,6 +225,8 @@ static inline bool list_entry_in_list(const struct list_head *entry)
  ** !! as well!
  *************************************************************/
 enum {
+	/** Active states **/
+
 	/* Dev handler's parse() is going to be called */
 	SCST_CMD_STATE_PARSE = 0,
 
@@ -258,6 +260,12 @@ enum {
 	/* Checks before target driver's xmit_response() is called */
 	SCST_CMD_STATE_PRE_XMIT_RESP,
 
+	/* Checks 1 before target driver's xmit_response() is called */
+	SCST_CMD_STATE_PRE_XMIT_RESP1,
+
+	/* Checks 2 before target driver's xmit_response() is called */
+	SCST_CMD_STATE_PRE_XMIT_RESP2,
+
 	/* Target driver's xmit_response() is going to be called */
 	SCST_CMD_STATE_XMIT_RESP,
 
@@ -268,6 +276,8 @@ enum {
 	SCST_CMD_STATE_FINISHED_INTERNAL,
 
 	SCST_CMD_STATE_LAST_ACTIVE = (SCST_CMD_STATE_FINISHED_INTERNAL+100),
+
+	/** Passive states **/
 
 	/* A cmd is created, but scst_cmd_init_done() not called */
 	SCST_CMD_STATE_INIT_WAIT,
@@ -568,7 +578,11 @@ enum scst_exec_context {
 /* Set if the cmd is aborted by other initiator */
 #define SCST_CMD_ABORTED_OTHER		1
 
-/* Set if no response should be sent to the target about this cmd */
+/*
+ * Set if no response should be sent to the target about this cmd.
+ * Must be set together with SCST_CMD_ABORTED for better processing
+ * in scst_pre_xmit_response2().
+ */
 #define SCST_CMD_NO_RESP		2
 
 /* Set if the cmd is dead and can be destroyed at any time */
@@ -2403,13 +2417,17 @@ struct scst_device {
 	/**************************************************************/
 
 	/*************************************************************
-	 ** Dev's control mode page related values. Updates serialized
-	 ** by scst_block_dev(). Modified independently to the above
-	 ** fields, hence the alignment.
-	 *************************************************************/
+ 	 ** Dev's control mode page related values. Updates serialized
+	 ** by device blocking. Since device blocking protects only
+	 ** commands on the execution stage, in all other read cases
+	 ** use ACCESS_ONCE(), if necessary. Modified independently
+	 ** to the above fields, hence the alignment.
+ 	 *************************************************************/
 
 	unsigned int queue_alg:4 __aligned(sizeof(long));
 	unsigned int tst:3;
+	unsigned int qerr:2;
+	unsigned int tmf_only:1;
 	unsigned int tas:1;
 	unsigned int swp:1;
 	unsigned int d_sense:1;
@@ -2425,6 +2443,12 @@ struct scst_device {
 
 	unsigned int queue_alg_saved:4;
 	unsigned int queue_alg_default:4;
+
+	unsigned int tmf_only_saved:1;
+	unsigned int tmf_only_default:1;
+
+	unsigned int qerr_saved:2;
+	unsigned int qerr_default:2;
 
 	unsigned int tas_saved:1;
 	unsigned int tas_default:1;
@@ -2905,7 +2929,6 @@ struct scst_tg_tgt {
 	char			*name;
 	uint16_t		rel_tgt_id;
 };
-
 
 /*
  * Used to store per-session UNIT ATTENTIONs

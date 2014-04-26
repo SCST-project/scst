@@ -116,6 +116,7 @@ static struct scst_trace_log vdisk_local_trace_tbl[] = {
 #define VDISK_NULLIO_SIZE		(5LL*1024*1024*1024*1024/2)
 
 #define DEF_TST				SCST_TST_1_SEP_TASK_SETS
+#define DEF_TMF_ONLY			0
 
 /*
  * Since we can't control backstorage device's reordering, we have to always
@@ -123,9 +124,10 @@ static struct scst_trace_log vdisk_local_trace_tbl[] = {
  */
 #define DEF_QUEUE_ALG_WT	SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER
 #define DEF_QUEUE_ALG		SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER
+
+#define DEF_QERR		SCST_QERR_0_ALL_RESUME
 #define DEF_SWP			0
 #define DEF_TAS			0
-
 #define DEF_DSENSE		SCST_D_SENSE_0_FIXED_SENSE
 
 #ifdef CONFIG_SCST_PROC
@@ -1294,6 +1296,9 @@ static int vdisk_attach(struct scst_device *dev)
 	dev->dh_priv = virt_dev;
 
 	dev->tst = virt_dev->tst;
+	dev->tmf_only = DEF_TMF_ONLY;
+	dev->tmf_only_saved = DEF_TMF_ONLY;
+	dev->tmf_only_default = DEF_TMF_ONLY;
 	dev->d_sense = DEF_DSENSE;
 	dev->d_sense_saved = DEF_DSENSE;
 	dev->d_sense_default = DEF_DSENSE;
@@ -1303,6 +1308,9 @@ static int vdisk_attach(struct scst_device *dev)
 		dev->queue_alg = DEF_QUEUE_ALG;
 	dev->queue_alg_saved = dev->queue_alg;
 	dev->queue_alg_default = dev->queue_alg;
+	dev->qerr = DEF_QERR;
+	dev->qerr_saved = DEF_QERR;
+	dev->qerr_default = DEF_QERR;
 	dev->swp = DEF_SWP;
 	dev->swp_saved = DEF_SWP;
 	dev->swp_default = DEF_SWP;
@@ -3711,8 +3719,10 @@ static int vdisk_ctrl_m_pg(unsigned char *p, int pcontrol,
 	switch (pcontrol) {
 	case 0: /* current */
 		p[2] |= virt_dev->dev->tst << 5;
+		p[2] |= virt_dev->dev->tmf_only << 4;
 		p[2] |= virt_dev->dev->d_sense << 2;
 		p[3] |= virt_dev->dev->queue_alg << 4;
+		p[3] |= virt_dev->dev->qerr << 1;
 		p[4] |= virt_dev->dev->swp << 3;
 		p[5] |= virt_dev->dev->tas << 6;
 		break;
@@ -3726,21 +3736,27 @@ static int vdisk_ctrl_m_pg(unsigned char *p, int pcontrol,
 		p[2] |= 7 << 5;		/* TST */
 #endif
 		p[2] |= 1 << 2;		/* D_SENSE */
+		p[2] |= 1 << 4;		/* TMF_ONLY */
 		p[3] |= 0xF << 4;	/* QUEUE ALGORITHM MODIFIER */
+		p[3] |= 3 << 1;		/* QErr */
 		p[4] |= 1 << 3;		/* SWP */
 		p[5] |= 1 << 6;		/* TAS */
 		break;
 	case 2: /* default */
 		p[2] |= virt_dev->tst << 5;
 		p[2] |= virt_dev->dev->d_sense_default << 2;
+		p[2] |= virt_dev->dev->tmf_only_default << 4;
 		p[3] |= virt_dev->dev->queue_alg_default << 4;
+		p[3] |= virt_dev->dev->qerr_default << 1;
 		p[4] |= virt_dev->dev->swp_default << 3;
 		p[5] |= virt_dev->dev->tas_default << 6;
 		break;
 	case 3: /* saved */
 		p[2] |= virt_dev->dev->tst << 5;
 		p[2] |= virt_dev->dev->d_sense_saved << 2;
+		p[2] |= virt_dev->dev->tmf_only_default << 4;
 		p[3] |= virt_dev->dev->queue_alg_saved << 4;
+		p[3] |= virt_dev->dev->qerr_saved << 1;
 		p[4] |= virt_dev->dev->swp_saved << 3;
 		p[5] |= virt_dev->dev->tas_saved << 6;
 		break;
@@ -3960,12 +3976,14 @@ out:
 }
 
 static void vdisk_ctrl_m_pg_select(unsigned char *p,
-	struct scst_vdisk_dev *virt_dev, struct scst_cmd *cmd, bool save)
+	struct scst_vdisk_dev *virt_dev, struct scst_cmd *cmd, bool save,
+	int param_offset)
 {
 	struct scst_device *dev = virt_dev->dev;
 	int old_swp = dev->swp, old_tas = dev->tas, old_dsense = dev->d_sense;
 	int old_queue_alg = dev->queue_alg;
-	int rc;
+	int rc, old_tmf_only = dev->tmf_only, old_qerr = dev->qerr;
+	int queue_alg, swp, tas, tmf_only, qerr, d_sense;
 
 	TRACE_ENTRY();
 
@@ -3976,6 +3994,11 @@ static void vdisk_ctrl_m_pg_select(unsigned char *p,
 		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
 		goto out;
 	}
+
+	/*
+	 * MODE SELECT is a strictly serialized cmd, so it is safe to
+	 * perform direct assignment here.
+	 */
 
 #if 0 /* Not implemented yet, see comment in struct scst_device */
 	dev->tst = (p[2] >> 5) & 1;
@@ -3988,13 +4011,79 @@ static void vdisk_ctrl_m_pg_select(unsigned char *p,
 		goto out;
 	}
 #endif
-	dev->queue_alg = p[3] >> 4;
-	dev->swp = (p[4] & 0x8) >> 3;
-	dev->tas = (p[5] & 0x40) >> 6;
-	dev->d_sense = (p[2] & 0x4) >> 2;
+
+	queue_alg = p[3] >> 4;
+	if ((queue_alg != SCST_QUEUE_ALG_0_RESTRICTED_REORDER) &&
+	    (queue_alg != SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER)) {
+		PRINT_WARNING("Attempt to set invalid Control mode page QUEUE "
+			"ALGORITHM MODIFIER value %d (initiator %s, dev %s)",
+			queue_alg, cmd->sess->initiator_name, dev->virt_name);
+		scst_set_invalid_field_in_parm_list(cmd, param_offset + 3,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
+		goto out;
+	}
+
+	swp = (p[4] & 0x8) >> 3;
+	if (swp > 1) {
+		PRINT_WARNING("Attempt to set invalid Control mode page SWP "
+			"value %d (initiator %s, dev %s)", swp,
+			cmd->sess->initiator_name, dev->virt_name);
+		scst_set_invalid_field_in_parm_list(cmd, param_offset + 4,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 3);
+		goto out;
+	}
+
+	tas = (p[5] & 0x40) >> 6;
+	if (tas > 1) {
+		PRINT_WARNING("Attempt to set invalid Control mode page TAS "
+			"value %d (initiator %s, dev %s)", tas,
+			cmd->sess->initiator_name, dev->virt_name);
+		scst_set_invalid_field_in_parm_list(cmd, param_offset + 5,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 6);
+		goto out;
+	}
+
+	tmf_only = (p[2] & 0x10) >> 4;
+	if (tmf_only > 1) {
+		PRINT_WARNING("Attempt to set invalid Control mode page "
+			"TMF_ONLY value %d (initiator %s, dev %s)", tmf_only,
+			cmd->sess->initiator_name, dev->virt_name);
+		scst_set_invalid_field_in_parm_list(cmd, param_offset + 2,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
+		goto out;
+	}
+
+	qerr = (p[3] & 0x6) >> 1;
+	if ((qerr == SCST_QERR_2_RESERVED) ||
+	    (qerr > SCST_QERR_3_ABORT_THIS_NEXUS_ONLY)) {
+		PRINT_WARNING("Attempt to set invalid Control mode page QErr "
+			"value %d (initiator %s, dev %s)", qerr,
+			cmd->sess->initiator_name, dev->virt_name);
+		scst_set_invalid_field_in_parm_list(cmd, param_offset + 3,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 1);
+		goto out;
+	}
+
+	d_sense = (p[2] & 0x4) >> 2;
+	if (d_sense > 1) {
+		PRINT_WARNING("Attempt to set invalid Control mode page D_SENSE "
+			"value %d (initiator %s, dev %s)", d_sense,
+			cmd->sess->initiator_name, dev->virt_name);
+		scst_set_invalid_field_in_parm_list(cmd, param_offset + 2,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 2);
+		goto out;
+	}
+
+	dev->queue_alg = queue_alg;
+	dev->swp = swp;
+	dev->tas = tas;
+	dev->tmf_only = tmf_only;
+	dev->qerr = qerr;
+	dev->d_sense = d_sense;
 
 	if ((dev->swp == old_swp) && (dev->tas == old_tas) &&
-	    (dev->d_sense == old_dsense) && (dev->queue_alg == old_queue_alg))
+	    (dev->d_sense == old_dsense) && (dev->queue_alg == old_queue_alg) &&
+	    (dev->qerr == old_qerr) && dev->tmf_only == old_tmf_only)
 		goto out;
 
 	if (!save)
@@ -4006,6 +4095,8 @@ static void vdisk_ctrl_m_pg_select(unsigned char *p,
 		dev->tas = old_tas;
 		dev->d_sense = old_dsense;
 		dev->queue_alg = old_queue_alg;
+		dev->tmf_only = old_tmf_only;
+		dev->qerr = old_qerr;
 		/* Hopefully, the error is temporary */
 		scst_set_busy(cmd);
 		goto out;
@@ -4015,13 +4106,16 @@ static void vdisk_ctrl_m_pg_select(unsigned char *p,
 	dev->tas_saved = dev->tas;
 	dev->d_sense_saved = dev->d_sense;
 	dev->queue_alg_saved = dev->queue_alg;
+	dev->tmf_only_saved = dev->tmf_only;
+	dev->qerr_saved = dev->qerr;
 
 out_ok:
 	PRINT_INFO("Device %s: new control mode page parameters: SWP %x "
-		"(was %x), TAS %x (was %x), D_SENSE %d (was %d), "
-		"QUEUE ALG %d (was %d)", virt_dev->name, dev->swp,
-		old_swp, dev->tas, old_tas, dev->d_sense, old_dsense,
-		dev->queue_alg, old_queue_alg);
+		"(was %x), TAS %x (was %x), TMF_ONLY %d (was %x), QErr %x "
+		"(was %x), D_SENSE %d (was %d), QUEUE ALG %d (was %d)",
+		virt_dev->name, dev->swp, old_swp, dev->tas, old_tas,
+		dev->tmf_only, old_tmf_only, dev->qerr, old_qerr,
+		dev->d_sense, old_dsense, dev->queue_alg, old_queue_alg);
 
 out:
 	TRACE_EXIT();
@@ -4141,7 +4235,7 @@ static enum compl_status_e vdisk_exec_mode_select(struct vdisk_cmd_params *p)
 				goto out_put;
 			}
 			vdisk_ctrl_m_pg_select(&address[offset], virt_dev, cmd,
-				cmd->cdb[1] & SP);
+				cmd->cdb[1] & SP, offset);
 		} else {
 			TRACE(TRACE_MINOR, "MODE SELECT: Invalid request %x",
 				address[offset] & 0x3f);
@@ -5617,10 +5711,12 @@ static void vdisk_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd,
 		struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 		int rc;
 
+		dev->tmf_only = dev->tmf_only_saved;
 		dev->d_sense = dev->d_sense_saved;
 		dev->swp = dev->swp_saved;
 		dev->tas = dev->tas_saved;
 		dev->queue_alg = dev->queue_alg_saved;
+		dev->qerr = dev->qerr_saved;
 
 		dev->tst = virt_dev->tst;
 
