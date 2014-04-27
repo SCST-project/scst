@@ -495,7 +495,7 @@ enum {
 /*************************************************************
  ** Values for the control mode page TST field
  *************************************************************/
-#define SCST_TST_0_SINGLE_TASK_SET 	0
+#define SCST_TST_0_SINGLE_TASK_SET	0
 #define SCST_TST_1_SEP_TASK_SETS	1
 
 /*******************************************************************
