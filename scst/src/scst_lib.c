@@ -9771,6 +9771,7 @@ void scst_path_put(struct nameidata *nd)
 	path_put(&nd->path);
 #endif
 }
+EXPORT_SYMBOL(scst_path_put);
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)

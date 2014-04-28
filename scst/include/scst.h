@@ -4749,6 +4749,9 @@ int scst_read_file_transactional(const char *name, const char *name1,
 int scst_write_file_transactional(const char *name, const char *name1,
 	const char *signature, int signature_len, const uint8_t *buf, int size);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
+void scst_path_put(struct nameidata *nd);
+#endif
 int scst_remove_file(const char *name);
 
 #endif /* __SCST_H */
