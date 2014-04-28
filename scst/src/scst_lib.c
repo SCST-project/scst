@@ -7143,8 +7143,9 @@ static int get_cdb_info_min(struct scst_cmd *cmd,
 		break;
 	case MI_REPORT_SUPPORTED_OPERATION_CODES:
 		cmd->op_name = "REPORT SUPPORTED OPERATION CODES";
-		cmd->op_flags |= SCST_WRITE_EXCL_ALLOWED |
-				SCST_LOCAL_CMD | SCST_FULLY_LOCAL_CMD;
+		cmd->op_flags |= SCST_WRITE_EXCL_ALLOWED;
+		if (cmd->devt->get_supported_opcodes != NULL)
+			cmd->op_flags |= SCST_LOCAL_CMD | SCST_FULLY_LOCAL_CMD;
 		break;
 	case MI_REPORT_SUPPORTED_TASK_MANAGEMENT_FUNCTIONS:
 		cmd->op_name = "REPORT SUPPORTED TASK MANAGEMENT FUNCTIONS";

@@ -2134,21 +2134,15 @@ static int scst_report_supported_opcodes(struct scst_cmd *cmd)
 	int req_sa = get_unaligned_be16(&cmd->cdb[4]);
 	const struct scst_opcode_descriptor *op = NULL;
 	const struct scst_opcode_descriptor **supp_opcodes = NULL;
-	int supp_opcodes_cnt;
+	int supp_opcodes_cnt, rc;
 
 	TRACE_ENTRY();
 
-	if (cmd->devt->get_supported_opcodes == NULL) {
-		TRACE(TRACE_MINOR, "REPORT SUPPORTED OPCODES not supported by "
-			"dev handler %s", cmd->devt->name);
-		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+	/* get_cdb_info_min() ensures that get_supported_opcodes is not NULL here */
+
+	rc = cmd->devt->get_supported_opcodes(cmd, &supp_opcodes, &supp_opcodes_cnt);
+	if (rc != 0)
 		goto out_compl;
-	} else {
-		int rc = cmd->devt->get_supported_opcodes(cmd, &supp_opcodes,
-				&supp_opcodes_cnt);
-		if (rc != 0)
-			goto out_compl;
-	}
 
 	TRACE_DBG("cmd %p, options %d, req_opcode %x, req_sa %x, rctd %d",
 		cmd, options, req_opcode, req_sa, rctd);
