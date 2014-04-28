@@ -1853,15 +1853,18 @@ static int scst_report_luns_local(struct scst_cmd *cmd)
 	if ((cmd->cdb[2] != 0) && (cmd->cdb[2] != 2)) {
 		PRINT_ERROR("Unsupported SELECT REPORT value %x in REPORT "
 			"LUNS command", cmd->cdb[2]);
-		goto out_err;
+		scst_set_invalid_field_in_cdb(cmd, 2, 0);
+		goto out_compl;
 	}
 
 	buffer_size = scst_get_buf_full_sense(cmd, &buffer);
 	if (unlikely(buffer_size <= 0))
 		goto out_compl;
 
-	if (buffer_size < 16)
+	if (buffer_size < 16) {
+		scst_set_invalid_field_in_cdb(cmd, 6, 0);
 		goto out_put_err;
+	}
 
 	memset(buffer, 0, buffer_size);
 	offs = 8;
@@ -1939,10 +1942,6 @@ out_compl:
 
 out_put_err:
 	scst_put_buf_full(cmd, buffer);
-
-out_err:
-	scst_set_cmd_error(cmd,
-		   SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
 	goto out_compl;
 }
 
@@ -2642,8 +2641,8 @@ static int scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 	if ((action != PR_REGISTER) && (action != PR_REGISTER_AND_IGNORE) &&
 	    (action != PR_CLEAR) && (cmd->cdb[2] >> 4) != SCOPE_LU) {
 		TRACE_PR("Scope must be SCOPE_LU for action %x", action);
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		scst_set_invalid_field_in_cdb(cmd, 2,
+				SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
 		goto out_unlock;
 	}
 
@@ -2651,8 +2650,8 @@ static int scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 	if ((action != PR_REGISTER) && (action != PR_REGISTER_AND_MOVE) &&
 	    ((buffer[20] >> 3) & 0x01)) {
 		TRACE_PR("SPEC_I_PT must be zero for action %x", action);
-		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
-					scst_sense_invalid_field_in_cdb));
+		scst_set_invalid_field_in_parm_list(cmd, 20,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 3);
 		goto out_unlock;
 	}
 
@@ -2660,8 +2659,8 @@ static int scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 	if ((action != PR_REGISTER) && (action != PR_REGISTER_AND_IGNORE) &&
 	    (action != PR_REGISTER_AND_MOVE) && ((buffer[20] >> 2) & 0x01)) {
 		TRACE_PR("ALL_TG_PT must be zero for action %x", action);
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		scst_set_invalid_field_in_parm_list(cmd, 20,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 2);
 		goto out_unlock;
 	}
 

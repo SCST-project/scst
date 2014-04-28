@@ -1549,7 +1549,7 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 			PRINT_ERROR("FORMAT UNIT: too small parameters list "
 				"header %d (dev %s)", length, dev->virt_name);
 			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+				SCST_LOAD_SENSE(scst_sense_parameter_list_length_invalid));
 			goto out_put;
 		}
 
@@ -1569,8 +1569,8 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 				PRINT_ERROR("FORMAT UNIT: too small long "
 					"parameters list header %d (dev %s)",
 					length, dev->virt_name);
-				scst_set_cmd_error(cmd,
-					SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+				scst_set_invalid_field_in_cdb(cmd, 1,
+					SCST_INVAL_FIELD_BIT_OFFS_VALID | 5);
 				goto out_put;
 			}
 			if ((buf[3] & 0xF0) != 0) {
@@ -3990,8 +3990,8 @@ static void vdisk_ctrl_m_pg_select(unsigned char *p,
 	if (save && !vdev_saved_mode_pages_enabled) {
 		TRACE(TRACE_MINOR|TRACE_SCSI, "MODE SELECT: saved control page "
 			"not supported");
-		scst_set_cmd_error(cmd,
-		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		scst_set_invalid_field_in_cdb(cmd, 2,
+				SCST_INVAL_FIELD_BIT_OFFS_VALID | 1);
 		goto out;
 	}
 
@@ -4001,13 +4001,14 @@ static void vdisk_ctrl_m_pg_select(unsigned char *p,
 	 */
 
 #if 0 /* Not implemented yet, see comment in struct scst_device */
-	dev->tst = (p[2] >> 5) & 1;
+	dev->tst = (p[2] >> 5) & 7;
+	/* ToDo: check validity of the new value */
 #else
-	if (dev->tst != ((p[2] >> 5) & 1)) {
+	if (dev->tst != ((p[2] >> 5) & 7)) {
 		TRACE(TRACE_MINOR|TRACE_SCSI, "%s", "MODE SELECT: Changing of "
 			"TST not supported");
-		scst_set_cmd_error(cmd,
-		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		scst_set_invalid_field_in_parm_list(cmd, param_offset + 2,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 5);
 		goto out;
 	}
 #endif
@@ -4133,8 +4134,8 @@ static void vdisk_caching_m_pg_select(unsigned char *p,
 	if (save && (!vdev_saved_mode_pages_enabled || virt_dev->nv_cache)) {
 		TRACE(TRACE_MINOR|TRACE_SCSI, "MODE SELECT: saved cache page "
 			"not supported");
-		scst_set_cmd_error(cmd,
-		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		scst_set_invalid_field_in_cdb(cmd, 1,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
 		goto out;
 	}
 
@@ -4287,8 +4288,7 @@ static enum compl_status_e vdisk_exec_read_capacity(struct vdisk_cmd_params *p)
 		uint32_t lba = get_unaligned_be32(&cmd->cdb[2]);
 		if (lba != 0) {
 			TRACE_DBG("PMI zero and LBA not zero (cmd %p)", cmd);
-			scst_set_cmd_error(cmd,
-			    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+			scst_set_invalid_field_in_cdb(cmd, 2, 0);
 			goto out;
 		}
 	}
@@ -4348,8 +4348,7 @@ static enum compl_status_e vdisk_exec_read_capacity16(struct vdisk_cmd_params *p
 		uint32_t lba = get_unaligned_be32(&cmd->cdb[2]);
 		if (lba != 0) {
 			TRACE_DBG("PMI zero and LBA not zero (cmd %p)", cmd);
-			scst_set_cmd_error(cmd,
-			    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+			scst_set_invalid_field_in_cdb(cmd, 2, 0);
 			goto out;
 		}
 	}

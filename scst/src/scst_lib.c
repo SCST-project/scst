@@ -9326,8 +9326,7 @@ static int scst_parse_unmap_descriptors(struct scst_cmd *cmd)
 		     ((descriptor_len % 16) != 0))) {
 		PRINT_ERROR("Bad descriptor length: %d < %d - 8",
 			descriptor_len, total_len);
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_parm_list));
+		scst_set_invalid_field_in_parm_list(cmd, 2, 0);
 		goto out_abn_put;
 	}
 

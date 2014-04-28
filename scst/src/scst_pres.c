@@ -1580,8 +1580,8 @@ void scst_pr_register(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 		}
 		if (spec_i_pt) {
 			TRACE_PR("%s", "spec_i_pt must be zero in this case");
-			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
-				scst_sense_invalid_field_in_cdb));
+			scst_set_invalid_field_in_parm_list(cmd, 20,
+				SCST_INVAL_FIELD_BIT_OFFS_VALID | 3);
 			goto out;
 		}
 		if (action_key == 0) {
@@ -1721,8 +1721,7 @@ void scst_pr_register_and_move(struct scst_cmd *cmd, uint8_t *buffer,
 
 	if (tid_buffer_size < 24) {
 		TRACE_PR("%s", "Transport id buffer too small");
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_parm_list));
+		scst_set_invalid_field_in_parm_list(cmd, 20, 0);
 		goto out;
 	}
 
@@ -1751,9 +1750,8 @@ void scst_pr_register_and_move(struct scst_cmd *cmd, uint8_t *buffer,
 	 */
 	if (!scst_pr_is_holder(dev, reg)) {
 		TRACE_PR("Registrant %s/%d (%p) is not a holder (tgt_dev %p)",
-			debug_transport_id_to_initiator_name(
-				reg->transport_id), reg->rel_tgt_id,
-			reg, tgt_dev);
+			debug_transport_id_to_initiator_name(reg->transport_id),
+			reg->rel_tgt_id, reg, tgt_dev);
 		scst_set_cmd_error_status(cmd, SAM_STAT_RESERVATION_CONFLICT);
 		goto out;
 	}
