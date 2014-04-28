@@ -386,7 +386,7 @@ int start(int argc, char **argv)
 		desc.opt.tst = SCST_TST_1_SEP_TASK_SETS;
 		desc.opt.tmf_only = 0;
 		desc.opt.queue_alg = SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER;
-		desc.opt.qerr = 0;
+		desc.opt.qerr = SCST_QERR_0_ALL_RESUME;
 		desc.opt.d_sense = SCST_D_SENSE_0_FIXED_SENSE;
 
 		res = ioctl(devs[i].scst_usr_fd, SCST_USER_REGISTER_DEVICE, &desc);
