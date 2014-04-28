@@ -371,7 +371,7 @@ static inline void isert_link_recv_pdu_wrs(struct isert_cmnd *from_pdu,
 int isert_alloc_conn_resources(struct isert_connection *isert_conn)
 {
 	struct isert_cmnd *pdu, *prev_pdu = NULL, *first_pdu = NULL;
-	int t_datasz =  ISER_HDRS_SZ;
+	int t_datasz = 512; /* RFC states that minimum receive data size is 512 */
 	int i_datasz = ISER_HDRS_SZ + SCST_SENSE_BUFFERSIZE;
 	int i, err = 0;
 	int to_alloc;

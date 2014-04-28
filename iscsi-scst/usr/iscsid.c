@@ -642,6 +642,15 @@ static int login_finish(struct connection *conn)
 {
 	int res = 0;
 
+	if (conn->is_iser &&
+	    conn->session_params[key_target_recv_data_length].key_state == KEY_STATE_START) {
+		char buf[32] = "\0";
+		params_val_to_str(session_keys, key_target_recv_data_length,
+				  session_keys[key_target_recv_data_length].local_def,
+				  buf, sizeof(buf));
+		text_key_add(conn, "TargetRecvDataSegmentLength", buf);
+	}
+
 	switch (conn->session_type) {
 	case SESSION_NORMAL:
 		if (!conn->sess)
