@@ -2370,7 +2370,8 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 			    struct ib_cm_id *ib_cm_id,
 			    struct rdma_cm_id *rdma_cm_id,
 			    u8 port_num, __be16 pkey,
-			    const struct srp_login_req *req)
+			    const struct srp_login_req *req,
+			    const char *src_addr)
 {
 	struct srpt_port *const sport = &sdev->port[port_num - 1];
 	const __be16 *const raw_port_gid = (__be16 *)sport->gid.raw;
@@ -2530,16 +2531,7 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 	}
 
 	if (one_target_per_port) {
-		snprintf(ch->sess_name, sizeof(ch->sess_name),
-			 "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x",
-			 be16_to_cpu(raw_port_gid[0]),
-			 be16_to_cpu(raw_port_gid[1]),
-			 be16_to_cpu(raw_port_gid[2]),
-			 be16_to_cpu(raw_port_gid[3]),
-			 be16_to_cpu(raw_port_gid[4]),
-			 be16_to_cpu(raw_port_gid[5]),
-			 be16_to_cpu(raw_port_gid[6]),
-			 be16_to_cpu(raw_port_gid[7]));
+		strlcpy(ch->sess_name, src_addr, sizeof(ch->sess_name));
 	} else if (use_port_guid_in_session_name) {
 		/*
 		 * If the kernel module parameter use_port_guid_in_session_name
@@ -2743,9 +2735,36 @@ static int srpt_ib_cm_req_recv(struct ib_cm_id *cm_id,
 			       struct ib_cm_req_event_param *param,
 			       void *private_data)
 {
+	__be16 *const raw_sgid = (__be16 *)param->primary_path->dgid.raw;
+	char sgid[40];
+
+	scnprintf(sgid, sizeof(sgid), "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x",
+		  be16_to_cpu(raw_sgid[0]), be16_to_cpu(raw_sgid[1]),
+		  be16_to_cpu(raw_sgid[2]), be16_to_cpu(raw_sgid[3]),
+		  be16_to_cpu(raw_sgid[4]), be16_to_cpu(raw_sgid[5]),
+		  be16_to_cpu(raw_sgid[6]), be16_to_cpu(raw_sgid[7]));
+
 	return srpt_cm_req_recv(cm_id->context, cm_id, NULL, param->port,
 				param->primary_path->pkey,
-				private_data);
+				private_data, sgid);
+}
+
+static const char *inet_ntop(const void *sa, char *dst, unsigned size)
+{
+	switch (((struct sockaddr *)sa)->sa_family) {
+	case AF_INET:
+		snprintf(dst, size, "%pI4",
+			 &((struct sockaddr_in*)sa)->sin_addr);
+		break;
+	case AF_INET6:
+		snprintf(dst, size, "%pI6",
+			 &((struct sockaddr_in6*)sa)->sin6_addr);
+		break;
+	default:
+		snprintf(dst, size, "???");
+		break;
+	}
+	return dst;
 }
 
 static int srpt_rdma_cm_req_recv(struct rdma_cm_id *cm_id,
@@ -2754,6 +2773,7 @@ static int srpt_rdma_cm_req_recv(struct rdma_cm_id *cm_id,
 	struct srpt_device *sdev;
 	struct srp_login_req req;
 	const struct srp_login_req_rdma *req_rdma;
+	char src_addr[40];
 
 	sdev = ib_get_client_data(cm_id->device, &srpt_client);
 	if (!sdev)
@@ -2773,8 +2793,10 @@ static int srpt_rdma_cm_req_recv(struct rdma_cm_id *cm_id,
 	memcpy(req.initiator_port_id, req_rdma->initiator_port_id, 16);
 	memcpy(req.target_port_id, req_rdma->target_port_id, 16);
 
+	inet_ntop(&cm_id->route.addr.src_addr, src_addr, sizeof(src_addr));
+
 	return srpt_cm_req_recv(sdev, NULL, cm_id, cm_id->port_num,
-				cm_id->route.path_rec->pkey, &req);
+				cm_id->route.path_rec->pkey, &req, src_addr);
 }
 
 static void srpt_cm_rej_recv(struct srpt_rdma_ch *ch)
