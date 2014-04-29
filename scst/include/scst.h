@@ -2257,6 +2257,10 @@ struct scst_cmd {
 	void *cmd_data_descriptors;
 	int cmd_data_descriptors_cnt;
 
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+	char not_parsed_op_name[8];
+#endif
+
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 	uint64_t start, curr_start, parse_time, alloc_buf_time;
 	uint64_t restart_waiting_time, rdy_to_xfer_time;
@@ -4305,7 +4309,7 @@ static inline int scst_check_local_events(struct scst_cmd *cmd)
 	return __scst_check_local_events(cmd, true);
 }
 
-int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd);
+int scst_get_cmd_abnormal_done_state(struct scst_cmd *cmd);
 void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd);
 
 struct scst_trace_log {
@@ -4637,6 +4641,16 @@ int scst_wait_info_completion(struct scst_sysfs_user_info *info,
 	unsigned long timeout);
 
 unsigned int scst_get_setup_id(void);
+
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+const char *scst_get_opcode_name(struct scst_cmd *cmd);
+#else
+static inline const char *scst_get_opcode_name(struct scst_cmd *cmd)
+{
+	return cmd->op_name;
+}
+#endif
+
 
 /*
  * Needed to avoid potential circular locking dependency between scst_mutex

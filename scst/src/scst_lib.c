@@ -1595,8 +1595,8 @@ int scst_alloc_sense(struct scst_cmd *cmd, int atomic)
 
 	cmd->sense = mempool_alloc(scst_sense_mempool, gfp_mask);
 	if (cmd->sense == NULL) {
-		PRINT_CRIT_ERROR("Sense memory allocation failed (op %x). "
-			"The sense data will be lost!!", cmd->cdb[0]);
+		PRINT_CRIT_ERROR("Sense memory allocation failed (op %s). "
+			"The sense data will be lost!!", scst_get_opcode_name(cmd));
 		res = -ENOMEM;
 		goto out;
 	}
@@ -1641,7 +1641,8 @@ int scst_alloc_set_sense(struct scst_cmd *cmd, int atomic,
 	cmd->sense_valid_len = len;
 	if (cmd->sense_buflen < len) {
 		PRINT_WARNING("Sense truncated (needed %d), shall you increase "
-			"SCST_SENSE_BUFFERSIZE? Op: %x", len, cmd->cdb[0]);
+			"SCST_SENSE_BUFFERSIZE? Op: %s", len,
+			scst_get_opcode_name(cmd));
 		cmd->sense_valid_len = cmd->sense_buflen;
 	}
 
@@ -2894,9 +2895,10 @@ void scst_check_reassign_sessions(void)
 	return;
 }
 
-int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
+int scst_get_cmd_abnormal_done_state(struct scst_cmd *cmd)
 {
 	int res;
+	bool trace = false;
 
 	TRACE_ENTRY();
 
@@ -2907,7 +2909,9 @@ int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
 		if (cmd->preprocessing_only) {
 			res = SCST_CMD_STATE_PREPROCESSING_DONE;
 			break;
-		} /* else go through */
+		}
+		trace = true;
+		/* go through */
 	case SCST_CMD_STATE_DEV_DONE:
 		if (cmd->internal)
 			res = SCST_CMD_STATE_FINISHED_INTERNAL;
@@ -2930,9 +2934,10 @@ int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
 
 	case SCST_CMD_STATE_PREPROCESSING_DONE:
 	case SCST_CMD_STATE_PREPROCESSING_DONE_CALLED:
-		if (cmd->tgt_dev == NULL)
+		if (cmd->tgt_dev == NULL) {
+			trace = true;
 			res = SCST_CMD_STATE_PRE_XMIT_RESP1;
-		else
+		} else
 			res = SCST_CMD_STATE_PRE_DEV_DONE;
 		break;
 
@@ -2953,13 +2958,29 @@ int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
 		break;
 
 	default:
-		PRINT_CRIT_ERROR("Wrong cmd state %d (cmd %p, op %x)",
-			cmd->state, cmd, cmd->cdb[0]);
+		PRINT_CRIT_ERROR("Wrong cmd state %d (cmd %p, op %s)",
+			cmd->state, cmd, scst_get_opcode_name(cmd));
 		sBUG();
 #if defined(RHEL_MAJOR) && RHEL_MAJOR -0 < 6
 		/* Invalid state to suppress a compiler warning */
 		res = SCST_CMD_STATE_LAST_ACTIVE;
 #endif
+	}
+
+	if (trace) {
+		/*
+		 * Little hack to trace completion of commands, which are
+		 * going to bypass normal tracing on SCST_CMD_STATE_PRE_DEV_DONE
+		 */
+		TRACE(TRACE_SCSI, "cmd %p, status %x, msg_status %x, host_status %x, "
+			"driver_status %x, resp_data_len %d", cmd, cmd->status,
+			cmd->msg_status, cmd->host_status, cmd->driver_status,
+			cmd->resp_data_len);
+		if (unlikely(cmd->status == SAM_STAT_CHECK_CONDITION) &&
+		    scst_sense_valid(cmd->sense)) {
+			PRINT_BUFF_FLAG(TRACE_SCSI, "Sense", cmd->sense,
+				cmd->sense_valid_len);
+		}
 	}
 
 	TRACE_EXIT_RES(res);
@@ -2983,8 +3004,8 @@ void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 	case SCST_CMD_STATE_FINISHED:
 	case SCST_CMD_STATE_FINISHED_INTERNAL:
 	case SCST_CMD_STATE_XMIT_WAIT:
-		PRINT_CRIT_ERROR("Wrong cmd state %d (cmd %p, op %x)",
-			cmd->state, cmd, cmd->cdb[0]);
+		PRINT_CRIT_ERROR("Wrong cmd state %d (cmd %p, op %s)",
+			cmd->state, cmd, scst_get_opcode_name(cmd));
 		sBUG();
 	}
 #endif
@@ -3017,8 +3038,8 @@ void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 	case SCST_CMD_STATE_FINISHED_INTERNAL:
 		break;
 	default:
-		PRINT_CRIT_ERROR("Wrong cmd state %d (cmd %p, op %x)",
-			cmd->state, cmd, cmd->cdb[0]);
+		PRINT_CRIT_ERROR("Wrong cmd state %d (cmd %p, op %s)",
+			cmd->state, cmd, scst_get_opcode_name(cmd));
 		sBUG();
 		break;
 	}
@@ -3028,7 +3049,7 @@ void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 	     (cmd->state != SCST_CMD_STATE_PREPROCESSING_DONE)) &&
 		   (cmd->tgt_dev == NULL) && !cmd->internal) {
 		PRINT_CRIT_ERROR("Wrong not inited cmd state %d (cmd %p, "
-			"op %x)", cmd->state, cmd, cmd->cdb[0]);
+			"op %s)", cmd->state, cmd, scst_get_opcode_name(cmd));
 		sBUG();
 	}
 #endif
@@ -3037,6 +3058,20 @@ void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 	return;
 }
 EXPORT_SYMBOL_GPL(scst_set_cmd_abnormal_done_state);
+
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+const char *scst_get_opcode_name(struct scst_cmd *cmd)
+{
+	if (cmd->op_name)
+		return cmd->op_name;
+	else {
+		scnprintf(cmd->not_parsed_op_name,
+			sizeof(cmd->not_parsed_op_name), "0x%x", cmd->cdb[0]);
+		return cmd->not_parsed_op_name;
+	}
+}
+EXPORT_SYMBOL(scst_get_opcode_name);
+#endif
 
 void scst_zero_write_rest(struct scst_cmd *cmd)
 {
@@ -4807,7 +4842,8 @@ static struct scst_cmd *scst_create_prepare_internal_cmd(
 
 	scst_set_start_time(res);
 
-	TRACE(TRACE_SCSI, "New internal cmd %p (op 0x%x)", res, res->cdb[0]);
+	TRACE(TRACE_SCSI, "New internal cmd %p (op %s)", res,
+		scst_get_opcode_name(res));
 
 	rc = scst_pre_parse(res);
 	sBUG_ON(rc != 0);
@@ -4897,10 +4933,10 @@ static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 
 	if (scsi_status_is_good(req_cmd->status) && (len > 0) &&
 	    scst_sense_valid(buf) && !scst_no_sense(buf)) {
-		PRINT_BUFF_FLAG(TRACE_SCSI, "REQUEST SENSE returned",
+		TRACE(TRACE_SCSI, "REQUEST SENSE %p returned valid sense",
+			req_cmd);
+		scst_alloc_set_sense(orig_cmd, scst_cmd_atomic(req_cmd),
 			buf, len);
-		scst_alloc_set_sense(orig_cmd, scst_cmd_atomic(req_cmd), buf,
-			len);
 	} else {
 		PRINT_ERROR("%s", "Unable to get the sense via "
 			"REQUEST SENSE, returning HARDWARE ERROR");
@@ -5333,7 +5369,7 @@ static void scst_send_release(struct scst_device *dev)
 				, NULL
 #endif
 				);
-		TRACE_DBG("MODE_SENSE done: %x", rc);
+		TRACE_DBG("RELEASE done: %x", rc);
 
 		if (scsi_status_is_good(rc)) {
 			break;
@@ -6417,7 +6453,7 @@ int scst_get_buf_full(struct scst_cmd *cmd, uint8_t **buf)
 		*buf = vmalloc(full_size);
 		if (*buf == NULL) {
 			TRACE(TRACE_OUT_OF_MEM, "vmalloc() failed for opcode "
-				"%x", cmd->cdb[0]);
+				"%s", scst_get_opcode_name(cmd));
 			res = -ENOMEM;
 			goto out;
 		}
@@ -6602,7 +6638,8 @@ out:
 	return res;
 
 out_inval_bufflen10:
-	PRINT_ERROR("Too big bufflen %d (op %x)", cmd->bufflen, cmd->cdb[0]);
+	PRINT_ERROR("Too big bufflen %d (op %s)", cmd->bufflen,
+		scst_get_opcode_name(cmd));
 	scst_set_invalid_field_in_cdb(cmd, 10, 0);
 	res = 1;
 	goto out;
@@ -6804,8 +6841,8 @@ static int get_cdb_info_verify12(struct scst_cmd *cmd,
 	if (cmd->cdb[1] & 2) { /* BYTCHK 01 */
 		cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
 		if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
-			PRINT_ERROR("Too big bufflen %d (op %x)",
-				cmd->bufflen, cmd->cdb[0]);
+			PRINT_ERROR("Too big bufflen %d (op %s)",
+				cmd->bufflen, scst_get_opcode_name(cmd));
 			scst_set_invalid_field_in_cdb(cmd, sdbops->info_len_off, 0);
 			return 1;
 		}
@@ -6834,8 +6871,8 @@ static int get_cdb_info_verify16(struct scst_cmd *cmd,
 	if (cmd->cdb[1] & 2) { /* BYTCHK 01 */
 		cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
 		if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
-			PRINT_ERROR("Too big bufflen %d (op %x)",
-				cmd->bufflen, cmd->cdb[0]);
+			PRINT_ERROR("Too big bufflen %d (op %s)",
+				cmd->bufflen, scst_get_opcode_name(cmd));
 			scst_set_invalid_field_in_cdb(cmd, sdbops->info_len_off, 0);
 			return 1;
 		}
@@ -6908,8 +6945,8 @@ static int get_cdb_info_len_4(struct scst_cmd *cmd,
 	cmd->lba = 0;
 	cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
 	if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
-		PRINT_ERROR("Too big bufflen %d (op %x)", cmd->bufflen,
-			cmd->cdb[0]);
+		PRINT_ERROR("Too big bufflen %d (op %s)", cmd->bufflen,
+			scst_get_opcode_name(cmd));
 		scst_set_invalid_field_in_cdb(cmd, sdbops->info_len_off, 0);
 		return 1;
 	}
@@ -6981,8 +7018,8 @@ static int get_cdb_info_lba_4_len_4(struct scst_cmd *cmd,
 	cmd->lba = get_unaligned_be32(cmd->cdb + sdbops->info_lba_off);
 	cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
 	if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
-		PRINT_ERROR("Too big bufflen %d (op %x)", cmd->bufflen,
-			cmd->cdb[0]);
+		PRINT_ERROR("Too big bufflen %d (op %s)", cmd->bufflen,
+			scst_get_opcode_name(cmd));
 		scst_set_invalid_field_in_cdb(cmd, sdbops->info_len_off, 0);
 		return 1;
 	}
@@ -6996,8 +7033,8 @@ static int get_cdb_info_lba_8_len_4(struct scst_cmd *cmd,
 	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
 	cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
 	if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
-		PRINT_ERROR("Too big bufflen %d (op %x)", cmd->bufflen,
-			cmd->cdb[0]);
+		PRINT_ERROR("Too big bufflen %d (op %s)", cmd->bufflen,
+			scst_get_opcode_name(cmd));
 		scst_set_invalid_field_in_cdb(cmd, sdbops->info_len_off, 0);
 		return 1;
 	}
@@ -8587,15 +8624,15 @@ bool __scst_check_blocked_dev(struct scst_cmd *cmd)
 
 	if (dev->block_count > 0) {
 		TRACE_BLOCK("Delaying cmd %p due to blocking "
-			"(tag %llu, op %x, dev %s)", cmd,
-			(long long unsigned int)cmd->tag, cmd->cdb[0],
-			dev->virt_name);
+			"(tag %llu, op %s, dev %s)", cmd,
+			(long long unsigned int)cmd->tag,
+			scst_get_opcode_name(cmd), dev->virt_name);
 		goto out_block;
 	} else if ((cmd->op_flags & SCST_STRICTLY_SERIALIZED) == SCST_STRICTLY_SERIALIZED) {
-		TRACE_BLOCK("cmd %p (tag %llu, op %x): blocking further "
+		TRACE_BLOCK("cmd %p (tag %llu, op %s): blocking further "
 			"cmds on dev %s due to strict serialization", cmd,
-			(long long unsigned int)cmd->tag, cmd->cdb[0],
-			dev->virt_name);
+			(long long unsigned int)cmd->tag,
+			scst_get_opcode_name(cmd), dev->virt_name);
 		scst_block_dev(dev);
 		if (dev->on_dev_cmd_count > 1) {
 			TRACE_BLOCK("Delaying strictly serialized cmd %p "
@@ -8608,9 +8645,9 @@ bool __scst_check_blocked_dev(struct scst_cmd *cmd)
 			cmd->unblock_dev = 1;
 	} else if ((dev->dev_double_ua_possible) ||
 		   ((cmd->op_flags & SCST_SERIALIZED) != 0)) {
-		TRACE_BLOCK("cmd %p (tag %llu, op %x): blocking further cmds "
+		TRACE_BLOCK("cmd %p (tag %llu, op %s): blocking further cmds "
 			"on dev %s due to %s", cmd, (long long unsigned int)cmd->tag,
-			cmd->cdb[0], dev->virt_name,
+			scst_get_opcode_name(cmd), dev->virt_name,
 			dev->dev_double_ua_possible ? "possible double reset UA" :
 						      "serialized cmd");
 		scst_block_dev(dev);
@@ -8786,9 +8823,8 @@ int scst_obtain_device_parameters(struct scst_device *dev,
 			 */
 			if (scst_sense_valid(sense_buffer)) {
 #endif
-				PRINT_BUFF_FLAG(TRACE_SCSI, "Returned sense "
-					"data", sense_buffer,
-					sizeof(sense_buffer));
+				PRINT_BUFF_FLAG(TRACE_SCSI, "MODE SENSE returned "
+					"sense", sense_buffer, sizeof(sense_buffer));
 				if (scst_analyze_sense(sense_buffer,
 						sizeof(sense_buffer),
 						SCST_SENSE_KEY_VALID,
@@ -8809,8 +8845,6 @@ int scst_obtain_device_parameters(struct scst_device *dev,
 				PRINT_INFO("Internal MODE SENSE to "
 					"device %s failed: %x",
 					dev->virt_name, rc);
-				PRINT_BUFF_FLAG(TRACE_SCSI, "MODE SENSE sense",
-					sense_buffer, sizeof(sense_buffer));
 				switch (host_byte(rc)) {
 				case DID_RESET:
 				case DID_ABORT:

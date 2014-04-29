@@ -1370,8 +1370,8 @@ out_process:
 	return res;
 
 out_inval:
-	PRINT_ERROR("Invalid parse_reply parameters (LUN %lld, op %x, cmd %p)",
-		(long long unsigned int)cmd->lun, cmd->cdb[0], cmd);
+	PRINT_ERROR("Invalid parse_reply parameters (LUN %lld, op %s, cmd %p)",
+		(long long unsigned int)cmd->lun, scst_get_opcode_name(cmd), cmd);
 	PRINT_BUFFER("Invalid parse_reply", reply, sizeof(*reply));
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 	res = -EINVAL;
@@ -1556,8 +1556,8 @@ out:
 	return res;
 
 out_inval:
-	PRINT_ERROR("Invalid exec_reply parameters (LUN %lld, op %x, cmd %p)",
-		(long long unsigned int)cmd->lun, cmd->cdb[0], cmd);
+	PRINT_ERROR("Invalid exec_reply parameters (LUN %lld, op %s, cmd %p)",
+		(long long unsigned int)cmd->lun, scst_get_opcode_name(cmd), cmd);
 	PRINT_BUFFER("Invalid exec_reply", reply, sizeof(*reply));
 
 out_hwerr:

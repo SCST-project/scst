@@ -2286,8 +2286,9 @@ bool scst_pr_crh_case(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	TRACE_DBG("Test if there is a CRH case for command %s (0x%x) from "
-		"%s", cmd->op_name, cmd->cdb[0], cmd->sess->initiator_name);
+	TRACE_DBG("Test if there is a CRH case for command %s (%s) from "
+		"%s", cmd->op_name, scst_get_opcode_name(cmd),
+		cmd->sess->initiator_name);
 
 	if (!dev->pr_is_set) {
 		TRACE_PR("%s", "PR not set");
@@ -2322,12 +2323,12 @@ bool scst_pr_crh_case(struct scst_cmd *cmd)
 	}
 
 	if (!allowed)
-		TRACE_PR("Command %s (0x%x) from %s rejected due to not CRH "
-			"reservation", cmd->op_name, cmd->cdb[0],
+		TRACE_PR("Command %s (%s) from %s rejected due to not CRH "
+			"reservation", cmd->op_name, scst_get_opcode_name(cmd),
 			cmd->sess->initiator_name);
 	else
-		TRACE_DBG("Command %s (0x%x) from %s is allowed to execute "
-			"due to CRH", cmd->op_name, cmd->cdb[0],
+		TRACE_DBG("Command %s (%s) from %s is allowed to execute "
+			"due to CRH", cmd->op_name, scst_get_opcode_name(cmd),
 			cmd->sess->initiator_name);
 
 out:
@@ -2349,8 +2350,8 @@ bool scst_pr_is_cmd_allowed(struct scst_cmd *cmd)
 
 	scst_pr_read_lock(dev);
 
-	TRACE_DBG("Testing if command %s (0x%x) from %s allowed to execute",
-		cmd->op_name, cmd->cdb[0], cmd->sess->initiator_name);
+	TRACE_DBG("Testing if command %s (%s) from %s allowed to execute",
+		cmd->op_name, scst_get_opcode_name(cmd), cmd->sess->initiator_name);
 
 	/* Recheck, because it can change while we were waiting for the lock */
 	if (unlikely(!dev->pr_is_set)) {
@@ -2399,12 +2400,13 @@ bool scst_pr_is_cmd_allowed(struct scst_cmd *cmd)
 	}
 
 	if (!allowed)
-		TRACE_PR("Command %s (0x%x) from %s rejected due "
-			"to PR", cmd->op_name, cmd->cdb[0],
+		TRACE_PR("Command %s (%s) from %s rejected due "
+			"to PR", cmd->op_name, scst_get_opcode_name(cmd),
 			cmd->sess->initiator_name);
 	else
 		TRACE_DBG("Command %s (0x%x) from %s is allowed to execute",
-			cmd->op_name, cmd->cdb[0], cmd->sess->initiator_name);
+			cmd->op_name, scst_get_opcode_name(cmd),
+			cmd->sess->initiator_name);
 
 out_unlock:
 	scst_pr_read_unlock(dev);

@@ -1695,7 +1695,7 @@ out_put:
 
 static enum compl_status_e vdisk_invalid_opcode(struct vdisk_cmd_params *p)
 {
-	TRACE_DBG("Invalid opcode %d", p->cmd->cdb[0]);
+	TRACE_DBG("Invalid opcode %s", scst_get_opcode_name(p->cmd));
 	return INVALID_OPCODE;
 }
 
@@ -2174,9 +2174,8 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	if (unlikely(!(cmd->op_flags & SCST_INFO_VALID))) {
-		TRACE(TRACE_MINOR, "Unknown opcode 0x%02x", cmd->cdb[0]);
-		scst_set_cmd_error(cmd,
-				   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+		TRACE(TRACE_MINOR, "Unknown opcode %s", scst_get_opcode_name(cmd));
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		res = false;
 		goto out;
 	}
@@ -2190,10 +2189,12 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 
 	switch (cmd->queue_type) {
 	case SCST_CMD_QUEUE_ORDERED:
-		TRACE(TRACE_ORDER, "ORDERED cmd %p (op %x)", cmd, cmd->cdb[0]);
+		TRACE(TRACE_ORDER, "ORDERED cmd %p (op %s)", cmd,
+			scst_get_opcode_name(cmd));
 		break;
 	case SCST_CMD_QUEUE_HEAD_OF_QUEUE:
-		TRACE(TRACE_ORDER, "HQ cmd %p (op %x)", cmd, cmd->cdb[0]);
+		TRACE(TRACE_ORDER, "HQ cmd %p (op %s)", cmd,
+			scst_get_opcode_name(cmd));
 		break;
 	default:
 		break;
@@ -2770,7 +2771,7 @@ out_thr:
 	return res;
 
 out_invalid_opcode:
-	TRACE_DBG("Invalid opcode 0x%x", opcode);
+	TRACE_DBG("Invalid opcode %s", scst_get_opcode_name(cmd));
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 	goto out_compl;
 }

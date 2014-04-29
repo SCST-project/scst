@@ -2623,16 +2623,16 @@ static int q2t_pre_xmit_response(struct q2t_cmd *cmd,
 		if (unlikely(scst_get_resid(scst_cmd, &prm->residual, NULL))) {
 			if (prm->residual > 0) {
 				TRACE_DBG("Residual underflow: %d (tag %lld, "
-					"op %x, bufflen %d, rq_result %x)",
+					"op %s, bufflen %d, rq_result %x)",
 					prm->residual, scst_cmd->tag,
-					scst_cmd->cdb[0], cmd->bufflen,
+					scst_get_opcode_name(scst_cmd), cmd->bufflen,
 					prm->rq_result);
 				prm->rq_result |= SS_RESIDUAL_UNDER;
 			} else if (prm->residual < 0) {
 				TRACE_DBG("Residual overflow: %d (tag %lld, "
-					"op %x, bufflen %d, rq_result %x)",
+					"op %s, bufflen %d, rq_result %x)",
 					prm->residual, scst_cmd->tag,
-					scst_cmd->cdb[0], cmd->bufflen,
+					scst_get_opcode_name(scst_cmd), cmd->bufflen,
 					prm->rq_result);
 				prm->rq_result |= SS_RESIDUAL_OVER;
 				prm->residual = -prm->residual;
@@ -3591,18 +3591,18 @@ static void q2t_do_ctio_completion(scsi_qla_host_t *ha, uint32_t handle,
 			TRACE(TRACE_MINOR_AND_MGMT_DBG,
 				"qla2x00t(%ld): CTIO with "
 				"status %#x received, state %x, scst_cmd %p, "
-				"op %x (LIP_RESET=e, ABORTED=2, TARGET_RESET=17, "
+				"op %s (LIP_RESET=e, ABORTED=2, TARGET_RESET=17, "
 				"TIMEOUT=b, INVALID_RX_ID=8)", ha->instance,
-				status, cmd->state, scst_cmd, scst_cmd->cdb[0]);
+				status, cmd->state, scst_cmd, scst_get_opcode_name(scst_cmd));
 			break;
 
 		case CTIO_PORT_LOGGED_OUT:
 		case CTIO_PORT_UNAVAILABLE:
 			PRINT_INFO("qla2x00t(%ld): CTIO with PORT LOGGED "
 				"OUT (29) or PORT UNAVAILABLE (28) status %x "
-				"received (state %x, scst_cmd %p, op %x)",
+				"received (state %x, scst_cmd %p, op %s)",
 				ha->instance, status, cmd->state, scst_cmd,
-				scst_cmd->cdb[0]);
+				scst_get_opcode_name(scst_cmd));
 			break;
 
 		case CTIO_SRR_RECEIVED:
@@ -3613,9 +3613,9 @@ static void q2t_do_ctio_completion(scsi_qla_host_t *ha, uint32_t handle,
 
 		default:
 			PRINT_ERROR("qla2x00t(%ld): CTIO with error status "
-				"0x%x received (state %x, scst_cmd %p, op %x)",
+				"0x%x received (state %x, scst_cmd %p, op %s)",
 				ha->instance, status, cmd->state, scst_cmd,
-				scst_cmd->cdb[0]);
+				scst_get_opcode_name(scst_cmd));
 			break;
 		}
 
@@ -4654,8 +4654,8 @@ restart:
 
 		TRACE_MGMT_DBG("SRR cmd %p (scst_cmd %p, tag %d, op %x), "
 			"sg_cnt=%d, offset=%d", cmd, &cmd->scst_cmd,
-			cmd->tag, cmd->scst_cmd.cdb[0], cmd->sg_cnt,
-			cmd->offset);
+			cmd->tag, scst_get_opcode_name(&cmd->scst_cmd),
+			cmd->sg_cnt, cmd->offset);
 
 		if (IS_FWI2_CAPABLE(ha))
 			q24_handle_srr(ha, sctio, imm);
