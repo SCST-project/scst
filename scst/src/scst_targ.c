@@ -3595,23 +3595,6 @@ static int scst_pre_dev_done(struct scst_cmd *cmd)
 		TRACE(TRACE_SCSI, "cmd %p not succeeded with status %x",
 			cmd, cmd->status);
 
-		if ((cmd->cdb[0] == RESERVE) || (cmd->cdb[0] == RESERVE_10)) {
-			struct scst_device *dev = cmd->dev;
-
-			if (scst_is_reservation_holder(dev, cmd->sess)) {
-				TRACE(TRACE_SCSI, "RESERVE failed lun=%lld, "
-					"status=%x",
-					(long long unsigned int)cmd->lun,
-					cmd->status);
-				PRINT_BUFF_FLAG(TRACE_SCSI, "Sense", cmd->sense,
-					cmd->sense_valid_len);
-
-				spin_lock_bh(&dev->dev_lock);
-				scst_clear_dev_reservation(dev);
-				spin_unlock_bh(&dev->dev_lock);
-			}
-		}
-
 		/* Check for MODE PARAMETERS CHANGED UA */
 		if ((cmd->dev->scsi_dev != NULL) &&
 		    (cmd->status == SAM_STAT_CHECK_CONDITION) &&
