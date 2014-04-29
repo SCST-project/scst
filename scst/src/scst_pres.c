@@ -2404,7 +2404,7 @@ bool scst_pr_is_cmd_allowed(struct scst_cmd *cmd)
 			"to PR", cmd->op_name, scst_get_opcode_name(cmd),
 			cmd->sess->initiator_name);
 	else
-		TRACE_DBG("Command %s (0x%x) from %s is allowed to execute",
+		TRACE_DBG("Command %s (%s) from %s is allowed to execute",
 			cmd->op_name, scst_get_opcode_name(cmd),
 			cmd->sess->initiator_name);
 
