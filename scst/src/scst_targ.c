@@ -2533,8 +2533,8 @@ static int scst_persistent_reserve_in_local(struct scst_cmd *cmd)
 
 	action = cmd->cdb[1] & 0x1f;
 
-	TRACE(TRACE_SCSI, "PR action %x for '%s' (LUN %llx) from '%s'", action,
-	    dev->virt_name, tgt_dev->lun, session->initiator_name);
+	TRACE(TRACE_SCSI, "PR IN action %x for '%s' (LUN %llx) from '%s'",
+		action, dev->virt_name, tgt_dev->lun, session->initiator_name);
 
 	switch (action) {
 	case PR_READ_KEYS:
@@ -2605,8 +2605,8 @@ static int scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 
 	action = cmd->cdb[1] & 0x1f;
 
-	TRACE(TRACE_SCSI, "PR action %x for '%s' (LUN %llx) from '%s'", action,
-	    dev->virt_name, tgt_dev->lun, session->initiator_name);
+	TRACE(TRACE_SCSI, "PR OUT action %x for '%s' (LUN %llx) from '%s'",
+		action, dev->virt_name, tgt_dev->lun, session->initiator_name);
 
 	if (scst_dev_reserved(dev)) {
 		TRACE_PR("PR command rejected, because device %s holds regular "
