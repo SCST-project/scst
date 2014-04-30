@@ -3215,17 +3215,18 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 	if (cmd->cdb[1] & EVPD) {
 		if (0 == cmd->cdb[2]) {
 			/* supported vital product data pages */
-			buf[3] = 3;
+			buf[3] = 4;
 			buf[4] = 0x0; /* this page */
 			buf[5] = 0x80; /* unit serial number */
 			buf[6] = 0x83; /* device identification */
+			buf[7] = 0x86; /* extended inquiry */
 			if (dev->type == TYPE_DISK) {
 				buf[3] += 2;
-				buf[7] = 0xB0; /* block limits */
-				buf[8] = 0xB1; /* block limits */
+				buf[8] = 0xB0; /* block limits */
+				buf[9] = 0xB1; /* block device charachteristics */
 				if (virt_dev->thin_provisioned) {
 					buf[3] += 1;
-					buf[9] = 0xB2; /* thin provisioning */
+					buf[10] = 0xB2; /* thin provisioning */
 				}
 			}
 			resp_len = buf[3] + 4;
@@ -3336,6 +3337,14 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 			resp_len = num;
 			put_unaligned_be16(resp_len, &buf[2]);
 			resp_len += 4;
+		}  else if (0x86 == cmd->cdb[2]) {
+			/* Extended INQUIRY */
+			buf[1] = 0x86;
+			buf[3] = 0x3C;
+			buf[5] = 7; /* HEADSUP=1, ORDSUP=1, SIMPSUP=1 */
+			buf[6] = (virt_dev->wt_flag || virt_dev->nv_cache) ? 0 : 1; /* V_SUP */
+			buf[7] = 1; /* LUICLR=1 */
+			resp_len = buf[3] + 4;
 		} else if ((0xB0 == cmd->cdb[2]) && (dev->type == TYPE_DISK)) {
 			/* Block Limits */
 			int max_transfer;
