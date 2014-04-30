@@ -3337,7 +3337,7 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 			resp_len = num;
 			put_unaligned_be16(resp_len, &buf[2]);
 			resp_len += 4;
-		}  else if (0x86 == cmd->cdb[2]) {
+		} else if (0x86 == cmd->cdb[2]) {
 			/* Extended INQUIRY */
 			buf[1] = 0x86;
 			buf[3] = 0x3C;
