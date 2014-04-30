@@ -2754,11 +2754,11 @@ static const char *inet_ntop(const void *sa, char *dst, unsigned size)
 	switch (((struct sockaddr *)sa)->sa_family) {
 	case AF_INET:
 		snprintf(dst, size, "%pI4",
-			 &((struct sockaddr_in*)sa)->sin_addr);
+			 &((struct sockaddr_in *)sa)->sin_addr);
 		break;
 	case AF_INET6:
 		snprintf(dst, size, "%pI6",
-			 &((struct sockaddr_in6*)sa)->sin6_addr);
+			 &((struct sockaddr_in6 *)sa)->sin6_addr);
 		break;
 	default:
 		snprintf(dst, size, "???");
