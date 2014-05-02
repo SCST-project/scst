@@ -2213,14 +2213,18 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 
 	if (unlikely((loff + data_len) > virt_dev->file_size) &&
 	    (!(cmd->op_flags & SCST_LBA_NOT_VALID))) {
-		PRINT_INFO("Access beyond the end of device %s "
-			"(%lld of %lld, data len %lld)",
-			   virt_dev->name,
-			   (long long unsigned int)loff,
-			   (long long unsigned int)virt_dev->file_size,
-			   (long long unsigned int)data_len);
-		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
+		if (virt_dev->cdrom_empty) {
+			TRACE_DBG("%s", "CDROM empty");
+			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_no_medium));
+		} else {
+			PRINT_INFO("Access beyond the end of device %s "
+				"(%lld of %lld, data len %lld)", virt_dev->name,
+				(long long unsigned int)loff,
+				(long long unsigned int)virt_dev->file_size,
+				(long long unsigned int)data_len);
+			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
 					scst_sense_block_out_range_error));
+		}
 		res = false;
 		goto out;
 	}
