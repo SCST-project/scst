@@ -3883,7 +3883,7 @@ static int scst_pre_xmit_response1(struct scst_cmd *cmd)
 
 #ifdef CONFIG_SCST_DEBUG_TM
 	if (cmd->tm_dbg_delayed &&
-			!test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)) {
+	    !test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)) {
 		if (scst_cmd_atomic(cmd)) {
 			TRACE_MGMT_DBG("%s",
 				"DEBUG_TM delayed cmd needs a thread");
@@ -6035,7 +6035,7 @@ static void scst_do_nexus_loss_sess(struct scst_mgmt_cmd *mcmd)
 
 /* Returns 0 if the command processing should be continued, <0 otherwise */
 static int scst_abort_all_nexus_loss_sess(struct scst_mgmt_cmd *mcmd,
-	int nexus_loss)
+	int nexus_loss_unreg_sess)
 {
 	int res;
 	int i;
@@ -6044,8 +6044,8 @@ static int scst_abort_all_nexus_loss_sess(struct scst_mgmt_cmd *mcmd,
 
 	TRACE_ENTRY();
 
-	if (nexus_loss) {
-		TRACE_MGMT_DBG("Nexus loss for sess %p (mcmd %p)",
+	if (nexus_loss_unreg_sess) {
+		TRACE_MGMT_DBG("Nexus loss or UNREG SESS for sess %p (mcmd %p)",
 			sess, mcmd);
 	} else {
 		TRACE_MGMT_DBG("Aborting all from sess %p (mcmd %p)",

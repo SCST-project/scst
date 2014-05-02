@@ -4652,7 +4652,7 @@ restart:
 		cmd->sg = scst_cmd_get_sg(&cmd->scst_cmd);
 		cmd->sg_cnt = scst_cmd_get_sg_cnt(&cmd->scst_cmd);
 
-		TRACE_MGMT_DBG("SRR cmd %p (scst_cmd %p, tag %d, op %x), "
+		TRACE_MGMT_DBG("SRR cmd %p (scst_cmd %p, tag %d, op %s), "
 			"sg_cnt=%d, offset=%d", cmd, &cmd->scst_cmd,
 			cmd->tag, scst_get_opcode_name(&cmd->scst_cmd),
 			cmd->sg_cnt, cmd->offset);
