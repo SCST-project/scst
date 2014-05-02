@@ -5414,8 +5414,8 @@ static ssize_t scst_tg_preferred_show(struct kobject *kobj,
 	struct scst_target_group *tg;
 
 	tg = container_of(kobj, struct scst_target_group, kobj);
-	return scnprintf(buf, PAGE_SIZE, "%u\n%s",
-			 tg->preferred, SCST_SYSFS_KEY_MARK "\n");
+	return scnprintf(buf, PAGE_SIZE, "%u\n%s", tg->preferred,
+			 tg->preferred ? SCST_SYSFS_KEY_MARK "\n" : "");
 }
 
 static int scst_tg_preferred_store_work_fn(struct scst_sysfs_work_item *w)
