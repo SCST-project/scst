@@ -1414,9 +1414,10 @@ static void cmnd_prepare_get_rejected_immed_data(struct iscsi_cmnd *cmnd)
 
 	TRACE_DBG_FLAG(iscsi_get_flow_ctrl_or_mgmt_dbg_log_flag(cmnd),
 		"Skipping (cmnd %p, ITT %x, op %x, cmd op %x, "
-		"datasize %u, scst_cmd %p, scst state %d)", cmnd,
+		"datasize %u, scst_cmd %p, scst state %d, status %d)", cmnd,
 		cmnd->pdu.bhs.itt, cmnd_opcode(cmnd), cmnd_hdr(cmnd)->scb[0],
-		cmnd->pdu.datasize, cmnd->scst_cmd, cmnd->scst_state);
+		cmnd->pdu.datasize, cmnd->scst_cmd, cmnd->scst_state,
+		cmnd->scst_cmd ? cmnd->scst_cmd->status : -1);
 
 	iscsi_extracheck_is_rd_thread(conn);
 

@@ -8945,11 +8945,10 @@ static void scst_abort_cmds_tgt_dev(struct scst_tgt_dev *tgt_dev,
 
 	TRACE_ENTRY();
 
-	TRACE_MGMT_DBG("Aborting commands for tgt_dev %p (exclude_cmd %p)",
-		tgt_dev, exclude_cmd);
+	TRACE_MGMT_DBG("QErr: aborting commands for tgt_dev %p "
+		"(exclude_cmd %p), if there are any", tgt_dev, exclude_cmd);
 
-	/* IRQs supposed to be already locked */
-	spin_lock(&sess->sess_list_lock);
+	spin_lock_irq(&sess->sess_list_lock);
 
 	list_for_each_entry(cmd, &sess->sess_cmd_list, sess_cmd_list_entry) {
 		if (cmd == exclude_cmd)
@@ -8960,7 +8959,7 @@ static void scst_abort_cmds_tgt_dev(struct scst_tgt_dev *tgt_dev,
 			scst_abort_cmd(cmd, NULL, (tgt_dev != exclude_cmd->tgt_dev), 0);
 		}
 	}
-	spin_unlock(&sess->sess_list_lock);
+	spin_unlock_irq(&sess->sess_list_lock);
 
 	TRACE_EXIT();
 	return;
@@ -8977,8 +8976,8 @@ static void scst_abort_cmds_dev(struct scst_device *dev,
 
 	TRACE_ENTRY();
 
-	TRACE_MGMT_DBG("Aborting commands for dev %p (exclude_cmd %p, set_ua %d)",
-		dev, exclude_cmd, set_ua);
+	TRACE_MGMT_DBG("QErr: Aborting commands for dev %p (exclude_cmd %p, "
+		"set_ua %d), if there are any", dev, exclude_cmd, set_ua);
 
 	if (set_ua)
 		sl = scst_set_sense(sense_buffer, sizeof(sense_buffer), dev->d_sense,

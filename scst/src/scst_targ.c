@@ -874,13 +874,13 @@ set_res:
 	TRACE(TRACE_SCSI, "op_name <%s> (cmd %p), direction=%d "
 		"(expected %d, set %s), lba=%lld, bufflen=%d, data len %lld, "
 		"out_bufflen=%d, (expected len %d, out expected len %d), "
-		"flags=0x%x, internal %d", cmd->op_name, cmd,
+		"flags=0x%x, internal %d, naca %d", cmd->op_name, cmd,
 		cmd->data_direction, cmd->expected_data_direction,
 		scst_cmd_is_expected_set(cmd) ? "yes" : "no",
 		(unsigned long long)cmd->lba,
 		cmd->bufflen, (long long)cmd->data_len, cmd->out_bufflen,
 		cmd->expected_transfer_len, cmd->expected_out_transfer_len,
-		cmd->op_flags, cmd->internal);
+		cmd->op_flags, cmd->internal, cmd->cmd_naca);
 
 #ifdef CONFIG_SCST_EXTRACHECKS
 	switch (state) {
@@ -995,9 +995,7 @@ out:
 			TRACE_MGMT_DBG("Black hole: aborting cmd %p (op %s, "
 				"initiator %s)", cmd, scst_get_opcode_name(cmd),
 				sess->initiator_name);
-			spin_lock_irq(&sess->sess_list_lock);
 			scst_abort_cmd(cmd, NULL, false, false);
-			spin_unlock_irq(&sess->sess_list_lock);
 		}
 	}
 
@@ -5266,8 +5264,8 @@ static inline int scst_is_strict_mgmt_fn(int mgmt_fn)
 }
 
 /*
- * Must be called under sess_list_lock to sync with finished flag assignment in
- * scst_finish_cmd()
+ * If mcmd != NULL, must be called under sess_list_lock to sync with "finished"
+ * flag assignment in scst_finish_cmd()
  */
 void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 	bool other_ini, bool call_dev_task_mgmt_fn_received)
