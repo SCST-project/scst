@@ -4608,6 +4608,15 @@ static inline void put_unaligned_be24(const uint32_t v, uint8_t *const p)
 	p[2] = v >>  0;
 }
 
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+const char *scst_get_opcode_name(struct scst_cmd *cmd);
+#else
+static inline const char *scst_get_opcode_name(struct scst_cmd *cmd)
+{
+	return cmd->op_name;
+}
+#endif
+
 #ifndef CONFIG_SCST_PROC
 
 /*
@@ -4641,15 +4650,6 @@ int scst_wait_info_completion(struct scst_sysfs_user_info *info,
 	unsigned long timeout);
 
 unsigned int scst_get_setup_id(void);
-
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-const char *scst_get_opcode_name(struct scst_cmd *cmd);
-#else
-static inline const char *scst_get_opcode_name(struct scst_cmd *cmd)
-{
-	return cmd->op_name;
-}
-#endif
 
 
 /*
