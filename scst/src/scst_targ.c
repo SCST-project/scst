@@ -2249,7 +2249,7 @@ static int scst_report_supported_opcodes(struct scst_cmd *cmd)
 
 	switch (options) {
 	case 0: /* all */
-		put_unaligned_be32(buf_len - 3, &buf[0]);
+		put_unaligned_be32(buf_len - 4, &buf[0]);
 		offs = 4;
 		for (i = 0; i < supp_opcodes_cnt; i++) {
 			op = supp_opcodes[i];
