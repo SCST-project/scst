@@ -397,7 +397,12 @@ int scst_proc_log_entry_write(struct file *file, const char __user *buf,
 
 		list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
 			if (strcmp(dev->virt_name, p) == 0) {
-				scst_pr_dump_prs(dev, true);
+				if (mutex_lock_interruptible(&dev->dev_pr_mutex) == 0) {
+					scst_pr_dump_prs(dev, true);
+					mutex_unlock(&dev->dev_pr_mutex);
+				} else {
+					res = -EINTR;
+				}
 				goto out_up;
 			}
 		}

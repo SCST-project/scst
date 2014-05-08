@@ -2762,15 +2762,23 @@ static ssize_t scst_dev_sysfs_dump_prs(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count)
 {
 	struct scst_device *dev;
+	int res;
 
 	TRACE_ENTRY();
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
+	res = mutex_lock_interruptible(&dev->dev_pr_mutex);
+	if (res != 0)
+		goto out;
 	scst_pr_dump_prs(dev, true);
+	mutex_unlock(&dev->dev_pr_mutex);
 
-	TRACE_EXIT_RES(count);
-	return count;
+	res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 static struct kobj_attribute dev_dump_prs_attr =
