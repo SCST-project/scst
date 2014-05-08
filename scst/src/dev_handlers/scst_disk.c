@@ -406,8 +406,9 @@ static int disk_exec(struct scst_cmd *cmd)
 	if (unlikely((cmd->bufflen >> block_shift) > max_sectors)) {
 		if ((cmd->out_bufflen >> block_shift) > max_sectors) {
 			PRINT_ERROR("Too limited max_sectors %d for "
-				"bidirectional cmd %x (out_bufflen %d)",
-				max_sectors, cmd->cdb[0], cmd->out_bufflen);
+				"bidirectional cmd %p (op %s, out_bufflen %d)",
+				max_sectors, cmd, scst_get_opcode_name(cmd),
+				cmd->out_bufflen);
 			/* Let lower level handle it */
 			res = SCST_EXEC_NOT_COMPLETED;
 			goto out;

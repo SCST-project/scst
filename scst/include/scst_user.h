@@ -88,7 +88,9 @@ struct scst_user_opt {
 
 	/* SCSI control mode page parameters, see SPC */
 	uint8_t tst;
+	uint8_t tmf_only;
 	uint8_t queue_alg;
+	uint8_t qerr;
 	uint8_t tas;
 	uint8_t swp;
 	uint8_t d_sense;

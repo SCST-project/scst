@@ -375,6 +375,8 @@ int scst_set_cmd_error_sense(struct scst_cmd *cmd, uint8_t *sense,
 	unsigned int len);
 void scst_store_sense(struct scst_cmd *cmd);
 
+int scst_process_check_condition(struct scst_cmd *cmd);
+
 int scst_assign_dev_handler(struct scst_device *dev,
 	struct scst_dev_type *handler);
 
@@ -770,16 +772,11 @@ void scst_vfs_unlink_and_put(struct nameidata *nd);
 void scst_vfs_unlink_and_put(struct path *path);
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
-void scst_path_put(struct nameidata *nd);
-#endif
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
 int scst_vfs_fsync(struct file *file, loff_t loff, loff_t len);
 #endif
 
 int scst_copy_file(const char *src, const char *dest);
-int scst_remove_file(const char *name);
 
 #ifdef CONFIG_SCST_DEBUG_TM
 extern void tm_dbg_check_released_cmds(void);

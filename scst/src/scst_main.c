@@ -960,8 +960,8 @@ int scst_suspend_activity(unsigned long timeout)
 	set_bit(SCST_FLAG_SUSPENDED, &scst_flags);
 	/*
 	 * Assignment of SCST_FLAG_SUSPENDING and SCST_FLAG_SUSPENDED must be
-	 * ordered with cpu_cmd_count in scst_get(). Otherwise lockless logic in
-	 * scst_translate_lun() and scst_mgmt_translate_lun() won't work.
+	 * ordered with cpu_cmd_count in scst_get(). Otherwise, lockless logic
+	 * of scst_get() users won't work.
 	 */
 	smp_mb__after_set_bit();
 

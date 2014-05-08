@@ -225,6 +225,8 @@ static inline bool list_entry_in_list(const struct list_head *entry)
  ** !! as well!
  *************************************************************/
 enum {
+	/** Active states **/
+
 	/* Dev handler's parse() is going to be called */
 	SCST_CMD_STATE_PARSE = 0,
 
@@ -258,6 +260,12 @@ enum {
 	/* Checks before target driver's xmit_response() is called */
 	SCST_CMD_STATE_PRE_XMIT_RESP,
 
+	/* Checks 1 before target driver's xmit_response() is called */
+	SCST_CMD_STATE_PRE_XMIT_RESP1,
+
+	/* Checks 2 before target driver's xmit_response() is called */
+	SCST_CMD_STATE_PRE_XMIT_RESP2,
+
 	/* Target driver's xmit_response() is going to be called */
 	SCST_CMD_STATE_XMIT_RESP,
 
@@ -268,6 +276,8 @@ enum {
 	SCST_CMD_STATE_FINISHED_INTERNAL,
 
 	SCST_CMD_STATE_LAST_ACTIVE = (SCST_CMD_STATE_FINISHED_INTERNAL+100),
+
+	/** Passive states **/
 
 	/* A cmd is created, but scst_cmd_init_done() not called */
 	SCST_CMD_STATE_INIT_WAIT,
@@ -568,7 +578,11 @@ enum scst_exec_context {
 /* Set if the cmd is aborted by other initiator */
 #define SCST_CMD_ABORTED_OTHER		1
 
-/* Set if no response should be sent to the target about this cmd */
+/*
+ * Set if no response should be sent to the target about this cmd.
+ * Must be set together with SCST_CMD_ABORTED for better processing
+ * in scst_pre_xmit_response2().
+ */
 #define SCST_CMD_NO_RESP		2
 
 /* Set if the cmd is dead and can be destroyed at any time */
@@ -2078,8 +2092,8 @@ struct scst_cmd {
 
 	unsigned long start_time;
 
-	/* List entry for tgt_dev's SN related lists */
-	struct list_head sn_cmd_list_entry;
+	/* List entry for tgt_dev's deferred (SN, etc.) lists */
+	struct list_head deferred_cmd_list_entry;
 
 	/* Cmd's serial number, used to execute cmd's in order of arrival */
 	unsigned int sn;
@@ -2243,6 +2257,10 @@ struct scst_cmd {
 	void *cmd_data_descriptors;
 	int cmd_data_descriptors_cnt;
 
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+	char not_parsed_op_name[8];
+#endif
+
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 	uint64_t start, curr_start, parse_time, alloc_buf_time;
 	uint64_t restart_waiting_time, rdy_to_xfer_time;
@@ -2311,6 +2329,7 @@ struct scst_mgmt_cmd {
 	unsigned int needs_unblocking:1;
 	unsigned int lun_set:1;		/* set, if lun field is valid */
 	unsigned int cmd_sn_set:1;	/* set, if cmd_sn field is valid */
+	unsigned int scst_get_called:1;	/* set, if scst_get() was called */
 	/* Set if dev handler's task_mgmt_fn_received was called */
 	unsigned int task_mgmt_fn_received_called:1;
 	unsigned int mcmd_dropped:1; /* set if mcmd was dropped */
@@ -2403,20 +2422,51 @@ struct scst_device {
 
 	/*************************************************************
 	 ** Dev's control mode page related values. Updates serialized
-	 ** by scst_block_dev(). Modified independently to the above
-	 ** fields, hence the alignment.
+	 ** by device blocking. Since device blocking protects only
+	 ** commands on the execution stage, in all other read cases
+	 ** use ACCESS_ONCE(), if necessary. Modified independently
+	 ** to the above fields, hence the alignment.
 	 *************************************************************/
 
 	unsigned int queue_alg:4 __aligned(sizeof(long));
 	unsigned int tst:3;
+	unsigned int qerr:2;
+	unsigned int tmf_only:1;
 	unsigned int tas:1;
 	unsigned int swp:1;
 	unsigned int d_sense:1;
 
+	/**
+	 ** Saved and default versions of them, which supported. TST is not
+	 ** among them, because it's hard to switch curr_order_data on the
+	 ** fly. To ensure that no commands lost, we need to flush the previous
+	 ** curr_order_data at first and with one being active command (MODE
+	 ** SELECT), we don't have facility for that at the moment. Suspending
+	 ** activities will hang waiting for the active MODE SELECT. ToDo.
+	 **/
+
+	unsigned int queue_alg_saved:4;
+	unsigned int queue_alg_default:4;
+
+	unsigned int tmf_only_saved:1;
+	unsigned int tmf_only_default:1;
+
+	unsigned int qerr_saved:2;
+	unsigned int qerr_default:2;
+
+	unsigned int tas_saved:1;
+	unsigned int tas_default:1;
+
+	unsigned int swp_saved:1;
+	unsigned int swp_default:1;
+
+	unsigned int d_sense_saved:1;
+	unsigned int d_sense_default:1;
+
 	/*
 	 * Set if device implements own ordered commands management. If not set
-	 * and queue_alg is SCST_CONTR_MODE_QUEUE_ALG_RESTRICTED_REORDER,
-	 * expected_sn will be incremented only after commands finished.
+	 * and queue_alg is SCST_QUEUE_ALG_0_RESTRICTED_REORDER, expected_sn
+	 * will be incremented only after commands finished.
 	 */
 	unsigned int has_own_order_mgmt:1;
 
@@ -2883,7 +2933,6 @@ struct scst_tg_tgt {
 	char			*name;
 	uint16_t		rel_tgt_id;
 };
-
 
 /*
  * Used to store per-session UNIT ATTENTIONs
@@ -4260,7 +4309,7 @@ static inline int scst_check_local_events(struct scst_cmd *cmd)
 	return __scst_check_local_events(cmd, true);
 }
 
-int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd);
+int scst_get_cmd_abnormal_done_state(struct scst_cmd *cmd);
 void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd);
 
 struct scst_trace_log {
@@ -4559,6 +4608,15 @@ static inline void put_unaligned_be24(const uint32_t v, uint8_t *const p)
 	p[2] = v >>  0;
 }
 
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+const char *scst_get_opcode_name(struct scst_cmd *cmd);
+#else
+static inline const char *scst_get_opcode_name(struct scst_cmd *cmd)
+{
+	return cmd->op_name;
+}
+#endif
+
 #ifndef CONFIG_SCST_PROC
 
 /*
@@ -4592,6 +4650,7 @@ int scst_wait_info_completion(struct scst_sysfs_user_info *info,
 	unsigned long timeout);
 
 unsigned int scst_get_setup_id(void);
+
 
 /*
  * Needed to avoid potential circular locking dependency between scst_mutex
@@ -4693,5 +4752,20 @@ void scst_write_same(struct scst_cmd *cmd);
 
 __be64 scst_pack_lun(const uint64_t lun, enum scst_lun_addr_method addr_method);
 uint64_t scst_unpack_lun(const uint8_t *lun, int len);
+
+int scst_save_global_mode_pages(const struct scst_device *dev,
+	uint8_t *buf, int size);
+int scst_restore_global_mode_pages(struct scst_device *dev, char *params,
+	char **last_param);
+
+int scst_read_file_transactional(const char *name, const char *name1,
+	const char *signature, int signature_len, uint8_t *buf, int size);
+int scst_write_file_transactional(const char *name, const char *name1,
+	const char *signature, int signature_len, const uint8_t *buf, int size);
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
+void scst_path_put(struct nameidata *nd);
+#endif
+int scst_remove_file(const char *name);
 
 #endif /* __SCST_H */

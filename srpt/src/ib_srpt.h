@@ -41,7 +41,6 @@
 #include <rdma/ib_verbs.h>
 #include <rdma/ib_sa.h>
 #include <rdma/ib_cm.h>
-#include <rdma/rdma_cm.h>
 #include <scsi/srp.h>
 #if defined(INSIDE_KERNEL_TREE)
 #include <scst/scst.h>
@@ -49,6 +48,14 @@
 #include <linux/version.h>
 #include <scst.h>
 #endif
+#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 == 5
+#define vlan_dev_vlan_id(dev) (panic("RHEL 5 misses vlan_dev_vlan_id()"),0)
+#endif
+#if defined(RHEL_MAJOR)
+#define __ethtool_get_settings(dev, cmd) (panic("RHEL misses __ethtool_get_settings()"),0)
+#endif
+#include <linux/rtnetlink.h>
+#include <rdma/rdma_cm.h>
 #include "ib_dm_mad.h"
 
 /*
@@ -139,7 +146,8 @@ enum {
 	LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 76)) &&		\
 	!(defined(RHEL_MAJOR) &&					\
 	(RHEL_MAJOR -0 > 6 ||						\
-	RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 >= 5))
+	RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 >= 5 ||			\
+	RHEL_MAJOR -0 == 5 && RHEL_MINOR -0 >= 9))
 /* See also patch "IB/core: Add GID change event" (commit 761d90ed4). */
 enum { IB_EVENT_GID_CHANGE = 18 };
 #endif
@@ -284,15 +292,17 @@ struct srpt_send_ioctx {
  * enum rdma_ch_state - SRP channel state.
  * @CH_CONNECTING:    QP is in RTR state; waiting for RTU.
  * @CH_LIVE:	      QP is in RTS state.
- * @CH_DISCONNECTING: DREQ has been received and waiting for DREP or DREQ has
- *                    been sent and waiting for DREP or channel is being closed
- *                    for another reason.
- * @CH_DISCONNECTED:  Last WQE has been received.
+ * @CH_DISCONNECTING: DREQ has been sent and waiting for DREP or DREQ has
+ *                    been received.
+ * @CH_DRAINING:      DREP has been received or waiting for DREP timed out
+ *                    and last work request has been queued.
+ * @CH_DISCONNECTED:  Last completion has been received.
  */
 enum rdma_ch_state {
 	CH_CONNECTING,
 	CH_LIVE,
 	CH_DISCONNECTING,
+	CH_DRAINING,
 	CH_DISCONNECTED,
 };
 

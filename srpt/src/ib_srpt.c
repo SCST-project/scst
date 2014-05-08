@@ -335,6 +335,8 @@ static const char *get_ch_state_name(enum rdma_ch_state s)
 		return "live";
 	case CH_DISCONNECTING:
 		return "disconnecting";
+	case CH_DRAINING:
+		return "draining";
 	case CH_DISCONNECTED:
 		return "disconnected";
 	}
@@ -2175,9 +2177,56 @@ static void srpt_destroy_ch_ib(struct srpt_rdma_ch *ch)
 	ib_destroy_cq(ch->cq);
 }
 
+/**
+ * srpt_close_ch() - Close an RDMA channel.
+ *
+ * Make sure all resources associated with the channel will be deallocated at
+ * an appropriate time.
+ *
+ * Returns true if and only if the channel state has been modified into
+ * CH_DRAINING.
+ */
+static bool srpt_close_ch(struct srpt_rdma_ch *ch)
+{
+	int ret;
+
+	if (!srpt_set_ch_state(ch, CH_DRAINING))
+		return false;
+
+	kref_get(&ch->kref);
+
+	ret = srpt_ch_qp_err(ch);
+	if (ret < 0)
+		PRINT_ERROR("%s: changing queue pair into error state"
+			    " failed: %d", ch->sess_name, ret);
+
+	ret = srpt_zerolength_write(ch);
+	if (ret < 0) {
+		PRINT_ERROR("%s: queuing zero-length write failed: %d",
+			    ch->sess_name, ret);
+		WARN_ON_ONCE(!srpt_set_ch_state(ch, CH_DISCONNECTED));
+	}
+
+	kref_put(&ch->kref, srpt_free_ch);
+
+	return true;
+}
+
+/*
+ * Change the channel state into CH_DISCONNECTING. If a channel has not yet
+ * reached the connected state, close it. If a channel is in the connected
+ * state, send a DREQ. If a DREQ has been received, send a DREP. Note: it is
+ * the responsibility of the caller to ensure that this function is not
+ * invoked concurrently with the code that accepts a connection. This means
+ * that this function must either be invoked from inside a CM callback
+ * function or that it must be invoked with the srpt_tgt.mutex held.
+ */
 static int srpt_disconnect_ch(struct srpt_rdma_ch *ch)
 {
 	int ret;
+
+	if (!srpt_set_ch_state(ch, CH_DISCONNECTING))
+		return -ENOTCONN;
 
 	if (ch->using_rdma_cm) {
 		ret = rdma_disconnect(ch->rdma_cm.cm_id);
@@ -2187,43 +2236,10 @@ static int srpt_disconnect_ch(struct srpt_rdma_ch *ch)
 			ret = ib_send_cm_drep(ch->ib_cm.cm_id, NULL, 0);
 	}
 
+	if (ret < 0 && srpt_close_ch(ch))
+		ret = 0;
+
 	return ret;
-}
-
-/**
- * srpt_close_ch() - Close an RDMA channel.
- *
- * Make sure all resources associated with the channel will be deallocated at
- * an appropriate time.
- *
- * Returns true if and only if the channel state has been modified from
- * CH_CONNECTING or CH_LIVE into CH_DISCONNECTING.
- */
-static bool srpt_close_ch(struct srpt_rdma_ch *ch)
-{
-	int ret;
-	bool was_live;
-
-	was_live = srpt_set_ch_state(ch, CH_DISCONNECTING);
-	if (was_live) {
-		kref_get(&ch->kref);
-
-		ret = srpt_ch_qp_err(ch);
-		if (ret < 0)
-			PRINT_ERROR("%s: changing queue pair into error state"
-				    " failed: %d", ch->sess_name, ret);
-
-		ret = srpt_zerolength_write(ch);
-		if (ret < 0) {
-			PRINT_ERROR("%s: queuing zero-length write failed: %d",
-				    ch->sess_name, ret);
-			WARN_ON_ONCE(!srpt_set_ch_state(ch, CH_DISCONNECTED));
-		}
-
-		kref_put(&ch->kref, srpt_free_ch);
-	}
-
-	return was_live;
 }
 
 static void __srpt_close_all_ch(struct srpt_tgt *srpt_tgt)
@@ -2354,7 +2370,8 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 			    struct ib_cm_id *ib_cm_id,
 			    struct rdma_cm_id *rdma_cm_id,
 			    u8 port_num, __be16 pkey,
-			    const struct srp_login_req *req)
+			    const struct srp_login_req *req,
+			    const char *src_addr)
 {
 	struct srpt_port *const sport = &sdev->port[port_num - 1];
 	const __be16 *const raw_port_gid = (__be16 *)sport->gid.raw;
@@ -2514,16 +2531,7 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 	}
 
 	if (one_target_per_port) {
-		snprintf(ch->sess_name, sizeof(ch->sess_name),
-			 "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x",
-			 be16_to_cpu(raw_port_gid[0]),
-			 be16_to_cpu(raw_port_gid[1]),
-			 be16_to_cpu(raw_port_gid[2]),
-			 be16_to_cpu(raw_port_gid[3]),
-			 be16_to_cpu(raw_port_gid[4]),
-			 be16_to_cpu(raw_port_gid[5]),
-			 be16_to_cpu(raw_port_gid[6]),
-			 be16_to_cpu(raw_port_gid[7]));
+		strlcpy(ch->sess_name, src_addr, sizeof(ch->sess_name));
 	} else if (use_port_guid_in_session_name) {
 		/*
 		 * If the kernel module parameter use_port_guid_in_session_name
@@ -2644,10 +2652,20 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 		rep_param->ib_cm.initiator_depth = 4;
 	}
 
-	if (ch->using_rdma_cm)
-		ret = rdma_accept(rdma_cm_id, &rep_param->rdma_cm);
-	else
-		ret = ib_send_cm_rep(ib_cm_id, &rep_param->ib_cm);
+	/*
+	 * Hold the srpt_tgt mutex while accepting a connection to avoid that
+	 * srpt_disconnect_ch() is invoked concurrently with this code.
+	 */
+	mutex_lock(&srpt_tgt->mutex);
+	if (srpt_tgt->enabled && ch->state == CH_CONNECTING) {
+		if (ch->using_rdma_cm)
+			ret = rdma_accept(rdma_cm_id, &rep_param->rdma_cm);
+		else
+			ret = ib_send_cm_rep(ib_cm_id, &rep_param->ib_cm);
+	} else {
+		ret = -EINVAL;
+	}
+	mutex_unlock(&srpt_tgt->mutex);
 
 	switch (ret) {
 	case 0:
@@ -2717,9 +2735,36 @@ static int srpt_ib_cm_req_recv(struct ib_cm_id *cm_id,
 			       struct ib_cm_req_event_param *param,
 			       void *private_data)
 {
+	__be16 *const raw_sgid = (__be16 *)param->primary_path->dgid.raw;
+	char sgid[40];
+
+	scnprintf(sgid, sizeof(sgid), "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x",
+		  be16_to_cpu(raw_sgid[0]), be16_to_cpu(raw_sgid[1]),
+		  be16_to_cpu(raw_sgid[2]), be16_to_cpu(raw_sgid[3]),
+		  be16_to_cpu(raw_sgid[4]), be16_to_cpu(raw_sgid[5]),
+		  be16_to_cpu(raw_sgid[6]), be16_to_cpu(raw_sgid[7]));
+
 	return srpt_cm_req_recv(cm_id->context, cm_id, NULL, param->port,
 				param->primary_path->pkey,
-				private_data);
+				private_data, sgid);
+}
+
+static const char *inet_ntop(const void *sa, char *dst, unsigned size)
+{
+	switch (((struct sockaddr *)sa)->sa_family) {
+	case AF_INET:
+		snprintf(dst, size, "%pI4",
+			 &((struct sockaddr_in *)sa)->sin_addr);
+		break;
+	case AF_INET6:
+		snprintf(dst, size, "%pI6",
+			 &((struct sockaddr_in6 *)sa)->sin6_addr);
+		break;
+	default:
+		snprintf(dst, size, "???");
+		break;
+	}
+	return dst;
 }
 
 static int srpt_rdma_cm_req_recv(struct rdma_cm_id *cm_id,
@@ -2728,6 +2773,7 @@ static int srpt_rdma_cm_req_recv(struct rdma_cm_id *cm_id,
 	struct srpt_device *sdev;
 	struct srp_login_req req;
 	const struct srp_login_req_rdma *req_rdma;
+	char src_addr[40];
 
 	sdev = ib_get_client_data(cm_id->device, &srpt_client);
 	if (!sdev)
@@ -2747,13 +2793,15 @@ static int srpt_rdma_cm_req_recv(struct rdma_cm_id *cm_id,
 	memcpy(req.initiator_port_id, req_rdma->initiator_port_id, 16);
 	memcpy(req.target_port_id, req_rdma->target_port_id, 16);
 
+	inet_ntop(&cm_id->route.addr.src_addr, src_addr, sizeof(src_addr));
+
 	return srpt_cm_req_recv(sdev, NULL, cm_id, cm_id->port_num,
-				cm_id->route.path_rec->pkey, &req);
+				cm_id->route.path_rec->pkey, &req, src_addr);
 }
 
-static void srpt_cm_rej_recv(struct ib_cm_id *cm_id)
+static void srpt_cm_rej_recv(struct srpt_rdma_ch *ch)
 {
-	PRINT_INFO("Received InfiniBand REJ packet for cm_id %p.", cm_id);
+	PRINT_INFO("Received CM REJ for ch %s.", ch->sess_name);
 }
 
 static void srpt_check_timeout(struct srpt_rdma_ch *ch)
@@ -2825,13 +2873,13 @@ static void srpt_cm_rtu_recv(struct srpt_rdma_ch *ch)
 
 static void srpt_cm_timewait_exit(struct srpt_rdma_ch *ch)
 {
-	PRINT_INFO("Received InfiniBand TimeWait exit for ch %p.", ch);
+	PRINT_INFO("Received CM TimeWait exit for ch %s.", ch->sess_name);
 	srpt_close_ch(ch);
 }
 
-static void srpt_cm_rep_error(struct ib_cm_id *cm_id)
+static void srpt_cm_rep_error(struct srpt_rdma_ch *ch)
 {
-	PRINT_INFO("Received InfiniBand REP error for cm_id %p.", cm_id);
+	PRINT_INFO("Received CM REP error for ch %s.", ch->sess_name);
 }
 
 /**
@@ -2848,7 +2896,7 @@ static int srpt_cm_dreq_recv(struct srpt_rdma_ch *ch)
  */
 static void srpt_cm_drep_recv(struct srpt_rdma_ch *ch)
 {
-	PRINT_INFO("Received InfiniBand DREP message for ch %p.", ch);
+	PRINT_INFO("Received CM DREP message for ch %s.", ch->sess_name);
 	srpt_close_ch(ch);
 }
 
@@ -2864,6 +2912,7 @@ static void srpt_cm_drep_recv(struct srpt_rdma_ch *ch)
  */
 static int srpt_cm_handler(struct ib_cm_id *cm_id, struct ib_cm_event *event)
 {
+	struct srpt_rdma_ch *ch = cm_id->context;
 	int ret;
 
 	BUG_ON(!cm_id->context);
@@ -2875,29 +2924,29 @@ static int srpt_cm_handler(struct ib_cm_id *cm_id, struct ib_cm_event *event)
 					  event->private_data);
 		break;
 	case IB_CM_REJ_RECEIVED:
-		srpt_cm_rej_recv(cm_id);
+		srpt_cm_rej_recv(ch);
 		break;
 	case IB_CM_RTU_RECEIVED:
 	case IB_CM_USER_ESTABLISHED:
-		srpt_cm_rtu_recv((struct srpt_rdma_ch *)cm_id->context);
+		srpt_cm_rtu_recv(ch);
 		break;
 	case IB_CM_DREQ_RECEIVED:
-		ret = srpt_cm_dreq_recv((struct srpt_rdma_ch *)cm_id->context);
+		ret = srpt_cm_dreq_recv(ch);
 		break;
 	case IB_CM_DREP_RECEIVED:
-		srpt_cm_drep_recv((struct srpt_rdma_ch *)cm_id->context);
+		srpt_cm_drep_recv(ch);
 		break;
 	case IB_CM_TIMEWAIT_EXIT:
-		srpt_cm_timewait_exit((struct srpt_rdma_ch *)cm_id->context);
+		srpt_cm_timewait_exit(ch);
 		break;
 	case IB_CM_REP_ERROR:
-		srpt_cm_rep_error(cm_id);
+		srpt_cm_rep_error(ch);
 		break;
 	case IB_CM_DREQ_ERROR:
-		PRINT_INFO("Received IB DREQ ERROR event.");
+		PRINT_INFO("Received CM DREQ ERROR event.");
 		break;
 	case IB_CM_MRA_RECEIVED:
-		PRINT_INFO("Received IB MRA event");
+		PRINT_INFO("Received CM MRA event");
 		break;
 	default:
 		PRINT_ERROR("received unrecognized IB CM event %d",
@@ -2911,23 +2960,32 @@ static int srpt_cm_handler(struct ib_cm_id *cm_id, struct ib_cm_event *event)
 static int srpt_rdma_cm_handler(struct rdma_cm_id *cm_id,
 				struct rdma_cm_event *event)
 {
+	struct srpt_rdma_ch *ch = cm_id->context;
 	int ret = 0;
 
 	switch (event->event) {
 	case RDMA_CM_EVENT_CONNECT_REQUEST:
 		ret = srpt_rdma_cm_req_recv(cm_id, event);
 		break;
+	case RDMA_CM_EVENT_REJECTED:
+		srpt_cm_rej_recv(ch);
+		break;
 	case RDMA_CM_EVENT_ESTABLISHED:
-		srpt_cm_rtu_recv(cm_id->context);
+		srpt_cm_rtu_recv(ch);
 		break;
 	case RDMA_CM_EVENT_DISCONNECTED:
-		srpt_cm_dreq_recv(cm_id->context);
+		if (ch->state < CH_DISCONNECTING)
+			srpt_cm_dreq_recv(ch);
+		else
+			srpt_cm_drep_recv(ch);
 		break;
 	case RDMA_CM_EVENT_TIMEWAIT_EXIT:
-		srpt_cm_timewait_exit(cm_id->context);
+		srpt_cm_timewait_exit(ch);
+		break;
+	case RDMA_CM_EVENT_UNREACHABLE:
+		srpt_cm_rep_error(ch);
 		break;
 	case RDMA_CM_EVENT_DEVICE_REMOVAL:
-		break;
 	case RDMA_CM_EVENT_ADDR_CHANGE:
 		break;
 	default:
@@ -3579,8 +3637,11 @@ static int srpt_detect(struct scst_tgt_template *tp)
 static int srpt_close_session(struct scst_session *sess)
 {
 	struct srpt_rdma_ch *ch = scst_sess_get_tgt_priv(sess);
+	struct srpt_tgt *srpt_tgt = ch->srpt_tgt;
 
+	mutex_lock(&srpt_tgt->mutex);
 	srpt_disconnect_ch(ch);
+	mutex_unlock(&srpt_tgt->mutex);
 
 	return 0;
 }
@@ -4339,7 +4400,8 @@ static void __exit srpt_cleanup_module(void)
 {
 	TRACE_ENTRY();
 
-	rdma_destroy_id(rdma_cm_id);
+	if (rdma_cm_id)
+		rdma_destroy_id(rdma_cm_id);
 	ib_unregister_client(&srpt_client);
 #ifdef CONFIG_SCST_PROC
 	srpt_unregister_procfs_entry(&srpt_template);

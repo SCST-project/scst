@@ -1595,8 +1595,8 @@ int scst_alloc_sense(struct scst_cmd *cmd, int atomic)
 
 	cmd->sense = mempool_alloc(scst_sense_mempool, gfp_mask);
 	if (cmd->sense == NULL) {
-		PRINT_CRIT_ERROR("Sense memory allocation failed (op %x). "
-			"The sense data will be lost!!", cmd->cdb[0]);
+		PRINT_CRIT_ERROR("Sense memory allocation failed (op %s). "
+			"The sense data will be lost!!", scst_get_opcode_name(cmd));
 		res = -ENOMEM;
 		goto out;
 	}
@@ -1641,7 +1641,8 @@ int scst_alloc_set_sense(struct scst_cmd *cmd, int atomic,
 	cmd->sense_valid_len = len;
 	if (cmd->sense_buflen < len) {
 		PRINT_WARNING("Sense truncated (needed %d), shall you increase "
-			"SCST_SENSE_BUFFERSIZE? Op: %x", len, cmd->cdb[0]);
+			"SCST_SENSE_BUFFERSIZE? Op: %s", len,
+			scst_get_opcode_name(cmd));
 		cmd->sense_valid_len = cmd->sense_buflen;
 	}
 
@@ -2894,9 +2895,10 @@ void scst_check_reassign_sessions(void)
 	return;
 }
 
-int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
+int scst_get_cmd_abnormal_done_state(struct scst_cmd *cmd)
 {
 	int res;
+	bool trace = false;
 
 	TRACE_ENTRY();
 
@@ -2907,12 +2909,14 @@ int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
 		if (cmd->preprocessing_only) {
 			res = SCST_CMD_STATE_PREPROCESSING_DONE;
 			break;
-		} /* else go through */
+		}
+		trace = true;
+		/* go through */
 	case SCST_CMD_STATE_DEV_DONE:
 		if (cmd->internal)
 			res = SCST_CMD_STATE_FINISHED_INTERNAL;
 		else
-			res = SCST_CMD_STATE_PRE_XMIT_RESP;
+			res = SCST_CMD_STATE_PRE_XMIT_RESP1;
 		break;
 
 	case SCST_CMD_STATE_PRE_DEV_DONE:
@@ -2920,15 +2924,20 @@ int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
 		res = SCST_CMD_STATE_DEV_DONE;
 		break;
 
-	case SCST_CMD_STATE_PRE_XMIT_RESP:
+	case SCST_CMD_STATE_PRE_XMIT_RESP1:
+		res = SCST_CMD_STATE_PRE_XMIT_RESP2;
+		break;
+
+	case SCST_CMD_STATE_PRE_XMIT_RESP2:
 		res = SCST_CMD_STATE_XMIT_RESP;
 		break;
 
 	case SCST_CMD_STATE_PREPROCESSING_DONE:
 	case SCST_CMD_STATE_PREPROCESSING_DONE_CALLED:
-		if (cmd->tgt_dev == NULL)
-			res = SCST_CMD_STATE_PRE_XMIT_RESP;
-		else
+		if (cmd->tgt_dev == NULL) {
+			trace = true;
+			res = SCST_CMD_STATE_PRE_XMIT_RESP1;
+		} else
 			res = SCST_CMD_STATE_PRE_DEV_DONE;
 		break;
 
@@ -2949,11 +2958,29 @@ int scst_get_cmd_abnormal_done_state(const struct scst_cmd *cmd)
 		break;
 
 	default:
-		PRINT_CRIT_ERROR("Wrong cmd state %d (cmd %p, op %x)",
-			cmd->state, cmd, cmd->cdb[0]);
+		PRINT_CRIT_ERROR("Wrong cmd state %d (cmd %p, op %s)",
+			cmd->state, cmd, scst_get_opcode_name(cmd));
 		sBUG();
+#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 < 6
 		/* Invalid state to suppress a compiler warning */
 		res = SCST_CMD_STATE_LAST_ACTIVE;
+#endif
+	}
+
+	if (trace) {
+		/*
+		 * Little hack to trace completion of commands, which are
+		 * going to bypass normal tracing on SCST_CMD_STATE_PRE_DEV_DONE
+		 */
+		TRACE(TRACE_SCSI, "cmd %p, status %x, msg_status %x, host_status %x, "
+			"driver_status %x, resp_data_len %d", cmd, cmd->status,
+			cmd->msg_status, cmd->host_status, cmd->driver_status,
+			cmd->resp_data_len);
+		if (unlikely(cmd->status == SAM_STAT_CHECK_CONDITION) &&
+		    scst_sense_valid(cmd->sense)) {
+			PRINT_BUFF_FLAG(TRACE_SCSI, "Sense", cmd->sense,
+				cmd->sense_valid_len);
+		}
 	}
 
 	TRACE_EXIT_RES(res);
@@ -2977,8 +3004,8 @@ void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 	case SCST_CMD_STATE_FINISHED:
 	case SCST_CMD_STATE_FINISHED_INTERNAL:
 	case SCST_CMD_STATE_XMIT_WAIT:
-		PRINT_CRIT_ERROR("Wrong cmd state %d (cmd %p, op %x)",
-			cmd->state, cmd, cmd->cdb[0]);
+		PRINT_CRIT_ERROR("Wrong cmd state %d (cmd %p, op %s)",
+			cmd->state, cmd, scst_get_opcode_name(cmd));
 		sBUG();
 	}
 #endif
@@ -3006,22 +3033,23 @@ void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 	case SCST_CMD_STATE_DEV_DONE:
 	case SCST_CMD_STATE_PRE_DEV_DONE:
 	case SCST_CMD_STATE_MODE_SELECT_CHECKS:
-	case SCST_CMD_STATE_PRE_XMIT_RESP:
+	case SCST_CMD_STATE_PRE_XMIT_RESP1:
+	case SCST_CMD_STATE_PRE_XMIT_RESP2:
 	case SCST_CMD_STATE_FINISHED_INTERNAL:
 		break;
 	default:
-		PRINT_CRIT_ERROR("Wrong cmd state %d (cmd %p, op %x)",
-			cmd->state, cmd, cmd->cdb[0]);
+		PRINT_CRIT_ERROR("Wrong cmd state %d (cmd %p, op %s)",
+			cmd->state, cmd, scst_get_opcode_name(cmd));
 		sBUG();
 		break;
 	}
 
 #ifdef CONFIG_SCST_EXTRACHECKS
-	if (((cmd->state != SCST_CMD_STATE_PRE_XMIT_RESP) &&
+	if (((cmd->state != SCST_CMD_STATE_PRE_XMIT_RESP1) &&
 	     (cmd->state != SCST_CMD_STATE_PREPROCESSING_DONE)) &&
 		   (cmd->tgt_dev == NULL) && !cmd->internal) {
 		PRINT_CRIT_ERROR("Wrong not inited cmd state %d (cmd %p, "
-			"op %x)", cmd->state, cmd, cmd->cdb[0]);
+			"op %s)", cmd->state, cmd, scst_get_opcode_name(cmd));
 		sBUG();
 	}
 #endif
@@ -3030,6 +3058,20 @@ void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 	return;
 }
 EXPORT_SYMBOL_GPL(scst_set_cmd_abnormal_done_state);
+
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+const char *scst_get_opcode_name(struct scst_cmd *cmd)
+{
+	if (cmd->op_name)
+		return cmd->op_name;
+	else {
+		scnprintf(cmd->not_parsed_op_name,
+			sizeof(cmd->not_parsed_op_name), "0x%x", cmd->cdb[0]);
+		return cmd->not_parsed_op_name;
+	}
+}
+EXPORT_SYMBOL(scst_get_opcode_name);
+#endif
 
 void scst_zero_write_rest(struct scst_cmd *cmd)
 {
@@ -3674,7 +3716,7 @@ int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev)
 	INIT_LIST_HEAD(&dev->dev_tgt_dev_list);
 	INIT_LIST_HEAD(&dev->dev_acg_dev_list);
 	dev->dev_double_ua_possible = 1;
-	dev->queue_alg = SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER;
+	dev->queue_alg = SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER;
 
 	mutex_init(&dev->dev_pr_mutex);
 	dev->pr_generation = 0;
@@ -4358,7 +4400,8 @@ out_deinit:
 
 /*
  * scst_mutex supposed to be held, there must not be parallel activity in this
- * session.
+ * session. May be invoked from inside scst_check_reassign_sessions() which
+ * means that sess->acg can be NULL.
  */
 static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	struct scst_acg_dev *acg_dev, struct scst_tgt_dev **out_tgt_dev)
@@ -4386,7 +4429,7 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	tgt_dev->tgt_dev_rd_only = acg_dev->acg_dev_rd_only || dev->dev_rd_only;
 	tgt_dev->sess = sess;
 	atomic_set(&tgt_dev->tgt_dev_cmd_count, 0);
-	if (sess->acg->acg_black_hole_type != SCST_ACG_BLACK_HOLE_NONE)
+	if (acg_dev->acg->acg_black_hole_type != SCST_ACG_BLACK_HOLE_NONE)
 		set_bit(SCST_TGT_DEV_BLACK_HOLE, &tgt_dev->tgt_dev_flags);
 	else
 		clear_bit(SCST_TGT_DEV_BLACK_HOLE, &tgt_dev->tgt_dev_flags);
@@ -4419,7 +4462,7 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	INIT_LIST_HEAD(&tgt_dev->UA_list);
 
 	scst_init_order_data(&tgt_dev->tgt_dev_order_data);
-	if (dev->tst == SCST_CONTR_MODE_SEP_TASK_SETS)
+	if (dev->tst == SCST_TST_1_SEP_TASK_SETS)
 		tgt_dev->curr_order_data = &tgt_dev->tgt_dev_order_data;
 	else
 		tgt_dev->curr_order_data = &dev->dev_order_data;
@@ -4799,7 +4842,8 @@ static struct scst_cmd *scst_create_prepare_internal_cmd(
 
 	scst_set_start_time(res);
 
-	TRACE(TRACE_SCSI, "New internal cmd %p (op 0x%x)", res, res->cdb[0]);
+	TRACE(TRACE_SCSI, "New internal cmd %p (op %s)", res,
+		scst_get_opcode_name(res));
 
 	rc = scst_pre_parse(res);
 	sBUG_ON(rc != 0);
@@ -4889,10 +4933,10 @@ static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 
 	if (scsi_status_is_good(req_cmd->status) && (len > 0) &&
 	    scst_sense_valid(buf) && !scst_no_sense(buf)) {
-		PRINT_BUFF_FLAG(TRACE_SCSI, "REQUEST SENSE returned",
+		TRACE(TRACE_SCSI, "REQUEST SENSE %p returned valid sense",
+			req_cmd);
+		scst_alloc_set_sense(orig_cmd, scst_cmd_atomic(req_cmd),
 			buf, len);
-		scst_alloc_set_sense(orig_cmd, scst_cmd_atomic(req_cmd), buf,
-			len);
 	} else {
 		PRINT_ERROR("%s", "Unable to get the sense via "
 			"REQUEST SENSE, returning HARDWARE ERROR");
@@ -5325,7 +5369,7 @@ static void scst_send_release(struct scst_device *dev)
 				, NULL
 #endif
 				);
-		TRACE_DBG("MODE_SENSE done: %x", rc);
+		TRACE_DBG("RELEASE done: %x", rc);
 
 		if (scsi_status_is_good(rc)) {
 			break;
@@ -5759,8 +5803,8 @@ void scst_free_cmd(struct scst_cmd *cmd)
 	}
 
 	if (likely(cmd->tgt_dev != NULL)) {
-		EXTRACHECKS_BUG_ON(!test_bit(SCST_CMD_INC_EXPECTED_SN_PASSED,
-				      &cmd->cmd_flags) && cmd->sn_set && !cmd->out_of_sn);
+		EXTRACHECKS_BUG_ON(cmd->sn_set && !cmd->out_of_sn &&
+			!test_bit(SCST_CMD_INC_EXPECTED_SN_PASSED, &cmd->cmd_flags));
 		if (unlikely(cmd->out_of_sn)) {
 			destroy = test_and_set_bit(SCST_CMD_CAN_BE_DESTROYED,
 					&cmd->cmd_flags);
@@ -5882,7 +5926,7 @@ void scst_free_mgmt_cmd(struct scst_mgmt_cmd *mcmd)
 
 	scst_sess_put(mcmd->sess);
 
-	if (mcmd->mcmd_tgt_dev != NULL)
+	if ((mcmd->mcmd_tgt_dev != NULL) || mcmd->scst_get_called)
 		scst_put(mcmd->cpu_cmd_counter);
 
 	mempool_free(mcmd, scst_mgmt_mempool);
@@ -6409,7 +6453,7 @@ int scst_get_buf_full(struct scst_cmd *cmd, uint8_t **buf)
 		*buf = vmalloc(full_size);
 		if (*buf == NULL) {
 			TRACE(TRACE_OUT_OF_MEM, "vmalloc() failed for opcode "
-				"%x", cmd->cdb[0]);
+				"%s", scst_get_opcode_name(cmd));
 			res = -ENOMEM;
 			goto out;
 		}
@@ -6594,7 +6638,8 @@ out:
 	return res;
 
 out_inval_bufflen10:
-	PRINT_ERROR("Too big bufflen %d (op %x)", cmd->bufflen, cmd->cdb[0]);
+	PRINT_ERROR("Too big bufflen %d (op %s)", cmd->bufflen,
+		scst_get_opcode_name(cmd));
 	scst_set_invalid_field_in_cdb(cmd, 10, 0);
 	res = 1;
 	goto out;
@@ -6796,8 +6841,8 @@ static int get_cdb_info_verify12(struct scst_cmd *cmd,
 	if (cmd->cdb[1] & 2) { /* BYTCHK 01 */
 		cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
 		if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
-			PRINT_ERROR("Too big bufflen %d (op %x)",
-				cmd->bufflen, cmd->cdb[0]);
+			PRINT_ERROR("Too big bufflen %d (op %s)",
+				cmd->bufflen, scst_get_opcode_name(cmd));
 			scst_set_invalid_field_in_cdb(cmd, sdbops->info_len_off, 0);
 			return 1;
 		}
@@ -6826,8 +6871,8 @@ static int get_cdb_info_verify16(struct scst_cmd *cmd,
 	if (cmd->cdb[1] & 2) { /* BYTCHK 01 */
 		cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
 		if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
-			PRINT_ERROR("Too big bufflen %d (op %x)",
-				cmd->bufflen, cmd->cdb[0]);
+			PRINT_ERROR("Too big bufflen %d (op %s)",
+				cmd->bufflen, scst_get_opcode_name(cmd));
 			scst_set_invalid_field_in_cdb(cmd, sdbops->info_len_off, 0);
 			return 1;
 		}
@@ -6900,8 +6945,8 @@ static int get_cdb_info_len_4(struct scst_cmd *cmd,
 	cmd->lba = 0;
 	cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
 	if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
-		PRINT_ERROR("Too big bufflen %d (op %x)", cmd->bufflen,
-			cmd->cdb[0]);
+		PRINT_ERROR("Too big bufflen %d (op %s)", cmd->bufflen,
+			scst_get_opcode_name(cmd));
 		scst_set_invalid_field_in_cdb(cmd, sdbops->info_len_off, 0);
 		return 1;
 	}
@@ -6973,8 +7018,8 @@ static int get_cdb_info_lba_4_len_4(struct scst_cmd *cmd,
 	cmd->lba = get_unaligned_be32(cmd->cdb + sdbops->info_lba_off);
 	cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
 	if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
-		PRINT_ERROR("Too big bufflen %d (op %x)", cmd->bufflen,
-			cmd->cdb[0]);
+		PRINT_ERROR("Too big bufflen %d (op %s)", cmd->bufflen,
+			scst_get_opcode_name(cmd));
 		scst_set_invalid_field_in_cdb(cmd, sdbops->info_len_off, 0);
 		return 1;
 	}
@@ -6988,8 +7033,8 @@ static int get_cdb_info_lba_8_len_4(struct scst_cmd *cmd,
 	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
 	cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
 	if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
-		PRINT_ERROR("Too big bufflen %d (op %x)", cmd->bufflen,
-			cmd->cdb[0]);
+		PRINT_ERROR("Too big bufflen %d (op %s)", cmd->bufflen,
+			scst_get_opcode_name(cmd));
 		scst_set_invalid_field_in_cdb(cmd, sdbops->info_len_off, 0);
 		return 1;
 	}
@@ -7135,8 +7180,9 @@ static int get_cdb_info_min(struct scst_cmd *cmd,
 		break;
 	case MI_REPORT_SUPPORTED_OPERATION_CODES:
 		cmd->op_name = "REPORT SUPPORTED OPERATION CODES";
-		cmd->op_flags |= SCST_WRITE_EXCL_ALLOWED |
-				SCST_LOCAL_CMD | SCST_FULLY_LOCAL_CMD;
+		cmd->op_flags |= SCST_WRITE_EXCL_ALLOWED;
+		if (cmd->devt->get_supported_opcodes != NULL)
+			cmd->op_flags |= SCST_LOCAL_CMD | SCST_FULLY_LOCAL_CMD;
 		break;
 	case MI_REPORT_SUPPORTED_TASK_MANAGEMENT_FUNCTIONS:
 		cmd->op_name = "REPORT SUPPORTED TASK MANAGEMENT FUNCTIONS";
@@ -7343,9 +7389,10 @@ EXPORT_SYMBOL_GPL(scst_calc_block_shift);
 #define shift_left_overflows(a, b)					\
 	({								\
 		typeof(a) _minus_one = -1LL;				\
+		typeof(a) _plus_one = 1;				\
 		bool _a_is_signed = _minus_one < 0;			\
-		int _shift = sizeof(1ULL) * 8 - ((b) + _a_is_signed);	\
-		_shift < 0 || ((a) & ~((1ULL << _shift) - 1)) != 0;	\
+		int _shift = sizeof(a) * 8 - ((b) + _a_is_signed);	\
+		_shift < 0 || ((a) & ~((_plus_one << _shift) - 1)) != 0;\
 	})
 
 /**
@@ -7370,6 +7417,20 @@ static inline int scst_generic_parse(struct scst_cmd *cmd, const int timeout[3])
 		 * No need for locks here, since *_detach() can not be
 		 * called, when there are existing commands.
 		 */
+		bool overflow = shift_left_overflows(cmd->bufflen, block_shift) ||
+				shift_left_overflows(cmd->data_len, block_shift) ||
+				shift_left_overflows(cmd->out_bufflen, block_shift);
+		if (unlikely(overflow)) {
+			PRINT_WARNING("bufflen %u, data_len %llu or out_bufflen"
+				      " %u too large for device %s (block size"
+				      " %u)", cmd->bufflen, cmd->data_len,
+				      cmd->out_bufflen, cmd->dev->virt_name,
+				      1 << block_shift);
+			PRINT_BUFFER("CDB", cmd->cdb, cmd->cdb_len);
+			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
+					scst_sense_block_out_range_error));
+			goto out;
+		}
 		cmd->bufflen = cmd->bufflen << block_shift;
 		cmd->data_len = cmd->data_len << block_shift;
 		cmd->out_bufflen = cmd->out_bufflen << block_shift;
@@ -8009,7 +8070,7 @@ void scst_process_reset(struct scst_device *dev,
 	dev->dev_double_ua_possible = 1;
 
 	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
-		dev_tgt_dev_list_entry) {
+			dev_tgt_dev_list_entry) {
 		struct scst_session *sess = tgt_dev->sess;
 
 #if 0 /* Clearing UAs and last sense isn't required by SAM and it
@@ -8044,6 +8105,17 @@ void scst_process_reset(struct scst_device *dev,
 		uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
 		int sl = scst_set_sense(sense_buffer, sizeof(sense_buffer),
 			dev->d_sense, SCST_LOAD_SENSE(scst_sense_reset_UA));
+		/*
+		 * Potentially, setting UA here, when the aborted commands are
+		 * still running, can lead to a situation that one of them could
+		 * take it, then that would be detected and the UA requeued.
+		 * But, meanwhile, one or more subsequent, i.e. not aborted,
+		 * commands can "leak" executed normally. So, as result, the
+		 * UA would be delivered one or more commands "later". However,
+		 * that should be OK, because, if multiple commands are being
+		 * executed in parallel, you can't control exact order of UA
+		 * delivery anyway.
+		 */
 		scst_dev_check_set_local_UA(dev, exclude_cmd, sense_buffer, sl);
 	}
 
@@ -8401,7 +8473,7 @@ struct scst_cmd *__scst_check_deferred_commands_locked(
 
 restart:
 	list_for_each_entry_safe(cmd, t, &order_data->deferred_cmd_list,
-				sn_cmd_list_entry) {
+				deferred_cmd_list_entry) {
 		EXTRACHECKS_BUG_ON((cmd->queue_type != SCST_CMD_QUEUE_SIMPLE) &&
 				   (cmd->queue_type != SCST_CMD_QUEUE_ORDERED));
 		if (cmd->sn == expected_sn) {
@@ -8411,7 +8483,7 @@ restart:
 				cmd, cmd->sn, cmd->sn_set);
 
 			order_data->def_cmd_count--;
-			list_del(&cmd->sn_cmd_list_entry);
+			list_del(&cmd->deferred_cmd_list_entry);
 
 			if (activate) {
 				spin_lock(&cmd->cmd_threads->cmd_list_lock);
@@ -8443,18 +8515,19 @@ restart:
 		goto out;
 
 	list_for_each_entry(cmd, &order_data->skipped_sn_list,
-				sn_cmd_list_entry) {
+				deferred_cmd_list_entry) {
 		EXTRACHECKS_BUG_ON(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE);
 		if (cmd->sn == expected_sn) {
 			/*
 			 * !! At this point any pointer in cmd, except	     !!
-			 * !! cur_order_data, sn_slot and sn_cmd_list_entry, !!
-			 * !! could be already destroyed!		     !!
+			 * !! cur_order_data, sn_slot and		     !!
+			 * !! deferred_cmd_list_entry, could be already	     !!
+			 * !! destroyed!				     !!
 			 */
 			TRACE_SN("cmd %p (tag %llu) with skipped sn %d found",
 				 cmd, (long long unsigned int)cmd->tag, cmd->sn);
 			order_data->def_cmd_count--;
-			list_del(&cmd->sn_cmd_list_entry);
+			list_del(&cmd->deferred_cmd_list_entry);
 			spin_unlock_irq(&order_data->sn_lock);
 			scst_inc_expected_sn(cmd);
 			if (test_and_set_bit(SCST_CMD_CAN_BE_DESTROYED,
@@ -8505,7 +8578,7 @@ void scst_unblock_deferred(struct scst_order_data *order_data,
 		out_of_sn_cmd->out_of_sn = 1;
 		spin_lock_irq(&order_data->sn_lock);
 		order_data->def_cmd_count++;
-		list_add_tail(&out_of_sn_cmd->sn_cmd_list_entry,
+		list_add_tail(&out_of_sn_cmd->deferred_cmd_list_entry,
 			      &order_data->skipped_sn_list);
 		TRACE_SN("out_of_sn_cmd %p with sn %d added to skipped_sn_list"
 			" (expected_sn %d)", out_of_sn_cmd, out_of_sn_cmd->sn,
@@ -8551,15 +8624,15 @@ bool __scst_check_blocked_dev(struct scst_cmd *cmd)
 
 	if (dev->block_count > 0) {
 		TRACE_BLOCK("Delaying cmd %p due to blocking "
-			"(tag %llu, op %x, dev %s)", cmd,
-			(long long unsigned int)cmd->tag, cmd->cdb[0],
-			dev->virt_name);
+			"(tag %llu, op %s, dev %s)", cmd,
+			(long long unsigned int)cmd->tag,
+			scst_get_opcode_name(cmd), dev->virt_name);
 		goto out_block;
 	} else if ((cmd->op_flags & SCST_STRICTLY_SERIALIZED) == SCST_STRICTLY_SERIALIZED) {
-		TRACE_BLOCK("cmd %p (tag %llu, op %x): blocking further "
+		TRACE_BLOCK("cmd %p (tag %llu, op %s): blocking further "
 			"cmds on dev %s due to strict serialization", cmd,
-			(long long unsigned int)cmd->tag, cmd->cdb[0],
-			dev->virt_name);
+			(long long unsigned int)cmd->tag,
+			scst_get_opcode_name(cmd), dev->virt_name);
 		scst_block_dev(dev);
 		if (dev->on_dev_cmd_count > 1) {
 			TRACE_BLOCK("Delaying strictly serialized cmd %p "
@@ -8572,9 +8645,9 @@ bool __scst_check_blocked_dev(struct scst_cmd *cmd)
 			cmd->unblock_dev = 1;
 	} else if ((dev->dev_double_ua_possible) ||
 		   ((cmd->op_flags & SCST_SERIALIZED) != 0)) {
-		TRACE_BLOCK("cmd %p (tag %llu, op %x): blocking further cmds "
+		TRACE_BLOCK("cmd %p (tag %llu, op %s): blocking further cmds "
 			"on dev %s due to %s", cmd, (long long unsigned int)cmd->tag,
-			cmd->cdb[0], dev->virt_name,
+			scst_get_opcode_name(cmd), dev->virt_name,
 			dev->dev_double_ua_possible ? "possible double reset UA" :
 						      "serialized cmd");
 		scst_block_dev(dev);
@@ -8707,12 +8780,16 @@ int scst_obtain_device_parameters(struct scst_device *dev,
 				"page data", buffer, sizeof(buffer));
 
 			dev->tst = buffer[4+2] >> 5;
+			dev->tmf_only = (buffer[4+2] & 0x10) >> 4;
 			q = buffer[4+3] >> 4;
-			if (q > SCST_CONTR_MODE_QUEUE_ALG_UNRESTRICTED_REORDER) {
-				PRINT_ERROR("Too big QUEUE ALG %x, dev %s",
+			if (q > SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER) {
+				PRINT_ERROR("Too big QUEUE ALG %x, dev %s, "
+					"using default: unrestricted reorder",
 					dev->queue_alg, dev->virt_name);
+				q = SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER;
 			}
 			dev->queue_alg = q;
+			dev->qerr = (buffer[4+3] & 0x6) >> 1;
 			dev->swp = (buffer[4+4] & 0x8) >> 3;
 			dev->tas = (buffer[4+5] & 0x40) >> 6;
 			dev->d_sense = (buffer[4+2] & 0x4) >> 2;
@@ -8725,10 +8802,11 @@ int scst_obtain_device_parameters(struct scst_device *dev,
 			 */
 			dev->has_own_order_mgmt = !dev->queue_alg;
 
-			PRINT_INFO("Device %s: TST %x, QUEUE ALG %x, SWP %x, "
-				"TAS %x, D_SENSE %d, has_own_order_mgmt %d",
-				dev->virt_name, dev->tst, dev->queue_alg,
-				dev->swp, dev->tas, dev->d_sense,
+			PRINT_INFO("Device %s: TST %x, TMF_ONLY %x, QUEUE ALG %x, "
+				"QErr %x, SWP %x, TAS %x, D_SENSE %d, "
+				"has_own_order_mgmt %d", dev->virt_name,
+				dev->tst, dev->tmf_only, dev->queue_alg,
+				dev->qerr, dev->swp, dev->tas, dev->d_sense,
 				dev->has_own_order_mgmt);
 
 			goto out;
@@ -8745,9 +8823,8 @@ int scst_obtain_device_parameters(struct scst_device *dev,
 			 */
 			if (scst_sense_valid(sense_buffer)) {
 #endif
-				PRINT_BUFF_FLAG(TRACE_SCSI, "Returned sense "
-					"data", sense_buffer,
-					sizeof(sense_buffer));
+				PRINT_BUFF_FLAG(TRACE_SCSI, "MODE SENSE returned "
+					"sense", sense_buffer, sizeof(sense_buffer));
 				if (scst_analyze_sense(sense_buffer,
 						sizeof(sense_buffer),
 						SCST_SENSE_KEY_VALID,
@@ -8768,8 +8845,6 @@ int scst_obtain_device_parameters(struct scst_device *dev,
 				PRINT_INFO("Internal MODE SENSE to "
 					"device %s failed: %x",
 					dev->virt_name, rc);
-				PRINT_BUFF_FLAG(TRACE_SCSI, "MODE SENSE sense",
-					sense_buffer, sizeof(sense_buffer));
 				switch (host_byte(rc)) {
 				case DID_RESET:
 				case DID_ABORT:
@@ -8790,9 +8865,10 @@ int scst_obtain_device_parameters(struct scst_device *dev,
 	}
 brk:
 	PRINT_WARNING("Unable to get device's %s control mode page, using "
-		"existing values/defaults: TST %x, QUEUE ALG %x, SWP %x, "
-		"TAS %x, D_SENSE %d, has_own_order_mgmt %d", dev->virt_name,
-		dev->tst, dev->queue_alg, dev->swp, dev->tas, dev->d_sense,
+		"existing values/defaults: TST %x, TMF_ONLY %x, QUEUE ALG %x, "
+		"QErr %x, SWP %x, TAS %x, D_SENSE %d, has_own_order_mgmt %d",
+		dev->virt_name, dev->tst, dev->tmf_only, dev->queue_alg,
+		dev->qerr, dev->swp, dev->tas, dev->d_sense,
 		dev->has_own_order_mgmt);
 
 out:
@@ -8858,6 +8934,151 @@ void scst_store_sense(struct scst_cmd *cmd)
 
 	TRACE_EXIT();
 	return;
+}
+
+/* dev_lock supposed to be locked and BHs off */
+static void scst_abort_cmds_tgt_dev(struct scst_tgt_dev *tgt_dev,
+	struct scst_cmd *exclude_cmd)
+{
+	struct scst_session *sess = tgt_dev->sess;
+	struct scst_cmd *cmd;
+
+	TRACE_ENTRY();
+
+	TRACE_MGMT_DBG("QErr: aborting commands for tgt_dev %p "
+		"(exclude_cmd %p), if there are any", tgt_dev, exclude_cmd);
+
+	spin_lock_irq(&sess->sess_list_lock);
+
+	list_for_each_entry(cmd, &sess->sess_cmd_list, sess_cmd_list_entry) {
+		if (cmd == exclude_cmd)
+			continue;
+		if ((cmd->tgt_dev == tgt_dev) ||
+		    ((cmd->tgt_dev == NULL) &&
+		     (cmd->lun == tgt_dev->lun))) {
+			scst_abort_cmd(cmd, NULL, (tgt_dev != exclude_cmd->tgt_dev), 0);
+		}
+	}
+	spin_unlock_irq(&sess->sess_list_lock);
+
+	TRACE_EXIT();
+	return;
+}
+
+/* dev_lock supposed to be locked and BHs off */
+static void scst_abort_cmds_dev(struct scst_device *dev,
+	struct scst_cmd *exclude_cmd)
+{
+	struct scst_tgt_dev *tgt_dev;
+	uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
+	int sl = 0;
+	bool set_ua = (dev->tas == 0);
+
+	TRACE_ENTRY();
+
+	TRACE_MGMT_DBG("QErr: Aborting commands for dev %p (exclude_cmd %p, "
+		"set_ua %d), if there are any", dev, exclude_cmd, set_ua);
+
+	if (set_ua)
+		sl = scst_set_sense(sense_buffer, sizeof(sense_buffer), dev->d_sense,
+			SCST_LOAD_SENSE(scst_sense_cleared_by_another_ini_UA));
+
+	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list, dev_tgt_dev_list_entry) {
+		scst_abort_cmds_tgt_dev(tgt_dev, exclude_cmd);
+		/*
+		 * Potentially, setting UA here, when the aborted commands are
+		 * still running, can lead to a situation that one of them could
+		 * take it, then that would be detected and the UA requeued.
+		 * But, meanwhile, one or more subsequent, i.e. not aborted,
+		 * commands can "leak" executed normally. So, as result, the
+		 * UA would be delivered one or more commands "later". However,
+		 * that should be OK, because, if multiple commands are being
+		 * executed in parallel, you can't control exact order of UA
+		 * delivery anyway.
+		 */
+		if (set_ua && (tgt_dev != exclude_cmd->tgt_dev))
+			scst_check_set_UA(tgt_dev, sense_buffer, sl, 0);
+	}
+
+	TRACE_EXIT();
+	return;
+}
+
+/* No locks */
+static void scst_process_qerr(struct scst_cmd *cmd)
+{
+	bool unblock = false;
+	struct scst_device *dev = cmd->dev;
+	unsigned int qerr, q;
+
+	TRACE_ENTRY();
+
+	/* dev->qerr can be changed behind our back */
+	q = dev->qerr;
+	qerr = ACCESS_ONCE(q); /* ACCESS_ONCE doesn't work for bit fields */
+
+	TRACE_DBG("Processing QErr %d for cmd %p", qerr, cmd);
+
+	spin_lock_bh(&dev->dev_lock);
+
+	switch (qerr) {
+	case SCST_QERR_2_RESERVED:
+	default:
+		PRINT_WARNING("Invalid QErr value %x for device %s, process as "
+			"0", qerr, dev->virt_name);
+		/* go through */
+	case SCST_QERR_0_ALL_RESUME:
+		/* Nothing to do */
+		break;
+	case SCST_QERR_1_ABORT_ALL:
+		if (dev->tst == SCST_TST_0_SINGLE_TASK_SET)
+			scst_abort_cmds_dev(dev, cmd);
+		else
+			scst_abort_cmds_tgt_dev(cmd->tgt_dev, cmd);
+		unblock = true;
+		break;
+	case SCST_QERR_3_ABORT_THIS_NEXUS_ONLY:
+		scst_abort_cmds_tgt_dev(cmd->tgt_dev, cmd);
+		unblock = true;
+		break;
+	}
+
+	spin_unlock_bh(&dev->dev_lock);
+
+	if (unblock)
+		scst_unblock_aborted_cmds(cmd->tgt, cmd->sess, dev, false);
+
+	TRACE_EXIT();
+	return;
+}
+
+/*
+ * No locks. Returns -1, if processing should be switched to another cmd, 1
+ * if cmd was aborted, 0 if cmd processing should continue.
+ */
+int scst_process_check_condition(struct scst_cmd *cmd)
+{
+	int res;
+	struct scst_order_data *order_data;
+	struct scst_device *dev;
+
+	TRACE_ENTRY();
+
+	EXTRACHECKS_BUG_ON(test_bit(SCST_CMD_NO_RESP, &cmd->cmd_flags));
+
+	order_data = cmd->cur_order_data;
+	dev = cmd->dev;
+
+	TRACE_DBG("CHECK CONDITION for cmd %p (tgt_dev %p)", cmd, cmd->tgt_dev);
+
+	scst_process_qerr(cmd);
+
+	scst_store_sense(cmd);
+
+	res = 0;
+
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 void scst_xmit_process_aborted_cmd(struct scst_cmd *cmd)
@@ -9139,8 +9360,7 @@ static int scst_parse_unmap_descriptors(struct scst_cmd *cmd)
 		     ((descriptor_len % 16) != 0))) {
 		PRINT_ERROR("Bad descriptor length: %d < %d - 8",
 			descriptor_len, total_len);
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_parm_list));
+		scst_set_invalid_field_in_parm_list(cmd, 2, 0);
 		goto out_abn_put;
 	}
 
@@ -9236,6 +9456,318 @@ static void scst_free_descriptors(struct scst_cmd *cmd)
 	return;
 }
 
+/**
+ ** We currently have only few saved parameters and it is impossible to get
+ ** pointer on a bit field, so let's have a simple straightforward
+ ** implementation.
+ **/
+
+#define SCST_TAS_LABEL		"TAS"
+#define SCST_QERR_LABEL		"QERR"
+#define SCST_TMF_ONLY_LABEL	"TMF_ONLY"
+#define SCST_SWP_LABEL		"SWP"
+#define SCST_DSENSE_LABEL	"D_SENSE"
+#define SCST_QUEUE_ALG_LABEL	"QUEUE_ALG"
+
+int scst_save_global_mode_pages(const struct scst_device *dev,
+	uint8_t *buf, int size)
+{
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	if (dev->tas != dev->tas_default) {
+		res += scnprintf(&buf[res], size - res, "%s=%d\n",
+			SCST_TAS_LABEL, dev->tas);
+		if (res >= size-1)
+			goto out_overflow;
+	}
+
+	if (dev->qerr != dev->qerr_default) {
+		res += scnprintf(&buf[res], size - res, "%s=%d\n",
+			SCST_QERR_LABEL, dev->qerr);
+		if (res >= size-1)
+			goto out_overflow;
+	}
+
+	if (dev->tmf_only != dev->tmf_only_default) {
+		res += scnprintf(&buf[res], size - res, "%s=%d\n",
+			SCST_TMF_ONLY_LABEL, dev->tmf_only);
+		if (res >= size-1)
+			goto out_overflow;
+	}
+
+	if (dev->swp != dev->swp_default) {
+		res += scnprintf(&buf[res], size - res, "%s=%d\n",
+			SCST_SWP_LABEL, dev->swp);
+		if (res >= size-1)
+			goto out_overflow;
+	}
+
+	if (dev->d_sense != dev->d_sense_default) {
+		res += scnprintf(&buf[res], size - res, "%s=%d\n",
+			SCST_DSENSE_LABEL, dev->d_sense);
+		if (res >= size-1)
+			goto out_overflow;
+	}
+
+	if (dev->queue_alg != dev->queue_alg_default) {
+		res += scnprintf(&buf[res], size - res, "%s=%d\n",
+			SCST_QUEUE_ALG_LABEL, dev->queue_alg);
+		if (res >= size-1)
+			goto out_overflow;
+	}
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_overflow:
+	PRINT_ERROR("Global mode pages buffer overflow (size %d)", size);
+	res = -EOVERFLOW;
+	goto out;
+}
+EXPORT_SYMBOL_GPL(scst_save_global_mode_pages);
+
+static int scst_restore_tas(struct scst_device *dev, unsigned int val)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	if (val > 1) {
+		PRINT_ERROR("Invalid value %d for parameter %s (device %s)",
+			val, SCST_TAS_LABEL, dev->virt_name);
+		res = -EINVAL;
+		goto out;
+	}
+
+	dev->tas = val;
+	dev->tas_saved = val;
+
+	PRINT_INFO("%s restored to %d for device %s", SCST_TAS_LABEL,
+		dev->tas, dev->virt_name);
+
+	res = 0;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int scst_restore_qerr(struct scst_device *dev, unsigned int val)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	if ((val == SCST_QERR_2_RESERVED) ||
+	    (val > SCST_QERR_3_ABORT_THIS_NEXUS_ONLY)) {
+		PRINT_ERROR("Invalid value %d for parameter %s (device %s)",
+			val, SCST_QERR_LABEL, dev->virt_name);
+		res = -EINVAL;
+		goto out;
+	}
+
+	dev->qerr = val;
+	dev->qerr_saved = val;
+
+	PRINT_INFO("%s restored to %d for device %s", SCST_QERR_LABEL,
+		dev->qerr, dev->virt_name);
+
+	res = 0;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int scst_restore_tmf_only(struct scst_device *dev, unsigned int val)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	if (val > 1) {
+		PRINT_ERROR("Invalid value %d for parameter %s (device %s)",
+			val, SCST_TMF_ONLY_LABEL, dev->virt_name);
+		res = -EINVAL;
+		goto out;
+	}
+
+	dev->tmf_only = val;
+	dev->tmf_only_saved = val;
+
+	PRINT_INFO("%s restored to %d for device %s", SCST_TMF_ONLY_LABEL,
+		dev->tmf_only, dev->virt_name);
+
+	res = 0;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int scst_restore_swp(struct scst_device *dev, unsigned int val)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	if (val > 1) {
+		PRINT_ERROR("Invalid value %d for parameter %s (device %s)",
+			val, SCST_SWP_LABEL, dev->virt_name);
+		res = -EINVAL;
+		goto out;
+	}
+
+	dev->swp = val;
+	dev->swp_saved = val;
+
+	PRINT_INFO("%s restored to %d for device %s", SCST_SWP_LABEL,
+		dev->swp, dev->virt_name);
+
+	res = 0;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int scst_restore_dsense(struct scst_device *dev, unsigned int val)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	if (val > 1) {
+		PRINT_ERROR("Invalid value %d for parameter %s (device %s)",
+			val, SCST_DSENSE_LABEL, dev->virt_name);
+		res = -EINVAL;
+		goto out;
+	}
+
+	dev->d_sense = val;
+	dev->d_sense_saved = val;
+
+	PRINT_INFO("%s restored to %d for device %s", SCST_DSENSE_LABEL,
+		dev->d_sense, dev->virt_name);
+
+	res = 0;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int scst_restore_queue_alg(struct scst_device *dev, unsigned int val)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	if ((val != SCST_QUEUE_ALG_0_RESTRICTED_REORDER) &&
+	    (val != SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER)) {
+		PRINT_ERROR("Invalid value %d for parameter %s (device %s)",
+			val, SCST_QUEUE_ALG_LABEL, dev->virt_name);
+		res = -EINVAL;
+		goto out;
+	}
+
+	dev->queue_alg = val;
+	dev->queue_alg_saved = val;
+
+	PRINT_INFO("%s restored to %d for device %s", SCST_QUEUE_ALG_LABEL,
+		dev->queue_alg, dev->virt_name);
+
+	res = 0;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/* Params are NULL-terminated */
+int scst_restore_global_mode_pages(struct scst_device *dev, char *params,
+	char **last_param)
+{
+	int res;
+	char *param, *p, *pp;
+	unsigned long val;
+
+	TRACE_ENTRY();
+
+	while (1) {
+		param = scst_get_next_token_str(&params);
+		if (param == NULL)
+			break;
+
+		p = scst_get_next_lexem(&param);
+		if (*p == '\0')
+			break;
+
+		pp = scst_get_next_lexem(&param);
+		if (*pp == '\0')
+			goto out_need_param;
+
+		if (scst_get_next_lexem(&param)[0] != '\0')
+			goto out_too_many;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+		res = kstrtoul(pp, 0, &val);
+#else
+		res = strict_strtoul(pp, 0, &val);
+#endif
+		if (res != 0)
+			goto out_strtoul_failed;
+
+		if (strcasecmp(SCST_TAS_LABEL, p) == 0)
+			res = scst_restore_tas(dev, val);
+		else if (strcasecmp(SCST_QERR_LABEL, p) == 0)
+			res = scst_restore_qerr(dev, val);
+		else if (strcasecmp(SCST_TMF_ONLY_LABEL, p) == 0)
+			res = scst_restore_tmf_only(dev, val);
+		else if (strcasecmp(SCST_SWP_LABEL, p) == 0)
+			res = scst_restore_swp(dev, val);
+		else if (strcasecmp(SCST_DSENSE_LABEL, p) == 0)
+			res = scst_restore_dsense(dev, val);
+		else if (strcasecmp(SCST_QUEUE_ALG_LABEL, p) == 0)
+			res = scst_restore_queue_alg(dev, val);
+		else {
+			TRACE_DBG("Unknown parameter %s", p);
+			scst_restore_token_str(p, param);
+			*last_param = p;
+			goto out;
+		}
+		if (res != 0)
+			goto out;
+	}
+
+	*last_param = NULL;
+	res = 0;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_strtoul_failed:
+	PRINT_ERROR("strtoul() for %s failed: %d (device %s)", pp, res,
+		dev->virt_name);
+	goto out;
+
+out_need_param:
+	PRINT_ERROR("Parameter %s value missed for device %s", p, dev->virt_name);
+	res = -EINVAL;
+	goto out;
+
+out_too_many:
+	PRINT_ERROR("Too many parameter's %s values (device %s)", p, dev->virt_name);
+	res = -EINVAL;
+	goto out;
+}
+EXPORT_SYMBOL_GPL(scst_restore_global_mode_pages);
+
+
 /* Abstract vfs_unlink() for different kernel versions (as possible) */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
 void scst_vfs_unlink_and_put(struct nameidata *nd)
@@ -9272,6 +9804,7 @@ void scst_path_put(struct nameidata *nd)
 	path_put(&nd->path);
 #endif
 }
+EXPORT_SYMBOL(scst_path_put);
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
@@ -9420,6 +9953,195 @@ int scst_remove_file(const char *name)
 	TRACE_EXIT_RES(res);
 	return res;
 }
+EXPORT_SYMBOL_GPL(scst_remove_file);
+
+/* Returns 0 on success, error code otherwise */
+int scst_write_file_transactional(const char *name, const char *name1,
+	const char *signature, int signature_len, const uint8_t *buf, int size)
+{
+	int res;
+	struct file *file;
+	mm_segment_t old_fs = get_fs();
+	loff_t pos = 0;
+	char n = '\n';
+
+	TRACE_ENTRY();
+
+	res = scst_copy_file(name, name1);
+	if ((res != 0) && (res != -ENOENT))
+		goto out;
+
+	set_fs(KERNEL_DS);
+
+	file = filp_open(name, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	if (IS_ERR(file)) {
+		res = PTR_ERR(file);
+		PRINT_ERROR("Unable to (re)create file '%s' - error %d",
+			name, res);
+		goto out_set_fs;
+	}
+
+	TRACE_DBG("Writing file '%s'", name);
+
+	pos = signature_len+1;
+
+	res = vfs_write(file, (void __force __user *)buf, size, &pos);
+	if (res != size)
+		goto write_error;
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
+	res = scst_vfs_fsync(file, 0, pos);
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+	res = vfs_fsync(file, file->f_path.dentry, 1);
+#else
+	res = vfs_fsync(file, 1);
+#endif
+	if (res != 0) {
+		PRINT_ERROR("fsync() of file %s failed: %d", name, res);
+		goto write_error_close;
+	}
+
+	pos = 0;
+	res = vfs_write(file, (void __force __user *)signature, signature_len, &pos);
+	if (res != signature_len)
+		goto write_error;
+
+	res = vfs_write(file, (void __force __user *)&n, sizeof(n), &pos);
+	if (res != sizeof(n))
+		goto write_error;
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
+	res = scst_vfs_fsync(file, 0, sizeof(signature));
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+	res = vfs_fsync(file, file->f_path.dentry, 1);
+#else
+	res = vfs_fsync(file, 1);
+#endif
+	if (res != 0) {
+		PRINT_ERROR("fsync() of file %s failed: %d", name, res);
+		goto write_error_close;
+	}
+
+	res = 0;
+
+	filp_close(file, NULL);
+
+out_set_fs:
+	set_fs(old_fs);
+
+	if (res == 0)
+		scst_remove_file(name1);
+	else
+		scst_remove_file(name);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+write_error:
+	PRINT_ERROR("Error writing to '%s' - error %d", name, res);
+
+write_error_close:
+	filp_close(file, NULL);
+	if (res > 0)
+		res = -EIO;
+	goto out_set_fs;
+}
+EXPORT_SYMBOL_GPL(scst_write_file_transactional);
+
+static int __scst_read_file_transactional(const char *file_name,
+	const char *signature, int signature_len, uint8_t *buf, int size)
+{
+	int res;
+	struct file *file = NULL;
+	struct inode *inode;
+	loff_t file_size, pos;
+	mm_segment_t old_fs;
+
+	TRACE_ENTRY();
+
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+
+	TRACE_DBG("Loading file '%s'", file_name);
+
+	file = filp_open(file_name, O_RDONLY, 0);
+	if (IS_ERR(file)) {
+		res = PTR_ERR(file);
+		TRACE_DBG("Unable to open file '%s' - error %d", file_name, res);
+		goto out;
+	}
+
+	inode = file->f_dentry->d_inode;
+
+	if (S_ISREG(inode->i_mode))
+		/* Nothing to do */;
+	else if (S_ISBLK(inode->i_mode))
+		inode = inode->i_bdev->bd_inode;
+	else {
+		PRINT_ERROR("Invalid file mode 0x%x", inode->i_mode);
+		res = -EINVAL;
+		goto out_close;
+	}
+
+	file_size = inode->i_size;
+
+	if (file_size > size) {
+		PRINT_ERROR("Supplied buffer (%d) too small (need %d)", size,
+			(int)file_size);
+		res = -EOVERFLOW;
+		goto out_close;
+	}
+
+	pos = 0;
+	res = vfs_read(file, (void __force __user *)buf, file_size, &pos);
+	if (res != file_size) {
+		PRINT_ERROR("Unable to read file '%s' - error %d", file_name, res);
+		if (res > 0)
+			res = -EIO;
+		goto out_close;
+	}
+
+	if (memcmp(buf, signature, signature_len) != 0) {
+		res = -EINVAL;
+		PRINT_ERROR("Invalid signature in file %s", file_name);
+		goto out_close;
+	}
+
+out_close:
+	filp_close(file, NULL);
+
+out:
+	set_fs(old_fs);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/*
+ * Returns read data size on success, error code otherwise. The first
+ * signature_len+1 bytes of the read data contain signature, so should be
+ * skipped.
+ */
+int scst_read_file_transactional(const char *name, const char *name1,
+	const char *signature, int signature_len, uint8_t *buf, int size)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	res = __scst_read_file_transactional(name, signature, signature_len, buf, size);
+	if (res <= 0)
+		res = __scst_read_file_transactional(name1, signature,
+			signature_len, buf, size);
+
+	if (res > 0)
+		TRACE_BUFFER("Read data", buf, res);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+EXPORT_SYMBOL_GPL(scst_read_file_transactional);
 
 static void __init scst_scsi_op_list_init(void)
 {

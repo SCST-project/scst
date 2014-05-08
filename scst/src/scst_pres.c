@@ -565,6 +565,27 @@ static void scst_pr_abort_reg(struct scst_device *dev,
 		 */
 		PRINT_ERROR("SCST_PR_ABORT_ALL failed %d (sess %p)",
 			rc, sess);
+		goto out;
+	}
+
+	if ((reg->tgt_dev != pr_cmd->tgt_dev) && !dev->tas) {
+		uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
+		int sl;
+		sl = scst_set_sense(sense_buffer, sizeof(sense_buffer),
+			dev->d_sense,
+			SCST_LOAD_SENSE(scst_sense_cleared_by_another_ini_UA));
+		/*
+		 * Potentially, setting UA here, when the aborted commands are
+		 * still running, can lead to a situation that one of them could
+		 * take it, then that would be detected and the UA requeued.
+		 * But, meanwhile, one or more subsequent, i.e. not aborted,
+		 * commands can "leak" executed normally. So, as result, the
+		 * UA would be delivered one or more commands "later". However,
+		 * that should be OK, because, if multiple commands are being
+		 * executed in parallel, you can't control exact order of UA
+		 * delivery anyway.
+		 */
+		scst_check_set_UA(reg->tgt_dev, sense_buffer, sl, 0);
 	}
 
 out:
@@ -1559,8 +1580,8 @@ void scst_pr_register(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 		}
 		if (spec_i_pt) {
 			TRACE_PR("%s", "spec_i_pt must be zero in this case");
-			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
-				scst_sense_invalid_field_in_cdb));
+			scst_set_invalid_field_in_parm_list(cmd, 20,
+				SCST_INVAL_FIELD_BIT_OFFS_VALID | 3);
 			goto out;
 		}
 		if (action_key == 0) {
@@ -1700,8 +1721,7 @@ void scst_pr_register_and_move(struct scst_cmd *cmd, uint8_t *buffer,
 
 	if (tid_buffer_size < 24) {
 		TRACE_PR("%s", "Transport id buffer too small");
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_parm_list));
+		scst_set_invalid_field_in_parm_list(cmd, 20, 0);
 		goto out;
 	}
 
@@ -1730,9 +1750,8 @@ void scst_pr_register_and_move(struct scst_cmd *cmd, uint8_t *buffer,
 	 */
 	if (!scst_pr_is_holder(dev, reg)) {
 		TRACE_PR("Registrant %s/%d (%p) is not a holder (tgt_dev %p)",
-			debug_transport_id_to_initiator_name(
-				reg->transport_id), reg->rel_tgt_id,
-			reg, tgt_dev);
+			debug_transport_id_to_initiator_name(reg->transport_id),
+			reg->rel_tgt_id, reg, tgt_dev);
 		scst_set_cmd_error_status(cmd, SAM_STAT_RESERVATION_CONFLICT);
 		goto out;
 	}
@@ -2267,8 +2286,9 @@ bool scst_pr_crh_case(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	TRACE_DBG("Test if there is a CRH case for command %s (0x%x) from "
-		"%s", cmd->op_name, cmd->cdb[0], cmd->sess->initiator_name);
+	TRACE_DBG("Test if there is a CRH case for command %s (%s) from "
+		"%s", cmd->op_name, scst_get_opcode_name(cmd),
+		cmd->sess->initiator_name);
 
 	if (!dev->pr_is_set) {
 		TRACE_PR("%s", "PR not set");
@@ -2303,12 +2323,12 @@ bool scst_pr_crh_case(struct scst_cmd *cmd)
 	}
 
 	if (!allowed)
-		TRACE_PR("Command %s (0x%x) from %s rejected due to not CRH "
-			"reservation", cmd->op_name, cmd->cdb[0],
+		TRACE_PR("Command %s (%s) from %s rejected due to not CRH "
+			"reservation", cmd->op_name, scst_get_opcode_name(cmd),
 			cmd->sess->initiator_name);
 	else
-		TRACE_DBG("Command %s (0x%x) from %s is allowed to execute "
-			"due to CRH", cmd->op_name, cmd->cdb[0],
+		TRACE_DBG("Command %s (%s) from %s is allowed to execute "
+			"due to CRH", cmd->op_name, scst_get_opcode_name(cmd),
 			cmd->sess->initiator_name);
 
 out:
@@ -2330,8 +2350,8 @@ bool scst_pr_is_cmd_allowed(struct scst_cmd *cmd)
 
 	scst_pr_read_lock(dev);
 
-	TRACE_DBG("Testing if command %s (0x%x) from %s allowed to execute",
-		cmd->op_name, cmd->cdb[0], cmd->sess->initiator_name);
+	TRACE_DBG("Testing if command %s (%s) from %s allowed to execute",
+		cmd->op_name, scst_get_opcode_name(cmd), cmd->sess->initiator_name);
 
 	/* Recheck, because it can change while we were waiting for the lock */
 	if (unlikely(!dev->pr_is_set)) {
@@ -2380,12 +2400,13 @@ bool scst_pr_is_cmd_allowed(struct scst_cmd *cmd)
 	}
 
 	if (!allowed)
-		TRACE_PR("Command %s (0x%x) from %s rejected due "
-			"to PR", cmd->op_name, cmd->cdb[0],
+		TRACE_PR("Command %s (%s) from %s rejected due "
+			"to PR", cmd->op_name, scst_get_opcode_name(cmd),
 			cmd->sess->initiator_name);
 	else
-		TRACE_DBG("Command %s (0x%x) from %s is allowed to execute",
-			cmd->op_name, cmd->cdb[0], cmd->sess->initiator_name);
+		TRACE_DBG("Command %s (%s) from %s is allowed to execute",
+			cmd->op_name, scst_get_opcode_name(cmd),
+			cmd->sess->initiator_name);
 
 out_unlock:
 	scst_pr_read_unlock(dev);
