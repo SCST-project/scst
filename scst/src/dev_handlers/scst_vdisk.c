@@ -1497,7 +1497,9 @@ static enum compl_status_e vdisk_exec_srv_action_in(struct vdisk_cmd_params *p)
 	case SAI_GET_LBA_STATUS:
 		return vdisk_exec_get_lba_status(p);
 	}
-	return INVALID_OPCODE;
+	scst_set_invalid_field_in_cdb(p->cmd, 1,
+			0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+	return CMD_SUCCEEDED;
 }
 
 static enum compl_status_e vdisk_exec_maintenance_in(struct vdisk_cmd_params *p)
@@ -1507,7 +1509,9 @@ static enum compl_status_e vdisk_exec_maintenance_in(struct vdisk_cmd_params *p)
 		vdisk_exec_report_tpgs(p);
 		return CMD_SUCCEEDED;
 	}
-	return INVALID_OPCODE;
+	scst_set_invalid_field_in_cdb(p->cmd, 1,
+			0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+	return CMD_SUCCEEDED;
 }
 
 static enum compl_status_e vdisk_exec_send_diagnostic(struct vdisk_cmd_params *p)
@@ -4423,7 +4427,9 @@ out:
 static enum compl_status_e vdisk_exec_get_lba_status(struct vdisk_cmd_params *p)
 {
 	/* Changing it don't forget to add it to vdisk_opcode_descriptors! */
-	return INVALID_OPCODE;
+	scst_set_invalid_field_in_cdb(p->cmd, 1,
+			0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+	return CMD_SUCCEEDED;
 }
 
 /* SPC-4 REPORT TARGET PORT GROUPS command */
