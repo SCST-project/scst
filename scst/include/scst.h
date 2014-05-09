@@ -4752,6 +4752,18 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	void (*done)(void *data, char *sense, int result, int resid));
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37) && !defined(RHEL_MAJOR)
+/*
+ * See also patch "mm: add vzalloc() and vzalloc_node() helpers" (commit
+ * e1ca7788dec6773b1a2bce51b7141948f2b8bccf).
+ */
+static void *vzalloc(unsigned long size)
+{
+	return __vmalloc(size, GFP_KERNEL | __GFP_HIGHMEM | __GFP_ZERO,
+			 PAGE_KERNEL);
+}
+#endif
+
 int scst_get_file_mode(const char *path);
 bool scst_parent_dir_exists(const char *path);
 

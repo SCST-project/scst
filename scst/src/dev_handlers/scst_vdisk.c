@@ -990,18 +990,6 @@ out_overflow:
 	goto out;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37) && !defined(RHEL_MAJOR)
-/*
- * See also patch "mm: add vzalloc() and vzalloc_node() helpers" (commit
- * e1ca7788dec6773b1a2bce51b7141948f2b8bccf).
- */
-static void *vzalloc(unsigned long size)
-{
-	return __vmalloc(size, GFP_KERNEL | __GFP_HIGHMEM | __GFP_ZERO,
-			 PAGE_KERNEL);
-}
-#endif
-
 static int vdev_save_mode_pages(const struct scst_vdisk_dev *virt_dev)
 {
 	int res, rc, offs;
