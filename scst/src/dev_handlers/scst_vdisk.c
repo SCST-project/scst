@@ -5064,6 +5064,59 @@ static void blockio_endio(struct bio *bio, int error)
 #endif
 }
 
+static struct bio *vdisk_bio_alloc(gfp_t gfp_mask, int max_nr_vecs)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+	return bio_kmalloc(gfp_mask, max_nr_vecs);
+#else
+	return bio_alloc(gfp_mask, max_nr_vecs);
+#endif
+}
+
+static void vdisk_bio_set_failfast(struct bio *bio)
+{
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 27)
+	bio->bi_rw |= (1 << BIO_RW_FAILFAST);
+#elif LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 35)
+	bio->bi_rw |= (1 << BIO_RW_FAILFAST_DEV) |
+		      (1 << BIO_RW_FAILFAST_TRANSPORT) |
+		      (1 << BIO_RW_FAILFAST_DRIVER);
+#else
+	bio->bi_rw |= REQ_FAILFAST_DEV |
+		      REQ_FAILFAST_TRANSPORT |
+		      REQ_FAILFAST_DRIVER;
+#endif
+}
+
+static void vdisk_bio_set_hoq(struct bio *bio)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36) || \
+	defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6
+	bio->bi_rw |= REQ_SYNC;
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+	bio->bi_rw |= 1 << BIO_RW_SYNCIO;
+#else
+	bio->bi_rw |= 1 << BIO_RW_SYNC;
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36) || \
+	defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6
+	bio->bi_rw |= REQ_META;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
+	/*
+	 * Priority boosting was separated from REQ_META in commit 65299a3b
+	 * (kernel 3.1.0).
+	 */
+	bio->bi_rw |= REQ_PRIO;
+#endif
+#elif !defined(RHEL_MAJOR) || RHEL_MAJOR -0 >= 6
+	/*
+	 * BIO_* and REQ_* flags were unified in commit 7b6d91da (kernel
+	 * 2.6.36).
+	 */
+	bio->bi_rw |= BIO_RW_META;
+#endif
+}
+
 static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 {
 	struct scst_cmd *cmd = p->cmd;
@@ -5127,11 +5180,7 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 			int rc;
 
 			if (need_new_bio) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
-				bio = bio_kmalloc(gfp_mask, max_nr_vecs);
-#else
-				bio = bio_alloc(gfp_mask, max_nr_vecs);
-#endif
+				bio = vdisk_bio_alloc(gfp_mask, max_nr_vecs);
 				if (!bio) {
 					PRINT_ERROR("Failed to create bio "
 						"for data segment %d (cmd %p)",
@@ -5153,51 +5202,16 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 				 * Better to fail fast w/o any local recovery
 				 * and retries.
 				 */
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 27)
-				bio->bi_rw |= (1 << BIO_RW_FAILFAST);
-#elif LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 35)
-				bio->bi_rw |= (1 << BIO_RW_FAILFAST_DEV) |
-					      (1 << BIO_RW_FAILFAST_TRANSPORT) |
-					      (1 << BIO_RW_FAILFAST_DRIVER);
-#else
-				bio->bi_rw |= REQ_FAILFAST_DEV |
-					      REQ_FAILFAST_TRANSPORT |
-					      REQ_FAILFAST_DRIVER;
-#endif
+				vdisk_bio_set_failfast(bio);
+
 #if 0 /* It could be win, but could be not, so a performance study is needed */
 				bio->bi_rw |= REQ_SYNC;
 #endif
 				if (fua)
 					bio->bi_rw |= REQ_FUA;
 
-				if (cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36) || \
-	defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6
-					bio->bi_rw |= REQ_SYNC;
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
-					bio->bi_rw |= 1 << BIO_RW_SYNCIO;
-#else
-					bio->bi_rw |= 1 << BIO_RW_SYNC;
-#endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36) || \
-	defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6
-					bio->bi_rw |= REQ_META;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
-					/*
-					 * Priority boosting was separated
-					 * from REQ_META in commit 65299a3b
-					 * (kernel 3.1.0).
-					 */
-					bio->bi_rw |= REQ_PRIO;
-#endif
-#elif !defined(RHEL_MAJOR) || RHEL_MAJOR -0 >= 6
-					/*
-					 * BIO_* and REQ_* flags were unified
-					 * in commit 7b6d91da (kernel 2.6.36).
-					 */
-					bio->bi_rw |= BIO_RW_META;
-#endif
-				}
+				if (cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE)
+					vdisk_bio_set_hoq(bio);
 
 				if (!hbio)
 					hbio = tbio = bio;
