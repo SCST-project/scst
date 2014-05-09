@@ -1043,6 +1043,12 @@ Each vdisk_fileio's device has the following attributes in
 
  - size_mb - contains size of this virtual device in MB.
 
+ - pr_file_name - Full path of the file or block device in which to store
+   persistent reservation information. The default value for this attribute is
+   /var/lib/scst/pr/${device_name}. Writing a new value into this sysfs
+   attribute is only allowed if the device is not exported. Modifying this
+   sysfs attribute causes the persistent reservation state to be reloaded.
+
  - t10_dev_id - contains and allows to set T10 vendor specific
    identifier for Device Identification VPD page (0x83) of INQUIRY data.
    By default VDISK handler always generates t10_dev_id for every new

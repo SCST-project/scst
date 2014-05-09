@@ -3759,6 +3759,17 @@ void scst_free_device(struct scst_device *dev)
 	return;
 }
 
+bool scst_device_is_exported(struct scst_device *dev)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&scst_mutex);
+#endif
+
+	WARN_ON_ONCE(!dev->dev_tgt_dev_list.next);
+
+	return !list_empty(&dev->dev_tgt_dev_list);
+}
+
 /**
  * scst_init_mem_lim - initialize memory limits structure
  *
@@ -10142,6 +10153,55 @@ int scst_read_file_transactional(const char *name, const char *name1,
 	return res;
 }
 EXPORT_SYMBOL_GPL(scst_read_file_transactional);
+
+/*
+ * Return the file mode if @path exists or an error code if opening @path via
+ * filp_open() in read-only mode failed.
+ */
+int scst_get_file_mode(const char *path)
+{
+	struct file *file;
+	int res;
+
+	file = filp_open(path, O_RDONLY, 0400);
+	if (IS_ERR(file)) {
+		res = PTR_ERR(file);
+		goto out;
+	}
+	res = file->f_dentry->d_inode->i_mode;
+	filp_close(file, NULL);
+
+out:
+	return res;
+}
+EXPORT_SYMBOL(scst_get_file_mode);
+
+/*
+ * Return true if either @path does not contain a slash or if the directory
+ * specified in @path exists.
+ */
+bool scst_parent_dir_exists(const char *path)
+{
+	const char *last_slash = strrchr(path, '/');
+	const char *dir;
+	int dir_mode;
+	bool res = true;
+
+	if (last_slash && last_slash > path) {
+		dir = kasprintf(GFP_KERNEL, "%.*s", (int)(last_slash - path),
+				path);
+		if (dir) {
+			dir_mode = scst_get_file_mode(dir);
+			kfree(dir);
+			res = dir_mode >= 0 && S_ISDIR(dir_mode);
+		} else {
+			res = false;
+		}
+	}
+
+	return res;
+}
+EXPORT_SYMBOL(scst_parent_dir_exists);
 
 static void __init scst_scsi_op_list_init(void)
 {

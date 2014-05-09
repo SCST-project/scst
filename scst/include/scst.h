@@ -2533,6 +2533,9 @@ struct scst_device {
 	/* True if persist through power loss is activated. */
 	unsigned short pr_aptpl:1;
 
+	/* Whether or not pr_file_name has been modified via sysfs. */
+	unsigned int pr_file_name_is_set:1;
+
 	/* Persistent reservation type */
 	uint8_t pr_type;
 
@@ -2562,7 +2565,10 @@ struct scst_device {
 
 	struct scst_order_data dev_order_data;
 
-	/* Persist through power loss files */
+	/*
+	 * Where to save persistent reservation information. Protected by
+	 * dev_pr_mutex.
+	 */
 	char *pr_file_name;
 	char *pr_file_name1;
 
@@ -4700,7 +4706,10 @@ struct scst_sysfs_work_item {
 		};
 		struct {
 			struct scst_device *dev;
-			int new_threads_num;
+			union {
+				int new_threads_num;
+				bool default_val;
+			};
 			enum scst_dev_type_threads_pool_type new_threads_pool_type;
 		};
 		struct scst_session *sess;
@@ -4742,6 +4751,9 @@ void scst_pass_through_cmd_done(void *data, char *sense, int result, int resid);
 int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	void (*done)(void *data, char *sense, int result, int resid));
 #endif
+
+int scst_get_file_mode(const char *path);
+bool scst_parent_dir_exists(const char *path);
 
 struct scst_data_descriptor {
 	uint64_t sdd_lba;

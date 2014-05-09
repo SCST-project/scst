@@ -2756,6 +2756,135 @@ static ssize_t scst_dev_sysfs_type_show(struct kobject *kobj,
 static struct kobj_attribute dev_type_attr =
 	__ATTR(type, S_IRUGO, scst_dev_sysfs_type_show, NULL);
 
+static ssize_t scst_dev_sysfs_pr_file_name_show(struct kobject *kobj,
+						struct kobj_attribute *attr,
+						char *buf)
+{
+	struct scst_device *dev;
+	int res;
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+
+	res = mutex_lock_interruptible(&dev->dev_pr_mutex);
+	if (res != 0)
+		goto out;
+	/* pr_file_name is NULL for SCSI pass-through devices */
+	WARN_ON_ONCE(!dev->pr_file_name);
+	res = scnprintf(buf, PAGE_SIZE, "%s\n%s", dev->pr_file_name ? : "",
+			dev->pr_file_name_is_set ? SCST_SYSFS_KEY_MARK "\n" :
+			"");
+	mutex_unlock(&dev->dev_pr_mutex);
+
+out:
+	return res;
+}
+
+static int
+scst_dev_sysfs_pr_file_name_process_store(struct scst_sysfs_work_item *work)
+{
+	struct scst_device *dev = work->dev;
+	char *pr_file_name = work->buf, *prev = NULL;
+	int res;
+
+	res = mutex_lock_interruptible(&scst_mutex);
+	if (res != 0)
+		goto out;
+
+	res = -EBUSY;
+	if (scst_device_is_exported(dev)) {
+		PRINT_ERROR("%s: not changing pr_file_name because the device"
+			    " has already been exported", dev->virt_name);
+		goto unlock_scst;
+	}
+
+	res = mutex_lock_interruptible(&dev->dev_pr_mutex);
+	if (res)
+		goto unlock_scst;
+
+	if (strcmp(dev->pr_file_name, pr_file_name) == 0)
+		goto unlock_dev_pr;
+
+	res = scst_pr_set_file_name(dev, &prev, "%s", pr_file_name);
+	if (res != 0)
+		goto unlock_dev_pr;
+
+	res = scst_pr_init_dev(dev);
+	if (res != 0) {
+		PRINT_ERROR("%s: loading PR from %s failed (%d) - restoring %s",
+			    dev->virt_name, dev->pr_file_name, res,
+			    prev ? : "");
+		scst_pr_set_file_name(dev, NULL, "%s", prev);
+		scst_pr_init_dev(dev);
+		goto unlock_dev_pr;
+	}
+
+	dev->pr_file_name_is_set = !work->default_val;
+
+unlock_dev_pr:
+	mutex_unlock(&dev->dev_pr_mutex);
+
+unlock_scst:
+	mutex_unlock(&scst_mutex);
+
+out:
+	kobject_put(&dev->dev_kobj);
+	kfree(prev);
+
+	return res;
+}
+
+static ssize_t scst_dev_sysfs_pr_file_name_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	struct scst_sysfs_work_item *work;
+	struct scst_device *dev;
+	char *pr_file_name, *p;
+	int res = -ENOMEM;
+	bool def = false;
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+
+	pr_file_name = kasprintf(GFP_KERNEL, "%.*s", (int)count, buf);
+	if (!pr_file_name) {
+		PRINT_ERROR("Unable to kasprintf() PR file name");
+		goto out;
+	}
+	p = pr_file_name;
+	strsep(&p, "\n"); /* strip trailing whitespace */
+	if (pr_file_name[0] == '\0') {
+		kfree(pr_file_name);
+		pr_file_name = kasprintf(GFP_KERNEL, "%s/%s", SCST_PR_DIR,
+					 dev->virt_name);
+		if (!pr_file_name) {
+			PRINT_ERROR("Unable to kasprintf() PR file name");
+			goto out;
+		}
+		def = true;
+	}
+
+	res = scst_alloc_sysfs_work(scst_dev_sysfs_pr_file_name_process_store,
+				    false, &work);
+	if (res != 0)
+		goto out;
+	kobject_get(&dev->dev_kobj);
+	work->dev = dev;
+	work->default_val = def;
+	swap(work->buf, pr_file_name);
+
+	res = scst_sysfs_queue_wait_work(work);
+	if (res == 0)
+		res = count;
+
+out:
+	kfree(pr_file_name);
+	return res;
+}
+
+static struct kobj_attribute dev_pr_file_name_attr =
+	__ATTR(pr_file_name, S_IWUSR|S_IRUGO,
+	       scst_dev_sysfs_pr_file_name_show,
+	       scst_dev_sysfs_pr_file_name_store);
+
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 
 static ssize_t scst_dev_sysfs_dump_prs(struct kobject *kobj,
@@ -3203,6 +3332,15 @@ int scst_dev_sysfs_create(struct scst_device *dev)
 		if (res != 0) {
 			PRINT_ERROR("Can't create scsi_device link for dev %s",
 				dev->virt_name);
+			goto out_del;
+		}
+	} else {
+		res = sysfs_create_file(&dev->dev_kobj,
+					&dev_pr_file_name_attr.attr);
+		if (res != 0) {
+			PRINT_ERROR("Can't create attr %s for dev %s",
+				    dev_pr_file_name_attr.attr.name,
+				    dev->virt_name);
 			goto out_del;
 		}
 	}

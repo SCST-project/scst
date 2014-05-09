@@ -45,6 +45,7 @@
 #endif
 #include <linux/vmalloc.h>
 #include <asm/unaligned.h>
+#include <stdarg.h>
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
 #include <linux/mount.h>
@@ -72,6 +73,19 @@
 
 #ifndef isblank
 #define isblank(c)		((c) == ' ' || (c) == '\t')
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32) && defined(CONFIG_LOCKDEP)
+#define scst_assert_pr_mutex_held(dev)					\
+	do {								\
+		if (dev->dev_list_entry.next &&				\
+		    !list_empty(&dev->dev_list_entry))			\
+			lockdep_assert_held(&dev->dev_pr_mutex);	\
+	} while (0);
+#else
+static inline void scst_assert_pr_mutex_held(struct scst_device *dev)
+{
+}
 #endif
 
 static inline int tid_size(const uint8_t *tid)
@@ -174,6 +188,8 @@ out_error:
 static inline void scst_pr_set_holder(struct scst_device *dev,
 	struct scst_dev_registrant *holder, uint8_t scope, uint8_t type)
 {
+	scst_assert_pr_mutex_held(dev);
+
 	dev->pr_is_set = 1;
 	dev->pr_scope = scope;
 	dev->pr_type = type;
@@ -189,6 +205,8 @@ static bool scst_pr_is_holder(struct scst_device *dev,
 	bool res = false;
 
 	TRACE_ENTRY();
+
+	scst_assert_pr_mutex_held(dev);
 
 	if (!dev->pr_is_set)
 		goto out;
@@ -209,6 +227,8 @@ out:
 /* Must be called under dev_pr_mutex */
 void scst_pr_dump_prs(struct scst_device *dev, bool force)
 {
+	scst_assert_pr_mutex_held(dev);
+
 	if (!force) {
 #if defined(CONFIG_SCST_DEBUG)
 		if ((trace_flag & TRACE_PRES) == 0)
@@ -265,6 +285,8 @@ static void scst_pr_find_registrants_list_all(struct scst_device *dev,
 
 	TRACE_ENTRY();
 
+	scst_assert_pr_mutex_held(dev);
+
 	TRACE_PR("Finding all registered records for device '%s' "
 		"with exclude reg key %016llx",
 		dev->virt_name, be64_to_cpu(exclude_reg->key));
@@ -290,6 +312,8 @@ static void scst_pr_find_registrants_list_key(struct scst_device *dev,
 	struct scst_dev_registrant *reg;
 
 	TRACE_ENTRY();
+
+	scst_assert_pr_mutex_held(dev);
 
 	TRACE_PR("Finding registrants for device '%s' with key %016llx",
 		dev->virt_name, be64_to_cpu(key));
@@ -320,6 +344,8 @@ static struct scst_dev_registrant *scst_pr_find_reg(
 
 	TRACE_ENTRY();
 
+	scst_assert_pr_mutex_held(dev);
+
 	list_for_each_entry(reg, &dev->dev_registrants_list,
 				dev_registrants_list_entry) {
 		if ((reg->rel_tgt_id == rel_tgt_id) &&
@@ -338,6 +364,8 @@ static void scst_pr_clear_reservation(struct scst_device *dev)
 {
 	TRACE_ENTRY();
 
+	scst_assert_pr_mutex_held(dev);
+
 	WARN_ON(!dev->pr_is_set);
 
 	dev->pr_is_set = 0;
@@ -354,6 +382,8 @@ static void scst_pr_clear_reservation(struct scst_device *dev)
 static void scst_pr_clear_holder(struct scst_device *dev)
 {
 	TRACE_ENTRY();
+
+	scst_assert_pr_mutex_held(dev);
 
 	WARN_ON(!dev->pr_is_set);
 
@@ -381,6 +411,8 @@ static struct scst_dev_registrant *scst_pr_add_registrant(
 	gfp_t gfp_flags = dev_lock_locked ? GFP_ATOMIC : GFP_KERNEL;
 
 	TRACE_ENTRY();
+
+	scst_assert_pr_mutex_held(dev);
 
 	sBUG_ON(dev == NULL);
 	sBUG_ON(transport_id == NULL);
@@ -465,6 +497,8 @@ static void scst_pr_remove_registrant(struct scst_device *dev,
 {
 	TRACE_ENTRY();
 
+	scst_assert_pr_mutex_held(dev);
+
 	TRACE_PR("Removing registrant %s/%d (reg %p, tgt_dev %p, key %016llx, "
 		"dev %s)", debug_transport_id_to_initiator_name(reg->transport_id),
 		reg->rel_tgt_id, reg, reg->tgt_dev, be64_to_cpu(reg->key),
@@ -485,6 +519,18 @@ static void scst_pr_remove_registrant(struct scst_device *dev,
 	return;
 }
 
+static void scst_pr_remove_registrants(struct scst_device *dev)
+{
+	struct scst_dev_registrant *reg, *tmp_reg;
+
+	scst_assert_pr_mutex_held(dev);
+
+	list_for_each_entry_safe(reg, tmp_reg, &dev->dev_registrants_list,
+				 dev_registrants_list_entry) {
+		scst_pr_remove_registrant(dev, reg);
+	}
+}
+
 /* Must be called under dev_pr_mutex */
 static void scst_pr_send_ua_reg(struct scst_device *dev,
 	struct scst_dev_registrant *reg,
@@ -493,6 +539,8 @@ static void scst_pr_send_ua_reg(struct scst_device *dev,
 	static uint8_t ua[SCST_STANDARD_SENSE_LEN];
 
 	TRACE_ENTRY();
+
+	scst_assert_pr_mutex_held(dev);
 
 	scst_set_sense(ua, sizeof(ua), dev->d_sense, key, asc, ascq);
 
@@ -517,6 +565,8 @@ static void scst_pr_send_ua_all(struct scst_device *dev,
 
 	TRACE_ENTRY();
 
+	scst_assert_pr_mutex_held(dev);
+
 	list_for_each_entry(reg, &dev->dev_registrants_list,
 				dev_registrants_list_entry) {
 		if (reg != exclude_reg)
@@ -536,6 +586,8 @@ static void scst_pr_abort_reg(struct scst_device *dev,
 	int rc;
 
 	TRACE_ENTRY();
+
+	scst_assert_pr_mutex_held(dev);
 
 	if (reg->tgt_dev == NULL) {
 		TRACE_PR("Registrant %s/%d (%p, key 0x%016llx) has no session",
@@ -611,6 +663,10 @@ static int scst_pr_do_load_device_file(struct scst_device *dev,
 	uint16_t rel_tgt_id;
 
 	TRACE_ENTRY();
+
+	scst_assert_pr_mutex_held(dev);
+
+	scst_pr_remove_registrants(dev);
 
 	old_fs = get_fs();
 	set_fs(KERNEL_DS);
@@ -767,9 +823,11 @@ out:
 
 static int scst_pr_load_device_file(struct scst_device *dev)
 {
-	int res;
+	int res, rc;
 
 	TRACE_ENTRY();
+
+	scst_assert_pr_mutex_held(dev);
 
 	if (dev->pr_file_name == NULL || dev->pr_file_name1 == NULL) {
 		PRINT_ERROR("Invalid file paths for '%s'", dev->virt_name);
@@ -779,12 +837,20 @@ static int scst_pr_load_device_file(struct scst_device *dev)
 
 	res = scst_pr_do_load_device_file(dev, dev->pr_file_name);
 	if (res == 0)
-		goto out;
+		goto out_dump;
 	else if (res == -ENOMEM)
 		goto out;
 
-	res = scst_pr_do_load_device_file(dev, dev->pr_file_name1);
+	rc = res;
 
+	res = scst_pr_do_load_device_file(dev, dev->pr_file_name1);
+	if (res != 0) {
+		if (res == -ENOENT)
+			res = rc;
+		goto out;
+	}
+
+out_dump:
 	scst_pr_dump_prs(dev, false);
 
 out:
@@ -798,6 +864,8 @@ static void scst_pr_remove_device_files(struct scst_tgt_dev *tgt_dev)
 	struct scst_device *dev = tgt_dev->dev;
 
 	TRACE_ENTRY();
+
+	scst_assert_pr_mutex_held(dev);
 
 	res = dev->pr_file_name ? scst_remove_file(dev->pr_file_name) : -ENOENT;
 	res = dev->pr_file_name1 ? scst_remove_file(dev->pr_file_name1) : -ENOENT;
@@ -820,6 +888,8 @@ void scst_pr_sync_device_file(struct scst_tgt_dev *tgt_dev, struct scst_cmd *cmd
 	struct scst_dev_registrant *reg;
 
 	TRACE_ENTRY();
+
+	scst_assert_pr_mutex_held(dev);
 
 	if ((dev->pr_aptpl == 0) || list_empty(&dev->dev_registrants_list)) {
 		scst_pr_remove_device_files(tgt_dev);
@@ -1003,107 +1073,107 @@ write_error_close:
 	goto out_set_fs;
 }
 
-static int scst_pr_check_pr_path(void)
+#endif /* CONFIG_SCST_PROC */
+
+/**
+ * scst_pr_set_file_name - set name of file in which to save PR information
+ * @dev:  SCST device.
+ * @prev: If not NULL, the current path will be stored in *@prev. It is the
+ *        responsibility of the caller to invoke kfree(*@prev) at an
+ *        appropriate time.
+ * @fmt:  Full path of the file in which to save PR info.
+ *
+ * This function must be called either while @dev is not on the device list
+ * or with scst_mutex held.
+ */
+int scst_pr_set_file_name(struct scst_device *dev, char **prev,
+			  const char *fmt, ...)
 {
-	int res;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
-	struct nameidata nd;
-#else
-	struct path path;
-#endif
+	va_list args;
+	char *pr_file_name = NULL, *bkp = NULL;
+	int file_mode, res = -EINVAL;
 
-	mm_segment_t old_fs = get_fs();
+	scst_assert_pr_mutex_held(dev);
 
-	TRACE_ENTRY();
+	sBUG_ON(!fmt);
 
-	set_fs(KERNEL_DS);
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
-	res = path_lookup(SCST_PR_DIR, 0, &nd);
-	if (res == 0)
-		scst_path_put(&nd);
-#else
-	res = kern_path(SCST_PR_DIR, 0, &path);
-	if (res == 0)
-		path_put(&path);
-#endif
-	if (res != 0) {
-		PRINT_ERROR("Unable to find %s (err %d), you should create "
-			"this directory manually or reinstall SCST",
-			SCST_PR_DIR, res);
-		goto out_setfs;
+	res = -ENOMEM;
+	va_start(args, fmt);
+	pr_file_name = kvasprintf(GFP_KERNEL, fmt, args);
+	va_end(args);
+	if (!pr_file_name) {
+		PRINT_ERROR("Unable to kvasprintf() new PR file name");
+		goto out;
 	}
 
-out_setfs:
-	set_fs(old_fs);
+	res = -EINVAL;
+	if (pr_file_name[0] != '/') {
+		PRINT_ERROR("PR file name must be absolute!");
+		goto out;
+	}
 
-	TRACE_EXIT_RES(res);
+	file_mode = scst_get_file_mode(pr_file_name);
+	if (file_mode >= 0 && !S_ISREG(file_mode) && !S_ISBLK(file_mode)) {
+		PRINT_ERROR("PR file name must be file or block device!");
+		goto out;
+	}
+
+	res = -ENOENT;
+	if (!scst_parent_dir_exists(pr_file_name)) {
+		PRINT_ERROR("PR file name parent directory doesn't exist");
+		goto out;
+	}
+
+	res = -ENOMEM;
+	bkp = kasprintf(GFP_KERNEL, "%s.1", pr_file_name);
+	if (!bkp) {
+		PRINT_ERROR("Unable to kasprintf() backup PR file name");
+		goto out;
+	}
+	if (prev) {
+		*prev = dev->pr_file_name;
+		dev->pr_file_name = pr_file_name;
+		pr_file_name = NULL;
+	} else
+		swap(dev->pr_file_name, pr_file_name);
+	swap(dev->pr_file_name1, bkp);
+	res = 0;
+
+out:
+	kfree(pr_file_name);
+	kfree(bkp);
 	return res;
 }
 
-#endif /* CONFIG_SCST_PROC */
-
-/* Called under scst_mutex */
+/* Must be called under dev_pr_mutex or before dev is on the device list. */
 int scst_pr_init_dev(struct scst_device *dev)
 {
 	int res = 0;
 
 	TRACE_ENTRY();
 
-	dev->pr_file_name = kasprintf(GFP_KERNEL, "%s/%s", SCST_PR_DIR,
-				      dev->virt_name);
-	if (dev->pr_file_name == NULL) {
-		PRINT_ERROR("Allocation of device '%s' file path failed",
-			dev->virt_name);
-		res = -ENOMEM;
-		goto out;
-	}
-	dev->pr_file_name1 = kasprintf(GFP_KERNEL, "%s/%s.1", SCST_PR_DIR,
-				       dev->virt_name);
-	if (dev->pr_file_name1 == NULL) {
-		PRINT_ERROR("Allocation of device '%s' backup file path failed",
-			dev->virt_name);
-		res = -ENOMEM;
-		goto out_free_name;
-	}
+	scst_assert_pr_mutex_held(dev);
+
+	sBUG_ON(!dev->pr_file_name || !dev->pr_file_name1);
 
 #ifndef CONFIG_SCST_PROC
-	res = scst_pr_check_pr_path();
-	if (res == 0) {
-		res = scst_pr_load_device_file(dev);
-		if (res == -ENOENT)
-			res = 0;
-	}
+	res = scst_pr_load_device_file(dev);
+	if (res == -ENOENT)
+		res = 0;
 #endif
 
-	if (res != 0)
-		goto out_free_name1;
-
-out:
 	TRACE_EXIT_RES(res);
 	return res;
-
-out_free_name1:
-	kfree(dev->pr_file_name1);
-	dev->pr_file_name1 = NULL;
-
-out_free_name:
-	kfree(dev->pr_file_name);
-	dev->pr_file_name = NULL;
-	goto out;
 }
 
 /* Called under scst_mutex */
 void scst_pr_clear_dev(struct scst_device *dev)
 {
-	struct scst_dev_registrant *reg, *tmp_reg;
-
 	TRACE_ENTRY();
 
-	list_for_each_entry_safe(reg, tmp_reg, &dev->dev_registrants_list,
-			dev_registrants_list_entry) {
-		scst_pr_remove_registrant(dev, reg);
-	}
+	scst_assert_pr_mutex_held(dev);
+
+	scst_pr_remove_registrants(dev);
 
 	kfree(dev->pr_file_name);
 	kfree(dev->pr_file_name1);
@@ -1197,6 +1267,8 @@ static int scst_pr_register_with_spec_i_pt(struct scst_cmd *cmd,
 	struct scst_device *dev = cmd->dev;
 	struct scst_dev_registrant *reg;
 	uint8_t *transport_id;
+
+	scst_assert_pr_mutex_held(cmd->dev);
 
 	action_key = get_unaligned((__be64 *)&buffer[8]);
 
@@ -1315,6 +1387,8 @@ static void scst_pr_unregister(struct scst_device *dev,
 
 	TRACE_ENTRY();
 
+	scst_assert_pr_mutex_held(dev);
+
 	TRACE_PR("Unregistering key %0llx", reg->key);
 
 	is_holder = scst_pr_is_holder(dev, reg);
@@ -1345,6 +1419,8 @@ static void scst_pr_unregister_all_tg_pt(struct scst_device *dev,
 	uint8_t proto_id = transport_id[0] & 0x0f;
 
 	TRACE_ENTRY();
+
+	scst_assert_pr_mutex_held(dev);
 
 	/*
 	 * We can't use scst_mutex here since the caller already holds
@@ -1387,6 +1463,8 @@ static int scst_pr_register_on_tgt_id(struct scst_cmd *cmd,
 	int res;
 
 	TRACE_ENTRY();
+
+	scst_assert_pr_mutex_held(cmd->dev);
 
 	TRACE_PR("rel_tgt_id %d, spec_i_pt %d", rel_tgt_id, spec_i_pt);
 
@@ -1433,6 +1511,8 @@ static int scst_pr_register_all_tg_pt(struct scst_cmd *cmd, uint8_t *buffer,
 
 	TRACE_ENTRY();
 
+	scst_assert_pr_mutex_held(cmd->dev);
+
 	/*
 	 * We can't use scst_mutex here because the caller already holds
 	 * dev_pr_mutex.
@@ -1477,6 +1557,8 @@ static int __scst_pr_register(struct scst_cmd *cmd, uint8_t *buffer,
 	LIST_HEAD(rollback_list);
 
 	TRACE_ENTRY();
+
+	scst_assert_pr_mutex_held(cmd->dev);
 
 	if (all_tg_pt) {
 		res = scst_pr_register_all_tg_pt(cmd, buffer, buffer_size,
@@ -1523,6 +1605,8 @@ void scst_pr_register(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 	struct scst_dev_registrant *reg;
 
 	TRACE_ENTRY();
+
+	scst_assert_pr_mutex_held(cmd->dev);
 
 	aptpl = buffer[20] & 0x01;
 	spec_i_pt = (buffer[20] >> 3) & 0x01;
@@ -1618,6 +1702,8 @@ void scst_pr_register_and_ignore(struct scst_cmd *cmd, uint8_t *buffer,
 
 	TRACE_ENTRY();
 
+	scst_assert_pr_mutex_held(cmd->dev);
+
 	aptpl = buffer[20] & 0x01;
 	all_tg_pt = (buffer[20] >> 2) & 0x01;
 	action_key = get_unaligned((__be64 *)&buffer[8]);
@@ -1695,6 +1781,8 @@ void scst_pr_register_and_move(struct scst_cmd *cmd, uint8_t *buffer,
 	uint16_t rel_tgt_id_move;
 
 	TRACE_ENTRY();
+
+	scst_assert_pr_mutex_held(cmd->dev);
 
 	aptpl = buffer[17] & 0x01;
 	key = get_unaligned((__be64 *)&buffer[0]);
@@ -1839,6 +1927,8 @@ void scst_pr_reserve(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 
 	TRACE_ENTRY();
 
+	scst_assert_pr_mutex_held(dev);
+
 	key = get_unaligned((__be64 *)&buffer[0]);
 	scope = cmd->cdb[2] >> 4;
 	type = cmd->cdb[2] & 0x0f;
@@ -1926,6 +2016,8 @@ void scst_pr_release(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 
 	TRACE_ENTRY();
 
+	scst_assert_pr_mutex_held(dev);
+
 	key = get_unaligned((__be64 *)&buffer[0]);
 	scope = cmd->cdb[2] >> 4;
 	type = cmd->cdb[2] & 0x0f;
@@ -2000,6 +2092,8 @@ void scst_pr_clear(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 	struct scst_dev_registrant *reg, *r, *t;
 
 	TRACE_ENTRY();
+
+	scst_assert_pr_mutex_held(dev);
 
 	key = get_unaligned((__be64 *)&buffer[0]);
 
@@ -2211,6 +2305,8 @@ void scst_pr_preempt(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 {
 	TRACE_ENTRY();
 
+	scst_assert_pr_mutex_held(cmd->dev);
+
 	scst_pr_do_preempt(cmd, buffer, buffer_size, false);
 
 	TRACE_EXIT();
@@ -2247,6 +2343,8 @@ void scst_pr_preempt_and_abort(struct scst_cmd *cmd, uint8_t *buffer,
 	int buffer_size)
 {
 	TRACE_ENTRY();
+
+	scst_assert_pr_mutex_held(cmd->dev);
 
 	cmd->pr_abort_counter = kzalloc(sizeof(*cmd->pr_abort_counter),
 		GFP_KERNEL);
@@ -2424,6 +2522,8 @@ void scst_pr_read_keys(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 
 	TRACE_ENTRY();
 
+	scst_assert_pr_mutex_held(dev);
+
 	if (buffer_size < 8) {
 		TRACE_PR("buffer_size too small: %d. expected >= 8 "
 			"(buffer %p)", buffer_size, buffer);
@@ -2474,6 +2574,8 @@ void scst_pr_read_reservation(struct scst_cmd *cmd, uint8_t *buffer,
 	int size = 0;
 
 	TRACE_ENTRY();
+
+	scst_assert_pr_mutex_held(dev);
 
 	if (buffer_size < 8) {
 		TRACE_PR("buffer_size too small: %d. expected >= 8 "
@@ -2538,6 +2640,8 @@ void scst_pr_report_caps(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 
 	TRACE_ENTRY();
 
+	scst_assert_pr_mutex_held(dev);
+
 	if (buffer_size < 8) {
 		TRACE_PR("buffer_size too small: %d. expected >= 8 "
 			"(buffer %p)", buffer_size, buffer);
@@ -2576,6 +2680,8 @@ void scst_pr_read_full_status(struct scst_cmd *cmd, uint8_t *buffer,
 	struct scst_dev_registrant *reg;
 
 	TRACE_ENTRY();
+
+	scst_assert_pr_mutex_held(cmd->dev);
 
 	if (buffer_size < 8)
 		goto skip;

@@ -1198,13 +1198,13 @@ out:
 #ifndef CONFIG_SCST_PROC
 out_del_unlocked:
 	mutex_lock(&scst_mutex);
-	list_del(&dev->dev_list_entry);
+	list_del_init(&dev->dev_list_entry);
 	mutex_unlock(&scst_mutex);
 	scst_free_device(dev);
 	goto out;
 #else
 out_del_locked:
-	list_del(&dev->dev_list_entry);
+	list_del_init(&dev->dev_list_entry);
 #endif
 
 out_free_dev:
@@ -1266,7 +1266,7 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 
 	dev->dev_unregistering = 1;
 
-	list_del(&dev->dev_list_entry);
+	list_del_init(&dev->dev_list_entry);
 
 	scst_dg_dev_remove_by_dev(dev);
 
@@ -1418,6 +1418,11 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 		scst_virt_dev_last_id = 1;
 	}
 
+	res = scst_pr_set_file_name(dev, NULL, "%s/%s", SCST_PR_DIR,
+				    dev->virt_name);
+	if (res != 0)
+		goto out_free_dev;
+
 	res = scst_pr_init_dev(dev);
 	if (res != 0)
 		goto out_free_dev;
@@ -1516,7 +1521,7 @@ void scst_unregister_virtual_device(int id)
 
 	dev->dev_unregistering = 1;
 
-	list_del(&dev->dev_list_entry);
+	list_del_init(&dev->dev_list_entry);
 
 	scst_pr_clear_dev(dev);
 
