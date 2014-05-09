@@ -4757,7 +4757,7 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
  * See also patch "mm: add vzalloc() and vzalloc_node() helpers" (commit
  * e1ca7788dec6773b1a2bce51b7141948f2b8bccf).
  */
-static void *vzalloc(unsigned long size)
+static inline void *vzalloc(unsigned long size)
 {
 	return __vmalloc(size, GFP_KERNEL | __GFP_HIGHMEM | __GFP_ZERO,
 			 PAGE_KERNEL);
