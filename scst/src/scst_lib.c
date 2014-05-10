@@ -8183,6 +8183,8 @@ again:
 	UA_entry = list_first_entry(&cmd->tgt_dev->UA_list, typeof(*UA_entry),
 			      UA_list_entry);
 
+	TRACE_MGMT_DBG("Setting pending UA %p to cmd %p", UA_entry, cmd);
+
 	TRACE_DBG("next %p UA_entry %p",
 	      cmd->tgt_dev->UA_list.next, UA_entry);
 
@@ -8312,8 +8314,13 @@ static void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
 	memset(UA_entry, 0, sizeof(*UA_entry));
 
 	UA_entry->global_UA = (flags & SCST_SET_UA_FLAG_GLOBAL) != 0;
-	if (UA_entry->global_UA)
-		TRACE_MGMT_DBG("Queueing global UA %p", UA_entry);
+
+	TRACE(TRACE_MGMT_DEBUG|TRACE_SCSI, "Queuing new %sUA %p (%x:%x:%x, "
+		"d_sense %d) to tgt_dev %p (dev %s, initiator %s)",
+		UA_entry->global_UA ? "global " : "", UA_entry, sense[2],
+		sense[12], sense[13], tgt_dev->dev->d_sense, tgt_dev,
+		tgt_dev->dev->virt_name, tgt_dev->sess->initiator_name);
+	TRACE_BUFF_FLAG(TRACE_DEBUG, "UA sense", sense, sense_len);
 
 	if (sense_len > (int)sizeof(UA_entry->UA_sense_buffer)) {
 		PRINT_WARNING("Sense truncated (needed %d), shall you increase "
@@ -8324,9 +8331,6 @@ static void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
 	UA_entry->UA_valid_sense_len = sense_len;
 
 	set_bit(SCST_TGT_DEV_UA_PENDING, &tgt_dev->tgt_dev_flags);
-
-	TRACE_MGMT_DBG("Adding new UA to tgt_dev %p (dev %s, initiator %s)",
-		tgt_dev, tgt_dev->dev->virt_name, tgt_dev->sess->initiator_name);
 
 	if (flags & SCST_SET_UA_FLAG_AT_HEAD)
 		list_add(&UA_entry->UA_list_entry, &tgt_dev->UA_list);
