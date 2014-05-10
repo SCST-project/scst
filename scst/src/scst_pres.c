@@ -81,7 +81,7 @@
 		if (dev->dev_list_entry.next &&				\
 		    !list_empty(&dev->dev_list_entry))			\
 			lockdep_assert_held(&dev->dev_pr_mutex);	\
-	} while (0);
+	} while (0)
 #else
 static inline void scst_assert_pr_mutex_held(struct scst_device *dev)
 {
