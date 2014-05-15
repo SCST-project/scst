@@ -4001,6 +4001,7 @@ int iscsi_threads_pool_get(const cpumask_t *cpu_mask,
 	struct iscsi_thread_pool *p;
 	struct iscsi_thread *t;
 	int i, j, count;
+	static int major; /* Protected by iscsi_threads_pool_mutex */
 
 	TRACE_ENTRY();
 
@@ -4063,44 +4064,21 @@ int iscsi_threads_pool_get(const cpumask_t *cpu_mask,
 	list_add_tail(&p->thread_pools_list_entry, &iscsi_thread_pools_list);
 
 	for (j = 0; j < 2; j++) {
-		int (*fn)(void *);
-		char name[25];
-		static int major;
-
-		if (j == 0)
-			fn = istrd;
-		else
-			fn = istwr;
-
 		for (i = 0; i < count; i++) {
-			if (j == 0) {
-				major++;
-				if (cpu_mask == NULL)
-					snprintf(name, sizeof(name), "iscsird%d", i);
-				else
-					snprintf(name, sizeof(name), "iscsird%d_%d",
-						major, i);
-			} else {
-				if (cpu_mask == NULL)
-					snprintf(name, sizeof(name), "iscsiwr%d", i);
-				else
-					snprintf(name, sizeof(name), "iscsiwr%d_%d",
-						major, i);
-			}
-
 			t = kmalloc(sizeof(*t), GFP_KERNEL);
 			if (t == NULL) {
 				res = -ENOMEM;
-				PRINT_ERROR("Failed to allocate thread %s "
-					"(size %zd)", name, sizeof(*t));
+				PRINT_ERROR("Failed to allocate thread "
+					    "(size %zd)", sizeof(*t));
 				goto out_free;
 			}
 
-			t->thr = kthread_run(fn, p, name);
+			t->thr = kthread_run(j ? istwr : istrd, p,
+					     "iscsi%s%d_%d", j ? "wr" : "rd",
+					     major, i);
 			if (IS_ERR(t->thr)) {
 				res = PTR_ERR(t->thr);
-				PRINT_ERROR("kthread_run() for thread %s failed: %d",
-					name, res);
+				PRINT_ERROR("kthread_run() failed: %d", res);
 				kfree(t);
 				goto out_free;
 			}
@@ -4108,6 +4086,7 @@ int iscsi_threads_pool_get(const cpumask_t *cpu_mask,
 		}
 	}
 
+	major++;
 	res = 0;
 
 	TRACE_DBG("Created iSCSI thread pool %p", p);
