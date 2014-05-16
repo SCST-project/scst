@@ -523,8 +523,6 @@ static void scst_pr_remove_registrants(struct scst_device *dev)
 {
 	struct scst_dev_registrant *reg, *tmp_reg;
 
-	scst_assert_pr_mutex_held(dev);
-
 	list_for_each_entry_safe(reg, tmp_reg, &dev->dev_registrants_list,
 				 dev_registrants_list_entry) {
 		scst_pr_remove_registrant(dev, reg);
@@ -1170,8 +1168,6 @@ int scst_pr_init_dev(struct scst_device *dev)
 void scst_pr_clear_dev(struct scst_device *dev)
 {
 	TRACE_ENTRY();
-
-	scst_assert_pr_mutex_held(dev);
 
 	scst_pr_remove_registrants(dev);
 
