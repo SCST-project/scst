@@ -4866,24 +4866,6 @@ out:
 	return res;
 }
 
-static void scst_prelim_finish_internal_cmd(struct scst_cmd *cmd)
-{
-	unsigned long flags;
-
-	TRACE_ENTRY();
-
-	sBUG_ON(!cmd->internal);
-
-	spin_lock_irqsave(&cmd->sess->sess_list_lock, flags);
-	list_del(&cmd->sess_cmd_list_entry);
-	spin_unlock_irqrestore(&cmd->sess->sess_list_lock, flags);
-
-	__scst_cmd_put(cmd);
-
-	TRACE_EXIT();
-	return;
-}
-
 int scst_prepare_request_sense(struct scst_cmd *orig_cmd)
 {
 	int res = 0;
@@ -4994,15 +4976,14 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 	struct scst_cmd *ws_cmd = wsp->ws_orig_cmd;
 	struct scatterlist *ws_sg = wsp->ws_sg;
 	int ws_sg_cnt = wsp->ws_sg_cnt;
-	int res, i;
+	int res;
 	uint8_t write16_cdb[16];
-	struct scatterlist *sg;
-	int sg_cnt, len = blocks << ws_cmd->dev->block_shift;
-	struct sgv_pool_obj *sgv = NULL;
+	int len = blocks << ws_cmd->dev->block_shift;
 	struct scst_cmd *cmd;
-	int64_t cur_lba;
 
 	TRACE_ENTRY();
+
+	EXTRACHECKS_BUG_ON(blocks > ws_sg_cnt);
 
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &ws_cmd->cmd_flags)) ||
 	    unlikely(ws_cmd->completed)) {
@@ -5031,44 +5012,8 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 
 	cmd->tgt_i_priv = wsp;
 
-	if ((ws_cmd->cdb[1] & 0x6) == 0) {
-		TRACE_DBG("Using direct ws_sg %p (cnt %d)", ws_sg, ws_sg_cnt);
-		sg = ws_sg;
-		EXTRACHECKS_BUG_ON(blocks > ws_sg_cnt);
-		sg_cnt = blocks;
-		goto set_add;
-	}
-
-	sg = sgv_pool_alloc(ws_cmd->tgt_dev->pool, len, GFP_KERNEL, 0,
-			&sg_cnt, &sgv, &cmd->dev->dev_mem_lim, NULL);
-	if (sg == NULL) {
-		PRINT_ERROR("Unable to alloc sg for %d blocks", blocks);
-		res = -ENOMEM;
-		goto out_free_cmd;
-	}
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
-	sg_copy(sg, ws_sg, ws_sg_cnt, len, KM_USER0, KM_USER1);
-#else
-	sg_copy(sg, ws_sg, ws_sg_cnt, len);
-#endif
-
-	cur_lba = lba;
-	for (i = 0; i < sg_cnt; i++) {
-		int cur_offs = 0;
-		while (cur_offs < sg[i].length) {
-			uint8_t *q;
-			q = &((int8_t *)(page_address(sg_page(&sg[i]))))[cur_offs];
-			*((uint64_t *)q) = cur_lba;
-			cur_offs += ws_cmd->dev->block_size;
-			cur_lba++;
-		}
-	}
-
-set_add:
-	cmd->tgt_i_sg = sg;
-	cmd->tgt_i_sg_cnt = sg_cnt;
-	cmd->out_sgv = sgv; /* hacky, but it isn't used for WRITE(16) */
+	cmd->tgt_i_sg = ws_sg;
+	cmd->tgt_i_sg_cnt = blocks;
 	cmd->tgt_i_data_buf_alloced = 1;
 
 	wsp->ws_cur_lba += blocks;
@@ -5085,9 +5030,6 @@ set_add:
 out:
 	TRACE_EXIT_RES(res);
 	return res;
-
-out_free_cmd:
-	scst_prelim_finish_internal_cmd(cmd);
 
 out_busy:
 	scst_set_busy(ws_cmd);
@@ -5125,9 +5067,6 @@ static void scst_ws_write_cmd_finished(struct scst_cmd *cmd)
 
 	TRACE_DBG("Write cmd %p finished (ws cmd %p, ws_cur_in_flight %d)",
 		cmd, ws_cmd, wsp->ws_cur_in_flight);
-
-	if ((ws_cmd->cdb[1] & 0x6) != 0)
-		sgv_pool_free(cmd->out_sgv, &cmd->dev->dev_mem_lim);
 
 	cmd->sg = NULL;
 	cmd->sg_cnt = 0;
@@ -5248,8 +5187,11 @@ void scst_write_same(struct scst_cmd *cmd)
 		goto out_done;
 	}
 
-	if (((cmd->cdb[1] & 0x6) == 0x6) || ((cmd->cdb[1] & 0xE0) != 0)) {
-		scst_set_invalid_field_in_cdb(cmd, 1, 0);
+	if (unlikely((cmd->cdb[1] & 0x6) != 0)) {
+		TRACE(TRACE_MINOR, "LBDATA and/or PBDATA (ctrl %x) are not "
+			"supported", cmd->cdb[1]);
+		scst_set_invalid_field_in_cdb(cmd, 1,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 1);
 		goto out_done;
 	}
 

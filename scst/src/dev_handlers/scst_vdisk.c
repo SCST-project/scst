@@ -964,7 +964,7 @@ static struct scst_vdisk_dev *vdev_find(const char *name)
 
 #define VDEV_WT_LABEL			"WRITE_THROUGH"
 #define VDEV_MODE_PAGES_BUF_SIZE	(64*1024)
-#define VDEV_MODE_PAGES_DIR		"/var/lib/scst/vdev_mode_pages"
+#define VDEV_MODE_PAGES_DIR		(SCST_VAR_DIR "/vdev_mode_pages")
 
 static int __vdev_save_mode_pages(const struct scst_vdisk_dev *virt_dev,
 	uint8_t *buf, int size)
@@ -2911,6 +2911,38 @@ static uint64_t vdisk_gen_dev_id_num(const char *virt_dev_name)
 #endif
 }
 
+static int vdisk_unmap_file_range(struct scst_cmd *cmd,
+	struct scst_vdisk_dev *virt_dev, loff_t off, loff_t len,
+	struct file *fd)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
+	TRACE_DBG("Fallocating range %lld, len %lld",
+		(unsigned long long)off, (unsigned long long)len);
+
+	res = fd->f_op->fallocate(fd,
+		FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, off, len);
+	if (unlikely(res != 0)) {
+		PRINT_ERROR("fallocate() for %lld, len %lld "
+			"failed: %d", (unsigned long long)off,
+			(unsigned long long)len, res);
+		scst_set_cmd_error(cmd,
+			SCST_LOAD_SENSE(scst_sense_write_error));
+		res = -EIO;
+		goto out;
+	}
+#else
+	res = 0;
+#endif
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 static int vdisk_unmap_range(struct scst_cmd *cmd,
 	struct scst_vdisk_dev *virt_dev, uint64_t start_lba, uint32_t blocks)
 {
@@ -2969,29 +3001,12 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 		goto out;
 #endif
 	} else {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
-		struct scst_device *dev = cmd->dev;
-		const int block_shift = dev->block_shift;
-		const loff_t s = start_lba << block_shift;
-		const loff_t l = blocks << block_shift;
+		loff_t off = start_lba << cmd->dev->block_shift;
+		loff_t len = blocks << cmd->dev->block_shift;
 
-		TRACE_DBG("Fallocating range %lld, len %lld",
-			(unsigned long long)s, (unsigned long long)l);
-
-		err = fd->f_op->fallocate(fd,
-			FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, s, l);
-		if (unlikely(err != 0)) {
-			PRINT_ERROR("fallocate() for LBA %lld len %lld "
-				"failed: %d", (unsigned long long)start_lba,
-				(unsigned long long)blocks, err);
-			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_write_error));
-			res = -EIO;
+		res = vdisk_unmap_file_range(cmd, virt_dev, off, len, fd);
+		if (unlikely(res != 0))
 			goto out;
-		}
-#else
-		sBUG();
-#endif
 	}
 
 success:
@@ -5217,7 +5232,7 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 
 			rc = bio_add_page(bio, pg, bytes, off);
 			if (rc < bytes) {
-				sBUG_ON(rc != 0);
+				WARN_ON(rc != 0);
 				need_new_bio = 1;
 				lba_start0 += thislen >> block_shift;
 				thislen = 0;

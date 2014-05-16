@@ -628,7 +628,8 @@ enum scst_tg_sup {
  *************************************************************/
 #define SCST_SYSFS_BLOCK_SIZE			PAGE_SIZE
 
-#define SCST_PR_DIR				"/var/lib/scst/pr"
+#define SCST_VAR_DIR				"/var/lib/scst"
+#define SCST_PR_DIR				(SCST_VAR_DIR "/pr")
 
 #define TID_COMMON_SIZE				24
 
