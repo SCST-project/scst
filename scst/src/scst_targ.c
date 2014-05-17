@@ -294,8 +294,9 @@ out:
 EXPORT_SYMBOL(scst_rx_cmd);
 
 /*
- * No locks, but might be on IRQ. Returns 0 on success, <0 if processing of
- * this command should be stopped.
+ * No locks, but might be on IRQ. Returns:
+ * -  < 0 if the caller must not perform any further processing of @cmd;
+ * - >= 0 if the caller must continue processing @cmd.
  */
 static int scst_init_cmd(struct scst_cmd *cmd, enum scst_exec_context *context)
 {
