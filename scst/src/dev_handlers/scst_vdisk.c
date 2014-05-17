@@ -1218,10 +1218,38 @@ out:
 	return res;
 }
 
+/*
+ * Reexamine size, flush support and thin provisioning support for
+ * vdisk_fileio, vdisk_blockio and vdisk_cdrom devices. Do not modify the size
+ * of vdisk_nullio devices.
+ */
+static int vdisk_reexamine(struct scst_vdisk_dev *virt_dev)
+{
+	int res = 0;
+
+	if (!virt_dev->nullio && !virt_dev->cdrom_empty) {
+		loff_t file_size;
+
+		res = vdisk_get_file_size(virt_dev->filename, virt_dev->blockio,
+					  &file_size);
+		if (res < 0)
+			goto out;
+		virt_dev->file_size = file_size;
+		vdisk_blockio_check_flush_support(virt_dev);
+		vdisk_check_tp_support(virt_dev);
+	} else if (virt_dev->cdrom_empty) {
+		virt_dev->file_size = 0;
+	}
+
+	virt_dev->nblocks = virt_dev->file_size >> virt_dev->blk_shift;
+
+out:
+	return res;
+}
+
 static int vdisk_attach(struct scst_device *dev)
 {
 	int res = 0;
-	loff_t err;
 	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
@@ -1259,23 +1287,8 @@ static int vdisk_attach(struct scst_device *dev)
 
 	dev->dev_rd_only = virt_dev->rd_only;
 
-	if (!virt_dev->cdrom_empty) {
-		if (!virt_dev->nullio) {
-			res = vdisk_get_file_size(virt_dev->filename,
-				virt_dev->blockio, &err);
-			if (res != 0)
-				goto out;
-			virt_dev->file_size = err;
-
-			TRACE_DBG("size of file: %lld", err);
-		}
-
-		vdisk_blockio_check_flush_support(virt_dev);
-		vdisk_check_tp_support(virt_dev);
-	} else
-		virt_dev->file_size = 0;
-
-	virt_dev->nblocks = virt_dev->file_size >> dev->block_shift;
+	if (vdisk_reexamine(virt_dev) < 0)
+		goto out;
 
 	if (!virt_dev->cdrom_empty) {
 		PRINT_INFO("Attached SCSI target virtual %s %s "
@@ -1374,6 +1387,19 @@ out:
 	return res;
 }
 
+static void vdisk_close_fd(struct scst_vdisk_dev *virt_dev)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&scst_mutex);
+#endif
+
+	if (virt_dev->fd) {
+		filp_close(virt_dev->fd, NULL);
+		virt_dev->fd = NULL;
+		virt_dev->bdev = NULL;
+	}
+}
+
 /* Invoked with scst_mutex held, so no further locking is necessary here. */
 static int vdisk_attach_tgt(struct scst_tgt_dev *tgt_dev)
 {
@@ -1414,16 +1440,9 @@ static void vdisk_detach_tgt(struct scst_tgt_dev *tgt_dev)
 	lockdep_assert_held(&scst_mutex);
 #endif
 
-	if (--virt_dev->tgt_dev_cnt > 0)
-		goto out;
+	if (--virt_dev->tgt_dev_cnt == 0)
+		vdisk_close_fd(virt_dev);
 
-	virt_dev->bdev = NULL;
-	if (virt_dev->fd) {
-		filp_close(virt_dev->fd, NULL);
-		virt_dev->fd = NULL;
-	}
-
-out:
 	TRACE_EXIT();
 	return;
 }
