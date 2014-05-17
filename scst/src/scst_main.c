@@ -1060,17 +1060,20 @@ static void __scst_resume_activity(void)
 		goto out;
 
 	clear_bit(SCST_FLAG_SUSPENDED, &scst_flags);
-	/*
-	 * The barrier is needed to make sure all woken up threads see the
-	 * cleared flag. Not sure if it's really needed, but let's be safe.
-	 */
-	smp_mb__after_clear_bit();
 
 	mutex_lock(&scst_cmd_threads_mutex);
 	list_for_each_entry(l, &scst_cmd_threads_list, lists_list_entry) {
 		wake_up_all(&l->cmd_list_waitQ);
 	}
 	mutex_unlock(&scst_cmd_threads_mutex);
+
+	/*
+	 * Wait until scst_init_thread() either is waiting or has reexamined
+	 * scst_flags.
+	 */
+	spin_lock_irq(&scst_init_lock);
+	spin_unlock_irq(&scst_init_lock);
+
 	wake_up_all(&scst_init_cmd_list_waitQ);
 
 	spin_lock_irq(&scst_mcmd_lock);

@@ -4547,10 +4547,6 @@ restart:
 		goto restart;
 	}
 
-	/* It isn't really needed, but let's keep it */
-	if (susp != test_bit(SCST_FLAG_SUSPENDED, &scst_flags))
-		goto restart;
-
 	TRACE_EXIT();
 	return;
 }
