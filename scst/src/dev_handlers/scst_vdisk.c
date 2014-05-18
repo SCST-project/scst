@@ -1287,7 +1287,8 @@ static int vdisk_attach(struct scst_device *dev)
 
 	dev->dev_rd_only = virt_dev->rd_only;
 
-	if (vdisk_reexamine(virt_dev) < 0)
+	res = vdisk_reexamine(virt_dev);
+	if (res < 0)
 		goto out;
 
 	if (!virt_dev->cdrom_empty) {
