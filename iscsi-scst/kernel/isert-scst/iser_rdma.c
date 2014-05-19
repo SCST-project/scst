@@ -1082,10 +1082,18 @@ void isert_conn_free(struct isert_connection *isert_conn)
 	kref_put(&isert_conn->kref, isert_kref_free);
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+static void isert_conn_closed_do_work(void *ctx)
+#else
 static void isert_conn_closed_do_work(struct work_struct *work)
+#endif
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	struct isert_connection *isert_conn = ctx;
+#else
 	struct isert_connection *isert_conn =
 		container_of(work, struct isert_connection, close_work);
+#endif
 
 	/* notify upper layer */
 	if (!test_bit(ISERT_CONNECTION_ABORTED, &isert_conn->flags))
@@ -1097,7 +1105,7 @@ static void isert_conn_closed_do_work(struct work_struct *work)
 static void isert_sched_conn_closed(struct isert_connection *isert_conn)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	INIT_WORK(&isert_conn->close_work, isert_conn_closed_do_work, NULL);
+	INIT_WORK(&isert_conn->close_work, isert_conn_closed_do_work, isert_conn);
 #else
 	INIT_WORK(&isert_conn->close_work, isert_conn_closed_do_work);
 #endif
