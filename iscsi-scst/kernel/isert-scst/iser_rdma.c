@@ -1021,7 +1021,6 @@ static struct isert_connection *isert_conn_create(struct rdma_cm_id *cm_id,
 
 	kref_init(&isert_conn->kref);
 
-	pr_info("iser created connection cm_id:%p\n", cm_id);
 	TRACE_EXIT();
 	return isert_conn;
 
@@ -1179,7 +1178,37 @@ static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
 		goto fail_accept;
 	}
 
-	pr_info("iser accepted connection cm_id:%p\n", cm_id);
+	switch (isert_conn->peer_addr.ss_family) {
+	case AF_INET:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
+		pr_info("iser accepted connection cm_id:%p "
+			 NIPQUAD_FMT "->" NIPQUAD_FMT "\n", cm_id,
+			 NIPQUAD(((struct sockaddr_in *)&isert_conn->peer_addr)->sin_addr.s_addr),
+			 NIPQUAD(((struct sockaddr_in *)&isert_conn->self_addr)->sin_addr.s_addr));
+#else
+		pr_info("iser accepted connection cm_id:%p "
+			"%pI4->%pI4\n", cm_id,
+			&((struct sockaddr_in *)&isert_conn->peer_addr)->sin_addr.s_addr,
+			&((struct sockaddr_in *)&isert_conn->self_addr)->sin_addr.s_addr);
+#endif
+		break;
+	case AF_INET6:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
+		pr_info("iser accepted connection cm_id:%p "
+			 NIP6_FMT "->" NIP6_FMT "\n", cm_id,
+			 NIP6(((struct sockaddr_in6 *)&isert_conn->peer_addr)->sin6_addr.s_addr),
+			 NIP6(((struct sockaddr_in6 *)&isert_conn->self_addr)->sin6_addr.s_addr));
+#else
+		pr_info("iser accepted connection cm_id:%p "
+			"%pI6->%pI6\n", cm_id,
+			&((struct sockaddr_in6 *)&isert_conn->peer_addr)->sin6_addr,
+			&((struct sockaddr_in6 *)&isert_conn->self_addr)->sin6_addr);
+#endif
+		break;
+	default:
+		pr_info("iser accepted connection cm_id:%p\n", cm_id);
+	}
+
 out:
 	TRACE_EXIT_RES(err);
 	return err;
