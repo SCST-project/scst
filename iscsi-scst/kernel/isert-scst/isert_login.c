@@ -116,6 +116,22 @@ static void isert_dev_release(struct isert_conn_dev *dev)
 	kref_put(&dev->kref, isert_kref_release_dev);
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+static void isert_close_conn_fn(void *ctx)
+#else
+static void isert_close_conn_fn(struct work_struct *work)
+#endif
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	struct iscsi_conn *conn = ctx;
+#else
+	struct iscsi_conn *conn = container_of(work,
+		struct iscsi_conn, close_work);
+#endif
+
+	isert_close_connection(conn);
+}
+
 static void isert_conn_timer_fn(unsigned long arg)
 {
 	struct isert_conn_dev *conn_dev = (struct isert_conn_dev *)arg;
@@ -146,6 +162,12 @@ static int add_new_connection(struct isert_listener_dev *dev,
 		goto out;
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	INIT_WORK(&conn->close_work, isert_close_conn_fn, conn);
+#else
+	INIT_WORK(&conn->close_work, isert_close_conn_fn);
+#endif
+
 	init_timer(&conn_dev->tmo_timer);
 	conn_dev->tmo_timer.function = isert_conn_timer_fn;
 	conn_dev->tmo_timer.expires = jiffies + 120 * HZ;
@@ -168,22 +190,6 @@ static bool have_new_connection(struct isert_listener_dev *dev)
 	spin_unlock(&dev->conn_lock);
 
 	return ret;
-}
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static void isert_close_conn_fn(void *ctx)
-#else
-static void isert_close_conn_fn(struct work_struct *work)
-#endif
-{
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	struct iscsi_conn *conn = ctx;
-#else
-	struct iscsi_conn *conn = container_of(work,
-		struct iscsi_conn, close_work);
-#endif
-
-	isert_close_connection(conn);
 }
 
 int isert_conn_alloc(struct iscsi_session *session,
@@ -230,12 +236,6 @@ int isert_conn_alloc(struct iscsi_session *session,
 		goto cleanup_conn;
 
 	conn->transport = t;
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	INIT_WORK(&conn->close_work, isert_close_conn_fn, conn);
-#else
-	INIT_WORK(&conn->close_work, isert_close_conn_fn);
-#endif
 
 	res = iscsi_init_conn(session, info, conn);
 	if (unlikely(res))
