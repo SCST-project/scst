@@ -764,15 +764,15 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 		cq_desc->cq_workqueue = create_singlethread_workqueue(wq_name);
 #else
+#if LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 36)
 		cq_desc->cq_workqueue = alloc_workqueue(wq_name,
 							WQ_CPU_INTENSIVE|
-#if LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 36)
-							WQ_RESCUER
+							WQ_RESCUER, 1);
 #else
-							WQ_MEM_RECLAIM
+		cq_desc->cq_workqueue = alloc_workqueue(wq_name,
+							WQ_CPU_INTENSIVE|
+							WQ_MEM_RECLAIM, 1);
 #endif
-
-							, 1);
 #endif
 		if (!cq_desc->cq_workqueue) {
 			pr_err("Failed to alloc iser cq work queue for dev:%s\n",
