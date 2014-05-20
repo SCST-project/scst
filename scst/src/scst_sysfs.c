@@ -6060,9 +6060,19 @@ static int scst_process_threads_store(int newtn)
 
 	TRACE_DBG("newtn %d", newtn);
 
-	res = mutex_lock_interruptible(&scst_mutex);
+	/*
+	 * Some commands are taking scst_mutex on commands processing path,
+	 * so we need to drain them, because otherwise we can fall into a
+	 * deadlock with kthread_stop() in scst_del_threads() waiting for
+	 * those commands to finish.
+	 */
+	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
 	if (res != 0)
 		goto out;
+
+	res = mutex_lock_interruptible(&scst_mutex);
+	if (res != 0)
+		goto out_resume;
 
 	oldtn = scst_main_cmd_threads.nr_threads;
 
@@ -6079,6 +6089,9 @@ static int scst_process_threads_store(int newtn)
 
 out_up:
 	mutex_unlock(&scst_mutex);
+
+out_resume:
+	scst_resume_activity();
 
 out:
 	TRACE_EXIT_RES(res);
