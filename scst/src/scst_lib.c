@@ -4926,15 +4926,22 @@ static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 
 	if (scsi_status_is_good(req_cmd->status) && (len > 0) &&
 	    scst_sense_valid(buf) && !scst_no_sense(buf)) {
-		TRACE(TRACE_SCSI, "REQUEST SENSE %p returned valid sense",
-			req_cmd);
+		TRACE(TRACE_SCSI|TRACE_MGMT_DEBUG, "REQUEST SENSE %p returned "
+			"valid sense", req_cmd);
+		PRINT_BUFF_FLAG(TRACE_SCSI|TRACE_MGMT_DEBUG, "Sense", buf, len);
 		scst_alloc_set_sense(orig_cmd, scst_cmd_atomic(req_cmd),
 			buf, len);
 	} else {
-		PRINT_ERROR("%s", "Unable to get the sense via "
-			"REQUEST SENSE, returning HARDWARE ERROR");
-		scst_set_cmd_error(orig_cmd,
-			SCST_LOAD_SENSE(scst_sense_hardw_error));
+		if (test_bit(SCST_CMD_ABORTED, &req_cmd->cmd_flags) &&
+		    !test_bit(SCST_CMD_ABORTED, &orig_cmd->cmd_flags)) {
+			TRACE_MGMT_DBG("REQUEST SENSE %p was aborted, but "
+				"orig_cmd %p - not, retry", req_cmd, orig_cmd);
+		} else {
+			PRINT_ERROR("%s", "Unable to get the sense via "
+				"REQUEST SENSE, returning HARDWARE ERROR");
+			scst_set_cmd_error(orig_cmd,
+				SCST_LOAD_SENSE(scst_sense_hardw_error));
+		}
 	}
 
 	if (len > 0)
