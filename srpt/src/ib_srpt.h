@@ -51,7 +51,7 @@
 #if defined(RHEL_MAJOR) && RHEL_MAJOR -0 == 5
 #define vlan_dev_vlan_id(dev) (panic("RHEL 5 misses vlan_dev_vlan_id()"),0)
 #endif
-#if defined(RHEL_MAJOR)
+#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 6
 #define __ethtool_get_settings(dev, cmd) (panic("RHEL misses __ethtool_get_settings()"),0)
 #endif
 #include <linux/rtnetlink.h>
