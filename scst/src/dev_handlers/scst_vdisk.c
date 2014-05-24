@@ -265,8 +265,7 @@ static int vcdrom_parse(struct scst_cmd *);
 static int non_fileio_parse(struct scst_cmd *);
 static int vdisk_exec(struct scst_cmd *cmd);
 static int vcdrom_exec(struct scst_cmd *cmd);
-static int blockio_exec(struct scst_cmd *cmd);
-static int nullio_exec(struct scst_cmd *cmd);
+static int non_fileio_exec(struct scst_cmd *cmd);
 static void fileio_on_free_cmd(struct scst_cmd *cmd);
 static enum compl_status_e nullio_exec_read(struct vdisk_cmd_params *p);
 static enum compl_status_e blockio_exec_read(struct vdisk_cmd_params *p);
@@ -645,7 +644,7 @@ static struct scst_dev_type vdisk_blk_devtype = {
 	.attach_tgt =		vdisk_attach_tgt,
 	.detach_tgt =		vdisk_detach_tgt,
 	.parse =		non_fileio_parse,
-	.exec =			blockio_exec,
+	.exec =			non_fileio_exec,
 	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
 	.get_supported_opcodes = vdisk_get_supported_opcodes,
 	.devt_priv =		(void *)blockio_ops,
@@ -688,7 +687,7 @@ static struct scst_dev_type vdisk_null_devtype = {
 	.attach_tgt =		vdisk_attach_tgt,
 	.detach_tgt =		vdisk_detach_tgt,
 	.parse =		non_fileio_parse,
-	.exec =			nullio_exec,
+	.exec =			non_fileio_exec,
 	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
 	.devt_priv =		(void *)nullio_ops,
 	.get_supported_opcodes = vdisk_get_supported_opcodes,
@@ -2858,7 +2857,8 @@ out:
 	return;
 }
 
-static int blockio_exec(struct scst_cmd *cmd)
+/* blockio and nullio */
+static int non_fileio_exec(struct scst_cmd *cmd)
 {
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	const vdisk_op_fn *ops = virt_dev->vdev_devt->devt_priv;
@@ -2883,31 +2883,6 @@ err:
 	cmd->completed = 1;
 	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
 	goto out;
-}
-
-static int nullio_exec(struct scst_cmd *cmd)
-{
-	struct scst_device *dev = cmd->dev;
-	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
-
-	if (unlikely(virt_dev->read_zero &&
-		     (cmd->data_direction == SCST_DATA_READ ||
-		      cmd->data_direction == SCST_DATA_BIDI))) {
-		struct scatterlist *sge;
-		int i;
-		void *p;
-
-		for_each_sg(cmd->sg, sge, cmd->sg_cnt, i) {
-			p = kmap(sg_page(sge));
-			if (sge->offset == 0 && sge->length == PAGE_SIZE)
-				clear_page(p);
-			else
-				memset(p + sge->offset, 0, sge->length);
-			kunmap(p);
-		}
-	}
-
-	return blockio_exec(cmd);
 }
 
 static int vcdrom_exec(struct scst_cmd *cmd)
@@ -4780,6 +4755,28 @@ out:
 
 static enum compl_status_e nullio_exec_read(struct vdisk_cmd_params *p)
 {
+	struct scst_cmd *cmd = p->cmd;
+	struct scst_device *dev = cmd->dev;
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+
+	TRACE_ENTRY();
+
+	if (virt_dev->read_zero) {
+		struct scatterlist *sge;
+		int i;
+		void *p;
+
+		for_each_sg(cmd->sg, sge, cmd->sg_cnt, i) {
+			p = kmap(sg_page(sge));
+			if (sge->offset == 0 && sge->length == PAGE_SIZE)
+				clear_page(p);
+			else
+				memset(p + sge->offset, 0, sge->length);
+			kunmap(p);
+		}
+	}
+
+	TRACE_EXIT();
 	return CMD_SUCCEEDED;
 }
 
