@@ -3695,6 +3695,7 @@ static struct class_attribute srpt_class_attrs[] = {
 	__ATTR_NULL,
 };
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 static struct class_device_attribute srpt_dev_attrs[] = {
 #else
@@ -3703,19 +3704,42 @@ static struct device_attribute srpt_dev_attrs[] = {
 	__ATTR(login_info, S_IRUGO, show_login_info, NULL),
 	__ATTR_NULL,
 };
+#else
+DEVICE_ATTR(login_info, S_IRUGO, show_login_info, NULL);
+
+static struct attribute *srpt_dev_attrs[] = {
+	&dev_attr_login_info.attr,
+	NULL
+};
+
+static struct attribute_group srpt_dev_group = {
+	.attrs = srpt_dev_attrs,
+};
+
+static const struct attribute_group *srpt_dev_groups[] = {
+	&srpt_dev_group,
+	NULL
+};
+#endif
 
 static struct class srpt_class = {
-	.name        = "infiniband_srpt",
+	.name		 = "infiniband_srpt",
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
-	.release = srpt_dev_release,
+	.release	 = srpt_dev_release,
 #else
-	.dev_release = srpt_dev_release,
+	.dev_release	 = srpt_dev_release,
 #endif
-	.class_attrs = srpt_class_attrs,
+	.class_attrs	 = srpt_class_attrs,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 	.class_dev_attrs = srpt_dev_attrs,
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0)
+	/*
+	 * See also patch "driver core: remove dev_attrs from struct class"
+	 * (commit ID bcc8edb52f05c1a9e75118d6b3bc04996a750593).
+	 */
+	.dev_attrs	 = srpt_dev_attrs,
 #else
-	.dev_attrs   = srpt_dev_attrs,
+	.dev_groups	 = srpt_dev_groups,
 #endif
 };
 
