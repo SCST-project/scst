@@ -4956,7 +4956,7 @@ static void q2x_send_busy(scsi_qla_host_t *ha, atio_entry_t *atio)
 	ctio->flags |= cpu_to_le16(OF_INC_RC);
 	/*
 	 * CTIO from fw w/o scst_cmd doesn't provide enough info to retry it,
-	 * if the explicit conformation is used.
+	 * if the explicit confirmation is used.
 	 */
 
 	TRACE_BUFFER("CTIO BUSY packet data", ctio, REQUEST_ENTRY_SIZE);
@@ -5017,7 +5017,7 @@ static void q24_send_busy(scsi_qla_host_t *ha, atio7_entry_t *atio,
 		CTIO7_FLAGS_DONT_RET_CTIO);
 	/*
 	 * CTIO from fw w/o scst_cmd doesn't provide enough info to retry it,
-	 * if the explicit conformation is used.
+	 * if the explicit confirmation is used.
 	 */
 	ctio->ox_id = swab16(atio->fcp_hdr.ox_id);
 	ctio->scsi_status = cpu_to_le16(status);
@@ -6355,12 +6355,12 @@ static ssize_t q2t_store_expl_conf_enabled(struct kobject *kobj,
 	switch (buffer[0]) {
 	case '0':
 		ha->enable_explicit_conf = 0;
-		PRINT_INFO("qla2x00t(%ld): explicit conformations disabled",
+		PRINT_INFO("qla2x00t(%ld): explicit confirmations disabled",
 			ha->instance);
 		break;
 	case '1':
 		ha->enable_explicit_conf = 1;
-		PRINT_INFO("qla2x00t(%ld): explicit conformations enabled",
+		PRINT_INFO("qla2x00t(%ld): explicit confirmations enabled",
 			ha->instance);
 		break;
 	default:
