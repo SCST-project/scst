@@ -317,7 +317,7 @@ enum rdma_ch_state {
  * @kref:          Per-channel reference count.
  * @rq_size:       IB receive queue size.
  * @max_sge:       Maximum length of RDMA scatter list.
- * @max_rsp_size:  Maximum size of an SRP response messages in bytes.
+ * @max_rsp_size:  Maximum size of an SRP response message in bytes.
  * @sq_wr_avail:   number of work requests available in the send queue.
  * @sport:         pointer to the information of the HCA port used by this
  *                 channel.

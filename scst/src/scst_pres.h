@@ -89,6 +89,9 @@ static inline void scst_pr_write_unlock(struct scst_device *dev)
 	mutex_unlock(&dev->dev_pr_mutex);
 }
 
+int scst_pr_set_file_name(struct scst_device *dev, char **prev,
+			  const char *fmt, ...) __printf(3, 4);
+
 int scst_pr_init_dev(struct scst_device *dev);
 void scst_pr_clear_dev(struct scst_device *dev);
 

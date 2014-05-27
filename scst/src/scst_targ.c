@@ -294,8 +294,9 @@ out:
 EXPORT_SYMBOL(scst_rx_cmd);
 
 /*
- * No locks, but might be on IRQ. Returns 0 on success, <0 if processing of
- * this command should be stopped.
+ * No locks, but might be on IRQ. Returns:
+ * -  < 0 if the caller must not perform any further processing of @cmd;
+ * - >= 0 if the caller must continue processing @cmd.
  */
 static int scst_init_cmd(struct scst_cmd *cmd, enum scst_exec_context *context)
 {
@@ -2744,6 +2745,11 @@ int __scst_check_local_events(struct scst_cmd *cmd, bool preempt_tests_only)
 	TRACE_ENTRY();
 
 	if (unlikely(cmd->internal)) {
+		if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
+			TRACE_MGMT_DBG("ABORTED set, aborting internal "
+				"cmd %p", cmd);
+			goto out_uncomplete;
+		}
 		/*
 		 * The original command passed all checks and not finished yet
 		 */
@@ -3463,11 +3469,14 @@ static bool scst_check_auto_sense(struct scst_cmd *cmd)
 
 	if (unlikely(cmd->status == SAM_STAT_CHECK_CONDITION) &&
 	    (!scst_sense_valid(cmd->sense) || scst_no_sense(cmd->sense))) {
-		TRACE(TRACE_SCSI|TRACE_MINOR_AND_MGMT_DBG, "CHECK_CONDITION, "
-			"but no sense: cmd->status=%x, cmd->msg_status=%x, "
-		      "cmd->host_status=%x, cmd->driver_status=%x (cmd %p)",
-		      cmd->status, cmd->msg_status, cmd->host_status,
-		      cmd->driver_status, cmd);
+		if (!test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)) {
+			TRACE(TRACE_SCSI|TRACE_MINOR_AND_MGMT_DBG,
+				"CHECK_CONDITION, but no sense: cmd->status=%x, "
+				"cmd->msg_status=%x, cmd->host_status=%x, "
+				"cmd->driver_status=%x (cmd %p)",
+				cmd->status, cmd->msg_status, cmd->host_status,
+				cmd->driver_status, cmd);
+		}
 		res = true;
 	} else if (unlikely(cmd->host_status)) {
 		if ((cmd->host_status == DID_REQUEUE) ||
@@ -3498,9 +3507,11 @@ static int scst_pre_dev_done(struct scst_cmd *cmd)
 
 	rc = scst_check_auto_sense(cmd);
 	if (unlikely(rc)) {
+		if (test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))
+			goto next;
 		PRINT_INFO("Command finished with CHECK CONDITION, but "
-			    "without sense data (opcode %s), issuing "
-			    "REQUEST SENSE", scst_get_opcode_name(cmd));
+			"without sense data (opcode %s), issuing "
+			"REQUEST SENSE", scst_get_opcode_name(cmd));
 		rc = scst_prepare_request_sense(cmd);
 		if (rc == 0)
 			res = SCST_CMD_STATE_RES_CONT_NEXT;
@@ -3513,6 +3524,7 @@ static int scst_pre_dev_done(struct scst_cmd *cmd)
 		goto out;
 	}
 
+next:
 	rc = scst_check_sense(cmd);
 	if (unlikely(rc)) {
 		/*
@@ -4545,10 +4557,6 @@ restart:
 		spin_lock(&scst_init_lock);
 		goto restart;
 	}
-
-	/* It isn't really needed, but let's keep it */
-	if (susp != test_bit(SCST_FLAG_SUSPENDED, &scst_flags))
-		goto restart;
 
 	TRACE_EXIT();
 	return;

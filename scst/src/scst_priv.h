@@ -335,6 +335,7 @@ void scst_free_tgt(struct scst_tgt *tgt);
 
 int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev);
 void scst_free_device(struct scst_device *dev);
+bool scst_device_is_exported(struct scst_device *dev);
 
 struct scst_acg *scst_alloc_add_acg(struct scst_tgt *tgt,
 	const char *acg_name, bool tgt_acg);

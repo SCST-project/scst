@@ -964,7 +964,7 @@ static struct scst_vdisk_dev *vdev_find(const char *name)
 
 #define VDEV_WT_LABEL			"WRITE_THROUGH"
 #define VDEV_MODE_PAGES_BUF_SIZE	(64*1024)
-#define VDEV_MODE_PAGES_DIR		"/var/lib/scst/vdev_mode_pages"
+#define VDEV_MODE_PAGES_DIR		(SCST_VAR_DIR "/vdev_mode_pages")
 
 static int __vdev_save_mode_pages(const struct scst_vdisk_dev *virt_dev,
 	uint8_t *buf, int size)
@@ -989,18 +989,6 @@ out_overflow:
 	res = -EOVERFLOW;
 	goto out;
 }
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37) && !defined(RHEL_MAJOR)
-/*
- * See also patch "mm: add vzalloc() and vzalloc_node() helpers" (commit
- * e1ca7788dec6773b1a2bce51b7141948f2b8bccf).
- */
-static void *vzalloc(unsigned long size)
-{
-	return __vmalloc(size, GFP_KERNEL | __GFP_HIGHMEM | __GFP_ZERO,
-			 PAGE_KERNEL);
-}
-#endif
 
 static int vdev_save_mode_pages(const struct scst_vdisk_dev *virt_dev)
 {
@@ -1230,10 +1218,38 @@ out:
 	return res;
 }
 
+/*
+ * Reexamine size, flush support and thin provisioning support for
+ * vdisk_fileio, vdisk_blockio and vdisk_cdrom devices. Do not modify the size
+ * of vdisk_nullio devices.
+ */
+static int vdisk_reexamine(struct scst_vdisk_dev *virt_dev)
+{
+	int res = 0;
+
+	if (!virt_dev->nullio && !virt_dev->cdrom_empty) {
+		loff_t file_size;
+
+		res = vdisk_get_file_size(virt_dev->filename, virt_dev->blockio,
+					  &file_size);
+		if (res < 0)
+			goto out;
+		virt_dev->file_size = file_size;
+		vdisk_blockio_check_flush_support(virt_dev);
+		vdisk_check_tp_support(virt_dev);
+	} else if (virt_dev->cdrom_empty) {
+		virt_dev->file_size = 0;
+	}
+
+	virt_dev->nblocks = virt_dev->file_size >> virt_dev->blk_shift;
+
+out:
+	return res;
+}
+
 static int vdisk_attach(struct scst_device *dev)
 {
 	int res = 0;
-	loff_t err;
 	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
@@ -1271,23 +1287,9 @@ static int vdisk_attach(struct scst_device *dev)
 
 	dev->dev_rd_only = virt_dev->rd_only;
 
-	if (!virt_dev->cdrom_empty) {
-		if (!virt_dev->nullio) {
-			res = vdisk_get_file_size(virt_dev->filename,
-				virt_dev->blockio, &err);
-			if (res != 0)
-				goto out;
-			virt_dev->file_size = err;
-
-			TRACE_DBG("size of file: %lld", err);
-		}
-
-		vdisk_blockio_check_flush_support(virt_dev);
-		vdisk_check_tp_support(virt_dev);
-	} else
-		virt_dev->file_size = 0;
-
-	virt_dev->nblocks = virt_dev->file_size >> dev->block_shift;
+	res = vdisk_reexamine(virt_dev);
+	if (res < 0)
+		goto out;
 
 	if (!virt_dev->cdrom_empty) {
 		PRINT_INFO("Attached SCSI target virtual %s %s "
@@ -1386,6 +1388,19 @@ out:
 	return res;
 }
 
+static void vdisk_close_fd(struct scst_vdisk_dev *virt_dev)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&scst_mutex);
+#endif
+
+	if (virt_dev->fd) {
+		filp_close(virt_dev->fd, NULL);
+		virt_dev->fd = NULL;
+		virt_dev->bdev = NULL;
+	}
+}
+
 /* Invoked with scst_mutex held, so no further locking is necessary here. */
 static int vdisk_attach_tgt(struct scst_tgt_dev *tgt_dev)
 {
@@ -1426,16 +1441,9 @@ static void vdisk_detach_tgt(struct scst_tgt_dev *tgt_dev)
 	lockdep_assert_held(&scst_mutex);
 #endif
 
-	if (--virt_dev->tgt_dev_cnt > 0)
-		goto out;
+	if (--virt_dev->tgt_dev_cnt == 0)
+		vdisk_close_fd(virt_dev);
 
-	virt_dev->bdev = NULL;
-	if (virt_dev->fd) {
-		filp_close(virt_dev->fd, NULL);
-		virt_dev->fd = NULL;
-	}
-
-out:
 	TRACE_EXIT();
 	return;
 }
@@ -1509,7 +1517,9 @@ static enum compl_status_e vdisk_exec_srv_action_in(struct vdisk_cmd_params *p)
 	case SAI_GET_LBA_STATUS:
 		return vdisk_exec_get_lba_status(p);
 	}
-	return INVALID_OPCODE;
+	scst_set_invalid_field_in_cdb(p->cmd, 1,
+			0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+	return CMD_SUCCEEDED;
 }
 
 static enum compl_status_e vdisk_exec_maintenance_in(struct vdisk_cmd_params *p)
@@ -1519,7 +1529,9 @@ static enum compl_status_e vdisk_exec_maintenance_in(struct vdisk_cmd_params *p)
 		vdisk_exec_report_tpgs(p);
 		return CMD_SUCCEEDED;
 	}
-	return INVALID_OPCODE;
+	scst_set_invalid_field_in_cdb(p->cmd, 1,
+			0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+	return CMD_SUCCEEDED;
 }
 
 static enum compl_status_e vdisk_exec_send_diagnostic(struct vdisk_cmd_params *p)
@@ -2919,6 +2931,38 @@ static uint64_t vdisk_gen_dev_id_num(const char *virt_dev_name)
 #endif
 }
 
+static int vdisk_unmap_file_range(struct scst_cmd *cmd,
+	struct scst_vdisk_dev *virt_dev, loff_t off, loff_t len,
+	struct file *fd)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
+	TRACE_DBG("Fallocating range %lld, len %lld",
+		(unsigned long long)off, (unsigned long long)len);
+
+	res = fd->f_op->fallocate(fd,
+		FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, off, len);
+	if (unlikely(res != 0)) {
+		PRINT_ERROR("fallocate() for %lld, len %lld "
+			"failed: %d", (unsigned long long)off,
+			(unsigned long long)len, res);
+		scst_set_cmd_error(cmd,
+			SCST_LOAD_SENSE(scst_sense_write_error));
+		res = -EIO;
+		goto out;
+	}
+#else
+	res = 0;
+#endif
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 static int vdisk_unmap_range(struct scst_cmd *cmd,
 	struct scst_vdisk_dev *virt_dev, uint64_t start_lba, uint32_t blocks)
 {
@@ -2977,29 +3021,12 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 		goto out;
 #endif
 	} else {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
-		struct scst_device *dev = cmd->dev;
-		const int block_shift = dev->block_shift;
-		const loff_t s = start_lba << block_shift;
-		const loff_t l = blocks << block_shift;
+		loff_t off = start_lba << cmd->dev->block_shift;
+		loff_t len = blocks << cmd->dev->block_shift;
 
-		TRACE_DBG("Fallocating range %lld, len %lld",
-			(unsigned long long)s, (unsigned long long)l);
-
-		err = fd->f_op->fallocate(fd,
-			FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, s, l);
-		if (unlikely(err != 0)) {
-			PRINT_ERROR("fallocate() for LBA %lld len %lld "
-				"failed: %d", (unsigned long long)start_lba,
-				(unsigned long long)blocks, err);
-			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_write_error));
-			res = -EIO;
+		res = vdisk_unmap_file_range(cmd, virt_dev, off, len, fd);
+		if (unlikely(res != 0))
 			goto out;
-		}
-#else
-		sBUG();
-#endif
 	}
 
 success:
@@ -4435,7 +4462,9 @@ out:
 static enum compl_status_e vdisk_exec_get_lba_status(struct vdisk_cmd_params *p)
 {
 	/* Changing it don't forget to add it to vdisk_opcode_descriptors! */
-	return INVALID_OPCODE;
+	scst_set_invalid_field_in_cdb(p->cmd, 1,
+			0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+	return CMD_SUCCEEDED;
 }
 
 /* SPC-4 REPORT TARGET PORT GROUPS command */
@@ -5064,6 +5093,59 @@ static void blockio_endio(struct bio *bio, int error)
 #endif
 }
 
+static struct bio *vdisk_bio_alloc(gfp_t gfp_mask, int max_nr_vecs)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+	return bio_kmalloc(gfp_mask, max_nr_vecs);
+#else
+	return bio_alloc(gfp_mask, max_nr_vecs);
+#endif
+}
+
+static void vdisk_bio_set_failfast(struct bio *bio)
+{
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 27)
+	bio->bi_rw |= (1 << BIO_RW_FAILFAST);
+#elif LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 35)
+	bio->bi_rw |= (1 << BIO_RW_FAILFAST_DEV) |
+		      (1 << BIO_RW_FAILFAST_TRANSPORT) |
+		      (1 << BIO_RW_FAILFAST_DRIVER);
+#else
+	bio->bi_rw |= REQ_FAILFAST_DEV |
+		      REQ_FAILFAST_TRANSPORT |
+		      REQ_FAILFAST_DRIVER;
+#endif
+}
+
+static void vdisk_bio_set_hoq(struct bio *bio)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36) || \
+	defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6
+	bio->bi_rw |= REQ_SYNC;
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+	bio->bi_rw |= 1 << BIO_RW_SYNCIO;
+#else
+	bio->bi_rw |= 1 << BIO_RW_SYNC;
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36) || \
+	defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6
+	bio->bi_rw |= REQ_META;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
+	/*
+	 * Priority boosting was separated from REQ_META in commit 65299a3b
+	 * (kernel 3.1.0).
+	 */
+	bio->bi_rw |= REQ_PRIO;
+#endif
+#elif !defined(RHEL_MAJOR) || RHEL_MAJOR -0 >= 6
+	/*
+	 * BIO_* and REQ_* flags were unified in commit 7b6d91da (kernel
+	 * 2.6.36).
+	 */
+	bio->bi_rw |= BIO_RW_META;
+#endif
+}
+
 static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 {
 	struct scst_cmd *cmd = p->cmd;
@@ -5127,11 +5209,7 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 			int rc;
 
 			if (need_new_bio) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
-				bio = bio_kmalloc(gfp_mask, max_nr_vecs);
-#else
-				bio = bio_alloc(gfp_mask, max_nr_vecs);
-#endif
+				bio = vdisk_bio_alloc(gfp_mask, max_nr_vecs);
 				if (!bio) {
 					PRINT_ERROR("Failed to create bio "
 						"for data segment %d (cmd %p)",
@@ -5153,51 +5231,16 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 				 * Better to fail fast w/o any local recovery
 				 * and retries.
 				 */
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 27)
-				bio->bi_rw |= (1 << BIO_RW_FAILFAST);
-#elif LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 35)
-				bio->bi_rw |= (1 << BIO_RW_FAILFAST_DEV) |
-					      (1 << BIO_RW_FAILFAST_TRANSPORT) |
-					      (1 << BIO_RW_FAILFAST_DRIVER);
-#else
-				bio->bi_rw |= REQ_FAILFAST_DEV |
-					      REQ_FAILFAST_TRANSPORT |
-					      REQ_FAILFAST_DRIVER;
-#endif
+				vdisk_bio_set_failfast(bio);
+
 #if 0 /* It could be win, but could be not, so a performance study is needed */
 				bio->bi_rw |= REQ_SYNC;
 #endif
 				if (fua)
 					bio->bi_rw |= REQ_FUA;
 
-				if (cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36) || \
-	defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6
-					bio->bi_rw |= REQ_SYNC;
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
-					bio->bi_rw |= 1 << BIO_RW_SYNCIO;
-#else
-					bio->bi_rw |= 1 << BIO_RW_SYNC;
-#endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36) || \
-	defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6
-					bio->bi_rw |= REQ_META;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
-					/*
-					 * Priority boosting was separated
-					 * from REQ_META in commit 65299a3b
-					 * (kernel 3.1.0).
-					 */
-					bio->bi_rw |= REQ_PRIO;
-#endif
-#elif !defined(RHEL_MAJOR) || RHEL_MAJOR -0 >= 6
-					/*
-					 * BIO_* and REQ_* flags were unified
-					 * in commit 7b6d91da (kernel 2.6.36).
-					 */
-					bio->bi_rw |= BIO_RW_META;
-#endif
-				}
+				if (cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE)
+					vdisk_bio_set_hoq(bio);
 
 				if (!hbio)
 					hbio = tbio = bio;
@@ -5209,7 +5252,7 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 
 			rc = bio_add_page(bio, pg, bytes, off);
 			if (rc < bytes) {
-				sBUG_ON(rc != 0);
+				WARN_ON(rc != 0);
 				need_new_bio = 1;
 				lba_start0 += thislen >> block_shift;
 				thislen = 0;

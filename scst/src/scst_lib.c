@@ -3759,6 +3759,17 @@ void scst_free_device(struct scst_device *dev)
 	return;
 }
 
+bool scst_device_is_exported(struct scst_device *dev)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
+	lockdep_assert_held(&scst_mutex);
+#endif
+
+	WARN_ON_ONCE(!dev->dev_tgt_dev_list.next);
+
+	return !list_empty(&dev->dev_tgt_dev_list);
+}
+
 /**
  * scst_init_mem_lim - initialize memory limits structure
  *
@@ -4855,24 +4866,6 @@ out:
 	return res;
 }
 
-static void scst_prelim_finish_internal_cmd(struct scst_cmd *cmd)
-{
-	unsigned long flags;
-
-	TRACE_ENTRY();
-
-	sBUG_ON(!cmd->internal);
-
-	spin_lock_irqsave(&cmd->sess->sess_list_lock, flags);
-	list_del(&cmd->sess_cmd_list_entry);
-	spin_unlock_irqrestore(&cmd->sess->sess_list_lock, flags);
-
-	__scst_cmd_put(cmd);
-
-	TRACE_EXIT();
-	return;
-}
-
 int scst_prepare_request_sense(struct scst_cmd *orig_cmd)
 {
 	int res = 0;
@@ -4933,15 +4926,22 @@ static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 
 	if (scsi_status_is_good(req_cmd->status) && (len > 0) &&
 	    scst_sense_valid(buf) && !scst_no_sense(buf)) {
-		TRACE(TRACE_SCSI, "REQUEST SENSE %p returned valid sense",
-			req_cmd);
+		TRACE(TRACE_SCSI|TRACE_MGMT_DEBUG, "REQUEST SENSE %p returned "
+			"valid sense", req_cmd);
+		PRINT_BUFF_FLAG(TRACE_SCSI|TRACE_MGMT_DEBUG, "Sense", buf, len);
 		scst_alloc_set_sense(orig_cmd, scst_cmd_atomic(req_cmd),
 			buf, len);
 	} else {
-		PRINT_ERROR("%s", "Unable to get the sense via "
-			"REQUEST SENSE, returning HARDWARE ERROR");
-		scst_set_cmd_error(orig_cmd,
-			SCST_LOAD_SENSE(scst_sense_hardw_error));
+		if (test_bit(SCST_CMD_ABORTED, &req_cmd->cmd_flags) &&
+		    !test_bit(SCST_CMD_ABORTED, &orig_cmd->cmd_flags)) {
+			TRACE_MGMT_DBG("REQUEST SENSE %p was aborted, but "
+				"orig_cmd %p - not, retry", req_cmd, orig_cmd);
+		} else {
+			PRINT_ERROR("%s", "Unable to get the sense via "
+				"REQUEST SENSE, returning HARDWARE ERROR");
+			scst_set_cmd_error(orig_cmd,
+				SCST_LOAD_SENSE(scst_sense_hardw_error));
+		}
 	}
 
 	if (len > 0)
@@ -4983,15 +4983,14 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 	struct scst_cmd *ws_cmd = wsp->ws_orig_cmd;
 	struct scatterlist *ws_sg = wsp->ws_sg;
 	int ws_sg_cnt = wsp->ws_sg_cnt;
-	int res, i;
+	int res;
 	uint8_t write16_cdb[16];
-	struct scatterlist *sg;
-	int sg_cnt, len = blocks << ws_cmd->dev->block_shift;
-	struct sgv_pool_obj *sgv = NULL;
+	int len = blocks << ws_cmd->dev->block_shift;
 	struct scst_cmd *cmd;
-	int64_t cur_lba;
 
 	TRACE_ENTRY();
+
+	EXTRACHECKS_BUG_ON(blocks > ws_sg_cnt);
 
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &ws_cmd->cmd_flags)) ||
 	    unlikely(ws_cmd->completed)) {
@@ -5020,44 +5019,8 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 
 	cmd->tgt_i_priv = wsp;
 
-	if ((ws_cmd->cdb[1] & 0x6) == 0) {
-		TRACE_DBG("Using direct ws_sg %p (cnt %d)", ws_sg, ws_sg_cnt);
-		sg = ws_sg;
-		EXTRACHECKS_BUG_ON(blocks > ws_sg_cnt);
-		sg_cnt = blocks;
-		goto set_add;
-	}
-
-	sg = sgv_pool_alloc(ws_cmd->tgt_dev->pool, len, GFP_KERNEL, 0,
-			&sg_cnt, &sgv, &cmd->dev->dev_mem_lim, NULL);
-	if (sg == NULL) {
-		PRINT_ERROR("Unable to alloc sg for %d blocks", blocks);
-		res = -ENOMEM;
-		goto out_free_cmd;
-	}
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
-	sg_copy(sg, ws_sg, ws_sg_cnt, len, KM_USER0, KM_USER1);
-#else
-	sg_copy(sg, ws_sg, ws_sg_cnt, len);
-#endif
-
-	cur_lba = lba;
-	for (i = 0; i < sg_cnt; i++) {
-		int cur_offs = 0;
-		while (cur_offs < sg[i].length) {
-			uint8_t *q;
-			q = &((int8_t *)(page_address(sg_page(&sg[i]))))[cur_offs];
-			*((uint64_t *)q) = cur_lba;
-			cur_offs += ws_cmd->dev->block_size;
-			cur_lba++;
-		}
-	}
-
-set_add:
-	cmd->tgt_i_sg = sg;
-	cmd->tgt_i_sg_cnt = sg_cnt;
-	cmd->out_sgv = sgv; /* hacky, but it isn't used for WRITE(16) */
+	cmd->tgt_i_sg = ws_sg;
+	cmd->tgt_i_sg_cnt = blocks;
 	cmd->tgt_i_data_buf_alloced = 1;
 
 	wsp->ws_cur_lba += blocks;
@@ -5074,9 +5037,6 @@ set_add:
 out:
 	TRACE_EXIT_RES(res);
 	return res;
-
-out_free_cmd:
-	scst_prelim_finish_internal_cmd(cmd);
 
 out_busy:
 	scst_set_busy(ws_cmd);
@@ -5114,9 +5074,6 @@ static void scst_ws_write_cmd_finished(struct scst_cmd *cmd)
 
 	TRACE_DBG("Write cmd %p finished (ws cmd %p, ws_cur_in_flight %d)",
 		cmd, ws_cmd, wsp->ws_cur_in_flight);
-
-	if ((ws_cmd->cdb[1] & 0x6) != 0)
-		sgv_pool_free(cmd->out_sgv, &cmd->dev->dev_mem_lim);
 
 	cmd->sg = NULL;
 	cmd->sg_cnt = 0;
@@ -5237,8 +5194,11 @@ void scst_write_same(struct scst_cmd *cmd)
 		goto out_done;
 	}
 
-	if (((cmd->cdb[1] & 0x6) == 0x6) || ((cmd->cdb[1] & 0xE0) != 0)) {
-		scst_set_invalid_field_in_cdb(cmd, 1, 0);
+	if (unlikely((cmd->cdb[1] & 0x6) != 0)) {
+		TRACE(TRACE_MINOR, "LBDATA and/or PBDATA (ctrl %x) are not "
+			"supported", cmd->cdb[1]);
+		scst_set_invalid_field_in_cdb(cmd, 1,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 1);
 		goto out_done;
 	}
 
@@ -8172,6 +8132,8 @@ again:
 	UA_entry = list_first_entry(&cmd->tgt_dev->UA_list, typeof(*UA_entry),
 			      UA_list_entry);
 
+	TRACE_MGMT_DBG("Setting pending UA %p to cmd %p", UA_entry, cmd);
+
 	TRACE_DBG("next %p UA_entry %p",
 	      cmd->tgt_dev->UA_list.next, UA_entry);
 
@@ -8301,8 +8263,13 @@ static void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
 	memset(UA_entry, 0, sizeof(*UA_entry));
 
 	UA_entry->global_UA = (flags & SCST_SET_UA_FLAG_GLOBAL) != 0;
-	if (UA_entry->global_UA)
-		TRACE_MGMT_DBG("Queueing global UA %p", UA_entry);
+
+	TRACE(TRACE_MGMT_DEBUG|TRACE_SCSI, "Queuing new %sUA %p (%x:%x:%x, "
+		"d_sense %d) to tgt_dev %p (dev %s, initiator %s)",
+		UA_entry->global_UA ? "global " : "", UA_entry, sense[2],
+		sense[12], sense[13], tgt_dev->dev->d_sense, tgt_dev,
+		tgt_dev->dev->virt_name, tgt_dev->sess->initiator_name);
+	TRACE_BUFF_FLAG(TRACE_DEBUG, "UA sense", sense, sense_len);
 
 	if (sense_len > (int)sizeof(UA_entry->UA_sense_buffer)) {
 		PRINT_WARNING("Sense truncated (needed %d), shall you increase "
@@ -8313,9 +8280,6 @@ static void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
 	UA_entry->UA_valid_sense_len = sense_len;
 
 	set_bit(SCST_TGT_DEV_UA_PENDING, &tgt_dev->tgt_dev_flags);
-
-	TRACE_MGMT_DBG("Adding new UA to tgt_dev %p (dev %s, initiator %s)",
-		tgt_dev, tgt_dev->dev->virt_name, tgt_dev->sess->initiator_name);
 
 	if (flags & SCST_SET_UA_FLAG_AT_HEAD)
 		list_add(&UA_entry->UA_list_entry, &tgt_dev->UA_list);
@@ -10142,6 +10106,55 @@ int scst_read_file_transactional(const char *name, const char *name1,
 	return res;
 }
 EXPORT_SYMBOL_GPL(scst_read_file_transactional);
+
+/*
+ * Return the file mode if @path exists or an error code if opening @path via
+ * filp_open() in read-only mode failed.
+ */
+int scst_get_file_mode(const char *path)
+{
+	struct file *file;
+	int res;
+
+	file = filp_open(path, O_RDONLY, 0400);
+	if (IS_ERR(file)) {
+		res = PTR_ERR(file);
+		goto out;
+	}
+	res = file->f_dentry->d_inode->i_mode;
+	filp_close(file, NULL);
+
+out:
+	return res;
+}
+EXPORT_SYMBOL(scst_get_file_mode);
+
+/*
+ * Return true if either @path does not contain a slash or if the directory
+ * specified in @path exists.
+ */
+bool scst_parent_dir_exists(const char *path)
+{
+	const char *last_slash = strrchr(path, '/');
+	const char *dir;
+	int dir_mode;
+	bool res = true;
+
+	if (last_slash && last_slash > path) {
+		dir = kasprintf(GFP_KERNEL, "%.*s", (int)(last_slash - path),
+				path);
+		if (dir) {
+			dir_mode = scst_get_file_mode(dir);
+			kfree(dir);
+			res = dir_mode >= 0 && S_ISDIR(dir_mode);
+		} else {
+			res = false;
+		}
+	}
+
+	return res;
+}
+EXPORT_SYMBOL(scst_parent_dir_exists);
 
 static void __init scst_scsi_op_list_init(void)
 {

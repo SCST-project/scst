@@ -1060,17 +1060,20 @@ static void __scst_resume_activity(void)
 		goto out;
 
 	clear_bit(SCST_FLAG_SUSPENDED, &scst_flags);
-	/*
-	 * The barrier is needed to make sure all woken up threads see the
-	 * cleared flag. Not sure if it's really needed, but let's be safe.
-	 */
-	smp_mb__after_clear_bit();
 
 	mutex_lock(&scst_cmd_threads_mutex);
 	list_for_each_entry(l, &scst_cmd_threads_list, lists_list_entry) {
 		wake_up_all(&l->cmd_list_waitQ);
 	}
 	mutex_unlock(&scst_cmd_threads_mutex);
+
+	/*
+	 * Wait until scst_init_thread() either is waiting or has reexamined
+	 * scst_flags.
+	 */
+	spin_lock_irq(&scst_init_lock);
+	spin_unlock_irq(&scst_init_lock);
+
 	wake_up_all(&scst_init_cmd_list_waitQ);
 
 	spin_lock_irq(&scst_mcmd_lock);
@@ -1198,13 +1201,13 @@ out:
 #ifndef CONFIG_SCST_PROC
 out_del_unlocked:
 	mutex_lock(&scst_mutex);
-	list_del(&dev->dev_list_entry);
+	list_del_init(&dev->dev_list_entry);
 	mutex_unlock(&scst_mutex);
 	scst_free_device(dev);
 	goto out;
 #else
 out_del_locked:
-	list_del(&dev->dev_list_entry);
+	list_del_init(&dev->dev_list_entry);
 #endif
 
 out_free_dev:
@@ -1266,7 +1269,7 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 
 	dev->dev_unregistering = 1;
 
-	list_del(&dev->dev_list_entry);
+	list_del_init(&dev->dev_list_entry);
 
 	scst_dg_dev_remove_by_dev(dev);
 
@@ -1418,6 +1421,11 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 		scst_virt_dev_last_id = 1;
 	}
 
+	res = scst_pr_set_file_name(dev, NULL, "%s/%s", SCST_PR_DIR,
+				    dev->virt_name);
+	if (res != 0)
+		goto out_free_dev;
+
 	res = scst_pr_init_dev(dev);
 	if (res != 0)
 		goto out_free_dev;
@@ -1516,7 +1524,7 @@ void scst_unregister_virtual_device(int id)
 
 	dev->dev_unregistering = 1;
 
-	list_del(&dev->dev_list_entry);
+	list_del_init(&dev->dev_list_entry);
 
 	scst_pr_clear_dev(dev);
 

@@ -391,11 +391,15 @@ static int do_exec(struct vdisk_cmd *vcmd)
 		exec_read_capacity(vcmd);
 		break;
         case SERVICE_ACTION_IN:
-		if ((cmd->cdb[1] & 0x1f) == SAI_READ_CAPACITY_16) {
+		if ((cmd->cdb[1] & 0x1f) == SAI_READ_CAPACITY_16)
 			exec_read_capacity16(vcmd);
-			break;
+		else {
+			TRACE_DBG("Invalid service action %d for SERVICE "
+				"ACTION IN", cmd->cdb[1] & 0x1f);
+			set_cmd_error(vcmd,
+			    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
 		}
-		/* else go through */
+		break;
 	case REPORT_LUNS:
 	default:
 		TRACE_DBG("Invalid opcode %d", opcode);
