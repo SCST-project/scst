@@ -8164,16 +8164,13 @@ again:
 		goto out_unlock;
 	} else
 		TRACE_MGMT_DBG("Setting pending UA cmd %p (tgt_dev %p, dev %s, "
-			"initiator %s)", cmd->tgt_dev, cmd, cmd->dev->virt_name,
+			"initiator %s)", cmd, cmd->tgt_dev, cmd->dev->virt_name,
 			cmd->sess->initiator_name);
 
 	UA_entry = list_first_entry(&cmd->tgt_dev->UA_list, typeof(*UA_entry),
 			      UA_list_entry);
 
-	TRACE_MGMT_DBG("Setting pending UA %p to cmd %p", UA_entry, cmd);
-
-	TRACE_DBG("next %p UA_entry %p",
-	      cmd->tgt_dev->UA_list.next, UA_entry);
+	TRACE_DBG("Setting pending UA %p to cmd %p", UA_entry, cmd);
 
 	if (UA_entry->global_UA && first) {
 		TRACE_MGMT_DBG("Global UA %p detected", UA_entry);
