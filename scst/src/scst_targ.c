@@ -1801,8 +1801,6 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state,
 {
 	TRACE_ENTRY();
 
-	EXTRACHECKS_BUG_ON(cmd->pr_abort_counter != NULL);
-
 	scst_set_exec_time(cmd);
 
 	TRACE(TRACE_SCSI, "cmd %p, status %x, msg_status %x, host_status %x, "

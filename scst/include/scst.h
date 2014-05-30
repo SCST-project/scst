@@ -1909,6 +1909,13 @@ struct scst_order_data {
 	spinlock_t init_done_lock;
 };
 
+struct scst_orig_sg_data {
+	int *p_orig_sg_cnt;
+	int orig_sg_cnt;
+	struct scatterlist *orig_sg_entry;
+	int orig_entry_offs, orig_entry_len;
+};
+
 /*
  * SCST command, analog of I_T_L_Q nexus or task
  */
@@ -1998,9 +2005,7 @@ struct scst_cmd {
 	/* Set if the target driver called scst_set_expected() */
 	unsigned int expected_values_set:1;
 
-	/*
-	 * Set if the SG buffer was modified by scst_adjust_sg()
-	 */
+	/* Set if the SG buffer was modified by scst_adjust_sg() */
 	unsigned int sg_buff_modified:1;
 
 	/*
@@ -2229,11 +2234,8 @@ struct scst_cmd {
 	/* Used for storage of dev handler private stuff */
 	void *dh_priv;
 
-	/* Used to restore sg if it was modified by scst_adjust_sg() */
-	int *p_orig_sg_cnt;
-	int orig_sg_cnt;
-	struct scatterlist *orig_sg_entry;
-	int orig_entry_offs, orig_entry_len;
+	/* List entry for dev's blocked_cmd_list */
+	struct list_head blocked_cmd_list_entry;
 
 	/* Used to retry commands in case of double UA */
 	int dbl_ua_orig_resp_data_len, dbl_ua_orig_data_direction;
@@ -2244,18 +2246,24 @@ struct scst_cmd {
 	 */
 	struct list_head mgmt_cmd_list;
 
-	/* List entry for dev's blocked_cmd_list */
-	struct list_head blocked_cmd_list_entry;
+	/* Used to restore sg if it was modified by scst_adjust_sg() */
+	struct scst_orig_sg_data orig_sg;
 
-	/* Counter of the corresponding SCST_PR_ABORT_ALL TM commands */
-	struct scst_pr_abort_all_pending_mgmt_cmds_counter *pr_abort_counter;
+	/* Per opcode stuff */
+	union {
+		/* Counter of the corresponding SCST_PR_ABORT_ALL TM commands */
+		struct scst_pr_abort_all_pending_mgmt_cmds_counter *pr_abort_counter;
 
-	/*
-	 * List of parsed data descriptors for commands operating with
-	 * several lba and data_len pairs, like UNMAP, and its size in elements.
-	 */
-	void *cmd_data_descriptors;
-	int cmd_data_descriptors_cnt;
+		/*
+		 * List of parsed data descriptors for commands operating with
+		 * several lba and data_len pairs, like UNMAP, and its size
+		 * in elements.
+		 */
+		struct {
+			void *cmd_data_descriptors;
+			int cmd_data_descriptors_cnt;
+		};
+	};
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	char not_parsed_op_name[8];

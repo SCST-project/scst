@@ -3105,19 +3105,20 @@ next:
 	return;
 }
 
-static void scst_adjust_sg(struct scst_cmd *cmd, struct scatterlist *sg,
-	int *sg_cnt, int adjust_len)
+static bool __scst_adjust_sg(struct scst_cmd *cmd, struct scatterlist *sg,
+	int *sg_cnt, int adjust_len, struct scst_orig_sg_data *orig_sg)
 {
 	struct scatterlist *sgi;
 	int i, l;
+	bool res = false;
 
 	TRACE_ENTRY();
 
 	l = 0;
 	for_each_sg(sg, sgi, *sg_cnt, i) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24)
-		TRACE_DBG("i %d, sg_cnt %d, sg %p, page_link %lx", i,
-			*sg_cnt, sg, sgi->page_link);
+		TRACE_DBG("i %d, sg_cnt %d, sg %p, page_link %lx, len %d", i,
+			*sg_cnt, sg, sgi->page_link, sgi->length);
 #else
 		TRACE_DBG("i %d, sg_cnt %d, sg %p, page_link %lx", i,
 			*sg_cnt, sg, 0UL);
@@ -3125,25 +3126,56 @@ static void scst_adjust_sg(struct scst_cmd *cmd, struct scatterlist *sg,
 		l += sgi->length;
 		if (l >= adjust_len) {
 			int left = adjust_len - (l - sgi->length);
-#ifdef CONFIG_SCST_DEBUG
-			TRACE(TRACE_SG_OP|TRACE_MEMORY, "cmd %p (tag %llu), "
-				"sg %p, sg_cnt %d, adjust_len %d, i %d, "
-				"sg[j].length %d, left %d",
+
+			TRACE_DBG_FLAG(TRACE_SG_OP|TRACE_MEMORY|TRACE_DEBUG,
+				"cmd %p (tag %llu), sg %p, sg_cnt %d, "
+				"adjust_len %d, i %d, sg[j].length %d, left %d",
 				cmd, (long long unsigned int)cmd->tag,
 				sg, *sg_cnt, adjust_len, i,
 				sgi->length, left);
-#endif
-			cmd->p_orig_sg_cnt = sg_cnt;
-			cmd->orig_sg_cnt = *sg_cnt;
-			cmd->orig_sg_entry = sgi;
-			cmd->orig_entry_offs = sgi->offset;
-			cmd->orig_entry_len = sgi->length;
+
+			orig_sg->p_orig_sg_cnt = sg_cnt;
+			orig_sg->orig_sg_cnt = *sg_cnt;
+			orig_sg->orig_sg_entry = sgi;
+			orig_sg->orig_entry_offs = sgi->offset;
+			orig_sg->orig_entry_len = sgi->length;
 			*sg_cnt = (left > 0) ? i+1 : i;
 			sgi->length = left;
-			cmd->sg_buff_modified = 1;
+			res = true;
 			break;
 		}
 	}
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/*
+ * Makes cmd's SG shorter on adjust_len bytes. Reg_sg is true for cmd->sg
+ * and false for cmd->write_sg.
+ */
+static void scst_adjust_sg(struct scst_cmd *cmd, bool reg_sg,
+	int adjust_len)
+{
+	struct scatterlist *sg;
+	int *sg_cnt;
+
+	TRACE_ENTRY();
+
+	EXTRACHECKS_BUG_ON(cmd->sg_buff_modified);
+
+	if (reg_sg) {
+		sg = cmd->sg;
+		sg_cnt = &cmd->sg_cnt;
+	} else {
+		sg = *cmd->write_sg;
+		sg_cnt = cmd->write_sg_cnt;
+	}
+
+	TRACE_DBG("reg_sg %d, adjust_len %d", reg_sg, adjust_len);
+
+	cmd->sg_buff_modified = __scst_adjust_sg(cmd, sg, sg_cnt, adjust_len,
+					&cmd->orig_sg);
 
 	TRACE_EXIT();
 	return;
@@ -3156,13 +3188,20 @@ static void scst_adjust_sg(struct scst_cmd *cmd, struct scatterlist *sg,
  */
 void scst_restore_sg_buff(struct scst_cmd *cmd)
 {
-	TRACE_MEM("cmd %p, sg %p, orig_sg_entry %p, orig_entry_offs %d, "
-		"orig_entry_len %d, orig_sg_cnt %d", cmd, cmd->sg,
-		cmd->orig_sg_entry, cmd->orig_entry_offs, cmd->orig_entry_len,
-		cmd->orig_sg_cnt);
-	cmd->orig_sg_entry->offset = cmd->orig_entry_offs;
-	cmd->orig_sg_entry->length = cmd->orig_entry_len;
-	*cmd->p_orig_sg_cnt = cmd->orig_sg_cnt;
+	TRACE_DBG_FLAG(TRACE_DEBUG|TRACE_MEMORY, "cmd %p, sg %p, "
+		"orig_sg_entry %p, orig_entry_offs %d, orig_entry_len %d, "
+		"orig_sg_cnt %d", cmd, cmd->sg, cmd->orig_sg.orig_sg_entry,
+		cmd->orig_sg.orig_entry_offs, cmd->orig_sg.orig_entry_len,
+		cmd->orig_sg.orig_sg_cnt);
+
+	EXTRACHECKS_BUG_ON(!cmd->sg_buff_modified);
+
+	if (cmd->sg_buff_modified) {
+		cmd->orig_sg.orig_sg_entry->offset = cmd->orig_sg.orig_entry_offs;
+		cmd->orig_sg.orig_sg_entry->length = cmd->orig_sg.orig_entry_len;
+		*cmd->orig_sg.p_orig_sg_cnt = cmd->orig_sg.orig_sg_cnt;
+	}
+
 	cmd->sg_buff_modified = 0;
 }
 EXPORT_SYMBOL(scst_restore_sg_buff);
@@ -3200,7 +3239,7 @@ void scst_set_resp_data_len(struct scst_cmd *cmd, int resp_data_len)
 		goto out;
 	}
 
-	scst_adjust_sg(cmd, cmd->sg, &cmd->sg_cnt, resp_data_len);
+	scst_adjust_sg(cmd, true, resp_data_len);
 
 	cmd->resid_possible = 1;
 
@@ -3218,7 +3257,7 @@ void scst_limit_sg_write_len(struct scst_cmd *cmd)
 		cmd->write_len, cmd, *cmd->write_sg, *cmd->write_sg_cnt);
 
 	scst_check_restore_sg_buff(cmd);
-	scst_adjust_sg(cmd, *cmd->write_sg, cmd->write_sg_cnt, cmd->write_len);
+	scst_adjust_sg(cmd, false, cmd->write_len);
 
 	TRACE_EXIT();
 	return;
@@ -3241,8 +3280,7 @@ void scst_adjust_resp_data_len(struct scst_cmd *cmd)
 			"sg_cnt %d)", cmd->adjusted_resp_data_len, cmd, cmd->sg,
 			cmd->sg_cnt);
 		scst_check_restore_sg_buff(cmd);
-		scst_adjust_sg(cmd, cmd->sg, &cmd->sg_cnt,
-				cmd->adjusted_resp_data_len);
+		scst_adjust_sg(cmd, true, cmd->adjusted_resp_data_len);
 	}
 
 out:
