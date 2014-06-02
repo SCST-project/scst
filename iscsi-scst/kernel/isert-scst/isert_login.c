@@ -492,6 +492,7 @@ static int isert_release(struct inode *inode, struct file *filp)
 	TRACE_ENTRY();
 
 	vunmap(dev->sg_virt);
+	dev->sg_virt = NULL;
 	dev->is_discovery = 0;
 
 	if (dev->conn) {
