@@ -2089,7 +2089,7 @@ assign:
 
 	dev->threads_num = handler->threads_num;
 	dev->threads_pool_type = handler->threads_pool_type;
-	dev->max_write_same_len = 512 * 1024 * 1024; /* 512 MB */
+	dev->max_write_same_len = 256 * 1024 * 1024; /* 256 MB */
 
 	if (handler->attach) {
 		TRACE_DBG("Calling new dev handler's attach(%p)", dev);
