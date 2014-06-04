@@ -178,7 +178,8 @@ static ssize_t iscsi_get_initiator_ip(struct iscsi_conn *conn,
 			 "[%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x]",
 			 NIP6(inet6_sk(sk)->daddr));
 #else
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0) && \
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
 		pos = scnprintf(buf, size, "[%p6]", &inet6_sk(sk)->daddr);
 #else
 		pos = scnprintf(buf, size, "[%p6]", &sk->sk_v6_daddr);
