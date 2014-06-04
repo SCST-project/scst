@@ -202,6 +202,9 @@ struct scst_vdisk_dev {
 	uint8_t inq_vend_specific[MAX_INQ_VEND_SPECIFIC_LEN];
 	int inq_vend_specific_len;
 
+	/* Unmap INQUIRY parameters */
+	uint32_t unmap_opt_gran, unmap_align, unmap_max_lba_cnt;
+
 	struct scst_device *dev;
 	struct list_head vdev_list_entry;
 
@@ -847,28 +850,30 @@ out:
 
 static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 {
-	struct file *fd;
+	struct file *fd = NULL;
+	bool fd_open = false;
 
 	TRACE_ENTRY();
 
 	virt_dev->dev_thin_provisioned = 0;
 
 	if (virt_dev->rd_only || (virt_dev->filename == NULL))
-		goto out_check;
+		goto check;
 
 	fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
 	if (IS_ERR(fd)) {
 		PRINT_ERROR("filp_open(%s) failed: %ld",
 			virt_dev->filename, PTR_ERR(fd));
-		goto out_check;
+		goto check;
 	}
+	fd_open = true;
 
 	if (virt_dev->blockio) {
 		struct inode *inode = fd->f_dentry->d_inode;
 		if (!S_ISBLK(inode->i_mode)) {
 			PRINT_ERROR("%s is NOT a block device",
 				virt_dev->filename);
-			goto out_close;
+			goto check;
 		}
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32) || (defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6)
 		virt_dev->dev_thin_provisioned =
@@ -882,10 +887,7 @@ static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 #endif
 	}
 
-out_close:
-	filp_close(fd, NULL);
-
-out_check:
+check:
 	if (virt_dev->thin_provisioned_manually_set) {
 		if (virt_dev->thin_provisioned && !virt_dev->dev_thin_provisioned) {
 			PRINT_WARNING("Device %s doesn't support thin "
@@ -900,6 +902,29 @@ out_check:
 				"%s", virt_dev->filename);
 
 	}
+
+	if (virt_dev->thin_provisioned) {
+		int block_shift = virt_dev->dev->block_shift;
+		if (virt_dev->blockio) {
+			struct request_queue *q;
+			sBUG_ON(!fd_open);
+			q = bdev_get_queue(fd->f_dentry->d_inode->i_bdev);
+			virt_dev->unmap_opt_gran = q->limits.discard_granularity >> block_shift;
+			virt_dev->unmap_align = q->limits.discard_alignment >> block_shift;
+			virt_dev->unmap_max_lba_cnt = q->limits.max_discard_sectors >> (block_shift - 9);
+		} else {
+			virt_dev->unmap_opt_gran = 1;
+			virt_dev->unmap_align = 0;
+			/* 256 MB */
+			virt_dev->unmap_max_lba_cnt = (256 * 1024 * 1024) >> block_shift;
+		}
+		TRACE_DBG("unmap_gran %d, unmap_alignment %d, max_unmap_lba %u",
+			virt_dev->unmap_opt_gran, virt_dev->unmap_align,
+			virt_dev->unmap_max_lba_cnt);
+	}
+
+	if (fd_open)
+		filp_close(fd, NULL);
 
 	TRACE_EXIT();
 	return;
@@ -3063,6 +3088,14 @@ static void vdisk_exec_write_same_unmap(struct vdisk_cmd_params *p)
 		goto out;
 	}
 
+	if (unlikely((uint64_t)cmd->data_len > cmd->dev->max_write_same_len)) {
+		PRINT_WARNING("Invalid WRITE SAME data len %lld (max allowed "
+			"%lld)", (long long)cmd->data_len,
+			(long long)cmd->dev->max_write_same_len);
+			scst_set_invalid_field_in_cdb(cmd, cmd->len_off, 0);
+		goto out;
+	}
+
 	rc = vdisk_unmap_range(cmd, virt_dev, cmd->lba,
 		cmd->data_len >> dev->block_shift);
 	if (rc != 0)
@@ -3140,6 +3173,7 @@ static enum compl_status_e vdisk_exec_unmap(struct vdisk_cmd_params *p)
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	struct scst_data_descriptor *pd = cmd->cmd_data_descriptors;
 	int i, cnt = cmd->cmd_data_descriptors_cnt;
+	uint32_t blocks_to_unmap;
 
 	TRACE_ENTRY();
 
@@ -3160,6 +3194,20 @@ static enum compl_status_e vdisk_exec_unmap(struct vdisk_cmd_params *p)
 	if (pd == NULL)
 		goto out;
 
+	/* Sanity check to avoid too long latencies */
+	blocks_to_unmap = 0;
+	for (i = 0; i < cnt; i++) {
+		blocks_to_unmap += pd[i].sdd_blocks;
+		if (blocks_to_unmap > virt_dev->unmap_max_lba_cnt) {
+			PRINT_WARNING("Too many UNMAP LBAs %u (max allowed %u, "
+				"dev %s)", blocks_to_unmap,
+				virt_dev->unmap_max_lba_cnt,
+				virt_dev->dev->virt_name);
+			scst_set_invalid_field_in_parm_list(cmd, 0, 0);
+			goto out;
+		}
+	}
+
 	for (i = 0; i < cnt; i++) {
 		int rc;
 
@@ -3177,59 +3225,6 @@ static enum compl_status_e vdisk_exec_unmap(struct vdisk_cmd_params *p)
 out:
 	TRACE_EXIT();
 	return CMD_SUCCEEDED;
-}
-
-static void vdev_blockio_get_unmap_params(struct scst_vdisk_dev *virt_dev,
-	uint32_t *unmap_gran, uint32_t *unmap_alignment,
-	uint32_t *max_unmap_lba)
-{
-	int block_shift = virt_dev->dev->block_shift;
-
-	TRACE_ENTRY();
-
-	sBUG_ON(!virt_dev->filename);
-
-	if (virt_dev->blockio) {
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32) || (defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6)
-		struct file *fd;
-		struct request_queue *q;
-
-		fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
-		if (IS_ERR(fd)) {
-			PRINT_ERROR("filp_open(%s) failed: %ld",
-				virt_dev->filename, PTR_ERR(fd));
-			goto out;
-		}
-
-		q = bdev_get_queue(fd->f_dentry->d_inode->i_bdev);
-		if (q == NULL) {
-			PRINT_ERROR("No queue for device %s", virt_dev->filename);
-			goto out_close;
-		}
-
-		*unmap_gran = q->limits.discard_granularity >> block_shift;
-		*unmap_alignment = q->limits.discard_alignment >> block_shift;
-		*max_unmap_lba = q->limits.max_discard_sectors >> (block_shift - 9);
-
-out_close:
-		filp_close(fd, NULL);
-#else
-		sBUG_ON(1);
-#endif
-	} else {
-		*unmap_gran = 1;
-		*unmap_alignment = 0;
-		*max_unmap_lba = min_t(loff_t, 0xFFFFFFFF, virt_dev->file_size >> block_shift);
-	}
-
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32) || (defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6)
-out:
-#endif
-	TRACE_DBG("unmap_gran %d, unmap_alignment %d, max_unmap_lba %u",
-			*unmap_gran, *unmap_alignment, *max_unmap_lba);
-
-	TRACE_EXIT();
-	return;
 }
 
 static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
@@ -3426,26 +3421,16 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 						&buf[12]);
 
 			if (virt_dev->thin_provisioned) {
-				uint32_t gran = 1, align = 0, max_lba = 1;
-
 				/* MAXIMUM UNMAP BLOCK DESCRIPTOR COUNT is UNLIMITED */
 				put_unaligned_be32(0xFFFFFFFF, &buf[24]);
-				if (virt_dev->blockio) {
-					vdev_blockio_get_unmap_params(virt_dev,
-						&gran, &align, &max_lba);
-				} else {
-					max_lba = min_t(loff_t, 0xFFFFFFFFU,
-							virt_dev->file_size >>
-							dev->block_shift);
-				}
 				/*
 				 * MAXIMUM UNMAP LBA COUNT, OPTIMAL UNMAP
 				 * GRANULARITY and ALIGNMENT
 				 */
-				put_unaligned_be32(max_lba, &buf[20]);
-				put_unaligned_be32(gran, &buf[28]);
-				if (align != 0) {
-					put_unaligned_be32(align, &buf[32]);
+				put_unaligned_be32(virt_dev->unmap_max_lba_cnt, &buf[20]);
+				put_unaligned_be32(virt_dev->unmap_opt_gran, &buf[28]);
+				if (virt_dev->unmap_align != 0) {
+					put_unaligned_be32(virt_dev->unmap_align, &buf[32]);
 					buf[32] |= 0x80;
 				}
 			}
