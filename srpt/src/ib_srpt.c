@@ -2059,6 +2059,16 @@ static int srpt_compl_thread(void *arg)
 	ch = arg;
 	BUG_ON(!ch);
 
+	while (ch->state < CH_LIVE) {
+		set_current_state(TASK_INTERRUPTIBLE);
+		if (srpt_process_completion(ch, poll_budget) >= poll_budget)
+			cond_resched();
+		else
+			schedule();
+	}
+
+	srpt_process_wait_list(ch);
+
 	while (ch->state < CH_DISCONNECTED) {
 		set_current_state(TASK_INTERRUPTIBLE);
 		if (srpt_process_completion(ch, poll_budget) >= poll_budget)
