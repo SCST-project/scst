@@ -2992,13 +2992,11 @@ static int vdisk_unmap_file_range(struct scst_cmd *cmd,
 		scst_set_cmd_error(cmd,
 			SCST_LOAD_SENSE(scst_sense_write_error));
 		res = -EIO;
-		goto out;
 	}
 #else
 	res = 0;
 #endif
 
-out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
