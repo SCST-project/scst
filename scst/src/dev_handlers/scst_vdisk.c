@@ -909,9 +909,14 @@ check:
 			struct request_queue *q;
 			sBUG_ON(!fd_open);
 			q = bdev_get_queue(fd->f_dentry->d_inode->i_bdev);
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32) || \
+	(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6)
 			virt_dev->unmap_opt_gran = q->limits.discard_granularity >> block_shift;
 			virt_dev->unmap_align = q->limits.discard_alignment >> block_shift;
 			virt_dev->unmap_max_lba_cnt = q->limits.max_discard_sectors >> (block_shift - 9);
+#else
+			sBUG_ON(1);
+#endif
 		} else {
 			virt_dev->unmap_opt_gran = 1;
 			virt_dev->unmap_align = 0;
