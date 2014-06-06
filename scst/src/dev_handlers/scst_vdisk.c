@@ -170,6 +170,7 @@ struct scst_vdisk_dev {
 	unsigned int wt_flag_saved:1;
 	unsigned int tst:3;
 	unsigned int format_active:1;
+	unsigned int discard_zeroes_data:1;
 
 	struct file *fd;
 	struct block_device *bdev;
@@ -914,6 +915,7 @@ check:
 			virt_dev->unmap_opt_gran = q->limits.discard_granularity >> block_shift;
 			virt_dev->unmap_align = q->limits.discard_alignment >> block_shift;
 			virt_dev->unmap_max_lba_cnt = q->limits.max_discard_sectors >> (block_shift - 9);
+			virt_dev->discard_zeroes_data = q->limits.discard_zeroes_data;
 #else
 			sBUG_ON(1);
 #endif
@@ -922,10 +924,20 @@ check:
 			virt_dev->unmap_align = 0;
 			/* 256 MB */
 			virt_dev->unmap_max_lba_cnt = (256 * 1024 * 1024) >> block_shift;
+#if 0 /*
+       * Might be a big performance and functionality win, but might be
+       * dangerous as well. But let's be on the safe side and disable it
+       * for now.
+       */
+			virt_dev->discard_zeroes_data = 1;
+#else
+			virt_dev->discard_zeroes_data = 0;
+#endif
 		}
-		TRACE_DBG("unmap_gran %d, unmap_alignment %d, max_unmap_lba %u",
-			virt_dev->unmap_opt_gran, virt_dev->unmap_align,
-			virt_dev->unmap_max_lba_cnt);
+		TRACE_DBG("unmap_gran %d, unmap_alignment %d, max_unmap_lba %u, "
+			"discard_zeroes_data %d", virt_dev->unmap_opt_gran,
+			virt_dev->unmap_align, virt_dev->unmap_max_lba_cnt,
+			virt_dev->discard_zeroes_data);
 	}
 
 	if (fd_open)
@@ -3449,16 +3461,8 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 			buf[1] = 0xB2;
 			buf[3] = 4;
 			buf[5] = 0xE0;
-#if 0 /*
-       * Might be a big performance and functionality win, but might be
-       * dangerous as well, although generally nearly always it should be set,
-       * because nearly all devices should return zero for unmapped blocks.
-       * But let's be on the safe side and disable it for now.
-       *
-       * Changing it change also READ CAPACITY(16)!
-       */
-			buf[5] |= 0x4; /* LBPRZ */
-#endif
+			if (virt_dev->discard_zeroes_data)
+				buf[5] |= 0x4; /* LBPRZ */
 			buf[6] = 2; /* thin provisioned */
 			resp_len = buf[3] + 4;
 		} else {
@@ -4416,17 +4420,9 @@ static enum compl_status_e vdisk_exec_read_capacity16(struct vdisk_cmd_params *p
 	}
 
 	if (virt_dev->thin_provisioned) {
-		buffer[14] |= 0x80;     /* Add LBPME */
-#if 0 /*
-       * Might be a big performance and functionality win, but might be
-       * dangerous as well, although generally nearly always it should be set,
-       * because nearly all devices should return zero for unmapped blocks.
-       * But let's be on the safe side and disable it for now.
-       *
-       * Changing it change also 0xB2 INQUIRY page!
-       */
-		buffer[14] |= 0x40;     /* Add LBPRZ */
-#endif
+		buffer[14] |= 0x80;     /* LBPME */
+		if (virt_dev->discard_zeroes_data)
+			buffer[14] |= 0x40;     /* LBPRZ */
 	}
 
 	length = scst_get_buf_full_sense(cmd, &address);
