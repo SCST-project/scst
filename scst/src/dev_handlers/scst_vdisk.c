@@ -4751,16 +4751,18 @@ static enum compl_status_e nullio_exec_read(struct vdisk_cmd_params *p)
 
 	if (virt_dev->read_zero) {
 		struct scatterlist *sge;
+		struct page *page;
 		int i;
 		void *p;
 
 		for_each_sg(cmd->sg, sge, cmd->sg_cnt, i) {
-			p = kmap(sg_page(sge));
+			page = sg_page(sge);
+			p = kmap(page);
 			if (sge->offset == 0 && sge->length == PAGE_SIZE)
 				clear_page(p);
 			else
 				memset(p + sge->offset, 0, sge->length);
-			kunmap(p);
+			kunmap(page);
 		}
 	}
 
