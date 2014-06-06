@@ -3799,9 +3799,7 @@ void scst_free_device(struct scst_device *dev)
 
 bool scst_device_is_exported(struct scst_device *dev)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	WARN_ON_ONCE(!dev->dev_tgt_dev_list.next);
 

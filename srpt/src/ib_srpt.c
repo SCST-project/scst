@@ -2259,9 +2259,7 @@ static void __srpt_close_all_ch(struct srpt_tgt *srpt_tgt)
 	struct srpt_nexus *nexus;
 	struct srpt_rdma_ch *ch;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&srpt_tgt->mutex);
-#endif
 
 	list_for_each_entry(nexus, &srpt_tgt->nexus_list, entry) {
 		list_for_each_entry(ch, &nexus->ch_list, list) {

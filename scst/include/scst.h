@@ -79,6 +79,10 @@ typedef _Bool bool;
 #define __aligned __attribute__((aligned))
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
+#define lockdep_assert_held(l) do { (void)(l); } while (0)
+#endif
+
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 32)
 #ifndef O_DSYNC
 #define O_DSYNC O_SYNC

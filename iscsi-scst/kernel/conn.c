@@ -91,9 +91,7 @@ void conn_info_show(struct seq_file *seq, struct iscsi_session *session)
 	struct sock *sk;
 	char buf[64];
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&session->target->target_mutex);
-#endif
 
 	list_for_each_entry(conn, &session->conn_list, conn_list_entry) {
 		sk = conn->sock->sk;
@@ -281,9 +279,7 @@ static int conn_sysfs_add(struct iscsi_conn *conn)
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&conn->target->target_mutex);
-#endif
 
 	iscsi_get_initiator_ip(conn, addr, sizeof(addr));
 
@@ -353,9 +349,7 @@ struct iscsi_conn *conn_lookup(struct iscsi_session *session, u16 cid)
 {
 	struct iscsi_conn *conn;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&session->target->target_mutex);
-#endif
 
 	/*
 	 * We need to find the latest conn to correctly handle
@@ -824,9 +818,7 @@ int conn_free(struct iscsi_conn *conn)
 	TRACE_MGMT_DBG("Freeing conn %p (sess=%p, %#Lx %u)", conn,
 		session, (long long unsigned int)session->sid, conn->cid);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&conn->target->target_mutex);
-#endif
 
 	del_timer_sync(&conn->rsp_timer);
 
@@ -879,9 +871,7 @@ static int iscsi_conn_alloc(struct iscsi_session *session,
 	struct iscsi_conn *conn;
 	int res = 0;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&session->target->target_mutex);
-#endif
 
 	conn = kmem_cache_zalloc(iscsi_conn_cache, GFP_KERNEL);
 	if (!conn) {
@@ -987,9 +977,7 @@ int __add_conn(struct iscsi_session *session, struct iscsi_kern_conn_info *info)
 	int err;
 	bool reinstatement = false;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&session->target->target_mutex);
-#endif
 
 	conn = conn_lookup(session, info->cid);
 	if ((conn != NULL) &&

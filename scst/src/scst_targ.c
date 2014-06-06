@@ -6989,9 +6989,7 @@ static char *scst_get_unique_sess_name(struct list_head *sysfs_sess_list,
 	int len = 0, n = 1;
 
 	BUG_ON(!initiator_name);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 restart:
 	list_for_each_entry(s, sysfs_sess_list, sysfs_sess_list_entry) {
