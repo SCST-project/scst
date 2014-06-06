@@ -5020,7 +5020,6 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 {
 	struct scst_cmd *ws_cmd = wsp->ws_orig_cmd;
 	struct scatterlist *ws_sg = wsp->ws_sg;
-	int ws_sg_cnt = wsp->ws_sg_cnt;
 	int res;
 	uint8_t write16_cdb[16];
 	int len = blocks << ws_cmd->dev->block_shift;
@@ -5028,7 +5027,7 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 
 	TRACE_ENTRY();
 
-	EXTRACHECKS_BUG_ON(blocks > ws_sg_cnt);
+	EXTRACHECKS_BUG_ON(blocks > wsp->ws_sg_cnt);
 
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &ws_cmd->cmd_flags)) ||
 	    unlikely(ws_cmd->completed)) {
