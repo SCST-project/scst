@@ -54,7 +54,7 @@ all: include/iscsi_scst_itf_ver.h progs mods
 ISER_SYMVERS:=$(KMOD)/Module.symvers
 OFED_CFLAGS:=
 
-MLNX_OFED:=$(shell if ofed_info | grep MLNX_OFED >/dev/null 2>/dev/null; then echo true; else echo false; fi)
+MLNX_OFED:=$(shell if ofed_info -s | grep MLNX >/dev/null 2>/dev/null; then echo true; else echo false; fi)
 
 ifeq ($(MLNX_OFED),true)
 	# Whether MLNX_OFED for ubuntu has been installed
