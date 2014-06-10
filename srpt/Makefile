@@ -78,12 +78,13 @@ OFED_SRPT_PATH:=/lib/modules/$(KVER)/updates/kernel/drivers/infiniband/ulp/srpt/
 # Whether or not the OFED ib_srpt.ko kernel module has been installed.
 OFED_SRPT_INSTALLED:=$(shell if [ -e $(OFED_SRPT_PATH) ]; then echo true; else echo false; fi)
 
-AUTOCONF_FLAGS=$(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/gid_change PRE_CFLAGS="$(OFED_CFLAGS)" >&/dev/null && echo -DHAVE_IB_EVENT_GID_CHANGE)
+AUTOCONF_FLAGS=$(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/gid_change PRE_CFLAGS="$(OFED_CFLAGS)" >/dev/null 2>&1 && echo -DHAVE_IB_EVENT_GID_CHANGE)
 
 
 all: src/$(MODULE_SYMVERS)
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src \
-	  PRE_CFLAGS="$(OFED_CFLAGS) $(AUTOCONF_FLAGS)" SCST_INC_DIR=$(SCST_INC_DIR) modules
+	  PRE_CFLAGS="$(OFED_CFLAGS)" KCFLAGS="$(AUTOCONF_FLAGS)" \
+	  SCST_INC_DIR=$(SCST_INC_DIR) modules
 
 install: all src/ib_srpt.ko
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src		   \
