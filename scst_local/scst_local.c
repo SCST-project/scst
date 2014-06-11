@@ -831,7 +831,7 @@ static int scst_local_abort(struct scsi_cmnd *SCpnt)
 static int scst_local_device_reset(struct scsi_cmnd *SCpnt)
 {
 	struct scst_local_sess *sess;
-	__be16 lun;
+	struct scsi_lun lun;
 	int ret;
 	DECLARE_COMPLETION_ONSTACK(dev_reset_completion);
 
@@ -839,10 +839,11 @@ static int scst_local_device_reset(struct scsi_cmnd *SCpnt)
 
 	sess = to_scst_lcl_sess(scsi_get_device(SCpnt->device->host));
 
-	lun = cpu_to_be16(SCpnt->device->lun);
+	int_to_scsilun(SCpnt->device->lun, &lun);
 
 	ret = scst_rx_mgmt_fn_lun(sess->scst_sess, SCST_LUN_RESET,
-			&lun, sizeof(lun), false, &dev_reset_completion);
+				  lun.scsi_lun, sizeof(lun), false,
+				  &dev_reset_completion);
 
 	/* Now wait for the completion ... */
 	wait_for_completion_interruptible(&dev_reset_completion);
@@ -860,7 +861,7 @@ static int scst_local_device_reset(struct scsi_cmnd *SCpnt)
 static int scst_local_target_reset(struct scsi_cmnd *SCpnt)
 {
 	struct scst_local_sess *sess;
-	__be16 lun;
+	struct scsi_lun lun;
 	int ret;
 	DECLARE_COMPLETION_ONSTACK(dev_reset_completion);
 
@@ -868,10 +869,11 @@ static int scst_local_target_reset(struct scsi_cmnd *SCpnt)
 
 	sess = to_scst_lcl_sess(scsi_get_device(SCpnt->device->host));
 
-	lun = cpu_to_be16(SCpnt->device->lun);
+	int_to_scsilun(SCpnt->device->lun, &lun);
 
 	ret = scst_rx_mgmt_fn_lun(sess->scst_sess, SCST_TARGET_RESET,
-			&lun, sizeof(lun), false, &dev_reset_completion);
+				  lun.scsi_lun, sizeof(lun), false,
+				  &dev_reset_completion);
 
 	/* Now wait for the completion ... */
 	wait_for_completion_interruptible(&dev_reset_completion);
@@ -953,13 +955,14 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *SCpnt,
 	struct scst_local_sess *sess;
 	struct scatterlist *sgl = NULL;
 	int sgl_count = 0;
-	__be16 lun;
+	struct scsi_lun lun;
 	struct scst_cmd *scst_cmd = NULL;
 	scst_data_direction dir;
 
 	TRACE_ENTRY();
 
-	TRACE_DBG("lun %d, cmd: 0x%02X", SCpnt->device->lun, SCpnt->cmnd[0]);
+	TRACE_DBG("lun %lld, cmd: 0x%02X", (u64)SCpnt->device->lun,
+		  SCpnt->cmnd[0]);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
 	/*
@@ -1002,9 +1005,9 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *SCpnt,
 	 * get into mem alloc deadlock when mounting file systems over
 	 * our devices.
 	 */
-	lun = cpu_to_be16(SCpnt->device->lun);
-	scst_cmd = scst_rx_cmd(sess->scst_sess, (const uint8_t *)&lun,
-			       sizeof(lun), SCpnt->cmnd, SCpnt->cmd_len, true);
+	int_to_scsilun(SCpnt->device->lun, &lun);
+	scst_cmd = scst_rx_cmd(sess->scst_sess, lun.scsi_lun, sizeof(lun),
+			       SCpnt->cmnd, SCpnt->cmd_len, true);
 	if (!scst_cmd) {
 		PRINT_ERROR("%s", "scst_rx_cmd() failed");
 		return SCSI_MLQUEUE_HOST_BUSY;
@@ -1148,14 +1151,15 @@ static int scst_local_get_max_queue_depth(struct scsi_device *sdev)
 {
 	int res;
 	struct scst_local_sess *sess;
-	__be16 lun;
+	struct scsi_lun lun;
 
 	TRACE_ENTRY();
 
 	sess = to_scst_lcl_sess(scsi_get_device(sdev->host));
-	lun = cpu_to_be16(sdev->lun);
+	int_to_scsilun(sdev->lun, &lun);
 	res = scst_get_max_lun_commands(sess->scst_sess,
-			scst_unpack_lun((const uint8_t *)&lun, sizeof(lun)));
+					scst_unpack_lun(lun.scsi_lun,
+							sizeof(lun)));
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -1619,7 +1623,7 @@ static int scst_local_driver_probe(struct device *dev)
 	sess->shost = hpnt;
 
 	hpnt->max_id = 0;        /* Don't want more than one id */
-	hpnt->max_lun = 0xFFFF;
+	hpnt->max_lun = -1ll;
 
 	/*
 	 * Because of a change in the size of this field at 2.6.26
