@@ -78,13 +78,15 @@ OFED_SRPT_PATH:=/lib/modules/$(KVER)/updates/kernel/drivers/infiniband/ulp/srpt/
 # Whether or not the OFED ib_srpt.ko kernel module has been installed.
 OFED_SRPT_INSTALLED:=$(shell if [ -e $(OFED_SRPT_PATH) ]; then echo true; else echo false; fi)
 
-AUTOCONF_FLAGS=$(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/gid_change PRE_CFLAGS="$(OFED_CFLAGS)" >/dev/null 2>&1 && echo -DHAVE_IB_EVENT_GID_CHANGE)
+HAVE_KCFLAGS    = $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/kcflags    KCFLAGS=-DKCFLAGS_MACRO=1       >/dev/null 2>&1 && echo true || echo false)
+HAVE_PRE_CFLAGS = $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/pre_cflags PRE_CFLAGS=-DPRE_CFLAGS_MACRO=1 >/dev/null 2>&1 && echo true || echo false)
+AUTOCONF_FLAGS  = $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/gid_change PRE_CFLAGS="$(OFED_CFLAGS)"     >/dev/null 2>&1 && echo -DHAVE_IB_EVENT_GID_CHANGE)
 
 
 all: src/$(MODULE_SYMVERS)
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src \
-	  PRE_CFLAGS="$(OFED_CFLAGS)" KCFLAGS="$(AUTOCONF_FLAGS)" \
-	  SCST_INC_DIR=$(SCST_INC_DIR) modules
+	  PRE_CFLAGS="$(OFED_CFLAGS) $(AUTOCONF_FLAGS)" \
+	  KCFLAGS="$(AUTOCONF_FLAGS)" SCST_INC_DIR=$(SCST_INC_DIR) modules
 
 install: all src/ib_srpt.ko
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src		   \
@@ -96,6 +98,10 @@ uninstall:
 	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
 
 src/Module.symvers src/Modules.symvers: $(SCST_SYMVERS_DIR)/$(MODULE_SYMVERS)
+	@if [ $(HAVE_KCFLAGS) = false -a $(HAVE_PRE_CFLAGS) = false ]; then \
+	    echo "Error: the kernel build system has not yet been patched.";\
+	    false;                                                          \
+	fi
 	@if [ -n "$(OFED_KERNEL_IB_RPM)" ]; then                            \
 	  if [ -z "$(OFED_KERNEL_IB_DEVEL_RPM)" ]; then                     \
 	    echo "Error: the OFED package $(OFED_KERNEL_IB_RPM)-devel has"  \
@@ -109,13 +115,6 @@ src/Module.symvers src/Modules.symvers: $(SCST_SYMVERS_DIR)/$(MODULE_SYMVERS)
 	  elif $(OFED_SRPT_INSTALLED); then                                 \
 	    echo "Error: OFED has been built with srpt=y in ofed.conf.";    \
 	    echo "Rebuild OFED with srpt=n.";                               \
-	    false;                                                          \
-	  elif [ -e $(KDIR)/scripts/Makefile.lib ]                          \
-	       && ! grep -wq '^c_flags .*PRE_CFLAGS'                        \
-	          $(KDIR)/scripts/Makefile.lib                              \
-	       && ! grep -wq '^LINUXINCLUDE .*PRE_CFLAGS'                   \
-	          $(KDIR)/Makefile; then                                    \
-	    echo "Error: the kernel build system has not yet been patched.";\
 	    false;                                                          \
 	  else                                                              \
 	    echo "  Building against $(OFED_KERNEL_IB_RPM) InfiniBand"      \
