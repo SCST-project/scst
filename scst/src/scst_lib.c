@@ -2696,7 +2696,6 @@ void scst_aen_done(struct scst_aen *aen)
 		mutex_unlock(&scst_mutex);
 	} else {
 		struct scst_session *sess = aen->sess;
-		struct list_head *head;
 		struct scst_tgt_dev *tgt_dev;
 		uint64_t lun;
 
@@ -2705,17 +2704,13 @@ void scst_aen_done(struct scst_aen *aen)
 		mutex_lock(&scst_mutex);
 
 		/* tgt_dev might get dead, so we need to reseek it */
-		head = &sess->sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_FN(lun)];
-		list_for_each_entry(tgt_dev, head,
-				sess_tgt_dev_list_entry) {
-			if (tgt_dev->lun == lun) {
-				TRACE_MGMT_DBG("Requeuing failed AEN UA for "
-					"tgt_dev %p", tgt_dev);
-				scst_check_set_UA(tgt_dev, aen->aen_sense,
-					aen->aen_sense_len,
-					SCST_SET_UA_FLAG_AT_HEAD);
-				break;
-			}
+		tgt_dev = scst_lookup_tgt_dev(sess, lun);
+		if (tgt_dev) {
+			TRACE_MGMT_DBG("Requeuing failed AEN UA for tgt_dev %p",
+				       tgt_dev);
+			scst_check_set_UA(tgt_dev, aen->aen_sense,
+					  aen->aen_sense_len,
+					  SCST_SET_UA_FLAG_AT_HEAD);
 		}
 
 		mutex_unlock(&scst_mutex);

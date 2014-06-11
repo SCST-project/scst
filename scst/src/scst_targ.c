@@ -4328,6 +4328,25 @@ out:
 	return;
 }
 
+struct scst_tgt_dev *scst_lookup_tgt_dev(struct scst_session *sess, u64 lun)
+{
+	struct list_head *head;
+	struct scst_tgt_dev *tgt_dev;
+
+#ifdef CONFIG_SCST_EXTRACHECKS
+	if (scst_get_cmd_counter() == 0)
+		lockdep_assert_held(&scst_mutex);
+#endif
+
+	head = &sess->sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_FN(lun)];
+	list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
+		if (tgt_dev->lun == lun)
+			return tgt_dev;
+	}
+
+	return NULL;
+}
+
 /*
  * Returns 0 on success, > 0 when we need to wait for unblock,
  * < 0 if there is no device (lun) or device type handler.
@@ -4339,30 +4358,21 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 {
 	struct scst_tgt_dev *tgt_dev = NULL;
 	int res;
+	bool nul_dev = false;
 
 	TRACE_ENTRY();
 
 	cmd->cpu_cmd_counter = scst_get();
 
 	if (likely(!test_bit(SCST_FLAG_SUSPENDED, &scst_flags))) {
-		struct list_head *head =
-			&cmd->sess->sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_FN(cmd->lun)];
 		TRACE_DBG("Finding tgt_dev for cmd %p (lun %lld)", cmd,
 			(long long unsigned int)cmd->lun);
 		res = -1;
-		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
-			if (tgt_dev->lun == cmd->lun) {
-				TRACE_DBG("tgt_dev %p found", tgt_dev);
+		tgt_dev = scst_lookup_tgt_dev(cmd->sess, cmd->lun);
+		if (tgt_dev) {
+			TRACE_DBG("tgt_dev %p found", tgt_dev);
 
-				if (unlikely(tgt_dev->dev->handler ==
-						&scst_null_devtype)) {
-					PRINT_INFO("Dev handler for device "
-					  "%lld is NULL, the device will not "
-					  "be visible remotely",
-					   (long long unsigned int)cmd->lun);
-					break;
-				}
-
+			if (likely(tgt_dev->dev->handler != &scst_null_devtype)) {
 				cmd->cmd_threads = tgt_dev->active_cmd_threads;
 				cmd->tgt_dev = tgt_dev;
 				cmd->cur_order_data = tgt_dev->curr_order_data;
@@ -4370,15 +4380,21 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 				cmd->devt = tgt_dev->dev->handler;
 
 				res = 0;
-				break;
+			} else {
+				PRINT_INFO("Dev handler for device %lld is NULL, "
+					"the device will not be visible remotely",
+					(long long unsigned int)cmd->lun);
+				nul_dev = true;
 			}
 		}
-		if (res != 0) {
-			TRACE(TRACE_MINOR,
-				"tgt_dev for LUN %lld not found, command to "
-				"unexisting LU (initiator %s, target %s)?",
-				(long long unsigned int)cmd->lun,
-				cmd->sess->initiator_name, cmd->tgt->tgt_name);
+		if (unlikely(res != 0)) {
+			if (!nul_dev) {
+				TRACE(TRACE_MINOR,
+					"tgt_dev for LUN %lld not found, command to "
+					"unexisting LU (initiator %s, target %s)?",
+					(long long unsigned int)cmd->lun,
+					cmd->sess->initiator_name, cmd->tgt->tgt_name);
+			}
 			scst_put(cmd->cpu_cmd_counter);
 		}
 	} else {
@@ -4991,7 +5007,6 @@ out:
 static int scst_mgmt_translate_lun(struct scst_mgmt_cmd *mcmd)
 {
 	struct scst_tgt_dev *tgt_dev;
-	struct list_head *head;
 	int res;
 
 	TRACE_ENTRY();
@@ -5003,19 +5018,15 @@ static int scst_mgmt_translate_lun(struct scst_mgmt_cmd *mcmd)
 	if (unlikely(res != 0))
 		goto out;
 
-	res = -1;
-
-	head = &mcmd->sess->sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_FN(mcmd->lun)];
-	list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
-		if (tgt_dev->lun == mcmd->lun) {
-			TRACE_DBG("tgt_dev %p found", tgt_dev);
-			mcmd->mcmd_tgt_dev = tgt_dev;
-			res = 0;
-			break;
-		}
-	}
-	if (mcmd->mcmd_tgt_dev == NULL)
+	tgt_dev = scst_lookup_tgt_dev(mcmd->sess, mcmd->lun);
+	if (tgt_dev) {
+		TRACE_DBG("tgt_dev %p found", tgt_dev);
+		mcmd->mcmd_tgt_dev = tgt_dev;
+		res = 0;
+	} else {
 		scst_put(mcmd->cpu_cmd_counter);
+		res = -1;
+	}
 
 out:
 	TRACE_EXIT_HRES(res);
@@ -5643,28 +5654,20 @@ static int scst_abort_task_set(struct scst_mgmt_cmd *mcmd)
 	return res;
 }
 
-static int scst_is_cmd_belongs_to_dev(struct scst_cmd *cmd,
-	struct scst_device *dev)
+static bool scst_is_cmd_belongs_to_dev(struct scst_cmd *cmd,
+				       struct scst_device *dev)
 {
-	struct scst_tgt_dev *tgt_dev = NULL;
-	struct list_head *head;
-	int res = 0;
+	struct scst_tgt_dev *tgt_dev;
+	bool res;
 
 	TRACE_ENTRY();
 
-	TRACE_DBG("Finding match for dev %s and cmd %p (lun %lld)", dev->virt_name,
-		cmd, (long long unsigned int)cmd->lun);
+	TRACE_DBG("Finding match for dev %s and cmd %p (lun %lld)",
+		  dev->virt_name, cmd, (long long unsigned int)cmd->lun);
 
-	head = &cmd->sess->sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_FN(cmd->lun)];
-	list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
-		if (tgt_dev->lun == cmd->lun) {
-			TRACE_DBG("dev %s found", tgt_dev->dev->virt_name);
-			res = (tgt_dev->dev == dev);
-			goto out;
-		}
-	}
+	tgt_dev = scst_lookup_tgt_dev(cmd->sess, cmd->lun);
+	res = tgt_dev && tgt_dev->dev == dev;
 
-out:
 	TRACE_EXIT_HRES(res);
 	return res;
 }
