@@ -1938,9 +1938,11 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 		} else if (opcode == SRPT_RDMA_READ_LAST ||
 			   opcode == SRPT_RDMA_WRITE_LAST) {
 			PRINT_INFO("RDMA t %d for idx %u failed with status %d."
+				   "%s", opcode, index, wc->status,
+				   wc->status == IB_WC_WR_FLUSH_ERR ?
 				   " If this has not been triggered by a cable"
 				   " pull, please check the involved IB HCA's"
-				   " and cables.", opcode, index, wc->status);
+				   " and cables." : "");
 			srpt_handle_rdma_err_comp(ch, ch->ioctx_ring[index],
 						  opcode, srpt_xmt_rsp_context);
 		} else if (opcode == SRPT_RDMA_ZEROLENGTH_WRITE) {
@@ -2056,6 +2058,16 @@ static int srpt_compl_thread(void *arg)
 
 	ch = arg;
 	BUG_ON(!ch);
+
+	while (ch->state < CH_LIVE) {
+		set_current_state(TASK_INTERRUPTIBLE);
+		if (srpt_process_completion(ch, poll_budget) >= poll_budget)
+			cond_resched();
+		else
+			schedule();
+	}
+
+	srpt_process_wait_list(ch);
 
 	while (ch->state < CH_DISCONNECTED) {
 		set_current_state(TASK_INTERRUPTIBLE);
@@ -2247,9 +2259,7 @@ static void __srpt_close_all_ch(struct srpt_tgt *srpt_tgt)
 	struct srpt_nexus *nexus;
 	struct srpt_rdma_ch *ch;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&srpt_tgt->mutex);
-#endif
 
 	list_for_each_entry(nexus, &srpt_tgt->nexus_list, entry) {
 		list_for_each_entry(ch, &nexus->ch_list, list) {
