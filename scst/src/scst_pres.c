@@ -858,15 +858,16 @@ out:
 
 static void scst_pr_remove_device_files(struct scst_tgt_dev *tgt_dev)
 {
-	int res = 0;
 	struct scst_device *dev = tgt_dev->dev;
 
 	TRACE_ENTRY();
 
 	scst_assert_pr_mutex_held(dev);
 
-	res = dev->pr_file_name ? scst_remove_file(dev->pr_file_name) : -ENOENT;
-	res = dev->pr_file_name1 ? scst_remove_file(dev->pr_file_name1) : -ENOENT;
+	if (dev->pr_file_name)
+		scst_remove_file(dev->pr_file_name);
+	if (dev->pr_file_name1)
+		scst_remove_file(dev->pr_file_name1);
 
 	TRACE_EXIT();
 	return;

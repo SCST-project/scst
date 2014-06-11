@@ -4891,7 +4891,7 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 	loff_t loff = p->loff;
 	mm_segment_t old_fs;
 	loff_t err = 0;
-	ssize_t length, full_len, saved_full_len;
+	ssize_t length, full_len;
 	uint8_t __user *address;
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	struct file *fd = virt_dev->fd;
@@ -4947,7 +4947,6 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 			goto out_set_fs;
 		}
 
-		saved_full_len = full_len;
 		eiv = iv;
 		eiv_count = iv_count;
 restart:
