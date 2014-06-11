@@ -214,9 +214,9 @@ static int tape_attach(struct scst_device *dev)
 		mode = (buffer[2] & 0x70) >> 4;
 		speed = buffer[2] & 0x0f;
 		density = buffer[4];
-		TRACE_DBG("Tape: lun %d. bs %d. type 0x%02x mode 0x%02x "
-		      "speed 0x%02x dens 0x%02x", dev->scsi_dev->lun,
-		      dev->block_size, medium_type, mode, speed, density);
+		TRACE_DBG("Tape: lun %lld. bs %d. type 0x%02x mode 0x%02x "
+			  "speed 0x%02x dens 0x%02x", (u64)dev->scsi_dev->lun,
+			  dev->block_size, medium_type, mode, speed, density);
 	} else {
 		PRINT_ERROR("MODE_SENSE failed: %x", rc);
 		res = -ENODEV;

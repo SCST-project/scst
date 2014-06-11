@@ -1145,9 +1145,9 @@ static int scst_register_device(struct scsi_device *scsidp)
 
 	dev->type = scsidp->type;
 
-	dev->virt_name = kasprintf(GFP_KERNEL, "%d:%d:%d:%d",
-				   scsidp->host->host_no,
-				   scsidp->channel, scsidp->id, scsidp->lun);
+	dev->virt_name = kasprintf(GFP_KERNEL, "%d:%d:%d:%lld",
+				   scsidp->host->host_no, scsidp->channel,
+				   scsidp->id, (u64)scsidp->lun);
 	if (dev->virt_name == NULL) {
 		PRINT_ERROR("%s", "Unable to alloc device name");
 		res = -ENOMEM;
@@ -1190,9 +1190,9 @@ static int scst_register_device(struct scsi_device *scsidp)
 		goto out_del_unlocked;
 #endif
 
-	PRINT_INFO("Attached to scsi%d, channel %d, id %d, lun %d, "
-		"type %d", scsidp->host->host_no, scsidp->channel,
-		scsidp->id, scsidp->lun, scsidp->type);
+	PRINT_INFO("Attached to scsi%d, channel %d, id %d, lun %lld, type %d",
+		   scsidp->host->host_no, scsidp->channel, scsidp->id,
+		   (u64)scsidp->lun, scsidp->type);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1259,9 +1259,9 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 	}
 
 	if (dev == NULL) {
-		PRINT_ERROR("SCST device for SCSI device %d:%d:%d:%d not found",
-			scsidp->host->host_no, scsidp->channel, scsidp->id,
-			scsidp->lun);
+		PRINT_ERROR("SCST device for SCSI device %d:%d:%d:%lld not found",
+			    scsidp->host->host_no, scsidp->channel, scsidp->id,
+			    (u64)scsidp->lun);
 		goto out_unlock;
 	}
 
@@ -1285,9 +1285,9 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 
 	scst_dev_sysfs_del(dev);
 
-	PRINT_INFO("Detached from scsi%d, channel %d, id %d, lun %d, type %d",
-		scsidp->host->host_no, scsidp->channel, scsidp->id,
-		scsidp->lun, scsidp->type);
+	PRINT_INFO("Detached from scsi%d, channel %d, id %d, lun %lld, type %d",
+		   scsidp->host->host_no, scsidp->channel, scsidp->id,
+		   (u64)scsidp->lun, scsidp->type);
 
 	scst_free_device(dev);
 

@@ -5081,7 +5081,8 @@ static int scst_process_devt_pass_through_mgmt_store(char *buffer,
 {
 	int res = 0;
 	char *pp, *action, *devstr;
-	unsigned int host, channel, id, lun;
+	unsigned int host, channel, id;
+	u64 lun;
 	struct scst_device *d, *dev = NULL;
 
 	TRACE_ENTRY();
@@ -5103,10 +5104,10 @@ static int scst_process_devt_pass_through_mgmt_store(char *buffer,
 		goto out_syntax_err;
 	}
 
-	if (sscanf(devstr, "%u:%u:%u:%u", &host, &channel, &id, &lun) != 4)
+	if (sscanf(devstr, "%u:%u:%u:%llu", &host, &channel, &id, &lun) != 4)
 		goto out_syntax_err;
 
-	TRACE_DBG("Dev %d:%d:%d:%d", host, channel, id, lun);
+	TRACE_DBG("Dev %d:%d:%d:%lld", host, channel, id, lun);
 
 	res = mutex_lock_interruptible(&scst_mutex);
 	if (res != 0)
@@ -5123,13 +5124,13 @@ static int scst_process_devt_pass_through_mgmt_store(char *buffer,
 		    d->scsi_dev->id == id &&
 		    d->scsi_dev->lun == lun) {
 			dev = d;
-			TRACE_DBG("Dev %p (%d:%d:%d:%d) found",
+			TRACE_DBG("Dev %p (%d:%d:%d:%lld) found",
 				  dev, host, channel, id, lun);
 			break;
 		}
 	}
 	if (dev == NULL) {
-		PRINT_ERROR("Device %d:%d:%d:%d not found",
+		PRINT_ERROR("Device %d:%d:%d:%lld not found",
 			       host, channel, id, lun);
 		res = -EINVAL;
 		goto out_unlock;
