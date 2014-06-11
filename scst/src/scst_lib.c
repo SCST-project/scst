@@ -2418,21 +2418,22 @@ void scst_free_aen(struct scst_aen *aen)
 void scst_gen_aen_or_ua(struct scst_tgt_dev *tgt_dev,
 	int key, int asc, int ascq)
 {
-	struct scst_tgt_template *tgtt = tgt_dev->sess->tgt->tgtt;
+	struct scst_session *sess = tgt_dev->sess;
+	struct scst_tgt_template *tgtt = sess->tgt->tgtt;
 	uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
 	int sl;
 
 	TRACE_ENTRY();
 
-	if ((tgt_dev->sess->init_phase != SCST_SESS_IPH_READY) ||
-	    (tgt_dev->sess->shut_phase != SCST_SESS_SPH_READY))
+	if (sess->init_phase != SCST_SESS_IPH_READY ||
+	    sess->shut_phase != SCST_SESS_SPH_READY)
 		goto out;
 
 	if (tgtt->report_aen != NULL) {
 		struct scst_aen *aen;
 		int rc;
 
-		aen = scst_alloc_aen(tgt_dev->sess, tgt_dev->lun);
+		aen = scst_alloc_aen(sess, tgt_dev->lun);
 		if (aen == NULL)
 			goto queue_ua;
 
@@ -2694,6 +2695,7 @@ void scst_aen_done(struct scst_aen *aen)
 			SCST_SET_UA_FLAG_AT_HEAD);
 		mutex_unlock(&scst_mutex);
 	} else {
+		struct scst_session *sess = aen->sess;
 		struct list_head *head;
 		struct scst_tgt_dev *tgt_dev;
 		uint64_t lun;
@@ -2703,7 +2705,7 @@ void scst_aen_done(struct scst_aen *aen)
 		mutex_lock(&scst_mutex);
 
 		/* tgt_dev might get dead, so we need to reseek it */
-		head = &aen->sess->sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_FN(lun)];
+		head = &sess->sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_FN(lun)];
 		list_for_each_entry(tgt_dev, head,
 				sess_tgt_dev_list_entry) {
 			if (tgt_dev->lun == lun) {
@@ -4139,17 +4141,18 @@ static struct scst_tgt_dev *scst_find_shared_io_tgt_dev(
 	struct scst_tgt_dev *tgt_dev)
 {
 	struct scst_tgt_dev *res = NULL;
+	struct scst_session *sess = tgt_dev->sess;
 	struct scst_acg *acg = tgt_dev->acg_dev->acg;
 	struct scst_tgt_dev *t;
 
 	TRACE_ENTRY();
 
 	TRACE_DBG("tgt_dev %s (acg %p, io_grouping_type %d)",
-		tgt_dev->sess->initiator_name, acg, acg->acg_io_grouping_type);
+		sess->initiator_name, acg, acg->acg_io_grouping_type);
 
 	switch (acg->acg_io_grouping_type) {
 	case SCST_IO_GROUPING_AUTO:
-		if (tgt_dev->sess->initiator_name == NULL)
+		if (sess->initiator_name == NULL)
 			goto out;
 
 		list_for_each_entry(t, &tgt_dev->dev->dev_tgt_dev_list,
@@ -4164,7 +4167,7 @@ static struct scst_tgt_dev *scst_find_shared_io_tgt_dev(
 			/* We check other ACG's as well */
 
 			if (strcmp(t->sess->initiator_name,
-					tgt_dev->sess->initiator_name) == 0)
+				   sess->initiator_name) == 0)
 				goto found;
 		}
 		break;
@@ -4300,6 +4303,8 @@ static int scst_ioc_keeper_thread(void *arg)
 int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 {
 	int res = 0;
+	struct scst_session *sess = tgt_dev->sess;
+	struct scst_tgt_template *tgtt = sess->tgt->tgtt;
 	struct scst_device *dev = tgt_dev->dev;
 	struct scst_async_io_context_keeper *aic_keeper;
 
@@ -4357,7 +4362,7 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 		tgt_dev->aic_keeper = aic_keeper;
 
 		res = scst_add_threads(tgt_dev->active_cmd_threads, NULL, NULL,
-			tgt_dev->sess->tgt->tgtt->threads_num);
+				       tgtt->threads_num);
 		goto out;
 	}
 
@@ -4382,8 +4387,8 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 		}
 
 		res = scst_add_threads(tgt_dev->active_cmd_threads, NULL,
-			tgt_dev,
-			dev->threads_num + tgt_dev->sess->tgt->tgtt->threads_num);
+				       tgt_dev,
+				       dev->threads_num + tgtt->threads_num);
 		if (res != 0) {
 			/* Let's clear here, because no threads could be run */
 			tgt_dev->active_cmd_threads->io_context = NULL;
@@ -4395,7 +4400,7 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 		tgt_dev->active_cmd_threads = &dev->dev_cmd_threads;
 
 		res = scst_add_threads(tgt_dev->active_cmd_threads, dev, NULL,
-			tgt_dev->sess->tgt->tgtt->threads_num);
+				       tgtt->threads_num);
 		break;
 	}
 	default:
@@ -4437,6 +4442,8 @@ static void scst_aic_keeper_release(struct kref *kref)
 /* scst_mutex supposed to be held */
 void scst_tgt_dev_stop_threads(struct scst_tgt_dev *tgt_dev)
 {
+	struct scst_tgt_template *tgtt = tgt_dev->sess->tgt->tgtt;
+
 	TRACE_ENTRY();
 
 	if (tgt_dev->dev->threads_num < 0)
@@ -4451,7 +4458,7 @@ void scst_tgt_dev_stop_threads(struct scst_tgt_dev *tgt_dev)
 	} else if (tgt_dev->active_cmd_threads == &tgt_dev->dev->dev_cmd_threads) {
 		/* Per device shared threads */
 		scst_del_threads(tgt_dev->active_cmd_threads,
-			tgt_dev->sess->tgt->tgtt->threads_num);
+				 tgtt->threads_num);
 	} else if (tgt_dev->active_cmd_threads == &tgt_dev->tgt_dev_cmd_threads) {
 		/* Per tgt_dev threads */
 		scst_del_threads(tgt_dev->active_cmd_threads, -1);
@@ -4475,6 +4482,7 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	struct scst_acg_dev *acg_dev, struct scst_tgt_dev **out_tgt_dev)
 {
 	int res = 0;
+	struct scst_tgt_template *tgtt = sess->tgt->tgtt;
 	int ini_sg, ini_unchecked_isa_dma, ini_use_clustering;
 	struct scst_tgt_dev *tgt_dev;
 	struct scst_device *dev = acg_dev->dev;
@@ -4615,7 +4623,7 @@ out_pr_clear:
 	scst_pr_clear_tgt_dev(tgt_dev);
 
 out_dec_free:
-	if (tgt_dev->sess->tgt->tgtt->get_initiator_port_transport_id == NULL)
+	if (tgtt->get_initiator_port_transport_id == NULL)
 		dev->not_pr_supporting_tgt_devs_num--;
 
 out_free:
@@ -4648,6 +4656,7 @@ void scst_nexus_loss(struct scst_tgt_dev *tgt_dev, bool queue_UA)
  */
 static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 {
+	struct scst_tgt_template *tgtt = tgt_dev->sess->tgt->tgtt;
 	struct scst_device *dev = tgt_dev->dev;
 
 	TRACE_ENTRY();
@@ -4660,7 +4669,7 @@ static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 
 	scst_tgt_dev_sysfs_del(tgt_dev);
 
-	if (tgt_dev->sess->tgt->tgtt->get_initiator_port_transport_id == NULL)
+	if (tgtt->get_initiator_port_transport_id == NULL)
 		dev->not_pr_supporting_tgt_devs_num--;
 
 	scst_clear_reservation(tgt_dev);
