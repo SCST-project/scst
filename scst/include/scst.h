@@ -127,13 +127,6 @@ char *kvasprintf(gfp_t gfp, const char *fmt, va_list ap);
 #define nr_cpumask_bits NR_CPUS
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
-#ifndef swap
-#define swap(a, b) \
-	do { typeof(a) __tmp = (a); (a) = (b); (b) = __tmp; } while (0)
-#endif
-#endif
-
 /* verify cpu argument to cpumask_* operators */
 static inline unsigned int cpumask_check(unsigned int cpu)
 {
@@ -185,6 +178,13 @@ static inline void cpumask_copy(cpumask_t *dstp,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26) && \
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
 #define set_cpus_allowed_ptr(p, new_mask) set_cpus_allowed((p), *(new_mask))
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
+#ifndef swap
+#define swap(a, b) \
+	do { typeof(a) __tmp = (a); (a) = (b); (b) = __tmp; } while (0)
+#endif
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31)
