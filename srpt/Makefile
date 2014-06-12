@@ -48,27 +48,30 @@ MODULE_SYMVERS:=$(shell if [ -e $(KDIR)/Module.symvers ]; then \
 		       echo Module.symvers; else echo Modules.symvers; fi)
 
 # Name of the OFED kernel RPM.
-OFED_KERNEL_IB_RPM:=$(shell for r in kernel-ib mlnx-ofa_kernel compat-rdma; do rpm -q $$r 2>/dev/null | grep -q "^$$r" && echo $$r && break; done)
+OFED_KERNEL_IB_RPM:=$(shell for r in mlnx-ofa_kernel compat-rdma kernel-ib; do rpm -q $$r 2>/dev/null | grep -q "^$$r" && echo $$r && break; done)
 
 # Name of the OFED kernel development RPM.
-OFED_KERNEL_IB_DEVEL_RPM:=$(shell for r in kernel-ib-devel mlnx-ofa_kernel-devel compat-rdma-devel; do rpm -q $$r 2>/dev/null | grep -q "^$$r" && echo $$r && break; done)
+OFED_KERNEL_IB_DEVEL_RPM:=$(shell for r in mlnx-ofa_kernel-devel compat-rdma-devel kernel-ib-devel; do rpm -q $$r 2>/dev/null | grep -q "^$$r" && echo $$r && break; done)
 
-ifeq ($(OFED_KERNEL_IB_RPM),kernel-ib)
+OFED_FLAVOR=$(shell if /usr/bin/ofed_info 2>/dev/null | grep -q "^MLNX_OFED"; then echo MOFED; else echo OFED; fi)
+
+ifeq ($(OFED_KERNEL_IB_RPM),compat-rdma)
+# OFED 3.x
+OFED_KERNEL_DIR:=/usr/src/compat-rdma
+OFED_CFLAGS:=-I$(OFED_KERNEL_DIR)/include
+else
 OFED_KERNEL_DIR:=/usr/src/ofa_kernel
-# Read OFED 1.x's config.mk, which contains the definition of the variable
-# BACKPORT_INCLUDES.
+ifeq ($(OFED_FLAVOR),MOFED)
+# Mellanox OFED with or without kernel-ib RPM
+OFED_CFLAGS:=-I$(OFED_KERNEL_DIR)/include
+else
+# OFED 1.5
 include $(OFED_KERNEL_DIR)/config.mk
 OFED_CFLAGS:=$(BACKPORT_INCLUDES) -I$(OFED_KERNEL_DIR)/include
 endif
-ifeq ($(OFED_KERNEL_IB_RPM),mlnx-ofa_kernel)
-OFED_KERNEL_DIR:=/usr/src/ofa_kernel/default
-OFED_CFLAGS:=-I$(OFED_KERNEL_DIR)/default/include
-endif
-ifeq ($(OFED_KERNEL_IB_RPM),compat-rdma)
-OFED_KERNEL_DIR:=/usr/src/compat-rdma
-OFED_CFLAGS:=-I$(OFED_KERNEL_DIR)/include
 endif
 ifneq ($(OFED_KERNEL_IB_RPM),)
+# Any OFED version
 OFED_MODULE_SYMVERS:=$(OFED_KERNEL_DIR)/Module.symvers
 endif
 
@@ -98,7 +101,8 @@ uninstall:
 	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
 
 src/Module.symvers src/Modules.symvers: $(SCST_SYMVERS_DIR)/$(MODULE_SYMVERS)
-	@if [ $(HAVE_KCFLAGS) = false -a $(HAVE_PRE_CFLAGS) = false ]; then \
+	@if [ "$(HAVE_KCFLAGS)" = false -a "$(HAVE_PRE_CFLAGS)" = false -a  \
+	      -n "$(AUTOCONF_FLAGS)" ]; then                                \
 	    echo "Error: the kernel build system has not yet been patched.";\
 	    false;                                                          \
 	fi
@@ -116,9 +120,12 @@ src/Module.symvers src/Modules.symvers: $(SCST_SYMVERS_DIR)/$(MODULE_SYMVERS)
 	    echo "Error: OFED has been built with srpt=y in ofed.conf.";    \
 	    echo "Rebuild OFED with srpt=n.";                               \
 	    false;                                                          \
+	  elif [ "$(HAVE_PRE_CFLAGS)" = false ]; then                       \
+	    echo "Error: the kernel build system has not yet been patched.";\
+	    false;                                                          \
 	  else                                                              \
-	    echo "  Building against $(OFED_KERNEL_IB_RPM) InfiniBand"      \
-	         "kernel headers.";                                         \
+	    echo "  Building against $(OFED_FLAVOR) $(OFED_KERNEL_IB_RPM)"  \
+	         "InfiniBand kernel headers.";                              \
 	    (                                                               \
 	      grep -v drivers/infiniband/ $<;                               \
 	      cat $(OFED_MODULE_SYMVERS)                                    \
