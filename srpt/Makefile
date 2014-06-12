@@ -53,8 +53,9 @@ OFED_KERNEL_IB_RPM:=$(shell for r in mlnx-ofa_kernel compat-rdma kernel-ib; do r
 # Name of the OFED kernel development RPM.
 OFED_KERNEL_IB_DEVEL_RPM:=$(shell for r in mlnx-ofa_kernel-devel compat-rdma-devel kernel-ib-devel; do rpm -q $$r 2>/dev/null | grep -q "^$$r" && echo $$r && break; done)
 
-OFED_FLAVOR=$(shell if /usr/bin/ofed_info 2>/dev/null | grep -q "^MLNX_OFED"; then echo MOFED; else echo OFED; fi)
+OFED_FLAVOR=$(shell /usr/bin/ofed_info 2>/dev/null | head -n1 | sed -n 's/^MLNX_OFED.*/MOFED/p;s/^OFED-.*/OFED/p')
 
+ifneq ($(OFED_KERNEL_IB_RPM),)
 ifeq ($(OFED_KERNEL_IB_RPM),compat-rdma)
 # OFED 3.x
 OFED_KERNEL_DIR:=/usr/src/compat-rdma
@@ -70,7 +71,6 @@ include $(OFED_KERNEL_DIR)/config.mk
 OFED_CFLAGS:=$(BACKPORT_INCLUDES) -I$(OFED_KERNEL_DIR)/include
 endif
 endif
-ifneq ($(OFED_KERNEL_IB_RPM),)
 # Any OFED version
 OFED_MODULE_SYMVERS:=$(OFED_KERNEL_DIR)/Module.symvers
 endif
