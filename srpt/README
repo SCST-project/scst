@@ -50,7 +50,8 @@ The ib_srpt kernel module supports the following parameters:
   Mode (1) is choosen if both one_target_per_port and
   use_node_guid_in_target_name are false. Mode (2) is choosen if
   one_target_per_port is false and use_node_guid_in_target_name is true. Mode
-  (3) is choosen if one_target_per_port is true.
+  (3) is choosen if one_target_per_port is true. This last mode is the
+  default mode.
 * rdma_cm_port (number)
   A 16-bit number that specifies the port number to be registered via the
   RDMA/CM. Must be specified to make communication over RoCE or iWARP

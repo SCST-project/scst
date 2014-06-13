@@ -151,9 +151,9 @@ MODULE_PARM_DESC(use_node_guid_in_target_name,
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31) \
     || defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
-static int one_target_per_port;
+static int one_target_per_port = true;
 #else
-static bool one_target_per_port;
+static bool one_target_per_port = true;
 #endif
 module_param(one_target_per_port, bool, 0444);
 MODULE_PARM_DESC(one_target_per_port,
