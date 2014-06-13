@@ -173,6 +173,27 @@ static inline void cpumask_copy(cpumask_t *dstp,
 {
 	bitmap_copy(cpumask_bits(dstp), cpumask_bits(srcp), nr_cpumask_bits);
 }
+
+/**
+ * cpumask_setall - set all cpus (< nr_cpu_ids) in a cpumask
+ * @dstp: the cpumask pointer
+ */
+static inline void cpumask_setall(cpumask_t *dstp)
+{
+	bitmap_fill(cpumask_bits(dstp), nr_cpumask_bits);
+}
+
+/**
+ * cpumask_equal - *src1p == *src2p
+ * @src1p: the first input
+ * @src2p: the second input
+ */
+static inline bool cpumask_equal(const cpumask_t *src1p,
+				 const cpumask_t *src2p)
+{
+	return bitmap_equal(cpumask_bits(src1p), cpumask_bits(src2p),
+			    nr_cpumask_bits);
+}
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26) && \

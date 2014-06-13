@@ -2453,7 +2453,7 @@ static int __init init_scst(void)
 	mutex_init(&scst_suspend_mutex);
 	mutex_init(&scst_cmd_threads_mutex);
 	INIT_LIST_HEAD(&scst_cmd_threads_list);
-	cpus_setall(default_cpu_mask);
+	cpumask_setall(&default_cpu_mask);
 
 	scst_init_threads(&scst_main_cmd_threads);
 
