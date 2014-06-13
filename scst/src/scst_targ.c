@@ -5997,6 +5997,8 @@ static int scst_lun_reset(struct scst_mgmt_cmd *mcmd)
 		TRACE(TRACE_MGMT, "Resetting host %d bus ",
 		      dev->scsi_dev->host->host_no);
 		rc = scsi_reset_provider(dev->scsi_dev, SCSI_TRY_RESET_DEVICE);
+		TRACE(TRACE_MGMT, "scsi_reset_provider(%s) returned %d",
+		      dev->virt_name, rc);
 #if 0
 		if (rc != SUCCESS && mcmd->status == SCST_MGMT_STATUS_SUCCESS)
 			scst_mgmt_cmd_set_status(mcmd, SCST_MGMT_STATUS_FAILED);
