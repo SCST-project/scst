@@ -6470,7 +6470,12 @@ int scst_get_buf_full(struct scst_cmd *cmd, uint8_t **buf)
 			len = scst_get_buf_next(cmd, &tmp_buf);
 		}
 
+#ifdef __COVERITY__
+		/* Help Coverity recognize that vmalloc(0) returns NULL. */
+		*buf = full_size ? vmalloc(full_size) : NULL;
+#else
 		*buf = vmalloc(full_size);
+#endif
 		if (*buf == NULL) {
 			TRACE(TRACE_OUT_OF_MEM, "vmalloc() failed for opcode "
 				"%s", scst_get_opcode_name(cmd));
