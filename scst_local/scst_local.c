@@ -142,6 +142,8 @@ struct scst_local_sess {
 	spinlock_t aen_lock;
 	struct list_head aen_work_list; /* protected by aen_lock */
 
+	struct work_struct remove_work;
+
 	struct list_head sessions_list_entry;
 };
 
@@ -1389,6 +1391,56 @@ static int scst_local_targ_release(struct scst_tgt *tgt)
 	return 0;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+static void scst_remove_work_fn(void *ctx)
+#else
+static void scst_remove_work_fn(struct work_struct *work)
+#endif
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	struct scst_local_sess *sess = ctx;
+#else
+	struct scst_local_sess *sess =
+		container_of(work, struct scst_local_sess, remove_work);
+#endif
+
+	scst_local_remove_adapter(sess);
+}
+
+static void scst_local_close_session_impl(struct scst_local_sess *sess,
+					  bool async)
+{
+	bool unregistering;
+
+	spin_lock(&sess->aen_lock);
+	unregistering = sess->unregistering;
+	sess->unregistering = 1;
+	spin_unlock(&sess->aen_lock);
+
+	if (!unregistering) {
+		if (async)
+			schedule_work(&sess->remove_work);
+		else
+			scst_local_remove_adapter(sess);
+	}
+}
+
+/*
+ * Perform removal from the context of another thread since the caller may
+ * already hold an SCST mutex, since scst_local_remove_adapter() triggers a
+ * call of device_unregister(), since device_unregister() invokes
+ * device_del(), since device_del() locks the same mutex that is held while
+ * invoking scst_add() from class_interface_register() and since scst_add()
+ * also may lock an SCST mutex.
+ */
+static int scst_local_close_session(struct scst_session *scst_sess)
+{
+	struct scst_local_sess *sess = scst_sess_get_tgt_priv(scst_sess);
+
+	scst_local_close_session_impl(sess, true);
+	return 0;
+}
+
 static int scst_local_targ_xmit_response(struct scst_cmd *scst_cmd)
 {
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
@@ -1529,6 +1581,7 @@ static struct scst_tgt_template scst_local_targ_tmpl = {
 #endif
 	.detect			= scst_local_targ_detect,
 	.release		= scst_local_targ_release,
+	.close_session		= scst_local_close_session,
 	.pre_exec		= scst_local_targ_pre_exec,
 	.xmit_response		= scst_local_targ_xmit_response,
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
@@ -1787,8 +1840,10 @@ static int __scst_local_add_adapter(struct scst_local_tgt *tgt,
 	 */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20))
 	INIT_WORK(&sess->aen_work, scst_aen_work_fn, sess);
+	INIT_WORK(&sess->remove_work, scst_remove_work_fn, sess);
 #else
 	INIT_WORK(&sess->aen_work, scst_aen_work_fn);
+	INIT_WORK(&sess->remove_work, scst_remove_work_fn);
 #endif
 	spin_lock_init(&sess->aen_lock);
 	INIT_LIST_HEAD(&sess->aen_work_list);
@@ -1931,11 +1986,7 @@ static void __scst_local_remove_target(struct scst_local_tgt *tgt)
 
 	list_for_each_entry_safe(sess, ts, &tgt->sessions_list,
 					sessions_list_entry) {
-		spin_lock(&sess->aen_lock);
-		sess->unregistering = 1;
-		spin_unlock(&sess->aen_lock);
-
-		scst_local_remove_adapter(sess);
+		scst_local_close_session_impl(sess, false);
 	}
 
 	list_del(&tgt->tgts_list_entry);
