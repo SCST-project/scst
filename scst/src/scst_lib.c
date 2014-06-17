@@ -52,6 +52,9 @@
 #include "scst_mem.h"
 #include "scst_pres.h"
 
+static void scst_del_acn(struct scst_acn *acn);
+static void scst_free_acn(struct scst_acn *acn, bool reassign);
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 struct scsi_io_context {
 	void *data;
@@ -2858,6 +2861,8 @@ next:
 	TRACE_DBG("Moving sess %p from acg %s to acg %s", sess,
 		old_acg->acg_name, acg->acg_name);
 	list_move_tail(&sess->acg_sess_list_entry, &acg->acg_sess_list);
+	scst_get_acg(acg);
+	scst_put_acg(old_acg);
 
 #ifndef CONFIG_SCST_PROC
 	scst_recreate_sess_luns_link(sess);
@@ -3865,20 +3870,35 @@ out:
  * The activity supposed to be suspended and scst_mutex held or the
  * corresponding target supposed to be stopped.
  */
-static void scst_del_free_acg_dev(struct scst_acg_dev *acg_dev, bool del_sysfs)
+static void scst_del_acg_dev(struct scst_acg_dev *acg_dev, bool del_sysfs)
 {
-	TRACE_ENTRY();
-
-	TRACE_DBG("Removing acg_dev %p from acg_dev_list and dev_acg_dev_list",
-		acg_dev);
-	list_del(&acg_dev->acg_dev_list_entry);
+	TRACE_DBG("Removing acg_dev %p from dev_acg_dev_list", acg_dev);
 	list_del(&acg_dev->dev_acg_dev_list_entry);
 
 	if (del_sysfs)
 		scst_acg_dev_sysfs_del(acg_dev);
+}
 
+/*
+ * The activity supposed to be suspended and scst_mutex held or the
+ * corresponding target supposed to be stopped.
+ */
+static void scst_free_acg_dev(struct scst_acg_dev *acg_dev)
+{
 	kmem_cache_free(scst_acgd_cachep, acg_dev);
+}
 
+/*
+ * The activity supposed to be suspended and scst_mutex held or the
+ * corresponding target supposed to be stopped.
+ */
+static void scst_del_free_acg_dev(struct scst_acg_dev *acg_dev, bool del_sysfs)
+{
+	TRACE_ENTRY();
+	TRACE_DBG("Removing acg_dev %p from acg_dev_list", acg_dev);
+	list_del(&acg_dev->acg_dev_list_entry);
+	scst_del_acg_dev(acg_dev, del_sysfs);
+	scst_free_acg_dev(acg_dev);
 	TRACE_EXIT();
 	return;
 }
@@ -4003,6 +4023,7 @@ struct scst_acg *scst_alloc_add_acg(struct scst_tgt *tgt,
 		goto out;
 	}
 
+	kref_init(&acg->acg_kref);
 	acg->tgt = tgt;
 	INIT_LIST_HEAD(&acg->acg_dev_list);
 	INIT_LIST_HEAD(&acg->acg_sess_list);
@@ -4054,37 +4075,28 @@ out_free:
 	goto out;
 }
 
-/* The activity supposed to be suspended and scst_mutex held */
-void scst_del_free_acg(struct scst_acg *acg)
+/**
+ * scst_del_acg - delete an ACG from the per-target ACG list and from sysfs
+ *
+ * The caller must hold scst_mutex and activity must have been suspended.
+ *
+ * Note: It is the responsibility of the caller to make sure that
+ * scst_put_acg() gets invoked.
+ */
+static void scst_del_acg(struct scst_acg *acg)
 {
 	struct scst_acn *acn, *acnt;
 	struct scst_acg_dev *acg_dev, *acg_dev_tmp;
 
-	TRACE_ENTRY();
+	scst_assert_activity_suspended();
+	lockdep_assert_held(&scst_mutex);
 
-	TRACE_DBG("Clearing acg %s from list", acg->acg_name);
-
-	sBUG_ON(!list_empty(&acg->acg_sess_list));
-
-	/* Freeing acg_devs */
 	list_for_each_entry_safe(acg_dev, acg_dev_tmp, &acg->acg_dev_list,
-			acg_dev_list_entry) {
-		struct scst_tgt_dev *tgt_dev, *tt;
-		list_for_each_entry_safe(tgt_dev, tt,
-				 &acg_dev->dev->dev_tgt_dev_list,
-				 dev_tgt_dev_list_entry) {
-			if (tgt_dev->acg_dev == acg_dev)
-				scst_free_tgt_dev(tgt_dev);
-		}
-		scst_del_free_acg_dev(acg_dev, true);
-	}
+				 acg_dev_list_entry)
+		scst_del_acg_dev(acg_dev, true);
 
-	/* Freeing names */
-	list_for_each_entry_safe(acn, acnt, &acg->acn_list, acn_list_entry) {
-		scst_del_free_acn(acn,
-			list_is_last(&acn->acn_list_entry, &acg->acn_list));
-	}
-	INIT_LIST_HEAD(&acg->acn_list);
+	list_for_each_entry_safe(acn, acnt, &acg->acn_list, acn_list_entry)
+		scst_del_acn(acn);
 
 #ifdef CONFIG_SCST_PROC
 	list_del(&acg->acg_list_entry);
@@ -4094,19 +4106,99 @@ void scst_del_free_acg(struct scst_acg *acg)
 		list_del(&acg->acg_list_entry);
 
 		scst_acg_sysfs_del(acg);
-	} else
+	} else {
 		acg->tgt->default_acg = NULL;
+	}
 #endif
+}
 
-	sBUG_ON(!list_empty(&acg->acg_sess_list));
-	sBUG_ON(!list_empty(&acg->acg_dev_list));
-	sBUG_ON(!list_empty(&acg->acn_list));
+/**
+ * scst_free_acg - free an ACG
+ *
+ * The caller must hold scst_mutex and activity must have been suspended.
+ */
+static void scst_free_acg(struct scst_acg *acg)
+{
+	struct scst_acg_dev *acg_dev, *acg_dev_tmp;
+	struct scst_acn *acn, *acnt;
+
+	TRACE_DBG("Freeing acg %s/%s", acg->tgt->tgt_name, acg->acg_name);
+
+	list_for_each_entry_safe(acg_dev, acg_dev_tmp, &acg->acg_dev_list,
+			acg_dev_list_entry) {
+		struct scst_tgt_dev *tgt_dev, *tt;
+		list_for_each_entry_safe(tgt_dev, tt,
+				 &acg_dev->dev->dev_tgt_dev_list,
+				 dev_tgt_dev_list_entry) {
+			if (tgt_dev->acg_dev == acg_dev)
+				scst_free_tgt_dev(tgt_dev);
+		}
+		scst_free_acg_dev(acg_dev);
+	}
+
+	list_for_each_entry_safe(acn, acnt, &acg->acn_list, acn_list_entry) {
+		scst_free_acn(acn,
+			list_is_last(&acn->acn_list_entry, &acg->acn_list));
+	}
 
 	kfree(acg->acg_name);
 	kfree(acg);
+}
 
-	TRACE_EXIT();
-	return;
+static void scst_release_acg(struct kref *kref)
+{
+	struct scst_acg *acg = container_of(kref, struct scst_acg, acg_kref);
+
+	scst_free_acg(acg);
+}
+
+void scst_put_acg(struct scst_acg *acg)
+{
+	kref_put(&acg->acg_kref, scst_release_acg);
+}
+
+void scst_get_acg(struct scst_acg *acg)
+{
+	kref_get(&acg->acg_kref);
+}
+
+/**
+ * scst_close_del_free_acg - close sessions, delete and free an ACG
+ *
+ * The caller must hold scst_mutex and activity must have been suspended.
+ *
+ * Note: deleting and freeing the ACG happens asynchronously. Each time a
+ * session is closed the ACG reference count is decremented, and if that
+ * reference count drops to zero the ACG is freed.
+ */
+int scst_del_free_acg(struct scst_acg *acg, bool close_sessions)
+{
+	struct scst_tgt *tgt = acg->tgt;
+	struct scst_session *sess, *sess_tmp;
+
+	scst_assert_activity_suspended();
+	lockdep_assert_held(&scst_mutex);
+
+	if ((!close_sessions && !list_empty(&acg->acg_sess_list)) ||
+	    (close_sessions && !tgt->tgtt->close_session))
+		return -EBUSY;
+
+	scst_del_acg(acg);
+
+	if (close_sessions) {
+		TRACE_DBG("Closing sessions for group %s/%s", tgt->tgt_name,
+			  acg->acg_name);
+		list_for_each_entry_safe(sess, sess_tmp, &acg->acg_sess_list,
+					 acg_sess_list_entry) {
+			TRACE_DBG("Closing session %s/%s/%s", tgt->tgt_name,
+				  acg->acg_name, sess->initiator_name);
+			tgt->tgtt->close_session(sess);
+		}
+	}
+
+	scst_put_acg(acg);
+
+	return 0;
 }
 
 #ifndef CONFIG_SCST_PROC
@@ -4798,20 +4890,29 @@ out_free:
 }
 
 /* The activity supposed to be suspended and scst_mutex held */
-void scst_del_free_acn(struct scst_acn *acn, bool reassign)
+static void scst_del_acn(struct scst_acn *acn)
 {
-	TRACE_ENTRY();
-
 	list_del(&acn->acn_list_entry);
 
 	scst_acn_sysfs_del(acn);
+}
 
+/* The activity supposed to be suspended and scst_mutex held */
+static void scst_free_acn(struct scst_acn *acn, bool reassign)
+{
 	kfree(acn->name);
 	kfree(acn);
 
 	if (reassign)
 		scst_check_reassign_sessions();
+}
 
+/* The activity supposed to be suspended and scst_mutex held */
+void scst_del_free_acn(struct scst_acn *acn, bool reassign)
+{
+	TRACE_ENTRY();
+	scst_del_acn(acn);
+	scst_free_acn(acn, reassign);
 	TRACE_EXIT();
 	return;
 }
@@ -5494,6 +5595,7 @@ void scst_free_session(struct scst_session *sess)
 
 	TRACE_DBG("Removing session %p from acg %s", sess, sess->acg->acg_name);
 	list_del(&sess->acg_sess_list_entry);
+	scst_put_acg(sess->acg);
 
 	mutex_unlock(&scst_mutex);
 

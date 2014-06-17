@@ -148,6 +148,8 @@ extern int scst_threads;
 
 extern unsigned int scst_max_dev_cmd_mem;
 
+extern int scst_forcibly_close_sessions;
+
 extern mempool_t *scst_mgmt_mempool;
 extern mempool_t *scst_mgmt_stub_mempool;
 extern mempool_t *scst_ua_mempool;
@@ -339,7 +341,9 @@ bool scst_device_is_exported(struct scst_device *dev);
 
 struct scst_acg *scst_alloc_add_acg(struct scst_tgt *tgt,
 	const char *acg_name, bool tgt_acg);
-void scst_del_free_acg(struct scst_acg *acg);
+int scst_del_free_acg(struct scst_acg *acg, bool close_sessions);
+void scst_get_acg(struct scst_acg *acg);
+void scst_put_acg(struct scst_acg *acg);
 
 struct scst_acg *scst_tgt_find_acg(struct scst_tgt *tgt, const char *name);
 struct scst_acg *scst_find_acg(const struct scst_session *sess);

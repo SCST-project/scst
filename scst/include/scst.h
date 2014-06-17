@@ -2817,6 +2817,9 @@ struct scst_acg_dev {
  * control information.
  */
 struct scst_acg {
+	/* One more than the number of sessions in acg_sess_list */
+	struct kref acg_kref;
+
 	/* Owner target */
 	struct scst_tgt *tgt;
 

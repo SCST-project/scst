@@ -2122,12 +2122,16 @@ static int scst_process_ini_group_mgmt_store(char *buffer,
 			res = -EINVAL;
 			goto out_unlock;
 		}
-		if (!scst_acg_sess_is_empty(acg)) {
-			PRINT_ERROR("Group %s is not empty", acg->acg_name);
-			res = -EBUSY;
+		res = scst_del_free_acg(acg, scst_forcibly_close_sessions);
+		if (res) {
+			if (scst_forcibly_close_sessions)
+				PRINT_ERROR("Removing group %s failed",
+					    acg->acg_name);
+			else
+				PRINT_ERROR("Group %s is not empty",
+					    acg->acg_name);
 			goto out_unlock;
 		}
-		scst_del_free_acg(acg);
 		break;
 	}
 

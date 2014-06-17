@@ -179,6 +179,7 @@ cpumask_t default_cpu_mask;
 
 static unsigned int scst_max_cmd_mem;
 unsigned int scst_max_dev_cmd_mem;
+int scst_forcibly_close_sessions;
 
 module_param_named(scst_threads, scst_threads, int, 0);
 MODULE_PARM_DESC(scst_threads, "SCSI target threads count");
@@ -190,6 +191,13 @@ MODULE_PARM_DESC(scst_max_cmd_mem, "Maximum memory allowed to be consumed by "
 module_param_named(scst_max_dev_cmd_mem, scst_max_dev_cmd_mem, int, S_IRUGO);
 MODULE_PARM_DESC(scst_max_dev_cmd_mem, "Maximum memory allowed to be consumed "
 	"by all SCSI commands of a device at any given time in MB");
+
+module_param_named(forcibly_close_sessions, scst_forcibly_close_sessions, int,
+		   S_IWUSR | S_IRUGO);
+MODULE_PARM_DESC(forcibly_close_sessions,
+"If enabled, close the sessions associated with an access control group (ACG)"
+" when an ACG is deleted via sysfs instead of returning -EBUSY");
+
 
 struct scst_dev_type scst_null_devtype = {
 	.name = "none",
@@ -669,11 +677,11 @@ again:
 	scst_tg_tgt_remove_by_tgt(tgt);
 
 #ifndef CONFIG_SCST_PROC
-	scst_del_free_acg(tgt->default_acg);
+	scst_del_free_acg(tgt->default_acg, false);
 
 	list_for_each_entry_safe(acg, acg_tmp, &tgt->tgt_acg_list,
 					acg_list_entry) {
-		scst_del_free_acg(acg);
+		scst_del_free_acg(acg, false);
 	}
 #endif
 
@@ -2654,7 +2662,7 @@ out_thread_free:
 
 #ifdef CONFIG_SCST_PROC
 out_free_acg:
-	scst_del_free_acg(scst_default_acg);
+	scst_del_free_acg(scst_default_acg, false);
 #endif
 
 out_destroy_sgv_pool:
@@ -2736,7 +2744,7 @@ static void __exit exit_scst(void)
 
 	scsi_unregister_interface(&scst_interface);
 #ifdef CONFIG_SCST_PROC
-	scst_del_free_acg(scst_default_acg);
+	scst_del_free_acg(scst_default_acg, false);
 #endif
 
 	scst_sgv_pools_deinit();

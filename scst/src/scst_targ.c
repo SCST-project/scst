@@ -7039,6 +7039,7 @@ static int scst_init_session(struct scst_session *sess)
 		"(target %s)", sess->acg->acg_name, sess->initiator_name,
 		sess->tgt->tgt_name);
 
+	scst_get_acg(sess->acg);
 	list_add_tail(&sess->acg_sess_list_entry, &sess->acg->acg_sess_list);
 
 	TRACE_DBG("Adding sess %p to tgt->sess_list", sess);
