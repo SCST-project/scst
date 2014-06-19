@@ -2449,7 +2449,9 @@ static int prepare_read_page(struct file *filp, int len,
 	unsigned long index, last_index;
 	long end_index, nr;
 	loff_t isize;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 15, 0)
 	read_descriptor_t desc = { .count = len };
+#endif
 	int error;
 
 	TRACE_ENTRY();
@@ -2502,8 +2504,13 @@ find_page:
 		/* Did it get truncated before we got the lock? */
 		if (!page->mapping)
 			goto page_not_up_to_date_locked;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 15, 0)
+		if (!mapping->a_ops->is_partially_uptodate(page,
+						offset & ~PAGE_CACHE_MASK, len))
+#else
 		if (!mapping->a_ops->is_partially_uptodate(page, &desc,
 						offset & ~PAGE_CACHE_MASK))
+#endif
 			goto page_not_up_to_date_locked;
 		unlock_page(page);
 	}

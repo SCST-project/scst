@@ -247,7 +247,11 @@ struct iscsi_conn {
 	struct socket *sock;
 
 	void (*old_state_change)(struct sock *);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 15, 0))
+	void (*old_data_ready)(struct sock *);
+#else
 	void (*old_data_ready)(struct sock *, int);
+#endif
 	void (*old_write_space)(struct sock *);
 
 	/* Both read only. Stay here for better CPU cache locality. */

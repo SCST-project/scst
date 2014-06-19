@@ -475,7 +475,11 @@ static void iscsi_state_change(struct sock *sk)
 	return;
 }
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 15, 0))
+static void iscsi_data_ready(struct sock *sk)
+#else
 static void iscsi_data_ready(struct sock *sk, int len)
+#endif
 {
 	struct iscsi_conn *conn = sk->sk_user_data;
 
@@ -483,7 +487,11 @@ static void iscsi_data_ready(struct sock *sk, int len)
 
 	iscsi_make_conn_rd_active(conn);
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 15, 0))
+	conn->old_data_ready(sk);
+#else
 	conn->old_data_ready(sk, len);
+#endif
 
 	TRACE_EXIT();
 	return;
