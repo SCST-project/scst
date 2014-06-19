@@ -105,6 +105,7 @@ ifneq ($(BUILD_2X_MODULE),)
 	  SCST_INC_DIR=$(SCST_INC_DIR)
 endif
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
+	  $$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
 	  SCST_INC_DIR=$(SCST_INC_DIR) modules_install
 
 uninstall:

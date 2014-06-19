@@ -52,7 +52,9 @@ extraclean: clean
 	rm -f *.orig *.rej
 
 install:
-	@$(MAKE) -C ${LINUX} M=${CURDIR}/build modules_install
+	@$(MAKE) -C ${LINUX} M=${CURDIR}/build \
+		$$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
+		modules_install
 
 install_host_progs:
 	@$(MAKE) -C build $@

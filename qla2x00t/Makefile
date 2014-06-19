@@ -61,6 +61,7 @@ all:
 
 install: all
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
+		$$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
 		modules_install
 
 uninstall:

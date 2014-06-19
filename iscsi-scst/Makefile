@@ -70,6 +70,7 @@ install: all
 	@install -vD -m 755 usr/iscsi-scst-adm $(DESTDIR)$(SBINDIR)/iscsi-scst-adm
 	@install -vD -m 644 doc/manpages/iscsi-scst-adm.8 $(DESTDIR)$(MANDIR)/man8/iscsi-scst-adm.8
 	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(KMOD) \
+	  $$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
 	  modules_install
 
 uninstall:
