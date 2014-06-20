@@ -3013,7 +3013,11 @@ static int vdisk_unmap_file_range(struct scst_cmd *cmd,
 static int vdisk_unmap_range(struct scst_cmd *cmd,
 	struct scst_vdisk_dev *virt_dev, uint64_t start_lba, uint32_t blocks)
 {
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 27)
 	int res, err;
+#else
+	int res;
+#endif
 	struct file *fd = virt_dev->fd;
 
 	TRACE_ENTRY();

@@ -426,7 +426,12 @@ static void iscsi_session_info_show(struct seq_file *seq,
 static int iscsi_session_seq_open(struct inode *inode, struct file *file)
 {
 	int res;
+
+#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
+	res = seq_open(file, (struct seq_operations *)&iscsi_seq_op);
+#else
 	res = seq_open(file, &iscsi_seq_op);
+#endif
 	if (!res)
 		((struct seq_file *)file->private_data)->private =
 			iscsi_session_info_show;

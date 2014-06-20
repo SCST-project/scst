@@ -1017,7 +1017,7 @@ static void iscsi_init_status_rsp(struct iscsi_cmnd *rsp,
 
 		sg_init_table(sg, 2);
 		sg_set_buf(&sg[0], &rsp->sense_hdr, sizeof(rsp->sense_hdr));
-		sg_set_buf(&sg[1], sense_buf, sense_len);
+		sg_set_buf(&sg[1], (u8 *)sense_buf, sense_len);
 
 		rsp->sense_hdr.length = cpu_to_be16(sense_len);
 
@@ -3686,7 +3686,7 @@ static int iscsi_scsi_aen(struct scst_aen *aen)
 
 	sg_init_table(sg, 2);
 	sg_set_buf(&sg[0], &rsp->sense_hdr, sizeof(rsp->sense_hdr));
-	sg_set_buf(&sg[1], sense, sense_len);
+	sg_set_buf(&sg[1], (u8 *)sense, sense_len);
 
 	rsp->sense_hdr.length = cpu_to_be16(sense_len);
 	rsp->pdu.datasize = sizeof(rsp->sense_hdr) + sense_len;
