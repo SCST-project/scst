@@ -826,7 +826,6 @@ static int dev_user_parse(struct scst_cmd *cmd)
 
 	default:
 		sBUG();
-		goto out;
 	}
 
 done:

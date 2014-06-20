@@ -1697,7 +1697,6 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 			goto out;
 		default:
 			sBUG();
-			goto out;
 		}
 	}
 
@@ -4869,12 +4868,10 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 		default:
 			PRINT_CRIT_ERROR("cmd %p is in invalid state %d)", cmd,
 				cmd->state);
+#if !defined(__CHECKER__)
 			spin_unlock_irq(&cmd->cmd_threads->cmd_list_lock);
-			sBUG();
-#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 < 6
-			spin_lock_irq(&cmd->cmd_threads->cmd_list_lock);
-			break;
 #endif
+			sBUG();
 		}
 #endif
 		wake_up(&cmd->cmd_threads->cmd_list_waitQ);
@@ -5484,15 +5481,15 @@ static int scst_set_mcmd_next_state(struct scst_mgmt_cmd *mcmd)
 			"cmd_finish_wait_count %d, cmd_done_wait_count %d)",
 			mcmd, mcmd->state, mcmd->fn,
 			mcmd->cmd_finish_wait_count, mcmd->cmd_done_wait_count);
+#if !defined(__CHECKER__)
 		spin_unlock_irq(&scst_mcmd_lock);
+#endif
 		res = -1;
 		sBUG();
-		goto out;
 	}
 
 	spin_unlock_irq(&scst_mcmd_lock);
 
-out:
 	return res;
 }
 
@@ -6509,11 +6506,6 @@ static int scst_process_mgmt_cmd(struct scst_mgmt_cmd *mcmd)
 				mcmd->cmd_finish_wait_count,
 				mcmd->cmd_done_wait_count);
 			sBUG();
-#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 < 6
-			/* For suppressing a gcc compiler warning */
-			res = -1;
-			goto out;
-#endif
 		}
 	}
 
