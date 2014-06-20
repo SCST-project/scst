@@ -917,7 +917,7 @@ check:
 			virt_dev->unmap_max_lba_cnt = q->limits.max_discard_sectors >> (block_shift - 9);
 			virt_dev->discard_zeroes_data = q->limits.discard_zeroes_data;
 #else
-			sBUG_ON(1);
+			sBUG();
 #endif
 		} else {
 			virt_dev->unmap_opt_gran = 1;
@@ -1706,7 +1706,7 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 			}
 			break;
 		default:
-			sBUG_ON(1);
+			sBUG();
 			break;
 		}
 	}
@@ -3755,7 +3755,7 @@ static int vdisk_caching_pg(unsigned char *p, int pcontrol,
 		p[2] |= (virt_dev->wt_flag_saved || virt_dev->nv_cache) ? 0 : WCE;
 		break;
 	default:
-		sBUG_ON(1);
+		sBUG();
 		break;
 	}
 

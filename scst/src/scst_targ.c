@@ -2285,7 +2285,7 @@ static int scst_report_supported_opcodes(struct scst_cmd *cmd)
 		}
 		break;
 	default:
-		sBUG_ON(1);
+		sBUG();
 		goto out_compl;
 	}
 

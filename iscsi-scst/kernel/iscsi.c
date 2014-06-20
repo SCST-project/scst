@@ -3610,7 +3610,7 @@ static void iscsi_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd)
 	case SCST_ABORT_ALL_TASKS_SESS:
 	case SCST_ABORT_ALL_TASKS:
 	case SCST_NEXUS_LOSS:
-		sBUG_ON(1);
+		sBUG();
 		break;
 	default:
 		iscsi_send_task_mgmt_resp(req, status, scst_mgmt_cmd_dropped(scst_mcmd));
