@@ -456,8 +456,10 @@ static struct scst_dev_registrant *scst_pr_add_registrant(
 	 * We can't use scst_mutex here, because of the circular
 	 * locking dependency with dev_pr_mutex.
 	 */
+#if !defined(__CHECKER__)
 	if (!dev_lock_locked)
 		spin_lock_bh(&dev->dev_lock);
+#endif
 	list_for_each_entry(t, &dev->dev_tgt_dev_list, dev_tgt_dev_list_entry) {
 		if (tid_equal(t->sess->transport_id, transport_id) &&
 		    (t->sess->tgt->rel_tgt_id == rel_tgt_id) &&
@@ -472,8 +474,10 @@ static struct scst_dev_registrant *scst_pr_add_registrant(
 			break;
 		}
 	}
+#if !defined(__CHECKER__)
 	if (!dev_lock_locked)
 		spin_unlock_bh(&dev->dev_lock);
+#endif
 
 	list_add_tail(&reg->dev_registrants_list_entry,
 		&dev->dev_registrants_list);

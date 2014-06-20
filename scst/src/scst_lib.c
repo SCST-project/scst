@@ -2539,6 +2539,7 @@ static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
 
 	local_bh_disable();
 
+#if !defined(__CHECKER__)
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		head = &sess->sess_tgt_dev_list[i];
 
@@ -2548,6 +2549,7 @@ static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
 			spin_lock(&tgt_dev->tgt_dev_lock);
 		}
 	}
+#endif
 
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		head = &sess->sess_tgt_dev_list[i];
@@ -2568,6 +2570,7 @@ static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
 		}
 	}
 
+#if !defined(__CHECKER__)
 	for (i = SESS_TGT_DEV_LIST_HASH_SIZE-1; i >= 0; i--) {
 		head = &sess->sess_tgt_dev_list[i];
 
@@ -2576,6 +2579,7 @@ static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
 			spin_unlock(&tgt_dev->tgt_dev_lock);
 		}
 	}
+#endif
 
 	local_bh_enable();
 
@@ -8304,6 +8308,7 @@ again:
 	if (UA_entry->global_UA && first) {
 		TRACE_MGMT_DBG("Global UA %p detected", UA_entry);
 
+#if !defined(__CHECKER__)
 		spin_unlock_bh(&cmd->tgt_dev->tgt_dev_lock);
 
 		/*
@@ -8323,6 +8328,7 @@ again:
 				spin_lock(&tgt_dev->tgt_dev_lock);
 			}
 		}
+#endif
 
 		first = false;
 		global_unlock = true;
@@ -8385,6 +8391,7 @@ again:
 
 out_unlock:
 	if (global_unlock) {
+#if !defined(__CHECKER__)
 		for (i = SESS_TGT_DEV_LIST_HASH_SIZE-1; i >= 0; i--) {
 			struct list_head *head = &sess->sess_tgt_dev_list[i];
 			struct scst_tgt_dev *tgt_dev;
@@ -8396,6 +8403,7 @@ out_unlock:
 
 		local_bh_enable();
 		spin_lock_bh(&cmd->tgt_dev->tgt_dev_lock);
+#endif
 	}
 
 	spin_unlock_bh(&cmd->tgt_dev->tgt_dev_lock);
