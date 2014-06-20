@@ -7025,7 +7025,7 @@ restart:
 static int scst_init_session(struct scst_session *sess)
 {
 	int res = 0;
-	struct scst_cmd *cmd;
+	struct scst_cmd *cmd, *cmd_tmp;
 	struct scst_mgmt_cmd *mcmd, *tm;
 	int mwake = 0;
 
@@ -7096,16 +7096,14 @@ failed:
 	else
 		sess->init_phase = SCST_SESS_IPH_FAILED;
 
-restart:
-	list_for_each_entry(cmd, &sess->init_deferred_cmd_list,
-				cmd_list_entry) {
+	list_for_each_entry_safe(cmd, cmd_tmp, &sess->init_deferred_cmd_list,
+				 cmd_list_entry) {
 		TRACE_DBG("Deleting cmd %p from init deferred cmd list", cmd);
 		list_del(&cmd->cmd_list_entry);
 		atomic_dec(&sess->sess_cmd_count);
 		spin_unlock_irq(&sess->sess_list_lock);
 		scst_cmd_init_done(cmd, SCST_CONTEXT_THREAD);
 		spin_lock_irq(&sess->sess_list_lock);
-		goto restart;
 	}
 
 	spin_lock(&scst_mcmd_lock);
