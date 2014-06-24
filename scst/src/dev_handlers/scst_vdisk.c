@@ -3243,15 +3243,339 @@ out:
 	return CMD_SUCCEEDED;
 }
 
+/* Supported VPD Pages VPD page (00h). */
+static int vdisk_sup_vpd(uint8_t *buf, struct scst_cmd *cmd,
+			 struct scst_vdisk_dev *virt_dev)
+{
+	buf[3] = 4;
+	buf[4] = 0x0; /* this page */
+	buf[5] = 0x80; /* unit serial number */
+	buf[6] = 0x83; /* device identification */
+	buf[7] = 0x86; /* extended inquiry */
+	if (cmd->dev->type == TYPE_DISK) {
+		buf[3] += 2;
+		buf[8] = 0xB0; /* block limits */
+		buf[9] = 0xB1; /* block device charachteristics */
+		if (virt_dev->thin_provisioned) {
+			buf[3] += 1;
+			buf[10] = 0xB2; /* thin provisioning */
+		}
+	}
+	return buf[3] + 4;
+}
+
+/* Unit Serial Number VPD page (80h) */
+static int vdisk_usn_vpd(uint8_t *buf, struct scst_cmd *cmd,
+			 struct scst_vdisk_dev *virt_dev)
+{
+	buf[1] = 0x80;
+	if (cmd->tgtt->get_serial) {
+		buf[3] = cmd->tgtt->get_serial(cmd->tgt_dev, &buf[4],
+					       INQ_BUF_SZ - 4);
+	} else {
+		int usn_len;
+
+		read_lock(&vdisk_serial_rwlock);
+		usn_len = strlen(virt_dev->usn);
+		buf[3] = usn_len;
+		strncpy(&buf[4], virt_dev->usn, usn_len);
+		read_unlock(&vdisk_serial_rwlock);
+	}
+	return buf[3] + 4;
+}
+
+/* Device Identification VPD page (83h) */
+static int vdisk_dev_id_vpd(uint8_t *buf, struct scst_cmd *cmd,
+			    struct scst_vdisk_dev *virt_dev)
+{
+	int i, resp_len, num = 4;
+	uint16_t tg_id;
+
+	buf[1] = 0x83;
+
+	read_lock(&vdisk_serial_rwlock);
+	i = strlen(virt_dev->scsi_device_name);
+	if (i > 0) {
+		/* SCSI target device name */
+		buf[num + 0] = 0x3;	/* ASCII */
+		buf[num + 1] = 0x20 | 0x8; /* Target device SCSI name */
+		i += 4 - i % 4; /* align to required 4 bytes */
+		scst_copy_and_fill_b(&buf[num + 4], virt_dev->scsi_device_name,
+				     i, '\0');
+
+		buf[num + 3] = i;
+		num += buf[num + 3];
+
+		num += 4;
+	}
+	read_unlock(&vdisk_serial_rwlock);
+
+	/* T10 vendor identifier field format (faked) */
+	buf[num + 0] = 0x2;	/* ASCII */
+	buf[num + 1] = 0x1;	/* Vendor ID */
+	read_lock(&vdisk_serial_rwlock);
+	scst_copy_and_fill(&buf[num + 4], virt_dev->t10_vend_id, 8);
+	i = strlen(virt_dev->vend_specific_id);
+	memcpy(&buf[num + 12], virt_dev->vend_specific_id, i);
+	read_unlock(&vdisk_serial_rwlock);
+
+	buf[num + 3] = 8 + i;
+	num += buf[num + 3];
+
+	num += 4;
+
+	/*
+	 * Relative target port identifier
+	 */
+	buf[num + 0] = 0x01; /* binary */
+	/* Relative target port id */
+	buf[num + 1] = 0x10 | 0x04;
+
+	put_unaligned_be16(cmd->tgt->rel_tgt_id, &buf[num + 4 + 2]);
+
+	buf[num + 3] = 4;
+	num += buf[num + 3];
+
+	num += 4;
+
+	tg_id = scst_lookup_tg_id(cmd->dev, cmd->tgt);
+	if (tg_id) {
+		/*
+		 * Target port group designator
+		 */
+		buf[num + 0] = 0x01; /* binary */
+		/* Target port group id */
+		buf[num + 1] = 0x10 | 0x05;
+
+		put_unaligned_be16(tg_id, &buf[num + 4 + 2]);
+
+		buf[num + 3] = 4;
+		num += 4 + buf[num + 3];
+	}
+
+	/*
+	 * IEEE id
+	 */
+	buf[num + 0] = 0x01; /* binary */
+
+	/* EUI-64 */
+	buf[num + 1] = 0x02;
+	buf[num + 2] = 0x00;
+	buf[num + 3] = 0x08;
+
+	/* IEEE id */
+	buf[num + 4] = virt_dev->t10_dev_id[0];
+	buf[num + 5] = virt_dev->t10_dev_id[1];
+	buf[num + 6] = virt_dev->t10_dev_id[2];
+
+	/* IEEE ext id */
+	buf[num + 7] = virt_dev->t10_dev_id[3];
+	buf[num + 8] = virt_dev->t10_dev_id[4];
+	buf[num + 9] = virt_dev->t10_dev_id[5];
+	buf[num + 10] = virt_dev->t10_dev_id[6];
+	buf[num + 11] = virt_dev->t10_dev_id[7];
+	num += buf[num + 3];
+
+	resp_len = num;
+	put_unaligned_be16(resp_len, &buf[2]);
+	resp_len += 4;
+
+	return resp_len;
+}
+
+/* Extended INQUIRY Data (86h) */
+static int vdisk_ext_inq(uint8_t *buf, struct scst_cmd *cmd,
+			 struct scst_vdisk_dev *virt_dev)
+{
+	buf[1] = 0x86;
+	buf[3] = 0x3C;
+	buf[5] = 7; /* HEADSUP=1, ORDSUP=1, SIMPSUP=1 */
+	buf[6] = (virt_dev->wt_flag || virt_dev->nv_cache) ? 0 : 1; /* V_SUP */
+	buf[7] = 1; /* LUICLR=1 */
+	return buf[3] + 4;
+}
+
+/* Block Limits VPD page (B0h) */
+static int vdisk_block_limits(uint8_t *buf, struct scst_cmd *cmd,
+			      struct scst_vdisk_dev *virt_dev)
+{
+	struct scst_device *dev = cmd->dev;
+	int max_transfer;
+
+	buf[1] = 0xB0;
+	buf[3] = 0x3C;
+	buf[4] = 1; /* WSNZ set */
+	buf[5] = 0xFF; /* No MAXIMUM COMPARE AND WRITE LENGTH limit */
+	/* Optimal transfer granuality is PAGE_SIZE */
+	put_unaligned_be16(max_t(int, PAGE_SIZE / cmd->dev->block_size, 1),
+			   &buf[6]);
+
+	/* Max transfer len is min of sg limit and 8M */
+	max_transfer = min_t(int, cmd->tgt_dev->max_sg_cnt << PAGE_SHIFT,
+			     8*1024*1024) / dev->block_size;
+	put_unaligned_be32(max_transfer, &buf[8]);
+
+	/*
+	 * Let's have optimal transfer len 512KB. Better to not
+	 * set it at all, because we don't have such limit,
+	 * but some initiators may not understand that (?).
+	 * From other side, too big transfers  are not optimal,
+	 * because SGV cache supports only <4M buffers.
+	 */
+	put_unaligned_be32(min_t(int, max_transfer, 512*1024 / dev->block_size),
+			   &buf[12]);
+
+	if (virt_dev->thin_provisioned) {
+		/* MAXIMUM UNMAP BLOCK DESCRIPTOR COUNT is UNLIMITED */
+		put_unaligned_be32(0xFFFFFFFF, &buf[24]);
+		/*
+		 * MAXIMUM UNMAP LBA COUNT, OPTIMAL UNMAP
+		 * GRANULARITY and ALIGNMENT
+		 */
+		put_unaligned_be32(virt_dev->unmap_max_lba_cnt, &buf[20]);
+		put_unaligned_be32(virt_dev->unmap_opt_gran, &buf[28]);
+		if (virt_dev->unmap_align != 0) {
+			put_unaligned_be32(virt_dev->unmap_align, &buf[32]);
+			buf[32] |= 0x80;
+		}
+	}
+
+	/* MAXIMUM WRITE SAME LENGTH (measured in blocks) */
+	put_unaligned_be64(dev->max_write_same_len >> dev->block_shift,
+			   &buf[36]);
+
+	return buf[3] + 4;
+}
+
+/* Block Device Characteristics VPD Page (B1h) */
+static int vdisk_bdev_char(uint8_t *buf, struct scst_cmd *cmd,
+			   struct scst_vdisk_dev *virt_dev)
+{
+	buf[1] = 0xB1;
+	buf[3] = 0x3C;
+	if (virt_dev->rotational) {
+		/* 15K RPM */
+		put_unaligned_be16(0x3A98, &buf[4]);
+	} else
+		put_unaligned_be16(1, &buf[4]);
+	return buf[3] + 4;
+}
+
+/* Logical Block Provisioning a.k.a. Thin Provisioning VPD page (B2h) */
+static int vdisk_tp_vpd(uint8_t *buf, struct scst_cmd *cmd,
+			struct scst_vdisk_dev *virt_dev)
+{
+	buf[1] = 0xB2;
+	buf[3] = 4;
+	buf[5] = 0xE0;
+	if (virt_dev->discard_zeroes_data)
+		buf[5] |= 0x4; /* LBPRZ */
+	buf[6] = 2; /* thin provisioned */
+	return buf[3] + 4;
+}
+
+/* Standard INQUIRY response */
+static int vdisk_inq(uint8_t *buf, struct scst_cmd *cmd,
+		     struct scst_vdisk_dev *virt_dev)
+{
+	int num;
+
+	if (virt_dev->removable)
+		buf[1] = 0x80;      /* removable */
+	buf[2] = 6; /* Device complies to SPC-4 */
+	buf[3] = 0x02;	/* Data in format specified in SPC */
+	if (cmd->tgtt->fake_aca)
+		buf[3] |= 0x20;
+	buf[4] = 31;/* n - 4 = 35 - 4 = 31 for full 36 byte data */
+	if (scst_impl_alua_configured(cmd->dev))
+		buf[5] = SCST_INQ_TPGS_MODE_IMPLICIT;
+	buf[6] = 0x10; /* MultiP 1 */
+	buf[7] = 2; /* CMDQUE 1, BQue 0 => commands queuing supported */
+
+	read_lock(&vdisk_serial_rwlock);
+
+	/*
+	 * 8 byte ASCII Vendor Identification of the target
+	 * - left aligned.
+	 */
+	scst_copy_and_fill(&buf[8], virt_dev->t10_vend_id, 8);
+
+	/*
+	 * 16 byte ASCII Product Identification of the target - left
+	 * aligned.
+	 */
+	scst_copy_and_fill(&buf[16], virt_dev->prod_id, 16);
+
+	/*
+	 * 4 byte ASCII Product Revision Level of the target - left
+	 * aligned.
+	 */
+	scst_copy_and_fill(&buf[32], virt_dev->prod_rev_lvl, 4);
+
+	/* Vendor specific information. */
+	if (virt_dev->inq_vend_specific_len <= 20)
+		memcpy(&buf[36], virt_dev->inq_vend_specific,
+		       virt_dev->inq_vend_specific_len);
+
+	/** Version descriptors **/
+
+	buf[4] += 58 - 36;
+	num = 0;
+
+	/* SAM-4 T10/1683-D revision 14 */
+	buf[58 + num] = 0x0;
+	buf[58 + num + 1] = 0x8B;
+	num += 2;
+
+	/* Physical transport */
+	if (cmd->tgtt->get_phys_transport_version != NULL) {
+		uint16_t v = cmd->tgtt->get_phys_transport_version(cmd->tgt);
+		if (v != 0) {
+			*((__be16 *)&buf[58 + num]) = cpu_to_be16(v);
+			num += 2;
+		}
+	}
+
+	/* SCSI transport */
+	if (cmd->tgtt->get_scsi_transport_version != NULL) {
+		*((__be16 *)&buf[58 + num]) =
+			cpu_to_be16(cmd->tgtt->get_scsi_transport_version(cmd->tgt));
+		num += 2;
+	}
+
+	/* SPC-4 T10/1731-D revision 23 */
+	buf[58 + num] = 0x4;
+	buf[58 + num + 1] = 0x63;
+	num += 2;
+
+	/* Device command set */
+	if (virt_dev->command_set_version != 0) {
+		*((__be16 *)&buf[58 + num]) =
+			cpu_to_be16(virt_dev->command_set_version);
+		num += 2;
+	}
+
+	/* Vendor specific information. */
+	if (virt_dev->inq_vend_specific_len > 20) {
+		memcpy(&buf[96], virt_dev->inq_vend_specific,
+		       virt_dev->inq_vend_specific_len);
+		num = 96 - 58 + virt_dev->inq_vend_specific_len;
+	}
+
+	read_unlock(&vdisk_serial_rwlock);
+
+	buf[4] += num;
+	return buf[4] + 5;
+}
+
 static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 {
 	struct scst_cmd *cmd = p->cmd;
-	int32_t length, i, resp_len = 0;
+	int32_t length, resp_len;
 	uint8_t *address;
 	uint8_t *buf;
 	struct scst_device *dev = cmd->dev;
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
-	uint16_t tg_id;
 
 	TRACE_ENTRY();
 
@@ -3278,304 +3602,32 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 	/* Vital Product */
 	if (cmd->cdb[1] & EVPD) {
 		if (0 == cmd->cdb[2]) {
-			/* supported vital product data pages */
-			buf[3] = 4;
-			buf[4] = 0x0; /* this page */
-			buf[5] = 0x80; /* unit serial number */
-			buf[6] = 0x83; /* device identification */
-			buf[7] = 0x86; /* extended inquiry */
-			if (dev->type == TYPE_DISK) {
-				buf[3] += 2;
-				buf[8] = 0xB0; /* block limits */
-				buf[9] = 0xB1; /* block device charachteristics */
-				if (virt_dev->thin_provisioned) {
-					buf[3] += 1;
-					buf[10] = 0xB2; /* thin provisioning */
-				}
-			}
-			resp_len = buf[3] + 4;
+			resp_len = vdisk_sup_vpd(buf, cmd, virt_dev);
 		} else if (0x80 == cmd->cdb[2]) {
-			/* unit serial number */
-			buf[1] = 0x80;
-			if (cmd->tgtt->get_serial) {
-				buf[3] = cmd->tgtt->get_serial(cmd->tgt_dev,
-						       &buf[4], INQ_BUF_SZ - 4);
-			} else {
-				int usn_len;
-				read_lock(&vdisk_serial_rwlock);
-				usn_len = strlen(virt_dev->usn);
-				buf[3] = usn_len;
-				strncpy(&buf[4], virt_dev->usn, usn_len);
-				read_unlock(&vdisk_serial_rwlock);
-			}
-			resp_len = buf[3] + 4;
+			resp_len = vdisk_usn_vpd(buf, cmd, virt_dev);
 		} else if (0x83 == cmd->cdb[2]) {
-			/* device identification */
-			int num = 4;
-
-			buf[1] = 0x83;
-
-			read_lock(&vdisk_serial_rwlock);
-			i = strlen(virt_dev->scsi_device_name);
-			if (i > 0) {
-				/* SCSI target device name */
-				buf[num + 0] = 0x3;	/* ASCII */
-				buf[num + 1] = 0x20 | 0x8; /* Target device SCSI name */
-				i += 4 - i % 4; /* align to required 4 bytes */
-				scst_copy_and_fill_b(&buf[num + 4], virt_dev->scsi_device_name, i, '\0');
-
-				buf[num + 3] = i;
-				num += buf[num + 3];
-
-				num += 4;
-			}
-			read_unlock(&vdisk_serial_rwlock);
-
-			/* T10 vendor identifier field format (faked) */
-			buf[num + 0] = 0x2;	/* ASCII */
-			buf[num + 1] = 0x1;	/* Vendor ID */
-			read_lock(&vdisk_serial_rwlock);
-			scst_copy_and_fill(&buf[num + 4], virt_dev->t10_vend_id, 8);
-			i = strlen(virt_dev->vend_specific_id);
-			memcpy(&buf[num + 12], virt_dev->vend_specific_id, i);
-			read_unlock(&vdisk_serial_rwlock);
-
-			buf[num + 3] = 8 + i;
-			num += buf[num + 3];
-
-			num += 4;
-
-			/*
-			 * Relative target port identifier
-			 */
-			buf[num + 0] = 0x01; /* binary */
-			/* Relative target port id */
-			buf[num + 1] = 0x10 | 0x04;
-
-			put_unaligned_be16(cmd->tgt->rel_tgt_id,
-					   &buf[num + 4 + 2]);
-
-			buf[num + 3] = 4;
-			num += buf[num + 3];
-
-			num += 4;
-
-			tg_id = scst_lookup_tg_id(dev, cmd->tgt);
-			if (tg_id) {
-				/*
-				 * Target port group designator
-				 */
-				buf[num + 0] = 0x01; /* binary */
-				/* Target port group id */
-				buf[num + 1] = 0x10 | 0x05;
-
-				put_unaligned_be16(tg_id, &buf[num + 4 + 2]);
-
-				buf[num + 3] = 4;
-				num += 4 + buf[num + 3];
-			}
-
-			/*
-			 * IEEE id
-			 */
-			buf[num + 0] = 0x01; /* binary */
-
-			/* EUI-64 */
-			buf[num + 1] = 0x02;
-			buf[num + 2] = 0x00;
-			buf[num + 3] = 0x08;
-
-			/* IEEE id */
-			buf[num + 4] = virt_dev->t10_dev_id[0];
-			buf[num + 5] = virt_dev->t10_dev_id[1];
-			buf[num + 6] = virt_dev->t10_dev_id[2];
-
-			/* IEEE ext id */
-			buf[num + 7] = virt_dev->t10_dev_id[3];
-			buf[num + 8] = virt_dev->t10_dev_id[4];
-			buf[num + 9] = virt_dev->t10_dev_id[5];
-			buf[num + 10] = virt_dev->t10_dev_id[6];
-			buf[num + 11] = virt_dev->t10_dev_id[7];
-			num += buf[num + 3];
-
-			resp_len = num;
-			put_unaligned_be16(resp_len, &buf[2]);
-			resp_len += 4;
+			resp_len = vdisk_dev_id_vpd(buf, cmd, virt_dev);
 		} else if (0x86 == cmd->cdb[2]) {
-			/* Extended INQUIRY */
-			buf[1] = 0x86;
-			buf[3] = 0x3C;
-			buf[5] = 7; /* HEADSUP=1, ORDSUP=1, SIMPSUP=1 */
-			buf[6] = (virt_dev->wt_flag || virt_dev->nv_cache) ? 0 : 1; /* V_SUP */
-			buf[7] = 1; /* LUICLR=1 */
-			resp_len = buf[3] + 4;
+			resp_len = vdisk_ext_inq(buf, cmd, virt_dev);
 		} else if ((0xB0 == cmd->cdb[2]) && (dev->type == TYPE_DISK)) {
-			/* Block Limits */
-			int max_transfer;
-			buf[1] = 0xB0;
-			buf[3] = 0x3C;
-			buf[4] = 1; /* WSNZ set */
-			buf[5] = 0xFF; /* No MAXIMUM COMPARE AND WRITE LENGTH limit */
-			/* Optimal transfer granuality is PAGE_SIZE */
-			put_unaligned_be16(max_t(int, PAGE_SIZE/dev->block_size, 1), &buf[6]);
-
-			/* Max transfer len is min of sg limit and 8M */
-			max_transfer = min_t(int,
-					cmd->tgt_dev->max_sg_cnt << PAGE_SHIFT,
-					8*1024*1024) / dev->block_size;
-			put_unaligned_be32(max_transfer, &buf[8]);
-
-			/*
-			 * Let's have optimal transfer len 512KB. Better to not
-			 * set it at all, because we don't have such limit,
-			 * but some initiators may not understand that (?).
-			 * From other side, too big transfers  are not optimal,
-			 * because SGV cache supports only <4M buffers.
-			 */
-			put_unaligned_be32(min_t(int,
-					max_transfer, 512*1024 / dev->block_size),
-						&buf[12]);
-
-			if (virt_dev->thin_provisioned) {
-				/* MAXIMUM UNMAP BLOCK DESCRIPTOR COUNT is UNLIMITED */
-				put_unaligned_be32(0xFFFFFFFF, &buf[24]);
-				/*
-				 * MAXIMUM UNMAP LBA COUNT, OPTIMAL UNMAP
-				 * GRANULARITY and ALIGNMENT
-				 */
-				put_unaligned_be32(virt_dev->unmap_max_lba_cnt, &buf[20]);
-				put_unaligned_be32(virt_dev->unmap_opt_gran, &buf[28]);
-				if (virt_dev->unmap_align != 0) {
-					put_unaligned_be32(virt_dev->unmap_align, &buf[32]);
-					buf[32] |= 0x80;
-				}
-			}
-
-			/* MAXIMUM WRITE SAME LENGTH (measured in blocks) */
-			put_unaligned_be64(dev->max_write_same_len >>
-					   dev->block_shift, &buf[36]);
-
-			resp_len = buf[3] + 4;
+			resp_len = vdisk_block_limits(buf, cmd, virt_dev);
 		} else if ((0xB1 == cmd->cdb[2]) && (dev->type == TYPE_DISK)) {
-			/* Block Device Characteristics */
-			buf[1] = 0xB1;
-			buf[3] = 0x3C;
-			if (virt_dev->rotational) {
-				/* 15K RPM */
-				put_unaligned_be16(0x3A98, &buf[4]);
-			} else
-				put_unaligned_be16(1, &buf[4]);
-			resp_len = buf[3] + 4;
+			resp_len = vdisk_bdev_char(buf, cmd, virt_dev);
 		} else if ((0xB2 == cmd->cdb[2]) && (dev->type == TYPE_DISK) &&
 			   virt_dev->thin_provisioned) {
-			/* Thin Provisioning */
-			buf[1] = 0xB2;
-			buf[3] = 4;
-			buf[5] = 0xE0;
-			if (virt_dev->discard_zeroes_data)
-				buf[5] |= 0x4; /* LBPRZ */
-			buf[6] = 2; /* thin provisioned */
-			resp_len = buf[3] + 4;
+			resp_len = vdisk_tp_vpd(buf, cmd, virt_dev);
 		} else {
 			TRACE_DBG("INQUIRY: Unsupported EVPD page %x", cmd->cdb[2]);
 			scst_set_invalid_field_in_cdb(cmd, 2, 0);
 			goto out_put;
 		}
 	} else {
-		int num;
-
 		if (cmd->cdb[2] != 0) {
 			TRACE_DBG("INQUIRY: Unsupported page %x", cmd->cdb[2]);
 			scst_set_invalid_field_in_cdb(cmd, 2, 0);
 			goto out_put;
 		}
-
-		if (virt_dev->removable)
-			buf[1] = 0x80;      /* removable */
-		buf[2] = 6; /* Device complies to SPC-4 */
-		buf[3] = 0x02;	/* Data in format specified in SPC */
-		if (cmd->tgtt->fake_aca)
-			buf[3] |= 0x20;
-		buf[4] = 31;/* n - 4 = 35 - 4 = 31 for full 36 byte data */
-		if (scst_impl_alua_configured(dev))
-			buf[5] = SCST_INQ_TPGS_MODE_IMPLICIT;
-		buf[6] = 0x10; /* MultiP 1 */
-		buf[7] = 2; /* CMDQUE 1, BQue 0 => commands queuing supported */
-
-		read_lock(&vdisk_serial_rwlock);
-
-		/*
-		 * 8 byte ASCII Vendor Identification of the target
-		 * - left aligned.
-		 */
-		scst_copy_and_fill(&buf[8], virt_dev->t10_vend_id, 8);
-
-		/*
-		 * 16 byte ASCII Product Identification of the target - left
-		 * aligned.
-		 */
-		scst_copy_and_fill(&buf[16], virt_dev->prod_id, 16);
-
-		/*
-		 * 4 byte ASCII Product Revision Level of the target - left
-		 * aligned.
-		 */
-		scst_copy_and_fill(&buf[32], virt_dev->prod_rev_lvl, 4);
-
-		/* Vendor specific information. */
-		if (virt_dev->inq_vend_specific_len <= 20)
-			memcpy(&buf[36], virt_dev->inq_vend_specific,
-			       virt_dev->inq_vend_specific_len);
-
-		/** Version descriptors **/
-
-		buf[4] += 58 - 36;
-		num = 0;
-
-		/* SAM-4 T10/1683-D revision 14 */
-		buf[58 + num] = 0x0;
-		buf[58 + num + 1] = 0x8B;
-		num += 2;
-
-		/* Physical transport */
-		if (cmd->tgtt->get_phys_transport_version != NULL) {
-			uint16_t v = cmd->tgtt->get_phys_transport_version(cmd->tgt);
-			if (v != 0) {
-				*((__be16 *)&buf[58 + num]) = cpu_to_be16(v);
-				num += 2;
-			}
-		}
-
-		/* SCSI transport */
-		if (cmd->tgtt->get_scsi_transport_version != NULL) {
-			*((__be16 *)&buf[58 + num]) =
-				cpu_to_be16(cmd->tgtt->get_scsi_transport_version(cmd->tgt));
-			num += 2;
-		}
-
-		/* SPC-4 T10/1731-D revision 23 */
-		buf[58 + num] = 0x4;
-		buf[58 + num + 1] = 0x63;
-		num += 2;
-
-		/* Device command set */
-		if (virt_dev->command_set_version != 0) {
-			*((__be16 *)&buf[58 + num]) =
-				cpu_to_be16(virt_dev->command_set_version);
-			num += 2;
-		}
-
-		/* Vendor specific information. */
-		if (virt_dev->inq_vend_specific_len > 20) {
-			memcpy(&buf[96], virt_dev->inq_vend_specific,
-			       virt_dev->inq_vend_specific_len);
-			num = 96 - 58 + virt_dev->inq_vend_specific_len;
-		}
-
-		read_unlock(&vdisk_serial_rwlock);
-
-		buf[4] += num;
-		resp_len = buf[4] + 5;
+		resp_len = vdisk_inq(buf, cmd, virt_dev);
 	}
 
 	sBUG_ON(resp_len > INQ_BUF_SZ);
