@@ -1542,8 +1542,9 @@ static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 			      int status, const u8 *sense_data,
 			      int sense_data_len)
 {
+	struct scst_cmd *cmd = &ioctx->scmnd;
 	struct srp_rsp *srp_rsp;
-	int max_sense_len;
+	int resid, max_sense_len;
 
 	/*
 	 * The lowest bit of all SAM-3 status codes is zero (see also
@@ -1559,6 +1560,23 @@ static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 	srp_rsp->req_lim_delta = cpu_to_be32(ioctx->req_lim_delta);
 	srp_rsp->tag = tag;
 	srp_rsp->status = status;
+
+	if (unlikely(scst_get_resid(cmd, &resid, NULL) && resid != 0)) {
+		if (scst_cmd_get_data_direction(cmd) & SCST_DATA_READ) {
+			if (resid > 0)
+				srp_rsp->flags |= SRP_RSP_FLAG_DIUNDER;
+			else if (resid < 0)
+				srp_rsp->flags |= SRP_RSP_FLAG_DIOVER;
+			srp_rsp->data_in_res_cnt = cpu_to_be32(abs(resid));
+		}
+		if (scst_cmd_get_data_direction(cmd) & SCST_DATA_WRITE) {
+			if (resid > 0)
+				srp_rsp->flags |= SRP_RSP_FLAG_DOUNDER;
+			else if (resid < 0)
+				srp_rsp->flags |= SRP_RSP_FLAG_DOOVER;
+			srp_rsp->data_out_res_cnt = cpu_to_be32(abs(resid));
+		}
+	}
 
 	if (!scst_sense_valid(sense_data))
 		sense_data_len = 0;
