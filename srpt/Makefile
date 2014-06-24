@@ -75,11 +75,7 @@ endif
 OFED_MODULE_SYMVERS:=$(OFED_KERNEL_DIR)/Module.symvers
 endif
 
-# Path of the OFED ib_srpt.ko kernel module.
-OFED_SRPT_PATH:=/lib/modules/$(KVER)/updates/kernel/drivers/infiniband/ulp/srpt/ib_srpt.ko
-
-# Whether or not the OFED ib_srpt.ko kernel module has been installed.
-OFED_SRPT_INSTALLED:=$(shell if [ -e $(OFED_SRPT_PATH) ]; then echo true; else echo false; fi)
+OTHER_SRPT:=$(shell find /lib/modules/$(KVER) -path /lib/modules/$(KVER)/extra -prune -o -name ib_srpt.ko -print)
 
 HAVE_KCFLAGS    = $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/kcflags    KCFLAGS=-DKCFLAGS_MACRO=1       >/dev/null 2>&1 && echo true || echo false)
 HAVE_PRE_CFLAGS = $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/pre_cflags PRE_CFLAGS=-DPRE_CFLAGS_MACRO=1 >/dev/null 2>&1 && echo true || echo false)
@@ -107,6 +103,10 @@ src/Module.symvers src/Modules.symvers: $(SCST_SYMVERS_DIR)/$(MODULE_SYMVERS)
 	    echo "Error: the kernel build system has not yet been patched.";\
 	    false;                                                          \
 	fi
+	@if [ -n "$(OTHER_SRPT)" ]; then                                    \
+	    echo "Error: $(OTHER_SRPT) must be removed first";              \
+	    false;                                                          \
+	fi
 	@if [ -n "$(OFED_KERNEL_IB_RPM)" ]; then                            \
 	  if [ -z "$(OFED_KERNEL_IB_DEVEL_RPM)" ]; then                     \
 	    echo "Error: the OFED package $(OFED_KERNEL_IB_RPM)-devel has"  \
@@ -116,10 +116,6 @@ src/Module.symvers src/Modules.symvers: $(SCST_SYMVERS_DIR)/$(MODULE_SYMVERS)
 	    echo "Error: the distro-provided InfiniBand kernel drivers"     \
 	         "must be removed first"                                    \
 	         " (/lib/modules/$(KVER)/kernel/drivers/infiniband).";      \
-	    false;                                                          \
-	  elif $(OFED_SRPT_INSTALLED); then                                 \
-	    echo "Error: OFED has been built with srpt=y in ofed.conf.";    \
-	    echo "Rebuild OFED with srpt=n.";                               \
 	    false;                                                          \
 	  elif [ "$(HAVE_PRE_CFLAGS)" = false ]; then                       \
 	    echo "Error: the kernel build system has not yet been patched.";\
