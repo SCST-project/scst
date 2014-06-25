@@ -2,7 +2,7 @@
 # Shell functions for parsing the Linux kernel version and for downloading
 # from kernel.org.
 
-kernel_mirror="ftp://ftp.kernel.org/pub/linux/kernel"
+kernel_mirror="http://ftp.kernel.org/pub/linux/kernel"
 kernel_longterm="http://www.kernel.org/pub/linux/kernel"
 kernel_sources="$HOME/software/downloads"
 
