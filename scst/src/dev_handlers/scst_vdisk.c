@@ -3407,8 +3407,7 @@ static int vdisk_block_limits(uint8_t *buf, struct scst_cmd *cmd,
 	buf[4] = 1; /* WSNZ set */
 	buf[5] = 0xFF; /* No MAXIMUM COMPARE AND WRITE LENGTH limit */
 	/* Optimal transfer granuality is PAGE_SIZE */
-	put_unaligned_be16(max_t(int, PAGE_SIZE / cmd->dev->block_size, 1),
-			   &buf[6]);
+	put_unaligned_be16(max_t(int, PAGE_SIZE / dev->block_size, 1), &buf[6]);
 
 	/* Max transfer len is min of sg limit and 8M */
 	max_transfer = min_t(int, cmd->tgt_dev->max_sg_cnt << PAGE_SHIFT,
@@ -3531,15 +3530,16 @@ static int vdisk_inq(uint8_t *buf, struct scst_cmd *cmd,
 	if (cmd->tgtt->get_phys_transport_version != NULL) {
 		uint16_t v = cmd->tgtt->get_phys_transport_version(cmd->tgt);
 		if (v != 0) {
-			*((__be16 *)&buf[58 + num]) = cpu_to_be16(v);
+			put_unaligned_be16(v, &buf[58 + num]);
 			num += 2;
 		}
 	}
 
 	/* SCSI transport */
 	if (cmd->tgtt->get_scsi_transport_version != NULL) {
-		*((__be16 *)&buf[58 + num]) =
-			cpu_to_be16(cmd->tgtt->get_scsi_transport_version(cmd->tgt));
+		put_unaligned_be16(
+			cmd->tgtt->get_scsi_transport_version(cmd->tgt),
+			&buf[58 + num]);
 		num += 2;
 	}
 
@@ -3550,8 +3550,8 @@ static int vdisk_inq(uint8_t *buf, struct scst_cmd *cmd,
 
 	/* Device command set */
 	if (virt_dev->command_set_version != 0) {
-		*((__be16 *)&buf[58 + num]) =
-			cpu_to_be16(virt_dev->command_set_version);
+		put_unaligned_be16(virt_dev->command_set_version,
+				   &buf[58 + num]);
 		num += 2;
 	}
 
