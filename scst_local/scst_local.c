@@ -154,6 +154,8 @@ static int __scst_local_add_adapter(struct scst_local_tgt *tgt,
 	const char *initiator_name, bool locked);
 static int scst_local_add_adapter(struct scst_local_tgt *tgt,
 	const char *initiator_name);
+static void scst_local_close_session_impl(struct scst_local_sess *sess,
+					  bool async);
 static void scst_local_remove_adapter(struct scst_local_sess *sess);
 static int scst_local_add_target(const char *target_name,
 	struct scst_local_tgt **out_tgt);
@@ -788,7 +790,7 @@ static ssize_t scst_local_sysfs_mgmt_cmd(char *buf)
 			res = -EINVAL;
 			goto out_unlock;
 		}
-		scst_local_remove_adapter(sess);
+		scst_local_close_session_impl(sess, false);
 	}
 
 	res = 0;
