@@ -91,7 +91,7 @@ rm -f /usr/local/sbin/iscsi-scst-adm
 rm -f /usr/local/sbin/iscsi-scstd
 rm -rf /usr/local/include/scst
 # Remove existing ib_srpt.ko kernel modules
-find /lib/modules/$(uname -r) -name ib_srpt.ko -exec rm {} \;
+find /lib/modules/%{kver} -name ib_srpt.ko -exec rm {} \;
 
 %post
 /sbin/depmod -a %{kver}
