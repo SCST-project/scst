@@ -91,6 +91,7 @@ install: all src/ib_srpt.ko
 	  true
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src		   \
 	  PRE_CFLAGS="$(OFED_CFLAGS)" SCST_INC_DIR=$(SCST_INC_DIR) \
+	  $$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
 	  modules_install
 
 uninstall:
