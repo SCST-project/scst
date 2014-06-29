@@ -492,7 +492,7 @@ fi
 # Where to store persistenly downloaded kernel tarballs and kernel patches.
 kernel_sources="$HOME/software/downloads"
 # URL for downloading kernel tarballs and kernel patches.
-kernel_mirror="ftp://ftp.kernel.org/pub/linux/kernel"
+kernel_mirror="http://ftp.kernel.org/pub/linux/kernel"
 kernel_longterm="http://www.kernel.org/pub/linux/kernel"
 kernel_versions=""
 # Directory in which the regression test output files will be stored. Must be
