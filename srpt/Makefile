@@ -75,12 +75,6 @@ endif
 OFED_MODULE_SYMVERS:=$(OFED_KERNEL_DIR)/Module.symvers
 endif
 
-# Path of the OFED ib_srpt.ko kernel module.
-OFED_SRPT_PATH:=/lib/modules/$(KVER)/updates/kernel/drivers/infiniband/ulp/srpt/ib_srpt.ko
-
-# Whether or not the OFED ib_srpt.ko kernel module has been installed.
-OFED_SRPT_INSTALLED:=$(shell if [ -e $(OFED_SRPT_PATH) ]; then echo true; else echo false; fi)
-
 HAVE_KCFLAGS    = $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/kcflags    KCFLAGS=-DKCFLAGS_MACRO=1       >/dev/null 2>&1 && echo true || echo false)
 HAVE_PRE_CFLAGS = $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/pre_cflags PRE_CFLAGS=-DPRE_CFLAGS_MACRO=1 >/dev/null 2>&1 && echo true || echo false)
 AUTOCONF_FLAGS  = $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/gid_change PRE_CFLAGS="$(OFED_CFLAGS)"     >/dev/null 2>&1 && echo -DHAVE_IB_EVENT_GID_CHANGE)
@@ -92,6 +86,9 @@ all: src/$(MODULE_SYMVERS)
 	  KCFLAGS="$(AUTOCONF_FLAGS)" SCST_INC_DIR=$(SCST_INC_DIR) modules
 
 install: all src/ib_srpt.ko
+	@[ -z "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && \
+	  find /lib/modules/$(KVER) -name ib_srpt.ko -exec rm {} \; ; \
+	  true
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src		   \
 	  PRE_CFLAGS="$(OFED_CFLAGS)" SCST_INC_DIR=$(SCST_INC_DIR) \
 	  modules_install
@@ -115,10 +112,6 @@ src/Module.symvers src/Modules.symvers: $(SCST_SYMVERS_DIR)/$(MODULE_SYMVERS)
 	    echo "Error: the distro-provided InfiniBand kernel drivers"     \
 	         "must be removed first"                                    \
 	         " (/lib/modules/$(KVER)/kernel/drivers/infiniband).";      \
-	    false;                                                          \
-	  elif $(OFED_SRPT_INSTALLED); then                                 \
-	    echo "Error: OFED has been built with srpt=y in ofed.conf.";    \
-	    echo "Rebuild OFED with srpt=n.";                               \
 	    false;                                                          \
 	  elif [ "$(HAVE_PRE_CFLAGS)" = false ]; then                       \
 	    echo "Error: the kernel build system has not yet been patched.";\
