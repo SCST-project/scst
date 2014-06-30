@@ -215,6 +215,16 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 }
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+/*
+ * See also patch "kernel.h: add pr_warn for symmetry to dev_warn,
+ * netdev_warn" (commit fc62f2f19edf46c9bdbd1a54725b56b18c43e94f).
+ */
+#ifndef pr_warn
+#define pr_warn pr_warning
+#endif
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
 /*
  * See also patch "sched: Fix softirq time accounting" (commit ID
