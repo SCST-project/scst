@@ -6534,7 +6534,7 @@ out:
 static ssize_t __vcdrom_add_device(const char *device_name, char *params)
 {
 	int res = 0;
-	const char *allowed_params[] = { "tst", NULL };
+	static const char *allowed_params[] = { "tst", NULL };
 	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
