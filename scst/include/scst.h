@@ -215,6 +215,16 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 }
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+/*
+ * See also patch "kernel.h: add pr_warn for symmetry to dev_warn,
+ * netdev_warn" (commit fc62f2f19edf46c9bdbd1a54725b56b18c43e94f).
+ */
+#ifndef pr_warn
+#define pr_warn pr_warning
+#endif
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
 /*
  * See also patch "sched: Fix softirq time accounting" (commit ID
@@ -4306,11 +4316,16 @@ static inline int cancel_delayed_work_sync(struct delayed_work *work)
 #endif
 #endif
 
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32) && \
+	defined(CONFIG_DEBUG_LOCK_ALLOC)
 extern struct lockdep_map scst_suspend_dep_map;
 #define scst_assert_activity_suspended()		\
 	WARN_ON(debug_locks && !lock_is_held(&scst_suspend_dep_map));
 #else
+/*
+ * See also patch "lockdep: Introduce lockdep_assert_held()" (commit ID
+ * f607c6685774811b8112e124f10a053d77015485)
+ */
 #define scst_assert_activity_suspended() do { } while (0)
 #endif
 
