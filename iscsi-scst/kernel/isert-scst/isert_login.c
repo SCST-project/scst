@@ -759,7 +759,34 @@ int isert_login_req_rx(struct iscsi_cmnd *login_req)
 		goto out;
 	}
 
-	sBUG_ON(dev->login_req != NULL);
+	switch (dev->state) {
+	case CS_INIT:
+		if (dev->login_req != NULL) {
+			sBUG();
+			res = -EINVAL;
+			goto out;
+		}
+		break;
+
+	case CS_REQ_BHS: /* Got login request before done handling old one */
+		break;
+
+	case CS_REQ_DATA:
+	case CS_REQ_FINISHED:
+	case CS_RSP_BHS:
+	case CS_RSP_DATA:
+	case CS_RSP_FINISHED:
+		PRINT_WARNING("%s",
+			      "Received login PDU while handling previous one\n");
+		res = -EINVAL;
+		goto out;
+
+	default:
+		sBUG();
+		res = -EINVAL;
+		goto out;
+	}
+
 
 	spin_lock(&dev->pdu_lock);
 	dev->login_req = login_req;
