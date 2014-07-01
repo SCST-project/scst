@@ -1171,14 +1171,14 @@ static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
 
 	ini_conn_param = &event->param.conn;
 	memset(&tgt_conn_param, 0, sizeof(tgt_conn_param));
-	tgt_conn_param.responder_resources =
-		ini_conn_param->responder_resources;
-	tgt_conn_param.initiator_depth =
-		ini_conn_param->initiator_depth;
 	tgt_conn_param.flow_control =
 		ini_conn_param->flow_control;
 	tgt_conn_param.rnr_retry_count =
 		ini_conn_param->rnr_retry_count;
+
+	tgt_conn_param.initiator_depth = isert_dev->device_attr.max_qp_init_rd_atom;
+	if (tgt_conn_param.initiator_depth > ini_conn_param->initiator_depth)
+		tgt_conn_param.initiator_depth = ini_conn_param->initiator_depth;
 
 	err = rdma_accept(cm_id, &tgt_conn_param);
 	if (unlikely(err)) {
