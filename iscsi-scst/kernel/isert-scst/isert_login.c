@@ -753,7 +753,7 @@ int isert_login_req_rx(struct iscsi_cmnd *login_req)
 	TRACE_ENTRY();
 
 	if (!dev) {
-		PRINT_ERROR("Received PDU %p on invalid connection\n",
+		PRINT_ERROR("Received PDU %p on invalid connection",
 			    login_req);
 		res = -EINVAL;
 		goto out;
@@ -761,6 +761,7 @@ int isert_login_req_rx(struct iscsi_cmnd *login_req)
 
 	switch (dev->state) {
 	case CS_INIT:
+	case CS_RSP_FINISHED:
 		if (dev->login_req != NULL) {
 			sBUG();
 			res = -EINVAL;
@@ -775,9 +776,8 @@ int isert_login_req_rx(struct iscsi_cmnd *login_req)
 	case CS_REQ_FINISHED:
 	case CS_RSP_BHS:
 	case CS_RSP_DATA:
-	case CS_RSP_FINISHED:
-		PRINT_WARNING("%s",
-			      "Received login PDU while handling previous one\n");
+		PRINT_WARNING("Received login PDU while handling previous one. State:%d",
+			      dev->state);
 		res = -EINVAL;
 		goto out;
 
