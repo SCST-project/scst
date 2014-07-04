@@ -95,8 +95,9 @@ function extract_kernel_tree {
         | patch -p1 -f -s; ) \
         || return $?
     else
-      extract_kernel_archive $kver || return $?
-      mv linux-$kver linux-$1
+	extract_kernel_archive $1 ||
+	{ extract_kernel_archive $kver && mv linux-$kver linux-$1; } ||
+	return $?
     fi
     mv "linux-$1" ".." || return $?
     cd "../linux-$1" || return $?
