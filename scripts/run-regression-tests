@@ -263,30 +263,32 @@ CONFIG_TRACING CONFIG_X86_32                    \
 "
 
   echo "Patching and configuring kernel ..."
+  if [ "$ipv6" = "false" ]; then
+      disable="$disable CONFIG_IPV6"
+  fi
   (
     local srcdir="$PWD"
-    cd "${outputdir}/linux-$1"                                      \
-    && if [ "${multiple_patches}" = "false" ]; then
-         patch -p1 -f -s <"${patchfile}" >"${patchoutput}"
-       else
-         rm -f "${patchoutput}"
-         for p in "${outputdir}/${patchdir}"/*
-         do
-           echo "==== $p" >>"${patchoutput}"
-           patch -p1 -f -s <"${p}" >>"${patchoutput}" 2>&1
-         done
-       fi \
-    && if [ -e $srcdir/srpt/patches/kernel-${kver}-pre-cflags.patch ]; then 
-         echo "$srcdir/srpt/patches/kernel-${kver}-pre-cflags.patch ..." \
+    cd "${outputdir}/linux-$1" &&
+    if [ "${multiple_patches}" = "false" ]; then
+        patch -p1 -f -s <"${patchfile}" >"${patchoutput}"
+    else
+        rm -f "${patchoutput}"
+        for p in "${outputdir}/${patchdir}"/*; do
+            echo "==== $p" >>"${patchoutput}"
+            patch -p1 -f -s <"${p}" >>"${patchoutput}" 2>&1
+        done
+    fi &&
+    if [ -e $srcdir/srpt/patches/kernel-${kver}-pre-cflags.patch ]; then
+        echo "$srcdir/srpt/patches/kernel-${kver}-pre-cflags.patch ..." \
            >>"${patchoutput}"
-         patch -p1 -f -s <$srcdir/srpt/patches/kernel-${kver}-pre-cflags.patch \
-	   >>"${patchoutput}";
-       else
-         echo "srpt/patches/kernel-${kver}-pre-cflags.patch not found."; \
-       fi \
-    && make -s allmodconfig &>"${outputdir}/make-config-output.txt" \
-    && for c in $disable; do sed -i.tmp "s/^$c=y\$/$c=n/" .config; done \
-    && make -s oldconfig &>/dev/null 
+        patch -p1 -f -s <$srcdir/srpt/patches/kernel-${kver}-pre-cflags.patch \
+	   >>"${patchoutput}"
+    else
+        echo "srpt/patches/kernel-${kver}-pre-cflags.patch not found."
+    fi &&
+    make -s allmodconfig &>"${outputdir}/make-config-output.txt" &&
+    for c in $disable; do sed -i.tmp "s/^$c=[ym]\$/$c=n/" .config; done &&
+    make -s oldconfig &>/dev/null
   )
 }
 
@@ -585,6 +587,7 @@ do
   run_checkpatch="true"
   run_sparse="true"
   run_smatch="true"
+  ipv6="true"
   global_multiple_patches="${multiple_patches}"
   while [ "${kv%-?}" != "${kv}" -o "${kv%-??}" != "${kv}" ]; do
     kv_without_opt="${kv%-?}"
@@ -593,6 +596,7 @@ do
     fi
     kopt="${kv#${kv_without_opt}}"
     case "${kopt}" in
+      '-4')  ipv6="false";;
       '-f')  full_check="true";;
       '-i')  ibmvio="true";;
       '-nc') run_checkpatch="false";;
