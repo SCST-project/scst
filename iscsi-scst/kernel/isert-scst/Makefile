@@ -1,5 +1,5 @@
 #
-#  Makefile for the kernel part of iSCSI-SCST.
+#  Makefile for the kernel part of iSER-SCST.
 #
 #  Copyright (C) 2007 - 2014 Vladislav Bolkhovitin
 #  Copyright (C) 2007 - 2014 Fusion-io, Inc.
@@ -24,7 +24,7 @@ cc-option = $(shell if $(CC) $(CFLAGS) $(1) -S -o /dev/null -xc /dev/null \
              > /dev/null 2>&1; then echo "$(1)"; else echo "$(2)"; fi ;)
 enable-Wextra = $(shell uname_r="$$(uname -r)"; if [ "$${uname_r%.el5}" = "$${uname_r}" ]; then echo "$(1)"; fi)
 
-EXTRA_CFLAGS += -I$(src)/../include -I$(SCST_INC_DIR)
+EXTRA_CFLAGS += -I$(src)/../../include -I$(src)/../ -I$(SCST_INC_DIR)
 EXTRA_CFLAGS += $(call enable-Wextra,-Wextra \
 	$(call cc-option,-Wno-old-style-declaration) \
 	-Wno-unused-parameter -Wno-missing-field-initializers)
@@ -33,10 +33,7 @@ EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
 #EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
 EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions
 
-#EXTRA_CFLAGS += -DCONFIG_SCST_ISCSI_DEBUG_DIGEST_FAILURES
-
-obj-m		+= iscsi-scst.o
-iscsi-scst-objs	:= iscsi.o nthread.o config.o digest.o \
-	conn.o session.o target.o event.o param.o \
-	iscsit_transport.o
+obj-m		+= isert-scst.o
+isert-scst-objs	:= isert.o isert_login.o \
+		iser_datamover.o iser_rdma.o iser_buf.o iser_pdu.o iser_global.o
 
