@@ -14,8 +14,7 @@
 #  GNU General Public License for more details.
 # 
 #  You should have received a copy of the GNU General Public License
-#  along with this program; if not, write to the Free Software
-#  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+#  along with this program.
 #
 #
 # Matthew Jacob
@@ -53,7 +52,9 @@ extraclean: clean
 	rm -f *.orig *.rej
 
 install:
-	@$(MAKE) -C ${LINUX} M=${CURDIR}/build modules_install
+	@$(MAKE) -C ${LINUX} M=${CURDIR}/build \
+		$$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
+		modules_install
 
 install_host_progs:
 	@$(MAKE) -C build $@

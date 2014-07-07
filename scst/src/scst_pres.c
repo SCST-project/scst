@@ -456,8 +456,10 @@ static struct scst_dev_registrant *scst_pr_add_registrant(
 	 * We can't use scst_mutex here, because of the circular
 	 * locking dependency with dev_pr_mutex.
 	 */
+#if !defined(__CHECKER__)
 	if (!dev_lock_locked)
 		spin_lock_bh(&dev->dev_lock);
+#endif
 	list_for_each_entry(t, &dev->dev_tgt_dev_list, dev_tgt_dev_list_entry) {
 		if (tid_equal(t->sess->transport_id, transport_id) &&
 		    (t->sess->tgt->rel_tgt_id == rel_tgt_id) &&
@@ -472,8 +474,10 @@ static struct scst_dev_registrant *scst_pr_add_registrant(
 			break;
 		}
 	}
+#if !defined(__CHECKER__)
 	if (!dev_lock_locked)
 		spin_unlock_bh(&dev->dev_lock);
+#endif
 
 	list_add_tail(&reg->dev_registrants_list_entry,
 		&dev->dev_registrants_list);
@@ -858,15 +862,16 @@ out:
 
 static void scst_pr_remove_device_files(struct scst_tgt_dev *tgt_dev)
 {
-	int res = 0;
 	struct scst_device *dev = tgt_dev->dev;
 
 	TRACE_ENTRY();
 
 	scst_assert_pr_mutex_held(dev);
 
-	res = dev->pr_file_name ? scst_remove_file(dev->pr_file_name) : -ENOENT;
-	res = dev->pr_file_name1 ? scst_remove_file(dev->pr_file_name1) : -ENOENT;
+	if (dev->pr_file_name)
+		scst_remove_file(dev->pr_file_name);
+	if (dev->pr_file_name1)
+		scst_remove_file(dev->pr_file_name1);
 
 	TRACE_EXIT();
 	return;
@@ -2566,7 +2571,7 @@ void scst_pr_read_reservation(struct scst_cmd *cmd, uint8_t *buffer,
 	int buffer_size)
 {
 	struct scst_device *dev = cmd->dev;
-	uint8_t b[24];
+	uint8_t b[24] = { };
 	int size = 0;
 
 	TRACE_ENTRY();
@@ -2578,8 +2583,6 @@ void scst_pr_read_reservation(struct scst_cmd *cmd, uint8_t *buffer,
 			"(buffer %p)", buffer_size, buffer);
 		goto out;
 	}
-
-	memset(b, 0, sizeof(b));
 
 	put_unaligned_be32(dev->pr_generation, &b[0]);
 

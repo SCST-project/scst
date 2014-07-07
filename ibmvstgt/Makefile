@@ -38,7 +38,9 @@ all: src/$(MODULE_SYMVERS)
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src modules
 
 install: all src/ibmvstgt.ko
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src modules_install
+	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src \
+		$$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
+		modules_install
 
 uninstall:
 	rm -f $(INSTALL_DIR)/libsrp.ko $(INSTALL_DIR)/ibmvstgt.ko

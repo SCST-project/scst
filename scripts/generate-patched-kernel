@@ -19,37 +19,24 @@
 ############################################################################
 
 
-########################
-# Function definitions #
-########################
-
-source $(dirname $0)/kernel-functions
-
 function usage {
   echo "Usage: $0 <kernel version>"
 }
 
 
-#########################
-# Argument verification #
-#########################
+script_dir="$(dirname $0)"
+if [ "${script_dir#/}" = "${script_dir}" ]; then
+  script_dir="$PWD/$script_dir"
+fi
+scst_dir="$(dirname "${script_dir}")"
 
-set -e
+source "${script_dir}/kernel-functions"
 
 if [ "$1" = "" ]; then
   echo "Error: missing kernel version argument."
   exit 1
 fi
 
-
-##########################
-# Kernel tree generation #
-##########################
-
-scriptname="$0"
-if [ "${scriptname#/}" = "${scriptname}" ]; then
-  scriptname="$PWD/$scriptname"
-fi
 target="linux-$1"
 kernel_version="$(kernel_version "$1")"
 patchlevel="$(patchlevel "$1")"
@@ -60,15 +47,13 @@ extract_kernel_tree "$1" || exit $?
 
 cd "${target}" || exit $?
 
-list-source-files "$(dirname "$(dirname "$scriptname")")" \
-| grep -- "-${kernel_version}.*.patch$" \
-| grep -v /in-tree/ \
-| while read p
-  do
+list-source-files "${scst_dir}" |
+  grep -- "-${kernel_version}.*.patch$" |
+  grep -v /in-tree/ |
+  while read p; do
     if [ "${p/readahead-2.6.32.below11.patch//}" = "$p" \
-         -o "${patchlevel:-0}" -lt 11 ]
-    then
+         -o "${patchlevel:-0}" -lt 11 ]; then
       echo "==== $p"
-      patch -p1 <$p
+      patch -p1 <"${scst_dir}/$p"
     fi
   done

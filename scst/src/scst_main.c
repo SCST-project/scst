@@ -179,6 +179,7 @@ cpumask_t default_cpu_mask;
 
 static unsigned int scst_max_cmd_mem;
 unsigned int scst_max_dev_cmd_mem;
+int scst_forcibly_close_sessions;
 
 module_param_named(scst_threads, scst_threads, int, 0);
 MODULE_PARM_DESC(scst_threads, "SCSI target threads count");
@@ -190,6 +191,13 @@ MODULE_PARM_DESC(scst_max_cmd_mem, "Maximum memory allowed to be consumed by "
 module_param_named(scst_max_dev_cmd_mem, scst_max_dev_cmd_mem, int, S_IRUGO);
 MODULE_PARM_DESC(scst_max_dev_cmd_mem, "Maximum memory allowed to be consumed "
 	"by all SCSI commands of a device at any given time in MB");
+
+module_param_named(forcibly_close_sessions, scst_forcibly_close_sessions, int,
+		   S_IWUSR | S_IRUGO);
+MODULE_PARM_DESC(forcibly_close_sessions,
+"If enabled, close the sessions associated with an access control group (ACG)"
+" when an ACG is deleted via sysfs instead of returning -EBUSY");
+
 
 struct scst_dev_type scst_null_devtype = {
 	.name = "none",
@@ -669,11 +677,11 @@ again:
 	scst_tg_tgt_remove_by_tgt(tgt);
 
 #ifndef CONFIG_SCST_PROC
-	scst_del_free_acg(tgt->default_acg);
+	scst_del_free_acg(tgt->default_acg, false);
 
 	list_for_each_entry_safe(acg, acg_tmp, &tgt->tgt_acg_list,
 					acg_list_entry) {
-		scst_del_free_acg(acg);
+		scst_del_free_acg(acg, false);
 	}
 #endif
 
@@ -1051,6 +1059,7 @@ EXPORT_SYMBOL_GPL(scst_suspend_activity);
 static void __scst_resume_activity(void)
 {
 	struct scst_cmd_threads *l;
+	struct scst_mgmt_cmd *m;
 
 	TRACE_ENTRY();
 
@@ -1077,15 +1086,14 @@ static void __scst_resume_activity(void)
 	wake_up_all(&scst_init_cmd_list_waitQ);
 
 	spin_lock_irq(&scst_mcmd_lock);
-	if (!list_empty(&scst_delayed_mgmt_cmd_list)) {
-		struct scst_mgmt_cmd *m;
-		m = list_first_entry(&scst_delayed_mgmt_cmd_list, typeof(*m),
-				mgmt_cmd_list_entry);
+	list_for_each_entry(m, &scst_delayed_mgmt_cmd_list,
+			    mgmt_cmd_list_entry) {
 		TRACE_MGMT_DBG("Moving delayed mgmt cmd %p to head of active "
 			"mgmt cmd list", m);
-		list_move(&m->mgmt_cmd_list_entry, &scst_active_mgmt_cmd_list);
 	}
+	list_splice(&scst_delayed_mgmt_cmd_list, &scst_active_mgmt_cmd_list);
 	spin_unlock_irq(&scst_mcmd_lock);
+
 	wake_up_all(&scst_mgmt_cmd_list_waitQ);
 
 out:
@@ -1145,9 +1153,9 @@ static int scst_register_device(struct scsi_device *scsidp)
 
 	dev->type = scsidp->type;
 
-	dev->virt_name = kasprintf(GFP_KERNEL, "%d:%d:%d:%d",
-				   scsidp->host->host_no,
-				   scsidp->channel, scsidp->id, scsidp->lun);
+	dev->virt_name = kasprintf(GFP_KERNEL, "%d:%d:%d:%lld",
+				   scsidp->host->host_no, scsidp->channel,
+				   scsidp->id, (u64)scsidp->lun);
 	if (dev->virt_name == NULL) {
 		PRINT_ERROR("%s", "Unable to alloc device name");
 		res = -ENOMEM;
@@ -1190,9 +1198,9 @@ static int scst_register_device(struct scsi_device *scsidp)
 		goto out_del_unlocked;
 #endif
 
-	PRINT_INFO("Attached to scsi%d, channel %d, id %d, lun %d, "
-		"type %d", scsidp->host->host_no, scsidp->channel,
-		scsidp->id, scsidp->lun, scsidp->type);
+	PRINT_INFO("Attached to scsi%d, channel %d, id %d, lun %lld, type %d",
+		   scsidp->host->host_no, scsidp->channel, scsidp->id,
+		   (u64)scsidp->lun, scsidp->type);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1226,9 +1234,7 @@ static struct scst_device *__scst_lookup_device(struct scsi_device *scsidp)
 {
 	struct scst_device *d;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	list_for_each_entry(d, &scst_dev_list, dev_list_entry)
 		if (d->scsi_dev == scsidp)
@@ -1261,9 +1267,9 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 	}
 
 	if (dev == NULL) {
-		PRINT_ERROR("SCST device for SCSI device %d:%d:%d:%d not found",
-			scsidp->host->host_no, scsidp->channel, scsidp->id,
-			scsidp->lun);
+		PRINT_ERROR("SCST device for SCSI device %d:%d:%d:%lld not found",
+			    scsidp->host->host_no, scsidp->channel, scsidp->id,
+			    (u64)scsidp->lun);
 		goto out_unlock;
 	}
 
@@ -1287,9 +1293,9 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 
 	scst_dev_sysfs_del(dev);
 
-	PRINT_INFO("Detached from scsi%d, channel %d, id %d, lun %d, type %d",
-		scsidp->host->host_no, scsidp->channel, scsidp->id,
-		scsidp->lun, scsidp->type);
+	PRINT_INFO("Detached from scsi%d, channel %d, id %d, lun %lld, type %d",
+		   scsidp->host->host_no, scsidp->channel, scsidp->id,
+		   (u64)scsidp->lun, scsidp->type);
 
 	scst_free_device(dev);
 
@@ -2089,7 +2095,7 @@ assign:
 
 	dev->threads_num = handler->threads_num;
 	dev->threads_pool_type = handler->threads_pool_type;
-	dev->max_write_same_len = 512 * 1024 * 1024; /* 512 MB */
+	dev->max_write_same_len = 256 * 1024 * 1024; /* 256 MB */
 
 	if (handler->attach) {
 		TRACE_DBG("Calling new dev handler's attach(%p)", dev);
@@ -2455,7 +2461,7 @@ static int __init init_scst(void)
 	mutex_init(&scst_suspend_mutex);
 	mutex_init(&scst_cmd_threads_mutex);
 	INIT_LIST_HEAD(&scst_cmd_threads_list);
-	cpus_setall(default_cpu_mask);
+	cpumask_setall(&default_cpu_mask);
 
 	scst_init_threads(&scst_main_cmd_threads);
 
@@ -2656,7 +2662,7 @@ out_thread_free:
 
 #ifdef CONFIG_SCST_PROC
 out_free_acg:
-	scst_del_free_acg(scst_default_acg);
+	scst_del_free_acg(scst_default_acg, false);
 #endif
 
 out_destroy_sgv_pool:
@@ -2738,7 +2744,7 @@ static void __exit exit_scst(void)
 
 	scsi_unregister_interface(&scst_interface);
 #ifdef CONFIG_SCST_PROC
-	scst_del_free_acg(scst_default_acg);
+	scst_del_free_acg(scst_default_acg, false);
 #endif
 
 	scst_sgv_pools_deinit();

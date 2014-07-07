@@ -85,6 +85,9 @@ case "$distro" in
       srpm_url=("http://ftp.scientificlinux.org/linux/scientific/$releasevermajor$releaseverminor/SRPMS/vendor")
     fi
     ;;
+  "Fedora")
+    srpm_url="http://ftp.redhat.com/redhat/rhel/rc/7/Server/source/tree/Packages"
+    ;;
   *)
     echo "Unknown type of distribution: $distro"
     exit 1
@@ -183,7 +186,10 @@ log "Copying SCST patches to the SOURCES directory"
 
 cd ${rpmbuild_dir}/SOURCES
 copy_patch $scst_dir/scst/kernel/rhel/scst_exec_req_fifo-${kver}.patch scst_exec_req_fifo.patch
-copy_patch $scst_dir/iscsi-scst/kernel/patches/rhel/put_page_callback-${kver}.patch put_page_callback.patch
+f="$scst_dir/iscsi-scst/kernel/patches/rhel/put_page_callback-${kver}.patch"
+if [ -e "$f" ]; then
+    copy_patch "$f" put_page_callback.patch
+fi
 
 log "Adding SCST patches in kernel.spec"
 
@@ -319,6 +325,49 @@ diff -u SPECS/kernel.spec{.orig,}
    make ARCH=$Arch %{oldconfig_target} > /dev/null
    echo "# $Arch" > configs/$i
 EOF
+elif [ ${kver#3.10.0-121} != $kver ]; then
+# RHEL/CentOS/SL 7.0
+patch -p1 ${rpmbuild_dir}/SPECS/kernel.spec <<'EOF' || exit $?
+--- kernel.spec.orig	2014-05-23 10:09:17.707202148 +0200
++++ kernel.spec	2014-05-23 10:15:50.883937952 +0200
+@@ -4,6 +4,7 @@
+ Summary: The Linux kernel
+ 
+ # % define buildid .local
++%define buildid .scst
+ 
+ # For a stable, released kernel, released_kernel should be 1. For rawhide
+ # and/or a kernel built from an rc or git snapshot, released_kernel should
+@@ -367,6 +368,9 @@
+ Source2000: cpupower.service
+ Source2001: cpupower.config
+ 
++Patch200: scst_exec_req_fifo.patch
++#Patch201: put_page_callback.patch
++
+ # empty final patch to facilitate testing of kernel patches
+ Patch999999: linux-kernel-test.patch
+ 
+@@ -668,6 +672,9 @@
+ # Drop some necessary files from the source dir into the buildroot
+ cp $RPM_SOURCE_DIR/kernel-%{version}-*.config .
+ 
++ApplyPatch scst_exec_req_fifo.patch
++#ApplyPatch put_page_callback.patch
++
+ ApplyOptionalPatch linux-kernel-test.patch
+ 
+ # Any further pre-build tree manipulations happen here.
+@@ -700,6 +707,8 @@
+ for i in *.config
+ do
+   mv $i .config
++  echo "CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION=y" >> .config
++  sed -i.tmp -e 's/^CONFIG_SCSI_QLA_FC=.*/CONFIG_SCSI_QLA_FC=n/' .config
+   Arch=`head -1 .config | cut -b 3-`
+   make %{?cross_opts} ARCH=$Arch listnewconfig | grep -E '^CONFIG_' >.newoptions || true
+ %if %{listnewconfig_fail}
+EOF
 else
     log "Unrecognized kernel version ${kver}"
 fi
@@ -327,7 +376,7 @@ log "Rebuilding kernel"
 
 cd ${rpmbuild_dir}/SPECS
 {
-  rpmbuild -bb --target=${arch} --with baseonly --with firmware --without kabichk kernel*.spec
+  rpmbuild -bb --target=${arch} --nodeps --with baseonly --with firmware --without kabichk kernel*.spec
   rc=$?
   if [ $rc != 0 ]; then
     exit $rc

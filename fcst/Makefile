@@ -86,6 +86,7 @@ tgt: Modules.symvers Module.symvers
 
 install: all
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
+	  $$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
 	  SCST_INC_DIR=$(SCST_INC_DIR) modules_install
 
 ins:

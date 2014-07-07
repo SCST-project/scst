@@ -205,9 +205,7 @@ int isert_conn_alloc(struct iscsi_session *session,
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&session->target->target_mutex);
-#endif
 
 	if (unlikely(!filp)) {
 		res = -EBADF;

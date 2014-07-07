@@ -116,11 +116,13 @@
 #endif
 #endif
 
-#ifdef CONFIG_SCST_EXTRACHECKS
+#if defined(CONFIG_SCST_EXTRACHECKS) || defined(__COVERITY__)
+#define EXTRACHECKS_BUG()		sBUG()
 #define EXTRACHECKS_BUG_ON(a)		sBUG_ON(a)
 #define EXTRACHECKS_WARN_ON(a)		WARN_ON(a)
 #define EXTRACHECKS_WARN_ON_ONCE(a)	WARN_ON_ONCE(a)
 #else
+#define EXTRACHECKS_BUG()		do { } while (0)
 #define EXTRACHECKS_BUG_ON(a)		do { } while (0)
 #define EXTRACHECKS_WARN_ON(a)		do { } while (0)
 #define EXTRACHECKS_WARN_ON_ONCE(a)	do { } while (0)

@@ -212,12 +212,9 @@ static void ft_abort_cmd(struct scst_cmd *cmd)
 	struct ft_cmd *fcmd = scst_cmd_get_tgt_priv(cmd);
 	struct fc_seq *sp = fcmd->seq;
 	struct fc_exch *ep = fc_seq_exch(sp);
-	struct fc_lport *lport = ep->lp;
 
 	pr_err("%s: cmd %p ox_id %#x rx_id %#x state %d\n", __func__, cmd,
 	       ep->oxid, ep->rxid, fcmd->state);
-
-	lport->tt.exch_done(sp);
 
 	spin_lock(&fcmd->lock);
 	switch (fcmd->state) {
@@ -257,10 +254,13 @@ static void ft_abort_cmd(struct scst_cmd *cmd)
 static void ft_cmd_done(struct ft_cmd *fcmd)
 {
 	struct fc_frame *fp = fcmd->req_frame;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36)
-	struct fc_lport *lport;
+	struct fc_seq *sp = fcmd->seq;
+	struct fc_lport *lport = fr_dev(fp);
 
-	lport = fr_dev(fp);
+	if (sp)
+		lport->tt.exch_done(sp);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36)
 	if (fr_seq(fp))
 		lport->tt.seq_release(fr_seq(fp));
 #endif
@@ -291,6 +291,7 @@ int ft_send_response(struct scst_cmd *cmd)
 	struct fc_exch *ep;
 	unsigned int slen;
 	size_t len;
+	enum ft_cmd_state prev_state;
 	int resid = 0;
 	int bi_resid = 0;
 	int error;
@@ -303,7 +304,7 @@ int ft_send_response(struct scst_cmd *cmd)
 	lport = ep->lp;
 
 	WARN_ON(fcmd->state != FT_STATE_NEW && fcmd->state != FT_STATE_DATA_IN);
-	ft_set_cmd_state(fcmd, FT_STATE_CMD_RSP_SENT);
+	prev_state = ft_set_cmd_state(fcmd, FT_STATE_CMD_RSP_SENT);
 
 	if (scst_cmd_aborted_on_xmit(cmd)) {
 		FT_IO_DBG("cmd aborted did %x oxid %x\n", ep->did, ep->oxid);
@@ -313,7 +314,8 @@ int ft_send_response(struct scst_cmd *cmd)
 
 	if (!scst_cmd_get_is_send_status(cmd)) {
 		FT_IO_DBG("send status not set.  feature not implemented\n");
-		return SCST_TGT_RES_FATAL_ERROR;
+		error = SCST_TGT_RES_FATAL_ERROR;
+		goto err;
 	}
 
 	status = scst_cmd_get_status(cmd);
@@ -333,7 +335,7 @@ int ft_send_response(struct scst_cmd *cmd)
 		error = ft_send_read_data(cmd);
 		if (error) {
 			FT_ERR("ft_send_read_data returned %d\n", error);
-			return error;
+			goto err;
 		}
 
 		if (dir == SCST_DATA_BIDI) {
@@ -347,8 +349,10 @@ int ft_send_response(struct scst_cmd *cmd)
 	}
 
 	fp = fc_frame_alloc(lport, len);
-	if (!fp)
-		return SCST_TGT_RES_QUEUE_FULL;
+	if (!fp) {
+		error = SCST_TGT_RES_QUEUE_FULL;
+		goto err;
+	}
 
 	fcp = fc_frame_payload_get(fp, len);
 	memset(fcp, 0, sizeof(*fcp));
@@ -384,14 +388,26 @@ int ft_send_response(struct scst_cmd *cmd)
 	fc_fill_fc_hdr(fp, FC_RCTL_DD_CMD_STATUS, ep->did, ep->sid, FC_TYPE_FCP,
 		       FC_FC_EX_CTX | FC_FC_LAST_SEQ | FC_FC_END_SEQ, 0);
 
-	error = lport->tt.seq_send(lport, fcmd->seq, fp);
-	if (error < 0)
+	error = FCST_INJ_SEND_ERR(lport->tt.seq_send(lport, fcmd->seq, fp));
+	if (error < 0) {
 		pr_err("Sending response for exchange with OX_ID %#x and RX_ID"
 		       " %#x failed: %d\n", ep->oxid, ep->rxid, error);
+		error = error == -ENOMEM ? SCST_TGT_RES_QUEUE_FULL :
+			SCST_TGT_RES_FATAL_ERROR;
+		goto err;
+	}
 done:
-	lport->tt.exch_done(fcmd->seq);
 	scst_tgt_cmd_done(cmd, SCST_CONTEXT_SAME);
 	return SCST_TGT_RES_SUCCESS;
+
+err:
+	ft_set_cmd_state(fcmd, prev_state);
+	WARN_ONCE(error != SCST_TGT_RES_QUEUE_FULL &&
+		  error != SCST_TGT_RES_FATAL_ERROR,
+		  "%s: invalid error code %d\n",
+		  __func__, error);
+	return error;
+
 }
 
 /*
@@ -452,6 +468,7 @@ int ft_send_xfer_rdy(struct scst_cmd *cmd)
 	struct fcp_txrdy *txrdy;
 	struct fc_lport *lport;
 	struct fc_exch *ep;
+	int error;
 
 	fcmd = scst_cmd_get_tgt_priv(cmd);
 
@@ -472,8 +489,17 @@ int ft_send_xfer_rdy(struct scst_cmd *cmd)
 	fcmd->seq = lport->tt.seq_start_next(fcmd->seq);
 	fc_fill_fc_hdr(fp, FC_RCTL_DD_DATA_DESC, ep->did, ep->sid, FC_TYPE_FCP,
 		       FC_FC_EX_CTX | FC_FC_END_SEQ | FC_FC_SEQ_INIT, 0);
-	lport->tt.seq_send(lport, fcmd->seq, fp);
-	return SCST_TGT_RES_SUCCESS;
+	error = FCST_INJ_SEND_ERR(lport->tt.seq_send(lport, fcmd->seq, fp));
+	switch (error) {
+	case 0:
+		return SCST_TGT_RES_SUCCESS;
+	case -ENOMEM:
+		ft_set_cmd_state(fcmd, FT_STATE_NEW);
+		return SCST_TGT_RES_QUEUE_FULL;
+	default:
+		ft_set_cmd_state(fcmd, FT_STATE_NEW);
+		return SCST_TGT_RES_FATAL_ERROR;
+	}
 }
 
 /*
@@ -528,16 +554,14 @@ static void ft_send_resp_status(struct fc_frame *rx_fp, u32 status,
 
 	lport->tt.seq_send(lport, sp, fp);
 out:
-	lport->tt.exch_done(fr_seq(rx_fp));
+	;
 #else
 	fc_fill_reply_hdr(fp, rx_fp, FC_RCTL_DD_CMD_STATUS, 0);
 	sp = fr_seq(fp);
-	if (sp) {
+	if (sp)
 		lport->tt.seq_send(lport, sp, fp);
-		lport->tt.exch_done(sp);
-	} else {
+	else
 		lport->tt.frame_send(lport, fp);
-	}
 #endif
 }
 
@@ -651,7 +675,7 @@ static void ft_recv_cmd(struct ft_sess *sess, struct fc_frame *fp)
 {
 	struct fc_seq *sp;
 	struct scst_cmd *cmd;
-	struct ft_cmd *fcmd;
+	struct ft_cmd *fcmd = NULL;
 	struct fcp_cmnd *fcp;
 	struct fc_lport *lport;
 	int data_dir;
@@ -659,6 +683,15 @@ static void ft_recv_cmd(struct ft_sess *sess, struct fc_frame *fp)
 	int cdb_len;
 
 	lport = sess->tport->lport;
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
+	sp = fr_seq(fp);
+#else
+	sp = lport->tt.seq_assign(lport, fp);
+	if (!sp)
+		goto busy;
+#endif
+
 	fcmd = kzalloc(sizeof(*fcmd), GFP_ATOMIC);
 	if (!fcmd)
 		goto busy;
@@ -702,13 +735,6 @@ static void ft_recv_cmd(struct ft_sess *sess, struct fc_frame *fp)
 	scst_cmd_set_tgt_priv(cmd, fcmd);
 	cmd->state = FT_STATE_NEW;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
-	sp = fr_seq(fp);
-#else
-	sp = lport->tt.seq_assign(lport, fp);
-	if (!sp)
-		goto busy;
-#endif
 	fcmd->seq = sp;
 	lport->tt.seq_set_resp(sp, ft_recv_seq, cmd);
 
@@ -757,6 +783,8 @@ busy:
 	ft_send_resp_status(fp, SAM_STAT_BUSY, 0);
 	if (fcmd)
 		ft_cmd_done(fcmd);
+	else if (sp)
+		lport->tt.exch_done(sp);
 }
 
 /*

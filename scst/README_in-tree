@@ -840,7 +840,7 @@ Intended to be used for performance measurements at the same way as
 blocksize, read_only, removable, tst. See vdisk_fileio above for
 description of those parameters.
 
-vdisk_nullio also has extra attribute:
+vdisk_nullio devices have the following two additional attributes:
 
  - dummy - if this flag is set, LUNs corresponding to this device will
    not appear at the initiator side. This is because SCST will set the
@@ -848,6 +848,13 @@ vdisk_nullio also has extra attribute:
    PERIPHERAL DEVICE TYPE to 0x1f (no device) in the INQUIRY response.
    See also SPC-4 for more information. It is designed to be used as a
    "dummy" placeholder on LUN 0, if LUN 0 is not desired.
+
+ - read_zero - if this flag is set, reading from a vdisk_nullio device
+   returns a buffer filled with byte 0x00. If this flag is cleared
+   (which is the default behavior), the buffer returned to the
+   initiator is not cleared. Although this results in slightly faster
+   operation this is a security hole since any data that is present in
+   kernel memory can be returned to the initiator.
 
 Handler vcdrom allows emulation of a virtual CDROM device using an ISO
 file as backend. It has only single parameter: tst.

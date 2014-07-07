@@ -1885,7 +1885,7 @@ static ssize_t __scst_acg_cpu_mask_show(struct scst_acg *acg, char *buf)
 	res = cpumask_scnprintf(buf, SCST_SYSFS_BLOCK_SIZE,
 		&acg->acg_cpu_mask);
 #endif
-	if (!cpus_equal(acg->acg_cpu_mask, default_cpu_mask))
+	if (!cpumask_equal(&acg->acg_cpu_mask, &default_cpu_mask))
 		res += sprintf(&buf[res], "\n%s\n", SCST_SYSFS_KEY_MARK);
 
 	return res;
@@ -1991,7 +1991,7 @@ static ssize_t __scst_acg_cpu_mask_store(struct scst_acg *acg,
 		goto out_release;
 	}
 
-	if (cpus_equal(acg->acg_cpu_mask, work->cpu_mask))
+	if (cpumask_equal(&acg->acg_cpu_mask, &work->cpu_mask))
 		goto out;
 
 	work->tgt = acg->tgt;
@@ -2122,12 +2122,16 @@ static int scst_process_ini_group_mgmt_store(char *buffer,
 			res = -EINVAL;
 			goto out_unlock;
 		}
-		if (!scst_acg_sess_is_empty(acg)) {
-			PRINT_ERROR("Group %s is not empty", acg->acg_name);
-			res = -EBUSY;
+		res = scst_del_free_acg(acg, scst_forcibly_close_sessions);
+		if (res) {
+			if (scst_forcibly_close_sessions)
+				PRINT_ERROR("Removing group %s failed",
+					    acg->acg_name);
+			else
+				PRINT_ERROR("Group %s is not empty",
+					    acg->acg_name);
 			goto out_unlock;
 		}
-		scst_del_free_acg(acg);
 		break;
 	}
 
@@ -5081,7 +5085,8 @@ static int scst_process_devt_pass_through_mgmt_store(char *buffer,
 {
 	int res = 0;
 	char *pp, *action, *devstr;
-	unsigned int host, channel, id, lun;
+	unsigned int host, channel, id;
+	u64 lun;
 	struct scst_device *d, *dev = NULL;
 
 	TRACE_ENTRY();
@@ -5103,10 +5108,10 @@ static int scst_process_devt_pass_through_mgmt_store(char *buffer,
 		goto out_syntax_err;
 	}
 
-	if (sscanf(devstr, "%u:%u:%u:%u", &host, &channel, &id, &lun) != 4)
+	if (sscanf(devstr, "%u:%u:%u:%llu", &host, &channel, &id, &lun) != 4)
 		goto out_syntax_err;
 
-	TRACE_DBG("Dev %d:%d:%d:%d", host, channel, id, lun);
+	TRACE_DBG("Dev %d:%d:%d:%lld", host, channel, id, lun);
 
 	res = mutex_lock_interruptible(&scst_mutex);
 	if (res != 0)
@@ -5123,13 +5128,13 @@ static int scst_process_devt_pass_through_mgmt_store(char *buffer,
 		    d->scsi_dev->id == id &&
 		    d->scsi_dev->lun == lun) {
 			dev = d;
-			TRACE_DBG("Dev %p (%d:%d:%d:%d) found",
+			TRACE_DBG("Dev %p (%d:%d:%d:%lld) found",
 				  dev, host, channel, id, lun);
 			break;
 		}
 	}
 	if (dev == NULL) {
-		PRINT_ERROR("Device %d:%d:%d:%d not found",
+		PRINT_ERROR("Device %d:%d:%d:%lld not found",
 			       host, channel, id, lun);
 		res = -EINVAL;
 		goto out_unlock;

@@ -1697,7 +1697,6 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 			goto out;
 		default:
 			sBUG();
-			goto out;
 		}
 	}
 
@@ -1800,8 +1799,6 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state,
 	enum scst_exec_context pref_context)
 {
 	TRACE_ENTRY();
-
-	EXTRACHECKS_BUG_ON(cmd->pr_abort_counter != NULL);
 
 	scst_set_exec_time(cmd);
 
@@ -2288,7 +2285,7 @@ static int scst_report_supported_opcodes(struct scst_cmd *cmd)
 		}
 		break;
 	default:
-		sBUG_ON(1);
+		sBUG();
 		goto out_compl;
 	}
 
@@ -4330,6 +4327,25 @@ out:
 	return;
 }
 
+struct scst_tgt_dev *scst_lookup_tgt_dev(struct scst_session *sess, u64 lun)
+{
+	struct list_head *head;
+	struct scst_tgt_dev *tgt_dev;
+
+#ifdef CONFIG_SCST_EXTRACHECKS
+	if (scst_get_cmd_counter() == 0)
+		lockdep_assert_held(&scst_mutex);
+#endif
+
+	head = &sess->sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_FN(lun)];
+	list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
+		if (tgt_dev->lun == lun)
+			return tgt_dev;
+	}
+
+	return NULL;
+}
+
 /*
  * Returns 0 on success, > 0 when we need to wait for unblock,
  * < 0 if there is no device (lun) or device type handler.
@@ -4341,30 +4357,21 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 {
 	struct scst_tgt_dev *tgt_dev = NULL;
 	int res;
+	bool nul_dev = false;
 
 	TRACE_ENTRY();
 
 	cmd->cpu_cmd_counter = scst_get();
 
 	if (likely(!test_bit(SCST_FLAG_SUSPENDED, &scst_flags))) {
-		struct list_head *head =
-			&cmd->sess->sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_FN(cmd->lun)];
 		TRACE_DBG("Finding tgt_dev for cmd %p (lun %lld)", cmd,
 			(long long unsigned int)cmd->lun);
 		res = -1;
-		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
-			if (tgt_dev->lun == cmd->lun) {
-				TRACE_DBG("tgt_dev %p found", tgt_dev);
+		tgt_dev = scst_lookup_tgt_dev(cmd->sess, cmd->lun);
+		if (tgt_dev) {
+			TRACE_DBG("tgt_dev %p found", tgt_dev);
 
-				if (unlikely(tgt_dev->dev->handler ==
-						&scst_null_devtype)) {
-					PRINT_INFO("Dev handler for device "
-					  "%lld is NULL, the device will not "
-					  "be visible remotely",
-					   (long long unsigned int)cmd->lun);
-					break;
-				}
-
+			if (likely(tgt_dev->dev->handler != &scst_null_devtype)) {
 				cmd->cmd_threads = tgt_dev->active_cmd_threads;
 				cmd->tgt_dev = tgt_dev;
 				cmd->cur_order_data = tgt_dev->curr_order_data;
@@ -4372,15 +4379,21 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 				cmd->devt = tgt_dev->dev->handler;
 
 				res = 0;
-				break;
+			} else {
+				PRINT_INFO("Dev handler for device %lld is NULL, "
+					"the device will not be visible remotely",
+					(long long unsigned int)cmd->lun);
+				nul_dev = true;
 			}
 		}
-		if (res != 0) {
-			TRACE(TRACE_MINOR,
-				"tgt_dev for LUN %lld not found, command to "
-				"unexisting LU (initiator %s, target %s)?",
-				(long long unsigned int)cmd->lun,
-				cmd->sess->initiator_name, cmd->tgt->tgt_name);
+		if (unlikely(res != 0)) {
+			if (!nul_dev) {
+				TRACE(TRACE_MINOR,
+					"tgt_dev for LUN %lld not found, command to "
+					"unexisting LU (initiator %s, target %s)?",
+					(long long unsigned int)cmd->lun,
+					cmd->sess->initiator_name, cmd->tgt->tgt_name);
+			}
 			scst_put(cmd->cpu_cmd_counter);
 		}
 	} else {
@@ -4855,12 +4868,10 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 		default:
 			PRINT_CRIT_ERROR("cmd %p is in invalid state %d)", cmd,
 				cmd->state);
+#if !defined(__CHECKER__)
 			spin_unlock_irq(&cmd->cmd_threads->cmd_list_lock);
-			sBUG();
-#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 < 6
-			spin_lock_irq(&cmd->cmd_threads->cmd_list_lock);
-			break;
 #endif
+			sBUG();
 		}
 #endif
 		wake_up(&cmd->cmd_threads->cmd_list_waitQ);
@@ -4993,7 +5004,6 @@ out:
 static int scst_mgmt_translate_lun(struct scst_mgmt_cmd *mcmd)
 {
 	struct scst_tgt_dev *tgt_dev;
-	struct list_head *head;
 	int res;
 
 	TRACE_ENTRY();
@@ -5005,19 +5015,15 @@ static int scst_mgmt_translate_lun(struct scst_mgmt_cmd *mcmd)
 	if (unlikely(res != 0))
 		goto out;
 
-	res = -1;
-
-	head = &mcmd->sess->sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_FN(mcmd->lun)];
-	list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
-		if (tgt_dev->lun == mcmd->lun) {
-			TRACE_DBG("tgt_dev %p found", tgt_dev);
-			mcmd->mcmd_tgt_dev = tgt_dev;
-			res = 0;
-			break;
-		}
-	}
-	if (mcmd->mcmd_tgt_dev == NULL)
+	tgt_dev = scst_lookup_tgt_dev(mcmd->sess, mcmd->lun);
+	if (tgt_dev) {
+		TRACE_DBG("tgt_dev %p found", tgt_dev);
+		mcmd->mcmd_tgt_dev = tgt_dev;
+		res = 0;
+	} else {
 		scst_put(mcmd->cpu_cmd_counter);
+		res = -1;
+	}
 
 out:
 	TRACE_EXIT_HRES(res);
@@ -5475,15 +5481,15 @@ static int scst_set_mcmd_next_state(struct scst_mgmt_cmd *mcmd)
 			"cmd_finish_wait_count %d, cmd_done_wait_count %d)",
 			mcmd, mcmd->state, mcmd->fn,
 			mcmd->cmd_finish_wait_count, mcmd->cmd_done_wait_count);
+#if !defined(__CHECKER__)
 		spin_unlock_irq(&scst_mcmd_lock);
+#endif
 		res = -1;
 		sBUG();
-		goto out;
 	}
 
 	spin_unlock_irq(&scst_mcmd_lock);
 
-out:
 	return res;
 }
 
@@ -5645,28 +5651,20 @@ static int scst_abort_task_set(struct scst_mgmt_cmd *mcmd)
 	return res;
 }
 
-static int scst_is_cmd_belongs_to_dev(struct scst_cmd *cmd,
-	struct scst_device *dev)
+static bool scst_is_cmd_belongs_to_dev(struct scst_cmd *cmd,
+				       struct scst_device *dev)
 {
-	struct scst_tgt_dev *tgt_dev = NULL;
-	struct list_head *head;
-	int res = 0;
+	struct scst_tgt_dev *tgt_dev;
+	bool res;
 
 	TRACE_ENTRY();
 
-	TRACE_DBG("Finding match for dev %s and cmd %p (lun %lld)", dev->virt_name,
-		cmd, (long long unsigned int)cmd->lun);
+	TRACE_DBG("Finding match for dev %s and cmd %p (lun %lld)",
+		  dev->virt_name, cmd, (long long unsigned int)cmd->lun);
 
-	head = &cmd->sess->sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_FN(cmd->lun)];
-	list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
-		if (tgt_dev->lun == cmd->lun) {
-			TRACE_DBG("dev %s found", tgt_dev->dev->virt_name);
-			res = (tgt_dev->dev == dev);
-			goto out;
-		}
-	}
+	tgt_dev = scst_lookup_tgt_dev(cmd->sess, cmd->lun);
+	res = tgt_dev && tgt_dev->dev == dev;
 
-out:
 	TRACE_EXIT_HRES(res);
 	return res;
 }
@@ -5996,6 +5994,8 @@ static int scst_lun_reset(struct scst_mgmt_cmd *mcmd)
 		TRACE(TRACE_MGMT, "Resetting host %d bus ",
 		      dev->scsi_dev->host->host_no);
 		rc = scsi_reset_provider(dev->scsi_dev, SCSI_TRY_RESET_DEVICE);
+		TRACE(TRACE_MGMT, "scsi_reset_provider(%s) returned %d",
+		      dev->virt_name, rc);
 #if 0
 		if (rc != SUCCESS && mcmd->status == SCST_MGMT_STATUS_SUCCESS)
 			scst_mgmt_cmd_set_status(mcmd, SCST_MGMT_STATUS_FAILED);
@@ -6506,11 +6506,6 @@ static int scst_process_mgmt_cmd(struct scst_mgmt_cmd *mcmd)
 				mcmd->cmd_finish_wait_count,
 				mcmd->cmd_done_wait_count);
 			sBUG();
-#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 < 6
-			/* For suppressing a gcc compiler warning */
-			res = -1;
-			goto out;
-#endif
 		}
 	}
 
@@ -6991,9 +6986,7 @@ static char *scst_get_unique_sess_name(struct list_head *sysfs_sess_list,
 	int len = 0, n = 1;
 
 	BUG_ON(!initiator_name);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 restart:
 	list_for_each_entry(s, sysfs_sess_list, sysfs_sess_list_entry) {
@@ -7024,7 +7017,7 @@ restart:
 static int scst_init_session(struct scst_session *sess)
 {
 	int res = 0;
-	struct scst_cmd *cmd;
+	struct scst_cmd *cmd, *cmd_tmp;
 	struct scst_mgmt_cmd *mcmd, *tm;
 	int mwake = 0;
 
@@ -7038,6 +7031,7 @@ static int scst_init_session(struct scst_session *sess)
 		"(target %s)", sess->acg->acg_name, sess->initiator_name,
 		sess->tgt->tgt_name);
 
+	scst_get_acg(sess->acg);
 	list_add_tail(&sess->acg_sess_list_entry, &sess->acg->acg_sess_list);
 
 	TRACE_DBG("Adding sess %p to tgt->sess_list", sess);
@@ -7094,16 +7088,14 @@ failed:
 	else
 		sess->init_phase = SCST_SESS_IPH_FAILED;
 
-restart:
-	list_for_each_entry(cmd, &sess->init_deferred_cmd_list,
-				cmd_list_entry) {
+	list_for_each_entry_safe(cmd, cmd_tmp, &sess->init_deferred_cmd_list,
+				 cmd_list_entry) {
 		TRACE_DBG("Deleting cmd %p from init deferred cmd list", cmd);
 		list_del(&cmd->cmd_list_entry);
 		atomic_dec(&sess->sess_cmd_count);
 		spin_unlock_irq(&sess->sess_list_lock);
 		scst_cmd_init_done(cmd, SCST_CONTEXT_THREAD);
 		spin_lock_irq(&sess->sess_list_lock);
-		goto restart;
 	}
 
 	spin_lock(&scst_mcmd_lock);

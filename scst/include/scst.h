@@ -79,6 +79,14 @@ typedef _Bool bool;
 #define __aligned __attribute__((aligned))
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22)
+char *kvasprintf(gfp_t gfp, const char *fmt, va_list ap);
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
+#define lockdep_assert_held(l) do { (void)(l); } while (0)
+#endif
+
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 32)
 #ifndef O_DSYNC
 #define O_DSYNC O_SYNC
@@ -117,13 +125,6 @@ typedef _Bool bool;
 #define nr_cpumask_bits nr_cpu_ids
 #else
 #define nr_cpumask_bits NR_CPUS
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
-#ifndef swap
-#define swap(a, b) \
-	do { typeof(a) __tmp = (a); (a) = (b); (b) = __tmp; } while (0)
-#endif
 #endif
 
 /* verify cpu argument to cpumask_* operators */
@@ -172,6 +173,27 @@ static inline void cpumask_copy(cpumask_t *dstp,
 {
 	bitmap_copy(cpumask_bits(dstp), cpumask_bits(srcp), nr_cpumask_bits);
 }
+
+/**
+ * cpumask_setall - set all cpus (< nr_cpu_ids) in a cpumask
+ * @dstp: the cpumask pointer
+ */
+static inline void cpumask_setall(cpumask_t *dstp)
+{
+	bitmap_fill(cpumask_bits(dstp), nr_cpumask_bits);
+}
+
+/**
+ * cpumask_equal - *src1p == *src2p
+ * @src1p: the first input
+ * @src2p: the second input
+ */
+static inline bool cpumask_equal(const cpumask_t *src1p,
+				 const cpumask_t *src2p)
+{
+	return bitmap_equal(cpumask_bits(src1p), cpumask_bits(src2p),
+			    nr_cpumask_bits);
+}
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26) && \
@@ -179,11 +201,28 @@ static inline void cpumask_copy(cpumask_t *dstp,
 #define set_cpus_allowed_ptr(p, new_mask) set_cpus_allowed((p), *(new_mask))
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
+#ifndef swap
+#define swap(a, b) \
+	do { typeof(a) __tmp = (a); (a) = (b); (b) = __tmp; } while (0)
+#endif
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31)
 static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 {
 	return q->max_hw_sectors;
 }
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+/*
+ * See also patch "kernel.h: add pr_warn for symmetry to dev_warn,
+ * netdev_warn" (commit fc62f2f19edf46c9bdbd1a54725b56b18c43e94f).
+ */
+#ifndef pr_warn
+#define pr_warn pr_warning
+#endif
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
@@ -1909,6 +1948,13 @@ struct scst_order_data {
 	spinlock_t init_done_lock;
 };
 
+struct scst_orig_sg_data {
+	int *p_orig_sg_cnt;
+	int orig_sg_cnt;
+	struct scatterlist *orig_sg_entry;
+	int orig_entry_offs, orig_entry_len;
+};
+
 /*
  * SCST command, analog of I_T_L_Q nexus or task
  */
@@ -1998,9 +2044,7 @@ struct scst_cmd {
 	/* Set if the target driver called scst_set_expected() */
 	unsigned int expected_values_set:1;
 
-	/*
-	 * Set if the SG buffer was modified by scst_adjust_sg()
-	 */
+	/* Set if the SG buffer was modified by scst_adjust_sg() */
 	unsigned int sg_buff_modified:1;
 
 	/*
@@ -2229,11 +2273,8 @@ struct scst_cmd {
 	/* Used for storage of dev handler private stuff */
 	void *dh_priv;
 
-	/* Used to restore sg if it was modified by scst_adjust_sg() */
-	int *p_orig_sg_cnt;
-	int orig_sg_cnt;
-	struct scatterlist *orig_sg_entry;
-	int orig_entry_offs, orig_entry_len;
+	/* List entry for dev's blocked_cmd_list */
+	struct list_head blocked_cmd_list_entry;
 
 	/* Used to retry commands in case of double UA */
 	int dbl_ua_orig_resp_data_len, dbl_ua_orig_data_direction;
@@ -2244,18 +2285,24 @@ struct scst_cmd {
 	 */
 	struct list_head mgmt_cmd_list;
 
-	/* List entry for dev's blocked_cmd_list */
-	struct list_head blocked_cmd_list_entry;
+	/* Used to restore sg if it was modified by scst_adjust_sg() */
+	struct scst_orig_sg_data orig_sg;
 
-	/* Counter of the corresponding SCST_PR_ABORT_ALL TM commands */
-	struct scst_pr_abort_all_pending_mgmt_cmds_counter *pr_abort_counter;
+	/* Per opcode stuff */
+	union {
+		/* Counter of the corresponding SCST_PR_ABORT_ALL TM commands */
+		struct scst_pr_abort_all_pending_mgmt_cmds_counter *pr_abort_counter;
 
-	/*
-	 * List of parsed data descriptors for commands operating with
-	 * several lba and data_len pairs, like UNMAP, and its size in elements.
-	 */
-	void *cmd_data_descriptors;
-	int cmd_data_descriptors_cnt;
+		/*
+		 * List of parsed data descriptors for commands operating with
+		 * several lba and data_len pairs, like UNMAP, and its size
+		 * in elements.
+		 */
+		struct {
+			void *cmd_data_descriptors;
+			int cmd_data_descriptors_cnt;
+		};
+	};
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	char not_parsed_op_name[8];
@@ -2780,6 +2827,9 @@ struct scst_acg_dev {
  * control information.
  */
 struct scst_acg {
+	/* One more than the number of sessions in acg_sess_list */
+	struct kref acg_kref;
+
 	/* Owner target */
 	struct scst_tgt *tgt;
 
@@ -4277,11 +4327,16 @@ static inline int cancel_delayed_work_sync(struct delayed_work *work)
 #endif
 #endif
 
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32) && \
+	defined(CONFIG_DEBUG_LOCK_ALLOC)
 extern struct lockdep_map scst_suspend_dep_map;
 #define scst_assert_activity_suspended()		\
 	WARN_ON(debug_locks && !lock_is_held(&scst_suspend_dep_map));
 #else
+/*
+ * See also patch "lockdep: Introduce lockdep_assert_held()" (commit ID
+ * f607c6685774811b8112e124f10a053d77015485)
+ */
 #define scst_assert_activity_suspended() do { } while (0)
 #endif
 

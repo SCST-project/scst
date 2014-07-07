@@ -991,7 +991,7 @@ static int scst_proc_del_free_acg(struct scst_acg *acg, int remove_proc)
 		}
 		if (remove_proc)
 			scst_proc_del_acg_tree(acg_proc_root, acg->acg_name);
-		scst_del_free_acg(acg);
+		scst_del_free_acg(acg, false);
 	}
 out:
 	TRACE_EXIT_RES(res);
