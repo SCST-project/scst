@@ -151,9 +151,9 @@ MODULE_PARM_DESC(use_node_guid_in_target_name,
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31) \
     || defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
-static int one_target_per_port;
+static int one_target_per_port = true;
 #else
-static bool one_target_per_port;
+static bool one_target_per_port = true;
 #endif
 module_param(one_target_per_port, bool, 0444);
 MODULE_PARM_DESC(one_target_per_port,
@@ -1542,8 +1542,9 @@ static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 			      int status, const u8 *sense_data,
 			      int sense_data_len)
 {
+	struct scst_cmd *cmd = &ioctx->scmnd;
 	struct srp_rsp *srp_rsp;
-	int max_sense_len;
+	int resid, max_sense_len;
 
 	/*
 	 * The lowest bit of all SAM-3 status codes is zero (see also
@@ -1559,6 +1560,23 @@ static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 	srp_rsp->req_lim_delta = cpu_to_be32(ioctx->req_lim_delta);
 	srp_rsp->tag = tag;
 	srp_rsp->status = status;
+
+	if (unlikely(scst_get_resid(cmd, &resid, NULL) && resid != 0)) {
+		if (scst_cmd_get_data_direction(cmd) & SCST_DATA_READ) {
+			if (resid > 0)
+				srp_rsp->flags |= SRP_RSP_FLAG_DIUNDER;
+			else if (resid < 0)
+				srp_rsp->flags |= SRP_RSP_FLAG_DIOVER;
+			srp_rsp->data_in_res_cnt = cpu_to_be32(abs(resid));
+		}
+		if (scst_cmd_get_data_direction(cmd) & SCST_DATA_WRITE) {
+			if (resid > 0)
+				srp_rsp->flags |= SRP_RSP_FLAG_DOUNDER;
+			else if (resid < 0)
+				srp_rsp->flags |= SRP_RSP_FLAG_DOOVER;
+			srp_rsp->data_out_res_cnt = cpu_to_be32(abs(resid));
+		}
+	}
 
 	if (!scst_sense_valid(sense_data))
 		sense_data_len = 0;
@@ -1938,9 +1956,11 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 		} else if (opcode == SRPT_RDMA_READ_LAST ||
 			   opcode == SRPT_RDMA_WRITE_LAST) {
 			PRINT_INFO("RDMA t %d for idx %u failed with status %d."
+				   "%s", opcode, index, wc->status,
+				   wc->status == IB_WC_WR_FLUSH_ERR ?
 				   " If this has not been triggered by a cable"
 				   " pull, please check the involved IB HCA's"
-				   " and cables.", opcode, index, wc->status);
+				   " and cables." : "");
 			srpt_handle_rdma_err_comp(ch, ch->ioctx_ring[index],
 						  opcode, srpt_xmt_rsp_context);
 		} else if (opcode == SRPT_RDMA_ZEROLENGTH_WRITE) {
@@ -2056,6 +2076,16 @@ static int srpt_compl_thread(void *arg)
 
 	ch = arg;
 	BUG_ON(!ch);
+
+	while (ch->state < CH_LIVE) {
+		set_current_state(TASK_INTERRUPTIBLE);
+		if (srpt_process_completion(ch, poll_budget) >= poll_budget)
+			cond_resched();
+		else
+			schedule();
+	}
+
+	srpt_process_wait_list(ch);
 
 	while (ch->state < CH_DISCONNECTED) {
 		set_current_state(TASK_INTERRUPTIBLE);
@@ -2247,9 +2277,7 @@ static void __srpt_close_all_ch(struct srpt_tgt *srpt_tgt)
 	struct srpt_nexus *nexus;
 	struct srpt_rdma_ch *ch;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&srpt_tgt->mutex);
-#endif
 
 	list_for_each_entry(nexus, &srpt_tgt->nexus_list, entry) {
 		list_for_each_entry(ch, &nexus->ch_list, list) {

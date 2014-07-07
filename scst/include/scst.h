@@ -79,6 +79,14 @@ typedef _Bool bool;
 #define __aligned __attribute__((aligned))
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22)
+char *kvasprintf(gfp_t gfp, const char *fmt, va_list ap);
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
+#define lockdep_assert_held(l) do { (void)(l); } while (0)
+#endif
+
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 32)
 #ifndef O_DSYNC
 #define O_DSYNC O_SYNC
@@ -172,6 +180,27 @@ static inline void cpumask_copy(cpumask_t *dstp,
 {
 	bitmap_copy(cpumask_bits(dstp), cpumask_bits(srcp), nr_cpumask_bits);
 }
+
+/**
+ * cpumask_setall - set all cpus (< nr_cpu_ids) in a cpumask
+ * @dstp: the cpumask pointer
+ */
+static inline void cpumask_setall(cpumask_t *dstp)
+{
+	bitmap_fill(cpumask_bits(dstp), nr_cpumask_bits);
+}
+
+/**
+ * cpumask_equal - *src1p == *src2p
+ * @src1p: the first input
+ * @src2p: the second input
+ */
+static inline bool cpumask_equal(const cpumask_t *src1p,
+				 const cpumask_t *src2p)
+{
+	return bitmap_equal(cpumask_bits(src1p), cpumask_bits(src2p),
+			    nr_cpumask_bits);
+}
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26) && \
@@ -184,6 +213,16 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 {
 	return q->max_hw_sectors;
 }
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+/*
+ * See also patch "kernel.h: add pr_warn for symmetry to dev_warn,
+ * netdev_warn" (commit fc62f2f19edf46c9bdbd1a54725b56b18c43e94f).
+ */
+#ifndef pr_warn
+#define pr_warn pr_warning
+#endif
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
@@ -4277,11 +4316,16 @@ static inline int cancel_delayed_work_sync(struct delayed_work *work)
 #endif
 #endif
 
-#ifdef CONFIG_DEBUG_LOCK_ALLOC
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32) && \
+	defined(CONFIG_DEBUG_LOCK_ALLOC)
 extern struct lockdep_map scst_suspend_dep_map;
 #define scst_assert_activity_suspended()		\
 	WARN_ON(debug_locks && !lock_is_held(&scst_suspend_dep_map));
 #else
+/*
+ * See also patch "lockdep: Introduce lockdep_assert_held()" (commit ID
+ * f607c6685774811b8112e124f10a053d77015485)
+ */
 #define scst_assert_activity_suspended() do { } while (0)
 #endif
 

@@ -2566,7 +2566,7 @@ void scst_pr_read_reservation(struct scst_cmd *cmd, uint8_t *buffer,
 	int buffer_size)
 {
 	struct scst_device *dev = cmd->dev;
-	uint8_t b[24];
+	uint8_t b[24] = { };
 	int size = 0;
 
 	TRACE_ENTRY();
@@ -2578,8 +2578,6 @@ void scst_pr_read_reservation(struct scst_cmd *cmd, uint8_t *buffer,
 			"(buffer %p)", buffer_size, buffer);
 		goto out;
 	}
-
-	memset(b, 0, sizeof(b));
 
 	put_unaligned_be32(dev->pr_generation, &b[0]);
 

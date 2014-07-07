@@ -1885,7 +1885,7 @@ static ssize_t __scst_acg_cpu_mask_show(struct scst_acg *acg, char *buf)
 	res = cpumask_scnprintf(buf, SCST_SYSFS_BLOCK_SIZE,
 		&acg->acg_cpu_mask);
 #endif
-	if (!cpus_equal(acg->acg_cpu_mask, default_cpu_mask))
+	if (!cpumask_equal(&acg->acg_cpu_mask, &default_cpu_mask))
 		res += sprintf(&buf[res], "\n%s\n", SCST_SYSFS_KEY_MARK);
 
 	return res;
@@ -1991,7 +1991,7 @@ static ssize_t __scst_acg_cpu_mask_store(struct scst_acg *acg,
 		goto out_release;
 	}
 
-	if (cpus_equal(acg->acg_cpu_mask, work->cpu_mask))
+	if (cpumask_equal(&acg->acg_cpu_mask, &work->cpu_mask))
 		goto out;
 
 	work->tgt = acg->tgt;

@@ -2407,7 +2407,9 @@ static int prepare_read_page(struct file *filp, int len,
 	unsigned long index, last_index;
 	long end_index, nr;
 	loff_t isize;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 15, 0)
 	read_descriptor_t desc = { .count = len };
+#endif
 	int error;
 
 	TRACE_ENTRY();
@@ -2460,8 +2462,13 @@ find_page:
 		/* Did it get truncated before we got the lock? */
 		if (!page->mapping)
 			goto page_not_up_to_date_locked;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 15, 0)
+		if (!mapping->a_ops->is_partially_uptodate(page,
+						offset & ~PAGE_CACHE_MASK, len))
+#else
 		if (!mapping->a_ops->is_partially_uptodate(page, &desc,
 						offset & ~PAGE_CACHE_MASK))
+#endif
 			goto page_not_up_to_date_locked;
 		unlock_page(page);
 	}
@@ -6015,7 +6022,7 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 	char *params, const char *const allowed_params[])
 {
 	int res = 0;
-	unsigned long val;
+	unsigned long long val;
 	char *param, *p, *pp;
 
 	TRACE_ENTRY();
@@ -6093,9 +6100,9 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 		}
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
-		res = kstrtoul(pp, 0, &val);
+		res = kstrtoull(pp, 0, &val);
 #else
-		res = strict_strtoul(pp, 0, &val);
+		res = strict_strtoull(pp, 0, &val);
 #endif
 		if (res != 0) {
 			PRINT_ERROR("strtoul() for %s failed: %d (device %s)",
@@ -6137,7 +6144,7 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 		} else if (!strcasecmp("tst", p)) {
 			if ((val != SCST_TST_0_SINGLE_TASK_SET) &&
 			    (val != SCST_TST_1_SEP_TASK_SETS)) {
-				PRINT_ERROR("Invalid TST value %d", (int)val);
+				PRINT_ERROR("Invalid TST value %lld", val);
 				res = -EINVAL;
 				goto out;
 			}
@@ -6160,7 +6167,7 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 				res = -EINVAL;
 				goto out;
 			}
-			TRACE_DBG("block size %ld, block shift %d",
+			TRACE_DBG("block size %lld, block shift %d",
 				val, virt_dev->blk_shift);
 		} else {
 			PRINT_ERROR("Unknown parameter %s (device %s)", p,
@@ -6170,7 +6177,7 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 		}
 	}
 
-	if (virt_dev->file_size % (1 << virt_dev->blk_shift) != 0) {
+	if ((virt_dev->file_size & ((1 << virt_dev->blk_shift) - 1)) != 0) {
 		PRINT_ERROR("Device size %lld is not a multiple of the block"
 			    " size %d", virt_dev->file_size,
 			    1 << virt_dev->blk_shift);
@@ -6765,7 +6772,7 @@ static int vdev_size_process_store(struct scst_sysfs_work_item *work)
 	int size_shift, res = -EINVAL;
 
 	if (sscanf(work->buf, "%d %lld", &size_shift, &new_size) != 2 ||
-	    new_size > (ULONG_MAX >> size_shift))
+	    new_size > (ULLONG_MAX >> size_shift))
 		goto put;
 
 	new_size <<= size_shift;
@@ -6783,7 +6790,7 @@ static int vdev_size_process_store(struct scst_sysfs_work_item *work)
 	if (!virt_dev->nullio) {
 		res = -EPERM;
 		sBUG();
-	} else if (new_size % (1 << virt_dev->blk_shift) == 0) {
+	} else if ((new_size & ((1 << virt_dev->blk_shift) - 1)) == 0) {
 		virt_dev->file_size = new_size;
 		virt_dev->nblocks = virt_dev->file_size >> dev->block_shift;
 	} else {
