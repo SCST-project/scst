@@ -250,7 +250,7 @@ static inline bool list_entry_in_list(const struct list_head *entry)
 }
 
 #define SCST_INTERFACE_VERSION	    \
-		SCST_VERSION_STRING "$Revision$" SCST_CONST_VERSION
+		SCST_VERSION_STRING SCST_INTF_VER SCST_CONST_VERSION
 
 #define SCST_LOCAL_NAME			"scst_local"
 

@@ -35,6 +35,8 @@
 #include <errno.h>
 #endif
 
+#include "scst_itf_ver.h"
+
 /*
  * Version numbers, the same as for the kernel.
  *
@@ -51,7 +53,7 @@
 #define SCST_VERSION_NAME	    "3.1.0-pre1"
 #define SCST_VERSION_STRING	    SCST_VERSION_NAME SCST_VERSION_STRING_SUFFIX
 
-#define SCST_CONST_VERSION "$Revision$"
+#define SCST_CONST_VERSION SCST_CONST_INTF_VER
 
 /*** Shared constants between user and kernel spaces ***/
 
