@@ -125,6 +125,7 @@ ifneq ($(MOD_VERS),)
 endif
 	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
 	mkdir -p $(DESTDIR)/var/lib/scst/pr
+	mkdir -p $(DESTDIR)/var/lib/scst/vdev_mode_pages
 	@echo "****************************************************************"
 	@echo "*!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!*"
 	@echo "*!!                                                          !!*"
