@@ -392,7 +392,7 @@ do
 
 #define SCST_INTF_VER "SCST_INTF_VER"
 #define SCST_CONST_INTF_VER "SCST_CONST_INTF_VER"
-#define DEV_USER_INTF_VER "DEV_USER_INTF_VER" 
+#define DEV_USER_INTF_VER "DEV_USER_INTF_VER"
 EOF
       add_file "$tmp_itf_ver" "include/scst/scst_itf_ver.h"
       rm -f "$tmp_itf_ver"
