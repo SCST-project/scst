@@ -174,6 +174,9 @@ struct scst_vdisk_dev {
 
 	struct file *fd;
 	struct block_device *bdev;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+	struct bio_set *vdisk_bioset;
+#endif
 
 	uint64_t format_progress_to_do, format_progress_done;
 
@@ -5163,15 +5166,6 @@ static void blockio_endio(struct bio *bio, int error)
 #endif
 }
 
-static struct bio *vdisk_bio_alloc(gfp_t gfp_mask, int max_nr_vecs)
-{
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
-	return bio_kmalloc(gfp_mask, max_nr_vecs);
-#else
-	return bio_alloc(gfp_mask, max_nr_vecs);
-#endif
-}
-
 static void vdisk_bio_set_failfast(struct bio *bio)
 {
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 27)
@@ -5223,6 +5217,9 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	int block_shift = cmd->dev->block_shift;
 	struct block_device *bdev = virt_dev->bdev;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+	struct bio_set *bs = virt_dev->vdisk_bioset;
+#endif
 	struct request_queue *q = bdev_get_queue(bdev);
 	int length, max_nr_vecs = 0, offset;
 	struct page *page;
@@ -5279,7 +5276,12 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 			int rc;
 
 			if (need_new_bio) {
-				bio = vdisk_bio_alloc(gfp_mask, max_nr_vecs);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+				bio = bio_alloc_bioset(gfp_mask, max_nr_vecs, bs);
+#else
+				bio = bio_alloc(gfp_mask, max_nr_vecs);
+#endif
+
 				if (!bio) {
 					PRINT_ERROR("Failed to create bio "
 						"for data segment %d (cmd %p)",
@@ -5510,7 +5512,7 @@ static ssize_t blockio_rw_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 	max_nr_vecs = min(bio_get_nr_vecs(bdev), BIO_MAX_PAGES);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
-	bio = bio_kmalloc(GFP_KERNEL, max_nr_vecs);
+	bio = bio_alloc_bioset(GFP_KERNEL, max_nr_vecs, virt_dev->vdisk_bioset);
 #else
 	bio = bio_alloc(GFP_KERNEL, max_nr_vecs);
 #endif
@@ -5986,6 +5988,34 @@ out:
 	return res;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+static int vdisk_create_bioset(struct scst_vdisk_dev *virt_dev)
+{
+	int res;
+
+	EXTRACHECKS_BUG_ON(virt_dev->vdisk_bioset || !virt_dev->blockio);
+
+	/* Pool size doesn't really matter */
+	virt_dev->vdisk_bioset = bioset_create(2, 0);
+	if (virt_dev->vdisk_bioset == NULL) {
+		PRINT_ERROR("Failed to create bioset (dev %s)", virt_dev->name);
+		res = -ENOMEM;
+		goto out;
+	}
+
+	res = 0;
+
+out:
+	return res;
+}
+
+static void vdisk_free_bioset(struct scst_vdisk_dev *virt_dev)
+{
+	if (virt_dev->vdisk_bioset != NULL)
+		bioset_free(virt_dev->vdisk_bioset);
+}
+#endif
+
 /* scst_vdisk_mutex supposed to be held */
 static int vdev_create(struct scst_dev_type *devt,
 	const char *name, struct scst_vdisk_dev **res_virt_dev)
@@ -6075,6 +6105,9 @@ out_free:
 
 static void vdev_destroy(struct scst_vdisk_dev *virt_dev)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+	vdisk_free_bioset(virt_dev);
+#endif
 	kfree(virt_dev->filename);
 	kfree(virt_dev);
 	return;
@@ -6344,6 +6377,12 @@ static int vdev_blockio_add_device(const char *device_name, char *params)
 		res = -EINVAL;
 		goto out_destroy;
 	}
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+	res = vdisk_create_bioset(virt_dev);
+	if (res != 0)
+		goto out_destroy;
+#endif
 
 	list_add_tail(&virt_dev->vdev_list_entry, &vdev_list);
 
@@ -8068,6 +8107,11 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 			} else if (!strncmp("BLOCKIO", p, 7)) {
 				p += 7;
 				virt_dev->blockio = 1;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+				res = vdisk_create_bioset(virt_dev);
+				if (res != 0)
+					goto out_free_vdev;
+#endif
 				/* Bad hack for anyway going out procfs */
 				virt_dev->vdev_devt = &vdisk_blk_devtype;
 				sprintf(virt_dev->t10_vend_id, "%.*s",
