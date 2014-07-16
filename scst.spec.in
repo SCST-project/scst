@@ -131,6 +131,7 @@ find /lib/modules/%{kver} -name ib_srpt.ko -exec rm {} \;
 /usr/include/scst/scst.h
 /usr/include/scst/scst_const.h
 /usr/include/scst/scst_debug.h
+/usr/include/scst/scst_itf_ver.h
 /usr/include/scst/scst_sgv.h
 /usr/include/scst/scst_user.h
 
