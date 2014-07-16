@@ -115,6 +115,7 @@ install: all
 	install -m 644 ../include/scst_debug.h $(INSTALL_DIR_H)
 	install -m 644 ../include/scst_user.h $(INSTALL_DIR_H)
 	install -m 644 ../include/scst_const.h $(INSTALL_DIR_H)
+	install -m 644 ../include/scst_itf_ver.h $(INSTALL_DIR_H)
 ifneq ($(MODS_VERS),)
 	rm -f $(INSTALL_DIR_H)/Module.symvers
 	install -m 644 Modules.symvers $(INSTALL_DIR_H)
