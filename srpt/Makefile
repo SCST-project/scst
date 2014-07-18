@@ -11,7 +11,6 @@ SCST_INC_DIR := $(shell if [ -e "$$PWD/../scst" ];			\
 SCST_SYMVERS_DIR := $(shell if [ -e $$PWD/../scst ]; then	\
                         echo $$PWD/../scst/src;			\
                       else echo $(DESTDIR)$(PREFIX)/include/scst; fi)
-SUBDIRS := $(shell pwd)
 
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
