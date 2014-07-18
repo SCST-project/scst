@@ -61,9 +61,11 @@ OFED_KERNEL_DIR:=/usr/src/compat-rdma
 OFED_CFLAGS:=-I$(OFED_KERNEL_DIR)/include
 else
 ifeq ($(OFED_FLAVOR),MOFED)
-# Mellanox OFED with or without kernel-ib RPM
+# Mellanox OFED with or without kernel-ib RPM. Since several MOFED backport
+# header files use the LINUX_BACKPORT() macro without including
+# <linux/compat-2.6.h>, include that header file explicitly.
 OFED_KERNEL_DIR:=/usr/src/ofa_kernel/default
-OFED_CFLAGS:=-I$(OFED_KERNEL_DIR)/include
+OFED_CFLAGS:=-I$(OFED_KERNEL_DIR)/include -include linux/compat-2.6.h
 else
 # OFED 1.5
 OFED_KERNEL_DIR:=/usr/src/ofa_kernel
