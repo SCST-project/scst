@@ -61,7 +61,7 @@ the variable PRE_CFLAGS:
   if [ -e /lib/modules/$(uname -r)/build/scripts/Makefile.lib ]; then
     cd /lib/modules/$(uname -r)/build
   else
-    cd /usr/src/linux-$(uname -r)
+    cd /usr/src/linux-$(uname -r | sed 's/\(-default\|-trace\|-xen\)$//;s/\.[0-9]\+\.[0-9]\+\.[0-9]\+\.PTF$//')
   fi
   patch -p1 < ${SCST_DIR}/srpt/patches/kernel-${KV}-pre-cflags.patch
 
