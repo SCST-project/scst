@@ -1914,6 +1914,9 @@ struct scst_cmd_threads {
 	struct list_head lists_list_entry;
 };
 
+int scst_set_thr_cpu_mask(struct scst_cmd_threads *cmd_threads,
+			  cpumask_t *cpu_mask);
+
 /*
  * Used to execute cmd's in order of arrival, honoring SCSI task attributes
  */

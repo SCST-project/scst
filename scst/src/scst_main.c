@@ -1992,6 +1992,26 @@ out:
 	return;
 }
 
+/* scst_mutex supposed to be held */
+int scst_set_thr_cpu_mask(struct scst_cmd_threads *cmd_threads,
+			  cpumask_t *cpu_mask)
+{
+	struct scst_cmd_thread_t *thr;
+	int rc = 0;
+
+	lockdep_assert_held(&scst_mutex);
+
+	list_for_each_entry(thr, &cmd_threads->threads_list,
+			    thread_list_entry) {
+		rc = set_cpus_allowed_ptr(thr->cmd_thread, cpu_mask);
+		if (rc)
+			break;
+	}
+
+	return rc;
+}
+EXPORT_SYMBOL(scst_set_thr_cpu_mask);
+
 /* The activity supposed to be suspended and scst_mutex held */
 void scst_stop_dev_threads(struct scst_device *dev)
 {

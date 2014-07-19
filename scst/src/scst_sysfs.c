@@ -1916,18 +1916,14 @@ static int __scst_acg_process_cpu_mask_store(struct scst_tgt *tgt,
 			struct list_head *head = &sess->sess_tgt_dev_list[i];
 			list_for_each_entry(tgt_dev, head,
 						sess_tgt_dev_list_entry) {
-				struct scst_cmd_thread_t *thr;
+				int rc;
+
 				if (tgt_dev->active_cmd_threads != &tgt_dev->tgt_dev_cmd_threads)
 					continue;
-				list_for_each_entry(thr,
-						&tgt_dev->active_cmd_threads->threads_list,
-						thread_list_entry) {
-					int rc;
-					rc = set_cpus_allowed_ptr(thr->cmd_thread, cpu_mask);
-					if (rc != 0)
-						PRINT_ERROR("Setting CPU "
-							"affinity failed: %d", rc);
-				}
+				rc = scst_set_thr_cpu_mask(tgt_dev->active_cmd_threads, cpu_mask);
+				if (rc != 0)
+					PRINT_ERROR("Setting CPU affinity"
+						    " failed: %d", rc);
 			}
 		}
 		if (tgt->tgtt->report_aen != NULL) {
