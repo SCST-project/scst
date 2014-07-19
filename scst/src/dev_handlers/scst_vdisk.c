@@ -2224,6 +2224,24 @@ static int vcdrom_get_supported_opcodes(struct scst_cmd *cmd,
 	return 0;
 }
 
+static bool vdisk_use_zero_copy(const struct scst_cmd *cmd)
+{
+	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
+
+	if (!virt_dev->zero_copy)
+		return false;
+
+	switch (cmd->cdb[0]) {
+	case READ_6:
+	case READ_10:
+	case READ_12:
+	case READ_16:
+		return true;
+	}
+
+	return false;
+}
+
 /*
  * Compute p->loff and p->fua.
  * Returns true for success or false otherwise and set error in the commeand.
@@ -2237,7 +2255,7 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 	loff_t loff;
 	struct scst_device *dev = cmd->dev;
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
-	bool use_zero_copy = false, res;
+	bool res;
 	int fua = 0;
 
 	TRACE_ENTRY();
@@ -2299,15 +2317,6 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 	}
 
 	switch (opcode) {
-	case READ_6:
-	case READ_10:
-	case READ_12:
-	case READ_16:
-		use_zero_copy = true;
-		break;
-	}
-
-	switch (opcode) {
 	case WRITE_10:
 	case WRITE_12:
 	case WRITE_16:
@@ -2323,7 +2332,7 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 
 	p->loff = loff;
 	p->fua = fua;
-	p->use_zero_copy = use_zero_copy && virt_dev->zero_copy;
+	p->use_zero_copy = vdisk_use_zero_copy(cmd);
 
 	res = true;
 
