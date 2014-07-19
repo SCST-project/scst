@@ -4845,7 +4845,6 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 	if (res == SCST_CMD_STATE_RES_CONT_NEXT) {
 		/* None */
 	} else if (res == SCST_CMD_STATE_RES_NEED_THREAD) {
-		spin_lock_irq(&cmd->cmd_threads->cmd_list_lock);
 #ifdef CONFIG_SCST_EXTRACHECKS
 		switch (cmd->state) {
 		case SCST_CMD_STATE_PARSE:
@@ -4858,22 +4857,18 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 		case SCST_CMD_STATE_REAL_EXEC:
 		case SCST_CMD_STATE_DEV_DONE:
 		case SCST_CMD_STATE_XMIT_RESP:
-#endif
-			TRACE_DBG("Adding cmd %p to head of active cmd list",
-				  cmd);
-			list_add(&cmd->cmd_list_entry,
-				&cmd->cmd_threads->active_cmd_list);
-#ifdef CONFIG_SCST_EXTRACHECKS
 			break;
 		default:
 			PRINT_CRIT_ERROR("cmd %p is in invalid state %d)", cmd,
 				cmd->state);
-#if !defined(__CHECKER__)
-			spin_unlock_irq(&cmd->cmd_threads->cmd_list_lock);
-#endif
 			sBUG();
 		}
 #endif
+		TRACE_DBG("Adding cmd %p to head of active cmd list", cmd);
+
+		spin_lock_irq(&cmd->cmd_threads->cmd_list_lock);
+		list_add(&cmd->cmd_list_entry,
+			 &cmd->cmd_threads->active_cmd_list);
 		wake_up(&cmd->cmd_threads->cmd_list_waitQ);
 		spin_unlock_irq(&cmd->cmd_threads->cmd_list_lock);
 	} else
