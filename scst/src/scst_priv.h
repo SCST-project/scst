@@ -628,9 +628,7 @@ static inline void scst_reserve_dev(struct scst_device *dev,
 
 static inline void scst_clear_dev_reservation(struct scst_device *dev)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&dev->dev_lock);
-#endif
 	dev->reserved_by = NULL;
 }
 

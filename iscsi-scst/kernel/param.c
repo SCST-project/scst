@@ -241,9 +241,7 @@ static int iscsi_tgt_params_set(struct iscsi_session *session,
 	struct iscsi_tgt_params *params = &session->tgt_params;
 	int32_t *iparams = info->target_params;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&session->target->target_mutex);
-#endif
 
 	if (set) {
 		struct iscsi_conn *conn;
@@ -311,9 +309,7 @@ int iscsi_params_set(struct iscsi_target *target,
 	int err;
 	struct iscsi_session *session;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&target->target_mutex);
-#endif
 
 	if (info->sid == 0) {
 		PRINT_ERROR("sid must not be %d", 0);
