@@ -1224,7 +1224,7 @@ static void mvst_do_cmd_completion(struct mvs_info *mvi,
 			TRACE_DBG("Read data command %p finished", cmd);
 			if (err) {
 				cmd->cmd_state = MVST_STATE_SEND_DATA_RETRY;
-				sBUG_ON(1);
+				sBUG();
 			}
 			goto out;
 		} else if (cmd->cmd_state == MVST_STATE_ABORTED) {

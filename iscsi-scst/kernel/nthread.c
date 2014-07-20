@@ -368,7 +368,7 @@ void iscsi_task_mgmt_affected_cmds_done(struct scst_mgmt_cmd *scst_mcmd)
 	case SCST_ABORT_ALL_TASKS_SESS:
 	case SCST_ABORT_ALL_TASKS:
 	case SCST_NEXUS_LOSS:
-		sBUG_ON(1);
+		sBUG();
 		break;
 	default:
 		/* Nothing to do */

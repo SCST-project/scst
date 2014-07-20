@@ -5606,7 +5606,7 @@ static void q2t_exec_sess_work(struct q2t_tgt *tgt,
 			loop_id = GET_TARGET_ID(ha, &prm->tm_iocb);
 		break;
 	default:
-		sBUG_ON(1);
+		sBUG();
 		break;
 	}
 
@@ -5683,7 +5683,7 @@ send:
 		break;
 	}
 	default:
-		sBUG_ON(1);
+		sBUG();
 		break;
 	}
 
@@ -5733,7 +5733,7 @@ out_term:
 				0, 0, 0, 0, 0);
 		break;
 	default:
-		sBUG_ON(1);
+		sBUG();
 		break;
 	}
 	goto out_put;

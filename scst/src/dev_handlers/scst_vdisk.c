@@ -1654,7 +1654,7 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 			}
 			break;
 		default:
-			sBUG_ON(1);
+			sBUG();
 			break;
 		}
 	}
@@ -3749,7 +3749,7 @@ static int vdisk_caching_pg(unsigned char *p, int pcontrol,
 		p[2] |= (virt_dev->wt_flag_saved || virt_dev->nv_cache) ? 0 : WCE;
 		break;
 	default:
-		sBUG_ON(1);
+		sBUG();
 		break;
 	}
 

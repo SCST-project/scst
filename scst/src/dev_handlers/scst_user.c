@@ -1911,7 +1911,7 @@ again:
 					dev_user_unjam_cmd(u, 0, NULL);
 					goto again;
 				case UCMD_STATE_EXECING:
-					EXTRACHECKS_BUG_ON(1);
+					EXTRACHECKS_BUG();
 				}
 			}
 		}

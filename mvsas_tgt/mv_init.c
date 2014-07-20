@@ -193,7 +193,7 @@ static void mvs_tasklet(unsigned long opaque)
 	mvi = ((struct mvs_prv_info *)sha->lldd_ha)->mvi[0];
 
 	if (unlikely(!mvi))
-		BUG_ON(1);
+		BUG();
 
 	for (i = 0; i < core_nr; i++) {
 		mvi = ((struct mvs_prv_info *)sha->lldd_ha)->mvi[i];

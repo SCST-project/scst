@@ -9413,7 +9413,7 @@ int scst_parse_descriptors(struct scst_cmd *cmd)
 		res = scst_parse_unmap_descriptors(cmd);
 		break;
 	default:
-		sBUG_ON(1);
+		sBUG();
 		res = -1;
 		break;
 	}
@@ -9431,7 +9431,7 @@ static void scst_free_descriptors(struct scst_cmd *cmd)
 		scst_free_unmap_descriptors(cmd);
 		break;
 	default:
-		sBUG_ON(1);
+		sBUG();
 		break;
 	}
 
