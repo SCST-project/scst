@@ -350,10 +350,8 @@ static struct ft_sess *ft_sess_delete(struct ft_tport *tport, u32 port_id)
  */
 static void ft_sess_close(struct ft_sess *sess)
 {
-	struct fc_lport *lport;
 	u32 port_id;
 
-	lport = sess->tport->lport;
 	port_id = sess->port_id;
 	if (port_id == -1)
 		return;
