@@ -157,7 +157,7 @@ particular port. Setting this attribute to 1 will reverse current status
 of the initiator mode from enabled to disabled and vice versa.
 
 
-Explicit conformation
+Explicit confirmation
 ---------------------
 
 This option should (actually, almost always must) be enabled by echoing
@@ -281,7 +281,7 @@ Each target subdirectory contains the following entries:
    of this FC port. It allows to finish configuring it before it starts
    accepting new connections. 0 by default.
 
- - explicit_confirmation - allows to enable explicit conformations, see
+ - explicit_confirmation - allows to enable explicit confirmations, see
    above.
 
  - rel_tgt_id - allows to read or write SCSI Relative Target Port
