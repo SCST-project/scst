@@ -402,9 +402,11 @@ scst-rpm:
 rpm:
 	$(MAKE) scst-rpm
 	$(MAKE) -C scstadmin rpm
-	@echo
-	@echo "The following RPMs have been built:"
-	@find -name '*.rpm'
+	@if [ "$$(id -u)" != 0 ]; then			\
+	    echo;					\
+	    echo "The following RPMs have been built:";	\
+	    find -name '*.rpm';				\
+	fi
 
 2perf: extraclean
 	cd $(SCST_DIR) && $(MAKE) $@
