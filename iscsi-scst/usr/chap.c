@@ -344,7 +344,8 @@ static int chap_rand(void)
 
     fd = open("/dev/urandom", O_RDONLY);
     assert(fd != -1);
-    (void)read(fd, &r, sizeof(r));
+    if (read(fd, &r, sizeof(r)) < sizeof(r)) {
+    }
     close(fd);
     return r;
 }
