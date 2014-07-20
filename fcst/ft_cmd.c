@@ -212,12 +212,9 @@ static void ft_abort_cmd(struct scst_cmd *cmd)
 	struct ft_cmd *fcmd = scst_cmd_get_tgt_priv(cmd);
 	struct fc_seq *sp = fcmd->seq;
 	struct fc_exch *ep = fc_seq_exch(sp);
-	struct fc_lport *lport = ep->lp;
 
 	pr_err("%s: cmd %p ox_id %#x rx_id %#x state %d\n", __func__, cmd,
 	       ep->oxid, ep->rxid, fcmd->state);
-
-	lport->tt.exch_done(sp);
 
 	spin_lock(&fcmd->lock);
 	switch (fcmd->state) {
@@ -257,10 +254,13 @@ static void ft_abort_cmd(struct scst_cmd *cmd)
 static void ft_cmd_done(struct ft_cmd *fcmd)
 {
 	struct fc_frame *fp = fcmd->req_frame;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36)
-	struct fc_lport *lport;
+	struct fc_seq *sp = fcmd->seq;
+	struct fc_lport *lport = fr_dev(fp);
 
-	lport = fr_dev(fp);
+	if (sp)
+		lport->tt.exch_done(sp);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36)
 	if (fr_seq(fp))
 		lport->tt.seq_release(fr_seq(fp));
 #endif
@@ -389,7 +389,6 @@ int ft_send_response(struct scst_cmd *cmd)
 		pr_err("Sending response for exchange with OX_ID %#x and RX_ID"
 		       " %#x failed: %d\n", ep->oxid, ep->rxid, error);
 done:
-	lport->tt.exch_done(fcmd->seq);
 	scst_tgt_cmd_done(cmd, SCST_CONTEXT_SAME);
 	return SCST_TGT_RES_SUCCESS;
 }
@@ -528,16 +527,14 @@ static void ft_send_resp_status(struct fc_frame *rx_fp, u32 status,
 
 	lport->tt.seq_send(lport, sp, fp);
 out:
-	lport->tt.exch_done(fr_seq(rx_fp));
+	;
 #else
 	fc_fill_reply_hdr(fp, rx_fp, FC_RCTL_DD_CMD_STATUS, 0);
 	sp = fr_seq(fp);
-	if (sp) {
+	if (sp)
 		lport->tt.seq_send(lport, sp, fp);
-		lport->tt.exch_done(sp);
-	} else {
+	else
 		lport->tt.frame_send(lport, fp);
-	}
 #endif
 }
 
@@ -651,7 +648,7 @@ static void ft_recv_cmd(struct ft_sess *sess, struct fc_frame *fp)
 {
 	struct fc_seq *sp;
 	struct scst_cmd *cmd;
-	struct ft_cmd *fcmd;
+	struct ft_cmd *fcmd = NULL;
 	struct fcp_cmnd *fcp;
 	struct fc_lport *lport;
 	int data_dir;
@@ -659,6 +656,15 @@ static void ft_recv_cmd(struct ft_sess *sess, struct fc_frame *fp)
 	int cdb_len;
 
 	lport = sess->tport->lport;
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
+	sp = fr_seq(fp);
+#else
+	sp = lport->tt.seq_assign(lport, fp);
+	if (!sp)
+		goto busy;
+#endif
+
 	fcmd = kzalloc(sizeof(*fcmd), GFP_ATOMIC);
 	if (!fcmd)
 		goto busy;
@@ -757,6 +763,8 @@ busy:
 	ft_send_resp_status(fp, SAM_STAT_BUSY, 0);
 	if (fcmd)
 		ft_cmd_done(fcmd);
+	else if (sp)
+		lport->tt.exch_done(sp);
 }
 
 /*
