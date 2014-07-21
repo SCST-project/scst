@@ -1412,6 +1412,12 @@ retry:
 	sg_size = size;
 
 	if (sg != write_cmnd->rsp_sg) {
+		/*
+		 * Data scatterlist. It is assumed that only the first element
+		 * has a non-zero offset and that all elements except the
+		 * first and the last have a length that is equal to
+		 * PAGE_SIZE.
+		 */
 		offset = conn->write_offset + sg[0].offset;
 		idx = offset >> PAGE_SHIFT;
 		offset &= ~PAGE_MASK;
@@ -1420,6 +1426,10 @@ retry:
 			"length %d", conn->write_offset, sg_size, idx, offset,
 			length);
 	} else {
+		/*
+		 * Response scatterlist. No assumptions are made about the
+		 * offset nor about the length of scatterlist elements.
+		 */
 		idx = 0;
 		offset = conn->write_offset;
 		while (offset >= sg[idx].length) {

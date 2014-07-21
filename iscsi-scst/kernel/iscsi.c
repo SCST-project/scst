@@ -1536,7 +1536,8 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 	iscsi_extracheck_is_rd_thread(conn);
 
 	buff_offs = offset;
-	idx = (offset + sg[0].offset) >> PAGE_SHIFT;
+	offset += sg[0].offset;
+	idx = offset >> PAGE_SHIFT;
 	offset &= ~PAGE_MASK;
 
 	conn->read_msg.msg_iov = conn->read_iov;
@@ -1557,7 +1558,7 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 
 		addr = (char __force __user *)(sg_virt(&sg[idx]));
 		EXTRACHECKS_BUG_ON(addr == NULL);
-		sg_len = sg[idx].length - offset;
+		sg_len = sg[idx].offset + sg[idx].length - offset;
 
 		conn->read_iov[i].iov_base = addr + offset;
 
