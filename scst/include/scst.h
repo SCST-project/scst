@@ -1908,6 +1908,7 @@ struct scst_cmd_threads {
 	/* io_context_mutex protects io_context and io_context_refcnt. */
 	struct mutex io_context_mutex;
 
+	spinlock_t thr_lock; /* Protects nr_threads and threads_list */
 	int nr_threads; /* number of processing threads */
 	struct list_head threads_list; /* processing threads */
 

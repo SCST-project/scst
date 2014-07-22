@@ -1848,7 +1848,6 @@ void scst_unregister_virtual_dev_driver(struct scst_dev_type *dev_type)
 }
 EXPORT_SYMBOL_GPL(scst_unregister_virtual_dev_driver);
 
-/* scst_mutex supposed to be held */
 int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 	struct scst_device *dev, struct scst_tgt_dev *tgt_dev, int num)
 {
@@ -1863,9 +1862,9 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 		goto out;
 	}
 
-	list_for_each_entry(thr, &cmd_threads->threads_list, thread_list_entry) {
-		n++;
-	}
+	spin_lock(&cmd_threads->thr_lock);
+	n = cmd_threads->nr_threads;
+	spin_unlock(&cmd_threads->thr_lock);
 
 	TRACE_DBG("cmd_threads %p, dev %s, tgt_dev %p, num %d, n %d",
 		cmd_threads, dev ? dev->virt_name : NULL, tgt_dev, num, n);
@@ -1881,7 +1880,7 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 	}
 
 	for (i = 0; i < num; i++) {
-		thr = kmalloc(sizeof(*thr), GFP_KERNEL);
+		thr = kzalloc(sizeof(*thr), GFP_KERNEL);
 		if (!thr) {
 			res = -ENOMEM;
 			PRINT_ERROR("Fail to allocate thr %d", res);
@@ -1924,8 +1923,10 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 					"%d", rc);
 		}
 
+		spin_lock(&cmd_threads->thr_lock);
 		list_add(&thr->thread_list_entry, &cmd_threads->threads_list);
 		cmd_threads->nr_threads++;
+		spin_unlock(&cmd_threads->thr_lock);
 
 		TRACE_DBG("Added thr %p to threads list (nr_threads %d, n %d)",
 			thr, cmd_threads->nr_threads, n);
@@ -1955,39 +1956,43 @@ out:
 	return res;
 }
 
-/* scst_mutex supposed to be held */
 void scst_del_threads(struct scst_cmd_threads *cmd_threads, int num)
 {
-	struct scst_cmd_thread_t *ct, *tmp;
-
 	TRACE_ENTRY();
 
-	if (num == 0)
-		goto out;
-
-	list_for_each_entry_safe_reverse(ct, tmp, &cmd_threads->threads_list,
-				thread_list_entry) {
+	for ( ; num != 0; num--) {
+		struct scst_cmd_thread_t *ct = NULL, *ct2;
 		int rc;
+
+		spin_lock(&cmd_threads->thr_lock);
+		list_for_each_entry_reverse(ct2, &cmd_threads->threads_list,
+					    thread_list_entry) {
+			if (!ct2->being_stopped) {
+				ct = ct2;
+				ct->being_stopped = true;
+				cmd_threads->nr_threads--;
+				break;
+			}
+		}
+		spin_unlock(&cmd_threads->thr_lock);
+
+		if (!ct)
+			break;
 
 		rc = kthread_stop(ct->cmd_thread);
 		if (rc != 0 && rc != -EINTR)
 			TRACE_MGMT_DBG("kthread_stop() failed: %d", rc);
 
+		spin_lock(&cmd_threads->thr_lock);
 		list_del(&ct->thread_list_entry);
+		spin_unlock(&cmd_threads->thr_lock);
 
 		kfree(ct);
-
-		cmd_threads->nr_threads--;
-
-		--num;
-		if (num == 0)
-			break;
 	}
 
 	EXTRACHECKS_BUG_ON((cmd_threads->nr_threads == 0) &&
 		(cmd_threads->io_context != NULL));
 
-out:
 	TRACE_EXIT();
 	return;
 }
@@ -1999,14 +2004,14 @@ int scst_set_thr_cpu_mask(struct scst_cmd_threads *cmd_threads,
 	struct scst_cmd_thread_t *thr;
 	int rc = 0;
 
-	lockdep_assert_held(&scst_mutex);
-
+	spin_lock(&cmd_threads->thr_lock);
 	list_for_each_entry(thr, &cmd_threads->threads_list,
 			    thread_list_entry) {
 		rc = set_cpus_allowed_ptr(thr->cmd_thread, cpu_mask);
 		if (rc)
 			break;
 	}
+	spin_unlock(&cmd_threads->thr_lock);
 
 	return rc;
 }
@@ -2197,6 +2202,7 @@ void scst_init_threads(struct scst_cmd_threads *cmd_threads)
 	init_waitqueue_head(&cmd_threads->cmd_list_waitQ);
 	INIT_LIST_HEAD(&cmd_threads->threads_list);
 	mutex_init(&cmd_threads->io_context_mutex);
+	spin_lock_init(&cmd_threads->thr_lock);
 
 	mutex_lock(&scst_cmd_threads_mutex);
 	list_add_tail(&cmd_threads->lists_list_entry,

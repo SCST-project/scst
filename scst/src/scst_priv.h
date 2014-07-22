@@ -211,6 +211,7 @@ extern cpumask_t default_cpu_mask;
 struct scst_cmd_thread_t {
 	struct task_struct *cmd_thread;
 	struct list_head thread_list_entry;
+	bool		 being_stopped;
 };
 
 static inline bool scst_set_io_context(struct scst_cmd *cmd,
