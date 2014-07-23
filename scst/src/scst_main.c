@@ -1353,8 +1353,18 @@ static int scst_check_device_name(const char *dev_name)
 		PRINT_ERROR("Dev name %s contains illegal character '/'",
 			dev_name);
 		res = -EINVAL;
+		goto out;
 	}
 
+	/* To prevent collision with saved PR and mode pages backup files */
+	if (strchr(dev_name, '.') != NULL) {
+		PRINT_ERROR("Dev name %s contains illegal character '.'",
+			dev_name);
+		res = -EINVAL;
+		goto out;
+	}
+
+out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
