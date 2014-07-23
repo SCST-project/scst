@@ -578,6 +578,29 @@ enum scst_tg_sup {
 #define POSITION_LEN_LONG            32
 
 /*************************************************************
+ ** Compatibility constants
+ *************************************************************/
+#ifndef DID_TRANSPORT_DISRUPTED
+#define DID_TRANSPORT_DISRUPTED      0xe
+#endif
+
+#ifndef DID_TRANSPORT_FAILFAST
+#define DID_TRANSPORT_FAILFAST       0xf
+#endif
+
+#ifndef DID_NEXUS_FAILURE
+#define DID_NEXUS_FAILURE            0x11
+#endif
+
+#ifndef DID_ALLOC_FAILURE
+#define DID_ALLOC_FAILURE            0x12
+#endif
+
+#ifndef DID_MEDIUM_ERROR
+#define DID_MEDIUM_ERROR             0x13
+#endif
+
+/*************************************************************
  ** Various timeouts
  *************************************************************/
 #define SCST_DEFAULT_TIMEOUT			(30 * HZ)
