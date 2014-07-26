@@ -5091,7 +5091,7 @@ static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 	len = scst_get_buf_full(req_cmd, &buf);
 
 	if (scsi_status_is_good(req_cmd->status) && (len > 0) &&
-	    scst_sense_valid(buf) && !scst_no_sense(buf)) {
+	    scst_sense_valid(buf)) {
 		TRACE(TRACE_SCSI|TRACE_MGMT_DEBUG, "REQUEST SENSE %p returned "
 			"valid sense", req_cmd);
 		PRINT_BUFF_FLAG(TRACE_SCSI|TRACE_MGMT_DEBUG, "Sense", buf, len);
