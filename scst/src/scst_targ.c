@@ -3475,7 +3475,7 @@ static bool scst_check_auto_sense(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	if (unlikely(cmd->status == SAM_STAT_CHECK_CONDITION) &&
-	    (!scst_sense_valid(cmd->sense) || scst_no_sense(cmd->sense))) {
+	    !scst_sense_valid(cmd->sense)) {
 		if (!test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)) {
 			TRACE(TRACE_SCSI|TRACE_MINOR_AND_MGMT_DBG,
 				"CHECK_CONDITION, but no sense: cmd->status=%x, "
