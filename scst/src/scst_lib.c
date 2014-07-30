@@ -5095,7 +5095,7 @@ static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 		TRACE(TRACE_SCSI|TRACE_MGMT_DEBUG, "REQUEST SENSE %p returned "
 			"valid sense (orig cmd %s)", req_cmd, orig_cmd->op_name);
 		PRINT_BUFF_FLAG(TRACE_SCSI|TRACE_MGMT_DEBUG, "Sense", buf, len);
-		if (!scst_no_sense(buf))
+		if (scst_no_sense(buf))
 			PRINT_WARNING("REQUEST SENSE returned NO SENSE (orig "
 				"cmd %s)", orig_cmd->op_name);
 		scst_alloc_set_sense(orig_cmd, scst_cmd_atomic(req_cmd),
