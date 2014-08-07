@@ -51,14 +51,17 @@ else
     kernel="kernel-$(uname -r)"
 fi
 
-releasever="$(sed -n -e 's/^.* release \([0-9.]*\).*$/\1/p' /etc/issue)"
-
-distro="$(sed -n -e 's/^\(.*\) release .*$/\1/p' /etc/issue)"
+releasever="$(sed -n -e 's/^.* release \([0-9.]*\).*$/\1/p' /etc/redhat-release)"
+distro="$(sed -n -e 's/^\(.*\) release .*$/\1/p' /etc/redhat-release)"
 
 install_prerequisites=true
 
+usage() {
+    echo "$(basename "$0") [-d <distro>] [-h] [-i] [-k <kver>] [-r <rel>]"
+}
+
 type /usr/bin/getopt >/dev/null || exit 1
-options="$(/usr/bin/getopt d:ik:r: "$@")" || { usage; exit 1; }
+options="$(/usr/bin/getopt d:hik:r: "$@")" || { usage; exit 1; }
 set -- $options
 while [ "$1" != "${1#-}" ]; do
     case "$1" in
@@ -76,12 +79,31 @@ kernel="${kernel%.${arch}}"
 kernel_src_rpm="${kernel}.src.rpm"
 kver="${kernel#kernel-}"
 
-srpm_urls="$(get_srpm_urls $distro $releasever $arch)" || exit $?
+srpm_urls="$(get_srpm_urls "$distro" "$releasever" "$arch")" || exit $?
 
 function log {
     echo
     printf "$@"
     echo
+}
+
+copy_best_matching_patch() {
+    local f v
+
+    v="${kver}"
+    while [ "${v%[0-9a-z]}" != "$v" ]; do
+	f="${1}-${v}.patch"
+	if [ -e "$f" ]; then
+	    copy_patch "$f" "$2"
+	    return 0
+	fi
+	while [ "${v%[0-9a-z]}" != "$v" ]; do
+	    v="${v%[0-9a-z]}"
+	done
+	v="${v%.}"
+	v="${v%-}"
+    done
+    return 1
 }
 
 function copy_patch {
@@ -122,7 +144,7 @@ fi
 log "Installing prerequisites"
 
 if $install_prerequisites; then
-    sudo yum install -y -q asciidoc binutils-devel elfutils-libelf-devel hmaccalc ncurses-devel newt-devel patchutils 'perl(ExtUtils::Embed)' python-devel redhat-rpm-config rpmdevtools rng-tools rpm-build unifdef xmlto yum-utils zlib-devel
+    sudo yum install -y -q asciidoc binutils-devel elfutils-libelf-devel hmaccalc ncurses-devel newt-devel patchutils 'perl(ExtUtils::Embed)' python-devel redhat-rpm-config rpmdevtools rng-tools rpm-build unifdef wget xmlto yum-utils zlib-devel
 fi
 
 rc=$?; if [ $rc != 0 ]; then exit $rc; fi
@@ -173,19 +195,16 @@ cd SPECS
 log "Copying SCST patches to the SOURCES directory"
 
 cd ${rpmbuild_dir}/SOURCES
-copy_patch $scst_dir/scst/kernel/rhel/scst_exec_req_fifo-${kver}.patch scst_exec_req_fifo.patch
-v="${kver}"
-while [ "${v/.*}" != "$v" ]; do
-    f="$scst_dir/iscsi-scst/kernel/patches/rhel/put_page_callback-${v}.patch"
-    if [ -e "$f" ]; then
-	copy_patch "$f" put_page_callback.patch
-	break
-    fi
-    while [ "${v%[0-9a-z]}" != "$v" ]; do
-	v="${v%[0-9a-z]}"
-    done
-    v="${v%.}"
-done
+copy_best_matching_patch $scst_dir/scst/kernel/rhel/scst_exec_req_fifo scst_exec_req_fifo.patch ||
+{
+    echo "No matching scst_exec_req_fifo patch found for kernel version $kver";
+    exit 1;
+}
+copy_best_matching_patch $scst_dir/iscsi-scst/kernel/patches/rhel/put_page_callback put_page_callback.patch ||
+{
+    echo "No matching scst_exec_req_fifo patch found for kernel version $kver";
+    exit 1;
+}
 
 log "Adding SCST patches in kernel.spec"
 
@@ -321,7 +340,7 @@ diff -u SPECS/kernel.spec{.orig,}
    make ARCH=$Arch %{oldconfig_target} > /dev/null
    echo "# $Arch" > configs/$i
 EOF
-elif [ ${kver#3.10.0-121} != $kver ]; then
+elif [ ${kver#3.10.0-12[13]} != $kver ]; then
 # RHEL/CentOS/SL 7.0
 patch -p1 ${rpmbuild_dir}/SPECS/kernel.spec <<'EOF' || exit $?
 --- kernel.spec.orig	2014-05-23 10:09:17.707202148 +0200

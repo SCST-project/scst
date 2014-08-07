@@ -22,7 +22,7 @@ function get_srpm_urls() {
 	    case $releasever in
 		5.*|6.[01])
 		    echo "http://vault.centos.org/${releasever}/os/SRPMS http://vault.centos.org/${releasever}/updates/SRPMS";;
-		6.*)
+		[67].*)
 		    echo "http://vault.centos.org/${releasever}/os/Source/SPackages http://vault.centos.org/${releasever}/updates/Source/SPackages";;
 	    esac
 	    ;;
@@ -73,7 +73,7 @@ function get_rpm_urls() {
 		    echo "http://vault.centos.org/${releasever}/os/${arch}/CentOS http://vault.centos.org/${releasever}/updates/${arch}/RPMS";;
 		6.[01])
 		    echo "http://vault.centos.org/${releasever}/os/${arch}/Packages http://vault.centos.org/${releasever}/updates/${arch}/Packages";;
-		6.*)
+		[67].*)
 		    echo "http://vault.centos.org/${releasever}/os/${arch}/Packages http://vault.centos.org/${releasever}/updates/${arch}/Packages";;
 	    esac
 	    ;;
