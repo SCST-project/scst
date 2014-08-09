@@ -144,7 +144,31 @@ fi
 log "Installing prerequisites"
 
 if $install_prerequisites; then
-    sudo yum install -y -q asciidoc binutils-devel elfutils-libelf-devel hmaccalc ncurses-devel newt-devel patchutils 'perl(ExtUtils::Embed)' python-devel redhat-rpm-config rpmdevtools rng-tools rpm-build unifdef wget xmlto yum-utils zlib-devel
+    for p in \
+asciidoc \
+audit-libs-devel \
+binutils-devel \
+elfutils-devel \
+elfutils-libelf-devel \
+hmaccalc \
+ncurses-devel \
+newt-devel \
+patchutils \
+numactl-devel \
+pciutils-devel \
+'perl(ExtUtils::Embed)' \
+pesign \
+python-devel \
+redhat-rpm-config \
+rng-tools \
+rpm-build \
+rpmdevtools \
+unifdef \
+wget \
+xmlto \
+yum-utils \
+zlib-devel \
+; do sudo yum install -y -q "$p"; done
 fi
 
 rc=$?; if [ $rc != 0 ]; then exit $rc; fi
