@@ -5106,6 +5106,10 @@ out_nomem:
 struct scst_blockio_work {
 	atomic_t bios_inflight;
 	struct scst_cmd *cmd;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
+	/* just to avoid extra dereferences */
+	struct bio_set *bioset;
+#endif
 };
 
 static inline void blockio_check_finish(struct scst_blockio_work *blockio_work)
@@ -5119,6 +5123,15 @@ static inline void blockio_check_finish(struct scst_blockio_work *blockio_work)
 	}
 	return;
 }
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
+static void blockio_bio_destructor(struct bio *bio)
+{
+	struct scst_blockio_work *blockio_work = bio->bi_private;
+	bio_free(bio, blockio_work->bioset);
+	blockio_check_finish(blockio_work);
+}
+#endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
 static int blockio_endio(struct bio *bio, unsigned int bytes_done, int error)
@@ -5165,7 +5178,9 @@ static void blockio_endio(struct bio *bio, int error)
 		spin_unlock_irqrestore(&blockio_endio_lock, flags);
 	}
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)) || (LINUX_VERSION_CODE > KERNEL_VERSION(3, 6, 0))
 	blockio_check_finish(blockio_work);
+#endif
 
 	bio_put(bio);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
@@ -5261,6 +5276,9 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 #endif
 
 	blockio_work->cmd = cmd;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
+	blockio_work->bioset = bs;
+#endif
 
 	if (q)
 		max_nr_vecs = min(bio_get_nr_vecs(bdev), BIO_MAX_PAGES);
@@ -5308,6 +5326,9 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 #endif
 				bio->bi_bdev = bdev;
 				bio->bi_private = blockio_work;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
+				bio->bi_destructor = blockio_bio_destructor;
+#endif
 				/*
 				 * Better to fail fast w/o any local recovery
 				 * and retries.
@@ -5476,6 +5497,24 @@ out:
 	return res;
 }
 
+struct bio_priv_sync {
+	struct completion c;
+	int error;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
+	struct bio_set *bs;
+	struct completion c1;
+#endif
+};
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
+static void blockio_bio_destructor_sync(struct bio *bio)
+{
+	struct bio_priv_sync *s = bio->bi_private;
+	bio_free(bio, s->bs);
+	complete(&s->c1);
+}
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
 static int blockio_end_sync_io(struct bio *bio, unsigned int bytes_done,
 			       int error)
@@ -5483,7 +5522,7 @@ static int blockio_end_sync_io(struct bio *bio, unsigned int bytes_done,
 static void blockio_end_sync_io(struct bio *bio, int error)
 #endif
 {
-	struct completion *c = bio->bi_private;
+	struct bio_priv_sync *s = bio->bi_private;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
 	if (bio->bi_size)
@@ -5495,8 +5534,8 @@ static void blockio_end_sync_io(struct bio *bio, int error)
 		error = -EIO;
 	}
 
-	bio->bi_private = (void *)(unsigned long)error;
-	complete(c);
+	s->error = error;
+	complete(&s->c);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
 	return 0;
@@ -5508,7 +5547,13 @@ static void blockio_end_sync_io(struct bio *bio, int error)
 static ssize_t blockio_rw_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 			       size_t len, loff_t *loff, unsigned rw)
 {
-	DECLARE_COMPLETION_ONSTACK(c);
+	struct bio_priv_sync s = {
+		COMPLETION_INITIALIZER_ONSTACK(s.c), 0,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
+		virt_dev->vdisk_bioset,
+		COMPLETION_INITIALIZER_ONSTACK(s.c1)
+#endif
+	};
 	struct block_device *bdev = virt_dev->bdev;
 	const bool is_vmalloc = is_vmalloc_addr(buf);
 	struct bio *bio;
@@ -5517,6 +5562,9 @@ static ssize_t blockio_rw_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 	int max_nr_vecs, rc;
 	unsigned bytes, off;
 	ssize_t ret = -ENOMEM;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
+	bool submitted = false;
+#endif
 
 	max_nr_vecs = min(bio_get_nr_vecs(bdev), BIO_MAX_PAGES);
 
@@ -5532,7 +5580,10 @@ static ssize_t blockio_rw_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 	bio->bi_rw = rw;
 	bio->bi_bdev = bdev;
 	bio->bi_end_io = blockio_end_sync_io;
-	bio->bi_private = &c;
+	bio->bi_private = &s;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
+	bio->bi_destructor = blockio_bio_destructor_sync;
+#endif
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0)
 	bio->bi_sector = *loff >> 9;
 #else
@@ -5547,11 +5598,18 @@ static ssize_t blockio_rw_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 			goto free;
 	}
 	submit_bio(rw, bio);
-	wait_for_completion(&c);
-	ret = (unsigned long)bio->bi_private ? : len;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
+	submitted = true;
+#endif
+	wait_for_completion(&s.c);
+	ret = (unsigned long)s.error ? : len;
 
 free:
 	bio_put(bio);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
+	if (submitted)
+		wait_for_completion(&s.c1);
+#endif
 
 out:
 	return ret;
