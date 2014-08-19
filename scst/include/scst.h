@@ -66,6 +66,13 @@
 #include <scst_const.h>
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
+#define smp_mb__after_atomic_inc smp_mb__after_atomic
+#define smp_mb__after_clear_bit smp_mb__after_atomic
+#define smp_mb__before_atomic_dec smp_mb__before_atomic
+#define smp_mb__after_atomic_dec smp_mb__after_atomic
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 #ifndef RHEL_RELEASE_CODE
 typedef _Bool bool;
