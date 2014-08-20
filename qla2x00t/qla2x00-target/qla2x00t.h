@@ -78,9 +78,13 @@
 #define Q2T_STATE_PROCESSED         3	/* SCST done processing */
 #define Q2T_STATE_ABORTED           4	/* Command aborted */
 
-/* Special handles */
+/*
+ * Special handles.
+ * !! Changing them here, make sure that mask in the beginning of
+ * !! q2t_ctio_to_cmd() changed accordingly!
+ */
 #define Q2T_NULL_HANDLE             0
-#define Q2T_SKIP_HANDLE             (0xFFFFFFFF & ~CTIO_COMPLETION_HANDLE_MARK)
+#define Q2T_SKIP_HANDLE             (0xFFFFFFFF & ~(CTIO_COMPLETION_HANDLE_MARK|CTIO_INTERMEDIATE_HANDLE_MARK))
 
 /* ATIO task_codes field */
 #define ATIO_SIMPLE_QUEUE           0
