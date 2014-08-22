@@ -4342,7 +4342,7 @@ static inline int cancel_delayed_work_sync(struct delayed_work *work)
 	defined(CONFIG_DEBUG_LOCK_ALLOC)
 extern struct lockdep_map scst_suspend_dep_map;
 #define scst_assert_activity_suspended()		\
-	WARN_ON(debug_locks && !lock_is_held(&scst_suspend_dep_map));
+	WARN_ON(debug_locks && !lock_is_held(&scst_suspend_dep_map))
 #else
 /*
  * See also patch "lockdep: Introduce lockdep_assert_held()" (commit ID
