@@ -2286,12 +2286,12 @@ static void __srpt_close_all_ch(struct srpt_tgt *srpt_tgt)
 
 	list_for_each_entry(nexus, &srpt_tgt->nexus_list, entry) {
 		list_for_each_entry(ch, &nexus->ch_list, list) {
-			if (srpt_disconnect_ch(ch) < 0)
-				continue;
-			PRINT_INFO("Closing channel %s-%d because target %s has"
-				   " been disabled", ch->sess_name,
-				   ch->qp->qp_num,
-				   srpt_tgt->scst_tgt->tgt_name);
+			if (srpt_disconnect_ch(ch) >= 0)
+				PRINT_INFO("Closing channel %s-%d because"
+					   " target %s has been disabled",
+					   ch->sess_name, ch->qp->qp_num,
+					   srpt_tgt->scst_tgt->tgt_name);
+			srpt_close_ch(ch);
 		}
 	}
 }
