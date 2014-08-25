@@ -348,8 +348,8 @@ static const char *get_ch_state_name(enum rdma_ch_state s)
  */
 static void srpt_qp_event(struct ib_event *event, struct srpt_rdma_ch *ch)
 {
-	TRACE_DBG("QP event %d on ch=%p sess_name=%s state=%s",
-		  event->event, ch, ch->sess_name,
+	TRACE_DBG("QP event %d on ch=%p sess_name=%s-%d state=%s",
+		  event->event, ch, ch->sess_name, ch->qp->qp_num,
 		  get_ch_state_name(ch->state));
 
 	switch (event->event) {
@@ -366,8 +366,9 @@ static void srpt_qp_event(struct ib_event *event, struct srpt_rdma_ch *ch)
 #endif
 		break;
 	case IB_EVENT_QP_LAST_WQE_REACHED:
-		TRACE_DBG("%s, state %s: received Last WQE event.",
-			  ch->sess_name, get_ch_state_name(ch->state));
+		TRACE_DBG("%s-%d, state %s: received Last WQE event.",
+			  ch->sess_name, ch->qp->qp_num,
+			  get_ch_state_name(ch->state));
 		break;
 	default:
 		PRINT_ERROR("received unrecognized IB QP event %d",
@@ -1945,8 +1946,8 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 			srpt_handle_rdma_comp(ch, ch->ioctx_ring[index], opcode,
 					      srpt_xmt_rsp_context);
 		} else if (opcode == SRPT_RDMA_ZEROLENGTH_WRITE) {
-			WARN_ONCE(true, "%s: QP not in error state\n",
-				  ch->sess_name);
+			WARN_ONCE(true, "%s-%d: QP not in error state\n",
+				  ch->sess_name, ch->qp->qp_num);
 			WARN_ON_ONCE(!srpt_set_ch_state(ch, CH_DISCONNECTED));
 		} else {
 			WARN(true, "unexpected opcode %d\n", opcode);
@@ -2100,8 +2101,8 @@ static int srpt_compl_thread(void *arg)
 	}
 	set_current_state(TASK_RUNNING);
 
-	TRACE_DBG("ch %s: about to invoke scst_unregister_session()",
-		  ch->sess_name);
+	TRACE_DBG("%s-%d: about to invoke scst_unregister_session()",
+		  ch->sess_name, ch->qp->qp_num);
 	scst_unregister_session(ch->scst_sess, false, srpt_unreg_sess);
 
 	while (!kthread_should_stop())
@@ -2231,13 +2232,13 @@ static bool srpt_close_ch(struct srpt_rdma_ch *ch)
 
 	ret = srpt_ch_qp_err(ch);
 	if (ret < 0)
-		PRINT_ERROR("%s: changing queue pair into error state"
-			    " failed: %d", ch->sess_name, ret);
+		PRINT_ERROR("%s-%d: changing queue pair into error state"
+			    " failed: %d", ch->sess_name, ch->qp->qp_num, ret);
 
 	ret = srpt_zerolength_write(ch);
 	if (ret < 0) {
-		PRINT_ERROR("%s: queuing zero-length write failed: %d",
-			    ch->sess_name, ret);
+		PRINT_ERROR("%s-%d: queuing zero-length write failed: %d",
+			    ch->sess_name, ch->qp->qp_num, ret);
 		WARN_ON_ONCE(!srpt_set_ch_state(ch, CH_DISCONNECTED));
 	}
 
@@ -2287,8 +2288,9 @@ static void __srpt_close_all_ch(struct srpt_tgt *srpt_tgt)
 		list_for_each_entry(ch, &nexus->ch_list, list) {
 			if (srpt_disconnect_ch(ch) < 0)
 				continue;
-			PRINT_INFO("Closing channel %s because target %s has"
+			PRINT_INFO("Closing channel %s-%d because target %s has"
 				   " been disabled", ch->sess_name,
+				   ch->qp->qp_num,
 				   srpt_tgt->scst_tgt->tgt_name);
 		}
 	}
@@ -2833,7 +2835,8 @@ static int srpt_rdma_cm_req_recv(struct rdma_cm_id *cm_id,
 
 static void srpt_cm_rej_recv(struct srpt_rdma_ch *ch)
 {
-	PRINT_INFO("Received CM REJ for ch %s.", ch->sess_name);
+	PRINT_INFO("Received CM REJ for ch %s-%d.", ch->sess_name,
+		   ch->qp->qp_num);
 }
 
 static void srpt_check_timeout(struct srpt_rdma_ch *ch)
@@ -2860,9 +2863,9 @@ static void srpt_check_timeout(struct srpt_rdma_ch *ch)
 		do_div(max_compl_time_ms, 1000000);
 		T_tr_ms = T_tr_ns;
 		do_div(T_tr_ms, 1000000);
-		TRACE_DBG("Session %s: QP local ack timeout = %d or T_tr ="
+		TRACE_DBG("%s-%d: QP local ack timeout = %d or T_tr ="
 			  " %u ms; retry_cnt = %d; max compl. time = %d ms",
-			  ch->sess_name, attr.timeout, T_tr_ms,
+			  ch->sess_name, ch->qp->qp_num, attr.timeout, T_tr_ms,
 			  attr.retry_cnt, (unsigned)max_compl_time_ms);
 
 		if (max_compl_time_ms >= RDMA_COMPL_TIMEOUT_S * 1000) {
@@ -2886,7 +2889,8 @@ static void srpt_cm_rtu_recv(struct srpt_rdma_ch *ch)
 
 	ret = ch->using_rdma_cm ? 0 : srpt_ch_qp_rts(ch, ch->qp);
 	if (ret < 0) {
-		PRINT_ERROR("%s: QP transition to RTS failed", ch->sess_name);
+		PRINT_ERROR("%s-%d: QP transition to RTS failed",
+			    ch->sess_name, ch->qp->qp_num);
 		srpt_close_ch(ch);
 		return;
 	}
@@ -2899,19 +2903,21 @@ static void srpt_cm_rtu_recv(struct srpt_rdma_ch *ch)
 	 * already been invoked from another thread.
 	 */
 	if (!srpt_set_ch_state(ch, CH_LIVE))
-		PRINT_ERROR("%s: Channel transition to LIVE state failed",
-			    ch->sess_name);
+		PRINT_ERROR("%s-%d: channel transition to LIVE state failed",
+			    ch->sess_name, ch->qp->qp_num);
 }
 
 static void srpt_cm_timewait_exit(struct srpt_rdma_ch *ch)
 {
-	PRINT_INFO("Received CM TimeWait exit for ch %s.", ch->sess_name);
+	PRINT_INFO("Received CM TimeWait exit for ch %s-%d.", ch->sess_name,
+		   ch->qp->qp_num);
 	srpt_close_ch(ch);
 }
 
 static void srpt_cm_rep_error(struct srpt_rdma_ch *ch)
 {
-	PRINT_INFO("Received CM REP error for ch %s.", ch->sess_name);
+	PRINT_INFO("Received CM REP error for ch %s-%d.", ch->sess_name,
+		   ch->qp->qp_num);
 }
 
 /**
@@ -2928,7 +2934,8 @@ static int srpt_cm_dreq_recv(struct srpt_rdma_ch *ch)
  */
 static void srpt_cm_drep_recv(struct srpt_rdma_ch *ch)
 {
-	PRINT_INFO("Received CM DREP message for ch %s.", ch->sess_name);
+	PRINT_INFO("Received CM DREP message for ch %s-%d.", ch->sess_name,
+		   ch->qp->qp_num);
 	srpt_close_ch(ch);
 }
 
@@ -3718,8 +3725,9 @@ static int srpt_release_sport(struct srpt_tgt *srpt_tgt)
 		mutex_lock(&srpt_tgt->mutex);
 		list_for_each_entry(nexus, &srpt_tgt->nexus_list, entry) {
 			list_for_each_entry(ch, &nexus->ch_list, list) {
-				PRINT_INFO("%s: state %s; %d commands in"
+				PRINT_INFO("%s-%d: state %s; %d commands in"
 					   " progress", ch->sess_name,
+					   ch->qp->qp_num,
 					   get_ch_state_name(ch->state),
 				   atomic_read(&ch->scst_sess->sess_cmd_count));
 			}
