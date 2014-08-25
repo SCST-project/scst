@@ -2133,12 +2133,12 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 			      ch->rq_size + srpt_sq_size);
 #else
 	ch->cq = ib_create_cq(sdev->device, srpt_completion, NULL, ch,
-			      ch->rq_size + srpt_sq_size, 0);
+			      ch->rq_size + srpt_sq_size, ch->comp_vector);
 #endif
 	if (IS_ERR(ch->cq)) {
 		ret = PTR_ERR(ch->cq);
-		PRINT_ERROR("failed to create CQ cqe= %d ret= %d",
-			    ch->rq_size + srpt_sq_size, ret);
+		PRINT_ERROR("failed to create CQ: cqe %d; c.v. %d; ret %d",
+			    ch->rq_size + srpt_sq_size, ch->comp_vector, ret);
 		goto out;
 	}
 
@@ -2296,6 +2296,18 @@ static void __srpt_close_all_ch(struct srpt_tgt *srpt_tgt)
 	}
 }
 
+static struct srpt_device *srpt_convert_to_sdev(struct scst_tgt *scst_tgt)
+{
+	struct srpt_port *sport;
+
+	if (one_target_per_port) {
+		sport = scst_tgt_get_tgt_priv(scst_tgt);
+		return sport ? sport->sdev : NULL;
+	} else {
+		return scst_tgt_get_tgt_priv(scst_tgt);
+	}
+}
+
 static struct srpt_tgt *srpt_convert_scst_tgt(struct scst_tgt *scst_tgt)
 {
 	struct srpt_device *sdev;
@@ -2393,6 +2405,26 @@ static bool srpt_is_target_enabled(struct scst_tgt *scst_tgt)
 	return srpt_tgt && srpt_tgt->enabled;
 }
 #endif
+
+/*
+ * srpt_next_comp_vector() - Next completion vector >= srpt_tgt->comp_vector
+ */
+static u8 srpt_next_comp_vector(struct srpt_tgt *srpt_tgt)
+{
+	u8 comp_vector;
+
+	mutex_lock(&srpt_tgt->mutex);
+	comp_vector = find_next_bit(srpt_tgt->comp_v_mask, COMP_V_MASK_SIZE,
+				    srpt_tgt->comp_vector);
+	if (comp_vector >= COMP_V_MASK_SIZE)
+		comp_vector = find_next_bit(srpt_tgt->comp_v_mask,
+					    COMP_V_MASK_SIZE, 0);
+	sBUG_ON(comp_vector >= COMP_V_MASK_SIZE);
+	srpt_tgt->comp_vector = comp_vector + 1;
+	mutex_unlock(&srpt_tgt->mutex);
+
+	return comp_vector;
+}
 
 /**
  * srpt_cm_req_recv() - Process the event IB_CM_REQ_RECEIVED.
@@ -2555,6 +2587,8 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 		ch->ioctx_ring[i]->ch = ch;
 		list_add_tail(&ch->ioctx_ring[i]->free_list, &ch->free_list);
 	}
+
+	ch->comp_vector = srpt_next_comp_vector(srpt_tgt);
 
 	ret = srpt_create_ch_ib(ch);
 	if (ret) {
@@ -3782,6 +3816,57 @@ static uint16_t srpt_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 }
 
 #if !defined(CONFIG_SCST_PROC)
+static ssize_t show_comp_v_mask(struct kobject *kobj,
+				struct kobj_attribute *attr, char *buf)
+{
+	struct scst_tgt *scst_tgt = container_of(kobj, struct scst_tgt,
+						 tgt_kobj);
+	struct srpt_tgt *srpt_tgt = srpt_convert_scst_tgt(scst_tgt);
+	int res = -E_TGT_PRIV_NOT_YET_SET;
+
+	if (!srpt_tgt)
+		goto out;
+	res = sprintf(buf, "%#lx\n%s", srpt_tgt->comp_v_mask[0],
+		      SCST_SYSFS_KEY_MARK "\n");
+
+out:
+	return res;
+}
+
+static ssize_t store_comp_v_mask(struct kobject *kobj,
+				 struct kobj_attribute *attr, const char *buf,
+				 size_t count)
+{
+	struct scst_tgt *scst_tgt = container_of(kobj, struct scst_tgt,
+						 tgt_kobj);
+	struct srpt_tgt *srpt_tgt = srpt_convert_scst_tgt(scst_tgt);
+	struct srpt_device *sdev = srpt_convert_to_sdev(scst_tgt);
+	int res = -E_TGT_PRIV_NOT_YET_SET;
+	unsigned long mask;
+
+	if (!srpt_tgt)
+		goto out;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+	res = kstrtoul(buf, 16, &mask);
+#else
+	res = strict_strtoul(buf, 16, &mask);
+#endif
+	if (res)
+		goto out;
+	res = -EINVAL;
+	if (mask == 0 || mask >= (1ULL << sdev->device->num_comp_vectors))
+		goto out;
+	srpt_tgt->comp_v_mask[0] = mask;
+	res = count;
+
+out:
+	return res;
+}
+
+static struct kobj_attribute srpt_show_comp_v_mask_attr =
+	__ATTR(comp_v_mask, S_IRUGO | S_IWUSR, show_comp_v_mask,
+	       store_comp_v_mask);
+
 static ssize_t srpt_show_device(struct kobject *kobj,
 				struct kobj_attribute *attr, char *buf)
 {
@@ -3873,6 +3958,7 @@ static struct kobj_attribute srpt_show_login_info_attr =
 	__ATTR(login_info, S_IRUGO, show_login_info, NULL);
 
 static const struct attribute *srpt_tgt_attrs[] = {
+	&srpt_show_comp_v_mask_attr.attr,
 	&srpt_device_attr.attr,
 	&srpt_show_login_info_attr.attr,
 	NULL
@@ -3917,17 +4003,37 @@ static ssize_t show_ch_state(struct kobject *kobj, struct kobj_attribute *attr,
 	return sprintf(buf, "%s\n", get_ch_state_name(ch->state));
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20) || defined(RHEL_RELEASE_CODE)
+static ssize_t show_comp_vector(struct kobject *kobj,
+				struct kobj_attribute *attr, char *buf)
+{
+	struct scst_session *scst_sess;
+	struct srpt_rdma_ch *ch;
+
+	scst_sess = container_of(kobj, struct scst_session, sess_kobj);
+	ch = scst_sess_get_tgt_priv(scst_sess);
+	return ch ? sprintf(buf, "%u\n", ch->comp_vector) : -ENOENT;
+}
+#endif
+
 static const struct kobj_attribute srpt_req_lim_attr =
 	__ATTR(req_lim,       S_IRUGO, show_req_lim,       NULL);
 static const struct kobj_attribute srpt_req_lim_delta_attr =
 	__ATTR(req_lim_delta, S_IRUGO, show_req_lim_delta, NULL);
 static const struct kobj_attribute srpt_ch_state_attr =
 	__ATTR(ch_state, S_IRUGO, show_ch_state, NULL);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20) || defined(RHEL_RELEASE_CODE)
+static const struct kobj_attribute srpt_comp_vector_attr =
+	__ATTR(comp_vector, S_IRUGO, show_comp_vector, NULL);
+#endif
 
 static const struct attribute *srpt_sess_attrs[] = {
 	&srpt_req_lim_attr.attr,
 	&srpt_req_lim_delta_attr.attr,
 	&srpt_ch_state_attr.attr,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20) || defined(RHEL_RELEASE_CODE)
+	&srpt_comp_vector_attr.attr,
+#endif
 	NULL
 };
 #endif
@@ -3986,9 +4092,13 @@ static struct scst_proc_data srpt_log_proc_data = {
 /* Note: the caller must have zero-initialized *@srpt_tgt. */
 static void srpt_init_tgt(struct srpt_tgt *srpt_tgt)
 {
+	int i;
+
 	INIT_LIST_HEAD(&srpt_tgt->nexus_list);
 	init_waitqueue_head(&srpt_tgt->ch_releaseQ);
 	mutex_init(&srpt_tgt->mutex);
+	for (i = 0; i < COMP_V_MASK_SIZE; i++)
+		__set_bit(i, srpt_tgt->comp_v_mask);
 }
 
 /**

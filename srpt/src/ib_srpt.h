@@ -139,6 +139,8 @@ enum {
 	DEFAULT_MAX_RDMA_SIZE = 65536,
 
 	RDMA_COMPL_TIMEOUT_S = 80,
+
+	COMP_V_MASK_SIZE = 64,
 };
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 1, 0) &&			\
@@ -334,6 +336,7 @@ enum rdma_ch_state {
  *                 list contains struct srpt_ioctx elements and is protected
  *                 against concurrent modification by the cm_id spinlock.
  * @pkey:          P_Key of the IB partition for this SRP channel.
+ * @comp_vector:   Completion vector assigned to the QP.
  * @scst_sess:     SCST session information associated with this SRP channel.
  * @sess_name:     SCST session name.
  */
@@ -368,6 +371,9 @@ struct srpt_rdma_ch {
 	struct list_head	list;
 	struct list_head	cmd_wait_list;
 	uint16_t		pkey;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20) || defined(RHEL_RELEASE_CODE)
+	u8			comp_vector;
+#endif
 	bool			using_rdma_cm;
 	bool			processing_wait_list;
 
@@ -395,6 +401,8 @@ struct srpt_nexus {
  * @mutex:       Protects @nexus_list and srpt_nexus.ch_list.
  * @nexus_list:  Per-device I_T nexus list.
  * @scst_tgt:    SCST target information associated with this HCA.
+ * @comp_v_mask: Bitmask with one bit per allowed completion vector.
+ * @comp_vector: Completion vector from where searching will start.
  * @enabled:     Whether or not this SCST target is enabled.
  */
 struct srpt_tgt {
@@ -402,6 +410,8 @@ struct srpt_tgt {
 	struct mutex		mutex;
 	struct list_head	nexus_list;
 	struct scst_tgt		*scst_tgt;
+	DECLARE_BITMAP(comp_v_mask, COMP_V_MASK_SIZE);
+	u8			comp_vector;
 	bool			enabled;
 };
 
