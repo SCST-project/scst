@@ -3259,20 +3259,21 @@ out:
 static int vdisk_sup_vpd(uint8_t *buf, struct scst_cmd *cmd,
 			 struct scst_vdisk_dev *virt_dev)
 {
-	buf[3] = 4;
-	buf[4] = 0x0; /* this page */
-	buf[5] = 0x80; /* unit serial number */
-	buf[6] = 0x83; /* device identification */
-	buf[7] = 0x86; /* extended inquiry */
+	char *page_list = &buf[4], *p = page_list;
+
+	*p++ = 0x0; /* this page */
+	*p++ = 0x80; /* unit serial number */
+	*p++ = 0x83; /* device identification */
+	*p++ = 0x86; /* extended inquiry */
 	if (cmd->dev->type == TYPE_DISK) {
-		buf[3] += 2;
-		buf[8] = 0xB0; /* block limits */
-		buf[9] = 0xB1; /* block device charachteristics */
+		*p++ = 0xB0; /* block limits */
+		*p++ = 0xB1; /* block device charachteristics */
 		if (virt_dev->thin_provisioned) {
-			buf[3] += 1;
-			buf[10] = 0xB2; /* thin provisioning */
+			*p++ = 0xB2; /* thin provisioning */
 		}
 	}
+	buf[3] = p - page_list; /* page length */
+
 	return buf[3] + 4;
 }
 
