@@ -100,6 +100,23 @@ char *kvasprintf(gfp_t gfp, const char *fmt, va_list ap)
 }
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+/*
+ * See also "lib: introduce common method to convert hex digits" (commit
+ * 903788892ea0fc7fcaf7e8e5fac9a77379fc215b).
+ */
+int hex_to_bin(char ch)
+{
+        if (ch >= '0' && ch <= '9')
+                return ch - '0';
+        ch = tolower(ch);
+        if (ch >= 'a' && ch <= 'f')
+                return ch - 'a' + 10;
+        return -1;
+}
+EXPORT_SYMBOL(hex_to_bin);
+#endif
+
 #if !((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && defined(SCSI_EXEC_REQ_FIFO_DEFINED)) && !defined(HAVE_SG_COPY)
 static int sg_copy(struct scatterlist *dst_sg, struct scatterlist *src_sg,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)

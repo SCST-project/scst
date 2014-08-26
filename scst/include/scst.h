@@ -242,6 +242,25 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 #endif
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+extern int hex_to_bin(char ch);
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 38)
+/*
+ * See also "lib: hex2bin converts ascii hexadecimal string to binary" (commit
+ * dc88e46029486ed475c71fe1bb696d39511ac8fe).
+ */
+static inline void hex2bin(u8 *dst, const char *src, size_t count)
+{
+	while (count--) {
+		*dst = hex_to_bin(*src++) << 4;
+		*dst += hex_to_bin(*src++);
+		dst++;
+	}
+}
+#endif
+
 #ifndef __list_for_each
 /* ToDo: cleanup when both are the same for all relevant kernels */
 #define __list_for_each list_for_each

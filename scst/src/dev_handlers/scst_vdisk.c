@@ -202,6 +202,10 @@ struct scst_vdisk_dev {
 	char prod_rev_lvl[4 + 1];
 	char scsi_device_name[256 + 1];
 	char t10_dev_id[16+8+2]; /* T10 device ID */
+	int eui64_id_len;
+	uint8_t eui64_id[16];
+	int naa_id_len;
+	uint8_t naa_id[16];
 	char usn[MAX_USN_LEN];
 	uint8_t inq_vend_specific[MAX_INQ_VEND_SPECIFIC_LEN];
 	int inq_vend_specific_len;
@@ -392,6 +396,14 @@ static ssize_t vdev_sysfs_t10_dev_id_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count);
 static ssize_t vdev_sysfs_t10_dev_id_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
+static ssize_t vdev_sysfs_eui64_id_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count);
+static ssize_t vdev_sysfs_eui64_id_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
+static ssize_t vdev_sysfs_naa_id_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count);
+static ssize_t vdev_sysfs_naa_id_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
 static ssize_t vdev_sysfs_usn_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count);
 static ssize_t vdev_sysfs_usn_show(struct kobject *kobj,
@@ -462,6 +474,12 @@ static struct kobj_attribute vdev_scsi_device_name_attr =
 static struct kobj_attribute vdev_t10_dev_id_attr =
 	__ATTR(t10_dev_id, S_IWUSR|S_IRUGO, vdev_sysfs_t10_dev_id_show,
 		vdev_sysfs_t10_dev_id_store);
+static struct kobj_attribute vdev_eui64_id_attr =
+	__ATTR(eui64_id, S_IWUSR|S_IRUGO, vdev_sysfs_eui64_id_show,
+	       vdev_sysfs_eui64_id_store);
+static struct kobj_attribute vdev_naa_id_attr =
+	__ATTR(naa_id, S_IWUSR|S_IRUGO, vdev_sysfs_naa_id_show,
+	       vdev_sysfs_naa_id_store);
 static struct kobj_attribute vdev_usn_attr =
 	__ATTR(usn, S_IWUSR|S_IRUGO, vdev_sysfs_usn_show, vdev_sysfs_usn_store);
 static struct kobj_attribute vdev_inq_vend_specific_attr =
@@ -495,6 +513,8 @@ static const struct attribute *vdisk_fileio_attrs[] = {
 	&vdev_prod_rev_lvl_attr.attr,
 	&vdev_scsi_device_name_attr.attr,
 	&vdev_t10_dev_id_attr.attr,
+	&vdev_naa_id_attr.attr,
+	&vdev_eui64_id_attr.attr,
 	&vdev_usn_attr.attr,
 	&vdev_inq_vend_specific_attr.attr,
 	&vdev_zero_copy_attr.attr,
@@ -519,6 +539,8 @@ static const struct attribute *vdisk_blockio_attrs[] = {
 	&vdev_prod_rev_lvl_attr.attr,
 	&vdev_scsi_device_name_attr.attr,
 	&vdev_t10_dev_id_attr.attr,
+	&vdev_naa_id_attr.attr,
+	&vdev_eui64_id_attr.attr,
 	&vdev_usn_attr.attr,
 	&vdev_inq_vend_specific_attr.attr,
 	&vdisk_tp_attr.attr,
@@ -540,6 +562,8 @@ static const struct attribute *vdisk_nullio_attrs[] = {
 	&vdev_prod_rev_lvl_attr.attr,
 	&vdev_scsi_device_name_attr.attr,
 	&vdev_t10_dev_id_attr.attr,
+	&vdev_naa_id_attr.attr,
+	&vdev_eui64_id_attr.attr,
 	&vdev_usn_attr.attr,
 	&vdev_inq_vend_specific_attr.attr,
 	&vdisk_rotational_attr.attr,
@@ -557,6 +581,8 @@ static const struct attribute *vcdrom_attrs[] = {
 	&vdev_prod_rev_lvl_attr.attr,
 	&vdev_scsi_device_name_attr.attr,
 	&vdev_t10_dev_id_attr.attr,
+	&vdev_naa_id_attr.attr,
+	&vdev_eui64_id_attr.attr,
 	&vdev_usn_attr.attr,
 	&vdev_inq_vend_specific_attr.attr,
 	NULL,
@@ -569,7 +595,8 @@ static DEFINE_MUTEX(scst_vdisk_mutex);
 
 /*
  * Protects the device attributes t10_vend_id, vend_specific_id, prod_id,
- * prod_rev_lvl, scsi_device_name, t10_dev_id, usn and inq_vend_specific.
+ * prod_rev_lvl, scsi_device_name, t10_dev_id, eui64_id, naa_id, usn and
+ * inq_vend_specific.
  */
 static DEFINE_RWLOCK(vdisk_serial_rwlock);
 
@@ -3301,8 +3328,9 @@ static int vdisk_usn_vpd(uint8_t *buf, struct scst_cmd *cmd,
 static int vdisk_dev_id_vpd(uint8_t *buf, struct scst_cmd *cmd,
 			    struct scst_vdisk_dev *virt_dev)
 {
-	int i, resp_len, num = 4;
+	int i, eui64_len = 0, naa_len = 0, resp_len, num = 4;
 	uint16_t tg_id;
+	u8 *eui64_id = NULL, *naa_id = NULL;
 
 	buf[1] = 0x83;
 
@@ -3366,30 +3394,48 @@ static int vdisk_dev_id_vpd(uint8_t *buf, struct scst_cmd *cmd,
 		num += 4 + buf[num + 3];
 	}
 
-	/*
-	 * IEEE id
-	 */
-	buf[num + 0] = 0x01; /* binary */
+	read_lock(&vdisk_serial_rwlock);
 
-	/* EUI-64 */
-	buf[num + 1] = 0x02;
-	buf[num + 2] = 0x00;
-	buf[num + 3] = 0x08;
+	if (virt_dev->eui64_id_len == 0 && virt_dev->naa_id_len == 0) {
+		/*
+		 * Compatibility mode: export the first eight bytes of the
+		 * t10_dev_id as an EUI-64 ID. This is not entirely standards
+		 * compliant since t10_dev_id contains an ASCII string and the
+		 * first three bytes of an eight-byte EUI-64 ID are a OUI.
+		 */
+		eui64_len = 8;
+		eui64_id  = virt_dev->t10_dev_id;
+	} else {
+		if (virt_dev->eui64_id_len) {
+			eui64_len = virt_dev->eui64_id_len;
+			eui64_id  = virt_dev->eui64_id;
+		}
+		if (virt_dev->naa_id_len) {
+			naa_len = virt_dev->naa_id_len;
+			naa_id  = virt_dev->naa_id;
+		}
+	}
+	if (eui64_len) {
+		buf[num + 0] = 0x01; /* binary */
+		buf[num + 1] = 0x02; /* EUI-64 */
+		buf[num + 2] = 0x00; /* reserved */
+		buf[num + 3] = eui64_len;
+		memcpy(&buf[num + 4], eui64_id, eui64_len);
+		num += 4 + eui64_len;
+	}
+	if (naa_len) {
+		buf[num + 0] = 0x01; /* binary */
+		buf[num + 1] = 0x03; /* NAA */
+		buf[num + 2] = 0x00; /* reserved */
+		buf[num + 3] = naa_len;
+		memcpy(&buf[num + 4], naa_id, naa_len);
+		num += 4 + naa_len;
+	}
 
-	/* IEEE id */
-	buf[num + 4] = virt_dev->t10_dev_id[0];
-	buf[num + 5] = virt_dev->t10_dev_id[1];
-	buf[num + 6] = virt_dev->t10_dev_id[2];
+	read_unlock(&vdisk_serial_rwlock);
 
-	/* IEEE ext id */
-	buf[num + 7] = virt_dev->t10_dev_id[3];
-	buf[num + 8] = virt_dev->t10_dev_id[4];
-	buf[num + 9] = virt_dev->t10_dev_id[5];
-	buf[num + 10] = virt_dev->t10_dev_id[6];
-	buf[num + 11] = virt_dev->t10_dev_id[7];
-	num += buf[num + 3];
+	resp_len = num - 4;
 
-	resp_len = num;
 	put_unaligned_be16(resp_len, &buf[2]);
 	resp_len += 4;
 
@@ -6148,6 +6194,9 @@ static int vdev_create(struct scst_dev_type *devt,
 	sprintf(virt_dev->scsi_device_name, "%.*s",
 		(int)(sizeof(virt_dev->scsi_device_name) - 1), "");
 
+	virt_dev->eui64_id_len = 0;
+	virt_dev->naa_id_len = 0;
+
 	scnprintf(virt_dev->usn, sizeof(virt_dev->usn), "%llx", dev_id_num);
 	TRACE_DBG("usn %s", virt_dev->usn);
 
@@ -7810,6 +7859,161 @@ static ssize_t vdev_sysfs_t10_dev_id_show(struct kobject *kobj,
 	read_unlock(&vdisk_serial_rwlock);
 
 	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static ssize_t vdev_sysfs_eui64_id_store(struct kobject *kobj,
+					 struct kobj_attribute *attr,
+					 const char *buf, size_t count)
+{
+	int res = count;
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = dev->dh_priv;
+
+	while (count > 0 && isspace((uint8_t)buf[0])) {
+		buf++;
+		count--;
+	}
+	while (count > 0 && isspace((uint8_t)buf[count - 1]))
+		count--;
+	if (count >= 2 && buf[0] == '0' && buf[1] == 'x') {
+		buf += 2;
+		count -= 2;
+	}
+
+	switch (count) {
+	case 0:
+	case 2 * 8:
+	case 2 * 12:
+	case 2 * 16:
+		break;
+	default:
+		res = -EINVAL;
+		goto out;
+	}
+
+	write_lock(&vdisk_serial_rwlock);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0) ||	\
+    defined(CONFIG_SUSE_KERNEL) &&			\
+    LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 76)
+	if (hex2bin(virt_dev->eui64_id, buf, count / 2) == 0)
+		virt_dev->eui64_id_len = count / 2;
+	else
+		res = -EINVAL;
+#else
+	memset(virt_dev->eui64_id, 0, sizeof(virt_dev->eui64_id));
+	hex2bin(virt_dev->eui64_id, buf, count / 2);
+	virt_dev->eui64_id_len = count / 2;
+#endif
+	write_unlock(&vdisk_serial_rwlock);
+
+out:
+	return res;
+}
+
+static ssize_t vdev_sysfs_eui64_id_show(struct kobject *kobj,
+					struct kobj_attribute *attr, char *buf)
+{
+	int i, pos = 0;
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = dev->dh_priv;
+
+	read_lock(&vdisk_serial_rwlock);
+	if (virt_dev->eui64_id_len)
+		pos += sprintf(buf + pos, "0x");
+	for (i = 0; i < virt_dev->eui64_id_len; i++)
+		pos += sprintf(buf + pos, "%02x", virt_dev->eui64_id[i]);
+	pos += sprintf(buf + pos, "\n%s", virt_dev->eui64_id_len ?
+		       SCST_SYSFS_KEY_MARK "\n" : "");
+	read_unlock(&vdisk_serial_rwlock);
+
+	return pos;
+}
+
+static ssize_t vdev_sysfs_naa_id_store(struct kobject *kobj,
+				       struct kobj_attribute *attr,
+				       const char *buf, size_t count)
+{
+	int res = -EINVAL, c = count;
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = dev->dh_priv;
+
+	while (c > 0 && isspace((uint8_t)buf[0])) {
+		buf++;
+		c--;
+	}
+	while (c > 0 && isspace((uint8_t)buf[c - 1]))
+		c--;
+	if (c >= 2 && buf[0] == '0' && buf[1] == 'x') {
+		buf += 2;
+		c -= 2;
+	}
+
+	switch (c) {
+	case 0:
+	case 2 * 8:
+		if (strchr("1235cCdDeEfF", buf[0]))
+			break;
+		else
+			goto out;
+	case 2 * 16:
+		if (strchr("6", buf[0]))
+			break;
+		else
+			goto out;
+	default:
+		goto out;
+	}
+
+	res = count;
+
+	write_lock(&vdisk_serial_rwlock);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0) ||	\
+    defined(CONFIG_SUSE_KERNEL) &&			\
+    LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 76)
+	if (hex2bin(virt_dev->naa_id, buf, c / 2) == 0)
+		virt_dev->naa_id_len = c / 2;
+	else
+		res = -EINVAL;
+#else
+	memset(virt_dev->naa_id, 0, sizeof(virt_dev->naa_id));
+	hex2bin(virt_dev->naa_id, buf, c / 2);
+	virt_dev->naa_id_len = c / 2;
+#endif
+	write_unlock(&vdisk_serial_rwlock);
+
+out:
+	return res;
+}
+
+static ssize_t vdev_sysfs_naa_id_show(struct kobject *kobj,
+					struct kobj_attribute *attr, char *buf)
+{
+	int i, pos = 0;
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = dev->dh_priv;
+
+	read_lock(&vdisk_serial_rwlock);
+	if (virt_dev->naa_id_len)
+		pos += sprintf(buf + pos, "0x");
+	for (i = 0; i < virt_dev->naa_id_len; i++)
+		pos += sprintf(buf + pos, "%02x", virt_dev->naa_id[i]);
+	pos += sprintf(buf + pos, "\n%s", virt_dev->naa_id_len ?
+		       SCST_SYSFS_KEY_MARK "\n" : "");
+	read_unlock(&vdisk_serial_rwlock);
+
 	return pos;
 }
 
