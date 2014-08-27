@@ -995,7 +995,17 @@ struct scst_tgt_template {
 	/*
 	 * Called to notify target driver that the command is being aborted.
 	 * If target driver wants to redirect processing to some outside
-	 * processing, it should get it using scst_cmd_get().
+	 * processing, it should get it using scst_cmd_get(). Since this
+	 * function is invoked from the context of a task management function
+	 * it runs asynchronously with the regular command processing finite
+	 * state machine. In other words, it is only safe to invoke functions
+	 * like scst_tgt_cmd_done() or scst_rx_data() from this callback
+	 * function if the target driver owns the command and if appropriate
+	 * measures have been taken to avoid that the target driver would
+	 * invoke one of these functions from the regular command processing
+	 * path. Note: if scst_tgt_cmd_done() or scst_rx_data() is invoked
+	 * from this callback function these must be invoked with the
+	 * SCST_CONTEXT_THREAD argument.
 	 *
 	 * OPTIONAL
 	 */
