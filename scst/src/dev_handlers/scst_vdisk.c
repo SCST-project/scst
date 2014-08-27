@@ -1347,9 +1347,7 @@ static void vdisk_detach(struct scst_device *dev)
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	TRACE_DBG("virt_id %d", dev->virt_id);
 
@@ -1367,9 +1365,7 @@ static int vdisk_open_fd(struct scst_vdisk_dev *virt_dev, bool read_only)
 {
 	int res;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 	sBUG_ON(!virt_dev->filename);
 
 	virt_dev->fd = vdev_open_fd(virt_dev, read_only);
@@ -1390,9 +1386,7 @@ out:
 
 static void vdisk_close_fd(struct scst_vdisk_dev *virt_dev)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	if (virt_dev->fd) {
 		filp_close(virt_dev->fd, NULL);
@@ -1409,9 +1403,7 @@ static int vdisk_attach_tgt(struct scst_tgt_dev *tgt_dev)
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	if (virt_dev->tgt_dev_cnt++ > 0)
 		goto out;
@@ -1437,9 +1429,7 @@ static void vdisk_detach_tgt(struct scst_tgt_dev *tgt_dev)
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	if (--virt_dev->tgt_dev_cnt == 0)
 		vdisk_close_fd(virt_dev);
@@ -1664,7 +1654,7 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 			}
 			break;
 		default:
-			sBUG_ON(1);
+			sBUG();
 			break;
 		}
 	}
@@ -3759,7 +3749,7 @@ static int vdisk_caching_pg(unsigned char *p, int pcontrol,
 		p[2] |= (virt_dev->wt_flag_saved || virt_dev->nv_cache) ? 0 : WCE;
 		break;
 	default:
-		sBUG_ON(1);
+		sBUG();
 		break;
 	}
 

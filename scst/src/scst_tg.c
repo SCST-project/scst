@@ -77,9 +77,7 @@ static struct scst_device *__lookup_dev(const char *name)
 {
 	struct scst_device *dev;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	list_for_each_entry(dev, &scst_dev_list, dev_list_entry)
 		if (strcmp(dev->virt_name, name) == 0)
@@ -94,9 +92,7 @@ static struct scst_tgt *__lookup_tgt(const char *name)
 	struct scst_tgt_template *t;
 	struct scst_tgt *tgt;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	list_for_each_entry(t, &scst_template_list, scst_template_list_entry)
 		list_for_each_entry(tgt, &t->tgt_list, tgt_list_entry)
@@ -113,9 +109,7 @@ static struct scst_tg_tgt *__lookup_dg_tgt(struct scst_dev_group *dg,
 	struct scst_target_group *tg;
 	struct scst_tg_tgt *tg_tgt;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	BUG_ON(!dg);
 	BUG_ON(!tgt_name);
@@ -133,9 +127,7 @@ __lookup_tg_by_name(struct scst_dev_group *dg, const char *name)
 {
 	struct scst_target_group *tg;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	list_for_each_entry(tg, &dg->tg_list, entry)
 		if (strcmp(tg->name, name) == 0)
@@ -151,9 +143,7 @@ __lookup_tg_by_tgt(struct scst_dev_group *dg, const struct scst_tgt *tgt)
 	struct scst_target_group *tg;
 	struct scst_tg_tgt *tg_tgt;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	list_for_each_entry(tg, &dg->tg_list, entry)
 		list_for_each_entry(tg_tgt, &tg->tgt_list, entry)
@@ -169,9 +159,7 @@ static struct scst_dg_dev *__lookup_dg_dev_by_dev(struct scst_dev_group *dg,
 {
 	struct scst_dg_dev *dgd;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	list_for_each_entry(dgd, &dg->dev_list, entry)
 		if (dgd->dev == dev)
@@ -186,9 +174,7 @@ static struct scst_dg_dev *__lookup_dg_dev_by_name(struct scst_dev_group *dg,
 {
 	struct scst_dg_dev *dgd;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	list_for_each_entry(dgd, &dg->dev_list, entry)
 		if (strcmp(dgd->dev->virt_name, name) == 0)
@@ -203,9 +189,7 @@ static struct scst_dg_dev *__global_lookup_dg_dev_by_name(const char *name)
 	struct scst_dev_group *dg;
 	struct scst_dg_dev *dgd;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	list_for_each_entry(dg, &scst_dev_group_list, entry) {
 		dgd = __lookup_dg_dev_by_name(dg, name);
@@ -220,9 +204,7 @@ static struct scst_dev_group *__lookup_dg_by_name(const char *name)
 {
 	struct scst_dev_group *dg;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	list_for_each_entry(dg, &scst_dev_group_list, entry)
 		if (strcmp(dg->name, name) == 0)
@@ -236,9 +218,7 @@ static struct scst_dev_group *__lookup_dg_by_dev(struct scst_device *dev)
 {
 	struct scst_dev_group *dg;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	list_for_each_entry(dg, &scst_dev_group_list, entry)
 		if (__lookup_dg_dev_by_dev(dg, dev))
@@ -355,9 +335,7 @@ static void scst_check_alua_invariant(void)
 	struct scst_target_group *tg;
 	enum scst_tg_state expected_state;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	if (!alua_invariant_check)
 		return;
@@ -392,9 +370,7 @@ static void scst_check_alua_invariant(void)
 static void scst_update_tgt_dev_alua_filter(struct scst_tgt_dev *tgt_dev,
 					    enum scst_tg_state state)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	tgt_dev->alua_filter = scst_alua_filter[state];
 }
@@ -404,9 +380,7 @@ static void scst_tg_change_tgt_dev_state(struct scst_tgt_dev *tgt_dev,
 					 enum scst_tg_state state,
 					 bool gen_ua)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	TRACE_MGMT_DBG("ALUA state of tgt_dev %p has changed", tgt_dev);
 	scst_update_tgt_dev_alua_filter(tgt_dev, state);
@@ -421,9 +395,7 @@ void scst_tg_init_tgt_dev(struct scst_tgt_dev *tgt_dev)
 	struct scst_dev_group *dg;
 	struct scst_target_group *tg;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	dg = __lookup_dg_by_dev(tgt_dev->dev);
 	if (dg) {
@@ -445,9 +417,7 @@ static void scst_update_tgt_alua_filter(struct scst_target_group *tg,
 	struct scst_dg_dev *dgd;
 	struct scst_tgt_dev *tgt_dev;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	list_for_each_entry(dgd, &tg->dg->dev_list, entry) {
 		list_for_each_entry(tgt_dev, &dgd->dev->dev_tgt_dev_list,
@@ -471,9 +441,7 @@ static void scst_reset_tgt_alua_filter(struct scst_target_group *tg,
 	struct scst_dg_dev *dgd;
 	struct scst_tgt_dev *tgt_dev;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	list_for_each_entry(dgd, &tg->dg->dev_list, entry) {
 		list_for_each_entry(tgt_dev, &dgd->dev->dev_tgt_dev_list,
@@ -584,9 +552,7 @@ void scst_tg_tgt_remove_by_tgt(struct scst_tgt *tgt)
 	struct scst_target_group *tg;
 	struct scst_tg_tgt *t, *t2;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	BUG_ON(!tgt);
 	list_for_each_entry(dg, &scst_dev_group_list, entry)
@@ -723,9 +689,7 @@ static void __scst_tg_set_state(struct scst_target_group *tg,
 	struct scst_tgt *tgt;
 
 	sBUG_ON(state >= ARRAY_SIZE(scst_alua_filter));
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	if (tg->state == state)
 		return;
@@ -789,9 +753,7 @@ static void __scst_gen_alua_state_changed_ua(struct scst_target_group *tg)
 	struct scst_tg_tgt *tg_tgt;
 	struct scst_tgt *tgt;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	list_for_each_entry(dg_dev, &tg->dg->dev_list, entry) {
 		dev = dg_dev->dev;
@@ -814,9 +776,7 @@ static void __scst_tg_set_preferred(struct scst_target_group *tg,
 {
 	bool prev_preferred;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	if (tg->preferred == preferred)
 		return;
@@ -859,9 +819,7 @@ static void scst_update_dev_alua_filter(struct scst_dev_group *dg,
 	struct scst_tgt_dev *tgt_dev;
 	struct scst_target_group *tg;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 			    dev_tgt_dev_list_entry) {
@@ -881,9 +839,7 @@ static void scst_reset_dev_alua_filter(struct scst_device *dev)
 {
 	struct scst_tgt_dev *tgt_dev;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 			    dev_tgt_dev_list_entry)
@@ -1063,9 +1019,7 @@ static void __scst_dg_remove(struct scst_dev_group *dg)
 	struct scst_dg_dev *dgdev;
 	struct scst_target_group *tg;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	list_del(&dg->entry);
 	scst_dg_sysfs_del(dg);

@@ -17,9 +17,7 @@
  * General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307
- * USA
+ * along with this program.
 */
 
 #ifdef SUPPORT_TARGET
@@ -1226,7 +1224,7 @@ static void mvst_do_cmd_completion(struct mvs_info *mvi,
 			TRACE_DBG("Read data command %p finished", cmd);
 			if (err) {
 				cmd->cmd_state = MVST_STATE_SEND_DATA_RETRY;
-				sBUG_ON(1);
+				sBUG();
 			}
 			goto out;
 		} else if (cmd->cmd_state == MVST_STATE_ABORTED) {

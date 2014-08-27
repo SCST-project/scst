@@ -3782,9 +3782,7 @@ void scst_free_device(struct scst_device *dev)
 
 bool scst_device_is_exported(struct scst_device *dev)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	WARN_ON_ONCE(!dev->dev_tgt_dev_list.next);
 
@@ -9415,7 +9413,7 @@ int scst_parse_descriptors(struct scst_cmd *cmd)
 		res = scst_parse_unmap_descriptors(cmd);
 		break;
 	default:
-		sBUG_ON(1);
+		sBUG();
 		res = -1;
 		break;
 	}
@@ -9433,7 +9431,7 @@ static void scst_free_descriptors(struct scst_cmd *cmd)
 		scst_free_unmap_descriptors(cmd);
 		break;
 	default:
-		sBUG_ON(1);
+		sBUG();
 		break;
 	}
 

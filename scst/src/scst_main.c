@@ -1226,9 +1226,7 @@ static struct scst_device *__scst_lookup_device(struct scsi_device *scsidp)
 {
 	struct scst_device *d;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&scst_mutex);
-#endif
 
 	list_for_each_entry(d, &scst_dev_list, dev_list_entry)
 		if (d->scsi_dev == scsidp)

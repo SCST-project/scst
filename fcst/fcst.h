@@ -174,4 +174,26 @@ struct ft_tpg *ft_lport_find_tpg(struct fc_lport *);
 struct ft_node_acl *ft_acl_get(struct ft_tpg *, struct fc_rport_priv *);
 void ft_cmd_dump(struct scst_cmd *, const char *);
 
+/* #define FCST_INJECT_SEND_ERRORS 2 */
+
+#ifdef FCST_INJECT_SEND_ERRORS
+#define FCST_INJ_SEND_ERR(e)						\
+({									\
+	int _error = 0;							\
+									\
+	if (scst_random() % 62929 == 0)					\
+		_error = -ENOMEM;					\
+	if (FCST_INJECT_SEND_ERRORS >= 2 && scst_random() % 69491 == 0)	\
+		_error = -ENXIO;					\
+	if (_error)							\
+		pr_warn("%s: injected seq_send() error %d\n", __func__,	\
+			_error);					\
+	else								\
+		_error = (e);						\
+	_error;								\
+})
+#else
+#define FCST_INJ_SEND_ERR(e) (e)
+#endif
+
 #endif /* __SCSI_FCST_H__ */

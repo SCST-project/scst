@@ -807,9 +807,8 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 
 	INIT_LIST_HEAD(&isert_dev->conn_list);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&dev_list_mutex);
-#endif
+
 	isert_dev_list_add(isert_dev);
 
 	pr_info("iser created device:%p\n", isert_dev);
@@ -843,9 +842,8 @@ static void isert_device_release(struct isert_device *isert_dev)
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32)
 	lockdep_assert_held(&dev_list_mutex);
-#endif
+
 	isert_dev_list_remove(isert_dev); /* remove from global list */
 
 	for (i = 0; i < isert_dev->num_cqs; ++i) {

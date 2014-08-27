@@ -1585,9 +1585,8 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 	iscsi_extracheck_is_rd_thread(conn);
 
 	buff_offs = offset;
-	idx = (offset + sg[0].offset) >> PAGE_SHIFT;
-	if (offset + sg[0].offset >= PAGE_SIZE)
-		offset += sg[0].offset;
+	offset += sg[0].offset;
+	idx = offset >> PAGE_SHIFT;
 	offset &= ~PAGE_MASK;
 
 	conn->read_msg.msg_iov = conn->read_iov;
@@ -1608,9 +1607,9 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 
 		addr = (char __force __user *)(sg_virt(&sg[idx]));
 		EXTRACHECKS_BUG_ON(addr == NULL);
-		sg_len = sg[idx].length - offset;
+		sg_len = sg[idx].offset + sg[idx].length - offset;
 
-		conn->read_iov[i].iov_base = addr + offset;
+		conn->read_iov[i].iov_base = addr + offset - sg[idx].offset;
 
 		if (size <= sg_len) {
 			TRACE_DBG("idx=%d, i=%d, offset=%u, size=%d, addr=%p",
@@ -3733,7 +3732,7 @@ static void iscsi_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd)
 	case SCST_ABORT_ALL_TASKS_SESS:
 	case SCST_ABORT_ALL_TASKS:
 	case SCST_NEXUS_LOSS:
-		sBUG_ON(1);
+		sBUG();
 		break;
 	default:
 		iscsi_send_task_mgmt_resp(req, status, scst_mgmt_cmd_dropped(scst_mcmd));

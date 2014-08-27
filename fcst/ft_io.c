@@ -17,8 +17,7 @@
  * more details.
  *
  * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin St - Fifth Floor, Boston, MA 02110-1301 USA.
+ * this program.
  */
 #include <linux/kernel.h>
 #include <linux/types.h>
@@ -176,10 +175,17 @@ int ft_send_read_data(struct scst_cmd *cmd)
 			       remaining ? (FC_FC_EX_CTX | FC_FC_REL_OFF) :
 			       (FC_FC_EX_CTX | FC_FC_REL_OFF | FC_FC_END_SEQ),
 			       fh_off);
-		error = lport->tt.seq_send(lport, fcmd->seq, fp);
+		error = FCST_INJ_SEND_ERR(lport->tt.seq_send(lport, fcmd->seq,
+							     fp));
 		if (error) {
-			WARN_ON(1);
-			/* XXX For now, initiator will retry */
+			pr_warn("Sending frame with oid %#x oxid %#x resp_len"
+				" %d failed at frame_off %u / remaining %zu"
+				" with error code %d  - %s", ep->oid, ep->oxid,
+				scst_cmd_get_resp_data_len(cmd), frame_off,
+				remaining, error, error == -ENOMEM ?
+				"retrying" : "giving up");
+			return error == -ENOMEM ? SCST_TGT_RES_QUEUE_FULL :
+				SCST_TGT_RES_FATAL_ERROR;
 		} else
 			fcmd->read_data_len = frame_off;
 	}

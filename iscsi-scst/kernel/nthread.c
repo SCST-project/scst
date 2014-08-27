@@ -369,7 +369,7 @@ void iscsi_task_mgmt_affected_cmds_done(struct scst_mgmt_cmd *scst_mcmd)
 	case SCST_ABORT_ALL_TASKS_SESS:
 	case SCST_ABORT_ALL_TASKS:
 	case SCST_NEXUS_LOSS:
-		sBUG_ON(1);
+		sBUG();
 		break;
 	default:
 		/* Nothing to do */
@@ -1400,16 +1400,24 @@ retry:
 	sg_size = size;
 
 	if (sg != write_cmnd->rsp_sg) {
+		/*
+		 * Data scatterlist. It is assumed that only the first element
+		 * has a non-zero offset and that all elements except the
+		 * first and the last have a length that is equal to
+		 * PAGE_SIZE.
+		 */
 		offset = conn->write_offset + sg[0].offset;
 		idx = offset >> PAGE_SHIFT;
-		if (offset + sg[0].offset >= PAGE_SIZE)
-			offset += sg[0].offset;
 		offset &= ~PAGE_MASK;
 		length = min(size, (int)PAGE_SIZE - offset);
 		TRACE_WRITE("write_offset %d, sg_size %d, idx %d, offset %d, "
 			"length %d", conn->write_offset, sg_size, idx, offset,
 			length);
 	} else {
+		/*
+		 * Response scatterlist. No assumptions are made about the
+		 * offset nor about the length of scatterlist elements.
+		 */
 		idx = 0;
 		offset = conn->write_offset;
 		while (offset >= sg[idx].length) {
