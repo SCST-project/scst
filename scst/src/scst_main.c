@@ -1921,13 +1921,8 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 			 * sess->acg can be NULL here, if called from
 			 * scst_check_reassign_sess()!
 			 */
-#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
-			rc = set_cpus_allowed(thr->cmd_thread,
-				tgt_dev->acg_dev->acg->acg_cpu_mask);
-#else
 			rc = set_cpus_allowed_ptr(thr->cmd_thread,
 				&tgt_dev->acg_dev->acg->acg_cpu_mask);
-#endif
 			if (rc != 0)
 				PRINT_ERROR("Setting CPU affinity failed: "
 					"%d", rc);
