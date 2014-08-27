@@ -7896,7 +7896,7 @@ static ssize_t vdev_sysfs_eui64_id_store(struct kobject *kobj,
 	}
 
 	write_lock(&vdisk_serial_rwlock);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0) ||	\
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0) ||	\
     defined(CONFIG_SUSE_KERNEL) &&			\
     LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 76)
 	if (hex2bin(virt_dev->eui64_id, buf, count / 2) == 0)
@@ -7977,7 +7977,7 @@ static ssize_t vdev_sysfs_naa_id_store(struct kobject *kobj,
 	res = count;
 
 	write_lock(&vdisk_serial_rwlock);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0) ||	\
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0) ||	\
     defined(CONFIG_SUSE_KERNEL) &&			\
     LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 76)
 	if (hex2bin(virt_dev->naa_id, buf, c / 2) == 0)
