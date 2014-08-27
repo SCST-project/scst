@@ -1077,11 +1077,7 @@ int istrd(void *arg)
 	PRINT_INFO("Read thread for pool %p started, PID %d", p, current->pid);
 
 	current->flags |= PF_NOFREEZE;
-#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
-	rc = set_cpus_allowed(current, p->cpu_mask);
-#else
 	rc = set_cpus_allowed_ptr(current, &p->cpu_mask);
-#endif
 	if (rc != 0)
 		PRINT_ERROR("Setting CPU affinity failed: %d", rc);
 
@@ -1400,16 +1396,24 @@ retry:
 	sg_size = size;
 
 	if (sg != write_cmnd->rsp_sg) {
+		/*
+		 * Data scatterlist. It is assumed that only the first element
+		 * has a non-zero offset and that all elements except the
+		 * first and the last have a length that is equal to
+		 * PAGE_SIZE.
+		 */
 		offset = conn->write_offset + sg[0].offset;
 		idx = offset >> PAGE_SHIFT;
-		if (offset + sg[0].offset >= PAGE_SIZE)
-			offset += sg[0].offset;
 		offset &= ~PAGE_MASK;
 		length = min(size, (int)PAGE_SIZE - offset);
 		TRACE_WRITE("write_offset %d, sg_size %d, idx %d, offset %d, "
 			"length %d", conn->write_offset, sg_size, idx, offset,
 			length);
 	} else {
+		/*
+		 * Response scatterlist. No assumptions are made about the
+		 * offset nor about the length of scatterlist elements.
+		 */
 		idx = 0;
 		offset = conn->write_offset;
 		while (offset >= sg[idx].length) {
@@ -1837,11 +1841,7 @@ int istwr(void *arg)
 	PRINT_INFO("Write thread for pool %p started, PID %d", p, current->pid);
 
 	current->flags |= PF_NOFREEZE;
-#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
-	rc = set_cpus_allowed(current, p->cpu_mask);
-#else
 	rc = set_cpus_allowed_ptr(current, &p->cpu_mask);
-#endif
 	if (rc != 0)
 		PRINT_ERROR("Setting CPU affinity failed: %d", rc);
 

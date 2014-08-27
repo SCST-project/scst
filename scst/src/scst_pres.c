@@ -1111,19 +1111,21 @@ int scst_pr_set_file_name(struct scst_device *dev, char **prev,
 
 	res = -EINVAL;
 	if (pr_file_name[0] != '/') {
-		PRINT_ERROR("PR file name must be absolute!");
+		PRINT_ERROR("PR file name %s must be absolute!", pr_file_name);
 		goto out;
 	}
 
 	file_mode = scst_get_file_mode(pr_file_name);
 	if (file_mode >= 0 && !S_ISREG(file_mode) && !S_ISBLK(file_mode)) {
-		PRINT_ERROR("PR file name must be file or block device!");
+		PRINT_ERROR("PR file name %s must be file or block device!",
+			    pr_file_name);
 		goto out;
 	}
 
 	res = -ENOENT;
 	if (!scst_parent_dir_exists(pr_file_name)) {
-		PRINT_ERROR("PR file name parent directory doesn't exist");
+		PRINT_ERROR("PR file name %s parent directory doesn't exist",
+			    pr_file_name);
 		goto out;
 	}
 

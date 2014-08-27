@@ -1916,18 +1916,14 @@ static int __scst_acg_process_cpu_mask_store(struct scst_tgt *tgt,
 			struct list_head *head = &sess->sess_tgt_dev_list[i];
 			list_for_each_entry(tgt_dev, head,
 						sess_tgt_dev_list_entry) {
-				struct scst_cmd_thread_t *thr;
+				int rc;
+
 				if (tgt_dev->active_cmd_threads != &tgt_dev->tgt_dev_cmd_threads)
 					continue;
-				list_for_each_entry(thr,
-						&tgt_dev->active_cmd_threads->threads_list,
-						thread_list_entry) {
-					int rc;
-					rc = set_cpus_allowed_ptr(thr->cmd_thread, cpu_mask);
-					if (rc != 0)
-						PRINT_ERROR("Setting CPU "
-							"affinity failed: %d", rc);
-				}
+				rc = scst_set_thr_cpu_mask(tgt_dev->active_cmd_threads, cpu_mask);
+				if (rc != 0)
+					PRINT_ERROR("Setting CPU affinity"
+						    " failed: %d", rc);
 			}
 		}
 		if (tgt->tgtt->report_aen != NULL) {
@@ -2576,7 +2572,7 @@ out:									\
 }									\
 									\
 static struct kobj_attribute scst_tgt_##attr##_attr =			\
-	__ATTR(attr, S_IRUGO, scst_tgt_sysfs_##attr##_show, NULL);
+	__ATTR(attr, S_IRUGO, scst_tgt_sysfs_##attr##_show, NULL)
 
 SCST_TGT_SYSFS_STAT_ATTR(cmd_count, unknown_cmd_count, SCST_DATA_UNKNOWN, >> 0);
 SCST_TGT_SYSFS_STAT_ATTR(cmd_count, write_cmd_count, SCST_DATA_WRITE, >> 0);
@@ -3971,7 +3967,7 @@ static ssize_t scst_sess_sysfs_##exported_name##_store(struct kobject *kobj,	\
 static struct kobj_attribute session_##exported_name##_attr =			\
 	__ATTR(exported_name, S_IRUGO | S_IWUSR,				\
 		scst_sess_sysfs_##exported_name##_show,	\
-		scst_sess_sysfs_##exported_name##_store);
+		scst_sess_sysfs_##exported_name##_store)
 
 SCST_SESS_SYSFS_STAT_ATTR(cmd_count, unknown_cmd_count, SCST_DATA_UNKNOWN, 0);
 SCST_SESS_SYSFS_STAT_ATTR(cmd_count, write_cmd_count, SCST_DATA_WRITE, 0);

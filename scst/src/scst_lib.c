@@ -100,6 +100,23 @@ char *kvasprintf(gfp_t gfp, const char *fmt, va_list ap)
 }
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+/*
+ * See also "lib: introduce common method to convert hex digits" (commit
+ * 903788892ea0fc7fcaf7e8e5fac9a77379fc215b).
+ */
+int hex_to_bin(char ch)
+{
+        if (ch >= '0' && ch <= '9')
+                return ch - '0';
+        ch = tolower(ch);
+        if (ch >= 'a' && ch <= 'f')
+                return ch - 'a' + 10;
+        return -1;
+}
+EXPORT_SYMBOL(hex_to_bin);
+#endif
+
 #if !((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && defined(SCSI_EXEC_REQ_FIFO_DEFINED)) && !defined(HAVE_SG_COPY)
 static int sg_copy(struct scatterlist *dst_sg, struct scatterlist *src_sg,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
@@ -5091,10 +5108,13 @@ static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 	len = scst_get_buf_full(req_cmd, &buf);
 
 	if (scsi_status_is_good(req_cmd->status) && (len > 0) &&
-	    scst_sense_valid(buf) && !scst_no_sense(buf)) {
+	    scst_sense_valid(buf)) {
 		TRACE(TRACE_SCSI|TRACE_MGMT_DEBUG, "REQUEST SENSE %p returned "
-			"valid sense", req_cmd);
+			"valid sense (orig cmd %s)", req_cmd, orig_cmd->op_name);
 		PRINT_BUFF_FLAG(TRACE_SCSI|TRACE_MGMT_DEBUG, "Sense", buf, len);
+		if (scst_no_sense(buf))
+			PRINT_WARNING("REQUEST SENSE returned NO SENSE (orig "
+				"cmd %s)", orig_cmd->op_name);
 		scst_alloc_set_sense(orig_cmd, scst_cmd_atomic(req_cmd),
 			buf, len);
 	} else {

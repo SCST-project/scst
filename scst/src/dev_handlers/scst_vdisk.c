@@ -174,6 +174,9 @@ struct scst_vdisk_dev {
 
 	struct file *fd;
 	struct block_device *bdev;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+	struct bio_set *vdisk_bioset;
+#endif
 
 	uint64_t format_progress_to_do, format_progress_done;
 
@@ -199,6 +202,10 @@ struct scst_vdisk_dev {
 	char prod_rev_lvl[4 + 1];
 	char scsi_device_name[256 + 1];
 	char t10_dev_id[16+8+2]; /* T10 device ID */
+	int eui64_id_len;
+	uint8_t eui64_id[16];
+	int naa_id_len;
+	uint8_t naa_id[16];
 	char usn[MAX_USN_LEN];
 	uint8_t inq_vend_specific[MAX_INQ_VEND_SPECIFIC_LEN];
 	int inq_vend_specific_len;
@@ -389,6 +396,14 @@ static ssize_t vdev_sysfs_t10_dev_id_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count);
 static ssize_t vdev_sysfs_t10_dev_id_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
+static ssize_t vdev_sysfs_eui64_id_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count);
+static ssize_t vdev_sysfs_eui64_id_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
+static ssize_t vdev_sysfs_naa_id_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count);
+static ssize_t vdev_sysfs_naa_id_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
 static ssize_t vdev_sysfs_usn_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count);
 static ssize_t vdev_sysfs_usn_show(struct kobject *kobj,
@@ -459,6 +474,12 @@ static struct kobj_attribute vdev_scsi_device_name_attr =
 static struct kobj_attribute vdev_t10_dev_id_attr =
 	__ATTR(t10_dev_id, S_IWUSR|S_IRUGO, vdev_sysfs_t10_dev_id_show,
 		vdev_sysfs_t10_dev_id_store);
+static struct kobj_attribute vdev_eui64_id_attr =
+	__ATTR(eui64_id, S_IWUSR|S_IRUGO, vdev_sysfs_eui64_id_show,
+	       vdev_sysfs_eui64_id_store);
+static struct kobj_attribute vdev_naa_id_attr =
+	__ATTR(naa_id, S_IWUSR|S_IRUGO, vdev_sysfs_naa_id_show,
+	       vdev_sysfs_naa_id_store);
 static struct kobj_attribute vdev_usn_attr =
 	__ATTR(usn, S_IWUSR|S_IRUGO, vdev_sysfs_usn_show, vdev_sysfs_usn_store);
 static struct kobj_attribute vdev_inq_vend_specific_attr =
@@ -492,6 +513,8 @@ static const struct attribute *vdisk_fileio_attrs[] = {
 	&vdev_prod_rev_lvl_attr.attr,
 	&vdev_scsi_device_name_attr.attr,
 	&vdev_t10_dev_id_attr.attr,
+	&vdev_naa_id_attr.attr,
+	&vdev_eui64_id_attr.attr,
 	&vdev_usn_attr.attr,
 	&vdev_inq_vend_specific_attr.attr,
 	&vdev_zero_copy_attr.attr,
@@ -516,6 +539,8 @@ static const struct attribute *vdisk_blockio_attrs[] = {
 	&vdev_prod_rev_lvl_attr.attr,
 	&vdev_scsi_device_name_attr.attr,
 	&vdev_t10_dev_id_attr.attr,
+	&vdev_naa_id_attr.attr,
+	&vdev_eui64_id_attr.attr,
 	&vdev_usn_attr.attr,
 	&vdev_inq_vend_specific_attr.attr,
 	&vdisk_tp_attr.attr,
@@ -537,6 +562,8 @@ static const struct attribute *vdisk_nullio_attrs[] = {
 	&vdev_prod_rev_lvl_attr.attr,
 	&vdev_scsi_device_name_attr.attr,
 	&vdev_t10_dev_id_attr.attr,
+	&vdev_naa_id_attr.attr,
+	&vdev_eui64_id_attr.attr,
 	&vdev_usn_attr.attr,
 	&vdev_inq_vend_specific_attr.attr,
 	&vdisk_rotational_attr.attr,
@@ -554,6 +581,8 @@ static const struct attribute *vcdrom_attrs[] = {
 	&vdev_prod_rev_lvl_attr.attr,
 	&vdev_scsi_device_name_attr.attr,
 	&vdev_t10_dev_id_attr.attr,
+	&vdev_naa_id_attr.attr,
+	&vdev_eui64_id_attr.attr,
 	&vdev_usn_attr.attr,
 	&vdev_inq_vend_specific_attr.attr,
 	NULL,
@@ -566,7 +595,8 @@ static DEFINE_MUTEX(scst_vdisk_mutex);
 
 /*
  * Protects the device attributes t10_vend_id, vend_specific_id, prod_id,
- * prod_rev_lvl, scsi_device_name, t10_dev_id, usn and inq_vend_specific.
+ * prod_rev_lvl, scsi_device_name, t10_dev_id, eui64_id, naa_id, usn and
+ * inq_vend_specific.
  */
 static DEFINE_RWLOCK(vdisk_serial_rwlock);
 
@@ -2221,6 +2251,24 @@ static int vcdrom_get_supported_opcodes(struct scst_cmd *cmd,
 	return 0;
 }
 
+static bool vdisk_use_zero_copy(const struct scst_cmd *cmd)
+{
+	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
+
+	if (!virt_dev->zero_copy)
+		return false;
+
+	switch (cmd->cdb[0]) {
+	case READ_6:
+	case READ_10:
+	case READ_12:
+	case READ_16:
+		return true;
+	}
+
+	return false;
+}
+
 /*
  * Compute p->loff and p->fua.
  * Returns true for success or false otherwise and set error in the commeand.
@@ -2234,7 +2282,7 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 	loff_t loff;
 	struct scst_device *dev = cmd->dev;
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
-	bool use_zero_copy = false, res;
+	bool res;
 	int fua = 0;
 
 	TRACE_ENTRY();
@@ -2296,15 +2344,6 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 	}
 
 	switch (opcode) {
-	case READ_6:
-	case READ_10:
-	case READ_12:
-	case READ_16:
-		use_zero_copy = true;
-		break;
-	}
-
-	switch (opcode) {
 	case WRITE_10:
 	case WRITE_12:
 	case WRITE_16:
@@ -2320,7 +2359,7 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 
 	p->loff = loff;
 	p->fua = fua;
-	p->use_zero_copy = use_zero_copy && virt_dev->zero_copy;
+	p->use_zero_copy = vdisk_use_zero_copy(cmd);
 
 	res = true;
 
@@ -3247,20 +3286,21 @@ out:
 static int vdisk_sup_vpd(uint8_t *buf, struct scst_cmd *cmd,
 			 struct scst_vdisk_dev *virt_dev)
 {
-	buf[3] = 4;
-	buf[4] = 0x0; /* this page */
-	buf[5] = 0x80; /* unit serial number */
-	buf[6] = 0x83; /* device identification */
-	buf[7] = 0x86; /* extended inquiry */
+	char *page_list = &buf[4], *p = page_list;
+
+	*p++ = 0x0; /* this page */
+	*p++ = 0x80; /* unit serial number */
+	*p++ = 0x83; /* device identification */
+	*p++ = 0x86; /* extended inquiry */
 	if (cmd->dev->type == TYPE_DISK) {
-		buf[3] += 2;
-		buf[8] = 0xB0; /* block limits */
-		buf[9] = 0xB1; /* block device charachteristics */
+		*p++ = 0xB0; /* block limits */
+		*p++ = 0xB1; /* block device charachteristics */
 		if (virt_dev->thin_provisioned) {
-			buf[3] += 1;
-			buf[10] = 0xB2; /* thin provisioning */
+			*p++ = 0xB2; /* thin provisioning */
 		}
 	}
+	buf[3] = p - page_list; /* page length */
+
 	return buf[3] + 4;
 }
 
@@ -3288,8 +3328,9 @@ static int vdisk_usn_vpd(uint8_t *buf, struct scst_cmd *cmd,
 static int vdisk_dev_id_vpd(uint8_t *buf, struct scst_cmd *cmd,
 			    struct scst_vdisk_dev *virt_dev)
 {
-	int i, resp_len, num = 4;
+	int i, eui64_len = 0, naa_len = 0, resp_len, num = 4;
 	uint16_t tg_id;
+	u8 *eui64_id = NULL, *naa_id = NULL;
 
 	buf[1] = 0x83;
 
@@ -3353,30 +3394,48 @@ static int vdisk_dev_id_vpd(uint8_t *buf, struct scst_cmd *cmd,
 		num += 4 + buf[num + 3];
 	}
 
-	/*
-	 * IEEE id
-	 */
-	buf[num + 0] = 0x01; /* binary */
+	read_lock(&vdisk_serial_rwlock);
 
-	/* EUI-64 */
-	buf[num + 1] = 0x02;
-	buf[num + 2] = 0x00;
-	buf[num + 3] = 0x08;
+	if (virt_dev->eui64_id_len == 0 && virt_dev->naa_id_len == 0) {
+		/*
+		 * Compatibility mode: export the first eight bytes of the
+		 * t10_dev_id as an EUI-64 ID. This is not entirely standards
+		 * compliant since t10_dev_id contains an ASCII string and the
+		 * first three bytes of an eight-byte EUI-64 ID are a OUI.
+		 */
+		eui64_len = 8;
+		eui64_id  = virt_dev->t10_dev_id;
+	} else {
+		if (virt_dev->eui64_id_len) {
+			eui64_len = virt_dev->eui64_id_len;
+			eui64_id  = virt_dev->eui64_id;
+		}
+		if (virt_dev->naa_id_len) {
+			naa_len = virt_dev->naa_id_len;
+			naa_id  = virt_dev->naa_id;
+		}
+	}
+	if (eui64_len) {
+		buf[num + 0] = 0x01; /* binary */
+		buf[num + 1] = 0x02; /* EUI-64 */
+		buf[num + 2] = 0x00; /* reserved */
+		buf[num + 3] = eui64_len;
+		memcpy(&buf[num + 4], eui64_id, eui64_len);
+		num += 4 + eui64_len;
+	}
+	if (naa_len) {
+		buf[num + 0] = 0x01; /* binary */
+		buf[num + 1] = 0x03; /* NAA */
+		buf[num + 2] = 0x00; /* reserved */
+		buf[num + 3] = naa_len;
+		memcpy(&buf[num + 4], naa_id, naa_len);
+		num += 4 + naa_len;
+	}
 
-	/* IEEE id */
-	buf[num + 4] = virt_dev->t10_dev_id[0];
-	buf[num + 5] = virt_dev->t10_dev_id[1];
-	buf[num + 6] = virt_dev->t10_dev_id[2];
+	read_unlock(&vdisk_serial_rwlock);
 
-	/* IEEE ext id */
-	buf[num + 7] = virt_dev->t10_dev_id[3];
-	buf[num + 8] = virt_dev->t10_dev_id[4];
-	buf[num + 9] = virt_dev->t10_dev_id[5];
-	buf[num + 10] = virt_dev->t10_dev_id[6];
-	buf[num + 11] = virt_dev->t10_dev_id[7];
-	num += buf[num + 3];
+	resp_len = num - 4;
 
-	resp_len = num;
 	put_unaligned_be16(resp_len, &buf[2]);
 	resp_len += 4;
 
@@ -5094,6 +5153,10 @@ out_nomem:
 struct scst_blockio_work {
 	atomic_t bios_inflight;
 	struct scst_cmd *cmd;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
+	/* just to avoid extra dereferences */
+	struct bio_set *bioset;
+#endif
 };
 
 static inline void blockio_check_finish(struct scst_blockio_work *blockio_work)
@@ -5107,6 +5170,15 @@ static inline void blockio_check_finish(struct scst_blockio_work *blockio_work)
 	}
 	return;
 }
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
+static void blockio_bio_destructor(struct bio *bio)
+{
+	struct scst_blockio_work *blockio_work = bio->bi_private;
+	bio_free(bio, blockio_work->bioset);
+	blockio_check_finish(blockio_work);
+}
+#endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
 static int blockio_endio(struct bio *bio, unsigned int bytes_done, int error)
@@ -5153,22 +5225,15 @@ static void blockio_endio(struct bio *bio, int error)
 		spin_unlock_irqrestore(&blockio_endio_lock, flags);
 	}
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)) || (LINUX_VERSION_CODE > KERNEL_VERSION(3, 6, 0))
 	blockio_check_finish(blockio_work);
+#endif
 
 	bio_put(bio);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
 	return 0;
 #else
 	return;
-#endif
-}
-
-static struct bio *vdisk_bio_alloc(gfp_t gfp_mask, int max_nr_vecs)
-{
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
-	return bio_kmalloc(gfp_mask, max_nr_vecs);
-#else
-	return bio_alloc(gfp_mask, max_nr_vecs);
 #endif
 }
 
@@ -5223,6 +5288,9 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	int block_shift = cmd->dev->block_shift;
 	struct block_device *bdev = virt_dev->bdev;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+	struct bio_set *bs = virt_dev->vdisk_bioset;
+#endif
 	struct request_queue *q = bdev_get_queue(bdev);
 	int length, max_nr_vecs = 0, offset;
 	struct page *page;
@@ -5255,6 +5323,9 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 #endif
 
 	blockio_work->cmd = cmd;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
+	blockio_work->bioset = bs;
+#endif
 
 	if (q)
 		max_nr_vecs = min(bio_get_nr_vecs(bdev), BIO_MAX_PAGES);
@@ -5279,7 +5350,12 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 			int rc;
 
 			if (need_new_bio) {
-				bio = vdisk_bio_alloc(gfp_mask, max_nr_vecs);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+				bio = bio_alloc_bioset(gfp_mask, max_nr_vecs, bs);
+#else
+				bio = bio_alloc(gfp_mask, max_nr_vecs);
+#endif
+
 				if (!bio) {
 					PRINT_ERROR("Failed to create bio "
 						"for data segment %d (cmd %p)",
@@ -5297,6 +5373,9 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 #endif
 				bio->bi_bdev = bdev;
 				bio->bi_private = blockio_work;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
+				bio->bi_destructor = blockio_bio_destructor;
+#endif
 				/*
 				 * Better to fail fast w/o any local recovery
 				 * and retries.
@@ -5465,6 +5544,24 @@ out:
 	return res;
 }
 
+struct bio_priv_sync {
+	struct completion c;
+	int error;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
+	struct bio_set *bs;
+	struct completion c1;
+#endif
+};
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
+static void blockio_bio_destructor_sync(struct bio *bio)
+{
+	struct bio_priv_sync *s = bio->bi_private;
+	bio_free(bio, s->bs);
+	complete(&s->c1);
+}
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
 static int blockio_end_sync_io(struct bio *bio, unsigned int bytes_done,
 			       int error)
@@ -5472,7 +5569,7 @@ static int blockio_end_sync_io(struct bio *bio, unsigned int bytes_done,
 static void blockio_end_sync_io(struct bio *bio, int error)
 #endif
 {
-	struct completion *c = bio->bi_private;
+	struct bio_priv_sync *s = bio->bi_private;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
 	if (bio->bi_size)
@@ -5484,8 +5581,8 @@ static void blockio_end_sync_io(struct bio *bio, int error)
 		error = -EIO;
 	}
 
-	bio->bi_private = (void *)(unsigned long)error;
-	complete(c);
+	s->error = error;
+	complete(&s->c);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
 	return 0;
@@ -5497,7 +5594,13 @@ static void blockio_end_sync_io(struct bio *bio, int error)
 static ssize_t blockio_rw_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 			       size_t len, loff_t *loff, unsigned rw)
 {
-	DECLARE_COMPLETION_ONSTACK(c);
+	struct bio_priv_sync s = {
+		COMPLETION_INITIALIZER_ONSTACK(s.c), 0,
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
+		virt_dev->vdisk_bioset,
+		COMPLETION_INITIALIZER_ONSTACK(s.c1)
+#endif
+	};
 	struct block_device *bdev = virt_dev->bdev;
 	const bool is_vmalloc = is_vmalloc_addr(buf);
 	struct bio *bio;
@@ -5506,11 +5609,14 @@ static ssize_t blockio_rw_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 	int max_nr_vecs, rc;
 	unsigned bytes, off;
 	ssize_t ret = -ENOMEM;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
+	bool submitted = false;
+#endif
 
 	max_nr_vecs = min(bio_get_nr_vecs(bdev), BIO_MAX_PAGES);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
-	bio = bio_kmalloc(GFP_KERNEL, max_nr_vecs);
+	bio = bio_alloc_bioset(GFP_KERNEL, max_nr_vecs, virt_dev->vdisk_bioset);
 #else
 	bio = bio_alloc(GFP_KERNEL, max_nr_vecs);
 #endif
@@ -5521,7 +5627,10 @@ static ssize_t blockio_rw_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 	bio->bi_rw = rw;
 	bio->bi_bdev = bdev;
 	bio->bi_end_io = blockio_end_sync_io;
-	bio->bi_private = &c;
+	bio->bi_private = &s;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
+	bio->bi_destructor = blockio_bio_destructor_sync;
+#endif
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0)
 	bio->bi_sector = *loff >> 9;
 #else
@@ -5536,11 +5645,18 @@ static ssize_t blockio_rw_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 			goto free;
 	}
 	submit_bio(rw, bio);
-	wait_for_completion(&c);
-	ret = (unsigned long)bio->bi_private ? : len;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
+	submitted = true;
+#endif
+	wait_for_completion(&s.c);
+	ret = (unsigned long)s.error ? : len;
 
 free:
 	bio_put(bio);
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
+	if (submitted)
+		wait_for_completion(&s.c1);
+#endif
 
 out:
 	return ret;
@@ -5986,6 +6102,34 @@ out:
 	return res;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+static int vdisk_create_bioset(struct scst_vdisk_dev *virt_dev)
+{
+	int res;
+
+	EXTRACHECKS_BUG_ON(virt_dev->vdisk_bioset || !virt_dev->blockio);
+
+	/* Pool size doesn't really matter */
+	virt_dev->vdisk_bioset = bioset_create(2, 0);
+	if (virt_dev->vdisk_bioset == NULL) {
+		PRINT_ERROR("Failed to create bioset (dev %s)", virt_dev->name);
+		res = -ENOMEM;
+		goto out;
+	}
+
+	res = 0;
+
+out:
+	return res;
+}
+
+static void vdisk_free_bioset(struct scst_vdisk_dev *virt_dev)
+{
+	if (virt_dev->vdisk_bioset != NULL)
+		bioset_free(virt_dev->vdisk_bioset);
+}
+#endif
+
 /* scst_vdisk_mutex supposed to be held */
 static int vdev_create(struct scst_dev_type *devt,
 	const char *name, struct scst_vdisk_dev **res_virt_dev)
@@ -6050,6 +6194,9 @@ static int vdev_create(struct scst_dev_type *devt,
 	sprintf(virt_dev->scsi_device_name, "%.*s",
 		(int)(sizeof(virt_dev->scsi_device_name) - 1), "");
 
+	virt_dev->eui64_id_len = 0;
+	virt_dev->naa_id_len = 0;
+
 	scnprintf(virt_dev->usn, sizeof(virt_dev->usn), "%llx", dev_id_num);
 	TRACE_DBG("usn %s", virt_dev->usn);
 
@@ -6075,6 +6222,9 @@ out_free:
 
 static void vdev_destroy(struct scst_vdisk_dev *virt_dev)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+	vdisk_free_bioset(virt_dev);
+#endif
 	kfree(virt_dev->filename);
 	kfree(virt_dev);
 	return;
@@ -6344,6 +6494,12 @@ static int vdev_blockio_add_device(const char *device_name, char *params)
 		res = -EINVAL;
 		goto out_destroy;
 	}
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+	res = vdisk_create_bioset(virt_dev);
+	if (res != 0)
+		goto out_destroy;
+#endif
 
 	list_add_tail(&virt_dev->vdev_list_entry, &vdev_list);
 
@@ -7706,6 +7862,161 @@ static ssize_t vdev_sysfs_t10_dev_id_show(struct kobject *kobj,
 	return pos;
 }
 
+static ssize_t vdev_sysfs_eui64_id_store(struct kobject *kobj,
+					 struct kobj_attribute *attr,
+					 const char *buf, size_t count)
+{
+	int res = count;
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = dev->dh_priv;
+
+	while (count > 0 && isspace((uint8_t)buf[0])) {
+		buf++;
+		count--;
+	}
+	while (count > 0 && isspace((uint8_t)buf[count - 1]))
+		count--;
+	if (count >= 2 && buf[0] == '0' && buf[1] == 'x') {
+		buf += 2;
+		count -= 2;
+	}
+
+	switch (count) {
+	case 0:
+	case 2 * 8:
+	case 2 * 12:
+	case 2 * 16:
+		break;
+	default:
+		res = -EINVAL;
+		goto out;
+	}
+
+	write_lock(&vdisk_serial_rwlock);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0) ||	\
+    defined(CONFIG_SUSE_KERNEL) &&			\
+    LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 76)
+	if (hex2bin(virt_dev->eui64_id, buf, count / 2) == 0)
+		virt_dev->eui64_id_len = count / 2;
+	else
+		res = -EINVAL;
+#else
+	memset(virt_dev->eui64_id, 0, sizeof(virt_dev->eui64_id));
+	hex2bin(virt_dev->eui64_id, buf, count / 2);
+	virt_dev->eui64_id_len = count / 2;
+#endif
+	write_unlock(&vdisk_serial_rwlock);
+
+out:
+	return res;
+}
+
+static ssize_t vdev_sysfs_eui64_id_show(struct kobject *kobj,
+					struct kobj_attribute *attr, char *buf)
+{
+	int i, pos = 0;
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = dev->dh_priv;
+
+	read_lock(&vdisk_serial_rwlock);
+	if (virt_dev->eui64_id_len)
+		pos += sprintf(buf + pos, "0x");
+	for (i = 0; i < virt_dev->eui64_id_len; i++)
+		pos += sprintf(buf + pos, "%02x", virt_dev->eui64_id[i]);
+	pos += sprintf(buf + pos, "\n%s", virt_dev->eui64_id_len ?
+		       SCST_SYSFS_KEY_MARK "\n" : "");
+	read_unlock(&vdisk_serial_rwlock);
+
+	return pos;
+}
+
+static ssize_t vdev_sysfs_naa_id_store(struct kobject *kobj,
+				       struct kobj_attribute *attr,
+				       const char *buf, size_t count)
+{
+	int res = -EINVAL, c = count;
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = dev->dh_priv;
+
+	while (c > 0 && isspace((uint8_t)buf[0])) {
+		buf++;
+		c--;
+	}
+	while (c > 0 && isspace((uint8_t)buf[c - 1]))
+		c--;
+	if (c >= 2 && buf[0] == '0' && buf[1] == 'x') {
+		buf += 2;
+		c -= 2;
+	}
+
+	switch (c) {
+	case 0:
+	case 2 * 8:
+		if (strchr("1235cCdDeEfF", buf[0]))
+			break;
+		else
+			goto out;
+	case 2 * 16:
+		if (strchr("6", buf[0]))
+			break;
+		else
+			goto out;
+	default:
+		goto out;
+	}
+
+	res = count;
+
+	write_lock(&vdisk_serial_rwlock);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0) ||	\
+    defined(CONFIG_SUSE_KERNEL) &&			\
+    LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 76)
+	if (hex2bin(virt_dev->naa_id, buf, c / 2) == 0)
+		virt_dev->naa_id_len = c / 2;
+	else
+		res = -EINVAL;
+#else
+	memset(virt_dev->naa_id, 0, sizeof(virt_dev->naa_id));
+	hex2bin(virt_dev->naa_id, buf, c / 2);
+	virt_dev->naa_id_len = c / 2;
+#endif
+	write_unlock(&vdisk_serial_rwlock);
+
+out:
+	return res;
+}
+
+static ssize_t vdev_sysfs_naa_id_show(struct kobject *kobj,
+					struct kobj_attribute *attr, char *buf)
+{
+	int i, pos = 0;
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = dev->dh_priv;
+
+	read_lock(&vdisk_serial_rwlock);
+	if (virt_dev->naa_id_len)
+		pos += sprintf(buf + pos, "0x");
+	for (i = 0; i < virt_dev->naa_id_len; i++)
+		pos += sprintf(buf + pos, "%02x", virt_dev->naa_id[i]);
+	pos += sprintf(buf + pos, "\n%s", virt_dev->naa_id_len ?
+		       SCST_SYSFS_KEY_MARK "\n" : "");
+	read_unlock(&vdisk_serial_rwlock);
+
+	return pos;
+}
+
 static ssize_t vdev_sysfs_usn_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count)
 {
@@ -8068,6 +8379,11 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 			} else if (!strncmp("BLOCKIO", p, 7)) {
 				p += 7;
 				virt_dev->blockio = 1;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+				res = vdisk_create_bioset(virt_dev);
+				if (res != 0)
+					goto out_free_vdev;
+#endif
 				/* Bad hack for anyway going out procfs */
 				virt_dev->vdev_devt = &vdisk_blk_devtype;
 				sprintf(virt_dev->t10_vend_id, "%.*s",

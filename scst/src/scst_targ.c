@@ -3380,11 +3380,21 @@ static int scst_check_sense(struct scst_cmd *cmd)
 
 	/* If we had internal bus reset behind us, set the command error UA */
 	if ((dev->scsi_dev != NULL) &&
-	    unlikely(cmd->host_status == DID_RESET) &&
-	    ((cmd->op_flags & SCST_SKIP_UA) == 0)) {
-		TRACE(TRACE_MGMT, "DID_RESET: was_reset=%d host_status=%x",
-		      dev->scsi_dev->was_reset, cmd->host_status);
-		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_reset_UA));
+	    unlikely(cmd->host_status == DID_RESET)) {
+		if ((cmd->op_flags & SCST_SKIP_UA) == 0) {
+			TRACE(TRACE_MGMT, "DID_RESET: was_reset=%d host_status=%x",
+			      dev->scsi_dev->was_reset, cmd->host_status);
+			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_reset_UA));
+		} else {
+			int sl;
+			uint8_t sense[SCST_STANDARD_SENSE_LEN];
+			TRACE(TRACE_MGMT, "DID_RESET received for device %s, "
+				"triggering reset UA", dev->virt_name);
+			sl = scst_set_sense(sense, sizeof(sense), dev->d_sense,
+				SCST_LOAD_SENSE(scst_sense_reset_UA));
+			scst_dev_check_set_UA(dev, NULL, sense, sl);
+			scst_abort_cmd(cmd, NULL, false, false);
+		}
 		/* It looks like it is safe to clear was_reset here */
 		dev->scsi_dev->was_reset = 0;
 	}
@@ -3465,7 +3475,7 @@ static bool scst_check_auto_sense(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	if (unlikely(cmd->status == SAM_STAT_CHECK_CONDITION) &&
-	    (!scst_sense_valid(cmd->sense) || scst_no_sense(cmd->sense))) {
+	    !scst_sense_valid(cmd->sense)) {
 		if (!test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)) {
 			TRACE(TRACE_SCSI|TRACE_MINOR_AND_MGMT_DBG,
 				"CHECK_CONDITION, but no sense: cmd->status=%x, "
@@ -3479,8 +3489,23 @@ static bool scst_check_auto_sense(struct scst_cmd *cmd)
 		if ((cmd->host_status == DID_REQUEUE) ||
 		    (cmd->host_status == DID_IMM_RETRY) ||
 		    (cmd->host_status == DID_SOFT_ERROR) ||
-		    (cmd->host_status == DID_ABORT)) {
+		    (cmd->host_status == DID_BUS_BUSY) ||
+		    (cmd->host_status == DID_TRANSPORT_DISRUPTED) ||
+		    (cmd->host_status == DID_TRANSPORT_FAILFAST) ||
+		    (cmd->host_status == DID_ALLOC_FAILURE)) {
 			scst_set_busy(cmd);
+		} else if (cmd->host_status == DID_RESET) {
+			/* Postpone handling to scst_check_sense() */
+		} else if ((cmd->host_status == DID_ABORT) ||
+			   (cmd->host_status == DID_NO_CONNECT) ||
+			   (cmd->host_status == DID_TIME_OUT) ||
+			   (cmd->host_status == DID_NEXUS_FAILURE)) {
+			scst_abort_cmd(cmd, NULL, false, false);
+		} else if (cmd->host_status == DID_MEDIUM_ERROR) {
+			if (cmd->data_direction & SCST_DATA_WRITE)
+				scst_set_cmd_error(cmd,	SCST_LOAD_SENSE(scst_sense_write_error));
+			else
+				scst_set_cmd_error(cmd,	SCST_LOAD_SENSE(scst_sense_read_error));
 		} else {
 			TRACE(TRACE_SCSI|TRACE_MINOR_AND_MGMT_DBG, "Host "
 				"status 0x%x received, returning HARDWARE ERROR "
@@ -4845,7 +4870,6 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 	if (res == SCST_CMD_STATE_RES_CONT_NEXT) {
 		/* None */
 	} else if (res == SCST_CMD_STATE_RES_NEED_THREAD) {
-		spin_lock_irq(&cmd->cmd_threads->cmd_list_lock);
 #ifdef CONFIG_SCST_EXTRACHECKS
 		switch (cmd->state) {
 		case SCST_CMD_STATE_PARSE:
@@ -4858,22 +4882,18 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 		case SCST_CMD_STATE_REAL_EXEC:
 		case SCST_CMD_STATE_DEV_DONE:
 		case SCST_CMD_STATE_XMIT_RESP:
-#endif
-			TRACE_DBG("Adding cmd %p to head of active cmd list",
-				  cmd);
-			list_add(&cmd->cmd_list_entry,
-				&cmd->cmd_threads->active_cmd_list);
-#ifdef CONFIG_SCST_EXTRACHECKS
 			break;
 		default:
 			PRINT_CRIT_ERROR("cmd %p is in invalid state %d)", cmd,
 				cmd->state);
-#if !defined(__CHECKER__)
-			spin_unlock_irq(&cmd->cmd_threads->cmd_list_lock);
-#endif
 			sBUG();
 		}
 #endif
+		TRACE_DBG("Adding cmd %p to head of active cmd list", cmd);
+
+		spin_lock_irq(&cmd->cmd_threads->cmd_list_lock);
+		list_add(&cmd->cmd_list_entry,
+			 &cmd->cmd_threads->active_cmd_list);
 		wake_up(&cmd->cmd_threads->cmd_list_waitQ);
 		spin_unlock_irq(&cmd->cmd_threads->cmd_list_lock);
 	} else
@@ -5404,13 +5424,14 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 				"op %s, proc time %ld sec., timeout %d sec.), "
 				"deferring ABORT (cmd_done_wait_count %d, "
 				"cmd_finish_wait_count %d, internal %d, mcmd "
-				"fn %d (mcmd %p))", cmd,
-				(long long unsigned int)cmd->tag,
+				"fn %d (mcmd %p), initiator %s, target %s)",
+				cmd, (long long unsigned int)cmd->tag,
 				cmd->sn, cmd->state, scst_get_opcode_name(cmd),
 				(long)(jiffies - cmd->start_time) / HZ,
 				cmd->timeout / HZ, mcmd->cmd_done_wait_count,
 				mcmd->cmd_finish_wait_count, cmd->internal,
-				mcmd->fn, mcmd);
+				mcmd->fn, mcmd, mcmd->sess->initiator_name,
+				mcmd->sess->tgt->tgt_name);
 			/*
 			 * cmd can't die here or sess_list_lock already taken
 			 * and cmd is in the sess list

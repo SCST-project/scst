@@ -426,6 +426,7 @@ static ssize_t isert_get_initiator_ip(struct iscsi_conn *conn,
 			"%pI4", &((struct sockaddr_in *)&ss)->sin_addr.s_addr);
 #endif
 		break;
+#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 	case AF_INET6:
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
 		pos = scnprintf(buf, size,
@@ -436,6 +437,7 @@ static ssize_t isert_get_initiator_ip(struct iscsi_conn *conn,
 			&((struct sockaddr_in6 *)&ss)->sin6_addr);
 #endif
 		break;
+#endif
 	default:
 		pos = scnprintf(buf, size, "Unknown family %d",
 			ss.ss_family);

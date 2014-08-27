@@ -35,6 +35,8 @@
 #include <errno.h>
 #endif
 
+#include "scst_itf_ver.h"
+
 /*
  * Version numbers, the same as for the kernel.
  *
@@ -51,7 +53,7 @@
 #define SCST_VERSION_NAME	    "3.1.0-pre1"
 #define SCST_VERSION_STRING	    SCST_VERSION_NAME SCST_VERSION_STRING_SUFFIX
 
-#define SCST_CONST_VERSION "$Revision$"
+#define SCST_CONST_VERSION SCST_CONST_INTF_VER
 
 /*** Shared constants between user and kernel spaces ***/
 
@@ -574,6 +576,29 @@ enum scst_tg_sup {
 #define SCST_SENSE_ASC_UA_RESET      0x29
 #define POSITION_LEN_SHORT           20
 #define POSITION_LEN_LONG            32
+
+/*************************************************************
+ ** Compatibility constants
+ *************************************************************/
+#ifndef DID_TRANSPORT_DISRUPTED
+#define DID_TRANSPORT_DISRUPTED      0xe
+#endif
+
+#ifndef DID_TRANSPORT_FAILFAST
+#define DID_TRANSPORT_FAILFAST       0xf
+#endif
+
+#ifndef DID_NEXUS_FAILURE
+#define DID_NEXUS_FAILURE            0x11
+#endif
+
+#ifndef DID_ALLOC_FAILURE
+#define DID_ALLOC_FAILURE            0x12
+#endif
+
+#ifndef DID_MEDIUM_ERROR
+#define DID_MEDIUM_ERROR             0x13
+#endif
 
 /*************************************************************
  ** Various timeouts

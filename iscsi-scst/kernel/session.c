@@ -466,7 +466,7 @@ static ssize_t iscsi_sess_show_##name(struct kobject *kobj,			\
 }										\
 										\
 static struct kobj_attribute iscsi_sess_attr_##name =				\
-	__ATTR(exported_name, S_IRUGO, iscsi_sess_show_##name, NULL);
+	__ATTR(exported_name, S_IRUGO, iscsi_sess_show_##name, NULL)
 
 #define ISCSI_SESS_INT_PARAM_ATTR(name, exported_name)				\
 static ssize_t iscsi_sess_show_##name(struct kobject *kobj,			\
@@ -485,7 +485,7 @@ static ssize_t iscsi_sess_show_##name(struct kobject *kobj,			\
 }										\
 										\
 static struct kobj_attribute iscsi_sess_attr_##name =				\
-	__ATTR(exported_name, S_IRUGO, iscsi_sess_show_##name, NULL);
+	__ATTR(exported_name, S_IRUGO, iscsi_sess_show_##name, NULL)
 
 #define ISCSI_SESS_DIGEST_PARAM_ATTR(name, exported_name)			\
 static ssize_t iscsi_sess_show_##name(struct kobject *kobj,			\
@@ -506,7 +506,7 @@ static ssize_t iscsi_sess_show_##name(struct kobject *kobj,			\
 }										\
 										\
 static struct kobj_attribute iscsi_sess_attr_##name =				\
-	__ATTR(exported_name, S_IRUGO, iscsi_sess_show_##name, NULL);
+	__ATTR(exported_name, S_IRUGO, iscsi_sess_show_##name, NULL)
 
 ISCSI_SESS_BOOL_PARAM_ATTR(initial_r2t, InitialR2T);
 ISCSI_SESS_BOOL_PARAM_ATTR(immediate_data, ImmediateData);

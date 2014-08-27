@@ -4708,6 +4708,9 @@ sub sessions {
 				}
 			} else {
 				my $mode = (stat($pPath))[2];
+				if (!$mode) {
+					$mode = 0;
+				}
 				if (-d $pPath) {
 					# Skip directories
 				} else {

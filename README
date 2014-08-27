@@ -1,3 +1,6 @@
+Overview
+========
+
 This is the SCST development repository. It contains not a single
 project SCST as one can think, but a number of them, which are divided
 as the following:
@@ -23,5 +26,35 @@ Otherwise build only what you need, like for iSCSI-SCST:
 make scst scst_install iscsi iscsi_install
 
 For more information about each subproject see their README files.
+
+
+QLogic target driver
+====================
+
+QLogic target driver in qla2x00t/ is the old one, forked from qla2xxx
+from kernel 2.6.26. It is not maintained anymore and not built by
+default by the common Makefile targets, like "all".
+
+You can find the latest version of this driver in git://git.qlogic.com/scst-qla2xxx.git.
+It is now maintained by QLogic, hence located in the QLogic's git.
+
+To integrate it into the SCST build tree you need:
+
+1. Clone the QLogic git tree somewhere in your system.
+
+2. Create in the SCST root, i.e. this directory, a subdirectory with name
+qla2x00t_git
+
+3. Bind mount drivers/scsi/qla2xxx in the cloned git tree to the
+qla2x00t_git subdirectory, like:
+
+# mount --bind /home/u/scst-qla2xxx/drivers/scsi/qla2xxx /home/u/trunk/qla2x00t_git
+
+Thats all. Now "make all" and other common and QLA specific root
+Makefile targets "magically" start working. The bind mount is necessary
+for the driver to correctly find the SCST header files. Symlinks can't
+do it.
+
+You can still build the old driver using qla_old* root Makefile targets.
 
 Vladislav Bolkhovitin <vst@vlnb.net>, http://scst.sourceforge.net

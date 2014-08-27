@@ -122,7 +122,8 @@ find /lib/modules/%{kver} -name ib_srpt.ko -exec rm {} \;
 %{_mandir}/man8/iscsi-scstd.8.gz
 %{_sbindir}/iscsi-scst-adm
 %{_sbindir}/iscsi-scstd
-%dir /var/lib/scst
+%dir /var/lib/scst/pr
+%dir /var/lib/scst/vdev_mode_pages
 
 %files devel
 %defattr(-,root,root)
@@ -131,6 +132,7 @@ find /lib/modules/%{kver} -name ib_srpt.ko -exec rm {} \;
 /usr/include/scst/scst.h
 /usr/include/scst/scst_const.h
 /usr/include/scst/scst_debug.h
+/usr/include/scst/scst_itf_ver.h
 /usr/include/scst/scst_sgv.h
 /usr/include/scst/scst_user.h
 

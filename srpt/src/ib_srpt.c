@@ -348,8 +348,8 @@ static const char *get_ch_state_name(enum rdma_ch_state s)
  */
 static void srpt_qp_event(struct ib_event *event, struct srpt_rdma_ch *ch)
 {
-	TRACE_DBG("QP event %d on ch=%p sess_name=%s state=%s",
-		  event->event, ch, ch->sess_name,
+	TRACE_DBG("QP event %d on ch=%p sess_name=%s-%d state=%s",
+		  event->event, ch, ch->sess_name, ch->qp->qp_num,
 		  get_ch_state_name(ch->state));
 
 	switch (event->event) {
@@ -366,8 +366,9 @@ static void srpt_qp_event(struct ib_event *event, struct srpt_rdma_ch *ch)
 #endif
 		break;
 	case IB_EVENT_QP_LAST_WQE_REACHED:
-		TRACE_DBG("%s, state %s: received Last WQE event.",
-			  ch->sess_name, get_ch_state_name(ch->state));
+		TRACE_DBG("%s-%d, state %s: received Last WQE event.",
+			  ch->sess_name, ch->qp->qp_num,
+			  get_ch_state_name(ch->state));
 		break;
 	default:
 		PRINT_ERROR("received unrecognized IB QP event %d",
@@ -690,7 +691,11 @@ static int srpt_refresh_port(struct srpt_port *sport)
 							 &reg_req, 0,
 							 srpt_mad_send_handler,
 							 srpt_mad_recv_handler,
-							 sport);
+							 sport
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)
+							 , 0
+#endif
+							 );
 		if (IS_ERR(sport->mad_agent)) {
 			ret = PTR_ERR(sport->mad_agent);
 			sport->mad_agent = NULL;
@@ -1941,8 +1946,8 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 			srpt_handle_rdma_comp(ch, ch->ioctx_ring[index], opcode,
 					      srpt_xmt_rsp_context);
 		} else if (opcode == SRPT_RDMA_ZEROLENGTH_WRITE) {
-			WARN_ONCE(true, "%s: QP not in error state\n",
-				  ch->sess_name);
+			WARN_ONCE(true, "%s-%d: QP not in error state\n",
+				  ch->sess_name, ch->qp->qp_num);
 			WARN_ON_ONCE(!srpt_set_ch_state(ch, CH_DISCONNECTED));
 		} else {
 			WARN(true, "unexpected opcode %d\n", opcode);
@@ -2096,8 +2101,8 @@ static int srpt_compl_thread(void *arg)
 	}
 	set_current_state(TASK_RUNNING);
 
-	TRACE_DBG("ch %s: about to invoke scst_unregister_session()",
-		  ch->sess_name);
+	TRACE_DBG("%s-%d: about to invoke scst_unregister_session()",
+		  ch->sess_name, ch->qp->qp_num);
 	scst_unregister_session(ch->scst_sess, false, srpt_unreg_sess);
 
 	while (!kthread_should_stop())
@@ -2128,12 +2133,12 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 			      ch->rq_size + srpt_sq_size);
 #else
 	ch->cq = ib_create_cq(sdev->device, srpt_completion, NULL, ch,
-			      ch->rq_size + srpt_sq_size, 0);
+			      ch->rq_size + srpt_sq_size, ch->comp_vector);
 #endif
 	if (IS_ERR(ch->cq)) {
 		ret = PTR_ERR(ch->cq);
-		PRINT_ERROR("failed to create CQ cqe= %d ret= %d",
-			    ch->rq_size + srpt_sq_size, ret);
+		PRINT_ERROR("failed to create CQ: cqe %d; c.v. %d; ret %d",
+			    ch->rq_size + srpt_sq_size, ch->comp_vector, ret);
 		goto out;
 	}
 
@@ -2227,13 +2232,13 @@ static bool srpt_close_ch(struct srpt_rdma_ch *ch)
 
 	ret = srpt_ch_qp_err(ch);
 	if (ret < 0)
-		PRINT_ERROR("%s: changing queue pair into error state"
-			    " failed: %d", ch->sess_name, ret);
+		PRINT_ERROR("%s-%d: changing queue pair into error state"
+			    " failed: %d", ch->sess_name, ch->qp->qp_num, ret);
 
 	ret = srpt_zerolength_write(ch);
 	if (ret < 0) {
-		PRINT_ERROR("%s: queuing zero-length write failed: %d",
-			    ch->sess_name, ret);
+		PRINT_ERROR("%s-%d: queuing zero-length write failed: %d",
+			    ch->sess_name, ch->qp->qp_num, ret);
 		WARN_ON_ONCE(!srpt_set_ch_state(ch, CH_DISCONNECTED));
 	}
 
@@ -2281,12 +2286,25 @@ static void __srpt_close_all_ch(struct srpt_tgt *srpt_tgt)
 
 	list_for_each_entry(nexus, &srpt_tgt->nexus_list, entry) {
 		list_for_each_entry(ch, &nexus->ch_list, list) {
-			if (srpt_disconnect_ch(ch) < 0)
-				continue;
-			PRINT_INFO("Closing channel %s because target %s has"
-				   " been disabled", ch->sess_name,
-				   srpt_tgt->scst_tgt->tgt_name);
+			if (srpt_disconnect_ch(ch) >= 0)
+				PRINT_INFO("Closing channel %s-%d because"
+					   " target %s has been disabled",
+					   ch->sess_name, ch->qp->qp_num,
+					   srpt_tgt->scst_tgt->tgt_name);
+			srpt_close_ch(ch);
 		}
+	}
+}
+
+static struct srpt_device *srpt_convert_to_sdev(struct scst_tgt *scst_tgt)
+{
+	struct srpt_port *sport;
+
+	if (one_target_per_port) {
+		sport = scst_tgt_get_tgt_priv(scst_tgt);
+		return sport ? sport->sdev : NULL;
+	} else {
+		return scst_tgt_get_tgt_priv(scst_tgt);
 	}
 }
 
@@ -2387,6 +2405,26 @@ static bool srpt_is_target_enabled(struct scst_tgt *scst_tgt)
 	return srpt_tgt && srpt_tgt->enabled;
 }
 #endif
+
+/*
+ * srpt_next_comp_vector() - Next completion vector >= srpt_tgt->comp_vector
+ */
+static u8 srpt_next_comp_vector(struct srpt_tgt *srpt_tgt)
+{
+	u8 comp_vector;
+
+	mutex_lock(&srpt_tgt->mutex);
+	comp_vector = find_next_bit(srpt_tgt->comp_v_mask, COMP_V_MASK_SIZE,
+				    srpt_tgt->comp_vector);
+	if (comp_vector >= COMP_V_MASK_SIZE)
+		comp_vector = find_next_bit(srpt_tgt->comp_v_mask,
+					    COMP_V_MASK_SIZE, 0);
+	sBUG_ON(comp_vector >= COMP_V_MASK_SIZE);
+	srpt_tgt->comp_vector = comp_vector + 1;
+	mutex_unlock(&srpt_tgt->mutex);
+
+	return comp_vector;
+}
 
 /**
  * srpt_cm_req_recv() - Process the event IB_CM_REQ_RECEIVED.
@@ -2549,6 +2587,8 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 		ch->ioctx_ring[i]->ch = ch;
 		list_add_tail(&ch->ioctx_ring[i]->free_list, &ch->free_list);
 	}
+
+	ch->comp_vector = srpt_next_comp_vector(srpt_tgt);
 
 	ret = srpt_create_ch_ib(ch);
 	if (ret) {
@@ -2829,7 +2869,8 @@ static int srpt_rdma_cm_req_recv(struct rdma_cm_id *cm_id,
 
 static void srpt_cm_rej_recv(struct srpt_rdma_ch *ch)
 {
-	PRINT_INFO("Received CM REJ for ch %s.", ch->sess_name);
+	PRINT_INFO("Received CM REJ for ch %s-%d.", ch->sess_name,
+		   ch->qp->qp_num);
 }
 
 static void srpt_check_timeout(struct srpt_rdma_ch *ch)
@@ -2856,9 +2897,9 @@ static void srpt_check_timeout(struct srpt_rdma_ch *ch)
 		do_div(max_compl_time_ms, 1000000);
 		T_tr_ms = T_tr_ns;
 		do_div(T_tr_ms, 1000000);
-		TRACE_DBG("Session %s: QP local ack timeout = %d or T_tr ="
+		TRACE_DBG("%s-%d: QP local ack timeout = %d or T_tr ="
 			  " %u ms; retry_cnt = %d; max compl. time = %d ms",
-			  ch->sess_name, attr.timeout, T_tr_ms,
+			  ch->sess_name, ch->qp->qp_num, attr.timeout, T_tr_ms,
 			  attr.retry_cnt, (unsigned)max_compl_time_ms);
 
 		if (max_compl_time_ms >= RDMA_COMPL_TIMEOUT_S * 1000) {
@@ -2882,7 +2923,8 @@ static void srpt_cm_rtu_recv(struct srpt_rdma_ch *ch)
 
 	ret = ch->using_rdma_cm ? 0 : srpt_ch_qp_rts(ch, ch->qp);
 	if (ret < 0) {
-		PRINT_ERROR("%s: QP transition to RTS failed", ch->sess_name);
+		PRINT_ERROR("%s-%d: QP transition to RTS failed",
+			    ch->sess_name, ch->qp->qp_num);
 		srpt_close_ch(ch);
 		return;
 	}
@@ -2895,19 +2937,21 @@ static void srpt_cm_rtu_recv(struct srpt_rdma_ch *ch)
 	 * already been invoked from another thread.
 	 */
 	if (!srpt_set_ch_state(ch, CH_LIVE))
-		PRINT_ERROR("%s: Channel transition to LIVE state failed",
-			    ch->sess_name);
+		PRINT_ERROR("%s-%d: channel transition to LIVE state failed",
+			    ch->sess_name, ch->qp->qp_num);
 }
 
 static void srpt_cm_timewait_exit(struct srpt_rdma_ch *ch)
 {
-	PRINT_INFO("Received CM TimeWait exit for ch %s.", ch->sess_name);
+	PRINT_INFO("Received CM TimeWait exit for ch %s-%d.", ch->sess_name,
+		   ch->qp->qp_num);
 	srpt_close_ch(ch);
 }
 
 static void srpt_cm_rep_error(struct srpt_rdma_ch *ch)
 {
-	PRINT_INFO("Received CM REP error for ch %s.", ch->sess_name);
+	PRINT_INFO("Received CM REP error for ch %s-%d.", ch->sess_name,
+		   ch->qp->qp_num);
 }
 
 /**
@@ -2924,7 +2968,8 @@ static int srpt_cm_dreq_recv(struct srpt_rdma_ch *ch)
  */
 static void srpt_cm_drep_recv(struct srpt_rdma_ch *ch)
 {
-	PRINT_INFO("Received CM DREP message for ch %s.", ch->sess_name);
+	PRINT_INFO("Received CM DREP message for ch %s-%d.", ch->sess_name,
+		   ch->qp->qp_num);
 	srpt_close_ch(ch);
 }
 
@@ -3714,8 +3759,9 @@ static int srpt_release_sport(struct srpt_tgt *srpt_tgt)
 		mutex_lock(&srpt_tgt->mutex);
 		list_for_each_entry(nexus, &srpt_tgt->nexus_list, entry) {
 			list_for_each_entry(ch, &nexus->ch_list, list) {
-				PRINT_INFO("%s: state %s; %d commands in"
+				PRINT_INFO("%s-%d: state %s; %d commands in"
 					   " progress", ch->sess_name,
+					   ch->qp->qp_num,
 					   get_ch_state_name(ch->state),
 				   atomic_read(&ch->scst_sess->sess_cmd_count));
 			}
@@ -3770,6 +3816,57 @@ static uint16_t srpt_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 }
 
 #if !defined(CONFIG_SCST_PROC)
+static ssize_t show_comp_v_mask(struct kobject *kobj,
+				struct kobj_attribute *attr, char *buf)
+{
+	struct scst_tgt *scst_tgt = container_of(kobj, struct scst_tgt,
+						 tgt_kobj);
+	struct srpt_tgt *srpt_tgt = srpt_convert_scst_tgt(scst_tgt);
+	int res = -E_TGT_PRIV_NOT_YET_SET;
+
+	if (!srpt_tgt)
+		goto out;
+	res = sprintf(buf, "%#lx\n%s", srpt_tgt->comp_v_mask[0],
+		      SCST_SYSFS_KEY_MARK "\n");
+
+out:
+	return res;
+}
+
+static ssize_t store_comp_v_mask(struct kobject *kobj,
+				 struct kobj_attribute *attr, const char *buf,
+				 size_t count)
+{
+	struct scst_tgt *scst_tgt = container_of(kobj, struct scst_tgt,
+						 tgt_kobj);
+	struct srpt_tgt *srpt_tgt = srpt_convert_scst_tgt(scst_tgt);
+	struct srpt_device *sdev = srpt_convert_to_sdev(scst_tgt);
+	int res = -E_TGT_PRIV_NOT_YET_SET;
+	unsigned long mask;
+
+	if (!srpt_tgt)
+		goto out;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+	res = kstrtoul(buf, 16, &mask);
+#else
+	res = strict_strtoul(buf, 16, &mask);
+#endif
+	if (res)
+		goto out;
+	res = -EINVAL;
+	if (mask == 0 || mask >= (1ULL << sdev->device->num_comp_vectors))
+		goto out;
+	srpt_tgt->comp_v_mask[0] = mask;
+	res = count;
+
+out:
+	return res;
+}
+
+static struct kobj_attribute srpt_show_comp_v_mask_attr =
+	__ATTR(comp_v_mask, S_IRUGO | S_IWUSR, show_comp_v_mask,
+	       store_comp_v_mask);
+
 static ssize_t srpt_show_device(struct kobject *kobj,
 				struct kobj_attribute *attr, char *buf)
 {
@@ -3861,6 +3958,7 @@ static struct kobj_attribute srpt_show_login_info_attr =
 	__ATTR(login_info, S_IRUGO, show_login_info, NULL);
 
 static const struct attribute *srpt_tgt_attrs[] = {
+	&srpt_show_comp_v_mask_attr.attr,
 	&srpt_device_attr.attr,
 	&srpt_show_login_info_attr.attr,
 	NULL
@@ -3905,17 +4003,37 @@ static ssize_t show_ch_state(struct kobject *kobj, struct kobj_attribute *attr,
 	return sprintf(buf, "%s\n", get_ch_state_name(ch->state));
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20) || defined(RHEL_RELEASE_CODE)
+static ssize_t show_comp_vector(struct kobject *kobj,
+				struct kobj_attribute *attr, char *buf)
+{
+	struct scst_session *scst_sess;
+	struct srpt_rdma_ch *ch;
+
+	scst_sess = container_of(kobj, struct scst_session, sess_kobj);
+	ch = scst_sess_get_tgt_priv(scst_sess);
+	return ch ? sprintf(buf, "%u\n", ch->comp_vector) : -ENOENT;
+}
+#endif
+
 static const struct kobj_attribute srpt_req_lim_attr =
 	__ATTR(req_lim,       S_IRUGO, show_req_lim,       NULL);
 static const struct kobj_attribute srpt_req_lim_delta_attr =
 	__ATTR(req_lim_delta, S_IRUGO, show_req_lim_delta, NULL);
 static const struct kobj_attribute srpt_ch_state_attr =
 	__ATTR(ch_state, S_IRUGO, show_ch_state, NULL);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20) || defined(RHEL_RELEASE_CODE)
+static const struct kobj_attribute srpt_comp_vector_attr =
+	__ATTR(comp_vector, S_IRUGO, show_comp_vector, NULL);
+#endif
 
 static const struct attribute *srpt_sess_attrs[] = {
 	&srpt_req_lim_attr.attr,
 	&srpt_req_lim_delta_attr.attr,
 	&srpt_ch_state_attr.attr,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20) || defined(RHEL_RELEASE_CODE)
+	&srpt_comp_vector_attr.attr,
+#endif
 	NULL
 };
 #endif
@@ -3974,9 +4092,13 @@ static struct scst_proc_data srpt_log_proc_data = {
 /* Note: the caller must have zero-initialized *@srpt_tgt. */
 static void srpt_init_tgt(struct srpt_tgt *srpt_tgt)
 {
+	int i;
+
 	INIT_LIST_HEAD(&srpt_tgt->nexus_list);
 	init_waitqueue_head(&srpt_tgt->ch_releaseQ);
 	mutex_init(&srpt_tgt->mutex);
+	for (i = 0; i < COMP_V_MASK_SIZE; i++)
+		__set_bit(i, srpt_tgt->comp_v_mask);
 }
 
 /**

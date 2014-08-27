@@ -914,6 +914,33 @@ Each vdisk_fileio's device has the following attributes in
    created device at creation time based on the device name and
    scst_vdisk_ID scst_vdisk.ko module parameter (see below).
 
+ - eui64_id - allows to set the EUI-64 based device identifier in the
+   SCSI device identification VPD page (83h). This identifier must be 8,
+   12 or 16 bytes long and must be specified in hexadecimal format (EUI =
+   Extended Unique Identifier). A leading "0x" is allowed but is not
+   required. Writing a newline into this attribute discards the EUI-64
+   identifier. If neither eui64_id nor naa_id have been set the first
+   eight bytes of the t10_dev_id are used as the EUI-64 ID. If naa_id has
+   been set but eui64_id has not been set no EUI-64 identifier is
+   reported in the SCSI device identification VPD page. If eui64_id has
+   been set the value of this attribute is reported as the EUI-64 ID. The
+   first three bytes of an EUI-64 ID are a so-called organizationally
+   unique identifier (OUI). The remaining bytes may be choosen by the
+   organization that owns the OUI. For more information about OUIs, see
+   also http://standards.ieee.org/develop/regauth/oui/public.html.
+
+ - naa_id - allows to set the NAA ID in the SCSI INQUIRY response (NAA =
+   Network Address Authority). This identifier must be 8 or 16 bytes long
+   and must be specified in hex format. A leading "0x" is allowed but is
+   not required. Writing a newline into this attribute discards the NAA
+   ID. If this ID is set it is reported in the SCSI VPD device
+   identification page (83h). More information about NAA identifiers can
+   be found in the following documents:
+   * ANSI T11 committee, Fibre Channel Framing and Signaling Interface - 4
+     (FC-FS-4) rev 0.50, May 2014 (http://www.t11.org/).
+   * IETF, RFC 3980 - T11 Network Address Authority (NAA) Naming Format for
+     iSCSI Node Names, February 2005 (https://tools.ietf.org/html/rfc3980).
+
  - t10_vend_id - Contents of the T10 VENDOR IDENTIFICATION field of the
    INQUIRY response. The default value for this field is "SCST_BIO" for
    vdisk_block devices and "SCST_FIO" for vdisk_fileio devices.

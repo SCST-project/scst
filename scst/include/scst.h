@@ -66,6 +66,13 @@
 #include <scst_const.h>
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
+#define smp_mb__after_atomic_inc smp_mb__after_atomic
+#define smp_mb__after_clear_bit smp_mb__after_atomic
+#define smp_mb__before_atomic_dec smp_mb__before_atomic
+#define smp_mb__after_atomic_dec smp_mb__after_atomic
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 #ifndef RHEL_RELEASE_CODE
 typedef _Bool bool;
@@ -235,6 +242,25 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 #endif
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+extern int hex_to_bin(char ch);
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 38)
+/*
+ * See also "lib: hex2bin converts ascii hexadecimal string to binary" (commit
+ * dc88e46029486ed475c71fe1bb696d39511ac8fe).
+ */
+static inline void hex2bin(u8 *dst, const char *src, size_t count)
+{
+	while (count--) {
+		*dst = hex_to_bin(*src++) << 4;
+		*dst += hex_to_bin(*src++);
+		dst++;
+	}
+}
+#endif
+
 #ifndef __list_for_each
 /* ToDo: cleanup when both are the same for all relevant kernels */
 #define __list_for_each list_for_each
@@ -250,7 +276,7 @@ static inline bool list_entry_in_list(const struct list_head *entry)
 }
 
 #define SCST_INTERFACE_VERSION	    \
-		SCST_VERSION_STRING "$Revision$" SCST_CONST_VERSION
+		SCST_VERSION_STRING SCST_INTF_VER SCST_CONST_VERSION
 
 #define SCST_LOCAL_NAME			"scst_local"
 
@@ -969,7 +995,17 @@ struct scst_tgt_template {
 	/*
 	 * Called to notify target driver that the command is being aborted.
 	 * If target driver wants to redirect processing to some outside
-	 * processing, it should get it using scst_cmd_get().
+	 * processing, it should get it using scst_cmd_get(). Since this
+	 * function is invoked from the context of a task management function
+	 * it runs asynchronously with the regular command processing finite
+	 * state machine. In other words, it is only safe to invoke functions
+	 * like scst_tgt_cmd_done() or scst_rx_data() from this callback
+	 * function if the target driver owns the command and if appropriate
+	 * measures have been taken to avoid that the target driver would
+	 * invoke one of these functions from the regular command processing
+	 * path. Note: if scst_tgt_cmd_done() or scst_rx_data() is invoked
+	 * from this callback function these must be invoked with the
+	 * SCST_CONTEXT_THREAD argument.
 	 *
 	 * OPTIONAL
 	 */
@@ -1908,11 +1944,15 @@ struct scst_cmd_threads {
 	/* io_context_mutex protects io_context and io_context_refcnt. */
 	struct mutex io_context_mutex;
 
+	spinlock_t thr_lock; /* Protects nr_threads and threads_list */
 	int nr_threads; /* number of processing threads */
 	struct list_head threads_list; /* processing threads */
 
 	struct list_head lists_list_entry;
 };
+
+int scst_set_thr_cpu_mask(struct scst_cmd_threads *cmd_threads,
+			  cpumask_t *cpu_mask);
 
 /*
  * Used to execute cmd's in order of arrival, honoring SCSI task attributes
@@ -4331,7 +4371,7 @@ static inline int cancel_delayed_work_sync(struct delayed_work *work)
 	defined(CONFIG_DEBUG_LOCK_ALLOC)
 extern struct lockdep_map scst_suspend_dep_map;
 #define scst_assert_activity_suspended()		\
-	WARN_ON(debug_locks && !lock_is_held(&scst_suspend_dep_map));
+	WARN_ON(debug_locks && !lock_is_held(&scst_suspend_dep_map))
 #else
 /*
  * See also patch "lockdep: Introduce lockdep_assert_held()" (commit ID
