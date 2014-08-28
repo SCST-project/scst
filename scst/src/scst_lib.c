@@ -6838,7 +6838,7 @@ static int get_cdb_info_read_pos(struct scst_cmd *cmd,
 		cmd->bufflen = 32;
 		break;
 	case 8:
-		cmd->bufflen = max(28, cmd->bufflen);
+		cmd->bufflen = max(32, cmd->bufflen);
 		break;
 	default:
 		PRINT_ERROR("READ POSITION: Invalid service action %x",
