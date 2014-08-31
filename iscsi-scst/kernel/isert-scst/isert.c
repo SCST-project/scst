@@ -470,7 +470,7 @@ static struct iscsit_transport isert_transport = {
 
 static void isert_cleanup_module(void)
 {
-	iscsit_unregister_transport(&isert_transport);
+	iscsit_unreg_transport(&isert_transport);
 	isert_cleanup_login_devs();
 }
 
@@ -478,7 +478,7 @@ static int __init isert_init_module(void)
 {
 	int ret;
 
-	ret = iscsit_register_transport(&isert_transport);
+	ret = iscsit_reg_transport(&isert_transport);
 	if (ret)
 		return ret;
 

@@ -4247,7 +4247,7 @@ static int __init iscsi_init(void)
 
 	PRINT_INFO("iSCSI SCST Target - version %s", ISCSI_VERSION_STRING);
 
-	err = iscsit_register_transport(&iscsi_tcp_transport);
+	err = iscsit_reg_transport(&iscsi_tcp_transport);
 	if (err)
 		goto out;
 
@@ -4401,7 +4401,7 @@ static void __exit iscsi_exit(void)
 
 	scst_unregister_target_template(&iscsi_template);
 
-	iscsit_unregister_transport(&iscsi_tcp_transport);
+	iscsit_unreg_transport(&iscsi_tcp_transport);
 
 #if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 	net_set_get_put_page_callbacks(NULL, NULL);
