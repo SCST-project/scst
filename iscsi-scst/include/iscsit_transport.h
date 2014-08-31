@@ -63,8 +63,8 @@ struct iscsit_transport {
 	struct list_head transport_list_entry;
 } ____cacheline_aligned;
 
-extern int iscsit_register_transport(struct iscsit_transport *t);
-extern void iscsit_unregister_transport(struct iscsit_transport *t);
+extern int iscsit_reg_transport(struct iscsit_transport *t);
+extern void iscsit_unreg_transport(struct iscsit_transport *t);
 extern struct iscsit_transport *iscsit_get_transport(enum iscsit_transport_type type);
 
 #endif /* __ISCSI_TRANSPORT_H__ */

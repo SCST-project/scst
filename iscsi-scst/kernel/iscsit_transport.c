@@ -29,7 +29,7 @@ struct iscsit_transport *iscsit_get_transport(enum iscsit_transport_type type)
 	return t;
 }
 
-int iscsit_register_transport(struct iscsit_transport *t)
+int iscsit_reg_transport(struct iscsit_transport *t)
 {
 	struct iscsit_transport *tmp;
 	int ret = 0;
@@ -50,9 +50,9 @@ int iscsit_register_transport(struct iscsit_transport *t)
 
 	return ret;
 }
-EXPORT_SYMBOL(iscsit_register_transport);
+EXPORT_SYMBOL(iscsit_reg_transport);
 
-void iscsit_unregister_transport(struct iscsit_transport *t)
+void iscsit_unreg_transport(struct iscsit_transport *t)
 {
 	mutex_lock(&transport_mutex);
 	list_del(&t->transport_list_entry);
@@ -60,5 +60,5 @@ void iscsit_unregister_transport(struct iscsit_transport *t)
 
 	PRINT_INFO("Unregistered iSCSI transport: %s\n", t->name);
 }
-EXPORT_SYMBOL(iscsit_unregister_transport);
+EXPORT_SYMBOL(iscsit_unreg_transport);
 
