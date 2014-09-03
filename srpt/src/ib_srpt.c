@@ -690,7 +690,11 @@ static int srpt_refresh_port(struct srpt_port *sport)
 							 &reg_req, 0,
 							 srpt_mad_send_handler,
 							 srpt_mad_recv_handler,
-							 sport);
+							 sport
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)
+							 , 0
+#endif
+							 );
 		if (IS_ERR(sport->mad_agent)) {
 			ret = PTR_ERR(sport->mad_agent);
 			sport->mad_agent = NULL;
