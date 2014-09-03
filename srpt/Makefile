@@ -11,7 +11,6 @@ SCST_INC_DIR := $(shell if [ -e "$$PWD/../scst" ];			\
 SCST_SYMVERS_DIR := $(shell if [ -e $$PWD/../scst ]; then	\
                         echo $$PWD/../scst/src;			\
                       else echo $(DESTDIR)$(PREFIX)/include/scst; fi)
-SUBDIRS := $(shell pwd)
 
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
@@ -61,18 +60,21 @@ ifeq ($(OFED_KERNEL_IB_RPM),compat-rdma)
 OFED_KERNEL_DIR:=/usr/src/compat-rdma
 OFED_CFLAGS:=-I$(OFED_KERNEL_DIR)/include
 else
-OFED_KERNEL_DIR:=/usr/src/ofa_kernel
 ifeq ($(OFED_FLAVOR),MOFED)
-# Mellanox OFED with or without kernel-ib RPM
-OFED_CFLAGS:=-I$(OFED_KERNEL_DIR)/include
+# Mellanox OFED with or without kernel-ib RPM. Since several MOFED backport
+# header files use the LINUX_BACKPORT() macro without including
+# <linux/compat-2.6.h>, include that header file explicitly.
+OFED_KERNEL_DIR:=/usr/src/ofa_kernel/default
+OFED_CFLAGS:=-I$(OFED_KERNEL_DIR)/include -include linux/compat-2.6.h
 else
 # OFED 1.5
+OFED_KERNEL_DIR:=/usr/src/ofa_kernel
 include $(OFED_KERNEL_DIR)/config.mk
 OFED_CFLAGS:=$(BACKPORT_INCLUDES) -I$(OFED_KERNEL_DIR)/include
 endif
 endif
 # Any OFED version
-OFED_MODULE_SYMVERS:=$(OFED_KERNEL_DIR)/Module.symvers
+OFED_MODULE_SYMVERS:=$(OFED_KERNEL_DIR)/$(MODULE_SYMVERS)
 endif
 
 HAVE_KCFLAGS    = $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/kcflags    KCFLAGS=-DKCFLAGS_MACRO=1       >/dev/null 2>&1 && echo true || echo false)
@@ -98,7 +100,8 @@ uninstall:
 	rm -f $(INSTALL_DIR)/ib_srpt.ko
 	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
 
-src/Module.symvers src/Modules.symvers: $(SCST_SYMVERS_DIR)/$(MODULE_SYMVERS)
+src/$(MODULE_SYMVERS): $(SCST_SYMVERS_DIR)/$(MODULE_SYMVERS)	\
+		       $(OFED_MODULE_SYMVERS)
 	@if [ "$(HAVE_KCFLAGS)" = false -a "$(HAVE_PRE_CFLAGS)" = false -a  \
 	      -n "$(AUTOCONF_FLAGS)" ]; then                                \
 	    echo "Error: the kernel build system has not yet been patched.";\
@@ -109,11 +112,6 @@ src/Module.symvers src/Modules.symvers: $(SCST_SYMVERS_DIR)/$(MODULE_SYMVERS)
 	    echo "Error: the OFED package $(OFED_KERNEL_IB_RPM)-devel has"  \
 	         "not yet been installed.";                                 \
 	    false;                                                          \
-	  elif [ -e /lib/modules/$(KVER)/kernel/drivers/infiniband ]; then  \
-	    echo "Error: the distro-provided InfiniBand kernel drivers"     \
-	         "must be removed first"                                    \
-	         " (/lib/modules/$(KVER)/kernel/drivers/infiniband).";      \
-	    false;                                                          \
 	  elif [ "$(HAVE_PRE_CFLAGS)" = false ]; then                       \
 	    echo "Error: the kernel build system has not yet been patched.";\
 	    false;                                                          \
@@ -121,7 +119,11 @@ src/Module.symvers src/Modules.symvers: $(SCST_SYMVERS_DIR)/$(MODULE_SYMVERS)
 	    echo "  Building against $(OFED_FLAVOR) $(OFED_KERNEL_IB_RPM)"  \
 	         "InfiniBand kernel headers.";                              \
 	    (                                                               \
-	      grep -v drivers/infiniband/ $<;                               \
+	      cat  $(SCST_SYMVERS_DIR)/$(MODULE_SYMVERS) |                  \
+	        grep -v 'drivers/infiniband/' |                             \
+	        grep -v 'net/sunrpc/xprtrdma/' |                            \
+	        grep -v 'net/rds/' |                                        \
+	        grep -v 'extra/ib_srpt';                                    \
 	      cat $(OFED_MODULE_SYMVERS)                                    \
 	    ) >$@;                                                          \
 	  fi                                                                \
@@ -138,8 +140,7 @@ src/Module.symvers src/Modules.symvers: $(SCST_SYMVERS_DIR)/$(MODULE_SYMVERS)
 
 clean:
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src clean
-	rm -f src/Modules.symvers src/Module.symvers src/Module.markers \
-		src/modules.order
+	rm -f src/$(MODULE_SYMVERS) src/Module.markers src/modules.order
 
 extraclean: clean
 	rm -f *.orig *.rej
