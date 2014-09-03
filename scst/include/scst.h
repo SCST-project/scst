@@ -81,9 +81,13 @@ typedef _Bool bool;
 #define false 0
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21) && !defined(RHEL_MAJOR)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21)
+#ifndef __packed
 #define __packed __attribute__((packed))
+#endif
+#ifndef __aligned
 #define __aligned __attribute__((aligned))
+#endif
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22)
