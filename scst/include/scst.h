@@ -242,7 +242,8 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 #endif
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35) && \
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 <= 6 && RHEL_MINOR -0 < 1)
 extern int hex_to_bin(char ch);
 #endif
 
