@@ -5255,8 +5255,8 @@ static void vdisk_bio_set_failfast(struct bio *bio)
 static void vdisk_bio_set_hoq(struct bio *bio)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36) ||			\
-	defined(RHEL_MAJOR) &&						\
-	(RHEL_MAJOR -0 > 6 || RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 > 0)
+	(defined(RHEL_MAJOR) &&						\
+	 (RHEL_MAJOR -0 > 6 || RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 > 0))
 	bio->bi_rw |= REQ_SYNC;
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 	bio->bi_rw |= 1 << BIO_RW_SYNCIO;
@@ -5264,8 +5264,8 @@ static void vdisk_bio_set_hoq(struct bio *bio)
 	bio->bi_rw |= 1 << BIO_RW_SYNC;
 #endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36) ||			\
-	defined(RHEL_MAJOR) &&						\
-	(RHEL_MAJOR -0 > 6 || RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 > 0)
+	(defined(RHEL_MAJOR) &&						\
+	 (RHEL_MAJOR -0 > 6 || RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 > 0))
 	bio->bi_rw |= REQ_META;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
 	/*
