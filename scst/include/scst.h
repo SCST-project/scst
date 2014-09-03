@@ -86,7 +86,7 @@ typedef _Bool bool;
 #define __packed __attribute__((packed))
 #endif
 #ifndef __aligned
-#define __aligned __attribute__((aligned))
+#define __aligned(x) __attribute__((aligned(x)))
 #endif
 #endif
 
