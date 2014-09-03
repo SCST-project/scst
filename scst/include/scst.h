@@ -4850,7 +4850,8 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37) && \
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6 || \
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 5 || \
+	 RHEL_MAJOR -0 == 5 && RHEL_MINOR -0 < 10 || \
 	 RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 < 1)
 /*
  * See also patch "mm: add vzalloc() and vzalloc_node() helpers" (commit
