@@ -104,6 +104,7 @@ void conn_info_show(struct seq_file *seq, struct iscsi_session *session)
 				 "%pI4", &inet_sk(sk)->inet_daddr);
 #endif
 			break;
+#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 		case AF_INET6:
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,29)
 			snprintf(buf, sizeof(buf),
@@ -117,6 +118,7 @@ void conn_info_show(struct seq_file *seq, struct iscsi_session *session)
 				&sk->sk_v6_daddr);
 #endif
 			break;
+#endif
 		default:
 			snprintf(buf, sizeof(buf), "Unknown family %d",
 				sk->sk_family);
@@ -170,6 +172,7 @@ static ssize_t iscsi_get_initiator_ip(struct iscsi_conn *conn,
 			"%pI4", &inet_sk(sk)->inet_daddr);
 #endif
 		break;
+#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 	case AF_INET6:
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,29)
 		pos = scnprintf(buf, size,
@@ -184,6 +187,7 @@ static ssize_t iscsi_get_initiator_ip(struct iscsi_conn *conn,
 #endif
 #endif
 		break;
+#endif
 	default:
 		pos = scnprintf(buf, size, "Unknown family %d",
 			sk->sk_family);
