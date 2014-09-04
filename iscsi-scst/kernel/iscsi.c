@@ -1562,11 +1562,11 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 			offset = 0;
 		}
 
-		addr = (char __force __user *)(sg_virt(&sg[idx]));
+		addr = (char __force __user *)(page_address(sg_page(&sg[idx])));
 		EXTRACHECKS_BUG_ON(addr == NULL);
 		sg_len = sg[idx].offset + sg[idx].length - offset;
 
-		conn->read_iov[i].iov_base = addr + offset - sg[idx].offset;
+		conn->read_iov[i].iov_base = addr + offset;
 
 		if (size <= sg_len) {
 			TRACE_DBG("idx=%d, i=%d, offset=%u, size=%d, addr=%p",
