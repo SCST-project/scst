@@ -81,9 +81,13 @@ typedef _Bool bool;
 #define false 0
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21) && !defined(RHEL_MAJOR)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21)
+#ifndef __packed
 #define __packed __attribute__((packed))
-#define __aligned __attribute__((aligned))
+#endif
+#ifndef __aligned
+#define __aligned(x) __attribute__((aligned(x)))
+#endif
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22)
@@ -242,7 +246,9 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 #endif
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6 ||	\
+	 RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 < 1)
 extern int hex_to_bin(char ch);
 #endif
 
@@ -4847,7 +4853,10 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	void (*done)(void *data, char *sense, int result, int resid));
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37) && !defined(RHEL_MAJOR)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37) && \
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 5 || \
+	 RHEL_MAJOR -0 == 5 && RHEL_MINOR -0 < 10 || \
+	 RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 < 1)
 /*
  * See also patch "mm: add vzalloc() and vzalloc_node() helpers" (commit
  * e1ca7788dec6773b1a2bce51b7141948f2b8bccf).

@@ -40,6 +40,7 @@ scriptdir="$(dirname "$0")"
 if [ "${scriptdir:0:1}" != "/" ]; then
     scriptdir="$PWD/${scriptdir}"
 fi
+scriptdir="${scriptdir%/.}"
 source "${scriptdir}/rhel-rpm-functions"
 scst_dir="$(dirname "$scriptdir")"
 downloaddir=$HOME/software/downloads

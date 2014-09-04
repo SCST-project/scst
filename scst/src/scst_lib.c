@@ -100,7 +100,9 @@ char *kvasprintf(gfp_t gfp, const char *fmt, va_list ap)
 }
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6 ||	\
+	 RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 < 1)
 /*
  * See also "lib: introduce common method to convert hex digits" (commit
  * 903788892ea0fc7fcaf7e8e5fac9a77379fc215b).
@@ -6838,7 +6840,7 @@ static int get_cdb_info_read_pos(struct scst_cmd *cmd,
 		cmd->bufflen = 32;
 		break;
 	case 8:
-		cmd->bufflen = max(28, cmd->bufflen);
+		cmd->bufflen = max(32, cmd->bufflen);
 		break;
 	default:
 		PRINT_ERROR("READ POSITION: Invalid service action %x",
