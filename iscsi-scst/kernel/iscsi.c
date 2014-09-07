@@ -1605,11 +1605,11 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 			offset = 0;
 		}
 
-		addr = (char __force __user *)(sg_virt(&sg[idx]));
+		addr = (char __force __user *)(page_address(sg_page(&sg[idx])));
 		EXTRACHECKS_BUG_ON(addr == NULL);
 		sg_len = sg[idx].offset + sg[idx].length - offset;
 
-		conn->read_iov[i].iov_base = addr + offset - sg[idx].offset;
+		conn->read_iov[i].iov_base = addr + offset;
 
 		if (size <= sg_len) {
 			TRACE_DBG("idx=%d, i=%d, offset=%u, size=%d, addr=%p",
@@ -3264,6 +3264,7 @@ static ssize_t iscsi_tcp_get_initiator_ip(struct iscsi_conn *conn,
 			"%pI4", &inet_sk(sk)->inet_daddr);
 #endif
 		break;
+#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 	case AF_INET6:
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
 		pos = scnprintf(buf, size,
@@ -3278,6 +3279,7 @@ static ssize_t iscsi_tcp_get_initiator_ip(struct iscsi_conn *conn,
 #endif
 #endif
 		break;
+#endif
 	default:
 		pos = scnprintf(buf, size, "Unknown family %d",
 			sk->sk_family);

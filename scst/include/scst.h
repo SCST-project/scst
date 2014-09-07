@@ -66,6 +66,13 @@
 #include <scst_const.h>
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
+#define smp_mb__after_atomic_inc smp_mb__after_atomic
+#define smp_mb__after_clear_bit smp_mb__after_atomic
+#define smp_mb__before_atomic_dec smp_mb__before_atomic
+#define smp_mb__after_atomic_dec smp_mb__after_atomic
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 #ifndef RHEL_RELEASE_CODE
 typedef _Bool bool;
@@ -74,9 +81,13 @@ typedef _Bool bool;
 #define false 0
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21) && !defined(RHEL_MAJOR)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21)
+#ifndef __packed
 #define __packed __attribute__((packed))
-#define __aligned __attribute__((aligned))
+#endif
+#ifndef __aligned
+#define __aligned(x) __attribute__((aligned(x)))
+#endif
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22)
@@ -4796,7 +4807,10 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	void (*done)(void *data, char *sense, int result, int resid));
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37) && !defined(RHEL_MAJOR)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37) && \
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 5 || \
+	 RHEL_MAJOR -0 == 5 && RHEL_MINOR -0 < 10 || \
+	 RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 < 1)
 /*
  * See also patch "mm: add vzalloc() and vzalloc_node() helpers" (commit
  * e1ca7788dec6773b1a2bce51b7141948f2b8bccf).
