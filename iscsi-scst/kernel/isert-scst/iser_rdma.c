@@ -119,9 +119,25 @@ int isert_post_send(struct isert_connection *isert_conn,
 
 void isert_conn_disconnect(struct isert_connection *isert_conn)
 {
+	struct ib_send_wr *bad_wr;
 	int err = rdma_disconnect(isert_conn->cm_id);
 	if (unlikely(err))
 		pr_err("Failed to rdma disconnect, err:%d\n", err);
+
+	if (!test_and_set_bit(ISERT_DRAIN_POSTED, &isert_conn->flags)) {
+		isert_wr_set_fields(&isert_conn->drain_wr, isert_conn, NULL);
+		isert_conn->drain_wr.wr_op = ISER_WR_SEND;
+		isert_conn->drain_wr.send_wr.wr_id = _ptr_to_u64(&isert_conn->drain_wr);
+	        isert_conn->drain_wr.send_wr.opcode = IB_WR_SEND;
+		err = ib_post_send(isert_conn->qp, &isert_conn->drain_wr.send_wr, &bad_wr);
+		if (unlikely(err)) {
+			pr_err("Failed to post drain wr, err:%d\n", err);
+			/* We need to decrement iser_conn->kref in order to be able to cleanup
+			 * the connection */
+			set_bit(ISERT_DRAIN_FAILED, &isert_conn->flags);
+			isert_conn_free(isert_conn);
+		}
+	}
 }
 
 static int isert_pdu_handle_hello_req(struct isert_cmnd *pdu)
@@ -485,7 +501,14 @@ static void isert_handle_wc_error(struct ib_wc *wc)
 
 	switch (wr->wr_op) {
 	case ISER_WR_SEND:
-		isert_pdu_err(&isert_pdu->iscsi);
+		if (unlikely(wr->send_wr.num_sge == 0)) { /* Drain WR */
+			/* notify upper layer */
+			if (!test_bit(ISERT_CONNECTION_ABORTED, &isert_conn->flags))
+				isert_connection_closed(&isert_conn->iscsi);
+			isert_conn_free(isert_conn);
+		} else {
+			isert_pdu_err(&isert_pdu->iscsi);
+		}
 		break;
 	case ISER_WR_RDMA_READ:
 		isert_pdu_err(&isert_pdu->iscsi);
@@ -1018,6 +1041,7 @@ static struct isert_connection *isert_conn_create(struct rdma_cm_id *cm_id,
 	}
 
 	kref_init(&isert_conn->kref);
+	kref_get(&isert_conn->kref);
 
 	TRACE_EXIT();
 	return isert_conn;
@@ -1094,7 +1118,7 @@ static void isert_conn_closed_do_work(struct work_struct *work)
 #endif
 
 	/* notify upper layer */
-	if (!test_bit(ISERT_CONNECTION_ABORTED, &isert_conn->flags))
+	if (test_bit(ISERT_DRAIN_FAILED, &isert_conn->flags))
 		isert_connection_closed(&isert_conn->iscsi);
 
 	isert_conn_free(isert_conn);

@@ -104,6 +104,8 @@ struct isert_cq {
 };
 
 #define ISERT_CONNECTION_ABORTED	0
+#define ISERT_DRAIN_POSTED		1
+#define ISERT_DRAIN_FAILED		2
 
 struct isert_connection {
 	struct iscsi_conn	iscsi ____cacheline_aligned;
@@ -159,6 +161,7 @@ struct isert_connection {
 
 	unsigned long		flags;
 	struct work_struct	close_work;
+	struct isert_wr		drain_wr;
 	struct kref		kref;
 
 	void			*priv_data; /* for connection tracking */
