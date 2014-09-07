@@ -134,6 +134,7 @@ void isert_conn_disconnect(struct isert_connection *isert_conn)
 			pr_err("Failed to post drain wr, err:%d\n", err);
 			/* We need to decrement iser_conn->kref in order to be able to cleanup
 			 * the connection */
+			set_bit(ISERT_DRAIN_FAILED, &isert_conn->flags);
 			isert_conn_free(isert_conn);
 		}
 	}
@@ -500,10 +501,14 @@ static void isert_handle_wc_error(struct ib_wc *wc)
 
 	switch (wr->wr_op) {
 	case ISER_WR_SEND:
-		if (unlikely(wr->send_wr.num_sge == 0)) /* Drain WR */
+		if (unlikely(wr->send_wr.num_sge == 0)) { /* Drain WR */
+			/* notify upper layer */
+			if (!test_bit(ISERT_CONNECTION_ABORTED, &isert_conn->flags))
+				isert_connection_closed(&isert_conn->iscsi);
 			isert_conn_free(isert_conn);
-		else
+		} else {
 			isert_pdu_err(&isert_pdu->iscsi);
+		}
 		break;
 	case ISER_WR_RDMA_READ:
 		isert_pdu_err(&isert_pdu->iscsi);
@@ -1111,7 +1116,7 @@ static void isert_conn_closed_do_work(struct work_struct *work)
 #endif
 
 	/* notify upper layer */
-	if (!test_bit(ISERT_CONNECTION_ABORTED, &isert_conn->flags))
+	if (test_bit(ISERT_DRAIN_FAILED, &isert_conn->flags))
 		isert_connection_closed(&isert_conn->iscsi);
 
 	isert_conn_free(isert_conn);
