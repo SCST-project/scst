@@ -161,6 +161,7 @@ struct isert_connection {
 
 	unsigned long		flags;
 	struct work_struct	close_work;
+	struct work_struct	drain_work;
 	struct isert_wr		drain_wr;
 	struct kref		kref;
 
