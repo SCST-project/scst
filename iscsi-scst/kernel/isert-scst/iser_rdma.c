@@ -1059,8 +1059,6 @@ fail_get:
 	return ERR_PTR(err);
 }
 
-/* start closing process;
- * only when all buffers released, can free */
 static void isert_kref_free(struct kref *kref)
 {
 	struct isert_connection *isert_conn = container_of(kref,
