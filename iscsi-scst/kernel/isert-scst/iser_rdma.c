@@ -499,6 +499,10 @@ static void isert_conn_drained_do_work(struct work_struct *work)
 		container_of(work, struct isert_connection, drain_work);
 #endif
 
+	/* notify upper layer */
+	if (!test_bit(ISERT_CONNECTION_ABORTED, &isert_conn->flags))
+		isert_connection_closed(&isert_conn->iscsi);
+
 	isert_conn_free(isert_conn);
 }
 
@@ -528,9 +532,6 @@ static void isert_handle_wc_error(struct ib_wc *wc)
 	switch (wr->wr_op) {
 	case ISER_WR_SEND:
 		if (unlikely(wr->send_wr.num_sge == 0)) { /* Drain WR */
-			/* notify upper layer */
-			if (!test_bit(ISERT_CONNECTION_ABORTED, &isert_conn->flags))
-				isert_connection_closed(&isert_conn->iscsi);
 			isert_sched_conn_drained(isert_conn);
 		} else {
 			isert_pdu_err(&isert_pdu->iscsi);
