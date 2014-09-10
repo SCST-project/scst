@@ -1073,8 +1073,6 @@ static void isert_kref_free(struct kref *kref)
 
 	pr_info("isert_conn_free conn:%p\n", isert_conn);
 
-	flush_workqueue(isert_conn->cq_desc->cq_workqueue);
-
 	isert_free_conn_resources(isert_conn);
 
 	isert_conn_qp_destroy(isert_conn);
