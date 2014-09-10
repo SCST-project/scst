@@ -38,6 +38,15 @@ Building and installing the SRP target driver is possible as follows:
    fi
 
 The ib_srpt kernel module supports the following parameters:
+
+* max_sge_delta (unsigned): Number to subtract from max_sge. Some but not
+  all HCA's allow to use up to max_sge S/G-list elements in RDMA
+  communication. The default value of this parameter is 3 and works with all
+  HCA's. If you know that the HCA's that are used by the ib_srpt driver allow
+  to use S/G-lists that are longer than max_sge - 3 then you can decrease this
+  parameter. Note: setting this parameter too low will cause SRP every login
+  to fail and will cause a message similar to the following to be logged on
+  the target system: "ib_srpt: RDMA t ... for idx ... failed with status 12".
 * one_target_per_port (boolean) and
 * use_node_guid_in_target_name (boolean)
   ib_srpt can operate in one of the following three modes:
