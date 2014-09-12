@@ -3,6 +3,7 @@
 #  Based on ../mvsas_tgt/Makefile
 #
 #  Copyright (C) 2006 - 2008 Jacky Feng <jfeng@marvell.com>
+#  Copyright (C) 2011 - 2014 Bart Van Assche <bvanassche@acm.org>
 #  
 #  This program is free software; you can redistribute it and/or
 #  modify it under the terms of the GNU General Public License
@@ -137,4 +138,8 @@ extraclean: clean
 	-$(MAKE) clean
 	$(call set_var,build_mode,BUILDMODE,PERF)
 
-.PHONY: all tgt install uninstall clean extraclean
+release-archive:
+	../scripts/generate-release-archive fcst "$$(sed -n 's/^#define[[:blank:]]FT_VERSION[[:blank:]]*\"\([^\"]*\)\".*/\1/p' fcst.h)"
+
+.PHONY: all tgt install uninstall clean extraclean 2debug 2release 2perf \
+	release-archive
