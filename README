@@ -45,10 +45,8 @@ To integrate it into the SCST build tree you need:
 2. Create in the SCST root, i.e. this directory, a subdirectory with name
 qla2x00t_git
 
-3. Bind mount drivers/scsi/qla2xxx in the cloned git tree to the
-qla2x00t_git subdirectory, like:
-
-# mount --bind /home/u/scst-qla2xxx/drivers/scsi/qla2xxx /home/u/trunk/qla2x00t_git
+3. Symlink drivers/scsi/qla2xxx subdirectory in the cloned git tree to the
+qla2x00t_git subdirectory
 
 Thats all. Now "make all" and other common and QLA specific root
 Makefile targets "magically" start working. The bind mount is necessary
