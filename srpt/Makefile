@@ -87,7 +87,7 @@ all: src/$(MODULE_SYMVERS)
 	  PRE_CFLAGS="$(OFED_CFLAGS) $(AUTOCONF_FLAGS)" \
 	  KCFLAGS="$(AUTOCONF_FLAGS)" SCST_INC_DIR=$(SCST_INC_DIR) modules
 
-install: all src/ib_srpt.ko
+install: all
 	@[ -z "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && \
 	  find /lib/modules/$(KVER) -name ib_srpt.ko -exec rm {} \; ; \
 	  true
