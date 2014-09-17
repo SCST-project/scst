@@ -5711,6 +5711,7 @@ out:
 
 	return ret;
 }
+
 static ssize_t vdev_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 			      size_t len, loff_t *loff)
 {
