@@ -118,6 +118,9 @@ static struct scst_trace_log vdisk_local_trace_tbl[] = {
 #define DEF_TST				SCST_TST_1_SEP_TASK_SETS
 #define DEF_TMF_ONLY			0
 
+#define NO_CAW_LEN_LIM			0xff
+#define DEF_CAW_LEN_LIM			0xfe
+
 /*
  * Since we can't control backstorage device's reordering, we have to always
  * report unrestricted reordering.
@@ -199,6 +202,10 @@ struct scst_vdisk_dev {
 	char usn[MAX_USN_LEN];
 	uint8_t inq_vend_specific[MAX_INQ_VEND_SPECIFIC_LEN];
 	int inq_vend_specific_len;
+
+	/* Block limits INQUIRY parameters */
+	uint8_t caw_len_lim;
+	struct mutex caw_mutex;
 
 	struct scst_device *dev;
 	struct list_head vdev_list_entry;
@@ -3391,7 +3398,7 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 			buf[1] = 0xB0;
 			buf[3] = 0x3C;
 			buf[4] = 1; /* WSNZ set */
-			buf[5] = 0xFF; /* No MAXIMUM COMPARE AND WRITE LENGTH limit */
+			buf[5] = virt_dev->caw_len_lim;
 			/* Optimal transfer granuality is PAGE_SIZE */
 			put_unaligned_be16(max_t(int, PAGE_SIZE/dev->block_size, 1), &buf[6]);
 
@@ -5423,6 +5430,17 @@ static void blockio_end_sync_io(struct bio *bio, int error)
 #endif
 }
 
+/**
+ * blockio_rw_sync() - read or write up to @len bytes from a block I/O device
+ *
+ * Returns:
+ * - A negative value if an error occurred.
+ * - Zero if len == 0.
+ * - A positive value <= len if I/O succeeded.
+ *
+ * Note:
+ * Increments *@loff with the number of bytes transferred upon success.
+ */
 static ssize_t blockio_rw_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 			       size_t len, loff_t *loff, unsigned rw)
 {
@@ -5461,12 +5479,23 @@ static ssize_t blockio_rw_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 		bytes = min_t(size_t, PAGE_SIZE - off, buf + len - p);
 		q = is_vmalloc ? vmalloc_to_page(p) : virt_to_page(p);
 		rc = bio_add_page(bio, q, bytes, off);
-		if (WARN_ON_ONCE(rc < bytes))
-			goto free;
+		if (rc < bytes) {
+			if (rc <= 0 && p == buf) {
+				goto free;
+			} else {
+				if (rc > 0)
+					p += rc;
+				break;
+			}
+		}
 	}
 	submit_bio(rw, bio);
 	wait_for_completion(&c);
-	ret = (unsigned long)bio->bi_private ? : len;
+	ret = (unsigned long)bio->bi_private;
+	if (likely(ret == 0)) {
+		ret = p - buf;
+		*loff += ret;
+	}
 
 free:
 	bio_put(bio);
@@ -5475,6 +5504,7 @@ out:
 	return ret;
 }
 
+/* Note: Updates *@loff if reading succeeded. */
 static ssize_t fileio_read_sync(struct file *fd, void *buf, size_t len,
 				loff_t *loff)
 {
@@ -5499,6 +5529,7 @@ out:
 	return ret;
 }
 
+/* Note: Updates *@loff if writing succeeded. */
 static ssize_t fileio_write_sync(struct file *fd, void *buf, size_t len,
 				 loff_t *loff)
 {
@@ -5523,26 +5554,46 @@ out:
 	return ret;
 }
 
+/* Note: Updates *@loff if reading succeeded except for NULLIO devices. */
 static ssize_t vdev_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 			      size_t len, loff_t *loff)
 {
-	if (virt_dev->nullio)
+	ssize_t read, res;
+
+	if (virt_dev->nullio) {
 		return len;
-	else if (virt_dev->blockio)
-		return blockio_rw_sync(virt_dev, buf, len, loff, READ_SYNC);
-	else
+	} else if (virt_dev->blockio) {
+		for (read = 0; read < len; read += res) {
+			res = blockio_rw_sync(virt_dev, buf + read, len - read,
+					      loff, READ_SYNC);
+			if (res < 0)
+				return res;
+		}
+		return read;
+	} else {
 		return fileio_read_sync(virt_dev->fd, buf, len, loff);
+	}
 }
 
+/* Note: Updates *@loff if reading succeeded except for NULLIO devices. */
 static ssize_t vdev_write_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 			       size_t len, loff_t *loff)
 {
-	if (virt_dev->nullio)
+	ssize_t written, res;
+
+	if (virt_dev->nullio) {
 		return len;
-	else if (virt_dev->blockio)
-		return blockio_rw_sync(virt_dev, buf, len, loff, WRITE_SYNC);
-	else
+	} else if (virt_dev->blockio) {
+		for (written = 0; written < len; written += res) {
+			res = blockio_rw_sync(virt_dev, buf + written,
+					      len - written, loff, WRITE_SYNC);
+			if (res < 0)
+				return res;
+		}
+		return written;
+	} else {
 		return fileio_write_sync(virt_dev->fd, buf, len, loff);
+	}
 }
 
 static enum compl_status_e vdev_exec_verify(struct vdisk_cmd_params *p)
@@ -5667,6 +5718,16 @@ static enum compl_status_e vdisk_exec_caw(struct vdisk_cmd_params *p)
 	if (data_len == 0)
 		goto out;
 
+	if (virt_dev->caw_len_lim != NO_CAW_LEN_LIM &&
+	    (data_len > virt_dev->caw_len_lim << dev->block_shift)) {
+		PRINT_ERROR("COMPARE AND WRITE: data length %u exceeds"
+			    " limit %u << %u = %u", data_len,
+			    virt_dev->caw_len_lim, dev->block_shift,
+			    virt_dev->caw_len_lim << dev->block_shift);
+		scst_set_invalid_field_in_cdb(cmd, 13, 0);
+		goto out;
+	}
+
 	length = scst_get_buf_full(cmd, &caw_buf);
 	read_buf = vmalloc(data_len);
 	if (length < 0 || !read_buf) {
@@ -5684,6 +5745,8 @@ static enum compl_status_e vdisk_exec_caw(struct vdisk_cmd_params *p)
 		goto out;
 	}
 
+	mutex_lock(&virt_dev->caw_mutex);
+
 	loff = p->loff;
 	read = vdev_read_sync(virt_dev, read_buf, data_len, &loff);
 	if (read < data_len) {
@@ -5694,7 +5757,7 @@ static enum compl_status_e vdisk_exec_caw(struct vdisk_cmd_params *p)
 		else
 			scst_set_cmd_error(cmd,
 				    SCST_LOAD_SENSE(scst_sense_read_error));
-		goto out;
+		goto unlock;
 	}
 
 	if (memcmp(caw_buf, read_buf, data_len) != 0) {
@@ -5711,9 +5774,8 @@ static enum compl_status_e vdisk_exec_caw(struct vdisk_cmd_params *p)
 		 * INFORMATION field.
 		 */
 		scst_set_cmd_error_and_inf(cmd,
-			SCST_LOAD_SENSE(scst_sense_miscompare_error),
-			p->loff + i);
-		goto out;
+			SCST_LOAD_SENSE(scst_sense_miscompare_error), i);
+		goto unlock;
 	}
 
 	loff = p->loff;
@@ -5727,11 +5789,14 @@ static enum compl_status_e vdisk_exec_caw(struct vdisk_cmd_params *p)
 		else
 			scst_set_cmd_error(cmd,
 				SCST_LOAD_SENSE(scst_sense_write_error));
-		goto out;
+		goto unlock;
 	}
 	if (p->fua)
-		vdisk_fsync(loff, scst_cmd_get_data_len(cmd), cmd->dev,
+		vdisk_fsync(p->loff, scst_cmd_get_data_len(cmd), cmd->dev,
 			    cmd->cmd_gfp_mask, cmd, false);
+
+unlock:
+	mutex_unlock(&virt_dev->caw_mutex);
 
 out:
 	if (read_buf)
@@ -5938,6 +6003,8 @@ static int vdev_create(struct scst_dev_type *devt,
 	}
 
 	spin_lock_init(&virt_dev->flags_lock);
+	mutex_init(&virt_dev->caw_mutex);
+
 	virt_dev->vdev_devt = devt;
 
 	virt_dev->rd_only = DEF_RD_ONLY;
@@ -5946,6 +6013,7 @@ static int vdev_create(struct scst_dev_type *devt,
 	virt_dev->rotational = DEF_ROTATIONAL;
 	virt_dev->thin_provisioned = DEF_THIN_PROVISIONED;
 	virt_dev->tst = DEF_TST;
+	virt_dev->caw_len_lim = DEF_CAW_LEN_LIM;
 
 	virt_dev->blk_shift = DEF_DISK_BLOCK_SHIFT;
 
