@@ -383,7 +383,7 @@ patch -p1 ${rpmbuild_dir}/SPECS/kernel.spec <<'EOF' || exit $?
  Source2001: cpupower.config
  
 +Patch200: scst_exec_req_fifo.patch
-+#Patch201: put_page_callback.patch
++Patch201: put_page_callback.patch
 +
  # empty final patch to facilitate testing of kernel patches
  Patch999999: linux-kernel-test.patch
@@ -393,7 +393,7 @@ patch -p1 ${rpmbuild_dir}/SPECS/kernel.spec <<'EOF' || exit $?
  cp $RPM_SOURCE_DIR/kernel-%{version}-*.config .
  
 +ApplyPatch scst_exec_req_fifo.patch
-+#ApplyPatch put_page_callback.patch
++ApplyPatch put_page_callback.patch
 +
  ApplyOptionalPatch linux-kernel-test.patch
  
