@@ -171,6 +171,10 @@ MODULE_PARM_DESC(srpt_service_guid,
 		 "Using this value for ioc_guid, id_ext, and cm_listen_id"
 		 " instead of using the node_guid of the first HCA.");
 
+static unsigned max_sge_delta = 3;
+module_param(max_sge_delta, uint, 0444);
+MODULE_PARM_DESC(max_sge_delta, "Number to subtract from max_sge.");
+
 /*
  * Note: changing any of the two constants below into SCST_CONTEXT_DIRECT is
  * dangerous because it might cause IB completions to be processed too late
@@ -2151,19 +2155,7 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 	qp_init->sq_sig_type = IB_SIGNAL_REQ_WR;
 	qp_init->qp_type = IB_QPT_RC;
 	qp_init->cap.max_send_wr = srpt_sq_size;
-	/*
-	 * A quote from the OFED 1.5.3.1 release notes
-	 * (docs/release_notes/mthca_release_notes.txt), section "Known Issues":
-	 * In mem-free devices, RC QPs can be created with a maximum of
-	 * (max_sge - 1) entries only; UD QPs can be created with a maximum of
-	 * (max_sge - 3) entries.
-	 * A quote from the OFED 1.2.5 release notes
-	 * (docs/mthca_release_notes.txt), section "Known Issues":
-	 * In mem-free devices, RC QPs can be created with a maximum of
-	 * (max_sge - 3) entries only.
-	 */
-	ch->max_sge = sdev->dev_attr.max_sge - 3;
-	WARN_ON(ch->max_sge < 1);
+	ch->max_sge = max_t(int, 1, sdev->dev_attr.max_sge - max_sge_delta);
 	qp_init->cap.max_send_sge = ch->max_sge;
 
 	if (ch->using_rdma_cm) {
