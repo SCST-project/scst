@@ -79,9 +79,10 @@ all:
 scst:
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_DEV=n
 
-MODS_VERS := $(shell ls Modules.symvers 2>/dev/null)
-# It's renamed in 2.6.18
-MOD_VERS := $(shell ls Module.symvers 2>/dev/null)
+# The file Modules.symvers has been renamed in the 2.6.18 kernel to
+# Module.symvers. Find out which name to use by looking in $(KDIR).
+MODULE_SYMVERS:=$(shell if [ -e $(KDIR)/Module.symvers ]; then \
+		       echo Module.symvers; else echo Modules.symvers; fi)
 
 install: all
 	@if [ -z "$(DESTDIR)" ] && \
@@ -99,14 +100,8 @@ install: all
 	install -m 644 ../include/scst_debug.h $(INSTALL_DIR_H)
 	install -m 644 ../include/scst_user.h $(INSTALL_DIR_H)
 	install -m 644 ../include/scst_const.h $(INSTALL_DIR_H)
-ifneq ($(MODS_VERS),)
-	rm -f $(INSTALL_DIR_H)/Module.symvers
-	install -m 644 Modules.symvers $(INSTALL_DIR_H)
-endif
-ifneq ($(MOD_VERS),)
-	rm -f $(INSTALL_DIR_H)/Modules.symvers
-	install -m 644 Module.symvers $(INSTALL_DIR_H)
-endif
+	rm -f $(INSTALL_DIR_H)/$(MODULE_SYMVERS)
+	install -m 644 $(MODULE_SYMVERS) $(INSTALL_DIR_H)
 	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
 	mkdir -p $(DESTDIR)/var/lib/scst/pr
 	mkdir -p $(DESTDIR)/var/lib/scst/vdev_mode_pages

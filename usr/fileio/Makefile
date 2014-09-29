@@ -26,8 +26,9 @@ OBJS_F = $(SRCS_F:.c=.o)
 #SRCS_C = 
 #OBJS_C = $(SRCS_C:.c=.o)
 
-SCST_INC_DIR := ../../scst/include
-#SCST_INC_DIR := $(PREFIX)/include/scst
+SCST_INC_DIR := $(shell if [ -e "$$PWD/../../scst" ];			\
+                  then echo "$$PWD/../../scst/include";			\
+                  else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
 INSTALL_DIR := $(DESTDIR)$(PREFIX)/bin/scst
 
 CFLAGS += -O2 -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes \
