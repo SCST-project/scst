@@ -49,9 +49,8 @@ qla2x00t_git
 qla2x00t_git subdirectory
 
 Thats all. Now "make all" and other common and QLA specific root
-Makefile targets "magically" start working. The bind mount is necessary
-for the driver to correctly find the SCST header files. Symlinks can't
-do it.
+Makefile targets "magically" start working. For detail instructions how
+to setup QLA target build environment see its README or HOWTO.
 
 You can still build the old driver using qla_old* root Makefile targets.
 
