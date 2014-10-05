@@ -1021,7 +1021,13 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 				goto out_fail_free;
 		}
 
-		TRACE_MEM("Brand new obj %p", obj);
+		if (likely(!obj->recycling_list_entry.next)) {
+			TRACE_MEM("Brand new obj %p", obj);
+		} else if (unlikely(obj->sg_entries != obj->sg_entries_data)) {
+			TRACE_MEM("Cached obj %p with sg_count == 0", obj);
+			kfree(obj->sg_entries);
+			obj->sg_entries = NULL;
+		}
 
 		if (pages_to_alloc <= sgv_max_local_pages) {
 			obj->sg_entries = obj->sg_entries_data;
