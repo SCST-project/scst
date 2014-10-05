@@ -1678,7 +1678,7 @@ static int scst_local_driver_probe(struct device *dev)
 	sess->shost = hpnt;
 
 	hpnt->max_id = 1;        /* Don't want more than one id */
-	hpnt->max_lun = SCST_MAX_LUN;
+	hpnt->max_lun = SCST_MAX_LUN + 1;
 
 	/*
 	 * Because of a change in the size of this field at 2.6.26
