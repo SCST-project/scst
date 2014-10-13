@@ -65,6 +65,7 @@ static void cmnd_remove_data_wait_hash(struct iscsi_cmnd *cmnd);
 static void iscsi_send_task_mgmt_resp(struct iscsi_cmnd *req, int status,
 	bool dropped);
 static void iscsi_check_send_delayed_tm_resp(struct iscsi_session *sess);
+static void req_cmnd_release(struct iscsi_cmnd *req);
 static int cmnd_insert_data_wait_hash(struct iscsi_cmnd *cmnd);
 static void iscsi_cmnd_init_write(struct iscsi_cmnd *rsp, int flags);
 static void iscsi_set_resid_no_scst_cmd(struct iscsi_cmnd *rsp);
@@ -643,6 +644,7 @@ out:
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(req_cmnd_release_force);
 
 void req_cmnd_pre_release(struct iscsi_cmnd *req)
 {
@@ -710,7 +712,7 @@ EXPORT_SYMBOL(req_cmnd_pre_release);
  * Corresponding conn may also get destroyed after this function, except only
  * if it's called from the read thread!
  */
-void req_cmnd_release(struct iscsi_cmnd *req)
+static void req_cmnd_release(struct iscsi_cmnd *req)
 {
 	TRACE_ENTRY();
 
@@ -720,7 +722,6 @@ void req_cmnd_release(struct iscsi_cmnd *req)
 	TRACE_EXIT();
 	return;
 }
-EXPORT_SYMBOL(req_cmnd_release);
 
 /*
  * Corresponding conn may also get destroyed after this function, except only

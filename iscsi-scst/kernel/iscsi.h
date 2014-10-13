@@ -853,7 +853,6 @@ extern void iscsi_set_resid(struct iscsi_cmnd *rsp);
 extern int iscsi_init_conn(struct iscsi_session *session,
 	struct iscsi_kern_conn_info *info, struct iscsi_conn *conn);
 extern void req_cmnd_pre_release(struct iscsi_cmnd *req);
-extern void req_cmnd_release(struct iscsi_cmnd *req);
 extern struct iscsi_cmnd *create_status_rsp(struct iscsi_cmnd *req,
 	int status, const u8 *sense_buf, int sense_len);
 extern int iscsi_cmnd_set_write_buf(struct iscsi_cmnd *req);

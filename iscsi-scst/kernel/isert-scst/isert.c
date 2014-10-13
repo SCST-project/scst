@@ -366,7 +366,7 @@ void isert_pdu_err(struct iscsi_cmnd *pdu)
 		 * for same PDU with multiple RDMAs case
 		 */
 		if (pdu->on_write_timeout_list)
-			req_cmnd_release(pdu);
+			req_cmnd_release_force(pdu);
 	}
 }
 
