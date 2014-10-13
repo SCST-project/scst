@@ -45,7 +45,7 @@ int isert_datamover_init(void)
 	int err;
 
 	err = isert_global_init();
-	if (err) {
+	if (unlikely(err)) {
 		pr_err("iser datamover init failed, err:%d\n", err);
 		return err;
 	}
@@ -173,17 +173,18 @@ void isert_release_rx_pdu(struct iscsi_cmnd *iscsi_pdu)
 int isert_login_rsp_tx(struct iscsi_cmnd *login_rsp, int last, int discovery)
 {
 	struct isert_connection *isert_conn = (struct isert_connection *)login_rsp->conn;
+	int err;
 
 	if (last && !discovery) {
-		int err = isert_alloc_conn_resources(isert_conn);
-		if (err) {
+		err = isert_alloc_conn_resources(isert_conn);
+		if (unlikely(err)) {
 			pr_err("Failed to init conn resources\n");
 			return err;
 		}
 		isert_pdu_free(isert_conn->login_req_pdu);
 		isert_conn->login_req_pdu = NULL;
 	} else {
-		int err = isert_post_recv(isert_conn,
+		err = isert_post_recv(isert_conn,
 					  &isert_conn->login_req_pdu->wr[0],
 					  1);
 		if (unlikely(err)) {

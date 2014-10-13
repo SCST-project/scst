@@ -357,7 +357,7 @@ static ssize_t isert_listen_read(struct file *filp, char __user *buf,
 		       conn_dev->idx);
 	++res; /* copy trailing \0 as well */
 
-	if (copy_to_user(buf, k_buff, res))
+	if (unlikely(copy_to_user(buf, k_buff, res)))
 		res = -EFAULT;
 
 out:
@@ -378,13 +378,13 @@ static long isert_listen_ioctl(struct file *filp, unsigned int cmd,
 	switch (cmd) {
 	case SET_LISTEN_ADDR:
 		rc = copy_from_user(&dev->info, ptr, sizeof(dev->info));
-		if (rc != 0) {
+		if (unlikely(rc != 0)) {
 			PRINT_ERROR("Failed to copy %d user's bytes\n", rc);
 			res = -EFAULT;
 			goto out;
 		}
 
-		if (dev->free_portal_idx >= ISERT_MAX_PORTALS) {
+		if (unlikely(dev->free_portal_idx >= ISERT_MAX_PORTALS)) {
 			PRINT_ERROR("Maximum number of portals exceeded: %d\n",
 				    ISERT_MAX_PORTALS);
 			res = -EINVAL;
@@ -654,7 +654,7 @@ static long isert_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		if (val) {
 			if (!dev->login_rsp) {
 				cmnd = isert_alloc_login_rsp_pdu(dev->conn);
-				if (!cmnd) {
+				if (unlikely(!cmnd)) {
 					res = -ENOMEM;
 					goto out;
 				}
@@ -667,7 +667,7 @@ static long isert_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			struct iscsi_login_rsp_hdr *rsp;
 			bool last;
 
-			if (!dev->login_rsp) {
+			if (unlikely(!dev->login_rsp)) {
 				res = -EINVAL;
 				goto out;
 			}
@@ -700,7 +700,7 @@ static long isert_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 				goto out;
 
 			rc = copy_to_user(ptr, &addr, sizeof(addr));
-			if (rc)
+			if (unlikely(rc != 0))
 				res = -EFAULT;
 		}
 		break;
@@ -760,7 +760,7 @@ int isert_login_req_rx(struct iscsi_cmnd *login_req)
 	switch (dev->state) {
 	case CS_INIT:
 	case CS_RSP_FINISHED:
-		if (dev->login_req != NULL) {
+		if (unlikely(dev->login_req != NULL)) {
 			sBUG();
 			res = -EINVAL;
 			goto out;
@@ -847,7 +847,7 @@ static void __init isert_setup_cdev(struct isert_conn_dev *dev,
 	dev->state = CS_INIT;
 	err = cdev_add(&dev->cdev, dev->devno, 1);
 	/* Fail gracefully if need be */
-	if (err)
+	if (unlikely(err))
 		PRINT_ERROR("Error %d adding "ISER_CONN_DEV_PREFIX"%d", err,
 			    index);
 
@@ -875,7 +875,7 @@ static void __init isert_setup_listener_cdev(struct isert_listener_dev *dev)
 	atomic_set(&dev->available, 1);
 	err = cdev_add(&dev->cdev, dev->devno, 1);
 	/* Fail gracefully if need be */
-	if (err)
+	if (unlikely(err))
 		PRINT_ERROR("Error %d adding isert_scst", err);
 
 	dev->dev = device_create(isert_class, NULL, dev->devno, NULL,
@@ -897,7 +897,7 @@ int __init isert_init_login_devs(unsigned int ndevs)
 			"isert_scst");
 	isert_major = MAJOR(devno);
 
-	if (res < 0) {
+	if (unlikely(res < 0)) {
 		PRINT_ERROR("isert: can't get major %d\n", isert_major);
 		goto out;
 	}
@@ -908,7 +908,7 @@ int __init isert_init_login_devs(unsigned int ndevs)
 	 */
 	isert_conn_devices = kzalloc(n_devs * sizeof(struct isert_conn_dev),
 				     GFP_KERNEL);
-	if (!isert_conn_devices) {
+	if (unlikely(!isert_conn_devices)) {
 		res = -ENOMEM;
 		goto fail;  /* Make this more graceful */
 	}
@@ -922,7 +922,7 @@ int __init isert_init_login_devs(unsigned int ndevs)
 		isert_setup_cdev(&isert_conn_devices[i], i);
 
 	res = isert_datamover_init();
-	if (res) {
+	if (unlikely(res)) {
 		PRINT_ERROR("Unable to initialize datamover: %d\n", res);
 		goto fail;
 	}
