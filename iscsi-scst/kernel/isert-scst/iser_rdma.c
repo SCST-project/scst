@@ -1603,6 +1603,7 @@ void isert_portal_release(struct isert_portal *portal)
 
 	isert_portal_list_remove(portal);
 
+	kfree(portal);
 	module_put(THIS_MODULE);
 }
 
