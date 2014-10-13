@@ -15,6 +15,14 @@ In order to achieve better performance, it is recommended to specify
 "QueuedCommands 128" parameter per iSER target, since the transport
 is very fast and you usually want to connect it to fast backstorage.
 
+Limitations:
+-------------
+* Bidirectional commands are not supported
+* Block size over 512KB is not supported
+* Maximum number of concurent login requests that can be handled is 127.
+  Note that there may be more connections, but only up to 127 login requests
+  can be handled at the same time.
+
 
 Troubleshooting:
 -----------------
