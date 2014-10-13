@@ -458,9 +458,6 @@ int isert_rx_pdu_done(struct isert_cmnd *pdu)
 	if (++isert_conn->to_post_recv > isert_conn->repost_threshold) {
 		err = isert_post_recv(isert_conn, isert_conn->post_recv_first,
 				     isert_conn->to_post_recv);
-		if (unlikely(err))
-			pr_err("Failed to post recv err:%d\n", err);
-
 		isert_conn->to_post_recv = 0;
 	}
 	spin_unlock(&isert_conn->post_recv_lock);
