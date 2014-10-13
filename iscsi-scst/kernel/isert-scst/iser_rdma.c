@@ -521,6 +521,9 @@ static void isert_handle_wc_error(struct ib_wc *wc)
 	struct isert_wr *wr = _u64_to_ptr(wc->wr_id);
 	struct isert_cmnd *isert_pdu = wr->pdu;
 	struct isert_connection *isert_conn = wr->conn;
+	struct isert_buf *isert_buf = wr->buf;
+	struct isert_device *isert_dev = wr->isert_dev;
+	struct ib_device *ib_dev = isert_dev->ib_dev;
 
 	TRACE_ENTRY();
 
@@ -538,11 +541,22 @@ static void isert_handle_wc_error(struct ib_wc *wc)
 		}
 		break;
 	case ISER_WR_RDMA_READ:
+		if (isert_buf->sg_cnt != 0) {
+			isert_buf->sg_cnt = 0;
+			ib_dma_unmap_sg(ib_dev, isert_buf->sg, isert_buf->sg_cnt,
+				isert_buf->dma_dir);
+		}
 		isert_pdu_err(&isert_pdu->iscsi);
 		break;
 	case ISER_WR_RECV:
 		/* this should be the Flush, no task has been created yet */
+		break;
 	case ISER_WR_RDMA_WRITE:
+		if (isert_buf->sg_cnt != 0) {
+			isert_buf->sg_cnt = 0;
+			ib_dma_unmap_sg(ib_dev, isert_buf->sg, isert_buf->sg_cnt,
+				isert_buf->dma_dir);
+		}
 		/* RDMA-WR and SEND response of a READ task
 		   are sent together, so when receiving RDMA-WR error,
 		   wait until SEND error arrives to complete the task */
@@ -1592,6 +1606,7 @@ void isert_portal_release(struct isert_portal *portal)
 
 	isert_portal_list_remove(portal);
 
+	kfree(portal);
 	module_put(THIS_MODULE);
 }
 
