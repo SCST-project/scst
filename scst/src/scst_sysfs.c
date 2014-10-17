@@ -3506,6 +3506,31 @@ static struct kobj_attribute tgt_dev_latency_attr =
 
 #endif /* CONFIG_SCST_MEASURE_LATENCY */
 
+static ssize_t scst_tgt_dev_thread_pid_show(struct kobject *kobj,
+					    struct kobj_attribute *attr,
+					    char *buffer)
+{
+	struct scst_tgt_dev *tgt_dev =
+		container_of(kobj, struct scst_tgt_dev, tgt_dev_kobj);
+	struct scst_cmd_threads *cmd_threads = tgt_dev->active_cmd_threads;
+	struct scst_cmd_thread_t *t;
+	int res = 0;
+
+	spin_lock(&cmd_threads->thr_lock);
+	list_for_each_entry(t, &cmd_threads->threads_list, thread_list_entry)
+		res += scnprintf(buffer + res, PAGE_SIZE - res, "%d%s",
+				 task_pid_vnr(t->cmd_thread),
+				 list_is_last(&t->thread_list_entry,
+					      &cmd_threads->threads_list) ?
+				 "\n" : " ");
+	spin_unlock(&cmd_threads->thr_lock);
+
+	return res;
+}
+
+static struct kobj_attribute tgt_dev_thread_pid_attr =
+	__ATTR(thread_pid, S_IRUGO, scst_tgt_dev_thread_pid_show, NULL);
+
 static ssize_t scst_tgt_dev_active_commands_show(struct kobject *kobj,
 			    struct kobj_attribute *attr, char *buf)
 {
@@ -3524,6 +3549,7 @@ static struct kobj_attribute tgt_dev_active_commands_attr =
 		scst_tgt_dev_active_commands_show, NULL);
 
 static struct attribute *scst_tgt_dev_attrs[] = {
+	&tgt_dev_thread_pid_attr.attr,
 	&tgt_dev_active_commands_attr.attr,
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 	&tgt_dev_latency_attr.attr,

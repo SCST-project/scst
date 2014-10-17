@@ -332,8 +332,13 @@ Each target subdirectory contains the following entries:
 
  - tid - TID of this target.
 
-Subdirectory "sessions" contains one subdirectory for each connected
-session with name equal to name of the connected initiator.
+The "sessions" subdirectory contains the following attribute:
+
+ - thread_pid - the process identifiers (PIDs) of the iscsird and iscsiwr
+   threads that process SCSI commands associated with this session.
+
+Additionally, the "sessions" subdirectory contains one subdirectory for each
+connected session with name equal to name of the connected initiator.
 
 Each session subdirectory contains the following entries:
 

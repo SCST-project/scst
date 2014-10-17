@@ -695,6 +695,10 @@ Each sessions/<sess>/lun<X> subdirectory contains the following entries:
  - active_commands - contains number of active, i.e. not yet or being
    executed, SCSI commands for lun<X> in session <sess>.
 
+ - thread_pid - contains a single line with all the process identifiers
+   (PIDs) of the kernel threads that process SCSI commands intended for
+   lun<X> in session <sess>.
+
 
 Access and devices visibility management (LUN masking)
 ------------------------------------------------------

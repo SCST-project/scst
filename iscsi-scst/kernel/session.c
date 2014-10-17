@@ -560,6 +560,37 @@ static ssize_t iscsi_sess_reinstating_show(struct kobject *kobj,
 static struct kobj_attribute iscsi_sess_attr_reinstating =
 	__ATTR(reinstating, S_IRUGO, iscsi_sess_reinstating_show, NULL);
 
+static ssize_t iscsi_sess_thread_pid_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct scst_session *scst_sess = container_of(kobj, struct scst_session,
+						      sess_kobj);
+	struct iscsi_session *sess = scst_sess_get_tgt_priv(scst_sess);
+	struct iscsi_thread_pool *thr_pool = sess->sess_thr_pool;
+	struct iscsi_thread *t;
+	int res = -ENOENT;
+
+	if (!thr_pool)
+		goto out;
+
+	res = 0;
+
+	mutex_lock(&thr_pool->tp_mutex);
+	list_for_each_entry(t, &thr_pool->threads_list, threads_list_entry)
+		res += scnprintf(buf + res, PAGE_SIZE - res, "%d%s",
+				 task_pid_vnr(t->thr),
+				 list_is_last(&t->threads_list_entry,
+					      &thr_pool->threads_list) ?
+				 "\n" : " ");
+	mutex_unlock(&thr_pool->tp_mutex);
+
+out:
+	return res;
+}
+
+static struct kobj_attribute iscsi_sess_thread_pid =
+	__ATTR(thread_pid, S_IRUGO, iscsi_sess_thread_pid_show, NULL);
+
 const struct attribute *iscsi_sess_attrs[] = {
 	&iscsi_sess_attr_initial_r2t.attr,
 	&iscsi_sess_attr_immediate_data.attr,
@@ -572,6 +603,7 @@ const struct attribute *iscsi_sess_attrs[] = {
 	&iscsi_sess_attr_data_digest.attr,
 	&iscsi_attr_sess_sid.attr,
 	&iscsi_sess_attr_reinstating.attr,
+	&iscsi_sess_thread_pid.attr,
 	NULL,
 };
 
