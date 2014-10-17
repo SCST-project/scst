@@ -552,6 +552,12 @@ Each session subdirectory contains the following entries:
 See below description of the VDISK's sysfs interface for samples.
 
 
+Each sessions/<sess>/lun<X> subdirectory contains the following entries:
+
+ - active_commands - contains number of active, i.e. not yet or being
+   executed, SCSI commands for lun<X> in session <sess>.
+
+
 Access and devices visibility management (LUN masking)
 ------------------------------------------------------
 
