@@ -4351,7 +4351,7 @@ static enum compl_status_e vdisk_exec_mode_select(struct vdisk_cmd_params *p)
 	int32_t length;
 	uint8_t *address;
 	struct scst_vdisk_dev *virt_dev;
-	int mselect_6, offset, type;
+	int mselect_6, offset, bdl, type;
 
 	TRACE_ENTRY();
 
@@ -4370,14 +4370,17 @@ static enum compl_status_e vdisk_exec_mode_select(struct vdisk_cmd_params *p)
 		goto out_put;
 	}
 
-	if (mselect_6)
+	if (mselect_6) {
+		bdl = address[3];
 		offset = 4;
-	else
+	} else {
+		bdl = get_unaligned_be16(&address[6]);
 		offset = 8;
+	}
 
-	if (address[offset - 1] == 8) {
+	if (bdl == 8)
 		offset += 8;
-	} else if (address[offset - 1] != 0) {
+	else if (bdl != 0) {
 		PRINT_ERROR("%s", "MODE SELECT: Wrong parameters list length");
 		scst_set_invalid_field_in_parm_list(cmd, offset-1, 0);
 		goto out_put;
