@@ -5116,8 +5116,7 @@ restart:
 					eiv++;
 					eiv_count--;
 				} else {
-					eiv->iov_base =
-					    (uint8_t __force __user *)eiv->iov_base + err;
+					eiv->iov_base += err;
 					eiv->iov_len -= err;
 					break;
 				}
