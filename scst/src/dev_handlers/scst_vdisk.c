@@ -5021,7 +5021,7 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 	mm_segment_t old_fs;
 	loff_t err = 0;
 	ssize_t length, full_len;
-	uint8_t __user *address;
+	uint8_t *address;
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	struct file *fd = virt_dev->fd;
 	struct iovec *iv, *eiv;
@@ -5039,7 +5039,7 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 	if (iv == NULL)
 		goto out_nomem;
 
-	length = scst_get_buf_first(cmd, (uint8_t __force **)&address);
+	length = scst_get_buf_first(cmd, &address);
 	if (unlikely(length < 0)) {
 		PRINT_ERROR("scst_get_buf_first() failed: %zd", length);
 		scst_set_cmd_error(cmd,
@@ -5058,12 +5058,11 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 			full_len += length;
 			i++;
 			iv_count++;
-			iv[i].iov_base = address;
+			iv[i].iov_base = (uint8_t __force __user *)address;
 			iv[i].iov_len = length;
 			if (iv_count == UIO_MAXIOV)
 				break;
-			length = scst_get_buf_next(cmd,
-				(uint8_t __force **)&address);
+			length = scst_get_buf_next(cmd, &address);
 		}
 		if (length == 0) {
 			finished = true;
@@ -5130,7 +5129,7 @@ restart:
 		if (finished)
 			break;
 
-		length = scst_get_buf_next(cmd, (uint8_t __force **)&address);
+		length = scst_get_buf_next(cmd, &address);
 	}
 
 	set_fs(old_fs);
