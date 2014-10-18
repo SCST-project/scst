@@ -85,9 +85,11 @@ struct iscsi_thread_pool {
 
 	int thread_pool_ref;
 
-	struct list_head threads_list;
-
+	/* Entry in iscsi_thread_pools_list */
 	struct list_head thread_pools_list_entry;
+
+	struct mutex tp_mutex;
+	struct list_head threads_list; /* protected by tp_mutex */
 };
 
 
