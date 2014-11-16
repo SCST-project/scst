@@ -1413,6 +1413,31 @@ static int isert_handle_failure(struct isert_connection *conn)
 	return 0;
 }
 
+static int isert_cm_evt_listener_handler(struct rdma_cm_id *cm_id,
+					 struct rdma_cm_event *cm_ev)
+{
+	enum rdma_cm_event_type ev_type;
+	struct isert_portal *portal;
+	int err = 0;
+
+	ev_type = cm_ev->event;
+	portal = cm_id->context;
+
+	switch (ev_type) {
+	case RDMA_CM_EVENT_DEVICE_REMOVAL:
+		portal->cm_id = NULL;
+		err = -EINVAL;
+		break;
+
+	default:
+		pr_info("Listener event:%s(%d), ignored\n",
+			cm_event_type_str(ev_type), ev_type);
+		break;
+	}
+
+	return err;
+}
+
 static int isert_cm_evt_handler(struct rdma_cm_id *cm_id,
 				struct rdma_cm_event *cm_ev)
 {
@@ -1431,6 +1456,11 @@ static int isert_cm_evt_handler(struct rdma_cm_id *cm_id,
 	pr_info("isert_cm_evt:%s(%d) status:%d portal:%p cm_id:%p\n",
 		cm_event_type_str(ev_type), ev_type, cm_ev->status,
 		portal, cm_id);
+
+	if (portal->cm_id == cm_id) {
+		err = isert_cm_evt_listener_handler(cm_id, cm_ev);
+		goto out;
+	}
 
 	switch (ev_type) {
 	case RDMA_CM_EVENT_CONNECT_REQUEST:
@@ -1614,7 +1644,10 @@ void isert_portal_release(struct isert_portal *portal)
 
 	pr_info("iser portal cm_id:%p releasing\n", portal->cm_id);
 
-	rdma_destroy_id(portal->cm_id);
+	if (portal->cm_id) {
+		rdma_destroy_id(portal->cm_id);
+		portal->cm_id = NULL;
+	}
 
 	mutex_lock(&dev_list_mutex);
 	list_for_each_entry(conn, &portal->conn_list, portal_node)
