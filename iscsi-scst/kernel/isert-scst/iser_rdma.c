@@ -856,6 +856,7 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 				  cqe_num,
 				  i); /* completion vector */
 		if (unlikely(IS_ERR(cq))) {
+			cq_desc->cq = NULL;
 			err = PTR_ERR(cq);
 			pr_err("Failed to create iser dev cq, err:%d\n", err);
 			goto fail_cq;
@@ -883,7 +884,7 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 	return isert_dev;
 
 fail_cq:
-	for (j = 0; j < i; ++j) {
+	for (j = 0; j <= i; ++j) {
 		if (isert_dev->cq_desc[j].cq)
 			ib_destroy_cq(isert_dev->cq_desc[j].cq);
 		if (isert_dev->cq_desc[j].cq_workqueue)
