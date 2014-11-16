@@ -15,6 +15,12 @@ In order to achieve better performance, it is recommended to specify
 "QueuedCommands 128" parameter per iSER target, since the transport
 is very fast and you usually want to connect it to fast backstorage.
 
+For performance tuning of initiator and target machines, see
+http://community.mellanox.com/docs/DOC-1483
+
+Note that if you have an SSD controller that is close to a particular
+NUMA node, you want the HCA to be close to the same node.
+
 Limitations:
 -------------
 * Bidirectional commands are not supported
