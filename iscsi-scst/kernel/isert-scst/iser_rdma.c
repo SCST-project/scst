@@ -1486,8 +1486,8 @@ static int isert_cm_evt_handler(struct rdma_cm_id *cm_id,
 
 	case RDMA_CM_EVENT_DEVICE_REMOVAL:
 		isert_cm_disconnect_handler(cm_id, cm_ev);
-
-	case RDMA_CM_EVENT_TIMEWAIT_EXIT: /* fall through */
+		/* fallthrough */
+	case RDMA_CM_EVENT_TIMEWAIT_EXIT:
 		err = isert_cm_timewait_exit_handler(cm_id, cm_ev);
 		break;
 
