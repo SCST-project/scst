@@ -85,7 +85,7 @@ static int isert_buf_alloc_pg(struct ib_device *ib_dev,
 	goto out;
 
 out_map_failed:
-	for (; i > 0; --i)
+	for (; i >= 0; --i)
 		__free_page(sg_page(&isert_buf->sg[i]));
 	kfree(isert_buf->sg);
 	isert_buf->sg = NULL;
