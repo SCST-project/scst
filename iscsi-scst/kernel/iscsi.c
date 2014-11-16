@@ -4110,11 +4110,13 @@ static void __iscsi_threads_pool_put(struct iscsi_thread_pool *p)
 
 	TRACE_DBG("Freeing iSCSI thread pool %p", p);
 
+	mutex_lock(&p->tp_mutex);
 	list_for_each_entry_safe(t, tt, &p->threads_list, threads_list_entry) {
 		kthread_stop(t->thr);
 		list_del(&t->threads_list_entry);
 		kfree(t);
 	}
+	mutex_unlock(&p->tp_mutex);
 
 	list_del(&p->thread_pools_list_entry);
 
@@ -4190,6 +4192,7 @@ int iscsi_threads_pool_get(const cpumask_t *cpu_mask,
 	else
 		cpumask_copy(&p->cpu_mask, cpu_mask);
 	p->thread_pool_ref = 1;
+	mutex_init(&p->tp_mutex);
 	INIT_LIST_HEAD(&p->threads_list);
 
 	if (cpu_mask == NULL)
@@ -4221,7 +4224,10 @@ int iscsi_threads_pool_get(const cpumask_t *cpu_mask,
 				kfree(t);
 				goto out_free;
 			}
+
+			mutex_lock(&p->tp_mutex);
 			list_add_tail(&t->threads_list_entry, &p->threads_list);
+			mutex_unlock(&p->tp_mutex);
 		}
 	}
 

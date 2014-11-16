@@ -1850,8 +1850,8 @@ static int scst_report_luns_local(struct scst_cmd *cmd)
 	cmd->driver_status = 0;
 
 	if ((cmd->cdb[2] != 0) && (cmd->cdb[2] != 2)) {
-		PRINT_ERROR("Unsupported SELECT REPORT value %x in REPORT "
-			"LUNS command", cmd->cdb[2]);
+		TRACE(TRACE_MINOR, "Unsupported SELECT REPORT value %x in "
+			"REPORT LUNS command", cmd->cdb[2]);
 		scst_set_invalid_field_in_cdb(cmd, 2, 0);
 		goto out_compl;
 	}

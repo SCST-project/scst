@@ -4351,7 +4351,7 @@ static enum compl_status_e vdisk_exec_mode_select(struct vdisk_cmd_params *p)
 	int32_t length;
 	uint8_t *address;
 	struct scst_vdisk_dev *virt_dev;
-	int mselect_6, offset, type;
+	int mselect_6, offset, bdl, type;
 
 	TRACE_ENTRY();
 
@@ -4370,14 +4370,17 @@ static enum compl_status_e vdisk_exec_mode_select(struct vdisk_cmd_params *p)
 		goto out_put;
 	}
 
-	if (mselect_6)
+	if (mselect_6) {
+		bdl = address[3];
 		offset = 4;
-	else
+	} else {
+		bdl = get_unaligned_be16(&address[6]);
 		offset = 8;
+	}
 
-	if (address[offset - 1] == 8) {
+	if (bdl == 8)
 		offset += 8;
-	} else if (address[offset - 1] != 0) {
+	else if (bdl != 0) {
 		PRINT_ERROR("%s", "MODE SELECT: Wrong parameters list length");
 		scst_set_invalid_field_in_parm_list(cmd, offset-1, 0);
 		goto out_put;
@@ -5021,7 +5024,7 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 	mm_segment_t old_fs;
 	loff_t err = 0;
 	ssize_t length, full_len;
-	uint8_t __user *address;
+	uint8_t *address;
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	struct file *fd = virt_dev->fd;
 	struct iovec *iv, *eiv;
@@ -5039,7 +5042,7 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 	if (iv == NULL)
 		goto out_nomem;
 
-	length = scst_get_buf_first(cmd, (uint8_t __force **)&address);
+	length = scst_get_buf_first(cmd, &address);
 	if (unlikely(length < 0)) {
 		PRINT_ERROR("scst_get_buf_first() failed: %zd", length);
 		scst_set_cmd_error(cmd,
@@ -5058,12 +5061,11 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 			full_len += length;
 			i++;
 			iv_count++;
-			iv[i].iov_base = address;
+			iv[i].iov_base = (uint8_t __force __user *)address;
 			iv[i].iov_len = length;
 			if (iv_count == UIO_MAXIOV)
 				break;
-			length = scst_get_buf_next(cmd,
-				(uint8_t __force **)&address);
+			length = scst_get_buf_next(cmd, &address);
 		}
 		if (length == 0) {
 			finished = true;
@@ -5116,8 +5118,7 @@ restart:
 					eiv++;
 					eiv_count--;
 				} else {
-					eiv->iov_base =
-					    (uint8_t __force __user *)eiv->iov_base + err;
+					eiv->iov_base += err;
 					eiv->iov_len -= err;
 					break;
 				}
@@ -5131,7 +5132,7 @@ restart:
 		if (finished)
 			break;
 
-		length = scst_get_buf_next(cmd, (uint8_t __force **)&address);
+		length = scst_get_buf_next(cmd, &address);
 	}
 
 	set_fs(old_fs);
