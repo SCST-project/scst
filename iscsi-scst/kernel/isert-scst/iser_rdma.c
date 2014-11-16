@@ -1103,6 +1103,13 @@ fail_get:
 	return ERR_PTR(err);
 }
 
+static void isert_deref_device(struct isert_device *isert_dev)
+{
+	isert_dev->refcnt--;
+	if (isert_dev->refcnt == 0)
+		isert_device_release(isert_dev);
+}
+
 static void isert_kref_free(struct kref *kref)
 {
 	struct isert_connection *isert_conn = container_of(kref,
@@ -1123,9 +1130,7 @@ static void isert_kref_free(struct kref *kref)
 	isert_dev->cq_qps[cq->idx]--;
 	list_del(&isert_conn->portal_node);
 	list_del(&isert_conn->dev_node);
-	isert_dev->refcnt--;
-	if (isert_dev->refcnt == 0)
-		isert_device_release(isert_dev);
+	isert_deref_device(isert_dev);
 	mutex_unlock(&dev_list_mutex);
 
 	rdma_destroy_id(isert_conn->cm_id);
@@ -1187,7 +1192,6 @@ static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
 	/* passed in rdma_create_id */
 	struct isert_portal *portal = cm_id->context;
 	struct ib_device *ib_dev = cm_id->device;
-	struct isert_device *new_isert_dev = NULL;
 	struct isert_device *isert_dev;
 	struct isert_connection *isert_conn;
 	struct rdma_conn_param *ini_conn_param;
@@ -1200,13 +1204,12 @@ static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
 	mutex_lock(&dev_list_mutex);
 	isert_dev = isert_device_find(ib_dev);
 	if (!isert_dev) {
-		new_isert_dev = isert_device_create(ib_dev);
-		if (unlikely(IS_ERR(new_isert_dev))) {
-			err = PTR_ERR(new_isert_dev);
+		isert_dev = isert_device_create(ib_dev);
+		if (unlikely(IS_ERR(isert_dev))) {
+			err = PTR_ERR(isert_dev);
 			mutex_unlock(&dev_list_mutex);
 			goto fail_dev_create;
 		}
-		isert_dev = new_isert_dev;
 	}
 	isert_dev->refcnt++;
 	mutex_unlock(&dev_list_mutex);
@@ -1293,13 +1296,9 @@ fail_accept:
 	goto out;
 
 fail_conn_create:
-	if (new_isert_dev) {
-		mutex_lock(&dev_list_mutex);
-		new_isert_dev->refcnt--;
-		if (new_isert_dev->refcnt == 0)
-			isert_device_release(new_isert_dev);
-		mutex_unlock(&dev_list_mutex);
-	}
+	mutex_lock(&dev_list_mutex);
+	isert_deref_device(isert_dev);
+	mutex_unlock(&dev_list_mutex);
 fail_dev_create:
 	rdma_reject(cm_id, NULL, 0);
 	goto out;
