@@ -72,6 +72,7 @@ static int isert_buf_alloc_pg(struct ib_device *ib_dev,
 
 	res = ib_dma_map_sg(ib_dev, isert_buf->sg, isert_buf->sg_cnt, dma_dir);
 	if (unlikely(!res)) {
+		--i; /* do not overrun isert_buf->sg */
 		pr_err("Failed to DMA map iser sg:%p len:%d\n",
 		       isert_buf->sg, isert_buf->sg_cnt);
 		res = -ENOMEM;
