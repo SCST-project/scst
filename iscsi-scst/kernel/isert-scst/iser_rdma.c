@@ -1011,7 +1011,7 @@ static int isert_conn_qp_create(struct isert_connection *isert_conn)
 	err = rdma_create_qp(cm_id, isert_dev->pd, &qp_attr);
 	if (unlikely(err)) {
 		pr_err("Failed to create qp, err:%d\n", err);
-		goto out;
+		goto fail_create_qp;
 	}
 	isert_conn->qp = cm_id->qp;
 
@@ -1020,6 +1020,12 @@ static int isert_conn_qp_create(struct isert_connection *isert_conn)
 out:
 	TRACE_EXIT_RES(err);
 	return err;
+
+fail_create_qp:
+	mutex_lock(&dev_list_mutex);
+	isert_dev->cq_qps[cq_idx]--;
+	mutex_unlock(&dev_list_mutex);
+	goto out;
 }
 
 static void isert_conn_qp_destroy(struct isert_connection *isert_conn)
@@ -1033,6 +1039,7 @@ static struct isert_connection *isert_conn_create(struct rdma_cm_id *cm_id,
 {
 	struct isert_connection *isert_conn;
 	int err;
+	struct isert_cq *cq;
 
 	TRACE_ENTRY();
 
@@ -1089,6 +1096,10 @@ static struct isert_connection *isert_conn_create(struct rdma_cm_id *cm_id,
 	return isert_conn;
 
 fail_post_recv:
+	cq = isert_conn->qp->recv_cq->cq_context;
+	mutex_lock(&dev_list_mutex);
+	isert_dev->cq_qps[cq->idx]--;
+	mutex_unlock(&dev_list_mutex);
 	isert_conn_qp_destroy(isert_conn);
 fail_qp:
 	isert_pdu_free(isert_conn->login_rsp_pdu);
