@@ -205,8 +205,7 @@ int digest_rx_data(struct iscsi_cmnd *cmnd)
 			cmnd->conn->rpadding);
 
 	if (unlikely(crc != cmnd->ddigest)) {
-		TRACE(TRACE_MINOR|TRACE_MGMT_DEBUG, "%s", "RX data digest "
-			"failed");
+		PRINT_ERROR("RX data digest failed, stable pages disabled?");
 		TRACE_MGMT_DBG("Calculated crc %x, ddigest %x, offset %d", crc,
 			cmnd->ddigest, offset);
 		iscsi_dump_pdu(&cmnd->pdu);
