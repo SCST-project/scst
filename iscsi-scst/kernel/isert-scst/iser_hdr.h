@@ -23,5 +23,13 @@ struct isert_hdr {
 
 #define ISER_HDRS_SZ		(sizeof(struct isert_hdr) + sizeof(struct iscsi_hdr))
 
+#define ISER_ZBVA_NOT_SUPPORTED         0x80
+#define ISER_SEND_W_INV_NOT_SUPPORTED   0x40
+
+struct isert_cm_hdr {
+	u8	flags;
+	u8	rsvd[3];
+} __packed;
+
 #endif
 
