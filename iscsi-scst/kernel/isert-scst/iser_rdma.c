@@ -810,6 +810,11 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 	cqe_num = min(isert_dev->device_attr.max_cqe, ISER_CQ_ENTRIES);
 	cqe_num = cqe_num / isert_dev->num_cqs;
 
+#ifdef CONFIG_SCST_EXTRACHECKS
+	if (isert_dev->device_attr.max_cqe == 0)
+		pr_err("Zero max_cqe encountered: you may have a compilation problem\n");
+#endif
+
 	for (i = 0; i < isert_dev->num_cqs; ++i) {
 		struct isert_cq *cq_desc = &isert_dev->cq_desc[i];
 
