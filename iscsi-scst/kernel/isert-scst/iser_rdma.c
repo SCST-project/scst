@@ -1079,7 +1079,6 @@ static struct isert_connection *isert_conn_create(struct rdma_cm_id *cm_id,
 	}
 
 	kref_init(&isert_conn->kref);
-	kref_get(&isert_conn->kref);
 
 	TRACE_EXIT();
 	return isert_conn;
@@ -1315,6 +1314,7 @@ static int isert_cm_connect_handler(struct rdma_cm_id *cm_id,
 	if (unlikely(ret))
 		goto out;
 
+	kref_get(&isert_conn->kref);
 	kref_get(&isert_conn->kref);
 	/* notify upper layer */
 	ret = isert_conn_established(&isert_conn->iscsi,
