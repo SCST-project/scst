@@ -1451,10 +1451,6 @@ static int isert_cm_evt_handler(struct rdma_cm_id *cm_id,
 
 	TRACE_ENTRY();
 
-	if (unlikely(IS_ERR(cm_id))) {
-		pr_err("isert_cm_evt invalid cm_id:%p\n", cm_id);
-		goto out;
-	}
 	ev_type = cm_ev->event;
 	portal = cm_id->context;
 	pr_info("isert_cm_evt:%s(%d) status:%d portal:%p cm_id:%p\n",
