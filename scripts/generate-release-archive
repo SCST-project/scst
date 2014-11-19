@@ -4,15 +4,19 @@ usage() {
     echo "Usage: $(basename $0) name version"
 }
 
-if [ $# != 2 ]; then
+if [ $# -lt 2 ]; then
     usage
     exit 1
 fi
 
 scriptdir="$(dirname "$0")"
-name="$1"
-version="$2"
+name="$1"; shift
+version="$1"; shift
+files="$*"
+if [ -z "$files" ]; then
+    files=$($scriptdir/list-source-files)
+fi
 
 tar --owner=root --group=root --transform="s|^|$name-$version/|" \
-  -cjf $name-$version.tar.bz2 $($scriptdir/list-source-files) &&
+  -cjf $name-$version.tar.bz2 $files &&
 ls -l $name-$version.tar.bz2
