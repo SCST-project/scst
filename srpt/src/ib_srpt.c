@@ -118,6 +118,16 @@ module_param(srp_max_rsp_size, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(srp_max_rsp_size,
 		 "Maximum size of SRP response messages in bytes.");
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31) \
+    || defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
+static int use_srq = true;
+#else
+static bool use_srq = true;
+#endif
+module_param(use_srq, bool, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(use_srq,
+		 "Whether or not to use SRQ");
+
 static int srpt_srq_size = DEFAULT_SRPT_SRQ_SIZE;
 module_param(srpt_srq_size, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(srpt_srq_size,
@@ -459,6 +469,7 @@ static void srpt_get_ioc(struct srpt_device *sdev, u32 slot,
 			 struct ib_dm_mad *mad)
 {
 	struct ib_dm_ioc_profile *iocp;
+	int send_queue_depth;
 
 	iocp = (struct ib_dm_ioc_profile *)mad->data;
 
@@ -472,6 +483,11 @@ static void srpt_get_ioc(struct srpt_device *sdev, u32 slot,
 		return;
 	}
 
+	if (sdev->use_srq)
+		send_queue_depth = sdev->srq_size;
+	else
+		send_queue_depth = min(SRPT_RQ_SIZE, sdev->dev_attr.max_qp_wr);
+
 	memset(iocp, 0, sizeof(*iocp));
 	strcpy(iocp->id_string, SRPT_ID_STRING);
 	iocp->guid = cpu_to_be64(srpt_service_guid);
@@ -484,7 +500,8 @@ static void srpt_get_ioc(struct srpt_device *sdev, u32 slot,
 	iocp->io_subclass = cpu_to_be16(SRP_IO_SUBCLASS);
 	iocp->protocol = cpu_to_be16(SRP_PROTOCOL);
 	iocp->protocol_version = cpu_to_be16(SRP_PROTOCOL_VERSION);
-	iocp->send_queue_depth = cpu_to_be16(sdev->srq_size);
+	iocp->send_queue_depth = cpu_to_be16(send_queue_depth);
+
 	iocp->rdma_read_depth = 4;
 	iocp->send_size = cpu_to_be32(srp_max_req_size);
 	iocp->rdma_size = cpu_to_be32(min(max(srp_max_rdma_size, 256U),
@@ -862,6 +879,9 @@ static void srpt_free_ioctx_ring(struct srpt_ioctx **ioctx_ring,
 {
 	int i;
 
+	if (!ioctx_ring)
+		return;
+
 	for (i = 0; i < ring_size; ++i)
 		srpt_free_ioctx(sdev, ioctx_ring[i], dma_size, dir);
 	kfree(ioctx_ring);
@@ -913,11 +933,12 @@ static bool srpt_test_and_set_cmd_state(struct srpt_send_ioctx *ioctx,
 /**
  * srpt_post_recv() - Post an IB receive request.
  */
-static int srpt_post_recv(struct srpt_device *sdev,
+static int srpt_post_recv(struct srpt_device *sdev, struct srpt_rdma_ch *ch,
 			  struct srpt_recv_ioctx *ioctx)
 {
 	struct ib_sge list;
 	struct ib_recv_wr wr, *bad_wr;
+	int status;
 
 	BUG_ON(!sdev);
 	wr.wr_id = encode_wr_id(SRPT_RECV, ioctx->ioctx.index);
@@ -930,7 +951,11 @@ static int srpt_post_recv(struct srpt_device *sdev,
 	wr.sg_list = &list;
 	wr.num_sge = 1;
 
-	return ib_post_srq_recv(sdev->srq, &wr, &bad_wr);
+	if (sdev->use_srq)
+		status = ib_post_srq_recv(sdev->srq, &wr, &bad_wr);
+	else
+		status = ib_post_recv(ch->qp, &wr, &bad_wr);
+	return status;
 }
 
 static int srpt_adjust_srq_wr_avail(struct srpt_rdma_ch *ch, int delta)
@@ -1867,7 +1892,7 @@ srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 		break;
 	}
 
-	srpt_post_recv(ch->sport->sdev, recv_ioctx);
+	srpt_post_recv(ch->sport->sdev, ch, recv_ioctx);
 
 out:
 	return send_ioctx;
@@ -1883,7 +1908,6 @@ static void srpt_process_rcv_completion(struct ib_cq *cq,
 					struct srpt_rdma_ch *ch,
 					struct ib_wc *wc)
 {
-	struct srpt_device *sdev = ch->sport->sdev;
 	struct srpt_recv_ioctx *ioctx;
 	u32 index;
 
@@ -1894,7 +1918,11 @@ static void srpt_process_rcv_completion(struct ib_cq *cq,
 		req_lim = srpt_adjust_req_lim(ch, -1, 0);
 		if (unlikely(req_lim < 0))
 			PRINT_ERROR("req_lim = %d < 0", req_lim);
-		ioctx = sdev->ioctx_ring[index];
+		if (ch->sport->sdev->use_srq)
+			ioctx = ch->sport->sdev->ioctx_ring[index];
+		else
+			ioctx = ch->ioctx_recv_ring[index];
+
 		srpt_handle_new_iu(ch, ioctx, srpt_new_iu_context);
 	} else {
 		PRINT_INFO("receiving failed for idx %u with status %d",
@@ -2057,6 +2085,10 @@ static void srpt_unreg_sess(struct scst_session *scst_sess)
 			     sdev, ch->rq_size,
 			     ch->max_rsp_size, DMA_TO_DEVICE);
 
+	srpt_free_ioctx_ring((struct srpt_ioctx **)ch->ioctx_recv_ring,
+			     sdev, ch->rq_size,
+			     srp_max_req_size, DMA_FROM_DEVICE);
+
 	/* Wait until CM callbacks have finished and prevent new callbacks. */
 	if (ch->using_rdma_cm)
 		rdma_destroy_id(ch->rdma_cm.cm_id);
@@ -2122,7 +2154,7 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 {
 	struct ib_qp_init_attr *qp_init;
 	struct srpt_device *sdev = ch->sport->sdev;
-	int ret;
+	int i, ret;
 
 	EXTRACHECKS_WARN_ON(ch->rq_size < 1);
 
@@ -2151,12 +2183,17 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 		= (void(*)(struct ib_event *, void*))srpt_qp_event;
 	qp_init->send_cq = ch->cq;
 	qp_init->recv_cq = ch->cq;
-	qp_init->srq = sdev->srq;
 	qp_init->sq_sig_type = IB_SIGNAL_REQ_WR;
 	qp_init->qp_type = IB_QPT_RC;
 	qp_init->cap.max_send_wr = srpt_sq_size;
 	ch->max_sge = max_t(int, 1, sdev->dev_attr.max_sge - max_sge_delta);
 	qp_init->cap.max_send_sge = ch->max_sge;
+	if (sdev->use_srq) {
+		qp_init->srq = sdev->srq;
+	} else {
+		qp_init->cap.max_recv_wr = ch->rq_size;
+		qp_init->cap.max_recv_sge = ch->max_sge;
+	}
 
 	if (ch->using_rdma_cm) {
 		ret = rdma_create_qp(ch->rdma_cm.cm_id, sdev->pd, qp_init);
@@ -2181,6 +2218,10 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 		goto err_destroy_cq;
 
 	TRACE_DBG("qp_num = %#x", ch->qp->qp_num);
+
+	if (!sdev->use_srq)
+		for (i = 0; i < ch->rq_size; i++)
+			srpt_post_recv(sdev, ch, ch->ioctx_recv_ring[i]);
 
 	atomic_set(&ch->sq_wr_avail, qp_init->cap.max_send_wr);
 
@@ -2570,6 +2611,8 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 				      sizeof(*ch->ioctx_ring[0]),
 				      ch->max_rsp_size, DMA_TO_DEVICE);
 	if (!ch->ioctx_ring) {
+		PRINT_ERROR("rejected SRP_LOGIN_REQ because creating"
+			    " a new QP SQ ring failed.");
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		goto free_ch;
 	}
@@ -2579,6 +2622,22 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 		ch->ioctx_ring[i]->ch = ch;
 		list_add_tail(&ch->ioctx_ring[i]->free_list, &ch->free_list);
 	}
+	if (!sdev->use_srq) {
+		ch->ioctx_recv_ring = (struct srpt_recv_ioctx **)
+			srpt_alloc_ioctx_ring(ch->sport->sdev, ch->rq_size,
+					      sizeof(*ch->ioctx_recv_ring[0]),
+					      srp_max_req_size,
+					      DMA_FROM_DEVICE);
+		if (!ch->ioctx_recv_ring) {
+			PRINT_ERROR("rejected SRP_LOGIN_REQ because creating"
+				    " a new QP RQ ring failed.");
+			rej->reason =
+			    cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
+			goto free_ring;
+		}
+		for (i = 0; i < ch->rq_size; i++)
+			INIT_LIST_HEAD(&ch->ioctx_recv_ring[i]->wait_list);
+	}
 
 	ch->comp_vector = srpt_next_comp_vector(srpt_tgt);
 
@@ -2587,7 +2646,7 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		PRINT_ERROR("rejected SRP_LOGIN_REQ because creating"
 			    " a new RDMA channel failed.");
-		goto free_ring;
+		goto free_recv_ring;
 	}
 
 	if (one_target_per_port) {
@@ -2746,6 +2805,11 @@ unreg_ch:
 
 destroy_ib:
 	srpt_destroy_ch_ib(ch);
+
+free_recv_ring:
+	srpt_free_ioctx_ring((struct srpt_ioctx **)ch->ioctx_recv_ring,
+			     ch->sport->sdev, ch->rq_size,
+			     srp_max_req_size, DMA_FROM_DEVICE);
 
 free_ring:
 	srpt_free_ioctx_ring((struct srpt_ioctx **)ch->ioctx_ring,
@@ -4173,14 +4237,36 @@ static void srpt_add_one(struct ib_device *device)
 	srq_attr.srq_type = IB_SRQT_BASIC;
 #endif
 
-	sdev->srq = ib_create_srq(sdev->pd, &srq_attr);
+	sdev->srq = use_srq ? ib_create_srq(sdev->pd, &srq_attr) :
+		ERR_PTR(-ENOSYS);
 	if (IS_ERR(sdev->srq)) {
-		PRINT_ERROR("ib_create_srq() failed: %ld", PTR_ERR(sdev->srq));
-		goto err_mr;
-	}
+		TRACE_DBG("%s: ib_create_srq() failed: %ld", __func__,
+			  PTR_ERR(sdev->srq));
 
-	TRACE_DBG("%s: create SRQ #wr= %d max_allow=%d dev= %s", __func__,
-		  sdev->srq_size, sdev->dev_attr.max_srq_wr, device->name);
+		/* SRQ not supported. */
+		sdev->use_srq = false;
+	} else {
+		TRACE_DBG("%s: create SRQ #wr= %d max_allow=%d dev= %s",
+			  __func__, sdev->srq_size, sdev->dev_attr.max_srq_wr,
+			  device->name);
+
+		sdev->use_srq = true;
+
+		sdev->ioctx_ring = (struct srpt_recv_ioctx **)
+			srpt_alloc_ioctx_ring(sdev, sdev->srq_size,
+					      sizeof(*sdev->ioctx_ring[0]),
+					      srp_max_req_size,
+					      DMA_FROM_DEVICE);
+		if (!sdev->ioctx_ring) {
+			PRINT_ERROR("srpt_alloc_ioctx_ring() failed");
+			goto err_mr;
+		}
+
+		for (i = 0; i < sdev->srq_size; ++i) {
+			INIT_LIST_HEAD(&sdev->ioctx_ring[i]->wait_list);
+			srpt_post_recv(sdev, NULL, sdev->ioctx_ring[i]);
+		}
+	}
 
 	if (!srpt_service_guid)
 		srpt_service_guid = be64_to_cpu(device->node_guid) &
@@ -4189,7 +4275,7 @@ static void srpt_add_one(struct ib_device *device)
 	cm_id = ib_create_cm_id(device, srpt_cm_handler, sdev);
 	if (IS_ERR(cm_id)) {
 		PRINT_ERROR("ib_create_cm_id() failed: %ld", PTR_ERR(cm_id));
-		goto err_srq;
+		goto err_ring;
 	}
 	sdev->cm_id = cm_id;
 
@@ -4220,20 +4306,6 @@ static void srpt_add_one(struct ib_device *device)
 		goto err_cm;
 	}
 
-	sdev->ioctx_ring = (struct srpt_recv_ioctx **)
-		srpt_alloc_ioctx_ring(sdev, sdev->srq_size,
-				      sizeof(*sdev->ioctx_ring[0]),
-				      srp_max_req_size, DMA_FROM_DEVICE);
-	if (!sdev->ioctx_ring) {
-		PRINT_ERROR("srpt_alloc_ioctx_ring() failed");
-		goto err_event;
-	}
-
-	for (i = 0; i < sdev->srq_size; ++i) {
-		INIT_LIST_HEAD(&sdev->ioctx_ring[i]->wait_list);
-		srpt_post_recv(sdev, sdev->ioctx_ring[i]);
-	}
-
 	WARN_ON(sdev->device->phys_port_cnt > ARRAY_SIZE(sdev->port));
 
 	for (i = 1; i <= sdev->device->phys_port_cnt; i++) {
@@ -4254,7 +4326,7 @@ static void srpt_add_one(struct ib_device *device)
 		if (srpt_refresh_port(sport)) {
 			PRINT_ERROR("MAD registration failed for %s-%d.",
 				    sdev->device->name, i);
-			goto err_ring;
+			goto err_event;
 		}
 	}
 
@@ -4265,16 +4337,16 @@ out:
 	TRACE_EXIT();
 	return;
 
-err_ring:
-	srpt_free_ioctx_ring((struct srpt_ioctx **)sdev->ioctx_ring, sdev,
-			     sdev->srq_size, srp_max_req_size,
-			     DMA_FROM_DEVICE);
 err_event:
 	ib_unregister_event_handler(&sdev->event_handler);
 err_cm:
 	ib_destroy_cm_id(sdev->cm_id);
-err_srq:
-	ib_destroy_srq(sdev->srq);
+err_ring:
+	srpt_free_ioctx_ring((struct srpt_ioctx **)sdev->ioctx_ring, sdev,
+			     sdev->srq_size, srp_max_req_size,
+			     DMA_FROM_DEVICE);
+	if (sdev->use_srq)
+		ib_destroy_srq(sdev->srq);
 err_mr:
 	ib_dereg_mr(sdev->mr);
 err_pd:
@@ -4347,13 +4419,15 @@ static void srpt_remove_one(struct ib_device *device)
 		sdev->srpt_tgt.scst_tgt = NULL;
 	}
 
-	ib_destroy_srq(sdev->srq);
-	ib_dereg_mr(sdev->mr);
-	ib_dealloc_pd(sdev->pd);
-
 	srpt_free_ioctx_ring((struct srpt_ioctx **)sdev->ioctx_ring, sdev,
 			     sdev->srq_size, srp_max_req_size, DMA_FROM_DEVICE);
 	sdev->ioctx_ring = NULL;
+
+	if (sdev->use_srq)
+		ib_destroy_srq(sdev->srq);
+	ib_dereg_mr(sdev->mr);
+	ib_dealloc_pd(sdev->pd);
+
 	kfree(sdev);
 
 	TRACE_EXIT();

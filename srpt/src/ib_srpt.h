@@ -366,6 +366,7 @@ struct srpt_rdma_ch {
 	spinlock_t		spinlock;
 	struct list_head	free_list;
 	struct srpt_send_ioctx	**ioctx_ring;
+	struct srpt_recv_ioctx	**ioctx_recv_ring;
 	struct ib_wc		wc[16];
 	enum rdma_ch_state	state;
 	struct list_head	list;
@@ -448,6 +449,7 @@ struct srpt_port {
  * @dev_attr:      Attributes of the InfiniBand device as obtained during the
  *                 ib_client.add() callback.
  * @srq_size:      SRQ size.
+ * @use_srq:       Whether or not to use SRQ.
  * @ioctx_ring:    Per-HCA SRQ.
  * @port:	   Information about the ports owned by this HCA.
  * @event_handler: Per-HCA asynchronous IB event handler.
@@ -462,6 +464,7 @@ struct srpt_device {
 	struct ib_cm_id		*cm_id;
 	struct ib_device_attr	dev_attr;
 	int			srq_size;
+	bool			use_srq;
 	struct srpt_recv_ioctx	**ioctx_ring;
 	struct srpt_port	port[2];
 	struct ib_event_handler	event_handler;
