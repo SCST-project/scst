@@ -958,7 +958,7 @@ static int srpt_post_recv(struct srpt_device *sdev, struct srpt_rdma_ch *ch,
 	return status;
 }
 
-static int srpt_adjust_srq_wr_avail(struct srpt_rdma_ch *ch, int delta)
+static int srpt_adjust_sq_wr_avail(struct srpt_rdma_ch *ch, int delta)
 {
 	return atomic_add_return(delta, &ch->sq_wr_avail);
 }
@@ -977,8 +977,9 @@ static int srpt_post_send(struct srpt_rdma_ch *ch,
 	int ret;
 
 	ret = -ENOMEM;
-	if (srpt_adjust_srq_wr_avail(ch, -1) < 0) {
-		PRINT_WARNING("IB send queue full (needed 1)");
+	if (srpt_adjust_sq_wr_avail(ch, -1) < 0) {
+		PRINT_WARNING("ch %s-%d send queue full (needed 1)",
+			      ch->sess_name, ch->qp->qp_num);
 		goto out;
 	}
 
@@ -1000,7 +1001,7 @@ static int srpt_post_send(struct srpt_rdma_ch *ch,
 
 out:
 	if (ret < 0)
-		srpt_adjust_srq_wr_avail(ch, 1);
+		srpt_adjust_sq_wr_avail(ch, 1);
 	return ret;
 }
 
@@ -1436,7 +1437,7 @@ static void srpt_handle_send_err_comp(struct srpt_rdma_ch *ch, u64 wr_id,
 	struct srpt_send_ioctx *ioctx = ch->ioctx_ring[index];
 	enum srpt_command_state state = ioctx->state;
 
-	srpt_adjust_srq_wr_avail(ch, 1);
+	srpt_adjust_sq_wr_avail(ch, 1);
 
 	switch (state) {
 	case SRPT_STATE_NEED_DATA:
@@ -1467,7 +1468,7 @@ static void srpt_handle_send_comp(struct srpt_rdma_ch *ch,
 				  struct srpt_send_ioctx *ioctx,
 				  enum scst_exec_context context)
 {
-	srpt_adjust_srq_wr_avail(ch, 1);
+	srpt_adjust_sq_wr_avail(ch, 1);
 
 	switch (srpt_set_cmd_state(ioctx, SRPT_STATE_DONE)) {
 	case SRPT_STATE_CMD_RSP_SENT:
@@ -1497,7 +1498,7 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 	struct scst_cmd *scmnd = &ioctx->scmnd;
 
 	EXTRACHECKS_WARN_ON(ioctx->n_rdma <= 0);
-	srpt_adjust_srq_wr_avail(ch, ioctx->n_rdma);
+	srpt_adjust_sq_wr_avail(ch, ioctx->n_rdma);
 
 	if (opcode == SRPT_RDMA_READ_LAST && scmnd) {
 		if (srpt_test_and_set_cmd_state(ioctx, SRPT_STATE_NEED_DATA,
@@ -1532,7 +1533,7 @@ static void srpt_handle_rdma_err_comp(struct srpt_rdma_ch *ch,
 				    ioctx->ioctx.index);
 			break;
 		}
-		srpt_adjust_srq_wr_avail(ch, ioctx->n_rdma);
+		srpt_adjust_sq_wr_avail(ch, ioctx->n_rdma);
 		if (state == SRPT_STATE_NEED_DATA)
 			srpt_abort_cmd(ioctx, context);
 		else
@@ -3369,10 +3370,10 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 
 	if (dir == SCST_DATA_WRITE) {
 		ret = -ENOMEM;
-		sq_wr_avail = srpt_adjust_srq_wr_avail(ch, -n_rdma);
+		sq_wr_avail = srpt_adjust_sq_wr_avail(ch, -n_rdma);
 		if (sq_wr_avail < 0) {
-			PRINT_WARNING("IB send queue full (needed %d)",
-				      n_rdma);
+			PRINT_WARNING("ch %s-%d send queue full (needed %d)",
+				      ch->sess_name, ch->qp->qp_num, n_rdma);
 			goto out;
 		}
 	}
@@ -3438,7 +3439,7 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 
 out:
 	if (unlikely(dir == SCST_DATA_WRITE && ret < 0))
-		srpt_adjust_srq_wr_avail(ch, n_rdma);
+		srpt_adjust_sq_wr_avail(ch, n_rdma);
 	return ret;
 }
 
