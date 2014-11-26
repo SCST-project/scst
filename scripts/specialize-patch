@@ -251,7 +251,7 @@ function evaluate(stmnt, pattern, arg, op, result) {
       sub(pattern, op[1] == 0 ? op[2] : op[1], stmnt)
     }
   
-    pattern="\\((-*[0-9]+)\\)"
+    pattern="\\([[:blank:]]*(-*[0-9]+)[[:blank:]]*\\)"
     while (match(stmnt, pattern, op) != 0)
     {
       sub(pattern, op[1], stmnt)
