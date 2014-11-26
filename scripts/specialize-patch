@@ -545,10 +545,16 @@ BEGIN {
     reset_hunk_state_variables()
     match($0, "^@@ -([0-9]*),([0-9]*) \\+([0-9]*),([0-9]*) @@(.*)$", h)
   }
-  else if (delete_next_blank_line && match($0, "^+$"))
+  else if (delete_next_blank_line && $0 == "+")
   {
     discard = 1
     delete_next_blank_line = 0
+  }
+  else if (lines >= 2 && !match(line[lines-2], ":$") &&
+           line[lines-1] == "+\x9return;" && $0 == "+}")
+  {
+    line[lines-1] = $0
+    lines_less_added++
   }
   else
   {
