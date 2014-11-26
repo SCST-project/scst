@@ -2312,8 +2312,8 @@ static int cmnd_abort_pre_checks(struct iscsi_cmnd *req, int *status)
 		if (req_hdr->lun != hdr->lun) {
 			PRINT_ERROR("ABORT TASK: LUN mismatch: req LUN "
 				    "%llx, cmd LUN %llx, rtt %u",
-				    (long long unsigned)be64_to_cpu(req_hdr->lun),
-				    (long long unsigned)be64_to_cpu(hdr->lun),
+				    (unsigned long long)be64_to_cpu(req_hdr->lun),
+				    (unsigned long long)be64_to_cpu(hdr->lun),
 				    req_hdr->rtt);
 			*status = ISCSI_RESPONSE_FUNCTION_REJECTED;
 			goto out_put;

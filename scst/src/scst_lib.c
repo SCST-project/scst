@@ -3176,7 +3176,7 @@ static bool __scst_adjust_sg(struct scst_cmd *cmd, struct scatterlist *sg,
 			TRACE_DBG_FLAG(TRACE_SG_OP|TRACE_MEMORY|TRACE_DEBUG,
 				"cmd %p (tag %llu), sg %p, sg_cnt %d, "
 				"adjust_len %d, i %d, sg[j].length %d, left %d",
-				cmd, (long long unsigned int)cmd->tag,
+				cmd, (unsigned long long int)cmd->tag,
 				sg, *sg_cnt, adjust_len, i,
 				sgi->length, left);
 
@@ -4642,7 +4642,7 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 		scst_sgv_pool_use_dma(tgt_dev);
 
 	TRACE_MGMT_DBG("Device %s on SCST lun=%lld",
-	       dev->virt_name, (long long unsigned int)tgt_dev->lun);
+	       dev->virt_name, (unsigned long long int)tgt_dev->lun);
 
 	spin_lock_init(&tgt_dev->tgt_dev_lock);
 	INIT_LIST_HEAD(&tgt_dev->UA_list);
@@ -5917,7 +5917,7 @@ void scst_free_cmd(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	TRACE_DBG("Freeing cmd %p (tag %llu)",
-		  cmd, (long long unsigned int)cmd->tag);
+		  cmd, (unsigned long long int)cmd->tag);
 
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)))
 		TRACE_MGMT_DBG("Freeing aborted cmd %p", cmd);
@@ -5958,7 +5958,7 @@ void scst_free_cmd(struct scst_cmd *cmd)
 					&cmd->cmd_flags);
 			TRACE_SN("Out of SN cmd %p (tag %llu, sn %d), "
 				"destroy=%d", cmd,
-				(long long unsigned int)cmd->tag,
+				(unsigned long long int)cmd->tag,
 				cmd->sn, destroy);
 		}
 	}
@@ -8600,7 +8600,7 @@ static void scst_free_all_UA(struct scst_tgt_dev *tgt_dev)
 	list_for_each_entry_safe(UA_entry, t,
 				 &tgt_dev->UA_list, UA_list_entry) {
 		TRACE_MGMT_DBG("Clearing UA for tgt_dev LUN %lld",
-			       (long long unsigned int)tgt_dev->lun);
+			       (unsigned long long int)tgt_dev->lun);
 		list_del(&UA_entry->UA_list_entry);
 		mempool_free(UA_entry, scst_ua_mempool);
 	}
@@ -8683,7 +8683,7 @@ restart:
 			 * !! destroyed!				     !!
 			 */
 			TRACE_SN("cmd %p (tag %llu) with skipped sn %d found",
-				 cmd, (long long unsigned int)cmd->tag, cmd->sn);
+				 cmd, (unsigned long long int)cmd->tag, cmd->sn);
 			order_data->def_cmd_count--;
 			list_del(&cmd->deferred_cmd_list_entry);
 			spin_unlock_irq(&order_data->sn_lock);
@@ -8783,13 +8783,13 @@ bool __scst_check_blocked_dev(struct scst_cmd *cmd)
 	if (dev->block_count > 0) {
 		TRACE_BLOCK("Delaying cmd %p due to blocking "
 			"(tag %llu, op %s, dev %s)", cmd,
-			(long long unsigned int)cmd->tag,
+			(unsigned long long int)cmd->tag,
 			scst_get_opcode_name(cmd), dev->virt_name);
 		goto out_block;
 	} else if ((cmd->op_flags & SCST_STRICTLY_SERIALIZED) == SCST_STRICTLY_SERIALIZED) {
 		TRACE_BLOCK("cmd %p (tag %llu, op %s): blocking further "
 			"cmds on dev %s due to strict serialization", cmd,
-			(long long unsigned int)cmd->tag,
+			(unsigned long long int)cmd->tag,
 			scst_get_opcode_name(cmd), dev->virt_name);
 		scst_block_dev(dev);
 		if (dev->on_dev_cmd_count > 1) {
@@ -8804,7 +8804,7 @@ bool __scst_check_blocked_dev(struct scst_cmd *cmd)
 	} else if ((dev->dev_double_ua_possible) ||
 		   ((cmd->op_flags & SCST_SERIALIZED) != 0)) {
 		TRACE_BLOCK("cmd %p (tag %llu, op %s): blocking further cmds "
-			"on dev %s due to %s", cmd, (long long unsigned int)cmd->tag,
+			"on dev %s due to %s", cmd, (unsigned long long int)cmd->tag,
 			scst_get_opcode_name(cmd), dev->virt_name,
 			dev->dev_double_ua_possible ? "possible double reset UA" :
 						      "serialized cmd");
@@ -9253,13 +9253,13 @@ void scst_xmit_process_aborted_cmd(struct scst_cmd *cmd)
 		if (test_bit(SCST_CMD_DEVICE_TAS, &cmd->cmd_flags)) {
 			TRACE_MGMT_DBG("Flag ABORTED OTHER set for cmd %p "
 				"(tag %llu), returning TASK ABORTED ", cmd,
-				(long long unsigned int)cmd->tag);
+				(unsigned long long int)cmd->tag);
 			scst_set_cmd_error_status(cmd, SAM_STAT_TASK_ABORTED);
 		} else {
 			TRACE_MGMT_DBG("Flag ABORTED OTHER set for cmd %p "
 				"(tag %llu), aborting without delivery or "
 				"notification",
-				cmd, (long long unsigned int)cmd->tag);
+				cmd, (unsigned long long int)cmd->tag);
 			/*
 			 * There is no need to check/requeue possible UA,
 			 * because, if it exists, it will be delivered

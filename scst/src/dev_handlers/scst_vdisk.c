@@ -1387,8 +1387,8 @@ static int vdisk_attach(struct scst_device *dev)
 		      (dev->type == TYPE_DISK) ? "disk" : "cdrom",
 		      virt_dev->name, vdev_get_filename(virt_dev),
 		      virt_dev->file_size >> 20, dev->block_size,
-		      (long long unsigned int)virt_dev->nblocks,
-		      (long long unsigned int)virt_dev->nblocks/64/32,
+		      (unsigned long long int)virt_dev->nblocks,
+		      (unsigned long long int)virt_dev->nblocks/64/32,
 		      virt_dev->nblocks < 64*32
 		      ? " !WARNING! cyln less than 1" : "");
 	} else {
@@ -1541,8 +1541,8 @@ static enum compl_status_e vdisk_synchronize_cache(struct vdisk_cmd_params *p)
 
 	TRACE(TRACE_ORDER, "SYNCHRONIZE_CACHE: "
 	      "loff=%lld, data_len=%lld, immed=%d",
-	      (long long unsigned int)loff,
-	      (long long unsigned int)data_len, immed);
+	      (unsigned long long int)loff,
+	      (unsigned long long int)data_len, immed);
 
 	if (data_len == 0) {
 		struct scst_vdisk_dev *virt_dev = dev->dh_priv;
@@ -2326,9 +2326,9 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 
 	loff = (loff_t)lba_start << dev->block_shift;
 	TRACE_DBG("cmd %p, lba_start %lld, loff %lld, data_len %lld", cmd,
-		  (long long unsigned int)lba_start,
-		  (long long unsigned int)loff,
-		  (long long unsigned int)data_len);
+		  (unsigned long long int)lba_start,
+		  (unsigned long long int)loff,
+		  (unsigned long long int)data_len);
 
 	EXTRACHECKS_BUG_ON((loff < 0) || unlikely(data_len < 0));
 
@@ -2340,9 +2340,9 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 		} else {
 			PRINT_INFO("Access beyond the end of device %s "
 				"(%lld of %lld, data len %lld)", virt_dev->name,
-				(long long unsigned int)loff,
-				(long long unsigned int)virt_dev->file_size,
-				(long long unsigned int)data_len);
+				(unsigned long long int)loff,
+				(unsigned long long int)virt_dev->file_size,
+				(unsigned long long int)data_len);
 			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
 					scst_sense_block_out_range_error));
 		}
@@ -2358,8 +2358,8 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 		fua = (cdb[1] & 0x8);
 		if (fua) {
 			TRACE(TRACE_ORDER, "FUA: loff=%lld, "
-				"data_len=%lld", (long long unsigned int)loff,
-				(long long unsigned int)data_len);
+				"data_len=%lld", (unsigned long long int)loff,
+				(unsigned long long int)data_len);
 		}
 		break;
 	}
@@ -4964,7 +4964,7 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 
 		if ((err < 0) || (err < full_len)) {
 			PRINT_ERROR("readv() returned %lld from %zd",
-				    (long long unsigned int)err,
+				    (unsigned long long int)err,
 				    full_len);
 			if (err == -EAGAIN)
 				scst_set_busy(cmd);
@@ -5089,7 +5089,7 @@ restart:
 
 		if (err < 0) {
 			PRINT_ERROR("write() returned %lld from %zd",
-				    (long long unsigned int)err,
+				    (unsigned long long int)err,
 				    full_len);
 			if (err == -EAGAIN)
 				scst_set_busy(cmd);
@@ -5837,7 +5837,7 @@ static enum compl_status_e vdev_exec_verify(struct vdisk_cmd_params *p)
 		err = vdev_read_sync(virt_dev, mem_verify, len_mem, &loff);
 		if ((err < 0) || (err < len_mem)) {
 			PRINT_ERROR("verify() returned %lld from %zd",
-				    (long long unsigned int)err, len_mem);
+				    (unsigned long long int)err, len_mem);
 			if (err == -EAGAIN)
 				scst_set_busy(cmd);
 			else {
@@ -6159,8 +6159,8 @@ static int vdisk_resync_size(struct scst_vdisk_dev *virt_dev)
 		"(fs=%lldMB, bs=%d, nblocks=%lld, cyln=%lld%s)",
 		virt_dev->name, virt_dev->file_size >> 20,
 		virt_dev->dev->block_size,
-		(long long unsigned int)virt_dev->nblocks,
-		(long long unsigned int)virt_dev->nblocks/64/32,
+		(unsigned long long int)virt_dev->nblocks,
+		(unsigned long long int)virt_dev->nblocks/64/32,
 		virt_dev->nblocks < 64*32 ? " !WARNING! cyln less "
 						"than 1" : "");
 
@@ -6959,8 +6959,8 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 			" cyln=%lld%s)", virt_dev->name,
 			vdev_get_filename(virt_dev),
 			virt_dev->file_size >> 20, virt_dev->dev->block_size,
-			(long long unsigned int)virt_dev->nblocks,
-			(long long unsigned int)virt_dev->nblocks/64/32,
+			(unsigned long long int)virt_dev->nblocks,
+			(unsigned long long int)virt_dev->nblocks/64/32,
 			virt_dev->nblocks < 64*32 ? " !WARNING! cyln less "
 							"than 1" : "");
 	} else {
