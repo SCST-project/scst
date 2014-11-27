@@ -2977,10 +2977,22 @@ static int srpt_rdma_cm_req_recv(struct rdma_cm_id *cm_id,
 				cm_id->route.path_rec->pkey, &req, src_addr);
 }
 
-static void srpt_cm_rej_recv(struct srpt_rdma_ch *ch)
+static void srpt_cm_rej_recv(struct srpt_rdma_ch *ch,
+			     enum ib_cm_rej_reason reason,
+			     const u8 *private_data,
+			     u8 private_data_len)
 {
-	PRINT_INFO("Received CM REJ for ch %s-%d.", ch->sess_name,
-		   ch->qp->qp_num);
+	char *priv = kmalloc(private_data_len * 3 + 1, GFP_KERNEL);
+	int i;
+
+	if (priv) {
+		priv[0] = '\0';
+		for (i = 0; i < private_data_len; i++)
+			sprintf(priv + 3 * i, "%02x ", private_data[i]);
+	}
+	PRINT_INFO("Received CM REJ for ch %s-%d; reason %d; private data %s.",
+		   ch->sess_name, ch->qp->qp_num, reason, priv ? : "(?)");
+	kfree(priv);
 }
 
 static void srpt_check_timeout(struct srpt_rdma_ch *ch)
@@ -3107,7 +3119,9 @@ static int srpt_cm_handler(struct ib_cm_id *cm_id, struct ib_cm_event *event)
 					  event->private_data);
 		break;
 	case IB_CM_REJ_RECEIVED:
-		srpt_cm_rej_recv(ch);
+		srpt_cm_rej_recv(ch, event->param.rej_rcvd.reason,
+				 event->private_data,
+				 IB_CM_REJ_PRIVATE_DATA_SIZE);
 		break;
 	case IB_CM_RTU_RECEIVED:
 	case IB_CM_USER_ESTABLISHED:
@@ -3151,7 +3165,9 @@ static int srpt_rdma_cm_handler(struct rdma_cm_id *cm_id,
 		ret = srpt_rdma_cm_req_recv(cm_id, event);
 		break;
 	case RDMA_CM_EVENT_REJECTED:
-		srpt_cm_rej_recv(ch);
+		srpt_cm_rej_recv(ch, event->status,
+				 event->param.conn.private_data,
+				 event->param.conn.private_data_len);
 		break;
 	case RDMA_CM_EVENT_ESTABLISHED:
 		srpt_cm_rtu_recv(ch);
