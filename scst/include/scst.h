@@ -128,6 +128,14 @@ char *kvasprintf(gfp_t gfp, const char *fmt, va_list ap);
 #define nr_cpu_ids NR_CPUS
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
+/*
+ * See also patch "fix abuses of ptrdiff_t" (commit ID
+ * 142956af525002c5378e7d91d81a01189841a785).
+ */
+typedef unsigned long uintptr_t;
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
 #define cpumask_bits(maskp) ((maskp)->bits)
 #ifdef CONFIG_CPUMASK_OFFSTACK
