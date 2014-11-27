@@ -2237,7 +2237,14 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 	qp_init->sq_sig_type = IB_SIGNAL_REQ_WR;
 	qp_init->qp_type = IB_QPT_RC;
 	qp_init->cap.max_send_wr = srpt_sq_size;
-	ch->max_sge = max_t(int, 1, sdev->dev_attr.max_sge - max_sge_delta);
+	/*
+	 * For max_sge values > 2 * max_sge_delta, subtract max_sge_delta. For
+	 * max_sge values < max_sge_delta, use max_sge. For intermediate
+	 * max_sge values, use max_sge_delta.
+	 */
+	ch->max_sge = sdev->dev_attr.max_sge -
+		min(max_sge_delta,
+		    max_t(unsigned, 0, sdev->dev_attr.max_sge - max_sge_delta));
 	qp_init->cap.max_send_sge = ch->max_sge;
 	qp_init->cap.max_recv_sge = ch->max_sge;
 	if (sdev->use_srq) {
