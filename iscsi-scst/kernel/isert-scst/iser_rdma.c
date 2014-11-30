@@ -359,6 +359,7 @@ static void isert_rdma_rd_completion_handler(struct isert_wr *wr)
 
 	ib_dma_unmap_sg(ib_dev, isert_buf->sg, isert_buf->sg_cnt,
 			isert_buf->dma_dir);
+	isert_buf->sg_cnt = 0;
 
 	isert_data_out_ready(&wr->pdu->iscsi);
 }
@@ -371,6 +372,7 @@ static void isert_rdma_wr_completion_handler(struct isert_wr *wr)
 
 	ib_dma_unmap_sg(ib_dev, isert_buf->sg, isert_buf->sg_cnt,
 			isert_buf->dma_dir);
+	isert_buf->sg_cnt = 0;
 
 	isert_data_in_sent(&wr->pdu->iscsi);
 }
@@ -543,9 +545,9 @@ static void isert_handle_wc_error(struct ib_wc *wc)
 		break;
 	case ISER_WR_RDMA_READ:
 		if (isert_buf->sg_cnt != 0) {
-			isert_buf->sg_cnt = 0;
 			ib_dma_unmap_sg(ib_dev, isert_buf->sg, isert_buf->sg_cnt,
 				isert_buf->dma_dir);
+			isert_buf->sg_cnt = 0;
 		}
 		isert_pdu_err(&isert_pdu->iscsi);
 		break;
@@ -554,9 +556,9 @@ static void isert_handle_wc_error(struct ib_wc *wc)
 		break;
 	case ISER_WR_RDMA_WRITE:
 		if (isert_buf->sg_cnt != 0) {
-			isert_buf->sg_cnt = 0;
 			ib_dma_unmap_sg(ib_dev, isert_buf->sg, isert_buf->sg_cnt,
 				isert_buf->dma_dir);
+			isert_buf->sg_cnt = 0;
 		}
 		/* RDMA-WR and SEND response of a READ task
 		   are sent together, so when receiving RDMA-WR error,
