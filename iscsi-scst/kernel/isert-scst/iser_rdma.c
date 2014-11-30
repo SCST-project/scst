@@ -977,6 +977,7 @@ static int isert_conn_qp_create(struct isert_connection *isert_conn)
 	struct ib_qp_init_attr qp_attr;
 	int err;
 	int cq_idx;
+	int max_wr = ISER_MAX_WCE;
 
 	TRACE_ENTRY();
 
@@ -988,8 +989,6 @@ static int isert_conn_qp_create(struct isert_connection *isert_conn)
 	qp_attr.qp_context = isert_conn;
 	qp_attr.send_cq = isert_dev->cq_desc[cq_idx].cq;
 	qp_attr.recv_cq = isert_dev->cq_desc[cq_idx].cq;
-	qp_attr.cap.max_send_wr = ISER_MAX_WCE;
-	qp_attr.cap.max_recv_wr = ISER_MAX_WCE;
 
 	isert_conn->cq_desc = &isert_dev->cq_desc[cq_idx];
 
@@ -1013,11 +1012,24 @@ static int isert_conn_qp_create(struct isert_connection *isert_conn)
 	qp_attr.sq_sig_type = IB_SIGNAL_REQ_WR;
 	qp_attr.qp_type = IB_QPT_RC;
 
-	err = rdma_create_qp(cm_id, isert_dev->pd, &qp_attr);
-	if (unlikely(err)) {
-		pr_err("Failed to create qp, err:%d\n", err);
-		goto fail_create_qp;
-	}
+	do {
+		if (max_wr < ISER_MIN_SQ_SIZE) {
+			pr_err("Failed to create qp, not enough memory\n");
+			goto fail_create_qp;
+		}
+
+		qp_attr.cap.max_send_wr = max_wr;
+		qp_attr.cap.max_recv_wr = max_wr;
+
+		err = rdma_create_qp(cm_id, isert_dev->pd, &qp_attr);
+		if (err && err != -ENOMEM) {
+			pr_err("Failed to create qp, err:%d\n", err);
+			goto fail_create_qp;
+		}
+
+		max_wr /= 2;
+	} while (err == -ENOMEM);
+
 	isert_conn->qp = cm_id->qp;
 
 	pr_info("iser created cm_id:%p qp:0x%X\n", cm_id, cm_id->qp->qp_num);
