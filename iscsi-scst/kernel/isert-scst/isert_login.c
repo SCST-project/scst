@@ -91,29 +91,23 @@ static void isert_del_timer(struct isert_conn_dev *dev)
 	}
 }
 
-static void release_dev(struct isert_conn_dev *dev)
-{
-	kref_init(&dev->kref);
-
-	spin_lock(&isert_listen_dev.conn_lock);
-	dev->occupied = 0;
-	list_del_init(&dev->conn_list_entry);
-	dev->state = CS_INIT;
-	atomic_set(&dev->available, 1);
-	spin_unlock(&isert_listen_dev.conn_lock);
-}
-
 static void isert_kref_release_dev(struct kref *kref)
 {
 	struct isert_conn_dev *dev = container_of(kref,
 						  struct isert_conn_dev,
 						  kref);
-	release_dev(dev);
+	kref_init(&dev->kref);
+	dev->occupied = 0;
+	list_del_init(&dev->conn_list_entry);
+	dev->state = CS_INIT;
+	atomic_set(&dev->available, 1);
 }
 
 static void isert_dev_release(struct isert_conn_dev *dev)
 {
+	spin_lock(&isert_listen_dev.conn_lock);
 	kref_put(&dev->kref, isert_kref_release_dev);
+	spin_unlock(&isert_listen_dev.conn_lock);
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
@@ -336,6 +330,7 @@ static ssize_t isert_listen_read(struct file *filp, char __user *buf,
 	TRACE_ENTRY();
 
 	if (!have_new_connection(dev)) {
+wait_for_connection:
 		if (filp->f_flags & O_NONBLOCK)
 			return -EAGAIN;
 		res = wait_event_freezable(dev->waitqueue,
@@ -344,9 +339,12 @@ static ssize_t isert_listen_read(struct file *filp, char __user *buf,
 			goto out;
 	}
 
-	sBUG_ON(list_empty(&dev->new_conn_list));
-
 	spin_lock(&dev->conn_lock);
+	if (list_empty(&dev->new_conn_list)) {
+		/* could happen if we got disconnect */
+		spin_unlock(&dev->conn_lock);
+		goto wait_for_connection;
+	}
 	conn_dev = list_first_entry(&dev->new_conn_list, struct isert_conn_dev,
 				    conn_list_entry);
 	list_move(&conn_dev->conn_list_entry, &dev->curr_conn_list);
