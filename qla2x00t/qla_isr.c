@@ -781,8 +781,8 @@ qla2x00_adjust_sdev_qdepth_up(struct scsi_device *sdev, void *data)
 	fcport->last_ramp_up = jiffies;
 
 	DEBUG2(qla_printk(KERN_INFO, fcport->ha,
-	    "scsi(%ld:%d:%d:%d): Queue depth adjusted-up to %d.\n",
-	    fcport->ha->host_no, sdev->channel, sdev->id, sdev->lun,
+	    "scsi(%ld:%d:%d:%lld): Queue depth adjusted-up to %d.\n",
+	    fcport->ha->host_no, sdev->channel, sdev->id, (unsigned long long)sdev->lun,
 	    sdev->queue_depth));
 }
 
@@ -795,8 +795,8 @@ qla2x00_adjust_sdev_qdepth_down(struct scsi_device *sdev, void *data)
 		return;
 
 	DEBUG2(qla_printk(KERN_INFO, fcport->ha,
-	    "scsi(%ld:%d:%d:%d): Queue depth adjusted-down to %d.\n",
-	    fcport->ha->host_no, sdev->channel, sdev->id, sdev->lun,
+	    "scsi(%ld:%d:%d:%lld): Queue depth adjusted-down to %d.\n",
+	    fcport->ha->host_no, sdev->channel, sdev->id, (unsigned long long)sdev->lun,
 	    sdev->queue_depth));
 }
 
@@ -1140,11 +1140,11 @@ qla2x00_status_entry(scsi_qla_host_t *ha, void *pkt)
 		if (IS_FWI2_CAPABLE(ha))
 			sense_data += rsp_info_len;
 		if (rsp_info_len > 3 && rsp_info[3]) {
-			DEBUG2(printk("scsi(%ld:%d:%d:%d) FCP I/O protocol "
+			DEBUG2(printk("scsi(%ld:%d:%d:%lld) FCP I/O protocol "
 			    "failure (%x/%02x%02x%02x%02x%02x%02x%02x%02x)..."
 			    "retrying command\n", ha->host_no,
 			    cp->device->channel, cp->device->id,
-			    cp->device->lun, rsp_info_len, rsp_info[0],
+			    (unsigned long long)cp->device->lun, rsp_info_len, rsp_info[0],
 			    rsp_info[1], rsp_info[2], rsp_info[3], rsp_info[4],
 			    rsp_info[5], rsp_info[6], rsp_info[7]));
 
@@ -1178,11 +1178,11 @@ qla2x00_status_entry(scsi_qla_host_t *ha, void *pkt)
 			    ((unsigned)(scsi_bufflen(cp) - resid) <
 			     cp->underflow)) {
 				qla_printk(KERN_INFO, ha,
-					   "scsi(%ld:%d:%d:%d): Mid-layer underflow "
+					   "scsi(%ld:%d:%d:%lld): Mid-layer underflow "
 					   "detected (%x of %x bytes)...returning "
 					   "error status.\n", ha->host_no,
 					   cp->device->channel, cp->device->id,
-					   cp->device->lun, resid,
+					   (unsigned long long)cp->device->lun, resid,
 					   scsi_bufflen(cp));
 
 				cp->result = DID_ERROR << 16;
@@ -1230,10 +1230,10 @@ qla2x00_status_entry(scsi_qla_host_t *ha, void *pkt)
 			CMD_RESID_LEN(cp) = resid;
 		} else {
 			DEBUG2(printk(KERN_INFO
-			    "scsi(%ld:%d:%d) UNDERRUN status detected "
+			    "scsi(%ld:%d:%lld) UNDERRUN status detected "
 			    "0x%x-0x%x. resid=0x%x fw_resid=0x%x cdb=0x%x "
 			    "os_underflow=0x%x\n", ha->host_no,
-			    cp->device->id, cp->device->lun, comp_status,
+			    cp->device->id, (unsigned long long)cp->device->lun, comp_status,
 			    scsi_status, resid_len, resid, cp->cmnd[0],
 			    cp->underflow));
 
@@ -1277,11 +1277,11 @@ qla2x00_status_entry(scsi_qla_host_t *ha, void *pkt)
 			 * layer to retry it by reporting a bus busy.
 			 */
 			if (!(scsi_status & SS_RESIDUAL_UNDER)) {
-				DEBUG2(printk("scsi(%ld:%d:%d:%d) Dropped "
+				DEBUG2(printk("scsi(%ld:%d:%d:%lld) Dropped "
 					      "frame(s) detected (%x of %x bytes)..."
 					      "retrying command.\n", ha->host_no,
 					      cp->device->channel, cp->device->id,
-					      cp->device->lun, resid,
+					      (unsigned long long)cp->device->lun, resid,
 					      scsi_bufflen(cp)));
 
 				cp->result = DID_BUS_BUSY << 16;
@@ -1292,11 +1292,11 @@ qla2x00_status_entry(scsi_qla_host_t *ha, void *pkt)
 			if ((unsigned)(scsi_bufflen(cp) - resid) <
 			    cp->underflow) {
 				qla_printk(KERN_INFO, ha,
-					   "scsi(%ld:%d:%d:%d): Mid-layer underflow "
+					   "scsi(%ld:%d:%d:%lld): Mid-layer underflow "
 					   "detected (%x of %x bytes)...returning "
 					   "error status.\n", ha->host_no,
 					   cp->device->channel, cp->device->id,
-					   cp->device->lun, resid,
+					   (unsigned long long)cp->device->lun, resid,
 					   scsi_bufflen(cp));
 
 				cp->result = DID_ERROR << 16;
@@ -1310,9 +1310,9 @@ qla2x00_status_entry(scsi_qla_host_t *ha, void *pkt)
 
 	case CS_DATA_OVERRUN:
 		DEBUG2(printk(KERN_INFO
-		    "scsi(%ld:%d:%d): OVERRUN status detected 0x%x-0x%x\n",
-		    ha->host_no, cp->device->id, cp->device->lun, comp_status,
-		    scsi_status));
+		    "scsi(%ld:%d:%lld): OVERRUN status detected 0x%x-0x%x\n",
+		    ha->host_no, cp->device->id, (unsigned long long)cp->device->lun,
+		    comp_status, scsi_status));
 		DEBUG2(printk(KERN_INFO
 		    "CDB: 0x%x 0x%x 0x%x 0x%x 0x%x 0x%x\n",
 		    cp->cmnd[0], cp->cmnd[1], cp->cmnd[2], cp->cmnd[3],
@@ -1335,9 +1335,9 @@ qla2x00_status_entry(scsi_qla_host_t *ha, void *pkt)
 		 * Target with DID_NO_CONNECT ELSE Queue the IOs in the
 		 * retry_queue.
 		 */
-		DEBUG2(printk("scsi(%ld:%d:%d): status_entry: Port Down "
+		DEBUG2(printk("scsi(%ld:%d:%lld): status_entry: Port Down "
 		    "pid=%ld, compl status=0x%x, port state=0x%x\n",
-		    ha->host_no, cp->device->id, cp->device->lun,
+		    ha->host_no, cp->device->id, (unsigned long long)cp->device->lun,
 		    cp->serial_number, comp_status,
 		    atomic_read(&fcport->state)));
 
@@ -1373,17 +1373,17 @@ qla2x00_status_entry(scsi_qla_host_t *ha, void *pkt)
 
 		if (IS_FWI2_CAPABLE(ha)) {
 			DEBUG2(printk(KERN_INFO
-			    "scsi(%ld:%d:%d:%d): TIMEOUT status detected "
+			    "scsi(%ld:%d:%d:%lld): TIMEOUT status detected "
 			    "0x%x-0x%x\n", ha->host_no, cp->device->channel,
-			    cp->device->id, cp->device->lun, comp_status,
-			    scsi_status));
+			    cp->device->id, (unsigned long long)cp->device->lun,
+			    comp_status, scsi_status));
 			break;
 		}
 		DEBUG2(printk(KERN_INFO
-		    "scsi(%ld:%d:%d:%d): TIMEOUT status detected 0x%x-0x%x "
+		    "scsi(%ld:%d:%d:%lld): TIMEOUT status detected 0x%x-0x%x "
 		    "sflags=%x.\n", ha->host_no, cp->device->channel,
-		    cp->device->id, cp->device->lun, comp_status, scsi_status,
-		    le16_to_cpu(sts->status_flags)));
+		    cp->device->id, (unsigned long long)cp->device->lun, comp_status,
+		    scsi_status, le16_to_cpu(sts->status_flags)));
 
 		/* Check to see if logout occurred. */
 		if ((le16_to_cpu(sts->status_flags) & SF_LOGOUT_SENT))
