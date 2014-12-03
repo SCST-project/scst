@@ -227,7 +227,7 @@ copy_best_matching_patch $scst_dir/scst/kernel/rhel/scst_exec_req_fifo scst_exec
 }
 copy_best_matching_patch $scst_dir/iscsi-scst/kernel/patches/rhel/put_page_callback put_page_callback.patch ||
 {
-    echo "No matching scst_exec_req_fifo patch found for kernel version $kver";
+    echo "No matching put_page_callback patch found for kernel version $kver";
     exit 1;
 }
 
