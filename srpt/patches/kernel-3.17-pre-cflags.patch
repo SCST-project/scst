@@ -1,0 +1,12 @@
+diff --git a/Makefile b/Makefile
+index 540f7b2..078307f 100644
+--- a/Makefile
++++ b/Makefile
+@@ -361,6 +361,7 @@ USERINCLUDE    := \
+ # Use LINUXINCLUDE when you must reference the include/ directory.
+ # Needed to be compatible with the O= option
+ LINUXINCLUDE    := \
++		$(PRE_CFLAGS) \
+ 		-I$(srctree)/arch/$(hdr-arch)/include \
+ 		-Iarch/$(hdr-arch)/include/generated \
+ 		$(if $(KBUILD_SRC), -I$(srctree)/include) \
