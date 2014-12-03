@@ -365,6 +365,42 @@ diff -u SPECS/kernel.spec{.orig,}
    make ARCH=$Arch %{oldconfig_target} > /dev/null
    echo "# $Arch" > configs/$i
 EOF
+elif [ ${kver#2.6.32-504.} != $kver ]; then
+# RHEL/CentOS/SL 6.6
+patch -p1 ${rpmbuild_dir}/SPECS/kernel.spec <<'EOF' || exit $?
+diff -u SPECS/kernel.spec{.orig,}
+--- kernel.spec.orig	2014-12-03 16:20:14.764118318 +0100
++++ kernel.spec	2014-12-03 16:21:36.606089530 +0100
+@@ -610,6 +610,9 @@
+ Source85: config-powerpc64-debug-rhel
+ Source86: config-s390x-debug-rhel
+ 
++Patch200: scst_exec_req_fifo.patch
++Patch201: put_page_callback.patch
++
+ # empty final patch file to facilitate testing of kernel patches
+ Patch999999: linux-kernel-test.patch
+ 
+@@ -932,6 +935,9 @@
+ # Dynamically generate kernel .config files from config-* files
+ make -f %{SOURCE20} VERSION=%{version} configs
+ 
++ApplyPatch scst_exec_req_fifo.patch
++ApplyPatch put_page_callback.patch
++
+ ApplyOptionalPatch linux-kernel-test.patch
+ 
+ # Any further pre-build tree manipulations happen here.
+@@ -958,6 +964,8 @@
+ for i in *.config
+ do
+   mv $i .config
++  echo "CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION=y" >> .config
++  sed -i.tmp -e 's/^CONFIG_SCSI_QLA_FC=.*/CONFIG_SCSI_QLA_FC=n/' .config
+   Arch=`head -1 .config | cut -b 3-`
+   make ARCH=$Arch %{oldconfig_target} > /dev/null
+   echo "# $Arch" > configs/$i
+EOF
 elif [ ${kver#3.10.0-12[13]} != $kver ]; then
 # RHEL/CentOS/SL 7.0
 patch -p1 ${rpmbuild_dir}/SPECS/kernel.spec <<'EOF' || exit $?
