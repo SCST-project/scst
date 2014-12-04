@@ -107,16 +107,16 @@ EOF
 # passed via stdin and send the specialized patch to stdout.
 function specialize_patch {
   if [ "${enable_specialize}" = "true" ]; then
+    if [ "${generating_upstream_patch}" = "true" ]; then
+      scripts/filter-trace-entry-exit
+    else
+      cat
+    fi |
     "$(dirname $0)/specialize-patch" \
          ${specialize_patch_options} \
          -v kernel_version="${kver3}" \
          -v SCSI_EXEC_REQ_FIFO_DEFINED="${scsi_exec_req_fifo_defined}" \
-         -v SCST_IO_CONTEXT="${scst_io_context}" \
-    | if [ "${generating_upstream_patch}" = "true" ]; then
-        scripts/filter-trace-entry-exit
-      else
-        cat
-      fi
+         -v SCST_IO_CONTEXT="${scst_io_context}"
   else
     cat
   fi
