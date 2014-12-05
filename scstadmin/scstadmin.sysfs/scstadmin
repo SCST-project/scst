@@ -1751,6 +1751,8 @@ sub writeConfiguration {
 		}
 	}
 
+	$io->flush;
+	$io->sync;
 	close $io;
 
 	return 0;
