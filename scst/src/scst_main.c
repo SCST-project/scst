@@ -1051,6 +1051,7 @@ EXPORT_SYMBOL_GPL(scst_suspend_activity);
 static void __scst_resume_activity(void)
 {
 	struct scst_cmd_threads *l;
+	struct scst_mgmt_cmd *m;
 
 	TRACE_ENTRY();
 
@@ -1077,15 +1078,14 @@ static void __scst_resume_activity(void)
 	wake_up_all(&scst_init_cmd_list_waitQ);
 
 	spin_lock_irq(&scst_mcmd_lock);
-	if (!list_empty(&scst_delayed_mgmt_cmd_list)) {
-		struct scst_mgmt_cmd *m;
-		m = list_first_entry(&scst_delayed_mgmt_cmd_list, typeof(*m),
-				mgmt_cmd_list_entry);
+	list_for_each_entry(m, &scst_delayed_mgmt_cmd_list,
+			    mgmt_cmd_list_entry) {
 		TRACE_MGMT_DBG("Moving delayed mgmt cmd %p to head of active "
 			"mgmt cmd list", m);
-		list_move(&m->mgmt_cmd_list_entry, &scst_active_mgmt_cmd_list);
 	}
+	list_splice(&scst_delayed_mgmt_cmd_list, &scst_active_mgmt_cmd_list);
 	spin_unlock_irq(&scst_mcmd_lock);
+
 	wake_up_all(&scst_mgmt_cmd_list_waitQ);
 
 out:
