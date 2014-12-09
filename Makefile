@@ -383,7 +383,13 @@ fcst_extraclean:
 scst-dist-gzip:
 	name=scst &&							\
 	mkdir $${name}-$(VERSION) &&					\
-	{ scripts/list-source-files | \
+	{ if [ -h qla2x00t ] || { mount | grep "on $$PWD/qla2x00t type"; }; \
+	  then								\
+	    scripts/list-source-files | grep -v ^qla2x00t/;		\
+	    find qla2x00t/ -type f;					\
+	  else								\
+	    scripts/list-source-files;					\
+	  fi | \
 	  grep -E '^doc/|^fcst/|^iscsi-scst/|^Makefile|^qla2x00t/|^scst.spec|^scst/|^scst_local/|^srpt/'|\
 	  tar -T- -cf- |						\
 	  tar -C $${name}-$(VERSION) -xf-; } &&				\
