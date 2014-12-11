@@ -184,7 +184,7 @@ struct scst_vdisk_dev {
 	uint64_t format_progress_to_do, format_progress_done;
 
 	int virt_id;
-	char name[16+1];	/* Name of the virtual device,
+	char name[64+1];	/* Name of the virtual device,
 				   must be <= SCSI Model + 1 */
 	char *filename;		/* File name, protected by
 				   scst_mutex and suspended activities */
@@ -6067,64 +6067,69 @@ static void vdisk_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd,
 
 static void vdisk_report_registering(const struct scst_vdisk_dev *virt_dev)
 {
-	char buf[128];
+	enum { buf_size = 256 };
+	char *buf = kmalloc(buf_size, GFP_KERNEL);
 	int i, j;
 
-	i = snprintf(buf, sizeof(buf), "Registering virtual %s device %s ",
+	if (!buf) {
+		PRINT_ERROR("%s: out of memory", __func__);
+		return;
+	}
+
+	i = snprintf(buf, buf_size, "Registering virtual %s device %s ",
 		virt_dev->vdev_devt->name, virt_dev->name);
 	j = i;
 
 	if (virt_dev->wt_flag)
-		i += snprintf(&buf[i], sizeof(buf) - i, "(WRITE_THROUGH");
+		i += snprintf(&buf[i], buf_size - i, "(WRITE_THROUGH");
 
 	if (virt_dev->nv_cache)
-		i += snprintf(&buf[i], sizeof(buf) - i, "%sNV_CACHE",
+		i += snprintf(&buf[i], buf_size - i, "%sNV_CACHE",
 			(j == i) ? "(" : ", ");
 
 	if (virt_dev->rd_only)
-		i += snprintf(&buf[i], sizeof(buf) - i, "%sREAD_ONLY",
+		i += snprintf(&buf[i], buf_size - i, "%sREAD_ONLY",
 			(j == i) ? "(" : ", ");
 
 	if (virt_dev->o_direct_flag)
-		i += snprintf(&buf[i], sizeof(buf) - i, "%sO_DIRECT",
+		i += snprintf(&buf[i], buf_size - i, "%sO_DIRECT",
 			(j == i) ? "(" : ", ");
 
 	if (virt_dev->nullio)
-		i += snprintf(&buf[i], sizeof(buf) - i, "%sNULLIO",
+		i += snprintf(&buf[i], buf_size - i, "%sNULLIO",
 			(j == i) ? "(" : ", ");
 
 	if (virt_dev->blockio)
-		i += snprintf(&buf[i], sizeof(buf) - i, "%sBLOCKIO",
+		i += snprintf(&buf[i], buf_size - i, "%sBLOCKIO",
 			(j == i) ? "(" : ", ");
 
 	if (virt_dev->removable)
-		i += snprintf(&buf[i], sizeof(buf) - i, "%sREMOVABLE",
+		i += snprintf(&buf[i], buf_size - i, "%sREMOVABLE",
 			(j == i) ? "(" : ", ");
 
 	if (virt_dev->tst != DEF_TST)
-		i += snprintf(&buf[i], sizeof(buf) - i, "%sTST %d",
+		i += snprintf(&buf[i], buf_size - i, "%sTST %d",
 			(j == i) ? "(" : ", ", virt_dev->tst);
 
 	if (virt_dev->rotational)
-		i += snprintf(&buf[i], sizeof(buf) - i, "%sROTATIONAL",
+		i += snprintf(&buf[i], buf_size - i, "%sROTATIONAL",
 			(j == i) ? "(" : ", ");
 
 	if (virt_dev->thin_provisioned)
-		i += snprintf(&buf[i], sizeof(buf) - i, "%sTHIN_PROVISIONED",
+		i += snprintf(&buf[i], buf_size - i, "%sTHIN_PROVISIONED",
 			(j == i) ? "(" : ", ");
 
 	if (virt_dev->zero_copy)
-		i += snprintf(&buf[i], sizeof(buf) - i, "%sZERO_COPY",
+		i += snprintf(&buf[i], buf_size - i, "%sZERO_COPY",
 			(j == i) ? "(" : ", ");
 
 	if (virt_dev->dummy)
-		i += snprintf(&buf[i], sizeof(buf) - i, "%sDUMMY",
+		i += snprintf(&buf[i], buf_size - i, "%sDUMMY",
 			(j == i) ? "(" : ", ");
 
-	if (j == i)
-		PRINT_INFO("%s", buf);
-	else
-		PRINT_INFO("%s)", buf);
+	PRINT_INFO("%s%s", buf, j == i ? "" : ")");
+
+	kfree(buf);
 
 	return;
 }
