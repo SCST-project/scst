@@ -5319,8 +5319,10 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 
 	/* Allocate and initialize blockio_work struct */
 	blockio_work = kmem_cache_alloc(blockio_work_cachep, gfp_mask);
-	if (blockio_work == NULL)
-		goto out_no_mem;
+	if (blockio_work == NULL) {
+		scst_set_busy(cmd);
+		goto finish_cmd;
+	}
 
 #if 0
 	{
@@ -5345,6 +5347,18 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 	need_new_bio = 1;
 
 	length = scst_get_sg_page_first(cmd, &page, &offset);
+	/*
+	 * bv_len and bv_offset must be a multiple of 512 (SECTOR_SIZE), so
+	 * check this here.
+	 */
+	if (WARN_ONCE((length & 511) != 0 || (offset & 511) != 0,
+		      "Refused bio with invalid length %d and/or offset %d.\n",
+		      length, offset)) {
+		scst_set_cmd_error(cmd,
+				   SCST_LOAD_SENSE(scst_sense_hardw_error));
+		goto free_bio;
+	}
+
 	while (length > 0) {
 		int len, bytes, off, thislen;
 		struct page *pg;
@@ -5370,7 +5384,8 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 					PRINT_ERROR("Failed to create bio "
 						"for data segment %d (cmd %p)",
 						cmd->get_sg_buf_entry_num, cmd);
-					goto out_no_bio;
+					scst_set_busy(cmd);
+					goto free_bio;
 				}
 
 				bios++;
@@ -5457,7 +5472,7 @@ out:
 	TRACE_EXIT();
 	return;
 
-out_no_bio:
+free_bio:
 	while (hbio) {
 		bio = hbio;
 		hbio = hbio->bi_next;
@@ -5465,8 +5480,7 @@ out_no_bio:
 	}
 	kmem_cache_free(blockio_work_cachep, blockio_work);
 
-out_no_mem:
-	scst_set_busy(cmd);
+finish_cmd:
 	cmd->completed = 1;
 	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
 	goto out;
