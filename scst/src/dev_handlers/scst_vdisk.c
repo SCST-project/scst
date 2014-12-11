@@ -5329,7 +5329,8 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 		static int err_inj_cntr;
 		if (++err_inj_cntr % 256 == 0) {
 			PRINT_INFO("blockio_exec_rw() error injection");
-			goto out_no_bio;
+			scst_set_busy(cmd);
+			goto free_bio;
 		}
 	}
 #endif
