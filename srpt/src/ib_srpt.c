@@ -2565,7 +2565,8 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 		   " %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x,"
 		   " t_port_id %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x and"
 		   " it_iu_len %d on port %d"
-		   " (guid=%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x)",
+		   " (guid=%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x);"
+		   " pkey %#04x",
 	    be16_to_cpu(*(__be16 *)&req->initiator_port_id[0]),
 	    be16_to_cpu(*(__be16 *)&req->initiator_port_id[2]),
 	    be16_to_cpu(*(__be16 *)&req->initiator_port_id[4]),
@@ -2591,7 +2592,8 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 	    be16_to_cpu(raw_port_gid[4]),
 	    be16_to_cpu(raw_port_gid[5]),
 	    be16_to_cpu(raw_port_gid[6]),
-	    be16_to_cpu(raw_port_gid[7]));
+	    be16_to_cpu(raw_port_gid[7]),
+	    be16_to_cpu(pkey));
 
 	nexus = srpt_get_nexus(srpt_tgt, req->initiator_port_id,
 			       req->target_port_id);
