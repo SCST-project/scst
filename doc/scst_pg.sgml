@@ -25,7 +25,7 @@ development as much as possible.
 
 It has the following features:
 
-<itemize> 
+<itemize>
 
 <item> Very low overhead and fine-grained locks, which allow to reach
 maximum possible performance and scalability that close to theoretical
@@ -145,7 +145,7 @@ calling <bf/scst_register_target_template()/. The template lets SCST know the
 target driver's entry points. It is defined as the following:
 
 <verb>
-struct scst_tgt_template 
+struct scst_tgt_template
 {
 	int sg_tablesize;
 	const char name[SCST_MAX_NAME];
@@ -154,7 +154,7 @@ struct scst_tgt_template
 	unsigned use_clustering:1;
 	unsigned no_clustering:1;
 
-	unsigned xmit_response_atomic:1; 
+	unsigned xmit_response_atomic:1;
 	unsigned rdy_to_xfer_atomic:1;
 
 	unsigned no_proc_entry:1;
@@ -262,7 +262,7 @@ to continue processing this command. Returns one of the
 scst_cmd_atomic(). It is true if the function called in the atomic
 (non-sleeping) context. Must be defined.
 
-<item> <bf/void (*on_hw_pending_cmd_timeout) (struct scst_cmd *cmd)/ - 
+<item> <bf/void (*on_hw_pending_cmd_timeout) (struct scst_cmd *cmd)/ -
 Called if cmd stays inside the target hardware, i.e. after rdy_to_xfer()
 and xmit_response(), more than max_hw_pending_time time. The target
 driver supposed to cleanup this command and resume cmd's processing.
@@ -382,7 +382,7 @@ following error codes:
 <item><bf/SCST_TGT_RES_QUEUE_FULL/ - internal device queue is full, retry
 again later.
 
-<item><bf/SCST_TGT_RES_NEED_THREAD_CTX/ - it is impossible to complete 
+<item><bf/SCST_TGT_RES_NEED_THREAD_CTX/ - it is impossible to complete
 requested task in atomic context. The command should be restarted in the
 thread context as described above.
 
@@ -532,7 +532,7 @@ does. This serves two purposes:
 <item>To initialize incoming commands with some device-specific
 parameters, like timeout value.
 
-<item>To allow some additional device-specific commands pre-, post- 
+<item>To allow some additional device-specific commands pre-, post-
 processing or alternative execution, like copying data from system
 cache, and do that completely independently from target drivers.
 
@@ -582,7 +582,7 @@ struct scst_dev_type
 	int (*dev_done) (struct scst_cmd *cmd);
 	int (*on_free_cmd) (struct scst_cmd *cmd);
 
-	int (*task_mgmt_fn) (struct scst_mgmt_cmd *mgmt_cmd, 
+	int (*task_mgmt_fn) (struct scst_mgmt_cmd *mgmt_cmd,
 		struct scst_tgt_dev *tgt_dev);
 
 	int (*read_proc) (struct seq_file *seq, struct scst_dev_type *dev_type);
@@ -719,7 +719,7 @@ Returns:
 	<item><bf/SCST_MGMT_STATUS_SUCCESS/ - the command is done
 	with success, no further actions required
 
-	<item><bf/SCST_MGMT_STATUS_*/ - the command is failed, 
+	<item><bf/SCST_MGMT_STATUS_*/ - the command is failed,
 	no further actions required
 
 	<item><bf/SCST_DEV_TM_NOT_COMPLETED/ - regular standard actions
@@ -857,7 +857,7 @@ Where:
 
 <item><bf/tgt/ - target
 
-<item><bf/atomic/ - true, if the function called in the atomic context 
+<item><bf/atomic/ - true, if the function called in the atomic context
 
 <item><bf/initiator_name/ - remote initiator's name, any NULL-terminated
 string, e.g. iSCSI name, which used as the key to found appropriate
@@ -1006,7 +1006,7 @@ other commands, if there are any. One way arrow, for example to
 xmit_response(), means that after this function returns, nothing
 valuable for the current command will be done and SCST goes sleeping or
 to the next command processing until the corresponding event happens.
- 
+
 <figure>
 <eps file="fig2.png">
 <img src="fig2.png">
@@ -1087,7 +1087,7 @@ is defined as the following:
 
 <verb>
 void scst_rx_data(
-	struct scst_cmd *cmd, 
+	struct scst_cmd *cmd,
 	int status,
 	enum scst_exec_context pref_context)
 </verb>
@@ -1115,8 +1115,8 @@ Parameter <bf/status/ can have one of the following values:
 SCST should set the sense and finish the command by calling
 xmit_response()
 
-<item><bf/SCST_RX_STATUS_ERROR_SENSE_SET/ - data receiving finished with 
-error and the sense is set, so SCST should finish the command by calling 
+<item><bf/SCST_RX_STATUS_ERROR_SENSE_SET/ - data receiving finished with
+error and the sense is set, so SCST should finish the command by calling
 xmit_response()
 
 <item><bf/SCST_RX_STATUS_ERROR_FATAL/ - data receiving finished with
@@ -1182,7 +1182,7 @@ to one of the SCST's threads.
 
 SCST in some circumstances can change preferred context to less
 restrictive one, for example, for large data buffer allocation, if
-there is not enough GFP_ATOMIC memory. 
+there is not enough GFP_ATOMIC memory.
 
 <sect2>Preferred context constants
 
@@ -1197,14 +1197,14 @@ context restrictions. Supposed to be used when calling from thread
 context where no locks are held and the driver's architecture allows
 sleeping without performance degradation or anything like that.
 
-<item><bf/SCST_CONTEXT_DIRECT_ATOMIC/ - sets direct command processing 
+<item><bf/SCST_CONTEXT_DIRECT_ATOMIC/ - sets direct command processing
 (i.e. regular function calls in the current context), sleeping is not
 allowed. Supposed to be used when calling on thread context where there
 are locks held, when calling on softirq context or the driver's
 architecture does not allow sleeping without performance degradation or
 anything like that.
 
-<item><bf/SCST_CONTEXT_TASKLET/ - tasklet or thread context required for 
+<item><bf/SCST_CONTEXT_TASKLET/ - tasklet or thread context required for
 the command processing. Supposed to be used when calling from IRQ
 context.
 
@@ -1231,7 +1231,7 @@ returned):
 
 <itemize>
 
-<item><bf/SCST_CMD_STATE_INIT_WAIT/ - the command is created, but 
+<item><bf/SCST_CMD_STATE_INIT_WAIT/ - the command is created, but
 <it/scst_cmd_init_done()/ not called
 
 <item><bf/SCST_CMD_STATE_INIT/ - LUN translation (i.e. <it/cmd->tgt_dev/
@@ -1257,7 +1257,7 @@ data buffer
 <item><bf/SCST_CMD_STATE_SEND_FOR_EXEC/ - the command is going to be
 sent for execution
 
-<item><bf/SCST_CMD_STATE_EXECUTING/ - waiting for the command's execution 
+<item><bf/SCST_CMD_STATE_EXECUTING/ - waiting for the command's execution
 finish
 
 <item> <bf/SCST_CMD_STATE_LOCAL_EXEC/ - the command is being checked if
@@ -1285,7 +1285,7 @@ going to be called
 <item><bf/SCST_CMD_STATE_XMIT_WAIT/ - waiting for data/response's
 transmission finish (until <it/scst_tgt_cmd_done()/ called)
 
-<item><bf/SCST_CMD_STATE_FINISHED/ - the command finished and going to be 
+<item><bf/SCST_CMD_STATE_FINISHED/ - the command finished and going to be
 freed
 
 </itemize>
@@ -1835,7 +1835,7 @@ qla2x00_remove_one(), which then qla_target.tgt_host_action() with
 REMOVE_TARGET action.
 
 Then q2t_host_action() calls q2t_remove_target(), which unregisters the
-corresponding SCST target in SCST. During unregistration SCST core calls 
+corresponding SCST target in SCST. During unregistration SCST core calls
 release() callback of tgt2x_template, which is q2t_target_release().
 
 Then q2t_target_release() calls q2t_target_stop(). Then
@@ -1962,7 +1962,7 @@ In this callback all the stuck commands are forcibly finished.
 
 <p>
 SCST core and its drivers provide excessive debugging and logging
-facilities suitable to catch and analyze problems of virtually any level 
+facilities suitable to catch and analyze problems of virtually any level
 of complexity.
 
 Depending from amount debugging and logging facilities available, there
