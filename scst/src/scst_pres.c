@@ -1036,7 +1036,7 @@ out:
        * the affected initiator.
        */
 		if (cmd != NULL)
-			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_internal_failure));
 #endif
 	}
 

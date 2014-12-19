@@ -3513,7 +3513,7 @@ static bool scst_check_auto_sense(struct scst_cmd *cmd)
 				"%s)", cmd->host_status, cmd, scst_get_opcode_name(cmd),
 				cmd->tgt->tgt_name, cmd->dev->virt_name);
 			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_hardw_error));
+				SCST_LOAD_SENSE(scst_sense_internal_failure));
 		}
 	}
 
@@ -3541,7 +3541,7 @@ static int scst_pre_dev_done(struct scst_cmd *cmd)
 			PRINT_ERROR("%s", "Unable to issue REQUEST SENSE, "
 				    "returning HARDWARE ERROR");
 			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_hardw_error));
+				SCST_LOAD_SENSE(scst_sense_internal_failure));
 		}
 		goto out;
 	}
@@ -3577,7 +3577,7 @@ next:
 					"MODE_SENSE buffer");
 				scst_set_cmd_error(cmd,
 					SCST_LOAD_SENSE(
-						scst_sense_hardw_error));
+						scst_sense_internal_failure));
 				err = true;
 			} else if (length > 2 && cmd->cdb[0] == MODE_SENSE)
 				address[2] |= 0x80;   /* Write Protect*/
@@ -3618,7 +3618,7 @@ next:
 				PRINT_ERROR("%s", "Unable to get INQUIRY "
 				    "buffer");
 				scst_set_cmd_error(cmd,
-				       SCST_LOAD_SENSE(scst_sense_hardw_error));
+				       SCST_LOAD_SENSE(scst_sense_internal_failure));
 				err = true;
 			}
 			if (buflen > 0)

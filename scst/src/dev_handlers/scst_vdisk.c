@@ -4923,7 +4923,7 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 	if (unlikely(length < 0)) {
 		PRINT_ERROR("scst_get_buf_first() failed: %zd", length);
 		scst_set_cmd_error(cmd,
-		    SCST_LOAD_SENSE(scst_sense_hardw_error));
+		    SCST_LOAD_SENSE(scst_sense_internal_failure));
 		goto out;
 	}
 
@@ -4952,7 +4952,7 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 		} else if (unlikely(length < 0)) {
 			PRINT_ERROR("scst_get_buf_next() failed: %zd", length);
 			scst_set_cmd_error(cmd,
-			    SCST_LOAD_SENSE(scst_sense_hardw_error));
+			    SCST_LOAD_SENSE(scst_sense_internal_failure));
 			goto out_set_fs;
 		}
 
@@ -5046,7 +5046,7 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 	if (unlikely(length < 0)) {
 		PRINT_ERROR("scst_get_buf_first() failed: %zd", length);
 		scst_set_cmd_error(cmd,
-		    SCST_LOAD_SENSE(scst_sense_hardw_error));
+		    SCST_LOAD_SENSE(scst_sense_internal_failure));
 		goto out;
 	}
 
@@ -5074,7 +5074,7 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 		} else if (unlikely(length < 0)) {
 			PRINT_ERROR("scst_get_buf_next() failed: %zd", length);
 			scst_set_cmd_error(cmd,
-			    SCST_LOAD_SENSE(scst_sense_hardw_error));
+			    SCST_LOAD_SENSE(scst_sense_internal_failure));
 			goto out_set_fs;
 		}
 
@@ -5883,7 +5883,7 @@ static enum compl_status_e vdev_exec_verify(struct vdisk_cmd_params *p)
 	if (length < 0) {
 		PRINT_ERROR("scst_get_buf_() failed: %zd", length);
 		scst_set_cmd_error(cmd,
-		    SCST_LOAD_SENSE(scst_sense_hardw_error));
+		    SCST_LOAD_SENSE(scst_sense_internal_failure));
 	}
 
 out_free:
@@ -5941,7 +5941,7 @@ static enum compl_status_e vdisk_exec_caw(struct vdisk_cmd_params *p)
 			scst_set_busy(cmd);
 		else
 			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_hardw_error));
+				SCST_LOAD_SENSE(scst_sense_internal_failure));
 		goto out;
 	}
 

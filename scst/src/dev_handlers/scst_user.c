@@ -1259,7 +1259,7 @@ out_unmap:
 	ucmd->data_pages = NULL;
 	res = -EFAULT;
 	if (ucmd->cmd != NULL)
-		scst_set_cmd_error(ucmd->cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+		scst_set_cmd_error(ucmd->cmd, SCST_LOAD_SENSE(scst_sense_internal_failure));
 	goto out_err;
 }
 
@@ -1376,8 +1376,8 @@ out_inval:
 	res = -EINVAL;
 	goto out_abnormal;
 
-out_hwerr_res_set:
-	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+out_intern_fail_res_set:
+	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_internal_failure));
 
 out_abnormal:
 	scst_set_cmd_abnormal_done_state(cmd);
@@ -1392,7 +1392,7 @@ out_status:
 
 		res = scst_alloc_sense(cmd, 0);
 		if (res != 0)
-			goto out_hwerr_res_set;
+			goto out_intern_fail_res_set;
 
 		sense_len = min_t(int, cmd->sense_buflen, preply->sense_len);
 
@@ -1402,7 +1402,7 @@ out_status:
 		if (rc != 0) {
 			PRINT_ERROR("Failed to copy %d sense's bytes", rc);
 			res = -EFAULT;
-			goto out_hwerr_res_set;
+			goto out_intern_fail_res_set;
 		}
 		cmd->sense_valid_len = sense_len;
 	}
@@ -1494,7 +1494,7 @@ static int dev_user_process_reply_exec(struct scst_user_cmd *ucmd,
 				if (unlikely((ereply->pbuf & ~PAGE_MASK) != 0)) {
 					PRINT_ERROR("Supplied pbuf %llx isn't "
 						"page aligned", ereply->pbuf);
-					goto out_hwerr;
+					goto out_intern_fail;
 				}
 				pages = cmd->sg_cnt;
 			} else
@@ -1539,7 +1539,7 @@ static int dev_user_process_reply_exec(struct scst_user_cmd *ucmd,
 		if (rc != 0) {
 			PRINT_ERROR("Failed to copy %d sense's bytes", rc);
 			res = -EFAULT;
-			goto out_hwerr_res_set;
+			goto out_intern_fail_res_set;
 		}
 		cmd->sense_valid_len = sense_len;
 	}
@@ -1559,16 +1559,16 @@ out_inval:
 		(unsigned long long int)cmd->lun, scst_get_opcode_name(cmd), cmd);
 	PRINT_BUFFER("Invalid exec_reply", reply, sizeof(*reply));
 
-out_hwerr:
+out_intern_fail:
 	res = -EINVAL;
 
-out_hwerr_res_set:
+out_intern_fail_res_set:
 	if (ucmd->background_exec) {
 		ucmd_put(ucmd);
 		goto out;
 	} else {
 		scst_set_cmd_error(cmd,
-				   SCST_LOAD_SENSE(scst_sense_hardw_error));
+				   SCST_LOAD_SENSE(scst_sense_internal_failure));
 		goto out_compl;
 	}
 
@@ -2260,7 +2260,7 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 				scst_set_busy(ucmd->cmd);
 			else
 				scst_set_cmd_error(ucmd->cmd,
-				       SCST_LOAD_SENSE(scst_sense_hardw_error));
+				       SCST_LOAD_SENSE(scst_sense_internal_failure));
 		}
 		scst_set_cmd_abnormal_done_state(ucmd->cmd);
 
@@ -2291,7 +2291,7 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 				scst_set_busy(ucmd->cmd);
 			else
 				scst_set_cmd_error(ucmd->cmd,
-				       SCST_LOAD_SENSE(scst_sense_hardw_error));
+				       SCST_LOAD_SENSE(scst_sense_internal_failure));
 		}
 
 		ucmd->cmd->scst_cmd_done(ucmd->cmd, SCST_CMD_STATE_DEFAULT,

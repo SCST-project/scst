@@ -209,7 +209,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 
 #ifdef DEBUG_SENSE
 	if ((random() % 100000) == 75) {
-		set_cmd_error(vcmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+		set_cmd_error(vcmd, SCST_LOAD_SENSE(scst_sense_internal_failure));
 		goto out;
 	}
 #endif

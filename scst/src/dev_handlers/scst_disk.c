@@ -536,7 +536,7 @@ out:
 	return res;
 
 out_err_restore:
-	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_internal_failure));
 	goto out_restore;
 
 out_error:
