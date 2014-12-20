@@ -5718,17 +5718,7 @@ static ssize_t fileio_read_sync(struct file *fd, void *buf, size_t len,
 
 	old_fs = get_fs();
 	set_fs(get_ds());
-
-	if (fd->f_op->llseek)
-		ret = fd->f_op->llseek(fd, *loff, 0/*SEEK_SET*/);
-	else
-		ret = default_llseek(fd, *loff, 0/*SEEK_SET*/);
-	if (ret < 0)
-		goto out;
-
 	ret = vfs_read(fd, (char __force __user *)buf, len, loff);
-
-out:
 	set_fs(old_fs);
 
 	return ret;
@@ -5743,17 +5733,7 @@ static ssize_t fileio_write_sync(struct file *fd, void *buf, size_t len,
 
 	old_fs = get_fs();
 	set_fs(get_ds());
-
-	if (fd->f_op->llseek)
-		ret = fd->f_op->llseek(fd, *loff, 0/*SEEK_SET*/);
-	else
-		ret = default_llseek(fd, *loff, 0/*SEEK_SET*/);
-	if (ret < 0)
-		goto out;
-
 	ret = vfs_write(fd, (char __force __user *)buf, len, loff);
-
-out:
 	set_fs(old_fs);
 
 	return ret;
