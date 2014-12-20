@@ -8053,7 +8053,7 @@ static ssize_t vdev_sysfs_naa_id_store(struct kobject *kobj,
 	switch (c) {
 	case 0:
 	case 2 * 8:
-		if (strchr("1235cCdDeEfF", buf[0]))
+		if (strchr("235", buf[0]))
 			break;
 		else
 			goto out;
