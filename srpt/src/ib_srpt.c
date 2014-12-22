@@ -3344,7 +3344,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	dma_len = ib_sg_dma_len(dev, &sg[0]);
 	dma_addr = ib_sg_dma_address(dev, &sg[0]);
 
-	/* this second loop is really mapped sg_addres to rdma_iu->ib_sge */
+	/* this second loop is really mapped sg_address to rdma_iu->ib_sge */
 	for (i = 0, j = 0, cur_sg = sg;
 	     j < count && i < ioctx->n_rbuf && tsize > 0; ++i, ++riu, ++db) {
 		rsize = be32_to_cpu(db->len);
