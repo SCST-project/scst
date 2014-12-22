@@ -2513,7 +2513,7 @@ struct scst_device {
 
 	/*
 	 * Set, if this device is being unregistered. Useful to let sysfs
-	 * attributes know when they should exit immediatelly to prevent
+	 * attributes know when they should exit immediately to prevent
 	 * possible deadlocks with their device unregistration waiting for
 	 * their kobj last put.
 	 */
