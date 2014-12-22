@@ -558,7 +558,7 @@ struct mvst_tgt {
 	unsigned int tgt_enable_64bit_addr:1;
 	wait_queue_head_t waitQ;
 	int notify_ack_expected;
-	/* Count of sessions refering q2t_tgt, protected by hardware_lock */
+	/* Count of sessions referring q2t_tgt, protected by hardware_lock */
 	int sess_count;
 	struct list_head sess_list;
 };

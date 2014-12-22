@@ -141,7 +141,7 @@ struct q2t_tgt {
 	 */
 	unsigned long tgt_stop; /* the driver is being stopped */
 
-	/* Count of sessions refering q2t_tgt. Protected by hardware_lock. */
+	/* Count of sessions referring q2t_tgt. Protected by hardware_lock. */
 	int sess_count;
 
 	/*
