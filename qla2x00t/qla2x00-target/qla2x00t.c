@@ -5405,11 +5405,11 @@ static void q2t_async_event(uint16_t code, scsi_qla_host_t *ha,
 	case MBA_RSP_TRANSFER_ERR:	/* Response Transfer Error */
 	case MBA_ATIO_TRANSFER_ERR:	/* ATIO Queue Transfer Error */
 		TRACE(TRACE_MGMT, "qla2x00t(%ld): System error async event %#x "
-			"occured", ha->instance, code);
+			"occurred", ha->instance, code);
 		break;
 
 	case MBA_LOOP_UP:
-		TRACE(TRACE_MGMT, "qla2x00t(%ld): Loop up occured",
+		TRACE(TRACE_MGMT, "qla2x00t(%ld): Loop up occurred",
 			ha->instance);
 		if (tgt->link_reinit_iocb_pending) {
 			q24_send_notify_ack(ha, &tgt->link_reinit_iocb, 0, 0, 0);
@@ -5418,28 +5418,28 @@ static void q2t_async_event(uint16_t code, scsi_qla_host_t *ha,
 		break;
 
 	case MBA_LIP_OCCURRED:
-		TRACE(TRACE_MGMT, "qla2x00t(%ld): LIP occured", ha->instance);
+		TRACE(TRACE_MGMT, "qla2x00t(%ld): LIP occurred", ha->instance);
 		break;
 
 	case MBA_LOOP_DOWN:
-		TRACE(TRACE_MGMT, "qla2x00t(%ld): Loop down occured",
+		TRACE(TRACE_MGMT, "qla2x00t(%ld): Loop down occurred",
 			ha->instance);
 		break;
 
 	case MBA_LIP_RESET:
-		TRACE(TRACE_MGMT, "qla2x00t(%ld): LIP reset occured",
+		TRACE(TRACE_MGMT, "qla2x00t(%ld): LIP reset occurred",
 			ha->instance);
 		break;
 
 	case MBA_PORT_UPDATE:
 	case MBA_RSCN_UPDATE:
 		TRACE_MGMT_DBG("qla2x00t(%ld): Port update async event %#x "
-			"occured", ha->instance, code);
+			"occurred", ha->instance, code);
 		/* .mark_all_devices_lost() is handled by the initiator driver */
 		break;
 
 	default:
-		TRACE(TRACE_MGMT, "qla2x00t(%ld): Async event %#x occured: "
+		TRACE(TRACE_MGMT, "qla2x00t(%ld): Async event %#x occurred: "
 			"ignoring (m[1]=%x, m[2]=%x, m[3]=%x, m[4]=%x)",
 			ha->instance, code,
 			le16_to_cpu(mailbox[1]), le16_to_cpu(mailbox[2]),

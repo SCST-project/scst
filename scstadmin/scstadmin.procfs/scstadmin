@@ -1265,7 +1265,7 @@ sub addDevice {
 	my $htype = $SCST->handlerType($_handler);
 
 	if (!$htype) {
-		print "WARNING: Internal error occured: ".$SCST->errorString()."\n";
+		print "WARNING: Internal error occurred: ".$SCST->errorString()."\n";
 		return $TRUE;
 	}
 
@@ -1327,7 +1327,7 @@ sub removeDevice {
 	my $htype = $SCST->handlerType($_handler);
 
 	if (!$htype) {
-		print "WARNING: Internal error occured: ".$SCST->errorString()."\n";
+		print "WARNING: Internal error occurred: ".$SCST->errorString()."\n";
 		return $TRUE;
 	}
 
