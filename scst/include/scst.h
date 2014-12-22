@@ -1412,7 +1412,7 @@ struct scst_dev_type {
 	int (*dev_done)(struct scst_cmd *cmd);
 
 	/*
-	 * Called to notify dev hander that the command is about to be freed.
+	 * Called to notify dev handler that the command is about to be freed.
 	 *
 	 * Could be called on IRQ context.
 	 *
