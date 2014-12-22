@@ -565,7 +565,7 @@ Thanks to:
 initiator driver.
 
  * Mark Buechler <mark.buechler@gmail.com> for the original
-WWN-based authentification, a lot of useful suggestions, bug reports and
+WWN-based authentication, a lot of useful suggestions, bug reports and
 help in debugging.
 
  * Ming Zhang <mingz@ele.uri.edu> for fixes.
