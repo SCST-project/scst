@@ -5297,7 +5297,7 @@ static void q2t_response_pkt(scsi_qla_host_t *ha, response_t *pkt)
 					 * command was sent between the abort request
 					 * was received and processed. Unfortunately,
 					 * the firmware has a silly requirement that
-					 * all aborted exchanges must be explicitely
+					 * all aborted exchanges must be explicitly
 					 * terminated, otherwise it refuses to send
 					 * responses for the abort requests. So, we
 					 * have to (re)terminate the exchange and
