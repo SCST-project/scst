@@ -419,7 +419,7 @@ struct iscsi_cmnd {
 		/*
 		 * Used only to abort not yet sent responses. Usage in
 		 * cmnd_done() is only a side effect to have a lockless
-		 * accesss to this list from always only a single thread
+		 * access to this list from always only a single thread
 		 * at any time. So, all responses live in the parent
 		 * until it has the last reference put.
 		 */
