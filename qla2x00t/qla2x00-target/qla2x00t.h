@@ -177,7 +177,7 @@ struct q2t_tgt {
 };
 
 /*
- * Equivilant to IT Nexus (Initiator-Target)
+ * Equivalent to IT Nexus (Initiator-Target)
  */
 struct q2t_sess {
 	uint16_t loop_id;

@@ -478,7 +478,7 @@ struct mvs_tgt_initiator {
 };
 
 /*
- * Equivilant to IT Nexus (Initiator-Target)
+ * Equivalent to IT Nexus (Initiator-Target)
  */
 struct mvst_sess {
 	struct list_head sess_entry;
