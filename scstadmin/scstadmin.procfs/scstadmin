@@ -1074,7 +1074,7 @@ sub applyConfiguration {
 		}
 
 		if (!defined($GROUPS{$group})) {
-			print "\t-> WARNING: Unable to assign to non-existant group '$group'.\n";
+			print "\t-> WARNING: Unable to assign to non-existent group '$group'.\n";
 			$errs += 1;
 			next;
 		}
@@ -1586,7 +1586,7 @@ sub assignDevice {
 	}
 
 	if (!defined($$DEVICES{$device})) {
-		print "WARNING: Unable to assign non-existant device '$device' to group '$group'.\n";
+		print "WARNING: Unable to assign non-existent device '$device' to group '$group'.\n";
 		return $TRUE;
 	}
 
@@ -1632,7 +1632,7 @@ sub replaceDevice {
 	}
 			
 	if (!defined($$DEVICES{$newDevice})) {
-		print "WARNING: Unable to assign non-existant device '$newDevice' to group '$group'.\n";
+		print "WARNING: Unable to assign non-existent device '$newDevice' to group '$group'.\n";
 		return $TRUE;
 	}
 

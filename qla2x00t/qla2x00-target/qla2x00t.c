@@ -4074,7 +4074,7 @@ static int q2t_handle_task_mgmt(scsi_qla_host_t *ha, void *iocb)
 
 	if (sess == NULL) {
 		TRACE_MGMT_DBG("qla2x00t(%ld): task mgmt fn 0x%x for "
-			"non-existant session", ha->instance, fn);
+			"non-existent session", ha->instance, fn);
 		res = q2t_sched_sess_work(tgt, Q2T_SESS_WORK_TM, iocb,
 			IS_FWI2_CAPABLE(ha) ? sizeof(atio7_entry_t) :
 					      sizeof(notify_entry_t));

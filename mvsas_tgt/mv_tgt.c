@@ -1642,7 +1642,7 @@ static int mvst_handle_task_mgmt(struct mvs_info *mvi,
 	sess = mvst_find_sess_by_lid(tgt, initiator_sas_addr);
 	if (sess == NULL) {
 		TRACE(TRACE_MGMT, "mvsttgt(%ld): task mgmt fn 0x%x for "
-		      "non-existant session", mvi->instance,
+		      "non-existent session", mvi->instance,
 		      cmd->save_task_iu.task_fun);
 		res = -EFAULT;
 		goto out;
