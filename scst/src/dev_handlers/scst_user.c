@@ -1155,7 +1155,7 @@ static void dev_user_add_to_ready(struct scst_user_cmd *ucmd)
 		/*
 		 * If we don't put such commands in the queue head, then under
 		 * high load we might delay threads, waiting for memory
-		 * allocations, for too long and start loosing NOPs, which
+		 * allocations, for too long and start losing NOPs, which
 		 * would lead to consider us by remote initiators as
 		 * unresponsive and stuck => broken connections, etc. If none
 		 * of our commands completed in NOP timeout to allow the head

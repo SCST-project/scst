@@ -2571,7 +2571,7 @@ static int __init init_scst(void)
 	}
 
 	/*
-	 * All mgmt stubs, UAs and sense buffers are bursty and loosing them
+	 * All mgmt stubs, UAs and sense buffers are bursty and losing them
 	 * may have fatal consequences, so let's have big pools for them.
 	 */
 
