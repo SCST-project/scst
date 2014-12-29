@@ -109,12 +109,12 @@ char *kvasprintf(gfp_t gfp, const char *fmt, va_list ap)
  */
 int hex_to_bin(char ch)
 {
-        if (ch >= '0' && ch <= '9')
-                return ch - '0';
-        ch = tolower(ch);
-        if (ch >= 'a' && ch <= 'f')
-                return ch - 'a' + 10;
-        return -1;
+	if (ch >= '0' && ch <= '9')
+		return ch - '0';
+	ch = tolower(ch);
+	if (ch >= 'a' && ch <= 'f')
+		return ch - 'a' + 10;
+	return -1;
 }
 EXPORT_SYMBOL(hex_to_bin);
 #endif
