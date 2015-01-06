@@ -7523,7 +7523,8 @@ int scst_calc_block_shift(int sector_size)
 		sector_size = 512;
 
 	block_shift = ilog2(sector_size);
-	WARN_ON(1 << block_shift != sector_size);
+	WARN_ONCE(1 << block_shift != sector_size, "1 << %d != %d\n",
+		  block_shift, sector_size);
 
 	if (block_shift < 9) {
 		PRINT_ERROR("Wrong sector size %d", sector_size);
