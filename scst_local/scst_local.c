@@ -229,7 +229,7 @@ static int scst_local_get_sas_transport_id(struct scst_local_sess *sess,
 	tr_id[5]  = 0xEE;
 	tr_id[6]  = 0xDE;
 	tr_id[7]  = 0x40 | ((sess->number >> 4) & 0x0F);
-	tr_id[8]  = 0x0F | (sess->number & 0xF0);
+	tr_id[8]  = 0x0F | ((sess->number & 0x0F) << 4);
 	tr_id[9]  = 0xAD;
 	tr_id[10] = 0xE0;
 	tr_id[11] = 0x50;
