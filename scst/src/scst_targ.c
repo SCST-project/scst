@@ -1594,11 +1594,43 @@ void scst_rx_data(struct scst_cmd *cmd, int status,
 }
 EXPORT_SYMBOL(scst_rx_data);
 
+/*
+ * Whether a command must be executed in thread context. Persistent reservation
+ * commands need thread context because of dev_pr_mutex. Traditional reserve
+ * and release commands need thread context because e.g. queueing a unit
+ * attention needs either BH or thread context.
+ */
+static inline bool scst_needs_thread_context(struct scst_cmd *cmd)
+{
+       switch (cmd->cdb[0]) {
+       case PERSISTENT_RESERVE_IN:
+       case PERSISTENT_RESERVE_OUT:
+       case RESERVE:
+       case RESERVE_10:
+       case RELEASE:
+       case RELEASE_10:
+               return true;
+       }
+
+       return false;
+}
+
 static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_RES_CONT_SAME, rc;
 
 	TRACE_ENTRY();
+
+	/* Switch to thread context before executing a reservation command. */
+	if (unlikely(scst_cmd_atomic(cmd) &&
+		     ((cmd->dev && cmd->dev->pr_is_set) ||
+		      scst_needs_thread_context(cmd)))) {
+		TRACE_DBG("Atomic context and %s, rescheduling (cmd %p)",
+			  cmd->dev && cmd->dev->pr_is_set ?
+			  "dev->pr_is_set" : "reservation command", cmd);
+		res = SCST_CMD_STATE_RES_NEED_THREAD;
+		goto out;
+	}
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	if (unlikely(trace_flag & TRACE_DATA_RECEIVED) &&
