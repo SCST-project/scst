@@ -1547,6 +1547,8 @@ static int q2t_target_release(struct scst_tgt *scst_tgt)
 
 	q2t_target_stop(scst_tgt);
 
+	cancel_work_sync(&tgt->rscn_reg_work);
+
 	ha->q2t_tgt = NULL;
 	scst_tgt_set_tgt_priv(scst_tgt, NULL);
 
@@ -4173,11 +4175,39 @@ out:
 	return res;
 }
 
+static void q2t_rscn_reg_work(struct work_struct *work)
+{
+	struct q2t_tgt *tgt = container_of(work, struct q2t_tgt, rscn_reg_work);
+	scsi_qla_host_t *ha = tgt->ha;
+	int ret;
+
+	TRACE_ENTRY();
+
+	if ((ha->host->active_mode & MODE_INITIATOR) == 0) {
+		/*
+		 * The QLogic firmware and qla2xxx do not register for RSCNs in
+		 * target-only mode, so do that explicitly.
+		 */
+		ret = qla2x00_send_change_request(ha, 0x3, ha->vp_idx);
+		if (ret != QLA_SUCCESS)
+			PRINT_INFO("qla2x00t(%ld): RSCN registration failed: "
+				"%#x (OK for non-fabric setups)",
+				ha->host_no, ret);
+		else
+			TRACE_MGMT_DBG("qla2x00t(%ld): RSCN registration succeeded",
+				ha->host_no);
+	}
+
+	TRACE_EXIT();
+	return;
+}
+
 /*
  * pha->hardware_lock supposed to be held on entry. Might drop it, then reacquire
  */
 static int q24_handle_els(scsi_qla_host_t *ha, notify24xx_entry_t *iocb)
 {
+	struct q2t_tgt *tgt = ha->tgt;
 	int res = 1; /* send notify ack */
 	struct q2t_sess *sess;
 	int loop_id;
@@ -4189,6 +4219,13 @@ static int q24_handle_els(scsi_qla_host_t *ha, notify24xx_entry_t *iocb)
 
 	switch (iocb->status_subcode) {
 	case ELS_PLOGI:
+		/*
+		 * HACK. Let's do it on PLOGI, because seems there is no other
+		 * simple place, from where it can be called. In the worst
+		 * case, we will just reinstall RSCNs once again, it's harmless.
+		 */
+		schedule_work(&tgt->rscn_reg_work);
+		break;
 	case ELS_FLOGI:
 	case ELS_PRLI:
 		break;
@@ -5886,6 +5923,7 @@ static int q2t_add_target(scsi_qla_host_t *ha)
 
 	tgt->ha = ha;
 	init_waitqueue_head(&tgt->waitQ);
+	INIT_WORK(&tgt->rscn_reg_work, q2t_rscn_reg_work);
 	INIT_LIST_HEAD(&tgt->sess_list);
 	INIT_LIST_HEAD(&tgt->del_sess_list);
 	INIT_DELAYED_WORK(&tgt->sess_del_work, q2t_del_sess_work_fn);

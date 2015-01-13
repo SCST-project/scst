@@ -3035,9 +3035,9 @@ qla2x00_send_change_request(scsi_qla_host_t *ha, uint16_t format,
 
 	/*
 	 * This command is implicitly executed by firmware during login for the
-	 * physical hosts
+	 * physical hosts if initiator mode is enabled.
 	 */
-	if (vp_idx == 0)
+	if (vp_idx == 0 && (ha->host->active_mode & MODE_INITIATOR))
 		return QLA_FUNCTION_FAILED;
 
 	mcp->mb[0] = MBC_SEND_CHANGE_REQUEST;
@@ -3058,6 +3058,7 @@ qla2x00_send_change_request(scsi_qla_host_t *ha, uint16_t format,
 
 	return rval;
 }
+EXPORT_SYMBOL(qla2x00_send_change_request);
 
 int
 qla2x00_dump_ram(scsi_qla_host_t *ha, dma_addr_t req_dma, uint32_t addr,
