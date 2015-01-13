@@ -1734,8 +1734,16 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 
 out_descr:
 	if (unlikely(cmd->op_flags & SCST_DESCRIPTORS_BASED)) {
-		int r = scst_parse_descriptors(cmd);
-		if (unlikely(r != 0))
+		if (scst_cmd_atomic(cmd)) {
+			/*
+			 * Switch to thread context such that
+			 * scst_parse_descriptors() can use GFP_KERNEL instead
+			 * of GFP_ATOMIC.
+			 */
+			res = SCST_CMD_STATE_RES_NEED_THREAD;
+			goto out;
+		}
+		if (unlikely(scst_parse_descriptors(cmd) != 0))
 			goto out;
 	}
 
