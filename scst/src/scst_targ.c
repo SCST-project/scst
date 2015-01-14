@@ -1602,17 +1602,17 @@ EXPORT_SYMBOL(scst_rx_data);
  */
 static inline bool scst_needs_thread_context(struct scst_cmd *cmd)
 {
-       switch (cmd->cdb[0]) {
-       case PERSISTENT_RESERVE_IN:
-       case PERSISTENT_RESERVE_OUT:
-       case RESERVE:
-       case RESERVE_10:
-       case RELEASE:
-       case RELEASE_10:
-               return true;
-       }
+	switch (cmd->cdb[0]) {
+	case PERSISTENT_RESERVE_IN:
+	case PERSISTENT_RESERVE_OUT:
+	case RESERVE:
+	case RESERVE_10:
+	case RELEASE:
+	case RELEASE_10:
+		return true;
+	}
 
-       return false;
+	return false;
 }
 
 static int scst_tgt_pre_exec(struct scst_cmd *cmd)
