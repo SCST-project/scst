@@ -46,11 +46,12 @@
 %define rpm_version @rpm_version@
 # Make command with or without flags.
 %define make %{expand:%%(echo ${MAKE:-make})}
+%define pkgrel 1
 
-Name:		%{kmod_name}-%{kversion}
-Version:        %{rpm_version}
-Release:        1
-Summary:	SCST mid-layer kernel driver
+Name:		%{kmod_name}
+Version:	%{rpm_version}
+Release:	%{pkgrel}%{?dist}
+Summary:	SCST mid-layer kernel drivers
 Group:		System/Kernel
 License:	GPLv2
 Vendor:		http://scst.sourceforge.net/
@@ -82,7 +83,7 @@ Authors:
 %package devel
 Summary:	SCST mid-layer kernel driver development package
 Group:		Development/Kernel
-AutoReqProv:	no
+BuildArch:	noarch
 
 %description devel
 A generic SCSI target subsystem for Linux (SCST) that allows to convert
@@ -122,6 +123,8 @@ rm -f %{buildroot}/lib/modules/%{kversion}/[Mm]odule*
 rm -rf %{buildroot}
 
 %pre
+# Remove any existing ib_srpt.ko kernel modules
+find /lib/modules/%{kversion} -name ib_srpt.ko -exec rm {} \;
 # Remove files installed by "make install"
 rm -f /usr/local/man/man5/iscsi-scstd.conf.5
 rm -f /usr/local/man/man8/iscsi-scst-adm.8
@@ -129,8 +132,6 @@ rm -f /usr/local/man/man8/iscsi-scstd.8
 rm -f /usr/local/sbin/iscsi-scst-adm
 rm -f /usr/local/sbin/iscsi-scstd
 rm -rf /usr/local/include/scst
-# Remove existing ib_srpt.ko kernel modules
-find /lib/modules/%{kversion} -name ib_srpt.ko -exec rm {} \;
 
 %post
 /sbin/depmod -a %{kversion}
