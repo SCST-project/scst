@@ -1,10 +1,10 @@
 %define kmod_name scst
-%define kver %{expand:%%(echo ${KVER:-$(uname -r)})}
+%define kversion %{expand:%%(echo ${KVER:-$(uname -r)})}
 %define kernel_rpm %{expand:%%(						\
-	  krpm="$(rpm -qf /boot/vmlinuz-%{kver} 2>/dev/null |		\
+	  krpm="$(rpm -qf /boot/vmlinuz-%{kversion} 2>/dev/null |		\
 		grep -v 'is not owned by any package' | head -n 1)";	\
 	  if [ -n "$krpm" ]; then					\
-	    echo "/boot/vmlinuz-%{kver}";				\
+	    echo "/boot/vmlinuz-%{kversion}";				\
 	  else								\
 	    echo "%{nil}";					 	\
 	  fi								\
@@ -12,7 +12,7 @@
 %define rpm_version @rpm_version@
 %define make %{expand:%%(echo ${MAKE:-make})}
 
-Name:		%{kmod_name}-%{kver}
+Name:		%{kmod_name}-%{kversion}
 Version:        %{rpm_version}
 Release:        1
 Summary:	SCST mid-layer kernel driver
@@ -62,14 +62,14 @@ Authors:
 %setup -q -n %{kmod_name}-%{version}
 
 %build
-export KVER=%{kver} PREFIX=%{_prefix}
+export KVER=%{kversion} PREFIX=%{_prefix}
 export BUILD_2X_MODULE=y CONFIG_SCSI_QLA_FC=y CONFIG_SCSI_QLA2XXX_TARGET=y
 for d in scst fcst iscsi-scst qla2x00t/qla2x00-target scst_local srpt; do
     %{make} -C $d
 done
 
 %install
-export KVER=%{kver} PREFIX=%{_prefix} MANDIR=%{_mandir}
+export KVER=%{kversion} PREFIX=%{_prefix} MANDIR=%{_mandir}
 export BUILD_2X_MODULE=y CONFIG_SCSI_QLA_FC=y CONFIG_SCSI_QLA2XXX_TARGET=y
 for d in scst; do
     DESTDIR=%{buildroot} %{make} -C $d install
@@ -77,7 +77,7 @@ done
 for d in fcst iscsi-scst qla2x00t/qla2x00-target scst_local srpt; do
     DESTDIR=%{buildroot} INSTALL_MOD_PATH=%{buildroot} %{make} -C $d install
 done
-rm -f %{buildroot}/lib/modules/%{kver}/[Mm]odule*
+rm -f %{buildroot}/lib/modules/%{kversion}/[Mm]odule*
 
 %clean
 rm -rf %{buildroot}
@@ -91,31 +91,31 @@ rm -f /usr/local/sbin/iscsi-scst-adm
 rm -f /usr/local/sbin/iscsi-scstd
 rm -rf /usr/local/include/scst
 # Remove existing ib_srpt.ko kernel modules
-find /lib/modules/%{kver} -name ib_srpt.ko -exec rm {} \;
+find /lib/modules/%{kversion} -name ib_srpt.ko -exec rm {} \;
 
 %post
-/sbin/depmod -a %{kver}
+/sbin/depmod -a %{kversion}
 
 %files
 %defattr(-,root,root)
-%dir /lib/modules/%{kver}/extra
-/lib/modules/%{kver}/extra/fcst.ko
-/lib/modules/%{kver}/extra/ib_srpt.ko
-/lib/modules/%{kver}/extra/iscsi-scst.ko
-/lib/modules/%{kver}/extra/qla2x00tgt.ko
-/lib/modules/%{kver}/extra/qla2xxx_scst.ko
-/lib/modules/%{kver}/extra/scst.ko
-/lib/modules/%{kver}/extra/scst_local.ko
-%dir /lib/modules/%{kver}/extra/dev_handlers
-/lib/modules/%{kver}/extra/dev_handlers/scst_cdrom.ko
-/lib/modules/%{kver}/extra/dev_handlers/scst_changer.ko
-/lib/modules/%{kver}/extra/dev_handlers/scst_disk.ko
-/lib/modules/%{kver}/extra/dev_handlers/scst_modisk.ko
-/lib/modules/%{kver}/extra/dev_handlers/scst_processor.ko
-/lib/modules/%{kver}/extra/dev_handlers/scst_raid.ko
-/lib/modules/%{kver}/extra/dev_handlers/scst_tape.ko
-/lib/modules/%{kver}/extra/dev_handlers/scst_user.ko
-/lib/modules/%{kver}/extra/dev_handlers/scst_vdisk.ko
+%dir /lib/modules/%{kversion}/extra
+/lib/modules/%{kversion}/extra/fcst.ko
+/lib/modules/%{kversion}/extra/ib_srpt.ko
+/lib/modules/%{kversion}/extra/iscsi-scst.ko
+/lib/modules/%{kversion}/extra/qla2x00tgt.ko
+/lib/modules/%{kversion}/extra/qla2xxx_scst.ko
+/lib/modules/%{kversion}/extra/scst.ko
+/lib/modules/%{kversion}/extra/scst_local.ko
+%dir /lib/modules/%{kversion}/extra/dev_handlers
+/lib/modules/%{kversion}/extra/dev_handlers/scst_cdrom.ko
+/lib/modules/%{kversion}/extra/dev_handlers/scst_changer.ko
+/lib/modules/%{kversion}/extra/dev_handlers/scst_disk.ko
+/lib/modules/%{kversion}/extra/dev_handlers/scst_modisk.ko
+/lib/modules/%{kversion}/extra/dev_handlers/scst_processor.ko
+/lib/modules/%{kversion}/extra/dev_handlers/scst_raid.ko
+/lib/modules/%{kversion}/extra/dev_handlers/scst_tape.ko
+/lib/modules/%{kversion}/extra/dev_handlers/scst_user.ko
+/lib/modules/%{kversion}/extra/dev_handlers/scst_vdisk.ko
 %{_mandir}/man5/iscsi-scstd.conf.5.gz
 %{_mandir}/man8/iscsi-scst-adm.8.gz
 %{_mandir}/man8/iscsi-scstd.8.gz
