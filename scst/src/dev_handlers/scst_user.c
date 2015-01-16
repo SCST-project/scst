@@ -2260,7 +2260,7 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 				scst_set_busy(ucmd->cmd);
 			else
 				scst_set_cmd_error(ucmd->cmd,
-				       SCST_LOAD_SENSE(scst_sense_internal_failure));
+				       SCST_LOAD_SENSE(scst_sense_lun_not_supported));
 		}
 		scst_set_cmd_abnormal_done_state(ucmd->cmd);
 
@@ -2291,7 +2291,7 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 				scst_set_busy(ucmd->cmd);
 			else
 				scst_set_cmd_error(ucmd->cmd,
-				       SCST_LOAD_SENSE(scst_sense_internal_failure));
+				       SCST_LOAD_SENSE(scst_sense_lun_not_supported));
 		}
 
 		ucmd->cmd->scst_cmd_done(ucmd->cmd, SCST_CMD_STATE_DEFAULT,
