@@ -1,5 +1,5 @@
 %define kmod_name scst
-%define kversion %{expand:%%(echo ${KVER:-$(uname -r)})}
+%{!?kversion:%define kversion %{expand:%%(uname -r)}}
 %define kernel_rpm %{expand:%%(						\
 	  krpm="$(rpm -qf /boot/vmlinuz-%{kversion} 2>/dev/null |		\
 		grep -v 'is not owned by any package' | head -n 1)";	\

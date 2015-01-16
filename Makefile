@@ -408,8 +408,9 @@ scst-rpm:
 	cp $${name}-$(VERSION).tar.bz2 $${rpmtopdir}/SOURCES &&		\
 	sed "s/@rpm_version@/$(VERSION)/g"				\
 		<$${name}.spec.in >$${name}.spec;			\
-	MAKE="$(MAKE)"							\
-	rpmbuild --define="%_topdir $${rpmtopdir}" -ba $${name}.spec &&	\
+	MAKE="$(MAKE)" rpmbuild --define="%_topdir $${rpmtopdir}"	\
+	    $(if $(KVER),--define="%kversion $(KVER)")			\
+	    -ba $${name}.spec &&					\
 	rm -f $${name}-$(VERSION).tar.bz2
 
 rpm:
