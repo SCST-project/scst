@@ -1,15 +1,50 @@
 %define kmod_name scst
-%{!?kversion:%define kversion %{expand:%%(uname -r)}}
-%define kernel_rpm %{expand:%%(						\
-	  krpm="$(rpm -qf /boot/vmlinuz-%{kversion} 2>/dev/null |		\
-		grep -v 'is not owned by any package' | head -n 1)";	\
-	  if [ -n "$krpm" ]; then					\
-	    echo "/boot/vmlinuz-%{kversion}";				\
-	  else								\
-	    echo "%{nil}";					 	\
-	  fi								\
+# kversion: Kernel version as it appears under /lib/modules.
+# The algorithm for setting the variable kversion is as follows:
+# - If the variable kversion has been set, use its value.
+# - If an RPM with the name kernel-headers exists (RHEL / CentOS), use the
+#   version number of the kernel that package is based on. This provides the
+#   version number when building on a koji build server.
+# - Otherwise use the version number of the running kernel.
+%{!?kversion:%define kversion %{expand:%%(
+	    if rpm --quiet -q kernel-headers; then
+		rpm -q --qf '%%%%{version}-%%%%{release}.%%%%{arch}' \\
+		    kernel-headers;
+	    else
+		uname -r;
+	    fi
+	)}}
+%{echo:kversion=%{kversion}
+}
+# kernel_rpm: Name of the kernel RPM if the kernel is available as an RPM.
+%if %{expand:%%(rpm --quiet -q kernel-headers ||
+	        rpm --quiet -qf /lib/modules/%{kversion}/kernel/arch 2>/dev/null;
+		echo $((1-$?)))}
+%define kernel_rpm %{expand:%%(
+	    if rpm --quiet -q kernel-headers; then
+		echo kernel;
+	    else
+		rpm -q --qf '%%%%{name}\\n' \\
+		    "$(rpm -qf /lib/modules/%%{kversion}/kernel/arch | head -n1)";
+	    fi
 	)}
+%endif
+# krpmver: Version of the kernel RPM. Not necessarily identical to %{kversion}.
+%{?kernel_rpm:%define krpmver %{expand:%%(
+	    if rpm --quiet -q %%{kernel_rpm}; then
+		rpm -q --qf '%%%%{version}-%%%%{release}\\n' "%%{kernel_rpm}";
+	    else
+		rpm -q --qf '%%%%{version}-%%%%{release}\\n' kernel-headers;
+	    fi |
+	    head -n1
+	)}}
+%{echo:krpmver=%{krpmver}
+}
+# kernel_devel_rpm: Name of the kernel development RPM.
+%{?kernel_rpm:%define kernel_devel_rpm %{kernel_rpm}-devel}
+# Version of the RPM that is being built.
 %define rpm_version @rpm_version@
+# Make command with or without flags.
 %define make %{expand:%%(echo ${MAKE:-make})}
 
 Name:		%{kmod_name}-%{kversion}
@@ -20,6 +55,10 @@ Group:		System/Kernel
 License:	GPLv2
 Vendor:		http://scst.sourceforge.net/
 URL:		http://scst.sourceforge.net/
+# Unfortunately the Red Hat / CentOS kernel-debug-devel RPM provides
+# kernel-devel so a workaround is needed to match the kernel-devel RPM.
+%{?kernel_rpm:Requires:	%{kernel_rpm} = %{krpmver}}
+BuildRequires:	%{?kernel_rpm:%{kernel_rpm} = %{krpmver} %{kernel_devel_rpm} = %{krpmver}} gcc make
 
 Source:		%{kmod_name}-%{version}.tar.bz2
 BuildRoot:	%{_tmppath}/%{name}-%{version}-build
