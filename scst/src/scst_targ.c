@@ -635,7 +635,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 			TRACE_MGMT_DBG("Dev handler %s parse() needs thread "
 				"context, rescheduling", devt->name);
 			res = SCST_CMD_STATE_RES_NEED_THREAD;
-			goto check_compl;
+			goto out;
 		}
 
 		TRACE_DBG("Calling dev handler %s parse(%p)",
@@ -655,6 +655,9 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 			goto out;
 
 		case SCST_CMD_STATE_STOP:
+			/*
+			 * !! cmd can be dead now!
+			 */
 			TRACE_DBG("Dev handler %s parse() requested stop "
 				"processing", devt->name);
 			res = SCST_CMD_STATE_RES_CONT_NEXT;
@@ -939,11 +942,11 @@ set_res:
 		TRACE_DBG_FLAG(TRACE_DEBUG|TRACE_MINOR, "Atomic context and "
 			"non-WRITE data direction, rescheduling (cmd %p)", cmd);
 		res = SCST_CMD_STATE_RES_NEED_THREAD;
-		goto check_compl;
+		/* go through */
 	}
 #endif
 
-check_compl:
+out_check_compl:
 #ifdef CONFIG_SCST_EXTRACHECKS
 	if (unlikely(cmd->completed)) {
 		/* Command completed with error */
@@ -1011,7 +1014,7 @@ out_hw_error:
 out_done:
 	scst_set_cmd_abnormal_done_state(cmd);
 	res = SCST_CMD_STATE_RES_CONT_SAME;
-	goto check_compl;
+	goto out_check_compl;
 }
 
 static void scst_set_write_len(struct scst_cmd *cmd)
