@@ -40,7 +40,6 @@ work.
 
   cd /usr/src/linux-2.6.39-gentoo-r3
   patch -p1 < /root/scst/iscsi-scst/kernel/patches/put_page_callback-2.6.39.patch
-  patch -p1 < /root/scst/scst/kernel/scst_exec_req_fifo-2.6.39.patch
   make clean
 
 

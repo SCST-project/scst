@@ -4856,7 +4856,7 @@ void scst_init_threads(struct scst_cmd_threads *cmd_threads);
 void scst_deinit_threads(struct scst_cmd_threads *cmd_threads);
 
 void scst_pass_through_cmd_done(void *data, char *sense, int result, int resid);
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && defined(SCSI_EXEC_REQ_FIFO_DEFINED)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	void (*done)(void *data, char *sense, int result, int resid));
 #endif

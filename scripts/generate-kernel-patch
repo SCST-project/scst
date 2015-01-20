@@ -282,6 +282,7 @@ for p in scst/kernel/*-${kver}.patch \
 		echo iscsi-scst/kernel/patches/*-${kver}.patch;
 	   fi)
 do
+  [ -e "$p" ] || continue
   # Exclude the put_page_callback patch when command-line option -u has been
   # specified since the current approach is not considered acceptable for
   # upstream kernel inclusion. See also http://lkml.org/lkml/2008/12/11/213.

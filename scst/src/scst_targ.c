@@ -1778,13 +1778,15 @@ static inline enum scst_exec_context scst_optimize_post_exec_context(
  */
 void scst_pass_through_cmd_done(void *data, char *sense, int result, int resid)
 {
-	struct scst_cmd *cmd;
+	struct scst_cmd *cmd = data;
 
 	TRACE_ENTRY();
 
-	cmd = (struct scst_cmd *)data;
 	if (cmd == NULL)
 		goto out;
+
+	TRACE_DBG("cmd %p; CDB[0/%d] %#x: result %d; resid %d", cmd,
+		  cmd->cdb_len, cmd->cdb[0], result, resid);
 
 	scst_do_cmd_done(cmd, result, sense, SCSI_SENSE_BUFFERSIZE, resid);
 
@@ -2987,9 +2989,11 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 		sBUG_ON(res != SCST_EXEC_NOT_COMPLETED);
 	}
 
-	TRACE_DBG("Sending cmd %p to SCSI mid-level", cmd);
-
 	scsi_dev = dev->scsi_dev;
+
+	TRACE_DBG("Sending cmd %p to SCSI mid-level dev %d:%d:%d:%lld", cmd,
+		  scsi_dev->host->host_no, scsi_dev->channel, scsi_dev->id,
+		  (u64)scsi_dev->lun);
 
 	if (unlikely(scsi_dev == NULL)) {
 		PRINT_ERROR("Command for virtual device must be "

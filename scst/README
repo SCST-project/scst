@@ -70,27 +70,13 @@ following patches for the kernel in the "kernel" subdirectory. All of
 them are optional, so, if you don't need the corresponding
 functionality, you may not apply them.
 
-1. scst_exec_req_fifo-2.6.X.patch. This patch is necessary for
-pass-through dev handlers, because in the mainstream kernels
-scsi_do_req()/scsi_execute_async() work in LIFO order, instead of
-expected and required FIFO. So SCST needs new functions
-scsi_do_req_fifo() or scsi_execute_async_fifo() to be added in the
-kernel. This patch does that. You may not patch the kernel if you don't
-need the pass-through support. Alternatively, you can define
-CONFIG_SCST_STRICT_SERIALIZING compile option during the compilation
-(see description below). Unfortunately, the CONFIG_SCST_STRICT_SERIALIZING
-trick doesn't work on kernels starting from 2.6.30, because those
-kernels don't have the required functionality (scsi_execute_async())
-anymore. So, on them to have pass-through working you have to apply
-scst_exec_req_fifo-2.6.X.patch.
-
-2. readahead-2.6.X.patch. This patch fixes problem in Linux readahead
+1. readahead-2.6.X.patch. This patch fixes problem in Linux readahead
 subsystem and greatly improves performance for software RAIDs. See
 http://sourceforge.net/mailarchive/forum.php?thread_name=a0272b440906030714g67eabc5k8f847fb1e538cc62%40mail.gmail.com&forum_name=scst-devel
 thread for more details. It is included in the mainstream kernels 2.6.33
 and 2.6.32.11.
 
-3. readahead-context-2.6.X.patch. This is backported from 2.6.31 version
+2. readahead-context-2.6.X.patch. This is backported from 2.6.31 version
 of the context readahead patch http://lkml.org/lkml/2009/4/12/9, big
 thanks to Wu Fengguang. This is a performance improvement patch. It is
 included in the mainstream kernel 2.6.31.

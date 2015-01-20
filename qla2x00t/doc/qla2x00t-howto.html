@@ -80,13 +80,6 @@ Instructions for obtaining a distribution-specific kernel source tree vary. An e
 [root@proj src ]# tar xjf linux-source-`uname -r`.tar.bz2</pre>
 </li>
 
-<li>
-  Patch the kernel that has just been downloaded:
-<pre>[root@proj src ]# ln -s linux-3.11 linux
-[root@proj src ]# cd linux
-[root@proj linux ]# patch -p1 &lt /root/scst/scst/kernel/scst_exec_req_fifo-3.11.patch</pre>
-</li>
-
 <li>The next step is to configure the kernel:
 <pre>[root@proj linux ]# pwd
 /usr/src/linux
