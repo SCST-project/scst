@@ -4381,9 +4381,12 @@ static inline int cancel_delayed_work_sync(struct delayed_work *work)
 #endif
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29) && defined(CONFIG_LOCKDEP)
+extern struct lockdep_map scst_suspend_dep_map;
+#endif
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32) && \
 	defined(CONFIG_DEBUG_LOCK_ALLOC)
-extern struct lockdep_map scst_suspend_dep_map;
 #define scst_assert_activity_suspended()		\
 	WARN_ON(debug_locks && !lock_is_held(&scst_suspend_dep_map))
 #else
