@@ -6588,6 +6588,7 @@ out:
 }
 #endif
 
+#if !defined(SCSI_EXEC_REQ_FIFO_DEFINED)
 /*
  * Can switch to the next dst_sg element, so, to copy to strictly only
  * one dst_sg element, it must be either last in the chain, or
@@ -6739,6 +6740,7 @@ static int sg_copy(struct scatterlist *dst_sg, struct scatterlist *src_sg,
 out:
 	return res;
 }
+#endif /* !defined(SCSI_EXEC_REQ_FIFO_DEFINED) */
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 static void scsi_end_async(struct request *req, int error)
