@@ -2777,7 +2777,8 @@ static int fileio_alloc_data_buf(struct scst_cmd *cmd)
 	 * copy.
 	 */
 	if (cmd->tgt_i_data_buf_alloced ||
-	    (cmd->data_direction & SCST_DATA_READ) == 0) {
+	    (cmd->data_direction & SCST_DATA_READ) == 0 ||
+	    (virt_dev->fd && !virt_dev->fd->f_mapping->a_ops->readpage)) {
 		p->use_zero_copy = false;
 	}
 	if (!p->use_zero_copy)
