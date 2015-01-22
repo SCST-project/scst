@@ -1069,7 +1069,8 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *SCpnt,
 #endif
 
 	dir = SCST_DATA_NONE;
-	switch (SCpnt->sc_data_direction) {
+	switch (SCpnt->request->next_rq ? DMA_BIDIRECTIONAL :
+		SCpnt->sc_data_direction) {
 	case DMA_TO_DEVICE:
 		dir = SCST_DATA_WRITE;
 		scst_cmd_set_expected(scst_cmd, dir, scsi_bufflen(SCpnt));
