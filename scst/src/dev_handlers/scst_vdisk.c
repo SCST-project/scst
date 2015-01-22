@@ -3119,7 +3119,7 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 #endif
 	} else {
 		loff_t off = start_lba << cmd->dev->block_shift;
-		loff_t len = blocks << cmd->dev->block_shift;
+		loff_t len = (u64)blocks << cmd->dev->block_shift;
 
 		res = vdisk_unmap_file_range(cmd, virt_dev, off, len, fd);
 		if (unlikely(res != 0))
