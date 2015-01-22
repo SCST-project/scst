@@ -3847,14 +3847,18 @@ static int vdisk_format_pg(unsigned char *p, int pcontrol,
 
 static int vdisk_caching_pg(unsigned char *p, int pcontrol,
 			     struct scst_vdisk_dev *virt_dev)
-{	/* Caching page for mode_sense */
-	unsigned char caching_pg[] = {0x8, 0x12, 0x0, 0, 0, 0, 0, 0,
-		0, 0, 0, 0, 0x80, 0x14, 0, 0, 0, 0, 0, 0};
-
-	if (!virt_dev->nv_cache && vdev_saved_mode_pages_enabled)
-		caching_pg[0] |= 0x80;
+{
+	/* Caching page for mode_sense */
+	static const unsigned char caching_pg[] = {
+		0x8, 0x12, 0x0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0x80, 0x14, 0, 0,
+		0, 0, 0, 0
+	};
 
 	memcpy(p, caching_pg, sizeof(caching_pg));
+
+	if (!virt_dev->nv_cache && vdev_saved_mode_pages_enabled)
+		p[0] |= 0x80;
 
 	switch (pcontrol) {
 	case 0: /* current */
