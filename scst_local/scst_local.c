@@ -1068,23 +1068,8 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *SCpnt,
 	sgl_count = scsi_sg_count(SCpnt);
 #endif
 
-	dir = SCST_DATA_NONE;
-	switch (SCpnt->request->next_rq ? DMA_BIDIRECTIONAL :
-		SCpnt->sc_data_direction) {
-	case DMA_TO_DEVICE:
-		dir = SCST_DATA_WRITE;
-		scst_cmd_set_expected(scst_cmd, dir, scsi_bufflen(SCpnt));
-		scst_cmd_set_noio_mem_alloc(scst_cmd);
-		scst_cmd_set_tgt_sg(scst_cmd, sgl, sgl_count);
-		break;
-	case DMA_FROM_DEVICE:
-		dir = SCST_DATA_READ;
-		scst_cmd_set_expected(scst_cmd, dir, scsi_bufflen(SCpnt));
-		scst_cmd_set_noio_mem_alloc(scst_cmd);
-		scst_cmd_set_tgt_sg(scst_cmd, sgl, sgl_count);
-		break;
-	case DMA_BIDIRECTIONAL:
-#if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 24))
+	if (scsi_bidi_cmnd(SCpnt)) {
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 24)
 		/* Some of these symbols are only defined after 2.6.24 */
 		dir = SCST_DATA_BIDI;
 		scst_cmd_set_expected(scst_cmd, dir, scsi_bufflen(SCpnt));
@@ -1094,13 +1079,20 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *SCpnt,
 		scst_cmd_set_tgt_sg(scst_cmd, scsi_in(SCpnt)->table.sgl,
 			scsi_in(SCpnt)->table.nents);
 		scst_cmd_set_tgt_out_sg(scst_cmd, sgl, sgl_count);
-		break;
 #endif
-	case DMA_NONE:
-	default:
+	} else if (SCpnt->sc_data_direction == DMA_TO_DEVICE) {
+		dir = SCST_DATA_WRITE;
+		scst_cmd_set_expected(scst_cmd, dir, scsi_bufflen(SCpnt));
+		scst_cmd_set_noio_mem_alloc(scst_cmd);
+		scst_cmd_set_tgt_sg(scst_cmd, sgl, sgl_count);
+	} else if (SCpnt->sc_data_direction == DMA_FROM_DEVICE) {
+		dir = SCST_DATA_READ;
+		scst_cmd_set_expected(scst_cmd, dir, scsi_bufflen(SCpnt));
+		scst_cmd_set_noio_mem_alloc(scst_cmd);
+		scst_cmd_set_tgt_sg(scst_cmd, sgl, sgl_count);
+	} else {
 		dir = SCST_DATA_NONE;
 		scst_cmd_set_expected(scst_cmd, dir, 0);
-		break;
 	}
 
 	/* Save the correct thing below depending on version */
