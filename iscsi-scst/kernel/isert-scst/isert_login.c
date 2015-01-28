@@ -98,9 +98,10 @@ static void isert_kref_release_dev(struct kref *kref)
 						  kref);
 	kref_init(&dev->kref);
 	dev->occupied = 0;
-	list_del_init(&dev->conn_list_entry);
 	dev->state = CS_INIT;
 	atomic_set(&dev->available, 1);
+	if (!list_is_singular(&dev->conn_list_entry))
+		list_del_init(&dev->conn_list_entry);
 }
 
 static void isert_dev_release(struct isert_conn_dev *dev)
@@ -297,6 +298,16 @@ static int isert_listen_open(struct inode *inode, struct file *filp)
 	return 0;
 }
 
+static void isert_delete_conn_dev(struct isert_conn_dev *conn_dev)
+{
+	isert_del_timer(conn_dev);
+	if (conn_dev->conn) {
+		isert_close_connection(conn_dev->conn);
+		conn_dev->conn = NULL;
+	}
+	list_del(&conn_dev->conn_list_entry);
+}
+
 static int isert_listen_release(struct inode *inode, struct file *filp)
 {
 	struct isert_listener_dev *dev = filp->private_data;
@@ -308,12 +319,15 @@ static int isert_listen_release(struct inode *inode, struct file *filp)
 					    struct isert_conn_dev,
 					    conn_list_entry);
 
-		isert_del_timer(conn_dev);
-		if (conn_dev->conn) {
-			isert_close_connection(conn_dev->conn);
-			conn_dev->conn = NULL;
-		}
-		list_del(&conn_dev->conn_list_entry);
+		isert_delete_conn_dev(conn_dev);
+	}
+
+	while (!list_empty(&dev->curr_conn_list)) {
+		conn_dev = list_first_entry(&dev->curr_conn_list,
+					    struct isert_conn_dev,
+					    conn_list_entry);
+
+		isert_delete_conn_dev(conn_dev);
 	}
 
 	atomic_inc(&dev->available);
@@ -468,11 +482,15 @@ static int isert_open(struct inode *inode, struct file *filp)
 
 	dev = container_of(inode->i_cdev, struct isert_conn_dev, cdev);
 
-	if (!atomic_dec_and_test(&dev->available)) {
+	if (unlikely(!atomic_dec_and_test(&dev->available))) {
 		atomic_inc(&dev->available);
 		res = -EBUSY; /* already open */
 		goto out;
 	}
+
+	spin_lock(&isert_listen_dev.conn_lock);
+	list_del_init(&dev->conn_list_entry);
+	spin_unlock(&isert_listen_dev.conn_lock);
 
 	filp->private_data = dev; /* for other methods */
 
