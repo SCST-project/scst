@@ -74,7 +74,7 @@ static struct isert_conn_dev *get_available_dev(struct isert_listener_dev *dev,
 			res->occupied = 1;
 			res->conn = conn;
 			isert_set_priv(conn, res);
-			list_add(&res->conn_list_entry, &dev->new_conn_list);
+			list_add_tail(&res->conn_list_entry, &dev->new_conn_list);
 			break;
 		}
 	}
