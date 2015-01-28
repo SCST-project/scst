@@ -47,18 +47,13 @@ option or use a 64-bit configuration instead. See README file for \
 details.
 #endif
 
-#if !defined(SCSI_EXEC_REQ_FIFO_DEFINED)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
-#if !defined(CONFIG_SCST_STRICT_SERIALIZING)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30) && \
+	!defined(SCSI_EXEC_REQ_FIFO_DEFINED) &&	     \
+	!defined(CONFIG_SCST_STRICT_SERIALIZING)
 #warning Patch scst_exec_req_fifo-<kernel-version> was not applied on \
 your kernel and CONFIG_SCST_STRICT_SERIALIZING is not defined. \
 Pass-through dev handlers will not work.
-#endif /* !defined(CONFIG_SCST_STRICT_SERIALIZING) */
-#else  /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30) */
-#warning Patch scst_exec_req_fifo-<kernel-version> was not applied on \
-your kernel. Pass-through dev handlers will not work.
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30) */
-#endif /* !defined(SCSI_EXEC_REQ_FIFO_DEFINED) */
+#endif
 
 /**
  ** SCST global variables. They are all uninitialized to have their layout in
@@ -1607,26 +1602,18 @@ int __scst_register_dev_driver(struct scst_dev_type *dev_type,
 	if (res != 0)
 		goto out;
 
-#if !defined(SCSI_EXEC_REQ_FIFO_DEFINED)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30) && \
+	!defined(SCSI_EXEC_REQ_FIFO_DEFINED) && \
+	!defined(CONFIG_SCST_STRICT_SERIALIZING)
 	if (dev_type->exec == NULL) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
-#if !defined(CONFIG_SCST_STRICT_SERIALIZING)
 		PRINT_ERROR("Pass-through dev handlers (handler \"%s\") not "
 			"supported. Consider applying on your kernel patch "
 			"scst_exec_req_fifo-<kernel-version> or define "
 			"CONFIG_SCST_STRICT_SERIALIZING", dev_type->name);
 		res = -EINVAL;
 		goto out;
-#endif /* !defined(CONFIG_SCST_STRICT_SERIALIZING) */
-#else  /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30) */
-		PRINT_ERROR("Pass-through dev handlers (handler \"%s\") not "
-			"supported. Consider applying on your kernel patch "
-			"scst_exec_req_fifo-<kernel-version>", dev_type->name);
-		res = -EINVAL;
-		goto out;
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30) */
 	}
-#endif /* !defined(SCSI_EXEC_REQ_FIFO_DEFINED) */
+#endif
 
 #ifdef CONFIG_SCST_PROC
 	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
@@ -2513,55 +2500,59 @@ static int __init init_scst(void)
 	}
 
 /* Used for rarely used or read-mostly on fast path structures */
-#define INIT_CACHEP(p, s, o) do {					\
-		p = KMEM_CACHE(s, SCST_SLAB_FLAGS);			\
-		TRACE_MEM("Slab create: %s at %p size %zd", #s, p,	\
+#define INIT_CACHEP(p, s) ({						\
+		(p) = KMEM_CACHE(s, SCST_SLAB_FLAGS);			\
+		TRACE_MEM("Slab create: %s at %p size %zd", #s, (p),	\
 			  sizeof(struct s));				\
-		if (p == NULL) {					\
-			res = -ENOMEM;					\
-			goto o;						\
-		}							\
-	} while (0)
+		(p);							\
+	})
 
 /* Used for structures with fast path write access */
-#define INIT_CACHEP_ALIGN(p, s, o) do {					\
-		p = KMEM_CACHE(s, SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN);	\
-		TRACE_MEM("Slab create: %s at %p size %zd", #s, p,	\
+#define INIT_CACHEP_ALIGN(p, s) ({					\
+		(p) = KMEM_CACHE(s, SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN);\
+		TRACE_MEM("Slab create: %s at %p size %zd", #s, (p),	\
 			  sizeof(struct s));				\
-		if (p == NULL) {					\
-			res = -ENOMEM;					\
-			goto o;						\
-		}							\
-	} while (0)
+		(p);							\
+	})
 
-	INIT_CACHEP(scst_mgmt_cachep, scst_mgmt_cmd, out_lib_exit);
-	INIT_CACHEP(scst_mgmt_stub_cachep, scst_mgmt_cmd_stub,
-			out_destroy_mgmt_cache);
-	INIT_CACHEP(scst_ua_cachep, scst_tgt_dev_UA,
-			out_destroy_mgmt_stub_cache);
+	res = -ENOMEM;
+	if (!INIT_CACHEP(scst_mgmt_cachep, scst_mgmt_cmd))
+		goto out_lib_exit;
+	if (!INIT_CACHEP(scst_mgmt_stub_cachep, scst_mgmt_cmd_stub))
+		goto out_destroy_mgmt_cache;
+	if (!INIT_CACHEP(scst_ua_cachep, scst_tgt_dev_UA))
+		goto out_destroy_mgmt_stub_cache;
 	{
 		struct scst_sense { uint8_t s[SCST_SENSE_BUFFERSIZE]; };
-		INIT_CACHEP(scst_sense_cachep, scst_sense,
-			    out_destroy_ua_cache);
+		if (!INIT_CACHEP(scst_sense_cachep, scst_sense))
+			goto out_destroy_ua_cache;
 	}
-	INIT_CACHEP(scst_aen_cachep, scst_aen, out_destroy_sense_cache); /* read-mostly */
-	INIT_CACHEP_ALIGN(scst_cmd_cachep, scst_cmd, out_destroy_aen_cache);
+	if (!INIT_CACHEP(scst_aen_cachep, scst_aen)) /* read-mostly */
+		goto out_destroy_sense_cache;
+	if (!INIT_CACHEP_ALIGN(scst_cmd_cachep, scst_cmd))
+		goto out_destroy_aen_cache;
 #ifdef CONFIG_SCST_MEASURE_LATENCY
-	INIT_CACHEP_ALIGN(scst_sess_cachep, scst_session,
-			  out_destroy_cmd_cache);
+	if (!INIT_CACHEP_ALIGN(scst_sess_cachep, scst_session))
+		goto out_destroy_cmd_cache;
 #else
 	/* Big enough with read-mostly head and tail */
-	INIT_CACHEP(scst_sess_cachep, scst_session, out_destroy_cmd_cache);
+	if (!INIT_CACHEP(scst_sess_cachep, scst_session))
+		goto out_destroy_cmd_cache;
 #endif
-	INIT_CACHEP(scst_dev_cachep, scst_device, out_destroy_sess_cache); /* big enough */
-	INIT_CACHEP(scst_tgt_cachep, scst_tgt, out_destroy_dev_cache); /* read-mostly */
+	if (!INIT_CACHEP(scst_dev_cachep, scst_device)) /* big enough */
+		goto out_destroy_sess_cache;
+	if (!INIT_CACHEP(scst_tgt_cachep, scst_tgt)) /* read-mostly */
+		goto out_destroy_dev_cache;
 #ifdef CONFIG_SCST_MEASURE_LATENCY
-	INIT_CACHEP_ALIGN(scst_tgtd_cachep, scst_tgt_dev, out_destroy_tgt_cache); /* big enough */
+	if (!INIT_CACHEP_ALIGN(scst_tgtd_cachep, scst_tgt_dev)) /* big enough */
+		goto out_destroy_tgt_cache;
 #else
 	/* Big enough with read-mostly head and tail */
-	INIT_CACHEP(scst_tgtd_cachep, scst_tgt_dev, out_destroy_tgt_cache); /* big enough */
+	if (!INIT_CACHEP(scst_tgtd_cachep, scst_tgt_dev)) /* big enough */
+		goto out_destroy_tgt_cache;
 #endif
-	INIT_CACHEP(scst_acgd_cachep, scst_acg_dev, out_destroy_tgtd_cache); /* read-mostly */
+	if (!INIT_CACHEP(scst_acgd_cachep, scst_acg_dev)) /* read-mostly */
+		goto out_destroy_tgtd_cache;
 
 	scst_mgmt_mempool = mempool_create(64, mempool_alloc_slab,
 		mempool_free_slab, scst_mgmt_cachep);
@@ -2571,7 +2562,7 @@ static int __init init_scst(void)
 	}
 
 	/*
-	 * All mgmt stubs, UAs and sense buffers are bursty and loosing them
+	 * All mgmt stubs, UAs and sense buffers are bursty and losing them
 	 * may have fatal consequences, so let's have big pools for them.
 	 */
 

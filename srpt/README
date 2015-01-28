@@ -56,10 +56,10 @@ The ib_srpt kernel module supports the following parameters:
      GUID (e.g. 0002:c903:0005:f34a).
   3. Access control configuration per HCA port and referring to a HCA via its
      port GID (e.g. fe80:0000:0000:0000:0002:c903:0005:f34b).
-  Mode (1) is choosen if both one_target_per_port and
-  use_node_guid_in_target_name are false. Mode (2) is choosen if
+  Mode (1) is chosen if both one_target_per_port and
+  use_node_guid_in_target_name are false. Mode (2) is chosen if
   one_target_per_port is false and use_node_guid_in_target_name is true. Mode
-  (3) is choosen if one_target_per_port is true. This last mode is the
+  (3) is chosen if one_target_per_port is true. This last mode is the
   default mode.
 * rdma_cm_port (number)
   A 16-bit number that specifies the port number to be registered via the
@@ -362,7 +362,7 @@ Performance Notes - Target Side
   improves performance compared to debug mode.
 
 * When using high-latency storage devices (hard disks), the default value
-  choosen by SCST for DEVICE.threads_num should be fine. When using
+  chosen by SCST for DEVICE.threads_num should be fine. When using
   low-latency storage devices though (SSDs), DEVICE.threads_num should be set
   to 1 or 2 in /etc/scst.conf in order to reach optimal performance for small
   block sizes (e.g. 4 KB).

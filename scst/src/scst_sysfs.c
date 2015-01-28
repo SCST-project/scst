@@ -313,7 +313,9 @@ out:
 
 #endif /* defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING) */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 34)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 34) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6 ||	\
+	 (RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 < 6))
 /**
  ** Backported sysfs functions.
  **/
@@ -1266,6 +1268,7 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 			goto out_unlock;
 		} else if (virt_lun > SCST_MAX_LUN) {
 			PRINT_ERROR("Too big LUN %ld (max %d)", virt_lun, SCST_MAX_LUN);
+			res = -EINVAL;
 			goto out_unlock;
 		}
 

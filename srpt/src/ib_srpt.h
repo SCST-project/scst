@@ -56,6 +56,7 @@
 #endif
 #include <linux/rtnetlink.h>
 #include <rdma/rdma_cm.h>
+#include "srp-ext.h"
 #include "ib_dm_mad.h"
 
 /*
@@ -128,10 +129,9 @@ enum {
 	MAX_SRPT_SRQ_SIZE = 65535,
 
 	MIN_MAX_REQ_SIZE = 996,
-	DEFAULT_MAX_REQ_SIZE
-		= sizeof(struct srp_cmd)/*48*/
-		+ sizeof(struct srp_indirect_buf)/*20*/
-		+ 255 * sizeof(struct srp_direct_buf)/*16*/,
+	SRP_IMM_DATA_OUT_OFFSET = 80,
+	DEFAULT_MAX_REQ_SIZE = SRP_IMM_DATA_OUT_OFFSET + 8192,
+	DATA_ALIGNMENT_OFFSET = 512 - SRP_IMM_DATA_OUT_OFFSET,
 
 	MIN_MAX_RSP_SIZE = sizeof(struct srp_rsp)/*36*/ + 4,
 	DEFAULT_MAX_RSP_SIZE = 256, /* leaves 220 bytes for sense data */
@@ -207,13 +207,15 @@ enum srpt_command_state {
 
 /**
  * struct srpt_ioctx - Shared SRPT I/O context information.
- * @buf:   Pointer to the buffer.
- * @dma:   DMA address of the buffer.
- * @index: Index of the I/O context in its ioctx_ring array.
+ * @buf:    Pointer to the buffer.
+ * @dma:    DMA address of the buffer.
+ * @offset: Offset of the first byte in @buf and @dma that is actually used.
+ * @index:  Index of the I/O context in its ioctx_ring array.
  */
 struct srpt_ioctx {
 	void			*buf;
 	dma_addr_t		dma;
+	uint32_t		offset;
 	uint32_t		index;
 };
 
@@ -221,10 +223,12 @@ struct srpt_ioctx {
  * struct srpt_recv_ioctx - SRPT receive I/O context.
  * @ioctx:     See above.
  * @wait_list: Node for insertion in srpt_rdma_ch.cmd_wait_list.
+ * @byte_len:  Number of bytes in @ioctx.buf.
  */
 struct srpt_recv_ioctx {
 	struct srpt_ioctx	ioctx;
 	struct list_head	wait_list;
+	int			byte_len;
 };
 
 /**
@@ -239,7 +243,10 @@ struct srpt_tsk_mgmt {
  * struct srpt_send_ioctx - SRPT send I/O context.
  * @ioctx:       See above.
  * @ch:          Channel pointer.
+ * @recv_ioctx:  Receive I/O context associated with this send I/O context.
  * @rdma_ius:    Array with information about the RDMA mapping.
+ * @imm_data:    Pointer to immediate data when using the immediate data format.
+ * @imm_sg:      Scatterlist for immediate data.
  * @rbufs:       Pointer to SRP data buffer array.
  * @single_rbuf: SRP data buffer if the command has only a single buffer.
  * @sg:          Pointer to sg-list associated with this I/O context.
@@ -263,7 +270,10 @@ struct srpt_tsk_mgmt {
 struct srpt_send_ioctx {
 	struct srpt_ioctx	ioctx;
 	struct srpt_rdma_ch	*ch;
+	struct srpt_recv_ioctx	*recv_ioctx;
 	struct rdma_iu		*rdma_ius;
+	void			*imm_data;
+	struct scatterlist	imm_sg;
 	struct srp_direct_buf	*rbufs;
 	struct srp_direct_buf	single_rbuf;
 	struct scatterlist	*sg;
@@ -366,6 +376,7 @@ struct srpt_rdma_ch {
 	spinlock_t		spinlock;
 	struct list_head	free_list;
 	struct srpt_send_ioctx	**ioctx_ring;
+	struct srpt_recv_ioctx	**ioctx_recv_ring;
 	struct ib_wc		wc[16];
 	enum rdma_ch_state	state;
 	struct list_head	list;
@@ -448,6 +459,7 @@ struct srpt_port {
  * @dev_attr:      Attributes of the InfiniBand device as obtained during the
  *                 ib_client.add() callback.
  * @srq_size:      SRQ size.
+ * @use_srq:       Whether or not to use SRQ.
  * @ioctx_ring:    Per-HCA SRQ.
  * @port:	   Information about the ports owned by this HCA.
  * @event_handler: Per-HCA asynchronous IB event handler.
@@ -462,6 +474,7 @@ struct srpt_device {
 	struct ib_cm_id		*cm_id;
 	struct ib_device_attr	dev_attr;
 	int			srq_size;
+	bool			use_srq;
 	struct srpt_recv_ioctx	**ioctx_ring;
 	struct srpt_port	port[2];
 	struct ib_event_handler	event_handler;

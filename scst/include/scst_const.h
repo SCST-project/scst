@@ -292,7 +292,6 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 #define scst_sense_format_in_progress		NOT_READY,       0x04, 0x04
 #define scst_sense_tp_transitioning		NOT_READY,	 0x04, 0x0A
 #define scst_sense_tp_unav			NOT_READY,	 0x04, 0x0C
-#define scst_sense_not_ready			NOT_READY,       0x04, 0x10
 #define scst_sense_no_medium			NOT_READY,       0x3a, 0
 
 /* MEDIUM_ERROR is 3 */
@@ -300,7 +299,7 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 #define scst_sense_read_error			MEDIUM_ERROR,    0x11, 0
 
 /* HARDWARE_ERROR is 4 */
-#define scst_sense_hardw_error			HARDWARE_ERROR,  0x44, 0
+#define scst_sense_hardw_error			HARDWARE_ERROR,  0x44, 0 /* non-retriable */
 
 /* ILLEGAL_REQUEST is 5 */
 #define scst_sense_invalid_opcode		ILLEGAL_REQUEST, 0x20, 0
@@ -335,6 +334,7 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 
 /* ABORTED_COMMAND is 0xb */
 #define scst_sense_aborted_command		ABORTED_COMMAND, 0x00, 0
+#define scst_sense_internal_failure		ABORTED_COMMAND, 0x44, 0 /* retriable */
 
 /* MISCOMPARE is 0xe */
 #define scst_sense_miscompare_error		MISCOMPARE,      0x1D, 0

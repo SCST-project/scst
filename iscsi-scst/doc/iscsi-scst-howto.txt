@@ -21,7 +21,6 @@ the example below):
 
   cd /usr/src/kernels/linux-2.6.38.8
   patch -p1 < $HOME/scst/iscsi-scst/kernel/patches/put_page_callback-2.6.38.patch
-  patch -p1 < $HOME/scst/scst/kernel/scst_exec_req_fifo-2.6.38.patch
   make clean
 
 Next, build and install the kernel:

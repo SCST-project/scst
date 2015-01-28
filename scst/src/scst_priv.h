@@ -412,15 +412,6 @@ static inline int scst_exec_req(struct scsi_device *sdev,
 	    (void *)sgl, bufflen, nents, timeout, retries, privdata, done, gfp);
 #endif
 }
-#else /* i.e. LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30) */
-#if !defined(SCSI_EXEC_REQ_FIFO_DEFINED)
-static inline int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
-	void (*done)(void *data, char *sense, int result, int resid))
-{
-	WARN_ON_ONCE(1);
-	return -1;
-}
-#endif
 #endif
 
 int scst_alloc_space(struct scst_cmd *cmd);

@@ -141,7 +141,7 @@ help:
 all:
 	cd $(SCST_DIR) && $(MAKE) $@
 #	@if [ -d $(DOC_DIR) ]; then cd $(DOC_DIR) && $(MAKE) $@; fi
-	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
+	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; else if [ -d $(QLA_OLD_DIR) ]; then cd $(QLA_OLD_DIR) && $(MAKE) $@; fi fi
 #	@if [ -d $(QLA_OLD_DIR) ]; then cd $(QLA_OLD_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
@@ -152,7 +152,7 @@ all:
 install:
 	cd $(SCST_DIR) && $(MAKE) $@
 #	@if [ -d $(DOC_DIR) ]; then cd $(DOC_DIR) && $(MAKE) $@; fi
-	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
+	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; else if [ -d $(QLA_OLD_DIR) ]; then cd $(QLA_OLD_DIR) && $(MAKE) $@; fi fi
 #	@if [ -d $(QLA_OLD_DIR) ]; then cd $(QLA_OLD_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
@@ -163,7 +163,7 @@ install:
 uninstall:
 	cd $(SCST_DIR) && $(MAKE) $@
 #	@if [ -d $(DOC_DIR) ]; then cd $(DOC_DIR) && $(MAKE) $@; fi
-	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
+	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; else if [ -d $(QLA_OLD_DIR) ]; then cd $(QLA_OLD_DIR) && $(MAKE) $@; fi fi
 #	@if [ -d $(QLA_OLD_DIR) ]; then cd $(QLA_OLD_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
@@ -228,10 +228,10 @@ docs_extraclean:
 scstadm:
 	cd $(SCSTADM_DIR) && $(MAKE) all
 
-scstadm_install: 
+scstadm_install:
 	cd $(SCSTADM_DIR) && $(MAKE) install
 
-scstadm_uninstall: 
+scstadm_uninstall:
 	cd $(SCSTADM_DIR) && $(MAKE) uninstall
 
 scstadm_clean:
@@ -252,7 +252,7 @@ qla_install:
 qla_uninstall:
 	cd $(QLA_DIR) && $(MAKE) uninstall
 
-qla_clean: 
+qla_clean:
 	cd $(QLA_INI_DIR) && $(MAKE) clean
 	cd $(QLA_DIR) && $(MAKE) clean
 
@@ -284,7 +284,7 @@ iscsi_install:
 iscsi_uninstall:
 	cd $(ISCSI_DIR) && $(MAKE) uninstall
 
-iscsi_clean: 
+iscsi_clean:
 	cd $(ISCSI_DIR) && $(MAKE) clean
 
 iscsi_extraclean:
@@ -383,7 +383,13 @@ fcst_extraclean:
 scst-dist-gzip:
 	name=scst &&							\
 	mkdir $${name}-$(VERSION) &&					\
-	{ scripts/list-source-files | \
+	{ if [ -h qla2x00t ] || { mount | grep "on $$PWD/qla2x00t type"; }; \
+	  then								\
+	    scripts/list-source-files | grep -v ^qla2x00t/;		\
+	    find qla2x00t/ -type f;					\
+	  else								\
+	    scripts/list-source-files;					\
+	  fi | \
 	  grep -E '^doc/|^fcst/|^iscsi-scst/|^Makefile|^qla2x00t/|^scst.spec|^scst/|^scst_local/|^srpt/'|\
 	  tar -T- -cf- |						\
 	  tar -C $${name}-$(VERSION) -xf-; } &&				\
@@ -402,8 +408,9 @@ scst-rpm:
 	cp $${name}-$(VERSION).tar.bz2 $${rpmtopdir}/SOURCES &&		\
 	sed "s/@rpm_version@/$(VERSION)/g"				\
 		<$${name}.spec.in >$${name}.spec;			\
-	MAKE="$(MAKE)"							\
-	rpmbuild --define="%_topdir $${rpmtopdir}" -ba $${name}.spec &&	\
+	MAKE="$(MAKE)" rpmbuild --define="%_topdir $${rpmtopdir}"	\
+	    $(if $(KVER),--define="%kversion $(KVER)")			\
+	    -ba $${name}.spec &&					\
 	rm -f $${name}-$(VERSION).tar.bz2
 
 rpm:

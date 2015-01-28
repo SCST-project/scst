@@ -1547,6 +1547,8 @@ static int q2t_target_release(struct scst_tgt *scst_tgt)
 
 	q2t_target_stop(scst_tgt);
 
+	cancel_work_sync(&tgt->rscn_reg_work);
+
 	ha->q2t_tgt = NULL;
 	scst_tgt_set_tgt_priv(scst_tgt, NULL);
 
@@ -2409,8 +2411,8 @@ static void q2t_load_cont_data_segments(struct q2t_prm *prm)
 			*dword_ptr++ = cpu_to_le32(sg_dma_len(prm->sg));
 
 			TRACE_SG("S/G Segment Cont. phys_addr=%llx:%llx, len=%d",
-			      (long long unsigned int)pci_dma_hi32(dma_addr),
-			      (long long unsigned int)pci_dma_lo32(dma_addr),
+			      (unsigned long long int)pci_dma_hi32(dma_addr),
+			      (unsigned long long int)pci_dma_lo32(dma_addr),
 			      (int)sg_dma_len(prm->sg));
 
 			prm->sg = __sg_next_inline(prm->sg);
@@ -2470,8 +2472,8 @@ static void q2x_load_data_segments(struct q2t_prm *prm)
 		*dword_ptr++ = cpu_to_le32(sg_dma_len(prm->sg));
 
 		TRACE_SG("S/G Segment phys_addr=%llx:%llx, len=%d",
-		      (long long unsigned int)pci_dma_hi32(dma_addr),
-		      (long long unsigned int)pci_dma_lo32(dma_addr),
+		      (unsigned long long int)pci_dma_hi32(dma_addr),
+		      (unsigned long long int)pci_dma_lo32(dma_addr),
 		      (int)sg_dma_len(prm->sg));
 
 		prm->sg = __sg_next_inline(prm->sg);
@@ -2532,8 +2534,8 @@ static void q24_load_data_segments(struct q2t_prm *prm)
 		*dword_ptr++ = cpu_to_le32(sg_dma_len(prm->sg));
 
 		TRACE_SG("S/G Segment phys_addr=%llx:%llx, len=%d",
-		      (long long unsigned int)pci_dma_hi32(dma_addr),
-		      (long long unsigned int)pci_dma_lo32(dma_addr),
+		      (unsigned long long int)pci_dma_hi32(dma_addr),
+		      (unsigned long long int)pci_dma_lo32(dma_addr),
 		      (int)sg_dma_len(prm->sg));
 
 		prm->sg = __sg_next_inline(prm->sg);
@@ -2677,6 +2679,31 @@ out_unlock_free_unmap:
 	/* Release ring specific lock */
 	spin_unlock_irqrestore(&pha->hardware_lock, *flags);
 	goto out;
+}
+
+/*
+ * Convert sense buffer (byte array) to little endian format as required by
+ * qla24xx firmware.
+ */
+static void q24_copy_sense_buffer_to_ctio(ctio7_status1_entry_t *ctio,
+	uint8_t *sense_buf, unsigned int sense_buf_len)
+{
+	uint32_t *src = (void *)sense_buf;
+	uint32_t *end = (void *)sense_buf + sense_buf_len;
+	uint8_t *p;
+	__be32 *dst = (void *)ctio->sense_data;
+
+	/*
+	 * The sense buffer allocated by scst_alloc_sense() is zero-filled and
+	 * has a length that is a multiple of four. This means that it is safe
+	 * to access the bytes after the end of the sense buffer up to a
+	 * boundary that is a multiple of four.
+	 */
+	for (p = (uint8_t *)end; ((uintptr_t)p & 3) != 0; p++)
+		WARN_ONCE(*p != 0, "sense_buf[%zd] = %d\n", p - sense_buf, *p);
+
+	for ( ; src < end; src++)
+		*dst++ = cpu_to_be32(*src);
 }
 
 static inline int q2t_need_explicit_conf(scsi_qla_host_t *ha,
@@ -2914,7 +2941,6 @@ static void q24_init_ctio_ret_entry(ctio7_status0_entry_t *ctio,
 	ctio->residual = cpu_to_le32(prm->residual);
 	ctio->scsi_status = cpu_to_le16(prm->rq_result);
 	if (scst_sense_valid(prm->sense_buffer)) {
-		int i;
 		ctio1 = (ctio7_status1_entry_t *)ctio;
 		if (q2t_need_explicit_conf(prm->tgt->ha, prm->cmd, 1)) {
 			ctio1->flags |= cpu_to_le16(
@@ -2925,20 +2951,8 @@ static void q24_init_ctio_ret_entry(ctio7_status0_entry_t *ctio,
 		ctio1->flags |= cpu_to_le16(CTIO7_FLAGS_STATUS_MODE_1);
 		ctio1->scsi_status |= cpu_to_le16(SS_SENSE_LEN_VALID);
 		ctio1->sense_length = cpu_to_le16(prm->sense_buffer_len);
-		for (i = 0; i < prm->sense_buffer_len/4; i++)
-			((uint32_t *)ctio1->sense_data)[i] =
-				cpu_to_be32(((uint32_t *)prm->sense_buffer)[i]);
-#if 0
-		if (unlikely((prm->sense_buffer_len % 4) != 0)) {
-			static int q;
-			if (q < 10) {
-				PRINT_INFO("qla2x00t(%ld): %d bytes of sense "
-					"lost", prm->tgt->ha->instance,
-					prm->sense_buffer_len % 4);
-				q++;
-			}
-		}
-#endif
+		q24_copy_sense_buffer_to_ctio(ctio1, prm->sense_buffer,
+					      prm->sense_buffer_len);
 	} else {
 		ctio1 = (ctio7_status1_entry_t *)ctio;
 		ctio1->flags &= ~cpu_to_le16(CTIO7_FLAGS_STATUS_MODE_0);
@@ -4074,7 +4088,7 @@ static int q2t_handle_task_mgmt(scsi_qla_host_t *ha, void *iocb)
 
 	if (sess == NULL) {
 		TRACE_MGMT_DBG("qla2x00t(%ld): task mgmt fn 0x%x for "
-			"non-existant session", ha->instance, fn);
+			"non-existent session", ha->instance, fn);
 		res = q2t_sched_sess_work(tgt, Q2T_SESS_WORK_TM, iocb,
 			IS_FWI2_CAPABLE(ha) ? sizeof(atio7_entry_t) :
 					      sizeof(notify_entry_t));
@@ -4161,11 +4175,39 @@ out:
 	return res;
 }
 
+static void q2t_rscn_reg_work(struct work_struct *work)
+{
+	struct q2t_tgt *tgt = container_of(work, struct q2t_tgt, rscn_reg_work);
+	scsi_qla_host_t *ha = tgt->ha;
+	int ret;
+
+	TRACE_ENTRY();
+
+	if ((ha->host->active_mode & MODE_INITIATOR) == 0) {
+		/*
+		 * The QLogic firmware and qla2xxx do not register for RSCNs in
+		 * target-only mode, so do that explicitly.
+		 */
+		ret = qla2x00_send_change_request(ha, 0x3, ha->vp_idx);
+		if (ret != QLA_SUCCESS)
+			PRINT_INFO("qla2x00t(%ld): RSCN registration failed: "
+				"%#x (OK for non-fabric setups)",
+				ha->host_no, ret);
+		else
+			TRACE_MGMT_DBG("qla2x00t(%ld): RSCN registration succeeded",
+				ha->host_no);
+	}
+
+	TRACE_EXIT();
+	return;
+}
+
 /*
  * pha->hardware_lock supposed to be held on entry. Might drop it, then reacquire
  */
 static int q24_handle_els(scsi_qla_host_t *ha, notify24xx_entry_t *iocb)
 {
+	struct q2t_tgt *tgt = ha->tgt;
 	int res = 1; /* send notify ack */
 	struct q2t_sess *sess;
 	int loop_id;
@@ -4177,6 +4219,13 @@ static int q24_handle_els(scsi_qla_host_t *ha, notify24xx_entry_t *iocb)
 
 	switch (iocb->status_subcode) {
 	case ELS_PLOGI:
+		/*
+		 * HACK. Let's do it on PLOGI, because seems there is no other
+		 * simple place, from where it can be called. In the worst
+		 * case, we will just reinstall RSCNs once again, it's harmless.
+		 */
+		schedule_work(&tgt->rscn_reg_work);
+		break;
 	case ELS_FLOGI:
 	case ELS_PRLI:
 		break;
@@ -5297,7 +5346,7 @@ static void q2t_response_pkt(scsi_qla_host_t *ha, response_t *pkt)
 					 * command was sent between the abort request
 					 * was received and processed. Unfortunately,
 					 * the firmware has a silly requirement that
-					 * all aborted exchanges must be explicitely
+					 * all aborted exchanges must be explicitly
 					 * terminated, otherwise it refuses to send
 					 * responses for the abort requests. So, we
 					 * have to (re)terminate the exchange and
@@ -5405,11 +5454,11 @@ static void q2t_async_event(uint16_t code, scsi_qla_host_t *ha,
 	case MBA_RSP_TRANSFER_ERR:	/* Response Transfer Error */
 	case MBA_ATIO_TRANSFER_ERR:	/* ATIO Queue Transfer Error */
 		TRACE(TRACE_MGMT, "qla2x00t(%ld): System error async event %#x "
-			"occured", ha->instance, code);
+			"occurred", ha->instance, code);
 		break;
 
 	case MBA_LOOP_UP:
-		TRACE(TRACE_MGMT, "qla2x00t(%ld): Loop up occured",
+		TRACE(TRACE_MGMT, "qla2x00t(%ld): Loop up occurred",
 			ha->instance);
 		if (tgt->link_reinit_iocb_pending) {
 			q24_send_notify_ack(ha, &tgt->link_reinit_iocb, 0, 0, 0);
@@ -5418,28 +5467,28 @@ static void q2t_async_event(uint16_t code, scsi_qla_host_t *ha,
 		break;
 
 	case MBA_LIP_OCCURRED:
-		TRACE(TRACE_MGMT, "qla2x00t(%ld): LIP occured", ha->instance);
+		TRACE(TRACE_MGMT, "qla2x00t(%ld): LIP occurred", ha->instance);
 		break;
 
 	case MBA_LOOP_DOWN:
-		TRACE(TRACE_MGMT, "qla2x00t(%ld): Loop down occured",
+		TRACE(TRACE_MGMT, "qla2x00t(%ld): Loop down occurred",
 			ha->instance);
 		break;
 
 	case MBA_LIP_RESET:
-		TRACE(TRACE_MGMT, "qla2x00t(%ld): LIP reset occured",
+		TRACE(TRACE_MGMT, "qla2x00t(%ld): LIP reset occurred",
 			ha->instance);
 		break;
 
 	case MBA_PORT_UPDATE:
 	case MBA_RSCN_UPDATE:
 		TRACE_MGMT_DBG("qla2x00t(%ld): Port update async event %#x "
-			"occured", ha->instance, code);
+			"occurred", ha->instance, code);
 		/* .mark_all_devices_lost() is handled by the initiator driver */
 		break;
 
 	default:
-		TRACE(TRACE_MGMT, "qla2x00t(%ld): Async event %#x occured: "
+		TRACE(TRACE_MGMT, "qla2x00t(%ld): Async event %#x occurred: "
 			"ignoring (m[1]=%x, m[2]=%x, m[3]=%x, m[4]=%x)",
 			ha->instance, code,
 			le16_to_cpu(mailbox[1]), le16_to_cpu(mailbox[2]),
@@ -5823,8 +5872,10 @@ static void q2t_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd)
 
 		q2t_cleanup_hw_pending_cmd(ha, cmd);
 
-		scst_rx_data(scst_cmd, SCST_RX_STATUS_ERROR_FATAL,
-				SCST_CONTEXT_THREAD);
+		/* It might be sporadic, hence retriable */
+		scst_set_cmd_error(scst_cmd,
+				SCST_LOAD_SENSE(scst_sense_internal_failure));
+		scst_rx_data(scst_cmd, SCST_RX_STATUS_ERROR_SENSE_SET, SCST_CONTEXT_THREAD);
 		goto out_unlock;
 	} else if (cmd->state == Q2T_STATE_ABORTED) {
 		TRACE_MGMT_DBG("Force finishing aborted cmd %p (tag %d)",
@@ -5872,6 +5923,7 @@ static int q2t_add_target(scsi_qla_host_t *ha)
 
 	tgt->ha = ha;
 	init_waitqueue_head(&tgt->waitQ);
+	INIT_WORK(&tgt->rscn_reg_work, q2t_rscn_reg_work);
 	INIT_LIST_HEAD(&tgt->sess_list);
 	INIT_LIST_HEAD(&tgt->del_sess_list);
 	INIT_DELAYED_WORK(&tgt->sess_del_work, q2t_del_sess_work_fn);

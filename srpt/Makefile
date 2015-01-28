@@ -43,7 +43,7 @@ SRC_FILES=$(wildcard */*.[ch])
 
 # The file Modules.symvers has been renamed in the 2.6.18 kernel to
 # Module.symvers. Find out which name to use by looking in $(KDIR).
-MODULE_SYMVERS:=$(shell if [ -e $(KDIR)/Module.symvers ]; then \
+MODULE_SYMVERS:=$(shell if [ -e "$(KDIR)/Module.symvers" ]; then \
 		       echo Module.symvers; else echo Modules.symvers; fi)
 
 # Name of the OFED kernel RPM.
@@ -52,7 +52,7 @@ OFED_KERNEL_IB_RPM:=$(shell for r in mlnx-ofa_kernel compat-rdma kernel-ib; do r
 # Name of the OFED kernel development RPM.
 OFED_KERNEL_IB_DEVEL_RPM:=$(shell for r in mlnx-ofa_kernel-devel compat-rdma-devel kernel-ib-devel; do rpm -q $$r 2>/dev/null | grep -q "^$$r" && echo $$r && break; done)
 
-OFED_FLAVOR=$(shell /usr/bin/ofed_info 2>/dev/null | head -n1 | sed -n 's/^MLNX_OFED.*/MOFED/p;s/^OFED-.*/OFED/p')
+OFED_FLAVOR=$(shell /usr/bin/ofed_info 2>/dev/null | head -n1 | sed -n 's/^\(MLNX_OFED\|OFED-internal\).*/MOFED/p;s/^OFED-.*/OFED/p')
 
 ifneq ($(OFED_KERNEL_IB_RPM),)
 ifeq ($(OFED_KERNEL_IB_RPM),compat-rdma)

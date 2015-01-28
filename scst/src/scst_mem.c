@@ -350,7 +350,7 @@ out_unlock_put:
 	goto out;
 }
 
-static unsigned long __sgv_can_be_shrinked(void)
+static unsigned long __sgv_can_be_shrunk(void)
 {
 	unsigned long res;
 	struct sgv_pool *pool;
@@ -374,10 +374,10 @@ static unsigned long __sgv_can_be_shrinked(void)
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
-static unsigned long sgv_can_be_shrinked(struct shrinker *shrinker,
+static unsigned long sgv_can_be_shrunk(struct shrinker *shrinker,
 					 struct shrink_control *sc)
 {
-	return __sgv_can_be_shrinked();
+	return __sgv_can_be_shrunk();
 }
 
 static unsigned long sgv_scan_shrink(struct shrinker *shrinker,
@@ -413,7 +413,7 @@ static int sgv_shrink(struct shrinker *shrinker, struct shrink_control *sc)
 		nr = __sgv_shrink(nr, SGV_MIN_SHRINK_INTERVAL, &freed);
 		TRACE_MEM("Left %d", nr);
 	} else
-		nr = __sgv_can_be_shrinked();
+		nr = __sgv_can_be_shrunk();
 
 	TRACE_EXIT_RES(nr);
 	return nr;
@@ -1809,7 +1809,7 @@ int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark)
 	sgv_shrinker = set_shrinker(DEFAULT_SEEKS, sgv_shrink);
 #else
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
-	sgv_shrinker.count_objects = sgv_can_be_shrinked;
+	sgv_shrinker.count_objects = sgv_can_be_shrunk;
 	sgv_shrinker.scan_objects = sgv_scan_shrink;
 #else
 	sgv_shrinker.shrink = sgv_shrink;

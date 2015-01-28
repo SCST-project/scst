@@ -8,7 +8,7 @@ RTFS = $(SRCS:.sgml=.rtf)
 
 COMMAND=linuxdoc --backend=
 
-all: txt pdf html
+all: pdf html
 
 txt: $(TXTS)
 

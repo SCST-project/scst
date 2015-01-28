@@ -935,7 +935,7 @@ Each vdisk_fileio's device has the following attributes in
    reported in the SCSI device identification VPD page. If eui64_id has
    been set the value of this attribute is reported as the EUI-64 ID. The
    first three bytes of an EUI-64 ID are a so-called organizationally
-   unique identifier (OUI). The remaining bytes may be choosen by the
+   unique identifier (OUI). The remaining bytes may be chosen by the
    organization that owns the OUI. For more information about OUIs, see
    also http://standards.ieee.org/develop/regauth/oui/public.html.
 

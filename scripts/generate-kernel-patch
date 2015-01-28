@@ -107,16 +107,16 @@ EOF
 # passed via stdin and send the specialized patch to stdout.
 function specialize_patch {
   if [ "${enable_specialize}" = "true" ]; then
+    if [ "${generating_upstream_patch}" = "true" ]; then
+      scripts/filter-trace-entry-exit
+    else
+      cat
+    fi |
     "$(dirname $0)/specialize-patch" \
          ${specialize_patch_options} \
          -v kernel_version="${kver3}" \
          -v SCSI_EXEC_REQ_FIFO_DEFINED="${scsi_exec_req_fifo_defined}" \
-         -v SCST_IO_CONTEXT="${scst_io_context}" \
-    | if [ "${generating_upstream_patch}" = "true" ]; then
-        scripts/filter-trace-entry-exit
-      else
-        cat
-      fi
+         -v SCST_IO_CONTEXT="${scst_io_context}"
   else
     cat
   fi
@@ -282,6 +282,7 @@ for p in scst/kernel/*-${kver}.patch \
 		echo iscsi-scst/kernel/patches/*-${kver}.patch;
 	   fi)
 do
+  [ -e "$p" ] || continue
   # Exclude the put_page_callback patch when command-line option -u has been
   # specified since the current approach is not considered acceptable for
   # upstream kernel inclusion. See also http://lkml.org/lkml/2008/12/11/213.
@@ -309,7 +310,7 @@ scst_07_pres="scst/src/scst_pres.h scst/src/scst_pres.c"
 scst_08_sysfs="scst/src/scst_sysfs.c"
 scst_09_debug="scst/include/scst_debug.h scst/src/scst_debug.c"
 scst_proc="scst/src/scst_proc.c"
-scst_10_sgv="scst/include/scst_sgv.h scst/src/scst_mem.h scst/src/scst_mem.c doc/sgv_cache.sgml"
+scst_10_sgv="scst/include/scst_sgv.h scst/src/scst_mem.h scst/src/scst_mem.c doc/scst_pg.sgml"
 scst_user="scst/include/scst_user.h scst/src/dev_handlers/scst_user.c"
 scst_13_vdisk="scst/src/dev_handlers/scst_vdisk.c"
 scst_14_tg="scst/src/scst_tg.c"

@@ -184,7 +184,7 @@ struct scst_vdisk_dev {
 	uint64_t format_progress_to_do, format_progress_done;
 
 	int virt_id;
-	char name[16+1];	/* Name of the virtual device,
+	char name[64+1];	/* Name of the virtual device,
 				   must be <= SCSI Model + 1 */
 	char *filename;		/* File name, protected by
 				   scst_mutex and suspended activities */
@@ -1387,8 +1387,8 @@ static int vdisk_attach(struct scst_device *dev)
 		      (dev->type == TYPE_DISK) ? "disk" : "cdrom",
 		      virt_dev->name, vdev_get_filename(virt_dev),
 		      virt_dev->file_size >> 20, dev->block_size,
-		      (long long unsigned int)virt_dev->nblocks,
-		      (long long unsigned int)virt_dev->nblocks/64/32,
+		      (unsigned long long int)virt_dev->nblocks,
+		      (unsigned long long int)virt_dev->nblocks/64/32,
 		      virt_dev->nblocks < 64*32
 		      ? " !WARNING! cyln less than 1" : "");
 	} else {
@@ -1541,8 +1541,8 @@ static enum compl_status_e vdisk_synchronize_cache(struct vdisk_cmd_params *p)
 
 	TRACE(TRACE_ORDER, "SYNCHRONIZE_CACHE: "
 	      "loff=%lld, data_len=%lld, immed=%d",
-	      (long long unsigned int)loff,
-	      (long long unsigned int)data_len, immed);
+	      (unsigned long long int)loff,
+	      (unsigned long long int)data_len, immed);
 
 	if (data_len == 0) {
 		struct scst_vdisk_dev *virt_dev = dev->dh_priv;
@@ -2326,9 +2326,9 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 
 	loff = (loff_t)lba_start << dev->block_shift;
 	TRACE_DBG("cmd %p, lba_start %lld, loff %lld, data_len %lld", cmd,
-		  (long long unsigned int)lba_start,
-		  (long long unsigned int)loff,
-		  (long long unsigned int)data_len);
+		  (unsigned long long int)lba_start,
+		  (unsigned long long int)loff,
+		  (unsigned long long int)data_len);
 
 	EXTRACHECKS_BUG_ON((loff < 0) || unlikely(data_len < 0));
 
@@ -2340,9 +2340,9 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 		} else {
 			PRINT_INFO("Access beyond the end of device %s "
 				"(%lld of %lld, data len %lld)", virt_dev->name,
-				(long long unsigned int)loff,
-				(long long unsigned int)virt_dev->file_size,
-				(long long unsigned int)data_len);
+				(unsigned long long int)loff,
+				(unsigned long long int)virt_dev->file_size,
+				(unsigned long long int)data_len);
 			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
 					scst_sense_block_out_range_error));
 		}
@@ -2358,8 +2358,8 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 		fua = (cdb[1] & 0x8);
 		if (fua) {
 			TRACE(TRACE_ORDER, "FUA: loff=%lld, "
-				"data_len=%lld", (long long unsigned int)loff,
-				(long long unsigned int)data_len);
+				"data_len=%lld", (unsigned long long int)loff,
+				(unsigned long long int)data_len);
 		}
 		break;
 	}
@@ -2777,7 +2777,8 @@ static int fileio_alloc_data_buf(struct scst_cmd *cmd)
 	 * copy.
 	 */
 	if (cmd->tgt_i_data_buf_alloced ||
-	    (cmd->data_direction & SCST_DATA_READ) == 0) {
+	    (cmd->data_direction & SCST_DATA_READ) == 0 ||
+	    (virt_dev->fd && !virt_dev->fd->f_mapping->a_ops->readpage)) {
 		p->use_zero_copy = false;
 	}
 	if (!p->use_zero_copy)
@@ -3119,7 +3120,7 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 #endif
 	} else {
 		loff_t off = start_lba << cmd->dev->block_shift;
-		loff_t len = blocks << cmd->dev->block_shift;
+		loff_t len = (u64)blocks << cmd->dev->block_shift;
 
 		res = vdisk_unmap_file_range(cmd, virt_dev, off, len, fd);
 		if (unlikely(res != 0))
@@ -3847,16 +3848,21 @@ static int vdisk_format_pg(unsigned char *p, int pcontrol,
 
 static int vdisk_caching_pg(unsigned char *p, int pcontrol,
 			     struct scst_vdisk_dev *virt_dev)
-{	/* Caching page for mode_sense */
-	unsigned char caching_pg[] = {0x8, 0x12, 0x0, 0, 0, 0, 0, 0,
-		0, 0, 0, 0, 0x80, 0x14, 0, 0, 0, 0, 0, 0};
+{
+	/* Caching page for mode_sense */
+	static const unsigned char caching_pg[] = {
+		0x8, 0x12, 0x0, 0, 0, 0, 0, 0,
+		0, 0, 0, 0, 0x80, 0x14, 0, 0,
+		0, 0, 0, 0
+	};
+
+	memcpy(p, caching_pg, sizeof(caching_pg));
 
 	if (!virt_dev->nv_cache && vdev_saved_mode_pages_enabled)
-		caching_pg[0] |= 0x80;
+		p[0] |= 0x80;
 
 	switch (pcontrol) {
 	case 0: /* current */
-		memcpy(p, caching_pg, sizeof(caching_pg));
 		p[2] |= (virt_dev->wt_flag || virt_dev->nv_cache) ? 0 : WCE;
 		break;
 	case 1: /* changeable */
@@ -3865,11 +3871,9 @@ static int vdisk_caching_pg(unsigned char *p, int pcontrol,
 			p[2] |= WCE;
 		break;
 	case 2: /* default */
-		memcpy(p, caching_pg, sizeof(caching_pg));
 		p[2] |= (DEF_WRITE_THROUGH || virt_dev->nv_cache) ? 0 : WCE;
 		break;
 	case 3: /* saved */
-		memcpy(p, caching_pg, sizeof(caching_pg));
 		p[2] |= (virt_dev->wt_flag_saved || virt_dev->nv_cache) ? 0 : WCE;
 		break;
 	default:
@@ -4923,7 +4927,7 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 	if (unlikely(length < 0)) {
 		PRINT_ERROR("scst_get_buf_first() failed: %zd", length);
 		scst_set_cmd_error(cmd,
-		    SCST_LOAD_SENSE(scst_sense_hardw_error));
+		    SCST_LOAD_SENSE(scst_sense_internal_failure));
 		goto out;
 	}
 
@@ -4952,7 +4956,7 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 		} else if (unlikely(length < 0)) {
 			PRINT_ERROR("scst_get_buf_next() failed: %zd", length);
 			scst_set_cmd_error(cmd,
-			    SCST_LOAD_SENSE(scst_sense_hardw_error));
+			    SCST_LOAD_SENSE(scst_sense_internal_failure));
 			goto out_set_fs;
 		}
 
@@ -4964,7 +4968,7 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 
 		if ((err < 0) || (err < full_len)) {
 			PRINT_ERROR("readv() returned %lld from %zd",
-				    (long long unsigned int)err,
+				    (unsigned long long int)err,
 				    full_len);
 			if (err == -EAGAIN)
 				scst_set_busy(cmd);
@@ -5046,7 +5050,7 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 	if (unlikely(length < 0)) {
 		PRINT_ERROR("scst_get_buf_first() failed: %zd", length);
 		scst_set_cmd_error(cmd,
-		    SCST_LOAD_SENSE(scst_sense_hardw_error));
+		    SCST_LOAD_SENSE(scst_sense_internal_failure));
 		goto out;
 	}
 
@@ -5074,7 +5078,7 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 		} else if (unlikely(length < 0)) {
 			PRINT_ERROR("scst_get_buf_next() failed: %zd", length);
 			scst_set_cmd_error(cmd,
-			    SCST_LOAD_SENSE(scst_sense_hardw_error));
+			    SCST_LOAD_SENSE(scst_sense_internal_failure));
 			goto out_set_fs;
 		}
 
@@ -5089,7 +5093,7 @@ restart:
 
 		if (err < 0) {
 			PRINT_ERROR("write() returned %lld from %zd",
-				    (long long unsigned int)err,
+				    (unsigned long long int)err,
 				    full_len);
 			if (err == -EAGAIN)
 				scst_set_busy(cmd);
@@ -5319,15 +5323,18 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 
 	/* Allocate and initialize blockio_work struct */
 	blockio_work = kmem_cache_alloc(blockio_work_cachep, gfp_mask);
-	if (blockio_work == NULL)
-		goto out_no_mem;
+	if (blockio_work == NULL) {
+		scst_set_busy(cmd);
+		goto finish_cmd;
+	}
 
 #if 0
 	{
 		static int err_inj_cntr;
 		if (++err_inj_cntr % 256 == 0) {
 			PRINT_INFO("blockio_exec_rw() error injection");
-			goto out_no_bio;
+			scst_set_busy(cmd);
+			goto free_bio;
 		}
 	}
 #endif
@@ -5345,6 +5352,18 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 	need_new_bio = 1;
 
 	length = scst_get_sg_page_first(cmd, &page, &offset);
+	/*
+	 * bv_len and bv_offset must be a multiple of 512 (SECTOR_SIZE), so
+	 * check this here.
+	 */
+	if (WARN_ONCE((length & 511) != 0 || (offset & 511) != 0,
+		      "Refused bio with invalid length %d and/or offset %d.\n",
+		      length, offset)) {
+		scst_set_cmd_error(cmd,
+				   SCST_LOAD_SENSE(scst_sense_hardw_error));
+		goto free_bio;
+	}
+
 	while (length > 0) {
 		int len, bytes, off, thislen;
 		struct page *pg;
@@ -5370,7 +5389,8 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 					PRINT_ERROR("Failed to create bio "
 						"for data segment %d (cmd %p)",
 						cmd->get_sg_buf_entry_num, cmd);
-					goto out_no_bio;
+					scst_set_busy(cmd);
+					goto free_bio;
 				}
 
 				bios++;
@@ -5457,7 +5477,7 @@ out:
 	TRACE_EXIT();
 	return;
 
-out_no_bio:
+free_bio:
 	while (hbio) {
 		bio = hbio;
 		hbio = hbio->bi_next;
@@ -5465,8 +5485,7 @@ out_no_bio:
 	}
 	kmem_cache_free(blockio_work_cachep, blockio_work);
 
-out_no_mem:
-	scst_set_busy(cmd);
+finish_cmd:
 	cmd->completed = 1;
 	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
 	goto out;
@@ -5703,17 +5722,7 @@ static ssize_t fileio_read_sync(struct file *fd, void *buf, size_t len,
 
 	old_fs = get_fs();
 	set_fs(get_ds());
-
-	if (fd->f_op->llseek)
-		ret = fd->f_op->llseek(fd, *loff, 0/*SEEK_SET*/);
-	else
-		ret = default_llseek(fd, *loff, 0/*SEEK_SET*/);
-	if (ret < 0)
-		goto out;
-
 	ret = vfs_read(fd, (char __force __user *)buf, len, loff);
-
-out:
 	set_fs(old_fs);
 
 	return ret;
@@ -5728,17 +5737,7 @@ static ssize_t fileio_write_sync(struct file *fd, void *buf, size_t len,
 
 	old_fs = get_fs();
 	set_fs(get_ds());
-
-	if (fd->f_op->llseek)
-		ret = fd->f_op->llseek(fd, *loff, 0/*SEEK_SET*/);
-	else
-		ret = default_llseek(fd, *loff, 0/*SEEK_SET*/);
-	if (ret < 0)
-		goto out;
-
 	ret = vfs_write(fd, (char __force __user *)buf, len, loff);
-
-out:
 	set_fs(old_fs);
 
 	return ret;
@@ -5837,7 +5836,7 @@ static enum compl_status_e vdev_exec_verify(struct vdisk_cmd_params *p)
 		err = vdev_read_sync(virt_dev, mem_verify, len_mem, &loff);
 		if ((err < 0) || (err < len_mem)) {
 			PRINT_ERROR("verify() returned %lld from %zd",
-				    (long long unsigned int)err, len_mem);
+				    (unsigned long long int)err, len_mem);
 			if (err == -EAGAIN)
 				scst_set_busy(cmd);
 			else {
@@ -5868,7 +5867,7 @@ static enum compl_status_e vdev_exec_verify(struct vdisk_cmd_params *p)
 	if (length < 0) {
 		PRINT_ERROR("scst_get_buf_() failed: %zd", length);
 		scst_set_cmd_error(cmd,
-		    SCST_LOAD_SENSE(scst_sense_hardw_error));
+		    SCST_LOAD_SENSE(scst_sense_internal_failure));
 	}
 
 out_free:
@@ -5926,7 +5925,7 @@ static enum compl_status_e vdisk_exec_caw(struct vdisk_cmd_params *p)
 			scst_set_busy(cmd);
 		else
 			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_hardw_error));
+				SCST_LOAD_SENSE(scst_sense_internal_failure));
 		goto out;
 	}
 
@@ -6067,64 +6066,69 @@ static void vdisk_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd,
 
 static void vdisk_report_registering(const struct scst_vdisk_dev *virt_dev)
 {
-	char buf[128];
+	enum { buf_size = 256 };
+	char *buf = kmalloc(buf_size, GFP_KERNEL);
 	int i, j;
 
-	i = snprintf(buf, sizeof(buf), "Registering virtual %s device %s ",
+	if (!buf) {
+		PRINT_ERROR("%s: out of memory", __func__);
+		return;
+	}
+
+	i = snprintf(buf, buf_size, "Registering virtual %s device %s ",
 		virt_dev->vdev_devt->name, virt_dev->name);
 	j = i;
 
 	if (virt_dev->wt_flag)
-		i += snprintf(&buf[i], sizeof(buf) - i, "(WRITE_THROUGH");
+		i += snprintf(&buf[i], buf_size - i, "(WRITE_THROUGH");
 
 	if (virt_dev->nv_cache)
-		i += snprintf(&buf[i], sizeof(buf) - i, "%sNV_CACHE",
+		i += snprintf(&buf[i], buf_size - i, "%sNV_CACHE",
 			(j == i) ? "(" : ", ");
 
 	if (virt_dev->rd_only)
-		i += snprintf(&buf[i], sizeof(buf) - i, "%sREAD_ONLY",
+		i += snprintf(&buf[i], buf_size - i, "%sREAD_ONLY",
 			(j == i) ? "(" : ", ");
 
 	if (virt_dev->o_direct_flag)
-		i += snprintf(&buf[i], sizeof(buf) - i, "%sO_DIRECT",
+		i += snprintf(&buf[i], buf_size - i, "%sO_DIRECT",
 			(j == i) ? "(" : ", ");
 
 	if (virt_dev->nullio)
-		i += snprintf(&buf[i], sizeof(buf) - i, "%sNULLIO",
+		i += snprintf(&buf[i], buf_size - i, "%sNULLIO",
 			(j == i) ? "(" : ", ");
 
 	if (virt_dev->blockio)
-		i += snprintf(&buf[i], sizeof(buf) - i, "%sBLOCKIO",
+		i += snprintf(&buf[i], buf_size - i, "%sBLOCKIO",
 			(j == i) ? "(" : ", ");
 
 	if (virt_dev->removable)
-		i += snprintf(&buf[i], sizeof(buf) - i, "%sREMOVABLE",
+		i += snprintf(&buf[i], buf_size - i, "%sREMOVABLE",
 			(j == i) ? "(" : ", ");
 
 	if (virt_dev->tst != DEF_TST)
-		i += snprintf(&buf[i], sizeof(buf) - i, "%sTST %d",
+		i += snprintf(&buf[i], buf_size - i, "%sTST %d",
 			(j == i) ? "(" : ", ", virt_dev->tst);
 
 	if (virt_dev->rotational)
-		i += snprintf(&buf[i], sizeof(buf) - i, "%sROTATIONAL",
+		i += snprintf(&buf[i], buf_size - i, "%sROTATIONAL",
 			(j == i) ? "(" : ", ");
 
 	if (virt_dev->thin_provisioned)
-		i += snprintf(&buf[i], sizeof(buf) - i, "%sTHIN_PROVISIONED",
+		i += snprintf(&buf[i], buf_size - i, "%sTHIN_PROVISIONED",
 			(j == i) ? "(" : ", ");
 
 	if (virt_dev->zero_copy)
-		i += snprintf(&buf[i], sizeof(buf) - i, "%sZERO_COPY",
+		i += snprintf(&buf[i], buf_size - i, "%sZERO_COPY",
 			(j == i) ? "(" : ", ");
 
 	if (virt_dev->dummy)
-		i += snprintf(&buf[i], sizeof(buf) - i, "%sDUMMY",
+		i += snprintf(&buf[i], buf_size - i, "%sDUMMY",
 			(j == i) ? "(" : ", ");
 
-	if (j == i)
-		PRINT_INFO("%s", buf);
-	else
-		PRINT_INFO("%s)", buf);
+	PRINT_INFO("%s%s", buf, j == i ? "" : ")");
+
+	kfree(buf);
 
 	return;
 }
@@ -6159,8 +6163,8 @@ static int vdisk_resync_size(struct scst_vdisk_dev *virt_dev)
 		"(fs=%lldMB, bs=%d, nblocks=%lld, cyln=%lld%s)",
 		virt_dev->name, virt_dev->file_size >> 20,
 		virt_dev->dev->block_size,
-		(long long unsigned int)virt_dev->nblocks,
-		(long long unsigned int)virt_dev->nblocks/64/32,
+		(unsigned long long int)virt_dev->nblocks,
+		(unsigned long long int)virt_dev->nblocks/64/32,
 		virt_dev->nblocks < 64*32 ? " !WARNING! cyln less "
 						"than 1" : "");
 
@@ -6959,8 +6963,8 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 			" cyln=%lld%s)", virt_dev->name,
 			vdev_get_filename(virt_dev),
 			virt_dev->file_size >> 20, virt_dev->dev->block_size,
-			(long long unsigned int)virt_dev->nblocks,
-			(long long unsigned int)virt_dev->nblocks/64/32,
+			(unsigned long long int)virt_dev->nblocks,
+			(unsigned long long int)virt_dev->nblocks/64/32,
 			virt_dev->nblocks < 64*32 ? " !WARNING! cyln less "
 							"than 1" : "");
 	} else {
@@ -8033,7 +8037,7 @@ static ssize_t vdev_sysfs_naa_id_store(struct kobject *kobj,
 	switch (c) {
 	case 0:
 	case 2 * 8:
-		if (strchr("1235cCdDeEfF", buf[0]))
+		if (strchr("235", buf[0]))
 			break;
 		else
 			goto out;

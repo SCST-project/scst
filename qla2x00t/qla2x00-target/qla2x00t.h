@@ -141,7 +141,9 @@ struct q2t_tgt {
 	 */
 	unsigned long tgt_stop; /* the driver is being stopped */
 
-	/* Count of sessions refering q2t_tgt. Protected by hardware_lock. */
+	struct work_struct rscn_reg_work;
+
+	/* Count of sessions referring q2t_tgt. Protected by hardware_lock. */
 	int sess_count;
 
 	/*
@@ -177,7 +179,7 @@ struct q2t_tgt {
 };
 
 /*
- * Equivilant to IT Nexus (Initiator-Target)
+ * Equivalent to IT Nexus (Initiator-Target)
  */
 struct q2t_sess {
 	uint16_t loop_id;

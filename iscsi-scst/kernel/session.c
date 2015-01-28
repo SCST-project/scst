@@ -374,7 +374,7 @@ int __del_session(struct iscsi_target *target, u64 sid)
 
 	if (!list_empty(&session->conn_list)) {
 		PRINT_ERROR("%llx still have connections",
-			    (long long unsigned int)session->sid);
+			    (unsigned long long int)session->sid);
 		return -EBUSY;
 	}
 
@@ -391,7 +391,7 @@ void iscsi_sess_force_close(struct iscsi_session *sess)
 	lockdep_assert_held(&sess->target->target_mutex);
 
 	PRINT_INFO("Deleting session %llx with initiator %s (%p)",
-		(long long unsigned int)sess->sid, sess->initiator_name, sess);
+		(unsigned long long int)sess->sid, sess->initiator_name, sess);
 
 	list_for_each_entry(conn, &sess->conn_list, conn_list_entry) {
 		TRACE_MGMT_DBG("Deleting connection with initiator %p", conn);
@@ -415,7 +415,7 @@ static void iscsi_session_info_show(struct seq_file *seq,
 	list_for_each_entry(session, &target->session_list,
 			    session_list_entry) {
 		seq_printf(seq, "\tsid:%llx initiator:%s (reinstating %s)\n",
-			(long long unsigned int)session->sid,
+			(unsigned long long int)session->sid,
 			session->initiator_name,
 			session->sess_reinstating ? "yes" : "no");
 		conn_info_show(seq, session);

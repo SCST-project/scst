@@ -176,7 +176,7 @@ SCST_C_TGRP_TGT_SETATTR_FAIL => 172,
 };
 
 my %VERBOSE_ERROR = (
-(SCST_C_FATAL_ERROR)          => 'A fatal error occured. See "dmesg" for more information.',
+(SCST_C_FATAL_ERROR)          => 'A fatal error occurred. See "dmesg" for more information.',
 (SCST_C_BAD_ATTRIBUTES)       => 'Bad attributes given for SCST.',
 (SCST_C_ATTRIBUTE_STATIC)     => 'SCST attribute specified is static',
 (SCST_C_SETATTR_FAIL)         => 'Failed to set a SCST attribute. See "dmesg" for more information.',

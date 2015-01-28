@@ -232,7 +232,7 @@ qla2x00_mailbox_command(scsi_qla_host_t *pvha, mbx_cmd_t *mcp)
 			DEBUG2_3_11(printk("%s(%ld): timeout schedule "
 			    "isp_abort_needed.\n", __func__, ha->host_no));
 			qla_printk(KERN_WARNING, ha,
-			    "Mailbox command timeout occured. Scheduling ISP "
+			    "Mailbox command timeout occurred. Scheduling ISP "
 			    "abort.\n");
 			set_bit(ISP_ABORT_NEEDED, &ha->dpc_flags);
 			qla2xxx_wake_dpc(ha);
@@ -243,7 +243,7 @@ qla2x00_mailbox_command(scsi_qla_host_t *pvha, mbx_cmd_t *mcp)
 			DEBUG2_3_11(printk("%s(%ld): timeout calling "
 			    "abort_isp\n", __func__, ha->host_no));
 			qla_printk(KERN_WARNING, ha,
-			    "Mailbox command timeout occured. Issuing ISP "
+			    "Mailbox command timeout occurred. Issuing ISP "
 			    "abort.\n");
 
 			set_bit(ABORT_ISP_ACTIVE, &ha->dpc_flags);
@@ -3035,9 +3035,9 @@ qla2x00_send_change_request(scsi_qla_host_t *ha, uint16_t format,
 
 	/*
 	 * This command is implicitly executed by firmware during login for the
-	 * physical hosts
+	 * physical hosts if initiator mode is enabled.
 	 */
-	if (vp_idx == 0)
+	if (vp_idx == 0 && (ha->host->active_mode & MODE_INITIATOR))
 		return QLA_FUNCTION_FAILED;
 
 	mcp->mb[0] = MBC_SEND_CHANGE_REQUEST;
@@ -3058,6 +3058,7 @@ qla2x00_send_change_request(scsi_qla_host_t *ha, uint16_t format,
 
 	return rval;
 }
+EXPORT_SYMBOL(qla2x00_send_change_request);
 
 int
 qla2x00_dump_ram(scsi_qla_host_t *ha, dma_addr_t req_dma, uint32_t addr,

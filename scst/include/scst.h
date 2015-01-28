@@ -128,6 +128,14 @@ char *kvasprintf(gfp_t gfp, const char *fmt, va_list ap);
 #define nr_cpu_ids NR_CPUS
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
+/*
+ * See also patch "fix abuses of ptrdiff_t" (commit ID
+ * 142956af525002c5378e7d91d81a01189841a785).
+ */
+typedef unsigned long uintptr_t;
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
 #define cpumask_bits(maskp) ((maskp)->bits)
 #ifdef CONFIG_CPUMASK_OFFSTACK
@@ -1404,7 +1412,7 @@ struct scst_dev_type {
 	int (*dev_done)(struct scst_cmd *cmd);
 
 	/*
-	 * Called to notify dev hander that the command is about to be freed.
+	 * Called to notify dev handler that the command is about to be freed.
 	 *
 	 * Could be called on IRQ context.
 	 *
@@ -2505,7 +2513,7 @@ struct scst_device {
 
 	/*
 	 * Set, if this device is being unregistered. Useful to let sysfs
-	 * attributes know when they should exit immediatelly to prevent
+	 * attributes know when they should exit immediately to prevent
 	 * possible deadlocks with their device unregistration waiting for
 	 * their kobj last put.
 	 */
@@ -4373,9 +4381,12 @@ static inline int cancel_delayed_work_sync(struct delayed_work *work)
 #endif
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29) && defined(CONFIG_LOCKDEP)
+extern struct lockdep_map scst_suspend_dep_map;
+#endif
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32) && \
 	defined(CONFIG_DEBUG_LOCK_ALLOC)
-extern struct lockdep_map scst_suspend_dep_map;
 #define scst_assert_activity_suspended()		\
 	WARN_ON(debug_locks && !lock_is_held(&scst_suspend_dep_map))
 #else
@@ -4848,7 +4859,7 @@ void scst_init_threads(struct scst_cmd_threads *cmd_threads);
 void scst_deinit_threads(struct scst_cmd_threads *cmd_threads);
 
 void scst_pass_through_cmd_done(void *data, char *sense, int result, int resid);
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && defined(SCSI_EXEC_REQ_FIFO_DEFINED)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	void (*done)(void *data, char *sense, int result, int resid));
 #endif

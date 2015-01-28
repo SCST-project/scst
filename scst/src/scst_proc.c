@@ -2546,7 +2546,7 @@ static int scst_groups_devices_show(struct seq_file *seq, void *v)
 	list_for_each_entry(acg_dev, &acg->acg_dev_list, acg_dev_list_entry) {
 		seq_printf(seq, "%-60s%-13lld%s\n",
 			       acg_dev->dev->virt_name,
-			       (long long unsigned int)acg_dev->lun,
+			       (unsigned long long int)acg_dev->lun,
 			       acg_dev->acg_dev_rd_only ? "RO" : "");
 	}
 	mutex_unlock(&scst_mutex);

@@ -291,7 +291,7 @@ static int tape_done(struct scst_cmd *cmd)
 			PRINT_ERROR("Sense format 0x%x is not supported",
 				scst_sense_response_code(cmd->sense));
 			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_hardw_error));
+				SCST_LOAD_SENSE(scst_sense_internal_failure));
 			goto out;
 		}
 

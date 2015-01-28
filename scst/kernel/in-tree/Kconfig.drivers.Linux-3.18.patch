@@ -1,0 +1,13 @@
+diff --git a/drivers/Kconfig b/drivers/Kconfig
+index aa43b91..c96860e 100644
+--- a/drivers/Kconfig
++++ b/drivers/Kconfig
+@@ -24,6 +24,8 @@ source "drivers/ide/Kconfig"
+ 
+ source "drivers/scsi/Kconfig"
+ 
++source "drivers/scst/Kconfig"
++
+ source "drivers/ata/Kconfig"
+ 
+ source "drivers/md/Kconfig"
