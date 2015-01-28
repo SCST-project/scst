@@ -6666,7 +6666,7 @@ static int get_cdb_info_read_pos(struct scst_cmd *cmd,
 		cmd->bufflen = 32;
 		break;
 	case 8:
-		cmd->bufflen = max(28, cmd->bufflen);
+		cmd->bufflen = max(32, cmd->bufflen);
 		break;
 	default:
 		PRINT_ERROR("READ POSITION: Invalid service action %x",
@@ -9042,15 +9042,10 @@ static void scst_process_qerr(struct scst_cmd *cmd)
 int scst_process_check_condition(struct scst_cmd *cmd)
 {
 	int res;
-	struct scst_order_data *order_data;
-	struct scst_device *dev;
 
 	TRACE_ENTRY();
 
 	EXTRACHECKS_BUG_ON(test_bit(SCST_CMD_NO_RESP, &cmd->cmd_flags));
-
-	order_data = cmd->cur_order_data;
-	dev = cmd->dev;
 
 	TRACE_DBG("CHECK CONDITION for cmd %p (tgt_dev %p)", cmd, cmd->tgt_dev);
 

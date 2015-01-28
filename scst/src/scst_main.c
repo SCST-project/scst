@@ -1051,6 +1051,7 @@ EXPORT_SYMBOL_GPL(scst_suspend_activity);
 static void __scst_resume_activity(void)
 {
 	struct scst_cmd_threads *l;
+	struct scst_mgmt_cmd *m;
 
 	TRACE_ENTRY();
 
@@ -1077,15 +1078,14 @@ static void __scst_resume_activity(void)
 	wake_up_all(&scst_init_cmd_list_waitQ);
 
 	spin_lock_irq(&scst_mcmd_lock);
-	if (!list_empty(&scst_delayed_mgmt_cmd_list)) {
-		struct scst_mgmt_cmd *m;
-		m = list_first_entry(&scst_delayed_mgmt_cmd_list, typeof(*m),
-				mgmt_cmd_list_entry);
+	list_for_each_entry(m, &scst_delayed_mgmt_cmd_list,
+			    mgmt_cmd_list_entry) {
 		TRACE_MGMT_DBG("Moving delayed mgmt cmd %p to head of active "
 			"mgmt cmd list", m);
-		list_move(&m->mgmt_cmd_list_entry, &scst_active_mgmt_cmd_list);
 	}
+	list_splice(&scst_delayed_mgmt_cmd_list, &scst_active_mgmt_cmd_list);
 	spin_unlock_irq(&scst_mcmd_lock);
+
 	wake_up_all(&scst_mgmt_cmd_list_waitQ);
 
 out:
@@ -1145,9 +1145,9 @@ static int scst_register_device(struct scsi_device *scsidp)
 
 	dev->type = scsidp->type;
 
-	dev->virt_name = kasprintf(GFP_KERNEL, "%d:%d:%d:%d",
-				   scsidp->host->host_no,
-				   scsidp->channel, scsidp->id, scsidp->lun);
+	dev->virt_name = kasprintf(GFP_KERNEL, "%d:%d:%d:%lld",
+				   scsidp->host->host_no, scsidp->channel,
+				   scsidp->id, (u64)scsidp->lun);
 	if (dev->virt_name == NULL) {
 		PRINT_ERROR("%s", "Unable to alloc device name");
 		res = -ENOMEM;
@@ -1190,9 +1190,9 @@ static int scst_register_device(struct scsi_device *scsidp)
 		goto out_del_unlocked;
 #endif
 
-	PRINT_INFO("Attached to scsi%d, channel %d, id %d, lun %d, "
-		"type %d", scsidp->host->host_no, scsidp->channel,
-		scsidp->id, scsidp->lun, scsidp->type);
+	PRINT_INFO("Attached to scsi%d, channel %d, id %d, lun %lld, type %d",
+		   scsidp->host->host_no, scsidp->channel, scsidp->id,
+		   (u64)scsidp->lun, scsidp->type);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1259,9 +1259,9 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 	}
 
 	if (dev == NULL) {
-		PRINT_ERROR("SCST device for SCSI device %d:%d:%d:%d not found",
-			scsidp->host->host_no, scsidp->channel, scsidp->id,
-			scsidp->lun);
+		PRINT_ERROR("SCST device for SCSI device %d:%d:%d:%lld not found",
+			    scsidp->host->host_no, scsidp->channel, scsidp->id,
+			    (u64)scsidp->lun);
 		goto out_unlock;
 	}
 
@@ -1285,9 +1285,9 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 
 	scst_dev_sysfs_del(dev);
 
-	PRINT_INFO("Detached from scsi%d, channel %d, id %d, lun %d, type %d",
-		scsidp->host->host_no, scsidp->channel, scsidp->id,
-		scsidp->lun, scsidp->type);
+	PRINT_INFO("Detached from scsi%d, channel %d, id %d, lun %lld, type %d",
+		   scsidp->host->host_no, scsidp->channel, scsidp->id,
+		   (u64)scsidp->lun, scsidp->type);
 
 	scst_free_device(dev);
 
