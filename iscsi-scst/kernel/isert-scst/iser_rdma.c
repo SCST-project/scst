@@ -1013,7 +1013,7 @@ static int isert_conn_qp_create(struct isert_connection *isert_conn)
 	WARN_ON(isert_conn->max_sge < 1);
 
 	qp_attr.cap.max_send_sge = isert_conn->max_sge;
-	qp_attr.cap.max_recv_sge = 2;
+	qp_attr.cap.max_recv_sge = 3;
 	qp_attr.sq_sig_type = IB_SIGNAL_REQ_WR;
 	qp_attr.qp_type = IB_QPT_RC;
 
@@ -1082,7 +1082,7 @@ static struct isert_connection *isert_conn_create(struct rdma_cm_id *cm_id,
 	spin_lock_init(&isert_conn->post_recv_lock);
 
 	isert_conn->login_req_pdu = isert_rx_pdu_alloc(isert_conn,
-						       ISCSI_LOGIN_MAX_RDSL);
+						       ISER_MAX_LOGIN_RDSL);
 	if (unlikely(!isert_conn->login_req_pdu)) {
 		pr_err("Failed to init login req rx pdu\n");
 		err = -ENOMEM;
@@ -1090,7 +1090,7 @@ static struct isert_connection *isert_conn_create(struct rdma_cm_id *cm_id,
 	}
 
 	isert_conn->login_rsp_pdu = isert_tx_pdu_alloc(isert_conn,
-						       ISCSI_LOGIN_MAX_RDSL);
+						       ISER_MAX_LOGIN_RDSL);
 	if (unlikely(!isert_conn->login_rsp_pdu)) {
 		pr_err("Failed to init login rsp tx pdu\n");
 		err = -ENOMEM;
