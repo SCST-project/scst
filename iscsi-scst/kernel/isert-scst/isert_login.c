@@ -102,6 +102,8 @@ static void isert_kref_release_dev(struct kref *kref)
 	atomic_set(&dev->available, 1);
 	if (!list_is_singular(&dev->conn_list_entry))
 		list_del_init(&dev->conn_list_entry);
+	dev->flags = 0;
+	dev->conn = NULL;
 }
 
 static void isert_dev_release(struct isert_conn_dev *dev)
@@ -221,7 +223,7 @@ int isert_conn_alloc(struct iscsi_session *session,
 				       &session->tgt_params);
 
 	if (!res)
-		dev->conn = NULL;
+		set_bit(ISERT_CONN_PASSED, &dev->flags);
 
 	fput(filp);
 
@@ -302,9 +304,10 @@ static int isert_listen_open(struct inode *inode, struct file *filp)
 static void isert_delete_conn_dev(struct isert_conn_dev *conn_dev)
 {
 	isert_del_timer(conn_dev);
-	if (conn_dev->conn) {
+
+	if (!test_and_set_bit(ISERT_CONN_PASSED, &conn_dev->flags)) {
+		BUG_ON(conn_dev->conn == NULL);
 		isert_close_connection(conn_dev->conn);
-		conn_dev->conn = NULL;
 	}
 	list_del(&conn_dev->conn_list_entry);
 }
@@ -453,7 +456,6 @@ int isert_connection_closed(struct iscsi_conn *iscsi_conn)
 				spin_unlock(&dev->pdu_lock);
 			}
 
-			dev->conn = NULL;
 			wake_up(&dev->waitqueue);
 			isert_dev_release(dev);
 		}
@@ -522,9 +524,9 @@ static int isert_release(struct inode *inode, struct file *filp)
 	dev->sg_virt = NULL;
 	dev->is_discovery = 0;
 
-	if (dev->conn) {
+	if (!test_and_set_bit(ISERT_CONN_PASSED, &dev->flags)) {
+		BUG_ON(dev->conn == NULL);
 		isert_close_connection(dev->conn);
-		dev->conn = NULL;
 	}
 
 	isert_del_timer(dev);
