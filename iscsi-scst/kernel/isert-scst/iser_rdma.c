@@ -1060,11 +1060,6 @@ static struct isert_connection *isert_conn_create(struct rdma_cm_id *cm_id,
 
 	TRACE_ENTRY();
 
-	if (unlikely(!try_module_get(THIS_MODULE))) {
-		err = -EINVAL;
-		goto fail_get;
-	}
-
 	isert_conn = isert_conn_alloc();
 	if (unlikely(!isert_conn)) {
 		pr_err("Unable to allocate iser conn, cm_id:%p\n", cm_id);
@@ -1126,7 +1121,6 @@ fail_login_req_pdu:
 	isert_conn_kfree(isert_conn);
 fail_alloc:
 	module_put(THIS_MODULE);
-fail_get:
 	TRACE_EXIT_RES(err);
 	return ERR_PTR(err);
 }
@@ -1230,6 +1224,11 @@ static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
 
 	TRACE_ENTRY();
 
+	if (unlikely(!try_module_get(THIS_MODULE))) {
+		err = -EINVAL;
+		goto fail_get;
+	}
+
 	mutex_lock(&dev_list_mutex);
 	isert_dev = isert_device_find(ib_dev);
 	if (!isert_dev) {
@@ -1330,6 +1329,8 @@ fail_conn_create:
 	mutex_unlock(&dev_list_mutex);
 fail_dev_create:
 	rdma_reject(cm_id, NULL, 0);
+fail_get:
+	module_put(THIS_MODULE);
 	goto out;
 }
 
