@@ -447,7 +447,9 @@ int isert_connection_closed(struct iscsi_conn *iscsi_conn)
 			dev->state = CS_DISCONNECTED;
 			if (dev->login_req) {
 				res = isert_task_abort(dev->login_req);
+				spin_lock(&dev->pdu_lock);
 				dev->login_req = NULL;
+				spin_unlock(&dev->pdu_lock);
 			}
 
 			dev->conn = NULL;
@@ -464,10 +466,19 @@ int isert_connection_closed(struct iscsi_conn *iscsi_conn)
 
 static bool will_read_block(struct isert_conn_dev *dev)
 {
-	bool res;
+	bool res = true;
 
 	spin_lock(&dev->pdu_lock);
-	res = (dev->login_req == NULL) && (dev->state != CS_DISCONNECTED);
+	if (dev->login_req != NULL) {
+		switch (dev->state) {
+		case CS_REQ_BHS:
+		case CS_REQ_DATA:
+			res = false;
+			break;
+		default:
+			;
+		}
+	}
 	spin_unlock(&dev->pdu_lock);
 
 	return res;
@@ -700,6 +711,9 @@ static long isert_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			dev->login_rsp->bufflen -= dev->write_len;
 
 			if (!last || dev->is_discovery) {
+				spin_lock(&dev->pdu_lock);
+				dev->login_req = NULL;
+				spin_unlock(&dev->pdu_lock);
 				res = isert_login_rsp_tx(dev->login_rsp,
 							last,
 							dev->is_discovery);
