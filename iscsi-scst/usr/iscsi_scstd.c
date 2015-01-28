@@ -265,8 +265,8 @@ static void create_iser_listen_socket(struct pollfd *array)
 
 		rc = ioctl(iser_fd, SET_LISTEN_ADDR, &info);
 		if (rc != 0) {
-			log_error("Unable to set address info (%s)!",
-				strerror(rc));
+			log_error("Unable to set listen address (%s)!",
+				strerror(errno));
 		}
 		++i;
 	}
