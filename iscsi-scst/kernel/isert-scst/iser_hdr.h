@@ -58,5 +58,7 @@ struct isert_hdr {
 
 #define ISER_HDRS_SZ		(sizeof(struct isert_hdr) + sizeof(struct iscsi_hdr))
 
+#define ISER_MAX_LOGIN_RDSL	(ISCSI_LOGIN_MAX_RDSL + ISER_HDRS_SZ)
+
 #endif
 

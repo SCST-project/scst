@@ -112,7 +112,7 @@ struct isert_conn_dev {
 	size_t write_len;
 	char *write_buf;
 	void *sg_virt;
-	struct page *pages[DIV_ROUND_UP(ISCSI_LOGIN_MAX_RDSL, PAGE_SIZE)];
+	struct page *pages[DIV_ROUND_UP(ISER_MAX_LOGIN_RDSL, PAGE_SIZE)];
 	enum isert_conn_dev_state state;
 	int is_discovery;
 	struct timer_list tmo_timer;
