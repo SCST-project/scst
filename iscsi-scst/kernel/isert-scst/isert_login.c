@@ -555,6 +555,9 @@ static ssize_t isert_read(struct file *filp, char __user *buf, size_t count,
 	struct isert_conn_dev *dev = filp->private_data;
 	size_t to_read;
 
+	if (dev->state == CS_DISCONNECTED)
+		return -EPIPE;
+
 	if (will_read_block(dev)) {
 		int ret;
 		if (filp->f_flags & O_NONBLOCK)
@@ -564,9 +567,6 @@ static ssize_t isert_read(struct file *filp, char __user *buf, size_t count,
 		if (ret < 0)
 			return ret;
 	}
-
-	if (dev->state == CS_DISCONNECTED)
-		return -EPIPE;
 
 	to_read = min(count, dev->read_len);
 	if (copy_to_user(buf, dev->read_buf, to_read))
@@ -769,11 +769,13 @@ static unsigned int isert_poll(struct file *filp,
 	poll_wait(filp, &dev->waitqueue, wait);
 
 	if (!dev->conn)
-		mask |= POLLHUP | POLLERR;
-	if (!will_read_block(dev))
-		mask |= POLLIN | POLLRDNORM;
+		mask |= POLLHUP | POLLIN;
+	else {
+		if (!will_read_block(dev))
+			mask |= POLLIN | POLLRDNORM;
 
-	mask |= POLLOUT | POLLWRNORM;
+		mask |= POLLOUT | POLLWRNORM;
+	}
 
 	return mask;
 }
