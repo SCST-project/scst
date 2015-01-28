@@ -92,12 +92,7 @@ out:
 
 void *isert_portal_add(struct sockaddr *saddr, size_t addr_len)
 {
-	struct isert_portal *portal = isert_portal_start(saddr, addr_len);
-
-	if (IS_ERR(portal))
-		portal = NULL;
-
-	return portal;
+	return isert_portal_start(saddr, addr_len);
 }
 
 int isert_portal_remove(void *portal_h)

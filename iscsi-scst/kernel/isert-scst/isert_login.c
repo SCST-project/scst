@@ -409,10 +409,10 @@ static long isert_listen_ioctl(struct file *filp, unsigned int cmd,
 
 		portal = isert_portal_add((struct sockaddr *)&dev->info.addr,
 					  dev->info.addr_len);
-		if (!portal) {
+		if (IS_ERR(portal)) {
 			PRINT_ERROR("Unable to add portal of size %zu\n",
 				    dev->info.addr_len);
-			res = -EINVAL;
+			res = PTR_ERR(portal);
 			goto out;
 		}
 		dev->portal_h[dev->free_portal_idx++] = portal;
