@@ -228,10 +228,10 @@ docs_extraclean:
 scstadm:
 	cd $(SCSTADM_DIR) && $(MAKE) all
 
-scstadm_install: 
+scstadm_install:
 	cd $(SCSTADM_DIR) && $(MAKE) install
 
-scstadm_uninstall: 
+scstadm_uninstall:
 	cd $(SCSTADM_DIR) && $(MAKE) uninstall
 
 scstadm_clean:
@@ -252,7 +252,7 @@ qla_install:
 qla_uninstall:
 	cd $(QLA_DIR) && $(MAKE) uninstall
 
-qla_clean: 
+qla_clean:
 	cd $(QLA_INI_DIR) && $(MAKE) clean
 	cd $(QLA_DIR) && $(MAKE) clean
 
@@ -284,7 +284,7 @@ iscsi_install:
 iscsi_uninstall:
 	cd $(ISCSI_DIR) && $(MAKE) uninstall
 
-iscsi_clean: 
+iscsi_clean:
 	cd $(ISCSI_DIR) && $(MAKE) clean
 
 iscsi_extraclean:
