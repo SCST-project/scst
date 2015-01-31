@@ -6797,7 +6797,7 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 
 		if (!test_bit(QUEUE_FLAG_BIDI, &q->queue_flags)) {
 			res = -EOPNOTSUPP;
-			goto out;
+			goto out_free_sioc;
 		}
 
 		rq = blk_map_kern_sg(q, cmd->out_sg, cmd->out_sg_cnt, gfp,
@@ -6805,7 +6805,7 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 		if (IS_ERR(rq)) {
 			res = PTR_ERR(rq);
 			TRACE_DBG("blk_map_kern_sg() failed: %d", res);
-			goto out;
+			goto out_free_sioc;
 		}
 
 		next_rq = blk_map_kern_sg(q, cmd->sg, cmd->sg_cnt, gfp, false);
@@ -6820,7 +6820,7 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 		if (IS_ERR(rq)) {
 			res = PTR_ERR(rq);
 			TRACE_DBG("blk_map_kern_sg() failed: %d", res);
-			goto out;
+			goto out_free_sioc;
 		}
 	}
 
@@ -6861,6 +6861,9 @@ out_free_unmap:
 	rq->bio = NULL;
 
 	blk_put_request(rq);
+
+out_free_sioc:
+	kmem_cache_free(scsi_io_context_cache, sioc);
 	goto out;
 }
 EXPORT_SYMBOL(scst_scsi_exec_async);
