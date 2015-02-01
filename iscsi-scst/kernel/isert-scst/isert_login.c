@@ -308,7 +308,6 @@ static void isert_delete_conn_dev(struct isert_conn_dev *conn_dev)
 		BUG_ON(conn_dev->conn == NULL);
 		isert_close_connection(conn_dev->conn);
 	}
-	list_del(&conn_dev->conn_list_entry);
 }
 
 static int isert_listen_release(struct inode *inode, struct file *filp)
@@ -316,22 +315,13 @@ static int isert_listen_release(struct inode *inode, struct file *filp)
 	struct isert_listener_dev *dev = filp->private_data;
 	struct isert_conn_dev *conn_dev;
 
-	/* No need for locking here, since the chardev is being closed */
-	while (!list_empty(&dev->new_conn_list)) {
-		conn_dev = list_first_entry(&dev->new_conn_list,
-					    struct isert_conn_dev,
-					    conn_list_entry);
-
+	spin_lock(&isert_listen_dev.conn_lock);
+	list_for_each_entry(conn_dev, &dev->new_conn_list, conn_list_entry)
 		isert_delete_conn_dev(conn_dev);
-	}
 
-	while (!list_empty(&dev->curr_conn_list)) {
-		conn_dev = list_first_entry(&dev->curr_conn_list,
-					    struct isert_conn_dev,
-					    conn_list_entry);
-
+	list_for_each_entry(conn_dev, &dev->curr_conn_list, conn_list_entry)
 		isert_delete_conn_dev(conn_dev);
-	}
+	spin_unlock(&isert_listen_dev.conn_lock);
 
 	atomic_inc(&dev->available);
 	return 0;
