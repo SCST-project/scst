@@ -501,10 +501,3 @@ struct srp_login_req_rdma {
 };
 
 #endif				/* IB_SRPT_H */
-
-/*
- * Local variables:
- * c-basic-offset:   8
- * indent-tabs-mode: t
- * End:
- */
