@@ -144,7 +144,7 @@ struct scst_vdisk_dev {
 
 	/*
 	 * This lock can be taken on both SIRQ and thread context, but in
-	 * all cases for each particular instance it's taken consistenly either
+	 * all cases for each particular instance it's taken consistently either
 	 * on SIRQ or thread context. Mix of them is forbidden.
 	 */
 	spinlock_t flags_lock;
