@@ -200,7 +200,7 @@ static struct scst_tgt_template srpt_template;
 static void srpt_unregister_mad_agent(struct srpt_device *sdev);
 #ifdef CONFIG_SCST_PROC
 static void srpt_unregister_procfs_entry(struct scst_tgt_template *tgt);
-#endif /*CONFIG_SCST_PROC*/
+#endif /* CONFIG_SCST_PROC */
 static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 				    struct srpt_send_ioctx *ioctx);
 static void srpt_destroy_ch_ib(struct srpt_rdma_ch *ch);
@@ -2496,7 +2496,7 @@ static bool srpt_is_target_enabled(struct scst_tgt *scst_tgt)
 
 	return srpt_tgt && srpt_tgt->enabled;
 }
-#endif
+#endif /* CONFIG_SCST_PROC */
 
 /*
  * srpt_next_comp_vector() - Next completion vector >= srpt_tgt->comp_vector
@@ -4199,7 +4199,7 @@ static const struct attribute *srpt_sess_attrs[] = {
 #endif
 	NULL
 };
-#endif
+#endif /* CONFIG_SCST_PROC */
 
 /* SCST target template for the SRP target implementation. */
 static struct scst_tgt_template srpt_template = {
@@ -4250,7 +4250,7 @@ static struct scst_proc_data srpt_log_proc_data = {
 };
 #endif
 
-#endif /*CONFIG_SCST_PROC*/
+#endif /* CONFIG_SCST_PROC */
 
 /* Note: the caller must have zero-initialized *@srpt_tgt. */
 static void srpt_init_tgt(struct srpt_tgt *srpt_tgt)
@@ -4596,7 +4596,7 @@ static void srpt_unregister_procfs_entry(struct scst_tgt_template *tgt)
 #endif
 }
 
-#endif /*CONFIG_SCST_PROC*/
+#endif /* CONFIG_SCST_PROC */
 
 /**
  * srpt_init_module() - Kernel module initialization.
@@ -4706,14 +4706,14 @@ static int __init srpt_init_module(void)
 		PRINT_ERROR("couldn't register procfs entry");
 		goto out_rdma_cm;
 	}
-#endif /*CONFIG_SCST_PROC*/
+#endif /* CONFIG_SCST_PROC */
 
 	return 0;
 
 #ifdef CONFIG_SCST_PROC
 out_rdma_cm:
 	rdma_destroy_id(rdma_cm_id);
-#endif /*CONFIG_SCST_PROC*/
+#endif /* CONFIG_SCST_PROC */
 out_unregister_client:
 	ib_unregister_client(&srpt_client);
 out_unregister_target:
@@ -4731,7 +4731,7 @@ static void __exit srpt_cleanup_module(void)
 	ib_unregister_client(&srpt_client);
 #ifdef CONFIG_SCST_PROC
 	srpt_unregister_procfs_entry(&srpt_template);
-#endif /*CONFIG_SCST_PROC*/
+#endif /* CONFIG_SCST_PROC */
 	scst_unregister_target_template(&srpt_template);
 
 	TRACE_EXIT();
