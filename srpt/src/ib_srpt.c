@@ -92,7 +92,6 @@ MODULE_LICENSE("Dual BSD/GPL");
  */
 
 static u64 srpt_service_guid;
-/* List of srpt_device structures. */
 static atomic_t srpt_device_count;
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 static unsigned long trace_flag = DEFAULT_SRPT_TRACE_FLAGS;
