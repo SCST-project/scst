@@ -380,12 +380,29 @@ Performance Notes - Target Side
 Performance Notes - Initiator Side
 ----------------------------------
 
+* Using multiple RDMA connections between initator and target results in a
+  significant performance improvement. To benefit from this feature, use
+  kernel 3.19 or later at the initiator side and enable scsi-mq either by
+  setting SCSI_MQ_DEFAULT=y in the kernel config or via the following command:
+
+  echo Y > /sys/module/scsi_mod/parameters/use_blk_mq
+
+  If the HCA model in your initiator system supports multiple MSI-X interrupts
+  the next step is either to stop the irqbalance service or to write a policy
+  script that stops irqbalance from modifying the IB interrupt CPU
+  affinity. Once this has been done spread the IB interrupts uniformly over
+  CPU cores via e.g. scripts/spread-mlx4-ib-interrupts.
+
+  For more information about scsi-mq see also Michael Larabel, SCSI
+  Multi-Queue Performance Appears Great For Linux 3.17, Phoronix, June 18,
+  2014 (http://www.phoronix.com/scan.php?page=news_item&px=MTcyMjk).
+
 * Choose a proper value for the ib_srp kernel module parameter
   cmd_sg_entries. The default value 12 works well for buffered reads while
   the throughput for write-dominated workloads improves by changing this value
   into 255. One way to set this kernel module parameter is as follows:
 
-  echo options ib_srp cmd_sg_entries=255 >>/etc/modprobe.d/ib_srp.conf
+  echo options ib_srp cmd_sg_entries=255 >/etc/modprobe.d/ib_srp.conf
 
 * For multithreaded workloads using small block sizes changing rq_affinity
   into 2 improves IOPS significantly (Linux kernel 3.1 and later; see also
