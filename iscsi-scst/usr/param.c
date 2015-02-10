@@ -391,4 +391,3 @@ struct iscsi_key session_keys[] = {
 	{"MaxOutstandingUnexpectedPDUs", 0, 0, 0, -1, 0, &minimum_ops},
 	{NULL,},
 };
-
