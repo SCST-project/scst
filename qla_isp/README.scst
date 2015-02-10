@@ -122,7 +122,7 @@ activating channels/LUNs in /proc/scsi_tgt/qla_isp/N .
 
 The driver can also work as both a target and an initiator simultaneously, but
 this will probably only function for P2P connections. To make the driver work
-as a target/initator on one port with a FC switch, you can use N_PORT ID
+as a target/initiator on one port with a FC switch, you can use N_PORT ID
 virtualization, as seen below.
 
 N_PORT ID VIRTUALIZATION
