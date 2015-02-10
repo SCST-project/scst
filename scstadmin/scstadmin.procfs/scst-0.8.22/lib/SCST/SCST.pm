@@ -534,7 +534,7 @@ sub openDevice {
 	$rc = !$self->handlerDeviceExists($handler, $device);
 
 	if ($rc) {
-		$self->{'error'} = "openDevice(): An error occured while opening device '$device'. ".
+		$self->{'error'} = "openDevice(): An error occurred while opening device '$device'. ".
 		  "See dmesg/kernel log for more information.";
 	}
 
@@ -575,7 +575,7 @@ sub closeDevice {
 	$rc = $self->handlerDeviceExists($handler, $device);
 
 	if ($rc) {
-		$self->{'error'} = "closeDevice(): An error occured while closing device '$device'. ".
+		$self->{'error'} = "closeDevice(): An error occurred while closing device '$device'. ".
 		  "See dmesg/kernel log for more information.";
 	}
 
@@ -647,7 +647,7 @@ sub setT10DeviceId {
 	my $devices = $self->handlerDevices($handler);
 
 	if ($$devices{$device}->{'T10_DEVICE_ID'} ne $t10_id) {
-                $self->{'error'} = "setT10DeviceId(): An error occured while setting T10 device ID to '$t10_id' ".
+                $self->{'error'} = "setT10DeviceId(): An error occurred while setting T10 device ID to '$t10_id' ".
 		  "for device '$device'. See dmesg/kernel log for more information.";
 		return 1;
 	}
@@ -720,7 +720,7 @@ sub addUser {
 	$rc = !$self->userExists($user, $group);
 
 	if ($rc) {
-		$self->{'error'} = "addUser(): An error occured while adding user '$user' to group '$group'. ".
+		$self->{'error'} = "addUser(): An error occurred while adding user '$user' to group '$group'. ".
 		  "See dmesg/kernel log for more information.";
 	}
 
@@ -752,7 +752,7 @@ sub removeUser {
 	$rc = $self->userExists($user, $group);
 
 	if ($rc) {
-		$self->{'error'} = "removeUser(): An error occured while removing user '$user' ".
+		$self->{'error'} = "removeUser(): An error occurred while removing user '$user' ".
 		  "from group '$group'. See dmesg/kernel log for more information.";
 	}
 
@@ -795,7 +795,7 @@ sub moveUser {
 	$rc = !$self->userExists($user, $toGroup);
 
 	if ($rc) {
-		$self->{'error'} = "addUser(): An error occured while moving user '$user' from group '$fromGroup' ".
+		$self->{'error'} = "addUser(): An error occurred while moving user '$user' from group '$fromGroup' ".
 		  "to group '$toGroup'. See dmesg/kernel log for more information.";
 	}
 
@@ -818,7 +818,7 @@ sub clearUsers {
 	return 0 if ($self->{'debug'});
 
 	if ($rc) {
-		$self->{'error'} = "clearUsers(): An error occured while clearing users from ".
+		$self->{'error'} = "clearUsers(): An error occurred while clearing users from ".
 		  "group '$group'. See dmesg/kernel log for more information.";
 		return $rc;
 	}
@@ -956,7 +956,7 @@ sub assignDeviceToGroup {
 	$rc = !$self->groupDeviceExists($device, $group, $lun);
 
 	if ($rc) {
-		$self->{'error'} = "assignDeviceToGroup(): An error occured while assigning device '$device' ".
+		$self->{'error'} = "assignDeviceToGroup(): An error occurred while assigning device '$device' ".
 		  "to group '$group'. See dmesg/kernel log for more information.";
 	}
 
@@ -1003,7 +1003,7 @@ sub replaceDeviceInGroup {
 	$rc = !$self->groupDeviceExists($newDevice, $group, $lun);
 
 	if ($rc) {
-		$self->{'error'} = "replaceDeviceInGroup(): An error occured while replacing lun '$lun' with ".
+		$self->{'error'} = "replaceDeviceInGroup(): An error occurred while replacing lun '$lun' with ".
 		  " device '$newDevice' in group '$group'. See dmesg/kernel log for more information.";
 	}
 
@@ -1044,7 +1044,7 @@ sub assignDeviceToHandler {
 	$rc = !$self->handlerDeviceExists($handler, $device);
 
 	if ($rc) {
-		$self->{'error'} = "assignDeviceToHandler(): An error occured while assigning device '$device' ".
+		$self->{'error'} = "assignDeviceToHandler(): An error occurred while assigning device '$device' ".
 		  "to handler '$handler_name' ($handler). See dmesg/kernel log for more information.";
 	}
 
@@ -1076,7 +1076,7 @@ sub removeDeviceFromGroup {
 	$rc = $self->groupDeviceExists($device, $group);
 
 	if ($rc) {
-		$self->{'error'} = "removeDeviceFromGroup(): An error occured while removing device '$device' ".
+		$self->{'error'} = "removeDeviceFromGroup(): An error occurred while removing device '$device' ".
 		  "from group '$group'. See dmesg/kernel log for more information.";
 	}
 
@@ -1096,7 +1096,7 @@ sub clearGroupDevices {
 	return 0 if ($self->{'debug'});
 
 	if ($rc) {
-		$self->{'error'} = "clearGroupDevices(): An error occured while clearing devices from ".
+		$self->{'error'} = "clearGroupDevices(): An error occurred while clearing devices from ".
 		  "group '$group'. See dmesg/kernel log for more information.";
 		return $rc;
 	}
@@ -1544,8 +1544,8 @@ Returns: (int) $success
 
 =item SCST::SCST->errorString();
 
-Contains a description of the last error occured or undef if no error
-has occured or if this method has already been called once since the
+Contains a description of the last error occurred or undef if no error
+has occurred or if this method has already been called once since the
 last error.
 
 Arguments: (void)
