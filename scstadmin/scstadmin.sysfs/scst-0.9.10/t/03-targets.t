@@ -8,6 +8,7 @@ BEGIN {
 }
 
 use Data::Dumper;
+$Data::Dumper::Sortkeys = 1;
 use SCST::SCST;
 
 sub addTargets {
