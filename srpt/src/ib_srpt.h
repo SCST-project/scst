@@ -175,10 +175,10 @@ static inline u32 idx_from_wr_id(u64 wr_id)
 }
 
 struct rdma_iu {
-	u64 raddr;
-	u32 rkey;
-	struct ib_sge *sge;
-	u32 sge_cnt;
+	u64		raddr;
+	u32		rkey;
+	struct ib_sge	*sge;
+	u32		sge_cnt;
 };
 
 /**
@@ -501,10 +501,3 @@ struct srp_login_req_rdma {
 };
 
 #endif				/* IB_SRPT_H */
-
-/*
- * Local variables:
- * c-basic-offset:   8
- * indent-tabs-mode: t
- * End:
- */
