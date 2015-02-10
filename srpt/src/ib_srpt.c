@@ -158,7 +158,6 @@ static enum rdma_ch_state srpt_set_ch_state_to_disc(struct srpt_rdma_ch *ch)
 {
 	unsigned long flags;
 	enum rdma_ch_state prev;
-	bool changed = false;
 
 	spin_lock_irqsave(&ch->spinlock, flags);
 	prev = ch->state;
