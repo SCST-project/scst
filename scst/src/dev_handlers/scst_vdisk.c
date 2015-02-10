@@ -144,7 +144,7 @@ struct scst_vdisk_dev {
 
 	/*
 	 * This lock can be taken on both SIRQ and thread context, but in
-	 * all cases for each particular instance it's taken consistenly either
+	 * all cases for each particular instance it's taken consistently either
 	 * on SIRQ or thread context. Mix of them is forbidden.
 	 */
 	spinlock_t flags_lock;
@@ -3302,7 +3302,7 @@ static int vdisk_sup_vpd(uint8_t *buf, struct scst_cmd *cmd,
 	*p++ = 0x86; /* extended inquiry */
 	if (cmd->dev->type == TYPE_DISK) {
 		*p++ = 0xB0; /* block limits */
-		*p++ = 0xB1; /* block device charachteristics */
+		*p++ = 0xB1; /* block device characteristics */
 		if (virt_dev->thin_provisioned) {
 			*p++ = 0xB2; /* thin provisioning */
 		}
