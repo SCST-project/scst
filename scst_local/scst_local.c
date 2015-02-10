@@ -375,9 +375,10 @@ static ssize_t scst_local_stats_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 
 {
-	return sprintf(buf, "Aborts: %d, Device Resets: %d, Target Resets: %d",
-		atomic_read(&num_aborts), atomic_read(&num_dev_resets),
-		atomic_read(&num_target_resets));
+	return sprintf(buf,
+		       "Aborts: %d, Device Resets: %d, Target Resets: %d\n",
+		       atomic_read(&num_aborts), atomic_read(&num_dev_resets),
+		       atomic_read(&num_target_resets));
 }
 
 static struct kobj_attribute scst_local_stats_attr =
