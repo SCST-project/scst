@@ -909,8 +909,8 @@ __qla2xxx_eh_generic_reset(char *name, enum nexus_wait_type type,
 	if (!fcport)
 		return FAILED;
 
-	qla_printk(KERN_INFO, ha, "scsi(%ld:%d:%d): %s RESET ISSUED.\n",
-	    ha->host_no, cmd->device->id, cmd->device->lun, name);
+	qla_printk(KERN_INFO, ha, "scsi(%ld:%d:%lld): %s RESET ISSUED.\n",
+	    ha->host_no, cmd->device->id, (unsigned long long)cmd->device->lun, name);
 
 	err = 0;
 	if (qla2x00_wait_for_hba_online(ha) != QLA_SUCCESS)
@@ -926,14 +926,14 @@ __qla2xxx_eh_generic_reset(char *name, enum nexus_wait_type type,
 	    cmd->device->lun, type) != QLA_SUCCESS)
 		goto eh_reset_failed;
 
-	qla_printk(KERN_INFO, ha, "scsi(%ld:%d:%d): %s RESET SUCCEEDED.\n",
-	    ha->host_no, cmd->device->id, cmd->device->lun, name);
+	qla_printk(KERN_INFO, ha, "scsi(%ld:%d:%lld): %s RESET SUCCEEDED.\n",
+	    ha->host_no, cmd->device->id, (unsigned long long)cmd->device->lun, name);
 
 	return SUCCESS;
 
  eh_reset_failed:
-	qla_printk(KERN_INFO, ha, "scsi(%ld:%d:%d): %s RESET FAILED: %s.\n",
-	    ha->host_no, cmd->device->id, cmd->device->lun, name,
+	qla_printk(KERN_INFO, ha, "scsi(%ld:%d:%lld): %s RESET FAILED: %s.\n",
+	    ha->host_no, cmd->device->id, (unsigned long long)cmd->device->lun, name,
 	    reset_errors[err]);
 	return FAILED;
 }
@@ -1228,8 +1228,8 @@ static void qla2x00_handle_queue_full(struct scsi_device *sdev, int qdepth)
 		return;
 
 	DEBUG2(qla_printk(KERN_INFO, ha,
-		"scsi(%ld:%d:%d:%d): Queue depth adjusted-down to %d.\n",
-		ha->host_no, sdev->channel, sdev->id, sdev->lun,
+		"scsi(%ld:%d:%d:%lld): Queue depth adjusted-down to %d.\n",
+		ha->host_no, sdev->channel, sdev->id, (unsigned long long)sdev->lun,
 		sdev->queue_depth));
 }
 
@@ -1246,8 +1246,8 @@ static void qla2x00_adjust_sdev_qdepth_up(struct scsi_device *sdev, int qdepth)
 		scsi_adjust_queue_depth(sdev, MSG_SIMPLE_TAG, qdepth);
 
 	DEBUG2(qla_printk(KERN_INFO, ha,
-	       "scsi(%ld:%d:%d:%d): Queue depth adjusted-up to %d.\n",
-	       ha->host_no, sdev->channel, sdev->id, sdev->lun,
+	       "scsi(%ld:%d:%d:%lld): Queue depth adjusted-up to %d.\n",
+	       ha->host_no, sdev->channel, sdev->id, (unsigned long long)sdev->lun,
 	       sdev->queue_depth));
 }
 
