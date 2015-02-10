@@ -4288,4 +4288,7 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	void (*done)(void *data, char *sense, int result, int resid));
 #endif
 
+__be64 scst_pack_lun(const uint64_t lun, enum scst_lun_addr_method addr_method);
+uint64_t scst_unpack_lun(const uint8_t *lun, int len);
+
 #endif /* __SCST_H */
