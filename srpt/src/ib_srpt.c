@@ -2333,7 +2333,7 @@ static int srpt_enable_target(struct scst_tgt *scst_tgt, bool enable)
 	EXTRACHECKS_WARN_ON_ONCE(irqs_disabled());
 
 	if (!sdev)
-		return -ENOENT;
+		return -E_TGT_PRIV_NOT_YET_SET;
 
 	TRACE_DBG("%s target %s", enable ? "Enabling" : "Disabling",
 		  sdev->device->name);

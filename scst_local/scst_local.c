@@ -408,6 +408,8 @@ static ssize_t scst_local_scsi_transport_version_show(struct kobject *kobj,
 	if (down_read_trylock(&scst_local_exit_rwsem) == 0)
 		goto out;
 
+	res = -E_TGT_PRIV_NOT_YET_SET;
+
 	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 	tgt = scst_tgt_get_tgt_priv(scst_tgt);
 	if (!tgt)
@@ -435,6 +437,8 @@ static ssize_t scst_local_scsi_transport_version_store(struct kobject *kobj,
 
 	if (down_read_trylock(&scst_local_exit_rwsem) == 0)
 		goto out;
+
+	res = -E_TGT_PRIV_NOT_YET_SET;
 
 	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 	tgt = scst_tgt_get_tgt_priv(scst_tgt);
@@ -476,6 +480,8 @@ static ssize_t scst_local_phys_transport_version_show(struct kobject *kobj,
 	if (down_read_trylock(&scst_local_exit_rwsem) == 0)
 		goto out;
 
+	res = -E_TGT_PRIV_NOT_YET_SET;
+
 	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 	tgt = scst_tgt_get_tgt_priv(scst_tgt);
 	if (!tgt)
@@ -501,6 +507,8 @@ static ssize_t scst_local_phys_transport_version_store(struct kobject *kobj,
 
 	if (down_read_trylock(&scst_local_exit_rwsem) == 0)
 		goto out;
+
+	res = -E_TGT_PRIV_NOT_YET_SET;
 
 	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 	tgt = scst_tgt_get_tgt_priv(scst_tgt);
@@ -1547,6 +1555,11 @@ static uint16_t scst_local_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 {
 	struct scst_local_tgt *tgt = scst_tgt_get_tgt_priv(scst_tgt);
 
+	/*
+	 * It's OK to not check tgt != NULL here, because new sessions
+	 * can't create before its' set.
+	 */
+
 	if (tgt->scsi_transport_version == 0)
 		return 0x0BE0; /* SAS */
 	else
@@ -1556,6 +1569,11 @@ static uint16_t scst_local_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 static uint16_t scst_local_get_phys_transport_version(struct scst_tgt *scst_tgt)
 {
 	struct scst_local_tgt *tgt = scst_tgt_get_tgt_priv(scst_tgt);
+
+	/*
+	 * It's OK to not check tgt != NULL here, because new sessions
+	 * can't create before its' set.
+	 */
 
 	return tgt->phys_transport_version;
 }

@@ -614,7 +614,7 @@ int ft_tgt_enable(struct scst_tgt *tgt, bool enable)
 		FT_SESS_DBG("enable tgt %s\n", tgt->tgt_name);
 		tport = scst_tgt_get_tgt_priv(tgt);
 		if (tport == NULL) {
-			ret = -EBUSY;
+			ret = -E_TGT_PRIV_NOT_YET_SET;
 			goto out_unlock;
 		}
 		tport->enabled = 1;

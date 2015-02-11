@@ -454,19 +454,22 @@ const struct seq_operations iscsi_seq_op = {
 static ssize_t iscsi_tgt_tid_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
-	int pos;
+	int res = -E_TGT_PRIV_NOT_YET_SET;
 	struct scst_tgt *scst_tgt;
 	struct iscsi_target *tgt;
 
 	TRACE_ENTRY();
 
 	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-	tgt = (struct iscsi_target *)scst_tgt_get_tgt_priv(scst_tgt);
+	tgt = scst_tgt_get_tgt_priv(scst_tgt);
+	if (!tgt)
+		goto out;
 
-	pos = sprintf(buf, "%u\n", tgt->tid);
+	res = sprintf(buf, "%u\n", tgt->tid);
 
-	TRACE_EXIT_RES(pos);
-	return pos;
+out:
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 static struct kobj_attribute iscsi_tgt_attr_tid =
@@ -532,6 +535,11 @@ int iscsi_enable_target(struct scst_tgt *scst_tgt, bool enable)
 
 	TRACE_ENTRY();
 
+	if (tgt == NULL) {
+		res = -E_TGT_PRIV_NOT_YET_SET;
+		goto out;
+	}
+
 	if (enable)
 		type = E_ENABLE_TARGET;
 	else
@@ -541,6 +549,7 @@ int iscsi_enable_target(struct scst_tgt *scst_tgt, bool enable)
 
 	res = iscsi_sysfs_send_event(tgt->tid, type, NULL, NULL, NULL);
 
+out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -550,7 +559,10 @@ bool iscsi_is_target_enabled(struct scst_tgt *scst_tgt)
 	struct iscsi_target *tgt =
 		(struct iscsi_target *)scst_tgt_get_tgt_priv(scst_tgt);
 
-	return tgt->tgt_enabled;
+	if (tgt != NULL)
+		return tgt->tgt_enabled;
+	else
+		return false;
 }
 
 ssize_t iscsi_sysfs_add_target(const char *target_name, char *params)
