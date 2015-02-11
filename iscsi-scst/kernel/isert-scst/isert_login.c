@@ -768,7 +768,7 @@ static unsigned int isert_poll(struct file *filp,
 
 	poll_wait(filp, &dev->waitqueue, wait);
 
-	if (!dev->conn)
+	if (!dev->conn || dev->state == CS_DISCONNECTED)
 		mask |= POLLHUP | POLLIN;
 	else {
 		if (!will_read_block(dev))
