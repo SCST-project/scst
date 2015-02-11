@@ -367,7 +367,6 @@ wait_for_connection:
 	conn_dev = list_first_entry(&dev->new_conn_list, struct isert_conn_dev,
 				    conn_list_entry);
 	list_move(&conn_dev->conn_list_entry, &dev->curr_conn_list);
-	kref_get(&conn_dev->kref);
 	spin_unlock(&dev->conn_lock);
 
 	res = snprintf(k_buff, sizeof(k_buff), "/dev/"ISER_CONN_DEV_PREFIX"%d",
@@ -496,6 +495,14 @@ static int isert_open(struct inode *inode, struct file *filp)
 
 	dev = container_of(inode->i_cdev, struct isert_conn_dev, cdev);
 
+	spin_lock(&isert_listen_dev.conn_lock);
+	if (unlikely(dev->occupied == 0)) {
+		spin_unlock(&isert_listen_dev.conn_lock);
+		res = -ENODEV; /* already closed */
+		goto out;
+	}
+	spin_unlock(&isert_listen_dev.conn_lock);
+
 	if (unlikely(!atomic_dec_and_test(&dev->available))) {
 		atomic_inc(&dev->available);
 		res = -EBUSY; /* already open */
@@ -504,6 +511,7 @@ static int isert_open(struct inode *inode, struct file *filp)
 
 	spin_lock(&isert_listen_dev.conn_lock);
 	list_del_init(&dev->conn_list_entry);
+	kref_get(&dev->kref);
 	spin_unlock(&isert_listen_dev.conn_lock);
 
 	filp->private_data = dev; /* for other methods */
