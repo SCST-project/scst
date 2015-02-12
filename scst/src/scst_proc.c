@@ -269,7 +269,7 @@ int scst_proc_log_entry_write(struct file *file, const char __user *buf,
 	unsigned long level = 0, oldlevel;
 	char *buffer, *p, *e;
 	const struct scst_trace_log *t;
-	char *data = PDE_DATA(file->f_dentry->d_inode);
+	char *data = PDE_DATA(file_inode(file));
 
 	TRACE_ENTRY();
 
@@ -1390,7 +1390,7 @@ static ssize_t scst_proc_scsi_tgt_write(struct file *file,
 					const char __user *buf,
 					size_t length, loff_t *off)
 {
-	struct scst_tgt *vtt = PDE_DATA(file->f_dentry->d_inode);
+	struct scst_tgt *vtt = PDE_DATA(file_inode(file));
 	ssize_t res = 0;
 	char *buffer;
 	char *start;
@@ -1545,7 +1545,7 @@ static ssize_t scst_proc_scsi_dev_handler_write(struct file *file,
 						const char __user *buf,
 						size_t length, loff_t *off)
 {
-	struct scst_dev_type *dev_type = PDE_DATA(file->f_dentry->d_inode);
+	struct scst_dev_type *dev_type = PDE_DATA(file_inode(file));
 	ssize_t res = 0;
 	char *buffer;
 	char *start;
@@ -1913,7 +1913,7 @@ static ssize_t scst_proc_groups_devices_write(struct file *file,
 	int res, action, rc, read_only = 0;
 	char *buffer, *p, *e = NULL;
 	unsigned int virt_lun;
-	struct scst_acg *acg = PDE_DATA(file->f_dentry->d_inode);
+	struct scst_acg *acg = PDE_DATA(file_inode(file));
 	struct scst_acg_dev *acg_dev = NULL, *acg_dev_tmp;
 	struct scst_device *d, *dev = NULL;
 
@@ -2150,7 +2150,7 @@ static ssize_t scst_proc_groups_names_write(struct file *file,
 {
 	int res = length, rc = 0, action;
 	char *buffer, *p, *pp = NULL;
-	struct scst_acg *acg = PDE_DATA(file->f_dentry->d_inode);
+	struct scst_acg *acg = PDE_DATA(file_inode(file));
 	struct scst_acn *n, *nn;
 
 	TRACE_ENTRY();

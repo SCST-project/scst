@@ -682,7 +682,7 @@ static int scst_pr_do_load_device_file(struct scst_device *dev,
 		goto out;
 	}
 
-	inode = file->f_dentry->d_inode;
+	inode = file_inode(file);
 
 	if (S_ISREG(inode->i_mode))
 		/* Nothing to do */;
