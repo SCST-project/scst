@@ -463,8 +463,6 @@ struct srpt_port {
  * @ioctx_ring:    Per-HCA SRQ.
  * @port:	   Information about the ports owned by this HCA.
  * @event_handler: Per-HCA asynchronous IB event handler.
- * @srpt_tgt:      Target port information. Only used if one-target-per-port
- *                 mode is disabled.
  */
 struct srpt_device {
 	struct ib_device	*device;
@@ -478,7 +476,6 @@ struct srpt_device {
 	struct srpt_recv_ioctx	**ioctx_ring;
 	struct srpt_port	port[2];
 	struct ib_event_handler	event_handler;
-	struct srpt_tgt		srpt_tgt;
 };
 
 /**
