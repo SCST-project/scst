@@ -724,7 +724,7 @@ static int srpt_refresh_port(struct srpt_port *sport)
 		}
 	}
 
-	if (one_target_per_port && !sport->srpt_tgt.scst_tgt) {
+	if (!sport->srpt_tgt.scst_tgt) {
 		snprintf(tgt_name, sizeof(tgt_name),
 			 "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x",
 			 be16_to_cpu(((__be16 *) sport->gid.raw)[0]),
@@ -2390,29 +2390,16 @@ static void __srpt_close_all_ch(struct srpt_tgt *srpt_tgt)
 
 static struct srpt_device *srpt_convert_to_sdev(struct scst_tgt *scst_tgt)
 {
-	struct srpt_port *sport;
+	struct srpt_port *sport = scst_tgt_get_tgt_priv(scst_tgt);
 
-	if (one_target_per_port) {
-		sport = scst_tgt_get_tgt_priv(scst_tgt);
-		return sport ? sport->sdev : NULL;
-	} else {
-		return scst_tgt_get_tgt_priv(scst_tgt);
-	}
+	return sport ? sport->sdev : NULL;
 }
 
 static struct srpt_tgt *srpt_convert_scst_tgt(struct scst_tgt *scst_tgt)
 {
-	struct srpt_device *sdev;
-	struct srpt_port *sport;
-	struct srpt_tgt *srpt_tgt;
+	struct srpt_port *sport = scst_tgt_get_tgt_priv(scst_tgt);
+	struct srpt_tgt *srpt_tgt = sport ? &sport->srpt_tgt : NULL;
 
-	if (one_target_per_port) {
-		sport = scst_tgt_get_tgt_priv(scst_tgt);
-		srpt_tgt = sport ? &sport->srpt_tgt : NULL;
-	} else {
-		sdev = scst_tgt_get_tgt_priv(scst_tgt);
-		srpt_tgt = sdev ? &sdev->srpt_tgt : NULL;
-	}
 	return srpt_tgt;
 }
 
@@ -2533,8 +2520,7 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 {
 	struct srpt_port *const sport = &sdev->port[port_num - 1];
 	const __be16 *const raw_port_gid = (__be16 *)sport->gid.raw;
-	struct srpt_tgt *const srpt_tgt = one_target_per_port ?
-					  &sport->srpt_tgt : &sdev->srpt_tgt;
+	struct srpt_tgt *const srpt_tgt = &sport->srpt_tgt;
 	struct srpt_nexus *nexus;
 	struct srp_login_rsp *rsp = NULL;
 	struct srp_login_rej *rej = NULL;
@@ -2711,32 +2697,7 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 		goto free_recv_ring;
 	}
 
-	if (one_target_per_port) {
-		strlcpy(ch->sess_name, src_addr, sizeof(ch->sess_name));
-	} else if (use_port_guid_in_session_name) {
-		/*
-		 * If the kernel module parameter use_port_guid_in_session_name
-		 * has been specified, use a combination of the target port
-		 * GUID and the initiator port ID as the session name. This
-		 * was the original behavior of the SRP target implementation
-		 * (i.e. before the SRPT was included in OFED 1.3).
-		 */
-		snprintf(ch->sess_name, sizeof(ch->sess_name),
-			 "0x%016llx%016llx",
-			 be64_to_cpu(*(__be64 *)
-				&sdev->port[port_num - 1].gid.raw[8]),
-			 be64_to_cpu(*(__be64 *)(nexus->i_port_id + 8)));
-	} else {
-		/*
-		 * Default behavior: use the initiator port identifier as the
-		 * session name.
-		 */
-		snprintf(ch->sess_name, sizeof(ch->sess_name),
-			 "0x%016llx%016llx",
-			 be64_to_cpu(*(__be64 *)nexus->i_port_id),
-			 be64_to_cpu(*(__be64 *)(nexus->i_port_id + 8)));
-	}
-
+	strlcpy(ch->sess_name, src_addr, sizeof(ch->sess_name));
 	TRACE_DBG("registering session %s", ch->sess_name);
 
 	BUG_ON(!srpt_tgt->scst_tgt);
@@ -4036,20 +3997,15 @@ static ssize_t srpt_show_device(struct kobject *kobj,
 	struct scst_tgt *scst_tgt = container_of(kobj, struct scst_tgt,
 						 tgt_kobj);
 	struct srpt_tgt *srpt_tgt = srpt_convert_scst_tgt(scst_tgt);
+	struct srpt_port *sport;
 	struct srpt_device *sdev;
 	int res = -E_TGT_PRIV_NOT_YET_SET;
 
 	if (!srpt_tgt)
 		goto out;
 
-	if (one_target_per_port) {
-		struct srpt_port *sport;
-
-		sport = container_of(srpt_tgt, struct srpt_port, srpt_tgt);
-		sdev = sport->sdev;
-	} else {
-		sdev = container_of(srpt_tgt, struct srpt_device, srpt_tgt);
-	}
+	sport = container_of(srpt_tgt, struct srpt_port, srpt_tgt);
+	sdev = sport->sdev;
 	res = sprintf(buf, "%s\n", sdev->device->name);
 
 out:
@@ -4066,52 +4022,26 @@ static ssize_t show_login_info(struct kobject *kobj,
 						 tgt_kobj);
 	struct srpt_tgt *srpt_tgt = srpt_convert_scst_tgt(scst_tgt);
 	struct srpt_port *sport;
-	int i, res = -E_TGT_PRIV_NOT_YET_SET;
+	int res = -E_TGT_PRIV_NOT_YET_SET;
 
 	if (!srpt_tgt)
 		goto out;
 
-	if (one_target_per_port) {
-		sport = container_of(srpt_tgt, struct srpt_port, srpt_tgt);
-		res = sprintf(buf,
-			      "tid_ext=%016llx,ioc_guid=%016llx,pkey=ffff,"
-			      "dgid=%04x%04x%04x%04x%04x%04x%04x%04x,"
-			      "service_id=%016llx\n",
-			      srpt_service_guid, srpt_service_guid,
-			      be16_to_cpu(((__be16 *) sport->gid.raw)[0]),
-			      be16_to_cpu(((__be16 *) sport->gid.raw)[1]),
-			      be16_to_cpu(((__be16 *) sport->gid.raw)[2]),
-			      be16_to_cpu(((__be16 *) sport->gid.raw)[3]),
-			      be16_to_cpu(((__be16 *) sport->gid.raw)[4]),
-			      be16_to_cpu(((__be16 *) sport->gid.raw)[5]),
-			      be16_to_cpu(((__be16 *) sport->gid.raw)[6]),
-			      be16_to_cpu(((__be16 *) sport->gid.raw)[7]),
-			      srpt_service_guid);
-	} else {
-		struct srpt_device *sdev;
-
-		sdev = container_of(srpt_tgt, struct srpt_device, srpt_tgt);
-		res = 0;
-		for (i = 0; i < sdev->device->phys_port_cnt; i++) {
-			sport = &sdev->port[i];
-
-			res += sprintf(buf + res,
-				   "tid_ext=%016llx,ioc_guid=%016llx,pkey=ffff,"
-				   "dgid=%04x%04x%04x%04x%04x%04x%04x%04x,"
-				   "service_id=%016llx\n",
-				   srpt_service_guid,
-				   srpt_service_guid,
-				   be16_to_cpu(((__be16 *) sport->gid.raw)[0]),
-				   be16_to_cpu(((__be16 *) sport->gid.raw)[1]),
-				   be16_to_cpu(((__be16 *) sport->gid.raw)[2]),
-				   be16_to_cpu(((__be16 *) sport->gid.raw)[3]),
-				   be16_to_cpu(((__be16 *) sport->gid.raw)[4]),
-				   be16_to_cpu(((__be16 *) sport->gid.raw)[5]),
-				   be16_to_cpu(((__be16 *) sport->gid.raw)[6]),
-				   be16_to_cpu(((__be16 *) sport->gid.raw)[7]),
-				   srpt_service_guid);
-		}
-	}
+	sport = container_of(srpt_tgt, struct srpt_port, srpt_tgt);
+	res = sprintf(buf,
+		      "tid_ext=%016llx,ioc_guid=%016llx,pkey=ffff,"
+		      "dgid=%04x%04x%04x%04x%04x%04x%04x%04x,"
+		      "service_id=%016llx\n",
+		      srpt_service_guid, srpt_service_guid,
+		      be16_to_cpu(((__be16 *) sport->gid.raw)[0]),
+		      be16_to_cpu(((__be16 *) sport->gid.raw)[1]),
+		      be16_to_cpu(((__be16 *) sport->gid.raw)[2]),
+		      be16_to_cpu(((__be16 *) sport->gid.raw)[3]),
+		      be16_to_cpu(((__be16 *) sport->gid.raw)[4]),
+		      be16_to_cpu(((__be16 *) sport->gid.raw)[5]),
+		      be16_to_cpu(((__be16 *) sport->gid.raw)[6]),
+		      be16_to_cpu(((__be16 *) sport->gid.raw)[7]),
+		      srpt_service_guid);
 
 out:
 	return res;
@@ -4272,9 +4202,7 @@ static void srpt_add_one(struct ib_device *device)
 	struct ib_cm_id *cm_id;
 	struct srpt_device *sdev;
 	struct srpt_port *sport;
-	struct srpt_tgt *srpt_tgt;
 	struct ib_srq_init_attr srq_attr;
-	char tgt_name[24];
 	int i, ret;
 
 	TRACE_ENTRY();
@@ -4287,42 +4215,16 @@ static void srpt_add_one(struct ib_device *device)
 
 	sdev->device = device;
 
-	if (!one_target_per_port) {
-		srpt_tgt = &sdev->srpt_tgt;
-		srpt_init_tgt(srpt_tgt);
-
-		if (use_node_guid_in_target_name) {
-			snprintf(tgt_name, sizeof(tgt_name),
-				 "%04x:%04x:%04x:%04x",
-				 be16_to_cpu(((__be16 *)&device->node_guid)[0]),
-				 be16_to_cpu(((__be16 *)&device->node_guid)[1]),
-				 be16_to_cpu(((__be16 *)&device->node_guid)[2]),
-				 be16_to_cpu(((__be16 *)&device->node_guid)[3]));
-			srpt_tgt->scst_tgt =
-				scst_register_target(&srpt_template, tgt_name);
-		} else {
-			srpt_tgt->scst_tgt =
-				scst_register_target(&srpt_template, NULL);
-		}
-		if (!srpt_tgt->scst_tgt) {
-			PRINT_ERROR("SCST registration failed for %s.",
-				    sdev->device->name);
-			goto free_dev;
-		}
-
-		scst_tgt_set_tgt_priv(srpt_tgt->scst_tgt, sdev);
-	}
-
 	ret = ib_query_device(device, &sdev->dev_attr);
 	if (ret) {
 		PRINT_ERROR("ib_query_device() failed: %d", ret);
-		goto unregister_tgt;
+		goto free_dev;
 	}
 
 	sdev->pd = ib_alloc_pd(device);
 	if (IS_ERR(sdev->pd)) {
 		PRINT_ERROR("ib_alloc_pd() failed: %ld", PTR_ERR(sdev->pd));
-		goto unregister_tgt;
+		goto free_dev;
 	}
 
 	sdev->mr = ib_get_dma_mr(sdev->pd, IB_ACCESS_LOCAL_WRITE);
@@ -4420,8 +4322,7 @@ static void srpt_add_one(struct ib_device *device)
 		sport = &sdev->port[i - 1];
 		sport->sdev = sdev;
 		sport->port = i;
-		if (one_target_per_port)
-			srpt_init_tgt(&sport->srpt_tgt);
+		srpt_init_tgt(&sport->srpt_tgt);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
 		/*
 		 * A vanilla 2.6.19 or older kernel without backported OFED
@@ -4459,9 +4360,6 @@ err_mr:
 	ib_dereg_mr(sdev->mr);
 err_pd:
 	ib_dealloc_pd(sdev->pd);
-unregister_tgt:
-	if (!one_target_per_port)
-		scst_unregister_target(sdev->srpt_tgt.scst_tgt);
 free_dev:
 	kfree(sdev);
 err:
@@ -4513,18 +4411,13 @@ static void srpt_remove_one(struct ib_device *device)
 	 * SRP_LOGIN_REQ information units can arrive while unregistering the
 	 * SCST target.
 	 */
-	if (one_target_per_port) {
-		for (i = 0; i < sdev->device->phys_port_cnt; i++) {
-			struct srpt_tgt *tgt = &sdev->port[i].srpt_tgt;
+	for (i = 0; i < sdev->device->phys_port_cnt; i++) {
+		struct srpt_tgt *tgt = &sdev->port[i].srpt_tgt;
 
-			if (tgt->scst_tgt) {
-				scst_unregister_target(tgt->scst_tgt);
-				tgt->scst_tgt = NULL;
-			}
+		if (tgt->scst_tgt) {
+			scst_unregister_target(tgt->scst_tgt);
+			tgt->scst_tgt = NULL;
 		}
-	} else {
-		scst_unregister_target(sdev->srpt_tgt.scst_tgt);
-		sdev->srpt_tgt.scst_tgt = NULL;
 	}
 
 	srpt_free_ioctx_ring((struct srpt_ioctx **)sdev->ioctx_ring, sdev,
@@ -4644,15 +4537,6 @@ static int __init srpt_init_module(void)
 			    srpt_srq_size, MIN_SRPT_SQ_SIZE);
 		goto out;
 	}
-
-	if (!one_target_per_port)
-		PRINT_WARNING("%s%s", !use_node_guid_in_target_name ?
-			      "Using one target per HCA " :
-			      "Using autogenerated target names ",
-			      "is deprecated and will be removed in one of the "
-			      "next versions. It is strongly recommended to "
-			      "set the one_target_per_port parameter to true "
-			      "and to update your SCST config file.");
 
 	ret = scst_register_target_template(&srpt_template);
 	if (ret < 0) {

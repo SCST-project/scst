@@ -47,20 +47,6 @@ The ib_srpt kernel module supports the following parameters:
   parameter. Note: setting this parameter too low will cause SRP every login
   to fail and will cause a message similar to the following to be logged on
   the target system: "ib_srpt: RDMA t ... for idx ... failed with status 12".
-* one_target_per_port (boolean) and
-* use_node_guid_in_target_name (boolean)
-  ib_srpt can operate in one of the following three modes:
-  1. Access control configuration per HCA and assigning a "ib_srpt_target_<n>"
-     style name to each HCA.
-  2. Access control configuration per HCA and referring to a HCA via its node
-     GUID (e.g. 0002:c903:0005:f34a).
-  3. Access control configuration per HCA port and referring to a HCA via its
-     port GID (e.g. fe80:0000:0000:0000:0002:c903:0005:f34b).
-  Mode (1) is chosen if both one_target_per_port and
-  use_node_guid_in_target_name are false. Mode (2) is chosen if
-  one_target_per_port is false and use_node_guid_in_target_name is true. Mode
-  (3) is chosen if one_target_per_port is true. This last mode is the
-  default mode.
 * rdma_cm_port (number)
   A 16-bit number that specifies the port number to be registered via the
   RDMA/CM. Must be specified to make communication over RoCE or iWARP
