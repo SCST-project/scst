@@ -284,8 +284,6 @@ static void srpt_event_handler(struct ib_event_handler *handler,
 	struct srpt_port *sport;
 	u8 port_num;
 
-	TRACE_ENTRY();
-
 	sdev = ib_get_client_data(event->device, &srpt_client);
 	if (!sdev || sdev->device != event->device)
 		return;
@@ -328,8 +326,6 @@ static void srpt_event_handler(struct ib_event_handler *handler,
 		PRINT_ERROR("received unrecognized IB event %d", event->event);
 		break;
 	}
-
-	TRACE_EXIT();
 }
 
 /**
@@ -678,8 +674,6 @@ static int srpt_refresh_port(struct srpt_port *sport)
 	int ret;
 	char tgt_name[40];
 
-	TRACE_ENTRY();
-
 	memset(&port_modify, 0, sizeof(port_modify));
 	port_modify.set_port_cap_mask = IB_PORT_DEVICE_MGMT_SUP;
 	port_modify.clr_port_cap_mask = 0;
@@ -744,8 +738,6 @@ static int srpt_refresh_port(struct srpt_port *sport)
 				    tgt_name);
 	}
 
-	TRACE_EXIT_RES(0);
-
 	return 0;
 
 err_query_port:
@@ -754,8 +746,6 @@ err_query_port:
 	ib_modify_port(sport->sdev->device, sport->port, 0, &port_modify);
 
 err_mod_port:
-	TRACE_EXIT_RES(ret);
-
 	return ret;
 }
 
@@ -851,8 +841,6 @@ static struct srpt_ioctx **srpt_alloc_ioctx_ring(struct srpt_device *sdev,
 	struct srpt_ioctx **ring;
 	int i;
 
-	TRACE_ENTRY();
-
 	WARN_ON(ioctx_size != sizeof(struct srpt_recv_ioctx) &&
 		ioctx_size != sizeof(struct srpt_send_ioctx));
 
@@ -874,7 +862,6 @@ err:
 	kfree(ring);
 	ring = NULL;
 out:
-	TRACE_EXIT_HRES(ring);
 	return ring;
 }
 
@@ -1387,8 +1374,6 @@ static void srpt_abort_cmd(struct srpt_send_ioctx *ioctx,
 	struct scst_cmd *scmnd = &ioctx->scmnd;
 	enum srpt_command_state state = ioctx->state;
 
-	TRACE_ENTRY();
-
 	switch (state) {
 	case SRPT_STATE_NEED_DATA:
 		ioctx->state = SRPT_STATE_DATA_IN;
@@ -1439,8 +1424,6 @@ static void srpt_abort_cmd(struct srpt_send_ioctx *ioctx,
 		WARN(true, "Unexpected command state %d\n", state);
 		break;
 	}
-
-	TRACE_EXIT();
 }
 
 static void srpt_on_abort_cmd(struct scst_cmd *cmd)
@@ -3736,8 +3719,6 @@ static int srpt_get_initiator_port_transport_id(struct scst_tgt *tgt,
 	struct spc_rdma_transport_id *tr_id;
 	int res;
 
-	TRACE_ENTRY();
-
 	if (!scst_sess) {
 		res = SCSI_TRANSPORTID_PROTOCOLID_SRP;
 		goto out;
@@ -3763,7 +3744,6 @@ static int srpt_get_initiator_port_transport_id(struct scst_tgt *tgt,
 	*transport_id = (uint8_t *)tr_id;
 
 out:
-	TRACE_EXIT_RES(res);
 	return res;
 }
 
@@ -3803,15 +3783,7 @@ static void srpt_refresh_port_work(struct work_struct *work)
  */
 static int srpt_detect(struct scst_tgt_template *tp)
 {
-	int device_count;
-
-	TRACE_ENTRY();
-
-	device_count = atomic_read(&srpt_device_count);
-
-	TRACE_EXIT_RES(device_count);
-
-	return device_count;
+	return atomic_read(&srpt_device_count);
 }
 
 static int srpt_close_session(struct scst_session *sess)
@@ -3848,8 +3820,6 @@ static int srpt_release_sport(struct srpt_port *sport)
 	struct srpt_nexus *nexus, *next_n;
 	struct srpt_rdma_ch *ch;
 
-	TRACE_ENTRY();
-
 	WARN_ON_ONCE(irqs_disabled());
 	BUG_ON(!sport);
 
@@ -3883,7 +3853,6 @@ static int srpt_release_sport(struct srpt_port *sport)
 	}
 	mutex_unlock(&sport->mutex);
 
-	TRACE_EXIT();
 	return 0;
 }
 
@@ -3896,8 +3865,6 @@ static int srpt_release(struct scst_tgt *scst_tgt)
 {
 	struct srpt_port *sport = scst_tgt_get_tgt_priv(scst_tgt);
 
-	TRACE_ENTRY();
-
 	EXTRACHECKS_WARN_ON_ONCE(irqs_disabled());
 
 	BUG_ON(!scst_tgt);
@@ -3906,8 +3873,6 @@ static int srpt_release(struct scst_tgt *scst_tgt)
 	srpt_release_sport(sport);
 
 	scst_tgt_set_tgt_priv(scst_tgt, NULL);
-
-	TRACE_EXIT();
 
 	return 0;
 }
@@ -4173,8 +4138,6 @@ static void srpt_add_one(struct ib_device *device)
 	struct ib_srq_init_attr srq_attr;
 	int i, j, ret;
 
-	TRACE_ENTRY();
-
 	TRACE_DBG("device = %p, device->dma_ops = %p", device, device->dma_ops);
 
 	sdev = kzalloc(sizeof(*sdev), GFP_KERNEL);
@@ -4315,7 +4278,6 @@ static void srpt_add_one(struct ib_device *device)
 out:
 	ib_set_client_data(device, &srpt_client, sdev);
 
-	TRACE_EXIT();
 	return;
 
 err_event:
@@ -4347,8 +4309,6 @@ static void srpt_remove_one(struct ib_device *device)
 {
 	int i;
 	struct srpt_device *sdev;
-
-	TRACE_ENTRY();
 
 	sdev = ib_get_client_data(device, &srpt_client);
 	if (!sdev) {
@@ -4402,8 +4362,6 @@ static void srpt_remove_one(struct ib_device *device)
 	ib_dealloc_pd(sdev->pd);
 
 	kfree(sdev);
-
-	TRACE_EXIT();
 }
 
 static struct ib_client srpt_client = {
@@ -4580,8 +4538,6 @@ out:
 
 static void __exit srpt_cleanup_module(void)
 {
-	TRACE_ENTRY();
-
 	if (rdma_cm_id)
 		rdma_destroy_id(rdma_cm_id);
 	ib_unregister_client(&srpt_client);
@@ -4589,8 +4545,6 @@ static void __exit srpt_cleanup_module(void)
 	srpt_unregister_procfs_entry(&srpt_template);
 #endif /* CONFIG_SCST_PROC */
 	scst_unregister_target_template(&srpt_template);
-
-	TRACE_EXIT();
 }
 
 module_init(srpt_init_module);
