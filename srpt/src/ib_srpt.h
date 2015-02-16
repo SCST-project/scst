@@ -263,7 +263,7 @@ struct srpt_tsk_mgmt {
  *               SRP response sent.
  * @tsk_mgmt:    SRPT task management function context information.
  * @rdma_ius_buf: Inline rdma_ius buffer for small requests.
- * @scmnd:       SCST command data structure.
+ * @cmd:         SCST command data structure.
  * @dir:         Data direction.
  */
 struct srpt_send_ioctx {
@@ -290,7 +290,7 @@ struct srpt_send_ioctx {
 	u8			rdma_ius_buf[2 * sizeof(struct rdma_iu)
 					     + 2 * sizeof(struct ib_sge)]
 				__aligned(sizeof(uint64_t));
-	struct scst_cmd		scmnd;
+	struct scst_cmd		cmd;
 	scst_data_direction	dir;
 };
 
