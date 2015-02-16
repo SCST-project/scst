@@ -1342,8 +1342,7 @@ static void srpt_put_send_ioctx(struct srpt_send_ioctx *ioctx)
 
 	/*
 	 * If the WARN_ON() below gets triggered this means that
-	 * srpt_unmap_sg_to_ib_sge() has not been called before
-	 * scst_tgt_cmd_done().
+	 * srpt_unmap_sg_to_ib_sge() has not been called.
 	 */
 	WARN_ON(ioctx->mapped_sg_count);
 
