@@ -1712,7 +1712,7 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch,
 	srp_cmd = recv_ioctx->ioctx.buf + recv_ioctx->ioctx.offset;
 
 	cmd = &send_ioctx->cmd;
-	ret = scst_rx_cmd_prealloced(cmd, ch->scst_sess, (u8 *) &srp_cmd->lun,
+	ret = scst_rx_cmd_prealloced(cmd, ch->sess, (u8 *) &srp_cmd->lun,
 				     sizeof(srp_cmd->lun), srp_cmd->cdb,
 				     sizeof(srp_cmd->cdb), in_interrupt());
 	if (ret) {
@@ -1792,38 +1792,38 @@ static void srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 
 	pr_debug("recv_tsk_mgmt= %d for task_tag= %lld using tag= %lld ch= %p sess= %p\n",
 		 srp_tsk->tsk_mgmt_func, srp_tsk->task_tag, srp_tsk->tag,
-		 ch, ch->scst_sess);
+		 ch, ch->sess);
 
 	send_ioctx->tsk_mgmt.tag = srp_tsk->tag;
 
 	switch (srp_tsk->tsk_mgmt_func) {
 	case SRP_TSK_ABORT_TASK:
 		pr_debug("Processing SRP_TSK_ABORT_TASK\n");
-		ret = scst_rx_mgmt_fn_tag(ch->scst_sess, SCST_ABORT_TASK,
+		ret = scst_rx_mgmt_fn_tag(ch->sess, SCST_ABORT_TASK,
 					  srp_tsk->task_tag,
 					  in_interrupt(), send_ioctx);
 		break;
 	case SRP_TSK_ABORT_TASK_SET:
 		pr_debug("Processing SRP_TSK_ABORT_TASK_SET\n");
-		ret = scst_rx_mgmt_fn_lun(ch->scst_sess, SCST_ABORT_TASK_SET,
+		ret = scst_rx_mgmt_fn_lun(ch->sess, SCST_ABORT_TASK_SET,
 					  &srp_tsk->lun, sizeof(srp_tsk->lun),
 					  in_interrupt(), send_ioctx);
 		break;
 	case SRP_TSK_CLEAR_TASK_SET:
 		pr_debug("Processing SRP_TSK_CLEAR_TASK_SET\n");
-		ret = scst_rx_mgmt_fn_lun(ch->scst_sess, SCST_CLEAR_TASK_SET,
+		ret = scst_rx_mgmt_fn_lun(ch->sess, SCST_CLEAR_TASK_SET,
 					  &srp_tsk->lun, sizeof(srp_tsk->lun),
 					  in_interrupt(), send_ioctx);
 		break;
 	case SRP_TSK_LUN_RESET:
 		pr_debug("Processing SRP_TSK_LUN_RESET\n");
-		ret = scst_rx_mgmt_fn_lun(ch->scst_sess, SCST_LUN_RESET,
+		ret = scst_rx_mgmt_fn_lun(ch->sess, SCST_LUN_RESET,
 					  &srp_tsk->lun, sizeof(srp_tsk->lun),
 					  in_interrupt(), send_ioctx);
 		break;
 	case SRP_TSK_CLEAR_ACA:
 		pr_debug("Processing SRP_TSK_CLEAR_ACA\n");
-		ret = scst_rx_mgmt_fn_lun(ch->scst_sess, SCST_CLEAR_ACA,
+		ret = scst_rx_mgmt_fn_lun(ch->sess, SCST_CLEAR_ACA,
 					  &srp_tsk->lun, sizeof(srp_tsk->lun),
 					  in_interrupt(), send_ioctx);
 		break;
@@ -2099,9 +2099,8 @@ static void srpt_free_ch(struct kref *kref)
 	kfree(ch);
 }
 
-static void srpt_unreg_sess(struct scst_session *scst_sess)
+static void srpt_unreg_ch(struct srpt_rdma_ch *ch)
 {
-	struct srpt_rdma_ch *ch = scst_sess_get_tgt_priv(scst_sess);
 	struct srpt_port *sport = ch->sport;
 	struct srpt_device *sdev = sport->sdev;
 
@@ -2131,6 +2130,11 @@ static void srpt_unreg_sess(struct scst_session *scst_sess)
 	mutex_unlock(&sport->mutex);
 
 	kref_put(&ch->kref, srpt_free_ch);
+}
+
+static void srpt_unreg_sess(struct scst_session *sess)
+{
+	srpt_unreg_ch(scst_sess_get_tgt_priv(sess));
 }
 
 static int srpt_compl_thread(void *arg)
@@ -2163,9 +2167,9 @@ static int srpt_compl_thread(void *arg)
 	}
 	set_current_state(TASK_RUNNING);
 
-	pr_debug("%s-%d: about to invoke scst_unregister_session()\n",
+	pr_debug("%s-%d: about to unregister this session()\n",
 		 ch->sess_name, ch->qp->qp_num);
-	scst_unregister_session(ch->scst_sess, false, srpt_unreg_sess);
+	scst_unregister_session(ch->sess, false, srpt_unreg_sess);
 
 	while (!kthread_should_stop())
 		schedule_timeout(DIV_ROUND_UP(HZ, 10));
@@ -2648,9 +2652,9 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 
 	BUG_ON(!sport->scst_tgt);
 	ret = -ENOMEM;
-	ch->scst_sess = scst_register_session(sport->scst_tgt, 0,
-					      ch->sess_name, ch, NULL, NULL);
-	if (!ch->scst_sess) {
+	ch->sess = scst_register_session(sport->scst_tgt, 0,
+					 ch->sess_name, ch, NULL, NULL);
+	if (!ch->sess) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		pr_debug("Failed to create SCST session\n");
 		goto destroy_ib;
@@ -2704,7 +2708,7 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 		goto reject;
 	}
 
-	pr_debug("Establish connection sess=%p name=%s ch=%p\n", ch->scst_sess,
+	pr_debug("Establish connection sess=%p name=%s ch=%p\n", ch->sess,
 		 ch->sess_name, ch);
 
 	/* create srp_login_response */
@@ -2769,7 +2773,7 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 	goto out;
 
 unreg_ch:
-	scst_unregister_session(ch->scst_sess, true, NULL);
+	scst_unregister_session(ch->sess, true, NULL);
 
 destroy_ib:
 	srpt_destroy_ch_ib(ch);
@@ -3678,7 +3682,7 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
  * See also SPC-3, section 7.5.4.5, TransportID for initiator ports using SRP.
  */
 static int srpt_get_initiator_port_transport_id(struct scst_tgt *tgt,
-	struct scst_session *scst_sess,	uint8_t **transport_id)
+	struct scst_session *sess, uint8_t **transport_id)
 {
 	struct srpt_rdma_ch *ch;
 	struct spc_rdma_transport_id {
@@ -3689,12 +3693,12 @@ static int srpt_get_initiator_port_transport_id(struct scst_tgt *tgt,
 	struct spc_rdma_transport_id *tr_id;
 	int res;
 
-	if (!scst_sess) {
+	if (!sess) {
 		res = SCSI_TRANSPORTID_PROTOCOLID_SRP;
 		goto out;
 	}
 
-	ch = scst_sess_get_tgt_priv(scst_sess);
+	ch = scst_sess_get_tgt_priv(sess);
 	BUG_ON(!ch);
 
 	BUILD_BUG_ON(sizeof(*tr_id) != 24);
@@ -3809,7 +3813,7 @@ static int srpt_release_sport(struct srpt_port *sport)
 				pr_info("%s-%d: state %s; %d commands in progress\n",
 					ch->sess_name, ch->qp->qp_num,
 					get_ch_state_name(ch->state),
-					atomic_read(&ch->scst_sess->sess_cmd_count));
+					atomic_read(&ch->sess->sess_cmd_count));
 			}
 		}
 		mutex_unlock(&sport->mutex);
@@ -3974,11 +3978,11 @@ static const struct attribute *srpt_tgt_attrs[] = {
 static ssize_t show_req_lim(struct kobject *kobj,
 			    struct kobj_attribute *attr, char *buf)
 {
-	struct scst_session *scst_sess;
+	struct scst_session *sess;
 	struct srpt_rdma_ch *ch;
 
-	scst_sess = container_of(kobj, struct scst_session, sess_kobj);
-	ch = scst_sess_get_tgt_priv(scst_sess);
+	sess = container_of(kobj, struct scst_session, sess_kobj);
+	ch = scst_sess_get_tgt_priv(sess);
 	if (!ch)
 		return -ENOENT;
 	return sprintf(buf, "%d\n", ch->req_lim);
@@ -3987,11 +3991,11 @@ static ssize_t show_req_lim(struct kobject *kobj,
 static ssize_t show_req_lim_delta(struct kobject *kobj,
 				  struct kobj_attribute *attr, char *buf)
 {
-	struct scst_session *scst_sess;
+	struct scst_session *sess;
 	struct srpt_rdma_ch *ch;
 
-	scst_sess = container_of(kobj, struct scst_session, sess_kobj);
-	ch = scst_sess_get_tgt_priv(scst_sess);
+	sess = container_of(kobj, struct scst_session, sess_kobj);
+	ch = scst_sess_get_tgt_priv(sess);
 	if (!ch)
 		return -ENOENT;
 	return sprintf(buf, "%d\n", ch->req_lim_delta);
@@ -4000,11 +4004,11 @@ static ssize_t show_req_lim_delta(struct kobject *kobj,
 static ssize_t show_ch_state(struct kobject *kobj, struct kobj_attribute *attr,
 			     char *buf)
 {
-	struct scst_session *scst_sess;
+	struct scst_session *sess;
 	struct srpt_rdma_ch *ch;
 
-	scst_sess = container_of(kobj, struct scst_session, sess_kobj);
-	ch = scst_sess_get_tgt_priv(scst_sess);
+	sess = container_of(kobj, struct scst_session, sess_kobj);
+	ch = scst_sess_get_tgt_priv(sess);
 	if (!ch)
 		return -ENOENT;
 	return sprintf(buf, "%s\n", get_ch_state_name(ch->state));
@@ -4014,11 +4018,11 @@ static ssize_t show_ch_state(struct kobject *kobj, struct kobj_attribute *attr,
 static ssize_t show_comp_vector(struct kobject *kobj,
 				struct kobj_attribute *attr, char *buf)
 {
-	struct scst_session *scst_sess;
+	struct scst_session *sess;
 	struct srpt_rdma_ch *ch;
 
-	scst_sess = container_of(kobj, struct scst_session, sess_kobj);
-	ch = scst_sess_get_tgt_priv(scst_sess);
+	sess = container_of(kobj, struct scst_session, sess_kobj);
+	ch = scst_sess_get_tgt_priv(sess);
 	return ch ? sprintf(buf, "%u\n", ch->comp_vector) : -ENOENT;
 }
 #endif

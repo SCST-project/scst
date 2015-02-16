@@ -349,7 +349,7 @@ enum rdma_ch_state {
  * @using_rdma_cm: Whether to use the RDMA/CM or the IB/CM.
  * @processing_wait_list: Whether the I/O context wait list is being processed.
  * @sess_name:     SCST session name.
- * @scst_sess:     SCST session information associated with this SRP channel.
+ * @sess:          SCST session information associated with this SRP channel.
  */
 struct srpt_rdma_ch {
 	struct task_struct	*thread;
@@ -388,7 +388,7 @@ struct srpt_rdma_ch {
 	bool			using_rdma_cm;
 	bool			processing_wait_list;
 	u8			sess_name[40];
-	struct scst_session	*scst_sess;
+	struct scst_session	*sess;
 };
 
 /**
