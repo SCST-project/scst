@@ -253,8 +253,6 @@ struct srpt_tsk_mgmt {
  * @state:       I/O context state.
  * @rdma_aborted: If initiating a multipart RDMA transfer failed, whether
  *               the already initiated transfers have finished.
- * @scmnd:       SCST command data structure.
- * @dir:         Data direction.
  * @free_list:   Node in srpt_rdma_ch.free_list.
  * @sg_cnt:      SG-list size.
  * @mapped_sg_count: ib_dma_map_sg() return value.
@@ -265,6 +263,8 @@ struct srpt_tsk_mgmt {
  *               SRP response sent.
  * @tsk_mgmt:    SRPT task management function context information.
  * @rdma_ius_buf: Inline rdma_ius buffer for small requests.
+ * @scmnd:       SCST command data structure.
+ * @dir:         Data direction.
  */
 struct srpt_send_ioctx {
 	struct srpt_ioctx	ioctx;
@@ -280,8 +280,6 @@ struct srpt_send_ioctx {
 	spinlock_t		spinlock;
 	enum srpt_command_state	state;
 	bool			rdma_aborted;
-	struct scst_cmd		scmnd;
-	scst_data_direction	dir;
 	int			sg_cnt;
 	int			mapped_sg_count;
 	u16			n_rdma_ius;
@@ -292,6 +290,8 @@ struct srpt_send_ioctx {
 	u8			rdma_ius_buf[2 * sizeof(struct rdma_iu)
 					     + 2 * sizeof(struct ib_sge)]
 				__aligned(sizeof(uint64_t));
+	struct scst_cmd		scmnd;
+	scst_data_direction	dir;
 };
 
 /**
@@ -348,8 +348,8 @@ enum rdma_ch_state {
  * @comp_vector:   Completion vector assigned to the QP.
  * @using_rdma_cm: Whether to use the RDMA/CM or the IB/CM.
  * @processing_wait_list: Whether the I/O context wait list is being processed.
- * @scst_sess:     SCST session information associated with this SRP channel.
  * @sess_name:     SCST session name.
+ * @scst_sess:     SCST session information associated with this SRP channel.
  */
 struct srpt_rdma_ch {
 	struct task_struct	*thread;
@@ -387,9 +387,8 @@ struct srpt_rdma_ch {
 #endif
 	bool			using_rdma_cm;
 	bool			processing_wait_list;
-
-	struct scst_session	*scst_sess;
 	u8			sess_name[40];
+	struct scst_session	*scst_sess;
 };
 
 /**
