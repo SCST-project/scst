@@ -724,7 +724,7 @@ static int srpt_refresh_port(struct srpt_port *sport)
 		}
 	}
 
-	if (!sport->srpt_tgt.scst_tgt) {
+	if (!sport->scst_tgt) {
 		snprintf(tgt_name, sizeof(tgt_name),
 			 "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x",
 			 be16_to_cpu(((__be16 *) sport->gid.raw)[0]),
@@ -735,10 +735,10 @@ static int srpt_refresh_port(struct srpt_port *sport)
 			 be16_to_cpu(((__be16 *) sport->gid.raw)[5]),
 			 be16_to_cpu(((__be16 *) sport->gid.raw)[6]),
 			 be16_to_cpu(((__be16 *) sport->gid.raw)[7]));
-		sport->srpt_tgt.scst_tgt = scst_register_target(&srpt_template,
+		sport->scst_tgt = scst_register_target(&srpt_template,
 						       tgt_name);
-		if (sport->srpt_tgt.scst_tgt)
-			scst_tgt_set_tgt_priv(sport->srpt_tgt.scst_tgt, sport);
+		if (sport->scst_tgt)
+			scst_tgt_set_tgt_priv(sport->scst_tgt, sport);
 		else
 			PRINT_ERROR("Registration of target %s failed.",
 				    tgt_name);
@@ -2127,8 +2127,8 @@ static void srpt_free_ch(struct kref *kref)
 static void srpt_unreg_sess(struct scst_session *scst_sess)
 {
 	struct srpt_rdma_ch *ch = scst_sess_get_tgt_priv(scst_sess);
-	struct srpt_device *sdev = ch->sport->sdev;
-	struct srpt_tgt *srpt_tgt = ch->srpt_tgt;
+	struct srpt_port *sport = ch->sport;
+	struct srpt_device *sdev = sport->sdev;
 
 	kthread_stop(ch->thread);
 
@@ -2147,13 +2147,13 @@ static void srpt_unreg_sess(struct scst_session *scst_sess)
 		ib_destroy_cm_id(ch->ib_cm.cm_id);
 
 	/*
-	 * Invoke wake_up() inside the lock to avoid that srpt_tgt disappears
+	 * Invoke wake_up() inside the lock to avoid that sport disappears
 	 * after list_del() and before wake_up() has been invoked.
 	 */
-	mutex_lock(&srpt_tgt->mutex);
+	mutex_lock(&sport->mutex);
 	list_del(&ch->list);
-	wake_up(&srpt_tgt->ch_releaseQ);
-	mutex_unlock(&srpt_tgt->mutex);
+	wake_up(&sport->ch_releaseQ);
+	mutex_unlock(&sport->mutex);
 
 	kref_put(&ch->kref, srpt_free_ch);
 }
@@ -2346,7 +2346,7 @@ static bool srpt_close_ch(struct srpt_rdma_ch *ch)
  * the responsibility of the caller to ensure that this function is not
  * invoked concurrently with the code that accepts a connection. This means
  * that this function must either be invoked from inside a CM callback
- * function or that it must be invoked with the srpt_tgt.mutex held.
+ * function or that it must be invoked with the srpt_port.mutex held.
  */
 static int srpt_disconnect_ch(struct srpt_rdma_ch *ch)
 {
@@ -2369,53 +2369,38 @@ static int srpt_disconnect_ch(struct srpt_rdma_ch *ch)
 	return ret;
 }
 
-static void __srpt_close_all_ch(struct srpt_tgt *srpt_tgt)
+static void __srpt_close_all_ch(struct srpt_port *sport)
 {
 	struct srpt_nexus *nexus;
 	struct srpt_rdma_ch *ch;
 
-	lockdep_assert_held(&srpt_tgt->mutex);
+	lockdep_assert_held(&sport->mutex);
 
-	list_for_each_entry(nexus, &srpt_tgt->nexus_list, entry) {
+	list_for_each_entry(nexus, &sport->nexus_list, entry) {
 		list_for_each_entry(ch, &nexus->ch_list, list) {
 			if (srpt_disconnect_ch(ch) >= 0)
 				PRINT_INFO("Closing channel %s-%d because"
 					   " target %s has been disabled",
 					   ch->sess_name, ch->qp->qp_num,
-					   srpt_tgt->scst_tgt->tgt_name);
+					   sport->scst_tgt->tgt_name);
 			srpt_close_ch(ch);
 		}
 	}
 }
 
-static struct srpt_device *srpt_convert_to_sdev(struct scst_tgt *scst_tgt)
-{
-	struct srpt_port *sport = scst_tgt_get_tgt_priv(scst_tgt);
-
-	return sport ? sport->sdev : NULL;
-}
-
-static struct srpt_tgt *srpt_convert_scst_tgt(struct scst_tgt *scst_tgt)
-{
-	struct srpt_port *sport = scst_tgt_get_tgt_priv(scst_tgt);
-	struct srpt_tgt *srpt_tgt = sport ? &sport->srpt_tgt : NULL;
-
-	return srpt_tgt;
-}
-
 /*
- * Look up (i_port_id, t_port_id) in srpt_tgt->nexus_list. Create an entry if
+ * Look up (i_port_id, t_port_id) in sport->nexus_list. Create an entry if
  * it does not yet exist.
  */
-static struct srpt_nexus *srpt_get_nexus(struct srpt_tgt *srpt_tgt,
+static struct srpt_nexus *srpt_get_nexus(struct srpt_port *sport,
 					 const u8 i_port_id[16],
 					 const u8 t_port_id[16])
 {
 	struct srpt_nexus *nexus = NULL, *tmp_nexus = NULL, *n;
 
 	for (;;) {
-		mutex_lock(&srpt_tgt->mutex);
-		list_for_each_entry(n, &srpt_tgt->nexus_list, entry) {
+		mutex_lock(&sport->mutex);
+		list_for_each_entry(n, &sport->nexus_list, entry) {
 			if (memcmp(n->i_port_id, i_port_id, 16) == 0 &&
 			    memcmp(n->t_port_id, t_port_id, 16) == 0) {
 				nexus = n;
@@ -2423,10 +2408,10 @@ static struct srpt_nexus *srpt_get_nexus(struct srpt_tgt *srpt_tgt,
 			}
 		}
 		if (!nexus && tmp_nexus) {
-			list_add_tail(&tmp_nexus->entry, &srpt_tgt->nexus_list);
+			list_add_tail(&tmp_nexus->entry, &sport->nexus_list);
 			swap(nexus, tmp_nexus);
 		}
-		mutex_unlock(&srpt_tgt->mutex);
+		mutex_unlock(&sport->mutex);
 
 		if (nexus)
 			break;
@@ -2451,22 +2436,22 @@ static struct srpt_nexus *srpt_get_nexus(struct srpt_tgt *srpt_tgt,
  */
 static int srpt_enable_target(struct scst_tgt *scst_tgt, bool enable)
 {
-	struct srpt_tgt *srpt_tgt = srpt_convert_scst_tgt(scst_tgt);
+	struct srpt_port *sport = scst_tgt_get_tgt_priv(scst_tgt);
 	int res = -E_TGT_PRIV_NOT_YET_SET;
 
 	EXTRACHECKS_WARN_ON_ONCE(irqs_disabled());
 
-	if (!srpt_tgt)
+	if (!sport)
 		goto out;
 
 	PRINT_INFO("%s target %s", enable ? "Enabling" : "Disabling",
 		   scst_tgt->tgt_name);
 
-	mutex_lock(&srpt_tgt->mutex);
-	srpt_tgt->enabled = enable;
+	mutex_lock(&sport->mutex);
+	sport->enabled = enable;
 	if (!enable)
-		__srpt_close_all_ch(srpt_tgt);
-	mutex_unlock(&srpt_tgt->mutex);
+		__srpt_close_all_ch(sport);
+	mutex_unlock(&sport->mutex);
 
 	res = 0;
 
@@ -2479,28 +2464,28 @@ out:
  */
 static bool srpt_is_target_enabled(struct scst_tgt *scst_tgt)
 {
-	struct srpt_tgt *srpt_tgt = srpt_convert_scst_tgt(scst_tgt);
+	struct srpt_port *sport = scst_tgt_get_tgt_priv(scst_tgt);
 
-	return srpt_tgt && srpt_tgt->enabled;
+	return sport && sport->enabled;
 }
 #endif /* CONFIG_SCST_PROC */
 
 /*
- * srpt_next_comp_vector() - Next completion vector >= srpt_tgt->comp_vector
+ * srpt_next_comp_vector() - Next completion vector >= sport->comp_vector
  */
-static u8 srpt_next_comp_vector(struct srpt_tgt *srpt_tgt)
+static u8 srpt_next_comp_vector(struct srpt_port *sport)
 {
 	u8 comp_vector;
 
-	mutex_lock(&srpt_tgt->mutex);
-	comp_vector = find_next_bit(srpt_tgt->comp_v_mask, COMP_V_MASK_SIZE,
-				    srpt_tgt->comp_vector);
+	mutex_lock(&sport->mutex);
+	comp_vector = find_next_bit(sport->comp_v_mask, COMP_V_MASK_SIZE,
+				    sport->comp_vector);
 	if (comp_vector >= COMP_V_MASK_SIZE)
-		comp_vector = find_next_bit(srpt_tgt->comp_v_mask,
+		comp_vector = find_next_bit(sport->comp_v_mask,
 					    COMP_V_MASK_SIZE, 0);
 	sBUG_ON(comp_vector >= COMP_V_MASK_SIZE);
-	srpt_tgt->comp_vector = comp_vector + 1;
-	mutex_unlock(&srpt_tgt->mutex);
+	sport->comp_vector = comp_vector + 1;
+	mutex_unlock(&sport->mutex);
 
 	return comp_vector;
 }
@@ -2520,7 +2505,6 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 {
 	struct srpt_port *const sport = &sdev->port[port_num - 1];
 	const __be16 *const raw_port_gid = (__be16 *)sport->gid.raw;
-	struct srpt_tgt *const srpt_tgt = &sport->srpt_tgt;
 	struct srpt_nexus *nexus;
 	struct srp_login_rsp *rsp = NULL;
 	struct srp_login_rej *rej = NULL;
@@ -2581,7 +2565,7 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 	    be16_to_cpu(raw_port_gid[7]),
 	    be16_to_cpu(pkey));
 
-	nexus = srpt_get_nexus(srpt_tgt, req->initiator_port_id,
+	nexus = srpt_get_nexus(sport, req->initiator_port_id,
 			       req->target_port_id);
 	if (IS_ERR(nexus)) {
 		ret = PTR_ERR(nexus);
@@ -2605,11 +2589,11 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 		goto reject;
 	}
 
-	if (!srpt_tgt->enabled) {
+	if (!sport->enabled) {
 		rej->reason = cpu_to_be32(
 				SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		PRINT_INFO("rejected SRP_LOGIN_REQ because target %s is not"
-			   " enabled", srpt_tgt->scst_tgt->tgt_name);
+			   " enabled", sport->scst_tgt->tgt_name);
 		goto reject;
 	}
 
@@ -2635,7 +2619,6 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 	ch->pkey = be16_to_cpu(pkey);
 	ch->nexus = nexus;
 	ch->sport = sport;
-	ch->srpt_tgt = srpt_tgt;
 	if (ib_cm_id) {
 		ch->ib_cm.cm_id = ib_cm_id;
 		ib_cm_id->context = ch;
@@ -2687,7 +2670,7 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 			INIT_LIST_HEAD(&ch->ioctx_recv_ring[i]->wait_list);
 	}
 
-	ch->comp_vector = srpt_next_comp_vector(srpt_tgt);
+	ch->comp_vector = srpt_next_comp_vector(sport);
 
 	ret = srpt_create_ch_ib(ch);
 	if (ret) {
@@ -2700,9 +2683,9 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 	strlcpy(ch->sess_name, src_addr, sizeof(ch->sess_name));
 	TRACE_DBG("registering session %s", ch->sess_name);
 
-	BUG_ON(!srpt_tgt->scst_tgt);
+	BUG_ON(!sport->scst_tgt);
 	ret = -ENOMEM;
-	ch->scst_sess = scst_register_session(srpt_tgt->scst_tgt, 0,
+	ch->scst_sess = scst_register_session(sport->scst_tgt, 0,
 					      ch->sess_name, ch, NULL, NULL);
 	if (!ch->scst_sess) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
@@ -2719,7 +2702,7 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 		goto unreg_ch;
 	}
 
-	mutex_lock(&srpt_tgt->mutex);
+	mutex_lock(&sport->mutex);
 
 	if ((req->req_flags & SRP_MTCH_ACTION) == SRP_MULTICHAN_SINGLE) {
 		struct srpt_rdma_ch *ch2;
@@ -2739,17 +2722,17 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 	list_add_tail(&ch->list, &nexus->ch_list);
 	ch->thread = thread;
 
-	if (!srpt_tgt->enabled) {
+	if (!sport->enabled) {
 		rej->reason = cpu_to_be32(
 				SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		PRINT_INFO("rejected SRP_LOGIN_REQ because the target %s (%s)"
 			   " is not enabled",
-			   srpt_tgt->scst_tgt->tgt_name, sdev->device->name);
-		mutex_unlock(&srpt_tgt->mutex);
+			   sport->scst_tgt->tgt_name, sdev->device->name);
+		mutex_unlock(&sport->mutex);
 		goto reject;
 	}
 
-	mutex_unlock(&srpt_tgt->mutex);
+	mutex_unlock(&sport->mutex);
 
 	ret = ch->using_rdma_cm ? 0 : srpt_ch_qp_rtr(ch, ch->qp);
 	if (ret) {
@@ -2796,11 +2779,11 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 	}
 
 	/*
-	 * Hold the srpt_tgt mutex while accepting a connection to avoid that
+	 * Hold the sport mutex while accepting a connection to avoid that
 	 * srpt_disconnect_ch() is invoked concurrently with this code.
 	 */
-	mutex_lock(&srpt_tgt->mutex);
-	if (srpt_tgt->enabled && ch->state == CH_CONNECTING) {
+	mutex_lock(&sport->mutex);
+	if (sport->enabled && ch->state == CH_CONNECTING) {
 		if (ch->using_rdma_cm)
 			ret = rdma_accept(rdma_cm_id, &rep_param->rdma_cm);
 		else
@@ -2808,7 +2791,7 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 	} else {
 		ret = -EINVAL;
 	}
-	mutex_unlock(&srpt_tgt->mutex);
+	mutex_unlock(&sport->mutex);
 
 	switch (ret) {
 	case 0:
@@ -3834,25 +3817,25 @@ static int srpt_detect(struct scst_tgt_template *tp)
 static int srpt_close_session(struct scst_session *sess)
 {
 	struct srpt_rdma_ch *ch = scst_sess_get_tgt_priv(sess);
-	struct srpt_tgt *srpt_tgt = ch->srpt_tgt;
+	struct srpt_port *sport = ch->sport;
 
-	mutex_lock(&srpt_tgt->mutex);
+	mutex_lock(&sport->mutex);
 	srpt_disconnect_ch(ch);
-	mutex_unlock(&srpt_tgt->mutex);
+	mutex_unlock(&sport->mutex);
 
 	return 0;
 }
 
-static bool srpt_ch_list_empty(struct srpt_tgt *srpt_tgt)
+static bool srpt_ch_list_empty(struct srpt_port *sport)
 {
 	struct srpt_nexus *nexus;
 	bool res = true;
 
-	mutex_lock(&srpt_tgt->mutex);
-	list_for_each_entry(nexus, &srpt_tgt->nexus_list, entry)
+	mutex_lock(&sport->mutex);
+	list_for_each_entry(nexus, &sport->nexus_list, entry)
 		if (!list_empty(&nexus->ch_list))
 			res = false;
-	mutex_unlock(&srpt_tgt->mutex);
+	mutex_unlock(&sport->mutex);
 
 	return res;
 }
@@ -3860,7 +3843,7 @@ static bool srpt_ch_list_empty(struct srpt_tgt *srpt_tgt)
 /**
  * srpt_release_sport() - Free channel resources associated with a target.
  */
-static int srpt_release_sport(struct srpt_tgt *srpt_tgt)
+static int srpt_release_sport(struct srpt_port *sport)
 {
 	struct srpt_nexus *nexus, *next_n;
 	struct srpt_rdma_ch *ch;
@@ -3868,20 +3851,20 @@ static int srpt_release_sport(struct srpt_tgt *srpt_tgt)
 	TRACE_ENTRY();
 
 	WARN_ON_ONCE(irqs_disabled());
-	BUG_ON(!srpt_tgt);
+	BUG_ON(!sport);
 
 	/* Disallow new logins and close all active sessions. */
-	mutex_lock(&srpt_tgt->mutex);
-	srpt_tgt->enabled = false;
-	__srpt_close_all_ch(srpt_tgt);
-	mutex_unlock(&srpt_tgt->mutex);
+	mutex_lock(&sport->mutex);
+	sport->enabled = false;
+	__srpt_close_all_ch(sport);
+	mutex_unlock(&sport->mutex);
 
-	while (wait_event_timeout(srpt_tgt->ch_releaseQ,
-				  srpt_ch_list_empty(srpt_tgt), 5 * HZ) <= 0) {
+	while (wait_event_timeout(sport->ch_releaseQ,
+				  srpt_ch_list_empty(sport), 5 * HZ) <= 0) {
 		PRINT_INFO("%s: waiting for session unregistration ...",
-			   srpt_tgt->scst_tgt->tgt_name);
-		mutex_lock(&srpt_tgt->mutex);
-		list_for_each_entry(nexus, &srpt_tgt->nexus_list, entry) {
+			   sport->scst_tgt->tgt_name);
+		mutex_lock(&sport->mutex);
+		list_for_each_entry(nexus, &sport->nexus_list, entry) {
 			list_for_each_entry(ch, &nexus->ch_list, list) {
 				PRINT_INFO("%s-%d: state %s; %d commands in"
 					   " progress", ch->sess_name,
@@ -3890,15 +3873,15 @@ static int srpt_release_sport(struct srpt_tgt *srpt_tgt)
 				   atomic_read(&ch->scst_sess->sess_cmd_count));
 			}
 		}
-		mutex_unlock(&srpt_tgt->mutex);
+		mutex_unlock(&sport->mutex);
 	}
 
-	mutex_lock(&srpt_tgt->mutex);
-	list_for_each_entry_safe(nexus, next_n, &srpt_tgt->nexus_list, entry) {
+	mutex_lock(&sport->mutex);
+	list_for_each_entry_safe(nexus, next_n, &sport->nexus_list, entry) {
 		list_del(&nexus->entry);
 		kfree(nexus);
 	}
-	mutex_unlock(&srpt_tgt->mutex);
+	mutex_unlock(&sport->mutex);
 
 	TRACE_EXIT();
 	return 0;
@@ -3911,16 +3894,16 @@ static int srpt_release_sport(struct srpt_tgt *srpt_tgt)
  */
 static int srpt_release(struct scst_tgt *scst_tgt)
 {
-	struct srpt_tgt *srpt_tgt = srpt_convert_scst_tgt(scst_tgt);
+	struct srpt_port *sport = scst_tgt_get_tgt_priv(scst_tgt);
 
 	TRACE_ENTRY();
 
 	EXTRACHECKS_WARN_ON_ONCE(irqs_disabled());
 
 	BUG_ON(!scst_tgt);
-	BUG_ON(!srpt_tgt);
+	BUG_ON(!sport);
 
-	srpt_release_sport(srpt_tgt);
+	srpt_release_sport(sport);
 
 	scst_tgt_set_tgt_priv(scst_tgt, NULL);
 
@@ -3945,12 +3928,12 @@ static ssize_t show_comp_v_mask(struct kobject *kobj,
 {
 	struct scst_tgt *scst_tgt = container_of(kobj, struct scst_tgt,
 						 tgt_kobj);
-	struct srpt_tgt *srpt_tgt = srpt_convert_scst_tgt(scst_tgt);
+	struct srpt_port *sport = scst_tgt_get_tgt_priv(scst_tgt);
 	int res = -E_TGT_PRIV_NOT_YET_SET;
 
-	if (!srpt_tgt)
+	if (!sport)
 		goto out;
-	res = sprintf(buf, "%#lx\n%s", srpt_tgt->comp_v_mask[0],
+	res = sprintf(buf, "%#lx\n%s", sport->comp_v_mask[0],
 		      SCST_SYSFS_KEY_MARK "\n");
 
 out:
@@ -3963,13 +3946,14 @@ static ssize_t store_comp_v_mask(struct kobject *kobj,
 {
 	struct scst_tgt *scst_tgt = container_of(kobj, struct scst_tgt,
 						 tgt_kobj);
-	struct srpt_tgt *srpt_tgt = srpt_convert_scst_tgt(scst_tgt);
-	struct srpt_device *sdev = srpt_convert_to_sdev(scst_tgt);
+	struct srpt_port *sport = scst_tgt_get_tgt_priv(scst_tgt);
+	struct srpt_device *sdev;
 	int res = -E_TGT_PRIV_NOT_YET_SET;
 	unsigned long mask;
 
-	if (!srpt_tgt)
+	if (!sport)
 		goto out;
+	sdev = sport->sdev;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtoul(buf, 16, &mask);
 #else
@@ -3980,7 +3964,7 @@ static ssize_t store_comp_v_mask(struct kobject *kobj,
 	res = -EINVAL;
 	if (mask == 0 || mask >= (1ULL << sdev->device->num_comp_vectors))
 		goto out;
-	srpt_tgt->comp_v_mask[0] = mask;
+	sport->comp_v_mask[0] = mask;
 	res = count;
 
 out:
@@ -3996,15 +3980,13 @@ static ssize_t srpt_show_device(struct kobject *kobj,
 {
 	struct scst_tgt *scst_tgt = container_of(kobj, struct scst_tgt,
 						 tgt_kobj);
-	struct srpt_tgt *srpt_tgt = srpt_convert_scst_tgt(scst_tgt);
-	struct srpt_port *sport;
+	struct srpt_port *sport = scst_tgt_get_tgt_priv(scst_tgt);
 	struct srpt_device *sdev;
 	int res = -E_TGT_PRIV_NOT_YET_SET;
 
-	if (!srpt_tgt)
+	if (!sport)
 		goto out;
 
-	sport = container_of(srpt_tgt, struct srpt_port, srpt_tgt);
 	sdev = sport->sdev;
 	res = sprintf(buf, "%s\n", sdev->device->name);
 
@@ -4020,14 +4002,12 @@ static ssize_t show_login_info(struct kobject *kobj,
 {
 	struct scst_tgt *scst_tgt = container_of(kobj, struct scst_tgt,
 						 tgt_kobj);
-	struct srpt_tgt *srpt_tgt = srpt_convert_scst_tgt(scst_tgt);
-	struct srpt_port *sport;
+	struct srpt_port *sport = scst_tgt_get_tgt_priv(scst_tgt);
 	int res = -E_TGT_PRIV_NOT_YET_SET;
 
-	if (!srpt_tgt)
+	if (!sport)
 		goto out;
 
-	sport = container_of(srpt_tgt, struct srpt_port, srpt_tgt);
 	res = sprintf(buf,
 		      "tid_ext=%016llx,ioc_guid=%016llx,pkey=ffff,"
 		      "dgid=%04x%04x%04x%04x%04x%04x%04x%04x,"
@@ -4182,18 +4162,6 @@ static struct scst_proc_data srpt_log_proc_data = {
 
 #endif /* CONFIG_SCST_PROC */
 
-/* Note: the caller must have zero-initialized *@srpt_tgt. */
-static void srpt_init_tgt(struct srpt_tgt *srpt_tgt)
-{
-	int i;
-
-	INIT_LIST_HEAD(&srpt_tgt->nexus_list);
-	init_waitqueue_head(&srpt_tgt->ch_releaseQ);
-	mutex_init(&srpt_tgt->mutex);
-	for (i = 0; i < COMP_V_MASK_SIZE; i++)
-		__set_bit(i, srpt_tgt->comp_v_mask);
-}
-
 /**
  * srpt_add_one() - Infiniband device addition callback function.
  */
@@ -4203,7 +4171,7 @@ static void srpt_add_one(struct ib_device *device)
 	struct srpt_device *sdev;
 	struct srpt_port *sport;
 	struct ib_srq_init_attr srq_attr;
-	int i, ret;
+	int i, j, ret;
 
 	TRACE_ENTRY();
 
@@ -4322,7 +4290,11 @@ static void srpt_add_one(struct ib_device *device)
 		sport = &sdev->port[i - 1];
 		sport->sdev = sdev;
 		sport->port = i;
-		srpt_init_tgt(&sport->srpt_tgt);
+		INIT_LIST_HEAD(&sport->nexus_list);
+		init_waitqueue_head(&sport->ch_releaseQ);
+		mutex_init(&sport->mutex);
+		for (j = 0; j < COMP_V_MASK_SIZE; j++)
+			__set_bit(j, sport->comp_v_mask);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
 		/*
 		 * A vanilla 2.6.19 or older kernel without backported OFED
@@ -4412,11 +4384,11 @@ static void srpt_remove_one(struct ib_device *device)
 	 * SCST target.
 	 */
 	for (i = 0; i < sdev->device->phys_port_cnt; i++) {
-		struct srpt_tgt *tgt = &sdev->port[i].srpt_tgt;
+		struct srpt_port *sport = &sdev->port[i];
 
-		if (tgt->scst_tgt) {
-			scst_unregister_target(tgt->scst_tgt);
-			tgt->scst_tgt = NULL;
+		if (sport->scst_tgt) {
+			scst_unregister_target(sport->scst_tgt);
+			sport->scst_tgt = NULL;
 		}
 	}
 

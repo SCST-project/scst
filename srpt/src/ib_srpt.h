@@ -66,7 +66,6 @@
 #define SRP_SERVICE_NAME_PREFIX		"SRP.T10:"
 
 struct srpt_nexus;
-struct srpt_tgt;
 
 enum {
 	/*
@@ -328,7 +327,6 @@ enum rdma_ch_state {
  * @sq_wr_avail:   number of work requests available in the send queue.
  * @sport:         pointer to the information of the HCA port used by this
  *                 channel.
- * @srpt_tgt:      Target port used by this channel.
  * @max_ti_iu_len: maximum target-to-initiator information unit length.
  * @req_lim:       request limit: maximum number of requests that may be sent
  *                 by the initiator without having received a response.
@@ -369,7 +367,6 @@ struct srpt_rdma_ch {
 	int			max_rsp_size;
 	atomic_t		sq_wr_avail;
 	struct srpt_port	*sport;
-	struct srpt_tgt		*srpt_tgt;
 	int			max_ti_iu_len;
 	int			req_lim;
 	int			req_lim_delta;
@@ -394,8 +391,8 @@ struct srpt_rdma_ch {
 
 /**
  * struct srpt_nexus - I_T nexus
- * @entry:     srpt_tgt.nexus_list list node.
- * @ch_list:   struct srpt_rdma_ch list. Protected by srpt_tgt.mutex.
+ * @entry:     srpt_port.nexus_list list node.
+ * @ch_list:   struct srpt_rdma_ch list. Protected by srpt_port.mutex.
  * @i_port_id: 128-bit initiator port identifier copied from SRP_LOGIN_REQ.
  * @t_port_id: 128-bit target port identifier copied from SRP_LOGIN_REQ.
  */
@@ -407,26 +404,6 @@ struct srpt_nexus {
 };
 
 /**
- * struct srpt_tgt
- * @ch_releaseQ: Enables waiting for removal from nexus_list.
- * @mutex:       Protects @nexus_list and srpt_nexus.ch_list.
- * @nexus_list:  Per-device I_T nexus list.
- * @scst_tgt:    SCST target information associated with this HCA.
- * @comp_v_mask: Bitmask with one bit per allowed completion vector.
- * @comp_vector: Completion vector from where searching will start.
- * @enabled:     Whether or not this SCST target is enabled.
- */
-struct srpt_tgt {
-	wait_queue_head_t	ch_releaseQ;
-	struct mutex		mutex;
-	struct list_head	nexus_list;
-	struct scst_tgt		*scst_tgt;
-	DECLARE_BITMAP(comp_v_mask, COMP_V_MASK_SIZE);
-	u8			comp_vector;
-	bool			enabled;
-};
-
-/**
  * struct srpt_port - Information associated by SRPT with a single IB port.
  * @sdev:      backpointer to the HCA information.
  * @mad_agent: per-port management datagram processing information.
@@ -435,8 +412,13 @@ struct srpt_tgt {
  * @lid:       cached value of the port's lid.
  * @gid:       cached value of the port's gid.
  * @work:      work structure for refreshing the aforementioned cached values.
- * @srpt_tgt:  Target port information. Only used if one-target-per-port
- *             mode is enabled.
+ * @ch_releaseQ: Enables waiting for removal from nexus_list.
+ * @mutex:       Protects @nexus_list and srpt_nexus.ch_list.
+ * @nexus_list:  Per-device I_T nexus list.
+ * @scst_tgt:    SCST target information associated with this HCA.
+ * @comp_v_mask: Bitmask with one bit per allowed completion vector.
+ * @comp_vector: Completion vector from where searching will start.
+ * @enabled:     Whether or not this SCST target is enabled.
  */
 struct srpt_port {
 	struct srpt_device	*sdev;
@@ -446,7 +428,13 @@ struct srpt_port {
 	u16			lid;
 	union ib_gid		gid;
 	struct work_struct	work;
-	struct srpt_tgt		srpt_tgt;
+	wait_queue_head_t	ch_releaseQ;
+	struct mutex		mutex;
+	struct list_head	nexus_list;
+	struct scst_tgt		*scst_tgt;
+	DECLARE_BITMAP(comp_v_mask, COMP_V_MASK_SIZE);
+	u8			comp_vector;
+	bool			enabled;
 };
 
 /**
