@@ -4398,9 +4398,9 @@ static void srpt_unregister_procfs_entry(struct scst_tgt_template *tgt)
  * srpt_init_module() - Kernel module initialization.
  *
  * Note: Since ib_register_client() registers callback functions, and since at
- * least one of these callback functions (srpt_add_one()) calls SCST functions,
- * the SCST target template must be registered before ib_register_client() is
- * called.
+ * least one of these callback functions (srpt_add_one()) calls target core
+ * functions, this driver must be registered with the SCSI target core before
+ * ib_register_client() is called.
  */
 static int __init srpt_init_module(void)
 {
