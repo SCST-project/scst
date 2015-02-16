@@ -336,6 +336,7 @@ enum rdma_ch_state {
  * @spinlock:      Protects free_list.
  * @free_list:     Head of list with free send I/O contexts.
  * @ioctx_ring:    Send I/O context ring.
+ * @ioctx_recv_ring: Receive I/O context ring.
  * @wc:            Work completion array.
  * @state:         channel state. See also enum rdma_ch_state.
  * @processing_wait_list: Whether or not cmd_wait_list is being processed.
@@ -345,6 +346,8 @@ enum rdma_ch_state {
  *                 against concurrent modification by the cm_id spinlock.
  * @pkey:          P_Key of the IB partition for this SRP channel.
  * @comp_vector:   Completion vector assigned to the QP.
+ * @using_rdma_cm: Whether to use the RDMA/CM or the IB/CM.
+ * @processing_wait_list: Whether the I/O context wait list is being processed.
  * @scst_sess:     SCST session information associated with this SRP channel.
  * @sess_name:     SCST session name.
  */
