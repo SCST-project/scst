@@ -1529,7 +1529,7 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 						SRPT_STATE_DATA_IN))
 			scst_rx_data(cmd, SCST_RX_STATUS_SUCCESS, context);
 		else
-			pr_err("%s: wrong ioctx state  %d\n", __func__,
+			pr_err("%s: wrong ioctx state %d\n", __func__,
 			       ioctx->state);
 	} else if (opcode == SRPT_RDMA_ABORT) {
 		ioctx->rdma_aborted = true;
