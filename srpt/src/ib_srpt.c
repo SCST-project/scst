@@ -3438,9 +3438,9 @@ out:
  * Note: Must not block.
  */
 static int srpt_xfer_data(struct srpt_rdma_ch *ch,
-			  struct srpt_send_ioctx *ioctx,
-			  struct scst_cmd *cmd)
+			  struct srpt_send_ioctx *ioctx)
 {
+	struct scst_cmd *cmd = &ioctx->cmd;
 	int ret;
 
 	if (ioctx->imm_data) {
@@ -3547,7 +3547,7 @@ static int srpt_rdy_to_xfer(struct scst_cmd *cmd)
 
 	ioctx = scst_cmd_get_tgt_priv(cmd);
 	prev_cmd_state = srpt_set_cmd_state(ioctx, SRPT_STATE_NEED_DATA);
-	ret = srpt_xfer_data(ioctx->ch, ioctx, cmd);
+	ret = srpt_xfer_data(ioctx->ch, ioctx);
 	if (unlikely(ret != SCST_TGT_RES_SUCCESS))
 		srpt_set_cmd_state(ioctx, prev_cmd_state);
 
@@ -3601,7 +3601,7 @@ static int srpt_xmit_response(struct scst_cmd *cmd)
 	/* For read commands, transfer the data to the initiator. */
 	if (dir == SCST_DATA_READ
 	    && scst_cmd_get_adjusted_resp_data_len(cmd)) {
-		ret = srpt_xfer_data(ch, ioctx, cmd);
+		ret = srpt_xfer_data(ch, ioctx);
 		if (unlikely(ret != SCST_TGT_RES_SUCCESS)) {
 			srpt_set_cmd_state(ioctx, state);
 			pr_warn("xfer_data failed for tag %llu - %s\n",
