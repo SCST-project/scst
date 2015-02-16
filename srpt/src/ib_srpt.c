@@ -3433,7 +3433,7 @@ out:
 /**
  * srpt_xfer_data() - Start data transfer from initiator to target.
  *
- * Returns an SCST_TGT_RES_... status code.
+ * Returns 0, -EAGAIN or -EIO.
  *
  * Note: Must not block.
  */
@@ -3463,14 +3463,14 @@ static int srpt_xfer_data(struct srpt_rdma_ch *ch,
 			     in_irq() ? SCST_CONTEXT_TASKLET :
 			     in_softirq() ? SCST_CONTEXT_DIRECT_ATOMIC :
 			     SCST_CONTEXT_DIRECT);
-		ret = SCST_TGT_RES_SUCCESS;
+		ret = 0;
 		goto out;
 	}
 
 	ret = srpt_map_sg_to_ib_sge(ch, ioctx, cmd);
 	if (ret) {
 		pr_err("%s srpt_map_sg_to_ib_sge() ret=%d\n", __func__, ret);
-		ret = SCST_TGT_RES_QUEUE_FULL;
+		ret = -EAGAIN;
 		goto out;
 	}
 
@@ -3478,15 +3478,15 @@ static int srpt_xfer_data(struct srpt_rdma_ch *ch,
 	if (ret) {
 		if (ret == -EAGAIN || ret == -ENOMEM) {
 			pr_info("%s: queue full -- ret=%d\n", __func__, ret);
-			ret = SCST_TGT_RES_QUEUE_FULL;
+			ret = -EAGAIN;
 		} else {
 			pr_err("%s: fatal error -- ret=%d\n", __func__, ret);
-			ret = SCST_TGT_RES_FATAL_ERROR;
+			ret = -EIO;
 		}
 		goto out_unmap;
 	}
 
-	ret = SCST_TGT_RES_SUCCESS;
+	ret = 0;
 
 out:
 	return ret;
@@ -3541,17 +3541,23 @@ static void srpt_pending_cmd_timeout(struct scst_cmd *cmd)
  */
 static int srpt_rdy_to_xfer(struct scst_cmd *cmd)
 {
-	struct srpt_send_ioctx *ioctx;
+	struct srpt_send_ioctx *ioctx = scst_cmd_get_tgt_priv(cmd);
 	enum srpt_command_state prev_cmd_state;
 	int ret;
 
-	ioctx = scst_cmd_get_tgt_priv(cmd);
 	prev_cmd_state = srpt_set_cmd_state(ioctx, SRPT_STATE_NEED_DATA);
 	ret = srpt_xfer_data(ioctx->ch, ioctx);
-	if (unlikely(ret != SCST_TGT_RES_SUCCESS))
-		srpt_set_cmd_state(ioctx, prev_cmd_state);
 
-	return ret;
+	switch (ret) {
+	case 0:
+		return SCST_TGT_RES_SUCCESS;
+	case -EAGAIN:
+		srpt_set_cmd_state(ioctx, prev_cmd_state);
+		return SCST_TGT_RES_QUEUE_FULL;
+	default:
+		srpt_set_cmd_state(ioctx, prev_cmd_state);
+		return SCST_TGT_RES_FATAL_ERROR;
+	}
 }
 
 /**
