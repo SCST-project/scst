@@ -4270,8 +4270,8 @@ err:
  */
 static void srpt_remove_one(struct ib_device *device)
 {
-	int i;
 	struct srpt_device *sdev;
+	int i;
 
 	sdev = ib_get_client_data(device, &srpt_client);
 	if (!sdev) {
