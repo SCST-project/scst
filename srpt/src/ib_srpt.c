@@ -1635,9 +1635,9 @@ static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 		}
 	}
 
-	if (!scst_sense_valid(sense_data))
+	if (!scst_sense_valid(sense_data)) {
 		sense_data_len = 0;
-	else {
+	} else {
 		BUILD_BUG_ON(MIN_MAX_RSP_SIZE <= sizeof(*srp_rsp));
 		max_sense_len = ch->max_ti_iu_len - sizeof(*srp_rsp);
 		if (sense_data_len > max_sense_len) {
