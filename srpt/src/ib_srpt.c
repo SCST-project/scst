@@ -198,10 +198,6 @@ static const enum scst_exec_context srpt_send_context = SCST_CONTEXT_DIRECT;
 
 static struct ib_client srpt_client;
 static struct scst_tgt_template srpt_template;
-static void srpt_unregister_mad_agent(struct srpt_device *sdev);
-#ifdef CONFIG_SCST_PROC
-static void srpt_unregister_procfs_entry(struct scst_tgt_template *tgt);
-#endif /* CONFIG_SCST_PROC */
 static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 				    struct srpt_send_ioctx *ioctx);
 static void srpt_destroy_ch_ib(struct srpt_rdma_ch *ch);
