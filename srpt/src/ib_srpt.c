@@ -461,9 +461,10 @@ static void srpt_get_iou(struct ib_dm_mad *mad)
  * Architecture Specification. See also section B.7, table B.7 in the SRP
  * r16a document.
  */
-static void srpt_get_ioc(struct srpt_device *sdev, u32 slot,
+static void srpt_get_ioc(struct srpt_port *sport, u32 slot,
 			 struct ib_dm_mad *mad)
 {
+	struct srpt_device *sdev = sport->sdev;
 	struct ib_dm_ioc_profile *iocp;
 	int send_queue_depth;
 
@@ -567,7 +568,7 @@ static void srpt_mgmt_method_get(struct srpt_port *sp, struct ib_mad *rq_mad,
 		break;
 	case DM_ATTR_IOC_PROFILE:
 		slot = be32_to_cpu(rq_mad->mad_hdr.attr_mod);
-		srpt_get_ioc(sp->sdev, slot, rsp_mad);
+		srpt_get_ioc(sp, slot, rsp_mad);
 		break;
 	case DM_ATTR_SVC_ENTRIES:
 		slot = be32_to_cpu(rq_mad->mad_hdr.attr_mod);
