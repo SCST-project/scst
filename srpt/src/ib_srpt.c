@@ -43,14 +43,21 @@
 #include <linux/kthread.h>
 #include <linux/string.h>
 #include <linux/delay.h>
-#include <rdma/ib_cache.h>
+#if !defined(INSIDE_KERNEL_TREE)
+#include <linux/version.h>
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
+#include <linux/atomic.h>
+#else
 #include <asm/atomic.h>
+#endif
 #if defined(CONFIG_SCST_PROC)
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
 #endif
 #endif
+#include <rdma/ib_cache.h>
 #include "ib_srpt.h"
 #include "srp-ext.h"
 #define LOG_PREFIX "ib_srpt" /* Prefix for SCST tracing macros. */
@@ -67,7 +74,7 @@
 		printk(KERN_WARNING format);	\
 		WARN_ON(true);			\
 	}					\
-} while(0);
+} while (0)
 #endif
 
 /* Name of this kernel module. */
