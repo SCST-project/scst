@@ -3693,24 +3693,20 @@ static int srpt_get_initiator_port_transport_id(struct scst_tgt *tgt,
 		uint8_t i_port_id[16];
 	};
 	struct spc_rdma_transport_id *tr_id;
-	int res;
+	int res = SCSI_TRANSPORTID_PROTOCOLID_SRP;
 
-	if (!sess) {
-		res = SCSI_TRANSPORTID_PROTOCOLID_SRP;
+	if (!sess)
 		goto out;
-	}
 
 	ch = scst_sess_get_tgt_priv(sess);
 	BUG_ON(!ch);
 
 	BUILD_BUG_ON(sizeof(*tr_id) != 24);
 
+	res = -ENOMEM;
 	tr_id = kzalloc(sizeof(struct spc_rdma_transport_id), GFP_KERNEL);
-	if (!tr_id) {
-		pr_err("Allocation of TransportID failed\n");
-		res = -ENOMEM;
+	if (!tr_id)
 		goto out;
-	}
 
 	res = 0;
 	tr_id->protocol_identifier = SCSI_TRANSPORTID_PROTOCOLID_SRP;
