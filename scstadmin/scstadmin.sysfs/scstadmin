@@ -643,14 +643,14 @@ sub getArgs {
 
 	if ((defined($addGroup) || defined($removeGroup)) &&
 	    (($driver eq '') || ($target eq ''))) {
-		print "Please specify -driver and -target with -add_group/-remove_group.\n";
+		print "Please specify -driver and -target with -add_group/-rem_group.\n";
 		exit 1;
 	}
 
 	if ((defined($addInitiator) || defined($removeInitiator) || defined($clearInitiators)) &&
 	    (($target eq '') || ($driver eq '') || ($group eq ''))) {
 		print "Please specify -driver -target and -group with ".
-		  "-add_init/-remove_init/-clear_inits.\n";
+		  "-add_init/-rem_init/-clear_inits.\n";
 		exit 1;
 	}
 
