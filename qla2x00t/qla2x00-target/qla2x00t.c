@@ -5823,8 +5823,10 @@ static void q2t_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd)
 
 		q2t_cleanup_hw_pending_cmd(ha, cmd);
 
-		scst_rx_data(scst_cmd, SCST_RX_STATUS_ERROR_FATAL,
-				SCST_CONTEXT_THREAD);
+		/* It might be sporadic, hence retriable */
+		scst_set_cmd_error(scst_cmd,
+				SCST_LOAD_SENSE(scst_sense_internal_failure));
+		scst_rx_data(scst_cmd, SCST_RX_STATUS_ERROR_SENSE_SET, SCST_CONTEXT_THREAD);
 		goto out_unlock;
 	} else if (cmd->state == Q2T_STATE_ABORTED) {
 		TRACE_MGMT_DBG("Force finishing aborted cmd %p (tag %d)",

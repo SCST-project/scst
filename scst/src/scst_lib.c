@@ -4959,7 +4959,7 @@ static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 			PRINT_ERROR("%s", "Unable to get the sense via "
 				"REQUEST SENSE, returning HARDWARE ERROR");
 			scst_set_cmd_error(orig_cmd,
-				SCST_LOAD_SENSE(scst_sense_hardw_error));
+				SCST_LOAD_SENSE(scst_sense_internal_failure));
 		}
 	}
 
@@ -6483,7 +6483,7 @@ int scst_get_buf_full_sense(struct scst_cmd *cmd, uint8_t **buf)
 			scst_set_busy(cmd);
 		else
 			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_hardw_error));
+				SCST_LOAD_SENSE(scst_sense_internal_failure));
 		goto out;
 	}
 
@@ -10505,7 +10505,7 @@ void tm_dbg_release_cmd(struct scst_cmd *cmd)
 				if (((scst_random() % 10) == 5)) {
 					scst_set_cmd_error(cmd,
 						SCST_LOAD_SENSE(
-						scst_sense_hardw_error));
+							scst_sense_internal_failure));
 					/* It's completed now */
 				}
 			}
