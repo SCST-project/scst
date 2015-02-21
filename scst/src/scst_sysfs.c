@@ -1268,6 +1268,7 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 			goto out_unlock;
 		} else if (virt_lun > SCST_MAX_LUN) {
 			PRINT_ERROR("Too big LUN %ld (max %d)", virt_lun, SCST_MAX_LUN);
+			res = -EINVAL;
 			goto out_unlock;
 		}
 
