@@ -3755,16 +3755,6 @@ static void srpt_refresh_port_work(struct work_struct *work)
 	srpt_refresh_port(sport);
 }
 
-/**
- * srpt_detect() - Returns the number of target adapters.
- *
- * Callback function called by the SCST core.
- */
-static int srpt_detect(struct scst_tgt_template *tp)
-{
-	return atomic_read(&srpt_device_count);
-}
-
 static int srpt_close_session(struct scst_session *sess)
 {
 	struct srpt_rdma_ch *ch = scst_sess_get_tgt_priv(sess);
@@ -4065,7 +4055,6 @@ static struct scst_tgt_template srpt_template = {
 	.tgt_attrs			 = srpt_tgt_attrs,
 	.sess_attrs			 = srpt_sess_attrs,
 #endif
-	.detect				 = srpt_detect,
 	.release			 = srpt_release,
 	.close_session			 = srpt_close_session,
 	.xmit_response			 = srpt_xmit_response,

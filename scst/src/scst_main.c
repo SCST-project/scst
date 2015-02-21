@@ -231,12 +231,9 @@ int __scst_register_target_template(struct scst_tgt_template *vtt,
 		goto out;
 	}
 
-	if (!vtt->detect) {
-		PRINT_ERROR("Target driver %s must have "
-			"detect() method.", vtt->name);
-		res = -EINVAL;
-		goto out;
-	}
+	if (vtt->detect)
+		PRINT_WARNING("detect() method is obsolete and scheduled for "
+			"removal (target driver %s)", vtt->name);
 
 	if (!vtt->release) {
 		PRINT_ERROR("Target driver %s must have "
@@ -316,7 +313,7 @@ int __scst_register_target_template(struct scst_tgt_template *vtt,
 	mutex_unlock(&scst_mutex);
 
 	TRACE_DBG("%s", "Calling target driver's detect()");
-	res = vtt->detect(vtt);
+	res = vtt->detect ? vtt->detect(vtt) : 0;
 	TRACE_DBG("Target driver's detect() returned %d", res);
 	if (res < 0) {
 		PRINT_ERROR("%s", "The detect() routine failed");

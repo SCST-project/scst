@@ -1043,7 +1043,7 @@ struct scst_tgt_template {
 	 * A negative value should be returned whenever there is
 	 * an error.
 	 *
-	 * MUST HAVE
+	 * OBSOLETE
 	 */
 	int (*detect)(struct scst_tgt_template *tgt_template);
 

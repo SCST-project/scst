@@ -147,7 +147,6 @@ int ft_send_xfer_rdy(struct scst_cmd *);
 void ft_cmd_timeout(struct scst_cmd *);
 void ft_cmd_free(struct scst_cmd *);
 void ft_cmd_tm_done(struct scst_mgmt_cmd *);
-int ft_tgt_detect(struct scst_tgt_template *);
 int ft_tgt_release(struct scst_tgt *);
 int ft_tgt_enable(struct scst_tgt *, bool);
 bool ft_tgt_enabled(struct scst_tgt *);

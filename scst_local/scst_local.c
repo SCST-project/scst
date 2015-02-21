@@ -1370,14 +1370,6 @@ out:
 	return res;
 }
 
-static int scst_local_targ_detect(struct scst_tgt_template *tgt_template)
-{
-	TRACE_ENTRY();
-
-	TRACE_EXIT();
-	return 0;
-};
-
 static int scst_local_targ_release(struct scst_tgt *tgt)
 {
 	TRACE_ENTRY();
@@ -1574,7 +1566,6 @@ static struct scst_tgt_template scst_local_targ_tmpl = {
 	.mgmt_cmd_help		= "       echo \"add_session target_name session_name\" >mgmt\n"
 				  "       echo \"del_session target_name session_name\" >mgmt\n",
 #endif
-	.detect			= scst_local_targ_detect,
 	.release		= scst_local_targ_release,
 	.close_session		= scst_local_close_session,
 	.pre_exec		= scst_local_targ_pre_exec,

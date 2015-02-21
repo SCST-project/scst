@@ -3875,12 +3875,6 @@ out:
 }
 #endif
 
-static int iscsi_target_detect(struct scst_tgt_template *templ)
-{
-	/* Nothing to do */
-	return 0;
-}
-
 static int iscsi_target_release(struct scst_tgt *scst_tgt)
 {
 	/* Nothing to do */
@@ -3935,7 +3929,6 @@ struct scst_tgt_template iscsi_template = {
 	.trace_tbl_help = ISCSI_TRACE_TBL_HELP,
 #endif
 #endif
-	.detect = iscsi_target_detect,
 	.release = iscsi_target_release,
 	.xmit_response = iscsi_xmit_response,
 #if !defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)

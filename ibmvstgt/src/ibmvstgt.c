@@ -116,7 +116,6 @@ struct vio_port {
 	bool enabled;
 };
 
-static atomic_t ibmvstgt_device_count;
 static struct workqueue_struct *vtgtd;
 static unsigned max_vdma_size = MAX_H_COPY_RDMA;
 static struct scst_tgt_template ibmvstgt_template;
@@ -391,16 +390,6 @@ static bool ibmvstgt_is_target_enabled(struct scst_tgt *scst_tgt)
 	return true;
 }
 #endif
-
-/**
- * ibmvstgt_detect() - Returns the number of target adapters.
- *
- * Callback function called by the SCST core.
- */
-static int ibmvstgt_detect(struct scst_tgt_template *tp)
-{
-	return atomic_read(&ibmvstgt_device_count);
-}
 
 /**
  * ibmvstgt_release() - Free the resources associated with an SCST target.
@@ -1225,7 +1214,6 @@ static struct scst_tgt_template ibmvstgt_template = {
 	.enable_target		= ibmvstgt_enable_target,
 	.is_target_enabled	= ibmvstgt_is_target_enabled,
 #endif
-	.detect			= ibmvstgt_detect,
 	.release		= ibmvstgt_release,
 	.xmit_response		= ibmvstgt_xmit_response,
 	.rdy_to_xfer		= ibmvstgt_rdy_to_xfer,
@@ -1308,8 +1296,6 @@ static int ibmvstgt_probe(struct vio_dev *dev, const struct vio_device_id *id)
 #endif
 		goto destroy_crq_queue;
 
-	atomic_inc(&ibmvstgt_device_count);
-
 	return 0;
 
 destroy_crq_queue:
@@ -1333,8 +1319,6 @@ static int ibmvstgt_remove(struct vio_dev *dev)
 	target = dev_get_drvdata(&dev->dev);
 	if (!target)
 		return 0;
-
-	atomic_dec(&ibmvstgt_device_count);
 
 	vport = target->ldata;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
