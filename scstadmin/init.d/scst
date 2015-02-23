@@ -210,7 +210,7 @@ unload_scst() {
 start_scst() {
         if [ -e /sys/module/scst -a -e /sys/module/scst/refcnt ]; then
             echo Already started
-            return 1
+            return 0
         fi
 
         parse_scst_conf
