@@ -47,8 +47,9 @@
 # Make command with or without flags.
 %define make %{expand:%%(echo ${MAKE:-make})}
 %define pkgrel 1
+%define dkms_version %{rpm_version}-%{pkgrel}%{?dist}
 
-Name:		%{kmod_name}-%{kversion}
+Name:		%{kmod_name}-dkms
 Version:	%{rpm_version}
 Release:	%{pkgrel}%{?dist}
 Summary:	SCST mid-layer kernel drivers
@@ -56,7 +57,6 @@ Group:		System/Kernel
 License:	GPLv2
 Vendor:		http://scst.sourceforge.net/
 URL:		http://scst.sourceforge.net/
-%{?kernel_rpm:Requires:	%{kernel_rpm} = %{krpmver}}
 # Unfortunately the Red Hat / CentOS kernel-debug-devel RPM provides
 # kernel-devel so a workaround is needed to match the kernel-devel RPM.
 BuildRequires:	%{?kernel_rpm:%{kernel_rpm} = %{krpmver} %{kernel_devel_rpm} = %{krpmver}} gcc make
@@ -97,6 +97,22 @@ Authors:
 --------
     Vladislav Bolkhovitin, Bart Van Assche and others
 
+%package userspace
+Summary:	SCST mid-layer user space software
+Group:		Development/Kernel
+Requires:	scst-dkms
+
+%description userspace
+A generic SCSI target subsystem for Linux that allows to convert any Linux
+server into a sophisticated storage server. The three layers in SCST are the
+target driver layer; the SCSI target core and the device handler layer. SCST
+target drivers realize communication with an initiator and implement a storage
+protocol like iSCSI, FC or SRP. SCST device handlers implement a SCSI
+interface on top of local storage. Examples of such local storage are SCSI
+RAID controller (dev_disk handler), block device (vdisk_blockio handler), file
+(vdisk_fileio handler) or custom block device behavior implemented in user
+space (scst_user).
+
 %prep
 
 %setup -q -n %{kmod_name}-%{version}
@@ -118,6 +134,54 @@ for d in fcst iscsi-scst qla2x00t/qla2x00-target scst_local srpt; do
     DESTDIR=%{buildroot} INSTALL_MOD_PATH=%{buildroot} %{make} -C $d install
 done
 rm -f %{buildroot}/lib/modules/%{kversion}/[Mm]odule*
+rm -rf %{buildroot}/lib/modules/%{kversion}/extra
+
+install -d -m 755 %{buildroot}/usr/src/%{kmod_name}-%{dkms_version}
+(
+    cd %{buildroot}/usr/src/%{kmod_name}-%{dkms_version} &&
+    tar --strip-components=1 -xaf %{SOURCE0}
+)
+cat >%{buildroot}/usr/src/%{kmod_name}-%{dkms_version}/dkms.conf <<"EOF"
+PACKAGE_VERSION="%{dkms_version}"
+PACKAGE_NAME="%{kmod_name}"
+AUTOINSTALL=yes
+MAKE[0]="export KVER=${kernelver} KDIR=${kernel_source_dir} BUILD_2X_MODULE=y CONFIG_SCSI_QLA_FC=y CONFIG_SCSI_QLA2XXX_TARGET=y && make -sC scst && make -sC fcst && make -sC iscsi-scst && make -sC qla2x00t/qla2x00-target && make -sC scst_local && make -sC srpt && cp */*.ko */*/*.ko */*/*/*.ko ."
+CLEAN="make clean"
+# Remove any existing ib_srpt.ko kernel modules
+PRE_INSTALL="find /lib/modules/${kernelver} -name ib_srpt.ko -exec rm {} \;"
+BUILT_MODULE_NAME[ 0]="fcst"
+BUILT_MODULE_NAME[ 1]="ib_srpt"
+BUILT_MODULE_NAME[ 2]="iscsi-scst"
+BUILT_MODULE_NAME[ 3]="qla2x00tgt"
+BUILT_MODULE_NAME[ 4]="qla2xxx_scst"
+BUILT_MODULE_NAME[ 5]="scst"
+BUILT_MODULE_NAME[ 6]="scst_local"
+BUILT_MODULE_NAME[ 7]="scst_cdrom"
+BUILT_MODULE_NAME[ 8]="scst_changer"
+BUILT_MODULE_NAME[ 9]="scst_disk"
+BUILT_MODULE_NAME[10]="scst_modisk"
+BUILT_MODULE_NAME[11]="scst_processor"
+BUILT_MODULE_NAME[12]="scst_raid"
+BUILT_MODULE_NAME[13]="scst_tape"
+BUILT_MODULE_NAME[14]="scst_user"
+BUILT_MODULE_NAME[15]="scst_vdisk"
+DEST_MODULE_LOCATION[ 0]="/extra"
+DEST_MODULE_LOCATION[ 1]="/extra"
+DEST_MODULE_LOCATION[ 2]="/extra"
+DEST_MODULE_LOCATION[ 3]="/extra"
+DEST_MODULE_LOCATION[ 4]="/extra"
+DEST_MODULE_LOCATION[ 5]="/extra"
+DEST_MODULE_LOCATION[ 6]="/extra"
+DEST_MODULE_LOCATION[ 7]="/extra/dev_handlers"
+DEST_MODULE_LOCATION[ 8]="/extra/dev_handlers"
+DEST_MODULE_LOCATION[ 9]="/extra/dev_handlers"
+DEST_MODULE_LOCATION[10]="/extra/dev_handlers"
+DEST_MODULE_LOCATION[11]="/extra/dev_handlers"
+DEST_MODULE_LOCATION[12]="/extra/dev_handlers"
+DEST_MODULE_LOCATION[13]="/extra/dev_handlers"
+DEST_MODULE_LOCATION[14]="/extra/dev_handlers"
+DEST_MODULE_LOCATION[15]="/extra/dev_handlers"
+EOF
 
 %clean
 rm -rf %{buildroot}
@@ -132,6 +196,9 @@ rm -f /usr/local/man/man8/iscsi-scstd.8
 rm -f /usr/local/sbin/iscsi-scst-adm
 rm -f /usr/local/sbin/iscsi-scstd
 rm -rf /usr/local/include/scst
+
+%pre userspace
+# Remove files installed by "make install"
 rm -f /usr/local/man/man5/iscsi-scstd.conf.5
 rm -f /usr/local/man/man8/iscsi-scst-adm.8
 rm -f /usr/local/man/man8/iscsi-scstd.8
@@ -140,35 +207,19 @@ rm -f /usr/local/sbin/iscsi-scstd
 rm -rf /usr/local/include/scst
 
 %post
-/sbin/depmod -a %{kversion}
+dkms add -m %{kmod_name} -v %{dkms_version} --rpm_safe_upgrade
+dkms build -m %{kmod_name} -v %{dkms_version}
+dkms install -m %{kmod_name} -v %{dkms_version}
+
+%preun
+dkms remove -m %{kmod_name} -v %{dkms_version} --rpm_safe_upgrade --all
+true
 
 %files
 %defattr(-,root,root)
-%dir /lib/modules/%{kversion}/extra
-/lib/modules/%{kversion}/extra/fcst.ko
-/lib/modules/%{kversion}/extra/ib_srpt.ko
-/lib/modules/%{kversion}/extra/iscsi-scst.ko
-/lib/modules/%{kversion}/extra/qla2x00tgt.ko
-/lib/modules/%{kversion}/extra/qla2xxx_scst.ko
-/lib/modules/%{kversion}/extra/scst.ko
-/lib/modules/%{kversion}/extra/scst_local.ko
-%dir /lib/modules/%{kversion}/extra/dev_handlers
-/lib/modules/%{kversion}/extra/dev_handlers/scst_cdrom.ko
-/lib/modules/%{kversion}/extra/dev_handlers/scst_changer.ko
-/lib/modules/%{kversion}/extra/dev_handlers/scst_disk.ko
-/lib/modules/%{kversion}/extra/dev_handlers/scst_modisk.ko
-/lib/modules/%{kversion}/extra/dev_handlers/scst_processor.ko
-/lib/modules/%{kversion}/extra/dev_handlers/scst_raid.ko
-/lib/modules/%{kversion}/extra/dev_handlers/scst_tape.ko
-/lib/modules/%{kversion}/extra/dev_handlers/scst_user.ko
-/lib/modules/%{kversion}/extra/dev_handlers/scst_vdisk.ko
-%{_mandir}/man5/iscsi-scstd.conf.5.gz
-%{_mandir}/man8/iscsi-scst-adm.8.gz
-%{_mandir}/man8/iscsi-scstd.8.gz
-%{_sbindir}/iscsi-scst-adm
-%{_sbindir}/iscsi-scstd
-%dir /var/lib/scst/pr
-%dir /var/lib/scst/vdev_mode_pages
+/usr/src/%{kmod_name}-%{dkms_version}/
+
+%files userspace
 %{_mandir}/man5/iscsi-scstd.conf.5.gz
 %{_mandir}/man8/iscsi-scst-adm.8.gz
 %{_mandir}/man8/iscsi-scstd.8.gz

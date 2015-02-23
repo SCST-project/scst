@@ -405,9 +405,25 @@ scst-rpm:
 	for d in BUILD RPMS SOURCES SPECS SRPMS; do			\
 	  mkdir -p $${rpmtopdir}/$$d;					\
 	done &&								\
-	cp $${name}-$(VERSION).tar.bz2 $${rpmtopdir}/SOURCES &&		\
+	cp scst-$(VERSION).tar.bz2 $${rpmtopdir}/SOURCES &&		\
 	sed "s/@rpm_version@/$(VERSION)/g"				\
-		<$${name}.spec.in >$${name}.spec;			\
+		<$${name}.spec.in >$${name}.spec &&			\
+	MAKE="$(MAKE)" rpmbuild --define="%_topdir $${rpmtopdir}"	\
+	    $(if $(KVER),--define="%kversion $(KVER)")			\
+	    -ba $${name}.spec &&					\
+	rm -f $${name}-$(VERSION).tar.bz2
+
+scst-dkms-rpm:
+	name=scst-dkms &&						\
+	rpmtopdir="$$(if [ $$(id -u) = 0 ]; then echo /usr/src/packages;\
+		    else echo $$PWD/rpmbuilddir; fi)" &&		\
+	$(MAKE) scst-dist-gzip &&					\
+	for d in BUILD RPMS SOURCES SPECS SRPMS; do			\
+	  mkdir -p $${rpmtopdir}/$$d;					\
+	done &&								\
+	cp scst-$(VERSION).tar.bz2 $${rpmtopdir}/SOURCES &&		\
+	sed "s/@rpm_version@/$(VERSION)/g"				\
+		<$${name}.spec.in >$${name}.spec &&			\
 	MAKE="$(MAKE)" rpmbuild --define="%_topdir $${rpmtopdir}"	\
 	    $(if $(KVER),--define="%kversion $(KVER)")			\
 	    -ba $${name}.spec &&					\
