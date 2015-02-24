@@ -4701,7 +4701,8 @@ sub sessions {
 				my $linked = readlink $pPath;
 				my $g = SCST_GROUPS;
 				my $l = SCST_LUNS;
-				if ($linked =~ /\.\.\/\.\.\/$g\/(.*)\/$l/) {
+				if (defined($linked) &&
+				    $linked =~ /\.\.\/\.\.\/$g\/(.*)\/$l/) {
 					my $group = $1;
 					$_sessions{$session}->{$attribute} =
 					  $self->luns($driver, $target, $group);
