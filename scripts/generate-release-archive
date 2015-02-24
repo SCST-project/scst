@@ -15,6 +15,9 @@ version="$1"; shift
 files="$*"
 if [ -z "$files" ]; then
     files=$($scriptdir/list-source-files)
+    if [ -e build_mode ]; then
+	files="${files} build_mode"
+    fi
 fi
 
 tar --owner=root --group=root --transform="s|^|$name-$version/|" \
