@@ -438,6 +438,16 @@ rpm:
 	    find -name '*.rpm';				\
 	fi
 
+release-archive:
+	$(MAKE) 2release
+	for m in $$(find -name Makefile |			\
+		    xargs grep -l '^release-archive:' |		\
+		    grep -v '^\./Makefile');			\
+	do							\
+	    (cd $$(dirname $$m) && $(MAKE) release-archive)	\
+	done
+	$(MAKE) 2debug
+
 2perf: extraclean
 	cd $(SCST_DIR) && $(MAKE) $@
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
