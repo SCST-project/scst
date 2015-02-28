@@ -381,7 +381,7 @@ static int disk_exec(struct scst_cmd *cmd)
 	struct scatterlist *sg, *start_sg;
 	int cur_sg_cnt;
 	int sg_tablesize = cmd->dev->scsi_dev->host->sg_tablesize;
-	int max_sectors;
+	unsigned int max_sectors;
 	int num, j, block_shift = dev->block_shift;
 
 	TRACE_ENTRY();
@@ -392,15 +392,10 @@ static int disk_exec(struct scst_cmd *cmd)
 	 */
 	max_sectors = queue_max_hw_sectors(dev->scsi_dev->request_queue);
 
-	if (unlikely(((max_sectors << block_shift) & ~PAGE_MASK) != 0)) {
-		int mlen = max_sectors << block_shift;
-		int pg = ((mlen >> PAGE_SHIFT) + ((mlen & ~PAGE_MASK) != 0)) - 1;
-		int adj_len = pg << PAGE_SHIFT;
-		max_sectors = adj_len >> block_shift;
-		if (max_sectors == 0) {
-			PRINT_ERROR("Too low max sectors %d", max_sectors);
-			goto out_error;
-		}
+	if (unlikely(max_sectors < (PAGE_SIZE >> block_shift))) {
+		PRINT_ERROR("Too low max sectors: %u << %u < %lu", max_sectors,
+			    block_shift, PAGE_SIZE);
+		goto out_error;
 	}
 
 	if (unlikely((cmd->bufflen >> block_shift) > max_sectors)) {
