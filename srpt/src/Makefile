@@ -1,3 +1,4 @@
+LINUXINCLUDE := $(PRE_CFLAGS) $(LINUXINCLUDE)
 EXTRA_CFLAGS += -I$(SCST_INC_DIR)
 
 -include $(SUBDIRS)/../build_mode
