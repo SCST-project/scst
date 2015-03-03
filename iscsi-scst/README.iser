@@ -38,7 +38,7 @@ Troubleshooting:
   The cause of this is often compilation issues if you have OFED or MLNX_OFED installed:
   If you are compiling for OFED/MLNX_OFED, make sure OFED is installed for
   the kernel you are running. Also, make sure you followed ALL steps described
-  in README.iser_ofed including patching the kernel.
+  in README.iser_ofed.
   If you are compiling for non-OFED kernel, make sure you don't have
   OFED/MLNX_OFED installed.
 

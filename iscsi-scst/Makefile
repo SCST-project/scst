@@ -54,9 +54,9 @@ all: include/iscsi_scst_itf_ver.h progs mods
 ISER_SYMVERS:=$(KMOD)/Module.symvers
 OFED_CFLAGS:=
 
-MLNX_OFED:=$(shell if ofed_info -s | grep MLNX >/dev/null 2>/dev/null; then echo true; else echo false; fi)
+OFED_FLAVOR=$(shell if [ -e /usr/bin/ofed_info ]; then /usr/bin/ofed_info 2>/dev/null | head -n1 | sed -n 's/^\(MLNX_OFED\|OFED-internal\).*/MOFED/p;s/^OFED-.*/OFED/p'; else echo in-tree; fi)
 
-ifeq ($(MLNX_OFED),true)
+ifeq ($(OFED_FLAVOR),MOFED)
 	# Whether MLNX_OFED for ubuntu has been installed
 	MLNX_OFED_IB_UBUNTU_INSTALLED:=$(shell if dpkg -s mlnx-ofed-kernel-dkms >/dev/null 2>/dev/null; then echo true; else echo false; fi)
 
@@ -100,8 +100,9 @@ else
 endif
 
 mods: Modules.symvers Module.symvers
+	echo "  Building against $(OFED_FLAVOR) InfiniBand kernel headers."
 	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(KMOD) modules
-	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(ISERTMOD) PRE_CFLAGS="$(OFED_CFLAGS)" KBUILD_EXTRA_SYMBOLS=$(ISER_SYMVERS) modules
+	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(ISERTMOD) PRE_CFLAGS="$(OFED_CFLAGS) -DOFED_FLAVOR=$(OFED_FLAVOR)" KBUILD_EXTRA_SYMBOLS=$(ISER_SYMVERS) modules
 
 progs:
 	$(MAKE) -C usr SCST_INC_DIR=$(SCST_INC_DIR)

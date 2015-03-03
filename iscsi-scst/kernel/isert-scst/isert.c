@@ -492,7 +492,8 @@ out:
 
 MODULE_AUTHOR("Yan Burman");
 MODULE_LICENSE("Dual BSD/GPL");
-MODULE_DESCRIPTION("iSER target transport driver");
+MODULE_DESCRIPTION("iSER target transport driver v3.0.1-pre#"
+		   __stringify(OFED_FLAVOR));
 
 module_init(isert_init_module);
 module_exit(isert_cleanup_module);
