@@ -460,15 +460,25 @@ Every target should have at least the following entries:
 
     * 0 - disable black hole mode
 
-    * 1 - immediately abort all coming commands
+    * 1 - immediately abort all coming SCSI commands, i.e. all SCSI commands
+      are dropped and TM requests return that they completed. It is
+      supposed to simulate lost front end responses.
 
-    * 2 - immediately abort all coming commands and drop all coming TM
-      commands
+    * 2 - immediately abort all coming SCSI commands and drop all coming TM
+      commands. It is supposed to simulate logical target hang, when the
+      target stops responding, but on the HW/TCP connection level still
+      appears to be online.
 
-    * 3 - immediately abort all coming data transfer commands.
+    * 3 - immediately abort all coming data transfer SCSI commands, i.e.
+      only data transfer SCSI commands are dropped, while commands like
+      INQUIRY and TEST UNIT READY pass well. It is supposed to simulate
+      flaky front end connectivity, when responses for small commands
+      pass well, but big data transfers fail.
 
-    * 4 - immediately abort all coming data transfer commands and drop all
-      coming TM commands
+    * 4 - immediately abort all coming data transfer SCSI commands and
+      drop all coming TM commands. It is supposed to simulate really
+      flaky front end connectivity, when TM requests or responses are
+      also lost.
 
    Modes 3 and 4 are the most evil ones, because they are not too well
    handled by many initiator OS'es, including Linux, so they may never
