@@ -1,6 +1,6 @@
 /*
  * QLogic Fibre Channel HBA Driver
- * Copyright (c)  2003-2008 QLogic Corporation
+ * Copyright (c)  2003-2011 QLogic Corporation
  *
  * See LICENSE.qla2xxx for copyright and licensing details.
  */
@@ -15,10 +15,11 @@ static atomic_t qla2x00_dfs_root_count;
 static int
 qla2x00_dfs_fce_show(struct seq_file *s, void *unused)
 {
-	scsi_qla_host_t *ha = s->private;
+	scsi_qla_host_t *vha = s->private;
 	uint32_t cnt;
 	uint32_t *fce;
 	uint64_t fce_start;
+	struct qla_hw_data *ha = vha->hw;
 
 	mutex_lock(&ha->fce_mutex);
 
@@ -51,7 +52,8 @@ qla2x00_dfs_fce_show(struct seq_file *s, void *unused)
 static int
 qla2x00_dfs_fce_open(struct inode *inode, struct file *file)
 {
-	scsi_qla_host_t *ha = inode->i_private;
+	scsi_qla_host_t *vha = inode->i_private;
+	struct qla_hw_data *ha = vha->hw;
 	int rval;
 
 	if (!ha->flags.fce_enabled)
@@ -60,22 +62,23 @@ qla2x00_dfs_fce_open(struct inode *inode, struct file *file)
 	mutex_lock(&ha->fce_mutex);
 
 	/* Pause tracing to flush FCE buffers. */
-	rval = qla2x00_disable_fce_trace(ha, &ha->fce_wr, &ha->fce_rd);
+	rval = qla2x00_disable_fce_trace(vha, &ha->fce_wr, &ha->fce_rd);
 	if (rval)
-		qla_printk(KERN_WARNING, ha,
+		ql_dbg(ql_dbg_user, vha, 0x705c,
 		    "DebugFS: Unable to disable FCE (%d).\n", rval);
 
 	ha->flags.fce_enabled = 0;
 
 	mutex_unlock(&ha->fce_mutex);
 out:
-	return single_open(file, qla2x00_dfs_fce_show, ha);
+	return single_open(file, qla2x00_dfs_fce_show, vha);
 }
 
 static int
 qla2x00_dfs_fce_release(struct inode *inode, struct file *file)
 {
-	scsi_qla_host_t *ha = inode->i_private;
+	scsi_qla_host_t *vha = inode->i_private;
+	struct qla_hw_data *ha = vha->hw;
 	int rval;
 
 	if (ha->flags.fce_enabled)
@@ -86,10 +89,10 @@ qla2x00_dfs_fce_release(struct inode *inode, struct file *file)
 	/* Re-enable FCE tracing. */
 	ha->flags.fce_enabled = 1;
 	memset(ha->fce, 0, fce_calc_size(ha->fce_bufs));
-	rval = qla2x00_enable_fce_trace(ha, ha->fce_dma, ha->fce_bufs,
+	rval = qla2x00_enable_fce_trace(vha, ha->fce_dma, ha->fce_bufs,
 	    ha->fce_mb, &ha->fce_bufs);
 	if (rval) {
-		qla_printk(KERN_WARNING, ha,
+		ql_dbg(ql_dbg_user, vha, 0x700d,
 		    "DebugFS: Unable to reinitialize FCE (%d).\n", rval);
 		ha->flags.fce_enabled = 0;
 	}
@@ -107,9 +110,11 @@ static const struct file_operations dfs_fce_ops = {
 };
 
 int
-qla2x00_dfs_setup(scsi_qla_host_t *ha)
+qla2x00_dfs_setup(scsi_qla_host_t *vha)
 {
-	if (!IS_QLA25XX(ha))
+	struct qla_hw_data *ha = vha->hw;
+
+	if (!IS_QLA25XX(ha) && !IS_QLA81XX(ha) && !IS_QLA83XX(ha))
 		goto out;
 	if (!ha->fce)
 		goto out;
@@ -120,8 +125,8 @@ qla2x00_dfs_setup(scsi_qla_host_t *ha)
 	atomic_set(&qla2x00_dfs_root_count, 0);
 	qla2x00_dfs_root = debugfs_create_dir(QLA2XXX_DRIVER_NAME, NULL);
 	if (!qla2x00_dfs_root) {
-		qla_printk(KERN_NOTICE, ha,
-		    "DebugFS: Unable to create root directory.\n");
+		ql_log(ql_log_warn, vha, 0x00f7,
+		    "Unable to create debugfs root directory.\n");
 		goto out;
 	}
 
@@ -130,21 +135,21 @@ create_dir:
 		goto create_nodes;
 
 	mutex_init(&ha->fce_mutex);
-	ha->dfs_dir = debugfs_create_dir(ha->host_str, qla2x00_dfs_root);
+	ha->dfs_dir = debugfs_create_dir(vha->host_str, qla2x00_dfs_root);
 	if (!ha->dfs_dir) {
-		qla_printk(KERN_NOTICE, ha,
-		    "DebugFS: Unable to create ha directory.\n");
+		ql_log(ql_log_warn, vha, 0x00f8,
+		    "Unable to create debugfs ha directory.\n");
 		goto out;
 	}
 
 	atomic_inc(&qla2x00_dfs_root_count);
 
 create_nodes:
-	ha->dfs_fce = debugfs_create_file("fce", S_IRUSR, ha->dfs_dir, ha,
+	ha->dfs_fce = debugfs_create_file("fce", S_IRUSR, ha->dfs_dir, vha,
 	    &dfs_fce_ops);
 	if (!ha->dfs_fce) {
-		qla_printk(KERN_NOTICE, ha,
-		    "DebugFS: Unable to fce node.\n");
+		ql_log(ql_log_warn, vha, 0x00f9,
+		    "Unable to create debugfs fce node.\n");
 		goto out;
 	}
 out:
@@ -152,8 +157,9 @@ out:
 }
 
 int
-qla2x00_dfs_remove(scsi_qla_host_t *ha)
+qla2x00_dfs_remove(scsi_qla_host_t *vha)
 {
+	struct qla_hw_data *ha = vha->hw;
 	if (ha->dfs_fce) {
 		debugfs_remove(ha->dfs_fce);
 		ha->dfs_fce = NULL;

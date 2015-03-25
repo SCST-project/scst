@@ -1,7 +1,7 @@
-Target driver for QLogic 22xx/23xx/24xx/25xx Fibre Channel cards
-================================================================
+Target driver for QLogic 2[2-6]xx/8[1-3]xx Fibre Channel cards
+==============================================================
 
-Version 3.1.0, XX XXXXX 2014
+Version 3.1.0, XX XXXXX 2015
 ----------------------------
 
 This driver consists from two parts: the target mode driver itself and
@@ -12,21 +12,10 @@ necessary callbacks, but it's still capable to work as initiator only.
 Mode, when a host acts as the initiator and the target simultaneously,
 is supported as well.
 
-This version is compatible with SCST core version 2.0.0 and higher and
+This version is compatible with SCST core version 3.1.0 and higher and
 Linux kernel 2.6.26 and higher. Sorry, kernels below 2.6.26 are not
 supported, because it's too hard to backport used initiator driver to
 older kernels.
-
-The original initiator driver was taken from the kernel 2.6.26. Also the
-following 2.6.26+ commits have been applied to it (upstream ID):
-048feec5548c0582ee96148c61b87cccbcb5f9be,
-031e134e5f95233d80fb1b62fdaf5e1be587597c,
-5f3a9a207f1fccde476dd31b4c63ead2967d934f,
-85821c906cf3563a00a3d98fa380a2581a7a5ff1,
-3c01b4f9fbb43fc911acd33ea7a14ea7a4f9866b,
-8eca3f39c4b11320787f7b216f63214aee8415a9,
-0f19bc681ed0849a2b95778460a0a8132e3700e2,
-a55aac79de0ea6fc52d35f535867b6573a5ff0f8.
 
 See also "ToDo" file for list of known issues and unimplemented
 features.

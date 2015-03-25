@@ -30,7 +30,7 @@
 
 /* Version numbers, the same as for the kernel */
 #define Q2T_VERSION(a, b, c, d)	(((a) << 030) + ((b) << 020) + (c) << 010 + (d))
-#define Q2T_VERSION_CODE	Q2T_VERSION(3, 1, 0, 0)
+#define Q2T_VERSION_CODE	Q2T_VERSION(4, 1, 0, 0)
 #define Q2T_VERSION_STRING	"3.1.0-pre1"
 #define Q2T_PROC_VERSION_NAME	"version"
 
@@ -47,7 +47,7 @@
 #define IMM_NTFY_PORT_LOGOUT        0x0029
 #define IMM_NTFY_PORT_CONFIG        0x002A
 #define IMM_NTFY_GLBL_TPRLO         0x002D
-#define IMM_NTFY_GLBL_LOGO          0x002E
+#define IMM_NTFY_LINK_FAILURE       0x002E
 #define IMM_NTFY_RESOURCE           0x0034
 #define IMM_NTFY_MSG_RX             0x0036
 #define IMM_NTFY_SRR                0x0045
@@ -118,7 +118,7 @@
 
 struct q2t_tgt {
 	struct scst_tgt *scst_tgt;
-	scsi_qla_host_t *ha;
+	scsi_qla_host_t *vha;
 
 	/*
 	 * To sync between IRQ handlers and q2t_target_release(). Needed,
@@ -129,8 +129,7 @@ struct q2t_tgt {
 
 	int datasegs_per_cmd, datasegs_per_cont;
 
-	/* Target's flags, serialized by pha->hardware_lock */
-	unsigned int tgt_enable_64bit_addr:1;	/* 64-bits PCI addressing enabled */
+	/* Target's flags, serialized by ha->hardware_lock */
 	unsigned int link_reinit_iocb_pending:1;
 	unsigned int tm_to_unknown:1; /* TM to unknown session was sent */
 	unsigned int sess_works_pending:1; /* there are sess_work entries */
@@ -141,16 +140,16 @@ struct q2t_tgt {
 	 */
 	unsigned long tgt_stop; /* the driver is being stopped */
 
-	struct work_struct rscn_reg_work;
-
-	/* Count of sessions referring q2t_tgt. Protected by hardware_lock. */
-	int sess_count;
-
 	/*
 	 * Protected by hardware_lock. Adding new sessions (not undelete)
 	 * also protected by tgt_mutex.
 	 */
 	struct list_head sess_list;
+
+	struct work_struct rscn_reg_work;
+
+	/* Count of sessions referring q2t_tgt. Protected by hardware_lock. */
+	int sess_count;
 
 	/* Protected by hardware_lock */
 	struct list_head del_sess_list;
@@ -174,8 +173,6 @@ struct q2t_tgt {
 	struct work_struct srr_work;
 
 	atomic_t tgt_global_resets_count;
-
-	struct list_head tgt_list_entry;
 };
 
 /*
@@ -228,6 +225,12 @@ struct q2t_cmd {
 	} __packed atio;
 
 	struct scst_cmd scst_cmd;
+};
+
+struct q2t_unknown_atio {
+	atio7_entry_t atio7;
+	scsi_qla_host_t *vha;
+	struct list_head unknown_atio_list_entry;
 };
 
 struct q2t_sess_work_param {
