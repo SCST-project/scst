@@ -680,8 +680,8 @@ static int do_recv(struct iscsi_conn *conn)
 {
 	int res;
 	mm_segment_t oldfs;
-	struct msghdr msg;
-	int first_len;
+	struct msghdr *msg;
+	int read_size;
 
 	EXTRACHECKS_BUG_ON(conn->read_cmnd == NULL);
 
@@ -697,45 +697,32 @@ static int do_recv(struct iscsi_conn *conn)
 	 */
 
 restart:
-	memset(&msg, 0, sizeof(msg));
-	msg.msg_iov = conn->read_msg.msg_iov;
-	msg.msg_iovlen = conn->read_msg.msg_iovlen;
-	first_len = msg.msg_iov->iov_len;
+	msg = &conn->read_msg;
+	read_size = conn->read_size;
 
 	oldfs = get_fs();
 	set_fs(get_ds());
-	res = sock_recvmsg(conn->sock, &msg, conn->read_size,
+	res = sock_recvmsg(conn->sock, msg, read_size,
 			   MSG_DONTWAIT | MSG_NOSIGNAL);
 	set_fs(oldfs);
 
-	TRACE_DBG("msg_iovlen %zd, first_len %d, read_size %d, res %d",
-		msg.msg_iovlen, first_len, conn->read_size, res);
+	TRACE_DBG("msg_iovlen %zd, read_size %d, res %d", msg->msg_iovlen,
+		  read_size, res);
 
 	if (res > 0) {
 		/*
-		 * To save some considerable effort and CPU power we
-		 * suppose that TCP functions adjust
-		 * conn->read_msg.msg_iov and conn->read_msg.msg_iovlen
-		 * on amount of copied data. This BUG_ON is intended
-		 * to catch if it is changed in the future.
+		 * To save CPU cycles we suppose that sock_recvmsg() adjusts
+		 * msg->msg_iov and msg->msg_iovlen. The BUG_ON() statement
+		 * below verifies this.
 		 */
-		sBUG_ON((res >= first_len) &&
-			(conn->read_msg.msg_iov->iov_len != 0));
+		/* To do: restore msg->msg_iov check. */
 		conn->read_size -= res;
-		if (conn->read_size != 0) {
-			if (res >= first_len) {
-				int done = 1 + ((res - first_len) >> PAGE_SHIFT);
-				TRACE_DBG("done %d", done);
-				conn->read_msg.msg_iov += done;
-				conn->read_msg.msg_iovlen -= done;
-			}
-		}
 		res = conn->read_size;
 	} else {
 		switch (res) {
 		case -EAGAIN:
 			TRACE_DBG("EAGAIN received for conn %p", conn);
-			res = conn->read_size;
+			res = read_size;
 			break;
 		case -ERESTARTSYS:
 			TRACE_DBG("ERESTARTSYS received for conn %p", conn);
@@ -821,7 +808,7 @@ static int iscsi_rx_check_ddigest(struct iscsi_conn *conn)
 static int process_read_io(struct iscsi_conn *conn, int *closed)
 {
 	struct iscsi_cmnd *cmnd = conn->read_cmnd;
-	int res;
+	int bytes_left, res;
 
 	TRACE_ENTRY();
 
@@ -909,10 +896,11 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 			break;
 
 		case RX_END:
-			if (unlikely(conn->read_size != 0)) {
+			bytes_left = conn->read_size;
+			if (unlikely(bytes_left != 0)) {
 				PRINT_CRIT_ERROR("conn read_size !=0 on RX_END "
 					"(conn %p, op %x, read_size %d)", conn,
-					cmnd_opcode(cmnd), conn->read_size);
+					cmnd_opcode(cmnd), bytes_left);
 				sBUG();
 			}
 			conn->read_cmnd = NULL;
