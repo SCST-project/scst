@@ -908,6 +908,7 @@ static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 
 	if (virt_dev->blockio) {
 		struct inode *inode = file_inode(fd);
+
 		if (!S_ISBLK(inode->i_mode)) {
 			PRINT_ERROR("%s is NOT a block device",
 				virt_dev->filename);
@@ -945,6 +946,7 @@ check:
 		int block_shift = virt_dev->dev->block_shift;
 		if (virt_dev->blockio) {
 			struct request_queue *q;
+
 			sBUG_ON(!fd_open);
 			q = bdev_get_queue(file_inode(fd)->i_bdev);
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32) || \
@@ -3091,6 +3093,7 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 		sector_t nr_sects = blocks << (cmd->dev->block_shift - 9);
 		struct inode *inode = file_inode(fd);
 		gfp_t gfp = cmd->cmd_gfp_mask;
+
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 31)
 		err = blkdev_issue_discard(inode->i_bdev, start_sector, nr_sects, gfp);
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)       \
