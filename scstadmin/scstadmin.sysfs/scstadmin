@@ -1566,12 +1566,6 @@ sub writeConfiguration {
 					}
 				}
 
-				if ($lun_buff || $init_buff) {
-					$group_buff .= " {\n";
-					$group_buff .= $lun_buff;
-					$group_buff .= $init_buff;
-				}
-
 				my ($grp_attributes, $errorString) = $SCST->groupAttributes($driver, $target, $group);
 				my $g_attribute_buff
 				    = serializeKeyAttr("\t\t\t",
@@ -1580,6 +1574,13 @@ sub writeConfiguration {
 				    = serializeNkAttr("\t\t\t",
 						      $grp_attributes)
 				    if ($nonkey);
+
+				if ($lun_buff || $init_buff ||
+				    $g_attribute_buff || $g_attribute_buff_nk) {
+					$group_buff .= " {\n";
+					$group_buff .= $lun_buff;
+					$group_buff .= $init_buff;
+				}
 
 				if ($g_attribute_buff_nk) {
 					$g_attribute_buff .= "\n" if ($g_attribute_buff);
