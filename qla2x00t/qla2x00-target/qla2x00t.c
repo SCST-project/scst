@@ -70,7 +70,6 @@
 # endif
 #endif
 
-static int q2t_target_detect(struct scst_tgt_template *templ);
 static int q2t_target_release(struct scst_tgt *scst_tgt);
 static int q2x_xmit_response(struct scst_cmd *scst_cmd);
 static int __q24_xmit_response(struct q2t_cmd *cmd, int xmit_type);
@@ -235,7 +234,6 @@ static struct scst_tgt_template tgt2x_template = {
 	.rdy_to_xfer_atomic = 1,
 #endif
 	.max_hw_pending_time = Q2T_MAX_HW_PENDING_TIME,
-	.detect = q2t_target_detect,
 	.release = q2t_target_release,
 	.xmit_response = q2x_xmit_response,
 	.rdy_to_xfer = q2t_rdy_to_xfer,
@@ -765,7 +763,7 @@ static void q2t_response_pkt_all_vps(scsi_qla_host_t *vha, response_t *pkt)
  * Registers with initiator driver (but target mode isn't enabled till
  * it's turned on via sysfs)
  */
-static int q2t_target_detect(struct scst_tgt_template *tgtt)
+static int q2t_target_driver_reg(struct scst_tgt_template *tgtt)
 {
 	int res, rc;
 	struct qla_tgt_data t = {
@@ -795,8 +793,6 @@ static int q2t_target_detect(struct scst_tgt_template *tgtt)
 		res = -EINVAL;
 		goto out;
 	}
-
-	qla2xxx_add_targets();
 
 	res = 0;
 
@@ -7139,14 +7135,13 @@ static int __init q2t_init(void)
 		goto out_kmem_free;
 	}
 
+	q2t_target_driver_reg(&tgt2x_template);
+
 	res = scst_register_target_template(&tgt2x_template);
 	if (res < 0)
 		goto out_mempool_free;
 
-	/*
-	 * qla2xxx_tgt_register_driver() happens in q2t_target_detect
-	 * called via scst_register_target_template()
-	 */
+	qla2xxx_add_targets();
 
 #ifdef CONFIG_SCST_PROC
 	res = q2t_proc_log_entry_build(&tgt2x_template);
