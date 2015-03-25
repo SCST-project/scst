@@ -3409,6 +3409,7 @@ static int scst_check_sense(struct scst_cmd *cmd)
 
 	if (unlikely(cmd->status == SAM_STAT_CHECK_CONDITION) &&
 	    scst_sense_valid(cmd->sense)) {
+		TRACE(TRACE_SCSI, "cmd %p with valid sense received", cmd);
 		PRINT_BUFF_FLAG(TRACE_SCSI, "Sense", cmd->sense,
 			cmd->sense_valid_len);
 
