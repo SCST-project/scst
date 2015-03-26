@@ -257,7 +257,7 @@ static struct scst_tgt_template tgt2x_template = {
 	.add_target_parameters = "node_name, parent_host",
 	.tgtt_attrs = q2tt_attrs,
 #endif
-#else
+#elif !defined(CONFIG_SCST_PROC)
 	.tgtt_attrs = q2tt_attrs,
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
