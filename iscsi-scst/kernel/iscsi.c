@@ -1406,7 +1406,7 @@ static void cmnd_prepare_get_rejected_immed_data(struct iscsi_cmnd *cmnd)
 {
 	struct iscsi_conn *conn = cmnd->conn;
 	struct scatterlist *sg = cmnd->sg;
-	char __user *addr;
+	char *addr;
 	u32 size;
 	unsigned int i;
 
@@ -1440,15 +1440,15 @@ static void cmnd_prepare_get_rejected_immed_data(struct iscsi_cmnd *cmnd)
 		cmnd->own_sg = 1;
 	}
 
-	addr = (char __force __user *)(page_address(sg_page(&sg[0])));
+	addr = page_address(sg_page(&sg[0]));
 	conn->read_size = size;
 	for (i = 0; size > PAGE_SIZE; i++, size -= PAGE_SIZE) {
 		/* We already checked pdu.datasize in check_segment_length() */
 		sBUG_ON(i >= ISCSI_CONN_IOV_MAX);
-		conn->read_iov[i].iov_base = addr;
+		conn->read_iov[i].iov_base = (void __force __user *)addr;
 		conn->read_iov[i].iov_len = PAGE_SIZE;
 	}
-	conn->read_iov[i].iov_base = addr;
+	conn->read_iov[i].iov_base = (void __force __user *)addr;
 	conn->read_iov[i].iov_len = size;
 	conn->read_msg.msg_iov = conn->read_iov;
 	conn->read_msg.msg_iovlen = ++i;
@@ -1552,7 +1552,7 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 	i = 0;
 	while (1) {
 		unsigned int sg_len;
-		char __user *addr;
+		char *addr;
 
 		if (unlikely(buff_offs >= bufflen)) {
 			TRACE_DBG("Residual overflow (cmd %p, buff_offs %d, "
@@ -1562,11 +1562,11 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 			offset = 0;
 		}
 
-		addr = (char __force __user *)(page_address(sg_page(&sg[idx])));
+		addr = page_address(sg_page(&sg[idx]));
 		EXTRACHECKS_BUG_ON(addr == NULL);
 		sg_len = sg[idx].offset + sg[idx].length - offset;
 
-		conn->read_iov[i].iov_base = addr + offset;
+		conn->read_iov[i].iov_base = (void __force __user *)addr + offset;
 
 		if (size <= sg_len) {
 			TRACE_DBG("idx=%d, i=%d, offset=%u, size=%d, addr=%p",

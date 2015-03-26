@@ -613,9 +613,9 @@ static void start_close_conn(struct iscsi_conn *conn)
 }
 
 static inline void iscsi_conn_init_read(struct iscsi_conn *conn,
-	void __user *data, size_t len)
+	void *data, size_t len)
 {
-	conn->read_iov[0].iov_base = data;
+	conn->read_iov[0].iov_base = (void __force __user *)data;
 	conn->read_iov[0].iov_len = len;
 	conn->read_msg.msg_iov = conn->read_iov;
 	conn->read_msg.msg_iovlen = 1;
@@ -631,7 +631,7 @@ static void iscsi_conn_prepare_read_ahs(struct iscsi_conn *conn,
 	/* ToDo: __GFP_NOFAIL ?? */
 	cmnd->pdu.ahs = kmalloc(asize, __GFP_NOFAIL|GFP_KERNEL);
 	sBUG_ON(cmnd->pdu.ahs == NULL);
-	iscsi_conn_init_read(conn, (void __force __user *)cmnd->pdu.ahs, asize);
+	iscsi_conn_init_read(conn, cmnd->pdu.ahs, asize);
 	return;
 }
 
@@ -833,9 +833,8 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 			EXTRACHECKS_BUG_ON(conn->read_cmnd != NULL);
 			cmnd = cmnd_alloc(conn, NULL);
 			conn->read_cmnd = cmnd;
-			iscsi_conn_init_read(cmnd->conn,
-				(void __force __user *)&cmnd->pdu.bhs,
-				sizeof(cmnd->pdu.bhs));
+			iscsi_conn_init_read(cmnd->conn, &cmnd->pdu.bhs,
+					     sizeof(cmnd->pdu.bhs));
 			conn->read_state = RX_BHS;
 			/* go through */
 
@@ -900,7 +899,7 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 				if (psz != 0) {
 					TRACE_DBG("padding %d bytes", psz);
 					iscsi_conn_init_read(conn,
-						(void __force __user *)&conn->rpadding, psz);
+							&conn->rpadding, psz);
 					conn->read_state = RX_PADDING;
 				} else if ((conn->ddigest_type & DIGEST_NONE) != 0)
 					conn->read_state = RX_END;
@@ -932,8 +931,7 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 			goto out;
 
 		case RX_INIT_HDIGEST:
-			iscsi_conn_init_read(conn,
-				(void __force __user *)&cmnd->hdigest, sizeof(u32));
+			iscsi_conn_init_read(conn, &cmnd->hdigest, sizeof(u32));
 			conn->read_state = RX_CHECK_HDIGEST;
 			/* go through */
 
@@ -953,9 +951,7 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 			break;
 
 		case RX_INIT_DDIGEST:
-			iscsi_conn_init_read(conn,
-				(void __force __user *)&cmnd->ddigest,
-				sizeof(u32));
+			iscsi_conn_init_read(conn, &cmnd->ddigest, sizeof(u32));
 			conn->read_state = RX_CHECK_DDIGEST;
 			/* go through */
 
