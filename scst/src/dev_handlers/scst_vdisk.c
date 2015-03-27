@@ -3158,7 +3158,7 @@ static void vdisk_exec_write_same_unmap(struct vdisk_cmd_params *p)
 		PRINT_WARNING("Invalid WRITE SAME data len %lld (max allowed "
 			"%lld)", (long long)cmd->data_len,
 			(long long)cmd->dev->max_write_same_len);
-			scst_set_invalid_field_in_cdb(cmd, cmd->len_off, 0);
+		scst_set_invalid_field_in_cdb(cmd, cmd->len_off, 0);
 		goto out;
 	}
 
