@@ -285,9 +285,13 @@ struct iscsi_conn {
 	 */
 	struct iscsi_cmnd *read_cmnd;
 	struct msghdr read_msg;
-	u32 read_size;
 	int read_state;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+	struct kvec *read_iov;
+#else
+	u32 read_size;
 	struct iovec *read_iov;
+#endif
 	struct task_struct *rx_task;
 	uint32_t rpadding;
 

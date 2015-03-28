@@ -615,11 +615,16 @@ static void start_close_conn(struct iscsi_conn *conn)
 static inline void iscsi_conn_init_read(struct iscsi_conn *conn,
 	void *data, size_t len)
 {
-	conn->read_iov[0].iov_base = (void __force __user *)data;
+	conn->read_iov[0].iov_base = data;
 	conn->read_iov[0].iov_len = len;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+	iov_iter_kvec(&conn->read_msg.msg_iter, READ | ITER_KVEC,
+		      conn->read_iov, 1, len);
+#else
 	conn->read_msg.msg_iov = conn->read_iov;
 	conn->read_msg.msg_iovlen = 1;
 	conn->read_size = len;
+#endif
 	return;
 }
 
@@ -698,7 +703,11 @@ static int do_recv(struct iscsi_conn *conn)
 
 restart:
 	msg = &conn->read_msg;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+	read_size = msg->msg_iter.count;
+#else
 	read_size = conn->read_size;
+#endif
 
 	oldfs = get_fs();
 	set_fs(get_ds());
@@ -706,8 +715,13 @@ restart:
 			   MSG_DONTWAIT | MSG_NOSIGNAL);
 	set_fs(oldfs);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+	TRACE_DBG("nr_segs %zd, bytes_left %zd, res %d",
+		  msg->msg_iter.nr_segs, msg->msg_iter.count, res);
+#else
 	TRACE_DBG("msg_iovlen %zd, read_size %d, res %d", msg->msg_iovlen,
 		  read_size, res);
+#endif
 
 	if (res > 0) {
 		/*
@@ -715,9 +729,14 @@ restart:
 		 * msg->msg_iov and msg->msg_iovlen. The BUG_ON() statement
 		 * below verifies this.
 		 */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+		sBUG_ON(msg->msg_iter.count + res != read_size);
+		res = msg->msg_iter.count;
+#else
 		/* To do: restore msg->msg_iov check. */
 		conn->read_size -= res;
 		res = conn->read_size;
+#endif
 	} else {
 		switch (res) {
 		case -EAGAIN:
@@ -896,7 +915,11 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 			break;
 
 		case RX_END:
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+			bytes_left = conn->read_msg.msg_iter.count;
+#else
 			bytes_left = conn->read_size;
+#endif
 			if (unlikely(bytes_left != 0)) {
 				PRINT_CRIT_ERROR("conn read_size !=0 on RX_END "
 					"(conn %p, op %x, read_size %d)", conn,
@@ -908,7 +931,11 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 
 			cmnd_rx_end(cmnd);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+			EXTRACHECKS_BUG_ON(conn->read_msg.msg_iter.count != 0);
+#else
 			EXTRACHECKS_BUG_ON(conn->read_size != 0);
+#endif
 
 			/*
 			 * To maintain fairness. Res must be 0 here anyway, the

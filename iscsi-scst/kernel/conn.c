@@ -895,7 +895,7 @@ static int iscsi_conn_alloc(struct iscsi_session *session,
 		       (unsigned long long int)session->sid, info->cid);
 
 	/* Changing it, change ISCSI_CONN_IOV_MAX as well !! */
-	conn->read_iov = (struct iovec *)get_zeroed_page(GFP_KERNEL);
+	conn->read_iov = (void *)get_zeroed_page(GFP_KERNEL);
 	if (conn->read_iov == NULL) {
 		res = -ENOMEM;
 		goto out_err_free_conn;

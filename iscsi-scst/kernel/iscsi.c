@@ -1444,13 +1444,18 @@ static void cmnd_prepare_get_rejected_immed_data(struct iscsi_cmnd *cmnd)
 	for (s = size, i = 0; s > 0; i++, s -= e) {
 		/* We already checked pdu.datasize in check_segment_length() */
 		sBUG_ON(i >= ISCSI_CONN_IOV_MAX);
-		conn->read_iov[i].iov_base = (void __force __user *)addr;
+		conn->read_iov[i].iov_base = addr;
 		e = min_t(u32, s, PAGE_SIZE);
 		conn->read_iov[i].iov_len = e;
 	}
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+	iov_iter_kvec(&conn->read_msg.msg_iter, READ | ITER_KVEC,
+		      conn->read_iov, i, size);
+#else
 	conn->read_msg.msg_iov = conn->read_iov;
 	conn->read_msg.msg_iovlen = i;
 	conn->read_size = size;
+#endif
 
 out:
 	TRACE_EXIT();
@@ -1595,9 +1600,14 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 	}
 
 	i++;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+	iov_iter_kvec(&conn->read_msg.msg_iter, READ | ITER_KVEC,
+		      conn->read_iov, i, read_size);
+#else
 	conn->read_msg.msg_iov = conn->read_iov;
 	conn->read_msg.msg_iovlen = i;
 	conn->read_size = read_size;
+#endif
 
 	TRACE_DBG("msg_iov=%p, msg_iovlen=%u", conn->read_iov, i);
 
@@ -1761,7 +1771,7 @@ static int nop_out_start(struct iscsi_cmnd *cmnd)
 
 			for (i = 0; i < cmnd->sg_cnt; i++) {
 				conn->read_iov[i].iov_base =
-					(void __force __user *)(page_address(sg_page(&sg[i])));
+					page_address(sg_page(&sg[i]));
 				tmp = min_t(u32, size, PAGE_SIZE);
 				conn->read_iov[i].iov_len = tmp;
 				size -= tmp;
@@ -1775,7 +1785,7 @@ static int nop_out_start(struct iscsi_cmnd *cmnd)
 			 */
 			for (i = 0; i < (signed)ISCSI_CONN_IOV_MAX; i++) {
 				conn->read_iov[i].iov_base =
-					(void __force __user *)(page_address(dummy_page));
+					page_address(dummy_page);
 				tmp = min_t(u32, size, PAGE_SIZE);
 				conn->read_iov[i].iov_len = tmp;
 				size -= tmp;
@@ -1785,9 +1795,14 @@ static int nop_out_start(struct iscsi_cmnd *cmnd)
 			sBUG_ON(size != 0);
 		}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+		iov_iter_kvec(&conn->read_msg.msg_iter, READ | ITER_KVEC,
+			      conn->read_iov, i, cmnd->pdu.datasize);
+#else
 		conn->read_msg.msg_iov = conn->read_iov;
 		conn->read_msg.msg_iovlen = i;
 		conn->read_size = cmnd->pdu.datasize;
+#endif
 		TRACE_DBG("msg_iov=%p, msg_iovlen=%d", conn->read_iov, i);
 	}
 
