@@ -32,6 +32,8 @@
 #include <linux/vmalloc.h>
 #include <asm/kmap_types.h>
 #include <asm/unaligned.h>
+#include <asm/checksum.h>
+#include <linux/crc-t10dif.h>
 #include <linux/namei.h>
 #include <linux/mount.h>
 
@@ -400,7 +402,9 @@ static int get_cdb_info_verify16(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
 static int get_cdb_info_len_1(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
-static int get_cdb_info_lba_3_len_1_256(struct scst_cmd *cmd,
+static int get_cdb_info_lba_3_len_1_256_read(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_lba_3_len_1_256_write(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
 static int get_cdb_info_bidi_lba_4_len_2(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
@@ -414,13 +418,19 @@ static int get_cdb_info_lba_2_none(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
 static int get_cdb_info_lba_4_len_2(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
+static int get_cdb_info_read_10(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_lba_4_len_2_wrprotect(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
 static int get_cdb_info_lba_4_none(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
-static int get_cdb_info_lba_4_len_2(struct scst_cmd *cmd,
+static int get_cdb_info_lba_4_len_4_rdprotect(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
-static int get_cdb_info_lba_4_len_4(struct scst_cmd *cmd,
+static int get_cdb_info_lba_4_len_4_wrprotect(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
-static int get_cdb_info_lba_8_len_4(struct scst_cmd *cmd,
+static int get_cdb_info_read_16(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_lba_8_len_4_wrprotect(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
 static int get_cdb_info_lba_8_none(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
@@ -433,6 +443,8 @@ static int get_cdb_info_compare_and_write(struct scst_cmd *cmd,
 static int get_cdb_info_apt(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
 static int get_cdb_info_min(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_var_len(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
 
 /*
@@ -593,7 +605,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 			 SCST_WRITE_EXCL_ALLOWED,
 	 .info_lba_off = 1, .info_lba_len = 3,
 	 .info_len_off = 4, .info_len_len = 1,
-	 .get_cdb_info = get_cdb_info_lba_3_len_1_256},
+	 .get_cdb_info = get_cdb_info_lba_3_len_1_256_read},
 	{.ops = 0x08, .devkey = " MV  O OV       ",
 	 .info_op_name = "READ(6)",
 	 .info_data_direction = SCST_DATA_READ,
@@ -623,7 +635,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 			  SCST_WRITE_MEDIUM,
 	 .info_lba_off = 1, .info_lba_len = 3,
 	 .info_len_off = 4, .info_len_len = 1,
-	 .get_cdb_info = get_cdb_info_lba_3_len_1_256},
+	 .get_cdb_info = get_cdb_info_lba_3_len_1_256_write},
 	{.ops = 0x0A, .devkey = " M  O  OV       ",
 	 .info_op_name = "WRITE(6)",
 	 .info_data_direction = SCST_DATA_WRITE,
@@ -820,7 +832,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 			 SCST_WRITE_EXCL_ALLOWED,
 	 .info_lba_off = 2, .info_lba_len = 4,
 	 .info_len_off = 7, .info_len_len = 2,
-	 .get_cdb_info = get_cdb_info_lba_4_len_2},
+	 .get_cdb_info = get_cdb_info_read_10},
 	{.ops = 0x28, .devkey = "         O      ",
 	 .info_op_name = "GET MESSAGE(10)",
 	 .info_data_direction = SCST_DATA_READ,
@@ -843,7 +855,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 			  SCST_WRITE_MEDIUM,
 	 .info_lba_off = 2, .info_lba_len = 4,
 	 .info_len_off = 7, .info_len_len = 2,
-	 .get_cdb_info = get_cdb_info_lba_4_len_2},
+	 .get_cdb_info = get_cdb_info_lba_4_len_2_wrprotect},
 	{.ops = 0x2A, .devkey = "         O      ",
 	 .info_op_name = "SEND MESSAGE(10)",
 	 .info_data_direction = SCST_DATA_WRITE,
@@ -888,7 +900,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
 	 .info_lba_off = 2, .info_lba_len = 4,
 	 .info_len_off = 7, .info_len_len = 2,
-	 .get_cdb_info = get_cdb_info_lba_4_len_2},
+	 .get_cdb_info = get_cdb_info_lba_4_len_2_wrprotect},
 	{.ops = 0x2F, .devkey = "O   OO O        ",
 	 .info_op_name = "VERIFY(10)",
 	 .info_data_direction = SCST_DATA_UNKNOWN,
@@ -1086,7 +1098,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 .info_op_flags = SCST_WRITE_MEDIUM,
 	 .info_lba_off = 2, .info_lba_len = 4,
 	 .info_len_off = 7, .info_len_len = 2,
-	 .get_cdb_info = get_cdb_info_lba_4_len_2},
+	 .get_cdb_info = get_cdb_info_lba_4_len_2_wrprotect},
 	{.ops = 0x51, .devkey = "     O          ",
 	 .info_op_name = "READ DISC INFORMATION",
 	 .info_data_direction = SCST_DATA_READ,
@@ -1187,6 +1199,13 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 .info_len_off = 5, .info_len_len = 4,
 	 .get_cdb_info = get_cdb_info_len_4},
 
+	/* Variable length CDBs */
+	{.ops = 0x7F, .devkey = "O               ",
+	 .info_op_name = "VAR LEN CDB",
+	 .info_data_direction = SCST_DATA_UNKNOWN,
+	 .info_op_flags = 0,
+	 .get_cdb_info = get_cdb_info_var_len},
+
 	/* 16-bytes length CDB */
 	{.ops = 0x80, .devkey = " O              ",
 	 .info_op_name = "WRITE FILEMARKS(16)",
@@ -1245,7 +1264,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 			 SCST_WRITE_EXCL_ALLOWED,
 	 .info_lba_off = 2, .info_lba_len = 8,
 	 .info_len_off = 10, .info_len_len = 4,
-	 .get_cdb_info = get_cdb_info_lba_8_len_4},
+	 .get_cdb_info = get_cdb_info_read_16},
 	{.ops = 0x89, .devkey = "O               ",
 	 .info_op_name = "COMPARE AND WRITE",
 	 .info_data_direction = SCST_DATA_WRITE,
@@ -1264,7 +1283,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 			  SCST_WRITE_MEDIUM,
 	 .info_lba_off = 2, .info_lba_len = 8,
 	 .info_len_off = 10, .info_len_len = 4,
-	 .get_cdb_info = get_cdb_info_lba_8_len_4},
+	 .get_cdb_info = get_cdb_info_lba_8_len_4_wrprotect},
 	{.ops = 0x8C, .devkey = " OOOOOOOOO      ",
 	 .info_op_name = "READ ATTRIBUTE",
 	 .info_data_direction = SCST_DATA_READ,
@@ -1283,7 +1302,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
 	 .info_lba_off = 2, .info_lba_len = 8,
 	 .info_len_off = 10, .info_len_len = 4,
-	 .get_cdb_info = get_cdb_info_lba_8_len_4},
+	 .get_cdb_info = get_cdb_info_lba_8_len_4_wrprotect},
 	{.ops = 0x8F, .devkey = "O   OO O        ",
 	 .info_op_name = "VERIFY(16)",
 	 .info_data_direction = SCST_DATA_UNKNOWN,
@@ -1424,7 +1443,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 			 SCST_WRITE_EXCL_ALLOWED,
 	 .info_lba_off = 2, .info_lba_len = 4,
 	 .info_len_off = 6, .info_len_len = 4,
-	 .get_cdb_info = get_cdb_info_lba_4_len_4},
+	 .get_cdb_info = get_cdb_info_lba_4_len_4_rdprotect},
 	{.ops = 0xA9, .devkey = "     O          ",
 	 .info_op_name = "PLAY TRACK RELATIVE(12)",
 	 .info_data_direction = SCST_DATA_NONE,
@@ -1440,7 +1459,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 			  SCST_WRITE_MEDIUM,
 	 .info_lba_off = 2, .info_lba_len = 4,
 	 .info_len_off = 6, .info_len_len = 4,
-	 .get_cdb_info = get_cdb_info_lba_4_len_4},
+	 .get_cdb_info = get_cdb_info_lba_4_len_4_wrprotect},
 	{.ops = 0xAA, .devkey = "         O      ",
 	 .info_op_name = "SEND MESSAGE(12)",
 	 .info_data_direction = SCST_DATA_WRITE,
@@ -1469,7 +1488,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
 	 .info_lba_off = 2, .info_lba_len = 4,
 	 .info_len_off = 6, .info_len_len = 4,
-	 .get_cdb_info = get_cdb_info_lba_4_len_4},
+	 .get_cdb_info = get_cdb_info_lba_4_len_4_wrprotect},
 	{.ops = 0xAF, .devkey = "O   OO O        ",
 	 .info_op_name = "VERIFY(12)",
 	 .info_data_direction = SCST_DATA_UNKNOWN,
@@ -3206,23 +3225,38 @@ static void scst_adjust_sg(struct scst_cmd *cmd, bool reg_sg,
 {
 	struct scatterlist *sg;
 	int *sg_cnt;
+	bool adjust_dif;
 
 	TRACE_ENTRY();
 
-	EXTRACHECKS_BUG_ON(cmd->sg_buff_modified);
+	EXTRACHECKS_BUG_ON(cmd->sg_buff_modified || cmd->dif_sg_buff_modified);
 
 	if (reg_sg) {
 		sg = cmd->sg;
 		sg_cnt = &cmd->sg_cnt;
+		adjust_dif = (cmd->dif_sg != NULL);
 	} else {
 		sg = *cmd->write_sg;
 		sg_cnt = cmd->write_sg_cnt;
+		if (sg == cmd->sg)
+			adjust_dif = (cmd->dif_sg != NULL);
+		else
+			adjust_dif = false;
 	}
 
-	TRACE_DBG("reg_sg %d, adjust_len %d", reg_sg, adjust_len);
+	TRACE_DBG("reg_sg %d, adjust_len %d, adjust_dif %d", reg_sg,
+		adjust_len, adjust_dif);
 
-	cmd->sg_buff_modified = __scst_adjust_sg(cmd, sg, sg_cnt, adjust_len,
+	cmd->sg_buff_modified = !!__scst_adjust_sg(cmd, sg, sg_cnt, adjust_len,
 					&cmd->orig_sg);
+
+	if (adjust_dif) {
+		adjust_len >>= (cmd->dev->block_shift - SCST_DIF_TAG_SHIFT);
+		TRACE_DBG("DIF adjust_len %d", adjust_len);
+		cmd->dif_sg_buff_modified = __scst_adjust_sg(cmd, cmd->dif_sg,
+						&cmd->dif_sg_cnt, adjust_len,
+						&cmd->orig_dif_sg);
+	}
 
 	TRACE_EXIT();
 	return;
@@ -3235,13 +3269,16 @@ static void scst_adjust_sg(struct scst_cmd *cmd, bool reg_sg,
  */
 void scst_restore_sg_buff(struct scst_cmd *cmd)
 {
-	TRACE_DBG_FLAG(TRACE_DEBUG|TRACE_MEMORY, "cmd %p, sg %p, "
+	TRACE_DBG_FLAG(TRACE_DEBUG|TRACE_MEMORY, "cmd %p, sg %p, DATA: "
 		"orig_sg_entry %p, orig_entry_offs %d, orig_entry_len %d, "
-		"orig_sg_cnt %d", cmd, cmd->sg, cmd->orig_sg.orig_sg_entry,
-		cmd->orig_sg.orig_entry_offs, cmd->orig_sg.orig_entry_len,
-		cmd->orig_sg.orig_sg_cnt);
+		"orig_sg_cnt %d, DIF: orig_sg_entry %p, "
+		"orig_entry_offs %d, orig_entry_len %d, orig_sg_cnt %d", cmd,
+		cmd->sg, cmd->orig_sg.orig_sg_entry, cmd->orig_sg.orig_entry_offs,
+		cmd->orig_sg.orig_entry_len, cmd->orig_sg.orig_sg_cnt,
+		cmd->orig_dif_sg.orig_sg_entry, cmd->orig_dif_sg.orig_entry_offs,
+		cmd->orig_dif_sg.orig_entry_len, cmd->orig_dif_sg.orig_sg_cnt);
 
-	EXTRACHECKS_BUG_ON(!cmd->sg_buff_modified);
+	EXTRACHECKS_BUG_ON(!(cmd->sg_buff_modified || cmd->dif_sg_buff_modified));
 
 	if (cmd->sg_buff_modified) {
 		cmd->orig_sg.orig_sg_entry->offset = cmd->orig_sg.orig_entry_offs;
@@ -3249,7 +3286,14 @@ void scst_restore_sg_buff(struct scst_cmd *cmd)
 		*cmd->orig_sg.p_orig_sg_cnt = cmd->orig_sg.orig_sg_cnt;
 	}
 
+	if (cmd->dif_sg_buff_modified) {
+		cmd->orig_dif_sg.orig_sg_entry->offset = cmd->orig_dif_sg.orig_entry_offs;
+		cmd->orig_dif_sg.orig_sg_entry->length = cmd->orig_dif_sg.orig_entry_len;
+		*cmd->orig_dif_sg.p_orig_sg_cnt = cmd->orig_dif_sg.orig_sg_cnt;
+	}
+
 	cmd->sg_buff_modified = 0;
+	cmd->dif_sg_buff_modified = 0;
 }
 EXPORT_SYMBOL(scst_restore_sg_buff);
 
@@ -3310,6 +3354,71 @@ void scst_limit_sg_write_len(struct scst_cmd *cmd)
 	return;
 }
 
+static int scst_full_len_to_data_len(int full_len, int block_shift)
+{
+	int rem, res;
+
+	res = full_len << block_shift;
+	rem = do_div(res, (1 << block_shift) + (1 << SCST_DIF_TAG_SHIFT));
+	if (unlikely(rem != 0))
+		TRACE(TRACE_MINOR, "Reminder %d for full len! (full len%d)",
+			rem, full_len);
+
+	TRACE_DBG("data len %d (full %d)", res, full_len);
+
+	return res;
+}
+
+/*
+ * Returns data expected transfer length, i.e. expected transfer length,
+ * adjusted on DIF tags expected transfer length, if any.
+ *
+ * Very expensive, don't call on fast path!
+ */
+int scst_cmd_get_expected_transfer_len_data(struct scst_cmd *cmd)
+{
+	int rem, res;
+
+	if (!cmd->tgt_dif_data_expected)
+		return cmd->expected_transfer_len_full;
+
+	res = cmd->expected_transfer_len_full << cmd->dev->block_shift;
+	rem = do_div(res, cmd->dev->block_size + (1 << SCST_DIF_TAG_SHIFT));
+	if (unlikely(rem != 0))
+		TRACE(TRACE_MINOR, "Reminder %d for expected transfer len "
+			"data! (cmd %p, op %s, expected len full %d)", rem,
+			cmd, scst_get_opcode_name(cmd),
+			cmd->expected_transfer_len_full);
+
+	TRACE_DBG("Expected transfer len data %d (cmd %p)", res, cmd);
+
+	return res;
+}
+
+/*
+ * Returns DIF tags expected transfer length.
+ *
+ * Very expensive, don't call on fast path!
+ */
+int scst_cmd_get_expected_transfer_len_dif(struct scst_cmd *cmd)
+{
+	int rem, res;
+
+	if (!cmd->tgt_dif_data_expected)
+		return 0;
+
+	res = cmd->expected_transfer_len_full << SCST_DIF_TAG_SHIFT;
+	rem = do_div(res, cmd->dev->block_size + (1 << SCST_DIF_TAG_SHIFT));
+	if (unlikely(rem != 0))
+		TRACE(TRACE_MINOR, "Reminder %d for expected transfer len dif! "
+			"(cmd %p, op %s, expected len full %d)", rem, cmd,
+			scst_get_opcode_name(cmd), cmd->expected_transfer_len_full);
+
+	TRACE_DBG("Expected transfer len DIF %d (cmd %p)", res, cmd);
+
+	return res;
+}
+
 void scst_adjust_resp_data_len(struct scst_cmd *cmd)
 {
 	TRACE_ENTRY();
@@ -3320,7 +3429,7 @@ void scst_adjust_resp_data_len(struct scst_cmd *cmd)
 	}
 
 	cmd->adjusted_resp_data_len = min(cmd->resp_data_len,
-					cmd->expected_transfer_len);
+				scst_cmd_get_expected_transfer_len_data(cmd));
 
 	if (cmd->adjusted_resp_data_len != cmd->resp_data_len) {
 		TRACE_MEM("Adjusting resp_data_len to %d (cmd %p, sg %p, "
@@ -3365,7 +3474,10 @@ void scst_cmd_set_write_not_received_data_len(struct scst_cmd *cmd,
 		if (cmd->write_len == cmd->out_bufflen)
 			goto out;
 	} else if (cmd->expected_data_direction & SCST_DATA_WRITE) {
-		cmd->write_len = cmd->expected_transfer_len - not_received;
+		cmd->write_len = cmd->expected_transfer_len_full - not_received;
+		if (cmd->tgt_dif_data_expected)
+			cmd->write_len = scst_full_len_to_data_len(cmd->write_len,
+						cmd->dev->block_shift);
 		if (cmd->write_len == cmd->bufflen)
 			goto out;
 	}
@@ -3400,7 +3512,7 @@ void scst_cmd_set_write_no_data_received(struct scst_cmd *cmd)
 	    (cmd->expected_data_direction & SCST_DATA_WRITE))
 		w = cmd->expected_out_transfer_len;
 	else
-		w = cmd->expected_transfer_len;
+		w = cmd->expected_transfer_len_full;
 
 	scst_cmd_set_write_not_received_data_len(cmd, w);
 
@@ -3437,7 +3549,10 @@ bool __scst_get_resid(struct scst_cmd *cmd, int *resid, int *bidi_out_resid)
 	}
 
 	if (cmd->expected_data_direction & SCST_DATA_READ) {
-		*resid = cmd->expected_transfer_len - cmd->resp_data_len;
+		int resp = cmd->resp_data_len;
+		if (cmd->tgt_dif_data_expected)
+			resp += (resp >> cmd->dev->block_shift) << SCST_DIF_TAG_SHIFT;
+		*resid = cmd->expected_transfer_len_full - resp;
 		if ((cmd->expected_data_direction & SCST_DATA_WRITE) && bidi_out_resid) {
 			if (cmd->write_len < cmd->expected_out_transfer_len)
 				*bidi_out_resid = cmd->expected_out_transfer_len -
@@ -3446,18 +3561,34 @@ bool __scst_get_resid(struct scst_cmd *cmd, int *resid, int *bidi_out_resid)
 				*bidi_out_resid = cmd->write_len - cmd->out_bufflen;
 		}
 	} else if (cmd->expected_data_direction & SCST_DATA_WRITE) {
-		if (cmd->write_len < cmd->expected_transfer_len)
-			*resid = cmd->expected_transfer_len - cmd->write_len;
-		else
+		int wl = cmd->write_len;
+		if (cmd->tgt_dif_data_expected)
+			wl += (wl >> cmd->dev->block_shift) << SCST_DIF_TAG_SHIFT;
+		if (wl < cmd->expected_transfer_len_full)
+			*resid = cmd->expected_transfer_len_full - wl;
+		else {
 			*resid = cmd->write_len - cmd->bufflen;
+			if (cmd->tgt_dif_data_expected) {
+				int r = *resid;
+				if (r < 0)
+					r = -r;
+				r += (r >> cmd->dev->block_shift) << SCST_DIF_TAG_SHIFT;
+				if (*resid > 0)
+					*resid = r;
+				else
+					*resid = -r;
+			}
+		}
 	}
 
 	res = true;
 
 	TRACE_DBG("cmd %p, resid %d, bidi_out_resid %d (resp_data_len %d, "
-		"expected_data_direction %d, write_len %d, bufflen %d)", cmd,
-		*resid, bidi_out_resid ? *bidi_out_resid : 0, cmd->resp_data_len,
-		cmd->expected_data_direction, cmd->write_len, cmd->bufflen);
+		"expected_data_direction %d, write_len %d, bufflen %d, "
+		"tgt_dif_data_expected %d)", cmd, *resid,
+		bidi_out_resid ? *bidi_out_resid : 0, cmd->resp_data_len,
+		cmd->expected_data_direction, cmd->write_len, cmd->bufflen,
+		cmd->tgt_dif_data_expected);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -3721,11 +3852,27 @@ int scst_alloc_tgt(struct scst_tgt_template *tgtt, struct scst_tgt **tgt)
 	init_waitqueue_head(&t->unreg_waitQ);
 	t->tgtt = tgtt;
 	t->sg_tablesize = tgtt->sg_tablesize;
+	t->tgt_dif_supported = tgtt->dif_supported;
+	t->tgt_hw_dif_type1_supported = tgtt->hw_dif_type1_supported;
+	t->tgt_hw_dif_type2_supported = tgtt->hw_dif_type2_supported;
+	t->tgt_hw_dif_type3_supported = tgtt->hw_dif_type3_supported;
+	t->tgt_hw_dif_ip_supported = tgtt->hw_dif_ip_supported;
+	t->tgt_hw_dif_same_sg_layout_required = tgtt->hw_dif_same_sg_layout_required;
+	t->tgt_supported_dif_block_sizes = tgtt->supported_dif_block_sizes;
 	spin_lock_init(&t->tgt_lock);
 	INIT_LIST_HEAD(&t->retry_cmd_list);
 	init_timer(&t->retry_timer);
 	t->retry_timer.data = (unsigned long)t;
 	t->retry_timer.function = scst_tgt_retry_timer_fn;
+	atomic_set(&t->tgt_dif_app_failed_tgt, 0);
+	atomic_set(&t->tgt_dif_ref_failed_tgt, 0);
+	atomic_set(&t->tgt_dif_guard_failed_tgt, 0);
+	atomic_set(&t->tgt_dif_app_failed_scst, 0);
+	atomic_set(&t->tgt_dif_ref_failed_scst, 0);
+	atomic_set(&t->tgt_dif_guard_failed_scst, 0);
+	atomic_set(&t->tgt_dif_app_failed_dev, 0);
+	atomic_set(&t->tgt_dif_ref_failed_dev, 0);
+	atomic_set(&t->tgt_dif_guard_failed_dev, 0);
 
 #ifdef CONFIG_SCST_PROC
 	res = gen_relative_target_port_id(&t->rel_tgt_id);
@@ -3776,6 +3923,13 @@ static void scst_init_order_data(struct scst_order_data *order_data)
 	return;
 }
 
+static int scst_dif_none(struct scst_cmd *cmd);
+#ifdef CONFIG_SCST_DIF_INJECT_CORRUPTED_TAGS
+static int scst_dif_none_type1(struct scst_cmd *cmd);
+#else
+#define scst_dif_none_type1 scst_dif_none
+#endif
+
 /* Called under scst_mutex and suspended activity */
 int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev)
 {
@@ -3810,6 +3964,11 @@ int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev)
 	dev->pr_scope = SCOPE_LU;
 	dev->pr_type = TYPE_UNSPECIFIED;
 	INIT_LIST_HEAD(&dev->dev_registrants_list);
+
+	BUILD_BUG_ON(SCST_DIF_NO_CHECK_APP_TAG != 0);
+	dev->dev_dif_static_app_tag = SCST_DIF_NO_CHECK_APP_TAG;
+	dev->dev_dif_static_app_ref_tag = SCST_DIF_NO_CHECK_APP_TAG;
+	dev->dev_dif_fn = scst_dif_none;
 
 	scst_init_order_data(&dev->dev_order_data);
 
@@ -3927,12 +4086,82 @@ static void scst_del_free_acg_dev(struct scst_acg_dev *acg_dev, bool del_sysfs)
 	return;
 }
 
+static int scst_check_dif_compatibility(const struct scst_acg *acg,
+	const struct scst_device *dev)
+{
+	int res = -EINVAL;
+	struct scst_tgt *tgt;
+	const int *p;
+	bool supported;
+
+	TRACE_ENTRY();
+
+	if (dev->dev_dif_mode == SCST_DIF_MODE_NONE)
+		goto out_ok;
+
+	tgt = acg->tgt;
+
+	if (!tgt->tgt_dif_supported) {
+		PRINT_ERROR("Target %s doesn't support T10-PI (device %s)",
+			tgt->tgt_name, dev->virt_name);
+		goto out;
+	}
+
+	if (dev->dev_dif_mode & SCST_DIF_MODE_TGT) {
+		if ((dev->dev_dif_type == 1) && !tgt->tgt_hw_dif_type1_supported) {
+			PRINT_ERROR("Target %s doesn't support type 1 "
+				"protection TGT mode (device %s)", tgt->tgt_name,
+				dev->virt_name);
+			goto out;
+		}
+
+		if ((dev->dev_dif_type == 2) && !tgt->tgt_hw_dif_type2_supported) {
+			PRINT_ERROR("Target %s doesn't support type 2 "
+				"protection TGT mode (device %s)", tgt->tgt_name,
+				dev->virt_name);
+			goto out;
+		}
+
+		if ((dev->dev_dif_type == 3) && !tgt->tgt_hw_dif_type3_supported) {
+			PRINT_ERROR("Target %s doesn't support type 3 "
+				"protection TGT mode (device %s)", tgt->tgt_name,
+				dev->virt_name);
+			goto out;
+		}
+	}
+
+	if (tgt->tgt_supported_dif_block_sizes == NULL)
+		goto out_ok;
+
+	p = tgt->tgt_supported_dif_block_sizes;
+	supported = false;
+	while (*p != 0) {
+		if (*p == dev->block_size) {
+			supported = true;
+			break;
+		}
+		p++;
+	}
+	if (!supported) {
+		PRINT_ERROR("Target %s doesn't support block size %d of "
+			"device %s", tgt->tgt_name, dev->block_size, dev->virt_name);
+		goto out;
+	}
+
+out_ok:
+	res = 0;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 /* The activity supposed to be suspended and scst_mutex held */
 int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
 	struct scst_device *dev, uint64_t lun, int read_only,
 	bool gen_scst_report_luns_changed, struct scst_acg_dev **out_acg_dev)
 {
-	int res = 0;
+	int res;
 	struct scst_acg_dev *acg_dev;
 	struct scst_tgt_dev *tgt_dev;
 	struct scst_session *sess;
@@ -3942,12 +4171,24 @@ int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
 
 	INIT_LIST_HEAD(&tmp_tgt_dev_list);
 
+	res = scst_check_dif_compatibility(acg, dev);
+	if (res != 0)
+		goto out;
+
 	acg_dev = scst_alloc_acg_dev(acg, dev, lun);
 	if (acg_dev == NULL) {
 		res = -ENOMEM;
 		goto out;
 	}
 	acg_dev->acg_dev_rd_only = read_only;
+	if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_STORE) {
+		/* Devices are allowed to store only CRCs */
+		acg_dev->acg_dev_dif_guard_format = SCST_DIF_GUARD_FORMAT_CRC;
+	} else
+		acg_dev->acg_dev_dif_guard_format =
+			acg->tgt->tgt_hw_dif_ip_supported && !dev->dev_dif_ip_not_supported ?
+							SCST_DIF_GUARD_FORMAT_IP :
+							SCST_DIF_GUARD_FORMAT_CRC;
 
 	TRACE_DBG("Adding acg_dev %p to acg_dev_list and dev_acg_dev_list",
 		acg_dev);
@@ -4584,6 +4825,9 @@ out_deinit:
 	return;
 }
 
+static __be16 scst_dif_crc_fn(const void *data, unsigned int len);
+static __be16 scst_dif_ip_fn(const void *data, unsigned int len);
+
 /*
  * scst_mutex supposed to be held, there must not be parallel activity in this
  * session. May be invoked from inside scst_check_reassign_sessions() which
@@ -4614,6 +4858,24 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	tgt_dev->lun = acg_dev->lun;
 	tgt_dev->acg_dev = acg_dev;
 	tgt_dev->tgt_dev_rd_only = acg_dev->acg_dev_rd_only || dev->dev_rd_only;
+	tgt_dev->hw_dif_same_sg_layout_required = sess->tgt->tgt_hw_dif_same_sg_layout_required;
+	tgt_dev->tgt_dev_dif_guard_format = acg_dev->acg_dev_dif_guard_format;
+	if (tgt_dev->tgt_dev_dif_guard_format == SCST_DIF_GUARD_FORMAT_IP)
+		tgt_dev->tgt_dev_dif_crc_fn = scst_dif_ip_fn;
+	else {
+		EXTRACHECKS_BUG_ON(tgt_dev->tgt_dev_dif_guard_format != SCST_DIF_GUARD_FORMAT_CRC);
+		tgt_dev->tgt_dev_dif_crc_fn = scst_dif_crc_fn;
+	}
+	atomic_set(&tgt_dev->tgt_dev_dif_app_failed_tgt, 0);
+	atomic_set(&tgt_dev->tgt_dev_dif_ref_failed_tgt, 0);
+	atomic_set(&tgt_dev->tgt_dev_dif_guard_failed_tgt, 0);
+	atomic_set(&tgt_dev->tgt_dev_dif_app_failed_scst, 0);
+	atomic_set(&tgt_dev->tgt_dev_dif_ref_failed_scst, 0);
+	atomic_set(&tgt_dev->tgt_dev_dif_guard_failed_scst, 0);
+	atomic_set(&tgt_dev->tgt_dev_dif_app_failed_dev, 0);
+	atomic_set(&tgt_dev->tgt_dev_dif_ref_failed_dev, 0);
+	atomic_set(&tgt_dev->tgt_dev_dif_guard_failed_dev, 0);
+
 	tgt_dev->sess = sess;
 	atomic_set(&tgt_dev->tgt_dev_cmd_count, 0);
 	if (acg_dev->acg->acg_black_hole_type != SCST_ACG_BLACK_HOLE_NONE)
@@ -4636,7 +4898,9 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	tgt_dev->max_sg_cnt = min(ini_sg, sess->tgt->sg_tablesize);
 
 	if ((sess->tgt->tgtt->use_clustering || ini_use_clustering) &&
-	    !sess->tgt->tgtt->no_clustering)
+	    !sess->tgt->tgtt->no_clustering &&
+	    !(sess->tgt->tgt_hw_dif_same_sg_layout_required &&
+	      (tgt_dev->dev->dev_dif_type != 0)))
 		scst_sgv_pool_use_norm_clust(tgt_dev);
 
 	if (sess->tgt->tgtt->unchecked_isa_dma || ini_unchecked_isa_dma)
@@ -5052,6 +5316,24 @@ out:
 	return res;
 }
 
+static void scst_prelim_finish_internal_cmd(struct scst_cmd *cmd)
+{
+	unsigned long flags;
+
+	TRACE_ENTRY();
+
+	sBUG_ON(!cmd->internal);
+
+	spin_lock_irqsave(&cmd->sess->sess_list_lock, flags);
+	list_del(&cmd->sess_cmd_list_entry);
+	spin_unlock_irqrestore(&cmd->sess->sess_list_lock, flags);
+
+	__scst_cmd_put(cmd);
+
+	TRACE_EXIT();
+	return;
+}
+
 int scst_prepare_request_sense(struct scst_cmd *orig_cmd)
 {
 	int res = 0;
@@ -5079,7 +5361,7 @@ int scst_prepare_request_sense(struct scst_cmd *orig_cmd)
 
 	rs_cmd->cdb[1] |= scst_get_cmd_dev_d_sense(orig_cmd);
 	rs_cmd->expected_data_direction = SCST_DATA_READ;
-	rs_cmd->expected_transfer_len = SCST_SENSE_BUFFERSIZE;
+	rs_cmd->expected_transfer_len_full = SCST_SENSE_BUFFERSIZE;
 	rs_cmd->expected_values_set = 1;
 
 	TRACE_MGMT_DBG("Adding REQUEST SENSE cmd %p to head of active "
@@ -5158,6 +5440,12 @@ struct scst_write_same_priv {
 	int64_t ws_cur_lba; /* in blocks */
 	int ws_left_to_send; /* in blocks */
 
+	__be16 guard_tag;
+	__be16 app_tag;
+	uint32_t ref_tag;
+	unsigned int dif_valid:1;
+	unsigned int inc_ref_tag:1;
+
 	int ws_max_each;/* in blocks */
 	int ws_cur_in_flight;
 
@@ -5170,11 +5458,14 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 	int64_t lba, int blocks)
 {
 	struct scst_cmd *ws_cmd = wsp->ws_orig_cmd;
+	struct scst_device *dev = ws_cmd->dev;
 	struct scatterlist *ws_sg = wsp->ws_sg;
 	int res;
-	uint8_t write16_cdb[16];
+	uint8_t write_cdb[32];
+	int write_cdb_len;
 	int len = blocks << ws_cmd->dev->block_shift;
 	struct scst_cmd *cmd;
+	bool needs_dif = wsp->dif_valid;
 
 	TRACE_ENTRY();
 
@@ -5189,23 +5480,97 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 		goto out;
 	}
 
-	memset(write16_cdb, 0, sizeof(write16_cdb));
-	write16_cdb[0] = WRITE_16;
-	put_unaligned_be64(lba, &write16_cdb[2]);
-	put_unaligned_be32(blocks, &write16_cdb[10]);
+	if (!needs_dif || (dev->dev_dif_type != 2)) {
+		memset(write_cdb, 0, sizeof(write_cdb));
+		write_cdb[0] = WRITE_16;
+		write_cdb_len = 16;
+		write_cdb[1] = ws_cmd->cdb[1];
+		if (needs_dif) {
+			uint8_t wrprotect = ws_cmd->cdb[1] & 0xE0;
+			if (wrprotect == 0)
+				wrprotect = 0x20;
+			write_cdb[1] |= wrprotect;
+		}
+		put_unaligned_be64(lba, &write_cdb[2]);
+		put_unaligned_be32(blocks, &write_cdb[10]);
+	} else {
+		/* There might be WRITE SAME(16) with WRPROTECT 0 here */
+		uint8_t wrprotect;
+		if (ws_cmd->cdb_len != 32)
+			wrprotect = ws_cmd->cdb[1] & 0xE0;
+		else
+			wrprotect = ws_cmd->cdb[10] & 0xE0;
+		if (wrprotect == 0)
+			wrprotect = 0x20;
+		write_cdb[0] = VARIABLE_LENGTH_CMD;
+		put_unaligned_be16(SUBCODE_WRITE_32, &write_cdb[8]);
+		write_cdb[7] = 0x18;
+		write_cdb_len = 32;
+		write_cdb[10] = ws_cmd->cdb[10];
+		write_cdb[10] |= wrprotect;
+		put_unaligned_be64(lba, &write_cdb[12]);
+		put_unaligned_be32(blocks, &write_cdb[28]);
+		put_unaligned_be32(wsp->ref_tag, &write_cdb[20]);
+		put_unaligned(wsp->app_tag, &write_cdb[24]);
+		write_cdb[26] = ws_cmd->cdb[26];
+		write_cdb[27] = ws_cmd->cdb[27];
+	}
 
-	cmd = scst_create_prepare_internal_cmd(ws_cmd, write16_cdb,
-		sizeof(write16_cdb), SCST_CMD_QUEUE_SIMPLE);
+	cmd = scst_create_prepare_internal_cmd(ws_cmd, write_cdb,
+		write_cdb_len, SCST_CMD_QUEUE_SIMPLE);
 	if (cmd == NULL) {
 		res = -ENOMEM;
 		goto out_busy;
 	}
 
 	cmd->expected_data_direction = SCST_DATA_WRITE;
-	cmd->expected_transfer_len = len;
+	cmd->expected_transfer_len_full = len;
 	cmd->expected_values_set = 1;
 
 	cmd->tgt_i_priv = wsp;
+
+	if (needs_dif) {
+		struct scatterlist *dif_sg, *s;
+		struct sgv_pool_obj *dif_sgv = NULL;
+		int dif_bufflen, i, dif_sg_cnt = 0;
+
+		TRACE_DBG("Allocating and filling DIF buff for cmd %p "
+			"(ws_cmd %p)", cmd, ws_cmd);
+
+		dif_bufflen = blocks << SCST_DIF_TAG_SHIFT;
+		cmd->expected_transfer_len_full += dif_bufflen;
+
+		dif_sg = sgv_pool_alloc(ws_cmd->tgt_dev->pool,
+			dif_bufflen, GFP_KERNEL, 0, &dif_sg_cnt, &dif_sgv,
+			&cmd->dev->dev_mem_lim, NULL);
+		if (unlikely(dif_sg == NULL)) {
+			TRACE(TRACE_OUT_OF_MEM, "Unable to alloc DIF sg "
+				"for %d blocks", blocks);
+			res = -ENOMEM;
+			goto out_free_cmd;
+		}
+		cmd->out_sgv = dif_sgv; /* hacky, but it isn't used for WRITE(16/32) */
+		cmd->tgt_i_dif_sg = dif_sg;
+		cmd->tgt_i_dif_sg_cnt = dif_sg_cnt;
+
+		TRACE_DBG("dif_sg %p, cnt %d", dif_sg, dif_sg_cnt);
+
+		for_each_sg(dif_sg, s, dif_sg_cnt, i) {
+			int left = (s->length - s->offset) >> SCST_DIF_TAG_SHIFT;
+			struct scst_dif_tuple *t = sg_virt(s);
+			TRACE_DBG("sg %p, offset %d, length %d, left %d", s,
+				s->offset, s->length, left);
+			while (left > 0) {
+				t->app_tag = wsp->app_tag;
+				t->ref_tag = cpu_to_be32(wsp->ref_tag);
+				if (wsp->inc_ref_tag)
+					wsp->ref_tag++;
+				t->guard_tag = wsp->guard_tag;
+				t++;
+				left--;
+			}
+		}
+	}
 
 	cmd->tgt_i_sg = ws_sg;
 	cmd->tgt_i_sg_cnt = blocks;
@@ -5225,6 +5590,9 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_free_cmd:
+	scst_prelim_finish_internal_cmd(cmd);
 
 out_busy:
 	scst_set_busy(ws_cmd);
@@ -5262,6 +5630,9 @@ static void scst_ws_write_cmd_finished(struct scst_cmd *cmd)
 
 	TRACE_DBG("Write cmd %p finished (ws cmd %p, ws_cur_in_flight %d)",
 		cmd, ws_cmd, wsp->ws_cur_in_flight);
+
+	if (cmd->out_sgv != NULL)
+		sgv_pool_free(cmd->out_sgv, &cmd->dev->dev_mem_lim);
 
 	cmd->sg = NULL;
 	cmd->sg_cnt = 0;
@@ -5366,7 +5737,8 @@ out_err:
 void scst_write_same(struct scst_cmd *cmd)
 {
 	struct scst_write_same_priv *wsp;
-	int i;
+	int i, rc;
+	uint8_t ctrl_offs = (cmd->cdb_len < 32) ? 1 : 10;
 
 	TRACE_ENTRY();
 
@@ -5382,10 +5754,10 @@ void scst_write_same(struct scst_cmd *cmd)
 		goto out_done;
 	}
 
-	if (unlikely((cmd->cdb[1] & 0x6) != 0)) {
+	if (unlikely((cmd->cdb[ctrl_offs] & 0x6) != 0)) {
 		TRACE(TRACE_MINOR, "LBDATA and/or PBDATA (ctrl %x) are not "
-			"supported", cmd->cdb[1]);
-		scst_set_invalid_field_in_cdb(cmd, 1,
+			"supported", cmd->cdb[ctrl_offs]);
+		scst_set_invalid_field_in_cdb(cmd, ctrl_offs,
 			SCST_INVAL_FIELD_BIT_OFFS_VALID | 1);
 		goto out_done;
 	}
@@ -5397,6 +5769,10 @@ void scst_write_same(struct scst_cmd *cmd)
 		scst_set_invalid_field_in_cdb(cmd, cmd->len_off, 0);
 		goto out_done;
 	}
+
+	rc = scst_dif_process_write(cmd);
+	if (unlikely(rc != 0))
+		goto out_done;
 
 	wsp = kzalloc(sizeof(*wsp), GFP_KERNEL);
 	if (wsp == NULL) {
@@ -5424,6 +5800,34 @@ void scst_write_same(struct scst_cmd *cmd)
 	for (i = 0; i < wsp->ws_sg_cnt; i++) {
 		sg_set_page(&wsp->ws_sg[i], sg_page(cmd->sg),
 			cmd->sg->length, cmd->sg->offset);
+	}
+
+	if (scst_cmd_needs_dif_buf(cmd)) {
+		struct scst_dif_tuple *t;
+		struct scatterlist *tags_sg = NULL;
+		int tags_len = 0;
+
+		t = (struct scst_dif_tuple *)scst_get_dif_buf(cmd, &tags_sg, &tags_len);
+
+		wsp->app_tag = t->app_tag;
+		wsp->ref_tag = be32_to_cpu(t->ref_tag);
+		wsp->guard_tag = t->guard_tag;
+		wsp->dif_valid = 1;
+
+		switch (cmd->dev->dev_dif_type) {
+		case 1:
+		case 2:
+			wsp->inc_ref_tag = 1;
+			break;
+		case 3:
+			wsp->inc_ref_tag = 0;
+			break;
+		default:
+			sBUG_ON(1);
+			break;
+		}
+
+		scst_put_dif_buf(cmd, t);
 	}
 
 	scst_ws_gen_writes(wsp);
@@ -6121,6 +6525,29 @@ failed:
 	goto out;
 }
 
+static void scst_restore_dif_sg(struct scst_cmd *cmd)
+{
+	int left = cmd->bufflen;
+	struct scatterlist *sg = cmd->dif_sg;
+
+	TRACE_ENTRY();
+
+	if (!cmd->dif_sg_normalized)
+		goto out;
+
+	do {
+		sg->length = min_t(int, PAGE_SIZE, left);
+		left -= sg->length;
+		TRACE_DBG("DIF sg %p, restored len %d (left %d)", sg,
+			sg->length, left);
+		sg = __sg_next_inline(sg);
+	} while (left > 0);
+
+out:
+	TRACE_EXIT();
+	return;
+}
+
 int scst_alloc_space(struct scst_cmd *cmd)
 {
 	gfp_t gfp_mask;
@@ -6146,6 +6573,42 @@ int scst_alloc_space(struct scst_cmd *cmd)
 		if (!scst_on_sg_tablesize_low(cmd, false))
 			goto out_sg_free;
 
+	if ((scst_get_dif_action(scst_get_scst_dif_actions(cmd->cmd_dif_actions)) != SCST_DIF_ACTION_NONE) ||
+	    (scst_get_dif_action(scst_get_dev_dif_actions(cmd->cmd_dif_actions)) != SCST_DIF_ACTION_NONE)) {
+		int dif_bufflen;
+		bool same_layout;
+
+		same_layout = tgt_dev->hw_dif_same_sg_layout_required;
+		if (!same_layout)
+			dif_bufflen = __scst_cmd_get_bufflen_dif(cmd);
+		else
+			dif_bufflen = cmd->bufflen;
+
+		cmd->dif_sg = sgv_pool_alloc(tgt_dev->pool, dif_bufflen, gfp_mask, flags,
+			&cmd->dif_sg_cnt, &cmd->dif_sgv, &cmd->dev->dev_mem_lim, NULL);
+		if (unlikely(cmd->dif_sg == NULL))
+			goto out_sg_free;
+
+		if (same_layout) {
+			int left = dif_bufflen;
+			struct scatterlist *sgd = cmd->sg;
+			struct scatterlist *sgt = cmd->dif_sg;
+			int block_shift = cmd->dev->block_shift;
+
+			EXTRACHECKS_BUG_ON(left != cmd->bufflen);
+
+			do {
+				left -= sgt->length;
+				sgt->length = (sgd->length >> block_shift) << SCST_DIF_TAG_SHIFT;
+				TRACE_SG("sgt %p, new len %d", sgt, sgt->length);
+				sgd = __sg_next_inline(sgd);
+				sgt = __sg_next_inline(sgt);
+			} while (left > 0);
+
+			cmd->dif_sg_normalized = 1;
+		}
+	}
+
 	if (cmd->data_direction != SCST_DATA_BIDI)
 		goto success;
 
@@ -6153,7 +6616,7 @@ int scst_alloc_space(struct scst_cmd *cmd)
 			 flags, &cmd->out_sg_cnt, &cmd->out_sgv,
 			 &cmd->dev->dev_mem_lim, NULL);
 	if (unlikely(cmd->out_sg == NULL))
-		goto out_sg_free;
+		goto out_dif_sg_free;
 
 	if (unlikely(cmd->out_sg_cnt > tgt_dev->max_sg_cnt))
 		if (!scst_on_sg_tablesize_low(cmd, true))
@@ -6171,6 +6634,15 @@ out_out_sg_free:
 	cmd->out_sgv = NULL;
 	cmd->out_sg = NULL;
 	cmd->out_sg_cnt = 0;
+
+out_dif_sg_free:
+	if (cmd->dif_sgv != NULL) {
+		scst_restore_dif_sg(cmd);
+		sgv_pool_free(cmd->dif_sgv, &cmd->dev->dev_mem_lim);
+		cmd->dif_sgv = NULL;
+		cmd->dif_sg = NULL;
+		cmd->dif_sg_cnt = 0;
+	}
 
 out_sg_free:
 	sgv_pool_free(cmd->sgv, &cmd->dev->dev_mem_lim);
@@ -6208,12 +6680,20 @@ static void scst_release_space(struct scst_cmd *cmd)
 		cmd->out_bufflen = 0;
 	}
 
+	if (cmd->dif_sgv != NULL) {
+		scst_restore_dif_sg(cmd);
+		sgv_pool_free(cmd->dif_sgv, &cmd->dev->dev_mem_lim);
+	}
+
 	sgv_pool_free(cmd->sgv, &cmd->dev->dev_mem_lim);
 
 out_zero:
 	cmd->sgv = NULL;
 	cmd->sg_cnt = 0;
 	cmd->sg = NULL;
+	cmd->dif_sgv = NULL;
+	cmd->dif_sg = NULL;
+	cmd->dif_sg_cnt = 0;
 	cmd->bufflen = 0;
 	cmd->data_len = 0;
 
@@ -6873,13 +7353,15 @@ EXPORT_SYMBOL(scst_scsi_exec_async);
 /**
  * scst_copy_sg() - copy data between the command's SGs
  *
- * Copies data between cmd->tgt_i_sg and cmd->sg in direction defined by
+ * Copies data between cmd->tgt_i_sg and cmd->sg as well as
+ * cmd->tgt_i_dif_sg and cmd->dif_sg in direction defined by
  * copy_dir parameter.
  */
 void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir copy_dir)
 {
 	struct scatterlist *src_sg, *dst_sg;
-	unsigned int to_copy;
+	struct scatterlist *src_sg_dif, *dst_sg_dif;
+	unsigned int to_copy, to_copy_dif;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
 	int atomic = scst_cmd_atomic(cmd);
 #endif
@@ -6891,20 +7373,31 @@ void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir copy_dir)
 			src_sg = cmd->tgt_i_sg;
 			dst_sg = cmd->sg;
 			to_copy = cmd->bufflen;
+			src_sg_dif = cmd->tgt_i_dif_sg;
+			dst_sg_dif = cmd->dif_sg;
+			to_copy_dif = scst_cmd_get_bufflen_dif(cmd);
 		} else {
 			TRACE_MEM("BIDI cmd %p", cmd);
 			src_sg = cmd->tgt_out_sg;
 			dst_sg = cmd->out_sg;
 			to_copy = cmd->out_bufflen;
+			src_sg_dif = NULL;
+			dst_sg_dif = NULL;
+			to_copy_dif = 0;
 		}
 	} else {
 		src_sg = cmd->sg;
 		dst_sg = cmd->tgt_i_sg;
 		to_copy = cmd->adjusted_resp_data_len;
+		src_sg_dif = cmd->dif_sg;
+		dst_sg_dif = cmd->tgt_i_dif_sg;
+		to_copy_dif = scst_cmd_get_bufflen_dif(cmd);
 	}
 
-	TRACE_MEM("cmd %p, copy_dir %d, src_sg %p, dst_sg %p, to_copy %lld",
-		cmd, copy_dir, src_sg, dst_sg, (long long)to_copy);
+	TRACE_MEM("cmd %p, copy_dir %d, src_sg %p, dst_sg %p, to_copy %lld, "
+		"src_sg_dif %p, dst_sg_dif %p, to_copy_dif %lld",
+		cmd, copy_dir, src_sg, dst_sg, (long long)to_copy,
+		src_sg_dif, dst_sg_dif, (long long)to_copy_dif);
 
 	if (unlikely(src_sg == NULL) || unlikely(dst_sg == NULL) ||
 	    unlikely(to_copy == 0)) {
@@ -6921,6 +7414,17 @@ void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir copy_dir)
 		atomic ? KM_SOFTIRQ1 : KM_USER1);
 #else
 	sg_copy(dst_sg, src_sg, 0, to_copy);
+#endif
+
+	if ((src_sg_dif == NULL) || (dst_sg_dif == NULL) || (to_copy_dif == 0))
+		goto out;
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
+	sg_copy(dst_sg_dif, src_sg_dif, 0, to_copy_dif,
+		atomic ? KM_SOFTIRQ0 : KM_USER0,
+		atomic ? KM_SOFTIRQ1 : KM_USER1);
+#else
+	sg_copy(dst_sg_dif, src_sg_dif, 0, to_copy_dif);
 #endif
 
 out:
@@ -7073,10 +7577,1835 @@ out:
 }
 EXPORT_SYMBOL(scst_put_buf_full);
 
-static const int SCST_CDB_LENGTH[8] = { 6, 10, 10, 0, 16, 12, 0, 0 };
+static __be16 scst_dif_crc_fn(const void *data, unsigned int len)
+{
+	return cpu_to_be16(crc_t10dif(data, len));
+}
+
+static __be16 scst_dif_ip_fn(const void *data, unsigned int len)
+{
+	return (__force __be16)ip_compute_csum(data, len);
+}
+
+static int scst_verify_dif_type1(struct scst_cmd *cmd)
+{
+	int res = 0;
+	struct scst_device *dev = cmd->dev;
+	enum scst_dif_actions checks = scst_get_dif_checks(cmd->cmd_dif_actions);
+	int len, tags_len = 0, tag_size = 1 << SCST_DIF_TAG_SHIFT;
+	struct scatterlist *tags_sg = NULL;
+	uint8_t *buf, *tags_buf = NULL;
+	const struct scst_dif_tuple *t = NULL; /* to silence compiler warning */
+	uint64_t lba = cmd->lba;
+	int block_size = dev->block_size, block_shift = dev->block_shift;
+	__be16 (*crc_fn)(const void *buffer, unsigned int len);
+
+	TRACE_ENTRY();
+
+	EXTRACHECKS_BUG_ON(dev->dev_dif_type != 1);
+
+#ifdef CONFIG_SCST_EXTRACHECKS
+	switch (scst_get_dif_action(scst_get_scst_dif_actions(cmd->cmd_dif_actions))) {
+	case SCST_DIF_ACTION_STRIP:
+	case SCST_DIF_ACTION_PASS_CHECK:
+		break;
+	default:
+		EXTRACHECKS_BUG_ON(1);
+		break;
+	}
+	EXTRACHECKS_BUG_ON(checks == SCST_DIF_ACTION_NONE);
+#endif
+
+	crc_fn = cmd->tgt_dev->tgt_dev_dif_crc_fn;
+
+	len = scst_get_buf_first(cmd, &buf);
+	while (len > 0) {
+		int i;
+		uint8_t *cur_buf = buf;
+
+		for (i = 0; i < (len >> block_shift); i++) {
+			if (tags_buf == NULL) {
+				tags_buf = scst_get_dif_buf(cmd, &tags_sg, &tags_len);
+				EXTRACHECKS_BUG_ON(tags_len <= 0);
+				TRACE_DBG("tags_buf %p", tags_buf);
+				TRACE_BUFF_FLAG(TRACE_DEBUG, "Tags to verify",
+					tags_buf, tags_len);
+				t = (struct scst_dif_tuple *)tags_buf;
+			}
+
+			if (t->app_tag == SCST_DIF_NO_CHECK_ALL_APP_TAG) {
+				TRACE_DBG("Skipping tag %lld (cmd %p)",
+					(long long)lba, cmd);
+				goto next;
+			}
+
+			if (checks & SCST_DIF_CHECK_APP_TAG) {
+				if (t->app_tag != dev->dev_dif_static_app_tag) {
+					PRINT_WARNING("APP TAG check failed, "
+						"expected 0x%x, seeing "
+						"0x%x (cmd %p (op %s), lba %lld, "
+						"dev %s)", dev->dev_dif_static_app_tag,
+						t->app_tag, cmd, scst_get_opcode_name(cmd),
+						(long long)lba, dev->virt_name);
+					scst_dif_acc_app_check_failed_scst(cmd);
+					scst_set_cmd_error(cmd,
+						SCST_LOAD_SENSE(scst_logical_block_app_tag_check_failed));
+					res = -EIO;
+					goto out_put;
+				}
+			}
+
+			if (checks & SCST_DIF_CHECK_REF_TAG) {
+				if (t->ref_tag != cpu_to_be32(lba & 0xFFFFFFFF)) {
+					PRINT_WARNING("REF TAG check failed, "
+						"expected 0x%x, seeing "
+						"0x%x (cmd %p (op %s), lba %lld, "
+						"dev %s)", cpu_to_be32(lba & 0xFFFFFFFF),
+						t->ref_tag, cmd, scst_get_opcode_name(cmd),
+						(long long)lba, dev->virt_name);
+					scst_dif_acc_ref_check_failed_scst(cmd);
+					scst_set_cmd_error(cmd,
+						SCST_LOAD_SENSE(scst_logical_block_ref_tag_check_failed));
+					res = -EIO;
+					goto out_put;
+				}
+			}
+
+			/* Skip CRC check for internal commands */
+			if ((checks & SCST_DIF_CHECK_GUARD_TAG) &&
+			    !cmd->internal) {
+				__be16 crc = crc_fn(cur_buf, block_size);
+				if (t->guard_tag != crc) {
+					PRINT_WARNING("GUARD TAG check failed, "
+						"expected 0x%x, seeing 0x%x "
+						"(cmd %p (op %s), lba %lld, "
+						"dev %s)", crc, t->guard_tag, cmd,
+						scst_get_opcode_name(cmd), (long long)lba,
+						dev->virt_name);
+					scst_dif_acc_guard_check_failed_scst(cmd);
+					scst_set_cmd_error(cmd,
+						SCST_LOAD_SENSE(scst_logical_block_guard_check_failed));
+					res = -EIO;
+					goto out_put;
+				}
+			}
+
+next:
+			cur_buf += dev->block_size;
+			lba++;
+
+			t++;
+			tags_len -= tag_size;
+			if (tags_len == 0) {
+				scst_put_dif_buf(cmd, tags_buf);
+				tags_buf = NULL;
+			}
+		}
+
+		scst_put_buf(cmd, buf);
+		len = scst_get_buf_next(cmd, &buf);
+	}
+
+	EXTRACHECKS_BUG_ON(tags_buf != NULL);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_put:
+	scst_put_buf(cmd, buf);
+	scst_put_dif_buf(cmd, tags_buf);
+	goto out;
+}
+
+#ifdef CONFIG_SCST_DIF_INJECT_CORRUPTED_TAGS
+static void scst_check_fail_ref_tag(struct scst_cmd *cmd)
+{
+	enum scst_dif_actions checks = scst_get_dif_checks(cmd->cmd_dif_actions);
+
+	if (((cmd->dev->dev_dif_mode & SCST_DIF_MODE_TGT) == 0) &&
+	    (checks & SCST_DIF_CHECK_REF_TAG)) {
+		TRACE(TRACE_SCSI|TRACE_MINOR, "No tgt dif_mode, failing "
+			"cmd %p with ref tag check failed", cmd);
+		scst_dif_acc_ref_check_failed_scst(cmd);
+		scst_set_cmd_error(cmd,
+			SCST_LOAD_SENSE(scst_logical_block_ref_tag_check_failed));
+	}
+	return;
+}
+
+static void scst_check_fail_guard_tag(struct scst_cmd *cmd)
+{
+	enum scst_dif_actions checks = scst_get_dif_checks(cmd->cmd_dif_actions);
+
+	if (((cmd->dev->dev_dif_mode & SCST_DIF_MODE_TGT) == 0) &&
+	    (checks & SCST_DIF_CHECK_GUARD_TAG)) {
+		TRACE(TRACE_SCSI|TRACE_MINOR, "No tgt dif_mode, failing "
+			"cmd %p with guard tag check failed", cmd);
+		scst_dif_acc_guard_check_failed_scst(cmd);
+		scst_set_cmd_error(cmd,
+			SCST_LOAD_SENSE(scst_logical_block_guard_check_failed));
+	}
+	return;
+}
+#endif
+
+static int scst_generate_dif_type1(struct scst_cmd *cmd)
+{
+	int res = 0;
+	struct scst_device *dev = cmd->dev;
+	int len, tags_len = 0, tag_size = 1 << SCST_DIF_TAG_SHIFT;
+	struct scatterlist *tags_sg = NULL;
+	uint8_t *buf, *tags_buf = NULL;
+	struct scst_dif_tuple *t = NULL; /* to silence compiler warning */
+	uint64_t lba = cmd->lba;
+	int block_size = dev->block_size, block_shift = dev->block_shift;
+	__be16 (*crc_fn)(const void *buffer, unsigned int len);
+
+	TRACE_ENTRY();
+
+	EXTRACHECKS_BUG_ON(dev->dev_dif_type != 1);
+
+#ifdef CONFIG_SCST_EXTRACHECKS
+	switch (scst_get_dif_action(scst_get_scst_dif_actions(cmd->cmd_dif_actions))) {
+	case SCST_DIF_ACTION_INSERT:
+		break;
+	default:
+		EXTRACHECKS_BUG_ON(1);
+		break;
+	}
+#endif
+
+	crc_fn = cmd->tgt_dev->tgt_dev_dif_crc_fn;
+
+	len = scst_get_buf_first(cmd, &buf);
+	while (len > 0) {
+		int i;
+		uint8_t *cur_buf = buf;
+
+		TRACE_DBG("len %d", len);
+
+		for (i = 0; i < (len >> block_shift); i++) {
+			TRACE_DBG("lba %lld, tags_len %d", (long long)lba, tags_len);
+
+			if (tags_buf == NULL) {
+				tags_buf = scst_get_dif_buf(cmd, &tags_sg, &tags_len);
+				TRACE_DBG("tags_sg %p, tags_buf %p, tags_len %d",
+					tags_sg, tags_buf, tags_len);
+				EXTRACHECKS_BUG_ON(tags_len <= 0);
+				t = (struct scst_dif_tuple *)tags_buf;
+			}
+
+			t->app_tag = dev->dev_dif_static_app_tag;
+			t->ref_tag = cpu_to_be32(lba & 0xFFFFFFFF);
+			t->guard_tag = crc_fn(cur_buf, block_size);
+
+#ifdef CONFIG_SCST_DIF_INJECT_CORRUPTED_TAGS
+			switch (cmd->cmd_corrupt_dif_tag) {
+			case 0:
+				break;
+			case 1:
+				if (lba == cmd->lba) {
+					if (cmd->cdb[1] & 0x80) {
+						TRACE(TRACE_SCSI|TRACE_MINOR,
+							"Corrupting ref tag at lba "
+							"%lld (case %d, cmd %p)",
+							(long long)lba,
+							cmd->cmd_corrupt_dif_tag, cmd);
+						t->ref_tag = cpu_to_be32(0xebfeedad);
+						scst_check_fail_ref_tag(cmd);
+					} else {
+						TRACE(TRACE_SCSI|TRACE_MINOR,
+							"Corrupting guard tag at lba "
+							"%lld (case %d, cmd %p)",
+							(long long)lba,
+							cmd->cmd_corrupt_dif_tag, cmd);
+						t->guard_tag = cpu_to_be16(0xebed);
+						scst_check_fail_guard_tag(cmd);
+					}
+				}
+				break;
+			case 2:
+				if (lba == (cmd->lba + 1)) {
+					if (cmd->cdb[1] & 0x80) {
+						TRACE(TRACE_SCSI|TRACE_MINOR,
+							"Corrupting ref tag at lba "
+							"%lld (case %d, cmd %p)",
+							(long long)lba,
+							cmd->cmd_corrupt_dif_tag, cmd);
+						t->ref_tag = cpu_to_be32(0xebfeedad);
+						scst_check_fail_ref_tag(cmd);
+					} else {
+						TRACE(TRACE_SCSI|TRACE_MINOR,
+							"Corrupting guard tag at lba "
+							"%lld (case %d, cmd %p)",
+							(long long)lba,
+							cmd->cmd_corrupt_dif_tag, cmd);
+						t->guard_tag = cpu_to_be16(0xebed);
+						scst_check_fail_guard_tag(cmd);
+					}
+				}
+				break;
+			case 3:
+				if (lba == (cmd->lba + 2)) {
+					if (cmd->cdb[1] & 0x80) {
+						TRACE(TRACE_SCSI|TRACE_MINOR,
+							"Corrupting ref tag at lba "
+							"%lld (case %d, cmd %p)",
+							(long long)lba,
+							cmd->cmd_corrupt_dif_tag, cmd);
+						t->ref_tag = cpu_to_be32(0xebfeedad);
+						scst_check_fail_ref_tag(cmd);
+					} else {
+						TRACE(TRACE_SCSI|TRACE_MINOR,
+							"Corrupting guard tag at lba "
+							"%lld (case %d, cmd %p)",
+							(long long)lba,
+							cmd->cmd_corrupt_dif_tag, cmd);
+						t->guard_tag = cpu_to_be16(0xebed);
+						scst_check_fail_guard_tag(cmd);
+					}
+				}
+				break;
+			case 4:
+				if (lba == (cmd->lba + ((cmd->data_len >> dev->block_shift) >> 1))) {
+					if (cmd->cdb[1] & 0x80) {
+						TRACE(TRACE_SCSI|TRACE_MINOR,
+							"Corrupting ref tag at lba "
+							"%lld (case %d, cmd %p)",
+							(long long)lba,
+							cmd->cmd_corrupt_dif_tag, cmd);
+						t->ref_tag = cpu_to_be32(0xebfeedad);
+						scst_check_fail_ref_tag(cmd);
+					} else {
+						TRACE(TRACE_SCSI|TRACE_MINOR,
+							"Corrupting guard tag at lba "
+							"%lld (case %d, cmd %p)",
+							(long long)lba,
+							cmd->cmd_corrupt_dif_tag, cmd);
+						t->guard_tag = cpu_to_be16(0xebed);
+						scst_check_fail_guard_tag(cmd);
+					}
+				}
+				break;
+			case 5:
+				if (lba == (cmd->lba + ((cmd->data_len >> dev->block_shift) - 3))) {
+					if (cmd->cdb[1] & 0x80) {
+						TRACE(TRACE_SCSI|TRACE_MINOR,
+							"Corrupting ref tag at lba "
+							"%lld (case %d, cmd %p)",
+							(long long)lba,
+							cmd->cmd_corrupt_dif_tag, cmd);
+						t->ref_tag = cpu_to_be32(0xebfeedad);
+						scst_check_fail_ref_tag(cmd);
+					} else {
+						TRACE(TRACE_SCSI|TRACE_MINOR,
+							"Corrupting guard tag at lba "
+							"%lld (case %d, cmd %p)",
+							(long long)lba,
+							cmd->cmd_corrupt_dif_tag, cmd);
+						t->guard_tag = cpu_to_be16(0xebed);
+						scst_check_fail_guard_tag(cmd);
+					}
+				}
+				break;
+			case 6:
+				if (lba == (cmd->lba + ((cmd->data_len >> dev->block_shift) - 2))) {
+					if (cmd->cdb[1] & 0x80) {
+						TRACE(TRACE_SCSI|TRACE_MINOR,
+							"Corrupting ref tag at lba "
+							"%lld (case %d, cmd %p)",
+							(long long)lba,
+							cmd->cmd_corrupt_dif_tag, cmd);
+						t->ref_tag = cpu_to_be32(0xebfeedad);
+						scst_check_fail_ref_tag(cmd);
+					} else {
+						TRACE(TRACE_SCSI|TRACE_MINOR,
+							"Corrupting guard tag at lba "
+							"%lld (case %d, cmd %p)",
+							(long long)lba,
+							cmd->cmd_corrupt_dif_tag, cmd);
+						t->guard_tag = cpu_to_be16(0xebed);
+						scst_check_fail_guard_tag(cmd);
+					}
+				}
+				break;
+			case 7:
+				if (lba == (cmd->lba + ((cmd->data_len >> dev->block_shift) - 1))) {
+					if (cmd->cdb[1] & 0x80) {
+						TRACE(TRACE_SCSI|TRACE_MINOR,
+							"Corrupting ref tag at lba "
+							"%lld (case %d, cmd %p)",
+							(long long)lba,
+							cmd->cmd_corrupt_dif_tag, cmd);
+						t->ref_tag = cpu_to_be32(0xebfeedad);
+						scst_check_fail_ref_tag(cmd);
+					} else {
+						TRACE(TRACE_SCSI|TRACE_MINOR,
+							"Corrupting guard tag at lba "
+							"%lld (case %d, cmd %p)",
+							(long long)lba,
+							cmd->cmd_corrupt_dif_tag, cmd);
+						t->guard_tag = cpu_to_be16(0xebed);
+						scst_check_fail_guard_tag(cmd);
+					}
+				}
+				break;
+			}
+#endif
+			cur_buf += dev->block_size;
+			lba++;
+
+			t++;
+			tags_len -= tag_size;
+			if (tags_len == 0) {
+				scst_put_dif_buf(cmd, tags_buf);
+				tags_buf = NULL;
+			}
+		}
+
+		scst_put_buf(cmd, buf);
+		len = scst_get_buf_next(cmd, &buf);
+	}
+
+	EXTRACHECKS_BUG_ON(tags_buf != NULL);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int scst_do_dif(struct scst_cmd *cmd,
+	int (*generate_fn)(struct scst_cmd *cmd),
+	int (*verify_fn)(struct scst_cmd *cmd))
+{
+	int res;
+	enum scst_dif_actions action = scst_get_dif_action(
+			scst_get_scst_dif_actions(cmd->cmd_dif_actions));
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("cmd %p, action %d", cmd, action);
+
+	switch (action) {
+	case SCST_DIF_ACTION_PASS:
+		/* Nothing to do */
+		TRACE_DBG("PASS DIF action, skipping (cmd %p)", cmd);
+		res = 0;
+		break;
+
+	case SCST_DIF_ACTION_STRIP:
+	case SCST_DIF_ACTION_PASS_CHECK:
+	{
+		enum scst_dif_actions checks = scst_get_dif_checks(cmd->cmd_dif_actions);
+		if (likely(checks != SCST_DIF_ACTION_NONE))
+			res = verify_fn(cmd);
+		else
+			res = 0;
+		break;
+	}
+
+	case SCST_DIF_ACTION_INSERT:
+		res = generate_fn(cmd);
+		break;
+
+	default:
+		EXTRACHECKS_BUG_ON(1);
+		/* go through */
+	case SCST_DIF_ACTION_NONE:
+		/* Nothing to do */
+		TRACE_DBG("NONE DIF action, skipping (cmd %p)", cmd);
+		res = 0;
+		break;
+	}
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int scst_dif_type1(struct scst_cmd *cmd)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	EXTRACHECKS_BUG_ON(cmd->dev->dev_dif_type != 1);
+
+	res = scst_do_dif(cmd, scst_generate_dif_type1, scst_verify_dif_type1);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int scst_verify_dif_type2(struct scst_cmd *cmd)
+{
+	int res = 0;
+	struct scst_device *dev = cmd->dev;
+	enum scst_dif_actions checks = scst_get_dif_checks(cmd->cmd_dif_actions);
+	int len, tags_len = 0, tag_size = 1 << SCST_DIF_TAG_SHIFT;
+	struct scatterlist *tags_sg = NULL;
+	uint8_t *buf, *tags_buf = NULL;
+	const struct scst_dif_tuple *t = NULL; /* to silence compiler warning */
+	uint64_t lba = cmd->lba;
+	int block_size = dev->block_size, block_shift = dev->block_shift;
+	__be16 (*crc_fn)(const void *buffer, unsigned int len);
+	uint32_t ref_tag = scst_cmd_get_dif_exp_ref_tag(cmd);
+	/* Let's keep both in BE */
+	__be16 app_tag_mask = cpu_to_be16(scst_cmd_get_dif_app_tag_mask(cmd));
+	__be16 app_tag_masked = cpu_to_be16(scst_cmd_get_dif_exp_app_tag(cmd)) & app_tag_mask;
+
+	TRACE_ENTRY();
+
+	EXTRACHECKS_BUG_ON(dev->dev_dif_type != 2);
+
+#ifdef CONFIG_SCST_EXTRACHECKS
+	switch (scst_get_dif_action(scst_get_scst_dif_actions(cmd->cmd_dif_actions))) {
+	case SCST_DIF_ACTION_STRIP:
+	case SCST_DIF_ACTION_PASS_CHECK:
+		break;
+	default:
+		EXTRACHECKS_BUG_ON(1);
+		break;
+	}
+	EXTRACHECKS_BUG_ON(checks == SCST_DIF_ACTION_NONE);
+#endif
+
+	crc_fn = cmd->tgt_dev->tgt_dev_dif_crc_fn;
+
+	len = scst_get_buf_first(cmd, &buf);
+	while (len > 0) {
+		int i;
+		uint8_t *cur_buf = buf;
+
+		for (i = 0; i < (len >> block_shift); i++) {
+			if (tags_buf == NULL) {
+				tags_buf = scst_get_dif_buf(cmd, &tags_sg, &tags_len);
+				EXTRACHECKS_BUG_ON(tags_len <= 0);
+				t = (struct scst_dif_tuple *)tags_buf;
+			}
+
+			if (t->app_tag == SCST_DIF_NO_CHECK_ALL_APP_TAG) {
+				TRACE_DBG("Skipping tag (cmd %p)", cmd);
+				goto next;
+			}
+
+			if (checks & SCST_DIF_CHECK_APP_TAG) {
+				if ((t->app_tag & app_tag_mask) != app_tag_masked) {
+					PRINT_WARNING("APP TAG check failed, "
+						"expected 0x%x, seeing "
+						"0x%x (cmd %p (op %s), dev %s)",
+						app_tag_masked, t->app_tag & app_tag_mask,
+						cmd, scst_get_opcode_name(cmd), dev->virt_name);
+					scst_dif_acc_app_check_failed_scst(cmd);
+					scst_set_cmd_error(cmd,
+						SCST_LOAD_SENSE(scst_logical_block_app_tag_check_failed));
+					res = -EIO;
+					goto out_put;
+				}
+			}
+
+			if (checks & SCST_DIF_CHECK_REF_TAG) {
+				if (t->ref_tag != cpu_to_be32(ref_tag)) {
+					PRINT_WARNING("REF TAG check failed, "
+						"expected 0x%x, seeing "
+						"0x%x (cmd %p (op %s), dev %s)",
+						cpu_to_be32(ref_tag),
+						t->ref_tag, cmd, scst_get_opcode_name(cmd),
+						dev->virt_name);
+					scst_dif_acc_ref_check_failed_scst(cmd);
+					scst_set_cmd_error(cmd,
+						SCST_LOAD_SENSE(scst_logical_block_ref_tag_check_failed));
+					res = -EIO;
+					goto out_put;
+				}
+			}
+
+			/* Skip CRC check for internal commands */
+			if ((checks & SCST_DIF_CHECK_GUARD_TAG) &&
+			    !cmd->internal) {
+				__be16 crc = crc_fn(cur_buf, block_size);
+				if (t->guard_tag != crc) {
+					PRINT_WARNING("GUARD TAG check failed, "
+						"expected 0x%x, seeing 0x%x "
+						"(cmd %p (op %s), lba %lld, "
+						"dev %s)", crc, t->guard_tag, cmd,
+						scst_get_opcode_name(cmd), (long long)lba,
+						dev->virt_name);
+					scst_dif_acc_guard_check_failed_scst(cmd);
+					scst_set_cmd_error(cmd,
+						SCST_LOAD_SENSE(scst_logical_block_guard_check_failed));
+					res = -EIO;
+					goto out_put;
+				}
+			}
+
+next:
+			cur_buf += dev->block_size;
+			lba++;
+			ref_tag++;
+
+			t++;
+			tags_len -= tag_size;
+			if (tags_len == 0) {
+				scst_put_dif_buf(cmd, tags_buf);
+				tags_buf = NULL;
+			}
+		}
+
+		scst_put_buf(cmd, buf);
+		len = scst_get_buf_next(cmd, &buf);
+	}
+
+	EXTRACHECKS_BUG_ON(tags_buf != NULL);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_put:
+	scst_put_buf(cmd, buf);
+	scst_put_dif_buf(cmd, tags_buf);
+	goto out;
+}
+
+static int scst_generate_dif_type2(struct scst_cmd *cmd)
+{
+	int res = 0;
+	struct scst_device *dev = cmd->dev;
+	int len, tags_len = 0, tag_size = 1 << SCST_DIF_TAG_SHIFT;
+	struct scatterlist *tags_sg = NULL;
+	uint8_t *buf, *tags_buf = NULL;
+	struct scst_dif_tuple *t = NULL; /* to silence compiler warning */
+	int block_size = dev->block_size, block_shift = dev->block_shift;
+	__be16 (*crc_fn)(const void *buffer, unsigned int len);
+	uint32_t ref_tag = scst_cmd_get_dif_exp_ref_tag(cmd);
+	/* Let's keep both in BE */
+	__be16 app_tag_mask = cpu_to_be16(scst_cmd_get_dif_app_tag_mask(cmd));
+	__be16 app_tag_masked = cpu_to_be16(scst_cmd_get_dif_exp_app_tag(cmd)) & app_tag_mask;
+
+	TRACE_ENTRY();
+
+	EXTRACHECKS_BUG_ON(dev->dev_dif_type != 2);
+
+#ifdef CONFIG_SCST_EXTRACHECKS
+	switch (scst_get_dif_action(scst_get_scst_dif_actions(cmd->cmd_dif_actions))) {
+	case SCST_DIF_ACTION_INSERT:
+		break;
+	default:
+		EXTRACHECKS_BUG_ON(1);
+		break;
+	}
+#endif
+
+	crc_fn = cmd->tgt_dev->tgt_dev_dif_crc_fn;
+
+	len = scst_get_buf_first(cmd, &buf);
+	while (len > 0) {
+		int i;
+		uint8_t *cur_buf = buf;
+
+		TRACE_DBG("len %d", len);
+
+		for (i = 0; i < (len >> block_shift); i++) {
+			TRACE_DBG("tags_len %d", tags_len);
+
+			if (tags_buf == NULL) {
+				tags_buf = scst_get_dif_buf(cmd, &tags_sg, &tags_len);
+				TRACE_DBG("tags_sg %p, tags_buf %p, tags_len %d",
+					tags_sg, tags_buf, tags_len);
+				EXTRACHECKS_BUG_ON(tags_len <= 0);
+				t = (struct scst_dif_tuple *)tags_buf;
+			}
+
+			t->app_tag = app_tag_masked;
+			t->ref_tag = cpu_to_be32(ref_tag);
+			t->guard_tag = crc_fn(cur_buf, block_size);
+
+			cur_buf += dev->block_size;
+			ref_tag++;
+
+			t++;
+			tags_len -= tag_size;
+			if (tags_len == 0) {
+				scst_put_dif_buf(cmd, tags_buf);
+				tags_buf = NULL;
+			}
+		}
+
+		scst_put_buf(cmd, buf);
+		len = scst_get_buf_next(cmd, &buf);
+	}
+
+	EXTRACHECKS_BUG_ON(tags_buf != NULL);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int scst_dif_type2(struct scst_cmd *cmd)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	EXTRACHECKS_BUG_ON(cmd->dev->dev_dif_type != 2);
+
+	res = scst_do_dif(cmd, scst_generate_dif_type2, scst_verify_dif_type2);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int scst_verify_dif_type3(struct scst_cmd *cmd)
+{
+	int res = 0;
+	struct scst_device *dev = cmd->dev;
+	enum scst_dif_actions checks = scst_get_dif_checks(cmd->cmd_dif_actions);
+	int len, tags_len = 0, tag_size = 1 << SCST_DIF_TAG_SHIFT;
+	struct scatterlist *tags_sg = NULL;
+	uint8_t *buf, *tags_buf = NULL;
+	const struct scst_dif_tuple *t = NULL; /* to silence compiler warning */
+	uint64_t lba = cmd->lba;
+	int block_size = dev->block_size, block_shift = dev->block_shift;
+	__be16 (*crc_fn)(const void *buffer, unsigned int len);
+
+	TRACE_ENTRY();
+
+	EXTRACHECKS_BUG_ON(dev->dev_dif_type != 3);
+
+#ifdef CONFIG_SCST_EXTRACHECKS
+	switch (scst_get_dif_action(scst_get_scst_dif_actions(cmd->cmd_dif_actions))) {
+	case SCST_DIF_ACTION_STRIP:
+	case SCST_DIF_ACTION_PASS_CHECK:
+		break;
+	default:
+		EXTRACHECKS_BUG_ON(1);
+		break;
+	}
+	EXTRACHECKS_BUG_ON(checks == SCST_DIF_ACTION_NONE);
+#endif
+
+	crc_fn = cmd->tgt_dev->tgt_dev_dif_crc_fn;
+
+	len = scst_get_buf_first(cmd, &buf);
+	while (len > 0) {
+		int i;
+		uint8_t *cur_buf = buf;
+
+		for (i = 0; i < (len >> block_shift); i++) {
+			if (tags_buf == NULL) {
+				tags_buf = scst_get_dif_buf(cmd, &tags_sg, &tags_len);
+				EXTRACHECKS_BUG_ON(tags_len <= 0);
+				t = (struct scst_dif_tuple *)tags_buf;
+			}
+
+			if ((t->app_tag == SCST_DIF_NO_CHECK_ALL_APP_TAG) &&
+			    (t->ref_tag == SCST_DIF_NO_CHECK_ALL_REF_TAG)) {
+				TRACE_DBG("Skipping tag (cmd %p)", cmd);
+				goto next;
+			}
+
+			if (checks & SCST_DIF_CHECK_APP_TAG) {
+				if (t->app_tag != dev->dev_dif_static_app_tag) {
+					PRINT_WARNING("APP TAG check failed, "
+						"expected 0x%x, seeing "
+						"0x%x (cmd %p (op %s), dev %s)",
+						dev->dev_dif_static_app_tag,
+						t->app_tag, cmd, scst_get_opcode_name(cmd),
+						dev->virt_name);
+					scst_dif_acc_app_check_failed_scst(cmd);
+					scst_set_cmd_error(cmd,
+						SCST_LOAD_SENSE(scst_logical_block_app_tag_check_failed));
+					res = -EIO;
+					goto out_put;
+				}
+			}
+
+			if (checks & SCST_DIF_CHECK_REF_TAG) {
+				if (t->ref_tag != dev->dev_dif_static_app_ref_tag) {
+					PRINT_WARNING("REF TAG check failed, "
+						"expected 0x%x, seeing "
+						"0x%x (cmd %p (op %s), dev %s)",
+						dev->dev_dif_static_app_ref_tag,
+						t->ref_tag, cmd, scst_get_opcode_name(cmd),
+						dev->virt_name);
+					scst_dif_acc_ref_check_failed_scst(cmd);
+					scst_set_cmd_error(cmd,
+						SCST_LOAD_SENSE(scst_logical_block_ref_tag_check_failed));
+					res = -EIO;
+					goto out_put;
+				}
+			}
+
+			/* Skip CRC check for internal commands */
+			if ((checks & SCST_DIF_CHECK_GUARD_TAG) &&
+			    !cmd->internal) {
+				__be16 crc = crc_fn(cur_buf, block_size);
+				if (t->guard_tag != crc) {
+					PRINT_WARNING("GUARD TAG check failed, "
+						"expected 0x%x, seeing 0x%x "
+						"(cmd %p (op %s), lba %lld, "
+						"dev %s)", crc, t->guard_tag, cmd,
+						scst_get_opcode_name(cmd), (long long)lba,
+						dev->virt_name);
+					scst_dif_acc_guard_check_failed_scst(cmd);
+					scst_set_cmd_error(cmd,
+						SCST_LOAD_SENSE(scst_logical_block_guard_check_failed));
+					res = -EIO;
+					goto out_put;
+				}
+			}
+
+next:
+			cur_buf += dev->block_size;
+			lba++;
+
+			t++;
+			tags_len -= tag_size;
+			if (tags_len == 0) {
+				scst_put_dif_buf(cmd, tags_buf);
+				tags_buf = NULL;
+			}
+		}
+
+		scst_put_buf(cmd, buf);
+		len = scst_get_buf_next(cmd, &buf);
+	}
+
+	EXTRACHECKS_BUG_ON(tags_buf != NULL);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_put:
+	scst_put_buf(cmd, buf);
+	scst_put_dif_buf(cmd, tags_buf);
+	goto out;
+}
+
+static int scst_generate_dif_type3(struct scst_cmd *cmd)
+{
+	int res = 0;
+	struct scst_device *dev = cmd->dev;
+	int len, tags_len = 0, tag_size = 1 << SCST_DIF_TAG_SHIFT;
+	struct scatterlist *tags_sg = NULL;
+	uint8_t *buf, *tags_buf = NULL;
+	struct scst_dif_tuple *t = NULL; /* to silence compiler warning */
+	int block_size = dev->block_size, block_shift = dev->block_shift;
+	__be16 (*crc_fn)(const void *buffer, unsigned int len);
+
+	TRACE_ENTRY();
+
+	EXTRACHECKS_BUG_ON(dev->dev_dif_type != 3);
+
+#ifdef CONFIG_SCST_EXTRACHECKS
+	switch (scst_get_dif_action(scst_get_scst_dif_actions(cmd->cmd_dif_actions))) {
+	case SCST_DIF_ACTION_INSERT:
+		break;
+	default:
+		EXTRACHECKS_BUG_ON(1);
+		break;
+	}
+#endif
+
+	crc_fn = cmd->tgt_dev->tgt_dev_dif_crc_fn;
+
+	len = scst_get_buf_first(cmd, &buf);
+	while (len > 0) {
+		int i;
+		uint8_t *cur_buf = buf;
+
+		TRACE_DBG("len %d", len);
+
+		for (i = 0; i < (len >> block_shift); i++) {
+			TRACE_DBG("tags_len %d", tags_len);
+
+			if (tags_buf == NULL) {
+				tags_buf = scst_get_dif_buf(cmd, &tags_sg, &tags_len);
+				TRACE_DBG("tags_sg %p, tags_buf %p, tags_len %d",
+					tags_sg, tags_buf, tags_len);
+				EXTRACHECKS_BUG_ON(tags_len <= 0);
+				t = (struct scst_dif_tuple *)tags_buf;
+			}
+
+			t->app_tag = dev->dev_dif_static_app_tag;
+			t->ref_tag = dev->dev_dif_static_app_ref_tag;
+			t->guard_tag = crc_fn(cur_buf, block_size);
+
+			cur_buf += dev->block_size;
+
+			t++;
+			tags_len -= tag_size;
+			if (tags_len == 0) {
+				scst_put_dif_buf(cmd, tags_buf);
+				tags_buf = NULL;
+			}
+		}
+
+		scst_put_buf(cmd, buf);
+		len = scst_get_buf_next(cmd, &buf);
+	}
+
+	EXTRACHECKS_BUG_ON(tags_buf != NULL);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int scst_dif_type3(struct scst_cmd *cmd)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	EXTRACHECKS_BUG_ON(cmd->dev->dev_dif_type != 3);
+
+	res = scst_do_dif(cmd, scst_generate_dif_type3, scst_verify_dif_type3);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static void scst_init_dif_checks(struct scst_device *dev)
+{
+	switch (dev->dev_dif_type) {
+	case 0:
+		dev->dif_app_chk = 0;
+		dev->dif_ref_chk = 0;
+		break;
+	case 1:
+		if (scst_dev_get_dif_static_app_tag(dev) != SCST_DIF_NO_CHECK_APP_TAG)
+			dev->dif_app_chk = SCST_DIF_CHECK_APP_TAG;
+		else
+			dev->dif_app_chk = 0;
+		dev->dif_ref_chk = SCST_DIF_CHECK_REF_TAG;
+		break;
+	case 2:
+		dev->dif_app_chk = dev->ato ? SCST_DIF_CHECK_APP_TAG : 0;
+		dev->dif_ref_chk = SCST_DIF_CHECK_REF_TAG;
+		break;
+	case 3:
+		if (scst_dev_get_dif_static_app_tag_combined(dev) != SCST_DIF_NO_CHECK_APP_TAG) {
+			dev->dif_app_chk = SCST_DIF_CHECK_APP_TAG;
+			dev->dif_ref_chk = SCST_DIF_CHECK_REF_TAG;
+		} else {
+			dev->dif_app_chk = 0;
+			dev->dif_ref_chk = 0;
+		}
+		break;
+	default:
+		WARN_ON(1);
+		break;
+	}
+	return;
+}
+
+/**
+ * scst_dev_set_dif_static_app_tag_combined() - sets static app tag
+ *
+ * Description:
+ *    Sets static app tag for both APP TAG and REF TAG (DIF mode 3)
+ */
+void scst_dev_set_dif_static_app_tag_combined(
+	struct scst_device *dev, __be64 app_tag)
+{
+	uint64_t a = be64_to_cpu(app_tag);
+
+	dev->dev_dif_static_app_tag = cpu_to_be16(a & 0xFFFF);
+	if (dev->dev_dif_type == 3)
+		dev->dev_dif_static_app_ref_tag = cpu_to_be32((a >> 16) & 0xFFFFFFFF);
+	scst_init_dif_checks(dev);
+	return;
+}
+EXPORT_SYMBOL_GPL(scst_dev_set_dif_static_app_tag_combined);
+
+static int scst_init_dif_actions(struct scst_device *dev)
+{
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	BUILD_BUG_ON(SCST_DIF_ACTION_NONE != 0);
+
+	if ((dev->dev_dif_type == 0) || (dev->dev_dif_mode == 0)) {
+		dev->dev_dif_rd_actions = SCST_DIF_ACTION_NONE;
+		dev->dev_dif_wr_actions = SCST_DIF_ACTION_NONE;
+		dev->dev_dif_rd_prot0_actions = SCST_DIF_ACTION_NONE;
+		dev->dev_dif_wr_prot0_actions = SCST_DIF_ACTION_NONE;
+		goto out;
+	}
+
+	if ((dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) &&
+	    !(dev->dev_dif_mode & SCST_DIF_MODE_DEV_STORE)) {
+		PRINT_ERROR("DEV CHECK is not allowed without DEV STORE! "
+			"(dev %s)", dev->virt_name);
+		res = -EINVAL;
+		goto out;
+	}
+
+	/*
+	 * COMMON RULES
+	 * ============
+	 *
+	 * 1. For SCST STRIP and PASS_CHECK as well as PASS and NONE are
+	 * the same.
+	 *
+	 * 2. For dev handlers STRIP and INSERT are invalid, PASS and NONE are
+	 * the same. Also, PASS and PASS_CHECK are equal regarding STORE,
+	 * if STORE is configured.
+	 */
+
+	BUILD_BUG_ON(SCST_DIF_MODE_DEV != (SCST_DIF_MODE_DEV_CHECK | SCST_DIF_MODE_DEV_STORE));
+
+	if (dev->dev_dif_mode & SCST_DIF_MODE_TGT) {
+		if (dev->dev_dif_mode & SCST_DIF_MODE_SCST) {
+			if (dev->dev_dif_mode & SCST_DIF_MODE_DEV) { /* TGT, SCST, DEV */
+				scst_set_tgt_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS_CHECK);
+				scst_set_scst_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS_CHECK);
+				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
+					/* STORE might be set as well */
+					scst_set_dev_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS_CHECK);
+				} else
+					scst_set_dev_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS);
+
+				if (dev->dpicz) {
+					scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+					scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+				} else {
+					scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_STRIP);
+					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_PASS_CHECK);
+					if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
+						/* STORE might be set as well */
+						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_PASS_CHECK);
+					} else
+						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_PASS);
+				}
+
+				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS_CHECK);
+				scst_set_scst_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS_CHECK);
+				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
+					/* STORE might be set as well */
+					scst_set_dev_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS_CHECK);
+				} else
+					scst_set_dev_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS);
+
+				scst_set_tgt_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_INSERT);
+				scst_set_scst_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_PASS_CHECK);
+				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
+					/* STORE might be set as well */
+					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_PASS_CHECK);
+				} else
+					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_PASS);
+			} else { /* TGT, SCST, no DEV */
+				scst_set_tgt_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS_CHECK);
+				scst_set_scst_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_INSERT);
+				scst_set_dev_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_NONE);
+
+				if (dev->dpicz) {
+					scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+				} else {
+					scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_STRIP);
+					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_INSERT);
+				}
+				scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+
+				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS_CHECK);
+				scst_set_scst_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_STRIP);
+				scst_set_dev_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_NONE);
+
+				scst_set_tgt_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_INSERT);
+				scst_set_scst_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_STRIP);
+				scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_NONE);
+			}
+		} else { /* TGT, no SCST */
+			if (dev->dev_dif_mode & SCST_DIF_MODE_DEV) { /* TGT, no SCST, DEV */
+				scst_set_tgt_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS_CHECK);
+				scst_set_scst_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS);
+				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
+					/* STORE might be set as well */
+					scst_set_dev_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS_CHECK);
+				} else {
+					scst_set_dev_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS);
+				}
+
+				if (dev->dpicz) {
+					scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+					scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+				} else {
+					scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_STRIP);
+					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_PASS);
+					if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
+						/* STORE might be set as well */
+						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_PASS_CHECK);
+					} else
+						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_PASS);
+				}
+
+				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS_CHECK);
+				scst_set_scst_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS);
+				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
+					/* STORE might be set as well */
+					scst_set_dev_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS_CHECK);
+				} else
+					scst_set_dev_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS);
+
+				scst_set_tgt_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_INSERT);
+				scst_set_scst_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_PASS);
+				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
+					/* STORE might be set as well */
+					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_PASS_CHECK);
+				} else
+					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_PASS);
+			} else {  /* TGT, no SCST, no DEV */
+				scst_set_tgt_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_INSERT);
+				scst_set_scst_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_NONE);
+				scst_set_dev_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_NONE);
+
+				scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+				scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+				scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+
+#if 1	/*
+	 * Workaround for Emulex ASIC errata to pass Oracle certification.
+	 *
+	 * Emulex ASIC in the STRIP mode can't distinguish between different types of
+	 * PI tags mismatches (reference, guard, application), hence the Oracle
+	 * certification fails. Workaround is to get the tags data in the memory, so
+	 * then, if HW is signaling that there is some tag mismatch, manually recheck
+	 * in the driver, then set correct tag mismatch sense.
+	 */
+				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS_CHECK);
+				scst_set_scst_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS);
+#else
+				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_STRIP);
+				scst_set_scst_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_NONE);
+#endif
+				scst_set_dev_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_NONE);
+
+				scst_set_tgt_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_NONE);
+				scst_set_scst_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_NONE);
+				scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_NONE);
+			}
+		}
+	} else { /* No TGT */
+		if (dev->dev_dif_mode & SCST_DIF_MODE_SCST) {  /* No TGT, SCST */
+			if (dev->dev_dif_mode & SCST_DIF_MODE_DEV) { /* No TGT, SCST, DEV */
+				scst_set_tgt_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS);
+				scst_set_scst_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS_CHECK);
+				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
+					/* STORE might be set as well */
+					scst_set_dev_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS_CHECK);
+				} else
+					scst_set_dev_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS);
+
+				scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+				if (dev->dpicz) {
+					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+					scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+				} else {
+					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_STRIP);
+					if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
+						/* STORE might be set as well */
+						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_PASS_CHECK);
+					} else
+						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_PASS);
+				}
+
+				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS);
+				scst_set_scst_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS_CHECK);
+				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
+					/* STORE might be set as well */
+					scst_set_dev_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS_CHECK);
+				} else
+					scst_set_dev_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS);
+
+				scst_set_tgt_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_NONE);
+				scst_set_scst_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_INSERT);
+				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
+					/* STORE might be set as well */
+					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_PASS_CHECK);
+				} else
+					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_PASS);
+			} else { /* No TGT, SCST, no DEV */
+				scst_set_tgt_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS);
+				scst_set_scst_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_INSERT);
+				scst_set_dev_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_NONE);
+
+				scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+				scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+				scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+
+				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS);
+				scst_set_scst_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_STRIP);
+				scst_set_dev_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_NONE);
+
+				scst_set_tgt_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_NONE);
+				scst_set_scst_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_NONE);
+				scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_NONE);
+			}
+		} else { /* No TGT, no SCST */
+			if (dev->dev_dif_mode & SCST_DIF_MODE_DEV) { /* No TGT, no SCST, DEV */
+				scst_set_tgt_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS);
+				scst_set_scst_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS);
+				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
+					/* STORE might be set as well */
+					scst_set_dev_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS_CHECK);
+				} else
+					scst_set_dev_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS);
+
+				scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+				if (dev->dpicz) {
+					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+					scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+				} else {
+					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_PASS);
+					if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
+						/* STORE might be set as well */
+						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_PASS_CHECK);
+					} else
+						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_PASS);
+				}
+
+				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS);
+				scst_set_scst_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS);
+				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
+					/* STORE might be set as well */
+					scst_set_dev_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS_CHECK);
+				} else
+					scst_set_dev_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS);
+
+				scst_set_tgt_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_NONE);
+				scst_set_scst_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_INSERT);
+				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
+					/* STORE might be set as well */
+					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_PASS_CHECK);
+				} else
+					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_PASS);
+			} else { /* No TGT, no SCST, no DEV */
+				sBUG_ON(1);
+			}
+		}
+	}
+
+	TRACE_DBG("rd_actions %x, rd_prot0_actions %x, wr_actions %x, "
+		"wr_prot0_actions %x", dev->dev_dif_rd_actions,
+		dev->dev_dif_rd_prot0_actions, dev->dev_dif_wr_actions,
+		dev->dev_dif_wr_prot0_actions);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/**
+ * scst_set_dif_params() - sets DIF parameters
+ *
+ * Description:
+ *    Sets DIF parameters for device
+ *
+ *    Returns: 0 on success, negative error code otherwise.
+ */
+int scst_set_dif_params(struct scst_device *dev, enum scst_dif_mode dif_mode,
+	int dif_type)
+{
+	int res = -EINVAL;
+
+	TRACE_ENTRY();
+
+	BUILD_BUG_ON(SCST_DIF_ACTION_NONE != 0);
+
+	if (((dif_mode & ~(SCST_DIF_MODE_TGT|SCST_DIF_MODE_SCST|SCST_DIF_MODE_DEV)) != 0)) {
+		PRINT_ERROR("Invalid DIF mode %x", dif_mode);
+		goto out;
+	}
+
+	if ((dif_type < 0) || (dif_type > 3)) {
+		PRINT_ERROR("DIF type %d not supported", dif_type);
+		goto out;
+	}
+
+	if ((dif_mode == 0) && (dif_type != 0)) {
+		PRINT_ERROR("With DIF mode 0 DIF type must be 0 (dev %s)",
+			dev->virt_name);
+		goto out;
+	}
+
+	dev->dev_dif_mode = dif_mode;
+	dev->dev_dif_type = dif_type;
+
+	if (dif_type == 0) {
+		TRACE_DBG("DIF type 0, ignoring DIF mode");
+		goto out_none;
+	}
+
+	if (dif_mode == 0) {
+		TRACE_DBG("DIF mode 0");
+		goto out_none;
+	}
+
+	scst_init_dif_checks(dev);
+
+	if (dif_mode & SCST_DIF_MODE_SCST) {
+		switch (dif_type) {
+		case 1:
+			dev->dev_dif_fn = scst_dif_type1;
+			break;
+		case 2:
+			dev->dev_dif_fn = scst_dif_type2;
+			break;
+		case 3:
+			dev->dev_dif_fn = scst_dif_type3;
+			break;
+		default:
+			sBUG_ON(1);
+			break;
+		}
+	} else {
+		if ((dif_type == 1) && !(dif_mode & SCST_DIF_MODE_TGT))
+			dev->dev_dif_fn = scst_dif_type1;
+		else if ((dif_type == 1) && (dif_mode & SCST_DIF_MODE_TGT))
+			dev->dev_dif_fn = scst_dif_none_type1;
+		else
+			dev->dev_dif_fn = scst_dif_none;
+	}
+
+	res = scst_init_dif_actions(dev);
+	if (res != 0)
+		goto out;
+
+	res = scst_dev_sysfs_dif_create(dev);
+	if (res != 0)
+		goto out;
+
+	PRINT_INFO("device %s: DIF mode %x, DIF type %d", dev->virt_name,
+		dev->dev_dif_mode, dev->dev_dif_type);
+	TRACE_DBG("app_chk %x, ref_chk %x", dev->dif_app_chk, dev->dif_ref_chk);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_none:
+	dev->dif_app_chk = 0;
+	if (dev->dev_dif_type == 3)
+		dev->dif_ref_chk = 0;
+	dev->dev_dif_static_app_tag = SCST_DIF_NO_CHECK_APP_TAG;
+	dev->dev_dif_static_app_ref_tag = SCST_DIF_NO_CHECK_APP_TAG;
+	dev->dev_dif_fn = scst_dif_none;
+	res = scst_init_dif_actions(dev);
+	goto out;
+}
+EXPORT_SYMBOL_GPL(scst_set_dif_params);
+
+static int scst_dif_none(struct scst_cmd *cmd)
+{
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	/* Nothing to do */
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+#ifdef CONFIG_SCST_DIF_INJECT_CORRUPTED_TAGS
+static int scst_dif_none_type1(struct scst_cmd *cmd)
+{
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	if (unlikely(cmd->cmd_corrupt_dif_tag != 0)) {
+		EXTRACHECKS_BUG_ON(cmd->dev->dev_dif_type != 1);
+		res = scst_dif_type1(cmd);
+	}
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+#endif
+
+/*
+ * Returns 0 on success or POSITIVE error code otherwise (to match
+ * scst_get_cdb_info() semantic)
+ */
+static int __scst_parse_rdprotect(struct scst_cmd *cmd, int rdprotect,
+	int rdprotect_offs)
+{
+	int res = 0;
+	const struct scst_device *dev = cmd->dev;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("rdprotect %x", rdprotect);
+
+	EXTRACHECKS_BUG_ON(dev->dev_dif_type == 0);
+
+	switch (rdprotect) {
+	case 0:
+		cmd->cmd_dif_actions = dev->dev_dif_rd_prot0_actions |
+			SCST_DIF_CHECK_GUARD_TAG | dev->dif_app_chk |
+			dev->dif_ref_chk;
+		break;
+	case 1:
+	case 5:
+		cmd->cmd_dif_actions = dev->dev_dif_rd_actions |
+			SCST_DIF_CHECK_GUARD_TAG | dev->dif_app_chk |
+			dev->dif_ref_chk;
+		cmd->tgt_dif_data_expected = 1;
+		break;
+	case 2:
+		cmd->cmd_dif_actions = dev->dev_dif_rd_actions |
+			dev->dif_app_chk | dev->dif_ref_chk;
+		cmd->tgt_dif_data_expected = 1;
+		break;
+	case 3:
+		cmd->cmd_dif_actions = dev->dev_dif_rd_actions;
+		cmd->tgt_dif_data_expected = 1;
+		break;
+	case 4:
+		cmd->cmd_dif_actions = dev->dev_dif_rd_actions |
+			dev->dif_app_chk;
+		cmd->tgt_dif_data_expected = 1;
+		break;
+	default:
+		TRACE(TRACE_SCSI|TRACE_MINOR, "Invalid RDPROTECT value %x "
+			"(dev %s, cmd %p)", rdprotect, dev->virt_name, cmd);
+		scst_set_invalid_field_in_cdb(cmd, rdprotect_offs,
+				5|SCST_INVAL_FIELD_BIT_OFFS_VALID);
+		res = EINVAL;
+		goto out;
+	}
+
+	TRACE_DBG("cmd_dif_actions %x, tgt_dif_data_expected %d (cmd %p)",
+		cmd->cmd_dif_actions, cmd->tgt_dif_data_expected, cmd);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/*
+ * Returns 0 on success or POSITIVE error code otherwise (to match
+ * scst_get_cdb_info() semantic)
+ */
+static int scst_parse_rdprotect(struct scst_cmd *cmd)
+{
+	int res = 0;
+	int rdprotect = (cmd->cdb[1] & 0xE0) >> 5;
+	const struct scst_device *dev = cmd->dev;
+
+	TRACE_ENTRY();
+
+	if (dev->dev_dif_mode == SCST_DIF_MODE_NONE) {
+		if (likely(rdprotect == 0))
+			goto out;
+
+		TRACE(TRACE_SCSI|TRACE_MINOR, "RDPROTECT %x and no DIF "
+			"device %s (cmd %p)", rdprotect,
+			dev->virt_name, cmd);
+		scst_set_invalid_field_in_cdb(cmd, 1,
+			5|SCST_INVAL_FIELD_BIT_OFFS_VALID);
+		res = EINVAL;
+		goto out;
+	}
+
+	if (unlikely((dev->dev_dif_type == 2) && (rdprotect != 0))) {
+		TRACE(TRACE_SCSI|TRACE_MINOR, "Non-32-byte CDBs with non-zero "
+			"rdprotect (%d) are not allowed in DIF type 2 "
+			"(dev %s, cmd %p, op %s)", rdprotect, dev->virt_name,
+			cmd, scst_get_opcode_name(cmd));
+		scst_set_cmd_error(cmd,
+			   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+		res = EINVAL;
+		goto out;
+	}
+
+#ifdef CONFIG_SCST_DIF_INJECT_CORRUPTED_TAGS
+	if (unlikely(cmd->cmd_corrupt_dif_tag != 0)) {
+		if ((cmd->dev->dev_dif_type == 1) &&
+		    ((dev->dev_dif_mode & SCST_DIF_MODE_DEV_STORE) == 0)) {
+			TRACE_DBG("cmd_corrupt_dif_tag %x, rdprotect %x, cmd %p",
+				cmd->cmd_corrupt_dif_tag, rdprotect, cmd);
+			/* Reset the highest bit used to choose which tag to corrupt */
+			rdprotect &= 3;
+		} else {
+			/* Restore it */
+			cmd->cmd_corrupt_dif_tag = 0;
+		}
+	}
+#endif
+
+	res = __scst_parse_rdprotect(cmd, rdprotect, 1);
+
+#ifdef CONFIG_SCST_DIF_INJECT_CORRUPTED_TAGS
+	if (unlikely(cmd->cmd_corrupt_dif_tag != 0)) {
+		if (res == 0) {
+			TRACE_DBG("Corrupt DIF tag, (re)set cmd_dif_actions "
+				"(cmd %p)", cmd);
+			/*
+			 * Then (re)set it just in case if dif_mode is tgt-only.
+			 * It's OK, because we have ensured that dif_mode
+			 * doesn't contain dev_store.
+			 */
+			scst_set_scst_dif_action(&cmd->cmd_dif_actions,
+				SCST_DIF_ACTION_INSERT);
+			if (scst_get_dif_action(scst_get_read_dif_tgt_actions(cmd)) == SCST_DIF_ACTION_INSERT)
+				scst_set_tgt_dif_action(&cmd->cmd_dif_actions,
+					SCST_DIF_ACTION_PASS_CHECK);
+		} else
+			TRACE_DBG("parse rdprotect failed: %d", res);
+	}
+#endif
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/*
+ * Returns 0 on success or POSITIVE error code otherwise (to match
+ * scst_get_cdb_info() semantic)
+ */
+static int scst_parse_rdprotect32(struct scst_cmd *cmd)
+{
+	int res = 0;
+	int rdprotect = (cmd->cdb[10] & 0xE0) >> 5;
+	const struct scst_device *dev = cmd->dev;
+
+	TRACE_ENTRY();
+
+	if (unlikely(dev->dev_dif_type != 2)) {
+		TRACE(TRACE_SCSI|TRACE_MINOR, "32-byte CDBs are not "
+			"allowed in DIF type %d (dev %s, cmd %p, op %s)",
+			dev->dev_dif_type, dev->virt_name, cmd,
+			scst_get_opcode_name(cmd));
+		scst_set_cmd_error(cmd,
+			   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+		res = EINVAL;
+		goto out;
+	}
+
+	res = __scst_parse_rdprotect(cmd, rdprotect, 10);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/*
+ * Returns 0 on success or POSITIVE error code otherwise (to match
+ * scst_get_cdb_info() semantic)
+ */
+static int __scst_parse_wrprotect(struct scst_cmd *cmd, int wrprotect,
+	int wrprotect_offs)
+{
+	int res = 0;
+	struct scst_device *dev = cmd->dev;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("wrprotect %x", wrprotect);
+
+	EXTRACHECKS_BUG_ON(dev->dev_dif_type == 0);
+
+	switch (wrprotect) {
+	case 0:
+		cmd->cmd_dif_actions = dev->dev_dif_wr_prot0_actions |
+				SCST_DIF_CHECK_GUARD_TAG | dev->dif_app_chk |
+				dev->dif_ref_chk;
+		break;
+	case 1:
+		cmd->cmd_dif_actions = dev->dev_dif_wr_actions |
+			SCST_DIF_CHECK_GUARD_TAG | dev->dif_app_chk |
+			dev->dif_ref_chk;
+		cmd->tgt_dif_data_expected = 1;
+		break;
+	case 2:
+		cmd->cmd_dif_actions = dev->dev_dif_wr_actions |
+			dev->dif_app_chk | dev->dif_ref_chk;
+		cmd->tgt_dif_data_expected = 1;
+		break;
+	case 3:
+		cmd->cmd_dif_actions = dev->dev_dif_wr_actions;
+		cmd->tgt_dif_data_expected = 1;
+		break;
+	case 4:
+		cmd->cmd_dif_actions = dev->dev_dif_wr_actions |
+			SCST_DIF_CHECK_GUARD_TAG;
+		cmd->tgt_dif_data_expected = 1;
+		break;
+	case 5:
+		cmd->cmd_dif_actions = dev->dev_dif_wr_actions |
+			SCST_DIF_CHECK_GUARD_TAG | dev->dif_app_chk |
+			dev->dif_ref_chk;
+		cmd->tgt_dif_data_expected = 1;
+		break;
+	default:
+		TRACE(TRACE_SCSI|TRACE_MINOR, "Invalid WRPROTECT value %x "
+			"(dev %s, cmd %p)", wrprotect, dev->virt_name, cmd);
+		scst_set_invalid_field_in_cdb(cmd, wrprotect_offs,
+			5|SCST_INVAL_FIELD_BIT_OFFS_VALID);
+		res = EINVAL;
+		goto out;
+	}
+
+	TRACE_DBG("cmd_dif_actions %x, tgt_dif_data_expected %d (cmd %p)",
+		cmd->cmd_dif_actions, cmd->tgt_dif_data_expected, cmd);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/*
+ * Returns 0 on success or POSITIVE error code otherwise (to match
+ * scst_get_cdb_info() semantic)
+ */
+static int scst_parse_wrprotect(struct scst_cmd *cmd)
+{
+	int res = 0;
+	int wrprotect = (cmd->cdb[1] & 0xE0) >> 5;
+	const struct scst_device *dev = cmd->dev;
+
+	TRACE_ENTRY();
+
+	if (dev->dev_dif_mode == SCST_DIF_MODE_NONE) {
+		if (likely(wrprotect == 0))
+			goto out;
+
+		TRACE(TRACE_SCSI|TRACE_MINOR, "WRPROTECT %x and no DIF "
+			"device %s (cmd %p)", wrprotect,
+			dev->virt_name, cmd);
+		scst_set_invalid_field_in_cdb(cmd, 1,
+			5|SCST_INVAL_FIELD_BIT_OFFS_VALID);
+		res = EINVAL;
+		goto out;
+	}
+
+	if (unlikely((dev->dev_dif_type == 2) && (wrprotect != 0))) {
+		TRACE(TRACE_SCSI|TRACE_MINOR, "Non-32-byte CDBs with non-zero "
+			"wrprotect (%d) are not allowed in DIF type 2 "
+			"(dev %s, cmd %p, op %s)", wrprotect, dev->virt_name,
+			cmd, scst_get_opcode_name(cmd));
+		scst_set_cmd_error(cmd,
+			   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+		res = EINVAL;
+		goto out;
+	}
+
+	res = __scst_parse_wrprotect(cmd, wrprotect, 1);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/*
+ * Returns 0 on success or POSITIVE error code otherwise (to match
+ * scst_get_cdb_info() semantic)
+ */
+static int scst_parse_wrprotect32(struct scst_cmd *cmd)
+{
+	int res = 0;
+	int wrprotect = (cmd->cdb[10] & 0xE0) >> 5;
+	const struct scst_device *dev = cmd->dev;
+
+	TRACE_ENTRY();
+
+	if (unlikely(dev->dev_dif_type != 2)) {
+		TRACE(TRACE_SCSI|TRACE_MINOR, "32-byte CDBs are not "
+			"allowed in DIF type %d (dev %s, cmd %p, op %s)",
+			dev->dev_dif_type, dev->virt_name, cmd,
+			scst_get_opcode_name(cmd));
+		scst_set_cmd_error(cmd,
+			   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+		res = EINVAL;
+		goto out;
+	}
+
+	res = __scst_parse_wrprotect(cmd, wrprotect, 10);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/*
+ * Returns 0 on success or POSITIVE error code otherwise (to match
+ * scst_get_cdb_info() semantic)
+ */
+static int __scst_parse_vrprotect(struct scst_cmd *cmd, int vrprotect_offs)
+{
+	int res = 0;
+	struct scst_device *dev = cmd->dev;
+	int vrprotect = (cmd->cdb[vrprotect_offs] & 0xE0) >> 5;
+	int bytchk = (cmd->cdb[vrprotect_offs] & 6) >> 1;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("vrprotect %x", vrprotect);
+
+	EXTRACHECKS_BUG_ON(dev->dev_dif_type == 0);
+
+	switch (bytchk) {
+	case 0:
+		switch (vrprotect) {
+		case 0:
+			if (dev->dpicz) {
+				cmd->cmd_dif_actions = 0;
+				break;
+			}
+			/* else go through */
+		case 1:
+		case 5:
+			cmd->cmd_dif_actions = SCST_DIF_CHECK_GUARD_TAG |
+				dev->dif_app_chk | dev->dif_ref_chk;
+			break;
+		case 2:
+			cmd->cmd_dif_actions = dev->dif_app_chk | dev->dif_ref_chk;
+			break;
+		case 3:
+			cmd->cmd_dif_actions = 0;
+			break;
+		case 4:
+			cmd->cmd_dif_actions = SCST_DIF_CHECK_GUARD_TAG;
+			break;
+		default:
+			TRACE(TRACE_SCSI|TRACE_MINOR, "Invalid VRPROTECT value %x "
+				"(dev %s, cmd %p)", vrprotect, dev->virt_name, cmd);
+			scst_set_invalid_field_in_cdb(cmd, vrprotect_offs,
+				5|SCST_INVAL_FIELD_BIT_OFFS_VALID);
+			res = EINVAL;
+			goto out;
+		}
+		break;
+	case 1:
+	case 3:
+		switch (vrprotect) {
+		case 0:
+			if (dev->dpicz)
+				cmd->cmd_dif_actions = 0;
+			else
+				cmd->cmd_dif_actions = dev->dev_dif_wr_actions |
+					SCST_DIF_CHECK_GUARD_TAG | dev->dif_app_chk |
+					dev->dif_ref_chk;
+			break;
+		case 1:
+		case 2:
+		case 3:
+		case 4:
+		case 5:
+			cmd->cmd_dif_actions = 0;
+			break;
+		default:
+			TRACE(TRACE_SCSI|TRACE_MINOR, "Invalid VRPROTECT value %x "
+				"(dev %s, cmd %p)", vrprotect, dev->virt_name, cmd);
+			scst_set_invalid_field_in_cdb(cmd, vrprotect_offs,
+				5|SCST_INVAL_FIELD_BIT_OFFS_VALID);
+			res = EINVAL;
+			goto out;
+		}
+		break;
+	default:
+		sBUG_ON(1);
+		break;
+	}
+
+	TRACE_DBG("cmd_dif_actions %x, tgt_dif_data_expected %d (cmd %p, "
+		"bytchk %d)", cmd->cmd_dif_actions, cmd->tgt_dif_data_expected,
+		cmd, bytchk);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/*
+ * Returns 0 on success or POSITIVE error code otherwise (to match
+ * scst_get_cdb_info() semantic)
+ */
+static int scst_parse_vrprotect(struct scst_cmd *cmd)
+{
+	int res = 0;
+	int vrprotect = (cmd->cdb[1] & 0xE0) >> 5;
+	const struct scst_device *dev = cmd->dev;
+
+	TRACE_ENTRY();
+
+	if (dev->dev_dif_mode == SCST_DIF_MODE_NONE) {
+		if (likely(vrprotect == 0))
+			goto out;
+
+		TRACE(TRACE_SCSI|TRACE_MINOR, "VRPROTECT %x and no DIF "
+			"device %s (cmd %p)", vrprotect,
+			dev->virt_name, cmd);
+		scst_set_invalid_field_in_cdb(cmd, 1,
+			5|SCST_INVAL_FIELD_BIT_OFFS_VALID);
+		res = EINVAL;
+		goto out;
+	}
+
+	if (unlikely((dev->dev_dif_type == 2) && (vrprotect != 0))) {
+		TRACE(TRACE_SCSI|TRACE_MINOR, "Non-32-byte CDBs with non-zero "
+			"vrprotect (%d) are not allowed in DIF type 2 "
+			"(dev %s, cmd %p, op %s)", vrprotect,
+			dev->virt_name, cmd, scst_get_opcode_name(cmd));
+		scst_set_cmd_error(cmd,
+			   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+		res = EINVAL;
+		goto out;
+	}
+
+	res = __scst_parse_vrprotect(cmd, 1);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/*
+ * Returns 0 on success or POSITIVE error code otherwise (to match
+ * scst_get_cdb_info() semantic)
+ */
+static int scst_parse_vrprotect32(struct scst_cmd *cmd)
+{
+	int res = 0;
+	const struct scst_device *dev = cmd->dev;
+
+	TRACE_ENTRY();
+
+	if (unlikely(dev->dev_dif_type != 2)) {
+		TRACE(TRACE_SCSI|TRACE_MINOR, "32-byte CDBs are not "
+			"allowed in DIF type %d (dev %s, cmd %p, op %s)",
+			dev->dev_dif_type, dev->virt_name, cmd,
+			scst_get_opcode_name(cmd));
+		scst_set_cmd_error(cmd,
+			   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+		res = EINVAL;
+		goto out;
+	}
+
+	res = __scst_parse_vrprotect(cmd, 10);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/*
+ * So far we support the only variable length CDBs, 32 bytes SBC PI type 2
+ * commands, so 32 on the forth place is OK. Don't forget to change it
+ * adding in this group new commands with other lengths!
+ */
+static const int scst_cdb_length[8] = { 6, 10, 10, 32, 16, 12, 0, 0 };
 
 #define SCST_CDB_GROUP(opcode)   ((opcode >> 5) & 0x7)
-#define SCST_GET_CDB_LEN(opcode) SCST_CDB_LENGTH[SCST_CDB_GROUP(opcode)]
+#define SCST_GET_CDB_LEN(opcode) scst_cdb_length[SCST_CDB_GROUP(opcode)]
 
 static int get_cdb_info_len_10(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops)
@@ -7311,7 +9640,7 @@ static int get_cdb_info_verify10(struct scst_cmd *cmd,
 		cmd->data_len = get_unaligned_be16(cmd->cdb + sdbops->info_len_off);
 		cmd->data_direction = SCST_DATA_NONE;
 	}
-	return 0;
+	return scst_parse_vrprotect(cmd);
 }
 
 static int get_cdb_info_verify6(struct scst_cmd *cmd,
@@ -7367,7 +9696,7 @@ static int get_cdb_info_verify12(struct scst_cmd *cmd,
 		cmd->data_len = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
 		cmd->data_direction = SCST_DATA_NONE;
 	}
-	return 0;
+	return scst_parse_vrprotect(cmd);
 }
 
 static int get_cdb_info_verify16(struct scst_cmd *cmd,
@@ -7397,7 +9726,37 @@ static int get_cdb_info_verify16(struct scst_cmd *cmd,
 		cmd->data_len = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
 		cmd->data_direction = SCST_DATA_NONE;
 	}
-	return 0;
+	return scst_parse_vrprotect(cmd);
+}
+
+static int get_cdb_info_verify32(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
+{
+	if (unlikely(cmd->cdb[10] & 4)) {
+		PRINT_ERROR("VERIFY(16): BYTCHK 1x not supported (dev %s)",
+				cmd->dev ? cmd->dev->virt_name : NULL);
+		scst_set_invalid_field_in_cdb(cmd, 1,
+			2 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+		return 1;
+	}
+
+	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
+	if (cmd->cdb[10] & 2) {
+		cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
+		if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
+			PRINT_ERROR("Too big bufflen %d (op %s)",
+				cmd->bufflen, scst_get_opcode_name(cmd));
+			scst_set_invalid_field_in_cdb(cmd, sdbops->info_len_off, 0);
+			return 1;
+		}
+		cmd->data_len = cmd->bufflen;
+		cmd->data_direction = SCST_DATA_WRITE;
+	} else {
+		cmd->bufflen = 0;
+		cmd->data_len = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
+		cmd->data_direction = SCST_DATA_NONE;
+	}
+	return scst_parse_vrprotect32(cmd);
 }
 
 static int get_cdb_info_len_1(struct scst_cmd *cmd,
@@ -7411,7 +9770,7 @@ static int get_cdb_info_len_1(struct scst_cmd *cmd,
 	return 0;
 }
 
-static int get_cdb_info_lba_3_len_1_256(struct scst_cmd *cmd,
+static inline int get_cdb_info_lba_3_len_1_256(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops)
 {
 	cmd->lba = (cmd->cdb[sdbops->info_lba_off] & 0x1F) << 16;
@@ -7430,6 +9789,40 @@ static int get_cdb_info_lba_3_len_1_256(struct scst_cmd *cmd,
 	cmd->bufflen = (u8)(cmd->cdb[sdbops->info_len_off] - 1) + 1;
 	cmd->data_len = cmd->bufflen;
 	return 0;
+}
+
+static int get_cdb_info_lba_3_len_1_256_read(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
+{
+	int res = get_cdb_info_lba_3_len_1_256(cmd, sdbops);
+	if (res != 0)
+		goto out;
+	else {
+		struct scst_device *dev = cmd->dev;
+		if ((dev->dev_dif_mode != SCST_DIF_MODE_NONE) && !dev->dpicz)
+			cmd->cmd_dif_actions = dev->dev_dif_rd_prot0_actions |
+				SCST_DIF_CHECK_GUARD_TAG | dev->dif_app_chk |
+				SCST_DIF_CHECK_REF_TAG;
+	}
+out:
+	return res;
+}
+
+static int get_cdb_info_lba_3_len_1_256_write(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
+{
+	int res = get_cdb_info_lba_3_len_1_256(cmd, sdbops);
+	if (res != 0)
+		goto out;
+	else {
+		struct scst_device *dev = cmd->dev;
+		if (dev->dev_dif_mode != SCST_DIF_MODE_NONE)
+			cmd->cmd_dif_actions = dev->dev_dif_wr_prot0_actions |
+				SCST_DIF_CHECK_GUARD_TAG | dev->dif_app_chk |
+				SCST_DIF_CHECK_REF_TAG;
+	}
+out:
+	return res;
 }
 
 static int get_cdb_info_len_2(struct scst_cmd *cmd,
@@ -7526,7 +9919,32 @@ static int get_cdb_info_lba_4_len_2(struct scst_cmd *cmd,
 	return 0;
 }
 
-static int get_cdb_info_lba_4_len_4(struct scst_cmd *cmd,
+static int get_cdb_info_read_10(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
+{
+	int res = get_cdb_info_lba_4_len_2(cmd, sdbops);
+	if (res != 0)
+		return res;
+	else {
+#ifdef CONFIG_SCST_DIF_INJECT_CORRUPTED_TAGS
+		EXTRACHECKS_BUG_ON(cmd->cdb[0] != READ_10);
+		cmd->cmd_corrupt_dif_tag = (cmd->cdb[6] & 0xE0) >> 5;
+#endif
+		return scst_parse_rdprotect(cmd);
+	}
+}
+
+static int get_cdb_info_lba_4_len_2_wrprotect(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
+{
+	int res = get_cdb_info_lba_4_len_2(cmd, sdbops);
+	if (res != 0)
+		return res;
+	else
+		return scst_parse_wrprotect(cmd);
+}
+
+static inline int get_cdb_info_lba_4_len_4(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops)
 {
 	cmd->lba = get_unaligned_be32(cmd->cdb + sdbops->info_lba_off);
@@ -7541,7 +9959,27 @@ static int get_cdb_info_lba_4_len_4(struct scst_cmd *cmd,
 	return 0;
 }
 
-static int get_cdb_info_lba_8_len_4(struct scst_cmd *cmd,
+static int get_cdb_info_lba_4_len_4_rdprotect(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
+{
+	int res = get_cdb_info_lba_4_len_4(cmd, sdbops);
+	if (res != 0)
+		return res;
+	else
+		return scst_parse_rdprotect(cmd);
+}
+
+static int get_cdb_info_lba_4_len_4_wrprotect(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
+{
+	int res = get_cdb_info_lba_4_len_4(cmd, sdbops);
+	if (res != 0)
+		return res;
+	else
+		return scst_parse_wrprotect(cmd);
+}
+
+static inline int get_cdb_info_lba_8_len_4(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops)
 {
 	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
@@ -7554,6 +9992,51 @@ static int get_cdb_info_lba_8_len_4(struct scst_cmd *cmd,
 	}
 	cmd->data_len = cmd->bufflen;
 	return 0;
+}
+
+static int get_cdb_info_read_16(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
+{
+	int res = get_cdb_info_lba_8_len_4(cmd, sdbops);
+	if (res != 0)
+		return res;
+	else {
+#ifdef CONFIG_SCST_DIF_INJECT_CORRUPTED_TAGS
+		EXTRACHECKS_BUG_ON(cmd->cdb[0] != READ_16);
+		cmd->cmd_corrupt_dif_tag = (cmd->cdb[14] & 0xE0) >> 5;
+#endif
+		return scst_parse_rdprotect(cmd);
+	}
+}
+
+static int get_cdb_info_lba_8_len_4_wrprotect(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
+{
+	int res = get_cdb_info_lba_8_len_4(cmd, sdbops);
+	if (res != 0)
+		return res;
+	else
+		return scst_parse_wrprotect(cmd);
+}
+
+static int get_cdb_info_lba_8_len_4_wrprotect32(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
+{
+	int res = get_cdb_info_lba_8_len_4(cmd, sdbops);
+	if (res != 0)
+		return res;
+	else
+		return scst_parse_wrprotect32(cmd);
+}
+
+static int get_cdb_info_lba_8_len_4_rdprotect32(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
+{
+	int res = get_cdb_info_lba_8_len_4(cmd, sdbops);
+	if (res != 0)
+		return res;
+	else
+		return scst_parse_rdprotect32(cmd);
 }
 
 static int get_cdb_info_write_same10(struct scst_cmd *cmd,
@@ -7562,7 +10045,7 @@ static int get_cdb_info_write_same10(struct scst_cmd *cmd,
 	cmd->lba = get_unaligned_be32(cmd->cdb + sdbops->info_lba_off);
 	cmd->bufflen = 1;
 	cmd->data_len = get_unaligned_be16(cmd->cdb + sdbops->info_len_off);
-	return 0;
+	return scst_parse_wrprotect(cmd);
 }
 
 static int get_cdb_info_write_same16(struct scst_cmd *cmd,
@@ -7571,7 +10054,132 @@ static int get_cdb_info_write_same16(struct scst_cmd *cmd,
 	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
 	cmd->bufflen = 1;
 	cmd->data_len = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
-	return 0;
+	return scst_parse_wrprotect(cmd);
+}
+
+static int get_cdb_info_write_same32(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
+{
+	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
+	cmd->bufflen = 1;
+	cmd->data_len = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
+	return scst_parse_wrprotect32(cmd);
+}
+
+static int scst_set_cmd_from_cdb_info(struct scst_cmd *cmd,
+	const struct scst_sdbops *ptr)
+{
+	cmd->cdb_len = SCST_GET_CDB_LEN(cmd->cdb[0]);
+	cmd->cmd_naca = (cmd->cdb[cmd->cdb_len - 1] & CONTROL_BYTE_NACA_BIT);
+	cmd->cmd_linked = (cmd->cdb[cmd->cdb_len - 1] & CONTROL_BYTE_LINK_BIT);
+	cmd->op_name = ptr->info_op_name;
+	cmd->data_direction = ptr->info_data_direction;
+	cmd->op_flags = ptr->info_op_flags | SCST_INFO_VALID;
+	cmd->lba_off = ptr->info_lba_off;
+	cmd->lba_len = ptr->info_lba_len;
+	cmd->len_off = ptr->info_len_off;
+	cmd->len_len = ptr->info_len_len;
+	return (*ptr->get_cdb_info)(cmd, ptr);
+}
+
+static int get_cdb_info_var_len(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
+{
+	int res;
+	/*
+	 * !! Indexed by (cdb[8-9] - SUBCODE_READ_32), the smallest subcode,
+	 * !! hence all items in the array MUST be sorted and with NO HOLES
+	 * !! in ops field!
+	 */
+	static const struct scst_sdbops scst_scsi_op32_table[] = {
+		{.ops = 0x7F, .devkey = "O               ",
+		 .info_op_name = "READ(32)",
+		 .info_data_direction = SCST_DATA_READ,
+		 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|
+#ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
+			 SCST_TEST_IO_IN_SIRQ_ALLOWED|
+#endif
+			 SCST_WRITE_EXCL_ALLOWED,
+		 .info_lba_off = 12, .info_lba_len = 8,
+		 .info_len_off = 28, .info_len_len = 4,
+		 .get_cdb_info = get_cdb_info_lba_8_len_4_rdprotect32},
+		{.ops = 0x7F, .devkey = "O               ",
+		 .info_op_name = "VERIFY(32)",
+		 .info_data_direction = SCST_DATA_UNKNOWN,
+		 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_EXCL_ALLOWED,
+		 .info_lba_off = 12, .info_lba_len = 8,
+		 .info_len_off = 28, .info_len_len = 4,
+		 .get_cdb_info = get_cdb_info_verify32},
+		{.ops = 0x7F, .devkey = "O               ",
+		 .info_op_name = "WRITE(32)",
+		 .info_data_direction = SCST_DATA_WRITE,
+		 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|
+#ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
+			SCST_TEST_IO_IN_SIRQ_ALLOWED|
+#endif
+			SCST_WRITE_MEDIUM,
+		 .info_lba_off = 12, .info_lba_len = 8,
+		 .info_len_off = 28, .info_len_len = 4,
+		 .get_cdb_info = get_cdb_info_lba_8_len_4_wrprotect32},
+		{.ops = 0x7F, .devkey = "O               ",
+		 .info_op_name = "WRITE AND VERIFY(32)",
+		 .info_data_direction = SCST_DATA_WRITE,
+		 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
+		 .info_lba_off = 12, .info_lba_len = 8,
+		 .info_len_off = 28, .info_len_len = 4,
+		 .get_cdb_info = get_cdb_info_lba_8_len_4_wrprotect32},
+		{.ops = 0x7F, .devkey = "O               ",
+		 .info_op_name = "WRITE SAME(32)",
+		 .info_data_direction = SCST_DATA_WRITE,
+		 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
+		 .info_lba_off = 12, .info_lba_len = 8,
+		 .info_len_off = 28, .info_len_len = 4,
+		 .get_cdb_info = get_cdb_info_write_same32},
+	};
+	const struct scst_sdbops *ptr;
+	int subcode = be16_to_cpu(*(__be16 *)&cmd->cdb[8]);
+	unsigned int i = subcode - SUBCODE_READ_32;
+
+	EXTRACHECKS_BUG_ON(cmd->cdb[0] != 0x7F);
+	EXTRACHECKS_BUG_ON(sdbops->ops != 0x7F);
+
+	/* i is unsigned, so this will handle subcodes < READ_32 as well */
+	if (unlikely(i >= ARRAY_SIZE(scst_scsi_op32_table))) {
+		TRACE(TRACE_MINOR, "Too big cmd index %d for 0x7F CDB (cmd %p)",
+			i, cmd);
+		goto out_unknown;
+	}
+
+	ptr = &scst_scsi_op32_table[i];
+#if 0 /* not possible */
+	if (unlikely(ptr == NULL))
+		goto out_unknown;
+#endif
+
+	if (unlikely(cmd->cdb[7] != 0x18)) {
+		TRACE(TRACE_MINOR, "Incorrect ADDITIONAL CDB LENGTH %d for "
+			"0x7F CDB (cmd %p)", cmd->cdb[7], cmd);
+		cmd->op_flags |= SCST_LBA_NOT_VALID;
+		scst_set_invalid_field_in_cdb(cmd, 7, 0);
+		res = 1; /* command invalid */
+		goto out;
+	}
+
+	res = scst_set_cmd_from_cdb_info(cmd, ptr);
+
+	cmd->cmd_naca = (cmd->cdb[1] & CONTROL_BYTE_NACA_BIT);
+	cmd->cmd_linked = (cmd->cdb[1] & CONTROL_BYTE_LINK_BIT);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_unknown:
+	TRACE(TRACE_MINOR, "Unknown opcode 0x%x, subcode %d for type %d",
+		cmd->cdb[0], subcode, cmd->dev->type);
+	cmd->op_flags &= ~SCST_INFO_VALID;
+	res = -1; /* command unknown */
+	goto out;
 }
 
 static int get_cdb_info_compare_and_write(struct scst_cmd *cmd,
@@ -7580,7 +10188,7 @@ static int get_cdb_info_compare_and_write(struct scst_cmd *cmd,
 	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
 	cmd->data_len = cmd->cdb[sdbops->info_len_off];
 	cmd->bufflen = 2 * cmd->data_len;
-	return 0;
+	return scst_parse_wrprotect(cmd);
 }
 
 /**
@@ -7769,17 +10377,7 @@ int scst_get_cdb_info(struct scst_cmd *cmd)
 		goto out;
 	}
 
-	cmd->cdb_len = SCST_GET_CDB_LEN(op);
-	cmd->cmd_naca = (cmd->cdb[cmd->cdb_len - 1] & CONTROL_BYTE_NACA_BIT);
-	cmd->cmd_linked = (cmd->cdb[cmd->cdb_len - 1] & CONTROL_BYTE_LINK_BIT);
-	cmd->op_name = ptr->info_op_name;
-	cmd->data_direction = ptr->info_data_direction;
-	cmd->op_flags = ptr->info_op_flags | SCST_INFO_VALID;
-	cmd->lba_off = ptr->info_lba_off;
-	cmd->lba_len = ptr->info_lba_len;
-	cmd->len_off = ptr->info_len_off;
-	cmd->len_len = ptr->info_len_len;
-	res = (*ptr->get_cdb_info)(cmd, ptr);
+	res = scst_set_cmd_from_cdb_info(cmd, ptr);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -9301,6 +11899,7 @@ int scst_obtain_device_parameters(struct scst_device *dev,
 
 			dev->tst = buffer[4+2] >> 5;
 			dev->tmf_only = (buffer[4+2] & 0x10) >> 4;
+			dev->dpicz = (buffer[4+2] & 0x8) >> 3;
 			q = buffer[4+3] >> 4;
 			if (q > SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER) {
 				PRINT_ERROR("Too big QUEUE ALG %x, dev %s, "
@@ -9323,11 +11922,11 @@ int scst_obtain_device_parameters(struct scst_device *dev,
 			dev->has_own_order_mgmt = !dev->queue_alg;
 
 			PRINT_INFO("Device %s: TST %x, TMF_ONLY %x, QUEUE ALG %x, "
-				"QErr %x, SWP %x, TAS %x, D_SENSE %d, "
+				"QErr %x, SWP %x, TAS %x, D_SENSE %d, DPICZ %d, "
 				"has_own_order_mgmt %d", dev->virt_name,
 				dev->tst, dev->tmf_only, dev->queue_alg,
 				dev->qerr, dev->swp, dev->tas, dev->d_sense,
-				dev->has_own_order_mgmt);
+				dev->dpicz, dev->has_own_order_mgmt);
 
 			goto out;
 		} else {
@@ -9386,10 +11985,10 @@ int scst_obtain_device_parameters(struct scst_device *dev,
 brk:
 	PRINT_WARNING("Unable to get device's %s control mode page, using "
 		"existing values/defaults: TST %x, TMF_ONLY %x, QUEUE ALG %x, "
-		"QErr %x, SWP %x, TAS %x, D_SENSE %d, has_own_order_mgmt %d",
-		dev->virt_name, dev->tst, dev->tmf_only, dev->queue_alg,
-		dev->qerr, dev->swp, dev->tas, dev->d_sense,
-		dev->has_own_order_mgmt);
+		"QErr %x, SWP %x, TAS %x, D_SENSE %d, DPICZ %d, "
+		"has_own_order_mgmt %d", dev->virt_name, dev->tst,
+		dev->tmf_only, dev->queue_alg, dev->qerr, dev->swp, dev->tas,
+		dev->d_sense, dev->dpicz, dev->has_own_order_mgmt);
 
 out:
 	TRACE_EXIT();
@@ -9983,6 +12582,7 @@ static void scst_free_descriptors(struct scst_cmd *cmd)
 #define SCST_SWP_LABEL		"SWP"
 #define SCST_DSENSE_LABEL	"D_SENSE"
 #define SCST_QUEUE_ALG_LABEL	"QUEUE_ALG"
+#define SCST_DPICZ_LABEL	"DPICZ"
 
 int scst_save_global_mode_pages(const struct scst_device *dev,
 	uint8_t *buf, int size)
@@ -10022,6 +12622,13 @@ int scst_save_global_mode_pages(const struct scst_device *dev,
 	if (dev->d_sense != dev->d_sense_default) {
 		res += scnprintf(&buf[res], size - res, "%s=%d\n",
 			SCST_DSENSE_LABEL, dev->d_sense);
+		if (res >= size-1)
+			goto out_overflow;
+	}
+
+	if (dev->dpicz != dev->dpicz_default) {
+		res += scnprintf(&buf[res], size - res, "%s=%d\n",
+			SCST_DPICZ_LABEL, dev->dpicz);
 		if (res >= size-1)
 			goto out_overflow;
 	}
@@ -10175,6 +12782,32 @@ out:
 	return res;
 }
 
+static int scst_restore_dpicz(struct scst_device *dev, unsigned int val)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	if (val > 1) {
+		PRINT_ERROR("Invalid value %d for parameter %s (device %s)",
+			val, SCST_DPICZ_LABEL, dev->virt_name);
+		res = -EINVAL;
+		goto out;
+	}
+
+	dev->dpicz = val;
+	dev->dpicz_saved = val;
+
+	PRINT_INFO("%s restored to %d for device %s", SCST_DPICZ_LABEL,
+		dev->dpicz, dev->virt_name);
+
+	res = 0;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 static int scst_restore_queue_alg(struct scst_device *dev, unsigned int val)
 {
 	int res;
@@ -10246,6 +12879,8 @@ int scst_restore_global_mode_pages(struct scst_device *dev, char *params,
 			res = scst_restore_swp(dev, val);
 		else if (strcasecmp(SCST_DSENSE_LABEL, p) == 0)
 			res = scst_restore_dsense(dev, val);
+		else if (strcasecmp(SCST_DPICZ_LABEL, p) == 0)
+			res = scst_restore_dpicz(dev, val);
 		else if (strcasecmp(SCST_QUEUE_ALG_LABEL, p) == 0)
 			res = scst_restore_queue_alg(dev, val);
 		else {
