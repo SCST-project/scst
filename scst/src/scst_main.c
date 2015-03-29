@@ -1203,6 +1203,7 @@ out_del_unlocked:
 	mutex_lock(&scst_mutex);
 	list_del_init(&dev->dev_list_entry);
 	mutex_unlock(&scst_mutex);
+
 	scst_free_device(dev);
 	goto out;
 #else
