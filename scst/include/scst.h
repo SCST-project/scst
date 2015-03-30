@@ -951,7 +951,7 @@ struct scst_tgt_template {
 	 *
 	 * OPTIONAL
 	 */
-	const int * const supported_dif_block_sizes;
+	const int *const supported_dif_block_sizes;
 
 	/*
 	 * Preferred SCSI LUN addressing method.
@@ -1933,7 +1933,7 @@ struct scst_tgt {
 	unsigned tgt_hw_dif_type3_supported:1;
 	unsigned tgt_hw_dif_ip_supported:1;
 	unsigned tgt_hw_dif_same_sg_layout_required:1;
-	const int * tgt_supported_dif_block_sizes;
+	const int *tgt_supported_dif_block_sizes;
 
 	/*
 	 * Maximum SG table size. Needed here, since different cards on the
@@ -3793,7 +3793,7 @@ static inline const int *scst_tgt_get_supported_dif_block_sizes(
 }
 
 static inline void scst_tgt_set_supported_dif_block_sizes(struct scst_tgt *tgt,
-	const int * const val)
+	const int *const val)
 {
 	tgt->tgt_supported_dif_block_sizes = val;
 }
@@ -4679,7 +4679,7 @@ static inline uint16_t scst_cmd_get_dif_app_tag_mask(struct scst_cmd *cmd)
 	if (cmd->cdb_len == 32)
 		return get_unaligned_be16(&cmd->cdb[26]);
 	else {
-		if(scst_get_dif_checks(cmd->cmd_dif_actions) & SCST_DIF_CHECK_APP_TAG)
+		if (scst_get_dif_checks(cmd->cmd_dif_actions) & SCST_DIF_CHECK_APP_TAG)
 			return 0xFFFF;
 		else
 			return 0;
