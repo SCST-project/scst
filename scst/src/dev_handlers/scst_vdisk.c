@@ -9471,7 +9471,7 @@ static ssize_t vdev_dif_filename_show(struct kobject *kobj,
 
 	pos = sprintf(buf, "%s\n%s", virt_dev->dif_filename,
 		      (virt_dev->dif_filename != NULL) ?
-		      		SCST_SYSFS_KEY_MARK "\n" : "");
+		      SCST_SYSFS_KEY_MARK "\n" : "");
 
 	TRACE_EXIT_RES(pos);
 	return pos;
