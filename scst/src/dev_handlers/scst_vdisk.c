@@ -1363,7 +1363,7 @@ static int vdisk_init_block_integrity(struct scst_vdisk_dev *virt_dev)
 		goto out;
 	}
 
-	inode = fd->f_dentry->d_inode;
+	inode = file_inode(fd);
 
 	if (!S_ISBLK(inode->i_mode)) {
 		PRINT_ERROR("%s is NOT a block device!", virt_dev->filename);
