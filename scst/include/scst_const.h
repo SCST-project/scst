@@ -334,9 +334,6 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 
 /* ABORTED_COMMAND is 0xb */
 #define scst_sense_aborted_command		ABORTED_COMMAND, 0x00, 0
-#define scst_logical_block_guard_check_failed	ABORTED_COMMAND, 0x10, 1
-#define scst_logical_block_app_tag_check_failed	ABORTED_COMMAND, 0x10, 2
-#define scst_logical_block_ref_tag_check_failed	ABORTED_COMMAND, 0x10, 3
 #define scst_sense_internal_failure		ABORTED_COMMAND, 0x44, 0 /* retriable */
 
 /* MISCOMPARE is 0xe */
@@ -430,13 +427,6 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 #define UNMAP 0x42
 #endif
 
-/* Subcodes of VARIABLE_LENGTH_CMD (0x7F) */
-#define SUBCODE_READ_32		0x09
-#define SUBCODE_VERIFY_32	0x0a
-#define SUBCODE_WRITE_32	0x0b
-#define SUBCODE_WRITE_VERIFY_32	0x0c
-#define SUBCODE_WRITE_SAME_32	0x0d
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 0)
 /*
  * From <scsi/scsi.h>. See also commit
@@ -454,6 +444,7 @@ static inline int scst_sense_response_code(const uint8_t *sense)
  */
 #define BLKDISCARD _IO(0x12,119)
 #endif
+
 
 /*************************************************************
  **  SCSI Architecture Model (SAM) Status codes. Taken from SAM-3 draft
@@ -528,44 +519,6 @@ enum {
 #define SCST_QERR_1_ABORT_ALL			1
 #define SCST_QERR_2_RESERVED			2
 #define SCST_QERR_3_ABORT_THIS_NEXUS_ONLY	3
-
-/*************************************************************
- ** Values for the control mode page ATO field
- *************************************************************/
-
-/* I.e., app tags owned by storage */
-#define SCST_ATO_0_MODIFIED_BY_STORAGE		0
-
-/* I.e., app tags owned by application */
-#define SCST_ATO_1_NOT_MODIFIED_BY_STORAGE	1
-
-/*************************************************************
- ** Values for the control mode page DPICZ field
- *************************************************************/
-#define SCST_DPICZ_CHECK_ON_xPROT_0	0
-#define SCST_DPICZ_NO_CHECK_ON_xPROT_0	1
-
-/*************************************************************
- ** APP/REF TAG DIF constants
- *************************************************************/
-
-/* Skip all guards checks for this block */
-#define SCST_DIF_NO_CHECK_ALL_APP_TAG		cpu_to_be16(0xFFFF)
-#define SCST_DIF_NO_CHECK_ALL_REF_TAG		cpu_to_be32(0xFFFFFFFF)
-
-/* Don't check app tag for this block */
-#define SCST_DIF_NO_CHECK_APP_TAG		0
-
-/*************************************************************
- ** Shift of size of DIF tag (8 bytes)
- *************************************************************/
-#define SCST_DIF_TAG_SHIFT			3
-
-/*************************************************************
- ** Formats of DIF guard tags
- *************************************************************/
-#define SCST_DIF_GUARD_FORMAT_CRC	0
-#define SCST_DIF_GUARD_FORMAT_IP	1
 
 /*************************************************************
  ** TransportID protocol identifiers

@@ -27,9 +27,6 @@
 /* #define CONFIG_SCST_DEBUG_TM */
 /* #define CONFIG_SCST_TM_DBG_GO_OFFLINE */
 
-/** See README for description of those conditional defines **/
-#define CONFIG_SCST_DIF_INJECT_CORRUPTED_TAGS
-
 #include <linux/types.h>
 #ifndef INSIDE_KERNEL_TREE
 #include <linux/version.h>
@@ -754,159 +751,6 @@ enum scst_exec_context {
 					 SCST_SENSE_ASCQ_VALID)
 
 /*************************************************************
- ** T10-PI (DIF) support
- *************************************************************/
-
-struct scst_dif_tuple {
-	__be16 guard_tag;
-	__be16 app_tag;
-	__be32 ref_tag;
-};
-
-/*
- * Defines where and how to deal with DIF tags. Can be OR'ed to get
- * multilevel checks
- */
-enum scst_dif_mode {
-	SCST_DIF_MODE_NONE = 0,
-
-	/* STRIP/INSERT/CHECK inside target HW */
-	SCST_DIF_MODE_TGT = 1,
-
-	/* SCST checking or creating tags on the fly */
-	SCST_DIF_MODE_SCST = 2,
-
-	/* Backend device checking tags */
-	SCST_DIF_MODE_DEV_CHECK = 4,
-
-	/* Backend device storing tags, creating them on writes, if needed */
-	SCST_DIF_MODE_DEV_STORE = 8,
-};
-#define SCST_DIF_MODE_DEV		(SCST_DIF_MODE_DEV_CHECK|SCST_DIF_MODE_DEV_STORE)
-
-#define SCST_DIF_MODE_TGT_STR		"tgt"
-#define SCST_DIF_MODE_SCST_STR		"scst"
-#define SCST_DIF_MODE_DEV_CHECK_STR	"dev_check"
-#define SCST_DIF_MODE_DEV_STORE_STR	"dev_store"
-
-/*
- * T10-PI actions.
- *
- * Don't use masks and shifts directly! Use helper functions instead!
- */
-enum scst_dif_actions {
-	SCST_DIF_ACTION_NONE = 0, /* do nothing */
-
-#define SCST_DIF_CHECKS_SHIFT	0
-	/* OR'able tags to check */
-	SCST_DIF_CHECK_GUARD_TAG = 1,
-	SCST_DIF_CHECK_APP_TAG = 2,
-	SCST_DIF_CHECK_REF_TAG = 4,
-#define SCST_DIF_CHECKS_MASK	(SCST_DIF_CHECK_GUARD_TAG|SCST_DIF_CHECK_APP_TAG| \
-			         SCST_DIF_CHECK_REF_TAG)
-
-#define SCST_DIF_ACTION_SHIFT	4
-	/* How to handle PI */
-	SCST_DIF_ACTION_STRIP = (1 << SCST_DIF_ACTION_SHIFT), /* check then strip, if OK */
-	SCST_DIF_ACTION_INSERT = (2 << SCST_DIF_ACTION_SHIFT),
-	SCST_DIF_ACTION_PASS_CHECK = (3 << SCST_DIF_ACTION_SHIFT), /* check then pass, if OK */
-	SCST_DIF_ACTION_PASS = (4 << SCST_DIF_ACTION_SHIFT), /* just pass, no check */
-
-#define SCST_DIF_ACTION_MASK	(SCST_DIF_ACTION_STRIP|SCST_DIF_ACTION_INSERT| \
-				 SCST_DIF_ACTION_PASS_CHECK|SCST_DIF_ACTION_PASS)
-};
-
-/* Shift for target driver DIF actions */
-#define SCST_DIF_TGT_ACTION_SHIFT	0
-
-/* Shift for SCST DIF actions */
-#define SCST_DIF_SCST_ACTION_SHIFT	(SCST_DIF_TGT_ACTION_SHIFT+4)
-
-/* Shift for dev handler DIF actions */
-#define SCST_DIF_DEV_ACTION_SHIFT	(SCST_DIF_SCST_ACTION_SHIFT+4)
-
-/* Returns DIF checks by stripping the action part from a */
-static inline enum scst_dif_actions scst_get_dif_checks(enum scst_dif_actions a)
-{
-	return (a & SCST_DIF_CHECKS_MASK);
-}
-
-/* Sets the DIF checks part in a */
-static inline void scst_set_dif_checks(enum scst_dif_actions *a,
-	enum scst_dif_actions checks)
-{
-	checks &= ~SCST_DIF_CHECKS_MASK;
-	*a |= checks << SCST_DIF_CHECKS_SHIFT;
-	return;
-}
-
-/* Returns DIF action by stripping the checks part from a */
-static inline enum scst_dif_actions scst_get_dif_action(enum scst_dif_actions a)
-{
-	return (a & SCST_DIF_ACTION_MASK);
-}
-
-/* Sets the DIF action part in a */
-static inline void scst_set_dif_action(enum scst_dif_actions *a,
-	enum scst_dif_actions action)
-{
-	action &= ~SCST_DIF_ACTION_MASK;
-	*a |= action;
-	return;
-}
-
-/* Returns TGT DIF actions from a, including checks */
-static inline enum scst_dif_actions scst_get_tgt_dif_actions(enum scst_dif_actions a)
-{
-	BUILD_BUG_ON(SCST_DIF_CHECKS_SHIFT != 0);
-	return ((a >> SCST_DIF_TGT_ACTION_SHIFT) & SCST_DIF_ACTION_MASK) |
-	       (a & SCST_DIF_CHECKS_MASK);
-}
-
-/* Sets TGT DIF action in a. DIF checks in a are not affected by this function. */
-static inline void scst_set_tgt_dif_action(enum scst_dif_actions *a,
-	enum scst_dif_actions tgt_a)
-{
-	tgt_a &= SCST_DIF_ACTION_MASK;
-	*a |= tgt_a << SCST_DIF_TGT_ACTION_SHIFT;
-	return;
-}
-
-/* Returns SCST DIF actions from a, including checks */
-static inline enum scst_dif_actions scst_get_scst_dif_actions(enum scst_dif_actions a)
-{
-	BUILD_BUG_ON(SCST_DIF_CHECKS_SHIFT != 0);
-	return ((a >> SCST_DIF_SCST_ACTION_SHIFT) & SCST_DIF_ACTION_MASK) |
-	       (a & SCST_DIF_CHECKS_MASK);
-}
-
-/* Sets SCST DIF action in a. DIF checks in a are not affected by this function. */
-static inline void scst_set_scst_dif_action(enum scst_dif_actions *a,
-	enum scst_dif_actions scst_a)
-{
-	scst_a &= SCST_DIF_ACTION_MASK;
-	*a |= scst_a << SCST_DIF_SCST_ACTION_SHIFT;
-	return;
-}
-
-/* Returns DEV DIF actions from a, including checks */
-static inline enum scst_dif_actions scst_get_dev_dif_actions(enum scst_dif_actions a)
-{
-	BUILD_BUG_ON(SCST_DIF_CHECKS_SHIFT != 0);
-	return ((a >> SCST_DIF_DEV_ACTION_SHIFT) & SCST_DIF_ACTION_MASK) |
-	       (a & SCST_DIF_CHECKS_MASK);
-}
-
-/* Sets SCST DIF action in a. DIF checks in a are not affected by this function. */
-static inline void scst_set_dev_dif_action(enum scst_dif_actions *a,
-	enum scst_dif_actions dev_a)
-{
-	dev_a &= SCST_DIF_ACTION_MASK;
-	*a |= dev_a << SCST_DIF_DEV_ACTION_SHIFT;
-	return;
-}
-
-/*************************************************************
  *                     TYPES
  *************************************************************/
 
@@ -940,33 +784,6 @@ typedef enum dma_data_direction scst_data_direction;
  */
 struct scst_tgt_template {
 	/* public: */
-
-	/*
-	 * If not NULL, points to 0-terminated array of integers listing all
-	 * supported for T10-PI DIF-enabled devices block sizes. SCST will not
-	 * allow to add DIF-enabled devices with another block sizes to this
-	 * target driver's initiator groups.
-	 *
-	 * Can be overiden by scst_tgt_set_supported_dif_block_sizes()
-	 *
-	 * OPTIONAL
-	 */
-	const int *const supported_dif_block_sizes;
-
-	/*
-	 * Preferred SCSI LUN addressing method.
-	 */
-	enum scst_lun_addr_method preferred_addr_method;
-
-	/*
-	 * The maximum time in seconds cmd can stay inside the target
-	 * hardware, i.e. after rdy_to_xfer() and xmit_response(), before
-	 * on_hw_pending_cmd_timeout() will be called, if defined.
-	 *
-	 * In the current implementation a cmd will be aborted in time t
-	 * max_hw_pending_time <= t < 2*max_hw_pending_time.
-	 */
-	int max_hw_pending_time;
 
 	/*
 	 * SG tablesize allows to check whether scatter/gather can be used
@@ -1019,62 +836,19 @@ struct scst_tgt_template {
 	unsigned multithreaded_init_done:1;
 
 	/*
-	 * True, if this target driver supports T10-PI (DIF), i.e. sending and
-	 * receiving DIF PI tags. If false, SCST will not allow to add
-	 * DIF-enabled devices to this target driver's initiator groups.
-	 *
-	 * Can be overriden per target by scst_tgt_set_dif_supported()
+	 * Preferred SCSI LUN addressing method.
 	 */
-	unsigned dif_supported:1;
+	enum scst_lun_addr_method preferred_addr_method;
 
 	/*
-	 * True, if this target driver supports T10-PI (DIF), i.e. INSERT/STRIPE
-	 * mode, in hardware for type 1 protection. If false, SCST will not
-	 * allow to add type 1 devices with TGT DIF mode to this target driver's
-	 * initiator groups.
+	 * The maximum time in seconds cmd can stay inside the target
+	 * hardware, i.e. after rdy_to_xfer() and xmit_response(), before
+	 * on_hw_pending_cmd_timeout() will be called, if defined.
 	 *
-	 * Can be overriden per target by scst_tgt_set_hw_dif_type1_supported()
+	 * In the current implementation a cmd will be aborted in time t
+	 * max_hw_pending_time <= t < 2*max_hw_pending_time.
 	 */
-	unsigned hw_dif_type1_supported:1;
-
-	/*
-	 * True, if this target driver supports T10-PI (DIF), i.e. INSERT/STRIPE
-	 * mode, in hardware for type 2 protection. If false, SCST will not
-	 * allow to add type 2 devices with TGT DIF mode to this target driver's
-	 * initiator groups.
-	 *
-	 * Can be overriden per target by scst_tgt_set_hw_dif_type2_supported()
-	 */
-	unsigned hw_dif_type2_supported:1;
-
-	/*
-	 * True, if this target driver supports T10-PI (DIF), i.e. INSERT/STRIPE
-	 * mode, in hardware for type 3 protection. If false, SCST will not
-	 * allow to add type 3 devices with TGT DIF mode to this target driver's
-	 * initiator groups.
-	 *
-	 * Can be overriden per target by scst_tgt_set_hw_dif_type3_supported()
-	 */
-	unsigned hw_dif_type3_supported:1;
-
-	/*
-	 * True, if this target driver supports IP checksum format of T10-PI
-	 * (DIF) guard tags, i.e. hardware translation of guard tags between IP
-	 * and CRC on SCST/target driver boundary for better performance,
-	 * because IP checksums are much cheaper for CPU, than CRC.
-	 *
-	 * Can be overriden per target by scst_tgt_set_hw_dif_ip_supported()
-	 */
-	unsigned hw_dif_ip_supported:1;
-
-	/*
-	 * True, if this target driver requires the same layout for both data
-	 * and DIF tags SG vectors. Otherwise, for DIF tags minimally possible
-	 * SG vector size will be allocated.
-	 *
-	 * Can be overriden per target by scst_tgt_set_hw_dif_same_sg_layout_required()
-	 */
-	unsigned hw_dif_same_sg_layout_required:1;
+	int max_hw_pending_time;
 
 	/*
 	 * This function is equivalent to the SCSI
@@ -1926,15 +1700,6 @@ struct scst_tgt {
 	struct list_head tgt_acg_list; /* target ACG groups */
 #endif
 
-	/* Per target analog of the corresponding driver's fields */
-	unsigned tgt_dif_supported:1;
-	unsigned tgt_hw_dif_type1_supported:1;
-	unsigned tgt_hw_dif_type2_supported:1;
-	unsigned tgt_hw_dif_type3_supported:1;
-	unsigned tgt_hw_dif_ip_supported:1;
-	unsigned tgt_hw_dif_same_sg_layout_required:1;
-	const int *tgt_supported_dif_block_sizes;
-
 	/*
 	 * Maximum SG table size. Needed here, since different cards on the
 	 * same target template can have different SG table limitations.
@@ -1971,11 +1736,6 @@ struct scst_tgt {
 	char *tgt_comment;
 
 	uint16_t rel_tgt_id;
-
-	/* How many DIF failures detected on this target on the corresponding stage */
-	atomic_t tgt_dif_app_failed_tgt, tgt_dif_ref_failed_tgt, tgt_dif_guard_failed_tgt;
-	atomic_t tgt_dif_app_failed_scst, tgt_dif_ref_failed_scst, tgt_dif_guard_failed_scst;
-	atomic_t tgt_dif_app_failed_dev, tgt_dif_ref_failed_dev, tgt_dif_guard_failed_dev;
 
 #ifdef CONFIG_SCST_PROC
 	/* Name of the default security group ("Default_target_name") */
@@ -2309,9 +2069,6 @@ struct scst_cmd {
 	/* Set if this command was sent in double UA possible state */
 	unsigned int double_ua_possible:1;
 
-	/* Set if DIF check for just read data was deferred to thread context */
-	unsigned int deferred_dif_read_check:1;
-
 	/* Set if this command contains status */
 	unsigned int is_send_status:1;
 
@@ -2349,20 +2106,11 @@ struct scst_cmd {
 	/* Set if custom data buffer allocated by dev handler */
 	unsigned int dh_data_buf_alloced:1;
 
-	/*
-	 * Set length of each member of dif_sg was normalized to match
-	 * tgtt->hw_dif_same_sg_layout_required requirements
-	 */
-	unsigned int dif_sg_normalized:1;
-
 	/* Set if the target driver called scst_set_expected() */
 	unsigned int expected_values_set:1;
 
-	/* Set if the SG buffer was modified by scst_adjust_sg*() */
+	/* Set if the SG buffer was modified by scst_adjust_sg() */
 	unsigned int sg_buff_modified:1;
-
-	/* Set if the DIF SG buffer was modified by scst_adjust_sg*() */
-	unsigned int dif_sg_buff_modified:1;
 
 	/*
 	 * Set if cmd buffer was vmallocated and copied from more
@@ -2403,9 +2151,6 @@ struct scst_cmd {
 
 	/* Set if any direction residual is possible */
 	unsigned int resid_possible:1;
-
-	/* Set if DIF data should be included in the residual considerations */
-	unsigned int tgt_dif_data_expected:1;
 
 	/* Set if cmd is done */
 	unsigned int done:1;
@@ -2500,7 +2245,7 @@ struct scst_cmd {
 
 	/* Values supplied by the initiator in the transport layer header, if any */
 	scst_data_direction expected_data_direction;
-	int expected_transfer_len_full; /* both data and DIF tags, if any */
+	int expected_transfer_len;
 	int expected_out_transfer_len; /* for bidi writes */
 
 	int64_t lba; /* LBA of this cmd */
@@ -2516,14 +2261,10 @@ struct scst_cmd {
 	void (*scst_cmd_done)(struct scst_cmd *cmd, int next_state,
 		enum scst_exec_context pref_context);
 
-	struct sgv_pool_obj *sgv;	/* data sgv object */
+	struct sgv_pool_obj *sgv;	/* sgv object */
 	int bufflen;			/* cmd buffer length */
 	int sg_cnt;			/* SG segments count */
 	struct scatterlist *sg;		/* cmd data buffer SG vector */
-
-	struct sgv_pool_obj *dif_sgv;	/* DIF sgv object */
-	struct scatterlist *dif_sg;	/* cmd DIF tags buffer SG vector */
-	int dif_sg_cnt;			/* DIF SG segments count */
 
 	/*
 	 * Response data length in data buffer. Must not be set
@@ -2560,7 +2301,6 @@ struct scst_cmd {
 	struct sgv_pool_obj *out_sgv;	/* WRITE sgv object */
 	struct scatterlist *out_sg;	/* WRITE data buffer SG vector */
 	int out_sg_cnt;			/* WRITE SG segments count */
-	/* No out DIF tags buffer, because there's no BIDI command with them */
 
 	/*
 	 * Used if both target driver or SCST core for internal commands and
@@ -2573,15 +2313,8 @@ struct scst_cmd {
 	 */
 	struct scatterlist *tgt_i_sg;
 	int tgt_i_sg_cnt;
-	int tgt_i_dif_sg_cnt;
-	struct scatterlist *tgt_i_dif_sg; /* DIF tags */
-	/*
-	 * There's no tgt_i_dif_sg_cnt, because it's supposed to be strictly
-	 * bound to tgt_i_sg_cnt.
-	 */
 	struct scatterlist *tgt_out_sg;	/* bidirectional */
 	int tgt_out_sg_cnt;		/* bidirectional */
-	/* No out DIF tags buffer, because there's no BIDI command with them */
 
 	/*
 	 * The status fields in case of errors must be set using
@@ -2591,12 +2324,6 @@ struct scst_cmd {
 	uint8_t msg_status;	/* return status from host adapter itself */
 	uint8_t host_status;	/* set by low-level driver to indicate status */
 	uint8_t driver_status;	/* set by mid-level */
-
-	/* DIF actions on this cmd */
-	enum scst_dif_actions cmd_dif_actions;
-#ifdef CONFIG_SCST_DIF_INJECT_CORRUPTED_TAGS
-	uint32_t cmd_corrupt_dif_tag;
-#endif
 
 	uint8_t *sense;		/* pointer to sense buffer */
 	unsigned short sense_valid_len; /* length of valid sense data */
@@ -2623,8 +2350,8 @@ struct scst_cmd {
 	 */
 	struct list_head mgmt_cmd_list;
 
-	/* Used to restore sg if it was modified by scst_adjust_sg*() */
-	struct scst_orig_sg_data orig_sg, orig_dif_sg;
+	/* Used to restore sg if it was modified by scst_adjust_sg() */
+	struct scst_orig_sg_data orig_sg;
 
 	/* Per opcode stuff */
 	union {
@@ -2803,9 +2530,6 @@ struct scst_device {
 	 */
 	unsigned int dev_unregistering:1;
 
-	/* Set if this device does not support DIF IP checking */
-	unsigned int dev_dif_ip_not_supported:1;
-
 	/**************************************************************/
 
 	/*************************************************************
@@ -2823,8 +2547,6 @@ struct scst_device {
 	unsigned int tas:1;
 	unsigned int swp:1;
 	unsigned int d_sense:1;
-	unsigned int dpicz:1;
-	unsigned int ato:1;
 
 	/**
 	 ** Saved and default versions of them, which supported. TST is not
@@ -2853,31 +2575,12 @@ struct scst_device {
 	unsigned int d_sense_saved:1;
 	unsigned int d_sense_default:1;
 
-	unsigned int dpicz_saved:1;
-	unsigned int dpicz_default:1;
-
 	/*
 	 * Set if device implements own ordered commands management. If not set
 	 * and queue_alg is SCST_QUEUE_ALG_0_RESTRICTED_REORDER, expected_sn
 	 * will be incremented only after commands finished.
 	 */
 	unsigned int has_own_order_mgmt:1;
-
-	/**************************************************************/
-
-	/*
-	 * SCST_DIF_CHECK_APP_TAG (to match usage in the xPROTECT parsing
-	 * routines), if app tag is checked, or 0 otherwise. Might be used
-	 * as bool.
-	 */
-	unsigned int dif_app_chk;
-
-	/*
-	 * SCST_DIF_CHECK_REF_TAG (to match usage in the xPROTECT parsing
-	 * routines), if ref tag is checked, or 0 otherwise. Might be used
-	 * as bool.
-	 */
-	unsigned int dif_ref_chk;
 
 	/**************************************************************/
 
@@ -2921,34 +2624,6 @@ struct scst_device {
 
 	/* List of commands with lock, if dedicated threads are used */
 	struct scst_cmd_threads dev_cmd_threads;
-
-	/*************************************************************
-	 ** T10-PI fields. Read-only, hence no protection.
-	 *************************************************************/
-
-	enum scst_dif_mode dev_dif_mode;
-	int dev_dif_type; /* SCSI DIF type */
-
-	/*
-	 * Callback to process DIF tags by SCST as required by device
-	 * formatting and *protect cmd's bits. Supposed to return 0 on
-	 * success, i.e. when cmd processing should proceed normally, or
-	 * negative error code otherwise, i.e. when cmd processing should
-	 * be stopped and status send to its initiator.
-	 */
-	int (*dev_dif_fn)(struct scst_cmd *cmd);
-
-	__be16 dev_dif_static_app_tag; /* fixed APP TAG for all blocks in dev */
-	__be32 dev_dif_static_app_ref_tag; /* fixed APP TAG part from REF
-					    * TAG for all blocks in dev.
-					    * Valid only with dif type 3 */
-
-	/* Cache to optimize scst_parse_*protect() routines */
-	enum scst_dif_actions dev_dif_rd_actions;
-	enum scst_dif_actions dev_dif_wr_actions;
-	enum scst_dif_actions dev_dif_rd_prot0_actions;
-	enum scst_dif_actions dev_dif_wr_prot0_actions;
-	enum scst_dif_actions dev_dif_vr_actions;
 
 	/* Set if reserved via the SPC-2 SCSI RESERVE command. */
 	struct scst_session *reserved_by;
@@ -3102,9 +2777,6 @@ struct scst_tgt_dev {
 	/* Set if tgt_dev uses clustered SGV pool */
 	unsigned int tgt_dev_clust_pool:1;
 
-	/* Taken from the target on initialization to save a cache miss */
-	unsigned hw_dif_same_sg_layout_required:1;
-
 	/**************************************************************/
 
 	/*
@@ -3115,15 +2787,6 @@ struct scst_tgt_dev {
 
 	/* Used for storage of dev handler private stuff */
 	void *dh_priv;
-
-	/* Pointer to function to compute DIF guard tag */
-	__be16 (*tgt_dev_dif_crc_fn)(const void *buffer, unsigned int len);
-
-	/*
-	 * Guard tags format, one of SCST_DIF_GUARD_FORMAT_* constants.
-	 * Put here to save extra dereferences, this space isn't used anyway.
-	 */
-	int tgt_dev_dif_guard_format;
 
 	/* How many cmds alive on this dev in this session */
 	atomic_t tgt_dev_cmd_count ____cacheline_aligned_in_smp;
@@ -3170,11 +2833,6 @@ struct scst_tgt_dev {
 	/* Set if INQUIRY DATA HAS CHANGED UA is needed */
 	unsigned int inq_changed_ua_needed:1;
 
-	/* How many DIF failures detected on this tgt_dev on the corresponding stage */
-	atomic_t tgt_dev_dif_app_failed_tgt, tgt_dev_dif_ref_failed_tgt, tgt_dev_dif_guard_failed_tgt;
-	atomic_t tgt_dev_dif_app_failed_scst, tgt_dev_dif_ref_failed_scst, tgt_dev_dif_guard_failed_scst;
-	atomic_t tgt_dev_dif_app_failed_dev, tgt_dev_dif_ref_failed_dev, tgt_dev_dif_guard_failed_dev;
-
 	/*
 	 * Stored Unit Attention sense and its length for possible
 	 * subsequent REQUEST SENSE. Both protected by tgt_dev_lock.
@@ -3209,9 +2867,6 @@ struct scst_acg_dev {
 
 	/* If set, the corresponding LU is read only */
 	unsigned int acg_dev_rd_only:1;
-
-	/* Guard tags format, one of SCST_DIF_GUARD_FORMAT_* constants */
-	int acg_dev_dif_guard_format;
 
 	struct scst_acg *acg; /* parent acg */
 
@@ -3705,99 +3360,6 @@ static inline void scst_tgt_set_tgt_priv(struct scst_tgt *tgt, void *val)
 	tgt->tgt_priv = val;
 }
 
-/*
- * Get/Set functions for tgt's tgt_dif_supported
- */
-static inline bool scst_tgt_get_dif_supported(struct scst_tgt *tgt)
-{
-	return tgt->tgt_dif_supported;
-}
-
-static inline void scst_tgt_set_dif_supported(struct scst_tgt *tgt, bool val)
-{
-	tgt->tgt_dif_supported = !!val;
-}
-
-/*
- * Get/Set functions for tgt's tgt_hw_dif_type1_supported
- */
-static inline bool scst_tgt_get_hw_dif_type1_supported(struct scst_tgt *tgt)
-{
-	return tgt->tgt_hw_dif_type1_supported;
-}
-
-static inline void scst_tgt_set_hw_dif_type1_supported(struct scst_tgt *tgt, bool val)
-{
-	tgt->tgt_hw_dif_type1_supported = !!val;
-}
-
-/*
- * Get/Set functions for tgt's tgt_hw_dif_type2_supported
- */
-static inline bool scst_tgt_get_hw_dif_type2_supported(struct scst_tgt *tgt)
-{
-	return tgt->tgt_hw_dif_type2_supported;
-}
-
-static inline void scst_tgt_set_hw_dif_type2_supported(struct scst_tgt *tgt, bool val)
-{
-	tgt->tgt_hw_dif_type2_supported = !!val;
-}
-
-/*
- * Get/Set functions for tgt's tgt_hw_dif_type3_supported
- */
-static inline bool scst_tgt_get_hw_dif_type3_supported(struct scst_tgt *tgt)
-{
-	return tgt->tgt_hw_dif_type3_supported;
-}
-
-static inline void scst_tgt_set_hw_dif_type3_supported(struct scst_tgt *tgt, bool val)
-{
-	tgt->tgt_hw_dif_type3_supported = !!val;
-}
-
-/*
- * Get/Set functions for tgt's tgt_hw_dif_ip_supported
- */
-static inline bool scst_tgt_get_hw_dif_ip_supported(struct scst_tgt *tgt)
-{
-	return tgt->tgt_hw_dif_ip_supported;
-}
-
-static inline void scst_tgt_set_hw_dif_ip_supported(struct scst_tgt *tgt, bool val)
-{
-	tgt->tgt_hw_dif_ip_supported = !!val;
-}
-
-/*
- * Get/Set functions for tgt's tgt_hw_dif_same_sg_layout_required
- */
-static inline bool scst_tgt_get_hw_dif_same_sg_layout_required(struct scst_tgt *tgt)
-{
-	return tgt->tgt_hw_dif_same_sg_layout_required;
-}
-
-static inline void scst_tgt_set_hw_dif_same_sg_layout_required(struct scst_tgt *tgt, bool val)
-{
-	tgt->tgt_hw_dif_same_sg_layout_required = !!val;
-}
-
-/*
- * Get/Set functions for tgt's tgt_supported_dif_block_sizes
- */
-static inline const int *scst_tgt_get_supported_dif_block_sizes(
-	struct scst_tgt *tgt)
-{
-	return tgt->tgt_supported_dif_block_sizes;
-}
-
-static inline void scst_tgt_set_supported_dif_block_sizes(struct scst_tgt *tgt,
-	const int *const val)
-{
-	tgt->tgt_supported_dif_block_sizes = val;
-}
-
 void scst_update_hw_pending_start(struct scst_cmd *cmd);
 
 /*
@@ -3818,115 +3380,6 @@ uint16_t scst_lookup_tg_id(struct scst_device *dev, struct scst_tgt *tgt);
 bool scst_impl_alua_configured(struct scst_device *dev);
 int scst_tg_get_group_info(void **buf, uint32_t *response_length,
 			   struct scst_device *dev, uint8_t data_format);
-
-/*
- * Get/set functions for dev's static DIF APP TAG
- */
-static inline __be16 scst_dev_get_dif_static_app_tag(struct scst_device *dev)
-{
-	return dev->dev_dif_static_app_tag;
-}
-
-static inline __be32 scst_dev_get_dif_static_app_ref_tag(struct scst_device *dev)
-{
-	return dev->dev_dif_static_app_ref_tag;
-}
-
-static inline __be64 scst_dev_get_dif_static_app_tag_combined(
-	struct scst_device *dev)
-{
-	uint64_t a = (((uint64_t)be32_to_cpu(dev->dev_dif_static_app_ref_tag)) << 16) |
-			be16_to_cpu(dev->dev_dif_static_app_tag);
-	return cpu_to_be64(a);
-}
-
-void scst_dev_set_dif_static_app_tag_combined(struct scst_device *dev,
-	__be64 app_tag);
-
-/*
- * Get/set functions for dev's DIF APP TAG checking
- */
-static inline bool scst_dev_get_dif_app_tag_check(struct scst_device *dev)
-{
-	return dev->dif_app_chk == SCST_DIF_CHECK_APP_TAG;
-}
-
-int scst_set_dif_params(struct scst_device *dev,
-	enum scst_dif_mode dif_mode, int dif_type);
-
-/*
- * Functions to account detected DIF errors on the corresponding stages
- */
-static inline void scst_dif_acc_app_check_failed_tgt(struct scst_cmd *cmd)
-{
-	atomic_inc(&cmd->tgt->tgt_dif_app_failed_tgt);
-	atomic_inc(&cmd->tgt_dev->tgt_dev_dif_app_failed_tgt);
-}
-
-static inline void scst_dif_acc_ref_check_failed_tgt(struct scst_cmd *cmd)
-{
-	atomic_inc(&cmd->tgt->tgt_dif_ref_failed_tgt);
-	atomic_inc(&cmd->tgt_dev->tgt_dev_dif_ref_failed_tgt);
-}
-
-static inline void scst_dif_acc_guard_check_failed_tgt(struct scst_cmd *cmd)
-{
-	atomic_inc(&cmd->tgt->tgt_dif_guard_failed_tgt);
-	atomic_inc(&cmd->tgt_dev->tgt_dev_dif_guard_failed_tgt);
-}
-
-static inline void scst_dif_acc_app_check_failed_scst(struct scst_cmd *cmd)
-{
-	atomic_inc(&cmd->tgt->tgt_dif_app_failed_scst);
-	atomic_inc(&cmd->tgt_dev->tgt_dev_dif_app_failed_scst);
-}
-
-static inline void scst_dif_acc_ref_check_failed_scst(struct scst_cmd *cmd)
-{
-	atomic_inc(&cmd->tgt->tgt_dif_ref_failed_scst);
-	atomic_inc(&cmd->tgt_dev->tgt_dev_dif_ref_failed_scst);
-}
-
-static inline void scst_dif_acc_guard_check_failed_scst(struct scst_cmd *cmd)
-{
-	atomic_inc(&cmd->tgt->tgt_dif_guard_failed_scst);
-	atomic_inc(&cmd->tgt_dev->tgt_dev_dif_guard_failed_scst);
-}
-
-static inline void scst_dif_acc_app_check_failed_dev(struct scst_cmd *cmd)
-{
-	atomic_inc(&cmd->tgt->tgt_dif_app_failed_dev);
-	atomic_inc(&cmd->tgt_dev->tgt_dev_dif_app_failed_dev);
-}
-
-static inline void scst_dif_acc_ref_check_failed_dev(struct scst_cmd *cmd)
-{
-	atomic_inc(&cmd->tgt->tgt_dif_ref_failed_dev);
-	atomic_inc(&cmd->tgt_dev->tgt_dev_dif_ref_failed_dev);
-}
-
-static inline void scst_dif_acc_guard_check_failed_(struct scst_cmd *cmd)
-{
-	atomic_inc(&cmd->tgt->tgt_dif_guard_failed_dev);
-	atomic_inc(&cmd->tgt_dev->tgt_dev_dif_guard_failed_dev);
-}
-
-/*
- * Functions to process DIF tags by SCST as required by device
- * formatting and *protect cmd's bits.
- *
- * Return 0 on success, i.e. when cmd processing should proceed normally,
- * or negative error code otherwise, i.e. when cmd processing should be
- * stopped and status send to its initiator.
- */
-static inline int scst_dif_process_read(struct scst_cmd *cmd)
-{
-	return cmd->dev->dev_dif_fn(cmd);
-}
-static inline int scst_dif_process_write(struct scst_cmd *cmd)
-{
-	return cmd->dev->dev_dif_fn(cmd);
-}
 
 /**
  * Returns TRUE if cmd is being executed in atomic context.
@@ -4061,28 +3514,6 @@ static inline int scst_cmd_get_sg_cnt(struct scst_cmd *cmd)
 	return cmd->sg_cnt;
 }
 
-/*
- * Returns pointer to cmd's DIF tags SG data buffer.
- *
- * Usage of this function is not recommended, use scst_get_dif_buf()
- * function instead.
- */
-static inline struct scatterlist *scst_cmd_get_dif_sg(struct scst_cmd *cmd)
-{
-	return cmd->dif_sg;
-}
-
-/*
- * Returns pointer to cmd's DIF tags SG data buffer elements count.
- *
- * Usage of this function is not recommended, use scst_get_dif_buf()
- * function instead.
- */
-static inline int scst_cmd_get_dif_sg_cnt(struct scst_cmd *cmd)
-{
-	return cmd->dif_sg_cnt;
-}
-
 /* Returns cmd's LBA */
 static inline int64_t scst_cmd_get_lba(struct scst_cmd *cmd)
 {
@@ -4108,27 +3539,6 @@ static inline int scst_cmd_get_bufflen(struct scst_cmd *cmd)
 static inline int64_t scst_cmd_get_data_len(struct scst_cmd *cmd)
 {
 	return cmd->data_len;
-}
-
-/* Returns true, if cmd needs DIF buffer */
-static inline bool scst_cmd_needs_dif_buf(struct scst_cmd *cmd)
-{
-	return (scst_get_dif_action(scst_get_scst_dif_actions(cmd->cmd_dif_actions)) != SCST_DIF_ACTION_NONE) ||
-	       (scst_get_dif_action(scst_get_dev_dif_actions(cmd->cmd_dif_actions)) != SCST_DIF_ACTION_NONE);
-}
-
-/* Returns length of DIF buffer of this cmd */
-static inline int __scst_cmd_get_bufflen_dif(struct scst_cmd *cmd)
-{
-	return (cmd->bufflen >> cmd->dev->block_shift) << SCST_DIF_TAG_SHIFT;
-}
-
-static inline int scst_cmd_get_bufflen_dif(struct scst_cmd *cmd)
-{
-	if (scst_cmd_needs_dif_buf(cmd))
-		return __scst_cmd_get_bufflen_dif(cmd);
-	else
-		return 0;
 }
 
 /*
@@ -4158,7 +3568,7 @@ void scst_restore_sg_buff(struct scst_cmd *cmd);
 /* Restores modified sg buffer in the original state, if necessary */
 static inline void scst_check_restore_sg_buff(struct scst_cmd *cmd)
 {
-	if (unlikely(cmd->sg_buff_modified || cmd->dif_sg_buff_modified))
+	if (unlikely(cmd->sg_buff_modified))
 		scst_restore_sg_buff(cmd);
 }
 
@@ -4202,35 +3612,6 @@ static inline void scst_cmd_set_tgt_sg(struct scst_cmd *cmd,
 	cmd->tgt_i_sg = sg;
 	cmd->tgt_i_sg_cnt = sg_cnt;
 	cmd->tgt_i_data_buf_alloced = 1;
-}
-
-/*
- * Returns pointer to cmd's target's DIF tags SG data buffer. Since it's
- * for target drivers, the "_i_" part is omitted.
- */
-static inline struct scatterlist *scst_cmd_get_tgt_dif_sg(struct scst_cmd *cmd)
-{
-	return cmd->tgt_i_dif_sg;
-}
-
-/*
- * Returns cmd's target's DIF tags SG data buffer elements count. Since it's
- * for target drivers, the "_i_" part is omitted.
- */
-static inline int scst_cmd_get_tgt_dif_sg_cnt(struct scst_cmd *cmd)
-{
-	return cmd->tgt_i_dif_sg_cnt;
-}
-
-/*
- * Sets cmd's target's DIF tags SG data buffer. Since it's for target
- * drivers, the "_i_" part is omitted.
- */
-static inline void scst_cmd_set_tgt_dif_sg(struct scst_cmd *cmd,
-	struct scatterlist *dif_sg, int cnt)
-{
-	cmd->tgt_i_dif_sg = dif_sg;
-	cmd->tgt_i_dif_sg_cnt = cnt;
 }
 
 /* Returns pointer to cmd's target's OUT SG data buffer */
@@ -4495,18 +3876,11 @@ static inline scst_data_direction scst_cmd_get_expected_data_direction(
 	return cmd->expected_data_direction;
 }
 
-/*
- * Returns full expected transfer length, i.e. including both data and
- * DIF tags, if any.
- */
-static inline int scst_cmd_get_expected_transfer_len_full(
+static inline int scst_cmd_get_expected_transfer_len(
 	struct scst_cmd *cmd)
 {
-	return cmd->expected_transfer_len_full;
+	return cmd->expected_transfer_len;
 }
-
-int scst_cmd_get_expected_transfer_len_data(struct scst_cmd *cmd);
-int scst_cmd_get_expected_transfer_len_dif(struct scst_cmd *cmd);
 
 static inline int scst_cmd_get_expected_out_transfer_len(
 	struct scst_cmd *cmd)
@@ -4516,10 +3890,10 @@ static inline int scst_cmd_get_expected_out_transfer_len(
 
 static inline void scst_cmd_set_expected(struct scst_cmd *cmd,
 	scst_data_direction expected_data_direction,
-	int expected_transfer_len_full)
+	int expected_transfer_len)
 {
 	cmd->expected_data_direction = expected_data_direction;
-	cmd->expected_transfer_len_full = expected_transfer_len_full;
+	cmd->expected_transfer_len = expected_transfer_len;
 	cmd->expected_values_set = 1;
 }
 
@@ -4557,168 +3931,6 @@ static inline void scst_set_delivery_status(struct scst_cmd *cmd,
 	int delivery_status)
 {
 	cmd->delivery_status = delivery_status;
-}
-
-/*
- * Returns T10-PI actions, including checks, which target driver should do
- * with this command on READ direction transfers (xmit_response()). Might
- * be different from WRITE direction for BIDI commands.
- */
-static inline enum scst_dif_actions scst_get_read_dif_tgt_actions(
-	struct scst_cmd *cmd)
-{
-	return scst_get_tgt_dif_actions(cmd->cmd_dif_actions);
-}
-
-/*
- * Returns T10-PI actions, including checks, which target driver should do
- * with this command on WRITE direction transfers (rdy_to_xfer()). Might
- * be different from READ direction for BIDI commands.
- */
-static inline enum scst_dif_actions scst_get_write_dif_tgt_actions(
-	struct scst_cmd *cmd)
-{
-	return scst_get_tgt_dif_actions(cmd->cmd_dif_actions);
-}
-
-/*
- * Returns T10-PI actions, including checks, which dev handler should do
- * with this command on READ direction transfers. Might be different
- * from WRITE direction for BIDI commands.
- */
-static inline enum scst_dif_actions scst_get_read_dif_dev_actions(
-	struct scst_cmd *cmd)
-{
-	return scst_get_dev_dif_actions(cmd->cmd_dif_actions);
-}
-
-/*
- * Returns T10-PI actions, including checks, which dev handler should do
- * with this command on WRITE direction transfers. Might be different
- * from READ direction for BIDI commands.
- */
-static inline enum scst_dif_actions scst_get_write_dif_dev_actions(
-	struct scst_cmd *cmd)
-{
-	return scst_get_dev_dif_actions(cmd->cmd_dif_actions);
-}
-
-/*
- * Returns T10-PI protection type for this cmd's device. Supposed to be used
- * by target drivers.
- */
-static inline int scst_cmd_get_dif_prot_type(struct scst_cmd *cmd)
-{
-	return cmd->dev->dev_dif_type;
-}
-
-/*
- * Returns T10-PI application tag for this cmd's device's lba.
- *
- * If SCST_DIF_NO_CHECK_APP_TAG returned, the target driver should not
- * check app tag for this lba (SCSI requirement).
- *
- * Parameter out_lba_end returns end LBA of the area, where this app tag
- * is valid. Then, if necessary, the target driver supposed to call
- * this function again for the next app tag area. This is intended to
- * support Application Tag mode page. ToDo, not implemented yet.
- */
-static inline __be16 scst_cmd_get_dif_app_tag(struct scst_cmd *cmd,
-	uint64_t lba_start/*, uint64_t *out_lba_end*/)
-{
-#ifdef CONFIG_SCST_EXTRACHECKS
-	WARN_ON(!(scst_get_dif_checks(cmd->cmd_dif_actions) & SCST_DIF_CHECK_APP_TAG));
-#endif
-	return cmd->dev->dev_dif_static_app_tag;
-}
-
-/*
- * Returns T10-PI type 2 expected initial reference tag as LBA, i.e. converted
- * into CPU endianness. Valid only with protection type 2.
- */
-static inline uint32_t scst_cmd_get_dif_exp_ref_tag(struct scst_cmd *cmd)
-{
-#ifdef CONFIG_SCST_EXTRACHECKS
-	BUG_ON(cmd->dev->dev_dif_type != 2);
-	WARN_ON(cmd->cdb_len > 32);
-#endif
-	if (cmd->cdb_len == 32)
-		return get_unaligned_be32(&cmd->cdb[20]);
-	else
-		return cmd->lba & 0xFFFFFFFF;
-}
-
-/*
- * Returns T10-PI type 2 expected logical block application tag converted
- * into CPU endianness. Valid only with protection type 2.
- */
-static inline uint16_t scst_cmd_get_dif_exp_app_tag(struct scst_cmd *cmd)
-{
-#ifdef CONFIG_SCST_EXTRACHECKS
-	BUG_ON(cmd->dev->dev_dif_type != 2);
-	WARN_ON(cmd->cdb_len > 32);
-#endif
-	if (cmd->cdb_len == 32)
-		return get_unaligned_be16(&cmd->cdb[24]);
-	else {
-		/* cmd->dev must be alive at this point */
-		return be16_to_cpu(cmd->dev->dev_dif_static_app_tag);
-	}
-}
-
-/*
- * Returns T10-PI type 2 logical block application tag mask converted
- * into CPU endianness. Valid only with protection type 2.
- */
-static inline uint16_t scst_cmd_get_dif_app_tag_mask(struct scst_cmd *cmd)
-{
-#ifdef CONFIG_SCST_EXTRACHECKS
-	BUG_ON(cmd->dev->dev_dif_type != 2);
-	WARN_ON(cmd->cdb_len > 32);
-#endif
-	if (cmd->cdb_len == 32)
-		return get_unaligned_be16(&cmd->cdb[26]);
-	else {
-		if (scst_get_dif_checks(cmd->cmd_dif_actions) & SCST_DIF_CHECK_APP_TAG)
-			return 0xFFFF;
-		else
-			return 0;
-	}
-}
-
-/*
- * Returns T10-PI type 3 application/reference tag. Valid only with type 3
- * protection type. Alternatively, scst_dev_get_dif_static_app_tag_combined()
- * can be used.
- *
- * If SCST_DIF_NO_CHECK_ALL_REF_TAG returned, the target driver should not
- * check the tag for this lba (SCSI requirement).
- */
-static inline __be32 scst_cmd_get_dif_app_ref_tag(struct scst_cmd *cmd)
-{
-#ifdef CONFIG_SCST_EXTRACHECKS
-	BUG_ON(cmd->dev->dev_dif_type != 3);
-	WARN_ON(!(scst_get_dif_checks(cmd->cmd_dif_actions) & SCST_DIF_CHECK_REF_TAG));
-#endif
-	return cmd->dev->dev_dif_static_app_ref_tag;
-}
-
-/*
- * Returns format of T10-PI GUARD TAGs as one of SCST_DIF_GUARD_FORMAT_*
- * constants
- */
-static inline int scst_cmd_get_dif_guard_format(struct scst_cmd *cmd)
-{
-	return cmd->tgt_dev->tgt_dev_dif_guard_format;
-}
-
-/*
- * Returns block size of this cmd's device. Supposed to be used
- * by target drivers during T10-PI processing.
- */
-static inline int scst_cmd_get_block_size(struct scst_cmd *cmd)
-{
-	return cmd->dev->block_size;
 }
 
 static inline unsigned int scst_get_active_cmd_count(struct scst_cmd *cmd)
@@ -4990,45 +4202,6 @@ static inline int scst_get_buf_next(struct scst_cmd *cmd, uint8_t **buf)
 }
 
 static inline void scst_put_buf(struct scst_cmd *cmd, void *buf)
-{
-	/* Nothing to do */
-}
-
-/*
- * Functions for access to the commands DIF tags (SG) buffer. It doesn't
- * return any error code, because this buffer is strictly connected to the
- * data buffer, so for each block in that buffer, there must be tag here.
- *
- * Parameter psg on entrance specifies previous DIF tags SG in the access.
- * Must point to NULL for the first access. On exit returns current DIF
- * tags SG.
- *
- * The "put" function unmaps the buffer.
- *
- * !!! NOTE: this function does not check DIF SG cnt, hence must be used !!!
- * !!! only inside code bound to the corresponding data SG cnt!		 !!!
- */
-static inline uint8_t *scst_get_dif_buf(struct scst_cmd *cmd,
-	struct scatterlist **psg, int *length)
-{
-	uint8_t *buf;
-	struct scatterlist *sg;
-
-	if (*psg == NULL)
-		sg = cmd->dif_sg;
-	else
-		sg = __sg_next_inline(*psg);
-
-	buf = page_address(sg_page(sg));
-	buf += sg->offset;
-	*length = sg->length;
-
-	*psg = sg;
-
-	return buf;
-}
-
-static inline void scst_put_dif_buf(struct scst_cmd *cmd, void *buf)
 {
 	/* Nothing to do */
 }

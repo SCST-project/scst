@@ -814,7 +814,7 @@ static int dev_user_parse(struct scst_cmd *cmd)
 		ucmd->user_cmd.parse_cmd.expected_data_direction =
 					cmd->expected_data_direction;
 		ucmd->user_cmd.parse_cmd.expected_transfer_len =
-					cmd->expected_transfer_len_full;
+					cmd->expected_transfer_len;
 		ucmd->user_cmd.parse_cmd.expected_out_transfer_len =
 					cmd->expected_out_transfer_len;
 		ucmd->user_cmd.parse_cmd.sn = cmd->tgt_sn;

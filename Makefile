@@ -50,7 +50,6 @@ SRP_DIR=srpt
 SCST_LOCAL_DIR=scst_local
 MVSAS_DIR=mvsas_tgt
 FCST_DIR=fcst
-EMULEX_DIR=emulex
 
 ISCSI_DIR=iscsi-scst
 
@@ -94,12 +93,6 @@ help:
 	@echo "		iscsi_extraclean  : ISCSI target: clean + clean dependencies"
 	@echo "		iscsi_install     : ISCSI target: install"
 	@echo "		iscsi_uninstall   : ISCSI target: uninstall"
-	@echo ""
-	@echo "		emulex             : make Emulex target"
-	@echo "		emulex_clean       : Emulex target: clean "
-	@echo "		emulex_extraclean  : Emulex target: clean + clean dependencies"
-	@echo "		emulex_install     : Emulex target: install"
-	@echo "		emulex_uninstall   : Emulex target: uninstall"
 	@echo ""
 	@echo "		lsi               : make LSI MPT target"
 	@echo "		lsi_clean         : lsi target: clean "
@@ -155,7 +148,6 @@ all:
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
-	@if [ -d $(EMULEX_DIR) ]; then cd $(EMULEX_DIR) && $(MAKE) $@; fi
 
 install:
 	cd $(SCST_DIR) && $(MAKE) $@
@@ -167,7 +159,6 @@ install:
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
-	@if [ -d $(EMULEX_DIR) ]; then cd $(EMULEX_DIR) && $(MAKE) $@; fi
 
 uninstall:
 	cd $(SCST_DIR) && $(MAKE) $@
@@ -179,7 +170,6 @@ uninstall:
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
-	@if [ -d $(EMULEX_DIR) ]; then cd $(EMULEX_DIR) && $(MAKE) $@; fi
 
 clean:
 	cd $(SCST_DIR) && $(MAKE) $@
@@ -193,7 +183,6 @@ clean:
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
-	@if [ -d $(EMULEX_DIR) ]; then cd $(EMULEX_DIR) && $(MAKE) $@; fi
 
 extraclean:
 	-rm -f TAGS
@@ -208,7 +197,6 @@ extraclean:
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
-	@if [ -d $(EMULEX_DIR) ]; then cd $(EMULEX_DIR) && $(MAKE) $@; fi
 
 tags:
 	find . -type f -name "*.[ch]" | ctags --c-kinds=+p --fields=+iaS --extra=+q -e -L-
@@ -301,21 +289,6 @@ iscsi_clean:
 
 iscsi_extraclean:
 	cd $(ISCSI_DIR) && $(MAKE) extraclean
-
-emulex:
-	cd $(EMULEX_DIR) && $(MAKE) all
-
-emulex_install:
-	cd $(EMULEX_DIR) && $(MAKE) install
-
-emulex_uninstall:
-	cd $(EMULEX_DIR) && $(MAKE) uninstall
-
-emulex_clean: 
-	cd $(EMULEX_DIR) && $(MAKE) clean
-
-emulex_extraclean:
-	cd $(EMULEX_DIR) && $(MAKE) extraclean
 
 lsi:
 	cd $(LSI_DIR) && $(MAKE) all
@@ -533,7 +506,6 @@ disable_proc: extraclean
 	qla_old qla_old_install qla_old_uninstall qla_old_clean qla_old_extraclean \
 	lsi lsi_install lsi_uninstall lsi_clean lsi_extraclean \
 	iscsi iscsi_install iscsi_uninstall iscsi_clean iscsi_extraclean \
-	emulex emulex_install emulex_uninstall emulex_clean emulex_extraclean \
 	scst scst_install scst_uninstall scst_clean scst_extraclean \
 	docs docs_clean docs_extraclean \
 	scstadm scstadm_install scstadm_uninstall scstadm_clean scstadm_extraclean \

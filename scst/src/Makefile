@@ -121,7 +121,6 @@ install: all
 	install -m 644 $(MODULE_SYMVERS) $(INSTALL_DIR_H)
 	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
 	mkdir -p $(DESTDIR)/var/lib/scst/pr
-	mkdir -p $(DESTDIR)/var/lib/scst/dif_tags
 	mkdir -p $(DESTDIR)/var/lib/scst/vdev_mode_pages
 	@echo "****************************************************************"
 	@echo "*!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!*"

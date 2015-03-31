@@ -57,8 +57,7 @@ void ft_cmd_dump(struct scst_cmd *cmd, const char *caller)
 		prefix, cmd, fcmd->write_data_len, fcmd->read_data_len);
 	pr_info("%s exp_dir %x exp_xfer_len %d exp_in_len %d\n",
 		prefix, cmd->expected_data_direction,
-		cmd->expected_transfer_len_full,
-		cmd->expected_out_transfer_len);
+		cmd->expected_transfer_len, cmd->expected_out_transfer_len);
 	pr_info("%s dir %x data_len %lld bufflen %d out_bufflen %d\n",
 		prefix, cmd->data_direction, cmd->data_len,
 		cmd->bufflen, cmd->out_bufflen);
