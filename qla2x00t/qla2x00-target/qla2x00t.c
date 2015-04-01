@@ -1253,7 +1253,7 @@ retry:
 	}
 
 	/*
-	 * Mask that bit off, becuase the driver/fw does not use
+	 * Mask that bit off, because the driver/fw does not use
 	 * it for internal loop_id lookups.
 	 *
 	 * From 3.47 in the Qlogic 2500 fw spec:
