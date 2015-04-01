@@ -6589,7 +6589,7 @@ static ssize_t q2t_show_expl_conf_enabled(struct kobject *kobj,
 	res = scnprintf(buffer, PAGE_SIZE, "%d\n%s",
 		    vha->hw->enable_explicit_conf,
 		    vha->hw->enable_explicit_conf ?
-	    		SCST_SYSFS_KEY_MARK "\n" : "");
+		    SCST_SYSFS_KEY_MARK "\n" : "");
 
 out:
 	return res;
