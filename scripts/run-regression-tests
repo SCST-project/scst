@@ -278,14 +278,6 @@ CONFIG_TRACING CONFIG_X86_32                    \
             patch -p1 -f -s <"${p}" >>"${patchoutput}" 2>&1
         done
     fi &&
-    if [ -e $srcdir/srpt/patches/kernel-${kver}-pre-cflags.patch ]; then
-        echo "$srcdir/srpt/patches/kernel-${kver}-pre-cflags.patch ..." \
-           >>"${patchoutput}"
-        patch -p1 -f -s <$srcdir/srpt/patches/kernel-${kver}-pre-cflags.patch \
-	   >>"${patchoutput}"
-    else
-        echo "srpt/patches/kernel-${kver}-pre-cflags.patch not found."
-    fi &&
     make -s allmodconfig &>"${outputdir}/make-config-output.txt" &&
     for c in $disable; do sed -i.tmp "s/^$c=[ym]\$/$c=n/" .config; done &&
     make -s oldconfig &>/dev/null
