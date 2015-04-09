@@ -4218,8 +4218,11 @@ static void srpt_add_one(struct ib_device *device)
 		INIT_LIST_HEAD(&sport->nexus_list);
 		init_waitqueue_head(&sport->ch_releaseQ);
 		mutex_init(&sport->mutex);
-		for (j = 0; j < COMP_V_MASK_SIZE; j++)
+		for (j = 0; j < sdev->device->num_comp_vectors; j++) {
+			if (WARN_ON_ONCE(j >= COMP_V_MASK_SIZE))
+				break;
 			__set_bit(j, sport->comp_v_mask);
+		}
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
 		/*
 		 * A vanilla 2.6.19 or older kernel without backported OFED
