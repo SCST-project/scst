@@ -658,9 +658,8 @@ A target driver may have also the following entries:
     exist and contain value 1.
 
 Subdirectory "sessions" contains one subdirectory for each connected
-session with name equal to name of the connected initiator.
-
-Each session subdirectory contains the following entries:
+session with name equal to name of the connected initiator with the
+following entries:
 
  - initiator_name - contains initiator name
 
@@ -671,6 +670,31 @@ Each session subdirectory contains the following entries:
    executed, SCSI commands in this session.
 
  - commands - contains overall number of SCSI commands in this session.
+
+ - read_cmd_count - number of READ SCSI commands received since beginning
+   or last reset (writing 0 in this attribute)
+
+ - read_io_count_kb - amount of data in KB read by the initiator since
+   beginning or last reset (writing 0 in this attribute)
+
+ - write_cmd_count - number of WRITE SCSI commands received since
+   beginning or last reset (writing 0 in this attribute)
+
+ - write_io_count_kb - amount of data in KB written by the initiator
+   since beginning or last reset (writing 0 in this attribute)
+
+ - bidi_cmd_count - number of BIDI SCSI commands received since
+   beginning or last reset (writing 0 in this attribute)
+
+ - bidi_io_count_kb - amount of data in KB transferred by the
+   initiator since beginning or last reset (writing 0 in this attribute)
+
+ - none_cmd_count - number of not transferring data SCSI commands
+   (e.g. INQUIRY or TEST UNIT READY) received since beginning or last
+   reset (writing 0 in this attribute)
+
+ - unknown_cmd_count - number of unknown SCSI commands received since
+   beginning or last reset (writing 0 in this attribute)
 
  - latency - if CONFIG_SCST_MEASURE_LATENCY enabled, contains latency
    statistics for this session.
