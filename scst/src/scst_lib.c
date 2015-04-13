@@ -8264,6 +8264,9 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 
 	TRACE_ENTRY();
 
+	/* Do not call this function for aborted commands. */
+	WARN_ON_ONCE(!cmd->completed);
+
 	if (unlikely(opcode == READ_CAPACITY)) {
 		if ((status == SAM_STAT_GOOD) || (status == SAM_STAT_CONDITION_MET)) {
 			/* Always keep track of disk capacity */
@@ -8313,6 +8316,9 @@ int scst_tape_generic_dev_done(struct scst_cmd *cmd,
 	uint8_t *buffer = NULL;
 
 	TRACE_ENTRY();
+
+	/* Do not call this function for aborted commands. */
+	WARN_ON_ONCE(!cmd->completed);
 
 	if (unlikely(cmd->status != SAM_STAT_GOOD))
 		goto out;

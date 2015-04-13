@@ -3762,8 +3762,9 @@ static int scst_dev_done(struct scst_cmd *cmd)
 
 	state = SCST_CMD_STATE_PRE_XMIT_RESP1;
 
-	if (likely((cmd->op_flags & SCST_FULLY_LOCAL_CMD) == 0) &&
-	    likely(devt->dev_done != NULL)) {
+	if (likely(cmd->completed &&
+		   !(cmd->op_flags & SCST_FULLY_LOCAL_CMD) &&
+		   devt->dev_done)) {
 		int rc;
 
 		if (unlikely(!devt->dev_done_atomic &&
