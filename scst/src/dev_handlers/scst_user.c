@@ -1020,6 +1020,8 @@ out_reply:
 static void dev_user_set_block_shift(struct scst_cmd *cmd, int block_shift)
 {
 	struct scst_device *dev = cmd->dev;
+	struct scst_user_dev *udev = cmd->dev->dh_priv;
+	int new_block_shift;
 
 	TRACE_ENTRY();
 
@@ -1027,14 +1029,15 @@ static void dev_user_set_block_shift(struct scst_cmd *cmd, int block_shift)
 	 * No need for locks here, since *_detach() can not be
 	 * called, when there are existing commands.
 	 */
-	TRACE_DBG("dev %p, new block shift %d", dev, block_shift);
-	if (block_shift != 0)
-		dev->block_shift = block_shift;
-	else {
-		struct scst_user_dev *udev = cmd->dev->dh_priv;
-		dev->block_shift = scst_calc_block_shift(udev->def_block_size);
+	new_block_shift = block_shift ? :
+		scst_calc_block_shift(udev->def_block_size);
+	if (dev->block_shift != new_block_shift) {
+		PRINT_INFO("%s: Changed block shift from %d into %d / %d",
+			   dev->virt_name, dev->block_shift, block_shift,
+			   new_block_shift);
+		dev->block_shift = new_block_shift;
+		dev->block_size = 1 << dev->block_shift;
 	}
-	dev->block_size = 1 << dev->block_shift;
 
 	TRACE_EXIT();
 	return;
