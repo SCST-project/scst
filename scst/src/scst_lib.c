@@ -4,6 +4,8 @@
  *  Copyright (C) 2004 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
  *  Copyright (C) 2007 - 2015 SanDisk Corporation
+ *  Copyright (C) 2015 Permabit Technology Corporation.
+ *  Copyright (C) 2015 Calsoft Pvt. Ltd.
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -5159,6 +5161,20 @@ struct scst_write_same_priv {
 	struct scatterlist *ws_sg;
 };
 
+#ifdef CONFIG_SCST_EXTRACHECKS
+static u64 sg_data_length(struct scatterlist *sgl, int nr)
+{
+	struct scatterlist *sg;
+	u64 len = 0;
+	int i;
+
+	for_each_sg(sgl, sg, nr, i)
+		len += sg->length;
+
+	return len;
+}
+#endif
+
 /* ws_mutex suppose to be locked */
 static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 	int64_t lba, int blocks)
@@ -5172,7 +5188,7 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 
 	TRACE_ENTRY();
 
-	EXTRACHECKS_BUG_ON(blocks > wsp->ws_sg_cnt);
+	EXTRACHECKS_BUG_ON(len != sg_data_length(wsp->ws_sg, wsp->ws_sg_cnt));
 
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &ws_cmd->cmd_flags)) ||
 	    unlikely(ws_cmd->completed)) {
@@ -5202,7 +5218,7 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 	cmd->tgt_i_priv = wsp;
 
 	cmd->tgt_i_sg = ws_sg;
-	cmd->tgt_i_sg_cnt = blocks;
+	cmd->tgt_i_sg_cnt = wsp->ws_sg_cnt;
 	cmd->tgt_i_data_buf_alloced = 1;
 
 	wsp->ws_cur_lba += blocks;
@@ -5235,6 +5251,8 @@ static void scst_ws_finished(struct scst_write_same_priv *wsp)
 
 	sBUG_ON(wsp->ws_cur_in_flight != 0);
 
+	if (sg_page(&wsp->ws_sg[0]) != sg_page(ws_cmd->sg))
+		__free_page(sg_page(&wsp->ws_sg[0]));
 	kfree(wsp->ws_sg);
 	kfree(wsp);
 
@@ -5243,6 +5261,47 @@ static void scst_ws_finished(struct scst_write_same_priv *wsp)
 
 	TRACE_EXIT();
 	return;
+}
+
+/*
+ * If there is a tail with fewer segments than ws_max_each, adjust the SG
+ * vector and submit a WRITE command for the tail after all other in-flight
+ * commands have finished.
+ */
+static void scst_ws_process_tail(struct scst_write_same_priv *wsp)
+{
+	struct scst_cmd *ws_cmd = wsp->ws_orig_cmd;
+	struct scatterlist *sg;
+	unsigned left;
+	int i;
+
+	lockdep_assert_held(&wsp->ws_mutex);
+	EXTRACHECKS_BUG_ON(wsp->ws_cur_in_flight > 0);
+	EXTRACHECKS_BUG_ON(wsp->ws_left_to_send >= wsp->ws_max_each);
+
+	wsp->ws_max_each = wsp->ws_left_to_send;
+	left = wsp->ws_left_to_send << ws_cmd->dev->block_shift;
+	for_each_sg(wsp->ws_sg, sg, wsp->ws_sg_cnt, i) {
+		u32 len = min(left, sg->length);
+
+		if (sg->length > len) {
+			TRACE_DBG("Processing WS tail of %d << %d = %d bytes - adjusted length of element %d from %d to %d",
+				  wsp->ws_left_to_send,
+				  ws_cmd->dev->block_shift,
+				  wsp->ws_left_to_send <<
+				  ws_cmd->dev->block_shift, i,
+				  sg->length, len);
+			sg->length = len;
+			sg_mark_end(sg);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 0)
+			/* Old versions of sg_mark_end() clear page_link. */
+			BUG_ON(sg_page(sg) == NULL);
+#endif
+			wsp->ws_sg_cnt = i + 1;
+			break;
+		}
+		left -= len;
+	}
 }
 
 /* Must be called in a thread context and no locks */
@@ -5286,6 +5345,13 @@ static void scst_ws_write_cmd_finished(struct scst_cmd *cmd)
 	if (wsp->ws_left_to_send == 0)
 		goto out_check_finish;
 
+	if (wsp->ws_left_to_send < wsp->ws_max_each) {
+		if (wsp->ws_cur_in_flight > 0)
+			goto out_check_finish;
+		else
+			scst_ws_process_tail(wsp);
+	}
+
 	blocks = min_t(int, wsp->ws_left_to_send, wsp->ws_max_each);
 
 	rc = scst_ws_push_single_write(wsp, wsp->ws_cur_lba, blocks);
@@ -5320,13 +5386,15 @@ static void scst_ws_gen_writes(struct scst_write_same_priv *wsp)
 
 	mutex_lock(&wsp->ws_mutex);
 
-	while ((wsp->ws_left_to_send > 0) &&
-	       (wsp->ws_cur_in_flight < SCST_MAX_IN_FLIGHT_INTERNAL_COMMANDS)) {
-		int rc, blocks;
+	if (wsp->ws_left_to_send < wsp->ws_max_each)
+		scst_ws_process_tail(wsp);
 
-		blocks = min_t(int, wsp->ws_left_to_send, wsp->ws_max_each);
+	while (wsp->ws_left_to_send >= wsp->ws_max_each &&
+	       wsp->ws_cur_in_flight < SCST_MAX_IN_FLIGHT_INTERNAL_COMMANDS) {
+		int rc;
 
-		rc = scst_ws_push_single_write(wsp, wsp->ws_cur_lba, blocks);
+		rc = scst_ws_push_single_write(wsp, wsp->ws_cur_lba,
+					       wsp->ws_max_each);
 		if (rc != 0)
 			goto out_err;
 
@@ -5360,6 +5428,9 @@ out_err:
 void scst_write_same(struct scst_cmd *cmd)
 {
 	struct scst_write_same_priv *wsp;
+	struct page *pg = NULL;
+	struct scatterlist *sg;
+	unsigned int offset, length, mult, ws_sg_blocks, left;
 	int i;
 
 	TRACE_ENTRY();
@@ -5407,18 +5478,44 @@ void scst_write_same(struct scst_cmd *cmd)
 	wsp->ws_left_to_send = cmd->data_len >> cmd->dev->block_shift;
 	wsp->ws_max_each = SCST_MAX_EACH_INTERNAL_IO_SIZE >> cmd->dev->block_shift;
 
-	wsp->ws_sg_cnt = min_t(int, wsp->ws_left_to_send, wsp->ws_max_each);
+	if (cmd->bufflen <= PAGE_SIZE / 2)
+		pg = alloc_page(GFP_KERNEL);
+	if (pg) {
+		void *src, *dst;
+		int k;
+
+		mult = 0;
+		src = kmap(sg_page(cmd->sg));
+		dst = kmap(pg);
+		for (k = 0; k < PAGE_SIZE; k += cmd->bufflen, mult++)
+			memcpy(dst + k, src + cmd->sg->offset, cmd->bufflen);
+		kunmap(pg);
+		kunmap(src);
+		offset = 0;
+		length = k;
+	} else {
+		pg = sg_page(cmd->sg);
+		offset = cmd->sg->offset;
+		length = cmd->sg->length;
+		mult = 1;
+	}
+
+	ws_sg_blocks = min_t(int, wsp->ws_left_to_send, wsp->ws_max_each);
+	wsp->ws_sg_cnt = (ws_sg_blocks + mult - 1) / mult;
 	wsp->ws_sg = kmalloc(wsp->ws_sg_cnt * sizeof(*wsp->ws_sg), GFP_KERNEL);
 	if (wsp->ws_sg == NULL) {
 		PRINT_ERROR("Unable to alloc sg for %d entries", wsp->ws_sg_cnt);
 		goto out_free;
 	}
 	sg_init_table(wsp->ws_sg, wsp->ws_sg_cnt);
+	left = ws_sg_blocks << cmd->dev->block_shift;
+	for_each_sg(wsp->ws_sg, sg, wsp->ws_sg_cnt, i) {
+		u32 len = min(left, length);
 
-	for (i = 0; i < wsp->ws_sg_cnt; i++) {
-		sg_set_page(&wsp->ws_sg[i], sg_page(cmd->sg),
-			cmd->sg->length, cmd->sg->offset);
+		sg_set_page(sg, pg, len, offset);
+		left -= len;
 	}
+	WARN_ON_ONCE(left != 0);
 
 	scst_ws_gen_writes(wsp);
 
@@ -5427,6 +5524,8 @@ out:
 	return;
 
 out_free:
+	if (pg && pg != sg_page(cmd->sg))
+		__free_page(pg);
 	kfree(wsp);
 
 out_busy:
