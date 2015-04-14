@@ -8261,13 +8261,16 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 	int opcode = cmd->cdb[0];
 	int status = cmd->status;
 	int res = SCST_CMD_STATE_DEFAULT;
+	int sect_sz_off;
 
 	TRACE_ENTRY();
 
 	/* Do not call this function for aborted commands. */
 	WARN_ON_ONCE(!cmd->completed);
 
-	if (unlikely(opcode == READ_CAPACITY)) {
+	if (unlikely(opcode == READ_CAPACITY ||
+		     (opcode == SERVICE_ACTION_IN_16 &&
+		      cmd->cdb[1] == SAI_READ_CAPACITY_16))) {
 		if ((status == SAM_STAT_GOOD) || (status == SAM_STAT_CONDITION_MET)) {
 			/* Always keep track of disk capacity */
 			int buffer_size, sector_size, sh;
@@ -8283,14 +8286,19 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 				goto out;
 			}
 
-			sector_size = get_unaligned_be32(&buffer[4]);
+			sect_sz_off = opcode == READ_CAPACITY ? 4 : 8;
+			if (buffer_size < sect_sz_off + 4)
+				goto out;
+			sector_size = get_unaligned_be32(&buffer[sect_sz_off]);
 			scst_put_buf_full(cmd, buffer);
-			if (sector_size != 0)
+			if (sector_size != 0) {
 				sh = scst_calc_block_shift(sector_size);
-			else
-				sh = 0;
-			set_block_shift(cmd, sh);
-			TRACE_DBG("block_shift %d", sh);
+				set_block_shift(cmd, sh);
+				TRACE_DBG("block_shift %d", sh);
+			} else {
+				PRINT_ERROR("Sector size in %s response is 0",
+					    cmd->op_name);
+			}
 		}
 	} else {
 		/* It's all good */
