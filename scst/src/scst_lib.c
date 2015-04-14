@@ -9965,8 +9965,6 @@ int scst_parse_descriptors(struct scst_cmd *cmd)
 		break;
 	default:
 		sBUG();
-		res = -1;
-		break;
 	}
 
 	TRACE_EXIT_RES(res);
