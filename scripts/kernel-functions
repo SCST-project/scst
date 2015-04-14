@@ -44,11 +44,10 @@ function download_kernel {
   local plevel="$(patchlevel $1)"
   local series="$1"
 
-  if [ "${series:0:2}" = "3." ]; then
-    series="3.x"
-  else
-    series="${series:0:3}"
-  fi
+  case "${series:0:2}" in
+      [12].*) series="${series:0:3}";;
+      *)      series="${series/.*/}.x";;
+  esac
   mkdir -p "${kernel_sources}" || return $?
   test -w "${kernel_sources}" || return $?
   (
