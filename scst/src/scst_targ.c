@@ -4651,6 +4651,20 @@ int scst_init_thread(void *arg)
 }
 
 /**
+ * scst_wait_ioctx_timeout() - wait until an I/O context becomes available
+ * @tp: Thread pool to wait on.
+ *
+ * Returns the number of jiffies remaining if the I/O context became available
+ * in time and zero if the I/O context did not become available in time.
+ */
+void scst_wait_ioctx(struct scst_cmd_threads *tp)
+{
+	wait_event(tp->io_context_wait,
+		   *(volatile bool *)&tp->io_context_ready);
+	smp_rmb();
+}
+
+/**
  * scst_ioctx_get() - Associate an I/O context with a thread.
  *
  * Associate an I/O context with a thread in such a way that all threads in an
@@ -4717,7 +4731,8 @@ See "http://lkml.org/lkml/2012/7/17/515" for more details.
 
 	smp_wmb();
 	p_cmd_threads->io_context_ready = true;
-	return;
+
+	wake_up_all(&p_cmd_threads->io_context_wait);
 }
 
 /**

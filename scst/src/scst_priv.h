@@ -214,6 +214,8 @@ struct scst_cmd_thread_t {
 	bool		 being_stopped;
 };
 
+void scst_wait_ioctx(struct scst_cmd_threads *tp);
+
 static inline bool scst_set_io_context(struct scst_cmd *cmd,
 	struct io_context **old)
 {
