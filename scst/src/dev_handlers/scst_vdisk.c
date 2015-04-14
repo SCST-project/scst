@@ -3201,10 +3201,10 @@ static enum compl_status_e vdisk_exec_write_same(struct vdisk_cmd_params *p)
 
 	TRACE_ENTRY();
 
-	if (unlikely(cmd->cdb[1] & 1)) {
+	if (unlikely(cmd->cdb[1] & 0x10)) {
 		TRACE_DBG("%s", "ANCHOR not supported");
 		scst_set_invalid_field_in_cdb(cmd, 1,
-			SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
 		goto out;
 	}
 
@@ -3216,6 +3216,8 @@ static enum compl_status_e vdisk_exec_write_same(struct vdisk_cmd_params *p)
 	}
 
 	if (unlikely(cmd->data_len <= 0)) {
+		PRINT_ERROR("WRITE SAME: refused data_len = %#llx",
+			    cmd->data_len);
 		scst_set_invalid_field_in_cdb(cmd, cmd->len_off, 0);
 		goto out;
 	}

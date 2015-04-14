@@ -7550,22 +7550,47 @@ static int get_cdb_info_lba_8_len_4(struct scst_cmd *cmd,
 	return 0;
 }
 
+static int get_cdb_info_write_same(struct scst_cmd *cmd,
+				   const struct scst_sdbops *sdbops,
+				   const bool ndob)
+{
+	const bool anchor = (cmd->cdb[1] >> 4) & 1;
+	const bool unmap  = (cmd->cdb[1] >> 3) & 1;
+
+	if (!unmap && (anchor || ndob)) {
+		PRINT_ERROR("Received invalid %s command (UNMAP = %d;"
+			    " ANCHOR = %d; NDOB = %d)",
+			    scst_get_opcode_name(cmd), unmap, anchor, ndob);
+		scst_set_invalid_field_in_cdb(cmd, 1,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | (ndob ? 0 : 4));
+		return 1;
+	}
+
+	if (ndob) {
+		cmd->bufflen = 0;
+		cmd->data_direction = SCST_DATA_NONE;
+	} else {
+		cmd->bufflen = 1;
+		cmd->data_direction = SCST_DATA_WRITE;
+	}
+
+	return 0;
+}
+
 static int get_cdb_info_write_same10(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops)
 {
 	cmd->lba = get_unaligned_be32(cmd->cdb + sdbops->info_lba_off);
-	cmd->bufflen = 1;
 	cmd->data_len = get_unaligned_be16(cmd->cdb + sdbops->info_len_off);
-	return 0;
+	return get_cdb_info_write_same(cmd, sdbops, false);
 }
 
 static int get_cdb_info_write_same16(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops)
 {
 	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
-	cmd->bufflen = 1;
 	cmd->data_len = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
-	return 0;
+	return get_cdb_info_write_same(cmd, sdbops, cmd->cdb[1] & 1 /*NDOB*/);
 }
 
 static int get_cdb_info_compare_and_write(struct scst_cmd *cmd,
