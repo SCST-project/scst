@@ -1266,8 +1266,6 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 		goto out_unlock;
 	}
 
-	dev->dev_unregistering = 1;
-
 	list_del_init(&dev->dev_list_entry);
 
 	scst_dg_dev_remove_by_dev(dev);
@@ -1530,8 +1528,6 @@ void scst_unregister_virtual_device(int id)
 		PRINT_ERROR("Virtual device (id %d) not found", id);
 		goto out_unlock;
 	}
-
-	dev->dev_unregistering = 1;
 
 	list_del_init(&dev->dev_list_entry);
 
