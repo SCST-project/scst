@@ -1168,7 +1168,9 @@ static struct bin_attribute sysfs_sfp_attr = {
 };
 
 static ssize_t
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35) && \
+	(!defined(RHEL_RELEASE_CODE) || \
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
 qla2x00_sysfs_write_reset(
 #else
 qla2x00_sysfs_write_reset(struct file *file,
@@ -1248,7 +1250,9 @@ static struct bin_attribute sysfs_reset_attr = {
 };
 
 static ssize_t
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35) && \
+	(!defined(RHEL_RELEASE_CODE) || \
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
 qla2x00_sysfs_read_xgmac_stats(
 #else
 qla2x00_sysfs_read_xgmac_stats(struct file *file,
@@ -1305,7 +1309,9 @@ static struct bin_attribute sysfs_xgmac_stats_attr = {
 };
 
 static ssize_t
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35) && \
+	(!defined(RHEL_RELEASE_CODE) || \
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
 qla2x00_sysfs_read_dcbx_tlv(
 #else
 qla2x00_sysfs_read_dcbx_tlv(struct file *file,
