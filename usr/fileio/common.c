@@ -390,7 +390,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 	case READ_CAPACITY:
 		exec_read_capacity(vcmd);
 		break;
-        case SERVICE_ACTION_IN:
+        case SERVICE_ACTION_IN_16:
 		if ((cmd->cdb[1] & 0x1f) == SAI_READ_CAPACITY_16)
 			exec_read_capacity16(vcmd);
 		else {
