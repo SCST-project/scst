@@ -6740,8 +6740,10 @@ out:
 static void scsi_end_async(struct request *req, int error)
 {
 	struct scsi_io_context *sioc = req->end_io_data;
+	int errors;
 
-	TRACE_DBG("sioc %p, cmd %p", sioc, sioc->data);
+	TRACE_DBG("sioc %p, cmd %p, error %d / %d", sioc, sioc->data, error,
+		  req->errors);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
 	lockdep_assert_held(req->q->queue_lock);
@@ -6750,11 +6752,15 @@ static void scsi_end_async(struct request *req, int error)
 		lockdep_assert_held(req->q->queue_lock);
 #endif
 
+	errors = req->errors && !IS_ERR_VALUE(req->errors) ? req->errors :
+		IS_ERR_VALUE(req->errors) || error ?
+		SAM_STAT_CHECK_CONDITION : 0;
+
 	if (sioc->done)
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 30)
-		sioc->done(sioc->data, sioc->sense, req->errors, req->data_len);
+		sioc->done(sioc->data, sioc->sense, errors, req->data_len);
 #else
-		sioc->done(sioc->data, sioc->sense, req->errors, req->resid_len);
+		sioc->done(sioc->data, sioc->sense, errors, req->resid_len);
 #endif
 
 	kmem_cache_free(scsi_io_context_cache, sioc);

@@ -1724,6 +1724,8 @@ static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
 
 	scst_set_exec_time(cmd);
 
+	WARN_ON_ONCE(IS_ERR_VALUE(result));
+
 	cmd->status = result & 0xff;
 	cmd->msg_status = msg_byte(result);
 	cmd->host_status = host_byte(result);
