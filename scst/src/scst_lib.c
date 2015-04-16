@@ -8264,12 +8264,6 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 
 	TRACE_ENTRY();
 
-	/*
-	 * SCST sets good defaults for cmd->is_send_status and
-	 * cmd->resp_data_len based on cmd->status and cmd->data_direction,
-	 * therefore change them only if necessary
-	 */
-
 	if (unlikely(opcode == READ_CAPACITY)) {
 		if ((status == SAM_STAT_GOOD) || (status == SAM_STAT_CONDITION_MET)) {
 			/* Always keep track of disk capacity */
@@ -8299,9 +8293,6 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 		/* It's all good */
 	}
 
-	TRACE_DBG("cmd->is_send_status=%x, cmd->resp_data_len=%d, "
-	      "res=%d", cmd->is_send_status, cmd->resp_data_len, res);
-
 out:
 	TRACE_EXIT_RES(res);
 	return res;
@@ -8322,12 +8313,6 @@ int scst_tape_generic_dev_done(struct scst_cmd *cmd,
 	uint8_t *buffer = NULL;
 
 	TRACE_ENTRY();
-
-	/*
-	 * SCST sets good defaults for cmd->is_send_status and
-	 * cmd->resp_data_len based on cmd->status and cmd->data_direction,
-	 * therefore change them only if necessary
-	 */
 
 	if (unlikely(cmd->status != SAM_STAT_GOOD))
 		goto out;
