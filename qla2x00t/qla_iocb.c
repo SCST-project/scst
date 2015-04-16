@@ -328,7 +328,9 @@ qla2x00_start_scsi(srb_t *sp)
 	struct qla_hw_data *ha;
 	struct req_que *req;
 	struct rsp_que *rsp;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
 	char		tag[2];
+#endif
 
 	/* Setup device pointers. */
 	ret = 0;
@@ -409,6 +411,7 @@ qla2x00_start_scsi(srb_t *sp)
 	cmd_pkt->lun = cpu_to_le16(cmd->device->lun);
 
 	/* Update tagged queuing modifier */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
 	if (scsi_populate_tag_msg(cmd, tag)) {
 		switch (tag[0]) {
 		case HEAD_OF_QUEUE_TAG:
@@ -425,6 +428,10 @@ qla2x00_start_scsi(srb_t *sp)
 			break;
 		}
 	}
+#else
+	if (cmd->flags & SCMD_TAGGED)
+		cmd_pkt->control_flags = cpu_to_le16(CF_SIMPLE_TAG);
+#endif
 
 	/* Load SCSI command packet. */
 	memcpy(cmd_pkt->scsi_cdb, cmd->cmnd, cmd->cmd_len);
@@ -1302,7 +1309,9 @@ qla24xx_build_scsi_crc_2_iocbs(srb_t *sp, struct cmd_type_crc_2 *cmd_pkt,
 	uint16_t		fcp_cmnd_len;
 	struct fcp_cmnd		*fcp_cmnd;
 	dma_addr_t		crc_ctx_dma;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
 	char			tag[2];
+#endif
 
 	cmd = GET_CMD_SP(sp);
 
@@ -1398,6 +1407,7 @@ qla24xx_build_scsi_crc_2_iocbs(srb_t *sp, struct cmd_type_crc_2 *cmd_pkt,
 	/*
 	 * Update tagged queuing modifier if using command tag queuing
 	 */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
 	if (scsi_populate_tag_msg(cmd, tag)) {
 		switch (tag[0]) {
 		case HEAD_OF_QUEUE_TAG:
@@ -1413,6 +1423,9 @@ qla24xx_build_scsi_crc_2_iocbs(srb_t *sp, struct cmd_type_crc_2 *cmd_pkt,
 	} else {
 		fcp_cmnd->task_attribute = 0;
 	}
+#else
+	fcp_cmnd->task_attribute = 0;
+#endif
 
 	cmd_pkt->fcp_rsp_dseg_len = 0; /* Let response come in status iocb */
 
@@ -1523,7 +1536,9 @@ qla24xx_start_scsi(srb_t *sp)
 	struct scsi_cmnd *cmd = GET_CMD_SP(sp);
 	struct scsi_qla_host *vha = sp->fcport->vha;
 	struct qla_hw_data *ha = vha->hw;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
 	char		tag[2];
+#endif
 
 	/* Setup device pointers. */
 	ret = 0;
@@ -1607,6 +1622,7 @@ qla24xx_start_scsi(srb_t *sp)
 	int_to_scsilun(cmd->device->lun, &cmd_pkt->lun);
 	host_to_fcp_swap((uint8_t *)&cmd_pkt->lun, sizeof(cmd_pkt->lun));
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
 	/* Update tagged queuing modifier -- default is TSK_SIMPLE (0). */
 	if (scsi_populate_tag_msg(cmd, tag)) {
 		switch (tag[0]) {
@@ -1618,6 +1634,7 @@ qla24xx_start_scsi(srb_t *sp)
 			break;
 		}
 	}
+#endif
 
 	/* Load SCSI command packet. */
 	memcpy(cmd_pkt->fcp_cdb, cmd->cmnd, cmd->cmd_len);
@@ -2315,7 +2332,9 @@ qla82xx_start_scsi(srb_t *sp)
 	struct qla_hw_data *ha = vha->hw;
 	struct req_que *req = NULL;
 	struct rsp_que *rsp = NULL;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
 	char tag[2];
+#endif
 
 	/* Setup device pointers. */
 	ret = 0;
@@ -2494,6 +2513,7 @@ sufficient_dsds:
 		else if (cmd->sc_data_direction == DMA_FROM_DEVICE)
 			ctx->fcp_cmnd->additional_cdb_len |= 2;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
 		/*
 		 * Update tagged queuing modifier -- default is TSK_SIMPLE (0).
 		 */
@@ -2509,6 +2529,7 @@ sufficient_dsds:
 				break;
 			}
 		}
+#endif
 
 		/* Populate the FCP_PRIO. */
 		if (ha->flags.fcp_prio_enabled)
@@ -2570,6 +2591,7 @@ sufficient_dsds:
 		host_to_fcp_swap((uint8_t *)&cmd_pkt->lun,
 		    sizeof(cmd_pkt->lun));
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
 		/*
 		 * Update tagged queuing modifier -- default is TSK_SIMPLE (0).
 		 */
@@ -2583,6 +2605,7 @@ sufficient_dsds:
 				break;
 			}
 		}
+#endif
 
 		/* Populate the FCP_PRIO. */
 		if (ha->flags.fcp_prio_enabled)
