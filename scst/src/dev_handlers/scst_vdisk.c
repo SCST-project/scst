@@ -5415,6 +5415,12 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 				 * and retries.
 				 */
 				vdisk_bio_set_failfast(bio);
+				if (write)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
+					bio->bi_rw |= (1 << BIO_RW);
+#else
+					bio->bi_rw |= REQ_WRITE;
+#endif
 
 #if 0 /* It could be win, but could be not, so a performance study is needed */
 				bio->bi_rw |= REQ_SYNC;
@@ -5465,7 +5471,7 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 		bio = hbio;
 		hbio = hbio->bi_next;
 		bio->bi_next = NULL;
-		submit_bio((write != 0), bio);
+		submit_bio(bio->bi_rw, bio);
 	}
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
