@@ -1407,7 +1407,7 @@ static void cmnd_prepare_get_rejected_immed_data(struct iscsi_cmnd *cmnd)
 	struct iscsi_conn *conn = cmnd->conn;
 	struct scatterlist *sg = cmnd->sg;
 	char *addr;
-	u32 size;
+	u32 size, s, e;
 	unsigned int i;
 
 	TRACE_ENTRY();
@@ -1441,17 +1441,21 @@ static void cmnd_prepare_get_rejected_immed_data(struct iscsi_cmnd *cmnd)
 	}
 
 	addr = page_address(sg_page(&sg[0]));
-	conn->read_size = size;
-	for (i = 0; size > PAGE_SIZE; i++, size -= PAGE_SIZE) {
+	for (s = size, i = 0; s > 0; i++, s -= e) {
 		/* We already checked pdu.datasize in check_segment_length() */
 		sBUG_ON(i >= ISCSI_CONN_IOV_MAX);
-		conn->read_iov[i].iov_base = (void __force __user *)addr;
-		conn->read_iov[i].iov_len = PAGE_SIZE;
+		conn->read_iov[i].iov_base = addr;
+		e = min_t(u32, s, PAGE_SIZE);
+		conn->read_iov[i].iov_len = e;
 	}
-	conn->read_iov[i].iov_base = (void __force __user *)addr;
-	conn->read_iov[i].iov_len = size;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+	iov_iter_kvec(&conn->read_msg.msg_iter, READ | ITER_KVEC,
+		      conn->read_iov, i, size);
+#else
 	conn->read_msg.msg_iov = conn->read_iov;
-	conn->read_msg.msg_iovlen = ++i;
+	conn->read_msg.msg_iovlen = i;
+	conn->read_size = size;
+#endif
 
 out:
 	TRACE_EXIT();
@@ -1532,6 +1536,7 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 	struct scatterlist *sg = cmd->sg;
 	unsigned int bufflen = cmd->bufflen;
 	unsigned int idx, i, buff_offs;
+	const u32 read_size = size;
 	int res = 0;
 
 	TRACE_ENTRY();
@@ -1545,9 +1550,6 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 	offset += sg[0].offset;
 	idx = offset >> PAGE_SHIFT;
 	offset &= ~PAGE_MASK;
-
-	conn->read_msg.msg_iov = conn->read_iov;
-	conn->read_size = size;
 
 	i = 0;
 	while (1) {
@@ -1566,13 +1568,12 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 		EXTRACHECKS_BUG_ON(addr == NULL);
 		sg_len = sg[idx].offset + sg[idx].length - offset;
 
-		conn->read_iov[i].iov_base = (void __force __user *)addr + offset;
+		conn->read_iov[i].iov_base = addr + offset;
 
 		if (size <= sg_len) {
 			TRACE_DBG("idx=%d, i=%d, offset=%u, size=%d, addr=%p",
 				idx, i, offset, size, addr);
 			conn->read_iov[i].iov_len = size;
-			conn->read_msg.msg_iovlen = i+1;
 			break;
 		}
 		conn->read_iov[i].iov_len = sg_len;
@@ -1591,16 +1592,26 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 				size);
 			mark_conn_closed(conn);
 			res = -EINVAL;
-			break;
+			goto out;
 		}
 
 		idx++;
 		offset = 0;
 	}
 
-	TRACE_DBG("msg_iov=%p, msg_iovlen=%zd",
-		conn->read_msg.msg_iov, conn->read_msg.msg_iovlen);
+	i++;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+	iov_iter_kvec(&conn->read_msg.msg_iter, READ | ITER_KVEC,
+		      conn->read_iov, i, read_size);
+#else
+	conn->read_msg.msg_iov = conn->read_iov;
+	conn->read_msg.msg_iovlen = i;
+	conn->read_size = read_size;
+#endif
 
+	TRACE_DBG("msg_iov=%p, msg_iovlen=%u", conn->read_iov, i);
+
+out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -1740,7 +1751,6 @@ static int nop_out_start(struct iscsi_cmnd *cmnd)
 	size = cmnd->pdu.datasize;
 
 	if (size) {
-		conn->read_msg.msg_iov = conn->read_iov;
 		if (cmnd->pdu.bhs.itt != ISCSI_RESERVED_TAG) {
 			struct scatterlist *sg;
 
@@ -1761,10 +1771,9 @@ static int nop_out_start(struct iscsi_cmnd *cmnd)
 
 			for (i = 0; i < cmnd->sg_cnt; i++) {
 				conn->read_iov[i].iov_base =
-					(void __force __user *)(page_address(sg_page(&sg[i])));
+					page_address(sg_page(&sg[i]));
 				tmp = min_t(u32, size, PAGE_SIZE);
 				conn->read_iov[i].iov_len = tmp;
-				conn->read_size += tmp;
 				size -= tmp;
 			}
 			sBUG_ON(size != 0);
@@ -1776,10 +1785,9 @@ static int nop_out_start(struct iscsi_cmnd *cmnd)
 			 */
 			for (i = 0; i < (signed)ISCSI_CONN_IOV_MAX; i++) {
 				conn->read_iov[i].iov_base =
-					(void __force __user *)(page_address(dummy_page));
+					page_address(dummy_page);
 				tmp = min_t(u32, size, PAGE_SIZE);
 				conn->read_iov[i].iov_len = tmp;
-				conn->read_size += tmp;
 				size -= tmp;
 			}
 
@@ -1787,9 +1795,15 @@ static int nop_out_start(struct iscsi_cmnd *cmnd)
 			sBUG_ON(size != 0);
 		}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+		iov_iter_kvec(&conn->read_msg.msg_iter, READ | ITER_KVEC,
+			      conn->read_iov, i, cmnd->pdu.datasize);
+#else
+		conn->read_msg.msg_iov = conn->read_iov;
 		conn->read_msg.msg_iovlen = i;
-		TRACE_DBG("msg_iov=%p, msg_iovlen=%zd", conn->read_msg.msg_iov,
-			conn->read_msg.msg_iovlen);
+		conn->read_size = cmnd->pdu.datasize;
+#endif
+		TRACE_DBG("msg_iov=%p, msg_iovlen=%d", conn->read_iov, i);
 	}
 
 out:
