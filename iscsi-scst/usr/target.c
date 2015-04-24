@@ -127,6 +127,15 @@ static int wildcmp(const char *wild, const char *string)
 	return __wildcmp(wild, string, 0);
 }
 
+/*
+ * Evaluate the list with wildcard patterns as follows:
+ * - If only positive wildcard patterns have been specified, it is sufficient
+ *   that one wildcard pattern matches (logical or).
+ * - If only negative wildcard patterns have been specified, none of these
+ *   patterns must match (logical and).
+ * - If positive and negative wildcard patterns have been specified, one of
+ *   the positive patterns must match and none of the negative.
+ */
 int target_portal_allowed(struct target *target,
 	const char *target_portal, const char *initiator_name)
 {
@@ -135,14 +144,19 @@ int target_portal_allowed(struct target *target,
 
 	if (!list_empty(&target->allowed_portals)) {
 		struct iscsi_attr *attr;
+		bool any_pos_cond = false, pos_match = false, neg_match = true;
 
-		res = 0;
 		list_for_each_entry(attr, &target->allowed_portals, ulist) {
-			if (wildcmp(attr->attr_key, target_portal)) {
-				res = 1;
-				break;
+			bool match = wildcmp(attr->attr_key, target_portal);
+
+			if (attr->attr_key[0] != '!') {
+				any_pos_cond = true;
+				pos_match = pos_match || match;
+			} else {
+				neg_match = neg_match && match;
 			}
 		}
+		res = (!any_pos_cond || pos_match) && neg_match;
 		if (res == 0)
 			goto out;
 	}
