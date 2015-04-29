@@ -325,8 +325,6 @@ static int do_exec(struct vdisk_cmd *vcmd)
 			/* O_DSYNC flag is used for WT devices */
 			if (reply->status == 0)
 				exec_verify(vcmd, loff);
-			else if (fua)
-				exec_fsync(vcmd);
 		} else {
 			PRINT_WARNING("Attempt to write to read-only "
 				"device %s", dev->name);
