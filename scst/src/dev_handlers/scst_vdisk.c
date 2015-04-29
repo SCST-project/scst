@@ -1181,7 +1181,7 @@ out:
 /* Params are NULL-terminated */
 static int __vdev_load_mode_pages(struct scst_vdisk_dev *virt_dev, char *params)
 {
-	int res;
+	int res = 0;
 	char *param, *p, *pp;
 	unsigned long val;
 
@@ -1216,13 +1216,10 @@ static int __vdev_load_mode_pages(struct scst_vdisk_dev *virt_dev, char *params)
 		else {
 			TRACE_DBG("Unknown parameter %s", p);
 			res = -EINVAL;
-			break;
 		}
 		if (res != 0)
-			goto out;
+			break;
 	}
-
-	res = 0;
 
 out:
 	TRACE_EXIT_RES(res);
