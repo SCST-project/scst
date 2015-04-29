@@ -733,7 +733,7 @@ out_up:
 
 static ssize_t scst_local_sysfs_mgmt_cmd(char *buf)
 {
-	ssize_t res;
+	ssize_t res = 0;
 	char *command, *target_name, *session_name;
 	struct scst_local_tgt *t, *tgt;
 
@@ -792,8 +792,6 @@ static ssize_t scst_local_sysfs_mgmt_cmd(char *buf)
 		}
 		scst_local_close_session_impl(sess, false);
 	}
-
-	res = 0;
 
 out_unlock:
 	mutex_unlock(&scst_local_mutex);
