@@ -4080,6 +4080,10 @@ static inline void *sg_virt(struct scatterlist *sg)
 	return page_address(sg_page(sg)) + sg->offset;
 }
 
+static inline void sg_mark_end(struct scatterlist *sg)
+{
+}
+
 #ifndef __BACKPORT_LINUX_SCATTERLIST_H_TO_2_6_23__
 
 static inline void sg_init_table(struct scatterlist *sgl, unsigned int nents)
