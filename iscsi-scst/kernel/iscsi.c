@@ -1568,7 +1568,7 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 		EXTRACHECKS_BUG_ON(addr == NULL);
 		sg_len = sg[idx].offset + sg[idx].length - offset;
 
-		conn->read_iov[i].iov_base = (void __force __user *)addr + offset;
+		conn->read_iov[i].iov_base = addr + offset;
 
 		if (size <= sg_len) {
 			TRACE_DBG("idx=%d, i=%d, offset=%u, size=%d, addr=%p",

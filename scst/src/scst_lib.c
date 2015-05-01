@@ -5279,6 +5279,8 @@ static void scst_ws_process_tail(struct scst_write_same_priv *wsp)
 	unsigned left;
 	int i;
 
+	TRACE_ENTRY();
+
 	lockdep_assert_held(&wsp->ws_mutex);
 	EXTRACHECKS_BUG_ON(wsp->ws_cur_in_flight > 0);
 	EXTRACHECKS_BUG_ON(wsp->ws_left_to_send >= wsp->ws_max_each);
@@ -5306,6 +5308,9 @@ static void scst_ws_process_tail(struct scst_write_same_priv *wsp)
 		}
 		left -= len;
 	}
+
+	TRACE_EXIT();
+	return;
 }
 
 /* Must be called in a thread context and no locks */
