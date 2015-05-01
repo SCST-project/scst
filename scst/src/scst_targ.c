@@ -578,12 +578,14 @@ int scst_pre_parse(struct scst_cmd *cmd)
 
 	TRACE_DBG("op_name <%s> (cmd %p), direction=%d "
 		"(expected %d, set %s), lba %lld, bufflen=%d, data_len %lld, "
-		"out_bufflen=%d (expected len %d, out expected len %d), "
-		"flags=0x%x, naca %d", cmd->op_name, cmd, cmd->data_direction,
+		"out_bufflen=%d (expected len data %d, expected len DIF %d, "
+		"out expected len %d), flags=0x%x, , naca %d",
+		cmd->op_name, cmd, cmd->data_direction,
 		cmd->expected_data_direction,
 		scst_cmd_is_expected_set(cmd) ? "yes" : "no",
 		(long long)cmd->lba, cmd->bufflen, (long long)cmd->data_len,
-		cmd->out_bufflen, cmd->expected_transfer_len,
+		cmd->out_bufflen, scst_cmd_get_expected_transfer_len_data(cmd),
+		scst_cmd_get_expected_transfer_len_dif(cmd),
 		cmd->expected_out_transfer_len, cmd->op_flags, cmd->cmd_naca);
 
 	res = 0;
@@ -616,6 +618,16 @@ static bool scst_is_allowed_to_mismatch_cmd(struct scst_cmd *cmd)
 	return res;
 }
 #endif
+
+static bool scst_bufflen_eq_expecten_len(struct scst_cmd *cmd)
+{
+	int b = cmd->bufflen;
+
+	if (cmd->tgt_dif_data_expected)
+		b += (b >> cmd->dev->block_shift) << SCST_DIF_TAG_SHIFT;
+
+	return b == cmd->expected_transfer_len_full;
+}
 
 static int scst_parse_cmd(struct scst_cmd *cmd)
 {
@@ -679,12 +691,12 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 #ifdef CONFIG_SCST_USE_EXPECTED_VALUES
 		if (scst_cmd_is_expected_set(cmd)) {
 			TRACE(TRACE_MINOR, "Using initiator supplied values: "
-				"direction %d, transfer_len %d/%d",
-				cmd->expected_data_direction,
-				cmd->expected_transfer_len,
+				"direction %d, transfer_len %d/%d/%d",
+				scst_cmd_get_expected_transfer_len_data(cmd),
+				scst_cmd_get_expected_transfer_len_dif(cmd),
 				cmd->expected_out_transfer_len);
 			cmd->data_direction = cmd->expected_data_direction;
-			cmd->bufflen = cmd->expected_transfer_len;
+			cmd->bufflen = scst_cmd_get_expected_transfer_len_data(cmd);
 			cmd->data_len = cmd->bufflen;
 			cmd->out_bufflen = cmd->expected_out_transfer_len;
 		} else {
@@ -722,7 +734,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 			 * expected value, but limit it to some
 			 * reasonable value (15MB).
 			 */
-			cmd->bufflen = min(cmd->expected_transfer_len,
+			cmd->bufflen = min(scst_cmd_get_expected_transfer_len_data(cmd),
 						15*1024*1024);
 			cmd->data_len = cmd->bufflen;
 			if (cmd->data_direction == SCST_DATA_BIDI)
@@ -785,21 +797,22 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 	if (scst_cmd_is_expected_set(cmd)) {
 #ifdef CONFIG_SCST_USE_EXPECTED_VALUES
 		if (unlikely((cmd->data_direction != cmd->expected_data_direction) ||
-			     (cmd->bufflen != cmd->expected_transfer_len) ||
+			     !scst_bufflen_eq_expecten_len(cmd) ||
 			     (cmd->out_bufflen != cmd->expected_out_transfer_len))) {
 			TRACE(TRACE_MINOR, "Expected values don't match "
 				"decoded ones: data_direction %d, "
 				"expected_data_direction %d, "
-				"bufflen %d, expected_transfer_len %d, "
-				"out_bufflen %d, expected_out_transfer_len %d",
+				"bufflen %d, expected len data %d, expected len "
+				"DIF %d, out_bufflen %d, expected_out_transfer_len %d",
 				cmd->data_direction,
 				cmd->expected_data_direction,
-				cmd->bufflen, cmd->expected_transfer_len,
+				cmd->bufflen, scst_cmd_get_expected_transfer_len_data(cmd),
+				scst_cmd_get_expected_transfer_len_dif(cmd),
 				cmd->out_bufflen, cmd->expected_out_transfer_len);
 			PRINT_BUFF_FLAG(TRACE_MINOR, "Suspicious CDB",
 				cmd->cdb, cmd->cdb_len);
 			cmd->data_direction = cmd->expected_data_direction;
-			cmd->bufflen = cmd->expected_transfer_len;
+			cmd->bufflen = scst_cmd_get_expected_transfer_len_data(cmd);
 			cmd->data_len = cmd->bufflen;
 			cmd->out_bufflen = cmd->expected_out_transfer_len;
 			cmd->resid_possible = 1;
@@ -823,13 +836,15 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 				goto out_done;
 			}
 		}
-		if (unlikely(cmd->bufflen != cmd->expected_transfer_len)) {
+		if (unlikely(!scst_bufflen_eq_expecten_len(cmd))) {
 			TRACE(TRACE_MINOR, "Warning: expected "
-				"transfer length %d for opcode %s "
+				"transfer length %d (DIF %d) for opcode %s "
 				"(handler %s, target %s) doesn't match "
 				"decoded value %d",
-				cmd->expected_transfer_len, scst_get_opcode_name(cmd),
-				devt->name, cmd->tgtt->name, cmd->bufflen);
+				scst_cmd_get_expected_transfer_len_data(cmd),
+				scst_cmd_get_expected_transfer_len_dif(cmd),
+				scst_get_opcode_name(cmd), devt->name,
+				cmd->tgtt->name, cmd->bufflen);
 			PRINT_BUFF_FLAG(TRACE_MINOR, "Suspicious CDB",
 				cmd->cdb, cmd->cdb_len);
 			if ((cmd->expected_data_direction & SCST_DATA_READ) ||
@@ -878,14 +893,16 @@ set_res:
 
 	TRACE(TRACE_SCSI, "op_name <%s> (cmd %p), direction=%d "
 		"(expected %d, set %s), lba=%lld, bufflen=%d, data len %lld, "
-		"out_bufflen=%d, (expected len %d, out expected len %d), "
-		"flags=0x%x, internal %d, naca %d", cmd->op_name, cmd,
-		cmd->data_direction, cmd->expected_data_direction,
+		"out_bufflen=%d, (expected len data %d, expected len DIF %d, "
+		"out expected len %d), flags=0x%x, internal %d, naca %d",
+		cmd->op_name, cmd, cmd->data_direction, cmd->expected_data_direction,
 		scst_cmd_is_expected_set(cmd) ? "yes" : "no",
 		(unsigned long long)cmd->lba,
 		cmd->bufflen, (long long)cmd->data_len, cmd->out_bufflen,
-		cmd->expected_transfer_len, cmd->expected_out_transfer_len,
-		cmd->op_flags, cmd->internal, cmd->cmd_naca);
+		scst_cmd_get_expected_transfer_len_data(cmd),
+		scst_cmd_get_expected_transfer_len_dif(cmd),
+		cmd->expected_out_transfer_len, cmd->op_flags, cmd->internal,
+		cmd->cmd_naca);
 
 #ifdef CONFIG_SCST_EXTRACHECKS
 	switch (state) {
@@ -1045,7 +1062,7 @@ static void scst_set_write_len(struct scst_cmd *cmd)
 				goto out;
 		} else {
 			cmd->write_len = min(cmd->bufflen,
-				cmd->expected_transfer_len);
+				scst_cmd_get_expected_transfer_len_data(cmd));
 			if (cmd->write_len == cmd->bufflen)
 				goto out;
 		}
@@ -1163,13 +1180,18 @@ alloc:
 		TRACE_MEM("tgt_i_data_buf_alloced set (cmd %p)", cmd);
 		cmd->sg = cmd->tgt_i_sg;
 		cmd->sg_cnt = cmd->tgt_i_sg_cnt;
+		cmd->dif_sg = cmd->tgt_i_dif_sg;
+		cmd->dif_sg_cnt = cmd->tgt_i_dif_sg_cnt;
 		cmd->out_sg = cmd->tgt_out_sg;
 		cmd->out_sg_cnt = cmd->tgt_out_sg_cnt;
 		r = 0;
 	} else {
 		TRACE_MEM("Both *_data_buf_alloced set (cmd %p, sg %p, "
-			"sg_cnt %d, tgt_i_sg %p, tgt_i_sg_cnt %d)", cmd, cmd->sg,
-			cmd->sg_cnt, cmd->tgt_i_sg, cmd->tgt_i_sg_cnt);
+			"sg_cnt %d, dif_sg %p, dif_sg_cnt %d, tgt_i_sg %p, "
+			"tgt_i_sg_cnt %d, tgt_i_dif_sg %p, tgt_i_dif_sg_cnt %d)",
+			cmd, cmd->sg, cmd->sg_cnt, cmd->dif_sg, cmd->dif_sg_cnt,
+			cmd->tgt_i_sg, cmd->tgt_i_sg_cnt, cmd->tgt_i_dif_sg,
+			cmd->tgt_i_dif_sg_cnt);
 		r = 0;
 	}
 
@@ -3537,6 +3559,7 @@ static int scst_pre_dev_done(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
+again:
 	rc = scst_check_auto_sense(cmd);
 	if (unlikely(rc)) {
 		if (test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))
@@ -3567,16 +3590,22 @@ next:
 		goto out;
 	}
 
-	rc = scsi_status_is_good(cmd->status);
-	if (likely(rc)) {
-		unsigned char type = cmd->dev->type;
+	if (likely(cmd->status == SAM_STAT_GOOD)) {
+		if (cmd->deferred_dif_read_check) {
+			int rc = scst_dif_process_read(cmd);
+			if (unlikely(rc != 0)) {
+				cmd->deferred_dif_read_check = 0;
+				goto again;
+			}
+		}
+
 		if (unlikely((cmd->cdb[0] == MODE_SENSE ||
 			      cmd->cdb[0] == MODE_SENSE_10)) &&
 		    (cmd->tgt_dev->tgt_dev_rd_only || cmd->dev->swp) &&
-		    (type == TYPE_DISK ||
-		     type == TYPE_WORM ||
-		     type == TYPE_MOD ||
-		     type == TYPE_TAPE)) {
+		    (cmd->dev->type == TYPE_DISK ||
+		     cmd->dev->type == TYPE_WORM ||
+		     cmd->dev->type == TYPE_MOD ||
+		     cmd->dev->type == TYPE_TAPE)) {
 			int32_t length;
 			uint8_t *address;
 			bool err = false;

@@ -3433,7 +3433,7 @@ static int srpt_xfer_data(struct srpt_rdma_ch *ch,
 				len = scst_get_buf_next(cmd, &buf);
 			}
 			WARN_ON_ONCE(offset !=
-				scst_cmd_get_expected_transfer_len(cmd));
+				scst_cmd_get_expected_transfer_len_full(cmd));
 		}
 		scst_rx_data(cmd, SCST_RX_STATUS_SUCCESS,
 			     in_irq() ? SCST_CONTEXT_TASKLET :

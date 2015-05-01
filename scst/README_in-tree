@@ -233,6 +233,11 @@ your favorite kernel configuration Makefile target, e.g. "make xconfig":
    can clear already measured results by writing 0 in each file. Note,
    you need a non-preemptible kernel to have correct results.
 
+ - CONFIG_SCST_DIF_INJECT_CORRUPTED_TAGS - if defined, allows injection
+   of corrupted DIF tags according to the Oracle specification. This
+   functionality is working only if dif_mode doesn't contain dev_store
+   and dif_type is 1.
+
 HIGHMEM kernel configurations are fully supported, but not recommended
 for performance reasons.
 
@@ -489,6 +494,17 @@ Every target should have at least the following entries:
    particular target driver or not, you can find out by checking traces
    or the target driver's source code.
 
+ - dif_capabilities - if this target supports T10-PI, returns which
+   exact DIF capabilities this target supports.
+
+ - dif_checks_failed - if this target supports T10-PI, returns
+   statistics how many DIF errors have been detected on the
+   corresponding processing stages on this target. It returns 3 rows of
+   numbers with 3 numbers in each row: for target driver stage, for SCST
+   stage and for dev handler stage. Numbers in each row: how many errors
+   detected checking application, reference and guard tags
+   correspondingly. Writing to this attribute resets the numbers.
+
  - cpu_mask - defines CPU affinity mask for threads serving this target.
    For threads serving LUNs it is used only for devices with
    threads_pool_type "per_initiator".
@@ -546,6 +562,17 @@ following entries:
    executed, SCSI commands in this session.
 
  - commands - contains overall number of SCSI commands in this session.
+
+ - dif_checks_failed - if target of this session supports T10-PI, returns
+   statistics how many DIF errors have been detected on the
+   corresponding processing stages on all DIF-enabled LUNs in this
+   session. It returns 3 rows of numbers with 3 numbers in each row: for
+   target driver stage, for SCST stage and for dev handler stage.
+   Numbers in each row: how many errors detected checking application,
+   reference and guard tags correspondingly. Writing to this attribute
+   resets the numbers. Similar statistics returned in attribute with the
+   same name for each LUN in this session in this LUN's subdirectory, if
+   its device configured with dif_type > 0.
 
  - read_cmd_count - number of READ SCSI commands received since beginning
    or last reset (writing 0 in this attribute)
@@ -865,6 +892,47 @@ cache. The following parameters possible for vdisk_fileio:
  - zero_copy - if set, then this device uses zero copy access to the
    page cache. At the moment, only read side zero copy is implemented.
 
+ - dif_mode - specifies which T10-PI, or DIF, mode this device will use.
+   See SCSI standards from more info about T10-PI. Available DIF modes
+   (can be combined using '|'):
+
+    * tgt - DIF tags are checked on the target hardware, if supported
+
+    * scst - DIF tags are checked inside SCST core
+
+    * dev_check - DIF tags are checked inside backend device
+
+    * dev_store - DIF tags are stored inside backend device on the WRITE
+      path and read from it on the READ path
+
+   For instance, if only tgt DIF mode specified, then target driver,
+   serving this device, will inside hardware check, then STRIP DIF tags
+   from SCSI commands on the WRITE path and generate, then INSERT DIF
+   tags into SCSI commands on the READ path, so neither SCST core, nor
+   dev handler will see them.
+
+   Similarly, if only scst DIF mode specified, then target driver will
+   PASS DIF tags into SCST core, which then check/STRIP/generate/INSERT
+   them, so dev handler will not see them.
+
+   If only dev_check DIF mode specified, then both target driver and
+   SCST core will PASS DIF tags into the dev handler, which is then
+   responsible to check them in the backend hardware. If only dev_store
+   specified, then DIF tags will only be stored by the dev handler in
+   the backend hardware without checking at any level.
+
+   If all "tgt|scst|dev_check|dev_store" DIF mode specified, then all
+   target driver, SCST core and dev handler will check DIF tags, then
+   dev handler will store them in the backend hardware.
+
+ - dif_type - specifies which DIF SCSI type this device will use.
+
+ - dif_static_app_tag - specifies fixed (static) DIF application tag for
+   this device.
+
+ - dif_filename - specifies full path to filename, where DIF tags will
+   be stored.
+
 Handler vdisk_blockio provides BLOCKIO mode to create virtual devices.
 This mode performs direct block I/O with a block device, bypassing the
 page cache for all operations. This mode works ideally with high-end
@@ -872,10 +940,10 @@ storage HBAs and for applications that either do not need caching
 between application and disk or need the large block throughput. See
 below for more info.
 
-The following common with vdisk_fileio parameters are possible for
-vdisk_blockio: filename, blocksize, nv_cache, write_through, read_only,
-removable, rotational, thin_provisioned, tst. See vdisk_fileio above for
-description of those parameters.
+The following parameters possible for vdisk_blockio: filename,
+blocksize, nv_cache, read_only, removable, rotational, thin_provisioned,
+tst, dif_mode, dif_type, dif_static_app_tag, dif_filename. See
+vdisk_fileio above for description of those parameters.
 
 Handler vdisk_nullio provides NULLIO mode to create virtual devices. In
 this mode no real I/O is done, but success returned to initiators.
