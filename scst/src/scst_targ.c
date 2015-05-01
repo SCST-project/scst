@@ -4461,8 +4461,8 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 			scst_put(cmd->cpu_cmd_counter);
 		}
 	} else {
-		TRACE_MGMT_DBG("%s", "FLAG SUSPENDED set, skipping");
 		scst_put(cmd->cpu_cmd_counter);
+		TRACE_MGMT_DBG("%s", "FLAG SUSPENDED set, skipping");
 		res = 1;
 	}
 
@@ -5044,8 +5044,8 @@ static int scst_get_mgmt(struct scst_mgmt_cmd *mcmd)
 
 	if (unlikely(test_bit(SCST_FLAG_SUSPENDED, &scst_flags) &&
 		     !test_bit(SCST_FLAG_SUSPENDING, &scst_flags))) {
-		TRACE_MGMT_DBG("%s", "FLAG SUSPENDED set, skipping");
 		scst_put(mcmd->cpu_cmd_counter);
+		TRACE_MGMT_DBG("%s", "FLAG SUSPENDED set, skipping");
 		res = 1;
 		goto out;
 	}
