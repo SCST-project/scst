@@ -4267,17 +4267,17 @@ out_free:
 	goto out;
 }
 
-int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun,
-	bool gen_scst_report_luns_changed)
+static struct scst_acg_dev *__scst_acg_del_lun(struct scst_acg *acg,
+					       uint64_t lun,
+					       struct list_head *tgt_dev_list)
 {
-	int res = 0;
 	struct scst_acg_dev *acg_dev = NULL, *a;
 	struct scst_tgt_dev *tgt_dev, *tt;
 	struct scst_session *sess;
 
-	TRACE_ENTRY();
-
 	lockdep_assert_held(&scst_mutex);
+
+	INIT_LIST_HEAD(tgt_dev_list);
 
 	list_for_each_entry(a, &acg->acg_dev_list, acg_dev_list_entry) {
 		if (a->lun == lun) {
@@ -4285,11 +4285,8 @@ int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun,
 			break;
 		}
 	}
-	if (acg_dev == NULL) {
-		PRINT_ERROR("Device is not found in group %s", acg->acg_name);
-		res = -EINVAL;
+	if (acg_dev == NULL)
 		goto out;
-	}
 
 	list_for_each_entry_safe(tgt_dev, tt, &acg_dev->dev->dev_tgt_dev_list,
 			 dev_tgt_dev_list_entry) {
@@ -4300,17 +4297,91 @@ int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun,
 			scst_del_tgt_dev(tgt_dev);
 			mutex_unlock(&sess->tgt_dev_list_mutex);
 
-			scst_free_tgt_dev(tgt_dev);
+			list_add_tail(&tgt_dev->extra_tgt_dev_list_entry,
+				      tgt_dev_list);
 		}
 	}
 
-	scst_del_free_acg_dev(acg_dev, true);
+	scst_del_acg_dev(acg_dev, true, true);
+
+out:
+	return acg_dev;
+}
+
+int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun,
+	bool gen_scst_report_luns_changed)
+{
+	int res = -EINVAL;
+	struct scst_acg_dev *acg_dev;
+	struct scst_tgt_dev *tgt_dev, *tt;
+	struct list_head tgt_dev_list;
+
+	TRACE_ENTRY();
+
+	lockdep_assert_held(&scst_mutex);
+
+	acg_dev = __scst_acg_del_lun(acg, lun, &tgt_dev_list);
+	if (acg_dev == NULL) {
+		PRINT_ERROR("Device is not found in group %s", acg->acg_name);
+		goto out;
+	}
 
 	if (gen_scst_report_luns_changed)
 		scst_report_luns_changed(acg);
 
+	list_for_each_entry_safe(tgt_dev, tt, &tgt_dev_list,
+				 extra_tgt_dev_list_entry) {
+		scst_free_tgt_dev(tgt_dev);
+	}
+	scst_free_acg_dev(acg_dev);
+
+	res = 0;
+
 	PRINT_INFO("Removed LUN %lld from group %s (target %s)",
 		lun, acg->acg_name, acg->tgt ? acg->tgt->tgt_name : "?");
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
+		      struct scst_device *dev, uint64_t lun,
+		      bool read_only)
+{
+	struct scst_acg_dev *acg_dev;
+	struct scst_tgt_dev *tgt_dev, *tt;
+	struct list_head tgt_dev_list;
+	int res = -EINVAL;
+
+	TRACE_ENTRY();
+
+	lockdep_assert_held(&scst_mutex);
+
+	acg_dev = __scst_acg_del_lun(acg, lun, &tgt_dev_list);
+
+	res = scst_acg_add_lun(acg, parent, dev, lun, read_only, !acg_dev,
+			       NULL);
+	if (res != 0)
+		goto out;
+
+	if (acg_dev) {
+		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
+				    dev_tgt_dev_list_entry) {
+			if (tgt_dev->acg_dev->acg == acg &&
+			    tgt_dev->lun == lun) {
+				TRACE_MGMT_DBG("INQUIRY DATA HAS CHANGED"
+					       " on tgt_dev %p", tgt_dev);
+				scst_gen_aen_or_ua(tgt_dev,
+					SCST_LOAD_SENSE(scst_sense_inquiry_data_changed));
+			}
+		}
+	}
+	list_for_each_entry_safe(tgt_dev, tt, &tgt_dev_list,
+				 extra_tgt_dev_list_entry) {
+		scst_free_tgt_dev(tgt_dev);
+	}
+	scst_free_acg_dev(acg_dev);
 
 out:
 	TRACE_EXIT_RES(res);
