@@ -360,10 +360,10 @@ static void disk_cmd_done(void *data, char *sense, int result, int resid)
 	TRACE_DBG("work %p, cmd %p, left %d, result %d, sense %p, resid %d",
 		work, work->cmd, work->left, result, sense, resid);
 
+	work->result = result;
+
 	if (result == SAM_STAT_GOOD)
 		goto out_complete;
-
-	work->result = result;
 
 	disk_restore_sg(work);
 
@@ -497,8 +497,7 @@ split:
 
 			rc = scst_scsi_exec_async(cmd, &work, disk_cmd_done);
 			if (unlikely(rc != 0)) {
-				PRINT_ERROR("scst_scsi_exec_async() failed: %d",
-					rc);
+				PRINT_ERROR("scst_scsi_exec_async() failed: %d", rc);
 				goto out_err_restore;
 			}
 
