@@ -499,8 +499,7 @@ split:
 
 			rc = scst_scsi_exec_async(cmd, &work, disk_cmd_done);
 			if (unlikely(rc != 0)) {
-				PRINT_ERROR("scst_scsi_exec_async() failed: %d",
-					rc);
+				PRINT_ERROR("scst_scsi_exec_async() failed: %d", rc);
 				goto out_err_restore;
 			}
 

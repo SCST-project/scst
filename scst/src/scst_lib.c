@@ -10966,19 +10966,15 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 	void (*set_block_shift)(struct scst_cmd *cmd, int block_shift))
 {
 	int opcode = cmd->cdb[0];
-	int status = cmd->status;
 	int res = SCST_CMD_STATE_DEFAULT;
 	int sect_sz_off;
 
 	TRACE_ENTRY();
 
-	/* Do not call this function for aborted commands. */
-	WARN_ON_ONCE(!cmd->completed);
-
 	if (unlikely(opcode == READ_CAPACITY ||
 		     (opcode == SERVICE_ACTION_IN_16 &&
 		      cmd->cdb[1] == SAI_READ_CAPACITY_16))) {
-		if ((status == SAM_STAT_GOOD) || (status == SAM_STAT_CONDITION_MET)) {
+		if (scst_cmd_completed_good(cmd)) {
 			/* Always keep track of disk capacity */
 			int buffer_size, sector_size, sh;
 			uint8_t *buffer;
@@ -11032,10 +11028,7 @@ int scst_tape_generic_dev_done(struct scst_cmd *cmd,
 
 	TRACE_ENTRY();
 
-	/* Do not call this function for aborted commands. */
-	WARN_ON_ONCE(!cmd->completed);
-
-	if (unlikely(cmd->status != SAM_STAT_GOOD))
+	if (unlikely(!scst_cmd_completed_good(cmd)))
 		goto out;
 
 	switch (opcode) {

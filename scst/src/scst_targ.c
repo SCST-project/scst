@@ -3591,7 +3591,7 @@ next:
 		goto out;
 	}
 
-	if (likely(cmd->status == SAM_STAT_GOOD)) {
+	if (likely(scst_cmd_completed_good(cmd))) {
 		if (cmd->deferred_dif_read_check) {
 			int rc = scst_dif_process_read(cmd);
 			if (unlikely(rc != 0)) {
@@ -3791,9 +3791,8 @@ static int scst_dev_done(struct scst_cmd *cmd)
 
 	state = SCST_CMD_STATE_PRE_XMIT_RESP1;
 
-	if (likely(cmd->completed &&
-		   !(cmd->op_flags & SCST_FULLY_LOCAL_CMD) &&
-		   devt->dev_done)) {
+	if (likely((cmd->op_flags & SCST_FULLY_LOCAL_CMD) == 0) &&
+	    likely(devt->dev_done != NULL)) {
 		int rc;
 
 		if (unlikely(!devt->dev_done_atomic &&
@@ -4463,8 +4462,8 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 			scst_put(cmd->cpu_cmd_counter);
 		}
 	} else {
-		TRACE_MGMT_DBG("%s", "FLAG SUSPENDED set, skipping");
 		scst_put(cmd->cpu_cmd_counter);
+		TRACE_MGMT_DBG("%s", "FLAG SUSPENDED set, skipping");
 		res = 1;
 	}
 
@@ -5061,8 +5060,8 @@ static int scst_get_mgmt(struct scst_mgmt_cmd *mcmd)
 
 	if (unlikely(test_bit(SCST_FLAG_SUSPENDED, &scst_flags) &&
 		     !test_bit(SCST_FLAG_SUSPENDING, &scst_flags))) {
-		TRACE_MGMT_DBG("%s", "FLAG SUSPENDED set, skipping");
 		scst_put(mcmd->cpu_cmd_counter);
+		TRACE_MGMT_DBG("%s", "FLAG SUSPENDED set, skipping");
 		res = 1;
 		goto out;
 	}
