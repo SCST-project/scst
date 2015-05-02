@@ -591,11 +591,12 @@ static int lat_info_show(struct seq_file *seq, void *v)
 				seq_printf(seq, "%-46s\n", buf);
 			}
 
+			rcu_read_lock();
 			for (t = SESS_TGT_DEV_LIST_HASH_SIZE-1; t >= 0; t--) {
 				struct list_head *head =
 						&sess->sess_tgt_dev_list[t];
 				struct scst_tgt_dev *tgt_dev;
-				list_for_each_entry(tgt_dev, head,
+				list_for_each_entry_rcu(tgt_dev, head,
 						sess_tgt_dev_list_entry) {
 
 					seq_printf(seq, "\nLUN: %llu\n", tgt_dev->lun);
@@ -677,6 +678,7 @@ static int lat_info_show(struct seq_file *seq, void *v)
 					}
 				}
 			}
+			rcu_read_unlock();
 
 			scst_time = sess->scst_time;
 			tgt_time = sess->tgt_time;
@@ -744,7 +746,9 @@ static ssize_t scst_proc_scsi_tgt_gen_write_lat(struct file *file,
 				acg_sess_list_entry) {
 			PRINT_INFO("Zeroing latency statistics for initiator "
 				"%s", sess->initiator_name);
+
 			spin_lock_bh(&sess->lat_lock);
+			rcu_read_lock();
 
 			sess->scst_time = 0;
 			sess->tgt_time = 0;
@@ -763,7 +767,7 @@ static ssize_t scst_proc_scsi_tgt_gen_write_lat(struct file *file,
 				struct list_head *head =
 						&sess->sess_tgt_dev_list[t];
 				struct scst_tgt_dev *tgt_dev;
-				list_for_each_entry(tgt_dev, head,
+				list_for_each_entry_rcu(tgt_dev, head,
 						sess_tgt_dev_list_entry) {
 					tgt_dev->scst_time = 0;
 					tgt_dev->tgt_time = 0;
@@ -774,6 +778,7 @@ static ssize_t scst_proc_scsi_tgt_gen_write_lat(struct file *file,
 				}
 			}
 
+			rcu_read_unlock();
 			spin_unlock_bh(&sess->lat_lock);
 		}
 	}
@@ -2427,15 +2432,19 @@ static int scst_sessions_info_show(struct seq_file *seq, void *v)
 		list_for_each_entry(sess, &acg->acg_sess_list,
 				acg_sess_list_entry) {
 			int active_cmds = 0, t;
+
+			rcu_read_lock();
 			for (t = SESS_TGT_DEV_LIST_HASH_SIZE-1; t >= 0; t--) {
 				struct list_head *head =
 						&sess->sess_tgt_dev_list[t];
 				struct scst_tgt_dev *tgt_dev;
-				list_for_each_entry(tgt_dev, head,
+				list_for_each_entry_rcu(tgt_dev, head,
 						sess_tgt_dev_list_entry) {
 					active_cmds += atomic_read(&tgt_dev->tgt_dev_cmd_count);
 				}
 			}
+			rcu_read_unlock();
+
 			seq_printf(seq, "%-20s %-45s %-35s %d/%d\n",
 					sess->tgt->tgtt->name,
 					sess->initiator_name,

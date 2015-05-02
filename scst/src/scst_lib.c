@@ -2381,14 +2381,13 @@ void scst_set_initial_UA(struct scst_session *sess, int key, int asc, int ascq)
 	TRACE_MGMT_DBG("Setting for sess %p initial UA %x/%x/%x", sess, key,
 		asc, ascq);
 
-	/* To protect sess_tgt_dev_list */
-	mutex_lock(&scst_mutex);
-
+	rcu_read_lock();
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		struct list_head *head = &sess->sess_tgt_dev_list[i];
 		struct scst_tgt_dev *tgt_dev;
 
-		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
+		list_for_each_entry_rcu(tgt_dev, head,
+					sess_tgt_dev_list_entry) {
 			spin_lock_bh(&tgt_dev->tgt_dev_lock);
 			if (!list_empty(&tgt_dev->UA_list)) {
 				struct scst_tgt_dev_UA *ua;
@@ -2413,8 +2412,7 @@ void scst_set_initial_UA(struct scst_session *sess, int key, int asc, int ascq)
 			spin_unlock_bh(&tgt_dev->tgt_dev_lock);
 		}
 	}
-
-	mutex_unlock(&scst_mutex);
+	rcu_read_unlock();
 
 	TRACE_EXIT();
 	return;
@@ -2458,7 +2456,23 @@ void scst_free_aen(struct scst_aen *aen)
 	return;
 }
 
-/* Must be called under scst_mutex */
+#ifdef CONFIG_SCST_EXTRACHECKS
+static bool scst_is_active_tgt_dev(struct scst_tgt_dev *tgt_dev)
+{
+	bool is_active;
+
+	rcu_read_lock();
+	is_active = scst_lookup_tgt_dev(tgt_dev->sess, tgt_dev->lun) == tgt_dev;
+	rcu_read_unlock();
+
+	return is_active;
+}
+#endif
+
+/*
+ * The caller must ensure that tgt_dev does not disappear while this function
+ * is in progress.
+ */
 void scst_gen_aen_or_ua(struct scst_tgt_dev *tgt_dev,
 	int key, int asc, int ascq)
 {
@@ -2564,7 +2578,6 @@ static inline bool scst_is_report_luns_changed_type(int type)
 	}
 }
 
-/* scst_mutex supposed to be held */
 static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
 					      int flags)
 {
@@ -2580,11 +2593,13 @@ static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
 
 	local_bh_disable();
 
+	rcu_read_lock();
+
 #if !defined(__CHECKER__)
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		head = &sess->sess_tgt_dev_list[i];
 
-		list_for_each_entry(tgt_dev, head,
+		list_for_each_entry_rcu(tgt_dev, head,
 				sess_tgt_dev_list_entry) {
 			/* Lockdep triggers here a false positive.. */
 			spin_lock(&tgt_dev->tgt_dev_lock);
@@ -2595,7 +2610,8 @@ static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		head = &sess->sess_tgt_dev_list[i];
 
-		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
+		list_for_each_entry_rcu(tgt_dev, head,
+					sess_tgt_dev_list_entry) {
 			int sl;
 
 			if (!scst_is_report_luns_changed_type(
@@ -2615,12 +2631,14 @@ static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
 	for (i = SESS_TGT_DEV_LIST_HASH_SIZE-1; i >= 0; i--) {
 		head = &sess->sess_tgt_dev_list[i];
 
-		list_for_each_entry_reverse(tgt_dev, head,
-						sess_tgt_dev_list_entry) {
+		list_for_each_entry_rcu(tgt_dev, head,
+					sess_tgt_dev_list_entry) {
 			spin_unlock(&tgt_dev->tgt_dev_lock);
 		}
 	}
 #endif
+
+	rcu_read_unlock();
 
 	local_bh_enable();
 
@@ -2628,7 +2646,6 @@ static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
 	return;
 }
 
-/* The activity supposed to be suspended and scst_mutex held */
 static void scst_report_luns_changed_sess(struct scst_session *sess)
 {
 	int i;
@@ -2644,13 +2661,14 @@ static void scst_report_luns_changed_sess(struct scst_session *sess)
 
 	TRACE_DBG("REPORTED LUNS DATA CHANGED (sess %p)", sess);
 
+	rcu_read_lock();
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		struct list_head *head;
 		struct scst_tgt_dev *tgt_dev;
 
 		head = &sess->sess_tgt_dev_list[i];
 
-		list_for_each_entry(tgt_dev, head,
+		list_for_each_entry_rcu(tgt_dev, head,
 				sess_tgt_dev_list_entry) {
 			if (scst_is_report_luns_changed_type(
 					tgt_dev->dev->type)) {
@@ -2662,6 +2680,8 @@ static void scst_report_luns_changed_sess(struct scst_session *sess)
 	}
 
 found:
+	rcu_read_unlock();
+
 	if (tgtt->report_aen != NULL) {
 		struct scst_aen *aen;
 		int rc;
@@ -2694,12 +2714,14 @@ out:
 	return;
 }
 
-/* The activity supposed to be suspended and scst_mutex held */
 void scst_report_luns_changed(struct scst_acg *acg)
 {
 	struct scst_session *sess;
 
 	TRACE_ENTRY();
+
+	/* To protect acg_sess_list */
+	lockdep_assert_held(&scst_mutex);
 
 	TRACE_DBG("REPORTED LUNS DATA CHANGED (acg %s)", acg->acg_name);
 
@@ -2738,10 +2760,8 @@ void scst_aen_done(struct scst_aen *aen)
 	if (scst_analyze_sense(aen->aen_sense, aen->aen_sense_len,
 			SCST_SENSE_ALL_VALID, SCST_LOAD_SENSE(
 				scst_sense_reported_luns_data_changed))) {
-		mutex_lock(&scst_mutex);
 		scst_queue_report_luns_changed_UA(aen->sess,
 			SCST_SET_UA_FLAG_AT_HEAD);
-		mutex_unlock(&scst_mutex);
 	} else {
 		struct scst_session *sess = aen->sess;
 		struct scst_tgt_dev *tgt_dev;
@@ -2749,8 +2769,7 @@ void scst_aen_done(struct scst_aen *aen)
 
 		lun = scst_unpack_lun((uint8_t *)&aen->lun, sizeof(aen->lun));
 
-		mutex_lock(&scst_mutex);
-
+		rcu_read_lock();
 		/* tgt_dev might get dead, so we need to reseek it */
 		tgt_dev = scst_lookup_tgt_dev(sess, lun);
 		if (tgt_dev) {
@@ -2760,8 +2779,7 @@ void scst_aen_done(struct scst_aen *aen)
 					  aen->aen_sense_len,
 					  SCST_SET_UA_FLAG_AT_HEAD);
 		}
-
-		mutex_unlock(&scst_mutex);
+		rcu_read_unlock();
 	}
 
 out_free:
@@ -2785,10 +2803,8 @@ void scst_requeue_ua(struct scst_cmd *cmd, const uint8_t *buf, int size)
 			SCST_LOAD_SENSE(scst_sense_reported_luns_data_changed))) {
 		TRACE_MGMT_DBG("Requeuing REPORTED LUNS DATA CHANGED UA "
 			"for delivery failed cmd %p", cmd);
-		mutex_lock(&scst_mutex);
 		scst_queue_report_luns_changed_UA(cmd->sess,
 			SCST_SET_UA_FLAG_AT_HEAD);
-		mutex_unlock(&scst_mutex);
 	} else {
 		TRACE_MGMT_DBG("Requeuing UA for delivery failed cmd %p", cmd);
 		scst_check_set_UA(cmd->tgt_dev, buf, size, SCST_SET_UA_FLAG_AT_HEAD);
@@ -2835,10 +2851,11 @@ retry_add:
 	list_for_each_entry(acg_dev, &acg->acg_dev_list, acg_dev_list_entry) {
 		bool inq_changed_ua_needed = false;
 
+		mutex_lock(&sess->tgt_dev_list_mutex);
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 			head = &sess->sess_tgt_dev_list[i];
 
-			list_for_each_entry(tgt_dev, head,
+			list_for_each_entry_rcu(tgt_dev, head,
 					sess_tgt_dev_list_entry) {
 				if ((tgt_dev->dev == acg_dev->dev) &&
 				    (tgt_dev->lun == acg_dev->lun) &&
@@ -2848,6 +2865,8 @@ retry_add:
 						sess, tgt_dev,
 						(unsigned long long)tgt_dev->lun);
 					tgt_dev->acg_dev = acg_dev;
+					mutex_unlock(&sess->tgt_dev_list_mutex);
+
 					goto next;
 				} else if (tgt_dev->lun == acg_dev->lun) {
 					TRACE_MGMT_DBG("Replacing LUN %lld",
@@ -2858,6 +2877,7 @@ retry_add:
 				}
 			}
 		}
+		mutex_unlock(&sess->tgt_dev_list_mutex);
 
 		luns_changed = true;
 
@@ -2878,6 +2898,8 @@ next:
 	}
 
 	something_freed = false;
+
+	mutex_lock(&sess->tgt_dev_list_mutex);
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		struct scst_tgt_dev *t;
 		head = &sess->sess_tgt_dev_list[i];
@@ -2895,6 +2917,7 @@ next:
 			}
 		}
 	}
+	mutex_unlock(&sess->tgt_dev_list_mutex);
 
 	if (add_failed && something_freed) {
 		TRACE_MGMT_DBG("sess %p: Retrying adding new tgt_devs", sess);
@@ -2917,10 +2940,11 @@ next:
 	if (luns_changed) {
 		scst_report_luns_changed_sess(sess);
 
+		rcu_read_lock();
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 			head = &sess->sess_tgt_dev_list[i];
 
-			list_for_each_entry(tgt_dev, head,
+			list_for_each_entry_rcu(tgt_dev, head,
 					sess_tgt_dev_list_entry) {
 				if (tgt_dev->inq_changed_ua_needed) {
 					TRACE_MGMT_DBG("sess %p: Setting "
@@ -2934,6 +2958,7 @@ next:
 				}
 			}
 		}
+		rcu_read_unlock();
 	}
 
 out:
@@ -4242,6 +4267,7 @@ int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun,
 	int res = 0;
 	struct scst_acg_dev *acg_dev = NULL, *a;
 	struct scst_tgt_dev *tgt_dev, *tt;
+	struct scst_session *sess;
 
 	TRACE_ENTRY();
 
@@ -4259,8 +4285,13 @@ int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun,
 
 	list_for_each_entry_safe(tgt_dev, tt, &acg_dev->dev->dev_tgt_dev_list,
 			 dev_tgt_dev_list_entry) {
-		if (tgt_dev->acg_dev == acg_dev)
+		if (tgt_dev->acg_dev == acg_dev) {
+			sess = tgt_dev->sess;
+
+			mutex_lock(&sess->tgt_dev_list_mutex);
 			scst_free_tgt_dev(tgt_dev);
+			mutex_unlock(&sess->tgt_dev_list_mutex);
+		}
 	}
 
 	scst_del_free_acg_dev(acg_dev, true);
@@ -4388,6 +4419,7 @@ static void scst_free_acg(struct scst_acg *acg)
 {
 	struct scst_acg_dev *acg_dev, *acg_dev_tmp;
 	struct scst_acn *acn, *acnt;
+	struct scst_session *sess;
 
 	TRACE_DBG("Freeing acg %s/%s", acg->tgt->tgt_name, acg->acg_name);
 
@@ -4397,8 +4429,13 @@ static void scst_free_acg(struct scst_acg *acg)
 		list_for_each_entry_safe(tgt_dev, tt,
 				 &acg_dev->dev->dev_tgt_dev_list,
 				 dev_tgt_dev_list_entry) {
-			if (tgt_dev->acg_dev == acg_dev)
+			if (tgt_dev->acg_dev == acg_dev) {
+				sess = tgt_dev->sess;
+
+				mutex_lock(&sess->tgt_dev_list_mutex);
 				scst_free_tgt_dev(tgt_dev);
+				mutex_unlock(&sess->tgt_dev_list_mutex);
+			}
 		}
 		scst_free_acg_dev(acg_dev);
 	}
@@ -4850,6 +4887,7 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 		goto out;
 	}
 
+	INIT_LIST_HEAD(&tgt_dev->sess_tgt_dev_list_entry);
 	tgt_dev->dev = dev;
 	tgt_dev->lun = acg_dev->lun;
 	tgt_dev->acg_dev = acg_dev;
@@ -4968,8 +5006,10 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	list_add_tail(&tgt_dev->dev_tgt_dev_list_entry, &dev->dev_tgt_dev_list);
 	spin_unlock_bh(&dev->dev_lock);
 
+	mutex_lock(&sess->tgt_dev_list_mutex);
 	head = &sess->sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_FN(tgt_dev->lun)];
-	list_add_tail(&tgt_dev->sess_tgt_dev_list_entry, head);
+	list_add_tail_rcu(&tgt_dev->sess_tgt_dev_list_entry, head);
+	mutex_unlock(&sess->tgt_dev_list_mutex);
 
 	scst_tg_init_tgt_dev(tgt_dev);
 
@@ -5003,7 +5043,10 @@ out_free:
 	goto out;
 }
 
-/* scst_mutex supposed to be held */
+/*
+ * The caller must ensure that tgt_dev does not disappear while this function
+ * is in progress.
+ */
 void scst_nexus_loss(struct scst_tgt_dev *tgt_dev, bool queue_UA)
 {
 	TRACE_ENTRY();
@@ -5022,8 +5065,8 @@ void scst_nexus_loss(struct scst_tgt_dev *tgt_dev, bool queue_UA)
 }
 
 /*
- * scst_mutex supposed to be held, there must not be parallel activity in this
- * session.
+ * The caller must either ensure that tgt_dev is not on sess->tgt_dev_list
+ * or must hold sess->tgt_dev_list_mutex.
  */
 static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 {
@@ -5032,13 +5075,22 @@ static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 
 	TRACE_ENTRY();
 
+	lockdep_assert_held(&scst_mutex);
+#ifdef CONFIG_SCST_EXTRACHECKS
+	if (scst_is_active_tgt_dev(tgt_dev))
+		lockdep_assert_held(&tgt_dev->sess->tgt_dev_list_mutex);
+#endif
+	WARN_ON_ONCE(atomic_read(&tgt_dev->tgt_dev_cmd_count) != 0);
+
 	spin_lock_bh(&dev->dev_lock);
 	list_del(&tgt_dev->dev_tgt_dev_list_entry);
 	spin_unlock_bh(&dev->dev_lock);
 
-	list_del(&tgt_dev->sess_tgt_dev_list_entry);
+	list_del_rcu(&tgt_dev->sess_tgt_dev_list_entry);
 
 	scst_tgt_dev_sysfs_del(tgt_dev);
+
+	synchronize_rcu();
 
 	if (tgtt->get_initiator_port_transport_id == NULL)
 		dev->not_pr_supporting_tgt_devs_num--;
@@ -5089,10 +5141,6 @@ out_free:
 	goto out;
 }
 
-/*
- * scst_mutex supposed to be held, there must not be parallel activity in this
- * session.
- */
 void scst_sess_free_tgt_devs(struct scst_session *sess)
 {
 	int i;
@@ -5100,7 +5148,7 @@ void scst_sess_free_tgt_devs(struct scst_session *sess)
 
 	TRACE_ENTRY();
 
-	/* The session is going down, no users, so no locks */
+	mutex_lock(&sess->tgt_dev_list_mutex);
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		struct list_head *head = &sess->sess_tgt_dev_list[i];
 		list_for_each_entry_safe(tgt_dev, t, head,
@@ -5109,6 +5157,7 @@ void scst_sess_free_tgt_devs(struct scst_session *sess)
 		}
 		INIT_LIST_HEAD(head);
 	}
+	mutex_unlock(&sess->tgt_dev_list_mutex);
 
 	TRACE_EXIT();
 	return;
@@ -6082,6 +6131,7 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 	sess->init_phase = SCST_SESS_IPH_INITING;
 	sess->shut_phase = SCST_SESS_SPH_READY;
 	atomic_set(&sess->refcnt, 0);
+	mutex_init(&sess->tgt_dev_list_mutex);
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		struct list_head *head = &sess->sess_tgt_dev_list[i];
 		INIT_LIST_HEAD(head);
@@ -11421,23 +11471,19 @@ again:
 #if !defined(__CHECKER__)
 		spin_unlock_bh(&cmd->tgt_dev->tgt_dev_lock);
 
-		/*
-		 * cmd won't allow to suspend activities, so we can access
-		 * sess->sess_tgt_dev_list without any additional
-		 * protection.
-		 */
-
 		local_bh_disable();
 
+		rcu_read_lock();
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 			struct list_head *head = &sess->sess_tgt_dev_list[i];
 			struct scst_tgt_dev *tgt_dev;
-			list_for_each_entry(tgt_dev, head,
+			list_for_each_entry_rcu(tgt_dev, head,
 					sess_tgt_dev_list_entry) {
 				/* Lockdep triggers here a false positive.. */
 				spin_lock(&tgt_dev->tgt_dev_lock);
 			}
 		}
+		rcu_read_unlock();
 #endif
 
 		first = false;
@@ -11467,11 +11513,12 @@ again:
 	list_del(&UA_entry->UA_list_entry);
 
 	if (UA_entry->global_UA) {
+		rcu_read_lock();
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 			struct list_head *head = &sess->sess_tgt_dev_list[i];
 			struct scst_tgt_dev *tgt_dev;
 
-			list_for_each_entry(tgt_dev, head,
+			list_for_each_entry_rcu(tgt_dev, head,
 					sess_tgt_dev_list_entry) {
 				struct scst_tgt_dev_UA *ua;
 				list_for_each_entry(ua, &tgt_dev->UA_list,
@@ -11490,6 +11537,7 @@ again:
 				}
 			}
 		}
+		rcu_read_unlock();
 	}
 
 	mempool_free(UA_entry, scst_ua_mempool);
@@ -11502,14 +11550,16 @@ again:
 out_unlock:
 	if (global_unlock) {
 #if !defined(__CHECKER__)
+		rcu_read_lock();
 		for (i = SESS_TGT_DEV_LIST_HASH_SIZE-1; i >= 0; i--) {
 			struct list_head *head = &sess->sess_tgt_dev_list[i];
 			struct scst_tgt_dev *tgt_dev;
-			list_for_each_entry_reverse(tgt_dev, head,
+			list_for_each_entry_rcu(tgt_dev, head,
 					sess_tgt_dev_list_entry) {
 				spin_unlock(&tgt_dev->tgt_dev_lock);
 			}
 		}
+		rcu_read_unlock();
 
 		local_bh_enable();
 		spin_lock_bh(&cmd->tgt_dev->tgt_dev_lock);
@@ -11582,6 +11632,8 @@ static void __scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
 	int len = min_t(int, sizeof(UA_entry_tmp->UA_sense_buffer), sense_len);
 
 	TRACE_ENTRY();
+
+	lockdep_assert_held(&tgt_dev->tgt_dev_lock);
 
 	list_for_each_entry(UA_entry_tmp, &tgt_dev->UA_list,
 			    UA_list_entry) {

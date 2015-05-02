@@ -1886,16 +1886,20 @@ static ssize_t __scst_acg_black_hole_store(struct scst_acg *acg,
 
 	list_for_each_entry(sess, &acg->acg_sess_list, acg_sess_list_entry) {
 		int i;
+
+		rcu_read_lock();
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 			struct list_head *head = &sess->sess_tgt_dev_list[i];
 			struct scst_tgt_dev *tgt_dev;
-			list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
+			list_for_each_entry_rcu(tgt_dev, head,
+						sess_tgt_dev_list_entry) {
 				if (t != SCST_ACG_BLACK_HOLE_NONE)
 					set_bit(SCST_TGT_DEV_BLACK_HOLE, &tgt_dev->tgt_dev_flags);
 				else
 					clear_bit(SCST_TGT_DEV_BLACK_HOLE, &tgt_dev->tgt_dev_flags);
 			}
 		}
+		rcu_read_unlock();
 	}
 
 	PRINT_INFO("Black hole set to %d for ACG %s", t, acg->acg_name);
@@ -1984,10 +1988,12 @@ static int __scst_acg_process_cpu_mask_store(struct scst_tgt *tgt,
 
 	list_for_each_entry(sess, &acg->acg_sess_list, acg_sess_list_entry) {
 		int i;
+
+		rcu_read_lock();
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 			struct scst_tgt_dev *tgt_dev;
 			struct list_head *head = &sess->sess_tgt_dev_list[i];
-			list_for_each_entry(tgt_dev, head,
+			list_for_each_entry_rcu(tgt_dev, head,
 						sess_tgt_dev_list_entry) {
 				int rc;
 
@@ -1999,6 +2005,8 @@ static int __scst_acg_process_cpu_mask_store(struct scst_tgt *tgt,
 						    " failed: %d", rc);
 			}
 		}
+		rcu_read_unlock();
+
 		if (tgt->tgtt->report_aen != NULL) {
 			struct scst_aen *aen;
 			int rc;
@@ -4205,14 +4213,11 @@ static int scst_sess_zero_latency(struct scst_sysfs_work_item *work)
 
 	TRACE_ENTRY();
 
-	res = mutex_lock_interruptible(&scst_mutex);
-	if (res != 0)
-		goto out_put;
-
 	PRINT_INFO("Zeroing latency statistics for initiator "
 		"%s", sess->initiator_name);
 
 	spin_lock_bh(&sess->lat_lock);
+	rcu_read_lock();
 
 	sess->scst_time = 0;
 	sess->tgt_time = 0;
@@ -4230,7 +4235,8 @@ static int scst_sess_zero_latency(struct scst_sysfs_work_item *work)
 	for (t = SESS_TGT_DEV_LIST_HASH_SIZE-1; t >= 0; t--) {
 		struct list_head *head = &sess->sess_tgt_dev_list[t];
 		struct scst_tgt_dev *tgt_dev;
-		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
+		list_for_each_entry_rcu(tgt_dev, head,
+					sess_tgt_dev_list_entry) {
 			tgt_dev->scst_time = 0;
 			tgt_dev->tgt_time = 0;
 			tgt_dev->dev_time = 0;
@@ -4240,11 +4246,9 @@ static int scst_sess_zero_latency(struct scst_sysfs_work_item *work)
 		}
 	}
 
+	rcu_read_unlock();
 	spin_unlock_bh(&sess->lat_lock);
 
-	mutex_unlock(&scst_mutex);
-
-out_put:
 	kobject_put(&sess->sess_kobj);
 
 	TRACE_EXIT_RES(res);
@@ -4306,23 +4310,19 @@ static int scst_sysfs_sess_get_active_commands(struct scst_session *sess)
 
 	TRACE_ENTRY();
 
-	res = mutex_lock_interruptible(&scst_mutex);
-	if (res != 0)
-		goto out_put;
-
+	rcu_read_lock();
 	for (t = SESS_TGT_DEV_LIST_HASH_SIZE-1; t >= 0; t--) {
 		struct list_head *head = &sess->sess_tgt_dev_list[t];
 		struct scst_tgt_dev *tgt_dev;
-		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
+		list_for_each_entry_rcu(tgt_dev, head,
+					sess_tgt_dev_list_entry) {
 			active_cmds += atomic_read(&tgt_dev->tgt_dev_cmd_count);
 		}
 	}
-
-	mutex_unlock(&scst_mutex);
+	rcu_read_unlock();
 
 	res = active_cmds;
 
-out_put:
 	kobject_put(&sess->sess_kobj);
 
 	TRACE_EXIT_RES(res);
@@ -4375,14 +4375,11 @@ static int scst_sysfs_sess_get_dif_checks_failed_work_fn(struct scst_sysfs_work_
 
 	TRACE_ENTRY();
 
-	res = mutex_lock_interruptible(&scst_mutex);
-	if (res != 0)
-		goto out_put;
-
+	rcu_read_lock();
 	for (t = SESS_TGT_DEV_LIST_HASH_SIZE-1; t >= 0; t--) {
 		struct list_head *head = &sess->sess_tgt_dev_list[t];
 		struct scst_tgt_dev *tgt_dev;
-		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
+		list_for_each_entry_rcu(tgt_dev, head, sess_tgt_dev_list_entry) {
 			app_failed_tgt += atomic_read(&tgt_dev->tgt_dev_dif_app_failed_tgt);
 			ref_failed_tgt += atomic_read(&tgt_dev->tgt_dev_dif_ref_failed_tgt);
 			guard_failed_tgt += atomic_read(&tgt_dev->tgt_dev_dif_guard_failed_tgt);
@@ -4394,8 +4391,7 @@ static int scst_sysfs_sess_get_dif_checks_failed_work_fn(struct scst_sysfs_work_
 			guard_failed_dev += atomic_read(&tgt_dev->tgt_dev_dif_guard_failed_dev);
 		}
 	}
-
-	mutex_unlock(&scst_mutex);
+	rcu_read_unlock();
 
 	work->res_buf = kasprintf(GFP_KERNEL, "\tapp\tref\tguard\n"
 			  "tgt\t%d\t%d\t%d\nscst\t%d\t%d\t%d\ndev\t%d\t%d\t%d\n",
@@ -4404,7 +4400,6 @@ static int scst_sysfs_sess_get_dif_checks_failed_work_fn(struct scst_sysfs_work_
 			  app_failed_dev, ref_failed_dev, guard_failed_dev);
 	res = work->res_buf ? 0 : -ENOMEM;
 
-out_put:
 	kobject_put(&sess->sess_kobj);
 
 	TRACE_EXIT_RES(res);
@@ -4455,14 +4450,12 @@ static int scst_sess_zero_dif_checks_failed(struct scst_sysfs_work_item *work)
 	PRINT_INFO("Zeroing DIF failures statistics for initiator "
 		"%s, target %s", sess->initiator_name, sess->tgt->tgt_name);
 
-	res = mutex_lock_interruptible(&scst_mutex);
-	if (res != 0)
-		goto out_put;
-
+	rcu_read_lock();
 	for (t = SESS_TGT_DEV_LIST_HASH_SIZE-1; t >= 0; t--) {
 		struct list_head *head = &sess->sess_tgt_dev_list[t];
 		struct scst_tgt_dev *tgt_dev;
-		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
+		list_for_each_entry_rcu(tgt_dev, head,
+					sess_tgt_dev_list_entry) {
 			atomic_set(&tgt_dev->tgt_dev_dif_app_failed_tgt, 0);
 			atomic_set(&tgt_dev->tgt_dev_dif_ref_failed_tgt, 0);
 			atomic_set(&tgt_dev->tgt_dev_dif_guard_failed_tgt, 0);
@@ -4474,12 +4467,10 @@ static int scst_sess_zero_dif_checks_failed(struct scst_sysfs_work_item *work)
 			atomic_set(&tgt_dev->tgt_dev_dif_guard_failed_dev, 0);
 		}
 	}
-
-	mutex_unlock(&scst_mutex);
+	rcu_read_unlock();
 
 	res = 0;
 
-out_put:
 	kobject_put(&sess->sess_kobj);
 
 	TRACE_EXIT_RES(res);
