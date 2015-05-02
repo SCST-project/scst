@@ -3958,6 +3958,12 @@ static inline bool scst_cmd_atomic(struct scst_cmd *cmd)
 	return res;
 }
 
+/* Returns TRUE if cmd completed with SAM_STAT_GOOD */
+static inline bool scst_cmd_completed_good(struct scst_cmd *cmd)
+{
+	return cmd->completed && (cmd->status == SAM_STAT_GOOD);
+}
+
 /*
  * Returns TRUE if cmd has been preliminary completed, i.e. completed or
  * aborted.

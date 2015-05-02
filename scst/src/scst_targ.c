@@ -3590,7 +3590,7 @@ next:
 		goto out;
 	}
 
-	if (likely(cmd->status == SAM_STAT_GOOD)) {
+	if (likely(scst_cmd_completed_good(cmd))) {
 		if (cmd->deferred_dif_read_check) {
 			int rc = scst_dif_process_read(cmd);
 			if (unlikely(rc != 0)) {
