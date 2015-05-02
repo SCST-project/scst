@@ -21,6 +21,7 @@
 
 #include <linux/types.h>
 #include <linux/slab.h>
+#include <linux/delay.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
 #include <linux/export.h>
 #endif
@@ -691,6 +692,14 @@ bool __scst_check_blocked_dev(struct scst_cmd *cmd);
 static inline atomic_t *scst_get(void)
 {
 	atomic_t *a;
+
+	/*
+	 * Avoid that a high I/O load prevents activity to be suspended. See
+	 * also http://sourceforge.net/p/scst/mailman/message/34074831/.
+	 */
+	if (unlikely(test_bit(SCST_FLAG_SUSPENDING, &scst_flags)))
+		mdelay(100);
+
 	/*
 	 * We don't mind if we because of preemption inc counter from another
 	 * CPU as soon in the majority cases we will the correct one.
