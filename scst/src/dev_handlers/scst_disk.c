@@ -221,6 +221,12 @@ static int disk_attach(struct scst_device *dev)
 			dev->block_shift = DISK_DEF_BLOCK_SHIFT;
 		else
 			dev->block_shift = scst_calc_block_shift(sector_size);
+		if (dev->block_shift < 9) {
+			PRINT_ERROR("READ CAPACITY reported an invalid sector size: %d",
+				    sector_size);
+			res = -EINVAL;
+			goto out_free_buf;
+		}
 	} else {
 		dev->block_shift = DISK_DEF_BLOCK_SHIFT;
 		TRACE(TRACE_MINOR, "Read capacity failed: %x, using default "
