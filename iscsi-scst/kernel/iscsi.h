@@ -32,6 +32,7 @@
 #endif
 #include "iscsi_hdr.h"
 #include "iscsi_dbg.h"
+#include "iscsit_transport.h"
 
 #define iscsi_sense_crc_error			ABORTED_COMMAND, 0x47, 0x05
 #define iscsi_sense_unexpected_unsolicited_data	ABORTED_COMMAND, 0x0C, 0x0C
@@ -57,6 +58,9 @@ struct iscsi_sess_params {
 	int ifmarker;
 	int ofmarkint;
 	int ifmarkint;
+	int rdma_extensions;
+	int target_recv_data_length;
+	int initiator_recv_data_length;
 };
 
 struct iscsi_tgt_params {
@@ -192,6 +196,8 @@ struct iscsi_session {
 #define ISCSI_CONN_WR_STATE_PROCESSING		3
 
 struct iscsi_conn {
+	struct iscsit_transport *transport;
+
 	struct iscsi_session *session; /* owning session */
 
 	/* Both protected by session->sn_lock */
@@ -314,6 +320,7 @@ struct iscsi_conn {
 #else
 	struct work_struct nop_in_delayed_work;
 #endif
+	struct work_struct close_work;
 	unsigned int nop_in_interval; /* in jiffies */
 	unsigned int nop_in_timeout; /* in jiffies */
 	struct list_head nop_req_list;
@@ -561,7 +568,7 @@ extern struct iscsi_conn *conn_lookup(struct iscsi_session *, u16);
 extern void conn_reinst_finished(struct iscsi_conn *);
 extern int __add_conn(struct iscsi_session *, struct iscsi_kern_conn_info *);
 extern int __del_conn(struct iscsi_session *, struct iscsi_kern_conn_info *);
-extern int conn_free(struct iscsi_conn *);
+extern void conn_free(struct iscsi_conn *);
 extern void iscsi_make_conn_rd_active(struct iscsi_conn *conn);
 #define ISCSI_CONN_ACTIVE_CLOSE		1
 #define ISCSI_CONN_DELETING		2
@@ -613,6 +620,7 @@ extern void target_del_all(void);
 extern int iscsi_procfs_init(void);
 extern void iscsi_procfs_exit(void);
 #else
+extern int conn_sysfs_add(struct iscsi_conn *conn);
 extern const struct attribute *iscsi_attrs[];
 extern int iscsi_add_attr(struct iscsi_target *target,
 	const struct iscsi_kern_attr *user_info);
@@ -835,4 +843,23 @@ static inline void iscsi_extracheck_is_rd_thread(struct iscsi_conn *conn) {}
 static inline void iscsi_extracheck_is_wr_thread(struct iscsi_conn *conn) {}
 #endif
 
+extern int iscsi_conn_alloc(struct iscsi_session *session,
+	struct iscsi_kern_conn_info *info, struct iscsi_conn **new_conn,
+	struct iscsit_transport *t);
+
+extern int conn_activate(struct iscsi_conn *conn);
+extern void iscsi_tcp_mark_conn_closed(struct iscsi_conn *conn, int flags);
+extern void iscsi_tcp_conn_free(struct iscsi_conn *conn);
+extern void iscsi_cmnd_init(struct iscsi_conn *conn, struct iscsi_cmnd *cmnd,
+		struct iscsi_cmnd *parent);
+extern struct iscsi_cmnd *iscsi_get_send_cmnd(struct iscsi_conn *conn);
+extern void start_close_conn(struct iscsi_conn *conn);
+extern __be32 cmnd_set_sn(struct iscsi_cmnd *cmnd, int set_stat_sn);
+extern void iscsi_set_resid(struct iscsi_cmnd *rsp);
+extern int iscsi_init_conn(struct iscsi_session *session,
+	struct iscsi_kern_conn_info *info, struct iscsi_conn *conn);
+extern void req_cmnd_pre_release(struct iscsi_cmnd *req);
+extern struct iscsi_cmnd *create_status_rsp(struct iscsi_cmnd *req,
+	int status, const u8 *sense_buf, int sense_len);
+extern int iscsi_cmnd_set_write_buf(struct iscsi_cmnd *req);
 #endif	/* __ISCSI_H__ */

@@ -148,6 +148,7 @@ rm -rf /usr/local/include/scst
 /lib/modules/%{kversion}/extra/fcst.ko
 /lib/modules/%{kversion}/extra/ib_srpt.ko
 /lib/modules/%{kversion}/extra/iscsi-scst.ko
+/lib/modules/%{kversion}/extra/isert-scst.ko
 /lib/modules/%{kversion}/extra/qla2x00tgt.ko
 /lib/modules/%{kversion}/extra/qla2xxx_scst.ko
 /lib/modules/%{kversion}/extra/scst.ko
@@ -189,6 +190,8 @@ rm -rf /usr/local/include/scst
 /usr/include/scst/scst_user.h
 
 %changelog
+* Mon May  4 2015 Bart Van Assche <bart.vanassche@sandisk.com>
+- Added iSER target driver.
 * Mon Feb 23 2015 Bart Van Assche <bart.vanassche@sandisk.com>
 - Split spec file into a non-DKMS and a DKMS spec file.
 * Fri Jan 16 2015 Bart Van Assche <bart.vanassche@sandisk.com>

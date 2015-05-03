@@ -30,6 +30,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/un.h>
+#include <sys/ioctl.h>
 
 #include <netinet/in.h>
 #include <netinet/tcp.h>
@@ -169,6 +170,224 @@ static void create_listen_socket(struct pollfd *array)
 		exit(1);
 }
 
+static struct connection *alloc_and_init_conn(int fd)
+{
+	struct pollfd *pollfd;
+	struct connection *conn = NULL;
+	int i;
+
+	for (i = 0; i < INCOMING_MAX; i++) {
+		if (!incoming[i])
+			break;
+	}
+	if (i >= INCOMING_MAX) {
+		log_error("Unable to find incoming slot? %d\n", i);
+		goto out;
+	}
+
+	conn = conn_alloc();
+	if (!conn) {
+		log_error("Fail to allocate %s", "conn\n");
+		goto out;
+	}
+
+	conn->fd = fd;
+	incoming[i] = conn;
+
+	pollfd = &poll_array[POLL_INCOMING + i];
+	pollfd->fd = fd;
+	pollfd->events = POLLIN;
+	pollfd->revents = 0;
+
+	conn_read_pdu(conn);
+	set_non_blocking(fd);
+
+out:
+	return conn;
+}
+
+static int transmit_iser(int fd, bool start)
+{
+	int opt = start;
+	return ioctl(fd, RDMA_CORK, &opt, sizeof(opt));
+}
+
+static int cork_transmit_iser(int fd)
+{
+	return transmit_iser(fd, true);
+}
+
+static int uncork_transmit_iser(int fd)
+{
+	return transmit_iser(fd, false);
+}
+
+static void create_iser_listen_socket(struct pollfd *array)
+{
+	struct addrinfo hints, *res, *res0;
+	char servname[64];
+	int rc, i;
+	int iser_fd;
+	struct isert_addr_info info;
+
+	iser_fd = create_and_open_dev("isert_scst", 1);
+
+	poll_array[POLL_ISER_LISTEN].fd = iser_fd;
+	if (iser_fd != -1) {
+		poll_array[POLL_ISER_LISTEN].events = POLLIN;
+
+		/* RDMAExtensions */
+		session_keys[key_rdma_extensions].max = 1;
+		session_keys[key_rdma_extensions].local_def = 1;
+	} else {
+		poll_array[POLL_ISER_LISTEN].events = 0;
+		return;
+	}
+
+	memset(servname, 0, sizeof(servname));
+	snprintf(servname, sizeof(servname), "%d", server_port);
+
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_flags = AI_PASSIVE;
+
+	rc = getaddrinfo(server_address, servname, &hints, &res0);
+	if (rc != 0) {
+		log_error("Unable to get address info (%s)!",
+			get_error_str(rc));
+		exit(1);
+	}
+
+	i = 0;
+	for (res = res0; res && i < ISERT_MAX_PORTALS; res = res->ai_next) {
+		memcpy(&info.addr, res->ai_addr, res->ai_addrlen);
+		info.addr_len = res->ai_addrlen;
+
+		rc = ioctl(iser_fd, SET_LISTEN_ADDR, &info);
+		if (rc != 0) {
+			log_error("Unable to set listen address (%s)!",
+				strerror(errno));
+		}
+		++i;
+	}
+
+	freeaddrinfo(res0);
+}
+
+static int iser_getsockname(int fd, struct sockaddr *name, socklen_t *namelen)
+{
+	struct isert_addr_info addr;
+	int ret;
+
+	ret = ioctl(fd, GET_PORTAL_ADDR, &addr, sizeof(addr));
+	if (ret)
+		return ret;
+
+	memcpy(name, &addr.addr, addr.addr_len);
+	*namelen = addr.addr_len;
+
+	return ret;
+}
+
+static int iser_is_discovery(int fd)
+{
+	int val = 1;
+
+	return ioctl(fd, DISCOVERY_SESSION, &val, sizeof(val));
+}
+
+static void iser_accept(int fd)
+{
+	char buff[256];
+	int ret, conn_fd;
+	struct connection *conn;
+	char target_portal[ISCSI_PORTAL_LEN], target_portal_port[NI_MAXSERV];
+	struct isert_addr_info addr;
+
+	ret = read(fd, buff, sizeof(buff));
+	if (ret == -1)
+		goto out;
+
+	conn_fd = open(buff, O_RDWR);
+	if (conn_fd == -1) {
+		log_error("open(iser_connection) %s failed: %s\n",
+			buff, strerror(errno));
+		goto out;
+	}
+
+	ret = ioctl(conn_fd, GET_PORTAL_ADDR, &addr, sizeof(addr));
+	if (ret) {
+		log_error("ioctl(GET_PORTAL_ADDR) failed: %s\n",
+			  strerror(errno));
+		goto out_close;
+	}
+
+	ret = getnameinfo((struct sockaddr *)&addr, sizeof(addr), target_portal,
+			 sizeof(target_portal), target_portal_port,
+			 sizeof(target_portal_port),
+			 NI_NUMERICHOST | NI_NUMERICSERV);
+	if (ret != 0) {
+		log_error("Target portal getnameinfo() failed: %s!",
+			get_error_str(ret));
+		goto out_close;
+	}
+
+	log_info("iSER Connect to %s:%s", target_portal, target_portal_port);
+
+	if (conn_blocked) {
+		log_warning("Connection refused due to blocking\n");
+		goto out_close;
+	}
+
+	conn = alloc_and_init_conn(conn_fd);
+	if (!conn)
+		goto out_close;
+
+	conn->target_portal = strdup(target_portal);
+	if (conn->target_portal == NULL) {
+		log_error("Unable to duplicate target portal %s", target_portal);
+		goto out_free;
+	}
+
+	conn->cork_transmit = cork_transmit_iser;
+	conn->uncork_transmit = uncork_transmit_iser;
+	conn->getsockname = iser_getsockname;
+	conn->is_discovery = iser_is_discovery;
+	conn->is_iser = true;
+	incoming_cnt++;
+
+out:
+	return;
+
+out_free:
+	conn_free(conn);
+
+out_close:
+	close(conn_fd);
+	goto out;
+}
+
+static int transmit_sock(int fd, bool start)
+{
+	int opt = start;
+	return setsockopt(fd, SOL_TCP, TCP_CORK, &opt, sizeof(opt));
+}
+
+static int cork_transmit_sock(int fd)
+{
+	return transmit_sock(fd, true);
+}
+
+static int uncork_transmit_sock(int fd)
+{
+	return transmit_sock(fd, false);
+}
+
+static int tcp_is_discovery(int fd)
+{
+	return 0;
+}
+
 static void accept_connection(int listen)
 {
 	union {
@@ -177,9 +396,8 @@ static void accept_connection(int listen)
 		struct sockaddr_in6 sin6;
 	} from, to;
 	socklen_t namesize;
-	struct pollfd *pollfd;
 	struct connection *conn;
-	int fd, i, rc;
+	int fd, rc;
 	char initiator_addr[ISCSI_PORTAL_LEN], initiator_port[NI_MAXSERV];
 	char target_portal[ISCSI_PORTAL_LEN], target_portal_port[NI_MAXSERV];
 
@@ -238,35 +456,21 @@ static void accept_connection(int listen)
 		goto out_close;
 	}
 
-	for (i = 0; i < INCOMING_MAX; i++) {
-		if (!incoming[i])
-			break;
-	}
-	if (i >= INCOMING_MAX) {
-		log_error("Unable to find incoming slot? %d\n", i);
+	conn = alloc_and_init_conn(fd);
+	if (!conn)
 		goto out_close;
-	}
 
-	if (!(conn = conn_alloc())) {
-		log_error("Fail to allocate %s", "conn\n");
-		goto out_close;
-	}
-
-	conn->fd = fd;
 	conn->target_portal = strdup(target_portal);
 	if (conn->target_portal == NULL) {
 		log_error("Unable to duplicate target portal %s", target_portal);
 		goto out_free;
 	}
 
-	incoming[i] = conn;
+	conn->cork_transmit = cork_transmit_sock;
+	conn->uncork_transmit = uncork_transmit_sock;
+	conn->getsockname = getsockname;
+	conn->is_discovery = tcp_is_discovery;
 	conn_read_pdu(conn);
-
-	set_non_blocking(fd);
-	pollfd = &poll_array[POLL_INCOMING + i];
-	pollfd->fd = fd;
-	pollfd->events = POLLIN;
-	pollfd->revents = 0;
 
 	incoming_cnt++;
 
@@ -296,7 +500,7 @@ void isns_set_fd(int isns, int scn_listen, int scn)
 
 static void event_conn(struct connection *conn, struct pollfd *pollfd)
 {
-	int res, opt;
+	int res;
 
 again:
 	switch (conn->iostate) {
@@ -367,8 +571,7 @@ again:
 	case IOSTATE_WRITE_AHS:
 	case IOSTATE_WRITE_DATA:
 	      write_again:
-		opt = 1;
-		setsockopt(pollfd->fd, SOL_TCP, TCP_CORK, &opt, sizeof(opt));
+		conn->cork_transmit(pollfd->fd);
 		res = write(pollfd->fd, conn->buffer, conn->rwsize);
 		if (res < 0) {
 			if (errno != EINTR && errno != EAGAIN) {
@@ -408,8 +611,7 @@ again:
 				goto write_again;
 			}
 		case IOSTATE_WRITE_DATA:
-			opt = 0;
-			setsockopt(pollfd->fd, SOL_TCP, TCP_CORK, &opt, sizeof(opt));
+			conn->uncork_transmit(pollfd->fd);
 			cmnd_finish(conn);
 
 			switch (conn->state) {
@@ -447,6 +649,7 @@ static void event_loop(void)
 	int res, i;
 
 	create_listen_socket(poll_array + POLL_LISTEN);
+	create_iser_listen_socket(poll_array);
 
 	poll_array[POLL_IPC].fd = ipc_fd;
 	poll_array[POLL_IPC].events = POLLIN;
@@ -519,6 +722,9 @@ static void event_loop(void)
 
 		if (poll_array[POLL_SCN].revents)
 			isns_scn_handle(0);
+
+		if (poll_array[POLL_ISER_LISTEN].revents)
+			iser_accept(poll_array[POLL_ISER_LISTEN].fd);
 
 		for (i = 0; i < INCOMING_MAX; i++) {
 			struct connection *conn = incoming[i];
