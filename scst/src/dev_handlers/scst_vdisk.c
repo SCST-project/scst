@@ -1936,7 +1936,7 @@ static int vdisk_format_dif(struct scst_cmd *cmd, uint64_t start_lba,
 				 &loff);
 		if (err < 0) {
 			PRINT_ERROR("Formatting DIF write() returned %lld from "
-				"%zd", (long long unsigned int)err, full_len);
+				"%zd", err, full_len);
 			if (err == -EAGAIN)
 				scst_set_busy(cmd);
 			else
@@ -2836,8 +2836,7 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 			fua = (cdb[10] & 0x8);
 			if (fua)
 				TRACE(TRACE_ORDER, "FUA: loff=%lld, data_len=%lld",
-					(long long unsigned int)loff,
-					(long long unsigned int)data_len);
+					loff, data_len);
 		}
 		break;
 	case WRITE_10:
@@ -5725,8 +5724,9 @@ restart:
 				 &loff);
 		if (err < 0) {
 			unsigned long flags;
+
 			PRINT_ERROR("DIF write() returned %lld from %zd",
-				(long long unsigned int)err, full_len);
+				    err, full_len);
 			/* To protect sense setting with blockio */
 			spin_lock_irqsave(&vdev_err_lock, flags);
 			if (err == -EAGAIN)
@@ -5744,9 +5744,9 @@ restart:
 			 * value less, than requested. Let's restart.
 			 */
 			int e = eiv_count;
-			TRACE_MGMT_DBG("DIF write() returned %d from %zd "
-				"(iv_count=%d)", (int)err, full_len,
-				eiv_count);
+			TRACE_MGMT_DBG("DIF write() returned %lld from %zd "
+				       "(iv_count=%d)", err, full_len,
+				       eiv_count);
 			if (err == 0) {
 				PRINT_INFO("Suspicious: DIF write() returned 0 from "
 					"%zd (iv_count=%d)", full_len, eiv_count);
@@ -6078,9 +6078,9 @@ restart:
 			 * value less, than requested. Let's restart.
 			 */
 			int e = eiv_count;
-			TRACE_MGMT_DBG("write() returned %d from %zd "
-				"(iv_count=%d)", (int)err, full_len,
-				eiv_count);
+			TRACE_MGMT_DBG("write() returned %lld from %zd "
+				       "(iv_count=%d)", err, full_len,
+				       eiv_count);
 			if (err == 0) {
 				PRINT_INFO("Suspicious: write() returned 0 from "
 					"%zd (iv_count=%d)", full_len, eiv_count);
