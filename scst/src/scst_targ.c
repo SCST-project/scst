@@ -3971,6 +3971,7 @@ static int scst_pre_xmit_response1(struct scst_cmd *cmd)
 		 * Those counters protect from not getting too long processing
 		 * latency, so we should decrement them after cmd completed.
 		 */
+		smp_mb__before_atomic_dec();
 		atomic_dec(&cmd->tgt_dev->tgt_dev_cmd_count);
 #ifdef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
 		atomic_dec(&cmd->dev->dev_cmd_count);

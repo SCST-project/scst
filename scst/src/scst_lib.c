@@ -4308,6 +4308,23 @@ out:
 	return acg_dev;
 }
 
+static int scst_tgt_devs_cmds(struct list_head *tgt_dev_list)
+{
+	struct scst_tgt_dev *tgt_dev;
+	int res = 0;
+
+	list_for_each_entry(tgt_dev, tgt_dev_list, extra_tgt_dev_list_entry)
+		res += atomic_read(&tgt_dev->tgt_dev_cmd_count);
+
+	return res;
+}
+
+static void scst_wait_for_tgt_devs(struct list_head *tgt_dev_list)
+{
+	while (scst_tgt_devs_cmds(tgt_dev_list) > 0)
+		mdelay(100);
+}
+
 int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun,
 	bool gen_scst_report_luns_changed)
 {
@@ -4328,6 +4345,12 @@ int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun,
 
 	if (gen_scst_report_luns_changed)
 		scst_report_luns_changed(acg);
+
+	mutex_unlock(&scst_mutex);
+
+	scst_wait_for_tgt_devs(&tgt_dev_list);
+
+	mutex_lock(&scst_mutex);
 
 	list_for_each_entry_safe(tgt_dev, tt, &tgt_dev_list,
 				 extra_tgt_dev_list_entry) {
@@ -4377,6 +4400,11 @@ int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
 			}
 		}
 	}
+	mutex_unlock(&scst_mutex);
+
+	scst_wait_for_tgt_devs(&tgt_dev_list);
+
+	mutex_lock(&scst_mutex);
 	list_for_each_entry_safe(tgt_dev, tt, &tgt_dev_list,
 				 extra_tgt_dev_list_entry) {
 		scst_free_tgt_dev(tgt_dev);

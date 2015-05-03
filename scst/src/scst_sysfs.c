@@ -1374,13 +1374,9 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 		goto out;
 	}
 
-	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
-	if (res != 0)
-		goto out;
-
 	res = mutex_lock_interruptible(&scst_mutex);
 	if (res != 0)
-		goto out_resume;
+		goto out;
 
 	/* Check if tgt and acg not already freed while we were coming here */
 	if (scst_check_tgt_acg_ptrs(tgt, acg) != 0)
@@ -1487,9 +1483,6 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 
 out_unlock:
 	mutex_unlock(&scst_mutex);
-
-out_resume:
-	scst_resume_activity();
 
 out:
 	TRACE_EXIT_RES(res);
