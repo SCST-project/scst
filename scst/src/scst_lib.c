@@ -4083,10 +4083,16 @@ out:
  * The activity supposed to be suspended and scst_mutex held or the
  * corresponding target supposed to be stopped.
  */
-static void scst_del_acg_dev(struct scst_acg_dev *acg_dev, bool del_sysfs)
+static void scst_del_acg_dev(struct scst_acg_dev *acg_dev,
+			     bool del_acg_dev_list, bool del_sysfs)
 {
 	TRACE_DBG("Removing acg_dev %p from dev_acg_dev_list", acg_dev);
 	list_del(&acg_dev->dev_acg_dev_list_entry);
+
+	if (del_acg_dev_list) {
+		TRACE_DBG("Removing acg_dev %p from acg_dev_list", acg_dev);
+		list_del(&acg_dev->acg_dev_list_entry);
+	}
 
 	if (del_sysfs)
 		scst_acg_dev_sysfs_del(acg_dev);
@@ -4108,9 +4114,7 @@ static void scst_free_acg_dev(struct scst_acg_dev *acg_dev)
 static void scst_del_free_acg_dev(struct scst_acg_dev *acg_dev, bool del_sysfs)
 {
 	TRACE_ENTRY();
-	TRACE_DBG("Removing acg_dev %p from acg_dev_list", acg_dev);
-	list_del(&acg_dev->acg_dev_list_entry);
-	scst_del_acg_dev(acg_dev, del_sysfs);
+	scst_del_acg_dev(acg_dev, true, del_sysfs);
 	scst_free_acg_dev(acg_dev);
 	TRACE_EXIT();
 	return;
@@ -4397,7 +4401,7 @@ static void scst_del_acg(struct scst_acg *acg)
 
 	list_for_each_entry_safe(acg_dev, acg_dev_tmp, &acg->acg_dev_list,
 				 acg_dev_list_entry)
-		scst_del_acg_dev(acg_dev, true);
+		scst_del_acg_dev(acg_dev, false, true);
 
 	list_for_each_entry_safe(acn, acnt, &acg->acn_list, acn_list_entry)
 		scst_del_acn(acn);
