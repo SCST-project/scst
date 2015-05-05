@@ -654,7 +654,6 @@ static int address_match(struct sockaddr *sa1, struct sockaddr *sa2)
 static int __initiator_match(int fd, char *str)
 {
 	struct sockaddr_storage from;
-	struct addrinfo hints, *res;
 	socklen_t len;
 	char *p, *q;
 	int err = 0;
@@ -664,6 +663,8 @@ static int __initiator_match(int fd, char *str)
 		return 0;
 
 	while ((p = strsep(&str, ","))) {
+		struct addrinfo hints, *res;
+
 		while (isblank(*p))
 			p++;
 
