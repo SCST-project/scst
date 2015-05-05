@@ -1188,6 +1188,7 @@ int nl_open(void)
 	res = nl_write(nl_fd, NULL, 0);
 	if (res < 0) {
 		log_error("%s %d\n", __FUNCTION__, res);
+		close(nl_fd);
 		return res;
 	}
 
