@@ -43,12 +43,9 @@ int create_and_open_dev(const char *dev, int readonly)
 	}
 
 	devn = 0;
-	while (!feof(f)) {
-		if (!fgets(buf, sizeof(buf), f))
-			break;
-		if (sscanf(buf, "%d %s", &devn, devname) != 2)
-			continue;
-		if (!strcmp(devname, dev))
+	while (fgets(buf, sizeof(buf), f)) {
+		if (sscanf(buf, "%d %s", &devn, devname) == 2 &&
+		    devn > 0 && strcmp(devname, dev) == 0)
 			break;
 		devn = 0;
 	}
