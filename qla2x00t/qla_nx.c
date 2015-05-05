@@ -36,7 +36,7 @@
 
 #define MAX_CRB_XFORM 60
 static unsigned long crb_addr_xform[MAX_CRB_XFORM];
-int qla82xx_crb_table_initialized;
+static int qla82xx_crb_table_initialized;
 
 #define qla82xx_crb_addr_transform(name) \
 	(crb_addr_xform[QLA82XX_HW_PX_MAP_CRB_##name] = \
@@ -102,7 +102,7 @@ static void qla82xx_crb_addr_transform_setup(void)
 	qla82xx_crb_table_initialized = 1;
 }
 
-struct crb_128M_2M_block_map crb_128M_2M_map[64] = {
+static struct crb_128M_2M_block_map crb_128M_2M_map[64] = {
 	{{{0, 0,         0,         0} } },
 	{{{1, 0x0100000, 0x0102000, 0x120000},
 	{1, 0x0110000, 0x0120000, 0x130000},
@@ -262,7 +262,7 @@ struct crb_128M_2M_block_map crb_128M_2M_map[64] = {
 /*
  * top 12 bits of crb internal address (hub, agent)
  */
-unsigned qla82xx_crb_hub_agt[64] =
+static unsigned qla82xx_crb_hub_agt[64] =
 {
 	0,
 	QLA82XX_HW_CRB_HUB_AGT_ADR_PS,
@@ -331,7 +331,7 @@ unsigned qla82xx_crb_hub_agt[64] =
 };
 
 /* Device states */
-char *q_dev_state[] = {
+static char *q_dev_state[] = {
 	"Unknown",
 	"Cold",
 	"Initializing",
@@ -474,8 +474,7 @@ qla82xx_pci_get_crb_addr_2M(struct qla_hw_data *ha, ulong *off)
 	return 1;
 }
 
-int
-qla82xx_wr_32(struct qla_hw_data *ha, ulong off, u32 data)
+int qla82xx_wr_32(struct qla_hw_data *ha, ulong off, u32 data)
 {
 	unsigned long flags = 0;
 	int rv;
@@ -499,8 +498,7 @@ qla82xx_wr_32(struct qla_hw_data *ha, ulong off, u32 data)
 	return 0;
 }
 
-int
-qla82xx_rd_32(struct qla_hw_data *ha, ulong off)
+int qla82xx_rd_32(struct qla_hw_data *ha, ulong off)
 {
 	unsigned long flags = 0;
 	int rv;
@@ -584,7 +582,7 @@ qla82xx_pci_mem_bound_check(struct qla_hw_data *ha,
 		return 1;
 }
 
-int qla82xx_pci_set_window_warning_count;
+static int qla82xx_pci_set_window_warning_count;
 
 static unsigned long
 qla82xx_pci_set_window(struct qla_hw_data *ha, unsigned long long addr)
@@ -927,7 +925,7 @@ qla82xx_wait_rom_done(struct qla_hw_data *ha)
 	return 0;
 }
 
-int
+static int
 qla82xx_md_rw_32(struct qla_hw_data *ha, uint32_t off, u32 data, uint8_t flag)
 {
 	uint32_t  off_value, rval = 0;
@@ -1784,14 +1782,6 @@ qla82xx_config_rings(struct scsi_qla_host *vha)
 	WRT_REG_DWORD((unsigned long  __iomem *)&reg->rsp_q_out[0], 0);
 }
 
-void qla82xx_reset_adapter(struct scsi_qla_host *vha)
-{
-	struct qla_hw_data *ha = vha->hw;
-	vha->flags.online = 0;
-	qla2x00_try_to_stop_firmware(vha);
-	ha->isp_ops->disable_intrs(ha);
-}
-
 static int
 qla82xx_fw_load_from_blob(struct qla_hw_data *ha)
 {
@@ -1875,7 +1865,7 @@ qla82xx_set_product_offset(struct qla_hw_data *ha)
 	return -1;
 }
 
-int
+static int
 qla82xx_validate_firmware_blob(scsi_qla_host_t *vha, uint8_t fw_type)
 {
 	__le32 val;
@@ -1980,20 +1970,6 @@ qla82xx_check_rcvpeg_state(struct qla_hw_data *ha)
 }
 
 /* ISR related functions */
-uint32_t qla82xx_isr_int_target_mask_enable[8] = {
-	ISR_INT_TARGET_MASK, ISR_INT_TARGET_MASK_F1,
-	ISR_INT_TARGET_MASK_F2, ISR_INT_TARGET_MASK_F3,
-	ISR_INT_TARGET_MASK_F4, ISR_INT_TARGET_MASK_F5,
-	ISR_INT_TARGET_MASK_F7, ISR_INT_TARGET_MASK_F7
-};
-
-uint32_t qla82xx_isr_int_target_status[8] = {
-	ISR_INT_TARGET_STATUS, ISR_INT_TARGET_STATUS_F1,
-	ISR_INT_TARGET_STATUS_F2, ISR_INT_TARGET_STATUS_F3,
-	ISR_INT_TARGET_STATUS_F4, ISR_INT_TARGET_STATUS_F5,
-	ISR_INT_TARGET_STATUS_F7, ISR_INT_TARGET_STATUS_F7
-};
-
 static struct qla82xx_legacy_intr_set legacy_intr[] = \
 	QLA82XX_LEGACY_INTR_CONFIG;
 
@@ -2819,7 +2795,7 @@ qla82xx_start_iocbs(scsi_qla_host_t *vha)
 	}
 }
 
-void qla82xx_rom_lock_recovery(struct qla_hw_data *ha)
+static void qla82xx_rom_lock_recovery(struct qla_hw_data *ha)
 {
 	scsi_qla_host_t *vha = pci_get_drvdata(ha->pdev);
 
@@ -3177,8 +3153,7 @@ qla82xx_check_md_needed(scsi_qla_host_t *vha)
 }
 
 
-int
-qla82xx_check_fw_alive(scsi_qla_host_t *vha)
+static int qla82xx_check_fw_alive(scsi_qla_host_t *vha)
 {
 	uint32_t fw_heartbeat_counter;
 	int status = 0;

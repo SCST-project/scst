@@ -114,7 +114,7 @@ static ssize_t q2t_version_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 
 
-struct kobj_attribute q2t_version_attr =
+static struct kobj_attribute q2t_version_attr =
 	__ATTR(version, S_IRUGO, q2t_version_show, NULL);
 
 static const struct attribute *q2tt_attrs[] = {
@@ -127,14 +127,14 @@ static ssize_t q2t_show_expl_conf_enabled(struct kobject *kobj,
 static ssize_t q2t_store_expl_conf_enabled(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buffer, size_t size);
 
-struct kobj_attribute q2t_expl_conf_attr =
+static struct kobj_attribute q2t_expl_conf_attr =
 	__ATTR(explicit_confirmation, S_IRUGO|S_IWUSR,
 	       q2t_show_expl_conf_enabled, q2t_store_expl_conf_enabled);
 
 static ssize_t q2t_abort_isp_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buffer, size_t size);
 
-struct kobj_attribute q2t_abort_isp_attr =
+static struct kobj_attribute q2t_abort_isp_attr =
 	__ATTR(abort_isp, S_IWUSR, NULL, q2t_abort_isp_store);
 
 static ssize_t q2t_hw_target_show(struct kobject *kobj,
