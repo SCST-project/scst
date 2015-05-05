@@ -4401,12 +4401,13 @@ struct scst_tgt_dev *scst_lookup_tgt_dev(struct scst_session *sess, u64 lun)
 	struct list_head *head;
 	struct scst_tgt_dev *tgt_dev;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32) && \
-	defined(CONFIG_SCST_EXTRACHECKS) && defined(CONFIG_PREEMPT_RCU) && \
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
+#if defined(CONFIG_SCST_EXTRACHECKS) && defined(CONFIG_PREEMPT_RCU) && \
 	defined(CONFIG_DEBUG_LOCK_ALLOC)
 	WARN_ON_ONCE(debug_locks &&
 		     !lockdep_is_held(&sess->tgt_dev_list_mutex) &&
 		     rcu_preempt_depth() == 0);
+#endif
 #endif
 
 	head = &sess->sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_FN(lun)];
