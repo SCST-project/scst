@@ -42,8 +42,10 @@ int iscsi_adm_request_listen(void)
 	if ((err = bind(fd, (struct sockaddr *) &addr, sizeof(addr))) < 0)
 		return err;
 
-	if ((err = listen(fd, 32)) < 0)
+	if ((err = listen(fd, 32)) < 0) {
+		close(fd);
 		return err;
+	}
 
 	return fd;
 }
