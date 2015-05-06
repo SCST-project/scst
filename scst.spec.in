@@ -102,6 +102,7 @@ Authors:
 %setup -q -n %{kmod_name}-%{version}
 
 %build
+make 2release
 export KVER=%{kversion} PREFIX=%{_prefix}
 export BUILD_2X_MODULE=y CONFIG_SCSI_QLA_FC=y CONFIG_SCSI_QLA2XXX_TARGET=y
 for d in scst fcst iscsi-scst qla2x00t/qla2x00-target scst_local srpt; do
@@ -190,6 +191,8 @@ rm -rf /usr/local/include/scst
 /usr/include/scst/scst_user.h
 
 %changelog
+* Wed May  6 2015 Bart Van Assche <bart.vanassche@sandisk.com>
+- Build in release mode instead of debug mode.
 * Mon May  4 2015 Bart Van Assche <bart.vanassche@sandisk.com>
 - Added iSER target driver.
 * Mon Feb 23 2015 Bart Van Assche <bart.vanassche@sandisk.com>
