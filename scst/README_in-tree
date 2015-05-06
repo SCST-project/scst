@@ -900,10 +900,12 @@ cache. The following parameters possible for vdisk_fileio:
 
     * scst - DIF tags are checked inside SCST core
 
-    * dev_check - DIF tags are checked inside backend device
+    * dev_check - DIF tags are checked inside backend device. No DIF
+      tags storing is required, but optionally possible.
 
     * dev_store - DIF tags are stored inside backend device on the WRITE
-      path and read from it on the READ path
+      path and read from it on the READ path. No DIF tags checking is
+      required, but optionally possible.
 
    For instance, if only tgt DIF mode specified, then target driver,
    serving this device, will inside hardware check, then STRIP DIF tags
