@@ -25,36 +25,48 @@
 
 #include "iscsid.h"
 
-int create_and_open_dev(const char *dev, int readonly)
+int driver_major(const char *dev)
 {
 	FILE *f;
 	char devname[256];
 	char buf[256];
 	int devn;
-	int ctlfd = -1;
-	int err;
-	int flags;
 
 	f = fopen("/proc/devices", "r");
 	if (!f) {
-		err = -errno;
+		devn = -errno;
 		perror("Cannot open control path to the driver");
 		goto out;
 	}
 
-	devn = 0;
+	devn = -ENOENT;
 	while (fgets(buf, sizeof(buf), f)) {
 		if (sscanf(buf, "%d %s", &devn, devname) == 2 &&
 		    devn > 0 && strcmp(devname, dev) == 0)
 			break;
-		devn = 0;
+		devn = -ENOENT;
 	}
-
 	fclose(f);
-	if (!devn) {
-		err = -ENOENT;
+
+	if (devn < 0)
 		printf("cannot find %s in /proc/devices - "
 		     "make sure the module is loaded\n", dev);
+
+out:
+	return devn;
+}
+
+int create_and_open_dev(const char *dev, int readonly)
+{
+	char devname[256];
+	int devn;
+	int ctlfd = -1;
+	int err;
+	int flags;
+
+	devn = driver_major(dev);
+	if (devn < 0) {
+		err = devn;
 		goto out;
 	}
 
