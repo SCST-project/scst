@@ -1,0 +1,141 @@
+GENERAL CONSIDERATIONS
+======================
+
+SCST has almost full features implementation of T10-PI standard
+supporting all protection modes. The only missing feature is Application
+Tag mode page. A patch implementing it is welcome.
+
+SCST T10-PI implementation has 2 modes of operations:
+
+1. Computing. In this mode no protection information (PI) is stored. It
+only checked upon arrival (WRITEs) and calculated from the data upon
+sending (READs). Goal of this mode to provide protection against uplink,
+i.e. path to initiator, corruptions.
+
+2. Storing. In this mode PI is stored either in a file/device as simple
+array with 8 bytes entries, or inside block device using block integrity
+extensions. In this mode full end-to-end protection could be
+implemented.
+
+In both "computing" and "storing" modes PI can be checked on any stages
+of commands processing:
+
+1. Target HW
+
+2. SCST
+
+3. Backend HW, if it supports block integrity extensions.
+
+Any of them or all can be independently enabled or disabled depending
+from level of performance overhead and required protection. For
+instance, the target HW stage is the cheapest from performance
+perspective, but doesn't protect against corruptions or misdirections on
+PCI bus between the target HW and system. Another example, if backend HW
+supports T10-PI, no checks on other stages are generally needed, but can
+be used to localize place where corruption happened. Checking on each
+stage to be able to localize corruption place is the recommended by T10
+way of processing.
+
+
+USER INTERFACE
+==============
+
+Currently only scst_vdisk handler supports T10-PI.
+
+See in the main README description of SCST sysfs attributes:
+dif_capabilities, dif_checks_failed, dif_mode, dif_type,
+dif_static_app_tag and dif_filename.
+
+Examples:
+---------
+
+dif_mode=tgt, dif_type=1 - TGT level only check, type 1
+
+dif_mode=scst, dif_type=1, dif_static_app_tag=0x4149 -
+	SCST level only check, type 1, static app tag 0x4149
+
+dif_mode=scst|dev_store, dif_type=1, dif_filename=/var/lib/scst/dif_tags/rd1_dif.dif -
+	SCST level only check and storing PI data in the file
+
+dif_mode=scst, dif_type=2 - SCST level only check, type 2 (32-byte commands)
+
+dif_mode=tag|scst|dev_check|dev_store, dif_type=1 - all levels check
+	storing tags using block integrity extensions, type 1
+
+
+INTERFACE BETWEEN SCST AND TARGET DRIVERS
+=========================================
+
+To support T10-PI struct scst_tgt_template has several new fields:
+supported_dif_block_sizes, dif_supported, hw_dif_type1_supported,
+hw_dif_type2_supported, hw_dif_type3_supported, hw_dif_ip_supported,
+hw_dif_same_sg_layout_required. See their description in their comments
+in scst.h.
+
+A READ-direction workflow from a target driver perspective should look
+like:
+
+1. No extra actions until xmit_response() stage*
+
+2. On xmit_response() stage call scst_cmd_get_dif_sg(cmd)**. If returned
+value is NULL, no further PI actions are needed.
+
+3. Otherwise, call scst_get_read_dif_tgt_actions(cmd) to find out what
+PI actions are needed. The return value has encoded 2 types of actions:
+action itself and tags checks.
+
+Possible actions, which could be extracted by using scst_get_dif_action(),
+are:
+
+ - SCST_DIF_ACTION_STRIP - check, then strip the protection info, if it
+   is OK
+
+ - SCST_DIF_ACTION_INSERT - insert the protection info
+
+ - SCST_DIF_ACTION_PASS_CHECK - check the protection info, then pass it
+   to the initiator
+
+ - SCST_DIF_ACTION_PASS - then pass the protection information to the
+   initiator without checking
+
+Possible tags checks, which could be extracted by using
+scst_get_dif_checks() are:
+
+ - SCST_DIF_CHECK_GUARD_TAG - check the guard tags
+
+ - SCST_DIF_CHECK_REF_TAG - check the reference tags
+
+ - SCST_DIF_CHECK_APP_TAG - check the application tags comparing them to
+   the static tag set by dif_static_app_tag attribute
+
+4. Perform the requested PI actions and transfer PI from the returned
+dif_sg together with the regular data**.
+
+
+A WRITE-direction workflow from a target driver perspective should look
+like:
+
+1. No extra actions until rdy_to_xfer() stage*
+
+2. On rdy_to_xfer() stage call scst_cmd_get_dif_sg(cmd)**. If returned
+value is NULL, no further PI actions are needed.
+
+3. Otherwise, call scst_get_write_dif_tgt_actions(cmd) to find out what
+PI actions are needed.
+
+4. Perform the requested PI actions and transfer PI to the returned
+dif_sg together with regular data**.
+
+
+(*) If the target driver uses custom data buffer, on this stage it must
+together with data sg by scst_cmd_set_tgt_dif_sg() function also set the
+corresponding PI sg.
+
+(**) The PI SG returned by scst_cmd_get_dif_sg() does not have the
+corresponding SG-segments counter, because it is strictly bound to
+number of blocks in the data SG.
+
+
+You can find full external SCST T10-PI interface if you look in scst.h
+functions with "_dif_" string in their name. They are well documented in
+comments near them.
