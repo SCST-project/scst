@@ -3224,7 +3224,6 @@ static int scst_exec_check_blocking(struct scst_cmd **active_cmd)
 {
 	struct scst_cmd *cmd = *active_cmd;
 	struct scst_cmd *ref_cmd;
-	int count = 0;
 
 	TRACE_ENTRY();
 
@@ -3285,8 +3284,6 @@ static int scst_exec_check_blocking(struct scst_cmd **active_cmd)
 		sBUG_ON(rc != SCST_EXEC_COMPLETED);
 
 done:
-		count++;
-
 		cmd = scst_post_exec_sn(cmd, false);
 		if (cmd == NULL)
 			break;
@@ -3305,15 +3302,11 @@ done:
 
 	*active_cmd = cmd;
 
-	if (count == 0)
-		goto out_put;
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
 	if (ref_cmd->dev->scsi_dev != NULL)
 		generic_unplug_device(ref_cmd->dev->scsi_dev->request_queue);
 #endif
 
-out_put:
 	__scst_cmd_put(ref_cmd);
 	/* !! At this point sess, dev and tgt_dev can be already freed !! */
 
