@@ -1570,6 +1570,7 @@ next:
 		PRINT_WARNING("Device %s: static app tag is ignored for DIF "
 			"mode 2", dev->virt_name);
 
+#ifndef CONFIG_SCST_PROC
 	if (virt_dev->dif_filename != NULL) {
 		res = scst_create_dev_attr(dev, &vdev_dif_filename_attr);
 		if (res != 0) {
@@ -1579,6 +1580,7 @@ next:
 			goto out;
 		}
 	}
+#endif
 
 	if (virt_dev->zero_copy && virt_dev->o_direct_flag) {
 		PRINT_ERROR("%s: combining zero_copy with o_direct is not"
