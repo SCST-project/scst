@@ -60,10 +60,9 @@
 #include "scst.h"
 #endif
 
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-
 #define TRACE_ORDER	0x80000000
 
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 static struct scst_trace_log vdisk_local_trace_tbl[] = {
 	{ TRACE_ORDER,		"order" },
 	{ 0,			NULL }
