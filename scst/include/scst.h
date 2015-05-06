@@ -2342,7 +2342,7 @@ struct scst_cmd {
 
 	/*
 	 * Set by SCST if the custom data buffer allocated by the target driver
-	 * or, for internal commands, by SCST core .
+	 * or, for internal commands, by SCST core.
 	 */
 	unsigned int tgt_i_data_buf_alloced:1;
 
