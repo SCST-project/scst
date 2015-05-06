@@ -478,8 +478,8 @@ int account_replace(struct target *target, int direction,
 	return iscsi_attr_replace(list, sysfs_name, value);
 }
 
-int __config_account_add(struct target *target, int dir, char *name,
-	char *pass, char *sysfs_name, int send_to_kern, u32 cookie)
+int __config_account_add(struct target *target, int dir, char *name, char *pass,
+			 const char *sysfs_name, int send_to_kern, u32 cookie)
 {
 	int err = 0;
 	struct iscsi_attr *user;
@@ -550,8 +550,8 @@ out_destroy:
 	goto out;
 }
 
-int config_account_add(u32 tid, int dir, char *name, char *pass, char *sysfs_name,
-	u32 cookie)
+int config_account_add(u32 tid, int dir, char *name, char *pass,
+		       const char *sysfs_name, u32 cookie)
 {
 	int err = 0;
 	struct target *target;
@@ -705,7 +705,7 @@ static int __initiator_match(int fd, char *str)
 	return err;
 }
 
-static int initiator_match(u32 tid, int fd, char *filename)
+static int initiator_match(u32 tid, int fd, const char *filename)
 {
 	int err = 0;
 	FILE *fp;
