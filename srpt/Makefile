@@ -131,8 +131,10 @@ src/$(MODULE_SYMVERS): $(SCST_SYMVERS_DIR)/$(MODULE_SYMVERS)	\
 	fi
 
 clean:
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src clean
+	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/gid_change clean
+	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/ clean
 	rm -f src/$(MODULE_SYMVERS) src/Module.markers src/modules.order
+	rm -rf conftest/pre_cflags conftest/kcflags
 
 extraclean: clean
 	rm -f *.orig *.rej
