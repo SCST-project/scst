@@ -7422,7 +7422,9 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	rq->timeout = cmd->timeout;
 	rq->retries = cmd->retries;
 	rq->end_io_data = sioc;
-	rq->cmd_flags |= REQ_QUIET;
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 35)
+	rq->cmd_flags |= REQ_FAILFAST_MASK;
+#endif
 
 	blk_execute_rq_nowait(rq->q, NULL, rq,
 		(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE), scsi_end_async);
