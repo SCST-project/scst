@@ -550,6 +550,7 @@ again:
 				conn->req.data = conn->buffer + conn->req.ahssize;
 				goto read_again;
 			}
+			/* fall-through */
 
 		case IOSTATE_READ_AHS_DATA:
 			conn_write_pdu(conn);
