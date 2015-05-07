@@ -1355,7 +1355,7 @@ qla2x00_fdmi_rhba(scsi_qla_host_t *vha)
 	/* Model name. */
 	eiter = (struct ct_fdmi_hba_attr *) (entries + size);
 	eiter->type = __constant_cpu_to_be16(FDMI_HBA_MODEL);
-	strcpy(eiter->a.model, ha->model_number);
+	strlcpy(eiter->a.model, ha->model_number, sizeof(eiter->a.model));
 	alen = strlen(eiter->a.model);
 	alen += (alen & 3) ? (4 - (alen & 3)) : 4;
 	eiter->len = cpu_to_be16(4 + alen);
