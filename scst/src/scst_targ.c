@@ -73,8 +73,12 @@ EXPORT_SYMBOL_GPL(scst_post_alloc_data_buf);
 
 static inline void scst_schedule_tasklet(struct scst_cmd *cmd)
 {
-	struct scst_percpu_info *i = &scst_percpu_infos[smp_processor_id()];
+	struct scst_percpu_info *i;
 	unsigned long flags;
+
+	preempt_disable();
+
+	i = &scst_percpu_infos[smp_processor_id()];
 
 	if (atomic_read(&i->cpu_cmd_count) <= scst_max_tasklet_cmd) {
 		spin_lock_irqsave(&i->tasklet_lock, flags);
@@ -93,6 +97,8 @@ static inline void scst_schedule_tasklet(struct scst_cmd *cmd)
 		wake_up(&cmd->cmd_threads->cmd_list_waitQ);
 		spin_unlock_irqrestore(&cmd->cmd_threads->cmd_list_lock, flags);
 	}
+
+	preempt_enable();
 	return;
 }
 
