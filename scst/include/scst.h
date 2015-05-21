@@ -2039,6 +2039,7 @@ struct scst_ext_latency_stat {
 struct scst_io_stat_entry {
 	uint64_t cmd_count;
 	uint64_t io_byte_count;
+	uint64_t unaligned_cmd_count;
 };
 
 /*

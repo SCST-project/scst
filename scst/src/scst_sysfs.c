@@ -2757,14 +2757,14 @@ static struct kobj_attribute scst_tgt_##attr##_attr =			\
 
 SCST_TGT_SYSFS_STAT_ATTR(cmd_count, unknown_cmd_count, SCST_DATA_UNKNOWN, >> 0);
 SCST_TGT_SYSFS_STAT_ATTR(cmd_count, write_cmd_count, SCST_DATA_WRITE, >> 0);
-SCST_TGT_SYSFS_STAT_ATTR(io_byte_count, write_io_count_kb, SCST_DATA_WRITE,
-			 >> 10);
+SCST_TGT_SYSFS_STAT_ATTR(io_byte_count, write_io_count_kb, SCST_DATA_WRITE, >> 10);
+SCST_TGT_SYSFS_STAT_ATTR(unaligned_cmd_count, write_unaligned_cmd_count, SCST_DATA_WRITE, >> 0);
 SCST_TGT_SYSFS_STAT_ATTR(cmd_count, read_cmd_count, SCST_DATA_READ, >> 0);
-SCST_TGT_SYSFS_STAT_ATTR(io_byte_count, read_io_count_kb, SCST_DATA_READ,
-			 >> 10);
+SCST_TGT_SYSFS_STAT_ATTR(io_byte_count, read_io_count_kb, SCST_DATA_READ, >> 10);
+SCST_TGT_SYSFS_STAT_ATTR(unaligned_cmd_count, read_unaligned_cmd_count, SCST_DATA_READ, >> 0);
 SCST_TGT_SYSFS_STAT_ATTR(cmd_count, bidi_cmd_count, SCST_DATA_BIDI, >> 0);
-SCST_TGT_SYSFS_STAT_ATTR(io_byte_count, bidi_io_count_kb, SCST_DATA_BIDI,
-			 >> 10);
+SCST_TGT_SYSFS_STAT_ATTR(io_byte_count, bidi_io_count_kb, SCST_DATA_BIDI, >> 10);
+SCST_TGT_SYSFS_STAT_ATTR(unaligned_cmd_count, bidi_unaligned_cmd_count, SCST_DATA_BIDI, >> 0);
 SCST_TGT_SYSFS_STAT_ATTR(cmd_count, none_cmd_count, SCST_DATA_NONE, >> 0);
 
 static struct attribute *scst_tgt_attrs[] = {
@@ -2777,10 +2777,13 @@ static struct attribute *scst_tgt_attrs[] = {
 	&scst_tgt_unknown_cmd_count_attr.attr,
 	&scst_tgt_write_cmd_count_attr.attr,
 	&scst_tgt_write_io_count_kb_attr.attr,
+	&scst_tgt_write_unaligned_cmd_count_attr.attr,
 	&scst_tgt_read_cmd_count_attr.attr,
 	&scst_tgt_read_io_count_kb_attr.attr,
+	&scst_tgt_read_unaligned_cmd_count_attr.attr,
 	&scst_tgt_bidi_cmd_count_attr.attr,
 	&scst_tgt_bidi_io_count_kb_attr.attr,
+	&scst_tgt_bidi_unaligned_cmd_count_attr.attr,
 	&scst_tgt_none_cmd_count_attr.attr,
 	NULL,
 };
@@ -4568,6 +4571,7 @@ static ssize_t scst_sess_sysfs_##exported_name##_store(struct kobject *kobj,	\
 	BUILD_BUG_ON(dir >= SCST_DATA_DIR_MAX);					\
 	sess->io_stats[dir].cmd_count = 0;					\
 	sess->io_stats[dir].io_byte_count = 0;					\
+	sess->io_stats[dir].unaligned_cmd_count = 0;				\
 	spin_unlock_irq(&sess->sess_list_lock);					\
 	return count;								\
 }										\
@@ -4580,12 +4584,14 @@ static struct kobj_attribute session_##exported_name##_attr =			\
 SCST_SESS_SYSFS_STAT_ATTR(cmd_count, unknown_cmd_count, SCST_DATA_UNKNOWN, 0);
 SCST_SESS_SYSFS_STAT_ATTR(cmd_count, write_cmd_count, SCST_DATA_WRITE, 0);
 SCST_SESS_SYSFS_STAT_ATTR(io_byte_count, write_io_count_kb, SCST_DATA_WRITE, 1);
+SCST_SESS_SYSFS_STAT_ATTR(unaligned_cmd_count, write_unaligned_cmd_count, SCST_DATA_WRITE, 0);
 SCST_SESS_SYSFS_STAT_ATTR(cmd_count, read_cmd_count, SCST_DATA_READ, 0);
 SCST_SESS_SYSFS_STAT_ATTR(io_byte_count, read_io_count_kb, SCST_DATA_READ, 1);
+SCST_SESS_SYSFS_STAT_ATTR(unaligned_cmd_count, read_unaligned_cmd_count, SCST_DATA_READ, 0);
 SCST_SESS_SYSFS_STAT_ATTR(cmd_count, bidi_cmd_count, SCST_DATA_BIDI, 0);
 SCST_SESS_SYSFS_STAT_ATTR(io_byte_count, bidi_io_count_kb, SCST_DATA_BIDI, 1);
+SCST_SESS_SYSFS_STAT_ATTR(unaligned_cmd_count, bidi_unaligned_cmd_count, SCST_DATA_BIDI, 0);
 SCST_SESS_SYSFS_STAT_ATTR(cmd_count, none_cmd_count, SCST_DATA_NONE, 0);
-
 
 static ssize_t scst_sess_force_close_store(struct kobject *kobj,
 					   struct kobj_attribute *attr,
@@ -4615,10 +4621,13 @@ static struct attribute *scst_session_attrs[] = {
 	&session_unknown_cmd_count_attr.attr,
 	&session_write_cmd_count_attr.attr,
 	&session_write_io_count_kb_attr.attr,
+	&session_write_unaligned_cmd_count_attr.attr,
 	&session_read_cmd_count_attr.attr,
 	&session_read_io_count_kb_attr.attr,
+	&session_read_unaligned_cmd_count_attr.attr,
 	&session_bidi_cmd_count_attr.attr,
 	&session_bidi_io_count_kb_attr.attr,
+	&session_bidi_unaligned_cmd_count_attr.attr,
 	&session_none_cmd_count_attr.attr,
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 	&session_latency_attr.attr,

@@ -541,6 +541,20 @@ Every target should have at least the following entries:
    until rel_tgt_id becomes unique. This attribute initialized unique by
    SCST by default.
 
+ - *count*, e.g. read_io_count_kb, - statistics about executed
+   commands and transferred data. Those attributes have speaking names
+   built from parts:
+
+   1. Data transfer direction
+
+   2. Alignment type: not specified or unaligned (on 4K boundaries)
+
+   3. Type: IO (commands) count or amount of transferred data
+
+   4. For transferred data: measurement units
+
+   For instance, read_unaligned_cmd_count means number of 4K unaligned IOs.
+
 A target driver may have also the following entries:
 
  - "hw_target" - if the target driver supports both hardware and virtual
@@ -601,6 +615,9 @@ following entries:
 
  - latency - if CONFIG_SCST_MEASURE_LATENCY enabled, contains latency
    statistics for this session.
+
+ - *count*, e.g. read_io_count_kb, - statistics about executed
+   commands and transferred data. See above for more details.
 
  - luns - a link pointing out to the corresponding LUNs set (security
    group) where this session was attached to.
