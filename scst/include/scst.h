@@ -1943,13 +1943,14 @@ struct scst_tgt {
 	unsigned tgt_hw_dif_type3_supported:1;
 	unsigned tgt_hw_dif_ip_supported:1;
 	unsigned tgt_hw_dif_same_sg_layout_required:1;
-	const int *tgt_supported_dif_block_sizes;
 
 	/*
 	 * Maximum SG table size. Needed here, since different cards on the
 	 * same target template can have different SG table limitations.
 	 */
 	int sg_tablesize;
+
+	const int *tgt_supported_dif_block_sizes;
 
 	/* Used for storage of target driver private stuff */
 	void *tgt_priv;
@@ -1961,10 +1962,10 @@ struct scst_tgt {
 	 * They protected by tgt_lock, where necessary.
 	 */
 	bool retry_timer_active;
-	struct timer_list retry_timer;
 	int retry_cmds;
-	spinlock_t tgt_lock;
+	struct timer_list retry_timer;
 	struct list_head retry_cmd_list;
+	spinlock_t tgt_lock;
 
 	/* Used to wait until session finished to unregister */
 	wait_queue_head_t unreg_waitQ;
