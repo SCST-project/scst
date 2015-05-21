@@ -665,6 +665,10 @@ Every target should have at least the following entries:
    until rel_tgt_id becomes unique. This attribute initialized unique by
    SCST by default.
 
+ - forwarding - if set this target is forwarding target, i.e. does not check
+   any local SCSI events (reservations, etc.). Those event supposed to
+   be checked on the another, requester's side.
+
  - *count*, e.g. read_io_count_kb, - statistics about executed
    commands and transferred data. Those attributes have speaking names
    built from parts:

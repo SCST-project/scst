@@ -2789,6 +2789,15 @@ int __scst_check_local_events(struct scst_cmd *cmd, bool preempt_tests_only)
 		goto out;
 	}
 
+	if (unlikely(test_bit(SCST_TGT_DEV_FORWARDING, &cmd->tgt_dev->tgt_dev_flags))) {
+		/*
+		 * All the checks are supposed to be done on the
+		 * forwarding requester's side.
+		 */
+		res = 0;
+		goto out;
+	}
+
 	/*
 	 * There's no race here, because we need to trace commands sent
 	 * *after* dev_double_ua_possible flag was set.
