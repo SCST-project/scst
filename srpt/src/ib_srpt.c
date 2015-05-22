@@ -130,9 +130,9 @@ MODULE_PARM_DESC(srp_max_rsp_size,
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31) \
     || defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
-static int use_srq = true;
+static int use_srq;
 #else
-static bool use_srq = true;
+static bool use_srq;
 #endif
 module_param(use_srq, bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(use_srq,
