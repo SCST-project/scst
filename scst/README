@@ -159,6 +159,19 @@ IMPORTANT: In the current version simultaneous access to local SCSI devices
 
 To uninstall, type 'make scst_uninstall'.
 
+
+Creating a kernel patch or patched kernel
+-----------------------------------------
+
+You can use generate-kernel-patch or generate-patched-kernel scripts in
+the scripts/ subdirectory to convert SCST source tree as it exists
+in the Subversion repository to a Linux kernel patch or generate a
+kernel source tree with the SCST patches applied correspondingly. This
+subdirectory exists only in the SVN tree.
+
+Script rebuild-rhel-kernel-rpm might also be useful in this regard.
+
+
 Migration from the obsolete proc interface
 ------------------------------------------
 
