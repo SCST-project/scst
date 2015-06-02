@@ -169,6 +169,10 @@ in the Subversion repository to a Linux kernel patch or generate a
 kernel source tree with the SCST patches applied correspondingly. This
 subdirectory exists only in the SVN tree.
 
+Example how to use generate-kernel-patch you can find at "How To install
+SCST on Ubutuntu 15.04 with in-tree kernel patches"
+https://gist.github.com/chrwei/42f8bbb687290b04b598, thanks to Chris Weiss.
+
 Script rebuild-rhel-kernel-rpm might also be useful in this regard.
 
 
