@@ -94,11 +94,11 @@ install install_vendor:
 	for s in iscsi-scst qla2x00t; do			\
 	  { $(call REMOVE_FN,$$s); } >/dev/null 2>&1;		\
 	done
-	echo
-	echo 'If you want SCST to start automatically at boot time, run'  \
+	@echo
+	@echo 'If you want SCST to start automatically at boot time, run'  \
 	     'the following command:'
-	$(call ECHO_INSTALL_FN,scst)
-	echo
+	@$(call ECHO_INSTALL_FN,scst)
+	@echo
 
 uninstall:
 	if [ -e $(DESTDIR)$(DEFAULTDIR)/scst ]; then	\
