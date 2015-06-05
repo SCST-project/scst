@@ -1681,6 +1681,31 @@ transfers. As the result, those threads won't receive all the processing
 power of those CPUs and perform worse.
 
 
+Commands suspending takes too long
+----------------------------------
+
+SCST is suspending commands during some management activities like
+adding/deleting LUNs or devices. It is done to have lockless LUNs
+translation on the hot commands processing path. This brings significant
+performance advantage. You will see a message like "Waiting for X active
+commands to complete" when this wait started.
+
+But downside of it is that no new commands start executing until older
+ones, which had started before the suspending begun, finished. This
+wait can not be any longer, than the worst command latency any your
+initiator is seeing at this particular time.
+
+So, if this wait takes too long, in majority of cases it means that you
+are overloading your storage. A proper storage should have worst case
+latency below few hundreds of milliseconds. In this case the SCST
+suspending will finish in few hundreds of milliseconds at worse.
+
+Another case, when it can take too long to suspend is a hung user space
+device (i.e. scst_user device) not responding to any command. In this
+case you should kill the corresponding user space program to finish
+suspending.
+
+
 Work if target's backstorage or link is too slow
 ------------------------------------------------
 

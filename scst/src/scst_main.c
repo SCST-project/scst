@@ -894,6 +894,8 @@ static int scst_susp_wait(unsigned long timeout)
 		goto out;
 
 	if (res == 0) {
+		PRINT_INFO("%d active commands to still not completed. See "
+			"README for possible reasons.", scst_get_cmd_counter());
 		scst_trace_cmds(scst_to_syslog, &hp);
 		scst_trace_mcmds(scst_to_syslog, &hp);
 	}
@@ -975,15 +977,8 @@ int scst_suspend_activity(unsigned long timeout)
 	 */
 
 	if (scst_get_cmd_counter() != 0) {
-		PRINT_INFO("Waiting for %d active commands to complete... This "
-			"might take few minutes for disks or few hours for "
-			"tapes, if you use long executed commands, like "
-			"REWIND or FORMAT. In case, if you have a hung user "
-			"space device (i.e. made using scst_user module) not "
-			"responding to any commands, if might take virtually "
-			"forever until the corresponding user space "
-			"program recovers and starts responding or gets "
-			"killed.", scst_get_cmd_counter());
+		PRINT_INFO("Waiting for %d active commands to complete...",
+			scst_get_cmd_counter());
 		rep = true;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
