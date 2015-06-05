@@ -721,13 +721,14 @@ static const char *const scst_cmd_state_name[] = {
 	[SCST_CMD_STATE_XMIT_WAIT]			= "XMIT_WAIT",
 };
 
-static void scst_get_cmd_state_name(char *name, int len, unsigned state)
+char *scst_get_cmd_state_name(char *name, int len, unsigned state)
 {
 	if (state < ARRAY_SIZE(scst_cmd_state_name) &&
 	    scst_cmd_state_name[state])
 		strlcpy(name, scst_cmd_state_name[state], len);
 	else
 		snprintf(name, len, "%d", state);
+	return name;
 }
 
 static char *scst_dump_cdb(char *buf, int buf_len, struct scst_cmd *cmd)
@@ -796,13 +797,13 @@ static const char *const scst_tm_fn_name[] = {
 	[SCST_PR_ABORT_ALL] =	"PR_ABORT_ALL",
 };
 
-static void scst_get_tm_fn_name(char *name, int len, unsigned fn)
+char *scst_get_tm_fn_name(char *name, int len, unsigned fn)
 {
 	if (fn < ARRAY_SIZE(scst_tm_fn_name) && scst_tm_fn_name[fn])
 		strlcpy(name, scst_tm_fn_name[fn], len);
 	else
 		snprintf(name, len, "%d", fn);
-	return;
+	return name;
 }
 
 static const char *const scst_mcmd_state_name[] = {
@@ -815,14 +816,14 @@ static const char *const scst_mcmd_state_name[] = {
 	[SCST_MCMD_STATE_FINISHED] =	"FINISHED",
 };
 
-static void scst_get_mcmd_state_name(char *name, int len, unsigned state)
+char *scst_get_mcmd_state_name(char *name, int len, unsigned state)
 {
 	if (state < ARRAY_SIZE(scst_mcmd_state_name) &&
 	    scst_mcmd_state_name[state])
 		strlcpy(name, scst_mcmd_state_name[state], len);
 	else
 		snprintf(name, len, "%d", state);
-	return;
+	return name;
 }
 
 void scst_trace_mcmds(scst_show_fn show, void *arg)

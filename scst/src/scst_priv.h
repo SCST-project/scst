@@ -274,6 +274,10 @@ extern void scst_tgt_dev_stop_threads(struct scst_tgt_dev *tgt_dev);
 
 extern struct scst_dev_type scst_null_devtype;
 
+char *scst_get_cmd_state_name(char *name, int len, unsigned state);
+char *scst_get_mcmd_state_name(char *name, int len, unsigned state);
+char *scst_get_tm_fn_name(char *name, int len, unsigned fn);
+
 extern struct scst_cmd *__scst_check_deferred_commands_locked(
 	struct scst_order_data *order_data, bool return_first);
 extern struct scst_cmd *__scst_check_deferred_commands(

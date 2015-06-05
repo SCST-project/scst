@@ -5482,18 +5482,21 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 
 		if (mstb->done_counted || mstb->finish_counted) {
 			unsigned long t;
+			char state_name[32];
 			if (mcmd->fn != SCST_PR_ABORT_ALL)
 				t = TRACE_MGMT;
 			else
 				t = TRACE_MGMT_DEBUG;
 			TRACE(t, "cmd %p (tag %llu, "
-				"sn %u) being executed/xmitted (state %d, "
+				"sn %u) being executed/xmitted (state %s, "
 				"op %s, proc time %ld sec., timeout %d sec.), "
 				"deferring ABORT (cmd_done_wait_count %d, "
 				"cmd_finish_wait_count %d, internal %d, mcmd "
 				"fn %d (mcmd %p), initiator %s, target %s)",
 				cmd, (unsigned long long int)cmd->tag,
-				cmd->sn, cmd->state, scst_get_opcode_name(cmd),
+				cmd->sn, scst_get_cmd_state_name(state_name,
+					sizeof(state_name), cmd->state),
+				scst_get_opcode_name(cmd),
 				(long)(jiffies - cmd->start_time) / HZ,
 				cmd->timeout / HZ, mcmd->cmd_done_wait_count,
 				mcmd->cmd_finish_wait_count, cmd->internal,
@@ -5565,15 +5568,20 @@ static int scst_set_mcmd_next_state(struct scst_mgmt_cmd *mcmd)
 		break;
 
 	default:
-		PRINT_CRIT_ERROR("Wrong mcmd %p state %d (fn %d, "
+	{
+		char fn_name[16], state_name[32];
+		PRINT_CRIT_ERROR("Wrong mcmd %p state %s (fn %s, "
 			"cmd_finish_wait_count %d, cmd_done_wait_count %d)",
-			mcmd, mcmd->state, mcmd->fn,
+			mcmd, scst_get_mcmd_state_name(state_name,
+					sizeof(state_name), mcmd->state),
+			scst_get_tm_fn_name(fn_name, sizeof(fn_name), mcmd->fn),
 			mcmd->cmd_finish_wait_count, mcmd->cmd_done_wait_count);
 #if !defined(__CHECKER__)
 		spin_unlock_irq(&scst_mcmd_lock);
 #endif
 		res = -1;
 		sBUG();
+	}
 	}
 
 	spin_unlock_irq(&scst_mcmd_lock);
@@ -6604,12 +6612,17 @@ static int scst_process_mgmt_cmd(struct scst_mgmt_cmd *mcmd)
 			goto out;
 
 		default:
-			PRINT_CRIT_ERROR("Wrong mcmd %p state %d (fn %d, "
+		{
+			char fn_name[16], state_name[32];
+			PRINT_CRIT_ERROR("Wrong mcmd %p state %s (fn %s, "
 				"cmd_finish_wait_count %d, cmd_done_wait_count "
-				"%d)", mcmd, mcmd->state, mcmd->fn,
+				"%d)", mcmd, scst_get_mcmd_state_name(state_name,
+					sizeof(state_name), mcmd->state),
+				scst_get_tm_fn_name(fn_name, sizeof(fn_name), mcmd->fn),
 				mcmd->cmd_finish_wait_count,
 				mcmd->cmd_done_wait_count);
 			sBUG();
+		}
 		}
 	}
 
@@ -6797,6 +6810,7 @@ int scst_rx_mgmt_fn(struct scst_session *sess,
 {
 	int res = -EFAULT;
 	struct scst_mgmt_cmd *mcmd = NULL;
+	char state_name[32];
 
 	TRACE_ENTRY();
 
@@ -6832,11 +6846,13 @@ int scst_rx_mgmt_fn(struct scst_session *sess,
 	mcmd->cmd_sn = params->cmd_sn;
 
 	if (params->fn < SCST_UNREG_SESS_TM)
-		TRACE(TRACE_MGMT, "TM fn %d (mcmd %p, initiator %s, target %s)",
-			params->fn, mcmd, sess->initiator_name,
-			sess->tgt->tgt_name);
+		TRACE(TRACE_MGMT, "TM fn %s/%d (mcmd %p, initiator %s, target %s)",
+			scst_get_tm_fn_name(state_name, sizeof(state_name), params->fn),
+			params->fn, mcmd, sess->initiator_name, sess->tgt->tgt_name);
 	else
-		TRACE_MGMT_DBG("TM fn %d (mcmd %p)", params->fn, mcmd);
+		TRACE_MGMT_DBG("TM fn %s/%d (mcmd %p)",
+			scst_get_tm_fn_name(state_name, sizeof(state_name), params->fn),
+			params->fn, mcmd);
 
 	TRACE_MGMT_DBG("sess=%p, tag_set %d, tag %lld, lun_set %d, "
 		"lun=%lld, cmd_sn_set %d, cmd_sn %d, priv %p", sess,
