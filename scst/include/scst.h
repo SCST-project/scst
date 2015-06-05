@@ -760,11 +760,13 @@ enum scst_exec_context {
  ** T10-PI (DIF) support
  *************************************************************/
 
-struct scst_dif_tuple {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0)
+struct t10_pi_tuple {
 	__be16 guard_tag;
 	__be16 app_tag;
 	__be32 ref_tag;
 };
+#endif
 
 /*
  * Defines where and how to deal with DIF tags. Can be OR'ed to get
