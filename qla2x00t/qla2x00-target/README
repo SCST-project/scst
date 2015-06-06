@@ -4,6 +4,14 @@ Target driver for QLogic 2[2-6]xx/8[1-3]xx Fibre Channel cards
 Version 3.1.0, XX XXXXX 2015
 ----------------------------
 
+This is target driver for QLogic 2[2-6]xx/8[1-3]xx Fibre Channel cards.
+Particularly, this driver supports 16G Hilda QLogic chip based adapters
+(however, post-Hilda QLogic chips not supported). This driver should
+also support FCoE, but that has never been verified. It has passed
+intensive internal SanDisk tests. It is stable and production ready.
+This driver is in stable maintenance mode in favor of the QLogic git
+driver, which has support for all the latest QLogic adapters.
+
 This driver consists from two parts: the target mode driver itself and
 the changed initiator driver from Linux kernel, which is, particularly,
 intended to perform all the initialization and shutdown tasks. The
