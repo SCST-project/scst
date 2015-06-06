@@ -55,23 +55,34 @@
 				</ul>
 			</div>		
 	
-	  		<div id="main"> 
+	  		<div id="main">
 				<h1>Target driver qla2x00t for QLogic FC adapters</h1>
 				<p><img src="images/t_qlogic.gif" width="100" height="120" class="float-left" alt="SCST QLogic">
 				This is target driver for QLogic qla2xxx (22xx++) Fibre Channel adapters.</p>
 
-				<p>The latest stable version is 3.0.1. Requires Linux kernel version 2.6.26.x or higher and
-				SCST version 3.0.1 or higher.</p>
-
-				<p>Driver in qla2x00t subdirectory is the old one, forked from qla2xxx from kernel 2.6.26. It is not maintained anymore.
-				You can find the latest version of this driver in
-				git://git.qlogic.com/scst-qla2xxx.git. It is now maintained by QLogic, hence
-				located in the QLogic's git. This driver also supports FCoE. See SVN root README for instructions how to integrate it
-				into the SCST build tree.</p>
+				<p>There are 2 latest stable versions of this driver:</p>
+					<ul>
+					<li><span>The first one is 3.0.1. It requires Linux kernel version 2.6.26.x or higher and
+					SCST version 3.0.1 or higher. Driver in qla2x00t subdirectory is the old one, forked from
+					qla2xxx from kernel 2.6.26. It does not support 16G QLogic adapters and is not maintained anymore.</span></li>
+					<li><span>Another version you can find in the SVN trunk. This driver supports 16G Hilda
+					chips and has passed intensive internal SanDisk tests. It is stable and production ready.
+					However, it does not support the latest post-Hilda QLogic chips. This driver should also support FCoE,
+					but that has never been verified. This driver is in stable maintenance mode in favor of the
+					QLogic git tree driver (see below).</span></li>
+					</ul>
+				<p>
+				The latest version of this driver with full support of the latest QLogic chips for both FC and FCoE you can find in
+				git://git.qlogic.com/scst-qla2xxx.git. This driver also supports T10-PI functionality.
+				It is maintained by QLogic, hence located in the QLogic's git. See SVN root README
+				for instructions how to integrate it into the SCST build tree. However, not all
+				improvements from the SVN trunk target driver have been integrated in this driver yet,
+				so it is not as stable and functional as the SVN trunk driver.</p>
 
 				<p class="post-footer align-right">					
 					<a href="qla2x00t-howto.html" class="readmore">HOWTO</a>
 					<a href="downloads.html" class="readmore">Download</a>				
+					<a href="http://sourceforge.net/p/scst/svn/HEAD/tree/trunk" class="readmore">SCST SVN trunk</a>
 				</p>
 				<table border=0><tr><td height="300px">&nbsp;</td></tr></table>
 	  		</div>
