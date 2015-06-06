@@ -65,11 +65,12 @@
 					<li><span>The first one is 3.0.1. It requires Linux kernel version 2.6.26.x or higher and
 					SCST version 3.0.1 or higher. Driver in qla2x00t subdirectory is the old one, forked from
 					qla2xxx from kernel 2.6.26. It does not support 16G QLogic adapters and is not maintained anymore.</span></li>
-					<li><span>Another version you can find in the SVN trunk. This driver supports 16G Hilda
-					chips and has passed intensive internal SanDisk tests. It is stable and production ready.
-					However, it does not support the latest post-Hilda QLogic chips. This driver should also support FCoE,
-					but that has never been verified. This driver is in stable maintenance mode in favor of the
-					QLogic git tree driver (see below).</span></li>
+					<li><span>Another version you can find in the SVN trunk. This driver supports 16G Hilda QLogic
+					chip based adapters (post-Hilda QLogic chips not supported) and has many other important improvements.
+					This driver should also support FCoE, but that has never been verified.
+					It has passed intensive internal SanDisk tests. It is stable and production ready.
+					This driver is in stable maintenance mode in favor of the
+					QLogic git tree driver (see below). This is the recommended driver to use in production at the moment.</span></li>
 					</ul>
 				<p>
 				The latest version of this driver with full support of the latest QLogic chips for both FC and FCoE you can find in
