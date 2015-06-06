@@ -765,11 +765,14 @@ void scst_trace_cmds(scst_show_fn show, void *arg)
 					scst_get_cmd_state_name(state_name,
 							    sizeof(state_name),
 							    cmd->state);
-					show(arg, "cmd %p: state %s; tgtt %s; "
+					show(arg, "cmd %p: state %s; op %s; "
+						"proc time %ld sec; tgtt %s; "
 						"tgt %s; session %s; grp %s; "
 						"LUN %lld; ini %s; cdb %s\n",
-						cmd, state_name, t->name,
-						tgt->tgt_name, sess->sess_name,
+						cmd, state_name,
+						scst_get_opcode_name(cmd),
+						(long)(jiffies - cmd->start_time) / HZ,
+						t->name, tgt->tgt_name, sess->sess_name,
 						tgt_dev ? (tgt_dev->acg_dev->acg->acg_name ?
 								: "(default)") : "?",
 						cmd->lun, sess->initiator_name, cdb);
