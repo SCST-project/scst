@@ -47,6 +47,10 @@
 #include <linux/writeback.h>
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0)
+#include <linux/t10-pi.h>
+#endif
+
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/scst.h>
 #else
@@ -5003,6 +5007,10 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	tgt_dev->lun = acg_dev->lun;
 	tgt_dev->acg_dev = acg_dev;
 	tgt_dev->tgt_dev_rd_only = acg_dev->acg_dev_rd_only || dev->dev_rd_only;
+	if (sess->tgt->tgt_forwarding)
+		set_bit(SCST_TGT_DEV_FORWARDING, &tgt_dev->tgt_dev_flags);
+	else
+		clear_bit(SCST_TGT_DEV_FORWARDING, &tgt_dev->tgt_dev_flags);
 	tgt_dev->hw_dif_same_sg_layout_required = sess->tgt->tgt_hw_dif_same_sg_layout_required;
 	tgt_dev->tgt_dev_dif_guard_format = acg_dev->acg_dev_dif_guard_format;
 	if (tgt_dev->tgt_dev_dif_guard_format == SCST_DIF_GUARD_FORMAT_IP)
@@ -5738,7 +5746,7 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 
 		for_each_sg(dif_sg, s, dif_sg_cnt, i) {
 			int left = (s->length - s->offset) >> SCST_DIF_TAG_SHIFT;
-			struct scst_dif_tuple *t = sg_virt(s);
+			struct t10_pi_tuple *t = sg_virt(s);
 			TRACE_DBG("sg %p, offset %d, length %d, left %d", s,
 				s->offset, s->length, left);
 			while (left > 0) {
@@ -6072,11 +6080,11 @@ void scst_write_same(struct scst_cmd *cmd)
 	WARN_ON_ONCE(left != 0);
 
 	if (scst_cmd_needs_dif_buf(cmd)) {
-		struct scst_dif_tuple *t;
+		struct t10_pi_tuple *t;
 		struct scatterlist *tags_sg = NULL;
 		int tags_len = 0;
 
-		t = (struct scst_dif_tuple *)scst_get_dif_buf(cmd, &tags_sg, &tags_len);
+		t = (struct t10_pi_tuple *)scst_get_dif_buf(cmd, &tags_sg, &tags_len);
 
 		wsp->app_tag = t->app_tag;
 		wsp->ref_tag = be32_to_cpu(t->ref_tag);
@@ -7875,7 +7883,7 @@ static int scst_verify_dif_type1(struct scst_cmd *cmd)
 	int len, tags_len = 0, tag_size = 1 << SCST_DIF_TAG_SHIFT;
 	struct scatterlist *tags_sg = NULL;
 	uint8_t *buf, *tags_buf = NULL;
-	const struct scst_dif_tuple *t = NULL; /* to silence compiler warning */
+	const struct t10_pi_tuple *t = NULL; /* to silence compiler warning */
 	uint64_t lba = cmd->lba;
 	int block_size = dev->block_size, block_shift = dev->block_shift;
 	__be16 (*crc_fn)(const void *buffer, unsigned int len);
@@ -7910,7 +7918,7 @@ static int scst_verify_dif_type1(struct scst_cmd *cmd)
 				TRACE_DBG("tags_buf %p", tags_buf);
 				TRACE_BUFF_FLAG(TRACE_DEBUG, "Tags to verify",
 					tags_buf, tags_len);
-				t = (struct scst_dif_tuple *)tags_buf;
+				t = (struct t10_pi_tuple *)tags_buf;
 			}
 
 			if (t->app_tag == SCST_DIF_NO_CHECK_ALL_APP_TAG) {
@@ -8037,7 +8045,7 @@ static int scst_generate_dif_type1(struct scst_cmd *cmd)
 	int len, tags_len = 0, tag_size = 1 << SCST_DIF_TAG_SHIFT;
 	struct scatterlist *tags_sg = NULL;
 	uint8_t *buf, *tags_buf = NULL;
-	struct scst_dif_tuple *t = NULL; /* to silence compiler warning */
+	struct t10_pi_tuple *t = NULL; /* to silence compiler warning */
 	uint64_t lba = cmd->lba;
 	int block_size = dev->block_size, block_shift = dev->block_shift;
 	__be16 (*crc_fn)(const void *buffer, unsigned int len);
@@ -8073,7 +8081,7 @@ static int scst_generate_dif_type1(struct scst_cmd *cmd)
 				TRACE_DBG("tags_sg %p, tags_buf %p, tags_len %d",
 					tags_sg, tags_buf, tags_len);
 				EXTRACHECKS_BUG_ON(tags_len <= 0);
-				t = (struct scst_dif_tuple *)tags_buf;
+				t = (struct t10_pi_tuple *)tags_buf;
 			}
 
 			t->app_tag = dev->dev_dif_static_app_tag;
@@ -8324,7 +8332,7 @@ static int scst_verify_dif_type2(struct scst_cmd *cmd)
 	int len, tags_len = 0, tag_size = 1 << SCST_DIF_TAG_SHIFT;
 	struct scatterlist *tags_sg = NULL;
 	uint8_t *buf, *tags_buf = NULL;
-	const struct scst_dif_tuple *t = NULL; /* to silence compiler warning */
+	const struct t10_pi_tuple *t = NULL; /* to silence compiler warning */
 	uint64_t lba = cmd->lba;
 	int block_size = dev->block_size, block_shift = dev->block_shift;
 	__be16 (*crc_fn)(const void *buffer, unsigned int len);
@@ -8360,7 +8368,7 @@ static int scst_verify_dif_type2(struct scst_cmd *cmd)
 			if (tags_buf == NULL) {
 				tags_buf = scst_get_dif_buf(cmd, &tags_sg, &tags_len);
 				EXTRACHECKS_BUG_ON(tags_len <= 0);
-				t = (struct scst_dif_tuple *)tags_buf;
+				t = (struct t10_pi_tuple *)tags_buf;
 			}
 
 			if (t->app_tag == SCST_DIF_NO_CHECK_ALL_APP_TAG) {
@@ -8454,7 +8462,7 @@ static int scst_generate_dif_type2(struct scst_cmd *cmd)
 	int len, tags_len = 0, tag_size = 1 << SCST_DIF_TAG_SHIFT;
 	struct scatterlist *tags_sg = NULL;
 	uint8_t *buf, *tags_buf = NULL;
-	struct scst_dif_tuple *t = NULL; /* to silence compiler warning */
+	struct t10_pi_tuple *t = NULL; /* to silence compiler warning */
 	int block_size = dev->block_size, block_shift = dev->block_shift;
 	__be16 (*crc_fn)(const void *buffer, unsigned int len);
 	uint32_t ref_tag = scst_cmd_get_dif_exp_ref_tag(cmd);
@@ -8493,7 +8501,7 @@ static int scst_generate_dif_type2(struct scst_cmd *cmd)
 				TRACE_DBG("tags_sg %p, tags_buf %p, tags_len %d",
 					tags_sg, tags_buf, tags_len);
 				EXTRACHECKS_BUG_ON(tags_len <= 0);
-				t = (struct scst_dif_tuple *)tags_buf;
+				t = (struct t10_pi_tuple *)tags_buf;
 			}
 
 			t->app_tag = app_tag_masked;
@@ -8543,7 +8551,7 @@ static int scst_verify_dif_type3(struct scst_cmd *cmd)
 	int len, tags_len = 0, tag_size = 1 << SCST_DIF_TAG_SHIFT;
 	struct scatterlist *tags_sg = NULL;
 	uint8_t *buf, *tags_buf = NULL;
-	const struct scst_dif_tuple *t = NULL; /* to silence compiler warning */
+	const struct t10_pi_tuple *t = NULL; /* to silence compiler warning */
 	uint64_t lba = cmd->lba;
 	int block_size = dev->block_size, block_shift = dev->block_shift;
 	__be16 (*crc_fn)(const void *buffer, unsigned int len);
@@ -8575,7 +8583,7 @@ static int scst_verify_dif_type3(struct scst_cmd *cmd)
 			if (tags_buf == NULL) {
 				tags_buf = scst_get_dif_buf(cmd, &tags_sg, &tags_len);
 				EXTRACHECKS_BUG_ON(tags_len <= 0);
-				t = (struct scst_dif_tuple *)tags_buf;
+				t = (struct t10_pi_tuple *)tags_buf;
 			}
 
 			if ((t->app_tag == SCST_DIF_NO_CHECK_ALL_APP_TAG) &&
@@ -8670,7 +8678,7 @@ static int scst_generate_dif_type3(struct scst_cmd *cmd)
 	int len, tags_len = 0, tag_size = 1 << SCST_DIF_TAG_SHIFT;
 	struct scatterlist *tags_sg = NULL;
 	uint8_t *buf, *tags_buf = NULL;
-	struct scst_dif_tuple *t = NULL; /* to silence compiler warning */
+	struct t10_pi_tuple *t = NULL; /* to silence compiler warning */
 	int block_size = dev->block_size, block_shift = dev->block_shift;
 	__be16 (*crc_fn)(const void *buffer, unsigned int len);
 
@@ -8705,7 +8713,7 @@ static int scst_generate_dif_type3(struct scst_cmd *cmd)
 				TRACE_DBG("tags_sg %p, tags_buf %p, tags_len %d",
 					tags_sg, tags_buf, tags_len);
 				EXTRACHECKS_BUG_ON(tags_len <= 0);
-				t = (struct scst_dif_tuple *)tags_buf;
+				t = (struct t10_pi_tuple *)tags_buf;
 			}
 
 			t->app_tag = dev->dev_dif_static_app_tag;

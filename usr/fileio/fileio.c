@@ -476,6 +476,7 @@ out_unreg:
 	alarm(0);
 	for (i = 0; i < num_devs; i++) {
 		if (unreg_before_close) {
+			/* Just to see the obsolete call message */
 			res = ioctl(devs[i].scst_usr_fd, SCST_USER_UNREGISTER_DEVICE, NULL);
 			if (res != 0) {
 				res = errno;

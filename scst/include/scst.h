@@ -724,6 +724,9 @@ enum scst_exec_context {
 /* Cache of acg->acg_black_hole_type */
 #define SCST_TGT_DEV_BLACK_HOLE		1
 
+/* Cache of tgt->tgt_forwarding */
+#define SCST_TGT_DEV_FORWARDING		5
+
 /*************************************************************
  ** I/O grouping types. Changing them don't forget to change
  ** the corresponding *_STR values in scst_const.h!
@@ -779,11 +782,13 @@ enum scst_exec_context {
  ** T10-PI (DIF) support
  *************************************************************/
 
-struct scst_dif_tuple {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0)
+struct t10_pi_tuple {
 	__be16 guard_tag;
 	__be16 app_tag;
 	__be32 ref_tag;
 };
+#endif
 
 /*
  * Defines where and how to deal with DIF tags. Can be OR'ed to get
@@ -1948,6 +1953,13 @@ struct scst_tgt {
 	struct list_head tgt_acg_list; /* target ACG groups */
 #endif
 
+	/*
+	 * Set, if this target is forwarding target, i.e. does not check
+	 * any local SCSI events (reservations, etc.). Those event supposed
+	 * to be checked on the another, requester's side.
+	 */
+	unsigned tgt_forwarding:1;
+
 	/* Per target analog of the corresponding driver's fields */
 	unsigned tgt_dif_supported:1;
 	unsigned tgt_hw_dif_type1_supported:1;
@@ -1955,13 +1967,14 @@ struct scst_tgt {
 	unsigned tgt_hw_dif_type3_supported:1;
 	unsigned tgt_hw_dif_ip_supported:1;
 	unsigned tgt_hw_dif_same_sg_layout_required:1;
-	const int *tgt_supported_dif_block_sizes;
 
 	/*
 	 * Maximum SG table size. Needed here, since different cards on the
 	 * same target template can have different SG table limitations.
 	 */
 	int sg_tablesize;
+
+	const int *tgt_supported_dif_block_sizes;
 
 	/* Used for storage of target driver private stuff */
 	void *tgt_priv;
@@ -1973,10 +1986,10 @@ struct scst_tgt {
 	 * They protected by tgt_lock, where necessary.
 	 */
 	bool retry_timer_active;
-	struct timer_list retry_timer;
 	int retry_cmds;
-	spinlock_t tgt_lock;
+	struct timer_list retry_timer;
 	struct list_head retry_cmd_list;
+	spinlock_t tgt_lock;
 
 	/* Used to wait until session finished to unregister */
 	wait_queue_head_t unreg_waitQ;
@@ -2061,6 +2074,7 @@ struct scst_ext_latency_stat {
 struct scst_io_stat_entry {
 	uint64_t cmd_count;
 	uint64_t io_byte_count;
+	uint64_t unaligned_cmd_count;
 };
 
 /*

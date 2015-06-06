@@ -269,7 +269,7 @@ qla_clean:
 	cd $(QLA_DIR) && $(MAKE) clean
 
 qla_extraclean:
-	cd $(QLA_INI_DIR)/.. && $(MAKE) extraclean
+	cd $(QLA_INI_DIR) && pwd && $(MAKE) extraclean
 	cd $(QLA_DIR) && $(MAKE) extraclean
 
 qla_old:

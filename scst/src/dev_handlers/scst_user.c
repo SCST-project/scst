@@ -47,8 +47,6 @@
 #define DEV_USER_ATTACH_TIMEOUT		(5*HZ)
 
 struct scst_user_dev {
-	struct rw_semaphore dev_rwsem;
-
 	/*
 	 * Must be kept here, because it's needed on the cleanup time,
 	 * when corresponding scst_dev is already dead.
@@ -58,7 +56,10 @@ struct scst_user_dev {
 	/* Protected by udev_cmd_threads.cmd_list_lock */
 	struct list_head ready_cmd_list;
 
-	/* Protected by dev_rwsem or don't need any protection */
+	/*
+	 * Don't need any protection or assignment in SCST_USER_SET_OPTIONS
+	 * supposed to be serialized by the caller
+	 */
 	unsigned int blocking:1;
 	unsigned int cleanup_done:1;
 	unsigned int tst:3;
@@ -217,8 +218,6 @@ static struct kmem_cache *user_dev_cachep;
 
 static struct kmem_cache *user_cmd_cachep;
 static struct kmem_cache *user_get_cmd_cachep;
-
-static DEFINE_MUTEX(dev_priv_mutex);
 
 static const struct file_operations dev_user_fops = {
 	.poll		= dev_user_poll,
@@ -1709,21 +1708,16 @@ static int dev_user_reply_cmd(struct file *file, void __user *arg)
 
 	TRACE_ENTRY();
 
-	mutex_lock(&dev_priv_mutex);
 	dev = file->private_data;
 	res = dev_user_check_reg(dev);
-	if (unlikely(res != 0)) {
-		mutex_unlock(&dev_priv_mutex);
+	if (unlikely(res != 0))
 		goto out;
-	}
-	down_read(&dev->dev_rwsem);
-	mutex_unlock(&dev_priv_mutex);
 
 	rc = copy_from_user(&reply, arg, sizeof(reply));
 	if (unlikely(rc != 0)) {
 		PRINT_ERROR("Failed to copy %d user's bytes", rc);
 		res = -EFAULT;
-		goto out_up;
+		goto out;
 	}
 
 	TRACE_DBG("Reply for dev %s", dev->name);
@@ -1732,10 +1726,7 @@ static int dev_user_reply_cmd(struct file *file, void __user *arg)
 
 	res = dev_user_process_reply(dev, &reply);
 	if (unlikely(res < 0))
-		goto out_up;
-
-out_up:
-	up_read(&dev->dev_rwsem);
+		goto out;
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1752,21 +1743,16 @@ static int dev_user_get_ext_cdb(struct file *file, void __user *arg)
 
 	TRACE_ENTRY();
 
-	mutex_lock(&dev_priv_mutex);
 	dev = file->private_data;
 	res = dev_user_check_reg(dev);
-	if (unlikely(res != 0)) {
-		mutex_unlock(&dev_priv_mutex);
+	if (unlikely(res != 0))
 		goto out;
-	}
-	down_read(&dev->dev_rwsem);
-	mutex_unlock(&dev_priv_mutex);
 
 	rc = copy_from_user(&get, arg, sizeof(get));
 	if (unlikely(rc != 0)) {
 		PRINT_ERROR("Failed to copy %d user's bytes", rc);
 		res = -EFAULT;
-		goto out_up;
+		goto out;
 	}
 
 	TRACE_MGMT_DBG("Get ext cdb for dev %s", dev->name);
@@ -1828,16 +1814,13 @@ out_cmd_put:
 out_put:
 	ucmd_put(ucmd);
 
-out_up:
-	up_read(&dev->dev_rwsem);
-
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 
 out_unlock:
 	spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
-	goto out_up;
+	goto out;
 }
 
 static int dev_user_process_scst_commands(struct scst_user_dev *dev)
@@ -1981,15 +1964,10 @@ static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
 
 	TRACE_ENTRY();
 
-	mutex_lock(&dev_priv_mutex);
 	dev = file->private_data;
 	res = dev_user_check_reg(dev);
-	if (unlikely(res != 0)) {
-		mutex_unlock(&dev_priv_mutex);
+	if (unlikely(res != 0))
 		goto out;
-	}
-	down_read(&dev->dev_rwsem);
-	mutex_unlock(&dev_priv_mutex);
 
 	/* get_user() can't be used with 64-bit values on x86_32 */
 	rc = copy_from_user(&ureply, (uint64_t __user *)
@@ -1998,7 +1976,7 @@ static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
 	if (unlikely(rc != 0)) {
 		PRINT_ERROR("Failed to copy %d user's bytes", rc);
 		res = -EFAULT;
-		goto out_up;
+		goto out;
 	}
 
 	TRACE_DBG("ureply %lld (dev %s)", (unsigned long long int)ureply,
@@ -2007,7 +1985,7 @@ static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
 	cmd = kmem_cache_alloc(user_get_cmd_cachep, GFP_KERNEL);
 	if (unlikely(cmd == NULL)) {
 		res = -ENOMEM;
-		goto out_up;
+		goto out;
 	}
 
 	if (ureply != 0) {
@@ -2071,16 +2049,13 @@ again:
 	} else
 		spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
-out_up:
-	up_read(&dev->dev_rwsem);
-
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 
 out_free:
 	kmem_cache_free(user_get_cmd_cachep, cmd);
-	goto out_up;
+	goto out;
 }
 
 static long dev_user_ioctl(struct file *file, unsigned int cmd,
@@ -2189,15 +2164,10 @@ static unsigned int dev_user_poll(struct file *file, poll_table *wait)
 
 	TRACE_ENTRY();
 
-	mutex_lock(&dev_priv_mutex);
 	dev = file->private_data;
 	res = dev_user_check_reg(dev);
-	if (unlikely(res != 0)) {
-		mutex_unlock(&dev_priv_mutex);
+	if (unlikely(res != 0))
 		goto out;
-	}
-	down_read(&dev->dev_rwsem);
-	mutex_unlock(&dev_priv_mutex);
 
 	spin_lock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
@@ -2223,8 +2193,6 @@ static unsigned int dev_user_poll(struct file *file, poll_table *wait)
 
 out_unlock:
 	spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
-
-	up_read(&dev->dev_rwsem);
 
 out:
 	TRACE_EXIT_HRES(res);
@@ -2984,7 +2952,6 @@ static int dev_user_register_dev(struct file *file,
 		goto out_put;
 	}
 
-	init_rwsem(&dev->dev_rwsem);
 	INIT_LIST_HEAD(&dev->ready_cmd_list);
 	if (file->f_flags & O_NONBLOCK) {
 		TRACE_DBG("%s", "Non-blocking operations");
@@ -3093,15 +3060,19 @@ static int dev_user_register_dev(struct file *file,
 		goto out_unreg_handler;
 	}
 
-	mutex_lock(&dev_priv_mutex);
+	spin_lock(&dev_list_lock);
 	if (file->private_data != NULL) {
-		mutex_unlock(&dev_priv_mutex);
+		spin_unlock(&dev_list_lock);
 		PRINT_ERROR("%s", "Device already registered");
 		res = -EINVAL;
 		goto out_unreg_drv;
 	}
+	/*
+	 * Assumption here is that the private_data reading is atomic,
+	 * hence could be lockless and without ACCESS_ONCE().
+	 */
 	file->private_data = dev;
-	mutex_unlock(&dev_priv_mutex);
+	spin_unlock(&dev_list_lock);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -3136,57 +3107,9 @@ out_put:
 
 static int dev_user_unregister_dev(struct file *file)
 {
-	int res;
-	struct scst_user_dev *dev;
-
-	TRACE_ENTRY();
-
-	mutex_lock(&dev_priv_mutex);
-	dev = file->private_data;
-	res = dev_user_check_reg(dev);
-	if (res != 0) {
-		mutex_unlock(&dev_priv_mutex);
-		goto out;
-	}
-	down_read(&dev->dev_rwsem);
-	mutex_unlock(&dev_priv_mutex);
-
-	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
-	if (res != 0)
-		goto out_up;
-
-	up_read(&dev->dev_rwsem);
-
-	mutex_lock(&dev_priv_mutex);
-	dev = file->private_data;
-	if (dev == NULL) {
-		mutex_unlock(&dev_priv_mutex);
-		goto out_resume;
-	}
-
-	dev->blocking = 0;
-	wake_up_all(&dev->udev_cmd_threads.cmd_list_waitQ);
-
-	down_write(&dev->dev_rwsem);
-	file->private_data = NULL;
-	mutex_unlock(&dev_priv_mutex);
-
-	dev_user_exit_dev(dev);
-
-	up_write(&dev->dev_rwsem); /* to make lockdep happy */
-
-	kmem_cache_free(user_dev_cachep, dev);
-
-out_resume:
-	scst_resume_activity();
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-
-out_up:
-	up_read(&dev->dev_rwsem);
-	goto out;
+	PRINT_WARNING("SCST_USER_UNREGISTER_DEVICE is obsolete and NOOP. "
+		"Closing fd should be used instead.");
+	return 0;
 }
 
 static int dev_user_flush_cache(struct file *file)
@@ -3196,27 +3119,19 @@ static int dev_user_flush_cache(struct file *file)
 
 	TRACE_ENTRY();
 
-	mutex_lock(&dev_priv_mutex);
 	dev = file->private_data;
 	res = dev_user_check_reg(dev);
-	if (res != 0) {
-		mutex_unlock(&dev_priv_mutex);
+	if (unlikely(res != 0))
 		goto out;
-	}
-	down_read(&dev->dev_rwsem);
-	mutex_unlock(&dev_priv_mutex);
 
 	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
 	if (res != 0)
-		goto out_up;
+		goto out;
 
 	sgv_pool_flush(dev->pool);
 	sgv_pool_flush(dev->pool_clust);
 
 	scst_resume_activity();
-
-out_up:
-	up_read(&dev->dev_rwsem);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -3230,19 +3145,12 @@ static int dev_user_capacity_changed(struct file *file)
 
 	TRACE_ENTRY();
 
-	mutex_lock(&dev_priv_mutex);
 	dev = file->private_data;
 	res = dev_user_check_reg(dev);
-	if (res != 0) {
-		mutex_unlock(&dev_priv_mutex);
+	if (unlikely(res != 0))
 		goto out;
-	}
-	down_read(&dev->dev_rwsem);
-	mutex_unlock(&dev_priv_mutex);
 
 	scst_capacity_data_changed(dev->sdev);
-
-	up_read(&dev->dev_rwsem);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -3263,21 +3171,16 @@ static int dev_user_prealloc_buffer(struct file *file, void __user *arg)
 
 	TRACE_ENTRY();
 
-	mutex_lock(&dev_priv_mutex);
 	dev = file->private_data;
 	res = dev_user_check_reg(dev);
-	if (unlikely(res != 0)) {
-		mutex_unlock(&dev_priv_mutex);
+	if (unlikely(res != 0))
 		goto out;
-	}
-	down_read(&dev->dev_rwsem);
-	mutex_unlock(&dev_priv_mutex);
 
 	rc = copy_from_user(&pre.in, arg, sizeof(pre.in));
 	if (unlikely(rc != 0)) {
 		PRINT_ERROR("Failed to copy %d user's bytes", rc);
 		res = -EFAULT;
-		goto out_up;
+		goto out;
 	}
 
 	TRACE_MEM("Prealloc buffer with size %dKB for dev %s",
@@ -3290,7 +3193,7 @@ static int dev_user_prealloc_buffer(struct file *file, void __user *arg)
 	ucmd = dev_user_alloc_ucmd(dev, GFP_KERNEL);
 	if (ucmd == NULL) {
 		res = -ENOMEM;
-		goto out_up;
+		goto out;
 	}
 
 	ucmd->buff_cached = 1;
@@ -3342,9 +3245,6 @@ static int dev_user_prealloc_buffer(struct file *file, void __user *arg)
 
 out_put:
 	ucmd_put(ucmd);
-
-out_up:
-	up_read(&dev->dev_rwsem);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -3440,26 +3340,18 @@ static int dev_user_set_opt(struct file *file, const struct scst_user_opt *opt)
 
 	TRACE_ENTRY();
 
-	mutex_lock(&dev_priv_mutex);
 	dev = file->private_data;
 	res = dev_user_check_reg(dev);
-	if (res != 0) {
-		mutex_unlock(&dev_priv_mutex);
+	if (unlikely(res != 0))
 		goto out;
-	}
-	down_read(&dev->dev_rwsem);
-	mutex_unlock(&dev_priv_mutex);
 
 	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
 	if (res != 0)
-		goto out_up;
+		goto out;
 
 	res = __dev_user_set_opt(dev, opt);
 
 	scst_resume_activity();
-
-out_up:
-	up_read(&dev->dev_rwsem);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -3474,15 +3366,10 @@ static int dev_user_get_opt(struct file *file, void __user *arg)
 
 	TRACE_ENTRY();
 
-	mutex_lock(&dev_priv_mutex);
 	dev = file->private_data;
 	res = dev_user_check_reg(dev);
-	if (res != 0) {
-		mutex_unlock(&dev_priv_mutex);
+	if (unlikely(res != 0))
 		goto out;
-	}
-	down_read(&dev->dev_rwsem);
-	mutex_unlock(&dev_priv_mutex);
 
 	opt.parse_type = dev->parse_type;
 	opt.on_free_cmd_type = dev->on_free_cmd_type;
@@ -3508,11 +3395,8 @@ static int dev_user_get_opt(struct file *file, void __user *arg)
 	if (unlikely(rc != 0)) {
 		PRINT_ERROR("Failed to copy to user %d bytes", rc);
 		res = -EFAULT;
-		goto out_up;
+		goto out;
 	}
-
-out_up:
-	up_read(&dev->dev_rwsem);
 
 out:
 	TRACE_EXIT_RES(res);

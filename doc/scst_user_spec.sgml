@@ -151,16 +151,8 @@ function, or close on its file descriptor.
 <sect1> SCST_USER_UNREGISTER_DEVICE
 
 <p>
-SCST_USER_UNREGISTER_DEVICE unregisters the corresponding virtual user
-space device. It doesn't have any parameters.
-
-During execution of SCST_USER_UNREGISTER_DEVICE at least one another
-thread must process all coming subcommands, otherwise after timeout it
-will fail with EBUSY error. The processing should stop on receiving
-ENODEV error.
-
-SCST_USER_UNREGISTER_DEVICE returns 0 on success or -1 in case of error,
-and errno is set appropriately.
+SCST_USER_UNREGISTER_DEVICE is obsolete and should not be used. Just
+close the device's fd instead.
 
 
 <sect1> SCST_USER_SET_OPTIONS/SCST_USER_GET_OPTIONS
@@ -289,6 +281,10 @@ thread, which also handles incoming commands, otherwise there could be a
 "deadlock", when SCST_USER_SET_OPTIONS waits for active commands finish,
 but nobody handles them. This "deadlock" will be resolved only when
 initiator, which sent those commands, aborts them after timeout.
+
+<bf/IMPORTANT!/ It is duty of the caller to serialize
+SCST_USER_SET_OPTIONS invocations. The kernel code does not have any
+locking around modifying above properties.
 
 
 <sect1> SCST_USER_REPLY_AND_GET_CMD
