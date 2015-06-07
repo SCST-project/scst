@@ -1050,7 +1050,7 @@ struct scst_tgt_template {
 	 * receiving DIF PI tags. If false, SCST will not allow to add
 	 * DIF-enabled devices to this target driver's initiator groups.
 	 *
-	 * Can be overriden per target by scst_tgt_set_dif_supported()
+	 * Can be overridden per target by scst_tgt_set_dif_supported()
 	 */
 	unsigned dif_supported:1;
 
@@ -1060,7 +1060,7 @@ struct scst_tgt_template {
 	 * allow to add type 1 devices with TGT DIF mode to this target driver's
 	 * initiator groups.
 	 *
-	 * Can be overriden per target by scst_tgt_set_hw_dif_type1_supported()
+	 * Can be overridden per target by scst_tgt_set_hw_dif_type1_supported()
 	 */
 	unsigned hw_dif_type1_supported:1;
 
@@ -1070,7 +1070,7 @@ struct scst_tgt_template {
 	 * allow to add type 2 devices with TGT DIF mode to this target driver's
 	 * initiator groups.
 	 *
-	 * Can be overriden per target by scst_tgt_set_hw_dif_type2_supported()
+	 * Can be overridden per target by scst_tgt_set_hw_dif_type2_supported()
 	 */
 	unsigned hw_dif_type2_supported:1;
 
@@ -1080,7 +1080,7 @@ struct scst_tgt_template {
 	 * allow to add type 3 devices with TGT DIF mode to this target driver's
 	 * initiator groups.
 	 *
-	 * Can be overriden per target by scst_tgt_set_hw_dif_type3_supported()
+	 * Can be overridden per target by scst_tgt_set_hw_dif_type3_supported()
 	 */
 	unsigned hw_dif_type3_supported:1;
 
@@ -1090,7 +1090,7 @@ struct scst_tgt_template {
 	 * and CRC on SCST/target driver boundary for better performance,
 	 * because IP checksums are much cheaper for CPU, than CRC.
 	 *
-	 * Can be overriden per target by scst_tgt_set_hw_dif_ip_supported()
+	 * Can be overridden per target by scst_tgt_set_hw_dif_ip_supported()
 	 */
 	unsigned hw_dif_ip_supported:1;
 
@@ -1099,7 +1099,7 @@ struct scst_tgt_template {
 	 * and DIF tags SG vectors. Otherwise, for DIF tags minimally possible
 	 * SG vector size will be allocated.
 	 *
-	 * Can be overriden per target by scst_tgt_set_hw_dif_same_sg_layout_required()
+	 * Can be overridden per target by scst_tgt_set_hw_dif_same_sg_layout_required()
 	 */
 	unsigned hw_dif_same_sg_layout_required:1;
 
