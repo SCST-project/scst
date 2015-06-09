@@ -1,9 +1,11 @@
 Known issues and unimplemented features
 ---------------------------------------
 
- - Allow to set port names through sysfs.
- 
+ - NPIV targets not quite work. If you need NPIV, use QLogic git driver
+
  - Minor "ToDo"'s spread in the code.
+
+Very old and, probably, already fixed:
 
  - If a Linux initiator asks for devices using INQUIRY command too soon
    before the controller on the 23xx target is fully initialized in the

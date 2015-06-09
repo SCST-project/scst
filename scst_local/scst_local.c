@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2008 - 2010 Richard Sharpe
  * Copyright (C) 1992 Eric Youngdale
- * Copyright (C) 2008 - 2014 Vladislav Bolkhovitin <vst@vlnb.net>
+ * Copyright (C) 2008 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
  *
  * Simulate a host adapter and an SCST target adapter back to back
  *
@@ -1018,6 +1018,12 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *SCpnt,
 	}
 
 	scst_cmd_set_tag(scst_cmd, SCpnt->tag);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+	if (SCpnt->device->tagged_supported && SCpnt->device->simple_tags)
+		scst_cmd_set_queue_type(scst_cmd, SCST_CMD_QUEUE_SIMPLE);
+	else
+		scst_cmd_set_queue_type(scst_cmd, SCST_CMD_QUEUE_UNTAGGED);
+#else
 	switch (scsi_get_tag_type(SCpnt->device)) {
 	case MSG_SIMPLE_TAG:
 		scst_cmd_set_queue_type(scst_cmd, SCST_CMD_QUEUE_SIMPLE);
@@ -1033,6 +1039,7 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *SCpnt,
 		scst_cmd_set_queue_type(scst_cmd, SCST_CMD_QUEUE_UNTAGGED);
 		break;
 	}
+#endif
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
 	/*
@@ -1162,7 +1169,14 @@ static int scst_local_get_max_queue_depth(struct scsi_device *sdev)
 	return res;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33) || \
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+
+static int scst_local_change_queue_depth(struct scsi_device *sdev, int depth)
+{
+	return scsi_change_queue_depth(sdev, depth);
+}
+
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33) || \
     defined(CONFIG_SUSE_KERNEL) || \
     !(!defined(RHEL_RELEASE_CODE) || \
      RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
@@ -1242,10 +1256,12 @@ static int scst_local_slave_configure(struct scsi_device *sdev)
 	PRINT_INFO("Configuring queue depth %d on sdev %p (tagged supported %d)",
 		mqd, sdev, sdev->tagged_supported);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
 	if (sdev->tagged_supported)
 		scsi_activate_tcq(sdev, mqd);
 	else
 		scsi_deactivate_tcq(sdev, mqd);
+#endif
 
 	TRACE_EXIT();
 	return 0;
@@ -1369,14 +1385,6 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
-
-static int scst_local_targ_detect(struct scst_tgt_template *tgt_template)
-{
-	TRACE_ENTRY();
-
-	TRACE_EXIT();
-	return 0;
-};
 
 static int scst_local_targ_release(struct scst_tgt *tgt)
 {
@@ -1574,7 +1582,6 @@ static struct scst_tgt_template scst_local_targ_tmpl = {
 	.mgmt_cmd_help		= "       echo \"add_session target_name session_name\" >mgmt\n"
 				  "       echo \"del_session target_name session_name\" >mgmt\n",
 #endif
-	.detect			= scst_local_targ_detect,
 	.release		= scst_local_targ_release,
 	.close_session		= scst_local_close_session,
 	.pre_exec		= scst_local_targ_pre_exec,
@@ -1620,6 +1627,9 @@ static struct scsi_host_template scst_lcl_ini_driver_template = {
 	.eh_device_reset_handler	= scst_local_device_reset,
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 25))
 	.eh_target_reset_handler	= scst_local_target_reset,
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+	.use_blk_tags			= true,
 #endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33) || \
     defined(CONFIG_SUSE_KERNEL) || \

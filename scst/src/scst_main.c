@@ -1,9 +1,9 @@
 /*
  *  scst_main.c
  *
- *  Copyright (C) 2004 - 2014 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
- *  Copyright (C) 2007 - 2014 Fusion-io, Inc.
+ *  Copyright (C) 2007 - 2015 SanDisk Corporation
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -231,12 +231,9 @@ int __scst_register_target_template(struct scst_tgt_template *vtt,
 		goto out;
 	}
 
-	if (!vtt->detect) {
-		PRINT_ERROR("Target driver %s must have "
-			"detect() method.", vtt->name);
-		res = -EINVAL;
-		goto out;
-	}
+	if (vtt->detect)
+		PRINT_WARNING("detect() method is obsolete and scheduled for "
+			"removal (target driver %s)", vtt->name);
 
 	if (!vtt->release) {
 		PRINT_ERROR("Target driver %s must have "
@@ -316,7 +313,7 @@ int __scst_register_target_template(struct scst_tgt_template *vtt,
 	mutex_unlock(&scst_mutex);
 
 	TRACE_DBG("%s", "Calling target driver's detect()");
-	res = vtt->detect(vtt);
+	res = vtt->detect ? vtt->detect(vtt) : 0;
 	TRACE_DBG("Target driver's detect() returned %d", res);
 	if (res < 0) {
 		PRINT_ERROR("%s", "The detect() routine failed");
@@ -724,13 +721,14 @@ static const char *const scst_cmd_state_name[] = {
 	[SCST_CMD_STATE_XMIT_WAIT]			= "XMIT_WAIT",
 };
 
-static void scst_get_cmd_state_name(char *name, int len, unsigned state)
+char *scst_get_cmd_state_name(char *name, int len, unsigned state)
 {
 	if (state < ARRAY_SIZE(scst_cmd_state_name) &&
 	    scst_cmd_state_name[state])
 		strlcpy(name, scst_cmd_state_name[state], len);
 	else
 		snprintf(name, len, "%d", state);
+	return name;
 }
 
 static char *scst_dump_cdb(char *buf, int buf_len, struct scst_cmd *cmd)
@@ -767,11 +765,14 @@ void scst_trace_cmds(scst_show_fn show, void *arg)
 					scst_get_cmd_state_name(state_name,
 							    sizeof(state_name),
 							    cmd->state);
-					show(arg, "cmd %p: state %s; tgtt %s; "
+					show(arg, "cmd %p: state %s; op %s; "
+						"proc time %ld sec; tgtt %s; "
 						"tgt %s; session %s; grp %s; "
 						"LUN %lld; ini %s; cdb %s\n",
-						cmd, state_name, t->name,
-						tgt->tgt_name, sess->sess_name,
+						cmd, state_name,
+						scst_get_opcode_name(cmd),
+						(long)(jiffies - cmd->start_time) / HZ,
+						t->name, tgt->tgt_name, sess->sess_name,
 						tgt_dev ? (tgt_dev->acg_dev->acg->acg_name ?
 								: "(default)") : "?",
 						cmd->lun, sess->initiator_name, cdb);
@@ -799,13 +800,13 @@ static const char *const scst_tm_fn_name[] = {
 	[SCST_PR_ABORT_ALL] =	"PR_ABORT_ALL",
 };
 
-static void scst_get_tm_fn_name(char *name, int len, unsigned fn)
+char *scst_get_tm_fn_name(char *name, int len, unsigned fn)
 {
 	if (fn < ARRAY_SIZE(scst_tm_fn_name) && scst_tm_fn_name[fn])
 		strlcpy(name, scst_tm_fn_name[fn], len);
 	else
 		snprintf(name, len, "%d", fn);
-	return;
+	return name;
 }
 
 static const char *const scst_mcmd_state_name[] = {
@@ -818,14 +819,14 @@ static const char *const scst_mcmd_state_name[] = {
 	[SCST_MCMD_STATE_FINISHED] =	"FINISHED",
 };
 
-static void scst_get_mcmd_state_name(char *name, int len, unsigned state)
+char *scst_get_mcmd_state_name(char *name, int len, unsigned state)
 {
 	if (state < ARRAY_SIZE(scst_mcmd_state_name) &&
 	    scst_mcmd_state_name[state])
 		strlcpy(name, scst_mcmd_state_name[state], len);
 	else
 		snprintf(name, len, "%d", state);
-	return;
+	return name;
 }
 
 void scst_trace_mcmds(scst_show_fn show, void *arg)
@@ -897,6 +898,8 @@ static int scst_susp_wait(unsigned long timeout)
 		goto out;
 
 	if (res == 0) {
+		PRINT_INFO("%d active commands to still not completed. See "
+			"README for possible reasons.", scst_get_cmd_counter());
 		scst_trace_cmds(scst_to_syslog, &hp);
 		scst_trace_mcmds(scst_to_syslog, &hp);
 	}
@@ -978,15 +981,8 @@ int scst_suspend_activity(unsigned long timeout)
 	 */
 
 	if (scst_get_cmd_counter() != 0) {
-		PRINT_INFO("Waiting for %d active commands to complete... This "
-			"might take few minutes for disks or few hours for "
-			"tapes, if you use long executed commands, like "
-			"REWIND or FORMAT. In case, if you have a hung user "
-			"space device (i.e. made using scst_user module) not "
-			"responding to any commands, if might take virtually "
-			"forever until the corresponding user space "
-			"program recovers and starts responding or gets "
-			"killed.", scst_get_cmd_counter());
+		PRINT_INFO("Waiting for %d active commands to complete...",
+			scst_get_cmd_counter());
 		rep = true;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
@@ -1206,6 +1202,7 @@ out_del_unlocked:
 	mutex_lock(&scst_mutex);
 	list_del_init(&dev->dev_list_entry);
 	mutex_unlock(&scst_mutex);
+
 	scst_free_device(dev);
 	goto out;
 #else

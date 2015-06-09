@@ -1,7 +1,7 @@
 /*
  *  Copyright (C) 2002 - 2003 Ardis Technolgies <roman@ardistech.com>
- *  Copyright (C) 2007 - 2014 Vladislav Bolkhovitin
- *  Copyright (C) 2007 - 2014 Fusion-io, Inc.
+ *  Copyright (C) 2007 - 2015 Vladislav Bolkhovitin
+ *  Copyright (C) 2007 - 2015 SanDisk Corporation
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -291,9 +291,13 @@ struct iscsi_conn {
 	 */
 	struct iscsi_cmnd *read_cmnd;
 	struct msghdr read_msg;
-	u32 read_size;
 	int read_state;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+	struct kvec *read_iov;
+#else
+	u32 read_size;
 	struct iovec *read_iov;
+#endif
 	struct task_struct *rx_task;
 	uint32_t rpadding;
 

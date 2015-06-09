@@ -1,8 +1,8 @@
 #
 #  Makefile for the user space part of iSCSI-SCST.
 #
-#  Copyright (C) 2007 - 2014 Vladislav Bolkhovitin
-#  Copyright (C) 2007 - 2014 Fusion-io, Inc.
+#  Copyright (C) 2007 - 2015 Vladislav Bolkhovitin
+#  Copyright (C) 2007 - 2015 SanDisk Corporation
 #
 #  This program is free software; you can redistribute it and/or
 #  modify it under the terms of the GNU General Public License
@@ -25,9 +25,6 @@ OBJS_D = $(SRCS_D:.c=.o)
 
 SRCS_ADM = iscsi_adm.c param.c
 OBJS_ADM = $(SRCS_ADM:.c=.o)
-
-SCST_INC_DIR := ../../scst/include
-#SCST_INC_DIR := $(PREFIX)/include/scst
 
 CFLAGS += -O2 -fno-inline -Wall -Wextra -Wstrict-prototypes -Wno-sign-compare \
 	-Wimplicit-function-declaration -Wno-unused-parameter \

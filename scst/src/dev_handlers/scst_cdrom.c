@@ -1,9 +1,9 @@
 /*
  *  scst_cdrom.c
  *
- *  Copyright (C) 2004 - 2014 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
- *  Copyright (C) 2007 - 2014 Fusion-io, Inc.
+ *  Copyright (C) 2007 - 2015 SanDisk Corporation
  *
  *  SCSI CDROM (type 5) dev handler
  *
@@ -177,15 +177,20 @@ out:
 static void cdrom_set_block_shift(struct scst_cmd *cmd, int block_shift)
 {
 	struct scst_device *dev = cmd->dev;
+	int new_block_shift;
+
 	/*
 	 * No need for locks here, since *_detach() can not be
 	 * called, when there are existing commands.
 	 */
-	if (block_shift != 0)
-		dev->block_shift = block_shift;
-	else
-		dev->block_shift = CDROM_DEF_BLOCK_SHIFT;
-	dev->block_size = 1 << dev->block_shift;
+	new_block_shift = block_shift ? : CDROM_DEF_BLOCK_SHIFT;
+	if (dev->block_shift != new_block_shift) {
+		PRINT_INFO("%s: Changed block shift from %d into %d / %d",
+			   dev->virt_name, dev->block_shift, block_shift,
+			   new_block_shift);
+		dev->block_shift = new_block_shift;
+		dev->block_size = 1 << dev->block_shift;
+	}
 	return;
 }
 

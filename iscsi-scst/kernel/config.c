@@ -1,7 +1,7 @@
 /*
  *  Copyright (C) 2004 - 2005 FUJITA Tomonori <tomof@acm.org>
- *  Copyright (C) 2007 - 2014 Vladislav Bolkhovitin
- *  Copyright (C) 2007 - 2014 Fusion-io, Inc.
+ *  Copyright (C) 2007 - 2015 Vladislav Bolkhovitin
+ *  Copyright (C) 2007 - 2015 SanDisk Corporation
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -1270,18 +1270,18 @@ void iscsi_dump_pdu(struct iscsi_pdu *pdu)
 		int i;
 
 		buf = (void *)&pdu->bhs;
-		printk(KERN_DEBUG "BHS: (%p,%zd)\n", buf, sizeof(pdu->bhs));
+		pr_debug("BHS: (%p,%zd)\n", buf, sizeof(pdu->bhs));
 		for (i = 0; i < (int)sizeof(pdu->bhs); i++)
 			iscsi_dump_char(*buf++, text, &pos);
 		iscsi_dump_char(-1, text, &pos);
 
 		buf = (void *)pdu->ahs;
-		printk(KERN_DEBUG "AHS: (%p,%d)\n", buf, pdu->ahssize);
+		pr_debug("AHS: (%p,%d)\n", buf, pdu->ahssize);
 		for (i = 0; i < pdu->ahssize; i++)
 			iscsi_dump_char(*buf++, text, &pos);
 		iscsi_dump_char(-1, text, &pos);
 
-		printk(KERN_DEBUG "Data: (%d)\n", pdu->datasize);
+		pr_debug("Data: (%d)\n", pdu->datasize);
 	}
 }
 

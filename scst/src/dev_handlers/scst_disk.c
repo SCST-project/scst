@@ -1,9 +1,9 @@
 /*
  *  scst_disk.c
  *
- *  Copyright (C) 2004 - 2014 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
- *  Copyright (C) 2007 - 2014 Fusion-io, Inc.
+ *  Copyright (C) 2007 - 2015 SanDisk Corporation
  *
  *  SCSI disk (type 0) dev handler
  *  &
@@ -269,15 +269,20 @@ out:
 static void disk_set_block_shift(struct scst_cmd *cmd, int block_shift)
 {
 	struct scst_device *dev = cmd->dev;
+	int new_block_shift;
+
 	/*
 	 * No need for locks here, since *_detach() can not be
 	 * called, when there are existing commands.
 	 */
-	if (block_shift != 0)
-		dev->block_shift = block_shift;
-	else
-		dev->block_shift = DISK_DEF_BLOCK_SHIFT;
-	dev->block_size = 1 << dev->block_shift;
+	new_block_shift = block_shift ? : DISK_DEF_BLOCK_SHIFT;
+	if (dev->block_shift != new_block_shift) {
+		PRINT_INFO("%s: Changed block shift from %d into %d / %d",
+			   dev->virt_name, dev->block_shift, block_shift,
+			   new_block_shift);
+		dev->block_shift = new_block_shift;
+		dev->block_size = 1 << dev->block_shift;
+	}
 	return;
 }
 
@@ -355,10 +360,10 @@ static void disk_cmd_done(void *data, char *sense, int result, int resid)
 	TRACE_DBG("work %p, cmd %p, left %d, result %d, sense %p, resid %d",
 		work, work->cmd, work->left, result, sense, resid);
 
+	work->result = result;
+
 	if (result == SAM_STAT_GOOD)
 		goto out_complete;
-
-	work->result = result;
 
 	disk_restore_sg(work);
 
@@ -381,7 +386,7 @@ static int disk_exec(struct scst_cmd *cmd)
 	struct scatterlist *sg, *start_sg;
 	int cur_sg_cnt;
 	int sg_tablesize = cmd->dev->scsi_dev->host->sg_tablesize;
-	int max_sectors;
+	unsigned int max_sectors;
 	int num, j, block_shift = dev->block_shift;
 
 	TRACE_ENTRY();
@@ -392,15 +397,10 @@ static int disk_exec(struct scst_cmd *cmd)
 	 */
 	max_sectors = queue_max_hw_sectors(dev->scsi_dev->request_queue);
 
-	if (unlikely(((max_sectors << block_shift) & ~PAGE_MASK) != 0)) {
-		int mlen = max_sectors << block_shift;
-		int pg = ((mlen >> PAGE_SHIFT) + ((mlen & ~PAGE_MASK) != 0)) - 1;
-		int adj_len = pg << PAGE_SHIFT;
-		max_sectors = adj_len >> block_shift;
-		if (max_sectors == 0) {
-			PRINT_ERROR("Too low max sectors %d", max_sectors);
-			goto out_error;
-		}
+	if (unlikely(max_sectors < (PAGE_SIZE >> block_shift))) {
+		PRINT_ERROR("Too low max sectors: %u << %u < %lu", max_sectors,
+			    block_shift, PAGE_SIZE);
+		goto out_error;
 	}
 
 	if (unlikely((cmd->bufflen >> block_shift) > max_sectors)) {
@@ -497,8 +497,7 @@ split:
 
 			rc = scst_scsi_exec_async(cmd, &work, disk_cmd_done);
 			if (unlikely(rc != 0)) {
-				PRINT_ERROR("scst_scsi_exec_async() failed: %d",
-					rc);
+				PRINT_ERROR("scst_scsi_exec_async() failed: %d", rc);
 				goto out_err_restore;
 			}
 

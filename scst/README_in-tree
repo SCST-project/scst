@@ -233,6 +233,11 @@ your favorite kernel configuration Makefile target, e.g. "make xconfig":
    can clear already measured results by writing 0 in each file. Note,
    you need a non-preemptible kernel to have correct results.
 
+ - CONFIG_SCST_DIF_INJECT_CORRUPTED_TAGS - if defined, allows injection
+   of corrupted DIF tags according to the Oracle specification. This
+   functionality is working only if dif_mode doesn't contain dev_store
+   and dif_type is 1.
+
 HIGHMEM kernel configurations are fully supported, but not recommended
 for performance reasons.
 
@@ -460,15 +465,25 @@ Every target should have at least the following entries:
 
     * 0 - disable black hole mode
 
-    * 1 - immediately abort all coming commands
+    * 1 - immediately abort all coming SCSI commands, i.e. all SCSI commands
+      are dropped and TM requests return that they completed. It is
+      supposed to simulate lost front end responses.
 
-    * 2 - immediately abort all coming commands and drop all coming TM
-      commands
+    * 2 - immediately abort all coming SCSI commands and drop all coming TM
+      commands. It is supposed to simulate logical target hang, when the
+      target stops responding, but on the HW/TCP connection level still
+      appears to be online.
 
-    * 3 - immediately abort all coming data transfer commands.
+    * 3 - immediately abort all coming data transfer SCSI commands, i.e.
+      only data transfer SCSI commands are dropped, while commands like
+      INQUIRY and TEST UNIT READY pass well. It is supposed to simulate
+      flaky front end connectivity, when responses for small commands
+      pass well, but big data transfers fail.
 
-    * 4 - immediately abort all coming data transfer commands and drop all
-      coming TM commands
+    * 4 - immediately abort all coming data transfer SCSI commands and
+      drop all coming TM commands. It is supposed to simulate really
+      flaky front end connectivity, when TM requests or responses are
+      also lost.
 
    Modes 3 and 4 are the most evil ones, because they are not too well
    handled by many initiator OS'es, including Linux, so they may never
@@ -478,6 +493,17 @@ Every target should have at least the following entries:
    implemented not for all target drivers. If it's implemented for your
    particular target driver or not, you can find out by checking traces
    or the target driver's source code.
+
+ - dif_capabilities - if this target supports T10-PI, returns which
+   exact DIF capabilities this target supports.
+
+ - dif_checks_failed - if this target supports T10-PI, returns
+   statistics how many DIF errors have been detected on the
+   corresponding processing stages on this target. It returns 3 rows of
+   numbers with 3 numbers in each row: for target driver stage, for SCST
+   stage and for dev handler stage. Numbers in each row: how many errors
+   detected checking application, reference and guard tags
+   correspondingly. Writing to this attribute resets the numbers.
 
  - cpu_mask - defines CPU affinity mask for threads serving this target.
    For threads serving LUNs it is used only for devices with
@@ -515,6 +541,24 @@ Every target should have at least the following entries:
    until rel_tgt_id becomes unique. This attribute initialized unique by
    SCST by default.
 
+ - forwarding - if set this target is forwarding target, i.e. does not check
+   any local SCSI events (reservations, etc.). Those event supposed to
+   be checked on the another, requester's side.
+
+ - *count*, e.g. read_io_count_kb, - statistics about executed
+   commands and transferred data. Those attributes have speaking names
+   built from parts:
+
+   1. Data transfer direction
+
+   2. Alignment type: not specified or unaligned (on 4K boundaries)
+
+   3. Type: IO (commands) count or amount of transferred data
+
+   4. For transferred data: measurement units
+
+   For instance, read_unaligned_cmd_count means number of 4K unaligned IOs.
+
 A target driver may have also the following entries:
 
  - "hw_target" - if the target driver supports both hardware and virtual
@@ -524,9 +568,8 @@ A target driver may have also the following entries:
     exist and contain value 1.
 
 Subdirectory "sessions" contains one subdirectory for each connected
-session with name equal to name of the connected initiator.
-
-Each session subdirectory contains the following entries:
+session with name equal to name of the connected initiator with the
+following entries:
 
  - initiator_name - contains initiator name
 
@@ -538,8 +581,47 @@ Each session subdirectory contains the following entries:
 
  - commands - contains overall number of SCSI commands in this session.
 
+ - dif_checks_failed - if target of this session supports T10-PI, returns
+   statistics how many DIF errors have been detected on the
+   corresponding processing stages on all DIF-enabled LUNs in this
+   session. It returns 3 rows of numbers with 3 numbers in each row: for
+   target driver stage, for SCST stage and for dev handler stage.
+   Numbers in each row: how many errors detected checking application,
+   reference and guard tags correspondingly. Writing to this attribute
+   resets the numbers. Similar statistics returned in attribute with the
+   same name for each LUN in this session in this LUN's subdirectory, if
+   its device configured with dif_type > 0.
+
+ - read_cmd_count - number of READ SCSI commands received since beginning
+   or last reset (writing 0 in this attribute)
+
+ - read_io_count_kb - amount of data in KB read by the initiator since
+   beginning or last reset (writing 0 in this attribute)
+
+ - write_cmd_count - number of WRITE SCSI commands received since
+   beginning or last reset (writing 0 in this attribute)
+
+ - write_io_count_kb - amount of data in KB written by the initiator
+   since beginning or last reset (writing 0 in this attribute)
+
+ - bidi_cmd_count - number of BIDI SCSI commands received since
+   beginning or last reset (writing 0 in this attribute)
+
+ - bidi_io_count_kb - amount of data in KB transferred by the
+   initiator since beginning or last reset (writing 0 in this attribute)
+
+ - none_cmd_count - number of not transferring data SCSI commands
+   (e.g. INQUIRY or TEST UNIT READY) received since beginning or last
+   reset (writing 0 in this attribute)
+
+ - unknown_cmd_count - number of unknown SCSI commands received since
+   beginning or last reset (writing 0 in this attribute)
+
  - latency - if CONFIG_SCST_MEASURE_LATENCY enabled, contains latency
    statistics for this session.
+
+ - *count*, e.g. read_io_count_kb, - statistics about executed
+   commands and transferred data. See above for more details.
 
  - luns - a link pointing out to the corresponding LUNs set (security
    group) where this session was attached to.
@@ -831,6 +913,49 @@ cache. The following parameters possible for vdisk_fileio:
  - zero_copy - if set, then this device uses zero copy access to the
    page cache. At the moment, only read side zero copy is implemented.
 
+ - dif_mode - specifies which T10-PI, or DIF, mode this device will use.
+   See SCSI standards from more info about T10-PI. Available DIF modes
+   (can be combined using '|'):
+
+    * tgt - DIF tags are checked on the target hardware, if supported
+
+    * scst - DIF tags are checked inside SCST core
+
+    * dev_check - DIF tags are checked inside backend device. No DIF
+      tags storing is required, but optionally possible.
+
+    * dev_store - DIF tags are stored inside backend device on the WRITE
+      path and read from it on the READ path. No DIF tags checking is
+      required, but optionally possible.
+
+   For instance, if only tgt DIF mode specified, then target driver,
+   serving this device, will inside hardware check, then STRIP DIF tags
+   from SCSI commands on the WRITE path and generate, then INSERT DIF
+   tags into SCSI commands on the READ path, so neither SCST core, nor
+   dev handler will see them.
+
+   Similarly, if only scst DIF mode specified, then target driver will
+   PASS DIF tags into SCST core, which then check/STRIP/generate/INSERT
+   them, so dev handler will not see them.
+
+   If only dev_check DIF mode specified, then both target driver and
+   SCST core will PASS DIF tags into the dev handler, which is then
+   responsible to check them in the backend hardware. If only dev_store
+   specified, then DIF tags will only be stored by the dev handler in
+   the backend hardware without checking at any level.
+
+   If all "tgt|scst|dev_check|dev_store" DIF mode specified, then all
+   target driver, SCST core and dev handler will check DIF tags, then
+   dev handler will store them in the backend hardware.
+
+ - dif_type - specifies which DIF SCSI type this device will use.
+
+ - dif_static_app_tag - specifies fixed (static) DIF application tag for
+   this device.
+
+ - dif_filename - specifies full path to filename, where DIF tags will
+   be stored.
+
 Handler vdisk_blockio provides BLOCKIO mode to create virtual devices.
 This mode performs direct block I/O with a block device, bypassing the
 page cache for all operations. This mode works ideally with high-end
@@ -838,10 +963,10 @@ storage HBAs and for applications that either do not need caching
 between application and disk or need the large block throughput. See
 below for more info.
 
-The following common with vdisk_fileio parameters are possible for
-vdisk_blockio: filename, blocksize, nv_cache, write_through, read_only,
-removable, rotational, thin_provisioned, tst. See vdisk_fileio above for
-description of those parameters.
+The following parameters possible for vdisk_blockio: filename,
+blocksize, nv_cache, read_only, removable, rotational, thin_provisioned,
+tst, dif_mode, dif_type, dif_static_app_tag, dif_filename. See
+vdisk_fileio above for description of those parameters.
 
 Handler vdisk_nullio provides NULLIO mode to create virtual devices. In
 this mode no real I/O is done, but success returned to initiators.
@@ -1554,6 +1679,31 @@ The reason for that is that processing of coming commands in SIRQ
 context might be done on the same CPUs as SSD devices' threads doing data
 transfers. As the result, those threads won't receive all the processing
 power of those CPUs and perform worse.
+
+
+Commands suspending takes too long
+----------------------------------
+
+SCST is suspending commands during some management activities like
+adding/deleting LUNs or devices. It is done to have lockless LUNs
+translation on the hot commands processing path. This brings significant
+performance advantage. You will see a message like "Waiting for X active
+commands to complete" when this wait started.
+
+But downside of it is that no new commands start executing until older
+ones, which had started before the suspending begun, finished. This
+wait can not be any longer, than the worst command latency any your
+initiator is seeing at this particular time.
+
+So, if this wait takes too long, in majority of cases it means that you
+are overloading your storage. A proper storage should have worst case
+latency below few hundreds of milliseconds. In this case the SCST
+suspending will finish in few hundreds of milliseconds at worse.
+
+Another case, when it can take too long to suspend is a hung user space
+device (i.e. scst_user device) not responding to any command. In this
+case you should kill the corresponding user space program to finish
+suspending.
 
 
 Work if target's backstorage or link is too slow

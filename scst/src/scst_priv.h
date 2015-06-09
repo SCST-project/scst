@@ -1,9 +1,9 @@
 /*
  *  scst_priv.h
  *
- *  Copyright (C) 2004 - 2014 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
- *  Copyright (C) 2007 - 2014 Fusion-io, Inc.
+ *  Copyright (C) 2007 - 2015 SanDisk Corporation
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -274,6 +274,10 @@ extern void scst_tgt_dev_stop_threads(struct scst_tgt_dev *tgt_dev);
 
 extern struct scst_dev_type scst_null_devtype;
 
+char *scst_get_cmd_state_name(char *name, int len, unsigned state);
+char *scst_get_mcmd_state_name(char *name, int len, unsigned state);
+char *scst_get_tm_fn_name(char *name, int len, unsigned fn);
+
 extern struct scst_cmd *__scst_check_deferred_commands_locked(
 	struct scst_order_data *order_data, bool return_first);
 extern struct scst_cmd *__scst_check_deferred_commands(
@@ -520,6 +524,11 @@ static inline void scst_devt_dev_sysfs_del(struct scst_device *dev) { }
 
 static inline void scst_dev_sysfs_del(struct scst_device *dev) { }
 
+static inline int scst_dev_sysfs_dif_create(struct scst_device *dev)
+{
+	return 0;
+}
+
 static inline int scst_tgt_dev_sysfs_create(struct scst_tgt_dev *tgt_dev)
 {
 	return 0;
@@ -568,6 +577,7 @@ int scst_devt_sysfs_create(struct scst_dev_type *devt);
 void scst_devt_sysfs_del(struct scst_dev_type *devt);
 int scst_dev_sysfs_create(struct scst_device *dev);
 void scst_dev_sysfs_del(struct scst_device *dev);
+int scst_dev_sysfs_dif_create(struct scst_device *dev);
 int scst_tgt_dev_sysfs_create(struct scst_tgt_dev *tgt_dev);
 void scst_tgt_dev_sysfs_del(struct scst_tgt_dev *tgt_dev);
 int scst_devt_dev_sysfs_create(struct scst_device *dev);

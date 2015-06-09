@@ -26,8 +26,6 @@
 
 static void ft_sess_put(struct ft_sess *sess);
 
-static int ft_tport_count;
-
 static ssize_t ft_format_wwn(char *buf, size_t len, u64 wwn)
 {
 	u8 b[8];
@@ -75,7 +73,6 @@ static struct ft_tport *ft_tport_create(struct fc_lport *lport)
 		return NULL;
 	}
 	scst_tgt_set_tgt_priv(tport->tgt, tport);
-	ft_tport_count++;
 
 	tport->lport = lport;
 	for (i = 0; i < FT_SESS_HASH_SIZE; i++)
@@ -120,7 +117,6 @@ static void ft_tport_delete(struct ft_tport *tport)
 #else
 	call_rcu(&tport->rcu, ft_tport_rcu_free);
 #endif
-	ft_tport_count--;
 }
 
 /*
@@ -641,11 +637,6 @@ bool ft_tgt_enabled(struct scst_tgt *tgt)
 
 	tport = scst_tgt_get_tgt_priv(tgt);
 	return tport->enabled;
-}
-
-int ft_tgt_detect(struct scst_tgt_template *tt)
-{
-	return ft_tport_count;
 }
 
 /*

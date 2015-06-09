@@ -227,7 +227,7 @@ function evaluate(stmnt, pattern, arg, op, result) {
       stmnt = "+#if " (op[2] != 0 ? op[1] : op[2])
     }
   
-    pattern="^+#if[[:blank:]]*(!*[[:blank:]]*[A-Za-z_]*[[:blank:]]*)\\&\\&[[:blank:]]*([01])[[:blank:]]*$"
+    pattern="^+#if[[:blank:]]*(!*[[:blank:]]*[A-Za-z_]*)[[:blank:]]*\\&\\&[[:blank:]]*([01])[[:blank:]]*$"
     while (match(stmnt, pattern, op) != 0)
     {
       stmnt = "+#if " (op[2] != 0 ? op[1] : op[2])
@@ -561,6 +561,8 @@ BEGIN {
     delete_next_blank_line = 0
     if (match($0, "^+ *#"))
     {
+      if (debug)
+        printf "/* debug specialize-patch: line %d: %s*/\n", NR, $0
       process_preprocessor_statement()
     }
     else if (output)

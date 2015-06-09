@@ -2,8 +2,8 @@
  *  scst_sysfs.c
  *
  *  Copyright (C) 2009 Daniel Henrique Debonzi <debonzi@linux.vnet.ibm.com>
- *  Copyright (C) 2009 - 2014 Vladislav Bolkhovitin <vst@vlnb.net>
- *  Copyright (C) 2007 - 2014 Fusion-io, Inc.
+ *  Copyright (C) 2009 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2007 - 2015 SanDisk Corporation
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -1033,6 +1033,63 @@ static struct kobj_attribute scst_tgtt_mgmt =
 	__ATTR(mgmt, S_IRUGO | S_IWUSR, scst_tgtt_mgmt_show,
 	       scst_tgtt_mgmt_store);
 
+static ssize_t scst_tgtt_dif_capable_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int pos = 0;
+	struct scst_tgt_template *tgtt;
+
+	TRACE_ENTRY();
+
+	tgtt = container_of(kobj, struct scst_tgt_template, tgtt_kobj);
+
+	EXTRACHECKS_BUG_ON(!tgtt->dif_supported);
+
+	pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
+			"dif_supported");
+
+	if (tgtt->hw_dif_type1_supported)
+		pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
+			", hw_dif_type1_supported");
+
+	if (tgtt->hw_dif_type2_supported)
+		pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
+			", hw_dif_type2_supported");
+
+	if (tgtt->hw_dif_type3_supported)
+		pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
+			", hw_dif_type3_supported");
+
+	if (tgtt->hw_dif_ip_supported)
+		pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
+			", hw_dif_ip_supported");
+
+	if (tgtt->hw_dif_same_sg_layout_required)
+		pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
+			", hw_dif_same_sg_layout_required");
+
+	pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos, "\n");
+
+	if (tgtt->supported_dif_block_sizes) {
+		const int *p = tgtt->supported_dif_block_sizes;
+		int j;
+		pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
+			"Supported blocks: ");
+		j = pos;
+		while (*p != 0) {
+			pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
+				"%s%d", (j == pos) ? "" : ", ", *p);
+			p++;
+		}
+	}
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static struct kobj_attribute scst_tgtt_dif_capable_attr =
+	__ATTR(dif_capabilities, S_IRUGO, scst_tgtt_dif_capable_show, NULL);
+
 /*
  * Creates an attribute entry for target driver.
  */
@@ -1082,6 +1139,16 @@ int scst_tgtt_sysfs_create(struct scst_tgt_template *tgtt)
 			PRINT_ERROR("Can't add attributes for target "
 				    "driver %s", tgtt->name);
 			goto out_del;
+		}
+	}
+
+	if (tgtt->dif_supported) {
+		res = sysfs_create_file(&tgtt->tgtt_kobj,
+				&scst_tgtt_dif_capable_attr.attr);
+		if (res != 0) {
+			PRINT_ERROR("Can't add attribute %s for target driver %s",
+				scst_tgtt_dif_capable_attr.attr.name, tgtt->name);
+			goto out;
 		}
 	}
 
@@ -1884,9 +1951,12 @@ static ssize_t __scst_acg_cpu_mask_show(struct scst_acg *acg, char *buf)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
 	res = cpumask_scnprintf(buf, SCST_SYSFS_BLOCK_SIZE,
 		acg->acg_cpu_mask);
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)
 	res = cpumask_scnprintf(buf, SCST_SYSFS_BLOCK_SIZE,
 		&acg->acg_cpu_mask);
+#else
+	res = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%*pb",
+			cpumask_pr_args(&acg->acg_cpu_mask));
 #endif
 	if (!cpumask_equal(&acg->acg_cpu_mask, &default_cpu_mask))
 		res += sprintf(&buf[res], "\n%s\n", SCST_SYSFS_KEY_MARK);
@@ -2428,6 +2498,95 @@ static struct kobj_attribute scst_rel_tgt_id =
 	__ATTR(rel_tgt_id, S_IRUGO | S_IWUSR, scst_rel_tgt_id_show,
 	       scst_rel_tgt_id_store);
 
+static ssize_t scst_tgt_forwarding_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct scst_tgt *tgt;
+	int res;
+
+	TRACE_ENTRY();
+
+	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+
+	res = sprintf(buf, "%d\n%s", tgt->tgt_forwarding,
+			tgt->tgt_forwarding ? SCST_SYSFS_KEY_MARK "\n" : "");
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t scst_tgt_forwarding_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res = 0;
+	struct scst_tgt *tgt;
+	struct scst_session *sess;
+	int old;
+
+	TRACE_ENTRY();
+
+	if ((buf == NULL) || (count == 0)) {
+		res = 0;
+		goto out;
+	}
+
+	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+
+	mutex_lock(&scst_mutex);
+
+	old = tgt->tgt_forwarding;
+
+	switch (buf[0]) {
+	case '0':
+		tgt->tgt_forwarding = 0;
+		break;
+	case '1':
+		tgt->tgt_forwarding = 1;
+		break;
+	default:
+		PRINT_ERROR("%s: Requested action not understood: %s",
+		       __func__, buf);
+		res = -EINVAL;
+		goto out_unlock;
+	}
+
+	if (tgt->tgt_forwarding == old)
+		goto out_unlock;
+
+	list_for_each_entry(sess, &tgt->sess_list, sess_list_entry) {
+		int i;
+		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
+			struct list_head *head = &sess->sess_tgt_dev_list[i];
+			struct scst_tgt_dev *tgt_dev;
+			list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
+				if (tgt->tgt_forwarding)
+					set_bit(SCST_TGT_DEV_FORWARDING, &tgt_dev->tgt_dev_flags);
+				else
+					clear_bit(SCST_TGT_DEV_FORWARDING, &tgt_dev->tgt_dev_flags);
+			}
+		}
+	}
+
+	if (tgt->tgt_forwarding)
+		PRINT_INFO("Set target %s as forwarding", tgt->tgt_name);
+	else
+		PRINT_INFO("Clear target %s as forwarding", tgt->tgt_name);
+
+out_unlock:
+	mutex_unlock(&scst_mutex);
+
+	if (res == 0)
+		res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute scst_tgt_forwarding =
+	__ATTR(forwarding, S_IRUGO | S_IWUSR, scst_tgt_forwarding_show,
+	       scst_tgt_forwarding_store);
+
 static ssize_t scst_tgt_comment_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
@@ -2521,6 +2680,114 @@ out:
 }
 EXPORT_SYMBOL(scst_create_tgt_attr);
 
+static ssize_t scst_tgt_dif_capable_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int pos = 0;
+	struct scst_tgt *tgt;
+
+	TRACE_ENTRY();
+
+	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+
+	EXTRACHECKS_BUG_ON(!tgt->tgt_dif_supported);
+
+	pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
+			"dif_supported");
+
+	if (tgt->tgt_hw_dif_type1_supported)
+		pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
+			", hw_dif_type1_supported");
+
+	if (tgt->tgt_hw_dif_type2_supported)
+		pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
+			", hw_dif_type2_supported");
+
+	if (tgt->tgt_hw_dif_type3_supported)
+		pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
+			", hw_dif_type3_supported");
+
+	if (tgt->tgt_hw_dif_ip_supported)
+		pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
+			", hw_dif_ip_supported");
+
+	if (tgt->tgt_hw_dif_same_sg_layout_required)
+		pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
+			", hw_dif_same_sg_layout_required");
+
+	pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos, "\n");
+
+	if (tgt->tgt_supported_dif_block_sizes) {
+		const int *p = tgt->tgt_supported_dif_block_sizes;
+		int j;
+		pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
+			"Supported blocks: ");
+		j = pos;
+		while (*p != 0) {
+			pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
+				"%s%d", (j == pos) ? "" : ", ", *p);
+			p++;
+		}
+	}
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static struct kobj_attribute scst_tgt_dif_capable_attr =
+	__ATTR(dif_capabilities, S_IRUGO, scst_tgt_dif_capable_show, NULL);
+
+static ssize_t scst_tgt_dif_checks_failed_show(struct kobject *kobj,
+			    struct kobj_attribute *attr, char *buf)
+{
+	int pos = 0;
+	struct scst_tgt *tgt;
+
+	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+
+	pos = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "\tapp\tref\tguard\n"
+		"tgt\t%d\t%d\t%d\nscst\t%d\t%d\t%d\ndev\t%d\t%d\t%d\n",
+		atomic_read(&tgt->tgt_dif_app_failed_tgt),
+		atomic_read(&tgt->tgt_dif_ref_failed_tgt),
+		atomic_read(&tgt->tgt_dif_guard_failed_tgt),
+		atomic_read(&tgt->tgt_dif_app_failed_scst),
+		atomic_read(&tgt->tgt_dif_ref_failed_scst),
+		atomic_read(&tgt->tgt_dif_guard_failed_scst),
+		atomic_read(&tgt->tgt_dif_app_failed_dev),
+		atomic_read(&tgt->tgt_dif_ref_failed_dev),
+		atomic_read(&tgt->tgt_dif_guard_failed_dev));
+
+	return pos;
+}
+
+static ssize_t scst_tgt_dif_checks_failed_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	struct scst_tgt *tgt;
+
+	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+
+	PRINT_INFO("Zeroing DIF failures statistics for target %s",
+		tgt->tgt_name);
+
+	atomic_set(&tgt->tgt_dif_app_failed_tgt, 0);
+	atomic_set(&tgt->tgt_dif_ref_failed_tgt, 0);
+	atomic_set(&tgt->tgt_dif_guard_failed_tgt, 0);
+	atomic_set(&tgt->tgt_dif_app_failed_scst, 0);
+	atomic_set(&tgt->tgt_dif_ref_failed_scst, 0);
+	atomic_set(&tgt->tgt_dif_guard_failed_scst, 0);
+	atomic_set(&tgt->tgt_dif_app_failed_dev, 0);
+	atomic_set(&tgt->tgt_dif_ref_failed_dev, 0);
+	atomic_set(&tgt->tgt_dif_guard_failed_dev, 0);
+
+	return count;
+}
+
+static struct kobj_attribute scst_tgt_dif_checks_failed_attr =
+	__ATTR(dif_checks_failed, S_IRUGO | S_IWUSR,
+		scst_tgt_dif_checks_failed_show,
+		scst_tgt_dif_checks_failed_store);
+
 #define SCST_TGT_SYSFS_STAT_ATTR(member_name, attr, dir, result_op)	\
 static int scst_tgt_sysfs_##attr##_show_work_fn(			\
 				struct scst_sysfs_work_item *work)	\
@@ -2579,18 +2846,19 @@ static struct kobj_attribute scst_tgt_##attr##_attr =			\
 
 SCST_TGT_SYSFS_STAT_ATTR(cmd_count, unknown_cmd_count, SCST_DATA_UNKNOWN, >> 0);
 SCST_TGT_SYSFS_STAT_ATTR(cmd_count, write_cmd_count, SCST_DATA_WRITE, >> 0);
-SCST_TGT_SYSFS_STAT_ATTR(io_byte_count, write_io_count_kb, SCST_DATA_WRITE,
-			 >> 10);
+SCST_TGT_SYSFS_STAT_ATTR(io_byte_count, write_io_count_kb, SCST_DATA_WRITE, >> 10);
+SCST_TGT_SYSFS_STAT_ATTR(unaligned_cmd_count, write_unaligned_cmd_count, SCST_DATA_WRITE, >> 0);
 SCST_TGT_SYSFS_STAT_ATTR(cmd_count, read_cmd_count, SCST_DATA_READ, >> 0);
-SCST_TGT_SYSFS_STAT_ATTR(io_byte_count, read_io_count_kb, SCST_DATA_READ,
-			 >> 10);
+SCST_TGT_SYSFS_STAT_ATTR(io_byte_count, read_io_count_kb, SCST_DATA_READ, >> 10);
+SCST_TGT_SYSFS_STAT_ATTR(unaligned_cmd_count, read_unaligned_cmd_count, SCST_DATA_READ, >> 0);
 SCST_TGT_SYSFS_STAT_ATTR(cmd_count, bidi_cmd_count, SCST_DATA_BIDI, >> 0);
-SCST_TGT_SYSFS_STAT_ATTR(io_byte_count, bidi_io_count_kb, SCST_DATA_BIDI,
-			 >> 10);
+SCST_TGT_SYSFS_STAT_ATTR(io_byte_count, bidi_io_count_kb, SCST_DATA_BIDI, >> 10);
+SCST_TGT_SYSFS_STAT_ATTR(unaligned_cmd_count, bidi_unaligned_cmd_count, SCST_DATA_BIDI, >> 0);
 SCST_TGT_SYSFS_STAT_ATTR(cmd_count, none_cmd_count, SCST_DATA_NONE, >> 0);
 
 static struct attribute *scst_tgt_attrs[] = {
 	&scst_rel_tgt_id.attr,
+	&scst_tgt_forwarding.attr,
 	&scst_tgt_comment.attr,
 	&scst_tgt_addr_method.attr,
 	&scst_tgt_io_grouping_type.attr,
@@ -2599,10 +2867,13 @@ static struct attribute *scst_tgt_attrs[] = {
 	&scst_tgt_unknown_cmd_count_attr.attr,
 	&scst_tgt_write_cmd_count_attr.attr,
 	&scst_tgt_write_io_count_kb_attr.attr,
+	&scst_tgt_write_unaligned_cmd_count_attr.attr,
 	&scst_tgt_read_cmd_count_attr.attr,
 	&scst_tgt_read_io_count_kb_attr.attr,
+	&scst_tgt_read_unaligned_cmd_count_attr.attr,
 	&scst_tgt_bidi_cmd_count_attr.attr,
 	&scst_tgt_bidi_io_count_kb_attr.attr,
+	&scst_tgt_bidi_unaligned_cmd_count_attr.attr,
 	&scst_tgt_none_cmd_count_attr.attr,
 	NULL,
 };
@@ -2674,6 +2945,26 @@ int scst_tgt_sysfs_create(struct scst_tgt *tgt)
 		PRINT_ERROR("Can't add attribute %s for tgt %s",
 			scst_ini_group_mgmt.attr.name, tgt->tgt_name);
 		goto out_err;
+	}
+
+	if (tgt->tgt_dif_supported) {
+		res = sysfs_create_file(&tgt->tgt_kobj,
+			&scst_tgt_dif_capable_attr.attr);
+		if (res != 0) {
+			PRINT_ERROR("Can't add attribute %s for tgt %s",
+				scst_tgt_dif_capable_attr.attr.name,
+				tgt->tgt_name);
+			goto out_err;
+		}
+
+		res = sysfs_create_file(&tgt->tgt_kobj,
+					&scst_tgt_dif_checks_failed_attr.attr);
+		if (res != 0) {
+			PRINT_ERROR("Can't add attribute %s for tgt %s",
+				scst_tgt_dif_checks_failed_attr.attr.name,
+				tgt->tgt_name);
+			goto out_err;
+		}
 	}
 
 	if (tgt->tgtt->tgt_attrs) {
@@ -3394,6 +3685,164 @@ void scst_dev_sysfs_del(struct scst_device *dev)
 	return;
 }
 
+static ssize_t scst_dev_dif_mode_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int pos = 0;
+	struct scst_device *dev;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+
+	if (dev->dev_dif_mode == SCST_DIF_MODE_NONE)
+		pos = sprintf(buf, "None\n");
+	else {
+		int j = pos;
+
+		if (dev->dev_dif_mode & SCST_DIF_MODE_TGT)
+			pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
+				"%s%s", (j == pos) ? "" : "|", SCST_DIF_MODE_TGT_STR);
+
+		if (dev->dev_dif_mode & SCST_DIF_MODE_SCST)
+			pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
+				"%s%s", (j == pos) ? "" : "|", SCST_DIF_MODE_SCST_STR);
+
+		if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK)
+			pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
+				"%s%s", (j == pos) ? "" : "|", SCST_DIF_MODE_DEV_CHECK_STR);
+
+		if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_STORE)
+			pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
+				"%s%s", (j == pos) ? "" : "|", SCST_DIF_MODE_DEV_STORE_STR);
+
+		pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
+			"\n%s", SCST_SYSFS_KEY_MARK "\n");
+	}
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static struct kobj_attribute scst_dev_dif_mode_attr =
+	__ATTR(dif_mode, S_IRUGO, scst_dev_dif_mode_show, NULL);
+
+static ssize_t scst_dev_dif_type_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int pos = 0;
+	struct scst_device *dev;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+
+	pos = sprintf(buf, "%d\n%s", dev->dev_dif_type,
+		      (dev->dev_dif_type != 0) ? SCST_SYSFS_KEY_MARK "\n" : "");
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static struct kobj_attribute scst_dev_dif_type_attr =
+	__ATTR(dif_type, S_IRUGO, scst_dev_dif_type_show, NULL);
+
+static ssize_t scst_dev_sysfs_dif_static_app_tag_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	struct scst_device *dev;
+	unsigned long long val;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+	res = kstrtoull(buf, 0, &val);
+#else
+	res = strict_strtoull(buf, 0, &val);
+#endif
+	if (res != 0) {
+		PRINT_ERROR("strtoul() for %s failed: %d (device %s)",
+			    buf, res, dev->virt_name);
+		goto out;
+	}
+
+	scst_dev_set_dif_static_app_tag_combined(dev, cpu_to_be64(val));
+
+	res = count;
+
+	PRINT_INFO("APP TAG for device %s changed to %llx", dev->virt_name,
+		(long long)be64_to_cpu(scst_dev_get_dif_static_app_tag_combined(dev)));
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t scst_dev_sysfs_dif_static_app_tag_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int pos = 0;
+	struct scst_device *dev;
+	__be64 a;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+
+	a = scst_dev_get_dif_static_app_tag_combined(dev);
+
+	pos = sprintf(buf, "0x%llx\n%s", (unsigned long long)be64_to_cpu(a),
+		(a != SCST_DIF_NO_CHECK_APP_TAG) ? SCST_SYSFS_KEY_MARK "\n" : "");
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static struct kobj_attribute scst_dev_dif_static_app_tag_attr =
+	__ATTR(dif_static_app_tag, S_IWUSR|S_IRUGO,
+		scst_dev_sysfs_dif_static_app_tag_show,
+		scst_dev_sysfs_dif_static_app_tag_store);
+
+int scst_dev_sysfs_dif_create(struct scst_device *dev)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	/*
+	 * On errors the caller supposed to unregister this device, hence,
+	 * perform the cleanup.
+	 */
+
+	res = sysfs_create_file(&dev->dev_kobj, &scst_dev_dif_mode_attr.attr);
+	if (res != 0) {
+		PRINT_ERROR("Can't create attr %s for dev %s",
+			scst_dev_dif_mode_attr.attr.name, dev->virt_name);
+		goto out;
+	}
+
+	res = sysfs_create_file(&dev->dev_kobj, &scst_dev_dif_type_attr.attr);
+	if (res != 0) {
+		PRINT_ERROR("Can't create attr %s for dev %s",
+			scst_dev_dif_type_attr.attr.name, dev->virt_name);
+		goto out;
+	}
+
+	res = sysfs_create_file(&dev->dev_kobj, &scst_dev_dif_static_app_tag_attr.attr);
+	if (res != 0) {
+		PRINT_ERROR("Can't create attr %s for dev %s",
+			scst_dev_dif_static_app_tag_attr.attr.name, dev->virt_name);
+		goto out;
+	}
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 /**
  ** Tgt_dev implementation
  **/
@@ -3551,6 +4000,58 @@ static struct kobj_attribute tgt_dev_active_commands_attr =
 	__ATTR(active_commands, S_IRUGO,
 		scst_tgt_dev_active_commands_show, NULL);
 
+static ssize_t scst_tgt_dev_dif_checks_failed_show(struct kobject *kobj,
+			    struct kobj_attribute *attr, char *buf)
+{
+	int pos = 0;
+	struct scst_tgt_dev *tgt_dev;
+
+	tgt_dev = container_of(kobj, struct scst_tgt_dev, tgt_dev_kobj);
+
+	pos = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "\tapp\tref\tguard\n"
+		"tgt\t%d\t%d\t%d\nscst\t%d\t%d\t%d\ndev\t%d\t%d\t%d\n",
+		atomic_read(&tgt_dev->tgt_dev_dif_app_failed_tgt),
+		atomic_read(&tgt_dev->tgt_dev_dif_ref_failed_tgt),
+		atomic_read(&tgt_dev->tgt_dev_dif_guard_failed_tgt),
+		atomic_read(&tgt_dev->tgt_dev_dif_app_failed_scst),
+		atomic_read(&tgt_dev->tgt_dev_dif_ref_failed_scst),
+		atomic_read(&tgt_dev->tgt_dev_dif_guard_failed_scst),
+		atomic_read(&tgt_dev->tgt_dev_dif_app_failed_dev),
+		atomic_read(&tgt_dev->tgt_dev_dif_ref_failed_dev),
+		atomic_read(&tgt_dev->tgt_dev_dif_guard_failed_dev));
+
+	return pos;
+}
+
+static ssize_t scst_tgt_dev_dif_checks_failed_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	struct scst_tgt_dev *tgt_dev;
+
+	tgt_dev = container_of(kobj, struct scst_tgt_dev, tgt_dev_kobj);
+
+	PRINT_INFO("Zeroing DIF failures statistics for initiator "
+		"%s, target %s, LUN %lld", tgt_dev->sess->initiator_name,
+		tgt_dev->sess->tgt->tgt_name, (unsigned long long)tgt_dev->lun);
+
+	atomic_set(&tgt_dev->tgt_dev_dif_app_failed_tgt, 0);
+	atomic_set(&tgt_dev->tgt_dev_dif_ref_failed_tgt, 0);
+	atomic_set(&tgt_dev->tgt_dev_dif_guard_failed_tgt, 0);
+	atomic_set(&tgt_dev->tgt_dev_dif_app_failed_scst, 0);
+	atomic_set(&tgt_dev->tgt_dev_dif_ref_failed_scst, 0);
+	atomic_set(&tgt_dev->tgt_dev_dif_guard_failed_scst, 0);
+	atomic_set(&tgt_dev->tgt_dev_dif_app_failed_dev, 0);
+	atomic_set(&tgt_dev->tgt_dev_dif_ref_failed_dev, 0);
+	atomic_set(&tgt_dev->tgt_dev_dif_guard_failed_dev, 0);
+
+	return count;
+}
+
+static struct kobj_attribute tgt_dev_dif_checks_failed_attr =
+	__ATTR(dif_checks_failed, S_IRUGO | S_IWUSR,
+		scst_tgt_dev_dif_checks_failed_show,
+		scst_tgt_dev_dif_checks_failed_store);
+
 static struct attribute *scst_tgt_dev_attrs[] = {
 	&tgt_dev_thread_pid_attr.attr,
 	&tgt_dev_active_commands_attr.attr,
@@ -3595,9 +4096,25 @@ int scst_tgt_dev_sysfs_create(struct scst_tgt_dev *tgt_dev)
 		goto out;
 	}
 
+	if (tgt_dev->sess->tgt->tgt_dif_supported && (tgt_dev->dev->dev_dif_type != 0)) {
+		res = sysfs_create_file(&tgt_dev->tgt_dev_kobj,
+					&tgt_dev_dif_checks_failed_attr.attr);
+		if (res != 0) {
+			PRINT_ERROR("Adding %s sysfs attribute to tgt_dev %lld "
+				"failed (%d)", tgt_dev_dif_checks_failed_attr.attr.name,
+				 (unsigned long long)tgt_dev->lun, res);
+			goto out_del;
+		}
+	}
+
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_del:
+	kobject_del(&tgt_dev->tgt_dev_kobj);
+	kobject_put(&tgt_dev->tgt_dev_kobj);
+	goto out;
 }
 
 /*
@@ -3941,6 +4458,161 @@ static struct kobj_attribute session_active_commands_attr =
 	__ATTR(active_commands, S_IRUGO, scst_sess_sysfs_active_commands_show,
 		NULL);
 
+static int scst_sysfs_sess_get_dif_checks_failed_work_fn(struct scst_sysfs_work_item *work)
+{
+	int res, t;
+	struct scst_session *sess = work->sess;
+	int app_failed_tgt = 0, ref_failed_tgt = 0, guard_failed_tgt = 0;
+	int app_failed_scst = 0, ref_failed_scst = 0, guard_failed_scst = 0;
+	int app_failed_dev = 0, ref_failed_dev = 0, guard_failed_dev = 0;
+
+	TRACE_ENTRY();
+
+	res = mutex_lock_interruptible(&scst_mutex);
+	if (res != 0)
+		goto out_put;
+
+	for (t = SESS_TGT_DEV_LIST_HASH_SIZE-1; t >= 0; t--) {
+		struct list_head *head = &sess->sess_tgt_dev_list[t];
+		struct scst_tgt_dev *tgt_dev;
+		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
+			app_failed_tgt += atomic_read(&tgt_dev->tgt_dev_dif_app_failed_tgt);
+			ref_failed_tgt += atomic_read(&tgt_dev->tgt_dev_dif_ref_failed_tgt);
+			guard_failed_tgt += atomic_read(&tgt_dev->tgt_dev_dif_guard_failed_tgt);
+			app_failed_scst += atomic_read(&tgt_dev->tgt_dev_dif_app_failed_scst);
+			ref_failed_scst += atomic_read(&tgt_dev->tgt_dev_dif_ref_failed_scst);
+			guard_failed_scst += atomic_read(&tgt_dev->tgt_dev_dif_guard_failed_scst);
+			app_failed_dev += atomic_read(&tgt_dev->tgt_dev_dif_app_failed_dev);
+			ref_failed_dev += atomic_read(&tgt_dev->tgt_dev_dif_ref_failed_dev);
+			guard_failed_dev += atomic_read(&tgt_dev->tgt_dev_dif_guard_failed_dev);
+		}
+	}
+
+	mutex_unlock(&scst_mutex);
+
+	work->res_buf = kasprintf(GFP_KERNEL, "\tapp\tref\tguard\n"
+			  "tgt\t%d\t%d\t%d\nscst\t%d\t%d\t%d\ndev\t%d\t%d\t%d\n",
+			  app_failed_tgt, ref_failed_tgt, guard_failed_tgt,
+			  app_failed_scst, ref_failed_scst, guard_failed_scst,
+			  app_failed_dev, ref_failed_dev, guard_failed_dev);
+	res = work->res_buf ? 0 : -ENOMEM;
+
+out_put:
+	kobject_put(&sess->sess_kobj);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t scst_sess_sysfs_dif_checks_failed_show(struct kobject *kobj,
+			    struct kobj_attribute *attr, char *buf)
+{
+	int res;
+	struct scst_session *sess;
+	struct scst_sysfs_work_item *work;
+
+	sess = container_of(kobj, struct scst_session, sess_kobj);
+
+	res = scst_alloc_sysfs_work(scst_sysfs_sess_get_dif_checks_failed_work_fn,
+			true, &work);
+	if (res != 0)
+		goto out;
+
+	work->sess = sess;
+
+	SCST_SET_DEP_MAP(work, &scst_sess_dep_map);
+	kobject_get(&sess->sess_kobj);
+
+	scst_sysfs_work_get(work);
+
+	res = scst_sysfs_queue_wait_work(work);
+	if (res != 0)
+		goto out_put;
+
+	res = snprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s", work->res_buf);
+
+out_put:
+	scst_sysfs_work_put(work);
+
+out:
+	return res;
+}
+
+static int scst_sess_zero_dif_checks_failed(struct scst_sysfs_work_item *work)
+{
+	int res, t;
+	struct scst_session *sess = work->sess;
+
+	TRACE_ENTRY();
+
+	PRINT_INFO("Zeroing DIF failures statistics for initiator "
+		"%s, target %s", sess->initiator_name, sess->tgt->tgt_name);
+
+	res = mutex_lock_interruptible(&scst_mutex);
+	if (res != 0)
+		goto out_put;
+
+	for (t = SESS_TGT_DEV_LIST_HASH_SIZE-1; t >= 0; t--) {
+		struct list_head *head = &sess->sess_tgt_dev_list[t];
+		struct scst_tgt_dev *tgt_dev;
+		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
+			atomic_set(&tgt_dev->tgt_dev_dif_app_failed_tgt, 0);
+			atomic_set(&tgt_dev->tgt_dev_dif_ref_failed_tgt, 0);
+			atomic_set(&tgt_dev->tgt_dev_dif_guard_failed_tgt, 0);
+			atomic_set(&tgt_dev->tgt_dev_dif_app_failed_scst, 0);
+			atomic_set(&tgt_dev->tgt_dev_dif_ref_failed_scst, 0);
+			atomic_set(&tgt_dev->tgt_dev_dif_guard_failed_scst, 0);
+			atomic_set(&tgt_dev->tgt_dev_dif_app_failed_dev, 0);
+			atomic_set(&tgt_dev->tgt_dev_dif_ref_failed_dev, 0);
+			atomic_set(&tgt_dev->tgt_dev_dif_guard_failed_dev, 0);
+		}
+	}
+
+	mutex_unlock(&scst_mutex);
+
+	res = 0;
+
+out_put:
+	kobject_put(&sess->sess_kobj);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t scst_sess_sysfs_dif_checks_failed_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	struct scst_session *sess;
+	struct scst_sysfs_work_item *work;
+
+	TRACE_ENTRY();
+
+	sess = container_of(kobj, struct scst_session, sess_kobj);
+
+	res = scst_alloc_sysfs_work(scst_sess_zero_dif_checks_failed, false, &work);
+	if (res != 0)
+		goto out;
+
+	work->sess = sess;
+
+	SCST_SET_DEP_MAP(work, &scst_sess_dep_map);
+	kobject_get(&sess->sess_kobj);
+
+	res = scst_sysfs_queue_wait_work(work);
+	if (res == 0)
+		res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute session_dif_checks_failed_attr =
+	__ATTR(dif_checks_failed, S_IRUGO | S_IWUSR,
+		scst_sess_sysfs_dif_checks_failed_show,
+		scst_sess_sysfs_dif_checks_failed_store);
+
 static ssize_t scst_sess_sysfs_initiator_name_show(struct kobject *kobj,
 			    struct kobj_attribute *attr, char *buf)
 {
@@ -3989,6 +4661,7 @@ static ssize_t scst_sess_sysfs_##exported_name##_store(struct kobject *kobj,	\
 	BUILD_BUG_ON(dir >= SCST_DATA_DIR_MAX);					\
 	sess->io_stats[dir].cmd_count = 0;					\
 	sess->io_stats[dir].io_byte_count = 0;					\
+	sess->io_stats[dir].unaligned_cmd_count = 0;				\
 	spin_unlock_irq(&sess->sess_list_lock);					\
 	return count;								\
 }										\
@@ -4001,12 +4674,14 @@ static struct kobj_attribute session_##exported_name##_attr =			\
 SCST_SESS_SYSFS_STAT_ATTR(cmd_count, unknown_cmd_count, SCST_DATA_UNKNOWN, 0);
 SCST_SESS_SYSFS_STAT_ATTR(cmd_count, write_cmd_count, SCST_DATA_WRITE, 0);
 SCST_SESS_SYSFS_STAT_ATTR(io_byte_count, write_io_count_kb, SCST_DATA_WRITE, 1);
+SCST_SESS_SYSFS_STAT_ATTR(unaligned_cmd_count, write_unaligned_cmd_count, SCST_DATA_WRITE, 0);
 SCST_SESS_SYSFS_STAT_ATTR(cmd_count, read_cmd_count, SCST_DATA_READ, 0);
 SCST_SESS_SYSFS_STAT_ATTR(io_byte_count, read_io_count_kb, SCST_DATA_READ, 1);
+SCST_SESS_SYSFS_STAT_ATTR(unaligned_cmd_count, read_unaligned_cmd_count, SCST_DATA_READ, 0);
 SCST_SESS_SYSFS_STAT_ATTR(cmd_count, bidi_cmd_count, SCST_DATA_BIDI, 0);
 SCST_SESS_SYSFS_STAT_ATTR(io_byte_count, bidi_io_count_kb, SCST_DATA_BIDI, 1);
+SCST_SESS_SYSFS_STAT_ATTR(unaligned_cmd_count, bidi_unaligned_cmd_count, SCST_DATA_BIDI, 0);
 SCST_SESS_SYSFS_STAT_ATTR(cmd_count, none_cmd_count, SCST_DATA_NONE, 0);
-
 
 static ssize_t scst_sess_force_close_store(struct kobject *kobj,
 					   struct kobj_attribute *attr,
@@ -4036,10 +4711,13 @@ static struct attribute *scst_session_attrs[] = {
 	&session_unknown_cmd_count_attr.attr,
 	&session_write_cmd_count_attr.attr,
 	&session_write_io_count_kb_attr.attr,
+	&session_write_unaligned_cmd_count_attr.attr,
 	&session_read_cmd_count_attr.attr,
 	&session_read_io_count_kb_attr.attr,
+	&session_read_unaligned_cmd_count_attr.attr,
 	&session_bidi_cmd_count_attr.attr,
 	&session_bidi_io_count_kb_attr.attr,
+	&session_bidi_unaligned_cmd_count_attr.attr,
 	&session_none_cmd_count_attr.attr,
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 	&session_latency_attr.attr,
@@ -4122,6 +4800,17 @@ int scst_sess_sysfs_create(struct scst_session *sess)
 		if (res != 0) {
 			PRINT_ERROR("Adding force_close sysfs attribute to session %s failed (%d)",
 				    name, res);
+			goto out_del;
+		}
+	}
+
+	if (sess->tgt->tgt_dif_supported) {
+		res = sysfs_create_file(&sess->sess_kobj,
+					&session_dif_checks_failed_attr.attr);
+		if (res != 0) {
+			PRINT_ERROR("Adding %s sysfs attribute to session %s "
+				"failed (%d)", session_dif_checks_failed_attr.attr.name,
+				 name, res);
 			goto out_del;
 		}
 	}

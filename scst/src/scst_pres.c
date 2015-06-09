@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2009 - 2010 Alexey Obitotskiy <alexeyo1@open-e.com>
  *  Copyright (C) 2009 - 2010 Open-E, Inc.
- *  Copyright (C) 2009 - 2014 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2009 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -682,7 +682,7 @@ static int scst_pr_do_load_device_file(struct scst_device *dev,
 		goto out;
 	}
 
-	inode = file->f_dentry->d_inode;
+	inode = file_inode(file);
 
 	if (S_ISREG(inode->i_mode))
 		/* Nothing to do */;
@@ -1535,6 +1535,11 @@ static int scst_pr_register_all_tg_pt(struct scst_cmd *cmd, uint8_t *buffer,
 				continue;
 			if (tgt->rel_tgt_id == 0)
 				continue;
+			if (tgt->tgt_forwarding) {
+				TRACE_PR("ALL_TG_PT: skipping forwarding "
+					"target %s", tgt->tgt_name);
+				continue;
+			}
 			TRACE_PR("tgt %s, rel_tgt_id %d", tgt->tgt_name,
 				tgt->rel_tgt_id);
 			res = scst_pr_register_on_tgt_id(cmd, tgt->rel_tgt_id,

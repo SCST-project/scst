@@ -1,7 +1,7 @@
 /*
  *  Copyright (C) 2002 - 2003 Ardis Technolgies <roman@ardistech.com>
- *  Copyright (C) 2007 - 2014 Vladislav Bolkhovitin
- *  Copyright (C) 2007 - 2014 Fusion-io, Inc.
+ *  Copyright (C) 2007 - 2015 Vladislav Bolkhovitin
+ *  Copyright (C) 2007 - 2015 SanDisk Corporation
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -766,7 +766,7 @@ static int conn_setup_sock(struct iscsi_conn *conn)
 
 	TRACE_DBG("%llx", (unsigned long long int)session->sid);
 
-	conn->sock = SOCKET_I(conn->file->f_dentry->d_inode);
+	conn->sock = SOCKET_I(file_inode(conn->file));
 
 	if (conn->sock->ops->sendpage == NULL) {
 		PRINT_ERROR("Socket for sid %llx doesn't support sendpage()",

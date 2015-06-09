@@ -643,14 +643,14 @@ sub getArgs {
 
 	if ((defined($addGroup) || defined($removeGroup)) &&
 	    (($driver eq '') || ($target eq ''))) {
-		print "Please specify -driver and -target with -add_group/-remove_group.\n";
+		print "Please specify -driver and -target with -add_group/-rem_group.\n";
 		exit 1;
 	}
 
 	if ((defined($addInitiator) || defined($removeInitiator) || defined($clearInitiators)) &&
 	    (($target eq '') || ($driver eq '') || ($group eq ''))) {
 		print "Please specify -driver -target and -group with ".
-		  "-add_init/-remove_init/-clear_inits.\n";
+		  "-add_init/-rem_init/-clear_inits.\n";
 		exit 1;
 	}
 
@@ -1566,12 +1566,6 @@ sub writeConfiguration {
 					}
 				}
 
-				if ($lun_buff || $init_buff) {
-					$group_buff .= " {\n";
-					$group_buff .= $lun_buff;
-					$group_buff .= $init_buff;
-				}
-
 				my ($grp_attributes, $errorString) = $SCST->groupAttributes($driver, $target, $group);
 				my $g_attribute_buff
 				    = serializeKeyAttr("\t\t\t",
@@ -1580,6 +1574,13 @@ sub writeConfiguration {
 				    = serializeNkAttr("\t\t\t",
 						      $grp_attributes)
 				    if ($nonkey);
+
+				if ($lun_buff || $init_buff ||
+				    $g_attribute_buff || $g_attribute_buff_nk) {
+					$group_buff .= " {\n";
+					$group_buff .= $lun_buff;
+					$group_buff .= $init_buff;
+				}
 
 				if ($g_attribute_buff_nk) {
 					$g_attribute_buff .= "\n" if ($g_attribute_buff);

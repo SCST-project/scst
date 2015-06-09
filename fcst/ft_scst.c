@@ -44,7 +44,6 @@ struct scst_tgt_template ft_scst_template = {
 	.on_hw_pending_cmd_timeout = ft_cmd_timeout,
 	.on_free_cmd =		ft_cmd_free,
 	.task_mgmt_fn_done =	ft_cmd_tm_done,
-	.detect =		ft_tgt_detect,
 	.release =		ft_tgt_release,
 	.report_aen =		ft_report_aen,
 	.enable_target =	ft_tgt_enable,

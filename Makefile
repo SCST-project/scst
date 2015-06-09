@@ -1,8 +1,8 @@
 #
 #  Common makefile for SCSI target mid-level and its drivers
 #
-#  Copyright (C) 2004 - 2014 Vladislav Bolkhovitin <vst@vlnb.net>
-#  Copyright (C) 2007 - 2014 Fusion-io, Inc.
+#  Copyright (C) 2004 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
+#  Copyright (C) 2007 - 2015 SanDisk Corporation
 #
 #  This program is free software; you can redistribute it and/or
 #  modify it under the terms of the GNU General Public License
@@ -50,6 +50,7 @@ SRP_DIR=srpt
 SCST_LOCAL_DIR=scst_local
 MVSAS_DIR=mvsas_tgt
 FCST_DIR=fcst
+EMULEX_DIR=emulex
 
 ISCSI_DIR=iscsi-scst
 
@@ -93,6 +94,12 @@ help:
 	@echo "		iscsi_extraclean  : ISCSI target: clean + clean dependencies"
 	@echo "		iscsi_install     : ISCSI target: install"
 	@echo "		iscsi_uninstall   : ISCSI target: uninstall"
+	@echo ""
+	@echo "		emulex             : make Emulex target"
+	@echo "		emulex_clean       : Emulex target: clean "
+	@echo "		emulex_extraclean  : Emulex target: clean + clean dependencies"
+	@echo "		emulex_install     : Emulex target: install"
+	@echo "		emulex_uninstall   : Emulex target: uninstall"
 	@echo ""
 	@echo "		lsi               : make LSI MPT target"
 	@echo "		lsi_clean         : lsi target: clean "
@@ -148,6 +155,7 @@ all:
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
+	@if [ -d $(EMULEX_DIR) ]; then cd $(EMULEX_DIR) && $(MAKE) $@; fi
 
 install:
 	cd $(SCST_DIR) && $(MAKE) $@
@@ -159,6 +167,7 @@ install:
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
+	@if [ -d $(EMULEX_DIR) ]; then cd $(EMULEX_DIR) && $(MAKE) $@; fi
 
 uninstall:
 	cd $(SCST_DIR) && $(MAKE) $@
@@ -170,6 +179,7 @@ uninstall:
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
+	@if [ -d $(EMULEX_DIR) ]; then cd $(EMULEX_DIR) && $(MAKE) $@; fi
 
 clean:
 	cd $(SCST_DIR) && $(MAKE) $@
@@ -183,6 +193,7 @@ clean:
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
+	@if [ -d $(EMULEX_DIR) ]; then cd $(EMULEX_DIR) && $(MAKE) $@; fi
 
 extraclean:
 	-rm -f TAGS
@@ -197,6 +208,7 @@ extraclean:
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
 	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
+	@if [ -d $(EMULEX_DIR) ]; then cd $(EMULEX_DIR) && $(MAKE) $@; fi
 
 tags:
 	find . -type f -name "*.[ch]" | ctags --c-kinds=+p --fields=+iaS --extra=+q -e -L-
@@ -257,7 +269,7 @@ qla_clean:
 	cd $(QLA_DIR) && $(MAKE) clean
 
 qla_extraclean:
-	cd $(QLA_INI_DIR)/.. && $(MAKE) extraclean
+	cd $(QLA_INI_DIR) && pwd && $(MAKE) extraclean
 	cd $(QLA_DIR) && $(MAKE) extraclean
 
 qla_old:
@@ -289,6 +301,21 @@ iscsi_clean:
 
 iscsi_extraclean:
 	cd $(ISCSI_DIR) && $(MAKE) extraclean
+
+emulex:
+	cd $(EMULEX_DIR) && $(MAKE) all
+
+emulex_install:
+	cd $(EMULEX_DIR) && $(MAKE) install
+
+emulex_uninstall:
+	cd $(EMULEX_DIR) && $(MAKE) uninstall
+
+emulex_clean: 
+	cd $(EMULEX_DIR) && $(MAKE) clean
+
+emulex_extraclean:
+	cd $(EMULEX_DIR) && $(MAKE) extraclean
 
 lsi:
 	cd $(LSI_DIR) && $(MAKE) all
@@ -405,9 +432,25 @@ scst-rpm:
 	for d in BUILD RPMS SOURCES SPECS SRPMS; do			\
 	  mkdir -p $${rpmtopdir}/$$d;					\
 	done &&								\
-	cp $${name}-$(VERSION).tar.bz2 $${rpmtopdir}/SOURCES &&		\
+	cp scst-$(VERSION).tar.bz2 $${rpmtopdir}/SOURCES &&		\
 	sed "s/@rpm_version@/$(VERSION)/g"				\
-		<$${name}.spec.in >$${name}.spec;			\
+		<$${name}.spec.in >$${name}.spec &&			\
+	MAKE="$(MAKE)" rpmbuild --define="%_topdir $${rpmtopdir}"	\
+	    $(if $(KVER),--define="%kversion $(KVER)")			\
+	    -ba $${name}.spec &&					\
+	rm -f $${name}-$(VERSION).tar.bz2
+
+scst-dkms-rpm:
+	name=scst-dkms &&						\
+	rpmtopdir="$$(if [ $$(id -u) = 0 ]; then echo /usr/src/packages;\
+		    else echo $$PWD/rpmbuilddir; fi)" &&		\
+	$(MAKE) scst-dist-gzip &&					\
+	for d in BUILD RPMS SOURCES SPECS SRPMS; do			\
+	  mkdir -p $${rpmtopdir}/$$d;					\
+	done &&								\
+	cp scst-$(VERSION).tar.bz2 $${rpmtopdir}/SOURCES &&		\
+	sed "s/@rpm_version@/$(VERSION)/g"				\
+		<$${name}.spec.in >$${name}.spec &&			\
 	MAKE="$(MAKE)" rpmbuild --define="%_topdir $${rpmtopdir}"	\
 	    $(if $(KVER),--define="%kversion $(KVER)")			\
 	    -ba $${name}.spec &&					\
@@ -421,6 +464,16 @@ rpm:
 	    echo "The following RPMs have been built:";	\
 	    find -name '*.rpm';				\
 	fi
+
+release-archive:
+	$(MAKE) 2release
+	for m in $$(find -name Makefile |			\
+		    xargs grep -l '^release-archive:' |		\
+		    grep -v '^\./Makefile');			\
+	do							\
+	    (cd $$(dirname $$m) && $(MAKE) release-archive)	\
+	done
+	$(MAKE) 2debug
 
 2perf: extraclean
 	cd $(SCST_DIR) && $(MAKE) $@
@@ -480,6 +533,7 @@ disable_proc: extraclean
 	qla_old qla_old_install qla_old_uninstall qla_old_clean qla_old_extraclean \
 	lsi lsi_install lsi_uninstall lsi_clean lsi_extraclean \
 	iscsi iscsi_install iscsi_uninstall iscsi_clean iscsi_extraclean \
+	emulex emulex_install emulex_uninstall emulex_clean emulex_extraclean \
 	scst scst_install scst_uninstall scst_clean scst_extraclean \
 	docs docs_clean docs_extraclean \
 	scstadm scstadm_install scstadm_uninstall scstadm_clean scstadm_extraclean \

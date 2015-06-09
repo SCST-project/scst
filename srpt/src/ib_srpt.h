@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2006 - 2009 Mellanox Technology Inc.  All rights reserved.
- * Copyright (C) 2009 - 2014 Bart Van Assche <bvanassche@acm.org>.
+ * Copyright (C) 2009 - 2015 Bart Van Assche <bvanassche@acm.org>.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -66,7 +66,6 @@
 #define SRP_SERVICE_NAME_PREFIX		"SRP.T10:"
 
 struct srpt_nexus;
-struct srpt_tgt;
 
 enum {
 	/*
@@ -254,8 +253,6 @@ struct srpt_tsk_mgmt {
  * @state:       I/O context state.
  * @rdma_aborted: If initiating a multipart RDMA transfer failed, whether
  *               the already initiated transfers have finished.
- * @scmnd:       SCST command data structure.
- * @dir:         Data direction.
  * @free_list:   Node in srpt_rdma_ch.free_list.
  * @sg_cnt:      SG-list size.
  * @mapped_sg_count: ib_dma_map_sg() return value.
@@ -266,6 +263,8 @@ struct srpt_tsk_mgmt {
  *               SRP response sent.
  * @tsk_mgmt:    SRPT task management function context information.
  * @rdma_ius_buf: Inline rdma_ius buffer for small requests.
+ * @cmd:         SCST command data structure.
+ * @dir:         Data direction.
  */
 struct srpt_send_ioctx {
 	struct srpt_ioctx	ioctx;
@@ -281,8 +280,6 @@ struct srpt_send_ioctx {
 	spinlock_t		spinlock;
 	enum srpt_command_state	state;
 	bool			rdma_aborted;
-	struct scst_cmd		scmnd;
-	scst_data_direction	dir;
 	int			sg_cnt;
 	int			mapped_sg_count;
 	u16			n_rdma_ius;
@@ -293,6 +290,8 @@ struct srpt_send_ioctx {
 	u8			rdma_ius_buf[2 * sizeof(struct rdma_iu)
 					     + 2 * sizeof(struct ib_sge)]
 				__aligned(sizeof(uint64_t));
+	struct scst_cmd		cmd;
+	scst_data_direction	dir;
 };
 
 /**
@@ -328,7 +327,6 @@ enum rdma_ch_state {
  * @sq_wr_avail:   number of work requests available in the send queue.
  * @sport:         pointer to the information of the HCA port used by this
  *                 channel.
- * @srpt_tgt:      Target port used by this channel.
  * @max_ti_iu_len: maximum target-to-initiator information unit length.
  * @req_lim:       request limit: maximum number of requests that may be sent
  *                 by the initiator without having received a response.
@@ -338,6 +336,7 @@ enum rdma_ch_state {
  * @spinlock:      Protects free_list.
  * @free_list:     Head of list with free send I/O contexts.
  * @ioctx_ring:    Send I/O context ring.
+ * @ioctx_recv_ring: Receive I/O context ring.
  * @wc:            Work completion array.
  * @state:         channel state. See also enum rdma_ch_state.
  * @processing_wait_list: Whether or not cmd_wait_list is being processed.
@@ -347,8 +346,10 @@ enum rdma_ch_state {
  *                 against concurrent modification by the cm_id spinlock.
  * @pkey:          P_Key of the IB partition for this SRP channel.
  * @comp_vector:   Completion vector assigned to the QP.
- * @scst_sess:     SCST session information associated with this SRP channel.
+ * @using_rdma_cm: Whether to use the RDMA/CM or the IB/CM.
+ * @processing_wait_list: Whether the I/O context wait list is being processed.
  * @sess_name:     SCST session name.
+ * @sess:          SCST session information associated with this SRP channel.
  */
 struct srpt_rdma_ch {
 	struct task_struct	*thread;
@@ -369,7 +370,6 @@ struct srpt_rdma_ch {
 	int			max_rsp_size;
 	atomic_t		sq_wr_avail;
 	struct srpt_port	*sport;
-	struct srpt_tgt		*srpt_tgt;
 	int			max_ti_iu_len;
 	int			req_lim;
 	int			req_lim_delta;
@@ -387,15 +387,14 @@ struct srpt_rdma_ch {
 #endif
 	bool			using_rdma_cm;
 	bool			processing_wait_list;
-
-	struct scst_session	*scst_sess;
 	u8			sess_name[40];
+	struct scst_session	*sess;
 };
 
 /**
  * struct srpt_nexus - I_T nexus
- * @entry:     srpt_tgt.nexus_list list node.
- * @ch_list:   struct srpt_rdma_ch list. Protected by srpt_tgt.mutex.
+ * @entry:     srpt_port.nexus_list list node.
+ * @ch_list:   struct srpt_rdma_ch list. Protected by srpt_port.mutex.
  * @i_port_id: 128-bit initiator port identifier copied from SRP_LOGIN_REQ.
  * @t_port_id: 128-bit target port identifier copied from SRP_LOGIN_REQ.
  */
@@ -407,26 +406,6 @@ struct srpt_nexus {
 };
 
 /**
- * struct srpt_tgt
- * @ch_releaseQ: Enables waiting for removal from nexus_list.
- * @mutex:       Protects @nexus_list and srpt_nexus.ch_list.
- * @nexus_list:  Per-device I_T nexus list.
- * @scst_tgt:    SCST target information associated with this HCA.
- * @comp_v_mask: Bitmask with one bit per allowed completion vector.
- * @comp_vector: Completion vector from where searching will start.
- * @enabled:     Whether or not this SCST target is enabled.
- */
-struct srpt_tgt {
-	wait_queue_head_t	ch_releaseQ;
-	struct mutex		mutex;
-	struct list_head	nexus_list;
-	struct scst_tgt		*scst_tgt;
-	DECLARE_BITMAP(comp_v_mask, COMP_V_MASK_SIZE);
-	u8			comp_vector;
-	bool			enabled;
-};
-
-/**
  * struct srpt_port - Information associated by SRPT with a single IB port.
  * @sdev:      backpointer to the HCA information.
  * @mad_agent: per-port management datagram processing information.
@@ -435,8 +414,13 @@ struct srpt_tgt {
  * @lid:       cached value of the port's lid.
  * @gid:       cached value of the port's gid.
  * @work:      work structure for refreshing the aforementioned cached values.
- * @srpt_tgt:  Target port information. Only used if one-target-per-port
- *             mode is enabled.
+ * @ch_releaseQ: Enables waiting for removal from nexus_list.
+ * @mutex:       Protects @nexus_list and srpt_nexus.ch_list.
+ * @nexus_list:  Per-device I_T nexus list.
+ * @scst_tgt:    SCST target information associated with this HCA.
+ * @comp_v_mask: Bitmask with one bit per allowed completion vector.
+ * @comp_vector: Completion vector from where searching will start.
+ * @enabled:     Whether or not this SCST target is enabled.
  */
 struct srpt_port {
 	struct srpt_device	*sdev;
@@ -446,7 +430,13 @@ struct srpt_port {
 	u16			lid;
 	union ib_gid		gid;
 	struct work_struct	work;
-	struct srpt_tgt		srpt_tgt;
+	wait_queue_head_t	ch_releaseQ;
+	struct mutex		mutex;
+	struct list_head	nexus_list;
+	struct scst_tgt		*scst_tgt;
+	DECLARE_BITMAP(comp_v_mask, COMP_V_MASK_SIZE);
+	u8			comp_vector;
+	bool			enabled;
 };
 
 /**
@@ -463,8 +453,6 @@ struct srpt_port {
  * @ioctx_ring:    Per-HCA SRQ.
  * @port:	   Information about the ports owned by this HCA.
  * @event_handler: Per-HCA asynchronous IB event handler.
- * @srpt_tgt:      Target port information. Only used if one-target-per-port
- *                 mode is disabled.
  */
 struct srpt_device {
 	struct ib_device	*device;
@@ -478,7 +466,6 @@ struct srpt_device {
 	struct srpt_recv_ioctx	**ioctx_ring;
 	struct srpt_port	port[2];
 	struct ib_event_handler	event_handler;
-	struct srpt_tgt		srpt_tgt;
 };
 
 /**

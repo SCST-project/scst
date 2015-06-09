@@ -2,8 +2,8 @@
  *  Network threads.
  *
  *  Copyright (C) 2004 - 2005 FUJITA Tomonori <tomof@acm.org>
- *  Copyright (C) 2007 - 2014 Vladislav Bolkhovitin
- *  Copyright (C) 2007 - 2014 Fusion-io, Inc.
+ *  Copyright (C) 2007 - 2015 Vladislav Bolkhovitin
+ *  Copyright (C) 2007 - 2015 SanDisk Corporation
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -616,13 +616,18 @@ void start_close_conn(struct iscsi_conn *conn)
 EXPORT_SYMBOL(start_close_conn);
 
 static inline void iscsi_conn_init_read(struct iscsi_conn *conn,
-	void __user *data, size_t len)
+	void *data, size_t len)
 {
 	conn->read_iov[0].iov_base = data;
 	conn->read_iov[0].iov_len = len;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+	iov_iter_kvec(&conn->read_msg.msg_iter, READ | ITER_KVEC,
+		      conn->read_iov, 1, len);
+#else
 	conn->read_msg.msg_iov = conn->read_iov;
 	conn->read_msg.msg_iovlen = 1;
 	conn->read_size = len;
+#endif
 	return;
 }
 
@@ -634,7 +639,7 @@ static void iscsi_conn_prepare_read_ahs(struct iscsi_conn *conn,
 	/* ToDo: __GFP_NOFAIL ?? */
 	cmnd->pdu.ahs = kmalloc(asize, __GFP_NOFAIL|GFP_KERNEL);
 	sBUG_ON(cmnd->pdu.ahs == NULL);
-	iscsi_conn_init_read(conn, (void __force __user *)cmnd->pdu.ahs, asize);
+	iscsi_conn_init_read(conn, cmnd->pdu.ahs, asize);
 	return;
 }
 
@@ -684,8 +689,12 @@ static int do_recv(struct iscsi_conn *conn)
 {
 	int res;
 	mm_segment_t oldfs;
-	struct msghdr msg;
+	struct msghdr *msg;
+	int read_size;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
+	struct iovec *first_iov;
 	int first_len;
+#endif
 
 	EXTRACHECKS_BUG_ON(conn->read_cmnd == NULL);
 
@@ -701,45 +710,48 @@ static int do_recv(struct iscsi_conn *conn)
 	 */
 
 restart:
-	memset(&msg, 0, sizeof(msg));
-	msg.msg_iov = conn->read_msg.msg_iov;
-	msg.msg_iovlen = conn->read_msg.msg_iovlen;
-	first_len = msg.msg_iov->iov_len;
+	msg = &conn->read_msg;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+	read_size = msg->msg_iter.count;
+#else
+	read_size = conn->read_size;
+	first_iov = msg->msg_iov;
+	first_len = first_iov->iov_len;
+#endif
 
 	oldfs = get_fs();
 	set_fs(get_ds());
-	res = sock_recvmsg(conn->sock, &msg, conn->read_size,
+	res = sock_recvmsg(conn->sock, msg, read_size,
 			   MSG_DONTWAIT | MSG_NOSIGNAL);
 	set_fs(oldfs);
 
-	TRACE_DBG("msg_iovlen %zd, first_len %d, read_size %d, res %d",
-		msg.msg_iovlen, first_len, conn->read_size, res);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+	TRACE_DBG("nr_segs %zd, bytes_left %zd, res %d",
+		  msg->msg_iter.nr_segs, msg->msg_iter.count, res);
+#else
+	TRACE_DBG("msg_iovlen %zd, read_size %d, res %d", msg->msg_iovlen,
+		  read_size, res);
+#endif
 
 	if (res > 0) {
 		/*
-		 * To save some considerable effort and CPU power we
-		 * suppose that TCP functions adjust
-		 * conn->read_msg.msg_iov and conn->read_msg.msg_iovlen
-		 * on amount of copied data. This BUG_ON is intended
-		 * to catch if it is changed in the future.
+		 * To save CPU cycles we suppose that sock_recvmsg() adjusts
+		 * msg->msg_iov and msg->msg_iovlen. The BUG_ON() statements
+		 * below verifies this.
 		 */
-		sBUG_ON((res >= first_len) &&
-			(conn->read_msg.msg_iov->iov_len != 0));
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+		sBUG_ON(msg->msg_iter.count + res != read_size);
+		res = msg->msg_iter.count;
+#else
+		sBUG_ON((res >= first_len) && (first_iov->iov_len != 0));
 		conn->read_size -= res;
-		if (conn->read_size != 0) {
-			if (res >= first_len) {
-				int done = 1 + ((res - first_len) >> PAGE_SHIFT);
-				TRACE_DBG("done %d", done);
-				conn->read_msg.msg_iov += done;
-				conn->read_msg.msg_iovlen -= done;
-			}
-		}
 		res = conn->read_size;
+#endif
 	} else {
 		switch (res) {
 		case -EAGAIN:
 			TRACE_DBG("EAGAIN received for conn %p", conn);
-			res = conn->read_size;
+			res = read_size;
 			break;
 		case -ERESTARTSYS:
 			TRACE_DBG("ERESTARTSYS received for conn %p", conn);
@@ -825,7 +837,7 @@ static int iscsi_rx_check_ddigest(struct iscsi_conn *conn)
 static int process_read_io(struct iscsi_conn *conn, int *closed)
 {
 	struct iscsi_cmnd *cmnd = conn->read_cmnd;
-	int res;
+	int bytes_left, res;
 
 	TRACE_ENTRY();
 
@@ -837,9 +849,8 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 			EXTRACHECKS_BUG_ON(conn->read_cmnd != NULL);
 			cmnd = conn->transport->iscsit_alloc_cmd(conn, NULL);
 			conn->read_cmnd = cmnd;
-			iscsi_conn_init_read(cmnd->conn,
-				(void __force __user *)&cmnd->pdu.bhs,
-				sizeof(cmnd->pdu.bhs));
+			iscsi_conn_init_read(cmnd->conn, &cmnd->pdu.bhs,
+					     sizeof(cmnd->pdu.bhs));
 			conn->read_state = RX_BHS;
 			/* go through */
 
@@ -904,7 +915,7 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 				if (psz != 0) {
 					TRACE_DBG("padding %d bytes", psz);
 					iscsi_conn_init_read(conn,
-						(void __force __user *)&conn->rpadding, psz);
+							&conn->rpadding, psz);
 					conn->read_state = RX_PADDING;
 				} else if ((conn->ddigest_type & DIGEST_NONE) != 0)
 					conn->read_state = RX_END;
@@ -914,10 +925,15 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 			break;
 
 		case RX_END:
-			if (unlikely(conn->read_size != 0)) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+			bytes_left = conn->read_msg.msg_iter.count;
+#else
+			bytes_left = conn->read_size;
+#endif
+			if (unlikely(bytes_left != 0)) {
 				PRINT_CRIT_ERROR("conn read_size !=0 on RX_END "
 					"(conn %p, op %x, read_size %d)", conn,
-					cmnd_opcode(cmnd), conn->read_size);
+					cmnd_opcode(cmnd), bytes_left);
 				sBUG();
 			}
 			conn->read_cmnd = NULL;
@@ -925,7 +941,11 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 
 			cmnd_rx_end(cmnd);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+			EXTRACHECKS_BUG_ON(conn->read_msg.msg_iter.count != 0);
+#else
 			EXTRACHECKS_BUG_ON(conn->read_size != 0);
+#endif
 
 			/*
 			 * To maintain fairness. Res must be 0 here anyway, the
@@ -936,8 +956,7 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 			goto out;
 
 		case RX_INIT_HDIGEST:
-			iscsi_conn_init_read(conn,
-				(void __force __user *)&cmnd->hdigest, sizeof(u32));
+			iscsi_conn_init_read(conn, &cmnd->hdigest, sizeof(u32));
 			conn->read_state = RX_CHECK_HDIGEST;
 			/* go through */
 
@@ -957,9 +976,7 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 			break;
 
 		case RX_INIT_DDIGEST:
-			iscsi_conn_init_read(conn,
-				(void __force __user *)&cmnd->ddigest,
-				sizeof(u32));
+			iscsi_conn_init_read(conn, &cmnd->ddigest, sizeof(u32));
 			conn->read_state = RX_CHECK_DDIGEST;
 			/* go through */
 
