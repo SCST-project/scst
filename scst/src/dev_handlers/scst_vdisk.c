@@ -1941,7 +1941,7 @@ static int vdisk_format_dif(struct scst_cmd *cmd, uint64_t start_lba,
 				 &loff);
 		if (err < 0) {
 			PRINT_ERROR("Formatting DIF write() returned %lld from "
-				"%zd", (long long unsigned int)err, full_len);
+				"%zd", (long long)err, full_len);
 			if (err == -EAGAIN)
 				scst_set_busy(cmd);
 			else
@@ -2841,8 +2841,8 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 			fua = (cdb[10] & 0x8);
 			if (fua)
 				TRACE(TRACE_ORDER, "FUA: loff=%lld, data_len=%lld",
-					(long long unsigned int)loff,
-					(long long unsigned int)data_len);
+					(unsigned long long)loff,
+					(unsigned long long)data_len);
 		}
 		break;
 	case WRITE_10:
@@ -5729,7 +5729,7 @@ restart:
 		if (err < 0) {
 			unsigned long flags;
 			PRINT_ERROR("DIF write() returned %lld from %zd",
-				(long long unsigned int)err, full_len);
+				(long long)err, full_len);
 			/* To protect sense setting with blockio */
 			spin_lock_irqsave(&vdev_err_lock, flags);
 			if (err == -EAGAIN)
