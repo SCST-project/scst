@@ -698,6 +698,7 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 		if (scst_cmd_is_expected_set(cmd)) {
 			TRACE(TRACE_MINOR, "Using initiator supplied values: "
 				"direction %d, transfer_len %d/%d/%d",
+				cmd->expected_data_direction,
 				scst_cmd_get_expected_transfer_len_data(cmd),
 				scst_cmd_get_expected_transfer_len_dif(cmd),
 				cmd->expected_out_transfer_len);
