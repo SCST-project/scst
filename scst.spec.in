@@ -148,6 +148,7 @@ rm -rf /usr/local/include/scst
 /lib/modules/%{kversion}/extra/fcst.ko
 /lib/modules/%{kversion}/extra/ib_srpt.ko
 /lib/modules/%{kversion}/extra/iscsi-scst.ko
+/lib/modules/%{kversion}/extra/isert-scst.ko
 /lib/modules/%{kversion}/extra/qla2x00tgt.ko
 /lib/modules/%{kversion}/extra/qla2xxx_scst.ko
 /lib/modules/%{kversion}/extra/scst.ko

@@ -26,6 +26,7 @@
 
 #include "iscsi.h"
 #include "digest.h"
+#include "iscsit_transport.h"
 
 #ifndef GENERATING_UPSTREAM_PATCH
 #if !defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
@@ -68,7 +69,6 @@ static void req_cmnd_release(struct iscsi_cmnd *req);
 static int cmnd_insert_data_wait_hash(struct iscsi_cmnd *cmnd);
 static void iscsi_cmnd_init_write(struct iscsi_cmnd *rsp, int flags);
 static void iscsi_set_resid_no_scst_cmd(struct iscsi_cmnd *rsp);
-static void iscsi_set_resid(struct iscsi_cmnd *rsp);
 
 static void iscsi_set_not_received_data_len(struct iscsi_cmnd *req,
 	unsigned int not_received)
@@ -242,7 +242,7 @@ static struct iscsi_cmnd *iscsi_create_tm_clone(struct iscsi_cmnd *cmnd)
 
 	TRACE_ENTRY();
 
-	tm_clone = cmnd_alloc(cmnd->conn, NULL);
+	tm_clone = cmnd->conn->transport->iscsit_alloc_cmd(cmnd->conn, NULL);
 	if (tm_clone != NULL) {
 		set_bit(ISCSI_CMD_ABORTED, &tm_clone->prelim_compl_flags);
 		tm_clone->pdu = cmnd->pdu;
@@ -309,14 +309,9 @@ void iscsi_fail_data_waiting_cmnd(struct iscsi_cmnd *cmnd)
 	return;
 }
 
-struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *conn,
-			      struct iscsi_cmnd *parent)
+void iscsi_cmnd_init(struct iscsi_conn *conn, struct iscsi_cmnd *cmnd,
+		     struct iscsi_cmnd *parent)
 {
-	struct iscsi_cmnd *cmnd;
-
-	/* ToDo: __GFP_NOFAIL?? */
-	cmnd = kmem_cache_zalloc(iscsi_cmnd_cache, GFP_KERNEL|__GFP_NOFAIL);
-
 	atomic_set(&cmnd->ref_cnt, 1);
 	cmnd->scst_state = ISCSI_CMD_STATE_NEW;
 	cmnd->conn = conn;
@@ -325,9 +320,6 @@ struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *conn,
 	if (parent == NULL) {
 		conn_get(conn);
 
-#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
-		atomic_set(&cmnd->net_ref_cnt, 0);
-#endif
 		INIT_LIST_HEAD(&cmnd->rsp_cmd_list);
 		INIT_LIST_HEAD(&cmnd->rx_ddigest_cmd_list);
 		cmnd->target_task_tag = ISCSI_RESERVED_TAG_CPU32;
@@ -335,6 +327,24 @@ struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *conn,
 		spin_lock_bh(&conn->cmd_list_lock);
 		list_add_tail(&cmnd->cmd_list_entry, &conn->cmd_list);
 		spin_unlock_bh(&conn->cmd_list_lock);
+	}
+}
+EXPORT_SYMBOL(iscsi_cmnd_init);
+
+struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *conn,
+			      struct iscsi_cmnd *parent)
+{
+	struct iscsi_cmnd *cmnd;
+
+	/* ToDo: __GFP_NOFAIL?? */
+	cmnd = kmem_cache_zalloc(iscsi_cmnd_cache, GFP_KERNEL|__GFP_NOFAIL);
+
+	iscsi_cmnd_init(conn, cmnd, parent);
+
+	if (parent == NULL) {
+#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
+		atomic_set(&cmnd->net_ref_cnt, 0);
+#endif
 	}
 
 	TRACE_DBG("conn %p, parent %p, cmnd %p", conn, parent, cmnd);
@@ -496,10 +506,10 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 
 		list_for_each_entry_safe(rsp, t, &cmnd->rsp_cmd_list,
 					rsp_cmd_list_entry) {
-			cmnd_free(rsp);
+			cmnd->conn->transport->iscsit_free_cmd(rsp);
 		}
 
-		cmnd_free(cmnd);
+		cmnd->conn->transport->iscsit_free_cmd(cmnd);
 	} else {
 		struct iscsi_cmnd *parent = cmnd->parent_req;
 
@@ -532,6 +542,7 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(cmnd_done);
 
 /*
  * Corresponding conn may also get destroyed after this function, except only
@@ -633,8 +644,9 @@ out:
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(req_cmnd_release_force);
 
-static void req_cmnd_pre_release(struct iscsi_cmnd *req)
+void req_cmnd_pre_release(struct iscsi_cmnd *req)
 {
 	struct iscsi_cmnd *c, *t;
 
@@ -694,6 +706,7 @@ static void req_cmnd_pre_release(struct iscsi_cmnd *req)
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(req_cmnd_pre_release);
 
 /*
  * Corresponding conn may also get destroyed after this function, except only
@@ -728,6 +741,7 @@ void rsp_cmnd_release(struct iscsi_cmnd *cmnd)
 	cmnd_put(cmnd);
 	return;
 }
+EXPORT_SYMBOL(rsp_cmnd_release);
 
 static struct iscsi_cmnd *iscsi_alloc_rsp(struct iscsi_cmnd *parent)
 {
@@ -735,7 +749,7 @@ static struct iscsi_cmnd *iscsi_alloc_rsp(struct iscsi_cmnd *parent)
 
 	TRACE_ENTRY();
 
-	rsp = cmnd_alloc(parent->conn, parent);
+	rsp = parent->conn->transport->iscsit_alloc_cmd(parent->conn, parent);
 
 	TRACE_DBG("Adding rsp %p to parent %p", rsp, parent);
 	list_add_tail(&rsp->rsp_cmd_list_entry, &parent->rsp_cmd_list);
@@ -797,7 +811,7 @@ static void iscsi_cmnds_init_write(struct list_head *send, int flags)
 	spin_unlock_bh(&conn->write_list_lock);
 
 	if (flags & ISCSI_INIT_WRITE_WAKE)
-		iscsi_make_conn_wr_active(conn);
+		conn->transport->iscsit_make_conn_wr_active(conn);
 
 	return;
 }
@@ -876,7 +890,7 @@ static void iscsi_set_resid_no_scst_cmd(struct iscsi_cmnd *rsp)
 	return;
 }
 
-static void iscsi_set_resid(struct iscsi_cmnd *rsp)
+void iscsi_set_resid(struct iscsi_cmnd *rsp)
 {
 	struct iscsi_cmnd *req = rsp->parent_req;
 	struct scst_cmd *scst_cmd = req->scst_cmd;
@@ -930,6 +944,7 @@ out:
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(iscsi_set_resid);
 
 static void send_data_rsp(struct iscsi_cmnd *req, u8 status, int send_status)
 {
@@ -992,12 +1007,25 @@ static void send_data_rsp(struct iscsi_cmnd *req, u8 status, int send_status)
 	return;
 }
 
+static void iscsi_tcp_set_sense_data(struct iscsi_cmnd *rsp,
+	const u8 *sense_buf, int sense_len)
+{
+	struct scatterlist *sg;
+
+	sg = rsp->sg = rsp->rsp_sg;
+	rsp->sg_cnt = 2;
+	rsp->own_sg = 1;
+
+	sg_init_table(sg, 2);
+	sg_set_buf(&sg[0], &rsp->sense_hdr, sizeof(rsp->sense_hdr));
+	sg_set_buf(&sg[1], (u8 *)sense_buf, sense_len);
+}
+
 static void iscsi_init_status_rsp(struct iscsi_cmnd *rsp,
 	int status, const u8 *sense_buf, int sense_len)
 {
 	struct iscsi_cmnd *req = rsp->parent_req;
 	struct iscsi_scsi_rsp_hdr *rsp_hdr;
-	struct scatterlist *sg;
 
 	TRACE_ENTRY();
 
@@ -1011,15 +1039,10 @@ static void iscsi_init_status_rsp(struct iscsi_cmnd *rsp,
 	if (scst_sense_valid(sense_buf)) {
 		TRACE_DBG("%s", "SENSE VALID");
 
-		sg = rsp->sg = rsp->rsp_sg;
-		rsp->sg_cnt = 2;
-		rsp->own_sg = 1;
-
-		sg_init_table(sg, 2);
-		sg_set_buf(&sg[0], &rsp->sense_hdr, sizeof(rsp->sense_hdr));
-		sg_set_buf(&sg[1], (u8 *)sense_buf, sense_len);
-
 		rsp->sense_hdr.length = cpu_to_be16(sense_len);
+
+		rsp->conn->transport->iscsit_set_sense_data(rsp, sense_buf,
+							    sense_len);
 
 		rsp->pdu.datasize = sizeof(rsp->sense_hdr) + sense_len;
 		rsp->bufflen = rsp->pdu.datasize;
@@ -1032,7 +1055,7 @@ static void iscsi_init_status_rsp(struct iscsi_cmnd *rsp,
 	return;
 }
 
-static inline struct iscsi_cmnd *create_status_rsp(struct iscsi_cmnd *req,
+struct iscsi_cmnd *create_status_rsp(struct iscsi_cmnd *req,
 	int status, const u8 *sense_buf, int sense_len)
 {
 	struct iscsi_cmnd *rsp;
@@ -1047,6 +1070,26 @@ static inline struct iscsi_cmnd *create_status_rsp(struct iscsi_cmnd *req,
 
 	TRACE_EXIT_HRES((unsigned long)rsp);
 	return rsp;
+}
+EXPORT_SYMBOL(create_status_rsp);
+
+static void iscsi_tcp_send_data_rsp(struct iscsi_cmnd *req, u8 *sense,
+				    int sense_len, u8 status,
+				    int is_send_status)
+{
+	if ((status != SAM_STAT_CHECK_CONDITION) &&
+	    ((cmnd_hdr(req)->flags & (ISCSI_CMD_WRITE|ISCSI_CMD_READ)) !=
+			(ISCSI_CMD_WRITE|ISCSI_CMD_READ))) {
+		send_data_rsp(req, status, is_send_status);
+	} else {
+		struct iscsi_cmnd *rsp;
+		send_data_rsp(req, 0, 0);
+		if (is_send_status) {
+			rsp = create_status_rsp(req, status, sense,
+					sense_len);
+			iscsi_cmnd_init_write(rsp, 0);
+		}
+	}
 }
 
 /*
@@ -1224,7 +1267,7 @@ static inline int iscsi_get_allowed_cmds(struct iscsi_session *sess)
 	return res;
 }
 
-static __be32 cmnd_set_sn(struct iscsi_cmnd *cmnd, int set_stat_sn)
+__be32 cmnd_set_sn(struct iscsi_cmnd *cmnd, int set_stat_sn)
 {
 	struct iscsi_conn *conn = cmnd->conn;
 	struct iscsi_session *sess = conn->session;
@@ -1243,6 +1286,7 @@ static __be32 cmnd_set_sn(struct iscsi_cmnd *cmnd, int set_stat_sn)
 	spin_unlock(&sess->sn_lock);
 	return res;
 }
+EXPORT_SYMBOL(cmnd_set_sn);
 
 /* Called under sn_lock */
 static void update_stat_sn(struct iscsi_cmnd *cmnd)
@@ -1750,7 +1794,7 @@ static int nop_out_start(struct iscsi_cmnd *cmnd)
 
 	size = cmnd->pdu.datasize;
 
-	if (size) {
+	if (size && !conn->session->sess_params.rdma_extensions) {
 		if (cmnd->pdu.bhs.itt != ISCSI_RESERVED_TAG) {
 			struct scatterlist *sg;
 
@@ -1810,14 +1854,85 @@ out:
 	return err;
 }
 
-int cmnd_rx_continue(struct iscsi_cmnd *req)
+int iscsi_cmnd_set_write_buf(struct iscsi_cmnd *req)
 {
 	struct iscsi_conn *conn = req->conn;
 	struct iscsi_session *session = conn->session;
 	struct iscsi_scsi_cmd_hdr *req_hdr = cmnd_hdr(req);
 	struct scst_cmd *scst_cmd = req->scst_cmd;
-	scst_data_direction dir;
 	bool unsolicited_data_expected = false;
+	int res = 0;
+
+	req->bufflen = scst_cmd_get_write_fields(scst_cmd, &req->sg,
+			&req->sg_cnt);
+	unsolicited_data_expected = !(req_hdr->flags & ISCSI_CMD_FINAL);
+
+	if (unlikely(session->sess_params.initial_r2t &&
+	    unsolicited_data_expected)) {
+		PRINT_ERROR("Initiator %s violated negotiated "
+			"parameters: initial R2T is required (ITT %x, "
+			"op  %x)", session->initiator_name,
+			req->pdu.bhs.itt, req_hdr->scb[0]);
+		res = -EINVAL;
+		goto out_close;
+	}
+
+	if (unlikely(!session->sess_params.immediate_data &&
+	    req->pdu.datasize)) {
+		PRINT_ERROR("Initiator %s violated negotiated "
+			"parameters: forbidden immediate data sent "
+			"(ITT %x, op  %x)", session->initiator_name,
+			req->pdu.bhs.itt, req_hdr->scb[0]);
+		res = -EINVAL;
+		goto out_close;
+	}
+
+	if (unlikely(session->sess_params.first_burst_length < req->pdu.datasize)) {
+		PRINT_ERROR("Initiator %s violated negotiated "
+			"parameters: immediate data len (%d) > "
+			"first_burst_length (%d) (ITT %x, op  %x)",
+			session->initiator_name,
+			req->pdu.datasize,
+			session->sess_params.first_burst_length,
+			req->pdu.bhs.itt, req_hdr->scb[0]);
+		res = -EINVAL;
+		goto out_close;
+	}
+
+	req->r2t_len_to_receive = be32_to_cpu(req_hdr->data_length) -
+				  req->pdu.datasize;
+
+	/*
+	 * In case of residual overflow req->r2t_len_to_receive and
+	 * req->pdu.datasize might be > req->bufflen
+	 */
+
+	res = cmnd_insert_data_wait_hash(req);
+
+	if (unsolicited_data_expected) {
+		req->outstanding_r2t = 1;
+		req->r2t_len_to_send = req->r2t_len_to_receive -
+			min_t(unsigned int,
+			      session->sess_params.first_burst_length -
+					req->pdu.datasize,
+			      req->r2t_len_to_receive);
+	} else
+		req->r2t_len_to_send = req->r2t_len_to_receive;
+
+	if (likely(res == 0))
+		req_add_to_write_timeout_list(req);
+
+out_close:
+	return res;
+}
+EXPORT_SYMBOL(iscsi_cmnd_set_write_buf);
+
+int cmnd_rx_continue(struct iscsi_cmnd *req)
+{
+	struct iscsi_conn *conn = req->conn;
+	struct iscsi_scsi_cmd_hdr *req_hdr = cmnd_hdr(req);
+	struct scst_cmd *scst_cmd = req->scst_cmd;
+	scst_data_direction dir;
 	int res = 0;
 
 	TRACE_ENTRY();
@@ -1845,48 +1960,7 @@ int cmnd_rx_continue(struct iscsi_cmnd *req)
 	/* For prelim completed commands sg & K can be already set! */
 
 	if (dir & SCST_DATA_WRITE) {
-		req->bufflen = scst_cmd_get_write_fields(scst_cmd, &req->sg,
-				&req->sg_cnt);
-		unsolicited_data_expected = !(req_hdr->flags & ISCSI_CMD_FINAL);
-
-		if (unlikely(session->sess_params.initial_r2t &&
-		    unsolicited_data_expected)) {
-			PRINT_ERROR("Initiator %s violated negotiated "
-				"parameters: initial R2T is required (ITT %x, "
-				"op  %x)", session->initiator_name,
-				req->pdu.bhs.itt, req_hdr->scb[0]);
-			goto out_close;
-		}
-
-		if (unlikely(!session->sess_params.immediate_data &&
-		    req->pdu.datasize)) {
-			PRINT_ERROR("Initiator %s violated negotiated "
-				"parameters: forbidden immediate data sent "
-				"(ITT %x, op  %x)", session->initiator_name,
-				req->pdu.bhs.itt, req_hdr->scb[0]);
-			goto out_close;
-		}
-
-		if (unlikely(session->sess_params.first_burst_length < req->pdu.datasize)) {
-			PRINT_ERROR("Initiator %s violated negotiated "
-				"parameters: immediate data len (%d) > "
-				"first_burst_length (%d) (ITT %x, op  %x)",
-				session->initiator_name,
-				req->pdu.datasize,
-				session->sess_params.first_burst_length,
-				req->pdu.bhs.itt, req_hdr->scb[0]);
-			goto out_close;
-		}
-
-		req->r2t_len_to_receive = be32_to_cpu(req_hdr->data_length) -
-					  req->pdu.datasize;
-
-		/*
-		 * In case of residual overflow req->r2t_len_to_receive and
-		 * req->pdu.datasize might be > req->bufflen
-		 */
-
-		res = cmnd_insert_data_wait_hash(req);
+		res = iscsi_cmnd_set_write_buf(req);
 		if (unlikely(res != 0)) {
 			/*
 			 * We have to close connection, because otherwise a data
@@ -1896,18 +1970,6 @@ int cmnd_rx_continue(struct iscsi_cmnd *req)
 			 */
 			goto out_close;
 		}
-
-		if (unsolicited_data_expected) {
-			req->outstanding_r2t = 1;
-			req->r2t_len_to_send = req->r2t_len_to_receive -
-				min_t(unsigned int,
-				      session->sess_params.first_burst_length -
-						req->pdu.datasize,
-				      req->r2t_len_to_receive);
-		} else
-			req->r2t_len_to_send = req->r2t_len_to_receive;
-
-		req_add_to_write_timeout_list(req);
 
 		if (req->pdu.datasize) {
 			res = cmnd_prepare_recv_pdu(conn, req, 0, req->pdu.datasize);
@@ -1930,11 +1992,9 @@ int cmnd_rx_continue(struct iscsi_cmnd *req)
 	}
 
 trace:
-	TRACE_DBG("req=%p, dir=%d, unsolicited_data_expected=%d, "
-		"r2t_len_to_receive=%d, r2t_len_to_send=%d, bufflen=%d, "
-		"own_sg %d", req, dir, unsolicited_data_expected,
-		req->r2t_len_to_receive, req->r2t_len_to_send, req->bufflen,
-		req->own_sg);
+	TRACE_DBG("req=%p, dir=%d, r2t_len_to_receive=%d, r2t_len_to_send=%d, "
+		"bufflen=%d, own_sg %d", req, dir, req->r2t_len_to_receive,
+		req->r2t_len_to_send, req->bufflen, req->own_sg);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1994,7 +2054,8 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 			scst_cmd_set_expected_out_transfer_len(scst_cmd,
 				be32_to_cpu(req_hdr->data_length));
 #if !defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
-			scst_cmd_set_tgt_need_alloc_data_buf(scst_cmd);
+			if (conn->transport->need_alloc_write_buf)
+				scst_cmd_set_tgt_need_alloc_data_buf(scst_cmd);
 #endif
 		}
 	} else if (req_hdr->flags & ISCSI_CMD_READ) {
@@ -2002,7 +2063,8 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 		scst_cmd_set_expected(scst_cmd, dir,
 			be32_to_cpu(req_hdr->data_length));
 #if !defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
-		scst_cmd_set_tgt_need_alloc_data_buf(scst_cmd);
+		if (conn->transport->need_alloc_write_buf)
+			scst_cmd_set_tgt_need_alloc_data_buf(scst_cmd);
 #endif
 	} else if (req_hdr->flags & ISCSI_CMD_WRITE) {
 		dir = SCST_DATA_WRITE;
@@ -2069,7 +2131,7 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 	scst_cmd_init_stage1_done(scst_cmd, SCST_CONTEXT_DIRECT, 0);
 
 	if (req->scst_state != ISCSI_CMD_STATE_RX_CMD)
-		res = cmnd_rx_continue(req);
+		res = req->conn->transport->iscsit_receive_cmnd_data(req);
 	else {
 		TRACE_DBG("Delaying req %p post processing (scst_state %d)",
 			req, req->scst_state);
@@ -2680,6 +2742,14 @@ reject:
 	return;
 }
 
+static void iscsi_tcp_set_req_data(struct iscsi_cmnd *req,
+				   struct iscsi_cmnd *rsp)
+{
+	rsp->sg = req->sg;
+	rsp->sg_cnt = req->sg_cnt;
+	rsp->bufflen = req->bufflen;
+}
+
 static void nop_out_exec(struct iscsi_cmnd *req)
 {
 	struct iscsi_cmnd *rsp;
@@ -2703,11 +2773,8 @@ static void nop_out_exec(struct iscsi_cmnd *req)
 		else
 			sBUG_ON(req->sg != NULL);
 
-		if (req->sg) {
-			rsp->sg = req->sg;
-			rsp->sg_cnt = req->sg_cnt;
-			rsp->bufflen = req->bufflen;
-		}
+		if (req->bufflen)
+			req->conn->transport->iscsit_set_req_data(req, rsp);
 
 		/* We already checked it in check_segment_length() */
 		sBUG_ON(get_pgcnt(req->pdu.datasize, 0) > ISCSI_CONN_IOV_MAX);
@@ -3160,6 +3227,7 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
+EXPORT_SYMBOL(cmnd_rx_start);
 
 void cmnd_rx_end(struct iscsi_cmnd *cmnd)
 {
@@ -3191,6 +3259,51 @@ out:
 	TRACE_EXIT();
 	return;
 }
+EXPORT_SYMBOL(cmnd_rx_end);
+
+static ssize_t iscsi_tcp_get_initiator_ip(struct iscsi_conn *conn,
+	char *buf, int size)
+{
+	int pos;
+	struct sock *sk;
+
+	TRACE_ENTRY();
+
+	sk = conn->sock->sk;
+	switch (sk->sk_family) {
+	case AF_INET:
+		pos = scnprintf(buf, size,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
+			 "%u.%u.%u.%u", NIPQUAD(inet_sk(sk)->daddr));
+#else
+			"%pI4", &inet_sk(sk)->inet_daddr);
+#endif
+		break;
+#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
+	case AF_INET6:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
+		pos = scnprintf(buf, size,
+			 "[%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x]",
+			 NIP6(inet6_sk(sk)->daddr));
+#else
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0) && \
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
+		pos = scnprintf(buf, size, "[%p6]", &inet6_sk(sk)->daddr);
+#else
+		pos = scnprintf(buf, size, "[%p6]", &sk->sk_v6_daddr);
+#endif
+#endif
+		break;
+#endif
+	default:
+		pos = scnprintf(buf, size, "Unknown family %d",
+			sk->sk_family);
+		break;
+	}
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
 
 #if !defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 static int iscsi_alloc_data_buf(struct scst_cmd *cmd)
@@ -3208,11 +3321,8 @@ static int iscsi_alloc_data_buf(struct scst_cmd *cmd)
 }
 #endif
 
-static void iscsi_preprocessing_done(struct scst_cmd *scst_cmd)
+static void iscsi_tcp_preprocessing_done(struct iscsi_cmnd *req)
 {
-	struct iscsi_cmnd *req = (struct iscsi_cmnd *)
-				scst_cmd_get_tgt_priv(scst_cmd);
-
 	TRACE_DBG("req %p", req);
 
 	if (req->conn->rx_task == current)
@@ -3239,8 +3349,14 @@ static void iscsi_preprocessing_done(struct scst_cmd *scst_cmd)
 		}
 		cmnd_put(req);
 	}
+}
 
-	return;
+static void iscsi_preprocessing_done(struct scst_cmd *scst_cmd)
+{
+	struct iscsi_cmnd *req = (struct iscsi_cmnd *)
+				scst_cmd_get_tgt_priv(scst_cmd);
+
+	req->conn->transport->iscsit_preprocessing_done(req);
 }
 
 /* No locks */
@@ -3301,6 +3417,52 @@ static void iscsi_try_local_processing(struct iscsi_cmnd *req)
 	return;
 }
 
+static int iscsi_tcp_send_locally(struct iscsi_cmnd *req,
+				  unsigned int cmd_count)
+{
+	struct iscsi_conn *conn = req->conn;
+	struct iscsi_cmnd *wr_rsp, *our_rsp;
+	int ret = 0;
+
+	/*
+	 * There's no need for protection, since we are not going to
+	 * dereference them.
+	 */
+	wr_rsp = list_first_entry(&conn->write_list, struct iscsi_cmnd,
+			write_list_entry);
+	our_rsp = list_first_entry(&req->rsp_cmd_list, struct iscsi_cmnd,
+			rsp_cmd_list_entry);
+	if (wr_rsp == our_rsp) {
+		/*
+		 * This is our rsp, so let's try to process it locally to
+		 * decrease latency. We need to call pre_release before
+		 * processing to handle some error recovery cases.
+		 */
+		if (cmd_count <= 2) {
+			req_cmnd_pre_release(req);
+			iscsi_try_local_processing(req);
+			cmnd_put(req);
+		} else {
+			/*
+			 * There's too much backend activity, so it could be
+			 * better to push it to the write thread.
+			 */
+			ret = 1;
+		}
+	} else
+		ret = 1;
+
+	return ret;
+}
+
+static void iscsi_tcp_conn_close(struct iscsi_conn *conn, int flags)
+{
+	if (!flags)
+		conn->sock->sk->sk_prot->disconnect(conn->sock->sk, 0);
+	else
+		conn->sock->ops->shutdown(conn->sock, flags);
+}
+
 static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 {
 	int is_send_status = scst_cmd_get_is_send_status(scst_cmd);
@@ -3310,7 +3472,6 @@ static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 	int status = scst_cmd_get_status(scst_cmd);
 	u8 *sense = scst_cmd_get_sense_buffer(scst_cmd);
 	int sense_len = scst_cmd_get_sense_buffer_len(scst_cmd);
-	struct iscsi_cmnd *wr_rsp, *our_rsp;
 
 	EXTRACHECKS_BUG_ON(scst_cmd_atomic(scst_cmd));
 
@@ -3385,19 +3546,9 @@ static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 		 * so status is valid here, but in future that could change.
 		 * ToDo
 		 */
-		if ((status != SAM_STAT_CHECK_CONDITION) &&
-		    ((cmnd_hdr(req)->flags & (ISCSI_CMD_WRITE|ISCSI_CMD_READ)) !=
-				(ISCSI_CMD_WRITE|ISCSI_CMD_READ))) {
-			send_data_rsp(req, status, is_send_status);
-		} else {
-			struct iscsi_cmnd *rsp;
-			send_data_rsp(req, 0, 0);
-			if (is_send_status) {
-				rsp = create_status_rsp(req, status, sense,
-						sense_len);
-				iscsi_cmnd_init_write(rsp, 0);
-			}
-		}
+		req->conn->transport->iscsit_send_data_rsp(req, sense,
+							   sense_len, status,
+							   is_send_status);
 	} else if (is_send_status) {
 		struct iscsi_cmnd *rsp;
 		rsp = create_status_rsp(req, status, sense, sense_len);
@@ -3408,32 +3559,7 @@ static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 		sBUG();
 #endif
 
-	/*
-	 * There's no need for protection, since we are not going to
-	 * dereference them.
-	 */
-	wr_rsp = list_first_entry(&conn->write_list, struct iscsi_cmnd,
-			write_list_entry);
-	our_rsp = list_first_entry(&req->rsp_cmd_list, struct iscsi_cmnd,
-			rsp_cmd_list_entry);
-	if (wr_rsp == our_rsp) {
-		/*
-		 * This is our rsp, so let's try to process it locally to
-		 * decrease latency. We need to call pre_release before
-		 * processing to handle some error recovery cases.
-		 */
-		if (scst_get_active_cmd_count(scst_cmd) <= 2) {
-			req_cmnd_pre_release(req);
-			iscsi_try_local_processing(req);
-			cmnd_put(req);
-		} else {
-			/*
-			 * There's too much backend activity, so it could be
-			 * better to push it to the write thread.
-			 */
-			goto out_push_to_wr_thread;
-		}
-	} else
+	if (conn->transport->iscsit_send_locally(req, scst_get_active_cmd_count(scst_cmd)))
 		goto out_push_to_wr_thread;
 
 out:
@@ -3442,7 +3568,7 @@ out:
 out_push_to_wr_thread:
 	TRACE_DBG("Waking up write thread (conn %p)", conn);
 	req_cmnd_release(req);
-	iscsi_make_conn_wr_active(conn);
+	conn->transport->iscsit_make_conn_wr_active(conn);
 	goto out;
 }
 
@@ -3645,7 +3771,6 @@ static int iscsi_scsi_aen(struct scst_aen *aen)
 	bool found;
 	struct iscsi_cmnd *fake_req, *rsp;
 	struct iscsi_async_msg_hdr *rsp_hdr;
-	struct scatterlist *sg;
 
 	TRACE_ENTRY();
 
@@ -3668,7 +3793,7 @@ static int iscsi_scsi_aen(struct scst_aen *aen)
 	}
 
 	/* Create a fake request */
-	fake_req = cmnd_alloc(conn, NULL);
+	fake_req = conn->transport->iscsit_alloc_cmd(conn, NULL);
 	if (fake_req == NULL) {
 		PRINT_ERROR("%s", "Unable to alloc fake AEN request");
 		goto out_err_unlock;
@@ -3693,15 +3818,10 @@ static int iscsi_scsi_aen(struct scst_aen *aen)
 	rsp_hdr->ffffffff = cpu_to_be32(0xffffffff);
 	rsp_hdr->async_event = ISCSI_ASYNC_SCSI;
 
-	sg = rsp->sg = rsp->rsp_sg;
-	rsp->sg_cnt = 2;
-	rsp->own_sg = 1;
-
-	sg_init_table(sg, 2);
-	sg_set_buf(&sg[0], &rsp->sense_hdr, sizeof(rsp->sense_hdr));
-	sg_set_buf(&sg[1], (u8 *)sense, sense_len);
-
 	rsp->sense_hdr.length = cpu_to_be16(sense_len);
+
+	rsp->conn->transport->iscsit_set_sense_data(rsp, sense, sense_len);
+
 	rsp->pdu.datasize = sizeof(rsp->sense_hdr) + sense_len;
 	rsp->bufflen = rsp->pdu.datasize;
 
@@ -3823,7 +3943,7 @@ void iscsi_send_nop_in(struct iscsi_conn *conn)
 
 	TRACE_ENTRY();
 
-	req = cmnd_alloc(conn, NULL);
+	req = conn->transport->iscsit_alloc_cmd(conn, NULL);
 	if (req == NULL) {
 		PRINT_ERROR("%s", "Unable to alloc fake Nop-In request");
 		goto out_err;
@@ -3956,6 +4076,30 @@ struct scst_tgt_template iscsi_template = {
 	.report_aen = iscsi_report_aen,
 	.get_initiator_port_transport_id = iscsi_get_initiator_port_transport_id,
 	.get_scsi_transport_version = iscsi_get_scsi_transport_version,
+};
+
+static struct iscsit_transport iscsi_tcp_transport = {
+	.owner = THIS_MODULE,
+	.name = "iSCSI-TCP",
+	.transport_type = ISCSI_TCP,
+#if !defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
+	.need_alloc_write_buf = 1,
+#endif
+	.iscsit_conn_alloc = iscsi_conn_alloc,
+	.iscsit_conn_activate = conn_activate,
+	.iscsit_conn_free = iscsi_tcp_conn_free,
+	.iscsit_alloc_cmd = cmnd_alloc,
+	.iscsit_free_cmd = cmnd_free,
+	.iscsit_preprocessing_done = iscsi_tcp_preprocessing_done,
+	.iscsit_send_data_rsp = iscsi_tcp_send_data_rsp,
+	.iscsit_make_conn_wr_active = iscsi_make_conn_wr_active,
+	.iscsit_mark_conn_closed = iscsi_tcp_mark_conn_closed,
+	.iscsit_conn_close = iscsi_tcp_conn_close,
+	.iscsit_get_initiator_ip = iscsi_tcp_get_initiator_ip,
+	.iscsit_send_locally = iscsi_tcp_send_locally,
+	.iscsit_set_sense_data = iscsi_tcp_set_sense_data,
+	.iscsit_set_req_data = iscsi_tcp_set_req_data,
+	.iscsit_receive_cmnd_data = cmnd_rx_continue,
 };
 
 static void __iscsi_threads_pool_put(struct iscsi_thread_pool *p)
@@ -4119,6 +4263,10 @@ static int __init iscsi_init(void)
 
 	PRINT_INFO("iSCSI SCST Target - version %s", ISCSI_VERSION_STRING);
 
+	err = iscsit_reg_transport(&iscsi_tcp_transport);
+	if (err)
+		goto out;
+
 	dummy_page = alloc_pages(GFP_KERNEL, 0);
 	if (dummy_page == NULL) {
 		PRINT_ERROR("%s", "Dummy page allocation failed");
@@ -4268,6 +4416,8 @@ static void __exit iscsi_exit(void)
 	kmem_cache_destroy(iscsi_cmnd_cache);
 
 	scst_unregister_target_template(&iscsi_template);
+
+	iscsit_unreg_transport(&iscsi_tcp_transport);
 
 #if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 	net_set_get_put_page_callbacks(NULL, NULL);

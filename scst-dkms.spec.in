@@ -165,6 +165,7 @@ BUILT_MODULE_NAME[12]="scst_raid"
 BUILT_MODULE_NAME[13]="scst_tape"
 BUILT_MODULE_NAME[14]="scst_user"
 BUILT_MODULE_NAME[15]="scst_vdisk"
+BUILT_MODULE_NAME[16]="isert-scst"
 DEST_MODULE_LOCATION[ 0]="/extra"
 DEST_MODULE_LOCATION[ 1]="/extra"
 DEST_MODULE_LOCATION[ 2]="/extra"
@@ -181,6 +182,7 @@ DEST_MODULE_LOCATION[12]="/extra/dev_handlers"
 DEST_MODULE_LOCATION[13]="/extra/dev_handlers"
 DEST_MODULE_LOCATION[14]="/extra/dev_handlers"
 DEST_MODULE_LOCATION[15]="/extra/dev_handlers"
+DEST_MODULE_LOCATION[16]="/extra"
 EOF
 
 %clean
