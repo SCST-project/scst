@@ -366,7 +366,7 @@ Performance Notes - Target Side
 Performance Notes - Initiator Side
 ----------------------------------
 
-* Using multiple RDMA connections between initator and target results in a
+* Using multiple RDMA connections between initiator and target results in a
   significant performance improvement. To benefit from this feature, use
   kernel 3.19 or later at the initiator side and enable scsi-mq either by
   setting SCSI_MQ_DEFAULT=y in the kernel config or via the following command:
