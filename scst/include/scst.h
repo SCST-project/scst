@@ -278,7 +278,8 @@ static inline void hex2bin(u8 *dst, const char *src, size_t count)
 }
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0) && \
+	!defined(CONFIG_COMPAT_KERNEL_3_12)
 /*
  * See also patch "new helper: file_inode(file)" (commit ID
  * 496ad9aa8ef448058e36ca7a787c61f2e63f0f54).
