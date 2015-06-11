@@ -1,7 +1,7 @@
 ifeq ($(BUILD_2X_MODULE),)
 
 qla2xxx-y := qla_os.o qla_init.o qla_mbx.o qla_iocb.o qla_isr.o qla_gs.o \
-		qla_dbg.o qla_sup.o qla_attr.o qla_mid.o qla_dfs.o
+		qla_dbg.o qla_sup.o qla_attr.o qla_mid.o qla_dfs.o qla_bsg.o qla_nx.o
 
 obj-$(CONFIG_SCSI_QLA_FC) += qla2xxx.o
 
@@ -53,7 +53,7 @@ INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 ifneq ($(PATCHLEVEL),)
 obj-m := qla2xxx_scst.o
 qla2xxx_scst-objs := qla_os.o qla_init.o qla_mbx.o qla_iocb.o qla_isr.o qla_gs.o \
-		qla_dbg.o qla_sup.o qla_attr.o qla_mid.o qla_dfs.o
+		qla_dbg.o qla_sup.o qla_attr.o qla_mid.o qla_dfs.o qla_bsg.o qla_nx.o
 else
 
 all:

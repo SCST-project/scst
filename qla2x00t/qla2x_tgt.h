@@ -28,7 +28,7 @@
 
 #include <linux/version.h>
 
-extern request_t *qla2x00_req_pkt(scsi_qla_host_t *ha);
+extern request_t *qla2x00_req_pkt(scsi_qla_host_t *vha);
 
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 
@@ -36,25 +36,25 @@ extern request_t *qla2x00_req_pkt(scsi_qla_host_t *ha);
 
 extern struct qla_tgt_data qla_target;
 
-void qla_set_tgt_mode(scsi_qla_host_t *ha);
-void qla_clear_tgt_mode(scsi_qla_host_t *ha);
+void qla_set_tgt_mode(scsi_qla_host_t *vha);
+void qla_clear_tgt_mode(scsi_qla_host_t *vha);
 
-static inline bool qla_tgt_mode_enabled(scsi_qla_host_t *ha)
+static inline bool qla_tgt_mode_enabled(scsi_qla_host_t *vha)
 {
-	return ha->host->active_mode & MODE_TARGET;
+	return vha->host->active_mode & MODE_TARGET;
 }
 
-static inline bool qla_ini_mode_enabled(scsi_qla_host_t *ha)
+static inline bool qla_ini_mode_enabled(scsi_qla_host_t *vha)
 {
-	return ha->host->active_mode & MODE_INITIATOR;
+	return vha->host->active_mode & MODE_INITIATOR;
 }
 
-static inline void qla_reverse_ini_mode(scsi_qla_host_t *ha)
+static inline void qla_reverse_ini_mode(scsi_qla_host_t *vha)
 {
-	if (ha->host->active_mode & MODE_INITIATOR)
-		ha->host->active_mode &= ~MODE_INITIATOR;
+	if (vha->host->active_mode & MODE_INITIATOR)
+		vha->host->active_mode &= ~MODE_INITIATOR;
 	else
-		ha->host->active_mode |= MODE_INITIATOR;
+		vha->host->active_mode |= MODE_INITIATOR;
 }
 
 /********************************************************************\
@@ -72,13 +72,14 @@ static inline void qla_reverse_ini_mode(scsi_qla_host_t *ha)
  * then reacquire.
  */
 static inline void
-__qla2x00_send_enable_lun(scsi_qla_host_t *ha, int enable)
+__qla2x00_send_enable_lun(scsi_qla_host_t *vha, int enable)
 {
 	elun_entry_t *pkt;
+	struct qla_hw_data *ha = vha->hw;
 
 	BUG_ON(IS_FWI2_CAPABLE(ha));
 
-	pkt = (elun_entry_t *)qla2x00_req_pkt(ha);
+	pkt = (elun_entry_t *)qla2x00_req_pkt(vha);
 	if (pkt != NULL) {
 		pkt->entry_type = ENABLE_LUN_TYPE;
 		if (enable) {
@@ -90,16 +91,16 @@ __qla2x00_send_enable_lun(scsi_qla_host_t *ha, int enable)
 			pkt->immed_notify_count = 0;
 			pkt->timeout = 0;
 		}
-		DEBUG2(printk(KERN_DEBUG
+		ql_dbg(ql_dbg_init, vha, 0x0077,
 			      "scsi%lu:ENABLE_LUN IOCB imm %u cmd %u timeout %u\n",
-			      ha->host_no, pkt->immed_notify_count,
-			      pkt->command_count, pkt->timeout));
+			      vha->host_no, pkt->immed_notify_count,
+			      pkt->command_count, pkt->timeout);
 
 		/* Issue command to ISP */
-		qla2x00_isp_cmd(ha);
+		qla2x00_start_iocbs(vha, vha->req);
 
 	} else
-		qla_clear_tgt_mode(ha);
+		qla_clear_tgt_mode(vha);
 #if defined(QL_DEBUG_LEVEL_2) || defined(QL_DEBUG_LEVEL_3)
 	if (!pkt)
 		pr_err("%s: **** FAILED ****\n", __func__);
@@ -117,14 +118,15 @@ __qla2x00_send_enable_lun(scsi_qla_host_t *ha, int enable)
  *	enable = enable/disable flag.
  */
 static inline void
-qla2x00_send_enable_lun(scsi_qla_host_t *ha, bool enable)
+qla2x00_send_enable_lun(scsi_qla_host_t *vha, bool enable)
 {
+	struct qla_hw_data	*ha = vha->hw;
+
 	if (!IS_FWI2_CAPABLE(ha)) {
 		unsigned long flags;
-		scsi_qla_host_t *pha = to_qla_parent(ha);
-		spin_lock_irqsave(&pha->hardware_lock, flags);
-		__qla2x00_send_enable_lun(ha, enable);
-		spin_unlock_irqrestore(&pha->hardware_lock, flags);
+		spin_lock_irqsave(&ha->hardware_lock, flags);
+		__qla2x00_send_enable_lun(vha, enable);
+		spin_unlock_irqrestore(&ha->hardware_lock, flags);
 	}
 }
 
@@ -132,11 +134,32 @@ extern void qla2xxx_add_targets(void);
 #if ((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)) || \
      defined(FC_VPORT_CREATE_DEFINED))
 extern size_t
-qla2xxx_add_vtarget(u64 *port_name, u64 *node_name, u64 *parent_host);
-extern size_t qla2xxx_del_vtarget(u64 *port_name);
+qla2xxx_add_vtarget(u64 port_name, u64 node_name, u64 parent_host);
+extern size_t qla2xxx_del_vtarget(u64 port_name);
 #endif /*((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)) || \
 	  defined(FC_VPORT_CREATE_DEFINED))*/
 
+extern void qla_unknown_atio_work_fn(struct delayed_work *work);
+
+#else /* CONFIG_SCSI_QLA2XXX_TARGET */
+
+static inline bool qla_tgt_mode_enabled(scsi_qla_host_t *vha)
+{
+	return false;
+}
+
+static inline bool qla_ini_mode_enabled(scsi_qla_host_t *vha)
+{
+	return true;
+}
+
 #endif /* CONFIG_SCSI_QLA2XXX_TARGET */
+
+static inline bool qla_firmware_active(scsi_qla_host_t *vha)
+{
+	struct qla_hw_data *ha = vha->hw;
+	struct scsi_qla_host *base_vha = pci_get_drvdata(ha->pdev);
+	return qla_tgt_mode_enabled(base_vha) || qla_ini_mode_enabled(base_vha);
+}
 
 #endif /* __QLA2X_TGT_H */
