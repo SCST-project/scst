@@ -1884,9 +1884,12 @@ static ssize_t __scst_acg_cpu_mask_show(struct scst_acg *acg, char *buf)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
 	res = cpumask_scnprintf(buf, SCST_SYSFS_BLOCK_SIZE,
 		acg->acg_cpu_mask);
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)
 	res = cpumask_scnprintf(buf, SCST_SYSFS_BLOCK_SIZE,
 		&acg->acg_cpu_mask);
+#else
+	res = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%*pb",
+			cpumask_pr_args(&acg->acg_cpu_mask));
 #endif
 	if (!cpumask_equal(&acg->acg_cpu_mask, &default_cpu_mask))
 		res += sprintf(&buf[res], "\n%s\n", SCST_SYSFS_KEY_MARK);
