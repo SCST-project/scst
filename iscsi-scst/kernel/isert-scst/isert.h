@@ -92,6 +92,8 @@ enum isert_conn_dev_state {
 	CS_DISCONNECTED,
 };
 
+#define ISERT_CONN_PASSED	0
+
 struct isert_conn_dev {
 	struct device *dev;
 	struct cdev cdev;
@@ -116,6 +118,7 @@ struct isert_conn_dev {
 	struct timer_list tmo_timer;
 	int timer_active;
 	struct kref kref;
+	unsigned long flags;
 };
 
 #define ISER_CONN_DEV_PREFIX "isert/conn"
