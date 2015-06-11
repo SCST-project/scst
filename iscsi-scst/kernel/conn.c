@@ -766,7 +766,7 @@ static int conn_setup_sock(struct iscsi_conn *conn)
 
 	TRACE_DBG("%llx", (long long unsigned int)session->sid);
 
-	conn->sock = SOCKET_I(conn->file->f_dentry->d_inode);
+	conn->sock = SOCKET_I(file_inode(conn->file));
 
 	if (conn->sock->ops->sendpage == NULL) {
 		PRINT_ERROR("Socket for sid %llx doesn't support sendpage()",

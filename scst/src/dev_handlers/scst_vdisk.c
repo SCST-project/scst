@@ -820,7 +820,7 @@ static void vdisk_blockio_check_flush_support(struct scst_vdisk_dev *virt_dev)
 		goto out;
 	}
 
-	inode = fd->f_dentry->d_inode;
+	inode = file_inode(fd);
 
 	if (!S_ISBLK(inode->i_mode)) {
 		PRINT_ERROR("%s is NOT a block device", virt_dev->filename);
@@ -861,7 +861,7 @@ static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 	}
 
 	if (virt_dev->blockio) {
-		struct inode *inode = fd->f_dentry->d_inode;
+		struct inode *inode = file_inode(fd);
 		if (!S_ISBLK(inode->i_mode)) {
 			PRINT_ERROR("%s is NOT a block device",
 				virt_dev->filename);
@@ -923,7 +923,7 @@ static int vdisk_get_file_size(const char *filename, bool blockio,
 		goto out;
 	}
 
-	inode = fd->f_dentry->d_inode;
+	inode = file_inode(fd);
 
 	if (blockio && !S_ISBLK(inode->i_mode)) {
 		PRINT_ERROR("File %s is NOT a block device", filename);
@@ -1383,8 +1383,8 @@ static int vdisk_open_fd(struct scst_vdisk_dev *virt_dev, bool read_only)
 			    virt_dev->filename, res);
 		goto out;
 	}
-	virt_dev->bdev = virt_dev->blockio ?
-		virt_dev->fd->f_dentry->d_inode->i_bdev : NULL;
+	virt_dev->bdev = virt_dev->blockio ? file_inode(virt_dev->fd)->i_bdev :
+		NULL;
 	res = 0;
 
 out:
@@ -2996,7 +2996,7 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 27)
 		sector_t start_sector = start_lba << (cmd->dev->block_shift - 9);
 		sector_t nr_sects = blocks << (cmd->dev->block_shift - 9);
-		struct inode *inode = fd->f_dentry->d_inode;
+		struct inode *inode = file_inode(fd);
 		gfp_t gfp = cmd->cmd_gfp_mask;
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 31)
 		err = blkdev_issue_discard(inode->i_bdev, start_sector, nr_sects, gfp);
@@ -3196,7 +3196,7 @@ static void vdev_blockio_get_unmap_params(struct scst_vdisk_dev *virt_dev,
 			goto out;
 		}
 
-		q = bdev_get_queue(fd->f_dentry->d_inode->i_bdev);
+		q = bdev_get_queue(file_inode(fd)->i_bdev);
 		if (q == NULL) {
 			PRINT_ERROR("No queue for device %s", virt_dev->filename);
 			goto out_close;
@@ -4654,8 +4654,7 @@ static int vdisk_fsync_fileio(loff_t loff,
 	file = virt_dev->fd;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
-	res = sync_page_range(file->f_dentry->d_inode, file->f_mapping,
-		loff, len);
+	res = sync_page_range(file_inode(file), file->f_mapping, loff, len);
 #else
 #if 0	/* For sparse files we might need to sync metadata as well */
 	res = generic_write_sync(file, loff, len);

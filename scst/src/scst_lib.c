@@ -9789,8 +9789,7 @@ int scst_vfs_fsync(struct file *file, loff_t loff, loff_t len)
 {
 	int res;
 
-	res = sync_page_range(file->f_dentry->d_inode, file->f_mapping,
-			loff, len);
+	res = sync_page_range(file_inode(file), file->f_mapping, loff, len);
 	return res;
 }
 #endif
@@ -9832,7 +9831,7 @@ int scst_copy_file(const char *src, const char *dest)
 		goto out_close;
 	}
 
-	inode = file_src->f_dentry->d_inode;
+	inode = file_inode(file_src);
 
 	if (S_ISREG(inode->i_mode))
 		/* Nothing to do */;
@@ -10049,7 +10048,7 @@ static int __scst_read_file_transactional(const char *file_name,
 		goto out;
 	}
 
-	inode = file->f_dentry->d_inode;
+	inode = file_inode(file);
 
 	if (S_ISREG(inode->i_mode))
 		/* Nothing to do */;
@@ -10134,7 +10133,7 @@ int scst_get_file_mode(const char *path)
 		res = PTR_ERR(file);
 		goto out;
 	}
-	res = file->f_dentry->d_inode->i_mode;
+	res = file_inode(file)->i_mode;
 	filp_close(file, NULL);
 
 out:
