@@ -24,6 +24,7 @@ cc-option = $(shell if $(CC) $(CFLAGS) $(1) -S -o /dev/null -xc /dev/null \
              > /dev/null 2>&1; then echo "$(1)"; else echo "$(2)"; fi ;)
 enable-Wextra = $(shell uname_r="$$(uname -r)"; if [ "$${uname_r%.el5}" = "$${uname_r}" ]; then echo "$(1)"; fi)
 
+LINUXINCLUDE := $(PRE_CFLAGS) $(LINUXINCLUDE)
 EXTRA_CFLAGS += -I$(src)/../../include -I$(src)/../ -I$(SCST_INC_DIR)
 EXTRA_CFLAGS += $(call enable-Wextra,-Wextra \
 	$(call cc-option,-Wno-old-style-declaration) \
