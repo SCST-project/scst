@@ -1,0 +1,108 @@
+iSCSI extensions for RDMA driver:
+==================================
+
+Installation & Configuration:
+---------------------------
+For installation and configuration, see iscsi README.
+There are no specific configuration options for iSER.
+See below for performance optimizations as well as troubleshooting.
+
+
+Performance considerations:
+---------------------------
+
+In order to achieve better performance, it is recommended to specify
+"QueuedCommands 128" parameter per iSER target, since the transport
+is very fast and you usually want to connect it to fast backstorage.
+
+
+Troubleshooting:
+-----------------
+* Initiator fails to connect to target. The following message is seen in dmesg:
+  Failed to accept conn request, err: -22
+  The cause of this is often compilation issues if you have OFED or MLNX_OFED installed:
+  If you are compiling for OFED/MLNX_OFED, make sure OFED is installed for
+  the kernel you are running. Also, make sure you followed ALL steps described
+  in README.iser_ofed including patching the kernel.
+  If you are compiling for non-OFED kernel, make sure you don't have
+  OFED/MLNX_OFED installed.
+
+
+* Discovery of iSER targets takes a long time or login to all discovered targets fails.
+  iSCSI discovery does not have a way to determine between iSCSI and iSER
+  enabled portals. Thus, initiator tries to connect to all interfaces it
+  discovered (by default discovery is done over iSCSI TCP).
+  In order to prevent this behaviour, you should specify
+  "allowed_portal <target interface IP>" parameter for each target you want
+  to export through specific RDMA capable adapters.
+
+
+* Initiator keeps connecting and disconnecting from target in a loop
+  with constant interval after target reboot.
+  The problem may be that connection requests from initiator are received
+  on wrong port/HCA. This can be one due to one (or both) of the following issues:
+    1) net.ipv4.conf.all.arp_ignore sysclt is not set to 2
+       rdma-cm relies on ARP responses being received on the same interface
+       that sent the request. Linux default does not do that.
+       In order to make Linux behave good for rdma-cm, you _MUST_ add
+       "net.ipv4.conf.all.arp_ignore = 2" to /etc/sysctl.conf
+    2) You have more than 1 HCA and PCI mappings to netdev devices is not
+       persistent between reboots. Possible solution is to have udev rules
+       for mapping the ibX devices in persistent way.
+       See below for udev scripts example:
+
+/lib/udev/net.sh
+-------------------
+#!/bin/sh
+
+. /etc/sysconfig/net.conf
+
+type_fd="/sys/${DEVPATH}/type"
+if [ ! -f $type_fd ]; then
+        exit
+fi
+type=`cat /sys/${DEVPATH}/type`
+
+if [ "$type" = "32" ]; then # IPoIB interface
+        i=0
+        CONFDEV="DEV${i}"
+        CONFPCI=${!CONFDEV}
+        PCI=`basename $PHYSDEVPATH`
+        while [ -n "$CONFPCI" ]; do
+                if [ "$CONFPCI" = "$PCI" ]; then
+                        devid=$(printf "%d\n" `cat /sys/$DEVPATH/dev_id`)
+                        let id=$i*2+$devid
+                        DEV="ib$id"
+                        echo "$DEV"
+                        exit
+                fi
+                let i=i+1
+                CONFDEV="DEV$i"
+                CONFPCI=${!CONFDEV}
+        done
+fi
+
+/etc/sysconfig/net.conf
+-----------------------
+DEV0="0000:01:00.0"
+DEV1="0000:02:00.0"
+
+/etc/udev/rules.d/90-network.rules
+-------------------------------------
+ACTION=="add", SUBSYSTEM=="net", PROGRAM="/lib/udev/net.sh", RESULT=="?*", NAME="$result"
+
+
+* Login to all targets from initiator sometimes times out.
+  It may be a network problem (try running tools like ibdiagnet
+  and rping between target and initiator hosts). The description of those tools
+  is beyond the scope of this readme.
+  Another issue may be that you failed to set net.ipv4.conf.all.arp_ignore sysctl
+  to the value of 2 (see above problem for more detailed explanation).
+
+
+* When running IO, latency is getting higher and higher all the time.
+  If you have enabled intel_iommu either in kernel command line or in
+  kernel config (it may be enabled by default), you should specify
+  iommu=pt on kernel command line to avoid the latency issue.
+
+

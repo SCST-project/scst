@@ -124,6 +124,8 @@ install: all
 	  modules_install
 	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(ISERTMOD) \
 	  modules_install
+	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(ISERTMOD) \
+	  modules_install
 
 uninstall:
 	rm -f $(DESTDIR)$(SBINDIR)/iscsi-scstd \
