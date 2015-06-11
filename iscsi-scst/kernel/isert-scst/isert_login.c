@@ -100,8 +100,7 @@ static void isert_kref_release_dev(struct kref *kref)
 	dev->occupied = 0;
 	dev->state = CS_INIT;
 	atomic_set(&dev->available, 1);
-	if (!list_is_singular(&dev->conn_list_entry))
-		list_del_init(&dev->conn_list_entry);
+	list_del_init(&dev->conn_list_entry);
 	dev->flags = 0;
 	dev->conn = NULL;
 }
@@ -511,7 +510,6 @@ static int isert_open(struct inode *inode, struct file *filp)
 	}
 
 	spin_lock(&isert_listen_dev.conn_lock);
-	list_del_init(&dev->conn_list_entry);
 	kref_get(&dev->kref);
 	spin_unlock(&isert_listen_dev.conn_lock);
 
