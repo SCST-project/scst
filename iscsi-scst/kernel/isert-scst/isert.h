@@ -65,7 +65,7 @@
 
 struct iscsi_conn;
 
-#define ISERT_NR_DEVS 64
+#define ISERT_NR_DEVS 128
 
 struct isert_listener_dev {
 	struct device *dev;
