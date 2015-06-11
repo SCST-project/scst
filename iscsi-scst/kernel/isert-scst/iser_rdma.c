@@ -45,6 +45,8 @@
 
 static DEFINE_MUTEX(dev_list_mutex);
 
+void isert_portal_free(struct isert_portal *portal);
+
 static int isert_num_recv_posted_on_err(struct ib_recv_wr *first_ib_wr,
 					struct ib_recv_wr *bad_wr)
 {
@@ -813,6 +815,11 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 	cqe_num = min(isert_dev->device_attr.max_cqe, ISER_CQ_ENTRIES);
 	cqe_num = cqe_num / isert_dev->num_cqs;
 
+#ifdef CONFIG_SCST_EXTRACHECKS
+	if (isert_dev->device_attr.max_cqe == 0)
+		pr_err("Zero max_cqe encountered: you may have a compilation problem\n");
+#endif
+
 	for (i = 0; i < isert_dev->num_cqs; ++i) {
 		struct isert_cq *cq_desc = &isert_dev->cq_desc[i];
 
@@ -852,6 +859,7 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 				  cqe_num,
 				  i); /* completion vector */
 		if (IS_ERR(cq)) {
+			cq_desc->cq = NULL;
 			err = PTR_ERR(cq);
 			pr_err("Failed to create iser dev cq, err:%d\n", err);
 			goto fail_cq;
@@ -880,7 +888,7 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 	return isert_dev;
 
 fail_cq:
-	for (j = 0; j < i; ++j) {
+	for (j = 0; j <= i; ++j) {
 		if (isert_dev->cq_desc[j].cq)
 			ib_destroy_cq(isert_dev->cq_desc[j].cq);
 		if (isert_dev->cq_desc[j].cq_workqueue)
@@ -1011,7 +1019,7 @@ static int isert_conn_qp_create(struct isert_connection *isert_conn)
 	err = rdma_create_qp(cm_id, isert_dev->pd, &qp_attr);
 	if (unlikely(err)) {
 		pr_err("Failed to create qp, err:%d\n", err);
-		goto out;
+		goto fail_create_qp;
 	}
 	isert_conn->qp = cm_id->qp;
 
@@ -1020,6 +1028,12 @@ static int isert_conn_qp_create(struct isert_connection *isert_conn)
 out:
 	TRACE_EXIT_RES(err);
 	return err;
+
+fail_create_qp:
+	mutex_lock(&dev_list_mutex);
+	isert_dev->cq_qps[cq_idx]--;
+	mutex_unlock(&dev_list_mutex);
+	goto out;
 }
 
 static void isert_conn_qp_destroy(struct isert_connection *isert_conn)
@@ -1033,6 +1047,7 @@ static struct isert_connection *isert_conn_create(struct rdma_cm_id *cm_id,
 {
 	struct isert_connection *isert_conn;
 	int err;
+	struct isert_cq *cq;
 
 	TRACE_ENTRY();
 
@@ -1084,12 +1099,15 @@ static struct isert_connection *isert_conn_create(struct rdma_cm_id *cm_id,
 	}
 
 	kref_init(&isert_conn->kref);
-	kref_get(&isert_conn->kref);
 
 	TRACE_EXIT();
 	return isert_conn;
 
 fail_post_recv:
+	cq = isert_conn->qp->recv_cq->cq_context;
+	mutex_lock(&dev_list_mutex);
+	isert_dev->cq_qps[cq->idx]--;
+	mutex_unlock(&dev_list_mutex);
 	isert_conn_qp_destroy(isert_conn);
 fail_qp:
 	isert_pdu_free(isert_conn->login_rsp_pdu);
@@ -1102,6 +1120,13 @@ fail_alloc:
 fail_get:
 	TRACE_EXIT_RES(err);
 	return ERR_PTR(err);
+}
+
+static void isert_deref_device(struct isert_device *isert_dev)
+{
+	isert_dev->refcnt--;
+	if (isert_dev->refcnt == 0)
+		isert_device_release(isert_dev);
 }
 
 static void isert_kref_free(struct kref *kref)
@@ -1124,9 +1149,9 @@ static void isert_kref_free(struct kref *kref)
 	isert_dev->cq_qps[cq->idx]--;
 	list_del(&isert_conn->portal_node);
 	list_del(&isert_conn->dev_node);
-	isert_dev->refcnt--;
-	if (isert_dev->refcnt == 0)
-		isert_device_release(isert_dev);
+	isert_deref_device(isert_dev);
+	if (unlikely(isert_conn->portal->state == ISERT_PORTAL_INACTIVE))
+		isert_portal_free(isert_conn->portal);
 	mutex_unlock(&dev_list_mutex);
 
 	rdma_destroy_id(isert_conn->cm_id);
@@ -1188,7 +1213,6 @@ static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
 	/* passed in rdma_create_id */
 	struct isert_portal *portal = cm_id->context;
 	struct ib_device *ib_dev = cm_id->device;
-	struct isert_device *new_isert_dev = NULL;
 	struct isert_device *isert_dev;
 	struct isert_connection *isert_conn;
 	struct rdma_conn_param *ini_conn_param;
@@ -1200,13 +1224,12 @@ static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
 	mutex_lock(&dev_list_mutex);
 	isert_dev = isert_device_find(ib_dev);
 	if (!isert_dev) {
-		new_isert_dev = isert_device_create(ib_dev);
-		if (unlikely(IS_ERR(new_isert_dev))) {
-			err = PTR_ERR(new_isert_dev);
+		isert_dev = isert_device_create(ib_dev);
+		if (unlikely(IS_ERR(isert_dev))) {
+			err = PTR_ERR(isert_dev);
 			mutex_unlock(&dev_list_mutex);
 			goto fail_dev_create;
 		}
-		isert_dev = new_isert_dev;
 	}
 	isert_dev->refcnt++;
 	mutex_unlock(&dev_list_mutex);
@@ -1218,6 +1241,7 @@ static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
 	}
 
 	isert_conn->state = ISER_CONN_HANDSHAKE;
+	isert_conn->portal = portal;
 
 	mutex_lock(&dev_list_mutex);
 	list_add_tail(&isert_conn->portal_node, &portal->conn_list);
@@ -1289,13 +1313,9 @@ fail_accept:
 	goto out;
 
 fail_conn_create:
-	if (new_isert_dev) {
-		mutex_lock(&dev_list_mutex);
-		new_isert_dev->refcnt--;
-		if (new_isert_dev->refcnt == 0)
-			isert_device_release(new_isert_dev);
-		mutex_unlock(&dev_list_mutex);
-	}
+	mutex_lock(&dev_list_mutex);
+	isert_deref_device(isert_dev);
+	mutex_unlock(&dev_list_mutex);
 fail_dev_create:
 	rdma_reject(cm_id, NULL, 0);
 	goto out;
@@ -1320,6 +1340,7 @@ static int isert_cm_connect_handler(struct rdma_cm_id *cm_id,
 	if (unlikely(ret))
 		goto out;
 
+	kref_get(&isert_conn->kref);
 	kref_get(&isert_conn->kref);
 	/* notify upper layer */
 	ret = isert_conn_established(&isert_conn->iscsi,
@@ -1398,6 +1419,31 @@ static int isert_handle_failure(struct isert_connection *conn)
 	return 0;
 }
 
+static int isert_cm_evt_listener_handler(struct rdma_cm_id *cm_id,
+					 struct rdma_cm_event *cm_ev)
+{
+	enum rdma_cm_event_type ev_type;
+	struct isert_portal *portal;
+	int err = 0;
+
+	ev_type = cm_ev->event;
+	portal = cm_id->context;
+
+	switch (ev_type) {
+	case RDMA_CM_EVENT_DEVICE_REMOVAL:
+		portal->cm_id = NULL;
+		err = -EINVAL;
+		break;
+
+	default:
+		pr_info("Listener event:%s(%d), ignored\n",
+			cm_event_type_str(ev_type), ev_type);
+		break;
+	}
+
+	return err;
+}
+
 static int isert_cm_evt_handler(struct rdma_cm_id *cm_id,
 				struct rdma_cm_event *cm_ev)
 {
@@ -1416,6 +1462,11 @@ static int isert_cm_evt_handler(struct rdma_cm_id *cm_id,
 	pr_info("isert_cm_evt:%s(%d) status:%d portal:%p cm_id:%p\n",
 		cm_event_type_str(ev_type), ev_type, cm_ev->status,
 		portal, cm_id);
+
+	if (portal->cm_id == cm_id) {
+		err = isert_cm_evt_listener_handler(cm_id, cm_ev);
+		goto out;
+	}
 
 	switch (ev_type) {
 	case RDMA_CM_EVENT_CONNECT_REQUEST:
@@ -1593,23 +1644,36 @@ out:
 	return err;
 }
 
+void isert_portal_free(struct isert_portal *portal)
+{
+	lockdep_assert_held(&dev_list_mutex);
+
+	if (!list_empty(&portal->conn_list))
+		return;
+
+	kfree(portal);
+	module_put(THIS_MODULE);
+}
+
 void isert_portal_release(struct isert_portal *portal)
 {
 	struct isert_connection *conn;
 
 	pr_info("iser portal cm_id:%p releasing\n", portal->cm_id);
 
-	rdma_destroy_id(portal->cm_id);
+	if (portal->cm_id) {
+		rdma_destroy_id(portal->cm_id);
+		portal->cm_id = NULL;
+	}
+
+	isert_portal_list_remove(portal);
 
 	mutex_lock(&dev_list_mutex);
 	list_for_each_entry(conn, &portal->conn_list, portal_node)
 		isert_conn_disconnect(conn);
+	portal->state = ISERT_PORTAL_INACTIVE;
+	isert_portal_free(portal);
 	mutex_unlock(&dev_list_mutex);
-
-	isert_portal_list_remove(portal);
-
-	kfree(portal);
-	module_put(THIS_MODULE);
 }
 
 struct isert_portal *isert_portal_start(struct sockaddr *sa, size_t addr_len)

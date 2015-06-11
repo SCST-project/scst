@@ -9,12 +9,18 @@
 
 #include "iser_hdr.h"
 
+enum isert_portal_state {
+	ISERT_PORTAL_ACTIVE,
+	ISERT_PORTAL_INACTIVE
+};
+
 struct isert_portal {
 	struct rdma_cm_id	*cm_id;
 	struct sockaddr_storage	addr;
 	struct list_head	list_node; /* in portals list */
 	/* protected by dev_list_mutex */
 	struct list_head	conn_list; /* head of conns list */
+	enum isert_portal_state	state;
 };
 
 struct isert_buf {
@@ -165,6 +171,7 @@ struct isert_connection {
 	struct isert_wr		drain_wr;
 	struct kref		kref;
 
+	struct isert_portal	*portal;
 	void			*priv_data; /* for connection tracking */
 };
 
