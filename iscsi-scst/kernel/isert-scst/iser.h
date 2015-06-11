@@ -199,7 +199,6 @@ struct isert_connection {
 	size_t			peer_addrsz;
 	struct sockaddr_storage	self_addr;
 
-	struct list_head	dev_node;
 	struct list_head	portal_node;
 
 	unsigned long		flags;

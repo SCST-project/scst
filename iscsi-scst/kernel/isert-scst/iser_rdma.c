@@ -1166,7 +1166,6 @@ static void isert_kref_free(struct kref *kref)
 	mutex_lock(&dev_list_mutex);
 	isert_dev->cq_qps[cq->idx]--;
 	list_del(&isert_conn->portal_node);
-	list_del(&isert_conn->dev_node);
 	isert_deref_device(isert_dev);
 	if (unlikely(isert_conn->portal->state == ISERT_PORTAL_INACTIVE))
 		isert_portal_free(isert_conn->portal);
@@ -1263,7 +1262,6 @@ static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
 
 	mutex_lock(&dev_list_mutex);
 	list_add_tail(&isert_conn->portal_node, &portal->conn_list);
-	list_add_tail(&isert_conn->dev_node, &isert_dev->conn_list);
 	mutex_unlock(&dev_list_mutex);
 
 	/* initiator is dst, target is src */
