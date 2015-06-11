@@ -1,12 +1,12 @@
-iSCSI extensions for RDMA driver:
-==================================
+iSCSI extensions for RDMA driver
+================================
 
 Installation & Configuration:
 ---------------------------
 For installation and configuration, see iscsi README.
 There are no specific configuration options for iSER.
 See below for performance optimizations as well as troubleshooting.
-
+There is also a HOWTO on http://community.mellanox.com/docs/DOC-1479
 
 Performance considerations:
 ---------------------------
