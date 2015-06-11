@@ -479,11 +479,12 @@ static int __init isert_init_module(void)
 	int ret;
 
 	ret = iscsit_reg_transport(&isert_transport);
-	if (ret)
-		return ret;
+	if (unlikely(ret))
+		goto out;
 
 	ret = isert_init_login_devs(isert_nr_devs);
 
+out:
 	return ret;
 }
 

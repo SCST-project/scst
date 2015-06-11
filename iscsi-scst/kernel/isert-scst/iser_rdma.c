@@ -772,7 +772,7 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 	TRACE_ENTRY();
 
 	isert_dev = kzalloc(sizeof(*isert_dev), GFP_KERNEL);
-	if (isert_dev == NULL) {
+	if (unlikely(isert_dev == NULL)) {
 		pr_err("Failed to allocate iser dev\n");
 		err = -ENOMEM;
 		goto out;
@@ -780,7 +780,7 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 
 	dev_attr = &isert_dev->device_attr;
 	err = ib_query_device(ib_dev, dev_attr);
-	if (err) {
+	if (unlikely(err)) {
 		pr_err("Failed to query device, err: %d\n", err);
 		goto fail_query;
 	}
@@ -790,14 +790,14 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 
 	isert_dev->cq_qps = kzalloc(sizeof(*isert_dev->cq_qps) * isert_dev->num_cqs,
 				    GFP_KERNEL);
-	if (isert_dev->cq_qps == NULL) {
+	if (unlikely(isert_dev->cq_qps == NULL)) {
 		pr_err("Failed to allocate iser cq_qps\n");
 		err = -ENOMEM;
 		goto fail_cq_qps;
 	}
 
 	isert_dev->cq_desc = vmalloc(sizeof(*isert_dev->cq_desc) * isert_dev->num_cqs);
-	if (isert_dev->cq_desc == NULL) {
+	if (unlikely(isert_dev->cq_desc == NULL)) {
 		pr_err("Failed to allocate %ld bytes for iser cq_desc\n",
 		       sizeof(*isert_dev->cq_desc) * isert_dev->num_cqs);
 		err = -ENOMEM;
@@ -805,14 +805,14 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 	}
 
 	pd = ib_alloc_pd(ib_dev);
-	if (IS_ERR(pd)) {
+	if (unlikely(IS_ERR(pd))) {
 		err = PTR_ERR(pd);
 		pr_err("Failed to alloc iser dev pd, err:%d\n", err);
 		goto fail_pd;
 	}
 
 	mr = ib_get_dma_mr(pd, IB_ACCESS_LOCAL_WRITE);
-	if (IS_ERR(mr)) {
+	if (unlikely(IS_ERR(mr))) {
 		err = PTR_ERR(mr);
 		pr_err("Failed to get dma mr, err: %d\n", err);
 		goto fail_mr;
@@ -851,7 +851,7 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 							WQ_MEM_RECLAIM, 1);
 #endif
 #endif
-		if (!cq_desc->cq_workqueue) {
+		if (unlikely(!cq_desc->cq_workqueue)) {
 			pr_err("Failed to alloc iser cq work queue for dev:%s\n",
 			       ib_dev->name);
 			err = -ENOMEM;
@@ -864,7 +864,7 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 				  cq_desc, /* context */
 				  cqe_num,
 				  i); /* completion vector */
-		if (IS_ERR(cq)) {
+		if (unlikely(IS_ERR(cq))) {
 			cq_desc->cq = NULL;
 			err = PTR_ERR(cq);
 			pr_err("Failed to create iser dev cq, err:%d\n", err);
@@ -873,7 +873,7 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 
 		cq_desc->cq = cq;
 		err = ib_req_notify_cq(cq, IB_CQ_NEXT_COMP | IB_CQ_REPORT_MISSED_EVENTS);
-		if (err) {
+		if (unlikely(err)) {
 			pr_err("Failed to request notify cq, err: %d\n", err);
 			goto fail_cq;
 		}
@@ -940,17 +940,17 @@ static void isert_device_release(struct isert_device *isert_dev)
 #endif
 
 		err = ib_destroy_cq(cq_desc->cq);
-		if (err)
+		if (unlikely(err))
 			pr_err("Failed to destroy cq, err:%d\n", err);
 
 		destroy_workqueue(cq_desc->cq_workqueue);
 	}
 
 	err = ib_dereg_mr(isert_dev->mr);
-	if (err)
+	if (unlikely(err))
 		pr_err("Failed to destroy mr, err:%d\n", err);
 	err = ib_dealloc_pd(isert_dev->pd);
-	if (err)
+	if (unlikely(err))
 		pr_err("Failed to destroy pd, err:%d\n", err);
 
 	vfree(isert_dev->cq_desc);
@@ -1069,7 +1069,7 @@ static struct isert_connection *isert_conn_create(struct rdma_cm_id *cm_id,
 
 	TRACE_ENTRY();
 
-	if (!try_module_get(THIS_MODULE)) {
+	if (unlikely(!try_module_get(THIS_MODULE))) {
 		err = -EINVAL;
 		goto fail_get;
 	}
@@ -1559,7 +1559,7 @@ struct isert_portal *isert_portal_create(void)
 	struct rdma_cm_id *cm_id;
 	int err;
 
-	if (!try_module_get(THIS_MODULE)) {
+	if (unlikely(!try_module_get(THIS_MODULE))) {
 		pr_err("Unable increment module reference\n");
 		portal = ERR_PTR(-EINVAL);
 		goto out;
@@ -1700,7 +1700,7 @@ struct isert_portal *isert_portal_start(struct sockaddr *sa, size_t addr_len)
 	int err;
 
 	portal = isert_portal_create();
-	if (IS_ERR(portal))
+	if (unlikely(IS_ERR(portal)))
 		return portal;
 
 	err = isert_portal_listen(portal, sa, addr_len);

@@ -61,7 +61,7 @@ static int isert_buf_alloc_pg(struct ib_device *ib_dev,
 		size_t page_len = min_t(size_t, size, PAGE_SIZE);
 
 		page = alloc_page(GFP_KERNEL);
-		if (!page) {
+		if (unlikely(!page)) {
 			pr_err("Failed to allocate page\n");
 			res = -ENOMEM;
 			goto out_map_failed;
@@ -116,7 +116,7 @@ static int isert_buf_malloc(struct ib_device *ib_dev,
 	}
 
 	isert_buf->addr = kmalloc(size, GFP_KERNEL);
-	if (!isert_buf->addr) {
+	if (unlikely(!isert_buf->addr)) {
 		pr_err("Failed to allocate data buffer\n");
 		res = -ENOMEM;
 		goto data_malloc_failed;
