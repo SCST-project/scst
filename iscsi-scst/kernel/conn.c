@@ -158,45 +158,7 @@ struct kobj_type iscsi_conn_ktype = {
 static ssize_t iscsi_get_initiator_ip(struct iscsi_conn *conn,
 	char *buf, int size)
 {
-	int pos;
-	struct sock *sk;
-
-	TRACE_ENTRY();
-
-	sk = conn->sock->sk;
-	switch (sk->sk_family) {
-	case AF_INET:
-		pos = scnprintf(buf, size,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,33)
-			 "%u.%u.%u.%u", NIPQUAD(inet_sk(sk)->daddr));
-#else
-			"%pI4", &inet_sk(sk)->inet_daddr);
-#endif
-		break;
-#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
-	case AF_INET6:
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,29)
-		pos = scnprintf(buf, size,
-			 "[%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x]",
-			 NIP6(inet6_sk(sk)->daddr));
-#else
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0) && \
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
-		pos = scnprintf(buf, size, "[%p6]", &inet6_sk(sk)->daddr);
-#else
-		pos = scnprintf(buf, size, "[%p6]", &sk->sk_v6_daddr);
-#endif
-#endif
-		break;
-#endif
-	default:
-		pos = scnprintf(buf, size, "Unknown family %d",
-			sk->sk_family);
-		break;
-	}
-
-	TRACE_EXIT_RES(pos);
-	return pos;
+	return conn->transport->iscsit_get_initiator_ip(conn, buf, size);
 }
 
 static ssize_t iscsi_conn_ip_show(struct kobject *kobj,
@@ -879,46 +841,19 @@ void conn_free(struct iscsi_conn *conn)
 
 	list_del(&conn->conn_list_entry);
 
-	fput(conn->file);
-	conn->file = NULL;
-	conn->sock = NULL;
-
-	free_page((unsigned long)conn->read_iov);
-
-	kmem_cache_free(iscsi_conn_cache, conn);
+	conn->transport->iscsit_conn_free(conn);
 
 	if (list_empty(&session->conn_list)) {
 		sBUG_ON(session->sess_reinst_successor != NULL);
 		session_free(session, true);
 	}
-
-	return 0;
 }
 
-/* target_mutex supposed to be locked */
-static int iscsi_conn_alloc(struct iscsi_session *session,
-	struct iscsi_kern_conn_info *info, struct iscsi_conn **new_conn)
+int iscsi_init_conn(struct iscsi_session *session,
+		    struct iscsi_kern_conn_info *info,
+		    struct iscsi_conn *conn)
 {
-	struct iscsi_conn *conn;
-	int res = 0;
-
-	lockdep_assert_held(&session->target->target_mutex);
-
-	conn = kmem_cache_zalloc(iscsi_conn_cache, GFP_KERNEL);
-	if (!conn) {
-		res = -ENOMEM;
-		goto out_err;
-	}
-
-	TRACE_MGMT_DBG("Creating connection %p for sid %#Lx, cid %u", conn,
-		       (long long unsigned int)session->sid, info->cid);
-
-	/* Changing it, change ISCSI_CONN_IOV_MAX as well !! */
-	conn->read_iov = (struct iovec *)get_zeroed_page(GFP_KERNEL);
-	if (conn->read_iov == NULL) {
-		res = -ENOMEM;
-		goto out_err_free_conn;
-	}
+	int res;
 
 	atomic_set(&conn->conn_ref_cnt, 0);
 	conn->session = session;
