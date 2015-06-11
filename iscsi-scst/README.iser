@@ -25,9 +25,10 @@ Limitations:
 -------------
 * Bidirectional commands are not supported
 * Block size over 512KB is not supported
-* Maximum number of concurent login requests that can be handled is 127.
+* Maximum number of concurent login requests that can be handled is 127 by default.
   Note that there may be more connections, but only up to 127 login requests
-  can be handled at the same time.
+  can be handled at the same time. If you wish to increase this, load isert_scst with
+  module parameter isert_nr_devs set to the number of login requests you need to handle.
 
 
 Troubleshooting:

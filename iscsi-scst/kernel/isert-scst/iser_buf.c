@@ -293,9 +293,11 @@ void isert_wr_release(struct isert_wr *wr)
 		struct isert_device *isert_dev = wr->isert_dev;
 		struct ib_device *ib_dev;
 
-		ib_dev = isert_dev->ib_dev;
-		ib_dma_unmap_sg(ib_dev, isert_buf->sg, isert_buf->sg_cnt,
-				isert_buf->dma_dir);
+		if (isert_buf->sg_cnt) {
+			ib_dev = isert_dev->ib_dev;
+			ib_dma_unmap_sg(ib_dev, isert_buf->sg, isert_buf->sg_cnt,
+					isert_buf->dma_dir);
+		}
 		isert_buf_release(isert_buf);
 	}
 	memset(wr, 0, sizeof(*wr));
