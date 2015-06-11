@@ -86,8 +86,8 @@ static struct isert_conn_dev *get_available_dev(struct isert_listener_dev *dev,
 static void isert_del_timer(struct isert_conn_dev *dev)
 {
 	if (dev->timer_active) {
-		del_timer_sync(&dev->tmo_timer);
 		dev->timer_active = 0;
+		del_timer_sync(&dev->tmo_timer);
 	}
 }
 
@@ -239,6 +239,7 @@ int isert_conn_alloc(struct iscsi_session *session,
 		goto cleanup_conn;
 
 	conn->rd_state = 1;
+	isert_del_timer(dev);
 	isert_dev_release(dev);
 	isert_set_priv(conn, NULL);
 
