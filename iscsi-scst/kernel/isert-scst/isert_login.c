@@ -602,7 +602,9 @@ static ssize_t isert_read(struct file *filp, char __user *buf, size_t count,
 		break;
 
 	default:
-		sBUG();
+		PRINT_ERROR("Invalid state in %s (%d)\n", __func__,
+			    dev->state);
+		to_read = 0;
 	}
 
 	return to_read;
@@ -644,7 +646,9 @@ static ssize_t isert_write(struct file *filp, const char __user *buf,
 		break;
 
 	default:
-		sBUG();
+		PRINT_ERROR("Invalid state in %s (%d)\n", __func__,
+			    dev->state);
+		to_write = 0;
 	}
 
 	return to_write;
