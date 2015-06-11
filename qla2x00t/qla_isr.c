@@ -571,7 +571,7 @@ skip_rio:
 
 	case MBA_LIP_RESET:		/* LIP reset occurred */
 		ql_dbg(ql_dbg_async, vha, 0x500c,
-		    "LIP reset occured (%x).\n", mb[1]);
+		    "LIP reset occurred (%x).\n", mb[1]);
 
 		if (atomic_read(&vha->loop_state) != LOOP_DOWN) {
 			atomic_set(&vha->loop_state, LOOP_DOWN);

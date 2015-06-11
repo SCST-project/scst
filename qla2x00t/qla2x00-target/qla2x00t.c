@@ -5671,7 +5671,7 @@ static void q2t_async_event(uint16_t code, scsi_qla_host_t *vha,
 		break;
 
 	case MBA_LOOP_UP:
-		TRACE(TRACE_MGMT, "qla2x00t(%ld): Loop up occured",
+		TRACE(TRACE_MGMT, "qla2x00t(%ld): Loop up occurred",
 			vha->host_no);
 		if (tgt->link_reinit_iocb_pending) {
 			q24_send_notify_ack(vha, &tgt->link_reinit_iocb, 0, 0, 0);
@@ -5684,12 +5684,12 @@ static void q2t_async_event(uint16_t code, scsi_qla_host_t *vha,
 		break;
 
 	case MBA_LOOP_DOWN:
-		TRACE(TRACE_MGMT, "qla2x00t(%ld): Loop down occured",
+		TRACE(TRACE_MGMT, "qla2x00t(%ld): Loop down occurred",
 			vha->host_no);
 		break;
 
 	case MBA_LIP_RESET:
-		TRACE(TRACE_MGMT, "qla2x00t(%ld): LIP reset occured",
+		TRACE(TRACE_MGMT, "qla2x00t(%ld): LIP reset occurred",
 			vha->host_no);
 		break;
 
@@ -5701,7 +5701,7 @@ static void q2t_async_event(uint16_t code, scsi_qla_host_t *vha,
 		break;
 
 	default:
-		TRACE(TRACE_MGMT, "qla2x00t(%ld): Async event %#x occured: "
+		TRACE(TRACE_MGMT, "qla2x00t(%ld): Async event %#x occurred: "
 			"ignoring (m[1]=%x, m[2]=%x, m[3]=%x, m[4]=%x)",
 			vha->host_no, code,
 			le16_to_cpu(mailbox[1]), le16_to_cpu(mailbox[2]),
