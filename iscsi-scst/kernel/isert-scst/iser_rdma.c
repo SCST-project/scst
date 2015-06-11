@@ -542,11 +542,10 @@ static void isert_handle_wc_error(struct ib_wc *wc)
 
 	switch (wr->wr_op) {
 	case ISER_WR_SEND:
-		if (unlikely(wr->send_wr.num_sge == 0)) { /* Drain WR */
+		if (unlikely(wr->send_wr.num_sge == 0)) /* Drain WR */
 			isert_sched_conn_drained(isert_conn);
-		} else {
+		else
 			isert_pdu_err(&isert_pdu->iscsi);
-		}
 		break;
 	case ISER_WR_RDMA_READ:
 		if (isert_buf->sg_cnt != 0) {
