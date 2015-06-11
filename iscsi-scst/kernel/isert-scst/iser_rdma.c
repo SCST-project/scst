@@ -130,7 +130,7 @@ void isert_conn_disconnect(struct isert_connection *isert_conn)
 		isert_wr_set_fields(&isert_conn->drain_wr, isert_conn, NULL);
 		isert_conn->drain_wr.wr_op = ISER_WR_SEND;
 		isert_conn->drain_wr.send_wr.wr_id = _ptr_to_u64(&isert_conn->drain_wr);
-	        isert_conn->drain_wr.send_wr.opcode = IB_WR_SEND;
+		isert_conn->drain_wr.send_wr.opcode = IB_WR_SEND;
 		err = ib_post_send(isert_conn->qp, &isert_conn->drain_wr.send_wr, &bad_wr);
 		if (unlikely(err)) {
 			pr_err("Failed to post drain wr, err:%d\n", err);
@@ -1713,4 +1713,3 @@ struct isert_portal *isert_portal_start(struct sockaddr *sa, size_t addr_len)
 	}
 	return portal;
 }
-
