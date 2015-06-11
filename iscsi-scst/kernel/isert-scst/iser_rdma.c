@@ -604,13 +604,11 @@ static int isert_poll_cq(struct isert_cq *cq)
 static void isert_cq_comp_work_cb(struct work_struct *work)
 {
 	struct isert_cq *cq_desc;
-	struct isert_device *isert_dev;
 	int ret;
 
 	TRACE_ENTRY();
 
 	cq_desc = container_of(work, struct isert_cq, cq_comp_work);
-	isert_dev = cq_desc->dev;
 	ret = isert_poll_cq(cq_desc);
 	if (unlikely(ret < 0)) { /* poll error */
 		pr_err("ib_poll_cq failed\n");
