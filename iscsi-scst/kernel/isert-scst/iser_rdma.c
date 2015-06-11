@@ -579,18 +579,19 @@ static void isert_handle_wc_error(struct ib_wc *wc)
 
 static int isert_poll_cq(struct isert_cq *cq)
 {
-	int err, i;
+	int err;
+	struct ib_wc *wc, *last_wc;
 
 	TRACE_ENTRY();
 
 	do {
 		err = ib_poll_cq(cq->cq, ARRAY_SIZE(cq->wc), cq->wc);
-
-		for (i = 0; i < err; ++i) {
-			if (likely(cq->wc[i].status == IB_WC_SUCCESS))
-				isert_handle_wc(&cq->wc[i]);
+		last_wc = &cq->wc[err];
+		for (wc = cq->wc; wc < last_wc; ++wc) {
+			if (likely(wc->status == IB_WC_SUCCESS))
+				isert_handle_wc(wc);
 			else
-				isert_handle_wc_error(&cq->wc[i]);
+				isert_handle_wc_error(wc);
 		}
 
 	} while (err > 0);
