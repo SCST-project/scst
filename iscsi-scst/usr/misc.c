@@ -18,8 +18,73 @@
 #include <netinet/tcp.h>
 #include <string.h>
 #include <errno.h>
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include "iscsid.h"
+
+int create_and_open_dev(const char *dev, int readonly)
+{
+	FILE *f;
+	char devname[256];
+	char buf[256];
+	int devn;
+	int ctlfd = -1;
+	int err;
+	int flags;
+
+	f = fopen("/proc/devices", "r");
+	if (!f) {
+		err = -errno;
+		perror("Cannot open control path to the driver");
+		goto out;
+	}
+
+	devn = 0;
+	while (!feof(f)) {
+		if (!fgets(buf, sizeof(buf), f))
+			break;
+		if (sscanf(buf, "%d %s", &devn, devname) != 2)
+			continue;
+		if (!strcmp(devname, dev))
+			break;
+		devn = 0;
+	}
+
+	fclose(f);
+	if (!devn) {
+		err = -ENOENT;
+		printf("cannot find %s in /proc/devices - "
+		     "make sure the module is loaded\n", dev);
+		goto out;
+	}
+
+	sprintf(devname, "/dev/%s", dev);
+
+	unlink(devname);
+	if (mknod(devname, (S_IFCHR | 0600), (devn << 8))) {
+		err = -errno;
+		printf("cannot create %s %s\n", devname, strerror(errno));
+		goto out;
+	}
+
+	if (readonly)
+		flags = O_RDONLY;
+	else
+		flags = O_RDWR;
+
+	err = ctlfd = open(devname, flags);
+	if (ctlfd < 0) {
+		err = -errno;
+		printf("cannot open %s %s\n", devname, strerror(errno));
+		goto out;
+	}
+
+out:
+	return err;
+}
 
 void set_non_blocking(int fd)
 {

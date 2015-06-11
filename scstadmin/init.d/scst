@@ -159,6 +159,7 @@ parse_scst_conf() {
             x86_64|i686)
                 SCST_OPT_MODULES="crc32c-intel $SCST_OPT_MODULES";;
         esac
+        SCST_MODULES="$SCST_MODULES isert_scst"
         SCST_OPT_MODULES="crc32c $SCST_OPT_MODULES"
         SCST_DAEMONS="${ISCSI_DAEMON} $SCST_DAEMONS"
     fi

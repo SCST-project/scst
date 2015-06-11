@@ -102,6 +102,7 @@ find /lib/modules/%{kver} -name ib_srpt.ko -exec rm {} \;
 /lib/modules/%{kver}/extra/fcst.ko
 /lib/modules/%{kver}/extra/ib_srpt.ko
 /lib/modules/%{kver}/extra/iscsi-scst.ko
+/lib/modules/%{kver}/extra/isert-scst.ko
 /lib/modules/%{kver}/extra/qla2x00tgt.ko
 /lib/modules/%{kver}/extra/qla2xxx_scst.ko
 /lib/modules/%{kver}/extra/scst.ko
