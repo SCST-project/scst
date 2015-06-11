@@ -486,6 +486,36 @@ static const char *wr_status_str(enum ib_wc_status status)
 	}
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+static void isert_conn_drained_do_work(void *ctx)
+#else
+static void isert_conn_drained_do_work(struct work_struct *work)
+#endif
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	struct isert_connection *isert_conn = ctx;
+#else
+	struct isert_connection *isert_conn =
+		container_of(work, struct isert_connection, drain_work);
+#endif
+
+	/* notify upper layer */
+	if (!test_bit(ISERT_CONNECTION_ABORTED, &isert_conn->flags))
+		isert_connection_closed(&isert_conn->iscsi);
+
+	isert_conn_free(isert_conn);
+}
+
+static void isert_sched_conn_drained(struct isert_connection *isert_conn)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	INIT_WORK(&isert_conn->drain_work, isert_conn_drained_do_work, isert_conn);
+#else
+	INIT_WORK(&isert_conn->drain_work, isert_conn_drained_do_work);
+#endif
+	isert_conn_queue_work(&isert_conn->drain_work);
+}
+
 static void isert_handle_wc_error(struct ib_wc *wc)
 {
 	struct isert_wr *wr = _u64_to_ptr(wc->wr_id);
@@ -502,10 +532,7 @@ static void isert_handle_wc_error(struct ib_wc *wc)
 	switch (wr->wr_op) {
 	case ISER_WR_SEND:
 		if (unlikely(wr->send_wr.num_sge == 0)) { /* Drain WR */
-			/* notify upper layer */
-			if (!test_bit(ISERT_CONNECTION_ABORTED, &isert_conn->flags))
-				isert_connection_closed(&isert_conn->iscsi);
-			isert_conn_free(isert_conn);
+			isert_sched_conn_drained(isert_conn);
 		} else {
 			isert_pdu_err(&isert_pdu->iscsi);
 		}
@@ -1063,8 +1090,6 @@ fail_get:
 	return ERR_PTR(err);
 }
 
-/* start closing process;
- * only when all buffers released, can free */
 static void isert_kref_free(struct kref *kref)
 {
 	struct isert_connection *isert_conn = container_of(kref,
@@ -1076,8 +1101,6 @@ static void isert_kref_free(struct kref *kref)
 	TRACE_ENTRY();
 
 	pr_info("isert_conn_free conn:%p\n", isert_conn);
-
-	flush_workqueue(isert_conn->cq_desc->cq_workqueue);
 
 	isert_free_conn_resources(isert_conn);
 

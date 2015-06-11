@@ -269,7 +269,7 @@ static int isert_conn_activate(struct iscsi_conn *conn)
 	return 0;
 }
 
-static void isert_conn_free(struct iscsi_conn *conn)
+static void isert_free_conn(struct iscsi_conn *conn)
 {
 	isert_free_connection(conn);
 }
@@ -452,7 +452,7 @@ static struct iscsit_transport isert_transport = {
 	.transport_type = ISCSI_RDMA,
 	.iscsit_conn_alloc = isert_conn_alloc,
 	.iscsit_conn_activate = isert_conn_activate,
-	.iscsit_conn_free = isert_conn_free,
+	.iscsit_conn_free = isert_free_conn,
 	.iscsit_alloc_cmd = isert_cmnd_alloc,
 	.iscsit_free_cmd = isert_cmnd_free,
 	.iscsit_preprocessing_done = isert_preprocessing_done,
