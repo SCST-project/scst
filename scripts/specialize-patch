@@ -478,7 +478,7 @@ BEGIN {
     exit 1
   }
   LINUX_VERSION_CODE = version_code(kernel_version)
-  if (LINUX_VERSION_CODE < 2*65536 || LINUX_VERSION_CODE > 4*65536)
+  if (LINUX_VERSION_CODE < 2*65536)
   {
     printf "Error: kernel version (%s) is out of range.\n", kernel_version
     exit 1
