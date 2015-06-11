@@ -1234,6 +1234,7 @@ static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
 	struct isert_connection *isert_conn;
 	struct rdma_conn_param *ini_conn_param;
 	struct rdma_conn_param tgt_conn_param;
+	struct isert_cm_hdr cm_hdr = { 0 };
 	int err;
 
 	TRACE_ENTRY();
@@ -1280,6 +1281,10 @@ static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
 	tgt_conn_param.initiator_depth = isert_dev->device_attr.max_qp_init_rd_atom;
 	if (tgt_conn_param.initiator_depth > ini_conn_param->initiator_depth)
 		tgt_conn_param.initiator_depth = ini_conn_param->initiator_depth;
+
+	tgt_conn_param.private_data_len = sizeof(cm_hdr);
+	tgt_conn_param.private_data = &cm_hdr;
+	cm_hdr.flags = ISER_ZBVA_NOT_SUPPORTED | ISER_SEND_W_INV_NOT_SUPPORTED;
 
 	err = rdma_accept(cm_id, &tgt_conn_param);
 	if (unlikely(err)) {
