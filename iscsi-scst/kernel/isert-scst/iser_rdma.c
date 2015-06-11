@@ -155,7 +155,11 @@ static int isert_pdu_handle_login_req(struct isert_cmnd *isert_pdu)
 
 static int isert_pdu_handle_text(struct isert_cmnd *pdu)
 {
-	return isert_login_req_rx(&pdu->iscsi);
+	struct iscsi_cmnd *iscsi_cmnd = &pdu->iscsi;
+
+	iscsi_cmnd->sg_cnt = pdu->buf.sg_cnt;
+	iscsi_cmnd->sg = pdu->buf.sg;
+	return isert_login_req_rx(iscsi_cmnd);
 }
 
 static int isert_pdu_handle_nop_out(struct isert_cmnd *pdu)
