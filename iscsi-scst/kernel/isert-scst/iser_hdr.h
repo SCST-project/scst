@@ -36,7 +36,7 @@
 #ifndef __ISER_HDR_H__
 #define __ISER_HDR_H__
 
-#include "iscsi.h"
+#include "../iscsi.h"
 
 #define ISCSI_LOGIN_MAX_RDSL      (8 * 1024)
 

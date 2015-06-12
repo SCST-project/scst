@@ -36,7 +36,7 @@
 #ifndef __ISER_DATAMOVER_H__
 #define __ISER_DATAMOVER_H__
 
-#include "iscsi.h"
+#include "../iscsi.h"
 
 /* iscsi layer calling iser */
 int isert_datamover_init(void);
