@@ -1,6 +1,10 @@
 
 #include <linux/spinlock.h>
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/iscsit_transport.h>
+#else
 #include "iscsit_transport.h"
+#endif
 #include "iscsi.h"
 
 static LIST_HEAD(transport_list);

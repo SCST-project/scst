@@ -20,10 +20,13 @@
 #include <linux/kthread.h>
 #include <linux/delay.h>
 #include <net/tcp_states.h>
-
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/iscsit_transport.h>
+#else
+#include "iscsit_transport.h"
+#endif
 #include "iscsi.h"
 #include "digest.h"
-#include "iscsit_transport.h"
 
 /* Read data states */
 enum rx_state {

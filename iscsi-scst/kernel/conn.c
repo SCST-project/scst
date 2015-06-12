@@ -17,10 +17,13 @@
 #include <linux/file.h>
 #include <linux/ip.h>
 #include <net/tcp.h>
-
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/iscsit_transport.h>
+#else
+#include "iscsit_transport.h"
+#endif
 #include "iscsi.h"
 #include "digest.h"
-#include "iscsit_transport.h"
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 #if defined(CONFIG_LOCKDEP) && !defined(CONFIG_SCST_PROC)

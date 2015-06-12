@@ -23,10 +23,13 @@
 #include <scsi/scsi.h>
 #include <asm/byteorder.h>
 #include <asm/unaligned.h>
-
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/iscsit_transport.h>
+#else
+#include "iscsit_transport.h"
+#endif
 #include "iscsi.h"
 #include "digest.h"
-#include "iscsit_transport.h"
 
 #ifndef GENERATING_UPSTREAM_PATCH
 #if !defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
