@@ -38,7 +38,7 @@
 #include <linux/kernel.h>
 
 #include "iser.h"
-#include "iscsi.h"
+#include "../iscsi.h"
 #include "iser_datamover.h"
 
 static inline int isert_pdu_rx_buf_init(struct isert_cmnd *isert_pdu,

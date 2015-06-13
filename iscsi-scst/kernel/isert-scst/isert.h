@@ -54,12 +54,11 @@
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/isert_scst.h>
 #include <scst/iscsi_scst.h>
-#include <scst/iscsi.h>
 #else
 #include "isert_scst.h"
 #include "iscsi_scst.h"
-#include "iscsi.h"
 #endif
+#include "../iscsi.h"
 
 #include "iser_hdr.h"
 

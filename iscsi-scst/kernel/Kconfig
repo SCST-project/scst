@@ -23,3 +23,5 @@ config SCST_ISCSI_DEBUG_DIGEST_FAILURES
 	  iSCSI initiator that is talking to SCST.
 
 	  If unsure, say "N".
+
+source "drivers/scst/iscsi-scst/isert-scst/Kconfig"

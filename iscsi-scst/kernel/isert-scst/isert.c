@@ -37,9 +37,13 @@
 #include <linux/moduleparam.h>
 #include <linux/init.h>
 
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/iscsit_transport.h>
+#else
+#include "iscsit_transport.h"
+#endif
 #include "isert.h"
 #include "isert_dbg.h"
-#include "iscsit_transport.h"
 #include "iser_datamover.h"
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
