@@ -61,7 +61,6 @@ static __be32 evaluate_crc32_from_sg(struct scatterlist *sg, int nbytes,
 	uint32_t padding)
 {
 	u32 crc = ~0;
-	int pad_bytes = ((nbytes + 3) & -4) - nbytes;
 
 #ifdef CONFIG_SCST_ISCSI_DEBUG_DIGEST_FAILURES
 	if (((scst_random() % 100000) == 752)) {
@@ -71,15 +70,19 @@ static __be32 evaluate_crc32_from_sg(struct scatterlist *sg, int nbytes,
 #endif
 
 #if defined(CONFIG_LIBCRC32C_MODULE) || defined(CONFIG_LIBCRC32C)
-	while (nbytes > 0) {
-		int d = min(nbytes, (int)(sg->length));
-		crc = crc32c(crc, sg_virt(sg), d);
-		nbytes -= d;
-		sg++;
-	}
+	{
+		int pad_bytes = ((nbytes + 3) & -4) - nbytes;
 
-	if (pad_bytes)
-		crc = crc32c(crc, (u8 *)&padding, pad_bytes);
+		while (nbytes > 0) {
+			int d = min(nbytes, (int)(sg->length));
+			crc = crc32c(crc, sg_virt(sg), d);
+			nbytes -= d;
+			sg++;
+		}
+
+		if (pad_bytes)
+			crc = crc32c(crc, (u8 *)&padding, pad_bytes);
+	}
 #endif
 
 	return (__force __be32)~cpu_to_le32(crc);
