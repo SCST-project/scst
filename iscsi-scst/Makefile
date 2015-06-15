@@ -48,6 +48,7 @@ ifeq ($(INSTALL_MOD_PATH),)
 endif
 
 INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
+INFINIBAND_ENABLED := $(shell if grep -q '^CONFIG_INFINIBAND=[my]$$' $(KDIR)/.config; then echo true; else echo false; fi)
 
 all: include/iscsi_scst_itf_ver.h progs mods
 
@@ -102,7 +103,11 @@ endif
 mods: Modules.symvers Module.symvers
 	echo "  Building against $(OFED_FLAVOR) InfiniBand kernel headers."
 	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(KMOD) modules
-	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(ISERTMOD) PRE_CFLAGS="$(OFED_CFLAGS) -DOFED_FLAVOR=$(OFED_FLAVOR)" KBUILD_EXTRA_SYMBOLS=$(ISER_SYMVERS) modules
+	if $(INFINIBAND_ENABLED); then					\
+	  $(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(ISERTMOD) \
+	  PRE_CFLAGS="$(OFED_CFLAGS) -DOFED_FLAVOR=$(OFED_FLAVOR)" \
+	  KBUILD_EXTRA_SYMBOLS=$(ISER_SYMVERS) modules; \
+	fi
 
 progs:
 	$(MAKE) -C usr SCST_INC_DIR=$(SCST_INC_DIR)
@@ -123,9 +128,11 @@ install: all
 	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(KMOD) \
 	  $$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
 	  modules_install
-	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(ISERTMOD) \
-	  $$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
-	  modules_install
+	if $(INFINIBAND_ENABLED); then					      \
+	  $(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(ISERTMOD) \
+	    $$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true)    \
+	    modules_install
+	fi
 
 uninstall:
 	rm -f $(DESTDIR)$(SBINDIR)/iscsi-scstd \
@@ -142,7 +149,9 @@ ifneq ($(SCST_MOD_VERS),)
 Modules.symvers: $(SCST_DIR)/Modules.symvers
 	echo $(SCST_MOD_VERS)
 	cp $(SCST_DIR)/Modules.symvers kernel/
-	cp $(SCST_DIR)/Modules.symvers kernel/isert-scst
+	if $(INFINIBAND_ENABLED); then			    \
+	  cp $(SCST_DIR)/Modules.symvers kernel/isert-scst; \
+	fi
 else
 .PHONY: Modules.symvers
 endif
@@ -152,7 +161,9 @@ SCST_MOD_VERS := $(shell ls $(SCST_DIR)/Module.symvers 2>/dev/null)
 ifneq ($(SCST_MOD_VERS),)
 Module.symvers: $(SCST_DIR)/Module.symvers
 	cp $(SCST_DIR)/Module.symvers kernel/
-	cp $(SCST_DIR)/Module.symvers kernel/isert-scst
+	if $(INFINIBAND_ENABLED); then			   \
+	  cp $(SCST_DIR)/Module.symvers kernel/isert-scst; \
+	fi
 else
 .PHONY: Module.symvers
 endif
