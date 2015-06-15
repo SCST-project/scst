@@ -224,9 +224,12 @@ do {									\
 
 #define TRACING_MINOR() (false)
 
-#define TRACE(trace, format, args...) do {} while (0)
-#define PRINT_BUFFER(message, buff, len) do {} while (0)
-#define PRINT_BUFF_FLAG(flag, message, buff, len) do {} while (0)
+#define TRACE(trace, format, args...)			\
+	((void)(trace), no_printk(format, ##args))
+#define PRINT_BUFFER(message, buff, len)		\
+	((void)(message), (void)(buff), (void)(len))
+#define PRINT_BUFF_FLAG(flag, message, buff, len)	\
+	((void)(flag), (void)(message), (void)(buff), (void)(len))
 
 #endif /* CONFIG_SCST_DEBUG || CONFIG_SCST_TRACING */
 
@@ -353,17 +356,20 @@ do {									\
 
 #else  /* CONFIG_SCST_DEBUG */
 
-#define TRACE_MEM(format, args...) do {} while (0)
-#define TRACE_SG(format, args...) do {} while (0)
-#define TRACE_DBG(format, args...) do {} while (0)
-#define TRACE_DBG_FLAG(format, args...) do {} while (0)
-#define TRACE_DBG_SPECIAL(format, args...) do {} while (0)
-#define TRACE_MGMT_DBG(format, args...) do {} while (0)
-#define TRACE_MGMT_DBG_SPECIAL(format, args...) do {} while (0)
+#define TRACE_MEM(format, args...)	no_printk(format, ##args)
+#define TRACE_SG(format, args...)	no_printk(format, ##args)
+#define TRACE_DBG(format, args...)	no_printk(format, ##args)
+#define TRACE_DBG_FLAG(flag, format, args...) \
+	((void)(flag), no_printk(format, ##args))
+#define TRACE_DBG_SPECIAL(format, args...)	no_printk(format, ##args)
+#define TRACE_MGMT_DBG(format, args...)	no_printk(format, ##args)
+#define TRACE_MGMT_DBG_SPECIAL(format, args...)	no_printk(format, ##args)
 #define TRACE_PR(format, args...) do {} while (0)
-#define TRACE_BLOCK(format, args...) do {} while (0)
-#define TRACE_BUFFER(message, buff, len) do {} while (0)
-#define TRACE_BUFF_FLAG(flag, message, buff, len) do {} while (0)
+#define TRACE_BLOCK(format, args...)	no_printk(format, ##args)
+#define TRACE_BUFFER(message, buff, len) \
+	((void)(message), (void)(buff), (void)(len))
+#define TRACE_BUFF_FLAG(flag, message, buff, len) \
+	((void)(flag), (void)(message), (void)(buff), (void)(len))
 
 #ifndef GENERATING_UPSTREAM_PATCH
 #define TRACE_ENTRY() do {} while (0)

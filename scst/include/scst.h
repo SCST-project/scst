@@ -247,6 +247,16 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 #endif
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36) && \
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
+/*
+ * See also patch "Add a dummy printk function for the maintenance of unused
+ * printks" (commit 12fdff3fc2483f906ae6404a6e8dcf2550310b6f).
+ */
+static inline __attribute__ ((format (printf, 1, 2)))
+int no_printk(const char *s, ...) { return 0; }
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
 /*
  * See also patch "sched: Fix softirq time accounting" (commit ID
