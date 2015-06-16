@@ -139,6 +139,17 @@ char *kvasprintf(gfp_t gfp, const char *fmt, va_list ap);
 typedef unsigned long uintptr_t;
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
+/*
+ * See also patch "[SCSI] bidirectional command support"
+ * (commit ID 6f9a35e2dafa).
+ */
+static inline int scsi_bidi_cmnd(struct scsi_cmnd *cmd)
+{
+	return false;
+}
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
 #define cpumask_bits(maskp) ((maskp)->bits)
 #ifdef CONFIG_CPUMASK_OFFSTACK
