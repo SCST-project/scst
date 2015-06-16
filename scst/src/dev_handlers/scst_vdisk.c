@@ -7337,8 +7337,12 @@ static int vdisk_create_bioset(struct scst_vdisk_dev *virt_dev)
 	}
 
 	if (virt_dev->dif_mode & SCST_DIF_MODE_DEV) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 31)
 		/* The same, pool size doesn't really matter */
 		res = bioset_integrity_create(virt_dev->vdisk_bioset, 2);
+#else
+		res = -ENOSYS;
+#endif
 		if (res != 0) {
 			PRINT_ERROR("Failed to create integrity bioset "
 				"(dev %s)", virt_dev->name);
