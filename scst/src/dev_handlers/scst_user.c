@@ -1030,7 +1030,9 @@ static void dev_user_set_block_shift(struct scst_cmd *cmd, int block_shift)
 	 */
 	new_block_shift = block_shift ? :
 		scst_calc_block_shift(udev->def_block_size);
-	if (dev->block_shift != new_block_shift) {
+	if (new_block_shift < 9) {
+		PRINT_ERROR("Invalid block shift %d", new_block_shift);
+	} else if (dev->block_shift != new_block_shift) {
 		PRINT_INFO("%s: Changed block shift from %d into %d / %d",
 			   dev->virt_name, dev->block_shift, block_shift,
 			   new_block_shift);
@@ -2582,6 +2584,11 @@ static int dev_user_attach(struct scst_device *sdev)
 	case TYPE_ROM:
 	case TYPE_MOD:
 		sdev->block_shift = scst_calc_block_shift(sdev->block_size);
+		if (sdev->block_shift < 9) {
+			PRINT_ERROR("Invalid block size %d", sdev->block_size);
+			res = -EINVAL;
+			goto out;
+		}
 		break;
 	default:
 		sdev->block_shift = -1; /* not used */

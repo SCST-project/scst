@@ -129,6 +129,12 @@ static int cdrom_attach(struct scst_device *dev)
 			dev->block_shift = scst_calc_block_shift(sector_size);
 		TRACE_DBG("Sector size is %i scsi_level %d(SCSI_2 %d)",
 			sector_size, dev->scsi_dev->scsi_level, SCSI_2);
+		if (dev->block_shift < 9) {
+			PRINT_ERROR("READ CAPACITY reported an invalid sector size: %d",
+				    sector_size);
+			res = -EINVAL;
+			goto out_free_buf;
+		}
 	} else {
 		dev->block_shift = CDROM_DEF_BLOCK_SHIFT;
 		TRACE(TRACE_MINOR, "Read capacity failed: %x, using default "
