@@ -5877,16 +5877,18 @@ void scst_write_same(struct scst_cmd *cmd)
 	if (cmd->bufflen <= PAGE_SIZE / 2)
 		pg = alloc_page(GFP_KERNEL);
 	if (pg) {
+		struct page *src_pg;
 		void *src, *dst;
 		int k;
 
 		mult = 0;
-		src = kmap(sg_page(cmd->sg));
+		src_pg = sg_page(cmd->sg);
+		src = kmap(src_pg);
 		dst = kmap(pg);
 		for (k = 0; k < PAGE_SIZE; k += cmd->bufflen, mult++)
 			memcpy(dst + k, src + cmd->sg->offset, cmd->bufflen);
 		kunmap(pg);
-		kunmap(src);
+		kunmap(src_pg);
 		offset = 0;
 		length = k;
 	} else {
