@@ -50,7 +50,7 @@ do {										\
 })
 
 #define	GET_PARAM(params, info, iparams, word)	\
-	(iparams)[key_##word] = (params)->word
+	((iparams)[key_##word] = (params)->word)
 
 const char *iscsi_get_bool_value(int val)
 {
