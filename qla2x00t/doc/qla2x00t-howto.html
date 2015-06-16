@@ -4,7 +4,7 @@
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>
-How to configure QLogic target driver for 22xx/23xx/24xx/25xx adapters
+QLogic FC Target Driver How-to for 22xx/23xx/24xx/25xx/26xx Adapters
 </title>
 <style type="text/css">
 pre {color:brown;}
@@ -12,32 +12,74 @@ body > ol > li {padding-bottom:1ex;}
 </style>
 <body>
 
-<div style="text-align: center;"> <strong>How to configure QLogic target driver for 22xx/23xx/24xx/25xx adapters. Step by step guide.</strong><br><br></div>
+<div style="text-align: center;"> <strong>How to Configure the FC QLogic Target Driver for 22xx/23xx/24xx/25xx/26xx Adapters</strong><br><br></div>
 
-                    <div style="text-align: center;"> <strong>ON TARGET</strong></div><br><br>
+<div style="text-align: center;"> <strong>TARGET SYSTEM</strong></div><br><br>
 
 <ol>
 <li>
-   Download the appropriate firmware for your QLogic card from <a href="http://ldriver.qlogic.com/firmware/">
-   http://ldriver.qlogic.com/firmware/</a> and save it in the /lib/firmware directory.
+  Look up the model numbers of the FC HBA and of the FC HBA RISC controller. If
+  it is not easy to access the label printed on the HBA, one way to look up
+  these model numbers is as follows:
+<pre>[root@proj ]# dmesg -c &gt;/dev/null
+[root@proj ]# rmmod qla2xxx
+[root@proj ]# modprobe qla2xxx
+[root@proj ]# dmesg | grep -E 'qla2xxx .* QLogic | Found an ISP'
+qla2xxx [0000:01:00.0]-001d: Found an ISP2532 irq 16 iobase 0xffffc9000413e000.
+qla2xxx [0000:01:00.0]-00fb:164: QLogic QLE2562 - PCI-Express Dual Channel 8Gb Fibre Channel HBA.
+qla2xxx [0000:01:00.1]-001d: Found an ISP2532 irq 17 iobase 0xffffc9000417c000.
+qla2xxx [0000:01:00.1]-00fb:165: QLogic QLE2562 - PCI-Express Dual Channel 8Gb Fibre Channel HBA.</pre>
+  The above information not only contains the HBA model number (QLE2562) but
+  also the RISC controller ID (ISP2532).
+</li>
+<li>Download the Linux version of the QConvergeConsoleCLI software package
+  from <a href="http://driverdownloads.qlogic.com/">http://driverdownloads.qlogic.com/</a>
+  and install that software package.
+</li>
+<li>
+   Download the appropriate firmware for your QLogic card from
+   <a href="http://driverdownloads.qlogic.com/">http://driverdownloads.qlogic.com/</a>.
    It is strongly recommended to use firmware version 5.x or higher for
    24xx/25xx adapters. More information about this subject can be found in
-   the following thread on the scst-devel mailing list:
-   <a href="http://sourceforge.net/mailarchive/forum.php?thread_name=4B4CD39F.6020401%40vlnb.net&amp;forum_name=scst-devel">FC
-   session gets closed with qla2x00t</a>.
+   the following e-mail thread: Vladislav Bolkhovitin and Artur Piechocki,
+   <a href="http://sourceforge.net/mailarchive/forum.php?thread_name=4B4CD39F.6020401%40vlnb.net&amp;forum_name=scst-devel"><em>FC
+   session gets closed with qla2x00t</em></a>, scst-devel mailing list, January 2010.
 
    <br><br>
 
    If no firmware image is available when the QLogic kernel module is loaded,
-   the following error message will appear in the kernel log
-   (/var/log/messages):
+   the following error message will appear in the system log
+   (/var/log/messages or /var/log/syslog):
 
 <pre>qla2xxx 0000:13:00.0: Firmware image unavailable.
 qla2xxx 0000:13:00.0: Failed to initialize adapter</pre>
-
-   In this case I had to download ql2500_fw.bin.
 </li>
 
+<li>
+  Copy the firmware image (.BIN) file to the /lib/firmware directory and
+  rename it such that the kernel driver can find it. The file name that should
+  be used for the firmware file depends on the RISC controller ID:
+  <table border="1">
+    <tr><th><b>ISP Model</b></th><th><b>Firmware file<br>name</b></th></tr>
+    <tr><td>ISP 21XX</td><td>ql2100_fw.bin</td></tr>
+    <tr><td>ISP 22XX</td><td>ql2200_fw.bin</td></tr>
+    <tr><td>ISP 2300</td><td>ql2300_fw.bin</td></tr>
+    <tr><td>ISP 2322</td><td>ql2322_fw.bin</td></tr>
+    <tr><td>ISP 24XX</td><td>ql2400_fw.bin</td></tr>
+    <tr><td>ISP 25XX</td><td>ql2500_fw.bin</td></tr>
+    <tr><td>ISP 2031</td><td>ql2600_fw.bin</td></tr>
+    <tr><td>ISP 27XX</td><td>ql2700_fw.bin</td></tr>
+  </table>
+</li>
+<li>
+  Update the firmware image in the HBA. Although the QLogic kernel driver is
+  able to load the firmware from /lib/firmware, QLogic recommends to update
+  the firmware image that resides in the HBA (see also Quinn Tran,
+  <a href="http://sourceforge.net/p/scst/mailman/message/32801228/"><em>Re:
+  [ANNOUNCE]: qla2x00t QLogic git integration into the SCST build
+  tree</em></a>, scst-devel mailing list, September 5, 2014). An example:
+  <pre>[root@proj ]# /opt/QLogic_Corporation/QConvergeConsoleCLI/qaucli -fc -b all /lib/firmware/ql2500_fw.bin</pre>
+</li>
 <li>Install the necessary kernel development packages. On a Debian system
 these packages can be installed as follows:
 <pre>[root@proj ]# apt-get install gcc libncurses5-dev linux-headers-`uname -r` lsscsi patch subversion</pre>
@@ -45,6 +87,11 @@ On RHEL/CentOS/SL systems these packages can be installed as follows:
 <pre>[root@proj ]# yum install gcc ncurses-devel kernel-devel lsscsi patch subversion</pre>
 And on SUSE systems these packages can be installed by running the following command:
 <pre>[root@proj ]# zypper install gcc ncurses-devel kernel-devel lsscsi patch subversion</pre>
+</li>
+
+<li>
+  Download the latest QLogic SCST target driver:
+  <pre>[root@proj ]# git clone git://git.qlogic.com/scst-qla2xxx.git</pre>
 </li>
 
 <li>
@@ -66,9 +113,15 @@ And on SUSE systems these packages can be installed by running the following com
 </li>
 
 <li>
+  In the SCST directory, create a soft link to the QLogic driver:
+  <pre>[root@proj ]# cd scst
+[root@proj scst]# ln -s ../scst-qla2xxx/drivers/scsi/qla2xxx qla2x00t_git</pre>
+</li>
+
+<li>
 Find out whether you will need SCSI pass-through and/or the iSCSI
 zero-copy optimization. If not, skip the kernel download, patch, rebuild
-and reboot steps and continue with the <a href="#release">SCST build step</a>.
+and reboot steps and continue with the <a href="#blacklist">SCST build step</a>.
 </li>
 
 <li>Decide whether you want to start from a vanilla Linux kernel source tree
@@ -104,32 +157,10 @@ CONFIG_NOHIGHMEM=y
   Reboot the system and during boot select the freshly built kernel to boot from.
 </li>
 
-<li>
+<li id="blacklist">
 Unload the qla2xxx kernel module provided by your Linux distribution and blacklist it:
 <pre>[root@proj ]# echo blacklist qla2xxx >/etc/modprobe.d/blacklist-qla2xxx.conf
 [root@proj ]# rmmod qla2xxx</pre>
-</li>
-
-<li>
-  OPTIONAL step: clean up the kernel modules directory before building the
-  SCST kernel modules.<br> This is only necessary if you encounter the
-  following error message: "scst: disagrees about version of symbol
-  struct_module".<br><br>
-   
-  That error message indicates that a kernel module was compiled against
-  kernel headers that did not match the running kernel. Doing a clean rebuild
-  of the kernel and SCST should make the above error go away. To make sure
-  nothing of the old kernel is left, do a clean rebuild of the Linux kernel
-  and SCST as follows:
-   
-<pre>[root@proj linux ]# pwd
-/usr/src/linux
-[root@proj linux ]# make oldconfig
-[root@proj linux ]# make clean
-[root@proj linux ]# rm -rf /lib/modules/`uname -r`
-[root@proj linux ]# make -j$(ls -1d /sys/devices/system/cpu/cpu[0-9]* | wc -l) bzImage modules
-[root@proj linux ]# make modules_install install
-[root@proj linux ]# reboot</pre>
 </li>
 
 <li id="release">
@@ -318,7 +349,7 @@ The same can be done directly via the sysfs interface of SCST:
 </ol>
 
 <br>
-<div style="text-align: center;"><strong>ON INITIATOR</strong></div>
+<div style="text-align: center;"><strong>INITIATOR SYSTEM</strong></div>
 <br>
 
 <ol>
