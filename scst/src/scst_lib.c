@@ -5491,7 +5491,11 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 
 	TRACE_ENTRY();
 
-	EXTRACHECKS_BUG_ON(len != sg_data_length(wsp->ws_sg, wsp->ws_sg_cnt));
+#ifdef CONFIG_SCST_EXTRACHECKS
+	if (len != sg_data_length(wsp->ws_sg, wsp->ws_sg_cnt))
+		WARN_ONCE(true, "lba %lld: %d <> %lld\n", lba, len,
+			  sg_data_length(wsp->ws_sg, wsp->ws_sg_cnt));
+#endif
 
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &ws_cmd->cmd_flags)) ||
 	    unlikely(ws_cmd->completed)) {
