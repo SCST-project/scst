@@ -409,9 +409,8 @@ qla2x00_start_scsi(srb_t *sp)
 	/* Set target ID and LUN number*/
 	SET_TARGET_ID(ha, cmd_pkt->target, sp->fcport->loop_id);
 	cmd_pkt->lun = cpu_to_le16(cmd->device->lun);
-
-	/* Update tagged queuing modifier */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
+	/* Update tagged queuing modifier */
 	if (scsi_populate_tag_msg(cmd, tag)) {
 		switch (tag[0]) {
 		case HEAD_OF_QUEUE_TAG:
@@ -429,8 +428,7 @@ qla2x00_start_scsi(srb_t *sp)
 		}
 	}
 #else
-	if (cmd->flags & SCMD_TAGGED)
-		cmd_pkt->control_flags = cpu_to_le16(CF_SIMPLE_TAG);
+	cmd_pkt->control_flags = cpu_to_le16(CF_SIMPLE_TAG);
 #endif
 
 	/* Load SCSI command packet. */
@@ -1403,11 +1401,10 @@ qla24xx_build_scsi_crc_2_iocbs(srb_t *sp, struct cmd_type_crc_2 *cmd_pkt,
 	cmd_pkt->fcp_cmnd_dseg_address[1] = cpu_to_le32(
 	    MSD(crc_ctx_dma + CRC_CONTEXT_FCPCMND_OFF));
 	fcp_cmnd->task_management = 0;
-
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
 	/*
 	 * Update tagged queuing modifier if using command tag queuing
 	 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
 	if (scsi_populate_tag_msg(cmd, tag)) {
 		switch (tag[0]) {
 		case HEAD_OF_QUEUE_TAG:
@@ -1424,7 +1421,7 @@ qla24xx_build_scsi_crc_2_iocbs(srb_t *sp, struct cmd_type_crc_2 *cmd_pkt,
 		fcp_cmnd->task_attribute = 0;
 	}
 #else
-	fcp_cmnd->task_attribute = 0;
+	fcp_cmnd->task_attribute = TSK_SIMPLE;
 #endif
 
 	cmd_pkt->fcp_rsp_dseg_len = 0; /* Let response come in status iocb */
@@ -1634,6 +1631,8 @@ qla24xx_start_scsi(srb_t *sp)
 			break;
 		}
 	}
+#else
+	cmd_pkt->task = TSK_SIMPLE;
 #endif
 
 	/* Load SCSI command packet. */
