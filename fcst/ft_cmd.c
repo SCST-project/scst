@@ -772,6 +772,7 @@ static void ft_recv_cmd(struct ft_sess *sess, struct fc_frame *fp)
 		break;
 	}
 
+	scst_cmd_set_tag(cmd, fc_seq_exch(sp)->rxid);
 	scst_cmd_init_done(cmd, SCST_CONTEXT_THREAD);
 	return;
 
