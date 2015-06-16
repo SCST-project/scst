@@ -75,11 +75,11 @@ int debug_print_with_prefix(unsigned long trace_flag, const char *severity,
 
 	spin_lock_irqsave(&trace_buf_lock, flags);
 
-	strcpy(trace_buf, severity);
+	strlcpy(trace_buf, severity, TRACE_BUF_SIZE);
 	i = strlen(trace_buf);
 
 	if (trace_flag & TRACE_PID)
-		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE, "[%d]: ", pid);
+		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "[%d]: ", pid);
 	if (prefix != NULL)
 		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "%s: ",
 			      prefix);
