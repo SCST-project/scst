@@ -2321,8 +2321,12 @@ static void __cmnd_abort(struct iscsi_cmnd *cmnd)
 		cmnd->r2t_len_to_send, cmnd_scsicode(cmnd),
 		cmnd_write_size(cmnd), cmnd->outstanding_r2t,
 		cmnd->conn->session->exp_cmd_sn, cmnd->conn,
-		cmnd->conn->rd_task, cmnd->conn->read_cmnd,
-		cmnd->conn->read_state);
+#ifdef CONFIG_SCST_EXTRACHECKS
+		cmnd->conn->rd_task,
+#else
+		NULL,
+#endif
+		cmnd->conn->read_cmnd, cmnd->conn->read_state);
 
 #if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 	TRACE_MGMT_DBG("net_ref_cnt %d", atomic_read(&cmnd->net_ref_cnt));
