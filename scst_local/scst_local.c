@@ -1968,10 +1968,10 @@ static int scst_local_add_target(const char *target_name,
 
 	res = 0;
 
-out:
 	if (out_tgt != NULL)
 		*out_tgt = tgt;
 
+out:
 	TRACE_EXIT_RES(res);
 	return res;
 
