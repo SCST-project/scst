@@ -440,6 +440,49 @@ patch -p1 ${rpmbuild_dir}/SPECS/kernel.spec <<'EOF' || exit $?
    make %{?cross_opts} ARCH=$Arch listnewconfig | grep -E '^CONFIG_' >.newoptions || true
  %if %{listnewconfig_fail}
 EOF
+elif [ ${kver#3.10.0-229} != $kver ]; then
+# RHEL/CentOS/SL 7.0
+patch -p1 ${rpmbuild_dir}/SPECS/kernel.spec <<'EOF' || exit $?
+--- kernel.spec.orig	2015-04-21 05:31:51.025000000 -0400
++++ kernel.spec	2015-04-21 05:33:59.806000000 -0400
+@@ -4,6 +4,7 @@
+ Summary: The Linux kernel
+ 
+ # % define buildid .local
++%define buildid .scst
+ 
+ # For a kernel released for public testing, released_kernel should be 1.
+ # For internal testing builds during development, it should be 0.
+@@ -368,6 +369,9 @@
+ Source2000: cpupower.service
+ Source2001: cpupower.config
+ 
++#Patch200: scst_exec_req_fifo.patch
++Patch201: put_page_callback.patch
++
+ # empty final patch to facilitate testing of kernel patches
+ Patch999999: linux-kernel-test.patch
+ Patch1000: debrand-single-cpu.patch
+@@ -677,6 +681,9 @@
+ ApplyOptionalPatch debrand-rh-i686-cpu.patch
+ # End of CentOS Modification
+ 
++#ApplyPatch scst_exec_req_fifo.patch
++ApplyPatch put_page_callback.patch
++
+ ApplyOptionalPatch linux-kernel-test.patch
+ 
+ # Any further pre-build tree manipulations happen here.
+@@ -709,6 +716,8 @@
+ for i in *.config
+ do
+   mv $i .config
++  echo "CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION=y" >> .config
++  sed -i.tmp -e 's/^CONFIG_SCSI_QLA_FC=.*/CONFIG_SCSI_QLA_FC=n/' .config
+   Arch=`head -1 .config | cut -b 3-`
+   make %{?cross_opts} ARCH=$Arch listnewconfig | grep -E '^CONFIG_' >.newoptions || true
+ %if %{listnewconfig_fail}
+EOF
 else
     log "Unrecognized kernel version ${kver}"
 fi
