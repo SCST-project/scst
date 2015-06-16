@@ -280,7 +280,9 @@ struct iscsi_conn {
 
 	struct list_head rd_list_entry;
 
+#ifdef CONFIG_SCST_EXTRACHECKS
 	struct task_struct *rd_task;
+#endif
 
 	unsigned long last_rcv_time;
 
