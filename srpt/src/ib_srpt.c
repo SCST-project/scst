@@ -712,7 +712,8 @@ static int srpt_refresh_port(struct srpt_port *sport)
 							 srpt_mad_send_handler,
 							 srpt_mad_recv_handler,
 							 sport
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0) || \
+	defined(REGISTER_MAD_AGENT_HAS_FLAGS_ARG)
 							 , 0
 #endif
 							 );
