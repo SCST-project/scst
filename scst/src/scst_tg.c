@@ -263,7 +263,7 @@ static bool scst_tg_accept(struct scst_cmd *cmd)
 	case REPORT_LUNS:
 	case REQUEST_SENSE:
 		return true;
-	case SERVICE_ACTION_IN:
+	case SERVICE_ACTION_IN_16:
 		switch (cmd->cdb[1] & 0x1f) {
 		case SAI_READ_CAPACITY_16:
 			return true;

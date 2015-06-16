@@ -395,9 +395,6 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 #define MI_REPORT_SUPPORTED_TASK_MANAGEMENT_FUNCTIONS 0x0d
 #endif
 #endif
-#ifndef SERVICE_ACTION_IN
-#define SERVICE_ACTION_IN     0x9e
-#endif
 #ifndef SAI_READ_CAPACITY_16
 /* values for service action in */
 #define	SAI_READ_CAPACITY_16  0x10
@@ -444,6 +441,16 @@ static inline int scst_sense_response_code(const uint8_t *sense)
  */
 #ifndef COMPARE_AND_WRITE
 #define COMPARE_AND_WRITE     0x89
+#endif
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
+/*
+ * See also patch "scsi: rename SERVICE_ACTION_IN_16 to SERVICE_ACTION_IN_16"
+ * (commit eb846d9f147455e4e5e1863bfb5e31974bb69b7c).
+ */
+#ifndef SERVICE_ACTION_IN_16
+#define SERVICE_ACTION_IN_16  0x9e
 #endif
 #endif
 

@@ -1829,7 +1829,7 @@ static enum compl_status_e vdisk_nop(struct vdisk_cmd_params *p)
 	return CMD_SUCCEEDED;
 }
 
-static enum compl_status_e vdisk_exec_srv_action_in(struct vdisk_cmd_params *p)
+static enum compl_status_e vdisk_exec_sai_16(struct vdisk_cmd_params *p)
 {
 	switch (p->cmd->cdb[1] & 0x1f) {
 	case SAI_READ_CAPACITY_16:
@@ -2188,14 +2188,14 @@ static const struct scst_opcode_descriptor scst_op_descr_format_unit = {
 };
 
 static const struct scst_opcode_descriptor scst_op_descr_get_lba_status = {
-	.od_opcode = SERVICE_ACTION_IN,
+	.od_opcode = SERVICE_ACTION_IN_16,
 	.od_serv_action = SAI_GET_LBA_STATUS,
 	.od_serv_action_valid = 1,
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 16,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
 	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
-	.od_cdb_usage_bits = { SERVICE_ACTION_IN, SAI_GET_LBA_STATUS,
+	.od_cdb_usage_bits = { SERVICE_ACTION_IN_16, SAI_GET_LBA_STATUS,
 			       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 			       0xFF, 0xFF, 0xFF, 0xFF, 0,
 			       SCST_OD_DEFAULT_CONTROL_BYTE },
@@ -2281,14 +2281,14 @@ static const struct scst_opcode_descriptor scst_op_descr_read_capacity = {
 };
 
 static const struct scst_opcode_descriptor scst_op_descr_read_capacity16 = {
-	.od_opcode = SERVICE_ACTION_IN,
+	.od_opcode = SERVICE_ACTION_IN_16,
 	.od_serv_action = SAI_READ_CAPACITY_16,
 	.od_serv_action_valid = 1,
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 16,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
 	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
-	.od_cdb_usage_bits = { SERVICE_ACTION_IN, SAI_READ_CAPACITY_16,
+	.od_cdb_usage_bits = { SERVICE_ACTION_IN_16, SAI_READ_CAPACITY_16,
 			       0, 0, 0, 0, 0, 0, 0, 0,
 			       0xFF, 0xFF, 0xFF, 0xFF, 0,
 			       SCST_OD_DEFAULT_CONTROL_BYTE },
@@ -2565,7 +2565,7 @@ static const struct scst_opcode_descriptor scst_op_descr_read_toc = {
 	[INQUIRY] = vdisk_exec_inquiry,					\
 	[REQUEST_SENSE] = vdisk_exec_request_sense,			\
 	[READ_CAPACITY] = vdisk_exec_read_capacity,			\
-	[SERVICE_ACTION_IN] = vdisk_exec_srv_action_in,			\
+	[SERVICE_ACTION_IN_16] = vdisk_exec_sai_16,			\
 	[UNMAP] = vdisk_exec_unmap,					\
 	[WRITE_SAME] = vdisk_exec_write_same,				\
 	[WRITE_SAME_16] = vdisk_exec_write_same,			\
