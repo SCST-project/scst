@@ -31,7 +31,7 @@
 #include "iscsi.h"
 #include "digest.h"
 
-#ifndef GENERATING_UPSTREAM_PATCH
+#if 0 && !defined(GENERATING_UPSTREAM_PATCH)
 #if !defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 #warning Patch put_page_callback-<kernel-version>.patch not applied on your \
 kernel or CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION \
@@ -4298,7 +4298,7 @@ static int __init iscsi_init(void)
 		goto out_destroy_mempool;
 	}
 #else
-#ifndef GENERATING_UPSTREAM_PATCH
+#if 0 && !defined(GENERATING_UPSTREAM_PATCH)
 	PRINT_WARNING("%s",
 		"CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION "
 		"not enabled in your kernel. ISCSI-SCST will be working with "
