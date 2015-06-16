@@ -45,7 +45,7 @@
 
 static DEFINE_MUTEX(dev_list_mutex);
 
-void isert_portal_free(struct isert_portal *portal);
+static void isert_portal_free(struct isert_portal *portal);
 
 static int isert_num_recv_posted_on_err(struct ib_recv_wr *first_ib_wr,
 					struct ib_recv_wr *bad_wr)
@@ -1658,7 +1658,7 @@ out:
 	return err;
 }
 
-void isert_portal_free(struct isert_portal *portal)
+static void isert_portal_free(struct isert_portal *portal)
 {
 	lockdep_assert_held(&dev_list_mutex);
 
