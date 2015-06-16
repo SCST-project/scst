@@ -994,8 +994,10 @@ Notes:
 References:
 [1] James Bottomley, Linux Kernel Mailing List, December 2008,
     http://lkml.org/lkml/2008/12/11/213.
-[2] Ian Campbell, [PATCH v5 0/9] skb paged fragment destructors, May 3 2012,
-    linux-netdev, http://marc.info/?l=linux-netdev&m=133605705111948&w=2.
+[2] Alex Bligh, Rebase Ian Campbell's skb fragment tracking to 3.2, January
+    2013, linux-netdev, http://thread.gmane.org/gmane.linux.network/256820/.
+[3] Ian Campbell, [PATCH v5 0/9] skb paged fragment destructors, May 3 2012,
+    linux-netdev, http://thread.gmane.org/gmane.linux.network/229669.
 
 
 Credits
