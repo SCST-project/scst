@@ -69,7 +69,7 @@ rm -f /usr/local/man/man5/scst.conf.5*
 /etc/init.d/scst
 %{_sbindir}/scstadmin
 %{perl_vendorlib}/SCST
-%{perl_vendorarch}/auto/SCST-SCST
+%{perl_vendorarch}/auto/SCST_SCST
 %{_mandir}/man1/scstadmin.1*
 %{scstadmin_perl_installvendorman3dir}/SCST::SCST.3pm*
 %{_mandir}/man5/scst.5*

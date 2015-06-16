@@ -83,6 +83,10 @@ install install_vendor:
 	    fi								\
 	  fi								\
 	done
+	# Remove the files that are obsolete since SCST-SCST has been
+	# renamed into SCST_SCST.
+	rm -rf "$$(/usr/bin/perl -V:sitearch | sed "s|.*='||;s|'.*||")/auto/SCST-SCST"
+	# Install the files that have just been built.
 	install -d $(DESTDIR)$(INITDIR)
 	tmp=/tmp/scst-initd-$$$$ && init.d/scst >$$tmp &&               \
 	  install -m 755 $$tmp $(DESTDIR)$(INITDIR)/scst &&             \
