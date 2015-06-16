@@ -460,7 +460,7 @@ static bool will_read_block(struct isert_conn_dev *dev)
 			res = false;
 			break;
 		default:
-			;
+			break;
 		}
 	}
 	spin_unlock(&dev->pdu_lock);
