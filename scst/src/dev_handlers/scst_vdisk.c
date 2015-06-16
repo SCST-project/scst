@@ -3796,9 +3796,8 @@ static int vdisk_sup_vpd(uint8_t *buf, struct scst_cmd *cmd,
 	if (cmd->dev->type == TYPE_DISK) {
 		*p++ = 0xB0; /* block limits */
 		*p++ = 0xB1; /* block device characteristics */
-		if (virt_dev->thin_provisioned) {
+		if (virt_dev->thin_provisioned)
 			*p++ = 0xB2; /* thin provisioning */
-		}
 	}
 	buf[3] = p - page_list; /* page length */
 
