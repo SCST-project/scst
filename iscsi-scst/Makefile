@@ -101,12 +101,12 @@ else
 endif
 
 mods: Modules.symvers Module.symvers
-	echo "  Building against $(OFED_FLAVOR) InfiniBand kernel headers."
 	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(KMOD) modules
-	if $(INFINIBAND_ENABLED); then					\
-	  $(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(ISERTMOD) \
-	  PRE_CFLAGS="$(OFED_CFLAGS) -DOFED_FLAVOR=$(OFED_FLAVOR)" \
-	  KBUILD_EXTRA_SYMBOLS=$(ISER_SYMVERS) modules; \
+	if $(INFINIBAND_ENABLED); then					       \
+	  echo "  Building against $(OFED_FLAVOR) InfiniBand kernel headers."; \
+	  $(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(ISERTMOD)  \
+	  PRE_CFLAGS="$(OFED_CFLAGS) -DOFED_FLAVOR=$(OFED_FLAVOR)"	       \
+	  KBUILD_EXTRA_SYMBOLS=$(ISER_SYMVERS) modules;			       \
 	fi
 
 progs:
@@ -131,7 +131,7 @@ install: all
 	if $(INFINIBAND_ENABLED); then					      \
 	  $(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(ISERTMOD) \
 	    $$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true)    \
-	    modules_install
+	    modules_install;						      \
 	fi
 
 uninstall:
