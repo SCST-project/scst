@@ -145,7 +145,7 @@ cat >%{buildroot}/usr/src/%{kmod_name}-%{dkms_version}/dkms.conf <<"EOF"
 PACKAGE_VERSION="%{dkms_version}"
 PACKAGE_NAME="%{kmod_name}"
 AUTOINSTALL=yes
-MAKE[0]="export KVER=${kernelver} KDIR=${kernel_source_dir} BUILD_2X_MODULE=y CONFIG_SCSI_QLA_FC=y CONFIG_SCSI_QLA2XXX_TARGET=y && make -sC scst && make -sC fcst && make -sC iscsi-scst && make -sC qla2x00t/qla2x00-target && make -sC scst_local && make -sC srpt && cp */*.ko */*/*.ko */*/*/*.ko ."
+MAKE[0]="export KVER=${kernelver} KDIR=${kernel_source_dir} BUILD_2X_MODULE=y CONFIG_SCSI_QLA_FC=y CONFIG_SCSI_QLA2XXX_TARGET=y && make 2release && make -sC scst && make -sC fcst && make -sC iscsi-scst && make -sC qla2x00t/qla2x00-target && make -sC scst_local && make -sC srpt && cp */*.ko */*/*.ko */*/*/*.ko ."
 CLEAN="make clean"
 # Remove any existing ib_srpt.ko kernel modules
 PRE_INSTALL="find /lib/modules/${kernelver} -name ib_srpt.ko -exec rm {} \;"
@@ -242,6 +242,10 @@ true
 /usr/include/scst/scst_user.h
 
 %changelog
+* Wed May  6 2015 Bart Van Assche <bart.vanassche@sandisk.com>
+- Build in release mode instead of debug mode.
+* Mon May  4 2015 Bart Van Assche <bart.vanassche@sandisk.com>
+- Added iSER target driver.
 * Mon Feb 23 2015 Bart Van Assche <bart.vanassche@sandisk.com>
 - Split spec file into a non-DKMS and a DKMS spec file.
 * Fri Jan 16 2015 Bart Van Assche <bart.vanassche@sandisk.com>
