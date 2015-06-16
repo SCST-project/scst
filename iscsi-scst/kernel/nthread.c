@@ -739,7 +739,7 @@ restart:
 	if (res > 0) {
 		/*
 		 * To save CPU cycles we suppose that sock_recvmsg() adjusts
-		 * msg->msg_iov and msg->msg_iovlen. The BUG_ON() statements
+		 * msg->msg_iov and msg->msg_iovlen. The BUG_ON() statement
 		 * below verifies this.
 		 */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
