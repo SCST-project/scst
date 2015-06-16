@@ -10154,31 +10154,57 @@ static int get_cdb_info_lba_8_len_4_rdprotect32(struct scst_cmd *cmd,
 		return scst_parse_rdprotect32(cmd);
 }
 
+static int get_cdb_info_write_same(struct scst_cmd *cmd,
+				   const struct scst_sdbops *sdbops,
+				   const bool ndob)
+{
+	const uint8_t ctrl_offs = cmd->cdb_len < 32 ? 1 : 10;
+	const bool anchor = (cmd->cdb[ctrl_offs] >> 4) & 1;
+	const bool unmap  = (cmd->cdb[ctrl_offs] >> 3) & 1;
+
+	if (!unmap && (anchor || ndob)) {
+		PRINT_ERROR("Received invalid %s command (UNMAP = %d;"
+			    " ANCHOR = %d; NDOB = %d)",
+			    scst_get_opcode_name(cmd), unmap, anchor, ndob);
+		scst_set_invalid_field_in_cdb(cmd, ctrl_offs,
+			SCST_INVAL_FIELD_BIT_OFFS_VALID | (ndob ? 0 : 4));
+		return 1;
+	}
+
+	if (ndob) {
+		cmd->bufflen = 0;
+		cmd->data_direction = SCST_DATA_NONE;
+	} else {
+		cmd->bufflen = 1;
+		cmd->data_direction = SCST_DATA_WRITE;
+	}
+
+	return cmd->cdb_len < 32 ? scst_parse_wrprotect(cmd) :
+		scst_parse_wrprotect32(cmd);
+}
+
 static int get_cdb_info_write_same10(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops)
 {
 	cmd->lba = get_unaligned_be32(cmd->cdb + sdbops->info_lba_off);
-	cmd->bufflen = 1;
 	cmd->data_len = get_unaligned_be16(cmd->cdb + sdbops->info_len_off);
-	return scst_parse_wrprotect(cmd);
+	return get_cdb_info_write_same(cmd, sdbops, false);
 }
 
 static int get_cdb_info_write_same16(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops)
 {
 	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
-	cmd->bufflen = 1;
 	cmd->data_len = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
-	return scst_parse_wrprotect(cmd);
+	return get_cdb_info_write_same(cmd, sdbops, cmd->cdb[1] & 1 /*NDOB*/);
 }
 
 static int get_cdb_info_write_same32(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops)
 {
 	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
-	cmd->bufflen = 1;
 	cmd->data_len = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
-	return scst_parse_wrprotect32(cmd);
+	return get_cdb_info_write_same(cmd, sdbops, cmd->cdb[1] & 1 /*NDOB*/);
 }
 
 static int scst_set_cmd_from_cdb_info(struct scst_cmd *cmd,
