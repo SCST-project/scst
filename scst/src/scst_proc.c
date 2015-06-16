@@ -1699,15 +1699,15 @@ static ssize_t scst_proc_scsi_tgt_gen_write(struct file *file,
 					while (!isspace(*ppp) && *ppp != '\0')
 						ppp++;
 					if (*ppp != '\0') {
-						*ppp = '\0';
+					   *ppp = '\0';
 					   ppp++;
 					   while (isspace(*ppp) && *ppp != '\0')
 						ppp++;
 					   if (*ppp != '\0') {
 						PRINT_ERROR("%s", "Too many "
 							"arguments");
-							res = -EINVAL;
-							goto out_up_free;
+						res = -EINVAL;
+						goto out_up_free;
 					   }
 					}
 					if (strcasecmp(pp, "FLAT") == 0)
