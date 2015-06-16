@@ -2103,10 +2103,6 @@ int scst_assign_dev_handler(struct scst_device *dev,
 
 assign:
 	dev->handler = handler;
-
-	if (handler == NULL)
-		goto out;
-
 	dev->threads_num = handler->threads_num;
 	dev->threads_pool_type = handler->threads_pool_type;
 	dev->max_write_same_len = 256 * 1024 * 1024; /* 256 MB */
@@ -2152,7 +2148,7 @@ out:
 	return res;
 
 out_err_detach_tgt:
-	if (handler && handler->detach_tgt) {
+	if (handler->detach_tgt) {
 		list_for_each_entry(tgt_dev, &attached_tgt_devs,
 				 extra_tgt_dev_list_entry) {
 			TRACE_DBG("Calling handler's detach_tgt(%p)",
@@ -2165,7 +2161,7 @@ out_err_detach_tgt:
 	scst_devt_dev_sysfs_del(dev);
 
 out_detach:
-	if (handler && handler->detach) {
+	if (handler->detach) {
 		TRACE_DBG("%s", "Calling handler's detach()");
 		handler->detach(dev);
 		TRACE_DBG("%s", "Handler's detach() returned");
