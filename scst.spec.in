@@ -132,12 +132,6 @@ rm -f /usr/local/man/man8/iscsi-scstd.8
 rm -f /usr/local/sbin/iscsi-scst-adm
 rm -f /usr/local/sbin/iscsi-scstd
 rm -rf /usr/local/include/scst
-rm -f /usr/local/man/man5/iscsi-scstd.conf.5
-rm -f /usr/local/man/man8/iscsi-scst-adm.8
-rm -f /usr/local/man/man8/iscsi-scstd.8
-rm -f /usr/local/sbin/iscsi-scst-adm
-rm -f /usr/local/sbin/iscsi-scstd
-rm -rf /usr/local/include/scst
 
 %post
 /sbin/depmod -a %{kversion}
@@ -163,13 +157,6 @@ rm -rf /usr/local/include/scst
 /lib/modules/%{kversion}/extra/dev_handlers/scst_tape.ko
 /lib/modules/%{kversion}/extra/dev_handlers/scst_user.ko
 /lib/modules/%{kversion}/extra/dev_handlers/scst_vdisk.ko
-%{_mandir}/man5/iscsi-scstd.conf.5.gz
-%{_mandir}/man8/iscsi-scst-adm.8.gz
-%{_mandir}/man8/iscsi-scstd.8.gz
-%{_sbindir}/iscsi-scst-adm
-%{_sbindir}/iscsi-scstd
-%dir /var/lib/scst/pr
-%dir /var/lib/scst/vdev_mode_pages
 %{_mandir}/man5/iscsi-scstd.conf.5.gz
 %{_mandir}/man8/iscsi-scst-adm.8.gz
 %{_mandir}/man8/iscsi-scstd.8.gz
