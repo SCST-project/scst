@@ -266,8 +266,9 @@ extern int iscsi_enabled;
 
 extern int cmnd_execute(struct connection *conn);
 extern void cmnd_finish(struct connection *conn);
-extern char *text_key_find(struct connection *conn, char *searchKey);
-extern void text_key_add(struct connection *conn, char *key, const char *value);
+extern char *text_key_find(struct connection *conn, const char *searchKey);
+extern void text_key_add(struct connection *conn, const char *key,
+			 const char *value);
 
 /* log.c */
 extern int log_daemon;
@@ -358,9 +359,9 @@ extern int config_load(const char *config_name);
 extern int config_target_create(u32 *tid, char *name);
 extern int config_target_destroy(u32 tid);
 extern int config_account_add(u32 tid, int dir, char *name, char *pass,
-	char *sysfs_name, u32 cookie);
+	const char *sysfs_name, u32 cookie);
 extern int __config_account_add(struct target *target, int dir, char *name,
-	char *pass, char *sysfs_name, int send_to_kern, u32 cookie);
+	char *pass, const char *sysfs_name, int send_to_kern, u32 cookie);
 extern int config_account_query(u32 tid, int dir, const char *name, char *pass);
 extern int config_account_list(u32 tid, int dir, u32 *cnt, u32 *overflow,
 	char *buf, size_t buf_sz);

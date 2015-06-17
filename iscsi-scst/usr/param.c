@@ -35,7 +35,7 @@ size_t strlcpy(char *dest, const char *src, size_t size)
 	return ret;
 }
 
-int params_index_by_name(char *name, struct iscsi_key *keys)
+int params_index_by_name(const char *name, const struct iscsi_key *keys)
 {
 	int i, err = -ENOENT;
 
@@ -49,7 +49,7 @@ int params_index_by_name(char *name, struct iscsi_key *keys)
 	return err;
 }
 
-int params_index_by_name_numwild(char *name, struct iscsi_key *keys)
+int params_index_by_name_numwild(const char *name, const struct iscsi_key *keys)
 {
 	int i, err = -ENOENT;
 
@@ -72,7 +72,7 @@ next:
 	return err;
 }
 
-void params_set_defaults(unsigned int *params, struct iscsi_key *keys)
+void params_set_defaults(unsigned int *params, const struct iscsi_key *keys)
 {
 	int i;
 
@@ -88,7 +88,7 @@ static int range_val_to_str(unsigned int val, char *str, int len)
 	return 0;
 }
 
-static int range_str_to_val(char *str, unsigned int *val)
+static int range_str_to_val(const char *str, unsigned int *val)
 {
 	*val = strtol(str, NULL, 0);
 	return 0;
@@ -112,7 +112,7 @@ static int bool_val_to_str(unsigned int val, char *str, int len)
 	return err;
 }
 
-static int bool_str_to_val(char *str, unsigned int *val)
+static int bool_str_to_val(const char *str, unsigned int *val)
 {
 	int err = 0;
 
@@ -142,7 +142,7 @@ static int and_set_val(struct iscsi_param *param, int idx, unsigned int *val)
 	return 0;
 }
 
-static int num_check_val(struct iscsi_key *key, unsigned int *val)
+static int num_check_val(const struct iscsi_key *key, unsigned int *val)
 {
 	int err = 0;
 
@@ -201,10 +201,10 @@ out:
 	return 0;
 }
 
-static int digest_str_to_val(char *str, unsigned int *val)
+static int digest_str_to_val(const char *str, unsigned int *val)
 {
 	int err = 0;
-	char *p, *q;
+	const char *p, *q;
 	p = str;
 
 	*val = 0;
@@ -265,7 +265,8 @@ static int marker_set_val(struct iscsi_param *params, int idx, unsigned int *val
 	return 0;
 }
 
-int params_val_to_str(struct iscsi_key *keys, int idx, unsigned int val, char *str, int len)
+int params_val_to_str(const struct iscsi_key *keys, int idx, unsigned int val,
+		      char *str, int len)
 {
 	if (keys[idx].ops->val_to_str)
 		return keys[idx].ops->val_to_str(val, str, len);
@@ -273,7 +274,8 @@ int params_val_to_str(struct iscsi_key *keys, int idx, unsigned int val, char *s
 		return 0;
 }
 
-int params_str_to_val(struct iscsi_key *keys, int idx, char *str, unsigned int *val)
+int params_str_to_val(const struct iscsi_key *keys, int idx, const char *str,
+		      unsigned int *val)
 {
 	if (keys[idx].ops->str_to_val)
 		return keys[idx].ops->str_to_val(str, val);
@@ -281,7 +283,7 @@ int params_str_to_val(struct iscsi_key *keys, int idx, char *str, unsigned int *
 		return 0;
 }
 
-int params_check_val(struct iscsi_key *keys, int idx, unsigned int *val)
+int params_check_val(const struct iscsi_key *keys, int idx, unsigned int *val)
 {
 	if (keys[idx].ops->check_val)
 		return keys[idx].ops->check_val(&keys[idx], val);

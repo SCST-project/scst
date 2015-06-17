@@ -48,7 +48,7 @@ static struct iscsi_key login_keys[] = {
 	{NULL,},
 };
 
-char *text_key_find(struct connection *conn, char *searchKey)
+char *text_key_find(struct connection *conn, const char *searchKey)
 {
 	char *data, *key, *value;
 	int keylen, datasize;
@@ -120,7 +120,7 @@ static struct buf_segment *conn_alloc_buf_segment(struct connection *conn,
 	return seg;
 }
 
-void text_key_add(struct connection *conn, char *key, const char *value)
+void text_key_add(struct connection *conn, const char *key, const char *value)
 {
 	struct buf_segment *seg;
 	int keylen = strlen(key);

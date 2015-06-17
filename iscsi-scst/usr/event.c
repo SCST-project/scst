@@ -226,8 +226,8 @@ static int handle_e_del_target(int fd, const struct iscsi_kern_event *event)
 	return res;
 }
 
-static int handle_add_user(struct target *target, int dir, char *sysfs_name,
-	char *p, u32 cookie)
+static int handle_add_user(struct target *target, int dir,
+			   const char *sysfs_name, char *p, u32 cookie)
 {
 	int res;
 	char *name, *pass;

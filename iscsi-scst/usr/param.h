@@ -35,13 +35,13 @@ struct iscsi_param {
 
 struct iscsi_key_ops {
 	int (*val_to_str)(unsigned int, char *, int);
-	int (*str_to_val)(char *, unsigned int *);
-	int (*check_val)(struct iscsi_key *, unsigned int *);
+	int (*str_to_val)(const char *, unsigned int *);
+	int (*check_val)(const struct iscsi_key *, unsigned int *);
 	int (*set_val)(struct iscsi_param *, int, unsigned int *);
 };
 
 struct iscsi_key {
-	char *name;
+	const char *name;
 	unsigned int rfc_def;
 	unsigned int local_def;
 	unsigned int min;
@@ -56,12 +56,15 @@ extern struct iscsi_key user_keys[];
 
 extern size_t strlcpy(char *dest, const char *src, size_t size);
 
-extern void params_set_defaults(unsigned int *, struct iscsi_key *);
-extern int params_index_by_name(char *, struct iscsi_key *);
-extern int params_index_by_name_numwild(char *, struct iscsi_key *);
-extern int params_val_to_str(struct iscsi_key *, int, unsigned int, char *, int);
-extern int params_str_to_val(struct iscsi_key *, int, char *, unsigned int *);
-extern int params_check_val(struct iscsi_key *, int, unsigned int *);
-extern int params_set_val(struct iscsi_key *, struct iscsi_param *, int, unsigned int *);
+extern void params_set_defaults(unsigned int *, const struct iscsi_key *);
+extern int params_index_by_name(const char *, const struct iscsi_key *);
+extern int params_index_by_name_numwild(const char *, const struct iscsi_key *);
+extern int params_val_to_str(const struct iscsi_key *, int, unsigned int,
+			     char *, int);
+extern int params_str_to_val(const struct iscsi_key *, int, const char *,
+			     unsigned int *);
+extern int params_check_val(const struct iscsi_key *, int, unsigned int *);
+extern int params_set_val(struct iscsi_key *, struct iscsi_param *, int,
+			  unsigned int *);
 
 #endif
