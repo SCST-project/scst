@@ -38,7 +38,7 @@ static const struct alua_state_and_name scst_tg_state_names[] = {
 	{ SCST_TG_STATE_TRANSITIONING,	"transitioning"	},
 };
 
-static struct list_head scst_dev_group_list;
+static LIST_HEAD(scst_dev_group_list);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31) || \
 	defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
@@ -1092,7 +1092,6 @@ out:
 
 void scst_tg_init(void)
 {
-	INIT_LIST_HEAD(&scst_dev_group_list);
 }
 
 void scst_tg_cleanup(void)
