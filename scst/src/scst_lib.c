@@ -4167,7 +4167,7 @@ int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
 {
 	int res;
 	struct scst_acg_dev *acg_dev;
-	struct scst_tgt_dev *tgt_dev;
+	struct scst_tgt_dev *tgt_dev, *tt;
 	struct scst_session *sess;
 	LIST_HEAD(tmp_tgt_dev_list);
 
@@ -4229,7 +4229,7 @@ out:
 	return res;
 
 out_free:
-	list_for_each_entry(tgt_dev, &tmp_tgt_dev_list,
+	list_for_each_entry_safe(tgt_dev, tt, &tmp_tgt_dev_list,
 			 extra_tgt_dev_list_entry) {
 		scst_free_tgt_dev(tgt_dev);
 	}
