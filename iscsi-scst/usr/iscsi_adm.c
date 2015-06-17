@@ -488,7 +488,7 @@ static int user_handle_show_list(struct iscsi_adm_req *req)
 
 		buf_sz = buf_sz ? buf_sz : ISCSI_NAME_LEN;
 
-		buf = calloc(buf_sz, sizeof(char *));
+		buf = calloc(buf_sz, sizeof(*buf));
 		if (!buf) {
 			fprintf(stderr, "Memory allocation failed\n");
 			return -ENOMEM;
