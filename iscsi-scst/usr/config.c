@@ -245,7 +245,7 @@ static struct __qelem *account_list_get(struct target *target, int dir)
 
 char *config_sep_string(char **pp)
 {
-	char *p = *pp;
+	char *p;
 	char *q;
 	static char blank = '\0';
 
