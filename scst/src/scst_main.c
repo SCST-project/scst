@@ -1958,6 +1958,7 @@ void scst_del_threads(struct scst_cmd_threads *cmd_threads, int num)
 					    thread_list_entry) {
 			if (!ct2->being_stopped) {
 				ct = ct2;
+				list_del(&ct->thread_list_entry);
 				ct->being_stopped = true;
 				cmd_threads->nr_threads--;
 				break;
@@ -1971,10 +1972,6 @@ void scst_del_threads(struct scst_cmd_threads *cmd_threads, int num)
 		rc = kthread_stop(ct->cmd_thread);
 		if (rc != 0 && rc != -EINTR)
 			TRACE_MGMT_DBG("kthread_stop() failed: %d", rc);
-
-		spin_lock(&cmd_threads->thr_lock);
-		list_del(&ct->thread_list_entry);
-		spin_unlock(&cmd_threads->thr_lock);
 
 		kfree(ct);
 	}
