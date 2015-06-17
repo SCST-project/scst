@@ -38,6 +38,11 @@ static const struct alua_state_and_name scst_tg_state_names[] = {
 	{ SCST_TG_STATE_TRANSITIONING,	"transitioning"	},
 };
 
+/*
+ * Protects scst_dev_group_list and also dev_list and tg_list in struct
+ * scst_dev_group.
+ */
+static DEFINE_MUTEX(scst_dg_mutex);
 static LIST_HEAD(scst_dev_group_list);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31) || \
@@ -77,7 +82,7 @@ static struct scst_device *__lookup_dev(const char *name)
 {
 	struct scst_device *dev;
 
-	lockdep_assert_held(&scst_mutex);
+	lockdep_assert_held(&scst_dg_mutex);
 
 	list_for_each_entry(dev, &scst_dev_list, dev_list_entry)
 		if (strcmp(dev->virt_name, name) == 0)
@@ -109,7 +114,7 @@ static struct scst_tg_tgt *__lookup_dg_tgt(struct scst_dev_group *dg,
 	struct scst_target_group *tg;
 	struct scst_tg_tgt *tg_tgt;
 
-	lockdep_assert_held(&scst_mutex);
+	lockdep_assert_held(&scst_dg_mutex);
 
 	BUG_ON(!dg);
 	BUG_ON(!tgt_name);
@@ -127,7 +132,7 @@ __lookup_tg_by_name(struct scst_dev_group *dg, const char *name)
 {
 	struct scst_target_group *tg;
 
-	lockdep_assert_held(&scst_mutex);
+	lockdep_assert_held(&scst_dg_mutex);
 
 	list_for_each_entry(tg, &dg->tg_list, entry)
 		if (strcmp(tg->name, name) == 0)
@@ -143,7 +148,7 @@ __lookup_tg_by_tgt(struct scst_dev_group *dg, const struct scst_tgt *tgt)
 	struct scst_target_group *tg;
 	struct scst_tg_tgt *tg_tgt;
 
-	lockdep_assert_held(&scst_mutex);
+	lockdep_assert_held(&scst_dg_mutex);
 
 	list_for_each_entry(tg, &dg->tg_list, entry)
 		list_for_each_entry(tg_tgt, &tg->tgt_list, entry)
@@ -159,7 +164,7 @@ static struct scst_dg_dev *__lookup_dg_dev_by_dev(struct scst_dev_group *dg,
 {
 	struct scst_dg_dev *dgd;
 
-	lockdep_assert_held(&scst_mutex);
+	lockdep_assert_held(&scst_dg_mutex);
 
 	list_for_each_entry(dgd, &dg->dev_list, entry)
 		if (dgd->dev == dev)
@@ -174,7 +179,7 @@ static struct scst_dg_dev *__lookup_dg_dev_by_name(struct scst_dev_group *dg,
 {
 	struct scst_dg_dev *dgd;
 
-	lockdep_assert_held(&scst_mutex);
+	lockdep_assert_held(&scst_dg_mutex);
 
 	list_for_each_entry(dgd, &dg->dev_list, entry)
 		if (strcmp(dgd->dev->virt_name, name) == 0)
@@ -189,7 +194,7 @@ static struct scst_dg_dev *__global_lookup_dg_dev_by_name(const char *name)
 	struct scst_dev_group *dg;
 	struct scst_dg_dev *dgd;
 
-	lockdep_assert_held(&scst_mutex);
+	lockdep_assert_held(&scst_dg_mutex);
 
 	list_for_each_entry(dg, &scst_dev_group_list, entry) {
 		dgd = __lookup_dg_dev_by_name(dg, name);
@@ -204,7 +209,7 @@ static struct scst_dev_group *__lookup_dg_by_name(const char *name)
 {
 	struct scst_dev_group *dg;
 
-	lockdep_assert_held(&scst_mutex);
+	lockdep_assert_held(&scst_dg_mutex);
 
 	list_for_each_entry(dg, &scst_dev_group_list, entry)
 		if (strcmp(dg->name, name) == 0)
@@ -218,7 +223,7 @@ static struct scst_dev_group *__lookup_dg_by_dev(struct scst_device *dev)
 {
 	struct scst_dev_group *dg;
 
-	lockdep_assert_held(&scst_mutex);
+	lockdep_assert_held(&scst_dg_mutex);
 
 	list_for_each_entry(dg, &scst_dev_group_list, entry)
 		if (__lookup_dg_dev_by_dev(dg, dev))
@@ -335,7 +340,10 @@ static void scst_check_alua_invariant(void)
 	struct scst_target_group *tg;
 	enum scst_tg_state expected_state;
 
-	lockdep_assert_held(&scst_mutex);
+#if 0
+	lockdep_assert_held(&scst_mutex); /* scst_dev_list, dev_tgt_dev_list */
+#endif
+	lockdep_assert_held(&scst_dg_mutex);
 
 	if (!alua_invariant_check)
 		return;
@@ -370,7 +378,7 @@ static void scst_check_alua_invariant(void)
 static void scst_update_tgt_dev_alua_filter(struct scst_tgt_dev *tgt_dev,
 					    enum scst_tg_state state)
 {
-	lockdep_assert_held(&scst_mutex);
+	lockdep_assert_held(&scst_dg_mutex);
 
 	tgt_dev->alua_filter = scst_alua_filter[state];
 }
@@ -380,7 +388,7 @@ static void scst_tg_change_tgt_dev_state(struct scst_tgt_dev *tgt_dev,
 					 enum scst_tg_state state,
 					 bool gen_ua)
 {
-	lockdep_assert_held(&scst_mutex);
+	lockdep_assert_held(&scst_dg_mutex);
 
 	TRACE_MGMT_DBG("ALUA state of tgt_dev %p has changed", tgt_dev);
 	scst_update_tgt_dev_alua_filter(tgt_dev, state);
@@ -395,8 +403,7 @@ void scst_tg_init_tgt_dev(struct scst_tgt_dev *tgt_dev)
 	struct scst_dev_group *dg;
 	struct scst_target_group *tg;
 
-	lockdep_assert_held(&scst_mutex);
-
+	mutex_lock(&scst_dg_mutex);
 	dg = __lookup_dg_by_dev(tgt_dev->dev);
 	if (dg) {
 		tg = __lookup_tg_by_tgt(dg, tgt_dev->acg_dev->acg->tgt);
@@ -405,6 +412,7 @@ void scst_tg_init_tgt_dev(struct scst_tgt_dev *tgt_dev)
 			scst_check_alua_invariant();
 		}
 	}
+	mutex_unlock(&scst_dg_mutex);
 }
 
 /*
@@ -417,7 +425,7 @@ static void scst_update_tgt_alua_filter(struct scst_target_group *tg,
 	struct scst_dg_dev *dgd;
 	struct scst_tgt_dev *tgt_dev;
 
-	lockdep_assert_held(&scst_mutex);
+	lockdep_assert_held(&scst_dg_mutex);
 
 	list_for_each_entry(dgd, &tg->dg->dev_list, entry) {
 		list_for_each_entry(tgt_dev, &dgd->dev->dev_tgt_dev_list,
@@ -441,7 +449,7 @@ static void scst_reset_tgt_alua_filter(struct scst_target_group *tg,
 	struct scst_dg_dev *dgd;
 	struct scst_tgt_dev *tgt_dev;
 
-	lockdep_assert_held(&scst_mutex);
+	lockdep_assert_held(&scst_dg_mutex);
 
 	list_for_each_entry(dgd, &tg->dg->dev_list, entry) {
 		list_for_each_entry(tgt_dev, &dgd->dev->dev_tgt_dev_list,
@@ -485,23 +493,33 @@ int scst_tg_tgt_add(struct scst_target_group *tg, const char *name)
 	res = mutex_lock_interruptible(&scst_mutex);
 	if (res)
 		goto out_put;
+	res = mutex_lock_interruptible(&scst_dg_mutex);
+	if (res)
+		goto out_unlock_scst;
 	res = -EEXIST;
 	tgt = __lookup_tgt(name);
 	if (__lookup_dg_tgt(tg->dg, name))
-		goto out_unlock;
+		goto out_unlock_dg;
 	tg_tgt->tgt = tgt;
 	res = scst_tg_tgt_sysfs_add(tg, tg_tgt);
 	if (res)
-		goto out_unlock;
+		goto out_unlock_dg;
 	list_add_tail(&tg_tgt->entry, &tg->tgt_list);
 	scst_update_tgt_alua_filter(tg, tgt);
 	res = 0;
+	mutex_unlock(&scst_dg_mutex);
 	mutex_unlock(&scst_mutex);
+
 out:
 	TRACE_EXIT_RES(res);
 	return res;
-out_unlock:
+
+out_unlock_dg:
+	mutex_unlock(&scst_dg_mutex);
+
+out_unlock_scst:
 	mutex_unlock(&scst_mutex);
+
 out_put:
 	kobject_put(&tg_tgt->kobj);
 	goto out;
@@ -529,7 +547,7 @@ int scst_tg_tgt_remove_by_name(struct scst_target_group *tg, const char *name)
 	TRACE_ENTRY();
 	BUG_ON(!tg);
 	BUG_ON(!name);
-	res = mutex_lock_interruptible(&scst_mutex);
+	res = mutex_lock_interruptible(&scst_dg_mutex);
 	if (res)
 		goto out;
 	res = -EINVAL;
@@ -539,27 +557,26 @@ int scst_tg_tgt_remove_by_name(struct scst_target_group *tg, const char *name)
 	__scst_tg_tgt_remove(tg, tg_tgt);
 	res = 0;
 out_unlock:
-	mutex_unlock(&scst_mutex);
+	mutex_unlock(&scst_dg_mutex);
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
 
-/* Caller must hold scst_mutex. Called from the target removal code. */
+/* Called from the target removal code. */
 void scst_tg_tgt_remove_by_tgt(struct scst_tgt *tgt)
 {
 	struct scst_dev_group *dg;
 	struct scst_target_group *tg;
 	struct scst_tg_tgt *t, *t2;
 
-	lockdep_assert_held(&scst_mutex);
-
-	BUG_ON(!tgt);
+	mutex_lock(&scst_dg_mutex);
 	list_for_each_entry(dg, &scst_dev_group_list, entry)
 		list_for_each_entry(tg, &dg->tg_list, entry)
 			list_for_each_entry_safe(t, t2, &tg->tgt_list, entry)
 				if (t->tgt == tgt)
 					__scst_tg_tgt_remove(tg, t);
+	mutex_unlock(&scst_dg_mutex);
 }
 
 /*
@@ -608,7 +625,7 @@ int scst_tg_add(struct scst_dev_group *dg, const char *name)
 	tg->state = SCST_TG_STATE_OPTIMIZED;
 	INIT_LIST_HEAD(&tg->tgt_list);
 
-	res = mutex_lock_interruptible(&scst_mutex);
+	res = mutex_lock_interruptible(&scst_dg_mutex);
 	if (res)
 		goto out_put;
 	res = -EEXIST;
@@ -618,14 +635,14 @@ int scst_tg_add(struct scst_dev_group *dg, const char *name)
 	if (res)
 		goto out_unlock;
 	list_add_tail(&tg->entry, &dg->tg_list);
-	mutex_unlock(&scst_mutex);
+	mutex_unlock(&scst_dg_mutex);
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 
 out_unlock:
-	mutex_unlock(&scst_mutex);
+	mutex_unlock(&scst_dg_mutex);
 out_put:
 	kobject_put(&tg->kobj);
 	goto out;
@@ -658,7 +675,7 @@ int scst_tg_remove_by_name(struct scst_dev_group *dg, const char *name)
 	struct scst_target_group *tg;
 	int res;
 
-	res = mutex_lock_interruptible(&scst_mutex);
+	res = mutex_lock_interruptible(&scst_dg_mutex);
 	if (res)
 		goto out;
 	res = -EINVAL;
@@ -668,7 +685,7 @@ int scst_tg_remove_by_name(struct scst_dev_group *dg, const char *name)
 	__scst_tg_remove(dg, tg);
 	res = 0;
 out_unlock:
-	mutex_unlock(&scst_mutex);
+	mutex_unlock(&scst_dg_mutex);
 out:
 	return res;
 }
@@ -689,7 +706,7 @@ static void __scst_tg_set_state(struct scst_target_group *tg,
 	struct scst_tgt *tgt;
 
 	sBUG_ON(state >= ARRAY_SIZE(scst_alua_filter));
-	lockdep_assert_held(&scst_mutex);
+	lockdep_assert_held(&scst_dg_mutex);
 
 	if (tg->state == state)
 		return;
@@ -725,13 +742,13 @@ int scst_tg_set_state(struct scst_target_group *tg, enum scst_tg_state state)
 	if (state >= ARRAY_SIZE(scst_alua_filter))
 		goto out;
 
-	res = mutex_lock_interruptible(&scst_mutex);
+	res = mutex_lock_interruptible(&scst_dg_mutex);
 	if (res)
 		goto out;
 
 	__scst_tg_set_state(tg, state, NULL);
 
-	mutex_unlock(&scst_mutex);
+	mutex_unlock(&scst_dg_mutex);
 out:
 	return res;
 }
@@ -753,7 +770,7 @@ static void __scst_gen_alua_state_changed_ua(struct scst_target_group *tg)
 	struct scst_tg_tgt *tg_tgt;
 	struct scst_tgt *tgt;
 
-	lockdep_assert_held(&scst_mutex);
+	lockdep_assert_held(&scst_dg_mutex);
 
 	list_for_each_entry(dg_dev, &tg->dg->dev_list, entry) {
 		dev = dg_dev->dev;
@@ -776,7 +793,7 @@ static void __scst_tg_set_preferred(struct scst_target_group *tg,
 {
 	bool prev_preferred;
 
-	lockdep_assert_held(&scst_mutex);
+	lockdep_assert_held(&scst_dg_mutex);
 
 	if (tg->preferred == preferred)
 		return;
@@ -796,11 +813,11 @@ int scst_tg_set_preferred(struct scst_target_group *tg,
 {
 	int res;
 
-	res = mutex_lock_interruptible(&scst_mutex);
+	res = mutex_lock_interruptible(&scst_dg_mutex);
 	if (res)
 		goto out;
 	__scst_tg_set_preferred(tg, preferred);
-	mutex_unlock(&scst_mutex);
+	mutex_unlock(&scst_dg_mutex);
 out:
 	return res;
 }
@@ -819,7 +836,7 @@ static void scst_update_dev_alua_filter(struct scst_dev_group *dg,
 	struct scst_tgt_dev *tgt_dev;
 	struct scst_target_group *tg;
 
-	lockdep_assert_held(&scst_mutex);
+	lockdep_assert_held(&scst_dg_mutex);
 
 	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 			    dev_tgt_dev_list_entry) {
@@ -839,7 +856,7 @@ static void scst_reset_dev_alua_filter(struct scst_device *dev)
 {
 	struct scst_tgt_dev *tgt_dev;
 
-	lockdep_assert_held(&scst_mutex);
+	lockdep_assert_held(&scst_dg_mutex);
 
 	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 			    dev_tgt_dev_list_entry)
@@ -866,7 +883,7 @@ int scst_dg_dev_add(struct scst_dev_group *dg, const char *name)
 	if (!dgdev)
 		goto out;
 
-	res = mutex_lock_interruptible(&scst_mutex);
+	res = mutex_lock_interruptible(&scst_dg_mutex);
 	if (res)
 		goto out_free;
 	res = -EEXIST;
@@ -882,13 +899,13 @@ int scst_dg_dev_add(struct scst_dev_group *dg, const char *name)
 		goto out_unlock;
 	list_add_tail(&dgdev->entry, &dg->dev_list);
 	scst_update_dev_alua_filter(dg, dev);
-	mutex_unlock(&scst_mutex);
+	mutex_unlock(&scst_dg_mutex);
 
 out:
 	return res;
 
 out_unlock:
-	mutex_unlock(&scst_mutex);
+	mutex_unlock(&scst_dg_mutex);
 out_free:
 	kfree(dgdev);
 	goto out;
@@ -911,7 +928,7 @@ int scst_dg_dev_remove_by_name(struct scst_dev_group *dg, const char *name)
 	struct scst_dg_dev *dgdev;
 	int res;
 
-	res = mutex_lock_interruptible(&scst_mutex);
+	res = mutex_lock_interruptible(&scst_dg_mutex);
 	if (res)
 		goto out;
 	res = -EINVAL;
@@ -921,12 +938,12 @@ int scst_dg_dev_remove_by_name(struct scst_dev_group *dg, const char *name)
 	__scst_dg_dev_remove(dg, dgdev);
 	res = 0;
 out_unlock:
-	mutex_unlock(&scst_mutex);
+	mutex_unlock(&scst_dg_mutex);
 out:
 	return res;
 }
 
-/* Caller must hold scst_mutex. Called from the device removal code. */
+/* Called from the device removal code. */
 int scst_dg_dev_remove_by_dev(struct scst_device *dev)
 {
 	struct scst_dev_group *dg;
@@ -934,6 +951,8 @@ int scst_dg_dev_remove_by_dev(struct scst_device *dev)
 	int res;
 
 	res = -EINVAL;
+
+	mutex_lock(&scst_dg_mutex);
 	dg = __lookup_dg_by_dev(dev);
 	if (!dg)
 		goto out;
@@ -941,7 +960,10 @@ int scst_dg_dev_remove_by_dev(struct scst_device *dev)
 	BUG_ON(!dgdev);
 	__scst_dg_dev_remove(dg, dgdev);
 	res = 0;
+
 out:
+	mutex_unlock(&scst_dg_mutex);
+
 	return res;
 }
 
@@ -989,7 +1011,7 @@ int scst_dg_add(struct kobject *parent, const char *name)
 	if (!dg->name)
 		goto out_put;
 
-	res = mutex_lock_interruptible(&scst_mutex);
+	res = mutex_lock_interruptible(&scst_dg_mutex);
 	if (res)
 		goto out_put;
 	res = -EEXIST;
@@ -1002,13 +1024,13 @@ int scst_dg_add(struct kobject *parent, const char *name)
 	if (res)
 		goto out_unlock;
 	list_add_tail(&dg->entry, &scst_dev_group_list);
-	mutex_unlock(&scst_mutex);
+	mutex_unlock(&scst_dg_mutex);
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 
 out_unlock:
-	mutex_unlock(&scst_mutex);
+	mutex_unlock(&scst_dg_mutex);
 out_put:
 	kobject_put(&dg->kobj);
 	goto out;
@@ -1019,7 +1041,7 @@ static void __scst_dg_remove(struct scst_dev_group *dg)
 	struct scst_dg_dev *dgdev;
 	struct scst_target_group *tg;
 
-	lockdep_assert_held(&scst_mutex);
+	lockdep_assert_held(&scst_dg_mutex);
 
 	list_del(&dg->entry);
 	scst_dg_sysfs_del(dg);
@@ -1043,7 +1065,7 @@ int scst_dg_remove(const char *name)
 	struct scst_dev_group *dg;
 	int res;
 
-	res = mutex_lock_interruptible(&scst_mutex);
+	res = mutex_lock_interruptible(&scst_dg_mutex);
 	if (res)
 		goto out;
 	res = -EINVAL;
@@ -1053,7 +1075,7 @@ int scst_dg_remove(const char *name)
 	__scst_dg_remove(dg);
 	res = 0;
 out_unlock:
-	mutex_unlock(&scst_mutex);
+	mutex_unlock(&scst_dg_mutex);
 out:
 	return res;
 }
@@ -1072,7 +1094,7 @@ struct scst_dev_group *scst_lookup_dg_by_kobj(struct kobject *kobj)
 	struct scst_dev_group *dg;
 
 	dg = NULL;
-	res = mutex_lock_interruptible(&scst_mutex);
+	res = mutex_lock_interruptible(&scst_dg_mutex);
 	if (res)
 		goto out;
 	list_for_each_entry(dg, &scst_dev_group_list, entry)
@@ -1080,7 +1102,7 @@ struct scst_dev_group *scst_lookup_dg_by_kobj(struct kobject *kobj)
 			goto out_unlock;
 	dg = NULL;
 out_unlock:
-	mutex_unlock(&scst_mutex);
+	mutex_unlock(&scst_dg_mutex);
 out:
 	return dg;
 }
@@ -1098,13 +1120,13 @@ void scst_tg_cleanup(void)
 {
 	struct scst_dev_group *tg;
 
-	mutex_lock(&scst_mutex);
+	mutex_lock(&scst_dg_mutex);
 	while (!list_empty(&scst_dev_group_list)) {
 		tg = list_first_entry(&scst_dev_group_list,
 				      struct scst_dev_group, entry);
 		__scst_dg_remove(tg);
 	}
-	mutex_unlock(&scst_mutex);
+	mutex_unlock(&scst_dg_mutex);
 }
 
 /*
@@ -1126,7 +1148,7 @@ uint16_t scst_lookup_tg_id(struct scst_device *dev, struct scst_tgt *tgt)
 	uint16_t tg_id = 0;
 
 	TRACE_ENTRY();
-	mutex_lock(&scst_mutex);
+	mutex_lock(&scst_dg_mutex);
 	dg = __lookup_dg_by_dev(dev);
 	if (!dg)
 		goto out_unlock;
@@ -1137,7 +1159,7 @@ uint16_t scst_lookup_tg_id(struct scst_device *dev, struct scst_tgt *tgt)
 	BUG_ON(!tg);
 	tg_id = tg->group_id;
 out_unlock:
-	mutex_unlock(&scst_mutex);
+	mutex_unlock(&scst_dg_mutex);
 
 	TRACE_EXIT_RES(tg_id);
 	return tg_id;
@@ -1152,9 +1174,9 @@ bool scst_impl_alua_configured(struct scst_device *dev)
 {
 	struct scst_dev_group *dg;
 
-	mutex_lock(&scst_mutex);
+	mutex_lock(&scst_dg_mutex);
 	dg = __lookup_dg_by_dev(dev);
-	mutex_unlock(&scst_mutex);
+	mutex_unlock(&scst_dg_mutex);
 
 	return dg != NULL;
 }
@@ -1200,7 +1222,7 @@ int scst_tg_get_group_info(void **buf, uint32_t *length,
 
 	*length = 4;
 
-	mutex_lock(&scst_mutex);
+	mutex_lock(&scst_dg_mutex);
 
 	dg = __lookup_dg_by_dev(dev);
 	if (dg) {
@@ -1267,7 +1289,7 @@ done:
 	res = 0;
 
 out_unlock:
-	mutex_unlock(&scst_mutex);
+	mutex_unlock(&scst_dg_mutex);
 out:
 	TRACE_EXIT_RES(res);
 	return res;
