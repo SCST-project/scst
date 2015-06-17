@@ -194,7 +194,7 @@ send:
 
 	err = writev(fd, iov, 2 + !!iov[2].iov_len);
 out:
-	if (fd > 0)
+	if (fd >= 0)
 		close(fd);
 	if (rsp_data)
 		free(rsp_data);
