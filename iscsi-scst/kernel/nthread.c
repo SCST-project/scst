@@ -1731,11 +1731,13 @@ int iscsi_send(struct iscsi_conn *conn)
 		if (!(conn->hdigest_type & DIGEST_NONE))
 			init_tx_hdigest(cmnd);
 		conn->write_state = TX_BHS_DATA;
+		/* fall-through */
 	case TX_BHS_DATA:
 		res = iscsi_do_send(conn, cmnd->pdu.datasize ?
 					TX_INIT_PADDING : TX_END);
 		if (res <= 0 || conn->write_state != TX_INIT_PADDING)
 			break;
+		/* fall-through */
 	case TX_INIT_PADDING:
 		cmnd->conn->write_size = ((cmnd->pdu.datasize + 3) & -4) -
 						cmnd->pdu.datasize;
@@ -1750,9 +1752,11 @@ int iscsi_send(struct iscsi_conn *conn)
 		res = tx_padding(cmnd, ddigest ? TX_INIT_DDIGEST : TX_END);
 		if (res <= 0 || conn->write_state != TX_INIT_DDIGEST)
 			break;
+		/* fall-through */
 	case TX_INIT_DDIGEST:
 		cmnd->conn->write_size = sizeof(u32);
 		conn->write_state = TX_DDIGEST;
+		/* fall-through */
 	case TX_DDIGEST:
 		res = tx_ddigest(cmnd, TX_END);
 		break;
