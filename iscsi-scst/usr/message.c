@@ -39,8 +39,10 @@ int iscsi_adm_request_listen(void)
 	memcpy((char *) &addr.sun_path + 1, ISCSI_ADM_NAMESPACE,
 		strlen(ISCSI_ADM_NAMESPACE));
 
-	if ((err = bind(fd, (struct sockaddr *) &addr, sizeof(addr))) < 0)
+	if ((err = bind(fd, (struct sockaddr *) &addr, sizeof(addr))) < 0) {
+		close(fd);
 		return err;
+	}
 
 	if ((err = listen(fd, 32)) < 0) {
 		close(fd);
