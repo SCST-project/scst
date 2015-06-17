@@ -1392,7 +1392,8 @@ qla2x00_fdmi_rhba(scsi_qla_host_t *vha)
 	/* Driver version. */
 	eiter = (struct ct_fdmi_hba_attr *) (entries + size);
 	eiter->type = __constant_cpu_to_be16(FDMI_HBA_DRIVER_VERSION);
-	strcpy(eiter->a.driver_version, qla2x00_version_str);
+	snprintf(eiter->a.driver_version, sizeof(eiter->a.driver_version),
+		 "%s", qla2x00_version_str);
 	alen = strlen(eiter->a.driver_version);
 	alen += (alen & 3) ? (4 - (alen & 3)) : 4;
 	eiter->len = cpu_to_be16(4 + alen);
