@@ -1260,18 +1260,18 @@ qla2x00_update_ms_fdmi_iocb(scsi_qla_host_t *vha, uint32_t req_size)
  * Returns a pointer to the intitialized @ct_req.
  */
 static inline struct ct_sns_req *
-qla2x00_prep_ct_fdmi_req(struct ct_sns_req *ct_req, uint16_t cmd,
+qla2x00_prep_ct_fdmi_req(struct ct_sns_pkt *p, uint16_t cmd,
     uint16_t rsp_size)
 {
-	memset(ct_req, 0, sizeof(struct ct_sns_pkt));
+	memset(p, 0, sizeof(struct ct_sns_pkt));
 
-	ct_req->header.revision = 0x01;
-	ct_req->header.gs_type = 0xFA;
-	ct_req->header.gs_subtype = 0x10;
-	ct_req->command = cpu_to_be16(cmd);
-	ct_req->max_rsp_size = cpu_to_be16((rsp_size - 16) / 4);
+	p->p.req.header.revision = 0x01;
+	p->p.req.header.gs_type = 0xFA;
+	p->p.req.header.gs_subtype = 0x10;
+	p->p.req.command = cpu_to_be16(cmd);
+	p->p.req.max_rsp_size = cpu_to_be16((rsp_size - 16) / 4);
 
-	return ct_req;
+	return &p->p.req;
 }
 
 /**
@@ -1299,8 +1299,7 @@ qla2x00_fdmi_rhba(scsi_qla_host_t *vha)
 	ms_pkt = ha->isp_ops->prep_ms_fdmi_iocb(vha, 0, RHBA_RSP_SIZE);
 
 	/* Prepare CT request */
-	ct_req = qla2x00_prep_ct_fdmi_req(&ha->ct_sns->p.req, RHBA_CMD,
-	    RHBA_RSP_SIZE);
+	ct_req = qla2x00_prep_ct_fdmi_req(ha->ct_sns, RHBA_CMD, RHBA_RSP_SIZE);
 	ct_rsp = &ha->ct_sns->p.rsp;
 
 	/* Prepare FDMI command arguments -- attribute block, attributes. */
@@ -1490,8 +1489,7 @@ qla2x00_fdmi_dhba(scsi_qla_host_t *vha)
 	    DHBA_RSP_SIZE);
 
 	/* Prepare CT request */
-	ct_req = qla2x00_prep_ct_fdmi_req(&ha->ct_sns->p.req, DHBA_CMD,
-	    DHBA_RSP_SIZE);
+	ct_req = qla2x00_prep_ct_fdmi_req(ha->ct_sns, DHBA_CMD, DHBA_RSP_SIZE);
 	ct_rsp = &ha->ct_sns->p.rsp;
 
 	/* Prepare FDMI command arguments -- portname. */
@@ -1547,8 +1545,7 @@ qla2x00_fdmi_rpa(scsi_qla_host_t *vha)
 	ms_pkt = ha->isp_ops->prep_ms_fdmi_iocb(vha, 0, RPA_RSP_SIZE);
 
 	/* Prepare CT request */
-	ct_req = qla2x00_prep_ct_fdmi_req(&ha->ct_sns->p.req, RPA_CMD,
-	    RPA_RSP_SIZE);
+	ct_req = qla2x00_prep_ct_fdmi_req(ha->ct_sns, RPA_CMD, RPA_RSP_SIZE);
 	ct_rsp = &ha->ct_sns->p.rsp;
 
 	/* Prepare FDMI command arguments -- attribute block, attributes. */
