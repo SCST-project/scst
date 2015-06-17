@@ -761,10 +761,10 @@ static void event_loop(void)
 						 */
 						if (!sess && conn->sessions_count_incremented)
 							conn->target->sessions_count--;
-						conn_free(conn);
 						log_debug(1, "conn %p freed (sess %p, empty %d)",
 							conn, sess,
 							sess ? list_empty(&sess->conn_list) : -1);
+						conn_free(conn);
 						if (sess && list_empty(&sess->conn_list))
 							session_free(sess);
 					}
