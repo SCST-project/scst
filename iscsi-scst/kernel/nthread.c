@@ -1743,7 +1743,7 @@ int iscsi_send(struct iscsi_conn *conn)
 			conn->write_state = TX_PADDING;
 		else if (ddigest)
 			conn->write_state = TX_INIT_DDIGEST;
-		 else
+		else
 			conn->write_state = TX_END;
 		break;
 	case TX_PADDING:
