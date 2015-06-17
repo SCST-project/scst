@@ -206,6 +206,7 @@ static int iscsid_connect(void)
 	memcpy((char *) &addr.sun_path + 1, ISCSI_ADM_NAMESPACE, strlen(ISCSI_ADM_NAMESPACE));
 
 	if (connect(fd, (struct sockaddr *) &addr, sizeof(addr))) {
+		close(fd);
 		fd = -errno;
 		fprintf(stderr, "Unable to connect to iscsid: %s\n",
 			strerror(-fd));
