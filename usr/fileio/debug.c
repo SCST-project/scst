@@ -52,11 +52,11 @@ int debug_print_prefix(unsigned long trace_flag, const char *prefix,
 		time_t tt;
 		time(&tt);
 		localtime_r(&tt, &t);
-		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE, "%d:%d:%d ",
+		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "%d:%d:%d ",
 			t.tm_hour, t.tm_min, t.tm_sec);
 	}
 	if (trace_flag & TRACE_PID)
-		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE, "[%d]: ",
+		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "[%d]: ",
 			      gettid());
 	if (prefix != NULL)
 		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "%s:", prefix);
