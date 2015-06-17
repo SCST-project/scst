@@ -5617,6 +5617,8 @@ void scst_unblock_aborted_cmds(const struct scst_tgt *tgt,
 
 	if (!scst_mutex_held)
 		mutex_lock(&scst_mutex);
+	else
+		lockdep_assert_held(&scst_mutex);
 
 	list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
 		struct scst_cmd *cmd, *tcmd;
