@@ -595,6 +595,7 @@ again:
 				conn->rwsize = conn->rsp.ahssize;
 				goto write_again;
 			}
+			/* fall-through */
 		case IOSTATE_WRITE_AHS:
 			if (conn->rsp.datasize) {
 				int o;
@@ -610,6 +611,7 @@ again:
 				}
 				goto write_again;
 			}
+			/* fall-through */
 		case IOSTATE_WRITE_DATA:
 			conn->uncork_transmit(pollfd->fd);
 			cmnd_finish(conn);
