@@ -1048,6 +1048,7 @@ static int config_isns_load(const char *config)
 		if ((*p == '\0') || (*p == '#'))
 			continue;
 		if (!strcasecmp(p, ISCSI_ISNS_SERVER_ATTR_NAME)) {
+			free(isns_server);
 			isns_server = strdup(config_sep_string(&q));
 		} else if (!strcasecmp(p, ISCSI_ISNS_ACCESS_CONTROL_ATTR_NAME)) {
 			char *str = config_sep_string(&q);
