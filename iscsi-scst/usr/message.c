@@ -154,7 +154,7 @@ int iscsi_adm_request_handle(int accept_fd)
 	struct iscsi_adm_rsp rsp;
 	struct iovec iov[3];
 	void *rsp_data = NULL;
-	size_t rsp_data_sz;
+	size_t rsp_data_sz = 0;
 
 	memset(&rsp, 0, sizeof(rsp));
 	len = sizeof(addr);
