@@ -147,7 +147,7 @@ static int iscsid_request_send(int fd, struct iscsi_adm_req *req)
 	if (ret != sizeof(*req)) {
 		err = (ret < 0) ? -errno : -EIO;
 		fprintf(stderr, "%s failed: written %d, to write %d, "
-			"error: %s\n", __func__, ret, err, strerror(err));
+			"error: %s\n", __func__, ret, err, strerror(-err));
 	} else
 		err = 0;
 
@@ -173,7 +173,7 @@ static int iscsid_response_recv(int fd, struct iscsi_adm_req *req, void *rsp_dat
 	if (ret != sizeof(rsp) + sizeof(*req)) {
 		err = (ret < 0) ? -errno : -EIO;
 		fprintf(stderr, "readv failed: read %d instead of %d (%s)\n",
-			 ret, (int)(sizeof(rsp) + sizeof(*req)), strerror(err));
+			ret, (int)(sizeof(rsp) + sizeof(*req)), strerror(-err));
 	} else
 		err = rsp.err;
 
@@ -182,7 +182,7 @@ static int iscsid_response_recv(int fd, struct iscsi_adm_req *req, void *rsp_dat
 		if (ret != rsp_data_sz) {
 			err = (ret < 0) ? -errno : -EIO;
 			fprintf(stderr, "read failed: read %d instead of %d (%s)\n",
-				 ret, (int)rsp_data_sz, strerror(err));
+				 ret, (int)rsp_data_sz, strerror(-err));
 		}
 	}
 
