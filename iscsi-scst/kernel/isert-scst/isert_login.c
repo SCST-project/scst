@@ -389,6 +389,13 @@ static long isert_listen_ioctl(struct file *filp, unsigned int cmd,
 			goto out;
 		}
 
+		if (unlikely(dev->info.addr_len > sizeof(dev->info.addr))) {
+			PRINT_ERROR("Invalid address length %zd > %zd",
+				    dev->info.addr_len, sizeof(dev->info.addr));
+			res = -EINVAL;
+			goto out;
+		}
+
 		portal = isert_portal_add((struct sockaddr *)&dev->info.addr,
 					  dev->info.addr_len);
 		if (IS_ERR(portal)) {
