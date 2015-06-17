@@ -240,7 +240,7 @@ out_report:
 	}
 
 out_close:
-	if (fd > 0)
+	if (fd >= 0)
 		close(fd);
 
 	return err;
