@@ -10206,7 +10206,7 @@ static int get_cdb_info_write_same32(struct scst_cmd *cmd,
 {
 	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
 	cmd->data_len = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
-	return get_cdb_info_write_same(cmd, sdbops, cmd->cdb[1] & 1 /*NDOB*/);
+	return get_cdb_info_write_same(cmd, sdbops, cmd->cdb[10] & 1 /*NDOB*/);
 }
 
 static int scst_set_cmd_from_cdb_info(struct scst_cmd *cmd,
