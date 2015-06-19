@@ -36,6 +36,8 @@
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/init.h>
+#include <linux/in.h>
+#include <linux/in6.h>
 
 #include "isert.h"
 #include "isert_dbg.h"
@@ -430,7 +432,7 @@ static ssize_t isert_get_initiator_ip(struct iscsi_conn *conn,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
 		pos = scnprintf(buf, size,
 			 "[%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x]",
-			 NIP6(((struct sockaddr_in6 *)&ss)->sin6_addr.s_addr));
+			 NIP6(((struct sockaddr_in6 *)&ss)->sin6_addr));
 #else
 		pos = scnprintf(buf, size, "[%p6]",
 			&((struct sockaddr_in6 *)&ss)->sin6_addr);

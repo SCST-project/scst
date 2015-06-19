@@ -36,6 +36,8 @@
 
 #include <linux/kernel.h>
 #include <linux/version.h>
+#include <linux/in.h>
+#include <linux/in6.h>
 
 #include "iser.h"
 #include "iser_datamover.h"
@@ -1308,8 +1310,8 @@ static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
 		pr_info("iser accepted connection cm_id:%p "
 			 NIP6_FMT "->" NIP6_FMT "\n", cm_id,
-			 NIP6(((struct sockaddr_in6 *)&isert_conn->peer_addr)->sin6_addr.s_addr),
-			 NIP6(((struct sockaddr_in6 *)&isert_conn->self_addr)->sin6_addr.s_addr));
+			 NIP6(((struct sockaddr_in6 *)&isert_conn->peer_addr)->sin6_addr),
+			 NIP6(((struct sockaddr_in6 *)&isert_conn->self_addr)->sin6_addr));
 #else
 		pr_info("iser accepted connection cm_id:%p "
 			"%pI6->%pI6\n", cm_id,
@@ -1639,7 +1641,7 @@ int isert_portal_listen(struct isert_portal *portal,
 		pr_info("iser portal cm_id:%p listens on: "
 			 NIP6_FMT " %d\n",
 			 portal->cm_id,
-			 NIP6(((struct sockaddr_in6 *)sa)->sin6_addr.s_addr),
+			 NIP6(((struct sockaddr_in6 *)sa)->sin6_addr),
 			(int)ntohs(((struct sockaddr_in6 *)sa)->sin6_port));
 #else
 		pr_info("iser portal cm_id:%p listens on: "
