@@ -37,6 +37,7 @@
 
 #include <linux/kernel.h>
 
+#include "isert_dbg.h"
 #include "iser.h"
 #include "iser_datamover.h"
 

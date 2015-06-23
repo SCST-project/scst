@@ -41,9 +41,6 @@
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 extern unsigned long isert_trace_flag;
-#ifdef trace_flag
-#undef trace_flag
-#endif
 #define trace_flag isert_trace_flag
 #endif
 

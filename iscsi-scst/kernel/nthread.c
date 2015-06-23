@@ -25,6 +25,7 @@
 #else
 #include "iscsit_transport.h"
 #endif
+#include "iscsi_trace_flag.h"
 #include "iscsi.h"
 #include "digest.h"
 

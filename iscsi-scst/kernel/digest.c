@@ -19,6 +19,7 @@
 #include <linux/types.h>
 #include <linux/scatterlist.h>
 
+#include "iscsi_trace_flag.h"
 #include "iscsi.h"
 #include "digest.h"
 #include <linux/crc32c.h>

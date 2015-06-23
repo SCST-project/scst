@@ -44,13 +44,12 @@
 #else
 #include "iscsit_transport.h"
 #endif
-#include "isert.h"
 #include "isert_dbg.h"
+#include "isert.h"
 #include "iser_datamover.h"
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 unsigned long isert_trace_flag = ISERT_DEFAULT_LOG_FLAGS;
-unsigned long iscsi_trace_flag = ISERT_DEFAULT_LOG_FLAGS;
 #endif
 
 static unsigned int isert_nr_devs = ISERT_NR_DEVS;

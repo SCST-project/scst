@@ -14,11 +14,13 @@
  *  GNU General Public License for more details.
  */
 
-#include "iscsi.h"
-
+#include <linux/version.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
 #include <linux/export.h>
 #endif
+
+#include "iscsi_trace_flag.h"
+#include "iscsi.h"
 
 /* target_mutex supposed to be locked */
 struct iscsi_session *session_lookup(struct iscsi_target *target, u64 sid)
