@@ -17,6 +17,7 @@
 #include <linux/delay.h>
 #include <linux/module.h>
 
+#include "iscsi_trace_flag.h"
 #include "iscsi.h"
 #include "digest.h"
 

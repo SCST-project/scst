@@ -1,5 +1,6 @@
 
 #include <linux/spinlock.h>
+#include "iscsi_trace_flag.h"
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/iscsit_transport.h>
 #else

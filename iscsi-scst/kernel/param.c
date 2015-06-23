@@ -13,6 +13,7 @@
  *  GNU General Public License for more details.
  */
 
+#include "iscsi_trace_flag.h"
 #include "iscsi.h"
 #include "digest.h"
 

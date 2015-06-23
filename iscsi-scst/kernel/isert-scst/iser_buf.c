@@ -37,6 +37,7 @@
 
 #include <linux/kernel.h>
 
+#include "isert_dbg.h"
 #include "iser.h"
 
 static int isert_buf_alloc_pg(struct ib_device *ib_dev,

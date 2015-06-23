@@ -55,13 +55,6 @@ extern unsigned long iscsi_get_flow_ctrl_or_mgmt_dbg_log_flag(
 #define iscsi_get_flow_ctrl_or_mgmt_dbg_log_flag(x) 0
 #endif
 
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-extern unsigned long iscsi_trace_flag;
-#ifndef trace_flag
-#define trace_flag iscsi_trace_flag
-#endif
-#endif
-
 #define TRACE_CONN_CLOSE(args...)	TRACE_DBG_FLAG(TRACE_DEBUG|TRACE_CONN_OC, args)
 #define TRACE_CONN_CLOSE_DBG(args...)	TRACE(TRACE_CONN_OC_DBG, args)
 #define TRACE_NET_PAGE(args...)		TRACE_DBG_FLAG(TRACE_NET_PG, args)

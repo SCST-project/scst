@@ -22,6 +22,7 @@
 #else
 #include "iscsi_scst.h"
 #endif
+#include "iscsi_trace_flag.h"
 #include "iscsi.h"
 
 static struct sock *nl;

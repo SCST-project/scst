@@ -14,6 +14,7 @@
  */
 
 #include <linux/module.h>
+#include "iscsi_trace_flag.h"
 #include "iscsi.h"
 
 /* Protected by target_mgmt_mutex */
