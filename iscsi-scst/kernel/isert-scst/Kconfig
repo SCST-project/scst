@@ -1,6 +1,6 @@
 config SCST_ISER
 	tristate "iSER Target Driver"
-	depends on SCST && SCST_ISCSI
+	depends on SCST && SCST_ISCSI && INFINIBAND
 	default SCST
 	help
 	  ISER target driver for SCST framework. The iSCSI iSER extension
