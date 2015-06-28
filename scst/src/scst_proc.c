@@ -1404,7 +1404,7 @@ static ssize_t scst_proc_scsi_tgt_write(struct file *file,
 	TRACE_ENTRY();
 
 	if (vtt->tgtt->write_proc == NULL) {
-		res = -ENOSYS;
+		res = -ENOTSUPP;
 		goto out;
 	}
 
@@ -1559,7 +1559,7 @@ static ssize_t scst_proc_scsi_dev_handler_write(struct file *file,
 	TRACE_ENTRY();
 
 	if (dev_type->write_proc == NULL) {
-		res = -ENOSYS;
+		res = -ENOTSUPP;
 		goto out;
 	}
 
