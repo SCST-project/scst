@@ -2721,7 +2721,7 @@ static int vdisk_get_supported_opcodes(struct scst_cmd *cmd,
 		*out_supp_opcodes_cnt = ARRAY_SIZE(vdisk_opcode_descriptors);
 	} else {
 		*out_supp_opcodes = vdisk_opcode_descriptors_type2;
-		*out_supp_opcodes_cnt = ARRAY_SIZE(vdisk_opcode_descriptors);
+		*out_supp_opcodes_cnt = ARRAY_SIZE(vdisk_opcode_descriptors_type2);
 	}
 	return 0;
 }
