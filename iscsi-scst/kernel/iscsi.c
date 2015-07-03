@@ -2309,6 +2309,11 @@ static void __cmnd_abort(struct iscsi_cmnd *cmnd)
 	unsigned long timeout_time = jiffies + ISCSI_TM_DATA_WAIT_TIMEOUT +
 					ISCSI_ADD_SCHED_TIME;
 	struct iscsi_conn *conn = cmnd->conn;
+#ifdef CONFIG_SCST_EXTRACHECKS
+	struct task_struct *rdt = cmnd->conn->rd_task;
+#else
+	struct task_struct *rdt = NULL;
+#endif
 
 	TRACE_MGMT_DBG("Aborting cmd %p, scst_cmd %p (scst state %x, "
 		"ref_cnt %d, on_write_timeout_list %d, write_start %ld, ITT %x, "
@@ -2322,8 +2327,7 @@ static void __cmnd_abort(struct iscsi_cmnd *cmnd)
 		cmnd->r2t_len_to_send, cmnd_scsicode(cmnd),
 		cmnd_write_size(cmnd), cmnd->outstanding_r2t,
 		cmnd->conn->session->exp_cmd_sn, cmnd->conn,
-		cmnd->conn->rd_task, cmnd->conn->read_cmnd,
-		cmnd->conn->read_state);
+		rdt, cmnd->conn->read_cmnd, cmnd->conn->read_state);
 
 #if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 	TRACE_MGMT_DBG("net_ref_cnt %d", atomic_read(&cmnd->net_ref_cnt));
