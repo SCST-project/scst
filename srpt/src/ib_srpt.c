@@ -2433,13 +2433,11 @@ static u8 srpt_next_comp_vector(struct srpt_port *sport)
 	u8 comp_vector;
 
 	mutex_lock(&sport->mutex);
-	comp_vector = find_next_bit(sport->comp_v_mask, COMP_V_MASK_SIZE,
-				    sport->comp_vector);
-	if (comp_vector >= COMP_V_MASK_SIZE)
-		comp_vector = find_next_bit(sport->comp_v_mask,
-					    COMP_V_MASK_SIZE, 0);
-	sBUG_ON(comp_vector >= COMP_V_MASK_SIZE);
-	sport->comp_vector = comp_vector + 1;
+	comp_vector = cpumask_next(sport->comp_vector, &sport->comp_v_mask);
+	if (comp_vector >= nr_cpu_ids)
+		comp_vector = cpumask_next(-1, &sport->comp_v_mask);
+	sBUG_ON(comp_vector >= nr_cpu_ids);
+	sport->comp_vector = comp_vector;
 	mutex_unlock(&sport->mutex);
 
 	return comp_vector;
@@ -3840,8 +3838,16 @@ static ssize_t show_comp_v_mask(struct kobject *kobj,
 
 	if (!sport)
 		goto out;
-	res = sprintf(buf, "%#lx\n%s", sport->comp_v_mask[0],
-		      SCST_SYSFS_KEY_MARK "\n");
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
+	res = cpumask_scnprintf(buf, PAGE_SIZE, sport->comp_v_mask);
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)
+	res = cpumask_scnprintf(buf, PAGE_SIZE, &sport->comp_v_mask);
+#else
+	res = scnprintf(buf, PAGE_SIZE, "%*pb",
+			cpumask_pr_args(&sport->comp_v_mask));
+#endif
+	res += scnprintf(&buf[res], PAGE_SIZE - res, "\n%s\n",
+			 SCST_SYSFS_KEY_MARK);
 
 out:
 	return res;
@@ -3856,24 +3862,34 @@ static ssize_t store_comp_v_mask(struct kobject *kobj,
 	struct srpt_port *sport = scst_tgt_get_tgt_priv(scst_tgt);
 	struct srpt_device *sdev;
 	int res = -E_TGT_PRIV_NOT_YET_SET;
-	unsigned long mask;
+	cpumask_var_t mask;
+	unsigned int i1, i2;
 
 	if (!sport)
 		goto out;
 	sdev = sport->sdev;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
-	res = kstrtoul(buf, 16, &mask);
+	res = -ENOMEM;
+	if (!alloc_cpumask_var(&mask, GFP_KERNEL))
+		goto out;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
+	res = bitmap_parse(buf, count, cpumask_bits(mask),
+			   NR_CPUS);
 #else
-	res = strict_strtoul(buf, 16, &mask);
+	res = cpumask_parse(buf, mask);
 #endif
 	if (res)
-		goto out;
+		goto free_mask;
 	res = -EINVAL;
-	if (mask == 0 || mask >= (1ULL << sdev->device->num_comp_vectors))
-		goto out;
-	sport->comp_v_mask[0] = mask;
+	i1 = cpumask_next(-1, mask);
+	i2 = cpumask_next(sdev->device->num_comp_vectors - 1, mask);
+	if (i1 >= nr_cpu_ids ||
+	    (i2 >= sdev->device->num_comp_vectors && i2 < nr_cpu_ids))
+		goto free_mask;
+	cpumask_copy(&sport->comp_v_mask, mask);
 	res = count;
 
+free_mask:
+	free_cpumask_var(mask);
 out:
 	return res;
 }
@@ -4190,11 +4206,9 @@ static void srpt_add_one(struct ib_device *device)
 		INIT_LIST_HEAD(&sport->nexus_list);
 		init_waitqueue_head(&sport->ch_releaseQ);
 		mutex_init(&sport->mutex);
-		for (j = 0; j < sdev->device->num_comp_vectors; j++) {
-			if (WARN_ON_ONCE(j >= COMP_V_MASK_SIZE))
-				break;
-			__set_bit(j, sport->comp_v_mask);
-		}
+		sport->comp_vector = -1;
+		for (j = 0; j < sdev->device->num_comp_vectors; j++)
+			cpumask_set_cpu(j, &sport->comp_v_mask);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
 		/*
 		 * A vanilla 2.6.19 or older kernel without backported OFED
