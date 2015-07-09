@@ -150,7 +150,12 @@ static inline int scsi_bidi_cmnd(struct scsi_cmnd *cmd)
 }
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28) && defined(__LINUX_CPUMASK_H)
+/*
+ * See also patch "cpumask: introduce new API, without changing anything"
+ * (commit ID 2d3854a37e8b).
+ */
+typedef cpumask_t cpumask_var_t[1];
 #define cpumask_bits(maskp) ((maskp)->bits)
 #ifdef CONFIG_CPUMASK_OFFSTACK
 /* Assuming NR_CPUS is huge, a runtime limit is more efficient.  Also,
