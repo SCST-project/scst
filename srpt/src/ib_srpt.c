@@ -3872,8 +3872,7 @@ static ssize_t store_comp_v_mask(struct kobject *kobj,
 	if (!alloc_cpumask_var(&mask, GFP_KERNEL))
 		goto out;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
-	res = bitmap_parse(buf, count, cpumask_bits(mask),
-			   NR_CPUS);
+	res = bitmap_parse(buf, count, cpumask_bits(mask), nr_cpumask_bits);
 #else
 	res = cpumask_parse(buf, mask);
 #endif
