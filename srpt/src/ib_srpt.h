@@ -138,8 +138,6 @@ enum {
 	DEFAULT_MAX_RDMA_SIZE = 65536,
 
 	RDMA_COMPL_TIMEOUT_S = 80,
-
-	COMP_V_MASK_SIZE = 64,
 };
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 1, 0) &&			\
@@ -434,7 +432,7 @@ struct srpt_port {
 	struct mutex		mutex;
 	struct list_head	nexus_list;
 	struct scst_tgt		*scst_tgt;
-	DECLARE_BITMAP(comp_v_mask, COMP_V_MASK_SIZE);
+	cpumask_t		comp_v_mask;
 	u8			comp_vector;
 	bool			enabled;
 };
