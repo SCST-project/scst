@@ -38,7 +38,12 @@
 #include <linux/fs.h>		/* everything... */
 #include <linux/errno.h>	/* error codes */
 #include <linux/poll.h>
+#include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20)
 #include <linux/freezer.h>
+#else
+#define wait_event_freezable(wq, cond) ({ wait_event(wq, cond); 0; })
+#endif
 #include <linux/file.h>
 #include "isert_dbg.h"
 #include "../iscsi.h"
@@ -887,7 +892,10 @@ static void __init isert_setup_cdev(struct isert_conn_dev *dev,
 		PRINT_ERROR("Error %d adding "ISER_CONN_DEV_PREFIX"%d", err,
 			    index);
 
-	dev->dev = device_create(isert_class, NULL, dev->devno, NULL,
+	dev->dev = device_create(isert_class, NULL, dev->devno,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
+				 NULL,
+#endif
 				 ISER_CONN_DEV_PREFIX"%d", index);
 
 	TRACE_EXIT();
@@ -914,7 +922,10 @@ static void __init isert_setup_listener_cdev(struct isert_listener_dev *dev)
 	if (unlikely(err))
 		PRINT_ERROR("Error %d adding isert_scst", err);
 
-	dev->dev = device_create(isert_class, NULL, dev->devno, NULL,
+	dev->dev = device_create(isert_class, NULL, dev->devno,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
+				 NULL,
+#endif
 				 "isert_scst");
 
 	TRACE_EXIT();

@@ -40,6 +40,13 @@
 #include <linux/interrupt.h>
 #include <linux/workqueue.h>
 #include <rdma/ib_verbs.h>
+#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 == 5
+static inline u16 vlan_dev_vlan_id(const void *dev)
+{
+	BUG();
+	return 0;
+}
+#endif
 #include <rdma/rdma_cm.h>
 
 #include "iser_hdr.h"

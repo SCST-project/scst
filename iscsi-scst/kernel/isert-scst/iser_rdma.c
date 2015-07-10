@@ -604,14 +604,21 @@ static int isert_poll_cq(struct isert_cq *cq)
 }
 
 /* callback function for isert_dev->[cq]->cq_comp_work */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
+/* A vanilla 2.6.19 or older kernel without backported OFED kernel headers. */
+static void isert_cq_comp_work_cb(void *ctx)
+{
+	struct isert_cq *cq_desc = ctx;
+#else
 static void isert_cq_comp_work_cb(struct work_struct *work)
 {
-	struct isert_cq *cq_desc;
+	struct isert_cq *cq_desc =
+		container_of(work, struct isert_cq, cq_comp_work);
+#endif
 	int ret;
 
 	TRACE_ENTRY();
 
-	cq_desc = container_of(work, struct isert_cq, cq_comp_work);
 	ret = isert_poll_cq(cq_desc);
 	if (unlikely(ret < 0)) { /* poll error */
 		pr_err("ib_poll_cq failed\n");
@@ -636,8 +643,12 @@ static void isert_cq_comp_handler(struct ib_cq *cq, void *context)
 {
 	struct isert_cq *cq_desc = context;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	queue_work(cq_desc->cq_workqueue, &cq_desc->cq_comp_work);
+#else
 	queue_work_on(smp_processor_id(), cq_desc->cq_workqueue,
 		      &cq_desc->cq_comp_work);
+#endif
 }
 
 static const char *ib_event_type_str(enum ib_event_type ev_type)
@@ -1571,7 +1582,8 @@ struct isert_portal *isert_portal_create(void)
 		goto err_alloc;
 	}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 0) && !defined(RHEL_MAJOR)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 0) && \
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 <= 5)
 	cm_id = rdma_create_id(isert_cm_evt_handler, portal, RDMA_PS_TCP);
 #else
 	cm_id = rdma_create_id(isert_cm_evt_handler, portal, RDMA_PS_TCP,
