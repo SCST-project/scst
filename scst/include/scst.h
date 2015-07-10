@@ -165,6 +165,20 @@ typedef cpumask_t cpumask_var_t[1];
 #define nr_cpumask_bits NR_CPUS
 #endif
 
+#ifdef CONFIG_CPUMASK_OFFSTACK
+bool alloc_cpumask_var(cpumask_var_t *mask, gfp_t flags);
+void free_cpumask_var(cpumask_var_t mask);
+#else
+static inline void free_cpumask_var(cpumask_var_t mask)
+{
+}
+
+static inline bool alloc_cpumask_var(cpumask_var_t *mask, gfp_t flags)
+{
+	return true;
+}
+#endif
+
 /* verify cpu argument to cpumask_* operators */
 static inline unsigned int cpumask_check(unsigned int cpu)
 {
@@ -200,6 +214,16 @@ static inline unsigned int cpumask_next(int n, const cpumask_t *srcp)
 	for ((cpu) = -1;                                \
 		(cpu) = cpumask_next((cpu), (mask)),    \
 		(cpu) < nr_cpu_ids;)
+
+/**
+ * cpumask_set_cpu - set a cpu in a cpumask
+ * @cpu: cpu number (< nr_cpu_ids)
+ * @dstp: the cpumask pointer
+ */
+static inline void cpumask_set_cpu(unsigned int cpu, cpumask_t *dstp)
+{
+	set_bit(cpu, cpumask_bits(dstp));
+}
 
 /**
  * cpumask_copy - *dstp = *srcp
