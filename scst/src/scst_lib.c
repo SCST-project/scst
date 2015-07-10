@@ -33,7 +33,10 @@
 #include <asm/kmap_types.h>
 #include <asm/unaligned.h>
 #include <asm/checksum.h>
+#include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
 #include <linux/crc-t10dif.h>
+#endif
 #include <linux/namei.h>
 #include <linux/mount.h>
 
@@ -7696,7 +7699,12 @@ EXPORT_SYMBOL(scst_put_buf_full);
 
 static __be16 scst_dif_crc_fn(const void *data, unsigned int len)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
 	return cpu_to_be16(crc_t10dif(data, len));
+#else
+	WARN_ON_ONCE(true);
+	return 0;
+#endif
 }
 
 static __be16 scst_dif_ip_fn(const void *data, unsigned int len)

@@ -375,6 +375,9 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 /* Upstream commit 93aae17a (v2.6.38) */
 #define GET_EVENT_STATUS_NOTIFICATION 0x4a
 #endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+#define VARIABLE_LENGTH_CMD   0x7f
+#endif
 #ifndef READ_16
 #define READ_16               0x88
 #endif
