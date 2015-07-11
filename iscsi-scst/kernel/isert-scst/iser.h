@@ -40,6 +40,13 @@
 #include <linux/interrupt.h>
 #include <linux/workqueue.h>
 #include <rdma/ib_verbs.h>
+#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 == 5
+static inline u16 vlan_dev_vlan_id(const void *dev)
+{
+	BUG();
+	return 0;
+}
+#endif
 #include <rdma/rdma_cm.h>
 
 #include "iser_hdr.h"
@@ -95,9 +102,6 @@ struct isert_wr {
 	};
 } ____cacheline_aligned;
 
-#define ISER_MAX_SGE		128
-#define ISER_MAX_RDMAS		5
-
 #define ISER_SQ_SIZE		128
 #define ISER_MAX_WCE		2048
 
@@ -108,8 +112,10 @@ struct isert_cmnd {
 
 	struct isert_buf	buf;
 	struct isert_buf	rdma_buf;
-	struct isert_wr		wr[ISER_MAX_RDMAS];
-	struct ib_sge		sg_pool[ISER_MAX_SGE];
+	struct isert_wr		*wr;
+	struct ib_sge		*sg_pool;
+	int			n_wr;
+	int			n_sge;
 
 	struct isert_hdr	*isert_hdr ____cacheline_aligned;
 	struct iscsi_hdr	*bhs;

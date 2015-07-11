@@ -575,14 +575,21 @@ out:
  * Access control code
  */
 
-static int netmask_match_v6(struct sockaddr *sa1, struct sockaddr *sa2, uint32_t mbit)
+typedef union {
+	struct sockaddr		sa;
+	struct sockaddr_in	sa_in;
+	struct sockaddr_in6	sa_in6;
+} sockaddress;
+
+static int netmask_match_v6(const struct sockaddr_in6 *sa1,
+			    const struct sockaddr_in6 *sa2, uint32_t mbit)
 {
 	uint16_t mask, a1[8], a2[8];
 	int i;
 
 	for (i = 0; i < 8; i++) {
-		a1[i] = ntohs(((struct sockaddr_in6 *) sa1)->sin6_addr.s6_addr16[i]);
-		a2[i] = ntohs(((struct sockaddr_in6 *) sa2)->sin6_addr.s6_addr16[i]);
+		a1[i] = ntohs(sa1->sin6_addr.s6_addr16[i]);
+		a2[i] = ntohs(sa2->sin6_addr.s6_addr16[i]);
 	}
 
 	for (i = 0; i < mbit / 16; i++)
@@ -598,12 +605,14 @@ static int netmask_match_v6(struct sockaddr *sa1, struct sockaddr *sa2, uint32_t
 	return 1;
 }
 
-static int netmask_match_v4(struct sockaddr *sa1, struct sockaddr *sa2, uint32_t mbit)
+static int netmask_match_v4(const struct sockaddr_in *sa1,
+			    const struct sockaddr_in *sa2,
+			    uint32_t mbit)
 {
 	uint32_t s1, s2, mask = ~((1 << (32 - mbit)) - 1);
 
-	s1 = htonl(((struct sockaddr_in *) sa1)->sin_addr.s_addr);
-	s2 = htonl(((struct sockaddr_in *) sa2)->sin_addr.s_addr);
+	s1 = htonl(sa1->sin_addr.s_addr);
+	s2 = htonl(sa2->sin_addr.s_addr);
 
 	if (~mask & s1)
 		return 0;
@@ -614,10 +623,11 @@ static int netmask_match_v4(struct sockaddr *sa1, struct sockaddr *sa2, uint32_t
 	return 0;
 }
 
-static int netmask_match(struct sockaddr *sa1, struct sockaddr *sa2, char *buf)
+static int netmask_match(const sockaddress *sa1, const sockaddress *sa2,
+			 char *buf)
 {
 	unsigned long mbit;
-	uint8_t family = sa1->sa_family;
+	uint8_t family = sa1->sa.sa_family;
 
 	mbit = strtoul(buf, NULL, 0);
 	if (mbit == ULONG_MAX ||
@@ -626,21 +636,21 @@ static int netmask_match(struct sockaddr *sa1, struct sockaddr *sa2, char *buf)
 		return 0;
 
 	if (family == AF_INET)
-		return netmask_match_v4(sa1, sa2, mbit);
+		return netmask_match_v4(&sa1->sa_in, &sa2->sa_in, mbit);
 
-	return netmask_match_v6(sa1, sa2, mbit);
+	return netmask_match_v6(&sa1->sa_in6, &sa2->sa_in6, mbit);
 }
 
-static int address_match(struct sockaddr *sa1, struct sockaddr *sa2)
+static int address_match(const sockaddress *sa1, const sockaddress *sa2)
 {
-	if (sa1->sa_family == AF_INET)
-		return ((struct sockaddr_in *) sa1)->sin_addr.s_addr ==
-			((struct sockaddr_in *) sa2)->sin_addr.s_addr;
+	if (sa1->sa.sa_family == AF_INET)
+		return sa1->sa_in.sin_addr.s_addr ==
+		       sa2->sa_in.sin_addr.s_addr;
 	else {
-		struct in6_addr *a1, *a2;
+		const struct in6_addr *a1, *a2;
 
-		a1 = &((struct sockaddr_in6 *) sa1)->sin6_addr;
-		a2 = &((struct sockaddr_in6 *) sa2)->sin6_addr;
+		a1 = &sa1->sa_in6.sin6_addr;
+		a2 = &sa2->sa_in6.sin6_addr;
 
 		return (a1->s6_addr32[0] == a2->s6_addr32[0] &&
 			a1->s6_addr32[1] == a2->s6_addr32[1] &&
@@ -653,7 +663,7 @@ static int address_match(struct sockaddr *sa1, struct sockaddr *sa2)
 
 static int __initiator_match(int fd, char *str)
 {
-	struct sockaddr_storage from;
+	sockaddress from;
 	socklen_t len;
 	char *p, *q;
 	int err = 0;
@@ -690,11 +700,9 @@ static int __initiator_match(int fd, char *str)
 			return 0;
 
 		if (q)
-			err = netmask_match(res->ai_addr,
-					    (struct sockaddr *) &from, q);
+			err = netmask_match((sockaddress *)res->ai_addr, &from, q);
 		else
-			err = address_match(res->ai_addr,
-					    (struct sockaddr *) &from);
+			err = address_match((sockaddress *)res->ai_addr, &from);
 
 		freeaddrinfo(res);
 
