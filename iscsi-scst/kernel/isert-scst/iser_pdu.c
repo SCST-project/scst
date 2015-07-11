@@ -166,6 +166,50 @@ static inline int isert_pdu_prepare_send(struct isert_connection *isert_conn,
 	return sg_cnt;
 }
 
+static int isert_alloc_for_rdma(struct isert_cmnd *pdu, int sge_cnt,
+				struct isert_connection *isert_conn)
+{
+	struct isert_wr *wr;
+	struct ib_sge *sg_pool;
+	int i, ret = 0;
+	int wr_cnt;
+
+	sg_pool = kmalloc(sizeof(*sg_pool) * sge_cnt, GFP_KERNEL);
+	if (unlikely(sg_pool == NULL)) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	wr_cnt = DIV_ROUND_UP(sge_cnt, isert_conn->max_sge);
+	wr = kmalloc(sizeof(*wr) * wr_cnt, GFP_KERNEL);
+	if (unlikely(wr == NULL)) {
+		ret = -ENOMEM;
+		goto out_free_sg_pool;
+	}
+
+	kfree(pdu->wr);
+	pdu->wr = wr;
+
+	kfree(pdu->sg_pool);
+	pdu->sg_pool = sg_pool;
+
+	pdu->n_wr = wr_cnt;
+	pdu->n_sge = sge_cnt;
+
+	for (i = 0; i < wr_cnt; ++i)
+		isert_wr_set_fields(&pdu->wr[i], isert_conn, pdu);
+
+	for (i = 0; i < sge_cnt; ++i)
+		pdu->sg_pool[i].lkey = isert_conn->isert_dev->mr->lkey;
+
+	goto out;
+
+out_free_sg_pool:
+	kfree(sg_pool);
+out:
+	return ret;
+}
+
 static inline void isert_link_send_wrs(struct isert_wr *from_wr,
 				       struct isert_wr *to_wr)
 {
@@ -204,10 +248,10 @@ int isert_prepare_rdma(struct isert_cmnd *isert_pdu,
 	else
 		isert_buf->dma_dir = DMA_FROM_DEVICE;
 
-	if (unlikely(isert_buf->sg_cnt > ISER_MAX_SGE)) {
-		pr_err("Scatterlist too large: %d\n", isert_buf->sg_cnt);
-		wr_cnt = -EOPNOTSUPP;
-		goto out;
+	if (unlikely(isert_buf->sg_cnt > isert_pdu->n_sge)) {
+		wr_cnt = isert_alloc_for_rdma(isert_pdu, isert_buf->sg_cnt, isert_conn);
+		if (unlikely(wr_cnt))
+			goto out;
 	}
 
 	err = ib_dma_map_sg(ib_dev, isert_buf->sg, isert_buf->sg_cnt,
@@ -245,11 +289,17 @@ out:
 
 void isert_pdu_free(struct isert_cmnd *pdu)
 {
-	unsigned int i;
+	int i;
 
 	list_del(&pdu->pool_node);
-	for (i = 0; i < ARRAY_SIZE(pdu->wr); ++i)
+	for (i = 0; i < pdu->n_wr; ++i)
 		isert_wr_release(&pdu->wr[i]);
+
+	kfree(pdu->wr);
+	pdu->wr = NULL;
+
+	kfree(pdu->sg_pool);
+	pdu->sg_pool = NULL;
 
 	isert_pdu_kfree(pdu);
 }
@@ -259,13 +309,18 @@ struct isert_cmnd *isert_rx_pdu_alloc(struct isert_connection *isert_conn,
 {
 	struct isert_cmnd *pdu = NULL;
 	int err;
-	unsigned int i;
 
 	TRACE_ENTRY();
 
 	pdu = isert_pdu_alloc();
 	if (unlikely(!pdu)) {
 		pr_err("Failed to alloc pdu\n");
+		goto out;
+	}
+
+	err = isert_alloc_for_rdma(pdu, 4, isert_conn);
+	if (unlikely(err)) {
+		pr_err("Failed to alloc sge and wr for rx pdu\n");
 		goto out;
 	}
 
@@ -282,12 +337,6 @@ struct isert_cmnd *isert_rx_pdu_alloc(struct isert_connection *isert_conn,
 		       &pdu->wr, size, err);
 		goto pdu_init_failed;
 	}
-
-	for (i = 0; i < ARRAY_SIZE(pdu->wr); ++i)
-		isert_wr_set_fields(&pdu->wr[i], isert_conn, pdu);
-
-	for (i = 0; i < ARRAY_SIZE(pdu->sg_pool); ++i)
-		pdu->sg_pool[i].lkey = isert_conn->isert_dev->mr->lkey;
 
 	list_add_tail(&pdu->pool_node, &isert_conn->rx_buf_list);
 
@@ -308,13 +357,18 @@ struct isert_cmnd *isert_tx_pdu_alloc(struct isert_connection *isert_conn,
 {
 	struct isert_cmnd *pdu = NULL;
 	int err;
-	unsigned int i;
 
 	TRACE_ENTRY();
 
 	pdu = isert_pdu_alloc();
 	if (unlikely(!pdu)) {
 		pr_err("Failed to alloc pdu\n");
+		goto out;
+	}
+
+	err = isert_alloc_for_rdma(pdu, 4, isert_conn);
+	if (unlikely(err)) {
+		pr_err("Failed to alloc sge and wr for tx pdu\n");
 		goto out;
 	}
 
@@ -331,13 +385,8 @@ struct isert_cmnd *isert_tx_pdu_alloc(struct isert_connection *isert_conn,
 		       &pdu->wr, size, err);
 		goto buf_init_failed;
 	}
+
 	isert_tx_pdu_init(pdu, isert_conn);
-
-	for (i = 0; i < ARRAY_SIZE(pdu->wr); ++i)
-		isert_wr_set_fields(&pdu->wr[i], isert_conn, pdu);
-
-	for (i = 0; i < ARRAY_SIZE(pdu->sg_pool); ++i)
-		pdu->sg_pool[i].lkey = isert_conn->isert_dev->mr->lkey;
 
 	isert_pdu_set_hdr_plain(pdu);
 

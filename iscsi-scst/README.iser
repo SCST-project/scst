@@ -24,7 +24,6 @@ NUMA node, you want the HCA to be close to the same node.
 Limitations:
 -------------
 * Bidirectional commands are not supported
-* Block size over 512KB is not supported
 * Maximum number of concurent login requests that can be handled is 127 by default.
   Note that there may be more connections, but only up to 127 login requests
   can be handled at the same time. If you wish to increase this, load isert_scst with

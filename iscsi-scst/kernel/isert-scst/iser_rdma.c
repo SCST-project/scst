@@ -1011,21 +1011,6 @@ static int isert_conn_qp_create(struct isert_connection *isert_conn)
 
 	isert_conn->cq_desc = &isert_dev->cq_desc[cq_idx];
 
-	/*
-	 * A quote from the OFED 1.5.3.1 release notes
-	 * (docs/release_notes/mthca_release_notes.txt), section "Known Issues":
-	 * In mem-free devices, RC QPs can be created with a maximum of
-	 * (max_sge - 1) entries only; UD QPs can be created with a maximum of
-	 * (max_sge - 3) entries.
-	 * A quote from the OFED 1.2.5 release notes
-	 * (docs/mthca_release_notes.txt), section "Known Issues":
-	 * In mem-free devices, RC QPs can be created with a maximum of
-	 * (max_sge - 3) entries only.
-	 */
-	isert_conn->max_sge = isert_dev->device_attr.max_sge - 3;
-
-	WARN_ON(isert_conn->max_sge < 1);
-
 	qp_attr.cap.max_send_sge = isert_conn->max_sge;
 	qp_attr.cap.max_recv_sge = 3;
 	qp_attr.sq_sig_type = IB_SIGNAL_REQ_WR;
@@ -1088,6 +1073,21 @@ static struct isert_connection *isert_conn_create(struct rdma_cm_id *cm_id,
 	isert_conn->state = ISER_CONN_INIT;
 	isert_conn->cm_id = cm_id;
 	isert_conn->isert_dev = isert_dev;
+
+	/*
+	 * A quote from the OFED 1.5.3.1 release notes
+	 * (docs/release_notes/mthca_release_notes.txt), section "Known Issues":
+	 * In mem-free devices, RC QPs can be created with a maximum of
+	 * (max_sge - 1) entries only; UD QPs can be created with a maximum of
+	 * (max_sge - 3) entries.
+	 * A quote from the OFED 1.2.5 release notes
+	 * (docs/mthca_release_notes.txt), section "Known Issues":
+	 * In mem-free devices, RC QPs can be created with a maximum of
+	 * (max_sge - 3) entries only.
+	 */
+	isert_conn->max_sge = isert_dev->device_attr.max_sge - 3;
+
+	WARN_ON(isert_conn->max_sge < 1);
 
 	INIT_LIST_HEAD(&isert_conn->rx_buf_list);
 	INIT_LIST_HEAD(&isert_conn->tx_free_list);
