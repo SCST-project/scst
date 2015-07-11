@@ -388,9 +388,9 @@ qla2x00_start_scsi(srb_t *sp)
 			req->cnt = req->length -
 			    (req->ring_index - cnt);
 	}
-		/* If still no head room then bail out */
-		if (req->cnt < (req_cnt + 2))
-			goto queuing_error;
+	/* If still no head room then bail out */
+	if (req->cnt < (req_cnt + 2))
+		goto queuing_error;
 
 	/* Build command packet */
 	req->current_outstanding_cmd = handle;
