@@ -35,6 +35,7 @@
 */
 
 #include <linux/kernel.h>
+#include <linux/vmalloc.h>
 #include <linux/version.h>
 #include <linux/in.h>
 #include <linux/in6.h>
