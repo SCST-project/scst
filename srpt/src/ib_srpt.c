@@ -621,8 +621,11 @@ static void srpt_mad_recv_handler(struct ib_mad_agent *mad_agent,
 	BUILD_BUG_ON(offsetof(struct ib_dm_mad, data) != IB_MGMT_DEVICE_HDR);
 
 	rsp = ib_create_send_mad(mad_agent, mad_wc->wc->src_qp,
-				 mad_wc->wc->pkey_index, 0,
-				 IB_MGMT_DEVICE_HDR, IB_MGMT_DEVICE_DATA,
+				 mad_wc->wc->pkey_index,
+#ifdef CREATE_SEND_MAD_HAS_AH_ARG
+				 NULL,
+#endif
+				 0, IB_MGMT_DEVICE_HDR, IB_MGMT_DEVICE_DATA,
 				 GFP_KERNEL);
 	if (IS_ERR(rsp))
 		goto err_rsp;
