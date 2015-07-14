@@ -626,7 +626,11 @@ static void srpt_mad_recv_handler(struct ib_mad_agent *mad_agent,
 				 NULL,
 #endif
 				 0, IB_MGMT_DEVICE_HDR, IB_MGMT_DEVICE_DATA,
-				 GFP_KERNEL);
+				 GFP_KERNEL
+#ifdef CREATE_SEND_MAD_HAS_BASE_ARG
+				 , 0
+#endif
+				 );
 	if (IS_ERR(rsp))
 		goto err_rsp;
 
