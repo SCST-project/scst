@@ -2181,9 +2181,17 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
     && !defined(RHEL_RELEASE_CODE)
 	ch->cq = ib_create_cq(sdev->device, srpt_completion, NULL, ch,
 			      ch->rq_size + srpt_sq_size);
-#else
+#elif !defined(IB_CREATE_CQ_HAS_INIT_ATTR)
 	ch->cq = ib_create_cq(sdev->device, srpt_completion, NULL, ch,
 			      ch->rq_size + srpt_sq_size, ch->comp_vector);
+#else
+	{
+	struct ib_cq_init_attr ia = { };
+
+	ia.cqe = ch->rq_size + srpt_sq_size;
+	ia.comp_vector = ch->comp_vector;
+	ch->cq = ib_create_cq(sdev->device, srpt_completion, NULL, ch, &ia);
+	}
 #endif
 	if (IS_ERR(ch->cq)) {
 		ret = PTR_ERR(ch->cq);
