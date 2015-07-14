@@ -871,12 +871,26 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 			goto fail_cq;
 		}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 2, 0)
 		cq = ib_create_cq(ib_dev,
 				  isert_cq_comp_handler,
 				  isert_async_evt_handler,
 				  cq_desc, /* context */
 				  cqe_num,
 				  i); /* completion vector */
+#else
+		{
+		struct ib_cq_init_attr ia = {
+			.cqe	 	 = cqe_num,
+			.comp_vector	 = i,
+		};
+		cq = ib_create_cq(ib_dev,
+				  isert_cq_comp_handler,
+				  isert_async_evt_handler,
+				  cq_desc, /* context */
+				  &ia);
+		}
+#endif
 		if (unlikely(IS_ERR(cq))) {
 			cq_desc->cq = NULL;
 			err = PTR_ERR(cq);
