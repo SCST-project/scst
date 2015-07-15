@@ -621,9 +621,16 @@ static void srpt_mad_recv_handler(struct ib_mad_agent *mad_agent,
 	BUILD_BUG_ON(offsetof(struct ib_dm_mad, data) != IB_MGMT_DEVICE_HDR);
 
 	rsp = ib_create_send_mad(mad_agent, mad_wc->wc->src_qp,
-				 mad_wc->wc->pkey_index, 0,
-				 IB_MGMT_DEVICE_HDR, IB_MGMT_DEVICE_DATA,
-				 GFP_KERNEL);
+				 mad_wc->wc->pkey_index,
+#ifdef CREATE_SEND_MAD_HAS_AH_ARG
+				 NULL,
+#endif
+				 0, IB_MGMT_DEVICE_HDR, IB_MGMT_DEVICE_DATA,
+				 GFP_KERNEL
+#ifdef CREATE_SEND_MAD_HAS_BASE_ARG
+				 , 0
+#endif
+				 );
 	if (IS_ERR(rsp))
 		goto err_rsp;
 
@@ -2174,9 +2181,17 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
     && !defined(RHEL_RELEASE_CODE)
 	ch->cq = ib_create_cq(sdev->device, srpt_completion, NULL, ch,
 			      ch->rq_size + srpt_sq_size);
-#else
+#elif !defined(IB_CREATE_CQ_HAS_INIT_ATTR)
 	ch->cq = ib_create_cq(sdev->device, srpt_completion, NULL, ch,
 			      ch->rq_size + srpt_sq_size, ch->comp_vector);
+#else
+	{
+	struct ib_cq_init_attr ia = { };
+
+	ia.cqe = ch->rq_size + srpt_sq_size;
+	ia.comp_vector = ch->comp_vector;
+	ch->cq = ib_create_cq(sdev->device, srpt_completion, NULL, ch, &ia);
+	}
 #endif
 	if (IS_ERR(ch->cq)) {
 		ret = PTR_ERR(ch->cq);

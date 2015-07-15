@@ -523,7 +523,7 @@ ssize_t iscsi_sysfs_send_event(uint32_t tid, enum iscsi_kern_event_code code,
 		goto out;
 
 	TRACE_DBG("Sending event %d (tid %d, param1 %s, param2 %s, cookie %d, "
-		"info %p)", tid, code, param1, param2, info->info_cookie, info);
+		"info %p)", code, tid, param1, param2, info->info_cookie, info);
 
 	res = event_send(tid, 0, 0, info->info_cookie, code, param1, param2);
 	if (res <= 0) {

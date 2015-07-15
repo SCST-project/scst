@@ -29,6 +29,7 @@
 #include <linux/kthread.h>
 #include <linux/delay.h>
 #include <linux/ktime.h>
+#include <linux/vmalloc.h>
 #include <scsi/sg.h>
 
 #ifdef INSIDE_KERNEL_TREE
