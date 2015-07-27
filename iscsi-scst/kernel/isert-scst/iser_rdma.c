@@ -123,14 +123,12 @@ int isert_post_send(struct isert_connection *isert_conn,
 	return err;
 }
 
-void isert_conn_disconnect(struct isert_connection *isert_conn)
+void isert_post_drain(struct isert_connection *isert_conn)
 {
-	struct ib_send_wr *bad_wr;
-	int err = rdma_disconnect(isert_conn->cm_id);
-	if (unlikely(err))
-		pr_err("Failed to rdma disconnect, err:%d\n", err);
-
 	if (!test_and_set_bit(ISERT_DRAIN_POSTED, &isert_conn->flags)) {
+		struct ib_send_wr *bad_wr;
+		int err;
+
 		isert_wr_set_fields(&isert_conn->drain_wr, isert_conn, NULL);
 		isert_conn->drain_wr.wr_op = ISER_WR_SEND;
 		isert_conn->drain_wr.send_wr.wr_id = _ptr_to_u64(&isert_conn->drain_wr);
@@ -144,6 +142,14 @@ void isert_conn_disconnect(struct isert_connection *isert_conn)
 			isert_conn_free(isert_conn);
 		}
 	}
+}
+
+void isert_conn_disconnect(struct isert_connection *isert_conn)
+{
+	int err = rdma_disconnect(isert_conn->cm_id);
+
+	if (unlikely(err))
+		pr_err("Failed to rdma disconnect, err:%d\n", err);
 }
 
 static int isert_pdu_handle_hello_req(struct isert_cmnd *pdu)
@@ -499,6 +505,33 @@ static const char *wr_status_str(enum ib_wc_status status)
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+static void isert_discon_do_work(void *ctx)
+#else
+static void isert_discon_do_work(struct work_struct *work)
+#endif
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	struct isert_connection *isert_conn = ctx;
+#else
+	struct isert_connection *isert_conn =
+		container_of(work, struct isert_connection, discon_work);
+#endif
+
+	/* notify upper layer */
+	isert_connection_closed(&isert_conn->iscsi);
+}
+
+static void isert_sched_discon(struct isert_connection *isert_conn)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	INIT_WORK(&isert_conn->discon_work, isert_discon_do_work, isert_conn);
+#else
+	INIT_WORK(&isert_conn->discon_work, isert_discon_do_work);
+#endif
+	isert_conn_queue_work(&isert_conn->discon_work);
+}
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
 static void isert_conn_drained_do_work(void *ctx)
 #else
 static void isert_conn_drained_do_work(struct work_struct *work)
@@ -510,10 +543,6 @@ static void isert_conn_drained_do_work(struct work_struct *work)
 	struct isert_connection *isert_conn =
 		container_of(work, struct isert_connection, drain_work);
 #endif
-
-	/* notify upper layer */
-	if (!test_bit(ISERT_CONNECTION_ABORTED, &isert_conn->flags))
-		isert_connection_closed(&isert_conn->iscsi);
 
 	isert_conn_free(isert_conn);
 }
@@ -527,6 +556,38 @@ static void isert_sched_conn_drained(struct isert_connection *isert_conn)
 #endif
 	isert_conn_queue_work(&isert_conn->drain_work);
 }
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+static void isert_conn_closed_do_work(void *ctx)
+#else
+static void isert_conn_closed_do_work(struct work_struct *work)
+#endif
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	struct isert_connection *isert_conn = ctx;
+#else
+	struct isert_connection *isert_conn =
+		container_of(work, struct isert_connection, close_work);
+#endif
+
+	if (!test_bit(ISERT_CONNECTION_ABORTED, &isert_conn->flags))
+		if (!test_and_set_bit(ISERT_DISCON_CALLED, &isert_conn->flags))
+			isert_connection_closed(&isert_conn->iscsi);
+
+	isert_conn_free(isert_conn);
+}
+
+static void isert_sched_conn_closed(struct isert_connection *isert_conn)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	INIT_WORK(&isert_conn->close_work, isert_conn_closed_do_work,
+		  isert_conn);
+#else
+	INIT_WORK(&isert_conn->close_work, isert_conn_closed_do_work);
+#endif
+	isert_conn_queue_work(&isert_conn->close_work);
+}
+
 
 static void isert_handle_wc_error(struct ib_wc *wc)
 {
@@ -543,6 +604,10 @@ static void isert_handle_wc_error(struct ib_wc *wc)
 		pr_err("conn:%p wr_id:0x%p status:%s vendor_err:0x%0x\n",
 		       isert_conn, wr, wr_status_str(wc->status),
 		       wc->vendor_err);
+
+	if (!test_bit(ISERT_CONNECTION_ABORTED, &isert_conn->flags))
+		if (!test_and_set_bit(ISERT_DISCON_CALLED, &isert_conn->flags))
+			isert_sched_discon(isert_conn);
 
 	switch (wr->wr_op) {
 	case ISER_WR_SEND:
@@ -1204,36 +1269,6 @@ void isert_conn_free(struct isert_connection *isert_conn)
 	kref_put(&isert_conn->kref, isert_kref_free);
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static void isert_conn_closed_do_work(void *ctx)
-#else
-static void isert_conn_closed_do_work(struct work_struct *work)
-#endif
-{
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	struct isert_connection *isert_conn = ctx;
-#else
-	struct isert_connection *isert_conn =
-		container_of(work, struct isert_connection, close_work);
-#endif
-
-	/* notify upper layer */
-	if (test_bit(ISERT_DRAIN_FAILED, &isert_conn->flags))
-		isert_connection_closed(&isert_conn->iscsi);
-
-	isert_conn_free(isert_conn);
-}
-
-static void isert_sched_conn_closed(struct isert_connection *isert_conn)
-{
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	INIT_WORK(&isert_conn->close_work, isert_conn_closed_do_work, isert_conn);
-#else
-	INIT_WORK(&isert_conn->close_work, isert_conn_closed_do_work);
-#endif
-	isert_conn_queue_work(&isert_conn->close_work);
-}
-
 static int isert_cm_timewait_exit_handler(struct rdma_cm_id *cm_id,
 					  struct rdma_cm_event *event)
 {
@@ -1395,6 +1430,7 @@ static int isert_cm_connect_handler(struct rdma_cm_id *cm_id,
 				     isert_conn->peer_addrsz);
 	if (unlikely(ret)) {
 		set_bit(ISERT_CONNECTION_ABORTED, &isert_conn->flags);
+		isert_post_drain(isert_conn);
 		isert_conn_free(isert_conn);
 		goto out;
 	}
