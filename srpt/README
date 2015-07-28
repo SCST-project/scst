@@ -151,7 +151,7 @@ When using RoCE or iWARP, log in to the target system to determine the id_ext
 and ioc_guid parameters and use these to log in. An example:
 
     [ target system ]
-    # sed 's/,\(pkey\|dgid\|service_id\)=[^,]*//g' $(find /sys/kernel/scst_tgt/targets/ib_srpt -name login_info) | uniq
+    # sed 's/tid_ext=/id_ext=/;s/,\(pkey\|dgid\|service_id\)=[^,]*//g' $(find /sys/kernel/scst_tgt/targets/ib_srpt -name login_info) | uniq
     id_ext=0002c90300a34270,ioc_guid=0002c90300a34270
 
     [ initiator system ]
