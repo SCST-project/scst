@@ -185,6 +185,12 @@ unload_scst() {
         killproc $d
     done
 
+    # isert_scst must be unloaded before iscsi_scst. Note that unloading
+    # isert_scst may take a while since in certain scenarios (e.g. cable
+    # problem and then service stop) MADs get timed out only after about 50+
+    # seconds.
+    unload_kmod isert_scst 90 || echo "Unloading isert_scst failed"
+
     reverse_list=""
     for m in $SCST_MODULES; do
         reverse_list="$m $reverse_list"
