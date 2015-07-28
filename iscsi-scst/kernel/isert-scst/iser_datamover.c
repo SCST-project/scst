@@ -107,6 +107,7 @@ int isert_portal_remove(void *portal_h)
 void isert_free_connection(struct iscsi_conn *iscsi_conn)
 {
 	struct isert_connection *isert_conn = (struct isert_connection *)iscsi_conn;
+	isert_post_drain(isert_conn);
 	isert_conn_free(isert_conn);
 }
 

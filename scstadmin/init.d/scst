@@ -164,6 +164,21 @@ parse_scst_conf() {
     fi
 }
 
+# Keep trying to unload kernel module $1 for up to $2 seconds. Return true
+# if and only if the kernel module was unloaded before the timeout expired.
+unload_kmod() {
+    local i m t
+
+    m="$1"
+    t="$2"
+    i=0
+    while [ -e "/sys/module/$m/refcnt" ] && ! rmmod "$m" && [ $i -lt "$t" ]; do
+        sleep 1
+        i=$((i+1))
+    done
+    [ ! -e "/sys/module/$m/refcnt" ]
+}
+
 # Unload SCST. parse_scst_conf must already have been invoked.
 unload_scst() {
     for d in $SCST_DAEMONS; do
@@ -182,14 +197,7 @@ unload_scst() {
             # occurs, sleep for a short time.
             sleep 1
         fi
-        i=0
-        while [ -e /sys/module/$m/refcnt ] && ! rmmod $m && [ $i -lt 30 ]; do
-            sleep 1
-            i=$((i+1))
-        done
-        if [ -e /sys/module/$m/refcnt ]; then
-            return 1
-        fi
+        unload_kmod $m 30 || return 1
     done
     for m in $SCST_OPT_MODULES; do
         reverse_list="$m $reverse_list"

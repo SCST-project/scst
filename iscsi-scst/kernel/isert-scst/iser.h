@@ -155,6 +155,7 @@ struct isert_cq {
 #define ISERT_CONNECTION_ABORTED	0
 #define ISERT_DRAIN_POSTED		1
 #define ISERT_DRAIN_FAILED		2
+#define ISERT_DISCON_CALLED		3
 
 struct isert_connection {
 	struct iscsi_conn	iscsi ____cacheline_aligned;
@@ -210,6 +211,7 @@ struct isert_connection {
 	unsigned long		flags;
 	struct work_struct	close_work;
 	struct work_struct	drain_work;
+	struct work_struct	discon_work;
 	struct isert_wr		drain_wr;
 	struct kref		kref;
 
@@ -280,6 +282,7 @@ int isert_alloc_conn_resources(struct isert_connection *isert_conn);
 void isert_free_conn_resources(struct isert_connection *isert_conn);
 void isert_conn_free(struct isert_connection *isert_conn);
 void isert_conn_disconnect(struct isert_connection *isert_conn);
+void isert_post_drain(struct isert_connection *isert_conn);
 
 static inline struct isert_connection *isert_conn_alloc(void)
 {
