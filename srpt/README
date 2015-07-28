@@ -85,12 +85,11 @@ The ib_srpt kernel module supports the following parameters:
 Configuring the SRP Target System
 ---------------------------------
 
-The first step is to choose whether access control will be controlled per
-HCA or per HCA port and to create a modprobe configuration file that reflects
-this choice. An example:
+When using RoCE or iWARP the first step is to enable support for these
+protocols in the target driver by setting the rdma_cm_port kernel module
+parameter to a non-zero value. An example:
 
-  # cat /etc/modprobe.d/ib_srpt.conf
-  options ib_srpt one_target_per_port=1
+  echo options ib_srpt rdma_cm_port=5000 > /etc/modprobe.d/ib_srpt.conf
 
 Next, create the file /etc/scst.conf. You can create this file with
 the scstadmin tool as follows:
