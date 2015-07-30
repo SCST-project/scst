@@ -52,7 +52,7 @@ OFED_KERNEL_IB_RPM:=$(shell for r in mlnx-ofa_kernel compat-rdma kernel-ib; do r
 # Name of the OFED kernel development RPM.
 OFED_KERNEL_IB_DEVEL_RPM:=$(shell for r in mlnx-ofa_kernel-devel compat-rdma-devel kernel-ib-devel; do rpm -q $$r 2>/dev/null | grep -q "^$$r" && echo $$r && break; done)
 
-OFED_FLAVOR=$(shell /usr/bin/ofed_info 2>/dev/null | head -n1 | sed -n 's/^\(MLNX_OFED\|OFED-internal\).*/MOFED/p;s/^OFED-.*/OFED/p')
+OFED_FLAVOR=$(shell if [ -e /usr/bin/ofed_info ]; then /usr/bin/ofed_info 2>/dev/null | head -n1 | sed -n 's/^\(MLNX_OFED\|OFED-internal\).*/MOFED/p;s/^OFED-.*/OFED/p'; else echo in-tree; fi)
 
 ifneq ($(OFED_KERNEL_IB_RPM),)
 ifeq ($(OFED_KERNEL_IB_RPM),compat-rdma)
@@ -77,15 +77,13 @@ endif
 OFED_MODULE_SYMVERS:=$(OFED_KERNEL_DIR)/$(MODULE_SYMVERS)
 endif
 
-HAVE_KCFLAGS    = $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/kcflags    KCFLAGS=-DKCFLAGS_MACRO=1       >/dev/null 2>&1 && echo true || echo false)
-HAVE_PRE_CFLAGS = $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/pre_cflags PRE_CFLAGS=-DPRE_CFLAGS_MACRO=1 >/dev/null 2>&1 && echo true || echo false)
-AUTOCONF_FLAGS  = $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/gid_change PRE_CFLAGS="$(OFED_CFLAGS)"     >/dev/null 2>&1 && echo -DHAVE_IB_EVENT_GID_CHANGE)
+AUTOCONF_FLAGS = $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/gid_change PRE_CFLAGS="$(OFED_CFLAGS)" >/dev/null 2>&1 && echo -DHAVE_IB_EVENT_GID_CHANGE)
 
 
 all: src/$(MODULE_SYMVERS)
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src \
-	  PRE_CFLAGS="$(OFED_CFLAGS) $(AUTOCONF_FLAGS)" \
-	  KCFLAGS="$(AUTOCONF_FLAGS)" SCST_INC_DIR=$(SCST_INC_DIR) modules
+	  PRE_CFLAGS="$(OFED_CFLAGS) $(AUTOCONF_FLAGS) -DOFED_FLAVOR=$(OFED_FLAVOR)" \
+	  SCST_INC_DIR=$(SCST_INC_DIR) modules
 
 install: all
 	@[ -z "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && \
@@ -102,11 +100,6 @@ uninstall:
 
 src/$(MODULE_SYMVERS): $(SCST_SYMVERS_DIR)/$(MODULE_SYMVERS)	\
 		       $(OFED_MODULE_SYMVERS)
-	@if [ "$(HAVE_KCFLAGS)" = false -a "$(HAVE_PRE_CFLAGS)" = false -a  \
-	      -n "$(AUTOCONF_FLAGS)" ]; then                                \
-	    echo "Error: the kernel build system has not yet been patched.";\
-	    false;                                                          \
-	fi
 	@if [ -n "$(OFED_KERNEL_IB_RPM)" ]; then                            \
 	  if [ -z "$(OFED_KERNEL_IB_DEVEL_RPM)" ]; then                     \
 	    echo "Error: the OFED package $(OFED_KERNEL_IB_RPM)-devel has"  \
