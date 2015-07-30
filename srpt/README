@@ -47,10 +47,10 @@ The ib_srpt kernel module supports the following parameters:
      GUID (e.g. 0002:c903:0005:f34a).
   3. Access control configuration per HCA port and referring to a HCA via its
      port GID (e.g. fe80:0000:0000:0000:0002:c903:0005:f34b).
-  Mode (1) is choosen if both one_target_per_port and
-  use_node_guid_in_target_name are false. Mode (2) is choosen if
+  Mode (1) is chosen if both one_target_per_port and
+  use_node_guid_in_target_name are false. Mode (2) is chosen if
   one_target_per_port is false and use_node_guid_in_target_name is true. Mode
-  (3) is choosen if one_target_per_port is true. This last mode is the
+  (3) is chosen if one_target_per_port is true. This last mode is the
   default mode.
 * rdma_cm_port (number)
   A 16-bit number that specifies the port number to be registered via the
@@ -90,12 +90,11 @@ The ib_srpt kernel module supports the following parameters:
 Configuring the SRP Target System
 ---------------------------------
 
-The first step is to choose whether access control will be controlled per
-HCA or per HCA port and to create a modprobe configuration file that reflects
-this choice. An example:
+When using RoCE or iWARP the first step is to enable support for these
+protocols in the target driver by setting the rdma_cm_port kernel module
+parameter to a non-zero value. An example:
 
-  # cat /etc/modprobe.d/ib_srpt.conf
-  options ib_srpt one_target_per_port=1
+  echo options ib_srpt rdma_cm_port=5000 > /etc/modprobe.d/ib_srpt.conf
 
 Next, create the file /etc/scst.conf. You can create this file with
 the scstadmin tool as follows:
@@ -157,7 +156,7 @@ When using RoCE or iWARP, log in to the target system to determine the id_ext
 and ioc_guid parameters and use these to log in. An example:
 
     [ target system ]
-    # sed 's/,\(pkey\|dgid\|service_id\)=[^,]*//g' $(find /sys/kernel/scst_tgt/targets/ib_srpt -name login_info) | uniq
+    # sed 's/tid_ext=/id_ext=/;s/,\(pkey\|dgid\|service_id\)=[^,]*//g' $(find /sys/kernel/scst_tgt/targets/ib_srpt -name login_info) | uniq
     id_ext=0002c90300a34270,ioc_guid=0002c90300a34270
 
     [ initiator system ]
@@ -353,7 +352,7 @@ Performance Notes - Target Side
   improves performance compared to debug mode.
 
 * When using high-latency storage devices (hard disks), the default value
-  choosen by SCST for DEVICE.threads_num should be fine. When using
+  chosen by SCST for DEVICE.threads_num should be fine. When using
   low-latency storage devices though (SSDs), DEVICE.threads_num should be set
   to 1 or 2 in /etc/scst.conf in order to reach optimal performance for small
   block sizes (e.g. 4 KB).

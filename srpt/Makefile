@@ -43,7 +43,7 @@ SRC_FILES=$(wildcard */*.[ch])
 
 # The file Modules.symvers has been renamed in the 2.6.18 kernel to
 # Module.symvers. Find out which name to use by looking in $(KDIR).
-MODULE_SYMVERS:=$(shell if [ -e $(KDIR)/Module.symvers ]; then \
+MODULE_SYMVERS:=$(shell if [ -e "$(KDIR)/Module.symvers" ]; then \
 		       echo Module.symvers; else echo Modules.symvers; fi)
 
 # Name of the OFED kernel RPM.
