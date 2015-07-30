@@ -77,13 +77,14 @@ endif
 OFED_MODULE_SYMVERS:=$(OFED_KERNEL_DIR)/$(MODULE_SYMVERS)
 endif
 
+CREATE_CQ_FLAG = $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/create_cq PRE_CFLAGS="$(OFED_CFLAGS) -Werror" >/dev/null 2>&1 && echo -DIB_CREATE_CQ_HAS_INIT_ATTR)
 CREATE_SEND_MAD_AH_FLAG := $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/create_send_mad_ah PRE_CFLAGS="$(OFED_CFLAGS) -Werror" >/dev/null 2>&1 && echo -DCREATE_SEND_MAD_HAS_AH_ARG)
 ifeq ($(CREATE_SEND_MAD_AH_FLAG),)
   CREATE_SEND_MAD_BASE_FLAG := $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/create_send_mad_base PRE_CFLAGS="$(OFED_CFLAGS) -Werror" >/dev/null 2>&1 && echo -DCREATE_SEND_MAD_HAS_BASE_ARG)
 endif
 GID_CHANGE_FLAG = $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/gid_change PRE_CFLAGS="$(OFED_CFLAGS)" >/dev/null 2>&1 && echo -DHAVE_IB_EVENT_GID_CHANGE)
 REGISTER_MAD_AGENT_FLAG = $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/register_mad_agent PRE_CFLAGS="$(OFED_CFLAGS) -Werror" >/dev/null 2>&1 && echo -DREGISTER_MAD_AGENT_HAS_FLAGS_ARG)
-PRE_CFLAGS=$(OFED_CFLAGS) $(CREATE_SEND_MAD_AH_FLAG) $(CREATE_SEND_MAD_BASE_FLAG) $(GID_CHANGE_FLAG) $(REGISTER_MAD_AGENT_FLAG) -DOFED_FLAVOR=$(OFED_FLAVOR)
+PRE_CFLAGS=$(OFED_CFLAGS) $(CREATE_CQ_FLAG) $(CREATE_SEND_MAD_AH_FLAG) $(CREATE_SEND_MAD_BASE_FLAG) $(GID_CHANGE_FLAG) $(REGISTER_MAD_AGENT_FLAG) -DOFED_FLAVOR=$(OFED_FLAVOR)
 
 all: src/$(MODULE_SYMVERS)
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src \
