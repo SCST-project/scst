@@ -346,6 +346,15 @@ function process_preprocessor_statement(evaluated, condition) {
   }
   else if (evaluated ~ "^+#elif")
   {
+    matching_if = if_stmnt[if_nesting_level]
+    if (debug)
+      printf "/* debug specialize-patch: (g0a) %s: matching_if = %s */\n", \
+        evaluated, matching_if
+    if (if_discarded[if_nesting_level]) {
+      sub("^+#elif", "+#if", input_line[0])
+      if (debug)
+        printf "/* debug specialize-patch: (g0b) -> %s */\n", evaluated
+    }
     evaluated = handle_if(evaluated)
   }
   else if (evaluated ~ "^+#else")
@@ -436,6 +445,9 @@ function process_preprocessor_statement(evaluated, condition) {
     if (lines >= 1 && line[lines - 1] == "+")
       delete_next_blank_line = 1
   }
+
+  if (evaluated ~ "^+#if")
+    if_discarded[if_nesting_level] = discard
 }
 
 function reset_hunk_state_variables() {
