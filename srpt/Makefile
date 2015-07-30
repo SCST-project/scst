@@ -78,19 +78,18 @@ OFED_MODULE_SYMVERS:=$(OFED_KERNEL_DIR)/$(MODULE_SYMVERS)
 endif
 
 AUTOCONF_FLAGS = $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/gid_change PRE_CFLAGS="$(OFED_CFLAGS)" >/dev/null 2>&1 && echo -DHAVE_IB_EVENT_GID_CHANGE)
-
+PRE_CFLAGS=$(OFED_CFLAGS) $(AUTOCONF_FLAGS) -DOFED_FLAVOR=$(OFED_FLAVOR)
 
 all: src/$(MODULE_SYMVERS)
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src \
-	  PRE_CFLAGS="$(OFED_CFLAGS) $(AUTOCONF_FLAGS) -DOFED_FLAVOR=$(OFED_FLAVOR)" \
-	  SCST_INC_DIR=$(SCST_INC_DIR) modules
+	  PRE_CFLAGS="$(PRE_CFLAGS)" SCST_INC_DIR=$(SCST_INC_DIR) modules
 
 install: all
 	@[ -z "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && \
 	  find /lib/modules/$(KVER) -name ib_srpt.ko -exec rm {} \; ; \
 	  true
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src		   \
-	  PRE_CFLAGS="$(OFED_CFLAGS)" SCST_INC_DIR=$(SCST_INC_DIR) \
+	  PRE_CFLAGS="$(PRE_CFLAGS)" SCST_INC_DIR=$(SCST_INC_DIR) \
 	  $$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
 	  modules_install
 
