@@ -2610,6 +2610,26 @@ again:
 	return;
 }
 
+/*
+ * Drops, but not releases(!) delayed TM response.
+ * sn_lock supposed to be held on entry.
+ */
+void iscsi_drop_delayed_tm_rsp(struct iscsi_cmnd *tm_rsp)
+{
+	struct iscsi_conn *conn = tm_rsp->conn;
+	struct iscsi_session *sess = conn->session;
+
+	TRACE_ENTRY();
+
+	TRACE_MGMT_DBG("Dropping delayed TM rsp %p", tm_rsp);
+	sess->tm_rsp = NULL;
+	sess->tm_active--;
+	sBUG_ON(sess->tm_active < 0);
+
+	TRACE_EXIT();
+	return;
+}
+
 static void execute_task_management(struct iscsi_cmnd *req)
 {
 	struct iscsi_conn *conn = req->conn;
@@ -2630,21 +2650,7 @@ static void execute_task_management(struct iscsi_cmnd *req)
 	spin_lock(&sess->sn_lock);
 	sess->tm_active++;
 	sess->tm_sn = req_hdr->cmd_sn;
-	if (sess->tm_rsp != NULL) {
-		struct iscsi_cmnd *tm_rsp = sess->tm_rsp;
-
-		TRACE_MGMT_DBG("Dropping delayed TM rsp %p", tm_rsp);
-
-		sess->tm_rsp = NULL;
-		sess->tm_active--;
-
-		spin_unlock(&sess->sn_lock);
-
-		sBUG_ON(sess->tm_active < 0);
-
-		rsp_cmnd_release(tm_rsp);
-	} else
-		spin_unlock(&sess->sn_lock);
+	spin_unlock(&sess->sn_lock);
 
 	scst_rx_mgmt_params_init(&params);
 
@@ -3593,6 +3599,11 @@ static bool iscsi_is_delay_tm_resp(struct iscsi_cmnd *rsp)
 
 	/* This should be checked for immediate TM commands as well */
 
+#if 0
+	if (((scst_random() % 10) == 2))
+		res = 1;
+#endif
+
 	switch (function) {
 	default:
 		if (before(sess->exp_cmd_sn, req_hdr->cmd_sn))
@@ -3684,9 +3695,22 @@ static void iscsi_send_task_mgmt_resp(struct iscsi_cmnd *req, int status,
 		rsp->should_close_all_conn = 1;
 	}
 
-	sBUG_ON(sess->tm_rsp != NULL);
-
+again:
 	spin_lock(&sess->sn_lock);
+	if (sess->tm_rsp != NULL) {
+		struct iscsi_cmnd *old_tm_rsp = sess->tm_rsp;
+		/*
+		 * It is assumed that if we have another TM request, the
+		 * original command the delayed TM response is waiting for
+		 * is not going to come, hence we can drop it.
+		 */
+		iscsi_drop_delayed_tm_rsp(old_tm_rsp);
+
+		spin_unlock(&sess->sn_lock);
+		rsp_cmnd_release(old_tm_rsp);
+		goto again;
+	}
+
 	if (iscsi_is_delay_tm_resp(rsp)) {
 		TRACE_MGMT_DBG("Delaying TM fn %d response %p "
 			"(req %p), because not all affected commands "
@@ -3698,9 +3722,8 @@ static void iscsi_send_task_mgmt_resp(struct iscsi_cmnd *req, int status,
 		goto out_release;
 	}
 	sess->tm_active--;
-	spin_unlock(&sess->sn_lock);
-
 	sBUG_ON(sess->tm_active < 0);
+	spin_unlock(&sess->sn_lock);
 
 	iscsi_cmnd_init_write(rsp, ISCSI_INIT_WRITE_WAKE);
 
