@@ -459,10 +459,7 @@ static void close_conn(struct iscsi_conn *conn)
 		spin_lock(&session->sn_lock);
 		if (session->tm_rsp && session->tm_rsp->conn == conn) {
 			struct iscsi_cmnd *tm_rsp = session->tm_rsp;
-			TRACE_MGMT_DBG("Dropping delayed TM rsp %p", tm_rsp);
-			session->tm_rsp = NULL;
-			session->tm_active--;
-			WARN_ON(session->tm_active < 0);
+			iscsi_drop_delayed_tm_rsp(tm_rsp);
 			spin_unlock(&session->sn_lock);
 			mutex_unlock(&target->target_mutex);
 

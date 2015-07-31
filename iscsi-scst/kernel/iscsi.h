@@ -548,6 +548,7 @@ extern void cmnd_tx_start(struct iscsi_cmnd *);
 extern void cmnd_tx_end(struct iscsi_cmnd *);
 extern void req_cmnd_release_force(struct iscsi_cmnd *req);
 extern void rsp_cmnd_release(struct iscsi_cmnd *);
+extern void iscsi_drop_delayed_tm_rsp(struct iscsi_cmnd *tm_rsp);
 extern void cmnd_done(struct iscsi_cmnd *cmnd);
 extern void conn_abort(struct iscsi_conn *conn);
 extern void iscsi_restart_cmnd(struct iscsi_cmnd *cmnd);
