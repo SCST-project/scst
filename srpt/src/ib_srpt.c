@@ -69,7 +69,7 @@
 
 /* Name of this kernel module. */
 #define DRV_NAME		"ib_srpt"
-#define DRV_VERSION		"3.0.2#" __stringify(OFED_FLAVOR)
+#define DRV_VERSION		"3.0.2-pre#" __stringify(OFED_FLAVOR)
 #define DRV_RELDATE		"Not yet 2015"
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 /* Flags to be used in SCST debug tracing statements. */
