@@ -55,7 +55,7 @@ unsigned long isert_trace_flag = ISERT_DEFAULT_LOG_FLAGS;
 static unsigned int isert_nr_devs = ISERT_NR_DEVS;
 module_param(isert_nr_devs, uint, S_IRUGO);
 MODULE_PARM_DESC(isert_nr_devs,
-		 "Maximum concurrent number of connection requests to handle.");
+		 "Maximum concurrent number of connection requests to handle (up to 999).");
 
 static void isert_mark_conn_closed(struct iscsi_conn *conn, int flags)
 {
@@ -484,6 +484,13 @@ static void isert_cleanup_module(void)
 static int __init isert_init_module(void)
 {
 	int ret;
+
+	if (isert_nr_devs > 999) {
+		PRINT_ERROR("Invalid argument for isert_nr_devs provded: %d\n",
+			    isert_nr_devs);
+		ret = -EINVAL;
+		goto out;
+	}
 
 	ret = iscsit_reg_transport(&isert_transport);
 	if (unlikely(ret))
