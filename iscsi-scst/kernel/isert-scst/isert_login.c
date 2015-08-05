@@ -333,6 +333,7 @@ static ssize_t isert_listen_read(struct file *filp, char __user *buf,
 	struct isert_conn_dev *conn_dev;
 	int res = 0;
 	char k_buff[sizeof("/dev/") + sizeof(ISER_CONN_DEV_PREFIX) + 3 + 1];
+	size_t to_write;
 
 	TRACE_ENTRY();
 
@@ -357,8 +358,9 @@ wait_for_connection:
 	list_move(&conn_dev->conn_list_entry, &dev->curr_conn_list);
 	spin_unlock(&dev->conn_lock);
 
-	res = snprintf(k_buff, sizeof(k_buff), "/dev/"ISER_CONN_DEV_PREFIX"%d",
-		       conn_dev->idx);
+	to_write = min_t(size_t, sizeof(k_buff), count);
+	res = scnprintf(k_buff, to_write, "/dev/"ISER_CONN_DEV_PREFIX"%d",
+			conn_dev->idx);
 	++res; /* copy trailing \0 as well */
 
 	if (unlikely(copy_to_user(buf, k_buff, res)))
