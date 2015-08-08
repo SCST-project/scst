@@ -10,6 +10,7 @@ BEGIN {
 if ($> == 0) {
     ok(system("killall iscsi-scstd; " .
 	      "modprobe -r scst_local; " .
+	      "modprobe -r isert-scst; " .
 	      "modprobe -r iscsi-scst; " .
 	      "modprobe -r ib_srpt; " .
 	      "modprobe -r qla2x00tgt; " .
