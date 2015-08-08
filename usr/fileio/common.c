@@ -48,6 +48,26 @@ static void exec_read(struct vdisk_cmd *vcmd, loff_t loff);
 static void exec_write(struct vdisk_cmd *vcmd, loff_t loff);
 static void exec_verify(struct vdisk_cmd *vcmd, loff_t loff);
 
+static int open_dev_fd(struct vdisk_dev *dev)
+{
+	int res;
+	int open_flags = O_LARGEFILE;
+
+	if (dev->rd_only_flag)
+		open_flags |= O_RDONLY;
+	else
+		open_flags |= O_RDWR;
+	if (dev->o_direct_flag)
+		open_flags |= O_DIRECT;
+	if (dev->wt_flag)
+		open_flags |= O_DSYNC;
+
+	TRACE_DBG("Opening file %s, flags 0x%x", dev->file_name, open_flags);
+	res = open(dev->file_name, open_flags);
+
+	return res;
+}
+
 static inline void set_cmd_error_status(struct scst_user_scsi_cmd_reply_exec *reply,
 	int status)
 {
@@ -400,7 +420,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 		break;
 	case REPORT_LUNS:
 	default:
-		TRACE_DBG("Invalid opcode %d", opcode);
+		TRACE_DBG("Invalid opcode 0x%x", opcode);
 		set_cmd_error(vcmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		break;
 	}
@@ -602,35 +622,92 @@ reply:
 	return res;
 }
 
-static int open_dev_fd(struct vdisk_dev *dev)
+static int process_cmd(struct vdisk_cmd *vcmd)
 {
-	int res;
-	int open_flags = O_LARGEFILE;
+	struct scst_user_get_cmd *cmd = vcmd->cmd;
+	struct scst_user_reply_cmd *reply = vcmd->reply;
+	int res = 0;
 
-	if (dev->rd_only_flag)
-		open_flags |= O_RDONLY;
-	else
-		open_flags |= O_RDWR;
-	if (dev->o_direct_flag)
-		open_flags |= O_DIRECT;
-	if (dev->wt_flag)
-		open_flags |= O_DSYNC;
+	TRACE_ENTRY();
 
-	TRACE_DBG("Opening file %s, flags 0x%x", dev->file_name, open_flags);
-	res = open(dev->file_name, open_flags);
+	TRACE_BUFFER("Received cmd", &cmd, sizeof(cmd));
 
+	switch(cmd->subcode) {
+	case SCST_USER_EXEC:
+		if (cmd->exec_cmd.data_direction & SCST_DATA_WRITE) {
+			TRACE_BUFFER("Received cmd data",
+				(void *)(unsigned long)cmd->exec_cmd.pbuf,
+				cmd->exec_cmd.bufflen);
+		}
+		res = do_exec(vcmd);
+		if ((reply->exec_reply.resp_data_len != 0) && (res != 150)) {
+			TRACE_BUFFER("Reply data",
+				(void *)(unsigned long)reply->exec_reply.pbuf,
+				reply->exec_reply.resp_data_len);
+		}
+		break;
+
+	case SCST_USER_ALLOC_MEM:
+		res = do_alloc_mem(vcmd);
+		break;
+
+	case SCST_USER_PARSE:
+		res = do_parse(vcmd);
+		break;
+
+	case SCST_USER_ON_CACHED_MEM_FREE:
+		res = do_cached_mem_free(vcmd);
+		break;
+
+	case SCST_USER_ON_FREE_CMD:
+		res = do_on_free_cmd(vcmd);
+		break;
+
+	case SCST_USER_TASK_MGMT_RECEIVED:
+		res = do_tm(vcmd, 0);
+		break;
+
+	case SCST_USER_TASK_MGMT_DONE:
+		res = do_tm(vcmd, 1);
+#if DEBUG_TM_FN_IGNORE
+		if (dev->debug_tm_ignore) {
+			sleep(15);
+		}
+#endif
+		break;
+
+	case SCST_USER_ATTACH_SESS:
+	case SCST_USER_DETACH_SESS:
+		res = do_sess(vcmd);
+		break;
+
+	default:
+		PRINT_ERROR("Unknown or wrong cmd subcode %x",
+			cmd->subcode);
+		res = -EINVAL;
+		goto out;
+	}
+
+out:
+	TRACE_EXIT_RES(res);
 	return res;
 }
 
 void *main_loop(void *arg)
 {
-	int res = 0;
+	int res = 0, i, j;
 	struct vdisk_dev *dev = (struct vdisk_dev *)arg;
 	struct scst_user_get_cmd cmd;
 	struct scst_user_reply_cmd reply;
 	struct vdisk_cmd vcmd = { -1, &cmd, dev, &reply, {0}};
 	int scst_usr_fd = dev->scst_usr_fd;
 	struct pollfd pl;
+#define MULTI_CMDS_CNT 128
+	struct {
+		struct scst_user_reply_cmd replies[MULTI_CMDS_CNT];
+		struct scst_user_get_multi multi_cmd;
+		struct scst_user_get_cmd cmds[MULTI_CMDS_CNT];
+	} multi;
 
 	TRACE_ENTRY();
 
@@ -647,6 +724,9 @@ void *main_loop(void *arg)
 	pl.events = POLLIN;
 
 	cmd.preply = 0;
+	multi.multi_cmd.preplies = (uint64_t)&multi.replies[0];
+	multi.multi_cmd.replies_cnt = 0;
+	multi.multi_cmd.cmds_cnt = MULTI_CMDS_CNT;
 
 	while(1) {
 #ifdef DEBUG_TM_IGNORE_ALL
@@ -661,38 +741,50 @@ void *main_loop(void *arg)
 			}
 		}
 #endif
-
-		res = ioctl(scst_usr_fd, SCST_USER_REPLY_AND_GET_CMD, &cmd);
+		if (use_multi) {
+			TRACE_DBG("preplies %p (first: %p), replies_cnt %d, "
+				"replies_done %d, cmds_cnt %d", (void *)multi.multi_cmd.preplies,
+				&multi.replies[0], multi.multi_cmd.replies_cnt,
+				multi.multi_cmd.replies_done, multi.multi_cmd.cmds_cnt);
+			res = ioctl(scst_usr_fd, SCST_USER_REPLY_AND_GET_MULTI, &multi.multi_cmd);
+		} else
+			res = ioctl(scst_usr_fd, SCST_USER_REPLY_AND_GET_CMD, &cmd);
 		if (res != 0) {
 			res = errno;
 			switch(res) {
 			case ESRCH:
 			case EBUSY:
-				TRACE_MGMT_DBG("SCST_USER_REPLY_AND_GET_CMD returned "
-					"%d (%s)", res, strerror(res));
+				TRACE_MGMT_DBG("SCST_USER returned %d (%s)", res, strerror(res));
 				cmd.preply = 0;
+				multi.multi_cmd.preplies = (uint64_t)&multi.replies[0];
+				multi.multi_cmd.replies_cnt = 0;
+				multi.multi_cmd.cmds_cnt = MULTI_CMDS_CNT;
 			case EINTR:
 				continue;
 			case EAGAIN:
-				TRACE_DBG("SCST_USER_REPLY_AND_GET_CMD returned "
-					"EAGAIN (%d)", res);
+				TRACE_DBG("SCST_USER returned EAGAIN (%d)", res);
 				cmd.preply = 0;
+				multi.multi_cmd.preplies = (uint64_t)&multi.replies[0];
+				multi.multi_cmd.replies_cnt = 0;
+				multi.multi_cmd.cmds_cnt = MULTI_CMDS_CNT;
 				if (dev->non_blocking)
 					break;
 				else
 					continue;
 			default:
-				PRINT_ERROR("SCST_USER_REPLY_AND_GET_CMD failed: "
-					"%s (%d)", strerror(res), res);
+				PRINT_ERROR("SCST_USER failed: %s (%d)", strerror(res), res);
 #if 1
 				cmd.preply = 0;
+				multi.multi_cmd.preplies = (uint64_t)&multi.replies[0];
+				multi.multi_cmd.replies_cnt = 0;
+				multi.multi_cmd.cmds_cnt = MULTI_CMDS_CNT;
 				continue;
 #else
 				goto out_close;
 #endif
 			}
 again_poll:
-			res = poll(&pl, 1, 2000);
+			res = poll(&pl, 1, -1);
 			if (res > 0)
 				continue;
 			else if (res == 0)
@@ -718,74 +810,47 @@ again_poll:
 			}
 		}
 
-		TRACE_BUFFER("Received cmd", &cmd, sizeof(cmd));
-
-		switch(cmd.subcode) {
-		case SCST_USER_EXEC:
-			if (cmd.exec_cmd.data_direction & SCST_DATA_WRITE) {
-				TRACE_BUFFER("Received cmd data",
-					(void *)(unsigned long)cmd.exec_cmd.pbuf,
-					cmd.exec_cmd.bufflen);
+		if (use_multi) {
+			if (multi.multi_cmd.replies_done < multi.multi_cmd.replies_cnt) {
+				TRACE_MGMT_DBG("replies_done %d < replies_cnt %d (dev %s)",
+					multi.multi_cmd.replies_done, multi.multi_cmd.replies_cnt, dev->name);
+				multi.multi_cmd.preplies = (uint64_t)&multi.replies[multi.multi_cmd.replies_done];
+				multi.multi_cmd.replies_cnt = multi.multi_cmd.replies_cnt - multi.multi_cmd.replies_done;
+				multi.multi_cmd.cmds_cnt = MULTI_CMDS_CNT;
+				continue;
 			}
-			res = do_exec(&vcmd);
+			TRACE_DBG("cmds_cnt %d", multi.multi_cmd.cmds_cnt);
+			multi.multi_cmd.preplies = (uint64_t)&multi.replies[0];
+			for (i = 0, j = 0; i < multi.multi_cmd.cmds_cnt; i++, j++) {
+				vcmd.cmd = &multi.cmds[i];
+				vcmd.reply = &multi.replies[j];
+				res = process_cmd(&vcmd);
+#ifdef DEBUG_TM_IGNORE
+				if (res == 150) {
+					j--;
+					continue;
+				}
+#endif
+				if (res != 0)
+					goto out_close;
+				TRACE_BUFFER("Sending reply", vcmd.reply, sizeof(reply));
+			}
+			multi.multi_cmd.replies_cnt = j;
+			multi.multi_cmd.cmds_cnt = MULTI_CMDS_CNT;
+		} else {
+			res = process_cmd(&vcmd);
 #ifdef DEBUG_TM_IGNORE
 			if (res == 150) {
 				cmd.preply = 0;
 				continue;
 			}
 #endif
-			if (reply.exec_reply.resp_data_len != 0) {
-				TRACE_BUFFER("Reply data",
-					(void *)(unsigned long)reply.exec_reply.pbuf,
-					reply.exec_reply.resp_data_len);
-			}
-			break;
+			if (res != 0)
+				goto out_close;
 
-		case SCST_USER_ALLOC_MEM:
-			res = do_alloc_mem(&vcmd);
-			break;
-
-		case SCST_USER_PARSE:
-			res = do_parse(&vcmd);
-			break;
-
-		case SCST_USER_ON_CACHED_MEM_FREE:
-			res = do_cached_mem_free(&vcmd);
-			break;
-
-		case SCST_USER_ON_FREE_CMD:
-			res = do_on_free_cmd(&vcmd);
-			break;
-
-		case SCST_USER_TASK_MGMT_RECEIVED:
-			res = do_tm(&vcmd, 0);
-			break;
-
-		case SCST_USER_TASK_MGMT_DONE:
-			res = do_tm(&vcmd, 1);
-#if DEBUG_TM_FN_IGNORE
-			if (dev->debug_tm_ignore) {
-				sleep(15);
-			}
-#endif
-			break;
-
-		case SCST_USER_ATTACH_SESS:
-		case SCST_USER_DETACH_SESS:
-			res = do_sess(&vcmd);
-			break;
-
-		default:
-			PRINT_ERROR("Unknown or wrong cmd subcode %x",
-				cmd.subcode);
-			goto out_close;
+			cmd.preply = (unsigned long)&reply;
+			TRACE_BUFFER("Sending reply", &reply, sizeof(reply));
 		}
-
-		if (res != 0)
-			goto out_close;
-
-		cmd.preply = (unsigned long)&reply;
-		TRACE_BUFFER("Sending reply", &reply, sizeof(reply));
 	}
 
 out_close:

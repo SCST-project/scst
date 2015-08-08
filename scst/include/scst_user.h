@@ -303,6 +303,15 @@ union scst_user_prealloc_buffer {
 	struct scst_user_prealloc_buffer_out out;
 };
 
+struct scst_user_get_multi {
+	aligned_u64 preplies; /* in */
+	int16_t replies_cnt; /* in */
+	int16_t replies_done; /* out */
+	int16_t cmds_cnt; /* in/out */
+	int16_t pad;
+	struct scst_user_get_cmd cmds[0]; /* out */
+};
+
 #define SCST_USER_REGISTER_DEVICE	_IOW('u', 1, struct scst_user_dev_desc)
 #define SCST_USER_UNREGISTER_DEVICE	_IO('u', 2)
 #define SCST_USER_SET_OPTIONS		_IOW('u', 3, struct scst_user_opt)
@@ -313,6 +322,7 @@ union scst_user_prealloc_buffer {
 #define SCST_USER_DEVICE_CAPACITY_CHANGED _IO('u', 8)
 #define SCST_USER_GET_EXTENDED_CDB	_IOWR('u', 9, struct scst_user_get_ext_cdb)
 #define SCST_USER_PREALLOC_BUFFER	_IOWR('u', 10, union scst_user_prealloc_buffer)
+#define SCST_USER_REPLY_AND_GET_MULTI	_IOWR('u', 11, struct scst_user_get_multi)
 
 /* Values for scst_user_get_cmd.subcode */
 #define SCST_USER_ATTACH_SESS		\

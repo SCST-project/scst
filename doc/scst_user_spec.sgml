@@ -336,6 +336,50 @@ You can see description of possible subcommands in section
 <ref id="subcommands" name="subcommands">.
 
 
+<sect1> SCST_USER_REPLY_AND_GET_MULTI
+
+<p>
+SCST_USER_REPLY_AND_GET_MULTI allows at one call reply on the multiple
+subcommands from SCST and get the multiple next subcommands.
+
+Its argument is defined as:
+
+<verb>
+struct scst_user_get_multi {
+	aligned_u64 preplies;
+	int16_t replies_cnt;
+	int16_t replies_done;
+	int16_t cmds_cnt;
+	struct scst_user_get_cmd cmds[0];
+},
+</verb>
+
+where:
+
+<itemize>
+
+<item> <bf/preplies/ - pointer to array of replies with size
+   <it/replies_cnt/. See SCST_USER_REPLY_CMD for description of struct
+   scst_user_reply_cmd fields
+
+<item> <bf/replies_cnt/ - number of entries in <it/preplies/ array. If 0,
+   there are no replies
+
+<item> <bf/replies_done/ - returns how many replies were processed by SCST. If there are
+   unprocessed replies, the user space device handler must retry the
+   unprocessed replies.
+
+<item> <bf/cmds_cnt/ - on entry: number of available entries in <it/cmds/ array; on exit -
+   number of valid subcommands in <it/cmds/ array
+
+<item> <bf/cmds/ - returned array of subcommands
+
+</itemize>
+
+Returns 0 on success or -1 in case of error, and errno is set
+appropriately.
+
+
 <sect1> SCST_USER_REPLY_CMD
 
 <p>
