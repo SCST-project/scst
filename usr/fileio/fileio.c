@@ -718,6 +718,9 @@ int main(int argc, char **argv)
 		alloc_fn = malloc;
 	}
 
+	if (!use_multi)
+		PRINT_INFO("	%s", "Using SCST_USER_REPLY_AND_GET_CMD");
+
 #if defined(DEBUG_TM_IGNORE) || defined(DEBUG_TM_IGNORE_ALL)
 	if (debug_tm_ignore)
 		PRINT_INFO("	%s", "DEBUG_TM_IGNORE");
