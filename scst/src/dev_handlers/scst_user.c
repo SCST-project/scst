@@ -1908,18 +1908,18 @@ again:
 	return u;
 }
 
-static inline int test_cmd_threads(struct scst_user_dev *dev)
+static inline int test_cmd_threads(struct scst_user_dev *dev, bool can_block)
 {
 	int res = !list_empty(&dev->udev_cmd_threads.active_cmd_list) ||
 		  !list_empty(&dev->ready_cmd_list) ||
-		  !dev->blocking || dev->cleanup_done ||
+		  !can_block || !dev->blocking || dev->cleanup_done ||
 		  signal_pending(current);
 	return res;
 }
 
 /* Called under udev_cmd_threads.cmd_list_lock and IRQ off */
 static int dev_user_get_next_cmd(struct scst_user_dev *dev,
-	struct scst_user_cmd **ucmd)
+	struct scst_user_cmd **ucmd, bool can_block)
 {
 	int res = 0;
 
@@ -1927,7 +1927,7 @@ static int dev_user_get_next_cmd(struct scst_user_dev *dev,
 
 	while (1) {
 		wait_event_locked(dev->udev_cmd_threads.cmd_list_waitQ,
-				  test_cmd_threads(dev), lock_irq,
+				  test_cmd_threads(dev, can_block), lock_irq,
 				  dev->udev_cmd_threads.cmd_list_lock);
 
 		dev_user_process_scst_commands(dev);
@@ -1936,7 +1936,7 @@ static int dev_user_get_next_cmd(struct scst_user_dev *dev,
 		if (*ucmd != NULL)
 			break;
 
-		if (!dev->blocking || dev->cleanup_done) {
+		if (!can_block || !dev->blocking || dev->cleanup_done) {
 			res = -EAGAIN;
 			TRACE_DBG("No ready commands, returning %d", res);
 			break;
@@ -1953,13 +1953,67 @@ static int dev_user_get_next_cmd(struct scst_user_dev *dev,
 	return res;
 }
 
+/* No locks */
+static int dev_user_get_cmd_to_user(struct scst_user_dev *dev,
+	void __user *where, bool can_block)
+{
+	int res;
+	struct scst_user_cmd *ucmd;
+
+	TRACE_ENTRY();
+
+	spin_lock_irq(&dev->udev_cmd_threads.cmd_list_lock);
+again:
+	res = dev_user_get_next_cmd(dev, &ucmd, can_block);
+	if (res == 0) {
+		int len, rc;
+		/*
+		 * A misbehaving user space handler can make ucmd to get dead
+		 * immediately after we released the lock, which can lead to
+		 * copy of dead data to the user space, which can lead to a
+		 * leak of sensitive information.
+		 */
+		if (unlikely(ucmd_get_check(ucmd))) {
+			/* Oops, this ucmd is already being destroyed. Retry. */
+			goto again;
+		}
+		spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
+
+		EXTRACHECKS_BUG_ON(ucmd->user_cmd_payload_len == 0);
+
+		len = ucmd->user_cmd_payload_len;
+		TRACE_DBG("ucmd %p (user_cmd %p), payload_len %d (len %d)",
+			ucmd, &ucmd->user_cmd, ucmd->user_cmd_payload_len, len);
+		TRACE_BUFFER("UCMD", &ucmd->user_cmd, len);
+		rc = copy_to_user(where, &ucmd->user_cmd, len);
+		if (unlikely(rc != 0)) {
+			PRINT_ERROR("Copy to user failed (%d), requeuing ucmd "
+				"%p back to head of ready cmd list", res, ucmd);
+			res = -EFAULT;
+			/* Requeue ucmd back */
+			spin_lock_irq(&dev->udev_cmd_threads.cmd_list_lock);
+			list_add(&ucmd->ready_cmd_list_entry,
+				&dev->ready_cmd_list);
+			spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
+		}
+#ifdef CONFIG_SCST_EXTRACHECKS
+		else
+			ucmd->user_cmd_payload_len = 0;
+#endif
+		ucmd_put(ucmd);
+	} else
+		spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
 {
 	int res = 0, rc;
 	struct scst_user_dev *dev;
 	struct scst_user_get_cmd *cmd;
 	struct scst_user_reply_cmd *reply;
-	struct scst_user_cmd *ucmd;
 	uint64_t ureply;
 
 	TRACE_ENTRY();
@@ -2007,47 +2061,7 @@ static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
 
 	kmem_cache_free(user_get_cmd_cachep, cmd);
 
-	spin_lock_irq(&dev->udev_cmd_threads.cmd_list_lock);
-again:
-	res = dev_user_get_next_cmd(dev, &ucmd);
-	if (res == 0) {
-		int len;
-		/*
-		 * A misbehaving user space handler can make ucmd to get dead
-		 * immediately after we released the lock, which can lead to
-		 * copy of dead data to the user space, which can lead to a
-		 * leak of sensitive information.
-		 */
-		if (unlikely(ucmd_get_check(ucmd))) {
-			/* Oops, this ucmd is already being destroyed. Retry. */
-			goto again;
-		}
-		spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
-
-		EXTRACHECKS_BUG_ON(ucmd->user_cmd_payload_len == 0);
-
-		len = ucmd->user_cmd_payload_len;
-		TRACE_DBG("ucmd %p (user_cmd %p), payload_len %d (len %d)",
-			ucmd, &ucmd->user_cmd, ucmd->user_cmd_payload_len, len);
-		TRACE_BUFFER("UCMD", &ucmd->user_cmd, len);
-		rc = copy_to_user(arg, &ucmd->user_cmd, len);
-		if (unlikely(rc != 0)) {
-			PRINT_ERROR("Copy to user failed (%d), requeuing ucmd "
-				"%p back to head of ready cmd list", rc, ucmd);
-			res = -EFAULT;
-			/* Requeue ucmd back */
-			spin_lock_irq(&dev->udev_cmd_threads.cmd_list_lock);
-			list_add(&ucmd->ready_cmd_list_entry,
-				&dev->ready_cmd_list);
-			spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
-		}
-#ifdef CONFIG_SCST_EXTRACHECKS
-		else
-			ucmd->user_cmd_payload_len = 0;
-#endif
-		ucmd_put(ucmd);
-	} else
-		spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
+	res = dev_user_get_cmd_to_user(dev, arg, true);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -2055,6 +2069,106 @@ out:
 
 out_free:
 	kmem_cache_free(user_get_cmd_cachep, cmd);
+	goto out;
+}
+
+static int dev_user_reply_get_multi(struct file *file, void __user *arg)
+{
+	int res = 0, rc;
+	struct scst_user_dev *dev;
+	struct scst_user_reply_cmd __user *replies;
+	int16_t i, replies_cnt, replies_done = 0, cmds_cnt = 0;
+
+	TRACE_ENTRY();
+
+	dev = (struct scst_user_dev *)file->private_data;
+	res = dev_user_check_reg(dev);
+	if (unlikely(res != 0))
+		goto out;
+
+	res = get_user(replies_cnt, (int16_t __user *)
+		&((struct scst_user_get_multi *)arg)->replies_cnt);
+	if (unlikely(res < 0)) {
+		PRINT_ERROR("%s", "Unable to get replies_cnt");
+		goto out;
+	}
+
+	res = get_user(cmds_cnt, (int16_t __user *)
+		&((struct scst_user_get_multi *)arg)->cmds_cnt);
+	if (unlikely(res < 0)) {
+		PRINT_ERROR("%s", "Unable to get cmds_cnt");
+		goto out;
+	}
+
+	TRACE_DBG("replies %d, space %d (dev %s)",
+		replies_cnt, cmds_cnt, dev->name);
+
+	if (replies_cnt == 0)
+		goto get_cmds;
+
+	/* get_user() can't be used with 64-bit values on x86_32 */
+	rc = copy_from_user(&replies, (uint64_t __user *)
+		&((struct scst_user_get_multi __user *)arg)->preplies, sizeof(&replies));
+	if (unlikely(rc != 0)) {
+		PRINT_ERROR("%s", "Unable to get preply");
+		res = -EFAULT;
+		goto out;
+	}
+
+	for (i = 0; i < replies_cnt; i++) {
+		struct scst_user_reply_cmd reply;
+
+		rc = copy_from_user(&reply, &replies[i], sizeof(reply));
+		if (unlikely(rc != 0)) {
+			PRINT_ERROR("Unable to get reply %d", i);
+			res = -EFAULT;
+			goto out_part_replies_done;
+		}
+
+		TRACE_BUFFER("Reply", &reply, sizeof(reply));
+
+		res = dev_user_process_reply(dev, &reply);
+		if (unlikely(res < 0))
+			goto out_part_replies_done;
+
+		replies_done++;
+	}
+
+	TRACE_DBG("Returning %d replies_done", replies_done);
+	res = put_user(replies_done, (int16_t __user *)
+		&((struct scst_user_get_multi *)arg)->replies_done);
+	if (unlikely(res < 0))
+		goto out;
+
+get_cmds:
+	for (i = 0; i < cmds_cnt; i++) {
+		res = dev_user_get_cmd_to_user(dev,
+			&((struct scst_user_get_multi __user *)arg)->cmds[i], i == 0);
+		if (res != 0) {
+			if ((res == -EAGAIN) && (i > 0))
+				res = 0;
+			break;
+		}
+	}
+
+	TRACE_DBG("Returning %d cmds_ret", i);
+	rc = put_user(i, (int16_t __user *)
+		&((struct scst_user_get_multi *)arg)->cmds_cnt);
+	if (unlikely(rc < 0)) {
+		res = rc; /* this error is more important */
+		goto out;
+	}
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_part_replies_done:
+	TRACE_DBG("Partial returning %d replies_done", replies_done);
+	put_user(replies_done, (int16_t __user *)
+		&((struct scst_user_get_multi *)arg)->replies_done);
+	rc = put_user(0, (int16_t __user *)
+		&((struct scst_user_get_multi *)arg)->cmds_cnt);
 	goto out;
 }
 
@@ -2074,6 +2188,11 @@ static long dev_user_ioctl(struct file *file, unsigned int cmd,
 	case SCST_USER_REPLY_CMD:
 		TRACE_DBG("%s", "REPLY_CMD");
 		res = dev_user_reply_cmd(file, (void __user *)arg);
+		break;
+
+	case SCST_USER_REPLY_AND_GET_MULTI:
+		TRACE_DBG("%s", "REPLY_AND_GET_MULTI");
+		res = dev_user_reply_get_multi(file, (void __user *)arg);
 		break;
 
 	case SCST_USER_GET_EXTENDED_CDB:
@@ -3512,7 +3631,7 @@ static int dev_user_process_cleanup(struct scst_user_dev *dev)
 
 		spin_lock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
-		rc = dev_user_get_next_cmd(dev, &ucmd);
+		rc = dev_user_get_next_cmd(dev, &ucmd, false);
 		if (rc == 0)
 			dev_user_unjam_cmd(ucmd, 1, NULL);
 

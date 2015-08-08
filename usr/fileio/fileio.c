@@ -93,6 +93,7 @@ static int debug_tm_ignore;
 #endif
 static int non_blocking, sgv_shared, sgv_single_alloc_pages, sgv_purge_interval;
 static int sgv_disable_clustered_pool, prealloc_buffers_num, prealloc_buffer_size;
+bool use_multi = true;
 
 static void *(*alloc_fn)(size_t size) = align_alloc;
 
@@ -118,6 +119,7 @@ static struct option const long_options[] =
 	{"sgv_disable_clustered_pool", no_argument, 0, 'D'},
 	{"prealloc_buffers", required_argument, 0, 'R'},
 	{"prealloc_buffer_size", required_argument, 0, 'Z'},
+	{"multi_cmd", required_argument, 0, 'M'},
 #if defined(DEBUG) || defined(TRACING)
 	{"debug", required_argument, 0, 'd'},
 #endif
@@ -156,6 +158,7 @@ static void usage(void)
 	printf("  -D, --sgv_disable_clustered_pool Disable clustered SGV pool\n");
 	printf("  -R, --prealloc_buffers=n Prealloc n buffers\n");
 	printf("  -Z, --prealloc_buffer_size=n Sets the size in KB of each prealloced buffer\n");
+	printf("  -M, --multi_cmd=v  Use or not multi-commands processing (default: 1)\n");
 #if defined(DEBUG) || defined(TRACING)
 	printf("  -d, --debug=level	Debug tracing level\n");
 #endif
@@ -507,7 +510,7 @@ int main(int argc, char **argv)
 
 	memset(devs, 0, sizeof(devs));
 
-	while ((ch = getopt_long(argc, argv, "+b:e:trongluF:I:cp:f:m:d:vsS:P:hDR:Z:",
+	while ((ch = getopt_long(argc, argv, "+b:e:trongluF:I:cp:f:m:d:vsS:P:hDR:Z:M:",
 			long_options, &longindex)) >= 0) {
 		switch (ch) {
 		case 'b':
@@ -578,6 +581,9 @@ int main(int argc, char **argv)
 			break;
 		case 'Z':
 			prealloc_buffer_size = atoi(optarg) * 1024;
+			break;
+		case 'M':
+			use_multi = atoi(optarg);
 			break;
 		case 'm':
 			if (strncmp(optarg, "all", 3) == 0)
@@ -744,7 +750,7 @@ int main(int argc, char **argv)
 			PRINT_ERROR("sigaction() failed: %s",
 				strerror(res));
 			goto out_done;
-		}       
+		}
 
 		res = alarm(flush_interval);
 		if (res != 0) {

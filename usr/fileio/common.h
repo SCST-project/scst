@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 #include <scst_user.h>
 
@@ -116,6 +117,7 @@ struct vdisk_cmd
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
 extern int vdisk_ID;
+extern bool use_multi;
 
 uint32_t crc32buf(const char *buf, size_t len);
 
