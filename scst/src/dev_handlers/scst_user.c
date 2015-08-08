@@ -217,7 +217,6 @@ static int dev_usr_parse(struct scst_cmd *cmd);
 static struct kmem_cache *user_dev_cachep;
 
 static struct kmem_cache *user_cmd_cachep;
-static struct kmem_cache *user_get_cmd_cachep;
 
 static const struct file_operations dev_user_fops = {
 	.poll		= dev_user_poll,
@@ -2012,8 +2011,7 @@ static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
 {
 	int res = 0, rc;
 	struct scst_user_dev *dev;
-	struct scst_user_get_cmd *cmd;
-	struct scst_user_reply_cmd *reply;
+	struct scst_user_reply_cmd reply;
 	uint64_t ureply;
 
 	TRACE_ENTRY();
@@ -2036,40 +2034,27 @@ static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
 	TRACE_DBG("ureply %lld (dev %s)", (unsigned long long int)ureply,
 		dev->name);
 
-	cmd = kmem_cache_alloc(user_get_cmd_cachep, GFP_KERNEL);
-	if (unlikely(cmd == NULL)) {
-		res = -ENOMEM;
-		goto out;
-	}
-
 	if (ureply != 0) {
 		unsigned long u = (unsigned long)ureply;
-		reply = (struct scst_user_reply_cmd *)cmd;
-		rc = copy_from_user(reply, (void __user *)u, sizeof(*reply));
+		rc = copy_from_user(&reply, (void __user *)u, sizeof(reply));
 		if (unlikely(rc != 0)) {
 			PRINT_ERROR("Failed to copy %d user's bytes", rc);
 			res = -EFAULT;
-			goto out_free;
+			goto out;
 		}
 
-		TRACE_BUFFER("Reply", reply, sizeof(*reply));
+		TRACE_BUFFER("Reply", &reply, sizeof(reply));
 
-		res = dev_user_process_reply(dev, reply);
+		res = dev_user_process_reply(dev, &reply);
 		if (unlikely(res < 0))
-			goto out_free;
+			goto out;
 	}
-
-	kmem_cache_free(user_get_cmd_cachep, cmd);
 
 	res = dev_user_get_cmd_to_user(dev, arg, true);
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
-
-out_free:
-	kmem_cache_free(user_get_cmd_cachep, cmd);
-	goto out;
 }
 
 static int dev_user_reply_get_multi(struct file *file, void __user *arg)
@@ -3873,18 +3858,11 @@ static int __init init_scst_user(void)
 		goto out_dev_cache;
 	}
 
-	user_get_cmd_cachep = KMEM_CACHE(max_get_reply,
-				SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN);
-	if (user_get_cmd_cachep == NULL) {
-		res = -ENOMEM;
-		goto out_cache;
-	}
-
 	dev_user_devtype.module = THIS_MODULE;
 
 	res = scst_register_virtual_dev_driver(&dev_user_devtype);
 	if (res < 0)
-		goto out_cache1;
+		goto out_cache;
 
 #ifdef CONFIG_SCST_PROC
 	res = scst_dev_handler_build_std_proc(&dev_user_devtype);
@@ -3964,9 +3942,6 @@ out_proc:
 out_unreg:
 	scst_unregister_dev_driver(&dev_user_devtype);
 
-out_cache1:
-	kmem_cache_destroy(user_get_cmd_cachep);
-
 out_cache:
 	kmem_cache_destroy(user_cmd_cachep);
 
@@ -3998,7 +3973,6 @@ static void __exit exit_scst_user(void)
 #endif
 	scst_unregister_virtual_dev_driver(&dev_user_devtype);
 
-	kmem_cache_destroy(user_get_cmd_cachep);
 	kmem_cache_destroy(user_cmd_cachep);
 	kmem_cache_destroy(user_dev_cachep);
 
