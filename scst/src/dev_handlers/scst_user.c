@@ -2093,7 +2093,7 @@ static int dev_user_reply_get_multi(struct file *file, void __user *arg)
 
 	/* get_user() can't be used with 64-bit values on x86_32 */
 	rc = copy_from_user(&replies, (uint64_t __user *)
-		&((struct scst_user_get_multi __user *)arg)->preplies, sizeof(&replies));
+		&((struct scst_user_get_multi __user *)arg)->preplies, sizeof(replies));
 	if (unlikely(rc != 0)) {
 		PRINT_ERROR("%s", "Unable to get preply");
 		res = -EFAULT;
