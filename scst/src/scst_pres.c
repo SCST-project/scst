@@ -88,7 +88,7 @@ static inline void scst_assert_pr_mutex_held(struct scst_device *dev)
 }
 #endif
 
-static inline int tid_size(const uint8_t *tid)
+static inline int scst_tid_size(const uint8_t *tid)
 {
 	sBUG_ON(tid == NULL);
 
@@ -102,7 +102,7 @@ static inline int tid_size(const uint8_t *tid)
 static inline void tid_secure(uint8_t *tid)
 {
 	if ((tid[0] & 0x0f) == SCSI_TRANSPORTID_PROTOCOLID_ISCSI) {
-		int size = tid_size(tid);
+		int size = scst_tid_size(tid);
 		tid[size - 1] = '\0';
 	}
 
@@ -125,8 +125,8 @@ static bool tid_equal(const uint8_t *tid_a, const uint8_t *tid_b)
 	if ((tid_a[0] & 0x0f) == SCSI_TRANSPORTID_PROTOCOLID_ISCSI) {
 		const uint8_t tid_a_fmt = tid_a[0] & 0xc0;
 		const uint8_t tid_b_fmt = tid_b[0] & 0xc0;
-		int tid_a_len, tid_a_max = tid_size(tid_a) - 4;
-		int tid_b_len, tid_b_max = tid_size(tid_b) - 4;
+		int tid_a_len, tid_a_max = scst_tid_size(tid_a) - 4;
+		int tid_b_len, tid_b_max = scst_tid_size(tid_b) - 4;
 		int i;
 
 		tid_a += 4;
@@ -441,7 +441,7 @@ static struct scst_dev_registrant *scst_pr_add_registrant(
 		goto out;
 	}
 
-	reg->transport_id = kmemdup(transport_id, tid_size(transport_id),
+	reg->transport_id = kmemdup(transport_id, scst_tid_size(transport_id),
 				    gfp_flags);
 	if (reg->transport_id == NULL) {
 		PRINT_ERROR("%s", "Unable to allocate initiator port "
@@ -757,7 +757,7 @@ static int scst_pr_do_load_device_file(struct scst_device *dev,
 
 		data_size++;
 		tid = &buf[data_size];
-		data_size += tid_size(tid);
+		data_size += scst_tid_size(tid);
 		data_size += sizeof(key);
 		data_size += sizeof(rel_tgt_id);
 
@@ -792,7 +792,7 @@ static int scst_pr_do_load_device_file(struct scst_device *dev,
 		is_holder = buf[pos++];
 
 		tid = &buf[pos];
-		pos += tid_size(tid);
+		pos += scst_tid_size(tid);
 
 		key = get_unaligned((__be64 *)&buf[pos]);
 		pos += sizeof(key);
@@ -969,7 +969,7 @@ void scst_pr_sync_device_file(struct scst_tgt_dev *tgt_dev, struct scst_cmd *cmd
 		if (res != sizeof(is_holder))
 			goto write_error;
 
-		size = tid_size(reg->transport_id);
+		size = scst_tid_size(reg->transport_id);
 		res = vfs_write(file, (void __force __user *)reg->transport_id,
 				size, &pos);
 		if (res != size)
@@ -1289,15 +1289,15 @@ static int scst_pr_register_with_spec_i_pt(struct scst_cmd *cmd,
 	while (offset < ext_size) {
 		transport_id = &buffer[28 + offset];
 
-		if ((offset + tid_size(transport_id)) > ext_size) {
+		if ((offset + scst_tid_size(transport_id)) > ext_size) {
 			TRACE_PR("Invalid transport_id size %d (max %d)",
-				tid_size(transport_id), ext_size - offset);
+				scst_tid_size(transport_id), ext_size - offset);
 			scst_set_invalid_field_in_parm_list(cmd, 24, 0);
 			res = -EINVAL;
 			goto out;
 		}
 		tid_secure(transport_id);
-		offset += tid_size(transport_id);
+		offset += scst_tid_size(transport_id);
 	}
 
 	offset = 0;
@@ -1375,7 +1375,7 @@ static int scst_pr_register_with_spec_i_pt(struct scst_cmd *cmd,
 				rollback_list);
 		}
 next:
-		offset += tid_size(transport_id);
+		offset += scst_tid_size(transport_id);
 	}
 out:
 	return res;
@@ -1862,9 +1862,9 @@ void scst_pr_register_and_move(struct scst_cmd *cmd, uint8_t *buffer,
 	transport_id_move = (uint8_t *)&buffer[24];
 	rel_tgt_id_move = get_unaligned_be16(&buffer[18]);
 
-	if ((tid_size(transport_id_move) + 24) > buffer_size) {
+	if ((scst_tid_size(transport_id_move) + 24) > buffer_size) {
 		TRACE_PR("Invalid buffer size %d (%d)",
-			buffer_size, tid_size(transport_id_move) + 24);
+			buffer_size, scst_tid_size(transport_id_move) + 24);
 		scst_set_cmd_error(cmd,
 			SCST_LOAD_SENSE(scst_sense_invalid_field_in_parm_list));
 		goto out;
@@ -2703,7 +2703,7 @@ void scst_pr_read_full_status(struct scst_cmd *cmd, uint8_t *buffer,
 		int ts;
 		int rec_len;
 
-		ts = tid_size(reg->transport_id);
+		ts = scst_tid_size(reg->transport_id);
 		rec_len = 24 + ts;
 
 		if (size_max - size > rec_len) {
