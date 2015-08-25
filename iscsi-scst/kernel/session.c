@@ -98,10 +98,12 @@ static int iscsi_session_alloc(struct iscsi_target *target,
 		goto err;
 	}
 
-	err = iscsi_threads_pool_get(&session->scst_sess->acg->acg_cpu_mask,
-		&session->sess_thr_pool);
-	if (err != 0)
-		goto err_unreg;
+	if (!session->sess_params.rdma_extensions) {
+		err = iscsi_threads_pool_get(&session->scst_sess->acg->acg_cpu_mask,
+			&session->sess_thr_pool);
+		if (err != 0)
+			goto err_unreg;
+	}
 
 #ifdef CONFIG_SCST_PROC
 	kfree(name);
