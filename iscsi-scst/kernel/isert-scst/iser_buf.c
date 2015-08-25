@@ -220,12 +220,15 @@ int isert_wr_init(struct isert_wr *wr,
 	enum ib_wr_opcode send_wr_op = IB_WR_SEND;
 	struct scatterlist *sg_tmp;
 	int i;
+	u32 send_flags = 0;
 
 	TRACE_ENTRY();
 
 	switch (wr_op) {
 	case ISER_WR_RECV:
+		break;
 	case ISER_WR_SEND:
+		send_flags = IB_SEND_SIGNALED;
 		break;
 	case ISER_WR_RDMA_READ:
 		send_wr_op = IB_WR_RDMA_READ;
@@ -280,7 +283,7 @@ int isert_wr_init(struct isert_wr *wr,
 		wr->send_wr.sg_list = wr->sge_list;
 		wr->send_wr.num_sge = sg_cnt;
 		wr->send_wr.opcode = send_wr_op;
-		wr->send_wr.send_flags = IB_SEND_SIGNALED;
+		wr->send_wr.send_flags = send_flags;
 	}
 
 out:
