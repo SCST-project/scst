@@ -61,7 +61,7 @@ extern unsigned long scst_trace_flag;
 #else /* CONFIG_SCST_DEBUG */
 
 # ifdef CONFIG_SCST_TRACING
-#define SCST_DEFAULT_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_MGMT | \
+#define SCST_DEFAULT_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_PID | \
 	TRACE_SPECIAL)
 # else
 #define SCST_DEFAULT_LOG_FLAGS 0

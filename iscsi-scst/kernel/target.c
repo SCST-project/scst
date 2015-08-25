@@ -291,7 +291,8 @@ void target_del_session(struct iscsi_target *target,
 {
 	TRACE_ENTRY();
 
-	TRACE_MGMT_DBG("Deleting session %p", session);
+	TRACE(TRACE_MGMT, "Deleting session %p (initiator %s)", session,
+		session->scst_sess->initiator_name);
 
 	lockdep_assert_held(&target->target_mutex);
 
@@ -299,7 +300,7 @@ void target_del_session(struct iscsi_target *target,
 		struct iscsi_conn *conn, *tc;
 		list_for_each_entry_safe(conn, tc, &session->conn_list,
 					 conn_list_entry) {
-			TRACE_MGMT_DBG("Mark conn %p closing", conn);
+			TRACE_MGMT_DBG("Del session: closing conn %p", conn);
 			__mark_conn_closed(conn, flags);
 		}
 	} else {

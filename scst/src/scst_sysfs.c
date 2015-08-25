@@ -493,7 +493,7 @@ static int sysfs_work_thread_fn(void *arg)
 	TRACE_ENTRY();
 
 	if (!one_time_only)
-		PRINT_INFO("User interface thread started, PID %d", current->pid);
+		PRINT_INFO("User interface thread started");
 
 	current->flags |= PF_NOFREEZE;
 
@@ -516,7 +516,7 @@ static int sysfs_work_thread_fn(void *arg)
 		 */
 		sBUG_ON(!list_empty(&sysfs_work_list));
 
-		PRINT_INFO("User interface thread PID %d finished", current->pid);
+		PRINT_INFO("User interface thread finished");
 	}
 
 	TRACE_EXIT();

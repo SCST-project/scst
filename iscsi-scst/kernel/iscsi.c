@@ -1400,7 +1400,7 @@ static int cmnd_insert_data_wait_hash(struct iscsi_cmnd *cmnd)
 
 	TRACE_DBG("%p:%x", cmnd, itt);
 	if (unlikely(itt == ISCSI_RESERVED_TAG)) {
-		PRINT_ERROR("%s", "ITT is RESERVED_TAG");
+		PRINT_ERROR("ITT is RESERVED_TAG (conn %p)", cmnd->conn);
 		PRINT_BUFFER("Incorrect BHS", &cmnd->pdu.bhs,
 			sizeof(cmnd->pdu.bhs));
 		err = -ISCSI_REASON_PROTOCOL_ERROR;
@@ -1418,7 +1418,8 @@ static int cmnd_insert_data_wait_hash(struct iscsi_cmnd *cmnd)
 		list_add_tail(&cmnd->hash_list_entry, head);
 		cmnd->hashed = 1;
 	} else {
-		PRINT_ERROR("Task %x in progress, cmnd %p", itt, cmnd);
+		PRINT_ERROR("Task %x in progress, cmnd %p (conn %p)",
+			itt, cmnd, cmnd->conn);
 		err = -ISCSI_REASON_TASK_IN_PROGRESS;
 	}
 
@@ -1636,8 +1637,8 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 		if (unlikely(i >= ISCSI_CONN_IOV_MAX)) {
 			PRINT_ERROR("Initiator %s violated negotiated "
 				"parameters by sending too much data (size "
-				"left %d)", conn->session->initiator_name,
-				size);
+				"left %d), conn %p", conn->session->initiator_name,
+				size, conn);
 			mark_conn_closed(conn);
 			res = -EINVAL;
 			goto out;
@@ -1875,8 +1876,8 @@ int iscsi_cmnd_set_write_buf(struct iscsi_cmnd *req)
 	    unsolicited_data_expected)) {
 		PRINT_ERROR("Initiator %s violated negotiated "
 			"parameters: initial R2T is required (ITT %x, "
-			"op  %x)", session->initiator_name,
-			req->pdu.bhs.itt, req_hdr->scb[0]);
+			"op %x, conn %p)", session->initiator_name,
+			req->pdu.bhs.itt, req_hdr->scb[0], conn);
 		res = -EINVAL;
 		goto out_close;
 	}
@@ -1885,8 +1886,8 @@ int iscsi_cmnd_set_write_buf(struct iscsi_cmnd *req)
 	    req->pdu.datasize)) {
 		PRINT_ERROR("Initiator %s violated negotiated "
 			"parameters: forbidden immediate data sent "
-			"(ITT %x, op  %x)", session->initiator_name,
-			req->pdu.bhs.itt, req_hdr->scb[0]);
+			"(ITT %x, op %x, conn %p)", session->initiator_name,
+			req->pdu.bhs.itt, req_hdr->scb[0], conn);
 		res = -EINVAL;
 		goto out_close;
 	}
@@ -1894,11 +1895,11 @@ int iscsi_cmnd_set_write_buf(struct iscsi_cmnd *req)
 	if (unlikely(session->sess_params.first_burst_length < req->pdu.datasize)) {
 		PRINT_ERROR("Initiator %s violated negotiated "
 			"parameters: immediate data len (%d) > "
-			"first_burst_length (%d) (ITT %x, op  %x)",
+			"first_burst_length (%d) (ITT %x, op  %x, conn %p)",
 			session->initiator_name,
 			req->pdu.datasize,
 			session->sess_params.first_burst_length,
-			req->pdu.bhs.itt, req_hdr->scb[0]);
+			req->pdu.bhs.itt, req_hdr->scb[0], conn);
 		res = -EINVAL;
 		goto out_close;
 	}
@@ -3184,10 +3185,10 @@ static int check_segment_length(struct iscsi_cmnd *cmnd)
 	struct iscsi_session *session = conn->session;
 
 	if (unlikely(cmnd->pdu.datasize > session->sess_params.max_recv_data_length)) {
-		PRINT_ERROR("Initiator %s violated negotiated parameters: "
+		PRINT_ERROR("Initiator %s (conn %p) violated negotiated parameters: "
 			"data too long (ITT %x, datasize %u, "
-			"max_recv_data_length %u", session->initiator_name,
-			cmnd->pdu.bhs.itt, cmnd->pdu.datasize,
+			"max_recv_data_length %u)", session->initiator_name,
+			conn, cmnd->pdu.bhs.itt, cmnd->pdu.datasize,
 			session->sess_params.max_recv_data_length);
 		mark_conn_closed(conn);
 		return -EINVAL;

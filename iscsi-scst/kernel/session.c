@@ -107,8 +107,9 @@ static int iscsi_session_alloc(struct iscsi_target *target,
 	kfree(name);
 #endif
 
-	TRACE_MGMT_DBG("Session %p created: target %p, tid %u, sid %#Lx",
-		session, target, target->tid, info->sid);
+	TRACE(TRACE_MGMT, "Session %p created: target %p, tid %u, sid %#Lx, "
+		"initiator %s", session, target, target->tid, info->sid,
+		session->scst_sess->initiator_name);
 
 	*result = session;
 	return 0;
@@ -309,7 +310,7 @@ int session_free(struct iscsi_session *session, bool del)
 {
 	unsigned int i;
 
-	TRACE_MGMT_DBG("Freeing session %p (SID %llx)",
+	TRACE(TRACE_MGMT, "Freeing session %p (SID %llx)",
 		session, session->sid);
 
 	lockdep_assert_held(&session->target->target_mutex);
@@ -392,11 +393,11 @@ void iscsi_sess_force_close(struct iscsi_session *sess)
 
 	lockdep_assert_held(&sess->target->target_mutex);
 
-	PRINT_INFO("Deleting session %llx with initiator %s (%p)",
+	PRINT_INFO("Force closing session %llx with initiator %s (%p)",
 		(unsigned long long int)sess->sid, sess->initiator_name, sess);
 
 	list_for_each_entry(conn, &sess->conn_list, conn_list_entry) {
-		TRACE_MGMT_DBG("Deleting connection with initiator %p", conn);
+		TRACE(TRACE_MGMT, "Force closing connection %p", conn);
 		__mark_conn_closed(conn, ISCSI_CONN_ACTIVE_CLOSE|ISCSI_CONN_DELETING);
 	}
 

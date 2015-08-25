@@ -4624,8 +4624,7 @@ static int scst_ioc_keeper_thread(void *arg)
 
 	TRACE_ENTRY();
 
-	TRACE_MGMT_DBG("AIC %p keeper thread %s (PID %d) started", aic_keeper,
-		current->comm, current->pid);
+	TRACE_MGMT_DBG("AIC %p keeper thread %s  started", aic_keeper, current->comm);
 
 	current->flags |= PF_NOFREEZE;
 
@@ -4651,8 +4650,8 @@ static int scst_ioc_keeper_thread(void *arg)
 	wait_event_interruptible(aic_keeper->aic_keeper_waitQ,
 		kthread_should_stop());
 
-	TRACE_MGMT_DBG("AIC %p keeper thread %s (PID %d) finished", aic_keeper,
-		current->comm, current->pid);
+	TRACE_MGMT_DBG("AIC %p keeper thread %s finished", aic_keeper,
+		current->comm);
 
 	TRACE_EXIT();
 	return 0;
