@@ -214,8 +214,6 @@ static inline void isert_link_send_wrs(struct isert_wr *from_wr,
 				       struct isert_wr *to_wr)
 {
 	from_wr->send_wr.next = &to_wr->send_wr;
-
-	to_wr->send_wr.next = NULL;
 }
 
 static inline void isert_link_send_pdu_wrs(struct isert_cmnd *from_pdu,
@@ -223,6 +221,7 @@ static inline void isert_link_send_pdu_wrs(struct isert_cmnd *from_pdu,
 					   int wr_cnt)
 {
 	isert_link_send_wrs(&from_pdu->wr[wr_cnt - 1], &to_pdu->wr[0]);
+	to_pdu->wr[0].send_wr.next = NULL;
 }
 
 int isert_prepare_rdma(struct isert_cmnd *isert_pdu,
@@ -280,8 +279,10 @@ int isert_prepare_rdma(struct isert_cmnd *isert_pdu,
 	for (i = 1; i < wr_cnt; ++i)
 		isert_link_send_wrs(&isert_pdu->wr[i - 1], &isert_pdu->wr[i]);
 
-	if (op == ISER_WR_RDMA_READ)
+	if (op == ISER_WR_RDMA_READ) {
 		isert_pdu->wr[wr_cnt - 1].send_wr.send_flags = IB_SEND_SIGNALED;
+		isert_pdu->wr[wr_cnt - 1].send_wr.next = NULL;
+	}
 
 out:
 	TRACE_EXIT_RES(wr_cnt);
