@@ -79,6 +79,11 @@ static inline void scst_pr_read_unlock(struct scst_device *dev)
 	mutex_unlock(&dev->dev_pr_mutex);
 }
 
+static inline void lockdep_assert_pr_read_lock_held(struct scst_device *dev)
+{
+	lockdep_assert_held(&dev->dev_pr_mutex);
+}
+
 static inline void scst_pr_write_lock(struct scst_device *dev)
 {
 	mutex_lock(&dev->dev_pr_mutex);
@@ -87,6 +92,11 @@ static inline void scst_pr_write_lock(struct scst_device *dev)
 static inline void scst_pr_write_unlock(struct scst_device *dev)
 {
 	mutex_unlock(&dev->dev_pr_mutex);
+}
+
+static inline void lockdep_assert_pr_write_lock_held(struct scst_device *dev)
+{
+	lockdep_assert_held(&dev->dev_pr_mutex);
 }
 
 int scst_pr_set_file_name(struct scst_device *dev, char **prev,
@@ -119,6 +129,21 @@ void scst_pr_read_reservation(struct scst_cmd *cmd, uint8_t *buffer,
 void scst_pr_report_caps(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size);
 void scst_pr_read_full_status(struct scst_cmd *cmd, uint8_t *buffer,
 	int buffer_size);
+
+int scst_tid_size(const uint8_t *tid);
+struct scst_dev_registrant *scst_pr_find_reg(struct scst_device *dev,
+	const uint8_t *transport_id, const uint16_t rel_tgt_id);
+struct scst_dev_registrant *scst_pr_add_registrant(struct scst_device *dev,
+						   const uint8_t *transport_id,
+						   const uint16_t rel_tgt_id,
+						   __be64 key,
+						   bool dev_lock_locked);
+void scst_pr_remove_registrant(struct scst_device *dev,
+			       struct scst_dev_registrant *reg);
+void scst_pr_set_holder(struct scst_device *dev,
+			struct scst_dev_registrant *holder, uint8_t scope,
+			uint8_t type);
+void scst_pr_clear_holder(struct scst_device *dev);
 
 #ifndef CONFIG_SCST_PROC
 void scst_pr_sync_device_file(struct scst_tgt_dev *tgt_dev, struct scst_cmd *cmd);

@@ -48,6 +48,13 @@ scst-y        += scst_sysfs.o
 scst-y        += scst_mem.o
 scst-y        += scst_debug.o
 scst-y        += scst_pres.o
+scst-y        += scst_no_dlm.o
+ifdef CONFIG_DLM
+scst-y        += scst_dlm.o
+endif
+ifdef CONFIG_DLM_MODULE
+scst-y        += scst_dlm.o
+endif
 scst-y        += scst_tg.o
 obj-$(CONFIG_SCST)   += scst.o dev_handlers/
 
