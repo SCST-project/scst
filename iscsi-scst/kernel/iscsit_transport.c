@@ -44,12 +44,12 @@ int iscsit_reg_transport(struct iscsit_transport *t)
 	mutex_lock(&transport_mutex);
 	tmp = __iscsit_get_transport(t->transport_type);
 	if (tmp) {
-		PRINT_ERROR("Unable to register transport type %d - Already registered\n",
+		PRINT_ERROR("Unable to register transport type %d - Already registered",
 			    t->transport_type);
 		ret = -EEXIST;
 	} else {
 		list_add_tail(&t->transport_list_entry, &transport_list);
-		PRINT_INFO("Registered iSCSI transport: %s\n", t->name);
+		PRINT_INFO("Registered iSCSI transport: %s", t->name);
 	}
 	mutex_unlock(&transport_mutex);
 
@@ -63,7 +63,7 @@ void iscsit_unreg_transport(struct iscsit_transport *t)
 	list_del(&t->transport_list_entry);
 	mutex_unlock(&transport_mutex);
 
-	PRINT_INFO("Unregistered iSCSI transport: %s\n", t->name);
+	PRINT_INFO("Unregistered iSCSI transport: %s", t->name);
 }
 EXPORT_SYMBOL(iscsit_unreg_transport);
 

@@ -220,6 +220,26 @@ do {									\
 	}								\
 } while (0)
 
+#define PRINT_LOG_FLAG(log_flag, format, args...)			\
+	debug_print_with_prefix(trace_flag, KERN_INFO, __LOG_PREFIX,	\
+		__func__, __LINE__, format, ## args)
+
+#define PRINT_WARNING(format, args...)					\
+	debug_print_with_prefix(trace_flag, KERN_WARNING, __LOG_PREFIX,	\
+		__func__, __LINE__, "***WARNING***: " format, ## args)
+
+#define PRINT_ERROR(format, args...)					\
+	debug_print_with_prefix(trace_flag, KERN_ERR, __LOG_PREFIX,	\
+		__func__, __LINE__, "***ERROR***: " format, ## args)
+
+#define PRINT_CRIT_ERROR(format, args...)				\
+	debug_print_with_prefix(trace_flag, KERN_CRIT, __LOG_PREFIX,	\
+		__func__, __LINE__, "***CRITICAL ERROR***: " format, ## args)
+
+#define PRINT_INFO(format, args...)					\
+	debug_print_with_prefix(trace_flag, KERN_INFO, __LOG_PREFIX,	\
+		__func__, __LINE__, format, ## args)
+
 #else  /* CONFIG_SCST_DEBUG || CONFIG_SCST_TRACING */
 
 #define TRACING_MINOR() (false)
@@ -230,6 +250,37 @@ do {									\
 	((void)(message), (void)(buff), (void)(len))
 #define PRINT_BUFF_FLAG(flag, message, buff, len)	\
 	((void)(flag), (void)(message), (void)(buff), (void)(len))
+
+#ifdef LOG_PREFIX
+
+#define PRINT_INFO(format, args...)				\
+	PRINT(KERN_INFO, "%s: " format, LOG_PREFIX, ## args)
+
+#define PRINT_WARNING(format, args...)				\
+	PRINT(KERN_WARNING, "%s: ***WARNING***: " format, LOG_PREFIX, ## args)
+
+#define PRINT_ERROR(format, args...)				\
+	PRINT(KERN_ERR, "%s: ***ERROR***: " format, LOG_PREFIX, ## args)
+
+#define PRINT_CRIT_ERROR(format, args...)       \
+	PRINT(KERN_CRIT, "%s: ***CRITICAL ERROR***: " \
+		format, LOG_PREFIX, ## args)
+
+#else /* LOG_PREFIX */
+
+#define PRINT_INFO(format, args...)		\
+	PRINT(KERN_INFO, format, ## args)
+
+#define PRINT_WARNING(format, args...)          \
+	PRINT(KERN_WARNING, "***WARNING***: " format, ## args)
+
+#define PRINT_ERROR(format, args...)		\
+	PRINT(KERN_ERR, "***ERROR***: " format, ## args)
+
+#define PRINT_CRIT_ERROR(format, args...)	\
+	PRINT(KERN_CRIT, "***CRITICAL ERROR***: " format, ## args)
+
+#endif /* LOG_PREFIX */
 
 #endif /* CONFIG_SCST_DEBUG || CONFIG_SCST_TRACING */
 
@@ -277,26 +328,6 @@ do {									\
 		debug_print_buffer(buff, len);				\
 	}								\
 } while (0)
-
-#define PRINT_LOG_FLAG(log_flag, format, args...)			\
-	debug_print_with_prefix(trace_flag, KERN_INFO, __LOG_PREFIX,	\
-		__func__, __LINE__, format, ## args)
-
-#define PRINT_WARNING(format, args...)					\
-	debug_print_with_prefix(trace_flag, KERN_WARNING, __LOG_PREFIX,	\
-		__func__, __LINE__, "***WARNING***: " format, ## args)
-
-#define PRINT_ERROR(format, args...)					\
-	debug_print_with_prefix(trace_flag, KERN_ERR, __LOG_PREFIX,	\
-		__func__, __LINE__, "***ERROR***: " format, ## args)
-
-#define PRINT_CRIT_ERROR(format, args...)				\
-	debug_print_with_prefix(trace_flag, KERN_CRIT, __LOG_PREFIX,	\
-		__func__, __LINE__, "***CRITICAL ERROR***: " format, ## args)
-
-#define PRINT_INFO(format, args...)					\
-	debug_print_with_prefix(trace_flag, KERN_INFO, __LOG_PREFIX,	\
-		__func__, __LINE__, format, ## args)
 
 #ifndef GENERATING_UPSTREAM_PATCH
 #define TRACE_ENTRY()							\
@@ -377,37 +408,6 @@ do {									\
 #define TRACE_EXIT_RES(res) do {} while (0)
 #define TRACE_EXIT_HRES(res) do {} while (0)
 #endif
-
-#ifdef LOG_PREFIX
-
-#define PRINT_INFO(format, args...)				\
-	PRINT(KERN_INFO, "%s: " format, LOG_PREFIX, ## args)
-
-#define PRINT_WARNING(format, args...)				\
-	PRINT(KERN_WARNING, "%s: ***WARNING***: " format, LOG_PREFIX, ## args)
-
-#define PRINT_ERROR(format, args...)				\
-	PRINT(KERN_ERR, "%s: ***ERROR***: " format, LOG_PREFIX, ## args)
-
-#define PRINT_CRIT_ERROR(format, args...)       \
-	PRINT(KERN_CRIT, "%s: ***CRITICAL ERROR***: " \
-		format, LOG_PREFIX, ## args)
-
-#else
-
-#define PRINT_INFO(format, args...)		\
-	PRINT(KERN_INFO, format, ## args)
-
-#define PRINT_WARNING(format, args...)          \
-	PRINT(KERN_WARNING, "***WARNING***: " format, ## args)
-
-#define PRINT_ERROR(format, args...)		\
-	PRINT(KERN_ERR, "***ERROR***: " format, ## args)
-
-#define PRINT_CRIT_ERROR(format, args...)	\
-	PRINT(KERN_CRIT, "***CRITICAL ERROR***: " format, ## args)
-
-#endif /* LOG_PREFIX */
 
 #endif /* CONFIG_SCST_DEBUG */
 

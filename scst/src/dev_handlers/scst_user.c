@@ -3753,7 +3753,7 @@ static int dev_user_cleanup_thread(void *arg)
 {
 	TRACE_ENTRY();
 
-	PRINT_INFO("Cleanup thread started, PID %d", current->pid);
+	PRINT_INFO("Cleanup thread started");
 
 	current->flags |= PF_NOFREEZE;
 
@@ -3811,7 +3811,7 @@ static int dev_user_cleanup_thread(void *arg)
 	 */
 	sBUG_ON(!list_empty(&cleanup_list));
 
-	PRINT_INFO("Cleanup thread PID %d finished", current->pid);
+	PRINT_INFO("Cleanup thread finished");
 
 	TRACE_EXIT();
 	return 0;

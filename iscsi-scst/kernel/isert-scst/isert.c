@@ -393,8 +393,8 @@ int isert_pdu_sent(struct iscsi_cmnd *pdu)
 			target_del_all_sess(target, 0);
 			mutex_unlock(&target->target_mutex);
 		} else {
-			PRINT_INFO("Closing connection at initiator's %s "
-				   "request", conn->session->initiator_name);
+			PRINT_INFO("Closing connection %p at initiator's %s "
+				   "request", conn, conn->session->initiator_name);
 			mark_conn_closed(conn);
 		}
 	}

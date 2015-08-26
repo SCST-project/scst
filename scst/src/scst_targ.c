@@ -4687,7 +4687,7 @@ int scst_init_thread(void *arg)
 {
 	TRACE_ENTRY();
 
-	PRINT_INFO("Init thread started, PID %d", current->pid);
+	PRINT_INFO("Init thread started");
 
 	current->flags |= PF_NOFREEZE;
 
@@ -4708,7 +4708,7 @@ int scst_init_thread(void *arg)
 	 */
 	sBUG_ON(!list_empty(&scst_init_cmd_list));
 
-	PRINT_INFO("Init thread PID %d finished", current->pid);
+	PRINT_INFO("Init thread finished");
 
 	TRACE_EXIT();
 	return 0;
@@ -5029,8 +5029,7 @@ int scst_cmd_thread(void *arg)
 
 	TRACE_ENTRY();
 
-	TRACE(TRACE_MINOR, "Processing thread %s (PID %d) started",
-		current->comm, current->pid);
+	TRACE(TRACE_MINOR, "Processing thread %s started", current->comm);
 
 #if 0
 	set_user_nice(current, 10);
@@ -5058,8 +5057,7 @@ int scst_cmd_thread(void *arg)
 
 	scst_ioctx_put(p_cmd_threads);
 
-	TRACE(TRACE_MINOR, "Processing thread %s (PID %d) finished",
-		current->comm, current->pid);
+	TRACE(TRACE_MINOR, "Processing thread %s finished", current->comm);
 
 	TRACE_EXIT();
 	return 0;
@@ -6677,7 +6675,7 @@ int scst_tm_thread(void *arg)
 {
 	TRACE_ENTRY();
 
-	PRINT_INFO("Task management thread started, PID %d", current->pid);
+	PRINT_INFO("Task management thread started");
 
 	current->flags |= PF_NOFREEZE;
 
@@ -6727,7 +6725,7 @@ int scst_tm_thread(void *arg)
 	 */
 	sBUG_ON(!list_empty(&scst_active_mgmt_cmd_list));
 
-	PRINT_INFO("Task management thread PID %d finished", current->pid);
+	PRINT_INFO("Task management thread finished");
 
 	TRACE_EXIT();
 	return 0;
@@ -7497,7 +7495,7 @@ int scst_global_mgmt_thread(void *arg)
 
 	TRACE_ENTRY();
 
-	PRINT_INFO("Management thread started, PID %d", current->pid);
+	PRINT_INFO("Management thread started");
 
 	current->flags |= PF_NOFREEZE;
 
@@ -7568,7 +7566,7 @@ int scst_global_mgmt_thread(void *arg)
 	sBUG_ON(!list_empty(&scst_sess_init_list));
 	sBUG_ON(!list_empty(&scst_sess_shut_list));
 
-	PRINT_INFO("Management thread PID %d finished", current->pid);
+	PRINT_INFO("Management thread finished");
 
 	TRACE_EXIT();
 	return 0;

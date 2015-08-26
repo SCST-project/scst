@@ -429,8 +429,8 @@ static void __iscsi_state_change(struct sock *sk)
 
 	if (unlikely(sk->sk_state != TCP_ESTABLISHED)) {
 		if (!conn->closing) {
-			PRINT_ERROR("Connection with initiator %s "
-				"unexpectedly closed!",
+			PRINT_ERROR("Connection %p with initiator %s "
+				"unexpectedly closed!", conn,
 				conn->session->initiator_name);
 			TRACE_MGMT_DBG("conn %p, sk state %d", conn,
 				sk->sk_state);
@@ -534,11 +534,11 @@ static void conn_rsp_timer_fn(unsigned long arg)
 			if (!conn->closing) {
 				PRINT_ERROR("Timeout %ld sec sending data/waiting "
 					"for reply to/from initiator "
-					"%s (SID %llx), closing connection",
+					"%s (SID %llx), closing connection %p",
 					iscsi_get_timeout(cmnd)/HZ,
 					conn->session->initiator_name,
-					(unsigned long long int)
-						conn->session->sid);
+					(unsigned long long int) conn->session->sid,
+					conn);
 				/*
 				 * We must call mark_conn_closed() outside of
 				 * write_list_lock or we will have a circular
@@ -812,8 +812,9 @@ void conn_free(struct iscsi_conn *conn)
 
 	TRACE_ENTRY();
 
-	TRACE_MGMT_DBG("Freeing conn %p (sess=%p, %#Lx %u)", conn,
-		session, (unsigned long long int)session->sid, conn->cid);
+	TRACE(TRACE_MGMT, "Freeing conn %p (sess=%p, %#Lx %u, initiator %s)",
+		conn, session, (unsigned long long int)session->sid, conn->cid,
+		session->scst_sess->initiator_name);
 
 	lockdep_assert_held(&conn->target->target_mutex);
 
@@ -928,8 +929,9 @@ int iscsi_conn_alloc(struct iscsi_session *session,
 		goto out_err;
 	}
 
-	TRACE_MGMT_DBG("Creating connection %p for sid %#Lx, cid %u", conn,
-		       (unsigned long long int)session->sid, info->cid);
+	TRACE(TRACE_MGMT, "Creating connection %p for sid %#Lx, cid %u "
+		"(initiator %s)", conn, (unsigned long long int)session->sid,
+		 info->cid, session->scst_sess->initiator_name);
 
 	conn->transport = t;
 
@@ -1010,7 +1012,7 @@ int __add_conn(struct iscsi_session *session, struct iscsi_kern_conn_info *info)
 		goto out;
 
 	if (reinstatement) {
-		TRACE_MGMT_DBG("Reinstating conn (old %p, new %p)", conn,
+		TRACE(TRACE_MGMT, "Reinstating conn (old %p, new %p)", conn,
 			new_conn);
 		conn->conn_reinst_successor = new_conn;
 		__set_bit(ISCSI_CONN_REINSTATING, &new_conn->conn_aflags);

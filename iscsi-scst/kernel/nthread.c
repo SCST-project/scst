@@ -753,7 +753,8 @@ restart:
 			goto restart;
 		default:
 			if (!conn->closing) {
-				PRINT_ERROR("sock_recvmsg() failed: %d", res);
+				PRINT_ERROR("sock_recvmsg() failed: %d (conn %p)",
+					res, conn);
 				mark_conn_closed(conn);
 			}
 			if (res == 0)
@@ -961,9 +962,9 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 				res = digest_rx_header(cmnd);
 				if (unlikely(res != 0)) {
 					PRINT_ERROR("rx header digest for "
-						"initiator %s failed (%d)",
+						"initiator %s (conn %p) failed (%d)",
 						conn->session->initiator_name,
-						res);
+						conn, res);
 					mark_conn_closed(conn);
 				} else
 					conn->read_state = RX_CMD_START;
@@ -1086,7 +1087,7 @@ int istrd(void *arg)
 
 	TRACE_ENTRY();
 
-	PRINT_INFO("Read thread for pool %p started, PID %d", p, current->pid);
+	PRINT_INFO("Read thread for pool %p started", p);
 
 	current->flags |= PF_NOFREEZE;
 	rc = set_cpus_allowed_ptr(current, &p->cpu_mask);
@@ -1107,7 +1108,7 @@ int istrd(void *arg)
 	 */
 	sBUG_ON(!list_empty(&p->rd_list));
 
-	PRINT_INFO("Read thread for PID %d for pool %p finished", current->pid, p);
+	PRINT_INFO("Read thread for pool %p finished", p);
 
 	TRACE_EXIT();
 	return 0;
@@ -1594,9 +1595,9 @@ static int exit_tx(struct iscsi_conn *conn, int res)
 #else
 		{
 #endif
-			PRINT_ERROR("Sending data failed: initiator %s, "
+			PRINT_ERROR("Sending data failed: initiator %s (conn %p), "
 				"write_size %d, write_state %d, res %d",
-				conn->session->initiator_name,
+				conn->session->initiator_name, conn,
 				conn->write_size,
 				conn->write_state, res);
 		}
@@ -1854,7 +1855,7 @@ int istwr(void *arg)
 
 	TRACE_ENTRY();
 
-	PRINT_INFO("Write thread for pool %p started, PID %d", p, current->pid);
+	PRINT_INFO("Write thread for pool %p started", p);
 
 	current->flags |= PF_NOFREEZE;
 	rc = set_cpus_allowed_ptr(current, &p->cpu_mask);
@@ -1875,7 +1876,7 @@ int istwr(void *arg)
 	 */
 	sBUG_ON(!list_empty(&p->wr_list));
 
-	PRINT_INFO("Write thread PID %d for pool %p finished", current->pid, p);
+	PRINT_INFO("Write thread for pool %p finished", p);
 
 	TRACE_EXIT();
 	return 0;

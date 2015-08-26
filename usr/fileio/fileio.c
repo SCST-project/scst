@@ -55,7 +55,7 @@ char *app_name;
 #else /* DEBUG */
 
 # ifdef TRACING
-#define DEFAULT_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_MGMT | \
+#define DEFAULT_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_MGMT | TRACE_PID | \
 	TRACE_TIME | TRACE_SPECIAL)
 # else
 #define DEFAULT_LOG_FLAGS 0

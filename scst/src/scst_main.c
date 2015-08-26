@@ -861,7 +861,7 @@ static void __printf(2, 3) scst_to_syslog(void *arg, const char *fmt, ...)
 	}
 
 	va_start(args, fmt);
-	printk(KERN_INFO "    ");
+	pr_info("    ");
 	vprintk(fmt, args);
 	va_end(args);
 	return;
