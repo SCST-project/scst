@@ -772,6 +772,9 @@ void scst_unthrottle_cmd(struct scst_cmd *cmd);
 int scst_do_internal_parsing(struct scst_cmd *cmd);
 int scst_parse_descriptors(struct scst_cmd *cmd);
 
+int scst_pr_init(struct scst_device *dev);
+void scst_pr_cleanup(struct scst_device *dev);
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
 void scst_vfs_unlink_and_put(struct nameidata *nd);
 #else

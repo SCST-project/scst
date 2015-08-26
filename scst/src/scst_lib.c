@@ -3964,13 +3964,7 @@ int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev)
 	dev->dev_double_ua_possible = 1;
 	dev->queue_alg = SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER;
 
-	mutex_init(&dev->dev_pr_mutex);
-	dev->pr_generation = 0;
-	dev->pr_is_set = 0;
-	dev->pr_holder = NULL;
-	dev->pr_scope = SCOPE_LU;
-	dev->pr_type = TYPE_UNSPECIFIED;
-	INIT_LIST_HEAD(&dev->dev_registrants_list);
+	scst_pr_init(dev);
 
 	BUILD_BUG_ON(SCST_DIF_NO_CHECK_APP_TAG != 0);
 	dev->dev_dif_static_app_tag = SCST_DIF_NO_CHECK_APP_TAG;
@@ -4002,6 +3996,8 @@ void scst_free_device(struct scst_device *dev)
 #endif
 
 	scst_deinit_threads(&dev->dev_cmd_threads);
+
+	scst_pr_cleanup(dev);
 
 	kfree(dev->virt_name);
 	kmem_cache_free(scst_dev_cachep, dev);

@@ -1150,6 +1150,25 @@ out:
 	return res;
 }
 
+/* Initialize the PR members in *dev. */
+int scst_pr_init(struct scst_device *dev)
+{
+	mutex_init(&dev->dev_pr_mutex);
+	dev->pr_generation = 0;
+	dev->pr_is_set = 0;
+	dev->pr_holder = NULL;
+	dev->pr_scope = SCOPE_LU;
+	dev->pr_type = TYPE_UNSPECIFIED;
+	INIT_LIST_HEAD(&dev->dev_registrants_list);
+
+	return 0;
+}
+
+/* Free the resources allocated by scst_pr_init().  */
+void scst_pr_cleanup(struct scst_device *dev)
+{
+}
+
 /* Must be called under dev_pr_mutex or before dev is on the device list. */
 int scst_pr_init_dev(struct scst_device *dev)
 {
