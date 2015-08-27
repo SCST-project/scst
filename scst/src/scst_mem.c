@@ -1168,7 +1168,7 @@ out_return:
 
 out_return1:
 	*sgv = obj;
-	TRACE_MEM("Returning failed obj %p (count %d)", obj, *count);
+	TRACE_MEM("Returning failed obj %p", obj);
 
 out_return2:
 	*count = pages_to_alloc;
