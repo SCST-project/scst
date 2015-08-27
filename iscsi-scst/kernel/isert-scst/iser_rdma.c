@@ -1345,6 +1345,8 @@ static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
 	tgt_conn_param.private_data = &cm_hdr;
 	cm_hdr.flags = ISER_ZBVA_NOT_SUPPORTED | ISER_SEND_W_INV_NOT_SUPPORTED;
 
+	kref_get(&isert_conn->kref);
+
 	err = rdma_accept(cm_id, &tgt_conn_param);
 	if (unlikely(err)) {
 		pr_err("Failed to accept conn request, err:%d\n", err);
@@ -1422,7 +1424,6 @@ static int isert_cm_connect_handler(struct rdma_cm_id *cm_id,
 	if (unlikely(ret))
 		goto out;
 
-	kref_get(&isert_conn->kref);
 	kref_get(&isert_conn->kref);
 	/* notify upper layer */
 	ret = isert_conn_established(&isert_conn->iscsi,
@@ -1592,6 +1593,12 @@ static int isert_cm_evt_handler(struct rdma_cm_id *cm_id,
 
 			isert_conn = cm_id->qp->qp_context;
 			set_bit(ISERT_CONNECTION_ABORTED, &isert_conn->flags);
+			/*
+			 * reaching here must be with the isert_conn refcount of 2,
+			 * one from the init and one from the connect request,
+			 * thus it is safe to deref directly before the sched_conn_closed
+			*/
+			isert_conn_free(isert_conn);
 			isert_sched_conn_closed(isert_conn);
 			err = 0;
 		}
