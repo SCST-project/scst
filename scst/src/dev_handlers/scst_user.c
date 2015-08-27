@@ -2072,14 +2072,14 @@ static int dev_user_reply_get_multi(struct file *file, void __user *arg)
 		goto out;
 
 	res = get_user(replies_cnt, (int16_t __user *)
-		&((struct scst_user_get_multi *)arg)->replies_cnt);
+		&((struct scst_user_get_multi __user *)arg)->replies_cnt);
 	if (unlikely(res < 0)) {
 		PRINT_ERROR("%s", "Unable to get replies_cnt");
 		goto out;
 	}
 
 	res = get_user(cmds_cnt, (int16_t __user *)
-		&((struct scst_user_get_multi *)arg)->cmds_cnt);
+		&((struct scst_user_get_multi __user *)arg)->cmds_cnt);
 	if (unlikely(res < 0)) {
 		PRINT_ERROR("%s", "Unable to get cmds_cnt");
 		goto out;
@@ -2121,7 +2121,7 @@ static int dev_user_reply_get_multi(struct file *file, void __user *arg)
 
 	TRACE_DBG("Returning %d replies_done", replies_done);
 	res = put_user(replies_done, (int16_t __user *)
-		&((struct scst_user_get_multi *)arg)->replies_done);
+		&((struct scst_user_get_multi __user *)arg)->replies_done);
 	if (unlikely(res < 0))
 		goto out;
 
@@ -2138,7 +2138,7 @@ get_cmds:
 
 	TRACE_DBG("Returning %d cmds_ret", i);
 	rc = put_user(i, (int16_t __user *)
-		&((struct scst_user_get_multi *)arg)->cmds_cnt);
+		&((struct scst_user_get_multi __user *)arg)->cmds_cnt);
 	if (unlikely(rc < 0)) {
 		res = rc; /* this error is more important */
 		goto out;
@@ -2151,9 +2151,9 @@ out:
 out_part_replies_done:
 	TRACE_DBG("Partial returning %d replies_done", replies_done);
 	put_user(replies_done, (int16_t __user *)
-		&((struct scst_user_get_multi *)arg)->replies_done);
+		&((struct scst_user_get_multi __user *)arg)->replies_done);
 	rc = put_user(0, (int16_t __user *)
-		&((struct scst_user_get_multi *)arg)->cmds_cnt);
+		&((struct scst_user_get_multi __user *)arg)->cmds_cnt);
 	goto out;
 }
 
