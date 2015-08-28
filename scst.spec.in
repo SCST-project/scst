@@ -9,7 +9,7 @@
 %{!?kversion:%define kversion %{expand:%%(
 	    if rpm --quiet -q kernel-headers; then
 		rpm -q --qf '%%%%{version}-%%%%{release}.%%%%{arch}\\n' \\
-		    kernel-headers | head -n1;
+		    kernel-headers | tail -n1;
 	    else
 		uname -r;
 	    fi
@@ -104,9 +104,9 @@ Authors:
 %setup -q -n %{kmod_name}-%{version}
 
 %build
-make 2release
 export KVER=%{kversion} PREFIX=%{_prefix}
 export BUILD_2X_MODULE=y CONFIG_SCSI_QLA_FC=y CONFIG_SCSI_QLA2XXX_TARGET=y
+make 2release
 for d in scst fcst iscsi-scst qla2x00t/qla2x00-target scst_local srpt; do
     %{make} -C $d
 done
