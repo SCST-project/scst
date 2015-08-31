@@ -453,6 +453,7 @@ scst-dkms-rpm:
 		<$${name}.spec.in >$${name}.spec &&			\
 	MAKE="$(MAKE)" rpmbuild --define="%_topdir $${rpmtopdir}"	\
 	    $(if $(KVER),--define="%kversion $(KVER)")			\
+	    $(if $(KDIR),--define="%kdir $(KDIR)")			\
 	    -ba $${name}.spec &&					\
 	rm -f $${name}-$(VERSION).tar.bz2
 
