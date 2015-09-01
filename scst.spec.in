@@ -67,7 +67,7 @@ BuildRequires:	%{?kernel_rpm:%{kernel_rpm} = %{krpmver} %{kernel_devel_rpm} = %{
 Source:		%{kmod_name}-%{version}.tar.bz2
 BuildRoot:	%{_tmppath}/%{name}-%{version}-build
 AutoReqProv:	no
-Requires:	%{?kernel_rpm:%{kernel_rpm} = %{krpmver}} %{expand:%%(for c in depmod find rm; do echo -n "$(which $c) "; done)}
+Requires:	%{?kernel_rpm:%{kernel_rpm} = %{krpmver}} %{expand:%%(for c in depmod find rm; do echo -n "$(PATH=/sbin:/bin:/usr/sbin:/usr/bin which $c) "; done)}
 Provides:	scst
 
 %description
