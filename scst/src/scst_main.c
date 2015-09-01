@@ -1925,7 +1925,12 @@ out_wait:
 		 * Wait for io_context gets initialized to avoid possible races
 		 * for it from the sharing it tgt_devs.
 		 */
-		scst_wait_ioctx(cmd_threads);
+		while (!*(volatile bool *)&cmd_threads->io_context_ready) {
+			TRACE_DBG("Waiting for io_context for cmd_threads %p "
+				"initialized", cmd_threads);
+			msleep(50);
+		}
+		smp_rmb();
 	}
 
 	if (res != 0)
@@ -2176,7 +2181,6 @@ void scst_init_threads(struct scst_cmd_threads *cmd_threads)
 	INIT_LIST_HEAD(&cmd_threads->threads_list);
 	mutex_init(&cmd_threads->io_context_mutex);
 	spin_lock_init(&cmd_threads->thr_lock);
-	init_waitqueue_head(&cmd_threads->io_context_wait);
 
 	mutex_lock(&scst_cmd_threads_mutex);
 	list_add_tail(&cmd_threads->lists_list_entry,
