@@ -2,18 +2,22 @@
 # kversion: Kernel version as it appears under /lib/modules.
 # The algorithm for setting the variable kversion is as follows:
 # - If the variable kversion has been set, use its value.
+# - If the variable kdir has been set, derive the kernel version from kdir.
 # - If an RPM with the name kernel-headers exists (RHEL / CentOS), use the
 #   version number of the kernel that package is based on. This provides the
 #   version number when building on a koji build server.
 # - Otherwise use the version number of the running kernel.
-%{!?kversion:%define kversion %{expand:%%(
+%{!?kversion:
+    %{?kdir:%define kversion %{expand:%%(make -sC %{kdir} kernelversion)}}
+    %{!?kdir:
+	%define kversion %{expand:%%(
 	    if rpm --quiet -q kernel-headers; then
 		rpm -q --qf '%%%%{version}-%%%%{release}.%%%%{arch}\\n' \\
 		    kernel-headers | tail -n1;
 	    else
 		uname -r;
 	    fi
-	)}}
+	)}}}
 %{echo:kversion=%{kversion}
 }
 # kernel_rpm: Name of the kernel RPM if the kernel is available as an RPM.
@@ -25,7 +29,7 @@
 		echo kernel;
 	    else
 		rpm -q --qf '%%%%{name}\\n' \\
-		    "$(rpm -qf /lib/modules/%%{kversion}/kernel/arch | head -n1)";
+		    "$(rpm -qf /lib/modules/%%{kversion}/kernel/arch | tail -n1)";
 	    fi
 	)}
 %endif
@@ -36,10 +40,10 @@
 	    else
 		rpm -q --qf '%%%%{version}-%%%%{release}\\n' kernel-headers;
 	    fi |
-	    head -n1
-	)}}
+	    tail -n1
+	)}
 %{echo:krpmver=%{krpmver}
-}
+}}
 # kernel_devel_rpm: Name of the kernel development RPM.
 %{?kernel_rpm:%define kernel_devel_rpm %{kernel_rpm}-devel}
 # Version of the RPM that is being built.
@@ -56,7 +60,6 @@ Group:		System/Kernel
 License:	GPLv2
 Vendor:		http://scst.sourceforge.net/
 URL:		http://scst.sourceforge.net/
-%{?kernel_rpm:Requires:	%{kernel_rpm} = %{krpmver}}
 # Unfortunately the Red Hat / CentOS kernel-debug-devel RPM provides
 # kernel-devel so a workaround is needed to match the kernel-devel RPM.
 BuildRequires:	%{?kernel_rpm:%{kernel_rpm} = %{krpmver} %{kernel_devel_rpm} = %{krpmver}} gcc make
@@ -64,7 +67,7 @@ BuildRequires:	%{?kernel_rpm:%{kernel_rpm} = %{krpmver} %{kernel_devel_rpm} = %{
 Source:		%{kmod_name}-%{version}.tar.bz2
 BuildRoot:	%{_tmppath}/%{name}-%{version}-build
 AutoReqProv:	no
-Requires:	%{expand:%%(for c in depmod find rm; do echo -n "$(which $c) "; done)}
+Requires:	%{?kernel_rpm:%{kernel_rpm} = %{krpmver}} %{expand:%%(for c in depmod find rm; do echo -n "$(which $c) "; done)}
 Provides:	scst
 
 %description
