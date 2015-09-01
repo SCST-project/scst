@@ -4495,6 +4495,7 @@ struct scst_acg *scst_tgt_find_acg(struct scst_tgt *tgt, const char *name)
 static struct scst_tgt_dev *scst_find_shared_io_tgt_dev(
 	struct scst_tgt_dev *tgt_dev)
 {
+	struct scst_cmd_threads *a;
 	struct scst_tgt_dev *res = NULL;
 	struct scst_session *sess = tgt_dev->sess;
 	struct scst_acg *acg = tgt_dev->acg_dev->acg;
@@ -4566,21 +4567,16 @@ out:
 	return res;
 
 found:
-	if (t->active_cmd_threads == &scst_main_cmd_threads) {
-		res = t;
+	res = t;
+	a = t->active_cmd_threads;
+	if (a == &scst_main_cmd_threads) {
 		TRACE_DBG("Going to share async IO context %p (res %p, "
 			"ini %s, dev %s, grouping type %d)",
 			t->aic_keeper->aic, res, t->sess->initiator_name,
 			t->dev->virt_name,
 			t->acg_dev->acg->acg_io_grouping_type);
 	} else {
-		res = t;
-		if (!*(volatile bool *)&res->active_cmd_threads->io_context_ready) {
-			TRACE_DBG("IO context for t %p not yet "
-				"initialized, waiting...", t);
-			msleep(100);
-			goto found;
-		}
+		wait_event(a->ioctx_wq, a->io_context_ready);
 		smp_rmb();
 		TRACE_DBG("Going to share IO context %p (res %p, ini %s, "
 			"dev %s, cmd_threads %p, grouping type %d)",

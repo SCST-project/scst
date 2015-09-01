@@ -5010,6 +5010,8 @@ int scst_cmd_thread(void *arg)
 
 	scst_ioctx_get(p_cmd_threads);
 
+	wake_up_all(&p_cmd_threads->ioctx_wq);
+
 	spin_lock_irq(&p_cmd_threads->cmd_list_lock);
 	while (!kthread_should_stop()) {
 		wait_event_locked(p_cmd_threads->cmd_list_waitQ,
