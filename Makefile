@@ -54,11 +54,11 @@ EMULEX_DIR=emulex
 
 ISCSI_DIR=iscsi-scst
 
-VERSION = $(shell echo -n "$$(sed -n 's/^\#define[[:blank:]]SCST_VERSION_NAME[[:blank:]]*\"\([^-]*\).*\"/\1/p' scst/include/scst_const.h).";		\
-		   if svn info >/dev/null 2>&1;				\
+REVISION ?= $(shell if svn info >/dev/null 2>&1;			 \
 		   then svn info | sed -n 's/^Revision:[[:blank:]]*/r/p';\
-		   else git show | sed -n 's/^commit[[:blank:]]*\(.......\).*/\1/p'; \
+		   else echo -n r; git log | grep -c ^commit;		 \
 		   fi)
+VERSION = $(shell echo -n "$$(sed -n 's/^\#define[[:blank:]]SCST_VERSION_NAME[[:blank:]]*\"\([^-]*\).*\"/\1/p' scst/include/scst_const.h).$(REVISION)")
 
 help:
 	@echo "		all               : make all"
@@ -453,6 +453,7 @@ scst-dkms-rpm:
 		<$${name}.spec.in >$${name}.spec &&			\
 	MAKE="$(MAKE)" rpmbuild --define="%_topdir $${rpmtopdir}"	\
 	    $(if $(KVER),--define="%kversion $(KVER)")			\
+	    $(if $(KDIR),--define="%kdir $(KDIR)")			\
 	    -ba $${name}.spec &&					\
 	rm -f $${name}-$(VERSION).tar.bz2
 

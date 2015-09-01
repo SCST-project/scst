@@ -2,11 +2,11 @@ ifndef PREFIX
         PREFIX=/usr/local
 endif
 
-VERSION = $(shell echo -n "$$(sed -n 's/^[[:blank:]]*\$$VERSION[[:blank:]]*=[[:blank:]]*[\"'"'"']\([0-9.]*\)[\"'"'"'];$$/\1/p' scstadmin/scst-*/lib/SCST/SCST.pm).";	\
-		   if svn info >/dev/null 2>&1;				\
+REVISION ?= $(shell if svn info >/dev/null 2>&1;			 \
 		   then svn info | sed -n 's/^Revision:[[:blank:]]*/r/p';\
-		   else git show | sed -n 's/^commit[[:blank:]]*\(.......\).*/\1/p'; \
+		   else echo -n r; git log | grep -c ^commit;		 \
 		   fi)
+VERSION = $(shell echo -n "$$(sed -n 's/^[[:blank:]]*\$$VERSION[[:blank:]]*=[[:blank:]]*[\"'"'"']\([0-9.]*\)[\"'"'"'];$$/\1/p' scstadmin/scst-*/lib/SCST/SCST.pm).$(REVISION)")
 
 SCSTADMIN_DIR = $(shell if [ ! -h scstadmin ]; then		\
 			    rm -f scstadmin;			\

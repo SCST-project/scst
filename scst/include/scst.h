@@ -2275,6 +2275,7 @@ struct scst_cmd_threads {
 	int io_context_refcnt;
 
 	bool io_context_ready;
+	wait_queue_head_t ioctx_wq;
 
 	/* io_context_mutex protects io_context and io_context_refcnt. */
 	struct mutex io_context_mutex;
