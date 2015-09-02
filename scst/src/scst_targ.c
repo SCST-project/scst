@@ -1912,6 +1912,8 @@ static int scst_report_luns_local(struct scst_cmd *cmd)
 		struct list_head *head = &cmd->sess->sess_tgt_dev_list[i];
 		list_for_each_entry_rcu(tgt_dev, head,
 					sess_tgt_dev_list_entry) {
+			struct scst_tgt_dev_UA *ua;
+
 			if (!overflow) {
 				if ((buffer_size - offs) < 8) {
 					overflow = 1;
@@ -1924,33 +1926,8 @@ static int scst_report_luns_local(struct scst_cmd *cmd)
 			}
 inc_dev_cnt:
 			dev_cnt++;
-		}
-	}
-	rcu_read_unlock();
 
-	/* Set the response header */
-	dev_cnt *= 8;
-	put_unaligned_be32(dev_cnt, buffer);
-
-	scst_put_buf_full(cmd, buffer);
-
-	dev_cnt += 8;
-	if (dev_cnt < cmd->resp_data_len)
-		scst_set_resp_data_len(cmd, dev_cnt);
-
-out_compl:
-	cmd->completed = 1;
-
-	/* Clear left sense_reported_luns_data_changed UA, if any. */
-
-	rcu_read_lock();
-	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
-		struct list_head *head = &cmd->sess->sess_tgt_dev_list[i];
-
-		list_for_each_entry_rcu(tgt_dev, head,
-					sess_tgt_dev_list_entry) {
-			struct scst_tgt_dev_UA *ua;
-
+			/* Clear sense_reported_luns_data_changed UA. */
 			spin_lock_bh(&tgt_dev->tgt_dev_lock);
 			list_for_each_entry(ua, &tgt_dev->UA_list,
 						UA_list_entry) {
@@ -1969,6 +1946,19 @@ out_compl:
 		}
 	}
 	rcu_read_unlock();
+
+	/* Set the response header */
+	dev_cnt *= 8;
+	put_unaligned_be32(dev_cnt, buffer);
+
+	scst_put_buf_full(cmd, buffer);
+
+	dev_cnt += 8;
+	if (dev_cnt < cmd->resp_data_len)
+		scst_set_resp_data_len(cmd, dev_cnt);
+
+out_compl:
+	cmd->completed = 1;
 
 	/* Report the result */
 	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
