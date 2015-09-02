@@ -11617,7 +11617,6 @@ again:
 				spin_lock(&tgt_dev->tgt_dev_lock);
 			}
 		}
-		rcu_read_unlock();
 #endif
 
 		first = false;
@@ -11647,7 +11646,6 @@ again:
 	list_del(&UA_entry->UA_list_entry);
 
 	if (UA_entry->global_UA) {
-		rcu_read_lock();
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 			struct list_head *head = &sess->sess_tgt_dev_list[i];
 			struct scst_tgt_dev *tgt_dev;
@@ -11671,7 +11669,6 @@ again:
 				}
 			}
 		}
-		rcu_read_unlock();
 	}
 
 	mempool_free(UA_entry, scst_ua_mempool);
@@ -11684,7 +11681,6 @@ again:
 out_unlock:
 	if (global_unlock) {
 #if !defined(__CHECKER__)
-		rcu_read_lock();
 		for (i = SESS_TGT_DEV_LIST_HASH_SIZE-1; i >= 0; i--) {
 			struct list_head *head = &sess->sess_tgt_dev_list[i];
 			struct scst_tgt_dev *tgt_dev;
