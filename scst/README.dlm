@@ -143,6 +143,33 @@ change the t10_dev_id if cluster mode has been enabled.
 Testing
 -------
 
+A quick test to verify whether PR synchronization is working is as follows:
+* Start SCST and enable cluster_mode for a volume on both nodes.
+* Log in from an initiator system to the two target systems.
+* Look up the names of the paths on the initiator system with lsscsi. Assume
+  that these names are /dev/sdb and /dev/sdc.
+* Run the following commands on the initiator system:
+  # sg_persist -s /dev/sdc
+  # sg_persist -n -o --register --param-sark 0xabc123 /dev/sdb
+  # sg_persist -s /dev/sdc
+  SCST_BIO  ram0               310
+  Peripheral device type: disk
+  PR generation=0x1
+    Key=0xabc123
+      All target ports bit clear
+      Relative port address: 0x1
+      not reservation holder
+      Transport Id of initiator:
+        iSCSI name and session id: iqn...
+* Run the following command on a target system:
+  # dlm_tool ls
+  dlm lockspaces
+  name          scst-179ee149-ram0
+  id            0x2b2d1c39
+  flags         0x00000000
+  change        member 2 joined 1 remove 0 failed 0 seq 1,1
+  members       1 2
+
 Two examples of test suites for the cluster PR support code are:
 * The SCSI conformance tests in the libiscsi project.
 * The Windows Cluster Validation Tests
