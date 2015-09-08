@@ -84,7 +84,8 @@ ifeq ($(CREATE_SEND_MAD_AH_FLAG),)
 endif
 GID_CHANGE_FLAG = $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/gid_change PRE_CFLAGS="$(OFED_CFLAGS)" >/dev/null 2>&1 && echo -DHAVE_IB_EVENT_GID_CHANGE)
 REGISTER_MAD_AGENT_FLAG = $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/register_mad_agent PRE_CFLAGS="$(OFED_CFLAGS) -Werror" >/dev/null 2>&1 && echo -DREGISTER_MAD_AGENT_HAS_FLAGS_ARG)
-PRE_CFLAGS=$(OFED_CFLAGS) $(CREATE_CQ_FLAG) $(CREATE_SEND_MAD_AH_FLAG) $(CREATE_SEND_MAD_BASE_FLAG) $(GID_CHANGE_FLAG) $(REGISTER_MAD_AGENT_FLAG) -DOFED_FLAVOR=$(OFED_FLAVOR)
+QUERY_GID_FLAG = $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/query_gid PRE_CFLAGS="$(OFED_CFLAGS)" >/dev/null 2>&1 && echo -DIB_QUERY_GID_HAS_ATTR_ARG)
+PRE_CFLAGS=$(OFED_CFLAGS) $(CREATE_CQ_FLAG) $(CREATE_SEND_MAD_AH_FLAG) $(CREATE_SEND_MAD_BASE_FLAG) $(GID_CHANGE_FLAG) $(REGISTER_MAD_AGENT_FLAG) $(QUERY_GID_FLAG) -DOFED_FLAVOR=$(OFED_FLAVOR)
 
 all: src/$(MODULE_SYMVERS)
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src \
@@ -137,11 +138,11 @@ src/$(MODULE_SYMVERS): $(SCST_SYMVERS_DIR)/$(MODULE_SYMVERS)	\
 	fi
 
 clean:
-	for d in conftest/gid_change conftest/register_mad_agent src; do \
+	rm -rf conftest/pre_cflags conftest/kcflags
+	for d in conftest/* src; do \
 	  $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/$$d clean;		 \
 	done
 	rm -f src/$(MODULE_SYMVERS) src/Module.markers src/modules.order
-	rm -rf conftest/pre_cflags conftest/kcflags
 
 extraclean: clean
 	rm -f *.orig *.rej
