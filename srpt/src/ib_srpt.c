@@ -1937,7 +1937,7 @@ static void srpt_process_rcv_completion(struct ib_cq *cq,
 			ioctx = ch->ioctx_recv_ring[index];
 		ioctx->byte_len = wc->byte_len;
 		srpt_handle_new_iu(ch, ioctx, srpt_new_iu_context);
-	} else {
+	} else if (ch->state <= CH_LIVE) {
 		pr_info("receiving failed for idx %u with status %d\n", index,
 			wc->status);
 	}
