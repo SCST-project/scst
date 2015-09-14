@@ -5069,13 +5069,17 @@ static enum compl_status_e vdisk_exec_read_capacity16(struct vdisk_cmd_params *p
 	int32_t length;
 	uint8_t *address;
 	struct scst_vdisk_dev *virt_dev;
-	uint32_t blocksize;
+	struct block_device *bdev;
+	struct request_queue *q;
+	uint32_t blocksize, physical_blocksize;
 	uint64_t nblocks;
 	uint8_t buffer[32];
 
 	TRACE_ENTRY();
 
 	virt_dev = cmd->dev->dh_priv;
+	bdev = virt_dev->bdev;
+	q = bdev ? bdev_get_queue(bdev) : NULL;
 	blocksize = cmd->dev->block_size;
 	nblocks = virt_dev->nblocks - 1;
 
@@ -5110,21 +5114,9 @@ static enum compl_status_e vdisk_exec_read_capacity16(struct vdisk_cmd_params *p
 		}
 	}
 
-	switch (blocksize) {
-	case 512:
-		buffer[13] = 3;
-		break;
-	case 1024:
-		buffer[13] = 2;
-		break;
-	case 2048:
-		buffer[13] = 1;
-		break;
-	case 4096:
-	default:
-		buffer[13] = 0;
-		break;
-	}
+	/* LOGICAL BLOCKS PER PHYSICAL BLOCK EXPONENT */
+	physical_blocksize = q ? queue_physical_block_size(q) : 4096;
+	buffer[13] = max(ilog2(physical_blocksize) - ilog2(blocksize), 0);
 
 	if (virt_dev->thin_provisioned) {
 		buffer[14] |= 0x80;     /* LBPME */
