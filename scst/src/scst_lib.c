@@ -63,6 +63,7 @@
 #include "scst_mem.h"
 #include "scst_pres.h"
 
+static void scst_put_acg_work(struct work_struct *work);
 static void scst_del_acn(struct scst_acn *acn);
 static void scst_free_acn(struct scst_acn *acn, bool reassign);
 
@@ -74,6 +75,7 @@ struct scsi_io_context {
 };
 static struct kmem_cache *scsi_io_context_cache;
 #endif
+static struct workqueue_struct *scst_release_acg_wq;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22) \
     && (!defined(RHEL_RELEASE_CODE) || RHEL_RELEASE_CODE -0 < 5 * 256 + 3) \
@@ -4434,6 +4436,7 @@ struct scst_acg *scst_alloc_add_acg(struct scst_tgt *tgt,
 	}
 
 	kref_init(&acg->acg_kref);
+	INIT_WORK(&acg->put_work, scst_put_acg_work);
 	acg->tgt = tgt;
 	INIT_LIST_HEAD(&acg->acg_dev_list);
 	INIT_LIST_HEAD(&acg->acg_sess_list);
@@ -4469,6 +4472,8 @@ struct scst_acg *scst_alloc_add_acg(struct scst_tgt *tgt,
 			goto out_del;
 	}
 #endif
+
+	kobject_get(&tgt->tgt_kobj);
 
 out:
 	TRACE_EXIT_HRES(acg);
@@ -4532,8 +4537,9 @@ static void scst_free_acg(struct scst_acg *acg)
 	struct scst_acg_dev *acg_dev, *acg_dev_tmp;
 	struct scst_acn *acn, *acnt;
 	struct scst_session *sess;
+	struct scst_tgt *tgt = acg->tgt;
 
-	TRACE_DBG("Freeing acg %s/%s", acg->tgt->tgt_name, acg->acg_name);
+	TRACE_DBG("Freeing acg %s/%s", tgt->tgt_name, acg->acg_name);
 
 	list_for_each_entry_safe(acg_dev, acg_dev_tmp, &acg->acg_dev_list,
 			acg_dev_list_entry) {
@@ -4561,6 +4567,8 @@ static void scst_free_acg(struct scst_acg *acg)
 
 	kfree(acg->acg_name);
 	kfree(acg);
+
+	kobject_put(&tgt->tgt_kobj);
 }
 
 static void scst_release_acg(struct kref *kref)
@@ -4570,9 +4578,20 @@ static void scst_release_acg(struct kref *kref)
 	scst_free_acg(acg);
 }
 
+static void scst_put_acg_work(struct work_struct *work)
+{
+	struct scst_acg *acg = container_of(work, typeof(*acg), put_work);
+
+	kref_put(&acg->acg_kref, scst_release_acg);
+}
+
 void scst_put_acg(struct scst_acg *acg)
 {
-	kref_put(&acg->acg_kref, scst_release_acg);
+	/*
+	 * Schedule the kref_put() call instead of invoking it directly to
+	 * avoid deep recursion and a stack overflow.
+	 */
+	queue_work(scst_release_acg_wq, &acg->put_work);
 }
 
 void scst_get_acg(struct scst_acg *acg)
@@ -13676,6 +13695,9 @@ static void __init scst_scsi_op_list_init(void)
 	TRACE_BUFFER("scst_scsi_op_list", scst_scsi_op_list,
 		sizeof(scst_scsi_op_list));
 
+	scst_release_acg_wq = create_workqueue("scst_release_acg");
+	WARN_ON_ONCE(IS_ERR(scst_release_acg_wq));
+
 	TRACE_EXIT();
 	return;
 }
@@ -13705,6 +13727,10 @@ out:
 
 void scst_lib_exit(void)
 {
+	/* Wait until any ongoing acg->put_work has finished. */
+	flush_workqueue(scst_release_acg_wq);
+	destroy_workqueue(scst_release_acg_wq);
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 	BUILD_BUG_ON(SCST_MAX_CDB_SIZE != BLK_MAX_CDB);
 	BUILD_BUG_ON(SCST_SENSE_BUFFERSIZE < SCSI_SENSE_BUFFERSIZE);
