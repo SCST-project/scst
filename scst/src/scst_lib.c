@@ -4471,9 +4471,9 @@ struct scst_acg *scst_alloc_add_acg(struct scst_tgt *tgt,
 		if (rc != 0)
 			goto out_del;
 	}
-#endif
 
 	kobject_get(&tgt->tgt_kobj);
+#endif
 
 out:
 	TRACE_EXIT_HRES(acg);
@@ -4568,7 +4568,9 @@ static void scst_free_acg(struct scst_acg *acg)
 	kfree(acg->acg_name);
 	kfree(acg);
 
+#ifndef CONFIG_SCST_PROC
 	kobject_put(&tgt->tgt_kobj);
+#endif
 }
 
 static void scst_release_acg(struct kref *kref)
