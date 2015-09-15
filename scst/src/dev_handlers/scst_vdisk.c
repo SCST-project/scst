@@ -5063,6 +5063,17 @@ out:
 	return CMD_SUCCEEDED;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31)
+/*
+ * See also patch "block: Export I/O topology for block devices and partitions"
+ * (commit ID c72758f33784).
+ */
+static inline unsigned int queue_physical_block_size(struct request_queue *q)
+{
+	return 4096;
+}
+#endif
+
 static enum compl_status_e vdisk_exec_read_capacity16(struct vdisk_cmd_params *p)
 {
 	struct scst_cmd *cmd = p->cmd;
