@@ -1352,7 +1352,7 @@ cont_alloc:
 	ha->fw_dump->signature[1] = 'L';
 	ha->fw_dump->signature[2] = 'G';
 	ha->fw_dump->signature[3] = 'C';
-	ha->fw_dump->version = __constant_htonl(1);
+	ha->fw_dump->version = htonl(1);
 
 	ha->fw_dump->fixed_size = htonl(fixed_size);
 	ha->fw_dump->mem_size = htonl(mem_size);
