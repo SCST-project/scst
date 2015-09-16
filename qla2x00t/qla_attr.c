@@ -66,7 +66,7 @@ qla2x00_store_class2_enabled(struct device *dev,
 		break;
 	case '1':
 		if (!ha->enable_class_2) {
-			if (ha->fw_attributes & __constant_cpu_to_le32(BIT_0)) {
+			if (ha->fw_attributes & cpu_to_le32(BIT_0)) {
 				printk(KERN_INFO "(%ld): Enabling class 2 "
 					"operations.\n", vha->host_no);
 				ha->enable_class_2 = 1;

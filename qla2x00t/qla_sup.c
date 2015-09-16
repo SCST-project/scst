@@ -315,7 +315,7 @@ qla2x00_clear_nvram_protection(struct qla_hw_data *ha)
 
 	wprot_old = cpu_to_le16(qla2x00_get_nvram_word(ha, ha->nvram_base));
 	stat = qla2x00_write_nvram_word_tmo(ha, ha->nvram_base,
-	    __constant_cpu_to_le16(0x1234), 100000);
+	    cpu_to_le16(0x1234), 100000);
 	wprot = cpu_to_le16(qla2x00_get_nvram_word(ha, ha->nvram_base));
 	if (stat != QLA_SUCCESS || wprot != 0x1234) {
 		/* Write enable. */
@@ -690,9 +690,9 @@ qla2xxx_get_flt_info(scsi_qla_host_t *vha, uint32_t flt_addr)
 	region = (struct qla_flt_region *)&flt[1];
 	ha->isp_ops->read_optrom(vha, (uint8_t *)req->ring,
 	    flt_addr << 2, OPTROM_BURST_SIZE);
-	if (*wptr == __constant_cpu_to_le16(0xffff))
+	if (*wptr == cpu_to_le16(0xffff))
 		goto no_flash_data;
-	if (flt->version != __constant_cpu_to_le16(1)) {
+	if (flt->version != cpu_to_le16(1)) {
 		ql_log(ql_log_warn, vha, 0x0047,
 		    "Unsupported FLT detected: version=0x%x length=0x%x checksum=0x%x.\n",
 		    le16_to_cpu(flt->version), le16_to_cpu(flt->length),
@@ -871,7 +871,7 @@ qla2xxx_get_fdt_info(scsi_qla_host_t *vha)
 	fdt = (struct qla_fdt_layout *)req->ring;
 	ha->isp_ops->read_optrom(vha, (uint8_t *)req->ring,
 	    ha->flt_region_fdt << 2, OPTROM_BURST_SIZE);
-	if (*wptr == __constant_cpu_to_le16(0xffff))
+	if (*wptr == cpu_to_le16(0xffff))
 		goto no_flash_data;
 	if (fdt->sig[0] != 'Q' || fdt->sig[1] != 'L' || fdt->sig[2] != 'I' ||
 	    fdt->sig[3] != 'D')
@@ -964,7 +964,7 @@ qla2xxx_get_idc_param(scsi_qla_host_t *vha)
 	ha->isp_ops->read_optrom(vha, (uint8_t *)req->ring,
 		QLA82XX_IDC_PARAM_ADDR , 8);
 
-	if (*wptr == __constant_cpu_to_le32(0xffffffff)) {
+	if (*wptr == cpu_to_le32(0xffffffff)) {
 		ha->nx_dev_init_timeout = QLA82XX_ROM_DEV_INIT_TIMEOUT;
 		ha->nx_reset_timeout = QLA82XX_ROM_DRV_RESET_ACK_TIMEOUT;
 	} else {
@@ -1021,9 +1021,9 @@ qla2xxx_flash_npiv_conf(scsi_qla_host_t *vha)
 
 	ha->isp_ops->read_optrom(vha, (uint8_t *)&hdr,
 	    ha->flt_region_npiv_conf << 2, sizeof(struct qla_npiv_header));
-	if (hdr.version == __constant_cpu_to_le16(0xffff))
+	if (hdr.version == cpu_to_le16(0xffff))
 		return;
-	if (hdr.version != __constant_cpu_to_le16(1)) {
+	if (hdr.version != cpu_to_le16(1)) {
 		ql_dbg(ql_dbg_user, vha, 0x7090,
 		    "Unsupported NPIV-Config "
 		    "detected: version=0x%x entries=0x%x checksum=0x%x.\n",
