@@ -399,8 +399,7 @@ function process_preprocessor_statement(evaluated, condition) {
     discard = 1
     delete_next_blank_line = 1
   }
-  else if (output && (!condition                                       \
-		      || condition && matching_if !~ "^+#(el|)if [01]"))
+  else if (output && (!condition || matching_if !~ "^+#(el|)if [01]"))
   {
     if (evaluated == "+#if undecided"                           \
         || (evaluated !~ "^+#if"                                \
