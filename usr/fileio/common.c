@@ -702,7 +702,7 @@ void *main_loop(void *arg)
 	struct vdisk_cmd vcmd = { -1, &cmd, dev, &reply, {0}};
 	int scst_usr_fd = dev->scst_usr_fd;
 	struct pollfd pl;
-#define MULTI_CMDS_CNT 128
+#define MULTI_CMDS_CNT 2
 	struct {
 		struct scst_user_reply_cmd replies[MULTI_CMDS_CNT];
 		struct scst_user_get_multi multi_cmd;
