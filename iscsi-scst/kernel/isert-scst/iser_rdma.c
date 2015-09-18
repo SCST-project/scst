@@ -946,7 +946,7 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 #else
 		{
 		struct ib_cq_init_attr ia = {
-			.cqe	 	 = cqe_num,
+			.cqe		 = cqe_num,
 			.comp_vector	 = i,
 		};
 		cq = ib_create_cq(ib_dev,

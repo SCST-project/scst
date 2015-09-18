@@ -34,10 +34,10 @@ qla2x00_prep_ms_iocb(scsi_qla_host_t *vha, uint32_t req_size, uint32_t rsp_size)
 	ms_pkt->entry_type = MS_IOCB_TYPE;
 	ms_pkt->entry_count = 1;
 	SET_TARGET_ID(ha, ms_pkt->loop_id, SIMPLE_NAME_SERVER);
-	ms_pkt->control_flags = __constant_cpu_to_le16(CF_READ | CF_HEAD_TAG);
+	ms_pkt->control_flags = cpu_to_le16(CF_READ | CF_HEAD_TAG);
 	ms_pkt->timeout = cpu_to_le16(ha->r_a_tov / 10 * 2);
-	ms_pkt->cmd_dsd_count = __constant_cpu_to_le16(1);
-	ms_pkt->total_dsd_count = __constant_cpu_to_le16(2);
+	ms_pkt->cmd_dsd_count = cpu_to_le16(1);
+	ms_pkt->total_dsd_count = cpu_to_le16(2);
 	ms_pkt->rsp_bytecount = cpu_to_le32(rsp_size);
 	ms_pkt->req_bytecount = cpu_to_le32(req_size);
 
@@ -71,10 +71,10 @@ qla24xx_prep_ms_iocb(scsi_qla_host_t *vha, uint32_t req_size, uint32_t rsp_size)
 
 	ct_pkt->entry_type = CT_IOCB_TYPE;
 	ct_pkt->entry_count = 1;
-	ct_pkt->nport_handle = __constant_cpu_to_le16(NPH_SNS);
+	ct_pkt->nport_handle = cpu_to_le16(NPH_SNS);
 	ct_pkt->timeout = cpu_to_le16(ha->r_a_tov / 10 * 2);
-	ct_pkt->cmd_dsd_count = __constant_cpu_to_le16(1);
-	ct_pkt->rsp_dsd_count = __constant_cpu_to_le16(1);
+	ct_pkt->cmd_dsd_count = cpu_to_le16(1);
+	ct_pkt->rsp_dsd_count = cpu_to_le16(1);
 	ct_pkt->rsp_byte_count = cpu_to_le32(rsp_size);
 	ct_pkt->cmd_byte_count = cpu_to_le32(req_size);
 
@@ -139,7 +139,7 @@ qla2x00_chk_ms_status(scsi_qla_host_t *vha, ms_iocb_entry_t *ms_pkt,
 		case CS_DATA_UNDERRUN:
 		case CS_DATA_OVERRUN:		/* Overrun? */
 			if (ct_rsp->header.response !=
-			    __constant_cpu_to_be16(CT_ACCEPT_RESPONSE)) {
+			    cpu_to_be16(CT_ACCEPT_RESPONSE)) {
 				ql_dbg(ql_dbg_disc + ql_dbg_buffer, vha, 0x2077,
 				    "%s failed rejected request on port_id: "
 				    "%02x%02x%02x.\n", routine,
@@ -1176,10 +1176,10 @@ qla2x00_prep_ms_fdmi_iocb(scsi_qla_host_t *vha, uint32_t req_size,
 	ms_pkt->entry_type = MS_IOCB_TYPE;
 	ms_pkt->entry_count = 1;
 	SET_TARGET_ID(ha, ms_pkt->loop_id, vha->mgmt_svr_loop_id);
-	ms_pkt->control_flags = __constant_cpu_to_le16(CF_READ | CF_HEAD_TAG);
+	ms_pkt->control_flags = cpu_to_le16(CF_READ | CF_HEAD_TAG);
 	ms_pkt->timeout = cpu_to_le16(ha->r_a_tov / 10 * 2);
-	ms_pkt->cmd_dsd_count = __constant_cpu_to_le16(1);
-	ms_pkt->total_dsd_count = __constant_cpu_to_le16(2);
+	ms_pkt->cmd_dsd_count = cpu_to_le16(1);
+	ms_pkt->total_dsd_count = cpu_to_le16(2);
 	ms_pkt->rsp_bytecount = cpu_to_le32(rsp_size);
 	ms_pkt->req_bytecount = cpu_to_le32(req_size);
 
@@ -1216,8 +1216,8 @@ qla24xx_prep_ms_fdmi_iocb(scsi_qla_host_t *vha, uint32_t req_size,
 	ct_pkt->entry_count = 1;
 	ct_pkt->nport_handle = cpu_to_le16(vha->mgmt_svr_loop_id);
 	ct_pkt->timeout = cpu_to_le16(ha->r_a_tov / 10 * 2);
-	ct_pkt->cmd_dsd_count = __constant_cpu_to_le16(1);
-	ct_pkt->rsp_dsd_count = __constant_cpu_to_le16(1);
+	ct_pkt->cmd_dsd_count = cpu_to_le16(1);
+	ct_pkt->rsp_dsd_count = cpu_to_le16(1);
 	ct_pkt->rsp_byte_count = cpu_to_le32(rsp_size);
 	ct_pkt->cmd_byte_count = cpu_to_le32(req_size);
 
@@ -1304,19 +1304,18 @@ qla2x00_fdmi_rhba(scsi_qla_host_t *vha)
 
 	/* Prepare FDMI command arguments -- attribute block, attributes. */
 	memcpy(ct_req->req.rhba.hba_identifier, vha->port_name, WWN_SIZE);
-	ct_req->req.rhba.entry_count = __constant_cpu_to_be32(1);
+	ct_req->req.rhba.entry_count = cpu_to_be32(1);
 	memcpy(ct_req->req.rhba.port_name, vha->port_name, WWN_SIZE);
 	size = 2 * WWN_SIZE + 4 + 4;
 
 	/* Attributes */
-	ct_req->req.rhba.attrs.count =
-	    __constant_cpu_to_be32(FDMI_HBA_ATTR_COUNT);
+	ct_req->req.rhba.attrs.count = cpu_to_be32(FDMI_HBA_ATTR_COUNT);
 	entries = ct_req->req.rhba.hba_identifier;
 
 	/* Nodename. */
 	eiter = (struct ct_fdmi_hba_attr *) (entries + size);
-	eiter->type = __constant_cpu_to_be16(FDMI_HBA_NODE_NAME);
-	eiter->len = __constant_cpu_to_be16(4 + WWN_SIZE);
+	eiter->type = cpu_to_be16(FDMI_HBA_NODE_NAME);
+	eiter->len = cpu_to_be16(4 + WWN_SIZE);
 	memcpy(eiter->a.node_name, vha->node_name, WWN_SIZE);
 	size += 4 + WWN_SIZE;
 
@@ -1329,7 +1328,7 @@ qla2x00_fdmi_rhba(scsi_qla_host_t *vha)
 
 	/* Manufacturer. */
 	eiter = (struct ct_fdmi_hba_attr *) (entries + size);
-	eiter->type = __constant_cpu_to_be16(FDMI_HBA_MANUFACTURER);
+	eiter->type = cpu_to_be16(FDMI_HBA_MANUFACTURER);
 	strcpy(eiter->a.manufacturer, "FUSIONIO");
 	alen = strlen(eiter->a.manufacturer);
 	alen += (alen & 3) ? (4 - (alen & 3)) : 4;
@@ -1341,7 +1340,7 @@ qla2x00_fdmi_rhba(scsi_qla_host_t *vha)
 
 	/* Serial number. */
 	eiter = (struct ct_fdmi_hba_attr *) (entries + size);
-	eiter->type = __constant_cpu_to_be16(FDMI_HBA_SERIAL_NUMBER);
+	eiter->type = cpu_to_be16(FDMI_HBA_SERIAL_NUMBER);
 	sn = ((ha->serial0 & 0x1f) << 16) | (ha->serial2 << 8) | ha->serial1;
 	sprintf(eiter->a.serial_num, "%c%05d", 'A' + sn / 100000, sn % 100000);
 	alen = strlen(eiter->a.serial_num);
@@ -1354,7 +1353,7 @@ qla2x00_fdmi_rhba(scsi_qla_host_t *vha)
 
 	/* Model name. */
 	eiter = (struct ct_fdmi_hba_attr *) (entries + size);
-	eiter->type = __constant_cpu_to_be16(FDMI_HBA_MODEL);
+	eiter->type = cpu_to_be16(FDMI_HBA_MODEL);
 	strlcpy(eiter->a.model, ha->model_number, sizeof(eiter->a.model));
 	alen = strlen(eiter->a.model);
 	alen += (alen & 3) ? (4 - (alen & 3)) : 4;
@@ -1366,7 +1365,7 @@ qla2x00_fdmi_rhba(scsi_qla_host_t *vha)
 
 	/* Model description. */
 	eiter = (struct ct_fdmi_hba_attr *) (entries + size);
-	eiter->type = __constant_cpu_to_be16(FDMI_HBA_MODEL_DESCRIPTION);
+	eiter->type = cpu_to_be16(FDMI_HBA_MODEL_DESCRIPTION);
 	strncpy(eiter->a.model_desc, ha->model_desc, 80);
 	alen = strlen(eiter->a.model_desc);
 	alen += (alen & 3) ? (4 - (alen & 3)) : 4;
@@ -1378,7 +1377,7 @@ qla2x00_fdmi_rhba(scsi_qla_host_t *vha)
 
 	/* Hardware version. */
 	eiter = (struct ct_fdmi_hba_attr *) (entries + size);
-	eiter->type = __constant_cpu_to_be16(FDMI_HBA_HARDWARE_VERSION);
+	eiter->type = cpu_to_be16(FDMI_HBA_HARDWARE_VERSION);
 	strcpy(eiter->a.hw_version, ha->adapter_id);
 	alen = strlen(eiter->a.hw_version);
 	alen += (alen & 3) ? (4 - (alen & 3)) : 4;
@@ -1390,7 +1389,7 @@ qla2x00_fdmi_rhba(scsi_qla_host_t *vha)
 
 	/* Driver version. */
 	eiter = (struct ct_fdmi_hba_attr *) (entries + size);
-	eiter->type = __constant_cpu_to_be16(FDMI_HBA_DRIVER_VERSION);
+	eiter->type = cpu_to_be16(FDMI_HBA_DRIVER_VERSION);
 	snprintf(eiter->a.driver_version, sizeof(eiter->a.driver_version),
 		 "%s", qla2x00_version_str);
 	alen = strlen(eiter->a.driver_version);
@@ -1403,7 +1402,7 @@ qla2x00_fdmi_rhba(scsi_qla_host_t *vha)
 
 	/* Option ROM version. */
 	eiter = (struct ct_fdmi_hba_attr *) (entries + size);
-	eiter->type = __constant_cpu_to_be16(FDMI_HBA_OPTION_ROM_VERSION);
+	eiter->type = cpu_to_be16(FDMI_HBA_OPTION_ROM_VERSION);
 	strcpy(eiter->a.orom_version, "0.00");
 	alen = strlen(eiter->a.orom_version);
 	alen += (alen & 3) ? (4 - (alen & 3)) : 4;
@@ -1415,7 +1414,7 @@ qla2x00_fdmi_rhba(scsi_qla_host_t *vha)
 
 	/* Firmware version */
 	eiter = (struct ct_fdmi_hba_attr *) (entries + size);
-	eiter->type = __constant_cpu_to_be16(FDMI_HBA_FIRMWARE_VERSION);
+	eiter->type = cpu_to_be16(FDMI_HBA_FIRMWARE_VERSION);
 	ha->isp_ops->fw_version_str(vha, eiter->a.fw_version,
 					sizeof(eiter->a.fw_version));
 	alen = strlen(eiter->a.fw_version);
@@ -1553,14 +1552,13 @@ qla2x00_fdmi_rpa(scsi_qla_host_t *vha)
 	size = WWN_SIZE + 4;
 
 	/* Attributes */
-	ct_req->req.rpa.attrs.count =
-	    __constant_cpu_to_be32(FDMI_PORT_ATTR_COUNT - 1);
+	ct_req->req.rpa.attrs.count = cpu_to_be32(FDMI_PORT_ATTR_COUNT - 1);
 	entries = ct_req->req.rpa.port_name;
 
 	/* FC4 types. */
 	eiter = (struct ct_fdmi_port_attr *) (entries + size);
-	eiter->type = __constant_cpu_to_be16(FDMI_PORT_FC4_TYPES);
-	eiter->len = __constant_cpu_to_be16(4 + 32);
+	eiter->type = cpu_to_be16(FDMI_PORT_FC4_TYPES);
+	eiter->len = cpu_to_be16(4 + 32);
 	eiter->a.fc4_types[2] = 0x01;
 	size += 4 + 32;
 
@@ -1571,25 +1569,23 @@ qla2x00_fdmi_rpa(scsi_qla_host_t *vha)
 
 	/* Supported speed. */
 	eiter = (struct ct_fdmi_port_attr *) (entries + size);
-	eiter->type = __constant_cpu_to_be16(FDMI_PORT_SUPPORT_SPEED);
-	eiter->len = __constant_cpu_to_be16(4 + 4);
+	eiter->type = cpu_to_be16(FDMI_PORT_SUPPORT_SPEED);
+	eiter->len = cpu_to_be16(4 + 4);
 	if (IS_CNA_CAPABLE(ha))
-		eiter->a.sup_speed = __constant_cpu_to_be32(
-		    FDMI_PORT_SPEED_10GB);
+		eiter->a.sup_speed = cpu_to_be32(FDMI_PORT_SPEED_10GB);
 	else if (IS_QLA25XX(ha))
-		eiter->a.sup_speed = __constant_cpu_to_be32(
+		eiter->a.sup_speed = cpu_to_be32(
 		    FDMI_PORT_SPEED_1GB|FDMI_PORT_SPEED_2GB|
 		    FDMI_PORT_SPEED_4GB|FDMI_PORT_SPEED_8GB);
 	else if (IS_QLA24XX_TYPE(ha))
-		eiter->a.sup_speed = __constant_cpu_to_be32(
+		eiter->a.sup_speed = cpu_to_be32(
 		    FDMI_PORT_SPEED_1GB|FDMI_PORT_SPEED_2GB|
 		    FDMI_PORT_SPEED_4GB);
 	else if (IS_QLA23XX(ha))
-		eiter->a.sup_speed =__constant_cpu_to_be32(
+		eiter->a.sup_speed =cpu_to_be32(
 		    FDMI_PORT_SPEED_1GB|FDMI_PORT_SPEED_2GB);
 	else
-		eiter->a.sup_speed = __constant_cpu_to_be32(
-		    FDMI_PORT_SPEED_1GB);
+		eiter->a.sup_speed = cpu_to_be32(FDMI_PORT_SPEED_1GB);
 	size += 4 + 4;
 
 	ql_dbg(ql_dbg_disc, vha, 0x203a,
@@ -1597,36 +1593,29 @@ qla2x00_fdmi_rpa(scsi_qla_host_t *vha)
 
 	/* Current speed. */
 	eiter = (struct ct_fdmi_port_attr *) (entries + size);
-	eiter->type = __constant_cpu_to_be16(FDMI_PORT_CURRENT_SPEED);
-	eiter->len = __constant_cpu_to_be16(4 + 4);
+	eiter->type = cpu_to_be16(FDMI_PORT_CURRENT_SPEED);
+	eiter->len = cpu_to_be16(4 + 4);
 	switch (ha->link_data_rate) {
 	case PORT_SPEED_1GB:
-		eiter->a.cur_speed =
-		    __constant_cpu_to_be32(FDMI_PORT_SPEED_1GB);
+		eiter->a.cur_speed = cpu_to_be32(FDMI_PORT_SPEED_1GB);
 		break;
 	case PORT_SPEED_2GB:
-		eiter->a.cur_speed =
-		    __constant_cpu_to_be32(FDMI_PORT_SPEED_2GB);
+		eiter->a.cur_speed = cpu_to_be32(FDMI_PORT_SPEED_2GB);
 		break;
 	case PORT_SPEED_4GB:
-		eiter->a.cur_speed =
-		    __constant_cpu_to_be32(FDMI_PORT_SPEED_4GB);
+		eiter->a.cur_speed = cpu_to_be32(FDMI_PORT_SPEED_4GB);
 		break;
 	case PORT_SPEED_8GB:
-		eiter->a.cur_speed =
-		    __constant_cpu_to_be32(FDMI_PORT_SPEED_8GB);
+		eiter->a.cur_speed = cpu_to_be32(FDMI_PORT_SPEED_8GB);
 		break;
 	case PORT_SPEED_10GB:
-		eiter->a.cur_speed =
-		    __constant_cpu_to_be32(FDMI_PORT_SPEED_10GB);
+		eiter->a.cur_speed = cpu_to_be32(FDMI_PORT_SPEED_10GB);
 		break;
 	case PORT_SPEED_16GB:
-		eiter->a.cur_speed =
-		    __constant_cpu_to_be32(FDMI_PORT_SPEED_16GB);
+		eiter->a.cur_speed = cpu_to_be32(FDMI_PORT_SPEED_16GB);
 		break;
 	default:
-		eiter->a.cur_speed =
-		    __constant_cpu_to_be32(FDMI_PORT_SPEED_UNKNOWN);
+		eiter->a.cur_speed = cpu_to_be32(FDMI_PORT_SPEED_UNKNOWN);
 		break;
 	}
 	size += 4 + 4;
@@ -1636,8 +1625,8 @@ qla2x00_fdmi_rpa(scsi_qla_host_t *vha)
 
 	/* Max frame size. */
 	eiter = (struct ct_fdmi_port_attr *) (entries + size);
-	eiter->type = __constant_cpu_to_be16(FDMI_PORT_MAX_FRAME_SIZE);
-	eiter->len = __constant_cpu_to_be16(4 + 4);
+	eiter->type = cpu_to_be16(FDMI_PORT_MAX_FRAME_SIZE);
+	eiter->len = cpu_to_be16(4 + 4);
 	max_frame_size = IS_FWI2_CAPABLE(ha) ?
 	    le16_to_cpu(icb24->frame_payload_size):
 	    le16_to_cpu(ha->init_cb->frame_payload_size);
@@ -1649,7 +1638,7 @@ qla2x00_fdmi_rpa(scsi_qla_host_t *vha)
 
 	/* OS device name. */
 	eiter = (struct ct_fdmi_port_attr *) (entries + size);
-	eiter->type = __constant_cpu_to_be16(FDMI_PORT_OS_DEVICE_NAME);
+	eiter->type = cpu_to_be16(FDMI_PORT_OS_DEVICE_NAME);
 	strcpy(eiter->a.os_dev_name, QLA2XXX_DRIVER_NAME);
 	alen = strlen(eiter->a.os_dev_name);
 	alen += (alen & 3) ? (4 - (alen & 3)) : 4;
@@ -1661,10 +1650,9 @@ qla2x00_fdmi_rpa(scsi_qla_host_t *vha)
 
 	/* Hostname. */
 	if (strlen(fc_host_system_hostname(vha->host))) {
-		ct_req->req.rpa.attrs.count =
-		    __constant_cpu_to_be32(FDMI_PORT_ATTR_COUNT);
+		ct_req->req.rpa.attrs.count = cpu_to_be32(FDMI_PORT_ATTR_COUNT);
 		eiter = (struct ct_fdmi_port_attr *) (entries + size);
-		eiter->type = __constant_cpu_to_be16(FDMI_PORT_HOST_NAME);
+		eiter->type = cpu_to_be16(FDMI_PORT_HOST_NAME);
 		snprintf(eiter->a.host_name, sizeof(eiter->a.host_name),
 		    "%s", fc_host_system_hostname(vha->host));
 		alen = strlen(eiter->a.host_name);
@@ -1819,8 +1807,8 @@ qla24xx_prep_ms_fm_iocb(scsi_qla_host_t *vha, uint32_t req_size,
 	ct_pkt->entry_count = 1;
 	ct_pkt->nport_handle = cpu_to_le16(vha->mgmt_svr_loop_id);
 	ct_pkt->timeout = cpu_to_le16(ha->r_a_tov / 10 * 2);
-	ct_pkt->cmd_dsd_count = __constant_cpu_to_le16(1);
-	ct_pkt->rsp_dsd_count = __constant_cpu_to_le16(1);
+	ct_pkt->cmd_dsd_count = cpu_to_le16(1);
+	ct_pkt->rsp_dsd_count = cpu_to_le16(1);
 	ct_pkt->rsp_byte_count = cpu_to_le32(rsp_size);
 	ct_pkt->cmd_byte_count = cpu_to_le32(req_size);
 

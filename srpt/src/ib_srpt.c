@@ -627,7 +627,9 @@ static void srpt_mad_recv_handler(struct ib_mad_agent *mad_agent,
 #endif
 				 0, IB_MGMT_DEVICE_HDR, IB_MGMT_DEVICE_DATA,
 				 GFP_KERNEL
-#ifdef CREATE_SEND_MAD_HAS_BASE_ARG
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0) || \
+	defined(CREATE_SEND_MAD_HAS_BASE_ARG)
+
 				 , 0
 #endif
 				 );
@@ -2181,11 +2183,12 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 	if (!qp_init)
 		goto out;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) \
-    && !defined(RHEL_RELEASE_CODE)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && \
+	!defined(RHEL_RELEASE_CODE)
 	ch->cq = ib_create_cq(sdev->device, srpt_completion, NULL, ch,
 			      ch->rq_size + srpt_sq_size);
-#elif !defined(IB_CREATE_CQ_HAS_INIT_ATTR)
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 2, 0) && \
+	!defined(IB_CREATE_CQ_HAS_INIT_ATTR)
 	ch->cq = ib_create_cq(sdev->device, srpt_completion, NULL, ch,
 			      ch->rq_size + srpt_sq_size, ch->comp_vector);
 #else

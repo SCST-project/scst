@@ -361,7 +361,7 @@ qla25xx_copy_fce(struct qla_hw_data *ha, void *ptr, uint32_t **last_chain)
 		return ptr;
 
 	*last_chain = &fcec->type;
-	fcec->type = __constant_htonl(DUMP_CHAIN_FCE);
+	fcec->type = htonl(DUMP_CHAIN_FCE);
 	fcec->chain_size = htonl(sizeof(struct qla2xxx_fce_chain) +
 	    fce_calc_size(ha->fce_bufs));
 	fcec->size = htonl(fce_calc_size(ha->fce_bufs));
@@ -398,7 +398,7 @@ qla25xx_copy_mqueues(struct qla_hw_data *ha, void *ptr, uint32_t **last_chain)
 		/* Add chain. */
 		q = ptr;
 		*last_chain = &q->type;
-		q->type = __constant_htonl(DUMP_CHAIN_QUEUE);
+		q->type = htonl(DUMP_CHAIN_QUEUE);
 		q->chain_size = htonl(
 		    sizeof(struct qla2xxx_mqueue_chain) +
 		    sizeof(struct qla2xxx_mqueue_header) +
@@ -407,7 +407,7 @@ qla25xx_copy_mqueues(struct qla_hw_data *ha, void *ptr, uint32_t **last_chain)
 
 		/* Add header. */
 		qh = ptr;
-		qh->queue = __constant_htonl(TYPE_REQUEST_QUEUE);
+		qh->queue = htonl(TYPE_REQUEST_QUEUE);
 		qh->number = htonl(que);
 		qh->size = htonl(req->length * sizeof(request_t));
 		ptr += sizeof(struct qla2xxx_mqueue_header);
@@ -426,7 +426,7 @@ qla25xx_copy_mqueues(struct qla_hw_data *ha, void *ptr, uint32_t **last_chain)
 		/* Add chain. */
 		q = ptr;
 		*last_chain = &q->type;
-		q->type = __constant_htonl(DUMP_CHAIN_QUEUE);
+		q->type = htonl(DUMP_CHAIN_QUEUE);
 		q->chain_size = htonl(
 		    sizeof(struct qla2xxx_mqueue_chain) +
 		    sizeof(struct qla2xxx_mqueue_header) +
@@ -435,7 +435,7 @@ qla25xx_copy_mqueues(struct qla_hw_data *ha, void *ptr, uint32_t **last_chain)
 
 		/* Add header. */
 		qh = ptr;
-		qh->queue = __constant_htonl(TYPE_RESPONSE_QUEUE);
+		qh->queue = htonl(TYPE_RESPONSE_QUEUE);
 		qh->number = htonl(que);
 		qh->size = htonl(rsp->length * sizeof(response_t));
 		ptr += sizeof(struct qla2xxx_mqueue_header);
@@ -461,8 +461,8 @@ qla25xx_copy_mq(struct qla_hw_data *ha, void *ptr, uint32_t **last_chain)
 
 	mq = ptr;
 	*last_chain = &mq->type;
-	mq->type = __constant_htonl(DUMP_CHAIN_MQ);
-	mq->chain_size = __constant_htonl(sizeof(struct qla2xxx_mq_chain));
+	mq->type = htonl(DUMP_CHAIN_MQ);
+	mq->chain_size = htonl(sizeof(struct qla2xxx_mq_chain));
 
 	que_cnt = ha->max_req_queues > ha->max_rsp_queues ?
 		ha->max_req_queues : ha->max_rsp_queues;
@@ -1142,7 +1142,7 @@ qla25xx_fw_dump(scsi_qla_host_t *vha, int hardware_locked)
 	}
 	fw = &ha->fw_dump->isp.isp25;
 	qla2xxx_prep_dump(ha, ha->fw_dump);
-	ha->fw_dump->version = __constant_htonl(2);
+	ha->fw_dump->version = htonl(2);
 
 	fw->host_status = htonl(RD_REG_DWORD(&reg->host_status));
 
@@ -1404,8 +1404,8 @@ qla25xx_fw_dump(scsi_qla_host_t *vha, int hardware_locked)
 	nxt_chain = qla25xx_copy_fce(ha, nxt_chain, &last_chain);
 	nxt_chain = qla25xx_copy_mqueues(ha, nxt_chain, &last_chain);
 	if (last_chain) {
-		ha->fw_dump->version |= __constant_htonl(DUMP_CHAIN_VARIANT);
-		*last_chain |= __constant_htonl(DUMP_CHAIN_LAST);
+		ha->fw_dump->version |= htonl(DUMP_CHAIN_VARIANT);
+		*last_chain |= htonl(DUMP_CHAIN_LAST);
 	}
 
 	/* Adjust valid length. */
@@ -1722,8 +1722,8 @@ qla81xx_fw_dump(scsi_qla_host_t *vha, int hardware_locked)
 	nxt_chain = qla25xx_copy_fce(ha, nxt_chain, &last_chain);
 	nxt_chain = qla25xx_copy_mqueues(ha, nxt_chain, &last_chain);
 	if (last_chain) {
-		ha->fw_dump->version |= __constant_htonl(DUMP_CHAIN_VARIANT);
-		*last_chain |= __constant_htonl(DUMP_CHAIN_LAST);
+		ha->fw_dump->version |= htonl(DUMP_CHAIN_VARIANT);
+		*last_chain |= htonl(DUMP_CHAIN_LAST);
 	}
 
 	/* Adjust valid length. */
@@ -2224,8 +2224,8 @@ copy_queue:
 	nxt_chain = qla25xx_copy_fce(ha, nxt_chain, &last_chain);
 	nxt_chain = qla25xx_copy_mqueues(ha, nxt_chain, &last_chain);
 	if (last_chain) {
-		ha->fw_dump->version |= __constant_htonl(DUMP_CHAIN_VARIANT);
-		*last_chain |= __constant_htonl(DUMP_CHAIN_LAST);
+		ha->fw_dump->version |= htonl(DUMP_CHAIN_VARIANT);
+		*last_chain |= htonl(DUMP_CHAIN_LAST);
 	}
 
 	/* Adjust valid length. */

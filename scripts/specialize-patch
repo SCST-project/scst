@@ -215,22 +215,22 @@ function evaluate(stmnt, pattern, arg, op, result) {
       sub(pattern, (op[1] != 0) && (op[2] != 0), stmnt)
     }
   
-    pattern="^+#if[[:blank:]]*([01])[[:blank:]]*\\&\\&[[:blank:]]*(!*[[:blank:]]*defined[[:blank:]]*\\([[:blank:]]*[A-Za-z0-9_]*[[:blank:]]*\\))$"
+    pattern="^+#(if|elif)[[:blank:]]*([01])[[:blank:]]*\\&\\&[[:blank:]]*(!*[[:blank:]]*defined[[:blank:]]*\\([[:blank:]]*[A-Za-z0-9_]*[[:blank:]]*\\))$"
     while (match(stmnt, pattern, op) != 0)
     {
-      stmnt = "+#if " (op[1] != 0 ? op[2] : op[1])
+      stmnt = "+#" op[1] " " (op[2] != 0 ? op[3] : op[2])
     }
   
-    pattern="^+#if[[:blank:]]*(!*[[:blank:]]*defined[[:blank:]]*\\([[:blank:]]*[A-Za-z0-9_]*[[:blank:]]*\\))\\&\\&[[:blank:]]*([01])[[:blank:]]*$"
+    pattern="^+#(if|elif)[[:blank:]]*(!*[[:blank:]]*defined[[:blank:]]*\\([[:blank:]]*[A-Za-z0-9_]*[[:blank:]]*\\))\\&\\&[[:blank:]]*([01])[[:blank:]]*$"
     while (match(stmnt, pattern, op) != 0)
     {
-      stmnt = "+#if " (op[2] != 0 ? op[1] : op[2])
+      stmnt = "+#" op[1] " " (op[3] != 0 ? op[2] : op[3])
     }
   
-    pattern="^+#if[[:blank:]]*(!*[[:blank:]]*[A-Za-z0-9_]*)[[:blank:]]*\\&\\&[[:blank:]]*([01])[[:blank:]]*$"
+    pattern="^+#(if|elif)[[:blank:]]*(!*[[:blank:]]*[A-Za-z0-9_]*)[[:blank:]]*\\&\\&[[:blank:]]*([01])[[:blank:]]*$"
     while (match(stmnt, pattern, op) != 0)
     {
-      stmnt = "+#if " (op[2] != 0 ? op[1] : op[2])
+      stmnt = "+#" op[1] " " (op[3] != 0 ? op[2] : op[3])
     }
   
     pattern="(-*[0-9]+)[[:blank:]]*\\|\\|[[:blank:]]*(-*[0-9]+)"
@@ -239,10 +239,10 @@ function evaluate(stmnt, pattern, arg, op, result) {
       sub(pattern, (op[1] != 0) || (op[2] != 0), stmnt)
     }
   
-    pattern="^+#if[[:blank:]]*([01])[[:blank:]]*\\|\\|[[:blank:]]*(!*[[:blank:]]*defined[[:blank:]]*\\([[:blank:]]*[A-Za-z0-9_]*[[:blank:]]*\\))$"
+    pattern="^+#(if|elif)[[:blank:]]*([01])[[:blank:]]*\\|\\|[[:blank:]]*(!*[[:blank:]]*defined[[:blank:]]*\\([[:blank:]]*[A-Za-z0-9_]*[[:blank:]]*\\))$"
     while (match(stmnt, pattern, op) != 0)
     {
-      stmnt = "+#if " (op[1] == 0 ? op[2] : op[1])
+      stmnt = "+#" op[1] " " (op[2] == 0 ? op[3] : op[2])
     }
   
     pattern="\\(([01])[[:blank:]]*\\|\\|[[:blank:]]*(!*[[:blank:]]*defined[[:blank:]]*\\([[:blank:]]*[A-Za-z0-9_]*[[:blank:]]*\\))\\)"
@@ -327,7 +327,6 @@ function handle_if(evaluated)
       printf "/* debug specialize-patch: (f) %s / %s */\n", \
         decision[if_nesting_level], inv_decision[if_nesting_level]
   }
-  matching_if = if_stmnt[if_nesting_level]
   return evaluated
 }
 
@@ -346,25 +345,19 @@ function process_preprocessor_statement(evaluated, condition) {
   }
   else if (evaluated ~ "^+#elif")
   {
-    matching_if = if_stmnt[if_nesting_level]
-    if (debug)
-      printf "/* debug specialize-patch: (g0a) %s: matching_if = %s */\n", \
-        evaluated, matching_if
     if (if_discarded[if_nesting_level]) {
       sub("^+#elif", "+#if", input_line[0])
       if (debug)
-        printf "/* debug specialize-patch: (g0b) -> %s */\n", evaluated
+        printf "/* debug specialize-patch: (g0) -> %s */\n", evaluated
     }
     evaluated = handle_if(evaluated)
   }
   else if (evaluated ~ "^+#else")
   {
-    matching_if = if_stmnt[if_nesting_level]
     decision[if_nesting_level] = inv_decision[if_nesting_level]
   }
   else if (evaluated ~ "^+#endif")
   {
-    matching_if = if_stmnt[if_nesting_level]
     if_nesting_level--
   }
   else
@@ -374,9 +367,12 @@ function process_preprocessor_statement(evaluated, condition) {
   if (condition)
   {
     output = 1
+    if (debug)
+      printf "/* debug specialize-patch: (g1a) if_nesting_level = %d */\n", \
+          if_nesting_level
     for (i = if_nesting_level; i >= 0; i--) {
       if (debug)
-        printf "/* debug specialize-patch: (g1) %s: decision[%d] = %s */\n", \
+        printf "/* debug specialize-patch: (g1b) %s: decision[%d] = %s */\n", \
           evaluated, i, decision[i]
       output = output && decision[i] != "+#if 0" && decision[i] != "+#elif 0"
     }
@@ -396,9 +392,9 @@ function process_preprocessor_statement(evaluated, condition) {
     discard = 1
     delete_next_blank_line = 1
   }
-  else if (output && (!condition                                       \
-		      || condition && matching_if !~ "^+#if [01]"       \
-                         && matching_if !~ "^+#elif [01]"))
+  else if (output && (!condition || \
+                      decision[if_nesting_level + (evaluated ~ "^+#endif$")] \
+                      !~ "^+#(el|)if [01]"))
   {
     if (evaluated == "+#if undecided"                           \
         || (evaluated !~ "^+#if"                                \
