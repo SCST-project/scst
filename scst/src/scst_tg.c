@@ -267,6 +267,12 @@ static bool scst_tg_accept(struct scst_cmd *cmd)
 	case READ_CAPACITY:
 	case REPORT_LUNS:
 	case REQUEST_SENSE:
+	case RELEASE:
+	case RELEASE_10:
+	case RESERVE:
+	case RESERVE_10:
+	case READ_BUFFER:
+	case WRITE_BUFFER:
 		return true;
 	case SERVICE_ACTION_IN_16:
 		switch (cmd->cdb[1] & 0x1f) {
