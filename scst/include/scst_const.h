@@ -291,6 +291,7 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 /* NOT_READY is 2 */
 #define scst_sense_format_in_progress		NOT_READY,       0x04, 0x04
 #define scst_sense_tp_transitioning		NOT_READY,	 0x04, 0x0A
+#define scst_sense_tp_standby			NOT_READY,	 0x04, 0x0B
 #define scst_sense_tp_unav			NOT_READY,	 0x04, 0x0C
 #define scst_sense_no_medium			NOT_READY,       0x3a, 0
 

@@ -1460,10 +1460,6 @@ information about how to associate iSCSI targets with a single physical
 interface.
 
 Notes:
-- The ALUA specification allows but does not require that SCSI READ and WRITE
-  commands are rejected by ports that are not active. SCST processes READ and
-  WRITE commands unless these are received through a port that is in the
-  unavailable, transitioning or offline state.
 - In a H.A. setup it is the responsibility of the user to synchronize ALUA
   information between the individual systems running SCST. There are no
   provisions in SCST to exchange ALUA information automatically between
