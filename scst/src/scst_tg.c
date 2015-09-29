@@ -267,6 +267,12 @@ static bool scst_tg_accept(struct scst_cmd *cmd)
 	case READ_CAPACITY:
 	case REPORT_LUNS:
 	case REQUEST_SENSE:
+	case RELEASE:
+	case RELEASE_10:
+	case RESERVE:
+	case RESERVE_10:
+	case READ_BUFFER:
+	case WRITE_BUFFER:
 		return true;
 	case SERVICE_ACTION_IN_16:
 		switch (cmd->cdb[1] & 0x1f) {
@@ -290,6 +296,34 @@ static bool scst_tg_accept(struct scst_cmd *cmd)
 
 	return false;
 }
+
+/*
+ * Whether or not to accept a command in the ALUA standby state.
+ */
+static bool scst_tg_accept_standby(struct scst_cmd *cmd)
+{
+	bool process_cmd = scst_tg_accept(cmd);
+
+	if (process_cmd)
+		return process_cmd;
+
+	switch (cmd->cdb[0]) {
+	case MODE_SELECT:
+	case MODE_SELECT_10:
+	case LOG_SELECT:
+	case LOG_SENSE:
+	case RECEIVE_DIAGNOSTIC:
+	case SEND_DIAGNOSTIC:
+	case PERSISTENT_RESERVE_IN:
+	case PERSISTENT_RESERVE_OUT:
+		return true;
+	}
+
+	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_tp_standby));
+
+	return false;
+}
+
 
 /*
  * Whether or not to accept a command in the ALUA unavailable state.
@@ -321,7 +355,7 @@ static bool scst_tg_accept_transitioning(struct scst_cmd *cmd)
 static bool (*scst_alua_filter[])(struct scst_cmd *cmd) = {
 	[SCST_TG_STATE_OPTIMIZED]	= NULL,
 	[SCST_TG_STATE_NONOPTIMIZED]	= NULL,
-	[SCST_TG_STATE_STANDBY]		= NULL,
+	[SCST_TG_STATE_STANDBY]		= scst_tg_accept_standby,
 	[SCST_TG_STATE_UNAVAILABLE]	= scst_tg_accept_unav,
 	[SCST_TG_STATE_LBA_DEPENDENT]	= NULL,
 	[SCST_TG_STATE_OFFLINE]		= scst_tg_accept_unav,
