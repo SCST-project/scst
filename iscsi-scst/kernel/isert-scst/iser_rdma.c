@@ -1039,9 +1039,7 @@ static void isert_device_release(struct isert_device *isert_dev)
 	err = ib_dereg_mr(isert_dev->mr);
 	if (unlikely(err))
 		pr_err("Failed to destroy mr, err:%d\n", err);
-	err = ib_dealloc_pd(isert_dev->pd);
-	if (unlikely(err))
-		pr_err("Failed to destroy pd, err:%d\n", err);
+	ib_dealloc_pd(isert_dev->pd);
 
 	vfree(isert_dev->cq_desc);
 	isert_dev->cq_desc = NULL;
