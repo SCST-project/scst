@@ -6186,10 +6186,15 @@ static void blockio_bio_destructor(struct bio *bio)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
 static int blockio_endio(struct bio *bio, unsigned int bytes_done, int error)
-#else
-static void blockio_endio(struct bio *bio, int error)
-#endif
 {
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0)
+static void blockio_endio(struct bio *bio, int error)
+{
+#else
+static void blockio_endio(struct bio *bio)
+{
+	int error = bio->bi_error;
+#endif
 	struct scst_blockio_work *blockio_work = bio->bi_private;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
@@ -6197,6 +6202,7 @@ static void blockio_endio(struct bio *bio, int error)
 		return 1;
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0)
 	if (unlikely(!bio_flagged(bio, BIO_UPTODATE))) {
 		if (error == 0) {
 			PRINT_ERROR("Not up to date bio with error 0 for "
@@ -6204,6 +6210,7 @@ static void blockio_endio(struct bio *bio, int error)
 			error = -EIO;
 		}
 	}
+#endif
 
 	if (unlikely(error != 0)) {
 		unsigned long flags;
@@ -6454,7 +6461,11 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 #endif
 
 	if (q)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0)
+		max_nr_vecs = BIO_MAX_PAGES;
+#else
 		max_nr_vecs = min(bio_get_nr_vecs(bdev), BIO_MAX_PAGES);
+#endif
 	else
 		max_nr_vecs = 1;
 
@@ -6618,8 +6629,14 @@ finish_cmd:
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0)
 static void vdev_flush_end_io(struct bio *bio, int error)
 {
+#else
+static void vdev_flush_end_io(struct bio *bio)
+{
+	int error = bio->bi_error;
+#endif
 	struct scst_cmd *cmd = bio->bi_private;
 
 	TRACE_ENTRY();
@@ -6720,10 +6737,15 @@ static void blockio_bio_destructor_sync(struct bio *bio)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
 static int blockio_end_sync_io(struct bio *bio, unsigned int bytes_done,
 			       int error)
-#else
-static void blockio_end_sync_io(struct bio *bio, int error)
-#endif
 {
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0)
+static void blockio_end_sync_io(struct bio *bio, int error)
+{
+#else
+static void blockio_end_sync_io(struct bio *bio)
+{
+	int error = bio->bi_error;
+#endif
 	struct bio_priv_sync *s = bio->bi_private;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
@@ -6731,10 +6753,12 @@ static void blockio_end_sync_io(struct bio *bio, int error)
 		return 1;
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0)
 	if (!bio_flagged(bio, BIO_UPTODATE) && error == 0) {
 		PRINT_ERROR("Not up to date bio with error 0; returning -EIO");
 		error = -EIO;
 	}
+#endif
 
 	s->error = error;
 	complete(&s->c);
@@ -6779,7 +6803,11 @@ static ssize_t blockio_rw_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 	bool submitted = false;
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0)
+	max_nr_vecs = BIO_MAX_PAGES;
+#else
 	max_nr_vecs = min(bio_get_nr_vecs(bdev), BIO_MAX_PAGES);
+#endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 	bio = bio_alloc_bioset(GFP_KERNEL, max_nr_vecs, virt_dev->vdisk_bioset);

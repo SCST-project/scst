@@ -6858,8 +6858,14 @@ static void blk_free_kern_sg_work(struct blk_kern_sg_work *bw)
 	return;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0)
 static void blk_bio_map_kern_endio(struct bio *bio, int err)
 {
+#else
+static void blk_bio_map_kern_endio(struct bio *bio)
+{
+	int err = bio->bi_error;
+#endif
 	struct blk_kern_sg_work *bw = bio->bi_private;
 
 	if (bw != NULL) {
@@ -7467,7 +7473,12 @@ out_free_unmap:
 	while (bio) {
 		b = bio;
 		bio = bio->bi_next;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0)
 		b->bi_end_io(b, res);
+#else
+		b->bi_error = res;
+		b->bi_end_io(b);
+#endif
 	}
 	}
 	rq->bio = NULL;
