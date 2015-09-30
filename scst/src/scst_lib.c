@@ -4294,7 +4294,6 @@ struct scst_acg *scst_alloc_add_acg(struct scst_tgt *tgt,
 	}
 
 	kref_init(&acg->acg_kref);
-	INIT_WORK(&acg->put_work, scst_put_acg_work);
 	acg->tgt = tgt;
 	INIT_LIST_HEAD(&acg->acg_dev_list);
 	INIT_LIST_HEAD(&acg->acg_sess_list);
@@ -4430,20 +4429,39 @@ static void scst_release_acg(struct kref *kref)
 	scst_free_acg(acg);
 }
 
+struct scst_acg_put_work {
+	struct work_struct	work;
+	struct scst_acg		*acg;
+};
+
 static void scst_put_acg_work(struct work_struct *work)
 {
-	struct scst_acg *acg = container_of(work, typeof(*acg), put_work);
+	struct scst_acg_put_work *put_work =
+		container_of(work, typeof(*put_work), work);
+	struct scst_acg *acg = put_work->acg;
 
+	kfree(work);
 	kref_put(&acg->acg_kref, scst_release_acg);
 }
 
 void scst_put_acg(struct scst_acg *acg)
 {
+	struct scst_acg_put_work *put_work;
+
+	put_work = kmalloc(sizeof(*put_work), GFP_KERNEL | __GFP_NOFAIL);
+	if (WARN_ON_ONCE(!put_work)) {
+		kref_put(&acg->acg_kref, scst_release_acg);
+		return;
+	}
+
+	INIT_WORK(&put_work->work, scst_put_acg_work);
+	put_work->acg = acg;
+
 	/*
 	 * Schedule the kref_put() call instead of invoking it directly to
 	 * avoid deep recursion and a stack overflow.
 	 */
-	queue_work(scst_release_acg_wq, &acg->put_work);
+	WARN_ON_ONCE(!queue_work(scst_release_acg_wq, &put_work->work));
 }
 
 void scst_get_acg(struct scst_acg *acg)

@@ -3307,8 +3307,6 @@ struct scst_acg {
 	/* One more than the number of sessions in acg_sess_list */
 	struct kref acg_kref;
 
-	struct work_struct put_work;
-
 	/* Owner target */
 	struct scst_tgt *tgt;
 
