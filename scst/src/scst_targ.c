@@ -3547,6 +3547,8 @@ static bool scst_check_auto_sense(struct scst_cmd *cmd)
 				scst_set_cmd_error(cmd,	SCST_LOAD_SENSE(scst_sense_write_error));
 			else
 				scst_set_cmd_error(cmd,	SCST_LOAD_SENSE(scst_sense_read_error));
+		} else if ((cmd->host_status == DID_TARGET_FAILURE) && (cmd->status != 0)) {
+			/* It's OK, normal workflow, ignore */
 		} else {
 			TRACE(TRACE_SCSI|TRACE_MINOR_AND_MGMT_DBG, "Host "
 				"status 0x%x received, returning HARDWARE ERROR "
