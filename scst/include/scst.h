@@ -885,7 +885,7 @@ enum scst_dif_actions {
 /* Returns DIF checks by stripping the action part from a */
 static inline enum scst_dif_actions scst_get_dif_checks(enum scst_dif_actions a)
 {
-	return (a & SCST_DIF_CHECKS_MASK);
+	return a & SCST_DIF_CHECKS_MASK;
 }
 
 /* Sets the DIF checks part in a */
@@ -900,7 +900,7 @@ static inline void scst_set_dif_checks(enum scst_dif_actions *a,
 /* Returns DIF action by stripping the checks part from a */
 static inline enum scst_dif_actions scst_get_dif_action(enum scst_dif_actions a)
 {
-	return (a & SCST_DIF_ACTION_MASK);
+	return a & SCST_DIF_ACTION_MASK;
 }
 
 /* Sets the DIF action part in a */
