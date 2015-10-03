@@ -646,6 +646,11 @@ enum scst_tg_sup {
 #define DID_TRANSPORT_FAILFAST       0xf
 #endif
 
+/* See also patch "Add detailed SCSI I/O errors" (commit ID 63583cca745f) */
+#ifndef DID_TARGET_FAILURE
+#define DID_TARGET_FAILURE           0x10
+#endif
+
 #ifndef DID_NEXUS_FAILURE
 #define DID_NEXUS_FAILURE            0x11
 #endif
