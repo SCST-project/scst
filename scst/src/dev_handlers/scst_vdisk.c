@@ -398,6 +398,8 @@ static ssize_t vdev_sysfs_filename_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdisk_sysfs_resync_size_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count);
+static ssize_t vdisk_sysfs_sync_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count);
 static ssize_t vdev_sysfs_t10_vend_id_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count);
 static ssize_t vdev_sysfs_t10_vend_id_show(struct kobject *kobj,
@@ -483,6 +485,8 @@ static struct kobj_attribute vdisk_filename_attr =
 	__ATTR(filename, S_IRUGO, vdev_sysfs_filename_show, NULL);
 static struct kobj_attribute vdisk_resync_size_attr =
 	__ATTR(resync_size, S_IWUSR, NULL, vdisk_sysfs_resync_size_store);
+static struct kobj_attribute vdisk_sync_attr =
+	__ATTR(sync, S_IWUSR, NULL, vdisk_sysfs_sync_store);
 static struct kobj_attribute vdev_t10_vend_id_attr =
 	__ATTR(t10_vend_id, S_IWUSR|S_IRUGO, vdev_sysfs_t10_vend_id_show,
 	       vdev_sysfs_t10_vend_id_store);
@@ -537,6 +541,7 @@ static const struct attribute *vdisk_fileio_attrs[] = {
 	&vdisk_removable_attr.attr,
 	&vdisk_filename_attr.attr,
 	&vdisk_resync_size_attr.attr,
+	&vdisk_sync_attr.attr,
 	&vdev_t10_vend_id_attr.attr,
 	&vdev_vend_specific_id_attr.attr,
 	&vdev_prod_id_attr.attr,
@@ -563,6 +568,7 @@ static const struct attribute *vdisk_blockio_attrs[] = {
 	&vdisk_rotational_attr.attr,
 	&vdisk_filename_attr.attr,
 	&vdisk_resync_size_attr.attr,
+	&vdisk_sync_attr.attr,
 	&vdev_t10_vend_id_attr.attr,
 	&vdev_vend_specific_id_attr.attr,
 	&vdev_prod_id_attr.attr,
@@ -7348,6 +7354,26 @@ static int vdisk_resync_size(struct scst_vdisk_dev *virt_dev)
 	scst_resume_activity();
 out:
 	return res;
+}
+
+static ssize_t vdisk_sysfs_sync_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	struct scst_device *dev =
+		container_of(kobj, struct scst_device, dev_kobj);
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+	int res;
+
+	if (virt_dev->nullio)
+		res = 0;
+	else if (virt_dev->blockio)
+		res = vdisk_blockio_flush(virt_dev->bdev, GFP_KERNEL, false,
+					  NULL, false);
+	else
+		res = __vdisk_fsync_fileio(0, i_size_read(file_inode(virt_dev->fd)),
+					   dev, NULL, virt_dev->fd);
+
+	return res ? : count;
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
