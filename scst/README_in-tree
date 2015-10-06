@@ -259,7 +259,7 @@ SCST sysfs interface
 --------------------
 
 SCST sysfs interface designed to be self descriptive and self
-containing. This means that a high level managament tool for it can be
+containing. This means that a high level management tool for it can be
 written once and automatically support any future sysfs interface
 changes (attributes additions or removals, new target drivers and dev
 handlers, etc.) without any modifications. Scstadmin is an example of
@@ -1046,11 +1046,21 @@ Each vdisk_fileio's device has the following attributes in
 
  - size_mb - contains size of this virtual device in MB.
 
+ - pr_file_name - Full path of the file or block device in which to store
+   persistent reservation information. The default value for this attribute is
+   /var/lib/scst/pr/${device_name}. Writing a new value into this sysfs
+   attribute is only allowed if the device is not exported. Modifying this
+   sysfs attribute causes the persistent reservation state to be reloaded.
+
  - t10_dev_id - contains and allows to set T10 vendor specific
    identifier for Device Identification VPD page (0x83) of INQUIRY data.
    By default VDISK handler always generates t10_dev_id for every new
    created device at creation time based on the device name and
    scst_vdisk_ID scst_vdisk.ko module parameter (see below).
+   Note: some initiators, e.g. VMware's ESXi or MS Hyper-V, only looks
+   at the first eight characters of t10_dev_id. You have to make sure
+   that these first eight characters are unique or VMware will consider
+   these devices as identical.
 
  - eui64_id - allows to set the EUI-64 based device identifier in the
    SCSI device identification VPD page (83h). This identifier must be 8,
@@ -1258,6 +1268,286 @@ persistent reservations from this device are released, upon reconnect
 the initiators will see it.
 
 
+Implicit ALUA Support
+---------------------
+
+SCST supports implicit asymmetric logical unit access (ALUA). Implicit ALUA is
+a feature defined by the ANSI T10 SCSI committee that allows a target to tell
+the initiator which path to use in a multipath setup. The redundant paths
+between initiator and target can be used either for redundancy or for load
+sharing purposes. The target can either be a single target system running SCST
+with multiple communication interfaces or two target systems each running SCST
+and configured in a high availability setup.
+
+In the SPC-4 standard the following concepts are defined related to ALUA:
+* Relative target port ID. A number between 1 and 65535 that uniquely
+  identifies a target port. These numbers must be unique over the target as
+  a whole, even if that target consists of multiple systems each running SCST.
+* Target port group asymmetric access state. One of active/optimized,
+  active/non-optimized, standby, unavailable, logical block dependent or
+  offline. The access state of a port defines which (if any) SCSI commands
+  will be processed by the target port.
+* Target port preference indicator. This indicator is additional information
+  next to the asymmetric access state that is provided by the target to an
+  initiator and that may impact the decision taken by the initiator about
+  which path that will be chosen.
+
+More detailed information about ALUA can be found in section 5.11.2 of the
+ANSI T10 standard called SPC-4.
+
+ALUA support in SCST
+....................
+
+SCST allows to define implicit ALUA settings for each unique combination of
+SCST device and SCST target. An initiator however queries ALUA settings by
+sending an appropriate SCSI command to a specific LUN of an SCST target. Each
+such LUN maps uniquely to an SCST device. For hardware SCST target drivers,
+e.g. ib_srpt, there is a one-to-one correspondence between SCST target and
+SCSI target port. With other SCST targets, e.g. iSCSI-SCST, by default the
+only relationship between SCST targets and SCSI target ports is that all SCST
+targets defined on a system are visible via all SCSI target ports. See also
+the iSCSI-SCST documentation about the allowed_portal attribute for
+information about how to associate iSCSI targets with a single physical
+interface.
+
+Notes:
+- In a H.A. setup it is the responsibility of the user to synchronize ALUA
+  information between the individual systems running SCST. There are no
+  provisions in SCST to exchange ALUA information automatically between
+  individual systems.
+- In order to support H.A. setups it is possible to let one SCST system
+  report information about target ports present in other SCST systems.
+- With SCST, and certainly in a H.A. setup, it is possible to configure ALUA
+  such that an initiator receives information that is not standard compliant,
+  e.g. setting all target ports in the offline state. It is the responsibility
+  of the user to make sure that the information queried by an initiator is
+  consistent independent of the LUN and the target port used by the initiator
+  to query this information.
+- Before building a H.A. setup consisting of two or more SCST systems one
+  should evaluate whether it's acceptable that persistent reservation commands,
+  SCSI task management commands and MODE SELECT commands will only be processed
+  by a single node instead of being processed by all nodes.
+
+Configuring ALUA in SCST
+........................
+
+SCST allows to configure the following settings related to implicit ALUA
+for each unique combination of SCST target and virtual SCST device
+(vdisk_fileio, vdisk_blockio, vcdrom, ...):
+* The target port group asymmetric access state. SCST supports all ALUA port
+  states except logical block dependent.
+* The preference indicator for a target port group.
+* The relative target port ID associated with the SCST target.
+
+It is possible to configure the following ALUA-related information via the
+sysfs interface of SCST:
+* Device groups, where each device group has a name and contains zero or more
+  SCST devices. If a device group contains only a single SCST device, the name
+  of the group may be identical to the device name. See also
+  /sys/kernel/scst_tgt/device_groups/mgmt.
+* Which devices are inside a device group. See also
+  /sys/kernel/scst_tgt/device_groups/<device group name>/devices/mgmt.
+* Target groups, where each target group has a name and contains zero or more
+  SCST target names. See also
+  /sys/kernel/scst_tgt/device_groups/<device group name>/target_groups/mgmt.
+* Target port group identifier. This is a number in the range 0..65535 and is
+  called the TARGET PORT GROUP in SPC-4. See also
+  /sys/kernel/scst_tgt/device_groups/<device group name>/target_groups/<target
+  group name>/group_id.
+* Target port group preference indicator. This is a boolean value called the
+  PREF bit in SPC-4. See also /sys/kernel/scst_tgt/device_groups/<device group
+  name>/target_groups/<target group name>/preferred.
+* Target port group state name. One of active, nonoptimized, standby,
+  unavailable, offline or transitioning. See also
+  /sys/kernel/scst_tgt/device_groups/<device group name>/target_groups/<target
+  group name>/state.
+* Target group contents - zero or more target names. The target names either
+  exist on the local system or on a remote system in a H.A. setup. For target
+  names that refer to SCST targets on another system only the relative target
+  port identifier matters, not the assigned name. See also
+  /sys/kernel/scst_tgt/device_groups/<device group name>/target_groups/<target
+  group name>/mgmt.
+* Relative target identifier. See also
+  /sys/kernel/scst_tgt/device_groups/<device group name>/target_groups/<target
+  group name>/<target name>/rel_tgt_id.
+
+The steps involved in configuring ALUA are:
+* Identify the SCST devices that will always share the same ALUA settings and
+  state. Assign a name to each such group of SCST devices. If a device group
+  only contains a single device, the group name may be identical to the device
+  name.
+* Configure that device group in SCST via sysfs.
+* Identify the SCSI target ports that will always share the same ALUA settings
+  and state. Assign a name, a group ID and preference indicator to each such
+  SCSI target port group.
+* Configure the target port group information in SCST via sysfs.
+* Identify all SCST targets that can be accessed via a target port group.
+* Assign all these SCST target names to the target group via sysfs.
+* Assign a relative target port identifier to each target.
+
+As an example, in a H.A. setup with two systems each having one InfiniBand
+HCA controlled by the ib_srpt driver and where each system exports two LUNs
+the following configuration can be used in scst.conf on both systems:
+
+DEVICE_GROUP dgroup1 {
+	DEVICE disk01
+
+	TARGET_GROUP tgroup1 {
+		group_id 256
+		preferred 1
+		state active
+		TARGET fe80:0000:0000:0000:0002:c903:00fa:b7e1 {
+			rel_tgt_id 1
+		}
+	}
+	TARGET_GROUP tgroup2 {
+		group_id 257
+		state standby
+		TARGET fe80:0000:0000:0000:0002:c903:00fa:b7f2 {
+			rel_tgt_id 2
+		}
+	}
+}
+
+DEVICE_GROUP dgroup2 {
+	DEVICE disk02
+
+	TARGET_GROUP tgroup1 {
+		group_id 256
+		state standby
+		TARGET fe80:0000:0000:0000:0002:c903:00fa:b7e1 {
+			rel_tgt_id 1
+		}
+	}
+	TARGET_GROUP tgroup2 {
+		group_id 257
+		preferred 1
+		state active
+		TARGET fe80:0000:0000:0000:0002:c903:00fa:b7f2 {
+			rel_tgt_id 2
+		}
+	}
+}
+
+
+Checking the Target Configuration
+.................................
+
+One way to verify the implicit ALUA configuration from a Linux initiator is
+via the commands provided in the sg3_utils package. The first step is to
+verify whether for a certain LUN implicit ALUA has been configured on the
+target. This is possible by checking whether the TPGS=1 text appears in the
+sg_inq output, where /dev/sdb is a device node created by the ib_srp initiator:
+
+# sg_inq /dev/sdb
+standard INQUIRY:
+  PQual=0  Device_type=0  RMB=0  version=0x05  [SPC-3]
+  [AERC=0]  [TrmTsk=0]  NormACA=0  HiSUP=1  Resp_data_format=2
+  SCCS=0  ACC=0  TPGS=1  3PC=0  Protect=0  BQue=0
+  EncServ=0  MultiP=0  [MChngr=0]  [ACKREQQ=0]  Addr16=1
+  [RelAdr=0]  WBus16=0  Sync=0  Linked=0  [TranDis=0]  CmdQue=1
+  [SPI: Clocking=0x0  QAS=0  IUS=0]
+    length=66 (0x42)   Peripheral device type: disk
+ Vendor identification: SCST_FIO
+ Product identification: disk01          
+ Product revision level:  300
+ Unit serial number: 27cddc71
+
+The next step is to verify the target group configuration. That is possible
+by verifying whether the output of the sg_rtpg command matches the values
+configured on the target:
+
+# sg_rtpg /dev/sdb
+Report target port groups:
+  target port group id : 0x100 , Pref=1
+    target port group asymmetric access state : 0x00
+    T_SUP : 0, O_SUP : 0, LBD_SUP : 0, U_SUP : 1, S_SUP : 1, AN_SUP : 1, AO_SUP : 1
+    status code : 0x02
+    vendor unique status : 0x00
+    target port count : 01
+    Relative target port ids:
+      0x01
+  target port group id : 0x101 , Pref=0
+    target port group asymmetric access state : 0x00
+    T_SUP : 0, O_SUP : 0, LBD_SUP : 0, U_SUP : 1, S_SUP : 1, AN_SUP : 1, AO_SUP : 1
+    status code : 0x02
+    vendor unique status : 0x00
+    target port count : 01
+    Relative target port ids:
+      0x02
+
+The relative target port ID and the target port group ID for a certain path
+can be queried e.g. as follows:
+
+# sg_vpd -p di /dev/sdb
+Device Identification VPD page:
+  Addressed logical unit:
+    designator type: T10 vendor identification,  code set: ASCII
+      vendor id: SCST_FIO
+      vendor specific: 27cddc71-disk01
+    designator type: EUI-64 based,  code set: Binary
+      0x3237636464633731
+  Target port:
+    designator type: Relative target port,  code set: Binary
+      Relative target port: 0x1
+    designator type: Target port group,  code set: Binary
+      Target port group: 0x100
+
+
+Initiator Support
+.................
+
+On Linux systems implicit ALUA support is provided by the scsi_dh_alua kernel
+driver in combination with the user space multipathd daemon. You will have to
+modify at least the following in /etc/multipath.conf to enable implicit ALUA:
+* hardware_handler      "1 alua"
+* prio                  alua
+* path_grouping_policy  group_by_prio
+* path_checker          tur
+
+Notes:
+- Newer versions of multipathd support a parameter called
+  "detect_prio". It can be more convenient to enable this parameter instead of
+  setting the parameter "prio" to "alua" for only those LUNs that support ALUA.
+- Older versions of multipathd (e.g. RHEL 5 and SLES 10 SP1) need
+  'prio_callout "/sbin/mpath_prio_alua /dev/%n"' instead of 'prio alua'.
+
+# multipath -ll
+23237636464633731 dm-3 SCST_FIO,disk01          
+size=1.0G features='3 queue_if_no_path pg_init_retries 50' hwhandler='1 alua' wp=rw
+|-+- policy='service-time 0' prio=1 status=active
+| `- 10:0:0:0   sdd 8:48  active ready running
+`-+- policy='service-time 0' prio=130 status=enabled
+  `- 11:0:0:0   sde 8:64  active ready running
+23133326137346538 dm-4 SCST_FIO,disk02          
+size=1.0G features='3 queue_if_no_path pg_init_retries 50' hwhandler='1 alua' wp=rw
+|-+- policy='service-time 0' prio=130 status=active
+| `- 10:0:0:2   sdn 8:208 active ready running
+`-+- policy='service-time 0' prio=1 status=enabled
+  `- 11:0:0:2   sdp 8:240 active ready running
+
+The following information can be derived from the above output:
+* That the hardware handler (hw_handler) has been set to "1 alua".
+* That multipathd created two priority groups - one with priority 1 and one
+  with priority 130.
+* That the SRP path with SCSI host number 10 will be used for communication
+  with LUN "disk01" and that the SRP path with SCSI host number 11 will be used
+  for communication with LUN "disk02".
+
+More information about how to configure the device mapper and the scsi_dh_alua
+driver can be found in the manual of your Linux distribution ("man
+multipath.conf", "man multipath" and "man multipathd").
+
+Windows initiator systems support ALUA from Windows Server 2008 on. For more
+information about ALUA support in Windows Server, see also:
+* Microsoft, Windows Server 2008 R2 Multipath I/O Overview, MSDN
+  (http://technet.microsoft.com/en-us/library/cc725907.aspx).
+* Microsoft, Multipathing Support in Windows Server 2008, July 2008, MSDN
+  (http://blogs.msdn.com/b/san/archive/2008/07/27/multipathing-support-in-windows-server-2008.aspx).
+* Microsoft, ALUA MPIO Logo Test, MSDN
+  (http://msdn.microsoft.com/en-us/library/gg607458%28v=vs.85%29.aspx).
+
+
 Caching
 -------
 
@@ -1345,6 +1635,41 @@ Note, on some real-life workloads write through caching might perform
 better, than write back one with the barrier protection turned on.
 
 
+Errors caching
+..............
+
+When using virtual device in FILEIO mode, the Linux page cache comes
+into picture. The negative side of it is that it's sometimes also
+caching errored pages. That is, if the underlying file experiences IO
+errors, those errors might be cached by the Linux page cache. As a
+result, even when the underlying file recovers and stops failing IOs,
+the initiator may still hit IO errors returned by the Linux page cache,
+until the cache re-reads the errored pages (usually it happens pretty
+soon, but not immediately). To make sure that cached pages are dropped,
+one of the following can be done:
+
+- Detach the SCSI virtual device (del_device) and re-attach it
+  (add_device). This should evict all the cached pages, unless somebody
+  else holds the same "filename" opened.
+
+- Issue a BLKFLSBUF ioctl to the same "filename" you provided for "add_device".
+
+For the second option, a rudimentary C code is required:
+
+fd = open(filename, O_RDWR);
+if (fd < 0) {
+    err = errno;
+    ...
+} else {
+   err = ioctl(fd, BLKFLSBUF);
+   if (err < 0) {
+       err = errno;
+       ...
+   }
+   close(fd);
+}
+
+
 BLOCKIO VDISK mode
 ------------------
 
@@ -1386,9 +1711,9 @@ IMPORTANT: If SCST 1.x BLOCKIO worked by default in NV_CACHE mode, when
 	   non-NV_CACHE mode, when each device reported to remote
 	   initiators as having write back caching, and synchronizes the
 	   internal device's cache on each SYNCHRONIZE_CACHE command
-	   from the initiators. It might lead to some PERFORMANCE LOSS,
+	   from the initiators. It might lead to some *PERFORMANCE LOSS*,
 	   so if you are are sure in your power supply and want to
-	   restore 1.x behavior, your should recreate your BLOCKIO
+	   restore the 1.x behavior, your should recreate your BLOCKIO
 	   devices in NV_CACHE mode.
 
 
@@ -1631,7 +1956,7 @@ sessions, which is enough.
 7. For hardware on target.
 
  - Make sure that your target hardware (e.g. target FC or network card)
-   and underlaying IO hardware (e.g. IO card, like SATA, SCSI or RAID to
+   and underlying IO hardware (e.g. IO card, like SATA, SCSI or RAID to
    which your disks connected) don't share the same PCI bus. You can
    check it using lspci utility. They have to work in parallel, so it
    will be better if they don't compete for the bus. The problem is not
@@ -1667,6 +1992,7 @@ IMPORTANT: If you use on initiator some versions of Windows (at least W2K)
 	   if a device node is used. Both values are from the target.
 	   See also important notes about setting block sizes >512 bytes
 	   for VDISK FILEIO devices above.
+
 
 9. In some cases, for instance working with SSD devices, which consume
 100% of a single CPU load for data transfers in their internal threads,
