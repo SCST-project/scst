@@ -1741,7 +1741,7 @@ static int vdisk_attach_tgt(struct scst_tgt_dev *tgt_dev)
 		goto out;
 
 	if (!virt_dev->nullio && !virt_dev->cdrom_empty) {
-		res = vdisk_open_fd(virt_dev, tgt_dev->tgt_dev_rd_only);
+		res = vdisk_open_fd(virt_dev, tgt_dev->dev->dev_rd_only);
 		if (res != 0) {
 			virt_dev->tgt_dev_cnt--;
 			goto out;
