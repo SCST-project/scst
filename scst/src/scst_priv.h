@@ -370,7 +370,8 @@ int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
 int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun,
 	bool gen_scst_report_luns_changed);
 int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
-		      struct scst_device *dev, uint64_t lun, bool read_only);
+		      struct scst_device *dev, uint64_t lun, bool read_only,
+		      bool gen_ua);
 
 int scst_acg_add_acn(struct scst_acg *acg, const char *name);
 #ifdef CONFIG_SCST_PROC

@@ -4375,7 +4375,7 @@ out:
 
 int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
 		      struct scst_device *dev, uint64_t lun,
-		      bool read_only)
+		      bool read_only, bool gen_ua)
 {
 	struct scst_acg_dev *acg_dev;
 	struct scst_tgt_dev *tgt_dev, *tt;
@@ -4393,7 +4393,7 @@ int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
 	if (res != 0)
 		goto out;
 
-	if (acg_dev) {
+	if (acg_dev && gen_ua) {
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 				    dev_tgt_dev_list_entry) {
 			if (tgt_dev->acg_dev->acg == acg &&

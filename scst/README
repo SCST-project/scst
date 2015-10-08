@@ -1156,6 +1156,9 @@ Each vdisk_fileio's device has the following attributes in
  - write_through - contains status of write back caching of this virtual
    device.
 
+ - sync - writing into this attribute causes the page cache contents to
+   be flushed to disk.
+
  - read_only - contains read only status of this virtual device.
 
  - o_direct - contains O_DIRECT status of this virtual device.
