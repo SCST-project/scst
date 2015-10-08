@@ -1268,6 +1268,7 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 		SCST_LUN_ACTION_REPLACE	= 3,
 		SCST_LUN_ACTION_CLEAR	= 4,
 	};
+	bool replace_gen_ua = true;
 
 	TRACE_ENTRY();
 
@@ -1281,6 +1282,10 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 		action = SCST_LUN_ACTION_DEL;
 	} else if (strcasecmp("replace", p) == 0) {
 		action = SCST_LUN_ACTION_REPLACE;
+		replace_gen_ua = true;
+	} else if (strcasecmp("replace_no_ua", p) == 0) {
+		action = SCST_LUN_ACTION_REPLACE;
+		replace_gen_ua = false;
 	} else if (strcasecmp("clear", p) == 0) {
 		action = SCST_LUN_ACTION_CLEAR;
 	} else {
@@ -1424,7 +1429,7 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 		if (res != 0)
 			goto out_unlock;
 
-		if (dev_replaced) {
+		if (dev_replaced && replace_gen_ua) {
 			struct scst_tgt_dev *tgt_dev;
 
 			list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
@@ -1556,6 +1561,8 @@ static ssize_t scst_luns_mgmt_show(struct kobject *kobj,
 		"       echo \"del lun\" >mgmt\n"
 		"       echo \"replace H:C:I:L lun [parameters]\" >mgmt\n"
 		"       echo \"replace VNAME lun [parameters]\" >mgmt\n"
+		"       echo \"replace_no_ua H:C:I:L lun [parameters]\" >mgmt\n"
+		"       echo \"replace_no_ua VNAME lun [parameters]\" >mgmt\n"
 		"       echo \"clear\" >mgmt\n"
 		"\n"
 		"where parameters are one or more "
