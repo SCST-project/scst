@@ -1620,7 +1620,7 @@ Report target port groups:
     Relative target port ids:
       0x01
   target port group id : 0x101 , Pref=0
-    target port group asymmetric access state : 0x00
+    target port group asymmetric access state : 0x02
     T_SUP : 0, O_SUP : 0, LBD_SUP : 0, U_SUP : 1, S_SUP : 1, AN_SUP : 1, AO_SUP : 1
     status code : 0x02
     vendor unique status : 0x00
