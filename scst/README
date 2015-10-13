@@ -1565,14 +1565,14 @@ DEVICE_GROUP dgroup2 {
 	DEVICE disk02
 
 	TARGET_GROUP tgroup1 {
-		group_id 256
+		group_id 258
 		state standby
 		TARGET fe80:0000:0000:0000:0002:c903:00fa:b7e1 {
 			rel_tgt_id 1
 		}
 	}
 	TARGET_GROUP tgroup2 {
-		group_id 257
+		group_id 259
 		preferred 1
 		state active
 		TARGET fe80:0000:0000:0000:0002:c903:00fa:b7f2 {
