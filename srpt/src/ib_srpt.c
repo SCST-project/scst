@@ -1514,7 +1514,7 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 	EXTRACHECKS_WARN_ON(ioctx->n_rdma <= 0);
 	srpt_adjust_sq_wr_avail(ch, ioctx->n_rdma);
 
-	if (opcode == SRPT_RDMA_READ_LAST && cmd) {
+	if (opcode == SRPT_RDMA_READ_LAST) {
 		if (srpt_test_and_set_cmd_state(ioctx, SRPT_STATE_NEED_DATA,
 						SRPT_STATE_DATA_IN))
 			scst_rx_data(cmd, SCST_RX_STATUS_SUCCESS, context);
