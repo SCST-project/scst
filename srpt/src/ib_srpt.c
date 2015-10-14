@@ -1524,7 +1524,7 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 	} else if (opcode == SRPT_RDMA_ABORT) {
 		ioctx->rdma_aborted = true;
 	} else {
-		WARN(true, "cmd == NULL (opcode %d)\n", opcode);
+		WARN(true, "Unexpected RDMA opcode %d\n", opcode);
 	}
 }
 
