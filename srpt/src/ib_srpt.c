@@ -1555,7 +1555,7 @@ static void srpt_handle_rdma_err_comp(struct srpt_rdma_ch *ch,
 	case SRPT_RDMA_WRITE_LAST:
 		/*
 		 * Note: if an RDMA write error completion is received that
-		 * means that a SEND has also been posted. Defer further
+		 * means that a SEND also has been posted. Defer further
 		 * processing of the associated command until the send error
 		 * completion has been received.
 		 */
