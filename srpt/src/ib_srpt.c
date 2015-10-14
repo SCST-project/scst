@@ -3604,12 +3604,25 @@ static int srpt_xmit_response(struct scst_cmd *cmd)
 	if (dir == SCST_DATA_READ
 	    && scst_cmd_get_adjusted_resp_data_len(cmd)) {
 		ret = srpt_xfer_data(ch, ioctx);
-		if (unlikely(ret != SCST_TGT_RES_SUCCESS)) {
+		if (unlikely(ret != 0)) {
 			srpt_set_cmd_state(ioctx, state);
 			pr_warn("xfer_data failed for tag %llu - %s\n",
 				scst_cmd_get_tag(cmd),
-				ret == SCST_TGT_RES_QUEUE_FULL ? "retrying" :
+				ret == -EAGAIN ? "retrying" :
 				"failing");
+			switch (ret) {
+			case -EAGAIN:
+				ret = SCST_TGT_RES_QUEUE_FULL;
+				break;
+			default:
+				WARN_ONCE(true,
+					  "srpt_xfer_data() returned %d\n",
+					  ret);
+				/* fall-through */
+			case -EIO:
+				ret = SCST_TGT_RES_FATAL_ERROR;
+				break;
+			}
 			goto out;
 		}
 	}
