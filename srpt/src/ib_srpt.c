@@ -1449,15 +1449,24 @@ static void srpt_handle_send_err_comp(struct srpt_rdma_ch *ch, u64 wr_id,
 {
 	u32 index = idx_from_wr_id(wr_id);
 	struct srpt_send_ioctx *ioctx = ch->ioctx_ring[index];
+	struct scst_cmd *cmd = &ioctx->cmd;
 	enum srpt_command_state state = ioctx->state;
-
-	srpt_adjust_sq_wr_avail(ch, 1);
+	int wr_avail_delta = 1;
 
 	switch (state) {
 	case SRPT_STATE_NEED_DATA:
 		srpt_abort_cmd(ioctx, context);
 		break;
 	case SRPT_STATE_CMD_RSP_SENT:
+		if (scst_cmd_get_data_direction(cmd) == SCST_DATA_READ) {
+			/*
+			 * IB_SEND_SIGNALED is not set for RDMA writes so
+			 * process the wr_avail delta when the response
+			 * send completion has been received.
+			 */
+			EXTRACHECKS_WARN_ON(ioctx->n_rdma <= 0);
+			wr_avail_delta += ioctx->n_rdma;
+		}
 		srpt_undo_inc_req_lim(ch, ioctx->req_lim_delta);
 		srpt_abort_cmd(ioctx, context);
 		break;
@@ -1473,6 +1482,8 @@ static void srpt_handle_send_err_comp(struct srpt_rdma_ch *ch, u64 wr_id,
 		EXTRACHECKS_WARN_ON(true);
 		break;
 	}
+
+	srpt_adjust_sq_wr_avail(ch, wr_avail_delta);
 }
 
 /**
@@ -1482,10 +1493,20 @@ static void srpt_handle_send_comp(struct srpt_rdma_ch *ch,
 				  struct srpt_send_ioctx *ioctx,
 				  enum scst_exec_context context)
 {
-	srpt_adjust_sq_wr_avail(ch, 1);
+	struct scst_cmd *cmd = &ioctx->cmd;
+	int wr_avail_delta = 1;
 
 	switch (srpt_set_cmd_state(ioctx, SRPT_STATE_DONE)) {
 	case SRPT_STATE_CMD_RSP_SENT:
+		if (scst_cmd_get_data_direction(cmd) == SCST_DATA_READ) {
+			/*
+			 * IB_SEND_SIGNALED is not set for RDMA writes so
+			 * process the wr_avail delta when the response
+			 * send completion has been received.
+			 */
+			EXTRACHECKS_WARN_ON(ioctx->n_rdma <= 0);
+			wr_avail_delta += ioctx->n_rdma;
+		}
 		srpt_unmap_sg_to_ib_sge(ch, ioctx);
 		scst_tgt_cmd_done(&ioctx->cmd, context);
 		break;
@@ -1499,6 +1520,8 @@ static void srpt_handle_send_comp(struct srpt_rdma_ch *ch,
 	default:
 		EXTRACHECKS_WARN_ON(true);
 	}
+
+	srpt_adjust_sq_wr_avail(ch, wr_avail_delta);
 }
 
 /**
@@ -1511,10 +1534,9 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 {
 	struct scst_cmd *cmd = &ioctx->cmd;
 
-	EXTRACHECKS_WARN_ON(ioctx->n_rdma <= 0);
-	srpt_adjust_sq_wr_avail(ch, ioctx->n_rdma);
-
-	if (opcode == SRPT_RDMA_READ_LAST && cmd) {
+	if (opcode == SRPT_RDMA_READ_LAST) {
+		EXTRACHECKS_WARN_ON(ioctx->n_rdma <= 0);
+		srpt_adjust_sq_wr_avail(ch, ioctx->n_rdma);
 		if (srpt_test_and_set_cmd_state(ioctx, SRPT_STATE_NEED_DATA,
 						SRPT_STATE_DATA_IN))
 			scst_rx_data(cmd, SCST_RX_STATUS_SUCCESS, context);
@@ -1524,7 +1546,7 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 	} else if (opcode == SRPT_RDMA_ABORT) {
 		ioctx->rdma_aborted = true;
 	} else {
-		WARN(true, "cmd == NULL (opcode %d)\n", opcode);
+		WARN(true, "Unexpected RDMA opcode %d\n", opcode);
 	}
 }
 
@@ -1555,7 +1577,7 @@ static void srpt_handle_rdma_err_comp(struct srpt_rdma_ch *ch,
 	case SRPT_RDMA_WRITE_LAST:
 		/*
 		 * Note: if an RDMA write error completion is received that
-		 * means that a SEND has also been posted. Defer further
+		 * means that a SEND also has been posted. Defer further
 		 * processing of the associated command until the send error
 		 * completion has been received.
 		 */
@@ -3348,18 +3370,15 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 	struct ib_send_wr *bad_wr;
 	struct rdma_iu *riu;
 	int i;
-	int ret;
+	int ret = -ENOMEM;
 	int sq_wr_avail;
 	const int n_rdma = ioctx->n_rdma;
 
-	if (dir == SCST_DATA_WRITE) {
-		ret = -ENOMEM;
-		sq_wr_avail = srpt_adjust_sq_wr_avail(ch, -n_rdma);
-		if (sq_wr_avail < 0) {
-			pr_warn("ch %s-%d send queue full (needed %d)\n",
-				ch->sess_name, ch->qp->qp_num, n_rdma);
-			goto out;
-		}
+	sq_wr_avail = srpt_adjust_sq_wr_avail(ch, -n_rdma);
+	if (sq_wr_avail < 0) {
+		pr_warn("ch %s-%d send queue full (needed %d)\n",
+			ch->sess_name, ch->qp->qp_num, n_rdma);
+		goto out;
 	}
 
 	ioctx->rdma_aborted = false;
@@ -3422,7 +3441,7 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 	}
 
 out:
-	if (unlikely(dir == SCST_DATA_WRITE && ret < 0))
+	if (unlikely(ret < 0))
 		srpt_adjust_sq_wr_avail(ch, n_rdma);
 	return ret;
 }
@@ -3605,12 +3624,25 @@ static int srpt_xmit_response(struct scst_cmd *cmd)
 	if (dir == SCST_DATA_READ
 	    && scst_cmd_get_adjusted_resp_data_len(cmd)) {
 		ret = srpt_xfer_data(ch, ioctx);
-		if (unlikely(ret != SCST_TGT_RES_SUCCESS)) {
+		if (unlikely(ret != 0)) {
 			srpt_set_cmd_state(ioctx, state);
 			pr_warn("xfer_data failed for tag %llu - %s\n",
 				scst_cmd_get_tag(cmd),
-				ret == SCST_TGT_RES_QUEUE_FULL ? "retrying" :
+				ret == -EAGAIN ? "retrying" :
 				"failing");
+			switch (ret) {
+			case -EAGAIN:
+				ret = SCST_TGT_RES_QUEUE_FULL;
+				break;
+			default:
+				WARN_ONCE(true,
+					  "srpt_xfer_data() returned %d\n",
+					  ret);
+				/* fall-through */
+			case -EIO:
+				ret = SCST_TGT_RES_FATAL_ERROR;
+				break;
+			}
 			goto out;
 		}
 	}
