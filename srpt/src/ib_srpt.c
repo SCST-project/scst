@@ -4090,7 +4090,7 @@ static const struct attribute *srpt_sess_attrs[] = {
 /* SCST target template for the SRP target implementation. */
 static struct scst_tgt_template srpt_template = {
 	.name				 = DRV_NAME,
-	.sg_tablesize			 = SRPT_DEF_SG_TABLESIZE,
+	.sg_tablesize			 = 1 << 16,
 	.max_hw_pending_time		 = RDMA_COMPL_TIMEOUT_S,
 #if !defined(CONFIG_SCST_PROC)
 	.enable_target			 = srpt_enable_target,
