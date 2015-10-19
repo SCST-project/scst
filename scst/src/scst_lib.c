@@ -13147,16 +13147,6 @@ void scst_path_put(struct nameidata *nd)
 EXPORT_SYMBOL(scst_path_put);
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
-int scst_vfs_fsync(struct file *file, loff_t loff, loff_t len)
-{
-	int res;
-
-	res = sync_page_range(file_inode(file), file->f_mapping, loff, len);
-	return res;
-}
-#endif
-
 int scst_copy_file(const char *src, const char *dest)
 {
 	int res = 0;
@@ -13230,13 +13220,7 @@ int scst_copy_file(const char *src, const char *dest)
 		goto out_skip;
 	}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
-	res = scst_vfs_fsync(file_dest, 0, file_size);
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
-	res = vfs_fsync(file_dest, file_dest->f_path.dentry, 0);
-#else
 	res = vfs_fsync(file_dest, 0);
-#endif
 	if (res != 0) {
 		PRINT_ERROR("fsync() of the backup PR file failed: %d", res);
 		goto out_skip;
@@ -13328,13 +13312,7 @@ int scst_write_file_transactional(const char *name, const char *name1,
 	if (res != size)
 		goto write_error;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
-	res = scst_vfs_fsync(file, 0, pos);
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
-	res = vfs_fsync(file, file->f_path.dentry, 1);
-#else
 	res = vfs_fsync(file, 1);
-#endif
 	if (res != 0) {
 		PRINT_ERROR("fsync() of file %s failed: %d", name, res);
 		goto write_error_close;
@@ -13349,13 +13327,7 @@ int scst_write_file_transactional(const char *name, const char *name1,
 	if (res != sizeof(n))
 		goto write_error;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
-	res = scst_vfs_fsync(file, 0, sizeof(signature));
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
-	res = vfs_fsync(file, file->f_path.dentry, 1);
-#else
 	res = vfs_fsync(file, 1);
-#endif
 	if (res != 0) {
 		PRINT_ERROR("fsync() of file %s failed: %d", name, res);
 		goto write_error_close;

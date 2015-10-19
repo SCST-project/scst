@@ -781,10 +781,6 @@ void scst_vfs_unlink_and_put(struct nameidata *nd);
 void scst_vfs_unlink_and_put(struct path *path);
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
-int scst_vfs_fsync(struct file *file, loff_t loff, loff_t len);
-#endif
-
 int scst_copy_file(const char *src, const char *dest);
 
 #ifdef CONFIG_SCST_DEBUG_TM
