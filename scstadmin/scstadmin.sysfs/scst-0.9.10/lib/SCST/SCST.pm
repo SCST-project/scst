@@ -542,28 +542,26 @@ sub setScstAttribute {
 			     SCST_C_ATTRIBUTE_STATIC);
 }
 
-my @_drivers;
 sub drivers {
 	my $self = shift;
+	my $dHandle = new IO::Handle;
+	my $_path = SCST_TARGETS_DIR();
+	my @drivers;
 
-	if (!@_drivers) {
-		my $dHandle = new IO::Handle;
-		my $_path = SCST_TARGETS_DIR();
-		if (opendir $dHandle, $_path) {
-			foreach my $driver (readdir($dHandle)) {
-				next if (($driver eq '.') || ($driver eq '..'));
+	if (opendir($dHandle, $_path)) {
+		foreach my $driver (readdir($dHandle)) {
+			next if (($driver eq '.') || ($driver eq '..'));
 
-				if (-d make_path(SCST_TARGETS_DIR(), $driver)) {
-					push @_drivers, $driver;
-				}
+			if (-d make_path(SCST_TARGETS_DIR(), $driver)) {
+				push @drivers, $driver;
 			}
-			close $dHandle;
-		} else {
-			return (undef, "drivers(): Unable to read directory '$_path': $!");
 		}
+		close $dHandle;
+	} else {
+		return (undef, "drivers(): Unable to read directory '$_path': $!");
 	}
 
-	return (\@_drivers, undef);
+	return (\@drivers, undef);
 }
 
 
