@@ -922,18 +922,14 @@ sub targetGroupTargets {
 sub driverExists {
 	my $self = shift;
 	my $driver = shift;
+	my $dHandle = new IO::Handle;
+	my $result;
 
-	return FALSE if (!defined($driver));
+	$result = defined($driver) &&
+	    opendir($dHandle, make_path(SCST_TARGETS_DIR(), $driver));
+	close $dHandle if ($result);
 
-	my ($drivers, $errorString) = $self->drivers();
-
-	return SCST_C_FATAL_ERROR if (!defined($drivers));
-
-	foreach my $_driver (@{$drivers}) {
-		return TRUE if ($driver eq $_driver);
-	}
-
-	return FALSE;
+	return $result;
 }
 
 sub driverDynamicAttributes {
