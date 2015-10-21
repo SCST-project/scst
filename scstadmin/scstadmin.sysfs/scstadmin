@@ -72,12 +72,14 @@ Set Attribute Operations
          -attributes <p=v,...>
      -set_drv_attr <driver>  : Sets driver attribute(s) <p> to value <v>.
          -attributes <p=v,...>
-     -set_dgrp_attr <dgrp>   : List all attributes for a given device group.
+     -set_dgrp_attr <dgrp>   : Sets device group attribute(s) <p> to value <v>.
          -attributes <p=v,...>
-     -set_tgrp_attr <tgrp>   : List all attributes for a device group/target.
+     -set_tgrp_attr <tgrp>   : Sets device group/target attribute(s)
+                               <p> to value <v>.
          -dev_group <dgrp>
          -attributes <p=v,...>
-     -set_ttgt_attr <tgt>    : List all attributes for a target group target.
+     -set_ttgt_attr <tgt>    : Set target group target attribute(s)
+                               <p> to value <v>.
          -dev_group <dgrp>
          -tgt_group <tgrp>
          -attributes <p=v,...>
