@@ -26,13 +26,14 @@
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/scst.h>
 #include <scst/iscsi_scst.h>
+#include <scst/iscsit_transport.h>
 #else
 #include <scst.h>
 #include "iscsi_scst.h"
+#include "iscsit_transport.h"
 #endif
 #include "iscsi_hdr.h"
 #include "iscsi_dbg.h"
-#include "iscsit_transport.h"
 
 #define iscsi_sense_crc_error			ABORTED_COMMAND, 0x47, 0x05
 #define iscsi_sense_unexpected_unsolicited_data	ABORTED_COMMAND, 0x0C, 0x0C

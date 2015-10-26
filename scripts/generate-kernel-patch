@@ -462,7 +462,7 @@ do
       "iscsi-scst/include/iscsi_scst_itf_ver.h")
           ;;
       "iscsi-scst/include/iscsit_transport.h")
-          add_file "${f}" "drivers/scst/iscsi-scst/${f#iscsi-scst/include/}"
+          add_file "${f}" "include/scst/${f#iscsi-scst/include/}"
           ;;
       *)
           add_file "${f}" "include/scst/${f#iscsi-scst/include/}"
@@ -484,8 +484,10 @@ done
 
 for f in $(ls iscsi-scst/kernel/isert-scst/*.[ch] 2>/dev/null)
 do
-  add_file "${f}" "drivers/scst/iscsi-scst/${f#iscsi-scst/kernel/isert-scst/}"
+  add_file "${f}" "drivers/scst/iscsi-scst/isert-scst/${f#iscsi-scst/kernel/isert-scst/}"
 done
+add_file "iscsi-scst/kernel/isert-scst/Makefile.in-kernel" "drivers/scst/iscsi-scst/isert-scst/Makefile"
+add_file "iscsi-scst/kernel/isert-scst/Kconfig" "drivers/scst/iscsi-scst/isert-scst/Kconfig"
 ) \
 | process_patch "iscsi-scst.diff"
 
