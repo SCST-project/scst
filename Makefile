@@ -410,16 +410,19 @@ fcst_extraclean:
 scst-dist-gzip:
 	name=scst &&							\
 	mkdir $${name}-$(VERSION) &&					\
-	{ if [ -h qla2x00t ] || { mount | grep "on $$PWD/qla2x00t type"; }; \
-	  then								\
+	{								\
+	  if [ -e qla2x00t_git ]; then					\
 	    scripts/list-source-files | grep -v ^qla2x00t/;		\
-	    find qla2x00t/ -type f;					\
+	    ( dir="$$PWD" && cd qla2x00t_git &&				\
+	      "$$dir/scripts/list-source-files" ) |			\
+	    sed 's,^,qla2x00t_git/,';					\
 	  else								\
 	    scripts/list-source-files;					\
 	  fi | \
-	  grep -E '^doc/|^fcst/|^iscsi-scst/|^Makefile|^qla2x00t/|^scst.spec|^scst/|^scst_local/|^srpt/'|\
+	  grep -E '^doc/|^fcst/|^iscsi-scst/|^Makefile|^qla2x00t(|_git)/|^scst.spec|^scst/|^scst_local/|^srpt/'|\
 	  tar -T- -cf- |						\
-	  tar -C $${name}-$(VERSION) -xf-; } &&				\
+	  tar -C $${name}-$(VERSION) -xf-;				\
+	} &&								\
 	rm -f $${name}-$(VERSION).tar.bz2 &&				\
 	tar -cjf $${name}-$(VERSION).tar.bz2 $${name}-$(VERSION) &&	\
 	rm -rf $${name}-$(VERSION)
