@@ -179,6 +179,7 @@ rm -rf /usr/local/include/scst
 %defattr(-,root,root)
 %dir /usr/include/scst
 /usr/include/scst/Module.symvers
+/usr/include/scst/backport.h
 /usr/include/scst/scst.h
 /usr/include/scst/scst_const.h
 /usr/include/scst/scst_debug.h

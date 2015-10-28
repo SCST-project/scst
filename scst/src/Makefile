@@ -111,12 +111,11 @@ install: all
 	install -m 644 dev_handlers/*.ko $(INSTALL_DIR)/dev_handlers
 	install -m 644 scst.ko $(INSTALL_DIR)
 	install -d $(INSTALL_DIR_H)
-	install -m 644 ../include/scst.h $(INSTALL_DIR_H)
-	install -m 644 ../include/scst_sgv.h $(INSTALL_DIR_H)
-	install -m 644 ../include/scst_debug.h $(INSTALL_DIR_H)
-	install -m 644 ../include/scst_user.h $(INSTALL_DIR_H)
-	install -m 644 ../include/scst_const.h $(INSTALL_DIR_H)
-	install -m 644 ../include/scst_itf_ver.h $(INSTALL_DIR_H)
+	header_files="backport.h scst.h scst_const.h scst_debug.h	\
+		      scst_itf_ver.h scst_sgv.h scst_user.h";		\
+	for h in $${header_files}; do					\
+	    install -m 644 ../include/$$h $(INSTALL_DIR_H);		\
+	done
 	rm -f $(INSTALL_DIR_H)/$(MODULE_SYMVERS)
 	install -m 644 $(MODULE_SYMVERS) $(INSTALL_DIR_H)
 	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
