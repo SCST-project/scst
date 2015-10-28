@@ -321,11 +321,12 @@ static int scst_local_proc_info(struct Scsi_Host *host, char *buffer,
 #else
 static int scst_local_show_info(struct seq_file *file, struct Scsi_Host *host)
 {
-	return seq_printf(file, "scst_local adapter driver, version "
+	seq_printf(file, "scst_local adapter driver, version "
 		"%s [%s]\nAborts=%d, Device Resets=%d, Target Resets=%d\n",
 		SCST_LOCAL_VERSION, scst_local_version_date,
 		atomic_read(&num_aborts), atomic_read(&num_dev_resets),
 		atomic_read(&num_target_resets));
+	return 0;
 }
 #endif
 
