@@ -7356,26 +7356,6 @@ out:
 	return res;
 }
 
-static ssize_t vdisk_sysfs_sync_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
-{
-	struct scst_device *dev =
-		container_of(kobj, struct scst_device, dev_kobj);
-	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
-	int res;
-
-	if (virt_dev->nullio)
-		res = 0;
-	else if (virt_dev->blockio)
-		res = vdisk_blockio_flush(virt_dev->bdev, GFP_KERNEL, false,
-					  NULL, false);
-	else
-		res = __vdisk_fsync_fileio(0, i_size_read(file_inode(virt_dev->fd)),
-					   dev, NULL, virt_dev->fd);
-
-	return res ? : count;
-}
-
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 static int vdisk_create_bioset(struct scst_vdisk_dev *virt_dev)
 {
@@ -8282,6 +8262,26 @@ out_e_unlock:
 }
 
 #ifndef CONFIG_SCST_PROC
+
+static ssize_t vdisk_sysfs_sync_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	struct scst_device *dev =
+		container_of(kobj, struct scst_device, dev_kobj);
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+	int res;
+
+	if (virt_dev->nullio)
+		res = 0;
+	else if (virt_dev->blockio)
+		res = vdisk_blockio_flush(virt_dev->bdev, GFP_KERNEL, false,
+					  NULL, false);
+	else
+		res = __vdisk_fsync_fileio(0, i_size_read(file_inode(virt_dev->fd)),
+					   dev, NULL, virt_dev->fd);
+
+	return res ? : count;
+}
 
 static int vcdrom_sysfs_process_filename_store(struct scst_sysfs_work_item *work)
 {
