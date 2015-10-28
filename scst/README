@@ -1601,7 +1601,7 @@ standard INQUIRY:
   [SPI: Clocking=0x0  QAS=0  IUS=0]
     length=66 (0x42)   Peripheral device type: disk
  Vendor identification: SCST_FIO
- Product identification: disk01          
+ Product identification: disk01
  Product revision level:  300
  Unit serial number: 27cddc71
 
@@ -1665,13 +1665,13 @@ Notes:
   'prio_callout "/sbin/mpath_prio_alua /dev/%n"' instead of 'prio alua'.
 
 # multipath -ll
-23237636464633731 dm-3 SCST_FIO,disk01          
+23237636464633731 dm-3 SCST_FIO,disk01
 size=1.0G features='3 queue_if_no_path pg_init_retries 50' hwhandler='1 alua' wp=rw
 |-+- policy='service-time 0' prio=1 status=active
 | `- 10:0:0:0   sdd 8:48  active ready running
 `-+- policy='service-time 0' prio=130 status=enabled
   `- 11:0:0:0   sde 8:64  active ready running
-23133326137346538 dm-4 SCST_FIO,disk02          
+23133326137346538 dm-4 SCST_FIO,disk02
 size=1.0G features='3 queue_if_no_path pg_init_retries 50' hwhandler='1 alua' wp=rw
 |-+- policy='service-time 0' prio=130 status=active
 | `- 10:0:0:2   sdn 8:208 active ready running
