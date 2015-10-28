@@ -77,90 +77,6 @@
 #include "scst_sgv.h"
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26) && \
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
-#define set_cpus_allowed_ptr(p, new_mask) set_cpus_allowed((p), *(new_mask))
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
-#ifndef swap
-#define swap(a, b) \
-	do { typeof(a) __tmp = (a); (a) = (b); (b) = __tmp; } while (0)
-#endif
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31)
-static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
-{
-	return q->max_hw_sectors;
-}
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
-/*
- * See also patch "kernel.h: add pr_warn for symmetry to dev_warn,
- * netdev_warn" (commit fc62f2f19edf46c9bdbd1a54725b56b18c43e94f).
- */
-#ifndef pr_warn
-#define pr_warn pr_warning
-#endif
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36) && \
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
-/*
- * See also patch "Add a dummy printk function for the maintenance of unused
- * printks" (commit 12fdff3fc2483f906ae6404a6e8dcf2550310b6f).
- */
-static inline __attribute__ ((format (printf, 1, 2)))
-int no_printk(const char *s, ...) { return 0; }
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
-/*
- * See also patch "sched: Fix softirq time accounting" (commit ID
- * 75e1056f5c57050415b64cb761a3acc35d91f013).
- */
-#ifndef in_serving_softirq
-#define in_serving_softirq() in_softirq()
-#endif
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35) &&	\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6 ||	\
-	 RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 < 1)
-extern int hex_to_bin(char ch);
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 38)
-/*
- * See also "lib: hex2bin converts ascii hexadecimal string to binary" (commit
- * dc88e46029486ed475c71fe1bb696d39511ac8fe).
- */
-static inline void hex2bin(u8 *dst, const char *src, size_t count)
-{
-	while (count--) {
-		*dst = hex_to_bin(*src++) << 4;
-		*dst += hex_to_bin(*src++);
-		dst++;
-	}
-}
-#endif
-
-#ifndef __list_for_each
-/* ToDo: cleanup when both are the same for all relevant kernels */
-#define __list_for_each list_for_each
-#endif
-
-/*
- * Returns true if entry is in its list. Entry must be deleted from the
- * list by using list_del_init()!
- */
-static inline bool list_entry_in_list(const struct list_head *entry)
-{
-	return !list_empty(entry);
-}
-
 #define SCST_INTERFACE_VERSION	    \
 		SCST_VERSION_STRING SCST_INTF_VER SCST_CONST_VERSION
 
@@ -591,15 +507,6 @@ enum scst_exec_context {
 #endif
 
 /*************************************************************
- ** Kernel cache creation helper
- *************************************************************/
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22)
-#define KMEM_CACHE(__struct, __flags) kmem_cache_create(#__struct,\
-	sizeof(struct __struct), __alignof__(struct __struct),\
-	(__flags), NULL, NULL)
-#endif
-
-/*************************************************************
  ** Valid_mask constants for scst_analyze_sense()
  *************************************************************/
 
@@ -617,14 +524,6 @@ enum scst_exec_context {
 /*************************************************************
  ** T10-PI (DIF) support
  *************************************************************/
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0)
-struct t10_pi_tuple {
-	__be16 guard_tag;
-	__be16 app_tag;
-	__be32 ref_tag;
-};
-#endif
 
 /*
  * Defines where and how to deal with DIF tags. Can be OR'ed to get
@@ -3818,11 +3717,7 @@ static inline bool scst_cmd_atomic(struct scst_cmd *cmd)
 	 */
 	if (unlikely((in_atomic() || in_interrupt() || irqs_disabled()) &&
 		     !res)) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
-		printk(KERN_ERR "ERROR: atomic context and non-atomic cmd!\n");
-#else
 		pr_err("ERROR: atomic context and non-atomic cmd!\n");
-#endif
 		dump_stack();
 		cmd->atomic = 1;
 		res = 1;
@@ -4744,69 +4639,6 @@ static inline void scst_set_aen_delivery_status(struct scst_aen *aen,
 
 void scst_aen_done(struct scst_aen *aen);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
-
-/*
- * The macro's sg_page(), sg_virt(), sg_init_table(), sg_assign_page() and
- * sg_set_page() have been introduced in the 2.6.24 kernel. The definitions
- * below are backports of the 2.6.24 macro's for older kernels. There is one
- * exception however: when compiling SCST on a system with a pre-2.6.24 kernel
- * (e.g. RHEL 5.x) where the OFED kernel headers have been installed, do not
- * define the backported macro's because OFED has already defined these.
- */
-
-static inline bool sg_is_chain(struct scatterlist *sg)
-{
-	return false;
-}
-
-static inline struct scatterlist *sg_chain_ptr(struct scatterlist *sg)
-{
-	return NULL;
-}
-
-#define sg_is_last(sg) false
-
-#ifndef sg_page
-static inline struct page *sg_page(struct scatterlist *sg)
-{
-	return sg->page;
-}
-#endif
-
-static inline void *sg_virt(struct scatterlist *sg)
-{
-	return page_address(sg_page(sg)) + sg->offset;
-}
-
-static inline void sg_mark_end(struct scatterlist *sg)
-{
-}
-
-#ifndef __BACKPORT_LINUX_SCATTERLIST_H_TO_2_6_23__
-
-static inline void sg_init_table(struct scatterlist *sgl, unsigned int nents)
-{
-	memset(sgl, 0, sizeof(*sgl) * nents);
-}
-
-static inline void sg_assign_page(struct scatterlist *sg, struct page *page)
-{
-	sg->page = page;
-}
-
-static inline void sg_set_page(struct scatterlist *sg, struct page *page,
-			       unsigned int len, unsigned int offset)
-{
-	sg_assign_page(sg, page);
-	sg->offset = offset;
-	sg->length = len;
-}
-
-#endif /* __BACKPORT_LINUX_SCATTERLIST_H_TO_2_6_23__ */
-
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24) */
-
 static inline struct scatterlist *__sg_next_inline(struct scatterlist *sg)
 {
 	sg++;
@@ -4823,18 +4655,6 @@ static inline struct scatterlist *sg_next_inline(struct scatterlist *sg)
 
 	return __sg_next_inline(sg);
 }
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
-#ifndef __BACKPORT_LINUX_SCATTERLIST_H_TO_2_6_23__
-
-#ifndef for_each_sg
-/* See also commit 96b418c960af0d5c7185ff5c4af9376eb37ac9d3 */
-#define for_each_sg(sglist, sg, nr, __i)       \
-	for (__i = 0, sg = (sglist); __i < (nr); __i++, sg = sg_next_inline(sg))
-#endif
-
-#endif /* __BACKPORT_LINUX_SCATTERLIST_H_TO_2_6_23__ */
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24) */
 
 static inline void sg_clear(struct scatterlist *sg)
 {
@@ -5105,34 +4925,6 @@ static inline gfp_t scst_cmd_get_gfp_mask(struct scst_cmd *cmd)
 	return cmd->cmd_gfp_mask;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20))
-static inline int cancel_delayed_work_sync(struct delayed_work *work)
-{
-	int res;
-
-	res = cancel_delayed_work(work);
-	flush_scheduled_work();
-	return res;
-}
-#else
-/*
- * While cancel_delayed_work_sync() has not been defined in the vanilla kernel
- * 2.6.18 nor in 2.6.19 nor in RHEL/CentOS 5.0..5.5, a definition is available
- * in RHEL/CentOS 5.6. Unfortunately that definition is incompatible with what
- * we need. So define cancel_delayed_work() as a macro such that it overrides
- * the RHEL/CentOS 5.6 inline function definition in <linux/workqueue.h>.
- */
-#define cancel_delayed_work_sync(work)		\
-({						\
-	int res;				\
-						\
-	res = cancel_delayed_work((work));	\
-	flush_scheduled_work();			\
-	res;					\
-})
-#endif
-#endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29) && defined(CONFIG_LOCKDEP)
 extern struct lockdep_map scst_suspend_dep_map;
@@ -5583,21 +5375,6 @@ void scst_pass_through_cmd_done(void *data, char *sense, int result, int resid);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	void (*done)(void *data, char *sense, int result, int resid));
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37) && \
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 5 || \
-	 RHEL_MAJOR -0 == 5 && RHEL_MINOR -0 < 10 || \
-	 RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 < 1)
-/*
- * See also patch "mm: add vzalloc() and vzalloc_node() helpers" (commit
- * e1ca7788dec6773b1a2bce51b7141948f2b8bccf).
- */
-static inline void *vzalloc(unsigned long size)
-{
-	return __vmalloc(size, GFP_KERNEL | __GFP_HIGHMEM | __GFP_ZERO,
-			 PAGE_KERNEL);
-}
 #endif
 
 int scst_get_file_mode(const char *path);
