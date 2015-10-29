@@ -284,7 +284,7 @@ void isert_conn_free(struct isert_connection *isert_conn);
 void isert_conn_disconnect(struct isert_connection *isert_conn);
 void isert_post_drain(struct isert_connection *isert_conn);
 
-static inline struct isert_connection *isert_conn_alloc(void)
+static inline struct isert_connection *isert_conn_zalloc(void)
 {
 	return kmem_cache_zalloc(isert_conn_cache, GFP_KERNEL);
 }

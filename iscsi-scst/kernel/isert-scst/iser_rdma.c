@@ -1142,7 +1142,7 @@ static struct isert_connection *isert_conn_create(struct rdma_cm_id *cm_id,
 
 	TRACE_ENTRY();
 
-	isert_conn = isert_conn_alloc();
+	isert_conn = isert_conn_zalloc();
 	if (unlikely(!isert_conn)) {
 		pr_err("Unable to allocate iser conn, cm_id:%p\n", cm_id);
 		err = -ENOMEM;
