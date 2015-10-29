@@ -126,7 +126,12 @@ static struct iscsi_cmnd *isert_alloc_scsi_pdu(struct iscsi_conn *iscsi_conn,
 	struct isert_connection *isert_conn = (struct isert_connection *)iscsi_conn;
 	struct isert_cmnd *isert_pdu;
 
+again:
 	spin_lock(&isert_conn->tx_lock);
+	if (list_empty(&isert_conn->tx_free_list)) {
+		spin_unlock(&isert_conn->tx_lock);
+		goto again;
+	}
 	isert_pdu = list_first_entry(&isert_conn->tx_free_list,
 				     struct isert_cmnd, pool_node);
 	list_move(&isert_pdu->pool_node, &isert_conn->tx_busy_list);
