@@ -169,16 +169,6 @@ module_param(use_node_guid_in_target_name, bool, 0444);
 MODULE_PARM_DESC(use_node_guid_in_target_name,
 		 "Use HCA node GUID as SCST target name.");
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31) \
-    || defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
-static int one_target_per_port = true;
-#else
-static bool one_target_per_port = true;
-#endif
-module_param(one_target_per_port, bool, 0444);
-MODULE_PARM_DESC(one_target_per_port,
-		 "One SCST target per HCA port instead of one per HCA.");
-
 static struct rdma_cm_id *rdma_cm_id;
 
 static int srpt_get_u64_x(char *buffer, struct kernel_param *kp)
