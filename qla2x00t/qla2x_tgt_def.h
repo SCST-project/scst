@@ -633,7 +633,7 @@ typedef struct {
  * ISP queue - ABTS received/response entries structure definition for 24xx.
  */
 #define ABTS_RECV_24XX		0x54 /* ABTS received (for 24xx) */
-#define ABTS_RESP_24XX		0x55 /* ABTS responce (for 24xx) */
+#define ABTS_RESP_24XX		0x55 /* ABTS response (for 24xx) */
 
 typedef struct {
 	uint8_t	 entry_type;		    /* Entry type. */
