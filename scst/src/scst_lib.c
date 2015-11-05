@@ -11984,7 +11984,7 @@ void scst_unblock_dev(struct scst_device *dev)
 {
 	TRACE_ENTRY();
 
-	TRACE_BLOCK("Device UNBLOCK(new %d), dev %s",
+	TRACE_BLOCK("Device UNBLOCK (new %d), dev %s",
 		dev->block_count-1, dev->virt_name);
 
 	if (--dev->block_count == 0) {

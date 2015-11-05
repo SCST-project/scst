@@ -8402,7 +8402,6 @@ static ssize_t vdev_size_store(struct kobject *kobj,
 	char *new_size;
 	int res = -ENOMEM;
 
-
 	new_size = kasprintf(GFP_KERNEL, "%d %.*s", size_shift, (int)count,
 			     buf);
 	if (!new_size)

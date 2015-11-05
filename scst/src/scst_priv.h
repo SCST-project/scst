@@ -681,8 +681,8 @@ void scst_gen_aen_or_ua(struct scst_tgt_dev *tgt_dev,
  * we don't care about all commands that already on the device.
  */
 
-extern void scst_block_dev(struct scst_device *dev);
-extern void scst_unblock_dev(struct scst_device *dev);
+void scst_block_dev(struct scst_device *dev);
+void scst_unblock_dev(struct scst_device *dev);
 
 bool __scst_check_blocked_dev(struct scst_cmd *cmd);
 
