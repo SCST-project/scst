@@ -2915,9 +2915,11 @@ struct scst_device {
 	int (*dev_dif_fn)(struct scst_cmd *cmd);
 
 	__be16 dev_dif_static_app_tag; /* fixed APP TAG for all blocks in dev */
-	__be32 dev_dif_static_app_ref_tag; /* fixed APP TAG part from REF
-					    * TAG for all blocks in dev.
-					    * Valid only with dif type 3 */
+	/*
+	 * Fixed APP TAG part from REF TAG for all blocks in dev. Valid only
+	 * with dif type 3.
+	 */
+	__be32 dev_dif_static_app_ref_tag;
 
 	/* Cache to optimize scst_parse_*protect() routines */
 	enum scst_dif_actions dev_dif_rd_actions;
