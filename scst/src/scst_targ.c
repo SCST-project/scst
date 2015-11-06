@@ -6306,8 +6306,10 @@ static int scst_clear_task_set(struct scst_mgmt_cmd *mcmd)
 	return res;
 }
 
-/* Returns 0 if the command processing should be continued,
- * >0, if it should be requeued, <0 otherwise */
+/*
+ * Returns 0 if the command processing should be continued,
+ * >0, if it should be requeued, <0 otherwise.
+ */
 static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 {
 	int res = 0, rc, t;

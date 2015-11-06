@@ -492,19 +492,19 @@ static int get_cdb_info_var_len(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
 
 /*
-+=====================================-============-======-
-|  Command name                       | Operation  | Type |
-|                                     |   code     |      |
-|-------------------------------------+------------+------+
-
-+=========================================================+
-|Key:  M = command implementation is mandatory.           |
-|      O = command implementation is optional.            |
-|      V = Vendor-specific                                |
-|      R = Reserved                                       |
-|     ' '= DON'T use for this device                      |
-+=========================================================+
-*/
+ * +=====================================-============-======-
+ * |  Command name                       | Operation  | Type |
+ * |                                     |   code     |      |
+ * |-------------------------------------+------------+------+
+ * 
+ * +=========================================================+
+ * |Key:  M = command implementation is mandatory.           |
+ * |      O = command implementation is optional.            |
+ * |      V = Vendor-specific                                |
+ * |      R = Reserved                                       |
+ * |     ' '= DON'T use for this device                      |
+ * +=========================================================+
+ */
 
 #define SCST_CDB_MANDATORY  'M'	/* mandatory */
 #define SCST_CDB_OPTIONAL   'O'	/* optional  */
@@ -581,7 +581,8 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 *                       ||||||||||  |||+----> Optical card   (F)
 	 *                       ||||||||||  ||||
 	 *                       ||||||||||  ||||
-	 *                       0123456789ABCDEF -> TYPE_????     */
+	 *                       0123456789ABCDEF -> TYPE_????
+	 */
 
 	/* 6-bytes length CDB */
 	{.ops = 0x00, .devkey = "MMMMMMMMMMMMMMMM",

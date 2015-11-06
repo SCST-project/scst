@@ -190,10 +190,10 @@ struct scst_vdisk_dev {
 	uint64_t format_progress_to_do, format_progress_done;
 
 	int virt_id;
-	char name[64+1];	/* Name of the virtual device,
-				   must be <= SCSI Model + 1 */
-	char *filename;		/* File name, protected by
-				   scst_mutex and suspended activities */
+	/* Name of the virtual device, must be <= SCSI Model + 1 */
+	char name[64+1];
+	/* File name, protected by scst_mutex and suspended activities */
+	char *filename;
 	uint16_t command_set_version;
 
 	/* All 14 protected by vdisk_serial_rwlock */
@@ -5494,8 +5494,10 @@ static enum compl_status_e vdisk_exec_read_toc(struct vdisk_cmd_params *p)
 	off = 4;
 	if (cmd->cdb[6] <= 1) {
 		/* Fistr TOC Track Descriptor */
-		/* ADDR    0x10 - Q Sub-channel encodes current position data
-		   CONTROL 0x04 - Data track, recoreded uninterrupted */
+		/*
+		 * ADDR    0x10 - Q Sub-channel encodes current position data
+		 * CONTROL 0x04 - Data track, recoreded uninterrupted
+		 */
 		buffer[off+1] = 0x14;
 		/* Track Number */
 		buffer[off+2] = 0x01;

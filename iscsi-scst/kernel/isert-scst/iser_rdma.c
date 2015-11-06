@@ -136,8 +136,10 @@ void isert_post_drain(struct isert_connection *isert_conn)
 		err = ib_post_send(isert_conn->qp, &isert_conn->drain_wr.send_wr, &bad_wr);
 		if (unlikely(err)) {
 			pr_err("Failed to post drain wr, err:%d\n", err);
-			/* We need to decrement iser_conn->kref in order to be able to cleanup
-			 * the connection */
+			/*
+			 * We need to decrement iser_conn->kref in order to be
+			 * able to cleanup the connection.
+			 */
 			set_bit(ISERT_DRAIN_FAILED, &isert_conn->flags);
 			isert_conn_free(isert_conn);
 		}
@@ -633,9 +635,11 @@ static void isert_handle_wc_error(struct ib_wc *wc)
 				isert_buf->dma_dir);
 			isert_buf->sg_cnt = 0;
 		}
-		/* RDMA-WR and SEND response of a READ task
-		   are sent together, so when receiving RDMA-WR error,
-		   wait until SEND error arrives to complete the task */
+		/*
+		 * RDMA-WR and SEND response of a READ task
+		 * are sent together, so when receiving RDMA-WR error,
+		 * wait until SEND error arrives to complete the task.
+		 */
 		break;
 	default:
 		pr_err("unexpected opcode %d, wc:%p wr_id:%p conn:%p\n",

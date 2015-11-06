@@ -282,9 +282,11 @@ static void isert_free_conn(struct iscsi_conn *conn)
 int isert_handle_close_connection(struct iscsi_conn *conn)
 {
 	isert_mark_conn_closed(conn, 0);
-	/* Take care of case where our connection is being closed
-	 * without being connected to a session - if connection allocation
-	 * failed for some reason */
+	/*
+	 * Take care of case where our connection is being closed without
+	 * being connected to a session - if connection allocation failed for
+	 * some reason.
+	 */
 	if (unlikely(!conn->session))
 		isert_free_connection(conn);
 	else
