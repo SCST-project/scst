@@ -3520,7 +3520,7 @@ static ssize_t scst_dev_block_store(struct kobject *kobj,
 			goto out;
 		}
 
-		TRACE_DBG("Sysfs unblocking (dev %s)", dev->virt_name);
+		TRACE_MGMT_DBG("Sysfs unblocking (dev %s)", dev->virt_name);
 
 		scst_ext_unblock_dev(dev, false);
 		res = 0;
@@ -3574,7 +3574,7 @@ static ssize_t scst_dev_block_store(struct kobject *kobj,
 		goto out;
 	}
 
-	TRACE_DBG("Sysfs blocking dev %s (sync %d, data_start %p, "
+	TRACE_MGMT_DBG("Sysfs blocking dev %s (sync %d, data_start %p, "
 		"data_len %d)", dev->virt_name, sync, data_start, data_len);
 
 	if (sync)
