@@ -5294,6 +5294,8 @@ static enum compl_status_e vdisk_exec_set_tpgs(struct vdisk_cmd_params *p)
 	rc = scst_tg_set_group_info(cmd);
 	if (rc == 0)
 		res = RUNNING_ASYNC;
+	else
+		scst_stpg_del_unblock_next(cmd);
 
 out:
 	TRACE_EXIT_RES(res);

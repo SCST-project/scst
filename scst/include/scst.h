@@ -2213,6 +2213,12 @@ struct scst_cmd {
 	/* Set if cmd has LINK bit set in CDB */
 	unsigned int cmd_linked:1;
 
+	/* Set if cmd is on scst_global_stpg_list */
+	unsigned int cmd_on_global_stpg_list:1;
+
+	/* Set if cmd was globally STPG blocked in __scst_check_blocked_dev() */
+	unsigned int cmd_global_stpg_blocked:1;
+
 	/**************************************************************/
 
 	/* cmd's async flags */
@@ -2427,6 +2433,11 @@ struct scst_cmd {
 		struct {
 			void *cmd_data_descriptors;
 			int cmd_data_descriptors_cnt;
+		};
+
+		/* STPG commands global serialization */
+		struct {
+			struct list_head global_stpg_list_entry;
 		};
 	};
 
@@ -3707,6 +3718,7 @@ bool scst_alua_configured(struct scst_device *dev);
 int scst_tg_get_group_info(void **buf, uint32_t *response_length,
 			   struct scst_device *dev, uint8_t data_format);
 int scst_tg_set_group_info(struct scst_cmd *cmd);
+void scst_stpg_del_unblock_next(struct scst_cmd *cmd);
 
 /*
  * Get/set functions for dev's static DIF APP TAG

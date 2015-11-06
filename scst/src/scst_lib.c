@@ -61,6 +61,19 @@
 #include "scst_mem.h"
 #include "scst_pres.h"
 
+/*
+ * List and IRQ lock to globally serialize all STPG commands. Needed to
+ * prevent deadlock, if (1) a device group contains multiple devices and
+ * (2) STPG commands comes to 2 or more of them at about the same time.
+ * In this case they will be waiting for each other to finish all pending
+ * commands, i.e. the STPG commands waiting for each other. Strict
+ * serialization is per device, so can not help here.
+ *
+ * ToDo: make it per device group.
+ */
+static DEFINE_SPINLOCK(scst_global_stpg_list_lock);
+static LIST_HEAD(scst_global_stpg_list);
+
 static void scst_put_acg_work(struct work_struct *work);
 static void scst_del_acn(struct scst_acn *acn);
 static void scst_free_acn(struct scst_acn *acn, bool reassign);
@@ -6472,6 +6485,60 @@ static void scst_destroy_cmd(struct scst_cmd *cmd)
 	return;
 }
 
+/* No locks */
+void scst_stpg_del_unblock_next(struct scst_cmd *cmd)
+{
+	struct scst_cmd *c;
+
+	TRACE_ENTRY();
+
+	spin_lock_irq(&scst_global_stpg_list_lock);
+
+	EXTRACHECKS_BUG_ON(!cmd->cmd_on_global_stpg_list);
+
+	TRACE_DBG("STPG cmd %p: unblocking next", cmd);
+
+	list_del(&cmd->global_stpg_list_entry);
+	cmd->cmd_on_global_stpg_list = 0;
+
+	if (list_empty(&scst_global_stpg_list)) {
+		TRACE_DBG("No more STPG commands to unblock");
+		spin_unlock_irq(&scst_global_stpg_list_lock);
+		goto out;
+	}
+
+	c = list_first_entry(&scst_global_stpg_list, typeof(*c),
+			global_stpg_list_entry);
+
+	spin_unlock_irq(&scst_global_stpg_list_lock);
+
+	spin_lock_bh(&c->dev->dev_lock);
+
+	if (!c->cmd_global_stpg_blocked) {
+		TRACE_DBG("STPG cmd %p is not cmd_global_stpg_blocked", c);
+		spin_unlock_bh(&c->dev->dev_lock);
+		goto out;
+	}
+
+	TRACE_BLOCK("Unblocking serialized STPG cmd %p", c);
+
+	list_del(&c->blocked_cmd_list_entry);
+	c->cmd_global_stpg_blocked = 0;
+
+	spin_unlock_bh(&c->dev->dev_lock);
+
+	spin_lock_irq(&c->cmd_threads->cmd_list_lock);
+	list_add(&c->cmd_list_entry,
+		&c->cmd_threads->active_cmd_list);
+	wake_up(&c->cmd_threads->cmd_list_waitQ);
+	spin_unlock_irq(&c->cmd_threads->cmd_list_lock);
+
+out:
+	TRACE_EXIT();
+	return;
+}
+EXPORT_SYMBOL_GPL(scst_stpg_del_unblock_next);
+
 /* No locks supposed to be held */
 void scst_free_cmd(struct scst_cmd *cmd)
 {
@@ -10526,9 +10593,17 @@ static int get_cdb_info_mo(struct scst_cmd *cmd,
 {
 	switch (cmd->cdb[1] & 0x1f) {
 	case MO_SET_TARGET_PGS:
+	{
+		unsigned long flags;
 		cmd->op_name = "SET TARGET PORT GROUPS";
 		cmd->op_flags |= SCST_STRICTLY_SERIALIZED;
+		spin_lock_irqsave(&scst_global_stpg_list_lock, flags);
+		TRACE_DBG("Adding STPG cmd %p to global_stpg_list", cmd);
+		cmd->cmd_on_global_stpg_list = 1;
+		list_add_tail(&cmd->global_stpg_list_entry, &scst_global_stpg_list);
+		spin_unlock_irqrestore(&scst_global_stpg_list_lock, flags);
 		break;
+	}
 	}
 
 	return get_cdb_info_len_4(cmd, sdbops);
@@ -11963,10 +12038,27 @@ bool __scst_check_blocked_dev(struct scst_cmd *cmd)
 			scst_get_opcode_name(cmd), dev->virt_name);
 		goto out_block;
 	} else if ((cmd->op_flags & SCST_STRICTLY_SERIALIZED) == SCST_STRICTLY_SERIALIZED) {
-		TRACE_BLOCK("cmd %p (tag %llu, op %s): blocking further "
-			"cmds on dev %s due to strict serialization", cmd,
-			(unsigned long long int)cmd->tag,
+		TRACE_BLOCK("Strictly serialized cmd %p (tag %llu, op %s, dev %s)",
+			cmd, (unsigned long long int)cmd->tag,
 			scst_get_opcode_name(cmd), dev->virt_name);
+
+		if ((cmd->cdb[0] == MAINTENANCE_OUT) &&
+		    ((cmd->cdb[1] & 0x1f) == MO_SET_TARGET_PGS)) {
+			const struct scst_cmd *c;
+			/*
+			 * It's OK to do that without lock, because we
+			 * are interested only in comparison
+			 */
+			c = list_first_entry(&scst_global_stpg_list, typeof(*c),
+				global_stpg_list_entry);
+			if (cmd != c) {
+				TRACE_BLOCK("Blocking serialized STPG cmd %p "
+					"(head %p)", cmd, c);
+				cmd->cmd_global_stpg_blocked = 1;
+				goto out_block;
+			}
+		}
+
 		scst_block_dev(dev);
 		if (dev->on_dev_cmd_count > 1) {
 			TRACE_BLOCK("Delaying strictly serialized cmd %p "
@@ -12019,10 +12111,17 @@ void scst_unblock_dev(struct scst_device *dev)
 		local_irq_save_nort(flags);
 		list_for_each_entry_safe(cmd, tcmd, &dev->blocked_cmd_list,
 					 blocked_cmd_list_entry) {
-			bool strictly_serialized;
+			bool strictly_serialized =
+				((cmd->op_flags & SCST_STRICTLY_SERIALIZED) == SCST_STRICTLY_SERIALIZED);
+
+			if (dev->strictly_serialized_cmd_waiting &&
+			    !strictly_serialized)
+				continue;
+
 			list_del(&cmd->blocked_cmd_list_entry);
-			TRACE_BLOCK("Adding blocked cmd %p to active cmd "
-					"list", cmd);
+			cmd->cmd_global_stpg_blocked = 0;
+
+			TRACE_BLOCK("Adding blocked cmd %p to active cmd list", cmd);
 			spin_lock(&cmd->cmd_threads->cmd_list_lock);
 			if (cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE)
 				list_add(&cmd->cmd_list_entry,
@@ -12030,9 +12129,9 @@ void scst_unblock_dev(struct scst_device *dev)
 			else
 				list_add_tail(&cmd->cmd_list_entry,
 					&cmd->cmd_threads->active_cmd_list);
-			strictly_serialized = ((cmd->op_flags & SCST_STRICTLY_SERIALIZED) == SCST_STRICTLY_SERIALIZED);
 			wake_up(&cmd->cmd_threads->cmd_list_waitQ);
 			spin_unlock(&cmd->cmd_threads->cmd_list_lock);
+
 			if (dev->strictly_serialized_cmd_waiting && strictly_serialized)
 				break;
 		}

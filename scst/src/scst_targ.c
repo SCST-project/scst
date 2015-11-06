@@ -4261,6 +4261,12 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 
 	spin_unlock_irq(&sess->sess_list_lock);
 
+	if (unlikely(cmd->cmd_on_global_stpg_list)) {
+		TRACE_DBG("Unlisting being freed STPG cmd %p", cmd);
+		EXTRACHECKS_BUG_ON(cmd->cmd_global_stpg_blocked);
+		scst_stpg_del_unblock_next(cmd);
+	}
+
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)))
 		scst_finish_cmd_mgmt(cmd);
 
@@ -5620,11 +5626,13 @@ static int scst_set_mcmd_next_state(struct scst_mgmt_cmd *mcmd)
 
 /* IRQs supposed to be disabled */
 static bool __scst_check_unblock_aborted_cmd(struct scst_cmd *cmd,
-	struct list_head *list_entry)
+	struct list_head *list_entry, bool blocked)
 {
 	bool res;
 	if (test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)) {
 		list_del(list_entry);
+		if (blocked)
+			cmd->cmd_global_stpg_blocked = 0;
 		spin_lock(&cmd->cmd_threads->cmd_list_lock);
 		list_add_tail(&cmd->cmd_list_entry,
 			&cmd->cmd_threads->active_cmd_list);
@@ -5667,7 +5675,7 @@ void scst_unblock_aborted_cmds(const struct scst_tgt *tgt,
 				continue;
 
 			if (__scst_check_unblock_aborted_cmd(cmd,
-					&cmd->blocked_cmd_list_entry)) {
+					&cmd->blocked_cmd_list_entry, true)) {
 				TRACE_MGMT_DBG("Unblock aborted blocked cmd %p", cmd);
 			}
 		}
@@ -5689,7 +5697,7 @@ void scst_unblock_aborted_cmds(const struct scst_tgt *tgt,
 					continue;
 
 				if (__scst_check_unblock_aborted_cmd(cmd,
-						&cmd->deferred_cmd_list_entry)) {
+						&cmd->deferred_cmd_list_entry, false)) {
 					TRACE_MGMT_DBG("Unblocked aborted SN "
 						"cmd %p (sn %u)", cmd, cmd->sn);
 					order_data->def_cmd_count--;

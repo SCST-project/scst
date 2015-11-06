@@ -919,6 +919,8 @@ out_unlock:
 	mutex_unlock(&scst_dg_mutex);
 	mutex_unlock(&scst_mutex);
 
+	scst_stpg_del_unblock_next(cmd);
+
 	cmd->completed = 1;
 	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_THREAD);
 
