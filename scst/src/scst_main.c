@@ -2447,7 +2447,7 @@ static int __init init_scst(void)
 		struct scsi_sense_hdr *shdr;
 		struct scst_order_data *o;
 		struct scst_cmd *c;
-		BUILD_BUG_ON(SCST_SENSE_BUFFERSIZE < sizeof(*shdr));
+		BUILD_BUG_ON(sizeof(*shdr) > SCST_SENSE_BUFFERSIZE);
 		BUILD_BUG_ON(sizeof(o->curr_sn) != sizeof(o->expected_sn));
 		BUILD_BUG_ON(sizeof(c->sn) != sizeof(o->expected_sn));
 	}

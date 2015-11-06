@@ -3153,7 +3153,7 @@ out_unlock:
 	scst_put_buf_full(cmd, buffer);
 
 out_done:
-	if (SCST_EXEC_COMPLETED == res) {
+	if (res == SCST_EXEC_COMPLETED) {
 		if (!aborted)
 			cmd->completed = 1;
 		cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT,

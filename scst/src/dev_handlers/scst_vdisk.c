@@ -4382,19 +4382,19 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 		 SCSI_INQ_PQ_CON << 5 | dev->type;
 	/* Vital Product */
 	if (cmd->cdb[1] & EVPD) {
-		if (0 == cmd->cdb[2]) {
+		if (cmd->cdb[2] == 0) {
 			resp_len = vdisk_sup_vpd(buf, cmd, virt_dev);
-		} else if (0x80 == cmd->cdb[2]) {
+		} else if (cmd->cdb[2] == 0x80) {
 			resp_len = vdisk_usn_vpd(buf, cmd, virt_dev);
-		} else if (0x83 == cmd->cdb[2]) {
+		} else if (cmd->cdb[2] == 0x83) {
 			resp_len = vdisk_dev_id_vpd(buf, cmd, virt_dev);
-		} else if (0x86 == cmd->cdb[2]) {
+		} else if (cmd->cdb[2] == 0x86) {
 			resp_len = vdisk_ext_inq(buf, cmd, virt_dev);
-		} else if ((0xB0 == cmd->cdb[2]) && (dev->type == TYPE_DISK)) {
+		} else if (cmd->cdb[2] == 0xB0 && dev->type == TYPE_DISK) {
 			resp_len = vdisk_block_limits(buf, cmd, virt_dev);
-		} else if ((0xB1 == cmd->cdb[2]) && (dev->type == TYPE_DISK)) {
+		} else if (cmd->cdb[2] == 0xB1 && dev->type == TYPE_DISK) {
 			resp_len = vdisk_bdev_char(buf, cmd, virt_dev);
-		} else if ((0xB2 == cmd->cdb[2]) && (dev->type == TYPE_DISK) &&
+		} else if (cmd->cdb[2] == 0xB2 && dev->type == TYPE_DISK &&
 			   virt_dev->thin_provisioned) {
 			resp_len = vdisk_tp_vpd(buf, cmd, virt_dev);
 		} else {
@@ -4501,7 +4501,7 @@ static int vdisk_err_recov_pg(unsigned char *p, int pcontrol,
 					      1, 0, 0xff, 0xff};
 
 	memcpy(p, err_recov_pg, sizeof(err_recov_pg));
-	if (1 == pcontrol)
+	if (pcontrol == 1)
 		memset(p + 2, 0, sizeof(err_recov_pg) - 2);
 	return sizeof(err_recov_pg);
 }
@@ -4513,7 +4513,7 @@ static int vdisk_disconnect_pg(unsigned char *p, int pcontrol,
 					       0, 0, 0, 0, 0, 0, 0, 0};
 
 	memcpy(p, disconnect_pg, sizeof(disconnect_pg));
-	if (1 == pcontrol)
+	if (pcontrol == 1)
 		memset(p + 2, 0, sizeof(disconnect_pg) - 2);
 	return sizeof(disconnect_pg);
 }
@@ -4540,7 +4540,7 @@ static int vdisk_rigid_geo_pg(unsigned char *p, int pcontrol,
 	memcpy(&n, p + 2, sizeof(u32));
 	n = n | ((__force u32)cpu_to_be32(ncyl) >> 8);
 	memcpy(p + 2, &n, sizeof(u32));
-	if (1 == pcontrol)
+	if (pcontrol == 1)
 		memset(p + 2, 0, sizeof(geo_m_pg) - 2);
 	return sizeof(geo_m_pg);
 }
@@ -4555,7 +4555,7 @@ static int vdisk_format_pg(unsigned char *p, int pcontrol,
 	memcpy(p, format_pg, sizeof(format_pg));
 	put_unaligned_be16(DEF_SECTORS, &p[10]);
 	put_unaligned_be16(virt_dev->dev->block_size, &p[12]);
-	if (1 == pcontrol)
+	if (pcontrol == 1)
 		memset(p + 2, 0, sizeof(format_pg) - 2);
 	return sizeof(format_pg);
 }
@@ -4674,7 +4674,7 @@ static int vdisk_iec_m_pg(unsigned char *p, int pcontrol,
 	const unsigned char iec_m_pg[] = {0x1c, 0xa, 0x08, 0, 0, 0, 0, 0,
 					  0, 0, 0x0, 0x0};
 	memcpy(p, iec_m_pg, sizeof(iec_m_pg));
-	if (1 == pcontrol)
+	if (pcontrol == 1)
 		memset(p + 2, 0, sizeof(iec_m_pg) - 2);
 	return sizeof(iec_m_pg);
 }
@@ -4711,7 +4711,7 @@ static enum compl_status_e vdisk_exec_mode_sense(struct vdisk_cmd_params *p)
 	pcontrol = (cmd->cdb[2] & 0xc0) >> 6;
 	pcode = cmd->cdb[2] & 0x3f;
 	subpcode = cmd->cdb[3];
-	msense_6 = (MODE_SENSE == cmd->cdb[0]);
+	msense_6 = (cmd->cdb[0] == MODE_SENSE);
 	dev_spec = cmd->tgt_dev->tgt_dev_rd_only ? WP : 0;
 
 	if (type != TYPE_ROM)
@@ -4721,7 +4721,7 @@ static enum compl_status_e vdisk_exec_mode_sense(struct vdisk_cmd_params *p)
 	if (unlikely(length <= 0))
 		goto out_free;
 
-	if (!vdev_saved_mode_pages_enabled && (0x3 == pcontrol)) {
+	if (!vdev_saved_mode_pages_enabled && (pcontrol == 0x3)) {
 		TRACE_DBG("%s", "MODE SENSE: Saving values not supported");
 		scst_set_cmd_error(cmd,
 		    SCST_LOAD_SENSE(scst_sense_saving_params_unsup));
@@ -4738,7 +4738,7 @@ static enum compl_status_e vdisk_exec_mode_sense(struct vdisk_cmd_params *p)
 		offset = 8;
 	}
 
-	if (0 != subpcode) {
+	if (subpcode != 0) {
 		/* TODO: Control Extension page */
 		TRACE_DBG("%s", "MODE SENSE: Only subpage 0 is supported");
 		scst_set_invalid_field_in_cdb(cmd, 3, 0);
@@ -5123,7 +5123,7 @@ static enum compl_status_e vdisk_exec_mode_select(struct vdisk_cmd_params *p)
 		goto out;
 	}
 
-	mselect_6 = (MODE_SELECT == cmd->cdb[0]);
+	mselect_6 = (cmd->cdb[0] == MODE_SELECT);
 	type = cmd->dev->type;
 
 	length = scst_get_buf_full_sense(cmd, &address);
