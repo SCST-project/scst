@@ -119,9 +119,6 @@ static struct scst_trace_log vdisk_local_trace_tbl[] = {
 #define DEF_TST				SCST_TST_1_SEP_TASK_SETS
 #define DEF_TMF_ONLY			0
 
-#define NO_CAW_LEN_LIM			0xff
-#define DEF_CAW_LEN_LIM			0xfe
-
 /*
  * Since we can't control backstorage device's reordering, we have to always
  * report unrestricted reordering.
@@ -224,10 +221,6 @@ struct scst_vdisk_dev {
 
 	/* Unmap INQUIRY parameters */
 	uint32_t unmap_opt_gran, unmap_align, unmap_max_lba_cnt;
-
-	/* Block limits INQUIRY parameters */
-	uint8_t caw_len_lim;
-	struct mutex caw_mutex;
 
 	struct scst_device *dev;
 	struct list_head vdev_list_entry;
@@ -341,7 +334,6 @@ static enum compl_status_e vdisk_exec_read_toc(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_prevent_allow_medium_removal(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_unmap(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_write_same(struct vdisk_cmd_params *p);
-static enum compl_status_e vdisk_exec_caw(struct vdisk_cmd_params *p);
 static int vdisk_fsync(loff_t loff,
 	loff_t len, struct scst_device *dev, gfp_t gfp_flags,
 	struct scst_cmd *cmd, bool async);
@@ -2645,7 +2637,6 @@ static const struct scst_opcode_descriptor scst_op_descr_read_toc = {
 	[UNMAP] = vdisk_exec_unmap,					\
 	[WRITE_SAME] = vdisk_exec_write_same,				\
 	[WRITE_SAME_16] = vdisk_exec_write_same,			\
-	[COMPARE_AND_WRITE] = vdisk_exec_caw,				\
 	[MAINTENANCE_IN] = vdisk_exec_maintenance_in,			\
 	[MAINTENANCE_OUT] = vdisk_exec_maintenance_out,			\
 	[SEND_DIAGNOSTIC] = vdisk_exec_send_diagnostic,			\
@@ -2932,7 +2923,6 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 	case WRITE_10:
 	case WRITE_12:
 	case WRITE_16:
-	case COMPARE_AND_WRITE:
 		fua = (cdb[1] & 0x8);
 		if (fua) {
 			TRACE(TRACE_ORDER, "FUA: loff=%lld, "
@@ -4178,7 +4168,7 @@ static int vdisk_block_limits(uint8_t *buf, struct scst_cmd *cmd,
 	buf[1] = 0xB0;
 	buf[3] = 0x3C;
 	buf[4] = 1; /* WSNZ set */
-	buf[5] = virt_dev->caw_len_lim;
+	buf[5] = 0xFF; /* No MAXIMUM COMPARE AND WRITE LENGTH limit */ 
 	/* Optimal transfer granuality is PAGE_SIZE */
 	put_unaligned_be16(max_t(int, PAGE_SIZE / dev->block_size, 1), &buf[6]);
 
@@ -7118,21 +7108,6 @@ static ssize_t fileio_read_sync(struct file *fd, void *buf, size_t len,
 	return ret;
 }
 
-/* Note: Updates *@loff if writing succeeded. */
-static ssize_t fileio_write_sync(struct file *fd, void *buf, size_t len,
-				 loff_t *loff)
-{
-	mm_segment_t old_fs;
-	ssize_t ret;
-
-	old_fs = get_fs();
-	set_fs(get_ds());
-	ret = vfs_write(fd, (char __force __user *)buf, len, loff);
-	set_fs(old_fs);
-
-	return ret;
-}
-
 /* Note: Updates *@loff if reading succeeded except for NULLIO devices. */
 static ssize_t vdev_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 			      size_t len, loff_t *loff)
@@ -7151,27 +7126,6 @@ static ssize_t vdev_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 		return read;
 	} else {
 		return fileio_read_sync(virt_dev->fd, buf, len, loff);
-	}
-}
-
-/* Note: Updates *@loff if reading succeeded except for NULLIO devices. */
-static ssize_t vdev_write_sync(struct scst_vdisk_dev *virt_dev, void *buf,
-			       size_t len, loff_t *loff)
-{
-	ssize_t written, res;
-
-	if (virt_dev->nullio) {
-		return len;
-	} else if (virt_dev->blockio) {
-		for (written = 0; written < len; written += res) {
-			res = blockio_rw_sync(virt_dev, buf + written,
-					      len - written, loff, WRITE_SYNC);
-			if (res < 0)
-				return res;
-		}
-		return written;
-	} else {
-		return fileio_write_sync(virt_dev->fd, buf, len, loff);
 	}
 }
 
@@ -7273,123 +7227,6 @@ out_free:
 
 out:
 	TRACE_EXIT();
-	return CMD_SUCCEEDED;
-}
-
-/* COMPARE AND WRITE */
-static enum compl_status_e vdisk_exec_caw(struct vdisk_cmd_params *p)
-{
-	struct scst_cmd *cmd = p->cmd;
-	struct scst_device *dev = cmd->dev;
-	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
-	uint32_t data_len = scst_cmd_get_data_len(cmd);
-	int length, i;
-	uint8_t *caw_buf = NULL, *read_buf = NULL;
-	loff_t loff, read, written;
-
-	if (unlikely(cmd->cdb[1] & 0xE0)) {
-		TRACE_DBG("%s", "WRPROTECT not supported");
-		scst_set_invalid_field_in_cdb(cmd, 1,
-			SCST_INVAL_FIELD_BIT_OFFS_VALID | 5);
-		goto out;
-	}
-
-	/*
-	 * A NUMBER OF LOGICAL BLOCKS field set to zero specifies that no read
-	 * operations shall be performed, no logical block data shall be
-	 * transferred from the Data-Out Buffer, no compare operations shall
-	 * be performed, and no write operations shall be performed. This
-	 * condition shall not be considered an error.
-	 */
-	if (data_len == 0)
-		goto out;
-
-	if (virt_dev->caw_len_lim != NO_CAW_LEN_LIM &&
-	    (data_len > virt_dev->caw_len_lim << dev->block_shift)) {
-		PRINT_ERROR("COMPARE AND WRITE: data length %u exceeds"
-			    " limit %u << %u = %u", data_len,
-			    virt_dev->caw_len_lim, dev->block_shift,
-			    virt_dev->caw_len_lim << dev->block_shift);
-		scst_set_invalid_field_in_cdb(cmd, 13, 0);
-		goto out;
-	}
-
-	length = scst_get_buf_full(cmd, &caw_buf);
-	read_buf = vmalloc(data_len);
-	if (length < 0 || !read_buf) {
-		PRINT_ERROR("scst_get_buf_full() failed: %d", length);
-		if (length == -ENOMEM || !read_buf)
-			scst_set_busy(cmd);
-		else
-			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_internal_failure));
-		goto out;
-	}
-
-	if (length != 2 * data_len) {
-		scst_set_invalid_field_in_cdb(cmd, 13, 0);
-		goto out;
-	}
-
-	mutex_lock(&virt_dev->caw_mutex);
-
-	loff = p->loff;
-	read = vdev_read_sync(virt_dev, read_buf, data_len, &loff);
-	if (read < data_len) {
-		PRINT_ERROR("COMPARE AND WRITE / READ returned %lld from %d",
-			    read, data_len);
-		if (read == -EAGAIN)
-			scst_set_busy(cmd);
-		else
-			scst_set_cmd_error(cmd,
-				    SCST_LOAD_SENSE(scst_sense_read_error));
-		goto unlock;
-	}
-
-	if (memcmp(caw_buf, read_buf, data_len) != 0) {
-		for (i = 0; i < data_len && caw_buf[i] == read_buf[i]; i++)
-			;
-		/*
-		 * SBC-3 $5.2: if the compare operation does not indicate a
-		 * match, then terminate the command with CHECK CONDITION
-		 * status with the sense key set to MISCOMPARE and the
-		 * additional sense code set to MISCOMPARE DURING VERIFY
-		 * OPERATION. In the sense data (see 4.18 and SPC-4) the
-		 * offset from the start of the Data-Out Buffer to the first
-		 * byte of data that was not equal shall be reported in the
-		 * INFORMATION field.
-		 */
-		scst_set_cmd_error_and_inf(cmd,
-			SCST_LOAD_SENSE(scst_sense_miscompare_error), i);
-		goto unlock;
-	}
-
-	loff = p->loff;
-	written = vdev_write_sync(virt_dev, caw_buf + data_len, data_len,
-				  &loff);
-	if (written < data_len) {
-		PRINT_ERROR("COMPARE AND WRITE / WRITE wrote %lld / %d",
-			    written, data_len);
-		if (written == -EAGAIN)
-			scst_set_busy(cmd);
-		else
-			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_write_error));
-		goto unlock;
-	}
-	if (p->fua)
-		vdisk_fsync(p->loff, scst_cmd_get_data_len(cmd), cmd->dev,
-			    cmd->cmd_gfp_mask, cmd, false);
-
-unlock:
-	mutex_unlock(&virt_dev->caw_mutex);
-
-out:
-	if (read_buf)
-		vfree(read_buf);
-	if (caw_buf)
-		scst_put_buf_full(cmd, caw_buf);
-
 	return CMD_SUCCEEDED;
 }
 
@@ -7727,7 +7564,6 @@ static int vdev_create(struct scst_dev_type *devt,
 	}
 
 	spin_lock_init(&virt_dev->flags_lock);
-	mutex_init(&virt_dev->caw_mutex);
 
 	virt_dev->vdev_devt = devt;
 
@@ -7738,7 +7574,6 @@ static int vdev_create(struct scst_dev_type *devt,
 	virt_dev->rotational = DEF_ROTATIONAL;
 	virt_dev->thin_provisioned = DEF_THIN_PROVISIONED;
 	virt_dev->tst = DEF_TST;
-	virt_dev->caw_len_lim = DEF_CAW_LEN_LIM;
 	virt_dev->expl_alua = DEF_EXPL_ALUA;
 
 	virt_dev->blk_shift = DEF_DISK_BLOCK_SHIFT;
