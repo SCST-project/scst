@@ -804,11 +804,8 @@ int isert_login_req_rx(struct iscsi_cmnd *login_req)
 	switch (dev->state) {
 	case CS_INIT:
 	case CS_RSP_FINISHED:
-		if (unlikely(dev->login_req != NULL)) {
+		if (unlikely(dev->login_req != NULL))
 			sBUG();
-			res = -EINVAL;
-			goto out;
-		}
 		break;
 
 	case CS_REQ_BHS: /* Got login request before done handling old one */
@@ -825,8 +822,6 @@ int isert_login_req_rx(struct iscsi_cmnd *login_req)
 
 	default:
 		sBUG();
-		res = -EINVAL;
-		goto out;
 	}
 
 
