@@ -3522,7 +3522,7 @@ static ssize_t scst_dev_block_store(struct kobject *kobj,
 
 		TRACE_DBG("Sysfs unblocking (dev %s)", dev->virt_name);
 
-		scst_ext_unblock_dev(dev);
+		scst_ext_unblock_dev(dev, false);
 		res = 0;
 		goto out;
 	case '1':

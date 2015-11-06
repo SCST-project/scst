@@ -290,9 +290,9 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 
 /* NOT_READY is 2 */
 #define scst_sense_format_in_progress		NOT_READY,       0x04, 0x04
-#define scst_sense_tp_transitioning		NOT_READY,	 0x04, 0x0A
-#define scst_sense_tp_standby			NOT_READY,	 0x04, 0x0B
-#define scst_sense_tp_unav			NOT_READY,	 0x04, 0x0C
+#define scst_sense_alua_transitioning		NOT_READY,	 0x04, 0x0A
+#define scst_sense_alua_standby			NOT_READY,	 0x04, 0x0B
+#define scst_sense_alua_unav			NOT_READY,	 0x04, 0x0C
 #define scst_sense_no_medium			NOT_READY,       0x3a, 0
 
 /* MEDIUM_ERROR is 3 */
@@ -301,6 +301,7 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 
 /* HARDWARE_ERROR is 4 */
 #define scst_sense_hardw_error			HARDWARE_ERROR,  0x44, 0 /* non-retriable */
+#define scst_sense_set_target_pgs_failed        HARDWARE_ERROR,  0x67, 0xA
 
 /* ILLEGAL_REQUEST is 5 */
 #define scst_sense_invalid_opcode		ILLEGAL_REQUEST, 0x20, 0

@@ -135,4 +135,23 @@ struct scst_event_tm_fn_received_payload {
 	};
 };
 
+#define SCST_EVENT_STPG_USER_INVOKE    5
+struct scst_event_stpg_descr {
+ 	uint16_t group_id;
+	/*
+	 * Better to keep below fields as small as possible to fit
+	 * in single page as many descriptors as possible.
+	 */
+	uint8_t prev_state[32];
+	uint8_t new_state[32];
+	uint8_t dg_name[64];
+	uint8_t tg_name[64];
+};
+struct scst_event_stpg_payload {
+	aligned_u64 stpg_cmd_tag;
+	uint8_t device_name[64];
+	uint16_t stpg_descriptors_cnt;
+	struct scst_event_stpg_descr stpg_descriptors[0];
+};
+
 #endif /* __SCST_EVENT_H */

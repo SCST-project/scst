@@ -112,6 +112,7 @@ static struct scst_trace_log vdisk_local_trace_tbl[] = {
 #define DEF_REMOVABLE			0
 #define DEF_ROTATIONAL			1
 #define DEF_THIN_PROVISIONED		0
+#define DEF_EXPL_ALUA			0
 
 #define VDISK_NULLIO_SIZE		(5LL*1024*1024*1024*1024/2)
 
@@ -178,6 +179,7 @@ struct scst_vdisk_dev {
 	unsigned int tst:3;
 	unsigned int format_active:1;
 	unsigned int discard_zeroes_data:1;
+	unsigned int expl_alua:1;
 
 	struct file *fd;
 	struct file *dif_fd;
@@ -322,6 +324,7 @@ static enum compl_status_e vdisk_exec_read_capacity(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_read_capacity16(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_get_lba_status(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_report_tpgs(struct vdisk_cmd_params *p);
+static enum compl_status_e vdisk_exec_set_tpgs(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_request_sense(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_mode_sense(struct vdisk_cmd_params *p);
@@ -382,6 +385,10 @@ static ssize_t vdisk_sysfs_tst_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdisk_sysfs_rotational_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
+static ssize_t vdisk_sysfs_expl_alua_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
+static ssize_t vdisk_sysfs_expl_alua_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count);
 static ssize_t vdisk_sysfs_nv_cache_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdisk_sysfs_o_direct_show(struct kobject *kobj,
@@ -474,6 +481,9 @@ static struct kobj_attribute vdisk_tst_attr =
 	__ATTR(tst, S_IRUGO, vdisk_sysfs_tst_show, NULL);
 static struct kobj_attribute vdisk_rotational_attr =
 	__ATTR(rotational, S_IRUGO, vdisk_sysfs_rotational_show, NULL);
+static struct kobj_attribute vdisk_expl_alua_attr =
+	__ATTR(expl_alua, S_IWUSR|S_IRUGO, vdisk_sysfs_expl_alua_show,
+	       vdisk_sysfs_expl_alua_store);
 static struct kobj_attribute vdisk_nv_cache_attr =
 	__ATTR(nv_cache, S_IRUGO, vdisk_sysfs_nv_cache_show, NULL);
 static struct kobj_attribute vdisk_o_direct_attr =
@@ -543,6 +553,7 @@ static const struct attribute *vdisk_fileio_attrs[] = {
 	&vdisk_tp_attr.attr,
 	&vdisk_tst_attr.attr,
 	&vdisk_rotational_attr.attr,
+	&vdisk_expl_alua_attr.attr,
 	&vdisk_nv_cache_attr.attr,
 	&vdisk_o_direct_attr.attr,
 	&vdisk_removable_attr.attr,
@@ -570,6 +581,7 @@ static const struct attribute *vdisk_blockio_attrs[] = {
 	&vdisk_blocksize_attr.attr,
 	&vdisk_rd_only_attr.attr,
 	&vdisk_wt_attr.attr,
+	&vdisk_expl_alua_attr.attr,
 	&vdisk_nv_cache_attr.attr,
 	&vdisk_tst_attr.attr,
 	&vdisk_removable_attr.attr,
@@ -1874,6 +1886,17 @@ static enum compl_status_e vdisk_exec_maintenance_in(struct vdisk_cmd_params *p)
 	return CMD_SUCCEEDED;
 }
 
+static enum compl_status_e vdisk_exec_maintenance_out(struct vdisk_cmd_params *p)
+{
+	switch (p->cmd->cdb[1] & 0x1f) {
+	case MO_SET_TARGET_PGS:
+		return vdisk_exec_set_tpgs(p);
+	}
+	scst_set_invalid_field_in_cdb(p->cmd, 1,
+			0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+	return CMD_SUCCEEDED;
+}
+
 static enum compl_status_e vdisk_exec_send_diagnostic(struct vdisk_cmd_params *p)
 {
 	return CMD_SUCCEEDED;
@@ -2590,6 +2613,7 @@ static const struct scst_opcode_descriptor scst_op_descr_read_toc = {
 	[WRITE_SAME_16] = vdisk_exec_write_same,			\
 	[COMPARE_AND_WRITE] = vdisk_exec_caw,				\
 	[MAINTENANCE_IN] = vdisk_exec_maintenance_in,			\
+	[MAINTENANCE_OUT] = vdisk_exec_maintenance_out,			\
 	[SEND_DIAGNOSTIC] = vdisk_exec_send_diagnostic,			\
 	[FORMAT_UNIT] = vdisk_exec_format_unit,
 
@@ -2714,6 +2738,7 @@ static const struct scst_opcode_descriptor *vdisk_opcode_descriptors[] = {
 	SHARED_OPCODE_DESCRIPTORS
 	VDISK_OPCODE_DESCRIPTORS
 	SCST_OPCODE_DESCRIPTORS
+	&scst_op_descr_stpg, /* must be last, see vdisk_get_supported_opcodes()! */
 };
 
 static const struct scst_opcode_descriptor *vdisk_opcode_descriptors_type2[] = {
@@ -2738,12 +2763,19 @@ static int vdisk_get_supported_opcodes(struct scst_cmd *cmd,
 	const struct scst_opcode_descriptor ***out_supp_opcodes,
 	int *out_supp_opcodes_cnt)
 {
+	struct scst_device *dev = cmd->dev;
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+
 	if (cmd->dev->dev_dif_type != 2) {
 		*out_supp_opcodes = vdisk_opcode_descriptors;
 		*out_supp_opcodes_cnt = ARRAY_SIZE(vdisk_opcode_descriptors);
 	} else {
 		*out_supp_opcodes = vdisk_opcode_descriptors_type2;
 		*out_supp_opcodes_cnt = ARRAY_SIZE(vdisk_opcode_descriptors_type2);
+	}
+	if (!virt_dev->expl_alua) {
+		(*out_supp_opcodes_cnt)--;
+		sBUG_ON((*out_supp_opcodes)[*out_supp_opcodes_cnt]->od_serv_action != MO_SET_TARGET_PGS);
 	}
 	return 0;
 }
@@ -4091,8 +4123,11 @@ static int vdisk_inq(uint8_t *buf, struct scst_cmd *cmd,
 	buf[4] = 31;/* n - 4 = 35 - 4 = 31 for full 36 byte data */
 	if (cmd->dev->dev_dif_mode != SCST_DIF_MODE_NONE)
 		buf[5] |= 1; /* PROTECT */
-	if (scst_impl_alua_configured(cmd->dev))
+	if (scst_alua_configured(cmd->dev)) {
 		buf[5] |= SCST_INQ_TPGS_MODE_IMPLICIT;
+		if (virt_dev->expl_alua)
+			buf[5] |= SCST_INQ_TPGS_MODE_EXPLICIT;
+	}
 	buf[6] = 0x10; /* MultiP 1 */
 	buf[7] = 2; /* CMDQUE 1, BQue 0 => commands queuing supported */
 
@@ -5235,6 +5270,34 @@ out_put:
 out:
 	TRACE_EXIT();
 	return CMD_SUCCEEDED;
+}
+
+/* SPC-4 SET TARGET PORT GROUPS command */
+static enum compl_status_e vdisk_exec_set_tpgs(struct vdisk_cmd_params *p)
+{
+	struct scst_cmd *cmd = p->cmd;
+	struct scst_device *dev = cmd->dev;
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+	int res = CMD_SUCCEEDED, rc;
+
+	TRACE_ENTRY();
+
+	if (!virt_dev->expl_alua) {
+		PRINT_ERROR("SET TARGET PORT GROUPS: not explicit ALUA mode "
+			"(dev %s)", dev->virt_name);
+		/* Invalid opcode, i.e. SA field */
+		scst_set_invalid_field_in_cdb(cmd, 1,
+			0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+		goto out;
+	}
+
+	rc = scst_tg_set_group_info(cmd);
+	if (rc == 0)
+		res = RUNNING_ASYNC;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 static enum compl_status_e vdisk_exec_read_toc(struct vdisk_cmd_params *p)
@@ -7462,6 +7525,7 @@ static int vdev_create(struct scst_dev_type *devt,
 	virt_dev->thin_provisioned = DEF_THIN_PROVISIONED;
 	virt_dev->tst = DEF_TST;
 	virt_dev->caw_len_lim = DEF_CAW_LEN_LIM;
+	virt_dev->expl_alua = DEF_EXPL_ALUA;
 
 	virt_dev->blk_shift = DEF_DISK_BLOCK_SHIFT;
 
@@ -8572,6 +8636,53 @@ static ssize_t vdisk_sysfs_tp_show(struct kobject *kobj,
 
 	TRACE_EXIT_RES(pos);
 	return pos;
+}
+
+static ssize_t vdisk_sysfs_expl_alua_show(struct kobject *kobj,
+					  struct kobj_attribute *attr,
+					  char *buf)
+{
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+	int pos;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = dev->dh_priv;
+	pos = sprintf(buf, "%d\n%s", virt_dev->expl_alua,
+		      virt_dev->expl_alua != DEF_EXPL_ALUA ?
+		      SCST_SYSFS_KEY_MARK "\n" : "");
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static ssize_t vdisk_sysfs_expl_alua_store(struct kobject *kobj,
+					   struct kobj_attribute *attr,
+					   const char *buf, size_t count)
+{
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+	char ch[16];
+	bool expl_alua;
+	int res;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = dev->dh_priv;
+	sprintf(ch, "%.*s", min_t(int, sizeof(ch) - 1, count), buf);
+	expl_alua = !!simple_strtoul(ch, NULL, 0);
+
+	spin_lock(&virt_dev->flags_lock);
+	virt_dev->expl_alua = expl_alua;
+	spin_unlock(&virt_dev->flags_lock);
+
+	res = count;
+
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 static ssize_t vdisk_sysfs_nv_cache_show(struct kobject *kobj,

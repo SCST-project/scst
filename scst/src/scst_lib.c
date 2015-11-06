@@ -248,7 +248,7 @@ const struct scst_opcode_descriptor scst_op_descr_stpg = {
 	.od_cdb_size = 12,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
 	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
-	.od_cdb_usage_bits = { MAINTENANCE_IN, MO_SET_TARGET_PGS, 0, 0, 0, 0,
+	.od_cdb_usage_bits = { MAINTENANCE_OUT, MO_SET_TARGET_PGS, 0, 0, 0, 0,
 			       0xFF, 0xFF, 0xFF, 0xFF, 0, SCST_OD_DEFAULT_CONTROL_BYTE },
 };
 EXPORT_SYMBOL(scst_op_descr_stpg);
@@ -452,6 +452,8 @@ static int get_cdb_info_compare_and_write(struct scst_cmd *cmd,
 static int get_cdb_info_apt(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
 static int get_cdb_info_min(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_mo(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
 static int get_cdb_info_var_len(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
@@ -1410,12 +1412,12 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 .info_op_flags = FLAG_NONE,
 	 .info_len_off = 8, .info_len_len = 2,
 	 .get_cdb_info = get_cdb_info_len_2},
-	{.ops = 0xA4, .devkey = "            O   ",
+	{.ops = 0xA4, .devkey = "OOO O OOOO  MO O",
 	 .info_op_name = "MAINTENANCE(OUT)",
 	 .info_data_direction = SCST_DATA_WRITE,
 	 .info_op_flags = FLAG_NONE,
 	 .info_len_off = 6, .info_len_len = 4,
-	 .get_cdb_info = get_cdb_info_len_4},
+	 .get_cdb_info = get_cdb_info_mo},
 	{.ops = 0xA5, .devkey = "        M       ",
 	 .info_op_name = "MOVE MEDIUM",
 	 .info_data_direction = SCST_DATA_NONE,
@@ -10518,6 +10520,20 @@ static int get_cdb_info_min(struct scst_cmd *cmd,
 	return get_cdb_info_len_4(cmd, sdbops);
 }
 
+/* Parse MAINTENANCE (OUT) */
+static int get_cdb_info_mo(struct scst_cmd *cmd,
+			   const struct scst_sdbops *sdbops)
+{
+	switch (cmd->cdb[1] & 0x1f) {
+	case MO_SET_TARGET_PGS:
+		cmd->op_name = "SET TARGET PORT GROUPS";
+		cmd->op_flags |= SCST_STRICTLY_SERIALIZED;
+		break;
+	}
+
+	return get_cdb_info_len_4(cmd, sdbops);
+}
+
 /**
  * scst_get_cdb_info() - fill various info about the command's CDB
  *
@@ -13304,14 +13320,20 @@ out_free_success:
 	goto out_success;
 }
 
-void scst_ext_unblock_dev(struct scst_device *dev)
+void scst_ext_unblock_dev(struct scst_device *dev, bool stpg)
 {
 	TRACE_ENTRY();
 
 	spin_lock_bh(&dev->dev_lock);
 
 	if (dev->ext_blocks_cnt == 0) {
-		TRACE_DBG("Nothing to unblock (dev %p)", dev);
+		TRACE_DBG("Nothing to unblock (dev %s)", dev->virt_name);
+		goto out_unlock;
+	}
+
+	if ((dev->ext_blocks_cnt == 1) && dev->stpg_ext_blocked && !stpg) {
+		TRACE_DBG("Can not unblock internal STPG ext block (dev %s)",
+			dev->virt_name);
 		goto out_unlock;
 	}
 
@@ -13340,7 +13362,7 @@ void scst_ext_unblock_dev(struct scst_device *dev)
 			spin_unlock_bh(&dev->dev_lock);
 		} else {
 			TRACE_DBG("Ext unblock: pending done, unblocking...");
-			scst_ext_unblock_dev(dev);
+			scst_ext_unblock_dev(dev, stpg);
 		}
 		spin_lock_bh(&dev->dev_lock);
 	}

@@ -110,7 +110,7 @@ static inline void tid_secure(uint8_t *tid)
 }
 
 /* Returns false if tid's are not equal, true otherwise */
-static bool tid_equal(const uint8_t *tid_a, const uint8_t *tid_b)
+bool tid_equal(const uint8_t *tid_a, const uint8_t *tid_b)
 {
 	int len;
 

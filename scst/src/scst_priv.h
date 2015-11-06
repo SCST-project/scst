@@ -717,7 +717,7 @@ void scst_unblock_dev(struct scst_device *dev);
 
 int scst_ext_block_dev(struct scst_device *dev, bool sync,
 	ext_blocker_done_fn_t done_fn, const uint8_t *priv, int priv_len);
-void scst_ext_unblock_dev(struct scst_device *dev);
+void scst_ext_unblock_dev(struct scst_device *dev, bool stpg);
 void __scst_ext_blocking_done(struct scst_device *dev);
 void scst_ext_blocking_done(struct scst_device *dev);
 

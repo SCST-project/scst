@@ -2658,6 +2658,9 @@ struct scst_device {
 	/* Used to serialize invocations of __scst_ext_blocking_done() */
 	unsigned int ext_unblock_scheduled:1;
 
+	/* Set if this device was blocked during STPG command processing */
+	unsigned int stpg_ext_blocked:1;
+
 	/* Set if this device does not support DIF IP checking */
 	unsigned int dev_dif_ip_not_supported:1;
 
@@ -3212,6 +3215,8 @@ struct scst_acn {
  * @kobj:        For making this object visible in sysfs.
  * @dev_kobj:    Sysfs devices directory.
  * @tg_kobj:     Sysfs target groups directory.
+ * @stpg_transport_id Initiator transport ID for STPG originating I_T nexus, if any
+ * @stpg_rel_tgt_id Relative target ID for STPG originating I_T nexus, if any
  *
  * Each device is member of zero or one device groups. With each device group
  * there are zero or more target groups associated.
@@ -3224,6 +3229,8 @@ struct scst_dev_group {
 	struct kobject		kobj;
 	struct kobject		*dev_kobj;
 	struct kobject		*tg_kobj;
+	uint8_t			*stpg_transport_id;
+	uint16_t		stpg_rel_tgt_id;
 };
 
 /**
@@ -3361,7 +3368,6 @@ extern const struct scst_opcode_descriptor scst_op_descr_report_supp_opcodes;
 	&scst_op_descr_request_sense,		\
 	&scst_op_descr_report_supp_opcodes,	\
 	&scst_op_descr_report_supp_tm_fns,
-
 
 #ifndef smp_mb__after_set_bit
 /* There is no smp_mb__after_set_bit() in the kernel */
@@ -3691,9 +3697,10 @@ static inline void scst_sess_set_tgt_priv(struct scst_session *sess,
 }
 
 uint16_t scst_lookup_tg_id(struct scst_device *dev, struct scst_tgt *tgt);
-bool scst_impl_alua_configured(struct scst_device *dev);
+bool scst_alua_configured(struct scst_device *dev);
 int scst_tg_get_group_info(void **buf, uint32_t *response_length,
 			   struct scst_device *dev, uint8_t data_format);
+int scst_tg_set_group_info(struct scst_cmd *cmd);
 
 /*
  * Get/set functions for dev's static DIF APP TAG

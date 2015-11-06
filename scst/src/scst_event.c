@@ -160,7 +160,7 @@ static void __scst_event_queue(struct scst_event_entry *event_entry)
 {
 	const struct scst_event *event = &event_entry->event;
 	struct scst_event_priv *priv;
-	struct scst_event_entry *allowed_entry = NULL;
+	struct scst_event_entry *allowed_entry;
 	bool queued = false;
 	int rc = 0;
 	static atomic_t base_event_id = ATOMIC_INIT(0);

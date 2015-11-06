@@ -16,6 +16,8 @@
  */
 
 #include <linux/moduleparam.h>
+#include <linux/delay.h>
+#include <linux/kmod.h>
 #include <asm/unaligned.h>
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/scst.h>
@@ -23,6 +25,8 @@
 #include "scst.h"
 #endif
 #include "scst_priv.h"
+#include "scst_event.h"
+#include "scst_pres.h"
 
 struct alua_state_and_name {
 	enum scst_tg_state s;
@@ -127,8 +131,8 @@ static struct scst_tg_tgt *__lookup_dg_tgt(struct scst_dev_group *dg,
 }
 
 /* Look up a target group by name in the given device group. */
-static struct scst_target_group *
-__lookup_tg_by_name(struct scst_dev_group *dg, const char *name)
+static struct scst_target_group *__lookup_tg_by_name(struct scst_dev_group *dg,
+						     const char *name)
 {
 	struct scst_target_group *tg;
 
@@ -141,9 +145,24 @@ __lookup_tg_by_name(struct scst_dev_group *dg, const char *name)
 	return NULL;
 }
 
+/* Look up a target group by group ID. */
+static struct scst_target_group *__lookup_tg_by_group_id(struct scst_dev_group *dg,
+							 uint16_t group_id)
+{
+	struct scst_target_group *tg;
+
+	lockdep_assert_held(&scst_mutex);
+
+	list_for_each_entry(tg, &dg->tg_list, entry)
+		if (tg->group_id == group_id)
+			return tg;
+
+	return NULL;
+}
+
 /* Look up a target group by target port. */
-static struct scst_target_group *
-__lookup_tg_by_tgt(struct scst_dev_group *dg, const struct scst_tgt *tgt)
+static struct scst_target_group *__lookup_tg_by_tgt(struct scst_dev_group *dg,
+						    const struct scst_tgt *tgt)
 {
 	struct scst_target_group *tg;
 	struct scst_tg_tgt *tg_tgt;
@@ -319,11 +338,10 @@ static bool scst_tg_accept_standby(struct scst_cmd *cmd)
 		return true;
 	}
 
-	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_tp_standby));
+	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_alua_standby));
 
 	return false;
 }
-
 
 /*
  * Whether or not to accept a command in the ALUA unavailable state.
@@ -333,7 +351,7 @@ static bool scst_tg_accept_unav(struct scst_cmd *cmd)
 	bool process_cmd = scst_tg_accept(cmd);
 
 	if (!process_cmd)
-		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_tp_unav));
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_alua_unav));
 
 	return process_cmd;
 }
@@ -347,7 +365,7 @@ static bool scst_tg_accept_transitioning(struct scst_cmd *cmd)
 
 	if (!process_cmd)
 		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_tp_transitioning));
+			SCST_LOAD_SENSE(scst_sense_alua_transitioning));
 
 	return process_cmd;
 }
@@ -424,7 +442,9 @@ static void scst_tg_change_tgt_dev_state(struct scst_tgt_dev *tgt_dev,
 {
 	lockdep_assert_held(&scst_dg_mutex);
 
-	TRACE_MGMT_DBG("ALUA state of tgt_dev %p has changed", tgt_dev);
+	TRACE_MGMT_DBG("ALUA state of tgt_dev %p has changed (gen_ua %d)",
+		tgt_dev, gen_ua);
+
 	scst_update_tgt_dev_alua_filter(tgt_dev, state);
 	if (gen_ua)
 		scst_gen_aen_or_ua(tgt_dev,
@@ -724,14 +744,86 @@ out:
 	return res;
 }
 
+static void scst_event_stpg_notify_fn(struct scst_event *event,
+				      void *priv, int status)
+{
+	struct scst_dev_group *dg;
+	struct scst_cmd *cmd = (struct scst_cmd *)priv;
+	struct scst_event_stpg_payload *p =
+		(struct scst_event_stpg_payload *)event->payload;
+	struct scst_event_stpg_descr *d;
+	struct scst_dg_dev *dgd;
+	int i;
+
+	TRACE_ENTRY();
+
+	PRINT_INFO("Notification for event %u (id %d) received "
+		   "with status %d (priv %p)", event->event_code,
+		   event->event_id, status, priv);
+
+	mutex_lock(&scst_mutex);
+	mutex_lock(&scst_dg_mutex);
+
+	dg = __lookup_dg_by_dev(cmd->dev);
+	if (!dg) {
+		PRINT_ERROR("STPG: unable to find DG for device %s",
+			cmd->dev->virt_name);
+		goto out_fail;
+	}
+
+	list_for_each_entry(dgd, &dg->dev_list, entry) {
+		if (dgd->dev->stpg_ext_blocked) {
+			TRACE_DBG("STPG: ext unblocking dev %s",
+				dgd->dev->virt_name);
+			scst_ext_unblock_dev(dgd->dev, true);
+			dgd->dev->stpg_ext_blocked = 0;
+		}
+	}
+
+	kfree(dg->stpg_transport_id);
+	dg->stpg_transport_id = NULL;
+
+	if (status != 0) {
+		PRINT_ERROR("on_stpg script for device group %s failed with status %d",
+			dg->name, status);
+		goto out_fail;
+	}
+
+	for (i = 0, d = &p->stpg_descriptors[0]; i < p->stpg_descriptors_cnt; i++, d++) {
+		struct scst_target_group *tg = __lookup_tg_by_group_id(dg, d->group_id);
+		if (!tg) {
+			PRINT_ERROR("STPG: unable to find TG %d", d->group_id);
+			goto out_fail;
+		} else if (tg->state == scst_alua_name_to_state(d->prev_state)) {
+			PRINT_ERROR("on_stpg script did not change ALUA state"
+				   " for device group %s / target group %s",
+				   dg->name, tg->name);
+			goto out_fail;
+		}
+	}
+
+out_unlock:
+	mutex_unlock(&scst_dg_mutex);
+	mutex_unlock(&scst_mutex);
+
+	cmd->completed = 1;
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_THREAD);
+
+	TRACE_EXIT();
+	return;
+
+out_fail:
+	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_set_target_pgs_failed));
+	goto out_unlock;
+}
+
 /*
  * Update the ALUA filter of those LUNs (tgt_dev) whose target port is a member
  * of target group @tg and that export a device that is a member of the device
  * group @tg->dg.
  */
 static void __scst_tg_set_state(struct scst_target_group *tg,
-				enum scst_tg_state state,
-				struct scst_tgt *no_ua_tgt)
+				enum scst_tg_state state)
 {
 	struct scst_dg_dev *dg_dev;
 	struct scst_device *dev;
@@ -754,8 +846,12 @@ static void __scst_tg_set_state(struct scst_target_group *tg,
 			tgt = tgt_dev->sess->tgt;
 			list_for_each_entry(tg_tgt, &tg->tgt_list, entry) {
 				if (tg_tgt->tgt == tgt) {
+					bool gen_ua = (state != SCST_TG_STATE_TRANSITIONING);
+	 				if ((tg->dg->stpg_rel_tgt_id == tgt_dev->sess->tgt->rel_tgt_id) &&
+	 				    tid_equal(tg->dg->stpg_transport_id, tgt_dev->sess->transport_id))
+	 					gen_ua = false;
 					scst_tg_change_tgt_dev_state(tgt_dev,
-						state, tgt != no_ua_tgt);
+						state, gen_ua);
 					break;
 				}
 			}
@@ -780,7 +876,7 @@ int scst_tg_set_state(struct scst_target_group *tg, enum scst_tg_state state)
 	if (res)
 		goto out;
 
-	__scst_tg_set_state(tg, state, NULL);
+	__scst_tg_set_state(tg, state);
 
 	mutex_unlock(&scst_dg_mutex);
 out:
@@ -945,9 +1041,16 @@ out_free:
 	goto out;
 }
 
+/* scst_dg_mutex supposed to be locked */
 static void __scst_dg_dev_remove(struct scst_dev_group *dg,
 				 struct scst_dg_dev *dgdev)
 {
+	if (dgdev->dev->stpg_ext_blocked) {
+		TRACE_DBG("DG %s remove: unblocking STPG ext blocked "
+			"dev %s", dg->name, dgdev->dev->virt_name);
+		scst_ext_unblock_dev(dgdev->dev, true);
+		dgdev->dev->stpg_ext_blocked = 0;
+	}
 	list_del(&dgdev->entry);
 	scst_dg_dev_sysfs_del(dg, dgdev);
 	scst_reset_dev_alua_filter(dgdev->dev);
@@ -1080,7 +1183,7 @@ static void __scst_dg_remove(struct scst_dev_group *dg)
 	list_del(&dg->entry);
 	scst_dg_sysfs_del(dg);
 	list_for_each_entry(tg, &dg->tg_list, entry)
-		__scst_tg_set_state(tg, SCST_TG_STATE_OPTIMIZED, NULL);
+		__scst_tg_set_state(tg, SCST_TG_STATE_OPTIMIZED);
 	while (!list_empty(&dg->dev_list)) {
 		dgdev = list_first_entry(&dg->dev_list, struct scst_dg_dev,
 					 entry);
@@ -1201,10 +1304,10 @@ out_unlock:
 EXPORT_SYMBOL_GPL(scst_lookup_tg_id);
 
 /**
- * scst_impl_alua_configured() - Whether implicit ALUA has been configured.
+ * scst_alua_configured() - Whether implicit ALUA has been configured.
  * @dev: Pointer to the SCST device to verify.
  */
-bool scst_impl_alua_configured(struct scst_device *dev)
+bool scst_alua_configured(struct scst_device *dev)
 {
 	struct scst_dev_group *dg;
 
@@ -1214,7 +1317,7 @@ bool scst_impl_alua_configured(struct scst_device *dev)
 
 	return dg != NULL;
 }
-EXPORT_SYMBOL_GPL(scst_impl_alua_configured);
+EXPORT_SYMBOL_GPL(scst_alua_configured);
 
 /**
  * scst_tg_get_group_info() - Build REPORT TARGET GROUPS response.
@@ -1329,3 +1432,356 @@ out:
 	return res;
 }
 EXPORT_SYMBOL_GPL(scst_tg_get_group_info);
+
+struct scst_stpg_wait {
+	atomic_t stpg_wait_left;
+	int status;
+	struct scst_dev_group *dg;
+	struct scst_event_entry *event_entry;
+};
+
+/* No locks */
+static void scst_stpg_check_blocking_done(struct scst_stpg_wait *wait)
+{
+	TRACE_ENTRY();
+
+	TRACE_DBG("wait %p, left %d", wait, atomic_read(&wait->stpg_wait_left));
+
+	if (atomic_dec_and_test(&wait->stpg_wait_left)) {
+		if (wait->status == 0)
+			scst_event_queue(SCST_EVENT_STPG_USER_INVOKE,
+				SCST_EVENT_SCST_CORE_ISSUER, wait->event_entry);
+		else {
+			wait->event_entry->event_notify_fn(&wait->event_entry->event,
+				wait->event_entry->notify_fn_priv, wait->status);
+		}
+		kfree(wait);
+	}
+
+	TRACE_EXIT();
+	return;
+}
+
+/* No locks */
+static void scst_stpg_ext_blocking_done(struct scst_device *dev,
+	uint8_t *data, int len)
+{
+	sBUG_ON(len != sizeof(data));
+	scst_stpg_check_blocking_done(*((struct scst_stpg_wait **)data));
+}
+
+/**
+ * scst_tg_set_group_info - SET TARGET PORT GROUPS implementation.
+ *
+ * Returns >=0 upon success or negative error code otherwise, for instance,
+ * if either an invalid group ID has been specified or the group ID
+ * of a target group with one, or more non-local target ports has been
+ * specified. In the error case the cmd has its sense set.
+ *
+ * In case of returned 0 the command completed asynchronously, i.e. upon
+ * return might be already dead!!
+ */
+int scst_tg_set_group_info(struct scst_cmd *cmd)
+{
+	struct scst_device *dev = cmd->dev;
+	uint8_t *buf;
+	int len;
+	int i, j, res = 1, tpg_desc_count, valid_desc_count;
+	struct scst_dev_group *dg;
+	struct osi {
+		uint16_t	       group_id;
+		struct scst_target_group *tg;
+		enum scst_tg_state     prev_state;
+		enum scst_tg_state     new_state;
+	} *osi = NULL;
+	int event_entry_len, payload_len;
+	struct scst_event_entry *event_entry;
+	struct scst_event *event;
+	struct scst_event_stpg_payload *payload;
+	struct scst_event_stpg_descr *descr;
+
+	TRACE_ENTRY();
+
+	len = scst_get_buf_full(cmd, &buf);
+	if (len < 0) {
+		PRINT_ERROR("scst_get_buf_full() failed: %d", len);
+		res = len;
+		if (len == -ENOMEM)
+			scst_set_busy(cmd);
+		else
+			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+		goto out;
+	}
+
+	/*
+	 * From SPC-4: "A parameter list length of zero specifies that no data
+	 * shall be transferred, and that no change shall be made in the
+	 * target port asymmetric access state of any target port groups or
+	 * target ports".
+	 */
+	if (len == 0)
+		goto out_put;
+
+	tpg_desc_count = (len - 4) / 4;
+	/* Check for some reasonable limit */
+	if (tpg_desc_count > 64) {
+		PRINT_ERROR("Too many STPG descriptors (%d) for dev %s",
+			tpg_desc_count, dev->virt_name);
+		res = -EINVAL;
+		scst_set_invalid_field_in_cdb(cmd, 6, 0);
+		goto out_put;
+	}
+
+	TRACE_DBG("tpg_desc_count %d", tpg_desc_count);
+
+	osi = kcalloc(tpg_desc_count, sizeof(*osi), GFP_KERNEL);
+	if (!osi) {
+		res = -ENOMEM;
+		scst_set_busy(cmd);
+		goto out_put;
+	}
+
+	res = mutex_lock_interruptible(&scst_mutex);
+	if (res) {
+		PRINT_INFO("mutex_lock_interruptible() returned %d, finishing "
+			"cmd %p", res, cmd);
+		scst_set_busy(cmd);
+		goto out_put;
+	}
+
+	res = mutex_lock_interruptible(&scst_dg_mutex);
+	if (res) {
+		PRINT_INFO("mutex_lock_interruptible() returned %d, finishing "
+			"cmd %p", res, cmd);
+		scst_set_busy(cmd);
+		goto out_unlock_sm_fail;
+	}
+
+	dg = __lookup_dg_by_dev(dev);
+	if (!dg) {
+		res = -EINVAL;
+		goto out_unlock_fail;
+	}
+
+	TRACE_DBG("dg %s (%p) found, dev %s", dg->name, dg, dev->virt_name);
+
+	for (i = 4, j = 0; i + 4 <= len; i += 4, j++) {
+		WARN_ON_ONCE(j >= tpg_desc_count);
+		osi[j].new_state = buf[i] & 0x1f;
+		switch (osi[j].new_state) {
+		case SCST_TG_STATE_OPTIMIZED:
+		case SCST_TG_STATE_NONOPTIMIZED:
+		case SCST_TG_STATE_STANDBY:
+		case SCST_TG_STATE_UNAVAILABLE:
+		case SCST_TG_STATE_OFFLINE:
+			break;
+		default:
+			TRACE_MGMT_DBG("Incorrect new state %d", osi[j].new_state);
+			res = -EINVAL;
+			goto out_unlock_fail;
+		}
+
+		osi[j].group_id = get_unaligned_be16(&buf[i + 2]);
+		if (!osi[j].group_id) {
+			TRACE_MGMT_DBG("Invalid group_id %d", osi[j].group_id);
+			res = -EINVAL;
+			goto out_unlock_fail;
+		}
+
+		osi[j].tg = __lookup_tg_by_group_id(dg, osi[j].group_id);
+		if (!osi[j].tg) {
+			TRACE_MGMT_DBG("No TG for group_id %d", osi[j].group_id);
+			res = -ESRCH;
+			goto out_unlock_fail;
+		}
+
+		if (osi[j].tg->state == SCST_TG_STATE_TRANSITIONING) {
+			TRACE_MGMT_DBG("TG %p is transitioning", osi[j].tg);
+			res = -EBUSY;
+			scst_set_cmd_error(cmd,
+				SCST_LOAD_SENSE(scst_sense_alua_transitioning));
+			/* second sense will not override the set one */
+			goto out_unlock_fail;
+		}
+		osi[j].prev_state = osi[j].tg->state;
+
+		TRACE_DBG("j %d, group_id %u, tg %s (%p), state %d", j, osi[j].group_id,
+			osi[j].tg->name, osi[j].tg, osi[j].tg->state);
+	}
+
+	mutex_unlock(&scst_dg_mutex);
+	mutex_unlock(&scst_mutex);
+
+	scst_put_buf_full(cmd, buf);
+
+	payload_len = sizeof(*payload) + sizeof(*descr) * tpg_desc_count;
+	event_entry_len = sizeof(*event_entry) + payload_len;
+	event_entry = kzalloc(event_entry_len, GFP_KERNEL);
+	if (event_entry == NULL) {
+		PRINT_ERROR("Unable to allocate event (size %d)", event_entry_len);
+		res = -ENOMEM;
+		scst_set_busy(cmd);
+		goto out_free;
+	}
+
+	TRACE_MEM("event_entry %p (len %d) allocated", event_entry,
+		event_entry_len);
+
+	event = &event_entry->event;
+	event->payload_len = payload_len;
+
+	payload = (struct scst_event_stpg_payload *)event->payload;
+	payload->stpg_cmd_tag = cmd->tag;
+
+	res = 1;
+
+	if (strlen(dev->virt_name) >= sizeof(payload->device_name)) {
+		PRINT_ERROR("Device name %s too long", dev->virt_name);
+		goto out_too_long;
+	}
+	strlcpy(payload->device_name, dev->virt_name, sizeof(payload->device_name));
+
+	valid_desc_count = 0;
+	for (j = 0, descr = &payload->stpg_descriptors[0]; j < tpg_desc_count; j++) {
+		if (osi[j].prev_state == osi[j].new_state)
+			continue;
+
+		if (strlen(scst_alua_state_name(osi[j].prev_state)) >= sizeof(descr->prev_state)) {
+			PRINT_ERROR("prev state too long (%d)", osi[j].prev_state);
+			goto out_too_long;
+		}
+		strlcpy(descr->prev_state, scst_alua_state_name(osi[j].prev_state),
+			sizeof(descr->prev_state));
+
+		if (strlen(scst_alua_state_name(osi[j].new_state)) >= sizeof(descr->new_state)) {
+			PRINT_ERROR("new state too long (%d)", osi[j].new_state);
+			goto out_too_long;
+		}
+		strlcpy(descr->new_state, scst_alua_state_name(osi[j].new_state),
+			sizeof(descr->new_state));
+
+		if (strlen(dg->name) >= sizeof(descr->dg_name)) {
+			PRINT_ERROR("dg_name too long (%s)", dg->name);
+			goto out_too_long;
+		}
+		strlcpy(descr->dg_name, dg->name, sizeof(descr->dg_name));
+
+		if (strlen(osi[j].tg->name) >= sizeof(descr->tg_name)) {
+			PRINT_ERROR("tg_name too long (%s)", osi[j].tg->name);
+			goto out_too_long;
+		}
+		strlcpy(descr->tg_name, osi[j].tg->name,
+			sizeof(descr->tg_name));
+
+		descr->group_id = osi[j].group_id;
+
+		TRACE_DBG("group_id %u, prev_state %s, new_state %s, dg_name %s, "
+			"tg_name %s", descr->group_id, descr->prev_state,
+			descr->new_state, descr->dg_name, descr->tg_name);
+
+		valid_desc_count++;
+		descr++;
+	}
+
+	payload->stpg_descriptors_cnt = valid_desc_count;
+
+	if (valid_desc_count > 0) {
+		struct scst_dg_dev *dgd;
+		struct scst_stpg_wait *wait;
+		int rc;
+
+		dg->stpg_rel_tgt_id = cmd->tgt->rel_tgt_id;
+		dg->stpg_transport_id = kmemdup(cmd->sess->transport_id,
+			scst_tid_size(cmd->sess->transport_id), GFP_KERNEL);
+		if (dg->stpg_transport_id == NULL) {
+			PRINT_ERROR("Unable to duplicate stpg_transport_id");
+			goto out_free_event;
+		}
+
+		wait = kzalloc(sizeof(*wait), GFP_KERNEL);
+		if (wait == NULL) {
+			PRINT_ERROR("Unable to allocate STPG wait struct "
+				"(size %zd)", sizeof(*wait));
+			scst_set_busy(cmd);
+			res = -ENOMEM;
+			goto out_free_tr_id;
+		}
+
+		atomic_set(&wait->stpg_wait_left, 1);
+		wait->event_entry = event_entry;
+
+		event_entry->event_notify_fn = scst_event_stpg_notify_fn;
+		event_entry->notify_fn_priv = cmd;
+
+		mutex_lock(&scst_dg_mutex);
+		list_for_each_entry(dgd, &dg->dev_list, entry) {
+			if (dgd->dev == dev)
+				continue;
+
+			TRACE_DBG("STPG: ext blocking dev %s", dgd->dev->virt_name);
+
+			atomic_inc(&wait->stpg_wait_left);
+
+			spin_lock_bh(&dev->dev_lock);
+			WARN_ON(dgd->dev->stpg_ext_blocked);
+			dgd->dev->stpg_ext_blocked = 1;
+			spin_unlock_bh(&dev->dev_lock);
+
+			rc = scst_ext_block_dev(dgd->dev, false,
+				scst_stpg_ext_blocking_done, (uint8_t *)&wait,
+				sizeof(wait));
+			if (rc != 0) {
+				TRACE_DBG("scst_ext_block_dev() returned %d, "
+					"stepping back (cmd %p)", rc, cmd);
+				wait->status = rc;
+				wait->dg = dg;
+				atomic_dec(&wait->stpg_wait_left);
+				spin_lock_bh(&dev->dev_lock);
+				WARN_ON(dgd->dev->stpg_ext_blocked);
+				dgd->dev->stpg_ext_blocked = 0;
+				spin_unlock_bh(&dev->dev_lock);
+				break;
+			}
+		}
+		mutex_unlock(&scst_dg_mutex);
+
+		scst_stpg_check_blocking_done(wait);
+		/* !! cmd can be already dead here !! */
+	} else {
+		TRACE_DBG("Nothing to do");
+		goto out_free_event;
+	}
+
+	res = 0;
+
+out_free:
+	kfree(osi);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_unlock_fail:
+	mutex_unlock(&scst_dg_mutex);
+
+out_unlock_sm_fail:
+	mutex_unlock(&scst_mutex);
+
+	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_set_target_pgs_failed));
+
+out_put:
+	scst_put_buf_full(cmd, buf);
+	goto out_free;
+
+out_too_long:
+	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_set_target_pgs_failed));
+	res = -EOVERFLOW;
+
+out_free_tr_id:
+	kfree(dg->stpg_transport_id);
+
+out_free_event:
+	kfree(event_entry);
+	goto out_free;
+}
+EXPORT_SYMBOL_GPL(scst_tg_set_group_info);
