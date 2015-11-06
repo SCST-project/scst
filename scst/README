@@ -1783,6 +1783,126 @@ information about ALUA support in Windows Server, see also:
   (http://msdn.microsoft.com/en-us/library/gg607458%28v=vs.85%29.aspx).
 
 
+VAAI
+----
+
+SCST supports all 3 VAAI SCSI commands: WRITE SAME, COMPARE AND WRITE
+(ATS) and EXTENDED COPY. Additionally, it supports not directly related
+to VAAI Thin Provisioning capabilities, particularly, UNMAP SCSI
+commands, WRITE SAME with UNMAP bit as well as thin provisioning related
+devices' sysfs attributes (see above).
+
+In some cases dev handlers should perform some manual actions to fully
+benefit from SCST VAAI implementation. Those actions described in the
+implementation notes below. For vdisk and fileio_tgt handlers they have
+already been implemented.
+
+
+Implementation notes
+....................
+
+WRITE SAME
+~~~~~~~~~~
+
+WRITE SAME command supports 2 modes:
+
+1. Manual writing mode. In this mode WRITE SAME generates a set of
+internal WRITE(16) SCSI commands to perform requested writing.
+
+2. Remap mode. In this mode a dev handler, if supported, can remap being
+written blocks to a single block and then tell SCST to manually write
+parts of the requested area, which for some reason can not be remapped.
+
+In both cases dev handlers should call from WRITE SAME command handler
+scst_write_same() function. This function as the second argument gets
+array of descriptors where to write the requested block of data. Last
+element in this array must have len 0. If this argument is NULL, then
+the whole area will be manually written by SCST. This value should be
+used by dev handlers not supporting remapping blocks.
+
+User space dev handlers should use SCST_EXEC_REPLY_DO_WRITE_SAME
+reply_type of SCST_USER_EXEC subcommand. See scst_user doc for more
+info.
+
+
+COMPARE AND WRITE
+~~~~~~~~~~~~~~~~~
+
+COMPARE AND WRITE implemented by SCST a set of read, compare and write
+actions done in atomic manner against affected blocks as well as regular
+RESERVE SCSI commands. Particularly, COMPARE AND WRITE doesn't need any
+queue flushing and unlimited number of COMPARE AND WRITE commands on
+different blocks can be executed simultaneously.
+
+The read and write actions implemented as generation of internal
+READ(16) and WRITE(16) SCSI commands.
+
+COMPARE AND WRITE command is completely transparent to dev handlers
+(they only see the corresponding READ(16) and WRITE(16) commands), so
+doesn't require any manual actions from them.
+
+
+EXTENDED COPY
+~~~~~~~~~~~~~
+
+SCST implements EXTENDED COPY via internal Copy Manager target. This
+target has the following specific attributes in its sysfs:
+
+ - allow_not_connected_copy - if not set (default), an initiator can
+perform copy only between devices it has direct access to via any
+target/session. If set, any initiator can copy between any devices in
+the system.
+
+ - mgmt - this attribute allows to control data from which devices can
+be copied using Copy Manager. By default, devices belonging to dev
+handlers with flag auto_cm_assignment_possible set are auto assigned to
+the Copy Manager on the registration. Currently, only vdisk has this
+flag set, so all other devices (pass-through, user space, etc.) should
+be assigned to the Copy Manager manually.
+
+Mgmt attribute supports the following commands:
+
+ - add [vname|H:C:I:L] - adds device with name vname or H:C:I:L numbers
+(pass-through) to the Copy Manager.
+
+ - del [vname|H:C:I:L] - deletes device with name vname or H:C:I:L numbers
+(pass-through) from the Copy Manager.
+
+
+Internally SCST implements EXTENDED COPY as generation of sets of
+internal READ(16) and WRITE(16) SCSI commands. Dev handlers don't need
+any manual actions to use it.
+
+
+Also SCST provides for dev handlers possibility to remap blocks instead
+of copy them, if they support this feature. It allows them to perform
+EXTENDED COPY command much faster by just metadata update of their
+backend storage, which supposed to be nearly instantaneous.
+
+To use this feature, a dev handler should setup ext_copy_remap()
+callback in its struct scst_dev_type. This callback is called by SCST
+during EXTENDED COPY command processing to let the dev hander try to
+remap affected blocks at first.
+
+Upon finish, the dev handler should call scst_ext_copy_remap_done(). In
+case of error, the dev handler should set the corresponding sense to cmd
+and then also call scst_ext_copy_remap_done(cmd, NULL, 0).
+
+If dev handler is not able to remap any part of the segment, if should
+kmalloc(), then fill all leftover subsegments and supply them to
+scst_ext_copy_remap_done(). SCST then will copy the subsegments using
+internal copy machine, then kfree() the supplied array. If the dev
+handler is not able to remap the whole segment, it can simply directly
+supply the original segment to scst_ext_copy_remap_done().
+
+It is highly recommended that in normal circumstances dev handlers call
+scst_ext_copy_remap_done() from another thread context than one where
+ext_copy_remap() callback was originally called, because otherwise there
+could be recursion in the segments processing. Hopefully, this thread
+context switch is natural for such potentially long operation as
+EXTENDED COPY.
+
+
 Caching
 -------
 
