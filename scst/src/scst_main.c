@@ -2582,9 +2582,13 @@ static int __init init_scst(void)
 		goto out_destroy_sense_mempool;
 	}
 
-	res = scst_sysfs_init();
+	res = scst_event_init();
 	if (res != 0)
 		goto out_destroy_aen_mempool;
+
+	res = scst_sysfs_init();
+	if (res != 0)
+		goto out_event_exit;
 
 	scst_tg_init();
 
@@ -2682,6 +2686,9 @@ out_destroy_sgv_pool:
 out_sysfs_cleanup:
 	scst_sysfs_cleanup();
 
+out_event_exit:
+	scst_event_exit();
+
 out_destroy_aen_mempool:
 	mempool_destroy(scst_aen_mempool);
 
@@ -2762,6 +2769,8 @@ static void __exit exit_scst(void)
 	scst_tg_cleanup();
 
 	scst_sysfs_cleanup();
+
+	scst_event_exit();
 
 #define DEINIT_CACHEP(p) do {		\
 		kmem_cache_destroy(p);	\

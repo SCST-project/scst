@@ -851,6 +851,14 @@ int gen_relative_target_port_id(uint16_t *id);
 bool scst_is_relative_target_port_id_unique(uint16_t id,
 	const struct scst_tgt *t);
 
+int scst_event_init(void);
+void scst_event_exit(void);
+
+int scst_event_queue_lun_not_found(const struct scst_cmd *cmd);
+int scst_event_queue_negative_luns_inquiry(const struct scst_tgt *tgt,
+	const char *initiator_name);
+int scst_event_queue_tm_fn_received(struct scst_mgmt_cmd *mcmd);
+
 typedef void __printf(2, 3) (*scst_show_fn)(void *arg, const char *fmt, ...);
 void scst_trace_cmds(scst_show_fn show, void *arg);
 void scst_trace_mcmds(scst_show_fn show, void *arg);
