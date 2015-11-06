@@ -21,11 +21,12 @@
 #include <asm/unaligned.h>
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/scst.h>
+#include <scst/scst_event.h>
 #else
 #include "scst.h"
+#include "scst_event.h"
 #endif
 #include "scst_priv.h"
-#include "scst_event.h"
 #include "scst_pres.h"
 
 struct alua_state_and_name {
