@@ -897,8 +897,7 @@ static void scst_local_copy_sense(struct scsi_cmnd *cmnd, struct scst_cmd *scst_
 
 	TRACE_ENTRY();
 
-	scst_cmnd_sense_len = (SCSI_SENSE_BUFFERSIZE < scst_cmnd_sense_len ?
-			       SCSI_SENSE_BUFFERSIZE : scst_cmnd_sense_len);
+	scst_cmnd_sense_len = min(scst_cmnd_sense_len, SCSI_SENSE_BUFFERSIZE);
 	memcpy(cmnd->sense_buffer, scst_cmd_get_sense_buffer(scst_cmnd),
 	       scst_cmnd_sense_len);
 
@@ -1671,7 +1670,7 @@ static int scst_local_driver_probe(struct device *dev)
 	TRACE_DBG("sess %p", sess);
 
 	hpnt = scsi_host_alloc(&scst_lcl_ini_driver_template, sizeof(*sess));
-	if (NULL == hpnt) {
+	if (hpnt == NULL) {
 		PRINT_ERROR("%s", "scsi_register() failed");
 		ret = -ENODEV;
 		goto out;
@@ -1828,7 +1827,7 @@ static int __scst_local_add_adapter(struct scst_local_tgt *tgt,
 
 	/* It's read-mostly, so cache alignment isn't needed */
 	sess = kzalloc(sizeof(*sess), GFP_KERNEL);
-	if (NULL == sess) {
+	if (sess == NULL) {
 		PRINT_ERROR("Unable to alloc scst_lcl_host (size %zu)",
 			sizeof(*sess));
 		res = -ENOMEM;
@@ -1947,7 +1946,7 @@ static int scst_local_add_target(const char *target_name,
 	TRACE_ENTRY();
 
 	tgt = kzalloc(sizeof(*tgt), GFP_KERNEL);
-	if (NULL == tgt) {
+	if (tgt == NULL) {
 		PRINT_ERROR("Unable to alloc tgt (size %zu)", sizeof(*tgt));
 		res = -ENOMEM;
 		goto out;
