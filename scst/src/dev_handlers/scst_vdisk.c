@@ -79,7 +79,7 @@ static struct scst_trace_log vdisk_local_trace_tbl[] = {
 #define SCST_FIO_VENDOR			"SCST_FIO"
 #define SCST_BIO_VENDOR			"SCST_BIO"
 /* 4 byte ASCII Product Revision Level - left aligned */
-#define SCST_FIO_REV			" 310"
+#define SCST_FIO_REV			" 320"
 
 #define MAX_USN_LEN			(20+1) /* For '\0' */
 #define MAX_INQ_VEND_SPECIFIC_LEN	(INQ_BUF_SZ - 96)
