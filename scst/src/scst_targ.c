@@ -103,25 +103,296 @@ static inline void scst_schedule_tasklet(struct scst_cmd *cmd)
 	return;
 }
 
-/* No locks */
-static bool scst_check_blocked_dev(struct scst_cmd *cmd)
+static bool scst_unmap_overlap(struct scst_cmd *cmd, int64_t lba2,
+	int64_t lba2_blocks)
+{
+	bool res = false;
+	struct scst_data_descriptor *pd = cmd->cmd_data_descriptors;
+	int i;
+
+	TRACE_ENTRY();
+
+	if (pd == NULL)
+		goto out;
+
+	for (i = 0; pd[i].sdd_blocks != 0; i++) {
+		struct scst_data_descriptor *d = &pd[i];
+		TRACE_DBG("i %d, lba %lld, blocks %lld", i,
+			(long long)d->sdd_lba, (long long)d->sdd_blocks);
+		res = scst_lba1_inside_lba2(d->sdd_lba, lba2, lba2_blocks);
+		if (res)
+			goto out;
+		res = scst_lba1_inside_lba2(lba2, d->sdd_lba, d->sdd_blocks);
+		if (res)
+			goto out;
+	}
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static bool scst_cmd_overlap_cwr(struct scst_cmd *cwr_cmd, struct scst_cmd *cmd)
+{
+	bool res;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("cwr_cmd %p, cmd %p (op %s, LBA valid %d, lba %lld, "
+		"len %lld)", cwr_cmd, cmd, scst_get_opcode_name(cmd),
+		(cmd->op_flags & SCST_LBA_NOT_VALID) == 0,
+		(long long)cmd->lba, (long long)cmd->data_len);
+
+	EXTRACHECKS_BUG_ON(cwr_cmd->cdb[0] != COMPARE_AND_WRITE);
+
+	/*
+	 * In addition to requirements listed in "Model for uninterrupted
+	 * sequences on LBA ranges" (SBC) VMware wants that COMPARE AND WRITE
+	 * be atomic against RESERVEs, as well as RESERVEs be atomic against
+	 * all COMPARE AND WRITE commands and only against them.
+	 */
+
+	if (cmd->op_flags & SCST_LBA_NOT_VALID) {
+		switch (cmd->cdb[0]) {
+		case RESERVE:
+		case RESERVE_10:
+			res = true;
+			break;
+		case UNMAP:
+			res = scst_unmap_overlap(cmd, cwr_cmd->lba,
+				cwr_cmd->data_len);
+			break;
+		default:
+			res = false;
+			break;
+		}
+		goto out;
+	}
+
+	/* If LBA valid, block_shift must be valid */
+	EXTRACHECKS_BUG_ON(cmd->dev->block_shift <= 0);
+
+	res = scst_lba1_inside_lba2(cwr_cmd->lba, cmd->lba,
+		cmd->data_len >> cmd->dev->block_shift);
+	if (res)
+		goto out;
+
+	res = scst_lba1_inside_lba2(cmd->lba, cwr_cmd->lba,
+		cwr_cmd->data_len >> cwr_cmd->dev->block_shift);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static bool scst_cmd_overlap_reserve(struct scst_cmd *reserve_cmd,
+	struct scst_cmd *cmd)
+{
+	bool res;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("reserve_cmd %p, cmd %p (op %s, LBA valid %d, lba %lld, "
+		"len %lld)", reserve_cmd, cmd, scst_get_opcode_name(cmd),
+		(cmd->op_flags & SCST_LBA_NOT_VALID) == 0,
+		(long long)cmd->lba, (long long)cmd->data_len);
+
+	EXTRACHECKS_BUG_ON((reserve_cmd->cdb[0] != RESERVE) &&
+			   (reserve_cmd->cdb[0] != RESERVE_10));
+
+	/*
+	 * In addition to requirements listed in "Model for uninterrupted
+	 * sequences on LBA ranges" (SBC) VMware wants that COMPARE AND WRITE
+	 * be atomic against RESERVEs, as well as RESERVEs be atomic against
+	 * all COMPARE AND WRITE commands and only against them.
+	 */
+
+	if (cmd->cdb[0] == COMPARE_AND_WRITE)
+		res = true;
+	else
+		res = false;
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static bool scst_cmd_overlap_atomic(struct scst_cmd *atomic_cmd, struct scst_cmd *cmd)
+{
+	bool res;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("atomic_cmd %p (op %s), cmd %p (op %s)", atomic_cmd,
+		scst_get_opcode_name(atomic_cmd), cmd, scst_get_opcode_name(cmd));
+
+	EXTRACHECKS_BUG_ON((atomic_cmd->op_flags & SCST_SCSI_ATOMIC) == 0);
+
+	switch (atomic_cmd->cdb[0]) {
+	case COMPARE_AND_WRITE:
+		res = scst_cmd_overlap_cwr(atomic_cmd, cmd);
+		break;
+	case RESERVE:
+	case RESERVE_10:
+		res = scst_cmd_overlap_reserve(atomic_cmd, cmd);
+		break;
+	default:
+		res = false;
+		break;
+	}
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static bool scst_cmd_overlap(struct scst_cmd *chk_cmd, struct scst_cmd *cmd)
+{
+	bool res = false;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("chk_cmd %p, cmd %p", chk_cmd, cmd);
+
+	if ((chk_cmd->op_flags & SCST_SCSI_ATOMIC) != 0)
+		res = scst_cmd_overlap_atomic(chk_cmd, cmd);
+	else if ((cmd->op_flags & SCST_SCSI_ATOMIC) != 0)
+		res = scst_cmd_overlap_atomic(cmd, chk_cmd);
+	else
+		res = false;
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/*
+ * dev_lock supposed to be held and BH disabled. Returns true if cmd blocked,
+ * hence stop processing it and go to the next command.
+ */
+static bool scst_check_scsi_atomicity(struct scst_cmd *chk_cmd)
+{
+	bool res = false;
+	struct scst_device *dev = chk_cmd->dev;
+	struct scst_cmd *cmd;
+
+	TRACE_ENTRY();
+
+	/*
+	 * chk_cmd isn't necessary SCSI atomic! For instance, if another SCSI
+	 * atomic cmd is waiting blocked.
+	 */
+
+	TRACE_DBG("chk_cmd %p (op %s, internal %d, lba %lld, len %lld)",
+		chk_cmd, scst_get_opcode_name(chk_cmd), chk_cmd->internal,
+		(long long)chk_cmd->lba, (long long)chk_cmd->data_len);
+
+	list_for_each_entry(cmd, &dev->dev_exec_cmd_list, dev_exec_cmd_list_entry) {
+		if (chk_cmd == cmd)
+			continue;
+		if (scst_cmd_overlap(chk_cmd, cmd)) {
+			struct scst_cmd **p = cmd->scsi_atomic_blocked_cmds;
+			/*
+			 * kmalloc() allocates by at least 32 bytes increments,
+			 * hence krealloc() on 8 bytes increments, if not all
+			 * that space is used, does nothing.
+			 */
+			p = krealloc(p, sizeof(*p) * (cmd->scsi_atomic_blocked_cmds_count + 1),
+				GFP_ATOMIC);
+			if (p == NULL)
+				goto out_busy_undo;
+			p[cmd->scsi_atomic_blocked_cmds_count] = chk_cmd;
+			cmd->scsi_atomic_blocked_cmds = p;
+			cmd->scsi_atomic_blocked_cmds_count++;
+
+			chk_cmd->scsi_atomic_blockers++;
+
+			TRACE_BLOCK("Delaying cmd %p (op %s, lba %lld, "
+				"len %lld, blockers %d) due to overlap with "
+				"cmd %p (op %s, lba %lld, len %lld, blocked "
+				"cmds %d)", chk_cmd, scst_get_opcode_name(chk_cmd),
+				(long long)chk_cmd->lba,
+				(long long)chk_cmd->data_len,
+				chk_cmd->scsi_atomic_blockers, cmd,
+				scst_get_opcode_name(cmd), (long long)cmd->lba,
+				(long long)cmd->data_len,
+				cmd->scsi_atomic_blocked_cmds_count);
+			res = true;
+		}
+	}
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_busy_undo:
+	list_for_each_entry(cmd, &dev->dev_exec_cmd_list, dev_exec_cmd_list_entry) {
+		struct scst_cmd **p = cmd->scsi_atomic_blocked_cmds;
+		if ((p != NULL) && (p[cmd->scsi_atomic_blocked_cmds_count-1] == chk_cmd)) {
+			cmd->scsi_atomic_blocked_cmds_count--;
+			chk_cmd->scsi_atomic_blockers--;
+		}
+	}
+	sBUG_ON(chk_cmd->scsi_atomic_blockers != 0);
+
+	scst_set_busy(chk_cmd);
+	scst_set_cmd_abnormal_done_state(chk_cmd);
+
+	spin_lock_irq(&chk_cmd->cmd_threads->cmd_list_lock);
+	TRACE_MGMT_DBG("Adding on error chk_cmd %p back to head of active cmd "
+		"list", chk_cmd);
+	list_add(&chk_cmd->cmd_list_entry, &chk_cmd->cmd_threads->active_cmd_list);
+	wake_up(&chk_cmd->cmd_threads->cmd_list_waitQ);
+	spin_unlock_irq(&chk_cmd->cmd_threads->cmd_list_lock);
+
+	res = false;
+	goto out;
+}
+
+/*
+ * dev_lock supposed to be BH locked. Returns true if cmd blocked, hence stop
+ * processing it and go to the next command.
+ */
+bool scst_do_check_blocked_dev(struct scst_cmd *cmd)
 {
 	bool res;
 	struct scst_device *dev = cmd->dev;
 
 	TRACE_ENTRY();
 
-	if (unlikely(cmd->internal)) {
-		/*
-		 * The original command can already block the device and must
-		 * hold reference to it, so internal command should always pass.
-		 */
-		sBUG_ON(dev->on_dev_cmd_count == 0);
-		res = false;
-		goto out;
+	/*
+	 * We want to have fairness between just unblocked previously blocked
+	 * SCSI atomic cmds and new cmds came after them. Otherwise, the new
+	 * cmds can bypass the SCSI atomic cmds and make them unfairly wait
+	 * again. So, we need to always, from the beginning, have blocked SCSI
+	 * atomic cmds on the exec list, even if they blocked, as well
+	 * as dev's SCSI atomic cmds counter incremented.
+	 */
+
+	if (likely(!cmd->on_dev_exec_list)) {
+		list_add_tail(&cmd->dev_exec_cmd_list_entry, &dev->dev_exec_cmd_list);
+		cmd->on_dev_exec_list = 1;
 	}
 
-	spin_lock_bh(&dev->dev_lock);
+	/*
+	 * After a cmd passed SCSI atomicy check, there's no need to recheck SCSI
+	 * atomicity for this cmd in future entrances here, because then all
+	 * future overlapping with this cmd cmds will be blocked on it.
+	 */
+
+	if (unlikely(((cmd->op_flags & SCST_SCSI_ATOMIC) != 0) ||
+		     (dev->dev_scsi_atomic_cmd_active != 0)) &&
+	    !cmd->scsi_atomicity_checked) {
+		cmd->scsi_atomicity_checked = 1;
+		if ((cmd->op_flags & SCST_SCSI_ATOMIC) != 0) {
+			dev->dev_scsi_atomic_cmd_active++;
+			TRACE_DBG("cmd %p (dev %p), scsi atomic_cmd_active %d",
+				cmd, dev, dev->dev_scsi_atomic_cmd_active);
+		}
+
+		res = scst_check_scsi_atomicity(cmd);
+		if (res) {
+			EXTRACHECKS_BUG_ON(dev->dev_scsi_atomic_cmd_active == 0);
+			goto out;
+		}
+	}
 
 	dev->on_dev_cmd_count++;
 	cmd->dec_on_dev_needed = 1;
@@ -140,8 +411,37 @@ static bool scst_check_blocked_dev(struct scst_cmd *cmd)
 		cmd->dec_on_dev_needed = 0;
 		TRACE_DBG("New dec on_dev_count %d (cmd %p)",
 			dev->on_dev_cmd_count, cmd);
+		goto out;
 	}
 
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/*
+ * No locks. Returns true if cmd blocked, hence stop processing it and go to
+ * the next command.
+ */
+static bool scst_check_blocked_dev(struct scst_cmd *cmd)
+{
+	bool res;
+	struct scst_device *dev = cmd->dev;
+
+	TRACE_ENTRY();
+
+	if (unlikely(cmd->internal)) {
+		/*
+		 * The original command can already block the device and must
+		 * hold reference to it, so internal command should always pass.
+		 */
+		sBUG_ON(dev->on_dev_cmd_count == 0);
+		res = false;
+		goto out;
+	}
+
+	spin_lock_bh(&dev->dev_lock);
+	res = scst_do_check_blocked_dev(cmd);
 	spin_unlock_bh(&dev->dev_lock);
 
 out:
@@ -149,12 +449,67 @@ out:
 	return res;
 }
 
-/* No locks */
-static void scst_check_unblock_dev(struct scst_cmd *cmd)
+/* dev_lock supposed to be held and BH disabled */
+static void scst_check_unblock_scsi_atomic_cmds(struct scst_cmd *cmd)
+{
+	int i;
+
+	TRACE_ENTRY();
+
+	EXTRACHECKS_BUG_ON(cmd->scsi_atomic_blocked_cmds_count == 0);
+
+	for (i = 0; i < cmd->scsi_atomic_blocked_cmds_count; i++) {
+		struct scst_cmd *acmd = cmd->scsi_atomic_blocked_cmds[i];
+		acmd->scsi_atomic_blockers--;
+		if (acmd->scsi_atomic_blockers == 0) {
+			TRACE_BLOCK("Unblocking blocked acmd %p (blocker "
+				"cmd %p)", acmd, cmd);
+			spin_lock_irq(&acmd->cmd_threads->cmd_list_lock);
+			if (acmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE)
+				list_add(&acmd->cmd_list_entry,
+					&acmd->cmd_threads->active_cmd_list);
+			else
+				list_add_tail(&acmd->cmd_list_entry,
+					&acmd->cmd_threads->active_cmd_list);
+			wake_up(&acmd->cmd_threads->cmd_list_waitQ);
+			spin_unlock_irq(&acmd->cmd_threads->cmd_list_lock);
+		}
+	}
+
+	kfree(cmd->scsi_atomic_blocked_cmds);
+	cmd->scsi_atomic_blocked_cmds = NULL;
+	cmd->scsi_atomic_blocked_cmds_count = 0;
+
+	TRACE_EXIT();
+	return;
+}
+
+/* dev_lock supposed to be BH locked */
+void __scst_check_unblock_dev(struct scst_cmd *cmd)
 {
 	struct scst_device *dev = cmd->dev;
 
-	spin_lock_bh(&dev->dev_lock);
+	TRACE_ENTRY();
+
+	/*
+	 * We might be called here as part of Copy Manager's check blocking
+	 * undo, so restore all flags in the previous state to allow
+	 * restart of this cmd.
+	 */
+
+	if (likely(cmd->on_dev_exec_list)) {
+		list_del(&cmd->dev_exec_cmd_list_entry);
+		cmd->on_dev_exec_list = 0;
+	}
+
+	if (unlikely((cmd->op_flags & SCST_SCSI_ATOMIC) != 0)) {
+		if (likely(cmd->scsi_atomicity_checked)) {
+			dev->dev_scsi_atomic_cmd_active--;
+			TRACE_DBG("cmd %p, scsi atomic_cmd_active %d",
+				cmd, dev->dev_scsi_atomic_cmd_active);
+			cmd->scsi_atomicity_checked = 0;
+		}
+	}
 
 	if (likely(cmd->dec_on_dev_needed)) {
 		dev->on_dev_cmd_count--;
@@ -162,6 +517,9 @@ static void scst_check_unblock_dev(struct scst_cmd *cmd)
 		TRACE_DBG("New dec on_dev_count %d (cmd %p)",
 			dev->on_dev_cmd_count, cmd);
 	}
+
+	if (unlikely(cmd->scsi_atomic_blocked_cmds != NULL))
+		scst_check_unblock_scsi_atomic_cmds(cmd);
 
 	if (unlikely(cmd->unblock_dev)) {
 		TRACE_BLOCK("cmd %p (tag %llu): unblocking dev %s", cmd,
@@ -184,7 +542,22 @@ static void scst_check_unblock_dev(struct scst_cmd *cmd)
 		}
 	}
 
+	TRACE_EXIT();
+	return;
+}
+
+/* No locks */
+void scst_check_unblock_dev(struct scst_cmd *cmd)
+{
+	struct scst_device *dev = cmd->dev;
+
+	TRACE_ENTRY();
+
+	spin_lock_bh(&dev->dev_lock);
+	__scst_check_unblock_dev(cmd);
 	spin_unlock_bh(&dev->dev_lock);
+
+	TRACE_EXIT();
 	return;
 }
 
@@ -3145,6 +3518,7 @@ static scst_local_exec_fn scst_local_fns[256] = {
 	[PERSISTENT_RESERVE_OUT] = scst_persistent_reserve_out_local,
 	[REPORT_LUNS] = scst_report_luns_local,
 	[REQUEST_SENSE] = scst_request_sense_local,
+	[COMPARE_AND_WRITE] = scst_cmp_wr_local,
 	[MAINTENANCE_IN] = scst_maintenance_in,
 };
 

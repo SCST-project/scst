@@ -155,6 +155,12 @@ static int sg_copy(struct scatterlist *dst_sg, struct scatterlist *src_sg,
 #endif
 
 static void scst_free_descriptors(struct scst_cmd *cmd);
+static bool sg_cmp(struct scatterlist *dst_sg, struct scatterlist *src_sg,
+	    int nents_to_cmp, size_t cmp_len, int *miscompare_offs
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
+	    , enum km_type d_km_type, enum km_type s_km_type
+#endif
+	    );
 
 const struct scst_opcode_descriptor scst_op_descr_inquiry = {
 	.od_opcode = INQUIRY,
@@ -757,7 +763,8 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 .info_op_name = "RESERVE",
 	 .info_data_direction = SCST_DATA_NONE,
 	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_LOCAL_CMD|SCST_SERIALIZED|
-			 SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
+			 SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED|
+			 SCST_SCSI_ATOMIC/* see comment in scst_cmd_overlap() */,
 	 .get_cdb_info = get_cdb_info_none},
 	{.ops = 0x17, .devkey = "MMMMMMMMMMMMMMMM",
 	 .info_op_name = "RELEASE",
@@ -1170,7 +1177,8 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 .info_op_name = "RESERVE(10)",
 	 .info_data_direction = SCST_DATA_NONE,
 	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_LOCAL_CMD|SCST_SERIALIZED|
-			SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
+			SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED|
+			SCST_SCSI_ATOMIC/* see comment in scst_cmd_overlap() */,
 	 .get_cdb_info = get_cdb_info_none},
 	{.ops = 0x57, .devkey = "OOOOOOOOOOOOOOOO",
 	 .info_op_name = "RELEASE(10)",
@@ -1292,8 +1300,9 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x89, .devkey = "O               ",
 	 .info_op_name = "COMPARE AND WRITE",
 	 .info_data_direction = SCST_DATA_WRITE,
-	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM|
-			  SCST_SERIALIZED,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|
+			  SCST_FULLY_LOCAL_CMD|SCST_LOCAL_CMD|
+			  SCST_WRITE_MEDIUM|SCST_SCSI_ATOMIC,
 	 .info_lba_off = 2, .info_lba_len = 8,
 	 .info_len_off = 13, .info_len_len = 1,
 	 .get_cdb_info = get_cdb_info_compare_and_write},
@@ -1999,10 +2008,13 @@ int scst_set_cmd_error_and_inf(struct scst_cmd *cmd, int key, int asc,
 
 	switch (cmd->sense[0] & 0x7f) {
 	case 0x70:
+	{
 		/* Fixed format */
+		uint32_t i = information;
 		cmd->sense[0] |= 0x80; /* Information field is valid */
-		put_unaligned_be32(information, &cmd->sense[3]);
+		put_unaligned_be32(i, &cmd->sense[3]);
 		break;
+	}
 	case 0x72:
 		/* Descriptor format */
 		cmd->sense[7] = 12; /* additional sense length */
@@ -3286,6 +3298,140 @@ static void scst_adjust_sg(struct scst_cmd *cmd, bool reg_sg,
 	return;
 }
 
+static bool __scst_adjust_sg_get_tail(struct scst_cmd *cmd,
+	struct scatterlist *sg, int *sg_cnt,
+	struct scatterlist **res_sg, int *res_sg_cnt,
+	int adjust_len, struct scst_orig_sg_data *orig_sg, int must_left)
+{
+	int res = -ENOENT, i, j, l;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("cmd %p, sg_cnt %d, sg %p", cmd, *sg_cnt, sg);
+
+	l = 0;
+	for (i = 0, j = 0; i < *sg_cnt; i++, j++) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24)
+		TRACE_DBG("i %d, j %d, sg %p, page_link %lx, len %d", i, j,
+			sg, sg[j].page_link, sg->length);
+#else
+		TRACE_DBG("i %d, j %d, sg %p", i, j, sg);
+#endif
+		if (unlikely(sg_is_chain(&sg[j]))) {
+			sg = sg_chain_ptr(&sg[j]);
+			j = 0;
+		}
+		l += sg[j].length;
+		if (l >= adjust_len) {
+			int offs = adjust_len - (l - sg[j].length);
+
+			TRACE_DBG_FLAG(TRACE_SG_OP|TRACE_MEMORY|TRACE_DEBUG,
+				"cmd %p (tag %llu), sg %p, adjust_len %d, i %d, "
+				"j %d, sg[j].length %d, offs %d",
+				cmd, (long long unsigned int)cmd->tag,
+				sg, adjust_len, i, j, sg[j].length, offs);
+
+			if (offs == sg[j].length) {
+				j++;
+				offs = 0;
+			}
+
+			orig_sg->p_orig_sg_cnt = sg_cnt;
+			orig_sg->orig_sg_cnt = *sg_cnt;
+			orig_sg->orig_sg_entry = &sg[j];
+			orig_sg->orig_entry_offs = sg[j].offset;
+			orig_sg->orig_entry_len = sg[j].length;
+
+			sg[j].offset += offs;
+			sg[j].length -= offs;
+			*res_sg = &sg[j];
+			*res_sg_cnt = *sg_cnt - j;
+
+			TRACE_DBG("j %d, sg %p, off %d, len %d, cnt %d "
+				"(offs %d)", j, &sg[j], sg[j].offset,
+				sg[j].length, *res_sg_cnt, offs);
+
+			res = 0;
+			break;
+		}
+	}
+
+	if (res != 0)
+		goto out;
+
+#ifdef CONFIG_SCST_EXTRACHECKS
+	l = 0;
+	sg = *res_sg;
+	for (i = 0; i < *res_sg_cnt; i++)
+		l += sg[i].length;
+
+	if (l != must_left) {
+		PRINT_ERROR("Incorrect length %d of adjusted sg (cmd %p, "
+			"expected %d)", l, cmd, must_left);
+		res = -EINVAL;
+		scst_check_restore_sg_buff(cmd);
+		goto out;
+	}
+#endif
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/*
+ * Returns in res_sg the tail of cmd's adjusted on adjust_len, i.e. tail
+ * of it. In res_sg_cnt sg_cnt of res_sg returned. Cmd only used to store
+ * cmd->sg restore information.
+ *
+ * Parameter must_left defines how many bytes must left in res_sg to consider
+ * operation successful.
+ *
+ * Returns 0 on success or error code otherwise.
+ *
+ * NOTE! Before scst_restore_sg_buff() called cmd->sg is corrupted and
+ * can NOT be used!
+ */
+static int scst_adjust_sg_get_tail(struct scst_cmd *cmd,
+	struct scatterlist **res_sg, int *res_sg_cnt,
+	struct scatterlist **res_dif_sg, int *res_dif_sg_cnt,
+	int adjust_len, int must_left)
+{
+	int res;
+
+	TRACE_ENTRY();
+
+	EXTRACHECKS_BUG_ON(cmd->sg_buff_modified || cmd->dif_sg_buff_modified);
+
+	res = __scst_adjust_sg_get_tail(cmd, cmd->sg, &cmd->sg_cnt, res_sg,
+		res_sg_cnt, adjust_len, &cmd->orig_sg, must_left);
+	if (res != 0)
+		goto out;
+
+	cmd->sg_buff_modified = 1;
+
+	if (cmd->dif_sg != NULL) {
+		adjust_len >>= (cmd->dev->block_shift - SCST_DIF_TAG_SHIFT);
+		must_left >>= (cmd->dev->block_shift - SCST_DIF_TAG_SHIFT);
+
+		TRACE_DBG("DIF adjust_len %d, must_left %d", adjust_len, must_left);
+
+		res = __scst_adjust_sg_get_tail(cmd, cmd->dif_sg, &cmd->dif_sg_cnt,
+				 res_dif_sg, res_dif_sg_cnt, adjust_len,
+				 &cmd->orig_dif_sg, must_left);
+		if (res != 0) {
+			scst_restore_sg_buff(cmd);
+			goto out;
+		}
+
+		cmd->dif_sg_buff_modified = 1;
+	}
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 /**
  * scst_restore_sg_buff() - restores modified sg buffer
  *
@@ -3977,6 +4123,7 @@ int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev)
 #endif
 	scst_init_mem_lim(&dev->dev_mem_lim);
 	spin_lock_init(&dev->dev_lock);
+	INIT_LIST_HEAD(&dev->dev_exec_cmd_list);
 	INIT_LIST_HEAD(&dev->blocked_cmd_list);
 	INIT_LIST_HEAD(&dev->dev_tgt_dev_list);
 	INIT_LIST_HEAD(&dev->dev_acg_dev_list);
@@ -4006,6 +4153,9 @@ out:
 void scst_free_device(struct scst_device *dev)
 {
 	TRACE_ENTRY();
+
+	EXTRACHECKS_BUG_ON(dev->dev_scsi_atomic_cmd_active != 0);
+	EXTRACHECKS_BUG_ON(!list_empty(&dev->dev_exec_cmd_list));
 
 #ifdef CONFIG_SCST_EXTRACHECKS
 	if (!list_empty(&dev->dev_tgt_dev_list) ||
@@ -6133,6 +6283,258 @@ out_done:
 }
 EXPORT_SYMBOL_GPL(scst_write_same);
 
+struct scst_cwr_priv {
+	/* Must be the first for scst_finish_internal_cmd()! */
+	scst_i_finish_fn_t cwr_finish_fn;
+
+	struct scst_cmd *cwr_orig_cmd;
+};
+
+static void scst_cwr_finished(struct scst_cwr_priv *cwrp)
+{
+	struct scst_cmd *cwr_cmd = cwrp->cwr_orig_cmd;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("cwr cmd %p finished with status %d", cwr_cmd, cwr_cmd->status);
+
+	kfree(cwrp);
+
+	cwr_cmd->completed = 1; /* for success */
+	cwr_cmd->scst_cmd_done(cwr_cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_THREAD);
+
+	TRACE_EXIT();
+	return;
+}
+
+static void scst_cwr_write_cmd_finished(struct scst_cmd *cmd)
+{
+	struct scst_cwr_priv *cwrp = cmd->tgt_i_priv;
+	struct scst_cmd *cwr_cmd = cwrp->cwr_orig_cmd;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("WRITE cmd %p finished (cwr cmd %p)", cmd, cwr_cmd);
+
+	EXTRACHECKS_BUG_ON(cmd->cdb[0] != WRITE_16);
+
+	if (cmd->status != 0) {
+		int rc;
+		TRACE_DBG("WRITE cmd %p (cwr cmd %p) finished not successfully",
+			cmd, cwr_cmd);
+		sBUG_ON(cmd->resp_data_len != 0);
+		if (cmd->status == SAM_STAT_CHECK_CONDITION)
+			rc = scst_set_cmd_error_sense(cwr_cmd, cmd->sense,
+				cmd->sense_valid_len);
+		else {
+			sBUG_ON(cmd->sense != NULL);
+			rc = scst_set_cmd_error_status(cwr_cmd, cmd->status);
+		}
+		if (rc != 0) {
+			/* Requeue possible UA */
+			if (scst_is_ua_sense(cmd->sense, cmd->sense_valid_len))
+				scst_requeue_ua(cmd, NULL, 0);
+		}
+	}
+
+	scst_cwr_finished(cwrp);
+
+	TRACE_EXIT();
+	return;
+}
+
+static void scst_cwr_read_cmd_finished(struct scst_cmd *cmd)
+{
+	struct scst_cwr_priv *cwrp = cmd->tgt_i_priv;
+	struct scst_cmd *cwr_cmd = cwrp->cwr_orig_cmd;
+	bool c, dif;
+	uint8_t write16_cdb[16];
+	struct scst_cmd *wcmd;
+	int data_len, miscompare_offs, rc;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("READ cmd %p finished (cwr cmd %p)", cmd, cwr_cmd);
+
+	if (cmd->status != 0) {
+		int rc;
+		TRACE_DBG("Read cmd %p (cwr cmd %p) finished not successfully",
+			cmd, cwr_cmd);
+		sBUG_ON(cmd->resp_data_len != 0);
+		if (cmd->status == SAM_STAT_CHECK_CONDITION)
+			rc = scst_set_cmd_error_sense(cwr_cmd, cmd->sense,
+				cmd->sense_valid_len);
+		else {
+			sBUG_ON(cmd->sense != NULL);
+			rc = scst_set_cmd_error_status(cwr_cmd, cmd->status);
+		}
+		if (rc != 0) {
+			/* Requeue possible UA */
+			if (scst_is_ua_sense(cmd->sense, cmd->sense_valid_len))
+				scst_requeue_ua(cmd, NULL, 0);
+		}
+		goto out_finish;
+	}
+
+	if (unlikely(test_bit(SCST_CMD_ABORTED, &cwr_cmd->cmd_flags))) {
+		TRACE_MGMT_DBG("cwr cmd %p aborted", cwr_cmd);
+		goto out_finish;
+	}
+
+	c = sg_cmp(cmd->sg, cwr_cmd->sg, 0, 0, &miscompare_offs
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
+		, KM_USER0, KM_USER1
+#endif
+	);
+	if (!c) {
+		scst_set_cmd_error_and_inf(cwr_cmd,
+			SCST_LOAD_SENSE(scst_sense_miscompare_error), miscompare_offs);
+		goto out_finish;
+	}
+
+	data_len = cwr_cmd->data_len;
+
+	/* We ignore the read PI checks as required by SBC */
+	rc = scst_dif_process_write(cmd);
+	if (unlikely(rc != 0))
+		goto out_finish;
+
+	memset(write16_cdb, 0, sizeof(write16_cdb));
+	write16_cdb[0] = WRITE_16;
+	write16_cdb[1] = cwr_cmd->cdb[1];
+	put_unaligned_be64(cwr_cmd->lba, &write16_cdb[2]);
+	put_unaligned_be32(data_len >> cmd->dev->block_shift, &write16_cdb[10]);
+
+	dif = scst_cmd_needs_dif_buf(cwr_cmd) && ((cwr_cmd->cdb[1] & 0xE0) != 0);
+	if (dif)
+		write16_cdb[1] |= cwr_cmd->cdb[1] & 0xE0;
+
+	wcmd = scst_create_prepare_internal_cmd(cwr_cmd, write16_cdb,
+		sizeof(write16_cdb), SCST_CMD_QUEUE_HEAD_OF_QUEUE);
+	if (wcmd == NULL)
+		goto out_busy;
+
+	wcmd->expected_data_direction = SCST_DATA_WRITE;
+	wcmd->expected_transfer_len_full = data_len;
+	if (dif)
+		wcmd->expected_transfer_len_full +=
+			data_len >> (cmd->dev->block_shift - SCST_DIF_TAG_SHIFT);
+	wcmd->expected_values_set = 1;
+
+	wcmd->tgt_i_priv = cwrp;
+
+	rc = scst_adjust_sg_get_tail(cwr_cmd, &wcmd->tgt_i_sg,
+		&wcmd->tgt_i_sg_cnt, &wcmd->tgt_i_dif_sg,
+		&wcmd->tgt_i_dif_sg_cnt, data_len, data_len);
+	/*
+	 * It must not happen, because get_cdb_info_compare_and_write()
+	 * supposed to ensure that.
+	 */
+	EXTRACHECKS_BUG_ON(rc != 0);
+
+	wcmd->tgt_i_data_buf_alloced = 1;
+
+	cwrp->cwr_finish_fn = scst_cwr_write_cmd_finished;
+
+	TRACE_DBG("Adding WRITE(16) wcmd %p to head of active cmd list", wcmd);
+	spin_lock_irq(&wcmd->cmd_threads->cmd_list_lock);
+	list_add(&wcmd->cmd_list_entry, &wcmd->cmd_threads->active_cmd_list);
+	wake_up(&wcmd->cmd_threads->cmd_list_waitQ);
+	spin_unlock_irq(&wcmd->cmd_threads->cmd_list_lock);
+
+out:
+	TRACE_EXIT();
+	return;
+
+out_busy:
+	scst_set_busy(cwr_cmd);
+
+out_finish:
+	scst_cwr_finished(cwrp);
+	goto out;
+}
+
+int scst_cmp_wr_local(struct scst_cmd *cmd)
+{
+	int res = SCST_EXEC_COMPLETED;
+	struct scst_cwr_priv *cwrp;
+	uint8_t read16_cdb[16];
+	struct scst_cmd *rcmd;
+	int data_len;
+
+	TRACE_ENTRY();
+
+	/* COMPARE AND WRITE is SBC only command */
+	EXTRACHECKS_BUG_ON(cmd->dev->type != TYPE_DISK);
+
+	cmd->status = 0;
+	cmd->msg_status = 0;
+	cmd->host_status = DID_OK;
+	cmd->driver_status = 0;
+
+	if (unlikely(cmd->bufflen == 0)) {
+		TRACE(TRACE_MINOR, "Zero bufflen (cmd %p)", cmd);
+		goto out_done;
+	}
+
+	/* ToDo: HWALIGN'ed kmem_cache */
+	cwrp = kzalloc(sizeof(*cwrp), GFP_KERNEL);
+	if (cwrp == NULL) {
+		PRINT_ERROR("Unable to allocate cwr_priv (size %zd, cmd %p)",
+			sizeof(*cwrp), cmd);
+		goto out_busy;
+	}
+
+	cwrp->cwr_orig_cmd = cmd;
+	cwrp->cwr_finish_fn = scst_cwr_read_cmd_finished;
+
+	data_len = cmd->data_len;
+
+	/*
+	 * As required by SBC, DIF PI, if any, is not checked for the read part
+	 */
+
+	memset(read16_cdb, 0, sizeof(read16_cdb));
+	read16_cdb[0] = READ_16;
+	read16_cdb[1] = cmd->cdb[1] & ~0xE0; /* as required, see above */
+	put_unaligned_be64(cmd->lba, &read16_cdb[2]);
+	put_unaligned_be32(data_len >> cmd->dev->block_shift, &read16_cdb[10]);
+
+	rcmd = scst_create_prepare_internal_cmd(cmd, read16_cdb,
+		sizeof(read16_cdb), SCST_CMD_QUEUE_HEAD_OF_QUEUE);
+	if (rcmd == NULL) {
+		res = -ENOMEM;
+		goto out_free;
+	}
+
+	rcmd->expected_data_direction = SCST_DATA_READ;
+	rcmd->expected_transfer_len_full = data_len;
+	rcmd->expected_values_set = 1;
+
+	rcmd->tgt_i_priv = cwrp;
+
+	TRACE_DBG("Adding READ(16) cmd %p to head of active cmd list", rcmd);
+	spin_lock_irq(&rcmd->cmd_threads->cmd_list_lock);
+	list_add(&rcmd->cmd_list_entry, &rcmd->cmd_threads->active_cmd_list);
+	wake_up(&rcmd->cmd_threads->cmd_list_waitQ);
+	spin_unlock_irq(&rcmd->cmd_threads->cmd_list_lock);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_free:
+	kfree(cwrp);
+
+out_busy:
+	scst_set_busy(cmd);
+
+out_done:
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_THREAD);
+	goto out;
+}
+
+
 int scst_finish_internal_cmd(struct scst_cmd *cmd)
 {
 	int res;
@@ -6667,7 +7069,8 @@ void scst_free_cmd(struct scst_cmd *cmd)
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)))
 		TRACE_MGMT_DBG("Freeing aborted cmd %p", cmd);
 
-	EXTRACHECKS_BUG_ON(cmd->unblock_dev || cmd->dec_on_dev_needed);
+	EXTRACHECKS_BUG_ON(cmd->unblock_dev || cmd->dec_on_dev_needed ||
+                cmd->on_dev_exec_list);
 
 	/*
 	 * Target driver can already free sg buffer before calling
@@ -7702,6 +8105,243 @@ out_free_sioc:
 EXPORT_SYMBOL(scst_scsi_exec_async);
 
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30) */
+
+/*
+ * Can switch to the next dst_sg element, so, to cmp to strictly only
+ * one dst_sg element, it must be either last in the chain, or
+ * cmp_len == dst_sg->length.
+ */
+static int sg_cmp_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
+			size_t *pdst_offs, struct scatterlist *src_sg,
+			size_t cmp_len, int *miscompare_offs,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
+			enum km_type d_km_type, enum km_type s_km_type,
+#endif
+			bool *cmp_res)
+{
+	int res = 0;
+	struct scatterlist *dst_sg;
+	size_t src_len, dst_len, src_offs, dst_offs;
+	struct page *src_page, *dst_page;
+	void *saddr, *daddr;
+
+	*cmp_res = true;
+
+	dst_sg = *pdst_sg;
+	dst_len = *pdst_len;
+	dst_offs = *pdst_offs;
+	dst_page = sg_page(dst_sg);
+
+	src_page = sg_page(src_sg);
+	src_len = src_sg->length;
+	src_offs = src_sg->offset;
+
+	do {
+		size_t n;
+		int rc;
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
+		saddr = kmap_atomic(src_page + (src_offs >> PAGE_SHIFT), s_km_type) +
+			(src_offs & ~PAGE_MASK);
+		daddr = kmap_atomic(dst_page + (dst_offs >> PAGE_SHIFT), d_km_type) +
+			(dst_offs & ~PAGE_MASK);
+#else
+		saddr = kmap_atomic(src_page + (src_offs >> PAGE_SHIFT)) +
+			(src_offs & ~PAGE_MASK);
+		daddr = kmap_atomic(dst_page + (dst_offs >> PAGE_SHIFT)) +
+			(dst_offs & ~PAGE_MASK);
+#endif
+
+		if (((src_offs & ~PAGE_MASK) == 0) &&
+		    ((dst_offs & ~PAGE_MASK) == 0) &&
+		    (src_len >= PAGE_SIZE) && (dst_len >= PAGE_SIZE) &&
+		    (cmp_len >= PAGE_SIZE))
+			n = PAGE_SIZE;
+		else {
+			n = min_t(size_t, PAGE_SIZE - (dst_offs & ~PAGE_MASK),
+					  PAGE_SIZE - (src_offs & ~PAGE_MASK));
+			n = min(n, src_len);
+			n = min(n, dst_len);
+			n = min_t(size_t, n, cmp_len);
+		}
+
+		/* Optimized for rare miscompares */
+
+		rc = memcmp(daddr, saddr, n);
+		if (rc != 0) {
+			*cmp_res = false;
+			if (miscompare_offs != NULL) {
+				int i, len = n;
+				unsigned long saddr_int = (unsigned long)saddr;
+				unsigned long daddr_int = (unsigned long)daddr;
+				int align_size = sizeof(unsigned long long);
+				int align_mask = align_size-1;
+
+				*miscompare_offs = -1;
+
+				if (((saddr_int & align_mask) == 0) &&
+				    ((daddr_int & align_mask) == 0) &&
+				    ((len & align_mask) == 0)) {
+					/* Fast path: both buffers and len aligned */
+					unsigned long long *s = saddr;
+					unsigned long long *d = daddr;
+					EXTRACHECKS_BUG_ON(len % align_size != 0);
+					len /= align_size;
+					for (i = 0; i < len; i++) {
+						if (s[i] != d[i]) {
+							uint8_t *s8 = (uint8_t *)&s[i];
+							uint8_t *d8 = (uint8_t *)&d[i];
+							int j;
+							for (j = 0; j < align_size; j++) {
+								if (s8[j] != d8[j]) {
+									*miscompare_offs = i * align_size + j;
+									break;
+								}
+							}
+							break;
+						}
+					}
+				} else {
+					uint8_t *s = saddr;
+					uint8_t *d = daddr;
+					for (i = 0; i < len; i++) {
+						if (s[i] != d[i]) {
+							*miscompare_offs = i;
+							break;
+						}
+					}
+				}
+				EXTRACHECKS_BUG_ON(*miscompare_offs == -1);
+			}
+			goto out_unmap;
+		}
+
+		dst_offs += n;
+		src_offs += n;
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
+		kunmap_atomic(saddr, s_km_type);
+		kunmap_atomic(daddr, d_km_type);
+#else
+		kunmap_atomic(saddr);
+		kunmap_atomic(daddr);
+#endif
+
+		res += n;
+		cmp_len -= n;
+		if (cmp_len == 0)
+			goto out;
+
+		src_len -= n;
+		dst_len -= n;
+		if (dst_len == 0) {
+			dst_sg = sg_next_inline(dst_sg);
+			if (dst_sg == NULL)
+				goto out;
+			dst_page = sg_page(dst_sg);
+			dst_len = dst_sg->length;
+			dst_offs = dst_sg->offset;
+		}
+	} while (src_len > 0);
+
+out:
+	*pdst_sg = dst_sg;
+	*pdst_len = dst_len;
+	*pdst_offs = dst_offs;
+	return res;
+
+out_unmap:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
+	kunmap_atomic(saddr, s_km_type);
+	kunmap_atomic(daddr, d_km_type);
+#else
+	kunmap_atomic(saddr);
+	kunmap_atomic(daddr);
+#endif
+	goto out;
+}
+
+/**
+ * sg_cmp - compare 2 SG vectors
+ * @dst_sg:	SG 1
+ * @src_sg:	SG 2
+ * @nents_to_cmp: maximum number of entries to compare
+ * @cmp_len:	maximum amount of data to compare. If 0, then compare all.
+ * @miscompare_offs: offset of the first miscompare. Can be NULL.
+ * @d_km_type:	kmap_atomic type for SG 1
+ * @s_km_type:	kmap_atomic type for SG 2
+ *
+ * Description:
+ *    Data from the first SG vector will be compired with the second SG
+ *    vector. End of the vectors will be determined by sg_next() returning
+ *    NULL. Returns true if both vectors have identical data, false otherwise.
+ *
+ * Note! It ignores size of the vectors, so SGs with different size with
+ * the same data in min(sg1_size, sg2_size) size will match!
+ */
+static bool sg_cmp(struct scatterlist *dst_sg, struct scatterlist *src_sg,
+	    int nents_to_cmp, size_t cmp_len, int *miscompare_offs
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
+	    , enum km_type d_km_type, enum km_type s_km_type
+#endif
+	    )
+{
+	bool res = true;
+	size_t dst_len, dst_offs;
+	int compared_all = 0;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("dst_sg %p, src_sg %p, nents_to_cmp %d, cmp_len %zd",
+		dst_sg, src_sg, nents_to_cmp, cmp_len);
+
+	if (cmp_len == 0)
+		cmp_len = 0x7FFFFFFF; /* cmp all */
+
+	if (nents_to_cmp == 0)
+		nents_to_cmp = 0x7FFFFFFF; /* cmp all */
+
+	dst_len = dst_sg->length;
+	dst_offs = dst_sg->offset;
+
+	do {
+		int compared;
+
+		TRACE_DBG("dst_sg %p, dst_len %zd, dst_offs %zd, src_sg %p, "
+			"nents_to_cmp %d, cmp_len %zd, compared_all %d",
+			dst_sg, dst_len, dst_offs, src_sg, nents_to_cmp,
+			cmp_len, compared_all);
+
+		compared = sg_cmp_elem(&dst_sg, &dst_len, &dst_offs,
+				src_sg, cmp_len, miscompare_offs,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
+				d_km_type, s_km_type,
+#endif
+				&res);
+		if (!res) {
+			if (miscompare_offs != NULL) {
+				*miscompare_offs += compared_all;
+				TRACE_DBG("miscompare_offs %d",
+					*miscompare_offs);
+			}
+			goto out;
+		}
+		cmp_len -= compared;
+		compared_all += compared;
+		if ((cmp_len == 0) || (dst_sg == NULL))
+			goto out;
+
+		nents_to_cmp--;
+		if (nents_to_cmp == 0)
+			goto out;
+
+		src_sg = sg_next_inline(src_sg);
+	} while (src_sg != NULL);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
 
 /**
  * scst_copy_sg() - copy data between the command's SGs

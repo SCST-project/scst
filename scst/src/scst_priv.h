@@ -808,6 +808,8 @@ void scst_unthrottle_cmd(struct scst_cmd *cmd);
 int scst_do_internal_parsing(struct scst_cmd *cmd);
 int scst_parse_descriptors(struct scst_cmd *cmd);
 
+int scst_cmp_wr_local(struct scst_cmd *cmd);
+
 int scst_pr_init(struct scst_device *dev);
 void scst_pr_cleanup(struct scst_device *dev);
 
@@ -818,6 +820,27 @@ void scst_vfs_unlink_and_put(struct path *path);
 #endif
 
 int scst_copy_file(const char *src, const char *dest);
+
+struct scst_cmd *__scst_create_prepare_internal_cmd(const uint8_t *cdb,
+	unsigned int cdb_len, enum scst_cmd_queue_type queue_type,
+	struct scst_tgt_dev *tgt_dev, gfp_t gfp_mask, bool fantom);
+
+static inline bool scst_lba1_inside_lba2(int64_t lba1,
+	int64_t lba2, int64_t lba2_blocks)
+{
+	bool res;
+
+	TRACE_DBG("lba1 %lld, lba2 %lld, lba2_blocks %lld", (long long)lba1,
+		(long long)lba2, (long long)lba2_blocks);
+
+	if ((lba1 >= lba2) && (lba1 < (lba2 + lba2_blocks)))
+		res = true;
+	else
+		res = false;
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
 
 #ifdef CONFIG_SCST_DEBUG_TM
 extern void tm_dbg_check_released_cmds(void);

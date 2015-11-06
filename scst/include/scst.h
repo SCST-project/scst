@@ -2136,6 +2136,12 @@ struct scst_cmd {
 	/* Set if scst_dec_on_dev_cmd() call is needed on the cmd's finish */
 	unsigned int dec_on_dev_needed:1;
 
+	/* Set if cmd is on dev's exec_cmd_list */
+	unsigned int on_dev_exec_list:1;
+
+	/* Set if this cmd passed check for SCSI atomicity */
+	unsigned int scsi_atomicity_checked:1;
+
 	/* Set if cmd is queued as hw pending */
 	unsigned int cmd_hw_pending:1;
 
@@ -2298,6 +2304,15 @@ struct scst_cmd {
 	unsigned short cdb_len;
 	uint8_t cdb_buf[SCST_MAX_CDB_SIZE];
 
+	/* List entry for dev's dev_exec_cmd_list */
+	struct list_head dev_exec_cmd_list_entry;
+
+	/*
+	 * Array of blocked by this cmd SCSI atomic cmds with size
+	 * scsi_atomic_blocked_cmds_count. Protected by dev->dev_lock.
+	 */
+	struct scst_cmd **scsi_atomic_blocked_cmds;
+
 	uint8_t lba_off;	/* LBA offset in cdb */
 	uint8_t lba_len;	/* LBA length in cdb */
 	uint8_t len_off;	/* length offset in cdb */
@@ -2428,6 +2443,18 @@ struct scst_cmd {
 
 	/* Used for storage of dev handler private stuff */
 	void *dh_priv;
+
+	/*
+	 * Number of waiting for this cmd to finish commands
+	 * with SCSI atomic guarantees. Protected by dev->dev_lock.
+	 */
+	int scsi_atomic_blockers;
+
+	/*
+	 * How many SCSI atomic cmds this cmd blocked, i.e. size of array
+	 * scsi_atomic_blocked_cmds. Protected by dev->dev_lock.
+	 */
+	int scsi_atomic_blocked_cmds_count;
 
 	/* List entry for dev's blocked_cmd_list */
 	struct list_head blocked_cmd_list_entry;
@@ -2811,6 +2838,17 @@ struct scst_device {
 	 * scst_check_blocked_dev(). Protected by dev_lock.
 	 */
 	int on_dev_cmd_count;
+
+	/*
+	 * How many atomic SCSI commands being executed. Protected by dev_lock.
+	 */
+	int dev_scsi_atomic_cmd_active;
+
+	/*
+	 * List of all being executed on the dev commands.
+	 * Protected by dev_lock.
+	 */
+	struct list_head dev_exec_cmd_list;
 
 	/* Memory limits for this device */
 	struct scst_mem_lim dev_mem_lim;
