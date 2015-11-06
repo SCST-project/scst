@@ -610,7 +610,7 @@ static void q24_atio_pkt_all_vps(scsi_qla_host_t *vha, atio7_entry_t *atio)
 	case ATIO_TYPE7:
 	{
 		scsi_qla_host_t *host = q2t_find_host_by_d_id(vha, atio->fcp_hdr.d_id);
-		if (unlikely(NULL == host)) {
+		if (unlikely(host == NULL)) {
 			/*
 			 * It might happen, because there is a small gap between
 			 * requesting the DPC thread to update loop and actual
@@ -704,7 +704,7 @@ static void q2t_response_pkt_all_vps(scsi_qla_host_t *vha, response_t *pkt)
 		scsi_qla_host_t *host = vha;
 		if (IS_FWI2_CAPABLE(ha)) {
 			nack24xx_entry_t *entry = (nack24xx_entry_t *)pkt;
-			if (0xFF != entry->vp_index) {
+			if (entry->vp_index != 0xFF) {
 				host = q2t_find_host_by_vp_idx(vha,
 						entry->vp_index);
 				if (unlikely(!host)) {
