@@ -1300,16 +1300,18 @@ persistent reservations from this device are released, upon reconnect
 the initiators will see it.
 
 
-Implicit ALUA Support
----------------------
+ALUA Support
+------------
 
-SCST supports implicit asymmetric logical unit access (ALUA). Implicit ALUA is
-a feature defined by the ANSI T10 SCSI committee that allows a target to tell
-the initiator which path to use in a multipath setup. The redundant paths
-between initiator and target can be used either for redundancy or for load
-sharing purposes. The target can either be a single target system running SCST
-with multiple communication interfaces or two target systems each running SCST
-and configured in a high availability setup.
+SCST supports both implicit and explicit asymmetric logical unit access
+(ALUA). ALUA is a feature defined by the ANSI T10 SCSI committee. It
+allows a target to tell the initiator which path to use in a multipath
+setup plus, in the explicit case, control state of each path via SET
+TARGET PORT GROUPS SCSI command. The redundant paths between initiator
+and target can be used either for redundancy or for load sharing
+purposes. The target can either be a single target system running SCST
+with multiple communication interfaces or two target systems each
+running SCST and configured in a high availability setup.
 
 In the SPC-4 standard the following concepts are defined related to ALUA:
 * Relative target port ID. A number between 1 and 65535 that uniquely
@@ -1330,17 +1332,17 @@ ANSI T10 standard called SPC-4.
 ALUA support in SCST
 ....................
 
-SCST allows to define implicit ALUA settings for each unique combination of
-SCST device and SCST target. An initiator however queries ALUA settings by
-sending an appropriate SCSI command to a specific LUN of an SCST target. Each
-such LUN maps uniquely to an SCST device. For hardware SCST target drivers,
-e.g. ib_srpt, there is a one-to-one correspondence between SCST target and
-SCSI target port. With other SCST targets, e.g. iSCSI-SCST, by default the
-only relationship between SCST targets and SCSI target ports is that all SCST
-targets defined on a system are visible via all SCSI target ports. See also
-the iSCSI-SCST documentation about the allowed_portal attribute for
-information about how to associate iSCSI targets with a single physical
-interface.
+SCST allows to define ALUA settings for each unique combination of SCST
+device and SCST target. An initiator however queries ALUA settings by
+sending an appropriate SCSI command to a specific LUN of an SCST target.
+Each such LUN maps uniquely to an SCST device. For hardware SCST target
+drivers, e.g. ib_srpt, there is a one-to-one correspondence between SCST
+target and SCSI target port. With other SCST targets, e.g. iSCSI-SCST,
+by default the only relationship between SCST targets and SCSI target
+ports is that all SCST targets defined on a system are visible via all
+SCSI target ports. See also the iSCSI-SCST documentation about the
+allowed_portal attribute for information about how to associate iSCSI
+targets with a single physical interface.
 
 Notes:
 - In a H.A. setup it is the responsibility of the user to synchronize ALUA
@@ -1363,7 +1365,7 @@ Notes:
 Configuring ALUA in SCST
 ........................
 
-SCST allows to configure the following settings related to implicit ALUA
+SCST allows to configure the following settings related to ALUA
 for each unique combination of SCST target and virtual SCST device
 (vdisk_fileio, vdisk_blockio, vcdrom, ...):
 * The target port group asymmetric access state. SCST supports all ALUA port
@@ -1461,15 +1463,26 @@ DEVICE_GROUP dgroup2 {
 	}
 }
 
+Explicit ALUA
+.............
+
+To enable explicit ALUA you need in addition to the above settings set
+expl_alua device attribute to 1 (by default it is 0). Also you need to
+run stpgd and supply to it path to a script or program, which will
+perform actual path state switching on SET TARGET PORT GROUPS command,
+for instance, by calling drbdadm. For more information see stpgd README
+as well as sample script scst_on_stpg.
+
 
 Checking the Target Configuration
 .................................
 
-One way to verify the implicit ALUA configuration from a Linux initiator is
-via the commands provided in the sg3_utils package. The first step is to
-verify whether for a certain LUN implicit ALUA has been configured on the
-target. This is possible by checking whether the TPGS=1 text appears in the
-sg_inq output, where /dev/sdb is a device node created by the ib_srp initiator:
+One way to verify the ALUA configuration from a Linux initiator is via
+the commands provided in the sg3_utils package. The first step is to
+verify whether for a certain LUN ALUA has been configured on the target.
+This is possible by checking whether the TPGS=1 text appears in the
+sg_inq output, where /dev/sdb is a device node created by the ib_srp
+initiator:
 
 # sg_inq /dev/sdb
 standard INQUIRY:
@@ -1529,9 +1542,11 @@ Device Identification VPD page:
 Initiator Support
 .................
 
-On Linux systems implicit ALUA support is provided by the scsi_dh_alua kernel
-driver in combination with the user space multipathd daemon. You will have to
-modify at least the following in /etc/multipath.conf to enable implicit ALUA:
+On Linux systems ALUA support is provided by the scsi_dh_alua kernel
+driver in combination with the user space multipathd daemon. You will
+have to modify at least the following in /etc/multipath.conf to enable
+ALUA:
+
 * hardware_handler      "1 alua"
 * prio                  alua
 * path_grouping_policy  group_by_prio
