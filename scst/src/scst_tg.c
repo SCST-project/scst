@@ -1687,7 +1687,13 @@ int scst_tg_set_group_info(struct scst_cmd *cmd)
 	TRACE_DBG("dg %s (%p) found, dev %s", dg->name, dg, dev->virt_name);
 
 	for (i = 4, j = 0; i + 4 <= len; i += 4, j++) {
+#ifndef __CHECKER__
+		/*
+		 * Hide the statement below for smatch because otherwise it
+		 * triggers a false positive.
+		 */
 		WARN_ON_ONCE(j >= tpg_desc_count);
+#endif
 		osi[j].new_state = buf[i] & 0x1f;
 		switch (osi[j].new_state) {
 		case SCST_TG_STATE_OPTIMIZED:
