@@ -7383,7 +7383,7 @@ static void vdev_ext_copy_remap(struct scst_cmd *cmd,
 	struct scst_ext_copy_seg_descr *seg)
 {
 	struct scst_ext_copy_data_descr *d;
-	static int shift = 0;
+	static int shift;
 	static DEFINE_SPINLOCK(lock);
 	int s;
 
