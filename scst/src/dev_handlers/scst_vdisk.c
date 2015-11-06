@@ -4180,7 +4180,7 @@ static int vdisk_block_limits(uint8_t *buf, struct scst_cmd *cmd,
 	buf[1] = 0xB0;
 	buf[3] = 0x3C;
 	buf[4] = 1; /* WSNZ set */
-	buf[5] = 0xFF; /* No MAXIMUM COMPARE AND WRITE LENGTH limit */ 
+	buf[5] = 0xFF; /* No MAXIMUM COMPARE AND WRITE LENGTH limit */
 	/* Optimal transfer granuality is PAGE_SIZE */
 	put_unaligned_be16(max_t(int, PAGE_SIZE / dev->block_size, 1), &buf[6]);
 
