@@ -2204,6 +2204,9 @@ struct scst_cmd {
 	/* Set if cmd was pre-alloced by target driver */
 	unsigned int pre_alloced:1;
 
+	/* Set if cmd was already ALUA checked in TRANSITIONING state */
+	unsigned int already_transitioning:1;
+
 	/* Set if scst_cmd_set_write_not_received_data_len() was called */
 	unsigned int write_not_received_set:1;
 
@@ -3008,7 +3011,10 @@ struct scst_tgt_dev {
 	atomic_t tgt_dev_cmd_count ____cacheline_aligned_in_smp;
 
 	/* ALUA command filter */
-	bool (*alua_filter)(struct scst_cmd *cmd);
+#define SCST_ALUA_CHECK_OK	0
+#define SCST_ALUA_CHECK_DELAYED 1
+#define SCST_ALUA_CHECK_ERROR	-1
+	int (*alua_filter)(struct scst_cmd *cmd);
 
 	struct scst_order_data *curr_order_data;
 	struct scst_order_data tgt_dev_order_data;

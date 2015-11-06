@@ -3247,14 +3247,39 @@ out_done:
 	goto out;
 }
 
+static inline bool scst_check_alua(struct scst_cmd *cmd, int *out_res)
+{
+	int (*alua_filter)(struct scst_cmd *cmd);
+	bool res = false;
+
+	alua_filter = ACCESS_ONCE(cmd->tgt_dev->alua_filter);
+	if (unlikely(alua_filter)) {
+		int ac = alua_filter(cmd);
+		if (ac != SCST_ALUA_CHECK_OK) {
+			if (ac != SCST_ALUA_CHECK_DELAYED) {
+				EXTRACHECKS_BUG_ON(cmd->status == 0);
+				scst_set_cmd_abnormal_done_state(cmd);
+				*out_res = SCST_CMD_STATE_RES_CONT_SAME;
+			}
+			res = true;
+		}
+	}
+
+	return res;
+}
+
 static int scst_exec_check_blocking(struct scst_cmd **active_cmd)
 {
 	struct scst_cmd *cmd = *active_cmd;
 	struct scst_cmd *ref_cmd;
+	int res = SCST_CMD_STATE_RES_CONT_NEXT;
 
 	TRACE_ENTRY();
 
 	cmd->state = SCST_CMD_STATE_EXEC_CHECK_BLOCKING;
+
+	if (unlikely(scst_check_alua(cmd, &res)))
+		goto out;
 
 	if (unlikely(scst_check_blocked_dev(cmd)))
 		goto out;
@@ -3319,6 +3344,9 @@ done:
 
 		cmd->state = SCST_CMD_STATE_EXEC_CHECK_BLOCKING;
 
+		if (unlikely(scst_check_alua(cmd, &res)))
+			goto out;
+
 		if (unlikely(scst_check_blocked_dev(cmd)))
 			break;
 
@@ -3338,8 +3366,8 @@ done:
 	/* !! At this point sess, dev and tgt_dev can be already freed !! */
 
 out:
-	TRACE_EXIT();
-	return SCST_CMD_STATE_RES_CONT_NEXT;
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 static int scst_exec_check_sn(struct scst_cmd **active_cmd)
@@ -4514,7 +4542,6 @@ static int scst_translate_lun(struct scst_cmd *cmd)
  */
 static int __scst_init_cmd(struct scst_cmd *cmd)
 {
-	bool (*alua_filter)(struct scst_cmd *cmd);
 	int res = 0;
 
 	TRACE_ENTRY();
@@ -4554,12 +4581,6 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 
 		if (unlikely(failure))
 			goto out_busy;
-
-		alua_filter = ACCESS_ONCE(cmd->tgt_dev->alua_filter);
-		if (unlikely(alua_filter && !alua_filter(cmd))) {
-			scst_set_cmd_abnormal_done_state(cmd);
-			goto out;
-		}
 
 		/*
 		 * SCST_IMPLICIT_HQ for unknown commands not implemented for

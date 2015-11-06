@@ -272,11 +272,14 @@ static struct kobj_type scst_tg_tgt_ktype = {
 };
 
 /*
- * Whether or not to accept a command in the ALUA unavailable and transitioning
- * states.
+ * Whether or not to accept a command in the ALUA standby state.
  */
-static bool scst_tg_accept(struct scst_cmd *cmd)
+static int scst_tg_accept_standby(struct scst_cmd *cmd)
 {
+	int res;
+
+	TRACE_ENTRY();
+
 	switch (cmd->cdb[0]) {
 	case TEST_UNIT_READY:
 	case GET_EVENT_STATUS_NOTIFICATION:
@@ -292,41 +295,6 @@ static bool scst_tg_accept(struct scst_cmd *cmd)
 	case RESERVE_10:
 	case READ_BUFFER:
 	case WRITE_BUFFER:
-		return true;
-	case SERVICE_ACTION_IN_16:
-		switch (cmd->cdb[1] & 0x1f) {
-		case SAI_READ_CAPACITY_16:
-			return true;
-		}
-		break;
-	case MAINTENANCE_IN:
-		switch (cmd->cdb[1] & 0x1f) {
-		case MI_REPORT_TARGET_PGS:
-			return true;
-		}
-		break;
-	case MAINTENANCE_OUT:
-		switch (cmd->cdb[1] & 0x1f) {
-		case MO_SET_TARGET_PGS:
-			return true;
-		}
-		break;
-	}
-
-	return false;
-}
-
-/*
- * Whether or not to accept a command in the ALUA standby state.
- */
-static bool scst_tg_accept_standby(struct scst_cmd *cmd)
-{
-	bool process_cmd = scst_tg_accept(cmd);
-
-	if (process_cmd)
-		return process_cmd;
-
-	switch (cmd->cdb[0]) {
 	case MODE_SELECT:
 	case MODE_SELECT_10:
 	case LOG_SELECT:
@@ -335,42 +303,187 @@ static bool scst_tg_accept_standby(struct scst_cmd *cmd)
 	case SEND_DIAGNOSTIC:
 	case PERSISTENT_RESERVE_IN:
 	case PERSISTENT_RESERVE_OUT:
-		return true;
+		res = SCST_ALUA_CHECK_OK;
+		goto out;
+	case SERVICE_ACTION_IN_16:
+		switch (cmd->cdb[1] & 0x1f) {
+		case SAI_READ_CAPACITY_16:
+			res = SCST_ALUA_CHECK_OK;
+			goto out;
+		}
+		break;
+	case MAINTENANCE_IN:
+		switch (cmd->cdb[1] & 0x1f) {
+		case MI_REPORT_TARGET_PGS:
+			res = SCST_ALUA_CHECK_OK;
+			goto out;
+		}
+		break;
+	case MAINTENANCE_OUT:
+		switch (cmd->cdb[1] & 0x1f) {
+		case MO_SET_TARGET_PGS:
+			res = SCST_ALUA_CHECK_OK;
+			goto out;
+		}
+		break;
 	}
 
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_alua_standby));
+	res = SCST_ALUA_CHECK_ERROR;
 
-	return false;
+out:
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 /*
  * Whether or not to accept a command in the ALUA unavailable state.
  */
-static bool scst_tg_accept_unav(struct scst_cmd *cmd)
+static int scst_tg_accept_unav(struct scst_cmd *cmd)
 {
-	bool process_cmd = scst_tg_accept(cmd);
+	int res;
 
-	if (!process_cmd)
-		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_alua_unav));
+	TRACE_ENTRY();
 
-	return process_cmd;
+	switch (cmd->cdb[0]) {
+	case TEST_UNIT_READY:
+	case GET_EVENT_STATUS_NOTIFICATION:
+	case INQUIRY:
+	case MODE_SENSE:
+	case MODE_SENSE_10:
+	case READ_CAPACITY:
+	case REPORT_LUNS:
+	case REQUEST_SENSE:
+	case RELEASE:
+	case RELEASE_10:
+	case RESERVE:
+	case RESERVE_10:
+	case READ_BUFFER:
+	case WRITE_BUFFER:
+		res = SCST_ALUA_CHECK_OK;
+		goto out;
+	case SERVICE_ACTION_IN_16:
+		switch (cmd->cdb[1] & 0x1f) {
+		case SAI_READ_CAPACITY_16:
+			res = SCST_ALUA_CHECK_OK;
+			goto out;
+		}
+		break;
+	case MAINTENANCE_IN:
+		switch (cmd->cdb[1] & 0x1f) {
+		case MI_REPORT_TARGET_PGS:
+			res = SCST_ALUA_CHECK_OK;
+			goto out;
+		}
+		break;
+	case MAINTENANCE_OUT:
+		switch (cmd->cdb[1] & 0x1f) {
+		case MO_SET_TARGET_PGS:
+			res = SCST_ALUA_CHECK_OK;
+			goto out;
+		}
+		break;
+	}
+
+	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_alua_unav));
+	res = SCST_ALUA_CHECK_ERROR;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+struct scst_alua_retry {
+	struct scst_cmd *alua_retry_cmd;
+	struct delayed_work alua_retry_work;
+};
+
+static void scst_alua_transitioning_work_fn(struct delayed_work *work)
+{
+	struct scst_alua_retry *retry = container_of(work, struct scst_alua_retry,
+						alua_retry_work);
+	struct scst_cmd *cmd = retry->alua_retry_cmd;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("Retrying transitioning cmd %p", cmd);
+
+	spin_lock_irq(&cmd->cmd_threads->cmd_list_lock);
+	list_add(&cmd->cmd_list_entry,
+		&cmd->cmd_threads->active_cmd_list);
+	wake_up(&cmd->cmd_threads->cmd_list_waitQ);
+	spin_unlock_irq(&cmd->cmd_threads->cmd_list_lock);
+
+	kfree(retry);
+
+	TRACE_EXIT();
+	return;
 }
 
 /*
  * Whether or not to accept a command in the ALUA transitioning state.
  */
-static bool scst_tg_accept_transitioning(struct scst_cmd *cmd)
+static int scst_tg_accept_transitioning(struct scst_cmd *cmd)
 {
-	bool process_cmd = scst_tg_accept(cmd);
+	int res;
 
-	if (!process_cmd)
-		scst_set_cmd_error(cmd,
+	TRACE_ENTRY();
+
+	switch (cmd->cdb[0]) {
+	case INQUIRY:
+	case READ_CAPACITY:
+	case REPORT_LUNS:
+	case REQUEST_SENSE:
+	case READ_BUFFER:
+	case WRITE_BUFFER:
+		res = SCST_ALUA_CHECK_OK;
+		goto out;
+	case SERVICE_ACTION_IN_16:
+		switch (cmd->cdb[1] & 0x1f) {
+		case SAI_READ_CAPACITY_16:
+			res = SCST_ALUA_CHECK_OK;
+			goto out;
+		}
+		break;
+	}
+
+	if (cmd->already_transitioning)
+		TRACE_DBG("cmd %p already transitioned checked, failing", cmd);
+	else {
+		struct scst_alua_retry *retry;
+
+		TRACE_DBG("ALUA transitioning: delaying cmd %p", cmd);
+
+		retry = kzalloc(sizeof(*retry), GFP_KERNEL);
+		if (retry == NULL) {
+			TRACE_DBG("Unable to allocate ALUA retry "
+				"struct, failing cmd %p", cmd);
+			scst_set_cmd_error(cmd,
+				SCST_LOAD_SENSE(scst_sense_alua_transitioning));
+			res = SCST_ALUA_CHECK_ERROR;
+			goto out;
+		}
+
+		/* No get is needed, because cmd is sync here */
+		retry->alua_retry_cmd = cmd;
+		INIT_DELAYED_WORK(&retry->alua_retry_work,
+			(void (*)(struct work_struct *))scst_alua_transitioning_work_fn);
+		cmd->already_transitioning = 1;
+		schedule_delayed_work(&retry->alua_retry_work, HZ/2);
+		res = SCST_ALUA_CHECK_DELAYED;
+		goto out;
+	}
+
+	scst_set_cmd_error(cmd,
 			SCST_LOAD_SENSE(scst_sense_alua_transitioning));
+	res = SCST_ALUA_CHECK_ERROR;
 
-	return process_cmd;
+out:
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
-static bool (*scst_alua_filter[])(struct scst_cmd *cmd) = {
+static int (*scst_alua_filter[])(struct scst_cmd *cmd) = {
 	[SCST_TG_STATE_OPTIMIZED]	= NULL,
 	[SCST_TG_STATE_NONOPTIMIZED]	= NULL,
 	[SCST_TG_STATE_STANDBY]		= scst_tg_accept_standby,
