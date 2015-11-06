@@ -742,12 +742,7 @@ static void dump_lockspace(const char *cl_dev_id)
 
 	PRINT_INFO("Invoking %s", argv2);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
 	call_usermodehelper(argv0, argv, envp, UMH_WAIT_PROC);
-#else
-	call_usermodehelper_fns(argv0, argv, envp, UMH_WAIT_PROC, NULL, NULL,
-				NULL);
-#endif
 
 out:
 	kfree(envp[0]);
@@ -1303,10 +1298,7 @@ unlock_ls:
 	mutex_unlock(&pr_dlm->ls_mutex);
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 3, 0)
-static struct workqueue_struct *
-alloc_workqueue_backport(const char *fmt, unsigned flags, unsigned max_active,
-			 ...)
+static struct workqueue_struct *create_st_wq(const char *fmt, ...)
 {
 	struct workqueue_struct *wq = NULL;
 	va_list ap;
@@ -1316,13 +1308,10 @@ alloc_workqueue_backport(const char *fmt, unsigned flags, unsigned max_active,
 	name = kvasprintf(GFP_KERNEL, fmt, ap);
 	va_end(ap);
 	if (name)
-		wq = alloc_workqueue(name, flags, max_active);
+		wq = create_singlethread_workqueue(name);
 	kfree(name);
 	return wq;
 }
-#undef alloc_workqueue
-#define alloc_workqueue alloc_workqueue_backport
-#endif
 
 /*
  * Caller must ensure that no commands are being executed for device @dev,
@@ -1353,24 +1342,21 @@ static int scst_pr_dlm_init(struct scst_device *dev, const char *cl_dev_id)
 	if (!dev->pr_dlm->cl_dev_id)
 		goto err_free;
 
-	dev->pr_dlm->from_wq = alloc_ordered_workqueue("%s_from_dlm", 0,
-						       dev->virt_name);
+	dev->pr_dlm->from_wq = create_st_wq("%s_from_dlm", dev->virt_name);
 	if (IS_ERR(dev->pr_dlm->from_wq)) {
 		res = PTR_ERR(dev->pr_dlm->from_wq);
 		dev->pr_dlm->from_wq = NULL;
 		goto err_free;
 	}
 
-	dev->pr_dlm->to_wq = alloc_ordered_workqueue("%s_to_dlm", 0,
-						     dev->virt_name);
+	dev->pr_dlm->to_wq = create_st_wq("%s_to_dlm", dev->virt_name);
 	if (IS_ERR(dev->pr_dlm->to_wq)) {
 		res = PTR_ERR(dev->pr_dlm->to_wq);
 		dev->pr_dlm->to_wq = NULL;
 		goto err_free;
 	}
 
-	dev->pr_dlm->upd_wq = alloc_ordered_workqueue("%s_upd_dlm", 0,
-						      dev->virt_name);
+	dev->pr_dlm->upd_wq = create_st_wq("%s_upd_dlm", dev->virt_name);
 	if (IS_ERR(dev->pr_dlm->upd_wq)) {
 		res = PTR_ERR(dev->pr_dlm->upd_wq);
 		dev->pr_dlm->upd_wq = NULL;
