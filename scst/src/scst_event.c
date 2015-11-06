@@ -545,12 +545,12 @@ static int scst_event_get_event_from_user(void __user *arg,
 	struct scst_event_entry **out_event_entry)
 {
 	int res, rc, event_entry_len;
-	int32_t payload_len;
+	uint32_t payload_len;
 	struct scst_event_entry *event_entry;
 
 	TRACE_ENTRY();
 
-	res = get_user(payload_len, (int32_t __user *)arg);
+	res = get_user(payload_len, (uint32_t __user *)arg);
 	if (res != 0) {
 		PRINT_ERROR("Failed to get payload len: %d", res);
 		goto out;
