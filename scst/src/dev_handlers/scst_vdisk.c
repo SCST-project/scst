@@ -180,6 +180,8 @@ struct scst_vdisk_dev {
 	unsigned int format_active:1;
 	unsigned int discard_zeroes_data:1;
 	unsigned int expl_alua:1;
+	unsigned int reexam_pending:1;
+	unsigned int size_key:1;
 
 	struct file *fd;
 	struct file *dif_fd;
@@ -299,9 +301,14 @@ static int fileio_alloc_data_buf(struct scst_cmd *cmd);
 static int vdisk_parse(struct scst_cmd *);
 static int vcdrom_parse(struct scst_cmd *);
 static int non_fileio_parse(struct scst_cmd *);
-static int vdisk_exec(struct scst_cmd *cmd);
+static int fileio_exec(struct scst_cmd *cmd);
 static int vcdrom_exec(struct scst_cmd *cmd);
-static int non_fileio_exec(struct scst_cmd *cmd);
+static int blockio_exec(struct scst_cmd *cmd);
+static int nullio_exec(struct scst_cmd *cmd);
+static void blockio_on_alua_state_change_start(struct scst_device *dev,
+	enum scst_tg_state old_state, enum scst_tg_state new_state);
+static void blockio_on_alua_state_change_finish(struct scst_device *dev,
+	enum scst_tg_state old_state, enum scst_tg_state new_state);
 static void fileio_on_free_cmd(struct scst_cmd *cmd);
 static enum compl_status_e nullio_exec_read(struct vdisk_cmd_params *p);
 static enum compl_status_e blockio_exec_read(struct vdisk_cmd_params *p);
@@ -576,8 +583,8 @@ static const struct attribute *vdisk_fileio_attrs[] = {
 };
 
 static const struct attribute *vdisk_blockio_attrs[] = {
-	&vdev_size_ro_attr.attr,
-	&vdev_size_mb_ro_attr.attr,
+	&vdev_size_rw_attr.attr,
+	&vdev_size_mb_rw_attr.attr,
 	&vdisk_blocksize_attr.attr,
 	&vdisk_rd_only_attr.attr,
 	&vdisk_wt_attr.attr,
@@ -684,7 +691,7 @@ static struct scst_dev_type vdisk_file_devtype = {
 	.detach_tgt =		vdisk_detach_tgt,
 	.parse =		vdisk_parse,
 	.dev_alloc_data_buf =	fileio_alloc_data_buf,
-	.exec =			vdisk_exec,
+	.exec =			fileio_exec,
 	.on_free_cmd =		fileio_on_free_cmd,
 	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
 	.get_supported_opcodes = vdisk_get_supported_opcodes,
@@ -740,7 +747,9 @@ static struct scst_dev_type vdisk_blk_devtype = {
 	.attach_tgt =		vdisk_attach_tgt,
 	.detach_tgt =		vdisk_detach_tgt,
 	.parse =		non_fileio_parse,
-	.exec =			non_fileio_exec,
+	.exec =			blockio_exec,
+	.on_alua_state_change_start = blockio_on_alua_state_change_start,
+	.on_alua_state_change_finish = blockio_on_alua_state_change_finish,
 	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
 	.get_supported_opcodes = vdisk_get_supported_opcodes,
 	.devt_priv =		(void *)blockio_ops,
@@ -788,7 +797,7 @@ static struct scst_dev_type vdisk_null_devtype = {
 	.attach_tgt =		vdisk_attach_tgt,
 	.detach_tgt =		vdisk_detach_tgt,
 	.parse =		non_fileio_parse,
-	.exec =			non_fileio_exec,
+	.exec =			nullio_exec,
 	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
 	.devt_priv =		(void *)nullio_ops,
 	.get_supported_opcodes = vdisk_get_supported_opcodes,
@@ -905,8 +914,13 @@ static struct file *vdev_open_fd(const struct scst_vdisk_dev *virt_dev,
 
 	TRACE_DBG("Opening file %s, flags 0x%x", name, open_flags);
 	fd = filp_open(name, O_LARGEFILE | open_flags, 0600);
-	if (IS_ERR(fd))
-		PRINT_ERROR("filp_open(%s) failed: %d", name, (int)PTR_ERR(fd));
+	if (IS_ERR(fd)) {
+		if (PTR_ERR(fd) == -EMEDIUMTYPE)
+			TRACE(TRACE_MINOR, "Unable to open %s with EMEDIUMTYPE, "
+				"DRBD passive?", name);
+		else
+			PRINT_ERROR("filp_open(%s) failed: %d", name, (int)PTR_ERR(fd));
+	}
 
 	TRACE_EXIT();
 	return fd;
@@ -924,8 +938,12 @@ static void vdisk_blockio_check_flush_support(struct scst_vdisk_dev *virt_dev)
 
 	fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
 	if (IS_ERR(fd)) {
-		PRINT_ERROR("filp_open(%s) failed: %ld",
-			virt_dev->filename, PTR_ERR(fd));
+		if ((PTR_ERR(fd) == -EMEDIUMTYPE) && virt_dev->blockio)
+			TRACE(TRACE_MINOR, "Unable to open %s with EMEDIUMTYPE, "
+				"DRBD passive?", virt_dev->filename);
+		else
+			PRINT_ERROR("filp_open(%s) failed: %ld",
+				virt_dev->filename, PTR_ERR(fd));
 		goto out;
 	}
 
@@ -965,8 +983,12 @@ static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 
 	fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
 	if (IS_ERR(fd)) {
-		PRINT_ERROR("filp_open(%s) failed: %ld",
-			virt_dev->filename, PTR_ERR(fd));
+		if ((PTR_ERR(fd) == -EMEDIUMTYPE) && virt_dev->blockio)
+			TRACE(TRACE_MINOR, "Unable to open %s with EMEDIUMTYPE, "
+				"DRBD passive?", virt_dev->filename);
+		else
+			PRINT_ERROR("filp_open(%s) failed: %ld",
+				virt_dev->filename, PTR_ERR(fd));
 		goto check;
 	}
 	fd_open = true;
@@ -1068,7 +1090,11 @@ static int vdisk_get_file_size(const char *filename, bool blockio,
 	fd = filp_open(filename, O_LARGEFILE | O_RDONLY, 0600);
 	if (IS_ERR(fd)) {
 		res = PTR_ERR(fd);
-		PRINT_ERROR("filp_open(%s) failed: %d", filename, res);
+		if ((res == -EMEDIUMTYPE) && blockio)
+			TRACE(TRACE_MINOR, "Unable to open %s with EMEDIUMTYPE, "
+				"DRBD passive?", filename);
+		else
+			PRINT_ERROR("filp_open(%s) failed: %d", filename, res);
 		goto out;
 	}
 
@@ -1491,8 +1517,14 @@ static int vdisk_reexamine(struct scst_vdisk_dev *virt_dev)
 
 		res = vdisk_get_file_size(virt_dev->filename, virt_dev->blockio,
 					  &file_size);
-		if (res < 0)
+		if (res < 0) {
+			if ((res == -EMEDIUMTYPE) && virt_dev->blockio) {
+				TRACE_DBG("Reexam pending (dev %s)", virt_dev->name);
+				virt_dev->reexam_pending = 1;
+				res = 0;
+			}
 			goto out;
+		}
 		virt_dev->file_size = file_size;
 		vdisk_blockio_check_flush_support(virt_dev);
 		vdisk_check_tp_support(virt_dev);
@@ -1706,15 +1738,12 @@ static int vdisk_open_fd(struct scst_vdisk_dev *virt_dev, bool read_only)
 {
 	int res;
 
-	lockdep_assert_held(&scst_mutex);
 	sBUG_ON(!virt_dev->filename);
 
 	virt_dev->fd = vdev_open_fd(virt_dev, virt_dev->filename, read_only);
 	if (IS_ERR(virt_dev->fd)) {
 		res = PTR_ERR(virt_dev->fd);
 		virt_dev->fd = NULL;
-		PRINT_ERROR("filp_open(%s) failed: %d",
-			    virt_dev->filename, res);
 		goto out;
 	}
 	virt_dev->bdev = virt_dev->blockio ? file_inode(virt_dev->fd)->i_bdev :
@@ -1742,8 +1771,6 @@ out_close_fd:
 
 static void vdisk_close_fd(struct scst_vdisk_dev *virt_dev)
 {
-	lockdep_assert_held(&scst_mutex);
-
 	if (virt_dev->fd) {
 		filp_close(virt_dev->fd, NULL);
 		virt_dev->fd = NULL;
@@ -1765,14 +1792,21 @@ static int vdisk_attach_tgt(struct scst_tgt_dev *tgt_dev)
 
 	lockdep_assert_held(&scst_mutex);
 
-	if (virt_dev->tgt_dev_cnt++ > 0)
+	virt_dev->tgt_dev_cnt++;
+
+	if (virt_dev->fd != NULL)
 		goto out;
 
 	if (!virt_dev->nullio && !virt_dev->cdrom_empty) {
 		res = vdisk_open_fd(virt_dev, tgt_dev->dev->dev_rd_only);
 		if (res != 0) {
-			virt_dev->tgt_dev_cnt--;
-			goto out;
+			if ((res == -EMEDIUMTYPE) && virt_dev->blockio) {
+				/* It's OK, it will be reopen on exec */
+				res = 0;
+			} else {
+				virt_dev->tgt_dev_cnt--;
+				goto out;
+			}
 		}
 	} else {
 		virt_dev->fd = NULL;
@@ -3444,7 +3478,7 @@ out_invalid_opcode:
 	goto out_compl;
 }
 
-static int vdisk_exec(struct scst_cmd *cmd)
+static int fileio_exec(struct scst_cmd *cmd)
 {
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	const vdisk_op_fn *ops = virt_dev->vdev_devt->devt_priv;
@@ -3487,8 +3521,112 @@ out:
 	return;
 }
 
-/* blockio and nullio */
-static int non_fileio_exec(struct scst_cmd *cmd)
+/*
+ * Functionally identical to scst_tg_accept_standby(), but separated, because,
+ * generally, they are checking for different things. Better to keep different
+ * things separately.
+ */
+static bool vdisk_no_fd_allowed_commands(const struct scst_cmd *cmd)
+{
+	bool res;
+
+	TRACE_ENTRY();
+
+	switch (cmd->cdb[0]) {
+	case TEST_UNIT_READY:
+	case GET_EVENT_STATUS_NOTIFICATION:
+	case INQUIRY:
+	case MODE_SENSE:
+	case MODE_SENSE_10:
+	case READ_CAPACITY:
+	case REPORT_LUNS:
+	case REQUEST_SENSE:
+	case RELEASE:
+	case RELEASE_10:
+	case RESERVE:
+	case RESERVE_10:
+	case READ_BUFFER:
+	case WRITE_BUFFER:
+	case MODE_SELECT:
+	case MODE_SELECT_10:
+	case LOG_SELECT:
+	case LOG_SENSE:
+	case RECEIVE_DIAGNOSTIC:
+	case SEND_DIAGNOSTIC:
+	case PERSISTENT_RESERVE_IN:
+	case PERSISTENT_RESERVE_OUT:
+		res = true;
+		goto out;
+	case SERVICE_ACTION_IN_16:
+		switch (cmd->cdb[1] & 0x1f) {
+		case SAI_READ_CAPACITY_16:
+			res = true;
+			goto out;
+		}
+		break;
+	case MAINTENANCE_IN:
+		switch (cmd->cdb[1] & 0x1f) {
+		case MI_REPORT_TARGET_PGS:
+			res = true;
+			goto out;
+		}
+		break;
+	case MAINTENANCE_OUT:
+		switch (cmd->cdb[1] & 0x1f) {
+		case MO_SET_TARGET_PGS:
+			res = true;
+			goto out;
+		}
+		break;
+	}
+
+	res = false;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int blockio_exec(struct scst_cmd *cmd)
+{
+	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
+	const vdisk_op_fn *ops = virt_dev->vdev_devt->devt_priv;
+	struct vdisk_cmd_params p;
+	int res;
+
+	EXTRACHECKS_BUG_ON(!ops);
+
+	memset(&p, 0, sizeof(p));
+	if (unlikely(!vdisk_parse_offset(&p, cmd)))
+		goto err;
+
+	if (unlikely(virt_dev->fd == NULL)) {
+		if (!vdisk_no_fd_allowed_commands(cmd)) {
+			/* We should not get here */
+			PRINT_WARNING("Closed FD on exec. Secondary DRBD or not "
+				"blocked dev before ALUA state change? "
+				"(cmd %p, op %s, dev %s)", cmd, cmd->op_name,
+				cmd->dev->virt_name);
+			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_no_medium));
+			goto err;
+		}
+	}
+
+	cmd->dh_priv = &p;
+	res = vdev_do_job(cmd, ops);
+	cmd->dh_priv = NULL;
+
+out:
+	return res;
+
+err:
+	res = SCST_EXEC_COMPLETED;
+	cmd->completed = 1;
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
+	goto out;
+}
+
+static int nullio_exec(struct scst_cmd *cmd)
 {
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	const vdisk_op_fn *ops = virt_dev->vdev_devt->devt_priv;
@@ -4710,6 +4848,9 @@ static int vdisk_set_wt(struct scst_vdisk_dev *virt_dev, int wt, bool read_only)
 	virt_dev->wt_flag = wt;
 	spin_unlock(&virt_dev->flags_lock);
 
+	if (virt_dev->fd == NULL)
+		goto out;
+
 	/*
 	 * MODE SELECT is strictly serialized command, so it's safe here
 	 * to reopen fd.
@@ -4729,8 +4870,7 @@ static int vdisk_set_wt(struct scst_vdisk_dev *virt_dev, int wt, bool read_only)
 		}
 	}
 
-	if (virt_dev->fd)
-		filp_close(virt_dev->fd, NULL);
+	filp_close(virt_dev->fd, NULL);
 	if (virt_dev->dif_fd)
 		filp_close(virt_dev->dif_fd, NULL);
 
@@ -7280,6 +7420,71 @@ static enum compl_status_e nullio_exec_verify(struct vdisk_cmd_params *p)
 	return CMD_SUCCEEDED;
 }
 
+static void blockio_on_alua_state_change_start(struct scst_device *dev,
+	enum scst_tg_state old_state, enum scst_tg_state new_state)
+{
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+
+	TRACE_ENTRY();
+
+	/*
+	 * As required for on_alua_state_change_* callbacks,
+	 * no parallel fd activities could be here.
+	 */
+
+	TRACE_MGMT_DBG("ALUA state change from %s to %s started, closing FD (dev %s)",
+		scst_alua_state_name(old_state), scst_alua_state_name(new_state),
+		dev->virt_name);
+
+	/* Just in case always close */
+	vdisk_close_fd(virt_dev);
+
+	TRACE_EXIT();
+	return;
+}
+
+static void blockio_on_alua_state_change_finish(struct scst_device *dev,
+	enum scst_tg_state old_state, enum scst_tg_state new_state)
+{
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+
+	TRACE_ENTRY();
+
+	/*
+	 * As required for on_alua_state_change_* callbacks,
+	 * no parallel fd activities could be here.
+	 */
+
+	if ((new_state == SCST_TG_STATE_OPTIMIZED) ||
+	    (new_state == SCST_TG_STATE_NONOPTIMIZED)) {
+		/* Try non-optimized as well, it might be new redirection device */
+		int rc;
+
+		TRACE_MGMT_DBG("ALUA state change from %s to %s finished (dev %s), "
+			"reopenning FD", scst_alua_state_name(old_state),
+			scst_alua_state_name(new_state), dev->virt_name);
+
+		rc = vdisk_open_fd(virt_dev, dev->dev_rd_only);
+		if (rc == 0) {
+			if (virt_dev->reexam_pending) {
+				rc = vdisk_reexamine(virt_dev);
+				WARN_ON(rc != 0);
+				virt_dev->reexam_pending = 0;
+			}
+		} else {
+			PRINT_ERROR("Unable to open fd on ALUA state change "
+				"to %s (dev %s)", dev->virt_name,
+				scst_alua_state_name(new_state));
+		}
+	} else
+		TRACE_DBG("ALUA state change from %s to %s finished (dev %s)",
+			scst_alua_state_name(old_state), scst_alua_state_name(new_state),
+			dev->virt_name);
+
+	TRACE_EXIT();
+	return;
+}
+
 static void vdisk_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd,
 	struct scst_tgt_dev *tgt_dev)
 {
@@ -7412,6 +7617,11 @@ static int vdisk_resync_size(struct scst_vdisk_dev *virt_dev)
 	sBUG_ON(virt_dev->nullio);
 	sBUG_ON(!virt_dev->filename);
 
+	if (virt_dev->fd == NULL) {
+		res = -EMEDIUMTYPE;
+		goto out;
+	}
+
 	res = vdisk_get_file_size(virt_dev->filename,
 			virt_dev->blockio, &file_size);
 	if (res != 0)
@@ -7429,6 +7639,8 @@ static int vdisk_resync_size(struct scst_vdisk_dev *virt_dev)
 
 	virt_dev->file_size = file_size;
 	virt_dev->nblocks = virt_dev->file_size >> virt_dev->dev->block_shift;
+
+	virt_dev->size_key = 0;
 
 	PRINT_INFO("New size of SCSI target virtual disk %s "
 		"(fs=%lldMB, bs=%d, nblocks=%lld, cyln=%lld%s)",
@@ -8288,7 +8500,7 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 				virt_dev->blockio, &err);
 		if (res != 0)
 			goto out_free_fn;
-		if (virt_dev->tgt_dev_cnt > 0) {
+		if (virt_dev->fd == NULL) {
 			res = vdisk_open_fd(virt_dev, true);
 			if (res != 0)
 				goto out_free_fn;
@@ -8443,6 +8655,7 @@ static int vdev_size_process_store(struct scst_sysfs_work_item *work)
 	struct scst_vdisk_dev *virt_dev;
 	unsigned long long new_size;
 	int size_shift, res = -EINVAL;
+	bool queue_ua;
 
 	if (sscanf(work->buf, "%d %lld", &size_shift, &new_size) != 2 ||
 	    new_size > (ULLONG_MAX >> size_shift))
@@ -8460,19 +8673,20 @@ static int vdev_size_process_store(struct scst_sysfs_work_item *work)
 		goto resume;
 
 	virt_dev = dev->dh_priv;
-	if (!virt_dev->nullio) {
-		res = -EPERM;
-		sBUG();
-	} else if ((new_size & ((1 << virt_dev->blk_shift) - 1)) == 0) {
+
+	queue_ua = (virt_dev->fd != NULL);
+
+	if ((new_size & ((1 << virt_dev->blk_shift) - 1)) == 0) {
 		virt_dev->file_size = new_size;
 		virt_dev->nblocks = virt_dev->file_size >> dev->block_shift;
+		virt_dev->size_key = 1;
 	} else {
 		res = -EINVAL;
 	}
 
 	mutex_unlock(&scst_mutex);
 
-	if (res == 0)
+	if ((res == 0) || queue_ua)
 		scst_capacity_data_changed(dev);
 
 resume:
@@ -8532,14 +8746,19 @@ static ssize_t vdev_size_show(struct kobject *kobj, struct kobj_attribute *attr,
 	struct scst_device *dev;
 	struct scst_vdisk_dev *virt_dev;
 	unsigned long long size;
+	bool key;
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
 	size = ACCESS_ONCE(virt_dev->file_size);
 
+	if (virt_dev->nullio && size == VDISK_NULLIO_SIZE)
+		key = false;
+	else
+		key = virt_dev->size_key;
+
 	return sprintf(buf, "%llu\n%s", size >> size_shift,
-		       virt_dev->nullio && size != VDISK_NULLIO_SIZE ?
-		       SCST_SYSFS_KEY_MARK "\n" : "");
+		       key ? SCST_SYSFS_KEY_MARK "\n" : "");
 }
 
 static ssize_t vdev_sysfs_size_show(struct kobject *kobj,

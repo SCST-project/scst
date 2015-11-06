@@ -69,6 +69,7 @@ const char *scst_alua_state_name(enum scst_tg_state s)
 
 	return NULL;
 }
+EXPORT_SYMBOL(scst_alua_state_name);
 
 enum scst_tg_state scst_alua_name_to_state(const char *n)
 {
@@ -945,6 +946,7 @@ static void __scst_tg_set_state(struct scst_target_group *tg,
 	struct scst_tgt_dev *tgt_dev;
 	struct scst_tg_tgt *tg_tgt;
 	struct scst_tgt *tgt;
+	enum scst_tg_state old_state = tg->state;
 
 	sBUG_ON(state >= ARRAY_SIZE(scst_alua_filter));
 	lockdep_assert_held(&scst_dg_mutex);
@@ -956,6 +958,8 @@ static void __scst_tg_set_state(struct scst_target_group *tg,
 
 	list_for_each_entry(dg_dev, &tg->dg->dev_list, entry) {
 		dev = dg_dev->dev;
+		if (dev->handler->on_alua_state_change_start != NULL)
+			dev->handler->on_alua_state_change_start(dev, old_state, state);
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 				    dev_tgt_dev_list_entry) {
 			tgt = tgt_dev->sess->tgt;
@@ -971,6 +975,8 @@ static void __scst_tg_set_state(struct scst_target_group *tg,
 				}
 			}
 		}
+		if (dev->handler->on_alua_state_change_finish != NULL)
+			dev->handler->on_alua_state_change_finish(dev, old_state, state);
 	}
 
 	scst_check_alua_invariant();

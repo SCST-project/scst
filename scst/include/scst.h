@@ -1421,6 +1421,30 @@ struct scst_dev_type {
 	void (*on_free_cmd)(struct scst_cmd *cmd);
 
 	/*
+	 * Called to notify dev handler that a ALUA state change is about to
+	 * be started. Can be used to close open file handlers, which might
+	 * prevent the state switch.
+	 *
+	 * Called under scst_dg_mutex and no activities on the dev handler level.
+	 *
+	 * OPTIONAL
+	 */
+	void (*on_alua_state_change_start)(struct scst_device *dev,
+		enum scst_tg_state old_state, enum scst_tg_state new_state);
+
+	/*
+	 * Called to notify dev handler that a ALUA state change is about to
+	 * be finished. Can be used to (re)open file handlers closed in
+	 * on_alua_state_change_start().
+	 *
+	 * Called under scst_dg_mutex and no activities on the dev handler level.
+	 *
+	 * OPTIONAL
+	 */
+	void (*on_alua_state_change_finish)(struct scst_device *dev,
+		enum scst_tg_state old_state, enum scst_tg_state new_state);
+
+	/*
 	 * Called to notify dev handler that a task management command received
 	 *
 	 * Can be called under many internal SCST locks, including under
@@ -3718,6 +3742,7 @@ bool scst_alua_configured(struct scst_device *dev);
 int scst_tg_get_group_info(void **buf, uint32_t *response_length,
 			   struct scst_device *dev, uint8_t data_format);
 int scst_tg_set_group_info(struct scst_cmd *cmd);
+const char *scst_alua_state_name(enum scst_tg_state s);
 void scst_stpg_del_unblock_next(struct scst_cmd *cmd);
 
 /*
