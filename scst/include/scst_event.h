@@ -114,6 +114,13 @@ struct scst_event_negative_luns_inquiry_payload {
 	uint8_t target_name[SCST_MAX_EXTERNAL_NAME];
 };
 
+#define SCST_EVENT_EXT_BLOCKING_DONE	3
+struct scst_event_ext_blocking_done_payload {
+	uint8_t device_name[SCST_MAX_EXTERNAL_NAME];
+	uint32_t data_len;
+	uint8_t data[];
+};
+
 #define SCST_EVENT_TM_FN_RECEIVED	4
 struct scst_event_tm_fn_received_payload {
 	uint32_t fn; /* TM fn */

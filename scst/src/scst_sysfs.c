@@ -3471,8 +3471,137 @@ static struct kobj_attribute dev_threads_pool_type_attr =
 		scst_dev_sysfs_threads_pool_type_show,
 		scst_dev_sysfs_threads_pool_type_store);
 
+static ssize_t scst_dev_block_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int pos = 0;
+	struct scst_device *dev;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+
+	pos = sprintf(buf, "%d %d\n", ACCESS_ONCE(dev->ext_blocks_cnt),
+		dev->ext_blocking_pending);
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static void scst_sysfs_ext_blocking_done(struct scst_device *dev,
+	uint8_t *data, int len)
+{
+	scst_event_queue_ext_blocking_done(dev, data, len);
+}
+
+static ssize_t scst_dev_block_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res, data_len = 0, pos = 0;
+	struct scst_device *dev;
+	const char *p = buf, *data_start = NULL;
+	bool sync;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+
+	switch (*p) {
+	case '0':
+		p++;
+		pos++;
+		while ((pos < count) && isspace(*p) && (*p != '\0')) {
+			p++;
+			pos++;
+		}
+		if ((pos != count) && (*p != '\0')) {
+			PRINT_ERROR("Parse error on %c", *p);
+			res = -EINVAL;
+			goto out;
+		}
+
+		TRACE_DBG("Sysfs unblocking (dev %s)", dev->virt_name);
+
+		scst_ext_unblock_dev(dev);
+		res = 0;
+		goto out;
+	case '1':
+		p++;
+		pos++;
+		while ((pos < count) && isspace(*p) && (*p != '\0')) {
+			p++;
+			pos++;
+		}
+		if ((pos == count) || (*p == '\0')) {
+			data_len = sizeof(void *);
+			sync = true;
+			break;
+		} else if (*p != '1') {
+			PRINT_ERROR("Parse error on %c", *p);
+			res = -EINVAL;
+			goto out;
+		}
+
+		sync = false;
+
+		p++;
+		pos++;
+		if ((pos == count) || (*p == '\0'))
+			break;
+
+		while ((pos < count) && isspace(*p) && (*p != '\0')) {
+			p++;
+			pos++;
+		}
+		if ((pos == count) || (*p == '\0'))
+			break;
+
+		data_start = p;
+		while ((pos < count) && (*p != '\0')) {
+			p++;
+			pos++;
+			data_len++;
+		}
+		/* Skip trailing spaces, if any */
+		while (isspace(*(p-1))) {
+			p--;
+			data_len--;
+		}
+		break;
+	default:
+		PRINT_ERROR("Illegal blocking value %c", *p);
+		res = -EINVAL;
+		goto out;
+	}
+
+	TRACE_DBG("Sysfs blocking dev %s (sync %d, data_start %p, "
+		"data_len %d)", dev->virt_name, sync, data_start, data_len);
+
+	if (sync)
+		res = scst_ext_block_dev(dev, true, NULL, NULL, 0);
+	else
+		res = scst_ext_block_dev(dev, false, scst_sysfs_ext_blocking_done,
+					 data_start, data_len);
+	if (res != 0)
+		goto out;
+
+	res = 0;
+
+out:
+	if (res == 0)
+		res = count;
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute dev_block_attr =
+	__ATTR(block, S_IRUGO | S_IWUSR, scst_dev_block_show,
+		scst_dev_block_store);
+
 static struct attribute *scst_dev_attrs[] = {
 	&dev_type_attr.attr,
+	&dev_block_attr.attr,
 	NULL,
 };
 

@@ -363,6 +363,47 @@ out:
 }
 
 /* No locks */
+int scst_event_queue_ext_blocking_done(struct scst_device *dev, void *data, int len)
+{
+	int res, event_entry_len;
+	struct scst_event_entry *event_entry;
+	struct scst_event *event;
+	struct scst_event_ext_blocking_done_payload *payload;
+
+	TRACE_ENTRY();
+
+	event_entry_len = sizeof(*event_entry) + sizeof(*payload) + len;
+	event_entry = kzalloc(event_entry_len, GFP_ATOMIC);
+	if (event_entry == NULL) {
+		PRINT_CRIT_ERROR("Unable to allocate event. Ext blocking "
+			"done event is lost (device %s, size %zd)!", dev->virt_name,
+			sizeof(*event_entry) + sizeof(*payload) + len);
+		res = -ENOMEM;
+		goto out;
+	}
+
+	TRACE_MEM("event_entry %p (len %d) allocated", event_entry,
+		event_entry_len);
+
+	event = &event_entry->event;
+
+	event->payload_len = sizeof(*payload) + len;
+	payload = (struct scst_event_ext_blocking_done_payload *)event->payload;
+
+	strlcpy(payload->device_name, dev->virt_name, sizeof(payload->device_name));
+	if (len > 0)
+		memcpy(payload->data, data, len);
+
+	scst_event_queue(SCST_EVENT_EXT_BLOCKING_DONE,
+		SCST_EVENT_SCST_CORE_ISSUER, event_entry);
+	res = 0;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/* No locks */
 int scst_event_queue_tm_fn_received(struct scst_mgmt_cmd *mcmd)
 {
 	int res = 0, event_entry_len;

@@ -176,6 +176,14 @@ static void scst_check_unblock_dev(struct scst_cmd *cmd)
 		}
 	}
 
+	if (unlikely(dev->ext_blocking_pending)) {
+		if (dev->on_dev_cmd_count == 0) {
+			TRACE_MGMT_DBG("Releasing pending dev %s extended "
+				"blocks", dev->virt_name);
+			scst_ext_blocking_done(dev);
+		}
+	}
+
 	spin_unlock_bh(&dev->dev_lock);
 	return;
 }

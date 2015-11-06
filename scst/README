@@ -508,6 +508,8 @@ documentation for your dev handlers for more info about it as well as
 SysfsRules file for more info about common to all dev handlers rules.
 SCST dev handlers can have the following common entries:
 
+ - block - allows to temporary block and unblock this device. See below.
+
  - exported - subdirectory containing links to all LUNs where this
    device was exported.
 
@@ -530,6 +532,35 @@ SCST dev handlers can have the following common entries:
    kernel log.
 
  - type - SCSI type of this device
+
+Attribute "block" allows to temporary block and unblock this device.
+"Blocking" means that no new commands for this device will go into the
+execution stage, but instead will be suspended just before it. The
+blocked state is not reached until queue of the corresponding device is
+completely drained. You can also call this state "frozen". It is useful
+in many cases, like consistent snapshots and graceful shutdown.
+
+On write "block" entry allows the following 3 types of parameters:
+
+ - 1 - block device synchronously, i.e. don't return until this device
+ becomes blocked, i.e. until queue of it is not completely drained. Can
+ be called as many times as needed.
+
+ - 11 params - block device asynchronously, i.e. return immediately.
+ Notification about completing is delivered using SCST_EVENT_EXT_BLOCKING_DONE
+ event. "Params" delivered to it as is in "data" payload. Can be
+ called as many times as needed. Alternatively, status of blocking could be
+ polled by reading this attributes until the second number reaches 0
+ (see below).
+
+ - 0 - unblock this device.
+
+Reading from "block" entry returns two numbers separated by space:
+
+1. How many times this device was blocked, i.e. how many times writing
+"0" to it is needed to unblock this device.
+
+2. Boolean (0 or 1) if blocking, if any, is done (0) or still pending (1).
 
 See below for more information about other entries of this subdirectory
 of the standard SCST dev handlers.
@@ -1257,6 +1288,7 @@ Each vdisk_fileio's device has the following attributes in
 For example:
 
 /sys/kernel/scst_tgt/devices/disk1
+|-- block
 |-- blocksize
 |-- exported
 |   |-- export0 -> ../../../targets/iscsi/iqn.2006-10.net.vlnb:tgt/luns/0

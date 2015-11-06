@@ -2608,6 +2608,20 @@ struct scst_cl_ops {
 };
 
 /*
+ * Extended, e.g. via sysfs, blockers
+ */
+typedef void (*ext_blocker_done_fn_t) (struct scst_device *dev,
+	uint8_t *data, int len);
+
+struct scst_ext_blocker {
+	struct list_head ext_blockers_list_entry;
+
+	ext_blocker_done_fn_t ext_blocker_done_fn;
+	int ext_blocker_data_len;
+	uint8_t ext_blocker_data[];
+};
+
+/*
  * SCST device
  */
 struct scst_device {
@@ -2634,6 +2648,15 @@ struct scst_device {
 	 * their kobj last put.
 	 */
 	unsigned int dev_unregistering:1;
+
+	/*
+	 * Set if ext blocking is pending. It if just shortcut for
+	 * !list_empty(&dev->ext_blockers_list) to save a cache miss.
+	 */
+	unsigned int ext_blocking_pending:1;
+
+	/* Used to serialize invocations of __scst_ext_blocking_done() */
+	unsigned int ext_unblock_scheduled:1;
 
 	/* Set if this device does not support DIF IP checking */
 	unsigned int dev_dif_ip_not_supported:1;
@@ -2857,6 +2880,15 @@ struct scst_device {
 
 	/* List of blocked commands, protected by dev_lock. */
 	struct list_head blocked_cmd_list;
+
+	/* Number of ext blocking requests, protected by dev_lock */
+	int ext_blocks_cnt;
+
+	/* List of ext blockers, protected by dev_lock */
+	struct list_head ext_blockers_list;
+
+	/* Work to notify ext blockers out of dev_lock context */
+	struct work_struct ext_blockers_work;
 
 	/* MAXIMUM WRITE SAME LENGTH in bytes */
 	uint64_t max_write_same_len;
