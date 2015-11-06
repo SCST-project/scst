@@ -1,41 +1,26 @@
-#
-#  SCSI target mid-level makefile
-#
-#  Copyright (C) 2007 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
-#  Copyright (C) 2007 - 2015 SanDisk Corporation
-#
-#  This program is free software; you can redistribute it and/or
-#  modify it under the terms of the GNU General Public License
-#  as published by the Free Software Foundation, version 2
-#  of the License.
-#
-#  This program is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-#  GNU General Public License for more details.
-
 ifndef PREFIX
-        PREFIX=/usr/local
+	PREFIX=/usr/local
 endif
 
 SHELL=/bin/bash
 
-SRCS_F = fileio.c common.c debug.c crc32.c
+SRCS_F = stpgd_main.c debug.c
 OBJS_F = $(SRCS_F:.c=.o)
 
-#SRCS_C = 
+#SRCS_C =
 #OBJS_C = $(SRCS_C:.c=.o)
 
 SCST_INC_DIR := $(shell if [ -e "$$PWD/../../scst" ];			\
                   then echo "$$PWD/../../scst/include";			\
                   else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
 DEBUG_INC_DIR := ../include
-INSTALL_DIR := $(DESTDIR)$(PREFIX)/bin/scst
+INSTALL_DIR := $(DESTDIR)$(PREFIX)/sbin
+ON_STPG := $(DESTDIR)$(PREFIX)/bin/scst/scst_on_stpg
 
 CFLAGS += -O2 -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes \
 	-I$(SCST_INC_DIR) -I$(DEBUG_INC_DIR) -D_GNU_SOURCE -D__USE_FILE_OFFSET64 \
 	-D__USE_LARGEFILE64
-PROGS = fileio_tgt
+PROGS = stpgd
 LIBS = -lpthread
 
 CFLAGS += -DEXTRACHECKS
@@ -45,14 +30,10 @@ CFLAGS += -W -Wno-unused-parameter
 CFLAGS += $(LOCAL_CFLAGS)
 
 #CFLAGS += -DDEBUG_NOMEM
-#CFLAGS += -DDEBUG_SENSE
-#CFLAGS += -DDEBUG_TM_IGNORE
-#CFLAGS += -DDEBUG_TM_IGNORE -DDEBUG_TM_FN_IGNORE
-#CFLAGS += -DDEBUG_TM_IGNORE_ALL
 
 all: $(PROGS)
 
-fileio_tgt: .depend_f $(OBJS_F)
+stpgd: .depend_f $(OBJS_F)
 	$(CC) $(OBJS_F) $(LIBS) $(LOCAL_LD_FLAGS) -o $@
 
 #cdrom_tgt: .depend_c  $(OBJS_C)
@@ -77,7 +58,8 @@ endif
 
 install: all
 	install -d $(INSTALL_DIR)
-	install -m 755 $(PROGS) $(INSTALL_DIR)
+	install -m 700 $(PROGS) $(INSTALL_DIR)
+	install -m 700 scst_on_stpg $(ON_STPG)
 
 uninstall:
 	rm -f $(INSTALL_DIR)/$(PROGS)
@@ -117,6 +99,6 @@ extraclean: clean
 	rm Makefile.aa
 
 release-archive:
-	../../scripts/generate-release-archive fileio_tgt "$$(sed -n 's/^#define[[:blank:]]VERSION_STR[[:blank:]]*\"\([^\"]*\)\".*/\1/p' fileio.c)"
+	../../scripts/generate-release-archive stpgd "$$(sed -n 's/^#define[[:blank:]]VERSION_STR[[:blank:]]*\"\([^\"]*\)\".*/\1/p' stpgd_main.c)"
 
 .PHONY: all install uninstall clean extraclean 2release 2debug 2perf

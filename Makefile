@@ -45,7 +45,7 @@ QLA_DIR=qla2x00t_git/qla2x00-target
 QLA_OLD_INI_DIR=qla2x00t
 QLA_OLD_DIR=qla2x00t/qla2x00-target
 LSI_DIR=mpt
-USR_DIR=usr/fileio
+USR_DIR=usr
 SRP_DIR=srpt
 SCST_LOCAL_DIR=scst_local
 MVSAS_DIR=mvsas_tgt
@@ -129,7 +129,7 @@ help:
 	@echo "		scst_local_install : scst_local target: install"
 	@echo "		scst_local_uninstall : scst_local target: uninstall"
 	@echo ""
-	@echo "		usr               : make user space fileio_tgt target"
+	@echo "		usr               : make user space targets"
 	@echo "		usr_clean         : usr target: clean "
 	@echo "		usr_extraclean    : usr target: clean + clean dependencies"
 	@echo "		usr_install       : usr target: install"

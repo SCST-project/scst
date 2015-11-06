@@ -1,0 +1,9 @@
+This is stpgd service called by the SCST core upon receiving SET TARGET
+PORT GROUPS command via SCST events subsystem. In turn, stpgd calls
+external script to actually modify ALUA state as requested by the SET
+TARGET PORT GROUPS command via cluster manager and SCST sysfs. You can
+find example of such script in scst_on_stpg file.
+
+Reason why such dual stage approach is used is, because there is no way
+from inside the kernel to control execution of external programs and
+there is no way to write a service calling IOCTLs on shell.

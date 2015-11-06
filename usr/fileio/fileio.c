@@ -25,6 +25,7 @@
 #include <stdint.h>
 #include <getopt.h>
 #include <malloc.h>
+#include <stdbool.h>
 #include <inttypes.h>
 #include <signal.h>
 #include <sys/types.h>
@@ -36,7 +37,9 @@
 
 char *app_name;
 
+#include "version.h"
 #include "common.h"
+#include "debug.h"
 
 #if defined(DEBUG) || defined(TRACING)
 
@@ -62,11 +65,11 @@ char *app_name;
 # endif
 #endif /* DEBUG */
 
+bool log_daemon = false;
 unsigned long trace_flag = DEFAULT_LOG_FLAGS;
 #endif /* defined(DEBUG) || defined(TRACING) */
 
 #define DEF_BLOCK_SHIFT		9
-#define VERSION_STR		"3.1.0-pre1"
 #define THREADS			7
 
 #define MAX_VDEVS		10
