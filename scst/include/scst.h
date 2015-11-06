@@ -1428,7 +1428,7 @@ struct scst_dev_type {
 	void (*on_free_cmd)(struct scst_cmd *cmd);
 
 	/*
-	 * Called during EXTENDED COPY command processing to let dev hander
+	 * Called during EXTENDED COPY command processing to let dev handler
 	 * try to remap blocks at first. Upon finish, the dev handler supposed
 	 * to call scst_ext_copy_remap_done(). See description of this
 	 * function for more details.

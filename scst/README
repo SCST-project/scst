@@ -1881,7 +1881,7 @@ backend storage, which supposed to be nearly instantaneous.
 
 To use this feature, a dev handler should setup ext_copy_remap()
 callback in its struct scst_dev_type. This callback is called by SCST
-during EXTENDED COPY command processing to let the dev hander try to
+during EXTENDED COPY command processing to let the dev handler try to
 remap affected blocks at first.
 
 Upon finish, the dev handler should call scst_ext_copy_remap_done(). In
