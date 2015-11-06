@@ -3139,12 +3139,16 @@ static ssize_t scst_dev_sysfs_pr_file_name_store(struct kobject *kobj,
 {
 	struct scst_sysfs_work_item *work;
 	struct scst_device *dev;
-	char *pr_file_name, *p;
-	int res = -ENOMEM;
+	char *pr_file_name = NULL, *p;
+	int res = -EPERM;
 	bool def = false;
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
+	if (dev->cluster_mode)
+		goto out;
+
+	res = -ENOMEM;
 	pr_file_name = kasprintf(GFP_KERNEL, "%.*s", (int)count, buf);
 	if (!pr_file_name) {
 		PRINT_ERROR("Unable to kasprintf() PR file name");

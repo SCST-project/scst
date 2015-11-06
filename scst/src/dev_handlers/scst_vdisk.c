@@ -396,6 +396,10 @@ static ssize_t vdisk_sysfs_removable_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdev_sysfs_filename_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
+static ssize_t vdev_sysfs_cluster_mode_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
+static ssize_t vdev_sysfs_cluster_mode_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count);
 static ssize_t vdisk_sysfs_resync_size_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count);
 static ssize_t vdisk_sysfs_sync_store(struct kobject *kobj,
@@ -483,6 +487,9 @@ static struct kobj_attribute vdisk_removable_attr =
 	__ATTR(removable, S_IRUGO, vdisk_sysfs_removable_show, NULL);
 static struct kobj_attribute vdisk_filename_attr =
 	__ATTR(filename, S_IRUGO, vdev_sysfs_filename_show, NULL);
+static struct kobj_attribute vdisk_cluster_mode_attr =
+	__ATTR(cluster_mode, S_IWUSR|S_IRUGO, vdev_sysfs_cluster_mode_show,
+	       vdev_sysfs_cluster_mode_store);
 static struct kobj_attribute vdisk_resync_size_attr =
 	__ATTR(resync_size, S_IWUSR, NULL, vdisk_sysfs_resync_size_store);
 static struct kobj_attribute vdisk_sync_attr =
@@ -540,6 +547,7 @@ static const struct attribute *vdisk_fileio_attrs[] = {
 	&vdisk_o_direct_attr.attr,
 	&vdisk_removable_attr.attr,
 	&vdisk_filename_attr.attr,
+	&vdisk_cluster_mode_attr.attr,
 	&vdisk_resync_size_attr.attr,
 	&vdisk_sync_attr.attr,
 	&vdev_t10_vend_id_attr.attr,
@@ -567,6 +575,7 @@ static const struct attribute *vdisk_blockio_attrs[] = {
 	&vdisk_removable_attr.attr,
 	&vdisk_rotational_attr.attr,
 	&vdisk_filename_attr.attr,
+	&vdisk_cluster_mode_attr.attr,
 	&vdisk_resync_size_attr.attr,
 	&vdisk_sync_attr.attr,
 	&vdev_t10_vend_id_attr.attr,
@@ -680,6 +689,7 @@ static struct scst_dev_type vdisk_file_devtype = {
 		"filename, "
 		"nv_cache, "
 		"o_direct, "
+		"cluster_mode, "
 		"read_only, "
 		"removable, "
 		"rotational, "
@@ -734,6 +744,7 @@ static struct scst_dev_type vdisk_blk_devtype = {
 		"dif_filename, "
 		"filename, "
 		"nv_cache, "
+		"cluster_mode, "
 		"read_only, "
 		"removable, "
 		"rotational, "
@@ -1648,6 +1659,9 @@ next:
 	if (vdev_saved_mode_pages_enabled)
 		vdev_load_mode_pages(virt_dev);
 
+	res = scst_pr_set_cluster_mode(dev, dev->cluster_mode,
+				       virt_dev->t10_dev_id);
+
 out:
 	TRACE_EXIT();
 	return res;
@@ -1663,6 +1677,8 @@ static void vdisk_detach(struct scst_device *dev)
 	lockdep_assert_held(&scst_mutex);
 
 	TRACE_DBG("virt_id %d", dev->virt_id);
+
+	scst_pr_set_cluster_mode(dev, false, virt_dev->t10_dev_id);
 
 	PRINT_INFO("Detached virtual device %s (\"%s\")",
 		      virt_dev->name, vdev_get_filename(virt_dev));
@@ -4437,14 +4453,16 @@ static int vdisk_ctrl_m_pg(unsigned char *p, int pcontrol,
 	 */
 		p[2] |= 7 << 5;		/* TST */
 #endif
-		p[2] |= 1 << 2;		/* D_SENSE */
-		p[2] |= 1 << 3;		/* DPICZ */
-		p[2] |= 1 << 4;		/* TMF_ONLY */
-		p[3] |= 0xF << 4;	/* QUEUE ALGORITHM MODIFIER */
-		p[3] |= 3 << 1;		/* QErr */
-		p[4] |= 1 << 3;		/* SWP */
-		p[5] |= 1 << 6;		/* TAS */
-		p[5] |= 0 << 7;		/* ATO */
+		if (!virt_dev->dev->cluster_mode) {
+			p[2] |= 1 << 2;		/* D_SENSE */
+			p[2] |= 1 << 3;		/* DPICZ */
+			p[2] |= 1 << 4;		/* TMF_ONLY */
+			p[3] |= 0xF << 4;	/* QUEUE ALGORITHM MODIFIER */
+			p[3] |= 3 << 1;		/* QErr */
+			p[4] |= 1 << 3;		/* SWP */
+			p[5] |= 1 << 6;		/* TAS */
+			p[5] |= 0 << 7;		/* ATO */
+		}
 		break;
 	case 2: /* default */
 		p[2] |= virt_dev->tst << 5;
@@ -4920,6 +4938,13 @@ static enum compl_status_e vdisk_exec_mode_select(struct vdisk_cmd_params *p)
 	TRACE_ENTRY();
 
 	virt_dev = cmd->dev->dh_priv;
+	if (cmd->dev->cluster_mode) {
+		PRINT_ERROR("MODE SELECT: not supported in cluster mode\n");
+		scst_set_cmd_error(cmd,
+			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		goto out;
+	}
+
 	mselect_6 = (MODE_SELECT == cmd->cdb[0]);
 	type = cmd->dev->type;
 
@@ -8810,6 +8835,104 @@ out:
 	return res;
 }
 
+static ssize_t vdev_sysfs_cluster_mode_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct scst_device *dev = container_of(kobj, struct scst_device,
+					       dev_kobj);
+
+	return sprintf(buf, "%d\n%s", dev->cluster_mode,
+		       dev->cluster_mode ?
+		       SCST_SYSFS_KEY_MARK "\n" : "");
+}
+
+static int vdev_sysfs_process_cluster_mode_store(
+	struct scst_sysfs_work_item *work)
+{
+	struct scst_device *dev = work->dev;
+	struct scst_vdisk_dev *virt_dev;
+	long clm;
+	int res;
+
+	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
+	if (res)
+		goto out;
+
+	res = mutex_lock_interruptible(&scst_mutex);
+	if (res)
+		goto resume;
+
+	/*
+	 * This is safe since we hold a reference on dev_kobj and since
+	 * scst_assign_dev_handler() waits until all dev_kobj references
+	 * have been dropped before invoking .detach().
+	 */
+	virt_dev = dev->dh_priv;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+	res = kstrtol(work->buf, 0, &clm);
+#else
+	res = strict_strtol(work->buf, 0, &clm);
+#endif
+	if (res)
+		goto unlock;
+	res = -EINVAL;
+	if (clm < 0 || clm > 1)
+		goto unlock;
+	if (clm != dev->cluster_mode) {
+		res = scst_pr_set_cluster_mode(dev, clm, virt_dev->t10_dev_id);
+		if (res)
+			goto unlock;
+		dev->cluster_mode = clm;
+	} else {
+		res = 0;
+	}
+
+unlock:
+	mutex_unlock(&scst_mutex);
+
+resume:
+	scst_resume_activity();
+
+out:
+	kobject_put(&dev->dev_kobj);
+
+	return res;
+}
+
+static ssize_t vdev_sysfs_cluster_mode_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	struct scst_device *dev = container_of(kobj, struct scst_device,
+					       dev_kobj);
+	struct scst_sysfs_work_item *work;
+	char *arg;
+	int res;
+
+	TRACE_ENTRY();
+
+	res = -ENOMEM;
+	arg = kasprintf(GFP_KERNEL, "%.*s", (int)count, buf);
+	if (!arg)
+		goto out;
+
+	res = scst_alloc_sysfs_work(vdev_sysfs_process_cluster_mode_store,
+				    false, &work);
+	if (res)
+		goto out;
+	work->dev = dev;
+	swap(work->buf, arg);
+	kobject_get(&dev->dev_kobj);
+	res = scst_sysfs_queue_wait_work(work);
+	if (res)
+		goto out;
+	res = count;
+
+out:
+	kfree(arg);
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 static int vdisk_sysfs_process_resync_size_store(
 	struct scst_sysfs_work_item *work)
 {
@@ -9165,6 +9288,10 @@ static ssize_t vdev_sysfs_t10_dev_id_store(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
 
+	res = -EPERM;
+	if (dev->cluster_mode)
+		goto out;
+
 	write_lock(&vdisk_serial_rwlock);
 
 	if ((count > sizeof(virt_dev->t10_dev_id)) ||
@@ -9198,6 +9325,7 @@ static ssize_t vdev_sysfs_t10_dev_id_store(struct kobject *kobj,
 out_unlock:
 	write_unlock(&vdisk_serial_rwlock);
 
+out:
 	TRACE_EXIT_RES(res);
 	return res;
 }

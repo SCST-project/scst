@@ -2379,6 +2379,7 @@ static int scst_reserve_local(struct scst_cmd *cmd)
 {
 	int res = SCST_EXEC_NOT_COMPLETED;
 	struct scst_device *dev;
+	struct scst_lksb pr_lksb;
 
 	TRACE_ENTRY();
 
@@ -2419,14 +2420,14 @@ static int scst_reserve_local(struct scst_cmd *cmd)
 		}
 	}
 
-	spin_lock_bh(&dev->dev_lock);
+	scst_res_lock(dev, &pr_lksb);
 	if (scst_is_not_reservation_holder(dev, cmd->sess)) {
-		spin_unlock_bh(&dev->dev_lock);
+		scst_res_unlock(dev, &pr_lksb);
 		scst_set_cmd_error_status(cmd, SAM_STAT_RESERVATION_CONFLICT);
 		goto out_done;
 	}
 	scst_reserve_dev(dev, cmd->sess);
-	spin_unlock_bh(&dev->dev_lock);
+	scst_res_unlock(dev, &pr_lksb);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -2446,6 +2447,7 @@ static int scst_release_local(struct scst_cmd *cmd)
 {
 	int res = SCST_EXEC_NOT_COMPLETED;
 	struct scst_device *dev;
+	struct scst_lksb pr_lksb;
 
 	TRACE_ENTRY();
 
@@ -2466,7 +2468,7 @@ static int scst_release_local(struct scst_cmd *cmd)
 		}
 	}
 
-	spin_lock_bh(&dev->dev_lock);
+	scst_res_lock(dev, &pr_lksb);
 
 	/*
 	 * The device could be RELEASED behind us, if RESERVING session
@@ -2489,7 +2491,7 @@ static int scst_release_local(struct scst_cmd *cmd)
 		scst_clear_dev_reservation(dev);
 	}
 
-	spin_unlock_bh(&dev->dev_lock);
+	scst_res_unlock(dev, &pr_lksb);
 
 	if (res == SCST_EXEC_COMPLETED)
 		goto out_done;
@@ -2616,6 +2618,7 @@ static int scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 	int action;
 	uint8_t *buffer;
 	int buffer_size;
+	struct scst_lksb pr_lksb;
 	bool aborted = false;
 
 	TRACE_ENTRY();
@@ -2651,7 +2654,7 @@ static int scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 	if (unlikely(buffer_size <= 0))
 		goto out_done;
 
-	scst_pr_write_lock(dev);
+	dev->cl_ops->pr_write_lock(dev, &pr_lksb);
 
 	/*
 	 * Check if tgt_dev already registered. Also by this check we make
@@ -2742,7 +2745,7 @@ static int scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 		res = SCST_EXEC_NOT_COMPLETED;
 
 out_unlock:
-	scst_pr_write_unlock(dev);
+	dev->cl_ops->pr_write_unlock(dev, &pr_lksb);
 
 	scst_put_buf_full(cmd, buffer);
 
@@ -2816,7 +2819,7 @@ int __scst_check_local_events(struct scst_cmd *cmd, bool preempt_tests_only)
 	}
 
 	if (!preempt_tests_only) {
-		if (dev->pr_is_set) {
+		if (dev->cl_ops->pr_is_set(dev)) {
 			if (unlikely(!scst_pr_is_cmd_allowed(cmd))) {
 				scst_set_cmd_error_status(cmd,
 					SAM_STAT_RESERVATION_CONFLICT);
@@ -5980,14 +5983,15 @@ static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 	list_for_each_entry(acg_dev, &acg->acg_dev_list, acg_dev_list_entry) {
 		struct scst_device *d;
 		struct scst_tgt_dev *tgt_dev;
+		struct scst_lksb pr_lksb;
 		int found = 0;
 
 		dev = acg_dev->dev;
 
-		spin_lock_bh(&dev->dev_lock);
+		scst_res_lock(dev, &pr_lksb);
 		scst_block_dev(dev);
 		scst_process_reset(dev, mcmd->sess, NULL, mcmd, true);
-		spin_unlock_bh(&dev->dev_lock);
+		scst_res_unlock(dev, &pr_lksb);
 
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 				dev_tgt_dev_list_entry) {
@@ -6076,6 +6080,7 @@ static int scst_lun_reset(struct scst_mgmt_cmd *mcmd)
 	int res, rc;
 	struct scst_tgt_dev *tgt_dev = mcmd->mcmd_tgt_dev;
 	struct scst_device *dev = tgt_dev->dev;
+	struct scst_lksb pr_lksb;
 
 	TRACE_ENTRY();
 
@@ -6084,10 +6089,10 @@ static int scst_lun_reset(struct scst_mgmt_cmd *mcmd)
 
 	mcmd->needs_unblocking = 1;
 
-	spin_lock_bh(&dev->dev_lock);
+	scst_res_lock(dev, &pr_lksb);
 	scst_block_dev(dev);
 	scst_process_reset(dev, mcmd->sess, NULL, mcmd, true);
-	spin_unlock_bh(&dev->dev_lock);
+	scst_res_unlock(dev, &pr_lksb);
 
 	scst_call_dev_task_mgmt_fn_received(mcmd, tgt_dev);
 

@@ -170,6 +170,9 @@ extern struct list_head scst_dev_type_list;
 extern struct list_head scst_virtual_dev_type_list;
 extern wait_queue_head_t scst_dev_cmd_waitQ;
 
+extern const struct scst_cl_ops scst_no_dlm_cl_ops;
+extern const struct scst_cl_ops scst_dlm_cl_ops;
+
 #ifdef CONFIG_SCST_PROC
 extern struct list_head scst_acg_list;
 extern struct scst_acg *scst_default_acg;
@@ -398,6 +401,19 @@ void scst_free_session_callback(struct scst_session *sess);
 
 void scst_check_retries(struct scst_tgt *tgt);
 
+static inline int scst_dlm_new_lockspace(const char *name, int namelen,
+					 dlm_lockspace_t **lockspace,
+					 uint32_t flags,
+					 int lvblen)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 3, 0)
+	return dlm_new_lockspace(name, namelen, lockspace, flags, lvblen);
+#else
+	return dlm_new_lockspace(name, NULL, flags, lvblen, NULL, NULL, NULL,
+				 lockspace);
+#endif
+}
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
 static inline int scst_exec_req(struct scsi_device *sdev,
 	const unsigned char *cmd, int cmd_len, int data_direction,
@@ -599,7 +615,23 @@ void scst_acn_sysfs_del(struct scst_acn *acn);
  */
 static inline bool scst_dev_reserved(struct scst_device *dev)
 {
-	return dev->reserved_by;
+	return dev->cl_ops->reserved(dev);
+}
+
+
+/* Protect SPC-2 reservation state against concurrent modifications. */
+static inline void scst_res_lock(struct scst_device *dev,
+				 struct scst_lksb *pr_lksb)
+	__acquires(&dev->dev_lock)
+{
+	dev->cl_ops->res_lock(dev, pr_lksb);
+}
+
+static inline void scst_res_unlock(struct scst_device *dev,
+				   struct scst_lksb *pr_lksb)
+	__releases(&dev->dev_lock)
+{
+	dev->cl_ops->res_unlock(dev, pr_lksb);
 }
 
 /*
@@ -610,7 +642,7 @@ static inline bool scst_is_reservation_holder(struct scst_device *dev,
 					      struct scst_session *sess)
 {
 	EXTRACHECKS_BUG_ON(sess == NULL);
-	return dev->reserved_by == sess;
+	return dev->cl_ops->is_rsv_holder(dev, sess);
 }
 
 /*
@@ -620,23 +652,22 @@ static inline bool scst_is_reservation_holder(struct scst_device *dev,
 static inline bool scst_is_not_reservation_holder(struct scst_device *dev,
 						  struct scst_session *sess)
 {
-	struct scst_session *reserved_by = dev->reserved_by;
-
 	EXTRACHECKS_BUG_ON(sess == NULL);
-	return reserved_by != NULL && reserved_by != sess;
+	return dev->cl_ops->is_not_rsv_holder(dev, sess);
 }
 
 static inline void scst_reserve_dev(struct scst_device *dev,
 				    struct scst_session *sess)
 {
+	lockdep_assert_held(&dev->dev_lock);
 	EXTRACHECKS_BUG_ON(sess == NULL);
-	dev->reserved_by = sess;
+	dev->cl_ops->reserve(dev, sess);
 }
 
 static inline void scst_clear_dev_reservation(struct scst_device *dev)
 {
 	lockdep_assert_held(&dev->dev_lock);
-	dev->reserved_by = NULL;
+	dev->cl_ops->reserve(dev, NULL);
 }
 
 void scst_tgt_dev_del_free_UA(struct scst_tgt_dev *tgt_dev,

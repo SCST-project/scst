@@ -6090,17 +6090,18 @@ out:
 static void scst_clear_reservation(struct scst_tgt_dev *tgt_dev)
 {
 	struct scst_device *dev = tgt_dev->dev;
+	struct scst_lksb pr_lksb;
 	int release = 0;
 
 	TRACE_ENTRY();
 
-	spin_lock_bh(&dev->dev_lock);
+	scst_res_lock(dev, &pr_lksb);
 	if (scst_is_reservation_holder(dev, tgt_dev->sess)) {
 		/* This is one who holds the reservation */
 		scst_clear_dev_reservation(dev);
 		release = 1;
 	}
-	spin_unlock_bh(&dev->dev_lock);
+	scst_res_unlock(dev, &pr_lksb);
 
 	if (release)
 		scst_send_release(dev);
@@ -11729,11 +11730,12 @@ static bool __scst_dev_check_set_UA(struct scst_device *dev,
 void scst_dev_check_set_UA(struct scst_device *dev,
 	struct scst_cmd *exclude, const uint8_t *sense, int sense_len)
 {
+	struct scst_lksb lksb;
 	bool rc;
 
-	spin_lock_bh(&dev->dev_lock);
+	scst_res_lock(dev, &lksb);
 	rc = __scst_dev_check_set_UA(dev, exclude, sense, sense_len);
-	spin_unlock_bh(&dev->dev_lock);
+	scst_res_unlock(dev, &lksb);
 
 	if (rc)
 		scst_unblock_aborted_cmds(NULL, NULL, dev, false);
@@ -12480,6 +12482,7 @@ void scst_reassign_retained_sess_states(struct scst_session *new_sess,
 	list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
 		struct scst_tgt_dev *tgt_dev;
 		struct scst_tgt_dev *new_tgt_dev = NULL, *old_tgt_dev = NULL;
+		struct scst_lksb pr_lksb;
 
 		TRACE_DBG("Processing dev %s", dev->virt_name);
 
@@ -12506,11 +12509,13 @@ void scst_reassign_retained_sess_states(struct scst_session *new_sess,
 
 		/** Reassign regular reservations **/
 
+		scst_res_lock(dev, &pr_lksb);
 		if (scst_is_reservation_holder(dev, old_sess)) {
 			scst_reserve_dev(dev, new_sess);
 			TRACE_DBG("Reservation reassigned from old_tgt_dev %p "
 				"to new_tgt_dev %p", old_tgt_dev, new_tgt_dev);
 		}
+		scst_res_unlock(dev, &pr_lksb);
 
 		/** Reassign PRs **/
 

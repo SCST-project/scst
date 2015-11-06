@@ -38,6 +38,7 @@
 #include <linux/interrupt.h>
 #include <linux/wait.h>
 #include <linux/cpumask.h>
+#include <linux/dlm.h>
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 #include <linux/log2.h>
 #endif
@@ -1991,6 +1992,18 @@ struct scst_cmd_threads {
 int scst_set_thr_cpu_mask(struct scst_cmd_threads *cmd_threads,
 			  cpumask_t *cpu_mask);
 
+struct scst_pr_dlm_data;
+
+/*
+ * DLM lock status block with completion for notifying completion of
+ * synchronous DLM lock operations.
+ */
+struct scst_lksb {
+	struct dlm_lksb  lksb;
+	struct completion compl;
+	struct scst_pr_dlm_data *pr_dlm;
+};
+
 /*
  * Used to execute cmd's in order of arrival, honoring SCSI task attributes
  */
@@ -2545,6 +2558,53 @@ struct scst_dev_registrant {
 	/* 2 auxiliary fields used to rollback changes for errors, etc. */
 	struct list_head aux_list_entry;
 	__be64 rollback_key;
+
+	/* For registrant information managed via the DLM. */
+	int dlm_idx;
+	struct scst_lksb lksb;
+	char lvb[PR_DLM_LVB_LEN];
+};
+
+/**
+ * struct scst_cl_ops - Encapsulation of behavior that depends on cluster mode
+ * @pr_init:         Initialize resources needed by one of the functions below.
+ * @pr_cleanup:      Free resources allocated by one of the functions below.
+ * @pr_is_set:       Whether or not one of the registrants holds a reservation.
+ * @pr_init_reg:     Cluster-specific registrant initialization.
+ * @pr_rm_reg:       Cluster-specific registrant cleanup.
+ * @pr_write_lock:   Lock the PR data structures for write access.
+ * @pr_write_unlock: Unlock the PR data structures for write access.
+ * @reserved:        Whether an initiator holds an SPC-2 reservation.
+ * @res_lock:        Protect the SPC-2 reservation state against concurrent
+ *                   modifications.
+ * @res_unlock:      Counterpart of @res_lock.
+ * @is_rsv_holder:   Whether session @sess holds an SPC-2 reservation on @dev.
+ * @is_not_rsv_holder: Whether another session than @sess holds an SPC-2
+ *                   reservation on @dev.
+ * @reserve:         Apply an SPC-2 reservation for session @sess on @dev if
+ *                   @sess != NULL or clear that reservation if @ses == NULL.
+ */
+struct scst_cl_ops {
+	int  (*pr_init)(struct scst_device *dev, const char *cl_dev_id);
+	void (*pr_cleanup)(struct scst_device *dev);
+	bool (*pr_is_set)(struct scst_device *dev);
+	void (*pr_init_reg)(struct scst_device *dev,
+			    struct scst_dev_registrant *reg);
+	void (*pr_rm_reg)(struct scst_device *dev,
+			  struct scst_dev_registrant *reg);
+	void (*pr_write_lock)(struct scst_device *dev,
+			      struct scst_lksb *pr_lksb);
+	void (*pr_write_unlock)(struct scst_device *dev,
+				struct scst_lksb *pr_lksb);
+
+	bool (*reserved)(struct scst_device *dev);
+	void (*res_lock)(struct scst_device *dev, struct scst_lksb *pr_lksb);
+	void (*res_unlock)(struct scst_device *dev, struct scst_lksb *pr_lksb);
+	bool (*is_rsv_holder)(struct scst_device *dev,
+			      struct scst_session *sess);
+	bool (*is_not_rsv_holder)(struct scst_device *dev,
+				  struct scst_session *sess);
+	void (*reserve)(struct scst_device *dev, struct scst_session *sess);
 };
 
 /*
@@ -2725,6 +2785,9 @@ struct scst_device {
 	/* Set if reserved via the SPC-2 SCSI RESERVE command. */
 	struct scst_session *reserved_by;
 
+	/* Operations that depend on whether or not cluster mode is enabled */
+	const struct scst_cl_ops *cl_ops;
+
 	/**********************************************************************
 	 * Persistent reservation fields. Protected as follows:
 	 * - Reading PR data must be protected via scst_pr_read_lock() /
@@ -2745,11 +2808,20 @@ struct scst_device {
 	/* Whether or not pr_file_name has been modified via sysfs. */
 	unsigned int pr_file_name_is_set:1;
 
+	/*
+	 * Whether or not the PR state must be synchronized with other cluster
+	 * nodes.
+	 */
+	unsigned int cluster_mode:1;
+
 	/* Persistent reservation type */
 	uint8_t pr_type;
 
 	/* Persistent reservation scope */
 	uint8_t pr_scope;
+
+	/* Data structures for managing PR data via the DLM */
+	struct scst_pr_dlm_data *pr_dlm;
 
 	/* Mutex to protect PR operations */
 	struct mutex dev_pr_mutex;
@@ -5404,5 +5476,10 @@ int scst_write_file_transactional(const char *name, const char *name1,
 void scst_path_put(struct nameidata *nd);
 #endif
 int scst_remove_file(const char *name);
+
+int scst_pr_set_cluster_mode(struct scst_device *dev, bool cluster_mode,
+	const char *cl_dev_id);
+int scst_pr_init_dev(struct scst_device *dev);
+void scst_pr_clear_dev(struct scst_device *dev);
 
 #endif /* __SCST_H */

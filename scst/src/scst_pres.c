@@ -88,7 +88,7 @@ static inline void scst_assert_pr_mutex_held(struct scst_device *dev)
 }
 #endif
 
-static inline int scst_tid_size(const uint8_t *tid)
+int scst_tid_size(const uint8_t *tid)
 {
 	sBUG_ON(tid == NULL);
 
@@ -185,7 +185,7 @@ out_error:
 }
 
 /* Must be called under dev_pr_mutex */
-static inline void scst_pr_set_holder(struct scst_device *dev,
+void scst_pr_set_holder(struct scst_device *dev,
 	struct scst_dev_registrant *holder, uint8_t scope, uint8_t type)
 {
 	scst_assert_pr_mutex_held(dev);
@@ -336,7 +336,7 @@ static void scst_pr_find_registrants_list_key(struct scst_device *dev,
 }
 
 /* dev_pr_mutex must be locked */
-static struct scst_dev_registrant *scst_pr_find_reg(
+struct scst_dev_registrant *scst_pr_find_reg(
 	struct scst_device *dev, const uint8_t *transport_id,
 	const uint16_t rel_tgt_id)
 {
@@ -379,7 +379,7 @@ static void scst_pr_clear_reservation(struct scst_device *dev)
 }
 
 /* Must be called under dev_pr_mutex */
-static void scst_pr_clear_holder(struct scst_device *dev)
+void scst_pr_clear_holder(struct scst_device *dev)
 {
 	TRACE_ENTRY();
 
@@ -401,7 +401,7 @@ static void scst_pr_clear_holder(struct scst_device *dev)
 }
 
 /* Must be called under dev_pr_mutex */
-static struct scst_dev_registrant *scst_pr_add_registrant(
+struct scst_dev_registrant *scst_pr_add_registrant(
 	struct scst_device *dev, const uint8_t *transport_id,
 	const uint16_t rel_tgt_id, __be64 key,
 	bool dev_lock_locked)
@@ -440,6 +440,8 @@ static struct scst_dev_registrant *scst_pr_add_registrant(
 		PRINT_ERROR("%s", "Unable to allocate registration record");
 		goto out;
 	}
+
+	dev->cl_ops->pr_init_reg(dev, reg);
 
 	reg->transport_id = kmemdup(transport_id, scst_tid_size(transport_id),
 				    gfp_flags);
@@ -496,7 +498,7 @@ out_free:
 }
 
 /* Must be called under dev_pr_mutex */
-static void scst_pr_remove_registrant(struct scst_device *dev,
+void scst_pr_remove_registrant(struct scst_device *dev,
 	struct scst_dev_registrant *reg)
 {
 	TRACE_ENTRY();
@@ -509,6 +511,8 @@ static void scst_pr_remove_registrant(struct scst_device *dev,
 		dev->virt_name);
 
 	list_del(&reg->dev_registrants_list_entry);
+
+	dev->cl_ops->pr_rm_reg(dev, reg);
 
 	if (scst_pr_is_holder(dev, reg))
 		scst_pr_clear_holder(dev);
@@ -1142,6 +1146,7 @@ out:
 int scst_pr_init(struct scst_device *dev)
 {
 	mutex_init(&dev->dev_pr_mutex);
+	dev->cl_ops = &scst_no_dlm_cl_ops;
 	dev->pr_generation = 0;
 	dev->pr_is_set = 0;
 	dev->pr_holder = NULL;
@@ -1155,7 +1160,40 @@ int scst_pr_init(struct scst_device *dev)
 /* Free the resources allocated by scst_pr_init().  */
 void scst_pr_cleanup(struct scst_device *dev)
 {
+	dev->cl_ops->pr_cleanup(dev);
 }
+
+/* Caller must hold scst_mutex and activity must be suspended. */
+int scst_pr_set_cluster_mode(struct scst_device *dev, bool cluster_mode,
+			     const char *cl_dev_id)
+{
+	bool cluster_mode_enabled = false;
+	int res = 0;
+
+#if defined(CONFIG_DLM) || defined(CONFIG_DLM_MODULE)
+	cluster_mode_enabled = dev->cl_ops == &scst_dlm_cl_ops;
+
+	if (cluster_mode_enabled == cluster_mode)
+		goto out;
+
+	PRINT_INFO("%s: changing cluster_mode from %d into %d", dev->virt_name,
+		   cluster_mode_enabled, cluster_mode);
+	dev->cl_ops->pr_cleanup(dev);
+	dev->cl_ops = cluster_mode ? &scst_dlm_cl_ops : &scst_no_dlm_cl_ops;
+	res = dev->cl_ops->pr_init(dev, cl_dev_id);
+	if (res) {
+		PRINT_ERROR("%s: changing cluster_mode into %d failed: %d",
+			    dev->virt_name, cluster_mode, res);
+		dev->cl_ops = &scst_no_dlm_cl_ops;
+	}
+#else
+	res = cluster_mode ? -ENOTSUPP : 0;
+#endif
+
+out:
+	return res;
+}
+EXPORT_SYMBOL(scst_pr_set_cluster_mode);
 
 /* Must be called under dev_pr_mutex or before dev is on the device list. */
 int scst_pr_init_dev(struct scst_device *dev)

@@ -735,4 +735,8 @@ enum {
 	E_TGT_PRIV_NOT_YET_SET = EBUSY
 };
 
+/* Size of the lock value block in the DLM PR lockspace */
+#define PR_DLM_LVB_LEN 256
+
+
 #endif /* __SCST_CONST_H */
