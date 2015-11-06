@@ -1298,7 +1298,8 @@ unlock_ls:
 	mutex_unlock(&pr_dlm->ls_mutex);
 }
 
-static struct workqueue_struct *create_st_wq(const char *fmt, ...)
+static struct workqueue_struct *__printf(1, 2)
+create_st_wq(const char *fmt, ...)
 {
 	struct workqueue_struct *wq = NULL;
 	va_list ap;
