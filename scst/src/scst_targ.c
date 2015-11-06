@@ -4492,6 +4492,7 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 					"unexisting LU (initiator %s, target %s)?",
 					(unsigned long long int)cmd->lun,
 					cmd->sess->initiator_name, cmd->tgt->tgt_name);
+				scst_event_queue_lun_not_found(cmd);
 			}
 			scst_put(cmd->cpu_cmd_counter);
 		}
@@ -5966,6 +5967,8 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 	}
 
 out:
+	scst_event_queue_tm_fn_received(mcmd);
+
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -7100,6 +7103,9 @@ bool scst_initiator_has_luns(struct scst_tgt *tgt, const char *initiator_name)
 	acg = __scst_find_acg(tgt, initiator_name);
 
 	res = !list_empty(&acg->acg_dev_list);
+
+	if (!res)
+		scst_event_queue_negative_luns_inquiry(tgt, initiator_name);
 
 	mutex_unlock(&scst_mutex);
 
