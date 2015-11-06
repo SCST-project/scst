@@ -69,11 +69,31 @@ static int open_dev_fd(struct vdisk_dev *dev)
 	return res;
 }
 
-static inline void set_cmd_error_status(struct scst_user_scsi_cmd_reply_exec *reply,
+static void set_resp_data_len(struct vdisk_cmd *vcmd, int32_t resp_data_len)
+{
+	struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
+
+	TRACE_ENTRY();
+
+	if (vcmd->may_need_to_free_pbuf && (resp_data_len == 0)) {
+		struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
+		free((void *)(unsigned long)cmd->pbuf);
+		cmd->pbuf = 0;
+		reply->pbuf = 0;
+	}
+
+	reply->resp_data_len = resp_data_len;
+
+	TRACE_EXIT();
+	return;
+}
+
+static inline void set_cmd_error_status(struct vdisk_cmd *vcmd,
 	int status)
 {
+	struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
 	reply->status = status;
-	reply->resp_data_len = 0;
+	set_resp_data_len(vcmd, 0);
 	return;
 }
 
@@ -108,7 +128,7 @@ void set_cmd_error(struct vdisk_cmd *vcmd, int key, int asc, int ascq)
 
 	EXTRACHECKS_BUG_ON(vcmd->cmd->subcode != SCST_USER_EXEC);
 
-	set_cmd_error_status(reply, SAM_STAT_CHECK_CONDITION);
+	set_cmd_error_status(vcmd, SAM_STAT_CHECK_CONDITION);
 	reply->sense_len = set_sense(vcmd->sense, sizeof(vcmd->sense), key,
 		asc, ascq);
 	reply->psense_buffer = (unsigned long)vcmd->sense;
@@ -117,11 +137,11 @@ void set_cmd_error(struct vdisk_cmd *vcmd, int key, int asc, int ascq)
 	return;
 }
 
-void set_busy(struct scst_user_scsi_cmd_reply_exec *reply)
+void set_busy(struct vdisk_cmd *vcmd)
 {
 	TRACE_ENTRY();
 
-	set_cmd_error_status(reply, SAM_STAT_TASK_SET_FULL);
+	set_cmd_error_status(vcmd, SAM_STAT_TASK_SET_FULL);
 	TRACE_MGMT_DBG("%s", "Sending QUEUE_FULL status");
 
 	TRACE_EXIT();
@@ -212,6 +232,9 @@ static int do_exec(struct vdisk_cmd *vcmd)
 
 	TRACE_ENTRY();
 
+	/* Must be reinitialized each time to avoid crash on stale value */
+	vcmd->may_need_to_free_pbuf = 0;
+
 	switch(cmd->queue_type) {
 	case SCST_CMD_QUEUE_ORDERED:
 		TRACE(TRACE_ORDER, "ORDERED cmd_h %d", vcmd->cmd->cmd_h);
@@ -251,6 +274,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 		else
 #endif
 			cmd->pbuf = (unsigned long)dev->alloc_fn(cmd->alloc_len);
+		vcmd->may_need_to_free_pbuf = 1;
 		TRACE_MEM("Buf %"PRIx64" alloced, len %d", cmd->pbuf,
 			cmd->alloc_len);
 		reply->pbuf = cmd->pbuf;
@@ -258,7 +282,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 			TRACE(TRACE_OUT_OF_MEM, "Unable to allocate buffer "
 				"(len %d)", cmd->alloc_len);
 #ifndef DEBUG_NOMEM
-			set_busy(reply);
+			set_busy(vcmd);
 #endif
 			goto out;
 		}
@@ -524,6 +548,49 @@ static int do_on_free_cmd(struct vdisk_cmd *vcmd)
 	return res;
 }
 
+#ifdef DEBUG_EXT_COPY_REMAP
+static int do_ext_copy_remap(struct vdisk_cmd *vcmd)
+{
+	struct scst_user_get_cmd *cmd = vcmd->cmd;
+	struct scst_user_ext_copy_remap *rcmd = &cmd->remap_cmd;
+	struct scst_user_reply_cmd *reply = vcmd->reply;
+	struct scst_user_ext_copy_reply_remap *rreply = &reply->remap_reply;
+	static struct scst_user_ext_copy_data_descr d[1];
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("Ext copy remap cmd %d", cmd->cmd_h);
+
+	memset(reply, 0, sizeof(*reply));
+	reply->cmd_h = cmd->cmd_h;
+	reply->subcode = cmd->subcode;
+
+	memset(rreply, 0, sizeof(*rreply));
+
+	/* It's only a debug code, so it's OK to use static descr */
+
+	memset(d, 0, sizeof(d));
+
+	d[0].data_len = rcmd->data_descr.data_len;
+	d[0].src_lba = rcmd->data_descr.src_lba;
+	d[0].dst_lba = rcmd->data_descr.dst_lba;
+
+#if 1
+	rreply->remap_descriptors = (unsigned long)d;
+	rreply->remap_descriptors_len = sizeof(d);
+#else
+	rreply->status = SAM_STAT_CHECK_CONDITION;
+	rreply->sense_len = set_sense(vcmd->sense, sizeof(vcmd->sense),
+		SCST_LOAD_SENSE(scst_sense_data_protect));
+	rreply->psense_buffer = (unsigned long)vcmd->sense;
+#endif
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+#endif
+
 static int do_tm(struct vdisk_cmd *vcmd, int done)
 {
 	struct scst_user_get_cmd *cmd = vcmd->cmd;
@@ -668,6 +735,12 @@ static int process_cmd(struct vdisk_cmd *vcmd)
 		res = do_on_free_cmd(vcmd);
 		break;
 
+#ifdef DEBUG_EXT_COPY_REMAP
+		case SCST_USER_EXT_COPY_REMAP:
+			res = do_ext_copy_remap(vcmd);
+			break;
+#endif
+
 	case SCST_USER_TASK_MGMT_RECEIVED:
 		res = do_tm(vcmd, 0);
 		break;
@@ -704,7 +777,14 @@ void *main_loop(void *arg)
 	struct vdisk_dev *dev = (struct vdisk_dev *)arg;
 	struct scst_user_get_cmd cmd;
 	struct scst_user_reply_cmd reply;
-	struct vdisk_cmd vcmd = { -1, &cmd, dev, &reply, {0}};
+	struct vdisk_cmd vcmd = {
+		.fd = -1,
+		.cmd = &cmd,
+		.dev = dev,
+		.may_need_to_free_pbuf = 0,
+		.reply = &reply,
+		.sense = {0}
+	};
 	int scst_usr_fd = dev->scst_usr_fd;
 	struct pollfd pl;
 #define MULTI_CMDS_CNT 2
@@ -746,6 +826,7 @@ void *main_loop(void *arg)
 			}
 		}
 #endif
+
 		if (use_multi) {
 			TRACE_DBG("preplies %p (first: %p), replies_cnt %d, "
 				"replies_done %d, cmds_cnt %d", (void *)multi.multi_cmd.preplies,
@@ -906,11 +987,13 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 		uint64_t dev_id_num = gen_dev_id_num(dev);
 
 		if (0 == cmd->cdb[2]) { /* supported vital product data pages */
-			buf[3] = 3;
+			buf[3] = 5;
 			buf[4] = 0x0; /* this page */
 			buf[5] = 0x80; /* unit serial number */
 			buf[6] = 0x83; /* device identification */
-			resp_len = buf[3] + 4;
+			buf[7] = 0xB0; /* block limits */
+			buf[8] = 0xB1; /* block device characteristics */
+			resp_len = buf[3] + 6;
 		} else if (0x80 == cmd->cdb[2]) { /* unit serial number */
 			int usn_len = strlen(dev->usn);
 			buf[1] = 0x80;
@@ -957,6 +1040,55 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 			buf[2] = (resp_len >> 8) & 0xFF;
 			buf[3] = resp_len & 0xFF;
 			resp_len += 4;
+		} else if (0xB0 == cmd->cdb[2]) {
+			/* Block Limits */
+			int max_transfer;
+			buf[1] = 0xB0;
+			buf[3] = 0x3C;
+			buf[5] = 0xFF; /* No MAXIMUM COMPARE AND WRITE LENGTH limit */
+			/* Optimal transfer granuality is PAGE_SIZE */
+			max_transfer = max((int)(4096/dev->block_size), (int)1);
+			buf[6] = (max_transfer >> 8) & 0xff;
+			buf[7] = max_transfer & 0xff;
+			/*
+			 * Max transfer len is min of sg limit and 8M, but we
+			 * don't have access to them here, so let's use 1M.
+			 */
+			max_transfer = 1*1024*1024;
+			buf[8] = (max_transfer >> 24) & 0xff;
+			buf[9] = (max_transfer >> 16) & 0xff;
+			buf[10] = (max_transfer >> 8) & 0xff;
+			buf[11] = max_transfer & 0xff;
+			/*
+			 * Let's have optimal transfer len 512KB. Better to not
+			 * set it at all, because we don't have such limit,
+			 * but some initiators may not understand that (?).
+			 * From other side, too big transfers  are not optimal,
+			 * because SGV cache supports only <4M buffers.
+			 */
+			max_transfer = min((int)max_transfer, (int)(512*1024 / dev->block_size));
+			buf[12] = (max_transfer >> 24) & 0xff;
+			buf[13] = (max_transfer >> 16) & 0xff;
+			buf[14] = (max_transfer >> 8) & 0xff;
+			buf[15] = max_transfer & 0xff;
+			resp_len = buf[3] + 4;
+		} else if (0xB1 == cmd->cdb[2]) {
+			int r;
+			/* Block Device Characteristics */
+			buf[1] = 0xB1;
+			buf[3] = 0x3C;
+#if 0
+			if (virt_dev->rotational) {
+#endif
+				/* 15K RPM */
+				r = 0x3A98;
+#if 0
+			} else
+				r = 1;
+#endif
+			buf[4] = (r >> 8) & 0xff;
+			buf[5] = r & 0xff;
+			resp_len = buf[3] + 4;
 		} else {
 			TRACE_DBG("INQUIRY: Unsupported EVPD page %x",
 				cmd->cdb[2]);
@@ -1000,7 +1132,7 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 	memcpy(address, buf, length);
 
 	if (length < reply->resp_data_len)
-		reply->resp_data_len = length;
+		set_resp_data_len(vcmd, length);
 
 out:
 	TRACE_EXIT();
@@ -1024,7 +1156,7 @@ static void exec_request_sense(struct vdisk_cmd *vcmd)
 	memcpy(address, b, length);
 
 	if (length < reply->resp_data_len)
-		reply->resp_data_len = length;
+		set_resp_data_len(vcmd, length);
 
 	TRACE_EXIT();
 	return;
@@ -1265,7 +1397,7 @@ static void exec_mode_sense(struct vdisk_cmd *vcmd)
 	memcpy(address, buf, offset);
 
 	if (offset < reply->resp_data_len)
-		reply->resp_data_len = offset;
+		set_resp_data_len(vcmd, offset);
 
 out:
 	TRACE_EXIT();
@@ -1396,7 +1528,7 @@ static void exec_read_capacity(struct vdisk_cmd *vcmd)
 	memcpy(address, buffer, length);
 
 	if (length < reply->resp_data_len)
-		reply->resp_data_len = length;
+		set_resp_data_len(vcmd, length);
 
 	TRACE_EXIT();
 	return;
@@ -1455,7 +1587,7 @@ static void exec_read_capacity16(struct vdisk_cmd *vcmd)
 	memcpy(address, buffer, length);
 
 	if (length < reply->resp_data_len)
-		reply->resp_data_len = length;
+		set_resp_data_len(vcmd, length);
 
 	TRACE_EXIT();
 	return;
@@ -1534,7 +1666,7 @@ static void exec_read_toc(struct vdisk_cmd *vcmd)
 	memcpy(address, buffer, off);
 
 	if (off < reply->resp_data_len)
-		reply->resp_data_len = off;
+		set_resp_data_len(vcmd, off);
 
 out:
 	TRACE_EXIT();
@@ -1577,7 +1709,6 @@ static void exec_read(struct vdisk_cmd *vcmd, loff_t loff)
 {
 	struct vdisk_dev *dev = vcmd->dev;
 	struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
-	struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
 	int length = cmd->bufflen;
 	uint8_t *address = (uint8_t*)(unsigned long)cmd->pbuf;
 	int fd = vcmd->fd;
@@ -1606,7 +1737,7 @@ static void exec_read(struct vdisk_cmd *vcmd, loff_t loff)
 		PRINT_ERROR("read() returned %"PRId64" from %d (errno %d)",
 			(uint64_t)err, length, errno);
 		if (err == -EAGAIN)
-			set_busy(reply);
+			set_busy(vcmd);
 		else {
 			set_cmd_error(vcmd,
 			    SCST_LOAD_SENSE(scst_sense_read_error));
@@ -1614,7 +1745,7 @@ static void exec_read(struct vdisk_cmd *vcmd, loff_t loff)
 		goto out;
 	}
 
-	reply->resp_data_len = cmd->bufflen;
+	set_resp_data_len(vcmd, cmd->bufflen);
 
 out:
 	TRACE_EXIT();
@@ -1625,7 +1756,6 @@ static void exec_write(struct vdisk_cmd *vcmd, loff_t loff)
 {
 	struct vdisk_dev *dev = vcmd->dev;
 	struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
-	struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
 	loff_t err;
 	int length = cmd->bufflen;
 	uint8_t *address = (uint8_t*)(unsigned long)cmd->pbuf;
@@ -1658,7 +1788,7 @@ restart:
 		PRINT_ERROR("write() returned %"PRId64" from %d (errno %d, "
 			"cmd_h %x)", err, length, errno, vcmd->cmd->cmd_h);
 		if (err == -EAGAIN)
-			set_busy(reply);
+			set_busy(vcmd);
 		else {
 			set_cmd_error(vcmd,
 			    SCST_LOAD_SENSE(scst_sense_write_error));
@@ -1687,7 +1817,6 @@ static void exec_verify(struct vdisk_cmd *vcmd, loff_t loff)
 {
 	struct vdisk_dev *dev = vcmd->dev;
 	struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
-	struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
 	loff_t err;
 	int64_t length = cmd->bufflen;
 	uint8_t *address = (uint8_t *)(unsigned long)cmd->pbuf;
@@ -1740,7 +1869,7 @@ static void exec_verify(struct vdisk_cmd *vcmd, loff_t loff)
 			PRINT_ERROR("read() returned %"PRId64" from %"PRId64" "
 				"(errno %d)", (uint64_t)err, len_mem, errno);
 			if (err == -EAGAIN)
-				set_busy(reply);
+				set_busy(vcmd);
 			else {
 				set_cmd_error(vcmd,
 				    SCST_LOAD_SENSE(scst_sense_read_error));

@@ -1469,6 +1469,10 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 
 	list_add_tail(&dev->dev_list_entry, &scst_dev_list);
 
+	res = scst_cm_on_dev_register(dev);
+	if (res != 0)
+		goto out_unreg;
+
 	mutex_unlock(&scst_mutex);
 	scst_resume_activity();
 
@@ -1479,6 +1483,12 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_unreg:
+	dev->dev_unregistering = 1;
+	list_del(&dev->dev_list_entry);
+	scst_assign_dev_handler(dev, &scst_null_devtype);
+	goto out_pr_clear_dev;
 
 #ifndef CONFIG_SCST_PROC
 out_lock_pr_clear_dev:
@@ -1531,6 +1541,8 @@ void scst_unregister_virtual_device(int id)
 	}
 
 	dev->dev_unregistering = 1;
+
+	scst_cm_on_dev_unregister(dev);
 
 	list_del_init(&dev->dev_list_entry);
 
@@ -2659,6 +2671,15 @@ static int __init init_scst(void)
 		goto out_thread_free;
 #endif
 
+	res = scst_cm_init();
+	if (res != 0)
+#ifdef CONFIG_SCST_PROC
+		goto out_proc_cleanup;
+#else
+		goto out_thread_free;
+#endif
+
+
 	PRINT_INFO("SCST version %s loaded successfully (max mem for "
 		"commands %dMB, per device %dMB)", SCST_VERSION_STRING,
 		scst_max_cmd_mem, scst_max_dev_cmd_mem);
@@ -2668,6 +2689,11 @@ static int __init init_scst(void)
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+#ifdef CONFIG_SCST_PROC
+out_proc_cleanup:
+	scst_proc_cleanup_module();
+#endif
 
 out_thread_free:
 	scst_stop_global_threads();
@@ -2750,6 +2776,8 @@ static void __exit exit_scst(void)
 	TRACE_ENTRY();
 
 	/* ToDo: unregister_cpu_notifier() */
+
+	scst_cm_exit();
 
 #ifdef CONFIG_SCST_PROC
 	scst_proc_cleanup_module();

@@ -162,6 +162,9 @@ static bool scst_cmd_overlap_cwr(struct scst_cmd *cwr_cmd, struct scst_cmd *cmd)
 			res = scst_unmap_overlap(cmd, cwr_cmd->lba,
 				cwr_cmd->data_len);
 			break;
+		case EXTENDED_COPY:
+			res = scst_cm_ec_cmd_overlap(cmd, cwr_cmd);
+			break;
 		default:
 			res = false;
 			break;
@@ -430,12 +433,21 @@ static bool scst_check_blocked_dev(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	if (unlikely(cmd->internal)) {
+	if (unlikely((cmd->op_flags & SCST_CAN_GEN_3PARTY_COMMANDS) != 0)) {
+		EXTRACHECKS_BUG_ON(cmd->cdb[0] != EXTENDED_COPY);
+		res = scst_cm_check_block_all_devs(cmd);
+		goto out;
+	}
+
+	if (unlikely(cmd->internal || cmd->bypass_blocking)) {
 		/*
 		 * The original command can already block the device and must
 		 * hold reference to it, so internal command should always pass.
 		 */
-		sBUG_ON(dev->on_dev_cmd_count == 0);
+
+		/* Copy Manager can send internal INQUIRYs, so don't BUG on them */
+		sBUG_ON((dev->on_dev_cmd_count == 0) && (cmd->cdb[0] != INQUIRY));
+
 		res = false;
 		goto out;
 	}
@@ -2087,7 +2099,17 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 
 	cmd->state = SCST_CMD_STATE_EXEC_CHECK_SN;
 
-	if ((cmd->tgtt->pre_exec == NULL) || unlikely(cmd->internal))
+	if (unlikely(cmd->internal)) {
+		if (cmd->dh_data_buf_alloced && cmd->tgt_i_data_buf_alloced &&
+		    (scst_cmd_get_data_direction(cmd) & SCST_DATA_WRITE)) {
+			TRACE_DBG("Internal WRITE cmd %p with DH alloced data",
+				cmd);
+			scst_copy_sg(cmd, SCST_SG_COPY_FROM_TARGET);
+		}
+		goto out_descr;
+	}
+
+	if (cmd->tgtt->pre_exec == NULL)
 		goto out_descr;
 
 	TRACE_DBG("Calling pre_exec(%p)", cmd);
@@ -3161,7 +3183,7 @@ int __scst_check_local_events(struct scst_cmd *cmd, bool preempt_tests_only)
 
 	TRACE_ENTRY();
 
-	if (unlikely(cmd->internal)) {
+	if (unlikely(cmd->internal && !cmd->internal_check_local_events)) {
 		if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
 			TRACE_MGMT_DBG("ABORTED set, aborting internal "
 				"cmd %p", cmd);
@@ -3399,7 +3421,7 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 	if (devt->exec) {
 		TRACE_DBG("Calling dev handler %s exec(%p)",
 		      devt->name, cmd);
-		scst_set_cur_start(cmd);
+		scst_set_exec_start(cmd);
 		res = devt->exec(cmd);
 		TRACE_DBG("Dev handler %s exec() returned %d",
 		      devt->name, res);
@@ -3425,7 +3447,7 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 		goto out_error;
 	}
 
-	scst_set_cur_start(cmd);
+	scst_set_exec_start(cmd);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
 	rc = scst_exec_req(scsi_dev, cmd->cdb, cmd->cdb_len,
@@ -3519,6 +3541,8 @@ static scst_local_exec_fn scst_local_fns[256] = {
 	[REPORT_LUNS] = scst_report_luns_local,
 	[REQUEST_SENSE] = scst_request_sense_local,
 	[COMPARE_AND_WRITE] = scst_cmp_wr_local,
+	[EXTENDED_COPY] = scst_cm_ext_copy_exec,
+	[RECEIVE_COPY_RESULTS] = scst_cm_rcv_copy_res_exec,
 	[MAINTENANCE_IN] = scst_maintenance_in,
 };
 
@@ -5785,6 +5809,9 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 
 	TRACE_ENTRY();
 
+	/* Fantom EC commands must not leak here */
+	sBUG_ON((cmd->cdb[0] == EXTENDED_COPY) && cmd->internal);
+
 	/*
 	 * Help Coverity recognize that mcmd != NULL if
 	 * call_dev_task_mgmt_fn_received == true.
@@ -5833,6 +5860,9 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 	 * setting UA for aborted cmd in scst_set_pending_UA().
 	 */
 	smp_mb__after_set_bit();
+
+	if (cmd->cdb[0] == EXTENDED_COPY)
+		scst_cm_abort_ec_cmd(cmd);
 
 	if (cmd->tgt_dev == NULL) {
 		spin_lock_irqsave(&scst_init_lock, flags);
@@ -6910,6 +6940,16 @@ static int scst_mgmt_affected_cmds_done(struct scst_mgmt_cmd *mcmd)
 
 tgt_done:
 	scst_call_task_mgmt_affected_cmds_done(mcmd);
+
+	switch (mcmd->fn) {
+	case SCST_LUN_RESET:
+	case SCST_TARGET_RESET:
+	case SCST_NEXUS_LOSS_SESS:
+	case SCST_NEXUS_LOSS:
+	case SCST_UNREG_SESS_TM:
+		scst_cm_free_pending_list_ids(sess);
+		break;
+	}
 
 	res = scst_set_mcmd_next_state(mcmd);
 

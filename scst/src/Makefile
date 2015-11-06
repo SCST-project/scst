@@ -57,6 +57,7 @@ scst-y        += scst_dlm.o
 endif
 scst-y        += scst_tg.o
 scst-y        += scst_event.o
+scst-y        += scst_copy_mgr.o
 obj-$(CONFIG_SCST)   += scst.o dev_handlers/
 
 obj-$(BUILD_DEV) += $(DEV_HANDLERS_DIR)/

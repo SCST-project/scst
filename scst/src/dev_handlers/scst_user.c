@@ -70,6 +70,7 @@ struct scst_user_dev {
 	unsigned int swp:1;
 	unsigned int d_sense:1;
 	unsigned int has_own_order_mgmt:1;
+	unsigned int ext_copy_remap_supported:1;
 
 	int (*generic_parse)(struct scst_cmd *cmd);
 
@@ -949,6 +950,37 @@ static int dev_user_exec(struct scst_cmd *cmd)
 	return res;
 }
 
+static void dev_user_ext_copy_remap(struct scst_cmd *cmd,
+	struct scst_ext_copy_seg_descr *seg)
+{
+	struct scst_user_cmd *ucmd = cmd->dh_priv;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("Preparing EXT_COPY_REMAP for user space (ucmd=%p, h=%d, "
+		"seg %p)", ucmd, ucmd->h, seg);
+
+	ucmd->user_cmd_payload_len =
+		offsetof(struct scst_user_get_cmd, remap_cmd) +
+		sizeof(ucmd->user_cmd.remap_cmd);
+	ucmd->user_cmd.cmd_h = ucmd->h;
+	ucmd->user_cmd.subcode = SCST_USER_EXT_COPY_REMAP;
+	ucmd->user_cmd.remap_cmd.sess_h = (unsigned long)cmd->tgt_dev;
+
+	ucmd->user_cmd.remap_cmd.src_sess_h = (unsigned long)seg->src_tgt_dev;
+	ucmd->user_cmd.remap_cmd.dst_sess_h = (unsigned long)seg->dst_tgt_dev;
+	ucmd->user_cmd.remap_cmd.data_descr.src_lba = seg->data_descr.src_lba;
+	ucmd->user_cmd.remap_cmd.data_descr.dst_lba = seg->data_descr.dst_lba;
+	ucmd->user_cmd.remap_cmd.data_descr.data_len = seg->data_descr.data_len;
+
+	ucmd->state = UCMD_STATE_EXT_COPY_REMAPPING;
+
+	dev_user_add_to_ready(ucmd);
+
+	TRACE_EXIT();
+	return;
+}
+
 static void dev_user_free_sgv(struct scst_user_cmd *ucmd)
 {
 	if (ucmd->sgv != NULL) {
@@ -1180,7 +1212,8 @@ static void dev_user_add_to_ready(struct scst_user_cmd *ucmd)
 				      &dev->ready_cmd_list);
 		}
 		do_wake |= ((ucmd->state == UCMD_STATE_ON_CACHE_FREEING) ||
-			    (ucmd->state == UCMD_STATE_ON_FREEING));
+			    (ucmd->state == UCMD_STATE_ON_FREEING) ||
+			    (ucmd->state == UCMD_STATE_EXT_COPY_REMAPPING));
 	}
 
 	if (do_wake) {
@@ -1442,6 +1475,150 @@ static int dev_user_process_reply_on_cache_free(struct scst_user_cmd *ucmd)
 	TRACE_MEM("%s", "ON_CACHED_MEM_FREE finished");
 	TRACE_EXIT_RES(res);
 	return res;
+}
+
+static int dev_user_process_reply_ext_copy_remap(struct scst_user_cmd *ucmd,
+	struct scst_user_reply_cmd *reply)
+{
+	int res = 0, rc, count = 0, i, len;
+	struct scst_user_ext_copy_reply_remap *rreply = &reply->remap_reply;
+	struct scst_cmd *cmd = ucmd->cmd;
+	uint8_t *buf;
+	struct scst_user_ext_copy_data_descr *uleft;
+	struct scst_ext_copy_data_descr *left = NULL;
+
+	TRACE_ENTRY();
+
+	if (unlikely((rreply->status != 0) || (rreply->sense_len != 0)))
+		goto out_status;
+
+	if (rreply->remap_descriptors_len == 0) {
+		TRACE_DBG("No remap leftovers (ucmd %p, cmd %p)", ucmd, cmd);
+		goto out_done;
+	}
+
+	if (unlikely(rreply->remap_descriptors_len > PAGE_SIZE)) {
+		PRINT_ERROR("Too many leftover REMAP descriptors (len %d, ucmd %p, "
+			"cmd %p)", rreply->remap_descriptors_len, ucmd, cmd);
+		res = -EOVERFLOW;
+		goto out_hw_err;
+	}
+
+	buf = kzalloc(rreply->remap_descriptors_len, GFP_KERNEL);
+	if (unlikely(buf == NULL)) {
+		PRINT_ERROR("Unable to alloc leftover remap descriptors buf "
+			"(size %d)", rreply->remap_descriptors_len);
+		goto out_busy;
+	}
+
+	rc = copy_from_user(buf,
+		(void __user *)(unsigned long)rreply->remap_descriptors,
+		rreply->remap_descriptors_len);
+	if (unlikely(rc != 0)) {
+		PRINT_ERROR("Failed to copy %d leftover remap descriptors' "
+			"bytes", rc);
+		res = -EFAULT;
+		goto out_free_buf;
+	}
+
+	uleft = (struct scst_user_ext_copy_data_descr *)buf;
+	count = rreply->remap_descriptors_len / sizeof(*uleft);
+	if (unlikely((rreply->remap_descriptors_len % sizeof(*uleft)) != 0)) {
+		PRINT_ERROR("Invalid leftover remap descriptors (ucmd %p, "
+			"cmd %p, count %d)", ucmd, cmd, count);
+		res = -EINVAL;
+		goto out_hw_err_free_buf;
+	}
+
+	left = kmalloc(sizeof(*left) * count, GFP_KERNEL);
+	if (unlikely(left == NULL)) {
+		PRINT_ERROR("Unable to alloc leftover remap descriptors "
+			"(size %zd, count %d)", sizeof(*left) * count, count);
+		goto out_busy_free_buf;
+	}
+
+	TRACE_DBG("count %d", count);
+
+	len = 0;
+	for (i = 0; i < count; i++) {
+		TRACE_DBG("src_lba %lld, dst_lba %lld, data_len %d (len %d)",
+			(long long)uleft[i].src_lba, (long long)uleft[i].dst_lba,
+			uleft[i].data_len, len);
+		if (unlikely(uleft[i].data_len == 0)) {
+			PRINT_ERROR("Invalid data descr %d len %d (cmd %p)", i,
+				uleft[i].data_len, cmd);
+			res = -EINVAL;
+			goto out_hw_err_free_buf;
+		}
+		left[i].src_lba = uleft[i].src_lba;
+		left[i].dst_lba = uleft[i].dst_lba;
+		left[i].data_len = uleft[i].data_len;
+		len += uleft[i].data_len;
+	}
+
+	if (unlikely(len > scst_ext_copy_get_cur_seg_data_len(cmd))) {
+		PRINT_ERROR("Invalid data descr len %d (cmd %p, seg descr len %d)",
+			len, cmd, scst_ext_copy_get_cur_seg_data_len(cmd));
+		res = -EINVAL;
+		goto out_hw_err_free_buf;
+	}
+
+out_free_buf:
+	kfree(buf);
+
+out_done:
+	if (unlikely(res != 0)) {
+		kfree(left);
+		left = NULL;
+		count = 0;
+	}
+
+	scst_ext_copy_remap_done(cmd, left, count);
+
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_hw_err:
+	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+	goto out_done;
+
+out_hw_err_free_buf:
+	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+	goto out_free_buf;
+
+out_busy_free_buf:
+	scst_set_busy(cmd);
+	goto out_free_buf;
+
+out_busy:
+	scst_set_busy(cmd);
+	goto out_done;
+
+out_status:
+	TRACE_DBG("Remap finished with status %d (ucmd %p, cmd %p)",
+			rreply->status, ucmd, cmd);
+
+	if (rreply->sense_len != 0) {
+		int sense_len;
+
+		res = scst_alloc_sense(cmd, 0);
+		if (res != 0)
+			goto out_hw_err;
+
+		sense_len = min_t(int, cmd->sense_buflen, rreply->sense_len);
+
+		rc = copy_from_user(cmd->sense,
+			(void __user *)(unsigned long)rreply->psense_buffer,
+			sense_len);
+		if (rc != 0) {
+			PRINT_ERROR("Failed to copy %d sense's bytes", rc);
+			res = -EFAULT;
+			goto out_hw_err;
+		}
+		cmd->sense_valid_len = sense_len;
+	}
+	scst_set_cmd_error_status(cmd, rreply->status);
+	goto out_done;
 }
 
 static int dev_user_process_ws_reply(struct scst_user_cmd *ucmd,
@@ -1762,6 +1939,10 @@ unlock_process:
 
 	case UCMD_STATE_ON_CACHE_FREEING:
 		res = dev_user_process_reply_on_cache_free(ucmd);
+		break;
+
+	case UCMD_STATE_EXT_COPY_REMAPPING:
+		res = dev_user_process_reply_ext_copy_remap(ucmd, reply);
 		break;
 
 	case UCMD_STATE_TM_RECEIVED_EXECING:
@@ -2460,6 +2641,7 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 		break;
 
 	case UCMD_STATE_EXECING:
+	case UCMD_STATE_EXT_COPY_REMAPPING:
 		if (flags != NULL)
 			spin_unlock_irqrestore(&dev->udev_cmd_threads.cmd_list_lock,
 					       *flags);
@@ -2478,8 +2660,13 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 				       SCST_LOAD_SENSE(scst_sense_lun_not_supported));
 		}
 
-		ucmd->cmd->scst_cmd_done(ucmd->cmd, SCST_CMD_STATE_DEFAULT,
-				SCST_CONTEXT_THREAD);
+		if (state == UCMD_STATE_EXECING)
+			ucmd->cmd->scst_cmd_done(ucmd->cmd, SCST_CMD_STATE_DEFAULT,
+					SCST_CONTEXT_THREAD);
+		else {
+			sBUG_ON(state != UCMD_STATE_EXT_COPY_REMAPPING);
+			scst_ext_copy_remap_done(ucmd->cmd, NULL, 0);
+		}
 		/* !! At this point cmd and ucmd can be already freed !! */
 
 		if (flags != NULL)
@@ -3018,6 +3205,11 @@ static void dev_user_setup_functions(struct scst_user_dev *dev)
 	dev->devtype.dev_alloc_data_buf = dev_user_alloc_data_buf;
 	dev->devtype.dev_done = NULL;
 
+	if (dev->ext_copy_remap_supported)
+		dev->devtype.ext_copy_remap = dev_user_ext_copy_remap;
+	else
+		dev->devtype.ext_copy_remap = NULL;
+
 	if (dev->parse_type != SCST_USER_PARSE_CALL) {
 		switch (dev->devtype.type) {
 		case TYPE_DISK:
@@ -3471,9 +3663,10 @@ static int __dev_user_set_opt(struct scst_user_dev *dev,
 
 	TRACE_DBG("dev %s, parse_type %x, on_free_cmd_type %x, "
 		"memory_reuse_type %x, partial_transfers_type %x, "
-		"partial_len %d", dev->name, opt->parse_type,
-		opt->on_free_cmd_type, opt->memory_reuse_type,
-		opt->partial_transfers_type, opt->partial_len);
+		"partial_len %d, opt->ext_copy_remap_supported %d",
+		dev->name, opt->parse_type, opt->on_free_cmd_type,
+		opt->memory_reuse_type, opt->partial_transfers_type,
+		opt->partial_len, opt->ext_copy_remap_supported);
 
 	if (opt->parse_type > SCST_USER_MAX_PARSE_OPT ||
 	    opt->on_free_cmd_type > SCST_USER_MAX_ON_FREE_CMD_OPT ||
@@ -3492,12 +3685,13 @@ static int __dev_user_set_opt(struct scst_user_dev *dev,
 	    ((opt->qerr == SCST_QERR_2_RESERVED) ||
 	     (opt->qerr > SCST_QERR_3_ABORT_THIS_NEXUS_ONLY)) ||
 	    (opt->swp > 1) || (opt->tas > 1) || (opt->has_own_order_mgmt > 1) ||
-	    (opt->d_sense > 1)) {
+	    (opt->d_sense > 1) || (opt->ext_copy_remap_supported > 1)) {
 		PRINT_ERROR("Invalid SCSI option (tst %x, tmf_only %x, "
 			"queue_alg %x, qerr %x, swp %x, tas %x, d_sense %d, "
-			"has_own_order_mgmt %x)",
+			"has_own_order_mgmt %x, ext_copy_remap_supported %d)",
 			opt->tst, opt->tmf_only, opt->queue_alg, opt->qerr,
-			opt->swp, opt->tas, opt->d_sense, opt->has_own_order_mgmt);
+			opt->swp, opt->tas, opt->d_sense, opt->has_own_order_mgmt,
+			opt->ext_copy_remap_supported);
 		res = -EINVAL;
 		goto out;
 	}
@@ -3526,6 +3720,7 @@ static int __dev_user_set_opt(struct scst_user_dev *dev,
 	dev->tas = opt->tas;
 	dev->d_sense = opt->d_sense;
 	dev->has_own_order_mgmt = opt->has_own_order_mgmt;
+	dev->ext_copy_remap_supported = opt->ext_copy_remap_supported;
 	if (dev->sdev != NULL) {
 		dev->sdev->tst = opt->tst;
 		dev->sdev->tmf_only = opt->tmf_only;
@@ -3595,12 +3790,14 @@ static int dev_user_get_opt(struct file *file, void __user *arg)
 	opt.swp = dev->swp;
 	opt.d_sense = dev->d_sense;
 	opt.has_own_order_mgmt = dev->has_own_order_mgmt;
+	opt.ext_copy_remap_supported = dev->ext_copy_remap_supported;
 
 	TRACE_DBG("dev %s, parse_type %x, on_free_cmd_type %x, "
 		"memory_reuse_type %x, partial_transfers_type %x, "
-		"partial_len %d", dev->name, opt.parse_type,
-		opt.on_free_cmd_type, opt.memory_reuse_type,
-		opt.partial_transfers_type, opt.partial_len);
+		"partial_len %d, ext_copy_remap_supported %d", dev->name,
+		opt.parse_type, opt.on_free_cmd_type, opt.memory_reuse_type,
+		opt.partial_transfers_type, opt.partial_len,
+		opt.ext_copy_remap_supported);
 
 	rc = copy_to_user(arg, &opt, sizeof(opt));
 	if (unlikely(rc != 0)) {

@@ -172,6 +172,18 @@ const struct scst_opcode_descriptor scst_op_descr_inquiry = {
 };
 EXPORT_SYMBOL(scst_op_descr_inquiry);
 
+const struct scst_opcode_descriptor scst_op_descr_extended_copy = {
+	.od_opcode = EXTENDED_COPY,
+	.od_support = 3, /* supported as in the standard */
+	.od_cdb_size = 16,
+	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_cdb_usage_bits = { EXTENDED_COPY, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+			       0xFF, 0xFF, 0xFF, 0xFF, 0,
+			       SCST_OD_DEFAULT_CONTROL_BYTE },
+};
+EXPORT_SYMBOL(scst_op_descr_extended_copy);
+
 const struct scst_opcode_descriptor scst_op_descr_tur = {
 	.od_opcode = TEST_UNIT_READY,
 	.od_support = 3, /* supported as in the standard */
@@ -467,6 +479,8 @@ static int get_cdb_info_write_same10(struct scst_cmd *cmd,
 static int get_cdb_info_write_same16(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
 static int get_cdb_info_compare_and_write(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
+static int get_cdb_info_ext_copy(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
 static int get_cdb_info_apt(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
@@ -1256,16 +1270,18 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 .info_op_flags = SCST_WRITE_MEDIUM,
 	 .info_len_off = 10, .info_len_len = 4,
 	 .get_cdb_info = get_cdb_info_len_4},
-	{.ops = 0x83, .devkey = "OOOOOOOOOOOOOOOO",
+	{.ops = 0x83, .devkey = "O               ", /* implemented only for disks */
 	 .info_op_name = "EXTENDED COPY",
 	 .info_data_direction = SCST_DATA_WRITE,
-	 .info_op_flags = SCST_WRITE_MEDIUM,
+	 .info_op_flags = SCST_WRITE_MEDIUM|SCST_CAN_GEN_3PARTY_COMMANDS|
+				SCST_LOCAL_CMD|SCST_DESCRIPTORS_BASED,
 	 .info_len_off = 10, .info_len_len = 4,
-	 .get_cdb_info = get_cdb_info_len_4},
-	{.ops = 0x84, .devkey = "OOOOOOOOOOOOOOOO",
+	 .get_cdb_info = get_cdb_info_ext_copy},
+	{.ops = 0x84, .devkey = "O               ", /* implemented only for disks */
 	 .info_op_name = "RECEIVE COPY RESULT",
 	 .info_data_direction = SCST_DATA_READ,
-	 .info_op_flags = SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
+	 .info_op_flags = SCST_FULLY_LOCAL_CMD|SCST_LOCAL_CMD|
+				SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
 	 .info_len_off = 10, .info_len_len = 4,
 	 .get_cdb_info = get_cdb_info_len_4},
 	{.ops = 0x85, .devkey = "O    O        O ",
@@ -6675,6 +6691,9 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 	sess->tgt = tgt;
 	INIT_LIST_HEAD(&sess->init_deferred_cmd_list);
 	INIT_LIST_HEAD(&sess->init_deferred_mcmd_list);
+	INIT_LIST_HEAD(&sess->sess_cm_list_id_list);
+	INIT_DELAYED_WORK(&sess->sess_cm_list_id_cleanup_work,
+		(void (*)(struct work_struct *))sess_cm_list_id_cleanup_work_fn);
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20))
 	INIT_DELAYED_WORK(&sess->hw_pending_work, scst_hw_pending_work_fn);
 #else
@@ -11215,6 +11234,20 @@ static int get_cdb_info_compare_and_write(struct scst_cmd *cmd,
 	return scst_parse_wrprotect(cmd);
 }
 
+static int get_cdb_info_ext_copy(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
+{
+	if (unlikely(cmd->cdb[1] != 0)) {
+		PRINT_WARNING("Not supported %s service action 0x%x",
+			scst_get_opcode_name(cmd), cmd->cdb[1]);
+		scst_set_invalid_field_in_cdb(cmd, 1,
+			0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+		return 1;
+	}
+
+	return get_cdb_info_len_4(cmd, sdbops);
+}
+
 /**
  * get_cdb_info_apt() - Parse ATA PASS-THROUGH CDB.
  *
@@ -12781,7 +12814,7 @@ bool __scst_check_blocked_dev(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	EXTRACHECKS_BUG_ON(cmd->unblock_dev);
-	EXTRACHECKS_BUG_ON(cmd->internal);
+	EXTRACHECKS_BUG_ON(cmd->internal && cmd->cdb[0] != EXTENDED_COPY);
 
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)))
 		goto out;
@@ -13616,6 +13649,9 @@ int scst_parse_descriptors(struct scst_cmd *cmd)
 	case UNMAP:
 		res = scst_parse_unmap_descriptors(cmd);
 		break;
+	case EXTENDED_COPY:
+		res = scst_cm_parse_descriptors(cmd);
+		break;
 	default:
 		sBUG();
 	}
@@ -13631,6 +13667,9 @@ static void scst_free_descriptors(struct scst_cmd *cmd)
 	switch (cmd->cdb[0]) {
 	case UNMAP:
 		scst_free_unmap_descriptors(cmd);
+		break;
+	case EXTENDED_COPY:
+		scst_cm_free_descriptors(cmd);
 		break;
 	default:
 		sBUG();
@@ -15110,6 +15149,12 @@ void scst_set_pre_exec_time(struct scst_cmd *cmd)
 {
 	cmd->pre_exec_time += scst_get_usec() - cmd->curr_start;
 	TRACE_DBG("cmd %p: pre_exec_time %lld", cmd, cmd->pre_exec_time);
+}
+
+void scst_set_exec_start(struct scst_cmd *cmd)
+{
+        cmd->exec_time_counting = true;
+        scst_set_cur_start(cmd);
 }
 
 void scst_set_exec_time(struct scst_cmd *cmd)

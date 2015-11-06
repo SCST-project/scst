@@ -394,6 +394,9 @@ int start(int argc, char **argv)
 		desc.opt.queue_alg = SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER;
 		desc.opt.qerr = SCST_QERR_0_ALL_RESUME;
 		desc.opt.d_sense = SCST_D_SENSE_0_FIXED_SENSE;
+#ifdef DEBUG_EXT_COPY_REMAP
+		desc.opt.ext_copy_remap_supported = 1;
+#endif
 
 		res = ioctl(devs[i].scst_usr_fd, SCST_USER_REGISTER_DEVICE, &desc);
 		if (res != 0) {

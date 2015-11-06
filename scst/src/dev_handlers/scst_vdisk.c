@@ -357,6 +357,10 @@ static ssize_t vcdrom_del_device(const char *device_name);
 static void vdisk_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd,
 	struct scst_tgt_dev *tgt_dev);
 static uint64_t vdisk_gen_dev_id_num(const char *virt_dev_name);
+#ifdef CONFIG_DEBUG_EXT_COPY_REMAP
+static void vdev_ext_copy_remap(struct scst_cmd *cmd,
+	struct scst_ext_copy_seg_descr *descr);
+#endif
 static int vdisk_unmap_range(struct scst_cmd *cmd,
 	struct scst_vdisk_dev *virt_dev, uint64_t start_lba, uint32_t blocks);
 
@@ -677,6 +681,7 @@ static struct scst_dev_type vdisk_file_devtype = {
 	.threads_num =		-1,
 	.parse_atomic =		1,
 	.dev_done_atomic =	1,
+	.auto_cm_assignment_possible = 1,
 	.attach =		vdisk_attach,
 	.detach =		vdisk_detach,
 	.attach_tgt =		vdisk_attach_tgt,
@@ -686,6 +691,9 @@ static struct scst_dev_type vdisk_file_devtype = {
 	.exec =			fileio_exec,
 	.on_free_cmd =		fileio_on_free_cmd,
 	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
+#ifdef CONFIG_DEBUG_EXT_COPY_REMAP
+	.ext_copy_remap =	vdev_ext_copy_remap,
+#endif
 	.get_supported_opcodes = vdisk_get_supported_opcodes,
 	.devt_priv =		(void *)fileio_ops,
 #ifdef CONFIG_SCST_PROC
@@ -734,6 +742,7 @@ static struct scst_dev_type vdisk_blk_devtype = {
 #ifdef CONFIG_SCST_PROC
 	.no_proc =		1,
 #endif
+	.auto_cm_assignment_possible = 1,
 	.attach =		vdisk_attach,
 	.detach =		vdisk_detach,
 	.attach_tgt =		vdisk_attach_tgt,
@@ -784,6 +793,7 @@ static struct scst_dev_type vdisk_null_devtype = {
 #ifdef CONFIG_SCST_PROC
 	.no_proc =		1,
 #endif
+	.auto_cm_assignment_possible = 1,
 	.attach =		vdisk_attach,
 	.detach =		vdisk_detach,
 	.attach_tgt =		vdisk_attach_tgt,
@@ -827,6 +837,7 @@ static struct scst_dev_type vcdrom_devtype = {
 	.threads_num =		-1,
 	.parse_atomic =		1,
 	.dev_done_atomic =	1,
+	.auto_cm_assignment_possible = 1,
 	.attach =		vdisk_attach,
 	.detach =		vdisk_detach,
 	.attach_tgt =		vdisk_attach_tgt,
@@ -2757,6 +2768,7 @@ static vdisk_op_fn nullio_ops[256] = {
 	&scst_op_descr_write_same16,					\
 	&scst_op_descr_unmap,						\
 	&scst_op_descr_format_unit,					\
+	&scst_op_descr_extended_copy,					\
 	&scst_op_descr_cwr,
 
 static const struct scst_opcode_descriptor *vdisk_opcode_descriptors[] = {
@@ -4256,6 +4268,7 @@ static int vdisk_inq(uint8_t *buf, struct scst_cmd *cmd,
 		if (virt_dev->expl_alua)
 			buf[5] |= SCST_INQ_TPGS_MODE_EXPLICIT;
 	}
+	buf[5] |= 8; /* 3PC */
 	buf[6] = 0x10; /* MultiP 1 */
 	buf[7] = 2; /* CMDQUE 1, BQue 0 => commands queuing supported */
 
@@ -7364,6 +7377,74 @@ static void vdisk_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd,
 	TRACE_EXIT();
 	return;
 }
+
+#ifdef CONFIG_DEBUG_EXT_COPY_REMAP
+static void vdev_ext_copy_remap(struct scst_cmd *cmd,
+	struct scst_ext_copy_seg_descr *seg)
+{
+	struct scst_ext_copy_data_descr *d;
+	static int shift = 0;
+	static DEFINE_SPINLOCK(lock);
+	int s;
+
+	TRACE_ENTRY();
+
+	if (seg->data_descr.data_len <= 4096) {
+		/* No way to split */
+		goto out_done;
+	}
+
+	d = kzalloc(sizeof(*d)*2, GFP_KERNEL);
+	if (d == NULL)
+		goto out_busy;
+
+	spin_lock(&lock);
+
+	shift += 4096;
+
+	if (shift >= seg->data_descr.data_len) {
+		shift = 0;
+		s = 0;
+	} else
+		s = shift;
+
+	TRACE_DBG("cmd %p, seg %p, data_len %d, shift %d, s %d", cmd, seg,
+		seg->data_descr.data_len, shift, s);
+
+	spin_unlock(&lock);
+
+	if (s == 0)
+		goto out_free_done;
+
+	d[0].data_len = s;
+	d[0].src_lba = seg->data_descr.src_lba;
+	d[0].dst_lba = seg->data_descr.dst_lba;
+
+	d[1].data_len = seg->data_descr.data_len - s;
+	d[1].src_lba = seg->data_descr.src_lba + (s >> seg->src_tgt_dev->dev->block_shift);
+	d[1].dst_lba = seg->data_descr.dst_lba + (s >> seg->dst_tgt_dev->dev->block_shift);
+
+	scst_ext_copy_remap_done(cmd, d, 2);
+
+out:
+	TRACE_EXIT();
+	return;
+
+out_busy:
+	scst_set_busy(cmd);
+
+out_free_done:
+	kfree(d);
+
+out_done:
+#if 1
+	scst_ext_copy_remap_done(cmd, &seg->data_descr, 1);
+#else
+	scst_ext_copy_remap_done(cmd, NULL, 0);
+#endif
+	goto out;
+}
+#endif
 
 static void vdisk_report_registering(const struct scst_vdisk_dev *virt_dev)
 {

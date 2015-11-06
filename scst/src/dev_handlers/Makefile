@@ -92,6 +92,8 @@ EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
 #EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
 EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions
 
+#EXTRA_CFLAGS += -DCONFIG_DEBUG_EXT_COPY_REMAP
+
 clean:
 	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend Modules.symvers \
 		Module.symvers Module.markers modules.order

@@ -684,6 +684,7 @@ struct scst_acg;
 struct scst_acg_dev;
 struct scst_acn;
 struct scst_aen;
+struct scst_ext_copy_seg_descr;
 struct scst_opcode_descriptor;
 
 /*
@@ -1331,6 +1332,12 @@ struct scst_dev_type {
 	unsigned pr_cmds_notifications:1;
 
 	/*
+	 * Set if the Copy Manager can auto assing to devices of this
+	 * template on their registration.
+	 */
+	unsigned auto_cm_assignment_possible:1;
+
+	/*
 	 * Called to parse CDB from the cmd and initialize
 	 * cmd->bufflen and cmd->data_direction (both - REQUIRED).
 	 *
@@ -1419,6 +1426,26 @@ struct scst_dev_type {
 	 * OPTIONAL
 	 */
 	void (*on_free_cmd)(struct scst_cmd *cmd);
+
+	/*
+	 * Called during EXTENDED COPY command processing to let dev hander
+	 * try to remap blocks at first. Upon finish, the dev handler supposed
+	 * to call scst_ext_copy_remap_done(). See description of this
+	 * function for more details.
+	 *
+	 * In case of error, the dev handler should set the corresponding sense
+	 * to cmd and then call scst_ext_copy_remap_done(cmd, NULL, 0).
+	 *
+	 * It is highly recommended that in the normal circumstances
+	 * scst_ext_copy_remap_done() called from another thread context,
+	 * because otherwise there will be recursion in the segments processing.
+	 * Hopefully, this thread context switch is natural for such
+	 * potentially long operation.
+	 *
+	 * OPTIONAL
+	 */
+	void (*ext_copy_remap)(struct scst_cmd *cmd,
+		struct scst_ext_copy_seg_descr *descr);
 
 	/*
 	 * Called to notify dev handler that a ALUA state change is about to
@@ -1938,6 +1965,14 @@ struct scst_session {
 	/* Used if scst_unregister_session() called in wait mode */
 	struct completion *shutdown_compl;
 
+	/*
+	 * Keep list IDs for Extended Copy commands sent over this session.
+	 * Protected by scst_cm_lock.
+	 */
+	struct list_head sess_cm_list_id_list;
+
+	struct delayed_work sess_cm_list_id_cleanup_work;
+
 	/* sysfs release completion */
 	struct completion *sess_kobj_release_cmpl;
 
@@ -2129,6 +2164,12 @@ struct scst_cmd {
 
 	/* Set if cmd is internally generated */
 	unsigned int internal:1;
+
+	/* Set if local events should be checked for internally generated cmd */
+	unsigned int internal_check_local_events:1;
+
+	/* Set if the blocking machinery should be bypassed for this cmd */
+	unsigned int bypass_blocking:1;
 
 	/* Set if the device was blocked by scst_check_blocked_dev() */
 	unsigned int unblock_dev:1;
@@ -2501,6 +2542,7 @@ struct scst_cmd {
 	uint64_t restart_waiting_time, rdy_to_xfer_time;
 	uint64_t pre_exec_time, exec_time, dev_done_time;
 	uint64_t xmit_time;
+	bool exec_time_counting;
 #endif
 
 #ifdef CONFIG_SCST_DEBUG_TM
@@ -3422,6 +3464,7 @@ extern const struct scst_opcode_descriptor scst_op_descr_stpg;
 extern const struct scst_opcode_descriptor scst_op_descr_send_diagnostic;
 
 extern const struct scst_opcode_descriptor scst_op_descr_inquiry;
+extern const struct scst_opcode_descriptor scst_op_descr_extended_copy;
 extern const struct scst_opcode_descriptor scst_op_descr_tur;
 extern const struct scst_opcode_descriptor scst_op_descr_reserve6;
 extern const struct scst_opcode_descriptor scst_op_descr_release6;
@@ -5601,5 +5644,33 @@ int scst_pr_set_cluster_mode(struct scst_device *dev, bool cluster_mode,
 	const char *cl_dev_id);
 int scst_pr_init_dev(struct scst_device *dev);
 void scst_pr_clear_dev(struct scst_device *dev);
+
+struct scst_ext_copy_data_descr {
+	uint64_t src_lba;
+	uint64_t dst_lba;
+	int data_len; /* in bytes */
+};
+
+struct scst_ext_copy_seg_descr {
+#define SCST_EXT_COPY_SEG_DATA		0
+#if 0 /* not implemented yet */
+#define SCST_EXT_COPY_SEG_PR_REG	1
+#define SCST_EXT_COPY_SEG_PR_MOVE	2
+#endif
+	int type;
+	union {
+		struct {
+			struct scst_tgt_dev *src_tgt_dev;
+			struct scst_tgt_dev *dst_tgt_dev;
+			struct scst_ext_copy_data_descr data_descr;
+		};
+	};
+	/* Internal, don't touch! */
+	int tgt_descr_offs;
+};
+
+void scst_ext_copy_remap_done(struct scst_cmd *ec_cmd,
+	struct scst_ext_copy_data_descr *dds, int dds_cnt);
+int scst_ext_copy_get_cur_seg_data_len(struct scst_cmd *ec_cmd);
 
 #endif /* __SCST_H */

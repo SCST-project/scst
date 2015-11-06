@@ -97,6 +97,7 @@ struct vdisk_cmd
 	int fd;
 	struct scst_user_get_cmd *cmd;
 	struct vdisk_dev *dev;
+	unsigned int may_need_to_free_pbuf:1;
 	struct scst_user_reply_cmd *reply;
 	uint8_t sense[SCST_SENSE_BUFFERSIZE];
 };
