@@ -1444,6 +1444,110 @@ static int dev_user_process_reply_on_cache_free(struct scst_user_cmd *ucmd)
 	return res;
 }
 
+static int dev_user_process_ws_reply(struct scst_user_cmd *ucmd,
+	struct scst_user_scsi_cmd_reply_exec *ereply)
+{
+	int res = 0, rc, count, i;
+	struct scst_cmd *cmd = ucmd->cmd;
+	uint8_t *buf;
+	struct scst_user_data_descriptor *uwhere;
+	struct scst_data_descriptor *where;
+
+	TRACE_ENTRY();
+
+	if (unlikely(cmd->cdb[0] != WRITE_SAME) &&
+	    unlikely(cmd->cdb[0] != WRITE_SAME_16)) {
+		PRINT_ERROR("Request to process WRITE SAME for not WRITE SAME "
+			"CDB (ucmd %p, cmd %p, op %s)", ucmd, cmd,
+			scst_get_opcode_name(cmd));
+		res = -EINVAL;
+		goto out_hw_err;
+	}
+
+	if (unlikely(ereply->status != 0)) {
+		PRINT_ERROR("Request to process WRITE SAME with not 0 status "
+			"(ucmd %p, cmd %p, status %d)", ucmd, cmd, ereply->status);
+		res = -EINVAL;
+		goto out_hw_err;
+	}
+
+	if (ereply->ws_descriptors_len == 0) {
+		scst_write_same(cmd, NULL);
+		goto out;
+	}
+
+	if (unlikely(ereply->ws_descriptors_len > PAGE_SIZE)) {
+		PRINT_ERROR("Too many WRITE SAME descriptors (len %d, ucmd %p, "
+			"cmd %p)", ereply->ws_descriptors_len, ucmd, cmd);
+		res = -EOVERFLOW;
+		goto out_hw_err;
+	}
+
+	buf = kzalloc(ereply->ws_descriptors_len, GFP_KERNEL);
+	if (unlikely(buf == NULL)) {
+		PRINT_ERROR("Unable to alloc WS descriptors buf (size %d)",
+			ereply->ws_descriptors_len);
+		goto out_busy;
+	}
+
+	rc = copy_from_user(buf,
+		(void __user *)(unsigned long)ereply->ws_descriptors,
+		ereply->ws_descriptors_len);
+	if (unlikely(rc != 0)) {
+		PRINT_ERROR("Failed to copy %d WS descriptors' bytes", rc);
+		res = -EFAULT;
+		goto out_free_buf;
+	}
+
+	uwhere = (struct scst_user_data_descriptor *)buf;
+	count = ereply->ws_descriptors_len / sizeof(*uwhere);
+	if (unlikely((ereply->ws_descriptors_len % sizeof(*uwhere)) != 0) ||
+	    unlikely(uwhere[count-1].usdd_blocks != 0)) {
+		PRINT_ERROR("Invalid WS descriptors (ucmd %p, cmd %p)",
+			ucmd, cmd);
+		res = -EINVAL;
+		goto out_free_buf;
+	}
+
+	where = kmalloc(sizeof(*where) * count, GFP_KERNEL);
+	if (unlikely(where == NULL)) {
+		PRINT_ERROR("Unable to alloc WS descriptors where (size %zd)",
+			sizeof(*where) * count);
+		goto out_busy_free_buf;
+	}
+
+	for (i = 0; i < count; i++) {
+		where[i].sdd_lba = uwhere[i].usdd_lba;
+		where[i].sdd_blocks = uwhere[i].usdd_blocks;
+	}
+	kfree(buf);
+
+	scst_write_same(cmd, where);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_free_buf:
+	kfree(buf);
+
+out_hw_err:
+	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
+
+out_compl:
+	cmd->completed = 1;
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_DIRECT);
+	/* !! At this point cmd can be already freed !! */
+	goto out;
+
+out_busy_free_buf:
+	kfree(buf);
+
+out_busy:
+	scst_set_busy(cmd);
+	goto out_compl;
+}
+
 static int dev_user_process_reply_exec(struct scst_user_cmd *ucmd,
 	struct scst_user_reply_cmd *reply)
 {
@@ -1480,6 +1584,9 @@ static int dev_user_process_reply_exec(struct scst_user_cmd *ucmd,
 		ucmd->background_exec = 1;
 		TRACE_DBG("Background ucmd %p", ucmd);
 		goto out_compl;
+	} else if (ereply->reply_type == SCST_EXEC_REPLY_DO_WRITE_SAME) {
+		res = dev_user_process_ws_reply(ucmd, ereply);
+		goto out;
 	} else
 		goto out_inval;
 

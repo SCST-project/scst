@@ -47,6 +47,7 @@ static int exec_fsync(struct vdisk_cmd *vcmd);
 static void exec_read(struct vdisk_cmd *vcmd, loff_t loff);
 static void exec_write(struct vdisk_cmd *vcmd, loff_t loff);
 static void exec_verify(struct vdisk_cmd *vcmd, loff_t loff);
+static void exec_write_same(struct vdisk_cmd *vcmd);
 
 static int open_dev_fd(struct vdisk_dev *dev)
 {
@@ -407,6 +408,10 @@ static int do_exec(struct vdisk_cmd *vcmd)
 		break;
 	case READ_CAPACITY:
 		exec_read_capacity(vcmd);
+		break;
+	case WRITE_SAME_10:
+	case WRITE_SAME_16:
+		exec_write_same(vcmd);
 		break;
         case SERVICE_ACTION_IN_16:
 		if ((cmd->cdb[1] & 0x1f) == SAI_READ_CAPACITY_16)
@@ -1756,6 +1761,37 @@ static void exec_verify(struct vdisk_cmd *vcmd, loff_t loff)
 		PRINT_ERROR("Failure: %"PRId64, length);
 		set_cmd_error(vcmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 	}
+
+out:
+	TRACE_EXIT();
+	return;
+}
+
+static void exec_write_same(struct vdisk_cmd *vcmd)
+{
+	struct vdisk_dev *dev = vcmd->dev;
+	struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
+	struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
+	uint64_t blocks = cmd->data_len >> dev->block_shift;
+	static struct scst_user_data_descriptor uwhere[3];
+
+	TRACE_ENTRY();
+
+	if (blocks < 2)
+		goto out;
+
+	/* It's only a debug code, so it's OK to use static descr */
+
+	memset(uwhere, 0, sizeof(uwhere));
+
+	uwhere[0].usdd_lba = cmd->lba;
+	uwhere[0].usdd_blocks = 1;
+	uwhere[1].usdd_lba = cmd->lba+1;
+	uwhere[1].usdd_blocks = blocks-1;
+
+	reply->reply_type = SCST_EXEC_REPLY_DO_WRITE_SAME;
+	reply->ws_descriptors_len = sizeof(uwhere);
+	reply->ws_descriptors = (unsigned long)uwhere;
 
 out:
 	TRACE_EXIT();

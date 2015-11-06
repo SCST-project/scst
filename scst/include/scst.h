@@ -5539,7 +5539,7 @@ struct scst_data_descriptor {
 	uint64_t sdd_blocks;
 };
 
-void scst_write_same(struct scst_cmd *cmd);
+void scst_write_same(struct scst_cmd *cmd, struct scst_data_descriptor *where);
 
 __be64 scst_pack_lun(const uint64_t lun, enum scst_lun_addr_method addr_method);
 uint64_t scst_unpack_lun(const uint8_t *lun, int len);

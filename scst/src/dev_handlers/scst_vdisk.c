@@ -3905,7 +3905,7 @@ static enum compl_status_e vdisk_exec_write_same(struct vdisk_cmd_params *p)
 	if (cmd->cdb[ctrl_offs] & 0x8)
 		vdisk_exec_write_same_unmap(p);
 	else {
-		scst_write_same(cmd);
+		scst_write_same(cmd, NULL);
 		res = RUNNING_ASYNC;
 	}
 

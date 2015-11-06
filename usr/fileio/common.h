@@ -23,6 +23,10 @@
 
 #include "debug.h"
 
+#ifndef WRITE_SAME_10
+#define WRITE_SAME_10	      0x41
+#endif
+
 /* 8 byte ASCII Vendor */
 #define VENDOR				"SCST_USR"
 /* 4 byte ASCII Product Revision Level - left aligned */

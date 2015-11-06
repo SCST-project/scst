@@ -253,6 +253,15 @@ struct scst_user_scsi_cmd_reply_alloc_mem {
 	aligned_u64 pbuf;
 };
 
+/*
+ * Same as struct scst_data_descriptor, but suitable to pass kernel/user
+ * space boundary
+ */
+struct scst_user_data_descriptor {
+	aligned_u64 usdd_lba;
+	aligned_u64 usdd_blocks;
+};
+
 /* Be careful adding new members here, this structure is allocated on stack! */
 struct scst_user_scsi_cmd_reply_exec {
 	int32_t resp_data_len;
@@ -260,11 +269,20 @@ struct scst_user_scsi_cmd_reply_exec {
 
 #define SCST_EXEC_REPLY_BACKGROUND	0
 #define SCST_EXEC_REPLY_COMPLETED	1
+#define SCST_EXEC_REPLY_DO_WRITE_SAME	2
 	uint8_t reply_type;
 
 	uint8_t status;
-	uint8_t sense_len;
-	aligned_u64 psense_buffer;
+	union {
+		struct {
+			uint8_t sense_len;
+			aligned_u64 psense_buffer;
+		};
+		struct {
+			uint16_t ws_descriptors_len;
+			aligned_u64 ws_descriptors;
+		};
+	};
 };
 
 /* Be careful adding new members here, this structure is allocated on stack! */

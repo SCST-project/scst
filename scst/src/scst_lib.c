@@ -5320,13 +5320,12 @@ int scst_acg_remove_name(struct scst_acg *acg, const char *name, bool reassign)
 }
 #endif
 
-static struct scst_cmd *scst_create_prepare_internal_cmd(
-	struct scst_cmd *orig_cmd, const uint8_t *cdb,
-	unsigned int cdb_len, enum scst_cmd_queue_type queue_type)
+struct scst_cmd *__scst_create_prepare_internal_cmd(const uint8_t *cdb,
+	unsigned int cdb_len, enum scst_cmd_queue_type queue_type,
+	struct scst_tgt_dev *tgt_dev, gfp_t gfp_mask, bool fantom)
 {
 	struct scst_cmd *res;
 	int rc;
-	gfp_t gfp_mask = scst_cmd_atomic(orig_cmd) ? GFP_ATOMIC : orig_cmd->cmd_gfp_mask;
 	unsigned long flags;
 
 	TRACE_ENTRY();
@@ -5335,30 +5334,34 @@ static struct scst_cmd *scst_create_prepare_internal_cmd(
 	if (res == NULL)
 		goto out;
 
-	res->cmd_threads = orig_cmd->cmd_threads;
-	res->sess = orig_cmd->sess;
-	res->atomic = scst_cmd_atomic(orig_cmd);
+	res->cmd_threads = tgt_dev->active_cmd_threads;
+	res->sess = tgt_dev->sess;
 	res->internal = 1;
-	res->tgtt = orig_cmd->tgtt;
-	res->tgt = orig_cmd->tgt;
-	res->dev = orig_cmd->dev;
-	res->devt = orig_cmd->devt;
-	res->tgt_dev = orig_cmd->tgt_dev;
-	res->cur_order_data = orig_cmd->tgt_dev->curr_order_data;
-	res->lun = orig_cmd->lun;
+	res->tgtt = tgt_dev->sess->tgt->tgtt;
+	res->tgt = tgt_dev->sess->tgt;
+	res->dev = tgt_dev->dev;
+	res->devt = tgt_dev->dev->handler;
+	res->tgt_dev = tgt_dev;
+	res->cur_order_data = tgt_dev->curr_order_data;
+	res->lun = tgt_dev->lun;
 	res->queue_type = queue_type;
 	res->data_direction = SCST_DATA_UNKNOWN;
 
-	/*
-	 * We need to keep it here to be able to abort during TM processing.
-	 * They should be aborted to (1) speed up TM processing and (2) to
-	 * guarantee that after a TM command finished the affected device(s)
-	 * is/are in a quiescent state with all affected commands finished and
-	 * others - blocked.
-	 */
-	spin_lock_irqsave(&res->sess->sess_list_lock, flags);
-	list_add_tail(&res->sess_cmd_list_entry, &res->sess->sess_cmd_list);
-	spin_unlock_irqrestore(&res->sess->sess_list_lock, flags);
+	if (!fantom) {
+		/*
+		 * We need to keep it here to be able to abort during TM
+		 * processing. They should be aborted to (1) speed up TM
+		 * processing and (2) to guarantee that after a TM command
+		 * finished the affected device(s) is/are in a quiescent state
+		 * with all affected commands finished and others - blocked.
+		 *
+		 * Fantom commands are exception, because they don't do any
+		 * real work.
+		 */
+		spin_lock_irqsave(&res->sess->sess_list_lock, flags);
+		list_add_tail(&res->sess_cmd_list_entry, &res->sess->sess_cmd_list);
+		spin_unlock_irqrestore(&res->sess->sess_list_lock, flags);
+	}
 
 	scst_sess_get(res->sess);
 	if (res->tgt_dev != NULL)
@@ -5373,6 +5376,27 @@ static struct scst_cmd *scst_create_prepare_internal_cmd(
 	sBUG_ON(rc != 0);
 
 	res->state = SCST_CMD_STATE_PARSE;
+
+out:
+	TRACE_EXIT_HRES((unsigned long)res);
+	return res;
+}
+
+static struct scst_cmd *scst_create_prepare_internal_cmd(
+	struct scst_cmd *orig_cmd, const uint8_t *cdb,
+	unsigned int cdb_len, enum scst_cmd_queue_type queue_type)
+{
+	struct scst_cmd *res;
+	gfp_t gfp_mask = scst_cmd_atomic(orig_cmd) ? GFP_ATOMIC : orig_cmd->cmd_gfp_mask;
+
+	TRACE_ENTRY();
+
+	res = __scst_create_prepare_internal_cmd(cdb, cdb_len, queue_type,
+			orig_cmd->tgt_dev, gfp_mask, false);
+	if (res == NULL)
+		goto out;
+
+	res->atomic = scst_cmd_atomic(orig_cmd);
 
 out:
 	TRACE_EXIT_HRES((unsigned long)res);
@@ -5492,6 +5516,11 @@ static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 	return;
 }
 
+struct scst_ws_sg_tail {
+	struct scatterlist *sg;
+	int sg_cnt;
+};
+
 struct scst_write_same_priv {
 	/* Must be the first for scst_finish_internal_cmd()! */
 	scst_i_finish_fn_t ws_finish_fn;
@@ -5500,8 +5529,13 @@ struct scst_write_same_priv {
 
 	struct mutex ws_mutex;
 
-	int64_t ws_cur_lba; /* in blocks */
+	/* 0 len terminated */
+	struct scst_data_descriptor *ws_descriptors;
+
+	int ws_cur_descr;
+
 	int ws_left_to_send; /* in blocks */
+	int64_t ws_cur_lba; /* in blocks */
 
 	__be16 guard_tag;
 	__be16 app_tag;
@@ -5510,10 +5544,12 @@ struct scst_write_same_priv {
 	unsigned int inc_ref_tag:1;
 
 	int ws_max_each;/* in blocks */
-	int ws_cur_in_flight;
+	int ws_cur_in_flight; /* commands */
 
-	int ws_sg_cnt;
-	struct scatterlist *ws_sg;
+	struct scst_ws_sg_tail *ws_sg_tails;
+
+	struct scatterlist *ws_sg_full;
+	int ws_sg_full_cnt;
 };
 
 #ifdef CONFIG_SCST_EXTRACHECKS
@@ -5536,7 +5572,8 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 {
 	struct scst_cmd *ws_cmd = wsp->ws_orig_cmd;
 	struct scst_device *dev = ws_cmd->dev;
-	struct scatterlist *ws_sg = wsp->ws_sg;
+	struct scatterlist *ws_sg;
+	int ws_sg_cnt;
 	int res;
 	uint8_t write_cdb[32];
 	int write_cdb_len;
@@ -5546,10 +5583,18 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 
 	TRACE_ENTRY();
 
+	if (blocks == wsp->ws_max_each) {
+		ws_sg = wsp->ws_sg_full;
+		ws_sg_cnt = wsp->ws_sg_full_cnt;
+	} else {
+		ws_sg = wsp->ws_sg_tails[wsp->ws_cur_descr].sg;
+		ws_sg_cnt = wsp->ws_sg_tails[wsp->ws_cur_descr].sg_cnt;
+	}
+
 #ifdef CONFIG_SCST_EXTRACHECKS
-	if (len != sg_data_length(wsp->ws_sg, wsp->ws_sg_cnt))
+	if (len != sg_data_length(ws_sg, ws_sg_cnt))
 		WARN_ONCE(true, "lba %lld: %d <> %lld\n", lba, len,
-			  sg_data_length(wsp->ws_sg, wsp->ws_sg_cnt));
+			  sg_data_length(ws_sg, ws_sg_cnt));
 #endif
 
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &ws_cmd->cmd_flags)) ||
@@ -5654,7 +5699,7 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 	}
 
 	cmd->tgt_i_sg = ws_sg;
-	cmd->tgt_i_sg_cnt = wsp->ws_sg_cnt;
+	cmd->tgt_i_sg_cnt = ws_sg_cnt;
 	cmd->tgt_i_data_buf_alloced = 1;
 
 	wsp->ws_cur_lba += blocks;
@@ -5683,6 +5728,7 @@ out_busy:
 static void scst_ws_finished(struct scst_write_same_priv *wsp)
 {
 	struct scst_cmd *ws_cmd = wsp->ws_orig_cmd;
+	int i;
 
 	TRACE_ENTRY();
 
@@ -5690,58 +5736,25 @@ static void scst_ws_finished(struct scst_write_same_priv *wsp)
 
 	sBUG_ON(wsp->ws_cur_in_flight != 0);
 
-	if (sg_page(&wsp->ws_sg[0]) != sg_page(ws_cmd->sg))
-		__free_page(sg_page(&wsp->ws_sg[0]));
-	kfree(wsp->ws_sg);
+	if (wsp->ws_sg_full &&
+	    sg_page(&wsp->ws_sg_full[0]) != sg_page(ws_cmd->sg))
+		__free_page(sg_page(&wsp->ws_sg_full[0]));
+	else if (wsp->ws_sg_tails && wsp->ws_sg_tails[0].sg_cnt != 0 &&
+		 sg_page(&wsp->ws_sg_tails[0].sg[0]) != sg_page(ws_cmd->sg))
+		__free_page(sg_page(&wsp->ws_sg_tails[0].sg[0]));
+	if (wsp->ws_sg_full)
+		kfree(wsp->ws_sg_full);
+	if (wsp->ws_sg_tails) {
+		for (i = 0; wsp->ws_descriptors[i].sdd_blocks != 0; i++)
+			if (wsp->ws_sg_tails[i].sg_cnt != 0)
+				kfree(wsp->ws_sg_tails[i].sg);
+		kfree(wsp->ws_sg_tails);
+	}
+	kfree(wsp->ws_descriptors);
 	kfree(wsp);
 
 	ws_cmd->completed = 1; /* for success */
 	ws_cmd->scst_cmd_done(ws_cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_THREAD);
-
-	TRACE_EXIT();
-	return;
-}
-
-/*
- * If there is a tail with fewer segments than ws_max_each, adjust the SG
- * vector and submit a WRITE command for the tail after all other in-flight
- * commands have finished.
- */
-static void scst_ws_process_tail(struct scst_write_same_priv *wsp)
-{
-	struct scst_cmd *ws_cmd = wsp->ws_orig_cmd;
-	struct scatterlist *sg;
-	unsigned left;
-	int i;
-
-	TRACE_ENTRY();
-
-	lockdep_assert_held(&wsp->ws_mutex);
-	EXTRACHECKS_BUG_ON(wsp->ws_cur_in_flight > 0);
-	EXTRACHECKS_BUG_ON(wsp->ws_left_to_send >= wsp->ws_max_each);
-
-	wsp->ws_max_each = wsp->ws_left_to_send;
-	left = wsp->ws_left_to_send << ws_cmd->dev->block_shift;
-	for_each_sg(wsp->ws_sg, sg, wsp->ws_sg_cnt, i) {
-		u32 len = min(left, sg->length);
-
-		if (sg->length > len) {
-			TRACE_DBG("Processing WS tail of %d << %d = %d bytes - adjusted length of element %d from %d to %d",
-				  wsp->ws_left_to_send,
-				  ws_cmd->dev->block_shift,
-				  wsp->ws_left_to_send << ws_cmd->dev->block_shift,
-				  i, sg->length, len);
-			sg->length = len;
-			sg_mark_end(sg);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 0)
-			/* Old versions of sg_mark_end() clear page_link. */
-			BUG_ON(sg_page(sg) == NULL);
-#endif
-			wsp->ws_sg_cnt = i + 1;
-			break;
-		}
-		left -= len;
-	}
 
 	TRACE_EXIT();
 	return;
@@ -5788,14 +5801,17 @@ static void scst_ws_write_cmd_finished(struct scst_cmd *cmd)
 		}
 	}
 
-	if (wsp->ws_left_to_send == 0)
-		goto out_check_finish;
-
-	if (wsp->ws_left_to_send < wsp->ws_max_each) {
-		if (wsp->ws_cur_in_flight > 0)
+	if (wsp->ws_left_to_send == 0) {
+		if (wsp->ws_descriptors[wsp->ws_cur_descr+1].sdd_blocks != 0) {
+			wsp->ws_cur_descr++;
+			wsp->ws_cur_lba = wsp->ws_descriptors[wsp->ws_cur_descr].sdd_lba;
+			wsp->ws_left_to_send = wsp->ws_descriptors[wsp->ws_cur_descr].sdd_blocks;
+			TRACE_DBG("wsp %p, cur descr %d, cur lba %lld, left %d",
+				wsp, wsp->ws_cur_descr, (long long )wsp->ws_cur_lba,
+				wsp->ws_left_to_send);
+		}
+		if (wsp->ws_left_to_send == 0)
 			goto out_check_finish;
-		else
-			scst_ws_process_tail(wsp);
 	}
 
 	blocks = min_t(int, wsp->ws_left_to_send, wsp->ws_max_each);
@@ -5827,24 +5843,41 @@ static void scst_ws_gen_writes(struct scst_write_same_priv *wsp)
 {
 	struct scst_cmd *ws_cmd = wsp->ws_orig_cmd;
 	int cnt = 0;
+	int rc;
 
 	TRACE_ENTRY();
 
 	mutex_lock(&wsp->ws_mutex);
 
-	if (wsp->ws_left_to_send < wsp->ws_max_each)
-		scst_ws_process_tail(wsp);
-
+again:
 	while (wsp->ws_left_to_send >= wsp->ws_max_each &&
 	       wsp->ws_cur_in_flight < SCST_MAX_IN_FLIGHT_INTERNAL_COMMANDS) {
-		int rc;
-
 		rc = scst_ws_push_single_write(wsp, wsp->ws_cur_lba,
 					       wsp->ws_max_each);
 		if (rc != 0)
 			goto out_err;
 
 		cnt++;
+	}
+	if (wsp->ws_left_to_send > 0 &&
+	    wsp->ws_cur_in_flight < SCST_MAX_IN_FLIGHT_INTERNAL_COMMANDS) {
+		rc = scst_ws_push_single_write(wsp, wsp->ws_cur_lba,
+					       wsp->ws_left_to_send);
+		if (rc != 0)
+			goto out_err;
+
+		cnt++;
+	}
+
+	if ((wsp->ws_left_to_send == 0) &&
+	    (wsp->ws_descriptors[wsp->ws_cur_descr+1].sdd_blocks != 0)) {
+		wsp->ws_cur_descr++;
+		wsp->ws_cur_lba = wsp->ws_descriptors[wsp->ws_cur_descr].sdd_lba;
+		wsp->ws_left_to_send = wsp->ws_descriptors[wsp->ws_cur_descr].sdd_blocks;
+		TRACE_DBG("wsp %p, cur descr %d, cur lba %lld, left %d",
+			wsp, wsp->ws_cur_descr, (long long )wsp->ws_cur_lba,
+			wsp->ws_left_to_send);
+		goto again;
 	}
 
 out_wake:
@@ -5867,20 +5900,76 @@ out_err:
 	}
 }
 
+static int scst_ws_sg_init(struct scatterlist **ws_sg, int ws_sg_cnt,
+	struct page *pg, unsigned int offset, unsigned int length,
+	unsigned int total_bytes)
+{
+	struct scatterlist *sg;
+	int i;
+
+	*ws_sg = kmalloc(ws_sg_cnt * sizeof(**ws_sg), GFP_KERNEL);
+	if (*ws_sg == NULL) {
+		PRINT_ERROR("Unable to alloc sg for %d entries", ws_sg_cnt);
+		return -ENOMEM;
+	}
+	sg_init_table(*ws_sg, ws_sg_cnt);
+	for_each_sg(*ws_sg, sg, ws_sg_cnt, i) {
+		u32 len = min(total_bytes, length);
+		sg_set_page(sg, pg, len, offset);
+		total_bytes -= len;
+	}
+	sBUG_ON(total_bytes != 0); /* crash here to avoid data corruption */
+
+	return 0;
+}
+
+static int scst_ws_sg_tails_get(struct scst_data_descriptor *where, struct scst_write_same_priv *wsp)
+{
+	int i;
+
+	TRACE_ENTRY();
+
+	for (i = 0; where[i].sdd_blocks != 0; i++) {
+		if (where[i].sdd_blocks / wsp->ws_max_each != 0) {
+			wsp->ws_sg_full_cnt = wsp->ws_max_each;
+			break;
+		}
+	}
+	while (where[i].sdd_blocks != 0)
+		i++;
+
+	wsp->ws_sg_tails = kzalloc(sizeof(*(wsp->ws_sg_tails))*(i+1), GFP_KERNEL);
+	if (wsp->ws_sg_tails == NULL) {
+		PRINT_ERROR("Unable to allocate ws_sg_tails (size %zd)",
+				sizeof(*wsp->ws_sg_tails)*i);
+		return -ENOMEM;
+	}
+	for (i = 0; where[i].sdd_blocks != 0; i++)
+		wsp->ws_sg_tails[i].sg_cnt = where[i].sdd_blocks % wsp->ws_max_each;
+
+	TRACE_EXIT();
+	return 0;
+}
+
 /*
  * Library function to perform WRITE SAME in a generic manner. On exit, cmd
  * always completed with sense set, if necessary.
+ *
+ * Parameter "where" is an array of descriptors where to write the same
+ * block. Last element in this array has len 0. It must be allocated by
+ * k?alloc() and will be kfree() by this function on finish.
  */
-void scst_write_same(struct scst_cmd *cmd)
+void scst_write_same(struct scst_cmd *cmd, struct scst_data_descriptor *where)
 {
 	struct scst_write_same_priv *wsp;
 	int i, rc;
 	struct page *pg = NULL;
-	struct scatterlist *sg;
-	unsigned int offset, length, mult, ws_sg_blocks, left;
+	unsigned int offset, length, mult, ws_sg_full_blocks, ws_sg_tail_blocks;
 	uint8_t ctrl_offs = (cmd->cdb_len < 32) ? 1 : 10;
 
 	TRACE_ENTRY();
+
+	scst_set_exec_time(cmd);
 
 	if (unlikely(cmd->data_len <= 0)) {
 		scst_set_invalid_field_in_cdb(cmd, cmd->len_off, 0);
@@ -5910,6 +5999,20 @@ void scst_write_same(struct scst_cmd *cmd)
 		goto out_done;
 	}
 
+	if (where == NULL) {
+		where = kzalloc(sizeof(*where) << 1, GFP_KERNEL);
+		if (where == NULL) {
+			PRINT_ERROR("Unable to allocate ws_priv (size %zd, cmd %p)",
+				sizeof(*where) << 1, cmd);
+			goto out_busy;
+		}
+		where->sdd_lba = cmd->lba;
+		where->sdd_blocks = cmd->data_len >> cmd->dev->block_shift;
+	}
+
+	if (unlikely(where->sdd_blocks == 0))
+		goto out_done;
+
 	rc = scst_dif_process_write(cmd);
 	if (unlikely(rc != 0))
 		goto out_done;
@@ -5925,9 +6028,14 @@ void scst_write_same(struct scst_cmd *cmd)
 	wsp->ws_finish_fn = scst_ws_write_cmd_finished;
 	wsp->ws_orig_cmd = cmd;
 
-	wsp->ws_cur_lba = cmd->lba;
-	wsp->ws_left_to_send = cmd->data_len >> cmd->dev->block_shift;
+	wsp->ws_descriptors = where;
+	wsp->ws_cur_descr = 0;
+	wsp->ws_cur_lba = where[0].sdd_lba;
+	wsp->ws_left_to_send = where[0].sdd_blocks;
 	wsp->ws_max_each = SCST_MAX_EACH_INTERNAL_IO_SIZE >> cmd->dev->block_shift;
+
+	if (scst_ws_sg_tails_get(where, wsp) == -ENOMEM)
+		goto out_busy;
 
 	if (cmd->bufflen <= PAGE_SIZE / 2)
 		pg = alloc_page(GFP_KERNEL);
@@ -5953,22 +6061,28 @@ void scst_write_same(struct scst_cmd *cmd)
 		mult = 1;
 	}
 
-	ws_sg_blocks = min_t(int, wsp->ws_left_to_send, wsp->ws_max_each);
-	wsp->ws_sg_cnt = (ws_sg_blocks + mult - 1) / mult;
-	wsp->ws_sg = kmalloc(wsp->ws_sg_cnt * sizeof(*wsp->ws_sg), GFP_KERNEL);
-	if (wsp->ws_sg == NULL) {
-		PRINT_ERROR("Unable to alloc sg for %d entries", wsp->ws_sg_cnt);
-		goto out_free;
+	if (wsp->ws_sg_full_cnt != 0) {
+		ws_sg_full_blocks = wsp->ws_sg_full_cnt;
+		wsp->ws_sg_full_cnt = (ws_sg_full_blocks + mult - 1) / mult;
+		TRACE_DBG("Allocating %d SGs", wsp->ws_sg_full_cnt);
+		rc = scst_ws_sg_init(&wsp->ws_sg_full, wsp->ws_sg_full_cnt, pg,
+				     offset, length,
+				     ws_sg_full_blocks << cmd->dev->block_shift);
+		if (rc != 0)
+			goto out_free;
 	}
-	sg_init_table(wsp->ws_sg, wsp->ws_sg_cnt);
-	left = ws_sg_blocks << cmd->dev->block_shift;
-	for_each_sg(wsp->ws_sg, sg, wsp->ws_sg_cnt, i) {
-		u32 len = min(left, length);
-
-		sg_set_page(sg, pg, len, offset);
-		left -= len;
+	for (i = 0; wsp->ws_descriptors[i].sdd_blocks != 0; i++) {
+		if (wsp->ws_sg_tails[i].sg_cnt != 0) {
+			ws_sg_tail_blocks = wsp->ws_sg_tails[i].sg_cnt;
+			wsp->ws_sg_tails[i].sg_cnt = (ws_sg_tail_blocks + mult - 1) / mult;
+			TRACE_DBG("Allocating %d tail SGs for descriptor[%d] ", wsp->ws_sg_tails[i].sg_cnt, i);
+			rc = scst_ws_sg_init(&wsp->ws_sg_tails[i].sg, wsp->ws_sg_tails[i].sg_cnt, pg,
+					     offset, length,
+					     ws_sg_tail_blocks << cmd->dev->block_shift);
+			if (rc != 0)
+				goto out_free;
+		}
 	}
-	sBUG_ON(left != 0); /* crash here to avoid data corruption */
 
 	if (scst_cmd_needs_dif_buf(cmd)) {
 		struct t10_pi_tuple *t;
@@ -5991,7 +6105,7 @@ void scst_write_same(struct scst_cmd *cmd)
 			wsp->inc_ref_tag = 0;
 			break;
 		default:
-			sBUG_ON(1);
+			sBUG();
 			break;
 		}
 
@@ -6013,6 +6127,7 @@ out_busy:
 	scst_set_busy(cmd);
 
 out_done:
+	kfree(where);
 	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_THREAD);
 	goto out;
 }
