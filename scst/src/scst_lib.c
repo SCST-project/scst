@@ -3314,7 +3314,7 @@ static void scst_adjust_sg(struct scst_cmd *cmd, bool reg_sg,
 	return;
 }
 
-static bool __scst_adjust_sg_get_tail(struct scst_cmd *cmd,
+static int __scst_adjust_sg_get_tail(struct scst_cmd *cmd,
 	struct scatterlist *sg, int *sg_cnt,
 	struct scatterlist **res_sg, int *res_sg_cnt,
 	int adjust_len, struct scst_orig_sg_data *orig_sg, int must_left)
