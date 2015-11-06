@@ -5973,7 +5973,7 @@ static void scst_ws_write_cmd_finished(struct scst_cmd *cmd)
 			wsp->ws_cur_lba = wsp->ws_descriptors[wsp->ws_cur_descr].sdd_lba;
 			wsp->ws_left_to_send = wsp->ws_descriptors[wsp->ws_cur_descr].sdd_blocks;
 			TRACE_DBG("wsp %p, cur descr %d, cur lba %lld, left %d",
-				wsp, wsp->ws_cur_descr, (long long )wsp->ws_cur_lba,
+				wsp, wsp->ws_cur_descr, (long long)wsp->ws_cur_lba,
 				wsp->ws_left_to_send);
 		}
 		if (wsp->ws_left_to_send == 0)
@@ -6041,7 +6041,7 @@ again:
 		wsp->ws_cur_lba = wsp->ws_descriptors[wsp->ws_cur_descr].sdd_lba;
 		wsp->ws_left_to_send = wsp->ws_descriptors[wsp->ws_cur_descr].sdd_blocks;
 		TRACE_DBG("wsp %p, cur descr %d, cur lba %lld, left %d",
-			wsp, wsp->ws_cur_descr, (long long )wsp->ws_cur_lba,
+			wsp, wsp->ws_cur_descr, (long long)wsp->ws_cur_lba,
 			wsp->ws_left_to_send);
 		goto again;
 	}
