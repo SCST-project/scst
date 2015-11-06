@@ -3777,6 +3777,7 @@ static int dev_user_get_opt(struct file *file, void __user *arg)
 	if (unlikely(res != 0))
 		goto out;
 
+	memset(&opt, 0, sizeof(opt));
 	opt.parse_type = dev->parse_type;
 	opt.on_free_cmd_type = dev->on_free_cmd_type;
 	opt.memory_reuse_type = dev->memory_reuse_type;
