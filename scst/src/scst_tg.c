@@ -967,9 +967,9 @@ static void __scst_tg_set_state(struct scst_target_group *tg,
 			list_for_each_entry(tg_tgt, &tg->tgt_list, entry) {
 				if (tg_tgt->tgt == tgt) {
 					bool gen_ua = (state != SCST_TG_STATE_TRANSITIONING);
-	 				if ((tg->dg->stpg_rel_tgt_id == tgt_dev->sess->tgt->rel_tgt_id) &&
-	 				    tid_equal(tg->dg->stpg_transport_id, tgt_dev->sess->transport_id))
-	 					gen_ua = false;
+					if ((tg->dg->stpg_rel_tgt_id == tgt_dev->sess->tgt->rel_tgt_id) &&
+					    tid_equal(tg->dg->stpg_transport_id, tgt_dev->sess->transport_id))
+						gen_ua = false;
 					scst_tg_change_tgt_dev_state(tgt_dev,
 						state, gen_ua);
 					break;

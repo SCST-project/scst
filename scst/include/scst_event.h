@@ -137,7 +137,7 @@ struct scst_event_tm_fn_received_payload {
 
 #define SCST_EVENT_STPG_USER_INVOKE    5
 struct scst_event_stpg_descr {
- 	uint16_t group_id;
+	uint16_t group_id;
 	/*
 	 * Better to keep below fields as small as possible to fit
 	 * in single page as many descriptors as possible.
