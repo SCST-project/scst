@@ -778,6 +778,7 @@ static ssize_t scst_local_sysfs_mgmt_cmd(char *buf)
 		res = __scst_local_add_adapter(tgt, session_name, true);
 	} else if (strcasecmp("del_session", command) == 0) {
 		struct scst_local_sess *s, *sess = NULL;
+
 		list_for_each_entry(s, &tgt->sessions_list,
 					sessions_list_entry) {
 			if (strcmp(s->scst_sess->initiator_name, session_name) == 0) {
