@@ -694,11 +694,11 @@ static int scst_pr_do_load_device_file(struct scst_device *dev,
 
 	inode = file_inode(file);
 
-	if (S_ISREG(inode->i_mode))
-		/* Nothing to do */;
-	else if (S_ISBLK(inode->i_mode))
+	if (S_ISREG(inode->i_mode)) {
+		/* Nothing to do */
+	} else if (S_ISBLK(inode->i_mode)) {
 		inode = inode->i_bdev->bd_inode;
-	else {
+	} else {
 		PRINT_ERROR("Invalid file mode 0x%x", inode->i_mode);
 		goto out_close;
 	}

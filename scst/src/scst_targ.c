@@ -3734,9 +3734,9 @@ static int scst_exec_check_blocking(struct scst_cmd **active_cmd)
 		cmd->state = SCST_CMD_STATE_LOCAL_EXEC;
 
 		rc = scst_do_local_exec(cmd);
-		if (likely(rc == SCST_EXEC_NOT_COMPLETED))
-			/* Nothing to do */;
-		else {
+		if (likely(rc == SCST_EXEC_NOT_COMPLETED)) {
+			/* Nothing to do */
+		} else {
 			sBUG_ON(rc != SCST_EXEC_COMPLETED);
 			goto done;
 		}

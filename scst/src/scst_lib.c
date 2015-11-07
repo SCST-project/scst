@@ -3349,7 +3349,7 @@ static int __scst_adjust_sg_get_tail(struct scst_cmd *cmd,
 			TRACE_DBG_FLAG(TRACE_SG_OP|TRACE_MEMORY|TRACE_DEBUG,
 				"cmd %p (tag %llu), sg %p, adjust_len %d, i %d, "
 				"j %d, sg[j].length %d, offs %d",
-				cmd, (long long unsigned int)cmd->tag,
+				cmd, (unsigned long long)cmd->tag,
 				sg, adjust_len, i, j, sg[j].length, offs);
 
 			if (offs == sg[j].length) {
@@ -14397,11 +14397,11 @@ int scst_copy_file(const char *src, const char *dest)
 
 	inode = file_inode(file_src);
 
-	if (S_ISREG(inode->i_mode))
-		/* Nothing to do */;
-	else if (S_ISBLK(inode->i_mode))
+	if (S_ISREG(inode->i_mode)) {
+		/* Nothing to do */
+	} else if (S_ISBLK(inode->i_mode)) {
 		inode = inode->i_bdev->bd_inode;
-	else {
+	} else {
 		PRINT_ERROR("Invalid file mode 0x%x", inode->i_mode);
 		res = -EINVAL;
 		set_fs(old_fs);
@@ -14596,11 +14596,11 @@ static int __scst_read_file_transactional(const char *file_name,
 
 	inode = file_inode(file);
 
-	if (S_ISREG(inode->i_mode))
-		/* Nothing to do */;
-	else if (S_ISBLK(inode->i_mode))
+	if (S_ISREG(inode->i_mode)) {
+		/* Nothing to do */
+	} else if (S_ISBLK(inode->i_mode)) {
 		inode = inode->i_bdev->bd_inode;
-	else {
+	} else {
 		PRINT_ERROR("Invalid file mode 0x%x", inode->i_mode);
 		res = -EINVAL;
 		goto out_close;
