@@ -567,6 +567,7 @@ static ssize_t isert_read(struct file *filp, char __user *buf, size_t count,
 
 	if (will_read_block(dev)) {
 		int ret;
+
 		if (filp->f_flags & O_NONBLOCK)
 			return -EAGAIN;
 		ret = wait_event_freezable(dev->waitqueue,

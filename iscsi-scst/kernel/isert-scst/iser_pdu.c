@@ -82,6 +82,7 @@ static int isert_rx_pdu_init(struct isert_cmnd *isert_pdu,
 {
 	struct iscsi_cmnd *iscsi_cmnd = &isert_pdu->iscsi;
 	int err = isert_pdu_rx_buf_init(isert_pdu, isert_conn);
+
 	if (unlikely(err < 0))
 		return err;
 	iscsi_cmnd->conn = &isert_conn->iscsi;

@@ -294,6 +294,7 @@ out:
 void isert_wr_release(struct isert_wr *wr)
 {
 	struct isert_buf *isert_buf = wr->buf;
+
 	if (isert_buf && isert_buf->is_alloced) {
 		struct isert_device *isert_dev = wr->isert_dev;
 		struct ib_device *ib_dev;
