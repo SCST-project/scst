@@ -76,6 +76,7 @@ static __be32 evaluate_crc32_from_sg(struct scatterlist *sg, int nbytes,
 
 		while (nbytes > 0) {
 			int d = min(nbytes, (int)(sg->length));
+
 			crc = crc32c(crc, sg_virt(sg), d);
 			nbytes -= d;
 			sg++;

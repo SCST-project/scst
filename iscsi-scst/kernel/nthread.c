@@ -100,6 +100,7 @@ again:
 
 			for (i = 0; i < cmnd->sg_cnt; i++) {
 				struct page *page = sg_page(&cmnd->sg[i]);
+
 				TRACE_CONN_CLOSE_DBG("page %p, net_priv %p, "
 					"_count %d", page, page->net_priv,
 					atomic_read(&page->_count));
@@ -282,8 +283,10 @@ static void trace_conn_close(struct iscsi_conn *conn)
 			cmnd->sg);
 		if (cmnd->sg != NULL) {
 			int i;
+
 			for (i = 0; i < cmnd->sg_cnt; i++) {
 				struct page *page = sg_page(&cmnd->sg[i]);
+
 				TRACE_CONN_CLOSE_DBG("page %p, "
 					"net_priv %p, _count %d",
 					page, page->net_priv,
@@ -301,6 +304,7 @@ static void trace_conn_close(struct iscsi_conn *conn)
 			    atomic_read(&rsp->net_ref_cnt), rsp->sg);
 			if (rsp->sg != cmnd->sg && rsp->sg) {
 				int i;
+
 				for (i = 0; i < rsp->sg_cnt; i++) {
 					TRACE_CONN_CLOSE_DBG("    page %p, "
 					  "net_priv %p, _count %d",
@@ -459,6 +463,7 @@ static void close_conn(struct iscsi_conn *conn)
 		spin_lock(&session->sn_lock);
 		if (session->tm_rsp && session->tm_rsp->conn == conn) {
 			struct iscsi_cmnd *tm_rsp = session->tm_rsp;
+
 			iscsi_drop_delayed_tm_rsp(tm_rsp);
 			spin_unlock(&session->sn_lock);
 			mutex_unlock(&target->target_mutex);
@@ -795,6 +800,7 @@ static int iscsi_rx_check_ddigest(struct iscsi_conn *conn)
 			res = digest_rx_data(cmnd);
 			if (unlikely(res != 0)) {
 				struct iscsi_cmnd *orig_req;
+
 				if (cmnd_opcode(cmnd) == ISCSI_OP_SCSI_DATA_OUT)
 					orig_req = cmnd->cmd_req;
 				else
@@ -914,6 +920,7 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 			res = do_recv(conn);
 			if (res == 0) {
 				int psz = ((cmnd->pdu.datasize + 3) & -4) - cmnd->pdu.datasize;
+
 				if (psz != 0) {
 					TRACE_DBG("padding %d bytes", psz);
 					iscsi_conn_init_read(conn,
@@ -1154,8 +1161,10 @@ static inline void __iscsi_put_page_callback(struct iscsi_cmnd *cmd)
 
 	if (atomic_dec_and_test(&cmd->net_ref_cnt)) {
 		int i, sg_cnt = cmd->sg_cnt;
+
 		for (i = 0; i < sg_cnt; i++) {
 			struct page *page = sg_page(&cmd->sg[i]);
+
 			TRACE_NET_PAGE("Clearing page %p", page);
 			if (page->net_priv == cmd)
 				page->net_priv = NULL;
@@ -1222,9 +1231,11 @@ void req_add_to_write_timeout_list(struct iscsi_cmnd *req)
 		unsigned long req_tt = iscsi_get_timeout_time(req);
 		struct iscsi_cmnd *r;
 		bool inserted = false;
+
 		list_for_each_entry(r, &conn->write_timeout_list,
 					write_timeout_list_entry) {
 			unsigned long tt = iscsi_get_timeout_time(r);
+
 			if (time_after(tt, req_tt)) {
 				TRACE_DBG("Add NOP IN req %p (tt %ld) before "
 					"req %p (tt %ld)", req, req_tt, r, tt);
@@ -1256,6 +1267,7 @@ void req_add_to_write_timeout_list(struct iscsi_cmnd *req)
 
 	if (!timer_pending(&conn->rsp_timer)) {
 		unsigned long timeout_time;
+
 		if (unlikely(conn->conn_tm_active ||
 			     test_bit(ISCSI_CMD_ABORTED,
 					&req->prelim_compl_flags))) {
@@ -1276,6 +1288,7 @@ void req_add_to_write_timeout_list(struct iscsi_cmnd *req)
 				&req->prelim_compl_flags))) {
 		unsigned long timeout_time = jiffies +
 			ISCSI_TM_DATA_WAIT_TIMEOUT + ISCSI_ADD_SCHED_TIME;
+
 		set_conn_tm_active = true;
 		if (time_after(conn->rsp_timer.expires, timeout_time)) {
 			TRACE_MGMT_DBG("Mod timer on %ld (conn %p)",
@@ -1454,6 +1467,7 @@ retry:
 #if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 		{
 			static DEFINE_SPINLOCK(net_priv_lock);
+
 			spin_lock(&net_priv_lock);
 			if (unlikely(page->net_priv != NULL)) {
 				if (page->net_priv != ref_cmd) {

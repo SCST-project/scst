@@ -525,6 +525,7 @@ static void conn_rsp_timer_fn(unsigned long arg)
 
 	if (!list_empty(&conn->write_timeout_list)) {
 		unsigned long timeout_time;
+
 		cmnd = list_first_entry(&conn->write_timeout_list,
 				struct iscsi_cmnd, write_timeout_list_entry);
 
@@ -834,6 +835,7 @@ void conn_free(struct iscsi_conn *conn)
 	/* Just in case if new conn gets freed before the old one */
 	if (test_bit(ISCSI_CONN_REINSTATING, &conn->conn_aflags)) {
 		struct iscsi_conn *c;
+
 		TRACE_MGMT_DBG("Freeing being reinstated conn %p", conn);
 		list_for_each_entry(c, &session->conn_list,
 					conn_list_entry) {
