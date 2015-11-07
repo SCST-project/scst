@@ -5924,8 +5924,7 @@ static void scst_ws_finished(struct scst_write_same_priv *wsp)
 	else if (wsp->ws_sg_tails && wsp->ws_sg_tails[0].sg_cnt != 0 &&
 		 sg_page(&wsp->ws_sg_tails[0].sg[0]) != sg_page(ws_cmd->sg))
 		__free_page(sg_page(&wsp->ws_sg_tails[0].sg[0]));
-	if (wsp->ws_sg_full)
-		kfree(wsp->ws_sg_full);
+	kfree(wsp->ws_sg_full);
 	if (wsp->ws_sg_tails) {
 		for (i = 0; wsp->ws_descriptors[i].sdd_blocks != 0; i++)
 			if (wsp->ws_sg_tails[i].sg_cnt != 0)
