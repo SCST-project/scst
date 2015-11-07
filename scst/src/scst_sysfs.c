@@ -668,9 +668,11 @@ static int scst_check_tgt_acg_ptrs(struct scst_tgt *tgt, struct scst_acg *acg)
 
 	list_for_each_entry(tgtt, &scst_template_list, scst_template_list_entry) {
 		struct scst_tgt *t;
+
 		list_for_each_entry(t, &tgtt->tgt_list, tgt_list_entry) {
 			if (t == tgt) {
 				struct scst_acg *a;
+
 				if (acg == NULL)
 					goto out;
 				if (acg == tgt->default_acg)
@@ -783,8 +785,8 @@ static ssize_t scst_show(struct kobject *kobj, struct attribute *attr,
 			 char *buf)
 {
 	struct kobj_attribute *kobj_attr;
-	kobj_attr = container_of(attr, struct kobj_attribute, attr);
 
+	kobj_attr = container_of(attr, struct kobj_attribute, attr);
 	return kobj_attr->show(kobj, kobj_attr, buf);
 }
 
@@ -792,8 +794,8 @@ static ssize_t scst_store(struct kobject *kobj, struct attribute *attr,
 			  const char *buf, size_t count)
 {
 	struct kobj_attribute *kobj_attr;
-	kobj_attr = container_of(attr, struct kobj_attribute, attr);
 
+	kobj_attr = container_of(attr, struct kobj_attribute, attr);
 	if (kobj_attr->store)
 		return kobj_attr->store(kobj, kobj_attr, buf, count);
 	else
@@ -1073,6 +1075,7 @@ static ssize_t scst_tgtt_dif_capable_show(struct kobject *kobj,
 	if (tgtt->supported_dif_block_sizes) {
 		const int *p = tgtt->supported_dif_block_sizes;
 		int j;
+
 		pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
 			"Supported blocks: ");
 		j = pos;
@@ -1893,9 +1896,11 @@ static ssize_t __scst_acg_black_hole_store(struct scst_acg *acg,
 
 	list_for_each_entry(sess, &acg->acg_sess_list, acg_sess_list_entry) {
 		int i;
+
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 			struct list_head *head = &sess->sess_tgt_dev_list[i];
 			struct scst_tgt_dev *tgt_dev;
+
 			list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
 				if (t != SCST_ACG_BLACK_HOLE_NONE)
 					set_bit(SCST_TGT_DEV_BLACK_HOLE, &tgt_dev->tgt_dev_flags);
@@ -1991,9 +1996,11 @@ static int __scst_acg_process_cpu_mask_store(struct scst_tgt *tgt,
 
 	list_for_each_entry(sess, &acg->acg_sess_list, acg_sess_list_entry) {
 		int i;
+
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 			struct scst_tgt_dev *tgt_dev;
 			struct list_head *head = &sess->sess_tgt_dev_list[i];
+
 			list_for_each_entry(tgt_dev, head,
 						sess_tgt_dev_list_entry) {
 				int rc;
@@ -2562,9 +2569,11 @@ static ssize_t scst_tgt_forwarding_store(struct kobject *kobj,
 
 	list_for_each_entry(sess, &tgt->sess_list, sess_list_entry) {
 		int i;
+
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 			struct list_head *head = &sess->sess_tgt_dev_list[i];
 			struct scst_tgt_dev *tgt_dev;
+
 			list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
 				if (tgt->tgt_forwarding)
 					set_bit(SCST_TGT_DEV_FORWARDING, &tgt_dev->tgt_dev_flags);
@@ -2727,6 +2736,7 @@ static ssize_t scst_tgt_dif_capable_show(struct kobject *kobj,
 	if (tgt->tgt_supported_dif_block_sizes) {
 		const int *p = tgt->tgt_supported_dif_block_sizes;
 		int j;
+
 		pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
 			"Supported blocks: ");
 		j = pos;
@@ -4463,6 +4473,7 @@ static int scst_sess_zero_latency(struct scst_sysfs_work_item *work)
 	for (t = SESS_TGT_DEV_LIST_HASH_SIZE-1; t >= 0; t--) {
 		struct list_head *head = &sess->sess_tgt_dev_list[t];
 		struct scst_tgt_dev *tgt_dev;
+
 		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
 			tgt_dev->scst_time = 0;
 			tgt_dev->tgt_time = 0;
@@ -4546,6 +4557,7 @@ static int scst_sysfs_sess_get_active_commands(struct scst_session *sess)
 	for (t = SESS_TGT_DEV_LIST_HASH_SIZE-1; t >= 0; t--) {
 		struct list_head *head = &sess->sess_tgt_dev_list[t];
 		struct scst_tgt_dev *tgt_dev;
+
 		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
 			active_cmds += atomic_read(&tgt_dev->tgt_dev_cmd_count);
 		}
@@ -4615,6 +4627,7 @@ static int scst_sysfs_sess_get_dif_checks_failed_work_fn(struct scst_sysfs_work_
 	for (t = SESS_TGT_DEV_LIST_HASH_SIZE-1; t >= 0; t--) {
 		struct list_head *head = &sess->sess_tgt_dev_list[t];
 		struct scst_tgt_dev *tgt_dev;
+
 		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
 			app_failed_tgt += atomic_read(&tgt_dev->tgt_dev_dif_app_failed_tgt);
 			ref_failed_tgt += atomic_read(&tgt_dev->tgt_dev_dif_ref_failed_tgt);
@@ -4695,6 +4708,7 @@ static int scst_sess_zero_dif_checks_failed(struct scst_sysfs_work_item *work)
 	for (t = SESS_TGT_DEV_LIST_HASH_SIZE-1; t >= 0; t--) {
 		struct list_head *head = &sess->sess_tgt_dev_list[t];
 		struct scst_tgt_dev *tgt_dev;
+
 		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
 			atomic_set(&tgt_dev->tgt_dev_dif_app_failed_tgt, 0);
 			atomic_set(&tgt_dev->tgt_dev_dif_ref_failed_tgt, 0);

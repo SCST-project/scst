@@ -596,6 +596,7 @@ EXPORT_SYMBOL(scst_register_target);
 static inline int test_sess_list(struct scst_tgt *tgt)
 {
 	int res;
+
 	mutex_lock(&scst_mutex);
 	res = list_empty(&tgt->sysfs_sess_list);
 	mutex_unlock(&scst_mutex);
@@ -637,6 +638,7 @@ void scst_unregister_target(struct scst_tgt *tgt)
 again:
 	{
 		struct scst_session *sess;
+
 		list_for_each_entry(sess, &tgt->sess_list, sess_list_entry) {
 			if (sess->shut_phase == SCST_SESS_SPH_READY) {
 				/*
@@ -870,6 +872,7 @@ static void __printf(2, 3) scst_to_syslog(void *arg, const char *fmt, ...)
 int scst_get_cmd_counter(void)
 {
 	int i, res = 0;
+
 	for (i = 0; i < (int)ARRAY_SIZE(scst_percpu_infos); i++)
 		res += atomic_read(&scst_percpu_infos[i].cpu_cmd_count);
 	return res;
@@ -1877,6 +1880,7 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 
 	if (tgt_dev != NULL) {
 		struct scst_tgt_dev *t;
+
 		list_for_each_entry(t, &tgt_dev->dev->dev_tgt_dev_list,
 				dev_tgt_dev_list_entry) {
 			if (t == tgt_dev)
@@ -2447,6 +2451,7 @@ static int __init init_scst(void)
 		struct scsi_sense_hdr *shdr;
 		struct scst_order_data *o;
 		struct scst_cmd *c;
+
 		BUILD_BUG_ON(sizeof(*shdr) > SCST_SENSE_BUFFERSIZE);
 		BUILD_BUG_ON(sizeof(o->curr_sn) != sizeof(o->expected_sn));
 		BUILD_BUG_ON(sizeof(c->sn) != sizeof(o->expected_sn));
@@ -2606,6 +2611,7 @@ static int __init init_scst(void)
 
 	if (scst_max_cmd_mem == 0) {
 		struct sysinfo si;
+
 		si_meminfo(&si);
 #if BITS_PER_LONG == 32
 		scst_max_cmd_mem = min(

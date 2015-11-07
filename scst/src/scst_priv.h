@@ -753,6 +753,7 @@ static inline atomic_t *scst_get(void)
 static inline void scst_put(atomic_t *a)
 {
 	int f;
+
 	f = atomic_dec_and_test(a);
 	/* See comment about smp_mb() in scst_suspend_activity() */
 	if (unlikely(test_bit(SCST_FLAG_SUSPENDED, &scst_flags)) && f) {

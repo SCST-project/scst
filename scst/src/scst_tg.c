@@ -906,6 +906,7 @@ static void scst_event_stpg_notify_fn(struct scst_event *event,
 
 	for (i = 0, d = &p->stpg_descriptors[0]; i < p->stpg_descriptors_cnt; i++, d++) {
 		struct scst_target_group *tg = __lookup_tg_by_group_id(dg, d->group_id);
+
 		if (!tg) {
 			PRINT_ERROR("STPG: unable to find TG %d", d->group_id);
 			goto out_fail;
@@ -967,6 +968,7 @@ static void __scst_tg_set_state(struct scst_target_group *tg,
 			list_for_each_entry(tg_tgt, &tg->tgt_list, entry) {
 				if (tg_tgt->tgt == tgt) {
 					bool gen_ua = (state != SCST_TG_STATE_TRANSITIONING);
+
 					if ((tg->dg->stpg_rel_tgt_id == tgt_dev->sess->tgt->rel_tgt_id) &&
 					    tid_equal(tg->dg->stpg_transport_id, tgt_dev->sess->transport_id))
 						gen_ua = false;

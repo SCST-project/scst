@@ -675,6 +675,7 @@ static int sgv_alloc_sg_entries(struct scatterlist *sg, int pages,
 		pg = 0;
 		for (i = 0; i < pages; i++) {
 			int n = PAGE_ALIGN(sg[i].length) >> PAGE_SHIFT;
+
 			trans_tbl[i].pg_count = pg;
 			for (j = 0; j < n; j++)
 				trans_tbl[pg++].sg_num = i+1;
@@ -972,6 +973,7 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 	pages = PAGE_ALIGN(size) >> PAGE_SHIFT;
 	if (pool->single_alloc_pages == 0) {
 		int pages_order = get_order(size);
+
 		cache_num = pages_order;
 		pages_to_alloc = (1 << pages_order);
 	} else {
@@ -1128,6 +1130,7 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 success:
 	if (cache_num >= 0) {
 		int sg;
+
 		atomic_inc(&pool->cache_acc[cache_num].total_alloc);
 		if (sgv_pool_clustered(pool))
 			cnt = obj->trans_tbl[pages-1].sg_num;
@@ -1255,10 +1258,12 @@ void sgv_pool_free(struct sgv_pool_obj *obj, struct scst_mem_lim *mem_lim)
 	{
 		struct scatterlist *sg = obj->sg_entries;
 		int i;
+
 		for (i = 0; i < obj->sg_count; i++) {
 			struct page *p = sg_page(&sg[i]);
 			int len = sg[i].length;
 			int pages = PAGE_ALIGN(len) >> PAGE_SHIFT;
+
 			while (pages > 0) {
 				if (page_count(p) != 1) {
 					PRINT_WARNING("Freeing page %p with "

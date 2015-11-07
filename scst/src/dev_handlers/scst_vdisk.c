@@ -1034,6 +1034,7 @@ check:
 
 	if (virt_dev->thin_provisioned) {
 		int block_shift = virt_dev->dev->block_shift;
+
 		if (virt_dev->blockio) {
 			struct request_queue *q;
 
@@ -1856,6 +1857,7 @@ static enum compl_status_e vdisk_synchronize_cache(struct vdisk_cmd_params *p)
 
 	if (data_len == 0) {
 		struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+
 		data_len = virt_dev->file_size -
 			((loff_t)scst_cmd_get_lba(cmd) << dev->block_shift);
 	}
@@ -2000,6 +2002,7 @@ static int vdisk_format_dif(struct scst_cmd *cmd, uint64_t start_lba,
 		i = -1;
 		while (1) {
 			int len = min_t(size_t, (size_t)left, PAGE_SIZE);
+
 			full_len += len;
 			i++;
 			iv_count++;
@@ -2209,6 +2212,7 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 
 	if (virt_dev->thin_provisioned) {
 		int rc = vdisk_unmap_range(cmd, virt_dev, 0, virt_dev->nblocks);
+
 		if (rc != 0)
 			goto finished;
 	}
@@ -3003,6 +3007,7 @@ out:
 static int vcdrom_parse(struct scst_cmd *cmd)
 {
 	int res, rc;
+
 	rc = scst_cdrom_generic_parse(cmd);
 	if (rc != 0) {
 		res = scst_get_cmd_abnormal_done_state(cmd);
@@ -4310,6 +4315,7 @@ static int vdisk_inq(uint8_t *buf, struct scst_cmd *cmd,
 	/* Physical transport */
 	if (cmd->tgtt->get_phys_transport_version != NULL) {
 		uint16_t v = cmd->tgtt->get_phys_transport_version(cmd->tgt);
+
 		if (v != 0) {
 			put_unaligned_be16(v, &buf[58 + num]);
 			num += 2;
@@ -5230,6 +5236,7 @@ static enum compl_status_e vdisk_exec_read_capacity(struct vdisk_cmd_params *p)
 
 	if ((cmd->cdb[8] & 1) == 0) {
 		uint32_t lba = get_unaligned_be32(&cmd->cdb[2]);
+
 		if (lba != 0) {
 			TRACE_DBG("PMI zero and LBA not zero (cmd %p)", cmd);
 			scst_set_invalid_field_in_cdb(cmd, 2, 0);
@@ -5305,6 +5312,7 @@ static enum compl_status_e vdisk_exec_read_capacity16(struct vdisk_cmd_params *p
 
 	if ((cmd->cdb[14] & 1) == 0) {
 		uint32_t lba = get_unaligned_be32(&cmd->cdb[2]);
+
 		if (lba != 0) {
 			TRACE_DBG("PMI zero and LBA not zero (cmd %p)", cmd);
 			scst_set_invalid_field_in_cdb(cmd, 2, 0);
@@ -5788,6 +5796,7 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 		iv = vdisk_alloc_iv(cmd, p);
 		if (iv == NULL) {
 			unsigned long flags;
+
 			/* To protect sense setting against blockio data reads */
 			spin_lock_irqsave(&vdev_err_lock, flags);
 			scst_set_busy(cmd);
@@ -5836,6 +5845,7 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 				&loff);
 		if ((err < 0) || (err < full_len)) {
 			unsigned long flags;
+
 			PRINT_ERROR("DIF readv() returned %lld from %zd "
 				"(offs %lld, dev %s)", (long long)err,
 				full_len, (long long)loff, cmd->dev->virt_name);
@@ -5919,6 +5929,7 @@ static int vdev_write_dif_tags(struct vdisk_cmd_params *p)
 		iv = vdisk_alloc_iv(cmd, p);
 		if (iv == NULL) {
 			unsigned long flags;
+
 			/* To protect sense setting against blockio data writes */
 			spin_lock_irqsave(&vdev_err_lock, flags);
 			scst_set_busy(cmd);
@@ -5969,6 +5980,7 @@ restart:
 				 &loff);
 		if (err < 0) {
 			unsigned long flags;
+
 			PRINT_ERROR("DIF write() returned %lld from %zd",
 				(long long)err, full_len);
 			/* To protect sense setting with blockio */
@@ -5988,6 +6000,7 @@ restart:
 			 * value less, than requested. Let's restart.
 			 */
 			int e = eiv_count;
+
 			TRACE_MGMT_DBG("DIF write() returned %d from %zd "
 				"(iv_count=%d)", (int)err, full_len,
 				eiv_count);
@@ -6322,6 +6335,7 @@ restart:
 			 * value less, than requested. Let's restart.
 			 */
 			int e = eiv_count;
+
 			TRACE_MGMT_DBG("write() returned %d from %zd "
 				"(iv_count=%d)", (int)err, full_len,
 				eiv_count);
@@ -6688,6 +6702,7 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 #if 0
 	{
 		static int err_inj_cntr;
+
 		if (++err_inj_cntr % 256 == 0) {
 			PRINT_INFO("blockio_exec_rw() error injection");
 			scst_set_busy(cmd);
@@ -6913,6 +6928,7 @@ static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
 	if (async) {
 		struct bio *bio = bio_alloc(gfp_mask, 0);
+
 		if (bio == NULL) {
 			res = -ENOMEM;
 			goto out_rep;
@@ -7371,6 +7387,7 @@ static void vdisk_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd,
 	} else if (mcmd->fn == SCST_PR_ABORT_ALL) {
 		struct scst_device *dev = tgt_dev->dev;
 		struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+
 		spin_lock(&virt_dev->flags_lock);
 		virt_dev->prevent_allow_medium_removal = 0;
 		spin_unlock(&virt_dev->flags_lock);
@@ -8406,6 +8423,7 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 
 	if (!virt_dev->cdrom_empty) {
 		char *fn = kstrdup(filename, GFP_KERNEL);
+
 		if (fn == NULL) {
 			PRINT_ERROR("%s", "Allocation of filename failed");
 			res = -ENOMEM;
@@ -10625,6 +10643,7 @@ static void exit_scst_vdisk(struct scst_dev_type *devtype)
 static void init_ops(vdisk_op_fn *ops, int count)
 {
 	int i;
+
 	for (i = 0; i < count; i++)
 		if (ops[i] == NULL)
 			ops[i] = vdisk_invalid_opcode;

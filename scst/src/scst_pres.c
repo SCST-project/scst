@@ -103,6 +103,7 @@ static inline void tid_secure(uint8_t *tid)
 {
 	if ((tid[0] & 0x0f) == SCSI_TRANSPORTID_PROTOCOLID_ISCSI) {
 		int size = scst_tid_size(tid);
+
 		tid[size - 1] = '\0';
 	}
 
@@ -137,6 +138,7 @@ bool tid_equal(const uint8_t *tid_a, const uint8_t *tid_b)
 		else if (tid_a_fmt == 0x40) {
 			if (tid_a_fmt != tid_b_fmt) {
 				uint8_t *p = strnchr(tid_a, tid_a_max, ',');
+
 				if (p == NULL)
 					goto out_error;
 				tid_a_len = p - tid_a;
@@ -153,6 +155,7 @@ bool tid_equal(const uint8_t *tid_a, const uint8_t *tid_b)
 		else if (tid_b_fmt == 0x40) {
 			if (tid_a_fmt != tid_b_fmt) {
 				uint8_t *p = strnchr(tid_b, tid_b_max, ',');
+
 				if (p == NULL)
 					goto out_error;
 				tid_b_len = p - tid_b;
@@ -243,6 +246,7 @@ void scst_pr_dump_prs(struct scst_device *dev, bool force)
 	else {
 		struct scst_dev_registrant *reg;
 		int i = 0;
+
 		list_for_each_entry(reg, &dev->dev_registrants_list,
 					dev_registrants_list_entry) {
 			PRINT_INFO("  [%d] registrant %s/%d, key %016llx "
@@ -256,6 +260,7 @@ void scst_pr_dump_prs(struct scst_device *dev, bool force)
 
 	if (dev->pr_is_set) {
 		struct scst_dev_registrant *holder = dev->pr_holder;
+
 		if (holder != NULL)
 			PRINT_INFO("Reservation holder is %s/%d (key %016llx, "
 				"scope %x, type %x, reg %p, tgt_dev %p)",
@@ -629,6 +634,7 @@ static void scst_pr_abort_reg(struct scst_device *dev,
 	if ((reg->tgt_dev != pr_cmd->tgt_dev) && !dev->tas) {
 		uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
 		int sl;
+
 		sl = scst_set_sense(sense_buffer, sizeof(sense_buffer),
 			dev->d_sense,
 			SCST_LOAD_SENSE(scst_sense_cleared_by_another_ini_UA));
