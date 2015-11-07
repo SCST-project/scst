@@ -496,7 +496,7 @@ static int get_cdb_info_var_len(struct scst_cmd *cmd,
  * |  Command name                       | Operation  | Type |
  * |                                     |   code     |      |
  * |-------------------------------------+------------+------+
- * 
+ *
  * +=========================================================+
  * |Key:  M = command implementation is mandatory.           |
  * |      O = command implementation is optional.            |
@@ -15207,8 +15207,8 @@ void scst_set_pre_exec_time(struct scst_cmd *cmd)
 
 void scst_set_exec_start(struct scst_cmd *cmd)
 {
-        cmd->exec_time_counting = true;
-        scst_set_cur_start(cmd);
+	cmd->exec_time_counting = true;
+	scst_set_cur_start(cmd);
 }
 
 void scst_set_exec_time(struct scst_cmd *cmd)
