@@ -7495,10 +7495,9 @@ int scst_wait_info_completion(struct scst_sysfs_user_info *info,
 				break;
 			}
 		} else if (rc != -ERESTARTSYS) {
-				res = rc;
-				PRINT_ERROR("wait_for_completion() failed: %d",
-					res);
-				goto out;
+			res = rc;
+			PRINT_ERROR("wait_for_completion() failed: %d", res);
+			goto out;
 		} else {
 			TRACE_DBG("Waiting for info %p finished with %d, "
 				"retrying", info, rc);
