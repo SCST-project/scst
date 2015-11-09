@@ -584,7 +584,7 @@ static void conn_nop_in_delayed_work_fn(struct work_struct *work)
 #endif
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	struct iscsi_conn *conn = (struct iscsi_conn *)p;
+	struct iscsi_conn *conn = p;
 #else
 	struct iscsi_conn *conn = container_of(work, struct iscsi_conn,
 					       nop_in_delayed_work.work);

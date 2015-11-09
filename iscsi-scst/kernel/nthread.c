@@ -334,7 +334,7 @@ void iscsi_task_mgmt_affected_cmds_done(struct scst_mgmt_cmd *scst_mcmd)
 	switch (fn) {
 	case SCST_NEXUS_LOSS_SESS:
 	{
-		struct iscsi_conn *conn = (struct iscsi_conn *)priv;
+		struct iscsi_conn *conn = priv;
 		struct iscsi_session *sess = conn->session;
 		struct iscsi_conn *c;
 
@@ -584,7 +584,7 @@ static void close_conn(struct iscsi_conn *conn)
 
 static int close_conn_thr(void *arg)
 {
-	struct iscsi_conn *conn = (struct iscsi_conn *)arg;
+	struct iscsi_conn *conn = arg;
 
 	TRACE_ENTRY();
 
@@ -1145,7 +1145,7 @@ static inline void __iscsi_get_page_callback(struct iscsi_cmnd *cmd)
 
 void iscsi_get_page_callback(struct page *page)
 {
-	struct iscsi_cmnd *cmd = (struct iscsi_cmnd *)page->net_priv;
+	struct iscsi_cmnd *cmd = page->net_priv;
 
 	TRACE_NET_PAGE("page %p, _count %d", page,
 		atomic_read(&page->_count));
@@ -1176,7 +1176,7 @@ static inline void __iscsi_put_page_callback(struct iscsi_cmnd *cmd)
 
 void iscsi_put_page_callback(struct page *page)
 {
-	struct iscsi_cmnd *cmd = (struct iscsi_cmnd *)page->net_priv;
+	struct iscsi_cmnd *cmd = page->net_priv;
 
 	TRACE_NET_PAGE("page %p, _count %d", page,
 		atomic_read(&page->_count));

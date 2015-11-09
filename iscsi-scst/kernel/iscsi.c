@@ -1745,8 +1745,7 @@ out:
 static int iscsi_pre_exec(struct scst_cmd *scst_cmd)
 {
 	int res = SCST_PREPROCESS_STATUS_SUCCESS;
-	struct iscsi_cmnd *req = (struct iscsi_cmnd *)
-		scst_cmd_get_tgt_priv(scst_cmd);
+	struct iscsi_cmnd *req = scst_cmd_get_tgt_priv(scst_cmd);
 	struct iscsi_cmnd *c, *t;
 
 	TRACE_ENTRY();
@@ -3376,8 +3375,7 @@ static void iscsi_tcp_preprocessing_done(struct iscsi_cmnd *req)
 
 static void iscsi_preprocessing_done(struct scst_cmd *scst_cmd)
 {
-	struct iscsi_cmnd *req = (struct iscsi_cmnd *)
-				scst_cmd_get_tgt_priv(scst_cmd);
+	struct iscsi_cmnd *req = scst_cmd_get_tgt_priv(scst_cmd);
 
 	req->conn->transport->iscsit_preprocessing_done(req);
 }
@@ -3489,8 +3487,7 @@ static void iscsi_tcp_conn_close(struct iscsi_conn *conn, int flags)
 static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 {
 	int is_send_status = scst_cmd_get_is_send_status(scst_cmd);
-	struct iscsi_cmnd *req = (struct iscsi_cmnd *)
-					scst_cmd_get_tgt_priv(scst_cmd);
+	struct iscsi_cmnd *req = scst_cmd_get_tgt_priv(scst_cmd);
 	struct iscsi_conn *conn = req->conn;
 	int status = scst_cmd_get_status(scst_cmd);
 	u8 *sense = scst_cmd_get_sense_buffer(scst_cmd);
@@ -3769,8 +3766,7 @@ static inline int iscsi_get_mgmt_response(int status)
 static void iscsi_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd)
 {
 	int fn = scst_mgmt_cmd_get_fn(scst_mcmd);
-	struct iscsi_cmnd *req = (struct iscsi_cmnd *)
-				scst_mgmt_cmd_get_tgt_priv(scst_mcmd);
+	struct iscsi_cmnd *req = scst_mgmt_cmd_get_tgt_priv(scst_mcmd);
 	int status = iscsi_get_mgmt_response(scst_mgmt_cmd_get_status(scst_mcmd));
 
 	if ((status == ISCSI_RESPONSE_UNKNOWN_TASK) &&
