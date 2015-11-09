@@ -1298,11 +1298,7 @@ static int __vdev_load_mode_pages(struct scst_vdisk_dev *virt_dev, char *params)
 		if (scst_get_next_lexem(&param)[0] != '\0')
 			goto out_too_many;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 		res = kstrtoul(pp, 0, &val);
-#else
-		res = strict_strtoul(pp, 0, &val);
-#endif
 		if (res != 0)
 			goto out_strtoul_failed;
 
@@ -7884,11 +7880,7 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 			continue;
 		}
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 		res = kstrtoull(pp, 0, &val);
-#else
-		res = strict_strtoull(pp, 0, &val);
-#endif
 		if (res != 0) {
 			PRINT_ERROR("strtoull() for %s failed: %d (device %s)",
 				    pp, res, virt_dev->name);
@@ -8831,7 +8823,7 @@ static ssize_t vdisk_sysfs_expl_alua_store(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
 	sprintf(ch, "%.*s", min_t(int, sizeof(ch) - 1, count), buf);
-	res = kstrtoul(ch, NULL, &expl_alua);
+	res = kstrtoul(ch, 0, &expl_alua);
 	if (res < 0)
 		goto out;
 
@@ -8921,11 +8913,7 @@ static ssize_t vdev_sysfs_rz_store(struct kobject *kobj,
 	char ch[16];
 
 	sprintf(ch, "%.*s", min_t(int, sizeof(ch) - 1, count), buf);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtol(ch, 0, &read_zero);
-#else
-	res = strict_strtol(ch, 0, &read_zero);
-#endif
 	if (res)
 		goto out;
 	res = -EINVAL;
@@ -9140,11 +9128,7 @@ static int vdev_sysfs_process_cluster_mode_store(
 	 * have been dropped before invoking .detach().
 	 */
 	virt_dev = dev->dh_priv;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtol(work->buf, 0, &clm);
-#else
-	res = strict_strtol(work->buf, 0, &clm);
-#endif
 	if (res)
 		goto unlock;
 	res = -EINVAL;

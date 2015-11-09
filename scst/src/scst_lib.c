@@ -14021,11 +14021,7 @@ int scst_restore_global_mode_pages(struct scst_device *dev, char *params,
 		if (scst_get_next_lexem(&param)[0] != '\0')
 			goto out_too_many;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 		res = kstrtoul(pp, 0, &val);
-#else
-		res = strict_strtoul(pp, 0, &val);
-#endif
 		if (res != 0)
 			goto out_strtoul_failed;
 

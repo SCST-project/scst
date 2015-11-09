@@ -3425,11 +3425,7 @@ static ssize_t scst_cm_allow_not_conn_copy_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtoul(buffer, 0, &val);
-#else
-	res = strict_strtoul(buffer, 0, &val);
-#endif
 	if (res != 0) {
 		PRINT_ERROR("strtoul() for %s failed: %zd", buffer, res);
 		goto out;

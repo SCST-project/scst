@@ -272,11 +272,7 @@ static int scst_write_trace(const char *buf, size_t length,
 		}
 		break;
 	case SCST_TRACE_ACTION_VALUE:
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 		res = kstrtoul(p, 0, &level);
-#else
-		res = strict_strtoul(p, 0, &level);
-#endif
 		if (res != 0) {
 			PRINT_ERROR("Invalid trace value \"%s\"", p);
 			res = -EINVAL;
@@ -1333,11 +1329,7 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 		bool dev_replaced = false;
 
 		e = scst_get_next_lexem(&pp);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 		res = kstrtoul(e, 0, &virt_lun);
-#else
-		res = strict_strtoul(e, 0, &virt_lun);
-#endif
 		if (res != 0) {
 			PRINT_ERROR("Valid LUN required for dev %s (res %d)", p, res);
 			goto out_unlock;
@@ -1378,13 +1370,9 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 				goto out_unlock;
 			}
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 			res = kstrtoul(pp, 0, &val);
-#else
-			res = strict_strtoul(pp, 0, &val);
-#endif
 			if (res != 0) {
-				PRINT_ERROR("strict_strtoul() for %s failed: %d "
+				PRINT_ERROR("kstrtoul() for %s failed: %d "
 					"(device %s)", pp, res, dev->virt_name);
 				goto out_unlock;
 			}
@@ -1451,11 +1439,7 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 	}
 	case SCST_LUN_ACTION_DEL:
 		p = scst_get_next_lexem(&pp);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 		res = kstrtoul(p, 0, &virt_lun);
-#else
-		res = strict_strtoul(p, 0, &virt_lun);
-#endif
 		if (res != 0)
 			goto out_unlock;
 
@@ -1767,11 +1751,7 @@ static ssize_t __scst_acg_io_grouping_type_store(struct scst_acg *acg,
 			min_t(int, strlen(SCST_IO_GROUPING_NEVER_STR), count)) == 0)
 		io_grouping_type = SCST_IO_GROUPING_NEVER;
 	else {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 		res = kstrtol(buf, 0, &io_grouping_type);
-#else
-		res = strict_strtol(buf, 0, &io_grouping_type);
-#endif
 		if ((res != 0) || (io_grouping_type <= 0)) {
 			PRINT_ERROR("Unknown or not allowed I/O grouping type "
 				"%s", buf);
@@ -2477,11 +2457,7 @@ static ssize_t scst_rel_tgt_id_store(struct kobject *kobj,
 
 	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtoul(buf, 0, &rel_tgt_id);
-#else
-	res = strict_strtoul(buf, 0, &rel_tgt_id);
-#endif
 	if (res != 0) {
 		PRINT_ERROR("%s", "Wrong rel_tgt_id");
 		res = -EINVAL;
@@ -3347,13 +3323,9 @@ static ssize_t scst_dev_sysfs_threads_num_store(struct kobject *kobj,
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtol(buf, 0, &newtn);
-#else
-	res = strict_strtol(buf, 0, &newtn);
-#endif
 	if (res != 0) {
-		PRINT_ERROR("strict_strtol() for %s failed: %d ", buf, res);
+		PRINT_ERROR("kstrtol() for %s failed: %d ", buf, res);
 		goto out;
 	}
 	if (newtn < 0) {
@@ -3908,11 +3880,7 @@ static ssize_t scst_dev_sysfs_dif_static_app_tag_store(struct kobject *kobj,
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtoull(buf, 0, &val);
-#else
-	res = strict_strtoull(buf, 0, &val);
-#endif
 	if (res != 0) {
 		PRINT_ERROR("strtoul() for %s failed: %d (device %s)",
 			    buf, res, dev->virt_name);
@@ -6311,11 +6279,7 @@ static ssize_t scst_tg_tgt_rel_tgt_id_store(struct kobject *kobj,
 	TRACE_ENTRY();
 	tg_tgt = container_of(kobj, struct scst_tg_tgt, kobj);
 	snprintf(ch, sizeof(ch), "%.*s", min_t(int, count, sizeof(ch)-1), buf);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtoul(ch, 0, &rel_tgt_id);
-#else
-	res = strict_strtoul(ch, 0, &rel_tgt_id);
-#endif
 	if (res)
 		goto out;
 	res = -EINVAL;
@@ -6405,11 +6369,7 @@ static ssize_t scst_tg_group_id_store(struct kobject *kobj,
 	TRACE_ENTRY();
 	tg = container_of(kobj, struct scst_target_group, kobj);
 	snprintf(ch, sizeof(ch), "%.*s", min_t(int, count, sizeof(ch)-1), buf);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtoul(ch, 0, &group_id);
-#else
-	res = strict_strtoul(ch, 0, &group_id);
-#endif
 	if (res)
 		goto out;
 	res = -EINVAL;
@@ -6447,11 +6407,7 @@ static int scst_tg_preferred_store_work_fn(struct scst_sysfs_work_item *w)
 	TRACE_ENTRY();
 	cmd = w->buf;
 	tg = container_of(w->kobj, struct scst_target_group, kobj);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtoul(cmd, 0, &preferred);
-#else
-	res = strict_strtoul(cmd, 0, &preferred);
-#endif
 	if (res)
 		goto out;
 	res = -EINVAL;
@@ -6985,13 +6941,9 @@ static ssize_t scst_threads_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtol(buf, 0, &newtn);
-#else
-	res = strict_strtol(buf, 0, &newtn);
-#endif
 	if (res != 0) {
-		PRINT_ERROR("strict_strtol() for %s failed: %d ", buf, res);
+		PRINT_ERROR("kstrtol() for %s failed: %d ", buf, res);
 		goto out;
 	}
 	if (newtn <= 0) {
@@ -7041,13 +6993,9 @@ static ssize_t scst_setup_id_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtoul(buf, 0, &val);
-#else
-	res = strict_strtoul(buf, 0, &val);
-#endif
 	if (res != 0) {
-		PRINT_ERROR("strict_strtoul() for %s failed: %d ", buf, res);
+		PRINT_ERROR("kstrtoul() for %s failed: %d ", buf, res);
 		goto out;
 	}
 
@@ -7088,13 +7036,9 @@ static ssize_t scst_max_tasklet_cmd_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtoul(buf, 0, &val);
-#else
-	res = strict_strtoul(buf, 0, &val);
-#endif
 	if (res != 0) {
-		PRINT_ERROR("strict_strtoul() for %s failed: %d ", buf, res);
+		PRINT_ERROR("kstrtoul() for %s failed: %d ", buf, res);
 		goto out;
 	}
 
