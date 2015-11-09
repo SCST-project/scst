@@ -1332,7 +1332,7 @@ struct scatterlist *scst_alloc_sg(int size, gfp_t gfp_mask, int *count)
 		 }
 	}
 
-	res = kmalloc(pages*sizeof(*res), gfp_mask);
+	res = kmalloc_array(pages, sizeof(*res), gfp_mask);
 	if (res == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "Unable to allocate sg for %d pages",
 			pages);

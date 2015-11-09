@@ -6089,7 +6089,7 @@ static int scst_ws_sg_init(struct scatterlist **ws_sg, int ws_sg_cnt,
 	struct scatterlist *sg;
 	int i;
 
-	*ws_sg = kmalloc(ws_sg_cnt * sizeof(**ws_sg), GFP_KERNEL);
+	*ws_sg = kmalloc_array(ws_sg_cnt, sizeof(**ws_sg), GFP_KERNEL);
 	if (*ws_sg == NULL) {
 		PRINT_ERROR("Unable to alloc sg for %d entries", ws_sg_cnt);
 		return -ENOMEM;
