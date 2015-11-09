@@ -168,8 +168,7 @@ void isert_release_rx_pdu(struct iscsi_cmnd *iscsi_pdu)
 {
 	struct isert_cmnd *isert_pdu = (struct isert_cmnd *)iscsi_pdu;
 
-	if (likely(!isert_pdu->is_fake_rx))
-		isert_rx_pdu_done(isert_pdu);
+	isert_rx_pdu_done(isert_pdu);
 }
 
 /* if last transition into FF (Fully Featured) state */

@@ -46,6 +46,7 @@
 #endif
 #include "isert_dbg.h"
 #include "isert.h"
+#include "iser.h"
 #include "iser_datamover.h"
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
@@ -211,7 +212,7 @@ static void isert_cmnd_free(struct iscsi_cmnd *cmnd)
 		sBUG();
 	}
 #endif
-	if (cmnd->parent_req)
+	if (cmnd->parent_req || ((struct isert_cmnd *)cmnd)->is_fake_rx)
 		isert_release_tx_pdu(cmnd);
 	else
 		isert_release_rx_pdu(cmnd);
