@@ -6121,7 +6121,8 @@ static int scst_ws_sg_tails_get(struct scst_data_descriptor *where, struct scst_
 	while (where[i].sdd_blocks != 0)
 		i++;
 
-	wsp->ws_sg_tails = kzalloc(sizeof(*(wsp->ws_sg_tails))*(i+1), GFP_KERNEL);
+	wsp->ws_sg_tails = kcalloc(i + 1, sizeof(*wsp->ws_sg_tails),
+				   GFP_KERNEL);
 	if (wsp->ws_sg_tails == NULL) {
 		PRINT_ERROR("Unable to allocate ws_sg_tails (size %zd)",
 				sizeof(*wsp->ws_sg_tails)*i);
@@ -13636,7 +13637,7 @@ static int scst_parse_unmap_descriptors(struct scst_cmd *cmd)
 	if (cnt == 0)
 		goto out_put;
 
-	pd = kzalloc(sizeof(*pd) * cnt, GFP_KERNEL);
+	pd = kcalloc(cnt, sizeof(*pd), GFP_KERNEL);
 	if (pd == NULL) {
 		PRINT_ERROR("Unable to kmalloc UNMAP %d descriptors", cnt+1);
 		scst_set_busy(cmd);

@@ -3244,7 +3244,7 @@ int scst_cm_parse_descriptors(struct scst_cmd *ec_cmd)
 
 	TRACE_DBG("tgt_cnt %d", tgt_cnt);
 
-	tgt_descrs = kzalloc(sizeof(*tgt_descrs) * tgt_cnt, GFP_KERNEL);
+	tgt_descrs = kcalloc(tgt_cnt, sizeof(*tgt_descrs), GFP_KERNEL);
 	if (tgt_descrs == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "Unable to allocate tgt_descrs "
 			"(count %d, size %zd)", tgt_cnt,
