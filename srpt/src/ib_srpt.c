@@ -852,7 +852,7 @@ static struct srpt_ioctx **srpt_alloc_ioctx_ring(struct srpt_device *sdev,
 	WARN_ON(ioctx_size != sizeof(struct srpt_recv_ioctx) &&
 		ioctx_size != sizeof(struct srpt_send_ioctx));
 
-	ring = kmalloc(ring_size * sizeof(ring[0]), GFP_KERNEL);
+	ring = kmalloc_array(ring_size, sizeof(ring[0]), GFP_KERNEL);
 	if (!ring)
 		goto out;
 	for (i = 0; i < ring_size; ++i) {
@@ -1154,8 +1154,8 @@ static int srpt_get_desc_tbl(struct srpt_recv_ioctx *recv_ioctx,
 		if (ioctx->n_rbuf == 1)
 			ioctx->rbufs = &ioctx->single_rbuf;
 		else {
-			ioctx->rbufs =
-				kmalloc(ioctx->n_rbuf * sizeof(*db), GFP_ATOMIC);
+			ioctx->rbufs = kmalloc_array(ioctx->n_rbuf,
+						     sizeof(*db), GFP_ATOMIC);
 			if (!ioctx->rbufs) {
 				ioctx->n_rbuf = 0;
 				ret = -ENOMEM;
