@@ -401,6 +401,15 @@ static inline void sg_set_page(struct scatterlist *sg, struct page *page,
 	(__flags), NULL, NULL)
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
+static inline void *kmalloc_array(size_t n, size_t size, gfp_t flags)
+{
+	if (size != 0 && n > ULONG_MAX / size)
+		return NULL;
+	return kmalloc(n * size, flags);
+}
+#endif
+
 /* <linux/t10-pi.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0)
