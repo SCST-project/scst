@@ -191,6 +191,9 @@ static struct iscsi_cmnd *isert_cmnd_alloc(struct iscsi_conn *conn,
 
 static void isert_cmnd_free(struct iscsi_cmnd *cmnd)
 {
+	struct isert_cmnd *isert_cmnd = container_of(cmnd, struct isert_cmnd,
+						    iscsi);
+
 	TRACE_ENTRY();
 
 #ifdef CONFIG_SCST_EXTRACHECKS
@@ -212,7 +215,7 @@ static void isert_cmnd_free(struct iscsi_cmnd *cmnd)
 		sBUG();
 	}
 #endif
-	if (cmnd->parent_req || ((struct isert_cmnd *)cmnd)->is_fake_rx)
+	if (cmnd->parent_req || isert_cmnd->is_fake_rx)
 		isert_release_tx_pdu(cmnd);
 	else
 		isert_release_rx_pdu(cmnd);

@@ -479,7 +479,8 @@ clean_pdus:
 
 static int isert_reinit_rx_pdu(struct isert_cmnd *pdu)
 {
-	struct isert_connection *isert_conn = (struct isert_connection *)pdu->iscsi.conn;
+	struct isert_connection *isert_conn = container_of(pdu->iscsi.conn,
+						struct isert_connection, iscsi);
 
 	pdu->is_rstag_valid = 0;
 	pdu->is_wstag_valid = 0;
@@ -492,7 +493,8 @@ static int isert_reinit_rx_pdu(struct isert_cmnd *pdu)
 int isert_rx_pdu_done(struct isert_cmnd *pdu)
 {
 	int err;
-	struct isert_connection *isert_conn = (struct isert_connection *)pdu->iscsi.conn;
+	struct isert_connection *isert_conn = container_of(pdu->iscsi.conn,
+						struct isert_connection, iscsi);
 
 	TRACE_ENTRY();
 

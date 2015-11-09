@@ -354,7 +354,9 @@ static void isert_send_completion_handler(struct isert_wr *wr)
 	struct isert_cmnd *isert_pdu = wr->pdu;
 	struct iscsi_cmnd *iscsi_pdu = &isert_pdu->iscsi;
 	struct iscsi_cmnd *iscsi_req_pdu = iscsi_pdu->parent_req;
-	struct isert_cmnd *isert_req_pdu = (struct isert_cmnd *)iscsi_req_pdu;
+	struct isert_cmnd *isert_req_pdu = container_of(iscsi_req_pdu,
+						    struct isert_cmnd, iscsi);
+
 
 	TRACE_ENTRY();
 

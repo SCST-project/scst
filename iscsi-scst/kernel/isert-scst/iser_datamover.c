@@ -63,7 +63,8 @@ int isert_get_peer_addr(struct iscsi_conn *iscsi_conn, struct sockaddr *sa,
 			size_t *addr_len)
 {
 	int ret;
-	struct isert_connection *isert_conn = (struct isert_connection *)iscsi_conn;
+	struct isert_connection *isert_conn = container_of(iscsi_conn,
+						struct isert_connection, iscsi);
 	struct sockaddr *peer_sa = (struct sockaddr *)&isert_conn->peer_addr;
 
 	ret = isert_get_addr_size(peer_sa, addr_len);
@@ -79,7 +80,8 @@ int isert_get_target_addr(struct iscsi_conn *iscsi_conn, struct sockaddr *sa,
 			  size_t *addr_len)
 {
 	int ret;
-	struct isert_connection *isert_conn = (struct isert_connection *)iscsi_conn;
+	struct isert_connection *isert_conn = container_of(iscsi_conn,
+						struct isert_connection, iscsi);
 	struct sockaddr *self_sa = (struct sockaddr *)&isert_conn->self_addr;
 
 	ret = isert_get_addr_size(self_sa, addr_len);
@@ -106,7 +108,8 @@ int isert_portal_remove(void *portal_h)
 
 void isert_free_connection(struct iscsi_conn *iscsi_conn)
 {
-	struct isert_connection *isert_conn = (struct isert_connection *)iscsi_conn;
+	struct isert_connection *isert_conn = container_of(iscsi_conn,
+						struct isert_connection, iscsi);
 
 	isert_post_drain(isert_conn);
 	isert_conn_free(isert_conn);
@@ -114,7 +117,8 @@ void isert_free_connection(struct iscsi_conn *iscsi_conn)
 
 struct iscsi_cmnd *isert_alloc_login_rsp_pdu(struct iscsi_conn *iscsi_conn)
 {
-	struct isert_connection *isert_conn = (struct isert_connection *)iscsi_conn;
+	struct isert_connection *isert_conn = container_of(iscsi_conn,
+						struct isert_connection, iscsi);
 	struct isert_cmnd *isert_pdu = isert_conn->login_rsp_pdu;
 
 	isert_tx_pdu_init(isert_pdu, isert_conn);
@@ -124,7 +128,8 @@ struct iscsi_cmnd *isert_alloc_login_rsp_pdu(struct iscsi_conn *iscsi_conn)
 static struct iscsi_cmnd *isert_alloc_scsi_pdu(struct iscsi_conn *iscsi_conn,
 					       int fake)
 {
-	struct isert_connection *isert_conn = (struct isert_connection *)iscsi_conn;
+	struct isert_connection *isert_conn = container_of(iscsi_conn,
+						struct isert_connection, iscsi);
 	struct isert_cmnd *isert_pdu;
 
 again:
@@ -154,8 +159,10 @@ struct iscsi_cmnd *isert_alloc_scsi_fake_pdu(struct iscsi_conn *iscsi_conn)
 
 void isert_release_tx_pdu(struct iscsi_cmnd *iscsi_pdu)
 {
-	struct isert_cmnd *isert_pdu = (struct isert_cmnd *)iscsi_pdu;
-	struct isert_connection *isert_conn = (struct isert_connection *)iscsi_pdu->conn;
+	struct isert_cmnd *isert_pdu = container_of(iscsi_pdu,
+						    struct isert_cmnd, iscsi);
+	struct isert_connection *isert_conn = container_of(iscsi_pdu->conn,
+						struct isert_connection, iscsi);
 
 	isert_tx_pdu_init_iscsi(isert_pdu);
 
@@ -166,7 +173,8 @@ void isert_release_tx_pdu(struct iscsi_cmnd *iscsi_pdu)
 
 void isert_release_rx_pdu(struct iscsi_cmnd *iscsi_pdu)
 {
-	struct isert_cmnd *isert_pdu = (struct isert_cmnd *)iscsi_pdu;
+	struct isert_cmnd *isert_pdu = container_of(iscsi_pdu,
+						    struct isert_cmnd, iscsi);
 
 	isert_rx_pdu_done(isert_pdu);
 }
@@ -174,7 +182,8 @@ void isert_release_rx_pdu(struct iscsi_cmnd *iscsi_pdu)
 /* if last transition into FF (Fully Featured) state */
 int isert_login_rsp_tx(struct iscsi_cmnd *login_rsp, int last, int discovery)
 {
-	struct isert_connection *isert_conn = (struct isert_connection *)login_rsp->conn;
+	struct isert_connection *isert_conn = container_of(login_rsp->conn,
+						struct isert_connection, iscsi);
 	int err;
 
 	if (last && !discovery) {
@@ -202,7 +211,8 @@ int isert_set_session_params(struct iscsi_conn *iscsi_conn,
 			     struct iscsi_sess_params *sess_params,
 			     struct iscsi_tgt_params *tgt_params)
 {
-	struct isert_connection *isert_conn = (struct isert_connection *)iscsi_conn;
+	struct isert_connection *isert_conn = container_of(iscsi_conn,
+						struct isert_connection, iscsi);
 
 	isert_conn->queue_depth = tgt_params->queued_cmnds;
 
@@ -217,8 +227,10 @@ int isert_set_session_params(struct iscsi_conn *iscsi_conn,
 
 int isert_pdu_tx(struct iscsi_cmnd *iscsi_cmnd)
 {
-	struct isert_cmnd *isert_cmnd = (struct isert_cmnd *)iscsi_cmnd;
-	struct isert_connection *isert_conn = (struct isert_connection *)iscsi_cmnd->conn;
+	struct isert_cmnd *isert_cmnd = container_of(iscsi_cmnd,
+						    struct isert_cmnd, iscsi);
+	struct isert_connection *isert_conn = container_of(iscsi_cmnd->conn,
+						struct isert_connection, iscsi);
 	int err;
 
 	isert_tx_pdu_convert_from_iscsi(isert_cmnd, iscsi_cmnd);
@@ -229,8 +241,10 @@ int isert_pdu_tx(struct iscsi_cmnd *iscsi_cmnd)
 
 int isert_request_data_out(struct iscsi_cmnd *iscsi_cmnd)
 {
-	struct isert_cmnd *isert_cmnd = (struct isert_cmnd *)iscsi_cmnd;
-	struct isert_connection *isert_conn = (struct isert_connection *)iscsi_cmnd->conn;
+	struct isert_cmnd *isert_cmnd = container_of(iscsi_cmnd,
+						    struct isert_cmnd, iscsi);
+	struct isert_connection *isert_conn = container_of(iscsi_cmnd->conn,
+						struct isert_connection, iscsi);
 	int ret;
 
 	ret = isert_prepare_rdma(isert_cmnd, isert_conn, ISER_WR_RDMA_READ);
@@ -245,9 +259,12 @@ int isert_request_data_out(struct iscsi_cmnd *iscsi_cmnd)
 int isert_send_data_in(struct iscsi_cmnd *iscsi_cmnd,
 		       struct iscsi_cmnd *iscsi_rsp)
 {
-	struct isert_cmnd *isert_cmnd = (struct isert_cmnd *)iscsi_cmnd;
-	struct isert_connection *isert_conn = (struct isert_connection *)iscsi_cmnd->conn;
-	struct isert_cmnd *isert_rsp = (struct isert_cmnd *)iscsi_rsp;
+	struct isert_cmnd *isert_cmnd = container_of(iscsi_cmnd,
+						    struct isert_cmnd, iscsi);
+	struct isert_connection *isert_conn = container_of(iscsi_cmnd->conn,
+						struct isert_connection, iscsi);
+	struct isert_cmnd *isert_rsp = container_of(iscsi_rsp,
+						    struct isert_cmnd, iscsi);
 	int ret;
 
 	ret = isert_prepare_rdma(isert_cmnd, isert_conn, ISER_WR_RDMA_WRITE);
@@ -262,7 +279,8 @@ int isert_send_data_in(struct iscsi_cmnd *iscsi_cmnd,
 
 int isert_close_connection(struct iscsi_conn *iscsi_conn)
 {
-	struct isert_connection *isert_conn = (struct isert_connection *)iscsi_conn;
+	struct isert_connection *isert_conn = container_of(iscsi_conn,
+						struct isert_connection, iscsi);
 
 	isert_conn_disconnect(isert_conn);
 
@@ -276,14 +294,16 @@ int isert_task_abort(struct iscsi_cmnd *cmnd)
 
 void *isert_get_priv(struct iscsi_conn *iscsi_conn)
 {
-	struct isert_connection *isert_conn = (struct isert_connection *)iscsi_conn;
+	struct isert_connection *isert_conn = container_of(iscsi_conn,
+						struct isert_connection, iscsi);
 
 	return isert_conn->priv_data;
 }
 
 void isert_set_priv(struct iscsi_conn *iscsi_conn, void *priv)
 {
-	struct isert_connection *isert_conn = (struct isert_connection *)iscsi_conn;
+	struct isert_connection *isert_conn = container_of(iscsi_conn,
+					struct isert_connection, iscsi);
 
 	isert_conn->priv_data = priv;
 }
