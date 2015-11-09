@@ -255,6 +255,32 @@ static inline void hex2bin(u8 *dst, const char *src, size_t count)
 }
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
+static inline int __must_check kstrtoull(const char *s, unsigned int base,
+					 unsigned long long *res)
+{
+	return strict_strtoull(s, base, res);
+}
+
+static inline int __must_check kstrtoll(const char *s, unsigned int base,
+					long long *res)
+{
+	return strict_strtoll(s, base, res);
+}
+
+static inline int __must_check kstrtoul(const char *s, unsigned int base,
+					unsigned long *res)
+{
+	return strict_strtoul(s, base, res);
+}
+
+static inline int __must_check kstrtol(const char *s, unsigned int base,
+				       long *res)
+{
+	return strict_strtol(s, base, res);
+}
+#endif
+
 /* <linux/list.h> */
 
 #ifndef __list_for_each

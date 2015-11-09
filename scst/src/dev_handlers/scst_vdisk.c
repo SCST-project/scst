@@ -8823,7 +8823,7 @@ static ssize_t vdisk_sysfs_expl_alua_store(struct kobject *kobj,
 	struct scst_device *dev;
 	struct scst_vdisk_dev *virt_dev;
 	char ch[16];
-	bool expl_alua;
+	unsigned long expl_alua;
 	int res;
 
 	TRACE_ENTRY();
@@ -8831,14 +8831,17 @@ static ssize_t vdisk_sysfs_expl_alua_store(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
 	sprintf(ch, "%.*s", min_t(int, sizeof(ch) - 1, count), buf);
-	expl_alua = !!simple_strtoul(ch, NULL, 0);
+	res = kstrtoul(ch, NULL, &expl_alua);
+	if (res < 0)
+		goto out;
 
 	spin_lock(&virt_dev->flags_lock);
-	virt_dev->expl_alua = expl_alua;
+	virt_dev->expl_alua = !!expl_alua;
 	spin_unlock(&virt_dev->flags_lock);
 
 	res = count;
 
+out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
