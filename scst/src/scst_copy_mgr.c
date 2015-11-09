@@ -1976,7 +1976,7 @@ out_unlock_free:
 
 void sess_cm_list_id_cleanup_work_fn(struct delayed_work *work)
 {
-	struct scst_session *sess = container_of((struct delayed_work *)work,
+	struct scst_session *sess = container_of(work,
 			struct scst_session, sess_cm_list_id_cleanup_work);
 	struct scst_cm_list_id *l, *t;
 	unsigned long cur_time = jiffies;
