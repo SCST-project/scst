@@ -16,8 +16,7 @@
 		rpm -q --qf '%%%%{BUILDTIME} %%%%{version}-%%%%{release}.%%%%{arch}\\n' \\
 		    kernel-headers | sort | tail -n1 | { read a b; echo $b; };
 	    else
-		make -sC "/lib/modules/$(uname -r)/build/" kernelversion |
-		grep -v ^make;
+		uname -r;
 	    fi
 	)}}}
 %{echo:kversion=%{kversion}
