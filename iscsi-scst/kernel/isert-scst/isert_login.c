@@ -952,7 +952,7 @@ int __init isert_init_login_devs(unsigned int ndevs)
 	 * allocate the devices -- we can't have them static, as the number
 	 * can be specified at load time
 	 */
-	isert_conn_devices = kzalloc(n_devs * sizeof(struct isert_conn_dev),
+	isert_conn_devices = kcalloc(n_devs, sizeof(struct isert_conn_dev),
 				     GFP_KERNEL);
 	if (unlikely(!isert_conn_devices)) {
 		res = -ENOMEM;
