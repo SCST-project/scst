@@ -4577,7 +4577,7 @@ static int q2t_cut_cmd_data_head(struct q2t_cmd *cmd, unsigned int offset)
 		first_sg, first_page, first_page_offs, cmd->bufflen,
 		cmd->sg_cnt);
 
-	sg = kmalloc(cnt * sizeof(sg[0]), GFP_KERNEL);
+	sg = kmalloc_array(cnt, sizeof(sg[0]), GFP_KERNEL);
 	if (sg == NULL) {
 		PRINT_ERROR("qla2x00t(%ld): Unable to allocate cut "
 			"SG (len %zd)", cmd->tgt->vha->host_no,
