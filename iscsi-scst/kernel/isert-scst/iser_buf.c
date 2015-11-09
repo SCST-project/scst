@@ -49,8 +49,8 @@ static int isert_buf_alloc_pg(struct ib_device *ib_dev,
 	struct page *page;
 
 	isert_buf->sg_cnt = DIV_ROUND_UP(size, PAGE_SIZE);
-	isert_buf->sg = kmalloc(sizeof(*isert_buf->sg) * isert_buf->sg_cnt,
-				GFP_KERNEL);
+	isert_buf->sg = kmalloc_array(isert_buf->sg_cnt, sizeof(*isert_buf->sg),
+				      GFP_KERNEL);
 	if (unlikely(!isert_buf->sg)) {
 		pr_err("Failed to allocate buffer SG\n");
 		res = -ENOMEM;
