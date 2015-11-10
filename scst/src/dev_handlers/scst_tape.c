@@ -206,6 +206,7 @@ static int tape_attach(struct scst_device *dev)
 
 	if (rc == 0) {
 		int medium_type, mode, speed, density;
+
 		if (buffer[3] == 8)
 			dev->block_size = get_unaligned_be24(&buffer[9]);
 		else
@@ -299,6 +300,7 @@ static int tape_done(struct scst_cmd *cmd)
 		    (cmd->sense[2] & 0xe0)) {
 			/* EOF, EOM, or ILI */
 			unsigned int TransferLength, Residue = 0;
+
 			if ((cmd->sense[2] & 0x0f) == BLANK_CHECK)
 				/* No need for EOM in this case */
 				cmd->sense[2] &= 0xcf;
@@ -312,6 +314,7 @@ static int tape_done(struct scst_cmd *cmd)
 				cmd->cdb[1], TransferLength, Residue);
 			if (TransferLength > Residue) {
 				int resp_data_len = TransferLength - Residue;
+
 				if (cmd->cdb[1] & 1) {
 					/*
 					 * No need for locks here, since

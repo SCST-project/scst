@@ -232,6 +232,10 @@ const char *debug_transport_id_to_initiator_name(const uint8_t *transport_id)
 			transport_id[8], transport_id[9],
 			transport_id[10], transport_id[11]);
 		break;
+	case SCST_TRANSPORTID_PROTOCOLID_COPY_MGR:
+		scnprintf(name_buf, SIZEOF_NAME_BUF,
+			"%s", &transport_id[2]);
+		break;
 	default:
 		scnprintf(name_buf, SIZEOF_NAME_BUF,
 			"(Not known protocol ID %x)", transport_id[0] & 0x0f);

@@ -23,10 +23,14 @@
 
 #include "debug.h"
 
+#ifndef WRITE_SAME_10
+#define WRITE_SAME_10	      0x41
+#endif
+
 /* 8 byte ASCII Vendor */
 #define VENDOR				"SCST_USR"
 /* 4 byte ASCII Product Revision Level - left aligned */
-#define FIO_REV				" 310"
+#define FIO_REV				" 320"
 
 #define MAX_USN_LEN			(20+1) /* For '\0' */
 
@@ -93,6 +97,7 @@ struct vdisk_cmd
 	int fd;
 	struct scst_user_get_cmd *cmd;
 	struct vdisk_dev *dev;
+	unsigned int may_need_to_free_pbuf:1;
 	struct scst_user_reply_cmd *reply;
 	uint8_t sense[SCST_SENSE_BUFFERSIZE];
 };

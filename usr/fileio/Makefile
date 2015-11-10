@@ -29,10 +29,11 @@ OBJS_F = $(SRCS_F:.c=.o)
 SCST_INC_DIR := $(shell if [ -e "$$PWD/../../scst" ];			\
                   then echo "$$PWD/../../scst/include";			\
                   else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
+DEBUG_INC_DIR := ../include
 INSTALL_DIR := $(DESTDIR)$(PREFIX)/bin/scst
 
 CFLAGS += -O2 -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes \
-	-I$(SCST_INC_DIR) -D_GNU_SOURCE -D__USE_FILE_OFFSET64 \
+	-I$(SCST_INC_DIR) -I$(DEBUG_INC_DIR) -D_GNU_SOURCE -D__USE_FILE_OFFSET64 \
 	-D__USE_LARGEFILE64
 PROGS = fileio_tgt
 LIBS = -lpthread
@@ -48,6 +49,7 @@ CFLAGS += $(LOCAL_CFLAGS)
 #CFLAGS += -DDEBUG_TM_IGNORE
 #CFLAGS += -DDEBUG_TM_IGNORE -DDEBUG_TM_FN_IGNORE
 #CFLAGS += -DDEBUG_TM_IGNORE_ALL
+CFLAGS += -DDEBUG_EXT_COPY_REMAP
 
 all: $(PROGS)
 

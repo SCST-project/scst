@@ -48,9 +48,15 @@ qla2x00t_git
 3. Symlink drivers/scsi/qla2xxx subdirectory in the cloned git tree to the
 qla2x00t_git subdirectory
 
-Thats all. Now "make all" and other common and QLA specific root
-Makefile targets "magically" start working. For detail instructions how
-to setup QLA target build environment see its README or HOWTO.
+Thats all. Now run either "make all" to build the SCST core and all
+target drivers with in-tree QLogic drivers, or the following command
+with standalone QLogic drivers:
+
+BUILD_2X_MODULE=y CONFIG_SCSI_QLA_FC=y CONFIG_SCSI_QLA2XXX_TARGET=y make all
+
+and other common and QLA specific root Makefile targets "magically" start
+working. For detail instructions how to setup QLA target build environment see
+its README or HOWTO.
 
 You can still build the old driver using qla_old* root Makefile targets.
 

@@ -126,12 +126,12 @@ struct qla84_msg_mgmt {
 
 struct qla_bsg_a84_mgmt {
 	struct qla84_msg_mgmt mgmt;
-} __attribute__ ((packed));
+} __packed;
 
 struct qla_scsi_addr {
 	uint16_t bus;
 	uint16_t target;
-} __attribute__ ((packed));
+} __packed;
 
 struct qla_ext_dest_addr {
 	union {
@@ -144,13 +144,13 @@ struct qla_ext_dest_addr {
 #define	EXT_DEF_TYPE_WWPN	2
 	uint16_t lun;
 	uint16_t padding[2];
-} __attribute__ ((packed));
+} __packed;
 
 struct qla_port_param {
 	struct qla_ext_dest_addr fc_scsi_addr;
 	uint16_t mode;
 	uint16_t speed;
-} __attribute__ ((packed));
+} __packed;
 
 
 /* FRU VPD */

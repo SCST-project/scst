@@ -103,25 +103,302 @@ static inline void scst_schedule_tasklet(struct scst_cmd *cmd)
 	return;
 }
 
-/* No locks */
-static bool scst_check_blocked_dev(struct scst_cmd *cmd)
+static bool scst_unmap_overlap(struct scst_cmd *cmd, int64_t lba2,
+	int64_t lba2_blocks)
+{
+	bool res = false;
+	struct scst_data_descriptor *pd = cmd->cmd_data_descriptors;
+	int i;
+
+	TRACE_ENTRY();
+
+	if (pd == NULL)
+		goto out;
+
+	for (i = 0; pd[i].sdd_blocks != 0; i++) {
+		struct scst_data_descriptor *d = &pd[i];
+
+		TRACE_DBG("i %d, lba %lld, blocks %lld", i,
+			(long long)d->sdd_lba, (long long)d->sdd_blocks);
+		res = scst_lba1_inside_lba2(d->sdd_lba, lba2, lba2_blocks);
+		if (res)
+			goto out;
+		res = scst_lba1_inside_lba2(lba2, d->sdd_lba, d->sdd_blocks);
+		if (res)
+			goto out;
+	}
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static bool scst_cmd_overlap_cwr(struct scst_cmd *cwr_cmd, struct scst_cmd *cmd)
+{
+	bool res;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("cwr_cmd %p, cmd %p (op %s, LBA valid %d, lba %lld, "
+		"len %lld)", cwr_cmd, cmd, scst_get_opcode_name(cmd),
+		(cmd->op_flags & SCST_LBA_NOT_VALID) == 0,
+		(long long)cmd->lba, (long long)cmd->data_len);
+
+	EXTRACHECKS_BUG_ON(cwr_cmd->cdb[0] != COMPARE_AND_WRITE);
+
+	/*
+	 * In addition to requirements listed in "Model for uninterrupted
+	 * sequences on LBA ranges" (SBC) VMware wants that COMPARE AND WRITE
+	 * be atomic against RESERVEs, as well as RESERVEs be atomic against
+	 * all COMPARE AND WRITE commands and only against them.
+	 */
+
+	if (cmd->op_flags & SCST_LBA_NOT_VALID) {
+		switch (cmd->cdb[0]) {
+		case RESERVE:
+		case RESERVE_10:
+			res = true;
+			break;
+		case UNMAP:
+			res = scst_unmap_overlap(cmd, cwr_cmd->lba,
+				cwr_cmd->data_len);
+			break;
+		case EXTENDED_COPY:
+			res = scst_cm_ec_cmd_overlap(cmd, cwr_cmd);
+			break;
+		default:
+			res = false;
+			break;
+		}
+		goto out;
+	}
+
+	/* If LBA valid, block_shift must be valid */
+	EXTRACHECKS_BUG_ON(cmd->dev->block_shift <= 0);
+
+	res = scst_lba1_inside_lba2(cwr_cmd->lba, cmd->lba,
+		cmd->data_len >> cmd->dev->block_shift);
+	if (res)
+		goto out;
+
+	res = scst_lba1_inside_lba2(cmd->lba, cwr_cmd->lba,
+		cwr_cmd->data_len >> cwr_cmd->dev->block_shift);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static bool scst_cmd_overlap_reserve(struct scst_cmd *reserve_cmd,
+	struct scst_cmd *cmd)
+{
+	bool res;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("reserve_cmd %p, cmd %p (op %s, LBA valid %d, lba %lld, "
+		"len %lld)", reserve_cmd, cmd, scst_get_opcode_name(cmd),
+		(cmd->op_flags & SCST_LBA_NOT_VALID) == 0,
+		(long long)cmd->lba, (long long)cmd->data_len);
+
+	EXTRACHECKS_BUG_ON((reserve_cmd->cdb[0] != RESERVE) &&
+			   (reserve_cmd->cdb[0] != RESERVE_10));
+
+	/*
+	 * In addition to requirements listed in "Model for uninterrupted
+	 * sequences on LBA ranges" (SBC) VMware wants that COMPARE AND WRITE
+	 * be atomic against RESERVEs, as well as RESERVEs be atomic against
+	 * all COMPARE AND WRITE commands and only against them.
+	 */
+
+	if (cmd->cdb[0] == COMPARE_AND_WRITE)
+		res = true;
+	else
+		res = false;
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static bool scst_cmd_overlap_atomic(struct scst_cmd *atomic_cmd, struct scst_cmd *cmd)
+{
+	bool res;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("atomic_cmd %p (op %s), cmd %p (op %s)", atomic_cmd,
+		scst_get_opcode_name(atomic_cmd), cmd, scst_get_opcode_name(cmd));
+
+	EXTRACHECKS_BUG_ON((atomic_cmd->op_flags & SCST_SCSI_ATOMIC) == 0);
+
+	switch (atomic_cmd->cdb[0]) {
+	case COMPARE_AND_WRITE:
+		res = scst_cmd_overlap_cwr(atomic_cmd, cmd);
+		break;
+	case RESERVE:
+	case RESERVE_10:
+		res = scst_cmd_overlap_reserve(atomic_cmd, cmd);
+		break;
+	default:
+		res = false;
+		break;
+	}
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static bool scst_cmd_overlap(struct scst_cmd *chk_cmd, struct scst_cmd *cmd)
+{
+	bool res = false;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("chk_cmd %p, cmd %p", chk_cmd, cmd);
+
+	if ((chk_cmd->op_flags & SCST_SCSI_ATOMIC) != 0)
+		res = scst_cmd_overlap_atomic(chk_cmd, cmd);
+	else if ((cmd->op_flags & SCST_SCSI_ATOMIC) != 0)
+		res = scst_cmd_overlap_atomic(cmd, chk_cmd);
+	else
+		res = false;
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/*
+ * dev_lock supposed to be held and BH disabled. Returns true if cmd blocked,
+ * hence stop processing it and go to the next command.
+ */
+static bool scst_check_scsi_atomicity(struct scst_cmd *chk_cmd)
+{
+	bool res = false;
+	struct scst_device *dev = chk_cmd->dev;
+	struct scst_cmd *cmd;
+
+	TRACE_ENTRY();
+
+	/*
+	 * chk_cmd isn't necessary SCSI atomic! For instance, if another SCSI
+	 * atomic cmd is waiting blocked.
+	 */
+
+	TRACE_DBG("chk_cmd %p (op %s, internal %d, lba %lld, len %lld)",
+		chk_cmd, scst_get_opcode_name(chk_cmd), chk_cmd->internal,
+		(long long)chk_cmd->lba, (long long)chk_cmd->data_len);
+
+	list_for_each_entry(cmd, &dev->dev_exec_cmd_list, dev_exec_cmd_list_entry) {
+		if (chk_cmd == cmd)
+			continue;
+		if (scst_cmd_overlap(chk_cmd, cmd)) {
+			struct scst_cmd **p = cmd->scsi_atomic_blocked_cmds;
+
+			/*
+			 * kmalloc() allocates by at least 32 bytes increments,
+			 * hence krealloc() on 8 bytes increments, if not all
+			 * that space is used, does nothing.
+			 */
+			p = krealloc(p, sizeof(*p) * (cmd->scsi_atomic_blocked_cmds_count + 1),
+				GFP_ATOMIC);
+			if (p == NULL)
+				goto out_busy_undo;
+			p[cmd->scsi_atomic_blocked_cmds_count] = chk_cmd;
+			cmd->scsi_atomic_blocked_cmds = p;
+			cmd->scsi_atomic_blocked_cmds_count++;
+
+			chk_cmd->scsi_atomic_blockers++;
+
+			TRACE_BLOCK("Delaying cmd %p (op %s, lba %lld, "
+				"len %lld, blockers %d) due to overlap with "
+				"cmd %p (op %s, lba %lld, len %lld, blocked "
+				"cmds %d)", chk_cmd, scst_get_opcode_name(chk_cmd),
+				(long long)chk_cmd->lba,
+				(long long)chk_cmd->data_len,
+				chk_cmd->scsi_atomic_blockers, cmd,
+				scst_get_opcode_name(cmd), (long long)cmd->lba,
+				(long long)cmd->data_len,
+				cmd->scsi_atomic_blocked_cmds_count);
+			res = true;
+		}
+	}
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+out_busy_undo:
+	list_for_each_entry(cmd, &dev->dev_exec_cmd_list, dev_exec_cmd_list_entry) {
+		struct scst_cmd **p = cmd->scsi_atomic_blocked_cmds;
+
+		if ((p != NULL) && (p[cmd->scsi_atomic_blocked_cmds_count-1] == chk_cmd)) {
+			cmd->scsi_atomic_blocked_cmds_count--;
+			chk_cmd->scsi_atomic_blockers--;
+		}
+	}
+	sBUG_ON(chk_cmd->scsi_atomic_blockers != 0);
+
+	scst_set_busy(chk_cmd);
+	scst_set_cmd_abnormal_done_state(chk_cmd);
+
+	spin_lock_irq(&chk_cmd->cmd_threads->cmd_list_lock);
+	TRACE_MGMT_DBG("Adding on error chk_cmd %p back to head of active cmd "
+		"list", chk_cmd);
+	list_add(&chk_cmd->cmd_list_entry, &chk_cmd->cmd_threads->active_cmd_list);
+	wake_up(&chk_cmd->cmd_threads->cmd_list_waitQ);
+	spin_unlock_irq(&chk_cmd->cmd_threads->cmd_list_lock);
+
+	res = false;
+	goto out;
+}
+
+/*
+ * dev_lock supposed to be BH locked. Returns true if cmd blocked, hence stop
+ * processing it and go to the next command.
+ */
+bool scst_do_check_blocked_dev(struct scst_cmd *cmd)
 {
 	bool res;
 	struct scst_device *dev = cmd->dev;
 
 	TRACE_ENTRY();
 
-	if (unlikely(cmd->internal)) {
-		/*
-		 * The original command can already block the device and must
-		 * hold reference to it, so internal command should always pass.
-		 */
-		sBUG_ON(dev->on_dev_cmd_count == 0);
-		res = false;
-		goto out;
+	/*
+	 * We want to have fairness between just unblocked previously blocked
+	 * SCSI atomic cmds and new cmds came after them. Otherwise, the new
+	 * cmds can bypass the SCSI atomic cmds and make them unfairly wait
+	 * again. So, we need to always, from the beginning, have blocked SCSI
+	 * atomic cmds on the exec list, even if they blocked, as well
+	 * as dev's SCSI atomic cmds counter incremented.
+	 */
+
+	if (likely(!cmd->on_dev_exec_list)) {
+		list_add_tail(&cmd->dev_exec_cmd_list_entry, &dev->dev_exec_cmd_list);
+		cmd->on_dev_exec_list = 1;
 	}
 
-	spin_lock_bh(&dev->dev_lock);
+	/*
+	 * After a cmd passed SCSI atomicy check, there's no need to recheck SCSI
+	 * atomicity for this cmd in future entrances here, because then all
+	 * future overlapping with this cmd cmds will be blocked on it.
+	 */
+
+	if (unlikely(((cmd->op_flags & SCST_SCSI_ATOMIC) != 0) ||
+		     (dev->dev_scsi_atomic_cmd_active != 0)) &&
+	    !cmd->scsi_atomicity_checked) {
+		cmd->scsi_atomicity_checked = 1;
+		if ((cmd->op_flags & SCST_SCSI_ATOMIC) != 0) {
+			dev->dev_scsi_atomic_cmd_active++;
+			TRACE_DBG("cmd %p (dev %p), scsi atomic_cmd_active %d",
+				cmd, dev, dev->dev_scsi_atomic_cmd_active);
+		}
+
+		res = scst_check_scsi_atomicity(cmd);
+		if (res) {
+			EXTRACHECKS_BUG_ON(dev->dev_scsi_atomic_cmd_active == 0);
+			goto out;
+		}
+	}
 
 	dev->on_dev_cmd_count++;
 	cmd->dec_on_dev_needed = 1;
@@ -140,8 +417,46 @@ static bool scst_check_blocked_dev(struct scst_cmd *cmd)
 		cmd->dec_on_dev_needed = 0;
 		TRACE_DBG("New dec on_dev_count %d (cmd %p)",
 			dev->on_dev_cmd_count, cmd);
+		goto out;
 	}
 
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/*
+ * No locks. Returns true if cmd blocked, hence stop processing it and go to
+ * the next command.
+ */
+static bool scst_check_blocked_dev(struct scst_cmd *cmd)
+{
+	bool res;
+	struct scst_device *dev = cmd->dev;
+
+	TRACE_ENTRY();
+
+	if (unlikely((cmd->op_flags & SCST_CAN_GEN_3PARTY_COMMANDS) != 0)) {
+		EXTRACHECKS_BUG_ON(cmd->cdb[0] != EXTENDED_COPY);
+		res = scst_cm_check_block_all_devs(cmd);
+		goto out;
+	}
+
+	if (unlikely(cmd->internal || cmd->bypass_blocking)) {
+		/*
+		 * The original command can already block the device and must
+		 * hold reference to it, so internal command should always pass.
+		 */
+
+		/* Copy Manager can send internal INQUIRYs, so don't BUG on them */
+		sBUG_ON((dev->on_dev_cmd_count == 0) && (cmd->cdb[0] != INQUIRY));
+
+		res = false;
+		goto out;
+	}
+
+	spin_lock_bh(&dev->dev_lock);
+	res = scst_do_check_blocked_dev(cmd);
 	spin_unlock_bh(&dev->dev_lock);
 
 out:
@@ -149,12 +464,68 @@ out:
 	return res;
 }
 
-/* No locks */
-static void scst_check_unblock_dev(struct scst_cmd *cmd)
+/* dev_lock supposed to be held and BH disabled */
+static void scst_check_unblock_scsi_atomic_cmds(struct scst_cmd *cmd)
+{
+	int i;
+
+	TRACE_ENTRY();
+
+	EXTRACHECKS_BUG_ON(cmd->scsi_atomic_blocked_cmds_count == 0);
+
+	for (i = 0; i < cmd->scsi_atomic_blocked_cmds_count; i++) {
+		struct scst_cmd *acmd = cmd->scsi_atomic_blocked_cmds[i];
+
+		acmd->scsi_atomic_blockers--;
+		if (acmd->scsi_atomic_blockers == 0) {
+			TRACE_BLOCK("Unblocking blocked acmd %p (blocker "
+				"cmd %p)", acmd, cmd);
+			spin_lock_irq(&acmd->cmd_threads->cmd_list_lock);
+			if (acmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE)
+				list_add(&acmd->cmd_list_entry,
+					&acmd->cmd_threads->active_cmd_list);
+			else
+				list_add_tail(&acmd->cmd_list_entry,
+					&acmd->cmd_threads->active_cmd_list);
+			wake_up(&acmd->cmd_threads->cmd_list_waitQ);
+			spin_unlock_irq(&acmd->cmd_threads->cmd_list_lock);
+		}
+	}
+
+	kfree(cmd->scsi_atomic_blocked_cmds);
+	cmd->scsi_atomic_blocked_cmds = NULL;
+	cmd->scsi_atomic_blocked_cmds_count = 0;
+
+	TRACE_EXIT();
+	return;
+}
+
+/* dev_lock supposed to be BH locked */
+void __scst_check_unblock_dev(struct scst_cmd *cmd)
 {
 	struct scst_device *dev = cmd->dev;
 
-	spin_lock_bh(&dev->dev_lock);
+	TRACE_ENTRY();
+
+	/*
+	 * We might be called here as part of Copy Manager's check blocking
+	 * undo, so restore all flags in the previous state to allow
+	 * restart of this cmd.
+	 */
+
+	if (likely(cmd->on_dev_exec_list)) {
+		list_del(&cmd->dev_exec_cmd_list_entry);
+		cmd->on_dev_exec_list = 0;
+	}
+
+	if (unlikely((cmd->op_flags & SCST_SCSI_ATOMIC) != 0)) {
+		if (likely(cmd->scsi_atomicity_checked)) {
+			dev->dev_scsi_atomic_cmd_active--;
+			TRACE_DBG("cmd %p, scsi atomic_cmd_active %d",
+				cmd, dev->dev_scsi_atomic_cmd_active);
+			cmd->scsi_atomicity_checked = 0;
+		}
+	}
 
 	if (likely(cmd->dec_on_dev_needed)) {
 		dev->on_dev_cmd_count--;
@@ -162,6 +533,9 @@ static void scst_check_unblock_dev(struct scst_cmd *cmd)
 		TRACE_DBG("New dec on_dev_count %d (cmd %p)",
 			dev->on_dev_cmd_count, cmd);
 	}
+
+	if (unlikely(cmd->scsi_atomic_blocked_cmds != NULL))
+		scst_check_unblock_scsi_atomic_cmds(cmd);
 
 	if (unlikely(cmd->unblock_dev)) {
 		TRACE_BLOCK("cmd %p (tag %llu): unblocking dev %s", cmd,
@@ -176,7 +550,30 @@ static void scst_check_unblock_dev(struct scst_cmd *cmd)
 		}
 	}
 
+	if (unlikely(dev->ext_blocking_pending)) {
+		if (dev->on_dev_cmd_count == 0) {
+			TRACE_MGMT_DBG("Releasing pending dev %s extended "
+				"blocks", dev->virt_name);
+			scst_ext_blocking_done(dev);
+		}
+	}
+
+	TRACE_EXIT();
+	return;
+}
+
+/* No locks */
+void scst_check_unblock_dev(struct scst_cmd *cmd)
+{
+	struct scst_device *dev = cmd->dev;
+
+	TRACE_ENTRY();
+
+	spin_lock_bh(&dev->dev_lock);
+	__scst_check_unblock_dev(cmd);
 	spin_unlock_bh(&dev->dev_lock);
+
+	TRACE_EXIT();
 	return;
 }
 
@@ -373,6 +770,7 @@ out_redirect:
 		msleep(50);
 	} else {
 		unsigned long flags;
+
 		spin_lock_irqsave(&scst_init_lock, flags);
 		TRACE_DBG("Adding cmd %p to init cmd list", cmd);
 		list_add_tail(&cmd->cmd_list_entry, &scst_init_cmd_list);
@@ -1008,6 +1406,7 @@ out_check_compl:
 	if (unlikely(test_bit(SCST_TGT_DEV_BLACK_HOLE, &cmd->tgt_dev->tgt_dev_flags))) {
 		struct scst_session *sess = cmd->sess;
 		bool abort = false;
+
 		switch (sess->acg->acg_black_hole_type) {
 		case SCST_ACG_BLACK_HOLE_CMD:
 		case SCST_ACG_BLACK_HOLE_ALL:
@@ -1410,6 +1809,7 @@ static int scst_rdy_to_xfer(struct scst_cmd *cmd)
 
 	if (tgtt->on_hw_pending_cmd_timeout != NULL) {
 		struct scst_session *sess = cmd->sess;
+
 		cmd->hw_pending_start = jiffies;
 		cmd->cmd_hw_pending = 1;
 		if (!test_bit(SCST_SESS_HW_PENDING_WORK_SCHEDULED, &sess->sess_aflags)) {
@@ -1669,6 +2069,7 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 	if (unlikely(cmd->resid_possible)) {
 		if (cmd->data_direction & SCST_DATA_WRITE) {
 			bool remainder = false;
+
 			if (cmd->data_direction & SCST_DATA_READ) {
 				if (cmd->write_len != cmd->out_bufflen)
 					remainder = true;
@@ -1706,7 +2107,17 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 
 	cmd->state = SCST_CMD_STATE_EXEC_CHECK_SN;
 
-	if ((cmd->tgtt->pre_exec == NULL) || unlikely(cmd->internal))
+	if (unlikely(cmd->internal)) {
+		if (cmd->dh_data_buf_alloced && cmd->tgt_i_data_buf_alloced &&
+		    (scst_cmd_get_data_direction(cmd) & SCST_DATA_WRITE)) {
+			TRACE_DBG("Internal WRITE cmd %p with DH alloced data",
+				cmd);
+			scst_copy_sg(cmd, SCST_SG_COPY_FROM_TARGET);
+		}
+		goto out_descr;
+	}
+
+	if (cmd->tgtt->pre_exec == NULL)
 		goto out_descr;
 
 	TRACE_DBG("Calling pre_exec(%p)", cmd);
@@ -1738,6 +2149,7 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 out_descr:
 	if (unlikely(cmd->op_flags & SCST_DESCRIPTORS_BASED)) {
 		int r = scst_parse_descriptors(cmd);
+
 		if (unlikely(r != 0))
 			goto out;
 	}
@@ -1889,7 +2301,7 @@ static int scst_report_luns_local(struct scst_cmd *cmd)
 	cmd->driver_status = 0;
 
 	if ((cmd->cdb[2] != 0) && (cmd->cdb[2] != 2)) {
-		TRACE(TRACE_MINOR, "Unsupported SELECT REPORT value %x in "
+		TRACE(TRACE_MINOR, "Unsupported SELECT REPORT value %#x in "
 			"REPORT LUNS command", cmd->cdb[2]);
 		scst_set_invalid_field_in_cdb(cmd, 2, 0);
 		goto out_compl;
@@ -1910,6 +2322,7 @@ static int scst_report_luns_local(struct scst_cmd *cmd)
 	rcu_read_lock();
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		struct list_head *head = &cmd->sess->sess_tgt_dev_list[i];
+
 		list_for_each_entry_rcu(tgt_dev, head,
 					sess_tgt_dev_list_entry) {
 			struct scst_tgt_dev_UA *ua;
@@ -2740,7 +3153,7 @@ out_unlock:
 	scst_put_buf_full(cmd, buffer);
 
 out_done:
-	if (SCST_EXEC_COMPLETED == res) {
+	if (res == SCST_EXEC_COMPLETED) {
 		if (!aborted)
 			cmd->completed = 1;
 		cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT,
@@ -2770,7 +3183,7 @@ int __scst_check_local_events(struct scst_cmd *cmd, bool preempt_tests_only)
 
 	TRACE_ENTRY();
 
-	if (unlikely(cmd->internal)) {
+	if (unlikely(cmd->internal && !cmd->internal_check_local_events)) {
 		if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
 			TRACE_MGMT_DBG("ABORTED set, aborting internal "
 				"cmd %p", cmd);
@@ -2975,6 +3388,7 @@ static struct scst_cmd *scst_post_exec_sn(struct scst_cmd *cmd,
 
 	if (inc_expected_sn) {
 		bool rc = scst_inc_expected_sn(cmd);
+
 		if (!rc)
 			goto out;
 		if (make_active)
@@ -3008,7 +3422,7 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 	if (devt->exec) {
 		TRACE_DBG("Calling dev handler %s exec(%p)",
 		      devt->name, cmd);
-		scst_set_cur_start(cmd);
+		scst_set_exec_start(cmd);
 		res = devt->exec(cmd);
 		TRACE_DBG("Dev handler %s exec() returned %d",
 		      devt->name, res);
@@ -3034,7 +3448,7 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 		goto out_error;
 	}
 
-	scst_set_cur_start(cmd);
+	scst_set_exec_start(cmd);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
 	rc = scst_exec_req(scsi_dev, cmd->cdb, cmd->cdb_len,
@@ -3127,6 +3541,9 @@ static scst_local_exec_fn scst_local_fns[256] = {
 	[PERSISTENT_RESERVE_OUT] = scst_persistent_reserve_out_local,
 	[REPORT_LUNS] = scst_report_luns_local,
 	[REQUEST_SENSE] = scst_request_sense_local,
+	[COMPARE_AND_WRITE] = scst_cmp_wr_local,
+	[EXTENDED_COPY] = scst_cm_ext_copy_exec,
+	[RECEIVE_COPY_RESULTS] = scst_cm_rcv_copy_res_exec,
 	[MAINTENANCE_IN] = scst_maintenance_in,
 };
 
@@ -3229,14 +3646,40 @@ out_done:
 	goto out;
 }
 
+static inline bool scst_check_alua(struct scst_cmd *cmd, int *out_res)
+{
+	int (*alua_filter)(struct scst_cmd *cmd);
+	bool res = false;
+
+	alua_filter = ACCESS_ONCE(cmd->tgt_dev->alua_filter);
+	if (unlikely(alua_filter)) {
+		int ac = alua_filter(cmd);
+
+		if (ac != SCST_ALUA_CHECK_OK) {
+			if (ac != SCST_ALUA_CHECK_DELAYED) {
+				EXTRACHECKS_BUG_ON(cmd->status == 0);
+				scst_set_cmd_abnormal_done_state(cmd);
+				*out_res = SCST_CMD_STATE_RES_CONT_SAME;
+			}
+			res = true;
+		}
+	}
+
+	return res;
+}
+
 static int scst_exec_check_blocking(struct scst_cmd **active_cmd)
 {
 	struct scst_cmd *cmd = *active_cmd;
 	struct scst_cmd *ref_cmd;
+	int res = SCST_CMD_STATE_RES_CONT_NEXT;
 
 	TRACE_ENTRY();
 
 	cmd->state = SCST_CMD_STATE_EXEC_CHECK_BLOCKING;
+
+	if (unlikely(scst_check_alua(cmd, &res)))
+		goto out;
 
 	if (unlikely(scst_check_blocked_dev(cmd)))
 		goto out;
@@ -3251,6 +3694,7 @@ static int scst_exec_check_blocking(struct scst_cmd **active_cmd)
 #ifdef CONFIG_SCST_DEBUG_SN
 		if ((scst_random() % 120) == 7) {
 			int t = scst_random() % 200;
+
 			TRACE_SN("Delaying IO on %d ms", t);
 			msleep(t);
 		}
@@ -3280,9 +3724,9 @@ static int scst_exec_check_blocking(struct scst_cmd **active_cmd)
 		cmd->state = SCST_CMD_STATE_LOCAL_EXEC;
 
 		rc = scst_do_local_exec(cmd);
-		if (likely(rc == SCST_EXEC_NOT_COMPLETED))
-			/* Nothing to do */;
-		else {
+		if (likely(rc == SCST_EXEC_NOT_COMPLETED)) {
+			/* Nothing to do */
+		} else {
 			sBUG_ON(rc != SCST_EXEC_COMPLETED);
 			goto done;
 		}
@@ -3300,6 +3744,9 @@ done:
 		EXTRACHECKS_BUG_ON(cmd->state != SCST_CMD_STATE_EXEC_CHECK_SN);
 
 		cmd->state = SCST_CMD_STATE_EXEC_CHECK_BLOCKING;
+
+		if (unlikely(scst_check_alua(cmd, &res)))
+			goto out;
 
 		if (unlikely(scst_check_blocked_dev(cmd)))
 			break;
@@ -3320,8 +3767,8 @@ done:
 	/* !! At this point sess, dev and tgt_dev can be already freed !! */
 
 out:
-	TRACE_EXIT();
-	return SCST_CMD_STATE_RES_CONT_NEXT;
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 static int scst_exec_check_sn(struct scst_cmd **active_cmd)
@@ -3421,6 +3868,7 @@ static int scst_check_sense(struct scst_cmd *cmd)
 		} else {
 			int sl;
 			uint8_t sense[SCST_STANDARD_SENSE_LEN];
+
 			TRACE(TRACE_MGMT, "DID_RESET received for device %s, "
 				"triggering reset UA", dev->virt_name);
 			sl = scst_set_sense(sense, sizeof(sense), dev->d_sense,
@@ -3597,6 +4045,7 @@ next:
 	if (likely(scst_cmd_completed_good(cmd))) {
 		if (cmd->deferred_dif_read_check) {
 			int rc = scst_dif_process_read(cmd);
+
 			if (unlikely(rc != 0)) {
 				cmd->deferred_dif_read_check = 0;
 				goto again;
@@ -3709,6 +4158,7 @@ static int scst_mode_select_checks(struct scst_cmd *cmd)
 
 	if (likely(scsi_status_is_good(cmd->status))) {
 		int atomic = scst_cmd_atomic(cmd);
+
 		if (unlikely((cmd->cdb[0] == MODE_SELECT) ||
 		    (cmd->cdb[0] == MODE_SELECT_10) ||
 		    (cmd->cdb[0] == LOG_SELECT))) {
@@ -3762,6 +4212,7 @@ static int scst_mode_select_checks(struct scst_cmd *cmd)
 					SCST_SENSE_ASC_VALID,
 					0, 0x2F, 0))) {
 		int atomic = scst_cmd_atomic(cmd);
+
 		if (atomic) {
 			TRACE_DBG("Possible parameters changed UA %x: "
 				"thread context required", cmd->sense[12]);
@@ -3871,6 +4322,7 @@ static int scst_dev_done(struct scst_cmd *cmd)
 
 	if (cmd->inc_expected_sn_on_done && cmd->sent_for_exec && cmd->sn_set) {
 		bool rc = scst_inc_expected_sn(cmd);
+
 		if (rc)
 			scst_make_deferred_commands_active(cmd->cur_order_data);
 	}
@@ -4035,6 +4487,7 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 	    (cmd->data_direction & SCST_DATA_READ)) {
 		int i, sg_cnt;
 		struct scatterlist *sg, *sgi;
+
 		if (cmd->tgt_i_sg != NULL) {
 			sg = cmd->tgt_i_sg;
 			sg_cnt = cmd->tgt_i_sg_cnt;
@@ -4059,6 +4512,7 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 
 	if (tgtt->on_hw_pending_cmd_timeout != NULL) {
 		struct scst_session *sess = cmd->sess;
+
 		cmd->hw_pending_start = jiffies;
 		cmd->cmd_hw_pending = 1;
 		if (!test_bit(SCST_SESS_HW_PENDING_WORK_SCHEDULED, &sess->sess_aflags)) {
@@ -4216,6 +4670,12 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 
 	spin_unlock_irq(&sess->sess_list_lock);
 
+	if (unlikely(cmd->cmd_on_global_stpg_list)) {
+		TRACE_DBG("Unlisting being freed STPG cmd %p", cmd);
+		EXTRACHECKS_BUG_ON(cmd->cmd_global_stpg_blocked);
+		scst_stpg_del_unblock_next(cmd);
+	}
+
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)))
 		scst_finish_cmd_mgmt(cmd);
 
@@ -4313,6 +4773,7 @@ again:
 					order_data->cur_sn_slot = order_data->sn_slots;
 				if (unlikely(atomic_read(order_data->cur_sn_slot) != 0)) {
 					static int q;
+
 					if (q++ < 10)
 						PRINT_WARNING("Not enough SN slots "
 							"(dev %s)", cmd->dev->virt_name);
@@ -4487,6 +4948,7 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 					"unexisting LU (initiator %s, target %s)?",
 					(unsigned long long int)cmd->lun,
 					cmd->sess->initiator_name, cmd->tgt->tgt_name);
+				scst_event_queue_lun_not_found(cmd);
 			}
 			scst_put(cmd->cpu_cmd_counter);
 		}
@@ -4508,7 +4970,6 @@ static int scst_translate_lun(struct scst_cmd *cmd)
  */
 static int __scst_init_cmd(struct scst_cmd *cmd)
 {
-	bool (*alua_filter)(struct scst_cmd *cmd);
 	int res = 0;
 
 	TRACE_ENTRY();
@@ -4549,12 +5010,6 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 		if (unlikely(failure))
 			goto out_busy;
 
-		alua_filter = ACCESS_ONCE(cmd->tgt_dev->alua_filter);
-		if (unlikely(alua_filter && !alua_filter(cmd))) {
-			scst_set_cmd_abnormal_done_state(cmd);
-			goto out;
-		}
-
 		/*
 		 * SCST_IMPLICIT_HQ for unknown commands not implemented for
 		 * case when set_sn_on_restart_cmd not set, because custom parse
@@ -4571,6 +5026,7 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 			else {
 				struct scst_order_data *order_data = cmd->cur_order_data;
 				unsigned long flags;
+
 				spin_lock_irqsave(&order_data->init_done_lock, flags);
 				scst_cmd_set_sn(cmd);
 				spin_unlock_irqrestore(&order_data->init_done_lock, flags);
@@ -4615,6 +5071,7 @@ restart:
 
 	list_for_each_entry(cmd, &scst_init_cmd_list, cmd_list_entry) {
 		int rc;
+
 		if (susp && !test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))
 			continue;
 		if (!test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)) {
@@ -5381,6 +5838,9 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 
 	TRACE_ENTRY();
 
+	/* Fantom EC commands must not leak here */
+	sBUG_ON((cmd->cdb[0] == EXTENDED_COPY) && cmd->internal);
+
 	/*
 	 * Help Coverity recognize that mcmd != NULL if
 	 * call_dev_task_mgmt_fn_received == true.
@@ -5429,6 +5889,9 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 	 * setting UA for aborted cmd in scst_set_pending_UA().
 	 */
 	smp_mb__after_set_bit();
+
+	if (cmd->cdb[0] == EXTENDED_COPY)
+		scst_cm_abort_ec_cmd(cmd);
 
 	if (cmd->tgt_dev == NULL) {
 		spin_lock_irqsave(&scst_init_lock, flags);
@@ -5488,6 +5951,7 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 		if (mstb->done_counted || mstb->finish_counted) {
 			unsigned long t;
 			char state_name[32];
+
 			if (mcmd->fn != SCST_PR_ABORT_ALL)
 				t = TRACE_MGMT;
 			else
@@ -5575,6 +6039,7 @@ static int scst_set_mcmd_next_state(struct scst_mgmt_cmd *mcmd)
 	default:
 	{
 		char fn_name[16], state_name[32];
+
 		PRINT_CRIT_ERROR("Wrong mcmd %p state %s (fn %s, "
 			"cmd_finish_wait_count %d, cmd_done_wait_count %d)",
 			mcmd, scst_get_mcmd_state_name(state_name,
@@ -5596,11 +6061,14 @@ static int scst_set_mcmd_next_state(struct scst_mgmt_cmd *mcmd)
 
 /* IRQs supposed to be disabled */
 static bool __scst_check_unblock_aborted_cmd(struct scst_cmd *cmd,
-	struct list_head *list_entry)
+	struct list_head *list_entry, bool blocked)
 {
 	bool res;
+
 	if (test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)) {
 		list_del(list_entry);
+		if (blocked)
+			cmd->cmd_global_stpg_blocked = 0;
 		spin_lock(&cmd->cmd_threads->cmd_list_lock);
 		list_add_tail(&cmd->cmd_list_entry,
 			&cmd->cmd_threads->active_cmd_list);
@@ -5643,7 +6111,7 @@ void scst_unblock_aborted_cmds(const struct scst_tgt *tgt,
 				continue;
 
 			if (__scst_check_unblock_aborted_cmd(cmd,
-					&cmd->blocked_cmd_list_entry)) {
+					&cmd->blocked_cmd_list_entry, true)) {
 				TRACE_MGMT_DBG("Unblock aborted blocked cmd %p", cmd);
 			}
 		}
@@ -5654,6 +6122,7 @@ void scst_unblock_aborted_cmds(const struct scst_tgt *tgt,
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 					dev_tgt_dev_list_entry) {
 			struct scst_order_data *order_data = tgt_dev->curr_order_data;
+
 			spin_lock(&order_data->sn_lock);
 			list_for_each_entry_safe(cmd, tcmd,
 					&order_data->deferred_cmd_list,
@@ -5665,7 +6134,7 @@ void scst_unblock_aborted_cmds(const struct scst_tgt *tgt,
 					continue;
 
 				if (__scst_check_unblock_aborted_cmd(cmd,
-						&cmd->deferred_cmd_list_entry)) {
+						&cmd->deferred_cmd_list_entry, false)) {
 					TRACE_MGMT_DBG("Unblocked aborted SN "
 						"cmd %p (sn %u)", cmd, cmd->sn);
 					order_data->def_cmd_count--;
@@ -5872,8 +6341,10 @@ static int scst_clear_task_set(struct scst_mgmt_cmd *mcmd)
 	return res;
 }
 
-/* Returns 0 if the command processing should be continued,
- * >0, if it should be requeued, <0 otherwise */
+/*
+ * Returns 0 if the command processing should be continued,
+ * >0, if it should be requeued, <0 otherwise.
+ */
 static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 {
 	int res = 0, rc, t;
@@ -5966,6 +6437,8 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 	}
 
 out:
+	scst_event_queue_tm_fn_received(mcmd);
+
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -6152,6 +6625,7 @@ static void scst_do_nexus_loss_sess(struct scst_mgmt_cmd *mcmd)
 	rcu_read_lock();
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		struct list_head *head = &sess->sess_tgt_dev_list[i];
+
 		list_for_each_entry_rcu(tgt_dev, head,
 					sess_tgt_dev_list_entry) {
 			scst_nexus_loss(tgt_dev,
@@ -6186,6 +6660,7 @@ static int scst_abort_all_nexus_loss_sess(struct scst_mgmt_cmd *mcmd,
 	rcu_read_lock();
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		struct list_head *head = &sess->sess_tgt_dev_list[i];
+
 		list_for_each_entry_rcu(tgt_dev, head,
 					sess_tgt_dev_list_entry) {
 			__scst_abort_task_set(mcmd, tgt_dev);
@@ -6220,6 +6695,7 @@ static void scst_do_nexus_loss_tgt(struct scst_mgmt_cmd *mcmd)
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 			struct list_head *head = &sess->sess_tgt_dev_list[i];
 			struct scst_tgt_dev *tgt_dev;
+
 			list_for_each_entry_rcu(tgt_dev, head,
 					sess_tgt_dev_list_entry) {
 				scst_nexus_loss(tgt_dev, true);
@@ -6257,6 +6733,7 @@ static int scst_abort_all_nexus_loss_tgt(struct scst_mgmt_cmd *mcmd,
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 			struct list_head *head = &sess->sess_tgt_dev_list[i];
 			struct scst_tgt_dev *tgt_dev;
+
 			list_for_each_entry_rcu(tgt_dev, head,
 					sess_tgt_dev_list_entry) {
 				__scst_abort_task_set(mcmd, tgt_dev);
@@ -6470,6 +6947,7 @@ static int scst_mgmt_affected_cmds_done(struct scst_mgmt_cmd *mcmd)
 		rcu_read_lock();
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 			struct list_head *head = &sess->sess_tgt_dev_list[i];
+
 			list_for_each_entry_rcu(tgt_dev, head, sess_tgt_dev_list_entry) {
 				scst_call_dev_task_mgmt_fn_done(mcmd, tgt_dev);
 			}
@@ -6489,6 +6967,7 @@ static int scst_mgmt_affected_cmds_done(struct scst_mgmt_cmd *mcmd)
 			for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 				struct list_head *head = &s->sess_tgt_dev_list[i];
 				struct scst_tgt_dev *tgt_dev;
+
 				list_for_each_entry_rcu(tgt_dev, head,
 						sess_tgt_dev_list_entry) {
 					if (mcmd->sess == tgt_dev->sess)
@@ -6510,6 +6989,16 @@ static int scst_mgmt_affected_cmds_done(struct scst_mgmt_cmd *mcmd)
 
 tgt_done:
 	scst_call_task_mgmt_affected_cmds_done(mcmd);
+
+	switch (mcmd->fn) {
+	case SCST_LUN_RESET:
+	case SCST_TARGET_RESET:
+	case SCST_NEXUS_LOSS_SESS:
+	case SCST_NEXUS_LOSS:
+	case SCST_UNREG_SESS_TM:
+		scst_cm_free_pending_list_ids(sess);
+		break;
+	}
 
 	res = scst_set_mcmd_next_state(mcmd);
 
@@ -6631,6 +7120,7 @@ static int scst_process_mgmt_cmd(struct scst_mgmt_cmd *mcmd)
 		default:
 		{
 			char fn_name[16], state_name[32];
+
 			PRINT_CRIT_ERROR("Wrong mcmd %p state %s (fn %s, "
 				"cmd_finish_wait_count %d, cmd_done_wait_count "
 				"%d)", mcmd, scst_get_mcmd_state_name(state_name,
@@ -6674,6 +7164,7 @@ int scst_tm_thread(void *arg)
 		while (!list_empty(&scst_active_mgmt_cmd_list)) {
 			int rc;
 			struct scst_mgmt_cmd *mcmd;
+
 			mcmd = list_first_entry(&scst_active_mgmt_cmd_list,
 					  typeof(*mcmd), mgmt_cmd_list_entry);
 			TRACE_MGMT_DBG("Deleting mgmt cmd %p from active cmd "
@@ -7106,6 +7597,9 @@ bool scst_initiator_has_luns(struct scst_tgt *tgt, const char *initiator_name)
 	acg = __scst_find_acg(tgt, initiator_name);
 
 	res = !list_empty(&acg->acg_dev_list);
+
+	if (!res)
+		scst_event_queue_negative_luns_inquiry(tgt, initiator_name);
 
 	mutex_unlock(&scst_mutex);
 
@@ -7669,6 +8163,7 @@ struct scst_cmd *scst_find_cmd_by_tag(struct scst_session *sess,
 {
 	unsigned long flags;
 	struct scst_cmd *cmd;
+
 	spin_lock_irqsave(&sess->sess_list_lock, flags);
 	cmd = __scst_find_cmd_by_tag(sess, tag, false);
 	spin_unlock_irqrestore(&sess->sess_list_lock, flags);

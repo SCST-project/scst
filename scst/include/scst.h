@@ -684,6 +684,7 @@ struct scst_acg;
 struct scst_acg_dev;
 struct scst_acn;
 struct scst_aen;
+struct scst_ext_copy_seg_descr;
 struct scst_opcode_descriptor;
 
 /*
@@ -1331,6 +1332,12 @@ struct scst_dev_type {
 	unsigned pr_cmds_notifications:1;
 
 	/*
+	 * Set if the Copy Manager can auto assing to devices of this
+	 * template on their registration.
+	 */
+	unsigned auto_cm_assignment_possible:1;
+
+	/*
 	 * Called to parse CDB from the cmd and initialize
 	 * cmd->bufflen and cmd->data_direction (both - REQUIRED).
 	 *
@@ -1419,6 +1426,50 @@ struct scst_dev_type {
 	 * OPTIONAL
 	 */
 	void (*on_free_cmd)(struct scst_cmd *cmd);
+
+	/*
+	 * Called during EXTENDED COPY command processing to let dev handler
+	 * try to remap blocks at first. Upon finish, the dev handler supposed
+	 * to call scst_ext_copy_remap_done(). See description of this
+	 * function for more details.
+	 *
+	 * In case of error, the dev handler should set the corresponding sense
+	 * to cmd and then call scst_ext_copy_remap_done(cmd, NULL, 0).
+	 *
+	 * It is highly recommended that in the normal circumstances
+	 * scst_ext_copy_remap_done() called from another thread context,
+	 * because otherwise there will be recursion in the segments processing.
+	 * Hopefully, this thread context switch is natural for such
+	 * potentially long operation.
+	 *
+	 * OPTIONAL
+	 */
+	void (*ext_copy_remap)(struct scst_cmd *cmd,
+		struct scst_ext_copy_seg_descr *descr);
+
+	/*
+	 * Called to notify dev handler that a ALUA state change is about to
+	 * be started. Can be used to close open file handlers, which might
+	 * prevent the state switch.
+	 *
+	 * Called under scst_dg_mutex and no activities on the dev handler level.
+	 *
+	 * OPTIONAL
+	 */
+	void (*on_alua_state_change_start)(struct scst_device *dev,
+		enum scst_tg_state old_state, enum scst_tg_state new_state);
+
+	/*
+	 * Called to notify dev handler that a ALUA state change is about to
+	 * be finished. Can be used to (re)open file handlers closed in
+	 * on_alua_state_change_start().
+	 *
+	 * Called under scst_dg_mutex and no activities on the dev handler level.
+	 *
+	 * OPTIONAL
+	 */
+	void (*on_alua_state_change_finish)(struct scst_device *dev,
+		enum scst_tg_state old_state, enum scst_tg_state new_state);
 
 	/*
 	 * Called to notify dev handler that a task management command received
@@ -1918,6 +1969,14 @@ struct scst_session {
 	/* Used if scst_unregister_session() called in wait mode */
 	struct completion *shutdown_compl;
 
+	/*
+	 * Keep list IDs for Extended Copy commands sent over this session.
+	 * Protected by scst_cm_lock.
+	 */
+	struct list_head sess_cm_list_id_list;
+
+	struct delayed_work sess_cm_list_id_cleanup_work;
+
 	/* sysfs release completion */
 	struct completion *sess_kobj_release_cmpl;
 
@@ -2110,11 +2169,23 @@ struct scst_cmd {
 	/* Set if cmd is internally generated */
 	unsigned int internal:1;
 
+	/* Set if local events should be checked for internally generated cmd */
+	unsigned int internal_check_local_events:1;
+
+	/* Set if the blocking machinery should be bypassed for this cmd */
+	unsigned int bypass_blocking:1;
+
 	/* Set if the device was blocked by scst_check_blocked_dev() */
 	unsigned int unblock_dev:1;
 
 	/* Set if scst_dec_on_dev_cmd() call is needed on the cmd's finish */
 	unsigned int dec_on_dev_needed:1;
+
+	/* Set if cmd is on dev's exec_cmd_list */
+	unsigned int on_dev_exec_list:1;
+
+	/* Set if this cmd passed check for SCSI atomicity */
+	unsigned int scsi_atomicity_checked:1;
 
 	/* Set if cmd is queued as hw pending */
 	unsigned int cmd_hw_pending:1;
@@ -2208,11 +2279,20 @@ struct scst_cmd {
 	/* Set if cmd was pre-alloced by target driver */
 	unsigned int pre_alloced:1;
 
+	/* Set if cmd was already ALUA checked in TRANSITIONING state */
+	unsigned int already_transitioning:1;
+
 	/* Set if scst_cmd_set_write_not_received_data_len() was called */
 	unsigned int write_not_received_set:1;
 
 	/* Set if cmd has LINK bit set in CDB */
 	unsigned int cmd_linked:1;
+
+	/* Set if cmd is on scst_global_stpg_list */
+	unsigned int cmd_on_global_stpg_list:1;
+
+	/* Set if cmd was globally STPG blocked in __scst_check_blocked_dev() */
+	unsigned int cmd_global_stpg_blocked:1;
 
 	/**************************************************************/
 
@@ -2268,6 +2348,15 @@ struct scst_cmd {
 	uint8_t *cdb; /* Pointer on CDB. Points on cdb_buf for small CDBs. */
 	unsigned short cdb_len;
 	uint8_t cdb_buf[SCST_MAX_CDB_SIZE];
+
+	/* List entry for dev's dev_exec_cmd_list */
+	struct list_head dev_exec_cmd_list_entry;
+
+	/*
+	 * Array of blocked by this cmd SCSI atomic cmds with size
+	 * scsi_atomic_blocked_cmds_count. Protected by dev->dev_lock.
+	 */
+	struct scst_cmd **scsi_atomic_blocked_cmds;
 
 	uint8_t lba_off;	/* LBA offset in cdb */
 	uint8_t lba_len;	/* LBA length in cdb */
@@ -2400,6 +2489,18 @@ struct scst_cmd {
 	/* Used for storage of dev handler private stuff */
 	void *dh_priv;
 
+	/*
+	 * Number of waiting for this cmd to finish commands
+	 * with SCSI atomic guarantees. Protected by dev->dev_lock.
+	 */
+	int scsi_atomic_blockers;
+
+	/*
+	 * How many SCSI atomic cmds this cmd blocked, i.e. size of array
+	 * scsi_atomic_blocked_cmds. Protected by dev->dev_lock.
+	 */
+	int scsi_atomic_blocked_cmds_count;
+
 	/* List entry for dev's blocked_cmd_list */
 	struct list_head blocked_cmd_list_entry;
 
@@ -2429,6 +2530,11 @@ struct scst_cmd {
 			void *cmd_data_descriptors;
 			int cmd_data_descriptors_cnt;
 		};
+
+		/* STPG commands global serialization */
+		struct {
+			struct list_head global_stpg_list_entry;
+		};
 	};
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
@@ -2440,6 +2546,7 @@ struct scst_cmd {
 	uint64_t restart_waiting_time, rdy_to_xfer_time;
 	uint64_t pre_exec_time, exec_time, dev_done_time;
 	uint64_t xmit_time;
+	bool exec_time_counting;
 #endif
 
 #ifdef CONFIG_SCST_DEBUG_TM
@@ -2612,6 +2719,20 @@ struct scst_cl_ops {
 };
 
 /*
+ * Extended, e.g. via sysfs, blockers
+ */
+typedef void (*ext_blocker_done_fn_t) (struct scst_device *dev,
+	uint8_t *data, int len);
+
+struct scst_ext_blocker {
+	struct list_head ext_blockers_list_entry;
+
+	ext_blocker_done_fn_t ext_blocker_done_fn;
+	int ext_blocker_data_len;
+	uint8_t ext_blocker_data[];
+};
+
+/*
  * SCST device
  */
 struct scst_device {
@@ -2630,6 +2751,26 @@ struct scst_device {
 
 	/* Set, if a strictly serialized cmd is waiting blocked */
 	unsigned int strictly_serialized_cmd_waiting:1;
+
+	/*
+	 * Set, if this device is being unregistered. Useful to let sysfs
+	 * attributes know when they should exit immediately to prevent
+	 * possible deadlocks with their device unregistration waiting for
+	 * their kobj last put.
+	 */
+	unsigned int dev_unregistering:1;
+
+	/*
+	 * Set if ext blocking is pending. It if just shortcut for
+	 * !list_empty(&dev->ext_blockers_list) to save a cache miss.
+	 */
+	unsigned int ext_blocking_pending:1;
+
+	/* Used to serialize invocations of __scst_ext_blocking_done() */
+	unsigned int ext_unblock_scheduled:1;
+
+	/* Set if this device was blocked during STPG command processing */
+	unsigned int stpg_ext_blocked:1;
 
 	/* Set if this device does not support DIF IP checking */
 	unsigned int dev_dif_ip_not_supported:1;
@@ -2744,14 +2885,22 @@ struct scst_device {
 	 */
 	int on_dev_cmd_count;
 
+	/*
+	 * How many atomic SCSI commands being executed. Protected by dev_lock.
+	 */
+	int dev_scsi_atomic_cmd_active;
+
+	/*
+	 * List of all being executed on the dev commands.
+	 * Protected by dev_lock.
+	 */
+	struct list_head dev_exec_cmd_list;
+
 	/* Memory limits for this device */
 	struct scst_mem_lim dev_mem_lim;
 
 	/* List of commands with lock, if dedicated threads are used */
 	struct scst_cmd_threads dev_cmd_threads;
-
-	/* Operations that depend on whether or not cluster mode is enabled */
-	const struct scst_cl_ops *cl_ops;
 
 	/*************************************************************
 	 ** T10-PI fields. Read-only, hence no protection.
@@ -2770,9 +2919,11 @@ struct scst_device {
 	int (*dev_dif_fn)(struct scst_cmd *cmd);
 
 	__be16 dev_dif_static_app_tag; /* fixed APP TAG for all blocks in dev */
-	__be32 dev_dif_static_app_ref_tag; /* fixed APP TAG part from REF
-					    * TAG for all blocks in dev.
-					    * Valid only with dif type 3 */
+	/*
+	 * Fixed APP TAG part from REF TAG for all blocks in dev. Valid only
+	 * with dif type 3.
+	 */
+	__be32 dev_dif_static_app_ref_tag;
 
 	/* Cache to optimize scst_parse_*protect() routines */
 	enum scst_dif_actions dev_dif_rd_actions;
@@ -2783,6 +2934,9 @@ struct scst_device {
 
 	/* Set if reserved via the SPC-2 SCSI RESERVE command. */
 	struct scst_session *reserved_by;
+
+	/* Operations that depend on whether or not cluster mode is enabled */
+	const struct scst_cl_ops *cl_ops;
 
 	/**********************************************************************
 	 * Persistent reservation fields. Protected as follows:
@@ -2853,6 +3007,15 @@ struct scst_device {
 
 	/* List of blocked commands, protected by dev_lock. */
 	struct list_head blocked_cmd_list;
+
+	/* Number of ext blocking requests, protected by dev_lock */
+	int ext_blocks_cnt;
+
+	/* List of ext blockers, protected by dev_lock */
+	struct list_head ext_blockers_list;
+
+	/* Work to notify ext blockers out of dev_lock context */
+	struct work_struct ext_blockers_work;
 
 	/* MAXIMUM WRITE SAME LENGTH in bytes */
 	uint64_t max_write_same_len;
@@ -2969,7 +3132,10 @@ struct scst_tgt_dev {
 	atomic_t tgt_dev_cmd_count ____cacheline_aligned_in_smp;
 
 	/* ALUA command filter */
-	bool (*alua_filter)(struct scst_cmd *cmd);
+#define SCST_ALUA_CHECK_OK	0
+#define SCST_ALUA_CHECK_DELAYED 1
+#define SCST_ALUA_CHECK_ERROR	-1
+	int (*alua_filter)(struct scst_cmd *cmd);
 
 	struct scst_order_data *curr_order_data;
 	struct scst_order_data tgt_dev_order_data;
@@ -3176,6 +3342,8 @@ struct scst_acn {
  * @kobj:        For making this object visible in sysfs.
  * @dev_kobj:    Sysfs devices directory.
  * @tg_kobj:     Sysfs target groups directory.
+ * @stpg_transport_id Initiator transport ID for STPG originating I_T nexus, if any
+ * @stpg_rel_tgt_id Relative target ID for STPG originating I_T nexus, if any
  *
  * Each device is member of zero or one device groups. With each device group
  * there are zero or more target groups associated.
@@ -3188,6 +3356,8 @@ struct scst_dev_group {
 	struct kobject		kobj;
 	struct kobject		*dev_kobj;
 	struct kobject		*tg_kobj;
+	uint8_t			*stpg_transport_id;
+	uint16_t		stpg_rel_tgt_id;
 };
 
 /**
@@ -3300,6 +3470,7 @@ extern const struct scst_opcode_descriptor scst_op_descr_stpg;
 extern const struct scst_opcode_descriptor scst_op_descr_send_diagnostic;
 
 extern const struct scst_opcode_descriptor scst_op_descr_inquiry;
+extern const struct scst_opcode_descriptor scst_op_descr_extended_copy;
 extern const struct scst_opcode_descriptor scst_op_descr_tur;
 extern const struct scst_opcode_descriptor scst_op_descr_reserve6;
 extern const struct scst_opcode_descriptor scst_op_descr_release6;
@@ -3325,7 +3496,6 @@ extern const struct scst_opcode_descriptor scst_op_descr_report_supp_opcodes;
 	&scst_op_descr_request_sense,		\
 	&scst_op_descr_report_supp_opcodes,	\
 	&scst_op_descr_report_supp_tm_fns,
-
 
 #ifndef smp_mb__after_set_bit
 /* There is no smp_mb__after_set_bit() in the kernel */
@@ -3655,9 +3825,12 @@ static inline void scst_sess_set_tgt_priv(struct scst_session *sess,
 }
 
 uint16_t scst_lookup_tg_id(struct scst_device *dev, struct scst_tgt *tgt);
-bool scst_impl_alua_configured(struct scst_device *dev);
+bool scst_alua_configured(struct scst_device *dev);
 int scst_tg_get_group_info(void **buf, uint32_t *response_length,
 			   struct scst_device *dev, uint8_t data_format);
+int scst_tg_set_group_info(struct scst_cmd *cmd);
+const char *scst_alua_state_name(enum scst_tg_state s);
+void scst_stpg_del_unblock_next(struct scst_cmd *cmd);
 
 /*
  * Get/set functions for dev's static DIF APP TAG
@@ -5453,7 +5626,7 @@ struct scst_data_descriptor {
 	uint64_t sdd_blocks;
 };
 
-void scst_write_same(struct scst_cmd *cmd);
+void scst_write_same(struct scst_cmd *cmd, struct scst_data_descriptor *where);
 
 __be64 scst_pack_lun(const uint64_t lun, enum scst_lun_addr_method addr_method);
 uint64_t scst_unpack_lun(const uint8_t *lun, int len);
@@ -5477,5 +5650,33 @@ int scst_pr_set_cluster_mode(struct scst_device *dev, bool cluster_mode,
 	const char *cl_dev_id);
 int scst_pr_init_dev(struct scst_device *dev);
 void scst_pr_clear_dev(struct scst_device *dev);
+
+struct scst_ext_copy_data_descr {
+	uint64_t src_lba;
+	uint64_t dst_lba;
+	int data_len; /* in bytes */
+};
+
+struct scst_ext_copy_seg_descr {
+#define SCST_EXT_COPY_SEG_DATA		0
+#if 0 /* not implemented yet */
+#define SCST_EXT_COPY_SEG_PR_REG	1
+#define SCST_EXT_COPY_SEG_PR_MOVE	2
+#endif
+	int type;
+	union {
+		struct {
+			struct scst_tgt_dev *src_tgt_dev;
+			struct scst_tgt_dev *dst_tgt_dev;
+			struct scst_ext_copy_data_descr data_descr;
+		};
+	};
+	/* Internal, don't touch! */
+	int tgt_descr_offs;
+};
+
+void scst_ext_copy_remap_done(struct scst_cmd *ec_cmd,
+	struct scst_ext_copy_data_descr *dds, int dds_cnt);
+int scst_ext_copy_get_cur_seg_data_len(struct scst_cmd *ec_cmd);
 
 #endif /* __SCST_H */

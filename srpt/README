@@ -211,17 +211,7 @@ fe80:0000:0000:0000:0002:c903:0005:f350
 Session names
 -------------
 
-The name assigned by the ib_srpt target driver to a session depends on the
-mode in which it is operating. If one_target_per_port=y then the source port
-GID is used as the session name. If one_target_per_port=n then the 128-bit SRP
-initiator port identifier is used as the session name. This identifier is sent
-by the SRP initiator to the SRP target via the SRP_LOGIN_REQ information unit.
-The Linux SRP initiator (ib_srp) generates the initiator port identifier as
-follows:
-- The first eight bytes are the identifier extension ('initiator_ext' parameter
-  specified in the login string echoed into the sysfs file 'add_target').
-- The last eight bytes are the GUID of the initiator HCA port used to
-  communicate with the target.
+The ib_srpt target driver uses the source port GID as session name.
 
 An example:
 
@@ -242,7 +232,9 @@ fe80:0000:0000:0000:0002:c903:0003:cca8
 
 $ (cd /sys/kernel/scst_tgt/targets/ib_srpt/[0-9a-f]* && ls -d sessions/*)
 sessions/fe80:0000:0000:0000:0002:c903:0003:cca7
+sessions/fe80:0000:0000:0000:0002:c903:0003:cca8
 sessions/fe80:0000:0000:0000:0002:c903:0005:f34b
+sessions/fe80:0000:0000:0000:0002:c903:0005:f34c
 
 
 LUN masking

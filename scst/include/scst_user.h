@@ -71,10 +71,11 @@
 #define UCMD_STATE_BUF_ALLOCING		2
 #define UCMD_STATE_EXECING		3
 #define UCMD_STATE_ON_FREEING		4
-#define UCMD_STATE_ON_FREE_SKIPPED	5
-#define UCMD_STATE_ON_CACHE_FREEING	6
-#define UCMD_STATE_TM_RECEIVED_EXECING	7
-#define UCMD_STATE_TM_DONE_EXECING	8
+#define UCMD_STATE_ON_CACHE_FREEING	5
+#define UCMD_STATE_EXT_COPY_REMAPPING	6
+#define UCMD_STATE_ON_FREE_SKIPPED	7
+#define UCMD_STATE_TM_RECEIVED_EXECING	8
+#define UCMD_STATE_TM_DONE_EXECING	9
 
 #define UCMD_STATE_ATTACH_SESS		0x20
 #define UCMD_STATE_DETACH_SESS		0x21
@@ -96,6 +97,8 @@ struct scst_user_opt {
 	uint8_t d_sense;
 
 	uint8_t has_own_order_mgmt;
+
+	uint8_t ext_copy_remap_supported;
 };
 
 struct scst_user_dev_desc {
@@ -212,6 +215,19 @@ struct scst_user_tm {
 	uint8_t cmd_sn_set;
 };
 
+struct scst_user_ext_copy_data_descr {
+	aligned_u64 src_lba;
+	aligned_u64 dst_lba;
+	int32_t data_len; /* in bytes */
+};
+
+struct scst_user_ext_copy_remap {
+	aligned_u64 sess_h;
+	aligned_u64 src_sess_h;
+	aligned_u64 dst_sess_h;
+	struct scst_user_ext_copy_data_descr data_descr;
+};
+
 struct scst_user_get_cmd {
 	uint32_t cmd_h;
 	uint32_t subcode;
@@ -224,6 +240,7 @@ struct scst_user_get_cmd {
 		struct scst_user_scsi_on_free_cmd on_free_cmd;
 		struct scst_user_on_cached_mem_free on_cached_mem_free;
 		struct scst_user_tm tm_cmd;
+		struct scst_user_ext_copy_remap remap_cmd;
 	};
 };
 
@@ -253,6 +270,15 @@ struct scst_user_scsi_cmd_reply_alloc_mem {
 	aligned_u64 pbuf;
 };
 
+/*
+ * Same as struct scst_data_descriptor, but suitable to pass kernel/user
+ * space boundary
+ */
+struct scst_user_data_descriptor {
+	aligned_u64 usdd_lba;
+	aligned_u64 usdd_blocks;
+};
+
 /* Be careful adding new members here, this structure is allocated on stack! */
 struct scst_user_scsi_cmd_reply_exec {
 	int32_t resp_data_len;
@@ -260,8 +286,26 @@ struct scst_user_scsi_cmd_reply_exec {
 
 #define SCST_EXEC_REPLY_BACKGROUND	0
 #define SCST_EXEC_REPLY_COMPLETED	1
+#define SCST_EXEC_REPLY_DO_WRITE_SAME	2
 	uint8_t reply_type;
 
+	uint8_t status;
+	union {
+		struct {
+			uint8_t sense_len;
+			aligned_u64 psense_buffer;
+		};
+		struct {
+			uint16_t ws_descriptors_len;
+			aligned_u64 ws_descriptors;
+		};
+	};
+};
+
+/* Be careful adding new members here, this structure is allocated on stack! */
+struct scst_user_ext_copy_reply_remap {
+	aligned_u64 remap_descriptors;
+	uint16_t remap_descriptors_len;
 	uint8_t status;
 	uint8_t sense_len;
 	aligned_u64 psense_buffer;
@@ -276,6 +320,7 @@ struct scst_user_reply_cmd {
 		struct scst_user_scsi_cmd_reply_parse parse_reply;
 		struct scst_user_scsi_cmd_reply_alloc_mem alloc_reply;
 		struct scst_user_scsi_cmd_reply_exec exec_reply;
+		struct scst_user_ext_copy_reply_remap remap_reply;
 	};
 };
 
@@ -344,5 +389,7 @@ struct scst_user_get_multi {
 	_IOWR('s', UCMD_STATE_TM_RECEIVED_EXECING, struct scst_user_tm)
 #define SCST_USER_TASK_MGMT_DONE		\
 	_IOWR('s', UCMD_STATE_TM_DONE_EXECING, struct scst_user_tm)
+#define SCST_USER_EXT_COPY_REMAP		\
+	_IOWR('s', UCMD_STATE_EXT_COPY_REMAPPING, struct scst_user_ext_copy_remap)
 
 #endif /* __SCST_USER_H */

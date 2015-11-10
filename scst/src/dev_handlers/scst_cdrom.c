@@ -123,6 +123,7 @@ static int cdrom_attach(struct scst_device *dev)
 
 	if (rc == 0) {
 		uint32_t sector_size = get_unaligned_be32(&buffer[4]);
+
 		if (sector_size == 0)
 			dev->block_shift = CDROM_DEF_BLOCK_SHIFT;
 		else

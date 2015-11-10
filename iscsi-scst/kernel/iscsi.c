@@ -138,6 +138,7 @@ static inline int cmnd_read_size(struct iscsi_cmnd *cmnd)
 		if (ahdr != NULL) {
 			uint8_t *p = (uint8_t *)ahdr;
 			unsigned int size = 0;
+
 			do {
 				int s;
 
@@ -477,6 +478,7 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 			{
 				/* It can be for some aborted commands */
 				struct scst_cmd *scst_cmd = cmnd->scst_cmd;
+
 				TRACE_DBG("cmd %p AFTER_PREPROC", cmnd);
 				cmnd->scst_state = ISCSI_CMD_STATE_RESTARTED;
 				cmnd->scst_cmd = NULL;
@@ -1095,6 +1097,7 @@ static void iscsi_tcp_send_data_rsp(struct iscsi_cmnd *req, u8 *sense,
 		send_data_rsp(req, status, is_send_status);
 	} else {
 		struct iscsi_cmnd *rsp;
+
 		send_data_rsp(req, 0, 0);
 		if (is_send_status) {
 			rsp = create_status_rsp(req, status, sense,
@@ -1229,6 +1232,7 @@ static int create_reject_rsp(struct iscsi_cmnd *req, int reason, bool get_data)
 		if (req->scst_cmd == NULL) {
 			/* BUSY status must be already set */
 			struct iscsi_scsi_rsp_hdr *rsp_hdr1;
+
 			rsp_hdr1 = (struct iscsi_scsi_rsp_hdr *)&req->main_rsp->pdu.bhs;
 			sBUG_ON(rsp_hdr1->cmd_status == 0);
 			/*
@@ -1531,6 +1535,7 @@ int iscsi_preliminary_complete(struct iscsi_cmnd *req,
 #ifdef CONFIG_SCST_DEBUG
 	{
 		struct iscsi_hdr *req_hdr = &req->pdu.bhs;
+
 		TRACE_DBG_FLAG(iscsi_get_flow_ctrl_or_mgmt_dbg_log_flag(orig_req),
 			"Prelim completed req %p, orig_req %p (FINAL %x, "
 			"outstanding_r2t %d)", req, orig_req,
@@ -1748,8 +1753,7 @@ out:
 static int iscsi_pre_exec(struct scst_cmd *scst_cmd)
 {
 	int res = SCST_PREPROCESS_STATUS_SUCCESS;
-	struct iscsi_cmnd *req = (struct iscsi_cmnd *)
-		scst_cmd_get_tgt_priv(scst_cmd);
+	struct iscsi_cmnd *req = scst_cmd_get_tgt_priv(scst_cmd);
 	struct iscsi_cmnd *c, *t;
 
 	TRACE_ENTRY();
@@ -2055,6 +2059,7 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 	if ((req_hdr->flags & ISCSI_CMD_READ) &&
 	    (req_hdr->flags & ISCSI_CMD_WRITE)) {
 		int sz = cmnd_read_size(req);
+
 		if (unlikely(sz < 0)) {
 			PRINT_ERROR("%s", "BIDI data transfer, but initiator "
 				"not supplied Bidirectional Read Expected Data "
@@ -2117,6 +2122,7 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 	if (ahdr != NULL) {
 		uint8_t *p = (uint8_t *)ahdr;
 		unsigned int size = 0;
+
 		do {
 			int s;
 
@@ -2517,6 +2523,7 @@ static void iscsi_cmnd_abort_fn(struct work_struct *work)
 	 */
 	list_for_each_entry(conn, &session->conn_list, conn_list_entry) {
 		struct iscsi_cmnd *c;
+
 		spin_lock_bh(&conn->cmd_list_lock);
 		list_for_each_entry(c, &conn->cmd_list, cmd_list_entry) {
 			if (c == cmnd) {
@@ -3376,8 +3383,7 @@ static void iscsi_tcp_preprocessing_done(struct iscsi_cmnd *req)
 
 static void iscsi_preprocessing_done(struct scst_cmd *scst_cmd)
 {
-	struct iscsi_cmnd *req = (struct iscsi_cmnd *)
-				scst_cmd_get_tgt_priv(scst_cmd);
+	struct iscsi_cmnd *req = scst_cmd_get_tgt_priv(scst_cmd);
 
 	req->conn->transport->iscsit_preprocessing_done(req);
 }
@@ -3489,8 +3495,7 @@ static void iscsi_tcp_conn_close(struct iscsi_conn *conn, int flags)
 static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 {
 	int is_send_status = scst_cmd_get_is_send_status(scst_cmd);
-	struct iscsi_cmnd *req = (struct iscsi_cmnd *)
-					scst_cmd_get_tgt_priv(scst_cmd);
+	struct iscsi_cmnd *req = scst_cmd_get_tgt_priv(scst_cmd);
 	struct iscsi_conn *conn = req->conn;
 	int status = scst_cmd_get_status(scst_cmd);
 	u8 *sense = scst_cmd_get_sense_buffer(scst_cmd);
@@ -3574,6 +3579,7 @@ static int iscsi_xmit_response(struct scst_cmd *scst_cmd)
 							   is_send_status);
 	} else if (is_send_status) {
 		struct iscsi_cmnd *rsp;
+
 		rsp = create_status_rsp(req, status, sense, sense_len);
 		iscsi_cmnd_init_write(rsp, 0);
 	}
@@ -3768,8 +3774,7 @@ static inline int iscsi_get_mgmt_response(int status)
 static void iscsi_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd)
 {
 	int fn = scst_mgmt_cmd_get_fn(scst_mcmd);
-	struct iscsi_cmnd *req = (struct iscsi_cmnd *)
-				scst_mgmt_cmd_get_tgt_priv(scst_mcmd);
+	struct iscsi_cmnd *req = scst_mgmt_cmd_get_tgt_priv(scst_mcmd);
 	int status = iscsi_get_mgmt_response(scst_mgmt_cmd_get_status(scst_mcmd));
 
 	if ((status == ISCSI_RESPONSE_UNKNOWN_TASK) &&

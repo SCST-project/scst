@@ -1,0 +1,11 @@
+#!/bin/bash
+#
+# Script invoked by SCST for processing a SCSI SET TARGET PORT GROUPS command
+#
+# Arguments: SCST_DEVICE_NAME (device name where this STPG command was
+# received on), SCST_PREV_ALUA_STATE, SCST_ALUA_STATE,
+# SCST_DEVICE_GROUP and SCST_TARGET_GROUP + environmental variables
+# with the same names set
+#
+
+echo $SCST_ALUA_STATE >/sys/kernel/scst_tgt/device_groups/$SCST_DEVICE_GROUP/target_groups/$SCST_TARGET_GROUP/state

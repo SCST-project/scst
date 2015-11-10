@@ -82,6 +82,7 @@ static int isert_rx_pdu_init(struct isert_cmnd *isert_pdu,
 {
 	struct iscsi_cmnd *iscsi_cmnd = &isert_pdu->iscsi;
 	int err = isert_pdu_rx_buf_init(isert_pdu, isert_conn);
+
 	if (unlikely(err < 0))
 		return err;
 	iscsi_cmnd->conn = &isert_conn->iscsi;
@@ -174,14 +175,14 @@ static int isert_alloc_for_rdma(struct isert_cmnd *pdu, int sge_cnt,
 	int i, ret = 0;
 	int wr_cnt;
 
-	sg_pool = kmalloc(sizeof(*sg_pool) * sge_cnt, GFP_KERNEL);
+	sg_pool = kmalloc_array(sge_cnt, sizeof(*sg_pool), GFP_KERNEL);
 	if (unlikely(sg_pool == NULL)) {
 		ret = -ENOMEM;
 		goto out;
 	}
 
 	wr_cnt = DIV_ROUND_UP(sge_cnt, isert_conn->max_sge);
-	wr = kmalloc(sizeof(*wr) * wr_cnt, GFP_KERNEL);
+	wr = kmalloc_array(wr_cnt, sizeof(*wr), GFP_KERNEL);
 	if (unlikely(wr == NULL)) {
 		ret = -ENOMEM;
 		goto out_free_sg_pool;
@@ -478,7 +479,8 @@ clean_pdus:
 
 static int isert_reinit_rx_pdu(struct isert_cmnd *pdu)
 {
-	struct isert_connection *isert_conn = (struct isert_connection *)pdu->iscsi.conn;
+	struct isert_connection *isert_conn = container_of(pdu->iscsi.conn,
+						struct isert_connection, iscsi);
 
 	pdu->is_rstag_valid = 0;
 	pdu->is_wstag_valid = 0;
@@ -491,7 +493,8 @@ static int isert_reinit_rx_pdu(struct isert_cmnd *pdu)
 int isert_rx_pdu_done(struct isert_cmnd *pdu)
 {
 	int err;
-	struct isert_connection *isert_conn = (struct isert_connection *)pdu->iscsi.conn;
+	struct isert_connection *isert_conn = container_of(pdu->iscsi.conn,
+						struct isert_connection, iscsi);
 
 	TRACE_ENTRY();
 

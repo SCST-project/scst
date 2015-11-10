@@ -255,6 +255,32 @@ static inline void hex2bin(u8 *dst, const char *src, size_t count)
 }
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
+static inline int __must_check kstrtoull(const char *s, unsigned int base,
+					 unsigned long long *res)
+{
+	return strict_strtoull(s, base, res);
+}
+
+static inline int __must_check kstrtoll(const char *s, unsigned int base,
+					long long *res)
+{
+	return strict_strtoll(s, base, res);
+}
+
+static inline int __must_check kstrtoul(const char *s, unsigned int base,
+					unsigned long *res)
+{
+	return strict_strtoul(s, base, res);
+}
+
+static inline int __must_check kstrtol(const char *s, unsigned int base,
+				       long *res)
+{
+	return strict_strtol(s, base, res);
+}
+#endif
+
 /* <linux/list.h> */
 
 #ifndef __list_for_each
@@ -399,6 +425,15 @@ static inline void sg_set_page(struct scatterlist *sg, struct page *page,
 #define KMEM_CACHE(__struct, __flags) kmem_cache_create(#__struct,\
 	sizeof(struct __struct), __alignof__(struct __struct),\
 	(__flags), NULL, NULL)
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
+static inline void *kmalloc_array(size_t n, size_t size, gfp_t flags)
+{
+	if (size != 0 && n > ULONG_MAX / size)
+		return NULL;
+	return kmalloc(n * size, flags);
+}
 #endif
 
 /* <linux/t10-pi.h> */

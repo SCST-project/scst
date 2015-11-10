@@ -50,7 +50,7 @@
 #else
 #define SCST_VERSION_STRING_SUFFIX
 #endif
-#define SCST_VERSION_NAME	    "3.1.0-pre1"
+#define SCST_VERSION_NAME	    "3.2.0-pre1"
 #define SCST_VERSION_STRING	    SCST_VERSION_NAME SCST_VERSION_STRING_SUFFIX
 
 #define SCST_CONST_VERSION SCST_CONST_INTF_VER
@@ -228,9 +228,11 @@ enum scst_cdb_flags {
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
 	SCST_TEST_IO_IN_SIRQ_ALLOWED =		0x8000,
 #endif
-	SCST_SERIALIZED =		       0x10000,
-	SCST_STRICTLY_SERIALIZED =	       0x20000|SCST_SERIALIZED,
-	SCST_DESCRIPTORS_BASED =	       0x40000,
+	SCST_SERIALIZED =		        0x10000,
+	SCST_STRICTLY_SERIALIZED =	        0x20000|SCST_SERIALIZED,
+	SCST_CAN_GEN_3PARTY_COMMANDS =	        0x40000,
+	SCST_DESCRIPTORS_BASED =	        0x80000,
+	SCST_SCSI_ATOMIC =		        0x100000,
 };
 
 /*************************************************************
@@ -290,9 +292,9 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 
 /* NOT_READY is 2 */
 #define scst_sense_format_in_progress		NOT_READY,       0x04, 0x04
-#define scst_sense_tp_transitioning		NOT_READY,	 0x04, 0x0A
-#define scst_sense_tp_standby			NOT_READY,	 0x04, 0x0B
-#define scst_sense_tp_unav			NOT_READY,	 0x04, 0x0C
+#define scst_sense_alua_transitioning		NOT_READY,	 0x04, 0x0A
+#define scst_sense_alua_standby			NOT_READY,	 0x04, 0x0B
+#define scst_sense_alua_unav			NOT_READY,	 0x04, 0x0C
 #define scst_sense_no_medium			NOT_READY,       0x3a, 0
 
 /* MEDIUM_ERROR is 3 */
@@ -301,8 +303,11 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 
 /* HARDWARE_ERROR is 4 */
 #define scst_sense_hardw_error			HARDWARE_ERROR,  0x44, 0 /* non-retriable */
+#define scst_sense_set_target_pgs_failed        HARDWARE_ERROR,  0x67, 0xA
 
 /* ILLEGAL_REQUEST is 5 */
+#define scst_sense_operation_in_progress	ILLEGAL_REQUEST, 0x0,  0x16
+#define scst_sense_parameter_list_length_invalid ILLEGAL_REQUEST, 0x1A, 0
 #define scst_sense_invalid_opcode		ILLEGAL_REQUEST, 0x20, 0
 #define scst_sense_block_out_range_error	ILLEGAL_REQUEST, 0x21, 0
 /* Don't use it directly, use scst_set_invalid_field_in_cdb() instead! */
@@ -312,6 +317,11 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 #define scst_sense_invalid_field_in_parm_list	ILLEGAL_REQUEST, 0x26, 0
 #define scst_sense_parameter_value_invalid	ILLEGAL_REQUEST, 0x26, 2
 #define scst_sense_invalid_release		ILLEGAL_REQUEST, 0x26, 4
+#define scst_sense_too_many_target_descriptors	ILLEGAL_REQUEST, 0x26, 6
+#define scst_sense_unsupported_tgt_descr_type	ILLEGAL_REQUEST, 0x26, 7
+#define scst_sense_too_many_segment_descriptors	ILLEGAL_REQUEST, 0x26, 8
+#define scst_sense_unsupported_seg_descr_type	ILLEGAL_REQUEST, 0x26, 9
+#define scst_sense_inline_data_length_exceeded	ILLEGAL_REQUEST, 0x26, 0xB
 #define scst_sense_saving_params_unsup		ILLEGAL_REQUEST, 0x39, 0
 #define scst_sense_invalid_message		ILLEGAL_REQUEST, 0x49, 0
 #define scst_sense_parameter_list_length_invalid ILLEGAL_REQUEST, 0x1A, 0
@@ -417,6 +427,14 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 
 #ifndef WRITE_SAME_16
 #define WRITE_SAME_16	      0x93
+#endif
+
+#ifndef EXTENDED_COPY
+#define EXTENDED_COPY	      0x83
+#endif
+
+#ifndef RECEIVE_COPY_RESULTS
+#define RECEIVE_COPY_RESULTS  0x84
 #endif
 
 #ifndef SYNCHRONIZE_CACHE_16
@@ -587,6 +605,12 @@ enum {
 #define SCSI_TRANSPORTID_PROTOCOLID_SRP		4
 #define SCSI_TRANSPORTID_PROTOCOLID_ISCSI	5
 #define SCSI_TRANSPORTID_PROTOCOLID_SAS		6
+
+/*
+ * SCST extension. Added, because there is no TransportID for Copy Manager
+ * defined anywhere in the SCSI standards.
+ */
+#define SCST_TRANSPORTID_PROTOCOLID_COPY_MGR	0xC
 
 /**
  * enum scst_tg_state - SCSI target port group asymmetric access state.

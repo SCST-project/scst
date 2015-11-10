@@ -8,7 +8,8 @@
 #   version number when building on a koji build server.
 # - Otherwise use the version number of the running kernel.
 %{!?kversion:
-    %{?kdir:%define kversion %{expand:%%(make -sC %{kdir} kernelversion)}}
+    %{?kdir:%define kversion %{expand:%%(
+	make -sC "%{kdir}" kernelversion | grep -v ^make)}}
     %{!?kdir:
 	%define kversion %{expand:%%(
 	    if rpm --quiet -q kernel-headers; then

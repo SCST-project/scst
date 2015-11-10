@@ -458,7 +458,6 @@ struct scst_dev_group *scst_lookup_dg_by_kobj(struct kobject *kobj);
 int scst_dg_dev_add(struct scst_dev_group *dg, const char *name);
 int scst_dg_dev_remove_by_name(struct scst_dev_group *dg, const char *name);
 int scst_dg_dev_remove_by_dev(struct scst_device *dev);
-const char *scst_alua_state_name(enum scst_tg_state s);
 enum scst_tg_state scst_alua_name_to_state(const char *n);
 int scst_tg_add(struct scst_dev_group *dg, const char *name);
 int scst_tg_remove_by_name(struct scst_dev_group *dg, const char *name);
@@ -716,10 +715,18 @@ void scst_gen_aen_or_ua(struct scst_tgt_dev *tgt_dev,
  * we don't care about all commands that already on the device.
  */
 
-extern void scst_block_dev(struct scst_device *dev);
-extern void scst_unblock_dev(struct scst_device *dev);
-
+void scst_block_dev(struct scst_device *dev);
+void scst_unblock_dev(struct scst_device *dev);
+bool scst_do_check_blocked_dev(struct scst_cmd *cmd);
 bool __scst_check_blocked_dev(struct scst_cmd *cmd);
+void __scst_check_unblock_dev(struct scst_cmd *cmd);
+void scst_check_unblock_dev(struct scst_cmd *cmd);
+
+int scst_ext_block_dev(struct scst_device *dev, bool sync,
+	ext_blocker_done_fn_t done_fn, const uint8_t *priv, int priv_len);
+void scst_ext_unblock_dev(struct scst_device *dev, bool stpg);
+void __scst_ext_blocking_done(struct scst_device *dev);
+void scst_ext_blocking_done(struct scst_device *dev);
 
 /*
  * Increases global SCST ref counters which prevent from entering into suspended
@@ -758,6 +765,7 @@ static inline atomic_t *scst_get(void)
 static inline void scst_put(atomic_t *a)
 {
 	int f;
+
 	f = atomic_dec_and_test(a);
 	/* See comment about smp_mb() in scst_suspend_activity() */
 	if (unlikely(test_bit(SCST_FLAG_SUSPENDED, &scst_flags)) && f) {
@@ -815,6 +823,8 @@ void scst_unthrottle_cmd(struct scst_cmd *cmd);
 int scst_do_internal_parsing(struct scst_cmd *cmd);
 int scst_parse_descriptors(struct scst_cmd *cmd);
 
+int scst_cmp_wr_local(struct scst_cmd *cmd);
+
 int scst_pr_init(struct scst_device *dev);
 void scst_pr_cleanup(struct scst_device *dev);
 
@@ -825,6 +835,87 @@ void scst_vfs_unlink_and_put(struct path *path);
 #endif
 
 int scst_copy_file(const char *src, const char *dest);
+
+struct scst_cmd *__scst_create_prepare_internal_cmd(const uint8_t *cdb,
+	unsigned int cdb_len, enum scst_cmd_queue_type queue_type,
+	struct scst_tgt_dev *tgt_dev, gfp_t gfp_mask, bool fantom);
+
+static inline bool scst_lba1_inside_lba2(int64_t lba1,
+	int64_t lba2, int64_t lba2_blocks)
+{
+	bool res;
+
+	TRACE_DBG("lba1 %lld, lba2 %lld, lba2_blocks %lld", (long long)lba1,
+		(long long)lba2, (long long)lba2_blocks);
+
+	if ((lba1 >= lba2) && (lba1 < (lba2 + lba2_blocks)))
+		res = true;
+	else
+		res = false;
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+#ifndef CONFIG_SCST_PROC
+
+int scst_cm_on_dev_register(struct scst_device *dev);
+void scst_cm_on_dev_unregister(struct scst_device *dev);
+
+int scst_cm_parse_descriptors(struct scst_cmd *cmd);
+void scst_cm_free_descriptors(struct scst_cmd *cmd);
+
+int scst_cm_ext_copy_exec(struct scst_cmd *cmd);
+int scst_cm_rcv_copy_res_exec(struct scst_cmd *cmd);
+
+void sess_cm_list_id_cleanup_work_fn(struct delayed_work *work);
+void scst_cm_free_pending_list_ids(struct scst_session *sess);
+
+bool scst_cm_check_block_all_devs(struct scst_cmd *cmd);
+void scst_cm_abort_ec_cmd(struct scst_cmd *ec_cmd);
+
+bool scst_cm_ec_cmd_overlap(struct scst_cmd *ec_cmd, struct scst_cmd *cmd);
+
+int scst_cm_init(void);
+void scst_cm_exit(void);
+
+#else /* #ifndef CONFIG_SCST_PROC */
+
+static inline int scst_cm_on_dev_register(struct scst_device *dev) { return 0; }
+static inline void scst_cm_on_dev_unregister(struct scst_device *dev) {}
+
+static inline int scst_cm_parse_descriptors(struct scst_cmd *cmd)
+{
+	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+	scst_set_cmd_abnormal_done_state(cmd);
+	return -1;
+}
+static inline void scst_cm_free_descriptors(struct scst_cmd *cmd) {}
+
+static inline int scst_cm_ext_copy_exec(struct scst_cmd *cmd)
+{
+	return SCST_EXEC_NOT_COMPLETED;
+}
+static inline int scst_cm_rcv_copy_res_exec(struct scst_cmd *cmd)
+{
+	return SCST_EXEC_NOT_COMPLETED;
+}
+
+static inline void sess_cm_list_id_cleanup_work_fn(struct work_struct *work) {}
+static inline void scst_cm_free_pending_list_ids(struct scst_session *sess) {}
+
+static inline bool scst_cm_check_block_all_devs(struct scst_cmd *cmd) { return false; }
+static inline void scst_cm_abort_ec_cmd(struct scst_cmd *ec_cmd) {}
+
+static inline bool scst_cm_ec_cmd_overlap(struct scst_cmd *ec_cmd, struct scst_cmd *cmd)
+{
+	return false;
+}
+
+static inline int scst_cm_init(void) { return 0; }
+static inline void scst_cm_exit(void) {}
+
+#endif /* #ifndef CONFIG_SCST_PROC */
 
 #ifdef CONFIG_SCST_DEBUG_TM
 extern void tm_dbg_check_released_cmds(void);
@@ -863,6 +954,15 @@ int gen_relative_target_port_id(uint16_t *id);
 bool scst_is_relative_target_port_id_unique(uint16_t id,
 	const struct scst_tgt *t);
 
+int scst_event_init(void);
+void scst_event_exit(void);
+
+int scst_event_queue_lun_not_found(const struct scst_cmd *cmd);
+int scst_event_queue_negative_luns_inquiry(const struct scst_tgt *tgt,
+	const char *initiator_name);
+int scst_event_queue_ext_blocking_done(struct scst_device *dev, void *data, int len);
+int scst_event_queue_tm_fn_received(struct scst_mgmt_cmd *mcmd);
+
 typedef void __printf(2, 3) (*scst_show_fn)(void *arg, const char *fmt, ...);
 void scst_trace_cmds(scst_show_fn show, void *arg);
 void scst_trace_mcmds(scst_show_fn show, void *arg);
@@ -876,6 +976,7 @@ void scst_set_alloc_buf_time(struct scst_cmd *cmd);
 void scst_set_restart_waiting_time(struct scst_cmd *cmd);
 void scst_set_rdy_to_xfer_time(struct scst_cmd *cmd);
 void scst_set_pre_exec_time(struct scst_cmd *cmd);
+void scst_set_exec_start(struct scst_cmd *cmd);
 void scst_set_exec_time(struct scst_cmd *cmd);
 void scst_set_dev_done_time(struct scst_cmd *cmd);
 void scst_set_xmit_time(struct scst_cmd *cmd);
@@ -890,6 +991,7 @@ static inline void scst_set_alloc_buf_time(struct scst_cmd *cmd) {}
 static inline void scst_set_restart_waiting_time(struct scst_cmd *cmd) {}
 static inline void scst_set_rdy_to_xfer_time(struct scst_cmd *cmd) {}
 static inline void scst_set_pre_exec_time(struct scst_cmd *cmd) {}
+static inline void scst_set_exec_start(struct scst_cmd *cmd) {}
 static inline void scst_set_exec_time(struct scst_cmd *cmd) {}
 static inline void scst_set_dev_done_time(struct scst_cmd *cmd) {}
 static inline void scst_set_xmit_time(struct scst_cmd *cmd) {}

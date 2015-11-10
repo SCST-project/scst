@@ -88,7 +88,7 @@ static unsigned long scst_local_trace_flag = SCST_LOCAL_DEFAULT_LOG_FLAGS;
 #define scsi_bufflen(cmd) ((cmd)->request_bufflen)
 #endif
 
-#define SCST_LOCAL_VERSION "3.1"
+#define SCST_LOCAL_VERSION "3.2"
 static const char *scst_local_version_date = "20110901";
 
 /* Some statistics */
@@ -446,11 +446,7 @@ static ssize_t scst_local_scsi_transport_version_store(struct kobject *kobj,
 	if (!tgt)
 		goto out_up;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtoul(buffer, 0, &val);
-#else
-	res = strict_strtoul(buffer, 0, &val);
-#endif
 	if (res != 0) {
 		PRINT_ERROR("strtoul() for %s failed: %zd", buffer, res);
 		goto out_up;
@@ -516,11 +512,7 @@ static ssize_t scst_local_phys_transport_version_store(struct kobject *kobj,
 	if (!tgt)
 		goto out_up;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtoul(buffer, 0, &val);
-#else
-	res = strict_strtoul(buffer, 0, &val);
-#endif
 	if (res != 0) {
 		PRINT_ERROR("strtoul() for %s failed: %zd", buffer, res);
 		goto out_up;
@@ -778,6 +770,7 @@ static ssize_t scst_local_sysfs_mgmt_cmd(char *buf)
 		res = __scst_local_add_adapter(tgt, session_name, true);
 	} else if (strcasecmp("del_session", command) == 0) {
 		struct scst_local_sess *s, *sess = NULL;
+
 		list_for_each_entry(s, &tgt->sessions_list,
 					sessions_list_entry) {
 			if (strcmp(s->scst_sess->initiator_name, session_name) == 0) {
@@ -897,8 +890,7 @@ static void scst_local_copy_sense(struct scsi_cmnd *cmnd, struct scst_cmd *scst_
 
 	TRACE_ENTRY();
 
-	scst_cmnd_sense_len = (SCSI_SENSE_BUFFERSIZE < scst_cmnd_sense_len ?
-			       SCSI_SENSE_BUFFERSIZE : scst_cmnd_sense_len);
+	scst_cmnd_sense_len = min(scst_cmnd_sense_len, SCSI_SENSE_BUFFERSIZE);
 	memcpy(cmnd->sense_buffer, scst_cmd_get_sense_buffer(scst_cmnd),
 	       scst_cmnd_sense_len);
 
@@ -1671,7 +1663,7 @@ static int scst_local_driver_probe(struct device *dev)
 	TRACE_DBG("sess %p", sess);
 
 	hpnt = scsi_host_alloc(&scst_lcl_ini_driver_template, sizeof(*sess));
-	if (NULL == hpnt) {
+	if (hpnt == NULL) {
 		PRINT_ERROR("%s", "scsi_register() failed");
 		ret = -ENODEV;
 		goto out;
@@ -1828,7 +1820,7 @@ static int __scst_local_add_adapter(struct scst_local_tgt *tgt,
 
 	/* It's read-mostly, so cache alignment isn't needed */
 	sess = kzalloc(sizeof(*sess), GFP_KERNEL);
-	if (NULL == sess) {
+	if (sess == NULL) {
 		PRINT_ERROR("Unable to alloc scst_lcl_host (size %zu)",
 			sizeof(*sess));
 		res = -ENOMEM;
@@ -1947,7 +1939,7 @@ static int scst_local_add_target(const char *target_name,
 	TRACE_ENTRY();
 
 	tgt = kzalloc(sizeof(*tgt), GFP_KERNEL);
-	if (NULL == tgt) {
+	if (tgt == NULL) {
 		PRINT_ERROR("Unable to alloc tgt (size %zu)", sizeof(*tgt));
 		res = -ENOMEM;
 		goto out;

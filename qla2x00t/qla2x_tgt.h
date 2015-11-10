@@ -124,6 +124,7 @@ qla2x00_send_enable_lun(scsi_qla_host_t *vha, bool enable)
 
 	if (!IS_FWI2_CAPABLE(ha)) {
 		unsigned long flags;
+
 		spin_lock_irqsave(&ha->hardware_lock, flags);
 		__qla2x00_send_enable_lun(vha, enable);
 		spin_unlock_irqrestore(&ha->hardware_lock, flags);
@@ -159,6 +160,7 @@ static inline bool qla_firmware_active(scsi_qla_host_t *vha)
 {
 	struct qla_hw_data *ha = vha->hw;
 	struct scsi_qla_host *base_vha = pci_get_drvdata(ha->pdev);
+
 	return qla_tgt_mode_enabled(base_vha) || qla_ini_mode_enabled(base_vha);
 }
 

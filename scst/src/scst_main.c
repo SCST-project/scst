@@ -596,6 +596,7 @@ EXPORT_SYMBOL(scst_register_target);
 static inline int test_sess_list(struct scst_tgt *tgt)
 {
 	int res;
+
 	mutex_lock(&scst_mutex);
 	res = list_empty(&tgt->sysfs_sess_list);
 	mutex_unlock(&scst_mutex);
@@ -637,6 +638,7 @@ void scst_unregister_target(struct scst_tgt *tgt)
 again:
 	{
 		struct scst_session *sess;
+
 		list_for_each_entry(sess, &tgt->sess_list, sess_list_entry) {
 			if (sess->shut_phase == SCST_SESS_SPH_READY) {
 				/*
@@ -870,6 +872,7 @@ static void __printf(2, 3) scst_to_syslog(void *arg, const char *fmt, ...)
 int scst_get_cmd_counter(void)
 {
 	int i, res = 0;
+
 	for (i = 0; i < (int)ARRAY_SIZE(scst_percpu_infos); i++)
 		res += atomic_read(&scst_percpu_infos[i].cpu_cmd_count);
 	return res;
@@ -1467,6 +1470,10 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 
 	list_add_tail(&dev->dev_list_entry, &scst_dev_list);
 
+	res = scst_cm_on_dev_register(dev);
+	if (res != 0)
+		goto out_unreg;
+
 	mutex_unlock(&scst_mutex);
 	scst_resume_activity();
 
@@ -1477,6 +1484,12 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_unreg:
+	dev->dev_unregistering = 1;
+	list_del(&dev->dev_list_entry);
+	scst_assign_dev_handler(dev, &scst_null_devtype);
+	goto out_pr_clear_dev;
 
 #ifndef CONFIG_SCST_PROC
 out_lock_pr_clear_dev:
@@ -1527,6 +1540,10 @@ void scst_unregister_virtual_device(int id)
 		PRINT_ERROR("Virtual device (id %d) not found", id);
 		goto out_unlock;
 	}
+
+	dev->dev_unregistering = 1;
+
+	scst_cm_on_dev_unregister(dev);
 
 	list_del_init(&dev->dev_list_entry);
 
@@ -1861,6 +1878,7 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 
 	if (tgt_dev != NULL) {
 		struct scst_tgt_dev *t;
+
 		list_for_each_entry(t, &tgt_dev->dev->dev_tgt_dev_list,
 				dev_tgt_dev_list_entry) {
 			if (t == tgt_dev)
@@ -2431,7 +2449,8 @@ static int __init init_scst(void)
 		struct scsi_sense_hdr *shdr;
 		struct scst_order_data *o;
 		struct scst_cmd *c;
-		BUILD_BUG_ON(SCST_SENSE_BUFFERSIZE < sizeof(*shdr));
+
+		BUILD_BUG_ON(sizeof(*shdr) > SCST_SENSE_BUFFERSIZE);
 		BUILD_BUG_ON(sizeof(o->curr_sn) != sizeof(o->expected_sn));
 		BUILD_BUG_ON(sizeof(c->sn) != sizeof(o->expected_sn));
 	}
@@ -2578,14 +2597,19 @@ static int __init init_scst(void)
 		goto out_destroy_sense_mempool;
 	}
 
-	res = scst_sysfs_init();
+	res = scst_event_init();
 	if (res != 0)
 		goto out_destroy_aen_mempool;
+
+	res = scst_sysfs_init();
+	if (res != 0)
+		goto out_event_exit;
 
 	scst_tg_init();
 
 	if (scst_max_cmd_mem == 0) {
 		struct sysinfo si;
+
 		si_meminfo(&si);
 #if BITS_PER_LONG == 32
 		scst_max_cmd_mem = min(
@@ -2651,6 +2675,15 @@ static int __init init_scst(void)
 		goto out_thread_free;
 #endif
 
+	res = scst_cm_init();
+	if (res != 0)
+#ifdef CONFIG_SCST_PROC
+		goto out_proc_cleanup;
+#else
+		goto out_thread_free;
+#endif
+
+
 	PRINT_INFO("SCST version %s loaded successfully (max mem for "
 		"commands %dMB, per device %dMB)", SCST_VERSION_STRING,
 		scst_max_cmd_mem, scst_max_dev_cmd_mem);
@@ -2660,6 +2693,11 @@ static int __init init_scst(void)
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+#ifdef CONFIG_SCST_PROC
+out_proc_cleanup:
+	scst_proc_cleanup_module();
+#endif
 
 out_thread_free:
 	scst_stop_global_threads();
@@ -2677,6 +2715,9 @@ out_destroy_sgv_pool:
 
 out_sysfs_cleanup:
 	scst_sysfs_cleanup();
+
+out_event_exit:
+	scst_event_exit();
 
 out_destroy_aen_mempool:
 	mempool_destroy(scst_aen_mempool);
@@ -2740,6 +2781,8 @@ static void __exit exit_scst(void)
 
 	/* ToDo: unregister_cpu_notifier() */
 
+	scst_cm_exit();
+
 #ifdef CONFIG_SCST_PROC
 	scst_proc_cleanup_module();
 #endif
@@ -2758,6 +2801,8 @@ static void __exit exit_scst(void)
 	scst_tg_cleanup();
 
 	scst_sysfs_cleanup();
+
+	scst_event_exit();
 
 #define DEINIT_CACHEP(p) do {		\
 		kmem_cache_destroy(p);	\

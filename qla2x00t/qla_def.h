@@ -361,7 +361,7 @@ struct device_reg_2xxx {
 			uint16_t mailbox6;
 			uint16_t mailbox7;
 			uint16_t unused_2[59];	/* Gap */
-		} __attribute__((packed)) isp2100;
+		} __packed isp2100;
 		struct {
 						/* Request Queue */
 			uint16_t req_q_in;	/*  In-Pointer */
@@ -412,7 +412,7 @@ struct device_reg_2xxx {
 			uint16_t mailbox31;
 			uint16_t fb_cmd;
 			uint16_t unused_4[10];	/* Gap */
-		} __attribute__((packed)) isp2300;
+		} __packed isp2300;
 	} u;
 
 	uint16_t fpm_diag_config;
@@ -469,7 +469,7 @@ struct device_reg_2xxx {
 			uint16_t mailbox21;
 			uint16_t mailbox22;
 			uint16_t mailbox23;	/* Also probe reg. */
-		} __attribute__((packed)) isp2200;
+		} __packed isp2200;
 	} u_end;
 };
 

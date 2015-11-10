@@ -131,6 +131,8 @@ void scst_pr_read_full_status(struct scst_cmd *cmd, uint8_t *buffer,
 	int buffer_size);
 
 int scst_tid_size(const uint8_t *tid);
+bool tid_equal(const uint8_t *tid_a, const uint8_t *tid_b);
+
 struct scst_dev_registrant *scst_pr_find_reg(struct scst_device *dev,
 	const uint8_t *transport_id, const uint16_t rel_tgt_id);
 struct scst_dev_registrant *scst_pr_add_registrant(struct scst_device *dev,

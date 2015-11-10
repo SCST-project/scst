@@ -272,11 +272,7 @@ static int scst_write_trace(const char *buf, size_t length,
 		}
 		break;
 	case SCST_TRACE_ACTION_VALUE:
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 		res = kstrtoul(p, 0, &level);
-#else
-		res = strict_strtoul(p, 0, &level);
-#endif
 		if (res != 0) {
 			PRINT_ERROR("Invalid trace value \"%s\"", p);
 			res = -EINVAL;
@@ -668,9 +664,11 @@ static int scst_check_tgt_acg_ptrs(struct scst_tgt *tgt, struct scst_acg *acg)
 
 	list_for_each_entry(tgtt, &scst_template_list, scst_template_list_entry) {
 		struct scst_tgt *t;
+
 		list_for_each_entry(t, &tgtt->tgt_list, tgt_list_entry) {
 			if (t == tgt) {
 				struct scst_acg *a;
+
 				if (acg == NULL)
 					goto out;
 				if (acg == tgt->default_acg)
@@ -783,8 +781,8 @@ static ssize_t scst_show(struct kobject *kobj, struct attribute *attr,
 			 char *buf)
 {
 	struct kobj_attribute *kobj_attr;
-	kobj_attr = container_of(attr, struct kobj_attribute, attr);
 
+	kobj_attr = container_of(attr, struct kobj_attribute, attr);
 	return kobj_attr->show(kobj, kobj_attr, buf);
 }
 
@@ -792,8 +790,8 @@ static ssize_t scst_store(struct kobject *kobj, struct attribute *attr,
 			  const char *buf, size_t count)
 {
 	struct kobj_attribute *kobj_attr;
-	kobj_attr = container_of(attr, struct kobj_attribute, attr);
 
+	kobj_attr = container_of(attr, struct kobj_attribute, attr);
 	if (kobj_attr->store)
 		return kobj_attr->store(kobj, kobj_attr, buf, count);
 	else
@@ -1073,6 +1071,7 @@ static ssize_t scst_tgtt_dif_capable_show(struct kobject *kobj,
 	if (tgtt->supported_dif_block_sizes) {
 		const int *p = tgtt->supported_dif_block_sizes;
 		int j;
+
 		pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
 			"Supported blocks: ");
 		j = pos;
@@ -1445,11 +1444,7 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 		break;
 	case SCST_LUN_ACTION_DEL:
 		p = scst_get_next_lexem(&pp);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 		res = kstrtoul(p, 0, &virt_lun);
-#else
-		res = strict_strtoul(p, 0, &virt_lun);
-#endif
 		if (res != 0)
 			goto out_unlock;
 
@@ -1758,11 +1753,7 @@ static ssize_t __scst_acg_io_grouping_type_store(struct scst_acg *acg,
 			min_t(int, strlen(SCST_IO_GROUPING_NEVER_STR), count)) == 0)
 		io_grouping_type = SCST_IO_GROUPING_NEVER;
 	else {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 		res = kstrtol(buf, 0, &io_grouping_type);
-#else
-		res = strict_strtol(buf, 0, &io_grouping_type);
-#endif
 		if ((res != 0) || (io_grouping_type <= 0)) {
 			PRINT_ERROR("Unknown or not allowed I/O grouping type "
 				"%s", buf);
@@ -1892,6 +1883,7 @@ static ssize_t __scst_acg_black_hole_store(struct scst_acg *acg,
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 			struct list_head *head = &sess->sess_tgt_dev_list[i];
 			struct scst_tgt_dev *tgt_dev;
+
 			list_for_each_entry_rcu(tgt_dev, head,
 						sess_tgt_dev_list_entry) {
 				if (t != SCST_ACG_BLACK_HOLE_NONE)
@@ -2472,11 +2464,7 @@ static ssize_t scst_rel_tgt_id_store(struct kobject *kobj,
 
 	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtoul(buf, 0, &rel_tgt_id);
-#else
-	res = strict_strtoul(buf, 0, &rel_tgt_id);
-#endif
 	if (res != 0) {
 		PRINT_ERROR("%s", "Wrong rel_tgt_id");
 		res = -EINVAL;
@@ -2564,9 +2552,11 @@ static ssize_t scst_tgt_forwarding_store(struct kobject *kobj,
 
 	list_for_each_entry(sess, &tgt->sess_list, sess_list_entry) {
 		int i;
+
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 			struct list_head *head = &sess->sess_tgt_dev_list[i];
 			struct scst_tgt_dev *tgt_dev;
+
 			list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
 				if (tgt->tgt_forwarding)
 					set_bit(SCST_TGT_DEV_FORWARDING, &tgt_dev->tgt_dev_flags);
@@ -2729,6 +2719,7 @@ static ssize_t scst_tgt_dif_capable_show(struct kobject *kobj,
 	if (tgt->tgt_supported_dif_block_sizes) {
 		const int *p = tgt->tgt_supported_dif_block_sizes;
 		int j;
+
 		pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
 			"Supported blocks: ");
 		j = pos;
@@ -3339,13 +3330,9 @@ static ssize_t scst_dev_sysfs_threads_num_store(struct kobject *kobj,
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtol(buf, 0, &newtn);
-#else
-	res = strict_strtol(buf, 0, &newtn);
-#endif
 	if (res != 0) {
-		PRINT_ERROR("strict_strtol() for %s failed: %d ", buf, res);
+		PRINT_ERROR("kstrtol() for %s failed: %d ", buf, res);
 		goto out;
 	}
 	if (newtn < 0) {
@@ -3473,8 +3460,137 @@ static struct kobj_attribute dev_threads_pool_type_attr =
 		scst_dev_sysfs_threads_pool_type_show,
 		scst_dev_sysfs_threads_pool_type_store);
 
+static ssize_t scst_dev_block_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int pos = 0;
+	struct scst_device *dev;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+
+	pos = sprintf(buf, "%d %d\n", ACCESS_ONCE(dev->ext_blocks_cnt),
+		dev->ext_blocking_pending);
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static void scst_sysfs_ext_blocking_done(struct scst_device *dev,
+	uint8_t *data, int len)
+{
+	scst_event_queue_ext_blocking_done(dev, data, len);
+}
+
+static ssize_t scst_dev_block_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res, data_len = 0, pos = 0;
+	struct scst_device *dev;
+	const char *p = buf, *data_start = NULL;
+	bool sync;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+
+	switch (*p) {
+	case '0':
+		p++;
+		pos++;
+		while ((pos < count) && isspace(*p) && (*p != '\0')) {
+			p++;
+			pos++;
+		}
+		if ((pos != count) && (*p != '\0')) {
+			PRINT_ERROR("Parse error on %c", *p);
+			res = -EINVAL;
+			goto out;
+		}
+
+		TRACE_MGMT_DBG("Sysfs unblocking (dev %s)", dev->virt_name);
+
+		scst_ext_unblock_dev(dev, false);
+		res = 0;
+		goto out;
+	case '1':
+		p++;
+		pos++;
+		while ((pos < count) && isspace(*p) && (*p != '\0')) {
+			p++;
+			pos++;
+		}
+		if ((pos == count) || (*p == '\0')) {
+			data_len = sizeof(void *);
+			sync = true;
+			break;
+		} else if (*p != '1') {
+			PRINT_ERROR("Parse error on %c", *p);
+			res = -EINVAL;
+			goto out;
+		}
+
+		sync = false;
+
+		p++;
+		pos++;
+		if ((pos == count) || (*p == '\0'))
+			break;
+
+		while ((pos < count) && isspace(*p) && (*p != '\0')) {
+			p++;
+			pos++;
+		}
+		if ((pos == count) || (*p == '\0'))
+			break;
+
+		data_start = p;
+		while ((pos < count) && (*p != '\0')) {
+			p++;
+			pos++;
+			data_len++;
+		}
+		/* Skip trailing spaces, if any */
+		while (isspace(*(p-1))) {
+			p--;
+			data_len--;
+		}
+		break;
+	default:
+		PRINT_ERROR("Illegal blocking value %c", *p);
+		res = -EINVAL;
+		goto out;
+	}
+
+	TRACE_MGMT_DBG("Sysfs blocking dev %s (sync %d, data_start %p, "
+		"data_len %d)", dev->virt_name, sync, data_start, data_len);
+
+	if (sync)
+		res = scst_ext_block_dev(dev, true, NULL, NULL, 0);
+	else
+		res = scst_ext_block_dev(dev, false, scst_sysfs_ext_blocking_done,
+					 data_start, data_len);
+	if (res != 0)
+		goto out;
+
+	res = 0;
+
+out:
+	if (res == 0)
+		res = count;
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute dev_block_attr =
+	__ATTR(block, S_IRUGO | S_IWUSR, scst_dev_block_show,
+		scst_dev_block_store);
+
 static struct attribute *scst_dev_attrs[] = {
 	&dev_type_attr.attr,
+	&dev_block_attr.attr,
 	NULL,
 };
 
@@ -3771,11 +3887,7 @@ static ssize_t scst_dev_sysfs_dif_static_app_tag_store(struct kobject *kobj,
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtoull(buf, 0, &val);
-#else
-	res = strict_strtoull(buf, 0, &val);
-#endif
 	if (res != 0) {
 		PRINT_ERROR("strtoul() for %s failed: %d (device %s)",
 			    buf, res, dev->virt_name);
@@ -4333,6 +4445,7 @@ static int scst_sess_zero_latency(struct scst_sysfs_work_item *work)
 	for (t = SESS_TGT_DEV_LIST_HASH_SIZE-1; t >= 0; t--) {
 		struct list_head *head = &sess->sess_tgt_dev_list[t];
 		struct scst_tgt_dev *tgt_dev;
+
 		list_for_each_entry_rcu(tgt_dev, head,
 					sess_tgt_dev_list_entry) {
 			tgt_dev->scst_time = 0;
@@ -4412,6 +4525,7 @@ static int scst_sysfs_sess_get_active_commands(struct scst_session *sess)
 	for (t = SESS_TGT_DEV_LIST_HASH_SIZE-1; t >= 0; t--) {
 		struct list_head *head = &sess->sess_tgt_dev_list[t];
 		struct scst_tgt_dev *tgt_dev;
+
 		list_for_each_entry_rcu(tgt_dev, head,
 					sess_tgt_dev_list_entry) {
 			active_cmds += atomic_read(&tgt_dev->tgt_dev_cmd_count);
@@ -4477,6 +4591,7 @@ static int scst_sysfs_sess_get_dif_checks_failed_work_fn(struct scst_sysfs_work_
 	for (t = SESS_TGT_DEV_LIST_HASH_SIZE-1; t >= 0; t--) {
 		struct list_head *head = &sess->sess_tgt_dev_list[t];
 		struct scst_tgt_dev *tgt_dev;
+
 		list_for_each_entry_rcu(tgt_dev, head, sess_tgt_dev_list_entry) {
 			app_failed_tgt += atomic_read(&tgt_dev->tgt_dev_dif_app_failed_tgt);
 			ref_failed_tgt += atomic_read(&tgt_dev->tgt_dev_dif_ref_failed_tgt);
@@ -4552,6 +4667,7 @@ static int scst_sess_zero_dif_checks_failed(struct scst_sysfs_work_item *work)
 	for (t = SESS_TGT_DEV_LIST_HASH_SIZE-1; t >= 0; t--) {
 		struct list_head *head = &sess->sess_tgt_dev_list[t];
 		struct scst_tgt_dev *tgt_dev;
+
 		list_for_each_entry_rcu(tgt_dev, head,
 					sess_tgt_dev_list_entry) {
 			atomic_set(&tgt_dev->tgt_dev_dif_app_failed_tgt, 0);
@@ -6153,11 +6269,7 @@ static ssize_t scst_tg_tgt_rel_tgt_id_store(struct kobject *kobj,
 	TRACE_ENTRY();
 	tg_tgt = container_of(kobj, struct scst_tg_tgt, kobj);
 	snprintf(ch, sizeof(ch), "%.*s", min_t(int, count, sizeof(ch)-1), buf);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtoul(ch, 0, &rel_tgt_id);
-#else
-	res = strict_strtoul(ch, 0, &rel_tgt_id);
-#endif
 	if (res)
 		goto out;
 	res = -EINVAL;
@@ -6247,11 +6359,7 @@ static ssize_t scst_tg_group_id_store(struct kobject *kobj,
 	TRACE_ENTRY();
 	tg = container_of(kobj, struct scst_target_group, kobj);
 	snprintf(ch, sizeof(ch), "%.*s", min_t(int, count, sizeof(ch)-1), buf);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtoul(ch, 0, &group_id);
-#else
-	res = strict_strtoul(ch, 0, &group_id);
-#endif
 	if (res)
 		goto out;
 	res = -EINVAL;
@@ -6289,11 +6397,7 @@ static int scst_tg_preferred_store_work_fn(struct scst_sysfs_work_item *w)
 	TRACE_ENTRY();
 	cmd = w->buf;
 	tg = container_of(w->kobj, struct scst_target_group, kobj);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtoul(cmd, 0, &preferred);
-#else
-	res = strict_strtoul(cmd, 0, &preferred);
-#endif
 	if (res)
 		goto out;
 	res = -EINVAL;
@@ -6827,13 +6931,9 @@ static ssize_t scst_threads_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtol(buf, 0, &newtn);
-#else
-	res = strict_strtol(buf, 0, &newtn);
-#endif
 	if (res != 0) {
-		PRINT_ERROR("strict_strtol() for %s failed: %d ", buf, res);
+		PRINT_ERROR("kstrtol() for %s failed: %d ", buf, res);
 		goto out;
 	}
 	if (newtn <= 0) {
@@ -6883,13 +6983,9 @@ static ssize_t scst_setup_id_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtoul(buf, 0, &val);
-#else
-	res = strict_strtoul(buf, 0, &val);
-#endif
 	if (res != 0) {
-		PRINT_ERROR("strict_strtoul() for %s failed: %d ", buf, res);
+		PRINT_ERROR("kstrtoul() for %s failed: %d ", buf, res);
 		goto out;
 	}
 
@@ -6930,13 +7026,9 @@ static ssize_t scst_max_tasklet_cmd_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtoul(buf, 0, &val);
-#else
-	res = strict_strtoul(buf, 0, &val);
-#endif
 	if (res != 0) {
-		PRINT_ERROR("strict_strtoul() for %s failed: %d ", buf, res);
+		PRINT_ERROR("kstrtoul() for %s failed: %d ", buf, res);
 		goto out;
 	}
 
@@ -7393,10 +7485,9 @@ int scst_wait_info_completion(struct scst_sysfs_user_info *info,
 				break;
 			}
 		} else if (rc != -ERESTARTSYS) {
-				res = rc;
-				PRINT_ERROR("wait_for_completion() failed: %d",
-					res);
-				goto out;
+			res = rc;
+			PRINT_ERROR("wait_for_completion() failed: %d", res);
+			goto out;
 		} else {
 			TRACE_DBG("Waiting for info %p finished with %d, "
 				"retrying", info, rc);

@@ -2632,8 +2632,8 @@ qla24xx_enable_msix(struct qla_hw_data *ha, struct rsp_que *rsp)
 	struct qla_msix_entry *qentry;
 	scsi_qla_host_t *vha = pci_get_drvdata(ha->pdev);
 
-	entries = kzalloc(sizeof(struct msix_entry) * ha->msix_count,
-			GFP_KERNEL);
+	entries = kcalloc(ha->msix_count, sizeof(struct msix_entry),
+			  GFP_KERNEL);
 	if (!entries) {
 		ql_log(ql_log_warn, vha, 0x00bc,
 		    "Failed to allocate memory for msix_entry.\n");
@@ -2664,8 +2664,8 @@ msix_failed:
 		}
 		ha->max_rsp_queues = ha->msix_count - 1;
 	}
-	ha->msix_entries = kzalloc(sizeof(struct qla_msix_entry) *
-				ha->msix_count, GFP_KERNEL);
+	ha->msix_entries = kcalloc(ha->msix_count,
+				   sizeof(struct qla_msix_entry), GFP_KERNEL);
 	if (!ha->msix_entries) {
 		ql_log(ql_log_fatal, vha, 0x00c8,
 		    "Failed to allocate memory for ha->msix_entries.\n");
