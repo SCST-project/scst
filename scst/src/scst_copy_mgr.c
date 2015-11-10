@@ -3210,7 +3210,7 @@ int scst_cm_parse_descriptors(struct scst_cmd *ec_cmd)
 		if (seg_len == 0)
 			goto out_del_put;
 		else {
-			PRINT_WARNING("Zero target descriptors with none zero "
+			PRINT_WARNING("Zero target descriptors with non-zero "
 				"segments len (%d)", seg_len);
 			scst_set_invalid_field_in_parm_list(ec_cmd, 2, 0);
 			goto out_del_abn_put;
