@@ -1594,7 +1594,7 @@ qla2x00_process_vendor_specific(struct fc_bsg_job *bsg_job)
 	default:
 		bsg_job->reply->result = (DID_ERROR << 16);
 		bsg_job->job_done(bsg_job);
-		return -ENOSYS;
+		return -ENOTSUPP;
 	}
 }
 

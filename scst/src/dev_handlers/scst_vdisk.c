@@ -7612,7 +7612,7 @@ static int vdisk_create_bioset(struct scst_vdisk_dev *virt_dev)
 		/* The same, pool size doesn't really matter */
 		res = bioset_integrity_create(virt_dev->vdisk_bioset, 2);
 #else
-		res = -ENOSYS;
+		res = -ENOTSUPP;
 #endif
 		if (res != 0) {
 			PRINT_ERROR("Failed to create integrity bioset "
