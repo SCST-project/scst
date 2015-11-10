@@ -140,7 +140,7 @@ extern size_t qla2xxx_del_vtarget(u64 port_name);
 #endif /*((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)) || \
 	  defined(FC_VPORT_CREATE_DEFINED))*/
 
-extern void qla_unknown_atio_work_fn(struct delayed_work *work);
+extern void qla_unknown_atio_work_fn(struct work_struct *work);
 
 #else /* CONFIG_SCSI_QLA2XXX_TARGET */
 
