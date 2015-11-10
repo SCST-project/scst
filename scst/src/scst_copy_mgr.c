@@ -35,6 +35,9 @@
 /* Too big value is not too good for the blocking machinery */
 #define SCST_CM_MAX_TGT_DESCR_CNT 5
 
+/* MAXIMUM DESCRIPTOR LIST LENGTH */
+#define SCST_MAX_SEG_DESC_LEN 0xFFFF
+
 static struct scst_tgt *scst_cm_tgt;
 static struct scst_session *scst_cm_sess;
 
@@ -2214,7 +2217,7 @@ static void scst_cm_oper_parameters(struct scst_cmd *cmd)
 		sizeof(struct scst_ext_copy_seg_descr), &tbuf[10]);
 
 	/* MAXIMUM DESCRIPTOR LIST LENGTH */
-	put_unaligned_be32(0xFFFF, &tbuf[12]);
+	put_unaligned_be32(SCST_MAX_SEG_DESC_LEN, &tbuf[12]);
 
 	/* MAXIMUM SEGMENT LENGTH: 256MB */
 	put_unaligned_be32(256*1024*1024, &tbuf[16]);
