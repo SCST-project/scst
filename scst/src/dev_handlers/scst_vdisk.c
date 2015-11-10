@@ -196,6 +196,8 @@ struct scst_vdisk_dev {
 	char *filename;
 	uint16_t command_set_version;
 
+	unsigned int initial_cluster_mode:1;
+
 	/* All 14 protected by vdisk_serial_rwlock */
 	unsigned int t10_vend_id_set:1;   /* true if t10_vend_id manually set */
 	/* true if vend_specific_id manually set */
@@ -1568,6 +1570,7 @@ static int vdisk_attach(struct scst_device *dev)
 
 	dev->block_shift = virt_dev->blk_shift;
 	dev->block_size = 1 << dev->block_shift;
+	dev->cluster_mode = virt_dev->initial_cluster_mode;
 
 	if ((virt_dev->dif_type == 0) &&
 	    ((virt_dev->dif_mode != SCST_DIF_MODE_NONE) ||
@@ -7938,6 +7941,10 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 			virt_dev->file_size = val;
 		} else if (!strcasecmp("size_mb", p)) {
 			virt_dev->file_size = val * 1024 * 1024;
+		} else if (!strcasecmp("cluster_mode", p)) {
+			virt_dev->initial_cluster_mode = val;
+			TRACE_DBG("CLUSTER_MODE %d",
+				  virt_dev->initial_cluster_mode);
 		} else if (!strcasecmp("blocksize", p)) {
 			virt_dev->blk_shift = scst_calc_block_shift(val);
 			if (virt_dev->blk_shift < 9) {
@@ -8039,7 +8046,8 @@ static int vdev_blockio_add_device(const char *device_name, char *params)
 	int res = 0;
 	const char *const allowed_params[] = { "filename", "read_only", "write_through",
 					 "removable", "blocksize", "nv_cache",
-					 "rotational", "thin_provisioned", "tst",
+					 "rotational", "cluster_mode",
+					 "thin_provisioned", "tst",
 					 "dif_mode", "dif_type", "dif_static_app_tag",
 					 "dif_filename", NULL };
 	struct scst_vdisk_dev *virt_dev;
