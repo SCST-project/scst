@@ -74,7 +74,11 @@
 static DEFINE_SPINLOCK(scst_global_stpg_list_lock);
 static LIST_HEAD(scst_global_stpg_list);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+static void scst_put_acg_work(void *p);
+#else
 static void scst_put_acg_work(struct work_struct *work);
+#endif
 static void scst_del_acn(struct scst_acn *acn);
 static void scst_free_acn(struct scst_acn *acn, bool reassign);
 
@@ -4119,7 +4123,11 @@ static void scst_init_order_data(struct scst_order_data *order_data)
 	return;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+static void scst_ext_blocking_done_fn(void *p);
+#else
 static void scst_ext_blocking_done_fn(struct work_struct *work);
+#endif
 
 static int scst_dif_none(struct scst_cmd *cmd);
 #ifdef CONFIG_SCST_DIF_INJECT_CORRUPTED_TAGS
@@ -4154,7 +4162,11 @@ int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev)
 	INIT_LIST_HEAD(&dev->dev_tgt_dev_list);
 	INIT_LIST_HEAD(&dev->dev_acg_dev_list);
 	INIT_LIST_HEAD(&dev->ext_blockers_list);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	INIT_WORK(&dev->ext_blockers_work, scst_ext_blocking_done_fn, dev);
+#else
 	INIT_WORK(&dev->ext_blockers_work, scst_ext_blocking_done_fn);
+#endif
 	dev->dev_double_ua_possible = 1;
 	dev->queue_alg = SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER;
 
@@ -4633,13 +4645,19 @@ struct scst_acg_put_work {
 	struct scst_acg		*acg;
 };
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+static void scst_put_acg_work(void *p)
+{
+	struct scst_acg_put_work *put_work = p;
+#else
 static void scst_put_acg_work(struct work_struct *work)
 {
 	struct scst_acg_put_work *put_work =
 		container_of(work, typeof(*put_work), work);
+#endif
 	struct scst_acg *acg = put_work->acg;
 
-	kfree(work);
+	kfree(put_work);
 	kref_put(&acg->acg_kref, scst_release_acg);
 }
 
@@ -4653,7 +4671,11 @@ void scst_put_acg(struct scst_acg *acg)
 		return;
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	INIT_WORK(&put_work->work, scst_put_acg_work, put_work);
+#else
 	INIT_WORK(&put_work->work, scst_put_acg_work);
+#endif
 	put_work->acg = acg;
 
 	/*
@@ -6714,11 +6736,13 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 	INIT_LIST_HEAD(&sess->init_deferred_cmd_list);
 	INIT_LIST_HEAD(&sess->init_deferred_mcmd_list);
 	INIT_LIST_HEAD(&sess->sess_cm_list_id_list);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20)
 	INIT_DELAYED_WORK(&sess->sess_cm_list_id_cleanup_work,
 			  sess_cm_list_id_cleanup_work_fn);
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20))
 	INIT_DELAYED_WORK(&sess->hw_pending_work, scst_hw_pending_work_fn);
 #else
+	INIT_WORK(&sess->sess_cm_list_id_cleanup_work,
+		  sess_cm_list_id_cleanup_work_fn, sess);
 	INIT_WORK(&sess->hw_pending_work, scst_hw_pending_work_fn, sess);
 #endif
 
@@ -14113,10 +14137,16 @@ void __scst_ext_blocking_done(struct scst_device *dev)
 	return;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+static void scst_ext_blocking_done_fn(void *p)
+{
+	struct scst_device *dev = p;
+#else
 static void scst_ext_blocking_done_fn(struct work_struct *work)
 {
 	struct scst_device *dev = container_of(work, struct scst_device,
 					ext_blockers_work);
+#endif
 
 	TRACE_ENTRY();
 

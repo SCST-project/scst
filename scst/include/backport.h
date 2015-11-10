@@ -187,6 +187,15 @@ static inline bool cpumask_equal(const cpumask_t *src1p,
 }
 #endif
 
+/* <linux/dlm.h> */
+
+/* See also commit 0f8e0d9a317406612700426fad3efab0b7bbc467 */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
+enum {
+	DLM_LSFL_NEWEXCL = 0
+};
+#endif
+
 /* <linux/fs.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0) && \
@@ -281,6 +290,16 @@ static inline int __must_check kstrtol(const char *s, unsigned int base,
 {
 	return strict_strtol(s, base, res);
 }
+#endif
+
+/* <linux/kmod.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
+enum umh_wait {
+	UMH_NO_WAIT = -1,       /* don't wait at all */
+	UMH_WAIT_EXEC = 0,      /* wait for the exec, but not the process */
+	UMH_WAIT_PROC = 1,      /* wait for the process to complete */
+};
 #endif
 
 /* <linux/list.h> */

@@ -406,7 +406,10 @@ static inline int scst_dlm_new_lockspace(const char *name, int namelen,
 					 uint32_t flags,
 					 int lvblen)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 3, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31)
+	return dlm_new_lockspace((char *)name, namelen, lockspace, flags,
+				 lvblen);
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(3, 3, 0)
 	return dlm_new_lockspace(name, namelen, lockspace, flags, lvblen);
 #else
 	return dlm_new_lockspace(name, NULL, flags, lvblen, NULL, NULL, NULL,
@@ -858,7 +861,11 @@ void scst_cm_free_descriptors(struct scst_cmd *cmd);
 int scst_cm_ext_copy_exec(struct scst_cmd *cmd);
 int scst_cm_rcv_copy_res_exec(struct scst_cmd *cmd);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+void sess_cm_list_id_cleanup_work_fn(void *p);
+#else
 void sess_cm_list_id_cleanup_work_fn(struct work_struct *work);
+#endif
 void scst_cm_free_pending_list_ids(struct scst_session *sess);
 
 bool scst_cm_check_block_all_devs(struct scst_cmd *cmd);
