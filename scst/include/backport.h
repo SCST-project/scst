@@ -255,7 +255,9 @@ static inline void hex2bin(u8 *dst, const char *src, size_t count)
 }
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39) &&		\
+	LINUX_VERSION_CODE != KERNEL_VERSION(2, 6, 38) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
 static inline int __must_check kstrtoull(const char *s, unsigned int base,
 					 unsigned long long *res)
 {
