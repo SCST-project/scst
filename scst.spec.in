@@ -201,6 +201,10 @@ rm -rf /usr/local/include/scst
 /usr/include/scst/scst_user.h
 
 %changelog
+* Wed May  6 2015 Bart Van Assche <bart.vanassche@sandisk.com>
+- Build in release mode instead of debug mode.
+* Mon May  4 2015 Bart Van Assche <bart.vanassche@sandisk.com>
+- Added iSER target driver.
 * Mon Feb 23 2015 Bart Van Assche <bart.vanassche@sandisk.com>
 - Split spec file into a non-DKMS and a DKMS spec file.
 * Fri Jan 16 2015 Bart Van Assche <bart.vanassche@sandisk.com>
