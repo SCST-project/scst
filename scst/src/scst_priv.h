@@ -858,7 +858,7 @@ void scst_cm_free_descriptors(struct scst_cmd *cmd);
 int scst_cm_ext_copy_exec(struct scst_cmd *cmd);
 int scst_cm_rcv_copy_res_exec(struct scst_cmd *cmd);
 
-void sess_cm_list_id_cleanup_work_fn(struct delayed_work *work);
+void sess_cm_list_id_cleanup_work_fn(struct work_struct *work);
 void scst_cm_free_pending_list_ids(struct scst_session *sess);
 
 bool scst_cm_check_block_all_devs(struct scst_cmd *cmd);

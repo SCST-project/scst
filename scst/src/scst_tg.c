@@ -400,10 +400,11 @@ struct scst_alua_retry {
 	struct delayed_work alua_retry_work;
 };
 
-static void scst_alua_transitioning_work_fn(struct delayed_work *work)
+static void scst_alua_transitioning_work_fn(struct work_struct *work)
 {
-	struct scst_alua_retry *retry = container_of(work, struct scst_alua_retry,
-						alua_retry_work);
+	struct scst_alua_retry *retry =
+		container_of(work, struct scst_alua_retry,
+			     alua_retry_work.work);
 	struct scst_cmd *cmd = retry->alua_retry_cmd;
 
 	TRACE_ENTRY();
@@ -469,7 +470,7 @@ static int scst_tg_accept_transitioning(struct scst_cmd *cmd)
 		/* No get is needed, because cmd is sync here */
 		retry->alua_retry_cmd = cmd;
 		INIT_DELAYED_WORK(&retry->alua_retry_work,
-			(void (*)(struct work_struct *))scst_alua_transitioning_work_fn);
+				  scst_alua_transitioning_work_fn);
 		cmd->already_transitioning = 1;
 		schedule_delayed_work(&retry->alua_retry_work, HZ/2);
 		res = SCST_ALUA_CHECK_DELAYED;

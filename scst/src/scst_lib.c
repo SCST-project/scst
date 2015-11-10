@@ -6715,7 +6715,7 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 	INIT_LIST_HEAD(&sess->init_deferred_mcmd_list);
 	INIT_LIST_HEAD(&sess->sess_cm_list_id_list);
 	INIT_DELAYED_WORK(&sess->sess_cm_list_id_cleanup_work,
-		(void (*)(struct work_struct *))sess_cm_list_id_cleanup_work_fn);
+			  sess_cm_list_id_cleanup_work_fn);
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20))
 	INIT_DELAYED_WORK(&sess->hw_pending_work, scst_hw_pending_work_fn);
 #else

@@ -88,10 +88,10 @@ out:
 	return res;
 }
 
-static void scst_event_timeout_fn(struct delayed_work *work)
+static void scst_event_timeout_fn(struct work_struct *work)
 {
 	struct scst_event_entry *event_entry = container_of(work,
-		struct scst_event_entry, event_timeout_work);
+		struct scst_event_entry, event_timeout_work.work);
 
 	TRACE_ENTRY();
 
@@ -199,7 +199,7 @@ static void __scst_event_queue(struct scst_event_entry *event_entry)
 				}
 
 				INIT_DELAYED_WORK(&new_event_entry->event_timeout_work,
-					(void (*)(struct work_struct *))scst_event_timeout_fn);
+						  scst_event_timeout_fn);
 				if (new_event_entry->event_notify_fn != NULL) {
 					new_event_entry->event.event_id = atomic_inc_return(&base_event_id);
 					if (new_event_entry->event_timeout == 0)

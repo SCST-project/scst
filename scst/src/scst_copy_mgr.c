@@ -183,10 +183,10 @@ struct scst_cm_retry {
 	scst_cm_retry_fn_t cm_retry_fn;
 };
 
-static void scst_cm_retry_work_fn(struct delayed_work *work)
+static void scst_cm_retry_work_fn(struct work_struct *work)
 {
 	struct scst_cm_retry *retry = container_of(work, struct scst_cm_retry,
-					cm_retry_work);
+						   cm_retry_work.work);
 
 	TRACE_ENTRY();
 
@@ -295,8 +295,7 @@ try_retry:
 	}
 	retry->cm_retry_cmd = cmd;
 	__scst_cmd_get(cmd);
-	INIT_DELAYED_WORK(&retry->cm_retry_work,
-		(void (*)(struct work_struct *))scst_cm_retry_work_fn);
+	INIT_DELAYED_WORK(&retry->cm_retry_work, scst_cm_retry_work_fn);
 	retry->cm_retry_fn = retry_fn;
 
 	if (imm_retry) {
@@ -1981,10 +1980,10 @@ out_unlock_free:
 	goto out;
 }
 
-void sess_cm_list_id_cleanup_work_fn(struct delayed_work *work)
+void sess_cm_list_id_cleanup_work_fn(struct work_struct *work)
 {
 	struct scst_session *sess = container_of(work,
-			struct scst_session, sess_cm_list_id_cleanup_work);
+			struct scst_session, sess_cm_list_id_cleanup_work.work);
 	struct scst_cm_list_id *l, *t;
 	unsigned long cur_time = jiffies;
 	unsigned long flags;
