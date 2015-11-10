@@ -35,6 +35,10 @@
 /* Too big value is not too good for the blocking machinery */
 #define SCST_CM_MAX_TGT_DESCR_CNT 5
 
+#define SCST_CM_MAX_SEG_DESCR_CNT					\
+	(((PAGE_SIZE * 2) - sizeof(struct scst_cm_ec_cmd_priv)) /	\
+	 sizeof(struct scst_ext_copy_seg_descr))
+
 /* MAXIMUM DESCRIPTOR LIST LENGTH */
 #define SCST_MAX_SEG_DESC_LEN 0xFFFF
 
@@ -2213,8 +2217,7 @@ static void scst_cm_oper_parameters(struct scst_cmd *cmd)
 	put_unaligned_be16(SCST_CM_MAX_TGT_DESCR_CNT, &tbuf[8]);
 
 	/* MAXIMUM SEGMENT DESCRIPTOR COUNT */
-	put_unaligned_be16(((PAGE_SIZE * 2) - sizeof(struct scst_cm_ec_cmd_priv)) /
-		sizeof(struct scst_ext_copy_seg_descr), &tbuf[10]);
+	put_unaligned_be16(SCST_CM_MAX_SEG_DESCR_CNT, &tbuf[10]);
 
 	/* MAXIMUM DESCRIPTOR LIST LENGTH */
 	put_unaligned_be32(SCST_MAX_SEG_DESC_LEN, &tbuf[12]);
@@ -3280,6 +3283,13 @@ int scst_cm_parse_descriptors(struct scst_cmd *ec_cmd)
 	t = offs;
 	seg_cnt = 0;
 	while (offs < length) {
+		if (seg_cnt == SCST_CM_MAX_SEG_DESCR_CNT) {
+			PRINT_WARNING("Too many segment descriptors");
+			scst_set_cmd_error(ec_cmd,
+				SCST_LOAD_SENSE(
+				    scst_sense_too_many_segment_descriptors));
+			goto out_free_tgt_descr;
+		}
 		switch (buf[offs]) {
 		case 2: /* block device to block device segment descriptor */
 			offs += 28;

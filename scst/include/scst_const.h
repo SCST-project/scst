@@ -319,6 +319,7 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 #define scst_sense_invalid_release		ILLEGAL_REQUEST, 0x26, 4
 #define scst_sense_too_many_target_descriptors	ILLEGAL_REQUEST, 0x26, 6
 #define scst_sense_unsupported_tgt_descr_type	ILLEGAL_REQUEST, 0x26, 7
+#define scst_sense_too_many_segment_descriptors	ILLEGAL_REQUEST, 0x26, 8
 #define scst_sense_unsupported_seg_descr_type	ILLEGAL_REQUEST, 0x26, 9
 #define scst_sense_inline_data_length_exceeded	ILLEGAL_REQUEST, 0x26, 0xB
 #define scst_sense_saving_params_unsup		ILLEGAL_REQUEST, 0x39, 0
