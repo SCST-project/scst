@@ -4173,7 +4173,7 @@ static void srpt_add_one(struct ib_device *device)
 #endif
 
 	sdev->srq = use_srq ? ib_create_srq(sdev->pd, &srq_attr) :
-		ERR_PTR(-EOPNOTSUPP);
+		ERR_PTR(-ENOTSUPP);
 	if (IS_ERR(sdev->srq)) {
 		pr_debug("ib_create_srq() failed: %ld\n", PTR_ERR(sdev->srq));
 
