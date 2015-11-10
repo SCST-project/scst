@@ -7055,7 +7055,7 @@ void scst_stpg_del_unblock_next(struct scst_cmd *cmd)
 
 	EXTRACHECKS_BUG_ON(!cmd->cmd_on_global_stpg_list);
 
-	TRACE_DBG("STPG cmd %p: unblocking next", cmd);
+	TRACE_DBG("STPG cmd %p done: unblocking next", cmd);
 
 	list_del(&cmd->global_stpg_list_entry);
 	cmd->cmd_on_global_stpg_list = 0;
@@ -14171,15 +14171,15 @@ static void scst_sync_ext_blocking_done(struct scst_device *dev,
 	return;
 }
 
-int scst_ext_block_dev(struct scst_device *dev, bool sync,
-	ext_blocker_done_fn_t done_fn, const uint8_t *priv, int priv_len)
+int scst_ext_block_dev(struct scst_device *dev, ext_blocker_done_fn_t done_fn,
+	const uint8_t *priv, int priv_len, int flags)
 {
 	int res;
 	struct scst_ext_blocker *b;
 
 	TRACE_ENTRY();
 
-	if (sync)
+	if (flags & SCST_EXT_BLOCK_SYNC)
 		priv_len = sizeof(void *);
 
 	b = kzalloc(sizeof(*b) + priv_len, GFP_KERNEL);
@@ -14190,8 +14190,8 @@ int scst_ext_block_dev(struct scst_device *dev, bool sync,
 		goto out;
 	}
 
-	TRACE_MGMT_DBG("New (%d) %s ext blocker %p for dev %s", dev->ext_blocks_cnt+1,
-		sync ? "sync" : "async", b, dev->virt_name);
+	TRACE_MGMT_DBG("New %d ext blocker %p for dev %s (flags %x)",
+		dev->ext_blocks_cnt+1, b, dev->virt_name, flags);
 
 	spin_lock_bh(&dev->dev_lock);
 
@@ -14207,10 +14207,15 @@ int scst_ext_block_dev(struct scst_device *dev, bool sync,
 	} else
 		scst_block_dev(dev);
 
+	if (flags & SCST_EXT_BLOCK_STPG) {
+		WARN_ON(dev->stpg_ext_blocked);
+		dev->stpg_ext_blocked = 1;
+	}
+
 	dev->ext_blocks_cnt++;
 	TRACE_DBG("ext_blocks_cnt %d", dev->ext_blocks_cnt);
 
-	if (sync && (dev->on_dev_cmd_count == 0)) {
+	if ((flags & SCST_EXT_BLOCK_SYNC) && (dev->on_dev_cmd_count == 0)) {
 		TRACE_DBG("No commands to wait for sync blocking (dev %s)",
 			dev->virt_name);
 		spin_unlock_bh(&dev->dev_lock);
@@ -14220,7 +14225,7 @@ int scst_ext_block_dev(struct scst_device *dev, bool sync,
 	list_add_tail(&b->ext_blockers_list_entry, &dev->ext_blockers_list);
 	dev->ext_blocking_pending = 1;
 
-	if (sync) {
+	if (flags & SCST_EXT_BLOCK_SYNC) {
 		DECLARE_WAIT_QUEUE_HEAD_ONSTACK(w);
 
 		b->ext_blocker_done_fn = scst_sync_ext_blocking_done;
@@ -14254,7 +14259,7 @@ out:
 	return res;
 
 out_free_success:
-	sBUG_ON(!sync);
+	sBUG_ON(!(flags & SCST_EXT_BLOCK_SYNC));
 	kfree(b);
 	goto out_success;
 }
@@ -14271,8 +14276,14 @@ void scst_ext_unblock_dev(struct scst_device *dev, bool stpg)
 	}
 
 	if ((dev->ext_blocks_cnt == 1) && dev->stpg_ext_blocked && !stpg) {
-		TRACE_DBG("Can not unblock internal STPG ext block (dev %s)",
-			dev->virt_name);
+		/*
+		 * User space is sending too many unblock calls during
+		 * STPG processing
+		 */
+		TRACE_MGMT_DBG("Can not unblock internal STPG ext block "
+			"(dev %s, ext_blocks_cnt %d, stpg_ext_blocked %d, stpg %d)",
+			dev->virt_name, dev->ext_blocks_cnt,
+			dev->stpg_ext_blocked, stpg);
 		goto out_unlock;
 	}
 
@@ -14287,7 +14298,7 @@ void scst_ext_unblock_dev(struct scst_device *dev, bool stpg)
 		spin_unlock_bh(&dev->dev_lock);
 		TRACE_DBG("Ext unblock (dev %s): still pending...",
 			dev->virt_name);
-		rc = scst_ext_block_dev(dev, true, NULL, NULL, 0);
+		rc = scst_ext_block_dev(dev, NULL, NULL, 0, SCST_EXT_BLOCK_SYNC);
 		if (rc != 0) {
 			/* Oops, have to poll */
 			PRINT_WARNING("scst_ext_block_dev(dev %s) failed, "

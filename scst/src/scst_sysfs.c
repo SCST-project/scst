@@ -3560,10 +3560,10 @@ static ssize_t scst_dev_block_store(struct kobject *kobj,
 		"data_len %d)", dev->virt_name, sync, data_start, data_len);
 
 	if (sync)
-		res = scst_ext_block_dev(dev, true, NULL, NULL, 0);
+		res = scst_ext_block_dev(dev, NULL, NULL, 0, SCST_EXT_BLOCK_SYNC);
 	else
-		res = scst_ext_block_dev(dev, false, scst_sysfs_ext_blocking_done,
-					 data_start, data_len);
+		res = scst_ext_block_dev(dev, scst_sysfs_ext_blocking_done,
+					 data_start, data_len, 0);
 	if (res != 0)
 		goto out;
 

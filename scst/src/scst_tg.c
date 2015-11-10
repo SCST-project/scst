@@ -1852,17 +1852,11 @@ int scst_tg_set_group_info(struct scst_cmd *cmd)
 
 			atomic_inc(&wait->stpg_wait_left);
 
-			spin_lock_bh(&dev->dev_lock);
-			WARN_ON(dgd->dev->stpg_ext_blocked);
-			dgd->dev->stpg_ext_blocked = 1;
-			spin_unlock_bh(&dev->dev_lock);
-
-			rc = scst_ext_block_dev(dgd->dev, false,
-				scst_stpg_ext_blocking_done, (uint8_t *)&wait,
-				sizeof(wait));
+			rc = scst_ext_block_dev(dgd->dev, scst_stpg_ext_blocking_done,
+				(uint8_t *)&wait, sizeof(wait), SCST_EXT_BLOCK_STPG);
 			if (rc != 0) {
-				TRACE_DBG("scst_ext_block_dev() returned %d, "
-					"stepping back (cmd %p)", rc, cmd);
+				TRACE_DBG("scst_ext_block_dev() failed "
+					"with %d, reverting (cmd %p)", rc, cmd);
 				wait->status = rc;
 				wait->dg = dg;
 				atomic_dec(&wait->stpg_wait_left);
