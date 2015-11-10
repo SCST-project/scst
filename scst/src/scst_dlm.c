@@ -1320,47 +1320,49 @@ create_st_wq(const char *fmt, ...)
  */
 static int scst_pr_dlm_init(struct scst_device *dev, const char *cl_dev_id)
 {
+	struct scst_pr_dlm_data *pr_dlm;
 	int res = -ENOMEM;
 
 	compile_time_size_checks();
-	dev->pr_dlm = kzalloc(sizeof(*dev->pr_dlm), GFP_KERNEL);
-	if (!dev->pr_dlm)
+	pr_dlm = kzalloc(sizeof(*dev->pr_dlm), GFP_KERNEL);
+	if (!pr_dlm)
 		goto out;
-	dev->pr_dlm->dev = dev;
-	mutex_init(&dev->pr_dlm->ls_cr_mutex);
-	mutex_init(&dev->pr_dlm->ls_mutex);
-	dev->pr_dlm->data_lksb.lksb.sb_lvbptr = dev->pr_dlm->lvb;
-	INIT_WORK(&dev->pr_dlm->pre_join_work, scst_pre_join_work);
-	INIT_WORK(&dev->pr_dlm->pre_upd_work, scst_pre_upd_work);
-	INIT_WORK(&dev->pr_dlm->copy_from_dlm_work, scst_copy_from_dlm_work);
-	INIT_WORK(&dev->pr_dlm->copy_to_dlm_work, scst_copy_to_dlm_work);
-	INIT_WORK(&dev->pr_dlm->lvb_upd_work, scst_lvb_upd_work);
-	INIT_WORK(&dev->pr_dlm->reread_lvb_work, scst_reread_lvb_work);
-	dev->pr_dlm->latest_lscr_attempt = jiffies - 100 * HZ;
+	dev->pr_dlm = pr_dlm;
+	pr_dlm->dev = dev;
+	mutex_init(&pr_dlm->ls_cr_mutex);
+	mutex_init(&pr_dlm->ls_mutex);
+	pr_dlm->data_lksb.lksb.sb_lvbptr = pr_dlm->lvb;
+	INIT_WORK(&pr_dlm->pre_join_work, scst_pre_join_work);
+	INIT_WORK(&pr_dlm->pre_upd_work, scst_pre_upd_work);
+	INIT_WORK(&pr_dlm->copy_from_dlm_work, scst_copy_from_dlm_work);
+	INIT_WORK(&pr_dlm->copy_to_dlm_work, scst_copy_to_dlm_work);
+	INIT_WORK(&pr_dlm->lvb_upd_work, scst_lvb_upd_work);
+	INIT_WORK(&pr_dlm->reread_lvb_work, scst_reread_lvb_work);
+	pr_dlm->latest_lscr_attempt = jiffies - 100 * HZ;
 
 	res = -ENOMEM;
-	dev->pr_dlm->cl_dev_id = kstrdup(cl_dev_id, GFP_KERNEL);
-	if (!dev->pr_dlm->cl_dev_id)
+	pr_dlm->cl_dev_id = kstrdup(cl_dev_id, GFP_KERNEL);
+	if (!pr_dlm->cl_dev_id)
 		goto err_free;
 
-	dev->pr_dlm->from_wq = create_st_wq("%s_from_dlm", dev->virt_name);
-	if (IS_ERR(dev->pr_dlm->from_wq)) {
-		res = PTR_ERR(dev->pr_dlm->from_wq);
-		dev->pr_dlm->from_wq = NULL;
-		goto err_free;
-	}
-
-	dev->pr_dlm->to_wq = create_st_wq("%s_to_dlm", dev->virt_name);
-	if (IS_ERR(dev->pr_dlm->to_wq)) {
-		res = PTR_ERR(dev->pr_dlm->to_wq);
-		dev->pr_dlm->to_wq = NULL;
+	pr_dlm->from_wq = create_st_wq("%s_from_dlm", dev->virt_name);
+	if (IS_ERR(pr_dlm->from_wq)) {
+		res = PTR_ERR(pr_dlm->from_wq);
+		pr_dlm->from_wq = NULL;
 		goto err_free;
 	}
 
-	dev->pr_dlm->upd_wq = create_st_wq("%s_upd_dlm", dev->virt_name);
-	if (IS_ERR(dev->pr_dlm->upd_wq)) {
-		res = PTR_ERR(dev->pr_dlm->upd_wq);
-		dev->pr_dlm->upd_wq = NULL;
+	pr_dlm->to_wq = create_st_wq("%s_to_dlm", dev->virt_name);
+	if (IS_ERR(pr_dlm->to_wq)) {
+		res = PTR_ERR(pr_dlm->to_wq);
+		pr_dlm->to_wq = NULL;
+		goto err_free;
+	}
+
+	pr_dlm->upd_wq = create_st_wq("%s_upd_dlm", dev->virt_name);
+	if (IS_ERR(pr_dlm->upd_wq)) {
+		res = PTR_ERR(pr_dlm->upd_wq);
+		pr_dlm->upd_wq = NULL;
 		goto err_free;
 	}
 
