@@ -444,7 +444,7 @@ static ssize_t isert_get_initiator_ip(struct iscsi_conn *conn,
 			 "[%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x]",
 			 NIP6(((struct sockaddr_in6 *)&ss)->sin6_addr));
 #else
-		pos = scnprintf(buf, size, "[%p6]",
+		pos = scnprintf(buf, size, "[%pI6]",
 			&((struct sockaddr_in6 *)&ss)->sin6_addr);
 #endif
 		break;
