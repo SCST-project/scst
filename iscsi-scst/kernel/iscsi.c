@@ -3310,9 +3310,9 @@ static ssize_t iscsi_tcp_get_initiator_ip(struct iscsi_conn *conn,
 #else
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0) && \
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
-		pos = scnprintf(buf, size, "[%p6]", &inet6_sk(sk)->daddr);
+		pos = scnprintf(buf, size, "[%pI6]", &inet6_sk(sk)->daddr);
 #else
-		pos = scnprintf(buf, size, "[%p6]", &sk->sk_v6_daddr);
+		pos = scnprintf(buf, size, "[%pI6]", &sk->sk_v6_daddr);
 #endif
 #endif
 		break;
