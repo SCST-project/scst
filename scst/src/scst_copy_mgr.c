@@ -734,6 +734,7 @@ static void scst_cm_store_list_id_details(struct scst_cmd *ec_cmd)
 			l->cm_status = ec_cmd->status;
 			if (scst_sense_valid(ec_cmd->sense)) {
 				int len = ec_cmd->sense_valid_len;
+
 				if (len > sizeof(l->cm_sense)) {
 					PRINT_WARNING("EC command's sense is "
 						"too big (%d) with max allowed "
@@ -1334,6 +1335,7 @@ static void scst_cm_gen_reads(struct scst_cmd *ec_cmd)
 
 	while (1) {
 		int rc;
+
 		while ((priv->cm_left_to_read > 0) &&
 		       (priv->cm_cur_in_flight < SCST_MAX_IN_FLIGHT_INTERNAL_COMMANDS)) {
 			int blocks;
@@ -1802,6 +1804,7 @@ bool scst_cm_check_block_all_devs(struct scst_cmd *cmd)
 
 	if (unlikely(res)) {
 		struct scst_cmd *blocked_cmd = e->cm_fcmd;
+
 		list_for_each_entry(e, &d->cm_sorted_devs_list,
 					cm_sorted_devs_list_entry) {
 			if (e->cm_fcmd == blocked_cmd)
@@ -1846,6 +1849,7 @@ void scst_cm_abort_ec_cmd(struct scst_cmd *ec_cmd)
 	list_for_each_entry(ip, &p->cm_internal_cmd_list,
 					cm_internal_cmd_list_entry) {
 		struct scst_cmd *c = ip->cm_cmd;
+
 		TRACE_MGMT_DBG("Aborting (f)cmd %p", c);
 		set_bit(SCST_CMD_ABORTED, &c->cmd_flags);
 	}
@@ -2526,6 +2530,7 @@ static int scst_cm_dev_register(struct scst_device *dev)
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		struct scst_tgt_dev *tgt_dev;
 		struct list_head *head = &scst_cm_sess->sess_tgt_dev_list[i];
+
 		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
 			if (tgt_dev->dev == dev) {
 				PRINT_ERROR("Copy Manager already registered "
@@ -2591,6 +2596,7 @@ static void scst_cm_dev_unregister(struct scst_device *dev)
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		struct scst_tgt_dev *tgt_dev;
 		struct list_head *head = &scst_cm_sess->sess_tgt_dev_list[i];
+
 		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
 			if (tgt_dev->dev == dev) {
 				scst_acg_del_lun(scst_cm_tgt->default_acg,
@@ -2645,6 +2651,7 @@ static bool scst_cm_check_access_acg(const char *initiator_name,
 	list_for_each_entry(acg_dev, &acg->acg_dev_list, acg_dev_list_entry) {
 		if (acg_dev->dev == dev) {
 			struct scst_acn *acn;
+
 			if (default_acg)
 				goto found;
 			list_for_each_entry(acn, &acg->acn_list, acn_list_entry) {
@@ -2970,6 +2977,7 @@ skip_fcmd_create:
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_EXTRACHECKS)
 	{
 		struct scst_cm_dev_entry *tp = NULL;
+
 		list_for_each_entry(t, &priv->cm_sorted_devs_list, cm_sorted_devs_list_entry) {
 			TRACE_DBG("t %p, cm dev %p", t, t->cm_fcmd->dev);
 			if (tp != NULL) {
@@ -3138,6 +3146,7 @@ static void scst_cm_free_ec_priv(struct scst_cmd *ec_cmd, bool unblock_dev)
 	list_for_each_entry_safe(ip, it, &p->cm_internal_cmd_list,
 				cm_internal_cmd_list_entry) {
 		struct scst_cmd *c = ip->cm_cmd;
+
 		scst_cm_del_free_from_internal_cmd_list(c, unblock_dev);
 		__scst_cmd_put(c);
 	}
