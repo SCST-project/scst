@@ -284,7 +284,7 @@ try_retry:
 	next_retry_time = cur_time + SCST_CM_RETRIES_WAIT;
 
 	TRACE_DBG("Retrying cmd %p (imm_retry %d, next_retry_time %ld, "
-		"cur_time %ld, " "start_time %ld, max_retry_time %ld): going "
+		"cur_time %ld, start_time %ld, max_retry_time %ld): going "
 		"to sleep", cmd, imm_retry, next_retry_time, cur_time,
 		start_time, max_retry_time);
 
