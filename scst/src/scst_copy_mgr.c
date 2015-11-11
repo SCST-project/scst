@@ -363,7 +363,7 @@ static int scst_cm_setup_this_data_descr(struct scst_cmd *ec_cmd)
 	EXTRACHECKS_BUG_ON(priv->cm_cur_data_descr > priv->cm_data_descrs_cnt);
 
 	if (priv->cm_cur_data_descr == priv->cm_data_descrs_cnt) {
-		TRACE_DBG("No more data desriptors for ec_cmd %p", ec_cmd);
+		TRACE_DBG("No more data descriptors for ec_cmd %p", ec_cmd);
 		res = -ENOENT;
 		goto out;
 	}
