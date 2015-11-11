@@ -572,7 +572,8 @@ static int scst_dlm_update_nodeids(struct scst_pr_dlm_data *pr_dlm)
 	static const char comms_dir[] = "/sys/kernel/config/dlm/cluster/comms";
 	struct file *comms;
 	char *p, *entries = kzalloc(1, GFP_KERNEL);
-	uint32_t nodeid, *new;
+	unsigned long nodeid;
+	uint32_t *new;
 	int i, ret, num_nodes;
 	char path[256], buf[64];
 
@@ -612,7 +613,9 @@ static int scst_dlm_update_nodeids(struct scst_pr_dlm_data *pr_dlm)
 	pr_dlm->nodeid = new;
 	pr_dlm->participants = num_nodes;
 	for (i = 0, p = entries; *p; i++, p += strlen(p) + 1) {
-		nodeid = simple_strtoul(p, NULL, 0);
+		ret = kstrtoul(p, 0, &nodeid);
+		if (WARN_ON_ONCE(ret < 0))
+			continue;
 		snprintf(path, sizeof(path), "%s/%s/local", comms_dir, p);
 		if (scst_read_file(path, buf, sizeof(buf)) >= 0 &&
 		    strcmp(buf, "1\n") == 0)
