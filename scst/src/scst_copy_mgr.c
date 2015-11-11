@@ -3058,7 +3058,7 @@ static int scst_cm_parse_b2b_seg_descr(struct scst_cmd *ec_cmd,
 		scst_cm_set_seg_err_sense(ec_cmd, 0xD, 2, seg_num, 6);
 		goto out_err;
 	}
-	if (tgt_des->read_only){
+	if (tgt_des->read_only) {
 		PRINT_WARNING("Target descriptor refers to read-only device");
 		scst_cm_set_seg_err_sense(ec_cmd, 0, 0, seg_num, 6);
 		goto out_err;
