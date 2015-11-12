@@ -6131,11 +6131,12 @@ static int scst_ws_sg_init(struct scatterlist **ws_sg, int ws_sg_cnt,
 static int scst_ws_sg_tails_get(struct scst_data_descriptor *where, struct scst_write_same_priv *wsp)
 {
 	int i;
+	uint64_t n;
 
 	TRACE_ENTRY();
 
 	for (i = 0; where[i].sdd_blocks != 0; i++) {
-		if (where[i].sdd_blocks / wsp->ws_max_each != 0) {
+		if (where[i].sdd_blocks >= wsp->ws_max_each) {
 			wsp->ws_sg_full_cnt = wsp->ws_max_each;
 			break;
 		}
@@ -6150,8 +6151,10 @@ static int scst_ws_sg_tails_get(struct scst_data_descriptor *where, struct scst_
 				sizeof(*wsp->ws_sg_tails)*i);
 		return -ENOMEM;
 	}
-	for (i = 0; where[i].sdd_blocks != 0; i++)
-		wsp->ws_sg_tails[i].sg_cnt = where[i].sdd_blocks % wsp->ws_max_each;
+	for (i = 0; where[i].sdd_blocks != 0; i++) {
+		n = where[i].sdd_blocks;
+		wsp->ws_sg_tails[i].sg_cnt = do_div(n, wsp->ws_max_each);
+	}
 
 	TRACE_EXIT();
 	return 0;
