@@ -261,6 +261,7 @@ static inline bool ucmd_get_check(struct scst_user_cmd *ucmd)
 {
 	int r = atomic_inc_return(&ucmd->ucmd_ref);
 	int res;
+
 	if (unlikely(r == 1)) {
 		TRACE_DBG("ucmd %p is being destroyed", ucmd);
 		atomic_dec(&ucmd->ucmd_ref);
@@ -551,6 +552,7 @@ static int dev_user_alloc_sg(struct scst_user_cmd *ucmd, int cached_buff)
 	} else {
 		/* Make out_sg->offset 0 */
 		int len = cmd->bufflen + ucmd->first_page_offset;
+
 		out_sg_pages = (len >> PAGE_SHIFT) + ((len & ~PAGE_MASK) != 0);
 		orig_bufflen = (out_sg_pages << PAGE_SHIFT) + cmd->out_bufflen;
 		pool = dev->pool;
@@ -612,6 +614,7 @@ static int dev_user_alloc_sg(struct scst_user_cmd *ucmd, int cached_buff)
 
 		if (unlikely(cmd->sg_cnt > cmd->tgt_dev->max_sg_cnt)) {
 			static int ll;
+
 			if ((ll < 10) || TRACING_MINOR()) {
 				PRINT_INFO("Unable to complete command due to "
 					"SG IO count limitation (requested %d, "
@@ -885,9 +888,11 @@ static void dev_user_flush_dcache(struct scst_user_cmd *ucmd)
 
 	for (i = 0; (bufflen > 0) && (i < buf_ucmd->num_data_pages); i++) {
 		struct page *page __attribute__((unused));
+
 		page = buf_ucmd->data_pages[i];
 #ifdef ARCH_HAS_FLUSH_ANON_PAGE
 		struct vm_area_struct *vma = find_vma(current->mm, start);
+
 		if (vma != NULL)
 			flush_anon_page(vma, page, start);
 #endif
@@ -1090,6 +1095,7 @@ static void dev_user_set_block_size(struct scst_cmd *cmd, int block_size)
 		dev->block_size = block_size;
 	else {
 		struct scst_user_dev *udev = cmd->dev->dh_priv;
+
 		dev->block_size = udev->def_block_size;
 	}
 	dev->block_shift = -1; /* not used */
@@ -1243,8 +1249,9 @@ static int dev_user_map_buf(struct scst_user_cmd *ucmd, unsigned long ubuff,
 
 	ucmd->num_data_pages = num_pg;
 
-	ucmd->data_pages = kmalloc(sizeof(*ucmd->data_pages) * ucmd->num_data_pages,
-				   GFP_KERNEL);
+	ucmd->data_pages = kmalloc_array(ucmd->num_data_pages,
+					 sizeof(*ucmd->data_pages),
+					 GFP_KERNEL);
 	if (ucmd->data_pages == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "Unable to allocate data_pages array "
 			"(num_data_pages=%d)", ucmd->num_data_pages);
@@ -1311,6 +1318,7 @@ static int dev_user_process_reply_alloc(struct scst_user_cmd *ucmd,
 
 	if (likely(reply->alloc_reply.pbuf != 0)) {
 		int pages;
+
 		if (ucmd->buff_cached) {
 			if (unlikely((reply->alloc_reply.pbuf & ~PAGE_MASK) != 0)) {
 				PRINT_ERROR("Supplied pbuf %llx isn't "
@@ -1530,7 +1538,7 @@ static int dev_user_process_reply_ext_copy_remap(struct scst_user_cmd *ucmd,
 		goto out_hw_err_free_buf;
 	}
 
-	left = kmalloc(sizeof(*left) * count, GFP_KERNEL);
+	left = kmalloc_array(count, sizeof(*left), GFP_KERNEL);
 	if (unlikely(left == NULL)) {
 		PRINT_ERROR("Unable to alloc leftover remap descriptors "
 			"(size %zd, count %d)", sizeof(*left) * count, count);
@@ -1686,7 +1694,7 @@ static int dev_user_process_ws_reply(struct scst_user_cmd *ucmd,
 		goto out_free_buf;
 	}
 
-	where = kmalloc(sizeof(*where) * count, GFP_KERNEL);
+	where = kmalloc_array(count, sizeof(*where), GFP_KERNEL);
 	if (unlikely(where == NULL)) {
 		PRINT_ERROR("Unable to alloc WS descriptors where (size %zd)",
 			sizeof(*where) * count);
@@ -1775,6 +1783,7 @@ static int dev_user_process_reply_exec(struct scst_user_cmd *ucmd,
 	if (ereply->resp_data_len != 0) {
 		if (ucmd->ubuff == 0) {
 			int pages, rc;
+
 			if (unlikely(ereply->pbuf == 0))
 				goto out_busy;
 			if (ucmd->buff_cached) {
@@ -2324,6 +2333,7 @@ static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
 
 	if (ureply != 0) {
 		unsigned long u = (unsigned long)ureply;
+
 		rc = copy_from_user(&reply, (void __user *)u, sizeof(reply));
 		if (unlikely(rc != 0)) {
 			PRINT_ERROR("Failed to copy %d user's bytes", rc);
@@ -2476,6 +2486,7 @@ static long dev_user_ioctl(struct file *file, unsigned int cmd,
 	case SCST_USER_REGISTER_DEVICE:
 	{
 		struct scst_user_dev_desc *dev_desc;
+
 		TRACE_DBG("%s", "REGISTER_DEVICE");
 		dev_desc = kmalloc(sizeof(*dev_desc), GFP_KERNEL);
 		if (dev_desc == NULL) {
@@ -2511,6 +2522,7 @@ static long dev_user_ioctl(struct file *file, unsigned int cmd,
 	case SCST_USER_SET_OPTIONS:
 	{
 		struct scst_user_opt opt;
+
 		TRACE_DBG("%s", "SET_OPTIONS");
 		rc = copy_from_user(&opt, (void __user *)arg, sizeof(opt));
 		if (rc != 0) {
@@ -3777,6 +3789,7 @@ static int dev_user_get_opt(struct file *file, void __user *arg)
 	if (unlikely(res != 0))
 		goto out;
 
+	memset(&opt, 0, sizeof(opt));
 	opt.parse_type = dev->parse_type;
 	opt.on_free_cmd_type = dev->on_free_cmd_type;
 	opt.memory_reuse_type = dev->memory_reuse_type;
@@ -3867,6 +3880,7 @@ static int dev_user_exit_dev(struct scst_user_dev *dev)
 static int __dev_user_release(void *arg)
 {
 	struct scst_user_dev *dev = arg;
+
 	dev_user_exit_dev(dev);
 	kmem_cache_free(user_dev_cachep, dev);
 	return 0;
@@ -3937,6 +3951,7 @@ static int dev_user_process_cleanup(struct scst_user_dev *dev)
 #ifdef CONFIG_SCST_EXTRACHECKS
 {
 	int i;
+
 	for (i = 0; i < (int)ARRAY_SIZE(dev->ucmd_hash); i++) {
 		struct list_head *head = &dev->ucmd_hash[i];
 		struct scst_user_cmd *ucmd2, *tmp;
@@ -3978,6 +3993,7 @@ static ssize_t dev_user_sysfs_commands_show(struct kobject *kobj,
 	for (i = 0; i < (int)ARRAY_SIZE(udev->ucmd_hash); i++) {
 		struct list_head *head = &udev->ucmd_hash[i];
 		struct scst_user_cmd *ucmd;
+
 		list_for_each_entry(ucmd, head, hash_list_entry) {
 			ppos = pos;
 			pos += scnprintf(&buf[pos],

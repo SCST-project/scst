@@ -63,7 +63,11 @@ struct scst_event_entry {
 	int *pqueued_events_cnt;
 	union {
 		struct work_struct scst_event_queue_work;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+		struct work_struct event_timeout_work;
+#else
 		struct delayed_work event_timeout_work;
+#endif
 	};
 
 	struct scst_event event;
@@ -137,7 +141,7 @@ struct scst_event_tm_fn_received_payload {
 
 #define SCST_EVENT_STPG_USER_INVOKE    5
 struct scst_event_stpg_descr {
- 	uint16_t group_id;
+	uint16_t group_id;
 	/*
 	 * Better to keep below fields as small as possible to fit
 	 * in single page as many descriptors as possible.

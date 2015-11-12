@@ -693,6 +693,7 @@ static inline bool cmnd_get_check(struct iscsi_cmnd *cmnd)
 {
 	int r = atomic_inc_return(&cmnd->ref_cnt);
 	int res;
+
 	if (unlikely(r == 1)) {
 		TRACE_DBG("cmnd %p is being destroyed", cmnd);
 		atomic_dec(&cmnd->ref_cnt);

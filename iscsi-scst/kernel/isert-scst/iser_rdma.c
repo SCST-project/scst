@@ -136,8 +136,10 @@ void isert_post_drain(struct isert_connection *isert_conn)
 		err = ib_post_send(isert_conn->qp, &isert_conn->drain_wr.send_wr, &bad_wr);
 		if (unlikely(err)) {
 			pr_err("Failed to post drain wr, err:%d\n", err);
-			/* We need to decrement iser_conn->kref in order to be able to cleanup
-			 * the connection */
+			/*
+			 * We need to decrement iser_conn->kref in order to be
+			 * able to cleanup the connection.
+			 */
 			set_bit(ISERT_DRAIN_FAILED, &isert_conn->flags);
 			isert_conn_free(isert_conn);
 		}
@@ -352,7 +354,9 @@ static void isert_send_completion_handler(struct isert_wr *wr)
 	struct isert_cmnd *isert_pdu = wr->pdu;
 	struct iscsi_cmnd *iscsi_pdu = &isert_pdu->iscsi;
 	struct iscsi_cmnd *iscsi_req_pdu = iscsi_pdu->parent_req;
-	struct isert_cmnd *isert_req_pdu = (struct isert_cmnd *)iscsi_req_pdu;
+	struct isert_cmnd *isert_req_pdu = container_of(iscsi_req_pdu,
+						    struct isert_cmnd, iscsi);
+
 
 	TRACE_ENTRY();
 
@@ -633,9 +637,11 @@ static void isert_handle_wc_error(struct ib_wc *wc)
 				isert_buf->dma_dir);
 			isert_buf->sg_cnt = 0;
 		}
-		/* RDMA-WR and SEND response of a READ task
-		   are sent together, so when receiving RDMA-WR error,
-		   wait until SEND error arrives to complete the task */
+		/*
+		 * RDMA-WR and SEND response of a READ task
+		 * are sent together, so when receiving RDMA-WR error,
+		 * wait until SEND error arrives to complete the task.
+		 */
 		break;
 	default:
 		pr_err("unexpected opcode %d, wc:%p wr_id:%p conn:%p\n",
@@ -866,7 +872,8 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 	isert_dev->num_cqs = min_t(int, num_online_cpus(),
 				   ib_dev->num_comp_vectors);
 
-	isert_dev->cq_qps = kzalloc(sizeof(*isert_dev->cq_qps) * isert_dev->num_cqs,
+	isert_dev->cq_qps = kcalloc(isert_dev->num_cqs,
+				    sizeof(*isert_dev->cq_qps),
 				    GFP_KERNEL);
 	if (unlikely(isert_dev->cq_qps == NULL)) {
 		pr_err("Failed to allocate iser cq_qps\n");

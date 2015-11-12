@@ -1423,6 +1423,8 @@ sub writeConfiguration {
 	}
 
 	foreach my $driver (sort keys %{$CURRENT{'assign'}}) {
+		next if $driver eq 'copy_manager';
+
 		my $driver_buff;
 
 		my ($drv_attrs, $errorString) = $SCST->driverAttributes($driver);

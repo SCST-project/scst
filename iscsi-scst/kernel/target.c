@@ -298,6 +298,7 @@ void target_del_session(struct iscsi_target *target,
 
 	if (!list_empty(&session->conn_list)) {
 		struct iscsi_conn *conn, *tc;
+
 		list_for_each_entry_safe(conn, tc, &session->conn_list,
 					 conn_list_entry) {
 			TRACE_MGMT_DBG("Del session: closing conn %p", conn);
@@ -616,6 +617,7 @@ ssize_t iscsi_sysfs_del_target(const char *target_name)
 	/* We don't want to have tgt visible after the mutex unlock */
 	{
 		struct iscsi_target *tgt;
+
 		mutex_lock(&target_mgmt_mutex);
 		tgt = target_lookup_by_name(target_name);
 		if (tgt == NULL) {

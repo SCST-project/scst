@@ -46,6 +46,7 @@
 #endif
 #include "isert_dbg.h"
 #include "isert.h"
+#include "iser.h"
 #include "iser_datamover.h"
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
@@ -190,6 +191,9 @@ static struct iscsi_cmnd *isert_cmnd_alloc(struct iscsi_conn *conn,
 
 static void isert_cmnd_free(struct iscsi_cmnd *cmnd)
 {
+	struct isert_cmnd *isert_cmnd = container_of(cmnd, struct isert_cmnd,
+						    iscsi);
+
 	TRACE_ENTRY();
 
 #ifdef CONFIG_SCST_EXTRACHECKS
@@ -211,7 +215,7 @@ static void isert_cmnd_free(struct iscsi_cmnd *cmnd)
 		sBUG();
 	}
 #endif
-	if (cmnd->parent_req)
+	if (cmnd->parent_req || isert_cmnd->is_fake_rx)
 		isert_release_tx_pdu(cmnd);
 	else
 		isert_release_rx_pdu(cmnd);
@@ -282,9 +286,11 @@ static void isert_free_conn(struct iscsi_conn *conn)
 int isert_handle_close_connection(struct iscsi_conn *conn)
 {
 	isert_mark_conn_closed(conn, 0);
-	/* Take care of case where our connection is being closed
-	 * without being connected to a session - if connection allocation
-	 * failed for some reason */
+	/*
+	 * Take care of case where our connection is being closed without
+	 * being connected to a session - if connection allocation failed for
+	 * some reason.
+	 */
 	if (unlikely(!conn->session))
 		isert_free_connection(conn);
 	else
@@ -438,7 +444,7 @@ static ssize_t isert_get_initiator_ip(struct iscsi_conn *conn,
 			 "[%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x]",
 			 NIP6(((struct sockaddr_in6 *)&ss)->sin6_addr));
 #else
-		pos = scnprintf(buf, size, "[%p6]",
+		pos = scnprintf(buf, size, "[%pI6]",
 			&((struct sockaddr_in6 *)&ss)->sin6_addr);
 #endif
 		break;

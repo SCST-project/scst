@@ -30,7 +30,7 @@ SCST supports the following I/O modes:
  * User space mode using scst_user device handler, which allows to
    implement in the user space high performance virtual SCSI
    devices. Comparing with fully in-kernel dev handlers this mode has
-   very low overhead (few %%)
+   very low overhead (few %%).
 
  * "Performance" device handlers, which provide in pseudo pass-through
    mode a way for direct performance measurements without overhead of
@@ -1881,7 +1881,7 @@ backend storage, which supposed to be nearly instantaneous.
 
 To use this feature, a dev handler should setup ext_copy_remap()
 callback in its struct scst_dev_type. This callback is called by SCST
-during EXTENDED COPY command processing to let the dev hander try to
+during EXTENDED COPY command processing to let the dev handler try to
 remap affected blocks at first.
 
 Upon finish, the dev handler should call scst_ext_copy_remap_done(). In

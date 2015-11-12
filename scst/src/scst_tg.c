@@ -21,11 +21,12 @@
 #include <asm/unaligned.h>
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/scst.h>
+#include <scst/scst_event.h>
 #else
 #include "scst.h"
+#include "scst_event.h"
 #endif
 #include "scst_priv.h"
-#include "scst_event.h"
 #include "scst_pres.h"
 
 struct alua_state_and_name {
@@ -396,13 +397,24 @@ out:
 
 struct scst_alua_retry {
 	struct scst_cmd *alua_retry_cmd;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	struct work_struct alua_retry_work;
+#else
 	struct delayed_work alua_retry_work;
+#endif
 };
 
-static void scst_alua_transitioning_work_fn(struct delayed_work *work)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+static void scst_alua_transitioning_work_fn(void *p)
 {
-	struct scst_alua_retry *retry = container_of(work, struct scst_alua_retry,
-						alua_retry_work);
+	struct scst_alua_retry *retry = p;
+#else
+static void scst_alua_transitioning_work_fn(struct work_struct *work)
+{
+	struct scst_alua_retry *retry =
+		container_of(work, struct scst_alua_retry,
+			     alua_retry_work.work);
+#endif
 	struct scst_cmd *cmd = retry->alua_retry_cmd;
 
 	TRACE_ENTRY();
@@ -467,8 +479,13 @@ static int scst_tg_accept_transitioning(struct scst_cmd *cmd)
 
 		/* No get is needed, because cmd is sync here */
 		retry->alua_retry_cmd = cmd;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+		INIT_WORK(&retry->alua_retry_work,
+			  scst_alua_transitioning_work_fn, retry);
+#else
 		INIT_DELAYED_WORK(&retry->alua_retry_work,
-			(void (*)(struct work_struct *))scst_alua_transitioning_work_fn);
+				  scst_alua_transitioning_work_fn);
+#endif
 		cmd->already_transitioning = 1;
 		schedule_delayed_work(&retry->alua_retry_work, HZ/2);
 		res = SCST_ALUA_CHECK_DELAYED;
@@ -905,6 +922,7 @@ static void scst_event_stpg_notify_fn(struct scst_event *event,
 
 	for (i = 0, d = &p->stpg_descriptors[0]; i < p->stpg_descriptors_cnt; i++, d++) {
 		struct scst_target_group *tg = __lookup_tg_by_group_id(dg, d->group_id);
+
 		if (!tg) {
 			PRINT_ERROR("STPG: unable to find TG %d", d->group_id);
 			goto out_fail;
@@ -966,9 +984,10 @@ static void __scst_tg_set_state(struct scst_target_group *tg,
 			list_for_each_entry(tg_tgt, &tg->tgt_list, entry) {
 				if (tg_tgt->tgt == tgt) {
 					bool gen_ua = (state != SCST_TG_STATE_TRANSITIONING);
-	 				if ((tg->dg->stpg_rel_tgt_id == tgt_dev->sess->tgt->rel_tgt_id) &&
-	 				    tid_equal(tg->dg->stpg_transport_id, tgt_dev->sess->transport_id))
-	 					gen_ua = false;
+
+					if ((tg->dg->stpg_rel_tgt_id == tgt_dev->sess->tgt->rel_tgt_id) &&
+					    tid_equal(tg->dg->stpg_transport_id, tgt_dev->sess->transport_id))
+						gen_ua = false;
 					scst_tg_change_tgt_dev_state(tgt_dev,
 						state, gen_ua);
 					break;
@@ -1687,7 +1706,13 @@ int scst_tg_set_group_info(struct scst_cmd *cmd)
 	TRACE_DBG("dg %s (%p) found, dev %s", dg->name, dg, dev->virt_name);
 
 	for (i = 4, j = 0; i + 4 <= len; i += 4, j++) {
+#ifndef __CHECKER__
+		/*
+		 * Hide the statement below for smatch because otherwise it
+		 * triggers a false positive.
+		 */
 		WARN_ON_ONCE(j >= tpg_desc_count);
+#endif
 		osi[j].new_state = buf[i] & 0x1f;
 		switch (osi[j].new_state) {
 		case SCST_TG_STATE_OPTIMIZED:
@@ -1843,17 +1868,11 @@ int scst_tg_set_group_info(struct scst_cmd *cmd)
 
 			atomic_inc(&wait->stpg_wait_left);
 
-			spin_lock_bh(&dev->dev_lock);
-			WARN_ON(dgd->dev->stpg_ext_blocked);
-			dgd->dev->stpg_ext_blocked = 1;
-			spin_unlock_bh(&dev->dev_lock);
-
-			rc = scst_ext_block_dev(dgd->dev, false,
-				scst_stpg_ext_blocking_done, (uint8_t *)&wait,
-				sizeof(wait));
+			rc = scst_ext_block_dev(dgd->dev, scst_stpg_ext_blocking_done,
+				(uint8_t *)&wait, sizeof(wait), SCST_EXT_BLOCK_STPG);
 			if (rc != 0) {
-				TRACE_DBG("scst_ext_block_dev() returned %d, "
-					"stepping back (cmd %p)", rc, cmd);
+				TRACE_DBG("scst_ext_block_dev() failed "
+					"with %d, reverting (cmd %p)", rc, cmd);
 				wait->status = rc;
 				wait->dg = dg;
 				atomic_dec(&wait->stpg_wait_left);

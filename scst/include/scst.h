@@ -1428,7 +1428,7 @@ struct scst_dev_type {
 	void (*on_free_cmd)(struct scst_cmd *cmd);
 
 	/*
-	 * Called during EXTENDED COPY command processing to let dev hander
+	 * Called during EXTENDED COPY command processing to let dev handler
 	 * try to remap blocks at first. Upon finish, the dev handler supposed
 	 * to call scst_ext_copy_remap_done(). See description of this
 	 * function for more details.
@@ -1971,7 +1971,11 @@ struct scst_session {
 	 */
 	struct list_head sess_cm_list_id_list;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	struct work_struct sess_cm_list_id_cleanup_work;
+#else
 	struct delayed_work sess_cm_list_id_cleanup_work;
+#endif
 
 	/* sysfs release completion */
 	struct completion *sess_kobj_release_cmpl;
@@ -2757,7 +2761,7 @@ struct scst_device {
 	unsigned int dev_unregistering:1;
 
 	/*
-	 * Set if ext blocking is pending. It if just shortcut for
+	 * Set if ext blocking is pending. It is just shortcut for
 	 * !list_empty(&dev->ext_blockers_list) to save a cache miss.
 	 */
 	unsigned int ext_blocking_pending:1;
@@ -2915,9 +2919,11 @@ struct scst_device {
 	int (*dev_dif_fn)(struct scst_cmd *cmd);
 
 	__be16 dev_dif_static_app_tag; /* fixed APP TAG for all blocks in dev */
-	__be32 dev_dif_static_app_ref_tag; /* fixed APP TAG part from REF
-					    * TAG for all blocks in dev.
-					    * Valid only with dif type 3 */
+	/*
+	 * Fixed APP TAG part from REF TAG for all blocks in dev. Valid only
+	 * with dif type 3.
+	 */
+	__be32 dev_dif_static_app_ref_tag;
 
 	/* Cache to optimize scst_parse_*protect() routines */
 	enum scst_dif_actions dev_dif_rd_actions;

@@ -1297,6 +1297,7 @@ unsigned long iscsi_get_flow_ctrl_or_mgmt_dbg_log_flag(struct iscsi_cmnd *cmnd)
 		flag = TRACE_MGMT_DEBUG;
 	else {
 		int status = scst_cmd_get_status(cmnd->scst_cmd);
+
 		if ((status == SAM_STAT_TASK_SET_FULL) ||
 		    (status == SAM_STAT_BUSY))
 			flag = TRACE_FLOW_CONTROL;

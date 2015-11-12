@@ -367,7 +367,7 @@ static int qla2x00_alloc_queues(struct qla_hw_data *ha, struct req_que *req,
 				struct rsp_que *rsp)
 {
 	scsi_qla_host_t *vha = pci_get_drvdata(ha->pdev);
-	ha->req_q_map = kzalloc(sizeof(struct req_que *) * ha->max_req_queues,
+	ha->req_q_map = kcalloc(ha->max_req_queues, sizeof(struct req_que *),
 				GFP_KERNEL);
 	if (!ha->req_q_map) {
 		ql_log(ql_log_fatal, vha, 0x003b,
@@ -375,7 +375,7 @@ static int qla2x00_alloc_queues(struct qla_hw_data *ha, struct req_que *req,
 		goto fail_req_map;
 	}
 
-	ha->rsp_q_map = kzalloc(sizeof(struct rsp_que *) * ha->max_rsp_queues,
+	ha->rsp_q_map = kcalloc(ha->max_rsp_queues, sizeof(struct rsp_que *),
 				GFP_KERNEL);
 	if (!ha->rsp_q_map) {
 		ql_log(ql_log_fatal, vha, 0x003c,
@@ -2386,10 +2386,10 @@ EXPORT_SYMBOL(qla2xxx_del_vtarget);
 #endif /*((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)) || \
 	  defined(FC_VPORT_CREATE_DEFINED))*/
 
-void qla_unknown_atio_work_fn(struct delayed_work *work)
+void qla_unknown_atio_work_fn(struct work_struct *work)
 {
 	struct qla_hw_data *ha = container_of(work, struct qla_hw_data,
-						unknown_atio_work);
+					      unknown_atio_work.work);
 	qla_target.tgt_try_to_dequeue_unknown_atios(ha);
 	return;
 }
@@ -2661,8 +2661,7 @@ qla2x00_probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	mutex_init(&base_vha->tgt_mutex);
 	mutex_init(&base_vha->tgt_host_action_mutex);
 	INIT_LIST_HEAD(&ha->unknown_atio_list);
-	INIT_DELAYED_WORK(&ha->unknown_atio_work,
-		(void (*)(struct work_struct *))qla_unknown_atio_work_fn);
+	INIT_DELAYED_WORK(&ha->unknown_atio_work, qla_unknown_atio_work_fn);
 	qla_clear_tgt_mode(base_vha);
 #endif /* CONFIG_SCSI_QLA2XXX_TARGET */
 
@@ -3286,8 +3285,9 @@ qla2x00_mem_alloc(struct qla_hw_data *ha, uint16_t req_len, uint16_t rsp_len,
 
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 	if (IS_FWI2_CAPABLE(ha)) {
-		ha->tgt_vp_map = kzalloc(sizeof(struct qla_tgt_vp_map) *
-					MAX_MULTI_ID_FABRIC, GFP_KERNEL);
+		ha->tgt_vp_map = kcalloc(MAX_MULTI_ID_FABRIC,
+					 sizeof(struct qla_tgt_vp_map),
+					 GFP_KERNEL);
 		if (!ha->tgt_vp_map)
 			goto fail_free_init_cb;
 
@@ -3433,8 +3433,9 @@ qla2x00_mem_alloc(struct qla_hw_data *ha, uint16_t req_len, uint16_t rsp_len,
 	    (*rsp)->ring);
 	/* Allocate memory for NVRAM data for vports */
 	if (ha->nvram_npiv_size) {
-		ha->npiv_info = kzalloc(sizeof(struct qla_npiv_entry) *
-		    ha->nvram_npiv_size, GFP_KERNEL);
+		ha->npiv_info = kcalloc(ha->nvram_npiv_size,
+					sizeof(struct qla_npiv_entry),
+					GFP_KERNEL);
 		if (!ha->npiv_info) {
 			ql_log_pci(ql_log_fatal, ha->pdev, 0x002d,
 			    "Failed to allocate memory for npiv_info.\n");

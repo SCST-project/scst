@@ -852,7 +852,7 @@ static struct srpt_ioctx **srpt_alloc_ioctx_ring(struct srpt_device *sdev,
 	WARN_ON(ioctx_size != sizeof(struct srpt_recv_ioctx) &&
 		ioctx_size != sizeof(struct srpt_send_ioctx));
 
-	ring = kmalloc(ring_size * sizeof(ring[0]), GFP_KERNEL);
+	ring = kmalloc_array(ring_size, sizeof(ring[0]), GFP_KERNEL);
 	if (!ring)
 		goto out;
 	for (i = 0; i < ring_size; ++i) {
@@ -1154,8 +1154,8 @@ static int srpt_get_desc_tbl(struct srpt_recv_ioctx *recv_ioctx,
 		if (ioctx->n_rbuf == 1)
 			ioctx->rbufs = &ioctx->single_rbuf;
 		else {
-			ioctx->rbufs =
-				kmalloc(ioctx->n_rbuf * sizeof(*db), GFP_ATOMIC);
+			ioctx->rbufs = kmalloc_array(ioctx->n_rbuf,
+						     sizeof(*db), GFP_ATOMIC);
 			if (!ioctx->rbufs) {
 				ioctx->n_rbuf = 0;
 				ret = -ENOMEM;
@@ -1640,7 +1640,7 @@ static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 	if (!scst_sense_valid(sense_data)) {
 		sense_data_len = 0;
 	} else {
-		BUILD_BUG_ON(MIN_MAX_RSP_SIZE <= sizeof(*srp_rsp));
+		BUILD_BUG_ON(sizeof(*srp_rsp) >= MIN_MAX_RSP_SIZE);
 		max_sense_len = ch->max_ti_iu_len - sizeof(*srp_rsp);
 		if (sense_data_len > max_sense_len) {
 			pr_warn("truncated sense data from %d to %d bytes\n",
@@ -4173,7 +4173,7 @@ static void srpt_add_one(struct ib_device *device)
 #endif
 
 	sdev->srq = use_srq ? ib_create_srq(sdev->pd, &srq_attr) :
-		ERR_PTR(-ENOSYS);
+		ERR_PTR(-ENOTSUPP);
 	if (IS_ERR(sdev->srq)) {
 		pr_debug("ib_create_srq() failed: %ld\n", PTR_ERR(sdev->srq));
 

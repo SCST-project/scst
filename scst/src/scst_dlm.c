@@ -572,7 +572,8 @@ static int scst_dlm_update_nodeids(struct scst_pr_dlm_data *pr_dlm)
 	static const char comms_dir[] = "/sys/kernel/config/dlm/cluster/comms";
 	struct file *comms;
 	char *p, *entries = kzalloc(1, GFP_KERNEL);
-	uint32_t nodeid, *new;
+	unsigned long nodeid;
+	uint32_t *new;
 	int i, ret, num_nodes;
 	char path[256], buf[64];
 
@@ -612,7 +613,9 @@ static int scst_dlm_update_nodeids(struct scst_pr_dlm_data *pr_dlm)
 	pr_dlm->nodeid = new;
 	pr_dlm->participants = num_nodes;
 	for (i = 0, p = entries; *p; i++, p += strlen(p) + 1) {
-		nodeid = simple_strtoul(p, NULL, 0);
+		ret = kstrtoul(p, 0, &nodeid);
+		if (WARN_ON_ONCE(ret < 0))
+			continue;
 		snprintf(path, sizeof(path), "%s/%s/local", comms_dir, p);
 		if (scst_read_file(path, buf, sizeof(buf)) >= 0 &&
 		    strcmp(buf, "1\n") == 0)
@@ -1077,10 +1080,16 @@ static void scst_dlm_pre_bast(void *bastarg, int mode)
 		queue_work(pr_dlm->from_wq, &pr_dlm->pre_upd_work);
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+static void scst_pre_join_work(void *p)
+{
+	struct scst_pr_dlm_data *pr_dlm = p;
+#else
 static void scst_pre_join_work(struct work_struct *work)
 {
 	struct scst_pr_dlm_data *pr_dlm = container_of(work,
 				struct scst_pr_dlm_data, pre_join_work);
+#endif
 	dlm_lockspace_t *ls;
 
 	mutex_lock(&pr_dlm->ls_mutex);
@@ -1094,10 +1103,16 @@ static void scst_pre_join_work(struct work_struct *work)
 	mutex_unlock(&pr_dlm->ls_mutex);
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+static void scst_pre_upd_work(void *p)
+{
+	struct scst_pr_dlm_data *pr_dlm = p;
+#else
 static void scst_pre_upd_work(struct work_struct *work)
 {
 	struct scst_pr_dlm_data *pr_dlm = container_of(work,
 				struct scst_pr_dlm_data, pre_upd_work);
+#endif
 	dlm_lockspace_t *ls;
 
 	mutex_lock(&pr_dlm->ls_mutex);
@@ -1128,10 +1143,16 @@ static void scst_dlm_post_bast(void *bastarg, int mode)
  * Note: the node that has invoked scst_trigger_lvb_update() holds PR_LOCK
  * in EX mode and waits until this function has finished.
  */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+static void scst_copy_to_dlm_work(void *p)
+{
+	struct scst_pr_dlm_data *pr_dlm = p;
+#else
 static void scst_copy_to_dlm_work(struct work_struct *work)
 {
 	struct scst_pr_dlm_data *pr_dlm = container_of(work,
 				struct scst_pr_dlm_data, copy_to_dlm_work);
+#endif
 	struct scst_device *dev = pr_dlm->dev;
 	dlm_lockspace_t *ls;
 	int res;
@@ -1195,10 +1216,16 @@ unlock_ls:
  * scst_pr_init_tgt_dev() and scst_pr_clear_tgt_dev() in scst_pres.c protect
  * these manipulations by locking the PR data structures for writing.
  */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+static void scst_copy_from_dlm_work(void *p)
+{
+	struct scst_pr_dlm_data *pr_dlm = p;
+#else
 static void scst_copy_from_dlm_work(struct work_struct *work)
 {
 	struct scst_pr_dlm_data *pr_dlm = container_of(work,
 				struct scst_pr_dlm_data, copy_from_dlm_work);
+#endif
 	struct scst_device *dev = pr_dlm->dev;
 	dlm_lockspace_t *ls;
 	int res = -ENOENT;
@@ -1250,10 +1277,16 @@ static void scst_dlm_post_ast(void *astarg)
 }
 
 /* Tell other nodes to refresh their local state from the lock value blocks. */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+static void scst_reread_lvb_work(void *p)
+{
+	struct scst_pr_dlm_data *pr_dlm = p;
+#else
 static void scst_reread_lvb_work(struct work_struct *work)
 {
 	struct scst_pr_dlm_data *pr_dlm = container_of(work,
 				struct scst_pr_dlm_data, reread_lvb_work);
+#endif
 	dlm_lockspace_t *ls;
 	struct scst_lksb pr_lksb;
 	int res;
@@ -1275,10 +1308,16 @@ unlock_ls:
 }
 
 /* Tell other nodes to update the DLM lock value blocks. */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+static void scst_lvb_upd_work(void *p)
+{
+	struct scst_pr_dlm_data *pr_dlm = p;
+#else
 static void scst_lvb_upd_work(struct work_struct *work)
 {
 	struct scst_pr_dlm_data *pr_dlm = container_of(work,
 				struct scst_pr_dlm_data, lvb_upd_work);
+#endif
 	dlm_lockspace_t *ls;
 	struct scst_lksb lksb;
 	int res;
@@ -1298,7 +1337,8 @@ unlock_ls:
 	mutex_unlock(&pr_dlm->ls_mutex);
 }
 
-static struct workqueue_struct *create_st_wq(const char *fmt, ...)
+static struct workqueue_struct *__printf(1, 2)
+create_st_wq(const char *fmt, ...)
 {
 	struct workqueue_struct *wq = NULL;
 	va_list ap;
@@ -1319,47 +1359,58 @@ static struct workqueue_struct *create_st_wq(const char *fmt, ...)
  */
 static int scst_pr_dlm_init(struct scst_device *dev, const char *cl_dev_id)
 {
+	struct scst_pr_dlm_data *pr_dlm;
 	int res = -ENOMEM;
 
 	compile_time_size_checks();
-	dev->pr_dlm = kzalloc(sizeof(*dev->pr_dlm), GFP_KERNEL);
-	if (!dev->pr_dlm)
+	pr_dlm = kzalloc(sizeof(*dev->pr_dlm), GFP_KERNEL);
+	if (!pr_dlm)
 		goto out;
-	dev->pr_dlm->dev = dev;
-	mutex_init(&dev->pr_dlm->ls_cr_mutex);
-	mutex_init(&dev->pr_dlm->ls_mutex);
-	dev->pr_dlm->data_lksb.lksb.sb_lvbptr = dev->pr_dlm->lvb;
-	INIT_WORK(&dev->pr_dlm->pre_join_work, scst_pre_join_work);
-	INIT_WORK(&dev->pr_dlm->pre_upd_work, scst_pre_upd_work);
-	INIT_WORK(&dev->pr_dlm->copy_from_dlm_work, scst_copy_from_dlm_work);
-	INIT_WORK(&dev->pr_dlm->copy_to_dlm_work, scst_copy_to_dlm_work);
-	INIT_WORK(&dev->pr_dlm->lvb_upd_work, scst_lvb_upd_work);
-	INIT_WORK(&dev->pr_dlm->reread_lvb_work, scst_reread_lvb_work);
-	dev->pr_dlm->latest_lscr_attempt = jiffies - 100 * HZ;
+	dev->pr_dlm = pr_dlm;
+	pr_dlm->dev = dev;
+	mutex_init(&pr_dlm->ls_cr_mutex);
+	mutex_init(&pr_dlm->ls_mutex);
+	pr_dlm->data_lksb.lksb.sb_lvbptr = pr_dlm->lvb;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	INIT_WORK(&pr_dlm->pre_join_work, scst_pre_join_work, pr_dlm);
+	INIT_WORK(&pr_dlm->pre_upd_work, scst_pre_upd_work, pr_dlm);
+	INIT_WORK(&pr_dlm->copy_from_dlm_work, scst_copy_from_dlm_work, pr_dlm);
+	INIT_WORK(&pr_dlm->copy_to_dlm_work, scst_copy_to_dlm_work, pr_dlm);
+	INIT_WORK(&pr_dlm->lvb_upd_work, scst_lvb_upd_work, pr_dlm);
+	INIT_WORK(&pr_dlm->reread_lvb_work, scst_reread_lvb_work, pr_dlm);
+#else
+	INIT_WORK(&pr_dlm->pre_join_work, scst_pre_join_work);
+	INIT_WORK(&pr_dlm->pre_upd_work, scst_pre_upd_work);
+	INIT_WORK(&pr_dlm->copy_from_dlm_work, scst_copy_from_dlm_work);
+	INIT_WORK(&pr_dlm->copy_to_dlm_work, scst_copy_to_dlm_work);
+	INIT_WORK(&pr_dlm->lvb_upd_work, scst_lvb_upd_work);
+	INIT_WORK(&pr_dlm->reread_lvb_work, scst_reread_lvb_work);
+#endif
+	pr_dlm->latest_lscr_attempt = jiffies - 100 * HZ;
 
 	res = -ENOMEM;
-	dev->pr_dlm->cl_dev_id = kstrdup(cl_dev_id, GFP_KERNEL);
-	if (!dev->pr_dlm->cl_dev_id)
+	pr_dlm->cl_dev_id = kstrdup(cl_dev_id, GFP_KERNEL);
+	if (!pr_dlm->cl_dev_id)
 		goto err_free;
 
-	dev->pr_dlm->from_wq = create_st_wq("%s_from_dlm", dev->virt_name);
-	if (IS_ERR(dev->pr_dlm->from_wq)) {
-		res = PTR_ERR(dev->pr_dlm->from_wq);
-		dev->pr_dlm->from_wq = NULL;
-		goto err_free;
-	}
-
-	dev->pr_dlm->to_wq = create_st_wq("%s_to_dlm", dev->virt_name);
-	if (IS_ERR(dev->pr_dlm->to_wq)) {
-		res = PTR_ERR(dev->pr_dlm->to_wq);
-		dev->pr_dlm->to_wq = NULL;
+	pr_dlm->from_wq = create_st_wq("%s_from_dlm", dev->virt_name);
+	if (IS_ERR(pr_dlm->from_wq)) {
+		res = PTR_ERR(pr_dlm->from_wq);
+		pr_dlm->from_wq = NULL;
 		goto err_free;
 	}
 
-	dev->pr_dlm->upd_wq = create_st_wq("%s_upd_dlm", dev->virt_name);
-	if (IS_ERR(dev->pr_dlm->upd_wq)) {
-		res = PTR_ERR(dev->pr_dlm->upd_wq);
-		dev->pr_dlm->upd_wq = NULL;
+	pr_dlm->to_wq = create_st_wq("%s_to_dlm", dev->virt_name);
+	if (IS_ERR(pr_dlm->to_wq)) {
+		res = PTR_ERR(pr_dlm->to_wq);
+		pr_dlm->to_wq = NULL;
+		goto err_free;
+	}
+
+	pr_dlm->upd_wq = create_st_wq("%s_upd_dlm", dev->virt_name);
+	if (IS_ERR(pr_dlm->upd_wq)) {
+		res = PTR_ERR(pr_dlm->upd_wq);
+		pr_dlm->upd_wq = NULL;
 		goto err_free;
 	}
 

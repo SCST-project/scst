@@ -24,6 +24,7 @@ sub addTargets {
 
     my $all_hw_tgt = 1;
     for my $driver (@{$drivers}) {
+	next if $driver eq 'copy_manager';
 	my ($targets, $errorString) = $SCST->targets($driver);
 	for my $target (@{$targets}) {
 	    if ($SCST->targetType($driver, $target) !=

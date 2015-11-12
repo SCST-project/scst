@@ -11,7 +11,11 @@
 #include <asm/unaligned.h>
 #include <linux/delay.h>
 
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/scst.h>
+#else
 #include "scst.h"
+#endif
 #include "scst_priv.h"
 #include "scst_pres.h"
 
@@ -34,6 +38,13 @@
 
 /* Too big value is not too good for the blocking machinery */
 #define SCST_CM_MAX_TGT_DESCR_CNT 5
+
+#define SCST_CM_MAX_SEG_DESCR_CNT					\
+	(((PAGE_SIZE * 2) - sizeof(struct scst_cm_ec_cmd_priv)) /	\
+	 sizeof(struct scst_ext_copy_seg_descr))
+
+/* MAXIMUM DESCRIPTOR LIST LENGTH */
+#define SCST_MAX_SEG_DESC_LEN 0xFFFF
 
 static struct scst_tgt *scst_cm_tgt;
 static struct scst_session *scst_cm_sess;
@@ -172,14 +183,18 @@ typedef void (*scst_cm_retry_fn_t)(struct scst_cmd *cmd);
 
 struct scst_cm_retry {
 	struct scst_cmd *cm_retry_cmd;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	struct work_struct cm_retry_work;
+#else
 	struct delayed_work cm_retry_work;
+#endif
 	scst_cm_retry_fn_t cm_retry_fn;
 };
 
-static void scst_cm_retry_work_fn(struct delayed_work *work)
+static void scst_cm_retry_work_fn(struct work_struct *work)
 {
 	struct scst_cm_retry *retry = container_of(work, struct scst_cm_retry,
-					cm_retry_work);
+						   cm_retry_work.work);
 
 	TRACE_ENTRY();
 
@@ -269,7 +284,7 @@ try_retry:
 	next_retry_time = cur_time + SCST_CM_RETRIES_WAIT;
 
 	TRACE_DBG("Retrying cmd %p (imm_retry %d, next_retry_time %ld, "
-		"cur_time %ld, " "start_time %ld, max_retry_time %ld): going "
+		"cur_time %ld, start_time %ld, max_retry_time %ld): going "
 		"to sleep", cmd, imm_retry, next_retry_time, cur_time,
 		start_time, max_retry_time);
 
@@ -288,8 +303,7 @@ try_retry:
 	}
 	retry->cm_retry_cmd = cmd;
 	__scst_cmd_get(cmd);
-	INIT_DELAYED_WORK(&retry->cm_retry_work,
-		(void (*)(struct work_struct *))scst_cm_retry_work_fn);
+	INIT_DELAYED_WORK(&retry->cm_retry_work, scst_cm_retry_work_fn);
 	retry->cm_retry_fn = retry_fn;
 
 	if (imm_retry) {
@@ -349,7 +363,7 @@ static int scst_cm_setup_this_data_descr(struct scst_cmd *ec_cmd)
 	EXTRACHECKS_BUG_ON(priv->cm_cur_data_descr > priv->cm_data_descrs_cnt);
 
 	if (priv->cm_cur_data_descr == priv->cm_data_descrs_cnt) {
-		TRACE_DBG("No more data desriptors for ec_cmd %p", ec_cmd);
+		TRACE_DBG("No more data descriptors for ec_cmd %p", ec_cmd);
 		res = -ENOENT;
 		goto out;
 	}
@@ -720,6 +734,7 @@ static void scst_cm_store_list_id_details(struct scst_cmd *ec_cmd)
 			l->cm_status = ec_cmd->status;
 			if (scst_sense_valid(ec_cmd->sense)) {
 				int len = ec_cmd->sense_valid_len;
+
 				if (len > sizeof(l->cm_sense)) {
 					PRINT_WARNING("EC command's sense is "
 						"too big (%d) with max allowed "
@@ -1320,6 +1335,7 @@ static void scst_cm_gen_reads(struct scst_cmd *ec_cmd)
 
 	while (1) {
 		int rc;
+
 		while ((priv->cm_left_to_read > 0) &&
 		       (priv->cm_cur_in_flight < SCST_MAX_IN_FLIGHT_INTERNAL_COMMANDS)) {
 			int blocks;
@@ -1788,6 +1804,7 @@ bool scst_cm_check_block_all_devs(struct scst_cmd *cmd)
 
 	if (unlikely(res)) {
 		struct scst_cmd *blocked_cmd = e->cm_fcmd;
+
 		list_for_each_entry(e, &d->cm_sorted_devs_list,
 					cm_sorted_devs_list_entry) {
 			if (e->cm_fcmd == blocked_cmd)
@@ -1832,6 +1849,7 @@ void scst_cm_abort_ec_cmd(struct scst_cmd *ec_cmd)
 	list_for_each_entry(ip, &p->cm_internal_cmd_list,
 					cm_internal_cmd_list_entry) {
 		struct scst_cmd *c = ip->cm_cmd;
+
 		TRACE_MGMT_DBG("Aborting (f)cmd %p", c);
 		set_bit(SCST_CMD_ABORTED, &c->cmd_flags);
 	}
@@ -1974,10 +1992,16 @@ out_unlock_free:
 	goto out;
 }
 
-void sess_cm_list_id_cleanup_work_fn(struct delayed_work *work)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+void sess_cm_list_id_cleanup_work_fn(void *p)
 {
-	struct scst_session *sess = container_of((struct delayed_work *)work,
-			struct scst_session, sess_cm_list_id_cleanup_work);
+	struct scst_session *sess = p;
+#else
+void sess_cm_list_id_cleanup_work_fn(struct work_struct *work)
+{
+	struct scst_session *sess = container_of(work,
+			struct scst_session, sess_cm_list_id_cleanup_work.work);
+#endif
 	struct scst_cm_list_id *l, *t;
 	unsigned long cur_time = jiffies;
 	unsigned long flags;
@@ -2210,11 +2234,10 @@ static void scst_cm_oper_parameters(struct scst_cmd *cmd)
 	put_unaligned_be16(SCST_CM_MAX_TGT_DESCR_CNT, &tbuf[8]);
 
 	/* MAXIMUM SEGMENT DESCRIPTOR COUNT */
-	put_unaligned_be16(((PAGE_SIZE * 2) - sizeof(struct scst_cm_ec_cmd_priv)) /
-		sizeof(struct scst_ext_copy_seg_descr), &tbuf[10]);
+	put_unaligned_be16(SCST_CM_MAX_SEG_DESCR_CNT, &tbuf[10]);
 
 	/* MAXIMUM DESCRIPTOR LIST LENGTH */
-	put_unaligned_be32(0xFFFF, &tbuf[12]);
+	put_unaligned_be32(SCST_MAX_SEG_DESC_LEN, &tbuf[12]);
 
 	/* MAXIMUM SEGMENT LENGTH: 256MB */
 	put_unaligned_be32(256*1024*1024, &tbuf[16]);
@@ -2507,6 +2530,7 @@ static int scst_cm_dev_register(struct scst_device *dev)
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		struct scst_tgt_dev *tgt_dev;
 		struct list_head *head = &scst_cm_sess->sess_tgt_dev_list[i];
+
 		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
 			if (tgt_dev->dev == dev) {
 				PRINT_ERROR("Copy Manager already registered "
@@ -2572,6 +2596,7 @@ static void scst_cm_dev_unregister(struct scst_device *dev)
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		struct scst_tgt_dev *tgt_dev;
 		struct list_head *head = &scst_cm_sess->sess_tgt_dev_list[i];
+
 		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
 			if (tgt_dev->dev == dev) {
 				scst_acg_del_lun(scst_cm_tgt->default_acg,
@@ -2626,6 +2651,7 @@ static bool scst_cm_check_access_acg(const char *initiator_name,
 	list_for_each_entry(acg_dev, &acg->acg_dev_list, acg_dev_list_entry) {
 		if (acg_dev->dev == dev) {
 			struct scst_acn *acn;
+
 			if (default_acg)
 				goto found;
 			list_for_each_entry(acn, &acg->acn_list, acn_list_entry) {
@@ -2951,6 +2977,7 @@ skip_fcmd_create:
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_EXTRACHECKS)
 	{
 		struct scst_cm_dev_entry *tp = NULL;
+
 		list_for_each_entry(t, &priv->cm_sorted_devs_list, cm_sorted_devs_list_entry) {
 			TRACE_DBG("t %p, cm dev %p", t, t->cm_fcmd->dev);
 			if (tp != NULL) {
@@ -3039,7 +3066,7 @@ static int scst_cm_parse_b2b_seg_descr(struct scst_cmd *ec_cmd,
 		scst_cm_set_seg_err_sense(ec_cmd, 0xD, 2, seg_num, 6);
 		goto out_err;
 	}
-	if (tgt_des->read_only){
+	if (tgt_des->read_only) {
 		PRINT_WARNING("Target descriptor refers to read-only device");
 		scst_cm_set_seg_err_sense(ec_cmd, 0, 0, seg_num, 6);
 		goto out_err;
@@ -3119,6 +3146,7 @@ static void scst_cm_free_ec_priv(struct scst_cmd *ec_cmd, bool unblock_dev)
 	list_for_each_entry_safe(ip, it, &p->cm_internal_cmd_list,
 				cm_internal_cmd_list_entry) {
 		struct scst_cmd *c = ip->cm_cmd;
+
 		scst_cm_del_free_from_internal_cmd_list(c, unblock_dev);
 		__scst_cmd_put(c);
 	}
@@ -3207,7 +3235,7 @@ int scst_cm_parse_descriptors(struct scst_cmd *ec_cmd)
 		if (seg_len == 0)
 			goto out_del_put;
 		else {
-			PRINT_WARNING("Zero target descriptors with none zero "
+			PRINT_WARNING("Zero target descriptors with non-zero "
 				"segments len (%d)", seg_len);
 			scst_set_invalid_field_in_parm_list(ec_cmd, 2, 0);
 			goto out_del_abn_put;
@@ -3244,7 +3272,7 @@ int scst_cm_parse_descriptors(struct scst_cmd *ec_cmd)
 
 	TRACE_DBG("tgt_cnt %d", tgt_cnt);
 
-	tgt_descrs = kzalloc(sizeof(*tgt_descrs) * tgt_cnt, GFP_KERNEL);
+	tgt_descrs = kcalloc(tgt_cnt, sizeof(*tgt_descrs), GFP_KERNEL);
 	if (tgt_descrs == NULL) {
 		TRACE(TRACE_OUT_OF_MEM, "Unable to allocate tgt_descrs "
 			"(count %d, size %zd)", tgt_cnt,
@@ -3277,6 +3305,13 @@ int scst_cm_parse_descriptors(struct scst_cmd *ec_cmd)
 	t = offs;
 	seg_cnt = 0;
 	while (offs < length) {
+		if (seg_cnt == SCST_CM_MAX_SEG_DESCR_CNT) {
+			PRINT_WARNING("Too many segment descriptors");
+			scst_set_cmd_error(ec_cmd,
+				SCST_LOAD_SENSE(
+				    scst_sense_too_many_segment_descriptors));
+			goto out_free_tgt_descr;
+		}
 		switch (buf[offs]) {
 		case 2: /* block device to block device segment descriptor */
 			offs += 28;
@@ -3425,11 +3460,7 @@ static ssize_t scst_cm_allow_not_conn_copy_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtoul(buffer, 0, &val);
-#else
-	res = strict_strtoul(buffer, 0, &val);
-#endif
 	if (res != 0) {
 		PRINT_ERROR("strtoul() for %s failed: %zd", buffer, res);
 		goto out;

@@ -217,6 +217,7 @@ static int disk_attach(struct scst_device *dev)
 	}
 	if (rc == 0) {
 		uint32_t sector_size = get_unaligned_be32(&buffer[4]);
+
 		if (sector_size == 0)
 			dev->block_shift = DISK_DEF_BLOCK_SHIFT;
 		else
@@ -474,6 +475,7 @@ split:
 
 		if (unlikely(sg_is_chain(&sg[j]))) {
 			bool reset_start_sg = (start_sg == &sg[j]);
+
 			sg = sg_chain_ptr(&sg[j]);
 			j = 0;
 			if (reset_start_sg)
