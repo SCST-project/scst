@@ -2761,7 +2761,7 @@ struct scst_device {
 	unsigned int dev_unregistering:1;
 
 	/*
-	 * Set if ext blocking is pending. It if just shortcut for
+	 * Set if ext blocking is pending. It is just shortcut for
 	 * !list_empty(&dev->ext_blockers_list) to save a cache miss.
 	 */
 	unsigned int ext_blocking_pending:1;

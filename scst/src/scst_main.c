@@ -2685,7 +2685,6 @@ static int __init init_scst(void)
 		goto out_thread_free;
 #endif
 
-
 	PRINT_INFO("SCST version %s loaded successfully (max mem for "
 		"commands %dMB, per device %dMB)", SCST_VERSION_STRING,
 		scst_max_cmd_mem, scst_max_dev_cmd_mem);

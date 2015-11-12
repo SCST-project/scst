@@ -24,6 +24,11 @@ SCST supports the following I/O modes:
    caching between application and disk or need the large block
    throughput.
 
+ * User space mode using scst_user device handler, which allows to
+   implement in the user space high performance virtual SCSI
+   devices. Comparing with fully in-kernel dev handlers this mode has
+   very low overhead (few %%).
+
  * "Performance" device handlers, which provide in pseudo pass-through
    mode a way for direct performance measurements without overhead of
    actual data transferring from/to underlying SCSI device.
