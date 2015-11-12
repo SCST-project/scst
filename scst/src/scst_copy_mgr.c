@@ -3548,8 +3548,8 @@ static int scst_cm_mgmt(struct scst_sysfs_work_item *work)
 			   d->scsi_dev->channel == channel &&
 			   d->scsi_dev->id == id &&
 			   d->scsi_dev->lun == lun) {
-				dev = d;
-				break;
+			dev = d;
+			break;
 		}
 	}
 	if (dev == NULL) {
