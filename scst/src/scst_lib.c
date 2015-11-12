@@ -12997,8 +12997,6 @@ void scst_unblock_dev(struct scst_device *dev)
 				break;
 		}
 		local_irq_restore_nort(flags);
-
-		dev->strictly_serialized_cmd_waiting = 0;
 	}
 
 	sBUG_ON(dev->block_count < 0);
