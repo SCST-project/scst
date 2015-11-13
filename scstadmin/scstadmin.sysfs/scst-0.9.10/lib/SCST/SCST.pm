@@ -550,7 +550,8 @@ sub drivers {
 
 	if (opendir($dHandle, $_path)) {
 		foreach my $driver (readdir($dHandle)) {
-			next if (($driver eq '.') || ($driver eq '..'));
+			next if ($driver eq '.' || $driver eq '..' ||
+				 $driver eq 'copy_manager');
 
 			if (-d make_path(SCST_TARGETS_DIR(), $driver)) {
 				push @drivers, $driver;
