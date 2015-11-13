@@ -2199,6 +2199,8 @@ sub applyConfigAssignments {
 	$assignments = $$config{'TARGET_DRIVER'};
 
 	foreach my $driver (sort keys %{$assignments}) {
+		next if $driver eq 'copy_manager';
+
 		if (!defined($CURRENT{'assign'}->{$driver})) {
 			condExit("Target driver '$driver' is not loaded or available.");
 		}
@@ -2697,6 +2699,8 @@ sub clearConfiguration {
 	}
 
 	foreach my $driver (sort keys %{$assignments}) {
+		next if $driver eq 'copy_manager';
+
 		foreach my $target (sort keys %{$$assignments{$driver}}) {
 			foreach my $group (sort keys %{$$assignments{$driver}->{$target}->{'GROUP'}}) {
 				clearInitiators($driver, $target, $group);
