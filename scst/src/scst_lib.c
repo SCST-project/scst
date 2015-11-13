@@ -76,7 +76,11 @@
 static DEFINE_SPINLOCK(scst_global_stpg_list_lock);
 static LIST_HEAD(scst_global_stpg_list);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+static void scst_put_acg_work(void *p);
+#else
 static void scst_put_acg_work(struct work_struct *work);
+#endif
 static void scst_del_acn(struct scst_acn *acn);
 static void scst_free_acn(struct scst_acn *acn, bool reassign);
 
@@ -4149,7 +4153,11 @@ static void scst_init_order_data(struct scst_order_data *order_data)
 	return;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+static void scst_ext_blocking_done_fn(void *p);
+#else
 static void scst_ext_blocking_done_fn(struct work_struct *work);
+#endif
 
 static int scst_dif_none(struct scst_cmd *cmd);
 #ifdef CONFIG_SCST_DIF_INJECT_CORRUPTED_TAGS
@@ -4184,7 +4192,11 @@ int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev)
 	INIT_LIST_HEAD(&dev->dev_tgt_dev_list);
 	INIT_LIST_HEAD(&dev->dev_acg_dev_list);
 	INIT_LIST_HEAD(&dev->ext_blockers_list);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	INIT_WORK(&dev->ext_blockers_work, scst_ext_blocking_done_fn, dev);
+#else
 	INIT_WORK(&dev->ext_blockers_work, scst_ext_blocking_done_fn);
+#endif
 	dev->dev_double_ua_possible = 1;
 	dev->queue_alg = SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER;
 
@@ -4783,13 +4795,19 @@ struct scst_acg_put_work {
 	struct scst_acg		*acg;
 };
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+static void scst_put_acg_work(void *p)
+{
+	struct scst_acg_put_work *put_work = p;
+#else
 static void scst_put_acg_work(struct work_struct *work)
 {
 	struct scst_acg_put_work *put_work =
 		container_of(work, typeof(*put_work), work);
+#endif
 	struct scst_acg *acg = put_work->acg;
 
-	kfree(work);
+	kfree(put_work);
 	kref_put(&acg->acg_kref, scst_release_acg);
 }
 
@@ -4803,7 +4821,11 @@ void scst_put_acg(struct scst_acg *acg)
 		return;
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	INIT_WORK(&put_work->work, scst_put_acg_work, put_work);
+#else
 	INIT_WORK(&put_work->work, scst_put_acg_work);
+#endif
 	put_work->acg = acg;
 
 	/*
@@ -6278,11 +6300,12 @@ static int scst_ws_sg_init(struct scatterlist **ws_sg, int ws_sg_cnt,
 static int scst_ws_sg_tails_get(struct scst_data_descriptor *where, struct scst_write_same_priv *wsp)
 {
 	int i;
+	uint64_t n;
 
 	TRACE_ENTRY();
 
 	for (i = 0; where[i].sdd_blocks != 0; i++) {
-		if (where[i].sdd_blocks / wsp->ws_max_each != 0) {
+		if (where[i].sdd_blocks >= wsp->ws_max_each) {
 			wsp->ws_sg_full_cnt = wsp->ws_max_each;
 			break;
 		}
@@ -6297,8 +6320,10 @@ static int scst_ws_sg_tails_get(struct scst_data_descriptor *where, struct scst_
 				sizeof(*wsp->ws_sg_tails)*i);
 		return -ENOMEM;
 	}
-	for (i = 0; where[i].sdd_blocks != 0; i++)
-		wsp->ws_sg_tails[i].sg_cnt = where[i].sdd_blocks % wsp->ws_max_each;
+	for (i = 0; where[i].sdd_blocks != 0; i++) {
+		n = where[i].sdd_blocks;
+		wsp->ws_sg_tails[i].sg_cnt = do_div(n, wsp->ws_max_each);
+	}
 
 	TRACE_EXIT();
 	return 0;
@@ -6884,11 +6909,13 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 	INIT_LIST_HEAD(&sess->init_deferred_cmd_list);
 	INIT_LIST_HEAD(&sess->init_deferred_mcmd_list);
 	INIT_LIST_HEAD(&sess->sess_cm_list_id_list);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20)
 	INIT_DELAYED_WORK(&sess->sess_cm_list_id_cleanup_work,
-		(void (*)(struct work_struct *))sess_cm_list_id_cleanup_work_fn);
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20))
+			  sess_cm_list_id_cleanup_work_fn);
 	INIT_DELAYED_WORK(&sess->hw_pending_work, scst_hw_pending_work_fn);
 #else
+	INIT_WORK(&sess->sess_cm_list_id_cleanup_work,
+		  sess_cm_list_id_cleanup_work_fn, sess);
 	INIT_WORK(&sess->hw_pending_work, scst_hw_pending_work_fn, sess);
 #endif
 
@@ -7225,7 +7252,7 @@ void scst_stpg_del_unblock_next(struct scst_cmd *cmd)
 
 	EXTRACHECKS_BUG_ON(!cmd->cmd_on_global_stpg_list);
 
-	TRACE_DBG("STPG cmd %p: unblocking next", cmd);
+	TRACE_DBG("STPG cmd %p done: unblocking next", cmd);
 
 	list_del(&cmd->global_stpg_list_entry);
 	cmd->cmd_on_global_stpg_list = 0;
@@ -13140,8 +13167,6 @@ void scst_unblock_dev(struct scst_device *dev)
 				break;
 		}
 		local_irq_restore_nort(flags);
-
-		dev->strictly_serialized_cmd_waiting = 0;
 	}
 
 	sBUG_ON(dev->block_count < 0);
@@ -14280,10 +14305,16 @@ void __scst_ext_blocking_done(struct scst_device *dev)
 	return;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+static void scst_ext_blocking_done_fn(void *p)
+{
+	struct scst_device *dev = p;
+#else
 static void scst_ext_blocking_done_fn(struct work_struct *work)
 {
 	struct scst_device *dev = container_of(work, struct scst_device,
 					ext_blockers_work);
+#endif
 
 	TRACE_ENTRY();
 
@@ -14338,15 +14369,15 @@ static void scst_sync_ext_blocking_done(struct scst_device *dev,
 	return;
 }
 
-int scst_ext_block_dev(struct scst_device *dev, bool sync,
-	ext_blocker_done_fn_t done_fn, const uint8_t *priv, int priv_len)
+int scst_ext_block_dev(struct scst_device *dev, ext_blocker_done_fn_t done_fn,
+	const uint8_t *priv, int priv_len, int flags)
 {
 	int res;
 	struct scst_ext_blocker *b;
 
 	TRACE_ENTRY();
 
-	if (sync)
+	if (flags & SCST_EXT_BLOCK_SYNC)
 		priv_len = sizeof(void *);
 
 	b = kzalloc(sizeof(*b) + priv_len, GFP_KERNEL);
@@ -14357,8 +14388,8 @@ int scst_ext_block_dev(struct scst_device *dev, bool sync,
 		goto out;
 	}
 
-	TRACE_MGMT_DBG("New (%d) %s ext blocker %p for dev %s", dev->ext_blocks_cnt+1,
-		sync ? "sync" : "async", b, dev->virt_name);
+	TRACE_MGMT_DBG("New %d ext blocker %p for dev %s (flags %x)",
+		dev->ext_blocks_cnt+1, b, dev->virt_name, flags);
 
 	spin_lock_bh(&dev->dev_lock);
 
@@ -14374,10 +14405,15 @@ int scst_ext_block_dev(struct scst_device *dev, bool sync,
 	} else
 		scst_block_dev(dev);
 
+	if (flags & SCST_EXT_BLOCK_STPG) {
+		WARN_ON(dev->stpg_ext_blocked);
+		dev->stpg_ext_blocked = 1;
+	}
+
 	dev->ext_blocks_cnt++;
 	TRACE_DBG("ext_blocks_cnt %d", dev->ext_blocks_cnt);
 
-	if (sync && (dev->on_dev_cmd_count == 0)) {
+	if ((flags & SCST_EXT_BLOCK_SYNC) && (dev->on_dev_cmd_count == 0)) {
 		TRACE_DBG("No commands to wait for sync blocking (dev %s)",
 			dev->virt_name);
 		spin_unlock_bh(&dev->dev_lock);
@@ -14387,7 +14423,7 @@ int scst_ext_block_dev(struct scst_device *dev, bool sync,
 	list_add_tail(&b->ext_blockers_list_entry, &dev->ext_blockers_list);
 	dev->ext_blocking_pending = 1;
 
-	if (sync) {
+	if (flags & SCST_EXT_BLOCK_SYNC) {
 		DECLARE_WAIT_QUEUE_HEAD_ONSTACK(w);
 
 		b->ext_blocker_done_fn = scst_sync_ext_blocking_done;
@@ -14421,7 +14457,7 @@ out:
 	return res;
 
 out_free_success:
-	sBUG_ON(!sync);
+	sBUG_ON(!(flags & SCST_EXT_BLOCK_SYNC));
 	kfree(b);
 	goto out_success;
 }
@@ -14438,8 +14474,14 @@ void scst_ext_unblock_dev(struct scst_device *dev, bool stpg)
 	}
 
 	if ((dev->ext_blocks_cnt == 1) && dev->stpg_ext_blocked && !stpg) {
-		TRACE_DBG("Can not unblock internal STPG ext block (dev %s)",
-			dev->virt_name);
+		/*
+		 * User space is sending too many unblock calls during
+		 * STPG processing
+		 */
+		TRACE_MGMT_DBG("Can not unblock internal STPG ext block "
+			"(dev %s, ext_blocks_cnt %d, stpg_ext_blocked %d, stpg %d)",
+			dev->virt_name, dev->ext_blocks_cnt,
+			dev->stpg_ext_blocked, stpg);
 		goto out_unlock;
 	}
 
@@ -14454,7 +14496,7 @@ void scst_ext_unblock_dev(struct scst_device *dev, bool stpg)
 		spin_unlock_bh(&dev->dev_lock);
 		TRACE_DBG("Ext unblock (dev %s): still pending...",
 			dev->virt_name);
-		rc = scst_ext_block_dev(dev, true, NULL, NULL, 0);
+		rc = scst_ext_block_dev(dev, NULL, NULL, 0, SCST_EXT_BLOCK_SYNC);
 		if (rc != 0) {
 			/* Oops, have to poll */
 			PRINT_WARNING("scst_ext_block_dev(dev %s) failed, "

@@ -116,10 +116,10 @@ void conn_info_show(struct seq_file *seq, struct iscsi_session *session)
 				 "[%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x]",
 				 NIP6(inet6_sk(sk)->daddr));
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0)
-			snprintf(buf, sizeof(buf), "[%p6]",
+			snprintf(buf, sizeof(buf), "[%pI6]",
 				&inet6_sk(sk)->daddr);
 #else
-			snprintf(buf, sizeof(buf), "[%p6]",
+			snprintf(buf, sizeof(buf), "[%pI6]",
 				&sk->sk_v6_daddr);
 #endif
 			break;

@@ -82,9 +82,10 @@ extern char *app_name;
 #define __LOG_PREFIX	NULL
 #endif
 
+extern bool log_daemon;
+
 #if defined(DEBUG) || defined(TRACING)
 
-extern bool log_daemon;
 extern unsigned long trace_flag;
 
 extern int debug_init(void);

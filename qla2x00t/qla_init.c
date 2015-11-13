@@ -2190,7 +2190,8 @@ qla2x00_set_model_info(scsi_qla_host_t *vha, uint8_t *model, size_t len,
 			    qla2x00_model_name[index * 2 + 1],
 			    sizeof(ha->model_desc) - 1);
 		} else {
-			strcpy(ha->model_number, def);
+			strlcpy(ha->model_number, def,
+				sizeof(ha->model_number));
 		}
 	}
 	if (IS_FWI2_CAPABLE(ha))

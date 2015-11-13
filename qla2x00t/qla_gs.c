@@ -1378,7 +1378,8 @@ qla2x00_fdmi_rhba(scsi_qla_host_t *vha)
 	/* Hardware version. */
 	eiter = (struct ct_fdmi_hba_attr *) (entries + size);
 	eiter->type = cpu_to_be16(FDMI_HBA_HARDWARE_VERSION);
-	strcpy(eiter->a.hw_version, ha->adapter_id);
+	strlcpy(eiter->a.hw_version, ha->adapter_id,
+		sizeof(eiter->a.hw_version));
 	alen = strlen(eiter->a.hw_version);
 	alen += (alen & 3) ? (4 - (alen & 3)) : 4;
 	eiter->len = cpu_to_be16(4 + alen);

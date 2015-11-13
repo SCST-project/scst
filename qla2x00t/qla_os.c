@@ -2386,10 +2386,10 @@ EXPORT_SYMBOL(qla2xxx_del_vtarget);
 #endif /*((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)) || \
 	  defined(FC_VPORT_CREATE_DEFINED))*/
 
-void qla_unknown_atio_work_fn(struct delayed_work *work)
+void qla_unknown_atio_work_fn(struct work_struct *work)
 {
 	struct qla_hw_data *ha = container_of(work, struct qla_hw_data,
-						unknown_atio_work);
+					      unknown_atio_work.work);
 	qla_target.tgt_try_to_dequeue_unknown_atios(ha);
 	return;
 }
@@ -2661,8 +2661,7 @@ qla2x00_probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	mutex_init(&base_vha->tgt_mutex);
 	mutex_init(&base_vha->tgt_host_action_mutex);
 	INIT_LIST_HEAD(&ha->unknown_atio_list);
-	INIT_DELAYED_WORK(&ha->unknown_atio_work,
-		(void (*)(struct work_struct *))qla_unknown_atio_work_fn);
+	INIT_DELAYED_WORK(&ha->unknown_atio_work, qla_unknown_atio_work_fn);
 	qla_clear_tgt_mode(base_vha);
 #endif /* CONFIG_SCSI_QLA2XXX_TARGET */
 

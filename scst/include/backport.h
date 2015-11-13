@@ -187,6 +187,15 @@ static inline bool cpumask_equal(const cpumask_t *src1p,
 }
 #endif
 
+/* <linux/dlm.h> */
+
+/* See also commit 0f8e0d9a317406612700426fad3efab0b7bbc467 */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
+enum {
+	DLM_LSFL_NEWEXCL = 0
+};
+#endif
+
 /* <linux/fs.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0) && \
@@ -255,7 +264,9 @@ static inline void hex2bin(u8 *dst, const char *src, size_t count)
 }
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39) &&		\
+	LINUX_VERSION_CODE != KERNEL_VERSION(2, 6, 38) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
 static inline int __must_check kstrtoull(const char *s, unsigned int base,
 					 unsigned long long *res)
 {
@@ -279,6 +290,16 @@ static inline int __must_check kstrtol(const char *s, unsigned int base,
 {
 	return strict_strtol(s, base, res);
 }
+#endif
+
+/* <linux/kmod.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
+enum umh_wait {
+	UMH_NO_WAIT = -1,       /* don't wait at all */
+	UMH_WAIT_EXEC = 0,      /* wait for the exec, but not the process */
+	UMH_WAIT_PROC = 1,      /* wait for the process to complete */
+};
 #endif
 
 /* <linux/list.h> */
@@ -427,7 +448,10 @@ static inline void sg_set_page(struct scatterlist *sg, struct page *page,
 	(__flags), NULL, NULL)
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0) &&	    \
+	!(LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 52) && \
+	  LINUX_VERSION_CODE < KERNEL_VERSION(3, 3, 0)) &&  \
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
 static inline void *kmalloc_array(size_t n, size_t size, gfp_t flags)
 {
 	if (size != 0 && n > ULONG_MAX / size)

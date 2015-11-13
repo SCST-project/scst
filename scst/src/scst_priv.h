@@ -410,7 +410,10 @@ static inline int scst_dlm_new_lockspace(const char *name, int namelen,
 					 uint32_t flags,
 					 int lvblen)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 3, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31)
+	return dlm_new_lockspace((char *)name, namelen, lockspace, flags,
+				 lvblen);
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(3, 3, 0)
 	return dlm_new_lockspace(name, namelen, lockspace, flags, lvblen);
 #else
 	return dlm_new_lockspace(name, NULL, flags, lvblen, NULL, NULL, NULL,
@@ -722,8 +725,10 @@ bool __scst_check_blocked_dev(struct scst_cmd *cmd);
 void __scst_check_unblock_dev(struct scst_cmd *cmd);
 void scst_check_unblock_dev(struct scst_cmd *cmd);
 
-int scst_ext_block_dev(struct scst_device *dev, bool sync,
-	ext_blocker_done_fn_t done_fn, const uint8_t *priv, int priv_len);
+#define SCST_EXT_BLOCK_SYNC	1
+#define SCST_EXT_BLOCK_STPG	2
+int scst_ext_block_dev(struct scst_device *dev, ext_blocker_done_fn_t done_fn,
+	const uint8_t *priv, int priv_len, int flags);
 void scst_ext_unblock_dev(struct scst_device *dev, bool stpg);
 void __scst_ext_blocking_done(struct scst_device *dev);
 void scst_ext_blocking_done(struct scst_device *dev);
@@ -868,7 +873,11 @@ void scst_cm_free_descriptors(struct scst_cmd *cmd);
 int scst_cm_ext_copy_exec(struct scst_cmd *cmd);
 int scst_cm_rcv_copy_res_exec(struct scst_cmd *cmd);
 
-void sess_cm_list_id_cleanup_work_fn(struct delayed_work *work);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+void sess_cm_list_id_cleanup_work_fn(void *p);
+#else
+void sess_cm_list_id_cleanup_work_fn(struct work_struct *work);
+#endif
 void scst_cm_free_pending_list_ids(struct scst_session *sess);
 
 bool scst_cm_check_block_all_devs(struct scst_cmd *cmd);

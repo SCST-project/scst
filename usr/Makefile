@@ -18,8 +18,6 @@
 #
 
 SHELL=/bin/bash
-# Decide to use which kernel src. If not specified, is current running kernel.
-#export KDIR=/usr/src/linux-2.6
 
 FILEIO_DIR=fileio
 STPGD_DIR=stpgd

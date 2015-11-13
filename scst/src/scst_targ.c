@@ -547,6 +547,7 @@ void __scst_check_unblock_dev(struct scst_cmd *cmd)
 			TRACE_BLOCK("Strictly serialized cmd waiting: "
 				"unblocking dev %s", dev->virt_name);
 			scst_unblock_dev(dev);
+			dev->strictly_serialized_cmd_waiting = 0;
 		}
 	}
 
