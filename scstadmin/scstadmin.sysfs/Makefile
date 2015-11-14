@@ -20,7 +20,7 @@ uninstall:
 
 perl-module:
 	@cd ./scst-$(MODULE_VERSION); \
-	perl Makefile.PL;
+	perl Makefile.PL PREFIX=$(PREFIX);
 	$(MAKE) -C scst-$(MODULE_VERSION)
 
 test:
