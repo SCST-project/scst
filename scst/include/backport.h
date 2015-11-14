@@ -20,7 +20,8 @@
  *  GNU General Public License for more details.
  */
 
-#include <linux/writeback.h> /* sync_page_range() */
+#include <linux/slab.h>		/* kmalloc() */
+#include <linux/writeback.h>	/* sync_page_range() */
 
 /* <asm-generic/barrier.h> */
 
