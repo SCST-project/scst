@@ -948,8 +948,8 @@ static int scst_proc_group_add(const char *p, unsigned int addr_method)
 	}
 	strlcpy(name, p, len);
 
-	acg = scst_alloc_add_acg(NULL, name, false);
-	if (acg == NULL) {
+	res = scst_alloc_add_acg(NULL, name, false, &acg);
+	if (res != 0) {
 		PRINT_ERROR("scst_alloc_add_acg() (name %s) failed", name);
 		goto out_free;
 	}
@@ -969,6 +969,7 @@ out_free_acg:
 
 out_free:
 	kfree(name);
+	goto out;
 
 out_nomem:
 	res = -ENOMEM;
@@ -2069,7 +2070,8 @@ static ssize_t scst_proc_groups_devices_write(struct file *file,
 			}
 		}
 
-		rc = scst_acg_add_lun(acg, NULL, dev, virt_lun, read_only,
+		rc = scst_acg_add_lun(acg, NULL, dev, virt_lun,
+				read_only ? SCST_ADD_LUN_READ_ONLY : 0,
 				false, NULL);
 		if (rc) {
 			res = rc;

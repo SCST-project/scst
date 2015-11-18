@@ -347,8 +347,8 @@ int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev);
 void scst_free_device(struct scst_device *dev);
 bool scst_device_is_exported(struct scst_device *dev);
 
-struct scst_acg *scst_alloc_add_acg(struct scst_tgt *tgt,
-	const char *acg_name, bool tgt_acg);
+int scst_alloc_add_acg(struct scst_tgt *tgt, const char *acg_name,
+	bool tgt_acg, struct scst_acg **out_acg);
 int scst_del_free_acg(struct scst_acg *acg, bool close_sessions);
 void scst_get_acg(struct scst_acg *acg);
 void scst_put_acg(struct scst_acg *acg);
@@ -363,11 +363,14 @@ void scst_sess_free_tgt_devs(struct scst_session *sess);
 struct scst_tgt_dev *scst_lookup_tgt_dev(struct scst_session *sess, u64 lun);
 void scst_nexus_loss(struct scst_tgt_dev *tgt_dev, bool queue_UA);
 
+#define SCST_ADD_LUN_READ_ONLY	1
+#define SCST_ADD_LUN_GEN_UA	2
+#define SCST_ADD_LUN_CM		4
 int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
-	struct scst_device *dev, uint64_t lun, int read_only,
-	bool gen_scst_report_luns_changed, struct scst_acg_dev **out_acg_dev);
+	struct scst_device *dev, uint64_t lun, unsigned int flags,
+	struct scst_acg_dev **out_acg_dev);
 int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun,
-	bool gen_scst_report_luns_changed);
+	bool gen_report_luns_changed);
 
 int scst_acg_add_acn(struct scst_acg *acg, const char *name);
 #ifdef CONFIG_SCST_PROC
@@ -856,6 +859,13 @@ static inline bool scst_lba1_inside_lba2(int64_t lba1,
 
 int scst_cm_on_dev_register(struct scst_device *dev);
 void scst_cm_on_dev_unregister(struct scst_device *dev);
+
+int scst_cm_on_add_acg(struct scst_acg *acg);
+void scst_cm_on_del_acg(struct scst_acg *acg);
+int scst_cm_on_add_lun(struct scst_acg_dev *acg_dev, uint64_t lun,
+	unsigned int *flags);
+bool scst_cm_on_del_lun(struct scst_acg_dev *acg_dev,
+	bool gen_report_luns_changed);
 
 int scst_cm_parse_descriptors(struct scst_cmd *cmd);
 void scst_cm_free_descriptors(struct scst_cmd *cmd);

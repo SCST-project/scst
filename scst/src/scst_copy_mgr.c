@@ -2519,13 +2519,15 @@ static bool scst_cm_is_lun_free(unsigned int lun)
 }
 
 /* scst_mutex supposed to be held and activities suspended */
-static int scst_cm_dev_register(struct scst_device *dev)
+static int scst_cm_dev_register(struct scst_device *dev, uint64_t lun)
 {
 	int res, i;
-	unsigned int lun;
 	struct scst_acg_dev *acg_dev;
+	bool add_lun;
 
 	TRACE_ENTRY();
+
+	TRACE_DBG("dev %s, LUN %ld", dev->virt_name, (unsigned long)lun);
 
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		struct scst_tgt_dev *tgt_dev;
@@ -2541,18 +2543,25 @@ static int scst_cm_dev_register(struct scst_device *dev)
 		}
 	}
 
-	while (1) {
-		lun = scst_cm_next_lun++;
-		if (lun == SCST_MAX_LUN)
-			continue;
-		if (scst_cm_is_lun_free(lun))
-			break;
-	};
+	if (lun == SCST_MAX_LUN) {
+		add_lun = true;
+		while (1) {
+			lun = scst_cm_next_lun++;
+			if (lun == SCST_MAX_LUN)
+				continue;
+			if (scst_cm_is_lun_free(lun))
+				break;
+		}
+	} else
+		add_lun = false;
 
-	res = scst_acg_add_lun(scst_cm_tgt->default_acg,
-		scst_cm_tgt->tgt_luns_kobj, dev, lun, false, false, &acg_dev);
-	if (res != 0)
-		goto out_err;
+	if (add_lun) {
+		res = scst_acg_add_lun(scst_cm_tgt->default_acg,
+			scst_cm_tgt->tgt_luns_kobj, dev, lun, SCST_ADD_LUN_CM,
+			&acg_dev);
+		if (res != 0)
+			goto out_err;
+	}
 
 	spin_lock_bh(&dev->dev_lock);
 	scst_block_dev(dev);
@@ -2578,12 +2587,14 @@ out_err:
 }
 
 /* scst_mutex supposed to be held and activities suspended */
-static void scst_cm_dev_unregister(struct scst_device *dev)
+static void scst_cm_dev_unregister(struct scst_device *dev, bool del_lun)
 {
 	int i;
 	struct scst_cm_desig *des, *t;
 
 	TRACE_ENTRY();
+
+	TRACE_DBG("dev %s, del_lun %d", dev->virt_name, del_lun);
 
 	list_for_each_entry_safe(des, t, &scst_cm_desig_list, cm_desig_list_entry) {
 		if (des->desig_tgt_dev->dev == dev) {
@@ -2592,6 +2603,9 @@ static void scst_cm_dev_unregister(struct scst_device *dev)
 			kfree(des);
 		}
 	}
+
+	if (!del_lun)
+		goto out;
 
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		struct scst_tgt_dev *tgt_dev;
@@ -2606,6 +2620,7 @@ static void scst_cm_dev_unregister(struct scst_device *dev)
 		}
 	}
 
+out:
 	TRACE_EXIT();
 	return;
 }
@@ -2620,7 +2635,7 @@ int scst_cm_on_dev_register(struct scst_device *dev)
 	if (!dev->handler->auto_cm_assignment_possible)
 		goto out;
 
-	res = scst_cm_dev_register(dev);
+	res = scst_cm_dev_register(dev, SCST_MAX_LUN);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -2632,10 +2647,85 @@ void scst_cm_on_dev_unregister(struct scst_device *dev)
 {
 	TRACE_ENTRY();
 
-	scst_cm_dev_unregister(dev);
+	scst_cm_dev_unregister(dev, true);
 
 	TRACE_EXIT();
 	return;
+}
+
+/* scst_mutex supposed to be held and activities suspended */
+int scst_cm_on_add_acg(struct scst_acg *acg)
+{
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	if (scst_cm_tgt == NULL)
+		goto out;
+
+	if (acg->tgt != scst_cm_tgt)
+		goto out;
+
+	if (acg != scst_cm_tgt->default_acg) {
+		PRINT_ERROR("Copy Manager does not support security groups");
+		res = -EINVAL;
+		goto out;
+	}
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/* scst_mutex supposed to be held and activities suspended */
+void scst_cm_on_del_acg(struct scst_acg *acg)
+{
+	/* Nothing to do */
+}
+
+/* scst_mutex supposed to be held and activities suspended */
+int scst_cm_on_add_lun(struct scst_acg_dev *acg_dev, uint64_t lun,
+	unsigned int *flags)
+{
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	if (acg_dev->acg != scst_cm_tgt->default_acg)
+		goto out;
+
+	if (acg_dev->acg_dev_rd_only || acg_dev->dev->dev_rd_only) {
+		PRINT_ERROR("Copy Manager does not support read only devices");
+		res = -EINVAL;
+		goto out;
+	}
+
+	*flags &= ~SCST_ADD_LUN_GEN_UA;
+
+	res = scst_cm_dev_register(acg_dev->dev, lun);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/* scst_mutex supposed to be held and activities suspended */
+bool scst_cm_on_del_lun(struct scst_acg_dev *acg_dev, bool gen_report_luns_changed)
+{
+	bool res = gen_report_luns_changed;
+
+	TRACE_ENTRY();
+
+	if (acg_dev->acg != scst_cm_tgt->default_acg)
+		goto out;
+
+	scst_cm_dev_unregister(acg_dev->dev, false);
+
+	res = false;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 /* scst_mutex supposed to be locked */
@@ -3480,148 +3570,8 @@ static struct kobj_attribute scst_cm_allow_not_conn_copy_attr =
 		scst_cm_allow_not_conn_copy_show,
 		scst_cm_allow_not_conn_copy_store);
 
-static ssize_t scst_cm_mgmt_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
-{
-	static const char help[] =
-		"Usage: echo \"add H:C:I:L\" >mgmt\n"
-		"       echo \"add VNAME\" >mgmt\n"
-		"       echo \"del H:C:I:L\" >mgmt\n"
-		"       echo \"del VNAME\" >mgmt\n";
-
-	return sprintf(buf, "%s", help);
-}
-
-static int scst_cm_mgmt(struct scst_sysfs_work_item *work)
-{
-	int res = 0;
-	char *pp, *action, *devstr;
-	unsigned int host, channel, id, lun;
-	char *buf = work->buf;
-	bool vdev;
-	struct scst_device *d, *dev = NULL;
-
-	TRACE_ENTRY();
-
-	TRACE_DBG("buffer %s", buf);
-
-	pp = buf;
-	action = scst_get_next_lexem(&pp);
-	devstr = scst_get_next_lexem(&pp);
-	if (*devstr == '\0') {
-		PRINT_ERROR("%s", "Device required");
-		res = -EINVAL;
-		goto out;
-	}
-
-	if (*scst_get_next_lexem(&pp) != '\0') {
-		PRINT_ERROR("%s", "Too many parameters");
-		res = -EINVAL;
-		goto out_syntax_err;
-	}
-
-	if (sscanf(devstr, "%u:%u:%u:%u", &host, &channel, &id, &lun) != 4) {
-		vdev = true;
-		TRACE_DBG("Virt dev %s", devstr);
-	} else {
-		vdev = false;
-		TRACE_DBG("Pass-through dev %d:%d:%d:%d", host, channel, id, lun);
-	}
-
-	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
-	if (res != 0)
-		goto out;
-
-	res = mutex_lock_interruptible(&scst_mutex);
-	if (res != 0)
-		goto out_resume;
-
-	list_for_each_entry(d, &scst_dev_list, dev_list_entry) {
-		if (vdev) {
-			if ((d->scsi_dev == NULL) &&
-			    (strcmp(d->virt_name, devstr) == 0)) {
-				dev = d;
-				break;
-			}
-		} else if (d->scsi_dev != NULL &&
-			   d->scsi_dev->host->host_no == host &&
-			   d->scsi_dev->channel == channel &&
-			   d->scsi_dev->id == id &&
-			   d->scsi_dev->lun == lun) {
-			dev = d;
-			break;
-		}
-	}
-	if (dev == NULL) {
-		PRINT_ERROR("Device %s not found", devstr);
-		res = -EINVAL;
-		goto out_unlock;
-	} else
-		TRACE_DBG("Dev %p (%s) found", dev, dev->virt_name);
-
-	if (strcasecmp("add", action) == 0)
-		res = scst_cm_dev_register(dev);
-	else if (strcasecmp("del", action) == 0)
-		scst_cm_dev_unregister(dev);
-	else {
-		PRINT_ERROR("Action %s not understood", action);
-		res = -EINVAL;
-	}
-
-out_unlock:
-	mutex_unlock(&scst_mutex);
-
-out_resume:
-	scst_resume_activity();
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-
-out_syntax_err:
-	PRINT_ERROR("Syntax error on \"%s\"", buf);
-	res = -EINVAL;
-	goto out;
-}
-
-static ssize_t scst_cm_mgmt_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buffer, size_t size)
-{
-	int res;
-	struct scst_sysfs_work_item *work;
-	char *i_buf;
-
-	TRACE_ENTRY();
-
-	i_buf = kasprintf(GFP_KERNEL, "%.*s", (int)size, buffer);
-	if (i_buf == NULL) {
-		PRINT_ERROR("Unable to alloc intermediate buffer with size %zd",
-			size+1);
-		res = -ENOMEM;
-		goto out;
-	}
-
-	res = scst_alloc_sysfs_work(scst_cm_mgmt, false, &work);
-	if (res != 0)
-		goto out;
-
-	work->buf = i_buf;
-
-	res = scst_sysfs_queue_wait_work(work);
-	if (res == 0)
-		res = size;
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static struct kobj_attribute scst_cm_mgmt_attr =
-	__ATTR(mgmt, S_IRUGO|S_IWUSR, scst_cm_mgmt_show, scst_cm_mgmt_store);
-
-static const struct attribute *scst_cm_attrs[] = {
+static const struct attribute *scst_cm_tgtt_attrs[] = {
 	&scst_cm_allow_not_conn_copy_attr.attr,
-	&scst_cm_mgmt_attr.attr,
 	NULL,
 };
 
@@ -3693,6 +3643,12 @@ static void scst_cm_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd)
 	return;
 }
 
+static int scst_cm_report_aen(struct scst_aen *aen)
+{
+	/* Nothing to do */
+	return 0;
+}
+
 static struct scst_tgt_template scst_cm_tgtt = {
 	.name			= SCST_CM_NAME,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
@@ -3710,9 +3666,10 @@ static struct scst_tgt_template scst_cm_tgtt = {
 	.release		= scst_cm_release,
 	.xmit_response		= scst_cm_xmit_response,
 	.task_mgmt_fn_done	= scst_cm_task_mgmt_fn_done,
+	.report_aen             = scst_cm_report_aen,
 	.get_initiator_port_transport_id = scst_cm_get_initiator_port_transport_id,
 #ifndef CONFIG_SCST_PROC
-	.tgtt_attrs = scst_cm_attrs,
+	.tgtt_attrs = scst_cm_tgtt_attrs,
 #endif
 };
 

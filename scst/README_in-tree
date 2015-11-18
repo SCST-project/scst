@@ -1712,33 +1712,24 @@ EXTENDED COPY
 ~~~~~~~~~~~~~
 
 SCST implements EXTENDED COPY via internal Copy Manager target. This
-target has the following specific attributes in its sysfs:
+target has the following specific attribute in its sysfs:
 
  - allow_not_connected_copy - if not set (default), an initiator can
 perform copy only between devices it has direct access to via any
 target/session. If set, any initiator can copy between any devices in
 the system.
 
- - mgmt - this attribute allows to control data from which devices can
-be copied using Copy Manager. By default, devices belonging to dev
-handlers with flag auto_cm_assignment_possible set are auto assigned to
-the Copy Manager on the registration. Currently, only vdisk has this
-flag set, so all other devices (pass-through, user space, etc.) should
-be assigned to the Copy Manager manually.
-
-Mgmt attribute supports the following commands:
-
- - add [vname|H:C:I:L] - adds device with name vname or H:C:I:L numbers
-(pass-through) to the Copy Manager.
-
- - del [vname|H:C:I:L] - deletes device with name vname or H:C:I:L numbers
-(pass-through) from the Copy Manager.
-
+The Copy Manager has access only to those devices, for which it has LUNs
+in /sys/kernel/scst_tgt/targets/copy_manager/copy_manager_tgt/luns/.
+Devices from scst_vdisk dev handler added to it automatically upon
+registration, but for other devices you need to manually add LUNs there
+the same way as for any target driver. You can also delete any device at
+any time from the Copy Manager visibility by deleting the corresponding
+LUN from the sysfs. It might be useful during ALUA state switching.
 
 Internally SCST implements EXTENDED COPY as generation of sets of
 internal READ(16) and WRITE(16) SCSI commands. Dev handlers don't need
 any manual actions to use it.
-
 
 Also SCST provides for dev handlers possibility to remap blocks instead
 of copy them, if they support this feature. It allows them to perform

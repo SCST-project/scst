@@ -1327,6 +1327,7 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 	case SCST_LUN_ACTION_REPLACE:
 	{
 		bool dev_replaced = false;
+		unsigned int flags = 0;
 
 		e = scst_get_next_lexem(&pp);
 		res = kstrtoul(e, 0, &virt_lun);
@@ -1414,9 +1415,13 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 			}
 		}
 
+		if (read_only)
+			flags |= SCST_ADD_LUN_READ_ONLY;
+		if (!dev_replaced)
+			flags |= SCST_ADD_LUN_GEN_UA;
 		res = scst_acg_add_lun(acg,
 			tgt_kobj ? tgt->tgt_luns_kobj : acg->luns_kobj,
-			dev, virt_lun, read_only, !dev_replaced, NULL);
+			dev, virt_lun, flags, NULL);
 		if (res != 0)
 			goto out_unlock;
 
@@ -2174,8 +2179,8 @@ static int scst_process_ini_group_mgmt_store(char *buffer,
 			res = -EINVAL;
 			goto out_unlock;
 		}
-		acg = scst_alloc_add_acg(tgt, p, true);
-		if (acg == NULL)
+		res = scst_alloc_add_acg(tgt, p, true, &acg);
+		if (res != 0)
 			goto out_unlock;
 		break;
 	case SCST_INI_GROUP_ACTION_DEL:
