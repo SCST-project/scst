@@ -30,6 +30,8 @@
 #include "scst_pres.h"
 #include "scst_dlm.h"
 
+#if defined(CONFIG_DLM) || defined(CONFIG_DLM_MODULE)
+
 static void scst_pr_dlm_cleanup(struct scst_device *dev);
 static void scst_dlm_pre_bast(void *bastarg, int mode);
 static void scst_dlm_post_bast(void *bastarg, int mode);
@@ -1493,3 +1495,5 @@ const struct scst_cl_ops scst_dlm_cl_ops = {
 	.is_not_rsv_holder	= scst_dlm_is_not_rsv_holder,
 	.reserve		= scst_dlm_reserve,
 };
+
+#endif
