@@ -729,6 +729,8 @@ void scst_ext_unblock_dev(struct scst_device *dev, bool stpg);
 void __scst_ext_blocking_done(struct scst_device *dev);
 void scst_ext_blocking_done(struct scst_device *dev);
 
+int scst_get_suspend_count(void);
+
 /*
  * Increases global SCST ref counters which prevent from entering into suspended
  * activities stage, so protects from any global management operations.

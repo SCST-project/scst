@@ -1057,6 +1057,11 @@ static void __scst_resume_activity(void)
 
 	TRACE_ENTRY();
 
+	if (suspend_count == 0) {
+		PRINT_WARNING("Resume without suspend");
+		goto out;
+	}
+
 	suspend_count--;
 	TRACE_MGMT_DBG("suspend_count %d left", suspend_count);
 	if (suspend_count > 0)
@@ -1116,6 +1121,11 @@ void scst_resume_activity(void)
 	return;
 }
 EXPORT_SYMBOL_GPL(scst_resume_activity);
+
+int scst_get_suspend_count(void)
+{
+	return suspend_count;
+}
 
 static int scst_register_device(struct scsi_device *scsidp)
 {
