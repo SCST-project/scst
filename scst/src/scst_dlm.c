@@ -30,7 +30,8 @@
 #include "scst_pres.h"
 #include "scst_dlm.h"
 
-#if defined(CONFIG_DLM) || defined(CONFIG_DLM_MODULE)
+#if (defined(CONFIG_DLM) || defined(CONFIG_DLM_MODULE)) && \
+	!defined(CONFIG_SCST_NO_DLM)
 
 static void scst_pr_dlm_cleanup(struct scst_device *dev);
 static void scst_dlm_pre_bast(void *bastarg, int mode);
