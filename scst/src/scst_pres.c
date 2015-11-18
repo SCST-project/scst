@@ -1192,11 +1192,12 @@ int scst_pr_set_cluster_mode(struct scst_device *dev, bool cluster_mode,
 			    dev->virt_name, cluster_mode, res);
 		dev->cl_ops = &scst_no_dlm_cl_ops;
 	}
+
+out:
 #else
 	res = cluster_mode ? -ENOTSUPP : 0;
 #endif
 
-out:
 	return res;
 }
 EXPORT_SYMBOL(scst_pr_set_cluster_mode);
