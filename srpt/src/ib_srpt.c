@@ -3356,7 +3356,11 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 			      struct srpt_send_ioctx *ioctx,
 			      scst_data_direction dir)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 	struct ib_send_wr wr;
+#else
+	struct ib_rdma_wr wr;
+#endif
 	struct ib_send_wr *bad_wr;
 	struct rdma_iu *riu;
 	int i;
@@ -3377,6 +3381,7 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 	memset(&wr, 0, sizeof(wr));
 
 	for (i = 0; i < n_rdma; ++i, ++riu) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 		if (dir == SCST_DATA_READ) {
 			wr.opcode = IB_WR_RDMA_WRITE;
 			wr.wr_id = encode_wr_id(i == n_rdma - 1 ?
@@ -3401,6 +3406,32 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 			wr.send_flags = IB_SEND_SIGNALED;
 
 		ret = ib_post_send(ch->qp, &wr, &bad_wr);
+#else
+		if (dir == SCST_DATA_READ) {
+			wr.wr.opcode = IB_WR_RDMA_WRITE;
+			wr.wr.wr_id = encode_wr_id(i == n_rdma - 1 ?
+						SRPT_RDMA_WRITE_LAST :
+						SRPT_RDMA_MID,
+						ioctx->ioctx.index);
+		} else {
+			wr.wr.opcode = IB_WR_RDMA_READ;
+			wr.wr.wr_id = encode_wr_id(i == n_rdma - 1 ?
+						SRPT_RDMA_READ_LAST :
+						SRPT_RDMA_MID,
+						ioctx->ioctx.index);
+		}
+		wr.wr.next = NULL;
+		wr.remote_addr = riu->raddr;
+		wr.rkey = riu->rkey;
+		wr.wr.num_sge = riu->sge_cnt;
+		wr.wr.sg_list = riu->sge;
+
+		/* only get completion event for the last rdma wr */
+		if (i == (n_rdma - 1) && dir == SCST_DATA_WRITE)
+			wr.wr.send_flags = IB_SEND_SIGNALED;
+
+		ret = ib_post_send(ch->qp, &wr.wr, &bad_wr);
+#endif
 		if (ret)
 			break;
 	}
@@ -3409,6 +3440,7 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 		pr_err("%s: ib_post_send() returned %d for %d/%d\n", __func__,
 		       ret, i, n_rdma);
 	if (ret && i > 0) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 		wr.num_sge = 0;
 		wr.wr_id = encode_wr_id(SRPT_RDMA_ABORT, ioctx->ioctx.index);
 		wr.send_flags = IB_SEND_SIGNALED;
@@ -3420,13 +3452,34 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 				ioctx->ioctx.index);
 			msleep(1000);
 		}
+#else
+		wr.wr.num_sge = 0;
+		wr.wr.wr_id = encode_wr_id(SRPT_RDMA_ABORT, ioctx->ioctx.index);
+		wr.wr.send_flags = IB_SEND_SIGNALED;
+		pr_info("Trying to abort failed RDMA transfer [%d]\n",
+			ioctx->ioctx.index);
+		while (ch->state == CH_LIVE &&
+		       ib_post_send(ch->qp, &wr.wr, &bad_wr) != 0) {
+			pr_info("Trying to abort failed RDMA transfer [%d]\n",
+				ioctx->ioctx.index);
+			msleep(1000);
+		}
+#endif
 		pr_info("Waiting until RDMA abort finished [%d]\n",
 			ioctx->ioctx.index);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 		while (ch->state < CH_DISCONNECTED && !ioctx->rdma_aborted) {
 			pr_info("Waiting until RDMA abort finished [%d]\n",
 				ioctx->ioctx.index);
 			msleep(1000);
 		}
+#else
+		while (ch->state < CH_DISCONNECTED && !ioctx->rdma_aborted) {
+			pr_info("Waiting until RDMA abort finished [%d]\n",
+				ioctx->ioctx.index);
+			msleep(1000);
+		}
+#endif
 		pr_info("%s[%d]: done\n", __func__, __LINE__);
 	}
 
@@ -4480,13 +4533,16 @@ static int __init srpt_init_module(void)
 	if (rdma_cm_port) {
 		struct sockaddr_in addr;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0) || \
-	defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 0) && \
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
+		rdma_cm_id = rdma_create_id(srpt_rdma_cm_handler, NULL,
+					    RDMA_PS_TCP);
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 		rdma_cm_id = rdma_create_id(srpt_rdma_cm_handler, NULL,
 					    RDMA_PS_TCP, IB_QPT_RC);
 #else
-		rdma_cm_id = rdma_create_id(srpt_rdma_cm_handler, NULL,
-					    RDMA_PS_TCP);
+		rdma_cm_id = rdma_create_id(&init_net, srpt_rdma_cm_handler,
+					    NULL, RDMA_PS_TCP, IB_QPT_RC);
 #endif
 		if (IS_ERR(rdma_cm_id)) {
 			rdma_cm_id = NULL;
