@@ -214,7 +214,11 @@ out:
 static inline void isert_link_send_wrs(struct isert_wr *from_wr,
 				       struct isert_wr *to_wr)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 	from_wr->send_wr.next = &to_wr->send_wr;
+#else
+	from_wr->send_wr.wr.next = &to_wr->send_wr.wr;
+#endif
 }
 
 static inline void isert_link_send_pdu_wrs(struct isert_cmnd *from_pdu,
@@ -222,7 +226,11 @@ static inline void isert_link_send_pdu_wrs(struct isert_cmnd *from_pdu,
 					   int wr_cnt)
 {
 	isert_link_send_wrs(&from_pdu->wr[wr_cnt - 1], &to_pdu->wr[0]);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 	to_pdu->wr[0].send_wr.next = NULL;
+#else
+	to_pdu->wr[0].send_wr.wr.next = NULL;
+#endif
 }
 
 int isert_prepare_rdma(struct isert_cmnd *isert_pdu,
@@ -281,8 +289,14 @@ int isert_prepare_rdma(struct isert_cmnd *isert_pdu,
 		isert_link_send_wrs(&isert_pdu->wr[i - 1], &isert_pdu->wr[i]);
 
 	if (op == ISER_WR_RDMA_READ) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 		isert_pdu->wr[wr_cnt - 1].send_wr.send_flags = IB_SEND_SIGNALED;
 		isert_pdu->wr[wr_cnt - 1].send_wr.next = NULL;
+#else
+		isert_pdu->wr[wr_cnt - 1].send_wr.wr.send_flags =
+			IB_SEND_SIGNALED;
+		isert_pdu->wr[wr_cnt - 1].send_wr.wr.next = NULL;
+#endif
 	}
 
 out:
@@ -574,7 +588,11 @@ int isert_pdu_send(struct isert_connection *isert_conn,
 #endif
 
 	wr = &tx_pdu->wr[0];
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 	wr->send_wr.num_sge = isert_pdu_prepare_send(isert_conn, tx_pdu);
+#else
+	wr->send_wr.wr.num_sge = isert_pdu_prepare_send(isert_conn, tx_pdu);
+#endif
 
 	err = isert_post_send(isert_conn, wr, 1);
 	if (unlikely(err)) {
@@ -595,8 +613,13 @@ int isert_pdu_post_rdma_write(struct isert_connection *isert_conn,
 
 	TRACE_ENTRY();
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 	isert_rsp->wr[0].send_wr.num_sge = isert_pdu_prepare_send(isert_conn,
 								  isert_rsp);
+#else
+	isert_rsp->wr[0].send_wr.wr.num_sge = isert_pdu_prepare_send(isert_conn,
+								     isert_rsp);
+#endif
 	isert_link_send_pdu_wrs(isert_cmd, isert_rsp, wr_cnt);
 	err = isert_post_send(isert_conn, &isert_cmd->wr[0], wr_cnt + 1);
 	if (unlikely(err)) {
