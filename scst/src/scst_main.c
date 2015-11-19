@@ -550,8 +550,8 @@ struct scst_tgt *scst_register_target(struct scst_tgt_template *vtt,
 	if (rc < 0)
 		goto out_unlock;
 
-	tgt->default_acg = scst_alloc_add_acg(tgt, tgt->tgt_name, false);
-	if (tgt->default_acg == NULL)
+	rc = scst_alloc_add_acg(tgt, tgt->tgt_name, false, &tgt->default_acg);
+	if (rc != 0)
 		goto out_sysfs_del;
 #endif
 
@@ -1057,6 +1057,11 @@ static void __scst_resume_activity(void)
 
 	TRACE_ENTRY();
 
+	if (suspend_count == 0) {
+		PRINT_WARNING("Resume without suspend");
+		goto out;
+	}
+
 	suspend_count--;
 	TRACE_MGMT_DBG("suspend_count %d left", suspend_count);
 	if (suspend_count > 0)
@@ -1116,6 +1121,11 @@ void scst_resume_activity(void)
 	return;
 }
 EXPORT_SYMBOL_GPL(scst_resume_activity);
+
+int scst_get_suspend_count(void)
+{
+	return suspend_count;
+}
 
 static int scst_register_device(struct scsi_device *scsidp)
 {
@@ -2640,11 +2650,9 @@ static int __init init_scst(void)
 		goto out_sysfs_cleanup;
 
 #ifdef CONFIG_SCST_PROC
-	scst_default_acg = scst_alloc_add_acg(NULL, SCST_DEFAULT_ACG_NAME, false);
-	if (scst_default_acg == NULL) {
-		res = -ENOMEM;
+	res = scst_alloc_add_acg(NULL, SCST_DEFAULT_ACG_NAME, false, &scst_default_acg);
+	if (res != 0)
 		goto out_destroy_sgv_pool;
-	}
 #endif
 
 	res = scsi_register_interface(&scst_interface);

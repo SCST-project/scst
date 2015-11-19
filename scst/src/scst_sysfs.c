@@ -1327,6 +1327,7 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 	case SCST_LUN_ACTION_REPLACE:
 	{
 		bool dev_replaced = false;
+		unsigned int flags = 0;
 
 		e = scst_get_next_lexem(&pp);
 		res = kstrtoul(e, 0, &virt_lun);
@@ -1414,9 +1415,13 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 			}
 		}
 
+		if (read_only)
+			flags |= SCST_ADD_LUN_READ_ONLY;
+		if (!dev_replaced)
+			flags |= SCST_ADD_LUN_GEN_UA;
 		res = scst_acg_add_lun(acg,
 			tgt_kobj ? tgt->tgt_luns_kobj : acg->luns_kobj,
-			dev, virt_lun, read_only, !dev_replaced, NULL);
+			dev, virt_lun, flags, NULL);
 		if (res != 0)
 			goto out_unlock;
 
@@ -2174,8 +2179,8 @@ static int scst_process_ini_group_mgmt_store(char *buffer,
 			res = -EINVAL;
 			goto out_unlock;
 		}
-		acg = scst_alloc_add_acg(tgt, p, true);
-		if (acg == NULL)
+		res = scst_alloc_add_acg(tgt, p, true, &acg);
+		if (res != 0)
 			goto out_unlock;
 		break;
 	case SCST_INI_GROUP_ACTION_DEL:
@@ -7056,6 +7061,55 @@ static struct kobj_attribute scst_max_tasklet_cmd_attr =
 	__ATTR(max_tasklet_cmd, S_IRUGO | S_IWUSR, scst_max_tasklet_cmd_show,
 	       scst_max_tasklet_cmd_store);
 
+static ssize_t scst_suspend_show(struct kobject *kobj,
+				 struct kobj_attribute *attr, char *buf)
+{
+	int count;
+
+	TRACE_ENTRY();
+
+	count = sprintf(buf, "%d\n", scst_get_suspend_count());
+
+	TRACE_EXIT();
+	return count;
+}
+
+static ssize_t scst_suspend_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	long val;
+
+	TRACE_ENTRY();
+
+	res = kstrtol(buf, 0, &val);
+	if (res != 0) {
+		PRINT_ERROR("kstrtoul() for %s failed: %d ", buf, res);
+		goto out;
+	}
+
+	if (val >= 0) {
+		PRINT_INFO("SYSFS: suspending activities (timeout %ld)...", val);
+		res = scst_suspend_activity(val*HZ);
+		if (res == 0)
+			PRINT_INFO("sysfs suspending done");
+	} else {
+		PRINT_INFO("SYSFS: resuming activities");
+		scst_resume_activity();
+	}
+
+	if (res == 0)
+		res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute scst_suspend_attr =
+	__ATTR(suspend, S_IRUGO | S_IWUSR, scst_suspend_show,
+	       scst_suspend_store);
+
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 
 static ssize_t scst_main_trace_level_show(struct kobject *kobj,
@@ -7281,6 +7335,7 @@ static struct attribute *scst_sysfs_root_default_attrs[] = {
 	&scst_threads_attr.attr,
 	&scst_setup_id_attr.attr,
 	&scst_max_tasklet_cmd_attr.attr,
+	&scst_suspend_attr.attr,
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	&scst_main_trace_level_attr.attr,
 #endif

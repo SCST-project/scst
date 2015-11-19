@@ -1173,10 +1173,12 @@ void scst_pr_cleanup(struct scst_device *dev)
 int scst_pr_set_cluster_mode(struct scst_device *dev, bool cluster_mode,
 			     const char *cl_dev_id)
 {
-	bool cluster_mode_enabled = false;
 	int res = 0;
 
-#if defined(CONFIG_DLM) || defined(CONFIG_DLM_MODULE)
+#if defined(CONFIG_DLM) || defined(CONFIG_DLM_MODULE) && \
+	!defined(CONFIG_SCST_NO_DLM)
+	bool cluster_mode_enabled = false;
+
 	cluster_mode_enabled = dev->cl_ops == &scst_dlm_cl_ops;
 
 	if (cluster_mode_enabled == cluster_mode)
@@ -1192,11 +1194,12 @@ int scst_pr_set_cluster_mode(struct scst_device *dev, bool cluster_mode,
 			    dev->virt_name, cluster_mode, res);
 		dev->cl_ops = &scst_no_dlm_cl_ops;
 	}
+
+out:
 #else
 	res = cluster_mode ? -ENOTSUPP : 0;
 #endif
 
-out:
 	return res;
 }
 EXPORT_SYMBOL(scst_pr_set_cluster_mode);

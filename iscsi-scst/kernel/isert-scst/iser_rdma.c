@@ -103,7 +103,11 @@ int isert_post_send(struct isert_connection *isert_conn,
 		    struct isert_wr *first_wr,
 		    int num_wr)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 	struct ib_send_wr *first_ib_wr = &first_wr->send_wr;
+#else
+	struct ib_send_wr *first_ib_wr = &first_wr->send_wr.wr;
+#endif
 	struct ib_send_wr *bad_wr;
 	int num_posted;
 	int err;
@@ -131,9 +135,19 @@ void isert_post_drain(struct isert_connection *isert_conn)
 
 		isert_wr_set_fields(&isert_conn->drain_wr, isert_conn, NULL);
 		isert_conn->drain_wr.wr_op = ISER_WR_SEND;
-		isert_conn->drain_wr.send_wr.wr_id = _ptr_to_u64(&isert_conn->drain_wr);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+		isert_conn->drain_wr.send_wr.wr_id =
+			_ptr_to_u64(&isert_conn->drain_wr);
 		isert_conn->drain_wr.send_wr.opcode = IB_WR_SEND;
-		err = ib_post_send(isert_conn->qp, &isert_conn->drain_wr.send_wr, &bad_wr);
+		err = ib_post_send(isert_conn->qp,
+				   &isert_conn->drain_wr.send_wr, &bad_wr);
+#else
+		isert_conn->drain_wr.send_wr.wr.wr_id =
+			_ptr_to_u64(&isert_conn->drain_wr);
+		isert_conn->drain_wr.send_wr.wr.opcode = IB_WR_SEND;
+		err = ib_post_send(isert_conn->qp,
+				   &isert_conn->drain_wr.send_wr.wr, &bad_wr);
+#endif
 		if (unlikely(err)) {
 			pr_err("Failed to post drain wr, err:%d\n", err);
 			/*
@@ -601,6 +615,7 @@ static void isert_handle_wc_error(struct ib_wc *wc)
 	struct isert_buf *isert_buf = wr->buf;
 	struct isert_device *isert_dev = wr->isert_dev;
 	struct ib_device *ib_dev = isert_dev->ib_dev;
+	u32 num_sge;
 
 	TRACE_ENTRY();
 
@@ -615,7 +630,12 @@ static void isert_handle_wc_error(struct ib_wc *wc)
 
 	switch (wr->wr_op) {
 	case ISER_WR_SEND:
-		if (unlikely(wr->send_wr.num_sge == 0)) /* Drain WR */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+		num_sge = wr->send_wr.num_sge;
+#else
+		num_sge = wr->send_wr.wr.num_sge;
+#endif
+		if (unlikely(num_sge == 0)) /* Drain WR */
 			isert_sched_conn_drained(isert_conn);
 		else
 			isert_pdu_err(&isert_pdu->iscsi);
@@ -1648,9 +1668,12 @@ struct isert_portal *isert_portal_create(void)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 0) && \
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 <= 5)
 	cm_id = rdma_create_id(isert_cm_evt_handler, portal, RDMA_PS_TCP);
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 	cm_id = rdma_create_id(isert_cm_evt_handler, portal, RDMA_PS_TCP,
 			       IB_QPT_RC);
+#else
+	cm_id = rdma_create_id(&init_net, isert_cm_evt_handler, portal,
+			       RDMA_PS_TCP, IB_QPT_RC);
 #endif
 	if (unlikely(IS_ERR(cm_id))) {
 		err = PTR_ERR(cm_id);

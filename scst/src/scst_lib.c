@@ -4373,8 +4373,8 @@ out:
 
 /* The activity supposed to be suspended and scst_mutex held */
 int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
-	struct scst_device *dev, uint64_t lun, int read_only,
-	bool gen_scst_report_luns_changed, struct scst_acg_dev **out_acg_dev)
+	struct scst_device *dev, uint64_t lun, unsigned int flags,
+	struct scst_acg_dev **out_acg_dev)
 {
 	int res;
 	struct scst_acg_dev *acg_dev;
@@ -4395,7 +4395,7 @@ int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
 		res = -ENOMEM;
 		goto out;
 	}
-	acg_dev->acg_dev_rd_only = read_only;
+	acg_dev->acg_dev_rd_only = ((flags & SCST_ADD_LUN_READ_ONLY) != 0);
 	if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_STORE) {
 		/* Devices are allowed to store only CRCs */
 		acg_dev->acg_dev_dif_guard_format = SCST_DIF_GUARD_FORMAT_CRC;
@@ -4410,6 +4410,12 @@ int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
 	list_add_tail(&acg_dev->acg_dev_list_entry, &acg->acg_dev_list);
 	list_add_tail(&acg_dev->dev_acg_dev_list_entry, &dev->dev_acg_dev_list);
 
+	if (!(flags & SCST_ADD_LUN_CM)) {
+		res = scst_cm_on_add_lun(acg_dev, lun, &flags);
+		if (res != 0)
+			goto out_free;
+	}
+
 	list_for_each_entry(sess, &acg->acg_sess_list, acg_sess_list_entry) {
 		res = scst_alloc_add_tgt_dev(sess, acg_dev, &tgt_dev);
 		if (res == -EPERM)
@@ -4423,14 +4429,14 @@ int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
 
 	res = scst_acg_dev_sysfs_create(acg_dev, parent);
 	if (res != 0)
-		goto out_free;
+		goto out_on_del;
 
-	if (gen_scst_report_luns_changed)
+	if (flags & SCST_ADD_LUN_GEN_UA)
 		scst_report_luns_changed(acg);
 
 	PRINT_INFO("Added device %s to group %s (LUN %lld, "
-		"rd_only %d) to target %s", dev->virt_name, acg->acg_name,
-		lun, read_only, acg->tgt ? acg->tgt->tgt_name : "?");
+		"flags 0x%x) to target %s", dev->virt_name, acg->acg_name,
+		lun, flags, acg->tgt ? acg->tgt->tgt_name : "?");
 
 	if (out_acg_dev != NULL)
 		*out_acg_dev = acg_dev;
@@ -4438,6 +4444,10 @@ int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_on_del:
+	if (!(flags & SCST_ADD_LUN_CM))
+		scst_cm_on_del_lun(acg_dev, false);
 
 out_free:
 	list_for_each_entry_safe(tgt_dev, tt, &tmp_tgt_dev_list,
@@ -4450,7 +4460,7 @@ out_free:
 
 /* The activity supposed to be suspended and scst_mutex held */
 int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun,
-	bool gen_scst_report_luns_changed)
+	bool gen_report_luns_changed)
 {
 	int res = 0;
 	struct scst_acg_dev *acg_dev = NULL, *a;
@@ -4470,6 +4480,8 @@ int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun,
 		goto out;
 	}
 
+	gen_report_luns_changed = scst_cm_on_del_lun(acg_dev, gen_report_luns_changed);
+
 	list_for_each_entry_safe(tgt_dev, tt, &acg_dev->dev->dev_tgt_dev_list,
 			 dev_tgt_dev_list_entry) {
 		if (tgt_dev->acg_dev == acg_dev)
@@ -4478,7 +4490,7 @@ int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun,
 
 	scst_del_free_acg_dev(acg_dev, true);
 
-	if (gen_scst_report_luns_changed)
+	if (gen_report_luns_changed)
 		scst_report_luns_changed(acg);
 
 	PRINT_INFO("Removed LUN %lld from group %s (target %s)",
@@ -4490,16 +4502,18 @@ out:
 }
 
 /* The activity supposed to be suspended and scst_mutex held */
-struct scst_acg *scst_alloc_add_acg(struct scst_tgt *tgt,
-	const char *acg_name, bool tgt_acg)
+int scst_alloc_add_acg(struct scst_tgt *tgt, const char *acg_name,
+	bool tgt_acg, struct scst_acg **out_acg)
 {
 	struct scst_acg *acg;
+	int res;
 
 	TRACE_ENTRY();
 
 	acg = kzalloc(sizeof(*acg), GFP_KERNEL);
 	if (acg == NULL) {
 		PRINT_ERROR("%s", "Allocation of acg failed");
+		res = -ENOMEM;
 		goto out;
 	}
 
@@ -4512,8 +4526,13 @@ struct scst_acg *scst_alloc_add_acg(struct scst_tgt *tgt,
 	acg->acg_name = kstrdup(acg_name, GFP_KERNEL);
 	if (acg->acg_name == NULL) {
 		PRINT_ERROR("%s", "Allocation of acg_name failed");
+		res = -ENOMEM;
 		goto out_free;
 	}
+
+	res = scst_cm_on_add_acg(acg);
+	if (res != 0)
+		goto out_undup;
 
 #ifdef CONFIG_SCST_PROC
 	acg->addr_method = tgt && tgt->tgtt ? tgt->tgtt->preferred_addr_method
@@ -4527,29 +4546,34 @@ struct scst_acg *scst_alloc_add_acg(struct scst_tgt *tgt,
 	acg->addr_method = tgt->tgtt->preferred_addr_method;
 
 	if (tgt_acg) {
-		int rc;
-
 		TRACE_DBG("Adding acg '%s' to device '%s' acg_list", acg_name,
 			tgt->tgt_name);
 		list_add_tail(&acg->acg_list_entry, &tgt->tgt_acg_list);
 		acg->tgt_acg = 1;
 
-		rc = scst_acg_sysfs_create(tgt, acg);
-		if (rc != 0)
+		res = scst_acg_sysfs_create(tgt, acg);
+		if (res != 0)
 			goto out_del;
 	}
 
 	kobject_get(&tgt->tgt_kobj);
 #endif
 
+	res = 0;
+
 out:
-	TRACE_EXIT_HRES(acg);
-	return acg;
+	*out_acg = acg;
+
+	TRACE_EXIT_RES(res);
+	return res;
 
 #ifndef CONFIG_SCST_PROC
 out_del:
 	list_del(&acg->acg_list_entry);
 #endif
+
+out_undup:
+	kfree(acg->acg_name);
 
 out_free:
 	kfree(acg);
@@ -4572,6 +4596,8 @@ static void scst_del_acg(struct scst_acg *acg)
 
 	scst_assert_activity_suspended();
 	lockdep_assert_held(&scst_mutex);
+
+	scst_cm_on_del_acg(acg);
 
 	list_for_each_entry_safe(acg_dev, acg_dev_tmp, &acg->acg_dev_list,
 				 acg_dev_list_entry)
