@@ -955,6 +955,7 @@ static int dev_user_exec(struct scst_cmd *cmd)
 	return res;
 }
 
+#ifndef CONFIG_SCST_PROC
 static void dev_user_ext_copy_remap(struct scst_cmd *cmd,
 	struct scst_ext_copy_seg_descr *seg)
 {
@@ -985,6 +986,7 @@ static void dev_user_ext_copy_remap(struct scst_cmd *cmd,
 	TRACE_EXIT();
 	return;
 }
+#endif
 
 static void dev_user_free_sgv(struct scst_user_cmd *ucmd)
 {
@@ -1485,6 +1487,7 @@ static int dev_user_process_reply_on_cache_free(struct scst_user_cmd *ucmd)
 	return res;
 }
 
+#ifndef CONFIG_SCST_PROC
 static int dev_user_process_reply_ext_copy_remap(struct scst_user_cmd *ucmd,
 	struct scst_user_reply_cmd *reply)
 {
@@ -1628,6 +1631,7 @@ out_status:
 	scst_set_cmd_error_status(cmd, rreply->status);
 	goto out_done;
 }
+#endif
 
 static int dev_user_process_ws_reply(struct scst_user_cmd *ucmd,
 	struct scst_user_scsi_cmd_reply_exec *ereply)
@@ -1950,9 +1954,11 @@ unlock_process:
 		res = dev_user_process_reply_on_cache_free(ucmd);
 		break;
 
+#ifndef CONFIG_SCST_PROC
 	case UCMD_STATE_EXT_COPY_REMAPPING:
 		res = dev_user_process_reply_ext_copy_remap(ucmd, reply);
 		break;
+#endif
 
 	case UCMD_STATE_TM_RECEIVED_EXECING:
 	case UCMD_STATE_TM_DONE_EXECING:
@@ -2677,7 +2683,11 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 					SCST_CONTEXT_THREAD);
 		else {
 			sBUG_ON(state != UCMD_STATE_EXT_COPY_REMAPPING);
+#ifndef CONFIG_SCST_PROC
 			scst_ext_copy_remap_done(ucmd->cmd, NULL, 0);
+#else
+			sBUG();
+#endif
 		}
 		/* !! At this point cmd and ucmd can be already freed !! */
 
@@ -3217,10 +3227,11 @@ static void dev_user_setup_functions(struct scst_user_dev *dev)
 	dev->devtype.dev_alloc_data_buf = dev_user_alloc_data_buf;
 	dev->devtype.dev_done = NULL;
 
+	dev->devtype.ext_copy_remap = NULL;
+#ifndef CONFIG_SCST_PROC
 	if (dev->ext_copy_remap_supported)
 		dev->devtype.ext_copy_remap = dev_user_ext_copy_remap;
-	else
-		dev->devtype.ext_copy_remap = NULL;
+#endif
 
 	if (dev->parse_type != SCST_USER_PARSE_CALL) {
 		switch (dev->devtype.type) {
