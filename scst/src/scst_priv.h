@@ -893,6 +893,27 @@ void scst_cm_exit(void);
 static inline int scst_cm_on_dev_register(struct scst_device *dev) { return 0; }
 static inline void scst_cm_on_dev_unregister(struct scst_device *dev) {}
 
+static inline int scst_cm_on_add_acg(struct scst_acg *acg)
+{
+	return 0;
+}
+
+static inline void scst_cm_on_del_acg(struct scst_acg *acg)
+{
+}
+
+static inline int scst_cm_on_add_lun(struct scst_acg_dev *acg_dev, uint64_t lun,
+				     unsigned int *flags)
+{
+	return 0;
+}
+
+static inline bool scst_cm_on_del_lun(struct scst_acg_dev *acg_dev,
+				      bool gen_report_luns_changed)
+{
+	return gen_report_luns_changed;
+}
+
 static inline int scst_cm_parse_descriptors(struct scst_cmd *cmd)
 {
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
