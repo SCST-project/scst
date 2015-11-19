@@ -2796,6 +2796,7 @@ static const struct scst_opcode_descriptor *vdisk_opcode_descriptors_type2[] = {
 	&scst_op_descr_write_verify32,
 	&scst_op_descr_write_same32,
 	SCST_OPCODE_DESCRIPTORS
+	&scst_op_descr_stpg, /* must be last, see vdisk_get_supported_opcodes()! */
 };
 
 static const struct scst_opcode_descriptor *vcdrom_opcode_descriptors[] = {
