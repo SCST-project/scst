@@ -149,6 +149,7 @@ parse_scst_conf() {
             case "$d" in
                 iscsi)    echo iscsi_scst;;
                 qla2x00t) echo qla2x00tgt;;
+                copy_manager) ;;
                 *)        echo "$d";;
             esac
         done | sort -u` \

@@ -7,7 +7,7 @@ $Version  = 'SCST Configurator v3.1.0-pre1';
 # Author:       Mark R. Buechler
 # License:      GPLv2
 # Copyright (c) 2005-2011 Mark R. Buechler
-# Copyright (C) 2011 Bart Van Assche <bvanassche@acm.org>
+# Copyright (C) 2011-2015 Bart Van Assche <bvanassche@acm.org>
 
 sub usage
   {
@@ -1462,6 +1462,9 @@ sub writeConfiguration {
 
 			my $t_lun_buff;
 			foreach my $lun (sort numerically keys %{$luns}) {
+				# Do not save copy_manager LUN definitions.
+				next if ($driver eq 'copy_manager');
+
 				my $lun_dev = $$luns{$lun};
 
 				$t_lun_buff .= "\t\tLUN $lun $lun_dev";
@@ -2613,6 +2616,11 @@ sub applyLunAssignments {
 	my $luns = shift;
 	my $c_luns;
 	my $changes = 0;
+
+	# Do not restore copy_manager LUN definitions.
+	if ($driver eq 'copy_manager') {
+		return 0;
+	}
 
 	if (defined($group)) {
 		$c_luns = $CURRENT{'assign'}->{$driver}->{$target}->{'GROUP'}->{$group}->{'LUN'};
