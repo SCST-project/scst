@@ -1334,6 +1334,25 @@ sub serializeNkAttr {
     return $result;
 }
 
+# Return TRUE if and only if $1 is an SCST pass-through device.
+sub isPassthroughDev {
+	my $dev = shift;
+	my $pt = FALSE;
+
+	foreach my $handler (keys %{$CURRENT{'handler'}}) {
+		my ($ha, $errorString) = $SCST->handlerAttributes($handler);
+		next if ($ha->{'mgmt'} !~ 'echo "add_device H:C:I:L"');
+		my @devs = @{$CURRENT{'handler'}->{$handler}};
+		for my $i (0 .. $#devs) {
+			if ($dev eq @devs[$i]) {
+				$pt = TRUE;
+				last;
+			}
+		}
+		last if $pt;
+	}
+}
+
 # Returns 0 upon success and 1 upon error.
 sub writeConfiguration {
 	my $nonkey = shift;
@@ -1462,10 +1481,13 @@ sub writeConfiguration {
 
 			my $t_lun_buff;
 			foreach my $lun (sort numerically keys %{$luns}) {
-				# Do not save copy_manager LUN definitions.
-				next if ($driver eq 'copy_manager');
-
 				my $lun_dev = $$luns{$lun};
+
+				# Do not save copy_manager LUN definitions
+				# for LUNs associated with an SCST device
+				# handler.
+				next if ($driver eq 'copy_manager' &&
+					 isPassthroughDev($lun_dev));
 
 				$t_lun_buff .= "\t\tLUN $lun $lun_dev";
 
@@ -1895,7 +1917,7 @@ sub checkConfiguration {
 					}
 				}
 
-				if (!defined($$tgt{'LUN'}->{'0'})) {
+				if ($driver ne 'copy_manager' && !defined($$tgt{'LUN'}->{'0'})) {
 					print "\t-> WARNING: No LUN 0 defined for driver/target '$driver/$target'. ".
 					  "Many initiators require a LUN 0 to be defined.\n\n";
 					$warnings++;
@@ -2107,7 +2129,7 @@ sub applyConfigAssignments {
 					if ($deletions) {
 						removeLun($driver, $target, $lun);
 						$changes++;
-					} else {
+					} elsif ($driver ne 'copy_manager') {
 						print "\t-> Device '$device' at LUN '$lun' is not in configuration ".
 						  "for driver/target '$driver/$target'. ".
 						  "Use -force to remove it.\n";
@@ -2616,11 +2638,6 @@ sub applyLunAssignments {
 	my $luns = shift;
 	my $c_luns;
 	my $changes = 0;
-
-	# Do not restore copy_manager LUN definitions.
-	if ($driver eq 'copy_manager') {
-		return 0;
-	}
 
 	if (defined($group)) {
 		$c_luns = $CURRENT{'assign'}->{$driver}->{$target}->{'GROUP'}->{$group}->{'LUN'};
@@ -4887,6 +4904,12 @@ sub addLun {
 	my $lun = shift;
 	my $attributes = shift;
 	my $group = shift;
+
+	# Do not complain about existing copy manager LUNs.
+	if ($driver eq 'copy_manager' &&
+	    $SCST->lunExists($driver, $target, $lun, $group)) {
+		return FALSE;
+	}
 
 	if (defined($group)) {
 		print "\t-> Adding device '$device' at LUN $lun to driver/target/group ".

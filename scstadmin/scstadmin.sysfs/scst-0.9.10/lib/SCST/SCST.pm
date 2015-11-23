@@ -3930,7 +3930,11 @@ sub handlerAttributes {
 			}
 		}
 
-		next if ($attribute eq SCST_MGMT_IO);
+		if ($attribute eq SCST_MGMT_IO) {
+			$attributes{$attribute}->{'static'} = TRUE;
+			$attributes{$attribute}->{'value'} = $value;
+			next;
+		}
 
 		if (!(($mode & S_IRUSR) >> 6)) {
 			$attributes{$attribute}->{'static'} = FALSE;
