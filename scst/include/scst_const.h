@@ -466,10 +466,10 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 #endif
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
+#ifndef GENERATING_UPSTREAM_PATCH
 /*
  * See also patch "scsi: rename SERVICE_ACTION_IN_16 to SERVICE_ACTION_IN_16"
- * (commit eb846d9f147455e4e5e1863bfb5e31974bb69b7c).
+ * (commit eb846d9f147455e4e5e1863bfb5e31974bb69b7c; kernel 3.19.0).
  */
 #ifndef SERVICE_ACTION_IN_16
 #define SERVICE_ACTION_IN_16  0x9e
