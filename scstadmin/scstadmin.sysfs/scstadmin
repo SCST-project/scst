@@ -1051,7 +1051,7 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			$rc = removeVirtualTarget($driver, $removeTarget);
-			$rc = issueLip($driver) if (!$rc);
+			$rc = issueLip($driver) if (!$rc && !$noLip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -1071,7 +1071,7 @@ sub main {
 		defined($addInitiator) && do {
 			print "\n-> Making requested changes.\n";
 			$rc = addInitiator($driver, $target, $group, $addInitiator);
-			$rc = issueLip($driver, $target) if (!$rc);
+			$rc = issueLip($driver, $target) if (!$rc && !$noLip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -1079,7 +1079,7 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			$rc = removeInitiator($driver, $target, $group, $removeInitiator);
-			$rc = issueLip($driver, $target) if (!$rc);
+			$rc = issueLip($driver, $target) if (!$rc && !$noLip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -1087,7 +1087,7 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			$rc = moveInitiator($driver, $target, $group, $moveInitiator, $to);
-			$rc = issueLip($driver, $target) if (!$rc);
+			$rc = issueLip($driver, $target) if (!$rc && !$noLip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -1095,14 +1095,14 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			$rc = clearInitiators($driver, $target, $group);
-			$rc = issueLip($driver, $target) if (!$rc);
+			$rc = issueLip($driver, $target) if (!$rc && !$noLip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
 		defined($addLun) && do {
 			print "\n-> Making requested changes.\n";
 			$rc = addLun($driver, $target, $device, $addLun, $attributes, $group);
-			$rc = issueLip($driver, $target) if (!$rc);
+			$rc = issueLip($driver, $target) if (!$rc && !$noLip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -1110,7 +1110,7 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			$rc = removeLun($driver, $target, $removeLun, $group);
-			$rc = issueLip($driver, $target) if (!$rc);
+			$rc = issueLip($driver, $target) if (!$rc && !$noLip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -1118,7 +1118,7 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			$rc = replaceLun($driver, $target, $group, $replaceLun, $device, $attributes);
-			$rc = issueLip($driver, $target) if (!$rc);
+			$rc = issueLip($driver, $target) if (!$rc && !$noLip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -1126,7 +1126,7 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			$rc = clearLuns($driver, $target, $group);
-			$rc = issueLip($driver, $target) if (!$rc);
+			$rc = issueLip($driver, $target) if (!$rc && !$noLip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -1145,7 +1145,7 @@ sub main {
 		};
 		defined($issueLip) && do {
 			print "\n-> Making requested changes.\n";
-			$rc = issueLip($driver, $issueLip, TRUE);
+			$rc = issueLip($driver, $issueLip, TRUE) if (!$noLip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
