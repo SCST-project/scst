@@ -593,16 +593,6 @@ out_free_tgt:
 }
 EXPORT_SYMBOL(scst_register_target);
 
-static inline int test_sess_list(struct scst_tgt *tgt)
-{
-	int res;
-
-	mutex_lock(&scst_mutex);
-	res = list_empty(&tgt->sysfs_sess_list);
-	mutex_unlock(&scst_mutex);
-	return res;
-}
-
 /**
  * scst_unregister_target() - unregister target.
  *
@@ -656,7 +646,7 @@ again:
 #endif
 
 	TRACE_DBG("%s", "Waiting for sessions shutdown");
-	wait_event(tgt->unreg_waitQ, test_sess_list(tgt));
+	wait_event(tgt->unreg_waitQ, list_empty(&tgt->sysfs_sess_list));
 	TRACE_DBG("%s", "wait_event() returned");
 
 	scst_suspend_activity(SCST_SUSPEND_TIMEOUT_UNLIMITED);
