@@ -1253,11 +1253,88 @@ static void scst_tgt_release(struct kobject *kobj)
 	return;
 }
 
+static int scst_parse_add_repl_param(struct scst_acg *acg,
+				     struct scst_device *dev, char *pp,
+				     unsigned long *virt_lun,
+				     bool *read_only)
+{
+	int res;
+	char *e;
+
+	*read_only = false;
+	e = scst_get_next_lexem(&pp);
+	res = kstrtoul(e, 0, virt_lun);
+	if (res != 0) {
+		PRINT_ERROR("Valid LUN required for dev %s (res %d)",
+			    dev->virt_name, res);
+		goto out;
+	} else if (*virt_lun > SCST_MAX_LUN) {
+		PRINT_ERROR("Too big LUN %ld (max %d)", *virt_lun, SCST_MAX_LUN);
+		res = -EINVAL;
+		goto out;
+	}
+
+	while (1) {
+		unsigned long val;
+		char *param = scst_get_next_token_str(&pp);
+		char *p, *pp;
+
+		if (param == NULL)
+			break;
+
+		p = scst_get_next_lexem(&param);
+		if (*p == '\0') {
+			PRINT_ERROR("Syntax error at %s (device %s)", param,
+				    dev->virt_name);
+			res = -EINVAL;
+			goto out;
+		}
+
+		pp = scst_get_next_lexem(&param);
+		if (*pp == '\0') {
+			PRINT_ERROR("Parameter %s value missed for device %s",
+				    p, dev->virt_name);
+			res = -EINVAL;
+			goto out;
+		}
+
+		if (scst_get_next_lexem(&param)[0] != '\0') {
+			PRINT_ERROR("Too many parameter %s values (device %s)",
+				    p, dev->virt_name);
+			res = -EINVAL;
+			goto out;
+		}
+
+		res = kstrtoul(pp, 0, &val);
+		if (res != 0) {
+			PRINT_ERROR("kstrtoul() for %s failed: %d "
+				    "(device %s)", pp, res, dev->virt_name);
+			goto out;
+		}
+
+		if (strcasecmp("read_only", p) == 0) {
+			*read_only = !!val;
+			TRACE_DBG("READ ONLY %d", *read_only);
+		} else {
+			PRINT_ERROR("Unknown parameter %s (device %s)", p,
+				    dev->virt_name);
+			res = -EINVAL;
+			goto out;
+		}
+	}
+
+	res = 0;
+
+out:
+	return res;
+}
+
 static int __scst_process_luns_mgmt_store(char *buffer,
 	struct scst_tgt *tgt, struct scst_acg *acg, bool tgt_kobj)
 {
-	int res, read_only = 0, action;
-	char *p, *pp, *e;
+	int res, action;
+	bool read_only;
+	char *p, *pp;
 	unsigned long virt_lun;
 	struct scst_acg_dev *acg_dev = NULL, *acg_dev_tmp;
 	struct scst_device *d, *dev = NULL;
@@ -1329,65 +1406,10 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 		bool dev_replaced = false;
 		unsigned int flags = 0;
 
-		e = scst_get_next_lexem(&pp);
-		res = kstrtoul(e, 0, &virt_lun);
-		if (res != 0) {
-			PRINT_ERROR("Valid LUN required for dev %s (res %d)", p, res);
+		res = scst_parse_add_repl_param(acg, dev, pp, &virt_lun,
+						&read_only);
+		if (res != 0)
 			goto out_unlock;
-		} else if (virt_lun > SCST_MAX_LUN) {
-			PRINT_ERROR("Too big LUN %ld (max %d)", virt_lun, SCST_MAX_LUN);
-			res = -EINVAL;
-			goto out_unlock;
-		}
-
-		while (1) {
-			unsigned long val;
-			char *param = scst_get_next_token_str(&pp);
-			char *pp;
-
-			if (param == NULL)
-				break;
-
-			p = scst_get_next_lexem(&param);
-			if (*p == '\0') {
-				PRINT_ERROR("Syntax error at %s (device %s)",
-					param, dev->virt_name);
-				res = -EINVAL;
-				goto out_unlock;
-			}
-
-			pp = scst_get_next_lexem(&param);
-			if (*pp == '\0') {
-				PRINT_ERROR("Parameter %s value missed for device %s",
-					p, dev->virt_name);
-				res = -EINVAL;
-				goto out_unlock;
-			}
-
-			if (scst_get_next_lexem(&param)[0] != '\0') {
-				PRINT_ERROR("Too many parameter's %s values (device %s)",
-					p, dev->virt_name);
-				res = -EINVAL;
-				goto out_unlock;
-			}
-
-			res = kstrtoul(pp, 0, &val);
-			if (res != 0) {
-				PRINT_ERROR("kstrtoul() for %s failed: %d "
-					"(device %s)", pp, res, dev->virt_name);
-				goto out_unlock;
-			}
-
-			if (!strcasecmp("read_only", p)) {
-				read_only = val;
-				TRACE_DBG("READ ONLY %d", read_only);
-			} else {
-				PRINT_ERROR("Unknown parameter %s (device %s)",
-					p, dev->virt_name);
-				res = -EINVAL;
-				goto out_unlock;
-			}
-		}
 
 		acg_dev = NULL;
 		list_for_each_entry(acg_dev_tmp, &acg->acg_dev_list,

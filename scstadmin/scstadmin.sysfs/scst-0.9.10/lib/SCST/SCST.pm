@@ -5,7 +5,7 @@ package SCST::SCST;
 # Author:	Mark R. Buechler
 # License:	GPLv2
 # Copyright (c) 2005-2011 Mark R. Buechler
-# Copyright (c) 2011 Bart Van Assche <bvanassche@acm.org>.
+# Copyright (c) 2011-2015 Bart Van Assche <bvanassche@acm.org>.
 
 use 5.005;
 use Fcntl ':mode';
@@ -550,8 +550,7 @@ sub drivers {
 
 	if (opendir($dHandle, $_path)) {
 		foreach my $driver (readdir($dHandle)) {
-			next if ($driver eq '.' || $driver eq '..' ||
-				 $driver eq 'copy_manager');
+			next if ($driver eq '.' || $driver eq '..');
 
 			if (-d make_path(SCST_TARGETS_DIR(), $driver)) {
 				push @drivers, $driver;
@@ -3931,7 +3930,11 @@ sub handlerAttributes {
 			}
 		}
 
-		next if ($attribute eq SCST_MGMT_IO);
+		if ($attribute eq SCST_MGMT_IO) {
+			$attributes{$attribute}->{'static'} = TRUE;
+			$attributes{$attribute}->{'value'} = $value;
+			next;
+		}
 
 		if (!(($mode & S_IRUSR) >> 6)) {
 			$attributes{$attribute}->{'static'} = FALSE;

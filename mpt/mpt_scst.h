@@ -37,7 +37,7 @@
 #define MPT_STM_64_BIT_DMA 1
 #endif
 
-#include "../drivers/message/fusion/mptbase.h"
+#include "mptbase.h"
 
 #ifndef MPI_IOCLOGINFO_FC_LINK_ALREADY_INITIALIZED
 #define MPI_IOCLOGINFO_FC_LINK_ALREADY_INITIALIZED 0x24000002

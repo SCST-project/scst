@@ -2072,7 +2072,7 @@ static ssize_t scst_proc_groups_devices_write(struct file *file,
 
 		rc = scst_acg_add_lun(acg, NULL, dev, virt_lun,
 				read_only ? SCST_ADD_LUN_READ_ONLY : 0,
-				false, NULL);
+				NULL);
 		if (rc) {
 			res = rc;
 			goto out_free_up;

@@ -5675,8 +5675,10 @@ struct scst_ext_copy_seg_descr {
 	int tgt_descr_offs;
 };
 
+#ifndef CONFIG_SCST_PROC
 void scst_ext_copy_remap_done(struct scst_cmd *ec_cmd,
 	struct scst_ext_copy_data_descr *dds, int dds_cnt);
 int scst_ext_copy_get_cur_seg_data_len(struct scst_cmd *ec_cmd);
+#endif
 
 #endif /* __SCST_H */

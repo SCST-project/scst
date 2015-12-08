@@ -1619,7 +1619,8 @@ static struct scsi_host_template scst_lcl_ini_driver_template = {
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 25))
 	.eh_target_reset_handler	= scst_local_target_reset,
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0) && \
+	LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 	.use_blk_tags			= true,
 #endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33) || \

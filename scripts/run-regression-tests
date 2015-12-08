@@ -141,6 +141,26 @@ function compile_scst_unpatched {
   )
 }
 
+# Compile the unpatched SCST source code without DLM.
+function compile_scst_no_dlm {
+  local scst="$PWD"
+  local outputfile="${outputdir}/compilation-output-no-dlm.txt"
+  local workingdirectory="${outputdir}/scst-no-dlm"
+
+  echo "Testing whether the SCST tree compiles fine without DLM support ..."
+  (
+    if mkdir -p "${workingdirectory}"  \
+       && cd "${workingdirectory}"     \
+       && duplicate_scst_source_tree "${scst}"  \
+       && CONFIG_SCST_NO_DLM=y compile_scst &> "${outputfile}"
+    then
+      echo "OK"
+    else
+      echo "FAILED"
+    fi
+  )
+}
+
 # Test out-of-tree compilation agains the kernel header files in
 # /lib/modules/$(uname -r)/build.
 function compile_scst_patched {
@@ -558,6 +578,7 @@ fi
 test_scst_tree_patches || exit $?
 if [ "${run_local_compilation}" = "true" ]; then
   compile_scst_unpatched || exit $?
+  compile_scst_no_dlm    || exit $?
   compile_scst_patched 2release || exit $?
   compile_scst_patched 2perf    || exit $?
   compile_scst_patched enable_proc  || exit $?
