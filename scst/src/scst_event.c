@@ -866,7 +866,7 @@ static int scst_event_create_priv(struct file *file)
 		PRINT_ERROR("Unable to allocate priv (size %zd)",
 			sizeof(*priv));
 		res = -ENOMEM;
-		goto out;
+		goto out_put;
 	}
 
 	TRACE_MEM("priv %p allocated", priv);
@@ -891,6 +891,10 @@ static int scst_event_create_priv(struct file *file)
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_put:
+	module_put(THIS_MODULE);
+	goto out;
 }
 
 static long scst_event_ioctl(struct file *file, unsigned int cmd,
