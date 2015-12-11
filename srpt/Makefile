@@ -139,8 +139,8 @@ src/$(MODULE_SYMVERS): $(SCST_SYMVERS_DIR)/$(MODULE_SYMVERS)	\
 
 clean:
 	rm -rf conftest/pre_cflags conftest/kcflags
-	for d in conftest/* src; do \
-	  $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/$$d clean;		 \
+	for d in conftest/* src; do					     \
+	  [ -d "$$d" ] && $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/$$d clean; \
 	done
 	rm -f src/$(MODULE_SYMVERS) src/Module.markers src/modules.order
 
