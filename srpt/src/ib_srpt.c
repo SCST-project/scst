@@ -2098,7 +2098,7 @@ static void srpt_free_ch(struct kref *kref)
 
 	srpt_destroy_ch_ib(ch);
 
-	kfree(ch);
+	kfree_rcu(ch, rcu);
 }
 
 static void srpt_unreg_ch(struct srpt_rdma_ch *ch)
@@ -2127,7 +2127,7 @@ static void srpt_unreg_ch(struct srpt_rdma_ch *ch)
 	 * after list_del() and before wake_up() has been invoked.
 	 */
 	mutex_lock(&sport->mutex);
-	list_del(&ch->list);
+	list_del_rcu(&ch->list);
 	wake_up(&sport->ch_releaseQ);
 	mutex_unlock(&sport->mutex);
 
@@ -2397,7 +2397,8 @@ static struct srpt_nexus *srpt_get_nexus(struct srpt_port *sport,
 			}
 		}
 		if (!nexus && tmp_nexus) {
-			list_add_tail(&tmp_nexus->entry, &sport->nexus_list);
+			list_add_tail_rcu(&tmp_nexus->entry,
+					  &sport->nexus_list);
 			swap(nexus, tmp_nexus);
 		}
 		mutex_unlock(&sport->mutex);
@@ -2695,7 +2696,7 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 		rsp->rsp_flags = SRP_LOGIN_RSP_MULTICHAN_MAINTAINED;
 	}
 
-	list_add_tail(&ch->list, &nexus->ch_list);
+	list_add_tail_rcu(&ch->list, &nexus->ch_list);
 	ch->thread = thread;
 
 	if (!sport->enabled) {
@@ -3841,11 +3842,11 @@ static bool srpt_ch_list_empty(struct srpt_port *sport)
 	struct srpt_nexus *nexus;
 	bool res = true;
 
-	mutex_lock(&sport->mutex);
-	list_for_each_entry(nexus, &sport->nexus_list, entry)
+	rcu_read_lock();
+	list_for_each_entry_rcu(nexus, &sport->nexus_list, entry)
 		if (!list_empty(&nexus->ch_list))
 			res = false;
-	mutex_unlock(&sport->mutex);
+	rcu_read_unlock();
 
 	return res;
 }
@@ -3885,8 +3886,8 @@ static int srpt_release_sport(struct srpt_port *sport)
 
 	mutex_lock(&sport->mutex);
 	list_for_each_entry_safe(nexus, next_n, &sport->nexus_list, entry) {
-		list_del(&nexus->entry);
-		kfree(nexus);
+		list_del_rcu(&nexus->entry);
+		kfree_rcu(nexus, rcu);
 	}
 	mutex_unlock(&sport->mutex);
 
@@ -4590,6 +4591,8 @@ out:
 
 static void __exit srpt_cleanup_module(void)
 {
+	rcu_barrier();
+
 	if (rdma_cm_id)
 		rdma_destroy_id(rdma_cm_id);
 	ib_unregister_client(&srpt_client);
