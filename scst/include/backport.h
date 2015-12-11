@@ -365,6 +365,21 @@ static inline __attribute__ ((format (printf, 1, 2)))
 int no_printk(const char *s, ...) { return 0; }
 #endif
 
+/* <linux/rcupdate.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 0)
+typedef void (*rcu_callback_t)(struct rcu_head *);
+#define __is_kfree_rcu_offset(offset) ((offset) < 4096)
+#define kfree_call_rcu(head, rcb) call_rcu(head, rcb)
+#define __kfree_rcu(head, offset)				\
+	do {							\
+		BUILD_BUG_ON(!__is_kfree_rcu_offset(offset));	\
+		kfree_call_rcu(head, (rcu_callback_t)(unsigned long)(offset)); \
+	} while (0)
+#define kfree_rcu(ptr, rcu_head)				\
+	__kfree_rcu(&((ptr)->rcu_head), offsetof(typeof(*(ptr)), rcu_head))
+#endif
+
 /* <linux/sched.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26) && \
