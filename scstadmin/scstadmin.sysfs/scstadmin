@@ -204,8 +204,10 @@ Target Driver Operations
      -issue_lip [<t>]
         [-driver <driver>]   : Issue a LIP for a specific driver/target or for
                                all drivers and targets.
-     -no_lip                 : Don\'t automatically issue a LIP after applying
+     -lip                    : Issue a LIP after having applied FC
                                configuration changes.
+     -no_lip                 : Don\'t automatically issue a LIP after having
+                               applied FC configuration changes.
 
 Options
      -nonkey                 : When writing a config file or listing attributes,
@@ -349,6 +351,7 @@ sub getArgs {
 	my $enableTarget;
 	my $disableTarget;
 	my $issueLip;
+	my $lip;
 	my $noLip;
 
 	my $handler;
@@ -444,6 +447,7 @@ sub getArgs {
 			    'enable_target=s'	=> \$enableTarget,
 			    'disable_target=s'	=> \$disableTarget,
 			    'issue_lip:s'	=> \$issueLip,
+			    'lip'		=> \$lip,
 			    'no_lip'		=> \$noLip,
 
 			    'handler=s'		=> \$handler,
@@ -478,9 +482,10 @@ sub getArgs {
 	$_NOPROMPT_ = TRUE if (defined($_NOPROMPT_));
 	$_CONT_ON_ERR_ = TRUE if (defined($_CONT_ON_ERR_));
 
-	$force = TRUE if (defined($force));
+	$force  = TRUE if (defined($force));
 	$nonkey = TRUE if (defined($nonkey));
-	$noLip = TRUE if (defined($noLip));
+	$lip    = TRUE if (defined($lip));
+	$noLip  = TRUE if (defined($noLip));
 
 	my $query_mode = defined($listHandler) || defined($listDevice) || defined($listDeviceGroup) || defined($listTargetGroup) ||
 	  defined($listDriver) || defined($listTarget) || defined($listGroup) || defined($listSessions) ||
@@ -707,25 +712,104 @@ sub getArgs {
 		}
 	}
 
-	return ($applyConfig, $clearConfig, $writeConfig, $checkConfig,
-		$listScstAttr, $listHandler, $listDevice, $listDeviceGroup, $listTargetGroup, $listDriver, $listTarget, $listGroup,
-		$listSessions, $listHandlerAttr, $listDeviceAttr, $listDriverAttr, $listTargetAttr,
-		$listDeviceGroupAttr, $listTargetGroupAttr, $listTargetGroupTargetAttr,
-		$listGroupAttr, $listLunAttr, $listInitiatorAttr, $setScstAttr, $setHandlerAttr,
-		$setDeviceAttr, $setDriverAttr, $setTargetAttr, $setGroupAttr, $setLunAttr, $setInitiatorAttr,
-		$setDeviceGroupAttr, $setTargetGroupAttr, $setTargetGroupTargetAttr,
-		$addDriverAttr, $addTargetAttr, $remDriverAttr, $remTargetAttr,
-                $openDev, $closeDev, $resyncDev,
-		$addDevGroup, $removeDevGroup, $addDevGroupDevice, $removeDevGroupDevice,
-		$addTargetGroup, $removeTargetGroup, $addTargetGroupTarget, $removeTargetGroupTarget,
-		$addTarget, $removeTarget,
-		$addGroup, $removeGroup,
-		$addInitiator, $removeInitiator, $moveInitiator, $clearInitiators,
-		$addLun, $removeLun, $replaceLun, $clearLuns,
-		$enableTarget, $disableTarget, $issueLip, $noLip,
-		$handler, \%_attributes,
-		$driver, $target, $group, $to, $device,, $deviceGroup, $targetGroup,
-		$nonkey, $force);
+	my %args = (
+		applyConfig			=> $applyConfig,
+		clearConfig			=> $clearConfig,
+		writeConfig			=> $writeConfig,
+		checkConfig			=> $checkConfig,
+
+		listScstAttr			=> $listScstAttr,
+		listHandler			=> $listHandler,
+		listDevice			=> $listDevice,
+		listDeviceGroup			=> $listDeviceGroup,
+		listTargetGroup			=> $listTargetGroup,
+		listDriver			=> $listDriver,
+		listTarget			=> $listTarget,
+		listGroup			=> $listGroup,
+
+		listSessions			=> $listSessions,
+		listHandlerAttr			=> $listHandlerAttr,
+		listDeviceAttr			=> $listDeviceAttr,
+		listDriverAttr			=> $listDriverAttr,
+		listTargetAttr			=> $listTargetAttr,
+
+		listDeviceGroupAttr		=> $listDeviceGroupAttr,
+		listTargetGroupAttr		=> $listTargetGroupAttr,
+		listTargetGroupTargetAttr	=> $listTargetGroupTargetAttr,
+
+		listGroupAttr			=> $listGroupAttr,
+		listLunAttr			=> $listLunAttr,
+		listInitiatorAttr		=> $listInitiatorAttr,
+		setScstAttr			=> $setScstAttr,
+		setHandlerAttr			=> $setHandlerAttr,
+
+		setDeviceAttr			=> $setDeviceAttr,
+		setDriverAttr			=> $setDriverAttr,
+		setTargetAttr			=> $setTargetAttr,
+		setGroupAttr			=> $setGroupAttr,
+		setLunAttr			=> $setLunAttr,
+		setInitiatorAttr		=> $setInitiatorAttr,
+
+		setDeviceGroupAttr		=> $setDeviceGroupAttr,
+		setTargetGroupAttr		=> $setTargetGroupAttr,
+		setTargetGroupTargetAttr	=> $setTargetGroupTargetAttr,
+
+		addDriverAttr			=> $addDriverAttr,
+		addTargetAttr			=> $addTargetAttr,
+		remDriverAttr			=> $remDriverAttr,
+		remTargetAttr			=> $remTargetAttr,
+
+                openDev				=> $openDev,
+		closeDev			=> $closeDev,
+		resyncDev			=> $resyncDev,
+
+		addDevGroup			=> $addDevGroup,
+		removeDevGroup			=> $removeDevGroup,
+		addDevGroupDevice		=> $addDevGroupDevice,
+		removeDevGroupDevice		=> $removeDevGroupDevice,
+
+		addTargetGroup			=> $addTargetGroup,
+		removeTargetGroup		=> $removeTargetGroup,
+		addTargetGroupTarget		=> $addTargetGroupTarget,
+		removeTargetGroupTarget		=> $removeTargetGroupTarget,
+
+		addTarget			=> $addTarget,
+		removeTarget			=> $removeTarget,
+
+		addGroup			=> $addGroup,
+		removeGroup			=> $removeGroup,
+
+		addInitiator			=> $addInitiator,
+		removeInitiator			=> $removeInitiator,
+		moveInitiator			=> $moveInitiator,
+		clearInitiators			=> $clearInitiators,
+
+		addLun				=> $addLun,
+		removeLun			=> $removeLun,
+		replaceLun			=> $replaceLun,
+		clearLuns			=> $clearLuns,
+
+		enableTarget			=> $enableTarget,
+		disableTarget			=> $disableTarget,
+		issueLip			=> $issueLip,
+		lip				=> $lip,
+		noLip				=> $noLip,
+
+		handler				=> $handler,
+		attributes			=> \%_attributes,
+
+		driver				=> $driver,
+		target				=> $target,
+		group				=> $group,
+		to				=> $to,
+		device				=> $device,
+		deviceGroup			=> $deviceGroup,
+		targetGroup			=> $targetGroup,
+
+		nonkey				=> $nonkey,
+		force				=> $force,
+	    );
+	return \%args;
 }
 
 sub main {
@@ -736,25 +820,103 @@ sub main {
 	# We need to run as root
 	if ( $> ) {die("This program must run as root.\n");}
 
-	my ($applyConfig, $clearConfig, $writeConfig, $checkConfig,
-	    $listScstAttr, $listHandler, $listDevice, $listDeviceGroup, $listTargetGroup, $listDriver, $listTarget, $listGroup,
-	    $listSessions, $listHandlerAttr, $listDeviceAttr, $listDriverAttr, $listTargetAttr,
-	    $listDeviceGroupAttr, $listTargetGroupAttr, $listTargetGroupTargetAttr,
-	    $listGroupAttr, $listLunAttr, $listInitiatorAttr, $setScstAttr, $setHandlerAttr,
-	    $setDeviceAttr, $setDriverAttr, $setTargetAttr, $setGroupAttr, $setLunAttr, $setInitiatorAttr,
-	    $setDeviceGroupAttr, $setTargetGroupAttr, $setTargetGroupTargetAttr,
-	    $addDriverAttr, $addTargetAttr, $remDriverAttr, $remTargetAttr,
-	    $openDev, $closeDev, $resyncDev,
-	    $addDevGroup, $removeDevGroup, $addDevGroupDevice, $removeDevGroupDevice,
-	    $addTargetGroup, $removeTargetGroup, $addTargetGroupTarget, $removeTargetGroupTarget,
-	    $addTarget, $removeTarget,
-	    $addGroup, $removeGroup,
-	    $addInitiator, $removeInitiator, $moveInitiator, $clearInitiators,
-	    $addLun, $removeLun, $replaceLun, $clearLuns,
-	    $enableTarget, $disableTarget, $issueLip, $noLip,
-	    $handler, $attributes,
-	    $driver, $target, $group, $to, $device, $deviceGroup, $targetGroup,
-	    $nonkey, $force) = getArgs();
+	my $args = getArgs();
+
+	my $applyConfig			= $args->{applyConfig};
+	my $clearConfig			= $args->{clearConfig};
+	my $writeConfig			= $args->{writeConfig};
+	my $checkConfig			= $args->{checkConfig};
+
+	my $listScstAttr		= $args->{listScstAttr};
+	my $listHandler			= $args->{listHandler};
+	my $listDevice			= $args->{listDevice};
+	my $listDeviceGroup		= $args->{listDeviceGroup};
+	my $listTargetGroup		= $args->{listTargetGroup};
+	my $listDriver			= $args->{listDriver};
+	my $listTarget			= $args->{listTarget};
+	my $listGroup			= $args->{listGroup};
+
+	my $listSessions		= $args->{listSessions};
+	my $listHandlerAttr		= $args->{listHandlerAttr};
+	my $listDeviceAttr		= $args->{listDeviceAttr};
+	my $listDriverAttr		= $args->{listDriverAttr};
+	my $listTargetAttr		= $args->{listTargetAttr};
+
+	my $listDeviceGroupAttr		= $args->{listDeviceGroupAttr};
+	my $listTargetGroupAttr		= $args->{listTargetGroupAttr};
+	my $listTargetGroupTargetAttr	= $args->{listTargetGroupTargetAttr};
+
+	my $listGroupAttr		= $args->{listGroupAttr};
+	my $listLunAttr			= $args->{listLunAttr};
+	my $listInitiatorAttr		= $args->{listInitiatorAttr};
+	my $setScstAttr			= $args->{setScstAttr};
+	my $setHandlerAttr		= $args->{setHandlerAttr};
+
+	my $setDeviceAttr		= $args->{setDeviceAttr};
+	my $setDriverAttr		= $args->{setDriverAttr};
+	my $setTargetAttr		= $args->{setTargetAttr};
+	my $setGroupAttr		= $args->{setGroupAttr};
+	my $setLunAttr			= $args->{setLunAttr};
+	my $setInitiatorAttr		= $args->{setInitiatorAttr};
+
+	my $setDeviceGroupAttr		= $args->{setDeviceGroupAttr};
+	my $setTargetGroupAttr		= $args->{setTargetGroupAttr};
+	my $setTargetGroupTargetAttr	= $args->{setTargetGroupTargetAttr};
+
+	my $addDriverAttr		= $args->{addDriverAttr};
+	my $addTargetAttr		= $args->{addTargetAttr};
+	my $remDriverAttr		= $args->{remDriverAttr};
+	my $remTargetAttr		= $args->{remTargetAttr};
+
+	my $openDev			= $args->{openDev};
+	my $closeDev			= $args->{closeDev};
+	my $resyncDev			= $args->{resyncDev};
+
+	my $addDevGroup			= $args->{addDevGroup};
+	my $removeDevGroup		= $args->{removeDevGroup};
+	my $addDevGroupDevice		= $args->{addDevGroupDevice};
+	my $removeDevGroupDevice	= $args->{removeDevGroupDevice};
+
+	my $addTargetGroup		= $args->{addTargetGroup};
+	my $removeTargetGroup		= $args->{removeTargetGroup};
+	my $addTargetGroupTarget	= $args->{addTargetGroupTarget};
+	my $removeTargetGroupTarget	= $args->{removeTargetGroupTarget};
+
+	my $addTarget			= $args->{addTarget};
+	my $removeTarget		= $args->{removeTarget};
+
+	my $addGroup			= $args->{addGroup};
+	my $removeGroup			= $args->{removeGroup};
+
+	my $addInitiator		= $args->{addInitiator};
+	my $removeInitiator		= $args->{removeInitiator};
+	my $moveInitiator		= $args->{moveInitiator};
+	my $clearInitiators		= $args->{clearInitiators};
+
+	my $addLun			= $args->{addLun};
+	my $removeLun			= $args->{removeLun};
+	my $replaceLun			= $args->{replaceLun};
+	my $clearLuns			= $args->{clearLuns};
+
+	my $enableTarget		= $args->{enableTarget};
+	my $disableTarget		= $args->{disableTarget};
+	my $issueLip			= $args->{issueLip};
+	my $lip				= $args->{lip};
+	my $noLip			= $args->{noLip};
+
+	my $handler			= $args->{handler};
+	my $attributes			= $args->{attributes};
+
+	my $driver			= $args->{driver};
+	my $target			= $args->{target};
+	my $group			= $args->{group};
+	my $to				= $args->{to};
+	my $device			= $args->{device};
+	my $deviceGroup			= $args->{deviceGroup};
+	my $targetGroup			= $args->{targetGroup};
+
+	my $nonkey			= $args->{nonkey};
+	my $force			= $args->{force};
 
 	$SCST = new SCST::SCST($_DEBUG_);
 
@@ -770,7 +932,7 @@ sub main {
 			condExit("Configuration has errors, aborting.") if ($rc);
 			last if ($force && prompt());
 			my $changes = applyConfiguration($force);
-			$rc = issueLip() if ($changes && !$noLip);
+			$rc = issueLip() if ($changes && $lip);
 			last SWITCH;
 		};
 		defined($checkConfig) && do {
@@ -786,7 +948,7 @@ sub main {
 		defined($clearConfig) && do {
 			last if (prompt());
 			$rc = clearConfiguration();
-			$rc = issueLip() if (!$rc && !$noLip);
+			$rc = issueLip() if (!$rc && $lip);
 			last SWITCH;
 		};
 		defined($listHandler) && do {
@@ -945,14 +1107,14 @@ sub main {
 		defined($addDriverAttr) && do {
 			print "\n-> Making requested changes.\n";
 			$rc = addDriverDynamicAttributes($addDriverAttr, $attributes);
-			$rc = issueLip() if (!$rc && !$noLip);
+			$rc = issueLip() if (!$rc && $lip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
 		defined($addTargetAttr) && do {
 			print "\n-> Making requested changes.\n";
 			$rc = addTargetDynamicAttributes($driver, $addTargetAttr, $attributes);
-			$rc = issueLip() if (!$rc && !$noLip);
+			$rc = issueLip() if (!$rc && $lip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -960,7 +1122,7 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			$rc = removeDriverDynamicAttributes($remDriverAttr, $attributes);
-			$rc = issueLip() if (!$rc && !$noLip);
+			$rc = issueLip() if (!$rc && $lip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -968,7 +1130,7 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			$rc = removeTargetDynamicAttributes($driver, $remTargetAttr, $attributes);
-			$rc = issueLip() if (!$rc && !$noLip);
+			$rc = issueLip() if (!$rc && $lip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -982,14 +1144,14 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			$rc = closeDevice($handler, $closeDev, $force);
-			$rc = issueLip() if (!$rc && !$noLip);
+			$rc = issueLip() if (!$rc && $lip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
 		defined($resyncDev) && do {
 			print "\n-> Making requested changes.\n";
 			$rc = resyncDevice($resyncDev);
-			$rc = issueLip() if (!$rc && !$noLip);
+			$rc = issueLip() if (!$rc && $lip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -1051,7 +1213,7 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			$rc = removeVirtualTarget($driver, $removeTarget);
-			$rc = issueLip($driver) if (!$rc && !$noLip);
+			$rc = issueLip($driver) if (!$rc && $lip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -1071,7 +1233,7 @@ sub main {
 		defined($addInitiator) && do {
 			print "\n-> Making requested changes.\n";
 			$rc = addInitiator($driver, $target, $group, $addInitiator);
-			$rc = issueLip($driver, $target) if (!$rc && !$noLip);
+			$rc = issueLip($driver, $target) if (!$rc && $lip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -1079,7 +1241,7 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			$rc = removeInitiator($driver, $target, $group, $removeInitiator);
-			$rc = issueLip($driver, $target) if (!$rc && !$noLip);
+			$rc = issueLip($driver, $target) if (!$rc && $lip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -1087,7 +1249,7 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			$rc = moveInitiator($driver, $target, $group, $moveInitiator, $to);
-			$rc = issueLip($driver, $target) if (!$rc && !$noLip);
+			$rc = issueLip($driver, $target) if (!$rc && $lip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -1095,14 +1257,14 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			$rc = clearInitiators($driver, $target, $group);
-			$rc = issueLip($driver, $target) if (!$rc && !$noLip);
+			$rc = issueLip($driver, $target) if (!$rc && $lip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
 		defined($addLun) && do {
 			print "\n-> Making requested changes.\n";
 			$rc = addLun($driver, $target, $device, $addLun, $attributes, $group);
-			$rc = issueLip($driver, $target) if (!$rc && !$noLip);
+			$rc = issueLip($driver, $target) if (!$rc && $lip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -1110,7 +1272,7 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			$rc = removeLun($driver, $target, $removeLun, $group);
-			$rc = issueLip($driver, $target) if (!$rc && !$noLip);
+			$rc = issueLip($driver, $target) if (!$rc && $lip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -1118,7 +1280,7 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			$rc = replaceLun($driver, $target, $group, $replaceLun, $device, $attributes);
-			$rc = issueLip($driver, $target) if (!$rc && !$noLip);
+			$rc = issueLip($driver, $target) if (!$rc && $lip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
@@ -1126,7 +1288,7 @@ sub main {
 			last if (prompt());
 			print "\n-> Making requested changes.\n";
 			$rc = clearLuns($driver, $target, $group);
-			$rc = issueLip($driver, $target) if (!$rc && !$noLip);
+			$rc = issueLip($driver, $target) if (!$rc && $lip);
 			print "\t-> Done.\n";
 			last SWITCH;
 		};
