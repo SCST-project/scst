@@ -647,8 +647,13 @@ again:
 
 	/*
 	 * Testing tgt->sysfs_sess_list below without holding scst_mutex
-	 * is safe because 'tgt' won't disappear until scst_free_tgt() is
-	 * called below and because the mutex_lock(&scst_mutex) call below
+	 * is safe, because:
+	 *
+	 * - On the init path no attempts to create new sessions for this
+	 * target can be done in a race with this function (see above)
+	 *
+	 * - On the shutdown path 'tgt' won't disappear until scst_free_tgt()
+	 * is called below and because the mutex_lock(&scst_mutex) call below
 	 * waits until scst_free_session() has finished accessing the 'tgt'
 	 * object.
 	 */
