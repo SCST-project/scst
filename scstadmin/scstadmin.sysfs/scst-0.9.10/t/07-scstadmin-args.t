@@ -11,8 +11,7 @@ my $scstadmin_pm_dir;
 my $scstadmin_dir;
 my $scstadmin;
 my $redirect_file = "/tmp/07-output.txt";
-my $redirect = ">>$redirect_file";
-my $redirect = ">/dev/null";
+my $redirect;
 
 BEGIN {
     unlink($redirect_file);
@@ -36,6 +35,11 @@ sub setup {
     my ($drivers, $errorString) = $SCST->drivers();
     my %drivers = map { $_ => 1 } @{$drivers};
     ok(exists($drivers{'scst_local'}));
+    system("dd if=/dev/zero of=/dev/scstadmin-regression-test-vdisk bs=1M count=1 >/dev/null 2>&1");
+}
+
+sub teardown {
+    system("rm -f /dev/scstadmin-regression-test-vdisk");
 }
 
 sub attributeTest {
@@ -48,9 +52,9 @@ sub attributeTest {
 					   "scstadmin-test-07-$$-diff");
 
     system("$scstadmin -clear_config -force -noprompt -no_lip $redirect");
-    system("$scstadmin -open_dev nodev -handler vdisk_nullio -attributes dummy=1,read_zero=1 $redirect");
-    system("$scstadmin -open_dev disk0 -handler vdisk_fileio -attributes filename=/dev/zero,read_only=1 $redirect");
-    system("$scstadmin -open_dev disk1 -handler vdisk_fileio -attributes filename=/dev/zero,nv_cache=1 $redirect");
+    system("$scstadmin -open_dev nodev -handler vdisk_nullio -attributes dummy=1 $redirect");
+    system("$scstadmin -open_dev disk0 -handler vdisk_fileio -attributes filename=/dev/scstadmin-regression-test-vdisk,read_only=1 $redirect");
+    system("$scstadmin -open_dev disk1 -handler vdisk_fileio -attributes filename=/dev/scstadmin-regression-test-vdisk,nv_cache=1 $redirect");
     system("$scstadmin -driver scst_local -add_target local $redirect");
     system("$scstadmin -driver scst_local -target local " .
 	   "-add_lun 0 -device nodev $redirect");
@@ -75,6 +79,13 @@ sub attributeTest {
 }
 
 my $_DEBUG_ = 0;
+if ($_DEBUG_) {
+    $redirect = ">>$redirect_file";
+    open(my $logfile, '>>', $redirect_file);
+    select $logfile;
+} else {
+    $redirect = ">/dev/null";
+}
 
 my $SCST = eval { new SCST::SCST($_DEBUG_) };
 die("Creation of SCST object failed") if (!defined($SCST));
@@ -83,3 +94,4 @@ setup($SCST);
 
 attributeTest(File::Spec->catfile($testdir, "07-result.conf"));
 
+teardown();
