@@ -2,7 +2,7 @@ ifndef PREFIX
         PREFIX=/usr/local
 endif
 
-MODULE_VERSION = 0.9.10
+MODULE_VERSION = 1.0.0
 TOOL = scstadmin
 
 SBINDIR := $(PREFIX)/sbin
