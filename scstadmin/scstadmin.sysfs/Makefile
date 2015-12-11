@@ -24,7 +24,7 @@ perl-module:
 	$(MAKE) -C scst-$(MODULE_VERSION)
 
 test:
-	$(MAKE) -C scst-$(MODULE_VERSION) test
+	$(MAKE) -C scst-$(MODULE_VERSION) test #TEST_VERBOSE=1
 
 clean:
 	-$(MAKE) -C scst-$(MODULE_VERSION) clean
