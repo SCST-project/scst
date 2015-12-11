@@ -2224,7 +2224,7 @@ sub addLun {
 	my $o_string = "";
 	foreach my $attribute (keys %{$attributes}) {
 		my $value = $$attributes{$attribute};
-		$o_string .= "$attribute=$value; ";
+		$o_string .= "$attribute=$value;";
 	}
 
 	$o_string =~ s/\s$//;
@@ -2415,7 +2415,7 @@ sub replaceLun {
 	my $o_string = "";
 	foreach my $attribute (keys %{$attributes}) {
 		my $value = $$attributes{$attribute};
-		$o_string .= "$attribute=$value; ";
+		$o_string .= "$attribute=$value;";
 	}
 
 	$o_string =~ s/\s$//;
@@ -4135,7 +4135,7 @@ sub openDevice {
 	my $o_string = "";
 	foreach my $attribute (keys %{$attributes}) {
 		my $value = $$attributes{$attribute};
-		$o_string .= "$attribute=$value; ";
+		$o_string .= "$attribute=$value;";
 	}
 
 	$o_string =~ s/\s$//;
