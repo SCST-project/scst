@@ -242,12 +242,27 @@ Examples:
 EndUsage
   }
 
+use strict;
+use Cwd qw(abs_path);
+use File::Basename;
+use File::Spec;
+use Test;
+
+BEGIN {
+	my $site_lib = '%INSTALLSITELIB%';
+	if ($site_lib =~ '^%') {
+		my $scstadmindir = dirname(abs_path($0));
+		$site_lib = File::Spec->catdir($scstadmindir, "scst-0.9.10",
+					       "blib", "lib");
+	}
+	unshift(@INC, $site_lib);
+}
+
 use SCST::SCST 0.9.10;
 use Getopt::Long;
 use IO::File;
 use IO::Dir;
 use POSIX;
-use strict;
 
 my $_DEF_CONFIG_ = '/etc/scst.conf';
 
