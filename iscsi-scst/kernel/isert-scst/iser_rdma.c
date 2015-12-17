@@ -963,7 +963,8 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 			goto fail_cq;
 		}
 
-#ifndef IB_CREATE_CQ_HAS_INIT_ATTR
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 2, 0) && \
+	!defined(IB_CREATE_CQ_HAS_INIT_ATTR)
 		cq = ib_create_cq(ib_dev,
 				  isert_cq_comp_handler,
 				  isert_async_evt_handler,
