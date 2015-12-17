@@ -2068,13 +2068,18 @@ static int srpt_poll(struct srpt_rdma_ch *ch, int budget)
 	return processed;
 }
 
-static int srpt_process_completion(struct srpt_rdma_ch *ch, int budget)
+static int srpt_process_completion(struct srpt_rdma_ch *ch, int budget,
+				   bool thread_context)
 {
 	struct ib_cq *const cq = ch->cq;
 	int processed = 0, n = budget;
 
 	do {
+		if (thread_context)
+			set_current_state(TASK_RUNNING);
 		processed += srpt_poll(ch, n);
+		if (thread_context)
+			set_current_state(TASK_INTERRUPTIBLE);
 		n = ib_req_notify_cq(cq, IB_CQ_NEXT_COMP |
 				     IB_CQ_REPORT_MISSED_EVENTS);
 	} while (n > 0);
@@ -2143,6 +2148,7 @@ static int srpt_compl_thread(void *arg)
 {
 	enum { poll_budget = 65536 };
 	struct srpt_rdma_ch *ch;
+	int n;
 
 	/* Hibernation / freezing of the SRPT kernel thread is not supported. */
 	current->flags |= PF_NOFREEZE;
@@ -2151,8 +2157,10 @@ static int srpt_compl_thread(void *arg)
 	BUG_ON(!ch);
 
 	while (ch->state < CH_LIVE) {
-		set_current_state(TASK_INTERRUPTIBLE);
-		if (srpt_process_completion(ch, poll_budget) >= poll_budget)
+		n = srpt_process_completion(ch, poll_budget, true);
+		if (ch->state >= CH_LIVE)
+			break;
+		if (n >= poll_budget)
 			cond_resched();
 		else
 			schedule();
@@ -2161,8 +2169,10 @@ static int srpt_compl_thread(void *arg)
 	srpt_process_wait_list(ch);
 
 	while (ch->state < CH_DISCONNECTED) {
-		set_current_state(TASK_INTERRUPTIBLE);
-		if (srpt_process_completion(ch, poll_budget) >= poll_budget)
+		n = srpt_process_completion(ch, poll_budget, true);
+		if (ch->state >= CH_DISCONNECTED)
+			break;
+		if (n >= poll_budget)
 			cond_resched();
 		else
 			schedule();
