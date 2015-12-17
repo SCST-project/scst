@@ -361,6 +361,7 @@ struct srpt_rdma_ch {
 	};
 	struct ib_cq		*cq;
 	struct kref		kref;
+	struct rcu_head		rcu;
 	int			rq_size;
 	int			max_sge;
 	int			max_rsp_size;
@@ -397,6 +398,7 @@ struct srpt_rdma_ch {
 struct srpt_nexus {
 	struct list_head	entry;
 	struct list_head	ch_list;
+	struct rcu_head		rcu;
 	u8			i_port_id[16];
 	u8			t_port_id[16];
 };
