@@ -1110,7 +1110,7 @@ static int __init scst_proc_init_sgv(void)
 	return res;
 }
 
-static void __exit scst_proc_cleanup_sgv(void)
+static void scst_proc_cleanup_sgv(void)
 {
 	TRACE_ENTRY();
 	remove_proc_entry("sgv", scst_proc_scsi_tgt);
@@ -1217,7 +1217,7 @@ out_nomem:
 	goto out;
 }
 
-void __exit scst_proc_cleanup_module(void)
+void scst_proc_cleanup_module(void)
 {
 	TRACE_ENTRY();
 
