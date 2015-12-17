@@ -100,12 +100,15 @@ else
 	endif
 endif
 
+CREATE_CQ_FLAG = $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/create_cq PRE_CFLAGS="$(OFED_CFLAGS) -Werror" >/dev/null 2>&1 && echo -DIB_CREATE_CQ_HAS_INIT_ATTR)
+PRE_CFLAGS=$(OFED_CFLAGS) $(CREATE_CQ_FLAG) -DOFED_FLAVOR=$(OFED_FLAVOR)
+
 mods: Modules.symvers Module.symvers
 	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(KMOD) modules
 	if $(INFINIBAND_ENABLED); then					       \
 	  echo "  Building against $(OFED_FLAVOR) InfiniBand kernel headers."; \
 	  $(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(ISERTMOD)  \
-	  PRE_CFLAGS="$(OFED_CFLAGS) -DOFED_FLAVOR=$(OFED_FLAVOR)"	       \
+	  PRE_CFLAGS="$(PRE_CFLAGS)"	                                       \
 	  KBUILD_EXTRA_SYMBOLS=$(ISER_SYMVERS) modules;			       \
 	fi
 
