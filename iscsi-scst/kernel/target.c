@@ -128,7 +128,6 @@ int __add_target(struct iscsi_kern_target_info *info)
 	int err;
 	u32 tid = info->tid;
 	struct iscsi_target *target = NULL; /* to calm down sparse */
-	struct iscsi_kern_attr *attr_info;
 	union add_info_union {
 		struct iscsi_kern_params_info params_info;
 		struct iscsi_kern_attr attr_info;
@@ -165,7 +164,6 @@ int __add_target(struct iscsi_kern_target_info *info)
 		err = -ENOMEM;
 		goto out;
 	}
-	attr_info = (struct iscsi_kern_attr *)add_info;
 
 	if (tid == 0) {
 		do {
@@ -183,6 +181,9 @@ int __add_target(struct iscsi_kern_target_info *info)
 	nr_targets++;
 
 #ifndef CONFIG_SCST_PROC
+	{
+	struct iscsi_kern_attr *attr_info = &add_info->attr_info;
+
 	mutex_lock(&target->target_mutex);
 
 	attrs_ptr_long = info->attrs_ptr;
@@ -208,6 +209,7 @@ int __add_target(struct iscsi_kern_target_info *info)
 	}
 
 	mutex_unlock(&target->target_mutex);
+	}
 #endif
 
 	err = tid;
