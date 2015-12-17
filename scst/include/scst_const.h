@@ -341,7 +341,7 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 #define scst_sense_reported_luns_data_changed	UNIT_ATTENTION,  0x3F, 0xE
 
 /* DATA_PROTECT is 7 */
-#define scst_sense_data_protect			DATA_PROTECT,    0x00, 0
+#define scst_sense_data_protect			DATA_PROTECT,    0x27, 0
 
 /* ABORTED_COMMAND is 0xb */
 #define scst_sense_aborted_command		ABORTED_COMMAND, 0x00, 0
