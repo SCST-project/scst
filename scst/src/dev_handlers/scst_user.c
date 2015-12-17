@@ -1,8 +1,8 @@
 /*
  *  scst_user.c
  *
- *  Copyright (C) 2007 - 2014 Vladislav Bolkhovitin <vst@vlnb.net>
- *  Copyright (C) 2007 - 2014 Fusion-io, Inc.
+ *  Copyright (C) 2007 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2007 - 2015 SanDisk Corporation
  *
  *  SCSI virtual user space device handler
  *

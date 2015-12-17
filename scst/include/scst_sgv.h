@@ -1,8 +1,8 @@
 /*
  *  include/scst_sgv.h
  *
- *  Copyright (C) 2004 - 2014 Vladislav Bolkhovitin <vst@vlnb.net>
- *  Copyright (C) 2007 - 2014 Fusion-io, Inc.
+ *  Copyright (C) 2004 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2007 - 2015 SanDisk Corporation
  *
  *  Include file for SCST SGV cache.
  *
