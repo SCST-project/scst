@@ -64,6 +64,6 @@ die("Creation of SCST object failed") if (!defined($SCST));
 
 setup($SCST);
 
-testRestoreConfig(File::Spec->catfile($testdir, "to-be-restored.conf"),
-		  File::Spec->catfile($testdir, "after-restore.conf"));
+testRestoreConfig(File::Spec->catfile($testdir, "06-to-be-restored.conf"),
+		  File::Spec->catfile($testdir, "06-after-restore.conf"));
 

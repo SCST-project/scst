@@ -289,7 +289,7 @@ use vars qw(@ISA @EXPORT $VERSION);
 
 use vars qw($TGT_TYPE_HARDWARE $TGT_TYPE_VIRTUAL);
 
-$VERSION = '0.9.10';
+$VERSION = '1.0.0';
 
 $TGT_TYPE_HARDWARE = 1;
 $TGT_TYPE_VIRTUAL  = 2;
@@ -2224,7 +2224,7 @@ sub addLun {
 	my $o_string = "";
 	foreach my $attribute (keys %{$attributes}) {
 		my $value = $$attributes{$attribute};
-		$o_string .= "$attribute=$value; ";
+		$o_string .= "$attribute=$value;";
 	}
 
 	$o_string =~ s/\s$//;
@@ -2415,7 +2415,7 @@ sub replaceLun {
 	my $o_string = "";
 	foreach my $attribute (keys %{$attributes}) {
 		my $value = $$attributes{$attribute};
-		$o_string .= "$attribute=$value; ";
+		$o_string .= "$attribute=$value;";
 	}
 
 	$o_string =~ s/\s$//;
@@ -4135,7 +4135,7 @@ sub openDevice {
 	my $o_string = "";
 	foreach my $attribute (keys %{$attributes}) {
 		my $value = $$attributes{$attribute};
-		$o_string .= "$attribute=$value; ";
+		$o_string .= "$attribute=$value;";
 	}
 
 	$o_string =~ s/\s$//;
