@@ -54,7 +54,7 @@ static inline int get_current_tid(void)
 		 * Unfortunately, task_pid_vnr() isn't IRQ-safe, so otherwise
 		 * it can oops. ToDo.
 		 */
-		return 0;
+		return current->pid;
 	}
 	return task_pid_vnr(current);
 #endif
