@@ -931,7 +931,11 @@ static inline int scst_cm_rcv_copy_res_exec(struct scst_cmd *cmd)
 	return SCST_EXEC_NOT_COMPLETED;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+static inline void sess_cm_list_id_cleanup_work_fn(void *p) {}
+#else
 static inline void sess_cm_list_id_cleanup_work_fn(struct work_struct *work) {}
+#endif
 static inline void scst_cm_free_pending_list_ids(struct scst_session *sess) {}
 
 static inline bool scst_cm_check_block_all_devs(struct scst_cmd *cmd) { return false; }
