@@ -7,17 +7,16 @@ use File::Spec;
 use Test;
 
 my $testdir;
-my $scstadmin_pm_dir;
-my $scstadmin_dir;
 my $scstadmin;
-my $redirect_file = "/tmp/07-output.txt";
+my $redirect_file;
 my $redirect;
 
 BEGIN {
+    $redirect_file = "/tmp/07-output.txt";
     unlink($redirect_file);
     $testdir = dirname(abs_path($0));
-    $scstadmin_pm_dir = dirname($testdir);
-    $scstadmin_dir = dirname($scstadmin_pm_dir);
+    my $scstadmin_pm_dir = dirname($testdir);
+    my $scstadmin_dir = dirname($scstadmin_pm_dir);
     $scstadmin = File::Spec->catfile($scstadmin_dir, "scstadmin");
     unless(grep /blib/, @INC) {
 	unshift(@INC, File::Spec->catdir($scstadmin_pm_dir, "lib"));
