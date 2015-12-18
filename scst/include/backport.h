@@ -367,7 +367,7 @@ int no_printk(const char *s, ...) { return 0; }
 
 /* <linux/rcupdate.h> */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 0) && !defined(kfree_rcu)
 typedef void (*rcu_callback_t)(struct rcu_head *);
 #define __is_kfree_rcu_offset(offset) ((offset) < 4096)
 #define kfree_call_rcu(head, rcb) call_rcu(head, rcb)
