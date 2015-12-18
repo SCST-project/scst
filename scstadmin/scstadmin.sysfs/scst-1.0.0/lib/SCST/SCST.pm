@@ -929,7 +929,7 @@ sub driverExists {
 	    opendir($dHandle, make_path(SCST_TARGETS_DIR(), $driver));
 	close $dHandle if ($result);
 
-	return $result;
+	return $result ? TRUE : FALSE;
 }
 
 sub driverDynamicAttributes {
