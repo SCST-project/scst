@@ -694,7 +694,8 @@ static int srpt_refresh_port(struct srpt_port *sport)
 	sport->lid = port_attr.lid;
 
 	ret = ib_query_gid(sport->sdev->device, sport->port, 0, &sport->gid
-#ifdef IB_QUERY_GID_HAS_ATTR_ARG
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0) || \
+	defined(IB_QUERY_GID_HAS_ATTR_ARG)
 			   , NULL
 #endif
 			   );
