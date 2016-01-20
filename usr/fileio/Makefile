@@ -118,6 +118,6 @@ extraclean: clean
 	rm Makefile.aa
 
 release-archive:
-	../../scripts/generate-release-archive fileio_tgt "$$(sed -n 's/^#define[[:blank:]]VERSION_STR[[:blank:]]*\"\([^\"]*\)\".*/\1/p' fileio.c)"
+	../../scripts/generate-release-archive fileio_tgt "$$(sed -n 's/^#define[[:blank:]]VERSION_STR[[:blank:]]*\"\([^\"]*\)\".*/\1/p' ../include/version.h)"
 
 .PHONY: all install uninstall clean extraclean 2release 2debug 2perf
