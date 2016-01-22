@@ -1,7 +1,7 @@
 /*
  *  version.h
  *
- *  Copyright (C) 2015 SanDisk Corporation
+ *  Copyright (C) 2015 - 2016 SanDisk Corporation
  *
  *  Contains macroses for execution tracing and error reporting
  *

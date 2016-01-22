@@ -1,8 +1,8 @@
 /*
  *  include/scst_user.h
  *
- *  Copyright (C) 2007 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
- *  Copyright (C) 2007 - 2015 SanDisk Corporation
+ *  Copyright (C) 2007 - 2016 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2007 - 2016 SanDisk Corporation
  *
  *  Contains constants and data structures for scst_user module.
  *  See http://scst.sourceforge.net/doc/scst_user_spec.txt or

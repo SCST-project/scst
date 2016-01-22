@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2013 - 2015 SanDisk Corporation
+ *  Copyright (C) 2013 - 2016 SanDisk Corporation
  *
  */
 

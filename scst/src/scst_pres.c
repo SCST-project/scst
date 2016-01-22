@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2009 - 2010 Alexey Obitotskiy <alexeyo1@open-e.com>
  *  Copyright (C) 2009 - 2010 Open-E, Inc.
- *  Copyright (C) 2009 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2009 - 2016 Vladislav Bolkhovitin <vst@vlnb.net>
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
