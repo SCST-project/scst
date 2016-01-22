@@ -19,6 +19,6 @@
 #ifndef __VERSION_H
 #define __VERSION_H
 
-#define VERSION_STR "3.1.0-rc1"
+#define VERSION_STR "3.1.1"
 
 #endif /* __VERSION_H */
