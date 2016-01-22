@@ -58,21 +58,18 @@
 				<p><img src="images/t_qlogic.gif" width="100" height="120" class="float-left" alt="SCST QLogic">
 				This is target driver for QLogic qla2xxx (22xx++) Fibre Channel adapters.</p>
 
-				<p>There are 2 latest stable versions of this driver:</p>
-					<ul>
-					<li><span>The first one is 3.0.1. It requires Linux kernel version 2.6.26.x or higher and
-					SCST version 3.0.1 or higher. Driver in qla2x00t subdirectory is the old one, forked from
-					qla2xxx from kernel 2.6.26. It does not support 16G QLogic adapters and is not maintained anymore.</span></li>
-					<li><span>Another version you can find in the SVN trunk. This driver supports 16G Hilda QLogic
+				<p>This driver in version 3.1 supports 16G Hilda QLogic
 					chip based adapters (post-Hilda QLogic chips not supported) and has many other important improvements.
 					This driver should also support FCoE, but that has never been verified.
 					It has passed intensive internal SanDisk tests. It is stable and production ready.
 					This driver is in stable maintenance mode in favor of the
-					QLogic git tree driver (see below). This is the recommended driver to use in production at the moment.</span></li>
-					</ul>
-				<p>
-				The latest version of this driver with full support of the latest QLogic chips for both FC and FCoE you can find in
-				git://git.qlogic.com/scst-qla2xxx.git. This driver also supports T10-PI functionality.
+					QLogic git tree driver (see below). This is the recommended driver to use in production at the moment.
+				</p>
+
+				<p>You can find the latest updates for this driver in the SVN trunk.</p>
+
+				<p>The latest QLogic maintained version of this driver with full support of the latest QLogic chips for both FC and FCoE you can find in
+				git://git.qlogic.com/scst-qla2xxx.git. That version also supports T10-PI functionality.
 				It is maintained by QLogic, hence located in the QLogic's git. See SVN root README
 				for instructions how to integrate it into the SCST build tree. However, not all
 				improvements from the SVN trunk target driver have been integrated in this driver yet,
