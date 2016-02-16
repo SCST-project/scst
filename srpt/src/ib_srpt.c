@@ -593,6 +593,9 @@ static void srpt_mad_send_handler(struct ib_mad_agent *mad_agent,
  * srpt_mad_recv_handler() - MAD reception callback function.
  */
 static void srpt_mad_recv_handler(struct ib_mad_agent *mad_agent,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
+				  struct ib_mad_send_buf *send_buf,
+#endif
 				  struct ib_mad_recv_wc *mad_wc)
 {
 	struct srpt_port *sport = (struct srpt_port *)mad_agent->context;
@@ -4206,11 +4209,15 @@ static void srpt_add_one(struct ib_device *device)
 
 	sdev->device = device;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
 	ret = ib_query_device(device, &sdev->dev_attr);
 	if (ret) {
 		pr_err("ib_query_device() failed: %d\n", ret);
 		goto free_dev;
 	}
+#else
+	sdev->dev_attr = device->attrs;
+#endif
 
 	sdev->pd = ib_alloc_pd(device);
 	if (IS_ERR(sdev->pd)) {
