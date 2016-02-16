@@ -865,7 +865,6 @@ static void isert_async_evt_handler(struct ib_event *async_ev, void *context)
 static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 {
 	struct isert_device *isert_dev;
-	struct ib_device_attr *dev_attr;
 	int cqe_num, err;
 	struct ib_pd *pd;
 	struct ib_mr *mr;
@@ -882,12 +881,15 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 		goto out;
 	}
 
-	dev_attr = &isert_dev->device_attr;
-	err = ib_query_device(ib_dev, dev_attr);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
+	err = ib_query_device(ib_dev, &isert_dev->device_attr);
 	if (unlikely(err)) {
 		pr_err("Failed to query device, err: %d\n", err);
-		goto fail_query;
+		goto free_isert_dev;
 	}
+#else
+	isert_dev->device_attr = ib_dev->attrs;
+#endif
 
 	isert_dev->num_cqs = min_t(int, num_online_cpus(),
 				   ib_dev->num_comp_vectors);
@@ -898,7 +900,7 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 	if (unlikely(isert_dev->cq_qps == NULL)) {
 		pr_err("Failed to allocate iser cq_qps\n");
 		err = -ENOMEM;
-		goto fail_cq_qps;
+		goto free_isert_dev;
 	}
 
 	isert_dev->cq_desc = vmalloc(sizeof(*isert_dev->cq_desc) * isert_dev->num_cqs);
@@ -1026,8 +1028,7 @@ fail_pd:
 	vfree(isert_dev->cq_desc);
 fail_alloc_cq_desc:
 	kfree(isert_dev->cq_qps);
-fail_cq_qps:
-fail_query:
+free_isert_dev:
 	kfree(isert_dev);
 out:
 	TRACE_EXIT_RES(err);
