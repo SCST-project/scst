@@ -245,7 +245,7 @@ do {									\
 #define TRACING_MINOR() (false)
 
 #define TRACE(trace, format, args...)			\
-	((void)(trace), no_printk(format, ##args))
+	do { (void)(trace); no_printk(format, ##args); } while (0)
 #define PRINT_BUFFER(message, buff, len)		\
 	((void)(message), (void)(buff), (void)(len))
 #define PRINT_BUFF_FLAG(flag, message, buff, len)	\
@@ -391,7 +391,7 @@ do {									\
 #define TRACE_SG(format, args...)	no_printk(format, ##args)
 #define TRACE_DBG(format, args...)	no_printk(format, ##args)
 #define TRACE_DBG_FLAG(flag, format, args...) \
-	((void)(flag), no_printk(format, ##args))
+	do { (void)(flag); no_printk(format, ##args); } while (0)
 #define TRACE_DBG_SPECIAL(format, args...)	no_printk(format, ##args)
 #define TRACE_MGMT_DBG(format, args...)	no_printk(format, ##args)
 #define TRACE_MGMT_DBG_SPECIAL(format, args...)	no_printk(format, ##args)
