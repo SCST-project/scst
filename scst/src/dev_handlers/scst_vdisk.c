@@ -3614,7 +3614,11 @@ static int blockio_exec(struct scst_cmd *cmd)
 
 	if (unlikely(virt_dev->fd == NULL)) {
 		if (!vdisk_no_fd_allowed_commands(cmd)) {
-			/* We should not get here */
+			/*
+			 * We should not get here, unless the user space
+			 * misconfiguring something, e.g. set optimized
+			 * ALUA state for secondary DRBD device.
+			 */
 			PRINT_WARNING("Closed FD on exec. Secondary DRBD or not "
 				"blocked dev before ALUA state change? "
 				"(cmd %p, op %s, dev %s)", cmd, cmd->op_name,
