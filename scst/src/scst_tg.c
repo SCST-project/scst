@@ -283,8 +283,6 @@ static int scst_tg_accept_standby(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	switch (cmd->cdb[0]) {
-	case TEST_UNIT_READY:
-	case GET_EVENT_STATUS_NOTIFICATION:
 	case INQUIRY:
 	case MODE_SENSE:
 	case MODE_SENSE_10:
@@ -348,18 +346,10 @@ static int scst_tg_accept_unav(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	switch (cmd->cdb[0]) {
-	case TEST_UNIT_READY:
-	case GET_EVENT_STATUS_NOTIFICATION:
 	case INQUIRY:
-	case MODE_SENSE:
-	case MODE_SENSE_10:
 	case READ_CAPACITY:
 	case REPORT_LUNS:
 	case REQUEST_SENSE:
-	case RELEASE:
-	case RELEASE_10:
-	case RESERVE:
-	case RESERVE_10:
 	case READ_BUFFER:
 	case WRITE_BUFFER:
 		res = SCST_ALUA_CHECK_OK;
@@ -454,6 +444,13 @@ static int scst_tg_accept_transitioning(struct scst_cmd *cmd)
 	case SERVICE_ACTION_IN_16:
 		switch (cmd->cdb[1] & 0x1f) {
 		case SAI_READ_CAPACITY_16:
+			res = SCST_ALUA_CHECK_OK;
+			goto out;
+		}
+		break;
+	case MAINTENANCE_IN:
+		switch (cmd->cdb[1] & 0x1f) {
+		case MI_REPORT_TARGET_PGS:
 			res = SCST_ALUA_CHECK_OK;
 			goto out;
 		}
@@ -1442,6 +1439,39 @@ out_unlock:
 	return tg_id;
 }
 EXPORT_SYMBOL_GPL(scst_lookup_tg_id);
+
+/**
+ * scst_get_alua_state() - returns ALUA state the target port group.
+ * @dev: SCST device.
+ * @tgt: SCST target.
+ *
+ * Returns a valid ALUA state (SCST_TG_STATE_OPTIMIZED is no ALUA configured)
+ */
+enum scst_tg_state scst_get_alua_state(struct scst_device *dev, struct scst_tgt *tgt)
+{
+	struct scst_dev_group *dg;
+	struct scst_target_group *tg;
+	struct scst_tg_tgt *tg_tgt;
+	enum scst_tg_state res = SCST_TG_STATE_OPTIMIZED;
+
+	TRACE_ENTRY();
+	mutex_lock(&scst_dg_mutex);
+	dg = __lookup_dg_by_dev(dev);
+	if (!dg)
+		goto out_unlock;
+	tg_tgt = __lookup_dg_tgt(dg, tgt->tgt_name);
+	if (!tg_tgt)
+		goto out_unlock;
+	tg = tg_tgt->tg;
+	BUG_ON(!tg);
+	res = tg->state;
+out_unlock:
+	mutex_unlock(&scst_dg_mutex);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+EXPORT_SYMBOL_GPL(scst_get_alua_state);
 
 /**
  * scst_alua_configured() - Whether implicit ALUA has been configured.

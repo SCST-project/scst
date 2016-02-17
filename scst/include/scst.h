@@ -3825,6 +3825,7 @@ static inline void scst_sess_set_tgt_priv(struct scst_session *sess,
 }
 
 uint16_t scst_lookup_tg_id(struct scst_device *dev, struct scst_tgt *tgt);
+enum scst_tg_state scst_get_alua_state(struct scst_device *dev, struct scst_tgt *tgt);
 bool scst_alua_configured(struct scst_device *dev);
 int scst_tg_get_group_info(void **buf, uint32_t *response_length,
 			   struct scst_device *dev, uint8_t data_format);

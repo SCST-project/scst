@@ -3547,7 +3547,6 @@ static bool vdisk_no_fd_allowed_commands(const struct scst_cmd *cmd)
 
 	switch (cmd->cdb[0]) {
 	case TEST_UNIT_READY:
-	case GET_EVENT_STATUS_NOTIFICATION:
 	case INQUIRY:
 	case MODE_SENSE:
 	case MODE_SENSE_10:
@@ -4369,6 +4368,7 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 	uint8_t *buf;
 	struct scst_device *dev = cmd->dev;
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+	enum scst_tg_state alua_state;
 
 	TRACE_ENTRY();
 
@@ -4390,8 +4390,13 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 		goto out_put;
 	}
 
-	buf[0] = virt_dev->dummy ? SCSI_INQ_PQ_NOT_CON << 5 | 0x1f :
-		 SCSI_INQ_PQ_CON << 5 | dev->type;
+	alua_state = scst_get_alua_state(cmd->dev, cmd->tgt);
+	if ((alua_state == SCST_TG_STATE_UNAVAILABLE) ||
+	    (alua_state == SCST_TG_STATE_OFFLINE))
+		buf[0] = SCSI_INQ_PQ_NOT_CON << 5 | dev->type;
+	else
+		buf[0] = virt_dev->dummy ? SCSI_INQ_PQ_NOT_CON << 5 | 0x1f :
+			 SCSI_INQ_PQ_CON << 5 | dev->type;
 	/* Vital Product */
 	if (cmd->cdb[1] & EVPD) {
 		if (cmd->cdb[2] == 0) {
