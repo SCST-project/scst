@@ -85,6 +85,13 @@ work perfectly)
 
 5. Build SCST
 
+  ! Important: SCST 3.1.x and trunk: Gentoo Hardened kernels uses
+  Grsec/PaX patchset. If you happen to use one of those kernels
+  (sys-kernel/hardened-sources) you need to change every call
+  "object_is_on_stack" to "object_starts_on_stack" to compile SCST
+  successfully. At the time of writing this there is a single such call
+  in scst/src/scst_lib.c
+
   cd /root/scst
   make 2perf
   make scst scst_install
