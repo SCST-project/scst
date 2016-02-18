@@ -1567,11 +1567,12 @@ int scst_tg_get_group_info(void **buf, uint32_t *length,
 	list_for_each_entry(tg, &dg->tg_list, entry) {
 		/* Target port group descriptor header. */
 		*p++ = (tg->preferred ? SCST_TG_PREFERRED : 0) | tg->state;
-		*p++ = SCST_TG_SUP_OPTIMIZED
-			| SCST_TG_SUP_NONOPTIMIZED
-			| SCST_TG_SUP_STANDBY
-			| SCST_TG_SUP_UNAVAILABLE
-			| SCST_TG_SUP_TRANSITION;
+		*p++ = SCST_TG_SUP_OPTIMIZED |
+			SCST_TG_SUP_NONOPTIMIZED |
+			SCST_TG_SUP_STANDBY |
+			SCST_TG_SUP_UNAVAILABLE |
+			SCST_TG_SUP_OFFLINE |
+			SCST_TG_SUP_TRANSITION;
 		put_unaligned_be16(tg->group_id, p);
 		p += 2;
 		p++;      /* reserved */
