@@ -1178,6 +1178,17 @@ static int scst_register_device(struct scsi_device *scsidp)
 
 	dev->scsi_dev = scsidp;
 
+#ifdef CONFIG_SCST_FORWARD_MODE_PASS_THROUGH
+	res = scst_pr_set_file_name(dev, NULL, "%s/%s", SCST_PR_DIR,
+				    dev->virt_name);
+	if (res != 0)
+		goto out_free_dev;
+
+	res = scst_pr_init_dev(dev);
+	if (res != 0)
+		goto out_free_dev;
+#endif
+
 	list_add_tail(&dev->dev_list_entry, &scst_dev_list);
 
 #ifdef CONFIG_SCST_PROC
@@ -1223,6 +1234,10 @@ out_del_unlocked:
 #else
 out_del_locked:
 	list_del_init(&dev->dev_list_entry);
+#endif
+
+#ifdef CONFIG_SCST_FORWARD_MODE_PASS_THROUGH
+	scst_pr_clear_dev(dev);
 #endif
 
 out_free_dev:
@@ -1283,6 +1298,10 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 	dev->dev_unregistering = 1;
 
 	list_del_init(&dev->dev_list_entry);
+
+#ifdef CONFIG_SCST_FORWARD_MODE_PASS_THROUGH
+	scst_pr_clear_dev(dev);
+#endif
 
 	scst_dg_dev_remove_by_dev(dev);
 

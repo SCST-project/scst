@@ -353,6 +353,15 @@ in/out in Makefile and scst.h:
    functionality is working only if dif_mode doesn't contain dev_store
    and dif_type is 1.
 
+ - CONFIG_SCST_FORWARD_MODE_PASS_THROUGH - if defined, the pass-through
+   subsystem starts working in the forwarding mode, where reservation
+   commands processed locally and not passed to the backend SCSI device,
+   while COMPARE AND WRITE, EXTENDED COPY and RECEIVE COPY RESULTS
+   commands, which normally processed locally by the SCST core, not
+   processed locally, but passed to the backend device. Intended to be
+   used to implement NON-OPTIMIZED ALUA state together with "forwarding"
+   target attribute on the remote node. Disabled by default for safety.
+
 HIGHMEM kernel configurations are fully supported, but not recommended
 for performance reasons, except for scst_user, where they are not
 supported, because this module deals with user supplied memory on a

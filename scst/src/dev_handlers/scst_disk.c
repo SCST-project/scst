@@ -268,6 +268,20 @@ static int disk_parse(struct scst_cmd *cmd)
 		goto out;
 	}
 
+#ifdef CONFIG_SCST_FORWARD_MODE_PASS_THROUGH
+	if (unlikely(cmd->op_flags & SCST_LOCAL_CMD)) {
+		switch (cmd->cdb[0]) {
+		case COMPARE_AND_WRITE:
+		case EXTENDED_COPY:
+		case RECEIVE_COPY_RESULTS:
+			TRACE_DBG("Clearing LOCAL CMD flag for cmd %p "
+				"(op %s)", cmd, cmd->op_name);
+			cmd->op_flags &= ~SCST_LOCAL_CMD;
+			break;
+		}
+	}
+#endif
+
 	cmd->retries = SCST_PASSTHROUGH_RETRIES;
 out:
 	return res;
@@ -397,6 +411,24 @@ static int disk_exec(struct scst_cmd *cmd)
 	int num, j, block_shift = dev->block_shift;
 
 	TRACE_ENTRY();
+
+#ifdef CONFIG_SCST_FORWARD_MODE_PASS_THROUGH
+	if (unlikely(cmd->op_flags & SCST_LOCAL_CMD)) {
+		switch (cmd->cdb[0]) {
+		case RESERVE:
+		case RESERVE_10:
+		case RELEASE:
+		case RELEASE_10:
+			TRACE_DBG("Skipping LOCAL cmd %p (op %s)",
+				cmd, cmd->op_name);
+			goto out_done;
+		case PERSISTENT_RESERVE_IN:
+		case PERSISTENT_RESERVE_OUT:
+			sBUG();
+			break;
+		}
+	}
+#endif
 
 	/*
 	 * For PC requests we are going to submit max_hw_sectors used instead

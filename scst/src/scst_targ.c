@@ -2959,6 +2959,7 @@ static int scst_persistent_reserve_in_local(struct scst_cmd *cmd)
 		goto out_done;
 	}
 
+#ifndef CONFIG_SCST_FORWARD_MODE_PASS_THROUGH
 	if (dev->scsi_dev != NULL) {
 		PRINT_WARNING("PR commands for pass-through devices not "
 			"supported (device %s)", dev->virt_name);
@@ -2966,6 +2967,7 @@ static int scst_persistent_reserve_in_local(struct scst_cmd *cmd)
 			SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		goto out_done;
 	}
+#endif
 
 	buffer_size = scst_get_buf_full_sense(cmd, &buffer);
 	if (unlikely(buffer_size <= 0))
