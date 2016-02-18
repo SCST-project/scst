@@ -365,6 +365,28 @@ static inline __attribute__ ((format (printf, 1, 2)))
 int no_printk(const char *s, ...) { return 0; }
 #endif
 
+/* <linux/ratelimit.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 27)
+/* See also commit 717115e1a585 */
+
+#define DEFAULT_RATELIMIT_INTERVAL (5 * HZ)
+#define DEFAULT_RATELIMIT_BURST 10
+
+struct ratelimit_state {
+	int interval;
+	int burst;
+};
+
+#define DEFINE_RATELIMIT_STATE(name, interval, burst)	\
+	struct ratelimit_state name = {interval, burst,}
+
+static inline int __ratelimit(struct ratelimit_state *rs)
+{
+	return 1;
+}
+#endif
+
 /* <linux/rcupdate.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 0) && !defined(kfree_rcu)

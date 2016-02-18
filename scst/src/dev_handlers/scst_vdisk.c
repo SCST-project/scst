@@ -6486,7 +6486,8 @@ static void blockio_endio(struct bio *bio)
 	if (unlikely(error != 0)) {
 		unsigned long flags;
 
-		PRINT_ERROR("BLOCKIO for cmd %p finished with error %d",
+		PRINT_ERROR_RATELIMITED(
+			"BLOCKIO for cmd %p finished with error %d",
 			blockio_work->cmd, error);
 
 		/*

@@ -31,6 +31,10 @@
 #include <linux/bug.h>		/* for WARN_ON_ONCE */
 #endif
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 27)
+#include <linux/ratelimit.h>
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
 /*
  * See also the following commits:
@@ -283,6 +287,16 @@ do {									\
 #endif /* LOG_PREFIX */
 
 #endif /* CONFIG_SCST_DEBUG || CONFIG_SCST_TRACING */
+
+#define PRINT_ERROR_RATELIMITED(format, args...)	\
+	do {						\
+		static DEFINE_RATELIMIT_STATE(_rs,      \
+			DEFAULT_RATELIMIT_INTERVAL,	\
+			DEFAULT_RATELIMIT_BURST);	\
+							\
+		if (__ratelimit(&_rs))			\
+			PRINT_ERROR(format, ##args);	\
+	} while (0)
 
 #ifdef CONFIG_SCST_DEBUG
 
