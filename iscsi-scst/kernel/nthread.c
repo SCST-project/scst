@@ -868,6 +868,12 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 				/*
 				 * This command not yet received on the aborted
 				 * time, so shouldn't be affected by any abort.
+				 * It should not be affected by conn_abort()
+				 * as well, because close connection is initiated
+				 * from single (this) read thread, so conn_abort()
+				 * call stack can not be initiated in parallel to
+				 * receive all the data event (do_recv() has check
+				 * of conn->closing in the beginning)
 				 */
 				EXTRACHECKS_BUG_ON(cmnd->prelim_compl_flags != 0);
 
