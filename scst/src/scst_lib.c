@@ -12020,6 +12020,13 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 	 * therefore change them only if necessary
 	 */
 
+	/*
+	 * Potentially, a pass-through backend device can at any time change
+	 * block size behind us, e.g. after FORMAT command, so we need to
+	 * somehow detect it. Intercepting READ CAPACITY is, probably, the
+	 * simplest, yet sufficient way for that.
+	 */
+
 	if (unlikely(opcode == READ_CAPACITY)) {
 		if (scst_cmd_completed_good(cmd)) {
 			/* Always keep track of disk capacity */
@@ -12027,8 +12034,8 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 			uint8_t *buffer;
 
 			buffer_size = scst_get_buf_full(cmd, &buffer);
-			if (unlikely(buffer_size <= 0)) {
-				if (buffer_size < 0) {
+			if (unlikely(buffer_size < 8)) {
+				if (buffer_size != 0) {
 					PRINT_ERROR("%s: Unable to get cmd "
 						"buffer (%d)",	__func__,
 						buffer_size);
@@ -12045,7 +12052,7 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 			set_block_shift(cmd, sh);
 			TRACE_DBG("block_shift %d", sh);
 		}
-	} else {
+	} else /* ToDo: add READ CAPACITY(16) here */ {
 		/* It's all good */
 	}
 
