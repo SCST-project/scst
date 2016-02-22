@@ -283,6 +283,8 @@ static int scst_tg_accept_standby(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	switch (cmd->cdb[0]) {
+	case TEST_UNIT_READY:
+	case GET_EVENT_STATUS_NOTIFICATION:
 	case INQUIRY:
 	case MODE_SENSE:
 	case MODE_SENSE_10:
@@ -346,10 +348,18 @@ static int scst_tg_accept_unav(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	switch (cmd->cdb[0]) {
+	case TEST_UNIT_READY:
+	case GET_EVENT_STATUS_NOTIFICATION:
 	case INQUIRY:
+	case MODE_SENSE:
+	case MODE_SENSE_10:
 	case READ_CAPACITY:
 	case REPORT_LUNS:
 	case REQUEST_SENSE:
+	case RELEASE:
+	case RELEASE_10:
+	case RESERVE:
+	case RESERVE_10:
 	case READ_BUFFER:
 	case WRITE_BUFFER:
 		res = SCST_ALUA_CHECK_OK;
