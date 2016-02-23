@@ -3547,7 +3547,6 @@ static bool vdisk_no_fd_allowed_commands(const struct scst_cmd *cmd)
 
 	switch (cmd->cdb[0]) {
 	case TEST_UNIT_READY:
-	case GET_EVENT_STATUS_NOTIFICATION:
 	case INQUIRY:
 	case MODE_SENSE:
 	case MODE_SENSE_10:
