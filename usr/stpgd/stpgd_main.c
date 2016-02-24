@@ -46,11 +46,11 @@ char *app_name;
 # endif
 #endif /* DEBUG */
 
-#define ARRAY_SIZE(x) (sizeof(x)/sizeof(x[0]))
-
 bool log_daemon = true;
 unsigned long trace_flag = DEFAULT_LOG_FLAGS;
 #endif /* defined(DEBUG) || defined(TRACING) */
+
+#define ARRAY_SIZE(x) (sizeof(x)/sizeof(x[0]))
 
 int transition_timeout = DEFAULT_TRANSITION_TIME;
 

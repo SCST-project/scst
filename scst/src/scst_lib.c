@@ -1950,6 +1950,7 @@ go:
 
 	memset(buf, 0, len);
 	buf[0] = 0x7F; /* Peripheral qualifier 011b, Peripheral device type 1Fh */
+	buf[2] = 6; /* Device complies to SPC-4 */
 	buf[4] = len - 4;
 
 	TRACE_BUFFER("INQUIRY for not supported LUN set", buf, len);
