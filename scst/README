@@ -1647,14 +1647,14 @@ perform actual path state switching on SET TARGET PORT GROUPS command,
 for instance, by calling drbdadm. For more information see stpgd README
 as well as sample script scst_on_stpg.
 
-DRBD compatibility
-..................
+DRBD and other replication/failover SW compatibility
+....................................................
 
-DRBD does not allow to open its device on the secondary as well as does
-not allow to perform primary to secondary transition, if this device is
-open.
+DRBD as well as other replication/failover SW does not allow to open its
+device on the secondary as well as does not allow to perform primary to
+secondary transition, if this device is open.
 
-SCST BLOCKIO handler has all the necessary support for this behavior. If
+SCST BLOCKIO handler has all the necessary support for such behavior. If
 you write new ALUA state in the "state" attribute, SCST BLOCKIO handler
 before transition closes the open devices' handles and after transition
 reopens them, if the new state is active or nonoptimized.
@@ -1668,7 +1668,7 @@ above). Wait until the blocking finished.
 2. Change the ALUA state to "transitioning". At this moment all open
 file handles will be closed.
 
-3. Perform the DRBD state transition
+3. Perform the DRBD or other replication/failover SW state transition
 
 4. Change the ALUA state to your desired secondary state.
 

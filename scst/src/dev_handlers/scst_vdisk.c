@@ -3617,7 +3617,9 @@ static int blockio_exec(struct scst_cmd *cmd)
 			/*
 			 * We should not get here, unless the user space
 			 * misconfiguring something, e.g. set optimized
-			 * ALUA state for secondary DRBD device.
+			 * ALUA state for secondary DRBD device. See
+			 * "DRBD and other replication/failover SW
+			 * compatibility" section in SCST README.
 			 */
 			PRINT_WARNING("Closed FD on exec. Secondary DRBD or not "
 				"blocked dev before ALUA state change? "
