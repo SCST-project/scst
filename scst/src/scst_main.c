@@ -1092,7 +1092,8 @@ static void __scst_resume_activity(void)
 		TRACE_MGMT_DBG("Moving delayed mgmt cmd %p to head of active "
 			"mgmt cmd list", m);
 	}
-	list_splice(&scst_delayed_mgmt_cmd_list, &scst_active_mgmt_cmd_list);
+	list_splice_init(&scst_delayed_mgmt_cmd_list,
+			 &scst_active_mgmt_cmd_list);
 	spin_unlock_irq(&scst_mcmd_lock);
 
 	wake_up_all(&scst_mgmt_cmd_list_waitQ);
