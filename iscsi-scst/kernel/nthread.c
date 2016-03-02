@@ -81,7 +81,6 @@ again:
 	spin_lock_bh(&conn->cmd_list_lock);
 	list_for_each_entry(cmnd, &conn->cmd_list, cmd_list_entry) {
 		struct iscsi_cmnd *rsp;
-		int restart = 0;
 
 		TRACE_CONN_CLOSE_DBG("cmd %p, scst_state %x, "
 			"r2t_len_to_receive %d, ref_cnt %d, parent_req %p, "
@@ -98,6 +97,12 @@ again:
 			if (cmnd_get_check(cmnd))
 				continue;
 
+			/*
+			 * If we don't unlock here, we are risking to get into
+			 * recursive deadlock in cmnd_done() called from cmnd_put()
+			 */
+			spin_unlock_bh(&conn->cmd_list_lock);
+
 			for (i = 0; i < cmnd->sg_cnt; i++) {
 				struct page *page = sg_page(&cmnd->sg[i]);
 
@@ -106,18 +111,12 @@ again:
 					atomic_read(&page->_count));
 
 				if (page->net_priv != NULL) {
-					if (restart == 0) {
-						spin_unlock_bh(&conn->cmd_list_lock);
-						restart = 1;
-					}
 					while (page->net_priv != NULL)
 						iscsi_put_page_callback(page);
 				}
 			}
 			cmnd_put(cmnd);
-
-			if (restart)
-				goto again;
+			goto again;
 		}
 
 		list_for_each_entry(rsp, &cmnd->rsp_cmd_list,
@@ -133,6 +132,13 @@ again:
 				if (cmnd_get_check(rsp))
 					continue;
 
+				/*
+				 * If we don't unlock here, we are risking to
+				 * get into recursive deadlock in cmnd_done()
+				 * called from cmnd_put()
+				 */
+				spin_unlock_bh(&conn->cmd_list_lock);
+
 				for (i = 0; i < rsp->sg_cnt; i++) {
 					struct page *page =
 						sg_page(&rsp->sg[i]);
@@ -143,18 +149,12 @@ again:
 						atomic_read(&page->_count));
 
 					if (page->net_priv != NULL) {
-						if (restart == 0) {
-							spin_unlock_bh(&conn->cmd_list_lock);
-							restart = 1;
-						}
 						while (page->net_priv != NULL)
 							iscsi_put_page_callback(page);
 					}
 				}
 				cmnd_put(rsp);
-
-				if (restart)
-					goto again;
+				goto again;
 			}
 		}
 	}
