@@ -148,6 +148,12 @@ module_param(srpt_sq_size, int, 0444);
 MODULE_PARM_DESC(srpt_sq_size,
 		 "Per-channel send queue (SQ) size.");
 
+static int srpt_irq_qd = 1;
+module_param(srpt_irq_qd, int, 0644);
+MODULE_PARM_DESC(srpt_irq_qd,
+	"Maximum queue depth for submitting commands to SCST from IRQ context."
+	" WARNING: increasing this parameter may cause a system lockup.");
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31) \
     || defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
 static int use_port_guid_in_session_name;
@@ -190,9 +196,16 @@ MODULE_PARM_DESC(max_sge_delta, "Number to subtract from max_sge.");
  * dangerous because it might cause IB completions to be processed too late
  * ("IB completion for idx <n> has not been received in time").
  */
-static const enum scst_exec_context srpt_new_iu_context = SCST_CONTEXT_THREAD;
-static const enum scst_exec_context srpt_xmt_rsp_context = SCST_CONTEXT_THREAD;
-static const enum scst_exec_context srpt_send_context = SCST_CONTEXT_DIRECT;
+static inline enum scst_exec_context
+srpt_new_iu_context(struct srpt_rdma_ch *ch)
+{
+	return in_interrupt() &&
+		atomic_read(&ch->sess->sess_cmd_count) <= ch->irq_qd ?
+		SCST_CONTEXT_TASKLET : SCST_CONTEXT_THREAD;
+}
+#define srpt_xmt_rsp_context SCST_CONTEXT_THREAD
+#define srpt_send_context \
+	(in_interrupt() ? SCST_CONTEXT_THREAD : SCST_CONTEXT_DIRECT)
 
 static struct ib_client srpt_client;
 static struct scst_tgt_template srpt_template;
@@ -1954,7 +1967,7 @@ static void srpt_process_rcv_completion(struct ib_cq *cq,
 		else
 			ioctx = ch->ioctx_recv_ring[index];
 		ioctx->byte_len = wc->byte_len;
-		srpt_handle_new_iu(ch, ioctx, srpt_new_iu_context);
+		srpt_handle_new_iu(ch, ioctx, srpt_new_iu_context(ch));
 	} else if (ch->state <= CH_LIVE) {
 		pr_info("receiving failed for idx %u with status %d\n", index,
 			wc->status);
@@ -1969,7 +1982,8 @@ static void srpt_process_wait_list(struct srpt_rdma_ch *ch)
 
 	list_for_each_entry_safe(recv_ioctx, tmp, &ch->cmd_wait_list,
 				 wait_list) {
-		if (!srpt_handle_new_iu(ch, recv_ioctx, srpt_new_iu_context))
+		if (!srpt_handle_new_iu(ch, recv_ioctx,
+					srpt_new_iu_context(ch)))
 			break;
 	}
 
@@ -2098,7 +2112,13 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 {
 	struct srpt_rdma_ch *ch = ctx;
 
-	wake_up_process(ch->thread);
+	const int irq_qd = ch->irq_qd;
+	int processed = 0;
+
+	if (atomic_read(&ch->sess->sess_cmd_count) <= irq_qd)
+		processed = srpt_process_completion(ch, irq_qd + 1, false);
+	if (processed == 0 || processed > irq_qd)
+		wake_up_process(ch->thread);
 }
 
 static void srpt_free_ch(struct kref *kref)
@@ -2621,6 +2641,7 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 		ch->rdma_cm.cm_id = rdma_cm_id;
 		rdma_cm_id->context = ch;
 	}
+	ch->irq_qd = srpt_irq_qd;
 	/*
 	 * Avoid QUEUE_FULL conditions by limiting the number of buffers used
 	 * for the SRP protocol to the SCST SCSI command queue size.

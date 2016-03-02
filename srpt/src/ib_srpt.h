@@ -317,6 +317,7 @@ enum rdma_ch_state {
  * @qp:            IB queue pair used for communicating over this channel.
  * @cq:            IB completion queue for this channel.
  * @kref:          Per-channel reference count.
+ * @irq_qd:        Maximum queue depth processed in atomic context.
  * @rq_size:       IB receive queue size.
  * @max_sge:       Maximum length of RDMA scatter list.
  * @max_rsp_size:  Maximum size of an SRP response message in bytes.
@@ -361,6 +362,7 @@ struct srpt_rdma_ch {
 	};
 	struct ib_cq		*cq;
 	struct kref		kref;
+	int			irq_qd;
 	struct rcu_head		rcu;
 	int			rq_size;
 	int			max_sge;
