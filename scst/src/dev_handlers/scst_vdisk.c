@@ -789,7 +789,7 @@ static struct scst_dev_type vdisk_blk_devtype = {
 static struct scst_dev_type vdisk_null_devtype = {
 	.name =			"vdisk_nullio",
 	.type =			TYPE_DISK,
-	.threads_num =		0,
+	.threads_num =		1,
 	.parse_atomic =		1,
 	.dev_done_atomic =	1,
 #ifdef CONFIG_SCST_PROC
