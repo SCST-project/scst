@@ -8686,7 +8686,7 @@ out:
 	return res;
 
 out_free:
-	kfree(buf);
+	kfree(new_size);
 	goto out;
 }
 
