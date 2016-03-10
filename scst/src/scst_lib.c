@@ -7743,6 +7743,9 @@ static struct request *__blk_map_kern_sg(struct request_queue *q,
 		(PAGE_SIZE - sizeof(struct bio)) / sizeof(struct bio_vec),
 		BIO_MAX_PAGES);
 
+	TRACE_DBG("max_nr_vecs %d, nents %d, reading %d", max_nr_vecs,
+		nents, reading);
+
 	need_new_bio = true;
 	tot_len = 0;
 	bios = 0;
@@ -7764,6 +7767,10 @@ static struct request *__blk_map_kern_sg(struct request_queue *q,
 			l = 0;
 		else
 			l = len;
+
+		TRACE_DBG("i %d, len %zd, tot_len %zd, l %zd, offset %zd",
+			i, len, tot_len, l, offset);
+
 		if (((sg->offset | l) & queue_dma_alignment(q)) ||
 		    (page_addr && object_is_on_stack(page_addr + sg->offset))) {
 			rq = ERR_PTR(-EINVAL);
@@ -7798,6 +7805,8 @@ static struct request *__blk_map_kern_sg(struct request_queue *q,
 				bio->bi_private = bw;
 				bio->bi_end_io = blk_bio_map_kern_endio;
 
+				TRACE_DBG("new bio %p, bios %d", bio, bios);
+
 				if (hbio == NULL)
 					hbio = bio;
 				else
@@ -7806,6 +7815,8 @@ static struct request *__blk_map_kern_sg(struct request_queue *q,
 			}
 
 			bytes = min_t(size_t, len, PAGE_SIZE - offset);
+
+			TRACE_DBG("len %zd, bytes %zd, offset %zd", len, bytes, offset);
 
 			rc = bio_add_pc_page(q, bio, page, bytes, offset);
 			if (rc < bytes) {
