@@ -962,6 +962,7 @@ static void __scst_tg_set_state(struct scst_target_group *tg,
 	struct scst_tg_tgt *tg_tgt;
 	struct scst_tgt *tgt;
 	enum scst_tg_state old_state = tg->state;
+	bool dev_changed;
 
 	sBUG_ON(state >= ARRAY_SIZE(scst_alua_filter));
 	lockdep_assert_held(&scst_dg_mutex);
@@ -973,14 +974,18 @@ static void __scst_tg_set_state(struct scst_target_group *tg,
 
 	list_for_each_entry(dg_dev, &tg->dg->dev_list, entry) {
 		dev = dg_dev->dev;
-		if (dev->handler->on_alua_state_change_start != NULL)
-			dev->handler->on_alua_state_change_start(dev, old_state, state);
+		dev_changed = false;
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 				    dev_tgt_dev_list_entry) {
 			tgt = tgt_dev->sess->tgt;
 			list_for_each_entry(tg_tgt, &tg->tgt_list, entry) {
 				if (tg_tgt->tgt == tgt) {
 					bool gen_ua = (state != SCST_TG_STATE_TRANSITIONING);
+
+					if ((dev->handler->on_alua_state_change_start != NULL) && !dev_changed) {
+						dev->handler->on_alua_state_change_start(dev, old_state, state);
+						dev_changed = true;
+					}
 
 					if ((tg->dg->stpg_rel_tgt_id == tgt_dev->sess->tgt->rel_tgt_id) &&
 					    tid_equal(tg->dg->stpg_transport_id, tgt_dev->sess->transport_id))
@@ -991,7 +996,7 @@ static void __scst_tg_set_state(struct scst_target_group *tg,
 				}
 			}
 		}
-		if (dev->handler->on_alua_state_change_finish != NULL)
+		if ((dev->handler->on_alua_state_change_finish != NULL) && dev_changed)
 			dev->handler->on_alua_state_change_finish(dev, old_state, state);
 	}
 
