@@ -5610,7 +5610,7 @@ static void q2t_response_pkt(scsi_qla_host_t *vha, response_t *pkt)
 					 */
 					q24_retry_term_exchange(vha, entry);
 				} else
-					PRINT_ERROR("qla2x00t(%ld): ABTS_RESP_24XX "
+					PRINT_WARNING("qla2x00t(%ld): ABTS_RESP_24XX "
 					    "failed %x (subcode %x:%x)", vha->host_no,
 					    entry->compl_status, entry->error_subcode1,
 					    entry->error_subcode2);
@@ -5815,7 +5815,7 @@ retry:
 					"S_ID %x:%x:%x", s_id[0], s_id[1],
 					s_id[2]);
 			} else
-				PRINT_ERROR("qla2x00t(%ld): Unable to find "
+				PRINT_WARNING("qla2x00t(%ld): Unable to find "
 					"initiator with S_ID %x:%x:%x",
 					vha->host_no, s_id[0], s_id[1],
 					s_id[2]);
