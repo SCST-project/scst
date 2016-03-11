@@ -48,7 +48,7 @@ extract_kernel_tree "$1" || exit $?
 
 cd "${target}" || exit $?
 
-list-source-files "${scst_dir}" |
+"${script_dir}/list-source-files" "${scst_dir}" |
   grep -- "-${kernel_version}.*.patch$" |
   grep -v /in-tree/ |
   while read p; do
