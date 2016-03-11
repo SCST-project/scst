@@ -3621,8 +3621,8 @@ static int blockio_exec(struct scst_cmd *cmd)
 			 * "DRBD and other replication/failover SW
 			 * compatibility" section in SCST README.
 			 */
-			PRINT_WARNING("Closed FD on exec. Secondary DRBD or not "
-				"blocked dev before ALUA state change? "
+			PRINT_WARNING("Closed FD on exec. Not active ALUA state "
+				"or not blocked dev before ALUA state change? "
 				"(cmd %p, op %s, dev %s)", cmd, cmd->op_name,
 				cmd->dev->virt_name);
 			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_no_medium));
