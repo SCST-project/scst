@@ -4459,15 +4459,16 @@ out_free:
 	goto out;
 }
 
-/* The activity supposed to be suspended and scst_mutex held */
-int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun,
-	bool gen_report_luns_changed)
+/* Delete a LUN without generating a unit attention. */
+static struct scst_acg_dev *__scst_acg_del_lun(struct scst_acg *acg,
+					       uint64_t lun,
+					       bool *report_luns_changed)
 {
-	int res = 0;
 	struct scst_acg_dev *acg_dev = NULL, *a;
 	struct scst_tgt_dev *tgt_dev, *tt;
 
-	TRACE_ENTRY();
+	scst_assert_activity_suspended();
+	lockdep_assert_held(&scst_mutex);
 
 	list_for_each_entry(a, &acg->acg_dev_list, acg_dev_list_entry) {
 		if (a->lun == lun) {
@@ -4475,13 +4476,11 @@ int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun,
 			break;
 		}
 	}
-	if (acg_dev == NULL) {
-		PRINT_ERROR("Device is not found in group %s", acg->acg_name);
-		res = -EINVAL;
+	if (acg_dev == NULL)
 		goto out;
-	}
 
-	gen_report_luns_changed = scst_cm_on_del_lun(acg_dev, gen_report_luns_changed);
+	*report_luns_changed = scst_cm_on_del_lun(acg_dev,
+						  *report_luns_changed);
 
 	list_for_each_entry_safe(tgt_dev, tt, &acg_dev->dev->dev_tgt_dev_list,
 			 dev_tgt_dev_list_entry) {
@@ -4491,11 +4490,37 @@ int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun,
 
 	scst_del_free_acg_dev(acg_dev, true);
 
-	if (gen_report_luns_changed)
-		scst_report_luns_changed(acg);
-
 	PRINT_INFO("Removed LUN %lld from group %s (target %s)",
 		lun, acg->acg_name, acg->tgt ? acg->tgt->tgt_name : "?");
+
+out:
+	return acg_dev;
+}
+
+/*
+ * Delete a LUN and generate a unit attention if gen_report_luns_changed is
+ * true.
+ */
+int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun,
+		     bool gen_report_luns_changed)
+{
+	int res = 0;
+	struct scst_acg_dev *acg_dev;
+
+	TRACE_ENTRY();
+
+	scst_assert_activity_suspended();
+	lockdep_assert_held(&scst_mutex);
+
+	acg_dev = __scst_acg_del_lun(acg, lun, &gen_report_luns_changed);
+	if (acg_dev == NULL) {
+		PRINT_ERROR("Device is not found in group %s", acg->acg_name);
+		res = -EINVAL;
+		goto out;
+	}
+
+	if (gen_report_luns_changed)
+		scst_report_luns_changed(acg);
 
 out:
 	TRACE_EXIT_RES(res);
