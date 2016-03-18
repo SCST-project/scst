@@ -68,16 +68,6 @@ The ib_srpt kernel module supports the following parameters:
   to 65536 bytes, which is sufficient to use the full bandwidth of low-latency
   HCAs. Increasing this value may decrease latency for applications
   transferring large amounts of data at once.
-* srpt_irq_qd (number, default 1)
-  After the ib_srpt driver has received a SCSI command from an initiator
-  system an interrupt is triggered. The RDMA work completion can be processed
-  either in interrupt context or in thread context. This parameter controls
-  the maximum queue depth for which RDMA completions are processed in
-  interrupt context. If an RDMA completion has been processed in interrupt
-  context the associated SCSI command will be submitted to SCST from tasklet
-  context. This approach helps to reduce command processing latency for
-  low-latency storage devices (e.g. SSDs). WARNING: setting this parameter to
-  a high value can cause a system to lock up.
 * srpt_srq_size (number, default 4095)
   ib_srpt uses a shared receive queue (SRQ) for processing incoming SRP
   requests. This number may have to be increased when a large number of
