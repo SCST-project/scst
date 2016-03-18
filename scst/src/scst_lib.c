@@ -4527,6 +4527,47 @@ out:
 	return res;
 }
 
+/*
+ * Either add or replace a LUN. The repl_gen_ua argument controls whether or
+ * not a unit attention is triggered if LUN reassignment is performed.
+ */
+int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
+		      struct scst_device *dev, uint64_t lun,
+		      unsigned flags)
+{
+	struct scst_acg_dev *acg_dev;
+	bool del_gen_ua = false;
+	int res = -EINVAL;
+
+	scst_assert_activity_suspended();
+	lockdep_assert_held(&scst_mutex);
+
+	acg_dev = __scst_acg_del_lun(acg, lun, &del_gen_ua);
+	if (!acg_dev)
+		flags |= SCST_ADD_LUN_GEN_UA;
+	res = scst_acg_add_lun(acg, parent, dev, lun, flags, NULL);
+	if (res != 0)
+		goto out;
+
+	if (acg_dev && (flags & SCST_REPL_LUN_GEN_UA)) {
+		struct scst_tgt_dev *tgt_dev;
+
+		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
+				    dev_tgt_dev_list_entry) {
+			if (tgt_dev->acg_dev->acg == acg &&
+			    tgt_dev->lun == lun) {
+				TRACE_MGMT_DBG("INQUIRY DATA HAS CHANGED"
+					       " on tgt_dev %p", tgt_dev);
+				scst_gen_aen_or_ua(tgt_dev,
+						   SCST_LOAD_SENSE(scst_sense_inquiry_data_changed));
+			}
+		}
+	}
+
+out:
+	return res;
+}
+
 /* The activity supposed to be suspended and scst_mutex held */
 int scst_alloc_add_acg(struct scst_tgt *tgt, const char *acg_name,
 	bool tgt_acg, struct scst_acg **out_acg)

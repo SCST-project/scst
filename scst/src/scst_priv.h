@@ -366,11 +366,16 @@ void scst_nexus_loss(struct scst_tgt_dev *tgt_dev, bool queue_UA);
 #define SCST_ADD_LUN_READ_ONLY	1
 #define SCST_ADD_LUN_GEN_UA	2
 #define SCST_ADD_LUN_CM		4
+#define SCST_REPL_LUN_GEN_UA	8
+
 int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
 	struct scst_device *dev, uint64_t lun, unsigned int flags,
 	struct scst_acg_dev **out_acg_dev);
 int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun,
 	bool gen_report_luns_changed);
+int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
+		      struct scst_device *dev, uint64_t lun,
+		      unsigned flags);
 
 int scst_acg_add_acn(struct scst_acg *acg, const char *name);
 #ifdef CONFIG_SCST_PROC

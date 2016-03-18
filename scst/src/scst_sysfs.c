@@ -1436,57 +1436,17 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 	}
 	case SCST_LUN_ACTION_REPLACE:
 	{
-		bool dev_replaced = false;
-		unsigned int flags = 0;
+		unsigned int flags = (read_only ? SCST_ADD_LUN_READ_ONLY : 0) |
+				  (replace_gen_ua ? SCST_REPL_LUN_GEN_UA : 0);
 
 		res = scst_parse_add_repl_param(acg, dev, pp, &virt_lun,
 						&read_only);
 		if (res != 0)
 			goto out_unlock;
 
-		acg_dev = NULL;
-		list_for_each_entry(acg_dev_tmp, &acg->acg_dev_list,
-				    acg_dev_list_entry) {
-			if (acg_dev_tmp->lun == virt_lun) {
-				acg_dev = acg_dev_tmp;
-				break;
-			}
-		}
-
-		if (acg_dev != NULL) {
-			/* Replace */
-			res = scst_acg_del_lun(acg, acg_dev->lun, false);
-			if (res != 0)
-				goto out_unlock;
-
-			dev_replaced = true;
-		}
-
-		if (read_only)
-			flags |= SCST_ADD_LUN_READ_ONLY;
-		if (!dev_replaced)
-			flags |= SCST_ADD_LUN_GEN_UA;
-		res = scst_acg_add_lun(acg,
-			tgt_kobj ? tgt->tgt_luns_kobj : acg->luns_kobj,
-			dev, virt_lun, flags, NULL);
-		if (res != 0)
-			goto out_unlock;
-
-		if (dev_replaced && replace_gen_ua) {
-			struct scst_tgt_dev *tgt_dev;
-
-			list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
-				dev_tgt_dev_list_entry) {
-				if ((tgt_dev->acg_dev->acg == acg) &&
-				    (tgt_dev->lun == virt_lun)) {
-					TRACE_MGMT_DBG("INQUIRY DATA HAS CHANGED"
-						" on tgt_dev %p", tgt_dev);
-					scst_gen_aen_or_ua(tgt_dev,
-						SCST_LOAD_SENSE(scst_sense_inquiry_data_changed));
-				}
-			}
-		}
-
+		res = scst_acg_repl_lun(acg, tgt_kobj ? tgt->tgt_luns_kobj :
+					acg->luns_kobj, dev, virt_lun,
+					flags);
 		break;
 	}
 	case SCST_LUN_ACTION_DEL:
