@@ -2045,7 +2045,7 @@ static int vdisk_format_dif(struct scst_cmd *cmd, uint64_t start_lba,
 		}
 
 		virt_dev->format_progress_done = done;
-	};
+	}
 
 out_set_fs:
 	set_fs(old_fs);
@@ -5885,7 +5885,7 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 
 		if (finished)
 			break;
-	};
+	}
 
 	set_fs(old_fs);
 
@@ -6047,7 +6047,7 @@ restart:
 
 		if (finished)
 			break;
-	};
+	}
 
 	set_fs(old_fs);
 
@@ -6162,7 +6162,7 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 			break;
 
 		length = scst_get_buf_next(cmd, (uint8_t __force **)&address);
-	};
+	}
 
 	set_fs(old_fs);
 
