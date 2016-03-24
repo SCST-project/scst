@@ -2187,8 +2187,12 @@ static int srpt_compl_thread(void *arg)
 		 ch->sess_name, ch->qp->qp_num);
 	scst_unregister_session(ch->sess, false, srpt_unreg_sess);
 
-	while (!kthread_should_stop())
-		schedule_timeout(DIV_ROUND_UP(HZ, 10));
+	set_current_state(TASK_INTERRUPTIBLE);
+	while (!kthread_should_stop()) {
+		schedule();
+		set_current_state(TASK_INTERRUPTIBLE);
+	}
+	__set_current_state(TASK_RUNNING);
 
 	return 0;
 }
