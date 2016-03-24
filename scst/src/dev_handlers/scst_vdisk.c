@@ -3640,6 +3640,7 @@ static int blockio_exec(struct scst_cmd *cmd)
 	cmd->dh_priv = NULL;
 
 out:
+	vdisk_on_free_cmd_params(&p);
 	return res;
 
 err:
@@ -3667,6 +3668,7 @@ static int nullio_exec(struct scst_cmd *cmd)
 	cmd->dh_priv = NULL;
 
 out:
+	vdisk_on_free_cmd_params(&p);
 	return res;
 
 err:
@@ -5792,7 +5794,6 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 	bool finished = false;
 	int tags_num, l;
 	struct scatterlist *tags_sg;
-	bool free_iv = false;
 
 	TRACE_ENTRY();
 
@@ -5827,7 +5828,6 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 			res = -ENOMEM;
 			goto out;
 		}
-		free_iv = true;
 	}
 	max_iv_count = p->iv_count;
 
@@ -5894,10 +5894,6 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 
 	set_fs(old_fs);
 
-out_free_iv:
-	if (free_iv && (iv != p->small_iv))
-		kfree(p->iv);
-
 out:
 	TRACE_EXIT_RES(res);
 	return res;
@@ -5906,7 +5902,7 @@ out_set_fs:
 	set_fs(old_fs);
 	for (i = 0; i < iv_count; i++)
 		scst_put_dif_buf(cmd, (void __force *)(iv[i].iov_base));
-	goto out_free_iv;
+	goto out;
 }
 
 static int vdev_write_dif_tags(struct vdisk_cmd_params *p)
@@ -5925,7 +5921,6 @@ static int vdev_write_dif_tags(struct vdisk_cmd_params *p)
 	bool finished = false;
 	int tags_num, l;
 	struct scatterlist *tags_sg;
-	bool free_iv = false;
 
 	TRACE_ENTRY();
 
@@ -5960,7 +5955,6 @@ static int vdev_write_dif_tags(struct vdisk_cmd_params *p)
 			res = -ENOMEM;
 			goto out;
 		}
-		free_iv = true;
 	}
 	max_iv_count = p->iv_count;
 
@@ -6056,10 +6050,6 @@ restart:
 
 	set_fs(old_fs);
 
-out_free_iv:
-	if (free_iv && (iv != p->small_iv))
-		kfree(iv);
-
 out:
 	TRACE_EXIT_RES(res);
 	return res;
@@ -6068,7 +6058,7 @@ out_set_fs:
 	set_fs(old_fs);
 	for (i = 0; i < iv_count; i++)
 		scst_put_dif_buf(cmd, (void __force *)(iv[i].iov_base));
-	goto out_free_iv;
+	goto out;
 }
 
 static enum compl_status_e blockio_exec_read(struct vdisk_cmd_params *p)
