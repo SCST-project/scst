@@ -1267,8 +1267,8 @@ static int dev_user_map_buf(struct scst_user_cmd *ucmd, unsigned long ubuff,
 		(ucmd->cmd != NULL) ? ucmd->cmd->bufflen : -1);
 
 	down_read(&tsk->mm->mmap_sem);
-	rc = get_user_pages(tsk, tsk->mm, ubuff, ucmd->num_data_pages,
-		1/*writable*/, 0/*don't force*/, ucmd->data_pages, NULL);
+	rc = get_user_pages(ubuff, ucmd->num_data_pages, 1/*writable*/,
+			    0/*don't force*/, ucmd->data_pages, NULL);
 	up_read(&tsk->mm->mmap_sem);
 
 	/* get_user_pages() flushes dcache */

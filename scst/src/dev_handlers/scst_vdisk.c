@@ -2023,8 +2023,8 @@ static int vdisk_format_dif(struct scst_cmd *cmd, uint64_t start_lba,
 			full_len, (long long)loff);
 
 		/* WRITE */
-		err = vfs_writev(fd, (struct iovec __force __user *)iv, iv_count,
-				 &loff);
+		err = vfs_writev(fd, (struct iovec __force __user *)iv,
+				 iv_count, &loff, 0);
 		if (err < 0) {
 			PRINT_ERROR("Formatting DIF write() returned %lld from "
 				"%zd", (long long)err, full_len);
@@ -5860,7 +5860,7 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 
 		/* READ */
 		err = vfs_readv(fd, (struct iovec __force __user *)iv, iv_count,
-				&loff);
+				&loff, 0);
 		if ((err < 0) || (err < full_len)) {
 			unsigned long flags;
 
@@ -5994,8 +5994,8 @@ restart:
 		TRACE_DBG("Writing DIF: eiv_count %d, full_len %zd", eiv_count, full_len);
 
 		/* WRITE */
-		err = vfs_writev(fd, (struct iovec __force __user *)eiv, eiv_count,
-				 &loff);
+		err = vfs_writev(fd, (struct iovec __force __user *)eiv,
+				 eiv_count, &loff, 0);
 		if (err < 0) {
 			unsigned long flags;
 
@@ -6141,7 +6141,7 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 
 		/* READ */
 		err = vfs_readv(fd, (struct iovec __force __user *)iv, iv_count,
-				&loff);
+				&loff, 0);
 		if ((err < 0) || (err < full_len)) {
 			PRINT_ERROR("readv() returned %lld from %zd",
 				    (unsigned long long int)err,
@@ -6334,8 +6334,8 @@ restart:
 		TRACE_DBG("Writing: eiv_count %d, full_len %zd", eiv_count, full_len);
 
 		/* WRITE */
-		err = vfs_writev(fd, (struct iovec __force __user *)eiv, eiv_count,
-				 &loff);
+		err = vfs_writev(fd, (struct iovec __force __user *)eiv,
+				 eiv_count, &loff, 0);
 		if (err < 0) {
 			PRINT_ERROR("write() returned %lld from %zd",
 				    (unsigned long long int)err,

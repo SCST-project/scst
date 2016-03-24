@@ -1371,7 +1371,7 @@ retry:
 			set_fs(KERNEL_DS);
 			res = vfs_writev(file,
 					 (struct iovec __force __user *)iop,
-					 count, &off);
+					 count, &off, 0);
 			set_fs(oldfs);
 			TRACE_WRITE("sid %#Lx, cid %u, res %d, iov_len %zd",
 				    (unsigned long long int)conn->session->sid,
