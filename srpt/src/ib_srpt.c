@@ -2183,7 +2183,7 @@ static int srpt_compl_thread(void *arg)
 	}
 	set_current_state(TASK_RUNNING);
 
-	pr_debug("%s-%d: about to unregister this session()\n",
+	pr_debug("%s-%d: about to unregister this session\n",
 		 ch->sess_name, ch->qp->qp_num);
 	scst_unregister_session(ch->sess, false, srpt_unreg_sess);
 
