@@ -3500,6 +3500,12 @@ static int fileio_exec(struct scst_cmd *cmd)
 	return vdev_do_job(cmd, ops);
 }
 
+static void vdisk_on_free_cmd_params(const struct vdisk_cmd_params *p)
+{
+	if (p->iv != p->small_iv)
+		kfree(p->iv);
+}
+
 static void fileio_on_free_cmd(struct scst_cmd *cmd)
 {
 	struct vdisk_cmd_params *p = cmd->dh_priv;
@@ -3524,8 +3530,7 @@ static void fileio_on_free_cmd(struct scst_cmd *cmd)
 		cmd->data_len = 0;
 	}
 
-	if (p->iv != p->small_iv)
-		kfree(p->iv);
+	vdisk_on_free_cmd_params(p);
 
 	kmem_cache_free(vdisk_cmd_param_cachep, p);
 
