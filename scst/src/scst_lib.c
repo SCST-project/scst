@@ -1,11 +1,9 @@
 /*
  *  scst_lib.c
  *
- *  Copyright (C) 2004 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004 - 2016 Vladislav Bolkhovitin <vst@vlnb.net>
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
- *  Copyright (C) 2007 - 2015 SanDisk Corporation
- *  Copyright (C) 2015 Permabit Technology Corporation.
- *  Copyright (C) 2015 Calsoft Pvt. Ltd.
+ *  Copyright (C) 2007 - 2016 SanDisk Corporation
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -1953,6 +1951,7 @@ go:
 
 	memset(buf, 0, len);
 	buf[0] = 0x7F; /* Peripheral qualifier 011b, Peripheral device type 1Fh */
+	buf[2] = 6; /* Device complies to SPC-4 */
 	buf[4] = len - 4;
 
 	TRACE_BUFFER("INQUIRY for not supported LUN set", buf, len);
@@ -4444,6 +4443,12 @@ int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
 	list_add_tail(&acg_dev->acg_dev_list_entry, &acg->acg_dev_list);
 	list_add_tail(&acg_dev->dev_acg_dev_list_entry, &dev->dev_acg_dev_list);
 
+	if (!(flags & SCST_ADD_LUN_CM)) {
+		res = scst_cm_on_add_lun(acg_dev, lun, &flags);
+		if (res != 0)
+			goto out_free;
+	}
+
 	list_for_each_entry(sess, &acg->acg_sess_list, acg_sess_list_entry) {
 		res = scst_alloc_add_tgt_dev(sess, acg_dev, &tgt_dev);
 		if (res == -EPERM)
@@ -4457,7 +4462,7 @@ int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
 
 	res = scst_acg_dev_sysfs_create(acg_dev, parent);
 	if (res != 0)
-		goto out_free;
+		goto out_on_del;
 
 	if (flags & SCST_ADD_LUN_GEN_UA)
 		scst_report_luns_changed(acg);
@@ -4473,6 +4478,10 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 
+out_on_del:
+	if (!(flags & SCST_ADD_LUN_CM))
+		scst_cm_on_del_lun(acg_dev, false);
+
 out_free:
 	list_for_each_entry_safe(tgt_dev, tt, &tmp_tgt_dev_list,
 			 extra_tgt_dev_list_entry) {
@@ -4482,9 +4491,11 @@ out_free:
 	goto out;
 }
 
+/* Delete a LUN without generating a unit attention. */
 static struct scst_acg_dev *__scst_acg_del_lun(struct scst_acg *acg,
 					       uint64_t lun,
-					       struct list_head *tgt_dev_list)
+					       struct list_head *tgt_dev_list,
+					       bool *report_luns_changed)
 {
 	struct scst_acg_dev *acg_dev = NULL, *a;
 	struct scst_tgt_dev *tgt_dev, *tt;
@@ -4503,6 +4514,9 @@ static struct scst_acg_dev *__scst_acg_del_lun(struct scst_acg *acg,
 	if (acg_dev == NULL)
 		goto out;
 
+	*report_luns_changed = scst_cm_on_del_lun(acg_dev,
+						  *report_luns_changed);
+
 	list_for_each_entry_safe(tgt_dev, tt, &acg_dev->dev->dev_tgt_dev_list,
 			 dev_tgt_dev_list_entry) {
 		if (tgt_dev->acg_dev == acg_dev) {
@@ -4518,6 +4532,9 @@ static struct scst_acg_dev *__scst_acg_del_lun(struct scst_acg *acg,
 	}
 
 	scst_del_acg_dev(acg_dev, true, true);
+
+	PRINT_INFO("Removed LUN %lld from group %s (target %s)",
+		lun, acg->acg_name, acg->tgt ? acg->tgt->tgt_name : "?");
 
 out:
 	return acg_dev;
@@ -4541,9 +4558,9 @@ static void scst_wait_for_tgt_devs(struct list_head *tgt_dev_list)
 }
 
 int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun,
-	bool gen_scst_report_luns_changed)
+		     bool gen_report_luns_changed)
 {
-	int res = -EINVAL;
+	int res = 0;
 	struct scst_acg_dev *acg_dev;
 	struct scst_tgt_dev *tgt_dev, *tt;
 	struct list_head tgt_dev_list;
@@ -4552,13 +4569,15 @@ int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun,
 
 	lockdep_assert_held(&scst_mutex);
 
-	acg_dev = __scst_acg_del_lun(acg, lun, &tgt_dev_list);
+	acg_dev = __scst_acg_del_lun(acg, lun, &tgt_dev_list,
+				     &gen_report_luns_changed);
 	if (acg_dev == NULL) {
 		PRINT_ERROR("Device is not found in group %s", acg->acg_name);
+		res = -EINVAL;
 		goto out;
 	}
 
-	if (gen_scst_report_luns_changed)
+	if (gen_report_luns_changed)
 		scst_report_luns_changed(acg);
 
 	mutex_unlock(&scst_mutex);
@@ -4573,31 +4592,27 @@ int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun,
 	}
 	scst_free_acg_dev(acg_dev);
 
-	res = 0;
-
-	PRINT_INFO("Removed LUN %lld from group %s (target %s)",
-		lun, acg->acg_name, acg->tgt ? acg->tgt->tgt_name : "?");
-
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
 
+/* Either add or replace a LUN. */
 int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
 		      struct scst_device *dev, uint64_t lun,
 		      unsigned int flags)
 {
 	struct scst_acg_dev *acg_dev;
+	bool del_gen_ua = false;
 	struct scst_tgt_dev *tgt_dev, *tt;
 	struct list_head tgt_dev_list;
 	int res = -EINVAL;
 
-	TRACE_ENTRY();
-
 	lockdep_assert_held(&scst_mutex);
 
-	acg_dev = __scst_acg_del_lun(acg, lun, &tgt_dev_list);
-
+	acg_dev = __scst_acg_del_lun(acg, lun, &tgt_dev_list, &del_gen_ua);
+	if (!acg_dev)
+		flags |= SCST_ADD_LUN_GEN_UA;
 	res = scst_acg_add_lun(acg, parent, dev, lun, flags, NULL);
 	if (res != 0)
 		goto out;
@@ -4626,21 +4641,22 @@ int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
 	scst_free_acg_dev(acg_dev);
 
 out:
-	TRACE_EXIT_RES(res);
 	return res;
 }
 
 /* The activity supposed to be suspended and scst_mutex held */
-struct scst_acg *scst_alloc_add_acg(struct scst_tgt *tgt,
-	const char *acg_name, bool tgt_acg)
+int scst_alloc_add_acg(struct scst_tgt *tgt, const char *acg_name,
+	bool tgt_acg, struct scst_acg **out_acg)
 {
 	struct scst_acg *acg;
+	int res;
 
 	TRACE_ENTRY();
 
 	acg = kzalloc(sizeof(*acg), GFP_KERNEL);
 	if (acg == NULL) {
 		PRINT_ERROR("%s", "Allocation of acg failed");
+		res = -ENOMEM;
 		goto out;
 	}
 
@@ -4653,8 +4669,13 @@ struct scst_acg *scst_alloc_add_acg(struct scst_tgt *tgt,
 	acg->acg_name = kstrdup(acg_name, GFP_KERNEL);
 	if (acg->acg_name == NULL) {
 		PRINT_ERROR("%s", "Allocation of acg_name failed");
+		res = -ENOMEM;
 		goto out_free;
 	}
+
+	res = scst_cm_on_add_acg(acg);
+	if (res != 0)
+		goto out_undup;
 
 #ifdef CONFIG_SCST_PROC
 	acg->addr_method = tgt && tgt->tgtt ? tgt->tgtt->preferred_addr_method
@@ -4668,29 +4689,34 @@ struct scst_acg *scst_alloc_add_acg(struct scst_tgt *tgt,
 	acg->addr_method = tgt->tgtt->preferred_addr_method;
 
 	if (tgt_acg) {
-		int rc;
-
 		TRACE_DBG("Adding acg '%s' to device '%s' acg_list", acg_name,
 			tgt->tgt_name);
 		list_add_tail(&acg->acg_list_entry, &tgt->tgt_acg_list);
 		acg->tgt_acg = 1;
 
-		rc = scst_acg_sysfs_create(tgt, acg);
-		if (rc != 0)
+		res = scst_acg_sysfs_create(tgt, acg);
+		if (res != 0)
 			goto out_del;
 	}
 
 	kobject_get(&tgt->tgt_kobj);
 #endif
 
+	res = 0;
+
 out:
-	TRACE_EXIT_HRES(acg);
-	return acg;
+	*out_acg = acg;
+
+	TRACE_EXIT_RES(res);
+	return res;
 
 #ifndef CONFIG_SCST_PROC
 out_del:
 	list_del(&acg->acg_list_entry);
 #endif
+
+out_undup:
+	kfree(acg->acg_name);
 
 out_free:
 	kfree(acg);
@@ -4713,6 +4739,8 @@ static void scst_del_acg(struct scst_acg *acg)
 
 	scst_assert_activity_suspended();
 	lockdep_assert_held(&scst_mutex);
+
+	scst_cm_on_del_acg(acg);
 
 	list_for_each_entry_safe(acg_dev, acg_dev_tmp, &acg->acg_dev_list,
 				 acg_dev_list_entry)
@@ -6834,7 +6862,7 @@ static void scst_send_release(struct scst_device *dev)
 			"SCSI mid-level");
 		rc = scsi_execute(scsi_dev, cdb, SCST_DATA_NONE, NULL, 0,
 				sense, 15, 0, 0
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,29)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 				, NULL
 #endif
 				);
@@ -7885,6 +7913,9 @@ static struct request *__blk_map_kern_sg(struct request_queue *q,
 		(PAGE_SIZE - sizeof(struct bio)) / sizeof(struct bio_vec),
 		BIO_MAX_PAGES);
 
+	TRACE_DBG("max_nr_vecs %d, nents %d, reading %d", max_nr_vecs,
+		nents, reading);
+
 	need_new_bio = true;
 	tot_len = 0;
 	bios = 0;
@@ -7906,6 +7937,10 @@ static struct request *__blk_map_kern_sg(struct request_queue *q,
 			l = 0;
 		else
 			l = len;
+
+		TRACE_DBG("i %d, len %zd, tot_len %zd, l %zd, offset %zd",
+			i, len, tot_len, l, offset);
+
 		if (((sg->offset | l) & queue_dma_alignment(q)) ||
 		    (page_addr && object_is_on_stack(page_addr + sg->offset))) {
 			rq = ERR_PTR(-EINVAL);
@@ -7940,6 +7975,8 @@ static struct request *__blk_map_kern_sg(struct request_queue *q,
 				bio->bi_private = bw;
 				bio->bi_end_io = blk_bio_map_kern_endio;
 
+				TRACE_DBG("new bio %p, bios %d", bio, bios);
+
 				if (hbio == NULL)
 					hbio = bio;
 				else
@@ -7948,6 +7985,8 @@ static struct request *__blk_map_kern_sg(struct request_queue *q,
 			}
 
 			bytes = min_t(size_t, len, PAGE_SIZE - offset);
+
+			TRACE_DBG("len %zd, bytes %zd, offset %zd", len, bytes, offset);
 
 			rc = bio_add_pc_page(q, bio, page, bytes, offset);
 			if (rc < bytes) {
@@ -12163,6 +12202,19 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 
 	TRACE_ENTRY();
 
+	/*
+	 * SCST sets good defaults for cmd->is_send_status and
+	 * cmd->resp_data_len based on cmd->status and cmd->data_direction,
+	 * therefore change them only if necessary
+	 */
+
+	/*
+	 * Potentially, a pass-through backend device can at any time change
+	 * block size behind us, e.g. after FORMAT command, so we need to
+	 * somehow detect it. Intercepting READ CAPACITY is, probably, the
+	 * simplest, yet sufficient way for that.
+	 */
+
 	if (unlikely(opcode == READ_CAPACITY ||
 		     (opcode == SERVICE_ACTION_IN_16 &&
 		      cmd->cdb[1] == SAI_READ_CAPACITY_16))) {
@@ -12172,8 +12224,8 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 			uint8_t *buffer;
 
 			buffer_size = scst_get_buf_full(cmd, &buffer);
-			if (unlikely(buffer_size <= 0)) {
-				if (buffer_size < 0) {
+			if (unlikely(buffer_size < 8)) {
+				if (buffer_size != 0) {
 					PRINT_ERROR("%s: Unable to get cmd "
 						"buffer (%d)",	__func__,
 						buffer_size);
@@ -12195,7 +12247,7 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 					    cmd->op_name);
 			}
 		}
-	} else {
+	} else /* ToDo: add READ CAPACITY(16) here */ {
 		/* It's all good */
 	}
 
@@ -13227,7 +13279,7 @@ int scst_obtain_device_parameters(struct scst_device *dev,
 		TRACE(TRACE_SCSI, "%s", "Doing internal MODE_SENSE");
 		rc = scsi_execute(dev->scsi_dev, cmd, SCST_DATA_READ, buffer,
 				sizeof(buffer), sense_buffer, 15, 0, 0
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,29)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 				, NULL
 #endif
 				);
@@ -14527,7 +14579,7 @@ out_unlock:
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
 void scst_vfs_unlink_and_put(struct nameidata *nd)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 	vfs_unlink(nd->dentry->d_parent->d_inode, nd->dentry);
 	dput(nd->dentry);
 	mntput(nd->mnt);
@@ -14541,7 +14593,9 @@ void scst_vfs_unlink_and_put(struct nameidata *nd)
 void scst_vfs_unlink_and_put(struct path *path)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0) && \
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7) && \
+	(!defined(CONFIG_SUSE_KERNEL) || \
+	 LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 0))
 	vfs_unlink(path->dentry->d_parent->d_inode, path->dentry);
 #else
 	vfs_unlink(path->dentry->d_parent->d_inode, path->dentry, NULL);
@@ -14553,7 +14607,7 @@ void scst_vfs_unlink_and_put(struct path *path)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
 void scst_path_put(struct nameidata *nd)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 	dput(nd->dentry);
 	mntput(nd->mnt);
 #else

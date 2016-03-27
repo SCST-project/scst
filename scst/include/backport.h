@@ -2,7 +2,7 @@
 #define _SCST_BACKPORT_H_
 
 /*
- *  Copyright (C) 2015 SanDisk Corporation
+ *  Copyright (C) 2015 -2016 SanDisk Corporation
  *
  *  Backports of functions introduced in recent kernel versions.
  *
@@ -20,8 +20,11 @@
  *  GNU General Public License for more details.
  */
 
+#include <linux/blkdev.h>	/* struct request_queue */
+#include <linux/scatterlist.h>	/* struct scatterlist */
 #include <linux/slab.h>		/* kmalloc() */
 #include <linux/writeback.h>	/* sync_page_range() */
+#include <scsi/scsi_cmnd.h>	/* struct scsi_cmnd */
 
 /* <asm-generic/barrier.h> */
 
@@ -53,7 +56,7 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 20)
 #ifndef __printf
-#define __printf(a, b) __attribute__((format(printf,a,b)))
+#define __printf(a, b) __attribute__((format(printf, a, b)))
 #endif
 #endif
 
@@ -88,8 +91,10 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 typedef cpumask_t cpumask_var_t[1];
 #define cpumask_bits(maskp) ((maskp)->bits)
 #ifdef CONFIG_CPUMASK_OFFSTACK
-/* Assuming NR_CPUS is huge, a runtime limit is more efficient.  Also,
- * not all bits may be allocated. */
+/*
+ * Assuming NR_CPUS is huge, a runtime limit is more efficient.  Also,
+ * not all bits may be allocated.
+ */
 #define nr_cpumask_bits nr_cpu_ids
 #else
 #define nr_cpumask_bits NR_CPUS
@@ -212,6 +217,25 @@ static inline struct inode *file_inode(const struct file *f)
 }
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
+static inline ssize_t vfs_readv_backport(struct file *file,
+					 const struct iovec __user *vec,
+					 unsigned long vlen, loff_t *pos,
+					 int flags)
+{
+	return vfs_readv(file, vec, vlen, pos);
+}
+static inline ssize_t vfs_writev_backport(struct file *file,
+					  const struct iovec __user *vec,
+					  unsigned long vlen, loff_t *pos,
+					  int flags)
+{
+	return vfs_writev(file, vec, vlen, pos);
+}
+#define vfs_readv vfs_readv_backport
+#define vfs_writev vfs_writev_backport
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
 static inline int vfs_fsync_backport(struct file *file, int datasync)
 {
@@ -322,7 +346,22 @@ static inline bool list_entry_in_list(const struct list_head *entry)
 /* <linux/lockdep.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
-#define lockdep_assert_held(l) do { (void)(l); } while (0)
+#define lockdep_assert_held(l) (void)(l)
+#endif
+
+/* <linux/kernel.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
+static inline long get_user_pages_backport(unsigned long start,
+					   unsigned long nr_pages,
+					   int write, int force,
+					   struct page **pages,
+					   struct vm_area_struct **vmas)
+{
+	return get_user_pages(current, current->mm, start, nr_pages, write,
+			      force, pages, vmas);
+}
+#define get_user_pages get_user_pages_backport
 #endif
 
 /* <linux/preempt.h> */
@@ -339,11 +378,43 @@ static inline bool list_entry_in_list(const struct list_head *entry)
 
 /* <linux/printk.h> */
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24) && !defined(RHEL_MAJOR)
+#define KERN_CONT       ""
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
-#ifndef pr_err
-#define pr_err(fmt, ...) printk(KERN_ERR pr_fmt(fmt), ##__VA_ARGS__)
+/*
+ * See also the following commits:
+ * d091c2f5 - Introduction of pr_info() etc. in <linux/kernel.h>.
+ * 311d0761 - Introduction of pr_cont() in <linux/kernel.h>.
+ * 968ab183 - Moved pr_info() etc. from <linux/kernel.h> to <linux/printk.h>
+ */
+#ifndef pr_emerg
+
+#ifndef pr_fmt
+#define pr_fmt(fmt) fmt
 #endif
+
+#define pr_emerg(fmt, ...)	printk(KERN_EMERG pr_fmt(fmt), ##__VA_ARGS__)
+#define pr_alert(fmt, ...)	printk(KERN_ALERT pr_fmt(fmt), ##__VA_ARGS__)
+#define pr_crit(fmt, ...)	printk(KERN_CRIT pr_fmt(fmt), ##__VA_ARGS__)
+#define pr_err(fmt, ...)	printk(KERN_ERR pr_fmt(fmt), ##__VA_ARGS__)
+#define pr_warning(fmt, ...)	printk(KERN_WARNING pr_fmt(fmt), ##__VA_ARGS__)
+#define pr_notice(fmt, ...)	printk(KERN_NOTICE pr_fmt(fmt), ##__VA_ARGS__)
+
+#endif /* pr_emerg */
+
+#ifndef pr_info
+#define pr_info(fmt, ...)	printk(KERN_INFO pr_fmt(fmt), ##__VA_ARGS__)
 #endif
+
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28) */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
+#ifndef pr_cont
+#define pr_cont(fmt, ...)	printk(KERN_CONT fmt, ##__VA_ARGS__)
+#endif
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30) */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
 /*
@@ -363,6 +434,43 @@ static inline bool list_entry_in_list(const struct list_head *entry)
  */
 static inline __attribute__ ((format (printf, 1, 2)))
 int no_printk(const char *s, ...) { return 0; }
+#endif
+
+/* <linux/ratelimit.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 27)
+/* See also commit 717115e1a585 */
+
+#define DEFAULT_RATELIMIT_INTERVAL (5 * HZ)
+#define DEFAULT_RATELIMIT_BURST 10
+
+struct ratelimit_state {
+	int interval;
+	int burst;
+};
+
+#define DEFINE_RATELIMIT_STATE(name, interval, burst)	\
+	struct ratelimit_state name = {interval, burst,}
+
+static inline int __ratelimit(struct ratelimit_state *rs)
+{
+	return 1;
+}
+#endif
+
+/* <linux/rcupdate.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 0) && !defined(kfree_rcu)
+typedef void (*rcu_callback_t)(struct rcu_head *);
+#define __is_kfree_rcu_offset(offset) ((offset) < 4096)
+#define kfree_call_rcu(head, rcb) call_rcu(head, rcb)
+#define __kfree_rcu(head, offset)				\
+	do {							\
+		BUILD_BUG_ON(!__is_kfree_rcu_offset(offset));	\
+		kfree_call_rcu(head, (rcu_callback_t)(unsigned long)(offset)); \
+	} while (0)
+#define kfree_rcu(ptr, rcu_head)				\
+	__kfree_rcu(&((ptr)->rcu_head), offsetof(typeof(*(ptr)), rcu_head))
 #endif
 
 /* <linux/sched.h> */

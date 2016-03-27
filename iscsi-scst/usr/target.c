@@ -1,7 +1,7 @@
 /*
  *  Copyright (C) 2002 - 2003 Ardis Technolgies <roman@ardistech.com>
- *  Copyright (C) 2007 - 2015 Vladislav Bolkhovitin
- *  Copyright (C) 2007 - 2015 SanDisk Corporation
+ *  Copyright (C) 2007 - 2016 Vladislav Bolkhovitin
+ *  Copyright (C) 2007 - 2016 SanDisk Corporation
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -292,7 +292,7 @@ void target_list_build(struct connection *conn, char *target_name)
 			else if (strcmp(conn->target_portal, portal) &&
 				 !is_addr_loopback(portal) &&
 				 target_portal_allowed(target, portal,
-				 		conn->initiator))
+						       conn->initiator))
 					target_print_addr(conn, portal, family);
 		}
 	}

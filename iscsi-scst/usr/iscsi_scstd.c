@@ -1,7 +1,7 @@
 /*
  *  Copyright (C) 2002 - 2003 Ardis Technolgies <roman@ardistech.com>
- *  Copyright (C) 2007 - 2015 Vladislav Bolkhovitin
- *  Copyright (C) 2007 - 2015 SanDisk Corporation
+ *  Copyright (C) 2007 - 2016 Vladislav Bolkhovitin
+ *  Copyright (C) 2007 - 2016 SanDisk Corporation
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -40,7 +40,7 @@
 #include "iscsid.h"
 #include "iscsi_adm.h"
 
-static char* server_address;
+static char *server_address;
 uint16_t server_port = ISCSI_LISTEN_PORT;
 
 struct pollfd poll_array[POLL_MAX];
@@ -52,10 +52,9 @@ int conn_blocked;
 
 struct iscsi_init_params iscsi_init_params;
 
-static char program_name[] = "iscsi-scstd";
+static const char program_name[] = "iscsi-scstd";
 
-static struct option const long_options[] =
-{
+static struct option const long_options[] = {
 	{"config", required_argument, 0, 'c'},
 	{"foreground", no_argument, 0, 'f'},
 	{"debug", required_argument, 0, 'd'},
@@ -209,6 +208,7 @@ out:
 static int transmit_iser(int fd, bool start)
 {
 	int opt = start;
+
 	return ioctl(fd, RDMA_CORK, &opt, sizeof(opt));
 }
 
@@ -370,6 +370,7 @@ out_close:
 static int transmit_sock(int fd, bool start)
 {
 	int opt = start;
+
 	return setsockopt(fd, SOL_TCP, TCP_CORK, &opt, sizeof(opt));
 }
 
@@ -620,7 +621,7 @@ again:
 			switch (conn->state) {
 			case STATE_KERNEL:
 				conn_pass_to_kern(conn, pollfd->fd);
-				if(conn->passed_to_kern)
+				if (conn->passed_to_kern)
 					conn->state = STATE_CLOSE;
 				else
 					conn->state = STATE_EXIT;
@@ -744,6 +745,7 @@ static void event_loop(void)
 			    (conn->state == STATE_EXIT) ||
 			    (conn->state == STATE_DROP)) {
 				struct session *sess = conn->sess;
+
 				log_debug(1, "closing conn %p", conn);
 				conn_free_pdu(conn);
 				close(pollfd->fd);
@@ -928,6 +930,7 @@ int main(int argc, char **argv)
 			exit(1);
 		} else if (pid) {
 			int res = -1;
+
 			close(init_report_pipe[1]);
 			if (read(init_report_pipe[0], &res, sizeof(res)) < sizeof(res))
 				exit(-1);

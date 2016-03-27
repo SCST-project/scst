@@ -1,12 +1,12 @@
 /*
  *  scst_vdisk.c
  *
- *  Copyright (C) 2004 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004 - 2016 Vladislav Bolkhovitin <vst@vlnb.net>
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
  *  Copyright (C) 2007 Ming Zhang <blackmagic02881 at gmail dot com>
  *  Copyright (C) 2007 Ross Walker <rswwalker at hotmail dot com>
- *  Copyright (C) 2007 - 2015 SanDisk Corporation
- *  Copyright (C) 2008 - 2015 Bart Van Assche <bvanassche@acm.org>
+ *  Copyright (C) 2007 - 2016 SanDisk Corporation
+ *  Copyright (C) 2008 - 2016 Bart Van Assche <bvanassche@acm.org>
  *
  *  SCSI disk (type 0) and CDROM (type 5) dev handler using files
  *  on file systems or block devices (VDISK)
@@ -22,6 +22,9 @@
  *  GNU General Public License for more details.
  */
 
+#ifndef INSIDE_KERNEL_TREE
+#include <linux/version.h>
+#endif
 #include <linux/file.h>
 #include <linux/fs.h>
 #include <linux/string.h>
@@ -34,14 +37,15 @@
 #include <linux/ctype.h>
 #include <linux/writeback.h>
 #include <linux/vmalloc.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
+#include <linux/atomic.h>
+#else
 #include <asm/atomic.h>
+#endif
 #include <linux/kthread.h>
 #include <linux/sched.h>
 #include <linux/delay.h>
 #include <linux/namei.h>
-#ifndef INSIDE_KERNEL_TREE
-#include <linux/version.h>
-#endif
 #include <asm/div64.h>
 #include <asm/unaligned.h>
 #include <linux/slab.h>
@@ -789,7 +793,7 @@ static struct scst_dev_type vdisk_blk_devtype = {
 static struct scst_dev_type vdisk_null_devtype = {
 	.name =			"vdisk_nullio",
 	.type =			TYPE_DISK,
-	.threads_num =		0,
+	.threads_num =		1,
 	.parse_atomic =		1,
 	.dev_done_atomic =	1,
 #ifdef CONFIG_SCST_PROC
@@ -1407,6 +1411,7 @@ static int vdisk_init_block_integrity(struct scst_vdisk_dev *virt_dev)
 	struct inode *inode;
 	struct file *fd;
 	struct blk_integrity *bi;
+	const char *bi_profile_name;
 
 	TRACE_ENTRY();
 
@@ -1430,9 +1435,14 @@ static int vdisk_init_block_integrity(struct scst_vdisk_dev *virt_dev)
 		goto out_no_bi;
 	}
 
-	TRACE_DBG("BI name %s", bi->name);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+	bi_profile_name = bi->name;
+#else
+	bi_profile_name = bi->profile->name;
+#endif
+	TRACE_DBG("BI name %s", bi_profile_name);
 
-	if (!strcmp(bi->name, "T10-DIF-TYPE1-CRC")) {
+	if (!strcmp(bi_profile_name, "T10-DIF-TYPE1-CRC")) {
 		dev->dev_dif_ip_not_supported = 1;
 		if (virt_dev->dif_type != 1) {
 			PRINT_ERROR("Integrity type mismatch, %d expected, "
@@ -1441,7 +1451,7 @@ static int vdisk_init_block_integrity(struct scst_vdisk_dev *virt_dev)
 			res = -EINVAL;
 			goto out_close;
 		}
-	} else if (!strcmp(bi->name, "T10-DIF-TYPE1-IP")) {
+	} else if (!strcmp(bi_profile_name, "T10-DIF-TYPE1-IP")) {
 		if (virt_dev->dif_type != 1) {
 			PRINT_ERROR("Integrity type mismatch, %d expected, "
 				"but block device has 1 (dev %s)",
@@ -1449,7 +1459,7 @@ static int vdisk_init_block_integrity(struct scst_vdisk_dev *virt_dev)
 			res = -EINVAL;
 			goto out_close;
 		}
-	} else if (!strcmp(bi->name, "T10-DIF-TYPE3-CRC")) {
+	} else if (!strcmp(bi_profile_name, "T10-DIF-TYPE3-CRC")) {
 		dev->dev_dif_ip_not_supported = 1;
 		if (virt_dev->dif_type != 3) {
 			PRINT_ERROR("Integrity type mismatch, %d expected, "
@@ -1458,7 +1468,7 @@ static int vdisk_init_block_integrity(struct scst_vdisk_dev *virt_dev)
 			res = -EINVAL;
 			goto out_close;
 		}
-	} else if (!strcmp(bi->name, "T10-DIF-TYPE3-IP")) {
+	} else if (!strcmp(bi_profile_name, "T10-DIF-TYPE3-IP")) {
 		if (virt_dev->dif_type != 3) {
 			PRINT_ERROR("Integrity type mismatch, %d expected, "
 				"but block device has 3 (dev %s)",
@@ -1468,7 +1478,7 @@ static int vdisk_init_block_integrity(struct scst_vdisk_dev *virt_dev)
 		}
 	} else {
 		PRINT_ERROR("Unable to understand integrity name %s"
-			"(dev %s)", bi->name, dev->virt_name);
+			"(dev %s)", bi_profile_name, dev->virt_name);
 		res = -EINVAL;
 		goto out_close;
 	}
@@ -2017,8 +2027,8 @@ static int vdisk_format_dif(struct scst_cmd *cmd, uint64_t start_lba,
 			full_len, (long long)loff);
 
 		/* WRITE */
-		err = vfs_writev(fd, (struct iovec __force __user *)iv, iv_count,
-				 &loff);
+		err = vfs_writev(fd, (struct iovec __force __user *)iv,
+				 iv_count, &loff, 0);
 		if (err < 0) {
 			PRINT_ERROR("Formatting DIF write() returned %lld from "
 				"%zd", err, full_len);
@@ -2039,7 +2049,7 @@ static int vdisk_format_dif(struct scst_cmd *cmd, uint64_t start_lba,
 		}
 
 		virt_dev->format_progress_done = done;
-	};
+	}
 
 out_set_fs:
 	set_fs(old_fs);
@@ -2790,6 +2800,7 @@ static const struct scst_opcode_descriptor *vdisk_opcode_descriptors_type2[] = {
 	&scst_op_descr_write_verify32,
 	&scst_op_descr_write_same32,
 	SCST_OPCODE_DESCRIPTORS
+	&scst_op_descr_stpg, /* must be last, see vdisk_get_supported_opcodes()! */
 };
 
 static const struct scst_opcode_descriptor *vcdrom_opcode_descriptors[] = {
@@ -3310,7 +3321,8 @@ err:
  * @small_sg_size: size of @small_sg
  * @p_sg_cnt: pointer to an int where the sg vector size will be written
  */
-static struct scatterlist *alloc_sg(size_t size, unsigned off, gfp_t gfp_mask,
+static struct scatterlist *alloc_sg(size_t size, unsigned int off,
+				    gfp_t gfp_mask,
 				    struct scatterlist *small_sg,
 				    int small_sg_size, int *p_sg_cnt)
 {
@@ -3492,6 +3504,12 @@ static int fileio_exec(struct scst_cmd *cmd)
 	return vdev_do_job(cmd, ops);
 }
 
+static void vdisk_on_free_cmd_params(const struct vdisk_cmd_params *p)
+{
+	if (p->iv != p->small_iv)
+		kfree(p->iv);
+}
+
 static void fileio_on_free_cmd(struct scst_cmd *cmd)
 {
 	struct vdisk_cmd_params *p = cmd->dh_priv;
@@ -3516,8 +3534,7 @@ static void fileio_on_free_cmd(struct scst_cmd *cmd)
 		cmd->data_len = 0;
 	}
 
-	if (p->iv != p->small_iv)
-		kfree(p->iv);
+	vdisk_on_free_cmd_params(p);
 
 	kmem_cache_free(vdisk_cmd_param_cachep, p);
 
@@ -3539,7 +3556,6 @@ static bool vdisk_no_fd_allowed_commands(const struct scst_cmd *cmd)
 
 	switch (cmd->cdb[0]) {
 	case TEST_UNIT_READY:
-	case GET_EVENT_STATUS_NOTIFICATION:
 	case INQUIRY:
 	case MODE_SENSE:
 	case MODE_SENSE_10:
@@ -3607,9 +3623,15 @@ static int blockio_exec(struct scst_cmd *cmd)
 
 	if (unlikely(virt_dev->fd == NULL)) {
 		if (!vdisk_no_fd_allowed_commands(cmd)) {
-			/* We should not get here */
-			PRINT_WARNING("Closed FD on exec. Secondary DRBD or not "
-				"blocked dev before ALUA state change? "
+			/*
+			 * We should not get here, unless the user space
+			 * misconfiguring something, e.g. set optimized
+			 * ALUA state for secondary DRBD device. See
+			 * "DRBD and other replication/failover SW
+			 * compatibility" section in SCST README.
+			 */
+			PRINT_WARNING("Closed FD on exec. Not active ALUA state "
+				"or not blocked dev before ALUA state change? "
 				"(cmd %p, op %s, dev %s)", cmd, cmd->op_name,
 				cmd->dev->virt_name);
 			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_no_medium));
@@ -3622,6 +3644,7 @@ static int blockio_exec(struct scst_cmd *cmd)
 	cmd->dh_priv = NULL;
 
 out:
+	vdisk_on_free_cmd_params(&p);
 	return res;
 
 err:
@@ -3649,6 +3672,7 @@ static int nullio_exec(struct scst_cmd *cmd)
 	cmd->dh_priv = NULL;
 
 out:
+	vdisk_on_free_cmd_params(&p);
 	return res;
 
 err:
@@ -4361,6 +4385,7 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 	uint8_t *buf;
 	struct scst_device *dev = cmd->dev;
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+	enum scst_tg_state alua_state;
 
 	TRACE_ENTRY();
 
@@ -4382,8 +4407,13 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 		goto out_put;
 	}
 
-	buf[0] = virt_dev->dummy ? SCSI_INQ_PQ_NOT_CON << 5 | 0x1f :
-		 SCSI_INQ_PQ_CON << 5 | dev->type;
+	alua_state = scst_get_alua_state(cmd->dev, cmd->tgt);
+	if ((alua_state == SCST_TG_STATE_UNAVAILABLE) ||
+	    (alua_state == SCST_TG_STATE_OFFLINE))
+		buf[0] = SCSI_INQ_PQ_NOT_CON << 5 | dev->type;
+	else
+		buf[0] = virt_dev->dummy ? SCSI_INQ_PQ_NOT_CON << 5 | 0x1f :
+			 SCSI_INQ_PQ_CON << 5 | dev->type;
 	/* Vital Product */
 	if (cmd->cdb[1] & EVPD) {
 		if (cmd->cdb[2] == 0) {
@@ -5768,7 +5798,6 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 	bool finished = false;
 	int tags_num, l;
 	struct scatterlist *tags_sg;
-	bool free_iv = false;
 
 	TRACE_ENTRY();
 
@@ -5803,7 +5832,6 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 			res = -ENOMEM;
 			goto out;
 		}
-		free_iv = true;
 	}
 	max_iv_count = p->iv_count;
 
@@ -5841,7 +5869,7 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 
 		/* READ */
 		err = vfs_readv(fd, (struct iovec __force __user *)iv, iv_count,
-				&loff);
+				&loff, 0);
 		if ((err < 0) || (err < full_len)) {
 			unsigned long flags;
 
@@ -5866,13 +5894,9 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 
 		if (finished)
 			break;
-	};
+	}
 
 	set_fs(old_fs);
-
-out_free_iv:
-	if (free_iv && (iv != p->small_iv))
-		kfree(p->iv);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -5882,7 +5906,7 @@ out_set_fs:
 	set_fs(old_fs);
 	for (i = 0; i < iv_count; i++)
 		scst_put_dif_buf(cmd, (void __force *)(iv[i].iov_base));
-	goto out_free_iv;
+	goto out;
 }
 
 static int vdev_write_dif_tags(struct vdisk_cmd_params *p)
@@ -5901,7 +5925,6 @@ static int vdev_write_dif_tags(struct vdisk_cmd_params *p)
 	bool finished = false;
 	int tags_num, l;
 	struct scatterlist *tags_sg;
-	bool free_iv = false;
 
 	TRACE_ENTRY();
 
@@ -5936,7 +5959,6 @@ static int vdev_write_dif_tags(struct vdisk_cmd_params *p)
 			res = -ENOMEM;
 			goto out;
 		}
-		free_iv = true;
 	}
 	max_iv_count = p->iv_count;
 
@@ -5975,8 +5997,8 @@ restart:
 		TRACE_DBG("Writing DIF: eiv_count %d, full_len %zd", eiv_count, full_len);
 
 		/* WRITE */
-		err = vfs_writev(fd, (struct iovec __force __user *)eiv, eiv_count,
-				 &loff);
+		err = vfs_writev(fd, (struct iovec __force __user *)eiv,
+				 eiv_count, &loff, 0);
 		if (err < 0) {
 			unsigned long flags;
 
@@ -6028,13 +6050,9 @@ restart:
 
 		if (finished)
 			break;
-	};
+	}
 
 	set_fs(old_fs);
-
-out_free_iv:
-	if (free_iv && (iv != p->small_iv))
-		kfree(iv);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -6044,7 +6062,7 @@ out_set_fs:
 	set_fs(old_fs);
 	for (i = 0; i < iv_count; i++)
 		scst_put_dif_buf(cmd, (void __force *)(iv[i].iov_base));
-	goto out_free_iv;
+	goto out;
 }
 
 static enum compl_status_e blockio_exec_read(struct vdisk_cmd_params *p)
@@ -6122,7 +6140,7 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 
 		/* READ */
 		err = vfs_readv(fd, (struct iovec __force __user *)iv, iv_count,
-				&loff);
+				&loff, 0);
 		if ((err < 0) || (err < full_len)) {
 			PRINT_ERROR("readv() returned %lld from %zd",
 				    (unsigned long long int)err,
@@ -6143,7 +6161,7 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 			break;
 
 		length = scst_get_buf_next(cmd, (uint8_t __force **)&address);
-	};
+	}
 
 	set_fs(old_fs);
 
@@ -6315,8 +6333,8 @@ restart:
 		TRACE_DBG("Writing: eiv_count %d, full_len %zd", eiv_count, full_len);
 
 		/* WRITE */
-		err = vfs_writev(fd, (struct iovec __force __user *)eiv, eiv_count,
-				 &loff);
+		err = vfs_writev(fd, (struct iovec __force __user *)eiv,
+				 eiv_count, &loff, 0);
 		if (err < 0) {
 			PRINT_ERROR("write() returned %lld from %zd",
 				    (unsigned long long int)err,
@@ -6433,6 +6451,7 @@ static inline void blockio_check_finish(struct scst_blockio_work *blockio_work)
 static void blockio_bio_destructor(struct bio *bio)
 {
 	struct scst_blockio_work *blockio_work = bio->bi_private;
+
 	bio_free(bio, blockio_work->bioset);
 	blockio_check_finish(blockio_work);
 }
@@ -6469,7 +6488,8 @@ static void blockio_endio(struct bio *bio)
 	if (unlikely(error != 0)) {
 		unsigned long flags;
 
-		PRINT_ERROR("BLOCKIO for cmd %p finished with error %d",
+		PRINT_ERROR_RATELIMITED(
+			"BLOCKIO for cmd %p finished with error %d",
 			blockio_work->cmd, error);
 
 		/*
@@ -6990,6 +7010,7 @@ struct bio_priv_sync {
 static void blockio_bio_destructor_sync(struct bio *bio)
 {
 	struct bio_priv_sync *s = bio->bi_private;
+
 	bio_free(bio, s->bs);
 	complete(&s->c1);
 }
@@ -7043,7 +7064,7 @@ static void blockio_end_sync_io(struct bio *bio)
  * Increments *@loff with the number of bytes transferred upon success.
  */
 static ssize_t blockio_rw_sync(struct scst_vdisk_dev *virt_dev, void *buf,
-			       size_t len, loff_t *loff, unsigned rw)
+			       size_t len, loff_t *loff, unsigned int rw)
 {
 	struct bio_priv_sync s = {
 		COMPLETION_INITIALIZER_ONSTACK(s.c), 0,
@@ -7058,7 +7079,7 @@ static ssize_t blockio_rw_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 	void *p;
 	struct page *q;
 	int max_nr_vecs, rc;
-	unsigned bytes, off;
+	unsigned int bytes, off;
 	ssize_t ret = -ENOMEM;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
 	bool submitted = false;
@@ -8671,7 +8692,7 @@ out:
 	return res;
 
 out_free:
-	kfree(buf);
+	kfree(new_size);
 	goto out;
 }
 
@@ -10103,6 +10124,7 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 
 		if (isdigit(*p)) {
 			char *pp;
+
 			block_size = simple_strtoul(p, &pp, 0);
 			p = pp;
 			if ((*p != '\0') && !isspace(*p)) {

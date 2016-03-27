@@ -330,7 +330,7 @@ int ft_send_response(struct scst_cmd *cmd)
 	 * For bi-directional comands, the bi_resid is for the read direction.
 	 */
 	if (dir & SCST_DATA_WRITE)
-		resid = (signed)scst_cmd_get_bufflen(cmd) -
+		resid = (signed int)scst_cmd_get_bufflen(cmd) -
 			fcmd->write_data_len;
 	if (dir & SCST_DATA_READ) {
 		error = ft_send_read_data(cmd);
@@ -340,12 +340,12 @@ int ft_send_response(struct scst_cmd *cmd)
 		}
 
 		if (dir == SCST_DATA_BIDI) {
-			bi_resid = (signed)scst_cmd_get_out_bufflen(cmd) -
+			bi_resid = (signed int)scst_cmd_get_out_bufflen(cmd) -
 				   scst_cmd_get_resp_data_len(cmd);
 			if (bi_resid)
 				len += sizeof(__be32);
 		} else
-			resid = (signed)scst_cmd_get_bufflen(cmd) -
+			resid = (signed int)scst_cmd_get_bufflen(cmd) -
 				scst_cmd_get_resp_data_len(cmd);
 	}
 

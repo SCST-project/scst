@@ -1,8 +1,8 @@
 /*
  *  scst_mem.c
  *
- *  Copyright (C) 2006 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
- *  Copyright (C) 2007 - 2015 SanDisk Corporation
+ *  Copyright (C) 2006 - 2016 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2007 - 2016 SanDisk Corporation
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -366,7 +366,7 @@ static unsigned long __sgv_can_be_shrunk(void)
 	}
 	spin_unlock_bh(&sgv_pools_lock);
 
-	res = max((int)0, inactive_pages - sgv_lo_wmk);
+	res = max(0, inactive_pages - sgv_lo_wmk);
 	TRACE_MEM("Can free %ld (total %d)", res, atomic_read(&sgv_pages_total));
 
 	TRACE_EXIT_RES(res);

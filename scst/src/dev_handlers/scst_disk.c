@@ -1,9 +1,9 @@
 /*
  *  scst_disk.c
  *
- *  Copyright (C) 2004 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004 - 2016 Vladislav Bolkhovitin <vst@vlnb.net>
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
- *  Copyright (C) 2007 - 2015 SanDisk Corporation
+ *  Copyright (C) 2007 - 2016 SanDisk Corporation
  *
  *  SCSI disk (type 0) dev handler
  *  &
@@ -196,7 +196,7 @@ static int disk_attach(struct scst_device *dev)
 		rc = scsi_execute(dev->scsi_dev, cmd, data_dir, buffer,
 				   buffer_size, sense_buffer,
 				   SCST_GENERIC_DISK_REG_TIMEOUT, 3, 0
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,29)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 				   , NULL
 #endif
 				  );
@@ -267,6 +267,20 @@ static int disk_parse(struct scst_cmd *cmd)
 		res = scst_get_cmd_abnormal_done_state(cmd);
 		goto out;
 	}
+
+#ifdef CONFIG_SCST_FORWARD_MODE_PASS_THROUGH
+	if (unlikely(cmd->op_flags & SCST_LOCAL_CMD)) {
+		switch (cmd->cdb[0]) {
+		case COMPARE_AND_WRITE:
+		case EXTENDED_COPY:
+		case RECEIVE_COPY_RESULTS:
+			TRACE_DBG("Clearing LOCAL CMD flag for cmd %p "
+				"(op %s)", cmd, cmd->op_name);
+			cmd->op_flags &= ~SCST_LOCAL_CMD;
+			break;
+		}
+	}
+#endif
 
 	cmd->retries = SCST_PASSTHROUGH_RETRIES;
 out:
@@ -399,6 +413,24 @@ static int disk_exec(struct scst_cmd *cmd)
 	int num, j, block_shift = dev->block_shift;
 
 	TRACE_ENTRY();
+
+#ifdef CONFIG_SCST_FORWARD_MODE_PASS_THROUGH
+	if (unlikely(cmd->op_flags & SCST_LOCAL_CMD)) {
+		switch (cmd->cdb[0]) {
+		case RESERVE:
+		case RESERVE_10:
+		case RELEASE:
+		case RELEASE_10:
+			TRACE_DBG("Skipping LOCAL cmd %p (op %s)",
+				cmd, cmd->op_name);
+			goto out_done;
+		case PERSISTENT_RESERVE_IN:
+		case PERSISTENT_RESERVE_OUT:
+			sBUG();
+			break;
+		}
+	}
+#endif
 
 	/*
 	 * For PC requests we are going to submit max_hw_sectors used instead

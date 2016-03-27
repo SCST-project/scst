@@ -3,8 +3,8 @@
  *
  *  Copyright (C) 2004 Xiranet Communications GmbH <arne.redlich@xiranet.com>
  *  Copyright (C) 2002 - 2003 Ardis Technolgies <roman@ardistech.com>,
- *  Copyright (C) 2007 - 2015 Vladislav Bolkhovitin
- *  Copyright (C) 2007 - 2015 SanDisk Corporation
+ *  Copyright (C) 2007 - 2016 Vladislav Bolkhovitin
+ *  Copyright (C) 2007 - 2016 SanDisk Corporation
  *
  *  and code taken from UNH iSCSI software:
  *  Copyright (C) 2001-2003 InterOperability Lab (IOL)
@@ -171,7 +171,7 @@ static inline void encode_hex_string(u8 *intnum, long length, char *string)
 
 	strptr = string;
 	for (i = 0; i < length; i++, strptr += 2)
-			sprintf(strptr, "%.2hhx", intnum[i]);
+		sprintf(strptr, "%.2hhx", intnum[i]);
 }
 
 /* Base64 encoding, taken from UNH iSCSI "IntegerToBase64String()" */
@@ -339,15 +339,15 @@ static inline void chap_calc_digest_sha1(char chap_id, const char *secret, int s
  */
 static int chap_rand(void)
 {
-    int fd;
-    int r;
+	int fd;
+	int r;
 
-    fd = open("/dev/urandom", O_RDONLY);
-    assert(fd != -1);
-    if (read(fd, &r, sizeof(r)) < sizeof(r)) {
-    }
-    close(fd);
-    return r;
+	fd = open("/dev/urandom", O_RDONLY);
+	assert(fd != -1);
+	if (read(fd, &r, sizeof(r)) < sizeof(r)) {
+	}
+	close(fd);
+	return r;
 }
 
 static int chap_initiator_auth_create_challenge(struct connection *conn)
@@ -575,7 +575,7 @@ static int chap_target_auth_create_response(struct connection *conn)
 		response_len = 2 * digest_len;
 	else
 		response_len = ((digest_len - 1) / 3 + 1) * 4;
-	//"0x" / "0b" and "\0":
+	/* "0x" / "0b" and "\0": */
 	response_len += 3;
 
 	if (!(digest = malloc(digest_len))) {
@@ -639,7 +639,7 @@ int cmnd_exec_auth_chap(struct connection *conn)
 {
 	int res;
 
-	switch(conn->auth_state) {
+	switch (conn->auth_state) {
 	case CHAP_AUTH_STATE_START:
 		res = chap_initiator_auth_create_challenge(conn);
 		break;

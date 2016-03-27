@@ -1,8 +1,8 @@
 /*
  *  include/scst_const.h
  *
- *  Copyright (C) 2004 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
- *  Copyright (C) 2007 - 2015 SanDisk Corporation
+ *  Copyright (C) 2004 - 2016 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2007 - 2016 SanDisk Corporation
  *
  *  Contains common SCST constants. This file supposed to be included
  *  from both kernel and user spaces.
@@ -341,7 +341,7 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 #define scst_sense_reported_luns_data_changed	UNIT_ATTENTION,  0x3F, 0xE
 
 /* DATA_PROTECT is 7 */
-#define scst_sense_data_protect			DATA_PROTECT,    0x00, 0
+#define scst_sense_data_protect			DATA_PROTECT,    0x27, 0
 
 /* ABORTED_COMMAND is 0xb */
 #define scst_sense_aborted_command		ABORTED_COMMAND, 0x00, 0
@@ -481,7 +481,7 @@ static inline int scst_sense_response_code(const uint8_t *sense)
  * From <linux/fs.h>. See also commit
  * d30a2605be9d5132d95944916e8f578fcfe4f976.
  */
-#define BLKDISCARD _IO(0x12,119)
+#define BLKDISCARD _IO(0x12, 119)
 #endif
 
 /*************************************************************

@@ -2,8 +2,8 @@
  *  scst_sysfs.c
  *
  *  Copyright (C) 2009 Daniel Henrique Debonzi <debonzi@linux.vnet.ibm.com>
- *  Copyright (C) 2009 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
- *  Copyright (C) 2007 - 2015 SanDisk Corporation
+ *  Copyright (C) 2009 - 2016 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2007 - 2016 SanDisk Corporation
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -1263,11 +1263,7 @@ static int scst_parse_add_repl_param(struct scst_acg *acg,
 
 	*read_only = false;
 	e = scst_get_next_lexem(&pp);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtoul(e, 0, virt_lun);
-#else
-	res = strict_strtoul(e, 0, virt_lun);
-#endif
 	if (res != 0) {
 		PRINT_ERROR("Valid LUN required for dev %s (res %d)",
 			    dev->virt_name, res);
@@ -1309,13 +1305,9 @@ static int scst_parse_add_repl_param(struct scst_acg *acg,
 			goto out;
 		}
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 		res = kstrtoul(pp, 0, &val);
-#else
-		res = strict_strtoul(pp, 0, &val);
-#endif
 		if (res != 0) {
-			PRINT_ERROR("strict_strtoul() for %s failed: %d "
+			PRINT_ERROR("kstrtoul() for %s failed: %d "
 				    "(device %s)", pp, res, dev->virt_name);
 			goto out;
 		}
@@ -1999,6 +1991,7 @@ static int __scst_acg_process_cpu_mask_store(struct scst_tgt *tgt,
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 			struct scst_tgt_dev *tgt_dev;
 			struct list_head *head = &sess->sess_tgt_dev_list[i];
+
 			list_for_each_entry_rcu(tgt_dev, head,
 						sess_tgt_dev_list_entry) {
 				int rc;
@@ -2194,8 +2187,8 @@ static int scst_process_ini_group_mgmt_store(char *buffer,
 			res = -EINVAL;
 			goto out_unlock;
 		}
-		acg = scst_alloc_add_acg(tgt, p, true);
-		if (acg == NULL)
+		res = scst_alloc_add_acg(tgt, p, true, &acg);
+		if (res != 0)
 			goto out_unlock;
 		break;
 	case SCST_INI_GROUP_ACTION_DEL:
@@ -2810,7 +2803,7 @@ static int scst_tgt_sysfs_##attr##_show_work_fn(			\
 	int res;							\
 	uint64_t c = 0;							\
 									\
-	BUILD_BUG_ON((unsigned)(dir) >= ARRAY_SIZE(sess->io_stats));	\
+	BUILD_BUG_ON((unsigned int)(dir) >= ARRAY_SIZE(sess->io_stats));\
 									\
 	res = mutex_lock_interruptible(&scst_mutex);			\
 	if (res)							\
@@ -3054,7 +3047,7 @@ static ssize_t scst_dev_sysfs_type_show(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
 	pos = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d - %s\n", dev->type,
-		(unsigned)dev->type >= ARRAY_SIZE(scst_dev_handler_types) ?
+		(unsigned int)dev->type >= ARRAY_SIZE(scst_dev_handler_types) ?
 		      "unknown" : scst_dev_handler_types[dev->type]);
 
 	return pos;
@@ -5735,7 +5728,7 @@ static ssize_t scst_devt_type_show(struct kobject *kobj,
 	devt = container_of(kobj, struct scst_dev_type, devt_kobj);
 
 	pos = sprintf(buf, "%d - %s\n", devt->type,
-		(unsigned)devt->type >= ARRAY_SIZE(scst_dev_handler_types) ?
+		(unsigned int)devt->type >= ARRAY_SIZE(scst_dev_handler_types) ?
 			"unknown" : scst_dev_handler_types[devt->type]);
 
 	return pos;
@@ -7059,6 +7052,55 @@ static struct kobj_attribute scst_max_tasklet_cmd_attr =
 	__ATTR(max_tasklet_cmd, S_IRUGO | S_IWUSR, scst_max_tasklet_cmd_show,
 	       scst_max_tasklet_cmd_store);
 
+static ssize_t scst_suspend_show(struct kobject *kobj,
+				 struct kobj_attribute *attr, char *buf)
+{
+	int count;
+
+	TRACE_ENTRY();
+
+	count = sprintf(buf, "%d\n", scst_get_suspend_count());
+
+	TRACE_EXIT();
+	return count;
+}
+
+static ssize_t scst_suspend_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	long val;
+
+	TRACE_ENTRY();
+
+	res = kstrtol(buf, 0, &val);
+	if (res != 0) {
+		PRINT_ERROR("kstrtoul() for %s failed: %d ", buf, res);
+		goto out;
+	}
+
+	if (val >= 0) {
+		PRINT_INFO("SYSFS: suspending activities (timeout %ld)...", val);
+		res = scst_suspend_activity(val*HZ);
+		if (res == 0)
+			PRINT_INFO("sysfs suspending done");
+	} else {
+		PRINT_INFO("SYSFS: resuming activities");
+		scst_resume_activity();
+	}
+
+	if (res == 0)
+		res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute scst_suspend_attr =
+	__ATTR(suspend, S_IRUGO | S_IWUSR, scst_suspend_show,
+	       scst_suspend_store);
+
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 
 static ssize_t scst_main_trace_level_show(struct kobject *kobj,
@@ -7284,6 +7326,7 @@ static struct attribute *scst_sysfs_root_default_attrs[] = {
 	&scst_threads_attr.attr,
 	&scst_setup_id_attr.attr,
 	&scst_max_tasklet_cmd_attr.attr,
+	&scst_suspend_attr.attr,
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	&scst_main_trace_level_attr.attr,
 #endif

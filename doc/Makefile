@@ -36,9 +36,9 @@ rtf: $(RTFS)
 	$(COMMAND)rtf $(<)
 
 clean:
-	mv "Using the DLM as a Distributed In-Memory Database.pdf" "Using the DLM as a Distributed In-Memory Database.pdf_"
+	-mv "Using-the-DLM-as-a-Distributed-In-Memory-Database.pdf" "Using-the-DLM-as-a-Distributed-In-Memory-Database.pdf_"
 	rm -f *.txt *.html *.tex *.dvi *.ps *.pdf *.info *.lyx *.rtf
-	mv "Using the DLM as a Distributed In-Memory Database.pdf_" "Using the DLM as a Distributed In-Memory Database.pdf"
+	-mv "Using-the-DLM-as-a-Distributed-In-Memory-Database.pdf_" "Using-the-DLM-as-a-Distributed-In-Memory-Database.pdf"
 
 extraclean: clean
 	rm -f *.orig *.rej

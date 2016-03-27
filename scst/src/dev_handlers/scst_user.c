@@ -1,8 +1,8 @@
 /*
  *  scst_user.c
  *
- *  Copyright (C) 2007 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
- *  Copyright (C) 2007 - 2015 SanDisk Corporation
+ *  Copyright (C) 2007 - 2016 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2007 - 2016 SanDisk Corporation
  *
  *  SCSI virtual user space device handler
  *
@@ -36,10 +36,10 @@
 
 #ifndef INSIDE_KERNEL_TREE
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
-#warning HIGHMEM kernel configurations are not supported by this module,\
- because nowadays it is not worth the effort. Consider changing\
- VMSPLIT option or use a 64-bit configuration instead. See README file\
- for details.
+#warning HIGHMEM kernel configurations are not supported by this module, \
+because nowadays it is not worth the effort. Consider changing \
+VMSPLIT option or use a 64-bit configuration instead. See README file \
+for details.
 #endif
 #endif
 
@@ -955,6 +955,7 @@ static int dev_user_exec(struct scst_cmd *cmd)
 	return res;
 }
 
+#ifndef CONFIG_SCST_PROC
 static void dev_user_ext_copy_remap(struct scst_cmd *cmd,
 	struct scst_ext_copy_seg_descr *seg)
 {
@@ -985,6 +986,7 @@ static void dev_user_ext_copy_remap(struct scst_cmd *cmd,
 	TRACE_EXIT();
 	return;
 }
+#endif
 
 static void dev_user_free_sgv(struct scst_user_cmd *ucmd)
 {
@@ -1265,8 +1267,8 @@ static int dev_user_map_buf(struct scst_user_cmd *ucmd, unsigned long ubuff,
 		(ucmd->cmd != NULL) ? ucmd->cmd->bufflen : -1);
 
 	down_read(&tsk->mm->mmap_sem);
-	rc = get_user_pages(tsk, tsk->mm, ubuff, ucmd->num_data_pages,
-		1/*writable*/, 0/*don't force*/, ucmd->data_pages, NULL);
+	rc = get_user_pages(ubuff, ucmd->num_data_pages, 1/*writable*/,
+			    0/*don't force*/, ucmd->data_pages, NULL);
 	up_read(&tsk->mm->mmap_sem);
 
 	/* get_user_pages() flushes dcache */
@@ -1485,6 +1487,7 @@ static int dev_user_process_reply_on_cache_free(struct scst_user_cmd *ucmd)
 	return res;
 }
 
+#ifndef CONFIG_SCST_PROC
 static int dev_user_process_reply_ext_copy_remap(struct scst_user_cmd *ucmd,
 	struct scst_user_reply_cmd *reply)
 {
@@ -1628,6 +1631,7 @@ out_status:
 	scst_set_cmd_error_status(cmd, rreply->status);
 	goto out_done;
 }
+#endif
 
 static int dev_user_process_ws_reply(struct scst_user_cmd *ucmd,
 	struct scst_user_scsi_cmd_reply_exec *ereply)
@@ -1950,9 +1954,11 @@ unlock_process:
 		res = dev_user_process_reply_on_cache_free(ucmd);
 		break;
 
+#ifndef CONFIG_SCST_PROC
 	case UCMD_STATE_EXT_COPY_REMAPPING:
 		res = dev_user_process_reply_ext_copy_remap(ucmd, reply);
 		break;
+#endif
 
 	case UCMD_STATE_TM_RECEIVED_EXECING:
 	case UCMD_STATE_TM_DONE_EXECING:
@@ -2677,7 +2683,11 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 					SCST_CONTEXT_THREAD);
 		else {
 			sBUG_ON(state != UCMD_STATE_EXT_COPY_REMAPPING);
+#ifndef CONFIG_SCST_PROC
 			scst_ext_copy_remap_done(ucmd->cmd, NULL, 0);
+#else
+			sBUG();
+#endif
 		}
 		/* !! At this point cmd and ucmd can be already freed !! */
 
@@ -3217,10 +3227,11 @@ static void dev_user_setup_functions(struct scst_user_dev *dev)
 	dev->devtype.dev_alloc_data_buf = dev_user_alloc_data_buf;
 	dev->devtype.dev_done = NULL;
 
+	dev->devtype.ext_copy_remap = NULL;
+#ifndef CONFIG_SCST_PROC
 	if (dev->ext_copy_remap_supported)
 		dev->devtype.ext_copy_remap = dev_user_ext_copy_remap;
-	else
-		dev->devtype.ext_copy_remap = NULL;
+#endif
 
 	if (dev->parse_type != SCST_USER_PARSE_CALL) {
 		switch (dev->devtype.type) {
@@ -4037,11 +4048,13 @@ static int dev_user_read_proc(struct seq_file *seq, struct scst_dev_type *dev_ty
 
 	list_for_each_entry(dev, &dev_list, dev_list_entry) {
 		int i;
+
 		seq_printf(seq, "Device %s commands:\n", dev->name);
 		spin_lock_irqsave(&dev->udev_cmd_threads.cmd_list_lock, flags);
 		for (i = 0; i < (int)ARRAY_SIZE(dev->ucmd_hash); i++) {
 			struct list_head *head = &dev->ucmd_hash[i];
 			struct scst_user_cmd *ucmd;
+
 			list_for_each_entry(ucmd, head, hash_list_entry) {
 				seq_printf(seq, "ucmd %p (state %x, ref %d), "
 					"sent_to_user %d, seen_by_user %d, "

@@ -1,9 +1,9 @@
 /*
  *  scst_proc.c
  *
- *  Copyright (C) 2004 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004 - 2016 Vladislav Bolkhovitin <vst@vlnb.net>
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
- *  Copyright (C) 2007 - 2015 SanDisk Corporation
+ *  Copyright (C) 2007 - 2016 SanDisk Corporation
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -235,6 +235,7 @@ static DEFINE_MUTEX(scst_proc_mutex);
 static int strcasecmp(const char *s1, const char *s2)
 {
 	int c1, c2;
+
 	do {
 		c1 = tolower(*s1++);
 		c2 = tolower(*s2++);
@@ -246,6 +247,7 @@ static int strcasecmp(const char *s1, const char *s2)
 static int strncasecmp(const char *s1, const char *s2, size_t n)
 {
 	int c1, c2;
+
 	do {
 		c1 = tolower(*s1++);
 		c2 = tolower(*s2++);
@@ -596,6 +598,7 @@ static int lat_info_show(struct seq_file *seq, void *v)
 				struct list_head *head =
 						&sess->sess_tgt_dev_list[t];
 				struct scst_tgt_dev *tgt_dev;
+
 				list_for_each_entry_rcu(tgt_dev, head,
 						sess_tgt_dev_list_entry) {
 
@@ -767,6 +770,7 @@ static ssize_t scst_proc_scsi_tgt_gen_write_lat(struct file *file,
 				struct list_head *head =
 						&sess->sess_tgt_dev_list[t];
 				struct scst_tgt_dev *tgt_dev;
+
 				list_for_each_entry_rcu(tgt_dev, head,
 						sess_tgt_dev_list_entry) {
 					tgt_dev->scst_time = 0;
@@ -953,8 +957,8 @@ static int scst_proc_group_add(const char *p, unsigned int addr_method)
 	}
 	strlcpy(name, p, len);
 
-	acg = scst_alloc_add_acg(NULL, name, false);
-	if (acg == NULL) {
+	res = scst_alloc_add_acg(NULL, name, false, &acg);
+	if (res != 0) {
 		PRINT_ERROR("scst_alloc_add_acg() (name %s) failed", name);
 		goto out_free;
 	}
@@ -974,6 +978,7 @@ out_free_acg:
 
 out_free:
 	kfree(name);
+	goto out;
 
 out_nomem:
 	res = -ENOMEM;
@@ -1114,7 +1119,7 @@ static int __init scst_proc_init_sgv(void)
 	return res;
 }
 
-static void __exit scst_proc_cleanup_sgv(void)
+static void scst_proc_cleanup_sgv(void)
 {
 	TRACE_ENTRY();
 	remove_proc_entry("sgv", scst_proc_scsi_tgt);
@@ -1221,7 +1226,7 @@ out_nomem:
 	goto out;
 }
 
-void __exit scst_proc_cleanup_module(void)
+void scst_proc_cleanup_module(void)
 {
 	TRACE_ENTRY();
 
@@ -2074,8 +2079,9 @@ static ssize_t scst_proc_groups_devices_write(struct file *file,
 			}
 		}
 
-		rc = scst_acg_add_lun(acg, NULL, dev, virt_lun, read_only,
-				false, NULL);
+		rc = scst_acg_add_lun(acg, NULL, dev, virt_lun,
+				read_only ? SCST_ADD_LUN_READ_ONLY : 0,
+				NULL);
 		if (rc) {
 			res = rc;
 			goto out_free_up;
@@ -2109,6 +2115,7 @@ static ssize_t scst_proc_groups_devices_write(struct file *file,
 		 * procfs is now obsoleted.
 		 */
 		struct scst_acg_dev *a;
+
 		list_for_each_entry(a, &acg->acg_dev_list, acg_dev_list_entry) {
 			if (a->dev == dev) {
 				rc = scst_acg_del_lun(acg, a->lun, true);
@@ -2257,6 +2264,7 @@ static ssize_t scst_proc_groups_names_write(struct file *file,
 	{
 		struct scst_acg *a, *new_acg = NULL;
 		char *name = p;
+
 		p = pp;
 		while (!isspace(*pp) && *pp != '\0')
 			pp++;
@@ -2438,6 +2446,7 @@ static int scst_sessions_info_show(struct seq_file *seq, void *v)
 				struct list_head *head =
 						&sess->sess_tgt_dev_list[t];
 				struct scst_tgt_dev *tgt_dev;
+
 				list_for_each_entry_rcu(tgt_dev, head,
 						sess_tgt_dev_list_entry) {
 					active_cmds += atomic_read(&tgt_dev->tgt_dev_cmd_count);

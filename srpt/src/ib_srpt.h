@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2006 - 2009 Mellanox Technology Inc.  All rights reserved.
- * Copyright (C) 2009 - 2015 Bart Van Assche <bvanassche@acm.org>.
+ * Copyright (C) 2009 - 2016 Bart Van Assche <bvanassche@acm.org>.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -52,7 +52,7 @@
 #define vlan_dev_vlan_id(dev) (panic("RHEL 5 misses vlan_dev_vlan_id()"),0)
 #endif
 #if defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 6
-#define __ethtool_get_settings(dev, cmd) (panic("RHEL misses __ethtool_get_settings()"),0)
+#define __ethtool_get_settings(dev, cmd) (panic("RHEL misses __ethtool_get_settings()"), 0)
 #endif
 #include <linux/rtnetlink.h>
 #include <rdma/rdma_cm.h>
@@ -361,6 +361,7 @@ struct srpt_rdma_ch {
 	};
 	struct ib_cq		*cq;
 	struct kref		kref;
+	struct rcu_head		rcu;
 	int			rq_size;
 	int			max_sge;
 	int			max_rsp_size;
@@ -397,6 +398,7 @@ struct srpt_rdma_ch {
 struct srpt_nexus {
 	struct list_head	entry;
 	struct list_head	ch_list;
+	struct rcu_head		rcu;
 	u8			i_port_id[16];
 	u8			t_port_id[16];
 };

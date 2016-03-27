@@ -1,9 +1,9 @@
 #
 #  SCSI target mid-level makefile
 #
-#  Copyright (C) 2004 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
+#  Copyright (C) 2004 - 2016 Vladislav Bolkhovitin <vst@vlnb.net>
 #  Copyright (C) 2004 - 2005 Leonid Stoljar
-#  Copyright (C) 2007 - 2015 SanDisk Corporation
+#  Copyright (C) 2007 - 2016 SanDisk Corporation
 #
 #  This program is free software; you can redistribute it and/or
 #  modify it under the terms of the GNU General Public License
@@ -49,12 +49,7 @@ scst-y        += scst_mem.o
 scst-y        += scst_debug.o
 scst-y        += scst_pres.o
 scst-y        += scst_no_dlm.o
-ifdef CONFIG_DLM
 scst-y        += scst_dlm.o
-endif
-ifdef CONFIG_DLM_MODULE
-scst-y        += scst_dlm.o
-endif
 scst-y        += scst_tg.o
 scst-y        += scst_event.o
 scst-y        += scst_copy_mgr.o
@@ -160,7 +155,8 @@ INSTALL_DIR_H := $(DESTDIR)$(PREFIX)/include/scst
 enable-Wextra = $(shell uname_r="$$(uname -r)"; if [ "$${uname_r%.el5}" = "$${uname_r}" ]; then echo "$(1)"; fi)
 
 EXTRA_CFLAGS += -I$(SCST_INC_DIR) $(call enable-Wextra,-Wextra \
-	-Wno-unused-parameter -Wno-missing-field-initializers)
+	-Wno-unused-parameter -Wno-missing-field-initializers) \
+	$(shell [ -n "${CONFIG_SCST_NO_DLM}" ] && echo -DCONFIG_SCST_NO_DLM)
 
 #EXTRA_CFLAGS += -DCONFIG_SCST_STRICT_SERIALIZING
 

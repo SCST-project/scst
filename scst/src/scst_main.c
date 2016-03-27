@@ -1,9 +1,9 @@
 /*
  *  scst_main.c
  *
- *  Copyright (C) 2004 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004 - 2016 Vladislav Bolkhovitin <vst@vlnb.net>
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
- *  Copyright (C) 2007 - 2015 SanDisk Corporation
+ *  Copyright (C) 2007 - 2016 SanDisk Corporation
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -550,8 +550,8 @@ struct scst_tgt *scst_register_target(struct scst_tgt_template *vtt,
 	if (rc < 0)
 		goto out_unlock;
 
-	tgt->default_acg = scst_alloc_add_acg(tgt, tgt->tgt_name, false);
-	if (tgt->default_acg == NULL)
+	rc = scst_alloc_add_acg(tgt, tgt->tgt_name, false, &tgt->default_acg);
+	if (rc != 0)
 		goto out_sysfs_del;
 #endif
 
@@ -645,6 +645,18 @@ again:
 	mutex_unlock(&scst_mutex);
 #endif
 
+	/*
+	 * Testing tgt->sysfs_sess_list below without holding scst_mutex
+	 * is safe, because:
+	 *
+	 * - On the init path no attempts to create new sessions for this
+	 * target can be done in a race with this function (see above)
+	 *
+	 * - On the shutdown path 'tgt' won't disappear until scst_free_tgt()
+	 * is called below and because the mutex_lock(&scst_mutex) call below
+	 * waits until scst_free_session() has finished accessing the 'tgt'
+	 * object.
+	 */
 	TRACE_DBG("%s", "Waiting for sessions shutdown");
 	wait_event(tgt->unreg_waitQ, list_empty(&tgt->sysfs_sess_list));
 	TRACE_DBG("%s", "wait_event() returned");
@@ -713,7 +725,7 @@ static const char *const scst_cmd_state_name[] = {
 	[SCST_CMD_STATE_XMIT_WAIT]			= "XMIT_WAIT",
 };
 
-char *scst_get_cmd_state_name(char *name, int len, unsigned state)
+char *scst_get_cmd_state_name(char *name, int len, unsigned int state)
 {
 	if (state < ARRAY_SIZE(scst_cmd_state_name) &&
 	    scst_cmd_state_name[state])
@@ -792,7 +804,7 @@ static const char *const scst_tm_fn_name[] = {
 	[SCST_PR_ABORT_ALL] =	"PR_ABORT_ALL",
 };
 
-char *scst_get_tm_fn_name(char *name, int len, unsigned fn)
+char *scst_get_tm_fn_name(char *name, int len, unsigned int fn)
 {
 	if (fn < ARRAY_SIZE(scst_tm_fn_name) && scst_tm_fn_name[fn])
 		strlcpy(name, scst_tm_fn_name[fn], len);
@@ -811,7 +823,7 @@ static const char *const scst_mcmd_state_name[] = {
 	[SCST_MCMD_STATE_FINISHED] =	"FINISHED",
 };
 
-char *scst_get_mcmd_state_name(char *name, int len, unsigned state)
+char *scst_get_mcmd_state_name(char *name, int len, unsigned int state)
 {
 	if (state < ARRAY_SIZE(scst_mcmd_state_name) &&
 	    scst_mcmd_state_name[state])
@@ -1047,6 +1059,11 @@ static void __scst_resume_activity(void)
 
 	TRACE_ENTRY();
 
+	if (suspend_count == 0) {
+		PRINT_WARNING("Resume without suspend");
+		goto out;
+	}
+
 	suspend_count--;
 	TRACE_MGMT_DBG("suspend_count %d left", suspend_count);
 	if (suspend_count > 0)
@@ -1075,7 +1092,8 @@ static void __scst_resume_activity(void)
 		TRACE_MGMT_DBG("Moving delayed mgmt cmd %p to head of active "
 			"mgmt cmd list", m);
 	}
-	list_splice(&scst_delayed_mgmt_cmd_list, &scst_active_mgmt_cmd_list);
+	list_splice_init(&scst_delayed_mgmt_cmd_list,
+			 &scst_active_mgmt_cmd_list);
 	spin_unlock_irq(&scst_mcmd_lock);
 
 	wake_up_all(&scst_mgmt_cmd_list_waitQ);
@@ -1106,6 +1124,11 @@ void scst_resume_activity(void)
 	return;
 }
 EXPORT_SYMBOL_GPL(scst_resume_activity);
+
+int scst_get_suspend_count(void)
+{
+	return suspend_count;
+}
 
 static int scst_register_device(struct scsi_device *scsidp)
 {
@@ -1156,6 +1179,17 @@ static int scst_register_device(struct scsi_device *scsidp)
 
 	dev->scsi_dev = scsidp;
 
+#ifdef CONFIG_SCST_FORWARD_MODE_PASS_THROUGH
+	res = scst_pr_set_file_name(dev, NULL, "%s/%s", SCST_PR_DIR,
+				    dev->virt_name);
+	if (res != 0)
+		goto out_free_dev;
+
+	res = scst_pr_init_dev(dev);
+	if (res != 0)
+		goto out_free_dev;
+#endif
+
 	list_add_tail(&dev->dev_list_entry, &scst_dev_list);
 
 #ifdef CONFIG_SCST_PROC
@@ -1201,6 +1235,10 @@ out_del_unlocked:
 #else
 out_del_locked:
 	list_del_init(&dev->dev_list_entry);
+#endif
+
+#ifdef CONFIG_SCST_FORWARD_MODE_PASS_THROUGH
+	scst_pr_clear_dev(dev);
 #endif
 
 out_free_dev:
@@ -1259,6 +1297,10 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 	}
 
 	list_del_init(&dev->dev_list_entry);
+
+#ifdef CONFIG_SCST_FORWARD_MODE_PASS_THROUGH
+	scst_pr_clear_dev(dev);
+#endif
 
 	scst_dg_dev_remove_by_dev(dev);
 
@@ -2628,11 +2670,9 @@ static int __init init_scst(void)
 		goto out_sysfs_cleanup;
 
 #ifdef CONFIG_SCST_PROC
-	scst_default_acg = scst_alloc_add_acg(NULL, SCST_DEFAULT_ACG_NAME, false);
-	if (scst_default_acg == NULL) {
-		res = -ENOMEM;
+	res = scst_alloc_add_acg(NULL, SCST_DEFAULT_ACG_NAME, false, &scst_default_acg);
+	if (res != 0)
 		goto out_destroy_sgv_pool;
-	}
 #endif
 
 	res = scsi_register_interface(&scst_interface);

@@ -2,8 +2,8 @@
  *  Network threads.
  *
  *  Copyright (C) 2004 - 2005 FUJITA Tomonori <tomof@acm.org>
- *  Copyright (C) 2007 - 2015 Vladislav Bolkhovitin
- *  Copyright (C) 2007 - 2015 SanDisk Corporation
+ *  Copyright (C) 2007 - 2016 Vladislav Bolkhovitin
+ *  Copyright (C) 2007 - 2016 SanDisk Corporation
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -81,7 +81,6 @@ again:
 	spin_lock_bh(&conn->cmd_list_lock);
 	list_for_each_entry(cmnd, &conn->cmd_list, cmd_list_entry) {
 		struct iscsi_cmnd *rsp;
-		int restart = 0;
 
 		TRACE_CONN_CLOSE_DBG("cmd %p, scst_state %x, "
 			"r2t_len_to_receive %d, ref_cnt %d, parent_req %p, "
@@ -98,6 +97,12 @@ again:
 			if (cmnd_get_check(cmnd))
 				continue;
 
+			/*
+			 * If we don't unlock here, we are risking to get into
+			 * recursive deadlock in cmnd_done() called from cmnd_put()
+			 */
+			spin_unlock_bh(&conn->cmd_list_lock);
+
 			for (i = 0; i < cmnd->sg_cnt; i++) {
 				struct page *page = sg_page(&cmnd->sg[i]);
 
@@ -106,18 +111,12 @@ again:
 					atomic_read(&page->_count));
 
 				if (page->net_priv != NULL) {
-					if (restart == 0) {
-						spin_unlock_bh(&conn->cmd_list_lock);
-						restart = 1;
-					}
 					while (page->net_priv != NULL)
 						iscsi_put_page_callback(page);
 				}
 			}
 			cmnd_put(cmnd);
-
-			if (restart)
-				goto again;
+			goto again;
 		}
 
 		list_for_each_entry(rsp, &cmnd->rsp_cmd_list,
@@ -133,6 +132,13 @@ again:
 				if (cmnd_get_check(rsp))
 					continue;
 
+				/*
+				 * If we don't unlock here, we are risking to
+				 * get into recursive deadlock in cmnd_done()
+				 * called from cmnd_put()
+				 */
+				spin_unlock_bh(&conn->cmd_list_lock);
+
 				for (i = 0; i < rsp->sg_cnt; i++) {
 					struct page *page =
 						sg_page(&rsp->sg[i]);
@@ -143,18 +149,12 @@ again:
 						atomic_read(&page->_count));
 
 					if (page->net_priv != NULL) {
-						if (restart == 0) {
-							spin_unlock_bh(&conn->cmd_list_lock);
-							restart = 1;
-						}
 						while (page->net_priv != NULL)
 							iscsi_put_page_callback(page);
 					}
 				}
 				cmnd_put(rsp);
-
-				if (restart)
-					goto again;
+				goto again;
 			}
 		}
 	}
@@ -862,6 +862,12 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 				/*
 				 * This command not yet received on the aborted
 				 * time, so shouldn't be affected by any abort.
+				 * It should not be affected by conn_abort()
+				 * as well, because close connection is initiated
+				 * from single (this) read thread, so conn_abort()
+				 * call stack can not be initiated in parallel to
+				 * receive all the data event (do_recv() has check
+				 * of conn->closing in the beginning)
 				 */
 				EXTRACHECKS_BUG_ON(cmnd->prelim_compl_flags != 0);
 
@@ -1359,7 +1365,7 @@ retry:
 			set_fs(KERNEL_DS);
 			res = vfs_writev(file,
 					 (struct iovec __force __user *)iop,
-					 count, &off);
+					 count, &off, 0);
 			set_fs(oldfs);
 			TRACE_WRITE("sid %#Lx, cid %u, res %d, iov_len %zd",
 				    (unsigned long long int)conn->session->sid,

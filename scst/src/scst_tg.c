@@ -3,7 +3,7 @@
  *
  *  SCSI target group related code.
  *
- *  Copyright (C) 2011 - 2015 Bart Van Assche <bvanassche@acm.org>.
+ *  Copyright (C) 2011 - 2016 Bart Van Assche <bvanassche@acm.org>.
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -283,8 +283,6 @@ static int scst_tg_accept_standby(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	switch (cmd->cdb[0]) {
-	case TEST_UNIT_READY:
-	case GET_EVENT_STATUS_NOTIFICATION:
 	case INQUIRY:
 	case MODE_SENSE:
 	case MODE_SENSE_10:
@@ -348,18 +346,10 @@ static int scst_tg_accept_unav(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	switch (cmd->cdb[0]) {
-	case TEST_UNIT_READY:
-	case GET_EVENT_STATUS_NOTIFICATION:
 	case INQUIRY:
-	case MODE_SENSE:
-	case MODE_SENSE_10:
 	case READ_CAPACITY:
 	case REPORT_LUNS:
 	case REQUEST_SENSE:
-	case RELEASE:
-	case RELEASE_10:
-	case RESERVE:
-	case RESERVE_10:
 	case READ_BUFFER:
 	case WRITE_BUFFER:
 		res = SCST_ALUA_CHECK_OK;
@@ -454,6 +444,13 @@ static int scst_tg_accept_transitioning(struct scst_cmd *cmd)
 	case SERVICE_ACTION_IN_16:
 		switch (cmd->cdb[1] & 0x1f) {
 		case SAI_READ_CAPACITY_16:
+			res = SCST_ALUA_CHECK_OK;
+			goto out;
+		}
+		break;
+	case MAINTENANCE_IN:
+		switch (cmd->cdb[1] & 0x1f) {
+		case MI_REPORT_TARGET_PGS:
 			res = SCST_ALUA_CHECK_OK;
 			goto out;
 		}
@@ -965,6 +962,7 @@ static void __scst_tg_set_state(struct scst_target_group *tg,
 	struct scst_tg_tgt *tg_tgt;
 	struct scst_tgt *tgt;
 	enum scst_tg_state old_state = tg->state;
+	bool dev_changed;
 
 	sBUG_ON(state >= ARRAY_SIZE(scst_alua_filter));
 	lockdep_assert_held(&scst_dg_mutex);
@@ -976,14 +974,18 @@ static void __scst_tg_set_state(struct scst_target_group *tg,
 
 	list_for_each_entry(dg_dev, &tg->dg->dev_list, entry) {
 		dev = dg_dev->dev;
-		if (dev->handler->on_alua_state_change_start != NULL)
-			dev->handler->on_alua_state_change_start(dev, old_state, state);
+		dev_changed = false;
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 				    dev_tgt_dev_list_entry) {
 			tgt = tgt_dev->sess->tgt;
 			list_for_each_entry(tg_tgt, &tg->tgt_list, entry) {
 				if (tg_tgt->tgt == tgt) {
 					bool gen_ua = (state != SCST_TG_STATE_TRANSITIONING);
+
+					if ((dev->handler->on_alua_state_change_start != NULL) && !dev_changed) {
+						dev->handler->on_alua_state_change_start(dev, old_state, state);
+						dev_changed = true;
+					}
 
 					if ((tg->dg->stpg_rel_tgt_id == tgt_dev->sess->tgt->rel_tgt_id) &&
 					    tid_equal(tg->dg->stpg_transport_id, tgt_dev->sess->transport_id))
@@ -994,7 +996,7 @@ static void __scst_tg_set_state(struct scst_target_group *tg,
 				}
 			}
 		}
-		if (dev->handler->on_alua_state_change_finish != NULL)
+		if ((dev->handler->on_alua_state_change_finish != NULL) && dev_changed)
 			dev->handler->on_alua_state_change_finish(dev, old_state, state);
 	}
 
@@ -1444,6 +1446,39 @@ out_unlock:
 EXPORT_SYMBOL_GPL(scst_lookup_tg_id);
 
 /**
+ * scst_get_alua_state() - returns ALUA state the target port group.
+ * @dev: SCST device.
+ * @tgt: SCST target.
+ *
+ * Returns a valid ALUA state (SCST_TG_STATE_OPTIMIZED is no ALUA configured)
+ */
+enum scst_tg_state scst_get_alua_state(struct scst_device *dev, struct scst_tgt *tgt)
+{
+	struct scst_dev_group *dg;
+	struct scst_target_group *tg;
+	struct scst_tg_tgt *tg_tgt;
+	enum scst_tg_state res = SCST_TG_STATE_OPTIMIZED;
+
+	TRACE_ENTRY();
+	mutex_lock(&scst_dg_mutex);
+	dg = __lookup_dg_by_dev(dev);
+	if (!dg)
+		goto out_unlock;
+	tg_tgt = __lookup_dg_tgt(dg, tgt->tgt_name);
+	if (!tg_tgt)
+		goto out_unlock;
+	tg = tg_tgt->tg;
+	BUG_ON(!tg);
+	res = tg->state;
+out_unlock:
+	mutex_unlock(&scst_dg_mutex);
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+EXPORT_SYMBOL_GPL(scst_get_alua_state);
+
+/**
  * scst_alua_configured() - Whether implicit ALUA has been configured.
  * @dev: Pointer to the SCST device to verify.
  */
@@ -1537,10 +1572,12 @@ int scst_tg_get_group_info(void **buf, uint32_t *length,
 	list_for_each_entry(tg, &dg->tg_list, entry) {
 		/* Target port group descriptor header. */
 		*p++ = (tg->preferred ? SCST_TG_PREFERRED : 0) | tg->state;
-		*p++ = SCST_TG_SUP_OPTIMIZED
-			| SCST_TG_SUP_NONOPTIMIZED
-			| SCST_TG_SUP_STANDBY
-			| SCST_TG_SUP_UNAVAILABLE;
+		*p++ = SCST_TG_SUP_OPTIMIZED |
+			SCST_TG_SUP_NONOPTIMIZED |
+			SCST_TG_SUP_STANDBY |
+			SCST_TG_SUP_UNAVAILABLE |
+			SCST_TG_SUP_OFFLINE |
+			SCST_TG_SUP_TRANSITION;
 		put_unaligned_be16(tg->group_id, p);
 		p += 2;
 		p++;      /* reserved */

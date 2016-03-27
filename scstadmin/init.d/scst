@@ -149,6 +149,7 @@ parse_scst_conf() {
             case "$d" in
                 iscsi)    echo iscsi_scst;;
                 qla2x00t) echo qla2x00tgt;;
+                copy_manager) ;;
                 *)        echo "$d";;
             esac
         done | sort -u` \
@@ -171,7 +172,9 @@ unload_kmod() {
     m="$1"
     t="$2"
     i=0
-    while [ -e "/sys/module/$m/refcnt" ] && ! rmmod "$m" && [ $i -lt "$t" ]; do
+    while [ -e "/sys/module/$m/refcnt" ] && ! rmmod "$m" 2>/dev/null &&
+          [ $i -lt "$t" ]
+    do
         sleep 1
         i=$((i+1))
     done

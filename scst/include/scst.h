@@ -1,9 +1,9 @@
 /*
  *  include/scst.h
  *
- *  Copyright (C) 2004 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004 - 2016 Vladislav Bolkhovitin <vst@vlnb.net>
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
- *  Copyright (C) 2007 - 2015 SanDisk Corporation
+ *  Copyright (C) 2007 - 2016 SanDisk Corporation
  *  Copyright (C) 2010 - 2011 Bart Van Assche <bvanassche@acm.org>.
  *
  *  Main SCSI target mid-level include file.
@@ -29,6 +29,7 @@
 
 /** See README for description of those conditional defines **/
 #define CONFIG_SCST_DIF_INJECT_CORRUPTED_TAGS
+/* #define CONFIG_SCST_FORWARD_MODE_PASS_THROUGH */
 
 #include <linux/types.h>
 #ifndef INSIDE_KERNEL_TREE
@@ -1818,7 +1819,7 @@ struct scst_tgt {
 /* Divide two 64-bit numbers with reasonably accuracy. */
 static inline void __scst_time_per_cmd(uint64_t *t, uint64_t n)
 {
-	unsigned shift;
+	unsigned int shift;
 
 	if (!n)
 		return;
@@ -3829,6 +3830,7 @@ static inline void scst_sess_set_tgt_priv(struct scst_session *sess,
 }
 
 uint16_t scst_lookup_tg_id(struct scst_device *dev, struct scst_tgt *tgt);
+enum scst_tg_state scst_get_alua_state(struct scst_device *dev, struct scst_tgt *tgt);
 bool scst_alua_configured(struct scst_device *dev);
 int scst_tg_get_group_info(void **buf, uint32_t *response_length,
 			   struct scst_device *dev, uint8_t data_format);
@@ -5679,8 +5681,10 @@ struct scst_ext_copy_seg_descr {
 	int tgt_descr_offs;
 };
 
+#ifndef CONFIG_SCST_PROC
 void scst_ext_copy_remap_done(struct scst_cmd *ec_cmd,
 	struct scst_ext_copy_data_descr *dds, int dds_cnt);
 int scst_ext_copy_get_cur_seg_data_len(struct scst_cmd *ec_cmd);
+#endif
 
 #endif /* __SCST_H */

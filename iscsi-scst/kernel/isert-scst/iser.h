@@ -98,7 +98,11 @@ struct isert_wr {
 	struct ib_sge		*sge_list;
 	union {
 		struct ib_recv_wr recv_wr;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 		struct ib_send_wr send_wr;
+#else
+		struct ib_rdma_wr send_wr;
+#endif
 	};
 } ____cacheline_aligned;
 

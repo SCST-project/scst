@@ -1,9 +1,9 @@
 /*
  *  include/scst_debug.h
  *
- *  Copyright (C) 2004 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004 - 2016 Vladislav Bolkhovitin <vst@vlnb.net>
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
- *  Copyright (C) 2007 - 2015 SanDisk Corporation
+ *  Copyright (C) 2007 - 2016 SanDisk Corporation
  *
  *  Contains macros for execution tracing and error reporting
  *
@@ -31,41 +31,14 @@
 #include <linux/bug.h>		/* for WARN_ON_ONCE */
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
-/*
- * See also the following commits:
- * d091c2f5 - Introduction of pr_info() etc. in <linux/kernel.h>.
- * 311d0761 - Introduction of pr_cont() in <linux/kernel.h>.
- * 968ab183 - Moved pr_info() etc. from <linux/kernel.h> to <linux/printk.h>
- */
-#ifndef pr_emerg
-#ifndef pr_fmt
-#define pr_fmt(fmt) fmt
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 27)
+#include <linux/ratelimit.h>
 #endif
 
-#define pr_emerg(fmt, ...) \
-	printk(KERN_EMERG pr_fmt(fmt), ##__VA_ARGS__)
-#define pr_alert(fmt, ...) \
-	printk(KERN_ALERT pr_fmt(fmt), ##__VA_ARGS__)
-#define pr_crit(fmt, ...) \
-	printk(KERN_CRIT pr_fmt(fmt), ##__VA_ARGS__)
-#define pr_err(fmt, ...) \
-	printk(KERN_ERR pr_fmt(fmt), ##__VA_ARGS__)
-#define pr_warning(fmt, ...) \
-	printk(KERN_WARNING pr_fmt(fmt), ##__VA_ARGS__)
-#define pr_notice(fmt, ...) \
-	printk(KERN_NOTICE pr_fmt(fmt), ##__VA_ARGS__)
-#endif
-#ifndef pr_info
-#define pr_info(fmt, ...) \
-	printk(KERN_INFO pr_fmt(fmt), ##__VA_ARGS__)
-#endif
-#endif
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
-#ifndef pr_cont
-#define pr_cont(fmt, ...) \
-	printk(KERN_CONT fmt, ##__VA_ARGS__)
-#endif
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/backport.h>
+#else
+#include <backport.h>
 #endif
 
 #if !defined(INSIDE_KERNEL_TREE)
@@ -144,10 +117,6 @@
 
 #define TRACE_MINOR_AND_MGMT_DBG	(TRACE_MINOR|TRACE_MGMT_DEBUG)
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24) && !defined(RHEL_MAJOR)
-#define KERN_CONT       ""
-#endif
-
 /*
  * Note: in the next two printk() statements the KERN_CONT macro is only
  * present to suppress a checkpatch warning (KERN_CONT is defined as "").
@@ -171,12 +140,7 @@
 #define ___unlikely(a)		unlikely(a)
 #endif
 
-int
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 21) || defined(__printf)
-__printf(6, 7)
-#else
-__attribute__((format(printf, 6, 7)))
-#endif
+int __printf(6, 7)
 debug_print_with_prefix(unsigned long trace_flag,
 	const char *severity, const char *prefix, const char *func, int line,
 	const char *fmt, ...);
@@ -245,7 +209,7 @@ do {									\
 #define TRACING_MINOR() (false)
 
 #define TRACE(trace, format, args...)			\
-	((void)(trace), no_printk(format, ##args))
+	do { (void)(trace); no_printk(format, ##args); } while (0)
 #define PRINT_BUFFER(message, buff, len)		\
 	((void)(message), (void)(buff), (void)(len))
 #define PRINT_BUFF_FLAG(flag, message, buff, len)	\
@@ -283,6 +247,16 @@ do {									\
 #endif /* LOG_PREFIX */
 
 #endif /* CONFIG_SCST_DEBUG || CONFIG_SCST_TRACING */
+
+#define PRINT_ERROR_RATELIMITED(format, args...)	\
+	do {						\
+		static DEFINE_RATELIMIT_STATE(_rs,      \
+			DEFAULT_RATELIMIT_INTERVAL,	\
+			DEFAULT_RATELIMIT_BURST);	\
+							\
+		if (__ratelimit(&_rs))			\
+			PRINT_ERROR(format, ##args);	\
+	} while (0)
 
 #ifdef CONFIG_SCST_DEBUG
 
@@ -391,7 +365,7 @@ do {									\
 #define TRACE_SG(format, args...)	no_printk(format, ##args)
 #define TRACE_DBG(format, args...)	no_printk(format, ##args)
 #define TRACE_DBG_FLAG(flag, format, args...) \
-	((void)(flag), no_printk(format, ##args))
+	do { (void)(flag); no_printk(format, ##args); } while (0)
 #define TRACE_DBG_SPECIAL(format, args...)	no_printk(format, ##args)
 #define TRACE_MGMT_DBG(format, args...)	no_printk(format, ##args)
 #define TRACE_MGMT_DBG_SPECIAL(format, args...)	no_printk(format, ##args)

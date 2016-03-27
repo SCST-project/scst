@@ -5,7 +5,7 @@ package SCST::SCST;
 # Author:	Mark R. Buechler
 # License:	GPLv2
 # Copyright (c) 2005-2011 Mark R. Buechler
-# Copyright (c) 2011 Bart Van Assche <bvanassche@acm.org>.
+# Copyright (c) 2011-2015 Bart Van Assche <bvanassche@acm.org>.
 
 use 5.005;
 use Fcntl ':mode';
@@ -289,7 +289,7 @@ use vars qw(@ISA @EXPORT $VERSION);
 
 use vars qw($TGT_TYPE_HARDWARE $TGT_TYPE_VIRTUAL);
 
-$VERSION = '0.9.10';
+$VERSION = '1.0.0';
 
 $TGT_TYPE_HARDWARE = 1;
 $TGT_TYPE_VIRTUAL  = 2;
@@ -550,8 +550,7 @@ sub drivers {
 
 	if (opendir($dHandle, $_path)) {
 		foreach my $driver (readdir($dHandle)) {
-			next if ($driver eq '.' || $driver eq '..' ||
-				 $driver eq 'copy_manager');
+			next if ($driver eq '.' || $driver eq '..');
 
 			if (-d make_path(SCST_TARGETS_DIR(), $driver)) {
 				push @drivers, $driver;
@@ -930,7 +929,7 @@ sub driverExists {
 	    opendir($dHandle, make_path(SCST_TARGETS_DIR(), $driver));
 	close $dHandle if ($result);
 
-	return $result;
+	return $result ? TRUE : FALSE;
 }
 
 sub driverDynamicAttributes {
@@ -2225,7 +2224,7 @@ sub addLun {
 	my $o_string = "";
 	foreach my $attribute (keys %{$attributes}) {
 		my $value = $$attributes{$attribute};
-		$o_string .= "$attribute=$value; ";
+		$o_string .= "$attribute=$value;";
 	}
 
 	$o_string =~ s/\s$//;
@@ -2416,7 +2415,7 @@ sub replaceLun {
 	my $o_string = "";
 	foreach my $attribute (keys %{$attributes}) {
 		my $value = $$attributes{$attribute};
-		$o_string .= "$attribute=$value; ";
+		$o_string .= "$attribute=$value;";
 	}
 
 	$o_string =~ s/\s$//;
@@ -3931,7 +3930,11 @@ sub handlerAttributes {
 			}
 		}
 
-		next if ($attribute eq SCST_MGMT_IO);
+		if ($attribute eq SCST_MGMT_IO) {
+			$attributes{$attribute}->{'static'} = TRUE;
+			$attributes{$attribute}->{'value'} = $value;
+			next;
+		}
 
 		if (!(($mode & S_IRUSR) >> 6)) {
 			$attributes{$attribute}->{'static'} = FALSE;
@@ -4132,7 +4135,7 @@ sub openDevice {
 	my $o_string = "";
 	foreach my $attribute (keys %{$attributes}) {
 		my $value = $$attributes{$attribute};
-		$o_string .= "$attribute=$value; ";
+		$o_string .= "$attribute=$value;";
 	}
 
 	$o_string =~ s/\s$//;

@@ -1,9 +1,9 @@
 /*
  *  scst_targ.c
  *
- *  Copyright (C) 2004 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004 - 2016 Vladislav Bolkhovitin <vst@vlnb.net>
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
- *  Copyright (C) 2007 - 2015 SanDisk Corporation
+ *  Copyright (C) 2007 - 2016 SanDisk Corporation
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -2949,6 +2949,7 @@ static int scst_persistent_reserve_in_local(struct scst_cmd *cmd)
 		goto out_done;
 	}
 
+#ifndef CONFIG_SCST_FORWARD_MODE_PASS_THROUGH
 	if (dev->scsi_dev != NULL) {
 		PRINT_WARNING("PR commands for pass-through devices not "
 			"supported (device %s)", dev->virt_name);
@@ -2956,6 +2957,7 @@ static int scst_persistent_reserve_in_local(struct scst_cmd *cmd)
 			SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		goto out_done;
 	}
+#endif
 
 	buffer_size = scst_get_buf_full_sense(cmd, &buffer);
 	if (unlikely(buffer_size <= 0))
@@ -5211,6 +5213,7 @@ static void scst_ioctx_get(struct scst_cmd_threads *p_cmd_threads)
 #warning IO context sharing functionality disabled on 3.5 kernels due to bug in them. \
 See "http://lkml.org/lkml/2012/7/17/515" for more details.
 			static int q;
+
 			if (q == 0) {
 				q++;
 				PRINT_WARNING("IO context sharing functionality "

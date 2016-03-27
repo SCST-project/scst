@@ -1,9 +1,9 @@
 /*
  *  scst_cdrom.c
  *
- *  Copyright (C) 2004 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004 - 2016 Vladislav Bolkhovitin <vst@vlnb.net>
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
- *  Copyright (C) 2007 - 2015 SanDisk Corporation
+ *  Copyright (C) 2007 - 2016 SanDisk Corporation
  *
  *  SCSI CDROM (type 5) dev handler
  *
@@ -99,7 +99,7 @@ static int cdrom_attach(struct scst_device *dev)
 		rc = scsi_execute(dev->scsi_dev, cmd, data_dir, buffer,
 				   buffer_size, sense_buffer,
 				   SCST_GENERIC_CDROM_REG_TIMEOUT, 3, 0
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,29)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 				   , NULL
 #endif
 				  );

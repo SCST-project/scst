@@ -9,6 +9,8 @@ BEGIN {
 
 if ($> == 0) {
     ok(system("killall iscsi-scstd >/dev/null 2>&1; " .
+	      "modprobe -r scst_cdrom; " .
+	      "modprobe -r scst_disk; " .
 	      "modprobe -r scst_local; " .
 	      "modprobe -r isert-scst; " .
 	      "modprobe -r iscsi-scst; " .

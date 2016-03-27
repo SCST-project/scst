@@ -1,7 +1,7 @@
 /*
  *  scst_event.c
  *
- *  Copyright (C) 2014 - 2015 SanDisk Corporation
+ *  Copyright (C) 2014 - 2016 SanDisk Corporation
  *
  */
 
@@ -27,7 +27,7 @@ static struct class *scst_event_sysfs_class;
 static int scst_event_major;
 
 #define SCST_MAX_EVENTS			2048
-#define SCST_MAX_PAYLOAD		3*1024
+#define SCST_MAX_PAYLOAD		(3*1024)
 #define SCST_DEFAULT_EVENT_TIMEOUT	(60*HZ)
 
 struct scst_event_priv {
@@ -866,7 +866,7 @@ static int scst_event_create_priv(struct file *file)
 		PRINT_ERROR("Unable to allocate priv (size %zd)",
 			sizeof(*priv));
 		res = -ENOMEM;
-		goto out;
+		goto out_put;
 	}
 
 	TRACE_MEM("priv %p allocated", priv);
@@ -891,6 +891,10 @@ static int scst_event_create_priv(struct file *file)
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_put:
+	module_put(THIS_MODULE);
+	goto out;
 }
 
 static long scst_event_ioctl(struct file *file, unsigned int cmd,
@@ -1087,13 +1091,13 @@ int scst_event_init(void)
 	}
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21)
-        class_member = class_device_create(scst_event_sysfs_class, NULL,
+	class_member = class_device_create(scst_event_sysfs_class, NULL,
 					   MKDEV(scst_event_major, 0), NULL,
 					   SCST_EVENT_NAME);
-        if (IS_ERR(class_member)) {
-                res = PTR_ERR(class_member);
-                goto out_chrdev;
-        }
+	if (IS_ERR(class_member)) {
+		res = PTR_ERR(class_member);
+		goto out_chrdev;
+	}
 #else
 	dev = device_create(scst_event_sysfs_class, NULL,
 			    MKDEV(scst_event_major, 0),

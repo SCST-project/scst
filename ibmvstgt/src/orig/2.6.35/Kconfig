@@ -969,7 +969,7 @@ config SCSI_IBMVSCSIS
 	  The userspace component needed to initialize the driver and
 	  documentation can be found:
 
-	  http://stgt.berlios.de/
+	  http://stgt.sourceforge.net/
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called ibmvstgt.

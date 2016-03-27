@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013 - 2014 Fusion-io, Inc. All rights reserved.
- * Copyright (C) 2014 - 2015 SanDisk Corporation.
+ * Copyright (C) 2014 - 2016 SanDisk Corporation.
  *
  * Synchronization of persistent registration data with DLM lock value blocks.
  *
@@ -29,6 +29,9 @@
 #include "scst_priv.h"
 #include "scst_pres.h"
 #include "scst_dlm.h"
+
+#if (defined(CONFIG_DLM) || defined(CONFIG_DLM_MODULE)) && \
+	!defined(CONFIG_SCST_NO_DLM)
 
 static void scst_pr_dlm_cleanup(struct scst_device *dev);
 static void scst_dlm_pre_bast(void *bastarg, int mode);
@@ -522,11 +525,11 @@ struct scst_dlm_readdir_context {
 /* Append the name of each directory entry to the buffer @arg points to. */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
 static int scst_dlm_filldir(void *arg, const char *name_arg, int name_len,
-			    loff_t curr_pos, u64 inode, unsigned dtype)
+			    loff_t curr_pos, u64 inode, unsigned int dtype)
 #else
 static int scst_dlm_filldir(struct dir_context *arg, const char *name_arg,
 			    int name_len, loff_t curr_pos, u64 inode,
-			    unsigned dtype)
+			    unsigned int dtype)
 #endif
 {
 	char *p, *q, name[64];
@@ -1493,3 +1496,5 @@ const struct scst_cl_ops scst_dlm_cl_ops = {
 	.is_not_rsv_holder	= scst_dlm_is_not_rsv_holder,
 	.reserve		= scst_dlm_reserve,
 };
+
+#endif

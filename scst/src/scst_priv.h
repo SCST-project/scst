@@ -1,9 +1,9 @@
 /*
  *  scst_priv.h
  *
- *  Copyright (C) 2004 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004 - 2016 Vladislav Bolkhovitin <vst@vlnb.net>
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
- *  Copyright (C) 2007 - 2015 SanDisk Corporation
+ *  Copyright (C) 2007 - 2016 SanDisk Corporation
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -278,9 +278,9 @@ extern void scst_tgt_dev_stop_threads(struct scst_tgt_dev *tgt_dev);
 
 extern struct scst_dev_type scst_null_devtype;
 
-char *scst_get_cmd_state_name(char *name, int len, unsigned state);
-char *scst_get_mcmd_state_name(char *name, int len, unsigned state);
-char *scst_get_tm_fn_name(char *name, int len, unsigned fn);
+char *scst_get_cmd_state_name(char *name, int len, unsigned int state);
+char *scst_get_mcmd_state_name(char *name, int len, unsigned int state);
+char *scst_get_tm_fn_name(char *name, int len, unsigned int fn);
 
 extern struct scst_cmd *__scst_check_deferred_commands_locked(
 	struct scst_order_data *order_data, bool return_first);
@@ -348,8 +348,8 @@ int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev);
 void scst_free_device(struct scst_device *dev);
 bool scst_device_is_exported(struct scst_device *dev);
 
-struct scst_acg *scst_alloc_add_acg(struct scst_tgt *tgt,
-	const char *acg_name, bool tgt_acg);
+int scst_alloc_add_acg(struct scst_tgt *tgt, const char *acg_name,
+	bool tgt_acg, struct scst_acg **out_acg);
 int scst_del_free_acg(struct scst_acg *acg, bool close_sessions);
 void scst_get_acg(struct scst_acg *acg);
 void scst_put_acg(struct scst_acg *acg);
@@ -429,7 +429,7 @@ static inline int scst_dlm_new_lockspace(const char *name, int namelen,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
 static inline int scst_exec_req(struct scsi_device *sdev,
 	const unsigned char *cmd, int cmd_len, int data_direction,
-	struct scatterlist *sgl, unsigned bufflen, unsigned nents,
+	struct scatterlist *sgl, unsigned int bufflen, unsigned int nents,
 	int timeout, int retries, void *privdata,
 	void (*done)(void *, char *, int, int), gfp_t gfp)
 {
@@ -738,6 +738,8 @@ void scst_ext_unblock_dev(struct scst_device *dev, bool stpg);
 void __scst_ext_blocking_done(struct scst_device *dev);
 void scst_ext_blocking_done(struct scst_device *dev);
 
+int scst_get_suspend_count(void);
+
 /*
  * Increases global SCST ref counters which prevent from entering into suspended
  * activities stage, so protects from any global management operations.
@@ -872,6 +874,13 @@ static inline bool scst_lba1_inside_lba2(int64_t lba1,
 int scst_cm_on_dev_register(struct scst_device *dev);
 void scst_cm_on_dev_unregister(struct scst_device *dev);
 
+int scst_cm_on_add_acg(struct scst_acg *acg);
+void scst_cm_on_del_acg(struct scst_acg *acg);
+int scst_cm_on_add_lun(struct scst_acg_dev *acg_dev, uint64_t lun,
+	unsigned int *flags);
+bool scst_cm_on_del_lun(struct scst_acg_dev *acg_dev,
+	bool gen_report_luns_changed);
+
 int scst_cm_parse_descriptors(struct scst_cmd *cmd);
 void scst_cm_free_descriptors(struct scst_cmd *cmd);
 
@@ -898,6 +907,27 @@ void scst_cm_exit(void);
 static inline int scst_cm_on_dev_register(struct scst_device *dev) { return 0; }
 static inline void scst_cm_on_dev_unregister(struct scst_device *dev) {}
 
+static inline int scst_cm_on_add_acg(struct scst_acg *acg)
+{
+	return 0;
+}
+
+static inline void scst_cm_on_del_acg(struct scst_acg *acg)
+{
+}
+
+static inline int scst_cm_on_add_lun(struct scst_acg_dev *acg_dev, uint64_t lun,
+				     unsigned int *flags)
+{
+	return 0;
+}
+
+static inline bool scst_cm_on_del_lun(struct scst_acg_dev *acg_dev,
+				      bool gen_report_luns_changed)
+{
+	return gen_report_luns_changed;
+}
+
 static inline int scst_cm_parse_descriptors(struct scst_cmd *cmd)
 {
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
@@ -915,7 +945,11 @@ static inline int scst_cm_rcv_copy_res_exec(struct scst_cmd *cmd)
 	return SCST_EXEC_NOT_COMPLETED;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+static inline void sess_cm_list_id_cleanup_work_fn(void *p) {}
+#else
 static inline void sess_cm_list_id_cleanup_work_fn(struct work_struct *work) {}
+#endif
 static inline void scst_cm_free_pending_list_ids(struct scst_session *sess) {}
 
 static inline bool scst_cm_check_block_all_devs(struct scst_cmd *cmd) { return false; }

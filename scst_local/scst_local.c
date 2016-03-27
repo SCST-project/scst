@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2008 - 2010 Richard Sharpe
  * Copyright (C) 1992 Eric Youngdale
- * Copyright (C) 2008 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
+ * Copyright (C) 2008 - 2016 Vladislav Bolkhovitin <vst@vlnb.net>
  *
  * Simulate a host adapter and an SCST target adapter back to back
  *
@@ -51,10 +51,10 @@
 
 #ifndef INSIDE_KERNEL_TREE
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
-#warning HIGHMEM kernel configurations are not supported by this module,\
- because nowadays it is not worth the effort. Consider changing\
- VMSPLIT option or use a 64-bit configuration instead. See SCST core\
- README file for details.
+#warning HIGHMEM kernel configurations are not supported by this module, \
+because nowadays it is not worth the effort. Consider changing \
+VMSPLIT option or use a 64-bit configuration instead. See SCST core \
+README file for details.
 #endif
 #endif
 
@@ -1619,7 +1619,8 @@ static struct scsi_host_template scst_lcl_ini_driver_template = {
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 25))
 	.eh_target_reset_handler	= scst_local_target_reset,
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0) && \
+	LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 	.use_blk_tags			= true,
 #endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33) || \

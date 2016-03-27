@@ -17,9 +17,9 @@
 #include "sha1.h"
 
 /* SHA1 transforms */
-#define F1(x,y,z)   (z ^ (x & (y ^ z)))		/* x ? y : z */
-#define F2(x,y,z)   (x ^ y ^ z)			/* XOR */
-#define F3(x,y,z)   ((x & y) + (z & (x ^ y)))	/* majority */
+#define F1(x, y, z)   (z ^ (x & (y ^ z)))		/* x ? y : z */
+#define F2(x, y, z)   (x ^ y ^ z)			/* XOR */
+#define F3(x, y, z)   ((x & y) + (z & (x ^ y)))	/* majority */
 
 /* SHA1 per-round constants */
 #define K1  0x5A827999UL		/* Rounds  0-19: sqrt(2) * 2^30 */
@@ -56,17 +56,17 @@ static void __sha1_transform(u32 hash[SHA1_DIGEST_WORDS],
 		e = d; d = c; c = rol32(b, 30); b = a; a = t;
 	}
 
-	for (; i < 40; i ++) {
+	for (; i < 40; i++) {
 		t = F2(b, c, d) + K2 + rol32(a, 5) + e + W[i];
 		e = d; d = c; c = rol32(b, 30); b = a; a = t;
 	}
 
-	for (; i < 60; i ++) {
+	for (; i < 60; i++) {
 		t = F3(b, c, d) + K3 + rol32(a, 5) + e + W[i];
 		e = d; d = c; c = rol32(b, 30); b = a; a = t;
 	}
 
-	for (; i < 80; i ++) {
+	for (; i < 80; i++) {
 		t = F2(b, c, d) + K4 + rol32(a, 5) + e + W[i];
 		e = d; d = c; c = rol32(b, 30); b = a; a = t;
 	}

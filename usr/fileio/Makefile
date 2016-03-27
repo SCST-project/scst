@@ -1,8 +1,8 @@
 #
 #  SCSI target mid-level makefile
 #
-#  Copyright (C) 2007 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
-#  Copyright (C) 2007 - 2015 SanDisk Corporation
+#  Copyright (C) 2007 - 2016 Vladislav Bolkhovitin <vst@vlnb.net>
+#  Copyright (C) 2007 - 2016 SanDisk Corporation
 #
 #  This program is free software; you can redistribute it and/or
 #  modify it under the terms of the GNU General Public License
@@ -118,6 +118,6 @@ extraclean: clean
 	rm Makefile.aa
 
 release-archive:
-	../../scripts/generate-release-archive fileio_tgt "$$(sed -n 's/^#define[[:blank:]]VERSION_STR[[:blank:]]*\"\([^\"]*\)\".*/\1/p' fileio.c)"
+	../../scripts/generate-release-archive fileio_tgt "$$(sed -n 's/^#define[[:blank:]]VERSION_STR[[:blank:]]*\"\([^\"]*\)\".*/\1/p' ../include/version.h)"
 
 .PHONY: all install uninstall clean extraclean 2release 2debug 2perf

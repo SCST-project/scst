@@ -2,8 +2,8 @@
  *  Event notification code.
  *
  *  Copyright (C) 2005 FUJITA Tomonori <tomof@acm.org>
- *  Copyright (C) 2007 - 2015 Vladislav Bolkhovitin
- *  Copyright (C) 2007 - 2015 SanDisk Corporation
+ *  Copyright (C) 2007 - 2016 Vladislav Bolkhovitin
+ *  Copyright (C) 2007 - 2016 SanDisk Corporation
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -57,7 +57,7 @@ static int nl_write(int fd, void *data, int len)
 	nlh.nlmsg_type = 0;
 
 	memset(&msg, 0, sizeof(msg));
-	msg.msg_name= (void *)&dest_addr;
+	msg.msg_name = (void *)&dest_addr;
 	msg.msg_namelen = sizeof(dest_addr);
 	msg.msg_iov = iov;
 	msg.msg_iovlen = 2;
@@ -105,6 +105,7 @@ static int strncasecmp_numwild(const char *name, const char *mask)
 
 	if (!strncasecmp(name, mask, strlen(name))) {
 		int j;
+
 		if (strlen(name) > strlen(mask))
 			goto out;
 		for (j = strlen(name); j < strlen(mask); j++) {
@@ -430,6 +431,7 @@ static int handle_e_mgmt_cmd(int fd, const struct iscsi_kern_event *event)
 		res = handle_add_attr(NULL, p, event->cookie);
 	} else if (strcasecmp("add_target_attribute", pp) == 0) {
 		struct target *target;
+
 		pp = config_sep_string(&p);
 		target = target_find_by_name(pp);
 		if (target == NULL) {
@@ -442,6 +444,7 @@ static int handle_e_mgmt_cmd(int fd, const struct iscsi_kern_event *event)
 		res = handle_del_attr(NULL, p, event->cookie);
 	} else if (strcasecmp("del_target_attribute", pp) == 0) {
 		struct target *target;
+
 		pp = config_sep_string(&p);
 		target = target_find_by_name(pp);
 		if (target == NULL) {
@@ -465,6 +468,7 @@ out:
 static void add_key_mark(char *res_str, int res_str_len, int new_line)
 {
 	int offs = strlen(res_str);
+
 	snprintf(&res_str[offs], res_str_len - offs, "%s%s\n",
 		new_line ? "\n" : "", SCST_SYSFS_KEY_MARK);
 	return;
@@ -702,6 +706,7 @@ static int handle_target_redirect(struct target *target, char *p)
 
 	if (inet_pton(AF_INET, addr, &ia) != 1) {
 		char tmp[sizeof(target->redirect.addr)];
+
 		if (*addr == '[')
 			t = addr+1;
 		else

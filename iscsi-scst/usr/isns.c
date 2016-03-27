@@ -2,8 +2,8 @@
  * iSNS functions
  *
  *  Copyright (C) 2006 FUJITA Tomonori <tomof@acm.org>
- *  Copyright (C) 2007 - 2015 Vladislav Bolkhovitin
- *  Copyright (C) 2007 - 2015 SanDisk Corporation
+ *  Copyright (C) 2007 - 2016 Vladislav Bolkhovitin
+ *  Copyright (C) 2007 - 2016 SanDisk Corporation
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -507,9 +507,9 @@ int isns_target_register(char *name)
 		err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_NAME,
 				strlen(isns_entity_target_name) + 1, isns_entity_target_name);
 	}
-if (err < 0)
+	if (err < 0)
 		goto out;
-        length += err;
+	length += err;
 
 	err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ENTITY_IDENTIFIER,
 				strlen(eid) + 1, eid);
@@ -551,6 +551,7 @@ if (err < 0)
 
 		if (scn_listen_port) {
 			uint32_t sport = htonl(scn_listen_port);
+
 			err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_SCN_PORT,
 						sizeof(sport), &sport);
 			if (err < 0)
@@ -1010,7 +1011,7 @@ static int send_scn_rsp(char *name, uint16_t transaction)
 	*((uint32_t *)hdr->pdu) = 0;
 	max_buf = sizeof(buf) - offsetof(struct isns_hdr, pdu);
 	tlv = (struct isns_tlv *)((char *)hdr->pdu + 4);
-	length +=4;
+	length += 4;
 
 	err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_NAME,
 				strlen(name) + 1, name);

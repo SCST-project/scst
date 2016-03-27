@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2006 - 2009 Mellanox Technology Inc.  All rights reserved.
- * Copyright (C) 2008 - 2015 Bart Van Assche <bvanassche@acm.org>.
+ * Copyright (C) 2008 - 2016 Bart Van Assche <bvanassche@acm.org>.
  * Copyright (C) 2008 Vladislav Bolkhovitin <vst@vlnb.net>
  *
  * This software is available to you under a choice of one of two
@@ -593,6 +593,9 @@ static void srpt_mad_send_handler(struct ib_mad_agent *mad_agent,
  * srpt_mad_recv_handler() - MAD reception callback function.
  */
 static void srpt_mad_recv_handler(struct ib_mad_agent *mad_agent,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0)
+				  struct ib_mad_send_buf *send_buf,
+#endif
 				  struct ib_mad_recv_wc *mad_wc)
 {
 	struct srpt_port *sport = (struct srpt_port *)mad_agent->context;
@@ -694,7 +697,8 @@ static int srpt_refresh_port(struct srpt_port *sport)
 	sport->lid = port_attr.lid;
 
 	ret = ib_query_gid(sport->sdev->device, sport->port, 0, &sport->gid
-#ifdef IB_QUERY_GID_HAS_ATTR_ARG
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0) || \
+	defined(IB_QUERY_GID_HAS_ATTR_ARG)
 			   , NULL
 #endif
 			   );
@@ -2068,13 +2072,18 @@ static int srpt_poll(struct srpt_rdma_ch *ch, int budget)
 	return processed;
 }
 
-static int srpt_process_completion(struct srpt_rdma_ch *ch, int budget)
+static int srpt_process_completion(struct srpt_rdma_ch *ch, int budget,
+				   bool thread_context)
 {
 	struct ib_cq *const cq = ch->cq;
 	int processed = 0, n = budget;
 
 	do {
+		if (thread_context)
+			set_current_state(TASK_RUNNING);
 		processed += srpt_poll(ch, n);
+		if (thread_context)
+			set_current_state(TASK_INTERRUPTIBLE);
 		n = ib_req_notify_cq(cq, IB_CQ_NEXT_COMP |
 				     IB_CQ_REPORT_MISSED_EVENTS);
 	} while (n > 0);
@@ -2098,7 +2107,7 @@ static void srpt_free_ch(struct kref *kref)
 
 	srpt_destroy_ch_ib(ch);
 
-	kfree(ch);
+	kfree_rcu(ch, rcu);
 }
 
 static void srpt_unreg_ch(struct srpt_rdma_ch *ch)
@@ -2127,7 +2136,7 @@ static void srpt_unreg_ch(struct srpt_rdma_ch *ch)
 	 * after list_del() and before wake_up() has been invoked.
 	 */
 	mutex_lock(&sport->mutex);
-	list_del(&ch->list);
+	list_del_rcu(&ch->list);
 	wake_up(&sport->ch_releaseQ);
 	mutex_unlock(&sport->mutex);
 
@@ -2143,6 +2152,7 @@ static int srpt_compl_thread(void *arg)
 {
 	enum { poll_budget = 65536 };
 	struct srpt_rdma_ch *ch;
+	int n;
 
 	/* Hibernation / freezing of the SRPT kernel thread is not supported. */
 	current->flags |= PF_NOFREEZE;
@@ -2151,8 +2161,10 @@ static int srpt_compl_thread(void *arg)
 	BUG_ON(!ch);
 
 	while (ch->state < CH_LIVE) {
-		set_current_state(TASK_INTERRUPTIBLE);
-		if (srpt_process_completion(ch, poll_budget) >= poll_budget)
+		n = srpt_process_completion(ch, poll_budget, true);
+		if (ch->state >= CH_LIVE)
+			break;
+		if (n >= poll_budget)
 			cond_resched();
 		else
 			schedule();
@@ -2161,20 +2173,26 @@ static int srpt_compl_thread(void *arg)
 	srpt_process_wait_list(ch);
 
 	while (ch->state < CH_DISCONNECTED) {
-		set_current_state(TASK_INTERRUPTIBLE);
-		if (srpt_process_completion(ch, poll_budget) >= poll_budget)
+		n = srpt_process_completion(ch, poll_budget, true);
+		if (ch->state >= CH_DISCONNECTED)
+			break;
+		if (n >= poll_budget)
 			cond_resched();
 		else
 			schedule();
 	}
 	set_current_state(TASK_RUNNING);
 
-	pr_debug("%s-%d: about to unregister this session()\n",
+	pr_debug("%s-%d: about to unregister this session\n",
 		 ch->sess_name, ch->qp->qp_num);
 	scst_unregister_session(ch->sess, false, srpt_unreg_sess);
 
-	while (!kthread_should_stop())
-		schedule_timeout(DIV_ROUND_UP(HZ, 10));
+	set_current_state(TASK_INTERRUPTIBLE);
+	while (!kthread_should_stop()) {
+		schedule();
+		set_current_state(TASK_INTERRUPTIBLE);
+	}
+	__set_current_state(TASK_RUNNING);
 
 	return 0;
 }
@@ -2397,7 +2415,8 @@ static struct srpt_nexus *srpt_get_nexus(struct srpt_port *sport,
 			}
 		}
 		if (!nexus && tmp_nexus) {
-			list_add_tail(&tmp_nexus->entry, &sport->nexus_list);
+			list_add_tail_rcu(&tmp_nexus->entry,
+					  &sport->nexus_list);
 			swap(nexus, tmp_nexus);
 		}
 		mutex_unlock(&sport->mutex);
@@ -2695,7 +2714,7 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 		rsp->rsp_flags = SRP_LOGIN_RSP_MULTICHAN_MAINTAINED;
 	}
 
-	list_add_tail(&ch->list, &nexus->ch_list);
+	list_add_tail_rcu(&ch->list, &nexus->ch_list);
 	ch->thread = thread;
 
 	if (!sport->enabled) {
@@ -3356,7 +3375,11 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 			      struct srpt_send_ioctx *ioctx,
 			      scst_data_direction dir)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 	struct ib_send_wr wr;
+#else
+	struct ib_rdma_wr wr;
+#endif
 	struct ib_send_wr *bad_wr;
 	struct rdma_iu *riu;
 	int i;
@@ -3377,6 +3400,7 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 	memset(&wr, 0, sizeof(wr));
 
 	for (i = 0; i < n_rdma; ++i, ++riu) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 		if (dir == SCST_DATA_READ) {
 			wr.opcode = IB_WR_RDMA_WRITE;
 			wr.wr_id = encode_wr_id(i == n_rdma - 1 ?
@@ -3401,6 +3425,32 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 			wr.send_flags = IB_SEND_SIGNALED;
 
 		ret = ib_post_send(ch->qp, &wr, &bad_wr);
+#else
+		if (dir == SCST_DATA_READ) {
+			wr.wr.opcode = IB_WR_RDMA_WRITE;
+			wr.wr.wr_id = encode_wr_id(i == n_rdma - 1 ?
+						SRPT_RDMA_WRITE_LAST :
+						SRPT_RDMA_MID,
+						ioctx->ioctx.index);
+		} else {
+			wr.wr.opcode = IB_WR_RDMA_READ;
+			wr.wr.wr_id = encode_wr_id(i == n_rdma - 1 ?
+						SRPT_RDMA_READ_LAST :
+						SRPT_RDMA_MID,
+						ioctx->ioctx.index);
+		}
+		wr.wr.next = NULL;
+		wr.remote_addr = riu->raddr;
+		wr.rkey = riu->rkey;
+		wr.wr.num_sge = riu->sge_cnt;
+		wr.wr.sg_list = riu->sge;
+
+		/* only get completion event for the last rdma wr */
+		if (i == (n_rdma - 1) && dir == SCST_DATA_WRITE)
+			wr.wr.send_flags = IB_SEND_SIGNALED;
+
+		ret = ib_post_send(ch->qp, &wr.wr, &bad_wr);
+#endif
 		if (ret)
 			break;
 	}
@@ -3409,6 +3459,7 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 		pr_err("%s: ib_post_send() returned %d for %d/%d\n", __func__,
 		       ret, i, n_rdma);
 	if (ret && i > 0) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 		wr.num_sge = 0;
 		wr.wr_id = encode_wr_id(SRPT_RDMA_ABORT, ioctx->ioctx.index);
 		wr.send_flags = IB_SEND_SIGNALED;
@@ -3420,13 +3471,34 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 				ioctx->ioctx.index);
 			msleep(1000);
 		}
+#else
+		wr.wr.num_sge = 0;
+		wr.wr.wr_id = encode_wr_id(SRPT_RDMA_ABORT, ioctx->ioctx.index);
+		wr.wr.send_flags = IB_SEND_SIGNALED;
+		pr_info("Trying to abort failed RDMA transfer [%d]\n",
+			ioctx->ioctx.index);
+		while (ch->state == CH_LIVE &&
+		       ib_post_send(ch->qp, &wr.wr, &bad_wr) != 0) {
+			pr_info("Trying to abort failed RDMA transfer [%d]\n",
+				ioctx->ioctx.index);
+			msleep(1000);
+		}
+#endif
 		pr_info("Waiting until RDMA abort finished [%d]\n",
 			ioctx->ioctx.index);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 		while (ch->state < CH_DISCONNECTED && !ioctx->rdma_aborted) {
 			pr_info("Waiting until RDMA abort finished [%d]\n",
 				ioctx->ioctx.index);
 			msleep(1000);
 		}
+#else
+		while (ch->state < CH_DISCONNECTED && !ioctx->rdma_aborted) {
+			pr_info("Waiting until RDMA abort finished [%d]\n",
+				ioctx->ioctx.index);
+			msleep(1000);
+		}
+#endif
 		pr_info("%s[%d]: done\n", __func__, __LINE__);
 	}
 
@@ -3788,11 +3860,11 @@ static bool srpt_ch_list_empty(struct srpt_port *sport)
 	struct srpt_nexus *nexus;
 	bool res = true;
 
-	mutex_lock(&sport->mutex);
-	list_for_each_entry(nexus, &sport->nexus_list, entry)
+	rcu_read_lock();
+	list_for_each_entry_rcu(nexus, &sport->nexus_list, entry)
 		if (!list_empty(&nexus->ch_list))
 			res = false;
-	mutex_unlock(&sport->mutex);
+	rcu_read_unlock();
 
 	return res;
 }
@@ -3832,8 +3904,8 @@ static int srpt_release_sport(struct srpt_port *sport)
 
 	mutex_lock(&sport->mutex);
 	list_for_each_entry_safe(nexus, next_n, &sport->nexus_list, entry) {
-		list_del(&nexus->entry);
-		kfree(nexus);
+		list_del_rcu(&nexus->entry);
+		kfree_rcu(nexus, rcu);
 	}
 	mutex_unlock(&sport->mutex);
 
@@ -4141,11 +4213,15 @@ static void srpt_add_one(struct ib_device *device)
 
 	sdev->device = device;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
 	ret = ib_query_device(device, &sdev->dev_attr);
 	if (ret) {
 		pr_err("ib_query_device() failed: %d\n", ret);
 		goto free_dev;
 	}
+#else
+	sdev->dev_attr = device->attrs;
+#endif
 
 	sdev->pd = ib_alloc_pd(device);
 	if (IS_ERR(sdev->pd)) {
@@ -4480,13 +4556,16 @@ static int __init srpt_init_module(void)
 	if (rdma_cm_port) {
 		struct sockaddr_in addr;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0) || \
-	defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 0) && \
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
+		rdma_cm_id = rdma_create_id(srpt_rdma_cm_handler, NULL,
+					    RDMA_PS_TCP);
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 		rdma_cm_id = rdma_create_id(srpt_rdma_cm_handler, NULL,
 					    RDMA_PS_TCP, IB_QPT_RC);
 #else
-		rdma_cm_id = rdma_create_id(srpt_rdma_cm_handler, NULL,
-					    RDMA_PS_TCP);
+		rdma_cm_id = rdma_create_id(&init_net, srpt_rdma_cm_handler,
+					    NULL, RDMA_PS_TCP, IB_QPT_RC);
 #endif
 		if (IS_ERR(rdma_cm_id)) {
 			rdma_cm_id = NULL;
@@ -4534,6 +4613,8 @@ out:
 
 static void __exit srpt_cleanup_module(void)
 {
+	rcu_barrier();
+
 	if (rdma_cm_id)
 		rdma_destroy_id(rdma_cm_id);
 	ib_unregister_client(&srpt_client);

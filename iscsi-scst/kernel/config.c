@@ -1,7 +1,7 @@
 /*
  *  Copyright (C) 2004 - 2005 FUJITA Tomonori <tomof@acm.org>
- *  Copyright (C) 2007 - 2015 Vladislav Bolkhovitin
- *  Copyright (C) 2007 - 2015 SanDisk Corporation
+ *  Copyright (C) 2007 - 2016 Vladislav Bolkhovitin
+ *  Copyright (C) 2007 - 2016 SanDisk Corporation
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -31,13 +31,13 @@ int ctr_open_state;
 #define ISCSI_PROC_LOG_ENTRY_NAME	"trace_level"
 
 static struct scst_trace_log iscsi_local_trace_tbl[] = {
-    { TRACE_D_WRITE,		"d_write" },
-    { TRACE_CONN_OC,		"conn" },
-    { TRACE_CONN_OC_DBG,	"conn_dbg" },
-    { TRACE_D_IOV,		"iov" },
-    { TRACE_D_DUMP_PDU,		"pdu" },
-    { TRACE_NET_PG,		"net_page" },
-    { 0,			NULL }
+	{ TRACE_D_WRITE,	"d_write"	},
+	{ TRACE_CONN_OC,	"conn"		},
+	{ TRACE_CONN_OC_DBG,	"conn_dbg"	},
+	{ TRACE_D_IOV,		"iov"		},
+	{ TRACE_D_DUMP_PDU,	"pdu"		},
+	{ TRACE_NET_PG,		"net_page"	},
+	{ 0,			NULL		}
 };
 
 static int iscsi_log_info_show(struct seq_file *seq, void *v)

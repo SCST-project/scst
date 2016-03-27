@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2009 - 2010 Alexey Obitotskiy <alexeyo1@open-e.com>
  *  Copyright (C) 2009 - 2010 Open-E, Inc.
- *  Copyright (C) 2009 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2009 - 2016 Vladislav Bolkhovitin <vst@vlnb.net>
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -47,7 +47,7 @@
 #include <asm/unaligned.h>
 #include <stdarg.h>
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 #include <linux/mount.h>
 #endif
 
@@ -1173,10 +1173,12 @@ void scst_pr_cleanup(struct scst_device *dev)
 int scst_pr_set_cluster_mode(struct scst_device *dev, bool cluster_mode,
 			     const char *cl_dev_id)
 {
-	bool cluster_mode_enabled = false;
 	int res = 0;
 
-#if defined(CONFIG_DLM) || defined(CONFIG_DLM_MODULE)
+#if defined(CONFIG_DLM) || defined(CONFIG_DLM_MODULE) && \
+	!defined(CONFIG_SCST_NO_DLM)
+	bool cluster_mode_enabled = false;
+
 	cluster_mode_enabled = dev->cl_ops == &scst_dlm_cl_ops;
 
 	if (cluster_mode_enabled == cluster_mode)
@@ -1192,11 +1194,12 @@ int scst_pr_set_cluster_mode(struct scst_device *dev, bool cluster_mode,
 			    dev->virt_name, cluster_mode, res);
 		dev->cl_ops = &scst_no_dlm_cl_ops;
 	}
+
+out:
 #else
 	res = cluster_mode ? -ENOTSUPP : 0;
 #endif
 
-out:
 	return res;
 }
 EXPORT_SYMBOL(scst_pr_set_cluster_mode);

@@ -1,7 +1,7 @@
 /*
  *  Copyright (C) 2005 FUJITA Tomonori <tomof@acm.org>
- *  Copyright (C) 2007 - 2015 Vladislav Bolkhovitin
- *  Copyright (C) 2007 - 2015 SanDisk Corporation
+ *  Copyright (C) 2007 - 2016 Vladislav Bolkhovitin
+ *  Copyright (C) 2007 - 2016 SanDisk Corporation
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -29,6 +29,7 @@ size_t strlcpy(char *dest, const char *src, size_t size)
 
 	if (size) {
 		size_t len = (ret >= size) ? size - 1 : ret;
+
 		memcpy(dest, src, len);
 		dest[len] = '\0';
 	}
@@ -56,6 +57,7 @@ int params_index_by_name_numwild(const char *name, const struct iscsi_key *keys)
 	for (i = 0; keys[i].name; i++) {
 		if (!strncasecmp(keys[i].name, name, strlen(keys[i].name))) {
 			int j;
+
 			if (strlen(keys[i].name) > strlen(name))
 				continue;
 			for (j = strlen(keys[i].name); j < strlen(name); j++) {
@@ -205,8 +207,8 @@ static int digest_str_to_val(const char *str, unsigned int *val)
 {
 	int err = 0;
 	const char *p, *q;
-	p = str;
 
+	p = str;
 	*val = 0;
 	do {
 		while ((*p != '\0') && isspace(*p))
@@ -337,7 +339,7 @@ static struct iscsi_key_ops marker_ops = {
 	.set_val = marker_set_val,
 };
 
-#define	SET_KEY_VALUES(x)	DEFAULT_##x,DEFAULT_##x,MIN_##x,MAX_##x
+#define	SET_KEY_VALUES(x)	DEFAULT_##x, DEFAULT_##x, MIN_##x, MAX_##x
 
 /*
  * List of local target keys with initial values.
