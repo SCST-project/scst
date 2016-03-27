@@ -35,6 +35,12 @@
 #include <linux/ratelimit.h>
 #endif
 
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/backport.h>
+#else
+#include <backport.h>
+#endif
+
 #if !defined(INSIDE_KERNEL_TREE)
 #ifdef CONFIG_SCST_DEBUG
 

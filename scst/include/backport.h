@@ -20,8 +20,11 @@
  *  GNU General Public License for more details.
  */
 
+#include <linux/blkdev.h>	/* struct request_queue */
+#include <linux/scatterlist.h>	/* struct scatterlist */
 #include <linux/slab.h>		/* kmalloc() */
 #include <linux/writeback.h>	/* sync_page_range() */
+#include <scsi/scsi_cmnd.h>	/* struct scsi_cmnd */
 
 /* <asm-generic/barrier.h> */
 
