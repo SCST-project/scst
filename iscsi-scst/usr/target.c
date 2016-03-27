@@ -292,7 +292,7 @@ void target_list_build(struct connection *conn, char *target_name)
 			else if (strcmp(conn->target_portal, portal) &&
 				 !is_addr_loopback(portal) &&
 				 target_portal_allowed(target, portal,
-				 		conn->initiator))
+						       conn->initiator))
 					target_print_addr(conn, portal, family);
 		}
 	}

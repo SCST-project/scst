@@ -507,9 +507,9 @@ int isns_target_register(char *name)
 		err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_NAME,
 				strlen(isns_entity_target_name) + 1, isns_entity_target_name);
 	}
-if (err < 0)
+	if (err < 0)
 		goto out;
-        length += err;
+	length += err;
 
 	err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ENTITY_IDENTIFIER,
 				strlen(eid) + 1, eid);
@@ -1010,7 +1010,7 @@ static int send_scn_rsp(char *name, uint16_t transaction)
 	*((uint32_t *)hdr->pdu) = 0;
 	max_buf = sizeof(buf) - offsetof(struct isns_hdr, pdu);
 	tlv = (struct isns_tlv *)((char *)hdr->pdu + 4);
-	length +=4;
+	length += 4;
 
 	err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_NAME,
 				strlen(name) + 1, name);

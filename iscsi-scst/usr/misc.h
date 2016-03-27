@@ -25,7 +25,7 @@ struct __qelem {
 
 #undef offsetof
 #ifdef __compiler_offsetof
-#define offsetof(TYPE,MEMBER) __compiler_offsetof(TYPE,MEMBER)
+#define offsetof(TYPE, MEMBER) __compiler_offsetof(TYPE, MEMBER)
 #else
 #define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
 #endif
@@ -45,19 +45,19 @@ static inline int list_empty(const struct __qelem *head)
 
 static inline int list_length_is_one(const struct __qelem *head)
 {
-        return (!list_empty(head) && head->q_forw == head->q_back);
+	return (!list_empty(head) && head->q_forw == head->q_back);
 }
 
 #define container_of(ptr, type, member) ({			\
-        const typeof( ((type *)0)->member ) *__mptr = (ptr);	\
-        (type *)( (char *)__mptr - offsetof(type,member) );})
+	const typeof( ((type *)0)->member ) *__mptr = (ptr); \
+	(type *)( (char *)__mptr - offsetof(type,member) );})
 
 #define list_entry(ptr, type, member) \
 	container_of(ptr, type, member)
 
 #define list_for_each_entry(pos, head, member)				\
 	for (pos = list_entry((head)->q_forw, typeof(*pos), member);	\
-	     &pos->member != (head); 	\
+	     &pos->member != (head);					\
 	     pos = list_entry(pos->member.q_forw, typeof(*pos), member))
 
 #define list_for_each_entry_safe(pos, n, head, member)			\
@@ -73,7 +73,7 @@ static inline int list_length_is_one(const struct __qelem *head)
 		INIT_LIST_HEAD(elem);		\
 	} while (0)
 
-#define list_add(new, head) insque (new, head)
+#define list_add(new, head) insque(new, head)
 
 #define list_add_tail(new, head) insque(new, (head)->q_back)
 
@@ -94,12 +94,12 @@ static inline int list_length_is_one(const struct __qelem *head)
 #define min_t(type, x, y) ({			\
 	type __min1 = (x);			\
 	type __min2 = (y);			\
-	__min1 < __min2 ? __min1: __min2; })
+	__min1 < __min2 ? __min1 : __min2; })
 
 #define max_t(type, x, y) ({			\
 	type __max1 = (x);			\
 	type __max2 = (y);			\
-	__max1 > __max2 ? __max1: __max2; })
+	__max1 > __max2 ? __max1 : __max2; })
 
 #ifndef IPV6_V6ONLY
 #define IPV6_V6ONLY	26

@@ -337,7 +337,7 @@ static struct iscsi_key_ops marker_ops = {
 	.set_val = marker_set_val,
 };
 
-#define	SET_KEY_VALUES(x)	DEFAULT_##x,DEFAULT_##x,MIN_##x,MAX_##x
+#define	SET_KEY_VALUES(x)	DEFAULT_##x, DEFAULT_##x, MIN_##x, MAX_##x
 
 /*
  * List of local target keys with initial values.
