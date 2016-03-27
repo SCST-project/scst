@@ -52,10 +52,9 @@ int conn_blocked;
 
 struct iscsi_init_params iscsi_init_params;
 
-static char program_name[] = "iscsi-scstd";
+static const char program_name[] = "iscsi-scstd";
 
-static struct option const long_options[] =
-{
+static struct option const long_options[] = {
 	{"config", required_argument, 0, 'c'},
 	{"foreground", no_argument, 0, 'f'},
 	{"debug", required_argument, 0, 'd'},
@@ -209,6 +208,7 @@ out:
 static int transmit_iser(int fd, bool start)
 {
 	int opt = start;
+
 	return ioctl(fd, RDMA_CORK, &opt, sizeof(opt));
 }
 
@@ -370,6 +370,7 @@ out_close:
 static int transmit_sock(int fd, bool start)
 {
 	int opt = start;
+
 	return setsockopt(fd, SOL_TCP, TCP_CORK, &opt, sizeof(opt));
 }
 
@@ -744,6 +745,7 @@ static void event_loop(void)
 			    (conn->state == STATE_EXIT) ||
 			    (conn->state == STATE_DROP)) {
 				struct session *sess = conn->sess;
+
 				log_debug(1, "closing conn %p", conn);
 				conn_free_pdu(conn);
 				close(pollfd->fd);
@@ -928,6 +930,7 @@ int main(int argc, char **argv)
 			exit(1);
 		} else if (pid) {
 			int res = -1;
+
 			close(init_report_pipe[1]);
 			if (read(init_report_pipe[0], &res, sizeof(res)) < sizeof(res))
 				exit(-1);

@@ -105,6 +105,7 @@ static int strncasecmp_numwild(const char *name, const char *mask)
 
 	if (!strncasecmp(name, mask, strlen(name))) {
 		int j;
+
 		if (strlen(name) > strlen(mask))
 			goto out;
 		for (j = strlen(name); j < strlen(mask); j++) {
@@ -430,6 +431,7 @@ static int handle_e_mgmt_cmd(int fd, const struct iscsi_kern_event *event)
 		res = handle_add_attr(NULL, p, event->cookie);
 	} else if (strcasecmp("add_target_attribute", pp) == 0) {
 		struct target *target;
+
 		pp = config_sep_string(&p);
 		target = target_find_by_name(pp);
 		if (target == NULL) {
@@ -442,6 +444,7 @@ static int handle_e_mgmt_cmd(int fd, const struct iscsi_kern_event *event)
 		res = handle_del_attr(NULL, p, event->cookie);
 	} else if (strcasecmp("del_target_attribute", pp) == 0) {
 		struct target *target;
+
 		pp = config_sep_string(&p);
 		target = target_find_by_name(pp);
 		if (target == NULL) {
@@ -465,6 +468,7 @@ out:
 static void add_key_mark(char *res_str, int res_str_len, int new_line)
 {
 	int offs = strlen(res_str);
+
 	snprintf(&res_str[offs], res_str_len - offs, "%s%s\n",
 		new_line ? "\n" : "", SCST_SYSFS_KEY_MARK);
 	return;
@@ -702,6 +706,7 @@ static int handle_target_redirect(struct target *target, char *p)
 
 	if (inet_pton(AF_INET, addr, &ia) != 1) {
 		char tmp[sizeof(target->redirect.addr)];
+
 		if (*addr == '[')
 			t = addr+1;
 		else

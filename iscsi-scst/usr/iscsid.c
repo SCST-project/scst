@@ -299,6 +299,7 @@ static int login_check_reinstatement(struct connection *conn)
 			goto out;
 		} else {
 			struct connection *c = conn_find(session, conn->cid);
+
 			if (c != NULL) {
 				/* Kernel will do connection reinstatement */
 				log_debug(1, "Conn %x reinstatement "
@@ -527,6 +528,7 @@ static void login_start(struct connection *conn)
 	if (session_type) {
 		if (!strcmp(session_type, "Discovery")) {
 			int ret = conn->is_discovery(conn->fd);
+
 			if (ret) {
 				login_rsp_tgt_err(conn, ISCSI_STATUS_MISSING_FIELDS);
 				return;
@@ -645,6 +647,7 @@ static int login_finish(struct connection *conn)
 	if (conn->is_iser &&
 	    conn->session_params[key_target_recv_data_length].key_state == KEY_STATE_START) {
 		char buf[32] = "\0";
+
 		params_val_to_str(session_keys, key_target_recv_data_length,
 				  session_keys[key_target_recv_data_length].local_def,
 				  buf, sizeof(buf));
@@ -750,7 +753,7 @@ static void cmnd_exec_login(struct connection *conn)
 			login_start(conn);
 			if (rsp->status_class)
 				return;
-			//else fall through
+			/* else fall through */
 		case STATE_SECURITY:
 			text_scan_security(conn);
 			if (rsp->status_class)
@@ -848,6 +851,7 @@ static void cmnd_exec_login(struct connection *conn)
 			}
 			if (!stay && !nsg_disagree) {
 				int err;
+
 				text_check_params(conn);
 				err = login_finish(conn);
 				if (err != 0) {
@@ -1081,7 +1085,7 @@ void cmnd_finish(struct connection *conn)
 		conn->state = STATE_LOGIN;
 		break;
 	case STATE_SECURITY_FULL:
-		//fall through
+		/* fall through */
 	case STATE_LOGIN_FULL:
 		if (conn->session_type == SESSION_NORMAL)
 			conn->state = STATE_KERNEL;

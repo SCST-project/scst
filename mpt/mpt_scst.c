@@ -164,6 +164,7 @@ static int mpt_target_show(struct seq_file *seq, void *v)
 	if (ioc->bus_type == SPI) {
 #endif
 		int i = 0;
+
 		seq_printf(seq, "Target ID        :%d\n"
 			   "Capabilities     :0x%x\n"
 			   "PhysicalInterface:0x%x\n",
@@ -252,6 +253,7 @@ static ssize_t mpt_proc_target_write(struct file *file, const char __user *buf,
 	if (strncmp("target_id:", tmp, strlen("target_id:")) == 0) {
 		char *s = tmp + strlen("target_id:");
 		int id = simple_strtoul(s, NULL, 0);
+
 		if (id < MPT_MAX_SCSI_DEVICES) {
 			if (IsScsi(tgt->priv)) {
 				TRACE_DBG("Changing target id to %d\n", id);

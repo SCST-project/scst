@@ -37,6 +37,7 @@ static void dolog_nofunc(int prio, const char *fmt, va_list ap)
 	if (log_daemon) {
 		int len = strlen(fmt);
 		char f[len+1+1];
+
 		if (fmt[len] != '\n')
 			sprintf(f, "%s\n", fmt);
 		else
@@ -63,6 +64,7 @@ static void dolog(int prio, const char *func, int line, const char *fmt, va_list
 	if (log_daemon) {
 		int len = strlen(func) + strlen(fmt);
 		char f[len+1+1];
+
 		if (fmt[len] != '\n')
 			sprintf(f, "%s:%d: %s %s\n", func, line,
 				(prio == LOG_ERR) ? "ERROR:" : "", fmt);
@@ -83,13 +85,14 @@ static void dolog(int prio, const char *func, int line, const char *fmt, va_list
 
 void __log(const char *func, int line, int prio, int level, const char *fmt, ...)
 {
+	va_list ap;
+
 	if (level) {
 		prio = LOG_DEBUG;
 		if (log_level < level)
 			return;
 	}
 
-	va_list ap;
 	va_start(ap, fmt);
 	dolog(prio, func, line, fmt, ap);
 	va_end(ap);

@@ -46,10 +46,9 @@ enum iscsi_adm_op {
 	OP_SHOW,
 };
 
-static char program_name[] = "iscsi-scst-adm";
+static const char program_name[] = "iscsi-scst-adm";
 
-static struct option const long_options[] =
-{
+static struct option const long_options[] = {
 	{"op", required_argument, NULL, 'o'},
 	{"tid", required_argument, NULL, 't'},
 	{"sid", required_argument, NULL, 's'},
@@ -278,6 +277,7 @@ static int parse_trgt_params(struct msg_trgt *msg, char *params)
 	while ((p = strsep(&params, ",")) != NULL) {
 		int idx;
 		u32 val;
+
 		if (!*p)
 			continue;
 		if (!(q = strchr(p, '=')))

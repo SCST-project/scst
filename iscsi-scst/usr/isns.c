@@ -551,6 +551,7 @@ int isns_target_register(char *name)
 
 		if (scn_listen_port) {
 			uint32_t sport = htonl(scn_listen_port);
+
 			err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_SCN_PORT,
 						sizeof(sport), &sport);
 			if (err < 0)

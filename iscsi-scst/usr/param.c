@@ -29,6 +29,7 @@ size_t strlcpy(char *dest, const char *src, size_t size)
 
 	if (size) {
 		size_t len = (ret >= size) ? size - 1 : ret;
+
 		memcpy(dest, src, len);
 		dest[len] = '\0';
 	}
@@ -56,6 +57,7 @@ int params_index_by_name_numwild(const char *name, const struct iscsi_key *keys)
 	for (i = 0; keys[i].name; i++) {
 		if (!strncasecmp(keys[i].name, name, strlen(keys[i].name))) {
 			int j;
+
 			if (strlen(keys[i].name) > strlen(name))
 				continue;
 			for (j = strlen(keys[i].name); j < strlen(name); j++) {
@@ -205,8 +207,8 @@ static int digest_str_to_val(const char *str, unsigned int *val)
 {
 	int err = 0;
 	const char *p, *q;
-	p = str;
 
+	p = str;
 	*val = 0;
 	do {
 		while ((*p != '\0') && isspace(*p))

@@ -180,8 +180,8 @@ struct connection {
 #define ISCSI_USER_DIR_INCOMING	0
 #define ISCSI_USER_DIR_OUTGOING	1
 
-#define ISCSI_USER_NAME(attr)	(attr)->attr_key
-#define ISCSI_USER_PASS(attr)	(attr)->attr_value
+#define ISCSI_USER_NAME(attr)	((attr)->attr_key)
+#define ISCSI_USER_PASS(attr)	((attr)->attr_value)
 
 struct iscsi_attr {
 	struct __qelem ulist;

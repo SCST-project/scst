@@ -514,6 +514,7 @@ int __config_account_add(struct target *target, int dir, char *name, char *pass,
 
 	if (dir == ISCSI_USER_DIR_OUTGOING) {
 		struct iscsi_attr *old;
+
 		list_for_each_entry(old, list, ulist) {
 			log_warning("Only one outgoing %s account is "
 				"supported. Replacing the old one.\n",
@@ -1061,6 +1062,7 @@ static int config_isns_load(const char *config)
 			isns_server = strdup(config_sep_string(&q));
 		} else if (!strcasecmp(p, ISCSI_ISNS_ACCESS_CONTROL_ATTR_NAME)) {
 			char *str = config_sep_string(&q);
+
 			if (!strcasecmp(str, "No"))
 				isns_access_control = 0;
 			else
@@ -1139,6 +1141,7 @@ int config_load(const char *config_name)
 	err = config_isns_load(buf);
 	if ((err == 0) && (isns_server != NULL)) {
 		int rc = isns_init();
+
 		if (rc != 0) {
 			log_error("iSNS server %s init failed: %d", isns_server, rc);
 			isns_exit();

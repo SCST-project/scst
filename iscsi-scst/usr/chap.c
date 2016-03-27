@@ -575,7 +575,7 @@ static int chap_target_auth_create_response(struct connection *conn)
 		response_len = 2 * digest_len;
 	else
 		response_len = ((digest_len - 1) / 3 + 1) * 4;
-	//"0x" / "0b" and "\0":
+	/* "0x" / "0b" and "\0": */
 	response_len += 3;
 
 	if (!(digest = malloc(digest_len))) {
