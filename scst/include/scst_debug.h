@@ -35,43 +35,6 @@
 #include <linux/ratelimit.h>
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
-/*
- * See also the following commits:
- * d091c2f5 - Introduction of pr_info() etc. in <linux/kernel.h>.
- * 311d0761 - Introduction of pr_cont() in <linux/kernel.h>.
- * 968ab183 - Moved pr_info() etc. from <linux/kernel.h> to <linux/printk.h>
- */
-#ifndef pr_emerg
-#ifndef pr_fmt
-#define pr_fmt(fmt) fmt
-#endif
-
-#define pr_emerg(fmt, ...) \
-	printk(KERN_EMERG pr_fmt(fmt), ##__VA_ARGS__)
-#define pr_alert(fmt, ...) \
-	printk(KERN_ALERT pr_fmt(fmt), ##__VA_ARGS__)
-#define pr_crit(fmt, ...) \
-	printk(KERN_CRIT pr_fmt(fmt), ##__VA_ARGS__)
-#define pr_err(fmt, ...) \
-	printk(KERN_ERR pr_fmt(fmt), ##__VA_ARGS__)
-#define pr_warning(fmt, ...) \
-	printk(KERN_WARNING pr_fmt(fmt), ##__VA_ARGS__)
-#define pr_notice(fmt, ...) \
-	printk(KERN_NOTICE pr_fmt(fmt), ##__VA_ARGS__)
-#endif
-#ifndef pr_info
-#define pr_info(fmt, ...) \
-	printk(KERN_INFO pr_fmt(fmt), ##__VA_ARGS__)
-#endif
-#endif
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
-#ifndef pr_cont
-#define pr_cont(fmt, ...) \
-	printk(KERN_CONT fmt, ##__VA_ARGS__)
-#endif
-#endif
-
 #if !defined(INSIDE_KERNEL_TREE)
 #ifdef CONFIG_SCST_DEBUG
 
@@ -148,10 +111,6 @@
 
 #define TRACE_MINOR_AND_MGMT_DBG	(TRACE_MINOR|TRACE_MGMT_DEBUG)
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24) && !defined(RHEL_MAJOR)
-#define KERN_CONT       ""
-#endif
-
 /*
  * Note: in the next two printk() statements the KERN_CONT macro is only
  * present to suppress a checkpatch warning (KERN_CONT is defined as "").
@@ -175,12 +134,7 @@
 #define ___unlikely(a)		unlikely(a)
 #endif
 
-int
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 21) || defined(__printf)
-__printf(6, 7)
-#else
-__attribute__((format(printf, 6, 7)))
-#endif
+int __printf(6, 7)
 debug_print_with_prefix(unsigned long trace_flag,
 	const char *severity, const char *prefix, const char *func, int line,
 	const char *fmt, ...);
