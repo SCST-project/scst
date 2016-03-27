@@ -103,7 +103,7 @@ void conn_info_show(struct seq_file *seq, struct iscsi_session *session)
 		switch (sk->sk_family) {
 		case AF_INET:
 			snprintf(buf, sizeof(buf),
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,33)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
 				 "%u.%u.%u.%u", NIPQUAD(inet_sk(sk)->daddr));
 #else
 				 "%pI4", &inet_sk(sk)->inet_daddr);
@@ -111,7 +111,7 @@ void conn_info_show(struct seq_file *seq, struct iscsi_session *session)
 			break;
 #if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 		case AF_INET6:
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,29)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
 			snprintf(buf, sizeof(buf),
 				 "[%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x]",
 				 NIP6(inet6_sk(sk)->daddr));

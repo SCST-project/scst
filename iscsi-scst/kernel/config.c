@@ -31,13 +31,13 @@ int ctr_open_state;
 #define ISCSI_PROC_LOG_ENTRY_NAME	"trace_level"
 
 static struct scst_trace_log iscsi_local_trace_tbl[] = {
-    { TRACE_D_WRITE,		"d_write" },
-    { TRACE_CONN_OC,		"conn" },
-    { TRACE_CONN_OC_DBG,	"conn_dbg" },
-    { TRACE_D_IOV,		"iov" },
-    { TRACE_D_DUMP_PDU,		"pdu" },
-    { TRACE_NET_PG,		"net_page" },
-    { 0,			NULL }
+	{ TRACE_D_WRITE,	"d_write"	},
+	{ TRACE_CONN_OC,	"conn"		},
+	{ TRACE_CONN_OC_DBG,	"conn_dbg"	},
+	{ TRACE_D_IOV,		"iov"		},
+	{ TRACE_D_DUMP_PDU,	"pdu"		},
+	{ TRACE_NET_PG,		"net_page"	},
+	{ 0,			NULL		}
 };
 
 static int iscsi_log_info_show(struct seq_file *seq, void *v)
