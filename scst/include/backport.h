@@ -53,7 +53,7 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 20)
 #ifndef __printf
-#define __printf(a, b) __attribute__((format(printf,a,b)))
+#define __printf(a, b) __attribute__((format(printf, a, b)))
 #endif
 #endif
 

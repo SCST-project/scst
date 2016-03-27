@@ -1091,13 +1091,13 @@ int scst_event_init(void)
 	}
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21)
-        class_member = class_device_create(scst_event_sysfs_class, NULL,
+	class_member = class_device_create(scst_event_sysfs_class, NULL,
 					   MKDEV(scst_event_major, 0), NULL,
 					   SCST_EVENT_NAME);
-        if (IS_ERR(class_member)) {
-                res = PTR_ERR(class_member);
-                goto out_chrdev;
-        }
+	if (IS_ERR(class_member)) {
+		res = PTR_ERR(class_member);
+		goto out_chrdev;
+	}
 #else
 	dev = device_create(scst_event_sysfs_class, NULL,
 			    MKDEV(scst_event_major, 0),
