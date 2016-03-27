@@ -1447,6 +1447,8 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 		res = scst_acg_repl_lun(acg, tgt_kobj ? tgt->tgt_luns_kobj :
 					acg->luns_kobj, dev, virt_lun,
 					flags);
+		if (res != 0)
+			goto out_unlock;
 		break;
 	}
 	case SCST_LUN_ACTION_DEL:
