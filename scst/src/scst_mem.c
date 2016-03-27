@@ -366,7 +366,7 @@ static unsigned long __sgv_can_be_shrunk(void)
 	}
 	spin_unlock_bh(&sgv_pools_lock);
 
-	res = max((int)0, inactive_pages - sgv_lo_wmk);
+	res = max(0, inactive_pages - sgv_lo_wmk);
 	TRACE_MEM("Can free %ld (total %d)", res, atomic_read(&sgv_pages_total));
 
 	TRACE_EXIT_RES(res);
