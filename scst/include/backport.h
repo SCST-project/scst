@@ -88,8 +88,10 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 typedef cpumask_t cpumask_var_t[1];
 #define cpumask_bits(maskp) ((maskp)->bits)
 #ifdef CONFIG_CPUMASK_OFFSTACK
-/* Assuming NR_CPUS is huge, a runtime limit is more efficient.  Also,
- * not all bits may be allocated. */
+/*
+ * Assuming NR_CPUS is huge, a runtime limit is more efficient.  Also,
+ * not all bits may be allocated.
+ */
 #define nr_cpumask_bits nr_cpu_ids
 #else
 #define nr_cpumask_bits NR_CPUS
@@ -341,7 +343,7 @@ static inline bool list_entry_in_list(const struct list_head *entry)
 /* <linux/lockdep.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
-#define lockdep_assert_held(l) do { (void)(l); } while (0)
+#define lockdep_assert_held(l) (void)(l)
 #endif
 
 /* <linux/kernel.h> */

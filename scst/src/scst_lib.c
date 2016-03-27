@@ -4533,7 +4533,7 @@ out:
  */
 int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
 		      struct scst_device *dev, uint64_t lun,
-		      unsigned flags)
+		      unsigned int flags)
 {
 	struct scst_acg_dev *acg_dev;
 	bool del_gen_ua = false;
@@ -6759,7 +6759,7 @@ static void scst_send_release(struct scst_device *dev)
 			"SCSI mid-level");
 		rc = scsi_execute(scsi_dev, cdb, SCST_DATA_NONE, NULL, 0,
 				sense, 15, 0, 0
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,29)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 				, NULL
 #endif
 				);
@@ -13172,7 +13172,7 @@ int scst_obtain_device_parameters(struct scst_device *dev,
 		TRACE(TRACE_SCSI, "%s", "Doing internal MODE_SENSE");
 		rc = scsi_execute(dev->scsi_dev, cmd, SCST_DATA_READ, buffer,
 				sizeof(buffer), sense_buffer, 15, 0, 0
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,29)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 				, NULL
 #endif
 				);
@@ -14472,7 +14472,7 @@ out_unlock:
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
 void scst_vfs_unlink_and_put(struct nameidata *nd)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 	vfs_unlink(nd->dentry->d_parent->d_inode, nd->dentry);
 	dput(nd->dentry);
 	mntput(nd->mnt);
@@ -14500,7 +14500,7 @@ void scst_vfs_unlink_and_put(struct path *path)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
 void scst_path_put(struct nameidata *nd)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 	dput(nd->dentry);
 	mntput(nd->mnt);
 #else

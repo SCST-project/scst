@@ -22,6 +22,9 @@
  *  GNU General Public License for more details.
  */
 
+#ifndef INSIDE_KERNEL_TREE
+#include <linux/version.h>
+#endif
 #include <linux/file.h>
 #include <linux/fs.h>
 #include <linux/string.h>
@@ -34,14 +37,15 @@
 #include <linux/ctype.h>
 #include <linux/writeback.h>
 #include <linux/vmalloc.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
+#include <linux/atomic.h>
+#else
 #include <asm/atomic.h>
+#endif
 #include <linux/kthread.h>
 #include <linux/sched.h>
 #include <linux/delay.h>
 #include <linux/namei.h>
-#ifndef INSIDE_KERNEL_TREE
-#include <linux/version.h>
-#endif
 #include <asm/div64.h>
 #include <asm/unaligned.h>
 #include <linux/slab.h>
@@ -3318,7 +3322,8 @@ err:
  * @small_sg_size: size of @small_sg
  * @p_sg_cnt: pointer to an int where the sg vector size will be written
  */
-static struct scatterlist *alloc_sg(size_t size, unsigned off, gfp_t gfp_mask,
+static struct scatterlist *alloc_sg(size_t size, unsigned int off,
+				    gfp_t gfp_mask,
 				    struct scatterlist *small_sg,
 				    int small_sg_size, int *p_sg_cnt)
 {
@@ -6447,6 +6452,7 @@ static inline void blockio_check_finish(struct scst_blockio_work *blockio_work)
 static void blockio_bio_destructor(struct bio *bio)
 {
 	struct scst_blockio_work *blockio_work = bio->bi_private;
+
 	bio_free(bio, blockio_work->bioset);
 	blockio_check_finish(blockio_work);
 }
@@ -7000,6 +7006,7 @@ struct bio_priv_sync {
 static void blockio_bio_destructor_sync(struct bio *bio)
 {
 	struct bio_priv_sync *s = bio->bi_private;
+
 	bio_free(bio, s->bs);
 	complete(&s->c1);
 }
@@ -7053,7 +7060,7 @@ static void blockio_end_sync_io(struct bio *bio)
  * Increments *@loff with the number of bytes transferred upon success.
  */
 static ssize_t blockio_rw_sync(struct scst_vdisk_dev *virt_dev, void *buf,
-			       size_t len, loff_t *loff, unsigned rw)
+			       size_t len, loff_t *loff, unsigned int rw)
 {
 	struct bio_priv_sync s = {
 		COMPLETION_INITIALIZER_ONSTACK(s.c), 0,
@@ -7068,7 +7075,7 @@ static ssize_t blockio_rw_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 	void *p;
 	struct page *q;
 	int max_nr_vecs, rc;
-	unsigned bytes, off;
+	unsigned int bytes, off;
 	ssize_t ret = -ENOMEM;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
 	bool submitted = false;
@@ -10114,6 +10121,7 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 
 		if (isdigit(*p)) {
 			char *pp;
+
 			block_size = simple_strtoul(p, &pp, 0);
 			p = pp;
 			if ((*p != '\0') && !isspace(*p)) {

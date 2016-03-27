@@ -725,7 +725,7 @@ static const char *const scst_cmd_state_name[] = {
 	[SCST_CMD_STATE_XMIT_WAIT]			= "XMIT_WAIT",
 };
 
-char *scst_get_cmd_state_name(char *name, int len, unsigned state)
+char *scst_get_cmd_state_name(char *name, int len, unsigned int state)
 {
 	if (state < ARRAY_SIZE(scst_cmd_state_name) &&
 	    scst_cmd_state_name[state])
@@ -804,7 +804,7 @@ static const char *const scst_tm_fn_name[] = {
 	[SCST_PR_ABORT_ALL] =	"PR_ABORT_ALL",
 };
 
-char *scst_get_tm_fn_name(char *name, int len, unsigned fn)
+char *scst_get_tm_fn_name(char *name, int len, unsigned int fn)
 {
 	if (fn < ARRAY_SIZE(scst_tm_fn_name) && scst_tm_fn_name[fn])
 		strlcpy(name, scst_tm_fn_name[fn], len);
@@ -823,7 +823,7 @@ static const char *const scst_mcmd_state_name[] = {
 	[SCST_MCMD_STATE_FINISHED] =	"FINISHED",
 };
 
-char *scst_get_mcmd_state_name(char *name, int len, unsigned state)
+char *scst_get_mcmd_state_name(char *name, int len, unsigned int state)
 {
 	if (state < ARRAY_SIZE(scst_mcmd_state_name) &&
 	    scst_mcmd_state_name[state])

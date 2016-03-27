@@ -27,7 +27,7 @@ static struct class *scst_event_sysfs_class;
 static int scst_event_major;
 
 #define SCST_MAX_EVENTS			2048
-#define SCST_MAX_PAYLOAD		3*1024
+#define SCST_MAX_PAYLOAD		(3*1024)
 #define SCST_DEFAULT_EVENT_TIMEOUT	(60*HZ)
 
 struct scst_event_priv {

@@ -277,9 +277,9 @@ extern void scst_tgt_dev_stop_threads(struct scst_tgt_dev *tgt_dev);
 
 extern struct scst_dev_type scst_null_devtype;
 
-char *scst_get_cmd_state_name(char *name, int len, unsigned state);
-char *scst_get_mcmd_state_name(char *name, int len, unsigned state);
-char *scst_get_tm_fn_name(char *name, int len, unsigned fn);
+char *scst_get_cmd_state_name(char *name, int len, unsigned int state);
+char *scst_get_mcmd_state_name(char *name, int len, unsigned int state);
+char *scst_get_tm_fn_name(char *name, int len, unsigned int fn);
 
 extern struct scst_cmd *__scst_check_deferred_commands_locked(
 	struct scst_order_data *order_data, bool return_first);
@@ -375,7 +375,7 @@ int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun,
 	bool gen_report_luns_changed);
 int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
 		      struct scst_device *dev, uint64_t lun,
-		      unsigned flags);
+		      unsigned int flags);
 
 int scst_acg_add_acn(struct scst_acg *acg, const char *name);
 #ifdef CONFIG_SCST_PROC
@@ -428,7 +428,7 @@ static inline int scst_dlm_new_lockspace(const char *name, int namelen,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
 static inline int scst_exec_req(struct scsi_device *sdev,
 	const unsigned char *cmd, int cmd_len, int data_direction,
-	struct scatterlist *sgl, unsigned bufflen, unsigned nents,
+	struct scatterlist *sgl, unsigned int bufflen, unsigned int nents,
 	int timeout, int retries, void *privdata,
 	void (*done)(void *, char *, int, int), gfp_t gfp)
 {

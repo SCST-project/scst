@@ -4048,11 +4048,13 @@ static int dev_user_read_proc(struct seq_file *seq, struct scst_dev_type *dev_ty
 
 	list_for_each_entry(dev, &dev_list, dev_list_entry) {
 		int i;
+
 		seq_printf(seq, "Device %s commands:\n", dev->name);
 		spin_lock_irqsave(&dev->udev_cmd_threads.cmd_list_lock, flags);
 		for (i = 0; i < (int)ARRAY_SIZE(dev->ucmd_hash); i++) {
 			struct list_head *head = &dev->ucmd_hash[i];
 			struct scst_user_cmd *ucmd;
+
 			list_for_each_entry(ucmd, head, hash_list_entry) {
 				seq_printf(seq, "ucmd %p (state %x, ref %d), "
 					"sent_to_user %d, seen_by_user %d, "

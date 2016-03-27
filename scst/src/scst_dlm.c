@@ -525,11 +525,11 @@ struct scst_dlm_readdir_context {
 /* Append the name of each directory entry to the buffer @arg points to. */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
 static int scst_dlm_filldir(void *arg, const char *name_arg, int name_len,
-			    loff_t curr_pos, u64 inode, unsigned dtype)
+			    loff_t curr_pos, u64 inode, unsigned int dtype)
 #else
 static int scst_dlm_filldir(struct dir_context *arg, const char *name_arg,
 			    int name_len, loff_t curr_pos, u64 inode,
-			    unsigned dtype)
+			    unsigned int dtype)
 #endif
 {
 	char *p, *q, name[64];

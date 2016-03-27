@@ -1819,7 +1819,7 @@ struct scst_tgt {
 /* Divide two 64-bit numbers with reasonably accuracy. */
 static inline void __scst_time_per_cmd(uint64_t *t, uint64_t n)
 {
-	unsigned shift;
+	unsigned int shift;
 
 	if (!n)
 		return;

@@ -235,6 +235,7 @@ static DEFINE_MUTEX(scst_proc_mutex);
 static int strcasecmp(const char *s1, const char *s2)
 {
 	int c1, c2;
+
 	do {
 		c1 = tolower(*s1++);
 		c2 = tolower(*s2++);
@@ -246,6 +247,7 @@ static int strcasecmp(const char *s1, const char *s2)
 static int strncasecmp(const char *s1, const char *s2, size_t n)
 {
 	int c1, c2;
+
 	do {
 		c1 = tolower(*s1++);
 		c2 = tolower(*s2++);
@@ -595,6 +597,7 @@ static int lat_info_show(struct seq_file *seq, void *v)
 				struct list_head *head =
 						&sess->sess_tgt_dev_list[t];
 				struct scst_tgt_dev *tgt_dev;
+
 				list_for_each_entry(tgt_dev, head,
 						sess_tgt_dev_list_entry) {
 
@@ -763,6 +766,7 @@ static ssize_t scst_proc_scsi_tgt_gen_write_lat(struct file *file,
 				struct list_head *head =
 						&sess->sess_tgt_dev_list[t];
 				struct scst_tgt_dev *tgt_dev;
+
 				list_for_each_entry(tgt_dev, head,
 						sess_tgt_dev_list_entry) {
 					tgt_dev->scst_time = 0;
@@ -2106,6 +2110,7 @@ static ssize_t scst_proc_groups_devices_write(struct file *file,
 		 * procfs is now obsoleted.
 		 */
 		struct scst_acg_dev *a;
+
 		list_for_each_entry(a, &acg->acg_dev_list, acg_dev_list_entry) {
 			if (a->dev == dev) {
 				rc = scst_acg_del_lun(acg, a->lun, true);
@@ -2254,6 +2259,7 @@ static ssize_t scst_proc_groups_names_write(struct file *file,
 	{
 		struct scst_acg *a, *new_acg = NULL;
 		char *name = p;
+
 		p = pp;
 		while (!isspace(*pp) && *pp != '\0')
 			pp++;
@@ -2429,10 +2435,12 @@ static int scst_sessions_info_show(struct seq_file *seq, void *v)
 		list_for_each_entry(sess, &acg->acg_sess_list,
 				acg_sess_list_entry) {
 			int active_cmds = 0, t;
+
 			for (t = SESS_TGT_DEV_LIST_HASH_SIZE-1; t >= 0; t--) {
 				struct list_head *head =
 						&sess->sess_tgt_dev_list[t];
 				struct scst_tgt_dev *tgt_dev;
+
 				list_for_each_entry(tgt_dev, head,
 						sess_tgt_dev_list_entry) {
 					active_cmds += atomic_read(&tgt_dev->tgt_dev_cmd_count);

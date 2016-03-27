@@ -3025,9 +3025,8 @@ static int scst_cm_add_to_descr_list(struct scst_cmd *ec_cmd,
 	fcmd = __scst_create_prepare_internal_cmd(ec_cmd->cdb,
 		ec_cmd->cdb_len, SCST_CMD_QUEUE_SIMPLE, tgt_dev,
 		GFP_KERNEL, true);
-	if (fcmd == NULL) {
+	if (fcmd == NULL)
 		goto out_enomem_free_e;
-	}
 
 	fcmd->expected_data_direction = ec_cmd->expected_data_direction;
 	fcmd->expected_transfer_len_full = ec_cmd->expected_transfer_len_full;
@@ -3073,8 +3072,9 @@ skip_fcmd_create:
 			if (tp != NULL) {
 				if (((unsigned long)t->cm_fcmd->dev) <= ((unsigned long)tp->cm_fcmd->dev)) {
 					list_for_each_entry(t, &priv->cm_sorted_devs_list, cm_sorted_devs_list_entry) {
-						printk(KERN_EMERG "%s: t %p, cm dev %p\n", __func__,
-							t, t->cm_fcmd->dev);
+						pr_emerg("%s: t %p, cm dev %p\n",
+							 __func__, t,
+							 t->cm_fcmd->dev);
 					}
 					sBUG();
 					break;

@@ -481,7 +481,7 @@ static inline int scst_sense_response_code(const uint8_t *sense)
  * From <linux/fs.h>. See also commit
  * d30a2605be9d5132d95944916e8f578fcfe4f976.
  */
-#define BLKDISCARD _IO(0x12,119)
+#define BLKDISCARD _IO(0x12, 119)
 #endif
 
 /*************************************************************

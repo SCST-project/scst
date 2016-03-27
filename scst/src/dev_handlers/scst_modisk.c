@@ -200,7 +200,7 @@ static int modisk_attach(struct scst_device *dev)
 		rc = scsi_execute(dev->scsi_dev, cmd, data_dir, buffer,
 				   buffer_size, sense_buffer,
 				   SCST_GENERIC_MODISK_REG_TIMEOUT, 3, 0
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,29)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 				   , NULL
 #endif
 				  );

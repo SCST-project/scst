@@ -47,7 +47,7 @@
 #include <asm/unaligned.h>
 #include <stdarg.h>
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,25)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 #include <linux/mount.h>
 #endif
 

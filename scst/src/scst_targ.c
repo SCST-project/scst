@@ -5210,6 +5210,7 @@ static void scst_ioctx_get(struct scst_cmd_threads *p_cmd_threads)
 #warning IO context sharing functionality disabled on 3.5 kernels due to bug in them. \
 See "http://lkml.org/lkml/2012/7/17/515" for more details.
 			static int q;
+
 			if (q == 0) {
 				q++;
 				PRINT_WARNING("IO context sharing functionality "

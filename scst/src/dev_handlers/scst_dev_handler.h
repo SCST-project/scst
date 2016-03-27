@@ -81,6 +81,7 @@ static int scst_dev_handler_build_std_proc(struct scst_dev_type *dev_type)
 		/* Create the proc file entry for the device */
 		/* Workaround to keep /proc ABI intact */
 		const char *name;
+
 		if (strcmp(dev_type->name, "vdisk_fileio") == 0)
 			name = "vdisk";
 		else
