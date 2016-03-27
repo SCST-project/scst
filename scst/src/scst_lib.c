@@ -4407,8 +4407,8 @@ out:
 
 /* The activity supposed to be suspended and scst_mutex held */
 int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
-	struct scst_device *dev, uint64_t lun, int read_only,
-	bool gen_scst_report_luns_changed, struct scst_acg_dev **out_acg_dev)
+	struct scst_device *dev, uint64_t lun, unsigned int flags,
+	struct scst_acg_dev **out_acg_dev)
 {
 	int res;
 	struct scst_acg_dev *acg_dev;
@@ -4429,7 +4429,7 @@ int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
 		res = -ENOMEM;
 		goto out;
 	}
-	acg_dev->acg_dev_rd_only = read_only;
+	acg_dev->acg_dev_rd_only = ((flags & SCST_ADD_LUN_READ_ONLY) != 0);
 	if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_STORE) {
 		/* Devices are allowed to store only CRCs */
 		acg_dev->acg_dev_dif_guard_format = SCST_DIF_GUARD_FORMAT_CRC;
@@ -4459,12 +4459,12 @@ int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
 	if (res != 0)
 		goto out_free;
 
-	if (gen_scst_report_luns_changed)
+	if (flags & SCST_ADD_LUN_GEN_UA)
 		scst_report_luns_changed(acg);
 
 	PRINT_INFO("Added device %s to group %s (LUN %lld, "
-		"rd_only %d) to target %s", dev->virt_name, acg->acg_name,
-		lun, read_only, acg->tgt ? acg->tgt->tgt_name : "?");
+		"flags 0x%x) to target %s", dev->virt_name, acg->acg_name,
+		lun, flags, acg->tgt ? acg->tgt->tgt_name : "?");
 
 	if (out_acg_dev != NULL)
 		*out_acg_dev = acg_dev;
@@ -4585,7 +4585,7 @@ out:
 
 int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
 		      struct scst_device *dev, uint64_t lun,
-		      bool read_only, bool gen_ua)
+		      unsigned int flags)
 {
 	struct scst_acg_dev *acg_dev;
 	struct scst_tgt_dev *tgt_dev, *tt;
@@ -4598,12 +4598,11 @@ int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
 
 	acg_dev = __scst_acg_del_lun(acg, lun, &tgt_dev_list);
 
-	res = scst_acg_add_lun(acg, parent, dev, lun, read_only, !acg_dev,
-			       NULL);
+	res = scst_acg_add_lun(acg, parent, dev, lun, flags, NULL);
 	if (res != 0)
 		goto out;
 
-	if (acg_dev && gen_ua) {
+	if (acg_dev && (flags & SCST_REPL_LUN_GEN_UA)) {
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 				    dev_tgt_dev_list_entry) {
 			if (tgt_dev->acg_dev->acg == acg &&

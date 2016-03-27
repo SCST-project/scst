@@ -1405,10 +1405,14 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 
 	switch (action) {
 	case SCST_LUN_ACTION_ADD:
+	{
+		unsigned int flags = SCST_ADD_LUN_GEN_UA;
+
 		res = scst_parse_add_repl_param(acg, dev, pp, &virt_lun,
 						&read_only);
 		if (res != 0)
 			goto out_unlock;
+
 		acg_dev = NULL;
 		list_for_each_entry(acg_dev_tmp, &acg->acg_dev_list,
 				    acg_dev_list_entry) {
@@ -1417,31 +1421,40 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 				break;
 			}
 		}
-		if (acg_dev) {
-			PRINT_ERROR("virt lun %ld already exists in "
-				    "group %s", virt_lun, acg->acg_name);
+
+		if (acg_dev != NULL) {
+			PRINT_ERROR("virt lun %ld already exists in group %s",
+				    virt_lun, acg->acg_name);
 			res = -EEXIST;
 			goto out_unlock;
 		}
 
+		if (read_only)
+			flags |= SCST_ADD_LUN_READ_ONLY;
 		res = scst_acg_add_lun(acg,
 			tgt_kobj ? tgt->tgt_luns_kobj : acg->luns_kobj,
-			dev, virt_lun, read_only, true, NULL);
+			dev, virt_lun, flags, NULL);
 		if (res != 0)
 			goto out_unlock;
-
 		break;
+	}
 	case SCST_LUN_ACTION_REPLACE:
+	{
+		unsigned int flags = (read_only ? SCST_ADD_LUN_READ_ONLY : 0) |
+				  (replace_gen_ua ? SCST_REPL_LUN_GEN_UA : 0);
+
 		res = scst_parse_add_repl_param(acg, dev, pp, &virt_lun,
 						&read_only);
 		if (res != 0)
 			goto out_unlock;
-		res = scst_acg_repl_lun(acg,
-			tgt_kobj ? tgt->tgt_luns_kobj : acg->luns_kobj,
-			dev, virt_lun, read_only, replace_gen_ua);
+
+		res = scst_acg_repl_lun(acg, tgt_kobj ? tgt->tgt_luns_kobj :
+					acg->luns_kobj, dev, virt_lun,
+					flags);
 		if (res != 0)
 			goto out_unlock;
 		break;
+	}
 	case SCST_LUN_ACTION_DEL:
 		p = scst_get_next_lexem(&pp);
 		res = kstrtoul(p, 0, &virt_lun);

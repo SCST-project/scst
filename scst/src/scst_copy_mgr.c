@@ -2550,7 +2550,7 @@ static int scst_cm_dev_register(struct scst_device *dev)
 	};
 
 	res = scst_acg_add_lun(scst_cm_tgt->default_acg,
-		scst_cm_tgt->tgt_luns_kobj, dev, lun, false, false, &acg_dev);
+		scst_cm_tgt->tgt_luns_kobj, dev, lun, 0, &acg_dev);
 	if (res != 0)
 		goto out_err;
 
