@@ -576,7 +576,7 @@ static void login_start(struct connection *conn)
 
 		if (!config_initiator_access_allowed(conn->tid, conn->fd) ||
 		    !target_portal_allowed(target, conn->target_portal,
-		    					conn->initiator) ||
+							conn->initiator) ||
 		    !isns_scn_access_allowed(conn->tid, name)) {
 			log_info("Initiator %s not allowed to connect to "
 				"target %s", name, target_name);
@@ -698,21 +698,21 @@ static void cmnd_reject(struct connection *conn, u8 reason)
 
 static int cmnd_exec_auth(struct connection *conn)
 {
-       int res;
+	int res;
 
-        switch (conn->auth_method) {
-        case AUTH_CHAP:
-                res = cmnd_exec_auth_chap(conn);
-                break;
-        case AUTH_NONE:
-                res = 0;
-                break;
-        default:
-                log_error("Unknown auth. method %d", conn->auth_method);
-                res = -3;
-        }
+	switch (conn->auth_method) {
+	case AUTH_CHAP:
+		res = cmnd_exec_auth_chap(conn);
+		break;
+	case AUTH_NONE:
+		res = 0;
+		break;
+	default:
+		log_error("Unknown auth. method %d", conn->auth_method);
+		res = -3;
+	}
 
-        return res;
+	return res;
 }
 
 static void cmnd_exec_login(struct connection *conn)

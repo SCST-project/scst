@@ -40,7 +40,7 @@
 #include "iscsid.h"
 #include "iscsi_adm.h"
 
-static char* server_address;
+static char *server_address;
 uint16_t server_port = ISCSI_LISTEN_PORT;
 
 struct pollfd poll_array[POLL_MAX];
@@ -620,7 +620,7 @@ again:
 			switch (conn->state) {
 			case STATE_KERNEL:
 				conn_pass_to_kern(conn, pollfd->fd);
-				if(conn->passed_to_kern)
+				if (conn->passed_to_kern)
 					conn->state = STATE_CLOSE;
 				else
 					conn->state = STATE_EXIT;

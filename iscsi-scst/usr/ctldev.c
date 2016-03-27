@@ -298,7 +298,7 @@ int kernel_params_get(u32 tid, u64 sid, int type, struct iscsi_param *params)
 
 	if ((err = ioctl(ctrl_fd, ISCSI_PARAM_GET, &info)) < 0) {
 		err = -errno;
-		log_debug(1, "Can't get session params for session 0x%" PRIx64 
+		log_debug(1, "Can't get session params for session 0x%" PRIx64
 			" (tid %u, err %d): %s\n", sid, tid, err, strerror(errno));
 	}
 

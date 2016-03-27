@@ -171,7 +171,7 @@ static inline void encode_hex_string(u8 *intnum, long length, char *string)
 
 	strptr = string;
 	for (i = 0; i < length; i++, strptr += 2)
-			sprintf(strptr, "%.2hhx", intnum[i]);
+		sprintf(strptr, "%.2hhx", intnum[i]);
 }
 
 /* Base64 encoding, taken from UNH iSCSI "IntegerToBase64String()" */
@@ -339,15 +339,15 @@ static inline void chap_calc_digest_sha1(char chap_id, const char *secret, int s
  */
 static int chap_rand(void)
 {
-    int fd;
-    int r;
+	int fd;
+	int r;
 
-    fd = open("/dev/urandom", O_RDONLY);
-    assert(fd != -1);
-    if (read(fd, &r, sizeof(r)) < sizeof(r)) {
-    }
-    close(fd);
-    return r;
+	fd = open("/dev/urandom", O_RDONLY);
+	assert(fd != -1);
+	if (read(fd, &r, sizeof(r)) < sizeof(r)) {
+	}
+	close(fd);
+	return r;
 }
 
 static int chap_initiator_auth_create_challenge(struct connection *conn)
@@ -639,7 +639,7 @@ int cmnd_exec_auth_chap(struct connection *conn)
 {
 	int res;
 
-	switch(conn->auth_state) {
+	switch (conn->auth_state) {
 	case CHAP_AUTH_STATE_START:
 		res = chap_initiator_auth_create_challenge(conn);
 		break;
