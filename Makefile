@@ -55,9 +55,9 @@ EMULEX_DIR=emulex
 ISCSI_DIR=iscsi-scst
 
 REVISION ?= $(shell if svn info >/dev/null 2>&1;			 \
-		   then svn info | sed -n 's/^Revision:[[:blank:]]*/r/p';\
-		   else echo -n r; git log | grep -c ^commit;		 \
-		   fi)
+		    then svn info | sed -n 's/^Revision:[[:blank:]]*//p';\
+		    else git log | grep -c ^commit;			 \
+		    fi)
 VERSION = $(shell echo -n "$$(sed -n 's/^\#define[[:blank:]]SCST_VERSION_NAME[[:blank:]]*\"\([^-]*\).*\"/\1/p' scst/include/scst_const.h).$(REVISION)")
 
 help:
