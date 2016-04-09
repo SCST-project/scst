@@ -140,6 +140,9 @@ for d in qla2x00t_git/qla2x00-target qla2x00t/qla2x00-target; do
 	break
     fi
 done
+# Set the executable bit such that /usr/lib/rpm/find-debuginfo.sh can find the
+# SCST kernel modules.
+find %{buildroot}/lib/modules -name '*.ko' -print0 | xargs -0 chmod u+x
 rm -f %{buildroot}/lib/modules/%{kversion}/[Mm]odule*
 
 %clean

@@ -3,9 +3,9 @@ ifndef PREFIX
 endif
 
 REVISION ?= $(shell if svn info >/dev/null 2>&1;			 \
-		   then svn info | sed -n 's/^Revision:[[:blank:]]*/r/p';\
-		   else echo -n r; git log | grep -c ^commit;		 \
-		   fi)
+		    then svn info | sed -n 's/^Revision:[[:blank:]]*//p';\
+		    else git log | grep -c ^commit;			 \
+		    fi)
 VERSION = $(shell echo -n "$$(sed -n 's/^[[:blank:]]*\$$VERSION[[:blank:]]*=[[:blank:]]*[\"'"'"']\([0-9.]*\)[\"'"'"'];$$/\1/p' scstadmin/scst-*/lib/SCST/SCST.pm).$(REVISION)")
 
 SCSTADMIN_DIR = $(shell if [ ! -h scstadmin ]; then		\
