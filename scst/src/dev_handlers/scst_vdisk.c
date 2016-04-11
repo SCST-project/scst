@@ -3057,7 +3057,7 @@ static void finish_read(struct scatterlist *sg, int sg_cnt)
 	for (i = 0; i < sg_cnt; ++i) {
 		page = sg_page(&sg[i]);
 		EXTRACHECKS_BUG_ON(!page);
-		page_cache_release(page);
+		put_page(page);
 	}
 
 	TRACE_EXIT();
@@ -3097,13 +3097,13 @@ static int prepare_read_page(struct file *filp, int len,
 
 	TRACE_ENTRY();
 
-	WARN((offset & ~PAGE_CACHE_MASK) + len > PAGE_CACHE_SIZE,
-	     "offset = %lld + %lld, len = %d\n", offset & PAGE_CACHE_MASK,
-	     offset & ~PAGE_CACHE_MASK, len);
+	WARN((offset & ~PAGE_MASK) + len > PAGE_SIZE,
+	     "offset = %lld + %lld, len = %d\n", offset & PAGE_MASK,
+	     offset & ~PAGE_MASK, len);
 	sBUG_ON(!mapping->a_ops);
 
-	index = offset >> PAGE_CACHE_SHIFT;
-	last_index = (last + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
+	index = offset >> PAGE_SHIFT;
+	last_index = (last + PAGE_SIZE - 1) >> PAGE_SHIFT;
 
 find_page:
 	page = find_get_page(mapping, index);
@@ -3123,7 +3123,7 @@ find_page:
 			error = add_to_page_cache_lru(page, mapping, index,
 						      GFP_KERNEL);
 			if (error) {
-				page_cache_release(page);
+				put_page(page);
 				if (error == -EEXIST)
 					goto find_page;
 				else
@@ -3137,7 +3137,7 @@ find_page:
 		page_cache_async_readahead(mapping, ra, filp, page,
 					   index, last_index - index);
 	if (!PageUptodate(page)) {
-		if (inode->i_blkbits == PAGE_CACHE_SHIFT ||
+		if (inode->i_blkbits == PAGE_SHIFT ||
 		    !mapping->a_ops->is_partially_uptodate)
 			goto page_not_up_to_date;
 		if (!trylock_page(page))
@@ -3147,10 +3147,10 @@ find_page:
 			goto page_not_up_to_date_locked;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 15, 0)
 		if (!mapping->a_ops->is_partially_uptodate(page,
-						offset & ~PAGE_CACHE_MASK, len))
+						offset & ~PAGE_MASK, len))
 #else
 		if (!mapping->a_ops->is_partially_uptodate(page, &desc,
-						offset & ~PAGE_CACHE_MASK))
+						offset & ~PAGE_MASK))
 #endif
 			goto page_not_up_to_date_locked;
 		unlock_page(page);
@@ -3166,20 +3166,19 @@ page_ok:
 	 */
 
 	isize = i_size_read(inode);
-	end_index = (isize - 1) >> PAGE_CACHE_SHIFT;
+	end_index = (isize - 1) >> PAGE_SHIFT;
 	if (unlikely(isize == 0 || index > end_index)) {
-		page_cache_release(page);
+		put_page(page);
 		goto eof;
 	}
 
 	/* nr is the maximum number of bytes to copy from this page */
 	if (index < end_index) {
-		nr = PAGE_CACHE_SIZE - (offset & ~PAGE_CACHE_MASK);
+		nr = PAGE_SIZE - (offset & ~PAGE_MASK);
 	} else {
-		nr = ((isize - 1) & ~PAGE_CACHE_MASK) + 1 -
-			(offset & ~PAGE_CACHE_MASK);
+		nr = ((isize - 1) & ~PAGE_MASK) + 1 - (offset & ~PAGE_MASK);
 		if (nr <= 0) {
-			page_cache_release(page);
+			put_page(page);
 			goto eof;
 		}
 	}
@@ -3209,7 +3208,7 @@ page_not_up_to_date:
 	/* Try to get exclusive access to the page. */
 	error = lock_page_killable(page);
 	if (unlikely(error != 0)) {
-		page_cache_release(page);
+		put_page(page);
 		goto err;
 	}
 
@@ -3217,7 +3216,7 @@ page_not_up_to_date_locked:
 	/* Did it get truncated before we got the lock? */
 	if (!page->mapping) {
 		unlock_page(page);
-		page_cache_release(page);
+		put_page(page);
 		goto find_page;
 	}
 
@@ -3238,18 +3237,18 @@ readpage:
 	error = mapping->a_ops->readpage(filp, page);
 	if (unlikely(error)) {
 		if (error == AOP_TRUNCATED_PAGE) {
-			page_cache_release(page);
+			put_page(page);
 			goto find_page;
 		}
 		WARN(error >= 0, "error = %d\n", error);
-		page_cache_release(page);
+		put_page(page);
 		goto err;
 	}
 
 	if (!PageUptodate(page)) {
 		error = lock_page_killable(page);
 		if (unlikely(error != 0)) {
-			page_cache_release(page);
+			put_page(page);
 			goto err;
 		}
 		if (!PageUptodate(page)) {
@@ -3258,11 +3257,11 @@ readpage:
 				 * invalidate_mapping_pages got it
 				 */
 				unlock_page(page);
-				page_cache_release(page);
+				put_page(page);
 				goto find_page;
 			}
 			unlock_page(page);
-			page_cache_release(page);
+			put_page(page);
 			error = -EIO;
 			goto err;
 		}
@@ -3295,7 +3294,7 @@ static int prepare_read(struct file *filp, struct scatterlist *sg, int sg_cnt,
 		if (res <= 0)
 			goto err;
 		if (res < sg[i].length) {
-			page_cache_release(page);
+			put_page(page);
 			goto err;
 		}
 		sg_assign_page(&sg[i], page);

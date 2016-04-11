@@ -462,7 +462,7 @@ static void dev_user_unmap_buf(struct scst_user_cmd *ucmd)
 		if (ucmd->buf_dirty)
 			SetPageDirty(page);
 
-		page_cache_release(page);
+		put_page(page);
 	}
 
 	kfree(ucmd->data_pages);
@@ -1298,7 +1298,7 @@ out_unmap:
 		ucmd->num_data_pages, rc);
 	if (rc > 0) {
 		for (i = 0; i < rc; i++)
-			page_cache_release(ucmd->data_pages[i]);
+			put_page(ucmd->data_pages[i]);
 	}
 	kfree(ucmd->data_pages);
 	ucmd->data_pages = NULL;
