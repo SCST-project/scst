@@ -163,7 +163,7 @@ rm -rf /usr/local/include/scst
 /sbin/depmod -a %{kversion}
 
 %files
-%defattr(-,root,root)
+%defattr(0644,root,root)
 %dir /lib/modules/%{kversion}/extra
 /lib/modules/%{kversion}/extra/fcst.ko
 /lib/modules/%{kversion}/extra/ib_srpt.ko
@@ -183,6 +183,7 @@ rm -rf /usr/local/include/scst
 /lib/modules/%{kversion}/extra/dev_handlers/scst_tape.ko
 /lib/modules/%{kversion}/extra/dev_handlers/scst_user.ko
 /lib/modules/%{kversion}/extra/dev_handlers/scst_vdisk.ko
+%defattr(-,root,root)
 %{_mandir}/man5/iscsi-scstd.conf.5.gz
 %{_mandir}/man8/iscsi-scst-adm.8.gz
 %{_mandir}/man8/iscsi-scstd.8.gz
