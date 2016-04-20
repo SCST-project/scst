@@ -2535,7 +2535,7 @@ static int scst_cm_dev_register(struct scst_device *dev, uint64_t lun)
 
 		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
 			if (tgt_dev->dev == dev) {
-				PRINT_ERROR("Copy Manager already registered "
+				TRACE_DBG("Copy Manager already registered "
 					"device %s", dev->virt_name);
 				res = -EEXIST;
 				goto out;
