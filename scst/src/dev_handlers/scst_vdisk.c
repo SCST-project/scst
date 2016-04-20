@@ -145,6 +145,13 @@ static struct scst_trace_log vdisk_local_trace_tbl[] = {
 
 struct scst_vdisk_dev {
 	uint64_t nblocks;
+
+	/*
+	 * Not protected, because assignments to aligned 64-bit integers are
+	 * atomic. At worst, accesses to it should be covered by ACCESS_ONCE(),
+	 * but not sure if that is really needed, so would prefer to keep it
+	 * away from the fast path.
+	 */
 	loff_t file_size;	/* in bytes */
 
 	/*

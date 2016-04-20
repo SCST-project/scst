@@ -954,7 +954,8 @@ out_fail:
  * group @tg->dg.
  */
 static void __scst_tg_set_state(struct scst_target_group *tg,
-				enum scst_tg_state state)
+				enum scst_tg_state state,
+				bool call_on_alua_state_change)
 {
 	struct scst_dg_dev *dg_dev;
 	struct scst_device *dev;
@@ -1018,7 +1019,7 @@ int scst_tg_set_state(struct scst_target_group *tg, enum scst_tg_state state)
 	if (res)
 		goto out;
 
-	__scst_tg_set_state(tg, state);
+	__scst_tg_set_state(tg, state, true);
 
 	mutex_unlock(&scst_dg_mutex);
 out:
@@ -1325,7 +1326,7 @@ static void __scst_dg_remove(struct scst_dev_group *dg)
 	list_del(&dg->entry);
 	scst_dg_sysfs_del(dg);
 	list_for_each_entry(tg, &dg->tg_list, entry)
-		__scst_tg_set_state(tg, SCST_TG_STATE_OPTIMIZED);
+		__scst_tg_set_state(tg, SCST_TG_STATE_OPTIMIZED, false);
 	while (!list_empty(&dg->dev_list)) {
 		dgdev = list_first_entry(&dg->dev_list, struct scst_dg_dev,
 					 entry);
