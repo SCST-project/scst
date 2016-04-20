@@ -1499,6 +1499,7 @@ sub serializeNkAttr {
 		|| defined($attr_filter)
 		   && defined($$attr_filter{$attribute}))
 	    && !defined($$attributes{$attribute}->{'keys'})
+	    && $attribute ne 'dif_checks_failed'
 	    && $attribute ne 'enabled'
 	    && $attribute ne 'hw_target') {
 	    my $value = $$attributes{$attribute}->{'value'};

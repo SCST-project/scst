@@ -1453,7 +1453,9 @@ struct scst_dev_type {
 	 * be started. Can be used to close open file handlers, which might
 	 * prevent the state switch.
 	 *
-	 * Called under scst_dg_mutex and no activities on the dev handler level.
+	 * Called under scst_dg_mutex and no activities on the dev handler level
+	 * (for implicit ALUA case supposed to be done by the user space via
+	 * "block" sysfs attribute as described in the README).
 	 *
 	 * OPTIONAL
 	 */
@@ -1465,7 +1467,9 @@ struct scst_dev_type {
 	 * be finished. Can be used to (re)open file handlers closed in
 	 * on_alua_state_change_start().
 	 *
-	 * Called under scst_dg_mutex and no activities on the dev handler level.
+	 * Called under scst_dg_mutex and no activities on the dev handler level
+	 * (for implicit ALUA case supposed to be done by the user space via
+	 * "block" sysfs attribute as described in the README).
 	 *
 	 * OPTIONAL
 	 */

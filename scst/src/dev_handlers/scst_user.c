@@ -3533,9 +3533,23 @@ out_put:
 
 static int dev_user_unregister_dev(struct file *file)
 {
+	struct scst_user_dev *dev;
+	int res;
+
+	dev = file->private_data;
+	res = dev_user_check_reg(dev);
+	if (unlikely(res != 0))
+		goto out;
+
 	PRINT_WARNING("SCST_USER_UNREGISTER_DEVICE is obsolete and NOOP. "
 		"Closing fd should be used instead.");
-	return 0;
+
+	/* For backward compatibility unblock possibly blocked sync threads */
+	dev->blocking = 0;
+	wake_up_all(&dev->udev_cmd_threads.cmd_list_waitQ);
+
+out:
+	return res;
 }
 
 static int dev_user_flush_cache(struct file *file)

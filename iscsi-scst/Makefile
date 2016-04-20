@@ -50,7 +50,7 @@ endif
 INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 INFINIBAND_ENABLED := $(shell if grep -q '^CONFIG_INFINIBAND=[my]$$' $(KDIR)/.config; then echo true; else echo false; fi)
 
-all: include/iscsi_scst_itf_ver.h progs mods
+all: progs mods
 
 ISER_SYMVERS:=$(KMOD)/Module.symvers
 OFED_CFLAGS:=
@@ -103,7 +103,7 @@ endif
 CREATE_CQ_FLAG = $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/create_cq PRE_CFLAGS="$(OFED_CFLAGS) -Werror" >/dev/null 2>&1 && echo -DIB_CREATE_CQ_HAS_INIT_ATTR)
 PRE_CFLAGS=$(OFED_CFLAGS) $(CREATE_CQ_FLAG) -DOFED_FLAVOR=$(OFED_FLAVOR)
 
-mods: Modules.symvers Module.symvers
+mods: include/iscsi_scst_itf_ver.h Modules.symvers Module.symvers
 	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(KMOD) modules
 	if $(INFINIBAND_ENABLED); then					       \
 	  echo "  Building against $(OFED_FLAVOR) InfiniBand kernel headers."; \
@@ -112,7 +112,7 @@ mods: Modules.symvers Module.symvers
 	  KBUILD_EXTRA_SYMBOLS=$(ISER_SYMVERS) modules;			       \
 	fi
 
-progs:
+progs: include/iscsi_scst_itf_ver.h
 	$(MAKE) -C usr SCST_INC_DIR=$(SCST_INC_DIR)
 
 include/iscsi_scst_itf_ver.h: include/iscsi_scst.h

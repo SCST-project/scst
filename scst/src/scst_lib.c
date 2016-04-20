@@ -4597,7 +4597,7 @@ out:
 	return res;
 }
 
-/* Either add or replace a LUN. */
+/* Either add or replace a LUN according to flags argument */
 int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
 		      struct scst_device *dev, uint64_t lun,
 		      unsigned int flags)
