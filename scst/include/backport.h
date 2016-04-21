@@ -212,6 +212,25 @@ static inline struct inode *file_inode(const struct file *f)
 }
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
+static inline ssize_t vfs_readv_backport(struct file *file,
+					 const struct iovec __user *vec,
+					 unsigned long vlen, loff_t *pos,
+					 int flags)
+{
+	return vfs_readv(file, vec, vlen, pos);
+}
+static inline ssize_t vfs_writev_backport(struct file *file,
+					  const struct iovec __user *vec,
+					  unsigned long vlen, loff_t *pos,
+					  int flags)
+{
+	return vfs_writev(file, vec, vlen, pos);
+}
+#define vfs_readv vfs_readv_backport
+#define vfs_writev vfs_writev_backport
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
 static inline int vfs_fsync_backport(struct file *file, int datasync)
 {
@@ -323,6 +342,21 @@ static inline bool list_entry_in_list(const struct list_head *entry)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
 #define lockdep_assert_held(l) do { (void)(l); } while (0)
+#endif
+
+/* <linux/kernel.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
+static inline long get_user_pages_backport(unsigned long start,
+					   unsigned long nr_pages,
+					   int write, int force,
+					   struct page **pages,
+					   struct vm_area_struct **vmas)
+{
+	return get_user_pages(current, current->mm, start, nr_pages, write,
+			      force, pages, vmas);
+}
+#define get_user_pages get_user_pages_backport
 #endif
 
 /* <linux/preempt.h> */

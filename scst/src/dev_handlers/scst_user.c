@@ -462,7 +462,7 @@ static void dev_user_unmap_buf(struct scst_user_cmd *ucmd)
 		if (ucmd->buf_dirty)
 			SetPageDirty(page);
 
-		page_cache_release(page);
+		put_page(page);
 	}
 
 	kfree(ucmd->data_pages);
@@ -1267,8 +1267,8 @@ static int dev_user_map_buf(struct scst_user_cmd *ucmd, unsigned long ubuff,
 		(ucmd->cmd != NULL) ? ucmd->cmd->bufflen : -1);
 
 	down_read(&tsk->mm->mmap_sem);
-	rc = get_user_pages(tsk, tsk->mm, ubuff, ucmd->num_data_pages,
-		1/*writable*/, 0/*don't force*/, ucmd->data_pages, NULL);
+	rc = get_user_pages(ubuff, ucmd->num_data_pages, 1/*writable*/,
+			    0/*don't force*/, ucmd->data_pages, NULL);
 	up_read(&tsk->mm->mmap_sem);
 
 	/* get_user_pages() flushes dcache */
@@ -1298,7 +1298,7 @@ out_unmap:
 		ucmd->num_data_pages, rc);
 	if (rc > 0) {
 		for (i = 0; i < rc; i++)
-			page_cache_release(ucmd->data_pages[i]);
+			put_page(ucmd->data_pages[i]);
 	}
 	kfree(ucmd->data_pages);
 	ucmd->data_pages = NULL;
@@ -3533,9 +3533,23 @@ out_put:
 
 static int dev_user_unregister_dev(struct file *file)
 {
+	struct scst_user_dev *dev;
+	int res;
+
+	dev = file->private_data;
+	res = dev_user_check_reg(dev);
+	if (unlikely(res != 0))
+		goto out;
+
 	PRINT_WARNING("SCST_USER_UNREGISTER_DEVICE is obsolete and NOOP. "
 		"Closing fd should be used instead.");
-	return 0;
+
+	/* For backward compatibility unblock possibly blocked sync threads */
+	dev->blocking = 0;
+	wake_up_all(&dev->udev_cmd_threads.cmd_list_waitQ);
+
+out:
+	return res;
 }
 
 static int dev_user_flush_cache(struct file *file)
