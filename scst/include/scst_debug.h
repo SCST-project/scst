@@ -31,6 +31,12 @@
 #include <linux/bug.h>		/* for WARN_ON_ONCE */
 #endif
 
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/backport.h>
+#else
+#include <backport.h>
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
 /*
  * See also the following commits:

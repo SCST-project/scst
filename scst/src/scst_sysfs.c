@@ -1462,6 +1462,8 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 			}
 		}
 
+		if (res != 0)
+			goto out_unlock;
 		break;
 	}
 	case SCST_LUN_ACTION_DEL:
