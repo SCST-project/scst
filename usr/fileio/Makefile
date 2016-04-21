@@ -1,5 +1,5 @@
 #
-#  SCSI target mid-level makefile
+#  Fileio_tgt user space dev handler make file
 #
 #  Copyright (C) 2007 - 2015 Vladislav Bolkhovitin <vst@vlnb.net>
 #  Copyright (C) 2007 - 2015 SanDisk Corporation
