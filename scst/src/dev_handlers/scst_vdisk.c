@@ -1759,6 +1759,7 @@ static int vdisk_open_fd(struct scst_vdisk_dev *virt_dev, bool read_only)
 	int res;
 
 	sBUG_ON(!virt_dev->filename);
+	sBUG_ON(!virt_dev->fd);
 
 	virt_dev->fd = vdev_open_fd(virt_dev, virt_dev->filename, read_only);
 	if (IS_ERR(virt_dev->fd)) {
@@ -7350,8 +7351,8 @@ static void blockio_on_alua_state_change_finish(struct scst_device *dev,
 	 * no parallel fd activities could be here.
 	 */
 
-	if ((new_state == SCST_TG_STATE_OPTIMIZED) ||
-	    (new_state == SCST_TG_STATE_NONOPTIMIZED)) {
+	if (((new_state == SCST_TG_STATE_OPTIMIZED) ||
+	     (new_state == SCST_TG_STATE_NONOPTIMIZED)) && (virt_dev->fd == NULL)) {
 		/* Try non-optimized as well, it might be new redirection device */
 		int rc;
 
