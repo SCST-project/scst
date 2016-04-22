@@ -1759,7 +1759,7 @@ static int vdisk_open_fd(struct scst_vdisk_dev *virt_dev, bool read_only)
 	int res;
 
 	sBUG_ON(!virt_dev->filename);
-	sBUG_ON(!virt_dev->fd);
+	sBUG_ON(virt_dev->fd);
 
 	virt_dev->fd = vdev_open_fd(virt_dev, virt_dev->filename, read_only);
 	if (IS_ERR(virt_dev->fd)) {
