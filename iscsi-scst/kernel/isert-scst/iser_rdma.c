@@ -42,6 +42,7 @@
 
 #include "isert_dbg.h"
 #include "iser.h"
+#include "isert.h"
 #include "iser_datamover.h"
 
 #define ISER_CQ_ENTRIES		(128 * 1024)
@@ -1255,6 +1256,7 @@ static void isert_deref_device(struct isert_device *isert_dev)
 
 static void isert_kref_free(struct kref *kref)
 {
+	struct isert_conn_dev *dev;
 	struct isert_connection *isert_conn = container_of(kref,
 							   struct isert_connection,
 							   kref);
@@ -1268,6 +1270,11 @@ static void isert_kref_free(struct kref *kref)
 	isert_free_conn_resources(isert_conn);
 
 	rdma_destroy_id(isert_conn->cm_id);
+
+	dev = isert_get_priv(&isert_conn->iscsi);
+	if (dev)
+		isert_del_timer(dev);
+
 	ib_destroy_qp(isert_conn->qp);
 	isert_conn->qp = NULL;
 

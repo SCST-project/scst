@@ -83,7 +83,7 @@ static struct isert_conn_dev *get_available_dev(struct isert_listener_dev *dev,
 	return res;
 }
 
-static void isert_del_timer(struct isert_conn_dev *dev)
+void isert_del_timer(struct isert_conn_dev *dev)
 {
 	if (dev->timer_active) {
 		dev->timer_active = 0;
