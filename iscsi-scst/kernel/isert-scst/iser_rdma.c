@@ -637,7 +637,7 @@ static void isert_handle_wc_error(struct ib_wc *wc)
 #endif
 		if (unlikely(num_sge == 0)) /* Drain WR */
 			isert_sched_conn_drained(isert_conn);
-		else
+		else if (!isert_pdu->is_fake_rx)
 			isert_pdu_err(&isert_pdu->iscsi);
 		break;
 	case ISER_WR_RDMA_READ:
@@ -646,7 +646,8 @@ static void isert_handle_wc_error(struct ib_wc *wc)
 				isert_buf->dma_dir);
 			isert_buf->sg_cnt = 0;
 		}
-		isert_pdu_err(&isert_pdu->iscsi);
+		if (!isert_pdu->is_fake_rx)
+			isert_pdu_err(&isert_pdu->iscsi);
 		break;
 	case ISER_WR_RECV:
 		/* this should be the Flush, no task has been created yet */
