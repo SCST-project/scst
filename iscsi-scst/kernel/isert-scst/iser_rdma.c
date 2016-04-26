@@ -1453,7 +1453,10 @@ static int isert_cm_connect_handler(struct rdma_cm_id *cm_id,
 	if (unlikely(ret))
 		goto out;
 
-	kref_get(&isert_conn->kref);
+	/* check if already started teardown */
+	if (!unlikely(kref_get_unless_zero(&isert_conn->kref)))
+		goto out;
+
 	/* notify upper layer */
 	ret = isert_conn_established(&isert_conn->iscsi,
 				     (struct sockaddr *)&isert_conn->peer_addr,
