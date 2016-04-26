@@ -1157,12 +1157,6 @@ fail_create_qp:
 	goto out;
 }
 
-static void isert_conn_qp_destroy(struct isert_connection *isert_conn)
-{
-	rdma_destroy_qp(isert_conn->cm_id);
-	isert_conn->qp = NULL;
-}
-
 static struct isert_connection *isert_conn_create(struct rdma_cm_id *cm_id,
 						  struct isert_device *isert_dev)
 {
@@ -1239,7 +1233,7 @@ fail_post_recv:
 	mutex_lock(&dev_list_mutex);
 	isert_dev->cq_qps[cq->idx]--;
 	mutex_unlock(&dev_list_mutex);
-	isert_conn_qp_destroy(isert_conn);
+	rdma_destroy_qp(isert_conn->cm_id);
 fail_qp:
 	isert_pdu_free(isert_conn->login_rsp_pdu);
 fail_login_rsp_pdu:
@@ -1273,7 +1267,9 @@ static void isert_kref_free(struct kref *kref)
 
 	isert_free_conn_resources(isert_conn);
 
-	isert_conn_qp_destroy(isert_conn);
+	rdma_destroy_id(isert_conn->cm_id);
+	ib_destroy_qp(isert_conn->qp);
+	isert_conn->qp = NULL;
 
 	mutex_lock(&dev_list_mutex);
 	isert_dev->cq_qps[cq->idx]--;
@@ -1282,8 +1278,6 @@ static void isert_kref_free(struct kref *kref)
 	if (unlikely(isert_conn->portal->state == ISERT_PORTAL_INACTIVE))
 		isert_portal_free(isert_conn->portal);
 	mutex_unlock(&dev_list_mutex);
-
-	rdma_destroy_id(isert_conn->cm_id);
 
 	isert_conn_kfree(isert_conn);
 
