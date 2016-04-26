@@ -42,6 +42,7 @@
 
 #include "isert_dbg.h"
 #include "iser.h"
+#include "isert.h"
 #include "iser_datamover.h"
 
 #define ISER_CQ_ENTRIES		(128 * 1024)
@@ -637,7 +638,7 @@ static void isert_handle_wc_error(struct ib_wc *wc)
 #endif
 		if (unlikely(num_sge == 0)) /* Drain WR */
 			isert_sched_conn_drained(isert_conn);
-		else
+		else if (!isert_pdu->is_fake_rx)
 			isert_pdu_err(&isert_pdu->iscsi);
 		break;
 	case ISER_WR_RDMA_READ:
@@ -646,7 +647,8 @@ static void isert_handle_wc_error(struct ib_wc *wc)
 				isert_buf->dma_dir);
 			isert_buf->sg_cnt = 0;
 		}
-		isert_pdu_err(&isert_pdu->iscsi);
+		if (!isert_pdu->is_fake_rx)
+			isert_pdu_err(&isert_pdu->iscsi);
 		break;
 	case ISER_WR_RECV:
 		/* this should be the Flush, no task has been created yet */
@@ -1156,12 +1158,6 @@ fail_create_qp:
 	goto out;
 }
 
-static void isert_conn_qp_destroy(struct isert_connection *isert_conn)
-{
-	rdma_destroy_qp(isert_conn->cm_id);
-	isert_conn->qp = NULL;
-}
-
 static struct isert_connection *isert_conn_create(struct rdma_cm_id *cm_id,
 						  struct isert_device *isert_dev)
 {
@@ -1238,7 +1234,7 @@ fail_post_recv:
 	mutex_lock(&dev_list_mutex);
 	isert_dev->cq_qps[cq->idx]--;
 	mutex_unlock(&dev_list_mutex);
-	isert_conn_qp_destroy(isert_conn);
+	rdma_destroy_qp(isert_conn->cm_id);
 fail_qp:
 	isert_pdu_free(isert_conn->login_rsp_pdu);
 fail_login_rsp_pdu:
@@ -1260,6 +1256,7 @@ static void isert_deref_device(struct isert_device *isert_dev)
 
 static void isert_kref_free(struct kref *kref)
 {
+	struct isert_conn_dev *dev;
 	struct isert_connection *isert_conn = container_of(kref,
 							   struct isert_connection,
 							   kref);
@@ -1272,7 +1269,14 @@ static void isert_kref_free(struct kref *kref)
 
 	isert_free_conn_resources(isert_conn);
 
-	isert_conn_qp_destroy(isert_conn);
+	rdma_destroy_id(isert_conn->cm_id);
+
+	dev = isert_get_priv(&isert_conn->iscsi);
+	if (dev)
+		isert_del_timer(dev);
+
+	ib_destroy_qp(isert_conn->qp);
+	isert_conn->qp = NULL;
 
 	mutex_lock(&dev_list_mutex);
 	isert_dev->cq_qps[cq->idx]--;
@@ -1281,8 +1285,6 @@ static void isert_kref_free(struct kref *kref)
 	if (unlikely(isert_conn->portal->state == ISERT_PORTAL_INACTIVE))
 		isert_portal_free(isert_conn->portal);
 	mutex_unlock(&dev_list_mutex);
-
-	rdma_destroy_id(isert_conn->cm_id);
 
 	isert_conn_kfree(isert_conn);
 
@@ -1451,7 +1453,10 @@ static int isert_cm_connect_handler(struct rdma_cm_id *cm_id,
 	if (unlikely(ret))
 		goto out;
 
-	kref_get(&isert_conn->kref);
+	/* check if already started teardown */
+	if (!unlikely(kref_get_unless_zero(&isert_conn->kref)))
+		goto out;
+
 	/* notify upper layer */
 	ret = isert_conn_established(&isert_conn->iscsi,
 				     (struct sockaddr *)&isert_conn->peer_addr,
