@@ -1436,14 +1436,14 @@ static int __scst_process_luns_mgmt_store(char *buffer,
 	}
 	case SCST_LUN_ACTION_REPLACE:
 	{
-		unsigned int flags = (read_only ? SCST_ADD_LUN_READ_ONLY : 0) |
-				  (replace_gen_ua ? SCST_REPL_LUN_GEN_UA : 0);
+		unsigned int flags = replace_gen_ua ? SCST_REPL_LUN_GEN_UA : 0;
 
 		res = scst_parse_add_repl_param(acg, dev, pp, &virt_lun,
 						&read_only);
 		if (res != 0)
 			goto out_unlock;
 
+		flags |= read_only ? SCST_ADD_LUN_READ_ONLY : 0;
 		res = scst_acg_repl_lun(acg, tgt_kobj ? tgt->tgt_luns_kobj :
 					acg->luns_kobj, dev, virt_lun,
 					flags);
