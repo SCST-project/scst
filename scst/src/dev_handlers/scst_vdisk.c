@@ -219,7 +219,7 @@ struct scst_vdisk_dev {
 	unsigned int t10_dev_id_set:1; /* true if t10_dev_id manually set */
 	unsigned int usn_set:1; /* true if usn manually set */
 	char t10_vend_id[8 + 1];
-	char vend_specific_id[32 + 1];
+	char vend_specific_id[128 + 1];
 	char prod_id[16 + 1];
 	char prod_rev_lvl[4 + 1];
 	char scsi_device_name[256 + 1];
