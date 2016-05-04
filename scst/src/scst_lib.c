@@ -4206,7 +4206,7 @@ void scst_free_device(struct scst_device *dev)
 #endif
 
 	/* Ensure that ext_blockers_work is done */
-	flush_scheduled_work();
+	flush_work(&dev->ext_blockers_work);
 
 	scst_deinit_threads(&dev->dev_cmd_threads);
 
