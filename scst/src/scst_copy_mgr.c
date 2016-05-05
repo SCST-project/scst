@@ -2519,6 +2519,36 @@ static bool scst_cm_is_lun_free(unsigned int lun)
 }
 
 /* scst_mutex supposed to be held and activities suspended */
+static unsigned int scst_cm_get_lun(const struct scst_device *dev)
+{
+	unsigned int res = -1;
+	int i;
+	bool found = false;
+
+	TRACE_ENTRY();
+
+	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
+		struct list_head *head = &scst_cm_sess->sess_tgt_dev_list[i];
+		struct scst_tgt_dev *tgt_dev;
+		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
+			if (tgt_dev->dev == dev) {
+				res = tgt_dev->lun;
+				found = true;
+				TRACE_DBG("LUN %d found (full LUN %lld)",
+					res, tgt_dev->lun);
+				goto out;
+			}
+		}
+	}
+
+	sBUG_ON(!found);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+/* scst_mutex supposed to be held and activities suspended */
 static int scst_cm_dev_register(struct scst_device *dev, uint64_t lun)
 {
 	int res, i;
@@ -2583,6 +2613,7 @@ out_unblock:
 	spin_lock_bh(&dev->dev_lock);
 	scst_unblock_dev(dev);
 	spin_unlock_bh(&dev->dev_lock);
+
 	scst_acg_del_lun(scst_cm_tgt->default_acg, lun, false);
 
 out_err:
@@ -2627,6 +2658,41 @@ static void scst_cm_dev_unregister(struct scst_device *dev, bool del_lun)
 out:
 	TRACE_EXIT();
 	return;
+}
+
+void scst_cm_update_dev(struct scst_device *dev)
+{
+	int rc;
+
+	TRACE_ENTRY();
+
+	TRACE_MGMT_DBG("copy manager: updating device %s", dev->virt_name);
+
+	scst_suspend_activity(SCST_SUSPEND_TIMEOUT_UNLIMITED);
+	mutex_lock(&scst_mutex);
+
+	scst_cm_dev_unregister(dev, false);
+
+	spin_lock_bh(&dev->dev_lock);
+	scst_block_dev(dev);
+	spin_unlock_bh(&dev->dev_lock);
+
+	rc = scst_cm_send_init_inquiry(dev, scst_cm_get_lun(dev), NULL);
+	if (rc != 0)
+		goto out_unblock;
+
+out_resume:
+	mutex_unlock(&scst_mutex);
+	scst_resume_activity();
+
+	TRACE_EXIT();
+	return;
+
+out_unblock:
+	spin_lock_bh(&dev->dev_lock);
+	scst_unblock_dev(dev);
+	spin_unlock_bh(&dev->dev_lock);
+	goto out_resume;
 }
 
 /* scst_mutex supposed to be held and activities suspended */
@@ -3650,7 +3716,8 @@ static void scst_cm_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd)
 static int scst_cm_report_aen(struct scst_aen *aen)
 {
 	/* Nothing to do */
-	return 0;
+	scst_aen_done(aen);
+	return SCST_AEN_RES_SUCCESS;
 }
 
 static struct scst_tgt_template scst_cm_tgtt = {

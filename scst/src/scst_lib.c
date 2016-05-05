@@ -2855,6 +2855,30 @@ void scst_requeue_ua(struct scst_cmd *cmd, const uint8_t *buf, int size)
 	return;
 }
 
+void scst_dev_inquiry_data_changed(struct scst_device *dev)
+{
+	struct scst_tgt_dev *tgt_dev;
+
+	TRACE_ENTRY();
+
+	TRACE_MGMT_DBG("Updating INQUIRY data for dev %s", dev->virt_name);
+
+	mutex_lock(&scst_mutex);
+
+	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list, dev_tgt_dev_list_entry) {
+		TRACE_DBG("INQUIRY DATA HAS CHANGED on tgt_dev %p", tgt_dev);
+		scst_gen_aen_or_ua(tgt_dev, SCST_LOAD_SENSE(scst_sense_inquiry_data_changed));
+	}
+
+	mutex_unlock(&scst_mutex);
+
+	scst_cm_update_dev(dev);
+
+	TRACE_EXIT();
+	return;
+}
+EXPORT_SYMBOL(scst_dev_inquiry_data_changed);
+
 /* The activity supposed to be suspended and scst_mutex held */
 static void scst_check_reassign_sess(struct scst_session *sess)
 {

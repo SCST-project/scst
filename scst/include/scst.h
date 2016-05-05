@@ -5430,6 +5430,8 @@ void scst_reassign_retained_sess_states(struct scst_session *new_sess,
 
 int scst_get_max_lun_commands(struct scst_session *sess, uint64_t lun);
 
+void scst_dev_inquiry_data_changed(struct scst_device *dev);
+
 /*
  * Has to be put here open coded, because Linux doesn't have equivalent, which
  * allows exclusive wake ups of threads in LIFO order. We need it to let (yet)

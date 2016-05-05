@@ -862,6 +862,7 @@ static inline bool scst_lba1_inside_lba2(int64_t lba1,
 
 #ifndef CONFIG_SCST_PROC
 
+void scst_cm_update_dev(struct scst_device *dev);
 int scst_cm_on_dev_register(struct scst_device *dev);
 void scst_cm_on_dev_unregister(struct scst_device *dev);
 
@@ -895,6 +896,7 @@ void scst_cm_exit(void);
 
 #else /* #ifndef CONFIG_SCST_PROC */
 
+static inline void scst_cm_update_dev(struct scst_device *dev) {}
 static inline int scst_cm_on_dev_register(struct scst_device *dev) { return 0; }
 static inline void scst_cm_on_dev_unregister(struct scst_device *dev) {}
 
