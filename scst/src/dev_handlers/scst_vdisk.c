@@ -219,7 +219,7 @@ struct scst_vdisk_dev {
 	unsigned int t10_dev_id_set:1; /* true if t10_dev_id manually set */
 	unsigned int usn_set:1; /* true if usn manually set */
 	char t10_vend_id[8 + 1];
-	char vend_specific_id[32 + 1];
+	char vend_specific_id[128 + 1];
 	char prod_id[16 + 1];
 	char prod_rev_lvl[4 + 1];
 	char scsi_device_name[256 + 1];
@@ -243,6 +243,8 @@ struct scst_vdisk_dev {
 	int tgt_dev_cnt;
 
 	char *dif_filename;
+
+	struct work_struct vdev_inq_changed_work;
 
 	/* Only to pass it to attach() callback. Don't use them anywhere else! */
 	int blk_shift;
@@ -663,7 +665,10 @@ static const struct attribute *vcdrom_attrs[] = {
 
 #endif /* CONFIG_SCST_PROC */
 
-/* Protects vdisks addition/deletion and related activities, like search */
+/*
+ * Protects vdisks addition/deletion and related activities, like search.
+ * Outer mutex regarding scst_mutex.
+ */
 static DEFINE_MUTEX(scst_vdisk_mutex);
 
 /*
@@ -7674,6 +7679,23 @@ static void vdisk_free_bioset(struct scst_vdisk_dev *virt_dev)
 }
 #endif
 
+static void vdev_inq_changed_fn(struct work_struct *work)
+{
+	struct scst_vdisk_dev *virt_dev = container_of(work,
+		struct scst_vdisk_dev, vdev_inq_changed_work);
+	struct scst_device *dev = virt_dev->dev;
+
+	TRACE_ENTRY();
+
+	TRACE_DBG("Updating INQUIRY data for virt_dev %p (dev %s)",
+		virt_dev, dev->virt_name);
+
+	scst_dev_inquiry_data_changed(dev);
+
+	TRACE_EXIT();
+	return;
+}
+
 /* scst_vdisk_mutex supposed to be held */
 static int vdev_create(struct scst_dev_type *devt,
 	const char *name, struct scst_vdisk_dev **res_virt_dev)
@@ -7707,6 +7729,7 @@ static int vdev_create(struct scst_dev_type *devt,
 	virt_dev->thin_provisioned = DEF_THIN_PROVISIONED;
 	virt_dev->tst = DEF_TST;
 	virt_dev->expl_alua = DEF_EXPL_ALUA;
+	INIT_WORK(&virt_dev->vdev_inq_changed_work, vdev_inq_changed_fn);
 
 	virt_dev->blk_shift = DEF_DISK_BLOCK_SHIFT;
 
@@ -7768,6 +7791,8 @@ out_free:
 
 static void vdev_destroy(struct scst_vdisk_dev *virt_dev)
 {
+	cancel_work_sync(&virt_dev->vdev_inq_changed_work);
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 	vdisk_free_bioset(virt_dev);
 #endif
@@ -9306,6 +9331,8 @@ static ssize_t vdev_sysfs_t10_vend_id_store(struct kobject *kobj,
 	virt_dev->t10_vend_id_set = 1;
 	write_unlock(&vdisk_serial_rwlock);
 
+	schedule_work(&virt_dev->vdev_inq_changed_work);
+
 	res = count;
 
 out:
@@ -9365,6 +9392,8 @@ static ssize_t vdev_sysfs_vend_specific_id_store(struct kobject *kobj,
 	virt_dev->vend_specific_id_set = 1;
 	write_unlock(&vdisk_serial_rwlock);
 
+	schedule_work(&virt_dev->vdev_inq_changed_work);
+
 	res = count;
 
 out:
@@ -9423,6 +9452,8 @@ static ssize_t vdev_sysfs_prod_id_store(struct kobject *kobj,
 	virt_dev->prod_id_set = 1;
 	write_unlock(&vdisk_serial_rwlock);
 
+	schedule_work(&virt_dev->vdev_inq_changed_work);
+
 	res = count;
 
 out:
@@ -9480,6 +9511,8 @@ static ssize_t vdev_sysfs_prod_rev_lvl_store(struct kobject *kobj,
 	sprintf(virt_dev->prod_rev_lvl, "%.*s", len, buf);
 	virt_dev->prod_rev_lvl_set = 1;
 	write_unlock(&vdisk_serial_rwlock);
+
+	schedule_work(&virt_dev->vdev_inq_changed_work);
 
 	res = count;
 
@@ -9541,6 +9574,8 @@ static ssize_t vdev_sysfs_scsi_device_name_store(struct kobject *kobj,
 	else
 		virt_dev->scsi_device_name_set = 0;
 	write_unlock(&vdisk_serial_rwlock);
+
+	schedule_work(&virt_dev->vdev_inq_changed_work);
 
 	res = count;
 
@@ -9611,6 +9646,8 @@ static ssize_t vdev_sysfs_t10_dev_id_store(struct kobject *kobj,
 	}
 
 	virt_dev->t10_dev_id_set = 1;
+
+	schedule_work(&virt_dev->vdev_inq_changed_work);
 
 	res = count;
 
@@ -9694,6 +9731,9 @@ static ssize_t vdev_sysfs_eui64_id_store(struct kobject *kobj,
 #endif
 	write_unlock(&vdisk_serial_rwlock);
 
+	if (res >= 0)
+		schedule_work(&virt_dev->vdev_inq_changed_work);
+
 out:
 	return res;
 }
@@ -9775,6 +9815,9 @@ static ssize_t vdev_sysfs_naa_id_store(struct kobject *kobj,
 #endif
 	write_unlock(&vdisk_serial_rwlock);
 
+	if (res >= 0)
+		schedule_work(&virt_dev->vdev_inq_changed_work);
+
 out:
 	return res;
 }
@@ -9838,6 +9881,8 @@ static ssize_t vdev_sysfs_usn_store(struct kobject *kobj,
 
 	virt_dev->usn_set = 1;
 
+	schedule_work(&virt_dev->vdev_inq_changed_work);
+
 	res = count;
 
 	PRINT_INFO("USN for device %s changed to %s", virt_dev->name,
@@ -9891,6 +9936,8 @@ static ssize_t vdev_sysfs_inq_vend_specific_store(struct kobject *kobj,
 	memcpy(virt_dev->inq_vend_specific, buf, len);
 	virt_dev->inq_vend_specific_len = len;
 	write_unlock(&vdisk_serial_rwlock);
+
+	schedule_work(&virt_dev->vdev_inq_changed_work);
 
 	res = count;
 
