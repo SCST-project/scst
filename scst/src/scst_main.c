@@ -64,11 +64,6 @@ Pass-through dev handlers will not work.
 /*
  * Main SCST mutex. All targets, devices and dev_types management is done
  * under this mutex.
- *
- * It must NOT be used in any works (schedule_work(), etc.), because
- * otherwise a deadlock (double lock, actually) is possible, e.g., with
- * scst_user detach_tgt(), which is called under scst_mutex and calls
- * flush_scheduled_work().
  */
 struct mutex scst_mutex;
 EXPORT_SYMBOL_GPL(scst_mutex);
