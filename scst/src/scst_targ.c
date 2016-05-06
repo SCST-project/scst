@@ -5604,7 +5604,7 @@ again:
 
 				someth_done = true;
 
-				if (++thr_cnt == 3)
+				if (++thr_cnt == 2)
 					break;
 				else {
 					spin_lock_irq(&thr->thr_cmd_list_lock);
