@@ -104,6 +104,7 @@ struct kmem_cache *scst_dev_cachep;
 struct kmem_cache *scst_tgtd_cachep;
 struct kmem_cache *scst_sess_cachep;
 struct kmem_cache *scst_acgd_cachep;
+static struct kmem_cache *scst_thr_cachep;
 
 #ifdef CONFIG_SCST_PROC
 struct list_head scst_acg_list;
@@ -1922,23 +1923,26 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 	}
 
 	for (i = 0; i < num; i++) {
-		thr = kzalloc(sizeof(*thr), GFP_KERNEL);
+		thr = kmem_cache_zalloc(scst_thr_cachep, GFP_KERNEL);
 		if (!thr) {
 			res = -ENOMEM;
 			PRINT_ERROR("Fail to allocate thr %d", res);
 			goto out_wait;
 		}
+		INIT_LIST_HEAD(&thr->thr_active_cmd_list);
+		spin_lock_init(&thr->thr_cmd_list_lock);
+		thr->thr_cmd_threads = cmd_threads;
 
 		if (dev != NULL) {
 			thr->cmd_thread = kthread_create(scst_cmd_thread,
-				cmd_threads, "%.13s%d", dev->virt_name, n++);
+				thr, "%.13s%d", dev->virt_name, n++);
 		} else if (tgt_dev != NULL) {
 			thr->cmd_thread = kthread_create(scst_cmd_thread,
-				cmd_threads, "%.10s%d_%d",
+				thr, "%.10s%d_%d",
 				tgt_dev->dev->virt_name, tgt_dev_num, n++);
 		} else
 			thr->cmd_thread = kthread_create(scst_cmd_thread,
-				cmd_threads, "scstd%d", n++);
+				thr, "scstd%d", n++);
 
 		if (IS_ERR(thr->cmd_thread)) {
 			res = PTR_ERR(thr->cmd_thread);
@@ -1990,6 +1994,10 @@ out:
 	return res;
 }
 
+/*
+ * The being stopped threads must not have assigned commands, which usually
+ * means suspended activities.
+ */
 void scst_del_threads(struct scst_cmd_threads *cmd_threads, int num)
 {
 	TRACE_ENTRY();
@@ -2018,7 +2026,7 @@ void scst_del_threads(struct scst_cmd_threads *cmd_threads, int num)
 		if (rc != 0 && rc != -EINTR)
 			TRACE_MGMT_DBG("kthread_stop() failed: %d", rc);
 
-		kfree(ct);
+		kmem_cache_free(scst_thr_cachep, ct);
 	}
 
 	EXTRACHECKS_BUG_ON((cmd_threads->nr_threads == 0) &&
@@ -2590,12 +2598,14 @@ static int __init init_scst(void)
 #endif
 	if (!INIT_CACHEP(scst_acgd_cachep, scst_acg_dev)) /* read-mostly */
 		goto out_destroy_tgtd_cache;
+	if (!INIT_CACHEP_ALIGN(scst_thr_cachep, scst_cmd_thread_t))
+		goto out_destroy_acg_cache;
 
 	scst_mgmt_mempool = mempool_create(64, mempool_alloc_slab,
 		mempool_free_slab, scst_mgmt_cachep);
 	if (scst_mgmt_mempool == NULL) {
 		res = -ENOMEM;
-		goto out_destroy_acg_cache;
+		goto out_destroy_thr_cache;
 	}
 
 	/*
@@ -2765,6 +2775,9 @@ out_destroy_mgmt_stub_mempool:
 out_destroy_mgmt_mempool:
 	mempool_destroy(scst_mgmt_mempool);
 
+out_destroy_thr_cache:
+	kmem_cache_destroy(scst_thr_cachep);
+
 out_destroy_acg_cache:
 	kmem_cache_destroy(scst_acgd_cachep);
 
@@ -2857,6 +2870,7 @@ static void __exit exit_scst(void)
 	DEINIT_CACHEP(scst_dev_cachep);
 	DEINIT_CACHEP(scst_tgt_cachep);
 	DEINIT_CACHEP(scst_acgd_cachep);
+	DEINIT_CACHEP(scst_thr_cachep);
 
 	scst_lib_exit();
 

@@ -212,9 +212,12 @@ extern struct list_head scst_sess_shut_list;
 extern cpumask_t default_cpu_mask;
 
 struct scst_cmd_thread_t {
+	struct list_head thr_active_cmd_list;
+	spinlock_t thr_cmd_list_lock;
 	struct task_struct *cmd_thread;
+	struct scst_cmd_threads *thr_cmd_threads;
 	struct list_head thread_list_entry;
-	bool		 being_stopped;
+	bool being_stopped;
 };
 
 static inline bool scst_set_io_context(struct scst_cmd *cmd,

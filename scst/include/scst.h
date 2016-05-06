@@ -2123,6 +2123,9 @@ struct scst_cmd {
 	/* Pointer to lists of commands with the lock */
 	struct scst_cmd_threads *cmd_threads;
 
+	/* Assigned processing thread (for better CPU affinity) */
+	struct scst_cmd_thread_t *cmd_thr;
+
 	atomic_t cmd_ref;
 
 	struct scst_session *sess;	/* corresponding session */

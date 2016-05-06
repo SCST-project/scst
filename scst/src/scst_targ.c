@@ -1917,17 +1917,31 @@ static void scst_process_redirect_cmd(struct scst_cmd *cmd,
 			    context);
 		/* go through */
 	case SCST_CONTEXT_THREAD:
-		spin_lock_irqsave(&cmd->cmd_threads->cmd_list_lock, flags);
+	{
+		struct list_head *active_cmd_list;
+		if (cmd->cmd_thr != NULL) {
+			TRACE_DBG("Using assigned thread %p for cmd %p",
+				cmd->cmd_thr, cmd);
+			active_cmd_list = &cmd->cmd_thr->thr_active_cmd_list;
+			spin_lock_irqsave(&cmd->cmd_thr->thr_cmd_list_lock, flags);
+		} else {
+			active_cmd_list = &cmd->cmd_threads->active_cmd_list;
+			spin_lock_irqsave(&cmd->cmd_threads->cmd_list_lock, flags);
+		}
 		TRACE_DBG("Adding cmd %p to active cmd list", cmd);
 		if (unlikely(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE))
-			list_add(&cmd->cmd_list_entry,
-				&cmd->cmd_threads->active_cmd_list);
+			list_add(&cmd->cmd_list_entry, active_cmd_list);
 		else
-			list_add_tail(&cmd->cmd_list_entry,
-				&cmd->cmd_threads->active_cmd_list);
-		wake_up(&cmd->cmd_threads->cmd_list_waitQ);
-		spin_unlock_irqrestore(&cmd->cmd_threads->cmd_list_lock, flags);
+			list_add_tail(&cmd->cmd_list_entry, active_cmd_list);
+		if (cmd->cmd_thr != NULL) {
+			wake_up_process(cmd->cmd_thr->cmd_thread);
+			spin_unlock_irqrestore(&cmd->cmd_thr->thr_cmd_list_lock, flags);
+		} else {
+			wake_up(&cmd->cmd_threads->cmd_list_waitQ);
+			spin_unlock_irqrestore(&cmd->cmd_threads->cmd_list_lock, flags);
+		}
 		break;
+	}
 	}
 
 	TRACE_EXIT();
@@ -5453,17 +5467,20 @@ static void scst_do_job_active(struct list_head *cmd_list,
 	return;
 }
 
-static inline int test_cmd_threads(struct scst_cmd_threads *p_cmd_threads)
+static inline int test_cmd_threads(struct scst_cmd_thread_t *thr)
 {
-	int res = !list_empty(&p_cmd_threads->active_cmd_list) ||
-	    unlikely(kthread_should_stop()) ||
-	    tm_dbg_is_release();
+	int res = !list_empty(&thr->thr_active_cmd_list) ||
+		  !list_empty(&thr->thr_cmd_threads->active_cmd_list) ||
+		  unlikely(kthread_should_stop()) ||
+		  tm_dbg_is_release();
 	return res;
 }
 
 int scst_cmd_thread(void *arg)
 {
-	struct scst_cmd_threads *p_cmd_threads = arg;
+	struct scst_cmd_thread_t *thr = arg;
+	struct scst_cmd_threads *p_cmd_threads = thr->thr_cmd_threads;
+	bool someth_done, p_locked, thr_locked;
 
 	TRACE_ENTRY();
 
@@ -5479,10 +5496,24 @@ int scst_cmd_thread(void *arg)
 	wake_up_all(&p_cmd_threads->ioctx_wq);
 
 	spin_lock_irq(&p_cmd_threads->cmd_list_lock);
+	spin_lock(&thr->thr_cmd_list_lock);
 	while (!kthread_should_stop()) {
-		wait_event_locked(p_cmd_threads->cmd_list_waitQ,
-				  test_cmd_threads(p_cmd_threads), lock_irq,
-				  p_cmd_threads->cmd_list_lock);
+		if (!test_cmd_threads(thr)) {
+			DEFINE_WAIT(wait);
+			do {
+				prepare_to_wait_exclusive_head(
+					&p_cmd_threads->cmd_list_waitQ,
+					&wait, TASK_INTERRUPTIBLE);
+				if (test_cmd_threads(thr))
+					break;
+				spin_unlock(&thr->thr_cmd_list_lock);
+				spin_unlock_irq(&p_cmd_threads->cmd_list_lock);
+				schedule();
+				spin_lock_irq(&p_cmd_threads->cmd_list_lock);
+				spin_lock(&thr->thr_cmd_list_lock);
+			} while (!test_cmd_threads(thr));
+			finish_wait(&p_cmd_threads->cmd_list_waitQ, &wait);
+		}
 
 		if (tm_dbg_is_release()) {
 			spin_unlock_irq(&p_cmd_threads->cmd_list_lock);
@@ -5490,9 +5521,109 @@ int scst_cmd_thread(void *arg)
 			spin_lock_irq(&p_cmd_threads->cmd_list_lock);
 		}
 
-		scst_do_job_active(&p_cmd_threads->active_cmd_list,
-			&p_cmd_threads->cmd_list_lock, false);
+		/*
+		 * Idea of this code is to have local queue be more prioritized
+		 * comparing to the more global queue as 2:1, as well as the
+		 * local processing not touching the more global data for writes
+		 * during its iterations when the more global queue is empty.
+		 * Why 2:1? 2 is average number of intermediate commands states
+		 * reaching this point here.
+		 */
+
+		p_locked = true;
+		thr_locked = true;
+		do {
+			int thr_cnt;
+
+			someth_done = false;
+again:
+			if (!list_empty(&p_cmd_threads->active_cmd_list)) {
+				struct scst_cmd *cmd;
+
+				if (!p_locked) {
+					if (thr_locked) {
+						spin_unlock_irq(&thr->thr_cmd_list_lock);
+						thr_locked = false;
+					}
+					spin_lock_irq(&p_cmd_threads->cmd_list_lock);
+					p_locked = true;
+					goto again;
+				}
+
+				cmd = list_first_entry(&p_cmd_threads->active_cmd_list,
+							typeof(*cmd), cmd_list_entry);
+
+				TRACE_DBG("Deleting cmd %p from active cmd list", cmd);
+				list_del(&cmd->cmd_list_entry);
+
+				if (thr_locked) {
+					spin_unlock(&thr->thr_cmd_list_lock);
+					thr_locked = false;
+				}
+				spin_unlock_irq(&p_cmd_threads->cmd_list_lock);
+				p_locked = false;
+
+				if (cmd->cmd_thr == NULL) {
+					TRACE_DBG("Assigning thread %p on cmd %p",
+						thr, cmd);
+					cmd->cmd_thr = thr;
+				}
+
+				scst_process_active_cmd(cmd, false);
+				someth_done = true;
+			}
+
+			if (thr_locked && p_locked) {
+				/* We need to maintain order of locks and unlocks */
+				spin_unlock(&thr->thr_cmd_list_lock);
+				spin_unlock(&p_cmd_threads->cmd_list_lock);
+				spin_lock(&thr->thr_cmd_list_lock);
+				p_locked = false;
+			} else if (!thr_locked) {
+				if (p_locked) {
+					spin_unlock_irq(&p_cmd_threads->cmd_list_lock);
+					p_locked = false;
+				}
+				spin_lock_irq(&thr->thr_cmd_list_lock);
+				thr_locked = true;
+			}
+
+			thr_cnt = 0;
+			while (!list_empty(&thr->thr_active_cmd_list)) {
+				struct scst_cmd *cmd = list_first_entry(
+							&thr->thr_active_cmd_list,
+							typeof(*cmd), cmd_list_entry);
+
+				TRACE_DBG("Deleting cmd %p from thr active cmd list", cmd);
+				list_del(&cmd->cmd_list_entry);
+
+				spin_unlock_irq(&thr->thr_cmd_list_lock);
+				thr_locked = false;
+
+				scst_process_active_cmd(cmd, false);
+
+				someth_done = true;
+
+				if (++thr_cnt == 3)
+					break;
+				else {
+					spin_lock_irq(&thr->thr_cmd_list_lock);
+					thr_locked = true;
+				}
+			}
+		} while (someth_done);
+
+		EXTRACHECKS_BUG_ON(p_locked);
+
+		if (thr_locked) {
+			spin_unlock_irq(&thr->thr_cmd_list_lock);
+			thr_locked = false;
+		}
+
+		spin_lock_irq(&p_cmd_threads->cmd_list_lock);
+		spin_lock(&thr->thr_cmd_list_lock);
 	}
+	spin_unlock(&thr->thr_cmd_list_lock);
 	spin_unlock_irq(&p_cmd_threads->cmd_list_lock);
 
 	scst_ioctx_put(p_cmd_threads);
