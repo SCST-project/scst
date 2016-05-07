@@ -5638,7 +5638,7 @@ again:
 				barrier();
 				if (!list_empty(&p_cmd_threads->active_cmd_list) ||
 				    !list_empty(&thr->thr_active_cmd_list)) {
-					TRACE_DBG("Poll successfull");
+					TRACE_DBG("Poll successful");
 					goto again;
 				}
 				cpu_relax();

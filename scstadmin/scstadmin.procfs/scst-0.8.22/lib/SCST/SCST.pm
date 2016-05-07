@@ -1293,7 +1293,7 @@ Returns: (boolean) $groupExists
 =item SCST::SCST->addGroup();
 
 Adds a security group to SCST's configuration. Returns 0 upon success, 1 if
-unsuccessfull and  2 if the group already exists.
+unsuccessful and  2 if the group already exists.
 
 Arguments: (string) $group
 
@@ -1302,11 +1302,11 @@ Returns: (int) $success
 =item SCST::SCST->removeGroup();
 
 Removes a group from SCST's configuration. Returns 0 upon success, 1 if
-unsuccessfull and 2 if group does not exist.
+unsuccessful and 2 if group does not exist.
 
 =item SCST::SCST->renameGroup();
 
-Renames an already existing group. Returns 0 upon success, 1 if unsuccessfull
+Renames an already existing group. Returns 0 upon success, 1 if unsuccessful
 or 2 if the new group name already exists.
 
 =item SCST::SCST->sgvStats();
@@ -1376,7 +1376,7 @@ Returns: (int) $handler_type
 =item SCST::SCST->openDevice();
 
 Opens an already existing specified device for the specified device handler.
-Returns 0 upon success, 1 if unsuccessfull and 2 if the device already exists.
+Returns 0 upon success, 1 if unsuccessful and 2 if the device already exists.
 
 Available options for the parameter $options are: WRITE_THROUGH, READ_ONLY, O_DIRECT
 
@@ -1387,7 +1387,7 @@ Returns: (int) $success
 =item SCST::SCST->closeDevice();
 
 Closes an open device configured for the specified device handler. Returns
-0 upon success, 1 if unsuccessfull and 2 of the device does not exist.
+0 upon success, 1 if unsuccessful and 2 of the device does not exist.
 
 Arguments: (int) $handler, (string) $device, (string) $path
 
@@ -1396,7 +1396,7 @@ Returns: (int) $success
 =item SCST::SCST->setT10DeviceId();
 
 Changes the T10 device ID for the specified device and handler. Returns
-0 upon success, 1 if unsuccessfull and 2 of the device does not exist.
+0 upon success, 1 if unsuccessful and 2 of the device does not exist.
 
 Arguments: (int) $handler, (string) $device, (string) $t10_dev_id
 
@@ -1421,7 +1421,7 @@ Returns: (hash ref) $users
 =item SCST::SCST->addUser();
 
 Adds the specified user to the specified security group. Returns 0
-upon success, 1 if unsuccessfull and 2 if the user already exists.
+upon success, 1 if unsuccessful and 2 if the user already exists.
 
 Arguments: (string) $user, (string) $group
 
@@ -1430,7 +1430,7 @@ Returns: (int) $success
 =item SCST::SCST->removeUser();
 
 Removed the specified user from the specified security group. Returns
-0 upon success, 1 if unsuccessfull and 2 if the user does not exist.
+0 upon success, 1 if unsuccessful and 2 if the user does not exist.
 
 Arguments: (string) $user, (string) $group
 
@@ -1440,7 +1440,7 @@ Returns: (int) $success
 
 Moves a user from one group to another. Both groups must be defined
 and user must already exist in the first group. Returns 0 upon
-success, 1 if unsuccessfull and 2 if the user already exists in the
+success, 1 if unsuccessful and 2 if the user already exists in the
 second group.
 
 Arguments: (string) $user, (string) $fromGroup, (string) $toGroup
@@ -1450,7 +1450,7 @@ Returns: (int) $success
 =item SCST::SCST->clearUsers();
 
 Removes all users from the specified security group. Returns 0 upon
-success or 1 if unsuccessfull.
+success or 1 if unsuccessful.
 
 Arguments: (string) $group
 
@@ -1495,7 +1495,7 @@ Hash Layout: (string) $device = (int) $lun
 =item SCST::SCST->assignDeviceToGroup();
 
 Assigns the specified device to the specified security group. Returns
-0 upon success, 1 if unsuccessfull and 2 if the device has already
+0 upon success, 1 if unsuccessful and 2 if the device has already
 been assigned to the specified security group.
 
 Arguments: (string) $device, (string) $group, (int) $lun [, (string) $options]
@@ -1506,7 +1506,7 @@ Returns: (int) $success
 
 Replaces an already assigned device to the specified lun in a
 specified security group with $newDevice. Returns 0 upon success, 1
-if unsuccessfull and 2 if the device has already been assigned to
+if unsuccessful and 2 if the device has already been assigned to
 the specified security group.
 
 Arguments: (string) $newDevice, (string) $group, (int) $lun [, (string) $options]
@@ -1516,7 +1516,7 @@ Returns (int) $success
 =item SCST::SCST->assignDeviceToHandler();
 
 Assigns specified device to specified handler. Returns 0 upon success,
-1 if unsuccessfull and 2 if the specified device is already assigned to
+1 if unsuccessful and 2 if the specified device is already assigned to
 the specified handler.
 
 Arguments: (string) $device, (string) $handler
@@ -1526,7 +1526,7 @@ Returns: (int) $success
 =item SCST::SCST->removeDeviceFromGroup();
 
 Removes the specified device from the specified security group. Returns
-0 upon success, 1 if unsuccessfull and 2 if the device has not been
+0 upon success, 1 if unsuccessful and 2 if the device has not been
 assigned to the specified security group.
 
 Arguments: (string) $device, (string) $group
@@ -1536,7 +1536,7 @@ Returns: (int) $success
 =item SCST::SCST->clearGroupDevices();
 
 Removes all devices from the specified security group. Returns 0 upon
-success or 1 if unsuccessfull.
+success or 1 if unsuccessful.
 
 Arguments: (string) $group
 
