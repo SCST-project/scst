@@ -7070,6 +7070,53 @@ static struct kobj_attribute scst_max_tasklet_cmd_attr =
 	__ATTR(max_tasklet_cmd, S_IRUGO | S_IWUSR, scst_max_tasklet_cmd_show,
 	       scst_max_tasklet_cmd_store);
 
+static ssize_t scst_poll_us_show(struct kobject *kobj,
+				  struct kobj_attribute *attr, char *buf)
+{
+	int count;
+	unsigned long t = scst_poll_ns;
+
+	TRACE_ENTRY();
+
+	do_div(t, 1000);
+	count = sprintf(buf, "%ld\n%s\n", t,
+		(scst_poll_ns == SCST_DEF_POLL_NS)
+			? "" : SCST_SYSFS_KEY_MARK);
+
+	TRACE_EXIT();
+	return count;
+}
+
+static ssize_t scst_poll_us_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	unsigned long val;
+
+	TRACE_ENTRY();
+
+	res = kstrtoul(buf, 0, &val);
+	if (res != 0) {
+		PRINT_ERROR("kstrtoul() for %s failed: %d ", buf, res);
+		goto out;
+	}
+
+	PRINT_INFO("Changed poll_us to %ld us", val);
+
+	val *= 1000;
+	scst_poll_ns = val;
+
+	res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute scst_poll_us_attr =
+	__ATTR(poll_us, S_IRUGO | S_IWUSR, scst_poll_us_show,
+	       scst_poll_us_store);
+
 static ssize_t scst_suspend_show(struct kobject *kobj,
 				 struct kobj_attribute *attr, char *buf)
 {
@@ -7344,6 +7391,7 @@ static struct attribute *scst_sysfs_root_default_attrs[] = {
 	&scst_threads_attr.attr,
 	&scst_setup_id_attr.attr,
 	&scst_max_tasklet_cmd_attr.attr,
+	&scst_poll_us_attr.attr,
 	&scst_suspend_attr.attr,
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	&scst_main_trace_level_attr.attr,

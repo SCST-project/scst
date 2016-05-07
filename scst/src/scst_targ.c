@@ -5620,6 +5620,38 @@ again:
 			thr_locked = false;
 		}
 
+		if (scst_poll_ns > 0) {
+			struct timespec ts;
+			ktime_t end, kt;
+			int rc;
+
+			rc = __getnstimeofday(&ts);
+			if (unlikely(rc != 0)) {
+				WARN_ON_ONCE(rc);
+				goto go;
+			}
+
+			end = timespec_to_ktime(ts);
+			end = ktime_add_ns(end, scst_poll_ns);
+
+			do {
+				barrier();
+				if (!list_empty(&p_cmd_threads->active_cmd_list) ||
+				    !list_empty(&thr->thr_active_cmd_list)) {
+					TRACE_DBG("Poll successfull");
+					goto again;
+				}
+				cpu_relax();
+				rc = __getnstimeofday(&ts);
+				if (unlikely(rc != 0)) {
+					WARN_ON_ONCE(rc);
+					goto go;
+				}
+				kt = timespec_to_ktime(ts);
+			} while (ktime_before(kt, end));
+		}
+
+go:
 		spin_lock_irq(&p_cmd_threads->cmd_list_lock);
 		spin_lock(&thr->thr_cmd_list_lock);
 	}
