@@ -450,6 +450,14 @@ following entries:
    have different IDs and SNs. For instance, VDISK dev handler uses this
    ID to generate T10 vendor specific identifier and SN of the devices.
 
+ - poll_us - if polling is desired, sets how many us each SCST thread
+   is polling its queue after it became empty in a hope that a new
+   command can come. In some cases, polling can significantly increase
+   IOPS, especially if low power states on CPU not disabled, because on
+   high IOPS polling could be cheaper comparing to spending significant
+   time on entering, then exiting CPU low power states + corresponding
+   context switches. Disabled, i.e. set to 0, by default.
+
  - suspend - globally suspends or releases all SCSI activities on all
    devices. Useful for mass management, like adding or deleting LUNs.
    Writing to it value v:
@@ -2186,13 +2194,6 @@ you, so the resulting performance will, in average, be better
 (sometimes, much better) than with other SCSI targets. But in some cases
 you can by manual tuning improve it even more.
 
-If you want to get maximum performance from your target, RHEL/CentOS 5.x
-kernels are not recommended on both target and initiators, if you are
-using Linux initiators, because those kernels are based on very outdated
-2.6.18 kernel, hence, missed >3 years of important improvements in the
-kernel's storage area. You should use at least long maintained vanilla
-2.6.27.x kernel, although 2.6.29+ would be even better.
-
 Before doing any performance measurements note that performance results
 are very much dependent from your type of load, so it is crucial that
 you choose access mode (FILEIO, BLOCKIO, O_DIRECT, pass-through), which
@@ -2215,11 +2216,18 @@ In order to get the maximum performance you should:
 
  - Disable in Makefile CONFIG_SCST_TRACING and CONFIG_SCST_DEBUG.
 
+Note, by disabling CONFIG_SCST_TRACING and CONFIG_SCST_DEBUG you are
+disabling many useful SCST diagnostic messages, which can significantly
+help in many troubleshooting cases. So, if you may consider to keep
+CONFIG_SCST_TRACING, its performance impact is very limited.
+
 IMPORTANT: The development version of SCST in the SVN is optimized for
 =========  development and bug hunting, not for performance. To reconfigure
-	   it for performance you should run "make 2perf" in the
-	   root of your source code (e.g. trunk/). It will set the above
-	   options as needed. The only option it doesn't set is
+
+	   it for performance you should run "make 2perf" or "make
+	   2release" (to keep CONFIG_SCST_TRACING) in the root of your
+	   source code (e.g. trunk/). It will set the above options as
+	   needed. The only option it doesn't set is
 	   CONFIG_SCST_TEST_IO_IN_SIRQ, so, if needed, you should change
 	   it manually.
 
@@ -2416,6 +2424,17 @@ context might be done on the same CPUs as SSD devices' threads doing data
 transfers. As the result, those threads won't receive all the processing
 power of those CPUs and perform worse.
 
+10. If your storage is capable of operation on hundreds of thousands
+IOPS level, you can use poll_us sysfs attribute to set how many us each
+SCST thread is polling its queue after it became empty in a hope that a
+new command can come. In some cases, polling can significantly increase
+IOPS, especially if low power states on CPU not disabled, because on
+high IOPS polling could be cheaper comparing to spending significant
+time on entering, then exiting CPU low power states + corresponding
+context switches. Polling is disabled by default. The recommended value
+to start from is 5-10 us. Then you can increase or decrease it to see if
+your IOPS are increasing or decreasing.
+
 
 Commands suspending takes too long
 ----------------------------------
@@ -2470,7 +2489,7 @@ issues:
 1. Ignore incoming task management (TM) commands. It's fine if there are
 not too many of them, so average performance isn't hurt and the
 corresponding device isn't getting put offline, i.e. if the backstorage
-isn't too slow.
+isn't a way too slow.
 
 2. Decrease /sys/block/sdX/device/queue_depth on the initiator in case
 if it's Linux (see below how) or/and SCST_MAX_TGT_DEV_COMMANDS constant
@@ -2502,11 +2521,9 @@ By default, this timeout is 30 or 60 seconds, depending on your distribution.
 
 5. Increase speed of the target's backstorage.
 
-6. Implement in SCST dynamic I/O flow control, so queue depth on the
-target is dynamically decreased/increased based on how slow/fast the
-backstorage speed comparing to the target link. See "Dynamic I/O flow
-control" section on http://scst.sourceforge.net/contributing.html page
-for possible implementation idea.
+6. Implement in SCST QoS, so queue depth size on the target is
+dynamically adjusted, hence worst case initiator seen latencies are
+controlled.
 
 Next, consider the case of too slow link between initiator and target,
 when the initiator tries to simultaneously push N commands to the target
@@ -2516,13 +2533,8 @@ command, hence one or more commands in the tail of the queue can not be
 served on time less than the timeout, so the initiator will decide that
 they are stuck on the target and will try to recover.
 
-To workaround/fix this issue in this case you can use ways 1, 2, 3, 6
-above or (7): increase speed of the link between target and initiator.
-But for some initiators implementations for WRITE commands there might
-be cases when target has no way to detect the issue, so dynamic I/O flow
-control will not be able to help. In those cases you could also need on
-the initiator(s) to either decrease the queue depth (way 2), or increase
-the corresponding timeout (way 3).
+To workaround/fix this issue in this case you can use ways 1, 2, 3 above
+or (7): increase speed of the link between target and initiator.
 
 Note, that logged messages about QUEUE_FULL status are quite different
 by nature. This is a normal work, just SCSI flow control in action.

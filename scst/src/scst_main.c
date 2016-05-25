@@ -119,9 +119,11 @@ struct kmem_cache *scst_cmd_cachep;
 unsigned long scst_trace_flag;
 #endif
 
-int scst_max_tasklet_cmd = SCST_DEF_MAX_TASKLET_CMD;
-
 unsigned long scst_flags;
+
+unsigned long scst_poll_ns = SCST_DEF_POLL_NS;
+
+int scst_max_tasklet_cmd = SCST_DEF_MAX_TASKLET_CMD;
 
 struct scst_cmd_threads scst_main_cmd_threads;
 
