@@ -1827,6 +1827,34 @@ benefit from SCST VAAI implementation. Those actions described in the
 implementation notes below. For vdisk and fileio_tgt handlers they have
 already been implemented.
 
+IMPORTANT: To use EXTENDED COPY command between LUNs (datastores) they all
+=========  MUST have the same PRODUCT IDENTIFICATION INQUIRY field. By
+           default, to simplify remote devices identification, SCST uses
+           vdisk names as PRODUCT IDENTIFICATION, so SCST devices look
+	   differently from the initiators. However, for some reasons,
+	   VMware does not use EXTENDED COPY between LUNs with different
+	   PRODUCT IDENTIFICATION. Thus, to be able to use full VAAI in
+	   your VMware setups you must manually set PRODUCT
+	   IDENTIFICATION for all your VMware LUNs to the same value,
+	   for instance, "SCST", via using "prod_id" attribute. It could
+	   be done either by adding "prod_id" attribute to scstadmin
+	   scst.conf, or by directly writing to SCST sysfs attribute.
+	   For example:
+
+	   HANDLER vdisk_blockio {
+		DEVICE blockio1 {
+		filename /dev/sda5
+		prod_id SCST
+	   }
+
+	   or
+
+	   echo SCST >/sys/kernel/scst_tgt/devices/blockio1/prod_id
+	   correspondingly.
+
+	   Note, this prod_id modification must be done on all
+	   datastores BEFORE VMware connects to them.
+
 
 Implementation notes
 ....................
