@@ -185,6 +185,11 @@ default.
 N_Port ID Virtualization
 ------------------------
 
+Unfortunately, due to severe problems in the original qla2xxx driver,
+NPIV in this version is not supported. If you need NPIV, you can use
+previous version 2.1 of this driver.
+
+
 N_Port ID Virtualization (NPIV) is a Fibre Channel facility allowing
 multiple N_Port IDs to share a single physical N_Port. NPIV is fully
 supported by this driver. You must have 24xx+ ISPs with NPIV-supporting
