@@ -29,9 +29,9 @@ EXTRA_CFLAGS += $(call enable-Wextra,-Wextra \
 	$(call cc-option,-Wno-old-style-declaration) \
 	-Wno-unused-parameter -Wno-missing-field-initializers)
 
-EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
-#EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
-EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions
+#EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
+EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
+#EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions
 
 #EXTRA_CFLAGS += -DCONFIG_SCST_ISCSI_DEBUG_DIGEST_FAILURES
 

@@ -87,10 +87,10 @@ enable-Wextra = $(shell uname_r="$$(uname -r)"; if [ "$${uname_r%.el5}" = "$${un
 EXTRA_CFLAGS += -I$(SUBDIRS) -I$(SCST_INC_DIR) $(call enable-Wextra,-Wextra \
 	-Wno-unused-parameter -Wno-missing-field-initializers)
 
-EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
+#EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
 
-#EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
-EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions
+EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
+#EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions
 
 #EXTRA_CFLAGS += -DCONFIG_DEBUG_EXT_COPY_REMAP
 
