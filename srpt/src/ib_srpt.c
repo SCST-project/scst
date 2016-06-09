@@ -484,7 +484,7 @@ static void srpt_get_ioc(struct srpt_port *sport, u32 slot,
 		send_queue_depth = min(SRPT_RQ_SIZE, sdev->dev_attr.max_qp_wr);
 
 	memset(iocp, 0, sizeof(*iocp));
-	strcpy(iocp->id_string, DEFAULT_SRPT_ID_STRING);
+	strcpy(iocp->id_string, sport->port_id);
 	iocp->guid = cpu_to_be64(srpt_service_guid);
 	iocp->vendor_id = cpu_to_be32(sdev->dev_attr.vendor_id);
 	iocp->device_id = cpu_to_be32(sdev->dev_attr.vendor_part_id);
@@ -4293,6 +4293,21 @@ static struct scst_proc_data srpt_log_proc_data = {
 
 #endif /* CONFIG_SCST_PROC */
 
+/* Note: the caller must have zero-initialized *@sport. */
+static void srpt_init_sport(struct srpt_port *sport, struct ib_device *ib_dev)
+{
+	int i;
+
+	INIT_LIST_HEAD(&sport->nexus_list);
+	init_waitqueue_head(&sport->ch_releaseQ);
+	mutex_init(&sport->mutex);
+	sport->comp_vector = -1;
+	strlcpy(sport->port_id, DEFAULT_SRPT_ID_STRING,
+		sizeof(sport->port_id));
+	for (i = 0; i < ib_dev->num_comp_vectors; i++)
+		cpumask_set_cpu(i, &sport->comp_v_mask);
+}
+
 /**
  * srpt_add_one() - Infiniband device addition callback function.
  */
@@ -4302,7 +4317,7 @@ static void srpt_add_one(struct ib_device *device)
 	struct srpt_device *sdev;
 	struct srpt_port *sport;
 	struct ib_srq_init_attr srq_attr;
-	int i, j, ret;
+	int i, ret;
 
 	pr_debug("device = %p, device->dma_ops = %p\n", device, device->dma_ops);
 
@@ -4424,12 +4439,7 @@ static void srpt_add_one(struct ib_device *device)
 		sport = &sdev->port[i - 1];
 		sport->sdev = sdev;
 		sport->port = i;
-		INIT_LIST_HEAD(&sport->nexus_list);
-		init_waitqueue_head(&sport->ch_releaseQ);
-		mutex_init(&sport->mutex);
-		sport->comp_vector = -1;
-		for (j = 0; j < sdev->device->num_comp_vectors; j++)
-			cpumask_set_cpu(j, &sport->comp_v_mask);
+		srpt_init_sport(sport, sdev->device);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
 		/*
 		 * A vanilla 2.6.19 or older kernel without backported OFED
