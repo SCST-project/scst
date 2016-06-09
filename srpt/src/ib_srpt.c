@@ -4303,7 +4303,6 @@ static void srpt_init_sport(struct srpt_port *sport, struct ib_device *ib_dev)
 	INIT_LIST_HEAD(&sport->nexus_list);
 	init_waitqueue_head(&sport->ch_releaseQ);
 	mutex_init(&sport->mutex);
-	sport->comp_vector = -1;
 	strlcpy(sport->port_id, DEFAULT_SRPT_ID_STRING,
 		sizeof(sport->port_id));
 	for (i = 0; i < ib_dev->num_comp_vectors; i++)
