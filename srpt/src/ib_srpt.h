@@ -343,7 +343,6 @@ enum rdma_ch_state {
  * @pkey:          P_Key of the IB partition for this SRP channel.
  * @comp_vector:   Completion vector assigned to the QP.
  * @using_rdma_cm: Whether to use the RDMA/CM or the IB/CM.
- * @processing_wait_list: Whether the I/O context wait list is being processed.
  * @sess_name:     SCST session name.
  * @sess:          SCST session information associated with this SRP channel.
  */
