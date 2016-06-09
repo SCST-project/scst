@@ -484,7 +484,9 @@ static void srpt_get_ioc(struct srpt_port *sport, u32 slot,
 		send_queue_depth = min(SRPT_RQ_SIZE, sdev->dev_attr.max_qp_wr);
 
 	memset(iocp, 0, sizeof(*iocp));
-	strcpy(iocp->id_string, sport->port_id);
+	mutex_lock(&sport->mutex);
+	strlcpy(iocp->id_string, sport->port_id, sizeof(iocp->id_string));
+	mutex_unlock(&sport->mutex);
 	iocp->guid = cpu_to_be64(srpt_service_guid);
 	iocp->vendor_id = cpu_to_be32(sdev->dev_attr.vendor_id);
 	iocp->device_id = cpu_to_be32(sdev->dev_attr.vendor_part_id);
