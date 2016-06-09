@@ -419,6 +419,7 @@ struct srpt_nexus {
  * @comp_v_mask: Bitmask with one bit per allowed completion vector.
  * @comp_vector: Completion vector from where searching will start.
  * @enabled:     Whether or not this SCST target is enabled.
+ * @port_id:     ID String reported in IOControllerProfile replies.
  */
 struct srpt_port {
 	struct srpt_device	*sdev;
@@ -435,6 +436,7 @@ struct srpt_port {
 	cpumask_t		comp_v_mask;
 	u8			comp_vector;
 	bool			enabled;
+	u8			port_id[64];
 };
 
 /**

@@ -90,7 +90,7 @@
 #define SRPT_PROC_TRACE_LEVEL_NAME	"trace_level"
 #endif
 
-#define SRPT_ID_STRING	"SCST SRP target"
+#define DEFAULT_SRPT_ID_STRING	"SCST SRP target"
 
 MODULE_AUTHOR("Vu Pham and Bart Van Assche");
 MODULE_DESCRIPTION("InfiniBand SCSI RDMA Protocol target "
@@ -484,7 +484,7 @@ static void srpt_get_ioc(struct srpt_port *sport, u32 slot,
 		send_queue_depth = min(SRPT_RQ_SIZE, sdev->dev_attr.max_qp_wr);
 
 	memset(iocp, 0, sizeof(*iocp));
-	strcpy(iocp->id_string, SRPT_ID_STRING);
+	strcpy(iocp->id_string, DEFAULT_SRPT_ID_STRING);
 	iocp->guid = cpu_to_be64(srpt_service_guid);
 	iocp->vendor_id = cpu_to_be32(sdev->dev_attr.vendor_id);
 	iocp->device_id = cpu_to_be32(sdev->dev_attr.vendor_part_id);
@@ -4039,6 +4039,99 @@ out:
 static struct kobj_attribute srpt_device_attr =
 	__ATTR(device, S_IRUGO, srpt_show_device, NULL);
 
+/*
+ * The link layer names in this function match those used by the IB core.
+ * See also link_layer_show() in drivers/infiniband/core/sysfs.c
+ */
+static ssize_t srpt_show_link_layer(struct kobject *kobj,
+				    struct kobj_attribute *attr, char *buf)
+{
+	struct scst_tgt *scst_tgt = container_of(kobj, struct scst_tgt,
+						 tgt_kobj);
+	struct srpt_port *sport = scst_tgt_get_tgt_priv(scst_tgt);
+	const char *lln = "Unknown";
+	int res = -E_TGT_PRIV_NOT_YET_SET;
+
+	if (!sport)
+		goto out;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37) /* commit a3f5adaf4 */
+	switch (rdma_port_get_link_layer(sport->sdev->device, sport->port)) {
+	case IB_LINK_LAYER_INFINIBAND:
+		lln = "InfiniBand";
+		break;
+	case IB_LINK_LAYER_ETHERNET:
+		lln = "Ethernet";
+		break;
+	case IB_LINK_LAYER_UNSPECIFIED:
+	default:
+		break;
+	}
+#endif
+	res = sprintf(buf, "%s\n", lln);
+
+out:
+	return res;
+}
+
+static struct kobj_attribute srpt_link_layer_attr =
+	__ATTR(link_layer, S_IRUGO, srpt_show_link_layer, NULL);
+
+static ssize_t show_port_id(struct kobject *kobj, struct kobj_attribute *attr,
+			    char *buf)
+{
+	struct scst_tgt *scst_tgt = container_of(kobj, struct scst_tgt,
+						 tgt_kobj);
+	struct srpt_port *sport = scst_tgt_get_tgt_priv(scst_tgt);
+	int res = -E_TGT_PRIV_NOT_YET_SET;
+
+	if (!sport)
+		goto out;
+
+	mutex_lock(&sport->mutex);
+	snprintf(buf, PAGE_SIZE, "%s\n%s", sport->port_id,
+		 strcmp(sport->port_id, DEFAULT_SRPT_ID_STRING) ?
+		 SCST_SYSFS_KEY_MARK "\n" : "");
+	mutex_unlock(&sport->mutex);
+	
+	res = strlen(buf);
+
+out:
+	return res;
+}
+
+static ssize_t store_port_id(struct kobject *kobj, struct kobj_attribute *attr,
+			     const char *buf, size_t count)
+{
+	struct scst_tgt *scst_tgt = container_of(kobj, struct scst_tgt,
+						 tgt_kobj);
+	struct srpt_port *sport = scst_tgt_get_tgt_priv(scst_tgt);
+	const char *end;
+	int res = -E_TGT_PRIV_NOT_YET_SET;
+
+	if (!sport)
+		goto out;
+	
+	end = buf + count;
+	while (end > buf && isspace(((unsigned char *)end)[-1]))
+		--end;
+	res = -E2BIG;
+	if (end - buf >= sizeof(sport->port_id))
+		goto out;
+
+	mutex_lock(&sport->mutex);
+	sprintf(sport->port_id, "%.*s", (int)(end - buf), buf);
+	mutex_unlock(&sport->mutex);
+
+	res = count;
+
+out:
+	return res;
+}
+
+static struct kobj_attribute srpt_port_id_attr =
+	__ATTR(port_id, S_IRUGO | S_IWUSR, show_port_id, store_port_id);
+
 static ssize_t show_login_info(struct kobject *kobj,
 			       struct kobj_attribute *attr, char *buf)
 {
@@ -4075,6 +4168,8 @@ static struct kobj_attribute srpt_show_login_info_attr =
 static const struct attribute *srpt_tgt_attrs[] = {
 	&srpt_show_comp_v_mask_attr.attr,
 	&srpt_device_attr.attr,
+	&srpt_link_layer_attr.attr,
+	&srpt_port_id_attr.attr,
 	&srpt_show_login_info_attr.attr,
 	NULL
 };
