@@ -7359,13 +7359,19 @@ static void blockio_on_alua_state_change_finish(struct scst_device *dev,
 	if (((new_state == SCST_TG_STATE_OPTIMIZED) ||
 	     (new_state == SCST_TG_STATE_NONOPTIMIZED)) && (virt_dev->fd == NULL)) {
 		/* Try non-optimized as well, it might be new redirection device */
-		int rc;
+		int rc = 0;
 
 		TRACE_MGMT_DBG("ALUA state change from %s to %s finished (dev %s), "
 			"reopenning FD", scst_alua_state_name(old_state),
 			scst_alua_state_name(new_state), dev->virt_name);
 
-		rc = vdisk_open_fd(virt_dev, dev->dev_rd_only);
+		/*
+		 * only reopen fd if tgt_dev_cnt is not zero, otherwise we will
+		 * leak reference.
+		 */
+		if (virt_dev->tgt_dev_cnt)
+			rc = vdisk_open_fd(virt_dev, dev->dev_rd_only);
+
 		if (rc == 0) {
 			if (virt_dev->reexam_pending) {
 				rc = vdisk_reexamine(virt_dev);
