@@ -157,6 +157,8 @@ do {									\
 	}								\
 } while (0)
 
+#define TRACE_PR(format, args...) TRACE(TRACE_PRES, format, ## args)
+
 #ifdef CONFIG_SCST_DEBUG
 
 #define PRINT_BUFFER(message, buff, len)                            \
@@ -280,8 +282,6 @@ do {									\
 		TRACE_DBG_FLAG(TRACE_MGMT_DEBUG, format, ## args)
 #define TRACE_MGMT_DBG_SPECIAL(args...)	\
 		TRACE_DBG_FLAG(TRACE_MGMT_DEBUG|TRACE_SPECIAL, format, ## args)
-#define TRACE_PR(format, args...) \
-		TRACE_DBG_FLAG(TRACE_PRES, format, ## args)
 #define TRACE_BLOCK(format, args...) \
 		TRACE_DBG_FLAG(TRACE_BLOCKING, format, ## args)
 
@@ -369,7 +369,6 @@ do {									\
 #define TRACE_DBG_SPECIAL(format, args...)	no_printk(format, ##args)
 #define TRACE_MGMT_DBG(format, args...)	no_printk(format, ##args)
 #define TRACE_MGMT_DBG_SPECIAL(format, args...)	no_printk(format, ##args)
-#define TRACE_PR(format, args...) do {} while (0)
 #define TRACE_BLOCK(format, args...)	no_printk(format, ##args)
 #define TRACE_BUFFER(message, buff, len) \
 	((void)(message), (void)(buff), (void)(len))

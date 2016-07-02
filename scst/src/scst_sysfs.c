@@ -162,6 +162,7 @@ static ssize_t scst_trace_level_show(const struct scst_trace_log *local_tbl,
 		"	echo \"all|none|default\" >trace_level\n"
 		"	echo \"value DEC|0xHEX|0OCT\" >trace_level\n"
 		"	echo \"add|del TOKEN\" >trace_level\n"
+#ifdef CONFIG_SCST_DEBUG
 		"\nwhere TOKEN is one of [debug, function, line, pid,\n"
 #ifndef GENERATING_UPSTREAM_PATCH
 		"		       entryexit, buff, mem, sg, out_of_mem,\n"
@@ -170,8 +171,14 @@ static ssize_t scst_trace_level_show(const struct scst_trace_log *local_tbl,
 #endif
 		"		       special, scsi, mgmt, minor,\n"
 		"		       mgmt_dbg, scsi_serializing,\n"
-		"		       retry, recv_bot, send_bot, recv_top, pr,\n"
-		"		       block, send_top%s]\n", help != NULL ? help : "");
+		"		       retry, pr, block%s]\n",
+#else /* CONFIG_SCST_DEBUG */
+			"\nwhere TOKEN is one of [function, line, pid,"
+				       "out_of_mem, special, scsi, mgmt, minor,"
+				       "scsi_serializing, retry, pr%s]\n",
+
+#endif /* CONFIG_SCST_DEBUG */
+		help != NULL ? help : "");
 
 	return pos;
 }
