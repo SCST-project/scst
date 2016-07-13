@@ -13,6 +13,7 @@ with a DLM lock object is called the Lock Value Block or LVB. The code in
 scst_dlm.c uses the DLM to keep PR data synchronized across all nodes in
 a cluster.
 
+
 Software Components
 -------------------
 
@@ -28,6 +29,11 @@ The following software components are needed by the code in scst_dlm.c:
 
 On most Linux distributions the software packages that contain this software
 have the names kernel, dlm, corosync and pacemaker.
+
+NOTE! You might need to apply a DLM bugfix patch, see scst-devel mailing list
+thread https://sourceforge.net/p/scst/mailman/scst-devel/thread/CADHfD59FK6seaammL8b9LM3U3tw5HvYp3kPTk_r1OYkPR7bPhg@mail.gmail.com/#msg34761854
+for more details.
+
 
 DLM Configuration
 -----------------
@@ -73,6 +79,7 @@ configure and start the DLM control daemon:
 	--clone interleave=true
 12. Check the Pacemaker status:
       pcs status
+
 
 Startup and Shutdown
 --------------------
@@ -127,6 +134,7 @@ The proper shutdown order is as follows:
 * Unload the SCST kernel modules
 * Unload the DLM kernel driver
 
+
 Lockspace names
 ---------------
 
@@ -134,11 +142,13 @@ The names of the DLM lockspaces used by SCST follow the following pattern:
 scst-<t10_dev_id> where t10_dev_id is the T10 device ID of the SCST device
 associated with this lockspace.
 
+
 Notes
 -----
 
 Since the lockspace name depends on the t10_dev_id it is not allowed to
 change the t10_dev_id if cluster mode has been enabled.
+
 
 Testing
 -------
@@ -148,11 +158,13 @@ Two examples of test suites for the cluster PR support code are:
 * The Windows Cluster Validation Tests
   (https://technet.microsoft.com/en-us/library/Cc726064.aspx).
 
+
 To do
 -----
 
 Ensure that PREEMPT AND ABORT affects all cluster nodes instead of only the
 cluster node that received this command.
+
 
 See also
 --------
