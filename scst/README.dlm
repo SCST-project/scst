@@ -162,8 +162,10 @@ Two examples of test suites for the cluster PR support code are:
 To do
 -----
 
-Ensure that PREEMPT AND ABORT affects all cluster nodes instead of only the
-cluster node that received this command.
+ * Ensure that PREEMPT AND ABORT affects all cluster nodes instead of
+   only the cluster node that received this command.
+
+ * On APTL bit set, put the PR info on storage on the passive node.
 
 
 See also
