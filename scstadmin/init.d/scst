@@ -298,6 +298,15 @@ scst_status() {
                 return 3
             fi
         done
+
+        for d in $SCST_DAEMONS; do
+            daemon_name=`basename ${d}`
+            pgrep ${daemon_name} > /dev/null 2>&1
+            if [ $? -ne 0 ]; then
+                echo "${daemon_name}: not running"
+                return 3
+            fi
+        done
 	return 0
 }
 
