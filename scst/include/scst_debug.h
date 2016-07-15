@@ -217,6 +217,13 @@ do {									\
 #define PRINT_BUFF_FLAG(flag, message, buff, len)	\
 	((void)(flag), (void)(message), (void)(buff), (void)(len))
 
+/*
+ * no_printk still calls its arguments, so we can not use it in perf build
+ * for TRACE_PR or debug_transport_id_to_initiator_name() is not going to
+ * be found.
+ */
+#define TRACE_PR(format, args...) do { } while (0)
+
 #ifdef LOG_PREFIX
 
 #define PRINT_INFO(format, args...)				\
