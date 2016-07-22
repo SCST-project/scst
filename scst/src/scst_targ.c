@@ -3167,7 +3167,7 @@ static int scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 
 #ifndef CONFIG_SCST_PROC
 	if (cmd->status == SAM_STAT_GOOD)
-		scst_pr_sync_device_file(tgt_dev, cmd);
+		scst_pr_sync_device_file(dev);
 #endif
 
 	if ((cmd->devt->pr_cmds_notifications) &&
