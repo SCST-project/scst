@@ -1363,9 +1363,15 @@ create_st_wq(const char *fmt, ...)
 static int scst_pr_dlm_init(struct scst_device *dev, const char *cl_dev_id)
 {
 	struct scst_pr_dlm_data *pr_dlm;
+	struct scst_dev_registrant *reg;
 	int res = -ENOMEM;
 
 	compile_time_size_checks();
+
+	list_for_each_entry(reg, &dev->dev_registrants_list,
+			    dev_registrants_list_entry)
+		scst_dlm_pr_init_reg(dev, reg);
+
 	pr_dlm = kzalloc(sizeof(*dev->pr_dlm), GFP_KERNEL);
 	if (!pr_dlm)
 		goto out;
