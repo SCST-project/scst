@@ -356,6 +356,10 @@ static int scst_copy_from_dlm(struct scst_device *dev, dlm_lockspace_t *ls,
 		if (reg->lksb.lksb.sb_lkid == 0)
 			scst_pr_remove_registrant(dev, reg);
 
+#ifndef CONFIG_SCST_PROC
+	scst_pr_sync_device_file(dev);
+#endif
+
 	scst_pr_write_unlock(dev);
 
 	res = 0;
