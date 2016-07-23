@@ -870,10 +870,8 @@ out:
 	return res;
 }
 
-static void scst_pr_remove_device_files(struct scst_tgt_dev *tgt_dev)
+static void scst_pr_remove_device_files(struct scst_device *dev)
 {
-	struct scst_device *dev = tgt_dev->dev;
-
 	TRACE_ENTRY();
 
 	scst_assert_pr_mutex_held(dev);
@@ -888,10 +886,9 @@ static void scst_pr_remove_device_files(struct scst_tgt_dev *tgt_dev)
 }
 
 /* Must be called under dev_pr_mutex */
-void scst_pr_sync_device_file(struct scst_tgt_dev *tgt_dev, struct scst_cmd *cmd)
+void scst_pr_sync_device_file(struct scst_device *dev)
 {
 	int res = 0;
-	struct scst_device *dev = tgt_dev->dev;
 	struct file *file;
 	mm_segment_t old_fs = get_fs();
 	loff_t pos = 0;
@@ -905,7 +902,7 @@ void scst_pr_sync_device_file(struct scst_tgt_dev *tgt_dev, struct scst_cmd *cmd
 	scst_assert_pr_mutex_held(dev);
 
 	if ((dev->pr_aptpl == 0) || list_empty(&dev->dev_registrants_list)) {
-		scst_pr_remove_device_files(tgt_dev);
+		scst_pr_remove_device_files(dev);
 		goto out;
 	}
 
@@ -1022,21 +1019,9 @@ out_set_fs:
 	set_fs(old_fs);
 
 out:
-	if (res != 0) {
+	if (res != 0)
 		PRINT_CRIT_ERROR("Unable to save persistent information "
-			"(target %s, initiator %s, device %s)",
-			tgt_dev->sess->tgt->tgt_name,
-			tgt_dev->sess->initiator_name, dev->virt_name);
-#if 0 /*
-       * Looks like it's safer to return SUCCESS and expect operator's
-       * intervention to be able to save the PR's state next time, than
-       * to return HARDWARE ERROR and screw up all the interaction with
-       * the affected initiator.
-       */
-		if (cmd != NULL)
-			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_internal_failure));
-#endif
-	}
+				 "(device %s)", dev->virt_name);
 
 	TRACE_EXIT_RES(res);
 	return;
