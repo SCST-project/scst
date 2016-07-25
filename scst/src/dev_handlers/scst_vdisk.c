@@ -7362,7 +7362,7 @@ static void blockio_on_alua_state_change_finish(struct scst_device *dev,
 		int rc = 0;
 
 		TRACE_MGMT_DBG("ALUA state change from %s to %s finished (dev %s), "
-			"reopenning FD", scst_alua_state_name(old_state),
+			"reopening FD", scst_alua_state_name(old_state),
 			scst_alua_state_name(new_state), dev->virt_name);
 
 		/*
