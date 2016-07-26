@@ -1019,11 +1019,17 @@ out_set_fs:
 	set_fs(old_fs);
 
 out:
-	if (res != 0)
+	if (res != 0) {
 		PRINT_CRIT_ERROR("Unable to save persistent information "
 				 "(device %s)", dev->virt_name);
+		 /*
+		  * It's safer to not return any error to the initiator and expect
+		  * operator's intervention to be able to save the PR's state next
+		  * time, than to screw up all the interactions with this initiator.
+		  */
+	}
 
-	TRACE_EXIT_RES(res);
+	TRACE_EXIT();
 	return;
 
 write_error:
