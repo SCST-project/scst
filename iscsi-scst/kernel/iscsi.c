@@ -2458,9 +2458,9 @@ static int cmnd_abort_pre_checks(struct iscsi_cmnd *req, int *status)
 		 * Management function request is outside the valid CmdSN window,
 		 * then targets must return the "Task does not exist" response.
 		 *
-		 * 128 seems to be a good "window".
+		 * 2048 seems to be a good "window".
 		 */
-		if (between(req_hdr->ref_cmd_sn, req_hdr->cmd_sn - 128,
+		if (between(req_hdr->ref_cmd_sn, req_hdr->cmd_sn - 2048,
 			    req_hdr->cmd_sn)) {
 			*status = ISCSI_RESPONSE_FUNCTION_COMPLETE;
 			res = 0;
