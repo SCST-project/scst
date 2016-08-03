@@ -3151,7 +3151,7 @@ static int scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 
 #ifndef CONFIG_SCST_PROC
 	if (cmd->status == SAM_STAT_GOOD)
-		scst_pr_sync_device_file(tgt_dev, cmd);
+		scst_pr_sync_device_file(dev);
 #endif
 
 	if ((cmd->devt->pr_cmds_notifications) &&
@@ -3448,16 +3448,16 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 
 	scsi_dev = dev->scsi_dev;
 
-	TRACE_DBG("Sending cmd %p to SCSI mid-level dev %d:%d:%d:%lld", cmd,
-		  scsi_dev->host->host_no, scsi_dev->channel, scsi_dev->id,
-		  (u64)scsi_dev->lun);
-
 	if (unlikely(scsi_dev == NULL)) {
 		PRINT_ERROR("Command for virtual device must be "
 			"processed by device handler (LUN %lld)!",
 			(unsigned long long int)cmd->lun);
 		goto out_error;
 	}
+
+	TRACE_DBG("Sending cmd %p to SCSI mid-level dev %d:%d:%d:%lld", cmd,
+		  scsi_dev->host->host_no, scsi_dev->channel, scsi_dev->id,
+		  (u64)scsi_dev->lun);
 
 	scst_set_exec_start(cmd);
 

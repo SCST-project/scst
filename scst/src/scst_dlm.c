@@ -356,6 +356,10 @@ static int scst_copy_from_dlm(struct scst_device *dev, dlm_lockspace_t *ls,
 		if (reg->lksb.lksb.sb_lkid == 0)
 			scst_pr_remove_registrant(dev, reg);
 
+#ifndef CONFIG_SCST_PROC
+	scst_pr_sync_device_file(dev);
+#endif
+
 	scst_pr_write_unlock(dev);
 
 	res = 0;
@@ -1363,9 +1367,15 @@ create_st_wq(const char *fmt, ...)
 static int scst_pr_dlm_init(struct scst_device *dev, const char *cl_dev_id)
 {
 	struct scst_pr_dlm_data *pr_dlm;
+	struct scst_dev_registrant *reg;
 	int res = -ENOMEM;
 
 	compile_time_size_checks();
+
+	list_for_each_entry(reg, &dev->dev_registrants_list,
+			    dev_registrants_list_entry)
+		scst_dlm_pr_init_reg(dev, reg);
+
 	pr_dlm = kzalloc(sizeof(*dev->pr_dlm), GFP_KERNEL);
 	if (!pr_dlm)
 		goto out;
@@ -1416,6 +1426,13 @@ static int scst_pr_dlm_init(struct scst_device *dev, const char *cl_dev_id)
 		pr_dlm->upd_wq = NULL;
 		goto err_free;
 	}
+
+	/*
+	 * Instantiate the lockspace such that APTPL registration information
+	 * is also made persistent on this node even if this node does not
+	 * receive any medium or PR SCSI commands.
+	 */
+	get_lockspace(dev);
 
 	res = 0;
 
