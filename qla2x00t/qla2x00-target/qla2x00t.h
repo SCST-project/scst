@@ -31,7 +31,7 @@
 /* Version numbers, the same as for the kernel */
 #define Q2T_VERSION(a, b, c, d)	(((a) << 030) + ((b) << 020) + (c) << 010 + (d))
 #define Q2T_VERSION_CODE	Q2T_VERSION(4, 1, 0, 0)
-#define Q2T_VERSION_STRING	"3.2.0-pre1"
+#define Q2T_VERSION_STRING	"3.3.0-pre1"
 #define Q2T_PROC_VERSION_NAME	"version"
 
 #define Q2T_MAX_CDB_LEN             16

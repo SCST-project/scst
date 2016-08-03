@@ -83,7 +83,7 @@ static struct scst_trace_log vdisk_local_trace_tbl[] = {
 #define SCST_FIO_VENDOR			"SCST_FIO"
 #define SCST_BIO_VENDOR			"SCST_BIO"
 /* 4 byte ASCII Product Revision Level - left aligned */
-#define SCST_FIO_REV			" 320"
+#define SCST_FIO_REV			" 330"
 
 #define MAX_USN_LEN			(20+1) /* For '\0' */
 #define MAX_INQ_VEND_SPECIFIC_LEN	(INQ_BUF_SZ - 96)
@@ -1062,6 +1062,8 @@ check:
 	(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6)
 			virt_dev->unmap_opt_gran = q->limits.discard_granularity >> block_shift;
 			virt_dev->unmap_align = q->limits.discard_alignment >> block_shift;
+			if (virt_dev->unmap_opt_gran == virt_dev->unmap_align)
+				virt_dev->unmap_align = 0;
 			virt_dev->unmap_max_lba_cnt = q->limits.max_discard_sectors >> (block_shift - 9);
 			virt_dev->discard_zeroes_data = q->limits.discard_zeroes_data;
 #else

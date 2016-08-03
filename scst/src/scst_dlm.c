@@ -1427,6 +1427,13 @@ static int scst_pr_dlm_init(struct scst_device *dev, const char *cl_dev_id)
 		goto err_free;
 	}
 
+	/*
+	 * Instantiate the lockspace such that APTPL registration information
+	 * is also made persistent on this node even if this node does not
+	 * receive any medium or PR SCSI commands.
+	 */
+	get_lockspace(dev);
+
 	res = 0;
 
 out:
