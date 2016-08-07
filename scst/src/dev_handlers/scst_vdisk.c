@@ -2294,6 +2294,7 @@ static const struct scst_opcode_descriptor scst_op_descr_format_unit = {
 	.od_cdb_usage_bits = { FORMAT_UNIT, 0xF0, 0, 0, 0, SCST_OD_DEFAULT_CONTROL_BYTE },
 };
 
+#if 0
 static const struct scst_opcode_descriptor scst_op_descr_get_lba_status = {
 	.od_opcode = SERVICE_ACTION_IN_16,
 	.od_serv_action = SAI_GET_LBA_STATUS,
@@ -2307,6 +2308,7 @@ static const struct scst_opcode_descriptor scst_op_descr_get_lba_status = {
 			       0xFF, 0xFF, 0xFF, 0xFF, 0,
 			       SCST_OD_DEFAULT_CONTROL_BYTE },
 };
+#endif
 
 static const struct scst_opcode_descriptor scst_op_descr_allow_medium_removal = {
 	.od_opcode = ALLOW_MEDIUM_REMOVAL,
