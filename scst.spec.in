@@ -164,7 +164,6 @@ rm -rf /usr/local/include/scst
 
 %files
 %defattr(0644,root,root)
-%dir /lib/modules/%{kversion}/extra
 /lib/modules/%{kversion}/extra/fcst.ko
 /lib/modules/%{kversion}/extra/ib_srpt.ko
 /lib/modules/%{kversion}/extra/iscsi-scst.ko
