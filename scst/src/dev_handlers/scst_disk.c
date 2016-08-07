@@ -381,7 +381,7 @@ static void disk_cmd_done(void *data, char *sense, int result, int resid)
 	TRACE_DBG("work %p, cmd %p, left %d, result %d, sense %p, resid %d",
 		work, work->cmd, work->left, result, sense, resid);
 
-	WARN_ON_ONCE(IS_ERR_VALUE(result));
+	WARN_ON_ONCE(IS_ERR_VALUE((long)result));
 
 	if (status_byte(result) == GOOD)
 		goto out_complete;

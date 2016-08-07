@@ -8289,8 +8289,8 @@ static void scsi_end_async(struct request *req, int error)
 		lockdep_assert_held(req->q->queue_lock);
 #endif
 
-	errors = req->errors && !IS_ERR_VALUE(req->errors) ? req->errors :
-		IS_ERR_VALUE(req->errors) || error ?
+	errors = req->errors && !IS_ERR_VALUE((long)req->errors) ? req->errors :
+		IS_ERR_VALUE((long)req->errors) || error ?
 		SAM_STAT_CHECK_CONDITION : 0;
 
 	if (sioc->done)
