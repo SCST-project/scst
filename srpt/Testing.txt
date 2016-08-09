@@ -37,8 +37,8 @@ At least the following tests must be run before releasing a new SRPT version:
       rm -rf /mnt/test* && \
       fio --verify=md5 -rw=randwrite --size=10m --bs=4k \
         --loops=1000000 --iodepth=64 --group_reporting --sync=1 --direct=1 \
-        --norandommap --ioengine=aio --directory=/mnt --name=test --thread \
-        --numjobs=80 --runtime=30 && \
+        --ioengine=aio --directory=/mnt --name=test --thread --numjobs=80 \
+	--runtime=30 && \
       fsck -N $dev
     do
       true
