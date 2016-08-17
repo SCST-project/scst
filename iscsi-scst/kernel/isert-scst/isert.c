@@ -78,6 +78,11 @@ static void isert_mark_conn_closed(struct iscsi_conn *conn, int flags)
 
 static void isert_close_conn(struct iscsi_conn *conn, int flags)
 {
+	struct isert_conn_dev *dev;
+
+	dev = isert_get_priv(conn);
+	if (dev)
+		dev->state = CS_DISCONNECTED;
 }
 
 static int isert_receive_cmnd_data(struct iscsi_cmnd *cmnd)

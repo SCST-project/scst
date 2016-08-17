@@ -211,6 +211,13 @@ int isert_conn_alloc(struct iscsi_session *session,
 
 	dev = filp->private_data;
 
+	if (unlikely(dev->state == CS_DISCONNECTED)) {
+		res = -EBADF;
+		goto out;
+	}
+
+	sBUG_ON(dev->state != CS_RSP_FINISHED);
+
 	cmnd = dev->login_rsp;
 
 	sBUG_ON(cmnd == NULL);
