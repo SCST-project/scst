@@ -599,7 +599,10 @@ static void isert_conn_closed_do_work(struct work_struct *work)
 		if (!test_and_set_bit(ISERT_DISCON_CALLED, &isert_conn->flags))
 			isert_connection_closed(&isert_conn->iscsi);
 
-	isert_conn_free(isert_conn);
+	/* if connection established we have another refcount */
+	if (test_bit(ISERT_CONNECTION_EST, &isert_conn->flags)) {
+		isert_conn_free(isert_conn);
+	}
 }
 
 static void isert_sched_conn_closed(struct isert_connection *isert_conn)
@@ -1479,6 +1482,8 @@ static int isert_cm_connect_handler(struct rdma_cm_id *cm_id,
 		isert_conn_free(isert_conn);
 		goto out;
 	}
+
+	set_bit(ISERT_CONNECTION_EST, &isert_conn->flags);
 
 	if (push_saved_pdu) {
 		pr_info("iser push saved rx pdu\n");
