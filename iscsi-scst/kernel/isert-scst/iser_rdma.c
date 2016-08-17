@@ -1279,8 +1279,12 @@ static void isert_kref_free(struct kref *kref)
 	isert_conn->cm_id = NULL;
 
 	dev = isert_get_priv(&isert_conn->iscsi);
-	if (dev)
+	if (dev) {
 		isert_del_timer(dev);
+		set_bit(ISERT_CONN_PASSED, &dev->flags);
+		dev->conn = NULL;
+		dev->state = CS_DISCONNECTED;
+	}
 
 	ib_destroy_qp(isert_conn->qp);
 	isert_conn->qp = NULL;

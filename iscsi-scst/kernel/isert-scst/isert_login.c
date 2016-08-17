@@ -454,6 +454,7 @@ int isert_connection_closed(struct iscsi_conn *iscsi_conn)
 
 			wake_up(&dev->waitqueue);
 			isert_dev_release(dev);
+			isert_set_priv(iscsi_conn, NULL);
 		}
 
 		isert_free_connection(iscsi_conn);
@@ -528,13 +529,7 @@ static int isert_release(struct inode *inode, struct file *filp)
 	dev->sg_virt = NULL;
 	dev->is_discovery = 0;
 
-	if (!test_and_set_bit(ISERT_CONN_PASSED, &dev->flags)) {
-		BUG_ON(dev->conn == NULL);
-		isert_close_connection(dev->conn);
-	}
-
-	isert_del_timer(dev);
-
+	isert_delete_conn_dev(dev);
 	isert_dev_release(dev);
 
 	TRACE_EXIT_RES(res);
