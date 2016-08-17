@@ -1553,8 +1553,6 @@ static int isert_cm_connect_handler(struct rdma_cm_id *cm_id,
 				     (struct sockaddr *)&isert_conn->peer_addr,
 				     isert_conn->peer_addrsz);
 	if (unlikely(ret)) {
-		set_bit(ISERT_CONNECTION_ABORTED, &isert_conn->flags);
-		isert_post_drain(isert_conn);
 		isert_conn_free(isert_conn);
 		goto out;
 	}
