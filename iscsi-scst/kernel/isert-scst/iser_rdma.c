@@ -616,6 +616,32 @@ static void isert_sched_conn_closed(struct isert_connection *isert_conn)
 	isert_conn_queue_work(&isert_conn->close_work);
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+static void isert_conn_free_do_work(void *ctx)
+#else
+static void isert_conn_free_do_work(struct work_struct *work)
+#endif
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	struct isert_connection *isert_conn = ctx;
+#else
+	struct isert_connection *isert_conn =
+		container_of(work, struct isert_connection, free_work);
+#endif
+
+	isert_conn_free(isert_conn);
+}
+
+void isert_sched_conn_free(struct isert_connection *isert_conn)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
+	INIT_WORK(&isert_conn->free_work, isert_conn_free_do_work,
+		  isert_conn);
+#else
+	INIT_WORK(&isert_conn->free_work, isert_conn_free_do_work);
+#endif
+	isert_conn_queue_work(&isert_conn->free_work);
+}
 
 static void isert_handle_wc_error(struct ib_wc *wc)
 {
@@ -1645,10 +1671,10 @@ static int isert_cm_evt_handler(struct rdma_cm_id *cm_id,
 			/*
 			 * reaching here must be with the isert_conn refcount of 2,
 			 * one from the init and one from the connect request,
-			 * thus it is safe to deref directly before the sched_conn_closed
+			 * thus it is safe to deref directly before the sched_conn_free.
 			*/
 			isert_conn_free(isert_conn);
-			isert_sched_conn_closed(isert_conn);
+			isert_sched_conn_free(isert_conn);
 			err = 0;
 		}
 		break;
