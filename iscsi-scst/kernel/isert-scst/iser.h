@@ -63,6 +63,7 @@ struct isert_portal {
 	/* protected by dev_list_mutex */
 	struct list_head	conn_list; /* head of conns list */
 	enum isert_portal_state	state;
+	int			refcnt;
 };
 
 struct isert_buf {
@@ -162,6 +163,7 @@ struct isert_cq {
 #define ISERT_DRAINED_RQ		3
 #define ISERT_DRAINED_SQ		4
 #define ISERT_CONNECTION_CLOSE		5
+#define ISERT_IN_PORTAL_LIST		6
 
 struct isert_connection {
 	struct iscsi_conn	iscsi ____cacheline_aligned;

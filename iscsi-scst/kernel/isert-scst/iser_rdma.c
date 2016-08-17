@@ -1368,8 +1368,10 @@ static void isert_kref_free(struct kref *kref)
 	isert_conn->qp = NULL;
 
 	mutex_lock(&dev_list_mutex);
+	isert_conn->portal->refcnt--;
 	isert_dev->cq_qps[cq->idx]--;
-	list_del(&isert_conn->portal_node);
+	if (test_bit(ISERT_IN_PORTAL_LIST, &isert_conn->flags))
+		list_del(&isert_conn->portal_node);
 	isert_deref_device(isert_dev);
 	if (unlikely(isert_conn->portal->state == ISERT_PORTAL_INACTIVE))
 		isert_portal_free(isert_conn->portal);
@@ -1455,7 +1457,7 @@ static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
 	isert_conn->portal = portal;
 
 	mutex_lock(&dev_list_mutex);
-	list_add_tail(&isert_conn->portal_node, &portal->conn_list);
+	portal->refcnt++;
 	mutex_unlock(&dev_list_mutex);
 
 	/* initiator is dst, target is src */
@@ -1484,7 +1486,7 @@ static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
 
 	err = rdma_accept(cm_id, &tgt_conn_param);
 	if (unlikely(err)) {
-		PRINT_ERROR("Failed to accept conn request, err:%d", err);
+		PRINT_ERROR("Failed to accept conn request, err:%d conn:%p", err, isert_conn);
 		goto fail_accept;
 	}
 
@@ -1518,6 +1520,11 @@ static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
 	default:
 		PRINT_INFO("iser accepted connection cm_id:%p", cm_id);
 	}
+
+	mutex_lock(&dev_list_mutex);
+	list_add_tail(&isert_conn->portal_node, &portal->conn_list);
+	set_bit(ISERT_IN_PORTAL_LIST, &isert_conn->flags);
+	mutex_unlock(&dev_list_mutex);
 
 out:
 	TRACE_EXIT_RES(err);
@@ -1867,7 +1874,7 @@ static void isert_portal_free(struct isert_portal *portal)
 {
 	lockdep_assert_held(&dev_list_mutex);
 
-	if (!list_empty(&portal->conn_list))
+	if (portal->refcnt > 0)
 		return;
 
 	kfree(portal);
@@ -1897,7 +1904,7 @@ void isert_portal_release(struct isert_portal *portal)
 	isert_portal_free(portal);
 	mutex_unlock(&dev_list_mutex);
 
-	while (!list_empty(&portal->conn_list)) {
+	while (portal->refcnt > 0) {
 		msleep(100);
 	}
 
