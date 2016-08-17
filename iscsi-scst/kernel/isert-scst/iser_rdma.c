@@ -163,10 +163,16 @@ void isert_post_drain(struct isert_connection *isert_conn)
 
 void isert_conn_disconnect(struct isert_connection *isert_conn)
 {
-	int err = rdma_disconnect(isert_conn->cm_id);
+	int err;
 
-	if (unlikely(err))
-		pr_err("Failed to rdma disconnect, err:%d\n", err);
+	if (isert_conn->state != ISER_CONN_CLOSING) {
+		isert_conn->state = ISER_CONN_CLOSING;
+
+		err = rdma_disconnect(isert_conn->cm_id);
+
+		if (unlikely(err))
+			pr_err("Failed to rdma disconnect, err:%d\n", err);
+	}
 }
 
 static int isert_pdu_handle_hello_req(struct isert_cmnd *pdu)
@@ -1270,6 +1276,7 @@ static void isert_kref_free(struct kref *kref)
 	isert_free_conn_resources(isert_conn);
 
 	rdma_destroy_id(isert_conn->cm_id);
+	isert_conn->cm_id = NULL;
 
 	dev = isert_get_priv(&isert_conn->iscsi);
 	if (dev)
