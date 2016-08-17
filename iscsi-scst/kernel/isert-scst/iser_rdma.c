@@ -1891,11 +1891,20 @@ void isert_portal_release(struct isert_portal *portal)
 	isert_portal_list_remove(portal);
 
 	mutex_lock(&dev_list_mutex);
-	list_for_each_entry(conn, &portal->conn_list, portal_node)
+	list_for_each_entry(conn, &portal->conn_list, portal_node) {
 		isert_conn_disconnect(conn);
+		if (!test_and_set_bit(ISERT_CONNECTION_CLOSE, &conn->flags))
+			isert_sched_conn_closed(conn);
+	}
 	portal->state = ISERT_PORTAL_INACTIVE;
 	isert_portal_free(portal);
 	mutex_unlock(&dev_list_mutex);
+
+	while (!list_empty(&portal->conn_list)) {
+		msleep(100);
+	}
+
+	PRINT_INFO("done releasing portal %p", portal);
 }
 
 struct isert_portal *isert_portal_start(struct sockaddr *sa, size_t addr_len)
