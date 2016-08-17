@@ -594,23 +594,33 @@ static ssize_t isert_read(struct file *filp, char __user *buf, size_t count,
 	struct isert_conn_dev *dev = filp->private_data;
 	size_t to_read;
 
-	if (dev->state == CS_DISCONNECTED)
+	mutex_lock(&conn_mgmt_mutex);
+
+	if (dev->state == CS_DISCONNECTED) {
+		mutex_unlock(&conn_mgmt_mutex);
 		return -EPIPE;
+	}
 
 	if (will_read_block(dev)) {
 		int ret;
 
-		if (filp->f_flags & O_NONBLOCK)
+		if (filp->f_flags & O_NONBLOCK) {
+			mutex_unlock(&conn_mgmt_mutex);
 			return -EAGAIN;
+		}
 		ret = wait_event_freezable(dev->waitqueue,
 			!will_read_block(dev));
-		if (ret < 0)
+		if (ret < 0) {
+			mutex_unlock(&conn_mgmt_mutex);
 			return ret;
+		}
 	}
 
 	to_read = min(count, dev->read_len);
-	if (copy_to_user(buf, dev->read_buf, to_read))
+	if (copy_to_user(buf, dev->read_buf, to_read)) {
+		mutex_unlock(&conn_mgmt_mutex);
 		return -EFAULT;
+	}
 
 	dev->read_len -= to_read;
 	dev->read_buf += to_read;
@@ -622,8 +632,10 @@ static ssize_t isert_read(struct file *filp, char __user *buf, size_t count,
 			dev->sg_virt = isert_vmap_sg(dev->pages,
 						     dev->login_req->sg,
 						     dev->login_req->sg_cnt);
-			if (!dev->sg_virt)
+			if (!dev->sg_virt) {
+				mutex_unlock(&conn_mgmt_mutex);
 				return -ENOMEM;
+			}
 			dev->read_buf = dev->sg_virt + ISER_HDRS_SZ;
 			dev->state = CS_REQ_DATA;
 		}
@@ -646,6 +658,8 @@ static ssize_t isert_read(struct file *filp, char __user *buf, size_t count,
 		to_read = 0;
 	}
 
+	mutex_unlock(&conn_mgmt_mutex);
+
 	return to_read;
 }
 
@@ -655,12 +669,18 @@ static ssize_t isert_write(struct file *filp, const char __user *buf,
 	struct isert_conn_dev *dev = filp->private_data;
 	size_t to_write;
 
-	if (dev->state == CS_DISCONNECTED)
+	mutex_lock(&conn_mgmt_mutex);
+
+	if (dev->state == CS_DISCONNECTED) {
+		mutex_unlock(&conn_mgmt_mutex);
 		return -EPIPE;
+	}
 
 	to_write = min(count, dev->write_len);
-	if (copy_from_user(dev->write_buf, buf, to_write))
+	if (copy_from_user(dev->write_buf, buf, to_write)) {
+		mutex_unlock(&conn_mgmt_mutex);
 		return -EFAULT;
+	}
 
 	dev->write_len -= to_write;
 	dev->write_buf += to_write;
@@ -672,8 +692,10 @@ static ssize_t isert_write(struct file *filp, const char __user *buf,
 			dev->sg_virt = isert_vmap_sg(dev->pages,
 						     dev->login_rsp->sg,
 						     dev->login_rsp->sg_cnt);
-			if (!dev->sg_virt)
+			if (!dev->sg_virt) {
+				mutex_unlock(&conn_mgmt_mutex);
 				return -ENOMEM;
+			}
 			dev->write_buf = dev->sg_virt + ISER_HDRS_SZ;
 			dev->write_len = dev->login_rsp->bufflen -
 					 sizeof(dev->login_rsp->pdu.bhs);
@@ -688,6 +710,8 @@ static ssize_t isert_write(struct file *filp, const char __user *buf,
 		PRINT_ERROR("Invalid state %d", dev->state);
 		to_write = 0;
 	}
+
+	mutex_unlock(&conn_mgmt_mutex);
 
 	return to_write;
 }
