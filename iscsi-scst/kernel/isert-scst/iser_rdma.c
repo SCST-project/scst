@@ -75,6 +75,13 @@ int isert_post_recv(struct isert_connection *isert_conn,
 
 	TRACE_ENTRY();
 
+#ifdef CONFIG_SCST_EXTRACHECKS
+	if (test_bit(ISERT_DRAIN_POSTED, &isert_conn->flags)) {
+		pr_err("conn:%p post recv after drain\n", isert_conn);
+		BUG();
+	}
+#endif
+
 	err = ib_post_recv(isert_conn->qp, first_ib_wr, &bad_wr);
 	if (unlikely(err)) {
 		num_posted = isert_num_recv_posted_on_err(first_ib_wr, bad_wr);
@@ -114,6 +121,13 @@ int isert_post_send(struct isert_connection *isert_conn,
 	int err;
 
 	TRACE_ENTRY();
+
+#ifdef CONFIG_SCST_EXTRACHECKS
+	if (test_bit(ISERT_DRAIN_POSTED, &isert_conn->flags)) {
+		pr_err("conn:%p post send after drain\n", isert_conn);
+		BUG();
+	}
+#endif
 
 	err = ib_post_send(isert_conn->qp, first_ib_wr, &bad_wr);
 	if (unlikely(err)) {
