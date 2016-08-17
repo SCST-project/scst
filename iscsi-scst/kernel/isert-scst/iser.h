@@ -188,6 +188,7 @@ struct isert_connection {
 	struct isert_cq		*cq_desc;
 
 	enum isert_conn_state	state;
+	struct mutex		state_mutex;
 
 	u32			responder_resources;
 	u32			initiator_depth;

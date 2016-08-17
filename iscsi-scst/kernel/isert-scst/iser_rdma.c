@@ -204,6 +204,7 @@ void isert_conn_disconnect(struct isert_connection *isert_conn)
 {
 	int err;
 
+	mutex_lock(&isert_conn->state_mutex);
 	if (isert_conn->state != ISER_CONN_CLOSING) {
 		isert_conn->state = ISER_CONN_CLOSING;
 
@@ -212,6 +213,7 @@ void isert_conn_disconnect(struct isert_connection *isert_conn)
 		if (unlikely(err))
 			PRINT_ERROR("Failed to rdma disconnect, err:%d", err);
 	}
+	mutex_unlock(&isert_conn->state_mutex);
 }
 
 static int isert_pdu_handle_hello_req(struct isert_cmnd *pdu)
@@ -1309,6 +1311,7 @@ static struct isert_connection *isert_conn_create(struct rdma_cm_id *cm_id,
 	}
 
 	kref_init(&isert_conn->kref);
+	mutex_init(&isert_conn->state_mutex);
 
 	TRACE_EXIT();
 	return isert_conn;
@@ -1395,6 +1398,20 @@ static int isert_cm_disconnected_handler(struct rdma_cm_id *cm_id,
 	if (!test_and_set_bit(ISERT_CONNECTION_CLOSE, &isert_conn->flags))
 		isert_sched_conn_closed(isert_conn);
 	return 0;
+}
+
+static void isert_immediate_conn_close(struct isert_connection* isert_conn)
+{
+	set_bit(ISERT_CONNECTION_ABORTED, &isert_conn->flags);
+	set_bit(ISERT_CONNECTION_CLOSE, &isert_conn->flags);
+	isert_conn->state = ISER_CONN_CLOSING;
+	/*
+	 * reaching here must be with the isert_conn refcount of 2,
+	 * one from the init and one from the connect request,
+	 * thus it is safe to deref directly before the sched_conn_free.
+	 */
+	isert_conn_free(isert_conn);
+	isert_sched_conn_free(isert_conn);
 }
 
 static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
@@ -1530,14 +1547,17 @@ static int isert_cm_connect_handler(struct rdma_cm_id *cm_id,
 {
 	struct isert_connection *isert_conn = cm_id->qp->qp_context;
 	int push_saved_pdu = 0;
-	int ret;
+	int ret = 0;
 
 	TRACE_ENTRY();
 
+	mutex_lock(&isert_conn->state_mutex);
 	if (isert_conn->state == ISER_CONN_HANDSHAKE)
 		isert_conn->state = ISER_CONN_ACTIVE;
 	else if (isert_conn->state == ISER_CONN_ACTIVE)
 		push_saved_pdu = 1;
+	else if (isert_conn->state == ISER_CONN_CLOSING)
+		goto out;
 
 	ret = isert_get_addr_size((struct sockaddr *)&isert_conn->peer_addr,
 				  &isert_conn->peer_addrsz);
@@ -1566,6 +1586,7 @@ static int isert_cm_connect_handler(struct rdma_cm_id *cm_id,
 	}
 
 out:
+	mutex_unlock(&isert_conn->state_mutex);
 	TRACE_EXIT_RES(ret);
 	return ret;
 }
@@ -1711,17 +1732,13 @@ static int isert_cm_evt_handler(struct rdma_cm_id *cm_id,
 	/* We can receive this instead of RDMA_CM_EVENT_ESTABLISHED */
 	case RDMA_CM_EVENT_UNREACHABLE:
 		{
-			struct isert_connection *isert_conn;
+			struct isert_connection *isert_conn = cm_id->qp->qp_context;
 
-			isert_conn = cm_id->qp->qp_context;
-			set_bit(ISERT_CONNECTION_ABORTED, &isert_conn->flags);
-			/*
-			 * reaching here must be with the isert_conn refcount of 2,
-			 * one from the init and one from the connect request,
-			 * thus it is safe to deref directly before the sched_conn_free.
-			*/
-			isert_conn_free(isert_conn);
-			isert_sched_conn_free(isert_conn);
+			mutex_lock(&isert_conn->state_mutex);
+			if (isert_conn->state != ISER_CONN_CLOSING) {
+				isert_immediate_conn_close(isert_conn);
+			}
+			mutex_unlock(&isert_conn->state_mutex);
 			err = 0;
 		}
 		break;
