@@ -70,7 +70,7 @@ static struct isert_conn_dev *get_available_dev(struct isert_listener_dev *dev,
 	unsigned int i;
 	struct isert_conn_dev *res = NULL;
 
-	spin_lock(&dev->conn_lock);
+	mutex_lock(&dev->conn_lock);
 	for (i = 0; i < n_devs; ++i) {
 		if (!isert_conn_devices[i].occupied) {
 			res = &isert_conn_devices[i];
@@ -81,7 +81,7 @@ static struct isert_conn_dev *get_available_dev(struct isert_listener_dev *dev,
 			break;
 		}
 	}
-	spin_unlock(&dev->conn_lock);
+	mutex_unlock(&dev->conn_lock);
 
 	return res;
 }
@@ -111,9 +111,9 @@ static void isert_kref_release_dev(struct kref *kref)
 static void isert_dev_release(struct isert_conn_dev *dev)
 {
 	sBUG_ON(atomic_read(&dev->kref.refcount) == 0);
-	spin_lock(&isert_listen_dev.conn_lock);
+	mutex_lock(&isert_listen_dev.conn_lock);
 	kref_put(&dev->kref, isert_kref_release_dev);
-	spin_unlock(&isert_listen_dev.conn_lock);
+	mutex_unlock(&isert_listen_dev.conn_lock);
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
@@ -185,9 +185,9 @@ static bool have_new_connection(struct isert_listener_dev *dev)
 {
 	bool ret;
 
-	spin_lock(&dev->conn_lock);
+	mutex_lock(&dev->conn_lock);
 	ret = !list_empty(&dev->new_conn_list);
-	spin_unlock(&dev->conn_lock);
+	mutex_unlock(&dev->conn_lock);
 
 	return ret;
 }
@@ -328,13 +328,13 @@ static int isert_listen_release(struct inode *inode, struct file *filp)
 	struct isert_listener_dev *dev = filp->private_data;
 	struct isert_conn_dev *conn_dev;
 
-	spin_lock(&isert_listen_dev.conn_lock);
+	mutex_lock(&isert_listen_dev.conn_lock);
 	list_for_each_entry(conn_dev, &dev->new_conn_list, conn_list_entry)
 		isert_delete_conn_dev(conn_dev);
 
 	list_for_each_entry(conn_dev, &dev->curr_conn_list, conn_list_entry)
 		isert_delete_conn_dev(conn_dev);
-	spin_unlock(&isert_listen_dev.conn_lock);
+	mutex_unlock(&isert_listen_dev.conn_lock);
 
 	atomic_inc(&dev->available);
 	return 0;
@@ -361,16 +361,16 @@ wait_for_connection:
 			goto out;
 	}
 
-	spin_lock(&dev->conn_lock);
+	mutex_lock(&dev->conn_lock);
 	if (list_empty(&dev->new_conn_list)) {
 		/* could happen if we got disconnect */
-		spin_unlock(&dev->conn_lock);
+		mutex_unlock(&dev->conn_lock);
 		goto wait_for_connection;
 	}
 	conn_dev = list_first_entry(&dev->new_conn_list, struct isert_conn_dev,
 				    conn_list_entry);
 	list_move(&conn_dev->conn_list_entry, &dev->curr_conn_list);
-	spin_unlock(&dev->conn_lock);
+	mutex_unlock(&dev->conn_lock);
 
 	to_write = min_t(size_t, sizeof(k_buff), count);
 	res = scnprintf(k_buff, to_write, "/dev/"ISER_CONN_DEV_PREFIX"%d",
@@ -530,13 +530,13 @@ static int isert_open(struct inode *inode, struct file *filp)
 
 	dev = container_of(inode->i_cdev, struct isert_conn_dev, cdev);
 
-	spin_lock(&isert_listen_dev.conn_lock);
+	mutex_lock(&isert_listen_dev.conn_lock);
 	if (unlikely(dev->occupied == 0)) {
-		spin_unlock(&isert_listen_dev.conn_lock);
+		mutex_unlock(&isert_listen_dev.conn_lock);
 		res = -ENODEV; /* already closed */
 		goto out;
 	}
-	spin_unlock(&isert_listen_dev.conn_lock);
+	mutex_unlock(&isert_listen_dev.conn_lock);
 
 	if (unlikely(!atomic_dec_and_test(&dev->available))) {
 		atomic_inc(&dev->available);
@@ -544,9 +544,9 @@ static int isert_open(struct inode *inode, struct file *filp)
 		goto out;
 	}
 
-	spin_lock(&isert_listen_dev.conn_lock);
+	mutex_lock(&isert_listen_dev.conn_lock);
 	kref_get(&dev->kref);
-	spin_unlock(&isert_listen_dev.conn_lock);
+	mutex_unlock(&isert_listen_dev.conn_lock);
 
 	filp->private_data = dev; /* for other methods */
 
@@ -947,7 +947,7 @@ static void __init isert_setup_listener_cdev(struct isert_listener_dev *dev)
 	init_waitqueue_head(&dev->waitqueue);
 	INIT_LIST_HEAD(&dev->new_conn_list);
 	INIT_LIST_HEAD(&dev->curr_conn_list);
-	spin_lock_init(&dev->conn_lock);
+	mutex_init(&dev->conn_lock);
 	atomic_set(&dev->available, 1);
 	err = cdev_add(&dev->cdev, dev->devno, 1);
 	/* Fail gracefully if need be */

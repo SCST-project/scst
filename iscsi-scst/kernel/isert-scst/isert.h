@@ -71,7 +71,7 @@ struct isert_listener_dev {
 	struct cdev cdev;
 	dev_t devno;
 	wait_queue_head_t waitqueue;
-	spinlock_t conn_lock;
+	struct mutex conn_lock;
 	struct list_head new_conn_list;
 	struct list_head curr_conn_list;
 	struct isert_addr_info info;
