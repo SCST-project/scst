@@ -1460,7 +1460,8 @@ out:
 
 fail_accept:
 	set_bit(ISERT_CONNECTION_ABORTED, &isert_conn->flags);
-	isert_cm_timewait_exit_handler(cm_id, NULL);
+	isert_conn_free(isert_conn);
+	isert_sched_conn_free(isert_conn);
 	err = 0;
 	goto out;
 
