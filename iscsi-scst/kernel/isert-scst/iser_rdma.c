@@ -1326,7 +1326,6 @@ fail_login_rsp_pdu:
 fail_login_req_pdu:
 	isert_conn_kfree(isert_conn);
 fail_alloc:
-	module_put(THIS_MODULE);
 	TRACE_EXIT_RES(err);
 	return ERR_PTR(err);
 }
@@ -1431,7 +1430,7 @@ static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
 
 	if (unlikely(!try_module_get(THIS_MODULE))) {
 		err = -EINVAL;
-		goto fail_get;
+		goto out;
 	}
 
 	mutex_lock(&dev_list_mutex);
@@ -1541,7 +1540,6 @@ fail_conn_create:
 	mutex_unlock(&dev_list_mutex);
 fail_dev_create:
 	rdma_reject(cm_id, NULL, 0);
-fail_get:
 	module_put(THIS_MODULE);
 	goto out;
 }
