@@ -142,36 +142,61 @@ int isert_post_send(struct isert_connection *isert_conn,
 	return err;
 }
 
+static void isert_post_drain_sq(struct isert_connection* isert_conn)
+{
+	struct ib_send_wr* bad_wr;
+	struct isert_wr *drain_wr_sq = &isert_conn->drain_wr_sq;
+	int err;
+
+	isert_wr_set_fields(drain_wr_sq, isert_conn, NULL);
+	drain_wr_sq->wr_op = ISER_WR_SEND;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+	drain_wr_sq->send_wr.wr_id = _ptr_to_u64(drain_wr_sq);
+	drain_wr_sq->send_wr.opcode = IB_WR_SEND;
+	err = ib_post_send(isert_conn->qp,
+			   &drain_wr_sq->send_wr, &bad_wr);
+#else
+	drain_wr_sq->send_wr.wr.wr_id = _ptr_to_u64(drain_wr_sq);
+	drain_wr_sq->send_wr.wr.opcode = IB_WR_SEND;
+	err = ib_post_send(isert_conn->qp,
+			   &drain_wr_sq->send_wr.wr, &bad_wr);
+#endif
+	if (unlikely(err)) {
+		PRINT_ERROR("Failed to post drain wr to send queue, err:%d", err);
+		/* We need to decrement iser_conn->kref in order to be able to cleanup
+		 * the connection */
+		set_bit(ISERT_DRAINED_SQ, &isert_conn->flags);
+		if (test_bit(ISERT_DRAINED_RQ, &isert_conn->flags)) {
+			isert_sched_conn_free(isert_conn);
+		}
+	}
+}
+
+static void isert_post_drain_rq(struct isert_connection *isert_conn)
+{
+	struct ib_recv_wr *bad_wr;
+	struct isert_wr *drain_wr_rq = &isert_conn->drain_wr_rq;
+	int err;
+
+	isert_wr_set_fields(drain_wr_rq, isert_conn, NULL);
+	drain_wr_rq->wr_op = ISER_WR_RECV;
+	drain_wr_rq->recv_wr.wr_id = _ptr_to_u64(drain_wr_rq);
+	err = ib_post_recv(isert_conn->qp,
+			   &drain_wr_rq->recv_wr, &bad_wr);
+	if (unlikely(err)) {
+		PRINT_ERROR("Failed to post drain wr to receive queue, err:%d", err);
+		set_bit(ISERT_DRAINED_RQ, &isert_conn->flags);
+		if (test_bit(ISERT_DRAINED_SQ, &isert_conn->flags)) {
+			isert_sched_conn_free(isert_conn);
+		}
+	}
+}
+
 void isert_post_drain(struct isert_connection *isert_conn)
 {
 	if (!test_and_set_bit(ISERT_DRAIN_POSTED, &isert_conn->flags)) {
-		struct ib_send_wr *bad_wr;
-		int err;
-
-		isert_wr_set_fields(&isert_conn->drain_wr, isert_conn, NULL);
-		isert_conn->drain_wr.wr_op = ISER_WR_SEND;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
-		isert_conn->drain_wr.send_wr.wr_id =
-			_ptr_to_u64(&isert_conn->drain_wr);
-		isert_conn->drain_wr.send_wr.opcode = IB_WR_SEND;
-		err = ib_post_send(isert_conn->qp,
-				   &isert_conn->drain_wr.send_wr, &bad_wr);
-#else
-		isert_conn->drain_wr.send_wr.wr.wr_id =
-			_ptr_to_u64(&isert_conn->drain_wr);
-		isert_conn->drain_wr.send_wr.wr.opcode = IB_WR_SEND;
-		err = ib_post_send(isert_conn->qp,
-				   &isert_conn->drain_wr.send_wr.wr, &bad_wr);
-#endif
-		if (unlikely(err)) {
-			PRINT_ERROR("Failed to post drain wr, err:%d", err);
-			/*
-			 * We need to decrement iser_conn->kref in order to be
-			 * able to cleanup the connection.
-			 */
-			set_bit(ISERT_DRAIN_FAILED, &isert_conn->flags);
-			isert_conn_free(isert_conn);
-		}
+		isert_post_drain_rq(isert_conn);
+		isert_post_drain_sq(isert_conn);
 	}
 }
 
@@ -684,8 +709,12 @@ static void isert_handle_wc_error(struct ib_wc *wc)
 #else
 		num_sge = wr->send_wr.wr.num_sge;
 #endif
-		if (unlikely(num_sge == 0)) /* Drain WR */
-			isert_sched_conn_drained(isert_conn);
+		if (unlikely(num_sge == 0)) { /* Drain WR */
+			set_bit(ISERT_DRAINED_SQ, &isert_conn->flags);
+			if (test_bit(ISERT_DRAINED_RQ, &isert_conn->flags)) {
+				isert_sched_conn_drained(isert_conn);
+			}
+		}
 		else if (!isert_pdu->is_fake_rx)
 			isert_pdu_err(&isert_pdu->iscsi);
 		break;
@@ -700,6 +729,13 @@ static void isert_handle_wc_error(struct ib_wc *wc)
 		break;
 	case ISER_WR_RECV:
 		/* this should be the Flush, no task has been created yet */
+		num_sge = wr->recv_wr.num_sge;
+		if (unlikely(num_sge == 0)) { /* Drain WR */
+			set_bit(ISERT_DRAINED_RQ, &isert_conn->flags);
+			if (test_bit(ISERT_DRAINED_SQ, &isert_conn->flags)) {
+				isert_sched_conn_drained(isert_conn);
+			}
+		}
 		break;
 	case ISER_WR_RDMA_WRITE:
 		if (isert_buf->sg_cnt != 0) {

@@ -158,9 +158,10 @@ struct isert_cq {
 
 #define ISERT_CONNECTION_ABORTED	0
 #define ISERT_DRAIN_POSTED		1
-#define ISERT_DRAIN_FAILED		2
-#define ISERT_DISCON_CALLED		3
-#define ISERT_CONNECTION_EST		4
+#define ISERT_DISCON_CALLED		2
+#define ISERT_CONNECTION_EST		3
+#define ISERT_DRAINED_RQ		4
+#define ISERT_DRAINED_SQ		5
 
 struct isert_connection {
 	struct iscsi_conn	iscsi ____cacheline_aligned;
@@ -218,7 +219,8 @@ struct isert_connection {
 	struct work_struct	drain_work;
 	struct work_struct	discon_work;
 	struct work_struct	free_work;
-	struct isert_wr		drain_wr;
+	struct isert_wr		drain_wr_sq;
+	struct isert_wr		drain_wr_rq;
 	struct kref		kref;
 
 	struct isert_portal	*portal;
