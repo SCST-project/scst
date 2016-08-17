@@ -140,7 +140,7 @@ static void isert_conn_timer_fn(unsigned long arg)
 
 	conn_dev->timer_active = 0;
 
-	PRINT_ERROR("Timeout on connection %p\n", conn_dev->conn);
+	PRINT_ERROR("Timeout on connection %p", conn_dev->conn);
 
 	schedule_work(&conn->close_work);
 
@@ -156,7 +156,7 @@ static int add_new_connection(struct isert_listener_dev *dev,
 	TRACE_ENTRY();
 
 	if (!conn_dev) {
-		PRINT_WARNING("%s", "Unable to allocate new connection");
+		PRINT_WARNING("Unable to allocate new connection");
 		res = -ENOSPC;
 		goto out;
 	}
@@ -398,13 +398,13 @@ static long isert_listen_ioctl(struct file *filp, unsigned int cmd,
 	case SET_LISTEN_ADDR:
 		rc = copy_from_user(&dev->info, ptr, sizeof(dev->info));
 		if (unlikely(rc != 0)) {
-			PRINT_ERROR("Failed to copy %d user's bytes\n", rc);
+			PRINT_ERROR("Failed to copy %d user's bytes", rc);
 			res = -EFAULT;
 			goto out;
 		}
 
 		if (unlikely(dev->free_portal_idx >= ISERT_MAX_PORTALS)) {
-			PRINT_ERROR("Maximum number of portals exceeded: %d\n",
+			PRINT_ERROR("Maximum number of portals exceeded: %d",
 				    ISERT_MAX_PORTALS);
 			res = -EINVAL;
 			goto out;
@@ -420,7 +420,7 @@ static long isert_listen_ioctl(struct file *filp, unsigned int cmd,
 		portal = isert_portal_add((struct sockaddr *)&dev->info.addr,
 					  dev->info.addr_len);
 		if (IS_ERR(portal)) {
-			PRINT_ERROR("Unable to add portal of size %zu\n",
+			PRINT_ERROR("Unable to add portal of size %zu",
 				    dev->info.addr_len);
 			res = PTR_ERR(portal);
 			goto out;
@@ -622,8 +622,7 @@ static ssize_t isert_read(struct file *filp, char __user *buf, size_t count,
 		break;
 
 	default:
-		PRINT_ERROR("Invalid state in %s (%d)\n", __func__,
-			    dev->state);
+		PRINT_ERROR("Invalid state %d", dev->state);
 		to_read = 0;
 	}
 
@@ -666,8 +665,7 @@ static ssize_t isert_write(struct file *filp, const char __user *buf,
 		break;
 
 	default:
-		PRINT_ERROR("Invalid state in %s (%d)\n", __func__,
-			    dev->state);
+		PRINT_ERROR("Invalid state %d", dev->state);
 		to_write = 0;
 	}
 
@@ -959,7 +957,7 @@ int __init isert_init_login_devs(unsigned int ndevs)
 	isert_major = MAJOR(devno);
 
 	if (unlikely(res < 0)) {
-		PRINT_ERROR("isert: can't get major %d\n", isert_major);
+		PRINT_ERROR("can't get major %d", isert_major);
 		goto out;
 	}
 
@@ -984,7 +982,7 @@ int __init isert_init_login_devs(unsigned int ndevs)
 
 	res = isert_datamover_init();
 	if (unlikely(res)) {
-		PRINT_ERROR("Unable to initialize datamover: %d\n", res);
+		PRINT_ERROR("Unable to initialize datamover: %d", res);
 		goto fail;
 	}
 

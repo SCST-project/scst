@@ -52,7 +52,7 @@ static int isert_buf_alloc_pg(struct ib_device *ib_dev,
 	isert_buf->sg = kmalloc_array(isert_buf->sg_cnt, sizeof(*isert_buf->sg),
 				      GFP_KERNEL);
 	if (unlikely(!isert_buf->sg)) {
-		pr_err("Failed to allocate buffer SG\n");
+		PRINT_ERROR("Failed to allocate buffer SG");
 		res = -ENOMEM;
 		goto out;
 	}
@@ -63,7 +63,7 @@ static int isert_buf_alloc_pg(struct ib_device *ib_dev,
 
 		page = alloc_page(GFP_KERNEL);
 		if (unlikely(!page)) {
-			pr_err("Failed to allocate page\n");
+			PRINT_ERROR("Failed to allocate page");
 			res = -ENOMEM;
 			goto out_map_failed;
 		}
@@ -74,8 +74,8 @@ static int isert_buf_alloc_pg(struct ib_device *ib_dev,
 	res = ib_dma_map_sg(ib_dev, isert_buf->sg, isert_buf->sg_cnt, dma_dir);
 	if (unlikely(!res)) {
 		--i; /* do not overrun isert_buf->sg */
-		pr_err("Failed to DMA map iser sg:%p len:%d\n",
-		       isert_buf->sg, isert_buf->sg_cnt);
+		PRINT_ERROR("Failed to DMA map iser sg:%p len:%d",
+			    isert_buf->sg, isert_buf->sg_cnt);
 		res = -ENOMEM;
 		goto out_map_failed;
 	}
@@ -111,14 +111,14 @@ static int isert_buf_malloc(struct ib_device *ib_dev,
 	isert_buf->sg_cnt = 1;
 	isert_buf->sg = kmalloc(sizeof(isert_buf->sg[0]), GFP_KERNEL);
 	if (unlikely(!isert_buf->sg)) {
-		pr_err("Failed to allocate buffer SG\n");
+		PRINT_ERROR("Failed to allocate buffer SG");
 		res = -ENOMEM;
 		goto out;
 	}
 
 	isert_buf->addr = kmalloc(size, GFP_KERNEL);
 	if (unlikely(!isert_buf->addr)) {
-		pr_err("Failed to allocate data buffer\n");
+		PRINT_ERROR("Failed to allocate data buffer");
 		res = -ENOMEM;
 		goto data_malloc_failed;
 	}
@@ -127,8 +127,8 @@ static int isert_buf_malloc(struct ib_device *ib_dev,
 
 	res = ib_dma_map_sg(ib_dev, isert_buf->sg, isert_buf->sg_cnt, dma_dir);
 	if (unlikely(!res)) {
-		pr_err("Failed to DMA map iser sg:%p len:%d\n",
-		       isert_buf->sg, isert_buf->sg_cnt);
+		PRINT_ERROR("Failed to DMA map iser sg:%p len:%d",
+			    isert_buf->sg, isert_buf->sg_cnt);
 		res = -ENOMEM;
 		goto out_map_failed;
 	}
@@ -233,7 +233,7 @@ int isert_wr_init(struct isert_wr *wr,
 	case ISER_WR_RDMA_READ:
 		send_wr_op = IB_WR_RDMA_READ;
 		if (unlikely(!pdu->is_wstag_valid)) {
-			pr_err("No write tag/va specified for RDMA op\n");
+			PRINT_ERROR("No write tag/va specified for RDMA op");
 			isert_buf_release(isert_buf);
 			buff_offset = -EFAULT;
 			goto out;
@@ -250,7 +250,7 @@ int isert_wr_init(struct isert_wr *wr,
 	case ISER_WR_RDMA_WRITE:
 		send_wr_op = IB_WR_RDMA_WRITE;
 		if (unlikely(!pdu->is_rstag_valid)) {
-			pr_err("No read tag/va specified for RDMA op\n");
+			PRINT_ERROR("No read tag/va specified for RDMA op");
 			isert_buf_release(isert_buf);
 			buff_offset = -EFAULT;
 			goto out;
