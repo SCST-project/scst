@@ -1271,7 +1271,7 @@ static void isert_kref_free(struct kref *kref)
 
 	TRACE_ENTRY();
 
-	pr_info("isert_conn_free conn:%p\n", isert_conn);
+	pr_info("%s conn:%p\n", __func__, isert_conn);
 
 	isert_free_conn_resources(isert_conn);
 
@@ -1306,6 +1306,7 @@ static void isert_kref_free(struct kref *kref)
 
 void isert_conn_free(struct isert_connection *isert_conn)
 {
+	sBUG_ON(atomic_read(&isert_conn->kref.refcount) == 0);
 	kref_put(&isert_conn->kref, isert_kref_free);
 }
 
