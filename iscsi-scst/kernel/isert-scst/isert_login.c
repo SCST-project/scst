@@ -217,6 +217,7 @@ int isert_conn_alloc(struct iscsi_session *session,
 	dev = filp->private_data;
 
 	if (unlikely(dev->state == CS_DISCONNECTED)) {
+		fput(filp);
 		res = -EBADF;
 		goto out;
 	}
