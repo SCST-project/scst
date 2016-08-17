@@ -639,10 +639,7 @@ static void isert_conn_closed_do_work(struct work_struct *work)
 	if (!test_bit(ISERT_CONNECTION_ABORTED, &isert_conn->flags))
 		isert_connection_abort(&isert_conn->iscsi);
 
-	/* if connection established we have another refcount */
-	if (test_bit(ISERT_CONNECTION_EST, &isert_conn->flags)) {
-		isert_conn_free(isert_conn);
-	}
+	isert_conn_free(isert_conn);
 }
 
 static void isert_sched_conn_closed(struct isert_connection *isert_conn)
@@ -1406,10 +1403,11 @@ static void isert_immediate_conn_close(struct isert_connection* isert_conn)
 	set_bit(ISERT_CONNECTION_CLOSE, &isert_conn->flags);
 	isert_conn->state = ISER_CONN_CLOSING;
 	/*
-	 * reaching here must be with the isert_conn refcount of 2,
-	 * one from the init and one from the connect request,
+	 * reaching here must be with the isert_conn refcount of 3,
+	 * one from the init and two from the connect request,
 	 * thus it is safe to deref directly before the sched_conn_free.
 	 */
+	isert_conn_free(isert_conn);
 	isert_conn_free(isert_conn);
 	isert_sched_conn_free(isert_conn);
 }
@@ -1482,6 +1480,7 @@ static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
 	cm_hdr.flags = ISER_ZBVA_NOT_SUPPORTED | ISER_SEND_W_INV_NOT_SUPPORTED;
 
 	kref_get(&isert_conn->kref);
+	kref_get(&isert_conn->kref);
 
 	err = rdma_accept(cm_id, &tgt_conn_param);
 	if (unlikely(err)) {
@@ -1527,6 +1526,7 @@ out:
 fail_accept:
 	set_bit(ISERT_CONNECTION_ABORTED, &isert_conn->flags);
 	isert_conn_free(isert_conn);
+	isert_conn_free(isert_conn);
 	isert_sched_conn_free(isert_conn);
 	err = 0;
 	goto out;
@@ -1564,20 +1564,13 @@ static int isert_cm_connect_handler(struct rdma_cm_id *cm_id,
 	if (unlikely(ret))
 		goto out;
 
-	/* check if already started teardown */
-	if (!unlikely(kref_get_unless_zero(&isert_conn->kref)))
-		goto out;
-
 	/* notify upper layer */
 	ret = isert_conn_established(&isert_conn->iscsi,
 				     (struct sockaddr *)&isert_conn->peer_addr,
 				     isert_conn->peer_addrsz);
 	if (unlikely(ret)) {
-		isert_conn_free(isert_conn);
 		goto out;
 	}
-
-	set_bit(ISERT_CONNECTION_EST, &isert_conn->flags);
 
 	if (push_saved_pdu) {
 		PRINT_INFO("iser push saved rx pdu");
