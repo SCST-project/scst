@@ -107,6 +107,7 @@ static void isert_kref_release_dev(struct kref *kref)
 
 static void isert_dev_release(struct isert_conn_dev *dev)
 {
+	sBUG_ON(atomic_read(&dev->kref.refcount) == 0);
 	spin_lock(&isert_listen_dev.conn_lock);
 	kref_put(&dev->kref, isert_kref_release_dev);
 	spin_unlock(&isert_listen_dev.conn_lock);
@@ -304,8 +305,8 @@ static void isert_delete_conn_dev(struct isert_conn_dev *conn_dev)
 	isert_del_timer(conn_dev);
 
 	if (!test_and_set_bit(ISERT_CONN_PASSED, &conn_dev->flags)) {
-		BUG_ON(conn_dev->conn == NULL);
-		isert_close_connection(conn_dev->conn);
+		if (conn_dev->conn)
+			isert_close_connection(conn_dev->conn);
 	}
 }
 
