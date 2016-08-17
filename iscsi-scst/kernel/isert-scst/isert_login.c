@@ -51,6 +51,8 @@
 #include "isert.h"
 #include "iser_datamover.h"
 
+static DEFINE_MUTEX(conn_mgmt_mutex);
+
 static unsigned int n_devs;
 
 static int isert_major;
@@ -204,6 +206,8 @@ int isert_conn_alloc(struct iscsi_session *session,
 
 	lockdep_assert_held(&session->target->target_mutex);
 
+	mutex_lock(&conn_mgmt_mutex);
+
 	if (unlikely(!filp)) {
 		res = -EBADF;
 		goto out;
@@ -273,6 +277,7 @@ cleanup_conn:
 	conn->session = NULL;
 	isert_close_connection(conn);
 out:
+	mutex_unlock(&conn_mgmt_mutex);
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -445,7 +450,10 @@ int isert_connection_closed(struct iscsi_conn *iscsi_conn)
 
 	TRACE_ENTRY();
 
+	mutex_lock(&conn_mgmt_mutex);
+
 	if (iscsi_conn->rd_state) {
+		mutex_unlock(&conn_mgmt_mutex);
 		res = isert_handle_close_connection(iscsi_conn);
 	} else {
 		struct isert_conn_dev *dev = isert_get_priv(iscsi_conn);
@@ -465,6 +473,7 @@ int isert_connection_closed(struct iscsi_conn *iscsi_conn)
 			isert_set_priv(iscsi_conn, NULL);
 		}
 
+		mutex_unlock(&conn_mgmt_mutex);
 		isert_free_connection(iscsi_conn);
 	}
 
@@ -681,6 +690,8 @@ static long isert_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 	TRACE_ENTRY();
 
+	mutex_lock(&conn_mgmt_mutex);
+
 	if (dev->state == CS_DISCONNECTED) {
 		res = -EPIPE;
 		goto out;
@@ -767,6 +778,7 @@ static long isert_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	}
 
 out:
+	mutex_unlock(&conn_mgmt_mutex);
 	TRACE_EXIT_RES(res);
 	return res;
 }
