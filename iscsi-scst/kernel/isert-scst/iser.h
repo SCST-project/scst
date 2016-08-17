@@ -162,6 +162,7 @@ struct isert_cq {
 #define ISERT_CONNECTION_EST		3
 #define ISERT_DRAINED_RQ		4
 #define ISERT_DRAINED_SQ		5
+#define ISERT_CONNECTION_CLOSE		6
 
 struct isert_connection {
 	struct iscsi_conn	iscsi ____cacheline_aligned;

@@ -1388,12 +1388,12 @@ void isert_conn_free(struct isert_connection *isert_conn)
 	kref_put(&isert_conn->kref, isert_kref_free);
 }
 
-static int isert_cm_timewait_exit_handler(struct rdma_cm_id *cm_id,
+static int isert_cm_disconnected_handler(struct rdma_cm_id *cm_id,
 					  struct rdma_cm_event *event)
 {
 	struct isert_connection *isert_conn = cm_id->qp->qp_context;
-
-	isert_sched_conn_closed(isert_conn);
+	if (!test_and_set_bit(ISERT_CONNECTION_CLOSE, &isert_conn->flags))
+		isert_sched_conn_closed(isert_conn);
 	return 0;
 }
 
@@ -1684,15 +1684,15 @@ static int isert_cm_evt_handler(struct rdma_cm_id *cm_id,
 
 	case RDMA_CM_EVENT_CONNECT_ERROR:
 	case RDMA_CM_EVENT_REJECTED:
-	case RDMA_CM_EVENT_ADDR_CHANGE:
-	case RDMA_CM_EVENT_DISCONNECTED:
 		err = isert_cm_disconnect_handler(cm_id, cm_ev);
 		break;
 
+	case RDMA_CM_EVENT_ADDR_CHANGE:
+	case RDMA_CM_EVENT_DISCONNECTED:
 	case RDMA_CM_EVENT_DEVICE_REMOVAL:
 	case RDMA_CM_EVENT_TIMEWAIT_EXIT:
 		isert_cm_disconnect_handler(cm_id, cm_ev);
-		err = isert_cm_timewait_exit_handler(cm_id, cm_ev);
+		err = isert_cm_disconnected_handler(cm_id, cm_ev);
 		break;
 
 	case RDMA_CM_EVENT_MULTICAST_JOIN:
