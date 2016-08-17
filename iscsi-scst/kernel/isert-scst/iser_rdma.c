@@ -610,8 +610,7 @@ static void isert_conn_closed_do_work(struct work_struct *work)
 #endif
 
 	if (!test_bit(ISERT_CONNECTION_ABORTED, &isert_conn->flags))
-		if (!test_and_set_bit(ISERT_DISCON_CALLED, &isert_conn->flags))
-			isert_connection_closed(&isert_conn->iscsi);
+		isert_connection_abort(&isert_conn->iscsi);
 
 	/* if connection established we have another refcount */
 	if (test_bit(ISERT_CONNECTION_EST, &isert_conn->flags)) {
@@ -1657,9 +1656,8 @@ static int isert_cm_evt_handler(struct rdma_cm_id *cm_id,
 		break;
 
 	case RDMA_CM_EVENT_DEVICE_REMOVAL:
-		isert_cm_disconnect_handler(cm_id, cm_ev);
-		/* fallthrough */
 	case RDMA_CM_EVENT_TIMEWAIT_EXIT:
+		isert_cm_disconnect_handler(cm_id, cm_ev);
 		err = isert_cm_timewait_exit_handler(cm_id, cm_ev);
 		break;
 

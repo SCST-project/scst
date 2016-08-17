@@ -288,7 +288,7 @@ static void isert_free_conn(struct iscsi_conn *conn)
 	isert_free_connection(conn);
 }
 
-int isert_handle_close_connection(struct iscsi_conn *conn)
+void isert_handle_close_connection(struct iscsi_conn *conn)
 {
 	isert_mark_conn_closed(conn, 0);
 	/*
@@ -300,7 +300,6 @@ int isert_handle_close_connection(struct iscsi_conn *conn)
 		isert_free_connection(conn);
 	else
 		start_close_conn(conn);
-	return 0;
 }
 
 int isert_pdu_rx(struct iscsi_cmnd *cmnd)

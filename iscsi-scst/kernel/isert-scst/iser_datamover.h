@@ -86,7 +86,8 @@ int isert_data_in_sent(struct iscsi_cmnd *cmd);
 int isert_pdu_sent(struct iscsi_cmnd *pdu);
 void isert_pdu_err(struct iscsi_cmnd *pdu);
 
-int isert_connection_closed(struct iscsi_conn *iscsi_conn);
+void isert_connection_closed(struct iscsi_conn *iscsi_conn);
+void isert_connection_abort(struct iscsi_conn *iscsi_conn);
 
 void *isert_get_priv(struct iscsi_conn *iscsi_conn);
 void isert_set_priv(struct iscsi_conn *iscsi_conn, void *priv);

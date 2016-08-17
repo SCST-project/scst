@@ -49,6 +49,7 @@
 #include "isert_dbg.h"
 #include "../iscsi.h"
 #include "isert.h"
+#include "iser.h"
 #include "iser_datamover.h"
 
 static DEFINE_MUTEX(conn_mgmt_mutex);
@@ -444,41 +445,60 @@ int isert_conn_established(struct iscsi_conn *iscsi_conn,
 	return add_new_connection(&isert_listen_dev, iscsi_conn);
 }
 
-int isert_connection_closed(struct iscsi_conn *iscsi_conn)
+static void isert_dev_disconnect(struct iscsi_conn* iscsi_conn)
 {
-	int res = 0;
+	struct isert_conn_dev* dev = isert_get_priv(iscsi_conn);
 
+	if (dev) {
+		isert_del_timer(dev);
+		dev->state = CS_DISCONNECTED;
+		if (dev->login_req) {
+			isert_task_abort(dev->login_req);
+			spin_lock(&dev->pdu_lock);
+			dev->login_req = NULL;
+			spin_unlock(&dev->pdu_lock);
+		}
+		wake_up(&dev->waitqueue);
+		isert_dev_release(dev);
+		isert_set_priv(iscsi_conn, NULL);
+	}
+}
+
+void isert_connection_closed(struct iscsi_conn *iscsi_conn)
+{
 	TRACE_ENTRY();
 
 	mutex_lock(&conn_mgmt_mutex);
 
 	if (iscsi_conn->rd_state) {
 		mutex_unlock(&conn_mgmt_mutex);
-		res = isert_handle_close_connection(iscsi_conn);
+		isert_handle_close_connection(iscsi_conn);
 	} else {
-		struct isert_conn_dev *dev = isert_get_priv(iscsi_conn);
-
-		if (dev) {
-			isert_del_timer(dev);
-			dev->state = CS_DISCONNECTED;
-			if (dev->login_req) {
-				res = isert_task_abort(dev->login_req);
-				spin_lock(&dev->pdu_lock);
-				dev->login_req = NULL;
-				spin_unlock(&dev->pdu_lock);
-			}
-
-			wake_up(&dev->waitqueue);
-			isert_dev_release(dev);
-			isert_set_priv(iscsi_conn, NULL);
-		}
-
+		isert_dev_disconnect(iscsi_conn);
 		mutex_unlock(&conn_mgmt_mutex);
 		isert_free_connection(iscsi_conn);
 	}
 
-	TRACE_EXIT_RES(res);
-	return res;
+	TRACE_EXIT();
+}
+
+void isert_connection_abort(struct iscsi_conn *iscsi_conn)
+{
+	struct isert_connection *isert_conn = (struct isert_connection *)iscsi_conn;
+
+	TRACE_ENTRY();
+
+	mutex_lock(&conn_mgmt_mutex);
+
+	if (!iscsi_conn->rd_state) {
+		if (!test_and_set_bit(ISERT_DISCON_CALLED, &isert_conn->flags)) {
+			isert_dev_disconnect(iscsi_conn);
+			isert_free_connection(iscsi_conn);
+		}
+	}
+	mutex_unlock(&conn_mgmt_mutex);
+
+	TRACE_EXIT();
 }
 
 static bool will_read_block(struct isert_conn_dev *dev)

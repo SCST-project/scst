@@ -129,7 +129,7 @@ int isert_conn_alloc(struct iscsi_session *session,
 		     struct iscsi_kern_conn_info *info,
 		     struct iscsi_conn **new_conn,
 		     struct iscsit_transport *t);
-int isert_handle_close_connection(struct iscsi_conn *conn);
+void isert_handle_close_connection(struct iscsi_conn *conn);
 void isert_close_all_portals(void);
 void isert_del_timer(struct isert_conn_dev *dev);
 
