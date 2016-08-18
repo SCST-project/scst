@@ -49,7 +49,10 @@
 #include "isert_dbg.h"
 #include "../iscsi.h"
 #include "isert.h"
+#include "iser.h"
 #include "iser_datamover.h"
+
+static DEFINE_MUTEX(conn_mgmt_mutex);
 
 static unsigned int n_devs;
 
@@ -67,7 +70,7 @@ static struct isert_conn_dev *get_available_dev(struct isert_listener_dev *dev,
 	unsigned int i;
 	struct isert_conn_dev *res = NULL;
 
-	spin_lock(&dev->conn_lock);
+	mutex_lock(&dev->conn_lock);
 	for (i = 0; i < n_devs; ++i) {
 		if (!isert_conn_devices[i].occupied) {
 			res = &isert_conn_devices[i];
@@ -78,7 +81,7 @@ static struct isert_conn_dev *get_available_dev(struct isert_listener_dev *dev,
 			break;
 		}
 	}
-	spin_unlock(&dev->conn_lock);
+	mutex_unlock(&dev->conn_lock);
 
 	return res;
 }
@@ -107,9 +110,10 @@ static void isert_kref_release_dev(struct kref *kref)
 
 static void isert_dev_release(struct isert_conn_dev *dev)
 {
-	spin_lock(&isert_listen_dev.conn_lock);
+	sBUG_ON(atomic_read(&dev->kref.refcount) == 0);
+	mutex_lock(&isert_listen_dev.conn_lock);
 	kref_put(&dev->kref, isert_kref_release_dev);
-	spin_unlock(&isert_listen_dev.conn_lock);
+	mutex_unlock(&isert_listen_dev.conn_lock);
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
@@ -137,7 +141,7 @@ static void isert_conn_timer_fn(unsigned long arg)
 
 	conn_dev->timer_active = 0;
 
-	PRINT_ERROR("Timeout on connection %p\n", conn_dev->conn);
+	PRINT_ERROR("Timeout on connection %p", conn_dev->conn);
 
 	schedule_work(&conn->close_work);
 
@@ -153,7 +157,7 @@ static int add_new_connection(struct isert_listener_dev *dev,
 	TRACE_ENTRY();
 
 	if (!conn_dev) {
-		PRINT_WARNING("%s", "Unable to allocate new connection");
+		PRINT_WARNING("Unable to allocate new connection");
 		res = -ENOSPC;
 		goto out;
 	}
@@ -181,9 +185,9 @@ static bool have_new_connection(struct isert_listener_dev *dev)
 {
 	bool ret;
 
-	spin_lock(&dev->conn_lock);
+	mutex_lock(&dev->conn_lock);
 	ret = !list_empty(&dev->new_conn_list);
-	spin_unlock(&dev->conn_lock);
+	mutex_unlock(&dev->conn_lock);
 
 	return ret;
 }
@@ -203,12 +207,22 @@ int isert_conn_alloc(struct iscsi_session *session,
 
 	lockdep_assert_held(&session->target->target_mutex);
 
+	mutex_lock(&conn_mgmt_mutex);
+
 	if (unlikely(!filp)) {
 		res = -EBADF;
 		goto out;
 	}
 
 	dev = filp->private_data;
+
+	if (unlikely(dev->state == CS_DISCONNECTED)) {
+		fput(filp);
+		res = -EBADF;
+		goto out;
+	}
+
+	sBUG_ON(dev->state != CS_RSP_FINISHED);
 
 	cmnd = dev->login_rsp;
 
@@ -265,6 +279,7 @@ cleanup_conn:
 	conn->session = NULL;
 	isert_close_connection(conn);
 out:
+	mutex_unlock(&conn_mgmt_mutex);
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -304,8 +319,8 @@ static void isert_delete_conn_dev(struct isert_conn_dev *conn_dev)
 	isert_del_timer(conn_dev);
 
 	if (!test_and_set_bit(ISERT_CONN_PASSED, &conn_dev->flags)) {
-		BUG_ON(conn_dev->conn == NULL);
-		isert_close_connection(conn_dev->conn);
+		if (conn_dev->conn)
+			isert_close_connection(conn_dev->conn);
 	}
 }
 
@@ -314,13 +329,13 @@ static int isert_listen_release(struct inode *inode, struct file *filp)
 	struct isert_listener_dev *dev = filp->private_data;
 	struct isert_conn_dev *conn_dev;
 
-	spin_lock(&isert_listen_dev.conn_lock);
+	mutex_lock(&isert_listen_dev.conn_lock);
 	list_for_each_entry(conn_dev, &dev->new_conn_list, conn_list_entry)
 		isert_delete_conn_dev(conn_dev);
 
 	list_for_each_entry(conn_dev, &dev->curr_conn_list, conn_list_entry)
 		isert_delete_conn_dev(conn_dev);
-	spin_unlock(&isert_listen_dev.conn_lock);
+	mutex_unlock(&isert_listen_dev.conn_lock);
 
 	atomic_inc(&dev->available);
 	return 0;
@@ -347,16 +362,16 @@ wait_for_connection:
 			goto out;
 	}
 
-	spin_lock(&dev->conn_lock);
+	mutex_lock(&dev->conn_lock);
 	if (list_empty(&dev->new_conn_list)) {
 		/* could happen if we got disconnect */
-		spin_unlock(&dev->conn_lock);
+		mutex_unlock(&dev->conn_lock);
 		goto wait_for_connection;
 	}
 	conn_dev = list_first_entry(&dev->new_conn_list, struct isert_conn_dev,
 				    conn_list_entry);
 	list_move(&conn_dev->conn_list_entry, &dev->curr_conn_list);
-	spin_unlock(&dev->conn_lock);
+	mutex_unlock(&dev->conn_lock);
 
 	to_write = min_t(size_t, sizeof(k_buff), count);
 	res = scnprintf(k_buff, to_write, "/dev/"ISER_CONN_DEV_PREFIX"%d",
@@ -385,13 +400,13 @@ static long isert_listen_ioctl(struct file *filp, unsigned int cmd,
 	case SET_LISTEN_ADDR:
 		rc = copy_from_user(&dev->info, ptr, sizeof(dev->info));
 		if (unlikely(rc != 0)) {
-			PRINT_ERROR("Failed to copy %d user's bytes\n", rc);
+			PRINT_ERROR("Failed to copy %d user's bytes", rc);
 			res = -EFAULT;
 			goto out;
 		}
 
 		if (unlikely(dev->free_portal_idx >= ISERT_MAX_PORTALS)) {
-			PRINT_ERROR("Maximum number of portals exceeded: %d\n",
+			PRINT_ERROR("Maximum number of portals exceeded: %d",
 				    ISERT_MAX_PORTALS);
 			res = -EINVAL;
 			goto out;
@@ -407,7 +422,7 @@ static long isert_listen_ioctl(struct file *filp, unsigned int cmd,
 		portal = isert_portal_add((struct sockaddr *)&dev->info.addr,
 					  dev->info.addr_len);
 		if (IS_ERR(portal)) {
-			PRINT_ERROR("Unable to add portal of size %zu\n",
+			PRINT_ERROR("Unable to add portal of size %zu",
 				    dev->info.addr_len);
 			res = PTR_ERR(portal);
 			goto out;
@@ -431,36 +446,61 @@ int isert_conn_established(struct iscsi_conn *iscsi_conn,
 	return add_new_connection(&isert_listen_dev, iscsi_conn);
 }
 
-int isert_connection_closed(struct iscsi_conn *iscsi_conn)
+static void isert_dev_disconnect(struct iscsi_conn* iscsi_conn)
 {
-	int res = 0;
+	struct isert_conn_dev* dev = isert_get_priv(iscsi_conn);
 
+	if (dev) {
+		isert_del_timer(dev);
+		dev->state = CS_DISCONNECTED;
+		dev->conn = NULL;
+		if (dev->login_req) {
+			isert_task_abort(dev->login_req);
+			spin_lock(&dev->pdu_lock);
+			dev->login_req = NULL;
+			spin_unlock(&dev->pdu_lock);
+		}
+		wake_up(&dev->waitqueue);
+		isert_dev_release(dev);
+		isert_set_priv(iscsi_conn, NULL);
+	}
+}
+
+void isert_connection_closed(struct iscsi_conn *iscsi_conn)
+{
 	TRACE_ENTRY();
 
+	mutex_lock(&conn_mgmt_mutex);
+
 	if (iscsi_conn->rd_state) {
-		res = isert_handle_close_connection(iscsi_conn);
+		mutex_unlock(&conn_mgmt_mutex);
+		isert_handle_close_connection(iscsi_conn);
 	} else {
-		struct isert_conn_dev *dev = isert_get_priv(iscsi_conn);
-
-		if (dev) {
-			isert_del_timer(dev);
-			dev->state = CS_DISCONNECTED;
-			if (dev->login_req) {
-				res = isert_task_abort(dev->login_req);
-				spin_lock(&dev->pdu_lock);
-				dev->login_req = NULL;
-				spin_unlock(&dev->pdu_lock);
-			}
-
-			wake_up(&dev->waitqueue);
-			isert_dev_release(dev);
-		}
-
+		isert_dev_disconnect(iscsi_conn);
+		mutex_unlock(&conn_mgmt_mutex);
 		isert_free_connection(iscsi_conn);
 	}
 
-	TRACE_EXIT_RES(res);
-	return res;
+	TRACE_EXIT();
+}
+
+void isert_connection_abort(struct iscsi_conn *iscsi_conn)
+{
+	struct isert_connection *isert_conn = (struct isert_connection *)iscsi_conn;
+
+	TRACE_ENTRY();
+
+	mutex_lock(&conn_mgmt_mutex);
+
+	if (!iscsi_conn->rd_state) {
+		if (!test_and_set_bit(ISERT_DISCON_CALLED, &isert_conn->flags)) {
+			isert_dev_disconnect(iscsi_conn);
+			isert_free_connection(iscsi_conn);
+		}
+	}
+	mutex_unlock(&conn_mgmt_mutex);
+
+	TRACE_EXIT();
 }
 
 static bool will_read_block(struct isert_conn_dev *dev)
@@ -492,13 +532,13 @@ static int isert_open(struct inode *inode, struct file *filp)
 
 	dev = container_of(inode->i_cdev, struct isert_conn_dev, cdev);
 
-	spin_lock(&isert_listen_dev.conn_lock);
+	mutex_lock(&isert_listen_dev.conn_lock);
 	if (unlikely(dev->occupied == 0)) {
-		spin_unlock(&isert_listen_dev.conn_lock);
+		mutex_unlock(&isert_listen_dev.conn_lock);
 		res = -ENODEV; /* already closed */
 		goto out;
 	}
-	spin_unlock(&isert_listen_dev.conn_lock);
+	mutex_unlock(&isert_listen_dev.conn_lock);
 
 	if (unlikely(!atomic_dec_and_test(&dev->available))) {
 		atomic_inc(&dev->available);
@@ -506,9 +546,9 @@ static int isert_open(struct inode *inode, struct file *filp)
 		goto out;
 	}
 
-	spin_lock(&isert_listen_dev.conn_lock);
+	mutex_lock(&isert_listen_dev.conn_lock);
 	kref_get(&dev->kref);
-	spin_unlock(&isert_listen_dev.conn_lock);
+	mutex_unlock(&isert_listen_dev.conn_lock);
 
 	filp->private_data = dev; /* for other methods */
 
@@ -528,13 +568,7 @@ static int isert_release(struct inode *inode, struct file *filp)
 	dev->sg_virt = NULL;
 	dev->is_discovery = 0;
 
-	if (!test_and_set_bit(ISERT_CONN_PASSED, &dev->flags)) {
-		BUG_ON(dev->conn == NULL);
-		isert_close_connection(dev->conn);
-	}
-
-	isert_del_timer(dev);
-
+	isert_delete_conn_dev(dev);
 	isert_dev_release(dev);
 
 	TRACE_EXIT_RES(res);
@@ -562,23 +596,33 @@ static ssize_t isert_read(struct file *filp, char __user *buf, size_t count,
 	struct isert_conn_dev *dev = filp->private_data;
 	size_t to_read;
 
-	if (dev->state == CS_DISCONNECTED)
+	mutex_lock(&conn_mgmt_mutex);
+
+	if (dev->state == CS_DISCONNECTED) {
+		mutex_unlock(&conn_mgmt_mutex);
 		return -EPIPE;
+	}
 
 	if (will_read_block(dev)) {
 		int ret;
 
-		if (filp->f_flags & O_NONBLOCK)
+		if (filp->f_flags & O_NONBLOCK) {
+			mutex_unlock(&conn_mgmt_mutex);
 			return -EAGAIN;
+		}
 		ret = wait_event_freezable(dev->waitqueue,
 			!will_read_block(dev));
-		if (ret < 0)
+		if (ret < 0) {
+			mutex_unlock(&conn_mgmt_mutex);
 			return ret;
+		}
 	}
 
 	to_read = min(count, dev->read_len);
-	if (copy_to_user(buf, dev->read_buf, to_read))
+	if (copy_to_user(buf, dev->read_buf, to_read)) {
+		mutex_unlock(&conn_mgmt_mutex);
 		return -EFAULT;
+	}
 
 	dev->read_len -= to_read;
 	dev->read_buf += to_read;
@@ -590,8 +634,10 @@ static ssize_t isert_read(struct file *filp, char __user *buf, size_t count,
 			dev->sg_virt = isert_vmap_sg(dev->pages,
 						     dev->login_req->sg,
 						     dev->login_req->sg_cnt);
-			if (!dev->sg_virt)
+			if (!dev->sg_virt) {
+				mutex_unlock(&conn_mgmt_mutex);
 				return -ENOMEM;
+			}
 			dev->read_buf = dev->sg_virt + ISER_HDRS_SZ;
 			dev->state = CS_REQ_DATA;
 		}
@@ -610,10 +656,11 @@ static ssize_t isert_read(struct file *filp, char __user *buf, size_t count,
 		break;
 
 	default:
-		PRINT_ERROR("Invalid state in %s (%d)\n", __func__,
-			    dev->state);
+		PRINT_ERROR("Invalid state %d", dev->state);
 		to_read = 0;
 	}
+
+	mutex_unlock(&conn_mgmt_mutex);
 
 	return to_read;
 }
@@ -624,12 +671,18 @@ static ssize_t isert_write(struct file *filp, const char __user *buf,
 	struct isert_conn_dev *dev = filp->private_data;
 	size_t to_write;
 
-	if (dev->state == CS_DISCONNECTED)
+	mutex_lock(&conn_mgmt_mutex);
+
+	if (dev->state == CS_DISCONNECTED) {
+		mutex_unlock(&conn_mgmt_mutex);
 		return -EPIPE;
+	}
 
 	to_write = min(count, dev->write_len);
-	if (copy_from_user(dev->write_buf, buf, to_write))
+	if (copy_from_user(dev->write_buf, buf, to_write)) {
+		mutex_unlock(&conn_mgmt_mutex);
 		return -EFAULT;
+	}
 
 	dev->write_len -= to_write;
 	dev->write_buf += to_write;
@@ -641,8 +694,10 @@ static ssize_t isert_write(struct file *filp, const char __user *buf,
 			dev->sg_virt = isert_vmap_sg(dev->pages,
 						     dev->login_rsp->sg,
 						     dev->login_rsp->sg_cnt);
-			if (!dev->sg_virt)
+			if (!dev->sg_virt) {
+				mutex_unlock(&conn_mgmt_mutex);
 				return -ENOMEM;
+			}
 			dev->write_buf = dev->sg_virt + ISER_HDRS_SZ;
 			dev->write_len = dev->login_rsp->bufflen -
 					 sizeof(dev->login_rsp->pdu.bhs);
@@ -654,10 +709,11 @@ static ssize_t isert_write(struct file *filp, const char __user *buf,
 		break;
 
 	default:
-		PRINT_ERROR("Invalid state in %s (%d)\n", __func__,
-			    dev->state);
+		PRINT_ERROR("Invalid state %d", dev->state);
 		to_write = 0;
 	}
+
+	mutex_unlock(&conn_mgmt_mutex);
 
 	return to_write;
 }
@@ -677,6 +733,8 @@ static long isert_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	struct iscsi_cmnd *cmnd;
 
 	TRACE_ENTRY();
+
+	mutex_lock(&conn_mgmt_mutex);
 
 	if (dev->state == CS_DISCONNECTED) {
 		res = -EPIPE;
@@ -764,6 +822,7 @@ static long isert_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	}
 
 out:
+	mutex_unlock(&conn_mgmt_mutex);
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -914,7 +973,7 @@ static void __init isert_setup_listener_cdev(struct isert_listener_dev *dev)
 	init_waitqueue_head(&dev->waitqueue);
 	INIT_LIST_HEAD(&dev->new_conn_list);
 	INIT_LIST_HEAD(&dev->curr_conn_list);
-	spin_lock_init(&dev->conn_lock);
+	mutex_init(&dev->conn_lock);
 	atomic_set(&dev->available, 1);
 	err = cdev_add(&dev->cdev, dev->devno, 1);
 	/* Fail gracefully if need be */
@@ -944,7 +1003,7 @@ int __init isert_init_login_devs(unsigned int ndevs)
 	isert_major = MAJOR(devno);
 
 	if (unlikely(res < 0)) {
-		PRINT_ERROR("isert: can't get major %d\n", isert_major);
+		PRINT_ERROR("can't get major %d", isert_major);
 		goto out;
 	}
 
@@ -969,7 +1028,7 @@ int __init isert_init_login_devs(unsigned int ndevs)
 
 	res = isert_datamover_init();
 	if (unlikely(res)) {
-		PRINT_ERROR("Unable to initialize datamover: %d\n", res);
+		PRINT_ERROR("Unable to initialize datamover: %d", res);
 		goto fail;
 	}
 

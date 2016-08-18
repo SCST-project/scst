@@ -126,7 +126,8 @@ The proper shutdown order is as follows:
         echo 0 > $x &
     done
     wait
-    while ls -Ad /sys/kernel/scst_tgt/targets/*/*/sessions/* >/dev/null 2>&1; do
+    while ls -Ad /sys/kernel/scst_tgt/targets/*/*/sessions/* 2>&1 |
+          grep -vE '/sys/kernel/scst_tgt/targets/(copy_manager|scst_local)/'; do
         sleep 1
     done
 * Tell SCST to release the DLM lockspaces:

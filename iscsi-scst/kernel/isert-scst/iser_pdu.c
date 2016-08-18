@@ -263,8 +263,8 @@ int isert_prepare_rdma(struct isert_cmnd *isert_pdu,
 	err = ib_dma_map_sg(ib_dev, isert_buf->sg, isert_buf->sg_cnt,
 			    isert_buf->dma_dir);
 	if (unlikely(!err)) {
-		pr_err("Failed to DMA map iser sg:%p len:%d\n",
-		       isert_buf->sg, isert_buf->sg_cnt);
+		PRINT_ERROR("Failed to DMA map iser sg:%p len:%d",
+			    isert_buf->sg, isert_buf->sg_cnt);
 		wr_cnt = -EFAULT;
 		goto out;
 	}
@@ -331,27 +331,27 @@ struct isert_cmnd *isert_rx_pdu_alloc(struct isert_connection *isert_conn,
 
 	pdu = isert_pdu_alloc();
 	if (unlikely(!pdu)) {
-		pr_err("Failed to alloc pdu\n");
+		PRINT_ERROR("Failed to alloc pdu");
 		goto out;
 	}
 
 	err = isert_alloc_for_rdma(pdu, 4, isert_conn);
 	if (unlikely(err)) {
-		pr_err("Failed to alloc sge and wr for rx pdu\n");
+		PRINT_ERROR("Failed to alloc sge and wr for rx pdu");
 		goto out;
 	}
 
 	err = isert_buf_alloc_data_buf(isert_conn->isert_dev->ib_dev,
 				       &pdu->buf, size, DMA_FROM_DEVICE);
 	if (unlikely(err)) {
-		pr_err("Failed to alloc rx pdu buf sz:%zd\n", size);
+		PRINT_ERROR("Failed to alloc rx pdu buf sz:%zd", size);
 		goto buf_alloc_failed;
 	}
 
 	err = isert_rx_pdu_init(pdu, isert_conn);
 	if (unlikely(err)) {
-		pr_err("Failed to init rx pdu wr:%p size:%zd err:%d\n",
-		       &pdu->wr, size, err);
+		PRINT_ERROR("Failed to init rx pdu wr:%p size:%zd err:%d",
+			    &pdu->wr, size, err);
 		goto pdu_init_failed;
 	}
 
@@ -379,27 +379,27 @@ struct isert_cmnd *isert_tx_pdu_alloc(struct isert_connection *isert_conn,
 
 	pdu = isert_pdu_alloc();
 	if (unlikely(!pdu)) {
-		pr_err("Failed to alloc pdu\n");
+		PRINT_ERROR("Failed to alloc pdu");
 		goto out;
 	}
 
 	err = isert_alloc_for_rdma(pdu, 4, isert_conn);
 	if (unlikely(err)) {
-		pr_err("Failed to alloc sge and wr for tx pdu\n");
+		PRINT_ERROR("Failed to alloc sge and wr for tx pdu");
 		goto out;
 	}
 
 	err = isert_buf_alloc_data_buf(isert_conn->isert_dev->ib_dev,
 				       &pdu->buf, size, DMA_TO_DEVICE);
 	if (unlikely(err)) {
-		pr_err("Failed to alloc tx pdu buf sz:%zd\n", size);
+		PRINT_ERROR("Failed to alloc tx pdu buf sz:%zd", size);
 		goto buf_alloc_failed;
 	}
 
 	err = isert_pdu_tx_buf_init(pdu, isert_conn);
 	if (unlikely(err < 0)) {
-		pr_err("Failed to init tx pdu wr:%p size:%zd err:%d\n",
-		       &pdu->wr, size, err);
+		PRINT_ERROR("Failed to init tx pdu wr:%p size:%zd err:%d",
+			    &pdu->wr, size, err);
 		goto buf_init_failed;
 	}
 
@@ -449,8 +449,8 @@ int isert_alloc_conn_resources(struct isert_connection *isert_conn)
 	to_alloc = isert_conn->queue_depth * 2 + isert_conn->repost_threshold;
 
 	if (unlikely(to_alloc > ISER_MAX_WCE)) {
-		pr_err("QueuedCommands larger than %d not supported\n",
-		       (ISER_MAX_WCE - isert_conn->repost_threshold) / 2);
+		PRINT_ERROR("QueuedCommands larger than %d not supported",
+			    (ISER_MAX_WCE - isert_conn->repost_threshold) / 2);
 		err = -EINVAL;
 		goto out;
 	}
@@ -478,7 +478,7 @@ int isert_alloc_conn_resources(struct isert_connection *isert_conn)
 
 	err = isert_post_recv(isert_conn, &first_pdu->wr[0], to_alloc);
 	if (unlikely(err)) {
-		pr_err("Failed to post recv err:%d\n", err);
+		PRINT_ERROR("Failed to post recv err:%d", err);
 		goto clean_pdus;
 	}
 
@@ -596,8 +596,8 @@ int isert_pdu_send(struct isert_connection *isert_conn,
 
 	err = isert_post_send(isert_conn, wr, 1);
 	if (unlikely(err)) {
-		pr_err("Failed to send pdu conn:%p pdu:%p err:%d\n",
-		       isert_conn, tx_pdu, err);
+		PRINT_ERROR("Failed to send pdu conn:%p pdu:%p err:%d",
+			    isert_conn, tx_pdu, err);
 	}
 
 	TRACE_EXIT_RES(err);
@@ -623,8 +623,8 @@ int isert_pdu_post_rdma_write(struct isert_connection *isert_conn,
 	isert_link_send_pdu_wrs(isert_cmd, isert_rsp, wr_cnt);
 	err = isert_post_send(isert_conn, &isert_cmd->wr[0], wr_cnt + 1);
 	if (unlikely(err)) {
-		pr_err("Failed to send pdu conn:%p pdu:%p err:%d\n",
-		       isert_conn, isert_cmd, err);
+		PRINT_ERROR("Failed to send pdu conn:%p pdu:%p err:%d",
+			    isert_conn, isert_cmd, err);
 	}
 
 	TRACE_EXIT_RES(err);
@@ -640,8 +640,8 @@ int isert_pdu_post_rdma_read(struct isert_connection *isert_conn,
 
 	err = isert_post_send(isert_conn, &isert_cmd->wr[0], wr_cnt);
 	if (unlikely(err)) {
-		pr_err("Failed to send pdu conn:%p pdu:%p err:%d\n",
-		       isert_conn, isert_cmd, err);
+		PRINT_ERROR("Failed to send pdu conn:%p pdu:%p err:%d",
+			    isert_conn, isert_cmd, err);
 	}
 
 	TRACE_EXIT_RES(err);

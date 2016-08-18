@@ -78,6 +78,11 @@ static void isert_mark_conn_closed(struct iscsi_conn *conn, int flags)
 
 static void isert_close_conn(struct iscsi_conn *conn, int flags)
 {
+	struct isert_conn_dev *dev;
+
+	dev = isert_get_priv(conn);
+	if (dev)
+		dev->state = CS_DISCONNECTED;
 }
 
 static int isert_receive_cmnd_data(struct iscsi_cmnd *cmnd)
@@ -283,7 +288,7 @@ static void isert_free_conn(struct iscsi_conn *conn)
 	isert_free_connection(conn);
 }
 
-int isert_handle_close_connection(struct iscsi_conn *conn)
+void isert_handle_close_connection(struct iscsi_conn *conn)
 {
 	isert_mark_conn_closed(conn, 0);
 	/*
@@ -295,7 +300,6 @@ int isert_handle_close_connection(struct iscsi_conn *conn)
 		isert_free_connection(conn);
 	else
 		start_close_conn(conn);
-	return 0;
 }
 
 int isert_pdu_rx(struct iscsi_cmnd *cmnd)
@@ -393,8 +397,8 @@ int isert_pdu_sent(struct iscsi_cmnd *pdu)
 			struct iscsi_target *target = pdu->conn->session->target;
 
 			PRINT_INFO("Closing all connections for target %x at "
-					"initiator's %s request", target->tid,
-					conn->session->initiator_name);
+				   "initiator's %s request", target->tid,
+				   conn->session->initiator_name);
 			mutex_lock(&target->target_mutex);
 			target_del_all_sess(target, 0);
 			mutex_unlock(&target->target_mutex);
@@ -492,7 +496,7 @@ static int __init isert_init_module(void)
 	int ret;
 
 	if (isert_nr_devs > 999) {
-		PRINT_ERROR("Invalid argument for isert_nr_devs provded: %d\n",
+		PRINT_ERROR("Invalid argument for isert_nr_devs provded: %d",
 			    isert_nr_devs);
 		ret = -EINVAL;
 		goto out;
