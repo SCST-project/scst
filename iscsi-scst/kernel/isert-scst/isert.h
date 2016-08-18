@@ -71,7 +71,7 @@ struct isert_listener_dev {
 	struct cdev cdev;
 	dev_t devno;
 	wait_queue_head_t waitqueue;
-	spinlock_t conn_lock;
+	struct mutex conn_lock;
 	struct list_head new_conn_list;
 	struct list_head curr_conn_list;
 	struct isert_addr_info info;
@@ -129,7 +129,7 @@ int isert_conn_alloc(struct iscsi_session *session,
 		     struct iscsi_kern_conn_info *info,
 		     struct iscsi_conn **new_conn,
 		     struct iscsit_transport *t);
-int isert_handle_close_connection(struct iscsi_conn *conn);
+void isert_handle_close_connection(struct iscsi_conn *conn);
 void isert_close_all_portals(void);
 void isert_del_timer(struct isert_conn_dev *dev);
 

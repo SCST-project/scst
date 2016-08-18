@@ -47,7 +47,7 @@ int isert_datamover_init(void)
 
 	err = isert_global_init();
 	if (unlikely(err)) {
-		pr_err("iser datamover init failed, err:%d\n", err);
+		PRINT_ERROR("iser datamover init failed, err:%d", err);
 		return err;
 	}
 	return 0;
@@ -189,7 +189,7 @@ int isert_login_rsp_tx(struct iscsi_cmnd *login_rsp, int last, int discovery)
 	if (last && !discovery) {
 		err = isert_alloc_conn_resources(isert_conn);
 		if (unlikely(err)) {
-			pr_err("Failed to init conn resources\n");
+			PRINT_ERROR("Failed to init conn resources");
 			return err;
 		}
 		isert_pdu_free(isert_conn->login_req_pdu);
@@ -199,7 +199,7 @@ int isert_login_rsp_tx(struct iscsi_cmnd *login_rsp, int last, int discovery)
 					  &isert_conn->login_req_pdu->wr[0],
 					  1);
 		if (unlikely(err)) {
-			pr_err("Failed to post recv login req rx buf, err:%d\n", err);
+			PRINT_ERROR("Failed to post recv login req rx buf, err:%d", err);
 			return err;
 		}
 	}

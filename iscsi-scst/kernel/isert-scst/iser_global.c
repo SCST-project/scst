@@ -106,7 +106,7 @@ int isert_global_init(void)
 
 	isert_glob.conn_wq = create_workqueue("isert_conn_wq");
 	if (!isert_glob.conn_wq) {
-		pr_err("Failed to alloc iser conn work queue\n");
+		PRINT_ERROR("Failed to alloc iser conn work queue");
 		return -ENOMEM;
 	}
 
@@ -114,7 +114,7 @@ int isert_global_init(void)
 				     SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN);
 	if (!isert_cmnd_cache) {
 		destroy_workqueue(isert_glob.conn_wq);
-		pr_err("Failed to alloc iser command cache\n");
+		PRINT_ERROR("Failed to alloc iser command cache");
 		return -ENOMEM;
 	}
 
@@ -123,7 +123,7 @@ int isert_global_init(void)
 	if (!isert_conn_cache) {
 		destroy_workqueue(isert_glob.conn_wq);
 		kmem_cache_destroy(isert_cmnd_cache);
-		pr_err("Failed to alloc iser connection cache\n");
+		PRINT_ERROR("Failed to alloc iser connection cache");
 		return -ENOMEM;
 	}
 
@@ -153,7 +153,7 @@ int isert_get_addr_size(struct sockaddr *sa, size_t *addr_len)
 		*addr_len = sizeof(struct sockaddr_in6);
 		break;
 	default:
-		pr_err("Unknown address family\n");
+		PRINT_ERROR("Unknown address family");
 		ret = -EINVAL;
 		goto out;
 	}

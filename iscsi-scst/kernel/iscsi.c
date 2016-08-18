@@ -2035,6 +2035,8 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 	atomic_inc(&session->active_cmds);
 	req->dec_active_cmds = 1;
 
+	sBUG_ON(session->scst_sess == NULL);
+
 	scst_cmd = scst_rx_cmd(session->scst_sess,
 		(uint8_t *)&req_hdr->lun, sizeof(req_hdr->lun),
 		req_hdr->scb, sizeof(req_hdr->scb), SCST_NON_ATOMIC);
