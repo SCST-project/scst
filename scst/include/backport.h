@@ -678,4 +678,19 @@ static inline int scsi_bidi_cmnd(struct scsi_cmnd *cmd)
 }
 #endif
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)) && \
+    (LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0))
+/**
+ * ktime_before - Compare if a ktime_t value is smaller than another one.
+ * @cmp1:	comparable1
+ * @cmp2:	comparable2
+ *
+ * Return: true if cmp1 happened before cmp2.
+ */
+static inline bool ktime_before(const ktime_t cmp1, const ktime_t cmp2)
+{
+	return ktime_compare(cmp1, cmp2) < 0;
+}
+#endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)) && (LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0)) */
+
 #endif /* _SCST_BACKPORT_H_ */
