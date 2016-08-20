@@ -1805,6 +1805,20 @@ context switch is natural for such potentially long operation as
 EXTENDED COPY.
 
 
+VMware and Ceph RBD space reclaim
+---------------------------------
+
+VMware with VMFS5 filesystem ignores UNMAP alignment, so if you use 4MB
+Ceph RBD objects and VMFS5, only some discards will reclaim RBD space
+due to 1MB discard not often hitting the tail of objects.
+
+Thus, to have efficient ESXi space reclamation with RBD and VMFS5, you are
+recommended to use 1 MB object size in Ceph.
+
+See https://sourceforge.net/p/scst/mailman/message/35287598 thread for
+details.
+
+
 Caching
 -------
 

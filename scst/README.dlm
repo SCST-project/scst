@@ -85,8 +85,9 @@ Startup and Shutdown
 --------------------
 
 The startup sequence is as follows:
-* Load and configure SCST with cluster_mode = 0 and with all target ports
-  disabled.
+* Load the DLM kernel module. If not loaded explicitly, "modprobe scst" will
+  load the DLM kernel module implicitly.
+* Load and configure SCST with all target ports disabled.
 * Enable cluster mode for all SCST devices that can be accessed through more
   than one cluster node:
     for x in /sys/kernel/scst_tgt/handlers/*/*/; do
@@ -103,10 +104,17 @@ The startup sequence is as follows:
 	crmadmin -S "$dc" 2>/dev/null |
 	sed 's/^Status of crmd@[^[:blank:]]*:[[:blank:]]\([^[:blank:]]*\).*/\1/'
     }
-    for ((i=0;i<300;i++)); do
-	[ "$(pacemaker_dc_status)" = "S_IDLE" ] && break
+    timeout=300
+    for ((i=0;i<timeout;i++)); do
+	if [ "$(pacemaker_dc_status)" = "S_IDLE" ]; then
+	    echo "Pacemaker reached idle state after $i s"
+	    break
+	fi
 	sleep 1
     done
+    if [ "$i" = "$timeout" ]; then
+	echo "Pacemaker did not reach the IDLE state in $i s"
+    fi
 * Enable SCST target ports.
 * If no DLM resource has been configured in Pacemaker, start dlm_controld.pcmk
   explicitly.
@@ -118,7 +126,8 @@ The proper shutdown order is as follows:
         echo 0 > $x &
     done
     wait
-    while ls -Ad /sys/kernel/scst_tgt/targets/*/*/sessions/* >/dev/null 2>&1; do
+    while ls -Ad /sys/kernel/scst_tgt/targets/*/*/sessions/* 2>&1 |
+          grep -vE '/sys/kernel/scst_tgt/targets/(copy_manager|scst_local)/'; do
         sleep 1
     done
 * Tell SCST to release the DLM lockspaces:

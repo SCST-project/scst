@@ -1062,6 +1062,8 @@ check:
 	(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6)
 			virt_dev->unmap_opt_gran = q->limits.discard_granularity >> block_shift;
 			virt_dev->unmap_align = q->limits.discard_alignment >> block_shift;
+			if (virt_dev->unmap_opt_gran == virt_dev->unmap_align)
+				virt_dev->unmap_align = 0;
 			virt_dev->unmap_max_lba_cnt = q->limits.max_discard_sectors >> (block_shift - 9);
 			virt_dev->discard_zeroes_data = q->limits.discard_zeroes_data;
 #else

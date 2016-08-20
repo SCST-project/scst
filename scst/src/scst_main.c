@@ -121,7 +121,9 @@ unsigned long scst_trace_flag;
 
 unsigned long scst_flags;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
 unsigned long scst_poll_ns = SCST_DEF_POLL_NS;
+#endif
 
 int scst_max_tasklet_cmd = SCST_DEF_MAX_TASKLET_CMD;
 
