@@ -183,8 +183,10 @@ extern unsigned int scst_setup_id;
 #define SCST_DEF_MAX_TASKLET_CMD 10
 extern int scst_max_tasklet_cmd;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
 #define SCST_DEF_POLL_NS 0
 extern unsigned long scst_poll_ns;
+#endif
 
 extern spinlock_t scst_init_lock;
 extern struct list_head scst_init_cmd_list;

@@ -7077,6 +7077,8 @@ static struct kobj_attribute scst_max_tasklet_cmd_attr =
 	__ATTR(max_tasklet_cmd, S_IRUGO | S_IWUSR, scst_max_tasklet_cmd_show,
 	       scst_max_tasklet_cmd_store);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
+
 static ssize_t scst_poll_us_show(struct kobject *kobj,
 				  struct kobj_attribute *attr, char *buf)
 {
@@ -7123,6 +7125,8 @@ out:
 static struct kobj_attribute scst_poll_us_attr =
 	__ATTR(poll_us, S_IRUGO | S_IWUSR, scst_poll_us_show,
 	       scst_poll_us_store);
+
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0) */
 
 static ssize_t scst_suspend_show(struct kobject *kobj,
 				 struct kobj_attribute *attr, char *buf)
@@ -7398,7 +7402,9 @@ static struct attribute *scst_sysfs_root_default_attrs[] = {
 	&scst_threads_attr.attr,
 	&scst_setup_id_attr.attr,
 	&scst_max_tasklet_cmd_attr.attr,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
 	&scst_poll_us_attr.attr,
+#endif
 	&scst_suspend_attr.attr,
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	&scst_main_trace_level_attr.attr,

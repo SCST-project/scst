@@ -5620,6 +5620,7 @@ again:
 			thr_locked = false;
 		}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
 		if (scst_poll_ns > 0) {
 			struct timespec ts;
 			ktime_t end, kt;
@@ -5652,6 +5653,7 @@ again:
 		}
 
 go:
+#endif
 		spin_lock_irq(&p_cmd_threads->cmd_list_lock);
 		spin_lock(&thr->thr_cmd_list_lock);
 	}
