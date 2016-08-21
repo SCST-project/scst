@@ -77,7 +77,8 @@ static struct isert_conn_dev *get_available_dev(struct isert_listener_dev *dev,
 			res->occupied = 1;
 			res->conn = conn;
 			isert_set_priv(conn, res);
-			list_add_tail(&res->conn_list_entry, &dev->new_conn_list);
+			list_add_tail(&res->conn_list_entry,
+				      &dev->new_conn_list);
 			break;
 		}
 	}
@@ -446,9 +447,9 @@ int isert_conn_established(struct iscsi_conn *iscsi_conn,
 	return add_new_connection(&isert_listen_dev, iscsi_conn);
 }
 
-static void isert_dev_disconnect(struct iscsi_conn* iscsi_conn)
+static void isert_dev_disconnect(struct iscsi_conn *iscsi_conn)
 {
-	struct isert_conn_dev* dev = isert_get_priv(iscsi_conn);
+	struct isert_conn_dev *dev = isert_get_priv(iscsi_conn);
 
 	if (dev) {
 		isert_del_timer(dev);
@@ -486,14 +487,16 @@ void isert_connection_closed(struct iscsi_conn *iscsi_conn)
 
 void isert_connection_abort(struct iscsi_conn *iscsi_conn)
 {
-	struct isert_connection *isert_conn = (struct isert_connection *)iscsi_conn;
+	struct isert_connection *isert_conn =
+		(struct isert_connection *)iscsi_conn;
 
 	TRACE_ENTRY();
 
 	mutex_lock(&conn_mgmt_mutex);
 
 	if (!iscsi_conn->rd_state) {
-		if (!test_and_set_bit(ISERT_DISCON_CALLED, &isert_conn->flags)) {
+		if (!test_and_set_bit(ISERT_DISCON_CALLED,
+				      &isert_conn->flags)) {
 			isert_dev_disconnect(iscsi_conn);
 			isert_free_connection(iscsi_conn);
 		}
@@ -721,7 +724,7 @@ static ssize_t isert_write(struct file *filp, const char __user *buf,
 static bool is_last_login_rsp(struct iscsi_login_rsp_hdr *rsp)
 {
 	return (rsp->flags & ISCSI_FLG_TRANSIT) &&
-	       ((rsp->flags & ISCSI_FLG_NSG_MASK) == ISCSI_FLG_NSG_FULL_FEATURE);
+	       (rsp->flags & ISCSI_FLG_NSG_MASK) == ISCSI_FLG_NSG_FULL_FEATURE;
 }
 
 static long isert_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
@@ -771,7 +774,8 @@ static long isert_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			}
 
 			dev->state = CS_RSP_FINISHED;
-			rsp = (struct iscsi_login_rsp_hdr *)(&dev->login_rsp->pdu.bhs);
+			rsp = (struct iscsi_login_rsp_hdr *)
+				&dev->login_rsp->pdu.bhs;
 			last = is_last_login_rsp(rsp);
 
 			dev->login_rsp->bufflen -= dev->write_len;
@@ -795,8 +799,8 @@ static long isert_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			struct isert_addr_info addr;
 
 			res = isert_get_target_addr(dev->conn,
-						   (struct sockaddr *)&addr.addr,
-						   &addr.addr_len);
+						  (struct sockaddr *)&addr.addr,
+						  &addr.addr_len);
 			if (unlikely(res))
 				goto out;
 
