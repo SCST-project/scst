@@ -3822,7 +3822,7 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 		err = blkdev_issue_discard(inode->i_bdev, start_sector, nr_sects, gfp);
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)       \
       && !(LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 34) \
-           && defined(CONFIG_SUSE_KERNEL))
+	   && defined(CONFIG_SUSE_KERNEL))
 		err = blkdev_issue_discard(inode->i_bdev, start_sector, nr_sects,
 				gfp, DISCARD_FL_WAIT);
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
