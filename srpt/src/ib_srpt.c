@@ -113,12 +113,12 @@ static u16 rdma_cm_port;
 module_param(rdma_cm_port, short, 0444);
 MODULE_PARM_DESC(rdma_cm_port, "Port number RDMA/CM will bind to.");
 
-static unsigned srp_max_rdma_size = DEFAULT_MAX_RDMA_SIZE;
+static unsigned int srp_max_rdma_size = DEFAULT_MAX_RDMA_SIZE;
 module_param(srp_max_rdma_size, int, 0644);
 MODULE_PARM_DESC(srp_max_rdma_size,
 		 "Maximum size of SRP RDMA transfers for new connections.");
 
-static unsigned srp_max_req_size = DEFAULT_MAX_REQ_SIZE;
+static unsigned int srp_max_req_size = DEFAULT_MAX_REQ_SIZE;
 module_param(srp_max_req_size, int, 0444);
 MODULE_PARM_DESC(srp_max_req_size,
 		 "Maximum size of SRP request messages in bytes.");
@@ -181,7 +181,7 @@ MODULE_PARM_DESC(srpt_service_guid,
 		 "Using this value for ioc_guid, id_ext, and cm_listen_id"
 		 " instead of using the node_guid of the first HCA.");
 
-static unsigned max_sge_delta = 3;
+static unsigned int max_sge_delta = 3;
 module_param(max_sge_delta, uint, 0444);
 MODULE_PARM_DESC(max_sge_delta, "Number to subtract from max_sge.");
 
@@ -1059,7 +1059,7 @@ static int srpt_get_desc_tbl(struct srpt_recv_ioctx *recv_ioctx,
 {
 	struct srp_indirect_buf *idb;
 	struct srp_direct_buf *db;
-	unsigned add_cdb_offset;
+	unsigned int add_cdb_offset;
 	int ret;
 	u8 fmt;
 
@@ -2259,7 +2259,8 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 	 */
 	ch->max_sge = sdev->dev_attr.max_sge -
 		min(max_sge_delta,
-		    max_t(unsigned, 0, sdev->dev_attr.max_sge - max_sge_delta));
+		    max_t(unsigned int, 0,
+			  sdev->dev_attr.max_sge - max_sge_delta));
 	qp_init->cap.max_send_sge = ch->max_sge;
 	qp_init->cap.max_recv_sge = ch->max_sge;
 	if (sdev->use_srq) {
