@@ -2223,7 +2223,8 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 	!defined(RHEL_RELEASE_CODE)
 	ch->cq = ib_create_cq(sdev->device, srpt_completion, NULL, ch,
 			      ch->rq_size + srpt_sq_size);
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 2, 0) && \
+#elif (LINUX_VERSION_CODE < KERNEL_VERSION(4, 2, 0) ||	\
+	defined(MOFED_MAJOR)) &&	\
 	!defined(IB_CREATE_CQ_HAS_INIT_ATTR)
 	ch->cq = ib_create_cq(sdev->device, srpt_completion, NULL, ch,
 			      ch->rq_size + srpt_sq_size, ch->comp_vector);
