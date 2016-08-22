@@ -114,6 +114,17 @@ function evaluate(stmnt, pattern, arg, op, result) {
                    "(\\1) * 256 + (\\2)", "g", stmnt)
   }
 
+  if (MOFED_MAJOR == "")
+  {
+    gsub("defined\\(MOFED_MAJOR\\)", "0", stmnt)
+    gsub("MOFED_MAJOR", "", stmnt)
+  }
+  else
+  {
+    gsub("defined\\(MOFED_MAJOR\\)", "1", stmnt)
+    gsub("MOFED_MAJOR", MOFED_MAJOR, stmnt)
+  }
+
   if (SCSI_EXEC_REQ_FIFO_DEFINED != "")
   {
     gsub("defined[[:blank:]]+SCSI_EXEC_REQ_FIFO_DEFINED",
@@ -284,6 +295,7 @@ function handle_if(evaluated)
       || $0 ~ "RHEL_MAJOR"         \
       || $0 ~ "RHEL_MINOR"         \
       || $0 ~ "RHEL_RELEASE_CODE"  \
+      || $0 ~ "MOFED_MAJOR"        \
       || generating_upstream_patch_defined \
          && $0 ~ "GENERATING_UPSTREAM_PATCH" \
       || $0 ~ "CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION" \

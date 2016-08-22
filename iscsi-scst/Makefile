@@ -76,9 +76,16 @@ ifeq ($(OFED_FLAVOR),MOFED)
 	endif
 
 	ifeq ($(MLNX_OFED_IB_RH_INSTALLED),true)
+	OFED_VERS=$(shell rpm -q --qf '%{version}\n' mlnx-ofa_kernel-devel \
+			  2>/dev/null)
 	OFED_CFLAGS:=-I/usr/src/ofa_kernel/default/include -include /usr/src/ofa_kernel/default/include/linux/compat-2.6.h
 	ISER_SYMVERS:="$(ISER_SYMVERS) /usr/src/ofa_kernel/default/Module.symvers"
 	endif
+
+	# Make the version of the MOFED kernel package available to C source
+	# files such that it can be used in #ifdef statements where MOFED
+	# uses an older version of the RDMA API than the upstream kernel.
+	OFED_CFLAGS+=-DMOFED_MAJOR=$(shell echo $(OFED_VERS) | cut -f1 -d.)
 else
 	# Whether or not the OFED kernel-ib-devel RPM has been installed.
 	OFED_KERNEL_IB_DEVEL_RPM_INSTALLED:=$(shell if rpm -q kernel-ib-devel 2>/dev/null | grep -q $$(uname -r | sed 's/-/_/g'); then echo true; else echo false; fi)
