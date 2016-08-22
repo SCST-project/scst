@@ -2530,6 +2530,7 @@ static unsigned int scst_cm_get_lun(const struct scst_device *dev)
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		struct list_head *head = &scst_cm_sess->sess_tgt_dev_list[i];
 		struct scst_tgt_dev *tgt_dev;
+
 		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
 			if (tgt_dev->dev == dev) {
 				res = tgt_dev->lun;

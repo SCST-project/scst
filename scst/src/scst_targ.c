@@ -1919,6 +1919,7 @@ static void scst_process_redirect_cmd(struct scst_cmd *cmd,
 	case SCST_CONTEXT_THREAD:
 	{
 		struct list_head *active_cmd_list;
+
 		if (cmd->cmd_thr != NULL) {
 			TRACE_DBG("Using assigned thread %p for cmd %p",
 				cmd->cmd_thr, cmd);
@@ -5500,6 +5501,7 @@ int scst_cmd_thread(void *arg)
 	while (!kthread_should_stop()) {
 		if (!test_cmd_threads(thr)) {
 			DEFINE_WAIT(wait);
+
 			do {
 				prepare_to_wait_exclusive_head(
 					&p_cmd_threads->cmd_list_waitQ,
