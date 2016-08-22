@@ -488,7 +488,7 @@ void isert_connection_closed(struct iscsi_conn *iscsi_conn)
 void isert_connection_abort(struct iscsi_conn *iscsi_conn)
 {
 	struct isert_connection *isert_conn =
-		(struct isert_connection *)iscsi_conn;
+		container_of(iscsi_conn, struct isert_connection, iscsi);
 
 	TRACE_ENTRY();
 
