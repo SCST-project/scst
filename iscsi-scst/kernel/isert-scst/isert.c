@@ -205,8 +205,8 @@ static void isert_cmnd_free(struct iscsi_cmnd *cmnd)
 	if (unlikely(cmnd->on_write_list || cmnd->on_write_timeout_list)) {
 		struct iscsi_scsi_cmd_hdr *req = cmnd_hdr(cmnd);
 
-		PRINT_CRIT_ERROR("cmnd %p still on some list?, %x, %x, %x, "
-			"%x, %x, %x, %x", cmnd, req->opcode, req->scb[0],
+		PRINT_CRIT_ERROR("cmnd %p still on some list?, %x, %x, %x, %x, %x, %x, %x",
+			cmnd, req->opcode, req->scb[0],
 			req->flags, req->itt, be32_to_cpu(req->data_length),
 			req->cmd_sn,
 			be32_to_cpu((__force __be32)(cmnd->pdu.datasize)));
@@ -394,17 +394,17 @@ int isert_pdu_sent(struct iscsi_cmnd *pdu)
 
 	if (unlikely(pdu->should_close_conn)) {
 		if (pdu->should_close_all_conn) {
-			struct iscsi_target *target = pdu->conn->session->target;
+			struct iscsi_target *target =
+				pdu->conn->session->target;
 
-			PRINT_INFO("Closing all connections for target %x at "
-				   "initiator's %s request", target->tid,
-				   conn->session->initiator_name);
+			PRINT_INFO("Closing all connections for target %x at initiator's %s request",
+				   target->tid, conn->session->initiator_name);
 			mutex_lock(&target->target_mutex);
 			target_del_all_sess(target, 0);
 			mutex_unlock(&target->target_mutex);
 		} else {
-			PRINT_INFO("Closing connection %p at initiator's %s "
-				   "request", conn, conn->session->initiator_name);
+			PRINT_INFO("Closing connection %p at initiator's %s request",
+				   conn, conn->session->initiator_name);
 			mark_conn_closed(conn);
 		}
 	}

@@ -4095,7 +4095,7 @@ static ssize_t show_port_id(struct kobject *kobj, struct kobj_attribute *attr,
 		 strcmp(sport->port_id, DEFAULT_SRPT_ID_STRING) ?
 		 SCST_SYSFS_KEY_MARK "\n" : "");
 	mutex_unlock(&sport->mutex);
-	
+
 	res = strlen(buf);
 
 out:
@@ -4113,7 +4113,7 @@ static ssize_t store_port_id(struct kobject *kobj, struct kobj_attribute *attr,
 
 	if (!sport)
 		goto out;
-	
+
 	end = buf + count;
 	while (end > buf && isspace(((unsigned char *)end)[-1]))
 		--end;

@@ -142,9 +142,9 @@ int isert_post_send(struct isert_connection *isert_conn,
 	return err;
 }
 
-static void isert_post_drain_sq(struct isert_connection* isert_conn)
+static void isert_post_drain_sq(struct isert_connection *isert_conn)
 {
-	struct ib_send_wr* bad_wr;
+	struct ib_send_wr *bad_wr;
 	struct isert_wr *drain_wr_sq = &isert_conn->drain_wr_sq;
 	int err;
 
@@ -163,12 +163,13 @@ static void isert_post_drain_sq(struct isert_connection* isert_conn)
 #endif
 	if (unlikely(err)) {
 		PRINT_ERROR("Failed to post drain wr to send queue, err:%d", err);
-		/* We need to decrement iser_conn->kref in order to be able to cleanup
-		 * the connection */
+		/*
+		 * We need to decrement iser_conn->kref in order to be able to
+		 * clean up the connection.
+		 */
 		set_bit(ISERT_DRAINED_SQ, &isert_conn->flags);
-		if (test_bit(ISERT_DRAINED_RQ, &isert_conn->flags)) {
+		if (test_bit(ISERT_DRAINED_RQ, &isert_conn->flags))
 			isert_sched_conn_free(isert_conn);
-		}
 	}
 }
 
@@ -184,11 +185,11 @@ static void isert_post_drain_rq(struct isert_connection *isert_conn)
 	err = ib_post_recv(isert_conn->qp,
 			   &drain_wr_rq->recv_wr, &bad_wr);
 	if (unlikely(err)) {
-		PRINT_ERROR("Failed to post drain wr to receive queue, err:%d", err);
+		PRINT_ERROR("Failed to post drain wr to receive queue, err:%d",
+			    err);
 		set_bit(ISERT_DRAINED_RQ, &isert_conn->flags);
-		if (test_bit(ISERT_DRAINED_SQ, &isert_conn->flags)) {
+		if (test_bit(ISERT_DRAINED_SQ, &isert_conn->flags))
 			isert_sched_conn_free(isert_conn);
-		}
 	}
 }
 
@@ -356,8 +357,8 @@ static void isert_recv_completion_handler(struct isert_wr *wr)
 				   ISER_HDRS_SZ,
 				   DMA_FROM_DEVICE);
 	isert_rx_pdu_parse_headers(pdu);
-	isert_dma_sync_data_for_cpu(ib_dev, sge,
-				    pdu->iscsi.pdu.datasize + pdu->iscsi.pdu.ahssize);
+	isert_dma_sync_data_for_cpu(ib_dev, sge, pdu->iscsi.pdu.datasize +
+				    pdu->iscsi.pdu.ahssize);
 
 	switch (pdu->isert_opcode) {
 	case ISER_ISCSI_CTRL:
@@ -710,12 +711,11 @@ static void isert_handle_wc_error(struct ib_wc *wc)
 #endif
 		if (unlikely(num_sge == 0)) { /* Drain WR */
 			set_bit(ISERT_DRAINED_SQ, &isert_conn->flags);
-			if (test_bit(ISERT_DRAINED_RQ, &isert_conn->flags)) {
+			if (test_bit(ISERT_DRAINED_RQ, &isert_conn->flags))
 				isert_sched_conn_drained(isert_conn);
-			}
-		}
-		else if (!isert_pdu->is_fake_rx)
+		} else if (!isert_pdu->is_fake_rx) {
 			isert_pdu_err(&isert_pdu->iscsi);
+		}
 		break;
 	case ISER_WR_RDMA_READ:
 		if (isert_buf->sg_cnt != 0) {
@@ -731,15 +731,14 @@ static void isert_handle_wc_error(struct ib_wc *wc)
 		num_sge = wr->recv_wr.num_sge;
 		if (unlikely(num_sge == 0)) { /* Drain WR */
 			set_bit(ISERT_DRAINED_RQ, &isert_conn->flags);
-			if (test_bit(ISERT_DRAINED_SQ, &isert_conn->flags)) {
+			if (test_bit(ISERT_DRAINED_SQ, &isert_conn->flags))
 				isert_sched_conn_drained(isert_conn);
-			}
 		}
 		break;
 	case ISER_WR_RDMA_WRITE:
 		if (isert_buf->sg_cnt != 0) {
-			ib_dma_unmap_sg(ib_dev, isert_buf->sg, isert_buf->sg_cnt,
-				isert_buf->dma_dir);
+			ib_dma_unmap_sg(ib_dev, isert_buf->sg,
+					isert_buf->sg_cnt, isert_buf->dma_dir);
 			isert_buf->sg_cnt = 0;
 		}
 		/*
@@ -988,7 +987,8 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 		goto free_isert_dev;
 	}
 
-	isert_dev->cq_desc = vmalloc(sizeof(*isert_dev->cq_desc) * isert_dev->num_cqs);
+	isert_dev->cq_desc = vmalloc(sizeof(*isert_dev->cq_desc) *
+				     isert_dev->num_cqs);
 	if (unlikely(isert_dev->cq_desc == NULL)) {
 		PRINT_ERROR("Failed to allocate %ld bytes for iser cq_desc",
 			    sizeof(*isert_dev->cq_desc) * isert_dev->num_cqs);
@@ -1074,14 +1074,17 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 		if (unlikely(IS_ERR(cq))) {
 			cq_desc->cq = NULL;
 			err = PTR_ERR(cq);
-			PRINT_ERROR("Failed to create iser dev cq, err:%d", err);
+			PRINT_ERROR("Failed to create iser dev cq, err:%d",
+				    err);
 			goto fail_cq;
 		}
 
 		cq_desc->cq = cq;
-		err = ib_req_notify_cq(cq, IB_CQ_NEXT_COMP | IB_CQ_REPORT_MISSED_EVENTS);
+		err = ib_req_notify_cq(cq, IB_CQ_NEXT_COMP |
+				       IB_CQ_REPORT_MISSED_EVENTS);
 		if (unlikely(err)) {
-			PRINT_ERROR("Failed to request notify cq, err: %d", err);
+			PRINT_ERROR("Failed to request notify cq, err: %d",
+				    err);
 			goto fail_cq;
 		}
 	}
@@ -1303,7 +1306,8 @@ static struct isert_connection *isert_conn_create(struct rdma_cm_id *cm_id,
 
 	err = isert_post_recv(isert_conn, &isert_conn->login_req_pdu->wr[0], 1);
 	if (unlikely(err)) {
-		PRINT_ERROR("Failed to post recv login req rx buf, err:%d", err);
+		PRINT_ERROR("Failed to post recv login req rx buf, err:%d",
+			    err);
 		goto fail_post_recv;
 	}
 
@@ -1340,9 +1344,8 @@ static void isert_deref_device(struct isert_device *isert_dev)
 static void isert_kref_free(struct kref *kref)
 {
 	struct isert_conn_dev *dev;
-	struct isert_connection *isert_conn = container_of(kref,
-							   struct isert_connection,
-							   kref);
+	struct isert_connection *isert_conn =
+		container_of(kref, struct isert_connection, kref);
 	struct isert_device *isert_dev = isert_conn->isert_dev;
 	struct isert_cq *cq = isert_conn->qp->recv_cq->cq_context;
 
@@ -1390,15 +1393,16 @@ void isert_conn_free(struct isert_connection *isert_conn)
 }
 
 static int isert_cm_disconnected_handler(struct rdma_cm_id *cm_id,
-					  struct rdma_cm_event *event)
+					 struct rdma_cm_event *event)
 {
 	struct isert_connection *isert_conn = cm_id->qp->qp_context;
+
 	if (!test_and_set_bit(ISERT_CONNECTION_CLOSE, &isert_conn->flags))
 		isert_sched_conn_closed(isert_conn);
 	return 0;
 }
 
-static void isert_immediate_conn_close(struct isert_connection* isert_conn)
+static void isert_immediate_conn_close(struct isert_connection *isert_conn)
 {
 	set_bit(ISERT_CONNECTION_ABORTED, &isert_conn->flags);
 	set_bit(ISERT_CONNECTION_CLOSE, &isert_conn->flags);
@@ -1472,9 +1476,11 @@ static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
 	tgt_conn_param.rnr_retry_count =
 		ini_conn_param->rnr_retry_count;
 
-	tgt_conn_param.initiator_depth = isert_dev->device_attr.max_qp_init_rd_atom;
+	tgt_conn_param.initiator_depth =
+		isert_dev->device_attr.max_qp_init_rd_atom;
 	if (tgt_conn_param.initiator_depth > ini_conn_param->initiator_depth)
-		tgt_conn_param.initiator_depth = ini_conn_param->initiator_depth;
+		tgt_conn_param.initiator_depth =
+			ini_conn_param->initiator_depth;
 
 	tgt_conn_param.private_data_len = sizeof(cm_hdr);
 	tgt_conn_param.private_data = &cm_hdr;
@@ -1485,7 +1491,8 @@ static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
 
 	err = rdma_accept(cm_id, &tgt_conn_param);
 	if (unlikely(err)) {
-		PRINT_ERROR("Failed to accept conn request, err:%d conn:%p", err, isert_conn);
+		PRINT_ERROR("Failed to accept conn request, err:%d conn:%p",
+			    err, isert_conn);
 		goto fail_accept;
 	}
 
@@ -1570,9 +1577,8 @@ static int isert_cm_connect_handler(struct rdma_cm_id *cm_id,
 	ret = isert_conn_established(&isert_conn->iscsi,
 				     (struct sockaddr *)&isert_conn->peer_addr,
 				     isert_conn->peer_addrsz);
-	if (unlikely(ret)) {
+	if (unlikely(ret))
 		goto out;
-	}
 
 	if (push_saved_pdu) {
 		PRINT_INFO("iser push saved rx pdu");
@@ -1727,12 +1733,12 @@ static int isert_cm_evt_handler(struct rdma_cm_id *cm_id,
 	/* We can receive this instead of RDMA_CM_EVENT_ESTABLISHED */
 	case RDMA_CM_EVENT_UNREACHABLE:
 		{
-			struct isert_connection *isert_conn = cm_id->qp->qp_context;
+			struct isert_connection *isert_conn =
+				cm_id->qp->qp_context;
 
 			mutex_lock(&isert_conn->state_mutex);
-			if (isert_conn->state != ISER_CONN_CLOSING) {
+			if (isert_conn->state != ISER_CONN_CLOSING)
 				isert_immediate_conn_close(isert_conn);
-			}
 			mutex_unlock(&isert_conn->state_mutex);
 			err = 0;
 		}
@@ -1837,8 +1843,8 @@ int isert_portal_listen(struct isert_portal *portal,
 			   NIPQUAD(((struct sockaddr_in *)sa)->sin_addr.s_addr),
 			   (int)ntohs(((struct sockaddr_in *)sa)->sin_port));
 #else
-		PRINT_INFO("iser portal cm_id:%p listens on: "
-			   "%pI4:%d", portal->cm_id,
+		PRINT_INFO("iser portal cm_id:%p listens on: %pI4:%d",
+			   portal->cm_id,
 			   &((struct sockaddr_in *)sa)->sin_addr.s_addr,
 			   (int)ntohs(((struct sockaddr_in *)sa)->sin_port));
 #endif
@@ -1851,8 +1857,8 @@ int isert_portal_listen(struct isert_portal *portal,
 			   NIP6(((struct sockaddr_in6 *)sa)->sin6_addr),
 			   (int)ntohs(((struct sockaddr_in6 *)sa)->sin6_port));
 #else
-		PRINT_INFO("iser portal cm_id:%p listens on: "
-			   "%pI6 %d", portal->cm_id,
+		PRINT_INFO("iser portal cm_id:%p listens on: %pI6 %d",
+			   portal->cm_id,
 			   &((struct sockaddr_in6 *)sa)->sin6_addr,
 			   (int)ntohs(((struct sockaddr_in6 *)sa)->sin6_port));
 #endif
@@ -1902,9 +1908,8 @@ void isert_portal_release(struct isert_portal *portal)
 	isert_portal_free(portal);
 	mutex_unlock(&dev_list_mutex);
 
-	while (portal->refcnt > 0) {
+	while (portal->refcnt > 0)
 		msleep(100);
-	}
 
 	PRINT_INFO("done releasing portal %p", portal);
 }
