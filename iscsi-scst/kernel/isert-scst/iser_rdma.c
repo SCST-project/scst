@@ -111,7 +111,7 @@ int isert_post_send(struct isert_connection *isert_conn,
 		    struct isert_wr *first_wr,
 		    int num_wr)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) || defined(MOFED_MAJOR)
 	struct ib_send_wr *first_ib_wr = &first_wr->send_wr;
 #else
 	struct ib_send_wr *first_ib_wr = &first_wr->send_wr.wr;
@@ -150,7 +150,7 @@ static void isert_post_drain_sq(struct isert_connection *isert_conn)
 
 	isert_wr_set_fields(drain_wr_sq, isert_conn, NULL);
 	drain_wr_sq->wr_op = ISER_WR_SEND;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) || defined(MOFED_MAJOR)
 	drain_wr_sq->send_wr.wr_id = _ptr_to_u64(drain_wr_sq);
 	drain_wr_sq->send_wr.opcode = IB_WR_SEND;
 	err = ib_post_send(isert_conn->qp,
@@ -704,7 +704,7 @@ static void isert_handle_wc_error(struct ib_wc *wc)
 
 	switch (wr->wr_op) {
 	case ISER_WR_SEND:
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) || defined(MOFED_MAJOR)
 		num_sge = wr->send_wr.num_sge;
 #else
 		num_sge = wr->send_wr.wr.num_sge;
@@ -965,7 +965,7 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 		goto out;
 	}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0) || defined(MOFED_MAJOR)
 	err = ib_query_device(ib_dev, &isert_dev->device_attr);
 	if (unlikely(err)) {
 		PRINT_ERROR("Failed to query device, err: %d", err);
@@ -1783,7 +1783,7 @@ struct isert_portal *isert_portal_create(void)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 0) && \
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 <= 5)
 	cm_id = rdma_create_id(isert_cm_evt_handler, portal, RDMA_PS_TCP);
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) || defined(MOFED_MAJOR)
 	cm_id = rdma_create_id(isert_cm_evt_handler, portal, RDMA_PS_TCP,
 			       IB_QPT_RC);
 #else
