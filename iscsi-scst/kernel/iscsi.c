@@ -1825,7 +1825,7 @@ static int nop_out_start(struct iscsi_cmnd *cmnd)
 			}
 
 			/* We already checked it in check_segment_length() */
-			sBUG_ON(cmnd->sg_cnt > (signed)ISCSI_CONN_IOV_MAX);
+			sBUG_ON(cmnd->sg_cnt > (signed int)ISCSI_CONN_IOV_MAX);
 
 			cmnd->own_sg = 1;
 			cmnd->bufflen = size;
@@ -1844,7 +1844,7 @@ static int nop_out_start(struct iscsi_cmnd *cmnd)
 			 * accesses to dummy_page, since for ISCSI_RESERVED_TAG
 			 * the data only read and then discarded.
 			 */
-			for (i = 0; i < (signed)ISCSI_CONN_IOV_MAX; i++) {
+			for (i = 0; i < (signed int)ISCSI_CONN_IOV_MAX; i++) {
 				conn->read_iov[i].iov_base =
 					page_address(dummy_page);
 				tmp = min_t(u32, size, PAGE_SIZE);
@@ -2043,7 +2043,7 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 	atomic_inc(&session->active_cmds);
 	req->dec_active_cmds = 1;
 
-	sBUG_ON(session->scst_sess == NULL);
+	EXTRACHECKS_BUG_ON(session->scst_sess == NULL);
 
 	scst_cmd = scst_rx_cmd(session->scst_sess,
 		(uint8_t *)&req_hdr->lun, sizeof(req_hdr->lun),

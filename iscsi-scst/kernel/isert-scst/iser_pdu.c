@@ -214,7 +214,7 @@ out:
 static inline void isert_link_send_wrs(struct isert_wr *from_wr,
 				       struct isert_wr *to_wr)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) || defined(MOFED_MAJOR)
 	from_wr->send_wr.next = &to_wr->send_wr;
 #else
 	from_wr->send_wr.wr.next = &to_wr->send_wr.wr;
@@ -226,7 +226,7 @@ static inline void isert_link_send_pdu_wrs(struct isert_cmnd *from_pdu,
 					   int wr_cnt)
 {
 	isert_link_send_wrs(&from_pdu->wr[wr_cnt - 1], &to_pdu->wr[0]);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) || defined(MOFED_MAJOR)
 	to_pdu->wr[0].send_wr.next = NULL;
 #else
 	to_pdu->wr[0].send_wr.wr.next = NULL;
@@ -289,7 +289,7 @@ int isert_prepare_rdma(struct isert_cmnd *isert_pdu,
 		isert_link_send_wrs(&isert_pdu->wr[i - 1], &isert_pdu->wr[i]);
 
 	if (op == ISER_WR_RDMA_READ) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) || defined(MOFED_MAJOR)
 		isert_pdu->wr[wr_cnt - 1].send_wr.send_flags = IB_SEND_SIGNALED;
 		isert_pdu->wr[wr_cnt - 1].send_wr.next = NULL;
 #else
@@ -588,7 +588,7 @@ int isert_pdu_send(struct isert_connection *isert_conn,
 #endif
 
 	wr = &tx_pdu->wr[0];
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) || defined(MOFED_MAJOR)
 	wr->send_wr.num_sge = isert_pdu_prepare_send(isert_conn, tx_pdu);
 #else
 	wr->send_wr.wr.num_sge = isert_pdu_prepare_send(isert_conn, tx_pdu);
@@ -613,7 +613,7 @@ int isert_pdu_post_rdma_write(struct isert_connection *isert_conn,
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) || defined(MOFED_MAJOR)
 	isert_rsp->wr[0].send_wr.num_sge = isert_pdu_prepare_send(isert_conn,
 								  isert_rsp);
 #else
