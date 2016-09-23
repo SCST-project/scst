@@ -631,6 +631,7 @@ static const struct attribute *vdisk_nullio_attrs[] = {
 	&vdev_dummy_attr.attr,
 	&vdev_read_zero_attr.attr,
 	&vdisk_removable_attr.attr,
+	&vdisk_cluster_mode_attr.attr,
 	&vdev_t10_vend_id_attr.attr,
 	&vdev_vend_specific_id_attr.attr,
 	&vdev_prod_id_attr.attr,
@@ -831,6 +832,7 @@ static struct scst_dev_type vdisk_null_devtype = {
 		"dif_mode, "
 		"dif_type, "
 		"dif_static_app_tag, ",
+		"cluster_mode, "
 		"read_only, "
 		"removable, "
 		"rotational, "
@@ -8176,7 +8178,7 @@ static int vdev_nullio_add_device(const char *device_name, char *params)
 	int res = 0;
 	static const char *const allowed_params[] = {
 		"read_only", "dummy", "removable", "blocksize", "rotational",
-		"dif_mode", "dif_type", "dif_static_app_tag",
+		"cluster_mode", "dif_mode", "dif_type", "dif_static_app_tag",
 		"size", "size_mb", "tst", NULL
 	};
 	struct scst_vdisk_dev *virt_dev;
