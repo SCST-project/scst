@@ -24,7 +24,7 @@
 #include "scst.h"
 #endif
 
-#define FT_VERSION	"3.2.0-pre"
+#define FT_VERSION	"3.3.0-pre"
 #define FT_MODULE	"fcst"
 
 #define FT_MAX_HW_PENDING_TIME	20	/* max I/O time in seconds */
