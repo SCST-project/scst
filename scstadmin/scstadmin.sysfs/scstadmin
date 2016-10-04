@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-$Version  = 'SCST Configurator v3.1.0-pre1';
+$Version  = 'SCST Configurator v3.3.0-pre1';
 
 # Configures SCST
 #
