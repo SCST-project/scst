@@ -7803,6 +7803,34 @@ static void bio_kmalloc_destructor(struct bio *bio)
 }
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)
+static struct request *blk_make_request(struct request_queue *q,
+					struct bio *bio,
+					gfp_t gfp_mask)
+{
+	struct request *rq = blk_get_request(q, bio_data_dir(bio), gfp_mask);
+
+	if (IS_ERR(rq))
+		return rq;
+
+	blk_rq_set_block_pc(rq);
+
+	for_each_bio(bio) {
+		struct bio *bounce_bio = bio;
+		int ret;
+
+		blk_queue_bounce(q, &bounce_bio);
+		ret = blk_rq_append_bio(rq, bounce_bio);
+		if (unlikely(ret)) {
+			blk_put_request(rq);
+			return ERR_PTR(ret);
+		}
+	}
+
+	return rq;
+}
+#endif
+
 /* __blk_map_kern_sg - map kernel data to a request for REQ_TYPE_BLOCK_PC */
 static struct request *__blk_map_kern_sg(struct request_queue *q,
 	struct scatterlist *sgl, int nents, struct blk_kern_sg_work *bw,
@@ -7885,8 +7913,10 @@ static struct request *__blk_map_kern_sg(struct request_queue *q,
 				if (!reading)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 					bio->bi_rw |= 1 << BIO_RW;
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
 					bio->bi_rw |= REQ_WRITE;
+#else
+					bio_set_op_attrs(bio, REQ_OP_WRITE, 0);
 #endif
 				bios++;
 				bio->bi_private = bw;
