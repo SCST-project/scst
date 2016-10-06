@@ -6518,8 +6518,10 @@ static void blockio_endio(struct bio *bio)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 		if (bio->bi_rw & (1 << BIO_RW))
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
 		if (bio->bi_rw & REQ_WRITE)
+#else
+		if (bio_op(bio) == REQ_OP_WRITE)
 #endif
 			scst_set_cmd_error(blockio_work->cmd,
 				SCST_LOAD_SENSE(scst_sense_write_error));
@@ -6550,16 +6552,22 @@ static void vdisk_bio_set_failfast(struct bio *bio)
 	bio->bi_rw |= (1 << BIO_RW_FAILFAST_DEV) |
 		      (1 << BIO_RW_FAILFAST_TRANSPORT) |
 		      (1 << BIO_RW_FAILFAST_DRIVER);
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
 	bio->bi_rw |= REQ_FAILFAST_DEV |
 		      REQ_FAILFAST_TRANSPORT |
 		      REQ_FAILFAST_DRIVER;
+#else
+	bio->bi_opf |= REQ_FAILFAST_DEV |
+		       REQ_FAILFAST_TRANSPORT |
+		       REQ_FAILFAST_DRIVER;
 #endif
 }
 
 static void vdisk_bio_set_hoq(struct bio *bio)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36) ||			\
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)
+	bio->bi_opf |= REQ_SYNC;
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36) ||			\
 	(defined(RHEL_MAJOR) &&						\
 	 (RHEL_MAJOR -0 > 6 || RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 > 0))
 	bio->bi_rw |= REQ_SYNC;
@@ -6568,7 +6576,9 @@ static void vdisk_bio_set_hoq(struct bio *bio)
 #else
 	bio->bi_rw |= 1 << BIO_RW_SYNC;
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36) ||			\
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)
+	bio->bi_opf |= REQ_META;
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36) ||			\
 	(defined(RHEL_MAJOR) &&						\
 	 (RHEL_MAJOR -0 > 6 || RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 > 0))
 	bio->bi_rw |= REQ_META;
@@ -6819,23 +6829,29 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
 				bio->bi_destructor = blockio_bio_destructor;
 #endif
+				if (write)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
+					bio->bi_rw |= (1 << BIO_RW);
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+					bio->bi_rw |= REQ_WRITE;
+#else
+					bio_set_op_attrs(bio, REQ_OP_WRITE, 0);
+#endif
 				/*
 				 * Better to fail fast w/o any local recovery
 				 * and retries.
 				 */
 				vdisk_bio_set_failfast(bio);
-				if (write)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
-					bio->bi_rw |= (1 << BIO_RW);
-#else
-					bio->bi_rw |= REQ_WRITE;
-#endif
 
 #if 0 /* It could be win, but could be not, so a performance study is needed */
 				bio->bi_rw |= REQ_SYNC;
 #endif
 				if (fua)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
 					bio->bi_rw |= REQ_FUA;
+#else
+					bio->bi_opf |= REQ_FUA;
+#endif
 
 				if (cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE)
 					vdisk_bio_set_hoq(bio);
@@ -6887,7 +6903,11 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 		bio = hbio;
 		hbio = hbio->bi_next;
 		bio->bi_next = NULL;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
 		submit_bio(bio->bi_rw, bio);
+#else
+		submit_bio(bio);
+#endif
 	}
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
@@ -6978,7 +6998,12 @@ static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask,
 		bio->bi_end_io = vdev_flush_end_io;
 		bio->bi_private = cmd;
 		bio->bi_bdev = bdev;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
 		submit_bio(WRITE_FLUSH, bio);
+#else
+		bio_set_op_attrs(bio, REQ_OP_FLUSH, 0);
+		submit_bio(bio);
+#endif
 		goto out;
 	} else {
 #else
@@ -7071,7 +7096,7 @@ static void blockio_end_sync_io(struct bio *bio)
 }
 
 /**
- * blockio_rw_sync() - read or write up to @len bytes from a block I/O device
+ * blockio_read_sync() - read up to @len bytes from a block I/O device
  *
  * Returns:
  * - A negative value if an error occurred.
@@ -7081,8 +7106,8 @@ static void blockio_end_sync_io(struct bio *bio)
  * Note:
  * Increments *@loff with the number of bytes transferred upon success.
  */
-static ssize_t blockio_rw_sync(struct scst_vdisk_dev *virt_dev, void *buf,
-			       size_t len, loff_t *loff, unsigned int rw)
+static ssize_t blockio_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
+				 size_t len, loff_t *loff)
 {
 	struct bio_priv_sync s = {
 		COMPLETION_INITIALIZER_ONSTACK(s.c), 0,
@@ -7118,7 +7143,11 @@ static ssize_t blockio_rw_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 	if (!bio)
 		goto out;
 
-	bio->bi_rw = rw;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+	bio->bi_rw = READ_SYNC;
+#else
+	bio_set_op_attrs(bio, REQ_OP_READ, REQ_SYNC);
+#endif
 	bio->bi_bdev = bdev;
 	bio->bi_end_io = blockio_end_sync_io;
 	bio->bi_private = &s;
@@ -7145,7 +7174,11 @@ static ssize_t blockio_rw_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 			}
 		}
 	}
-	submit_bio(rw, bio);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+	submit_bio(bio->bi_rw, bio);
+#else
+	submit_bio(bio);
+#endif
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
 	submitted = true;
 #endif
@@ -7192,8 +7225,8 @@ static ssize_t vdev_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 		return len;
 	} else if (virt_dev->blockio) {
 		for (read = 0; read < len; read += res) {
-			res = blockio_rw_sync(virt_dev, buf + read, len - read,
-					      loff, READ_SYNC);
+			res = blockio_read_sync(virt_dev, buf + read,
+						len - read, loff);
 			if (res < 0)
 				return res;
 		}
