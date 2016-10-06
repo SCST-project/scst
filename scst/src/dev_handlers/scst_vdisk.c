@@ -7067,7 +7067,7 @@ static void blockio_end_sync_io(struct bio *bio)
 }
 
 /**
- * blockio_rw_sync() - read or write up to @len bytes from a block I/O device
+ * blockio_read_sync() - read up to @len bytes from a block I/O device
  *
  * Returns:
  * - A negative value if an error occurred.
@@ -7077,8 +7077,8 @@ static void blockio_end_sync_io(struct bio *bio)
  * Note:
  * Increments *@loff with the number of bytes transferred upon success.
  */
-static ssize_t blockio_rw_sync(struct scst_vdisk_dev *virt_dev, void *buf,
-			       size_t len, loff_t *loff, unsigned int rw)
+static ssize_t blockio_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
+				 size_t len, loff_t *loff)
 {
 	struct bio_priv_sync s = {
 		COMPLETION_INITIALIZER_ONSTACK(s.c), 0,
@@ -7114,7 +7114,7 @@ static ssize_t blockio_rw_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 	if (!bio)
 		goto out;
 
-	bio->bi_rw = rw;
+	bio->bi_rw = READ_SYNC;
 	bio->bi_bdev = bdev;
 	bio->bi_end_io = blockio_end_sync_io;
 	bio->bi_private = &s;
@@ -7141,7 +7141,7 @@ static ssize_t blockio_rw_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 			}
 		}
 	}
-	submit_bio(rw, bio);
+	submit_bio(bio->bi_rw, bio);
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
 	submitted = true;
 #endif
@@ -7188,8 +7188,8 @@ static ssize_t vdev_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 		return len;
 	} else if (virt_dev->blockio) {
 		for (read = 0; read < len; read += res) {
-			res = blockio_rw_sync(virt_dev, buf + read, len - read,
-					      loff, READ_SYNC);
+			res = blockio_read_sync(virt_dev, buf + read,
+						len - read, loff);
 			if (res < 0)
 				return res;
 		}
