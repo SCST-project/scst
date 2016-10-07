@@ -6522,7 +6522,7 @@ static void blockio_endio(struct bio *bio)
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
 		if (bio->bi_rw & REQ_WRITE)
 #else
-		if (bio_op(bio) == REQ_OP_WRITE)
+		if (op_is_write(bio_op(bio)))
 #endif
 			scst_set_cmd_error(blockio_work->cmd,
 				SCST_LOAD_SENSE(scst_sense_write_error));
