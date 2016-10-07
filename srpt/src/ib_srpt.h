@@ -49,7 +49,7 @@
 #include <scst.h>
 #endif
 #if defined(RHEL_MAJOR) && RHEL_MAJOR -0 == 5
-#define vlan_dev_vlan_id(dev) (panic("RHEL 5 misses vlan_dev_vlan_id()"),0)
+#define vlan_dev_vlan_id(dev) (panic("RHEL 5 misses vlan_dev_vlan_id()"), 0)
 #endif
 #if defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 6
 #define __ethtool_get_settings(dev, cmd) (panic("RHEL misses __ethtool_get_settings()"), 0)
@@ -119,7 +119,7 @@ enum {
 	SRP_LOGIN_RSP_MULTICHAN_MAINTAINED = 0x2,
 
 	MIN_SRPT_SQ_SIZE = 16,
-	DEF_SRPT_SQ_SIZE = 4096,
+	DEF_SRPT_SQ_SIZE = 256,
 	SRPT_RQ_SIZE = 128,
 	MIN_SRPT_SRQ_SIZE = 4,
 	DEFAULT_SRPT_SRQ_SIZE = 4095,
