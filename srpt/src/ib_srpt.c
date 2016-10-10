@@ -4261,6 +4261,7 @@ static const struct attribute *srpt_sess_attrs[] = {
 static struct scst_tgt_template srpt_template = {
 	.name				 = DRV_NAME,
 	.sg_tablesize			 = 1 << 16,
+	.use_clustering			 = true,
 	.max_hw_pending_time		 = RDMA_COMPL_TIMEOUT_S,
 #if !defined(CONFIG_SCST_PROC)
 	.enable_target			 = srpt_enable_target,
