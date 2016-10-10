@@ -2272,24 +2272,20 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 	if (ch->using_rdma_cm) {
 		ret = rdma_create_qp(ch->rdma_cm.cm_id, sdev->pd, qp_init);
 		ch->qp = ch->rdma_cm.cm_id->qp;
-		if (ret)
-			pr_err("failed to create queue pair (%d)\n", ret);
 	} else {
 		ch->qp = ib_create_qp(sdev->pd, qp_init);
 		if (!IS_ERR(ch->qp)) {
 			ret = srpt_init_ch_qp(ch, ch->qp);
-			if (ret) {
-				pr_err("srpt_init_ch_qp(%#x) failed (%d)\n",
-				       ch->qp->qp_num, ret);
+			if (ret)
 				ib_destroy_qp(ch->qp);
-			}
 		} else {
 			ret = PTR_ERR(ch->qp);
-			pr_err("failed to create queue pair (%d)\n", ret);
 		}
 	}
-	if (ret)
+	if (ret) {
+		pr_err("failed to create queue pair (%d)\n", ret);
 		goto err_destroy_cq;
+	}
 
 	pr_debug("qp_num = %#x\n", ch->qp->qp_num);
 
