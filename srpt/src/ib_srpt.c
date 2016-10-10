@@ -129,7 +129,7 @@ MODULE_PARM_DESC(srp_max_rsp_size,
 		 "Maximum size of SRP response messages in bytes.");
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31) \
-    || defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
+	|| defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
 static int use_srq;
 #else
 static bool use_srq;
@@ -149,7 +149,7 @@ MODULE_PARM_DESC(srpt_sq_size,
 		 "Per-channel send queue (SQ) size.");
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31) \
-    || defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
+	|| defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
 static int use_port_guid_in_session_name;
 #else
 static bool use_port_guid_in_session_name;
@@ -160,7 +160,7 @@ MODULE_PARM_DESC(use_port_guid_in_session_name,
 		 " redundant paths between multiport systems can be masked.");
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31) \
-    || defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
+	|| defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
 static int use_node_guid_in_target_name;
 #else
 static bool use_node_guid_in_target_name;
@@ -2209,7 +2209,7 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 {
 	struct ib_qp_init_attr *qp_init;
 	struct srpt_device *sdev = ch->sport->sdev;
-	int i, ret;
+	int sq_size = srpt_sq_size, i, ret;
 
 	EXTRACHECKS_WARN_ON(ch->rq_size < 1);
 
@@ -2218,20 +2218,21 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 	if (!qp_init)
 		goto out;
 
+retry:
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && \
 	!defined(RHEL_RELEASE_CODE)
 	ch->cq = ib_create_cq(sdev->device, srpt_completion, NULL, ch,
-			      ch->rq_size + srpt_sq_size);
+			      ch->rq_size + sq_size);
 #elif (LINUX_VERSION_CODE < KERNEL_VERSION(4, 2, 0) ||	\
 	defined(MOFED_MAJOR)) &&	\
 	!defined(IB_CREATE_CQ_HAS_INIT_ATTR)
 	ch->cq = ib_create_cq(sdev->device, srpt_completion, NULL, ch,
-			      ch->rq_size + srpt_sq_size, ch->comp_vector);
+			      ch->rq_size + sq_size, ch->comp_vector);
 #else
 	{
 	struct ib_cq_init_attr ia = { };
 
-	ia.cqe = ch->rq_size + srpt_sq_size;
+	ia.cqe = ch->rq_size + sq_size;
 	ia.comp_vector = ch->comp_vector;
 	ch->cq = ib_create_cq(sdev->device, srpt_completion, NULL, ch, &ia);
 	}
@@ -2239,7 +2240,7 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 	if (IS_ERR(ch->cq)) {
 		ret = PTR_ERR(ch->cq);
 		pr_err("failed to create CQ: cqe %d; c.v. %d; ret %d\n",
-		       ch->rq_size + srpt_sq_size, ch->comp_vector, ret);
+		       ch->rq_size + sq_size, ch->comp_vector, ret);
 		goto out;
 	}
 
@@ -2250,7 +2251,7 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 	qp_init->recv_cq = ch->cq;
 	qp_init->sq_sig_type = IB_SIGNAL_REQ_WR;
 	qp_init->qp_type = IB_QPT_RC;
-	qp_init->cap.max_send_wr = srpt_sq_size;
+	qp_init->cap.max_send_wr = sq_size;
 	/*
 	 * For max_sge values > 2 * max_sge_delta, subtract max_sge_delta. For
 	 * max_sge values < max_sge_delta, use max_sge. For intermediate
@@ -2272,24 +2273,29 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 	if (ch->using_rdma_cm) {
 		ret = rdma_create_qp(ch->rdma_cm.cm_id, sdev->pd, qp_init);
 		ch->qp = ch->rdma_cm.cm_id->qp;
-		if (ret)
-			pr_err("failed to create queue pair (%d)\n", ret);
 	} else {
 		ch->qp = ib_create_qp(sdev->pd, qp_init);
 		if (!IS_ERR(ch->qp)) {
 			ret = srpt_init_ch_qp(ch, ch->qp);
-			if (ret) {
-				pr_err("srpt_init_ch_qp(%#x) failed (%d)\n",
-				       ch->qp->qp_num, ret);
+			if (ret)
 				ib_destroy_qp(ch->qp);
-			}
 		} else {
 			ret = PTR_ERR(ch->qp);
-			pr_err("failed to create queue pair (%d)\n", ret);
 		}
 	}
-	if (ret)
-		goto err_destroy_cq;
+	if (ret) {
+		bool retry = sq_size > MIN_SRPT_SQ_SIZE;
+
+		pr_err("failed to create queue pair with sq_size = %d (%d)%s\n",
+		       sq_size, ret, retry ? " - retrying" : "");
+		if (retry) {
+			ib_destroy_cq(ch->cq);
+			sq_size = max(sq_size / 2, MIN_SRPT_SQ_SIZE);
+			goto retry;
+		} else {
+			goto err_destroy_cq;
+		}
+	}
 
 	pr_debug("qp_num = %#x\n", ch->qp->qp_num);
 
