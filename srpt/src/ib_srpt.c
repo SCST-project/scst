@@ -4401,6 +4401,29 @@ static void srpt_add_one(struct ib_device *device)
 		}
 	}
 
+	WARN_ON(sdev->device->phys_port_cnt > ARRAY_SIZE(sdev->port));
+
+	for (i = 1; i <= sdev->device->phys_port_cnt; i++) {
+		sport = &sdev->port[i - 1];
+		sport->sdev = sdev;
+		sport->port = i;
+		srpt_init_sport(sport, sdev->device);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
+		/*
+		 * A vanilla 2.6.19 or older kernel without backported OFED
+		 * kernel headers.
+		 */
+		INIT_WORK(&sport->work, srpt_refresh_port_work, sport);
+#else
+		INIT_WORK(&sport->work, srpt_refresh_port_work);
+#endif
+		if (srpt_refresh_port(sport)) {
+			pr_err("MAD registration failed for %s-%d.\n",
+			       sdev->device->name, i);
+			goto err_ring;
+		}
+	}
+
 	if (!srpt_service_guid)
 		srpt_service_guid = be64_to_cpu(device->node_guid) &
 			~be64_to_cpu(IB_SERVICE_ID_AGN_MASK);
@@ -4441,37 +4464,12 @@ static void srpt_add_one(struct ib_device *device)
 		goto err_cm;
 	}
 
-	WARN_ON(sdev->device->phys_port_cnt > ARRAY_SIZE(sdev->port));
-
-	for (i = 1; i <= sdev->device->phys_port_cnt; i++) {
-		sport = &sdev->port[i - 1];
-		sport->sdev = sdev;
-		sport->port = i;
-		srpt_init_sport(sport, sdev->device);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
-		/*
-		 * A vanilla 2.6.19 or older kernel without backported OFED
-		 * kernel headers.
-		 */
-		INIT_WORK(&sport->work, srpt_refresh_port_work, sport);
-#else
-		INIT_WORK(&sport->work, srpt_refresh_port_work);
-#endif
-		if (srpt_refresh_port(sport)) {
-			pr_err("MAD registration failed for %s-%d.\n",
-			       sdev->device->name, i);
-			goto err_event;
-		}
-	}
-
 	atomic_inc(&srpt_device_count);
 out:
 	ib_set_client_data(device, &srpt_client, sdev);
 
 	return;
 
-err_event:
-	ib_unregister_event_handler(&sdev->event_handler);
 err_cm:
 	ib_destroy_cm_id(sdev->cm_id);
 err_ring:
