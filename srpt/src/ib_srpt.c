@@ -129,7 +129,7 @@ MODULE_PARM_DESC(srp_max_rsp_size,
 		 "Maximum size of SRP response messages in bytes.");
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31) \
-    || defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
+	|| defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
 static int use_srq;
 #else
 static bool use_srq;
@@ -149,7 +149,7 @@ MODULE_PARM_DESC(srpt_sq_size,
 		 "Per-channel send queue (SQ) size.");
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31) \
-    || defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
+	|| defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
 static int use_port_guid_in_session_name;
 #else
 static bool use_port_guid_in_session_name;
@@ -160,7 +160,7 @@ MODULE_PARM_DESC(use_port_guid_in_session_name,
 		 " redundant paths between multiport systems can be masked.");
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31) \
-    || defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
+	|| defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
 static int use_node_guid_in_target_name;
 #else
 static bool use_node_guid_in_target_name;
