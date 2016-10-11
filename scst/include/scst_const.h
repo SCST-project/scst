@@ -656,8 +656,6 @@ enum scst_tg_sup {
  ** Misc SCSI constants
  *************************************************************/
 #define SCST_SENSE_ASC_UA_RESET      0x29
-#define POSITION_LEN_SHORT           20
-#define POSITION_LEN_LONG            32
 
 /*************************************************************
  ** Compatibility constants
