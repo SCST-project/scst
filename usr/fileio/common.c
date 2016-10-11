@@ -702,7 +702,7 @@ static int process_cmd(struct vdisk_cmd *vcmd)
 
 	TRACE_ENTRY();
 
-	TRACE_BUFFER("Received cmd", &cmd, sizeof(cmd));
+	TRACE_BUFFER("Received cmd", cmd, sizeof(*cmd));
 
 	switch(cmd->subcode) {
 	case SCST_USER_EXEC:
