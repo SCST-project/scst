@@ -72,11 +72,10 @@ The ib_srpt kernel module supports the following parameters:
   ib_srpt uses a shared receive queue (SRQ) for processing incoming SRP
   requests. This number may have to be increased when a large number of
   initiator systems is accessing a single SRP target system.
-* srpt_sq_size (number, default 4096)
-  Per-channel InfiniBand send queue size. The default setting is sufficient
-  for a credit limit of 128. Changing this parameter to a smaller value may
-  cause RDMA requests to be retried and hence may slow down data transfer
-  severely.
+* srpt_sq_size (number, default 256)
+  Per-channel InfiniBand send queue size. Depending on the queue depth,
+  changing this parameter to a smaller value may cause RDMA requests to be
+  retried and hence may slow down data transfer severely.
 * trace_flag (unsigned integer, only available in debug builds)
   The individual bits of the trace_flag parameter define which categories of
   trace messages should be sent to the kernel log and which ones not.
