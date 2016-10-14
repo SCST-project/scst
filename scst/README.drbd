@@ -21,6 +21,8 @@ settings for each DRBD block device exported via SCST:
 * Caching MUST be disabled: set the nv_cache parameter to 0 in scst.conf.
 * Write-through MUST be enabled: set the write_through parameter to 1 in
   scst.conf.
+* If SCSI reservations are used, their sync between nodes must be enabled,
+  see README.dlm.
 
 DRBD Configuration
 ------------------
