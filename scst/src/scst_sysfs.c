@@ -2192,7 +2192,7 @@ static int scst_process_ini_group_mgmt_store(char *buffer,
 		TRACE_DBG("Creating group '%s'", p);
 		if (acg != NULL) {
 			PRINT_ERROR("acg name %s exist", p);
-			res = -EINVAL;
+			res = -EEXIST;
 			goto out_unlock;
 		}
 		res = scst_alloc_add_acg(tgt, p, true, &acg);

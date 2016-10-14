@@ -622,6 +622,7 @@ sub groups {
 			}
 		}
 		close $gHandle;
+		@groups = sort(@groups);
 		return (\@groups, undef);
 	}
 
@@ -814,7 +815,7 @@ sub deviceGroups {
 	}
 
 	close $dHandle;
-
+	@groups = sort(@groups);
 	return (\@groups, undef);
 }
 

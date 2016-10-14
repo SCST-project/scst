@@ -238,7 +238,7 @@ int isert_wr_init(struct isert_wr *wr,
 			buff_offset = -EFAULT;
 			goto out;
 		}
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) || defined(MOFED_MAJOR)
 		wr->send_wr.wr.rdma.remote_addr = pdu->rem_write_va +
 						  buff_offset;
 		wr->send_wr.wr.rdma.rkey = pdu->rem_write_stag;
@@ -255,7 +255,7 @@ int isert_wr_init(struct isert_wr *wr,
 			buff_offset = -EFAULT;
 			goto out;
 		}
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) || defined(MOFED_MAJOR)
 		wr->send_wr.wr.rdma.remote_addr = pdu->rem_read_va +
 						  buff_offset;
 		wr->send_wr.wr.rdma.rkey = pdu->rem_read_stag;
@@ -288,7 +288,7 @@ int isert_wr_init(struct isert_wr *wr,
 		wr->recv_wr.sg_list = wr->sge_list;
 		wr->recv_wr.num_sge = sg_cnt;
 	} else {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) || defined(MOFED_MAJOR)
 		wr->send_wr.next = NULL;
 		wr->send_wr.wr_id = _ptr_to_u64(wr);
 		wr->send_wr.sg_list = wr->sge_list;

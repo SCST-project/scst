@@ -2120,7 +2120,7 @@ IMPORTANT: Since data in BLOCKIO and FILEIO modes are not consistent between
 	   simultaneously, you will almost instantly corrupt your data
 	   on that device.
 
-IMPORTANT: Some kernels starting from 2.6.32 have a problem, which prevents
+IMPORTANT: Some kernels starting from 2.6.32 have a problem, which
 =========  prevents BLOCKIO from working correctly with RAID5/DM. See
 	   http://lkml.org/lkml/2010/7/28/315. That problem was fixed in
 	   2.6.32.19, 2.6.34.4, 2.6.35.2 and 2.6.36-rc1. It is strongly
@@ -2264,14 +2264,20 @@ help in many troubleshooting cases. So, if you may consider to keep
 CONFIG_SCST_TRACING, its performance impact is very limited.
 
 IMPORTANT: The development version of SCST in the SVN is optimized for
-=========  development and bug hunting, not for performance. To reconfigure
-
-	   it for performance you should run "make 2perf" or "make
-	   2release" (to keep CONFIG_SCST_TRACING) in the root of your
-	   source code (e.g. trunk/). It will set the above options as
-	   needed. The only option it doesn't set is
+=========  development and bug hunting, not for performance. This means
+           it is MUCH slower (multiple times). To reconfigure SCST for
+	   release you should run "make 2release" command in the root of
+	   your source code (e.g. trunk/). It will set the above options
+	   as needed. The only option it doesn't set is
 	   CONFIG_SCST_TEST_IO_IN_SIRQ, so, if needed, you should change
-	   it manually.
+	   it manually. There is also so called "performance" build
+	   mode, which you can activate by "make 2perf" command. The
+	   only difference it has comparing to release build mode is
+	   disabled CONFIG_SCST_TRACING option. Because of that, you
+	   won't be able to see many important SCST run time logging
+	   messages. This mode is intended to evaluate impact of
+	   CONFIG_SCST_TRACING on performance and not recommended for
+	   production.
 
 IMPORTANT: You can't use debug SCST drivers with non-debug SCST core.
 =========  So, after disabling both CONFIG_SCST_TRACING and CONFIG_SCST_DEBUG

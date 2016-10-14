@@ -7803,6 +7803,34 @@ static void bio_kmalloc_destructor(struct bio *bio)
 }
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)
+static struct request *blk_make_request(struct request_queue *q,
+					struct bio *bio,
+					gfp_t gfp_mask)
+{
+	struct request *rq = blk_get_request(q, bio_data_dir(bio), gfp_mask);
+
+	if (IS_ERR(rq))
+		return rq;
+
+	blk_rq_set_block_pc(rq);
+
+	for_each_bio(bio) {
+		struct bio *bounce_bio = bio;
+		int ret;
+
+		blk_queue_bounce(q, &bounce_bio);
+		ret = blk_rq_append_bio(rq, bounce_bio);
+		if (unlikely(ret)) {
+			blk_put_request(rq);
+			return ERR_PTR(ret);
+		}
+	}
+
+	return rq;
+}
+#endif
+
 /* __blk_map_kern_sg - map kernel data to a request for REQ_TYPE_BLOCK_PC */
 static struct request *__blk_map_kern_sg(struct request_queue *q,
 	struct scatterlist *sgl, int nents, struct blk_kern_sg_work *bw,
@@ -7885,8 +7913,10 @@ static struct request *__blk_map_kern_sg(struct request_queue *q,
 				if (!reading)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 					bio->bi_rw |= 1 << BIO_RW;
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
 					bio->bi_rw |= REQ_WRITE;
+#else
+					bio_set_op_attrs(bio, REQ_OP_WRITE, 0);
 #endif
 				bios++;
 				bio->bi_private = bw;
@@ -10654,8 +10684,6 @@ static int get_cdb_info_serv_act_in(struct scst_cmd *cmd,
 	case SAI_READ_CAPACITY_16:
 		cmd->op_name = "READ CAPACITY(16)";
 		cmd->bufflen = get_unaligned_be32(&cmd->cdb[10]);
-		if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK))
-			goto out_inval_bufflen10;
 		cmd->op_flags |= SCST_IMPLICIT_HQ | SCST_LBA_NOT_VALID |
 				SCST_REG_RESERVE_ALLOWED |
 				SCST_WRITE_EXCL_ALLOWED |
@@ -10665,8 +10693,6 @@ static int get_cdb_info_serv_act_in(struct scst_cmd *cmd,
 		cmd->op_name = "GET LBA STATUS";
 		cmd->lba = get_unaligned_be64(&cmd->cdb[2]);
 		cmd->bufflen = get_unaligned_be32(&cmd->cdb[10]);
-		if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK))
-			goto out_inval_bufflen10;
 		cmd->op_flags |= SCST_WRITE_EXCL_ALLOWED;
 		break;
 	default:
@@ -10676,16 +10702,8 @@ static int get_cdb_info_serv_act_in(struct scst_cmd *cmd,
 
 	cmd->data_len = cmd->bufflen;
 
-out:
 	TRACE_EXIT_RES(res);
 	return res;
-
-out_inval_bufflen10:
-	PRINT_ERROR("Too big bufflen %d (op %s)", cmd->bufflen,
-		scst_get_opcode_name(cmd));
-	scst_set_invalid_field_in_cdb(cmd, 10, 0);
-	res = 1;
-	goto out;
 }
 
 static int get_cdb_info_single(struct scst_cmd *cmd,
@@ -10707,19 +10725,6 @@ static int get_cdb_info_read_pos(struct scst_cmd *cmd,
 	cmd->lba = 0;
 
 	cmd->bufflen = get_unaligned_be16(cmd->cdb + sdbops->info_len_off);
-
-	switch (cmd->cdb[1] & 0x1f) {
-	case 0:
-	case 1:
-	case 6:
-		if (cmd->bufflen != 0) {
-			PRINT_ERROR("READ POSITION: Invalid non-zero (%d) "
-				"allocation length for service action %x",
-				cmd->bufflen, cmd->cdb[1] & 0x1f);
-			goto out_inval_field1;
-		}
-		break;
-	}
 
 	switch (cmd->cdb[1] & 0x1f) {
 	case 0:
@@ -10883,12 +10888,6 @@ static int get_cdb_info_verify12(struct scst_cmd *cmd,
 	cmd->lba = get_unaligned_be32(cmd->cdb + sdbops->info_lba_off);
 	if (cmd->cdb[1] & 2) { /* BYTCHK 01 */
 		cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
-		if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
-			PRINT_ERROR("Too big bufflen %d (op %s)",
-				cmd->bufflen, scst_get_opcode_name(cmd));
-			scst_set_invalid_field_in_cdb(cmd, sdbops->info_len_off, 0);
-			return 1;
-		}
 		cmd->data_len = cmd->bufflen;
 		cmd->data_direction = SCST_DATA_WRITE;
 	} else {
@@ -10913,12 +10912,6 @@ static int get_cdb_info_verify16(struct scst_cmd *cmd,
 	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
 	if (cmd->cdb[1] & 2) { /* BYTCHK 01 */
 		cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
-		if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
-			PRINT_ERROR("Too big bufflen %d (op %s)",
-				cmd->bufflen, scst_get_opcode_name(cmd));
-			scst_set_invalid_field_in_cdb(cmd, sdbops->info_len_off, 0);
-			return 1;
-		}
 		cmd->data_len = cmd->bufflen;
 		cmd->data_direction = SCST_DATA_WRITE;
 	} else {
@@ -10943,12 +10936,6 @@ static int get_cdb_info_verify32(struct scst_cmd *cmd,
 	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
 	if (cmd->cdb[10] & 2) {
 		cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
-		if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
-			PRINT_ERROR("Too big bufflen %d (op %s)",
-				cmd->bufflen, scst_get_opcode_name(cmd));
-			scst_set_invalid_field_in_cdb(cmd, sdbops->info_len_off, 0);
-			return 1;
-		}
 		cmd->data_len = cmd->bufflen;
 		cmd->data_direction = SCST_DATA_WRITE;
 	} else {
@@ -11055,12 +11042,6 @@ static int get_cdb_info_len_4(struct scst_cmd *cmd,
 	cmd->op_flags |= SCST_LBA_NOT_VALID;
 	cmd->lba = 0;
 	cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
-	if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
-		PRINT_ERROR("Too big bufflen %d (op %s)", cmd->bufflen,
-			scst_get_opcode_name(cmd));
-		scst_set_invalid_field_in_cdb(cmd, sdbops->info_len_off, 0);
-		return 1;
-	}
 	cmd->data_len = cmd->bufflen;
 	return 0;
 }
@@ -11155,12 +11136,6 @@ static inline int get_cdb_info_lba_4_len_4(struct scst_cmd *cmd,
 {
 	cmd->lba = get_unaligned_be32(cmd->cdb + sdbops->info_lba_off);
 	cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
-	if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
-		PRINT_ERROR("Too big bufflen %d (op %s)", cmd->bufflen,
-			scst_get_opcode_name(cmd));
-		scst_set_invalid_field_in_cdb(cmd, sdbops->info_len_off, 0);
-		return 1;
-	}
 	cmd->data_len = cmd->bufflen;
 	return 0;
 }
@@ -11192,12 +11167,6 @@ static inline int get_cdb_info_lba_8_len_4(struct scst_cmd *cmd,
 {
 	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
 	cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
-	if (unlikely(cmd->bufflen & SCST_MAX_VALID_BUFFLEN_MASK)) {
-		PRINT_ERROR("Too big bufflen %d (op %s)", cmd->bufflen,
-			scst_get_opcode_name(cmd));
-		scst_set_invalid_field_in_cdb(cmd, sdbops->info_len_off, 0);
-		return 1;
-	}
 	cmd->data_len = cmd->bufflen;
 	return 0;
 }
@@ -11926,28 +11895,30 @@ int scst_tape_generic_parse(struct scst_cmd *cmd)
 	 * therefore change them only if necessary
 	 */
 
-	if (cmd->cdb[0] == READ_POSITION) {
-		int tclp = cmd->cdb[1] & 4;
-		int long_bit = cmd->cdb[1] & 2;
-		int bt = cmd->cdb[1] & 1;
-
-		if ((tclp == long_bit) && (!bt || !long_bit)) {
-			cmd->bufflen =
-			    tclp ? POSITION_LEN_LONG : POSITION_LEN_SHORT;
-			cmd->data_direction = SCST_DATA_READ;
-		} else {
-			cmd->bufflen = 0;
-			cmd->data_direction = SCST_DATA_NONE;
-		}
-		cmd->data_len = cmd->bufflen;
-	}
-
 	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED && cmd->cdb[1] & 1) {
 		int block_size = cmd->dev->block_size;
+		unsigned int ob = cmd->bufflen, od = cmd->data_len, oo = cmd->out_bufflen;
+		bool overflow;
 
 		cmd->bufflen = cmd->bufflen * block_size;
 		cmd->data_len = cmd->data_len * block_size;
 		cmd->out_bufflen = cmd->out_bufflen * block_size;
+
+		overflow = (ob < (unsigned int)cmd->bufflen) ||
+			   (od < (unsigned int)cmd->data_len) ||
+			   (oo < (unsigned int)cmd->out_bufflen);
+		if (unlikely(overflow)) {
+			PRINT_WARNING("bufflen %u, data_len %llu or out_bufflen"
+				      " %u too large for device %s (block size"
+				      " %u)", cmd->bufflen, cmd->data_len,
+				      cmd->out_bufflen, cmd->dev->virt_name,
+				      block_size);
+			PRINT_BUFFER("CDB", cmd->cdb, cmd->cdb_len);
+			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
+					scst_sense_block_out_range_error));
+			res = -EINVAL;
+			goto out;
+		}
 	}
 
 	if ((cmd->op_flags & (SCST_SMALL_TIMEOUT | SCST_LONG_TIMEOUT)) == 0)
@@ -11957,6 +11928,7 @@ int scst_tape_generic_parse(struct scst_cmd *cmd)
 	else if (cmd->op_flags & SCST_LONG_TIMEOUT)
 		cmd->timeout = SCST_GENERIC_TAPE_LONG_TIMEOUT;
 
+out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
