@@ -579,7 +579,6 @@ void req_cmnd_release_force(struct iscsi_cmnd *req)
 		sBUG_ON(req->cmd_req);
 		sBUG_ON(req->main_rsp != NULL);
 		sBUG_ON(!list_empty(&req->rx_ddigest_cmd_list));
-		sBUG_ON(!list_empty(&req->rsp_cmd_list));
 		sBUG_ON(req->pending);
 
 		cmnd_put(req);
