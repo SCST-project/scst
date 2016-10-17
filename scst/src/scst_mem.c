@@ -1329,7 +1329,7 @@ struct scatterlist *scst_alloc_sg(int size, gfp_t gfp_mask, int *count)
 			 * on free again.
 			 */
 			sgv_hiwmk_uncheck(-pages);
-		 }
+		}
 	}
 
 	res = kmalloc_array(pages, sizeof(*res), gfp_mask);
