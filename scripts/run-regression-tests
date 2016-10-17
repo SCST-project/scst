@@ -300,7 +300,7 @@ CONFIG_TRACING CONFIG_X86_32                    \
     fi &&
     make -s allmodconfig &>"${outputdir}/make-config-output.txt" &&
     for c in $disable; do sed -i.tmp "s/^$c=[ym]\$/$c=n/" .config; done &&
-    make -s oldconfig &>/dev/null
+    make -s oldconfig </dev/null &>/dev/null
   )
 }
 
@@ -399,7 +399,7 @@ function run_smatch {
   echo "Running smatch on the patched kernel in ${subdir} $@ ..."
   if (cd "${outputdir}/linux-$k" &&
       for c in $disable; do sed -i.tmp "s/^$c=y\$/$c=n/" .config; done &&
-      make -s oldconfig &&
+      make -s oldconfig </dev/null &&
       make -s prepare &&
       make -s scripts &&
       if grep -q '^CONFIG_PPC=y$' .config; then LC_ALL=C make -k M=arch/powerpc/lib; fi &&
