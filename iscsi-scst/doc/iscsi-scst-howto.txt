@@ -13,15 +13,19 @@ command in a shell:
 
   svn co https://scst.svn.sourceforge.net/svnroot/scst/trunk scst
 
-While iSCSI-SCST works fine with an unpatched Linux kernel with the same
-or better speed as other open source iSCSI targets, including IET, if
-you want even better performance you have to patch and rebuild the
-kernel. Select the patch according to your kernel version (2.6.38.x in
-the example below):
+While SCST and iSCSI-SCST work fine with an unpatched Linux kernel with
+the same or better speed as other open source iSCSI targets, if you want
+even better performance you need to patch and rebuild the kernel. Select
+the patch according to your kernel version (2.6.38.x in the example
+below):
 
   cd /usr/src/kernels/linux-2.6.38.8
   patch -p1 < $HOME/scst/iscsi-scst/kernel/patches/put_page_callback-2.6.38.patch
   make clean
+
+If you can't find put_page_callback for your kernel, then the patching
+is not needed for it, so you can skip this and next (kernel rebuild and
+reboot) steps.
 
 Next, build and install the kernel:
 
@@ -39,14 +43,17 @@ Once the system is again up and running the next step is to build and install
 SCST, iSCSI-SCST and scstadmin. With most distros (including RHEL 6) you can
 do that by running the following command from the SCST directory:
 
+  make 2release
   make scst scst_install iscsi iscsi_install scstadm scstadm_install
 
 When using RHEL 5 or CentOS 5, use these commands instead:
 
+  make 2release
   make enable_proc
   make scst scst_install iscsi iscsi_install scstadm scstadm_install
 
 iSCSI-SCST includes the following components:
+   * kernel modules: iscsi-scst.ko scst.ko scst_vdisk.ko
    * iscsi-scstd - daemon
    * man pages
    * Obsolete configuration files located under iscsi-scst/etc/obsolete, need to be copied to
@@ -105,8 +112,16 @@ Then run the following command:
 
   /etc/init.d/scst start
 
-You should have the working iSCSI-SCST now. Do the following steps if
-you need to automatically configure it upon reboot.
+You should have the working iSCSI-SCST now. If at any later time you
+need to change scst.conf and reload it, you can run scstadmin directly:
+
+  scstadmin -config /etc/scst.conf
+
+or restart SCST:
+
+  /etc/init.d/scst restart
+
+Do the following steps if you need to automatically configure SCST upon reboot.
 
 4. Create soft links in /etc/init.d
 
@@ -130,6 +145,10 @@ the following commands:
 
 Installing and using iSCSI-SCST without using scstadmin via /sys interface
 ==========================================================================
+
+This is advanced section you should not need for basic services.
+Scstadmin should be fully sufficient for you. Use those steps only if you
+need to do something too advanced for scstadmin.
 
 First repeat steps 1 and 2 from the first section but leave out
 "scstadm scstadm_install" from the make command in step 1.
