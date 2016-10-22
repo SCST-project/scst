@@ -1,3 +1,8 @@
+This is a very quick HOWTO intended to provide a quick reference in how
+to setup and configure iSCSI-SCST. For a deeper info please refer to
+SCST and iSCSI-SCST README files.
+
+
 Installing and using iSCSI-SCST with scstadmin
 ==============================================
 
@@ -63,23 +68,20 @@ iSCSI-SCST includes the following components:
       * initiators.deny - used for assigning specific initiators to targets
       * iscsi-scstd.conf - list of targets and their properties
 
-2. Set up /etc/iscsi/initiatorname.iscsi
-
-The most convenient way to set up this file is to install the open-iscsi
-package provided by your Linux distro first and then to run the shell commands
-shown below. Verify the contents of the generated file.
-
-  /etc/init.d/open-iscsi stop
-  { echo "InitiatorName=$(if [ -e /usr/sbin/iscsi-iname ]; then /usr/sbin/iscsi-iname; else /sbin/iscsi-iname; fi)";
-                          echo "InitiatorAlias=$(hostname)"; } >/etc/iscsi/initiatorname.iscsi
-  /etc/init.d/open-iscsi start
-  cat /etc/iscsi/initiatorname.iscsi
-
-3. Set up /etc/scst.conf
+2. Set up /etc/scst.conf
 
 The scst.conf configuration file is loaded at system boot time by the
-shell script /etc/init.d/scst. The target, device and LUN
+shell script /etc/init.d/scst via scstadmin. The target, device and LUN
 configuration is defined in this file.
+
+Generally, SCST and its components, including iSCSI-SCST, are kernel
+modules, hence they are using kernel interface for configuring, sysfs.
+However, using sysfs interface directly is cumbersome. Scstadmin utility
+allows to use regular plain text interface instead. You can load a
+config file into SCST sysfs using "scstadmin -config" and save currently
+running configuration into scst.conf using "scstadmin -write_config".
+See below the second section, if you want to use SCST sysfs interface
+directly.
 
 Here is the sample config file. Copy it in /etc/scst.conf
 
@@ -105,10 +107,11 @@ TARGET_DRIVER iscsi {
 	}
 }
 
-Note that for each SCSI device LUN 0 must exist. This is required by the SCSI
+Note that for each initiator LUN 0 must exist, hence you can't create
+targets and initiator groups without LUN 0. This is required by the SCSI
 protocol and is also documented in SCST's README file.
 
-Then run the following command:
+Then to start scst and iscsi-scst services run the following command:
 
   /etc/init.d/scst start
 
@@ -123,7 +126,7 @@ or restart SCST:
 
 Do the following steps if you need to automatically configure SCST upon reboot.
 
-4. Create soft links in /etc/init.d
+3. Create soft links in /etc/init.d
 
 This will make SCST to start automatically upon system boot. Use either
 chkconfig or update-rc.d, depending on the Linux distribution you are using.
@@ -135,7 +138,7 @@ On openSUSE you can let SCST start automatically through the following commands:
 
   insserv scst
 
-5. Restart SCST and iSCSI-SCST
+4. Restart SCST and iSCSI-SCST
 
 If you don't want to reboot now, you can make the above settings effective via
 the following commands:
@@ -147,17 +150,39 @@ Installing and using iSCSI-SCST without using scstadmin via /sys interface
 ==========================================================================
 
 This is advanced section you should not need for basic services.
-Scstadmin should be fully sufficient for you. Use those steps only if you
-need to do something too advanced for scstadmin.
+Scstadmin should be fully sufficient for you. Use those steps only if
+you need to do something too advanced for scstadmin. For instance, keep
+your configuration is a database instead of plain file.
 
-First repeat steps 1 and 2 from the first section but leave out
-"scstadm scstadm_install" from the make command in step 1.
+In an iSCSI-SCST system, three components interact to export your
+devices and file systems to iSCSI initiators on remote hosts: Targets,
+LUNS, and Devices. A Target represents the host and acts as a container
+for LUNs. A LUN (Logical Unit Number) represents the address of a Device
+and provides access control for initiators, as well as acting as a
+container for Devices. A Device represents the actual block device or
+file system you wish to make available to initiators. You have to create
+targets first, then create LUNs, then assign LUNs to targets, then
+define devices and assign them to a LUN. Finally, you have to enable
+your Targets and the SCST system. Once the steps (below) have been
+completed, you should be able to find and access your exported devices
+from authorized remote initiators.
 
-Next load the scst_disk and scst_vdisk kernel modules as follows:
+First repeat step 1 the first section but leave out "scstadm
+scstadm_install" from the make command in step 1.
+
+Next load the required kernel modules as follows:
 
 modprobe scst_disk
 modprobe scst_vdisk
 modprobe iscsi-scst
+
+Module scst_disk allows to export local SCSI (SAS, etc.) devices in
+pass-through mode, scst_vdisk allows to create virtual LUNs based on
+files and block devices, module iscsi-scst is the main iSCSI-SCST
+module.
+
+Then run iSCSI-SCST user space service:
+
 iscsi-scstd
 
 
@@ -200,9 +225,13 @@ echo "add_device disk1 filename=/disk1; nv_cache=1" >/sys/kernel/scst_tgt/handle
 This will add new FILEIO device disk1 with backend file /disk1 and
 NV_CACHE option enabled.
 
+For a block device usually it is more efficient to use BLOCKIO handler:
 
-Selecting devices to be used by SCST
-------------------------------------
+echo "add_device dev1 filename=/dev/dev1" >/sys/kernel/scst_tgt/handlers/vdisk_blockio/mgmt
+
+
+Listing currently registered SCST devices
+-----------------------------------------
 
 You can see the list of available devices:
 
@@ -245,6 +274,8 @@ disk1
 
 Defining LUN masking
 --------------------
+
+LUN masking defines which LUNs which initiator can see.
 
 In order to associate specific LUNs with target
 iqn.2007-05.com.example:storage.iscsi-scst-1, do the following:

@@ -5762,6 +5762,8 @@ sub configToAttr {
 		if (!scalar keys %{$$config{$attr}}) {
 				$attributes{$attr} = '';
 		} elsif ((keys %{$$config{$attr}}) > 1) {
+			immediateExit("Invalid configuration encountered. ".
+				      "Attribute '$attr' has multiple values.");
 			foreach my $value (keys %{$$config{$attr}}) {
 				push @{$attributes{$attr}}, $value;
 			}
