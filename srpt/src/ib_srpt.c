@@ -958,7 +958,7 @@ static int srpt_post_recv(struct srpt_device *sdev, struct srpt_rdma_ch *ch,
 
 	list.addr = ioctx->ioctx.dma + ioctx->ioctx.offset;
 	list.length = srp_max_req_size;
-	list.lkey = sdev->mr->lkey;
+	list.lkey = sdev->lkey;
 
 	wr.next = NULL;
 	wr.sg_list = &list;
@@ -1001,7 +1001,7 @@ static int srpt_post_send(struct srpt_rdma_ch *ch,
 
 	list.addr = ioctx->ioctx.dma;
 	list.length = len;
-	list.lkey = sdev->mr->lkey;
+	list.lkey = sdev->lkey;
 
 	wr.next = NULL;
 	wr.wr_id = encode_wr_id(SRPT_SEND, ioctx->ioctx.index);
@@ -3299,7 +3299,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 
 		while (rsize > 0 && tsize > 0) {
 			sge->addr = dma_addr;
-			sge->lkey = ch->sport->sdev->mr->lkey;
+			sge->lkey = ch->sport->sdev->lkey;
 
 			if (rsize >= dma_len) {
 				sge->length =
@@ -4357,6 +4357,7 @@ static void srpt_add_one(struct ib_device *device)
 		pr_err("ib_get_dma_mr() failed: %ld\n", PTR_ERR(sdev->mr));
 		goto err_pd;
 	}
+	sdev->lkey = sdev->mr->lkey;
 
 	sdev->srq_size = min(max(srpt_srq_size, MIN_SRPT_SRQ_SIZE),
 			     sdev->dev_attr.max_srq_wr);

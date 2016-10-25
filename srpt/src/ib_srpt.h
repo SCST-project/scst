@@ -442,7 +442,8 @@ struct srpt_port {
  * struct srpt_device - Information associated by SRPT with a single HCA.
  * @device:        Backpointer to the struct ib_device managed by the IB core.
  * @pd:            IB protection domain.
- * @mr:            L_Key (local key) with write access to all local memory.
+ * @mr:            MR with write access to all local memory.
+ * @lkey:          L_Key (local key) with write access to all local memory.
  * @srq:           Per-HCA SRQ (shared receive queue).
  * @cm_id:         Connection identifier.
  * @dev_attr:      Attributes of the InfiniBand device as obtained during the
@@ -460,6 +461,7 @@ struct srpt_device {
 	struct ib_srq		*srq;
 	struct ib_cm_id		*cm_id;
 	struct ib_device_attr	dev_attr;
+	u32			lkey;
 	int			srq_size;
 	bool			use_srq;
 	struct srpt_recv_ioctx	**ioctx_ring;
