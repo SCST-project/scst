@@ -1092,6 +1092,7 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 	isert_dev->ib_dev = ib_dev;
 	isert_dev->pd = pd;
 	isert_dev->mr = mr;
+	isert_dev->lkey = mr->lkey;
 
 	INIT_LIST_HEAD(&isert_dev->conn_list);
 

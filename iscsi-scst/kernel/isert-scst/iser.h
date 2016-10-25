@@ -234,6 +234,7 @@ struct isert_device {
 	struct ib_device	*ib_dev;
 	struct ib_pd		*pd;
 	struct ib_mr		*mr;
+	u32			lkey;
 
 	struct list_head	devs_node;
 	/* conn_list and refcnt protected by dev_list_mutex */
