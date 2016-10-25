@@ -233,7 +233,9 @@ struct isert_connection {
 struct isert_device {
 	struct ib_device	*ib_dev;
 	struct ib_pd		*pd;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	struct ib_mr		*mr;
+#endif
 	u32			lkey;
 
 	struct list_head	devs_node;

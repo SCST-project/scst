@@ -951,7 +951,9 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 	struct isert_device *isert_dev;
 	int cqe_num, err;
 	struct ib_pd *pd;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	struct ib_mr *mr;
+#endif
 	struct ib_cq *cq;
 	char wq_name[64];
 	int i, j;
@@ -996,19 +998,21 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 		goto fail_alloc_cq_desc;
 	}
 
-	pd = ib_alloc_pd(ib_dev);
+	pd = ib_alloc_pd(ib_dev, 0);
 	if (unlikely(IS_ERR(pd))) {
 		err = PTR_ERR(pd);
 		PRINT_ERROR("Failed to alloc iser dev pd, err:%d", err);
 		goto fail_pd;
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	mr = ib_get_dma_mr(pd, IB_ACCESS_LOCAL_WRITE);
 	if (unlikely(IS_ERR(mr))) {
 		err = PTR_ERR(mr);
 		PRINT_ERROR("Failed to get dma mr, err: %d", err);
 		goto fail_mr;
 	}
+#endif
 
 	cqe_num = min(isert_dev->device_attr.max_cqe, ISER_CQ_ENTRIES);
 	cqe_num = cqe_num / isert_dev->num_cqs;
@@ -1091,8 +1095,12 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 
 	isert_dev->ib_dev = ib_dev;
 	isert_dev->pd = pd;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	isert_dev->mr = mr;
 	isert_dev->lkey = mr->lkey;
+#else
+	isert_dev->lkey = pd->local_dma_lkey;
+#endif
 
 	INIT_LIST_HEAD(&isert_dev->conn_list);
 
@@ -1110,8 +1118,10 @@ fail_cq:
 		if (isert_dev->cq_desc[j].cq_workqueue)
 			destroy_workqueue(isert_dev->cq_desc[j].cq_workqueue);
 	}
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	ib_dereg_mr(mr);
 fail_mr:
+#endif
 	ib_dealloc_pd(pd);
 fail_pd:
 	vfree(isert_dev->cq_desc);
@@ -1154,9 +1164,11 @@ static void isert_device_release(struct isert_device *isert_dev)
 		destroy_workqueue(cq_desc->cq_workqueue);
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	err = ib_dereg_mr(isert_dev->mr);
 	if (unlikely(err))
 		PRINT_ERROR("Failed to destroy mr, err:%d", err);
+#endif
 	ib_dealloc_pd(isert_dev->pd);
 
 	vfree(isert_dev->cq_desc);
