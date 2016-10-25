@@ -457,7 +457,9 @@ struct srpt_port {
 struct srpt_device {
 	struct ib_device	*device;
 	struct ib_pd		*pd;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	struct ib_mr		*mr;
+#endif
 	struct ib_srq		*srq;
 	struct ib_cm_id		*cm_id;
 	struct ib_device_attr	dev_attr;
