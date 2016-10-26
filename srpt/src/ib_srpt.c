@@ -958,7 +958,7 @@ static int srpt_post_recv(struct srpt_device *sdev, struct srpt_rdma_ch *ch,
 
 	list.addr = ioctx->ioctx.dma + ioctx->ioctx.offset;
 	list.length = srp_max_req_size;
-	list.lkey = sdev->mr->lkey;
+	list.lkey = sdev->lkey;
 
 	wr.next = NULL;
 	wr.sg_list = &list;
@@ -1001,7 +1001,7 @@ static int srpt_post_send(struct srpt_rdma_ch *ch,
 
 	list.addr = ioctx->ioctx.dma;
 	list.length = len;
-	list.lkey = sdev->mr->lkey;
+	list.lkey = sdev->lkey;
 
 	wr.next = NULL;
 	wr.wr_id = encode_wr_id(SRPT_SEND, ioctx->ioctx.index);
@@ -3299,7 +3299,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 
 		while (rsize > 0 && tsize > 0) {
 			sge->addr = dma_addr;
-			sge->lkey = ch->sport->sdev->mr->lkey;
+			sge->lkey = ch->sport->sdev->lkey;
 
 			if (rsize >= dma_len) {
 				sge->length =
@@ -4346,17 +4346,22 @@ static void srpt_add_one(struct ib_device *device)
 	sdev->dev_attr = device->attrs;
 #endif
 
-	sdev->pd = ib_alloc_pd(device);
+	sdev->pd = ib_alloc_pd(device, 0);
 	if (IS_ERR(sdev->pd)) {
 		pr_err("ib_alloc_pd() failed: %ld\n", PTR_ERR(sdev->pd));
 		goto free_dev;
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	sdev->mr = ib_get_dma_mr(sdev->pd, IB_ACCESS_LOCAL_WRITE);
 	if (IS_ERR(sdev->mr)) {
 		pr_err("ib_get_dma_mr() failed: %ld\n", PTR_ERR(sdev->mr));
 		goto err_pd;
 	}
+	sdev->lkey = sdev->mr->lkey;
+#else
+	sdev->lkey = sdev->pd->local_dma_lkey;
+#endif
 
 	sdev->srq_size = min(max(srpt_srq_size, MIN_SRPT_SRQ_SIZE),
 			     sdev->dev_attr.max_srq_wr);
@@ -4480,8 +4485,10 @@ err_ring:
 	if (sdev->use_srq)
 		ib_destroy_srq(sdev->srq);
 err_mr:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	ib_dereg_mr(sdev->mr);
 err_pd:
+#endif
 	ib_dealloc_pd(sdev->pd);
 free_dev:
 	kfree(sdev);
@@ -4553,7 +4560,9 @@ static void srpt_remove_one(struct ib_device *device, void *client_data)
 
 	if (sdev->use_srq)
 		ib_destroy_srq(sdev->srq);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	ib_dereg_mr(sdev->mr);
+#endif
 	ib_dealloc_pd(sdev->pd);
 
 	kfree(sdev);

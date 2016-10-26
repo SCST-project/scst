@@ -25,6 +25,7 @@
 #include <linux/slab.h>		/* kmalloc() */
 #include <linux/writeback.h>	/* sync_page_range() */
 #include <scsi/scsi_cmnd.h>	/* struct scsi_cmnd */
+#include <rdma/ib_verbs.h>
 
 /* <asm-generic/barrier.h> */
 
@@ -510,6 +511,19 @@ typedef void (*rcu_callback_t)(struct rcu_head *);
 	} while (0)
 #define kfree_rcu(ptr, rcu_head)				\
 	__kfree_rcu(&((ptr)->rcu_head), offsetof(typeof(*(ptr)), rcu_head))
+#endif
+
+/* <rdma/ib_verbs.h> */
+/* commit ed082d36 */
+#ifndef ib_alloc_pd
+static inline struct ib_pd *ib_alloc_pd_backport(struct ib_device *device)
+{
+	return ib_alloc_pd(device);
+}
+#define ib_alloc_pd(device, flags)				\
+	({							\
+		(void)(flags), ib_alloc_pd_backport(device);	\
+	})
 #endif
 
 /* <linux/sched.h> */
