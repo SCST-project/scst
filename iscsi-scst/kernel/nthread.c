@@ -727,7 +727,10 @@ restart:
 
 	oldfs = get_fs();
 	set_fs(get_ds());
-	res = sock_recvmsg(conn->sock, msg, read_size,
+	res = sock_recvmsg(conn->sock, msg,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
+			   read_size,
+#endif
 			   MSG_DONTWAIT | MSG_NOSIGNAL);
 	set_fs(oldfs);
 
