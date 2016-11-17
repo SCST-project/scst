@@ -114,7 +114,7 @@ function specialize_patch {
     fi |
     "$(dirname $0)/specialize-patch" \
          ${specialize_patch_options} \
-         -v kernel_version="${kver3}" \
+         -v kernel_version="${kver}" \
          -v SCSI_EXEC_REQ_FIFO_DEFINED="${scsi_exec_req_fifo_defined}" \
          -v SCST_IO_CONTEXT="${scst_io_context}"
   else
@@ -224,9 +224,15 @@ else
   include_fcst="false"
 fi
 
+if [ -e "scst/kernel/in-tree/Makefile.scst-${kver}" ]; then
+  scst_makefile="Makefile.scst-${kver}"
+else
+  scst_makefile="Makefile.scst"
+fi
+
 # Make sure that for kernel 2.6.26 and later the line
 # "#define CONFIG_SCST_PROC" is removed from scst/include/scst.h.
-if grep -qw scst_sysfs scst/kernel/in-tree/Makefile.scst-${kver} \
+if grep -qw scst_sysfs scst/kernel/in-tree/${scst_makefile} \
    || [ "${generating_upstream_patch}" = "true" ];
 then
   specialize_patch_options="${specialize_patch_options} -v config_scst_proc_undefined=1"
@@ -333,11 +339,21 @@ done
 # Directory drivers/
 
 (
-add_patch "scst/kernel/in-tree/Kconfig.drivers.Linux-${kver}.patch" \
-          "drivers/Kconfig"
+if [ -e "scst/kernel/in-tree/Kconfig.drivers.Linux-${kver}.patch" ]; then
+  add_patch "scst/kernel/in-tree/Kconfig.drivers.Linux-${kver}.patch" \
+            "drivers/Kconfig"
+else
+  add_patch "scst/kernel/in-tree/Kconfig.drivers.Linux.patch" \
+            "drivers/Kconfig"
+fi
 
-add_patch "scst/kernel/in-tree/Makefile.drivers.Linux-${kver}.patch"\
-          "drivers/Makefile"
+if [ -e "scst/kernel/in-tree/Makefile.drivers.Linux-${kver}.patch" ]; then
+  add_patch "scst/kernel/in-tree/Makefile.drivers.Linux-${kver}.patch"\
+            "drivers/Makefile"
+else
+  add_patch "scst/kernel/in-tree/Makefile.drivers.Linux.patch"\
+            "drivers/Makefile"
+fi
 ) \
 | process_patch "scst_01_drivers_kbuild.diff"
 
@@ -357,8 +373,8 @@ else
 fi >"${tmp_Kconfig}"
 add_file "${tmp_Kconfig}" "drivers/scst/Kconfig"
 
-tmp_Makefile="${tmpdir}/Makefile.scst-${kver}"
-cat "scst/kernel/in-tree/Makefile.scst-${kver}" | \
+tmp_Makefile="${tmpdir}/${scst_makefile}"
+cat "scst/kernel/in-tree/${scst_makefile}" | \
 if [ "$include_proc_impl" != "true" ]; then
   grep -v 'scst_proc'
 else
@@ -413,10 +429,16 @@ done
 
 
 # Directory drivers/scst/dev_handlers/
-
-add_file "scst/kernel/in-tree/Makefile.dev_handlers-${kver}" \
-         "drivers/scst/dev_handlers/Makefile" \
-| process_patch "scst_11_dev_handlers_makefile.diff"
+if [ -e "scst/kernel/in-tree/Makefile.dev_handlers-${kver}" ]
+then
+  add_file "scst/kernel/in-tree/Makefile.dev_handlers-${kver}" \
+           "drivers/scst/dev_handlers/Makefile" \
+  | process_patch "scst_11_dev_handlers_makefile.diff"
+else
+  add_file "scst/kernel/in-tree/Makefile.dev_handlers" \
+           "drivers/scst/dev_handlers/Makefile" \
+  | process_patch "scst_11_dev_handlers_makefile.diff"
+fi
 
 for f in $(ls scst/src/dev_handlers/*.[ch] 2>/dev/null)
 do
@@ -456,7 +478,7 @@ add_file "fcst/README" "Documentation/scst/README.fcst" \
 # Directory drivers/scst/iscsi-scst/
 
 # Make sure the file iscsi-scst/iscsi_scst_itf_ver.h is up to date.
-make -s -C iscsi-scst include/iscsi_scst_itf_ver.h
+make KVER=${kver3} -s -C iscsi-scst include/iscsi_scst_itf_ver.h
 
 (
 for f in $(ls iscsi-scst/include/*h 2>/dev/null)
@@ -517,8 +539,14 @@ if [ "${qla2x00t}" = "true" ]; then
   add_file "qla2x00t/qla2x_tgt_def.h" \
            "drivers/scsi/qla2xxx/qla2x_tgt_def.h"
 
-  add_file "qla2x00t/qla2x00-target/Makefile_in-tree-${kver}" \
+  if [ -e "qla2x00t/qla2x00-target/Makefile_in-tree-${kver}" ]
+  then
+    add_file "qla2x00t/qla2x00-target/Makefile_in-tree-${kver}" \
            "drivers/scst/qla2xxx-target/Makefile"
+  else
+    add_file "qla2x00t/qla2x00-target/Makefile_in-tree" \
+           "drivers/scst/qla2xxx-target/Makefile"
+  fi
 
   add_file "qla2x00t/qla2x00-target/Kconfig" \
            "drivers/scst/qla2xxx-target/Kconfig"
@@ -615,7 +643,11 @@ fi
 
   add_file "scst_local/in-tree/Kconfig" "drivers/scst/scst_local/Kconfig"
 
-  add_file "scst_local/in-tree/Makefile-${kver}" "drivers/scst/scst_local/Makefile"
+  if [ -e "scst_local/in-tree/Makefile-${kver}" ]; then
+    add_file "scst_local/in-tree/Makefile-${kver}" "drivers/scst/scst_local/Makefile"
+  else
+    add_file "scst_local/in-tree/Makefile" "drivers/scst/scst_local/Makefile"
+  fi
 
   add_file "scst_local/scst_local.c" "drivers/scst/scst_local/scst_local.c"
 ) \
