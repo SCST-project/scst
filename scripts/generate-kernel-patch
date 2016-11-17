@@ -517,8 +517,14 @@ if [ "${qla2x00t}" = "true" ]; then
   add_file "qla2x00t/qla2x_tgt_def.h" \
            "drivers/scsi/qla2xxx/qla2x_tgt_def.h"
 
-  add_file "qla2x00t/qla2x00-target/Makefile_in-tree-${kver}" \
+  if [ -e "qla2x00t/qla2x00-target/Makefile_in-tree-${kver}" ]
+  then
+    add_file "qla2x00t/qla2x00-target/Makefile_in-tree-${kver}" \
            "drivers/scst/qla2xxx-target/Makefile"
+  else
+    add_file "qla2x00t/qla2x00-target/Makefile_in-tree" \
+           "drivers/scst/qla2xxx-target/Makefile"
+  fi
 
   add_file "qla2x00t/qla2x00-target/Kconfig" \
            "drivers/scst/qla2xxx-target/Kconfig"
