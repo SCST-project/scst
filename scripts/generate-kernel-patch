@@ -339,8 +339,13 @@ done
 # Directory drivers/
 
 (
-add_patch "scst/kernel/in-tree/Kconfig.drivers.Linux-${kver}.patch" \
-          "drivers/Kconfig"
+if [ -e "scst/kernel/in-tree/Kconfig.drivers.Linux-${kver}.patch" ]; then
+  add_patch "scst/kernel/in-tree/Kconfig.drivers.Linux-${kver}.patch" \
+            "drivers/Kconfig"
+else
+  add_patch "scst/kernel/in-tree/Kconfig.drivers.Linux.patch" \
+            "drivers/Kconfig"
+fi
 
 add_patch "scst/kernel/in-tree/Makefile.drivers.Linux-${kver}.patch"\
           "drivers/Makefile"
