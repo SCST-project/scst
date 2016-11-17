@@ -347,8 +347,13 @@ else
             "drivers/Kconfig"
 fi
 
-add_patch "scst/kernel/in-tree/Makefile.drivers.Linux-${kver}.patch"\
-          "drivers/Makefile"
+if [ -e "scst/kernel/in-tree/Makefile.drivers.Linux-${kver}.patch" ]; then
+  add_patch "scst/kernel/in-tree/Makefile.drivers.Linux-${kver}.patch"\
+            "drivers/Makefile"
+else
+  add_patch "scst/kernel/in-tree/Makefile.drivers.Linux.patch"\
+            "drivers/Makefile"
+fi
 ) \
 | process_patch "scst_01_drivers_kbuild.diff"
 
