@@ -224,9 +224,15 @@ else
   include_fcst="false"
 fi
 
+if [ -e "scst/kernel/in-tree/Makefile.scst-${kver}" ]; then
+  scst_makefile="Makefile.scst-${kver}"
+else
+  scst_makefile="Makefile.scst"
+fi
+
 # Make sure that for kernel 2.6.26 and later the line
 # "#define CONFIG_SCST_PROC" is removed from scst/include/scst.h.
-if grep -qw scst_sysfs scst/kernel/in-tree/Makefile.scst-${kver} \
+if grep -qw scst_sysfs scst/kernel/in-tree/${scst_makefile} \
    || [ "${generating_upstream_patch}" = "true" ];
 then
   specialize_patch_options="${specialize_patch_options} -v config_scst_proc_undefined=1"
@@ -357,8 +363,8 @@ else
 fi >"${tmp_Kconfig}"
 add_file "${tmp_Kconfig}" "drivers/scst/Kconfig"
 
-tmp_Makefile="${tmpdir}/Makefile.scst-${kver}"
-cat "scst/kernel/in-tree/Makefile.scst-${kver}" | \
+tmp_Makefile="${tmpdir}/${scst_makefile}"
+cat "scst/kernel/in-tree/${scst_makefile}" | \
 if [ "$include_proc_impl" != "true" ]; then
   grep -v 'scst_proc'
 else
