@@ -413,10 +413,16 @@ done
 
 
 # Directory drivers/scst/dev_handlers/
-
-add_file "scst/kernel/in-tree/Makefile.dev_handlers-${kver}" \
-         "drivers/scst/dev_handlers/Makefile" \
-| process_patch "scst_11_dev_handlers_makefile.diff"
+if [ -e "scst/kernel/in-tree/Makefile.dev_handlers-${kver}" ]
+then
+  add_file "scst/kernel/in-tree/Makefile.dev_handlers-${kver}" \
+           "drivers/scst/dev_handlers/Makefile" \
+  | process_patch "scst_11_dev_handlers_makefile.diff"
+else
+  add_file "scst/kernel/in-tree/Makefile.dev_handlers" \
+           "drivers/scst/dev_handlers/Makefile" \
+  | process_patch "scst_11_dev_handlers_makefile.diff"
+fi
 
 for f in $(ls scst/src/dev_handlers/*.[ch] 2>/dev/null)
 do
