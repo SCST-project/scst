@@ -643,7 +643,11 @@ fi
 
   add_file "scst_local/in-tree/Kconfig" "drivers/scst/scst_local/Kconfig"
 
-  add_file "scst_local/in-tree/Makefile-${kver}" "drivers/scst/scst_local/Makefile"
+  if [ -e "scst_local/in-tree/Makefile-${kver}" ]; then
+    add_file "scst_local/in-tree/Makefile-${kver}" "drivers/scst/scst_local/Makefile"
+  else
+    add_file "scst_local/in-tree/Makefile" "drivers/scst/scst_local/Makefile"
+  fi
 
   add_file "scst_local/scst_local.c" "drivers/scst/scst_local/scst_local.c"
 ) \
