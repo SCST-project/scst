@@ -201,7 +201,7 @@ static int isert_alloc_for_rdma(struct isert_cmnd *pdu, int sge_cnt,
 		isert_wr_set_fields(&pdu->wr[i], isert_conn, pdu);
 
 	for (i = 0; i < sge_cnt; ++i)
-		pdu->sg_pool[i].lkey = isert_conn->isert_dev->mr->lkey;
+		pdu->sg_pool[i].lkey = isert_conn->isert_dev->lkey;
 
 	goto out;
 

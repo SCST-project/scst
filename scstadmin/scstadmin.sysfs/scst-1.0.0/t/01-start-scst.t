@@ -17,7 +17,8 @@ if ($> == 0) {
 	      "modprobe -r ib_srpt; " .
 	      "modprobe -r qla2x00tgt; " .
 	      "modprobe -r qla2xxx_scst; " .
-	      "modprobe -r scst_vdisk"), 0);
+	      "modprobe -r scst_vdisk; " .
+	      "modprobe -r scst"), 0);
 
     ok(!(-d "/sys/module/scst"));
 
