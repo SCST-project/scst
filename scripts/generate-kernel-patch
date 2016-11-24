@@ -114,7 +114,7 @@ function specialize_patch {
     fi |
     "$(dirname $0)/specialize-patch" \
          ${specialize_patch_options} \
-         -v kernel_version="${kver}" \
+         -v kernel_version="${kver3}" \
          -v SCSI_EXEC_REQ_FIFO_DEFINED="${scsi_exec_req_fifo_defined}" \
          -v SCST_IO_CONTEXT="${scst_io_context}"
   else
@@ -478,7 +478,7 @@ add_file "fcst/README" "Documentation/scst/README.fcst" \
 # Directory drivers/scst/iscsi-scst/
 
 # Make sure the file iscsi-scst/iscsi_scst_itf_ver.h is up to date.
-make KVER=${kver3} -s -C iscsi-scst include/iscsi_scst_itf_ver.h
+make -s -C iscsi-scst include/iscsi_scst_itf_ver.h
 
 (
 for f in $(ls iscsi-scst/include/*h 2>/dev/null)
