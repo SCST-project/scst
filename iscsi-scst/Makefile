@@ -48,7 +48,7 @@ ifeq ($(INSTALL_MOD_PATH),)
 endif
 
 INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
-INFINIBAND_ENABLED := $(shell if grep -q '^CONFIG_INFINIBAND=[my]$$' $(KDIR)/.config; then echo true; else echo false; fi)
+INFINIBAND_ENABLED := $(shell if grep -wq 'ib_register_client' $$(dirname "$(KDIR)")/modules.symbols; then echo true; else echo false; fi)
 
 all: progs mods
 
@@ -112,6 +112,7 @@ PRE_CFLAGS=$(OFED_CFLAGS) $(CREATE_CQ_FLAG) -DOFED_FLAVOR=$(OFED_FLAVOR)
 
 mods: include/iscsi_scst_itf_ver.h Modules.symvers Module.symvers
 	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(KMOD) modules
+	echo "$@:  INFINIBAND_ENABLED = $(INFINIBAND_ENABLED)"
 	if $(INFINIBAND_ENABLED); then					       \
 	  echo "  Building against $(OFED_FLAVOR) InfiniBand kernel headers."; \
 	  $(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(ISERTMOD)  \
@@ -138,6 +139,7 @@ install: all
 	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(KMOD) \
 	  $$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
 	  modules_install
+	echo "$@:  INFINIBAND_ENABLED = $(INFINIBAND_ENABLED)"
 	if $(INFINIBAND_ENABLED); then					      \
 	  $(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(ISERTMOD) \
 	    $$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true)    \
@@ -159,6 +161,7 @@ ifneq ($(SCST_MOD_VERS),)
 Modules.symvers: $(SCST_DIR)/Modules.symvers
 	echo $(SCST_MOD_VERS)
 	cp $(SCST_DIR)/Modules.symvers kernel/
+	echo "$@:  INFINIBAND_ENABLED = $(INFINIBAND_ENABLED)"
 	if $(INFINIBAND_ENABLED); then			    \
 	  cp $(SCST_DIR)/Modules.symvers kernel/isert-scst; \
 	fi
