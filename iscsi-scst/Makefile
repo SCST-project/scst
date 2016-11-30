@@ -48,7 +48,7 @@ ifeq ($(INSTALL_MOD_PATH),)
 endif
 
 INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
-INFINIBAND_ENABLED := $(shell if grep -wq 'ib_register_client' $$(dirname "$(KDIR)")/modules.symbols; then echo true; else echo false; fi)
+INFINIBAND_ENABLED = $(shell if grep -wq 'ib_register_client' $$(dirname "$(KDIR)")/modules.symbols; then echo true; else echo false; fi)
 
 all: progs mods
 
