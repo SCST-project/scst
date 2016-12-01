@@ -66,8 +66,10 @@ ifeq ($(OFED_FLAVOR),MOFED)
 # <linux/compat-2.6.h>, include that header file explicitly.
 OFED_KERNEL_DIR:=/usr/src/ofa_kernel/default
 OFED_VERS=$(shell rpm -q --qf '%{version}\n' mlnx-ofa_kernel-devel 2>/dev/null)
-OFED_CFLAGS:=-I$(OFED_KERNEL_DIR)/include -include linux/compat-2.6.h
+CKVER:=$(shell echo "$(KVER)" | sed 's/^\(\(2\.6\|[3-9]\)\.[0-9]*\).*/\1/')
+OFED_CFLAGS:=-I$(OFED_KERNEL_DIR)/include -include "linux/compat-$(CKVER).h"
 OFED_CFLAGS+=-DMOFED_MAJOR=$(shell echo $(OFED_VERS) | cut -f1 -d.)
+OFED_CFLAGS+=-DMOFED_MINOR=$(shell echo $(OFED_VERS) | cut -f2 -d.)
 else
 # OFED 1.5
 OFED_KERNEL_DIR:=/usr/src/ofa_kernel
@@ -79,15 +81,29 @@ endif
 OFED_MODULE_SYMVERS:=$(OFED_KERNEL_DIR)/$(MODULE_SYMVERS)
 endif
 
-CREATE_CQ_FLAG = $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/create_cq PRE_CFLAGS="$(OFED_CFLAGS) -Werror" >/dev/null 2>&1 && echo -DIB_CREATE_CQ_HAS_INIT_ATTR)
-CREATE_SEND_MAD_AH_FLAG := $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/create_send_mad_ah PRE_CFLAGS="$(OFED_CFLAGS) -Werror" >/dev/null 2>&1 && echo -DCREATE_SEND_MAD_HAS_AH_ARG)
+GOALS:=$(if $(MAKECMDGOALS),$(MAKECMDGOALS),all)
+OTHER_GOALS:=$(foreach goal,$(MAKECMDGOALS),$(subst all,,$(goal)))
+# echo:=$(shell echo 'GOALS = $(GOALS)' >&2)
+# echo:=$(shell echo 'OTHER_GOALS = $(OTHER_GOALS)' >&2)
+ifneq ("$(GOALS)","$(OTHER_GOALS)")
+run_conftest = $(shell if [ "0$(V)" -gt 0 ]; then output=/dev/stdout; else output=/dev/null; fi; if $(MAKE) -C $(KDIR) V=$(V) SUBDIRS="$(shell pwd)/conftest/$1" PRE_CFLAGS="-Werror $(OFED_CFLAGS)" 1>&2 2>$${output}; then echo "$2"; else echo "$3"; fi)
+CREATE_CQ_FLAG              := $(call run_conftest,create_cq,-DIB_CREATE_CQ_HAS_INIT_ATTR)
+CREATE_SEND_MAD_AH_FLAG     := $(call run_conftest,create_send_mad_ah,-DCREATE_SEND_MAD_HAS_AH_ARG)
 ifeq ($(CREATE_SEND_MAD_AH_FLAG),)
-  CREATE_SEND_MAD_BASE_FLAG := $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/create_send_mad_base PRE_CFLAGS="$(OFED_CFLAGS) -Werror" >/dev/null 2>&1 && echo -DCREATE_SEND_MAD_HAS_BASE_ARG)
+  CREATE_SEND_MAD_BASE_FLAG := $(call run_conftest,create_send_mad_base,-DCREATE_SEND_MAD_HAS_BASE_ARG)
 endif
-GID_CHANGE_FLAG = $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/gid_change PRE_CFLAGS="$(OFED_CFLAGS)" >/dev/null 2>&1 && echo -DHAVE_IB_EVENT_GID_CHANGE)
-REGISTER_MAD_AGENT_FLAG = $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/register_mad_agent PRE_CFLAGS="$(OFED_CFLAGS) -Werror" >/dev/null 2>&1 && echo -DREGISTER_MAD_AGENT_HAS_FLAGS_ARG)
-QUERY_GID_FLAG = $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/query_gid PRE_CFLAGS="$(OFED_CFLAGS)" >/dev/null 2>&1 && echo -DIB_QUERY_GID_HAS_ATTR_ARG)
-PRE_CFLAGS=$(OFED_CFLAGS) $(CREATE_CQ_FLAG) $(CREATE_SEND_MAD_AH_FLAG) $(CREATE_SEND_MAD_BASE_FLAG) $(GID_CHANGE_FLAG) $(REGISTER_MAD_AGENT_FLAG) $(QUERY_GID_FLAG) -DOFED_FLAVOR=$(OFED_FLAVOR)
+GID_CHANGE_FLAG             := $(call run_conftest,gid_change,-DHAVE_IB_EVENT_GID_CHANGE)
+REGISTER_MAD_AGENT_FLAG     := $(call run_conftest,register_mad_agent,-DREGISTER_MAD_AGENT_HAS_FLAGS_ARG)
+QUERY_GID_FLAG              := $(call run_conftest,query_gid,-DIB_QUERY_GID_HAS_ATTR_ARG)
+PRE_CFLAGS=$(OFED_CFLAGS)			\
+	$(CREATE_CQ_FLAG)			\
+	$(CREATE_SEND_MAD_AH_FLAG)		\
+	$(CREATE_SEND_MAD_BASE_FLAG)		\
+	$(GID_CHANGE_FLAG)			\
+	$(REGISTER_MAD_AGENT_FLAG)		\
+	$(QUERY_GID_FLAG)			\
+	-DOFED_FLAVOR=$(OFED_FLAVOR)
+endif
 
 all: src/$(MODULE_SYMVERS)
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src \
