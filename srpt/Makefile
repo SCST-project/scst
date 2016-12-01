@@ -113,9 +113,6 @@ src/$(MODULE_SYMVERS): $(SCST_SYMVERS_DIR)/$(MODULE_SYMVERS)	\
 	    echo "Error: the OFED package $(OFED_KERNEL_IB_RPM)-devel has"  \
 	         "not yet been installed.";                                 \
 	    false;                                                          \
-	  elif [ "$(HAVE_PRE_CFLAGS)" = false ]; then                       \
-	    echo "Error: the kernel build system has not yet been patched.";\
-	    false;                                                          \
 	  else                                                              \
 	    echo "  Building against $(OFED_FLAVOR) $(OFED_KERNEL_IB_RPM)"  \
 	         "InfiniBand kernel headers.";                              \
