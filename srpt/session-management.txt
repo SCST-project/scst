@@ -8,7 +8,7 @@ The following actions related to SRP sessions can all occur concurrently:
 * HCA driver invokes the QP async event handler srpt_qp_event().
 * HCA transfers data between initiator and target via RDMA.
 * srpt_compl_thread() polls the QP.
-* SCST core invokes one of the callback functions defined in srpt_template().
+* SCST core invokes one of the callback functions defined in srpt_template.
 
 The actions that occur over the lifetime of a session are as follows:
 - A REQ message is received from the initiator.
