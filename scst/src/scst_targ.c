@@ -3679,7 +3679,7 @@ static inline bool scst_check_alua(struct scst_cmd *cmd, int *out_res)
 	int (*alua_filter)(struct scst_cmd *cmd);
 	bool res = false;
 
-	alua_filter = ACCESS_ONCE(cmd->tgt_dev->alua_filter);
+	alua_filter = READ_ONCE(cmd->tgt_dev->alua_filter);
 	if (unlikely(alua_filter)) {
 		int ac = alua_filter(cmd);
 
@@ -3816,7 +3816,7 @@ static int scst_exec_check_sn(struct scst_cmd **active_cmd)
 
 	EXTRACHECKS_BUG_ON(!cmd->sn_set);
 
-	expected_sn = ACCESS_ONCE(order_data->expected_sn);
+	expected_sn = READ_ONCE(order_data->expected_sn);
 	/* Optimized for lockless fast path */
 	if ((cmd->sn != expected_sn) || (order_data->hq_cmd_count > 0)) {
 		spin_lock_irq(&order_data->sn_lock);

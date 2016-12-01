@@ -3500,7 +3500,7 @@ static int dev_user_register_dev(struct file *file,
 	}
 	/*
 	 * Assumption here is that the private_data reading is atomic,
-	 * hence could be lockless and without ACCESS_ONCE().
+	 * hence could be lockless and without READ_ONCE().
 	 */
 	file->private_data = dev;
 	spin_unlock(&dev_list_lock);

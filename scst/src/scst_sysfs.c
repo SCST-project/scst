@@ -3484,8 +3484,8 @@ static ssize_t scst_dev_block_show(struct kobject *kobj,
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
-	pos = sprintf(buf, "%d %d\n", ACCESS_ONCE(dev->ext_blocks_cnt),
-		dev->ext_blocking_pending);
+	pos = sprintf(buf, "%d %d\n", READ_ONCE(dev->ext_blocks_cnt),
+		      dev->ext_blocking_pending);
 
 	TRACE_EXIT_RES(pos);
 	return pos;

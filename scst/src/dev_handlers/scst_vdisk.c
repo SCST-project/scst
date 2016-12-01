@@ -148,7 +148,7 @@ struct scst_vdisk_dev {
 
 	/*
 	 * Not protected, because assignments to aligned 64-bit integers are
-	 * atomic. At worst, accesses to it should be covered by ACCESS_ONCE(),
+	 * atomic. At worst, accesses to it should be covered by READ_ONCE(),
 	 * but not sure if that is really needed, so would prefer to keep it
 	 * away from the fast path.
 	 */
@@ -8791,7 +8791,7 @@ static ssize_t vdev_size_show(struct kobject *kobj, struct kobj_attribute *attr,
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
-	size = ACCESS_ONCE(virt_dev->file_size);
+	size = READ_ONCE(virt_dev->file_size);
 
 	if (virt_dev->nullio && size == VDISK_NULLIO_SIZE)
 		key = false;

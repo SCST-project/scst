@@ -2789,7 +2789,7 @@ struct scst_device {
 	 ** Dev's control mode page related values. Updates serialized
 	 ** by device blocking. Since device blocking protects only
 	 ** commands on the execution stage, in all other read cases
-	 ** use ACCESS_ONCE(), if necessary. Modified independently
+	 ** use READ_ONCE(), if necessary. Modified independently
 	 ** to the above fields, hence the alignment.
 	 *************************************************************/
 

@@ -13420,7 +13420,7 @@ static void scst_process_qerr(struct scst_cmd *cmd)
 
 	/* dev->qerr can be changed behind our back */
 	q = dev->qerr;
-	qerr = ACCESS_ONCE(q); /* ACCESS_ONCE doesn't work for bit fields */
+	qerr = READ_ONCE(q); /* READ_ONCE() doesn't work for bit fields */
 
 	TRACE_DBG("Processing QErr %d for cmd %p", qerr, cmd);
 

@@ -70,12 +70,12 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 #endif
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0) && !defined(READ_ONCE)
 /*
- * See also patch "Move ACCESS_ONCE() to <linux/compiler.h>" (commit ID
- * 9c3cdc1f83a6e07092392ff4aba6466517dbd1d0).
+ * See also patch "kernel: Provide READ_ONCE and ASSIGN_ONCE" (commit ID
+ * 230fa253df6352af12ad0a16128760b5cb3f92df).
  */
-#define ACCESS_ONCE(x) (*(volatile typeof(x) *)&(x))
+#define READ_ONCE(x) (*(volatile typeof(x) *)&(x))
 #endif
 
 /* <linux/cpumask.h> */
