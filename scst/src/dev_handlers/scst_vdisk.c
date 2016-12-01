@@ -2961,8 +2961,7 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 			fua = (cdb[10] & 0x8);
 			if (fua)
 				TRACE(TRACE_ORDER, "FUA: loff=%lld, data_len=%lld",
-					(unsigned long long)loff,
-					(unsigned long long)data_len);
+					loff, data_len);
 		}
 		break;
 	case WRITE_10:
@@ -6022,7 +6021,7 @@ restart:
 			unsigned long flags;
 
 			PRINT_ERROR("DIF write() returned %lld from %zd",
-				(long long)err, full_len);
+				    err, full_len);
 			/* To protect sense setting with blockio */
 			spin_lock_irqsave(&vdev_err_lock, flags);
 			if (err == -EAGAIN)
