@@ -2048,7 +2048,7 @@ static int vdisk_format_dif(struct scst_cmd *cmd, uint64_t start_lba,
 				 iv_count, &loff, 0);
 		if (err < 0) {
 			PRINT_ERROR("Formatting DIF write() returned %lld from "
-				"%zd", (long long)err, full_len);
+				"%zd", err, full_len);
 			if (err == -EAGAIN)
 				scst_set_busy(cmd);
 			else
