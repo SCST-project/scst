@@ -6903,6 +6903,7 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 		bio = hbio;
 		hbio = hbio->bi_next;
 		bio->bi_next = NULL;
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
 		submit_bio(bio->bi_rw, bio);
 #else
