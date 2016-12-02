@@ -809,8 +809,12 @@ static struct srpt_ioctx *srpt_alloc_ioctx(struct srpt_device *sdev,
 	if (!ioctx->buf)
 		goto err_free_ioctx;
 
-	/* Complain if it is not safe to use zero-copy */
-	WARN_ON_ONCE(alignment_offset && ((uintptr_t)ioctx->buf & 511));
+	if (alignment_offset && ((uintptr_t)ioctx->buf & 511)) {
+		pr_warn("Disabling zero-copy for immediate data\n");
+#ifndef CONFIG_SLUB_DEBUG
+		WARN_ON_ONCE(true);
+#endif
+	}
 
 	ioctx->dma = ib_dma_map_single(sdev->device, ioctx->buf,
 				       dma_size + alignment_offset, dir);
@@ -3541,6 +3545,10 @@ static int srpt_xfer_data(struct srpt_rdma_ch *ch,
 			unsigned offset = 0, len;
 			uint8_t *buf;
 
+			/*
+			 * Copy the immediate data if srpt_get_desc_tbl()
+			 * did not call sg_init_one().
+			 */
 			len = scst_get_buf_first(cmd, &buf);
 			while (len > 0) {
 				memcpy(buf, ioctx->imm_data + offset, len);
