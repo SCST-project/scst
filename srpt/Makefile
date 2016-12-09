@@ -92,6 +92,7 @@ CREATE_SEND_MAD_AH_FLAG     := $(call run_conftest,create_send_mad_ah,-DCREATE_S
 ifeq ($(CREATE_SEND_MAD_AH_FLAG),)
   CREATE_SEND_MAD_BASE_FLAG := $(call run_conftest,create_send_mad_base,-DCREATE_SEND_MAD_HAS_BASE_ARG)
 endif
+HAVE_IB_DMA_MAP_OPS         := $(call run_conftest,ib_dma_map_ops,-DHAVE_IB_DMA_MAP_OPS)
 GID_CHANGE_FLAG             := $(call run_conftest,gid_change,-DHAVE_IB_EVENT_GID_CHANGE)
 REGISTER_MAD_AGENT_FLAG     := $(call run_conftest,register_mad_agent,-DREGISTER_MAD_AGENT_HAS_FLAGS_ARG)
 QUERY_GID_FLAG              := $(call run_conftest,query_gid,-DIB_QUERY_GID_HAS_ATTR_ARG)
@@ -99,6 +100,7 @@ PRE_CFLAGS=$(OFED_CFLAGS)			\
 	$(CREATE_CQ_FLAG)			\
 	$(CREATE_SEND_MAD_AH_FLAG)		\
 	$(CREATE_SEND_MAD_BASE_FLAG)		\
+	$(HAVE_IB_DMA_MAP_OPS)			\
 	$(GID_CHANGE_FLAG)			\
 	$(REGISTER_MAD_AGENT_FLAG)		\
 	$(QUERY_GID_FLAG)			\
