@@ -136,8 +136,7 @@ static int use_srq;
 static bool use_srq;
 #endif
 module_param(use_srq, bool, S_IRUGO | S_IWUSR);
-MODULE_PARM_DESC(use_srq,
-		 "Whether or not to use SRQ");
+MODULE_PARM_DESC(use_srq, "Whether or not to use SRQ");
 
 static int srpt_srq_size = DEFAULT_SRPT_SRQ_SIZE;
 module_param(srpt_srq_size, int, S_IRUGO | S_IWUSR);
@@ -146,8 +145,7 @@ MODULE_PARM_DESC(srpt_srq_size,
 
 static int srpt_sq_size = DEF_SRPT_SQ_SIZE;
 module_param(srpt_sq_size, int, 0444);
-MODULE_PARM_DESC(srpt_sq_size,
-		 "Per-channel send queue (SQ) size.");
+MODULE_PARM_DESC(srpt_sq_size, "Per-channel send queue (SQ) size.");
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31) \
 	|| defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
