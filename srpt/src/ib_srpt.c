@@ -954,7 +954,6 @@ static int srpt_post_recv(struct srpt_device *sdev, struct srpt_rdma_ch *ch,
 {
 	struct ib_sge list;
 	struct ib_recv_wr wr, *bad_wr;
-	int status;
 
 	BUG_ON(!sdev);
 	wr.wr_id = encode_wr_id(SRPT_RECV, ioctx->ioctx.index);
@@ -968,10 +967,9 @@ static int srpt_post_recv(struct srpt_device *sdev, struct srpt_rdma_ch *ch,
 	wr.num_sge = 1;
 
 	if (sdev->use_srq)
-		status = ib_post_srq_recv(sdev->srq, &wr, &bad_wr);
+		return ib_post_srq_recv(sdev->srq, &wr, &bad_wr);
 	else
-		status = ib_post_recv(ch->qp, &wr, &bad_wr);
-	return status;
+		return ib_post_recv(ch->qp, &wr, &bad_wr);
 }
 
 static int srpt_adjust_sq_wr_avail(struct srpt_rdma_ch *ch, int delta)
