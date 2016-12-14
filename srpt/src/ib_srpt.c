@@ -2267,6 +2267,7 @@ retry:
 			  sdev->dev_attr.max_sge - max_sge_delta));
 	qp_init->cap.max_send_sge = ch->max_sge;
 	qp_init->cap.max_recv_sge = ch->max_sge;
+	qp_init->port_num = ch->sport->port;
 	if (sdev->use_srq) {
 		qp_init->srq = sdev->srq;
 	} else {
