@@ -38,9 +38,9 @@ CFLAGS += -O2 -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes \
 PROGS = fileio_tgt
 LIBS = -lpthread
 
-CFLAGS += -DEXTRACHECKS
-#CFLAGS += -DTRACING
-CFLAGS += -DDEBUG -g -fno-inline -fno-inline-functions
+#CFLAGS += -DEXTRACHECKS
+CFLAGS += -DTRACING
+#CFLAGS += -DDEBUG -g -fno-inline -fno-inline-functions
 CFLAGS += -W -Wno-unused-parameter
 CFLAGS += $(LOCAL_CFLAGS)
 
