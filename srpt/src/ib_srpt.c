@@ -419,7 +419,7 @@ static void srpt_get_class_port_info(struct ib_dm_mad *mad)
 	memset(cif, 0, sizeof(*cif));
 	cif->base_version = 1;
 	cif->class_version = 1;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
+#ifndef HAVE_IB_SET_CPI_RESP_TIME
 	cif->resp_time_value = 20;
 #else
 	ib_set_cpi_resp_time(cif, 20);
@@ -599,7 +599,7 @@ static void srpt_mad_send_handler(struct ib_mad_agent *mad_agent,
  * srpt_mad_recv_handler() - MAD reception callback function.
  */
 static void srpt_mad_recv_handler(struct ib_mad_agent *mad_agent,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0) && !defined(MOFED_MAJOR)
+#ifdef MAD_HANDLER_TAKES_SEND_BUF
 				  struct ib_mad_send_buf *send_buf,
 #endif
 				  struct ib_mad_recv_wc *mad_wc)
@@ -3392,7 +3392,7 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 			      struct srpt_send_ioctx *ioctx,
 			      scst_data_direction dir)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) || defined(MOFED_MAJOR)
+#ifdef USE_PRE_440_WR_STRUCTURE
 	struct ib_send_wr wr;
 #else
 	struct ib_rdma_wr wr;
@@ -3417,7 +3417,7 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 	memset(&wr, 0, sizeof(wr));
 
 	for (i = 0; i < n_rdma; ++i, ++riu) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) || defined(MOFED_MAJOR)
+#ifdef USE_PRE_440_WR_STRUCTURE
 		if (dir == SCST_DATA_READ) {
 			wr.opcode = IB_WR_RDMA_WRITE;
 			wr.wr_id = encode_wr_id(i == n_rdma - 1 ?
@@ -3476,7 +3476,7 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 		pr_err("%s: ib_post_send() returned %d for %d/%d\n", __func__,
 		       ret, i, n_rdma);
 	if (ret && i > 0) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) || defined(MOFED_MAJOR)
+#ifdef USE_PRE_440_WR_STRUCTURE
 		wr.num_sge = 0;
 		wr.wr_id = encode_wr_id(SRPT_RDMA_ABORT, ioctx->ioctx.index);
 		wr.send_flags = IB_SEND_SIGNALED;
@@ -3503,7 +3503,7 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 #endif
 		pr_info("Waiting until RDMA abort finished [%d]\n",
 			ioctx->ioctx.index);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) || defined(MOFED_MAJOR)
+#ifdef USE_PRE_440_WR_STRUCTURE
 		while (ch->state < CH_DISCONNECTED && !ioctx->rdma_aborted) {
 			pr_info("Waiting until RDMA abort finished [%d]\n",
 				ioctx->ioctx.index);
@@ -4344,7 +4344,7 @@ static void srpt_add_one(struct ib_device *device)
 
 	sdev->device = device;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0) || defined(MOFED_MAJOR)
+#ifdef HAVE_IB_QUERY_DEVICE
 	ret = ib_query_device(device, &sdev->dev_attr);
 	if (ret) {
 		pr_err("ib_query_device() failed: %d\n", ret);
@@ -4460,7 +4460,7 @@ static void srpt_add_one(struct ib_device *device)
 	 * if this HCA is gone bad and replaced by different HCA
 	 */
 	ret = ib_cm_listen(sdev->cm_id, cpu_to_be64(srpt_service_guid), 0
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0) || defined(MOFED_MAJOR)
+#ifdef IB_CM_LISTEN_TAKES_FOURTH_ARG
 			   , NULL
 #endif
 			   );
@@ -4509,7 +4509,7 @@ err:
 /**
  * srpt_remove_one() - InfiniBand device removal callback function.
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0) || defined(MOFED_MAJOR)
+#ifndef IB_CLIENT_REMOVE_TAKES_TWO_ARGS
 static void srpt_remove_one(struct ib_device *device)
 {
 	void *client_data = ib_get_client_data(device, &srpt_client);
@@ -4693,7 +4693,7 @@ static int __init srpt_init_module(void)
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
 		rdma_cm_id = rdma_create_id(srpt_rdma_cm_handler, NULL,
 					    RDMA_PS_TCP);
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) || defined(MOFED_MAJOR)
+#elif !RDMA_CREATE_ID_TAKES_NET_ARG
 		rdma_cm_id = rdma_create_id(srpt_rdma_cm_handler, NULL,
 					    RDMA_PS_TCP, IB_QPT_RC);
 #else

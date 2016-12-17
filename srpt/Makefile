@@ -87,21 +87,38 @@ OTHER_GOALS:=$(foreach goal,$(MAKECMDGOALS),$(subst all,,$(goal)))
 # echo:=$(shell echo 'OTHER_GOALS = $(OTHER_GOALS)' >&2)
 ifneq ("$(GOALS)","$(OTHER_GOALS)")
 run_conftest = $(shell if [ "0$(V)" -gt 0 ]; then output=/dev/stdout; else output=/dev/null; fi; if $(MAKE) -C $(KDIR) V=$(V) SUBDIRS="$(shell pwd)/conftest/$1" PRE_CFLAGS="-Werror $(OFED_CFLAGS)" 1>&2 2>$${output}; then echo "$2"; else echo "$3"; fi)
+USE_PRE_440_WR_STRUCTURE    := $(call run_conftest,use_pre_440_wr_structure,-DUSE_PRE_440_WR_STRUCTURE)
 CREATE_CQ_FLAG              := $(call run_conftest,create_cq,-DIB_CREATE_CQ_HAS_INIT_ATTR)
 CREATE_SEND_MAD_AH_FLAG     := $(call run_conftest,create_send_mad_ah,-DCREATE_SEND_MAD_HAS_AH_ARG)
 ifeq ($(CREATE_SEND_MAD_AH_FLAG),)
   CREATE_SEND_MAD_BASE_FLAG := $(call run_conftest,create_send_mad_base,-DCREATE_SEND_MAD_HAS_BASE_ARG)
 endif
+CLIENT_REMOVE		    := $(call run_conftest,ib_client_remove,-DIB_CLIENT_REMOVE_TAKES_TWO_ARGS)
+CM_LISTEN		    := $(call run_conftest,cm_listen,-DIB_CM_LISTEN_TAKES_FOURTH_ARG)
+MAD_HANDLER_TAKES_SEND_BUF  := $(call run_conftest,mad_handler_takes_send_buf,-DMAD_HANDLER_TAKES_SEND_BUF)
+HAVE_IB_SET_CPI_RESP_TIME   := $(call run_conftest,ib_set_cpi_resp_time,-DHAVE_IB_SET_CPI_RESP_TIME)
 GID_CHANGE_FLAG             := $(call run_conftest,gid_change,-DHAVE_IB_EVENT_GID_CHANGE)
+RDMA_CREATE_ID              := $(call run_conftest,rdma_create_id_net,-DRDMA_CREATE_ID_TAKES_NET_ARG=1,-DRDMA_CREATE_ID_TAKES_NET_ARG=0)
 REGISTER_MAD_AGENT_FLAG     := $(call run_conftest,register_mad_agent,-DREGISTER_MAD_AGENT_HAS_FLAGS_ARG)
+QUERY_DEVICE                := $(call run_conftest,query_device,-DHAVE_IB_QUERY_DEVICE)
+QUERY_DEVICE_HAS_ATTR_ARG   := $(call run_conftest,query_device_attr_arg,-DIB_QUERY_DEVICE_HAS_ATTR_ARG)
 QUERY_GID_FLAG              := $(call run_conftest,query_gid,-DIB_QUERY_GID_HAS_ATTR_ARG)
 PRE_CFLAGS=$(OFED_CFLAGS)			\
+	$(USE_PRE_440_WR_STRUCTURE)		\
+	$(CLIENT_REMOVE)			\
 	$(CREATE_CQ_FLAG)			\
 	$(CREATE_SEND_MAD_AH_FLAG)		\
 	$(CREATE_SEND_MAD_BASE_FLAG)		\
+	$(IB_CLIENT_REMOVE_TAKES_TWO_ARGS)	\
+	$(CM_LISTEN)				\
+	$(MAD_HANDLER_TAKES_SEND_BUF)		\
+	$(HAVE_IB_SET_CPI_RESP_TIME)		\
 	$(GID_CHANGE_FLAG)			\
+	$(RDMA_CREATE_ID)			\
 	$(REGISTER_MAD_AGENT_FLAG)		\
 	$(QUERY_GID_FLAG)			\
+	$(QUERY_DEVICE)				\
+	$(QUERY_DEVICE_HAS_ATTR_ARG)		\
 	-DOFED_FLAVOR=$(OFED_FLAVOR)
 endif
 
