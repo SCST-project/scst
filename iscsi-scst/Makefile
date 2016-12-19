@@ -6,18 +6,25 @@
 # unless it's something special (not a .c file).
 
 ifndef PREFIX
-        PREFIX=/usr/local
+	PREFIX=/usr/local
 endif
 
 SHELL=/bin/bash
 
 SUBDIRS := $(shell pwd)
 
-SCST_INC_DIR := $(shell if [ -e "$$PWD/../scst" ];			\
-                  then echo "$$PWD/../scst/include";			\
-                  else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
-SCST_DIR := $(shell if [ -e "$$PWD/../scst" ]; then echo "$$PWD/../scst/src"; \
-		else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
+SCST_INC_DIR := $(shell						\
+	if [ -e "$$PWD/../scst" ]; then				\
+		echo "$$PWD/../scst/include";			\
+	else							\
+		echo "$(DESTDIR)$(PREFIX)/include/scst";	\
+	fi)
+SCST_SYMVERS_DIR := $(shell					\
+	if [ -e "$$PWD/../scst" ]; then				\
+		echo "$$PWD/../scst/src";			\
+	else							\
+		echo "$(DESTDIR)$(PREFIX)/include/scst";	\
+	fi)
 SBINDIR := $(PREFIX)/sbin
 INITDIR := /etc/init.d
 RCDIR := /etc/rc.d
@@ -156,26 +163,26 @@ uninstall:
 		$(INSTALL_DIR)/isert-scst.ko
 	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
 
-SCST_MOD_VERS := $(shell ls $(SCST_DIR)/Modules.symvers 2>/dev/null)
+SCST_MOD_VERS := $(shell ls $(SCST_SYMVERS_DIR)/Modules.symvers 2>/dev/null)
 ifneq ($(SCST_MOD_VERS),)
-Modules.symvers: $(SCST_DIR)/Modules.symvers
+Modules.symvers: $(SCST_SYMVERS_DIR)/Modules.symvers
 	echo $(SCST_MOD_VERS)
-	cp $(SCST_DIR)/Modules.symvers kernel/
+	cp $(SCST_SYMVERS_DIR)/Modules.symvers kernel/
 	echo "$@:  INFINIBAND_ENABLED = $(INFINIBAND_ENABLED)"
-	if $(INFINIBAND_ENABLED); then			    \
-	  cp $(SCST_DIR)/Modules.symvers kernel/isert-scst; \
+	if $(INFINIBAND_ENABLED); then				    \
+	  cp $(SCST_SYMVERS_DIR)/Modules.symvers kernel/isert-scst; \
 	fi
 else
 .PHONY: Modules.symvers
 endif
 
 # It's renamed in 2.6.18
-SCST_MOD_VERS := $(shell ls $(SCST_DIR)/Module.symvers 2>/dev/null)
+SCST_MOD_VERS := $(shell ls $(SCST_SYMVERS_DIR)/Module.symvers 2>/dev/null)
 ifneq ($(SCST_MOD_VERS),)
-Module.symvers: $(SCST_DIR)/Module.symvers
-	cp $(SCST_DIR)/Module.symvers kernel/
-	if $(INFINIBAND_ENABLED); then			   \
-	  cp $(SCST_DIR)/Module.symvers kernel/isert-scst; \
+Module.symvers: $(SCST_SYMVERS_DIR)/Module.symvers
+	cp $(SCST_SYMVERS_DIR)/Module.symvers kernel/
+	if $(INFINIBAND_ENABLED); then				   \
+	  cp $(SCST_SYMVERS_DIR)/Module.symvers kernel/isert-scst; \
 	fi
 else
 .PHONY: Module.symvers
