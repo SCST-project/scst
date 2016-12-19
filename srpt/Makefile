@@ -104,6 +104,7 @@ MAD_HANDLER_TAKES_SEND_BUF  := $(call run_conftest,mad_handler_takes_send_buf,-D
 HAVE_IB_DMA_MAP_OPS         := $(call run_conftest,ib_dma_map_ops,-DHAVE_IB_DMA_MAP_OPS)
 HAVE_IB_SET_CPI_RESP_TIME   := $(call run_conftest,ib_set_cpi_resp_time,-DHAVE_IB_SET_CPI_RESP_TIME)
 GID_CHANGE_FLAG             := $(call run_conftest,gid_change,-DHAVE_IB_EVENT_GID_CHANGE)
+PD_HAS_LOCAL_DMA_LKEY	    := $(call run_conftest,pd_has_local_dma_lkey,-DIB_PD_HAS_LOCAL_DMA_LKEY)
 RDMA_CREATE_ID              := $(call run_conftest,rdma_create_id_net,-DRDMA_CREATE_ID_TAKES_NET_ARG=1,-DRDMA_CREATE_ID_TAKES_NET_ARG=0)
 REGISTER_MAD_AGENT_FLAG     := $(call run_conftest,register_mad_agent,-DREGISTER_MAD_AGENT_HAS_FLAGS_ARG)
 QUERY_DEVICE                := $(call run_conftest,query_device,-DHAVE_IB_QUERY_DEVICE)
@@ -121,6 +122,7 @@ PRE_CFLAGS=$(OFED_CFLAGS)			\
 	$(HAVE_IB_DMA_MAP_OPS)			\
 	$(HAVE_IB_SET_CPI_RESP_TIME)		\
 	$(GID_CHANGE_FLAG)			\
+	$(PD_HAS_LOCAL_DMA_LKEY)		\
 	$(RDMA_CREATE_ID)			\
 	$(REGISTER_MAD_AGENT_FLAG)		\
 	$(QUERY_GID_FLAG)			\

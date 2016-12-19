@@ -625,8 +625,7 @@ static void srpt_mad_recv_handler(struct ib_mad_agent *mad_agent,
 #endif
 				 0, IB_MGMT_DEVICE_HDR, IB_MGMT_DEVICE_DATA,
 				 GFP_KERNEL
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0) && !defined(MOFED_MAJOR) || \
-	defined(CREATE_SEND_MAD_HAS_BASE_ARG)
+#ifdef CREATE_SEND_MAD_HAS_BASE_ARG
 				 , 0
 #endif
 				 );
@@ -701,8 +700,7 @@ static int srpt_refresh_port(struct srpt_port *sport)
 	sport->lid = port_attr.lid;
 
 	ret = ib_query_gid(sport->sdev->device, sport->port, 0, &sport->gid
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0) || \
-	defined(IB_QUERY_GID_HAS_ATTR_ARG)
+#ifdef IB_QUERY_GID_HAS_ATTR_ARG
 			   , NULL
 #endif
 			   );
@@ -723,8 +721,7 @@ static int srpt_refresh_port(struct srpt_port *sport)
 							 srpt_mad_send_handler,
 							 srpt_mad_recv_handler,
 							 sport
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0) || \
-	defined(REGISTER_MAD_AGENT_HAS_FLAGS_ARG)
+#ifdef REGISTER_MAD_AGENT_HAS_FLAGS_ARG
 							 , 0
 #endif
 							 );
@@ -2224,9 +2221,7 @@ retry:
 	!defined(RHEL_RELEASE_CODE)
 	ch->cq = ib_create_cq(sdev->device, srpt_completion, NULL, ch,
 			      ch->rq_size + sq_size);
-#elif (LINUX_VERSION_CODE < KERNEL_VERSION(4, 2, 0) ||	\
-	defined(MOFED_MAJOR)) &&	\
-	!defined(IB_CREATE_CQ_HAS_INIT_ATTR)
+#elif !defined(IB_CREATE_CQ_HAS_INIT_ATTR)
 	ch->cq = ib_create_cq(sdev->device, srpt_completion, NULL, ch,
 			      ch->rq_size + sq_size, ch->comp_vector);
 #else
@@ -4357,7 +4352,7 @@ static void srpt_add_one(struct ib_device *device)
 		goto free_dev;
 	}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+#ifndef IB_PD_HAS_LOCAL_DMA_LKEY
 	sdev->mr = ib_get_dma_mr(sdev->pd, IB_ACCESS_LOCAL_WRITE);
 	if (IS_ERR(sdev->mr)) {
 		pr_err("ib_get_dma_mr() failed: %ld\n", PTR_ERR(sdev->mr));
@@ -4492,7 +4487,7 @@ err_ring:
 			     sdev->srq_size, srp_max_req_size,
 			     DMA_FROM_DEVICE);
 err_mr:
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+#ifndef IB_PD_HAS_LOCAL_DMA_LKEY
 	ib_dereg_mr(sdev->mr);
 err_pd:
 #endif
@@ -4565,7 +4560,7 @@ static void srpt_remove_one(struct ib_device *device, void *client_data)
 		ib_destroy_srq(sdev->srq);
 	srpt_free_ioctx_ring((struct srpt_ioctx **)sdev->ioctx_ring, sdev,
 			     sdev->srq_size, srp_max_req_size, DMA_FROM_DEVICE);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+#ifndef IB_PD_HAS_LOCAL_DMA_LKEY
 	ib_dereg_mr(sdev->mr);
 #endif
 	ib_dealloc_pd(sdev->pd);
