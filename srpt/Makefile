@@ -5,12 +5,18 @@ ifndef PREFIX
 	PREFIX=/usr/local
 endif
 
-SCST_INC_DIR := $(shell if [ -e "$$PWD/../scst" ];			\
-			then echo "$$PWD/../scst/include";		\
-			else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
-SCST_SYMVERS_DIR := $(shell if [ -e $$PWD/../scst ]; then	\
-                        echo $$PWD/../scst/src;			\
-                      else echo $(DESTDIR)$(PREFIX)/include/scst; fi)
+SCST_INC_DIR := $(shell						\
+	if [ -e "$$PWD/../scst" ]; then				\
+		echo "$$PWD/../scst/include";			\
+	else							\
+		echo "$(DESTDIR)$(PREFIX)/include/scst";	\
+	fi)
+SCST_SYMVERS_DIR := $(shell					\
+	if [ -e "$$PWD/../scst" ]; then				\
+		echo "$$PWD/../scst/src";			\
+	else							\
+		echo "$(DESTDIR)$(PREFIX)/include/scst";	\
+	fi)
 
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
