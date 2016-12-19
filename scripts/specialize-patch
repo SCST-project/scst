@@ -333,6 +333,7 @@ function handle_if(evaluated)
       || $0 ~ "CREATE_SEND_MAD_HAS_BASE_ARG"   \
       || $0 ~ "HAVE_IB_SET_CPI_RESP_TIME" \
       || $0 ~ "HAVE_IB_DMA_MAP_OPS" \
+      || $0 ~ "HAVE_IB_QUERY_DEVICE" \
       || $0 ~ "IB_CLIENT_REMOVE_TAKES_TWO_ARGS" \
       || $0 ~ "IB_CREATE_CQ_HAS_INIT_ATTR" \
       || $0 ~ "IB_PD_HAS_LOCAL_DMA_LKEY" \
