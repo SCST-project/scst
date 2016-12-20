@@ -1788,7 +1788,7 @@ bool scst_cm_check_block_all_devs(struct scst_cmd *cmd)
 
 #if !defined(__CHECKER__)
 	list_for_each_entry(e, &d->cm_sorted_devs_list, cm_sorted_devs_list_entry) {
-		spin_lock(&e->cm_fcmd->dev->dev_lock);
+		spin_lock_nolockdep(&e->cm_fcmd->dev->dev_lock);
 	}
 #endif
 
@@ -1817,7 +1817,7 @@ bool scst_cm_check_block_all_devs(struct scst_cmd *cmd)
 #if !defined(__CHECKER__)
 	list_for_each_entry_reverse(e, &d->cm_sorted_devs_list,
 					cm_sorted_devs_list_entry) {
-		spin_unlock(&e->cm_fcmd->dev->dev_lock);
+		spin_unlock_nolockdep(&e->cm_fcmd->dev->dev_lock);
 	}
 #endif
 

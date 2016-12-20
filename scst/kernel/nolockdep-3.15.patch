@@ -1,0 +1,114 @@
+=== modified file 'include/linux/lockdep.h'
+--- old/include/linux/lockdep.h	2014-06-18 01:32:48 +0000
++++ new/include/linux/lockdep.h	2014-06-18 01:45:33 +0000
+@@ -354,7 +354,7 @@ extern void lockdep_set_current_reclaim_
+ extern void lockdep_clear_current_reclaim_state(void);
+ extern void lockdep_trace_alloc(gfp_t mask);
+ 
+-# define INIT_LOCKDEP				.lockdep_recursion = 0, .lockdep_reclaim_gfp = 0,
++# define INIT_LOCKDEP				.lockdep_recursion = 0, .lockdep_reclaim_gfp = 0, .nolockdep_call = 0,
+ 
+ #define lockdep_depth(tsk)	(debug_locks ? (tsk)->lockdep_depth : 0)
+ 
+
+=== modified file 'include/linux/sched.h'
+--- old/include/linux/sched.h	2014-06-18 01:32:48 +0000
++++ new/include/linux/sched.h	2014-06-18 01:45:33 +0000
+@@ -1422,6 +1422,9 @@ struct task_struct {
+ # define MAX_LOCK_DEPTH 48UL
+ 	u64 curr_chain_key;
+ 	int lockdep_depth;
++# define NOLOCKDEP_SUPPORTED 1
++	unsigned int nolockdep_call:1;
++	unsigned int nolockdep_call_irq_saved:1;
+ 	unsigned int lockdep_recursion;
+ 	struct held_lock held_locks[MAX_LOCK_DEPTH];
+ 	gfp_t lockdep_reclaim_gfp;
+
+=== modified file 'kernel/locking/lockdep.c'
+--- old/kernel/locking/lockdep.c	2014-06-18 01:32:48 +0000
++++ new/kernel/locking/lockdep.c	2014-06-18 01:45:33 +0000
+@@ -3592,9 +3592,11 @@ void lock_acquire(struct lockdep_map *lo
+ 	if (unlikely(current->lockdep_recursion))
+ 		return;
+ 
++	if (unlikely(current->nolockdep_call))
++		return;
++
+ 	raw_local_irq_save(flags);
+ 	check_flags(flags);
+-
+ 	current->lockdep_recursion = 1;
+ 	trace_lock_acquire(lock, subclass, trylock, read, check, nest_lock, ip);
+ 	__lock_acquire(lock, subclass, trylock, read, check,
+@@ -3612,6 +3614,9 @@ void lock_release(struct lockdep_map *lo
+ 	if (unlikely(current->lockdep_recursion))
+ 		return;
+ 
++	if (unlikely(current->nolockdep_call))
++		return;
++
+ 	raw_local_irq_save(flags);
+ 	check_flags(flags);
+ 	current->lockdep_recursion = 1;
+@@ -3805,6 +3810,9 @@ void lock_contended(struct lockdep_map *
+ 	if (unlikely(current->lockdep_recursion))
+ 		return;
+ 
++	if (unlikely(current->nolockdep_call))
++		return;
++
+ 	raw_local_irq_save(flags);
+ 	check_flags(flags);
+ 	current->lockdep_recursion = 1;
+@@ -3825,6 +3833,9 @@ void lock_acquired(struct lockdep_map *l
+ 	if (unlikely(current->lockdep_recursion))
+ 		return;
+ 
++	if (unlikely(current->nolockdep_call))
++		return;
++
+ 	raw_local_irq_save(flags);
+ 	check_flags(flags);
+ 	current->lockdep_recursion = 1;
+
+=== modified file 'kernel/softirq.c'
+--- old/kernel/softirq.c	2014-06-18 01:32:48 +0000
++++ new/kernel/softirq.c	2014-06-18 01:45:33 +0000
+@@ -322,6 +322,17 @@ asmlinkage __visible void do_softirq(voi
+  */
+ void irq_enter(void)
+ {
++#ifdef CONFIG_LOCKDEP
++	if (unlikely(current->nolockdep_call)) {
++		unsigned long flags;
++		local_irq_save(flags);
++		if (current->nolockdep_call) {
++			current->nolockdep_call_irq_saved = 1;
++			current->nolockdep_call = 0;
++		}
++		local_irq_restore(flags);
++	}
++#endif
+ 	rcu_irq_enter();
+ 	if (is_idle_task(current) && !in_interrupt()) {
+ 		/*
+@@ -390,6 +401,17 @@ void irq_exit(void)
+ 
+ 	tick_irq_exit();
+ 	rcu_irq_exit();
++#ifdef CONFIG_LOCKDEP
++	if (unlikely(current->nolockdep_call_irq_saved)) {
++		unsigned long flags;
++		local_irq_save(flags);
++		if (current->nolockdep_call_irq_saved) {
++			current->nolockdep_call_irq_saved = 0;
++			current->nolockdep_call = 1;
++		}
++		local_irq_restore(flags);
++	}
++#endif
+ 	trace_hardirq_exit(); /* must be last! */
+ }
+ 
+

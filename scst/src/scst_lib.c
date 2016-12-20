@@ -2644,7 +2644,7 @@ static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
 		list_for_each_entry(tgt_dev, head,
 				sess_tgt_dev_list_entry) {
 			/* Lockdep triggers here a false positive.. */
-			spin_lock(&tgt_dev->tgt_dev_lock);
+			spin_lock_nolockdep(&tgt_dev->tgt_dev_lock);
 		}
 	}
 #endif
@@ -2674,7 +2674,7 @@ static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
 
 		list_for_each_entry_reverse(tgt_dev, head,
 						sess_tgt_dev_list_entry) {
-			spin_unlock(&tgt_dev->tgt_dev_lock);
+			spin_unlock_nolockdep(&tgt_dev->tgt_dev_lock);
 		}
 	}
 #endif
@@ -12568,7 +12568,7 @@ again:
 			list_for_each_entry(tgt_dev, head,
 					sess_tgt_dev_list_entry) {
 				/* Lockdep triggers here a false positive.. */
-				spin_lock(&tgt_dev->tgt_dev_lock);
+				spin_lock_nolockdep(&tgt_dev->tgt_dev_lock);
 			}
 		}
 #endif
@@ -12642,7 +12642,7 @@ out_unlock:
 
 			list_for_each_entry_reverse(tgt_dev, head,
 					sess_tgt_dev_list_entry) {
-				spin_unlock(&tgt_dev->tgt_dev_lock);
+				spin_unlock_nolockdep(&tgt_dev->tgt_dev_lock);
 			}
 		}
 

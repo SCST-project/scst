@@ -73,6 +73,26 @@
 #include <scst_const.h>
 #endif
 
+#ifdef NOLOCKDEP_SUPPORTED
+#define spin_lock_nolockdep(lock)	do { current->nolockdep_call = 1; spin_lock(lock); current->nolockdep_call = 0; } while (0)
+#define spin_unlock_nolockdep(lock)	do { current->nolockdep_call = 1; spin_unlock(lock); current->nolockdep_call = 0; } while (0)
+#define mutex_lock_nolockdep(lock)	do { current->nolockdep_call = 1; mutex_lock(lock); current->nolockdep_call = 0; } while (0)
+#define mutex_unlock_nolockdep(lock)	do { current->nolockdep_call = 1; mutex_unlock(lock); current->nolockdep_call = 0; } while (0)
+#define down_read_nolockdep(lock)	do { current->nolockdep_call = 1; down_read(lock); current->nolockdep_call = 0; } while (0)
+#define up_read_nolockdep(lock)		do { current->nolockdep_call = 1; up_read(lock); current->nolockdep_call = 0; } while (0)
+#define down_write_nolockdep(lock)	do { current->nolockdep_call = 1; down_write(lock); current->nolockdep_call = 0; } while (0)
+#define up_write_nolockdep(lock)	do { current->nolockdep_call = 1; up_write(lock); current->nolockdep_call = 0; } while (0)
+#else
+#define spin_lock_nolockdep		spin_lock
+#define spin_unlock_nolockdep		spin_unlock
+#define mutex_lock_nolockdep		mutex_lock
+#define mutex_unlock_nolockdep		mutex_unlock
+#define down_read_nolockdep		down_read
+#define up_read_nolockdep		up_read
+#define down_write_nolockdep		down_write
+#define up_write_nolockdep		up_write
+#endif
+
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/scst_sgv.h>
 #else
