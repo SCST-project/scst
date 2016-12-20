@@ -514,13 +514,6 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 #define SCST_INQ_EVPD                0x01
 
 /*************************************************************
- ** Byte 3 in Standard INQUIRY data
- *************************************************************/
-#define SCST_INQ_BYTE3               3
-
-#define SCST_INQ_NORMACA_BIT         0x20
-
-/*************************************************************
  ** TPGS field in byte 5 of the INQUIRY response (SPC-4).
  *************************************************************/
 enum {

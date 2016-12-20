@@ -12473,6 +12473,15 @@ void scst_process_reset(struct scst_device *dev,
 		spin_unlock_irq(&sess->sess_list_lock);
 	}
 
+	/*
+	 * We need at first abort all affected commands and only then
+	 * release them as part of clearing ACA
+	 */
+	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
+			dev_tgt_dev_list_entry) {
+		scst_clear_aca(tgt_dev, (tgt_dev->sess != originator));
+	}
+
 	if (setUA) {
 		uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
 		int sl = scst_set_sense(sense_buffer, sizeof(sense_buffer),
@@ -12872,9 +12881,27 @@ struct scst_cmd *__scst_check_deferred_commands_locked(
 restart:
 	list_for_each_entry_safe(cmd, t, &order_data->deferred_cmd_list,
 				deferred_cmd_list_entry) {
-		EXTRACHECKS_BUG_ON((cmd->queue_type != SCST_CMD_QUEUE_SIMPLE) &&
-				   (cmd->queue_type != SCST_CMD_QUEUE_ORDERED));
-		if (cmd->sn == expected_sn) {
+		EXTRACHECKS_BUG_ON(cmd->queue_type == SCST_CMD_QUEUE_ACA);
+
+		if (unlikely(order_data->aca_tgt_dev != 0)) {
+			if (!test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)) {
+				/* To prevent defer/release storms during ACA */
+				continue;
+			}
+		}
+
+		if (unlikely(cmd->done)) {
+			TRACE_MGMT_DBG("Releasing deferred done cmd %p", cmd);
+			order_data->def_cmd_count--;
+			list_del(&cmd->deferred_cmd_list_entry);
+
+			spin_lock(&cmd->cmd_threads->cmd_list_lock);
+			TRACE_DBG("Adding cmd %p to active cmd list", cmd);
+			list_add_tail(&cmd->cmd_list_entry,
+				&cmd->cmd_threads->active_cmd_list);
+			wake_up(&cmd->cmd_threads->cmd_list_waitQ);
+			spin_unlock(&cmd->cmd_threads->cmd_list_lock);
+		} else if ((cmd->sn == expected_sn) || !cmd->sn_set) {
 			bool stop = (cmd->sn_slot == NULL);
 
 			TRACE_SN("Deferred command %p (sn %d, set %d) found",
@@ -13480,21 +13507,100 @@ static void scst_process_qerr(struct scst_cmd *cmd)
 int scst_process_check_condition(struct scst_cmd *cmd)
 {
 	int res;
+	struct scst_order_data *order_data;
+	struct scst_device *dev;
 
 	TRACE_ENTRY();
 
 	EXTRACHECKS_BUG_ON(test_bit(SCST_CMD_NO_RESP, &cmd->cmd_flags));
 
-	TRACE_DBG("CHECK CONDITION for cmd %p (tgt_dev %p)", cmd, cmd->tgt_dev);
+	order_data = cmd->cur_order_data;
+	dev = cmd->dev;
 
+	TRACE((order_data->aca_tgt_dev != 0) ? TRACE_MGMT_DEBUG : TRACE_DEBUG,
+		"CHECK CONDITION for cmd %p (naca %d, cmd_aca_allowed %d, "
+		"ACA allowed cmd %d, tgt_dev %p, aca_tgt_dev %lu, aca_cmd %p)",
+		cmd, cmd->cmd_naca, cmd->cmd_aca_allowed,
+		cmd->queue_type == SCST_CMD_QUEUE_ACA, cmd->tgt_dev,
+		order_data->aca_tgt_dev, order_data->aca_cmd);
+
+	spin_lock_irq(&order_data->sn_lock);
+
+	if (order_data->aca_tgt_dev != 0) {
+		if (((cmd->queue_type == SCST_CMD_QUEUE_ACA) &&
+		    (order_data->aca_tgt_dev == (unsigned long)cmd->tgt_dev)) ||
+		    ((cmd->cdb[0] == PERSISTENT_RESERVE_OUT) &&
+		     ((cmd->cdb[1] & 0x1f) == PR_PREEMPT_AND_ABORT))) {
+			if (!cmd->cmd_naca) {
+				if (order_data->aca_cmd == cmd) {
+					/*
+					 * Clear it to prevent from be
+					 * aborted during ACA clearing
+					 */
+					TRACE_MGMT_DBG("Check condition of ACA "
+						"cmd %p", cmd);
+					order_data->aca_cmd = NULL;
+				}
+				spin_unlock_irq(&order_data->sn_lock);
+				scst_clear_aca(cmd->tgt_dev,
+					(order_data->aca_tgt_dev != (unsigned long)cmd->tgt_dev));
+				/*
+				 * Goto directly to avoid race when ACA
+				 * reestablished during retaking sn_lock
+				 * once again.
+				 */
+				goto process_qerr;
+			}
+		}
+		if (test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)) {
+			/*
+			 * cmd can be aborted and the unblock
+			 * procedure finished while we were
+			 * entering here. I.e. cmd can not be
+			 * blocked anymore for any case.
+			 */
+			res = 1;
+			goto out_unlock;
+		} else if (!cmd->cmd_aca_allowed) {
+			TRACE_MGMT_DBG("Deferring CHECK CONDITION "
+				"cmd %p due to ACA active (tgt_dev %p)",
+				cmd, cmd->tgt_dev);
+			order_data->def_cmd_count++;
+			/*
+			 * Put cmd in the head to let restart earlier:
+			 * it is already completed and completed with
+			 * CHECK CONDITION
+			 */
+			list_add(&cmd->deferred_cmd_list_entry,
+				&order_data->deferred_cmd_list);
+			res = -1;
+			goto out_unlock;
+		}
+	}
+
+	if (cmd->cmd_naca) {
+		TRACE_MGMT_DBG("Establishing ACA for dev %s (lun %lld, cmd %p, "
+			"tgt_dev %p)", dev->virt_name, (unsigned long long)cmd->lun,
+			cmd, cmd->tgt_dev);
+		order_data->aca_tgt_dev = (unsigned long)cmd->tgt_dev;
+	}
+
+	spin_unlock_irq(&order_data->sn_lock);
+
+process_qerr:
 	scst_process_qerr(cmd);
 
 	scst_store_sense(cmd);
 
 	res = 0;
 
+out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_unlock:
+	spin_unlock_irq(&order_data->sn_lock);
+	goto out;
 }
 
 void scst_xmit_process_aborted_cmd(struct scst_cmd *cmd)

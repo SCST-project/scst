@@ -469,7 +469,7 @@ enum scst_exec_context {
 
 /*
  * Set if no response should be sent to the target about this cmd.
- * Must be set together with SCST_CMD_ABORTED for better processing
+ * Must be set together with SCST_CMD_ABORTED for better ACA processing
  * in scst_pre_xmit_response2().
  */
 #define SCST_CMD_NO_RESP		2
@@ -789,13 +789,6 @@ struct scst_tgt_template {
 	/* True, if this target doesn't need "enabled" attribute */
 	unsigned enabled_attr_not_needed:1;
 #endif
-
-	/*
-	 * True if SCST should report that it supports ACA although it does
-	 * not yet support ACA. Necessary for the IBM virtual SCSI target
-	 * driver.
-	 */
-	unsigned fake_aca:1;
 
 	/*
 	 * True, if this target adapter can call scst_cmd_init_done() from
@@ -2107,12 +2100,21 @@ struct scst_order_data {
 	struct list_head skipped_sn_list;
 	struct list_head deferred_cmd_list;
 
-	spinlock_t sn_lock;
+	spinlock_t sn_lock; /* IRQ lock */
 
 	int hq_cmd_count;
 
 	/* Set if the prev cmd was ORDERED */
 	bool prev_cmd_ordered;
+
+	/*
+	 * tgt_dev initiated ACA, if any, or 0 otherwise. It can be deleted
+	 * and freed during LUN deletion, so must not be dereferenced.
+	 */
+	unsigned long aca_tgt_dev;
+
+	/* Active ACA cmd, if any */
+	struct scst_cmd *aca_cmd;
 
 	int def_cmd_count;
 	unsigned int expected_sn;
@@ -2223,6 +2225,9 @@ struct scst_cmd {
 
 	/* Set if cmd has NACA bit set in CDB */
 	unsigned int cmd_naca:1;
+
+	/* Set if cmd was allowed during ACA */
+	unsigned int cmd_aca_allowed:1;
 
 	/*
 	 * Set if the target driver wants to alloc data buffers on its own.
@@ -2356,7 +2361,7 @@ struct scst_cmd {
 
 	unsigned long start_time;
 
-	/* List entry for tgt_dev's deferred (SN, etc.) lists */
+	/* List entry for tgt_dev's deferred (SN, ACA, etc.) lists */
 	struct list_head deferred_cmd_list_entry;
 
 	/* Cmd's serial number, used to execute cmd's in order of arrival */
@@ -3480,7 +3485,7 @@ struct scst_aen {
 	int delivery_status;
 };
 
-#define SCST_OD_DEFAULT_CONTROL_BYTE	0
+#define SCST_OD_DEFAULT_CONTROL_BYTE	4 /* NACA */
 
 struct scst_opcode_descriptor {
 	uint16_t od_serv_action;

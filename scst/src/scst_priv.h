@@ -712,6 +712,7 @@ void scst_process_reset(struct scst_device *dev,
 void scst_unblock_aborted_cmds(const struct scst_tgt *tgt,
 	const struct scst_session *sess, const struct scst_device *device,
 	bool scst_mutex_held);
+void scst_clear_aca(struct scst_tgt_dev *tgt_dev, bool other_ini);
 
 bool scst_is_ua_global(const uint8_t *sense, int len);
 void scst_requeue_ua(struct scst_cmd *cmd, const uint8_t *buf, int size);

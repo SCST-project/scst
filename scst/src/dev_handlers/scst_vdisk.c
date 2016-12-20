@@ -4322,8 +4322,7 @@ static int vdisk_inq(uint8_t *buf, struct scst_cmd *cmd,
 		buf[1] = 0x80;      /* removable */
 	buf[2] = 6; /* Device complies to SPC-4 */
 	buf[3] = 0x02;	/* Data in format specified in SPC */
-	if (cmd->tgtt->fake_aca)
-		buf[3] |= 0x20;
+	buf[3] |= 0x20; /* ACA supported */
 	buf[4] = 31;/* n - 4 = 35 - 4 = 31 for full 36 byte data */
 	if (cmd->dev->dev_dif_mode != SCST_DIF_MODE_NONE)
 		buf[5] |= 1; /* PROTECT */
