@@ -1344,7 +1344,7 @@ static int dev_user_process_reply_alloc(struct scst_user_cmd *ucmd,
 	}
 
 out_process:
-	scst_post_alloc_data_buf(cmd);
+	scst_post_dev_alloc_data_buf(cmd);
 	scst_process_active_cmd(cmd, false);
 
 	TRACE_DBG("%s", "ALLOC_MEM finished");
@@ -2663,7 +2663,7 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 		if (state == UCMD_STATE_PARSING)
 			scst_post_parse(ucmd->cmd);
 		else
-			scst_post_alloc_data_buf(ucmd->cmd);
+			scst_post_dev_alloc_data_buf(ucmd->cmd);
 
 		TRACE_MGMT_DBG("Adding ucmd %p to active list", ucmd);
 		list_add(&ucmd->cmd->cmd_list_entry,

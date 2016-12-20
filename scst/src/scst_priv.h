@@ -1024,7 +1024,8 @@ void scst_trace_mcmds(scst_show_fn show, void *arg);
 void scst_set_start_time(struct scst_cmd *cmd);
 void scst_set_cur_start(struct scst_cmd *cmd);
 void scst_set_parse_time(struct scst_cmd *cmd);
-void scst_set_alloc_buf_time(struct scst_cmd *cmd);
+void scst_set_dev_alloc_buf_time(struct scst_cmd *cmd);
+void scst_set_tgt_alloc_buf_time(struct scst_cmd *cmd);
 void scst_set_restart_waiting_time(struct scst_cmd *cmd);
 void scst_set_rdy_to_xfer_time(struct scst_cmd *cmd);
 void scst_set_pre_exec_time(struct scst_cmd *cmd);
@@ -1039,7 +1040,8 @@ void scst_update_lat_stats(struct scst_cmd *cmd);
 static inline void scst_set_start_time(struct scst_cmd *cmd) {}
 static inline void scst_set_cur_start(struct scst_cmd *cmd) {}
 static inline void scst_set_parse_time(struct scst_cmd *cmd) {}
-static inline void scst_set_alloc_buf_time(struct scst_cmd *cmd) {}
+static inline void scst_set_dev_alloc_buf_time(struct scst_cmd *cmd) {}
+static inline void scst_set_tgt_alloc_buf_time(struct scst_cmd *cmd) {}
 static inline void scst_set_restart_waiting_time(struct scst_cmd *cmd) {}
 static inline void scst_set_rdy_to_xfer_time(struct scst_cmd *cmd) {}
 static inline void scst_set_pre_exec_time(struct scst_cmd *cmd) {}

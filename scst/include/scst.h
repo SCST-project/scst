@@ -2585,11 +2585,13 @@ struct scst_cmd {
 #endif
 
 #ifdef CONFIG_SCST_MEASURE_LATENCY
-	uint64_t start, curr_start, parse_time, alloc_buf_time;
+	uint64_t start, curr_start, parse_time;
+	uint64_t tgt_alloc_buf_time, dev_alloc_buf_time;
 	uint64_t restart_waiting_time, rdy_to_xfer_time;
-	uint64_t pre_exec_time, exec_time, dev_done_time;
-	uint64_t xmit_time;
+	uint64_t pre_exec_time;
 	bool exec_time_counting;
+	uint64_t exec_time, dev_done_time;
+	uint64_t xmit_time;
 #endif
 
 #ifdef CONFIG_SCST_DEBUG_TM
@@ -5231,7 +5233,7 @@ void scst_resume_activity(void);
 void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic);
 
 void scst_post_parse(struct scst_cmd *cmd);
-void scst_post_alloc_data_buf(struct scst_cmd *cmd);
+void scst_post_dev_alloc_data_buf(struct scst_cmd *cmd);
 
 int __scst_check_local_events(struct scst_cmd *cmd, bool preempt_tests_only);
 

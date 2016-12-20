@@ -60,17 +60,17 @@ void scst_post_parse(struct scst_cmd *cmd)
 EXPORT_SYMBOL_GPL(scst_post_parse);
 
 /**
- * scst_post_alloc_data_buf() - do post dev_alloc_data_buf actions
+ * scst_post_dev_alloc_data_buf() - do post dev_alloc_data_buf actions
  *
  * This function must be called by dev handler after its dev_alloc_data_buf()
  * callback returned SCST_CMD_STATE_STOP before calling
  * scst_process_active_cmd().
  */
-void scst_post_alloc_data_buf(struct scst_cmd *cmd)
+void scst_post_dev_alloc_data_buf(struct scst_cmd *cmd)
 {
-	scst_set_alloc_buf_time(cmd);
+	scst_set_dev_alloc_buf_time(cmd);
 }
-EXPORT_SYMBOL_GPL(scst_post_alloc_data_buf);
+EXPORT_SYMBOL_GPL(scst_post_dev_alloc_data_buf);
 
 static inline void scst_schedule_tasklet(struct scst_cmd *cmd)
 {
@@ -1515,7 +1515,7 @@ static int scst_prepare_space(struct scst_cmd *cmd)
 
 		switch (state) {
 		case SCST_CMD_STATE_NEED_THREAD_CTX:
-			scst_set_alloc_buf_time(cmd);
+			scst_set_dev_alloc_buf_time(cmd);
 			TRACE_DBG("Dev handler %s dev_alloc_data_buf() requested "
 				"thread context, rescheduling", devt->name);
 			res = SCST_CMD_STATE_RES_NEED_THREAD;
@@ -1529,7 +1529,7 @@ static int scst_prepare_space(struct scst_cmd *cmd)
 			goto out;
 		}
 
-		scst_set_alloc_buf_time(cmd);
+		scst_set_dev_alloc_buf_time(cmd);
 
 		if (unlikely(state != SCST_CMD_STATE_DEFAULT)) {
 			cmd->state = state;
@@ -1545,7 +1545,7 @@ static int scst_prepare_space(struct scst_cmd *cmd)
 
 		scst_set_cur_start(cmd);
 		r = cmd->tgtt->tgt_alloc_data_buf(cmd);
-		scst_set_alloc_buf_time(cmd);
+		scst_set_tgt_alloc_buf_time(cmd);
 
 		if (r > 0)
 			goto alloc;
