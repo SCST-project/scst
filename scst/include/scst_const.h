@@ -337,11 +337,13 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 #define scst_sense_asym_access_state_changed	UNIT_ATTENTION,  0x2A, 0x06
 #define scst_sense_capacity_data_changed	UNIT_ATTENTION,  0x2A, 0x9
 #define scst_sense_cleared_by_another_ini_UA	UNIT_ATTENTION,  0x2F, 0
+#define scst_sense_tp_soft_threshold_reached	UNIT_ATTENTION,  0x38, 0x7
 #define scst_sense_inquiry_data_changed		UNIT_ATTENTION,  0x3F, 0x3
 #define scst_sense_reported_luns_data_changed	UNIT_ATTENTION,  0x3F, 0xE
 
 /* DATA_PROTECT is 7 */
-#define scst_sense_data_protect			DATA_PROTECT,    0x27, 0
+#define scst_sense_data_protect			DATA_PROTECT,    0x00, 0
+#define scst_space_allocation_failed_write_protect DATA_PROTECT,    0x27, 7
 
 /* ABORTED_COMMAND is 0xb */
 #define scst_sense_aborted_command		ABORTED_COMMAND, 0x00, 0

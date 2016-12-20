@@ -399,6 +399,8 @@ static ssize_t vdisk_sysfs_wt_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdisk_sysfs_tp_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
+static ssize_t vdisk_sysfs_gen_tp_soft_threshold_reached_UA(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count);
 static ssize_t vdisk_sysfs_tst_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdisk_sysfs_rotational_show(struct kobject *kobj,
@@ -495,6 +497,9 @@ static struct kobj_attribute vdisk_wt_attr =
 	__ATTR(write_through, S_IRUGO, vdisk_sysfs_wt_show, NULL);
 static struct kobj_attribute vdisk_tp_attr =
 	__ATTR(thin_provisioned, S_IRUGO, vdisk_sysfs_tp_show, NULL);
+static struct kobj_attribute gen_tp_soft_threshold_reached_UA_attr =
+	__ATTR(gen_tp_soft_threshold_reached_UA, S_IWUSR, NULL,
+		vdisk_sysfs_gen_tp_soft_threshold_reached_UA);
 static struct kobj_attribute vdisk_tst_attr =
 	__ATTR(tst, S_IRUGO, vdisk_sysfs_tst_show, NULL);
 static struct kobj_attribute vdisk_rotational_attr =
@@ -1054,6 +1059,17 @@ check:
 
 	if (virt_dev->thin_provisioned) {
 		int block_shift = virt_dev->dev->block_shift;
+#ifndef CONFIG_SCST_PROC
+		int rc;
+
+		rc = sysfs_create_file(&virt_dev->dev->dev_kobj,
+				&gen_tp_soft_threshold_reached_UA_attr.attr);
+		if (rc != 0) {
+			PRINT_ERROR("Can't create attr %s for dev %s",
+				gen_tp_soft_threshold_reached_UA_attr.attr.name,
+				virt_dev->name);
+		}
+#endif
 
 		if (virt_dev->blockio) {
 			struct request_queue *q;
@@ -6362,10 +6378,13 @@ restart:
 				    full_len);
 			if (err == -EAGAIN)
 				scst_set_busy(cmd);
-			else {
+			else if (err == -ENOSPC) {
+				WARN_ON(!virt_dev->thin_provisioned);
+				scst_set_cmd_error(cmd,
+					SCST_LOAD_SENSE(scst_space_allocation_failed_write_protect));
+			} else
 				scst_set_cmd_error(cmd,
 				    SCST_LOAD_SENSE(scst_sense_write_error));
-			}
 			goto out_set_fs;
 		} else if (err < full_len) {
 			/*
@@ -6520,15 +6539,21 @@ static void blockio_endio(struct bio *bio)
 		spin_lock_irqsave(&vdev_err_lock, flags);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
-		if (bio->bi_rw & (1 << BIO_RW))
+		if (bio->bi_rw & (1 << BIO_RW)) {
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
-		if (bio->bi_rw & REQ_WRITE)
+		if (bio->bi_rw & REQ_WRITE) {
 #else
-		if (op_is_write(bio_op(bio)))
+		if (op_is_write(bio_op(bio))) {
 #endif
-			scst_set_cmd_error(blockio_work->cmd,
-				SCST_LOAD_SENSE(scst_sense_write_error));
-		else
+			if (error == -ENOSPC) {
+				struct scst_vdisk_dev *virt_dev = blockio_work->cmd->dev->dh_priv;
+				WARN_ON(!virt_dev->thin_provisioned);
+				scst_set_cmd_error(blockio_work->cmd,
+					SCST_LOAD_SENSE(scst_space_allocation_failed_write_protect));
+			} else
+				scst_set_cmd_error(blockio_work->cmd,
+					SCST_LOAD_SENSE(scst_sense_write_error));
+		} else
 			scst_set_cmd_error(blockio_work->cmd,
 				SCST_LOAD_SENSE(scst_sense_read_error));
 
@@ -8900,6 +8925,32 @@ static ssize_t vdisk_sysfs_tp_show(struct kobject *kobj,
 
 	TRACE_EXIT_RES(pos);
 	return pos;
+}
+
+static ssize_t vdisk_sysfs_gen_tp_soft_threshold_reached_UA(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+	struct scst_tgt_dev *tgt_dev;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = dev->dh_priv;
+
+	if (!virt_dev->thin_provisioned)
+		return -EINVAL;
+
+	spin_lock_bh(&dev->dev_lock);
+	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
+				dev_tgt_dev_list_entry) {
+		scst_set_tp_soft_threshold_reached_UA(tgt_dev);
+	}
+	spin_unlock_bh(&dev->dev_lock);
+
+	TRACE_EXIT_RES(count);
+	return count;
 }
 
 static ssize_t vdisk_sysfs_expl_alua_show(struct kobject *kobj,

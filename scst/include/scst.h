@@ -5665,6 +5665,8 @@ void scst_path_put(struct nameidata *nd);
 #endif
 int scst_remove_file(const char *name);
 
+void scst_set_tp_soft_threshold_reached_UA(struct scst_tgt_dev *tgt_dev);
+
 int scst_pr_set_cluster_mode(struct scst_device *dev, bool cluster_mode,
 	const char *cl_dev_id);
 int scst_pr_init_dev(struct scst_device *dev);

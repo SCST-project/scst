@@ -12813,6 +12813,23 @@ void scst_dev_check_set_UA(struct scst_device *dev,
 	return;
 }
 
+void scst_set_tp_soft_threshold_reached_UA(struct scst_tgt_dev *tgt_dev)
+{
+	uint8_t sense[SCST_STANDARD_SENSE_LEN];
+	int len;
+
+	TRACE_ENTRY();
+
+	len = scst_set_sense(sense, sizeof(sense), tgt_dev->dev->d_sense,
+			SCST_LOAD_SENSE(scst_sense_tp_soft_threshold_reached));
+
+	scst_check_set_UA(tgt_dev, sense, len, 0);
+
+	TRACE_EXIT();
+	return;
+}
+EXPORT_SYMBOL_GPL(scst_set_tp_soft_threshold_reached_UA);
+
 /* Called under tgt_dev_lock or when tgt_dev is unused */
 static void scst_free_all_UA(struct scst_tgt_dev *tgt_dev)
 {

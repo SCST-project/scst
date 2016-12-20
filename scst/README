@@ -1246,6 +1246,11 @@ Each vdisk_fileio's device has the following attributes in
  - thin_provisioned - contains thin provisioning status of this virtual
    device.
 
+ - gen_tp_soft_threshold_reached_UA - for thin provisioned devices
+   writing of anything into this write-only attribute will generate THIN
+   PROVISIONING SOFT THRESHOLD REACHED Unit Attention to all connected
+   to this device initiators.
+
  - removable - contains removable status of this virtual device.
 
  - rotational - contains rotational status of this virtual device.
@@ -1347,8 +1352,9 @@ For example:
 Each vdisk_blockio's device has the following attributes in
 /sys/kernel/scst_tgt/devices/device_name: blocksize, filename, nv_cache,
 read_only, removable, resync_size, rotational, size_mb, t10_dev_id,
-thin_provisioned, threads_num, threads_pool_type, tst, type, usn. See
-above description of those parameters.
+thin_provisioned, gen_tp_soft_threshold_reached_UA, threads_num,
+threads_pool_type, tst, type, usn. See above description of those
+parameters.
 
 Each vdisk_nullio's device has the following attributes in
 /sys/kernel/scst_tgt/devices/device_name: blocksize, read_only,
