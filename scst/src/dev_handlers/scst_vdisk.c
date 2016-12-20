@@ -3429,7 +3429,9 @@ enomem:
 	TRACE_EXIT_RES(-ENOMEM);
 	return scst_get_cmd_abnormal_done_state(cmd);
 }
+
 #else
+
 static int fileio_alloc_data_buf(struct scst_cmd *cmd)
 {
 	struct vdisk_cmd_params *p;
@@ -3447,6 +3449,7 @@ static int fileio_alloc_data_buf(struct scst_cmd *cmd)
 static void finish_read(struct scatterlist *sg, int sg_cnt)
 {
 }
+
 #endif
 
 static int vdev_do_job(struct scst_cmd *cmd, const vdisk_op_fn *ops)

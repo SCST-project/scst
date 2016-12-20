@@ -335,13 +335,15 @@ enum umh_wait {
 	   LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 41)) &&	      \
 	! (LINUX_VERSION_CODE >> 8 == KERNEL_VERSION(3, 2, 0) >> 8 && \
 	   LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 44)) &&	      \
-	!defined(CONFIG_SUSE_KERNEL) &&				      \
+	(!defined(CONFIG_SUSE_KERNEL) ||			      \
+	 LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 101)) &&	      \
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6 ||		      \
 	 (RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 < 6))
 /*
  * See also commit 4b20db3 (kref: Implement kref_get_unless_zero v3 -- v3.8).
  * See also commit e3a5505 in branch stable/linux-3.4.y (v3.4.41).
  * See also commit 3fa8ee5 in branch stable/linux-3.2.y (v3.2.44).
+ * See also commit 6b9508d in the SuSE kernel tree.
  */
 static inline int __must_check kref_get_unless_zero(struct kref *kref)
 {

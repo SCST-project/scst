@@ -6709,7 +6709,6 @@ out_done:
 	goto out;
 }
 
-
 int scst_finish_internal_cmd(struct scst_cmd *cmd)
 {
 	int res;

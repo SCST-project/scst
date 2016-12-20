@@ -2835,6 +2835,7 @@ static void __exit exit_scst(void)
 	scst_deinit_threads(&scst_main_cmd_threads);
 
 	scsi_unregister_interface(&scst_interface);
+
 #ifdef CONFIG_SCST_PROC
 	scst_del_free_acg(scst_default_acg, false);
 #endif

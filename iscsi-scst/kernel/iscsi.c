@@ -459,6 +459,14 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 		/* Order between above and below code is important! */
 
 		if ((cmnd->scst_cmd != NULL) || (cmnd->scst_aen != NULL)) {
+			/*
+			 * Tell Coverity when cmnd->scst_cmd or scst_aen is set.
+			 */
+			if (cmnd->scst_state == ISCSI_CMD_STATE_AEN)
+				EXTRACHECKS_BUG_ON(!cmnd->scst_aen);
+			else
+				EXTRACHECKS_BUG_ON(!cmnd->scst_cmd);
+
 			switch (cmnd->scst_state) {
 			case ISCSI_CMD_STATE_PROCESSED:
 				TRACE_DBG("cmd %p PROCESSED", cmnd);

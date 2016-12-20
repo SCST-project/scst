@@ -1828,6 +1828,14 @@ static int dev_user_process_reply_exec(struct scst_user_cmd *ucmd,
 			scst_set_resp_data_len(cmd, ereply->resp_data_len);
 	}
 
+#ifdef CONFIG_SCST_EXTRACHECKS
+	if (unlikely((ereply->resp_data_len == 0) && (ereply->pbuf != 0))) {
+		PRINT_WARNING("Supplied pbuf 0x%llx ignored, because "
+			"resp_data_len is 0. Memory leak? (op %s)",
+			(unsigned long long)ereply->pbuf, scst_get_opcode_name(cmd));
+	}
+#endif
+
 	cmd->status = ereply->status;
 	if (ereply->sense_len != 0) {
 		int sense_len, rc;
