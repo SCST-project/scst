@@ -32,6 +32,7 @@
 #endif
 #include "scst_priv.h"
 #include "scst_pres.h"
+#include "scst_mem.h"
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 #ifdef CONFIG_LOCKDEP
@@ -3537,6 +3538,69 @@ static struct kobj_attribute dev_max_tgt_dev_commands_attr =
 		scst_dev_sysfs_max_tgt_dev_commands_show,
 		scst_dev_sysfs_max_tgt_dev_commands_store);
 
+static ssize_t scst_dev_numa_node_id_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int pos = 0;
+	struct scst_device *dev;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+
+	pos = sprintf(buf, "%d\n%s", dev->dev_numa_node_id,
+		(dev->dev_numa_node_id != NUMA_NO_NODE) ?
+			SCST_SYSFS_KEY_MARK "\n" : "");
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static ssize_t scst_dev_numa_node_id_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	struct scst_device *dev;
+	long newtn;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+	res = kstrtol(buf, 0, &newtn);
+#else
+	res = strict_strtol(buf, 0, &newtn);
+#endif
+	if (res != 0) {
+		PRINT_ERROR("strtol() for %s failed: %d ", buf, res);
+		goto out;
+	}
+	BUILD_BUG_ON(NUMA_NO_NODE != -1);
+	if (newtn < NUMA_NO_NODE) {
+		PRINT_ERROR("Illegal numa_node_id value %ld", newtn);
+		res = -EINVAL;
+		goto out;
+	}
+
+	if (dev->dev_numa_node_id != newtn) {
+		PRINT_INFO("Setting new NUMA node id %ld for device %s (old %d)",
+			newtn, dev->virt_name, dev->dev_numa_node_id);
+		dev->dev_numa_node_id = newtn;
+	}
+
+out:
+	if (res == 0)
+		res = count;
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute dev_numa_node_id_attr =
+	__ATTR(numa_node_id, S_IRUGO | S_IWUSR, scst_dev_numa_node_id_show,
+		scst_dev_numa_node_id_store);
+
 static ssize_t scst_dev_block_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
@@ -3668,6 +3732,7 @@ static struct kobj_attribute dev_block_attr =
 static struct attribute *scst_dev_attrs[] = {
 	&dev_type_attr.attr,
 	&dev_max_tgt_dev_commands_attr.attr,
+	&dev_numa_node_id_attr.attr,
 	&dev_block_attr.attr,
 	NULL,
 };
@@ -7287,6 +7352,42 @@ static struct kobj_attribute scst_main_trace_level_attr =
 
 #endif /* defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING) */
 
+static ssize_t scst_force_global_sgv_pool_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n%s\n", scst_force_global_sgv_pool,
+		scst_force_global_sgv_pool ? SCST_SYSFS_KEY_MARK "\n": "");
+}
+
+static ssize_t scst_force_global_sgv_pool_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	unsigned long v;
+
+	TRACE_ENTRY();
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+	res = kstrtoul(buf, 0, &v);
+#else
+	res = strict_strtoul(buf, 0, &v);
+#endif
+	if (res)
+		goto out;
+
+	scst_force_global_sgv_pool = v;
+
+	res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute scst_force_global_sgv_pool_attr =
+	__ATTR(force_global_sgv_pool, S_IRUGO | S_IWUSR,
+		scst_force_global_sgv_pool_show, scst_force_global_sgv_pool_store);
+
 static void __printf(2, 3) scst_append(void *arg, const char *fmt, ...)
 {
 	char *buf = arg;
@@ -7483,6 +7584,7 @@ static struct attribute *scst_sysfs_root_default_attrs[] = {
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	&scst_main_trace_level_attr.attr,
 #endif
+	&scst_force_global_sgv_pool_attr.attr,
 	&scst_trace_cmds_attr.attr,
 	&scst_trace_mcmds_attr.attr,
 	&scst_version_attr.attr,

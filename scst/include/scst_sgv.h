@@ -71,6 +71,16 @@ enum sgv_clustering_types {
 	sgv_full_clustering,
 };
 
+struct sgv_pool *sgv_pool_create_node(const char *name,
+	enum sgv_clustering_types clustered, int single_alloc_pages,
+	bool shared, int purge_interval, int nodeid);
+static inline struct sgv_pool *sgv_pool_create(const char *name,
+	enum sgv_clustering_types clustered, int single_alloc_pages,
+	bool shared, int purge_interval)
+{
+	return sgv_pool_create_node(name, clustered, single_alloc_pages,
+		shared, purge_interval, NUMA_NO_NODE);
+}
 struct sgv_pool *sgv_pool_create(const char *name,
 	enum sgv_clustering_types clustered, int single_alloc_pages,
 	bool shared, int purge_interval);

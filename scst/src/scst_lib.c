@@ -4162,19 +4162,21 @@ static int scst_dif_none_type1(struct scst_cmd *cmd);
 #endif
 
 /* Called under scst_mutex and suspended activity */
-int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev)
+int scst_alloc_device(gfp_t gfp_mask, int nodeid,
+	struct scst_device **out_dev)
 {
 	struct scst_device *dev;
 	int res = 0;
 
 	TRACE_ENTRY();
 
-	dev = kmem_cache_zalloc(scst_dev_cachep, gfp_mask);
+	dev = kmem_cache_alloc_node(scst_dev_cachep, gfp_mask, nodeid);
 	if (dev == NULL) {
 		PRINT_ERROR("%s", "Allocation of scst_device failed");
 		res = -ENOMEM;
 		goto out;
 	}
+	memset(dev, 0, sizeof(*dev));
 
 	dev->handler = &scst_null_devtype;
 #ifdef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
@@ -4194,6 +4196,7 @@ int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev)
 #endif
 	dev->dev_double_ua_possible = 1;
 	dev->queue_alg = SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER;
+	dev->dev_numa_node_id = nodeid;
 
 	scst_pr_init(dev);
 
@@ -5053,7 +5056,8 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 				tgt_dev->dev->virt_name);
 		} else {
 			/* Create new context */
-			aic_keeper = kzalloc(sizeof(*aic_keeper), GFP_KERNEL);
+			aic_keeper = kzalloc_node(sizeof(*aic_keeper), GFP_KERNEL,
+				dev->dev_numa_node_id);
 			if (aic_keeper == NULL) {
 				PRINT_ERROR("Unable to alloc aic_keeper "
 					"(size %zd)", sizeof(*aic_keeper));
@@ -5260,6 +5264,16 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	else
 		clear_bit(SCST_TGT_DEV_BLACK_HOLE, &tgt_dev->tgt_dev_flags);
 
+#ifdef CONFIG_CPUMASK_OFFSTACK
+	tgt_dev->pools = kzalloc_node(sizeof(tgt_dev->pools[0])*NR_CPUS,
+				GFP_KERNEL, dev->dev_numa_node_id);
+	if (tgt_dev->pools == NULL) {
+		PRINT_ERROR("Unable to alloc tgt_dev->pools (size %zd)",
+			sizeof(tgt_dev->pools[0])*NR_CPUS);
+		goto out_free;
+	}
+#endif
+
 	scst_sgv_pool_use_norm(tgt_dev);
 
 	if (dev->scsi_dev != NULL) {
@@ -5317,7 +5331,7 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 				"Persistent Reservations", sess->tgt->tgtt->name,
 				dev->virt_name);
 			res = -EPERM;
-			goto out_free;
+			goto out_free_ua;
 		}
 		dev->not_pr_supporting_tgt_devs_num++;
 	}
@@ -5378,8 +5392,13 @@ out_dec_free:
 	if (tgtt->get_initiator_port_transport_id == NULL)
 		dev->not_pr_supporting_tgt_devs_num--;
 
-out_free:
+out_free_ua:
 	scst_free_all_UA(tgt_dev);
+#ifdef CONFIG_CPUMASK_OFFSTACK
+	kfree(tgt_dev->pools);
+
+out_free:
+#endif
 	kmem_cache_free(scst_tgtd_cachep, tgt_dev);
 	goto out;
 }
@@ -5436,6 +5455,10 @@ static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 	}
 
 	scst_tgt_dev_stop_threads(tgt_dev);
+
+#ifdef CONFIG_CPUMASK_OFFSTACK
+	kfree(tgt_dev->pools);
+#endif
 
 	kmem_cache_free(scst_tgtd_cachep, tgt_dev);
 
@@ -5983,7 +6006,7 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 		dif_bufflen = blocks << SCST_DIF_TAG_SHIFT;
 		cmd->expected_transfer_len_full += dif_bufflen;
 
-		dif_sg = sgv_pool_alloc(ws_cmd->tgt_dev->pool,
+		dif_sg = sgv_pool_alloc(ws_cmd->tgt_dev->pools[raw_smp_processor_id()],
 			dif_bufflen, GFP_KERNEL, 0, &dif_sg_cnt, &dif_sgv,
 			&cmd->dev->dev_mem_lim, NULL);
 		if (unlikely(dif_sg == NULL)) {
@@ -7490,8 +7513,9 @@ int scst_alloc_space(struct scst_cmd *cmd)
 	if (cmd->no_sgv)
 		flags |= SGV_POOL_ALLOC_NO_CACHED;
 
-	cmd->sg = sgv_pool_alloc(tgt_dev->pool, cmd->bufflen, gfp_mask, flags,
-			&cmd->sg_cnt, &cmd->sgv, &cmd->dev->dev_mem_lim, NULL);
+	cmd->sg = sgv_pool_alloc(tgt_dev->pools[raw_smp_processor_id()],
+			cmd->bufflen, gfp_mask, flags, &cmd->sg_cnt, &cmd->sgv,
+			&cmd->dev->dev_mem_lim, NULL);
 	if (unlikely(cmd->sg == NULL))
 		goto out;
 
@@ -7510,8 +7534,9 @@ int scst_alloc_space(struct scst_cmd *cmd)
 		else
 			dif_bufflen = cmd->bufflen;
 
-		cmd->dif_sg = sgv_pool_alloc(tgt_dev->pool, dif_bufflen, gfp_mask, flags,
-			&cmd->dif_sg_cnt, &cmd->dif_sgv, &cmd->dev->dev_mem_lim, NULL);
+		cmd->dif_sg = sgv_pool_alloc(tgt_dev->pools[raw_smp_processor_id()],
+			dif_bufflen, gfp_mask, flags, &cmd->dif_sg_cnt, &cmd->dif_sgv,
+			&cmd->dev->dev_mem_lim, NULL);
 		if (unlikely(cmd->dif_sg == NULL))
 			goto out_sg_free;
 
@@ -7538,9 +7563,9 @@ int scst_alloc_space(struct scst_cmd *cmd)
 	if (cmd->data_direction != SCST_DATA_BIDI)
 		goto success;
 
-	cmd->out_sg = sgv_pool_alloc(tgt_dev->pool, cmd->out_bufflen, gfp_mask,
-			 flags, &cmd->out_sg_cnt, &cmd->out_sgv,
-			 &cmd->dev->dev_mem_lim, NULL);
+	cmd->out_sg = sgv_pool_alloc(tgt_dev->pools[raw_smp_processor_id()],
+			cmd->out_bufflen, gfp_mask, flags, &cmd->out_sg_cnt,
+			&cmd->out_sgv, &cmd->dev->dev_mem_lim, NULL);
 	if (unlikely(cmd->out_sg == NULL))
 		goto out_dif_sg_free;
 

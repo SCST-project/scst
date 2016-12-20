@@ -248,6 +248,7 @@ struct scst_vdisk_dev {
 
 	/* Only to pass it to attach() callback. Don't use them anywhere else! */
 	int blk_shift;
+	int numa_node_id;
 	enum scst_dif_mode dif_mode;
 	int dif_type;
 	__be64 dif_static_app_tag_combined;
@@ -730,6 +731,7 @@ static struct scst_dev_type vdisk_file_devtype = {
 	.add_device_parameters =
 		"blocksize, "
 		"filename, "
+		"numa_node_id, "
 		"nv_cache, "
 		"o_direct, "
 		"cluster_mode, "
@@ -789,6 +791,7 @@ static struct scst_dev_type vdisk_blk_devtype = {
 		"dif_static_app_tag, "
 		"dif_filename, "
 		"filename, "
+		"numa_node_id, "
 		"nv_cache, "
 		"cluster_mode, "
 		"read_only, "
@@ -833,10 +836,11 @@ static struct scst_dev_type vdisk_null_devtype = {
 	.dev_attrs =		vdisk_nullio_attrs,
 	.add_device_parameters =
 		"blocksize, "
-		"dummy, "
 		"dif_mode, "
 		"dif_type, "
 		"dif_static_app_tag, ",
+		"dummy, "
+		"numa_node_id, "
 		"cluster_mode, "
 		"read_only, "
 		"removable, "
@@ -7770,8 +7774,8 @@ static void vdev_inq_changed_fn(struct work_struct *work)
 }
 
 /* scst_vdisk_mutex supposed to be held */
-static int vdev_create(struct scst_dev_type *devt,
-	const char *name, struct scst_vdisk_dev **res_virt_dev)
+static int vdev_create_node(struct scst_dev_type *devt,
+	const char *name, int nodeid, struct scst_vdisk_dev **res_virt_dev)
 {
 	int res;
 	struct scst_vdisk_dev *virt_dev, *vv;
@@ -7782,7 +7786,7 @@ static int vdev_create(struct scst_dev_type *devt,
 		goto out;
 
 	/* It's read-mostly, so cache alignment isn't needed */
-	virt_dev = kzalloc(sizeof(*virt_dev), GFP_KERNEL);
+	virt_dev = kzalloc_node(sizeof(*virt_dev), GFP_KERNEL, nodeid);
 	if (virt_dev == NULL) {
 		PRINT_ERROR("Allocation of virtual device %s failed",
 			devt->name);
@@ -7805,6 +7809,7 @@ static int vdev_create(struct scst_dev_type *devt,
 	INIT_WORK(&virt_dev->vdev_inq_changed_work, vdev_inq_changed_fn);
 
 	virt_dev->blk_shift = DEF_DISK_BLOCK_SHIFT;
+	virt_dev->numa_node_id = NUMA_NO_NODE;
 
 	if (strlen(name) >= sizeof(virt_dev->name)) {
 		PRINT_ERROR("Name %s is too long (max allowed %zd)", name,
@@ -7862,6 +7867,12 @@ out_free:
 	goto out;
 }
 
+static inline int vdev_create(struct scst_dev_type *devt,
+	const char *name, struct scst_vdisk_dev **res_virt_dev)
+{
+	return vdev_create_node(devt, name, NUMA_NO_NODE, res_virt_dev);
+}
+
 static void vdev_destroy(struct scst_vdisk_dev *virt_dev)
 {
 	cancel_work_sync(&virt_dev->vdev_inq_changed_work);
@@ -7872,6 +7883,33 @@ static void vdev_destroy(struct scst_vdisk_dev *virt_dev)
 	kfree(virt_dev->filename);
 	kfree(virt_dev->dif_filename);
 	kfree(virt_dev);
+	return;
+}
+
+static void vdev_check_node(struct scst_vdisk_dev **pvirt_dev, int orig_nodeid)
+{
+	struct scst_vdisk_dev *virt_dev = *pvirt_dev;
+	int nodeid = virt_dev->numa_node_id;
+
+	TRACE_ENTRY();
+
+	if (virt_dev->numa_node_id != orig_nodeid) {
+		struct scst_vdisk_dev *v;
+		TRACE_MEM("Realloc virt_dev %s on node %d", virt_dev->name, nodeid);
+		/* It's read-mostly, so cache alignment isn't needed */
+		v = kzalloc_node(sizeof(*v), GFP_KERNEL, nodeid);
+		if (v == NULL) {
+			PRINT_ERROR("Reallocation of virtual device %s failed",
+				virt_dev->name);
+			goto out;
+		}
+		*v = *virt_dev;
+		kfree(virt_dev);
+		*pvirt_dev = v;
+	}
+
+out:
+	TRACE_EXIT();
 	return;
 }
 
@@ -8083,6 +8121,14 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 			}
 			TRACE_DBG("block size %lld, block shift %d",
 				val, virt_dev->blk_shift);
+		} else if (!strcasecmp("numa_node_id", p)) {
+			virt_dev->numa_node_id = val;
+			BUILD_BUG_ON(NUMA_NO_NODE != -1);
+			if (virt_dev->numa_node_id < NUMA_NO_NODE) {
+				res = -EINVAL;
+				goto out;
+			}
+			TRACE_DBG("numa_node_id %d", virt_dev->numa_node_id);
 		} else if (!strcasecmp("dif_type", p)) {
 			virt_dev->dif_type = val;
 			TRACE_DBG("DIF type %d", virt_dev->dif_type);
@@ -8144,12 +8190,14 @@ static int vdev_fileio_add_device(const char *device_name, char *params)
 		goto out_destroy;
 	}
 
+	vdev_check_node(&virt_dev, NUMA_NO_NODE);
+
 	list_add_tail(&virt_dev->vdev_list_entry, &vdev_list);
 
 	vdisk_report_registering(virt_dev);
 
-	virt_dev->virt_id = scst_register_virtual_device(virt_dev->vdev_devt,
-					virt_dev->name);
+	virt_dev->virt_id = scst_register_virtual_device_node(virt_dev->vdev_devt,
+					virt_dev->name, virt_dev->numa_node_id);
 	if (virt_dev->virt_id < 0) {
 		res = virt_dev->virt_id;
 		goto out_del;
@@ -8178,7 +8226,8 @@ static int vdev_blockio_add_device(const char *device_name, char *params)
 					 "removable", "blocksize", "nv_cache",
 					 "rotational", "cluster_mode",
 					 "thin_provisioned", "tst",
-					 "dif_mode", "dif_type", "dif_static_app_tag",
+					 "numa_node_id", "dif_mode",
+					 "dif_type", "dif_static_app_tag",
 					 "dif_filename", NULL };
 	struct scst_vdisk_dev *virt_dev;
 
@@ -8205,6 +8254,8 @@ static int vdev_blockio_add_device(const char *device_name, char *params)
 		goto out_destroy;
 	}
 
+	vdev_check_node(&virt_dev, NUMA_NO_NODE);
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 	res = vdisk_create_bioset(virt_dev);
 	if (res != 0)
@@ -8215,8 +8266,8 @@ static int vdev_blockio_add_device(const char *device_name, char *params)
 
 	vdisk_report_registering(virt_dev);
 
-	virt_dev->virt_id = scst_register_virtual_device(virt_dev->vdev_devt,
-					virt_dev->name);
+	virt_dev->virt_id = scst_register_virtual_device_node(virt_dev->vdev_devt,
+					virt_dev->name, virt_dev->numa_node_id);
 	if (virt_dev->virt_id < 0) {
 		res = virt_dev->virt_id;
 		goto out_del;
@@ -8243,8 +8294,8 @@ static int vdev_nullio_add_device(const char *device_name, char *params)
 	int res = 0;
 	static const char *const allowed_params[] = {
 		"read_only", "dummy", "removable", "blocksize", "rotational",
-		"cluster_mode", "dif_mode", "dif_type", "dif_static_app_tag",
-		"size", "size_mb", "tst", NULL
+		"size", "size_mb", "tst", "numa_node_id",
+		"cluster_mode", "dif_mode", "dif_type", "dif_static_app_tag", NULL
 	};
 	struct scst_vdisk_dev *virt_dev;
 
@@ -8263,12 +8314,14 @@ static int vdev_nullio_add_device(const char *device_name, char *params)
 	if (res != 0)
 		goto out_destroy;
 
+	vdev_check_node(&virt_dev, NUMA_NO_NODE);
+
 	list_add_tail(&virt_dev->vdev_list_entry, &vdev_list);
 
 	vdisk_report_registering(virt_dev);
 
-	virt_dev->virt_id = scst_register_virtual_device(virt_dev->vdev_devt,
-					virt_dev->name);
+	virt_dev->virt_id = scst_register_virtual_device_node(virt_dev->vdev_devt,
+					virt_dev->name, virt_dev->numa_node_id);
 	if (virt_dev->virt_id < 0) {
 		res = virt_dev->virt_id;
 		goto out_del;

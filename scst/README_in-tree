@@ -365,6 +365,9 @@ following entries:
    or -errno for error). The following two shell functions show how to do
    this:
 
+ - force_global_sgv_pool - if not set, buffers for SCSI commands are
+   allocated from per-CPU SGV pool. Otherwise, global SGV pool is used.
+
 # Read the SCST sysfs attribute $1. See also scst/README for more information.
 scst_sysfs_read() {
     local EAGAIN val
@@ -429,6 +432,10 @@ SCST dev handlers can have the following common entries:
 
  - max_tgt_dev_commands - maximum number of SCSI commands any session to
    this device can have in flight.
+
+ - numa_node_id - NUMA node id this device physically belongs to. SCST
+   NUMA handling assumes that being used in the system NUMA memory
+   allocation policy is to always allocate from the current node.
 
 Attribute "block" allows to temporary block and unblock this device.
 "Blocking" means that no new commands for this device will go into the

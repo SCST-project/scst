@@ -114,8 +114,6 @@ struct sgv_pool {
 	struct work_struct sgv_purge_work;
 #endif
 
-	struct list_head sgv_active_pools_list_entry;
-
 	atomic_t big_alloc, big_pages, big_merged;
 	atomic_t other_alloc, other_pages, other_merged;
 
@@ -136,6 +134,8 @@ struct sgv_pool {
 	/* sysfs release completion */
 	struct completion *sgv_kobj_release_cmpl;
 };
+
+extern bool scst_force_global_sgv_pool;
 
 static inline struct scatterlist *sgv_pool_sg(struct sgv_pool_obj *obj)
 {

@@ -3039,6 +3039,9 @@ struct scst_device {
 
 	/* End of persistent reservation fields protected by dev_pr_mutex. */
 
+	/* NUMA node id of this device, if any (default - NUMA_NO_NODE) */
+	int dev_numa_node_id;
+
 	/*
 	 * Count of connected tgt_devs from transports, which don't support
 	 * PRs, i.e. don't have get_initiator_port_transport_id(). Protected
@@ -3138,7 +3141,11 @@ struct scst_tgt_dev {
 	gfp_t tgt_dev_gfp_mask;
 
 	/* SGV pool from which buffers of this tgt_dev's cmds should be allocated */
-	struct sgv_pool *pool;
+#ifdef CONFIG_CPUMASK_OFFSTACK
+	struct sgv_pool **pools;
+#else
+	struct sgv_pool *pools[NR_CPUS];
+#endif
 
 	/* Max number of allowed in this tgt_dev SG segments */
 	int max_sg_cnt;
@@ -3741,8 +3748,14 @@ struct scst_cmd *scst_find_cmd(struct scst_session *sess, void *data,
 enum dma_data_direction scst_to_dma_dir(int scst_dir);
 enum dma_data_direction scst_to_tgt_dma_dir(int scst_dir);
 
-int scst_register_virtual_device(struct scst_dev_type *dev_handler,
-	const char *dev_name);
+int scst_register_virtual_device_node(struct scst_dev_type *dev_handler,
+	const char *dev_name, int nodeid);
+static inline int scst_register_virtual_device(struct scst_dev_type *dev_handler,
+	const char *dev_name)
+{
+	return scst_register_virtual_device_node(dev_handler, dev_name,
+		NUMA_NO_NODE);
+}
 void scst_unregister_virtual_device(int id);
 
 /*
