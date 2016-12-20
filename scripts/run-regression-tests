@@ -629,7 +629,20 @@ do
 
   download_kernel $k || continue
   generate_kernel_patch $k "${generate_kernel_patch_options}" || continue
-  ( cd "${outputdir}" && extract_kernel_tree $k ) || continue
+  (
+      cd "${outputdir}" &&
+	  extract_kernel_tree $k &&
+	  cd linux-$k/include/linux &&
+	  if [ ! -e compiler-gcc6.h ]; then
+	      for f in compiler-gcc5.h compiler-gcc4.h; do
+		  if [ -e "$f" ]; then
+		      cp "$f" compiler-gcc6.h
+		      break
+		  fi
+	      done
+	  fi
+  ) ||
+      continue
   if [ "${run_checkpatch}" = "true" ]; then
     run_checkpatch $k
   fi
