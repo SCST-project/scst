@@ -3247,6 +3247,16 @@ struct scst_tgt_dev {
 	unsigned short tgt_dev_valid_sense_len;
 	uint8_t tgt_dev_sense[SCST_SENSE_BUFFERSIZE];
 
+	/*
+	 * LUN thread index assigned by scst_add_threads(). Exported via
+	 * sysfs. Can be used to look up which export thread is serving which
+	 * target since this index also appears in the export thread name. Has
+	 * a value in the range 0..n-1 for threads_pool_type per_initiator or
+	 * -1 when using a shared thread pool per LUN or the global thread
+	 * pool.
+	 */
+	int thread_index;
+
 #ifndef CONFIG_SCST_PROC
 	/* sysfs release completion */
 	struct completion *tgt_dev_kobj_release_cmpl;
@@ -5666,6 +5676,7 @@ void scst_init_threads(struct scst_cmd_threads *cmd_threads);
 void scst_deinit_threads(struct scst_cmd_threads *cmd_threads);
 
 void scst_pass_through_cmd_done(void *data, char *sense, int result, int resid);
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	void (*done)(void *data, char *sense, int result, int resid));

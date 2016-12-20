@@ -4115,6 +4115,19 @@ out:
  ** Tgt_dev implementation
  **/
 
+static ssize_t scst_tgt_dev_thread_index_show(struct kobject *kobj,
+					      struct kobj_attribute *attr,
+					      char *buffer)
+{
+	struct scst_tgt_dev *tgt_dev =
+		container_of(kobj, struct scst_tgt_dev, tgt_dev_kobj);
+
+	return sprintf(buffer, "%d\n", tgt_dev->thread_index);
+}
+
+static struct kobj_attribute tgt_dev_thread_idx_attr =
+	__ATTR(thread_index, S_IRUGO, scst_tgt_dev_thread_index_show, NULL);
+
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 
 static char *scst_io_size_names[] = {
@@ -4321,6 +4334,7 @@ static struct kobj_attribute tgt_dev_dif_checks_failed_attr =
 		scst_tgt_dev_dif_checks_failed_store);
 
 static struct attribute *scst_tgt_dev_attrs[] = {
+	&tgt_dev_thread_idx_attr.attr,
 	&tgt_dev_thread_pid_attr.attr,
 	&tgt_dev_active_commands_attr.attr,
 #ifdef CONFIG_SCST_MEASURE_LATENCY

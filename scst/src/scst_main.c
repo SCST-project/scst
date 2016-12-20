@@ -1923,6 +1923,7 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 				break;
 			tgt_dev_num++;
 		}
+		tgt_dev->thread_index = tgt_dev_num;
 
 		nodeid = tgt_dev->dev->dev_numa_node_id;
 	} else if (dev != NULL)

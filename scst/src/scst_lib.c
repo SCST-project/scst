@@ -5037,6 +5037,8 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 
 	TRACE_ENTRY();
 
+	tgt_dev->thread_index = -1;
+
 	if (dev->threads_num < 0)
 		goto out;
 

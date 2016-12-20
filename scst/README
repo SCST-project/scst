@@ -855,6 +855,14 @@ Each sessions/<sess>/lun<X> subdirectory contains the following entries:
    (PIDs) of the kernel threads that process SCSI commands intended for
    lun<X> in session <sess>.
 
+ - thread_index - thread index assigned by scst_add_threads().
+   Can be used to look up which export thread is serving which target
+   since this index also appears in the export thread name. This
+   information then could be used to set CPU affinity for those threads
+   to improve performance. Has a value in the range 0..n-1 for
+   threads_pool_type per_initiator or -1 when using a shared thread pool
+   per LUN or the global thread pool.
+
 
 Access and devices visibility management (LUN masking)
 ------------------------------------------------------
