@@ -97,7 +97,9 @@ extern unsigned long scst_trace_flag;
 
 /**
  ** Maximum count of uncompleted commands that an initiator could
- ** queue on any device. Then it will start getting TASK QUEUE FULL status.
+ ** queue on any device by default, i.e. its dev handler doesn't have
+ ** max_tgt_dev_commands defined. Then it will start getting TASK QUEUE FULL
+ ** status.
  **/
 #define SCST_MAX_TGT_DEV_COMMANDS            64
 

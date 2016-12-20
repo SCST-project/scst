@@ -13657,7 +13657,56 @@ out:
  */
 int scst_get_max_lun_commands(struct scst_session *sess, uint64_t lun)
 {
-	return SCST_MAX_TGT_DEV_COMMANDS;
+	const int init_res = 0xFFFFFF;
+	int res = init_res, i;
+
+	TRACE_ENTRY();
+
+	mutex_lock(&scst_mutex);
+
+	if (sess == NULL) {
+		struct scst_device *dev;
+		list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
+			if (dev->handler == &scst_null_devtype)
+				continue;
+			TRACE_DBG("dev %s, max_tgt_dev_commands %d (res %d)",
+				dev->virt_name, dev->max_tgt_dev_commands, res);
+			if (res > dev->max_tgt_dev_commands)
+				res = dev->max_tgt_dev_commands;
+		}
+		goto out_unlock;
+	}
+
+	if (lun != NO_SUCH_LUN) {
+		struct list_head *head =
+			&sess->sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_FN(lun)];
+		struct scst_tgt_dev *tgt_dev;
+		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
+			if (tgt_dev->lun == lun) {
+				res = tgt_dev->dev->max_tgt_dev_commands;
+				TRACE_DBG("tgt_dev %p, dev %s, max_tgt_dev_commands "
+					"%d (res %d)", tgt_dev, tgt_dev->dev->virt_name,
+					tgt_dev->dev->max_tgt_dev_commands, res);
+				break;
+			}
+		}
+		goto out_unlock;
+	}
+
+	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
+		struct list_head *head = &sess->sess_tgt_dev_list[i];
+		struct scst_tgt_dev *tgt_dev;
+		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
+			if (res > tgt_dev->dev->max_tgt_dev_commands)
+				res = tgt_dev->dev->max_tgt_dev_commands;
+		}
+	}
+
+out_unlock:
+	mutex_unlock(&scst_mutex);
+
+	TRACE_EXIT_RES(res);
+	return res;
 }
 EXPORT_SYMBOL(scst_get_max_lun_commands);
 

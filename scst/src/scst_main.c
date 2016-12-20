@@ -1367,6 +1367,9 @@ static int scst_dev_handler_check(struct scst_dev_type *dev_handler)
 	if (dev_handler->dev_done == NULL)
 		dev_handler->dev_done_atomic = 1;
 
+	if (dev_handler->max_tgt_dev_commands == 0)
+		dev_handler->max_tgt_dev_commands = SCST_MAX_TGT_DEV_COMMANDS;
+
 out:
 	TRACE_EXIT_RES(res);
 	return res;
@@ -2154,6 +2157,7 @@ assign:
 	dev->handler = handler;
 	dev->threads_num = handler->threads_num;
 	dev->threads_pool_type = handler->threads_pool_type;
+	dev->max_tgt_dev_commands = handler->max_tgt_dev_commands;
 	dev->max_write_same_len = 256 * 1024 * 1024; /* 256 MB */
 
 	if (handler->attach) {

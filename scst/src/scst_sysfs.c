@@ -3474,6 +3474,69 @@ static struct kobj_attribute dev_threads_pool_type_attr =
 		scst_dev_sysfs_threads_pool_type_show,
 		scst_dev_sysfs_threads_pool_type_store);
 
+static ssize_t scst_dev_sysfs_max_tgt_dev_commands_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int pos = 0;
+	struct scst_device *dev;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+
+	pos = sprintf(buf, "%d\n%s", dev->max_tgt_dev_commands,
+		(dev->max_tgt_dev_commands != dev->handler->max_tgt_dev_commands) ?
+			SCST_SYSFS_KEY_MARK "\n" : "");
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static ssize_t scst_dev_sysfs_max_tgt_dev_commands_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	struct scst_device *dev;
+	long newtn;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+	res = kstrtol(buf, 0, &newtn);
+#else
+	res = strict_strtol(buf, 0, &newtn);
+#endif
+	if (res != 0) {
+		PRINT_ERROR("strtol() for %s failed: %d ", buf, res);
+		goto out;
+	}
+	if (newtn < 0) {
+		PRINT_ERROR("Illegal max tgt dev value %ld", newtn);
+		res = -EINVAL;
+		goto out;
+	}
+
+	if (dev->max_tgt_dev_commands != newtn) {
+		PRINT_INFO("Setting new queue depth %ld for device %s (old %d)",
+			newtn, dev->virt_name, dev->max_tgt_dev_commands);
+		dev->max_tgt_dev_commands = newtn;
+	}
+
+out:
+	if (res == 0)
+		res = count;
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute dev_max_tgt_dev_commands_attr =
+	__ATTR(max_tgt_dev_commands, S_IRUGO | S_IWUSR,
+		scst_dev_sysfs_max_tgt_dev_commands_show,
+		scst_dev_sysfs_max_tgt_dev_commands_store);
+
 static ssize_t scst_dev_block_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
@@ -3604,6 +3667,7 @@ static struct kobj_attribute dev_block_attr =
 
 static struct attribute *scst_dev_attrs[] = {
 	&dev_type_attr.attr,
+	&dev_max_tgt_dev_commands_attr.attr,
 	&dev_block_attr.attr,
 	NULL,
 };

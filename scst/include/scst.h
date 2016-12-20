@@ -1667,6 +1667,13 @@ struct scst_dev_type {
 	 */
 	int threads_num;
 
+	/*
+	 * Maximum count of uncompleted commands that an initiator could
+	 * queue on any device of this handler by default. Then it will start
+	 * getting TASK QUEUE FULL status.
+	 */
+	int max_tgt_dev_commands;
+
 	/* Threads pool type. Valid only if threads_num > 0. */
 	enum scst_dev_type_threads_pool_type threads_pool_type;
 
@@ -2908,6 +2915,13 @@ struct scst_device {
 	/* How many cmds alive on this dev */
 	atomic_t dev_cmd_count;
 #endif
+
+	/*
+	 * Maximum count of uncompleted commands that an initiator could
+	 * queue on this device. Then it will start getting TASK QUEUE FULL
+	 * status.
+	 */
+	int max_tgt_dev_commands;
 
 	/*
 	 * How many times device was blocked for new cmds execution.

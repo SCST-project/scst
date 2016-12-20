@@ -563,6 +563,9 @@ SCST dev handlers can have the following common entries:
 
  - type - SCSI type of this device
 
+ - max_tgt_dev_commands - maximum number of SCSI commands any session to
+   this device can have in flight.
+
 Attribute "block" allows to temporary block and unblock this device.
 "Blocking" means that no new commands for this device will go into the
 execution stage, but instead will be suspended just before it. The

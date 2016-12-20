@@ -5073,7 +5073,7 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 		cmd->state = SCST_CMD_STATE_PARSE;
 
 		cnt = atomic_inc_return(&cmd->tgt_dev->tgt_dev_cmd_count);
-		if (unlikely(cnt > SCST_MAX_TGT_DEV_COMMANDS)) {
+		if (unlikely(cnt > cmd->dev->max_tgt_dev_commands)) {
 			TRACE(TRACE_FLOW_CONTROL,
 				"Too many pending commands (%d) in "
 				"session, returning BUSY to initiator \"%s\"",
