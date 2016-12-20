@@ -192,6 +192,9 @@ Each session subdirectory contains the following entries:
 
  - commands - contains overall number of SCSI commands in this session.
 
+ - thread_pid - Process IDs (PIDs) of the iscsi{wr,rd} kernel threads that
+   process the SCSI commands for this session.
+
 Each connection subdirectory contains the following entries:
 
  - cid - contains CID of this connection.
