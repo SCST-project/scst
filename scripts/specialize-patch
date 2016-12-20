@@ -75,6 +75,9 @@ function evaluate(stmnt, pattern, arg, op, result) {
   gsub("defined\\(CREATE_SEND_MAD_HAS_BASE_ARG\\)",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0))", stmnt)
 
+  gsub("defined\\(IB_CM_LISTEN_TAKES_FOURTH_ARG\\)",
+       "(LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0))", stmnt)
+
   gsub("defined\\(IB_CLIENT_REMOVE_TAKES_TWO_ARGS\\)",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0))", stmnt)
   
@@ -335,6 +338,7 @@ function handle_if(evaluated)
       || $0 ~ "HAVE_IB_DMA_MAP_OPS" \
       || $0 ~ "HAVE_IB_QUERY_DEVICE" \
       || $0 ~ "IB_CLIENT_REMOVE_TAKES_TWO_ARGS" \
+      || $0 ~ "IB_CM_LISTEN_TAKES_FOURTH_ARG" \
       || $0 ~ "IB_CREATE_CQ_HAS_INIT_ATTR" \
       || $0 ~ "IB_PD_HAS_LOCAL_DMA_LKEY" \
       || $0 ~ "IB_PD_HAS_LOCAL_DMA_LKEY" \
