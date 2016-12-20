@@ -87,6 +87,7 @@ struct iscsi_thread_pool {
 	wait_queue_head_t wr_waitQ;
 
 	cpumask_t cpu_mask;
+	bool dedicated;
 
 	int thread_pool_ref;
 
@@ -558,7 +559,7 @@ extern int iscsi_preliminary_complete(struct iscsi_cmnd *req,
 	struct iscsi_cmnd *orig_req, bool get_data);
 extern int set_scst_preliminary_status_rsp(struct iscsi_cmnd *req,
 	bool get_data, int key, int asc, int ascq);
-extern int iscsi_threads_pool_get(const cpumask_t *cpu_mask,
+extern int iscsi_threads_pool_get(bool dedicated, const cpumask_t *cpu_mask,
 	struct iscsi_thread_pool **out_pool);
 extern void iscsi_threads_pool_put(struct iscsi_thread_pool *p);
 
@@ -633,6 +634,7 @@ extern void __iscsi_del_attr(struct iscsi_target *target,
 /* session.c */
 #ifndef CONFIG_SCST_PROC
 extern const struct attribute *iscsi_sess_attrs[];
+extern const struct attribute *iscsi_acg_attrs[];
 #endif
 extern const struct file_operations session_seq_fops;
 extern struct iscsi_session *session_lookup(struct iscsi_target *, u64);

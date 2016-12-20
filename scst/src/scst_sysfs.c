@@ -5581,6 +5581,16 @@ int scst_acg_sysfs_create(struct scst_tgt *tgt,
 		goto out_del;
 	}
 
+	if (acg->tgt->tgtt->acg_attrs) {
+		res = sysfs_create_files(&acg->acg_kobj,
+					 acg->tgt->tgtt->acg_attrs);
+		if (res != 0) {
+			PRINT_ERROR("Can't add attributes for acg %s",
+				acg->acg_name);
+			goto out_del;
+		}
+	}
+
 out:
 	TRACE_EXIT_RES(res);
 	return res;

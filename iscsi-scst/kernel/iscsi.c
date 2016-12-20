@@ -4091,6 +4091,7 @@ struct scst_tgt_template iscsi_template = {
 	.tgtt_attrs = iscsi_attrs,
 	.tgt_attrs = iscsi_tgt_attrs,
 	.sess_attrs = iscsi_sess_attrs,
+	.acg_attrs = iscsi_acg_attrs,
 	.enable_target = iscsi_enable_target,
 	.is_target_enabled = iscsi_is_target_enabled,
 	.add_target = iscsi_sysfs_add_target,
@@ -4192,7 +4193,7 @@ void iscsi_threads_pool_put(struct iscsi_thread_pool *p)
 	return;
 }
 
-int iscsi_threads_pool_get(const cpumask_t *cpu_mask,
+int iscsi_threads_pool_get(bool dedicated, const cpumask_t *cpu_mask,
 	struct iscsi_thread_pool **out_pool)
 {
 	int res;
@@ -4205,9 +4206,16 @@ int iscsi_threads_pool_get(const cpumask_t *cpu_mask,
 
 	mutex_lock(&iscsi_threads_pool_mutex);
 
+	if (dedicated) {
+		/* Ignore cpu_mask, if set */
+		cpu_mask = NULL;
+		goto create;
+	}
+
 	list_for_each_entry(p, &iscsi_thread_pools_list,
 			thread_pools_list_entry) {
-		if (!cpu_mask || cpumask_equal(cpu_mask, &p->cpu_mask)) {
+		if ((!cpu_mask || cpumask_equal(cpu_mask, &p->cpu_mask)) &&
+		    !p->dedicated) {
 			p->thread_pool_ref++;
 			TRACE_DBG("iSCSI thread pool %p found (new ref %d)",
 				p, p->thread_pool_ref);
@@ -4216,7 +4224,9 @@ int iscsi_threads_pool_get(const cpumask_t *cpu_mask,
 		}
 	}
 
-	TRACE_DBG("%s", "Creating new iSCSI thread pool");
+create:
+	TRACE_DBG("Creating new iSCSI thread pool (dedicated %d, cpu_mask %p)",
+		dedicated, cpu_mask);
 
 	p = kmem_cache_zalloc(iscsi_thread_pool_cache, GFP_KERNEL);
 	if (p == NULL) {
@@ -4247,8 +4257,11 @@ int iscsi_threads_pool_get(const cpumask_t *cpu_mask,
 	p->thread_pool_ref = 1;
 	mutex_init(&p->tp_mutex);
 	INIT_LIST_HEAD(&p->threads_list);
+	p->dedicated = dedicated;
 
-	if (cpu_mask == NULL)
+	if (dedicated)
+		count = 1;
+	else if (cpu_mask == NULL)
 		count = max_t(int, num_online_cpus(), 2);
 	else {
 		count = 0;
@@ -4395,7 +4408,7 @@ static int __init iscsi_init(void)
 	iscsi_conn_ktype.sysfs_ops = scst_sysfs_get_sysfs_ops();
 #endif
 
-	err = iscsi_threads_pool_get(NULL, &iscsi_main_thread_pool);
+	err = iscsi_threads_pool_get(false, NULL, &iscsi_main_thread_pool);
 	if (err != 0)
 		goto out_thr;
 

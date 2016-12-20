@@ -371,6 +371,13 @@ Each connection subdirectory contains the following entries:
 
  - state - contains processing state of this connection.
 
+Each initiator group subdirectory contains:
+
+ - per_sess_dedicated_tgt_threads - if set, each iSCSI session has
+   dedicated, i.e. not shared with other sessions, pool of the
+   iscsi{wr,rd} kernel threads. Useful to control per-session CPU
+   affinity to improve performance. Default: not set.
+
 See SCST README for info about other attributes.
 
 Below is a sample script, which configures 1 virtual disk "disk1" using

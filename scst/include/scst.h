@@ -1239,6 +1239,9 @@ struct scst_tgt_template {
 
 	/* sysfs session attributes, if any */
 	const struct attribute **sess_attrs;
+
+	/* sysfs ACG attributes, if any */
+	const struct attribute **acg_attrs;
 #endif
 
 	/* Optional help string for mgmt_cmd commands */
@@ -3342,7 +3345,11 @@ struct scst_acg {
 	struct kobject *initiators_kobj;
 #endif
 
+	/* LUNS addressing method for all LUNs in this ACG */
 	enum scst_lun_addr_method addr_method;
+
+	/* Private stuff for target drivers */
+	void *acg_tgt_priv;
 };
 
 /*
@@ -4873,6 +4880,19 @@ static inline void scst_set_aen_delivery_status(struct scst_aen *aen,
 	int status)
 {
 	aen->delivery_status = status;
+}
+
+/*
+ * Get/Set functions for tgt's target private data
+ */
+static inline void *scst_get_acg_tgt_priv(struct scst_acg *acg)
+{
+	return acg->acg_tgt_priv;
+}
+
+static inline void scst_set_acg_tgt_priv(struct scst_acg *acg, void *val)
+{
+	acg->acg_tgt_priv = val;
 }
 
 void scst_aen_done(struct scst_aen *aen);
