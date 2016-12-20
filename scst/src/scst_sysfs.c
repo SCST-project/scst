@@ -3077,8 +3077,6 @@ static ssize_t scst_dev_sysfs_pr_file_name_show(struct kobject *kobj,
 	res = mutex_lock_interruptible(&dev->dev_pr_mutex);
 	if (res != 0)
 		goto out;
-	/* pr_file_name is NULL for SCSI pass-through devices */
-	WARN_ON_ONCE(!dev->pr_file_name);
 	res = scnprintf(buf, PAGE_SIZE, "%s\n%s", dev->pr_file_name ? : "",
 			dev->pr_file_name_is_set ? SCST_SYSFS_KEY_MARK "\n" :
 			"");
@@ -3900,7 +3898,9 @@ int scst_dev_sysfs_create(struct scst_device *dev)
 				dev->virt_name);
 			goto out_del;
 		}
-	} else {
+	}
+
+	if (dev->pr_file_name != NULL) {
 		res = sysfs_create_file(&dev->dev_kobj,
 					&dev_pr_file_name_attr.attr);
 		if (res != 0) {
@@ -3909,10 +3909,8 @@ int scst_dev_sysfs_create(struct scst_device *dev)
 				    dev->virt_name);
 			goto out_del;
 		}
-	}
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-	if (dev->scsi_dev == NULL) {
 		res = sysfs_create_file(&dev->dev_kobj,
 				&dev_dump_prs_attr.attr);
 		if (res != 0) {
@@ -3920,8 +3918,8 @@ int scst_dev_sysfs_create(struct scst_device *dev)
 				dev_dump_prs_attr.attr.name, dev->virt_name);
 			goto out_del;
 		}
-	}
 #endif
+	}
 
 out:
 	TRACE_EXIT_RES(res);

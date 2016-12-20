@@ -3221,8 +3221,7 @@ int __scst_check_local_events(struct scst_cmd *cmd, bool preempt_tests_only)
 		 * All the checks are supposed to be done on the
 		 * forwarding requester's side.
 		 */
-		res = 0;
-		goto out;
+		goto skip_reserve;
 	}
 
 	/*
@@ -3255,6 +3254,7 @@ int __scst_check_local_events(struct scst_cmd *cmd, bool preempt_tests_only)
 	 * Let's check for ABORTED after scst_pr_is_cmd_allowed(), because
 	 * we might sleep for a while there.
 	 */
+skip_reserve:
 	if (unlikely(test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))) {
 		TRACE_MGMT_DBG("ABORTED set, aborting cmd %p", cmd);
 		goto out_uncomplete;
@@ -3762,6 +3762,7 @@ done:
 			break;
 
 		EXTRACHECKS_BUG_ON(cmd->state != SCST_CMD_STATE_EXEC_CHECK_SN);
+		EXTRACHECKS_BUG_ON(cmd->done);
 
 		cmd->state = SCST_CMD_STATE_EXEC_CHECK_BLOCKING;
 

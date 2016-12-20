@@ -1285,8 +1285,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x84, .devkey = "O               ", /* implemented only for disks */
 	 .info_op_name = "RECEIVE COPY RESULT",
 	 .info_data_direction = SCST_DATA_READ,
-	 .info_op_flags = SCST_FULLY_LOCAL_CMD|SCST_LOCAL_CMD|
-				SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
+	 .info_op_flags = SCST_LOCAL_CMD|SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
 	 .info_len_off = 10, .info_len_len = 4,
 	 .get_cdb_info = get_cdb_info_len_4},
 	{.ops = 0x85, .devkey = "O    O        O ",
@@ -1322,7 +1321,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 .info_op_name = "COMPARE AND WRITE",
 	 .info_data_direction = SCST_DATA_WRITE,
 	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|
-			  SCST_FULLY_LOCAL_CMD|SCST_LOCAL_CMD|
+			  SCST_LOCAL_CMD|
 			  SCST_WRITE_MEDIUM|SCST_SCSI_ATOMIC,
 	 .info_lba_off = 2, .info_lba_len = 8,
 	 .info_len_off = 13, .info_len_len = 1,
