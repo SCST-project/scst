@@ -1,0 +1,17 @@
+In some cases SCST needs to take multiple locks recursivly, e.g. to lock
+all tgt_devs in a session. For this case SCST takes those locks in their
+current sort order, e.g. by LUN for tgt_devs, then releases in the
+opposite order. Unfortunately, lockdep complains on such actions as
+recursive locking, then disables itself. The disabling itself action is
+the most unpleasant one leading to lockdep being useless after this
+point.
+
+Unfortunately, nested locking annotations can't help, because after
+free, then alloc again, or after LUN change (in case of tgt_devs) order
+of locks can change.
+
+So, SCST has a set of nolockdep-x.y patches together with "*_nolockdep"
+locks to implement a way to annotate some lock and unlock actions as "no
+lockdep", so lockdep will not track them.
+
+This is a debug aid useful only with lockdep enabled kernels.
