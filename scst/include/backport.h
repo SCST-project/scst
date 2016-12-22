@@ -23,6 +23,7 @@
 #include <linux/blkdev.h>	/* struct request_queue */
 #include <linux/scatterlist.h>	/* struct scatterlist */
 #include <linux/slab.h>		/* kmalloc() */
+#include <linux/version.h>
 #include <linux/writeback.h>	/* sync_page_range() */
 #include <scsi/scsi_cmnd.h>	/* struct scsi_cmnd */
 #include <rdma/ib_verbs.h>
@@ -51,6 +52,10 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 {
 	return q->max_hw_sectors;
 }
+#endif
+
+#ifndef RQF_COPY_USER
+#define RQF_COPY_USER REQ_COPY_USER
 #endif
 
 /* <linux/compiler.h> */
@@ -697,6 +702,17 @@ static inline void put_unaligned_be64(uint64_t i, void *p)
 {
 	put_unaligned(cpu_to_be64(i), (__be64 *)p);
 }
+#endif
+
+/* <scsi/libfc.h> */
+
+/*
+ * See also commit 75cc8cfc6e13 (scsi: change FC drivers to use 'struct
+ * bsg_job')
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) || 1
+#define fc_bsg_job bsg_job
+#define fc_bsg_jobdone bsg_job_done
 #endif
 
 /* <scsi/scsi_cmnd.h> */
