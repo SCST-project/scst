@@ -114,8 +114,38 @@ else
 	endif
 endif
 
-CREATE_CQ_FLAG = $(shell $(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/conftest/create_cq PRE_CFLAGS="$(OFED_CFLAGS) -Werror" >/dev/null 2>&1 && echo -DIB_CREATE_CQ_HAS_INIT_ATTR)
-PRE_CFLAGS=$(OFED_CFLAGS) $(CREATE_CQ_FLAG) -DOFED_FLAVOR=$(OFED_FLAVOR)
+GOALS:=$(if $(MAKECMDGOALS),$(MAKECMDGOALS),all)
+OTHER_GOALS:=$(foreach goal,$(MAKECMDGOALS),$(subst all,,$(goal)))
+# echo:=$(shell echo 'GOALS = $(GOALS)' >&2)
+# echo:=$(shell echo 'OTHER_GOALS = $(OTHER_GOALS)' >&2)
+ifneq ("$(GOALS)","$(OTHER_GOALS)")
+run_conftest = $(shell if [ "0$(V)" -gt 0 ]; then output=/dev/stdout; else output=/dev/null; fi; if $(MAKE) -C $(KDIR) V=$(V) SUBDIRS="$(shell pwd)/conftest/$1" PRE_CFLAGS="-Werror $(OFED_CFLAGS)" 1>&2 2>$${output}; then echo "$2"; else echo "$3"; fi)
+USE_PRE_440_WR_STRUCTURE    := $(call run_conftest,use_pre_440_wr_structure,-DUSE_PRE_440_WR_STRUCTURE)
+CREATE_CQ_FLAG              := $(call run_conftest,create_cq,-DIB_CREATE_CQ_HAS_INIT_ATTR)
+CLIENT_REMOVE		    := $(call run_conftest,ib_client_remove,-DIB_CLIENT_REMOVE_TAKES_TWO_ARGS)
+HAVE_IB_DMA_MAP_OPS         := $(call run_conftest,ib_dma_map_ops,-DHAVE_IB_DMA_MAP_OPS)
+HAVE_IB_SET_CPI_RESP_TIME   := $(call run_conftest,ib_set_cpi_resp_time,-DHAVE_IB_SET_CPI_RESP_TIME)
+GID_CHANGE_FLAG             := $(call run_conftest,gid_change,-DHAVE_IB_EVENT_GID_CHANGE)
+PD_HAS_LOCAL_DMA_LKEY	    := $(call run_conftest,pd_has_local_dma_lkey,-DIB_PD_HAS_LOCAL_DMA_LKEY)
+RDMA_CREATE_ID              := $(call run_conftest,rdma_create_id_net,-DRDMA_CREATE_ID_TAKES_NET_ARG=1,-DRDMA_CREATE_ID_TAKES_NET_ARG=0)
+QUERY_DEVICE                := $(call run_conftest,query_device,-DHAVE_IB_QUERY_DEVICE)
+QUERY_DEVICE_HAS_ATTR_ARG   := $(call run_conftest,query_device_attr_arg,-DIB_QUERY_DEVICE_HAS_ATTR_ARG)
+QUERY_GID_FLAG              := $(call run_conftest,query_gid,-DIB_QUERY_GID_HAS_ATTR_ARG)
+PRE_CFLAGS=$(OFED_CFLAGS)			\
+	$(USE_PRE_440_WR_STRUCTURE)		\
+	$(CLIENT_REMOVE)			\
+	$(CREATE_CQ_FLAG)			\
+	$(IB_CLIENT_REMOVE_TAKES_TWO_ARGS)	\
+	$(HAVE_IB_DMA_MAP_OPS)			\
+	$(HAVE_IB_SET_CPI_RESP_TIME)		\
+	$(GID_CHANGE_FLAG)			\
+	$(PD_HAS_LOCAL_DMA_LKEY)		\
+	$(RDMA_CREATE_ID)			\
+	$(QUERY_GID_FLAG)			\
+	$(QUERY_DEVICE)				\
+	$(QUERY_DEVICE_HAS_ATTR_ARG)		\
+	-DOFED_FLAVOR=$(OFED_FLAVOR)
+endif
 
 mods: include/iscsi_scst_itf_ver.h Modules.symvers Module.symvers
 	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(KMOD) modules

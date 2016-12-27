@@ -99,7 +99,7 @@ struct isert_wr {
 	struct ib_sge		*sge_list;
 	union {
 		struct ib_recv_wr recv_wr;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) || defined(MOFED_MAJOR)
+#ifdef USE_PRE_440_WR_STRUCTURE
 		struct ib_send_wr send_wr;
 #else
 		struct ib_rdma_wr send_wr;
@@ -233,7 +233,7 @@ struct isert_connection {
 struct isert_device {
 	struct ib_device	*ib_dev;
 	struct ib_pd		*pd;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+#ifndef IB_PD_HAS_LOCAL_DMA_LKEY
 	struct ib_mr		*mr;
 #endif
 	u32			lkey;

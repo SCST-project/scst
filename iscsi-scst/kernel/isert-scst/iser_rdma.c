@@ -111,7 +111,7 @@ int isert_post_send(struct isert_connection *isert_conn,
 		    struct isert_wr *first_wr,
 		    int num_wr)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) || defined(MOFED_MAJOR)
+#ifdef USE_PRE_440_WR_STRUCTURE
 	struct ib_send_wr *first_ib_wr = &first_wr->send_wr;
 #else
 	struct ib_send_wr *first_ib_wr = &first_wr->send_wr.wr;
@@ -150,7 +150,7 @@ static void isert_post_drain_sq(struct isert_connection *isert_conn)
 
 	isert_wr_set_fields(drain_wr_sq, isert_conn, NULL);
 	drain_wr_sq->wr_op = ISER_WR_SEND;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) || defined(MOFED_MAJOR)
+#ifdef USE_PRE_440_WR_STRUCTURE
 	drain_wr_sq->send_wr.wr_id = _ptr_to_u64(drain_wr_sq);
 	drain_wr_sq->send_wr.opcode = IB_WR_SEND;
 	err = ib_post_send(isert_conn->qp,
@@ -704,7 +704,7 @@ static void isert_handle_wc_error(struct ib_wc *wc)
 
 	switch (wr->wr_op) {
 	case ISER_WR_SEND:
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) || defined(MOFED_MAJOR)
+#ifdef USE_PRE_440_WR_STRUCTURE
 		num_sge = wr->send_wr.num_sge;
 #else
 		num_sge = wr->send_wr.wr.num_sge;
@@ -951,7 +951,7 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 	struct isert_device *isert_dev;
 	int cqe_num, err;
 	struct ib_pd *pd;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+#ifndef IB_PD_HAS_LOCAL_DMA_LKEY
 	struct ib_mr *mr;
 #endif
 	struct ib_cq *cq;
@@ -967,7 +967,7 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 		goto out;
 	}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0) || defined(MOFED_MAJOR)
+#ifdef HAVE_IB_QUERY_DEVICE
 	err = ib_query_device(ib_dev, &isert_dev->device_attr);
 	if (unlikely(err)) {
 		PRINT_ERROR("Failed to query device, err: %d", err);
@@ -1005,7 +1005,7 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 		goto fail_pd;
 	}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+#ifndef IB_PD_HAS_LOCAL_DMA_LKEY
 	mr = ib_get_dma_mr(pd, IB_ACCESS_LOCAL_WRITE);
 	if (unlikely(IS_ERR(mr))) {
 		err = PTR_ERR(mr);
@@ -1054,8 +1054,7 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 			goto fail_cq;
 		}
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 2, 0) || defined(MOFED_MAJOR)) && \
-	!defined(IB_CREATE_CQ_HAS_INIT_ATTR)
+#ifndef IB_CREATE_CQ_HAS_INIT_ATTR
 		cq = ib_create_cq(ib_dev,
 				  isert_cq_comp_handler,
 				  isert_async_evt_handler,
@@ -1095,7 +1094,7 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 
 	isert_dev->ib_dev = ib_dev;
 	isert_dev->pd = pd;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+#ifndef IB_PD_HAS_LOCAL_DMA_LKEY
 	isert_dev->mr = mr;
 	isert_dev->lkey = mr->lkey;
 #else
@@ -1118,7 +1117,7 @@ fail_cq:
 		if (isert_dev->cq_desc[j].cq_workqueue)
 			destroy_workqueue(isert_dev->cq_desc[j].cq_workqueue);
 	}
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+#ifndef IB_PD_HAS_LOCAL_DMA_LKEY
 	ib_dereg_mr(mr);
 fail_mr:
 #endif
@@ -1164,7 +1163,7 @@ static void isert_device_release(struct isert_device *isert_dev)
 		destroy_workqueue(cq_desc->cq_workqueue);
 	}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+#ifndef IB_PD_HAS_LOCAL_DMA_LKEY
 	err = ib_dereg_mr(isert_dev->mr);
 	if (unlikely(err))
 		PRINT_ERROR("Failed to destroy mr, err:%d", err);
@@ -1796,7 +1795,7 @@ struct isert_portal *isert_portal_create(void)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 0) && \
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 <= 5)
 	cm_id = rdma_create_id(isert_cm_evt_handler, portal, RDMA_PS_TCP);
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) || defined(MOFED_MAJOR)
+#elif !RDMA_CREATE_ID_TAKES_NET_ARG
 	cm_id = rdma_create_id(isert_cm_evt_handler, portal, RDMA_PS_TCP,
 			       IB_QPT_RC);
 #else
