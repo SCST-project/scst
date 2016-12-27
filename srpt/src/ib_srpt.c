@@ -135,8 +135,7 @@ static int use_srq;
 static bool use_srq;
 #endif
 module_param(use_srq, bool, S_IRUGO | S_IWUSR);
-MODULE_PARM_DESC(use_srq,
-		 "Whether or not to use SRQ");
+MODULE_PARM_DESC(use_srq, "Whether or not to use SRQ");
 
 static int srpt_srq_size = DEFAULT_SRPT_SRQ_SIZE;
 module_param(srpt_srq_size, int, S_IRUGO | S_IWUSR);
@@ -145,8 +144,7 @@ MODULE_PARM_DESC(srpt_srq_size,
 
 static int srpt_sq_size = DEF_SRPT_SQ_SIZE;
 module_param(srpt_sq_size, int, 0444);
-MODULE_PARM_DESC(srpt_sq_size,
-		 "Per-channel send queue (SQ) size.");
+MODULE_PARM_DESC(srpt_sq_size, "Per-channel send queue (SQ) size.");
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31) \
 	|| defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
@@ -626,8 +624,7 @@ static void srpt_mad_recv_handler(struct ib_mad_agent *mad_agent,
 #endif
 				 0, IB_MGMT_DEVICE_HDR, IB_MGMT_DEVICE_DATA,
 				 GFP_KERNEL
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0) && !defined(MOFED_MAJOR) || \
-	defined(CREATE_SEND_MAD_HAS_BASE_ARG)
+#ifdef CREATE_SEND_MAD_HAS_BASE_ARG
 				 , 0
 #endif
 				 );
@@ -702,8 +699,7 @@ static int srpt_refresh_port(struct srpt_port *sport)
 	sport->lid = port_attr.lid;
 
 	ret = ib_query_gid(sport->sdev->device, sport->port, 0, &sport->gid
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0) || \
-	defined(IB_QUERY_GID_HAS_ATTR_ARG)
+#ifdef IB_QUERY_GID_HAS_ATTR_ARG
 			   , NULL
 #endif
 			   );
@@ -724,8 +720,7 @@ static int srpt_refresh_port(struct srpt_port *sport)
 							 srpt_mad_send_handler,
 							 srpt_mad_recv_handler,
 							 sport
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0) || \
-	defined(REGISTER_MAD_AGENT_HAS_FLAGS_ARG)
+#ifdef REGISTER_MAD_AGENT_HAS_FLAGS_ARG
 							 , 0
 #endif
 							 );
@@ -2227,9 +2222,7 @@ retry:
 	!defined(RHEL_RELEASE_CODE)
 	ch->cq = ib_create_cq(sdev->device, srpt_completion, NULL, ch,
 			      ch->rq_size + sq_size);
-#elif (LINUX_VERSION_CODE < KERNEL_VERSION(4, 2, 0) ||	\
-	defined(MOFED_MAJOR)) &&	\
-	!defined(IB_CREATE_CQ_HAS_INIT_ATTR)
+#elif !defined(IB_CREATE_CQ_HAS_INIT_ATTR)
 	ch->cq = ib_create_cq(sdev->device, srpt_completion, NULL, ch,
 			      ch->rq_size + sq_size, ch->comp_vector);
 #else
@@ -4360,7 +4353,7 @@ static void srpt_add_one(struct ib_device *device)
 		goto free_dev;
 	}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+#ifndef IB_PD_HAS_LOCAL_DMA_LKEY
 	sdev->mr = ib_get_dma_mr(sdev->pd, IB_ACCESS_LOCAL_WRITE);
 	if (IS_ERR(sdev->mr)) {
 		pr_err("ib_get_dma_mr() failed: %ld\n", PTR_ERR(sdev->mr));
@@ -4493,7 +4486,7 @@ err_ring:
 	if (sdev->use_srq)
 		ib_destroy_srq(sdev->srq);
 err_mr:
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+#ifndef IB_PD_HAS_LOCAL_DMA_LKEY
 	ib_dereg_mr(sdev->mr);
 err_pd:
 #endif
@@ -4568,7 +4561,7 @@ static void srpt_remove_one(struct ib_device *device, void *client_data)
 
 	if (sdev->use_srq)
 		ib_destroy_srq(sdev->srq);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+#ifndef IB_PD_HAS_LOCAL_DMA_LKEY
 	ib_dereg_mr(sdev->mr);
 #endif
 	ib_dealloc_pd(sdev->pd);

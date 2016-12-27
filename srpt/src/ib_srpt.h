@@ -457,7 +457,7 @@ struct srpt_port {
 struct srpt_device {
 	struct ib_device	*device;
 	struct ib_pd		*pd;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+#ifndef IB_PD_HAS_LOCAL_DMA_LKEY
 	struct ib_mr		*mr;
 #endif
 	struct ib_srq		*srq;
