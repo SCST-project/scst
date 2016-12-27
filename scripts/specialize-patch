@@ -63,6 +63,48 @@ function evaluate(stmnt, pattern, arg, op, result) {
     stmnt = "+#if !defined(" arg[1] ")"
   }
 
+  gsub("defined\\(REGISTER_MAD_AGENT_HAS_FLAGS_ARG\\)",
+       "(LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0))", stmnt)
+
+  gsub("defined\\(USE_PRE_440_WR_STRUCTURE\\)",
+       "(LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0))", stmnt)
+
+  gsub("defined\\(IB_CREATE_CQ_HAS_INIT_ATTR\\)",
+       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0))", stmnt)
+
+  gsub("defined\\(CREATE_SEND_MAD_HAS_BASE_ARG\\)",
+       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0))", stmnt)
+
+  gsub("defined\\(IB_CM_LISTEN_TAKES_FOURTH_ARG\\)",
+       "(LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0))", stmnt)
+
+  gsub("defined\\(IB_CLIENT_REMOVE_TAKES_TWO_ARGS\\)",
+       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0))", stmnt)
+  
+  gsub("defined\\(IB_QUERY_GID_HAS_ATTR_ARG\\)",
+       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))", stmnt)
+
+  gsub("RDMA_CREATE_ID_TAKES_NET_ARG",
+       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))", stmnt)
+
+  gsub("defined\\(USE_PRE_440_WR_STRUCTURE\\)",
+       "(LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0))", stmnt)
+
+  gsub("defined\\(HAVE_IB_QUERY_DEVICE\\)",
+       "(LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0))", stmnt)
+
+  gsub("defined\\(MAD_HANDLER_TAKES_SEND_BUF\\)",
+       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0))", stmnt)
+
+  gsub("defined\\(HAVE_IB_SET_CPI_RESP_TIME\\)",
+       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0))", stmnt)
+
+  gsub("defined\\(IB_PD_HAS_LOCAL_DMA_LKEY\\)",
+       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0))", stmnt)
+
+  gsub("defined\\(HAVE_IB_DMA_MAP_OPS\\)",
+       "(LINUX_VERSION_CODE >= KERNEL_VERSION(0, 0, 0))", stmnt)
+
   gsub("LINUX_VERSION_CODE", LINUX_VERSION_CODE, stmnt)
 
   pattern="KERNEL_VERSION\\([[:blank:]]*([0-9]+)[[:blank:]]*,[[:blank:]]*([0-9]+)[[:blank:]]*,[[:blank:]]*([0-9]+)[[:blank:]]*\\)"
@@ -290,12 +332,26 @@ function handle_if(evaluated)
   # Only act on preprocessor conditional expressions with regard to the Linux
   # kernel version, and do not interpret other expressions.
   if ($0 ~ "LINUX_VERSION_CODE"    \
-      || $0 ~ "INSIDE_KERNEL_TREE" \
       || $0 ~ "CONFIG_SCST_PROC"   \
+      || $0 ~ "CREATE_SEND_MAD_HAS_BASE_ARG"   \
+      || $0 ~ "HAVE_IB_SET_CPI_RESP_TIME" \
+      || $0 ~ "HAVE_IB_DMA_MAP_OPS" \
+      || $0 ~ "HAVE_IB_QUERY_DEVICE" \
+      || $0 ~ "IB_CLIENT_REMOVE_TAKES_TWO_ARGS" \
+      || $0 ~ "IB_CM_LISTEN_TAKES_FOURTH_ARG" \
+      || $0 ~ "IB_CREATE_CQ_HAS_INIT_ATTR" \
+      || $0 ~ "IB_PD_HAS_LOCAL_DMA_LKEY" \
+      || $0 ~ "IB_PD_HAS_LOCAL_DMA_LKEY" \
+      || $0 ~ "IB_QUERY_GID_HAS_ATTR_ARG" \
+      || $0 ~ "INSIDE_KERNEL_TREE" \
+      || $0 ~ "MAD_HANDLER_TAKES_SEND_BUF" \
+      || $0 ~ "MOFED_MAJOR"        \
+      || $0 ~ "REGISTER_MAD_AGENT_HAS_FLAGS_ARG" \
+      || $0 ~ "RDMA_CREATE_ID_TAKES_NET_ARG" \
       || $0 ~ "RHEL_MAJOR"         \
       || $0 ~ "RHEL_MINOR"         \
       || $0 ~ "RHEL_RELEASE_CODE"  \
-      || $0 ~ "MOFED_MAJOR"        \
+      || $0 ~ "USE_PRE_440_WR_STRUCTURE" \
       || generating_upstream_patch_defined \
          && $0 ~ "GENERATING_UPSTREAM_PATCH" \
       || $0 ~ "CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION" \
