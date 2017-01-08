@@ -4478,11 +4478,11 @@ out:
 err_cm:
 	ib_destroy_cm_id(sdev->cm_id);
 err_ring:
+	if (sdev->use_srq)
+		ib_destroy_srq(sdev->srq);
 	srpt_free_ioctx_ring((struct srpt_ioctx **)sdev->ioctx_ring, sdev,
 			     sdev->srq_size, srp_max_req_size,
 			     DMA_FROM_DEVICE);
-	if (sdev->use_srq)
-		ib_destroy_srq(sdev->srq);
 err_mr:
 #ifndef IB_PD_HAS_LOCAL_DMA_LKEY
 	ib_dereg_mr(sdev->mr);
@@ -4553,12 +4553,10 @@ static void srpt_remove_one(struct ib_device *device, void *client_data)
 		}
 	}
 
-	srpt_free_ioctx_ring((struct srpt_ioctx **)sdev->ioctx_ring, sdev,
-			     sdev->srq_size, srp_max_req_size, DMA_FROM_DEVICE);
-	sdev->ioctx_ring = NULL;
-
 	if (sdev->use_srq)
 		ib_destroy_srq(sdev->srq);
+	srpt_free_ioctx_ring((struct srpt_ioctx **)sdev->ioctx_ring, sdev,
+			     sdev->srq_size, srp_max_req_size, DMA_FROM_DEVICE);
 #ifndef IB_PD_HAS_LOCAL_DMA_LKEY
 	ib_dereg_mr(sdev->mr);
 #endif
