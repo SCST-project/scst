@@ -98,7 +98,9 @@ extern unsigned long scst_trace_flag;
 
 /**
  ** Maximum count of uncompleted commands that an initiator could
- ** queue on any device. Then it will start getting TASK QUEUE FULL status.
+ ** queue on any device by default, i.e. its dev handler doesn't have
+ ** max_tgt_dev_commands defined. Then it will start getting TASK QUEUE FULL
+ ** status.
  **/
 #define SCST_MAX_TGT_DEV_COMMANDS            64
 
@@ -352,7 +354,7 @@ void scst_queue_retry_cmd(struct scst_cmd *cmd);
 int scst_alloc_tgt(struct scst_tgt_template *tgtt, struct scst_tgt **tgt);
 void scst_free_tgt(struct scst_tgt *tgt);
 
-int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev);
+int scst_alloc_device(gfp_t gfp_mask, int nodeid, struct scst_device **out_dev);
 void scst_free_device(struct scst_device *dev);
 bool scst_device_is_exported(struct scst_device *dev);
 
@@ -713,6 +715,7 @@ void scst_process_reset(struct scst_device *dev,
 void scst_unblock_aborted_cmds(const struct scst_tgt *tgt,
 	const struct scst_session *sess, const struct scst_device *device,
 	bool scst_mutex_held);
+void scst_clear_aca(struct scst_tgt_dev *tgt_dev, bool other_ini);
 
 bool scst_is_ua_global(const uint8_t *sense, int len);
 void scst_requeue_ua(struct scst_cmd *cmd, const uint8_t *buf, int size);
@@ -1030,7 +1033,8 @@ void scst_trace_mcmds(scst_show_fn show, void *arg);
 void scst_set_start_time(struct scst_cmd *cmd);
 void scst_set_cur_start(struct scst_cmd *cmd);
 void scst_set_parse_time(struct scst_cmd *cmd);
-void scst_set_alloc_buf_time(struct scst_cmd *cmd);
+void scst_set_dev_alloc_buf_time(struct scst_cmd *cmd);
+void scst_set_tgt_alloc_buf_time(struct scst_cmd *cmd);
 void scst_set_restart_waiting_time(struct scst_cmd *cmd);
 void scst_set_rdy_to_xfer_time(struct scst_cmd *cmd);
 void scst_set_pre_exec_time(struct scst_cmd *cmd);
@@ -1045,7 +1049,8 @@ void scst_update_lat_stats(struct scst_cmd *cmd);
 static inline void scst_set_start_time(struct scst_cmd *cmd) {}
 static inline void scst_set_cur_start(struct scst_cmd *cmd) {}
 static inline void scst_set_parse_time(struct scst_cmd *cmd) {}
-static inline void scst_set_alloc_buf_time(struct scst_cmd *cmd) {}
+static inline void scst_set_dev_alloc_buf_time(struct scst_cmd *cmd) {}
+static inline void scst_set_tgt_alloc_buf_time(struct scst_cmd *cmd) {}
 static inline void scst_set_restart_waiting_time(struct scst_cmd *cmd) {}
 static inline void scst_set_rdy_to_xfer_time(struct scst_cmd *cmd) {}
 static inline void scst_set_pre_exec_time(struct scst_cmd *cmd) {}

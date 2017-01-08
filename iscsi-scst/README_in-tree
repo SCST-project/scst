@@ -192,6 +192,9 @@ Each session subdirectory contains the following entries:
 
  - commands - contains overall number of SCSI commands in this session.
 
+ - thread_pid - Process IDs (PIDs) of the iscsi{wr,rd} kernel threads that
+   process the SCSI commands for this session.
+
 Each connection subdirectory contains the following entries:
 
  - cid - contains CID of this connection.
@@ -199,6 +202,13 @@ Each connection subdirectory contains the following entries:
  - ip - contains IP address of the connected initiator.
 
  - state - contains processing state of this connection.
+
+Each initiator group subdirectory contains:
+
+ - per_sess_dedicated_tgt_threads - if set, each iSCSI session has
+   dedicated, i.e. not shared with other sessions, pool of the
+   iscsi{wr,rd} kernel threads. Useful to control per-session CPU
+   affinity to improve performance. Default: not set.
 
 See SCST README for info about other attributes.
 

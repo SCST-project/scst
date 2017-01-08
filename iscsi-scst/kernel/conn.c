@@ -184,6 +184,66 @@ static ssize_t iscsi_conn_ip_show(struct kobject *kobj,
 static struct kobj_attribute iscsi_conn_ip_attr =
 	__ATTR(ip, S_IRUGO, iscsi_conn_ip_show, NULL);
 
+static ssize_t iscsi_get_target_ip(struct iscsi_conn *conn,
+	char *buf, int size)
+{
+	int pos;
+	struct sock *sk;
+
+	TRACE_ENTRY();
+
+	sk = conn->sock->sk;
+	switch (sk->sk_family) {
+	case AF_INET:
+		pos = scnprintf(buf, size,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,33)
+			 "%u.%u.%u.%u", NIPQUAD(inet_sk(sk)->saddr));
+#else
+			"%pI4", &inet_sk(sk)->inet_saddr);
+#endif
+		break;
+	case AF_INET6:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,29)
+		pos = scnprintf(buf, size,
+			 "[%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x]",
+			 NIP6(inet6_sk(sk)->saddr));
+#else
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0)
+		pos = scnprintf(buf, size, "[%p6]", &inet6_sk(sk)->saddr);
+#else
+		pos = scnprintf(buf, size, "[%p6]", &sk->sk_v6_rcv_saddr);
+#endif
+#endif
+		break;
+	default:
+		pos = scnprintf(buf, size, "Unknown family %d",
+			sk->sk_family);
+		break;
+	}
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static ssize_t iscsi_conn_target_ip_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int pos;
+	struct iscsi_conn *conn;
+
+	TRACE_ENTRY();
+
+	conn = container_of(kobj, struct iscsi_conn, conn_kobj);
+
+	pos = iscsi_get_target_ip(conn, buf, SCST_SYSFS_BLOCK_SIZE);
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static struct kobj_attribute iscsi_conn_target_ip_attr =
+	__ATTR(target_ip, S_IRUGO, iscsi_conn_target_ip_show, NULL);
+
 static ssize_t iscsi_conn_cid_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
@@ -301,6 +361,14 @@ restart:
 	if (res != 0) {
 		PRINT_ERROR("Unable create sysfs attribute %s for conn %s",
 			iscsi_conn_ip_attr.attr.name, addr);
+		goto out_err;
+	}
+
+	res = sysfs_create_file(&conn->conn_kobj,
+			&iscsi_conn_target_ip_attr.attr);
+	if (res != 0) {
+		PRINT_ERROR("Unable create sysfs attribute %s for conn %s",
+			iscsi_conn_target_ip_attr.attr.name, addr);
 		goto out_err;
 	}
 

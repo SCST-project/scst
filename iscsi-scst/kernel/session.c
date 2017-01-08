@@ -99,7 +99,9 @@ static int iscsi_session_alloc(struct iscsi_target *target,
 	}
 
 	if (!session->sess_params.rdma_extensions) {
-		err = iscsi_threads_pool_get(&session->scst_sess->acg->acg_cpu_mask,
+		err = iscsi_threads_pool_get(
+			(bool)scst_get_acg_tgt_priv(session->scst_sess->acg),
+			&session->scst_sess->acg->acg_cpu_mask,
 			&session->sess_thr_pool);
 		if (err != 0)
 			goto err_unreg;
@@ -289,6 +291,8 @@ out_err_unlock:
 
 static void __session_free(struct iscsi_session *session)
 {
+	if (session->sess_thr_pool)
+		iscsi_threads_pool_put(session->sess_thr_pool);
 	kfree(session->initiator_name);
 	kmem_cache_free(iscsi_sess_cache, session);
 }
@@ -346,11 +350,6 @@ int session_free(struct iscsi_session *session, bool del)
 
 	if (del)
 		list_del(&session->session_list_entry);
-
-	if (session->sess_thr_pool != NULL) {
-		iscsi_threads_pool_put(session->sess_thr_pool);
-		session->sess_thr_pool = NULL;
-	}
 
 	if (session->scst_sess != NULL) {
 		/*

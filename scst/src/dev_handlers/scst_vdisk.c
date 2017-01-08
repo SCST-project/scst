@@ -248,6 +248,7 @@ struct scst_vdisk_dev {
 
 	/* Only to pass it to attach() callback. Don't use them anywhere else! */
 	int blk_shift;
+	int numa_node_id;
 	enum scst_dif_mode dif_mode;
 	int dif_type;
 	__be64 dif_static_app_tag_combined;
@@ -399,6 +400,8 @@ static ssize_t vdisk_sysfs_wt_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdisk_sysfs_tp_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
+static ssize_t vdisk_sysfs_gen_tp_soft_threshold_reached_UA(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count);
 static ssize_t vdisk_sysfs_tst_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdisk_sysfs_rotational_show(struct kobject *kobj,
@@ -495,6 +498,9 @@ static struct kobj_attribute vdisk_wt_attr =
 	__ATTR(write_through, S_IRUGO, vdisk_sysfs_wt_show, NULL);
 static struct kobj_attribute vdisk_tp_attr =
 	__ATTR(thin_provisioned, S_IRUGO, vdisk_sysfs_tp_show, NULL);
+static struct kobj_attribute gen_tp_soft_threshold_reached_UA_attr =
+	__ATTR(gen_tp_soft_threshold_reached_UA, S_IWUSR, NULL,
+		vdisk_sysfs_gen_tp_soft_threshold_reached_UA);
 static struct kobj_attribute vdisk_tst_attr =
 	__ATTR(tst, S_IRUGO, vdisk_sysfs_tst_show, NULL);
 static struct kobj_attribute vdisk_rotational_attr =
@@ -725,6 +731,7 @@ static struct scst_dev_type vdisk_file_devtype = {
 	.add_device_parameters =
 		"blocksize, "
 		"filename, "
+		"numa_node_id, "
 		"nv_cache, "
 		"o_direct, "
 		"cluster_mode, "
@@ -784,6 +791,7 @@ static struct scst_dev_type vdisk_blk_devtype = {
 		"dif_static_app_tag, "
 		"dif_filename, "
 		"filename, "
+		"numa_node_id, "
 		"nv_cache, "
 		"cluster_mode, "
 		"read_only, "
@@ -828,10 +836,11 @@ static struct scst_dev_type vdisk_null_devtype = {
 	.dev_attrs =		vdisk_nullio_attrs,
 	.add_device_parameters =
 		"blocksize, "
-		"dummy, "
 		"dif_mode, "
 		"dif_type, "
 		"dif_static_app_tag, ",
+		"dummy, "
+		"numa_node_id, "
 		"cluster_mode, "
 		"read_only, "
 		"removable, "
@@ -1054,6 +1063,17 @@ check:
 
 	if (virt_dev->thin_provisioned) {
 		int block_shift = virt_dev->dev->block_shift;
+#ifndef CONFIG_SCST_PROC
+		int rc;
+
+		rc = sysfs_create_file(&virt_dev->dev->dev_kobj,
+				&gen_tp_soft_threshold_reached_UA_attr.attr);
+		if (rc != 0) {
+			PRINT_ERROR("Can't create attr %s for dev %s",
+				gen_tp_soft_threshold_reached_UA_attr.attr.name,
+				virt_dev->name);
+		}
+#endif
 
 		if (virt_dev->blockio) {
 			struct request_queue *q;
@@ -3429,7 +3449,9 @@ enomem:
 	TRACE_EXIT_RES(-ENOMEM);
 	return scst_get_cmd_abnormal_done_state(cmd);
 }
+
 #else
+
 static int fileio_alloc_data_buf(struct scst_cmd *cmd)
 {
 	struct vdisk_cmd_params *p;
@@ -3447,6 +3469,7 @@ static int fileio_alloc_data_buf(struct scst_cmd *cmd)
 static void finish_read(struct scatterlist *sg, int sg_cnt)
 {
 }
+
 #endif
 
 static int vdev_do_job(struct scst_cmd *cmd, const vdisk_op_fn *ops)
@@ -4303,8 +4326,7 @@ static int vdisk_inq(uint8_t *buf, struct scst_cmd *cmd,
 		buf[1] = 0x80;      /* removable */
 	buf[2] = 6; /* Device complies to SPC-4 */
 	buf[3] = 0x02;	/* Data in format specified in SPC */
-	if (cmd->tgtt->fake_aca)
-		buf[3] |= 0x20;
+	buf[3] |= 0x20; /* ACA supported */
 	buf[4] = 31;/* n - 4 = 35 - 4 = 31 for full 36 byte data */
 	if (cmd->dev->dev_dif_mode != SCST_DIF_MODE_NONE)
 		buf[5] |= 1; /* PROTECT */
@@ -6359,10 +6381,13 @@ restart:
 				    full_len);
 			if (err == -EAGAIN)
 				scst_set_busy(cmd);
-			else {
+			else if (err == -ENOSPC) {
+				WARN_ON(!virt_dev->thin_provisioned);
+				scst_set_cmd_error(cmd,
+					SCST_LOAD_SENSE(scst_space_allocation_failed_write_protect));
+			} else
 				scst_set_cmd_error(cmd,
 				    SCST_LOAD_SENSE(scst_sense_write_error));
-			}
 			goto out_set_fs;
 		} else if (err < full_len) {
 			/*
@@ -6517,15 +6542,21 @@ static void blockio_endio(struct bio *bio)
 		spin_lock_irqsave(&vdev_err_lock, flags);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
-		if (bio->bi_rw & (1 << BIO_RW))
+		if (bio->bi_rw & (1 << BIO_RW)) {
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
-		if (bio->bi_rw & REQ_WRITE)
+		if (bio->bi_rw & REQ_WRITE) {
 #else
-		if (op_is_write(bio_op(bio)))
+		if (op_is_write(bio_op(bio))) {
 #endif
-			scst_set_cmd_error(blockio_work->cmd,
-				SCST_LOAD_SENSE(scst_sense_write_error));
-		else
+			if (error == -ENOSPC) {
+				struct scst_vdisk_dev *virt_dev = blockio_work->cmd->dev->dh_priv;
+				WARN_ON(!virt_dev->thin_provisioned);
+				scst_set_cmd_error(blockio_work->cmd,
+					SCST_LOAD_SENSE(scst_space_allocation_failed_write_protect));
+			} else
+				scst_set_cmd_error(blockio_work->cmd,
+					SCST_LOAD_SENSE(scst_sense_write_error));
+		} else
 			scst_set_cmd_error(blockio_work->cmd,
 				SCST_LOAD_SENSE(scst_sense_read_error));
 
@@ -7743,8 +7774,8 @@ static void vdev_inq_changed_fn(struct work_struct *work)
 }
 
 /* scst_vdisk_mutex supposed to be held */
-static int vdev_create(struct scst_dev_type *devt,
-	const char *name, struct scst_vdisk_dev **res_virt_dev)
+static int vdev_create_node(struct scst_dev_type *devt,
+	const char *name, int nodeid, struct scst_vdisk_dev **res_virt_dev)
 {
 	int res;
 	struct scst_vdisk_dev *virt_dev, *vv;
@@ -7755,7 +7786,7 @@ static int vdev_create(struct scst_dev_type *devt,
 		goto out;
 
 	/* It's read-mostly, so cache alignment isn't needed */
-	virt_dev = kzalloc(sizeof(*virt_dev), GFP_KERNEL);
+	virt_dev = kzalloc_node(sizeof(*virt_dev), GFP_KERNEL, nodeid);
 	if (virt_dev == NULL) {
 		PRINT_ERROR("Allocation of virtual device %s failed",
 			devt->name);
@@ -7778,6 +7809,7 @@ static int vdev_create(struct scst_dev_type *devt,
 	INIT_WORK(&virt_dev->vdev_inq_changed_work, vdev_inq_changed_fn);
 
 	virt_dev->blk_shift = DEF_DISK_BLOCK_SHIFT;
+	virt_dev->numa_node_id = NUMA_NO_NODE;
 
 	if (strlen(name) >= sizeof(virt_dev->name)) {
 		PRINT_ERROR("Name %s is too long (max allowed %zd)", name,
@@ -7835,6 +7867,12 @@ out_free:
 	goto out;
 }
 
+static inline int vdev_create(struct scst_dev_type *devt,
+	const char *name, struct scst_vdisk_dev **res_virt_dev)
+{
+	return vdev_create_node(devt, name, NUMA_NO_NODE, res_virt_dev);
+}
+
 static void vdev_destroy(struct scst_vdisk_dev *virt_dev)
 {
 	cancel_work_sync(&virt_dev->vdev_inq_changed_work);
@@ -7845,6 +7883,33 @@ static void vdev_destroy(struct scst_vdisk_dev *virt_dev)
 	kfree(virt_dev->filename);
 	kfree(virt_dev->dif_filename);
 	kfree(virt_dev);
+	return;
+}
+
+static void vdev_check_node(struct scst_vdisk_dev **pvirt_dev, int orig_nodeid)
+{
+	struct scst_vdisk_dev *virt_dev = *pvirt_dev;
+	int nodeid = virt_dev->numa_node_id;
+
+	TRACE_ENTRY();
+
+	if (virt_dev->numa_node_id != orig_nodeid) {
+		struct scst_vdisk_dev *v;
+		TRACE_MEM("Realloc virt_dev %s on node %d", virt_dev->name, nodeid);
+		/* It's read-mostly, so cache alignment isn't needed */
+		v = kzalloc_node(sizeof(*v), GFP_KERNEL, nodeid);
+		if (v == NULL) {
+			PRINT_ERROR("Reallocation of virtual device %s failed",
+				virt_dev->name);
+			goto out;
+		}
+		*v = *virt_dev;
+		kfree(virt_dev);
+		*pvirt_dev = v;
+	}
+
+out:
+	TRACE_EXIT();
 	return;
 }
 
@@ -8056,6 +8121,14 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 			}
 			TRACE_DBG("block size %lld, block shift %d",
 				val, virt_dev->blk_shift);
+		} else if (!strcasecmp("numa_node_id", p)) {
+			virt_dev->numa_node_id = val;
+			BUILD_BUG_ON(NUMA_NO_NODE != -1);
+			if (virt_dev->numa_node_id < NUMA_NO_NODE) {
+				res = -EINVAL;
+				goto out;
+			}
+			TRACE_DBG("numa_node_id %d", virt_dev->numa_node_id);
 		} else if (!strcasecmp("dif_type", p)) {
 			virt_dev->dif_type = val;
 			TRACE_DBG("DIF type %d", virt_dev->dif_type);
@@ -8117,12 +8190,14 @@ static int vdev_fileio_add_device(const char *device_name, char *params)
 		goto out_destroy;
 	}
 
+	vdev_check_node(&virt_dev, NUMA_NO_NODE);
+
 	list_add_tail(&virt_dev->vdev_list_entry, &vdev_list);
 
 	vdisk_report_registering(virt_dev);
 
-	virt_dev->virt_id = scst_register_virtual_device(virt_dev->vdev_devt,
-					virt_dev->name);
+	virt_dev->virt_id = scst_register_virtual_device_node(virt_dev->vdev_devt,
+					virt_dev->name, virt_dev->numa_node_id);
 	if (virt_dev->virt_id < 0) {
 		res = virt_dev->virt_id;
 		goto out_del;
@@ -8151,7 +8226,8 @@ static int vdev_blockio_add_device(const char *device_name, char *params)
 					 "removable", "blocksize", "nv_cache",
 					 "rotational", "cluster_mode",
 					 "thin_provisioned", "tst",
-					 "dif_mode", "dif_type", "dif_static_app_tag",
+					 "numa_node_id", "dif_mode",
+					 "dif_type", "dif_static_app_tag",
 					 "dif_filename", NULL };
 	struct scst_vdisk_dev *virt_dev;
 
@@ -8178,6 +8254,8 @@ static int vdev_blockio_add_device(const char *device_name, char *params)
 		goto out_destroy;
 	}
 
+	vdev_check_node(&virt_dev, NUMA_NO_NODE);
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 	res = vdisk_create_bioset(virt_dev);
 	if (res != 0)
@@ -8188,8 +8266,8 @@ static int vdev_blockio_add_device(const char *device_name, char *params)
 
 	vdisk_report_registering(virt_dev);
 
-	virt_dev->virt_id = scst_register_virtual_device(virt_dev->vdev_devt,
-					virt_dev->name);
+	virt_dev->virt_id = scst_register_virtual_device_node(virt_dev->vdev_devt,
+					virt_dev->name, virt_dev->numa_node_id);
 	if (virt_dev->virt_id < 0) {
 		res = virt_dev->virt_id;
 		goto out_del;
@@ -8216,8 +8294,8 @@ static int vdev_nullio_add_device(const char *device_name, char *params)
 	int res = 0;
 	static const char *const allowed_params[] = {
 		"read_only", "dummy", "removable", "blocksize", "rotational",
-		"cluster_mode", "dif_mode", "dif_type", "dif_static_app_tag",
-		"size", "size_mb", "tst", NULL
+		"size", "size_mb", "tst", "numa_node_id",
+		"cluster_mode", "dif_mode", "dif_type", "dif_static_app_tag", NULL
 	};
 	struct scst_vdisk_dev *virt_dev;
 
@@ -8236,12 +8314,14 @@ static int vdev_nullio_add_device(const char *device_name, char *params)
 	if (res != 0)
 		goto out_destroy;
 
+	vdev_check_node(&virt_dev, NUMA_NO_NODE);
+
 	list_add_tail(&virt_dev->vdev_list_entry, &vdev_list);
 
 	vdisk_report_registering(virt_dev);
 
-	virt_dev->virt_id = scst_register_virtual_device(virt_dev->vdev_devt,
-					virt_dev->name);
+	virt_dev->virt_id = scst_register_virtual_device_node(virt_dev->vdev_devt,
+					virt_dev->name, virt_dev->numa_node_id);
 	if (virt_dev->virt_id < 0) {
 		res = virt_dev->virt_id;
 		goto out_del;
@@ -8897,6 +8977,32 @@ static ssize_t vdisk_sysfs_tp_show(struct kobject *kobj,
 
 	TRACE_EXIT_RES(pos);
 	return pos;
+}
+
+static ssize_t vdisk_sysfs_gen_tp_soft_threshold_reached_UA(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+	struct scst_tgt_dev *tgt_dev;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = dev->dh_priv;
+
+	if (!virt_dev->thin_provisioned)
+		return -EINVAL;
+
+	spin_lock_bh(&dev->dev_lock);
+	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
+				dev_tgt_dev_list_entry) {
+		scst_set_tp_soft_threshold_reached_UA(tgt_dev);
+	}
+	spin_unlock_bh(&dev->dev_lock);
+
+	TRACE_EXIT_RES(count);
+	return count;
 }
 
 static ssize_t vdisk_sysfs_expl_alua_show(struct kobject *kobj,

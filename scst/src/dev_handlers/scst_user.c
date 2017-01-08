@@ -1344,7 +1344,7 @@ static int dev_user_process_reply_alloc(struct scst_user_cmd *ucmd,
 	}
 
 out_process:
-	scst_post_alloc_data_buf(cmd);
+	scst_post_dev_alloc_data_buf(cmd);
 	scst_process_active_cmd(cmd, false);
 
 	TRACE_DBG("%s", "ALLOC_MEM finished");
@@ -1827,6 +1827,14 @@ static int dev_user_process_reply_exec(struct scst_user_cmd *ucmd,
 		} else
 			scst_set_resp_data_len(cmd, ereply->resp_data_len);
 	}
+
+#ifdef CONFIG_SCST_EXTRACHECKS
+	if (unlikely((ereply->resp_data_len == 0) && (ereply->pbuf != 0))) {
+		PRINT_WARNING("Supplied pbuf 0x%llx ignored, because "
+			"resp_data_len is 0. Memory leak? (op %s)",
+			(unsigned long long)ereply->pbuf, scst_get_opcode_name(cmd));
+	}
+#endif
 
 	cmd->status = ereply->status;
 	if (ereply->sense_len != 0) {
@@ -2655,7 +2663,7 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 		if (state == UCMD_STATE_PARSING)
 			scst_post_parse(ucmd->cmd);
 		else
-			scst_post_alloc_data_buf(ucmd->cmd);
+			scst_post_dev_alloc_data_buf(ucmd->cmd);
 
 		TRACE_MGMT_DBG("Adding ucmd %p to active list", ucmd);
 		list_add(&ucmd->cmd->cmd_list_entry,

@@ -1285,8 +1285,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x84, .devkey = "O               ", /* implemented only for disks */
 	 .info_op_name = "RECEIVE COPY RESULT",
 	 .info_data_direction = SCST_DATA_READ,
-	 .info_op_flags = SCST_FULLY_LOCAL_CMD|SCST_LOCAL_CMD|
-				SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
+	 .info_op_flags = SCST_LOCAL_CMD|SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
 	 .info_len_off = 10, .info_len_len = 4,
 	 .get_cdb_info = get_cdb_info_len_4},
 	{.ops = 0x85, .devkey = "O    O        O ",
@@ -1322,7 +1321,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 .info_op_name = "COMPARE AND WRITE",
 	 .info_data_direction = SCST_DATA_WRITE,
 	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|
-			  SCST_FULLY_LOCAL_CMD|SCST_LOCAL_CMD|
+			  SCST_LOCAL_CMD|
 			  SCST_WRITE_MEDIUM|SCST_SCSI_ATOMIC,
 	 .info_lba_off = 2, .info_lba_len = 8,
 	 .info_len_off = 13, .info_len_len = 1,
@@ -2660,7 +2659,7 @@ static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
 		list_for_each_entry_rcu(tgt_dev, head,
 				sess_tgt_dev_list_entry) {
 			/* Lockdep triggers here a false positive.. */
-			spin_lock(&tgt_dev->tgt_dev_lock);
+			spin_lock_nolockdep(&tgt_dev->tgt_dev_lock);
 		}
 	}
 #endif
@@ -2691,7 +2690,7 @@ static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
 
 		list_for_each_entry_rcu(tgt_dev, head,
 					sess_tgt_dev_list_entry) {
-			spin_unlock(&tgt_dev->tgt_dev_lock);
+			spin_unlock_nolockdep(&tgt_dev->tgt_dev_lock);
 		}
 	}
 #endif
@@ -4190,19 +4189,21 @@ static int scst_dif_none_type1(struct scst_cmd *cmd);
 #endif
 
 /* Called under scst_mutex and suspended activity */
-int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev)
+int scst_alloc_device(gfp_t gfp_mask, int nodeid,
+	struct scst_device **out_dev)
 {
 	struct scst_device *dev;
 	int res = 0;
 
 	TRACE_ENTRY();
 
-	dev = kmem_cache_zalloc(scst_dev_cachep, gfp_mask);
+	dev = kmem_cache_alloc_node(scst_dev_cachep, gfp_mask, nodeid);
 	if (dev == NULL) {
 		PRINT_ERROR("%s", "Allocation of scst_device failed");
 		res = -ENOMEM;
 		goto out;
 	}
+	memset(dev, 0, sizeof(*dev));
 
 	dev->handler = &scst_null_devtype;
 #ifdef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
@@ -4222,6 +4223,7 @@ int scst_alloc_device(gfp_t gfp_mask, struct scst_device **out_dev)
 #endif
 	dev->dev_double_ua_possible = 1;
 	dev->queue_alg = SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER;
+	dev->dev_numa_node_id = nodeid;
 
 	scst_pr_init(dev);
 
@@ -5121,6 +5123,8 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 
 	TRACE_ENTRY();
 
+	tgt_dev->thread_index = -1;
+
 	if (dev->threads_num < 0)
 		goto out;
 
@@ -5140,7 +5144,8 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 				tgt_dev->dev->virt_name);
 		} else {
 			/* Create new context */
-			aic_keeper = kzalloc(sizeof(*aic_keeper), GFP_KERNEL);
+			aic_keeper = kzalloc_node(sizeof(*aic_keeper), GFP_KERNEL,
+				dev->dev_numa_node_id);
 			if (aic_keeper == NULL) {
 				PRINT_ERROR("Unable to alloc aic_keeper "
 					"(size %zd)", sizeof(*aic_keeper));
@@ -5348,6 +5353,16 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	else
 		clear_bit(SCST_TGT_DEV_BLACK_HOLE, &tgt_dev->tgt_dev_flags);
 
+#ifdef CONFIG_CPUMASK_OFFSTACK
+	tgt_dev->pools = kzalloc_node(sizeof(tgt_dev->pools[0])*NR_CPUS,
+				GFP_KERNEL, dev->dev_numa_node_id);
+	if (tgt_dev->pools == NULL) {
+		PRINT_ERROR("Unable to alloc tgt_dev->pools (size %zd)",
+			sizeof(tgt_dev->pools[0])*NR_CPUS);
+		goto out_free;
+	}
+#endif
+
 	scst_sgv_pool_use_norm(tgt_dev);
 
 	if (dev->scsi_dev != NULL) {
@@ -5405,7 +5420,7 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 				"Persistent Reservations", sess->tgt->tgtt->name,
 				dev->virt_name);
 			res = -EPERM;
-			goto out_free;
+			goto out_free_ua;
 		}
 		dev->not_pr_supporting_tgt_devs_num++;
 	}
@@ -5468,8 +5483,13 @@ out_dec_free:
 	if (tgtt->get_initiator_port_transport_id == NULL)
 		dev->not_pr_supporting_tgt_devs_num--;
 
-out_free:
+out_free_ua:
 	scst_free_all_UA(tgt_dev);
+#ifdef CONFIG_CPUMASK_OFFSTACK
+	kfree(tgt_dev->pools);
+
+out_free:
+#endif
 	kmem_cache_free(scst_tgtd_cachep, tgt_dev);
 	goto out;
 }
@@ -5544,6 +5564,10 @@ static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 	}
 
 	scst_tgt_dev_stop_threads(tgt_dev);
+
+#ifdef CONFIG_CPUMASK_OFFSTACK
+	kfree(tgt_dev->pools);
+#endif
 
 	kmem_cache_free(scst_tgtd_cachep, tgt_dev);
 
@@ -6089,7 +6113,7 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 		dif_bufflen = blocks << SCST_DIF_TAG_SHIFT;
 		cmd->expected_transfer_len_full += dif_bufflen;
 
-		dif_sg = sgv_pool_alloc(ws_cmd->tgt_dev->pool,
+		dif_sg = sgv_pool_alloc(ws_cmd->tgt_dev->pools[raw_smp_processor_id()],
 			dif_bufflen, GFP_KERNEL, 0, &dif_sg_cnt, &dif_sgv,
 			&cmd->dev->dev_mem_lim, NULL);
 		if (unlikely(dif_sg == NULL)) {
@@ -6814,7 +6838,6 @@ out_done:
 	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_THREAD);
 	goto out;
 }
-
 
 int scst_finish_internal_cmd(struct scst_cmd *cmd)
 {
@@ -7598,8 +7621,9 @@ int scst_alloc_space(struct scst_cmd *cmd)
 	if (cmd->no_sgv)
 		flags |= SGV_POOL_ALLOC_NO_CACHED;
 
-	cmd->sg = sgv_pool_alloc(tgt_dev->pool, cmd->bufflen, gfp_mask, flags,
-			&cmd->sg_cnt, &cmd->sgv, &cmd->dev->dev_mem_lim, NULL);
+	cmd->sg = sgv_pool_alloc(tgt_dev->pools[raw_smp_processor_id()],
+			cmd->bufflen, gfp_mask, flags, &cmd->sg_cnt, &cmd->sgv,
+			&cmd->dev->dev_mem_lim, NULL);
 	if (unlikely(cmd->sg == NULL))
 		goto out;
 
@@ -7618,8 +7642,9 @@ int scst_alloc_space(struct scst_cmd *cmd)
 		else
 			dif_bufflen = cmd->bufflen;
 
-		cmd->dif_sg = sgv_pool_alloc(tgt_dev->pool, dif_bufflen, gfp_mask, flags,
-			&cmd->dif_sg_cnt, &cmd->dif_sgv, &cmd->dev->dev_mem_lim, NULL);
+		cmd->dif_sg = sgv_pool_alloc(tgt_dev->pools[raw_smp_processor_id()],
+			dif_bufflen, gfp_mask, flags, &cmd->dif_sg_cnt, &cmd->dif_sgv,
+			&cmd->dev->dev_mem_lim, NULL);
 		if (unlikely(cmd->dif_sg == NULL))
 			goto out_sg_free;
 
@@ -7646,9 +7671,9 @@ int scst_alloc_space(struct scst_cmd *cmd)
 	if (cmd->data_direction != SCST_DATA_BIDI)
 		goto success;
 
-	cmd->out_sg = sgv_pool_alloc(tgt_dev->pool, cmd->out_bufflen, gfp_mask,
-			 flags, &cmd->out_sg_cnt, &cmd->out_sgv,
-			 &cmd->dev->dev_mem_lim, NULL);
+	cmd->out_sg = sgv_pool_alloc(tgt_dev->pools[raw_smp_processor_id()],
+			cmd->out_bufflen, gfp_mask, flags, &cmd->out_sg_cnt,
+			&cmd->out_sgv, &cmd->dev->dev_mem_lim, NULL);
 	if (unlikely(cmd->out_sg == NULL))
 		goto out_dif_sg_free;
 
@@ -12586,6 +12611,15 @@ void scst_process_reset(struct scst_device *dev,
 		spin_unlock_irq(&sess->sess_list_lock);
 	}
 
+	/*
+	 * We need at first abort all affected commands and only then
+	 * release them as part of clearing ACA
+	 */
+	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
+			dev_tgt_dev_list_entry) {
+		scst_clear_aca(tgt_dev, (tgt_dev->sess != originator));
+	}
+
 	if (setUA) {
 		uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
 		int sl = scst_set_sense(sense_buffer, sizeof(sense_buffer),
@@ -12675,7 +12709,7 @@ again:
 			list_for_each_entry_rcu(tgt_dev, head,
 					sess_tgt_dev_list_entry) {
 				/* Lockdep triggers here a false positive.. */
-				spin_lock(&tgt_dev->tgt_dev_lock);
+				spin_lock_nolockdep(&tgt_dev->tgt_dev_lock);
 			}
 		}
 #endif
@@ -12749,7 +12783,7 @@ out_unlock:
 
 			list_for_each_entry_rcu(tgt_dev, head,
 					sess_tgt_dev_list_entry) {
-				spin_unlock(&tgt_dev->tgt_dev_lock);
+				spin_unlock_nolockdep(&tgt_dev->tgt_dev_lock);
 			}
 		}
 		rcu_read_unlock();
@@ -12924,6 +12958,23 @@ void scst_dev_check_set_UA(struct scst_device *dev,
 	return;
 }
 
+void scst_set_tp_soft_threshold_reached_UA(struct scst_tgt_dev *tgt_dev)
+{
+	uint8_t sense[SCST_STANDARD_SENSE_LEN];
+	int len;
+
+	TRACE_ENTRY();
+
+	len = scst_set_sense(sense, sizeof(sense), tgt_dev->dev->d_sense,
+			SCST_LOAD_SENSE(scst_sense_tp_soft_threshold_reached));
+
+	scst_check_set_UA(tgt_dev, sense, len, 0);
+
+	TRACE_EXIT();
+	return;
+}
+EXPORT_SYMBOL_GPL(scst_set_tp_soft_threshold_reached_UA);
+
 /* Called under tgt_dev_lock or when tgt_dev is unused */
 static void scst_free_all_UA(struct scst_tgt_dev *tgt_dev)
 {
@@ -12966,9 +13017,27 @@ struct scst_cmd *__scst_check_deferred_commands_locked(
 restart:
 	list_for_each_entry_safe(cmd, t, &order_data->deferred_cmd_list,
 				deferred_cmd_list_entry) {
-		EXTRACHECKS_BUG_ON((cmd->queue_type != SCST_CMD_QUEUE_SIMPLE) &&
-				   (cmd->queue_type != SCST_CMD_QUEUE_ORDERED));
-		if (cmd->sn == expected_sn) {
+		EXTRACHECKS_BUG_ON(cmd->queue_type == SCST_CMD_QUEUE_ACA);
+
+		if (unlikely(order_data->aca_tgt_dev != 0)) {
+			if (!test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)) {
+				/* To prevent defer/release storms during ACA */
+				continue;
+			}
+		}
+
+		if (unlikely(cmd->done)) {
+			TRACE_MGMT_DBG("Releasing deferred done cmd %p", cmd);
+			order_data->def_cmd_count--;
+			list_del(&cmd->deferred_cmd_list_entry);
+
+			spin_lock(&cmd->cmd_threads->cmd_list_lock);
+			TRACE_DBG("Adding cmd %p to active cmd list", cmd);
+			list_add_tail(&cmd->cmd_list_entry,
+				&cmd->cmd_threads->active_cmd_list);
+			wake_up(&cmd->cmd_threads->cmd_list_waitQ);
+			spin_unlock(&cmd->cmd_threads->cmd_list_lock);
+		} else if ((cmd->sn == expected_sn) || !cmd->sn_set) {
 			bool stop = (cmd->sn_slot == NULL);
 
 			TRACE_SN("Deferred command %p (sn %d, set %d) found",
@@ -13574,21 +13643,100 @@ static void scst_process_qerr(struct scst_cmd *cmd)
 int scst_process_check_condition(struct scst_cmd *cmd)
 {
 	int res;
+	struct scst_order_data *order_data;
+	struct scst_device *dev;
 
 	TRACE_ENTRY();
 
 	EXTRACHECKS_BUG_ON(test_bit(SCST_CMD_NO_RESP, &cmd->cmd_flags));
 
-	TRACE_DBG("CHECK CONDITION for cmd %p (tgt_dev %p)", cmd, cmd->tgt_dev);
+	order_data = cmd->cur_order_data;
+	dev = cmd->dev;
 
+	TRACE((order_data->aca_tgt_dev != 0) ? TRACE_MGMT_DEBUG : TRACE_DEBUG,
+		"CHECK CONDITION for cmd %p (naca %d, cmd_aca_allowed %d, "
+		"ACA allowed cmd %d, tgt_dev %p, aca_tgt_dev %lu, aca_cmd %p)",
+		cmd, cmd->cmd_naca, cmd->cmd_aca_allowed,
+		cmd->queue_type == SCST_CMD_QUEUE_ACA, cmd->tgt_dev,
+		order_data->aca_tgt_dev, order_data->aca_cmd);
+
+	spin_lock_irq(&order_data->sn_lock);
+
+	if (order_data->aca_tgt_dev != 0) {
+		if (((cmd->queue_type == SCST_CMD_QUEUE_ACA) &&
+		    (order_data->aca_tgt_dev == (unsigned long)cmd->tgt_dev)) ||
+		    ((cmd->cdb[0] == PERSISTENT_RESERVE_OUT) &&
+		     ((cmd->cdb[1] & 0x1f) == PR_PREEMPT_AND_ABORT))) {
+			if (!cmd->cmd_naca) {
+				if (order_data->aca_cmd == cmd) {
+					/*
+					 * Clear it to prevent from be
+					 * aborted during ACA clearing
+					 */
+					TRACE_MGMT_DBG("Check condition of ACA "
+						"cmd %p", cmd);
+					order_data->aca_cmd = NULL;
+				}
+				spin_unlock_irq(&order_data->sn_lock);
+				scst_clear_aca(cmd->tgt_dev,
+					(order_data->aca_tgt_dev != (unsigned long)cmd->tgt_dev));
+				/*
+				 * Goto directly to avoid race when ACA
+				 * reestablished during retaking sn_lock
+				 * once again.
+				 */
+				goto process_qerr;
+			}
+		}
+		if (test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags)) {
+			/*
+			 * cmd can be aborted and the unblock
+			 * procedure finished while we were
+			 * entering here. I.e. cmd can not be
+			 * blocked anymore for any case.
+			 */
+			res = 1;
+			goto out_unlock;
+		} else if (!cmd->cmd_aca_allowed) {
+			TRACE_MGMT_DBG("Deferring CHECK CONDITION "
+				"cmd %p due to ACA active (tgt_dev %p)",
+				cmd, cmd->tgt_dev);
+			order_data->def_cmd_count++;
+			/*
+			 * Put cmd in the head to let restart earlier:
+			 * it is already completed and completed with
+			 * CHECK CONDITION
+			 */
+			list_add(&cmd->deferred_cmd_list_entry,
+				&order_data->deferred_cmd_list);
+			res = -1;
+			goto out_unlock;
+		}
+	}
+
+	if (cmd->cmd_naca) {
+		TRACE_MGMT_DBG("Establishing ACA for dev %s (lun %lld, cmd %p, "
+			"tgt_dev %p)", dev->virt_name, (unsigned long long)cmd->lun,
+			cmd, cmd->tgt_dev);
+		order_data->aca_tgt_dev = (unsigned long)cmd->tgt_dev;
+	}
+
+	spin_unlock_irq(&order_data->sn_lock);
+
+process_qerr:
 	scst_process_qerr(cmd);
 
 	scst_store_sense(cmd);
 
 	res = 0;
 
+out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+out_unlock:
+	spin_unlock_irq(&order_data->sn_lock);
+	goto out;
 }
 
 void scst_xmit_process_aborted_cmd(struct scst_cmd *cmd)
@@ -13645,7 +13793,56 @@ out:
  */
 int scst_get_max_lun_commands(struct scst_session *sess, uint64_t lun)
 {
-	return SCST_MAX_TGT_DEV_COMMANDS;
+	const int init_res = 0xFFFFFF;
+	int res = init_res, i;
+
+	TRACE_ENTRY();
+
+	mutex_lock(&scst_mutex);
+
+	if (sess == NULL) {
+		struct scst_device *dev;
+		list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
+			if (dev->handler == &scst_null_devtype)
+				continue;
+			TRACE_DBG("dev %s, max_tgt_dev_commands %d (res %d)",
+				dev->virt_name, dev->max_tgt_dev_commands, res);
+			if (res > dev->max_tgt_dev_commands)
+				res = dev->max_tgt_dev_commands;
+		}
+		goto out_unlock;
+	}
+
+	if (lun != NO_SUCH_LUN) {
+		struct list_head *head =
+			&sess->sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_FN(lun)];
+		struct scst_tgt_dev *tgt_dev;
+		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
+			if (tgt_dev->lun == lun) {
+				res = tgt_dev->dev->max_tgt_dev_commands;
+				TRACE_DBG("tgt_dev %p, dev %s, max_tgt_dev_commands "
+					"%d (res %d)", tgt_dev, tgt_dev->dev->virt_name,
+					tgt_dev->dev->max_tgt_dev_commands, res);
+				break;
+			}
+		}
+		goto out_unlock;
+	}
+
+	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
+		struct list_head *head = &sess->sess_tgt_dev_list[i];
+		struct scst_tgt_dev *tgt_dev;
+		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
+			if (res > tgt_dev->dev->max_tgt_dev_commands)
+				res = tgt_dev->dev->max_tgt_dev_commands;
+		}
+	}
+
+out_unlock:
+	mutex_unlock(&scst_mutex);
+
+	TRACE_EXIT_RES(res);
+	return res;
 }
 EXPORT_SYMBOL(scst_get_max_lun_commands);
 
@@ -15405,21 +15602,27 @@ void scst_check_debug_sn(struct scst_cmd *cmd)
 
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 16)
+
 static uint64_t scst_get_usec(void)
 {
 	struct timespec ts;
 
 	ktime_get_ts(&ts);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 16)
 	return ((uint64_t)ts.tv_sec * 1000000000 + ts.tv_nsec) / 1000;
-#else
-#if (BITS_PER_LONG > 32)
-	return timespec_to_ns(&ts) / 1000;
-#else
-	return timespec_to_ns(&ts) >> 10;
-#endif
-#endif
 }
+
+#else /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 16) */
+
+static uint64_t scst_get_usec(void)
+{
+	ktime_t t;
+
+	t = ktime_get();
+	return ktime_to_us(t);
+}
+
+#endif
 
 void scst_set_start_time(struct scst_cmd *cmd)
 {
@@ -15439,10 +15642,16 @@ void scst_set_parse_time(struct scst_cmd *cmd)
 	TRACE_DBG("cmd %p: parse_time %lld", cmd, cmd->parse_time);
 }
 
-void scst_set_alloc_buf_time(struct scst_cmd *cmd)
+void scst_set_dev_alloc_buf_time(struct scst_cmd *cmd)
 {
-	cmd->alloc_buf_time += scst_get_usec() - cmd->curr_start;
-	TRACE_DBG("cmd %p: alloc_buf_time %lld", cmd, cmd->alloc_buf_time);
+	cmd->dev_alloc_buf_time += scst_get_usec() - cmd->curr_start;
+	TRACE_DBG("cmd %p: dev_alloc_buf_time %lld", cmd, cmd->dev_alloc_buf_time);
+}
+
+void scst_set_tgt_alloc_buf_time(struct scst_cmd *cmd)
+{
+	cmd->tgt_alloc_buf_time += scst_get_usec() - cmd->curr_start;
+	TRACE_DBG("cmd %p: tgt_alloc_buf_time %lld", cmd, cmd->tgt_alloc_buf_time);
 }
 
 void scst_set_restart_waiting_time(struct scst_cmd *cmd)
@@ -15472,6 +15681,9 @@ void scst_set_exec_start(struct scst_cmd *cmd)
 
 void scst_set_exec_time(struct scst_cmd *cmd)
 {
+	if (!cmd->exec_time_counting)
+		return;
+	cmd->exec_time_counting = false;
 	cmd->exec_time += scst_get_usec() - cmd->curr_start;
 	TRACE_DBG("cmd %p: exec_time %lld", cmd, cmd->exec_time);
 }
@@ -15490,11 +15702,12 @@ void scst_set_xmit_time(struct scst_cmd *cmd)
 
 void scst_update_lat_stats(struct scst_cmd *cmd)
 {
-	uint64_t finish, scst_time, tgt_time, dev_time;
+	int64_t finish, scst_time, tgt_time, dev_time;
 	struct scst_session *sess = cmd->sess;
 	int data_len;
 	int i;
 	struct scst_ext_latency_stat *latency_stat, *dev_latency_stat;
+	bool ignore_max = false;
 
 	finish = scst_get_usec();
 
@@ -15517,12 +15730,30 @@ void scst_update_lat_stats(struct scst_cmd *cmd)
 
 	/* Calculate the latencies */
 	scst_time = finish - cmd->start - (cmd->parse_time +
-		cmd->alloc_buf_time + cmd->restart_waiting_time +
+		cmd->dev_alloc_buf_time + cmd->tgt_alloc_buf_time +
+		cmd->restart_waiting_time +
 		cmd->rdy_to_xfer_time + cmd->pre_exec_time +
 		cmd->exec_time + cmd->dev_done_time + cmd->xmit_time);
-	tgt_time = cmd->alloc_buf_time + cmd->restart_waiting_time +
-		cmd->rdy_to_xfer_time + cmd->pre_exec_time;
-	dev_time = cmd->parse_time + cmd->exec_time + cmd->dev_done_time;
+	tgt_time = cmd->tgt_alloc_buf_time + cmd->restart_waiting_time +
+		cmd->rdy_to_xfer_time + cmd->pre_exec_time + cmd->xmit_time;
+	dev_time = cmd->parse_time + cmd->dev_alloc_buf_time +
+		cmd->exec_time + cmd->dev_done_time;
+
+	if (unlikely((scst_time < 0) || (tgt_time < 0) || (dev_time < 0))) {
+		/* It might happen due to small difference in time between CPUs */
+		static int q;
+		if (q++ < 20) {
+			PRINT_WARNING("Ignoring max latency sample, because time is "
+				"moving backward (cmd %p, scst %lld, tgt %lld, "
+				"dev %lld)", cmd, (long long) scst_time,
+				(long long) tgt_time, (long long) dev_time);
+		}
+		ignore_max = true;
+		/*
+		 * We should not ignore this sample, because the time
+		 * difference mistake can be both negative and positive.
+		 */
+	}
 
 	spin_lock_bh(&sess->lat_lock);
 
@@ -15542,12 +15773,14 @@ void scst_update_lat_stats(struct scst_cmd *cmd)
 	    (sess->min_dev_time > dev_time))
 		sess->min_dev_time = dev_time;
 
-	if (sess->max_scst_time < scst_time)
-		sess->max_scst_time = scst_time;
-	if (sess->max_tgt_time < tgt_time)
-		sess->max_tgt_time = tgt_time;
-	if (sess->max_dev_time < dev_time)
-		sess->max_dev_time = dev_time;
+	if (likely(!ignore_max)) {
+		if (sess->max_scst_time < scst_time)
+			sess->max_scst_time = scst_time;
+		if (sess->max_tgt_time < tgt_time)
+			sess->max_tgt_time = tgt_time;
+		if (sess->max_dev_time < dev_time)
+			sess->max_dev_time = dev_time;
+	}
 
 	/* Save the extended latency information */
 	if (cmd->data_direction & SCST_DATA_READ) {
@@ -15566,12 +15799,14 @@ void scst_update_lat_stats(struct scst_cmd *cmd)
 		    (latency_stat->min_dev_time_rd > dev_time))
 			latency_stat->min_dev_time_rd = dev_time;
 
-		if (latency_stat->max_scst_time_rd < scst_time)
-			latency_stat->max_scst_time_rd = scst_time;
-		if (latency_stat->max_tgt_time_rd < tgt_time)
-			latency_stat->max_tgt_time_rd = tgt_time;
-		if (latency_stat->max_dev_time_rd < dev_time)
-			latency_stat->max_dev_time_rd = dev_time;
+		if (likely(!ignore_max)) {
+			if (latency_stat->max_scst_time_rd < scst_time)
+				latency_stat->max_scst_time_rd = scst_time;
+			if (latency_stat->max_tgt_time_rd < tgt_time)
+				latency_stat->max_tgt_time_rd = tgt_time;
+			if (latency_stat->max_dev_time_rd < dev_time)
+				latency_stat->max_dev_time_rd = dev_time;
+		}
 
 		if (dev_latency_stat != NULL) {
 			dev_latency_stat->scst_time_rd += scst_time;
@@ -15589,12 +15824,14 @@ void scst_update_lat_stats(struct scst_cmd *cmd)
 			    (dev_latency_stat->min_dev_time_rd > dev_time))
 				dev_latency_stat->min_dev_time_rd = dev_time;
 
-			if (dev_latency_stat->max_scst_time_rd < scst_time)
-				dev_latency_stat->max_scst_time_rd = scst_time;
-			if (dev_latency_stat->max_tgt_time_rd < tgt_time)
-				dev_latency_stat->max_tgt_time_rd = tgt_time;
-			if (dev_latency_stat->max_dev_time_rd < dev_time)
-				dev_latency_stat->max_dev_time_rd = dev_time;
+			if (likely(!ignore_max)) {
+				if (dev_latency_stat->max_scst_time_rd < scst_time)
+					dev_latency_stat->max_scst_time_rd = scst_time;
+				if (dev_latency_stat->max_tgt_time_rd < tgt_time)
+					dev_latency_stat->max_tgt_time_rd = tgt_time;
+				if (dev_latency_stat->max_dev_time_rd < dev_time)
+					dev_latency_stat->max_dev_time_rd = dev_time;
+			}
 		}
 	} else if (cmd->data_direction & SCST_DATA_WRITE) {
 		latency_stat->scst_time_wr += scst_time;
@@ -15612,12 +15849,14 @@ void scst_update_lat_stats(struct scst_cmd *cmd)
 		    (latency_stat->min_dev_time_wr > dev_time))
 			latency_stat->min_dev_time_wr = dev_time;
 
-		if (latency_stat->max_scst_time_wr < scst_time)
-			latency_stat->max_scst_time_wr = scst_time;
-		if (latency_stat->max_tgt_time_wr < tgt_time)
-			latency_stat->max_tgt_time_wr = tgt_time;
-		if (latency_stat->max_dev_time_wr < dev_time)
-			latency_stat->max_dev_time_wr = dev_time;
+		if (likely(!ignore_max)) {
+			if (latency_stat->max_scst_time_wr < scst_time)
+				latency_stat->max_scst_time_wr = scst_time;
+			if (latency_stat->max_tgt_time_wr < tgt_time)
+				latency_stat->max_tgt_time_wr = tgt_time;
+			if (latency_stat->max_dev_time_wr < dev_time)
+				latency_stat->max_dev_time_wr = dev_time;
+		}
 
 		if (dev_latency_stat != NULL) {
 			dev_latency_stat->scst_time_wr += scst_time;
@@ -15635,12 +15874,14 @@ void scst_update_lat_stats(struct scst_cmd *cmd)
 			    (dev_latency_stat->min_dev_time_wr > dev_time))
 				dev_latency_stat->min_dev_time_wr = dev_time;
 
-			if (dev_latency_stat->max_scst_time_wr < scst_time)
-				dev_latency_stat->max_scst_time_wr = scst_time;
-			if (dev_latency_stat->max_tgt_time_wr < tgt_time)
-				dev_latency_stat->max_tgt_time_wr = tgt_time;
-			if (dev_latency_stat->max_dev_time_wr < dev_time)
-				dev_latency_stat->max_dev_time_wr = dev_time;
+			if (likely(!ignore_max)) {
+				if (dev_latency_stat->max_scst_time_wr < scst_time)
+					dev_latency_stat->max_scst_time_wr = scst_time;
+				if (dev_latency_stat->max_tgt_time_wr < tgt_time)
+					dev_latency_stat->max_tgt_time_wr = tgt_time;
+				if (dev_latency_stat->max_dev_time_wr < dev_time)
+					dev_latency_stat->max_dev_time_wr = dev_time;
+			}
 		}
 	}
 

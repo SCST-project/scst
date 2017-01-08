@@ -655,4 +655,63 @@ ssize_t iscsi_sysfs_mgmt_cmd(char *cmd)
 	return res;
 }
 
+static ssize_t iscsi_acg_sess_dedicated_threads_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int pos;
+	struct scst_acg *acg;
+	bool dedicated;
+
+	TRACE_ENTRY();
+
+	acg = container_of(kobj, struct scst_acg, acg_kobj);
+	dedicated = (bool)scst_get_acg_tgt_priv(acg);
+
+	pos = sprintf(buf, "%d\n%s", dedicated,
+		dedicated ? SCST_SYSFS_KEY_MARK "\n" : "");
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static ssize_t iscsi_acg_sess_dedicated_threads_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res;
+	struct scst_acg *acg;
+	unsigned long val;
+
+	TRACE_ENTRY();
+
+	acg = container_of(kobj, struct scst_acg, acg_kobj);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+	res = kstrtoul(buf, 0, &val);
+#else
+	res = strict_strtoul(buf, 0, &val);
+#endif
+	if (res != 0) {
+		PRINT_ERROR("strict_strtoul() for %s failed: %d ", buf, res);
+		goto out;
+	}
+
+	scst_set_acg_tgt_priv(acg, (void *)(unsigned long)(val != 0));
+
+	res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute iscsi_acg_attr_sess_dedicated_threads =
+	__ATTR(per_sess_dedicated_tgt_threads, S_IRUGO | S_IWUSR,
+		iscsi_acg_sess_dedicated_threads_show,
+		iscsi_acg_sess_dedicated_threads_store);
+
+const struct attribute *iscsi_acg_attrs[] = {
+	&iscsi_acg_attr_sess_dedicated_threads.attr,
+	NULL,
+};
+
 #endif /* CONFIG_SCST_PROC */

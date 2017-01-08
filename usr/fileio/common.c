@@ -809,7 +809,7 @@ void *main_loop(void *arg)
 	pl.events = POLLIN;
 
 	cmd.preply = 0;
-	multi.multi_cmd.preplies = (uint64_t)&multi.replies[0];
+	multi.multi_cmd.preplies = (uintptr_t)&multi.replies[0];
 	multi.multi_cmd.replies_cnt = 0;
 	multi.multi_cmd.cmds_cnt = MULTI_CMDS_CNT;
 
@@ -829,7 +829,7 @@ void *main_loop(void *arg)
 
 		if (use_multi) {
 			TRACE_DBG("preplies %p (first: %p), replies_cnt %d, "
-				"replies_done %d, cmds_cnt %d", (void *)multi.multi_cmd.preplies,
+				"replies_done %d, cmds_cnt %d", (void *)(uintptr_t)multi.multi_cmd.preplies,
 				&multi.replies[0], multi.multi_cmd.replies_cnt,
 				multi.multi_cmd.replies_done, multi.multi_cmd.cmds_cnt);
 			res = ioctl(scst_usr_fd, SCST_USER_REPLY_AND_GET_MULTI, &multi.multi_cmd);
@@ -842,7 +842,7 @@ void *main_loop(void *arg)
 			case EBUSY:
 				TRACE_MGMT_DBG("SCST_USER returned %d (%s)", res, strerror(res));
 				cmd.preply = 0;
-				multi.multi_cmd.preplies = (uint64_t)&multi.replies[0];
+				multi.multi_cmd.preplies = (uintptr_t)&multi.replies[0];
 				multi.multi_cmd.replies_cnt = 0;
 				multi.multi_cmd.cmds_cnt = MULTI_CMDS_CNT;
 			case EINTR:
@@ -850,7 +850,7 @@ void *main_loop(void *arg)
 			case EAGAIN:
 				TRACE_DBG("SCST_USER returned EAGAIN (%d)", res);
 				cmd.preply = 0;
-				multi.multi_cmd.preplies = (uint64_t)&multi.replies[0];
+				multi.multi_cmd.preplies = (uintptr_t)&multi.replies[0];
 				multi.multi_cmd.replies_cnt = 0;
 				multi.multi_cmd.cmds_cnt = MULTI_CMDS_CNT;
 				if (dev->non_blocking)
@@ -861,7 +861,7 @@ void *main_loop(void *arg)
 				PRINT_ERROR("SCST_USER failed: %s (%d)", strerror(res), res);
 #if 1
 				cmd.preply = 0;
-				multi.multi_cmd.preplies = (uint64_t)&multi.replies[0];
+				multi.multi_cmd.preplies = (uintptr_t)&multi.replies[0];
 				multi.multi_cmd.replies_cnt = 0;
 				multi.multi_cmd.cmds_cnt = MULTI_CMDS_CNT;
 				continue;
@@ -900,13 +900,13 @@ again_poll:
 			if (multi.multi_cmd.replies_done < multi.multi_cmd.replies_cnt) {
 				TRACE_MGMT_DBG("replies_done %d < replies_cnt %d (dev %s)",
 					multi.multi_cmd.replies_done, multi.multi_cmd.replies_cnt, dev->name);
-				multi.multi_cmd.preplies = (uint64_t)&multi.replies[multi.multi_cmd.replies_done];
+				multi.multi_cmd.preplies = (uintptr_t)&multi.replies[multi.multi_cmd.replies_done];
 				multi.multi_cmd.replies_cnt = multi.multi_cmd.replies_cnt - multi.multi_cmd.replies_done;
 				multi.multi_cmd.cmds_cnt = MULTI_CMDS_CNT;
 				continue;
 			}
 			TRACE_DBG("cmds_cnt %d", multi.multi_cmd.cmds_cnt);
-			multi.multi_cmd.preplies = (uint64_t)&multi.replies[0];
+			multi.multi_cmd.preplies = (uintptr_t)&multi.replies[0];
 			for (i = 0, j = 0; i < multi.multi_cmd.cmds_cnt; i++, j++) {
 				vcmd.cmd = &multi.cmds[i];
 				vcmd.reply = &multi.replies[j];

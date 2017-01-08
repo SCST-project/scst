@@ -1154,7 +1154,7 @@ static int scst_register_device(struct scsi_device *scsidp)
 		goto out;
 #endif
 
-	res = scst_alloc_device(GFP_KERNEL, &dev);
+	res = scst_alloc_device(GFP_KERNEL, NUMA_NO_NODE, &dev);
 	if (res != 0)
 		goto out_unlock;
 
@@ -1365,6 +1365,9 @@ static int scst_dev_handler_check(struct scst_dev_type *dev_handler)
 	if (dev_handler->dev_done == NULL)
 		dev_handler->dev_done_atomic = 1;
 
+	if (dev_handler->max_tgt_dev_commands == 0)
+		dev_handler->max_tgt_dev_commands = SCST_MAX_TGT_DEV_COMMANDS;
+
 out:
 	TRACE_EXIT_RES(res);
 	return res;
@@ -1395,16 +1398,17 @@ out:
 }
 
 /**
- * scst_register_virtual_device() - register a virtual device.
+ * scst_register_virtual_device_node() - register a virtual device.
  * @dev_handler: the device's device handler
  * @dev_name:	the new device name, NULL-terminated string. Must be uniq
  *              among all virtual devices in the system.
+ * @nodeid:	NUMA node id this device belongs to or NUMA_NO_NODE.
  *
  * Registers a virtual device and returns ID assigned to the device on
  * success, or negative value otherwise
  */
-int scst_register_virtual_device(struct scst_dev_type *dev_handler,
-	const char *dev_name)
+int scst_register_virtual_device_node(struct scst_dev_type *dev_handler,
+	const char *dev_name, int nodeid)
 {
 	int res;
 	struct scst_device *dev, *d;
@@ -1441,7 +1445,7 @@ int scst_register_virtual_device(struct scst_dev_type *dev_handler,
 	if (res != 0)
 		goto out_resume;
 
-	res = scst_alloc_device(GFP_KERNEL, &dev);
+	res = scst_alloc_device(GFP_KERNEL, nodeid, &dev);
 	if (res != 0)
 		goto out_unlock;
 
@@ -1545,7 +1549,7 @@ out_resume:
 	scst_resume_activity();
 	goto out;
 }
-EXPORT_SYMBOL_GPL(scst_register_virtual_device);
+EXPORT_SYMBOL_GPL(scst_register_virtual_device_node);
 
 /**
  * scst_unregister_virtual_device() - unegister a virtual device.
@@ -1892,7 +1896,7 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 {
 	int res = 0, i;
 	struct scst_cmd_thread_t *thr;
-	int n = 0, tgt_dev_num = 0;
+	int n = 0, tgt_dev_num = 0, nodeid = NUMA_NO_NODE;
 
 	TRACE_ENTRY();
 
@@ -1906,7 +1910,7 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 	spin_unlock(&cmd_threads->thr_lock);
 
 	TRACE_DBG("cmd_threads %p, dev %s, tgt_dev %p, num %d, n %d",
-		cmd_threads, dev ? dev->virt_name : NULL, tgt_dev, num, n);
+		cmd_threads, dev ? dev->virt_name : "NULL", tgt_dev, num, n);
 
 	if (tgt_dev != NULL) {
 		struct scst_tgt_dev *t;
@@ -1917,29 +1921,34 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 				break;
 			tgt_dev_num++;
 		}
-	}
+		tgt_dev->thread_index = tgt_dev_num;
+
+		nodeid = tgt_dev->dev->dev_numa_node_id;
+	} else if (dev != NULL)
+		nodeid = dev->dev_numa_node_id;
 
 	for (i = 0; i < num; i++) {
-		thr = kmem_cache_zalloc(scst_thr_cachep, GFP_KERNEL);
+		thr = kmem_cache_alloc_node(scst_thr_cachep, GFP_KERNEL, nodeid);
 		if (!thr) {
 			res = -ENOMEM;
 			PRINT_ERROR("Fail to allocate thr %d", res);
 			goto out_wait;
 		}
+		memset(thr, 0, sizeof(*thr));
 		INIT_LIST_HEAD(&thr->thr_active_cmd_list);
 		spin_lock_init(&thr->thr_cmd_list_lock);
 		thr->thr_cmd_threads = cmd_threads;
 
 		if (dev != NULL) {
-			thr->cmd_thread = kthread_create(scst_cmd_thread,
-				thr, "%.13s%d", dev->virt_name, n++);
+			thr->cmd_thread = kthread_create_on_node(scst_cmd_thread,
+				thr, nodeid, "%.13s%d", dev->virt_name, n++);
 		} else if (tgt_dev != NULL) {
-			thr->cmd_thread = kthread_create(scst_cmd_thread,
-				thr, "%.10s%d_%d",
+			thr->cmd_thread = kthread_create_on_node(scst_cmd_thread,
+				thr, nodeid, "%.10s%d_%d",
 				tgt_dev->dev->virt_name, tgt_dev_num, n++);
 		} else
-			thr->cmd_thread = kthread_create(scst_cmd_thread,
-				thr, "scstd%d", n++);
+			thr->cmd_thread = kthread_create_on_node(scst_cmd_thread,
+				thr, nodeid, "scstd%d", n++);
 
 		if (IS_ERR(thr->cmd_thread)) {
 			res = PTR_ERR(thr->cmd_thread);
@@ -2152,6 +2161,7 @@ assign:
 	dev->handler = handler;
 	dev->threads_num = handler->threads_num;
 	dev->threads_pool_type = handler->threads_pool_type;
+	dev->max_tgt_dev_commands = handler->max_tgt_dev_commands;
 	dev->max_write_same_len = 256 * 1024 * 1024; /* 256 MB */
 
 	if (handler->attach) {
@@ -2833,6 +2843,7 @@ static void __exit exit_scst(void)
 	scst_deinit_threads(&scst_main_cmd_threads);
 
 	scsi_unregister_interface(&scst_interface);
+
 #ifdef CONFIG_SCST_PROC
 	scst_del_free_acg(scst_default_acg, false);
 #endif

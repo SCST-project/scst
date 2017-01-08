@@ -73,6 +73,26 @@
 #include <scst_const.h>
 #endif
 
+#ifdef NOLOCKDEP_SUPPORTED
+#define spin_lock_nolockdep(lock)	do { current->nolockdep_call = 1; spin_lock(lock); current->nolockdep_call = 0; } while (0)
+#define spin_unlock_nolockdep(lock)	do { current->nolockdep_call = 1; spin_unlock(lock); current->nolockdep_call = 0; } while (0)
+#define mutex_lock_nolockdep(lock)	do { current->nolockdep_call = 1; mutex_lock(lock); current->nolockdep_call = 0; } while (0)
+#define mutex_unlock_nolockdep(lock)	do { current->nolockdep_call = 1; mutex_unlock(lock); current->nolockdep_call = 0; } while (0)
+#define down_read_nolockdep(lock)	do { current->nolockdep_call = 1; down_read(lock); current->nolockdep_call = 0; } while (0)
+#define up_read_nolockdep(lock)		do { current->nolockdep_call = 1; up_read(lock); current->nolockdep_call = 0; } while (0)
+#define down_write_nolockdep(lock)	do { current->nolockdep_call = 1; down_write(lock); current->nolockdep_call = 0; } while (0)
+#define up_write_nolockdep(lock)	do { current->nolockdep_call = 1; up_write(lock); current->nolockdep_call = 0; } while (0)
+#else
+#define spin_lock_nolockdep		spin_lock
+#define spin_unlock_nolockdep		spin_unlock
+#define mutex_lock_nolockdep		mutex_lock
+#define mutex_unlock_nolockdep		mutex_unlock
+#define down_read_nolockdep		down_read
+#define up_read_nolockdep		up_read
+#define down_write_nolockdep		down_write
+#define up_write_nolockdep		up_write
+#endif
+
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/scst_sgv.h>
 #else
@@ -449,7 +469,7 @@ enum scst_exec_context {
 
 /*
  * Set if no response should be sent to the target about this cmd.
- * Must be set together with SCST_CMD_ABORTED for better processing
+ * Must be set together with SCST_CMD_ABORTED for better ACA processing
  * in scst_pre_xmit_response2().
  */
 #define SCST_CMD_NO_RESP		2
@@ -769,13 +789,6 @@ struct scst_tgt_template {
 	/* True, if this target doesn't need "enabled" attribute */
 	unsigned enabled_attr_not_needed:1;
 #endif
-
-	/*
-	 * True if SCST should report that it supports ACA although it does
-	 * not yet support ACA. Necessary for the IBM virtual SCSI target
-	 * driver.
-	 */
-	unsigned fake_aca:1;
 
 	/*
 	 * True, if this target adapter can call scst_cmd_init_done() from
@@ -1219,6 +1232,9 @@ struct scst_tgt_template {
 
 	/* sysfs session attributes, if any */
 	const struct attribute **sess_attrs;
+
+	/* sysfs ACG attributes, if any */
+	const struct attribute **acg_attrs;
 #endif
 
 	/* Optional help string for mgmt_cmd commands */
@@ -1650,6 +1666,13 @@ struct scst_dev_type {
 	 * pools is prohibited. Also pay attention to threads_pool_type below.
 	 */
 	int threads_num;
+
+	/*
+	 * Maximum count of uncompleted commands that an initiator could
+	 * queue on any device of this handler by default. Then it will start
+	 * getting TASK QUEUE FULL status.
+	 */
+	int max_tgt_dev_commands;
 
 	/* Threads pool type. Valid only if threads_num > 0. */
 	enum scst_dev_type_threads_pool_type threads_pool_type;
@@ -2088,12 +2111,21 @@ struct scst_order_data {
 	struct list_head skipped_sn_list;
 	struct list_head deferred_cmd_list;
 
-	spinlock_t sn_lock;
+	spinlock_t sn_lock; /* IRQ lock */
 
 	int hq_cmd_count;
 
 	/* Set if the prev cmd was ORDERED */
 	bool prev_cmd_ordered;
+
+	/*
+	 * tgt_dev initiated ACA, if any, or 0 otherwise. It can be deleted
+	 * and freed during LUN deletion, so must not be dereferenced.
+	 */
+	unsigned long aca_tgt_dev;
+
+	/* Active ACA cmd, if any */
+	struct scst_cmd *aca_cmd;
 
 	int def_cmd_count;
 	unsigned int expected_sn;
@@ -2204,6 +2236,9 @@ struct scst_cmd {
 
 	/* Set if cmd has NACA bit set in CDB */
 	unsigned int cmd_naca:1;
+
+	/* Set if cmd was allowed during ACA */
+	unsigned int cmd_aca_allowed:1;
 
 	/*
 	 * Set if the target driver wants to alloc data buffers on its own.
@@ -2337,7 +2372,7 @@ struct scst_cmd {
 
 	unsigned long start_time;
 
-	/* List entry for tgt_dev's deferred (SN, etc.) lists */
+	/* List entry for tgt_dev's deferred (SN, ACA, etc.) lists */
 	struct list_head deferred_cmd_list_entry;
 
 	/* Cmd's serial number, used to execute cmd's in order of arrival */
@@ -2554,11 +2589,13 @@ struct scst_cmd {
 #endif
 
 #ifdef CONFIG_SCST_MEASURE_LATENCY
-	uint64_t start, curr_start, parse_time, alloc_buf_time;
+	uint64_t start, curr_start, parse_time;
+	uint64_t tgt_alloc_buf_time, dev_alloc_buf_time;
 	uint64_t restart_waiting_time, rdy_to_xfer_time;
-	uint64_t pre_exec_time, exec_time, dev_done_time;
-	uint64_t xmit_time;
+	uint64_t pre_exec_time;
 	bool exec_time_counting;
+	uint64_t exec_time, dev_done_time;
+	uint64_t xmit_time;
 #endif
 
 #ifdef CONFIG_SCST_DEBUG_TM
@@ -2886,6 +2923,13 @@ struct scst_device {
 #endif
 
 	/*
+	 * Maximum count of uncompleted commands that an initiator could
+	 * queue on this device. Then it will start getting TASK QUEUE FULL
+	 * status.
+	 */
+	int max_tgt_dev_commands;
+
+	/*
 	 * How many times device was blocked for new cmds execution.
 	 * Protected by dev_lock.
 	 */
@@ -2999,6 +3043,9 @@ struct scst_device {
 
 	/* End of persistent reservation fields protected by dev_pr_mutex. */
 
+	/* NUMA node id of this device, if any (default - NUMA_NO_NODE) */
+	int dev_numa_node_id;
+
 	/*
 	 * Count of connected tgt_devs from transports, which don't support
 	 * PRs, i.e. don't have get_initiator_port_transport_id(). Protected
@@ -3098,7 +3145,11 @@ struct scst_tgt_dev {
 	gfp_t tgt_dev_gfp_mask;
 
 	/* SGV pool from which buffers of this tgt_dev's cmds should be allocated */
-	struct sgv_pool *pool;
+#ifdef CONFIG_CPUMASK_OFFSTACK
+	struct sgv_pool **pools;
+#else
+	struct sgv_pool *pools[NR_CPUS];
+#endif
 
 	/* Max number of allowed in this tgt_dev SG segments */
 	int max_sg_cnt;
@@ -3199,6 +3250,16 @@ struct scst_tgt_dev {
 	 */
 	unsigned short tgt_dev_valid_sense_len;
 	uint8_t tgt_dev_sense[SCST_SENSE_BUFFERSIZE];
+
+	/*
+	 * LUN thread index assigned by scst_add_threads(). Exported via
+	 * sysfs. Can be used to look up which export thread is serving which
+	 * target since this index also appears in the export thread name. Has
+	 * a value in the range 0..n-1 for threads_pool_type per_initiator or
+	 * -1 when using a shared thread pool per LUN or the global thread
+	 * pool.
+	 */
+	int thread_index;
 
 #ifndef CONFIG_SCST_PROC
 	/* sysfs release completion */
@@ -3326,7 +3387,11 @@ struct scst_acg {
 	struct kobject *initiators_kobj;
 #endif
 
+	/* LUNS addressing method for all LUNs in this ACG */
 	enum scst_lun_addr_method addr_method;
+
+	/* Private stuff for target drivers */
+	void *acg_tgt_priv;
 };
 
 /*
@@ -3457,7 +3522,7 @@ struct scst_aen {
 	int delivery_status;
 };
 
-#define SCST_OD_DEFAULT_CONTROL_BYTE	0
+#define SCST_OD_DEFAULT_CONTROL_BYTE	4 /* NACA */
 
 struct scst_opcode_descriptor {
 	uint16_t od_serv_action;
@@ -3697,8 +3762,14 @@ struct scst_cmd *scst_find_cmd(struct scst_session *sess, void *data,
 enum dma_data_direction scst_to_dma_dir(int scst_dir);
 enum dma_data_direction scst_to_tgt_dma_dir(int scst_dir);
 
-int scst_register_virtual_device(struct scst_dev_type *dev_handler,
-	const char *dev_name);
+int scst_register_virtual_device_node(struct scst_dev_type *dev_handler,
+	const char *dev_name, int nodeid);
+static inline int scst_register_virtual_device(struct scst_dev_type *dev_handler,
+	const char *dev_name)
+{
+	return scst_register_virtual_device_node(dev_handler, dev_name,
+		NUMA_NO_NODE);
+}
 void scst_unregister_virtual_device(int id);
 
 /*
@@ -4859,6 +4930,19 @@ static inline void scst_set_aen_delivery_status(struct scst_aen *aen,
 	aen->delivery_status = status;
 }
 
+/*
+ * Get/Set functions for tgt's target private data
+ */
+static inline void *scst_get_acg_tgt_priv(struct scst_acg *acg)
+{
+	return acg->acg_tgt_priv;
+}
+
+static inline void scst_set_acg_tgt_priv(struct scst_acg *acg, void *val)
+{
+	acg->acg_tgt_priv = val;
+}
+
 void scst_aen_done(struct scst_aen *aen);
 
 static inline struct scatterlist *__sg_next_inline(struct scatterlist *sg)
@@ -5176,7 +5260,7 @@ void scst_resume_activity(void);
 void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic);
 
 void scst_post_parse(struct scst_cmd *cmd);
-void scst_post_alloc_data_buf(struct scst_cmd *cmd);
+void scst_post_dev_alloc_data_buf(struct scst_cmd *cmd);
 
 int __scst_check_local_events(struct scst_cmd *cmd, bool preempt_tests_only);
 
@@ -5596,6 +5680,7 @@ void scst_init_threads(struct scst_cmd_threads *cmd_threads);
 void scst_deinit_threads(struct scst_cmd_threads *cmd_threads);
 
 void scst_pass_through_cmd_done(void *data, char *sense, int result, int resid);
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	void (*done)(void *data, char *sense, int result, int resid));
@@ -5628,6 +5713,8 @@ int scst_write_file_transactional(const char *name, const char *name1,
 void scst_path_put(struct nameidata *nd);
 #endif
 int scst_remove_file(const char *name);
+
+void scst_set_tp_soft_threshold_reached_UA(struct scst_tgt_dev *tgt_dev);
 
 int scst_pr_set_cluster_mode(struct scst_device *dev, bool cluster_mode,
 	const char *cl_dev_id);
