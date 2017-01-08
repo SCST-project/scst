@@ -479,7 +479,7 @@ static void srpt_get_ioc(struct srpt_port *sport, u32 slot,
 	if (sdev->use_srq)
 		send_queue_depth = sdev->srq_size;
 	else
-		send_queue_depth = min(SRPT_RQ_SIZE, sdev->dev_attr.max_qp_wr);
+		send_queue_depth = min(MAX_SRPT_RQ_SIZE, sdev->dev_attr.max_qp_wr);
 
 	memset(iocp, 0, sizeof(*iocp));
 	mutex_lock(&sport->mutex);
@@ -2637,7 +2637,7 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 	 * Avoid QUEUE_FULL conditions by limiting the number of buffers used
 	 * for the SRP protocol to the SCST SCSI command queue size.
 	 */
-	ch->rq_size = min(SRPT_RQ_SIZE, scst_get_max_lun_commands(NULL, 0));
+	ch->rq_size = min(MAX_SRPT_RQ_SIZE, scst_get_max_lun_commands(NULL, 0));
 	spin_lock_init(&ch->spinlock);
 	ch->state = CH_CONNECTING;
 	INIT_LIST_HEAD(&ch->cmd_wait_list);
