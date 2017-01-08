@@ -4378,9 +4378,11 @@ static void srpt_add_one(struct ib_device *device)
 	sdev->srq = use_srq ? ib_create_srq(sdev->pd, &srq_attr) :
 		ERR_PTR(-ENOTSUPP);
 	if (IS_ERR(sdev->srq)) {
-		pr_debug("ib_create_srq() failed: %ld\n", PTR_ERR(sdev->srq));
+		if (use_srq)
+			pr_debug("ib_create_srq() failed: %ld\n",
+				 PTR_ERR(sdev->srq));
 
-		/* SRQ not supported. */
+		/* SRQ disabled or not supported. */
 		sdev->use_srq = false;
 	} else {
 		pr_debug("create SRQ #wr= %d max_allow=%d dev= %s\n",
