@@ -79,7 +79,6 @@ static void scst_put_acg_work(void *p);
 #else
 static void scst_put_acg_work(struct work_struct *work);
 #endif
-static void scst_del_acn(struct scst_acn *acn);
 static void scst_free_acn(struct scst_acn *acn, bool reassign);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
@@ -4681,7 +4680,7 @@ out_free:
  */
 static void scst_del_acg(struct scst_acg *acg)
 {
-	struct scst_acn *acn, *acnt;
+	struct scst_acn *acn;
 	struct scst_acg_dev *acg_dev, *acg_dev_tmp;
 
 	scst_assert_activity_suspended();
@@ -4693,8 +4692,8 @@ static void scst_del_acg(struct scst_acg *acg)
 				 acg_dev_list_entry)
 		scst_del_acg_dev(acg_dev, true);
 
-	list_for_each_entry_safe(acn, acnt, &acg->acn_list, acn_list_entry)
-		scst_del_acn(acn);
+	list_for_each_entry(acn, &acg->acn_list, acn_list_entry)
+		scst_acn_sysfs_del(acn);
 
 #ifdef CONFIG_SCST_PROC
 	list_del(&acg->acg_list_entry);
@@ -5580,14 +5579,6 @@ out_free:
 }
 
 /* The activity supposed to be suspended and scst_mutex held */
-static void scst_del_acn(struct scst_acn *acn)
-{
-	list_del(&acn->acn_list_entry);
-
-	scst_acn_sysfs_del(acn);
-}
-
-/* The activity supposed to be suspended and scst_mutex held */
 static void scst_free_acn(struct scst_acn *acn, bool reassign)
 {
 	kfree(acn->name);
@@ -5601,7 +5592,8 @@ static void scst_free_acn(struct scst_acn *acn, bool reassign)
 void scst_del_free_acn(struct scst_acn *acn, bool reassign)
 {
 	TRACE_ENTRY();
-	scst_del_acn(acn);
+	list_del(&acn->acn_list_entry);
+	scst_acn_sysfs_del(acn);
 	scst_free_acn(acn, reassign);
 	TRACE_EXIT();
 	return;
