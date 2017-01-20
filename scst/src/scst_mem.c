@@ -275,14 +275,14 @@ static int __sgv_shrink(int nr, int min_interval, int *out_freed)
 	while (prev_nr > nr && nr > 0) {
 		prev_nr = nr;
 
-		mutex_lock(&sgv_pools_mutex);
-		list_for_each_entry(pool, &sgv_pools_list,
-				    sgv_pools_list_entry) {
+		rcu_read_lock();
+		list_for_each_entry_rcu(pool, &sgv_pools_list,
+					sgv_pools_list_entry) {
 			if (pool->cached_entries)
 				nr = sgv_shrink_pool(pool, nr, min_interval,
 						     cur_time, out_freed);
                 }
-		mutex_unlock(&sgv_pools_mutex);
+		rcu_read_unlock();
 	}
 
 	TRACE_EXIT_RES(nr);
@@ -1468,6 +1468,8 @@ out_del:
 	spin_lock_bh(&sgv_pools_lock);
 	list_del(&pool->sgv_pools_list_entry);
 	spin_unlock_bh(&sgv_pools_lock);
+
+	synchronize_rcu();
 #endif
 
 out_free:
@@ -1545,6 +1547,8 @@ static void sgv_pool_destroy(struct sgv_pool *pool)
 	list_del(&pool->sgv_pools_list_entry);
 	spin_unlock_bh(&sgv_pools_lock);
 	mutex_unlock(&sgv_pools_mutex);
+
+	synchronize_rcu();
 
 #ifndef CONFIG_SCST_PROC
 	scst_sgv_sysfs_del(pool);
