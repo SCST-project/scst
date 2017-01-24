@@ -419,7 +419,7 @@ scst-dist-gzip:
 	  else								\
 	    scripts/list-source-files;					\
 	  fi | \
-	  grep -E '^doc/|^fcst/|^iscsi-scst/|^Makefile|^qla2x00t(|_git)/|^scst.spec|^scst/|^scst_local/|^srpt/|^usr/'|\
+	  grep -E '^doc/|^fcst/|^iscsi-scst/|^Makefile|^qla2x00t(|_git)/|^scst.spec|^scst/|^scst_local/|^srpt/|^usr/|^scstadmin/'|\
 	  tar -T- -cf- |						\
 	  tar -C $${name}-$(VERSION) -xf-;				\
 	} &&								\
