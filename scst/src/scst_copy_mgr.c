@@ -2506,15 +2506,14 @@ static bool scst_cm_is_lun_free(unsigned int lun)
 
 	TRACE_ENTRY();
 
-	scst_assert_activity_suspended();
-	lockdep_assert_held(&scst_mutex);
-
-	list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
+	rcu_read_lock();
+	list_for_each_entry_rcu(tgt_dev, head, sess_tgt_dev_list_entry) {
 		if (tgt_dev->lun == lun) {
 			res = false;
 			break;
 		}
 	}
+	rcu_read_unlock();
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -2527,22 +2526,23 @@ static unsigned int scst_cm_get_lun(const struct scst_device *dev)
 
 	TRACE_ENTRY();
 
-	scst_assert_activity_suspended();
-	lockdep_assert_held(&scst_mutex);
-
+	rcu_read_lock();
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		struct list_head *head = &scst_cm_sess->sess_tgt_dev_list[i];
 		struct scst_tgt_dev *tgt_dev;
 
-		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
+		list_for_each_entry_rcu(tgt_dev, head,
+					sess_tgt_dev_list_entry) {
 			if (tgt_dev->dev == dev) {
 				res = tgt_dev->lun;
+				rcu_read_unlock();
 				TRACE_DBG("LUN %d found (full LUN %lld)",
 					res, tgt_dev->lun);
 				goto out;
 			}
 		}
 	}
+	rcu_read_unlock();
 
 out:
 	TRACE_EXIT_RES(res);
@@ -2562,12 +2562,15 @@ static int scst_cm_dev_register(struct scst_device *dev, uint64_t lun)
 
 	TRACE_DBG("dev %s, LUN %ld", dev->virt_name, (unsigned long)lun);
 
+	rcu_read_lock();
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		struct scst_tgt_dev *tgt_dev;
 		struct list_head *head = &scst_cm_sess->sess_tgt_dev_list[i];
 
-		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
+		list_for_each_entry_rcu(tgt_dev, head,
+					sess_tgt_dev_list_entry) {
 			if (tgt_dev->dev == dev) {
+				rcu_read_unlock();
 				/*
 				 * It's OK, because the copy manager could
 				 * auto register some devices
@@ -2579,6 +2582,7 @@ static int scst_cm_dev_register(struct scst_device *dev, uint64_t lun)
 			}
 		}
 	}
+	rcu_read_unlock();
 
 	if (lun == SCST_MAX_LUN) {
 		add_lun = true;
@@ -2628,6 +2632,7 @@ static void scst_cm_dev_unregister(struct scst_device *dev, bool del_lun)
 {
 	int i;
 	struct scst_cm_desig *des, *t;
+	u32 lun = SCST_MAX_LUN;
 
 	TRACE_ENTRY();
 
@@ -2647,18 +2652,23 @@ static void scst_cm_dev_unregister(struct scst_device *dev, bool del_lun)
 	if (!del_lun)
 		goto out;
 
+	rcu_read_lock();
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		struct scst_tgt_dev *tgt_dev;
 		struct list_head *head = &scst_cm_sess->sess_tgt_dev_list[i];
 
-		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
+		list_for_each_entry_rcu(tgt_dev, head,
+					sess_tgt_dev_list_entry) {
 			if (tgt_dev->dev == dev) {
-				scst_acg_del_lun(scst_cm_tgt->default_acg,
-					tgt_dev->lun, false);
+				lun = tgt_dev->lun;
 				break;
 			}
 		}
 	}
+	rcu_read_unlock();
+
+	if (lun != SCST_MAX_LUN)
+		scst_acg_del_lun(scst_cm_tgt->default_acg, lun, false);
 
 out:
 	TRACE_EXIT();
