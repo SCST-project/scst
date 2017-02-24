@@ -2498,7 +2498,6 @@ out_free:
 	goto out;
 }
 
-/* scst_mutex supposed to be held and activities suspended */
 static bool scst_cm_is_lun_free(unsigned int lun)
 {
 	bool res = true;
@@ -2506,6 +2505,9 @@ static bool scst_cm_is_lun_free(unsigned int lun)
 	struct scst_tgt_dev *tgt_dev;
 
 	TRACE_ENTRY();
+
+	scst_assert_activity_suspended();
+	lockdep_assert_held(&scst_mutex);
 
 	list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
 		if (tgt_dev->lun == lun) {
@@ -2518,7 +2520,6 @@ static bool scst_cm_is_lun_free(unsigned int lun)
 	return res;
 }
 
-/* scst_mutex supposed to be held and activities suspended */
 static unsigned int scst_cm_get_lun(const struct scst_device *dev)
 {
 	unsigned int res = -1;
@@ -2526,6 +2527,9 @@ static unsigned int scst_cm_get_lun(const struct scst_device *dev)
 	bool found = false;
 
 	TRACE_ENTRY();
+
+	scst_assert_activity_suspended();
+	lockdep_assert_held(&scst_mutex);
 
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		struct list_head *head = &scst_cm_sess->sess_tgt_dev_list[i];
@@ -2549,7 +2553,6 @@ out:
 	return res;
 }
 
-/* scst_mutex supposed to be held and activities suspended */
 static int scst_cm_dev_register(struct scst_device *dev, uint64_t lun)
 {
 	int res, i;
@@ -2557,6 +2560,9 @@ static int scst_cm_dev_register(struct scst_device *dev, uint64_t lun)
 	bool add_lun;
 
 	TRACE_ENTRY();
+
+	scst_assert_activity_suspended();
+	lockdep_assert_held(&scst_mutex);
 
 	TRACE_DBG("dev %s, LUN %ld", dev->virt_name, (unsigned long)lun);
 
@@ -2622,13 +2628,15 @@ out_err:
 	goto out;
 }
 
-/* scst_mutex supposed to be held and activities suspended */
 static void scst_cm_dev_unregister(struct scst_device *dev, bool del_lun)
 {
 	int i;
 	struct scst_cm_desig *des, *t;
 
 	TRACE_ENTRY();
+
+	scst_assert_activity_suspended();
+	lockdep_assert_held(&scst_mutex);
 
 	TRACE_DBG("dev %s, del_lun %d", dev->virt_name, del_lun);
 
@@ -2696,12 +2704,14 @@ out_unblock:
 	goto out_resume;
 }
 
-/* scst_mutex supposed to be held and activities suspended */
 int scst_cm_on_dev_register(struct scst_device *dev)
 {
 	int res = 0;
 
 	TRACE_ENTRY();
+
+	scst_assert_activity_suspended();
+	lockdep_assert_held(&scst_mutex);
 
 	if (!dev->handler->auto_cm_assignment_possible)
 		goto out;
@@ -2713,10 +2723,12 @@ out:
 	return res;
 }
 
-/* scst_mutex supposed to be held and activities suspended */
 void scst_cm_on_dev_unregister(struct scst_device *dev)
 {
 	TRACE_ENTRY();
+
+	scst_assert_activity_suspended();
+	lockdep_assert_held(&scst_mutex);
 
 	scst_cm_dev_unregister(dev, true);
 
@@ -2724,12 +2736,14 @@ void scst_cm_on_dev_unregister(struct scst_device *dev)
 	return;
 }
 
-/* scst_mutex supposed to be held and activities suspended */
 int scst_cm_on_add_acg(struct scst_acg *acg)
 {
 	int res = 0;
 
 	TRACE_ENTRY();
+
+	scst_assert_activity_suspended();
+	lockdep_assert_held(&scst_mutex);
 
 	if (scst_cm_tgt == NULL)
 		goto out;
@@ -2748,19 +2762,22 @@ out:
 	return res;
 }
 
-/* scst_mutex supposed to be held and activities suspended */
 void scst_cm_on_del_acg(struct scst_acg *acg)
 {
+	scst_assert_activity_suspended();
+	lockdep_assert_held(&scst_mutex);
 	/* Nothing to do */
 }
 
-/* scst_mutex supposed to be held and activities suspended */
 int scst_cm_on_add_lun(struct scst_acg_dev *acg_dev, uint64_t lun,
 	unsigned int *flags)
 {
 	int res = 0;
 
 	TRACE_ENTRY();
+
+	scst_assert_activity_suspended();
+	lockdep_assert_held(&scst_mutex);
 
 	if (acg_dev->acg != scst_cm_tgt->default_acg)
 		goto out;
@@ -2780,12 +2797,14 @@ out:
 	return res;
 }
 
-/* scst_mutex supposed to be held and activities suspended */
 bool scst_cm_on_del_lun(struct scst_acg_dev *acg_dev, bool gen_report_luns_changed)
 {
 	bool res = gen_report_luns_changed;
 
 	TRACE_ENTRY();
+
+	scst_assert_activity_suspended();
+	lockdep_assert_held(&scst_mutex);
 
 	if (acg_dev->acg != scst_cm_tgt->default_acg)
 		goto out;
@@ -2799,7 +2818,6 @@ out:
 	return res;
 }
 
-/* scst_mutex supposed to be locked */
 static bool scst_cm_check_access_acg(const char *initiator_name,
 	const struct scst_device *dev, const struct scst_acg *acg,
 	bool default_acg)
@@ -2808,6 +2826,9 @@ static bool scst_cm_check_access_acg(const char *initiator_name,
 	struct scst_acg_dev *acg_dev;
 
 	TRACE_ENTRY();
+
+	scst_assert_activity_suspended();
+	lockdep_assert_held(&scst_mutex);
 
 	list_for_each_entry(acg_dev, &acg->acg_dev_list, acg_dev_list_entry) {
 		if (acg_dev->dev == dev) {
