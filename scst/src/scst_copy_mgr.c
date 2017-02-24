@@ -2522,9 +2522,8 @@ static bool scst_cm_is_lun_free(unsigned int lun)
 
 static unsigned int scst_cm_get_lun(const struct scst_device *dev)
 {
-	unsigned int res = -1;
+	unsigned int res = SCST_MAX_LUN;
 	int i;
-	bool found = false;
 
 	TRACE_ENTRY();
 
@@ -2538,15 +2537,12 @@ static unsigned int scst_cm_get_lun(const struct scst_device *dev)
 		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
 			if (tgt_dev->dev == dev) {
 				res = tgt_dev->lun;
-				found = true;
 				TRACE_DBG("LUN %d found (full LUN %lld)",
 					res, tgt_dev->lun);
 				goto out;
 			}
 		}
 	}
-
-	sBUG_ON(!found);
 
 out:
 	TRACE_EXIT_RES(res);
