@@ -4590,7 +4590,6 @@ out:
 	return res;
 }
 
-/* The activity supposed to be suspended and scst_mutex held */
 int scst_alloc_add_acg(struct scst_tgt *tgt, const char *acg_name,
 	bool tgt_acg, struct scst_acg **out_acg)
 {
@@ -4598,6 +4597,8 @@ int scst_alloc_add_acg(struct scst_tgt *tgt, const char *acg_name,
 	int res;
 
 	TRACE_ENTRY();
+
+	lockdep_assert_held(&scst_mutex);
 
 	acg = kzalloc(sizeof(*acg), GFP_KERNEL);
 	if (acg == NULL) {
