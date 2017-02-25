@@ -2781,7 +2781,6 @@ int scst_cm_on_add_lun(struct scst_acg_dev *acg_dev, uint64_t lun,
 
 	TRACE_ENTRY();
 
-	scst_assert_activity_suspended();
 	lockdep_assert_held(&scst_mutex);
 
 	if (acg_dev->acg != scst_cm_tgt->default_acg)
@@ -2832,7 +2831,6 @@ static bool scst_cm_check_access_acg(const char *initiator_name,
 
 	TRACE_ENTRY();
 
-	scst_assert_activity_suspended();
 	lockdep_assert_held(&scst_mutex2);
 
 	list_for_each_entry(acg_dev, &acg->acg_dev_list, acg_dev_list_entry) {
