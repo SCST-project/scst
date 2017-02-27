@@ -2544,6 +2544,8 @@ static unsigned int scst_cm_get_lun(const struct scst_device *dev)
 		}
 	}
 
+	WARN_ON_ONCE(res == SCST_MAX_LUN);
+
 out:
 	TRACE_EXIT_RES(res);
 	return res;
