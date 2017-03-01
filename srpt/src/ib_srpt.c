@@ -59,7 +59,7 @@
 #endif
 #endif
 #include <rdma/ib_cache.h>
-#include "backport.h"
+#include "ib_backport.h"
 #include "ib_srpt.h"
 #include "srp-ext.h"
 #define LOG_PREFIX "ib_srpt" /* Prefix for SCST tracing macros. */
