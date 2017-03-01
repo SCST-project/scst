@@ -25,7 +25,6 @@ if ($> == 0) {
     ok(system("modprobe scst_local add_default_tgt=0 && " .
 	      "modprobe iscsi-scst && " .
 	      "modprobe ib_srpt && " .
-	      "modprobe qla2x00tgt && " .
 	      "modprobe scst_vdisk && " .
-	      "iscsi-scstd"), 0);
+	      "../../../iscsi-scst/usr/iscsi-scstd"), 0);
 }
