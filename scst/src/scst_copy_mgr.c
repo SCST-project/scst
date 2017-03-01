@@ -2638,7 +2638,6 @@ static void scst_cm_dev_unregister(struct scst_device *dev, bool del_lun)
 
 	TRACE_ENTRY();
 
-	scst_assert_activity_suspended();
 	lockdep_assert_held(&scst_mutex);
 
 	TRACE_DBG("dev %s, del_lun %d", dev->virt_name, del_lun);
@@ -2809,7 +2808,6 @@ bool scst_cm_on_del_lun(struct scst_acg_dev *acg_dev, bool gen_report_luns_chang
 
 	TRACE_ENTRY();
 
-	scst_assert_activity_suspended();
 	lockdep_assert_held(&scst_mutex);
 
 	if (acg_dev->acg != scst_cm_tgt->default_acg)
