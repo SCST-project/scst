@@ -728,4 +728,27 @@ static inline int scsi_bidi_cmnd(struct scsi_cmnd *cmd)
 }
 #endif
 
+/* <scsi/scsi_request.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
+static inline struct request *scsi_req(struct request *rq)
+{
+	return rq;
+}
+
+static inline void scsi_req_init(struct request *rq)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0)
+	rq->cmd_type = REQ_TYPE_BLOCK_PC;
+	rq->__data_len = 0;
+	rq->__sector = (sector_t) -1;
+	rq->bio = rq->biotail = NULL;
+	memset(rq->__cmd, 0, sizeof(rq->__cmd));
+	rq->cmd = rq->__cmd;
+#else
+	return blk_rq_set_block_pc(rq);
+#endif
+}
+#endif
+
 #endif /* _SCST_BACKPORT_H_ */

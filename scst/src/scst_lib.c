@@ -7938,7 +7938,7 @@ static struct request *blk_make_request(struct request_queue *q,
 	if (IS_ERR(rq))
 		return rq;
 
-	blk_rq_set_block_pc(rq);
+	scsi_req_init(rq);
 
 	for_each_bio(bio) {
 		struct bio *bounce_bio = bio;
@@ -8140,7 +8140,7 @@ static struct request *blk_map_kern_sg(struct request_queue *q,
 		if (unlikely(!rq))
 			return ERR_PTR(-ENOMEM);
 
-		rq->cmd_type = REQ_TYPE_BLOCK_PC;
+		scsi_req_init(rq);
 		goto out;
 	}
 
@@ -8345,7 +8345,8 @@ static void scsi_end_async(struct request *req, int error)
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 30)
 		sioc->done(sioc->data, sioc->sense, errors, req->data_len);
 #else
-		sioc->done(sioc->data, sioc->sense, errors, req->resid_len);
+		sioc->done(sioc->data, sioc->sense, errors,
+			   scsi_req(req)->resid_len);
 #endif
 
 	kmem_cache_free(scsi_io_context_cache, sioc);
@@ -8414,15 +8415,15 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	sioc->data = data;
 	sioc->done = done;
 
-	rq->cmd_len = cmd_len;
-	if (rq->cmd_len <= BLK_MAX_CDB) {
-		memset(rq->cmd, 0, BLK_MAX_CDB); /* ATAPI hates garbage after CDB */
-		memcpy(rq->cmd, cmd->cdb, cmd->cdb_len);
+	scsi_req(rq)->cmd_len = cmd_len;
+	if (scsi_req(rq)->cmd_len <= BLK_MAX_CDB) {
+		memset(scsi_req(rq)->cmd, 0, BLK_MAX_CDB); /* ATAPI hates garbage after CDB */
+		memcpy(scsi_req(rq)->cmd, cmd->cdb, cmd->cdb_len);
 	} else
-		rq->cmd = cmd->cdb;
+		scsi_req(rq)->cmd = cmd->cdb;
 
-	rq->sense = sioc->sense;
-	rq->sense_len = sizeof(sioc->sense);
+	scsi_req(rq)->sense = sioc->sense;
+	scsi_req(rq)->sense_len = sizeof(sioc->sense);
 	rq->timeout = cmd->timeout;
 	rq->retries = cmd->retries;
 	rq->end_io_data = sioc;
