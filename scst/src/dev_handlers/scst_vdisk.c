@@ -353,6 +353,7 @@ static enum compl_status_e vdisk_exec_write_same(struct vdisk_cmd_params *p);
 static int vdisk_fsync(loff_t loff,
 	loff_t len, struct scst_device *dev, gfp_t gfp_flags,
 	struct scst_cmd *cmd, bool async);
+static void vdev_on_free(struct scst_device *dev, void *arg);
 #ifdef CONFIG_SCST_PROC
 static int vdisk_read_proc(struct seq_file *seq,
 	struct scst_dev_type *dev_type);
@@ -7875,8 +7876,6 @@ static inline int vdev_create(struct scst_dev_type *devt,
 
 static void vdev_destroy(struct scst_vdisk_dev *virt_dev)
 {
-	cancel_work_sync(&virt_dev->vdev_inq_changed_work);
-
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 	vdisk_free_bioset(virt_dev);
 #endif
@@ -8403,12 +8402,27 @@ out:
 
 #endif /* CONFIG_SCST_PROC */
 
+static void vdev_on_free(struct scst_device *dev, void *arg)
+{
+	struct scst_vdisk_dev *virt_dev = arg;
+
+	TRACE_DBG("%s(%s)", __func__, dev->virt_name ? : "(?)");
+
+	/*
+	 * This call must happen after scst_unregister_virtual_device()
+	 * has called scst_dev_sysfs_del() and before scst_free_device()
+	 * starts deallocating *dev.
+	 */
+	cancel_work_sync(&virt_dev->vdev_inq_changed_work);
+}
+
 /* scst_vdisk_mutex supposed to be held */
 static void vdev_del_device(struct scst_vdisk_dev *virt_dev)
 {
 	TRACE_ENTRY();
 
-	scst_unregister_virtual_device(virt_dev->virt_id);
+	scst_unregister_virtual_device(virt_dev->virt_id, vdev_on_free,
+				       virt_dev);
 
 	list_del(&virt_dev->vdev_list_entry);
 
