@@ -2345,7 +2345,7 @@ static void scst_cm_init_inq_finish(struct scst_cmd *cmd)
 	/* cmd->dev can be NULL here! */
 
 	rc = scst_cm_err_check_retry(cmd, cmd->start_time, scst_cm_inq_retry_fn);
-	if (rc == SCST_CM_STATUS_RETRY)
+	if (rc == SCST_CM_STATUS_RETRY || !cmd->dev || !cmd->tgt_dev)
 		goto out;
 
 	spin_lock_bh(&dev->dev_lock);
@@ -2543,8 +2543,6 @@ static unsigned int scst_cm_get_lun(const struct scst_device *dev)
 			}
 		}
 	}
-
-	WARN_ON_ONCE(res == SCST_MAX_LUN);
 
 out:
 	TRACE_EXIT_RES(res);

@@ -3766,7 +3766,10 @@ static inline int scst_register_virtual_device(struct scst_dev_type *dev_handler
 	return scst_register_virtual_device_node(dev_handler, dev_name,
 		NUMA_NO_NODE);
 }
-void scst_unregister_virtual_device(int id);
+void scst_unregister_virtual_device(int id,
+				    void (*on_free)(struct scst_device *dev,
+						    void *arg),
+				    void *arg);
 
 /*
  * Get/Set functions for tgt's sg_tablesize

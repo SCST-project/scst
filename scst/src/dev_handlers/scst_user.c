@@ -3518,7 +3518,7 @@ out:
 	return res;
 
 out_unreg_drv:
-	scst_unregister_virtual_device(dev->virt_id);
+	scst_unregister_virtual_device(dev->virt_id, NULL, NULL);
 
 out_unreg_handler:
 	scst_unregister_virtual_dev_driver(&dev->devtype);
@@ -3887,7 +3887,7 @@ static int dev_user_exit_dev(struct scst_user_dev *dev)
 
 	wake_up(&cleanup_list_waitQ);
 
-	scst_unregister_virtual_device(dev->virt_id);
+	scst_unregister_virtual_device(dev->virt_id, NULL, NULL);
 	scst_unregister_virtual_dev_driver(&dev->devtype);
 
 	sgv_pool_flush(dev->pool_clust);

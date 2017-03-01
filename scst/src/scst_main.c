@@ -1266,7 +1266,10 @@ static struct scst_device *__scst_lookup_device(struct scsi_device *scsidp)
 	return NULL;
 }
 
-static void scst_unregister_device(struct scsi_device *scsidp)
+static void scst_unregister_device(struct scsi_device *scsidp,
+				   void (*on_free)(struct scst_device *dev,
+						   void* arg),
+				   void *arg)
 {
 	struct scst_device *dev;
 	struct scst_acg_dev *acg_dev, *aa;
@@ -1323,6 +1326,9 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 	PRINT_INFO("Detached from scsi%d, channel %d, id %d, lun %lld, type %d",
 		   scsidp->host->host_no, scsidp->channel, scsidp->id,
 		   (u64)scsidp->lun, scsidp->type);
+
+	if (on_free)
+		on_free(dev, arg);
 
 	scst_free_device(dev);
 
@@ -1557,7 +1563,10 @@ EXPORT_SYMBOL_GPL(scst_register_virtual_device_node);
  * scst_unregister_virtual_device() - unegister a virtual device.
  * @id:		the device's ID, returned by the registration function
  */
-void scst_unregister_virtual_device(int id)
+void scst_unregister_virtual_device(int id,
+				    void (*on_free)(struct scst_device *dev,
+						    void *arg),
+				    void *arg)
 {
 	struct scst_device *d, *dev = NULL;
 	struct scst_acg_dev *acg_dev, *aa;
@@ -1603,6 +1612,9 @@ void scst_unregister_virtual_device(int id)
 
 	PRINT_INFO("Detached from virtual device %s (id %d)",
 		dev->virt_name, dev->virt_id);
+
+	if (on_free)
+		on_free(dev, arg);
 
 	scst_free_device(dev);
 
@@ -2404,7 +2416,7 @@ static void scst_remove(struct device *cdev, struct class_interface *intf)
 
 	if ((scsidp->host->hostt->name == NULL) ||
 	    (strcmp(scsidp->host->hostt->name, SCST_LOCAL_NAME) != 0))
-		scst_unregister_device(scsidp);
+		scst_unregister_device(scsidp, NULL, NULL);
 
 	TRACE_EXIT();
 	return;
