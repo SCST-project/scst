@@ -1522,7 +1522,6 @@ out:
 	return res;
 
 out_unreg:
-	dev->dev_unregistering = 1;
 	list_del(&dev->dev_list_entry);
 	scst_assign_dev_handler(dev, &scst_null_devtype);
 	goto out_pr_clear_dev;
@@ -1576,8 +1575,6 @@ void scst_unregister_virtual_device(int id)
 		PRINT_ERROR("Virtual device (id %d) not found", id);
 		goto out_unlock;
 	}
-
-	dev->dev_unregistering = 1;
 
 	scst_cm_on_dev_unregister(dev);
 
