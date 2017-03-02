@@ -2881,7 +2881,7 @@ static int srpt_ib_cm_req_recv(struct ib_cm_id *cm_id,
 				private_data, sgid);
 }
 
-static const char *inet_ntop(const void *sa, char *dst, unsigned size)
+static const char *inet_ntop(const void *sa, char *dst, unsigned int size)
 {
 	switch (((struct sockaddr *)sa)->sa_family) {
 	case AF_INET:
@@ -2975,7 +2975,7 @@ static void srpt_check_timeout(struct srpt_rdma_ch *ch)
 		do_div(T_tr_ms, 1000000);
 		pr_debug("%s-%d: QP local ack timeout = %d or T_tr = %u ms; retry_cnt = %d; max compl. time = %d ms\n",
 			  ch->sess_name, ch->qp->qp_num, attr.timeout, T_tr_ms,
-			  attr.retry_cnt, (unsigned)max_compl_time_ms);
+			  attr.retry_cnt, (unsigned int)max_compl_time_ms);
 
 		if (max_compl_time_ms >= RDMA_COMPL_TIMEOUT_S * 1000) {
 			pr_err("Maximum RDMA completion time (%lld ms) exceeds ib_srpt timeout (%d ms)\n",
@@ -3533,7 +3533,7 @@ static int srpt_xfer_data(struct srpt_rdma_ch *ch,
 		BUG_ON(!srpt_test_and_set_cmd_state(ioctx, SRPT_STATE_NEED_DATA,
 						    SRPT_STATE_DATA_IN));
 		if (unlikely(!scst_cmd_get_tgt_data_buff_alloced(cmd))) {
-			unsigned offset = 0, len;
+			unsigned int offset = 0, len;
 			uint8_t *buf;
 
 			/*
