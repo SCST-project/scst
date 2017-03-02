@@ -4451,7 +4451,7 @@ again:
 					/*
 					 * Put cmd in the head to let restart
 					 * earlier, because it's already completed
-			 		 */
+					 */
 					list_add(&cmd->deferred_cmd_list_entry,
 						&order_data->deferred_cmd_list);
 					spin_unlock_irq(&order_data->sn_lock);

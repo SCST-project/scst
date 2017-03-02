@@ -1268,7 +1268,7 @@ static struct scst_device *__scst_lookup_device(struct scsi_device *scsidp)
 
 static void scst_unregister_device(struct scsi_device *scsidp,
 				   void (*on_free)(struct scst_device *dev,
-						   void* arg),
+						   void *arg),
 				   void *arg)
 {
 	struct scst_device *dev;

@@ -281,7 +281,7 @@ static int __sgv_shrink(int nr, int min_interval, int *out_freed)
 			if (pool->cached_entries)
 				nr = sgv_shrink_pool(pool, nr, min_interval,
 						     cur_time, out_freed);
-                }
+		}
 		mutex_unlock(&sgv_pools_mutex);
 	}
 

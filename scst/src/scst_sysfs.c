@@ -7368,7 +7368,7 @@ static ssize_t scst_force_global_sgv_pool_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
 	return sprintf(buf, "%d\n%s\n", scst_force_global_sgv_pool,
-		scst_force_global_sgv_pool ? SCST_SYSFS_KEY_MARK "\n": "");
+		scst_force_global_sgv_pool ? SCST_SYSFS_KEY_MARK "\n" : "");
 }
 
 static ssize_t scst_force_global_sgv_pool_store(struct kobject *kobj,

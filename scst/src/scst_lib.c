@@ -539,10 +539,13 @@ struct scst_sdbops {
 	uint8_t info_lba_len;	/* LBA length in cdb */
 	uint8_t info_len_off;	/* length offset in cdb */
 	uint8_t info_len_len;	/* length length in cdb */
-	uint8_t info_data_direction; /* init --> target: SCST_DATA_WRITE
-				   * target --> init: SCST_DATA_READ
-				   * target <--> init: SCST_DATA_READ|SCST_DATA_WRITE
-				   */
+	uint8_t info_data_direction;
+				/*
+				 * init --> target: SCST_DATA_WRITE
+				 * target --> init: SCST_DATA_READ
+				 * target <--> init: SCST_DATA_READ|
+				 *		     SCST_DATA_WRITE
+				 */
 	uint32_t info_op_flags;	/* various flags of this opcode */
 	const char *info_op_name;/* op code SCSI full name */
 	int (*get_cdb_info)(struct scst_cmd *cmd, const struct scst_sdbops *sdbops);
@@ -11513,7 +11516,7 @@ static int get_cdb_info_apt(struct scst_cmd *cmd,
 	 * set to one, then the SATL shall transfer data from the ATA device
 	 * to the application client. The SATL shall ignore the T_DIR bit if
 	 * the T_LENGTH field is set to zero.
-	*/
+	 */
 	cmd->data_direction = (t_length == 0 ? SCST_DATA_NONE : t_dir ?
 			       SCST_DATA_READ : SCST_DATA_WRITE);
 	cmd->lba = 0;
@@ -11832,11 +11835,11 @@ out:
 	return res;
 }
 
- /**
+/**
  * scst_sbc_generic_parse() - generic SBC parsing
-  *
+ *
  * Generic parse() for SBC (disk) devices
-  */
+ */
 int scst_sbc_generic_parse(struct scst_cmd *cmd)
 {
 	static const int disk_timeout[] = {

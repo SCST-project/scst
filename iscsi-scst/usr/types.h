@@ -1,5 +1,5 @@
 /*
-*   Copyright (C) 2002 - 2003 Ardis Technolgies <roman@ardistech.com>
+ *  Copyright (C) 2002 - 2003 Ardis Technolgies <roman@ardistech.com>
  *  Copyright (C) 2007 - 2016 Vladislav Bolkhovitin
  *  Copyright (C) 2007 - 2016 SanDisk Corporation
  *
