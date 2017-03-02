@@ -4441,7 +4441,7 @@ again:
 					/*
 					 * Put cmd in the head to let restart
 					 * earlier, because it's already completed
-			 		 */
+					 */
 					list_add(&cmd->deferred_cmd_list_entry,
 						&order_data->deferred_cmd_list);
 					spin_unlock_irq(&order_data->sn_lock);
@@ -7237,7 +7237,7 @@ static int scst_clear_aca_mcmd(struct scst_mgmt_cmd *mcmd)
 
 	TRACE(TRACE_MGMT, "CLEAR ACA (dev %s, lun=%lld, mcmd %p, tgt_dev %p)",
 		mcmd_tgt_dev->dev->virt_name,
-		(long long unsigned int)mcmd_tgt_dev->lun, mcmd, mcmd_tgt_dev);
+		(unsigned long long int)mcmd_tgt_dev->lun, mcmd, mcmd_tgt_dev);
 
 	spin_lock_irq(&order_data->sn_lock);
 
