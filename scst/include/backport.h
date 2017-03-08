@@ -54,10 +54,6 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 }
 #endif
 
-#ifndef RQF_COPY_USER
-#define RQF_COPY_USER REQ_COPY_USER
-#endif
-
 /* <linux/compiler.h> */
 
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 20)
