@@ -8001,10 +8001,10 @@ static struct request *__blk_map_kern_sg(struct request_queue *q,
 	if (bw != NULL) {
 		atomic_set(&bw->bios_inflight, bios);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
-	/*
-	 * See also patch "block: split out request-only flags into a new namespace"
-	 * (commit e806402130c9).
-	 */
+		/*
+		 * See also patch "block: split out request-only flags into a
+		 * new namespace" (commit e806402130c9).
+		 */
 		rq->cmd_flags |= REQ_COPY_USER;
 #else
 		rq->rq_flags |= RQF_COPY_USER;
