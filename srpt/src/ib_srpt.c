@@ -3530,8 +3530,11 @@ static int srpt_xfer_data(struct srpt_rdma_ch *ch,
 	int ret;
 
 	if (ioctx->imm_data) {
-		BUG_ON(!srpt_test_and_set_cmd_state(ioctx, SRPT_STATE_NEED_DATA,
-						    SRPT_STATE_DATA_IN));
+		bool res;
+
+		res = srpt_test_and_set_cmd_state(ioctx, SRPT_STATE_NEED_DATA,
+						  SRPT_STATE_DATA_IN);
+		BUG_ON(!res);
 		if (unlikely(!scst_cmd_get_tgt_data_buff_alloced(cmd))) {
 			unsigned int offset = 0, len;
 			uint8_t *buf;
