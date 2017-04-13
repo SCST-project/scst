@@ -41,9 +41,9 @@
  * be the last to confirm expectations of __config_account_add()!!
  */
 struct iscsi_key user_keys[] = {
-	{"IncomingUser",},
-	{"OutgoingUser",},
-	{NULL,},
+	{ .name = "IncomingUser",},
+	{ .name = "OutgoingUser",},
+	{ .name = NULL,},
 };
 
 static struct __qelem discovery_users_in = LIST_HEAD_INIT(discovery_users_in);

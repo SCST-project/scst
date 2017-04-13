@@ -5136,6 +5136,7 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 				       tgtt->threads_num);
 		break;
 	}
+	case SCST_THREADS_POOL_TYPE_INVALID:
 	default:
 		PRINT_CRIT_ERROR("Unknown threads pool type %d (dev %s)",
 			dev->threads_pool_type, dev->virt_name);
@@ -9265,6 +9266,9 @@ static int scst_do_dif(struct scst_cmd *cmd,
 		res = generate_fn(cmd);
 		break;
 
+	case SCST_DIF_CHECK_APP_TAG:
+	case SCST_DIF_CHECK_GUARD_TAG:
+	case SCST_DIF_CHECK_REF_TAG:
 	default:
 		EXTRACHECKS_BUG_ON(1);
 		/* go through */

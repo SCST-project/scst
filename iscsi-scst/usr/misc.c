@@ -25,7 +25,7 @@
 
 #include "iscsid.h"
 
-int driver_major(const char *dev)
+static int driver_major(const char *dev)
 {
 	FILE *f;
 	char devname[256];

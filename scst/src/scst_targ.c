@@ -906,6 +906,7 @@ active:
 		scst_schedule_tasklet(cmd);
 		break;
 
+	case SCST_CONTEXT_SAME:
 	default:
 		PRINT_ERROR("Context %x is undefined, using the thread one",
 			pref_context);
@@ -1904,6 +1905,7 @@ static void scst_process_redirect_cmd(struct scst_cmd *cmd,
 		scst_schedule_tasklet(cmd);
 		break;
 
+	case SCST_CONTEXT_SAME:
 	default:
 		PRINT_ERROR("Context %x is unknown, using the thread one",
 			    context);

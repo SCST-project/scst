@@ -2945,6 +2945,9 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 		TRACE(TRACE_ORDER, "HQ cmd %p (op %s)", cmd,
 			scst_get_opcode_name(cmd));
 		break;
+	case SCST_CMD_QUEUE_ACA:
+	case SCST_CMD_QUEUE_SIMPLE:
+	case SCST_CMD_QUEUE_UNTAGGED:
 	default:
 		break;
 	}

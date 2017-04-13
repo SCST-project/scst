@@ -1757,6 +1757,9 @@ int scst_tg_set_group_info(struct scst_cmd *cmd)
 		case SCST_TG_STATE_UNAVAILABLE:
 		case SCST_TG_STATE_OFFLINE:
 			break;
+		case SCST_TG_STATE_LBA_DEPENDENT:
+		case SCST_TG_STATE_TRANSITIONING:
+		case SCST_TG_STATE_UNDEFINED:
 		default:
 			TRACE_MGMT_DBG("Incorrect new state %d", osi[j].new_state);
 			res = -EINVAL;

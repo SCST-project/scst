@@ -2512,6 +2512,7 @@ static int scst_groups_addr_method_show(struct seq_file *seq, void *v)
 	case SCST_LUN_ADDR_METHOD_LUN:
 		seq_printf(seq, "%s\n", "LUN");
 		break;
+	case SCST_LUN_ADDR_METHOD_EXTENDED_LUN:
 	default:
 		seq_printf(seq, "%s\n", "UNKNOWN");
 		break;
