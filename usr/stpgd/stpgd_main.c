@@ -195,7 +195,7 @@ int wait_until_finished(pid_t pid, unsigned long deadline, int *status, int chil
 			}
 			break;
 		}
-		sleep(0.1);
+		usleep(100*1000);
 		time(&end);
 		elapsed = difftime(end, start);
 	} while (elapsed < deadline);
