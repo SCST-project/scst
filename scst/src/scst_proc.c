@@ -939,23 +939,14 @@ static void scst_proc_del_acg_tree(struct proc_dir_entry *acg_proc_root,
 /* The activity supposed to be suspended and scst_mutex held */
 static int scst_proc_group_add(const char *p, unsigned int addr_method)
 {
-	int res = 0, len = strlen(p) + 1;
+	int res = 0;
 	struct scst_acg *acg;
-	char *name = NULL;
-
 	TRACE_ENTRY();
 
-	name = kmalloc(len, GFP_KERNEL);
-	if (name == NULL) {
-		PRINT_ERROR("Allocation of new name (size %d) failed", len);
-		goto out_nomem;
-	}
-	strlcpy(name, p, len);
-
-	res = scst_alloc_add_acg(NULL, name, false, &acg);
+	res = scst_alloc_add_acg(NULL, p, false, &acg);
 	if (res != 0) {
-		PRINT_ERROR("scst_alloc_add_acg() (name %s) failed", name);
-		goto out_free;
+		PRINT_ERROR("scst_alloc_add_acg() (name %s) failed", p);
+		goto out;
 	}
 
 	acg->addr_method = addr_method;
@@ -971,11 +962,6 @@ out:
 out_free_acg:
 	scst_proc_del_free_acg(acg, 0);
 
-out_free:
-	kfree(name);
-	goto out;
-
-out_nomem:
 	res = -ENOMEM;
 	goto out;
 }
