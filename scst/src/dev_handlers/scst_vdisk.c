@@ -1158,6 +1158,8 @@ static int vdisk_get_file_size(const char *filename, bool blockio,
 	} else if (S_ISBLK(inode->i_mode)) {
 		inode = inode->i_bdev->bd_inode;
 	} else {
+		PRINT_ERROR("File %s unsupported mode: mode=0%o\n",
+			    filename, inode->i_mode);
 		res = -EINVAL;
 		goto out_close;
 	}
@@ -8115,6 +8117,7 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 		} else if (!strcasecmp("blocksize", p)) {
 			virt_dev->blk_shift = scst_calc_block_shift(val);
 			if (virt_dev->blk_shift < 9) {
+				PRINT_ERROR("blocksize %u too small", 1<<virt_dev->blk_shift);
 				res = -EINVAL;
 				goto out;
 			}
@@ -10358,6 +10361,7 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 
 			block_shift = scst_calc_block_shift(block_size);
 			if (block_shift < 9) {
+				PRINT_ERROR("blocksize %u too small", 1<<block_shift);
 				res = -EINVAL;
 				goto out_free_vdev;
 			}
