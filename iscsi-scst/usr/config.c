@@ -856,11 +856,12 @@ int config_params_set(u32 tid, u64 sid, int type, u32 partial,
 
 	if (type == key_session) {
 		for (i = 0; i < session_key_last; i++) {
+			uint32_t in_val = params[i].val;
 			if (partial & (1 << i)) {
 				err = params_check_val(session_keys, i, &params[i].val);
 				if (err < 0) {
-					log_error("Wrong value %u for parameter %s\n",
-						params[i].val, session_keys[i].name);
+					log_error("%s: Wrong value %u->%u for session parameter %s\n",
+						__func__, in_val, params[i].val, session_keys[i].name);
 					goto out;
 				}
 			}
@@ -871,11 +872,12 @@ int config_params_set(u32 tid, u64 sid, int type, u32 partial,
 		}
 	} else {
 		for (i = 0; i < target_key_last; i++) {
+			uint32_t in_val = params[i].val;
 			if (partial & (1 << i)) {
 				err = params_check_val(target_keys, i, &params[i].val);
 				if (err < 0) {
-					log_error("Wrong value %u for parameter %s\n",
-						params[i].val, target_keys[i].name);
+					log_error("%s: Wrong value %u->%u for target parameter %s\n",
+						__func__, in_val, params[i].val, target_keys[i].name);
 					goto out;
 				}
 			}
@@ -962,10 +964,11 @@ int config_parse_main(const char *data, u32 cookie)
 				continue;
 			}
 
+			uint32_t in_val = val;
 			res = params_check_val(target_keys, idx, &val);
 			if (res < 0) {
-				log_error("Wrong value %u for parameter %s\n",
-					val, target_keys[idx].name);
+				log_error("%s: Wrong value %u->%u for target parameter %s\n",
+					  __func__, in_val, val, target_keys[idx].name);
 				continue;
 			}
 			target->target_params[idx] = val;
@@ -986,10 +989,11 @@ int config_parse_main(const char *data, u32 cookie)
 				continue;
 			}
 
+			uint32_t in_val = val;
 			res = params_check_val(session_keys, idx, &val);
 			if (res < 0) {
-				log_error("Wrong value %u for parameter %s\n",
-					val, session_keys[idx].name);
+				log_error("%s: Wrong value %u->%u for session parameter %s\n",
+					  __func__, in_val, val, session_keys[idx].name);
 				continue;
 			}
 			target->session_params[idx] = val;
