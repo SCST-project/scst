@@ -137,7 +137,7 @@ static struct scst_trace_log vdisk_local_trace_tbl[] = {
 
 #define DEF_DPICZ		SCST_DPICZ_CHECK_ON_xPROT_0
 
-#define DEF_DIF_FILENAME_TMPL	(SCST_VAR_DIR "/dif_tags/%s.dif")
+#define DEF_DIF_FILENAME_TMPL	SCST_VAR_DIR "/dif_tags/%s.dif"
 
 #ifdef CONFIG_SCST_PROC
 #define VDISK_PROC_HELP		"help"
