@@ -2859,7 +2859,9 @@ static void __exit exit_scst(void)
 	scsi_unregister_interface(&scst_interface);
 
 #ifdef CONFIG_SCST_PROC
+	mutex_lock(&scst_mutex);
 	scst_del_free_acg(scst_default_acg, false);
+	mutex_unlock(&scst_mutex);
 #endif
 
 	scst_sgv_pools_deinit();
