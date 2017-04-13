@@ -10429,7 +10429,7 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 			PRINT_ERROR("File path \"%s\" is not "
 				"absolute", filename);
 			res = -EINVAL;
-			goto out_up;
+			goto out_free_vdev;
 		}
 
 		virt_dev->filename = kstrdup(filename, GFP_KERNEL);
