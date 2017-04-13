@@ -232,14 +232,15 @@ static void create_iser_listen_socket(struct pollfd *array)
 
 	iser_fd = create_and_open_dev("isert_scst", 1);
 
-	poll_array[POLL_ISER_LISTEN].fd = iser_fd;
-	if (iser_fd != -1) {
+	if (iser_fd >= 0) {
+		poll_array[POLL_ISER_LISTEN].fd = iser_fd;
 		poll_array[POLL_ISER_LISTEN].events = POLLIN;
 
 		/* RDMAExtensions */
 		session_keys[key_rdma_extensions].max = 1;
 		session_keys[key_rdma_extensions].local_def = 1;
 	} else {
+		poll_array[POLL_ISER_LISTEN].fd = -1;
 		poll_array[POLL_ISER_LISTEN].events = 0;
 		return;
 	}
