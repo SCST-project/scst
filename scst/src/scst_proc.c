@@ -1213,7 +1213,11 @@ void scst_proc_cleanup_module(void)
 
 	/* We may not bother about locks here */
 	scst_proc_cleanup_sgv();
+
+	mutex_lock(&scst_mutex);
 	scst_proc_cleanup_groups();
+	mutex_unlock(&scst_mutex);
+
 	scst_proc_cleanup_module_log();
 	remove_proc_entry(SCST_PROC_THREADS_NAME, scst_proc_scsi_tgt);
 	remove_proc_entry(SCST_PROC_HELP_NAME, scst_proc_scsi_tgt);
