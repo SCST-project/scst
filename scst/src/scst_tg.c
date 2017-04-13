@@ -1296,7 +1296,6 @@ int scst_dg_add(struct kobject *parent, const char *name)
 	res = -EEXIST;
 	if (__lookup_dg_by_name(name))
 		goto out_unlock;
-	res = -ENOMEM;
 	INIT_LIST_HEAD(&dg->dev_list);
 	INIT_LIST_HEAD(&dg->tg_list);
 	res = scst_dg_sysfs_add(parent, dg);
