@@ -1077,12 +1077,12 @@ check:
 #endif
 
 		if (virt_dev->blockio) {
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32) || \
+	(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6)
 			struct request_queue *q;
 
 			sBUG_ON(!fd_open);
 			q = bdev_get_queue(file_inode(fd)->i_bdev);
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32) || \
-	(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6)
 			virt_dev->unmap_opt_gran = q->limits.discard_granularity >> block_shift;
 			virt_dev->unmap_align = q->limits.discard_alignment >> block_shift;
 			if (virt_dev->unmap_opt_gran == virt_dev->unmap_align)
@@ -7887,6 +7887,8 @@ static void vdev_destroy(struct scst_vdisk_dev *virt_dev)
 	return;
 }
 
+#ifndef CONFIG_SCST_PROC
+
 static void vdev_check_node(struct scst_vdisk_dev **pvirt_dev, int orig_nodeid)
 {
 	struct scst_vdisk_dev *virt_dev = *pvirt_dev;
@@ -7913,8 +7915,6 @@ out:
 	TRACE_EXIT();
 	return;
 }
-
-#ifndef CONFIG_SCST_PROC
 
 static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 	char *params, const char *const allowed_params[])
