@@ -76,6 +76,11 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
  * 230fa253df6352af12ad0a16128760b5cb3f92df).
  */
 #define READ_ONCE(x) (*(volatile typeof(x) *)&(x))
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
+#define ACCESS_ONCE(x) READ_ONCE(x)
+#endif
+
 #endif
 
 /* <linux/cpumask.h> */
