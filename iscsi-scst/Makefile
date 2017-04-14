@@ -227,18 +227,14 @@ clean:
 		kernel/isert-scst/Modules.symvers kernel/isert-scst/Module.symvers \
 		kernel/isert-scst/Module.markers kernel/isert-scst/modules.order \
 		include/iscsi_scst_itf_ver.h
+	rm -rf conftest/*/*.ko conftest/*/*.mod.c conftest/*/Module.symvers conftest/*/*.o \
+		conftest/*/*.o.cmd conftest/*/*.ko.cmd conftest/*/.*.o.cmd conftest/*/.*.ko.cmd \
+		conftest/*/*.order conftest/*/.*.o.d conftest/*/.tmp_versions/
 
-extraclean:
-	$(MAKE) -C usr $@
-	$(MAKE) -C $(KDIR) SUBDIRS=$(KMOD) clean
-	$(MAKE) -C $(KDIR) SUBDIRS=$(ISERTMOD) clean
-	rm -f kernel/Modules.symvers kernel/Module.symvers \
-		kernel/Module.markers kernel/modules.order \
-		kernel/isert-scst/Modules.symvers kernel/isert-scst/Module.symvers \
-		kernel/isert-scst/Module.markers kernel/isert-scst/modules.order \
-		include/iscsi_scst_itf_ver.h \
-		kernel/*.orig kernel/*.rej \
+extraclean: clean
+	rm -f kernel/*.orig kernel/*.rej \
 		kernel/isert-scst/*.orig kernel/isert-scst/*.rej
+	rm -rf conftest/*/*.rej conftest/*/*.orig
 
 2release:
 	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ $(KMOD)/Makefile
