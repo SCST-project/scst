@@ -1296,7 +1296,6 @@ int scst_dg_add(struct kobject *parent, const char *name)
 	res = -EEXIST;
 	if (__lookup_dg_by_name(name))
 		goto out_unlock;
-	res = -ENOMEM;
 	INIT_LIST_HEAD(&dg->dev_list);
 	INIT_LIST_HEAD(&dg->tg_list);
 	res = scst_dg_sysfs_add(parent, dg);
@@ -1758,6 +1757,9 @@ int scst_tg_set_group_info(struct scst_cmd *cmd)
 		case SCST_TG_STATE_UNAVAILABLE:
 		case SCST_TG_STATE_OFFLINE:
 			break;
+		case SCST_TG_STATE_LBA_DEPENDENT:
+		case SCST_TG_STATE_TRANSITIONING:
+		case SCST_TG_STATE_UNDEFINED:
 		default:
 			TRACE_MGMT_DBG("Incorrect new state %d", osi[j].new_state);
 			res = -EINVAL;

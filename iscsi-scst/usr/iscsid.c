@@ -37,15 +37,15 @@ static u32 get_next_ttt(struct connection *conn __attribute__((unused)))
 }
 
 static struct iscsi_key login_keys[] = {
-	{"InitiatorName",},
-	{"InitiatorAlias",},
-	{"SessionType",},
-	{"TargetName",},
-	{"InitiatorRecvDataSegmentLength",},
-	{"MaxAHSLength",},
-	{"TaggedBufferForSolicitedDataOnly",},
-	{"iSERHelloRequired",},
-	{NULL,},
+	{ .name = "InitiatorName",},
+	{ .name = "InitiatorAlias",},
+	{ .name = "SessionType",},
+	{ .name = "TargetName",},
+	{ .name = "InitiatorRecvDataSegmentLength",},
+	{ .name = "MaxAHSLength",},
+	{ .name = "TaggedBufferForSolicitedDataOnly",},
+	{ .name = "iSERHelloRequired",},
+	{ .name = NULL,},
 };
 
 char *text_key_find(struct connection *conn, const char *searchKey)

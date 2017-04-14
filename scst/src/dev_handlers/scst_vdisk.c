@@ -83,7 +83,7 @@ static struct scst_trace_log vdisk_local_trace_tbl[] = {
 #define SCST_FIO_VENDOR			"SCST_FIO"
 #define SCST_BIO_VENDOR			"SCST_BIO"
 /* 4 byte ASCII Product Revision Level - left aligned */
-#define SCST_FIO_REV			" 330"
+#define SCST_FIO_REV			"330 "
 
 #define MAX_USN_LEN			(20+1) /* For '\0' */
 #define MAX_INQ_VEND_SPECIFIC_LEN	(INQ_BUF_SZ - 96)
@@ -137,7 +137,7 @@ static struct scst_trace_log vdisk_local_trace_tbl[] = {
 
 #define DEF_DPICZ		SCST_DPICZ_CHECK_ON_xPROT_0
 
-#define DEF_DIF_FILENAME_TMPL	(SCST_VAR_DIR "/dif_tags/%s.dif")
+#define DEF_DIF_FILENAME_TMPL	SCST_VAR_DIR "/dif_tags/%s.dif"
 
 #ifdef CONFIG_SCST_PROC
 #define VDISK_PROC_HELP		"help"
@@ -1077,12 +1077,12 @@ check:
 #endif
 
 		if (virt_dev->blockio) {
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32) || \
+	(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6)
 			struct request_queue *q;
 
 			sBUG_ON(!fd_open);
 			q = bdev_get_queue(file_inode(fd)->i_bdev);
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32) || \
-	(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6)
 			virt_dev->unmap_opt_gran = q->limits.discard_granularity >> block_shift;
 			virt_dev->unmap_align = q->limits.discard_alignment >> block_shift;
 			if (virt_dev->unmap_opt_gran == virt_dev->unmap_align)
@@ -1158,6 +1158,8 @@ static int vdisk_get_file_size(const char *filename, bool blockio,
 	} else if (S_ISBLK(inode->i_mode)) {
 		inode = inode->i_bdev->bd_inode;
 	} else {
+		PRINT_ERROR("File %s unsupported mode: mode=0%o\n",
+			    filename, inode->i_mode);
 		res = -EINVAL;
 		goto out_close;
 	}
@@ -2079,8 +2081,11 @@ static int vdisk_format_dif(struct scst_cmd *cmd, uint64_t start_lba,
 			goto out_set_fs;
 		} else if (err < full_len) {
 			/*
-			 * Probably that's wrong, but sometimes write() returns
-			 * value less, than requested. Let's restart.
+			 * If a write() is interrupted by a signal handler before
+			 * any bytes are written, then the call fails with the
+			 * error EINTR; if it is interrupted after at least one
+			 * byte has been written, the call succeeds, and returns
+			 * the number of bytes written  --  manpage write(2)
 			 */
 			left += full_len - err;
 			done -= full_len - err;
@@ -2943,6 +2948,9 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 		TRACE(TRACE_ORDER, "HQ cmd %p (op %s)", cmd,
 			scst_get_opcode_name(cmd));
 		break;
+	case SCST_CMD_QUEUE_ACA:
+	case SCST_CMD_QUEUE_SIMPLE:
+	case SCST_CMD_QUEUE_UNTAGGED:
 	default:
 		break;
 	}
@@ -7885,6 +7893,8 @@ static void vdev_destroy(struct scst_vdisk_dev *virt_dev)
 	return;
 }
 
+#ifndef CONFIG_SCST_PROC
+
 static void vdev_check_node(struct scst_vdisk_dev **pvirt_dev, int orig_nodeid)
 {
 	struct scst_vdisk_dev *virt_dev = *pvirt_dev;
@@ -7911,8 +7921,6 @@ out:
 	TRACE_EXIT();
 	return;
 }
-
-#ifndef CONFIG_SCST_PROC
 
 static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 	char *params, const char *const allowed_params[])
@@ -8115,6 +8123,7 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 		} else if (!strcasecmp("blocksize", p)) {
 			virt_dev->blk_shift = scst_calc_block_shift(val);
 			if (virt_dev->blk_shift < 9) {
+				PRINT_ERROR("blocksize %u too small", 1<<virt_dev->blk_shift);
 				res = -EINVAL;
 				goto out;
 			}
@@ -10357,6 +10366,7 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 
 			block_shift = scst_calc_block_shift(block_size);
 			if (block_shift < 9) {
+				PRINT_ERROR("blocksize %u too small", 1<<block_shift);
 				res = -EINVAL;
 				goto out_free_vdev;
 			}
@@ -10424,7 +10434,7 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 			PRINT_ERROR("File path \"%s\" is not "
 				"absolute", filename);
 			res = -EINVAL;
-			goto out_up;
+			goto out_free_vdev;
 		}
 
 		virt_dev->filename = kstrdup(filename, GFP_KERNEL);

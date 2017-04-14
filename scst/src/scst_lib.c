@@ -5223,6 +5223,7 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 				       tgtt->threads_num);
 		break;
 	}
+	case SCST_THREADS_POOL_TYPE_INVALID:
 	default:
 		PRINT_CRIT_ERROR("Unknown threads pool type %d (dev %s)",
 			dev->threads_pool_type, dev->virt_name);
@@ -9379,6 +9380,9 @@ static int scst_do_dif(struct scst_cmd *cmd,
 		res = generate_fn(cmd);
 		break;
 
+	case SCST_DIF_CHECK_APP_TAG:
+	case SCST_DIF_CHECK_GUARD_TAG:
+	case SCST_DIF_CHECK_REF_TAG:
 	default:
 		EXTRACHECKS_BUG_ON(1);
 		/* go through */
@@ -11805,15 +11809,15 @@ uint64_t scst_unpack_lun(const uint8_t *lun, int len)
 	case 2:
 		break;
 	case 8:
-		if ((*((__be64 *)lun) & cpu_to_be64(0x0000FFFFFFFFFFFFLL)) != 0)
+		if ((*((__be64 const *)lun) & cpu_to_be64(0x0000FFFFFFFFFFFFLL)) != 0)
 			goto out_err;
 		break;
 	case 4:
-		if (*((__be16 *)&lun[2]) != 0)
+		if (*((__be16 const *)&lun[2]) != 0)
 			goto out_err;
 		break;
 	case 6:
-		if (*((__be32 *)&lun[2]) != 0)
+		if (*((__be32 const *)&lun[2]) != 0)
 			goto out_err;
 		break;
 	case 1:
@@ -13977,10 +13981,10 @@ EXPORT_SYMBOL(scst_reassign_retained_sess_states);
 char *scst_get_next_lexem(char **token_str)
 {
 	char *p, *q;
-	static const char blank = '\0';
+	static char blank = '\0';
 
 	if ((token_str == NULL) || (*token_str == NULL))
-		return (char *)&blank;
+		return &blank;
 
 	for (p = *token_str; (*p != '\0') && (isspace(*p) || (*p == '=')); p++)
 		;
@@ -14981,7 +14985,7 @@ int scst_write_file_transactional(const char *name, const char *name1,
 
 	pos = signature_len+1;
 
-	res = vfs_write(file, (void __force __user *)buf, size, &pos);
+	res = vfs_write(file, (void const __force __user *)buf, size, &pos);
 	if (res != size)
 		goto write_error;
 
@@ -14992,7 +14996,7 @@ int scst_write_file_transactional(const char *name, const char *name1,
 	}
 
 	pos = 0;
-	res = vfs_write(file, (void __force __user *)signature, signature_len, &pos);
+	res = vfs_write(file, (void const __force __user *)signature, signature_len, &pos);
 	if (res != signature_len)
 		goto write_error;
 

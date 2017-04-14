@@ -105,6 +105,9 @@ static u8 decode_base64_digit(char base64)
 		else if ((base64 >= '0') && (base64 <= '9'))
 			return 52 + (base64 - '0');
 		else
+			//XXX This return value should be unsigned; and anyway
+			//XXX in case of a bad character in the string, our
+			//XXX caller (sometimes) checks for 65, not 255 or -1
 			return -1;
 	}
 }
@@ -146,6 +149,8 @@ static void decode_base64_string(char *string, u8 *intnum, int int_len)
 	num[1] = decode_base64_digit(string[count + 1]);
 	num[2] = decode_base64_digit(string[count + 2]);
 	num[3] = decode_base64_digit(string[count + 3]);
+	//XXX Check for the special "bad character in string" value here like above?
+	//XXX Also check the string for missing/incorrect padding?
 	if ((num[0] == 64) || (num[1] == 64))
 		return;
 	if (num[2] == 64) {
