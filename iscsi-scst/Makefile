@@ -114,40 +114,23 @@ else
 	endif
 endif
 
-GOALS:=$(if $(MAKECMDGOALS),$(MAKECMDGOALS),all)
-OTHER_GOALS:=$(foreach goal,$(MAKECMDGOALS),$(subst all,,$(goal)))
-# echo:=$(shell echo 'GOALS = $(GOALS)' >&2)
-# echo:=$(shell echo 'OTHER_GOALS = $(OTHER_GOALS)' >&2)
-ifneq ("$(GOALS)","$(OTHER_GOALS)")
-run_conftest = $(shell if [ "0$(V)" -gt 0 ]; then output=/dev/stdout; else output=/dev/null; fi; if $(MAKE) -C $(KDIR) V=$(V) SUBDIRS="$(shell pwd)/conftest/$1" PRE_CFLAGS="-Werror $(OFED_CFLAGS)" 1>&2 2>$${output}; then echo "$2"; else echo "$3"; fi)
-USE_PRE_440_WR_STRUCTURE    := $(call run_conftest,use_pre_440_wr_structure,-DUSE_PRE_440_WR_STRUCTURE)
-CREATE_CQ_FLAG              := $(call run_conftest,create_cq,-DIB_CREATE_CQ_HAS_INIT_ATTR)
-CLIENT_REMOVE		    := $(call run_conftest,ib_client_remove,-DIB_CLIENT_REMOVE_TAKES_TWO_ARGS)
-HAVE_IB_DMA_MAP_OPS         := $(call run_conftest,ib_dma_map_ops,-DHAVE_IB_DMA_MAP_OPS)
-HAVE_IB_SET_CPI_RESP_TIME   := $(call run_conftest,ib_set_cpi_resp_time,-DHAVE_IB_SET_CPI_RESP_TIME)
-GID_CHANGE_FLAG             := $(call run_conftest,gid_change,-DHAVE_IB_EVENT_GID_CHANGE)
-PD_HAS_LOCAL_DMA_LKEY	    := $(call run_conftest,pd_has_local_dma_lkey,-DIB_PD_HAS_LOCAL_DMA_LKEY)
-RDMA_CREATE_ID              := $(call run_conftest,rdma_create_id_net,-DRDMA_CREATE_ID_TAKES_NET_ARG=1,-DRDMA_CREATE_ID_TAKES_NET_ARG=0)
-QUERY_DEVICE                := $(call run_conftest,query_device,-DHAVE_IB_QUERY_DEVICE)
-QUERY_DEVICE_HAS_ATTR_ARG   := $(call run_conftest,query_device_attr_arg,-DIB_QUERY_DEVICE_HAS_ATTR_ARG)
-QUERY_GID_FLAG              := $(call run_conftest,query_gid,-DIB_QUERY_GID_HAS_ATTR_ARG)
-PRE_CFLAGS=$(OFED_CFLAGS)			\
-	$(USE_PRE_440_WR_STRUCTURE)		\
-	$(CLIENT_REMOVE)			\
-	$(CREATE_CQ_FLAG)			\
-	$(IB_CLIENT_REMOVE_TAKES_TWO_ARGS)	\
-	$(HAVE_IB_DMA_MAP_OPS)			\
-	$(HAVE_IB_SET_CPI_RESP_TIME)		\
-	$(GID_CHANGE_FLAG)			\
-	$(PD_HAS_LOCAL_DMA_LKEY)		\
-	$(RDMA_CREATE_ID)			\
-	$(QUERY_GID_FLAG)			\
-	$(QUERY_DEVICE)				\
-	$(QUERY_DEVICE_HAS_ATTR_ARG)		\
-	-DOFED_FLAVOR=$(OFED_FLAVOR)
-endif
+run_conftest = $(shell if [ "0$(V)" -gt 0 ]; then output=/dev/stdout; else output=/dev/null; fi; if $(MAKE) -C $(KDIR) V=$(V) SUBDIRS="$(shell pwd)/conftest/$1" PRE_CFLAGS="-Werror $(OFED_CFLAGS)" 1>&2 2>$${output}; then echo "$(strip $2)"; else echo "$(strip $3)"; fi)
+run_conftest_bool = $(call run_conftest,$1,-D$(strip $2)=1,-D$(strip $2)=0)
 
-mods: include/iscsi_scst_itf_ver.h Modules.symvers Module.symvers
+CONFTESTS = $(shell ls -d conftest/*)
+CONFTEST_OUTPUTS = $(shell			\
+	for t in $(CONFTESTS); do		\
+		echo $$t/result-$(KVER).txt;	\
+	done)
+
+PRE_CFLAGS = $(OFED_CFLAGS)			\
+	-DOFED_FLAVOR=$(OFED_FLAVOR)		\
+	$(shell for t in $(CONFTESTS); do 	\
+		cat $$t/result-$(KVER).txt 2>/dev/null; \
+	done)
+
+mods: include/iscsi_scst_itf_ver.h Modules.symvers Module.symvers	\
+	$(CONFTEST_OUTPUTS)
 	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(KMOD) modules
 	echo "$@:  INFINIBAND_ENABLED = $(INFINIBAND_ENABLED)"
 	if $(INFINIBAND_ENABLED); then					       \
@@ -229,12 +212,105 @@ clean:
 		include/iscsi_scst_itf_ver.h
 	rm -rf conftest/*/*.ko conftest/*/*.mod.c conftest/*/Module.symvers conftest/*/*.o \
 		conftest/*/*.o.cmd conftest/*/*.ko.cmd conftest/*/.*.o.cmd conftest/*/.*.ko.cmd \
-		conftest/*/*.order conftest/*/.*.o.d conftest/*/.tmp_versions/
+		conftest/*/*.order conftest/*/.*.o.d conftest/*/.tmp_versions/ \
+		conftest/*/result*.txt
 
 extraclean: clean
 	rm -f kernel/*.orig kernel/*.rej \
 		kernel/isert-scst/*.orig kernel/isert-scst/*.rej
 	rm -rf conftest/*/*.rej conftest/*/*.orig
+
+conftest/cm_listen/result-$(KVER).txt:					\
+	conftest/cm_listen/cm_listen.c					\
+	conftest/cm_listen/Makefile
+	echo "$(call run_conftest,cm_listen,				\
+		-DIB_CM_LISTEN_TAKES_FOURTH_ARG)" >"$@"
+
+conftest/create_cq/result-$(KVER).txt:					\
+	conftest/create_cq/create_cq.c					\
+	conftest/create_cq/Makefile
+	echo "$(call run_conftest,create_cq,				\
+		-DIB_CREATE_CQ_HAS_INIT_ATTR)" >"$@"
+
+conftest/create_send_mad_ah/result-$(KVER).txt:				\
+	conftest/create_send_mad_ah/create_send_mad_ah.c		\
+	conftest/create_send_mad_ah/Makefile
+	echo "$(call run_conftest,create_send_mad_ah,			\
+		-DCREATE_SEND_MAD_HAS_AH_ARG)" >"$@"
+
+conftest/create_send_mad_base/result-$(KVER).txt:			\
+	conftest/create_send_mad_base/create_send_mad_base.c		\
+	conftest/create_send_mad_base/Makefile
+	echo "$(call run_conftest,create_send_mad_base,			\
+		-DCREATE_SEND_MAD_HAS_BASE_ARG)" >"$@"
+
+conftest/gid_change/result-$(KVER).txt:					\
+	conftest/gid_change/gid_change.c				\
+	conftest/gid_change/Makefile
+	echo "$(call run_conftest,gid_change,-DHAVE_IB_EVENT_GID_CHANGE)" >"$@"
+
+conftest/ib_client_remove/result-$(KVER).txt:				\
+	conftest/ib_client_remove/ib_client_remove.c			\
+	conftest/ib_client_remove/Makefile
+	echo "$(call run_conftest,ib_client_remove,			\
+		-DIB_CLIENT_REMOVE_TAKES_TWO_ARGS)" >"$@"
+
+conftest/ib_dma_map_ops/result-$(KVER).txt:				\
+	conftest/ib_dma_map_ops/ib_dma_map_ops.c			\
+	conftest/ib_dma_map_ops/Makefile
+	echo "$(call run_conftest,ib_dma_map_ops,-DHAVE_IB_DMA_MAP_OPS)" >"$@"
+
+conftest/ib_set_cpi_resp_time/result-$(KVER).txt:			\
+	conftest/ib_set_cpi_resp_time/ib_set_cpi_resp_time.c		\
+	conftest/ib_set_cpi_resp_time/Makefile
+	echo "$(call run_conftest,ib_set_cpi_resp_time,			\
+		-DHAVE_IB_SET_CPI_RESP_TIME)" >"$@"
+
+conftest/mad_handler_takes_send_buf/result-$(KVER).txt:			\
+	conftest/mad_handler_takes_send_buf/mad_handler_takes_send_buf.c\
+	conftest/mad_handler_takes_send_buf/Makefile
+	echo "$(call run_conftest,mad_handler_takes_send_buf,		\
+		-DMAD_HANDLER_TAKES_SEND_BUF)" >"$@"
+
+conftest/pd_has_local_dma_lkey/result-$(KVER).txt:			\
+	conftest/pd_has_local_dma_lkey/pd_has_local_dma_lkey.c		\
+	conftest/pd_has_local_dma_lkey/Makefile
+	echo "$(call run_conftest,pd_has_local_dma_lkey,		\
+		-DIB_PD_HAS_LOCAL_DMA_LKEY)" >"$@"
+
+conftest/query_device/result-$(KVER).txt:				\
+	conftest/query_device/query_device.c				\
+	conftest/query_device/Makefile
+	echo "$(call run_conftest,query_device,-DHAVE_IB_QUERY_DEVICE)" >"$@"
+
+conftest/query_device_attr_arg/result-$(KVER).txt:			\
+	conftest/query_device_attr_arg/query_device_attr_arg.c		\
+	conftest/query_device_attr_arg/Makefile
+	echo "$(call run_conftest,query_device_attr_arg,		\
+		-DIB_QUERY_DEVICE_HAS_ATTR_ARG)" >"$@"
+
+conftest/query_gid/result-$(KVER).txt:					\
+	conftest/query_gid/query_gid.c					\
+	conftest/query_gid/Makefile
+	echo "$(call run_conftest,query_gid,-DIB_QUERY_GID_HAS_ATTR_ARG)" >"$@"
+
+conftest/rdma_create_id_net/result-$(KVER).txt:				\
+	conftest/rdma_create_id_net/rdma_create_id_net.c		\
+	conftest/rdma_create_id_net/Makefile
+	echo "$(call run_conftest_bool,rdma_create_id_net,		\
+		RDMA_CREATE_ID_TAKES_NET_ARG)" >"$@"
+
+conftest/register_mad_agent/result-$(KVER).txt:				\
+	conftest/register_mad_agent/register_mad_agent.c		\
+	conftest/register_mad_agent/Makefile
+	echo "$(call run_conftest,register_mad_agent,			\
+		-DREGISTER_MAD_AGENT_HAS_FLAGS_ARG)" >"$@"
+
+conftest/use_pre_440_wr_structure/result-$(KVER).txt:			\
+	conftest/use_pre_440_wr_structure/use_pre_440_wr_structure.c	\
+	conftest/use_pre_440_wr_structure/Makefile
+	echo "$(call run_conftest,use_pre_440_wr_structure,		\
+		-DUSE_PRE_440_WR_STRUCTURE)" >"$@"
 
 2release:
 	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ $(KMOD)/Makefile
