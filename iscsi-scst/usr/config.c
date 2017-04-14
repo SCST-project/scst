@@ -1144,7 +1144,7 @@ int config_load(const char *config_name)
 
 	err = config_isns_load(buf);
 	if ((err == 0) && (isns_server != NULL)) {
-		int rc = isns_init();
+		rc = isns_init();
 
 		if (rc != 0) {
 			log_error("iSNS server %s init failed: %d", isns_server, rc);

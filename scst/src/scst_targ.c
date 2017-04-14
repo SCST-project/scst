@@ -1552,9 +1552,13 @@ static int scst_prepare_space(struct scst_cmd *cmd)
 			goto alloc;
 		else if (r == 0) {
 			if (unlikely(cmd->bufflen == 0)) {
-				/* See comment in scst_alloc_space() */
-				if (cmd->sg == NULL)
+				if (cmd->sg == NULL) {
+					/*
+					 * Let's still have a buffer for uniformity,
+					 * scst_alloc_space() will handle bufflen 0
+					 */
 					goto alloc;
+				}
 			}
 
 			cmd->tgt_i_data_buf_alloced = 1;

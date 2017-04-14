@@ -509,6 +509,11 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 			if (cmnd->sg != &dummy_sg)
 				scst_free_sg(cmnd->sg, cmnd->sg_cnt);
 #ifdef CONFIG_SCST_DEBUG
+			/*
+			 * We can make correct behavior depend on this, so
+			 * a bug can disappear whenever you enable debugging,
+			 * but probability of failure on zero/NULL is much bigger
+			 */
 			cmnd->own_sg = 0;
 			cmnd->sg = NULL;
 			cmnd->sg_cnt = -1;
@@ -2911,7 +2916,7 @@ out:
 	return;
 }
 
-static void set_cork(struct socket *sock, int on)
+static inline void set_cork(struct socket *sock, int on)
 {
 	int opt = on;
 	mm_segment_t oldfs;

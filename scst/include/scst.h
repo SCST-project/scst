@@ -4081,8 +4081,8 @@ static inline enum scst_exec_context __scst_estimate_context(bool atomic)
 	else if (in_atomic())
 		return SCST_CONTEXT_DIRECT_ATOMIC;
 	else
-		return atomic ? SCST_CONTEXT_DIRECT :
-				SCST_CONTEXT_DIRECT_ATOMIC;
+		return atomic ? SCST_CONTEXT_DIRECT_ATOMIC :
+				SCST_CONTEXT_DIRECT;
 #else
 	return SCST_CONTEXT_THREAD;
 #endif

@@ -1687,7 +1687,7 @@ static int tx_padding(struct iscsi_cmnd *cmnd, int state)
 	int res, rest = cmnd->conn->write_size;
 	struct msghdr msg = {.msg_flags = MSG_NOSIGNAL | MSG_DONTWAIT};
 	struct kvec iov;
-	static uint32_t padding;
+	static const uint32_t padding;
 
 	BUG_ON(rest < 1);
 	BUG_ON(rest >= sizeof(uint32_t));
