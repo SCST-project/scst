@@ -1,15 +1,15 @@
 #include <linux/module.h>
 #include <rdma/ib_verbs.h>
 
-static void client_remove(struct ib_device *dev, void *client_data)
+static void remove_one(struct ib_device *device, void *client_data)
 {
 }
 
 static int modinit(void)
 {
-	struct ib_client c = { .remove = client_remove };
+	struct ib_client c = { .remove = remove_one };
 
-	return (uintptr_t)c.remove;
+	return c.remove != NULL;
 }
 
 module_init(modinit);
