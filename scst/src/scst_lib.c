@@ -4783,6 +4783,7 @@ static void scst_put_acg_work(struct work_struct *work)
 void scst_put_acg(struct scst_acg *acg)
 {
 	struct scst_acg_put_work *put_work;
+	bool rc;
 
 	put_work = kmalloc(sizeof(*put_work), GFP_KERNEL | __GFP_NOFAIL);
 	if (WARN_ON_ONCE(!put_work)) {
@@ -4801,7 +4802,9 @@ void scst_put_acg(struct scst_acg *acg)
 	 * Schedule the kref_put() call instead of invoking it directly to
 	 * avoid deep recursion and a stack overflow.
 	 */
-	WARN_ON_ONCE(!queue_work(scst_release_acg_wq, &put_work->work));
+	rc = queue_work(scst_release_acg_wq, &put_work->work);
+	WARN_ON_ONCE(!rc);
+	return;
 }
 
 void scst_get_acg(struct scst_acg *acg)
