@@ -89,7 +89,11 @@ int ft_send_read_data(struct scst_cmd *cmd)
 		mem_len -= tlen;
 		mem_off = tlen;
 	} else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
+		fcmd->seq = fc_seq_start_next(fcmd->seq);
+#else
 		fcmd->seq = lport->tt.seq_start_next(fcmd->seq);
+#endif
 
 	/* no scatter/gather in skb for odd word length due to fc_seq_send() */
 	use_sg = !(remaining % 4) && lport->sg_supp;
@@ -175,8 +179,12 @@ int ft_send_read_data(struct scst_cmd *cmd)
 			       remaining ? (FC_FC_EX_CTX | FC_FC_REL_OFF) :
 			       (FC_FC_EX_CTX | FC_FC_REL_OFF | FC_FC_END_SEQ),
 			       fh_off);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
+		error = FCST_INJ_SEND_ERR(fc_seq_send(lport, fcmd->seq, fp));
+#else
 		error = FCST_INJ_SEND_ERR(lport->tt.seq_send(lport, fcmd->seq,
 							     fp));
+#endif
 		if (error) {
 			pr_warn("Sending frame with oid %#x oxid %#x resp_len"
 				" %d failed at frame_off %u / remaining %zu"
