@@ -261,18 +261,18 @@ static void ft_cmd_done(struct ft_cmd *fcmd)
 #endif
 
 	if (sp)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
-		lport->tt.exch_done(sp);
-#else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 		fc_exch_done(sp);
+#else
+		lport->tt.exch_done(sp);
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36)
 	if (fr_seq(fp))
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
-		lport->tt.seq_release(fr_seq(fp));
-#else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 		fc_seq_release(fr_seq(fp));
+#else
+		lport->tt.seq_release(fr_seq(fp));
 #endif
 #endif
 
@@ -395,18 +395,18 @@ int ft_send_response(struct scst_cmd *cmd)
 	/*
 	 * Send response.
 	 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
-	fcmd->seq = lport->tt.seq_start_next(fcmd->seq);
-#else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 	fcmd->seq = fc_seq_start_next(fcmd->seq);
+#else
+	fcmd->seq = lport->tt.seq_start_next(fcmd->seq);
 #endif
 	fc_fill_fc_hdr(fp, FC_RCTL_DD_CMD_STATUS, ep->did, ep->sid, FC_TYPE_FCP,
 		       FC_FC_EX_CTX | FC_FC_LAST_SEQ | FC_FC_END_SEQ, 0);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
-	error = FCST_INJ_SEND_ERR(lport->tt.seq_send(lport, fcmd->seq, fp));
-#else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 	error = FCST_INJ_SEND_ERR(fc_seq_send(lport, fcmd->seq, fp));
+#else
+	error = FCST_INJ_SEND_ERR(lport->tt.seq_send(lport, fcmd->seq, fp));
 #endif
 	if (error < 0) {
 		pr_err("Sending response for exchange with OX_ID %#x and RX_ID"
@@ -505,17 +505,17 @@ int ft_send_xfer_rdy(struct scst_cmd *cmd)
 	txrdy->ft_data_ro = 0;
 	txrdy->ft_burst_len = htonl(scst_cmd_get_bufflen(cmd));
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
-	fcmd->seq = lport->tt.seq_start_next(fcmd->seq);
-#else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 	fcmd->seq = fc_seq_start_next(fcmd->seq);
+#else
+	fcmd->seq = lport->tt.seq_start_next(fcmd->seq);
 #endif
 	fc_fill_fc_hdr(fp, FC_RCTL_DD_DATA_DESC, ep->did, ep->sid, FC_TYPE_FCP,
 		       FC_FC_EX_CTX | FC_FC_END_SEQ | FC_FC_SEQ_INIT, 0);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
-	error = FCST_INJ_SEND_ERR(lport->tt.seq_send(lport, fcmd->seq, fp));
-#else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 	error = FCST_INJ_SEND_ERR(fc_seq_send(lport, fcmd->seq, fp));
+#else
+	error = FCST_INJ_SEND_ERR(lport->tt.seq_send(lport, fcmd->seq, fp));
 #endif
 	switch (error) {
 	case 0:
@@ -574,30 +574,22 @@ static void ft_send_resp_status(struct fc_frame *rx_fp, u32 status,
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 	sp = fr_seq(rx_fp);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
 	sp = lport->tt.seq_start_next(sp);
-#else
-	sp = fc_seq_start_next(sp);
-#endif
 	ep = fc_seq_exch(sp);
 	fc_fill_fc_hdr(fp, FC_RCTL_DD_CMD_STATUS, ep->did, ep->sid, FC_TYPE_FCP,
 		       FC_FC_EX_CTX | FC_FC_LAST_SEQ | FC_FC_END_SEQ, 0);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
 	lport->tt.seq_send(lport, sp, fp);
-#else
-	fc_seq_send(lport, sp, fp);
-#endif
 out:
 	;
 #else
 	fc_fill_reply_hdr(fp, rx_fp, FC_RCTL_DD_CMD_STATUS, 0);
 	sp = fr_seq(fp);
 	if (sp)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
-		lport->tt.seq_send(lport, sp, fp);
-#else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 		fc_seq_send(lport, sp, fp);
+#else
+		lport->tt.seq_send(lport, sp, fp);
 #endif
 	else
 		lport->tt.frame_send(lport, fp);
@@ -726,10 +718,10 @@ static void ft_recv_cmd(struct ft_sess *sess, struct fc_frame *fp)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 	sp = fr_seq(fp);
 #else
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
-	sp = lport->tt.seq_assign(lport, fp);
-#else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 	sp = fc_seq_assign(lport, fp);
+#else
+	sp = lport->tt.seq_assign(lport, fp);
 #endif
 	if (!sp)
 		goto busy;
@@ -779,10 +771,10 @@ static void ft_recv_cmd(struct ft_sess *sess, struct fc_frame *fp)
 	cmd->state = FT_STATE_NEW;
 
 	fcmd->seq = sp;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
-	lport->tt.seq_set_resp(sp, ft_recv_seq, cmd);
-#else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 	fc_seq_set_resp(sp, ft_recv_seq, cmd);
+#else
+	lport->tt.seq_set_resp(sp, ft_recv_seq, cmd);
 #endif
 
 	switch (fcp->fc_flags & (FCP_CFL_RDDATA | FCP_CFL_WRDATA)) {
@@ -832,10 +824,10 @@ busy:
 	if (fcmd)
 		ft_cmd_done(fcmd);
 	else if (sp)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
-		lport->tt.exch_done(sp);
-#else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 		fc_exch_done(sp);
+#else
+		lport->tt.exch_done(sp);
 #endif
 }
 
@@ -864,27 +856,21 @@ static void ft_cmd_ls_rjt(struct fc_frame *rx_fp, enum fc_els_rjt_reason reason,
 	rjt->er_reason = reason;
 	rjt->er_explan = explan;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
 	sp = lport->tt.seq_start_next(sp);
-#else
-	sp = fc_seq_start_next(sp);
-#endif
 	fc_fill_fc_hdr(fp, FC_RCTL_ELS_REP, ep->did, ep->sid, FC_TYPE_FCP,
 		       FC_FC_EX_CTX | FC_FC_END_SEQ | FC_FC_LAST_SEQ, 0);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
 	lport->tt.seq_send(lport, sp, fp);
 #else
-	fc_seq_send(lport, sp, fp);
-#endif
-#else
 	struct fc_seq_els_data rjt_data;
+	struct fc_lport *lport;
 
+	lport = fr_dev(rx_fp);
 	rjt_data.reason = reason;
 	rjt_data.explan = explan;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
-	fr_dev(rx_fp)->tt.seq_els_rsp_send(rx_fp, ELS_LS_RJT, &rjt_data);
-#else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 	fc_seq_els_rsp_send(rx_fp, ELS_LS_RJT, &rjt_data);
+#else
+	lport->tt.seq_els_rsp_send(rx_fp, ELS_LS_RJT, &rjt_data);
 #endif
 #endif
 }

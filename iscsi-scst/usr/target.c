@@ -415,8 +415,7 @@ int target_create(const char *name, struct target **out_target)
 	}
 
 	memset(target, 0, sizeof(*target));
-	strncpy(target->name, name, sizeof(target->name) - 1);
-	target->name[sizeof(target->name)-1] = '\0';
+	strlcpy(target->name, name, sizeof(target->name));
 
 	params_set_defaults(target->target_params, target_keys);
 	params_set_defaults(target->session_params, session_keys);
