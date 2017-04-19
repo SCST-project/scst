@@ -747,7 +747,7 @@ static int process_cmd(struct vdisk_cmd *vcmd)
 
 	case SCST_USER_TASK_MGMT_DONE:
 		res = do_tm(vcmd, 1);
-#if DEBUG_TM_FN_IGNORE
+#ifdef DEBUG_TM_FN_IGNORE
 		if (dev->debug_tm_ignore) {
 			sleep(15);
 		}
