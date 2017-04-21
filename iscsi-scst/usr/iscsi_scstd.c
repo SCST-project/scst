@@ -846,8 +846,13 @@ int main(int argc, char **argv)
 	/*
 	 * Otherwise we could die in some later write() during the event_loop()
 	 * instead of getting EPIPE!
+	 *
+	 * The effects of signal(2) in a multithreaded process are unspecified,
+	 * so use sigaction(2) instead.
 	 */
-	signal(SIGPIPE, SIG_IGN);
+	struct sigaction act = (struct sigaction) { .sa_handler = SIG_IGN };
+	int rc = sigaction(SIGPIPE, &act, NULL);
+	assert(rc == 0);
 
 	while ((ch = getopt_long(argc, argv, "c:fd:s:u:g:a:p:vh", long_options, &longindex)) >= 0) {
 		switch (ch) {
