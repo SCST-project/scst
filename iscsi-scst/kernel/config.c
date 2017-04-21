@@ -1095,7 +1095,7 @@ out:
 	return res;
 }
 
-static long ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+static long iscsi_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	long err;
 
@@ -1172,7 +1172,7 @@ out:
 	return err;
 }
 
-static int open(struct inode *inode, struct file *file)
+static int iscsi_open(struct inode *inode, struct file *file)
 {
 	bool already;
 
@@ -1190,7 +1190,7 @@ static int open(struct inode *inode, struct file *file)
 		return 0;
 }
 
-static int release(struct inode *inode, struct file *filp)
+static int iscsi_release(struct inode *inode, struct file *filp)
 {
 #ifndef CONFIG_SCST_PROC
 	struct iscsi_attr *attr, *t;
@@ -1222,10 +1222,10 @@ static int release(struct inode *inode, struct file *filp)
 
 const struct file_operations ctr_fops = {
 	.owner		= THIS_MODULE,
-	.unlocked_ioctl	= ioctl,
-	.compat_ioctl	= ioctl,
-	.open		= open,
-	.release	= release,
+	.unlocked_ioctl	= iscsi_ioctl,
+	.compat_ioctl	= iscsi_ioctl,
+	.open		= iscsi_open,
+	.release	= iscsi_release,
 };
 
 #ifdef CONFIG_SCST_DEBUG
