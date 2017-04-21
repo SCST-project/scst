@@ -1066,6 +1066,15 @@ retry:
 			goto retry;
 		log_error("read netlink fd (%d) failed: %s", fd, strerror(errno));
 		exit(1);
+	} else if (rc == 0) {
+		/*
+		 * EOF on nl_fd --
+		 * We arrive here after the kernel module closes the other end
+		 * of nl_fd during shutdown of the kernel modules.  The daemon
+		 * thread is expected to exit when this happens.
+		 */
+		log_info("kernel module shutdown -- daemon exits");
+		exit(1);
 	}
 
 	log_debug(1, "target %u, session %#" PRIx64 ", conn %u, code %u, cookie %d",
