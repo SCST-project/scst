@@ -2154,6 +2154,9 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 	req->scst_state = ISCSI_CMD_STATE_RX_CMD;
 	conn->rx_task = current;
 	scst_cmd_init_stage1_done(scst_cmd, SCST_CONTEXT_DIRECT, 0);
+#ifdef CONFIG_SCST_EXTRACHECKS
+	conn->rx_task = NULL;
+#endif
 
 	if (req->scst_state != ISCSI_CMD_STATE_RX_CMD)
 		res = req->conn->transport->iscsit_receive_cmnd_data(req);
