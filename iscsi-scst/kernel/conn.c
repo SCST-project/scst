@@ -397,7 +397,7 @@ struct iscsi_conn *conn_lookup(struct iscsi_session *session, u16 cid)
 	 */
 	list_for_each_entry_reverse(conn, &session->conn_list,
 					conn_list_entry) {
-		if (conn->cid == cid)
+		if (conn->cid == cid && !conn->closing)
 			return conn;
 	}
 	return NULL;
