@@ -1700,6 +1700,11 @@ next:
 
 	dev->dev_rd_only = virt_dev->rd_only;
 
+#ifdef CONFIG_SCST_PROC
+	if (virt_dev->nullio && !virt_dev->file_size)
+		virt_dev->file_size = VDISK_NULLIO_SIZE;
+#endif
+
 	res = vdisk_reexamine(virt_dev);
 	if (res < 0)
 		goto out;
