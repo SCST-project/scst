@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2007 - 2016 Vladislav Bolkhovitin
+ *  Copyright (C) 2007 - 2017 Vladislav Bolkhovitin
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License

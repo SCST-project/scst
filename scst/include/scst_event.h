@@ -1,7 +1,7 @@
 /*
  *  include/scst_event.h
  *
- *  Copyright (C) 2014 - 2016 SanDisk Corporation
+ *  Copyright (C) 2014 - 2017 SanDisk Corporation
  *
  *  Contains constants and data structures for scst_event module.
  */

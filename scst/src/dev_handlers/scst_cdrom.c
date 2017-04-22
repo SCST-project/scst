@@ -1,9 +1,9 @@
 /*
  *  scst_cdrom.c
  *
- *  Copyright (C) 2004 - 2016 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004 - 2017 Vladislav Bolkhovitin <vst@vlnb.net>
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
- *  Copyright (C) 2007 - 2016 SanDisk Corporation
+ *  Copyright (C) 2007 - 2017 SanDisk Corporation
  *
  *  SCSI CDROM (type 5) dev handler
  *
