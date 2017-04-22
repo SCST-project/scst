@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2006 - 2009 Mellanox Technology Inc.  All rights reserved.
- * Copyright (C) 2008 - 2016 Bart Van Assche <bvanassche@acm.org>.
+ * Copyright (C) 2008 - 2017 Bart Van Assche <bvanassche@acm.org>.
  * Copyright (C) 2008 Vladislav Bolkhovitin <vst@vlnb.net>
  *
  * This software is available to you under a choice of one of two

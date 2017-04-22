@@ -3,7 +3,7 @@
 #  Based on ../mvsas_tgt/Makefile
 #
 #  Copyright (C) 2006 - 2008 Jacky Feng <jfeng@marvell.com>
-#  Copyright (C) 2011 - 2016 Bart Van Assche <bvanassche@acm.org>
+#  Copyright (C) 2011 - 2017 Bart Van Assche <bvanassche@acm.org>
 #  
 #  This program is free software; you can redistribute it and/or
 #  modify it under the terms of the GNU General Public License

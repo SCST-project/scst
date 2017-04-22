@@ -1,10 +1,10 @@
 /*
  *  qla2x00t.h
  *
- *  Copyright (C) 2004 - 2016 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004 - 2017 Vladislav Bolkhovitin <vst@vlnb.net>
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
  *  Copyright (C) 2006 Nathaniel Clark <nate@misrule.us>
- *  Copyright (C) 2007 - 2016 SanDisk Corporation
+ *  Copyright (C) 2007 - 2017 SanDisk Corporation
  *
  *  QLogic 22xx/23xx/24xx/25xx FC target driver.
  *

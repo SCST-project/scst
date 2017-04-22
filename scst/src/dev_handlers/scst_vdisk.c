@@ -1,12 +1,12 @@
 /*
  *  scst_vdisk.c
  *
- *  Copyright (C) 2004 - 2016 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004 - 2017 Vladislav Bolkhovitin <vst@vlnb.net>
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
  *  Copyright (C) 2007 Ming Zhang <blackmagic02881 at gmail dot com>
  *  Copyright (C) 2007 Ross Walker <rswwalker at hotmail dot com>
- *  Copyright (C) 2007 - 2016 SanDisk Corporation
- *  Copyright (C) 2008 - 2016 Bart Van Assche <bvanassche@acm.org>
+ *  Copyright (C) 2007 - 2017 SanDisk Corporation
+ *  Copyright (C) 2008 - 2017 Bart Van Assche <bvanassche@acm.org>
  *
  *  SCSI disk (type 0) and CDROM (type 5) dev handler using files
  *  on file systems or block devices (VDISK)

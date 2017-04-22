@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2008 - 2010 Richard Sharpe
  * Copyright (C) 1992 Eric Youngdale
- * Copyright (C) 2008 - 2016 Vladislav Bolkhovitin <vst@vlnb.net>
+ * Copyright (C) 2008 - 2017 Vladislav Bolkhovitin <vst@vlnb.net>
  *
  * Simulate a host adapter and an SCST target adapter back to back
  *
