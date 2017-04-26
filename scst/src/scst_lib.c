@@ -6777,6 +6777,25 @@ out:
 	return res;
 }
 
+int scst_scsi_execute(struct scsi_device *sdev, const unsigned char *cmd,
+		      int data_direction, void *buffer, unsigned bufflen,
+		      unsigned char *sense, int timeout, int retries, u64 flags)
+{
+	return scsi_execute(sdev, cmd, data_direction, buffer, bufflen, sense,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+			    NULL, /* sshdr */
+#endif
+			    timeout, retries, flags
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+			    , 0 /* rq_flags */
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+			    , NULL /* resid */
+#endif
+			    );
+}
+EXPORT_SYMBOL(scst_scsi_execute);
+
 static void scst_send_release(struct scst_device *dev)
 {
 	struct scsi_device *scsi_dev;
@@ -6801,12 +6820,8 @@ static void scst_send_release(struct scst_device *dev)
 
 		TRACE(TRACE_DEBUG | TRACE_SCSI, "%s", "Sending RELEASE req to "
 			"SCSI mid-level");
-		rc = scsi_execute(scsi_dev, cdb, SCST_DATA_NONE, NULL, 0,
-				sense, 15, 0, 0
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
-				, NULL
-#endif
-				);
+		rc = scst_scsi_execute(scsi_dev, cdb, SCST_DATA_NONE, NULL, 0,
+				       sense, 15, 0, 0);
 		TRACE_DBG("RELEASE done: %x", rc);
 
 		if (scsi_status_is_good(rc)) {
@@ -13248,12 +13263,9 @@ int scst_obtain_device_parameters(struct scst_device *dev,
 		memset(sense_buffer, 0, sizeof(sense_buffer));
 
 		TRACE(TRACE_SCSI, "%s", "Doing internal MODE_SENSE");
-		rc = scsi_execute(dev->scsi_dev, cmd, SCST_DATA_READ, buffer,
-				sizeof(buffer), sense_buffer, 15, 0, 0
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
-				, NULL
-#endif
-				);
+		rc = scst_scsi_execute(dev->scsi_dev, cmd, SCST_DATA_READ,
+				       buffer, sizeof(buffer), sense_buffer,
+				       15, 0, 0);
 
 		TRACE_DBG("MODE_SENSE done: %x", rc);
 
