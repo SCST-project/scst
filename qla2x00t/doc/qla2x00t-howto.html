@@ -90,11 +90,6 @@ And on SUSE systems these packages can be installed by running the following com
 </li>
 
 <li>
-  Download the latest QLogic SCST target driver:
-  <pre>[root@proj ]# git clone git://git.qlogic.com/scst-qla2xxx.git</pre>
-</li>
-
-<li>
   Download the SCST source code. That source code can be downloaded either
   from the <a href="http://scst.sourceforge.net/downloads.html">SCST
   downloads page</a> or from the SCST Subversion source code
@@ -113,14 +108,15 @@ And on SUSE systems these packages can be installed by running the following com
 </li>
 
 <li>
-  In the SCST directory, create a soft link to the QLogic driver:
-  <pre>[root@proj ]# cd scst
+  If you want to use the latest QLogic SCST target driver from the QLogic git, download it by:
+  <pre>[root@proj ]# git clone git://git.qlogic.com/scst-qla2xxx.git
+[root@proj ]# cd scst
 [root@proj scst]# ln -s ../scst-qla2xxx/drivers/scsi/qla2xxx qla2x00t_git</pre>
+  Note, this driver is not stable at the moment, therefore use of the driver from the SCST tree is recommended.
 </li>
 
 <li>
-Find out whether you will need SCSI pass-through and/or the iSCSI
-zero-copy optimization. If not, skip the kernel download, patch, rebuild
+Find out whether you will need iSCSI zero-copy optimization. Since it is valuable only with scst_user user space dev handlers, most likely, you don't need this feature. If you don't, skip the kernel download, patch, rebuild
 and reboot steps and continue with the <a href="#blacklist">SCST build step</a>.
 </li>
 

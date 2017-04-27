@@ -37,6 +37,9 @@
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
 #include <linux/crc-t10dif.h>
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+#include <linux/sched/task_stack.h>
+#endif
 #include <linux/namei.h>
 #include <linux/mount.h>
 
@@ -6883,6 +6886,25 @@ out:
 	return res;
 }
 
+int scst_scsi_execute(struct scsi_device *sdev, const unsigned char *cmd,
+		      int data_direction, void *buffer, unsigned bufflen,
+		      unsigned char *sense, int timeout, int retries, u64 flags)
+{
+	return scsi_execute(sdev, cmd, data_direction, buffer, bufflen, sense,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+			    NULL, /* sshdr */
+#endif
+			    timeout, retries, flags
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+			    , 0 /* rq_flags */
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+			    , NULL /* resid */
+#endif
+			    );
+}
+EXPORT_SYMBOL(scst_scsi_execute);
+
 static void scst_send_release(struct scst_device *dev)
 {
 	struct scsi_device *scsi_dev;
@@ -6907,12 +6929,8 @@ static void scst_send_release(struct scst_device *dev)
 
 		TRACE(TRACE_DEBUG | TRACE_SCSI, "%s", "Sending RELEASE req to "
 			"SCSI mid-level");
-		rc = scsi_execute(scsi_dev, cdb, SCST_DATA_NONE, NULL, 0,
-				sense, 15, 0, 0
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
-				, NULL
-#endif
-				);
+		rc = scst_scsi_execute(scsi_dev, cdb, SCST_DATA_NONE, NULL, 0,
+				       sense, 15, 0, 0);
 		TRACE_DBG("RELEASE done: %x", rc);
 
 		if (scsi_status_is_good(rc)) {
@@ -7945,7 +7963,11 @@ static struct request *blk_make_request(struct request_queue *q,
 	if (IS_ERR(rq))
 		return rq;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
 	scsi_req_init(rq);
+#else
+	blk_rq_set_block_pc(rq);
+#endif
 
 	for_each_bio(bio) {
 		struct bio *bounce_bio = bio;
@@ -8155,7 +8177,11 @@ static struct request *blk_map_kern_sg(struct request_queue *q,
 		if (unlikely(!rq))
 			return ERR_PTR(-ENOMEM);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
 		scsi_req_init(rq);
+#else
+		rq->cmd_type = REQ_TYPE_BLOCK_PC;
+#endif
 		goto out;
 	}
 
@@ -8357,11 +8383,13 @@ static void scsi_end_async(struct request *req, int error)
 		SAM_STAT_CHECK_CONDITION : 0;
 
 	if (sioc->done)
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 30)
-		sioc->done(sioc->data, sioc->sense, errors, req->data_len);
-#else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
 		sioc->done(sioc->data, sioc->sense, errors,
 			   scsi_req(req)->resid_len);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+		sioc->done(sioc->data, sioc->sense, errors, req->resid_len);
+#else
+		sioc->done(sioc->data, sioc->sense, errors, req->data_len);
 #endif
 
 	kmem_cache_free(scsi_io_context_cache, sioc);
@@ -8382,6 +8410,11 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	int res = 0;
 	struct request_queue *q = cmd->dev->scsi_dev->request_queue;
 	struct request *rq;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+	struct scsi_request *req;
+#else
+	struct request *req;
+#endif
 	struct scsi_io_context *sioc;
 	bool reading = !(cmd->data_direction & SCST_DATA_WRITE);
 	gfp_t gfp = cmd->cmd_gfp_mask;
@@ -8430,15 +8463,21 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	sioc->data = data;
 	sioc->done = done;
 
-	scsi_req(rq)->cmd_len = cmd_len;
-	if (scsi_req(rq)->cmd_len <= BLK_MAX_CDB) {
-		memset(scsi_req(rq)->cmd, 0, BLK_MAX_CDB); /* ATAPI hates garbage after CDB */
-		memcpy(scsi_req(rq)->cmd, cmd->cdb, cmd->cdb_len);
-	} else
-		scsi_req(rq)->cmd = cmd->cdb;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+	req = scsi_req(rq);
+#else
+	req = rq;
+#endif
 
-	scsi_req(rq)->sense = sioc->sense;
-	scsi_req(rq)->sense_len = sizeof(sioc->sense);
+	req->cmd_len = cmd_len;
+	if (req->cmd_len <= BLK_MAX_CDB) {
+		memset(req->cmd, 0, BLK_MAX_CDB); /* ATAPI hates garbage after CDB */
+		memcpy(req->cmd, cmd->cdb, cmd->cdb_len);
+	} else
+		req->cmd = cmd->cdb;
+
+	req->sense = sioc->sense;
+	req->sense_len = sizeof(sioc->sense);
 	rq->timeout = cmd->timeout;
 	rq->retries = cmd->retries;
 	rq->end_io_data = sioc;
@@ -13359,12 +13398,9 @@ int scst_obtain_device_parameters(struct scst_device *dev,
 		memset(sense_buffer, 0, sizeof(sense_buffer));
 
 		TRACE(TRACE_SCSI, "%s", "Doing internal MODE_SENSE");
-		rc = scsi_execute(dev->scsi_dev, cmd, SCST_DATA_READ, buffer,
-				sizeof(buffer), sense_buffer, 15, 0, 0
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
-				, NULL
-#endif
-				);
+		rc = scst_scsi_execute(dev->scsi_dev, cmd, SCST_DATA_READ,
+				       buffer, sizeof(buffer), sense_buffer,
+				       15, 0, 0);
 
 		TRACE_DBG("MODE_SENSE done: %x", rc);
 
