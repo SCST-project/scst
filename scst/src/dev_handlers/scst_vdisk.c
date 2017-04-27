@@ -55,6 +55,9 @@
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
 #include <linux/falloc.h>
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+#include <linux/sched/signal.h>
+#endif
 
 #define LOG_PREFIX			"dev_vdisk"
 

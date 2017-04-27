@@ -1203,7 +1203,13 @@ void scst_kobject_put_and_wait(struct kobject *kobj, const char *category,
 		goto out_free;
 
 	PRINT_INFO("Waiting for release of sysfs entry for %s %s (%d refs)",
-		   category, name ? : "(?)", atomic_read(&kobj->kref.refcount));
+		   category, name ? : "(?)",
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+		   kref_read(&kobj->kref)
+#else
+		   atomic_read(&kobj->kref.refcount)
+#endif
+		   );
 	wait_for_completion(c);
 	PRINT_INFO("Finished waiting for release of %s %s sysfs entry",
 		   category, name ? : "(?)");

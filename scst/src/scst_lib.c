@@ -37,6 +37,9 @@
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
 #include <linux/crc-t10dif.h>
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+#include <linux/sched/task_stack.h>
+#endif
 #include <linux/namei.h>
 #include <linux/mount.h>
 
@@ -7853,7 +7856,11 @@ static struct request *blk_make_request(struct request_queue *q,
 	if (IS_ERR(rq))
 		return rq;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+	scsi_req_init(rq);
+#else
 	blk_rq_set_block_pc(rq);
+#endif
 
 	for_each_bio(bio) {
 		struct bio *bounce_bio = bio;
@@ -8063,7 +8070,11 @@ static struct request *blk_map_kern_sg(struct request_queue *q,
 		if (unlikely(!rq))
 			return ERR_PTR(-ENOMEM);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+		scsi_req_init(rq);
+#else
 		rq->cmd_type = REQ_TYPE_BLOCK_PC;
+#endif
 		goto out;
 	}
 
@@ -8259,10 +8270,14 @@ static void scsi_end_async(struct request *req, int error)
 #endif
 
 	if (sioc->done)
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 30)
-		sioc->done(sioc->data, sioc->sense, req->errors, req->data_len);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+		sioc->done(sioc->data, sioc->sense, req->errors,
+			   scsi_req(req)->resid_len);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+		sioc->done(sioc->data, sioc->sense, req->errors,
+			   req->resid_len);
 #else
-		sioc->done(sioc->data, sioc->sense, req->errors, req->resid_len);
+		sioc->done(sioc->data, sioc->sense, req->errors, req->data_len);
 #endif
 
 	kmem_cache_free(scsi_io_context_cache, sioc);
@@ -8283,6 +8298,11 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	int res = 0;
 	struct request_queue *q = cmd->dev->scsi_dev->request_queue;
 	struct request *rq;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+	struct scsi_request *req;
+#else
+	struct request *req;
+#endif
 	struct scsi_io_context *sioc;
 	bool reading = !(cmd->data_direction & SCST_DATA_WRITE);
 	gfp_t gfp = cmd->cmd_gfp_mask;
@@ -8331,15 +8351,21 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	sioc->data = data;
 	sioc->done = done;
 
-	rq->cmd_len = cmd_len;
-	if (rq->cmd_len <= BLK_MAX_CDB) {
-		memset(rq->cmd, 0, BLK_MAX_CDB); /* ATAPI hates garbage after CDB */
-		memcpy(rq->cmd, cmd->cdb, cmd->cdb_len);
-	} else
-		rq->cmd = cmd->cdb;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+	req = scsi_req(rq);
+#else
+	req = rq;
+#endif
 
-	rq->sense = sioc->sense;
-	rq->sense_len = sizeof(sioc->sense);
+	req->cmd_len = cmd_len;
+	if (req->cmd_len <= BLK_MAX_CDB) {
+		memset(req->cmd, 0, BLK_MAX_CDB); /* ATAPI hates garbage after CDB */
+		memcpy(req->cmd, cmd->cdb, cmd->cdb_len);
+	} else
+		req->cmd = cmd->cdb;
+
+	req->sense = sioc->sense;
+	req->sense_len = sizeof(sioc->sense);
 	rq->timeout = cmd->timeout;
 	rq->retries = cmd->retries;
 	rq->end_io_data = sioc;
