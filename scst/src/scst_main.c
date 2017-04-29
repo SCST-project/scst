@@ -176,7 +176,7 @@ static unsigned int scst_max_cmd_mem;
 unsigned int scst_max_dev_cmd_mem;
 int scst_forcibly_close_sessions;
 
-module_param_named(scst_threads, scst_threads, int, 0);
+module_param_named(scst_threads, scst_threads, int, S_IRUGO);
 MODULE_PARM_DESC(scst_threads, "SCSI target threads count");
 
 module_param_named(scst_max_cmd_mem, scst_max_cmd_mem, int, S_IRUGO);
