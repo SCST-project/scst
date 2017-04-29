@@ -2703,7 +2703,9 @@ static int __init init_scst(void)
 		goto out_sysfs_cleanup;
 
 #ifdef CONFIG_SCST_PROC
+	mutex_lock(&scst_mutex);
 	res = scst_alloc_add_acg(NULL, SCST_DEFAULT_ACG_NAME, false, &scst_default_acg);
+	mutex_unlock(&scst_mutex);
 	if (res != 0)
 		goto out_destroy_sgv_pool;
 #endif
