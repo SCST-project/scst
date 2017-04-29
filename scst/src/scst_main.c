@@ -176,7 +176,7 @@ static unsigned int scst_max_cmd_mem;
 unsigned int scst_max_dev_cmd_mem;
 int scst_forcibly_close_sessions;
 
-module_param_named(scst_threads, scst_threads, int, 0);
+module_param_named(scst_threads, scst_threads, int, S_IRUGO);
 MODULE_PARM_DESC(scst_threads, "SCSI target threads count");
 
 module_param_named(scst_max_cmd_mem, scst_max_cmd_mem, int, S_IRUGO);
@@ -2698,7 +2698,9 @@ static int __init init_scst(void)
 		goto out_sysfs_cleanup;
 
 #ifdef CONFIG_SCST_PROC
+	mutex_lock(&scst_mutex);
 	res = scst_alloc_add_acg(NULL, SCST_DEFAULT_ACG_NAME, false, &scst_default_acg);
+	mutex_unlock(&scst_mutex);
 	if (res != 0)
 		goto out_destroy_sgv_pool;
 #endif
