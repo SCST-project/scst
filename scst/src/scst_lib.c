@@ -8267,16 +8267,26 @@ static void scsi_end_async(struct request *req, int error)
 		lockdep_assert_held(req->q->queue_lock);
 #endif
 
-	if (sioc->done)
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
-		sioc->done(sioc->data, sioc->sense, req->errors,
-			   scsi_req(req)->resid_len);
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
-		sioc->done(sioc->data, sioc->sense, req->errors,
-			   req->resid_len);
+	if (sioc->done) {
+		int result, resid_len;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
+		result = scsi_req(req)->result;
 #else
-		sioc->done(sioc->data, sioc->sense, req->errors, req->data_len);
+		result = req->errors;
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+		resid_len = scsi_req(req)->resid_len;
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+		resid_len = req->resid_len;
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+		sioc->done(sioc->data, sioc->sense, result, resid_len);
+#else
+		sioc->done(sioc->data, sioc->sense, result, req->data_len);
+#endif
+	}
 
 	kmem_cache_free(scsi_io_context_cache, sioc);
 
@@ -8365,7 +8375,11 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	req->sense = sioc->sense;
 	req->sense_len = sizeof(sioc->sense);
 	rq->timeout = cmd->timeout;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
+	req->retries = cmd->retries;
+#else
 	rq->retries = cmd->retries;
+#endif
 	rq->end_io_data = sioc;
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 35)
 	rq->cmd_flags |= REQ_FAILFAST_MASK;
