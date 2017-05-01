@@ -33,7 +33,9 @@
 #include <asm/kmap_types.h>
 #include <asm/unaligned.h>
 #include <asm/checksum.h>
+#ifndef INSIDE_KERNEL_TREE
 #include <linux/version.h>
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
 #include <linux/crc-t10dif.h>
 #endif
@@ -42,10 +44,6 @@
 #endif
 #include <linux/namei.h>
 #include <linux/mount.h>
-
-#ifndef INSIDE_KERNEL_TREE
-#include <linux/version.h>
-#endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
 #include <linux/writeback.h>

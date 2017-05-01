@@ -22,10 +22,6 @@
 #include <linux/poll.h>
 #include <linux/stddef.h>
 #include <linux/slab.h>
-#include <linux/version.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
-#include <linux/sched/signal.h>
-#endif
 
 #define LOG_PREFIX		DEV_USER_NAME
 
@@ -33,10 +29,15 @@
 #include <scst/scst.h>
 #include <scst/scst_user.h>
 #else
+#include <linux/version.h>
 #include "scst.h"
 #include "scst_user.h"
 #endif
 #include "scst_dev_handler.h"
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+#include <linux/sched/signal.h>
+#endif
 
 #ifndef INSIDE_KERNEL_TREE
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)

@@ -36,10 +36,13 @@
 #ifndef __ISER_H__
 #define __ISER_H__
 
-#include <linux/version.h>
 #include <linux/interrupt.h>
 #include <linux/workqueue.h>
 #include <rdma/ib_verbs.h>
+#ifndef INSIDE_KERNEL_TREE
+#include <linux/version.h>
+#endif
+
 #if defined(RHEL_MAJOR) && RHEL_MAJOR -0 == 5
 static inline u16 vlan_dev_vlan_id(const void *dev)
 {
