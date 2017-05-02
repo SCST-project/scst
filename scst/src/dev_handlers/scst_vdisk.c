@@ -1091,7 +1091,9 @@ check:
 			if (virt_dev->unmap_opt_gran == virt_dev->unmap_align)
 				virt_dev->unmap_align = 0;
 			virt_dev->unmap_max_lba_cnt = q->limits.max_discard_sectors >> (block_shift - 9);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
 			virt_dev->discard_zeroes_data = q->limits.discard_zeroes_data;
+#endif
 #else
 			sBUG();
 #endif

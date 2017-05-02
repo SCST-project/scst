@@ -39,7 +39,9 @@
 #include <linux/errno.h>	/* error codes */
 #include <linux/poll.h>
 #include <linux/vmalloc.h>
+#ifndef INSIDE_KERNEL_TREE
 #include <linux/version.h>
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20)
 #include <linux/freezer.h>
 #else

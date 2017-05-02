@@ -36,9 +36,11 @@
 
 #include <linux/kernel.h>
 #include <linux/vmalloc.h>
-#include <linux/version.h>
 #include <linux/in.h>
 #include <linux/in6.h>
+#ifndef INSIDE_KERNEL_TREE
+#include <linux/version.h>
+#endif
 
 #include "isert_dbg.h"
 #include "iser.h"

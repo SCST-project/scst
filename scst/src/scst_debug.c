@@ -19,8 +19,6 @@
  *  GNU General Public License for more details.
  */
 
-#include <linux/version.h>
-
 #ifndef INSIDE_KERNEL_TREE
 #include <linux/version.h>
 #endif

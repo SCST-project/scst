@@ -16,8 +16,6 @@
 #ifndef ISERT_DBG_H
 #define ISERT_DBG_H
 
-#include <linux/version.h>
-
 #ifdef LOG_PREFIX
 #undef LOG_PREFIX
 #endif
@@ -27,6 +25,7 @@
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/scst_debug.h>
 #else
+#include <linux/version.h>
 #include <scst_debug.h>
 #endif
 

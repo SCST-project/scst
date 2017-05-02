@@ -43,7 +43,6 @@
 #include <linux/mutex.h>
 #include <linux/wait.h>
 #include <linux/init.h>
-#include <linux/version.h>
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
 #include <asm/atomic.h>
@@ -55,6 +54,7 @@
 #include <scst/isert_scst.h>
 #include <scst/iscsi_scst.h>
 #else
+#include <linux/version.h>
 #include "isert_scst.h"
 #include "iscsi_scst.h"
 #endif

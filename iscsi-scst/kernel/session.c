@@ -14,7 +14,9 @@
  *  GNU General Public License for more details.
  */
 
+#ifndef INSIDE_KERNEL_TREE
 #include <linux/version.h>
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
 #include <linux/export.h>
 #endif

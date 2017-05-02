@@ -33,7 +33,9 @@
 #include <asm/kmap_types.h>
 #include <asm/unaligned.h>
 #include <asm/checksum.h>
+#ifndef INSIDE_KERNEL_TREE
 #include <linux/version.h>
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
 #include <linux/crc-t10dif.h>
 #endif
@@ -42,10 +44,6 @@
 #endif
 #include <linux/namei.h>
 #include <linux/mount.h>
-
-#ifndef INSIDE_KERNEL_TREE
-#include <linux/version.h>
-#endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
 #include <linux/writeback.h>
@@ -8366,7 +8364,7 @@ out:
 static void scsi_end_async(struct request *req, int error)
 {
 	struct scsi_io_context *sioc = req->end_io_data;
-	int errors;
+	int result;
 
 	TRACE_DBG("sioc %p, cmd %p, error %d / %d", sioc, sioc->data, error,
 		  req->errors);
@@ -8378,19 +8376,30 @@ static void scsi_end_async(struct request *req, int error)
 		lockdep_assert_held(req->q->queue_lock);
 #endif
 
-	errors = req->errors && !IS_ERR_VALUE((long)req->errors) ? req->errors :
-		IS_ERR_VALUE((long)req->errors) || error ?
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
+	result = scsi_req(req)->result;
+#else
+	result = req->errors;
+#endif
+	result = result && !IS_ERR_VALUE((long)result) ? result :
+		IS_ERR_VALUE((long)result) || error ?
 		SAM_STAT_CHECK_CONDITION : 0;
 
-	if (sioc->done)
+	if (sioc->done) {
+		int resid_len;
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
-		sioc->done(sioc->data, sioc->sense, errors,
-			   scsi_req(req)->resid_len);
+		resid_len = scsi_req(req)->resid_len;
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
-		sioc->done(sioc->data, sioc->sense, errors, req->resid_len);
-#else
-		sioc->done(sioc->data, sioc->sense, errors, req->data_len);
+		resid_len = req->resid_len;
 #endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+		sioc->done(sioc->data, sioc->sense, result, resid_len);
+#else
+		sioc->done(sioc->data, sioc->sense, result, req->data_len);
+#endif
+	}
 
 	kmem_cache_free(scsi_io_context_cache, sioc);
 
@@ -8479,7 +8488,11 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	req->sense = sioc->sense;
 	req->sense_len = sizeof(sioc->sense);
 	rq->timeout = cmd->timeout;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
+	req->retries = cmd->retries;
+#else
 	rq->retries = cmd->retries;
+#endif
 	rq->end_io_data = sioc;
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 35)
 	rq->cmd_flags |= REQ_FAILFAST_MASK;

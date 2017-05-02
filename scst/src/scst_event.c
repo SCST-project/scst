@@ -11,7 +11,9 @@
 #include <linux/stddef.h>
 #include <linux/slab.h>
 #include <linux/module.h>
+#ifndef INSIDE_KERNEL_TREE
 #include <linux/version.h>
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
 #include <linux/sched/signal.h>
 #endif
