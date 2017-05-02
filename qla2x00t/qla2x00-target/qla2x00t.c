@@ -5359,7 +5359,7 @@ static void q24_atio_pkt(scsi_qla_host_t *vha, atio7_entry_t *atio)
 
 	switch (atio->entry_type) {
 	case ATIO_TYPE7:
-		TRACE_DBG("ATIO_TYPE7 instance %ld, lun %Lx, read/write %d/%d, "
+		TRACE_DBG("ATIO_TYPE7 instance %ld, lun %llx, read/write %d/%d, "
 			"add_cdb_len %d, data_length %04x, s_id %x:%x:%x",
 			vha->host_no, atio->fcp_cmnd.lun, atio->fcp_cmnd.rddata,
 			atio->fcp_cmnd.wrdata, atio->fcp_cmnd.add_cdb_len,
