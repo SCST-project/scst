@@ -8277,15 +8277,18 @@ static void scsi_end_async(struct request *req, int error)
 #endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
 		resid_len = scsi_req(req)->resid_len;
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 31)
 		resid_len = req->resid_len;
+#else
+		/*
+		 * A quote from commit c3a4d78c580d: "rq->data_len served two
+		 * purposes - the length of data buffer on issue and the
+		 * residual count on completion."
+		 */
+		resid_len = req->data_len;
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 		sioc->done(sioc->data, sioc->sense, result, resid_len);
-#else
-		sioc->done(sioc->data, sioc->sense, result, req->data_len);
-#endif
 	}
 
 	kmem_cache_free(scsi_io_context_cache, sioc);
