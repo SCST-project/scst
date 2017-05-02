@@ -7775,7 +7775,7 @@ static bool scst_sysfs_user_info_executing(struct scst_sysfs_user_info *info)
 }
 
 /**
- * scst_wait_info_completion() - wait an user space event's completion
+ * scst_wait_info_completion() - wait for a user space event's completion
  *
  * Waits for the info request been completed by user space at most timeout
  * jiffies. If the reply received before timeout and being processed by
