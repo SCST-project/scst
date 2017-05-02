@@ -272,43 +272,6 @@ done
 
 # General kernel patches.
 
-scsi_exec_req_fifo_defined=0
-scst_io_context=0
-for p in scst/kernel/*-${kver}.patch \
-         $(if [ "${1#3.2.}" != "$1" ] && [ "${1#3.2.}" -ge 57 ]; then
-		echo iscsi-scst/kernel/patches/*-3.2.57.patch;
-	   elif [ "${1#3.7.}" != "$1" ] && [ "${1#3.7.}" -ge 10 ]; then
-		echo iscsi-scst/kernel/patches/*-3.7.10.patch;
-	   elif [ "${1#3.10.}" != "$1" ] && [ "${1#3.10.}" -ge 30 ]; then
-		echo iscsi-scst/kernel/patches/*-3.10.30.patch;
-	   elif [ "${1#3.12.}" != "$1" ] && [ "${1#3.12.}" -ge 11 ]; then
-		echo iscsi-scst/kernel/patches/*-3.12.11.patch;
-	   elif [ "${1#3.13.}" != "$1" ] && [ "${1#3.13.}" -ge 3 ]; then
-		echo iscsi-scst/kernel/patches/*-3.13.3.patch;
-	   else
-		echo iscsi-scst/kernel/patches/*-"${kver}".patch;
-	   fi)
-do
-  [ -e "$p" ] || continue
-  # Exclude the put_page_callback patch when command-line option -u has been
-  # specified since the current approach is not considered acceptable for
-  # upstream kernel inclusion. See also http://lkml.org/lkml/2008/12/11/213.
-  if [ "${generating_upstream_patch}" = "false" ] ||
-	 [ "${p#iscsi-scst/kernel/patches/put_page_callback}" = "$p" ]
-  then
-    if grep -q '^\+#define SCSI_EXEC_REQ_FIFO_DEFINED$' "${p}"; then
-      scsi_exec_req_fifo_defined=1
-    fi
-    if grep -q '^\+#define SCST_IO_CONTEXT$' "${p}"; then
-      scst_io_context=1
-    fi
-    diffname="${p#scst/kernel/}"
-    diffname="${p%-${kver}.patch}.diff"
-    process_patch < "$p" "${diffname}"
-  fi
-done
-
-
 scst_03_public_headers="scst/include/scst.h scst/include/scst_const.h \
 scst/include/scst_event.h scst/include/backport.h"
 scst_04_main="scst/src/scst_main.c scst/src/scst_module.c scst/src/scst_priv.h \
