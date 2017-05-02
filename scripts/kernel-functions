@@ -2,8 +2,7 @@
 # Shell functions for parsing the Linux kernel version and for downloading
 # from kernel.org.
 
-kernel_mirror="http://ftp.kernel.org/pub/linux/kernel"
-kernel_longterm="http://www.kernel.org/pub/linux/kernel"
+kernel_mirror="http://cdn.kernel.org/pub/linux/kernel"
 kernel_sources="$HOME/software/downloads"
 
 # Kernel version number.
@@ -53,16 +52,13 @@ function download_kernel {
   (
     cd "${kernel_sources}" || return $?
     if [ "$plevel" = "" -o "$plevel" = "0" ] ||
-       download_file "${kernel_mirror}/v$series/patch-$1.xz" ||
-       download_file "${kernel_mirror}/v$series/longterm/v${kver}/patch-$1.xz"
+      download_file "${kernel_mirror}/v$series/patch-$1.xz"
     then
-      download_file "${kernel_mirror}/v$series/linux-${kver}.tar.xz" \
-        || download_file "${kernel_mirror}/v$series/longterm/v${kver}/linux-${kver}.tar.xz" \
-        || return $?
+      download_file "${kernel_mirror}/v$series/linux-${kver}.tar.xz" ||
+	return $?
     else
-      download_file "${kernel_mirror}/v$series/linux-$1.tar.xz" \
-        || download_file "${kernel_mirror}/v$series/longterm/v${kver}/linux-$1.tar.xz" \
-        || return $?
+      download_file "${kernel_mirror}/v$series/linux-$1.tar.xz" ||
+	return $?
     fi
   )
 }

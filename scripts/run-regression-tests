@@ -508,9 +508,6 @@ if [ "${scriptsdir:0:1}" != "/" ]; then
 fi
 # Where to store persistenly downloaded kernel tarballs and kernel patches.
 kernel_sources="$HOME/software/downloads"
-# URL for downloading kernel tarballs and kernel patches.
-kernel_mirror="http://ftp.kernel.org/pub/linux/kernel"
-kernel_longterm="http://www.kernel.org/pub/linux/kernel"
 kernel_versions=""
 # Directory in which the regression test output files will be stored. Must be
 # an absolute path.
@@ -541,14 +538,6 @@ do
 done
 
 kernel_versions="$*"
-
-# RHEL 4.x / CentOS 4.x has a kernel based on version 2.6.9.
-# RHEL 5.x / CentOS 5.x has a kernel based on version 2.6.18.
-# Ubuntu 8.04 (Hardy Heron) has a kernel based on version 2.6.24.
-# Ubuntu 8.10 (Intrepid Ibex) has a kernel based on version 2.6.27.
-# openSUSE 11.0 has a kernel based on version 2.6.25.
-# openSUSE 11.1 has a kernel based on version 2.6.27.
-#kernel_versions="2.6.23.17 2.6.24.7 2.6.25.20 2.6.26.8 2.6.27.21 2.6.28.9 2.6.29.1"
 
 if [ "${kernel_versions}" = "" ]; then
   usage
