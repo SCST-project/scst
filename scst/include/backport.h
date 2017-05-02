@@ -356,6 +356,14 @@ static inline int __must_check kref_get_unless_zero(struct kref *kref)
 }
 #endif
 
+/* <linux/kthread.h> */
+
+/* See also commit 207205a2ba26 */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
+#define kthread_create_on_node(threadfn, data, node, namefmt, arg...)\
+	kthread_create((threadfn), (data), ##arg)
+#endif
+
 /* <linux/ktime.h> */
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0) &&		\
