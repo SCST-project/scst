@@ -2,7 +2,7 @@
  *  chap.c - support for (mutual) CHAP authentication.
  *
  *  Copyright (C) 2004 Xiranet Communications GmbH <arne.redlich@xiranet.com>
- *  Copyright (C) 2002 - 2003 Ardis Technolgies <roman@ardistech.com>,
+ *  Copyright (C) 2002 - 2003 Ardis Technologies <roman@ardistech.com>,
  *  Copyright (C) 2007 - 2017 Vladislav Bolkhovitin
  *  Copyright (C) 2007 - 2017 SanDisk Corporation
  *
