@@ -2753,12 +2753,15 @@ out:
 	return;
 }
 
-/* The activity supposed to be suspended and scst_mutex held */
 void scst_report_luns_changed(struct scst_acg *acg)
 {
 	struct scst_session *sess;
 
 	TRACE_ENTRY();
+
+	/* To protect acg_sess_list */
+	scst_assert_activity_suspended();
+	lockdep_assert_held(&scst_mutex);
 
 	TRACE_DBG("REPORTED LUNS DATA CHANGED (acg %s)", acg->acg_name);
 
