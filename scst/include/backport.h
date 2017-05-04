@@ -722,17 +722,6 @@ static inline void put_unaligned_be64(uint64_t i, void *p)
 }
 #endif
 
-/* <scsi/libfc.h> */
-
-/*
- * See also commit 75cc8cfc6e13 (scsi: change FC drivers to use 'struct
- * bsg_job')
- */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) || 1
-#define fc_bsg_job bsg_job
-#define fc_bsg_jobdone bsg_job_done
-#endif
-
 /* <scsi/scsi_cmnd.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
