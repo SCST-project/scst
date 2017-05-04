@@ -23,6 +23,7 @@
 #include <linux/blkdev.h>	/* struct request_queue */
 #include <linux/scatterlist.h>	/* struct scatterlist */
 #include <linux/slab.h>		/* kmalloc() */
+#include <linux/version.h>
 #include <linux/writeback.h>	/* sync_page_range() */
 #include <scsi/scsi_cmnd.h>	/* struct scsi_cmnd */
 #include <rdma/ib_verbs.h>
@@ -645,6 +646,15 @@ struct t10_pi_tuple {
 	__be16 app_tag;
 	__be32 ref_tag;
 };
+#endif
+
+/* <linux/thread.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
+#ifndef kthread_create
+#define kthread_create_on_node(threadfn, data, node, namefmt, arg...)	\
+	kthread_create((threadfn), (data), (namefmt), ##arg)
+#endif
 #endif
 
 /* <linux/types.h> */
