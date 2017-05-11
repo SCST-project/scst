@@ -2105,7 +2105,12 @@ qla24xx_tm_iocb(srb_t *sp, struct tsk_mgmt_entry *tsk)
 static void
 qla24xx_els_iocb(srb_t *sp, struct els_entry_24xx *els_iocb)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	struct fc_bsg_job *bsg_job = sp->u.bsg_job;
+#else
+	struct bsg_job *bsg_job = sp->u.bsg_job;
+	struct fc_bsg_request *bsg_request = bsg_job->request;
+#endif
 
         els_iocb->entry_type = ELS_IOCB_TYPE;
         els_iocb->entry_count = 1;
@@ -2120,8 +2125,13 @@ qla24xx_els_iocb(srb_t *sp, struct els_entry_24xx *els_iocb)
 
 	els_iocb->opcode =
 	    sp->type == SRB_ELS_CMD_RPT ?
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	    bsg_job->request->rqst_data.r_els.els_code :
 	    bsg_job->request->rqst_data.h_els.command_code;
+#else
+	    bsg_request->rqst_data.r_els.els_code :
+	    bsg_request->rqst_data.h_els.command_code;
+#endif
         els_iocb->port_id[0] = sp->fcport->d_id.b.al_pa;
         els_iocb->port_id[1] = sp->fcport->d_id.b.area;
         els_iocb->port_id[2] = sp->fcport->d_id.b.domain;
@@ -2156,7 +2166,11 @@ qla2x00_ct_iocb(srb_t *sp, ms_iocb_entry_t *ct_iocb)
 	uint16_t tot_dsds;
 	scsi_qla_host_t *vha = sp->fcport->vha;
 	struct qla_hw_data *ha = vha->hw;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	struct fc_bsg_job *bsg_job = sp->u.bsg_job;
+#else
+	struct bsg_job *bsg_job = sp->u.bsg_job;
+#endif
 	int loop_iterartion = 0;
 	int cont_iocb_prsnt = 0;
 	int entry_count = 1;
@@ -2233,7 +2247,11 @@ qla24xx_ct_iocb(srb_t *sp, struct ct_entry_24xx *ct_iocb)
 	uint16_t tot_dsds;
         scsi_qla_host_t *vha = sp->fcport->vha;
 	struct qla_hw_data *ha = vha->hw;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	struct fc_bsg_job *bsg_job = sp->u.bsg_job;
+#else
+	struct bsg_job *bsg_job = sp->u.bsg_job;
+#endif
 	int loop_iterartion = 0;
 	int cont_iocb_prsnt = 0;
 	int entry_count = 1;
