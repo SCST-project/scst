@@ -482,7 +482,11 @@ static void ft_sess_free(struct kref *kref)
 static void ft_sess_put(struct ft_sess *sess)
 {
 	BUG_ON(!sess);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+	BUG_ON(kref_read(&sess->kref) <= 0);
+#else
 	BUG_ON(atomic_read(&sess->kref.refcount) <= 0);
+#endif
 	kref_put(&sess->kref, ft_sess_free);
 }
 
