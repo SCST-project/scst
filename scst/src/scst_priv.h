@@ -151,6 +151,7 @@ extern int scst_threads;
 extern unsigned int scst_max_dev_cmd_mem;
 
 extern int scst_forcibly_close_sessions;
+extern int scst_auto_cm_assignment;
 
 extern mempool_t *scst_mgmt_mempool;
 extern mempool_t *scst_mgmt_stub_mempool;

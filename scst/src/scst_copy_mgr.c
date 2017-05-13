@@ -2709,7 +2709,7 @@ int scst_cm_on_dev_register(struct scst_device *dev)
 	scst_assert_activity_suspended();
 	lockdep_assert_held(&scst_mutex);
 
-	if (!dev->handler->auto_cm_assignment_possible)
+	if (!scst_auto_cm_assignment || !dev->handler->auto_cm_assignment_possible)
 		goto out;
 
 	res = scst_cm_dev_register(dev, SCST_MAX_LUN);
