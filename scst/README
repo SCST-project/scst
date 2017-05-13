@@ -398,6 +398,16 @@ Module scst supports the following parameters:
    to be consumed by all SCSI commands of a device at any given time. By
    default, it is approximately 2/5 of scst_max_cmd_mem.
 
+ - auto_cm_assignment - enables the copy managers auto registration.
+   If a device is not registered in the copy manager, it can not be
+   source or target of EXTENDED COPY commands. Enabled by default.
+   Disable, if you want to manually control the copy manager
+   registration or need to change a device, e.g. a DM cache device, with
+   SCST LUN on top of it to avoid extra reference the copy manager holds
+   on this device. In the later case you can also remove this reference
+   by manually deleting the corresponding copy manager LUN via sysfs interface
+   (/sys/kernel/scst_tgt/targets/copy_manager/copy_manager_tgt/luns/mgmt).
+
 
 SCST sysfs interface
 --------------------

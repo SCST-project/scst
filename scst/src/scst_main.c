@@ -175,6 +175,7 @@ cpumask_t default_cpu_mask;
 static unsigned int scst_max_cmd_mem;
 unsigned int scst_max_dev_cmd_mem;
 int scst_forcibly_close_sessions;
+int scst_auto_cm_assignment = true;
 
 module_param_named(scst_threads, scst_threads, int, S_IRUGO);
 MODULE_PARM_DESC(scst_threads, "SCSI target threads count");
@@ -193,6 +194,9 @@ MODULE_PARM_DESC(forcibly_close_sessions,
 "If enabled, close the sessions associated with an access control group (ACG)"
 " when an ACG is deleted via sysfs instead of returning -EBUSY");
 
+module_param_named(auto_cm_assignment, scst_auto_cm_assignment, int,
+		   S_IWUSR | S_IRUGO);
+MODULE_PARM_DESC(auto_cm_assignment, "Enables the copy managers auto registration");
 
 struct scst_dev_type scst_null_devtype = {
 	.name = "none",

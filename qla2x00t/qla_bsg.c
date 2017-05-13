@@ -16,10 +16,21 @@ qla2x00_bsg_job_done(void *data, void *ptr, int res)
 {
 	srb_t *sp = (srb_t*)ptr;
 	struct scsi_qla_host *vha = (scsi_qla_host_t *)data;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	struct fc_bsg_job *bsg_job = sp->u.bsg_job;
+#else
+	struct bsg_job *bsg_job = sp->u.bsg_job;
+	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
+#endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	bsg_job->reply->result = res;
 	bsg_job->job_done(bsg_job);
+#else
+	bsg_reply->result = res;
+	bsg_job_done(bsg_job, bsg_reply->result,
+		       bsg_reply->reply_payload_rcv_len);
+#endif
 	sp->free(vha, sp);
 }
 
@@ -28,7 +39,11 @@ qla2x00_bsg_sp_free(void *data, void *ptr)
 {
 	srb_t *sp = (srb_t*)ptr;
 	struct scsi_qla_host *vha = (scsi_qla_host_t *)data;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	struct fc_bsg_job *bsg_job = sp->u.bsg_job;
+#else
+	struct bsg_job *bsg_job = sp->u.bsg_job;
+#endif
 	struct qla_hw_data *ha = vha->hw;
 
 	dma_unmap_sg(&ha->pdev->dev, bsg_job->request_payload.sg_list,
@@ -99,9 +114,19 @@ qla24xx_fcp_prio_cfg_valid(scsi_qla_host_t *vha,
 }
 
 static int
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 qla24xx_proc_fcp_prio_cfg_cmd(struct fc_bsg_job *bsg_job)
+#else
+qla24xx_proc_fcp_prio_cfg_cmd(struct bsg_job *bsg_job)
+#endif
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	struct Scsi_Host *host = bsg_job->shost;
+#else
+	struct Scsi_Host *host = fc_bsg_to_shost(bsg_job);
+	struct fc_bsg_request *bsg_request = bsg_job->request;
+	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
+#endif
 	scsi_qla_host_t *vha = shost_priv(host);
 	struct qla_hw_data *ha = vha->hw;
 	int ret = 0;
@@ -114,7 +139,11 @@ qla24xx_proc_fcp_prio_cfg_cmd(struct fc_bsg_job *bsg_job)
 	}
 
 	/* Get the sub command */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	oper = bsg_job->request->rqst_data.h_vendor.vendor_cmd[1];
+#else
+	oper = bsg_request->rqst_data.h_vendor.vendor_cmd[1];
+#endif
 
 	/* Only set config is allowed if config memory is not allocated */
 	if (!ha->fcp_prio_cfg && (oper != QLFC_FCP_PRIO_SET_CONFIG)) {
@@ -128,10 +157,18 @@ qla24xx_proc_fcp_prio_cfg_cmd(struct fc_bsg_job *bsg_job)
 			ha->fcp_prio_cfg->attributes &=
 				~FCP_PRIO_ATTR_ENABLE;
 			qla24xx_update_all_fcp_prio(vha);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 			bsg_job->reply->result = DID_OK;
+#else
+			bsg_reply->result = DID_OK;
+#endif
 		} else {
 			ret = -EINVAL;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 			bsg_job->reply->result = (DID_ERROR << 16);
+#else
+			bsg_reply->result = (DID_ERROR << 16);
+#endif
 			goto exit_fcp_prio_cfg;
 		}
 		break;
@@ -143,10 +180,18 @@ qla24xx_proc_fcp_prio_cfg_cmd(struct fc_bsg_job *bsg_job)
 				ha->fcp_prio_cfg->attributes |=
 				    FCP_PRIO_ATTR_ENABLE;
 				qla24xx_update_all_fcp_prio(vha);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 				bsg_job->reply->result = DID_OK;
+#else
+				bsg_reply->result = DID_OK;
+#endif
 			} else {
 				ret = -EINVAL;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 				bsg_job->reply->result = (DID_ERROR << 16);
+#else
+				bsg_reply->result = (DID_ERROR << 16);
+#endif
 				goto exit_fcp_prio_cfg;
 			}
 		}
@@ -156,12 +201,21 @@ qla24xx_proc_fcp_prio_cfg_cmd(struct fc_bsg_job *bsg_job)
 		len = bsg_job->reply_payload.payload_len;
 		if (!len || len > FCP_PRIO_CFG_SIZE) {
 			ret = -EINVAL;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 			bsg_job->reply->result = (DID_ERROR << 16);
+#else
+			bsg_reply->result = (DID_ERROR << 16);
+#endif
 			goto exit_fcp_prio_cfg;
 		}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 		bsg_job->reply->result = DID_OK;
 		bsg_job->reply->reply_payload_rcv_len =
+#else
+		bsg_reply->result = DID_OK;
+		bsg_reply->reply_payload_rcv_len =
+#endif
 			sg_copy_from_buffer(
 			bsg_job->reply_payload.sg_list,
 			bsg_job->reply_payload.sg_cnt, ha->fcp_prio_cfg,
@@ -172,7 +226,11 @@ qla24xx_proc_fcp_prio_cfg_cmd(struct fc_bsg_job *bsg_job)
 	case QLFC_FCP_PRIO_SET_CONFIG:
 		len = bsg_job->request_payload.payload_len;
 		if (!len || len > FCP_PRIO_CFG_SIZE) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 			bsg_job->reply->result = (DID_ERROR << 16);
+#else
+			bsg_reply->result = (DID_ERROR << 16);
+#endif
 			ret = -EINVAL;
 			goto exit_fcp_prio_cfg;
 		}
@@ -183,7 +241,11 @@ qla24xx_proc_fcp_prio_cfg_cmd(struct fc_bsg_job *bsg_job)
 				ql_log(ql_log_warn, vha, 0x7050,
 				    "Unable to allocate memory for fcp prio "
 				    "config data (%x).\n", FCP_PRIO_CFG_SIZE);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 				bsg_job->reply->result = (DID_ERROR << 16);
+#else
+				bsg_reply->result = (DID_ERROR << 16);
+#endif
 				ret = -ENOMEM;
 				goto exit_fcp_prio_cfg;
 			}
@@ -198,7 +260,11 @@ qla24xx_proc_fcp_prio_cfg_cmd(struct fc_bsg_job *bsg_job)
 
 		if (!qla24xx_fcp_prio_cfg_valid(vha,
 		    (struct qla_fcp_prio_cfg *) ha->fcp_prio_cfg, 1)) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 			bsg_job->reply->result = (DID_ERROR << 16);
+#else
+			bsg_reply->result = (DID_ERROR << 16);
+#endif
 			ret = -EINVAL;
 			/* If buffer was invalidatic int
 			 * fcp_prio_cfg is of no use
@@ -212,20 +278,37 @@ qla24xx_proc_fcp_prio_cfg_cmd(struct fc_bsg_job *bsg_job)
 		if (ha->fcp_prio_cfg->attributes & FCP_PRIO_ATTR_ENABLE)
 			ha->flags.fcp_prio_enabled = 1;
 		qla24xx_update_all_fcp_prio(vha);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 		bsg_job->reply->result = DID_OK;
+#else
+		bsg_reply->result = DID_OK;
+#endif
 		break;
 	default:
 		ret = -EINVAL;
 		break;
 	}
 exit_fcp_prio_cfg:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	bsg_job->job_done(bsg_job);
+#else
+	if (!ret)
+		bsg_job_done(bsg_job, bsg_reply->result,
+			bsg_reply->reply_payload_rcv_len);
+#endif
 	return ret;
 }
 
 static int
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 qla2x00_process_els(struct fc_bsg_job *bsg_job)
+#else
+qla2x00_process_els(struct bsg_job *bsg_job)
+#endif
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
+	struct fc_bsg_request *bsg_request = bsg_job->request;
+#endif
 	struct fc_rport *rport;
 	fc_port_t *fcport = NULL;
 	struct Scsi_Host *host;
@@ -238,19 +321,33 @@ qla2x00_process_els(struct fc_bsg_job *bsg_job)
 	uint16_t nextlid = 0;
 
 #ifdef __COVERITY__
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	BUG_ON(bsg_job->request->msgcode != FC_BSG_RPT_ELS &&
 	       bsg_job->request->msgcode != FC_BSG_HST_ELS_NOLOGIN);
+#else
+	BUG_ON(bsg_request->msgcode != FC_BSG_RPT_ELS &&
+	       bsg_request->msgcode != FC_BSG_HST_ELS_NOLOGIN);
+#endif
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	if (bsg_job->request->msgcode == FC_BSG_RPT_ELS) {
 		rport = bsg_job->rport;
+#else
+	if (bsg_request->msgcode == FC_BSG_RPT_ELS) {
+		rport = fc_bsg_to_rport(bsg_job);;
+#endif
 		fcport = *(fc_port_t **) rport->dd_data;
 		host = rport_to_shost(rport);
 		vha = shost_priv(host);
 		ha = vha->hw;
 		type = "FC_BSG_RPT_ELS";
 	} else {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 		host = bsg_job->shost;
+#else
+		host = fc_bsg_to_shost(bsg_job);
+#endif
 		vha = shost_priv(host);
 		ha = vha->hw;
 		type = "FC_BSG_HST_ELS_NOLOGIN";
@@ -277,7 +374,11 @@ qla2x00_process_els(struct fc_bsg_job *bsg_job)
 	}
 
 	/* ELS request for rport */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	if (bsg_job->request->msgcode == FC_BSG_RPT_ELS) {
+#else
+	if (bsg_request->msgcode == FC_BSG_RPT_ELS) {
+#endif
 		/* make sure the rport is logged in,
 		 * if not perform fabric login
 		 */
@@ -302,12 +403,21 @@ qla2x00_process_els(struct fc_bsg_job *bsg_job)
 
 		/* Initialize all required  fields of fcport */
 		fcport->vha = vha;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 		fcport->d_id.b.al_pa =
 			bsg_job->request->rqst_data.h_els.port_id[0];
 		fcport->d_id.b.area =
 			bsg_job->request->rqst_data.h_els.port_id[1];
 		fcport->d_id.b.domain =
 			bsg_job->request->rqst_data.h_els.port_id[2];
+#else
+		fcport->d_id.b.al_pa =
+			bsg_request->rqst_data.h_els.port_id[0];
+		fcport->d_id.b.area =
+			bsg_request->rqst_data.h_els.port_id[1];
+		fcport->d_id.b.domain =
+			bsg_request->rqst_data.h_els.port_id[2];
+#endif
 		fcport->loop_id =
 			(fcport->d_id.b.al_pa == 0xFD) ?
 			NPH_FABRIC_CONTROLLER : NPH_F_PORT;
@@ -352,12 +462,21 @@ qla2x00_process_els(struct fc_bsg_job *bsg_job)
 		goto done_unmap_sg;
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	sp->type =
 		(bsg_job->request->msgcode == FC_BSG_RPT_ELS ?
 		SRB_ELS_CMD_RPT : SRB_ELS_CMD_HST);
 	sp->name =
 		(bsg_job->request->msgcode == FC_BSG_RPT_ELS ?
 		"bsg_els_rpt" : "bsg_els_hst");
+#else
+	sp->type =
+		(bsg_request->msgcode == FC_BSG_RPT_ELS ?
+		SRB_ELS_CMD_RPT : SRB_ELS_CMD_HST);
+	sp->name =
+		(bsg_request->msgcode == FC_BSG_RPT_ELS ?
+		"bsg_els_rpt" : "bsg_els_hst");
+#endif
 	sp->u.bsg_job = bsg_job;
 	sp->free = qla2x00_bsg_sp_free;
 	sp->done = qla2x00_bsg_job_done;
@@ -365,7 +484,11 @@ qla2x00_process_els(struct fc_bsg_job *bsg_job)
 	ql_dbg(ql_dbg_user, vha, 0x700a,
 	    "bsg rqst type: %s els type: %x - loop-id=%x "
 	    "portid=%-2x%02x%02x.\n", type,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	    bsg_job->request->rqst_data.h_els.command_code, fcport->loop_id,
+#else
+	    bsg_request->rqst_data.h_els.command_code, fcport->loop_id,
+#endif
 	    fcport->d_id.b.domain, fcport->d_id.b.area, fcport->d_id.b.al_pa);
 
 	rval = qla2x00_start_sp(sp);
@@ -386,7 +509,11 @@ done_unmap_sg:
 	goto done_free_fcport;
 
 done_free_fcport:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	if (bsg_job->request->msgcode == FC_BSG_HST_ELS_NOLOGIN)
+#else
+	if (bsg_request->msgcode == FC_BSG_HST_ELS_NOLOGIN)
+#endif
 		kfree(fcport);
 done:
 	return rval;
@@ -407,10 +534,19 @@ qla24xx_calc_ct_iocbs(uint16_t dsds)
 }
 
 static int
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 qla2x00_process_ct(struct fc_bsg_job *bsg_job)
+#else
+qla2x00_process_ct(struct bsg_job *bsg_job)
+#endif
 {
 	srb_t *sp;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	struct Scsi_Host *host = bsg_job->shost;
+#else
+	struct fc_bsg_request *bsg_request = bsg_job->request;
+	struct Scsi_Host *host = fc_bsg_to_shost(bsg_job);
+#endif
 	scsi_qla_host_t *vha = shost_priv(host);
 	struct qla_hw_data *ha = vha->hw;
 	int rval = (DRIVER_ERROR << 16);
@@ -456,7 +592,11 @@ qla2x00_process_ct(struct fc_bsg_job *bsg_job)
 	}
 
 	loop_id =
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 		(bsg_job->request->rqst_data.h_ct.preamble_word1 & 0xFF000000)
+#else
+		(bsg_request->rqst_data.h_ct.preamble_word1 & 0xFF000000)
+#endif
 			>> 24;
 	switch (loop_id) {
 	case 0xFC:
@@ -487,9 +627,15 @@ qla2x00_process_ct(struct fc_bsg_job *bsg_job)
 
 	/* Initialize all required  fields of fcport */
 	fcport->vha = vha;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	fcport->d_id.b.al_pa = bsg_job->request->rqst_data.h_ct.port_id[0];
 	fcport->d_id.b.area = bsg_job->request->rqst_data.h_ct.port_id[1];
 	fcport->d_id.b.domain = bsg_job->request->rqst_data.h_ct.port_id[2];
+#else
+	fcport->d_id.b.al_pa = bsg_request->rqst_data.h_ct.port_id[0];
+	fcport->d_id.b.area = bsg_request->rqst_data.h_ct.port_id[1];
+	fcport->d_id.b.domain = bsg_request->rqst_data.h_ct.port_id[2];
+#endif
 	fcport->loop_id = loop_id;
 
 	/* Alloc SRB structure */
@@ -511,7 +657,11 @@ qla2x00_process_ct(struct fc_bsg_job *bsg_job)
 	ql_dbg(ql_dbg_user, vha, 0x7016,
 	    "bsg rqst type: %s else type: %x - "
 	    "loop-id=%x portid=%02x%02x%02x.\n", type,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	    (bsg_job->request->rqst_data.h_ct.preamble_word2 >> 16),
+#else
+	    (bsg_request->rqst_data.h_ct.preamble_word2 >> 16),
+#endif
 	    fcport->loop_id, fcport->d_id.b.domain, fcport->d_id.b.area,
 	    fcport->d_id.b.al_pa);
 
@@ -627,9 +777,19 @@ done_reset_internal:
 }
 
 static int
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 qla2x00_process_loopback(struct fc_bsg_job *bsg_job)
+#else
+qla2x00_process_loopback(struct bsg_job *bsg_job)
+#endif
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	struct Scsi_Host *host = bsg_job->shost;
+#else
+	struct fc_bsg_request *bsg_request = bsg_job->request;
+	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
+	struct Scsi_Host *host = fc_bsg_to_shost(bsg_job);
+#endif
 	scsi_qla_host_t *vha = shost_priv(host);
 	struct qla_hw_data *ha = vha->hw;
 	int rval;
@@ -711,7 +871,11 @@ qla2x00_process_loopback(struct fc_bsg_job *bsg_job)
 	elreq.rcv_dma = rsp_data_dma;
 	elreq.transfer_size = req_data_len;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	elreq.options = bsg_job->request->rqst_data.h_vendor.vendor_cmd[1];
+#else
+	elreq.options = bsg_request->rqst_data.h_vendor.vendor_cmd[1];
+#endif
 
 	if ((ha->current_topology == ISP_CFG_F ||
 	    ((IS_QLA81XX(ha) || IS_QLA8031(ha)) &&
@@ -730,7 +894,11 @@ qla2x00_process_loopback(struct fc_bsg_job *bsg_job)
 			if (qla81xx_get_port_config(vha, config)) {
 				ql_log(ql_log_warn, vha, 0x701f,
 				    "Get port config failed.\n");
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 				bsg_job->reply->result = (DID_ERROR << 16);
+#else
+				bsg_reply->result = (DID_ERROR << 16);
+#endif
 				rval = -EPERM;
 				goto done_free_dma_req;
 			}
@@ -743,7 +911,11 @@ qla2x00_process_loopback(struct fc_bsg_job *bsg_job)
 					new_config)) {
 					ql_log(ql_log_warn, vha, 0x7024,
 					    "Internal loopback failed.\n");
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 					bsg_job->reply->result =
+#else
+					bsg_reply->result =
+#endif
 						(DID_ERROR << 16);
 					rval = -EPERM;
 					goto done_free_dma_req;
@@ -754,7 +926,11 @@ qla2x00_process_loopback(struct fc_bsg_job *bsg_job)
 				 */
 				if (qla81xx_reset_internal_loopback(vha,
 					config, 1)) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 					bsg_job->reply->result =
+#else
+					bsg_reply->result =
+#endif
 						(DID_ERROR << 16);
 					rval = -EPERM;
 					goto done_free_dma_req;
@@ -790,7 +966,11 @@ qla2x00_process_loopback(struct fc_bsg_job *bsg_job)
 					    "MPI reset failed.\n");
 				}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 				bsg_job->reply->result = (DID_ERROR << 16);
+#else
+				bsg_reply->result = (DID_ERROR << 16);
+#endif
 				rval = -EIO;
 				goto done_free_dma_req;
 			}
@@ -814,26 +994,44 @@ qla2x00_process_loopback(struct fc_bsg_job *bsg_job)
 		fw_sts_ptr += sizeof(response);
 		*fw_sts_ptr = command_sent;
 		rval = 0;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 		bsg_job->reply->result = (DID_ERROR << 16);
+#else
+		bsg_reply->result = (DID_ERROR << 16);
+#endif
 	} else {
 		ql_dbg(ql_dbg_user, vha, 0x702d,
 		    "Vendor request %s completed.\n", type);
 
 		bsg_job->reply_len = sizeof(struct fc_bsg_reply) +
 			sizeof(response) + sizeof(uint8_t);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 		bsg_job->reply->reply_payload_rcv_len =
+#else
+		bsg_reply->reply_payload_rcv_len =
+#endif
 			bsg_job->reply_payload.payload_len;
 		fw_sts_ptr = ((uint8_t *)bsg_job->req->sense) +
 			sizeof(struct fc_bsg_reply);
 		memcpy(fw_sts_ptr, response, sizeof(response));
 		fw_sts_ptr += sizeof(response);
 		*fw_sts_ptr = command_sent;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 		bsg_job->reply->result = DID_OK;
+#else
+		bsg_reply->result = DID_OK;
+#endif
 		sg_copy_from_buffer(bsg_job->reply_payload.sg_list,
 			bsg_job->reply_payload.sg_cnt, rsp_data,
 			rsp_data_len);
 	}
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	bsg_job->job_done(bsg_job);
+#else
+	if (!rval)
+		bsg_job_done(bsg_job, bsg_reply->result,
+			bsg_reply->reply_payload_rcv_len);
+#endif
 
 	dma_free_coherent(&ha->pdev->dev, rsp_data_len,
 		rsp_data, rsp_data_dma);
@@ -852,9 +1050,19 @@ done_unmap_req_sg:
 }
 
 static int
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 qla84xx_reset(struct fc_bsg_job *bsg_job)
+#else
+qla84xx_reset(struct bsg_job *bsg_job)
+#endif
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	struct Scsi_Host *host = bsg_job->shost;
+#else
+	struct fc_bsg_request *bsg_request = bsg_job->request;
+	struct Scsi_Host *host = fc_bsg_to_shost(bsg_job);
+	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
+#endif
 	scsi_qla_host_t *vha = shost_priv(host);
 	struct qla_hw_data *ha = vha->hw;
 	int rval = 0;
@@ -865,7 +1073,11 @@ qla84xx_reset(struct fc_bsg_job *bsg_job)
 		return -EINVAL;
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	flag = bsg_job->request->rqst_data.h_vendor.vendor_cmd[1];
+#else
+	flag = bsg_request->rqst_data.h_vendor.vendor_cmd[1];
+#endif
 
 	rval = qla84xx_reset_chip(vha, flag == A84_ISSUE_RESET_DIAG_FW);
 
@@ -873,22 +1085,45 @@ qla84xx_reset(struct fc_bsg_job *bsg_job)
 		ql_log(ql_log_warn, vha, 0x7030,
 		    "Vendor request 84xx reset failed.\n");
 		rval = 0;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 		bsg_job->reply->result = (DID_ERROR << 16);
-
+#else
+		bsg_reply->result = (DID_ERROR << 16);
+#endif
 	} else {
 		ql_dbg(ql_dbg_user, vha, 0x7031,
 		    "Vendor request 84xx reset completed.\n");
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 		bsg_job->reply->result = DID_OK;
+#else
+		bsg_reply->result = DID_OK;
+#endif
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	bsg_job->job_done(bsg_job);
+#else
+	if (!rval)
+		bsg_job_done(bsg_job, bsg_reply->result,
+			bsg_reply->reply_payload_rcv_len);
+#endif
 	return rval;
 }
 
 static int
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 qla84xx_updatefw(struct fc_bsg_job *bsg_job)
+#else
+qla84xx_updatefw(struct bsg_job *bsg_job)
+#endif
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	struct Scsi_Host *host = bsg_job->shost;
+#else
+	struct fc_bsg_request *bsg_request = bsg_job->request;
+	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
+	struct Scsi_Host *host = fc_bsg_to_shost(bsg_job);
+#endif
 	scsi_qla_host_t *vha = shost_priv(host);
 	struct qla_hw_data *ha = vha->hw;
 	struct verify_chip_entry_84xx *mn = NULL;
@@ -945,7 +1180,11 @@ qla84xx_updatefw(struct fc_bsg_job *bsg_job)
 		goto done_free_fw_buf;
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	flag = bsg_job->request->rqst_data.h_vendor.vendor_cmd[1];
+#else
+	flag = bsg_request->rqst_data.h_vendor.vendor_cmd[1];
+#endif
 	fw_ver = le32_to_cpu(*((uint32_t *)((uint32_t *)fw_buf + 2)));
 
 	memset(mn, 0, sizeof(struct access_chip_84xx));
@@ -972,16 +1211,30 @@ qla84xx_updatefw(struct fc_bsg_job *bsg_job)
 		    "Vendor request 84xx updatefw failed.\n");
 
 		rval = 0;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 		bsg_job->reply->result = (DID_ERROR << 16);
+#else
+		bsg_reply->result = (DID_ERROR << 16);
+#endif
 	} else {
 		ql_dbg(ql_dbg_user, vha, 0x7038,
 		    "Vendor request 84xx updatefw completed.\n");
 
 		bsg_job->reply_len = sizeof(struct fc_bsg_reply);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 		bsg_job->reply->result = DID_OK;
+#else
+		bsg_reply->result = DID_OK;
+#endif
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	bsg_job->job_done(bsg_job);
+#else
+	if (!rval)
+		bsg_job_done(bsg_job, bsg_reply->result,
+			bsg_reply->reply_payload_rcv_len);
+#endif
 	dma_pool_free(ha->s_dma_pool, mn, mn_dma);
 
 done_free_fw_buf:
@@ -995,9 +1248,19 @@ done_unmap_sg:
 }
 
 static int
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 qla84xx_mgmt_cmd(struct fc_bsg_job *bsg_job)
+#else
+qla84xx_mgmt_cmd(struct bsg_job *bsg_job)
+#endif
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	struct Scsi_Host *host = bsg_job->shost;
+#else
+	struct fc_bsg_request *bsg_request = bsg_job->request;
+	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
+	struct Scsi_Host *host = fc_bsg_to_shost(bsg_job);
+#endif
 	scsi_qla_host_t *vha = shost_priv(host);
 	struct qla_hw_data *ha = vha->hw;
 	struct access_chip_84xx *mn = NULL;
@@ -1015,8 +1278,12 @@ qla84xx_mgmt_cmd(struct fc_bsg_job *bsg_job)
 		return -EINVAL;
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	ql84_mgmt = (struct qla_bsg_a84_mgmt *)((char *)bsg_job->request +
 		sizeof(struct fc_bsg_request));
+#else
+	ql84_mgmt = (void *)bsg_request + sizeof(struct fc_bsg_request);
+#endif
 
 	mn = dma_pool_alloc(ha->s_dma_pool, GFP_KERNEL, &mn_dma);
 	if (!mn) {
@@ -1154,18 +1421,29 @@ qla84xx_mgmt_cmd(struct fc_bsg_job *bsg_job)
 		    "Vendor request 84xx mgmt failed.\n");
 
 		rval = 0;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 		bsg_job->reply->result = (DID_ERROR << 16);
-
+#else
+		bsg_reply->result = (DID_ERROR << 16);
+#endif
 	} else {
 		ql_dbg(ql_dbg_user, vha, 0x7044,
 		    "Vendor request 84xx mgmt completed.\n");
 
 		bsg_job->reply_len = sizeof(struct fc_bsg_reply);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 		bsg_job->reply->result = DID_OK;
+#else
+		bsg_reply->result = DID_OK;
+#endif
 
 		if ((ql84_mgmt->mgmt.cmd == QLA84_MGMT_READ_MEM) ||
 			(ql84_mgmt->mgmt.cmd == QLA84_MGMT_GET_INFO)) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 			bsg_job->reply->reply_payload_rcv_len =
+#else
+			bsg_reply->reply_payload_rcv_len =
+#endif
 				bsg_job->reply_payload.payload_len;
 
 			sg_copy_from_buffer(bsg_job->reply_payload.sg_list,
@@ -1174,7 +1452,13 @@ qla84xx_mgmt_cmd(struct fc_bsg_job *bsg_job)
 		}
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	bsg_job->job_done(bsg_job);
+#else
+	if (!rval)
+		bsg_job_done(bsg_job, bsg_reply->result,
+			bsg_reply->reply_payload_rcv_len);
+#endif
 
 done_unmap_sg:
 	if (mgmt_b)
@@ -1194,9 +1478,19 @@ exit_mgmt:
 }
 
 static int
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 qla24xx_iidma(struct fc_bsg_job *bsg_job)
+#else
+qla24xx_iidma(struct bsg_job *bsg_job)
+#endif
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	struct Scsi_Host *host = bsg_job->shost;
+#else
+	struct fc_bsg_request *bsg_request = bsg_job->request;
+	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
+	struct Scsi_Host *host = fc_bsg_to_shost(bsg_job);
+#endif
 	scsi_qla_host_t *vha = shost_priv(host);
 	int rval = 0;
 	struct qla_port_param *port_param = NULL;
@@ -1209,8 +1503,12 @@ qla24xx_iidma(struct fc_bsg_job *bsg_job)
 		return -EINVAL;
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	port_param = (struct qla_port_param *)((char *)bsg_job->request +
 		sizeof(struct fc_bsg_request));
+#else
+	port_param = (void *)bsg_request + sizeof(struct fc_bsg_request);
+#endif
 	if (port_param->fc_scsi_addr.dest_type != EXT_DEF_TYPE_WWPN) {
 		ql_log(ql_log_warn, vha, 0x7048,
 		    "Invalid destination type.\n");
@@ -1261,8 +1559,11 @@ qla24xx_iidma(struct fc_bsg_job *bsg_job)
 		    fcport->port_name[5], fcport->port_name[6],
 		    fcport->port_name[7], rval, fcport->fp_speed, mb[0], mb[1]);
 		rval = 0;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 		bsg_job->reply->result = (DID_ERROR << 16);
-
+#else
+		bsg_reply->result = (DID_ERROR << 16);
+#endif
 	} else {
 		if (!port_param->mode) {
 			bsg_job->reply_len = sizeof(struct fc_bsg_reply) +
@@ -1275,17 +1576,34 @@ qla24xx_iidma(struct fc_bsg_job *bsg_job)
 				sizeof(struct qla_port_param));
 		}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 		bsg_job->reply->result = DID_OK;
+#else
+		bsg_reply->result = DID_OK;
+#endif
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	bsg_job->job_done(bsg_job);
+#else
+	if (!rval)
+		bsg_job_done(bsg_job, bsg_reply->result,
+			bsg_reply->reply_payload_rcv_len);
+#endif
 	return rval;
 }
 
 static int
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 qla2x00_optrom_setup(struct fc_bsg_job *bsg_job, scsi_qla_host_t *vha,
+#else
+qla2x00_optrom_setup(struct bsg_job *bsg_job, scsi_qla_host_t *vha,
+#endif
     uint8_t is_update)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
+	struct fc_bsg_request *bsg_request = bsg_job->request;
+#endif
 	uint32_t start = 0;
 	int valid = 0;
 	struct qla_hw_data *ha = vha->hw;
@@ -1293,7 +1611,11 @@ qla2x00_optrom_setup(struct fc_bsg_job *bsg_job, scsi_qla_host_t *vha,
 	if (unlikely(pci_channel_offline(ha->pdev)))
 		return -EINVAL;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	start = bsg_job->request->rqst_data.h_vendor.vendor_cmd[1];
+#else
+	start = bsg_request->rqst_data.h_vendor.vendor_cmd[1];
+#endif
 	if (start > ha->optrom_size) {
 		ql_log(ql_log_warn, vha, 0x7055,
 		    "start %d > optrom_size %d.\n", start, ha->optrom_size);
@@ -1352,9 +1674,18 @@ qla2x00_optrom_setup(struct fc_bsg_job *bsg_job, scsi_qla_host_t *vha,
 }
 
 static int
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 qla2x00_read_optrom(struct fc_bsg_job *bsg_job)
+#else
+qla2x00_read_optrom(struct bsg_job *bsg_job)
+#endif
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	struct Scsi_Host *host = bsg_job->shost;
+#else
+	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
+	struct Scsi_Host *host = fc_bsg_to_shost(bsg_job);
+#endif
 	scsi_qla_host_t *vha = shost_priv(host);
 	struct qla_hw_data *ha = vha->hw;
 	int rval = 0;
@@ -1373,19 +1704,38 @@ qla2x00_read_optrom(struct fc_bsg_job *bsg_job)
 	    bsg_job->reply_payload.sg_cnt, ha->optrom_buffer,
 	    ha->optrom_region_size);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	bsg_job->reply->reply_payload_rcv_len = ha->optrom_region_size;
 	bsg_job->reply->result = DID_OK;
+#else
+	bsg_reply->reply_payload_rcv_len = ha->optrom_region_size;
+	bsg_reply->result = DID_OK;
+#endif
 	vfree(ha->optrom_buffer);
 	ha->optrom_buffer = NULL;
 	ha->optrom_state = QLA_SWAITING;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	bsg_job->job_done(bsg_job);
+#else
+	bsg_job_done(bsg_job, bsg_reply->result,
+		bsg_reply->reply_payload_rcv_len);
+#endif
 	return rval;
 }
 
 static int
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 qla2x00_update_optrom(struct fc_bsg_job *bsg_job)
+#else
+qla2x00_update_optrom(struct bsg_job *bsg_job)
+#endif
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	struct Scsi_Host *host = bsg_job->shost;
+#else
+	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
+	struct Scsi_Host *host = fc_bsg_to_shost(bsg_job);
+#endif
 	scsi_qla_host_t *vha = shost_priv(host);
 	struct qla_hw_data *ha = vha->hw;
 	int rval = 0;
@@ -1404,18 +1754,36 @@ qla2x00_update_optrom(struct fc_bsg_job *bsg_job)
 	ha->isp_ops->write_optrom(vha, ha->optrom_buffer,
 	    ha->optrom_region_start, ha->optrom_region_size);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	bsg_job->reply->result = DID_OK;
+#else
+	bsg_reply->result = DID_OK;
+#endif
 	vfree(ha->optrom_buffer);
 	ha->optrom_buffer = NULL;
 	ha->optrom_state = QLA_SWAITING;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	bsg_job->job_done(bsg_job);
+#else
+	bsg_job_done(bsg_job, bsg_reply->result,
+		bsg_reply->reply_payload_rcv_len);
+#endif
 	return rval;
 }
 
 static int
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 qla2x00_update_fru_versions(struct fc_bsg_job *bsg_job)
+#else
+qla2x00_update_fru_versions(struct bsg_job *bsg_job)
+#endif
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	struct Scsi_Host *host = bsg_job->shost;
+#else
+	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
+	struct Scsi_Host *host = fc_bsg_to_shost(bsg_job);
+#endif
 	scsi_qla_host_t *vha = shost_priv(host);
 	struct qla_hw_data *ha = vha->hw;
 	int rval = 0;
@@ -1426,7 +1794,11 @@ qla2x00_update_fru_versions(struct fc_bsg_job *bsg_job)
 	dma_addr_t sfp_dma;
 	void *sfp = dma_pool_alloc(ha->s_dma_pool, GFP_KERNEL, &sfp_dma);
 	if (!sfp) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 		bsg_job->reply->reply_data.vendor_reply.vendor_rsp[0] =
+#else
+		bsg_reply->reply_data.vendor_reply.vendor_rsp[0] =
+#endif
 		    EXT_STATUS_NO_MEMORY;
 		goto done;
 	}
@@ -1442,30 +1814,53 @@ qla2x00_update_fru_versions(struct fc_bsg_job *bsg_job)
 		    image->field_address.device, image->field_address.offset,
 		    sizeof(image->field_info), image->field_address.option);
 		if (rval) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 			bsg_job->reply->reply_data.vendor_reply.vendor_rsp[0] =
+#else
+			bsg_reply->reply_data.vendor_reply.vendor_rsp[0] =
+#endif
 			    EXT_STATUS_MAILBOX;
 			goto dealloc;
 		}
 		image++;
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	bsg_job->reply->reply_data.vendor_reply.vendor_rsp[0] = 0;
+#else
+	bsg_reply->reply_data.vendor_reply.vendor_rsp[0] = 0;
+#endif
 
 dealloc:
 	dma_pool_free(ha->s_dma_pool, sfp, sfp_dma);
 
 done:
 	bsg_job->reply_len = sizeof(struct fc_bsg_reply);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	bsg_job->reply->result = DID_OK << 16;
 	bsg_job->job_done(bsg_job);
+#else
+	bsg_reply->result = DID_OK << 16;
+	bsg_job_done(bsg_job, bsg_reply->result,
+		bsg_reply->reply_payload_rcv_len);
+#endif
 
 	return 0;
 }
 
 static int
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 qla2x00_read_fru_status(struct fc_bsg_job *bsg_job)
+#else
+qla2x00_read_fru_status(struct bsg_job *bsg_job)
+#endif
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	struct Scsi_Host *host = bsg_job->shost;
+#else
+	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
+	struct Scsi_Host *host = fc_bsg_to_shost(bsg_job);
+#endif
 	scsi_qla_host_t *vha = shost_priv(host);
 	struct qla_hw_data *ha = vha->hw;
 	int rval = 0;
@@ -1474,7 +1869,11 @@ qla2x00_read_fru_status(struct fc_bsg_job *bsg_job)
 	dma_addr_t sfp_dma;
 	uint8_t *sfp = dma_pool_alloc(ha->s_dma_pool, GFP_KERNEL, &sfp_dma);
 	if (!sfp) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 		bsg_job->reply->reply_data.vendor_reply.vendor_rsp[0] =
+#else
+		bsg_reply->reply_data.vendor_reply.vendor_rsp[0] =
+#endif
 		    EXT_STATUS_NO_MEMORY;
 		goto done;
 	}
@@ -1488,7 +1887,11 @@ qla2x00_read_fru_status(struct fc_bsg_job *bsg_job)
 	sr->status_reg = *sfp;
 
 	if (rval) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 		bsg_job->reply->reply_data.vendor_reply.vendor_rsp[0] =
+#else
+		bsg_reply->reply_data.vendor_reply.vendor_rsp[0] =
+#endif
 		    EXT_STATUS_MAILBOX;
 		goto dealloc;
 	}
@@ -1496,24 +1899,44 @@ qla2x00_read_fru_status(struct fc_bsg_job *bsg_job)
 	sg_copy_from_buffer(bsg_job->reply_payload.sg_list,
 	    bsg_job->reply_payload.sg_cnt, sr, sizeof(*sr));
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	bsg_job->reply->reply_data.vendor_reply.vendor_rsp[0] = 0;
+#else
+	bsg_reply->reply_data.vendor_reply.vendor_rsp[0] = 0;
+#endif
 
 dealloc:
 	dma_pool_free(ha->s_dma_pool, sfp, sfp_dma);
 
 done:
 	bsg_job->reply_len = sizeof(struct fc_bsg_reply);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	bsg_job->reply->reply_payload_rcv_len = sizeof(*sr);
 	bsg_job->reply->result = DID_OK << 16;
 	bsg_job->job_done(bsg_job);
+#else
+	bsg_reply->reply_payload_rcv_len = sizeof(*sr);
+	bsg_reply->result = DID_OK << 16;
+	bsg_job_done(bsg_job, bsg_reply->result,
+		bsg_reply->reply_payload_rcv_len);
+#endif
 
 	return 0;
 }
 
 static int
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 qla2x00_write_fru_status(struct fc_bsg_job *bsg_job)
+#else
+qla2x00_write_fru_status(struct bsg_job *bsg_job)
+#endif
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	struct Scsi_Host *host = bsg_job->shost;
+#else
+	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
+	struct Scsi_Host *host = fc_bsg_to_shost(bsg_job);
+#endif
 	scsi_qla_host_t *vha = shost_priv(host);
 	struct qla_hw_data *ha = vha->hw;
 	int rval = 0;
@@ -1522,7 +1945,11 @@ qla2x00_write_fru_status(struct fc_bsg_job *bsg_job)
 	dma_addr_t sfp_dma;
 	uint8_t *sfp = dma_pool_alloc(ha->s_dma_pool, GFP_KERNEL, &sfp_dma);
 	if (!sfp) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 		bsg_job->reply->reply_data.vendor_reply.vendor_rsp[0] =
+#else
+		bsg_reply->reply_data.vendor_reply.vendor_rsp[0] =
+#endif
 		    EXT_STATUS_NO_MEMORY;
 		goto done;
 	}
@@ -1536,28 +1963,55 @@ qla2x00_write_fru_status(struct fc_bsg_job *bsg_job)
 	    sizeof(sr->status_reg), sr->field_address.option);
 
 	if (rval) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 		bsg_job->reply->reply_data.vendor_reply.vendor_rsp[0] =
+#else
+		bsg_reply->reply_data.vendor_reply.vendor_rsp[0] =
+#endif
 		    EXT_STATUS_MAILBOX;
 		goto dealloc;
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	bsg_job->reply->reply_data.vendor_reply.vendor_rsp[0] = 0;
+#else
+	bsg_reply->reply_data.vendor_reply.vendor_rsp[0] = 0;
+#endif
 
 dealloc:
 	dma_pool_free(ha->s_dma_pool, sfp, sfp_dma);
 
 done:
 	bsg_job->reply_len = sizeof(struct fc_bsg_reply);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	bsg_job->reply->result = DID_OK << 16;
 	bsg_job->job_done(bsg_job);
+#else
+	bsg_reply->result = DID_OK << 16;
+	bsg_job_done(bsg_job, bsg_reply->result,
+		bsg_reply->reply_payload_rcv_len);
+#endif
 
 	return 0;
 }
 
 static int
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 qla2x00_process_vendor_specific(struct fc_bsg_job *bsg_job)
+#else
+qla2x00_process_vendor_specific(struct bsg_job *bsg_job)
+#endif
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
+	struct fc_bsg_request *bsg_request = bsg_job->request;
+	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	switch (bsg_job->request->rqst_data.h_vendor.vendor_cmd[0]) {
+#else
+	switch (bsg_request->rqst_data.h_vendor.vendor_cmd[0]) {
+#endif
 	case QL_VND_LOOPBACK:
 		return qla2x00_process_loopback(bsg_job);
 
@@ -1592,15 +2046,27 @@ qla2x00_process_vendor_specific(struct fc_bsg_job *bsg_job)
 		return qla2x00_write_fru_status(bsg_job);
 
 	default:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 		bsg_job->reply->result = (DID_ERROR << 16);
 		bsg_job->job_done(bsg_job);
+#else
+		bsg_reply->result = (DID_ERROR << 16);
+#endif
 		return -ENOTSUPP;
 	}
 }
 
 int
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 qla24xx_bsg_request(struct fc_bsg_job *bsg_job)
+#else
+qla24xx_bsg_request(struct bsg_job *bsg_job)
+#endif
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
+	struct fc_bsg_request *bsg_request = bsg_job->request;
+	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
+#endif
 	int ret = -EINVAL;
 	struct fc_rport *rport;
 	fc_port_t *fcport = NULL;
@@ -1608,31 +2074,55 @@ qla24xx_bsg_request(struct fc_bsg_job *bsg_job)
 	scsi_qla_host_t *vha;
 
 	/* In case no data transferred. */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	bsg_job->reply->reply_payload_rcv_len = 0;
 
 	if (bsg_job->request->msgcode == FC_BSG_RPT_ELS) {
 		rport = bsg_job->rport;
+#else
+	bsg_reply->reply_payload_rcv_len = 0;
+
+	if (bsg_request->msgcode == FC_BSG_RPT_ELS) {
+		rport = fc_bsg_to_rport(bsg_job);
+#endif
 		fcport = *(fc_port_t **) rport->dd_data;
 		host = rport_to_shost(rport);
 		vha = shost_priv(host);
 	} else {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 		host = bsg_job->shost;
+#else
+		host = fc_bsg_to_shost(bsg_job);
+#endif
 		vha = shost_priv(host);
 	}
 
 	if (qla2x00_reset_active(vha)) {
 		ql_dbg(ql_dbg_user, vha, 0x709f,
 		    "BSG: ISP abort active/needed -- cmd=%d.\n",
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 		    bsg_job->request->msgcode);
 		bsg_job->reply->result = (DID_ERROR << 16);
 		bsg_job->job_done(bsg_job);
+#else
+		    bsg_request->msgcode);
+		bsg_reply->result = (DID_ERROR << 16);
+#endif
 		return -EBUSY;
 	}
 
 	ql_dbg(ql_dbg_user, vha, 0x7000,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	    "Entered %s msgcode=0x%x.\n", __func__, bsg_job->request->msgcode);
+#else
+	    "Entered %s msgcode=0x%x.\n", __func__, bsg_request->msgcode);
+#endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	switch (bsg_job->request->msgcode) {
+#else
+	switch (bsg_request->msgcode) {
+#endif
 	case FC_BSG_RPT_ELS:
 	case FC_BSG_HST_ELS_NOLOGIN:
 		ret = qla2x00_process_els(bsg_job);
@@ -1648,16 +2138,30 @@ qla24xx_bsg_request(struct fc_bsg_job *bsg_job)
 	case FC_BSG_RPT_CT:
 	default:
 		ql_log(ql_log_warn, vha, 0x705a, "Unsupported BSG request.\n");
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 		bsg_job->reply->result = ret;
+#else
+		bsg_reply->result = ret;
+#endif
 		break;
 	}
 	return ret;
 }
 
 int
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 qla24xx_bsg_timeout(struct fc_bsg_job *bsg_job)
+#else
+qla24xx_bsg_timeout(struct bsg_job *bsg_job)
+#endif
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	scsi_qla_host_t *vha = shost_priv(bsg_job->shost);
+#else
+	struct fc_bsg_request *bsg_request = bsg_job->request;
+	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
+	scsi_qla_host_t *vha = shost_priv(fc_bsg_to_shost(bsg_job));
+#endif
 	struct qla_hw_data *ha = vha->hw;
 	srb_t *sp;
 	int cnt, que;
@@ -1683,13 +2187,21 @@ qla24xx_bsg_timeout(struct fc_bsg_job *bsg_job)
 						    "mbx abort_command "
 						    "failed.\n");
 						bsg_job->req->errors =
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 						bsg_job->reply->result = -EIO;
+#else
+						bsg_reply->result = -EIO;
+#endif
 					} else {
 						ql_dbg(ql_dbg_user, vha, 0x708a,
 						    "mbx abort_command "
 						    "success.\n");
 						bsg_job->req->errors =
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 						bsg_job->reply->result = 0;
+#else
+						bsg_reply->result = 0;
+#endif
 					}
 					spin_lock_irqsave(&ha->hardware_lock, flags);
 					goto done;
@@ -1699,12 +2211,20 @@ qla24xx_bsg_timeout(struct fc_bsg_job *bsg_job)
 	}
 	spin_unlock_irqrestore(&ha->hardware_lock, flags);
 	ql_log(ql_log_info, vha, 0x708b, "SRB not found to abort.\n");
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	bsg_job->req->errors = bsg_job->reply->result = -ENXIO;
+#else
+	bsg_job->req->errors = bsg_reply->result = -ENXIO;
+#endif
 	return 0;
 
 done:
 	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
 	if (bsg_job->request->msgcode == FC_BSG_HST_CT)
+#else
+	if (bsg_request->msgcode == FC_BSG_HST_CT)
+#endif
 		kfree(sp->fcport);
 	mempool_free(sp, ha->srb_mempool);
 	return 0;
