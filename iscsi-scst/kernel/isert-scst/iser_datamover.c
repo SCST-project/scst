@@ -93,15 +93,13 @@ out:
 	return ret;
 }
 
-void *isert_portal_add(struct sockaddr *saddr, size_t addr_len)
+struct isert_portal *isert_portal_add(struct sockaddr *saddr, size_t addr_len)
 {
 	return isert_portal_start(saddr, addr_len);
 }
 
-int isert_portal_remove(void *portal_h)
+int isert_portal_remove(struct isert_portal *portal)
 {
-	struct isert_portal *portal = portal_h;
-
 	isert_portal_release(portal);
 	return 0;
 }

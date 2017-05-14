@@ -42,8 +42,8 @@
 int isert_datamover_init(void);
 int isert_datamover_cleanup(void);
 
-void *isert_portal_add(struct sockaddr *sa, size_t addr_len);
-int isert_portal_remove(void *portal_h);
+struct isert_portal *isert_portal_add(struct sockaddr *sa, size_t addr_len);
+int isert_portal_remove(struct isert_portal *portal);
 
 struct iscsi_cmnd *isert_alloc_login_rsp_pdu(struct iscsi_conn *iscsi_conn);
 

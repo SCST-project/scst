@@ -63,6 +63,7 @@
 #include "iser_hdr.h"
 
 struct iscsi_conn;
+struct isert_portal;
 
 #define ISERT_NR_DEVS 128
 
@@ -76,7 +77,7 @@ struct isert_listener_dev {
 	struct list_head curr_conn_list;
 	struct isert_addr_info info;
 	atomic_t available;
-	void *portal_h[ISERT_MAX_PORTALS];
+	struct isert_portal *portal_h[ISERT_MAX_PORTALS];
 	int free_portal_idx;
 };
 
