@@ -296,6 +296,10 @@ static inline void hex2bin(u8 *dst, const char *src, size_t count)
 }
 #endif
 
+/*
+ * See also commit 33ee3b2e2eb9. That commit was introduced in kernel v2.6.39
+ * and later backported to kernel v2.6.38.4.
+ */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39) &&		\
 	LINUX_VERSION_CODE != KERNEL_VERSION(2, 6, 38) &&	\
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
@@ -646,15 +650,6 @@ struct t10_pi_tuple {
 	__be16 app_tag;
 	__be32 ref_tag;
 };
-#endif
-
-/* <linux/thread.h> */
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
-#ifndef kthread_create
-#define kthread_create_on_node(threadfn, data, node, namefmt, arg...)	\
-	kthread_create((threadfn), (data), (namefmt), ##arg)
-#endif
 #endif
 
 /* <linux/types.h> */
