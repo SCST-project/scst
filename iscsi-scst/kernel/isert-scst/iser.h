@@ -256,6 +256,9 @@ struct isert_global {
 	spinlock_t		portal_lock;
 	/* protected by portal_lock */
 	struct list_head	portal_list;
+	/* Number of live portal objects. Protected by portal_lock. */
+	int			portal_cnt;
+	wait_queue_head_t	portal_wq;
 	/* protected by dev_list_mutex */
 	struct list_head	dev_list;
 	struct workqueue_struct	*conn_wq;
@@ -270,6 +273,8 @@ int isert_datamover_cleanup(void);
 
 void isert_portal_list_add(struct isert_portal *portal);
 void isert_portal_list_remove(struct isert_portal *portal);
+void isert_decrease_portal_cnt(void);
+void isert_wait_for_portal_release(void);
 
 void isert_dev_list_add(struct isert_device *isert_dev);
 void isert_dev_list_remove(struct isert_device *isert_dev);

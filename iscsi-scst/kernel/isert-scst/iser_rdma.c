@@ -1900,6 +1900,8 @@ static void isert_portal_free(struct isert_portal *portal)
 
 	kfree(portal);
 	module_put(THIS_MODULE);
+
+	isert_decrease_portal_cnt();
 }
 
 void isert_portal_release(struct isert_portal *portal)
@@ -1924,9 +1926,6 @@ void isert_portal_release(struct isert_portal *portal)
 	portal->state = ISERT_PORTAL_INACTIVE;
 	isert_portal_free(portal);
 	mutex_unlock(&dev_list_mutex);
-
-	while (portal->refcnt > 0)
-		msleep(100);
 
 	PRINT_INFO("done releasing portal %p", portal);
 }

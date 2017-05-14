@@ -1052,6 +1052,7 @@ void isert_close_all_portals(void)
 
 	for (i = 0; i < isert_listen_dev.free_portal_idx; ++i)
 		isert_portal_remove(isert_listen_dev.portal_h[i]);
+	isert_wait_for_portal_release();
 	isert_listen_dev.free_portal_idx = 0;
 }
 
