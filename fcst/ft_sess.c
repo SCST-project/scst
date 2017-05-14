@@ -49,12 +49,8 @@ static struct ft_tport *ft_tport_create(struct fc_lport *lport)
 	ft_format_wwn(name, sizeof(name), lport->wwpn);
 	FT_SESS_DBG("create %s\n", name);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
 	tport = rcu_dereference_protected(lport->prov[FC_TYPE_FCP],
 					  lockdep_is_held(&ft_lport_lock));
-#else
-	tport = rcu_dereference(lport->prov[FC_TYPE_FCP]);
-#endif
 	if (tport) {
 		FT_SESS_DBG("tport alloc %s - already setup\n", name);
 		return tport;
@@ -187,11 +183,7 @@ static struct ft_sess *ft_sess_get(struct fc_lport *lport, u32 port_id)
 	struct ft_sess *sess;
 
 	rcu_read_lock();
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
 	tport = rcu_dereference_protected(lport->prov[FC_TYPE_FCP], true);
-#else
-	tport = rcu_dereference(lport->prov[FC_TYPE_FCP]);
-#endif
 	if (!tport)
 		goto out;
 
@@ -406,13 +398,9 @@ static int ft_prli_locked(struct fc_rport_priv *rdata, u32 spp_len,
 
 		if (!(fcp_parm & FCP_SPPF_INIT_FCN))
 			return FC_SPP_RESP_CONF;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
 		tport = rcu_dereference_protected(
 					rdata->local_port->prov[FC_TYPE_FCP],
 					lockdep_is_held(&ft_lport_lock));
-#else
-		tport = rcu_dereference(rdata->local_port->prov[FC_TYPE_FCP]);
-#endif
 		if (!tport) {
 			/* not a target for this local port */
 			return FC_SPP_RESP_CONF;
@@ -492,12 +480,8 @@ static void ft_prlo(struct fc_rport_priv *rdata)
 	struct ft_tport *tport;
 
 	mutex_lock(&ft_lport_lock);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
 	tport = rcu_dereference_protected(rdata->local_port->prov[FC_TYPE_FCP],
 					  lockdep_is_held(&ft_lport_lock));
-#else
-	tport = rcu_dereference(rdata->local_port->prov[FC_TYPE_FCP]);
-#endif
 	if (!tport) {
 		mutex_unlock(&ft_lport_lock);
 		return;
