@@ -648,15 +648,6 @@ struct t10_pi_tuple {
 };
 #endif
 
-/* <linux/thread.h> */
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
-#ifndef kthread_create
-#define kthread_create_on_node(threadfn, data, node, namefmt, arg...)	\
-	kthread_create((threadfn), (data), (namefmt), ##arg)
-#endif
-#endif
-
 /* <linux/types.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
