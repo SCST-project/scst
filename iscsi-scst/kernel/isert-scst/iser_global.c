@@ -49,6 +49,7 @@ void isert_portal_list_add(struct isert_portal *portal)
 {
 	spin_lock(&isert_glob.portal_lock);
 	list_add_tail(&portal->list_node, &isert_glob.portal_list);
+	isert_glob.portal_cnt++;
 	spin_unlock(&isert_glob.portal_lock);
 }
 
@@ -57,6 +58,32 @@ void isert_portal_list_remove(struct isert_portal *portal)
 	spin_lock(&isert_glob.portal_lock);
 	list_del_init(&portal->list_node);
 	spin_unlock(&isert_glob.portal_lock);
+}
+
+void isert_decrease_portal_cnt(void)
+{
+	spin_lock(&isert_glob.portal_lock);
+	WARN_ON_ONCE(isert_glob.portal_cnt <= 0);
+	spin_unlock(&isert_glob.portal_lock);
+
+	if (--isert_glob.portal_cnt == 0)
+		wake_up_all(&isert_glob.portal_wq);
+}
+
+static int isert_portal_cnt(void)
+{
+	int portal_cnt;
+
+	spin_lock(&isert_glob.portal_lock);
+	portal_cnt = isert_glob.portal_cnt;
+	spin_unlock(&isert_glob.portal_lock);
+
+	return portal_cnt;
+}
+
+void isert_wait_for_portal_release(void)
+{
+	wait_event(isert_glob.portal_wq, isert_portal_cnt() == 0);
 }
 
 void isert_dev_list_add(struct isert_device *isert_dev)
@@ -90,6 +117,7 @@ void isert_portal_list_release_all(void)
 
 	list_for_each_entry_safe(portal, n, &isert_glob.portal_list, list_node)
 		isert_portal_release(portal);
+	isert_wait_for_portal_release();
 }
 
 void isert_conn_queue_work(struct work_struct *w)
@@ -99,10 +127,13 @@ void isert_conn_queue_work(struct work_struct *w)
 
 int isert_global_init(void)
 {
+	isert_glob.portal_cnt = 0;
+
 	INIT_LIST_HEAD(&isert_glob.portal_list);
 	INIT_LIST_HEAD(&isert_glob.dev_list);
 
 	spin_lock_init(&isert_glob.portal_lock);
+	init_waitqueue_head(&isert_glob.portal_wq);
 
 	isert_glob.conn_wq = create_workqueue("isert_conn_wq");
 	if (!isert_glob.conn_wq) {
