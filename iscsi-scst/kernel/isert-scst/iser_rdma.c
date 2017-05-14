@@ -198,8 +198,11 @@ static void isert_post_drain_rq(struct isert_connection *isert_conn)
 void isert_post_drain(struct isert_connection *isert_conn)
 {
 	if (!test_and_set_bit(ISERT_DRAIN_POSTED, &isert_conn->flags)) {
+		mutex_lock(&isert_conn->state_mutex);
+		isert_conn->state = ISER_CONN_CLOSING;
 		isert_post_drain_rq(isert_conn);
 		isert_post_drain_sq(isert_conn);
+		mutex_unlock(&isert_conn->state_mutex);
 	}
 }
 
