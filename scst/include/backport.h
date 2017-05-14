@@ -361,6 +361,11 @@ static inline int __must_check kref_get_unless_zero(struct kref *kref)
 }
 #endif
 
+/* See also commit 2c935bc57221 */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
+#define kref_read(kref) (atomic_read(&(kref)->refcount))
+#endif
+
 /* <linux/kthread.h> */
 
 /* See also commit 207205a2ba26 */
