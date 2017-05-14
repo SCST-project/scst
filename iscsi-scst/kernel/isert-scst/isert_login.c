@@ -395,7 +395,7 @@ static long isert_listen_ioctl(struct file *filp, unsigned int cmd,
 	struct isert_listener_dev *dev = filp->private_data;
 	int res = 0, rc;
 	void __user *ptr = (void __user *)arg;
-	void *portal;
+	struct isert_portal *portal;
 
 	TRACE_ENTRY();
 
