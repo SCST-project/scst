@@ -4663,7 +4663,7 @@ static int __init srpt_init_module(void)
 
 	if (srpt_sq_size < MIN_SRPT_SQ_SIZE) {
 		pr_err("invalid value %d for kernel module parameter srpt_sq_size -- must be at least %d.\n",
-		       srpt_srq_size, MIN_SRPT_SQ_SIZE);
+		       srpt_sq_size, MIN_SRPT_SQ_SIZE);
 		goto out;
 	}
 
