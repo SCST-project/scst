@@ -361,12 +361,17 @@ static inline int __must_check kref_get_unless_zero(struct kref *kref)
 }
 #endif
 
+/* See also commit 2c935bc57221 */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
+#define kref_read(kref) (atomic_read(&(kref)->refcount))
+#endif
+
 /* <linux/kthread.h> */
 
 /* See also commit 207205a2ba26 */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
 #define kthread_create_on_node(threadfn, data, node, namefmt, arg...)\
-	kthread_create((threadfn), (data), ##arg)
+	kthread_create((threadfn), (data), (namefmt), ##arg)
 #endif
 
 /* <linux/ktime.h> */
@@ -519,6 +524,11 @@ static inline int __ratelimit(struct ratelimit_state *rs)
 #endif
 
 /* <linux/rcupdate.h> */
+
+/* See also commit b62730baea32 */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 34)
+#define rcu_dereference_protected(p, c) rcu_dereference(p)
+#endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 0) && !defined(kfree_rcu)
 typedef void (*rcu_callback_t)(struct rcu_head *);
