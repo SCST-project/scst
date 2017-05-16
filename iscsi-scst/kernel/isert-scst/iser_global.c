@@ -62,11 +62,14 @@ void isert_portal_list_remove(struct isert_portal *portal)
 
 void isert_decrease_portal_cnt(void)
 {
+	int portal_cnt;
+
 	spin_lock(&isert_glob.portal_lock);
 	WARN_ON_ONCE(isert_glob.portal_cnt <= 0);
+	portal_cnt = --isert_glob.portal_cnt;
 	spin_unlock(&isert_glob.portal_lock);
 
-	if (--isert_glob.portal_cnt == 0)
+	if (portal_cnt == 0)
 		wake_up_all(&isert_glob.portal_wq);
 }
 
