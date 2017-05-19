@@ -120,6 +120,7 @@ static struct scst_trace_log vdisk_local_trace_tbl[] = {
 #define DEF_ROTATIONAL			1
 #define DEF_THIN_PROVISIONED		0
 #define DEF_EXPL_ALUA			0
+#define DEF_DEV_ACTIVE			1
 
 #define VDISK_NULLIO_SIZE		(5LL*1024*1024*1024*1024/2)
 
@@ -168,6 +169,7 @@ struct scst_vdisk_dev {
 	 * Below flags are protected by flags_lock or suspended activity
 	 * with scst_vdisk_mutex.
 	 */
+	unsigned int dev_active:1;
 	unsigned int rd_only:1;
 	unsigned int wt_flag:1;
 	unsigned int nv_cache:1;
@@ -418,6 +420,8 @@ static ssize_t vdisk_sysfs_nv_cache_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdisk_sysfs_o_direct_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
+static ssize_t vdev_sysfs_active_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
 static ssize_t vdev_sysfs_dummy_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdev_sysfs_rz_show(struct kobject *kobj,
@@ -484,6 +488,8 @@ static ssize_t vdev_dif_filename_show(struct kobject *kobj,
 static ssize_t vcdrom_sysfs_filename_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count);
 
+static struct kobj_attribute vdev_active_attr =
+	__ATTR(active, S_IRUGO, vdev_sysfs_active_show, NULL);
 static struct kobj_attribute vdev_size_ro_attr =
 	__ATTR(size, S_IRUGO, vdev_sysfs_size_show, NULL);
 static struct kobj_attribute vdev_size_rw_attr =
@@ -604,6 +610,7 @@ static const struct attribute *vdisk_fileio_attrs[] = {
 };
 
 static const struct attribute *vdisk_blockio_attrs[] = {
+	&vdev_active_attr.attr,
 	&vdev_size_rw_attr.attr,
 	&vdev_size_mb_rw_attr.attr,
 	&vdisk_blocksize_attr.attr,
@@ -939,6 +946,12 @@ static struct file *vdev_open_fd(const struct scst_vdisk_dev *virt_dev,
 
 	sBUG_ON(!name);
 
+	if (!virt_dev->dev_active) {
+		TRACE_MGMT_DBG("Skip openning for not active dev %s", virt_dev->dev->virt_name);
+		fd = ERR_PTR(-EMEDIUMTYPE);
+		goto out;
+	}
+
 	if (read_only)
 		open_flags |= O_RDONLY;
 	else
@@ -958,6 +971,7 @@ static struct file *vdev_open_fd(const struct scst_vdisk_dev *virt_dev,
 			PRINT_ERROR("filp_open(%s) failed: %d", name, (int)PTR_ERR(fd));
 	}
 
+out:
 	TRACE_EXIT();
 	return fd;
 }
@@ -969,7 +983,7 @@ static void vdisk_blockio_check_flush_support(struct scst_vdisk_dev *virt_dev)
 
 	TRACE_ENTRY();
 
-	if (!virt_dev->blockio || virt_dev->rd_only || virt_dev->nv_cache || virt_dev->wt_flag)
+	if (!virt_dev->blockio || virt_dev->rd_only || virt_dev->nv_cache || virt_dev->wt_flag || !virt_dev->dev_active)
 		goto out;
 
 	fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
@@ -1014,7 +1028,7 @@ static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 
 	virt_dev->dev_thin_provisioned = 0;
 
-	if (virt_dev->rd_only || (virt_dev->filename == NULL))
+	if (virt_dev->rd_only || (virt_dev->filename == NULL) || !virt_dev->dev_active)
 		goto check;
 
 	fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
@@ -1126,7 +1140,7 @@ check:
 }
 
 /* Returns 0 on success and file size in *file_size, error code otherwise */
-static int vdisk_get_file_size(const char *filename, bool blockio,
+static int vdisk_get_file_size(const struct scst_vdisk_dev *virt_dev,
 	loff_t *file_size)
 {
 	struct inode *inode;
@@ -1135,25 +1149,31 @@ static int vdisk_get_file_size(const char *filename, bool blockio,
 
 	TRACE_ENTRY();
 
-	sBUG_ON(!filename);
+	sBUG_ON(!virt_dev->filename);
+
+	if (!virt_dev->dev_active) {
+		TRACE_DBG("Not active dev %s, skip reexaming", virt_dev->dev->virt_name);
+		res = -EMEDIUMTYPE;
+		goto out;
+	}
 
 	*file_size = 0;
 
-	fd = filp_open(filename, O_LARGEFILE | O_RDONLY, 0600);
+	fd = filp_open(virt_dev->filename, O_LARGEFILE | O_RDONLY, 0600);
 	if (IS_ERR(fd)) {
 		res = PTR_ERR(fd);
-		if ((res == -EMEDIUMTYPE) && blockio)
+		if ((res == -EMEDIUMTYPE) && virt_dev->blockio)
 			TRACE(TRACE_MINOR, "Unable to open %s with EMEDIUMTYPE, "
-				"DRBD passive?", filename);
+				"DRBD passive?", virt_dev->filename);
 		else
-			PRINT_ERROR("filp_open(%s) failed: %d", filename, res);
+			PRINT_ERROR("filp_open(%s) failed: %d", virt_dev->filename, res);
 		goto out;
 	}
 
 	inode = file_inode(fd);
 
-	if (blockio && !S_ISBLK(inode->i_mode)) {
-		PRINT_ERROR("File %s is NOT a block device", filename);
+	if (virt_dev->blockio && !S_ISBLK(inode->i_mode)) {
+		PRINT_ERROR("File %s is NOT a block device", virt_dev->filename);
 		res = -EINVAL;
 		goto out_close;
 	}
@@ -1164,7 +1184,7 @@ static int vdisk_get_file_size(const char *filename, bool blockio,
 		inode = inode->i_bdev->bd_inode;
 	} else {
 		PRINT_ERROR("File %s unsupported mode: mode=0%o\n",
-			    filename, inode->i_mode);
+			    virt_dev->filename, inode->i_mode);
 		res = -EINVAL;
 		goto out_close;
 	}
@@ -1571,8 +1591,7 @@ static int vdisk_reexamine(struct scst_vdisk_dev *virt_dev)
 	if (!virt_dev->nullio && !virt_dev->cdrom_empty) {
 		loff_t file_size;
 
-		res = vdisk_get_file_size(virt_dev->filename, virt_dev->blockio,
-					  &file_size);
+		res = vdisk_get_file_size(virt_dev, &file_size);
 		if (res < 0) {
 			if ((res == -EMEDIUMTYPE) && virt_dev->blockio) {
 				TRACE_DBG("Reexam pending (dev %s)", virt_dev->name);
@@ -7427,9 +7446,11 @@ static void blockio_on_alua_state_change_start(struct scst_device *dev,
 	 * no parallel fd activities could be here.
 	 */
 
-	TRACE_MGMT_DBG("ALUA state change from %s to %s started, closing FD (dev %s)",
+	TRACE_MGMT_DBG("ALUA state change from %s to %s started, closing FD (dev %s, active %d)",
 		scst_alua_state_name(old_state), scst_alua_state_name(new_state),
-		dev->virt_name);
+		dev->virt_name, virt_dev->dev_active);
+
+	virt_dev->dev_active = 0;
 
 	/* Just in case always close */
 	vdisk_close_fd(virt_dev);
@@ -7455,9 +7476,11 @@ static void blockio_on_alua_state_change_finish(struct scst_device *dev,
 		/* Try non-optimized as well, it might be new redirection device */
 		int rc = 0;
 
-		TRACE_MGMT_DBG("ALUA state change from %s to %s finished (dev %s), "
+		TRACE_MGMT_DBG("ALUA state change from %s to %s finished (dev %s, active %d), "
 			"reopening FD", scst_alua_state_name(old_state),
-			scst_alua_state_name(new_state), dev->virt_name);
+			scst_alua_state_name(new_state), dev->virt_name, virt_dev->dev_active);
+
+		virt_dev->dev_active = 1;
 
 		/*
 		 * only reopen fd if tgt_dev_cnt is not zero, otherwise we will
@@ -7640,6 +7663,10 @@ static void vdisk_report_registering(const struct scst_vdisk_dev *virt_dev)
 		i += snprintf(&buf[i], buf_size - i, "%sREMOVABLE",
 			(j == i) ? "(" : ", ");
 
+	if (!virt_dev->dev_active)
+		i += snprintf(&buf[i], buf_size - i, "%sINACTIVE",
+			(j == i) ? "(" : ", ");
+
 	if (virt_dev->tst != DEF_TST)
 		i += snprintf(&buf[i], buf_size - i, "%sTST %d",
 			(j == i) ? "(" : ", ", virt_dev->tst);
@@ -7687,13 +7714,12 @@ static int vdisk_resync_size(struct scst_vdisk_dev *virt_dev)
 	sBUG_ON(virt_dev->nullio);
 	sBUG_ON(!virt_dev->filename);
 
-	if (virt_dev->fd == NULL) {
+	if ((virt_dev->fd == NULL) || !virt_dev->dev_active) {
 		res = -EMEDIUMTYPE;
 		goto out;
 	}
 
-	res = vdisk_get_file_size(virt_dev->filename,
-			virt_dev->blockio, &file_size);
+	res = vdisk_get_file_size(virt_dev, &file_size);
 	if (res != 0)
 		goto out;
 
@@ -7829,6 +7855,7 @@ static int vdev_create_node(struct scst_dev_type *devt,
 
 	virt_dev->blk_shift = DEF_DISK_BLOCK_SHIFT;
 	virt_dev->numa_node_id = NUMA_NO_NODE;
+	virt_dev->dev_active = DEF_DEV_ACTIVE;
 
 	if (strlen(name) >= sizeof(virt_dev->name)) {
 		PRINT_ERROR("Name %s is too long (max allowed %zd)", name,
@@ -8103,6 +8130,9 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 		} else if (!strcasecmp("removable", p)) {
 			virt_dev->removable = val;
 			TRACE_DBG("REMOVABLE %d", virt_dev->removable);
+		} else if (!strcasecmp("active", p)) {
+			virt_dev->dev_active = val;
+			TRACE_DBG("ACTIVE %d", virt_dev->dev_active);
 		} else if (!strcasecmp("rotational", p)) {
 			virt_dev->rotational = val;
 			TRACE_DBG("ROTATIONAL %d", virt_dev->rotational);
@@ -8243,7 +8273,7 @@ static int vdev_blockio_add_device(const char *device_name, char *params)
 	const char *const allowed_params[] = { "filename", "read_only", "write_through",
 					 "removable", "blocksize", "nv_cache",
 					 "rotational", "cluster_mode",
-					 "thin_provisioned", "tst",
+					 "thin_provisioned", "tst", "active",
 					 "numa_node_id", "dif_mode",
 					 "dif_type", "dif_static_app_tag",
 					 "dif_filename", NULL };
@@ -8649,8 +8679,7 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 
 		virt_dev->filename = fn;
 
-		res = vdisk_get_file_size(virt_dev->filename,
-				virt_dev->blockio, &err);
+		res = vdisk_get_file_size(virt_dev, &err);
 		if (res != 0)
 			goto out_free_fn;
 		if (virt_dev->fd == NULL) {
@@ -10149,6 +10178,25 @@ static ssize_t vdev_sysfs_inq_vend_specific_show(struct kobject *kobj,
 		       virt_dev->inq_vend_specific_len ?
 		       SCST_SYSFS_KEY_MARK "\n" : "");
 	read_unlock(&vdisk_serial_rwlock);
+
+	return pos;
+}
+
+static ssize_t vdev_sysfs_active_show(struct kobject *kobj,
+				      struct kobj_attribute *attr,
+				      char *buf)
+{
+	int pos;
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = dev->dh_priv;
+
+	pos = snprintf(buf, PAGE_SIZE, "%d\n%s",
+		       virt_dev->dev_active,
+		       virt_dev->dev_active != DEF_DEV_ACTIVE ?
+			       SCST_SYSFS_KEY_MARK "\n" : "");
 
 	return pos;
 }

@@ -1549,10 +1549,15 @@ DRBD as well as other replication/failover SW does not allow to open its
 device on the secondary as well as does not allow to perform primary to
 secondary transition, if this device is open.
 
-SCST BLOCKIO handler has all the necessary support for such behavior. If
-you write new ALUA state in the "state" attribute, SCST BLOCKIO handler
-before transition closes the open devices' handles and after transition
-reopens them, if the new state is active or nonoptimized.
+SCST BLOCKIO handler has necessary support for such behavior:
+
+1. If you need to prevent an SCST BLOCKIO device from opening its block
+device, you need to create it with parameter "active=0"
+
+2. If you write new ALUA state in the "state" attribute, SCST BLOCKIO
+handler before transition closes open handles on all affected SCST
+devices and after transition reopens them, if the new state is active or
+nonoptimized.
 
 Thus, the recommended implicit ALUA state change procedure for primary
 to secondary transition is:
