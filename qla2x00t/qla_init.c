@@ -2440,8 +2440,10 @@ qla2x00_nvram_config(scsi_qla_host_t *vha)
 		nv->add_firmware_options[1] |= BIT_5 | BIT_4;
 
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
+#if 0
 		/* out-of-order frames rassembly */
 		nv->special_options[0] |= BIT_6;
+#endif
 #endif /* CONFIG_SCSI_QLA2XXX_TARGET */
 
 		if (IS_QLA2300(ha)) {
@@ -4543,8 +4545,10 @@ qla24xx_nvram_config(scsi_qla_host_t *vha)
 			nv->firmware_options_3 = ha->saved_firmware_options_3;
 		}
 	}
+#if 0
 	/* out-of-order frames reassembly */
 	nv->firmware_options_3 |= cpu_to_le32(BIT_6|BIT_9);
+#endif
 
 #endif /* CONFIG_SCSI_QLA2XXX_TARGET */
 
@@ -5500,8 +5504,10 @@ qla81xx_nvram_config(scsi_qla_host_t *vha)
 			nv->firmware_options_3 = ha->saved_firmware_options_3;
 		}
 	}
+#if 0
 	/* out-of-order frames reassembly */
 	nv->firmware_options_3 |= cpu_to_le32(BIT_6|BIT_9);
+#endif
 
 #endif /* CONFIG_SCSI_QLA2XXX_TARGET */
 
