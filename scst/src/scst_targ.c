@@ -7393,7 +7393,8 @@ static int scst_mgmt_affected_cmds_done(struct scst_mgmt_cmd *mcmd)
 	case SCST_CLEAR_TASK_SET:
 	case SCST_PR_ABORT_ALL:
 	case SCST_LUN_RESET:
-		scst_call_dev_task_mgmt_fn_done(mcmd, mcmd->mcmd_tgt_dev);
+		if (mcmd->mcmd_tgt_dev != NULL)
+			scst_call_dev_task_mgmt_fn_done(mcmd, mcmd->mcmd_tgt_dev);
 		break;
 
 	case SCST_TARGET_RESET:
