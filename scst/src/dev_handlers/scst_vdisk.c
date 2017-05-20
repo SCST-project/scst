@@ -4291,8 +4291,8 @@ static int vdisk_block_limits(uint8_t *buf, struct scst_cmd *cmd,
 	put_unaligned_be16(max_t(int, PAGE_SIZE / dev->block_size, 1), &buf[6]);
 
 	/* Max transfer len is min of sg limit and 8M */
-	max_transfer = min_t(int, cmd->tgt_dev->max_sg_cnt << PAGE_SHIFT,
-			     8*1024*1024) / dev->block_size;
+	max_transfer = min((long)cmd->tgt_dev->max_sg_cnt << PAGE_SHIFT,
+			   8*1024*1024l) / dev->block_size;
 	put_unaligned_be32(max_transfer, &buf[8]);
 
 	/*
