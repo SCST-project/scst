@@ -1270,10 +1270,7 @@ static struct scst_device *__scst_lookup_device(struct scsi_device *scsidp)
 	return NULL;
 }
 
-static void scst_unregister_device(struct scsi_device *scsidp,
-				   void (*on_free)(struct scst_device *dev,
-						   void *arg),
-				   void *arg)
+static void scst_unregister_device(struct scsi_device *scsidp)
 {
 	struct scst_device *dev;
 	struct scst_acg_dev *acg_dev, *aa;
@@ -1330,9 +1327,6 @@ static void scst_unregister_device(struct scsi_device *scsidp,
 	PRINT_INFO("Detached from scsi%d, channel %d, id %d, lun %lld, type %d",
 		   scsidp->host->host_no, scsidp->channel, scsidp->id,
 		   (u64)scsidp->lun, scsidp->type);
-
-	if (on_free)
-		on_free(dev, arg);
 
 	scst_free_device(dev);
 
@@ -2420,7 +2414,7 @@ static void scst_remove(struct device *cdev, struct class_interface *intf)
 
 	if ((scsidp->host->hostt->name == NULL) ||
 	    (strcmp(scsidp->host->hostt->name, SCST_LOCAL_NAME) != 0))
-		scst_unregister_device(scsidp, NULL, NULL);
+		scst_unregister_device(scsidp);
 
 	TRACE_EXIT();
 	return;
