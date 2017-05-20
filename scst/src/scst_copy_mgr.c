@@ -2498,6 +2498,7 @@ out_free:
 	goto out;
 }
 
+/* scst_mutex supposed to be held and activities suspended */
 static bool scst_cm_is_lun_free(unsigned int lun)
 {
 	bool res = true;
@@ -2520,6 +2521,7 @@ static bool scst_cm_is_lun_free(unsigned int lun)
 	return res;
 }
 
+/* scst_mutex supposed to be held and activities suspended */
 static unsigned int scst_cm_get_lun(const struct scst_device *dev)
 {
 	unsigned int res = SCST_MAX_LUN;
@@ -2549,6 +2551,7 @@ out:
 	return res;
 }
 
+/* scst_mutex supposed to be held and activities suspended */
 static int scst_cm_dev_register(struct scst_device *dev, uint64_t lun)
 {
 	int res, i;
@@ -2624,6 +2627,7 @@ out_err:
 	goto out;
 }
 
+/* scst_mutex supposed to be held and activities suspended */
 static void scst_cm_dev_unregister(struct scst_device *dev, bool del_lun)
 {
 	int i;
@@ -2700,6 +2704,7 @@ out_unblock:
 	goto out_resume;
 }
 
+/* scst_mutex supposed to be held and activities suspended */
 int scst_cm_on_dev_register(struct scst_device *dev)
 {
 	int res = 0;
@@ -2719,6 +2724,7 @@ out:
 	return res;
 }
 
+/* scst_mutex supposed to be held and activities suspended */
 void scst_cm_on_dev_unregister(struct scst_device *dev)
 {
 	TRACE_ENTRY();
@@ -2732,6 +2738,7 @@ void scst_cm_on_dev_unregister(struct scst_device *dev)
 	return;
 }
 
+/* scst_mutex supposed to be held and activities suspended */
 int scst_cm_on_add_acg(struct scst_acg *acg)
 {
 	int res = 0;
@@ -2757,6 +2764,7 @@ out:
 	return res;
 }
 
+/* scst_mutex supposed to be held and activities suspended */
 void scst_cm_on_del_acg(struct scst_acg *acg)
 {
 	scst_assert_activity_suspended();
@@ -2764,6 +2772,7 @@ void scst_cm_on_del_acg(struct scst_acg *acg)
 	/* Nothing to do */
 }
 
+/* scst_mutex supposed to be held and activities suspended */
 int scst_cm_on_add_lun(struct scst_acg_dev *acg_dev, uint64_t lun,
 	unsigned int *flags)
 {
@@ -2791,6 +2800,7 @@ out:
 	return res;
 }
 
+/* scst_mutex supposed to be held and activities suspended */
 bool scst_cm_on_del_lun(struct scst_acg_dev *acg_dev, bool gen_report_luns_changed)
 {
 	bool res = gen_report_luns_changed;
@@ -2812,6 +2822,7 @@ out:
 	return res;
 }
 
+/* scst_mutex2 supposed to be held */
 static bool scst_cm_check_access_acg(const char *initiator_name,
 	const struct scst_device *dev, const struct scst_acg *acg,
 	bool default_acg)
