@@ -2105,7 +2105,7 @@ qla24xx_tm_iocb(srb_t *sp, struct tsk_mgmt_entry *tsk)
 static void
 qla24xx_els_iocb(srb_t *sp, struct els_entry_24xx *els_iocb)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
 	struct fc_bsg_job *bsg_job = sp->u.bsg_job;
 #else
 	struct bsg_job *bsg_job = sp->u.bsg_job;
@@ -2125,7 +2125,7 @@ qla24xx_els_iocb(srb_t *sp, struct els_entry_24xx *els_iocb)
 
 	els_iocb->opcode =
 	    sp->type == SRB_ELS_CMD_RPT ?
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
 	    bsg_job->request->rqst_data.r_els.els_code :
 	    bsg_job->request->rqst_data.h_els.command_code;
 #else
@@ -2166,7 +2166,7 @@ qla2x00_ct_iocb(srb_t *sp, ms_iocb_entry_t *ct_iocb)
 	uint16_t tot_dsds;
 	scsi_qla_host_t *vha = sp->fcport->vha;
 	struct qla_hw_data *ha = vha->hw;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
 	struct fc_bsg_job *bsg_job = sp->u.bsg_job;
 #else
 	struct bsg_job *bsg_job = sp->u.bsg_job;
@@ -2247,7 +2247,7 @@ qla24xx_ct_iocb(srb_t *sp, struct ct_entry_24xx *ct_iocb)
 	uint16_t tot_dsds;
         scsi_qla_host_t *vha = sp->fcport->vha;
 	struct qla_hw_data *ha = vha->hw;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
 	struct fc_bsg_job *bsg_job = sp->u.bsg_job;
 #else
 	struct bsg_job *bsg_job = sp->u.bsg_job;

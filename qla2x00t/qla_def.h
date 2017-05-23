@@ -27,7 +27,7 @@
 #include <linux/aer.h>
 #include <linux/mutex.h>
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 #include <linux/bsg-lib.h>
 #endif
 
@@ -293,7 +293,7 @@ typedef struct srb {
 	int iocbs;
 	union {
 		struct srb_iocb iocb_cmd;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
 		struct fc_bsg_job *bsg_job;
 #else
 		struct bsg_job *bsg_job;

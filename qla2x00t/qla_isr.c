@@ -1080,7 +1080,7 @@ qla2x00_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 	const char func[] = "CT_IOCB";
 	const char *type;
 	srb_t *sp;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
 	struct fc_bsg_job *bsg_job;
 #else
 	struct bsg_job *bsg_job;
@@ -1094,7 +1094,7 @@ qla2x00_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 		return;
 
 	bsg_job = sp->u.bsg_job;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 	bsg_reply = bsg_job->reply;
 #endif
 
@@ -1105,7 +1105,7 @@ qla2x00_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 	/* return FC_CTELS_STATUS_OK and leave the decoding of the ELS/CT
 	 * fc payload  to the caller
 	 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
 	bsg_job->reply->reply_data.ctels_reply.status = FC_CTELS_STATUS_OK;
 #else
 	bsg_reply->reply_data.ctels_reply.status = FC_CTELS_STATUS_OK;
@@ -1115,7 +1115,7 @@ qla2x00_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 	if (comp_status != CS_COMPLETE) {
 		if (comp_status == CS_DATA_UNDERRUN) {
 			res = DID_OK << 16;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
 			bsg_job->reply->reply_payload_rcv_len =
 #else
 			bsg_reply->reply_payload_rcv_len =
@@ -1126,7 +1126,7 @@ qla2x00_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 			    "CT pass-through-%s error "
 			    "comp_status-status=0x%x total_byte = 0x%x.\n",
 			    type, comp_status,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
 			    bsg_job->reply->reply_payload_rcv_len);
 #else
 			    bsg_reply->reply_payload_rcv_len);
@@ -1136,7 +1136,7 @@ qla2x00_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 			    "CT pass-through-%s error "
 			    "comp_status-status=0x%x.\n", type, comp_status);
 			res = DID_ERROR << 16;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
 			bsg_job->reply->reply_payload_rcv_len = 0;
 #else
 			bsg_reply->reply_payload_rcv_len = 0;
@@ -1146,7 +1146,7 @@ qla2x00_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 		    (uint8_t *)pkt, sizeof(*pkt));
 	} else {
 		res =  DID_OK << 16;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
 		bsg_job->reply->reply_payload_rcv_len =
 #else
 		bsg_reply->reply_payload_rcv_len =
@@ -1164,7 +1164,7 @@ qla24xx_els_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 	const char func[] = "ELS_CT_IOCB";
 	const char *type;
 	srb_t *sp;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
 	struct fc_bsg_job *bsg_job;
 #else
 	struct bsg_job *bsg_job;
@@ -1179,7 +1179,7 @@ qla24xx_els_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 	if (!sp)
 		return;
 	bsg_job = sp->u.bsg_job;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 	bsg_reply = bsg_job->reply;
 #endif
 
@@ -1205,7 +1205,7 @@ qla24xx_els_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 	/* return FC_CTELS_STATUS_OK and leave the decoding of the ELS/CT
 	 * fc payload  to the caller
 	 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
 	bsg_job->reply->reply_data.ctels_reply.status = FC_CTELS_STATUS_OK;
 #else
 	bsg_reply->reply_data.ctels_reply.status = FC_CTELS_STATUS_OK;
@@ -1215,7 +1215,7 @@ qla24xx_els_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 	if (comp_status != CS_COMPLETE) {
 		if (comp_status == CS_DATA_UNDERRUN) {
 			res = DID_OK << 16;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
 			bsg_job->reply->reply_payload_rcv_len =
 #else
 			bsg_reply->reply_payload_rcv_len =
@@ -1241,7 +1241,7 @@ qla24xx_els_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 			    le16_to_cpu(((struct els_sts_entry_24xx *)
 				    pkt)->error_subcode_2));
 			res = DID_ERROR << 16;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
 			bsg_job->reply->reply_payload_rcv_len = 0;
 #else
 			bsg_reply->reply_payload_rcv_len = 0;
@@ -1254,7 +1254,7 @@ qla24xx_els_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 	}
 	else {
 		res =  DID_OK << 16;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
 		bsg_job->reply->reply_payload_rcv_len = bsg_job->reply_payload.payload_len;
 #else
 		bsg_reply->reply_payload_rcv_len = bsg_job->reply_payload.payload_len;
