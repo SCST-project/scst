@@ -1645,7 +1645,12 @@ struct sgv_pool *sgv_pool_create_node(const char *name,
 		}
 	}
 
-	pool = kmem_cache_alloc_node(sgv_pool_cachep, GFP_KERNEL, nodeid);
+	/*
+	 * __sgv_shrink() takes sgv_pools_mutex, so, to prevent deadlock with it
+	 * if this allocation will try to reclaim memory, GFP_NOFS has to be used
+	 * here.
+	 */
+	pool = kmem_cache_alloc_node(sgv_pool_cachep, GFP_KERNEL|GFP_NOFS, nodeid);
 	if (pool == NULL) {
 		PRINT_ERROR("Allocation of sgv_pool failed (size %zd)",
 			sizeof(*pool));
