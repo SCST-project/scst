@@ -1695,7 +1695,7 @@ static int tx_padding(struct iscsi_cmnd *cmnd, int state)
 
 	TRACE_DBG("Sending %d padding bytes (cmd %p)", rest, cmnd);
 
-	iov.iov_base = (char *)(&padding) + (sizeof(uint32_t) - rest);
+	iov.iov_base = (char *)&padding;
 	iov.iov_len = rest;
 
 	res = kernel_sendmsg(cmnd->conn->sock, &msg, &iov, 1, rest);
