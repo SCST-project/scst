@@ -796,6 +796,7 @@ static struct scst_dev_type vdisk_blk_devtype = {
 	.del_device =		vdisk_del_device,
 	.dev_attrs =		vdisk_blockio_attrs,
 	.add_device_parameters =
+		"active, "
 		"blocksize, "
 		"dif_mode, "
 		"dif_type, "
