@@ -1614,7 +1614,7 @@ struct sgv_pool *sgv_pool_create_node(const char *name,
 	enum sgv_clustering_types clustering_type,
 	int single_alloc_pages, bool shared, int purge_interval, int nodeid)
 {
-	struct sgv_pool *pool;
+	struct sgv_pool *pool, *tp;
 	int rc;
 
 	TRACE_ENTRY();
@@ -1624,39 +1624,40 @@ struct sgv_pool *sgv_pool_create_node(const char *name,
 		"nodeid %d)", name, clustering_type, single_alloc_pages,
 		shared, purge_interval, nodeid);
 
-	mutex_lock(&sgv_pools_mutex);
-
-	list_for_each_entry(pool, &sgv_pools_list, sgv_pools_list_entry) {
-		if (strcmp(pool->name, name) == 0) {
-			if (shared) {
-				if (pool->owner_mm != current->mm) {
-					PRINT_ERROR("Attempt of a shared use "
-						"of SGV pool %s with "
-						"different MM", name);
-					goto out_unlock;
-				}
-				sgv_pool_get(pool);
-				goto out_unlock;
-			} else {
-				PRINT_ERROR("SGV pool %s already exists", name);
-				pool = NULL;
-				goto out_unlock;
-			}
-		}
-	}
-
 	/*
-	 * __sgv_shrink() takes sgv_pools_mutex, so, to prevent deadlock with it
-	 * if this allocation will try to reclaim memory, GFP_NOFS has to be used
-	 * here.
+	 * __sgv_shrink() takes sgv_pools_mutex, so we have to play tricks to
+	 * prevent deadlock with it if this allocation will try to reclaim memory
 	 */
-	pool = kmem_cache_alloc_node(sgv_pool_cachep, GFP_KERNEL|GFP_NOFS, nodeid);
+
+	pool = kmem_cache_alloc_node(sgv_pool_cachep, GFP_KERNEL, nodeid);
 	if (pool == NULL) {
 		PRINT_ERROR("Allocation of sgv_pool failed (size %zd)",
 			sizeof(*pool));
-		goto out_unlock;
+		goto out;
 	}
 	memset(pool, 0, sizeof(*pool));
+
+	mutex_lock(&sgv_pools_mutex);
+
+	list_for_each_entry(tp, &sgv_pools_list, sgv_pools_list_entry) {
+		if (strcmp(tp->name, name) == 0) {
+			if (shared) {
+				if (tp->owner_mm != current->mm) {
+					PRINT_ERROR("Attempt of a shared use "
+						"of SGV pool %s with "
+						"different MM", name);
+					goto out_free;
+				}
+				sgv_pool_get(tp);
+				goto out_free;
+			} else {
+				PRINT_ERROR("SGV pool %s already exists", name);
+				tp = NULL;
+				goto out_free;
+			}
+		}
+	}
+	tp = NULL;
 
 	rc = sgv_pool_init(pool, name, clustering_type, single_alloc_pages,
 				purge_interval, nodeid != NUMA_NO_NODE);
@@ -1666,12 +1667,13 @@ struct sgv_pool *sgv_pool_create_node(const char *name,
 out_unlock:
 	mutex_unlock(&sgv_pools_mutex);
 
+out:
 	TRACE_EXIT_RES(pool != NULL);
 	return pool;
 
 out_free:
 	kmem_cache_free(sgv_pool_cachep, pool);
-	pool = NULL;
+	pool = tp;
 	goto out_unlock;
 }
 EXPORT_SYMBOL_GPL(sgv_pool_create_node);
