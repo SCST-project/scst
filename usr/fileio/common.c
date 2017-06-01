@@ -120,7 +120,7 @@ static int set_sense(uint8_t *buffer, int len, int key, int asc, int ascq)
  * scst_set_invalid_field_in_parm_list()
  */
 
-void set_cmd_error(struct vdisk_cmd *vcmd, int key, int asc, int ascq)
+static void set_cmd_error(struct vdisk_cmd *vcmd, int key, int asc, int ascq)
 {
 	struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
 
@@ -137,7 +137,7 @@ void set_cmd_error(struct vdisk_cmd *vcmd, int key, int asc, int ascq)
 	return;
 }
 
-void set_busy(struct vdisk_cmd *vcmd)
+static void set_busy(struct vdisk_cmd *vcmd)
 {
 	TRACE_ENTRY();
 
@@ -189,7 +189,7 @@ out:
 	return res;
 }
 
-struct vdisk_tgt_dev *find_tgt_dev(struct vdisk_dev *dev, uint64_t sess_h)
+static struct vdisk_tgt_dev *find_tgt_dev(struct vdisk_dev *dev, uint64_t sess_h)
 {
 	unsigned int i;
 	struct vdisk_tgt_dev *res = NULL;
@@ -203,7 +203,7 @@ struct vdisk_tgt_dev *find_tgt_dev(struct vdisk_dev *dev, uint64_t sess_h)
 	return res;
 }
 
-struct vdisk_tgt_dev *find_empty_tgt_dev(struct vdisk_dev *dev)
+static struct vdisk_tgt_dev *find_empty_tgt_dev(struct vdisk_dev *dev)
 {
 	unsigned int i;
 	struct vdisk_tgt_dev *res = NULL;

@@ -665,7 +665,7 @@ static ssize_t iscsi_acg_sess_dedicated_threads_show(struct kobject *kobj,
 	TRACE_ENTRY();
 
 	acg = container_of(kobj, struct scst_acg, acg_kobj);
-	dedicated = (bool)scst_get_acg_tgt_priv(acg);
+	dedicated = scst_get_acg_tgt_priv(acg) != NULL;
 
 	pos = sprintf(buf, "%d\n%s", dedicated,
 		dedicated ? SCST_SYSFS_KEY_MARK "\n" : "");

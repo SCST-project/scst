@@ -4805,7 +4805,8 @@ static void scst_free_acg(struct scst_acg *acg)
 	struct scst_session *sess;
 	struct scst_tgt *tgt = acg->tgt;
 
-	TRACE_DBG("Freeing acg %s/%s", tgt->tgt_name, acg->acg_name);
+	/* For procfs acg->tgt could be NULL */
+	TRACE_DBG("Freeing acg %s/%s", tgt ? tgt->tgt_name : "(tgt=NULL)", acg->acg_name);
 
 	list_for_each_entry_safe(acg_dev, acg_dev_tmp, &acg->acg_dev_list,
 			acg_dev_list_entry) {
@@ -6231,8 +6232,6 @@ static void scst_ws_write_cmd_finished(struct scst_cmd *cmd)
 	wsp->ws_cur_in_flight--;
 
 	if (cmd->status != 0) {
-		int rc;
-
 		TRACE_DBG("Write cmd %p (ws cmd %p) finished not successfully",
 			cmd, ws_cmd);
 		sBUG_ON(cmd->resp_data_len != 0);
@@ -6662,8 +6661,6 @@ static void scst_cwr_read_cmd_finished(struct scst_cmd *cmd)
 	TRACE_DBG("READ cmd %p finished (cwr cmd %p)", cmd, cwr_cmd);
 
 	if (cmd->status != 0) {
-		int rc;
-
 		TRACE_DBG("Read cmd %p (cwr cmd %p) finished not successfully",
 			cmd, cwr_cmd);
 		sBUG_ON(cmd->resp_data_len != 0);

@@ -94,7 +94,7 @@ static void stpg_handle_tm_received(struct scst_event_user *event_user)
 	 */
 }
 
-int invoke_stpg(const uint8_t *device_name,
+static int invoke_stpg(const uint8_t *device_name,
 	const struct scst_event_stpg_descr *descr, pid_t *out_pid)
 {
 	char *args[7], *env[7];
@@ -175,7 +175,7 @@ out:
 }
 
 /* Returns 0, if the pid is still running, >0 if it was exited or <0 error code */
-int wait_until_finished(pid_t pid, unsigned long deadline, int *status, int child)
+static int wait_until_finished(pid_t pid, unsigned long deadline, int *status, int child)
 {
 	int res;
 	time_t start, end;
@@ -204,7 +204,7 @@ int wait_until_finished(pid_t pid, unsigned long deadline, int *status, int chil
 	return res;
 }
 
-int handle_stpg_received(struct scst_event_user *event_user)
+static int handle_stpg_received(struct scst_event_user *event_user)
 {
 	const struct scst_event_stpg_payload *p = (struct scst_event_stpg_payload *)event_user->out_event.payload;
 	int num, k;
@@ -426,7 +426,7 @@ out:
 	return res;
 }
 
-void sig_chld(int signal)
+static void sig_chld(int signal)
 {
 	/* Check just in case */
 	if (signal == SIGCHLD) {
