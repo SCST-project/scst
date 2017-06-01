@@ -6129,8 +6129,6 @@ static void scst_ws_write_cmd_finished(struct scst_cmd *cmd)
 	wsp->ws_cur_in_flight--;
 
 	if (cmd->status != 0) {
-		int rc;
-
 		TRACE_DBG("Write cmd %p (ws cmd %p) finished not successfully",
 			cmd, ws_cmd);
 		sBUG_ON(cmd->resp_data_len != 0);
@@ -6560,8 +6558,6 @@ static void scst_cwr_read_cmd_finished(struct scst_cmd *cmd)
 	TRACE_DBG("READ cmd %p finished (cwr cmd %p)", cmd, cwr_cmd);
 
 	if (cmd->status != 0) {
-		int rc;
-
 		TRACE_DBG("Read cmd %p (cwr cmd %p) finished not successfully",
 			cmd, cwr_cmd);
 		sBUG_ON(cmd->resp_data_len != 0);

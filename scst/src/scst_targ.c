@@ -4141,7 +4141,7 @@ next:
 
 	if (likely(scst_cmd_completed_good(cmd))) {
 		if (cmd->deferred_dif_read_check) {
-			int rc = scst_dif_process_read(cmd);
+			rc = scst_dif_process_read(cmd);
 
 			if (unlikely(rc != 0)) {
 				cmd->deferred_dif_read_check = 0;
@@ -7441,7 +7441,6 @@ static int scst_mgmt_affected_cmds_done(struct scst_mgmt_cmd *mcmd)
 		list_for_each_entry(s, &tgt->sess_list, sess_list_entry) {
 			for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 				struct list_head *head = &s->sess_tgt_dev_list[i];
-				struct scst_tgt_dev *tgt_dev;
 
 				list_for_each_entry(tgt_dev, head,
 						sess_tgt_dev_list_entry) {
