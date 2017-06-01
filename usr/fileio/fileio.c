@@ -203,7 +203,7 @@ static void *align_alloc(size_t size)
 	return memalign(PAGE_SIZE, size);
 }
 
-void sigalrm_handler(int signo)
+static void sigalrm_handler(int signo)
 {
 	int res, i;
 
@@ -234,7 +234,7 @@ out:
 	return;
 }
 
-void sigusr1_handler(int signo)
+static void sigusr1_handler(int signo)
 {
 	int res, i;
 
@@ -258,7 +258,7 @@ out:
 	return;
 }
 
-int prealloc_buffers(struct vdisk_dev *dev)
+static int prealloc_buffers(struct vdisk_dev *dev)
 {
 	int i, c, res = 0;
 
@@ -300,7 +300,7 @@ out:
 	return res;
 }
 
-int start(int argc, char **argv)
+static int start(int argc, char **argv)
 {
 	int res = 0;
 	int fd;
