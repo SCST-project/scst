@@ -4728,7 +4728,8 @@ static void scst_free_acg(struct scst_acg *acg)
 	struct scst_acn *acn, *acnt;
 	struct scst_tgt *tgt = acg->tgt;
 
-	TRACE_DBG("Freeing acg %s/%s", tgt->tgt_name, acg->acg_name);
+	/* For procfs acg->tgt could be NULL */
+	TRACE_DBG("Freeing acg %s/%s", tgt ? tgt->tgt_name : "(tgt=NULL)", acg->acg_name);
 
 	list_for_each_entry_safe(acg_dev, acg_dev_tmp, &acg->acg_dev_list,
 			acg_dev_list_entry) {
