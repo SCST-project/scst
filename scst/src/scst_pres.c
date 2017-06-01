@@ -2569,7 +2569,7 @@ out_unlock:
 /* Called with dev_pr_mutex locked, no IRQ */
 void scst_pr_read_keys(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 {
-	int i, offset = 0, size, size_max;
+	int offset = 0, size, size_max;
 	struct scst_device *dev = cmd->dev;
 	struct scst_dev_registrant *reg;
 
@@ -2592,7 +2592,6 @@ void scst_pr_read_keys(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 	size = 0;
 	size_max = buffer_size - 8;
 
-	i = 0;
 	list_for_each_entry(reg, &dev->dev_registrants_list,
 				dev_registrants_list_entry) {
 		if (size_max - size >= 8) {
@@ -2602,7 +2601,7 @@ void scst_pr_read_keys(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 			WARN_ON(reg->key == 0);
 
 			put_unaligned(reg->key,
-				(__be64 *)&buffer[offset + 8 * i]);
+				(__be64 *)&buffer[offset]);
 
 			offset += 8;
 		}
