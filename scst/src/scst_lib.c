@@ -7506,7 +7506,8 @@ static void scst_restore_dif_sg(struct scst_cmd *cmd)
 		left -= sg->length;
 		TRACE_DBG("DIF sg %p, restored len %d (left %d)", sg,
 			sg->length, left);
-		sg = __sg_next_inline(sg);
+		/* sg might be last here */
+		sg = sg_next_inline(sg);
 	} while (left > 0);
 
 out:
@@ -7569,8 +7570,9 @@ int scst_alloc_space(struct scst_cmd *cmd)
 				left -= sgt->length;
 				sgt->length = (sgd->length >> block_shift) << SCST_DIF_TAG_SHIFT;
 				TRACE_SG("sgt %p, new len %d", sgt, sgt->length);
-				sgd = __sg_next_inline(sgd);
-				sgt = __sg_next_inline(sgt);
+				/* sgd/sgt might be last here */
+				sgd = sg_next_inline(sgd);
+				sgt = sg_next_inline(sgt);
 			} while (left > 0);
 
 			cmd->dif_sg_normalized = 1;
