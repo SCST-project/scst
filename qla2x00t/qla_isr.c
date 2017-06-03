@@ -1228,7 +1228,12 @@ qla24xx_els_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 			    type, sp->handle, comp_status, fw_status[1], fw_status[2],
 			    le16_to_cpu(((struct els_sts_entry_24xx *)
 				pkt)->total_byte_count));
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+			fw_sts_ptr = ((uint8_t*)scsi_req(bsg_job->req)->sense) +
+				sizeof(struct fc_bsg_reply);
+#else
 			fw_sts_ptr = ((uint8_t*)bsg_job->req->sense) + sizeof(struct fc_bsg_reply);
+#endif
 			memcpy( fw_sts_ptr, fw_status, sizeof(fw_status));
 		}
 		else {
@@ -1246,7 +1251,12 @@ qla24xx_els_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 #else
 			bsg_reply->reply_payload_rcv_len = 0;
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+			fw_sts_ptr = ((uint8_t*)scsi_req(bsg_job->req)->sense) +
+				sizeof(struct fc_bsg_reply);
+#else
 			fw_sts_ptr = ((uint8_t*)bsg_job->req->sense) + sizeof(struct fc_bsg_reply);
+#endif
 			memcpy( fw_sts_ptr, fw_status, sizeof(fw_status));
 		}
 		ql_dump_buffer(ql_dbg_user + ql_dbg_buffer, vha, 0x5056,
