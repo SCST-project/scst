@@ -1729,7 +1729,7 @@ those initiator issues. Simply, they have had too few testing, because
 only marginally used.
 
 SCST has necessary support for such redirection, it just needs to be
-configured it correctly. It's a little bit of effort, especially to
+configured correctly. It's a little bit of effort, especially to
 understand how it's going to function, but then it would work MUCH more
 reliable for full range of initiators. Ever poor initiators, who have no
 idea about ALUA (boot from SAN, e.g.) would work now.
