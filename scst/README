@@ -360,7 +360,8 @@ in/out in Makefile and scst.h:
    commands, which normally processed locally by the SCST core, not
    processed locally, but passed to the backend device. Intended to be
    used to implement NON-OPTIMIZED ALUA state together with "forwarding"
-   target attribute on the remote node. Disabled by default for safety.
+   target attribute on the remote node. See below for more details.
+   Disabled by default for safety.
 
 HIGHMEM kernel configurations are fully supported, but not recommended
 for performance reasons, except for scst_user, where they are not
@@ -1679,6 +1680,12 @@ DEVICE_GROUP dgroup2 {
 	}
 }
 
+Note, if you are using "active" BLOCKIO device attribute to prevent open
+of the backend block device on the passive node, it is not recommended
+to set both active ("active", "nonoptimized") and passive ("standby",
+etc.) ALUA states for the same device as shown above to keep internal
+"active" state of the BLOCKIO device consistent.
+
 Explicit ALUA
 .............
 
@@ -1699,7 +1706,9 @@ secondary transition, if this device is open.
 SCST BLOCKIO handler has necessary support for such behavior:
 
 1. If you need to prevent an SCST BLOCKIO device from opening its block
-device, you need to create it with parameter "active=0"
+device, you need to create it with parameter "active=0". In case of DRBD
+it would be done automatically, you don't have to use the "active"
+attribute.
 
 2. If you write new ALUA state in the "state" attribute, SCST BLOCKIO
 handler before transition closes open handles on all affected SCST
@@ -1851,6 +1860,76 @@ information about ALUA support in Windows Server, see also:
 * Microsoft, ALUA MPIO Logo Test, MSDN
   (http://msdn.microsoft.com/en-us/library/gg607458%28v=vs.85%29.aspx).
 
+Active/Non-Optimized via internal redirection
+...............................................
+
+The Active-Standby configuration is simple to understand and setup,
+however, it might have serious interoperability issues, because not all
+initiators handle Standby state correctly. For instance, some versions
+of VMware reported to have such issues. Same for Windows.
+
+Hence, it is better to use Non-Optimized state on the passive node
+instead of Standby with internal commands redirection to the active
+node. This is what the vast majority of storage vendors are doing, which
+is, actually, the reason why Standby and Unavailable states have all
+those initiator issues. Simply, they have had too few testing, because
+only marginally used.
+
+SCST has necessary support for such redirection, it just needs to be
+configured it correctly. It's a little bit of effort, especially to
+understand how it's going to function, but then it would work MUCH more
+reliable for full range of initiators. Ever poor initiators, who have no
+idea about ALUA (boot from SAN, e.g.) would work now.
+
+1. Build SCST with CONFIG_SCST_FORWARD_MODE_PASS_THROUGH enabled in scst.h
+
+2. Setup on active node internal redirect target, which is going to
+accept redirected commands from the passive node. It must be visible
+only to the passive node.
+
+3. Set "forwarding" attribute for this target to 1. This is necessary to
+correctly handle PRs.
+
+4. Export through this target the SAME backend SCST device as being
+served to initiator(s) (consider for simplicity that there is only one
+served device)
+
+5. Connect to this SCST device through this internal target from the
+passive node. Now you have a local SCSI device on the passive side
+pointing to the active node.
+
+6. Export this local device to the initiator(s) using SCST
+*path-through* handler (scst_disk). Pass-though is needed to redirect
+non-block commands as well: ATS, XCOPY, etc.
+
+7. Set ALUA state to this target as "nonoptimized".
+
+That's it on the normal path. Now the initiator(s) would see 2 paths:
+OPTIMIZED going to the active node and NON-OPTIMIZED going to the
+passive node, then redirected to the active node.
+
+On failover (i.e. switching active and passive states):
+
+1. Setup similar redirect target on the new active node.
+
+2. Setup connectivity to that new redirect target from the new passive
+node
+
+3. Start ALUA change (see above) on both nodes
+
+4. !! Exchange in the sysfs security group(s) for the initiator(s) *LUN*
+from old SCST device to the new one (blockio -> pass-through on the new
+passive and pass-through -> blockio on the new active) using "replace_no_ua"
+SCST command. You need to do it directly in the sysfs interface,
+scstadmin can't do it.
+
+5. Set ALUA states to "active" on the new active node and "nonoptimized"
+on the new passive node.
+
+6. Finish ALUA states change.
+
+If you have any questions, please read this above text at least 3 times
+before asking. It might be tricky to understand.
 
 VAAI
 ----
