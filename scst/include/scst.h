@@ -4942,6 +4942,10 @@ void scst_aen_done(struct scst_aen *aen);
 
 static inline struct scatterlist *__sg_next_inline(struct scatterlist *sg)
 {
+#ifdef CONFIG_SCST_EXTRACHECKS
+	BUG_ON(sg_is_last(sg));
+#endif
+
 	sg++;
 	if (unlikely(sg_is_chain(sg)))
 		sg = sg_chain_ptr(sg);
@@ -5002,7 +5006,7 @@ static inline int __scst_get_buf(struct scst_cmd *cmd, int sg_cnt,
 	res = sg->length;
 
 	cmd->get_sg_buf_entry_num++;
-	cmd->get_sg_buf_cur_sg_entry = __sg_next_inline(sg);
+	cmd->get_sg_buf_cur_sg_entry = sg_next_inline(sg);
 
 out:
 	return res;
@@ -5143,7 +5147,7 @@ static inline int __scst_get_sg_page(struct scst_cmd *cmd, int sg_cnt,
 	res = sg->length;
 
 	cmd->get_sg_buf_entry_num++;
-	cmd->get_sg_buf_cur_sg_entry = __sg_next_inline(sg);
+	cmd->get_sg_buf_cur_sg_entry = sg_next_inline(sg);
 
 out:
 	return res;

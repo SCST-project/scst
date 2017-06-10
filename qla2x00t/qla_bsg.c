@@ -987,8 +987,13 @@ qla2x00_process_loopback(struct bsg_job *bsg_job)
 		ql_log(ql_log_warn, vha, 0x702c,
 		    "Vendor request %s failed.\n", type);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+		fw_sts_ptr = ((uint8_t *)scsi_req(bsg_job->req)->sense) +
+			 sizeof(struct fc_bsg_reply);
+#else
 		fw_sts_ptr = ((uint8_t *)bsg_job->req->sense) +
 			sizeof(struct fc_bsg_reply);
+#endif
 
 		memcpy(fw_sts_ptr, response, sizeof(response));
 		fw_sts_ptr += sizeof(response);
@@ -1011,8 +1016,13 @@ qla2x00_process_loopback(struct bsg_job *bsg_job)
 		bsg_reply->reply_payload_rcv_len =
 #endif
 			bsg_job->reply_payload.payload_len;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+		fw_sts_ptr = ((uint8_t *)scsi_req(bsg_job->req)->sense) +
+			 sizeof(struct fc_bsg_reply);
+#else
 		fw_sts_ptr = ((uint8_t *)bsg_job->req->sense) +
 			sizeof(struct fc_bsg_reply);
+#endif
 		memcpy(fw_sts_ptr, response, sizeof(response));
 		fw_sts_ptr += sizeof(response);
 		*fw_sts_ptr = command_sent;

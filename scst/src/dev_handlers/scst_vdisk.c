@@ -7964,7 +7964,8 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 	char *params, const char *const allowed_params[])
 {
 	int res = 0;
-	unsigned long long val;
+	unsigned long long ull_val;
+	long long ll_val;
 	char *param, *p, *pp;
 
 	TRACE_ENTRY();
@@ -8096,7 +8097,25 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 			continue;
 		}
 
-		res = kstrtoull(pp, 0, &val);
+		res = kstrtoll(pp, 0, &ll_val);
+		if (res != 0) {
+			PRINT_ERROR("strtoll() for %s failed: %d (device %s)",
+				    pp, res, virt_dev->name);
+			goto out;
+		}
+
+		if (!strcasecmp("numa_node_id", p)) {
+			virt_dev->numa_node_id = ll_val;
+			BUILD_BUG_ON(NUMA_NO_NODE != -1);
+			if (virt_dev->numa_node_id < NUMA_NO_NODE) {
+				res = -EINVAL;
+				goto out;
+			}
+			TRACE_DBG("numa_node_id %d", virt_dev->numa_node_id);
+			continue;
+		}
+
+		res = kstrtoull(pp, 0, &ull_val);
 		if (res != 0) {
 			PRINT_ERROR("strtoull() for %s failed: %d (device %s)",
 				    pp, res, virt_dev->name);
@@ -8104,14 +8123,14 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 		}
 
 		if (!strcasecmp("write_through", p)) {
-			virt_dev->wt_flag = val;
+			virt_dev->wt_flag = ull_val;
 			TRACE_DBG("WRITE THROUGH %d", virt_dev->wt_flag);
 		} else if (!strcasecmp("nv_cache", p)) {
-			virt_dev->nv_cache = val;
+			virt_dev->nv_cache = ull_val;
 			TRACE_DBG("NON-VOLATILE CACHE %d", virt_dev->nv_cache);
 		} else if (!strcasecmp("o_direct", p)) {
 #if 0
-			virt_dev->o_direct_flag = val;
+			virt_dev->o_direct_flag = ull_val;
 			TRACE_DBG("O_DIRECT %d", virt_dev->o_direct_flag);
 #else
 			PRINT_INFO("O_DIRECT flag doesn't currently"
@@ -8119,70 +8138,62 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 				"in O_DIRECT mode instead (device %s)", virt_dev->name);
 #endif
 		} else if (!strcasecmp("read_only", p)) {
-			virt_dev->rd_only = val;
+			virt_dev->rd_only = ull_val;
 			TRACE_DBG("READ ONLY %d", virt_dev->rd_only);
 		} else if (!strcasecmp("dummy", p)) {
-			if (val > 1) {
+			if (ull_val > 1) {
 				res = -EINVAL;
 				goto out;
 			}
-			virt_dev->dummy = val;
+			virt_dev->dummy = ull_val;
 			TRACE_DBG("DUMMY %d", virt_dev->dummy);
 		} else if (!strcasecmp("removable", p)) {
-			virt_dev->removable = val;
+			virt_dev->removable = ull_val;
 			TRACE_DBG("REMOVABLE %d", virt_dev->removable);
 		} else if (!strcasecmp("active", p)) {
-			virt_dev->dev_active = val;
+			virt_dev->dev_active = ull_val;
 			TRACE_DBG("ACTIVE %d", virt_dev->dev_active);
 		} else if (!strcasecmp("rotational", p)) {
-			virt_dev->rotational = val;
+			virt_dev->rotational = ull_val;
 			TRACE_DBG("ROTATIONAL %d", virt_dev->rotational);
 		} else if (!strcasecmp("tst", p)) {
-			if ((val != SCST_TST_0_SINGLE_TASK_SET) &&
-			    (val != SCST_TST_1_SEP_TASK_SETS)) {
-				PRINT_ERROR("Invalid TST value %lld", val);
+			if ((ull_val != SCST_TST_0_SINGLE_TASK_SET) &&
+			    (ull_val != SCST_TST_1_SEP_TASK_SETS)) {
+				PRINT_ERROR("Invalid TST value %lld", ull_val);
 				res = -EINVAL;
 				goto out;
 			}
-			virt_dev->tst = val;
+			virt_dev->tst = ull_val;
 			TRACE_DBG("TST %d", virt_dev->tst);
 		} else if (!strcasecmp("thin_provisioned", p)) {
-			virt_dev->thin_provisioned = val;
+			virt_dev->thin_provisioned = ull_val;
 			virt_dev->thin_provisioned_manually_set = 1;
 			TRACE_DBG("THIN PROVISIONED %d",
 				virt_dev->thin_provisioned);
 		} else if (!strcasecmp("zero_copy", p)) {
-			virt_dev->zero_copy = !!val;
+			virt_dev->zero_copy = !!ull_val;
 		} else if (!strcasecmp("size", p)) {
-			virt_dev->file_size = val;
+			virt_dev->file_size = ull_val;
 		} else if (!strcasecmp("size_mb", p)) {
-			virt_dev->file_size = val * 1024 * 1024;
+			virt_dev->file_size = ull_val * 1024 * 1024;
 		} else if (!strcasecmp("cluster_mode", p)) {
-			virt_dev->initial_cluster_mode = val;
+			virt_dev->initial_cluster_mode = ull_val;
 			TRACE_DBG("CLUSTER_MODE %d",
 				  virt_dev->initial_cluster_mode);
 		} else if (!strcasecmp("blocksize", p)) {
-			virt_dev->blk_shift = scst_calc_block_shift(val);
+			virt_dev->blk_shift = scst_calc_block_shift(ull_val);
 			if (virt_dev->blk_shift < 9) {
-				PRINT_ERROR("blocksize %llu too small", val);
+				PRINT_ERROR("blocksize %llu too small", ull_val);
 				res = -EINVAL;
 				goto out;
 			}
 			TRACE_DBG("block size %lld, block shift %d",
-				val, virt_dev->blk_shift);
-		} else if (!strcasecmp("numa_node_id", p)) {
-			virt_dev->numa_node_id = val;
-			BUILD_BUG_ON(NUMA_NO_NODE != -1);
-			if (virt_dev->numa_node_id < NUMA_NO_NODE) {
-				res = -EINVAL;
-				goto out;
-			}
-			TRACE_DBG("numa_node_id %d", virt_dev->numa_node_id);
+				ull_val, virt_dev->blk_shift);
 		} else if (!strcasecmp("dif_type", p)) {
-			virt_dev->dif_type = val;
+			virt_dev->dif_type = ull_val;
 			TRACE_DBG("DIF type %d", virt_dev->dif_type);
 		} else if (!strcasecmp("dif_static_app_tag", p)) {
-			virt_dev->dif_static_app_tag_combined = cpu_to_be64(val);
+			virt_dev->dif_static_app_tag_combined = cpu_to_be64(ull_val);
 			TRACE_DBG("DIF static app tag %llx",
 				(long long)be64_to_cpu(virt_dev->dif_static_app_tag_combined));
 		} else {

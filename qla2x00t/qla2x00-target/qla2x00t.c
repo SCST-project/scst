@@ -2634,7 +2634,8 @@ static void q2t_load_cont_data_segments(struct q2t_prm *prm)
 			      (unsigned long long int)pci_dma_lo32(dma_addr),
 			      (int)sg_dma_len(prm->sg));
 
-			prm->sg = __sg_next_inline(prm->sg);
+			/* prm->sg might be last here */
+			prm->sg = sg_next_inline(prm->sg);
 		}
 
 		TRACE_BUFFER("Continuation packet data",
@@ -2695,7 +2696,8 @@ static void q2x_load_data_segments(struct q2t_prm *prm)
 		      (unsigned long long int)pci_dma_lo32(dma_addr),
 		      (int)sg_dma_len(prm->sg));
 
-		prm->sg = __sg_next_inline(prm->sg);
+		/* prm->sg might be last here */
+		prm->sg = sg_next_inline(prm->sg);
 	}
 
 	TRACE_BUFFER("Scatter/gather, CTIO packet data", pkt,
@@ -2756,7 +2758,8 @@ static void q24_load_data_segments(struct q2t_prm *prm)
 		      (unsigned long long int)pci_dma_lo32(dma_addr),
 		      (int)sg_dma_len(prm->sg));
 
-		prm->sg = __sg_next_inline(prm->sg);
+		/* prm->sg might be last here */
+		prm->sg = sg_next_inline(prm->sg);
 	}
 
 	q2t_load_cont_data_segments(prm);
