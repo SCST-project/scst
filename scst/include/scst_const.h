@@ -371,7 +371,9 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 	&& (!defined(RHEL_MAJOR) || RHEL_MAJOR -0 <= 5)
 #define WRITE_ATTRIBUTE             0x8D
 #endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
 #define WRITE_VERIFY_16             0x8E
+#endif
 #define VERIFY_6                    0x13
 #ifndef VERIFY_12
 #define VERIFY_12                   0xAF
