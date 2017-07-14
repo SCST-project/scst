@@ -110,7 +110,7 @@ static void isert_kref_release_dev(struct kref *kref)
 
 static void isert_dev_release(struct isert_conn_dev *dev)
 {
-	sBUG_ON(atomic_read(&dev->kref.refcount) == 0);
+	sBUG_ON(kref_read(&dev->kref) == 0);
 	mutex_lock(&isert_listen_dev.conn_lock);
 	kref_put(&dev->kref, isert_kref_release_dev);
 	mutex_unlock(&isert_listen_dev.conn_lock);

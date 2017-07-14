@@ -232,14 +232,15 @@ static void create_iser_listen_socket(struct pollfd *array)
 
 	iser_fd = create_and_open_dev("isert_scst", 1);
 
-	poll_array[POLL_ISER_LISTEN].fd = iser_fd;
-	if (iser_fd != -1) {
+	if (iser_fd >= 0) {
+		poll_array[POLL_ISER_LISTEN].fd = iser_fd;
 		poll_array[POLL_ISER_LISTEN].events = POLLIN;
 
 		/* RDMAExtensions */
 		session_keys[key_rdma_extensions].max = 1;
 		session_keys[key_rdma_extensions].local_def = 1;
 	} else {
+		poll_array[POLL_ISER_LISTEN].fd = -1;
 		poll_array[POLL_ISER_LISTEN].events = 0;
 		return;
 	}
@@ -839,8 +840,13 @@ int main(int argc, char **argv)
 	/*
 	 * Otherwise we could die in some later write() during the event_loop()
 	 * instead of getting EPIPE!
+	 *
+	 * The effects of signal(2) in a multithreaded process are unspecified,
+	 * so use sigaction(2) instead.
 	 */
-	signal(SIGPIPE, SIG_IGN);
+	struct sigaction act = (struct sigaction) { .sa_handler = SIG_IGN };
+	int rc = sigaction(SIGPIPE, &act, NULL);
+	assert(rc == 0);
 
 	while ((ch = getopt_long(argc, argv, "c:fd:s:u:g:a:p:vh", long_options, &longindex)) >= 0) {
 		switch (ch) {

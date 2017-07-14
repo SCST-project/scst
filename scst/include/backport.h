@@ -23,6 +23,7 @@
 #include <linux/blkdev.h>	/* struct request_queue */
 #include <linux/scatterlist.h>	/* struct scatterlist */
 #include <linux/slab.h>		/* kmalloc() */
+#include <linux/version.h>
 #include <linux/writeback.h>	/* sync_page_range() */
 #include <scsi/scsi_cmnd.h>	/* struct scsi_cmnd */
 #include <rdma/ib_verbs.h>
@@ -290,6 +291,10 @@ static inline void hex2bin(u8 *dst, const char *src, size_t count)
 }
 #endif
 
+/*
+ * See also commit 33ee3b2e2eb9. That commit was introduced in kernel v2.6.39
+ * and later backported to kernel v2.6.38.4.
+ */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39) &&		\
 	LINUX_VERSION_CODE != KERNEL_VERSION(2, 6, 38) &&	\
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
@@ -347,6 +352,19 @@ static inline int __must_check kref_get_unless_zero(struct kref *kref)
 {
 	return atomic_add_unless(&kref->refcount, 1, 0);
 }
+#endif
+
+/* See also commit 2c935bc57221 */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
+#define kref_read(kref) (atomic_read(&(kref)->refcount))
+#endif
+
+/* <linux/kthread.h> */
+
+/* See also commit 207205a2ba26 */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
+#define kthread_create_on_node(threadfn, data, node, namefmt, arg...)\
+	kthread_create((threadfn), (data), (namefmt), ##arg)
 #endif
 
 /* <linux/ktime.h> */
@@ -499,6 +517,11 @@ static inline int __ratelimit(struct ratelimit_state *rs)
 #endif
 
 /* <linux/rcupdate.h> */
+
+/* See also commit b62730baea32 */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 34)
+#define rcu_dereference_protected(p, c) rcu_dereference(p)
+#endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 0) && !defined(kfree_rcu)
 typedef void (*rcu_callback_t)(struct rcu_head *);

@@ -193,13 +193,9 @@ static int disk_attach(struct scst_device *dev)
 		data_dir = SCST_DATA_READ;
 
 		TRACE_DBG("%s", "Doing READ_CAPACITY");
-		rc = scsi_execute(dev->scsi_dev, cmd, data_dir, buffer,
-				   buffer_size, sense_buffer,
-				   SCST_GENERIC_DISK_REG_TIMEOUT, 3, 0
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
-				   , NULL
-#endif
-				  );
+		rc = scst_scsi_execute(dev->scsi_dev, cmd, data_dir, buffer,
+				       buffer_size, sense_buffer,
+				       SCST_GENERIC_DISK_REG_TIMEOUT, 3, 0);
 
 		TRACE_DBG("READ_CAPACITY done: %x", rc);
 

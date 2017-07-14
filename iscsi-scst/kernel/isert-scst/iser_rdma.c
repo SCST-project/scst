@@ -1398,7 +1398,7 @@ static void isert_kref_free(struct kref *kref)
 
 void isert_conn_free(struct isert_connection *isert_conn)
 {
-	sBUG_ON(atomic_read(&isert_conn->kref.refcount) == 0);
+	sBUG_ON(kref_read(&isert_conn->kref) == 0);
 	kref_put(&isert_conn->kref, isert_kref_free);
 }
 

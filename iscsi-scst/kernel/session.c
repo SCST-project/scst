@@ -65,7 +65,7 @@ static int iscsi_session_alloc(struct iscsi_target *target,
 
 #ifdef CONFIG_SCST_PROC
 	name = kmalloc(strlen(info->user_name) + strlen(info->initiator_name) +
-			1, GFP_KERNEL);
+			2, GFP_KERNEL);	/* +1 (for '\0') +1 (for '@') */
 	if (name == NULL) {
 		err = -ENOMEM;
 		goto err;

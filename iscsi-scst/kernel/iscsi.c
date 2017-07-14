@@ -4214,7 +4214,7 @@ int iscsi_threads_pool_get(const cpumask_t *cpu_mask,
 	if (p == NULL) {
 		PRINT_ERROR("Unable to allocate iSCSI thread pool (size %zd)",
 			sizeof(*p));
-		res = -ENOMEM;
+		res = 0;
 		if (!list_empty(&iscsi_thread_pools_list)) {
 			PRINT_WARNING("%s", "Using global iSCSI thread pool "
 				"instead");

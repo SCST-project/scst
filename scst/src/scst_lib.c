@@ -37,6 +37,9 @@
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
 #include <linux/crc-t10dif.h>
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+#include <linux/sched/task_stack.h>
+#endif
 #include <linux/namei.h>
 #include <linux/mount.h>
 
@@ -4778,6 +4781,7 @@ static void scst_put_acg_work(struct work_struct *work)
 void scst_put_acg(struct scst_acg *acg)
 {
 	struct scst_acg_put_work *put_work;
+	bool rc;
 
 	put_work = kmalloc(sizeof(*put_work), GFP_KERNEL | __GFP_NOFAIL);
 	if (WARN_ON_ONCE(!put_work)) {
@@ -4796,7 +4800,9 @@ void scst_put_acg(struct scst_acg *acg)
 	 * Schedule the kref_put() call instead of invoking it directly to
 	 * avoid deep recursion and a stack overflow.
 	 */
-	WARN_ON_ONCE(!queue_work(scst_release_acg_wq, &put_work->work));
+	rc = queue_work(scst_release_acg_wq, &put_work->work);
+	WARN_ON_ONCE(!rc);
+	return;
 }
 
 void scst_get_acg(struct scst_acg *acg)
@@ -6754,6 +6760,25 @@ out:
 	return res;
 }
 
+int scst_scsi_execute(struct scsi_device *sdev, const unsigned char *cmd,
+		      int data_direction, void *buffer, unsigned bufflen,
+		      unsigned char *sense, int timeout, int retries, u64 flags)
+{
+	return scsi_execute(sdev, cmd, data_direction, buffer, bufflen, sense,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+			    NULL, /* sshdr */
+#endif
+			    timeout, retries, flags
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+			    , 0 /* rq_flags */
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+			    , NULL /* resid */
+#endif
+			    );
+}
+EXPORT_SYMBOL(scst_scsi_execute);
+
 static void scst_send_release(struct scst_device *dev)
 {
 	struct scsi_device *scsi_dev;
@@ -6778,12 +6803,8 @@ static void scst_send_release(struct scst_device *dev)
 
 		TRACE(TRACE_DEBUG | TRACE_SCSI, "%s", "Sending RELEASE req to "
 			"SCSI mid-level");
-		rc = scsi_execute(scsi_dev, cdb, SCST_DATA_NONE, NULL, 0,
-				sense, 15, 0, 0
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
-				, NULL
-#endif
-				);
+		rc = scst_scsi_execute(scsi_dev, cdb, SCST_DATA_NONE, NULL, 0,
+				       sense, 15, 0, 0);
 		TRACE_DBG("RELEASE done: %x", rc);
 
 		if (scsi_status_is_good(rc)) {
@@ -7813,7 +7834,11 @@ static struct request *blk_make_request(struct request_queue *q,
 	if (IS_ERR(rq))
 		return rq;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+	scsi_req_init(rq);
+#else
 	blk_rq_set_block_pc(rq);
+#endif
 
 	for_each_bio(bio) {
 		struct bio *bounce_bio = bio;
@@ -7979,7 +8004,15 @@ static struct request *__blk_map_kern_sg(struct request_queue *q,
 
 	if (bw != NULL) {
 		atomic_set(&bw->bios_inflight, bios);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
+	/*
+	 * See also patch "block: split out request-only flags into a new namespace"
+	 * (commit e806402130c9).
+	 */
 		rq->cmd_flags |= REQ_COPY_USER;
+#else
+		rq->rq_flags |= RQF_COPY_USER;
+#endif
 	}
 
 out:
@@ -8015,7 +8048,11 @@ static struct request *blk_map_kern_sg(struct request_queue *q,
 		if (unlikely(!rq))
 			return ERR_PTR(-ENOMEM);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+		scsi_req_init(rq);
+#else
 		rq->cmd_type = REQ_TYPE_BLOCK_PC;
+#endif
 		goto out;
 	}
 
@@ -8210,12 +8247,29 @@ static void scsi_end_async(struct request *req, int error)
 		lockdep_assert_held(req->q->queue_lock);
 #endif
 
-	if (sioc->done)
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 30)
-		sioc->done(sioc->data, sioc->sense, req->errors, req->data_len);
+	if (sioc->done) {
+		int result, resid_len;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
+		result = scsi_req(req)->result;
 #else
-		sioc->done(sioc->data, sioc->sense, req->errors, req->resid_len);
+		result = req->errors;
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+		resid_len = scsi_req(req)->resid_len;
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 31)
+		resid_len = req->resid_len;
+#else
+		/*
+		 * A quote from commit c3a4d78c580d: "rq->data_len served two
+		 * purposes - the length of data buffer on issue and the
+		 * residual count on completion."
+		 */
+		resid_len = req->data_len;
+#endif
+
+		sioc->done(sioc->data, sioc->sense, result, resid_len);
+	}
 
 	kmem_cache_free(scsi_io_context_cache, sioc);
 
@@ -8235,6 +8289,11 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	int res = 0;
 	struct request_queue *q = cmd->dev->scsi_dev->request_queue;
 	struct request *rq;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+	struct scsi_request *req;
+#else
+	struct request *req;
+#endif
 	struct scsi_io_context *sioc;
 	bool reading = !(cmd->data_direction & SCST_DATA_WRITE);
 	gfp_t gfp = cmd->cmd_gfp_mask;
@@ -8283,17 +8342,27 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	sioc->data = data;
 	sioc->done = done;
 
-	rq->cmd_len = cmd_len;
-	if (rq->cmd_len <= BLK_MAX_CDB) {
-		memset(rq->cmd, 0, BLK_MAX_CDB); /* ATAPI hates garbage after CDB */
-		memcpy(rq->cmd, cmd->cdb, cmd->cdb_len);
-	} else
-		rq->cmd = cmd->cdb;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+	req = scsi_req(rq);
+#else
+	req = rq;
+#endif
 
-	rq->sense = sioc->sense;
-	rq->sense_len = sizeof(sioc->sense);
+	req->cmd_len = cmd_len;
+	if (req->cmd_len <= BLK_MAX_CDB) {
+		memset(req->cmd, 0, BLK_MAX_CDB); /* ATAPI hates garbage after CDB */
+		memcpy(req->cmd, cmd->cdb, cmd->cdb_len);
+	} else
+		req->cmd = cmd->cdb;
+
+	req->sense = sioc->sense;
+	req->sense_len = sizeof(sioc->sense);
 	rq->timeout = cmd->timeout;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
+	req->retries = cmd->retries;
+#else
 	rq->retries = cmd->retries;
+#endif
 	rq->end_io_data = sioc;
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 35)
 	rq->cmd_flags |= REQ_FAILFAST_MASK;
@@ -13168,12 +13237,9 @@ int scst_obtain_device_parameters(struct scst_device *dev,
 		memset(sense_buffer, 0, sizeof(sense_buffer));
 
 		TRACE(TRACE_SCSI, "%s", "Doing internal MODE_SENSE");
-		rc = scsi_execute(dev->scsi_dev, cmd, SCST_DATA_READ, buffer,
-				sizeof(buffer), sense_buffer, 15, 0, 0
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
-				, NULL
-#endif
-				);
+		rc = scst_scsi_execute(dev->scsi_dev, cmd, SCST_DATA_READ,
+				       buffer, sizeof(buffer), sense_buffer,
+				       15, 0, 0);
 
 		TRACE_DBG("MODE_SENSE done: %x", rc);
 

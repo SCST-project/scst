@@ -1265,6 +1265,7 @@ static void scst_process_aens(struct scst_local_sess *sess,
 	__acquires(&sess->aen_lock)
 {
 	struct scst_aen_work_item *work_item = NULL;
+	struct Scsi_Host *shost;
 
 	TRACE_ENTRY();
 
@@ -1274,7 +1275,9 @@ static void scst_process_aens(struct scst_local_sess *sess,
 		work_item = list_first_entry(&sess->aen_work_list,
 				struct scst_aen_work_item, work_list_entry);
 		list_del(&work_item->work_list_entry);
-
+		shost = sess->shost;
+		if (shost && !scsi_host_get(shost))
+			shost = NULL;
 		spin_unlock(&sess->aen_lock);
 
 		if (cleanup_only)
@@ -1283,12 +1286,16 @@ static void scst_process_aens(struct scst_local_sess *sess,
 		sBUG_ON(work_item->aen->event_fn != SCST_AEN_SCSI);
 
 		/* Let's always rescan */
-		scsi_scan_target(&sess->shost->shost_gendev, 0, 0,
-					SCAN_WILD_CARD, 1);
+		if (shost)
+			scsi_scan_target(&shost->shost_gendev, 0, 0,
+					 SCAN_WILD_CARD, 1);
 
 done:
 		scst_aen_done(work_item->aen);
 		kfree(work_item);
+
+		if (shost)
+			scsi_host_put(shost);
 
 		spin_lock(&sess->aen_lock);
 	}
@@ -1707,12 +1714,18 @@ out:
 static int scst_local_driver_remove(struct device *dev)
 {
 	struct scst_local_sess *sess;
+	struct Scsi_Host *shost = NULL;
 
 	TRACE_ENTRY();
 
 	sess = to_scst_lcl_sess(dev);
-	scsi_remove_host(sess->shost);
-	scsi_host_put(sess->shost);
+
+	spin_lock(&sess->aen_lock);
+	swap(sess->shost, shost);
+	spin_unlock(&sess->aen_lock);
+
+	scsi_remove_host(shost);
+	scsi_host_put(shost);
 
 	TRACE_EXIT();
 	return 0;

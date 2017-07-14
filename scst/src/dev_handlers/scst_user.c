@@ -22,6 +22,10 @@
 #include <linux/poll.h>
 #include <linux/stddef.h>
 #include <linux/slab.h>
+#include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+#include <linux/sched/signal.h>
+#endif
 
 #define LOG_PREFIX		DEV_USER_NAME
 
@@ -3510,7 +3514,7 @@ out:
 	return res;
 
 out_unreg_drv:
-	scst_unregister_virtual_device(dev->virt_id);
+	scst_unregister_virtual_device(dev->virt_id, NULL, NULL);
 
 out_unreg_handler:
 	scst_unregister_virtual_dev_driver(&dev->devtype);
@@ -3879,7 +3883,7 @@ static int dev_user_exit_dev(struct scst_user_dev *dev)
 
 	wake_up(&cleanup_list_waitQ);
 
-	scst_unregister_virtual_device(dev->virt_id);
+	scst_unregister_virtual_device(dev->virt_id, NULL, NULL);
 	scst_unregister_virtual_dev_driver(&dev->devtype);
 
 	sgv_pool_flush(dev->pool_clust);

@@ -2345,7 +2345,7 @@ static void scst_cm_init_inq_finish(struct scst_cmd *cmd)
 	/* cmd->dev can be NULL here! */
 
 	rc = scst_cm_err_check_retry(cmd, cmd->start_time, scst_cm_inq_retry_fn);
-	if (rc == SCST_CM_STATUS_RETRY)
+	if (rc == SCST_CM_STATUS_RETRY || !cmd->dev || !cmd->tgt_dev)
 		goto out;
 
 	spin_lock_bh(&dev->dev_lock);
@@ -2521,9 +2521,8 @@ static bool scst_cm_is_lun_free(unsigned int lun)
 /* scst_mutex supposed to be held and activities suspended */
 static unsigned int scst_cm_get_lun(const struct scst_device *dev)
 {
-	unsigned int res = -1;
+	unsigned int res = SCST_MAX_LUN;
 	int i;
-	bool found = false;
 
 	TRACE_ENTRY();
 
@@ -2533,15 +2532,12 @@ static unsigned int scst_cm_get_lun(const struct scst_device *dev)
 		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
 			if (tgt_dev->dev == dev) {
 				res = tgt_dev->lun;
-				found = true;
 				TRACE_DBG("LUN %d found (full LUN %lld)",
 					res, tgt_dev->lun);
 				goto out;
 			}
 		}
 	}
-
-	sBUG_ON(!found);
 
 out:
 	TRACE_EXIT_RES(res);

@@ -176,7 +176,7 @@ static unsigned int scst_max_cmd_mem;
 unsigned int scst_max_dev_cmd_mem;
 int scst_forcibly_close_sessions;
 
-module_param_named(scst_threads, scst_threads, int, 0);
+module_param_named(scst_threads, scst_threads, int, S_IRUGO);
 MODULE_PARM_DESC(scst_threads, "SCSI target threads count");
 
 module_param_named(scst_max_cmd_mem, scst_max_cmd_mem, int, S_IRUGO);
@@ -1266,7 +1266,10 @@ static struct scst_device *__scst_lookup_device(struct scsi_device *scsidp)
 	return NULL;
 }
 
-static void scst_unregister_device(struct scsi_device *scsidp)
+static void scst_unregister_device(struct scsi_device *scsidp,
+				   void (*on_free)(struct scst_device *dev,
+						   void* arg),
+				   void *arg)
 {
 	struct scst_device *dev;
 	struct scst_acg_dev *acg_dev, *aa;
@@ -1323,6 +1326,9 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 	PRINT_INFO("Detached from scsi%d, channel %d, id %d, lun %lld, type %d",
 		   scsidp->host->host_no, scsidp->channel, scsidp->id,
 		   (u64)scsidp->lun, scsidp->type);
+
+	if (on_free)
+		on_free(dev, arg);
 
 	scst_free_device(dev);
 
@@ -1553,7 +1559,10 @@ EXPORT_SYMBOL_GPL(scst_register_virtual_device);
  * scst_unregister_virtual_device() - unegister a virtual device.
  * @id:		the device's ID, returned by the registration function
  */
-void scst_unregister_virtual_device(int id)
+void scst_unregister_virtual_device(int id,
+				    void (*on_free)(struct scst_device *dev,
+						    void *arg),
+				    void *arg)
 {
 	struct scst_device *d, *dev = NULL;
 	struct scst_acg_dev *acg_dev, *aa;
@@ -1599,6 +1608,9 @@ void scst_unregister_virtual_device(int id)
 
 	PRINT_INFO("Detached from virtual device %s (id %d)",
 		dev->virt_name, dev->virt_id);
+
+	if (on_free)
+		on_free(dev, arg);
 
 	scst_free_device(dev);
 
@@ -2394,7 +2406,7 @@ static void scst_remove(struct device *cdev, struct class_interface *intf)
 
 	if ((scsidp->host->hostt->name == NULL) ||
 	    (strcmp(scsidp->host->hostt->name, SCST_LOCAL_NAME) != 0))
-		scst_unregister_device(scsidp);
+		scst_unregister_device(scsidp, NULL, NULL);
 
 	TRACE_EXIT();
 	return;
@@ -2836,7 +2848,9 @@ static void __exit exit_scst(void)
 
 	scsi_unregister_interface(&scst_interface);
 #ifdef CONFIG_SCST_PROC
+	mutex_lock(&scst_mutex);
 	scst_del_free_acg(scst_default_acg, false);
+	mutex_unlock(&scst_mutex);
 #endif
 
 	scst_sgv_pools_deinit();

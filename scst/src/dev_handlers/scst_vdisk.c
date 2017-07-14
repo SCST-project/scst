@@ -55,6 +55,9 @@
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
 #include <linux/falloc.h>
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+#include <linux/sched/signal.h>
+#endif
 
 #define LOG_PREFIX			"dev_vdisk"
 
@@ -352,6 +355,7 @@ static enum compl_status_e vdisk_exec_write_same(struct vdisk_cmd_params *p);
 static int vdisk_fsync(loff_t loff,
 	loff_t len, struct scst_device *dev, gfp_t gfp_flags,
 	struct scst_cmd *cmd, bool async);
+static void vdev_on_free(struct scst_device *dev, void *arg);
 #ifdef CONFIG_SCST_PROC
 static int vdisk_read_proc(struct seq_file *seq,
 	struct scst_dev_type *dev_type);
@@ -1067,7 +1071,9 @@ check:
 			if (virt_dev->unmap_opt_gran == virt_dev->unmap_align)
 				virt_dev->unmap_align = 0;
 			virt_dev->unmap_max_lba_cnt = q->limits.max_discard_sectors >> (block_shift - 9);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
 			virt_dev->discard_zeroes_data = q->limits.discard_zeroes_data;
+#endif
 #else
 			sBUG();
 #endif
@@ -1676,6 +1682,11 @@ next:
 	}
 
 	dev->dev_rd_only = virt_dev->rd_only;
+
+#ifdef CONFIG_SCST_PROC
+	if (virt_dev->nullio && !virt_dev->file_size)
+		virt_dev->file_size = VDISK_NULLIO_SIZE;
+#endif
 
 	res = vdisk_reexamine(virt_dev);
 	if (res < 0)
@@ -7836,8 +7847,6 @@ out_free:
 
 static void vdev_destroy(struct scst_vdisk_dev *virt_dev)
 {
-	cancel_work_sync(&virt_dev->vdev_inq_changed_work);
-
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 	vdisk_free_bioset(virt_dev);
 #endif
@@ -8322,12 +8331,27 @@ out:
 
 #endif /* CONFIG_SCST_PROC */
 
+static void vdev_on_free(struct scst_device *dev, void *arg)
+{
+	struct scst_vdisk_dev *virt_dev = arg;
+
+	TRACE_DBG("%s(%s)", __func__, dev->virt_name ? : "(?)");
+
+	/*
+	 * This call must happen after scst_unregister_virtual_device()
+	 * has called scst_dev_sysfs_del() and before scst_free_device()
+	 * starts deallocating *dev.
+	 */
+	cancel_work_sync(&virt_dev->vdev_inq_changed_work);
+}
+
 /* scst_vdisk_mutex supposed to be held */
 static void vdev_del_device(struct scst_vdisk_dev *virt_dev)
 {
 	TRACE_ENTRY();
 
-	scst_unregister_virtual_device(virt_dev->virt_id);
+	scst_unregister_virtual_device(virt_dev->virt_id, vdev_on_free,
+				       virt_dev);
 
 	list_del(&virt_dev->vdev_list_entry);
 
@@ -10304,7 +10328,7 @@ static int vdisk_write_proc(char *buffer, char **start, off_t offset,
 			PRINT_ERROR("File path \"%s\" is not "
 				"absolute", filename);
 			res = -EINVAL;
-			goto out_up;
+			goto out_free_vdev;
 		}
 
 		virt_dev->filename = kstrdup(filename, GFP_KERNEL);
