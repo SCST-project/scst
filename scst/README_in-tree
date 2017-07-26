@@ -1063,6 +1063,25 @@ blocksize, nv_cache, read_only, removable, rotational, thin_provisioned,
 tst, dif_mode, dif_type, dif_static_app_tag, dif_filename. See
 vdisk_fileio above for description of those parameters.
 
+vdisk_blockio devices have the following two additional attributes:
+
+- active - if this flag is set (the default), the backing block device
+  will be opened when the SCST device is added/opened. If a SCST device
+  is opened with active=0 then the backing block device will not be
+  opened, allowing for an active/passive SCST configuration. In addition,
+  this attribute is writable via sysfs allowing the user to open/close the
+  backing block device on the fly, or via a script.
+
+- bind_alua_state - if this flag is set (the default), when the device is
+  associated with an ALUA device group, and a target group ALUA state
+  changes to the active/nonoptimized state, the active attribute will be
+  set to 1 which attempts to open the backing block device. If the target
+  group ALUA state changes to a value other than active/nonoptimized, the
+  backing device will be closed (active=0). If bind_alua_state=0 for a
+  device the ALUA state changes have NO effect on the active attribute,
+  it is left up to the user to use a script, or manually set the active
+  attribute to open/close the backing block device.
+
 Handler vdisk_nullio provides NULLIO mode to create virtual devices. In
 this mode no real I/O is done, but success returned to initiators.
 Intended to be used for performance measurements at the same way as
@@ -1536,8 +1555,12 @@ DEVICE_GROUP dgroup2 {
 Note, if you are using "active" BLOCKIO device attribute to prevent open
 of the backend block device on the passive node, it is not recommended
 to set both active ("active", "nonoptimized") and passive ("standby",
-etc.) ALUA states for the same device as shown above to keep internal
-"active" state of the BLOCKIO device consistent.
+etc.) ALUA states for the same device if "bind_alua_state=1" is used, as
+shown above to keep internal "active" state of the BLOCKIO device consistent.
+
+If using the "active" BLOCKIO device attribute and multiple target groups
+exist per device on a SCST instance then "bind_alua_state=0" should be used
+and it is left up to the user to modify the "active" attribute value.
 
 Explicit ALUA
 .............
@@ -1563,10 +1586,13 @@ device, you need to create it with parameter "active=0". In case of DRBD
 it would be done automatically, you don't have to use the "active"
 attribute.
 
-2. If you write new ALUA state in the "state" attribute, SCST BLOCKIO
-handler before transition closes open handles on all affected SCST
-devices and after transition reopens them, if the new state is active or
-nonoptimized.
+2. By default, if you write new ALUA state in the "state" attribute and
+"bind_alua_state=1" for the device, SCST BLOCKIO handler before transition
+closes open handles on all affected SCST devices and after transition
+reopens them, if the new state is active or nonoptimized. Alternatively,
+set "bind_alua_state=0" for SCST BLOCKIO devices and ALUA state changes
+will not open/close the backing block device, the user will neeed to handle
+this manually or via a cluster RA in an HA setup.
 
 Thus, the recommended implicit ALUA state change procedure for primary
 to secondary transition is:

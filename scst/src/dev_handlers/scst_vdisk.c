@@ -121,6 +121,7 @@ static struct scst_trace_log vdisk_local_trace_tbl[] = {
 #define DEF_THIN_PROVISIONED		0
 #define DEF_EXPL_ALUA			0
 #define DEF_DEV_ACTIVE			1
+#define DEF_BIND_ALUA_STATE		1
 
 #define VDISK_NULLIO_SIZE		(5LL*1024*1024*1024*1024/2)
 
@@ -170,6 +171,7 @@ struct scst_vdisk_dev {
 	 * with scst_vdisk_mutex.
 	 */
 	unsigned int dev_active:1;
+	unsigned int bind_alua_state:1;
 	unsigned int rd_only:1;
 	unsigned int wt_flag:1;
 	unsigned int nv_cache:1;
@@ -422,6 +424,12 @@ static ssize_t vdisk_sysfs_o_direct_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdev_sysfs_active_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
+static ssize_t vdev_sysfs_active_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count);
+static ssize_t vdev_sysfs_bind_alua_state_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
+static ssize_t vdev_sysfs_bind_alua_state_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count);
 static ssize_t vdev_sysfs_dummy_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdev_sysfs_rz_show(struct kobject *kobj,
@@ -489,7 +497,12 @@ static ssize_t vcdrom_sysfs_filename_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count);
 
 static struct kobj_attribute vdev_active_attr =
-	__ATTR(active, S_IRUGO, vdev_sysfs_active_show, NULL);
+	__ATTR(active, S_IWUSR|S_IRUGO, vdev_sysfs_active_show,
+	       vdev_sysfs_active_store);
+static struct kobj_attribute vdev_bind_alua_state_attr =
+	__ATTR(bind_alua_state, S_IWUSR|S_IRUGO,
+	       vdev_sysfs_bind_alua_state_show,
+	       vdev_sysfs_bind_alua_state_store);
 static struct kobj_attribute vdev_size_ro_attr =
 	__ATTR(size, S_IRUGO, vdev_sysfs_size_show, NULL);
 static struct kobj_attribute vdev_size_rw_attr =
@@ -611,6 +624,7 @@ static const struct attribute *vdisk_fileio_attrs[] = {
 
 static const struct attribute *vdisk_blockio_attrs[] = {
 	&vdev_active_attr.attr,
+	&vdev_bind_alua_state_attr.attr,
 	&vdev_size_rw_attr.attr,
 	&vdev_size_mb_rw_attr.attr,
 	&vdisk_blocksize_attr.attr,
@@ -797,6 +811,7 @@ static struct scst_dev_type vdisk_blk_devtype = {
 	.dev_attrs =		vdisk_blockio_attrs,
 	.add_device_parameters =
 		"active, "
+		"bind_alua_state, "
 		"blocksize, "
 		"dif_mode, "
 		"dif_type, "
@@ -7442,6 +7457,11 @@ static void blockio_on_alua_state_change_start(struct scst_device *dev,
 
 	TRACE_ENTRY();
 
+	lockdep_assert_alua_lock_held();
+
+	if (!virt_dev->bind_alua_state)
+		return;
+
 	/*
 	 * As required for on_alua_state_change_* callbacks,
 	 * no parallel fd activities could be here.
@@ -7466,6 +7486,11 @@ static void blockio_on_alua_state_change_finish(struct scst_device *dev,
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 
 	TRACE_ENTRY();
+
+	lockdep_assert_alua_lock_held();
+
+	if (!virt_dev->bind_alua_state)
+		return;
 
 	/*
 	 * As required for on_alua_state_change_* callbacks,
@@ -7857,6 +7882,7 @@ static int vdev_create_node(struct scst_dev_type *devt,
 	virt_dev->blk_shift = DEF_DISK_BLOCK_SHIFT;
 	virt_dev->numa_node_id = NUMA_NO_NODE;
 	virt_dev->dev_active = DEF_DEV_ACTIVE;
+	virt_dev->bind_alua_state = DEF_BIND_ALUA_STATE;
 
 	if (strlen(name) >= sizeof(virt_dev->name)) {
 		PRINT_ERROR("Name %s is too long (max allowed %zd)", name,
@@ -8153,6 +8179,10 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 		} else if (!strcasecmp("active", p)) {
 			virt_dev->dev_active = ull_val;
 			TRACE_DBG("ACTIVE %d", virt_dev->dev_active);
+		} else if (!strcasecmp("bind_alua_state", p)) {
+			virt_dev->bind_alua_state = ull_val;
+			TRACE_DBG("BIND_ALUA_STATE %d",
+				  virt_dev->bind_alua_state);
 		} else if (!strcasecmp("rotational", p)) {
 			virt_dev->rotational = ull_val;
 			TRACE_DBG("ROTATIONAL %d", virt_dev->rotational);
@@ -8286,7 +8316,8 @@ static int vdev_blockio_add_device(const char *device_name, char *params)
 					 "removable", "blocksize", "nv_cache",
 					 "rotational", "cluster_mode",
 					 "thin_provisioned", "tst", "active",
-					 "numa_node_id", "dif_mode",
+					 "bind_alua_state", "numa_node_id",
+					 "dif_mode",
 					 "dif_type", "dif_static_app_tag",
 					 "dif_filename", NULL };
 	struct scst_vdisk_dev *virt_dev;
@@ -10210,6 +10241,169 @@ static ssize_t vdev_sysfs_active_show(struct kobject *kobj,
 			       SCST_SYSFS_KEY_MARK "\n" : "");
 
 	return pos;
+}
+
+static int vdev_sysfs_process_active_store(
+	struct scst_sysfs_work_item *work)
+{
+	struct scst_device *dev = work->dev;
+	struct scst_vdisk_dev *virt_dev;
+	long dev_active;
+	int res;
+
+	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
+	if (res)
+		goto out;
+
+	res = mutex_lock_interruptible(&scst_mutex);
+	if (res)
+		goto resume;
+	/*
+	 * This is used to serialize against the *_on_alua_state_change_*()
+	 * calls in scst_tg.c
+	 */
+	scst_alua_lock();
+
+	/*
+	 * This is safe since we hold a reference on dev_kobj and since
+	 * scst_assign_dev_handler() waits until all dev_kobj references
+	 * have been dropped before invoking .detach().
+	 */
+	virt_dev = dev->dh_priv;
+	res = kstrtol(work->buf, 0, &dev_active);
+	if (res)
+		goto unlock;
+	res = -EINVAL;
+	if (dev_active < 0 || dev_active > 1)
+		goto unlock;
+	if (dev_active != virt_dev->dev_active) {
+		res = 0;
+		if (dev_active == 0) {
+			/* Close the FD here */
+			vdisk_close_fd(virt_dev);
+			virt_dev->dev_active = dev_active;
+		} else {
+			/* Re-open FD if tgt_dev_cnt is not zero */
+			virt_dev->dev_active = dev_active;
+			if (virt_dev->tgt_dev_cnt)
+				res = vdisk_open_fd(virt_dev, dev->dev_rd_only);
+			if (res == 0) {
+				if (virt_dev->reexam_pending) {
+					res = vdisk_reexamine(virt_dev);
+					WARN_ON(res != 0);
+					virt_dev->reexam_pending = 0;
+				}
+			} else {
+				PRINT_ERROR("Unable to open FD on active -> "
+					"%ld (dev %s): %d", dev_active,
+					dev->virt_name, res);
+				virt_dev->dev_active = 0;
+				goto unlock;
+			}
+		}
+	} else {
+		res = 0;
+	}
+
+unlock:
+	scst_alua_unlock();
+	mutex_unlock(&scst_mutex);
+
+resume:
+	scst_resume_activity();
+
+out:
+	kobject_put(&dev->dev_kobj);
+
+	return res;
+}
+
+static ssize_t vdev_sysfs_active_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	struct scst_device *dev = container_of(kobj, struct scst_device,
+					       dev_kobj);
+	struct scst_sysfs_work_item *work;
+	char *arg;
+	int res;
+
+	TRACE_ENTRY();
+
+	res = -ENOMEM;
+	arg = kasprintf(GFP_KERNEL, "%.*s", (int)count, buf);
+	if (!arg)
+		goto out;
+
+	res = scst_alloc_sysfs_work(vdev_sysfs_process_active_store,
+				    false, &work);
+	if (res)
+		goto out;
+	work->dev = dev;
+	swap(work->buf, arg);
+	kobject_get(&dev->dev_kobj);
+	res = scst_sysfs_queue_wait_work(work);
+	if (res)
+		goto out;
+	res = count;
+
+out:
+	kfree(arg);
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t vdev_sysfs_bind_alua_state_show(struct kobject *kobj,
+					       struct kobj_attribute *attr,
+					       char *buf)
+{
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+	int pos;
+	unsigned int bind_alua_state;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = dev->dh_priv;
+	spin_lock(&virt_dev->flags_lock);
+	bind_alua_state = virt_dev->bind_alua_state;
+	spin_unlock(&virt_dev->flags_lock);
+	pos = sprintf(buf, "%d\n%s", bind_alua_state,
+		      bind_alua_state != DEF_BIND_ALUA_STATE ?
+		      SCST_SYSFS_KEY_MARK "\n" : "");
+
+	TRACE_EXIT_RES(pos);
+	return pos;
+}
+
+static ssize_t vdev_sysfs_bind_alua_state_store(struct kobject *kobj,
+						struct kobj_attribute *attr,
+						const char *buf, size_t count)
+{
+	struct scst_device *dev;
+	struct scst_vdisk_dev *virt_dev;
+	char ch[16];
+	unsigned long bind_alua_state;
+	int res;
+
+	TRACE_ENTRY();
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+	virt_dev = dev->dh_priv;
+	strlcpy(ch, buf, 16);
+	res = kstrtoul(ch, 0, &bind_alua_state);
+	if (res < 0)
+		goto out;
+
+	spin_lock(&virt_dev->flags_lock);
+	virt_dev->bind_alua_state = !!bind_alua_state;
+	spin_unlock(&virt_dev->flags_lock);
+
+	res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 static ssize_t vdev_zero_copy_show(struct kobject *kobj,

@@ -60,6 +60,25 @@ module_param(alua_invariant_check, bool, 0644);
 MODULE_PARM_DESC(alua_invariant_check,
 		 "Enables a run-time ALUA state invariant check.");
 
+/* Global SCST ALUA lock/unlock functions (scst_dg_mutex) */
+void scst_alua_lock(void)
+{
+	mutex_lock(&scst_dg_mutex);
+}
+EXPORT_SYMBOL(scst_alua_lock);
+
+void scst_alua_unlock(void)
+{
+	mutex_unlock(&scst_dg_mutex);
+}
+EXPORT_SYMBOL(scst_alua_unlock);
+
+void lockdep_assert_alua_lock_held(void)
+{
+	lockdep_assert_held(&scst_dg_mutex);
+}
+EXPORT_SYMBOL(lockdep_assert_alua_lock_held);
+
 const char *scst_alua_state_name(enum scst_tg_state s)
 {
 	int i;

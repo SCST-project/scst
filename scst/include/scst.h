@@ -5724,6 +5724,11 @@ int scst_pr_set_cluster_mode(struct scst_device *dev, bool cluster_mode,
 int scst_pr_init_dev(struct scst_device *dev);
 void scst_pr_clear_dev(struct scst_device *dev);
 
+/* Global ALUA lock/unlock functions */
+void scst_alua_lock(void);
+void scst_alua_unlock(void);
+void lockdep_assert_alua_lock_held(void);
+
 struct scst_ext_copy_data_descr {
 	uint64_t src_lba;
 	uint64_t dst_lba;
