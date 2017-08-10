@@ -83,6 +83,7 @@ ifeq ($(OFED_FLAVOR),MOFED)
 	endif
 
 	OFED_CFLAGS:=	-I$(OFED_DIR)/include				\
+			-I$(OFED_DIR)/include/uapi			\
 			-include $(OFED_DIR)/include/linux/compat-2.6.h	\
 			-DMOFED_MAJOR=$(shell echo $(OFED_VERS) | cut -f1 -d.)
 	ISER_SYMVERS:="$(ISER_SYMVERS) $(OFED_DIR)/Module.symvers"
