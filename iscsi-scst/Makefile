@@ -69,12 +69,7 @@ ifeq ($(OFED_FLAVOR),MOFED)
 	MLNX_OFED_IB_UBUNTU_INSTALLED:=$(shell if dpkg -s mlnx-ofed-kernel-dkms >/dev/null 2>/dev/null; then echo true; else echo false; fi)
 
 	# Whether MLNX_OFED for RedHat has been installed
-	MLNX_OFED_IB_RH_INSTALLED:=$(shell if rpm -q mlnx-ofa_kernel-devel >&/dev/null; then echo true; else echo false; fi)
-
-	# Check if we have custom compiled kernel modules
-        ifeq ($(MLNX_OFED_IB_RH_INSTALLED),false)
-	MLNX_OFED_IB_RH_INSTALLED:=$(shell if rpm -q kernel-ib-devel >&/dev/null; then echo true; else echo false; fi)
-	endif
+	MLNX_OFED_IB_RH_INSTALLED:=$(shell if { rpm -q mlnx-ofa_kernel-devel || rpm -q kernel-ib-devel; } >&/dev/null; then echo true; else echo false; fi)
 
 	ifeq ($(MLNX_OFED_IB_UBUNTU_INSTALLED),true)
 	OFED_VERS=$(shell dpkg -s mlnx-ofed-kernel-dkms | awk -F\- '/Version/ {print $$1}' | awk '{print $$2}')
