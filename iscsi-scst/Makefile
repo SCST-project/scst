@@ -69,30 +69,24 @@ ifeq ($(OFED_FLAVOR),MOFED)
 	MLNX_OFED_IB_UBUNTU_INSTALLED:=$(shell if dpkg -s mlnx-ofed-kernel-dkms >/dev/null 2>/dev/null; then echo true; else echo false; fi)
 
 	# Whether MLNX_OFED for RedHat has been installed
-	MLNX_OFED_IB_RH_INSTALLED:=$(shell if rpm -q mlnx-ofa_kernel-devel >&/dev/null; then echo true; else echo false; fi)
-
-	# Check if we have custom compiled kernel modules
-        ifeq ($(MLNX_OFED_IB_RH_INSTALLED),false)
-	MLNX_OFED_IB_RH_INSTALLED:=$(shell if rpm -q kernel-ib-devel >&/dev/null; then echo true; else echo false; fi)
-	endif
+	MLNX_OFED_IB_RH_INSTALLED:=$(shell if { rpm -q mlnx-ofa_kernel-devel || rpm -q kernel-ib-devel; } >&/dev/null; then echo true; else echo false; fi)
 
 	ifeq ($(MLNX_OFED_IB_UBUNTU_INSTALLED),true)
 	OFED_VERS=$(shell dpkg -s mlnx-ofed-kernel-dkms | awk -F\- '/Version/ {print $$1}' | awk '{print $$2}')
-	OFED_CFLAGS:=-I/var/lib/dkms/mlnx-ofed-kernel/$(OFED_VERS)/build/include -include /var/lib/dkms/mlnx-ofed-kernel/$(OFED_VERS)/build/include/linux/compat-2.6.h
-	ISER_SYMVERS:="$(ISER_SYMVERS) /var/lib/dkms/mlnx-ofed-kernel/$(OFED_VERS)/build/Module.symvers"
+	OFED_DIR:=/var/lib/dkms/mlnx-ofed-kernel/$(OFED_VERS)/build
 	endif
 
 	ifeq ($(MLNX_OFED_IB_RH_INSTALLED),true)
 	OFED_VERS=$(shell rpm -q --qf '%{version}\n' mlnx-ofa_kernel-devel \
 			  2>/dev/null)
-	OFED_CFLAGS:=-I/usr/src/ofa_kernel/default/include -include /usr/src/ofa_kernel/default/include/linux/compat-2.6.h
-	ISER_SYMVERS:="$(ISER_SYMVERS) /usr/src/ofa_kernel/default/Module.symvers"
+	OFED_DIR:=/usr/src/ofa_kernel/default
 	endif
 
-	# Make the version of the MOFED kernel package available to C source
-	# files such that it can be used in #ifdef statements where MOFED
-	# uses an older version of the RDMA API than the upstream kernel.
-	OFED_CFLAGS+=-DMOFED_MAJOR=$(shell echo $(OFED_VERS) | cut -f1 -d.)
+	OFED_CFLAGS:=	-I$(OFED_DIR)/include				\
+			-I$(OFED_DIR)/include/uapi			\
+			-include $(OFED_DIR)/include/linux/compat-2.6.h	\
+			-DMOFED_MAJOR=$(shell echo $(OFED_VERS) | cut -f1 -d.)
+	ISER_SYMVERS:="$(ISER_SYMVERS) $(OFED_DIR)/Module.symvers"
 else
 	# Whether or not the OFED kernel-ib-devel RPM has been installed.
 	OFED_KERNEL_IB_DEVEL_RPM_INSTALLED:=$(shell if rpm -q kernel-ib-devel 2>/dev/null | grep -q $$(uname -r | sed 's/-/_/g'); then echo true; else echo false; fi)
