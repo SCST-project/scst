@@ -492,7 +492,7 @@ out_unreg:
 				res = errno;
 				PRINT_ERROR("Unable to unregister device: %s",
 					strerror(res));
-				/* go through */
+				/* fall through */
 			}
 		}
 		close(devs[i].scst_usr_fd);

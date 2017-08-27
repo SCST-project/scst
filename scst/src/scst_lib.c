@@ -3068,7 +3068,7 @@ int scst_get_cmd_abnormal_done_state(struct scst_cmd *cmd)
 			break;
 		}
 		trace = true;
-		/* go through */
+		/* fall through */
 	case SCST_CMD_STATE_DEV_DONE:
 		if (cmd->internal)
 			res = SCST_CMD_STATE_FINISHED_INTERNAL;
@@ -3102,7 +3102,8 @@ int scst_get_cmd_abnormal_done_state(struct scst_cmd *cmd)
 		if (cmd->preprocessing_only) {
 			res = SCST_CMD_STATE_PREPROCESSING_DONE;
 			break;
-		} /* else go through */
+		}
+		/* fall through */
 	case SCST_CMD_STATE_RDY_TO_XFER:
 	case SCST_CMD_STATE_DATA_WAIT:
 	case SCST_CMD_STATE_TGT_PRE_EXEC:
@@ -9332,7 +9333,7 @@ static int scst_do_dif(struct scst_cmd *cmd,
 	case SCST_DIF_CHECK_REF_TAG:
 	default:
 		EXTRACHECKS_BUG_ON(1);
-		/* go through */
+		/* fall through */
 	case SCST_DIF_ACTION_NONE:
 		/* Nothing to do */
 		TRACE_DBG("NONE DIF action, skipping (cmd %p)", cmd);
@@ -10584,7 +10585,7 @@ static int __scst_parse_vrprotect(struct scst_cmd *cmd, int vrprotect_offs)
 				cmd->cmd_dif_actions = 0;
 				break;
 			}
-			/* else go through */
+			/* fall through */
 		case 1:
 		case 5:
 			cmd->cmd_dif_actions = SCST_DIF_CHECK_GUARD_TAG |
@@ -13566,7 +13567,7 @@ static void scst_process_qerr(struct scst_cmd *cmd)
 	default:
 		PRINT_WARNING("Invalid QErr value %x for device %s, process as "
 			"0", qerr, dev->virt_name);
-		/* go through */
+		/* fall through */
 	case SCST_QERR_0_ALL_RESUME:
 		/* Nothing to do */
 		break;

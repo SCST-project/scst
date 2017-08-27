@@ -213,7 +213,7 @@ int main(int argc, char **argv)
 			case EBUSY:
 				TRACE_MGMT_DBG("SCST_EVENT_GET_NEXT_EVENT returned "
 					"%d (%s)", res, strerror(res));
-				/* go through */
+				/* fall through */
 			case EINTR:
 				continue;
 			case EAGAIN:

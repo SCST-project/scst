@@ -1530,7 +1530,7 @@ out_free_sess_wwn:
 	spin_unlock_irq(&ha->hardware_lock);
 
 	kfree(wwn_str);
-	/* go through */
+	/* fall through */
 
 out_free_sess:
 	kmem_cache_free(q2t_sess_cachep, sess);

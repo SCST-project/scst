@@ -863,7 +863,7 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 			iscsi_conn_init_read(cmnd->conn, &cmnd->pdu.bhs,
 					     sizeof(cmnd->pdu.bhs));
 			conn->read_state = RX_BHS;
-			/* go through */
+			/* fall through */
 
 		case RX_BHS:
 			res = do_recv(conn);
@@ -976,7 +976,7 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 		case RX_INIT_HDIGEST:
 			iscsi_conn_init_read(conn, &cmnd->hdigest, sizeof(u32));
 			conn->read_state = RX_CHECK_HDIGEST;
-			/* go through */
+			/* fall through */
 
 		case RX_CHECK_HDIGEST:
 			res = do_recv(conn);
@@ -996,7 +996,7 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 		case RX_INIT_DDIGEST:
 			iscsi_conn_init_read(conn, &cmnd->ddigest, sizeof(u32));
 			conn->read_state = RX_CHECK_DDIGEST;
-			/* go through */
+			/* fall through */
 
 		case RX_CHECK_DDIGEST:
 			res = iscsi_rx_check_ddigest(conn);

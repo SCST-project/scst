@@ -910,7 +910,7 @@ active:
 	default:
 		PRINT_ERROR("Context %x is undefined, using the thread one",
 			pref_context);
-		/* go through */
+		/* fall through */
 	case SCST_CONTEXT_THREAD:
 		spin_lock_irqsave(&cmd->cmd_threads->cmd_list_lock, flags);
 		TRACE_DBG("Adding cmd %p to active cmd list", cmd);
@@ -1360,7 +1360,7 @@ set_res:
 		TRACE_DBG_FLAG(TRACE_DEBUG|TRACE_MINOR, "Atomic context and "
 			"non-WRITE data direction, rescheduling (cmd %p)", cmd);
 		res = SCST_CMD_STATE_RES_NEED_THREAD;
-		/* go through */
+		/* fall through */
 	}
 #endif
 
@@ -1741,7 +1741,7 @@ void scst_restart_cmd(struct scst_cmd *cmd, int status,
 		set_bit(SCST_CMD_ABORTED, &cmd->cmd_flags);
 		set_bit(SCST_CMD_NO_RESP, &cmd->cmd_flags);
 		cmd->delivery_status = SCST_CMD_DELIVERY_FAILED;
-		/* go through */
+		/* fall through */
 	case SCST_PREPROCESS_STATUS_ERROR:
 		if (cmd->sense != NULL)
 			scst_set_cmd_error(cmd,
@@ -1913,7 +1913,7 @@ static void scst_process_redirect_cmd(struct scst_cmd *cmd,
 	default:
 		PRINT_ERROR("Context %x is unknown, using the thread one",
 			    context);
-		/* go through */
+		/* fall through */
 	case SCST_CONTEXT_THREAD:
 	{
 		struct list_head *active_cmd_list;
@@ -2015,7 +2015,7 @@ void scst_rx_data(struct scst_cmd *cmd, int status,
 		set_bit(SCST_CMD_ABORTED, &cmd->cmd_flags);
 		set_bit(SCST_CMD_NO_RESP, &cmd->cmd_flags);
 		cmd->delivery_status = SCST_CMD_DELIVERY_FAILED;
-		/* go through */
+		/* fall through */
 	case SCST_RX_STATUS_ERROR:
 		TRACE(TRACE_SCSI, "cmd %p, RX data error status %#x", cmd, status);
 		if (!cmd->write_not_received_set)
@@ -2149,7 +2149,7 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 			set_bit(SCST_CMD_ABORTED, &cmd->cmd_flags);
 			set_bit(SCST_CMD_NO_RESP, &cmd->cmd_flags);
 			cmd->delivery_status = SCST_CMD_DELIVERY_FAILED;
-			/* go through */
+			/* fall through */
 		case SCST_PREPROCESS_STATUS_ERROR:
 			scst_set_cmd_error(cmd,
 				   SCST_LOAD_SENSE(scst_sense_hardw_error));
