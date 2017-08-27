@@ -25,6 +25,18 @@
 #include "iscsi_trace_flag.h"
 #include "iscsi.h"
 
+/* See also commit 2d4bc93368f5 ("netlink: extended ACK reporting") */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
+static inline void netlink_ack_backport(struct sk_buff *in_skb,
+					struct nlmsghdr *nlh, int err,
+					const struct netlink_ext_ack *extack)
+{
+	WARN_ON_ONCE(extack);
+	netlink_ack(in_skb, nlh, err);
+}
+#define netlink_ack netlink_ack_backport
+#endif
+
 static struct sock *nl;
 static u32 iscsid_pid;
 
@@ -63,9 +75,9 @@ static void event_recv_skb(struct sk_buff *skb)
 			rlen = skb->len;
 		err = event_recv_msg(skb, nlh);
 		if (err)
-			netlink_ack(skb, nlh, -err);
+			netlink_ack(skb, nlh, -err, NULL);
 		else if (nlh->nlmsg_flags & NLM_F_ACK)
-			netlink_ack(skb, nlh, 0);
+			netlink_ack(skb, nlh, 0, NULL);
 		skb_pull(skb, rlen);
 	}
 
