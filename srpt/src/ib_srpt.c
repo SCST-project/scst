@@ -589,7 +589,7 @@ static void srpt_mgmt_method_get(struct srpt_port *sp, struct ib_mad *rq_mad,
 static void srpt_mad_send_handler(struct ib_mad_agent *mad_agent,
 				  struct ib_mad_send_wc *mad_wc)
 {
-#ifdef HAVE_RDMA_DESTROY_AH
+#if HAVE_RDMA_DESTROY_AH
 	rdma_destroy_ah(mad_wc->send_buf->ah);
 #else
 	ib_destroy_ah(mad_wc->send_buf->ah);
@@ -665,7 +665,7 @@ static void srpt_mad_recv_handler(struct ib_mad_agent *mad_agent,
 	ib_free_send_mad(rsp);
 
 err_rsp:
-#ifdef HAVE_RDMA_DESTROY_AH
+#if HAVE_RDMA_DESTROY_AH
 	rdma_destroy_ah(ah);
 #else
 	ib_destroy_ah(ah);
