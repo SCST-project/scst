@@ -2941,7 +2941,7 @@ static bool vdisk_use_zero_copy(const struct scst_cmd *cmd)
 	case VARIABLE_LENGTH_CMD:
 		if (cmd->cdb[9] != SUBCODE_READ_32)
 			break;
-		/* else go througth */
+		/* fall through */
 	case READ_6:
 	case READ_10:
 	case READ_12:

@@ -3856,7 +3856,7 @@ defer:
 				case SCST_QERR_3_ABORT_THIS_NEXUS_ONLY:
 					if (!this_nex)
 						goto defer;
-					/* else go through */
+					/* fall through */
 				case SCST_QERR_1_ABORT_ALL:
 					TRACE_MGMT_DBG("Aborting cmd %p due to "
 						"ACA active (tgt_dev %p)", cmd,
