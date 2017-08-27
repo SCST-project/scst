@@ -1013,7 +1013,7 @@ out_free_sess:
 
 	if (atomic_dec_and_test(&tgt->sess_count))
 		wake_up_all(&tgt->waitQ);
-	/* go through */
+	/* fall through */
 out_free_cmd:
 	TRACE_MEM("kfree for cmd %p", cmd);
 	kfree(cmd);

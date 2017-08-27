@@ -1603,7 +1603,7 @@ out_free_sess:
 	tgt->sess_count--;
 	if (tgt->sess_count == 0)
 		wake_up_all(&tgt->waitQ);
-	/* go through */
+	/* fall through */
 
 out_free_cmd:
 	mvst_free_cmd(cmd);

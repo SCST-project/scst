@@ -344,7 +344,7 @@ static int stpg_event_loop(void)
 			case EBUSY:
 				TRACE_MGMT_DBG("SCST_EVENT_GET_NEXT_EVENT "
 					"returned %d (%s)", res, strerror(res));
-				/* go through */
+				/* fall through */
 			case EINTR:
 				continue;
 			case EAGAIN:

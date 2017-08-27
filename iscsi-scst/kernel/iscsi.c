@@ -3410,7 +3410,7 @@ static void iscsi_try_local_processing(struct iscsi_cmnd *req)
 	switch (conn->wr_state) {
 	case ISCSI_CONN_WR_STATE_IN_LIST:
 		list_del(&conn->wr_list_entry);
-		/* go through */
+		/* fall through */
 	case ISCSI_CONN_WR_STATE_IDLE:
 #ifdef CONFIG_SCST_EXTRACHECKS
 		conn->wr_task = current;
