@@ -8366,8 +8366,12 @@ static void scsi_end_async(struct request *req, int error)
 	struct scsi_io_context *sioc = req->end_io_data;
 	int result;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
 	TRACE_DBG("sioc %p, cmd %p, error %d / %d", sioc, sioc->data, error,
 		  req->errors);
+#else
+	TRACE_DBG("sioc %p, cmd %p, error %d", sioc, sioc->data, error);
+#endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
 	lockdep_assert_held(req->q->queue_lock);
