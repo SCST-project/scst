@@ -236,6 +236,12 @@ conftest/rdma_create_id_net/result-$(KVER).txt:				\
 	echo "$(call run_conftest_bool,rdma_create_id_net,		\
 		RDMA_CREATE_ID_TAKES_NET_ARG)" >"$@"
 
+conftest/rdma_destroy_ah/result-$(KVER).txt:				\
+	conftest/rdma_destroy_ah/rdma_destroy_ah.c			\
+	conftest/rdma_destroy_ah/Makefile
+	echo "$(call run_conftest_bool,rdma_destroy_ah,			\
+		HAVE_RDMA_DESTROY_AH)" >"$@"
+
 conftest/register_mad_agent/result-$(KVER).txt:				\
 	conftest/register_mad_agent/register_mad_agent.c		\
 	conftest/register_mad_agent/Makefile
