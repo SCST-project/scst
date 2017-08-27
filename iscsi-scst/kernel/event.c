@@ -27,6 +27,8 @@
 
 /* See also commit 2d4bc93368f5 ("netlink: extended ACK reporting") */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
+struct netlink_ext_ack;
+
 static inline void netlink_ack_backport(struct sk_buff *in_skb,
 					struct nlmsghdr *nlh, int err,
 					const struct netlink_ext_ack *extack)
