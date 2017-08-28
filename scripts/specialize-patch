@@ -87,6 +87,9 @@ function evaluate(stmnt, pattern, arg, op, result) {
   gsub("RDMA_CREATE_ID_TAKES_NET_ARG",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))", stmnt)
 
+  gsub("HAVE_RDMA_DESTROY_AH",
+       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0))", stmnt)
+  
   gsub("defined\\(USE_PRE_440_WR_STRUCTURE\\)",
        "(LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0))", stmnt)
 
@@ -334,9 +337,10 @@ function handle_if(evaluated)
   if ($0 ~ "LINUX_VERSION_CODE"    \
       || $0 ~ "CONFIG_SCST_PROC"   \
       || $0 ~ "CREATE_SEND_MAD_HAS_BASE_ARG"   \
-      || $0 ~ "HAVE_IB_SET_CPI_RESP_TIME" \
       || $0 ~ "HAVE_IB_DMA_MAP_OPS" \
       || $0 ~ "HAVE_IB_QUERY_DEVICE" \
+      || $0 ~ "HAVE_IB_SET_CPI_RESP_TIME" \
+      || $0 ~ "HAVE_RDMA_DESTROY_AH" \
       || $0 ~ "IB_CLIENT_REMOVE_TAKES_TWO_ARGS" \
       || $0 ~ "IB_CM_LISTEN_TAKES_FOURTH_ARG" \
       || $0 ~ "IB_CREATE_CQ_HAS_INIT_ATTR" \
@@ -346,8 +350,8 @@ function handle_if(evaluated)
       || $0 ~ "INSIDE_KERNEL_TREE" \
       || $0 ~ "MAD_HANDLER_TAKES_SEND_BUF" \
       || $0 ~ "MOFED_MAJOR"        \
-      || $0 ~ "REGISTER_MAD_AGENT_HAS_FLAGS_ARG" \
       || $0 ~ "RDMA_CREATE_ID_TAKES_NET_ARG" \
+      || $0 ~ "REGISTER_MAD_AGENT_HAS_FLAGS_ARG" \
       || $0 ~ "RHEL_MAJOR"         \
       || $0 ~ "RHEL_MINOR"         \
       || $0 ~ "RHEL_RELEASE_CODE"  \
