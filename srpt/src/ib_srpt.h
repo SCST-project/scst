@@ -379,7 +379,7 @@ struct srpt_rdma_ch {
 	struct list_head	cmd_wait_list;
 	uint16_t		pkey;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20) || defined(RHEL_RELEASE_CODE)
-	u8			comp_vector;
+	u16			comp_vector;
 #endif
 	bool			using_rdma_cm;
 	bool			processing_wait_list;
@@ -433,7 +433,7 @@ struct srpt_port {
 	struct list_head	nexus_list;
 	struct scst_tgt		*scst_tgt;
 	cpumask_t		comp_v_mask;
-	u8			comp_vector;
+	u16			comp_vector;
 	bool			enabled;
 	u8			port_id[64];
 };

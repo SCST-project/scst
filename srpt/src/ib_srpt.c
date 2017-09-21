@@ -2498,9 +2498,9 @@ static bool srpt_is_target_enabled(struct scst_tgt *scst_tgt)
 /*
  * srpt_next_comp_vector() - Next completion vector >= sport->comp_vector
  */
-static u8 srpt_next_comp_vector(struct srpt_port *sport)
+static u16 srpt_next_comp_vector(struct srpt_port *sport)
 {
-	u8 comp_vector;
+	u16 comp_vector;
 
 	mutex_lock(&sport->mutex);
 	comp_vector = cpumask_next(sport->comp_vector, &sport->comp_v_mask);
