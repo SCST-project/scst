@@ -70,8 +70,7 @@ ifeq ($(OFED_FLAVOR),MOFED)
 			else						       \
 			  echo false;					       \
 			fi),true)
-	OFED_VERS=$(shell dpkg -s mlnx-ofed-kernel-dkms | \
-			awk -F\- '/Version/ {print $$1}' | awk '{print $$2}')
+	OFED_VERS=$(shell dpkg-query -W --showformat='${Version}\n' mlnx-ofed-kernel-dkms)
 	else
 	ifeq ($(shell	if { rpm -q mlnx-ofa_kernel-devel ||		 \
 			     rpm -q kernel-ib-devel; } >&/dev/null; then \
