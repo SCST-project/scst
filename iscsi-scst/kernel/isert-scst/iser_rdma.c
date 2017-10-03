@@ -989,7 +989,8 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 				    sizeof(*isert_dev->cq_qps),
 				    GFP_KERNEL);
 	if (unlikely(isert_dev->cq_qps == NULL)) {
-		PRINT_ERROR("Failed to allocate iser cq_qps");
+		PRINT_ERROR("Failed to allocate %d iser cq_qps",
+			    isert_dev->num_cqs);
 		err = -ENOMEM;
 		goto free_isert_dev;
 	}
