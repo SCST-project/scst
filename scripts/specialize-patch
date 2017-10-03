@@ -126,6 +126,8 @@ function evaluate(stmnt, pattern, arg, op, result) {
 
   gsub("defined\\(CONFIG_SUSE_KERNEL\\)", "0", stmnt)
 
+  gsub("defined\\(CONFIG_SCST_STRICT_SERIALIZING\\)", "0", stmnt)
+  
   if (RHEL_MAJOR == "")
   {
     gsub("defined\\(RHEL_MAJOR\\)", "0", stmnt)
@@ -355,6 +357,7 @@ function handle_if(evaluated)
       || $0 ~ "IB_QUERY_GID_HAS_ATTR_ARG" \
       || $0 ~ "INSIDE_KERNEL_TREE" \
       || $0 ~ "MAD_HANDLER_TAKES_SEND_BUF" \
+      || $0 ~ "CONFIG_SCST_STRICT_SERIALIZING" \
       || $0 ~ "MOFED_MAJOR"        \
       || $0 ~ "RDMA_CREATE_ID_TAKES_NET_ARG" \
       || $0 ~ "REGISTER_MAD_AGENT_HAS_FLAGS_ARG" \
