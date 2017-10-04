@@ -5495,6 +5495,7 @@ void scst_dev_inquiry_data_changed(struct scst_device *dev);
  * allows exclusive wake ups of threads in LIFO order. We need it to let (yet)
  * unneeded threads sleep and not pollute CPU cache by their stacks.
  */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
 static inline void prepare_to_wait_exclusive_head(wait_queue_head_t *q,
 						  wait_queue_t *wait, int state)
 {
@@ -5507,6 +5508,20 @@ static inline void prepare_to_wait_exclusive_head(wait_queue_head_t *q,
 	set_current_state(state);
 	spin_unlock_irqrestore(&q->lock, flags);
 }
+#else
+static inline void prepare_to_wait_exclusive_head(struct wait_queue_head *wq_head,
+				struct wait_queue_entry *wq_entry, int state)
+{
+	unsigned long flags;
+
+	wq_entry->flags |= WQ_FLAG_EXCLUSIVE;
+	spin_lock_irqsave(&wq_head->lock, flags);
+	if (list_empty(&wq_entry->entry))
+		__add_wait_queue(wq_head, wq_entry);
+	set_current_state(state);
+	spin_unlock_irqrestore(&wq_head->lock, flags);
+}
+#endif
 
 /**
  * wait_event_locked() - Wait until a condition becomes true.

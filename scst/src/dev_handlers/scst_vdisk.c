@@ -6563,7 +6563,11 @@ static void blockio_endio(struct bio *bio, int error)
 #else
 static void blockio_endio(struct bio *bio)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
 	int error = bio->bi_error;
+#else
+	int error = blk_status_to_errno(bio->bi_status);
+#endif
 #endif
 	struct scst_blockio_work *blockio_work = bio->bi_private;
 
@@ -7039,7 +7043,11 @@ static void vdev_flush_end_io(struct bio *bio, int error)
 #else
 static void vdev_flush_end_io(struct bio *bio)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
 	int error = bio->bi_error;
+#else
+	int error = blk_status_to_errno(bio->bi_status);
+#endif
 #endif
 	struct scst_cmd *cmd = bio->bi_private;
 
@@ -7155,7 +7163,11 @@ static void blockio_end_sync_io(struct bio *bio, int error)
 #else
 static void blockio_end_sync_io(struct bio *bio)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
 	int error = bio->bi_error;
+#else
+	int error = blk_status_to_errno(bio->bi_status);
+#endif
 #endif
 	struct bio_priv_sync *s = bio->bi_private;
 
@@ -7788,7 +7800,7 @@ static int vdisk_create_bioset(struct scst_vdisk_dev *virt_dev)
 	EXTRACHECKS_BUG_ON(virt_dev->vdisk_bioset || !virt_dev->blockio);
 
 	/* Pool size doesn't really matter */
-	virt_dev->vdisk_bioset = bioset_create(2, 0);
+	virt_dev->vdisk_bioset = bioset_create(2, 0, 0);
 	if (virt_dev->vdisk_bioset == NULL) {
 		PRINT_ERROR("Failed to create bioset (dev %s)", virt_dev->name);
 		res = -ENOMEM;
