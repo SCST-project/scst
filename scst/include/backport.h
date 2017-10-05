@@ -238,7 +238,9 @@ static inline struct inode *file_inode(const struct file *f)
 }
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
+#if (!defined(CONFIG_SUSE_KERNEL) &&				\
+	LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)) ||	\
+	LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 static inline ssize_t vfs_readv_backport(struct file *file,
 					 const struct iovec __user *vec,
 					 unsigned long vlen, loff_t *pos,
@@ -430,7 +432,9 @@ static inline bool list_entry_in_list(const struct list_head *entry)
 
 /* <linux/kernel.h> */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
+#if (!defined(CONFIG_SUSE_KERNEL) &&				\
+	LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)) ||	\
+	LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 static inline long get_user_pages_backport(unsigned long start,
 					   unsigned long nr_pages,
 					   int write, int force,
