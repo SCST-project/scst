@@ -27,7 +27,13 @@
 #include <linux/aer.h>
 #include <linux/mutex.h>
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0) || \
+	defined(CONFIG_SUSE_KERNEL) && \
+	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)
+#define NEW_LIBFC_API
+#endif
+
+#ifdef NEW_LIBFC_API
 #include <linux/bsg-lib.h>
 #endif
 
@@ -293,7 +299,7 @@ typedef struct srb {
 	int iocbs;
 	union {
 		struct srb_iocb iocb_cmd;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
+#ifndef NEW_LIBFC_API
 		struct fc_bsg_job *bsg_job;
 #else
 		struct bsg_job *bsg_job;

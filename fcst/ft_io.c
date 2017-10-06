@@ -89,7 +89,7 @@ int ft_send_read_data(struct scst_cmd *cmd)
 		mem_len -= tlen;
 		mem_off = tlen;
 	} else
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
+#ifdef NEW_LIBFC_API
 		fcmd->seq = fc_seq_start_next(fcmd->seq);
 #else
 		fcmd->seq = lport->tt.seq_start_next(fcmd->seq);
@@ -179,7 +179,7 @@ int ft_send_read_data(struct scst_cmd *cmd)
 			       remaining ? (FC_FC_EX_CTX | FC_FC_REL_OFF) :
 			       (FC_FC_EX_CTX | FC_FC_REL_OFF | FC_FC_END_SEQ),
 			       fh_off);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
+#ifdef NEW_LIBFC_API
 		error = FCST_INJ_SEND_ERR(fc_seq_send(lport, fcmd->seq, fp));
 #else
 		error = FCST_INJ_SEND_ERR(lport->tt.seq_send(lport, fcmd->seq,

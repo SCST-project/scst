@@ -7955,7 +7955,8 @@ static void bio_kmalloc_destructor(struct bio *bio)
 }
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0) ||			\
+(defined(CONFIG_SUSE_KERNEL) && LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
 static struct request *blk_make_request(struct request_queue *q,
 					struct bio *bio,
 					gfp_t gfp_mask)
@@ -8080,7 +8081,9 @@ static struct request *__blk_map_kern_sg(struct request_queue *q,
 				if (!reading)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 					bio->bi_rw |= 1 << BIO_RW;
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+#elif (!defined(CONFIG_SUSE_KERNEL) &&			\
+	LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)) || \
+	LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 					bio->bi_rw |= REQ_WRITE;
 #else
 					bio_set_op_attrs(bio, REQ_OP_WRITE, 0);
@@ -8146,7 +8149,9 @@ static struct request *__blk_map_kern_sg(struct request_queue *q,
 
 	if (bw != NULL) {
 		atomic_set(&bw->bios_inflight, bios);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
+#if (!defined(CONFIG_SUSE_KERNEL) &&				\
+	LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)) ||	\
+	LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 		/*
 		 * See also patch "block: split out request-only flags into a
 		 * new namespace" (commit e806402130c9).
