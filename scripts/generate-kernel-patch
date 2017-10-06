@@ -272,6 +272,9 @@ done
 
 # General kernel patches.
 
+scsi_exec_req_fifo_defined=0
+scst_io_context=0
+
 scst_03_public_headers="scst/include/scst.h scst/include/scst_const.h \
 scst/include/scst_event.h scst/include/backport.h"
 scst_04_main="scst/src/scst_main.c scst/src/scst_module.c scst/src/scst_priv.h \

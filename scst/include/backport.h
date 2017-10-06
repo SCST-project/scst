@@ -20,6 +20,7 @@
  *  GNU General Public License for more details.
  */
 
+#include <linux/bio.h>
 #include <linux/blkdev.h>	/* struct request_queue */
 #include <linux/scatterlist.h>	/* struct scatterlist */
 #include <linux/slab.h>		/* kmalloc() */
@@ -43,6 +44,19 @@
 #ifndef O_DSYNC
 #define O_DSYNC O_SYNC
 #endif
+#endif
+
+/* <linux/bio.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
+static inline struct bio_set *bioset_create_backport(unsigned int pool_size,
+						     unsigned int front_pad,
+						     int flags)
+{
+	WARN_ON_ONCE(flags != 0);
+	return bioset_create(pool_size, front_pad);
+}
+#define bioset_create bioset_create_backport
 #endif
 
 /* <linux/blkdev.h> */
@@ -224,7 +238,9 @@ static inline struct inode *file_inode(const struct file *f)
 }
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
+#if (!defined(CONFIG_SUSE_KERNEL) &&				\
+	LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)) ||	\
+	LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 static inline ssize_t vfs_readv_backport(struct file *file,
 					 const struct iovec __user *vec,
 					 unsigned long vlen, loff_t *pos,
@@ -416,7 +432,9 @@ static inline bool list_entry_in_list(const struct list_head *entry)
 
 /* <linux/kernel.h> */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
+#if (!defined(CONFIG_SUSE_KERNEL) &&				\
+	LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)) ||	\
+	LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 static inline long get_user_pages_backport(unsigned long start,
 					   unsigned long nr_pages,
 					   int write, int force,

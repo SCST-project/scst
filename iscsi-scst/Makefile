@@ -65,23 +65,28 @@ OFED_CFLAGS:=
 OFED_FLAVOR=$(shell if [ -e /usr/bin/ofed_info ]; then /usr/bin/ofed_info 2>/dev/null | head -n1 | sed -n 's/^\(MLNX_OFED\|OFED-internal\).*/MOFED/p;s/^OFED-.*/OFED/p'; else echo in-tree; fi)
 
 ifeq ($(OFED_FLAVOR),MOFED)
-	# Whether MLNX_OFED for ubuntu has been installed
-	MLNX_OFED_IB_UBUNTU_INSTALLED:=$(shell if dpkg -s mlnx-ofed-kernel-dkms >/dev/null 2>/dev/null; then echo true; else echo false; fi)
-
-	# Whether MLNX_OFED for RedHat has been installed
-	MLNX_OFED_IB_RH_INSTALLED:=$(shell if { rpm -q mlnx-ofa_kernel-devel || rpm -q kernel-ib-devel; } >&/dev/null; then echo true; else echo false; fi)
-
-	ifeq ($(MLNX_OFED_IB_UBUNTU_INSTALLED),true)
-	OFED_VERS=$(shell dpkg -s mlnx-ofed-kernel-dkms | awk -F\- '/Version/ {print $$1}' | awk '{print $$2}')
-	OFED_DIR:=/var/lib/dkms/mlnx-ofed-kernel/$(OFED_VERS)/build
-	endif
-
-	ifeq ($(MLNX_OFED_IB_RH_INSTALLED),true)
+	ifeq ($(shell	if dpkg -s mlnx-ofed-kernel-dkms >/dev/null 2>&1; then \
+			  echo true;					       \
+			else						       \
+			  echo false;					       \
+			fi),true)
+	OFED_VERS=$(shell dpkg-query -W --showformat='${Version}\n' mlnx-ofed-kernel-dkms)
+	else
+	ifeq ($(shell	if { rpm -q mlnx-ofa_kernel-devel ||		 \
+			     rpm -q kernel-ib-devel; } >&/dev/null; then \
+			  echo true;					 \
+			else						 \
+			  echo false;					 \
+			fi),true)
 	OFED_VERS=$(shell rpm -q --qf '%{version}\n' mlnx-ofa_kernel-devel \
 			  2>/dev/null)
-	OFED_DIR:=/usr/src/ofa_kernel/default
+	else
+	echo := $(shell echo "Error: MLNX OFED has not been installed" >&2)
+	endif
 	endif
 
+	echo := $(shell echo "OFED_VERS = $(OFED_VERS)" >&2)
+	OFED_DIR:=/usr/src/ofa_kernel/default
 	OFED_CFLAGS:=	-I$(OFED_DIR)/include				\
 			-I$(OFED_DIR)/include/uapi			\
 			-include $(OFED_DIR)/include/linux/compat-2.6.h	\
