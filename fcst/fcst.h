@@ -19,15 +19,15 @@
 
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/scst.h>
-#define NEW_LIBFC_API
 #else
 #include <linux/version.h>
 #include "scst.h"
+#endif
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0) || \
 	defined(CONFIG_SUSE_KERNEL) && \
 	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)
 #define NEW_LIBFC_API
-#endif
 #endif
 
 #define FT_VERSION	"3.4.0-pre"
