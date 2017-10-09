@@ -7818,7 +7818,7 @@ static int vdisk_create_bioset(struct scst_vdisk_dev *virt_dev)
 	EXTRACHECKS_BUG_ON(virt_dev->vdisk_bioset || !virt_dev->blockio);
 
 	/* Pool size doesn't really matter */
-	virt_dev->vdisk_bioset = bioset_create(2, 0, 0);
+	virt_dev->vdisk_bioset = bioset_create(2, 0, BIOSET_NEED_BVECS);
 	if (virt_dev->vdisk_bioset == NULL) {
 		PRINT_ERROR("Failed to create bioset (dev %s)", virt_dev->name);
 		res = -ENOMEM;
