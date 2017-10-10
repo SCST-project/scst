@@ -110,10 +110,12 @@ https://forums.openfiler.com/viewtopic.php?id=3422.
 IMPORTANT USAGE NOTES
 ---------------------
 
-1. It is strongly recommended to use firmware version 5.x or higher
-for 24xx/25xx adapters. See
+1. It is strongly recommended to use firmware version 5.x or higher for
+24xx/25xx adapters. See
 http://sourceforge.net/mailarchive/forum.php?thread_name=4B4CD39F.6020401%40vlnb.net&forum_name=scst-devel
-for more details why.
+for more details why. Recent report also suggest that openSUSE ships FW
+8.6.0 that leads to severe "scst: TM fn ABORT_TASK/0" errors on the
+target side, but using the latest 8.7.0 firmware from QLogic works well.
 
 2. If you reload qla2x00tgt module, you should also reload qla2xxx
 module, otherwise your initiators could not see the target, when it is

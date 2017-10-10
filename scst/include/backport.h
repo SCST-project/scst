@@ -57,6 +57,7 @@ static inline struct bio_set *bioset_create_backport(unsigned int pool_size,
 	return bioset_create(pool_size, front_pad);
 }
 #define bioset_create bioset_create_backport
+#define BIOSET_NEED_BVECS 0
 #endif
 
 /* <linux/blkdev.h> */
