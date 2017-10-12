@@ -1740,7 +1740,7 @@ information about ALUA support in Windows Server, see also:
   (http://msdn.microsoft.com/en-us/library/gg607458%28v=vs.85%29.aspx).
 
 Active/Non-Optimized via internal redirection
-...............................................
+.............................................
 
 The Active-Standby configuration is simple to understand and setup,
 however, it might have serious interoperability issues, because not all
@@ -1774,8 +1774,8 @@ served to initiator(s) (consider for simplicity that there is only one
 served device)
 
 5. Connect to this SCST device through this internal target from the
-passive node. Now you have a local SCSI device on the passive side
-pointing to the active node.
+passive node, for instance, using iSCSI. Now you have a local SCSI
+device on the passive side pointing to the active node.
 
 6. Export this local device to the initiator(s) using SCST
 *path-through* handler (scst_disk). Pass-though is needed to redirect
@@ -1807,8 +1807,122 @@ on the new passive node.
 
 6. Finish ALUA states change.
 
+Example using direct sysfs interface could look like:
+
+Active-Optimized node:
+
+modprobe scst
+modprobe scst_disk
+modprobe scst_vdisk
+
+# Main device, DRBD primary here
+echo "add_device aa filename=/dev/drbd1" >/sys/kernel/scst_tgt/handlers/vdisk_blockio/mgmt
+
+# Redirect device, not used here. Coming from connecting via iSCSI to the
+# corresponding redirect target on the other side.
+DEVICE=10:0:0:0
+echo add_device $DEVICE >/sys/kernel/scst_tgt/handlers/dev_disk/mgmt
+
+service iscsi-scst start
+
+# This is a regular, user-visible target
+echo "add_target iqn.2006-10.net.v:tgt " >/sys/kernel/scst_tgt/targets/iscsi/mgmt
+echo 1 >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.v:tgt/rel_tgt_id
+echo "add aa 0" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.v:tgt/luns/mgmt
+
+# This is redirect target, 192.168.9.x is the redirect network
+echo "add_target iqn.2006-10.net.v:tgtR" >/sys/kernel/scst_tgt/targets/iscsi/mgmt
+echo 2 >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.v:tgtR/rel_tgt_id
+echo "add_target_attribute iqn.2006-10.net.v:tgtR allowed_portal 192.168.9.1" >/sys/kernel/scst_tgt/targets/iscsi/mgmt
+echo "1" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.v:tgtR/forwarding
+echo "add aa 0" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.v:tgtR/luns/mgmt
+
+echo 1 >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.v:tgt/enabled
+echo 1 >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.v:tgtR/enabled
+
+echo 1 >/sys/kernel/scst_tgt/targets/iscsi/enabled
+
+# ALUA config
+
+echo create aa >/sys/kernel/scst_tgt/device_groups/mgmt
+echo add aa >/sys/kernel/scst_tgt/device_groups/aa/devices/mgmt
+
+echo add tgt_a >/sys/kernel/scst_tgt/device_groups/aa/target_groups/mgmt
+echo add iqn.2006-10.net.v:tgt >/sys/kernel/scst_tgt/device_groups/aa/target_groups/tgt_a/mgmt
+echo 1 >/sys/kernel/scst_tgt/device_groups/aa/target_groups/tgt_a/group_id
+echo active >/sys/kernel/scst_tgt/device_groups/aa/target_groups/tgt_a/state
+
+echo add tgt_n >/sys/kernel/scst_tgt/device_groups/aa/target_groups/mgmt
+echo add iqn.2006-10.net.v:tgt1 >/sys/kernel/scst_tgt/device_groups/aa/target_groups/tgt_n/mgmt
+echo 2 >/sys/kernel/scst_tgt/device_groups/aa/target_groups/tgt_n/iqn.2006-10.net.v:tgt1/rel_tgt_id
+echo 2 >/sys/kernel/scst_tgt/device_groups/aa/target_groups/tgt_n/group_id
+echo nonoptimized >/sys/kernel/scst_tgt/device_groups/aa/target_groups/tgt_n/state
+
+Active-Non-Optimized node:
+
+modprobe scst
+modprobe scst_disk
+modprobe scst_vdisk
+
+# Main device, DRBD secondary, not used here
+echo "add_device aa filename=/dev/drbd1" >/sys/kernel/scst_tgt/handlers/vdisk_blockio/mgmt
+
+# Redirect device. Coming from connecting via iSCSI to the
+# corresponding redirect target on the other side.
+DEVICE=10:0:0:0
+echo add_device $DEVICE >/sys/kernel/scst_tgt/handlers/dev_disk/mgmt
+
+service iscsi-scst start
+
+echo "add_target iqn.2006-10.net.v:tgt1" >/sys/kernel/scst_tgt/targets/iscsi/mgmt
+echo 2 >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.v:tgt1/rel_tgt_id
+echo "add $DEVICE 0" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.v:tgt1/luns/mgmt
+
+# Redirect target, 192.168.9.x is the redirect network
+echo "add_target iqn.2006-10.net.v:tgtR" >/sys/kernel/scst_tgt/targets/iscsi/mgmt
+echo 2 >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.v:tgtR/rel_tgt_id
+echo "add_target_attribute iqn.2006-10.net.v:tgtR allowed_portal 192.168.9.2" >/sys/kernel/scst_tgt/targets/iscsi/mgmt
+echo "1" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.v:tgtR/forwarding
+echo "add aa 0" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.v:tgtR/luns/mgmt
+
+echo 1 >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.v:tgt1/enabled
+
+echo 1 >/sys/kernel/scst_tgt/targets/iscsi/enabled
+echo 1 >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.v:tgtR/enabled
+
+# ALUA config
+
+echo create $DEVICE >/sys/kernel/scst_tgt/device_groups/mgmt
+echo add $DEVICE >/sys/kernel/scst_tgt/device_groups/$DEVICE/devices/mgmt
+
+echo add tgt_a >/sys/kernel/scst_tgt/device_groups/$DEVICE/target_groups/mgmt
+echo add iqn.2006-10.net.v:tgt >/sys/kernel/scst_tgt/device_groups/$DEVICE/target_groups/tgt_a/mgmt
+echo 1 >/sys/kernel/scst_tgt/device_groups/$DEVICE/target_groups/tgt_a/iqn.2006-10.net.v:tgt/rel_tgt_id
+echo 1 >/sys/kernel/scst_tgt/device_groups/$DEVICE/target_groups/tgt_a/group_id
+echo active >/sys/kernel/scst_tgt/device_groups/$DEVICE/target_groups/tgt_a/state
+
+echo add tgt_n >/sys/kernel/scst_tgt/device_groups/$DEVICE/target_groups/mgmt
+echo add iqn.2006-10.net.v:tgt1 >/sys/kernel/scst_tgt/device_groups/$DEVICE/target_groups/tgt_n/mgmt
+echo 1 >/sys/kernel/scst_tgt/device_groups/$DEVICE/target_groups/tgt_n/group_id
+echo nonoptimized >/sys/kernel/scst_tgt/device_groups/$DEVICE/target_groups/tgt_n/state
+
+ALUA state switch after DRBD primary-secondary transition:
+
+Ex-Optimized:
+
+echo "replace_no_ua $DEVICE 0" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.v:tgt1/luns/mgmt
+echo nonoptimized >/sys/kernel/scst_tgt/device_groups/$DEVICE/target_groups/tgt_a/state
+echo active >/sys/kernel/scst_tgt/device_groups/$DEVICE/target_groups/tgt_n/state
+
+Ex-Non-Optimized:
+
+echo "replace_no_ua aa 0" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.v:tgt1/luns/mgmt
+echo nonoptimized >/sys/kernel/scst_tgt/device_groups/$DEVICE/target_groups/tgt_a/state
+echo active >/sys/kernel/scst_tgt/device_groups/$DEVICE/target_groups/tgt_n/state
+
 If you have any questions, please read this above text at least 3 times
-before asking. It might be tricky to understand.
+before asking. It might be tricky to understand :-)
+
 
 VAAI
 ----
