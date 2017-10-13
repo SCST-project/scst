@@ -399,11 +399,12 @@ function handle_if(evaluated)
     if (debug)
       printf "/* debug specialize-patch: (e) %s */\n", evaluated
     evaluated = evaluate(evaluated)
+    sub("^+#if", "+#elif", evaluated);
     decision[if_nesting_level] = evaluated
     inv_decision[if_nesting_level] \
       = evaluate(sprintf("+#if %s && !%s", \
                          substr(inv_decision[if_nesting_level], 6), \
-                         substr(evaluated, 6)))
+                         substr(evaluated, 8)))
     if (debug)
       printf "/* debug specialize-patch: (f) %s / %s */\n", \
         decision[if_nesting_level], inv_decision[if_nesting_level]
