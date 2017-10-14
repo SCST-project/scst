@@ -2196,7 +2196,11 @@ qla24xx_bsg_timeout(struct bsg_job *bsg_job)
 						ql_log(ql_log_warn, vha, 0x7089,
 						    "mbx abort_command "
 						    "failed.\n");
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
+						scsi_req(bsg_job->req)->result =
+#else
 						bsg_job->req->errors =
+#endif
 #ifndef NEW_LIBFC_API
 						bsg_job->reply->result = -EIO;
 #else
@@ -2206,7 +2210,11 @@ qla24xx_bsg_timeout(struct bsg_job *bsg_job)
 						ql_dbg(ql_dbg_user, vha, 0x708a,
 						    "mbx abort_command "
 						    "success.\n");
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
+						scsi_req(bsg_job->req)->result =
+#else
 						bsg_job->req->errors =
+#endif
 #ifndef NEW_LIBFC_API
 						bsg_job->reply->result = 0;
 #else
@@ -2224,7 +2232,12 @@ qla24xx_bsg_timeout(struct bsg_job *bsg_job)
 #ifndef NEW_LIBFC_API
 	bsg_job->req->errors = bsg_job->reply->result = -ENXIO;
 #else
-	bsg_job->req->errors = bsg_reply->result = -ENXIO;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
+	scsi_req(bsg_job->req)->result =
+#else
+	bsg_job->req->errors =
+#endif
+	bsg_reply->result = -ENXIO;
 #endif
 	return 0;
 
