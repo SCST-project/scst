@@ -2705,6 +2705,7 @@ qla24xx_enable_msix(struct qla_hw_data *ha, struct rsp_que *rsp)
 	for (i = 0; i < ha->msix_count; i++)
 		entries[i].entry = i;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
 	ret = pci_enable_msix(ha->pdev, entries, ha->msix_count);
 	if (ret) {
 		if (ret < MIN_MSIX_COUNT)
@@ -2726,6 +2727,24 @@ msix_failed:
 		}
 		ha->max_rsp_queues = ha->msix_count - 1;
 	}
+#else
+	ret = pci_enable_msix_range(ha->pdev,
+		    entries, MIN_MSIX_COUNT, ha->msix_count);
+	if (ret < 0) {
+		ql_log(ql_log_fatal, vha, 0x00c7,
+		    "MSI-X: Failed to enable support, "
+		    "giving   up -- %d/%d.\n",
+		    ha->msix_count, ret);
+		goto msix_out;
+	} else if (ret < ha->msix_count) {
+		ql_log(ql_log_warn, vha, 0x00c6,
+		    "MSI-X: Failed to enable support "
+		     "with %d vectors, using %d vectors.\n",
+		    ha->msix_count, ret);
+		ha->msix_count = ret;
+		ha->max_rsp_queues = ha->msix_count - 1;
+	}
+#endif
 	ha->msix_entries = kcalloc(ha->msix_count,
 				   sizeof(struct qla_msix_entry), GFP_KERNEL);
 	if (!ha->msix_entries) {
