@@ -18,6 +18,9 @@ ifndef PREFIX
         PREFIX=/usr/local
 endif
 
+cc-option = $(shell if $(CC) $(1) -S -o /dev/null -xc /dev/null \
+             > /dev/null 2>&1; then echo "$(1)"; else echo "$(2)"; fi ;)
+
 SRCS_D = iscsid.c iscsi_scstd.c conn.c session.c target.c message.c ctldev.c \
 		log.c chap.c event.c param.c config.c isns.c md5.c sha1.c \
 		misc.c
@@ -28,7 +31,9 @@ OBJS_ADM = $(SRCS_ADM:.c=.o)
 
 CFLAGS += -O2 -Wall -Wextra -Wstrict-prototypes -Wno-sign-compare \
 	-Wimplicit-function-declaration -Wno-unused-parameter \
-	-Wno-missing-field-initializers -g -I../include -I$(SCST_INC_DIR)
+	-Wno-missing-field-initializers \
+	$(call cc-option,-Wno-format-truncation) \
+	-g -I../include -I$(SCST_INC_DIR)
 CFLAGS += -D_GNU_SOURCE # required for glibc >= 2.8
 CFLAGS += $(LOCAL_CFLAGS)
 
