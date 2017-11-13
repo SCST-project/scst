@@ -60,6 +60,14 @@ static inline struct bio_set *bioset_create_backport(unsigned int pool_size,
 #define BIOSET_NEED_BVECS 0
 #endif
 
+/* See also commit 74d46992e0d9. */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
+static inline void bio_set_dev(struct bio *bio, struct block_device *bdev)
+{
+	bio->bi_bdev = bdev;
+}
+#endif
+
 /* <linux/blkdev.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31)
@@ -237,27 +245,6 @@ static inline struct inode *file_inode(const struct file *f)
 {
 	return f->f_dentry->d_inode;
 }
-#endif
-
-#if (!defined(CONFIG_SUSE_KERNEL) &&				\
-	LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)) ||	\
-	LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
-static inline ssize_t vfs_readv_backport(struct file *file,
-					 const struct iovec __user *vec,
-					 unsigned long vlen, loff_t *pos,
-					 int flags)
-{
-	return vfs_readv(file, vec, vlen, pos);
-}
-static inline ssize_t vfs_writev_backport(struct file *file,
-					  const struct iovec __user *vec,
-					  unsigned long vlen, loff_t *pos,
-					  int flags)
-{
-	return vfs_writev(file, vec, vlen, pos);
-}
-#define vfs_readv vfs_readv_backport
-#define vfs_writev vfs_writev_backport
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)

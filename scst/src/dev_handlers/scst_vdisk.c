@@ -2112,8 +2112,7 @@ static int vdisk_format_dif(struct scst_cmd *cmd, uint64_t start_lba,
 			full_len, (long long)loff);
 
 		/* WRITE */
-		err = vfs_writev(fd, (struct iovec __force __user *)iv,
-				 iv_count, &loff, 0);
+		err = scst_writev(fd, iv, iv_count, &loff);
 		if (err < 0) {
 			PRINT_ERROR("Formatting DIF write() returned %lld from "
 				"%zd", err, full_len);
@@ -5962,8 +5961,7 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 			iv_count, full_len, (long long)loff);
 
 		/* READ */
-		err = vfs_readv(fd, (struct iovec __force __user *)iv, iv_count,
-				&loff, 0);
+		err = scst_readv(fd, iv, iv_count, &loff);
 		if ((err < 0) || (err < full_len)) {
 			unsigned long flags;
 
@@ -6091,8 +6089,7 @@ restart:
 		TRACE_DBG("Writing DIF: eiv_count %d, full_len %zd", eiv_count, full_len);
 
 		/* WRITE */
-		err = vfs_writev(fd, (struct iovec __force __user *)eiv,
-				 eiv_count, &loff, 0);
+		err = scst_writev(fd, eiv, eiv_count, &loff);
 		if (err < 0) {
 			unsigned long flags;
 
@@ -6233,8 +6230,7 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 		TRACE_DBG("Reading iv_count %d, full_len %zd", iv_count, full_len);
 
 		/* READ */
-		err = vfs_readv(fd, (struct iovec __force __user *)iv, iv_count,
-				&loff, 0);
+		err = scst_readv(fd, iv, iv_count, &loff);
 		if ((err < 0) || (err < full_len)) {
 			PRINT_ERROR("readv() returned %lld from %zd",
 				    (unsigned long long int)err,
@@ -6427,8 +6423,7 @@ restart:
 		TRACE_DBG("Writing: eiv_count %d, full_len %zd", eiv_count, full_len);
 
 		/* WRITE */
-		err = vfs_writev(fd, (struct iovec __force __user *)eiv,
-				 eiv_count, &loff, 0);
+		err = scst_writev(fd, eiv, eiv_count, &loff);
 		if (err < 0) {
 			PRINT_ERROR("write() returned %lld from %zd",
 				    (unsigned long long int)err,
@@ -6919,7 +6914,7 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 #else
 				bio->bi_sector = lba_start0 << (block_shift - 9);
 #endif
-				bio->bi_bdev = bdev;
+				bio_set_dev(bio, bdev);
 				bio->bi_private = blockio_work;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
 				bio->bi_destructor = blockio_bio_destructor;
@@ -7103,7 +7098,7 @@ static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask,
 		}
 		bio->bi_end_io = vdev_flush_end_io;
 		bio->bi_private = cmd;
-		bio->bi_bdev = bdev;
+		bio_set_dev(bio, bdev);
 #if (!defined(CONFIG_SUSE_KERNEL) &&			\
 	LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)) || \
 	LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
@@ -7262,7 +7257,7 @@ static ssize_t blockio_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 #else
 	bio_set_op_attrs(bio, REQ_OP_READ, REQ_SYNC);
 #endif
-	bio->bi_bdev = bdev;
+	bio_set_dev(bio, bdev);
 	bio->bi_end_io = blockio_end_sync_io;
 	bio->bi_private = &s;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
@@ -7325,7 +7320,7 @@ static ssize_t fileio_read_sync(struct file *fd, void *buf, size_t len,
 
 	old_fs = get_fs();
 	set_fs(get_ds());
-	ret = vfs_read(fd, (char __force __user *)buf, len, loff);
+	ret = scst_read(fd, buf, len, loff);
 	set_fs(old_fs);
 
 	return ret;

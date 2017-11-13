@@ -511,7 +511,7 @@ static int scst_read_file(const char *path, char *buf, int buf_len)
 		goto out;
 	}
 	pos = 0;
-	ret = vfs_read(f, (char __force __user *)buf, buf_len, &pos);
+	ret = scst_read(f, buf, buf_len, &pos);
 	if (ret >= 0)
 		buf[min(ret, buf_len - 1)] = '\0';
 	filp_close(f, NULL);

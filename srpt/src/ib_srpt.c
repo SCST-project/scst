@@ -4477,12 +4477,7 @@ static void srpt_add_one(struct ib_device *device)
 
 	INIT_IB_EVENT_HANDLER(&sdev->event_handler, sdev->device,
 			      srpt_event_handler);
-	ret = ib_register_event_handler(&sdev->event_handler);
-	if (ret) {
-		pr_err("ib_register_event_handler() failed: %d\n", ret);
-		goto err_cm;
-	}
-
+	ib_register_event_handler(&sdev->event_handler);
 	atomic_inc(&srpt_device_count);
 out:
 	ib_set_client_data(device, &srpt_client, sdev);

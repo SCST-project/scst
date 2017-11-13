@@ -5964,6 +5964,101 @@ static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 	return;
 }
 
+ssize_t scst_read(struct file *file, void *buf, size_t count, loff_t *pos)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
+	struct iovec iov = {
+		.iov_base = (void __force __user *)buf,
+		.iov_len = count
+	};
+
+	return scst_readv(file, &iov, 1, pos);
+#else
+	return vfs_read(file, (void __force __user *)buf, count, pos);
+#endif
+}
+EXPORT_SYMBOL(scst_read);
+
+ssize_t scst_write(struct file *file, const void *buf, size_t count,
+		   loff_t *pos)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
+	struct iovec iov = {
+		.iov_base = (void __force __user *)buf,
+		.iov_len = count
+	};
+
+	return scst_writev(file, &iov, 1, pos);
+#else
+	return vfs_write(file, (void __force __user *)buf, count, pos);
+#endif
+}
+EXPORT_SYMBOL(scst_write);
+
+ssize_t scst_readv(struct file *file, const struct iovec *vec,
+		   unsigned long vlen, loff_t *pos)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
+	struct iovec iovstack[UIO_FASTIOV];
+	struct iovec *iov = iovstack;
+	struct iov_iter iter;
+	ssize_t ret;
+
+	ret = import_iovec(READ, (const struct iovec __force __user *)vec, vlen,
+			   ARRAY_SIZE(iovstack), &iov, &iter);
+	if (ret < 0)
+		return ret;
+	ret = vfs_iter_read(file, &iter, pos, 0);
+	kfree(iov);
+	return ret;
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0) ||	\
+	(defined(CONFIG_SUSE_KERNEL) &&			\
+	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
+	return vfs_readv(file, (const struct iovec __user*)vec, vlen, pos, 0);
+#else
+	return vfs_readv(file, (const struct iovec __user*)vec, vlen, pos);
+#endif
+}
+EXPORT_SYMBOL(scst_readv);
+
+/**
+ * scst_writev - write a buffer to a file
+ * @file: File to write to.
+ * @vec:  Pointer to first element of struct iovec array.
+ * @vlen: Number of elements of the iovec array.
+ * @pos:  Position in @file where to start writing.
+ *
+ * Note: although @vec->iov_base has type void __user*, it points at kernel
+ * data and not at data in user space.
+ */
+ssize_t scst_writev(struct file *file, const struct iovec *vec,
+		    unsigned long vlen, loff_t *pos)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
+	struct iovec iovstack[UIO_FASTIOV];
+	struct iovec *iov = iovstack;
+	struct iov_iter iter;
+	ssize_t ret;
+
+	ret = import_iovec(WRITE, (const struct iovec __force __user*)vec, vlen,
+			   ARRAY_SIZE(iovstack), &iov, &iter);
+	if (ret < 0)
+		return ret;
+	file_start_write(file);
+	ret = vfs_iter_write(file, &iter, pos, 0);
+	file_end_write(file);
+	kfree(iov);
+	return ret;
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0) ||	\
+	(defined(CONFIG_SUSE_KERNEL) &&			\
+	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
+	return vfs_writev(file, (const struct iovec __user*)vec, vlen, pos, 0);
+#else
+	return vfs_writev(file, (const struct iovec __user*)vec, vlen, pos);
+#endif
+}
+EXPORT_SYMBOL(scst_writev);
+
 struct scst_ws_sg_tail {
 	struct scatterlist *sg;
 	int sg_cnt;
@@ -14983,14 +15078,14 @@ int scst_copy_file(const char *src, const char *dest)
 	}
 
 	pos = 0;
-	res = vfs_read(file_src, (void __force __user *)buf, file_size, &pos);
+	res = scst_read(file_src, buf, file_size, &pos);
 	if (res != file_size) {
 		PRINT_ERROR("Unable to read file '%s' - error %d", src, res);
 		goto out_skip;
 	}
 
 	pos = 0;
-	res = vfs_write(file_dest, (void __force __user *)buf, file_size, &pos);
+	res = scst_write(file_dest, buf, file_size, &pos);
 	if (res != file_size) {
 		PRINT_ERROR("Unable to write to '%s' - error %d", dest, res);
 		goto out_skip;
@@ -15084,7 +15179,7 @@ int scst_write_file_transactional(const char *name, const char *name1,
 
 	pos = signature_len+1;
 
-	res = vfs_write(file, (void const __force __user *)buf, size, &pos);
+	res = scst_write(file, buf, size, &pos);
 	if (res != size)
 		goto write_error;
 
@@ -15095,11 +15190,11 @@ int scst_write_file_transactional(const char *name, const char *name1,
 	}
 
 	pos = 0;
-	res = vfs_write(file, (void const __force __user *)signature, signature_len, &pos);
+	res = scst_write(file, signature, signature_len, &pos);
 	if (res != signature_len)
 		goto write_error;
 
-	res = vfs_write(file, (void __force __user *)&n, sizeof(n), &pos);
+	res = scst_write(file, &n, sizeof(n), &pos);
 	if (res != sizeof(n))
 		goto write_error;
 
@@ -15181,7 +15276,7 @@ static int __scst_read_file_transactional(const char *file_name,
 	}
 
 	pos = 0;
-	res = vfs_read(file, (void __force __user *)buf, file_size, &pos);
+	res = scst_read(file, buf, file_size, &pos);
 	if (res != file_size) {
 		PRINT_ERROR("Unable to read file '%s' - error %d", file_name, res);
 		if (res > 0)
