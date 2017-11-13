@@ -5536,7 +5536,7 @@ static inline void prepare_to_wait_exclusive_head(struct wait_queue_head *wq_hea
  *
  * Caller must hold lock of type @lock_type on @lock.
  */
-#define wait_event_locked(wq, condition, lock_type, lock)		\
+#define wait_event_locked(wq, condition, lock_type, lock) do {		\
 if (!(condition)) {							\
 	DEFINE_WAIT(__wait);						\
 									\
@@ -5550,7 +5550,8 @@ if (!(condition)) {							\
 		spin_ ## lock_type(&(lock));				\
 	} while (!(condition));						\
 	finish_wait(&(wq), &__wait);					\
-}
+}									\
+} while (0)
 
 /* Only use get_unaligned_be24() if reading p - 1 is allowed. */
 static inline uint32_t get_unaligned_be24(const uint8_t *const p)
@@ -5721,7 +5722,7 @@ ssize_t scst_writev(struct file *file, const struct iovec *vec,
 		    unsigned long vlen, loff_t *pos);
 void scst_write_same(struct scst_cmd *cmd, struct scst_data_descriptor *where);
 int scst_scsi_execute(struct scsi_device *sdev, const unsigned char *cmd,
-		      int data_direction, void *buffer, unsigned bufflen,
+		      int data_direction, void *buffer, unsigned int bufflen,
 		      unsigned char *sense, int timeout, int retries,
 		      u64 flags);
 

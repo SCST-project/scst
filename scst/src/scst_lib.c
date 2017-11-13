@@ -6875,7 +6875,7 @@ out:
 }
 
 int scst_scsi_execute(struct scsi_device *sdev, const unsigned char *cmd,
-		      int data_direction, void *buffer, unsigned bufflen,
+		      int data_direction, void *buffer, unsigned int bufflen,
 		      unsigned char *sense, int timeout, int retries, u64 flags)
 {
 	return scsi_execute(sdev, cmd, data_direction, buffer, bufflen, sense,
