@@ -146,36 +146,34 @@ extern struct fc4_prov ft_prov;
 /*
  * SCST interface.
  */
-int ft_send_response(struct scst_cmd *);
-int ft_send_xfer_rdy(struct scst_cmd *);
-void ft_cmd_timeout(struct scst_cmd *);
-void ft_cmd_free(struct scst_cmd *);
-void ft_cmd_tm_done(struct scst_mgmt_cmd *);
-int ft_tgt_release(struct scst_tgt *);
-int ft_tgt_enable(struct scst_tgt *, bool);
-bool ft_tgt_enabled(struct scst_tgt *);
-int ft_report_aen(struct scst_aen *);
-int ft_get_transport_id(struct scst_tgt *, struct scst_session *, uint8_t **);
+int ft_send_response(struct scst_cmd *cmd);
+int ft_send_xfer_rdy(struct scst_cmd *cmd);
+void ft_cmd_timeout(struct scst_cmd *cmd);
+void ft_cmd_free(struct scst_cmd *cmd);
+void ft_cmd_tm_done(struct scst_mgmt_cmd *mcmd);
+int ft_tgt_release(struct scst_tgt *tgt);
+int ft_tgt_enable(struct scst_tgt *tgt, bool enable);
+bool ft_tgt_enabled(struct scst_tgt *tgt);
+int ft_report_aen(struct scst_aen *aen);
+int ft_get_transport_id(struct scst_tgt *tgt, struct scst_session *scst_sess,
+			uint8_t **result);
 
 /*
  * Session interface.
  */
-int ft_lport_notify(struct notifier_block *, unsigned long, void *);
-void ft_lport_add(struct fc_lport *, void *);
-void ft_lport_del(struct fc_lport *, void *);
+int ft_lport_notify(struct notifier_block *nb, unsigned long event, void *arg);
+void ft_lport_add(struct fc_lport *lport, void *arg);
+void ft_lport_del(struct fc_lport *lport, void *arg);
 
 /*
  * other internal functions.
  */
-int ft_thread(void *);
 bool ft_test_and_set_cmd_state(struct ft_cmd *fcmd, enum ft_cmd_state old,
 			       enum ft_cmd_state new);
-void ft_recv_req(struct ft_sess *, struct fc_frame *);
-void ft_recv_write_data(struct scst_cmd *, struct fc_frame *);
-int ft_send_read_data(struct scst_cmd *);
-struct ft_tpg *ft_lport_find_tpg(struct fc_lport *);
-struct ft_node_acl *ft_acl_get(struct ft_tpg *, struct fc_rport_priv *);
-void ft_cmd_dump(struct scst_cmd *, const char *);
+void ft_recv_req(struct ft_sess *sess, struct fc_frame *fp);
+void ft_recv_write_data(struct scst_cmd *cmd, struct fc_frame *fp);
+int ft_send_read_data(struct scst_cmd *cmd);
+void ft_cmd_dump(struct scst_cmd *cmd, const char *caller);
 
 /* #define FCST_INJECT_SEND_ERRORS 2 */
 
