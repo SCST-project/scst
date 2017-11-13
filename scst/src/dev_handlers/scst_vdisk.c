@@ -2112,8 +2112,7 @@ static int vdisk_format_dif(struct scst_cmd *cmd, uint64_t start_lba,
 			full_len, (long long)loff);
 
 		/* WRITE */
-		err = vfs_writev(fd, (struct iovec __force __user *)iv,
-				 iv_count, &loff, 0);
+		err = scst_writev(fd, iv, iv_count, &loff);
 		if (err < 0) {
 			PRINT_ERROR("Formatting DIF write() returned %lld from "
 				"%zd", err, full_len);
@@ -5962,8 +5961,7 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 			iv_count, full_len, (long long)loff);
 
 		/* READ */
-		err = vfs_readv(fd, (struct iovec __force __user *)iv, iv_count,
-				&loff, 0);
+		err = scst_readv(fd, iv, iv_count, &loff);
 		if ((err < 0) || (err < full_len)) {
 			unsigned long flags;
 
@@ -6091,8 +6089,7 @@ restart:
 		TRACE_DBG("Writing DIF: eiv_count %d, full_len %zd", eiv_count, full_len);
 
 		/* WRITE */
-		err = vfs_writev(fd, (struct iovec __force __user *)eiv,
-				 eiv_count, &loff, 0);
+		err = scst_writev(fd, eiv, eiv_count, &loff);
 		if (err < 0) {
 			unsigned long flags;
 
@@ -6233,8 +6230,7 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 		TRACE_DBG("Reading iv_count %d, full_len %zd", iv_count, full_len);
 
 		/* READ */
-		err = vfs_readv(fd, (struct iovec __force __user *)iv, iv_count,
-				&loff, 0);
+		err = scst_readv(fd, iv, iv_count, &loff);
 		if ((err < 0) || (err < full_len)) {
 			PRINT_ERROR("readv() returned %lld from %zd",
 				    (unsigned long long int)err,
@@ -6427,8 +6423,7 @@ restart:
 		TRACE_DBG("Writing: eiv_count %d, full_len %zd", eiv_count, full_len);
 
 		/* WRITE */
-		err = vfs_writev(fd, (struct iovec __force __user *)eiv,
-				 eiv_count, &loff, 0);
+		err = scst_writev(fd, eiv, eiv_count, &loff);
 		if (err < 0) {
 			PRINT_ERROR("write() returned %lld from %zd",
 				    (unsigned long long int)err,
@@ -7325,7 +7320,7 @@ static ssize_t fileio_read_sync(struct file *fd, void *buf, size_t len,
 
 	old_fs = get_fs();
 	set_fs(get_ds());
-	ret = vfs_read(fd, (char __force __user *)buf, len, loff);
+	ret = scst_read(fd, buf, len, loff);
 	set_fs(old_fs);
 
 	return ret;
