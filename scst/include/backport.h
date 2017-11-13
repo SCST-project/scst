@@ -60,6 +60,14 @@ static inline struct bio_set *bioset_create_backport(unsigned int pool_size,
 #define BIOSET_NEED_BVECS 0
 #endif
 
+/* See also commit 74d46992e0d9. */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
+static inline void bio_set_dev(struct bio *bio, struct block_device *bdev)
+{
+	bio->bi_bdev = bdev;
+}
+#endif
+
 /* <linux/blkdev.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31)
