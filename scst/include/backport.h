@@ -758,8 +758,13 @@ static inline void scsi_req_init(struct request *rq)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0)
 	rq->cmd_type = REQ_TYPE_BLOCK_PC;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31)
+	rq->data_len = 0;
+	rq->sector = (sector_t) -1;
+#else
 	rq->__data_len = 0;
 	rq->__sector = (sector_t) -1;
+#endif
 	rq->bio = rq->biotail = NULL;
 	memset(rq->__cmd, 0, sizeof(rq->__cmd));
 	rq->cmd = rq->__cmd;
