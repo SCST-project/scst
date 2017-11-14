@@ -6014,9 +6014,9 @@ ssize_t scst_readv(struct file *file, const struct iovec *vec,
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0) ||	\
 	(defined(CONFIG_SUSE_KERNEL) &&			\
 	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
-	return vfs_readv(file, (const struct iovec __user*)vec, vlen, pos, 0);
+	return vfs_readv(file, (const struct iovec __user *)vec, vlen, pos, 0);
 #else
-	return vfs_readv(file, (const struct iovec __user*)vec, vlen, pos);
+	return vfs_readv(file, (const struct iovec __user *)vec, vlen, pos);
 #endif
 }
 EXPORT_SYMBOL(scst_readv);
@@ -6040,8 +6040,8 @@ ssize_t scst_writev(struct file *file, const struct iovec *vec,
 	struct iov_iter iter;
 	ssize_t ret;
 
-	ret = import_iovec(WRITE, (const struct iovec __force __user*)vec, vlen,
-			   ARRAY_SIZE(iovstack), &iov, &iter);
+	ret = import_iovec(WRITE, (const struct iovec __force __user *)vec,
+			   vlen, ARRAY_SIZE(iovstack), &iov, &iter);
 	if (ret < 0)
 		return ret;
 	file_start_write(file);
@@ -6052,9 +6052,9 @@ ssize_t scst_writev(struct file *file, const struct iovec *vec,
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0) ||	\
 	(defined(CONFIG_SUSE_KERNEL) &&			\
 	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
-	return vfs_writev(file, (const struct iovec __user*)vec, vlen, pos, 0);
+	return vfs_writev(file, (const struct iovec __user *)vec, vlen, pos, 0);
 #else
-	return vfs_writev(file, (const struct iovec __user*)vec, vlen, pos);
+	return vfs_writev(file, (const struct iovec __user *)vec, vlen, pos);
 #endif
 }
 EXPORT_SYMBOL(scst_writev);
@@ -6978,7 +6978,7 @@ out:
 }
 
 int scst_scsi_execute(struct scsi_device *sdev, const unsigned char *cmd,
-		      int data_direction, void *buffer, unsigned bufflen,
+		      int data_direction, void *buffer, unsigned int bufflen,
 		      unsigned char *sense, int timeout, int retries, u64 flags)
 {
 	return scsi_execute(sdev, cmd, data_direction, buffer, bufflen, sense,
@@ -8061,11 +8061,7 @@ static struct request *blk_make_request(struct request_queue *q,
 	if (IS_ERR(rq))
 		return rq;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0)
 	scsi_req_init(scsi_req(rq));
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
-	scsi_req_init(rq);
-#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
 	rq->cmd_flags = bio_data_dir(bio) == READ ? REQ_OP_SCSI_IN :
 		REQ_OP_SCSI_OUT;
@@ -8297,15 +8293,9 @@ static struct request *blk_map_kern_sg(struct request_queue *q,
 		if (unlikely(!rq))
 			return ERR_PTR(-ENOMEM);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0)
 		scsi_req_init(scsi_req(rq));
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
-		scsi_req_init(rq);
-#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
 		rq->cmd_flags = reading ? REQ_OP_SCSI_IN : REQ_OP_SCSI_OUT;
-#else
-		blk_rq_set_block_pc(rq);
 #endif
 		goto out;
 	}
@@ -8610,12 +8600,7 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	sioc->data = data;
 	sioc->done = done;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
 	req = scsi_req(rq);
-#else
-	req = rq;
-#endif
-
 	req->cmd_len = cmd_len;
 	if (req->cmd_len <= BLK_MAX_CDB) {
 		memset(req->cmd, 0, BLK_MAX_CDB); /* ATAPI hates garbage after CDB */
