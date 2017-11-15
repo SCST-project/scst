@@ -155,7 +155,7 @@ for logfile in old new ; do
              svn co -q -r {${date}} ${scst_repo} ${ABT_TMPDIR}/scst;	\
            else								\
              ( rmdir ${ABT_TMPDIR}/scst &&				\
-               git clone ${scst_repo} ${ABT_TMPDIR}/scst &&		\
+               git clone -q ${scst_repo} ${ABT_TMPDIR}/scst &&		\
                cd ${ABT_TMPDIR}/scst && git reset --hard ${rev} );	\
            fi" &&
    runcmd ${logfile}							\
