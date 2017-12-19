@@ -728,7 +728,7 @@ restart:
 	oldfs = get_fs();
 	set_fs(get_ds());
 	res = sock_recvmsg(conn->sock, msg,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
+#if SOCK_RECVMSG_HAS_FOUR_ARGS
 			   read_size,
 #endif
 			   MSG_DONTWAIT | MSG_NOSIGNAL);
