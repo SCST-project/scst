@@ -188,6 +188,10 @@ static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 				    struct srpt_send_ioctx *ioctx);
 static void srpt_destroy_ch_ib(struct srpt_rdma_ch *ch);
 
+/*
+ * The only allowed channel state changes are those that change the channel
+ * state into a state with a higher numerical value. Hence the new > prev test.
+ */
 static bool srpt_set_ch_state(struct srpt_rdma_ch *ch, enum rdma_ch_state new)
 {
 	unsigned long flags;
