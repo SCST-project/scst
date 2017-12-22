@@ -38,6 +38,18 @@
 #define smp_mb__after_atomic_dec smp_mb__after_atomic
 #endif
 
+/* <asm-generic/bug.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 27) && !defined(WARN)
+/* See also commit a8f18b909c0a3f22630846207035c8b84bb252b8 */
+#define WARN(condition, format...) do {		\
+	if (unlikely(condition)) {		\
+		printk(KERN_WARNING format);	\
+		WARN_ON(true);			\
+	}					\
+} while (0)
+#endif
+
 /* <asm-generic/fcntl.h> */
 
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 32)
