@@ -8061,7 +8061,11 @@ static struct request *blk_make_request(struct request_queue *q,
 	if (IS_ERR(rq))
 		return rq;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0)
 	scsi_req_init(scsi_req(rq));
+#else
+	scsi_req_init(rq);
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
 	rq->cmd_flags = bio_data_dir(bio) == READ ? REQ_OP_SCSI_IN :
 		REQ_OP_SCSI_OUT;
@@ -8293,7 +8297,11 @@ static struct request *blk_map_kern_sg(struct request_queue *q,
 		if (unlikely(!rq))
 			return ERR_PTR(-ENOMEM);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0)
 		scsi_req_init(scsi_req(rq));
+#else
+		scsi_req_init(rq);
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
 		rq->cmd_flags = reading ? REQ_OP_SCSI_IN : REQ_OP_SCSI_OUT;
 #endif
