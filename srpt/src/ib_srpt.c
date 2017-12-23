@@ -68,16 +68,6 @@
 #include "scst_debug.h"
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 27) && !defined(WARN)
-/* See also commit a8f18b909c0a3f22630846207035c8b84bb252b8 */
-#define WARN(condition, format...) do {		\
-	if (unlikely(condition)) {		\
-		printk(KERN_WARNING format);	\
-		WARN_ON(true);			\
-	}					\
-} while (0)
-#endif
-
 /* Name of this kernel module. */
 #define DRV_NAME		"ib_srpt"
 #define DRV_VERSION		"3.4.0-pre#" __stringify(OFED_FLAVOR)
@@ -167,9 +157,7 @@ module_param(use_node_guid_in_target_name, bool, 0444);
 MODULE_PARM_DESC(use_node_guid_in_target_name,
 		 "Use HCA node GUID as SCST target name.");
 
-static struct rdma_cm_id *rdma_cm_id;
-
-static int srpt_get_u64_x(char *buffer, struct kernel_param *kp)
+static int srpt_get_u64_x(char *buffer, const struct kernel_param *kp)
 {
 	return sprintf(buffer, "0x%016llx", *(u64 *)kp->arg);
 }
@@ -194,10 +182,16 @@ static const enum scst_exec_context srpt_send_context = SCST_CONTEXT_DIRECT;
 
 static struct ib_client srpt_client;
 static struct scst_tgt_template srpt_template;
+static struct rdma_cm_id *rdma_cm_id;
+
 static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 				    struct srpt_send_ioctx *ioctx);
 static void srpt_destroy_ch_ib(struct srpt_rdma_ch *ch);
 
+/*
+ * The only allowed channel state changes are those that change the channel
+ * state into a state with a higher numerical value. Hence the new > prev test.
+ */
 static bool srpt_set_ch_state(struct srpt_rdma_ch *ch, enum rdma_ch_state new)
 {
 	unsigned long flags;
@@ -741,16 +735,7 @@ static int srpt_refresh_port(struct srpt_port *sport)
 	}
 
 	if (!sport->scst_tgt) {
-		snprintf(tgt_name, sizeof(tgt_name),
-			 "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x",
-			 be16_to_cpu(((__be16 *) sport->gid.raw)[0]),
-			 be16_to_cpu(((__be16 *) sport->gid.raw)[1]),
-			 be16_to_cpu(((__be16 *) sport->gid.raw)[2]),
-			 be16_to_cpu(((__be16 *) sport->gid.raw)[3]),
-			 be16_to_cpu(((__be16 *) sport->gid.raw)[4]),
-			 be16_to_cpu(((__be16 *) sport->gid.raw)[5]),
-			 be16_to_cpu(((__be16 *) sport->gid.raw)[6]),
-			 be16_to_cpu(((__be16 *) sport->gid.raw)[7]));
+		snprintf(tgt_name, sizeof(tgt_name), "%pI6", &sport->gid);
 		sport->scst_tgt = scst_register_target(&srpt_template,
 						       tgt_name);
 		if (sport->scst_tgt)
@@ -1333,7 +1318,6 @@ static struct srpt_send_ioctx *srpt_get_send_ioctx(struct srpt_rdma_ch *ch)
 		return ioctx;
 
 	BUG_ON(ioctx->ch != ch);
-	spin_lock_init(&ioctx->spinlock);
 	ioctx->state = SRPT_STATE_NEW;
 	EXTRACHECKS_WARN_ON(ioctx->recv_ioctx);
 	ioctx->n_rbuf = 0;
@@ -1875,7 +1859,7 @@ static u8 scst_to_srp_tsk_mgmt_status(const int scst_mgmt_status)
 /**
  * srpt_handle_new_iu() - Process a newly received information unit.
  * @ch:      RDMA channel through which the information unit has been received.
- * @recv_ioctx: SRPT I/O context associated with the information unit.
+ * @recv_ioctx: Receive I/O context associated with the information unit.
  * @context: SCST command processing context.
  */
 static struct srpt_send_ioctx *
@@ -2514,10 +2498,10 @@ static u16 srpt_next_comp_vector(struct srpt_port *sport)
 }
 
 /**
- * srpt_cm_req_recv() - Process the event IB_CM_REQ_RECEIVED.
+ * srpt_cm_req_recv() - Process the IB_CM_REQ_RECEIVED event.
  *
- * Ownership of the cm_id is transferred to the SCST session if this function
- * returns zero. Otherwise the caller remains the owner of cm_id.
+ * Ownership of the cm_id is transferred to the target session if this
+ * function returns zero. Otherwise the caller remains the owner of cm_id.
  */
 static int srpt_cm_req_recv(struct srpt_device *const sdev,
 			    struct ib_cm_id *ib_cm_id,
@@ -2527,7 +2511,6 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 			    const char *src_addr)
 {
 	struct srpt_port *const sport = &sdev->port[port_num - 1];
-	const __be16 *const raw_port_gid = (__be16 *)sport->gid.raw;
 	struct srpt_nexus *nexus;
 	struct srp_login_rsp *rsp = NULL;
 	struct srp_login_rej *rej = NULL;
@@ -2538,8 +2521,7 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 	struct srpt_rdma_ch *ch = NULL;
 	struct task_struct *thread;
 	u32 it_iu_len;
-	int i;
-	int ret;
+	int i, ret;
 
 	EXTRACHECKS_WARN_ON_ONCE(irqs_disabled());
 
@@ -2554,34 +2536,9 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 
 	it_iu_len = be32_to_cpu(req->req_it_iu_len);
 
-	pr_info("Received SRP_LOGIN_REQ with i_port_id %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x, t_port_id %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x and it_iu_len %d on port %d (guid=%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x); pkey %#04x\n",
-	    be16_to_cpu(*(__be16 *)&req->initiator_port_id[0]),
-	    be16_to_cpu(*(__be16 *)&req->initiator_port_id[2]),
-	    be16_to_cpu(*(__be16 *)&req->initiator_port_id[4]),
-	    be16_to_cpu(*(__be16 *)&req->initiator_port_id[6]),
-	    be16_to_cpu(*(__be16 *)&req->initiator_port_id[8]),
-	    be16_to_cpu(*(__be16 *)&req->initiator_port_id[10]),
-	    be16_to_cpu(*(__be16 *)&req->initiator_port_id[12]),
-	    be16_to_cpu(*(__be16 *)&req->initiator_port_id[14]),
-	    be16_to_cpu(*(__be16 *)&req->target_port_id[0]),
-	    be16_to_cpu(*(__be16 *)&req->target_port_id[2]),
-	    be16_to_cpu(*(__be16 *)&req->target_port_id[4]),
-	    be16_to_cpu(*(__be16 *)&req->target_port_id[6]),
-	    be16_to_cpu(*(__be16 *)&req->target_port_id[8]),
-	    be16_to_cpu(*(__be16 *)&req->target_port_id[10]),
-	    be16_to_cpu(*(__be16 *)&req->target_port_id[12]),
-	    be16_to_cpu(*(__be16 *)&req->target_port_id[14]),
-	    it_iu_len,
-	    port_num,
-	    be16_to_cpu(raw_port_gid[0]),
-	    be16_to_cpu(raw_port_gid[1]),
-	    be16_to_cpu(raw_port_gid[2]),
-	    be16_to_cpu(raw_port_gid[3]),
-	    be16_to_cpu(raw_port_gid[4]),
-	    be16_to_cpu(raw_port_gid[5]),
-	    be16_to_cpu(raw_port_gid[6]),
-	    be16_to_cpu(raw_port_gid[7]),
-	    be16_to_cpu(pkey));
+	pr_info("Received SRP_LOGIN_REQ with i_port_id %pI6, t_port_id %pI6 and it_iu_len %d on port %d (guid=%pI6); pkey %#04x\n",
+		req->initiator_port_id, req->target_port_id, it_iu_len,
+		port_num, &sport->gid, be16_to_cpu(pkey));
 
 	nexus = srpt_get_nexus(sport, req->initiator_port_id,
 			       req->target_port_id);
@@ -2607,9 +2564,9 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 	}
 
 	if (!sport->enabled) {
-		rej->reason = cpu_to_be32(
-				SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-		pr_info("rejected SRP_LOGIN_REQ because target %s is not enabled\n", sport->scst_tgt->tgt_name);
+		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
+		pr_info("rejected SRP_LOGIN_REQ because target port %s has not yet been enabled\n",
+			sport->scst_tgt->tgt_name);
 		goto reject;
 	}
 
@@ -2876,14 +2833,9 @@ static int srpt_ib_cm_req_recv(struct ib_cm_id *cm_id,
 			       struct ib_cm_req_event_param *param,
 			       void *private_data)
 {
-	__be16 *const raw_sgid = (__be16 *)param->primary_path->dgid.raw;
 	char sgid[40];
 
-	scnprintf(sgid, sizeof(sgid), "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x",
-		  be16_to_cpu(raw_sgid[0]), be16_to_cpu(raw_sgid[1]),
-		  be16_to_cpu(raw_sgid[2]), be16_to_cpu(raw_sgid[3]),
-		  be16_to_cpu(raw_sgid[4]), be16_to_cpu(raw_sgid[5]),
-		  be16_to_cpu(raw_sgid[6]), be16_to_cpu(raw_sgid[7]));
+	snprintf(sgid, sizeof(sgid), "%pI6", &param->primary_path->dgid);
 
 	return srpt_cm_req_recv(cm_id->context, cm_id, NULL, param->port,
 				param->primary_path->pkey,
@@ -2996,7 +2948,7 @@ static void srpt_check_timeout(struct srpt_rdma_ch *ch)
 /**
  * srpt_cm_rtu_recv() - Process RTU event.
  *
- * An RTU (read to use) message indicates that the connection has been
+ * An RTU (ready to use) message indicates that the connection has been
  * established and that the recipient may begin transmitting.
  */
 static void srpt_cm_rtu_recv(struct srpt_rdma_ch *ch)
@@ -3021,38 +2973,6 @@ static void srpt_cm_rtu_recv(struct srpt_rdma_ch *ch)
 	if (!srpt_set_ch_state(ch, CH_LIVE))
 		pr_err("%s-%d: channel transition to LIVE state failed\n",
 		       ch->sess_name, ch->qp->qp_num);
-}
-
-static void srpt_cm_timewait_exit(struct srpt_rdma_ch *ch)
-{
-	pr_info("Received CM TimeWait exit for ch %s-%d.\n", ch->sess_name,
-		ch->qp->qp_num);
-	srpt_close_ch(ch);
-}
-
-static void srpt_cm_rep_error(struct srpt_rdma_ch *ch)
-{
-	pr_info("Received CM REP error for ch %s-%d.\n", ch->sess_name,
-		ch->qp->qp_num);
-}
-
-/**
- * srpt_cm_dreq_recv() - Process reception of a DREQ message.
- */
-static int srpt_cm_dreq_recv(struct srpt_rdma_ch *ch)
-{
-	srpt_disconnect_ch(ch);
-	return 0;
-}
-
-/**
- * srpt_cm_drep_recv() - Process reception of a DREP message.
- */
-static void srpt_cm_drep_recv(struct srpt_rdma_ch *ch)
-{
-	pr_info("Received CM DREP message for ch %s-%d.\n", ch->sess_name,
-		ch->qp->qp_num);
-	srpt_close_ch(ch);
 }
 
 /**
@@ -3088,16 +3008,17 @@ static int srpt_cm_handler(struct ib_cm_id *cm_id, struct ib_cm_event *event)
 		srpt_cm_rtu_recv(ch);
 		break;
 	case IB_CM_DREQ_RECEIVED:
-		ret = srpt_cm_dreq_recv(ch);
+		srpt_disconnect_ch(ch);
 		break;
 	case IB_CM_DREP_RECEIVED:
-		srpt_cm_drep_recv(ch);
+		srpt_close_ch(ch);
 		break;
 	case IB_CM_TIMEWAIT_EXIT:
-		srpt_cm_timewait_exit(ch);
+		srpt_close_ch(ch);
 		break;
 	case IB_CM_REP_ERROR:
-		srpt_cm_rep_error(ch);
+		pr_info("Received CM REP error for ch %s-%d.\n", ch->sess_name,
+			ch->qp->qp_num);
 		break;
 	case IB_CM_DREQ_ERROR:
 		pr_info("Received CM DREQ ERROR event.\n");
@@ -3133,15 +3054,16 @@ static int srpt_rdma_cm_handler(struct rdma_cm_id *cm_id,
 		break;
 	case RDMA_CM_EVENT_DISCONNECTED:
 		if (ch->state < CH_DISCONNECTING)
-			srpt_cm_dreq_recv(ch);
+			srpt_disconnect_ch(ch);
 		else
-			srpt_cm_drep_recv(ch);
+			srpt_close_ch(ch);
 		break;
 	case RDMA_CM_EVENT_TIMEWAIT_EXIT:
-		srpt_cm_timewait_exit(ch);
+		srpt_close_ch(ch);
 		break;
 	case RDMA_CM_EVENT_UNREACHABLE:
-		srpt_cm_rep_error(ch);
+		pr_info("Received CM REP error for ch %s-%d.\n", ch->sess_name,
+			ch->qp->qp_num);
 		break;
 	case RDMA_CM_EVENT_DEVICE_REMOVAL:
 	case RDMA_CM_EVENT_ADDR_CHANGE:
