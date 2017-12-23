@@ -131,7 +131,8 @@ PRE_CFLAGS = $(OFED_CFLAGS)			\
 
 mods: include/iscsi_scst_itf_ver.h Modules.symvers Module.symvers	\
 	$(CONFTEST_OUTPUTS)
-	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(KMOD) modules
+	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(KMOD)	\
+		PRE_CFLAGS="$(PRE_CFLAGS)" modules
 	echo "$@:  INFINIBAND_ENABLED = $(INFINIBAND_ENABLED)"
 	if $(INFINIBAND_ENABLED); then					       \
 	  echo "  Building against $(OFED_FLAVOR) InfiniBand kernel headers."; \
@@ -305,6 +306,12 @@ conftest/register_mad_agent/result-$(KVER).txt:				\
 	conftest/register_mad_agent/Makefile
 	echo "$(call run_conftest,register_mad_agent,			\
 		-DREGISTER_MAD_AGENT_HAS_FLAGS_ARG)" >"$@"
+
+conftest/sock_recvmsg/result-$(KVER).txt:				\
+	conftest/sock_recvmsg/sock_recvmsg.c				\
+	conftest/sock_recvmsg/Makefile
+	echo "$(call run_conftest_bool,sock_recvmsg,			\
+		SOCK_RECVMSG_HAS_FOUR_ARGS)" >"$@"
 
 conftest/use_pre_440_wr_structure/result-$(KVER).txt:			\
 	conftest/use_pre_440_wr_structure/use_pre_440_wr_structure.c	\

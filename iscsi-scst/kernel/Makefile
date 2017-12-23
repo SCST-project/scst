@@ -28,6 +28,7 @@ EXTRA_CFLAGS += -I$(src)/../include -I$(SCST_INC_DIR)
 EXTRA_CFLAGS += $(call enable-Wextra,-Wextra \
 	$(call cc-option,-Wno-old-style-declaration) \
 	-Wno-unused-parameter -Wno-missing-field-initializers)
+EXTRA_CFLAGS += $(PRE_CFLAGS)
 
 EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
 #EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
