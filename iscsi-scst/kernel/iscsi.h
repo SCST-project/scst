@@ -540,15 +540,15 @@ extern struct kmem_cache *iscsi_conn_cache;
 extern struct kmem_cache *iscsi_sess_cache;
 
 /* iscsi.c */
-extern struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *,
+extern struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *conn,
 	struct iscsi_cmnd *parent);
-extern int cmnd_rx_start(struct iscsi_cmnd *);
+extern int cmnd_rx_start(struct iscsi_cmnd *cmnd);
 extern int cmnd_rx_continue(struct iscsi_cmnd *req);
-extern void cmnd_rx_end(struct iscsi_cmnd *);
-extern void cmnd_tx_start(struct iscsi_cmnd *);
-extern void cmnd_tx_end(struct iscsi_cmnd *);
+extern void cmnd_rx_end(struct iscsi_cmnd *cmnd);
+extern void cmnd_tx_start(struct iscsi_cmnd *cmnd);
+extern void cmnd_tx_end(struct iscsi_cmnd *cmnd);
 extern void req_cmnd_release_force(struct iscsi_cmnd *req);
-extern void rsp_cmnd_release(struct iscsi_cmnd *);
+extern void rsp_cmnd_release(struct iscsi_cmnd *cmnd);
 extern void iscsi_drop_delayed_tm_rsp(struct iscsi_cmnd *tm_rsp);
 extern void cmnd_done(struct iscsi_cmnd *cmnd);
 extern void conn_abort(struct iscsi_conn *conn);
@@ -567,19 +567,21 @@ extern void iscsi_threads_pool_put(struct iscsi_thread_pool *p);
 #ifndef CONFIG_SCST_PROC
 extern struct kobj_type iscsi_conn_ktype;
 #endif
-extern struct iscsi_conn *conn_lookup(struct iscsi_session *, u16);
-extern void conn_reinst_finished(struct iscsi_conn *);
-extern int __add_conn(struct iscsi_session *, struct iscsi_kern_conn_info *);
-extern int __del_conn(struct iscsi_session *, struct iscsi_kern_conn_info *);
-extern void conn_free(struct iscsi_conn *);
+extern struct iscsi_conn *conn_lookup(struct iscsi_session *session, u16 cid);
+extern void conn_reinst_finished(struct iscsi_conn *conn);
+extern int __add_conn(struct iscsi_session *session,
+		      struct iscsi_kern_conn_info *info);
+extern int __del_conn(struct iscsi_session *session,
+		      struct iscsi_kern_conn_info *info);
+extern void conn_free(struct iscsi_conn *conn);
 extern void iscsi_make_conn_rd_active(struct iscsi_conn *conn);
 #define ISCSI_CONN_ACTIVE_CLOSE		1
 #define ISCSI_CONN_DELETING		2
-extern void __mark_conn_closed(struct iscsi_conn *, int);
-extern void mark_conn_closed(struct iscsi_conn *);
-extern void iscsi_make_conn_wr_active(struct iscsi_conn *);
+extern void __mark_conn_closed(struct iscsi_conn *conn, int flags);
+extern void mark_conn_closed(struct iscsi_conn *conn);
+extern void iscsi_make_conn_wr_active(struct iscsi_conn *conn);
 #ifdef CONFIG_SCST_PROC
-extern void conn_info_show(struct seq_file *, struct iscsi_session *);
+extern void conn_info_show(struct seq_file *seq, struct iscsi_session *session);
 #endif
 extern void iscsi_check_tm_data_wait_timeouts(struct iscsi_conn *conn,
 	bool force);
@@ -607,8 +609,8 @@ extern ssize_t iscsi_sysfs_send_event(uint32_t tid,
 	enum iscsi_kern_event_code code,
 	const char *param1, const char *param2, void **data);
 #endif
-extern struct iscsi_target *target_lookup_by_id(u32);
-extern int __add_target(struct iscsi_kern_target_info *);
+extern struct iscsi_target *target_lookup_by_id(u32 id);
+extern int __add_target(struct iscsi_kern_target_info *info);
 extern int __del_target(u32 id);
 extern ssize_t iscsi_sysfs_add_target(const char *target_name, char *params);
 extern ssize_t iscsi_sysfs_del_target(const char *target_name);
@@ -637,23 +639,25 @@ extern const struct attribute *iscsi_sess_attrs[];
 extern const struct attribute *iscsi_acg_attrs[];
 #endif
 extern const struct file_operations session_seq_fops;
-extern struct iscsi_session *session_lookup(struct iscsi_target *, u64);
-extern void sess_reinst_finished(struct iscsi_session *);
-extern int __add_session(struct iscsi_target *,
-	struct iscsi_kern_session_info *);
-extern int __del_session(struct iscsi_target *, u64);
+extern struct iscsi_session *session_lookup(struct iscsi_target *target,
+					    u64 sid);
+extern void sess_reinst_finished(struct iscsi_session *session);
+extern int __add_session(struct iscsi_target *target,
+			 struct iscsi_kern_session_info *info);
+extern int __del_session(struct iscsi_target *target, u64 sid);
 extern int session_free(struct iscsi_session *session, bool del);
 extern void iscsi_sess_force_close(struct iscsi_session *sess);
 
 /* params.c */
 extern const char *iscsi_get_digest_name(int val, char *res);
 extern const char *iscsi_get_bool_value(int val);
-extern int iscsi_params_set(struct iscsi_target *,
-	struct iscsi_kern_params_info *, int);
+extern int iscsi_params_set(struct iscsi_target *target,
+			    struct iscsi_kern_params_info *info, int set);
 
 /* event.c */
-extern int event_send(u32, u64, u32, u32, enum iscsi_kern_event_code,
-	const char *param1, const char *param2);
+extern int event_send(u32 tid, u64 sid, u32 cid, u32 cookie,
+		      enum iscsi_kern_event_code code,
+		      const char *param1, const char *param2);
 extern int event_init(void);
 extern void event_exit(void);
 

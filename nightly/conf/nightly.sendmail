@@ -19,10 +19,14 @@ do
   esac
 done
 
-if [ $# -ge 3 ]; then
-  gzip -9 <"$3" >"$3.gz"
-  mutt -s "$1" -a "$3.gz" ${recipients} < "$2"
-  rm -f "$3.gz"
+if type mutt >/dev/null 2>&1; then
+  if [ $# -ge 3 ]; then
+    gzip -9 <"$3" >"$3.gz"
+    mutt -s "$1" -a "$3.gz" ${recipients} < "$2"
+    rm -f "$3.gz"
+  else
+    mutt -s "$1" ${recipients} < "$2"
+  fi
 else
-  mutt -s "$1" ${recipients} < "$2"
+  mail -s "$1" ${recipients} < "$2"
 fi

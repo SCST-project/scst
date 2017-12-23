@@ -26,7 +26,11 @@
 #include <qla2x_tgt.h>
 #include <qla2x_tgt_def.h>
 
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/scst_debug.h>
+#else
 #include <scst_debug.h>
+#endif
 
 /* Version numbers, the same as for the kernel */
 #define Q2T_VERSION(a, b, c, d)	(((a) << 030) + ((b) << 020) + (c) << 010 + (d))
