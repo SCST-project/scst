@@ -3206,7 +3206,7 @@ find_page:
 			/*
 			 * Not cached so create a new page.
 			 */
-			page = page_cache_alloc_cold(mapping);
+			page = page_cache_alloc(mapping);
 			if (!page) {
 				error = -ENOMEM;
 				goto err;
