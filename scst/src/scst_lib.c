@@ -1685,7 +1685,7 @@ static void scst_release_space(struct scst_cmd *cmd);
 static void scst_clear_reservation(struct scst_tgt_dev *tgt_dev);
 static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	struct scst_acg_dev *acg_dev, struct scst_tgt_dev **out_tgt_dev);
-static void scst_tgt_retry_timer_fn(unsigned long arg);
+static void scst_tgt_retry_timer_fn(struct timer_list *timer);
 
 #ifdef CONFIG_SCST_DEBUG_TM
 static void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev);
@@ -4091,7 +4091,7 @@ int scst_alloc_tgt(struct scst_tgt_template *tgtt, struct scst_tgt **tgt)
 	t->tgt_supported_dif_block_sizes = tgtt->supported_dif_block_sizes;
 	spin_lock_init(&t->tgt_lock);
 	INIT_LIST_HEAD(&t->retry_cmd_list);
-	setup_timer(&t->retry_timer, scst_tgt_retry_timer_fn, (unsigned long)t);
+	timer_setup(&t->retry_timer, scst_tgt_retry_timer_fn, 0);
 	atomic_set(&t->tgt_dif_app_failed_tgt, 0);
 	atomic_set(&t->tgt_dif_ref_failed_tgt, 0);
 	atomic_set(&t->tgt_dif_guard_failed_tgt, 0);
@@ -7480,9 +7480,9 @@ void scst_check_retries(struct scst_tgt *tgt)
 	return;
 }
 
-static void scst_tgt_retry_timer_fn(unsigned long arg)
+static void scst_tgt_retry_timer_fn(struct timer_list *timer)
 {
-	struct scst_tgt *tgt = (struct scst_tgt *)arg;
+	struct scst_tgt *tgt = container_of(timer, typeof(*tgt), retry_timer);
 	unsigned long flags;
 
 	TRACE_RETRY("Retry timer expired (retry_cmds %d)", tgt->retry_cmds);

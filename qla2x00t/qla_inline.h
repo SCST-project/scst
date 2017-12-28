@@ -171,8 +171,7 @@ done:
 static inline void
 qla2x00_init_timer(srb_t *sp, unsigned long tmo)
 {
-	setup_timer(&sp->u.iocb_cmd.timer, qla2x00_sp_timeout,
-		    (unsigned long)sp);
+	timer_setup(&sp->u.iocb_cmd.timer, qla2x00_sp_timeout, 0);
 	sp->u.iocb_cmd.timer.expires = jiffies + tmo * HZ;
 	add_timer(&sp->u.iocb_cmd.timer);
 	sp->free = qla2x00_sp_free;

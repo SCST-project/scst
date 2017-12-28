@@ -135,9 +135,10 @@ static void isert_close_conn_fn(struct work_struct *work)
 	isert_close_connection(conn);
 }
 
-static void isert_conn_timer_fn(unsigned long arg)
+static void isert_conn_timer_fn(struct timer_list *timer)
 {
-	struct isert_conn_dev *conn_dev = (struct isert_conn_dev *)arg;
+	struct isert_conn_dev *conn_dev = container_of(timer, typeof(*conn_dev),
+						       tmo_timer);
 	struct iscsi_conn *conn = conn_dev->conn;
 
 	TRACE_ENTRY();
@@ -171,8 +172,7 @@ static int add_new_connection(struct isert_listener_dev *dev,
 	INIT_WORK(&conn->close_work, isert_close_conn_fn);
 #endif
 
-	setup_timer(&conn_dev->tmo_timer, isert_conn_timer_fn,
-		    (unsigned long)conn_dev);
+	timer_setup(&conn_dev->tmo_timer, isert_conn_timer_fn, 0);
 	conn_dev->tmo_timer.expires = jiffies + 60 * HZ;
 	add_timer(&conn_dev->tmo_timer);
 	conn_dev->timer_active = 1;
