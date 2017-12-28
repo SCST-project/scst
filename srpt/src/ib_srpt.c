@@ -210,7 +210,7 @@ static bool srpt_set_ch_state(struct srpt_rdma_ch *ch, enum rdma_ch_state new)
 	return changed;
 }
 
-/**
+/*
  * srpt_adjust_req_lim() - Adjust ch->req_lim and ch->req_lim_delta atomically.
  *
  * Returns the new value of ch->req_lim.
@@ -230,7 +230,7 @@ static int srpt_adjust_req_lim(struct srpt_rdma_ch *ch, int req_lim_change,
 	return req_lim;
 }
 
-/**
+/*
  * srpt_inc_req_lim() - Increase ch->req_lim and decrease ch->req_lim_delta.
  *
  * Returns one more than the previous value of ch->req_lim_delta.
@@ -249,7 +249,7 @@ static int srpt_inc_req_lim(struct srpt_rdma_ch *ch)
 	return req_lim_delta;
 }
 
-/**
+/*
  * srpt_undo_inc_req_lim() - Undo the effect of srpt_inc_req_lim.
  */
 static int srpt_undo_inc_req_lim(struct srpt_rdma_ch *ch, int req_lim_delta)
@@ -257,7 +257,7 @@ static int srpt_undo_inc_req_lim(struct srpt_rdma_ch *ch, int req_lim_delta)
 	return srpt_adjust_req_lim(ch, -req_lim_delta, req_lim_delta - 1);
 }
 
-/**
+/*
  * srpt_event_handler() - Asynchronous IB event callback function.
  *
  * Callback function called by the InfiniBand core when an asynchronous IB
@@ -316,7 +316,7 @@ static void srpt_event_handler(struct ib_event_handler *handler,
 	}
 }
 
-/**
+/*
  * srpt_srq_event() - IB SRQ event callback function.
  */
 static void srpt_srq_event(struct ib_event *event, void *ctx)
@@ -341,7 +341,7 @@ static const char *get_ch_state_name(enum rdma_ch_state s)
 	return "???";
 }
 
-/**
+/*
  * srpt_qp_event() - IB QP event callback function.
  */
 static void srpt_qp_event(struct ib_event *event, struct srpt_rdma_ch *ch)
@@ -375,7 +375,7 @@ static void srpt_qp_event(struct ib_event *event, struct srpt_rdma_ch *ch)
 
 /**
  * srpt_set_ioc() - Helper function for initializing an IOUnitInfo structure.
- *
+ * @c_list: I/O controller list.
  * @slot: one-based slot number.
  * @value: four-bit value.
  *
@@ -397,7 +397,7 @@ static void srpt_set_ioc(u8 *c_list, u32 slot, u8 value)
 	}
 }
 
-/**
+/*
  * srpt_get_class_port_info() - Copy ClassPortInfo to a management datagram.
  *
  * See also section 16.3.3.1 ClassPortInfo in the InfiniBand Architecture
@@ -420,7 +420,7 @@ static void srpt_get_class_port_info(struct ib_dm_mad *mad)
 	mad->mad_hdr.status = 0;
 }
 
-/**
+/*
  * srpt_get_iou() - Write IOUnitInfo to a management datagram.
  *
  * See also section 16.3.3.3 IOUnitInfo in the InfiniBand Architecture
@@ -444,7 +444,7 @@ static void srpt_get_iou(struct ib_dm_mad *mad)
 	mad->mad_hdr.status = 0;
 }
 
-/**
+/*
  * srpt_get_ioc() - Write IOControllerprofile to a management datagram.
  *
  * See also section 16.3.3.4 IOControllerProfile in the InfiniBand
@@ -502,7 +502,7 @@ static void srpt_get_ioc(struct srpt_port *sport, u32 slot,
 	mad->mad_hdr.status = 0;
 }
 
-/**
+/*
  * srpt_get_svc_entries() - Write ServiceEntries to a management datagram.
  *
  * See also section 16.3.3.5 ServiceEntries in the InfiniBand Architecture
@@ -577,7 +577,7 @@ static void srpt_mgmt_method_get(struct srpt_port *sp, struct ib_mad *rq_mad,
 	}
 }
 
-/**
+/*
  * srpt_mad_send_handler() - Post MAD-send callback function.
  */
 static void srpt_mad_send_handler(struct ib_mad_agent *mad_agent,
@@ -591,7 +591,7 @@ static void srpt_mad_send_handler(struct ib_mad_agent *mad_agent,
 	ib_free_send_mad(mad_wc->send_buf);
 }
 
-/**
+/*
  * srpt_mad_recv_handler() - MAD reception callback function.
  */
 static void srpt_mad_recv_handler(struct ib_mad_agent *mad_agent,
@@ -669,7 +669,7 @@ err:
 	ib_free_recv_mad(mad_wc);
 }
 
-/**
+/*
  * srpt_refresh_port() - Configure a HCA port.
  *
  * Enable InfiniBand management datagram processing, update the cached sm_lid,
@@ -755,7 +755,7 @@ err_mod_port:
 	return ret;
 }
 
-/**
+/*
  * srpt_unregister_mad_agent() - Unregister MAD callback functions.
  *
  * Note: It is safe to call this function more than once for the same device.
@@ -780,7 +780,7 @@ static void srpt_unregister_mad_agent(struct srpt_device *sdev)
 	}
 }
 
-/**
+/*
  * srpt_alloc_ioctx() - Allocate an SRPT I/O context structure.
  */
 static struct srpt_ioctx *srpt_alloc_ioctx(struct srpt_device *sdev,
@@ -821,7 +821,7 @@ err:
 	return NULL;
 }
 
-/**
+/*
  * srpt_free_ioctx() - Free an SRPT I/O context structure.
  */
 static void srpt_free_ioctx(struct srpt_device *sdev, struct srpt_ioctx *ioctx,
@@ -835,7 +835,7 @@ static void srpt_free_ioctx(struct srpt_device *sdev, struct srpt_ioctx *ioctx,
 	kfree(ioctx);
 }
 
-/**
+/*
  * srpt_alloc_ioctx_ring() - Allocate a ring of SRPT I/O context structures.
  * @sdev:       Device to allocate the I/O context ring for.
  * @ring_size:  Number of elements in the I/O context ring.
@@ -875,7 +875,7 @@ out:
 	return ring;
 }
 
-/**
+/*
  * srpt_free_ioctx_ring() - Free the ring of SRPT I/O context structures.
  */
 static void srpt_free_ioctx_ring(struct srpt_ioctx **ioctx_ring,
@@ -893,7 +893,7 @@ static void srpt_free_ioctx_ring(struct srpt_ioctx **ioctx_ring,
 	kfree(ioctx_ring);
 }
 
-/**
+/*
  * srpt_set_cmd_state() - Set the state of a SCSI command.
  * @new: New state.
  *
@@ -914,7 +914,7 @@ static enum srpt_command_state srpt_set_cmd_state(struct srpt_send_ioctx *ioctx,
 	return previous;
 }
 
-/**
+/*
  * srpt_test_and_set_cmd_state() - Test and set the state of a command.
  *
  * Returns true if and only if the previous command state was equal to 'old'.
@@ -936,7 +936,7 @@ static bool srpt_test_and_set_cmd_state(struct srpt_send_ioctx *ioctx,
 	return previous == old;
 }
 
-/**
+/*
  * srpt_post_recv() - Post an IB receive request.
  */
 static int srpt_post_recv(struct srpt_device *sdev, struct srpt_rdma_ch *ch,
@@ -967,7 +967,7 @@ static int srpt_adjust_sq_wr_avail(struct srpt_rdma_ch *ch, int delta)
 	return atomic_add_return(delta, &ch->sq_wr_avail);
 }
 
-/**
+/*
  * srpt_post_send() - Post an IB send request.
  *
  * Returns zero upon success and a non-zero value upon failure.
@@ -1009,7 +1009,7 @@ out:
 	return ret;
 }
 
-/**
+/*
  * srpt_zerolength_write() - Perform a zero-length RDMA write.
  *
  * A quote from the InfiniBand specification: C9-88: For an HCA responder
@@ -1028,7 +1028,7 @@ static int srpt_zerolength_write(struct srpt_rdma_ch *ch)
 	return ib_post_send(ch->qp, &wr, &bad_wr);
 }
 
-/**
+/*
  * srpt_get_desc_tbl() - Parse the data descriptors of an SRP_CMD request.
  * @ioctx: Pointer to the I/O context associated with the request.
  * @srp_cmd: Pointer to the SRP_CMD request data.
@@ -1175,7 +1175,7 @@ out:
 	return ret;
 }
 
-/**
+/*
  * srpt_init_ch_qp() - Initialize queue pair attributes.
  *
  * Initialized the attributes of queue pair 'qp' by allowing local write,
@@ -1277,7 +1277,7 @@ out:
 	return ret;
 }
 
-/**
+/*
  * srpt_ch_qp_err() - Set the channel queue pair state to 'error'.
  */
 static int srpt_ch_qp_err(struct srpt_rdma_ch *ch)
@@ -1295,7 +1295,7 @@ static int srpt_ch_qp_err(struct srpt_rdma_ch *ch)
 	return ret;
 }
 
-/**
+/*
  * srpt_get_send_ioctx() - Obtain an I/O context for sending to the initiator.
  */
 static struct srpt_send_ioctx *srpt_get_send_ioctx(struct srpt_rdma_ch *ch)
@@ -1332,7 +1332,7 @@ static struct srpt_send_ioctx *srpt_get_send_ioctx(struct srpt_rdma_ch *ch)
 	return ioctx;
 }
 
-/**
+/*
  * srpt_put_send_ioctx() - Free up resources.
  */
 static void srpt_put_send_ioctx(struct srpt_send_ioctx *ioctx)
@@ -1430,7 +1430,7 @@ static void srpt_abort_cmd(struct srpt_send_ioctx *ioctx,
 	}
 }
 
-/**
+/*
  * srpt_handle_send_err_comp() - Process an IB_WC_SEND error completion.
  */
 static void srpt_handle_send_err_comp(struct srpt_rdma_ch *ch, u64 wr_id,
@@ -1475,7 +1475,7 @@ static void srpt_handle_send_err_comp(struct srpt_rdma_ch *ch, u64 wr_id,
 	srpt_adjust_sq_wr_avail(ch, wr_avail_delta);
 }
 
-/**
+/*
  * srpt_handle_send_comp() - Process an IB send completion notification.
  */
 static void srpt_handle_send_comp(struct srpt_rdma_ch *ch,
@@ -1513,7 +1513,7 @@ static void srpt_handle_send_comp(struct srpt_rdma_ch *ch,
 	srpt_adjust_sq_wr_avail(ch, wr_avail_delta);
 }
 
-/**
+/*
  * srpt_handle_rdma_comp() - Process an IB RDMA completion notification.
  */
 static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
@@ -1539,7 +1539,7 @@ static void srpt_handle_rdma_comp(struct srpt_rdma_ch *ch,
 	}
 }
 
-/**
+/*
  * srpt_handle_rdma_err_comp() - Process an IB RDMA error completion.
  */
 static void srpt_handle_rdma_err_comp(struct srpt_rdma_ch *ch,
@@ -1694,7 +1694,7 @@ static int srpt_build_tskmgmt_rsp(struct srpt_rdma_ch *ch,
 	return resp_len;
 }
 
-/**
+/*
  * srpt_handle_cmd() - Process SRP_CMD.
  */
 static int srpt_handle_cmd(struct srpt_rdma_ch *ch,
@@ -1761,7 +1761,7 @@ err:
 	return -1;
 }
 
-/**
+/*
  * srpt_handle_tsk_mgmt() - Process an SRP_TSK_MGMT information unit.
  *
  * Each task management function is performed by calling one of the
@@ -1971,7 +1971,7 @@ static void srpt_process_wait_list(struct srpt_rdma_ch *ch)
 	ch->processing_wait_list = false;
 }
 
-/**
+/*
  * srpt_process_send_completion() - Process an IB send completion.
  *
  * Note: Although this has not yet been observed during tests, at least in
@@ -2086,7 +2086,7 @@ static int srpt_process_completion(struct srpt_rdma_ch *ch, int budget,
 	return processed;
 }
 
-/**
+/*
  * srpt_completion() - IB completion queue callback function.
  */
 static void srpt_completion(struct ib_cq *cq, void *ctx)
@@ -2192,7 +2192,7 @@ static int srpt_compl_thread(void *arg)
 	return 0;
 }
 
-/**
+/*
  * srpt_create_ch_ib() - Create receive and send completion queues.
  */
 static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
@@ -2313,7 +2313,7 @@ static void srpt_destroy_ch_ib(struct srpt_rdma_ch *ch)
 	ib_destroy_cq(ch->cq);
 }
 
-/**
+/*
  * srpt_close_ch() - Close an RDMA channel.
  *
  * Make sure all resources associated with the channel will be deallocated at
@@ -2440,7 +2440,7 @@ static struct srpt_nexus *srpt_get_nexus(struct srpt_port *sport,
 }
 
 #if !defined(CONFIG_SCST_PROC)
-/**
+/*
  * srpt_enable_target - Set the "enabled" status of a target.
  */
 static int srpt_enable_target(struct scst_tgt *scst_tgt, bool enable)
@@ -2468,7 +2468,7 @@ out:
 	return res;
 }
 
-/**
+/*
  * srpt_is_target_enabled - Report whether a target is enabled.
  */
 static bool srpt_is_target_enabled(struct scst_tgt *scst_tgt)
@@ -2497,7 +2497,7 @@ static u16 srpt_next_comp_vector(struct srpt_port *sport)
 	return comp_vector;
 }
 
-/**
+/*
  * srpt_cm_req_recv() - Process the IB_CM_REQ_RECEIVED event.
  *
  * Ownership of the cm_id is transferred to the target session if this
@@ -2668,7 +2668,7 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		ret = PTR_ERR(thread);
 		pr_err("failed to create kernel thread: %d\n", ret);
-		goto unreg_ch;
+		goto release_channel;
 	}
 
 	mutex_lock(&sport->mutex);
@@ -2774,7 +2774,7 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 
 	goto out;
 
-unreg_ch:
+release_channel:
 	scst_unregister_session(ch->sess, true, NULL);
 
 destroy_ib:
@@ -2945,7 +2945,7 @@ static void srpt_check_timeout(struct srpt_rdma_ch *ch)
 	}
 }
 
-/**
+/*
  * srpt_cm_rtu_recv() - Process RTU event.
  *
  * An RTU (ready to use) message indicates that the connection has been
@@ -2975,7 +2975,7 @@ static void srpt_cm_rtu_recv(struct srpt_rdma_ch *ch)
 		       ch->sess_name, ch->qp->qp_num);
 }
 
-/**
+/*
  * srpt_cm_handler() - IB connection manager callback function.
  *
  * A non-zero return value will cause the caller destroy the CM ID.
@@ -3077,7 +3077,7 @@ static int srpt_rdma_cm_handler(struct rdma_cm_id *cm_id,
 	return ret;
 }
 
-/**
+/*
  * srpt_map_sg_to_ib_sge() - Map an SG list to an IB SGE list.
  */
 static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
@@ -3270,7 +3270,7 @@ free_mem:
 	return -ENOMEM;
 }
 
-/**
+/*
  * srpt_unmap_sg_to_ib_sge() - Unmap an IB SGE list.
  */
 static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
@@ -3305,7 +3305,7 @@ static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	}
 }
 
-/**
+/*
  * srpt_perform_rdmas() - Perform IB RDMA.
  *
  * Returns zero upon success or a negative number upon failure.
@@ -3447,7 +3447,7 @@ out:
 	return ret;
 }
 
-/**
+/*
  * srpt_xfer_data() - Start data transfer from initiator to target.
  *
  * Returns 0, -EAGAIN or -EIO.
@@ -3519,7 +3519,7 @@ out_unmap:
 	goto out;
 }
 
-/**
+/*
  * srpt_pending_cmd_timeout() - SCST command HCA processing timeout callback.
  *
  * Called by the SCST core if no IB completion notification has been received
@@ -3557,7 +3557,7 @@ static void srpt_pending_cmd_timeout(struct scst_cmd *cmd)
 	srpt_abort_cmd(ioctx, SCST_CONTEXT_SAME);
 }
 
-/**
+/*
  * srpt_rdy_to_xfer() - Transfers data from initiator to target.
  *
  * Called by the SCST core to transfer data from the initiator to the target
@@ -3584,7 +3584,7 @@ static int srpt_rdy_to_xfer(struct scst_cmd *cmd)
 	}
 }
 
-/**
+/*
  * srpt_xmit_response() - Transmits the response to a SCSI command.
  *
  * Callback function called by the SCST core. Must not block. Must ensure that
@@ -3675,7 +3675,7 @@ out:
 	return ret;
 }
 
-/**
+/*
  * srpt_tsk_mgmt_done() - SCST callback function that sends back the response
  * for a task management request.
  *
@@ -3719,7 +3719,7 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 	}
 }
 
-/**
+/*
  * srpt_get_initiator_port_transport_id() - SCST TransportID callback function.
  *
  * See also SPC-3, section 7.5.4.5, TransportID for initiator ports using SRP.
@@ -3760,7 +3760,7 @@ out:
 	return res;
 }
 
-/**
+/*
  * srpt_on_free_cmd() - Free command-private data.
  *
  * Called by the SCST core. May be called in IRQ context.
@@ -3815,7 +3815,7 @@ static bool srpt_ch_list_empty(struct srpt_port *sport)
 	return res;
 }
 
-/**
+/*
  * srpt_release_sport() - Free channel resources associated with a target.
  */
 static int srpt_release_sport(struct srpt_port *sport)
@@ -3858,7 +3858,7 @@ static int srpt_release_sport(struct srpt_port *sport)
 	return 0;
 }
 
-/**
+/*
  * srpt_release() - Free the resources associated with an SCST target.
  *
  * Callback function called by the SCST core from scst_unregister_target().
@@ -3879,7 +3879,7 @@ static int srpt_release(struct scst_tgt *scst_tgt)
 	return 0;
 }
 
-/**
+/*
  * srpt_get_scsi_transport_version() - Returns the SCSI transport version.
  * This function is called from scst_pres.c, the code that implements
  * persistent reservation support.
@@ -4250,7 +4250,7 @@ static void srpt_init_sport(struct srpt_port *sport, struct ib_device *ib_dev)
 		cpumask_set_cpu(i, &sport->comp_v_mask);
 }
 
-/**
+/*
  * srpt_add_one() - Infiniband device addition callback function.
  */
 static void srpt_add_one(struct ib_device *device)
@@ -4428,7 +4428,7 @@ err:
 	goto out;
 }
 
-/**
+/*
  * srpt_remove_one() - InfiniBand device removal callback function.
  */
 #ifndef IB_CLIENT_REMOVE_TAKES_TWO_ARGS
@@ -4504,7 +4504,7 @@ static struct ib_client srpt_client = {
 
 #ifdef CONFIG_SCST_PROC
 
-/**
+/*
  * srpt_register_procfs_entry() - Create SRPT procfs entries.
  *
  * Currently the only procfs entry created by this function is the
@@ -4536,7 +4536,7 @@ static int srpt_register_procfs_entry(struct scst_tgt_template *tgt)
 	return res;
 }
 
-/**
+/*
  * srpt_unregister_procfs_entry() - Unregister SRPT procfs entries.
  */
 static void srpt_unregister_procfs_entry(struct scst_tgt_template *tgt)
