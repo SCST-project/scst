@@ -171,10 +171,9 @@ static int add_new_connection(struct isert_listener_dev *dev,
 	INIT_WORK(&conn->close_work, isert_close_conn_fn);
 #endif
 
-	init_timer(&conn_dev->tmo_timer);
-	conn_dev->tmo_timer.function = isert_conn_timer_fn;
+	setup_timer(&conn_dev->tmo_timer, isert_conn_timer_fn,
+		    (unsigned long)conn_dev);
 	conn_dev->tmo_timer.expires = jiffies + 60 * HZ;
-	conn_dev->tmo_timer.data = (unsigned long)conn_dev;
 	add_timer(&conn_dev->tmo_timer);
 	conn_dev->timer_active = 1;
 	wake_up(&dev->waitqueue);
