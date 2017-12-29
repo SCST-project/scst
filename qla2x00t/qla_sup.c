@@ -2370,6 +2370,7 @@ qla2x00_write_optrom_data(struct scsi_qla_host *vha, uint8_t *buf,
 				sec_mask = 0x1e000;
 				break;
 			}
+			/* Fall through... */
 		default:
 			/* Default to 16 kb sector size. */
 			rest_addr = 0x3fff;
