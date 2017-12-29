@@ -320,7 +320,7 @@ out:
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 34) &&	\
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6 ||	\
 	 (RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 < 6))
-/**
+/*
  ** Backported sysfs functions.
  **/
 
@@ -348,7 +348,7 @@ static void sysfs_remove_files(struct kobject *kobj,
 }
 #endif
 
-/**
+/*
  ** Sysfs work
  **/
 
@@ -359,7 +359,7 @@ static int active_sysfs_works;
 static int last_sysfs_work_res;
 static struct task_struct *sysfs_work_thread;
 
-/**
+/*
  * scst_alloc_sysfs_work() - allocates a sysfs work
  */
 int scst_alloc_sysfs_work(int (*sysfs_work_fn)(struct scst_sysfs_work_item *),
@@ -418,7 +418,7 @@ static void scst_sysfs_work_release(struct kref *kref)
 	return;
 }
 
-/**
+/*
  * scst_sysfs_work_get() - increases ref counter of the sysfs work
  */
 void scst_sysfs_work_get(struct scst_sysfs_work_item *work)
@@ -427,7 +427,7 @@ void scst_sysfs_work_get(struct scst_sysfs_work_item *work)
 }
 EXPORT_SYMBOL(scst_sysfs_work_get);
 
-/**
+/*
  * scst_sysfs_work_put() - decreases ref counter of the sysfs work
  */
 void scst_sysfs_work_put(struct scst_sysfs_work_item *work)
@@ -527,7 +527,7 @@ static int sysfs_work_thread_fn(void *arg)
 	return 0;
 }
 
-/**
+/*
  * scst_sysfs_queue_wait_work() - waits for the work to complete
  *
  * Returns status of the completed work or -EAGAIN if the work not
@@ -782,7 +782,7 @@ static void scst_ungrab_devt_ptr(struct scst_dev_type *devt)
 	return;
 }
 
-/**
+/*
  ** Regular SCST sysfs ops
  **/
 static ssize_t scst_show(struct kobject *kobj, struct attribute *attr,
@@ -825,7 +825,7 @@ struct sysfs_ops *scst_sysfs_get_sysfs_ops(void)
 }
 EXPORT_SYMBOL_GPL(scst_sysfs_get_sysfs_ops);
 
-/**
+/*
  ** Target Template
  **/
 
@@ -1243,7 +1243,7 @@ void scst_tgtt_sysfs_del(struct scst_tgt_template *tgtt)
 	return;
 }
 
-/**
+/*
  ** Target directory implementation
  **/
 
@@ -3042,7 +3042,7 @@ void scst_tgt_sysfs_put(struct scst_tgt *tgt)
 	return;
 }
 
-/**
+/*
  ** Devices directory implementation
  **/
 
@@ -4109,7 +4109,7 @@ out:
 	return res;
 }
 
-/**
+/*
  ** Tgt_dev implementation
  **/
 
@@ -4421,7 +4421,7 @@ void scst_tgt_dev_sysfs_del(struct scst_tgt_dev *tgt_dev)
 	return;
 }
 
-/**
+/*
  ** Sessions subdirectory implementation
  **/
 
@@ -5154,7 +5154,7 @@ out:
 	return;
 }
 
-/**
+/*
  ** Target luns directory implementation
  **/
 
@@ -5273,7 +5273,7 @@ out_del:
 	goto out;
 }
 
-/**
+/*
  ** ini_groups directory implementation.
  **/
 
@@ -5741,7 +5741,7 @@ out_del:
 	goto out;
 }
 
-/**
+/*
  ** acn
  **/
 
@@ -5833,7 +5833,7 @@ void scst_acn_sysfs_del(struct scst_acn *acn)
 }
 
 
-/**
+/*
  ** Dev handlers
  **/
 
@@ -6307,7 +6307,7 @@ void scst_devt_sysfs_del(struct scst_dev_type *devt)
 	return;
 }
 
-/**
+/*
  ** SCST sysfs device_groups/<dg>/devices/<dev> implementation.
  **/
 
@@ -6329,7 +6329,7 @@ void scst_dg_dev_sysfs_del(struct scst_dev_group *dg, struct scst_dg_dev *dgdev)
 	TRACE_EXIT();
 }
 
-/**
+/*
  ** SCST sysfs device_groups/<dg>/devices directory implementation.
  **/
 
@@ -6424,7 +6424,7 @@ static const struct attribute *scst_dg_devs_attrs[] = {
 	NULL,
 };
 
-/**
+/*
  ** SCST sysfs device_groups/<dg>/target_groups/<tg>/<tgt> implementation.
  **/
 
@@ -6514,7 +6514,7 @@ void scst_tg_tgt_sysfs_del(struct scst_target_group *tg,
 	TRACE_EXIT();
 }
 
-/**
+/*
  ** SCST sysfs device_groups/<dg>/target_groups/<tg> directory implementation.
  **/
 
@@ -6831,7 +6831,7 @@ void scst_tg_sysfs_del(struct scst_target_group *tg)
 	TRACE_EXIT();
 }
 
-/**
+/*
  ** SCST sysfs device_groups/<dg>/target_groups directory implementation.
  **/
 
@@ -6925,7 +6925,7 @@ static const struct attribute *scst_dg_tgs_attrs[] = {
 	NULL,
 };
 
-/**
+/*
  ** SCST sysfs device_groups directory implementation.
  **/
 
@@ -7031,7 +7031,7 @@ static const struct attribute *scst_device_groups_attrs[] = {
 	NULL,
 };
 
-/**
+/*
  ** SCST sysfs root directory implementation
  **/
 
@@ -7615,7 +7615,7 @@ static struct kobj_type scst_sysfs_root_ktype = {
 	.default_attrs = scst_sysfs_root_default_attrs,
 };
 
-/**
+/*
  ** Sysfs user info
  **/
 
@@ -7644,7 +7644,7 @@ static struct scst_sysfs_user_info *scst_sysfs_user_find_info(uint32_t cookie)
 	return res;
 }
 
-/**
+/*
  * scst_sysfs_user_get_info() - get user_info
  *
  * Finds the user_info based on cookie and mark it as received the reply by
@@ -7673,13 +7673,13 @@ struct scst_sysfs_user_info *scst_sysfs_user_get_info(uint32_t cookie)
 }
 EXPORT_SYMBOL_GPL(scst_sysfs_user_get_info);
 
-/**
+/*
  ** Helper functionality to help target drivers and dev handlers support
  ** sending events to user space and wait for their completion in a safe
  ** manner. See samples how to use it in iscsi-scst or scst_user.
  **/
 
-/**
+/*
  * scst_sysfs_user_add_info() - create and add user_info in the global list
  *
  * Creates an info structure and adds it in the info_list.
@@ -7721,7 +7721,7 @@ out:
 }
 EXPORT_SYMBOL_GPL(scst_sysfs_user_add_info);
 
-/**
+/*
  * scst_sysfs_user_del_info - delete and frees user_info
  */
 void scst_sysfs_user_del_info(struct scst_sysfs_user_info *info)
@@ -7768,7 +7768,7 @@ static bool scst_sysfs_user_info_executing(struct scst_sysfs_user_info *info)
 	return res;
 }
 
-/**
+/*
  * scst_wait_info_completion() - wait for a user space event's completion
  *
  * Waits for the info request been completed by user space at most timeout

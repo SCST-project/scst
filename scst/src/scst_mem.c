@@ -1145,7 +1145,7 @@ out_uncheck:
 }
 EXPORT_SYMBOL_GPL(sgv_pool_alloc);
 
-/**
+/*
  * sgv_get_priv - return the private allocation data
  *
  * Allows to get the allocation private data for this SGV
@@ -1159,7 +1159,7 @@ EXPORT_SYMBOL_GPL(sgv_get_priv);
 
 /**
  * sgv_pool_free - free previously allocated SG vector
- * @sgv:	the SGV object to free
+ * @obj:	the SGV object to free
  * @mem_lim:	memory limits
  *
  * Description:
@@ -1224,7 +1224,7 @@ void sgv_pool_free(struct sgv_pool_obj *obj, struct scst_mem_lim *mem_lim)
 }
 EXPORT_SYMBOL_GPL(sgv_pool_free);
 
-/**
+/*
  * scst_alloc_sg() - allocates an SG vector
  *
  * Allocates and returns pointer to SG vector with data size "size".
@@ -1302,7 +1302,7 @@ out_uncheck:
 }
 EXPORT_SYMBOL_GPL(scst_alloc_sg);
 
-/**
+/*
  * scst_free_sg() - frees SG vector
  *
  * Frees SG vector returned by scst_alloc_sg().
@@ -1495,7 +1495,7 @@ static void sgv_evaluate_local_max_pages(void)
 	return;
 }
 
-/**
+/*
  * sgv_pool_flush() - flushes the SGV pool.
  *
  * Flushes, i.e. frees, all the cached entries in the SGV pool.
@@ -1587,7 +1587,7 @@ EXPORT_SYMBOL_GPL(sgv_pool_set_allocator);
 /**
  * sgv_pool_create_node - creates and initializes an SGV pool
  * @name:	the name of the SGV pool
- * @clustered:	sets type of the pages clustering.
+ * @clustering_type:	sets type of the pages clustering.
  * @single_alloc_pages:	if 0, then the SGV pool will work in the set of
  *		power 2 size buffers mode. If >0, then the SGV pool will
  *		work in the fixed size buffers mode. In this case
@@ -1678,7 +1678,7 @@ out_free:
 }
 EXPORT_SYMBOL_GPL(sgv_pool_create_node);
 
-/**
+/*
  * sgv_pool_get - increase ref counter for the corresponding SGV pool
  *
  * Increases ref counter for the corresponding SGV pool
@@ -1692,7 +1692,7 @@ void sgv_pool_get(struct sgv_pool *pool)
 }
 EXPORT_SYMBOL_GPL(sgv_pool_get);
 
-/**
+/*
  * sgv_pool_put - decrease ref counter for the corresponding SGV pool
  *
  * Decreases ref counter for the corresponding SGV pool. If the ref
@@ -2182,7 +2182,7 @@ static struct kobj_type sgv_ktype = {
 	.default_attrs = sgv_default_attrs,
 };
 
-/**
+/*
  * scst_add_sgv_kobj() - Initialize and add the root SGV kernel object.
  */
 int scst_add_sgv_kobj(struct kobject *parent, const char *name)

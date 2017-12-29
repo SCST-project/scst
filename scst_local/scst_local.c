@@ -348,7 +348,7 @@ static const char *scst_local_info(struct Scsi_Host *shp)
 
 #else /* CONFIG_SCST_PROC */
 
-/**
+/*
  ** Tgtt attributes
  **/
 
@@ -395,7 +395,7 @@ static const struct attribute *scst_local_tgtt_attrs[] = {
 	NULL,
 };
 
-/**
+/*
  ** Tgt attributes
  **/
 
@@ -539,7 +539,7 @@ static const struct attribute *scst_local_tgt_attrs[] = {
 	NULL,
 };
 
-/**
+/*
  ** Session attributes
  **/
 

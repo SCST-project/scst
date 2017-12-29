@@ -1340,7 +1340,7 @@ static struct iscsi_cmnd *cmnd_find_itt_get(struct iscsi_conn *conn, __be32 itt)
 	return found_cmnd;
 }
 
-/**
+/*
  ** We use the ITT hash only to find original request PDU for subsequent
  ** Data-Out PDUs.
  **/
