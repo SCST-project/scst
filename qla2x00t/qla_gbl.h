@@ -143,8 +143,9 @@ extern void qla2x00_free_fcports(struct scsi_qla_host *);
  */
 extern struct scsi_host_template qla2xxx_driver_template;
 extern struct scsi_transport_template *qla2xxx_transport_vport_template;
-extern void qla2x00_timer(scsi_qla_host_t *);
-extern void qla2x00_start_timer(scsi_qla_host_t *, void *, unsigned long);
+extern void qla2x00_timer(struct timer_list *);
+extern void qla2x00_start_timer(scsi_qla_host_t *,
+				void (*)(struct timer_list *), unsigned long);
 extern void qla24xx_deallocate_vp_id(scsi_qla_host_t *);
 extern int qla24xx_init_vp(scsi_qla_host_t *);
 extern int qla24xx_disable_vp(scsi_qla_host_t *);
@@ -567,7 +568,7 @@ extern int qla82xx_mbx_intr_disable(scsi_qla_host_t *);
 extern int qla82xx_start_scsi(srb_t *);
 extern void qla82xx_start_iocbs(scsi_qla_host_t *);
 extern void qla2x00_sp_free(void *, void *);
-extern void qla2x00_sp_timeout(unsigned long);
+extern void qla2x00_sp_timeout(struct timer_list *timer);
 extern void qla2x00_bsg_job_done(void *, void *, int);
 extern void qla2x00_bsg_sp_free(void *, void *);
 
