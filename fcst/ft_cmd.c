@@ -169,7 +169,7 @@ static void ft_cmd_tm_dump(struct scst_mgmt_cmd *mcmd, const char *caller)
 		ft_cmd_dump(mcmd->cmd_to_abort, caller);
 }
 
-/**
+/*
  * ft_set_cmd_state() - set the state of a command
  */
 static enum ft_cmd_state ft_set_cmd_state(struct ft_cmd *fcmd,
@@ -186,7 +186,7 @@ static enum ft_cmd_state ft_set_cmd_state(struct ft_cmd *fcmd,
 	return previous;
 }
 
-/**
+/*
  * ft_test_and_set_cmd_state() - test and set the state of a command
  *
  * Returns true if and only if the previous command state was equal to 'old'.
