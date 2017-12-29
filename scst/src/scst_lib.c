@@ -7979,8 +7979,14 @@ static struct request *blk_make_request(struct request_queue *q,
 			blk_put_request(rq);
 			return ERR_PTR(ret);
 		}
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0)
 		ret = blk_rq_append_bio(rq, bio);
+		if (unlikely(ret)) {
+			blk_put_request(rq);
+			return ERR_PTR(ret);
+		}
+#else
+		ret = blk_rq_append_bio(rq, &bio);
 		if (unlikely(ret)) {
 			blk_put_request(rq);
 			return ERR_PTR(ret);
