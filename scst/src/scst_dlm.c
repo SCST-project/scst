@@ -53,7 +53,7 @@ static void scst_dlm_ast(void *astarg)
 	complete(&scst_lksb->compl);
 }
 
-/**
+/*
  * scst_dlm_cancel - Synchronously cancel a pending dlm_lock() operation
  */
 static int scst_dlm_cancel(dlm_lockspace_t *ls, struct scst_lksb *lksb,
@@ -109,7 +109,7 @@ out:
 	return res;
 }
 
-/**
+/*
  * scst_dlm_unlock_wait - Discard a DLM lock
  */
 static int scst_dlm_unlock_wait(dlm_lockspace_t *ls, struct scst_lksb *lksb)
@@ -571,7 +571,7 @@ out:
 	return *entries ? 0 : -ENOMEM;
 }
 
-/**
+/*
  * scst_dlm_update_nodeids - Update the Corosync node ID array pr_dlm->nodeid[]
  */
 static int scst_dlm_update_nodeids(struct scst_pr_dlm_data *pr_dlm)

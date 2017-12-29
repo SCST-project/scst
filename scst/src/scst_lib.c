@@ -1696,7 +1696,7 @@ static inline void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev) {}
 static inline void tm_dbg_deinit_tgt_dev(struct scst_tgt_dev *tgt_dev) {}
 #endif /* CONFIG_SCST_DEBUG_TM */
 
-/**
+/*
  * scst_alloc_sense() - allocate sense buffer for command
  *
  * Allocates, if necessary, sense buffer for command. Returns 0 on success
@@ -1733,7 +1733,7 @@ out:
 }
 EXPORT_SYMBOL(scst_alloc_sense);
 
-/**
+/*
  * scst_alloc_set_sense() - allocate and fill sense buffer for command
  *
  * Allocates, if necessary, sense buffer for command and copies in
@@ -1970,7 +1970,7 @@ out:
 	return res;
 }
 
-/**
+/*
  * scst_set_cmd_error() - set error in the command and fill the sense buffer.
  *
  * Sets error in the command and fill the sense buffer. Returns 0 on success,
@@ -2141,7 +2141,7 @@ int scst_set_invalid_field_in_parm_list(struct scst_cmd *cmd, int field_offs,
 }
 EXPORT_SYMBOL(scst_set_invalid_field_in_parm_list);
 
-/**
+/*
  * scst_set_sense() - set sense from KEY/ASC/ASCQ numbers
  *
  * Sets the corresponding fields in the sense buffer taking sense type
@@ -2205,7 +2205,7 @@ int scst_set_sense(uint8_t *buffer, int len, bool d_sense,
 }
 EXPORT_SYMBOL(scst_set_sense);
 
-/**
+/*
  * scst_analyze_sense() - analyze sense
  *
  * Returns true if sense matches to (key, asc, ascq) and false otherwise.
@@ -2286,7 +2286,7 @@ out:
 }
 EXPORT_SYMBOL(scst_analyze_sense);
 
-/**
+/*
  * scst_is_ua_sense() - determine if the sense is UA sense
  *
  * Returns true if the sense is valid and carrying a Unit
@@ -2317,7 +2317,7 @@ bool scst_is_ua_global(const uint8_t *sense, int len)
 	return res;
 }
 
-/**
+/*
  * scst_check_convert_sense() - check sense type and convert it if needed
  *
  * Checks if sense in the sense buffer, if any, is in the correct format.
@@ -2395,7 +2395,7 @@ out:
 	return res;
 }
 
-/**
+/*
  * scst_set_busy() - set BUSY or TASK QUEUE FULL status
  *
  * Sets BUSY or TASK QUEUE FULL status depending on if this session has other
@@ -2426,7 +2426,7 @@ void scst_set_busy(struct scst_cmd *cmd)
 }
 EXPORT_SYMBOL(scst_set_busy);
 
-/**
+/*
  * scst_set_initial_UA() - set initial Unit Attention
  *
  * Sets initial Unit Attention on all devices of the session,
@@ -2583,7 +2583,7 @@ out:
 	return;
 }
 
-/**
+/*
  * scst_capacity_data_changed() - notify SCST about device capacity change
  *
  * Notifies SCST core that dev has changed its capacity. Called under no locks.
@@ -2793,7 +2793,7 @@ void scst_report_luns_changed(struct scst_acg *acg)
 	return;
 }
 
-/**
+/*
  * scst_aen_done() - AEN processing done
  *
  * Notifies SCST that the driver has sent the AEN and it
@@ -3171,7 +3171,7 @@ int scst_get_cmd_abnormal_done_state(struct scst_cmd *cmd)
 }
 EXPORT_SYMBOL_GPL(scst_get_cmd_abnormal_done_state);
 
-/**
+/*
  * scst_set_cmd_abnormal_done_state() - set command's next abnormal done state
  *
  * Sets state of the SCSI target state machine to abnormally complete command
@@ -3513,7 +3513,7 @@ out:
 	return res;
 }
 
-/**
+/*
  * scst_restore_sg_buff() - restores modified sg buffer
  *
  * Restores modified sg buffer in the original state.
@@ -3548,7 +3548,7 @@ void scst_restore_sg_buff(struct scst_cmd *cmd)
 }
 EXPORT_SYMBOL(scst_restore_sg_buff);
 
-/**
+/*
  * scst_set_resp_data_len() - set response data length
  *
  * Sets response data length for cmd and truncates its SG vector accordingly.
@@ -3695,7 +3695,7 @@ out:
 	return;
 }
 
-/**
+/*
  * scst_cmd_set_write_not_received_data_len() - sets cmd's not received len
  *
  * Sets cmd's not received data length. Also automatically sets resid_possible.
@@ -3771,7 +3771,7 @@ void scst_cmd_set_write_no_data_received(struct scst_cmd *cmd)
 	return;
 }
 
-/**
+/*
  * __scst_get_resid() - returns residuals for cmd
  *
  * Returns residuals for command. Must not be called directly, use
@@ -3878,7 +3878,7 @@ void scst_queue_retry_cmd(struct scst_cmd *cmd)
 	return;
 }
 
-/**
+/*
  * scst_update_hw_pending_start() - update commands pending start
  *
  * Updates the command's hw_pending_start as if it's just started hw pending.
@@ -4284,7 +4284,7 @@ bool scst_device_is_exported(struct scst_device *dev)
 	return !list_empty(&dev->dev_tgt_dev_list);
 }
 
-/**
+/*
  * scst_init_mem_lim - initialize memory limits structure
  *
  * Initializes memory limits structure mem_lim according to
@@ -4753,7 +4753,7 @@ out_free:
 	goto out;
 }
 
-/**
+/*
  * scst_del_acg - delete an ACG from the per-target ACG list and from sysfs
  *
  * The caller must hold scst_mutex and activity must have been suspended.
@@ -4792,7 +4792,7 @@ static void scst_del_acg(struct scst_acg *acg)
 #endif
 }
 
-/**
+/*
  * scst_free_acg - free an ACG
  *
  * The caller must hold scst_mutex and activity must have been suspended.
@@ -4900,7 +4900,7 @@ void scst_get_acg(struct scst_acg *acg)
 	kref_get(&acg->acg_kref);
 }
 
-/**
+/*
  * scst_close_del_free_acg - close sessions, delete and free an ACG
  *
  * The caller must hold scst_mutex and activity must have been suspended.
@@ -7223,7 +7223,7 @@ void scst_sched_session_free(struct scst_session *sess)
 	return;
 }
 
-/**
+/*
  * scst_cmd_get() - increase command's reference counter
  */
 void scst_cmd_get(struct scst_cmd *cmd)
@@ -7232,7 +7232,7 @@ void scst_cmd_get(struct scst_cmd *cmd)
 }
 EXPORT_SYMBOL(scst_cmd_get);
 
-/**
+/*
  * scst_cmd_put() - decrease command's reference counter
  */
 void scst_cmd_put(struct scst_cmd *cmd)
@@ -7241,7 +7241,7 @@ void scst_cmd_put(struct scst_cmd *cmd)
 }
 EXPORT_SYMBOL(scst_cmd_put);
 
-/**
+/*
  * scst_cmd_set_ext_cdb() - sets cmd's extended CDB and its length
  */
 void scst_cmd_set_ext_cdb(struct scst_cmd *cmd,
@@ -8083,8 +8083,14 @@ static struct request *blk_make_request(struct request_queue *q,
 			blk_put_request(rq);
 			return ERR_PTR(ret);
 		}
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0)
 		ret = blk_rq_append_bio(rq, bio);
+		if (unlikely(ret)) {
+			blk_put_request(rq);
+			return ERR_PTR(ret);
+		}
+#else
+		ret = blk_rq_append_bio(rq, &bio);
 		if (unlikely(ret)) {
 			blk_put_request(rq);
 			return ERR_PTR(ret);
@@ -8274,7 +8280,7 @@ out_free_bios:
 	goto out;
 }
 
-/**
+/*
  * blk_map_kern_sg - map kernel data to a request for REQ_TYPE_BLOCK_PC
  * @rq:		request to fill
  * @sgl:	area to map
@@ -8425,7 +8431,7 @@ out:
 	return res;
 }
 
-/**
+/*
  * sg_copy - copy one SG vector to another
  * @dst_sg:	destination SG
  * @src_sg:	source SG
@@ -8903,7 +8909,7 @@ out:
 	return res;
 }
 
-/**
+/*
  * scst_copy_sg() - copy data between the command's SGs
  *
  * Copies data between cmd->tgt_i_sg and cmd->sg as well as
@@ -10065,7 +10071,7 @@ static void scst_init_dif_checks(struct scst_device *dev)
 	return;
 }
 
-/**
+/*
  * scst_dev_set_dif_static_app_tag_combined() - sets static app tag
  *
  * Description:
@@ -10365,7 +10371,7 @@ out:
 	return res;
 }
 
-/**
+/*
  * scst_set_dif_params() - sets DIF parameters
  *
  * Description:
@@ -11747,7 +11753,7 @@ static int get_cdb_info_ext_copy(struct scst_cmd *cmd,
 	return get_cdb_info_len_4(cmd, sdbops);
 }
 
-/**
+/*
  * get_cdb_info_apt() - Parse ATA PASS-THROUGH CDB.
  *
  * Parse ATA PASS-THROUGH(12) and ATA PASS-THROUGH(16). See also SAT-3 for a
@@ -11897,7 +11903,7 @@ static int get_cdb_info_mo(struct scst_cmd *cmd,
 	return get_cdb_info_len_4(cmd, sdbops);
 }
 
-/**
+/*
  * scst_get_cdb_info() - fill various info about the command's CDB
  *
  * Description:
@@ -12042,13 +12048,13 @@ out_err:
 }
 EXPORT_SYMBOL(scst_unpack_lun);
 
-/**
+/*
  ** Generic parse() support routines.
  ** Done via pointer on functions to avoid unneeded dereferences on
  ** the fast path.
  **/
 
-/**
+/*
  * scst_calc_block_shift() - calculate block shift
  *
  * Calculates and returns block shift for the given sector size
@@ -12087,7 +12093,7 @@ EXPORT_SYMBOL_GPL(scst_calc_block_shift);
 		_shift < 0 || ((a) & ~((_plus_one << _shift) - 1)) != 0;\
 	})
 
-/**
+/*
  * scst_generic_parse() - Generic parse() for devices supporting an LBA
  */
 static inline int scst_generic_parse(struct scst_cmd *cmd, const int timeout[3])
@@ -12149,7 +12155,7 @@ out:
 	return res;
 }
 
-/**
+/*
  * scst_sbc_generic_parse() - generic SBC parsing
  *
  * Generic parse() for SBC (disk) devices
@@ -12170,7 +12176,7 @@ int scst_sbc_generic_parse(struct scst_cmd *cmd)
 }
 EXPORT_SYMBOL_GPL(scst_sbc_generic_parse);
 
-/**
+/*
  * scst_cdrom_generic_parse() - generic MMC parse
  *
  * Generic parse() for MMC (cdrom) devices
@@ -12192,7 +12198,7 @@ int scst_cdrom_generic_parse(struct scst_cmd *cmd)
 }
 EXPORT_SYMBOL_GPL(scst_cdrom_generic_parse);
 
-/**
+/*
  * scst_modisk_generic_parse() - generic MO parse
  *
  * Generic parse() for MO disk devices
@@ -12214,7 +12220,7 @@ int scst_modisk_generic_parse(struct scst_cmd *cmd)
 }
 EXPORT_SYMBOL_GPL(scst_modisk_generic_parse);
 
-/**
+/*
  * scst_tape_generic_parse() - generic tape parse
  *
  * Generic parse() for tape devices
@@ -12300,7 +12306,7 @@ static int scst_null_parse(struct scst_cmd *cmd)
 	return res;
 }
 
-/**
+/*
  * scst_changer_generic_parse() - generic changer parse
  *
  * Generic parse() for changer devices
@@ -12318,7 +12324,7 @@ int scst_changer_generic_parse(struct scst_cmd *cmd)
 }
 EXPORT_SYMBOL_GPL(scst_changer_generic_parse);
 
-/**
+/*
  * scst_processor_generic_parse - generic SCSI processor parse
  *
  * Generic parse() for SCSI processor devices
@@ -12336,7 +12342,7 @@ int scst_processor_generic_parse(struct scst_cmd *cmd)
 }
 EXPORT_SYMBOL_GPL(scst_processor_generic_parse);
 
-/**
+/*
  * scst_raid_generic_parse() - generic RAID parse
  *
  * Generic parse() for RAID devices
@@ -12405,13 +12411,13 @@ out_abn:
 	goto out;
 }
 
-/**
+/*
  ** Generic dev_done() support routines.
  ** Done via pointer on functions to avoid unneeded dereferences on
  ** the fast path.
  **/
 
-/**
+/*
  * scst_block_generic_dev_done() - generic SBC dev_done
  *
  * Generic dev_done() for block (SBC) devices
@@ -12480,7 +12486,7 @@ out:
 }
 EXPORT_SYMBOL_GPL(scst_block_generic_dev_done);
 
-/**
+/*
  * scst_tape_generic_dev_done() - generic tape dev done
  *
  * Generic dev_done() for tape devices
@@ -12722,7 +12728,7 @@ static void scst_check_internal_sense(struct scst_device *dev, int result,
 	return;
 }
 
-/**
+/*
  * scst_to_dma_dir() - translate SCST's data direction to DMA direction
  *
  * Translates SCST's data direction to DMA one from backend storage
@@ -13973,7 +13979,7 @@ out:
 	return;
 }
 
-/**
+/*
  * scst_get_max_lun_commands() - return maximum supported commands count
  *
  * Returns maximum commands count which can be queued to this LUN in this
@@ -14040,7 +14046,7 @@ out_unlock:
 }
 EXPORT_SYMBOL(scst_get_max_lun_commands);
 
-/**
+/*
  * scst_reassign_retained_sess_states() - reassigns retained states
  *
  * Reassigns retained during nexus loss states from old_sess to new_sess.
@@ -14156,7 +14162,7 @@ out:
 }
 EXPORT_SYMBOL(scst_reassign_retained_sess_states);
 
-/**
+/*
  * scst_get_next_lexem() - parse and return next lexem in the string
  *
  * Returns pointer to the next lexem from token_str skipping
@@ -14185,7 +14191,7 @@ char *scst_get_next_lexem(char **token_str)
 }
 EXPORT_SYMBOL_GPL(scst_get_next_lexem);
 
-/**
+/*
  * scst_restore_token_str() - restore string modified by scst_get_next_lexem()
  *
  * Restores token_str modified by scst_get_next_lexem() to the
@@ -14200,7 +14206,7 @@ void scst_restore_token_str(char *prev_lexem, char *token_str)
 }
 EXPORT_SYMBOL_GPL(scst_restore_token_str);
 
-/**
+/*
  * scst_get_next_token_str() - parse and return next token
  *
  * This function returns pointer to the next token strings from input_str
