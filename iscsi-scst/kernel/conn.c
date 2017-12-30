@@ -209,9 +209,9 @@ static ssize_t iscsi_get_target_ip(struct iscsi_conn *conn,
 			 NIP6(inet6_sk(sk)->saddr));
 #else
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0)
-		pos = scnprintf(buf, size, "[%p6]", &inet6_sk(sk)->saddr);
+		pos = scnprintf(buf, size, "[%pI6]", &inet6_sk(sk)->saddr);
 #else
-		pos = scnprintf(buf, size, "[%p6]", &sk->sk_v6_rcv_saddr);
+		pos = scnprintf(buf, size, "[%pI6]", &sk->sk_v6_rcv_saddr);
 #endif
 #endif
 		break;
