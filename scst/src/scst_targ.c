@@ -1346,7 +1346,7 @@ set_res:
 		if (cmd->data_direction & SCST_DATA_READ)
 			cmd->resp_data_len = cmd->bufflen;
 		else
-			 cmd->resp_data_len = 0;
+			cmd->resp_data_len = 0;
 	}
 
 #ifndef CONFIG_SCST_TEST_IO_IN_SIRQ
