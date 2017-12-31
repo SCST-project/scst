@@ -1,3 +1,6 @@
+# Please keep the entries in this file sorted with the following vi command:
+# :3,$!LC_ALL=C sort -fu
+
 *.cmd
 *.ko
 *.ko.unsigned
@@ -6,6 +9,7 @@
 *.o.d
 *.orig
 *~
+.cache.mk
 .depend_adm
 .depend_d
 .directory
@@ -33,4 +37,5 @@ scstadmin/scstadmin.*/scst-*/Makefile
 scstadmin/scstadmin.*/scst-*/MYMETA.yml
 scstadmin/scstadmin.*/scst-*/pm_to_blib
 srpt/build_mode
+srpt/conftest/*/result-*.txt
 TAGS
