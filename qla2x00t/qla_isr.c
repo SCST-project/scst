@@ -1173,7 +1173,6 @@ qla24xx_els_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 	uint16_t comp_status;
 	uint32_t fw_status[3];
 	uint8_t* fw_sts_ptr;
-	int res;
 
 	sp = qla2x00_get_sp_from_handle(vha, func, req, pkt);
 	if (!sp)
@@ -1214,7 +1213,6 @@ qla24xx_els_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 
 	if (comp_status != CS_COMPLETE) {
 		if (comp_status == CS_DATA_UNDERRUN) {
-			res = DID_OK << 16;
 #ifndef NEW_LIBFC_API
 			bsg_job->reply->reply_payload_rcv_len =
 #else
@@ -1245,7 +1243,6 @@ qla24xx_els_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 				pkt)->error_subcode_1),
 			    le16_to_cpu(((struct els_sts_entry_24xx *)
 				    pkt)->error_subcode_2));
-			res = DID_ERROR << 16;
 #ifndef NEW_LIBFC_API
 			bsg_job->reply->reply_payload_rcv_len = 0;
 #else
@@ -1263,7 +1260,6 @@ qla24xx_els_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 				(uint8_t *)pkt, sizeof(*pkt));
 	}
 	else {
-		res =  DID_OK << 16;
 #ifndef NEW_LIBFC_API
 		bsg_job->reply->reply_payload_rcv_len = bsg_job->reply_payload.payload_len;
 #else
