@@ -22,10 +22,14 @@ SHELL=/bin/bash
 
 KMOD := $(shell pwd)/kernel
 
+SCST_INC_DIR := $(shell if [ -e "$$PWD/../scst" ];			\
+                  then echo "$$PWD/../scst/include";			\
+                  else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
+
 enable-Wextra = $(shell uname_r="$$(uname -r)"; if [ "$${uname_r%.el5}" = "$${uname_r}" ]; then echo "$(1)"; fi)
 
 EXTRA_CFLAGS += $(call enable-Wextra,-Wextra -Wno-unused-parameter \
-	-Wno-missing-field-initializers)
+	-Wno-missing-field-initializers) -I$(SCST_INC_DIR)
 
 ifneq ($(CONFIG_SCSI_QLA2XXX_TARGET),)
 EXTRA_CFLAGS += -DCONFIG_SCSI_QLA2XXX_TARGET=$(CONFIG_SCSI_QLA2XXX_TARGET)
@@ -57,7 +61,7 @@ qla2xxx_scst-objs := qla_os.o qla_init.o qla_mbx.o qla_iocb.o qla_isr.o qla_gs.o
 else
 
 all:
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m
+	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m EXTRA_CFLAGS="$(EXTRA_CFLAGS)"
 
 install: all
 	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
