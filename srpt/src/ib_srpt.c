@@ -4359,9 +4359,8 @@ static void srpt_add_one(struct ib_device *device)
 		INIT_WORK(&sport->work, srpt_refresh_port_work);
 #endif
 		if (srpt_refresh_port(sport)) {
-			pr_err("MAD registration failed for %s-%d.\n",
+			pr_err("MAD registration failed for %s-%d. Note: this is expected for SR-IOV virtual functions.\n",
 			       sdev->device->name, i);
-			goto err_ring;
 		}
 	}
 
