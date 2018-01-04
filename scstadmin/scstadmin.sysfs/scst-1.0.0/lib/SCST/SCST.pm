@@ -2621,9 +2621,12 @@ sub deviceAttributes {
 					my $group = $3;
 					my $lun = $4;
 
+					next if ($target eq 'copy_manager');
 					$attributes{$attribute}->{'value'}->{$driver}->{$target}->{$group} = $lun;
 				}
 
+			}
+			if ($attributes{$attribute}->{'value'}) {
 				$attributes{$attribute}->{'static'} = TRUE;
 			}
 			close $eHandle;
