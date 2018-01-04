@@ -707,7 +707,7 @@ static int srpt_refresh_port(struct srpt_port *sport)
 
 	ret = ib_modify_port(sport->sdev->device, sport->port, 0, &port_modify);
 	if (ret) {
-		pr_warn("%s-%d: enabling device management failed (%d). Note: this is expected for SR-IOV virtual functions.\n",
+		pr_warn("%s-%d: enabling device management failed (%d). Note: this is expected if SR-IOV is enabled.\n",
 			sport->sdev->device->name, sport->port, ret);
 		goto register_tgt;
 	}
@@ -731,7 +731,7 @@ static int srpt_refresh_port(struct srpt_port *sport)
 #endif
 							 );
 		if (IS_ERR(sport->mad_agent)) {
-			pr_err("%s-%d: MAD agent registration failed (%ld). Note: this is expected for SR-IOV virtual functions.\n",
+			pr_err("%s-%d: MAD agent registration failed (%ld). Note: this is expected if SR-IOV is enabled.\n",
 			       sport->sdev->device->name, sport->port,
 			       PTR_ERR(sport->mad_agent));
 			sport->mad_agent = NULL;
