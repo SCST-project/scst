@@ -1355,6 +1355,11 @@ struct scst_dev_type {
 	unsigned auto_cm_assignment_possible:1;
 
 	/*
+	 * Set if this handler does not have run time devices management
+	 */
+	unsigned no_mgmt:1;
+
+	/*
 	 * Called to parse CDB from the cmd and initialize
 	 * cmd->bufflen and cmd->data_direction (both - REQUIRED).
 	 *

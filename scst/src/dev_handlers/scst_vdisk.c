@@ -865,7 +865,7 @@ static struct scst_dev_type vdisk_null_devtype = {
 		"blocksize, "
 		"dif_mode, "
 		"dif_type, "
-		"dif_static_app_tag, ",
+		"dif_static_app_tag, "
 		"dummy, "
 		"numa_node_id, "
 		"cluster_mode, "
