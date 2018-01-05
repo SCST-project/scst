@@ -399,4 +399,13 @@ do {									\
 #define SCST_SLAB_FLAGS 0L
 #endif
 
+#define PRINT_WARNING_ONCE(format, args...)			\
+do {								\
+	static bool __warned;					\
+	if (!__warned) {					\
+		__warned = true;				\
+		PRINT_WARNING(format, ## args);			\
+	}							\
+} while(0)
+
 #endif /* __SCST_DEBUG_H */

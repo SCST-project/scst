@@ -3847,7 +3847,7 @@ static int vdisk_unmap_file_range(struct scst_cmd *cmd,
 	res = fd->f_op->fallocate(fd,
 		FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, off, len);
 	if (unlikely(res != 0)) {
-		PRINT_ERROR("fallocate() for %lld, len %lld "
+		PRINT_WARNING_ONCE("fallocate() for %lld, len %lld "
 			"failed: %d", (unsigned long long)off,
 			(unsigned long long)len, res);
 		scst_set_cmd_error(cmd,
