@@ -52,6 +52,7 @@ sub testRestoreConfig {
     my $compare_result = system("diff -u $tmpfilename2 $expected >$diff");
     ok($compare_result, 0);
     if ($compare_result == 0) {
+	unlink($diff);
 	unlink($tmpfilename2);
 	unlink($tmpfilename1);
     }

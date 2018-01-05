@@ -2612,19 +2612,26 @@ sub deviceAttributes {
 
 				my $linked = readlink make_path($pPath, $export);
 
+				my $t = SCST_TARGETS;
 				my $g = SCST_GROUPS;
 				my $l = SCST_LUNS;
+				my ($driver, $target, $group, $lun) = "" x 4;
 
-				if ($linked =~ /.*\/(.+)\/(.+)\/$g\/(.+)\/$l\/(\d+)/) {
-					my $driver = $1;
-					my $target = $2;
-					my $group = $3;
-					my $lun = $4;
-
-					next if ($target eq 'copy_manager');
-					$attributes{$attribute}->{'value'}->{$driver}->{$target}->{$group} = $lun;
+				if ($linked =~ /^(\.\.\/)*$t\/([^\/]+)\/([^\/]+)\/$g\/([^\/]+)\/$l\/(\d+)$/) {
+					$driver = $2;
+					$target = $3;
+					$group = $4;
+					$lun = $5;
+				} elsif ($linked =~ /^(\.\.\/)*$t\/([^\/]+)\/([^\/]+)\/$l\/(\d+)$/) {
+					$driver = $2;
+					$target = $3;
+					$lun = $4;
+				} else {
+					print("internal error: could not parse $linked\n");
+					next;
 				}
-
+				next if ($driver eq 'copy_manager');
+				$attributes{$attribute}->{'value'}->{$driver}->{$target}->{$group} = $lun;
 			}
 			if ($attributes{$attribute}->{'value'}) {
 				$attributes{$attribute}->{'static'} = TRUE;
