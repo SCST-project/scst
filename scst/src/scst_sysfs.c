@@ -903,7 +903,7 @@ static ssize_t scst_tgtt_mgmt_show(struct kobject *kobj,
 		"\n"
 		"where parameters are one or more "
 		"param_name=value pairs separated by ';'\n\n"
-		"%s%s%s%s%s%s%s%s\n";
+		"%s%s%s%s%s%s%s%s%s%s\n";
 	struct scst_tgt_template *tgtt;
 
 	tgtt = container_of(kobj, struct scst_tgt_template, tgtt_kobj);
@@ -916,10 +916,12 @@ static ssize_t scst_tgtt_mgmt_show(struct kobject *kobj,
 			"       echo \"add_target_attribute target_name <attribute> <value>\" >mgmt\n"
 			"       echo \"del_target_attribute target_name <attribute> <value>\" >mgmt\n" : "",
 		(tgtt->mgmt_cmd_help) ? tgtt->mgmt_cmd_help : "",
+		(tgtt->mgmt_cmd_help) ? "\n" : "",
 		(tgtt->add_target_parameters != NULL) ?
 			"The following parameters available: " : "",
 		(tgtt->add_target_parameters != NULL) ?
 			tgtt->add_target_parameters : "",
+		(tgtt->add_target_parameters != NULL) ? "\n" : "",
 		(tgtt->tgtt_optional_attributes != NULL) ?
 			"The following target driver attributes available: " : "",
 		(tgtt->tgtt_optional_attributes != NULL) ?
@@ -5917,7 +5919,7 @@ static ssize_t scst_devt_mgmt_show(struct kobject *kobj,
 		"\n"
 		"where parameters are one or more "
 		"param_name=value pairs separated by ';'\n\n"
-		"%s%s%s%s%s%s%s%s\n";
+		"%s%s%s%s%s%s%s%s%s%s\n";
 	struct scst_dev_type *devt;
 
 	devt = container_of(kobj, struct scst_dev_type, devt_kobj);
@@ -5927,13 +5929,15 @@ static ssize_t scst_devt_mgmt_show(struct kobject *kobj,
 			"       echo \"add_attribute <attribute> <value>\" >mgmt\n"
 			"       echo \"del_attribute <attribute> <value>\" >mgmt\n" : "",
 		(devt->dev_optional_attributes != NULL) ?
-			"       echo \"add_device_attribute device_name <attribute> <value>\" >mgmt"
+			"       echo \"add_device_attribute device_name <attribute> <value>\" >mgmt\n"
 			"       echo \"del_device_attribute device_name <attribute> <value>\" >mgmt\n" : "",
 		(devt->mgmt_cmd_help) ? devt->mgmt_cmd_help : "",
+		(devt->mgmt_cmd_help) ? "\n" : "",
 		(devt->add_device_parameters != NULL) ?
 			"The following parameters available: " : "",
 		(devt->add_device_parameters != NULL) ?
 			devt->add_device_parameters : "",
+		(devt->add_device_parameters != NULL) ? "\n" : "",
 		(devt->devt_optional_attributes != NULL) ?
 			"The following dev handler attributes available: " : "",
 		(devt->devt_optional_attributes != NULL) ?
@@ -6232,7 +6236,7 @@ int scst_devt_sysfs_create(struct scst_dev_type *devt)
 	if (devt->add_device != NULL) {
 		res = sysfs_create_file(&devt->devt_kobj,
 				&scst_devt_mgmt.attr);
-	} else {
+	} else if (!devt->no_mgmt) {
 		res = sysfs_create_file(&devt->devt_kobj,
 				&scst_devt_pass_through_mgmt.attr);
 	}
