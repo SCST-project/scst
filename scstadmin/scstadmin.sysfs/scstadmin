@@ -3550,6 +3550,7 @@ sub listExported {
 	my $l_driver = length('Driver');
 	my $l_target = length('Target');
 	my $l_group  = length('Group');
+	my $fmt = "\t%-*s %-*s %-*s %-4s\n";
 
 	foreach my $driver (keys %{$exported}) {
 		$l_driver = length($driver)
@@ -3567,18 +3568,18 @@ sub listExported {
 	}
 
 	print "Device '$device' is currently in use by the following:\n\n";
-	printf("\t%-*s %-*s %-*s %-4s\n", $l_driver, 'Driver', $l_target, 'Target',
+	printf($fmt, $l_driver, 'Driver', $l_target, 'Target',
 	       $l_group, 'Group', 'Lun');
-	print "\t";
-	print join("", "-" x ($l_driver + $l_target + $l_group + 6));
-	print "\n";
+	printf($fmt, $l_driver, join("", "-" x $l_driver),
+	       $l_target, join("", "-" x $l_target),
+	       $l_group, join("", "-" x $l_group), join("", "-" x 4));
 
 	foreach my $driver (sort keys %{$exported}) {
 		foreach my $target (sort keys %{$$exported{$driver}}) {
 			foreach my $group (sort keys %{$$exported{$driver}->{$target}}) {
 				my $lun = $$exported{$driver}->{$target}->{$group};
-				printf("\t%-*s %-*s %-*s %-4s\n", $l_driver, $driver,
-				       $l_target, $target, $l_group, $group, $lun);
+				printf($fmt, $l_driver, $driver, $l_target,
+				       $target, $l_group, $group, $lun);
 			}
 		}
 	}
