@@ -8367,7 +8367,7 @@ EXPORT_SYMBOL_GPL(scst_register_session);
  * Description:
  *    Registers new MQ session. Returns new session on success or NULL otherwise.
  *
- *    MQ session is asession, which is part of a set of sessions from the same
+ *    MQ session is a session, which is part of a set of sessions from the same
  *    initiator, for instance, one session per CPU. The only difference with
  *    non-MQ sessions is that reservations are not supported on MQ-sessions
  *    (because there is no way to group sessions together from reservations POV)
