@@ -2800,6 +2800,14 @@ static int scst_reserve_local(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
+	if (cmd->sess->sess_mq) {
+		PRINT_WARNING_ONCE("MQ session (%p) from initiator %s (tgt %s), "
+			"reservations not supported", cmd->sess,
+			cmd->sess->initiator_name, cmd->sess->tgt->tgt_name);
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+		goto out_done;
+	}
+
 	if ((cmd->cdb[0] == RESERVE_10) && (cmd->cdb[2] & SCST_RES_3RDPTY)) {
 		PRINT_ERROR("RESERVE_10: 3rdPty RESERVE not implemented "
 		     "(lun=%lld)", (unsigned long long int)cmd->lun);
@@ -2867,6 +2875,14 @@ static int scst_release_local(struct scst_cmd *cmd)
 	struct scst_lksb pr_lksb;
 
 	TRACE_ENTRY();
+
+	if (cmd->sess->sess_mq) {
+		PRINT_WARNING_ONCE("MQ session (%p) from initiator %s (tgt %s), "
+			"reservations not supported", cmd->sess,
+			cmd->sess->initiator_name, cmd->sess->tgt->tgt_name);
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+		goto out_done;
+	}
 
 	dev = cmd->dev;
 
@@ -2944,6 +2960,14 @@ static int scst_persistent_reserve_in_local(struct scst_cmd *cmd)
 	dev = cmd->dev;
 	tgt_dev = cmd->tgt_dev;
 	session = cmd->sess;
+
+	if (session->sess_mq) {
+		PRINT_WARNING_ONCE("MQ session %p from initiator %s (tgt %s), "
+			"persistent reservations not supported", session,
+			session->initiator_name, session->tgt->tgt_name);
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+		goto out_done;
+	}
 
 	if (unlikely(dev->not_pr_supporting_tgt_devs_num != 0)) {
 		PRINT_WARNING("Persistent Reservation command %s refused for "
@@ -3047,6 +3071,14 @@ static int scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 	dev = cmd->dev;
 	tgt_dev = cmd->tgt_dev;
 	session = cmd->sess;
+
+	if (session->sess_mq) {
+		PRINT_WARNING_ONCE("MQ session (%p) from initiator %s (tgt %s), "
+			"persistent reservations not supported", session,
+			session->initiator_name, session->tgt->tgt_name);
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+		goto out_done;
+	}
 
 	if (unlikely(dev->not_pr_supporting_tgt_devs_num != 0)) {
 		PRINT_WARNING("Persistent Reservation command %s refused for "
@@ -8241,6 +8273,54 @@ failed:
 	return res;
 }
 
+static struct scst_session *__scst_register_session(struct scst_tgt *tgt, int atomic,
+	const char *initiator_name, void *tgt_priv, void *result_fn_data,
+	void (*result_fn)(struct scst_session *sess, void *data, int result), bool mq)
+{
+	struct scst_session *sess;
+	int res;
+	unsigned long flags;
+
+	TRACE_ENTRY();
+
+	sess = scst_alloc_session(tgt, atomic ? GFP_ATOMIC : GFP_KERNEL,
+		initiator_name);
+	if (sess == NULL)
+		goto out;
+
+	TRACE_DBG("New sess %p, mq %d", sess, mq);
+
+	scst_sess_set_tgt_priv(sess, tgt_priv);
+	sess->sess_mq = mq;
+
+	scst_sess_get(sess); /* one for registered session */
+	scst_sess_get(sess); /* one held until sess is inited */
+
+	if (atomic) {
+		sess->reg_sess_data = result_fn_data;
+		sess->init_result_fn = result_fn;
+		spin_lock_irqsave(&scst_mgmt_lock, flags);
+		TRACE_DBG("Adding sess %p to scst_sess_init_list", sess);
+		list_add_tail(&sess->sess_init_list_entry,
+			      &scst_sess_init_list);
+		spin_unlock_irqrestore(&scst_mgmt_lock, flags);
+		wake_up(&scst_mgmt_waitQ);
+	} else {
+		res = scst_init_session(sess);
+		if (res != 0)
+			goto out_free;
+	}
+
+out:
+	TRACE_EXIT();
+	return sess;
+
+out_free:
+	scst_free_session(sess);
+	sess = NULL;
+	goto out;
+}
+
 /**
  * scst_register_session() - register session
  * @tgt:	target
@@ -8288,47 +8368,30 @@ struct scst_session *scst_register_session(struct scst_tgt *tgt, int atomic,
 	const char *initiator_name, void *tgt_priv, void *result_fn_data,
 	void (*result_fn)(struct scst_session *sess, void *data, int result))
 {
-	struct scst_session *sess;
-	int res;
-	unsigned long flags;
-
-	TRACE_ENTRY();
-
-	sess = scst_alloc_session(tgt, atomic ? GFP_ATOMIC : GFP_KERNEL,
-		initiator_name);
-	if (sess == NULL)
-		goto out;
-
-	scst_sess_set_tgt_priv(sess, tgt_priv);
-
-	scst_sess_get(sess); /* one for registered session */
-	scst_sess_get(sess); /* one held until sess is inited */
-
-	if (atomic) {
-		sess->reg_sess_data = result_fn_data;
-		sess->init_result_fn = result_fn;
-		spin_lock_irqsave(&scst_mgmt_lock, flags);
-		TRACE_DBG("Adding sess %p to scst_sess_init_list", sess);
-		list_add_tail(&sess->sess_init_list_entry,
-			      &scst_sess_init_list);
-		spin_unlock_irqrestore(&scst_mgmt_lock, flags);
-		wake_up(&scst_mgmt_waitQ);
-	} else {
-		res = scst_init_session(sess);
-		if (res != 0)
-			goto out_free;
-	}
-
-out:
-	TRACE_EXIT();
-	return sess;
-
-out_free:
-	scst_free_session(sess);
-	sess = NULL;
-	goto out;
+	return __scst_register_session(tgt, atomic, initiator_name, tgt_priv, result_fn_data,
+		result_fn, false);
 }
 EXPORT_SYMBOL_GPL(scst_register_session);
+
+/**
+ * scst_register_session_mq() - register multi-queue session
+ *
+ * Description:
+ *    Registers new MQ session. Returns new session on success or NULL otherwise.
+ *
+ *    MQ session is a session, which is part of a set of sessions from the same
+ *    initiator, for instance, one session per CPU. The only difference with
+ *    non-MQ sessions is that reservations are not supported on MQ-sessions
+ *    (because there is no way to group sessions together from reservations POV)
+ */
+struct scst_session *scst_register_session_mq(struct scst_tgt *tgt, int atomic,
+	const char *initiator_name, void *tgt_priv, void *result_fn_data,
+	void (*result_fn)(struct scst_session *sess, void *data, int result))
+{
+	return __scst_register_session(tgt, atomic, initiator_name, tgt_priv, result_fn_data,
+		result_fn, true);
+}
+EXPORT_SYMBOL_GPL(scst_register_session_mq);
 
 /**
  * scst_register_session_non_gpl() - register session (non-GPL version)
