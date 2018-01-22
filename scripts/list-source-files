@@ -1,29 +1,25 @@
 #!/bin/bash
 
-inode() {
-    ls -id "$1" | { read a b; echo "$a"; }
-}
-
 list_source_files() {
   local d r
 
   d="$(cd "$1" && echo "$PWD")"
   r="$d"
-  inode_root="$(inode /)"
-  while [ $(inode "$r") != "${inode_root}" -a \
-          ! -e "$r/.svn" -a ! -e "$r/.git" -a ! -e "$r/.hg" ]; do
-    r="$r/.."
+  while [ "$r" != "/" ] && [ ! -e "$r/.svn" ] && [ ! -e "$r/.git" ] &&
+	[ ! -e "$r/.hg" ]; do
+    r="$(dirname "$r")"
   done
 
   if [ -e "$r/.svn" ]; then
     (
-      cd "$d"
+      cd "$d" || exit $?
       svn status -v | \
       grep -vE '^[D?]|^Performing|^$' | \
-      cut -c41- | \
-      while read f; do
+      cut -c3- | \
+      while read -r a b c f; do
         if [ -f "$f" ]; then
-          echo "$f"
+	  echo "$a $b $c" >/dev/null
+	  echo "$f"
         fi
       done
     )
