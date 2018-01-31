@@ -2746,9 +2746,14 @@ static int __init init_scst(void)
 		goto out_thread_free;
 #endif
 
+#ifdef CONFIG_SCST_NO_TOTAL_MEM_CHECKS
+	PRINT_INFO("SCST version %s loaded successfully (global max mem for commands "
+		"ignored, per device %dMB)", SCST_VERSION_STRING, scst_max_dev_cmd_mem);
+#else
 	PRINT_INFO("SCST version %s loaded successfully (max mem for "
 		"commands %dMB, per device %dMB)", SCST_VERSION_STRING,
 		scst_max_cmd_mem, scst_max_dev_cmd_mem);
+#endif
 
 	scst_print_config();
 

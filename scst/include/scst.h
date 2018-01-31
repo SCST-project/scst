@@ -30,6 +30,7 @@
 /** See README for description of those conditional defines **/
 #define CONFIG_SCST_DIF_INJECT_CORRUPTED_TAGS
 /* #define CONFIG_SCST_FORWARD_MODE_PASS_THROUGH */
+#define CONFIG_SCST_NO_TOTAL_MEM_CHECKS
 
 #include <linux/types.h>
 #ifndef INSIDE_KERNEL_TREE
