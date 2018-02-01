@@ -2,6 +2,21 @@
 
 shopt -s nullglob
 
+usage() {
+    echo "Usage: $(basename "$0") [ -x <exclude> ]*"
+    exit 1
+}
+
+word_in_list() {
+    local a word=$1
+
+    shift
+    for a in "$@"; do
+	[ "$word" = "$a" ] && return 0
+    done
+    return 1
+}
+
 remove_empty_directories() {
     find . -depth -type d |
         sed 's|^\./||' |
@@ -16,11 +31,21 @@ remove_empty_directories() {
 	done
 }
 
-if [ $# = 0 ]; then
-  # shellcheck source=clean-source-tree
-  . "$0" .
-else
-  for d in "$@"; do
+exclude=("TAGS")
+git_options=(-e TAGS)
+
+while [ "${1#-}" != "$1" ]; do
+    case "$1" in
+	-x)
+	    exclude+=("$2")
+	    git_options+=(-e "$2")
+	    shift; shift;;
+	*)
+	    usage;;
+    esac
+done
+
+for d in "${@-.}"; do
   (
     if cd "$d"; then
       if [ -e .svn ]; then
@@ -30,14 +55,14 @@ else
         fi
         "$(dirname "$0")"/list-non-source-files |
           while read -r f; do
-	    if [ "$f" != "TAGS" ]; then rm -rf -- "$f"; fi;
+	    if ! word_in_list "$f" "${exclude[@]}"; then rm -rf -- "$f"; fi;
 	  done
       elif [ -e .git ] || [ -e ../.git ]; then
         if ! type -p git >&/dev/null; then
           echo "$0: git: not found."
           exit 0
         fi
-        git clean -f -d -x -e TAGS >/dev/null
+        git clean -f -d -x "${git_options[@]}" >/dev/null
         remove_empty_directories
       elif [ -e .hg ] || [ -e ../.hg ]; then
         if ! type -p hg >&/dev/null; then
@@ -50,5 +75,4 @@ else
       fi
     fi
   )
-  done
-fi
+done

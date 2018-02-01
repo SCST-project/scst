@@ -6861,6 +6861,14 @@ int scst_cmp_wr_local(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
+	if (cmd->sess->sess_mq) {
+		PRINT_WARNING_ONCE("MQ session (%p) from initiator %s (tgt %s), "
+			"COMPARE AND WRITE not supported", cmd->sess,
+			cmd->sess->initiator_name, cmd->sess->tgt->tgt_name);
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+		goto out_done;
+	}
+
 	/* COMPARE AND WRITE is SBC only command */
 	EXTRACHECKS_BUG_ON(cmd->dev->type != TYPE_DISK);
 

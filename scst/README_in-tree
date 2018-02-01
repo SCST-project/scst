@@ -253,6 +253,10 @@ your favorite kernel configuration Makefile target, e.g. "make xconfig":
    target attribute on the remote node. See below for more details.
    Disabled by default for safety.
 
+ - CONFIG_SCST_NO_TOTAL_MEM_CHECKS - disables checks of allocated
+   memory, see scst_max_cmd_mem below. Allows to avoid 2 global
+   variables on the fast path, hence get better multi-queue performance.
+
 HIGHMEM kernel configurations are fully supported, but not recommended
 for performance reasons.
 

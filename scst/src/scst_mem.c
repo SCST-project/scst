@@ -56,7 +56,9 @@ static struct lockdep_map scst_pool_dep_map =
 
 static struct sgv_pool *sgv_norm_clust_pool, *sgv_norm_pool, *sgv_dma_pool;
 
+#ifndef CONFIG_SCST_NO_TOTAL_MEM_CHECKS
 static atomic_t sgv_pages_total = ATOMIC_INIT(0);
+#endif
 
 /* Both read-only */
 static int sgv_hi_wmk;
@@ -70,7 +72,9 @@ static DEFINE_MUTEX(sgv_pools_mutex);
 static atomic_t sgv_releases_on_hiwmk = ATOMIC_INIT(0);
 static atomic_t sgv_releases_on_hiwmk_failed = ATOMIC_INIT(0);
 
+#ifndef CONFIG_SCST_NO_TOTAL_MEM_CHECKS
 static atomic_t sgv_other_total_alloc = ATOMIC_INIT(0);
+#endif
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23))
 static struct shrinker *sgv_shrinker;
@@ -182,7 +186,9 @@ static void __sgv_purge_from_cache(struct sgv_pool_obj *obj)
 	pool->inactive_cached_pages -= pages;
 	sgv_dec_cached_entries(pool, pages);
 
+#ifndef CONFIG_SCST_NO_TOTAL_MEM_CHECKS
 	atomic_sub(pages, &sgv_pages_total);
+#endif
 
 	return;
 }
@@ -223,7 +229,11 @@ static int sgv_shrink_pool(struct sgv_pool *pool, int nr, int min_interval,
 	spin_lock_bh(&pool->sgv_pool_lock);
 
 	while (!list_empty(&pool->sorted_recycling_list) &&
+#ifdef CONFIG_SCST_NO_TOTAL_MEM_CHECKS
+			true) {
+#else
 			(atomic_read(&sgv_pages_total) > sgv_lo_wmk)) {
+#endif
 		struct sgv_pool_obj *obj = list_first_entry(
 			&pool->sorted_recycling_list,
 			struct sgv_pool_obj, sorted_recycling_list_entry);
@@ -305,7 +315,9 @@ static unsigned long __sgv_can_be_shrunk(void)
 	spin_unlock_bh(&sgv_pools_lock);
 
 	res = max(0, inactive_pages - sgv_lo_wmk);
+#ifndef CONFIG_SCST_NO_TOTAL_MEM_CHECKS
 	TRACE_MEM("Can free %ld (total %d)", res, atomic_read(&sgv_pages_total));
+#endif
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -790,6 +802,7 @@ static void sgv_put_obj(struct sgv_pool_obj *obj)
 static int sgv_hiwmk_check(int pages_to_alloc)
 {
 	int res = 0;
+#ifndef CONFIG_SCST_NO_TOTAL_MEM_CHECKS
 	int pages = pages_to_alloc;
 
 	pages += atomic_read(&sgv_pages_total);
@@ -820,16 +833,18 @@ static int sgv_hiwmk_check(int pages_to_alloc)
 out_unlock:
 	TRACE_MEM("pages_to_alloc %d, new total %d", pages_to_alloc,
 		atomic_read(&sgv_pages_total));
-
+#endif
 	return res;
 }
 
 /* No locks */
 static void sgv_hiwmk_uncheck(int pages)
 {
+#ifndef CONFIG_SCST_NO_TOTAL_MEM_CHECKS
 	atomic_sub(pages, &sgv_pages_total);
 	TRACE_MEM("pages %d, new total %d", pages,
 		atomic_read(&sgv_pages_total));
+#endif
 	return;
 }
 
@@ -1246,7 +1261,9 @@ struct scatterlist *scst_alloc_sg(int size, gfp_t gfp_mask, int *count)
 
 	TRACE_ENTRY();
 
+#ifndef CONFIG_SCST_NO_TOTAL_MEM_CHECKS
 	atomic_inc(&sgv_other_total_alloc);
+#endif
 
 	if (unlikely(sgv_hiwmk_check(pages) != 0)) {
 		if (!no_fail) {
@@ -1949,6 +1966,7 @@ int sgv_procinfo_show(struct seq_file *seq, void *v)
 	}
 	spin_unlock_bh(&sgv_pools_lock);
 
+#ifndef CONFIG_SCST_NO_TOTAL_MEM_CHECKS
 	seq_printf(seq, "%-42s %d/%d\n%-42s %d/%d\n%-42s %d/%d\n\n",
 		"Inactive/active pages", inactive_pages,
 		atomic_read(&sgv_pages_total) - inactive_pages,
@@ -1956,6 +1974,7 @@ int sgv_procinfo_show(struct seq_file *seq, void *v)
 		"Hi watermark releases/failures",
 		atomic_read(&sgv_releases_on_hiwmk),
 		atomic_read(&sgv_releases_on_hiwmk_failed));
+#endif
 
 	seq_printf(seq, "%-30s %-11s %-11s %-11s %-11s", "Name", "Hit", "Total",
 		"% merged", "Cached (P/I/O)");
@@ -1966,8 +1985,10 @@ int sgv_procinfo_show(struct seq_file *seq, void *v)
 	}
 	mutex_unlock(&sgv_pools_mutex);
 
+#ifndef CONFIG_SCST_NO_TOTAL_MEM_CHECKS
 	seq_printf(seq, "\n%-42s %-11d\n", "other",
 		atomic_read(&sgv_other_total_alloc));
+#endif
 
 	TRACE_EXIT();
 	return 0;
@@ -2074,6 +2095,9 @@ static ssize_t sgv_sysfs_global_stat_show(struct kobject *kobj,
 	}
 	spin_unlock_bh(&sgv_pools_lock);
 
+#ifdef CONFIG_SCST_NO_TOTAL_MEM_CHECKS
+	res = sprintf(buf, "%-42s %d\n", "Inactive pages", inactive_pages);
+#else
 	res = sprintf(buf, "%-42s %d/%d\n%-42s %d/%d\n%-42s %d/%d\n"
 		"%-42s %-11d\n",
 		"Inactive/active pages", inactive_pages,
@@ -2083,6 +2107,7 @@ static ssize_t sgv_sysfs_global_stat_show(struct kobject *kobj,
 		atomic_read(&sgv_releases_on_hiwmk),
 		atomic_read(&sgv_releases_on_hiwmk_failed),
 		"Other allocs", atomic_read(&sgv_other_total_alloc));
+#endif
 
 	TRACE_EXIT();
 	return res;
@@ -2095,7 +2120,9 @@ static ssize_t sgv_sysfs_global_stat_reset(struct kobject *kobj,
 
 	atomic_set(&sgv_releases_on_hiwmk, 0);
 	atomic_set(&sgv_releases_on_hiwmk_failed, 0);
+#ifndef CONFIG_SCST_NO_TOTAL_MEM_CHECKS
 	atomic_set(&sgv_other_total_alloc, 0);
+#endif
 
 	PRINT_INFO("%s", "Global SGV pool statistics reset");
 

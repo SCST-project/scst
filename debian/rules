@@ -1,0 +1,105 @@
+#!/usr/bin/make -f
+# See debhelper(7) (uncomment to enable)
+# output every command that modifies files on the build system.
+export DH_VERBOSE = 1
+
+
+# see FEATURE AREAS in dpkg-buildflags(1)
+#export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+# see ENVIRONMENT in dpkg-buildflags(1)
+# package maintainers to append CFLAGS
+#export DEB_CFLAGS_MAINT_APPEND  = -Wall -pedantic
+# package maintainers to append LDFLAGS
+#export DEB_LDFLAGS_MAINT_APPEND = -Wl,--as-needed
+
+SUBDIRS=scst fcst iscsi-scst qla2x00t/qla2x00-target scst_local scstadmin srpt
+DESTDIR=$(CURDIR)/debian/tmp
+VERSION:=$(shell head -n1 debian/changelog | sed 's/.*(\([0-9.]*\).*).*/\1/')
+
+%:
+	echo "*** dh $@ ***"
+	dh $@
+
+clean:
+	dh_testdir &&							\
+	dh_prep -Xqla_isp/TAGS -Xdebian/changelog &&			\
+	scripts/clean-source-tree -x debian/changelog
+
+build:
+	export BUILD_2X_MODULE=y &&					\
+	export CONFIG_SCSI_QLA_FC=y CONFIG_SCSI_QLA2XXX_TARGET=y &&	\
+	for d in $(SUBDIRS); do $(MAKE) -C $$d; done &&			\
+	{								\
+		echo dkms.conf &&					\
+		echo Makefile &&					\
+		for d in fcst iscsi-scst qla2x00t scst scst_local srpt; do\
+			echo $$d;					\
+		done;							\
+	} | sed "s,^,usr/src/scst-$(VERSION)/," >debian/scst-dkms.install
+
+build-indep: build
+
+build-arch: build
+
+install:
+	[ -n "$(VERSION)" ] &&						\
+	dh_testdir &&							\
+	export PREFIX=/usr &&						\
+	export DESTDIR="$(DESTDIR)" &&					\
+	export BUILD_2X_MODULE=y &&					\
+	export CONFIG_SCSI_QLA_FC=y CONFIG_SCSI_QLA2XXX_TARGET=y &&	\
+	for d in $(SUBDIRS); do						\
+	    if [ $$d = scst ]; then					\
+		{ $(MAKE) -C $$d install || break; }			\
+	    else							\
+		{ INSTALL_MOD_PATH="$(DESTDIR)" $(MAKE) -C $$d install; } ||\
+		    break;						\
+	    fi;								\
+	done &&								\
+	rm -f "$(DESTDIR)"/lib/modules/*/[Mm]odule* &&			\
+	mkdir -p $(DESTDIR)/usr/src/scst-$(VERSION) &&			\
+	for f in scst.dkms scst-dkms.postinst scst-dkms.prerm; do	\
+		sed "s/\$${PACKAGE_VERSION}/$(VERSION)/"		\
+			< debian/$$f.in >debian/$$f || exit $?;	 	\
+	done &&								\
+	cp debian/scst.dkms						\
+		$(DESTDIR)/usr/src/scst-$(VERSION)/dkms.conf &&		\
+	scripts/list-source-files |					\
+	grep -E '^Makefile$$|^(fcst|iscsi-scst|qla2x00t|scst|scst_local|srpt)/'|\
+	tar -T- -cf- |							\
+	tar -C $(DESTDIR)/usr/src/scst-$(VERSION) -xf- &&		\
+	chmod -R 0644 $(DESTDIR)/usr/src/scst-$(VERSION) &&		\
+	chmod 0644 "$(DESTDIR)"/usr/lib/*/perl/*/auto/SCST_SCST/.packlist "$(DESTDIR)"/usr/share/perl/*/SCST/SCST.pm &&			\
+	chmod 0755 "$(DESTDIR)"/usr/lib/*/perl/*/auto/SCST_SCST &&	\
+	mkdir -p "$(DESTDIR)"/usr/share/man &&				\
+	{ tar -C "$(DESTDIR)"/usr/man -cf- . |				\
+	  tar -C "$(DESTDIR)"/usr/share/man -xf-; } &&			\
+	rm -rf "$(DESTDIR)"/usr/man &&					\
+	dh_strip &&							\
+	dh_compress &&							\
+	dh_install &&							\
+	dh_installdeb &&						\
+	dh_installman &&						\
+	dh_installchangelogs &&						\
+	dh_shlibdeps &&							\
+	dh_gencontrol &&						\
+	dh_md5sums &&							\
+	dh_builddeb
+
+binary-indep: install
+
+binary-arch: install
+
+binary: binary-indep binary-arch
+
+override_dh_installinit:
+	dh_installinit --onlyscripts
+
+# dh_make generated override targets
+# This is example for Cmake (See https://bugs.debian.org/641051 )
+#override_dh_auto_configure:
+#	dh_auto_configure -- #	-DCMAKE_LIBRARY_PATH=$(DEB_HOST_MULTIARCH)
+
+.PHONY: clean binary binary-arch binary-indep build build-arch build-indep \
+	install

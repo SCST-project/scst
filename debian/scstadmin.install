@@ -1,0 +1,8 @@
+etc/init.d/scst
+usr/sbin/scstadmin
+usr/share/perl/*/SCST/SCST.pm
+usr/lib/*/perl/*/auto/SCST_SCST
+usr/share/man/man3/SCST::SCST.3pm*
+usr/share/man/man1/scstadmin.1*
+usr/share/man/man5/scst.5*
+usr/share/man/man5/scst.conf.5*

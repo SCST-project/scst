@@ -1,0 +1,425 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: SCST
+Source: <https://sourceforge.net/p/scst/svn/HEAD/tree/trunk/>
+
+Files: *
+Copyright: 2008-2017, Bart Van Assche <bvanassche@acm.org>
+           2004-2017, Vladislav Bolkhovitin <vst@vlnb.net>
+License: GPL-2+
+
+Files: Makefile
+       fcst/Makefile
+       fcst/fcst.h
+       fcst/ft_cmd.c
+       fcst/ft_scst.c
+       fcst/ft_sess.c
+       ibmvstgt/src/orig/2.6.35/scsi_transport_srp.c
+       ibmvstgt/src/orig/2.6.36/scsi_transport_srp.c
+       ibmvstgt/src/scsi_transport_srp.c
+       mpt/Makefile
+       mvsas_tgt/Makefile
+       mvsas_tgt/mv_64xx.c
+       mvsas_tgt/mv_64xx.h
+       mvsas_tgt/mv_94xx.c
+       mvsas_tgt/mv_94xx.h
+       mvsas_tgt/mv_chips.h
+       mvsas_tgt/mv_defs.h
+       mvsas_tgt/mv_init.c
+       mvsas_tgt/mv_sas.c
+       mvsas_tgt/mv_sas.h
+       mvsas_tgt/mv_spi.c
+       mvsas_tgt/mv_spi.h
+       mvsas_tgt/mv_tgt.c
+       mvsas_tgt/mv_tgt.h
+       qla2x00t/qla2x00-target/Makefile
+       qla2x00t/qla2x00-target/qla2x00t.c
+       qla2x00t/qla2x00-target/qla2x00t.h
+       scripts/blockdev-perftest
+       scripts/filter-trace-entry-exit
+       scripts/generate-kernel-patch
+       scripts/generate-patched-kernel
+       scripts/generate-scst-patch
+       scripts/list-double-blank-lines
+       scripts/monitor-memory-usage
+       scripts/rebuild-rhel-kernel-rpm
+       scripts/run-regression-tests
+       scripts/specialize-patch
+       scst-dkms.spec.in
+       scst.spec.in
+       usr/Makefile
+       usr/fileio/Makefile
+       usr/fileio/common.c
+       usr/fileio/common.h
+       usr/fileio/fileio.c
+       usr/include/*
+Copyright: 2008-2017, Bart Van Assche <bvanassche@acm.org>
+           2012, Chetan Loke <loke.chetan@gmail.com>
+           2010, Cisco Systems, Inc
+           2007, FUJITA Tomonori <tomof@acm.org>
+           2006-2008, Jacky Feng <jfeng@marvell.com>
+           2004-2005, Leonid Stoljar
+           2008, Marvell <kewei@marvell.com>
+           2006, Nathaniel Clark <nate@misrule.us>
+           2007, Red Hat, Inc
+           2007-2017, SanDisk Corporation
+           2004-2017, Vladislav Bolkhovitin <vst@vlnb.net>
+License: GPL-2
+
+Files: ibmvstgt/src/SLES-10-SP3-ibmvscsis.c
+       ibmvstgt/src/ibmvscsi.h
+       ibmvstgt/src/ibmvstgt.c
+       ibmvstgt/src/libsrp.c
+       ibmvstgt/src/orig/2.6.35/ibmvstgt.c
+       ibmvstgt/src/orig/2.6.35/libsrp.c
+       ibmvstgt/src/orig/2.6.35/scsi_tgt_if.c
+       ibmvstgt/src/orig/2.6.35/scsi_tgt_if.h
+       ibmvstgt/src/orig/2.6.35/scsi_tgt_lib.c
+       ibmvstgt/src/orig/2.6.35/scsi_transport_fc.c
+       ibmvstgt/src/orig/2.6.36/ibmvstgt.c
+       ibmvstgt/src/orig/2.6.36/libsrp.c
+       ibmvstgt/src/orig/2.6.36/scsi_tgt_if.c
+       ibmvstgt/src/orig/2.6.36/scsi_tgt_if.h
+       ibmvstgt/src/orig/2.6.36/scsi_tgt_lib.c
+       ibmvstgt/src/orig/2.6.36/scsi_transport_fc.c
+       ibmvstgt/src/scsi_transport_fc.c
+       ibmvstgt/src/viosrp.h
+       mpt/mpt_scst.c
+       qla2x00t/qla2x_tgt.h
+       qla2x00t/qla2x_tgt_def.h
+Copyright: 2010, Bart Van Assche <bvanassche@acm.org>
+           2005, Beijing Soul Technology Co., Ltd
+           2003-2005, Dave Boutcher (boutcher@us.ibm.com) IBM Corp
+           2005-2006, FUJITA Tomonori <tomof@acm.org>
+           1994-2003, IBM Corporation
+           2004-2007, James Smart, Emulex Corporation
+           2002-2004, LSI Logic Corporation
+           2004-2005, Leonid Stoljar
+           2005, Mike Christie <michaelc@cs.wisc.edu>
+           2006, Nathaniel Clark <nate@misrule.us>
+           2007-2017, SanDisk Corporation
+           2003, Silicon Graphics, Inc
+           2004-2017, Vladislav Bolkhovitin <vst@vlnb.net>
+License: GPL-2+
+
+Files: debian/*
+Copyright: 2018, Bart Van Assche <bvanassche@acm.org>
+License: GPL-2+
+
+Files: iscsi-scst/*
+Copyright: 2002-2003, Ardis Technologies <roman@ardistech.com>
+           2007-2014, Fusion-io, Inc
+           2001-2003, InterOperability Lab (IOL)
+           2012, Riccardo Bicelli
+           2012, Riccardo Bicelli <r.bicelli@gmail.com>
+           2007-2017, SanDisk Corporation
+           2007-2017, Vladislav Bolkhovitin
+           2004, Xiranet Communications GmbH <arne.redlich@xiranet.com>
+License: GPL-2
+
+Files: iscsi-scst/AskingQuestions
+       iscsi-scst/ChangeLog
+       iscsi-scst/Makefile
+       iscsi-scst/Makefile_user_space_only
+       iscsi-scst/README
+       iscsi-scst/README.iser
+       iscsi-scst/README.iser_ofed
+       iscsi-scst/README_in-tree
+       iscsi-scst/ToDo
+       iscsi-scst/doc/*
+       iscsi-scst/etc/*
+       iscsi-scst/include/iscsit_transport.h
+       iscsi-scst/include/isert_scst.h
+       iscsi-scst/kernel/Kconfig
+       iscsi-scst/kernel/Makefile.in-kernel
+       iscsi-scst/kernel/iscsit_transport.c
+       iscsi-scst/kernel/patches/put_page_callback-2.6.16.29.patch
+       iscsi-scst/kernel/patches/put_page_callback-2.6.18.1.patch
+       iscsi-scst/kernel/patches/put_page_callback-2.6.21.1.patch
+       iscsi-scst/kernel/patches/put_page_callback-2.6.22.patch
+       iscsi-scst/kernel/patches/put_page_callback-2.6.23.patch
+       iscsi-scst/kernel/patches/put_page_callback-2.6.24.patch
+       iscsi-scst/kernel/patches/put_page_callback-2.6.25.patch
+       iscsi-scst/kernel/patches/rhel/put_page_callback-2.6.18.patch
+       iscsi-scst/kernel/patches/rhel/put_page_callback-rhel5.patch
+       iscsi-scst/usr/sha1.h
+Copyright: 2007-2017, Vladislav Bolkhovitin
+License: GPL-2
+
+Files: iscsi-scst/conftest/*
+Copyright: 2015-2018, Bart Van Assche
+License: GPL-2
+
+Files: iscsi-scst/kernel/config.c
+       iscsi-scst/kernel/digest.c
+       iscsi-scst/kernel/digest.h
+       iscsi-scst/kernel/event.c
+       iscsi-scst/kernel/nthread.c
+       iscsi-scst/kernel/param.c
+       iscsi-scst/usr/config.c
+       iscsi-scst/usr/ctldev.c
+       iscsi-scst/usr/event.c
+       iscsi-scst/usr/iscsi_adm.c
+       iscsi-scst/usr/message.c
+       iscsi-scst/usr/param.c
+       iscsi-scst/usr/param.h
+Copyright: 2004-2005, FUJITA Tomonori <tomof@acm.org>
+           2007-2017, SanDisk Corporation
+           2007-2017, Vladislav Bolkhovitin
+           2004-2006, Xiranet Communications GmbH
+           2004, Xiranet Communications GmbH <arne.redlich@xiranet.com>
+License: GPL
+
+Files: iscsi-scst/COPYING
+       iscsi-scst/usr/isns.c
+       iscsi-scst/usr/isns_proto.h
+       iscsi-scst/usr/md5.c
+       iscsi-scst/usr/sha1.c
+Copyright: Alan Smithee
+           Andrew McDonald <andrew@mcdonald.org.uk>
+           Cryptoapi developers
+           2006, FUJITA Tomonori <tomof@acm.org>
+           1989-1991, Free Software Foundation, Inc
+           2002, James Morris <jmorris@intercode.com.au>
+           Jean-Francois Dive <jef@linuxbe.org>
+           2007-2017, SanDisk Corporation
+           2007-2017, Vladislav Bolkhovitin
+License: GPL-2+
+
+Files: iscsi-scst/kernel/isert-scst/Kconfig
+       iscsi-scst/kernel/isert-scst/Makefile.in-kernel
+       iscsi-scst/kernel/isert-scst/TODO
+       iscsi-scst/kernel/isert-scst/iser.h
+       iscsi-scst/kernel/isert-scst/iser_buf.c
+       iscsi-scst/kernel/isert-scst/iser_datamover.c
+       iscsi-scst/kernel/isert-scst/iser_datamover.h
+       iscsi-scst/kernel/isert-scst/iser_global.c
+       iscsi-scst/kernel/isert-scst/iser_hdr.h
+       iscsi-scst/kernel/isert-scst/iser_pdu.c
+       iscsi-scst/kernel/isert-scst/iser_rdma.c
+       iscsi-scst/kernel/isert-scst/isert.c
+       iscsi-scst/kernel/isert-scst/isert.h
+       iscsi-scst/kernel/isert-scst/isert_login.c
+Copyright: 2013-2014, Mellanox Technologies
+           2013-2014, Yan Burman <yanb@mellanox.com>
+License: GPL-2+
+
+Files: iscsi-scst/usr/md5.h
+Copyright: 1993, Colin Plumb
+           Ian Jackson
+License: public-domain
+
+Files: qla_isp/*
+Copyright: 1997-2009, Matthew Jacob
+           2007-2008, Open-E Inc
+           2007, Stanislaw Gruszka
+License: BSD-2-clause
+
+Files: qla_isp/ChangeLog
+       qla_isp/FIRMWARE.readme
+       qla_isp/Makefile
+       qla_isp/README
+       qla_isp/README.scst
+       qla_isp/TAGS
+       qla_isp/linux-2.6/*
+Copyright: 2006-2008, Matthew Jacob
+License: BSD-2-clause
+
+Files: qla_isp/firmware/asm_1000.h
+       qla_isp/firmware/asm_1040.h
+       qla_isp/firmware/asm_1080.h
+       qla_isp/firmware/asm_12160.h
+       qla_isp/firmware/asm_2100.h
+       qla_isp/firmware/asm_2200.h
+       qla_isp/firmware/asm_2300.h
+       qla_isp/firmware/asm_2322.h
+       qla_isp/firmware/asm_2400.h
+       qla_isp/firmware/asm_2500.h
+Copyright: 1995-2008, Qlogic, Inc
+License: BSD-3-clause
+
+Files: qla_isp/linux/isp_linux.c
+Copyright: 1997-2009, Matthew Jacob
+License: BSD-2-clause or GPL
+
+Files: scst/*
+Copyright: 2013-2017, SanDisk Corporation
+License: GPL-2+
+
+Files: scst/Makefile
+       scst/include/backport.h
+       scst/include/scst.h
+       scst/include/scst_const.h
+       scst/include/scst_debug.h
+       scst/include/scst_sgv.h
+       scst/include/scst_user.h
+       scst/src/Makefile
+       scst/src/dev_handlers/Makefile
+       scst/src/dev_handlers/scst_cdrom.c
+       scst/src/dev_handlers/scst_changer.c
+       scst/src/dev_handlers/scst_disk.c
+       scst/src/dev_handlers/scst_modisk.c
+       scst/src/dev_handlers/scst_processor.c
+       scst/src/dev_handlers/scst_raid.c
+       scst/src/dev_handlers/scst_tape.c
+       scst/src/dev_handlers/scst_user.c
+       scst/src/dev_handlers/scst_vdisk.c
+       scst/src/scst_debug.c
+       scst/src/scst_dlm.c
+       scst/src/scst_dlm.h
+       scst/src/scst_lib.c
+       scst/src/scst_main.c
+       scst/src/scst_mem.c
+       scst/src/scst_mem.h
+       scst/src/scst_module.c
+       scst/src/scst_no_dlm.c
+       scst/src/scst_pres.c
+       scst/src/scst_pres.h
+       scst/src/scst_priv.h
+       scst/src/scst_proc.c
+       scst/src/scst_sysfs.c
+       scst/src/scst_targ.c
+       scst/src/scst_tg.c
+Copyright: 2009-2010, Alexey Obitotskiy <alexeyo1@open-e.com>
+           2008-2017, Bart Van Assche <bvanassche@acm.org>
+           2009, Daniel Henrique Debonzi <debonzi@linux.vnet.ibm.com>
+           2013-2014, Fusion-io, Inc
+           2004-2005, Leonid Stoljar
+           2007, Ming Zhang <blackmagic02881@gmail.com>
+           2009-2010, Open-E, Inc
+           2007, Ross Walker <rswwalker@hotmail.com>
+           2007-2017, SanDisk Corporation
+           2004-2017, Vladislav Bolkhovitin <vst@vlnb.net>
+License: GPL-2
+
+Files: scst/COPYING
+Copyright: 1989-1991, Free Software Foundation, Inc
+License: GPL-2+
+
+Files: scstadmin/*
+Copyright: 2009-2011, Bart Van Assche <bvanassche@acm.org>
+           2008, Mark Buechler <mark.buechler@gmail.com>
+License: GPL-2+
+
+Files: scstadmin/scstadmin.procfs/scst-0.8.22/lib/*
+       scstadmin/scstadmin.procfs/scstadmin
+       scstadmin/scstadmin.spec.in
+       scstadmin/scstadmin.sysfs/scst-1.0.0/lib/*
+       scstadmin/scstadmin.sysfs/scstadmin
+Copyright: 2011-2015, Bart Van Assche <bvanassche@acm.org>
+           2005-2011, Mark R. Buechler
+License: GPL-2
+
+Files: scstadmin/LICENSE
+Copyright: 1989-1991, Free Software Foundation, Inc
+License: GPL-2+
+
+Files: srpt/*
+Copyright: 2008-2017, Bart Van Assche <bvanassche@acm.org>
+           2013, Fusion-io, Inc
+           2006-2009, Mellanox Technology Inc
+           2008, Vladislav Bolkhovitin <vst@vlnb.net>
+License: BSD-2-clause
+
+Files: srpt/LICENSE
+Copyright: OpenFabrics Alliance
+License: BSD-2-clause
+
+License: BSD-2-clause
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are
+ met:
+ 1. Redistributions of source code must retain the above copyright
+ notice, this list of conditions and the following disclaimer.
+ 2. Redistributions in binary form must reproduce the above copyright
+ notice, this list of conditions and the following disclaimer in the
+ documentation and/or other materials provided with the distribution.
+ .
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+License: BSD-3-clause
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions
+ are met:
+ 1. Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+ 2. Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+ 3. Neither the names of the contributors nor the names of the contributing
+    organizations may be used to endorse or promote products derived from
+    this software without specific prior written permission.
+ .
+ THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
+ ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+ FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ SUCH DAMAGE.
+
+License: GPL
+ This package is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation.
+ .
+ This package is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ .
+ You should have received a copy of the GNU General Public License
+ along with this program. If not, see <https://www.gnu.org/licenses/>
+ .
+ On Debian systems, the complete text of the GNU General
+ Public License can be found in "/usr/share/common-licenses/GPL".
+
+License: GPL-2
+ This package is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License.
+ .
+ This package is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ .
+ You should have received a copy of the GNU General Public License
+ along with this program. If not, see <https://www.gnu.org/licenses/>
+ .
+ On Debian systems, the complete text of the GNU General
+ Public License version 2 can be found in "/usr/share/common-licenses/GPL-2".
+
+License: GPL-2+
+ This package is free software; you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+ .
+ This package is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
+ .
+ You should have received a copy of the GNU General Public License
+ along with this program. If not, see <https://www.gnu.org/licenses/>
+ .
+ On Debian systems, the complete text of the GNU General
+ Public License version 2 can be found in "/usr/share/common-licenses/GPL-2".
+
+License: public-domain
+ ...
+ ...
