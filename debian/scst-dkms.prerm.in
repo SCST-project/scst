@@ -1,0 +1,10 @@
+#!/bin/sh
+
+DKMS_NAME=scst
+DKMS_VERSION=${PACKAGE_VERSION}
+
+case "$1" in
+    upgrade|remove|deconfigure)
+	dkms remove -m "$DKMS_NAME" -v "$DKMS_VERSION" --all
+    ;;
+esac

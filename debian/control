@@ -1,0 +1,47 @@
+Source: scst
+Section: net
+Priority: optional
+Maintainer: Vladislav Bolkhovitin <vst@vlnb.net>
+Build-Depends: debhelper (>= 9),
+ quilt,
+ dpkg-dev (>= 1.13.19)
+Standards-Version: 4.1.1
+Homepage: http://scst.sourceforge.net
+
+Package: scst
+Architecture: any
+Depends: ${misc:Depends}
+Conflicts: scst-dkms
+Description: Generic SCSI target framework
+ SCST is a SCSI target framework that allows local block device data to be
+ accessed over a storage network via the iSCSI, FC, SRP or FCoE protocol.
+ This package contains the SCST kernel modules.
+
+Package: scst-dkms
+Architecture: all
+Depends: ${misc:Depends}, dkms
+Conflicts: scst
+Description: Generic SCSI target framework
+ SCST is a SCSI target framework that allows local block device data to be
+ accessed over a storage network via the iSCSI, FC, SRP or FCoE protocol.
+ This package contains the source code of the SCST kernel modules. DKMS will
+ convert this source code into binary kernel modules.
+
+Package: scst-dev
+Architecture: all
+Depends: ${misc:Depends}
+Description: SCST development header and symbol files
+ Files needed to build out-of-tree SCST kernel modules.
+
+Package: scstadmin
+Architecture: any
+Depends: ${misc:Depends}, lsb-base, perl
+Description: SCST admininstration tool
+ scstadmin is a tool that uses the SCST sysfs interface to query and modify
+ SCST settings.
+
+Package: iscsi-scst
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: iSCSI user space software for SCST
+ This package contains two executables, namely iscsi-scst-adm and iscsi-scstd.

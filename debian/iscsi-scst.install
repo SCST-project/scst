@@ -1,0 +1,5 @@
+usr/share/man/man5/iscsi-scstd.conf.5
+usr/share/man/man8/iscsi-scst-adm.8
+usr/share/man/man8/iscsi-scstd.8
+usr/sbin/iscsi-scst-adm
+usr/sbin/iscsi-scstd
