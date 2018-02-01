@@ -407,25 +407,35 @@ fcst_clean:
 fcst_extraclean:
 	cd $(FCST_DIR) && $(MAKE) extraclean
 
-scst-dist-gzip:
+# Make an SCST source code archive. $(1) is the tar compression option, $(2)
+# is the tar filename compression suffix, $(3) is the version and $(4) is the
+# source file filter.
+make-scst-dist =							\
+	[ -n "$(1)" ] && [ -n "$(2)" ] && [ -n "$(3)" ] &&		\
+	[ -n "$(4)" ] &&						\
 	name=scst &&							\
-	mkdir $${name}-$(VERSION) &&					\
+	mkdir "$${name}-$(3)" &&					\
 	{								\
-	  if [ -e qla2x00t_git ]; then					\
-	    scripts/list-source-files | grep -v ^qla2x00t/;		\
-	    ( dir="$$PWD" && cd qla2x00t_git &&				\
-	      "$$dir/scripts/list-source-files" ) |			\
-	    sed 's,^,qla2x00t_git/,';					\
-	  else								\
-	    scripts/list-source-files;					\
-	  fi | \
-	  grep -E '^doc/|^fcst/|^iscsi-scst/|^Makefile|^qla2x00t(|_git)/|^scst.spec|^scst/|^scst_local/|^srpt/|^usr/|^scstadmin/'|\
+	  {								\
+	    if [ -e qla2x00t_git ]; then				\
+	      scripts/list-source-files | grep -v ^qla2x00t/;		\
+	      ( dir="$$PWD" && cd qla2x00t_git &&			\
+	        "$$dir/scripts/list-source-files" ) |			\
+	      sed 's,^,qla2x00t_git/,';					\
+	    else							\
+	      scripts/list-source-files;				\
+	    fi;								\
+	  } |								\
+	  $(4) |							\
 	  tar -T- -cf- |						\
-	  tar -C $${name}-$(VERSION) -xf-;				\
+	  tar -C "$${name}-$(3)" -xf-;					\
 	} &&								\
-	rm -f $${name}-$(VERSION).tar.bz2 &&				\
-	tar -cjf $${name}-$(VERSION).tar.bz2 $${name}-$(VERSION) &&	\
-	rm -rf $${name}-$(VERSION)
+	rm -f "$${name}-$(3).tar.$(2)" &&				\
+	tar -c$(1) -f "$${name}-$(3).tar.$(2)" "$${name}-$(3)" &&	\
+	rm -rf "$${name}-$(3)"
+
+scst-dist-gzip:
+	$(call make-scst-dist,j,bz2,$(VERSION),grep -E '^doc/|^fcst/|^iscsi-scst/|^Makefile|^qla2x00t(|_git)/|^scst.spec|^scst/|^scst_local/|^srpt/|^usr/|^scstadmin/')
 
 scst-rpm:
 	name=scst &&							\
