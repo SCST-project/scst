@@ -551,7 +551,7 @@ qla2x00_initialize_adapter(scsi_qla_host_t *vha)
 
 /**
  * qla2100_pci_config() - Setup ISP21xx PCI configuration registers.
- * @ha: HA context
+ * @vha: HA context
  *
  * Returns 0 on success.
  */
@@ -582,7 +582,7 @@ qla2100_pci_config(scsi_qla_host_t *vha)
 
 /**
  * qla2300_pci_config() - Setup ISP23xx PCI configuration registers.
- * @ha: HA context
+ * @vha: HA context
  *
  * Returns 0 on success.
  */
@@ -664,7 +664,7 @@ qla2300_pci_config(scsi_qla_host_t *vha)
 
 /**
  * qla24xx_pci_config() - Setup ISP24xx PCI configuration registers.
- * @ha: HA context
+ * @vha: HA context
  *
  * Returns 0 on success.
  */
@@ -708,7 +708,7 @@ qla24xx_pci_config(scsi_qla_host_t *vha)
 
 /**
  * qla25xx_pci_config() - Setup ISP25xx PCI configuration registers.
- * @ha: HA context
+ * @vha: HA context
  *
  * Returns 0 on success.
  */
@@ -739,7 +739,7 @@ qla25xx_pci_config(scsi_qla_host_t *vha)
 
 /**
  * qla2x00_isp_firmware() - Choose firmware image.
- * @ha: HA context
+ * @vha: HA context
  *
  * Returns 0 on success.
  */
@@ -775,7 +775,7 @@ qla2x00_isp_firmware(scsi_qla_host_t *vha)
 
 /**
  * qla2x00_reset_chip() - Reset ISP chip.
- * @ha: HA context
+ * @vha: HA context
  *
  * Returns 0 on success.
  */
@@ -919,6 +919,7 @@ qla2x00_reset_chip(scsi_qla_host_t *vha)
 
 /**
  * qla81xx_reset_mpi() - Reset's MPI FW via Write MPI Register MBC.
+ * @vha: HA context
  *
  * Returns 0 on success.
  */
@@ -934,7 +935,7 @@ static int qla81xx_reset_mpi(scsi_qla_host_t *vha)
 
 /**
  * qla24xx_reset_risc() - Perform full reset of ISP24xx RISC.
- * @ha: HA context
+ * @vha: HA context
  *
  * Returns 0 on success.
  */
@@ -1022,7 +1023,7 @@ qla24xx_reset_risc(scsi_qla_host_t *vha)
 
 /**
  * qla24xx_reset_chip() - Reset ISP24xx chip.
- * @ha: HA context
+ * @vha: HA context
  *
  * Returns 0 on success.
  */
@@ -1044,7 +1045,7 @@ qla24xx_reset_chip(scsi_qla_host_t *vha)
 
 /**
  * qla2x00_chip_diag() - Test chip for proper operation.
- * @ha: HA context
+ * @vha: HA context
  *
  * Returns 0 on success.
  */
@@ -1063,8 +1064,8 @@ qla2x00_chip_diag(scsi_qla_host_t *vha)
 	/* Assume a failed state */
 	rval = QLA_FUNCTION_FAILED;
 
-	ql_dbg(ql_dbg_init, vha, 0x007b,
-	    "Testing device at %lx.\n", (u_long)&reg->flash_address);
+	ql_dbg(ql_dbg_init, vha, 0x007b, "Testing device at %p.\n",
+	       &reg->flash_address);
 
 	spin_lock_irqsave(&ha->hardware_lock, flags);
 
@@ -1181,7 +1182,7 @@ chip_diag_failed:
 
 /**
  * qla24xx_chip_diag() - Test ISP24xx for proper operation.
- * @ha: HA context
+ * @vha: HA context
  *
  * Returns 0 on success.
  */
@@ -1415,7 +1416,7 @@ done:
 
 /**
  * qla2x00_setup_chip() - Load and start RISC firmware.
- * @ha: HA context
+ * @vha: HA context
  *
  * Returns 0 on success.
  */
@@ -1551,7 +1552,7 @@ failed:
 
 /**
  * qla2x00_init_response_q_entries() - Initializes response queue entries.
- * @ha: HA context
+ * @rsp: Response queue.
  *
  * Beginning of request ring has initialization control block already built
  * by nvram config routine.
@@ -1602,7 +1603,7 @@ qla2x00_init_atio_q_entries(scsi_qla_host_t *vha)
 
 /**
  * qla2x00_update_fw_options() - Read and process firmware options.
- * @ha: HA context
+ * @vha: HA context
  *
  * Returns 0 on success.
  */
@@ -1821,7 +1822,7 @@ qla24xx_config_rings(struct scsi_qla_host *vha)
 
 /**
  * qla2x00_init_rings() - Initializes firmware.
- * @ha: HA context
+ * @vha: HA context
  *
  * Beginning of request ring has initialization control block already built
  * by nvram config routine.
@@ -1910,7 +1911,7 @@ qla2x00_init_rings(scsi_qla_host_t *vha)
 
 /**
  * qla2x00_fw_ready() - Waits for firmware ready.
- * @ha: HA context
+ * @vha: HA context
  *
  * Returns 0 on success.
  */
@@ -2666,7 +2667,7 @@ qla2x00_rport_del(void *data)
 
 /**
  * qla2x00_alloc_fcport() - Allocate a generic fcport.
- * @ha: HA context
+ * @vha: HA context
  * @flags: allocation flags
  *
  * Returns a pointer to the allocated fcport, or NULL, if none available.
