@@ -8363,6 +8363,22 @@ EXPORT_SYMBOL_GPL(scst_register_session);
 
 /**
  * scst_register_session_mq() - register multi-queue session
+ * @tgt:	target
+ * @atomic:	True if called from atomic context. If false,
+ *		this function will block until the session registration is
+ *		completed.
+ * @initiator_name: Remote initiator name, NULL-terminated, e.g. the iSCSI
+ *		initiator name. Used as key when looking up access control
+ *		group information. If NULL then the default target's LUNs are
+ *		used.
+ * @tgt_priv:	Pointer to the private data of the target driver.
+ * @result_fn_data: Any target driver supplied data.
+ * @result_fn:	Pointer to a function that will be asynchronously when session
+ *		initialization has finished. Can be NULL. Parameters:
+ *		    - sess - session.
+ *		    - data - @result_fn_data.
+ *		    - result - session initialization result, 0 on success or
+ *			      appropriate error code otherwise.
  *
  * Description:
  *    Registers new MQ session. Returns new session on success or NULL otherwise.
