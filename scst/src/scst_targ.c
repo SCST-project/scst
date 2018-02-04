@@ -2027,7 +2027,7 @@ void scst_rx_data(struct scst_cmd *cmd, int status,
 		break;
 
 	default:
-		PRINT_ERROR("scst_rx_data() received unknown status %x",
+		PRINT_ERROR("%s() received unknown status %x", __func__,
 			status);
 		if (!cmd->write_not_received_set)
 			scst_cmd_set_write_no_data_received(cmd);
