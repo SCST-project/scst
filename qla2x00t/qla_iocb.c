@@ -13,9 +13,9 @@
 
 #include "qla2x_tgt.h"
 static void qla25xx_set_que(srb_t *, struct rsp_que **);
-/**
+
+/*
  * qla2x00_get_cmd_direction() - Determine control_flag data direction.
- * @cmd: SCSI command
  *
  * Returns the proper CF_* direction based on CDB.
  */
@@ -85,7 +85,7 @@ qla2x00_calc_iocbs_64(uint16_t dsds)
 
 /**
  * qla2x00_prep_cont_type0_iocb() - Initialize a Continuation Type 0 IOCB.
- * @ha: HA context
+ * @vha: HA context
  *
  * Returns a pointer to the Continuation Type 0 IOCB packet.
  */
@@ -113,7 +113,8 @@ qla2x00_prep_cont_type0_iocb(struct scsi_qla_host *vha)
 
 /**
  * qla2x00_prep_cont_type1_iocb() - Initialize a Continuation Type 1 IOCB.
- * @ha: HA context
+ * @vha: HA context
+ * @req: Response queue.
  *
  * Returns a pointer to the continuation type 1 IOCB packet.
  */
@@ -466,7 +467,7 @@ queuing_error:
 	return (QLA_FUNCTION_FAILED);
 }
 
-/**
+/*
  * qla2x00_start_iocbs() - Execute the IOCB command
  */
 void
@@ -504,7 +505,9 @@ EXPORT_SYMBOL(qla2x00_start_iocbs);
 
 /**
  * qla2x00_marker() - Send a marker IOCB to the firmware.
- * @ha: HA context
+ * @vha: HA context
+ * @req: Request queue
+ * @rsp: ...
  * @loop_id: loop ID
  * @lun: LUN
  * @type: marker modifier
@@ -575,7 +578,7 @@ qla2x00_marker(struct scsi_qla_host *vha, struct req_que *req,
 
 /**
  * qla2x00_req_pkt() - Retrieve a request packet from the request ring.
- * @ha: HA context
+ * @vha: HA context
  *
  * Note: The caller must hold the hardware lock before calling this routine.
  * Might release it, then reacquire.
@@ -650,9 +653,8 @@ qla2x00_req_pkt(scsi_qla_host_t *vha)
 EXPORT_SYMBOL(qla2x00_req_pkt);
 
 /**
- * qla24xx_calc_iocbs() - Determine number of Command Type 3 and
- * Continuation Type 1 IOCBs to allocate.
- *
+ * qla24xx_calc_iocbs - determine number of IOCBs to allocate
+ * @vha: HA context
  * @dsds: number of data segment decriptors needed
  *
  * Returns the number of IOCB entries needed to store @dsds.
@@ -1270,12 +1272,12 @@ qla24xx_walk_and_build_prot_sglist(struct qla_hw_data *ha, srb_t *sp,
 }
 
 /**
- * qla24xx_build_scsi_crc_2_iocbs() - Build IOCB command utilizing Command
- *							Type 6 IOCB types.
- *
+ * qla24xx_build_scsi_crc_2_iocbs - Build IOCB command
  * @sp: SRB command to process
  * @cmd_pkt: Command type 3 IOCB
  * @tot_dsds: Total number of segments to transfer
+ * @tot_prot_dsds: ...
+ * @fw_prot_opts: ...
  */
 static inline int
 qla24xx_build_scsi_crc_2_iocbs(srb_t *sp, struct cmd_type_crc_2 *cmd_pkt,

@@ -2845,12 +2845,6 @@ qla2x00_system_error(scsi_qla_host_t *vha)
 	return rval;
 }
 
-/**
- * qla2x00_set_serdes_params() -
- * @ha: HA context
- *
- * Returns
- */
 int
 qla2x00_set_serdes_params(scsi_qla_host_t *vha, uint16_t sw_em_1g,
     uint16_t sw_em_2g, uint16_t sw_em_4g)

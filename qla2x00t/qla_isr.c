@@ -25,7 +25,7 @@ static void qla2x00_error_entry(scsi_qla_host_t *, struct rsp_que *,
 
 /**
  * qla2100_intr_handler() - Process interrupts for the ISP2100 and ISP2200.
- * @irq:
+ * @irq: ...
  * @dev_id: SCSI driver HA context
  *
  * Called by system whenever the host adapter generates an interrupt.
@@ -121,7 +121,7 @@ qla2100_intr_handler(int irq, void *dev_id)
 
 /**
  * qla2300_intr_handler() - Process interrupts for the ISP23xx and ISP63xx.
- * @irq:
+ * @irq: ...
  * @dev_id: SCSI driver HA context
  *
  * Called by system whenever the host adapter generates an interrupt.
@@ -246,7 +246,7 @@ qla2300_intr_handler(int irq, void *dev_id)
 
 /**
  * qla2x00_mbx_completion() - Process mailbox command completions.
- * @ha: SCSI driver HA context
+ * @vha: SCSI driver HA context
  * @mb0: Mailbox0 register
  */
 static void
@@ -344,7 +344,8 @@ qla2x00_get_link_speed_str(struct qla_hw_data *ha)
 
 /**
  * qla2x00_async_event() - Process aynchronous events.
- * @ha: SCSI driver HA context
+ * @vha: SCSI driver HA context
+ * @rsp: Response queue
  * @mb: Mailbox registers (0 - 3)
  */
 void
@@ -903,7 +904,8 @@ skip_rio:
 
 /**
  * qla2x00_process_completed_request() - Process a Fast Post response.
- * @ha: SCSI driver HA context
+ * @vha: SCSI driver HA context
+ * @req: Request queue
  * @index: SRB index
  */
 static void
@@ -1420,9 +1422,8 @@ qla24xx_tm_iocb_entry(scsi_qla_host_t *vha, struct req_que *req,
 	sp->done(vha, sp, 0);
 }
 
-/**
+/*
  * qla2x00_process_response_queue() - Process response queue entries.
- * @ha: SCSI driver HA context
  */
 void
 qla2x00_process_response_queue(struct rsp_que *rsp)
@@ -1708,7 +1709,8 @@ qla2x00_handle_dif_error(srb_t *sp, struct sts_entry_24xx *sts24)
 
 /**
  * qla2x00_status_entry() - Process a Status IOCB entry.
- * @ha: SCSI driver HA context
+ * @vha: SCSI driver HA context
+ * @rsp: Response queue
  * @pkt: Entry pointer
  */
 static void
@@ -2017,7 +2019,7 @@ out:
 
 /**
  * qla2x00_status_cont_entry() - Process a Status Continuations entry.
- * @ha: SCSI driver HA context
+ * @rsp: Response queue
  * @pkt: Entry pointer
  *
  * Extended sense data.
@@ -2075,7 +2077,8 @@ qla2x00_status_cont_entry(struct rsp_que *rsp, sts_cont_entry_t *pkt)
 
 /**
  * qla2x00_error_entry() - Process an error entry.
- * @ha: SCSI driver HA context
+ * @vha: SCSI driver HA context
+ * @rsp: Response queue
  * @pkt: Entry pointer
  */
 static void
@@ -2116,7 +2119,7 @@ fatal:
 
 /**
  * qla24xx_mbx_completion() - Process mailbox command completions.
- * @ha: SCSI driver HA context
+ * @vha: SCSI driver HA context
  * @mb0: Mailbox0 register
  */
 static void
@@ -2197,7 +2200,8 @@ qla24xx_process_atio_queue(struct scsi_qla_host *vha)
 
 /**
  * qla24xx_process_response_queue() - Process response queue entries.
- * @ha: SCSI driver HA context
+ * @vha: SCSI driver HA context
+ * @rsp: Response queue
  */
 void qla24xx_process_response_queue(struct scsi_qla_host *vha,
 	struct rsp_que *rsp)
@@ -2355,7 +2359,7 @@ done:
 
 /**
  * qla24xx_intr_handler() - Process interrupts for the ISP23xx and ISP24xx.
- * @irq:
+ * @irq: ...
  * @dev_id: SCSI driver HA context
  *
  * Called by system whenever the host adapter generates an interrupt.
