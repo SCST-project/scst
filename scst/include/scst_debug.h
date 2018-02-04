@@ -406,6 +406,6 @@ do {								\
 		__warned = true;				\
 		PRINT_WARNING(format, ## args);			\
 	}							\
-} while(0)
+} while (0)
 
 #endif /* __SCST_DEBUG_H */
