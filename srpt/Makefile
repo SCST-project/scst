@@ -74,8 +74,6 @@ ifeq ($(OFED_FLAVOR),MOFED)
 OFED_KERNEL_DIR:=/usr/src/ofa_kernel/default
 OFED_VERS=$(shell rpm -q --qf '%{version}\n' mlnx-ofa_kernel-devel 2>/dev/null | grep -v ' '; dpkg-query -W --showformat='$${Version}\n' mlnx-ofed-kernel-dkms 2>/dev/null)
 OFED_CFLAGS:=-I$(OFED_KERNEL_DIR)/include -include "linux/compat-2.6.h"
-OFED_CFLAGS+=-DMOFED_MAJOR=$(shell echo "$(OFED_VERS)" | sed 's/\([0-9]\+\)[^0-9]\+\([0-9]\+\).*/\1/g')
-OFED_CFLAGS+=-DMOFED_MINOR=$(shell echo "$(OFED_VERS)" | sed 's/\([0-9]\+\)[^0-9]\+\([0-9]\+\).*/\2/g')
 else
 # OFED 1.5
 OFED_KERNEL_DIR:=/usr/src/ofa_kernel
