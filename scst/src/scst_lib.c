@@ -15510,7 +15510,7 @@ static int tm_dbg_delayed_cmds_count;
 static int tm_dbg_passed_cmds_count;
 static int tm_dbg_state;
 static int tm_dbg_on_state_passes;
-static DEFINE_TIMER(tm_dbg_timer, tm_dbg_timer_fn, 0, 0);
+static DEFINE_TIMER(tm_dbg_timer, tm_dbg_timer_fn);
 static struct scst_tgt_dev *tm_dbg_tgt_dev;
 
 static const int tm_dbg_on_state_num_passes[] = { 5, 1, 0x7ffffff };

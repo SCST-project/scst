@@ -24,6 +24,7 @@
 #include <linux/blkdev.h>	/* struct request_queue */
 #include <linux/scatterlist.h>	/* struct scatterlist */
 #include <linux/slab.h>		/* kmalloc() */
+#include <linux/timer.h>
 #include <linux/version.h>
 #include <linux/writeback.h>	/* sync_page_range() */
 #include <scsi/scsi_cmnd.h>	/* struct scsi_cmnd */
@@ -701,6 +702,13 @@ struct t10_pi_tuple {
 	(_timer)->data = (unsigned long)(_timer);		\
 	(_timer)->flags = (_flags);				\
 } while (0)
+#endif
+
+/* See also commit 1d27e3e2252b ("timer: Remove expires and data arguments from DEFINE_TIMER") */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0)
+#undef DEFINE_TIMER
+#define DEFINE_TIMER(_name, _function)					\
+	struct timer_list _name = __TIMER_INITIALIZER(_function, 0, 0, 0)
 #endif
 
 /* <linux/types.h> */
