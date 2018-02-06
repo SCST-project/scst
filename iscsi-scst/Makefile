@@ -89,8 +89,7 @@ ifeq ($(OFED_FLAVOR),MOFED)
 	OFED_DIR:=/usr/src/ofa_kernel/default
 	OFED_CFLAGS:=	-I$(OFED_DIR)/include				\
 			-I$(OFED_DIR)/include/uapi			\
-			-include $(OFED_DIR)/include/linux/compat-2.6.h	\
-			-DMOFED_MAJOR=$(shell echo $(OFED_VERS) | cut -f1 -d.)
+			-include $(OFED_DIR)/include/linux/compat-2.6.h
 	ISER_SYMVERS:="$(ISER_SYMVERS) $(OFED_DIR)/Module.symvers"
 else
 	# Whether or not the OFED kernel-ib-devel RPM has been installed.
