@@ -28,6 +28,7 @@ clean:
 	rm -f scstadmin/scstadmin
 
 build:
+	make 2release &&						\
 	export BUILD_2X_MODULE=y &&					\
 	export CONFIG_SCSI_QLA_FC=y CONFIG_SCSI_QLA2XXX_TARGET=y &&	\
 	for d in $(SUBDIRS); do $(MAKE) -C $$d; done &&			\
@@ -58,6 +59,7 @@ install:
 		    break;						\
 	    fi;								\
 	done &&								\
+	make 2debug &&							\
 	rm -f "$(DESTDIR)"/lib/modules/*/[Mm]odule* &&			\
 	mkdir -p $(DESTDIR)/usr/src/scst-$(VERSION) &&			\
 	for f in scst.dkms scst-dkms.postinst scst-dkms.prerm; do	\
@@ -73,17 +75,17 @@ install:
 	chmod -R 0644 $(DESTDIR)/usr/src/scst-$(VERSION) &&		\
 	chmod 0644 "$(DESTDIR)"/usr/lib/*/perl/*/auto/SCST_SCST/.packlist "$(DESTDIR)"/usr/share/perl/*/SCST/SCST.pm &&			\
 	chmod 0755 "$(DESTDIR)"/usr/lib/*/perl/*/auto/SCST_SCST &&	\
-	mkdir -p "$(DESTDIR)"/usr/share/man &&				\
-	{ tar -C "$(DESTDIR)"/usr/man -cf- . |				\
-	  tar -C "$(DESTDIR)"/usr/share/man -xf-; } &&			\
+	mv "$(DESTDIR)"/usr/man "$(DESTDIR)"/usr/share/man &&		\
 	rm -rf "$(DESTDIR)"/usr/man &&					\
-	dh_strip &&							\
-	dh_compress &&							\
 	dh_install &&							\
-	dh_installdeb &&						\
 	dh_installman &&						\
 	dh_installchangelogs &&						\
+	dh_compress &&							\
+	dh_fixperms &&							\
+	dh_strip &&							\
+	dh_makeshlibs &&						\
 	dh_shlibdeps &&							\
+	dh_installdeb &&						\
 	dh_gencontrol &&						\
 	dh_md5sums &&							\
 	dh_builddeb
