@@ -1,14 +1,14 @@
 #!/bin/sh
-# prerm script for scst
+# postrm script for scst
 #
 # see: dh_installdeb(1)
 
 # summary of how this script can be called:
-#        * <prerm> `remove'
-#        * <old-prerm> `upgrade' <new-version>
-#        * <new-prerm> `failed-upgrade' <old-version>
-#        * <conflictor's-prerm> `remove' `in-favour' <package> <new-version>
-#        * <deconfigured's-prerm> `deconfigure' `in-favour'
+#        * <postrm> `remove'
+#        * <old-postrm> `upgrade' <new-version>
+#        * <new-postrm> `failed-upgrade' <old-version>
+#        * <conflictor's-postrm> `remove' `in-favour' <package> <new-version>
+#        * <deconfigured's-postrm> `deconfigure' `in-favour'
 #          <package-being-installed> <version> `removing'
 #          <conflicting-package> <version>
 # for details, see https://www.debian.org/doc/debian-policy/ or
@@ -22,7 +22,7 @@ case "$1" in
     ;;
 
   *)
-    echo "prerm called with unknown argument \`$1'" >&2
+    echo "postrm called with unknown argument \`$1'" >&2
     exit 1;;
 esac
 
