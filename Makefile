@@ -501,16 +501,13 @@ dpkg: ../scst_$(VERSION).orig.tar.xz
 	sed 's/%{scst_version}/$(VERSION)/'				\
 	  <debian/scst.dkms.in >debian/scst.dkms &&			\
 	output_files=(							\
-		../iscsi-scst_$(VERSION)-$(DEBIAN_REVISION)_amd64.deb	\
-		../scst-dev_$(VERSION)-$(DEBIAN_REVISION)_all.deb	\
-		../scst-dkms_$(VERSION)-$(DEBIAN_REVISION)_all.deb	\
+		../*_$(VERSION)-$(DEBIAN_REVISION)_*.deb		\
+		../*_$(VERSION)-$(DEBIAN_REVISION)_*.ddeb		\
 		../scst_$(VERSION)-$(DEBIAN_REVISION).debian.tar.xz	\
 		../scst_$(VERSION)-$(DEBIAN_REVISION).dsc		\
 		../scst_$(VERSION)-$(DEBIAN_REVISION)_amd64.build	\
 		../scst_$(VERSION)-$(DEBIAN_REVISION)_amd64.buildinfo	\
 		../scst_$(VERSION)-$(DEBIAN_REVISION)_amd64.changes	\
-		../scst_$(VERSION)-$(DEBIAN_REVISION)_amd64.deb		\
-		../scstadmin_$(VERSION)-$(DEBIAN_REVISION)_amd64.deb	\
 	) &&								\
 	rm -f "$${output_files[@]}" &&					\
 	if false; then							\
