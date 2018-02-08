@@ -72,11 +72,9 @@ install:
 	grep -E '^Makefile$$|^(fcst|iscsi-scst|qla2x00t|scst|scst_local|srpt)/'|\
 	tar -T- -cf- |							\
 	tar -C $(DESTDIR)/usr/src/scst-$(VERSION) -xf- &&		\
-	chmod -R 0644 $(DESTDIR)/usr/src/scst-$(VERSION) &&		\
-	chmod 0644 "$(DESTDIR)"/usr/lib/*/perl/*/auto/SCST_SCST/.packlist "$(DESTDIR)"/usr/share/perl/*/SCST/SCST.pm &&			\
-	chmod 0755 "$(DESTDIR)"/usr/lib/*/perl/*/auto/SCST_SCST &&	\
+	find $(DESTDIR) -type f -print0 | xargs -0 -r chmod 0644 &&	\
+	find $(DESTDIR) -type d -print0 | xargs -0 -r chmod 0755 &&	\
 	mv "$(DESTDIR)"/usr/man "$(DESTDIR)"/usr/share/man &&		\
-	rm -rf "$(DESTDIR)"/usr/man &&					\
 	dh_install &&							\
 	dh_installman &&						\
 	dh_installchangelogs &&						\
