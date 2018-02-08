@@ -510,10 +510,20 @@ dpkg: ../scst_$(VERSION).orig.tar.xz
 		../scst_$(VERSION)-$(DEBIAN_REVISION)_amd64.changes	\
 	) &&								\
 	rm -f "$${output_files[@]}" &&					\
-	if false; then							\
-	  dpkg-buildpackage -uc -us -ui -jauto;				\
+	buildopts=(-uc -us) &&						\
+	if dpkg-buildpackage --help 2>&1 | grep -- '-ui'; then		\
+	  buildopts+=(-ui);						\
+	fi &&								\
+	if dpkg-buildpackage --help 2>&1 |				\
+	   grep -q -- '--jobs\[=<number>|auto\]'; then			\
+	  buildopts+=(-jauto);						\
 	else								\
-	  debuild -uc -us -ui -jauto --lintian-opts --profile debian;	\
+	  buildopts+=(-j4);						\
+	fi &&								\
+	if false; then							\
+	  dpkg-buildpackage "$${buildopts[@]}";				\
+	else								\
+	  debuild "$${buildopts[@]}" --lintian-opts --profile debian;	\
 	fi &&								\
 	mkdir -p dpkg &&						\
 	for f in "$${output_files[@]}" ../scst_$(VERSION).orig.tar.xz; do\
