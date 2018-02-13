@@ -469,6 +469,7 @@ struct srpt_device {
 	struct ib_event_handler	event_handler;
 };
 
+#if !HAVE_STRUCT_SRP_LOGIN_REQ_RDMA
 /**
  * struct srp_login_req_rdma - RDMA/CM login parameters.
  *
@@ -487,5 +488,6 @@ struct srp_login_req_rdma {
 	u8	initiator_port_id[16];
 	u8	target_port_id[16];
 };
+#endif /* !HAVE_STRUCT_SRP_LOGIN_REQ_RDMA */
 
 #endif				/* IB_SRPT_H */
