@@ -46,6 +46,12 @@ static struct sgv_pool *sgv_dma_pool_per_cpu[NR_CPUS];
 static struct sgv_pool *sgv_norm_clust_pool_per_cpu[NR_CPUS];
 static struct sgv_pool *sgv_norm_pool_per_cpu[NR_CPUS];
 
+static struct sgv_pool *sgv_dma_pool_global[NR_CPUS];
+static struct sgv_pool *sgv_norm_clust_pool_global[NR_CPUS];
+static struct sgv_pool *sgv_norm_pool_global[NR_CPUS];
+
+static struct sgv_pool *sgv_norm_clust_pool_main, *sgv_norm_pool_main, *sgv_dma_pool_main;
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 #if defined(CONFIG_LOCKDEP) && !defined(CONFIG_SCST_PROC)
 static struct lock_class_key scst_pool_key;
@@ -53,8 +59,6 @@ static struct lockdep_map scst_pool_dep_map =
 	STATIC_LOCKDEP_MAP_INIT("scst_pool_kref", &scst_pool_key);
 #endif
 #endif
-
-static struct sgv_pool *sgv_norm_clust_pool, *sgv_norm_pool, *sgv_dma_pool;
 
 #ifndef CONFIG_SCST_NO_TOTAL_MEM_CHECKS
 static atomic_t sgv_pages_total = ATOMIC_INIT(0);
@@ -103,39 +107,33 @@ static inline bool sgv_pool_clustered(const struct sgv_pool *pool)
 
 void scst_sgv_pool_use_norm(struct scst_tgt_dev *tgt_dev)
 {
-	int i;
 	tgt_dev->tgt_dev_gfp_mask = __GFP_NOWARN;
-	for (i = 0; i < NR_CPUS; i++)
-		if (!scst_force_global_sgv_pool)
-			tgt_dev->pools[i] = sgv_norm_pool_per_cpu[i];
-		else
-			tgt_dev->pools[i] = sgv_norm_pool;
+	if (!scst_force_global_sgv_pool)
+		tgt_dev->pools = sgv_norm_pool_per_cpu;
+	else
+		tgt_dev->pools = sgv_norm_pool_global;
 	tgt_dev->tgt_dev_clust_pool = 0;
 }
 
 void scst_sgv_pool_use_norm_clust(struct scst_tgt_dev *tgt_dev)
 {
-	int i;
 	TRACE_MEM("%s", "Use clustering");
 	tgt_dev->tgt_dev_gfp_mask = __GFP_NOWARN;
-	for (i = 0; i < NR_CPUS; i++)
-		if (!scst_force_global_sgv_pool)
-			tgt_dev->pools[i] = sgv_norm_clust_pool_per_cpu[i];
-		else
-			tgt_dev->pools[i] = sgv_norm_clust_pool;
+	if (!scst_force_global_sgv_pool)
+		tgt_dev->pools = sgv_norm_clust_pool_per_cpu;
+	else
+		tgt_dev->pools = sgv_norm_clust_pool_global;
 	tgt_dev->tgt_dev_clust_pool = 1;
 }
 
 void scst_sgv_pool_use_dma(struct scst_tgt_dev *tgt_dev)
 {
-	int i;
 	TRACE_MEM("%s", "Use ISA DMA memory");
 	tgt_dev->tgt_dev_gfp_mask = __GFP_NOWARN | GFP_DMA;
-	for (i = 0; i < NR_CPUS; i++)
-		if (!scst_force_global_sgv_pool)
-			tgt_dev->pools[i] = sgv_dma_pool_per_cpu[i];
-		else
-			tgt_dev->pools[i] = sgv_dma_pool;
+	if (!scst_force_global_sgv_pool)
+		tgt_dev->pools = sgv_dma_pool_per_cpu;
+	else
+		tgt_dev->pools = sgv_dma_pool_global;
 	tgt_dev->tgt_dev_clust_pool = 0;
 }
 
@@ -1760,24 +1758,33 @@ int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark)
 
 	sgv_evaluate_local_max_pages();
 
-	sgv_norm_pool = sgv_pool_create("sgv", sgv_no_clustering, 0, false, 0);
-	if (sgv_norm_pool == NULL)
+	sgv_norm_pool_main = sgv_pool_create("sgv", sgv_no_clustering, 0, false, 0);
+	if (sgv_norm_pool_main == NULL)
 		goto out_free_pool;
 
-	sgv_norm_clust_pool = sgv_pool_create("sgv-clust",
+	sgv_norm_clust_pool_main = sgv_pool_create("sgv-clust",
 		sgv_full_clustering, 0, false, 0);
-	if (sgv_norm_clust_pool == NULL)
+	if (sgv_norm_clust_pool_main == NULL)
 		goto out_free_norm;
 
-	sgv_dma_pool = sgv_pool_create("sgv-dma", sgv_no_clustering, 0,
+	sgv_dma_pool_main = sgv_pool_create("sgv-dma", sgv_no_clustering, 0,
 				false, 0);
-	if (sgv_dma_pool == NULL)
+	if (sgv_dma_pool_main == NULL)
 		goto out_free_clust;
 
 	/*
 	 * ToDo: not compatible with CPU hotplug! Notification
 	 * callbacks must be installed!
 	 */
+
+	for (i = 0; i < NR_CPUS; i++)
+		sgv_norm_pool_global[i] = sgv_norm_pool_main;
+
+	for (i = 0; i < NR_CPUS; i++)
+		sgv_norm_clust_pool_global[i] = sgv_norm_clust_pool_main;
+
+	for (i = 0; i < NR_CPUS; i++)
+		sgv_dma_pool_global[i] = sgv_dma_pool_main;
 
 	for (i = 0; i < NR_CPUS; i++) {
 		char name[60];
@@ -1844,13 +1851,13 @@ out_free_per_cpu_norm:
 		if (sgv_norm_pool_per_cpu[i] != NULL)
 			sgv_pool_destroy(sgv_norm_pool_per_cpu[i]);
 
-	sgv_pool_destroy(sgv_dma_pool);
+	sgv_pool_destroy(sgv_dma_pool_main);
 
 out_free_clust:
-	sgv_pool_destroy(sgv_norm_clust_pool);
+	sgv_pool_destroy(sgv_norm_clust_pool_main);
 
 out_free_norm:
-	sgv_pool_destroy(sgv_norm_pool);
+	sgv_pool_destroy(sgv_norm_pool_main);
 
 out_free_pool:
 	kmem_cache_destroy(sgv_pool_cachep);
@@ -1872,20 +1879,29 @@ void scst_sgv_pools_deinit(void)
 	unregister_shrinker(&sgv_shrinker);
 #endif
 
-	sgv_pool_destroy(sgv_dma_pool);
+	sgv_pool_destroy(sgv_dma_pool_main);
 	for (i = 0; i < NR_CPUS; i++)
 		if (sgv_dma_pool_per_cpu[i] != NULL)
 			sgv_pool_destroy(sgv_dma_pool_per_cpu[i]);
 
-	sgv_pool_destroy(sgv_norm_pool);
+	sgv_pool_destroy(sgv_norm_pool_main);
 	for (i = 0; i < NR_CPUS; i++)
 		if (sgv_norm_pool_per_cpu[i] != NULL)
 			sgv_pool_destroy(sgv_norm_pool_per_cpu[i]);
 
-	sgv_pool_destroy(sgv_norm_clust_pool);
+	sgv_pool_destroy(sgv_norm_clust_pool_main);
 	for (i = 0; i < NR_CPUS; i++)
 		if (sgv_norm_clust_pool_per_cpu[i] != NULL)
 			sgv_pool_destroy(sgv_norm_clust_pool_per_cpu[i]);
+
+	for (i = 0; i < NR_CPUS; i++)
+		sgv_norm_pool_global[i] = NULL;
+
+	for (i = 0; i < NR_CPUS; i++)
+		sgv_norm_clust_pool_global[i] = NULL;
+
+	for (i = 0; i < NR_CPUS; i++)
+		sgv_dma_pool_global[i] = NULL;
 
 	kmem_cache_destroy(sgv_pool_cachep);
 
