@@ -218,7 +218,7 @@ dkms remove -m %{kmod_name} -v %{dkms_version} --rpm_safe_upgrade --all
 true
 
 %files
-%defattr(-,root,root)
+%defattr(-,root,root,0755)
 /usr/src/%{kmod_name}-%{dkms_version}/
 
 %files userspace
@@ -231,7 +231,7 @@ true
 %dir /var/lib/scst/vdev_mode_pages
 
 %files devel
-%defattr(-,root,root)
+%defattr(-,root,root,0755)
 %dir /usr/include/scst
 /usr/include/scst/Module.symvers
 /usr/include/scst/scst.h
