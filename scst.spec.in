@@ -3,22 +3,12 @@
 # The algorithm for setting the variable kversion is as follows:
 # - If the variable kversion has been set, use its value.
 # - If the variable kdir has been set, derive the kernel version from kdir.
-# - If an RPM with the name kernel-headers exists (RHEL / CentOS), use the
-#   version number of the kernel that package is based on. This provides the
-#   version number when building on a koji build server.
 # - Otherwise use the version number of the running kernel.
 %{!?kversion:
     %{?kdir:%define kversion %{expand:%%(
 	make -sC "%{kdir}" kernelversion | grep -v ^make)}}
     %{!?kdir:
-	%define kversion %{expand:%%(
-	    if rpm --quiet -q kernel-headers; then
-		rpm -q --qf '%%%%{BUILDTIME} %%%%{version}-%%%%{release}.%%%%{arch}\\n' \\
-		    kernel-headers | sort | tail -n1 | { read a b; echo $b; };
-	    else
-		uname -r;
-	    fi
-	)}}}
+	%define kversion %{expand:%%(uname -r)}}}
 %{echo:kversion=%{kversion}
 }
 # kernel_rpm: Name of the kernel RPM if the kernel is available as an RPM.
