@@ -48,7 +48,17 @@
 %{echo:krpmver=%{krpmver}
 }}
 # kernel_devel_rpm: Name of the kernel development RPM.
-%{?kernel_rpm:%define kernel_devel_rpm %{kernel_rpm}-devel}
+%if 0%{?kernel_rpm:1}
+%if %([ %{kernel_rpm} = kernel-core ]; echo $((1-$?)))
+# Fedora
+%define kernel_devel_rpm kernel-devel
+%else
+# Other Linux distros
+%define kernel_devel_rpm %{kernel_rpm}-devel
+%endif
+%{echo:kernel_devel_rpm=%{kernel_devel_rpm}
+}
+%endif
 # Version of the RPM that is being built.
 %define rpm_version @rpm_version@
 # Make command with or without flags.
