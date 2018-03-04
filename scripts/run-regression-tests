@@ -97,14 +97,17 @@ function duplicate_scst_source_tree {
 }
 
 function make_rpm {
-    local outputfile="${outputdir}/make-rpm-output.txt"
+    local outputfile t
 
-    echo "Testing whether 'make rpm' works fine ..."
-    if make rpm > "${outputfile}" 2>&1; then
-	echo "OK"
-    else
-	echo "FAILED"
-    fi
+    for t in rpm scst-dkms-rpm; do
+	outputfile="${outputdir}/make-${t}-output.txt"
+	echo "Testing whether 'make ${t}' works fine ..."
+	if make ${t} > "${outputfile}" 2>&1; then
+	    echo "OK"
+	else
+	    echo "FAILED"
+	fi
+    done
 }
 
 function compile_scst {
