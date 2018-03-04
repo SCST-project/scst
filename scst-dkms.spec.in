@@ -2,18 +2,8 @@
 # kversion: Kernel version as it appears under /lib/modules.
 # The algorithm for setting the variable kversion is as follows:
 # - If the variable kversion has been set, use its value.
-# - If an RPM with the name kernel-headers exists (RHEL / CentOS), use the
-#   version number of the kernel that package is based on. This provides the
-#   version number when building on a koji build server.
 # - Otherwise use the version number of the running kernel.
-%{!?kversion:%define kversion %{expand:%%(
-	    if rpm --quiet -q kernel-headers; then
-		rpm -q --qf '%%%%{version}-%%%%{release}.%%%%{arch}\\n' \\
-		    kernel-headers | head -n1;
-	    else
-		uname -r;
-	    fi
-	)}}
+%{!?kversion:%define kversion %{expand:%%(uname -r)}}
 %{echo:kversion=%{kversion}
 }
 # kernel_rpm: Name of the kernel RPM if the kernel is available as an RPM.
