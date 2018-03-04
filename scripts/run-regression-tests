@@ -54,6 +54,7 @@
 # Function definitions #
 ########################
 
+# shellcheck source=./kernel-functions
 source $(dirname $0)/kernel-functions
 
 function usage {
@@ -74,7 +75,7 @@ function test_scst_tree_patches {
   echo "Testing whether the SCST patches apply cleanly to the SCST tree ..."
   for p in *.patch srpt/patches/scst*.patch
   do
-    if [ -e "$p" ] && ! patch -p0 -f --dry-run -s <$p &>/dev/null; then
+    if [ -e "$p" ] && ! patch -p0 -f --dry-run -s <"$p" &>/dev/null; then
       echo "ERROR: patch $p does not apply cleanly."
       rc=1
     fi
@@ -128,9 +129,9 @@ function compile_scst {
     for p in scst scst_local iscsi-scst srpt qla2x00t $(if [ "${mpt_scst}" = "true" ]; then echo mpt; fi); do
       if [ "${p%qla2x00t}" != "$p" ]; then
         BUILD_2X_MODULE=y CONFIG_SCSI_QLA_FC=y CONFIG_SCSI_QLA2XXX_TARGET=y \
-        make -C $p/qla2x00-target || return $?
+        make -C "$p/qla2x00-target" || return $?
       else
-        make -C $p || return $?
+        make -C "$p" || return $?
       fi
     done
   )
@@ -201,32 +202,33 @@ function compile_scst_patched {
 # Generate a kernel patch from the SCST source tree for kernel version $1
 # and with generate-kernel-patch options $2.
 function generate_kernel_patch {
-  local scst_dir="${PWD}"
-  local kver="$(kernel_version $1)"
+  local kver
   local patchfile="${outputdir}/scst-$1-kernel.patch"
   local patchfile_m="${outputdir}/scst-$1-kernel-matching-line-numbers.patch"
   local driver_options=""
 
-  driver_options="-l \
-                  $([ "${mpt_scst}"   = "true" ] && echo "-m") \
-                  $([ "${qla2x00t}"   = "true" ] && echo "-q")"
+  kver="$(kernel_version "$1")"
+  driver_options=(-l)
+  [ "${mpt_scst}" = "true" ] && driver_options+=("-m")
+  [ "${qla2x00t}" = "true" ] && driver_options+=("-q")
 
-  "${scriptsdir}"/generate-kernel-patch ${driver_options} $2 $1 > "${patchfile}"
+  "${scriptsdir}"/generate-kernel-patch "${driver_options[@]}" "$2" "$1" > "${patchfile}"
 
-  "${scriptsdir}"/generate-kernel-patch ${driver_options} -n $2 $1 > "${patchfile_m}"
+  "${scriptsdir}"/generate-kernel-patch "${driver_options[@]}" -n "$2" "$1" > "${patchfile_m}"
 
-  "${scriptsdir}"/generate-kernel-patch ${driver_options} -p "${outputdir}/${patchdir}" $2 $1
+  "${scriptsdir}"/generate-kernel-patch "${driver_options[@]}" -p "${outputdir}/${patchdir}" "$2" "$1"
 }
 
 # Run checkpatch on the generated kernel patch. Assumes that there is a
 # vanilla kernel tree present in directory "${outputdir}/linux-$1", and leaves
 # this kernel tree clean.
 function run_checkpatch  {
-  local kver="$(kernel_version $1)"
-  local plevel="$(patchlevel $1)"
+  local kver plevel errors warnings
   local outputfile="${outputdir}/checkpatch-$1-output.txt"
   local patchfile="${outputdir}/scst-$1-kernel.patch"
 
+  kver="$(kernel_version "$1")"
+  plevel="$(patchlevel "$1")"
   if [ -e "${outputdir}/linux-$1/scripts/checkpatch.pl" ]; then
     if [ "${multiple_patches}" = "false" ]; then
       echo "Running checkpatch on the SCST kernel patch ..."
@@ -243,8 +245,8 @@ function run_checkpatch  {
            done
       )
     fi
-    local errors=$(grep -c '^ERROR' "${outputfile}")
-    local warnings=$(grep -c '^WARNING' "${outputfile}")
+    errors=$(grep -c '^ERROR' "${outputfile}")
+    warnings=$(grep -c '^WARNING' "${outputfile}")
     echo "${errors} errors / ${warnings} warnings."
     grep -E '^WARNING|^ERROR' "${outputfile}" |
       sort |
@@ -258,7 +260,8 @@ function run_checkpatch  {
 }
 
 function patch_and_configure_kernel {
-  local kver="$(kernel_version $1)"
+  local kver
+  kver="$(kernel_version "$1")"
   local patchfile="${outputdir}/scst-$1-kernel-matching-line-numbers.patch"
   local patchoutput="${outputdir}/patch-command-output-$1.txt"
   local disable="				\
@@ -305,7 +308,6 @@ CONFIG_X86_X32					\
       disable="$disable CONFIG_IPV6"
   fi
   (
-    local srcdir="$PWD"
     cd "${outputdir}/linux-$1" &&
     if [ "${multiple_patches}" = "false" ]; then
         patch -p1 -f -s <"${patchfile}" >"${patchoutput}"
@@ -325,8 +327,9 @@ CONFIG_X86_X32					\
 # Patches and compiles a kernel tree. Assumes that there is a vanilla kernel
 # tree present in directory "${outputdir}/linux-$1".
 function compile_patched_kernel {
-  local kver="$(kernel_version $1)"
-  local plevel="$(patchlevel $1)"
+  local kver plevel
+  kver="$(kernel_version "$1")"
+  plevel="$(patchlevel "$1")"
   local outputfile="${outputdir}/kernel-$1-compilation-output.txt"
 
   echo "Compiling kernel $1 ..."
@@ -342,8 +345,9 @@ function compile_patched_kernel {
 
 # Compile subdirectory $2 of the patched kernel tree linux-$1.
 function compile_kernel {
-  local kver="$(kernel_version $1)"
-  local plevel="$(patchlevel $1)"
+  local kver plevel
+  kver="$(kernel_version "$1")"
+  plevel="$(patchlevel "$1")"
   local outputfile="${outputdir}/compilation-$1-output.txt"
   local subdir="$2"
 
@@ -354,13 +358,14 @@ function compile_kernel {
       && LC_ALL=C make -k M="${subdir}"
      ) &> "${outputfile}"
   then
-    local errors=$(grep -c ' error:' "${outputfile}")
-    local warnings=$(grep -c ' warning:' "${outputfile}")
+    local errors warnings
+    errors=$(grep -c ' error:' "${outputfile}")
+    warnings=$(grep -c ' warning:' "${outputfile}")
     echo "${errors} errors / ${warnings} warnings."
   else
     echo FAILED
   fi
-  cat "${outputfile}" | grep -E 'warning:|error:' | sort | uniq -c
+  grep -E 'warning:|error:' < "${outputfile}" | sort | uniq -c
   return 0
 }
 
@@ -370,14 +375,15 @@ function compile_kernel {
 # http://lwn.net/Articles/205624/.
 function run_sparse {
   local k="$1"
-  local kver="$(kernel_version $1)"
-  local plevel="$(patchlevel $1)"
+  local kver plevel
+  kver="$(kernel_version "$1")"
+  plevel="$(patchlevel "$1")"
   local outputfile="${outputdir}/sparse-$1-output.txt"
   local subdir="$2"
   shift
   shift
 
-  echo "Running sparse on the patched kernel in ${subdir} $@ ..."
+  echo "Running sparse on the patched kernel in ${subdir} $* ..."
   if (cd "${outputdir}/linux-$k" \
       && make -s prepare \
       && make -s scripts \
@@ -385,11 +391,11 @@ function run_sparse {
       && LC_ALL=C make -k C=2 CF="-D__CHECK_ENDIAN__ -DCONFIG_SPARSE_RCU_POINTER" M="${subdir}" "$@"
     ) &> "${outputfile}"
   then
-    local errors=$(grep -c ' error:' "${outputfile}")
-    local warnings=$(grep -c ' warning:' "${outputfile}")
+    local errors warnings
+    errors=$(grep -c ' error:' "${outputfile}")
+    warnings=$(grep -c ' warning:' "${outputfile}")
     echo "${errors} errors / ${warnings} warnings."
-    cat "${outputfile}" \
-      | grep -E ' warning:| error:' \
+    grep -E ' warning:| error:' < "${outputfile}" \
       | sed -e 's/^[^:]*:[0-9:]* //' \
             -e "s/context imbalance in '[^']*':/context imbalance in <function>:/g" \
             -e "s/context problem in '[^']*': '[^']*'/context problem in <function>: <function>/g" \
@@ -406,15 +412,16 @@ function run_sparse {
 
 function run_smatch {
   local k="$1"
-  local kver="$(kernel_version $1)"
-  local plevel="$(patchlevel $1)"
+  local kver plevel
+  kver="$(kernel_version "$1")"
+  plevel="$(patchlevel "$1")"
   local outputfile="${outputdir}/smatch-$1-output.txt"
   local subdir="$2"
   local disable="CONFIG_DYNAMIC_DEBUG"
   shift
   shift
 
-  echo "Running smatch on the patched kernel in ${subdir} $@ ..."
+  echo "Running smatch on the patched kernel in ${subdir} $* ..."
   if (cd "${outputdir}/linux-$k" &&
       for c in $disable; do sed -i.tmp "s/^$c=y\$/$c=n/" .config; done &&
       make -s oldconfig </dev/null &&
@@ -424,11 +431,11 @@ function run_smatch {
       LC_ALL=C make -k CHECK="smatch -p=kernel" C=2 CF=-D__CHECK_ENDIAN__ M="${subdir}" "$@"
     ) &> "${outputfile}"
   then
-    local errors=$(grep -c ' error:' "${outputfile}")
-    local warnings=$(grep -c ' warning:' "${outputfile}")
+    local errors warnings
+    errors=$(grep -c ' error:' "${outputfile}")
+    warnings=$(grep -c ' warning:' "${outputfile}")
     echo "${errors} errors / ${warnings} warnings."
-    cat "${outputfile}" |
-      grep -E ' info:| warning:| error:' |
+    grep -E ' info:| warning:| error:' < "${outputfile}" |
       sed 's/^\([^:]*\):[0-9:]* /\1: /;s/\((see line \)[0-9]*\()\)/\1...\2/' |
       sort |
       uniq -c
@@ -440,8 +447,9 @@ function run_smatch {
 }
 
 function run_checkstack {
-  local kver="$(kernel_version $1)"
-  local plevel="$(patchlevel $1)"
+  local kver plevel
+  kver="$(kernel_version "$1")"
+  plevel="$(patchlevel "$1")"
   local outputfile="${outputdir}/checkstack-$1-output.txt"
 
   echo "Running checkstack on the patched $1 kernel ..."
@@ -456,8 +464,9 @@ function run_checkstack {
 }
 
 function run_namespacecheck {
-  local kver="$(kernel_version $1)"
-  local plevel="$(patchlevel $1)"
+  local kver plevel
+  kver="$(kernel_version "$1")"
+  plevel="$(patchlevel "$1")"
   local outputfile="${outputdir}/namespacecheck-$1-output.txt"
 
   echo "Running namespacecheck on the patched $1 kernel ..."
@@ -472,8 +481,9 @@ function run_namespacecheck {
 }
 
 function run_headers_check {
-  local kver="$(kernel_version $1)"
-  local plevel="$(patchlevel $1)"
+  local kver plevel
+  kver="$(kernel_version "$1")"
+  plevel="$(patchlevel "$1")"
   local outputfile="${outputdir}/headers_check-$1-output.txt"
 
   echo "Running headers check on the patched $1 kernel ..."
@@ -483,15 +493,17 @@ function run_headers_check {
     && make -s scripts \
     && LC_ALL=C make -k headers_check
   ) &> "${outputfile}"
-  local errors=$(grep -c '^[^ ]' "${outputfile}")
+  local errors
+  errors=$(grep -c '^[^ ]' "${outputfile}")
   echo "${errors} errors."
   grep '^[^ ]' "${outputfile}" | sed 's/.*: //' | sort | uniq -c
   return 0
 }
 
 function run_make_htmldocs {
-  local kver="$(kernel_version $1)"
-  local plevel="$(patchlevel $1)"
+  local kver plevel
+  kver="$(kernel_version "$1")"
+  plevel="$(patchlevel "$1")"
   local outputfile="${outputdir}/htmldocs-$1-output.txt"
 
   echo "Generating HTML documentation for the patched $1 kernel ..."
@@ -512,12 +524,12 @@ function run_make_htmldocs {
 
 export LC_ALL=C
 
-if [ ! -e scst -o ! -e iscsi-scst -o ! -e srpt ]; then
+if [ ! -e scst ] || [ ! -e iscsi-scst ] || [ ! -e srpt ]; then
   echo "Please run this script from inside the SCST subversion source tree."
   exit 1
 fi
 
-scriptsdir="$(dirname $0)"
+scriptsdir="$(dirname "$0")"
 if [ "${scriptsdir:0:1}" != "/" ]; then
   scriptsdir="$PWD/${scriptsdir}"
 fi
@@ -535,7 +547,10 @@ remove_temporary_files_at_end="false"
 run_local_compilation="true"
 quiet_download="false"
 
-set -- $(/usr/bin/getopt "c:d:j:hklpq" "$@")
+{
+    # shellcheck disable=SC2046
+    set -- $(/usr/bin/getopt "c:d:j:hklpq" "$@")
+}
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
@@ -597,7 +612,6 @@ if [ "${run_local_compilation}" = "true" ]; then
   fi
 fi
 
-first_iteration="true"
 for kv in ${kernel_versions}
 do
   echo "=========================="
@@ -612,7 +626,7 @@ do
   run_smatch="true"
   ipv6="true"
   global_multiple_patches="${multiple_patches}"
-  while [ "${kv%-?}" != "${kv}" -o "${kv%-??}" != "${kv}" ]; do
+  while [ "${kv%-?}" != "${kv}" ] || [ "${kv%-??}" != "${kv}" ]; do
     kv_without_opt="${kv%-?}"
     if [ "${kv_without_opt}" = "${kv}" ]; then
       kv_without_opt="${kv%-??}"
@@ -634,12 +648,12 @@ do
   patchdir="patchdir-${kv}"
   k="${kv}"
 
-  download_kernel $k || continue
-  generate_kernel_patch $k "${generate_kernel_patch_options}" || continue
+  download_kernel "$k" || continue
+  generate_kernel_patch "$k" "${generate_kernel_patch_options}" || continue
   (
       cd "${outputdir}" &&
-	  extract_kernel_tree $k &&
-	  cd linux-$k/include/linux &&
+	  extract_kernel_tree "$k" &&
+	  cd "linux-$k/include/linux" &&
 	  if [ ! -e compiler-gcc6.h ]; then
 	      for f in compiler-gcc5.h compiler-gcc4.h; do
 		  if [ -e "$f" ]; then
@@ -651,34 +665,35 @@ do
   ) ||
       continue
   if [ "${run_checkpatch}" = "true" ]; then
-    run_checkpatch $k
+    run_checkpatch "$k"
   fi
-  patch_and_configure_kernel $k
+  patch_and_configure_kernel "$k"
   if [ "${run_sparse}" = "true" ]; then
-    run_sparse $k drivers/scst
-    mv ${outputdir}/sparse-$k-output.txt ${outputdir}/sparse-$k-scst-output.txt
+    run_sparse "$k" drivers/scst
+    mv "${outputdir}/sparse-$k-output.txt" \
+       "${outputdir}/sparse-$k-scst-output.txt"
     if [ "${ibmvio}" = "true" ]; then
-      run_sparse $k drivers/scsi libsrp.ko scsi_sysfs.ko \
+      run_sparse "$k" drivers/scsi libsrp.ko scsi_sysfs.ko \
                                  scsi_transport_fc.ko scsi_transport_srp.ko
-      mv ${outputdir}/sparse-$k-output.txt \
-         ${outputdir}/sparse-$k-scsi-output.txt
-      if [ $(uname -m) = "ppc32" -o $(uname -m) = "ppc64" ]; then
-        run_sparse $k drivers/scsi/ibmvscsi ibmvstgt.ko
-        mv ${outputdir}/sparse-$k-output.txt \
-           ${outputdir}/sparse-$k-ibmvstgt-output.txt
+      mv "${outputdir}/sparse-$k-output.txt" \
+         "${outputdir}/sparse-$k-scsi-output.txt"
+      if [ "$(uname -m)" = "ppc32" ] || [ "$(uname -m)" = "ppc64" ]; then
+        run_sparse "$k" drivers/scsi/ibmvscsi ibmvstgt.ko
+        mv "${outputdir}/sparse-$k-output.txt" \
+           "${outputdir}/sparse-$k-ibmvstgt-output.txt"
       fi
     fi
   fi
   if [ "${run_smatch}" = "true" ]; then
-    run_smatch $k drivers/scst
+    run_smatch "$k" drivers/scst
   fi
-  compile_kernel $k drivers/scst
+  compile_kernel "$k" drivers/scst
   if [ "${full_check}" = "true" ]; then
-    run_headers_check $k
-    compile_patched_kernel $k
-    run_checkstack $k
-    run_namespacecheck $k
-    run_make_htmldocs $k
+    run_headers_check "$k"
+    compile_patched_kernel "$k"
+    run_checkstack "$k"
+    run_namespacecheck "$k"
+    run_make_htmldocs "$k"
   fi
   if [ "${remove_temporary_files_at_end}" = "true" ]; then
     rm -rf "${outputdir}"
