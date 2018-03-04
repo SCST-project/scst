@@ -708,7 +708,9 @@ struct t10_pi_tuple {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0)
 #undef DEFINE_TIMER
 #define DEFINE_TIMER(_name, _function)					\
-	struct timer_list _name = __TIMER_INITIALIZER(_function, 0, 0, 0)
+	struct timer_list _name = __TIMER_INITIALIZER(			\
+		(void (*)(unsigned long))(_function),			\
+		(unsigned long)&(_name), 0, 0)
 #endif
 
 /* <linux/types.h> */
