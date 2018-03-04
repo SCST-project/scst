@@ -67,7 +67,7 @@ rm -f /usr/local/man/man5/scst.5*
 rm -f /usr/local/man/man5/scst.conf.5*
 
 %files
-%defattr(-,root,root)
+%defattr(-,root,root,0755)
 %config(noreplace) /etc/default/scst
 /etc/init.d/scst
 %{_sbindir}/scstadmin

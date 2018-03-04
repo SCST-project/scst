@@ -173,7 +173,7 @@ rm -rf /usr/local/include/scst
 /sbin/depmod -a %{kversion}
 
 %files
-%defattr(0644,root,root)
+%defattr(0644,root,root,0755)
 /lib/modules/%{kversion}/extra/fcst.ko
 /lib/modules/%{kversion}/extra/ib_srpt.ko
 /lib/modules/%{kversion}/extra/iscsi-scst.ko
@@ -192,7 +192,7 @@ rm -rf /usr/local/include/scst
 /lib/modules/%{kversion}/extra/dev_handlers/scst_tape.ko
 /lib/modules/%{kversion}/extra/dev_handlers/scst_user.ko
 /lib/modules/%{kversion}/extra/dev_handlers/scst_vdisk.ko
-%defattr(-,root,root)
+%defattr(-,root,root,0755)
 %{_mandir}/man5/iscsi-scstd.conf.5.gz
 %{_mandir}/man8/iscsi-scst-adm.8.gz
 %{_mandir}/man8/iscsi-scstd.8.gz
@@ -202,7 +202,7 @@ rm -rf /usr/local/include/scst
 %dir /var/lib/scst/vdev_mode_pages
 
 %files devel
-%defattr(-,root,root)
+%defattr(-,root,root,0755)
 %dir /usr/include/scst
 /usr/include/scst/Module.symvers
 /usr/include/scst/backport.h
