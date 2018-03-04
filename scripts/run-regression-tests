@@ -110,6 +110,18 @@ function make_rpm {
     done
 }
 
+function make_dpkg {
+    local outputfile="${outputdir}/make-dpkg-output.txt"
+
+    outputfile="${outputdir}/make-${t}-output.txt"
+    echo "Testing whether 'make dpkg' works fine ..."
+    if make dpkg > "${outputfile}" 2>&1; then
+	echo "OK"
+    else
+	echo "FAILED"
+    fi
+}
+
 function compile_scst {
   (
     export KCFLAGS=-DCONFIG_SCST_MEASURE_LATENCY
@@ -579,6 +591,9 @@ if [ "${run_local_compilation}" = "true" ]; then
   compile_scst_patched enable_proc  || exit $?
   if type rpmbuild >/dev/null 2>&1; then
       make_rpm || exit $?
+  fi
+  if type debuild >/dev/null 2>&1; then
+      make_dpkg || exit $?
   fi
 fi
 
