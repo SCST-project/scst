@@ -33,33 +33,20 @@ QLogic target driver
 
 QLogic target driver qla2x00t is the old driver, forked from qla2xxx
 several years ago. It is very stable, well tested and actively used in
-many production setups. The ultimate goal is to have the mainstream
-(git) QLogic target driver to be the main and the only QLogic target
-driver, but, unfortunately, this driver not yet reached level of quality
-and maturity of qla2x00t. We with QLogic are working toward it.
+many production setups.
 
-You can find the latest version of the git driver in git://git.qlogic.com/scst-qla2xxx.git.
-It is maintained by QLogic, hence located in the QLogic's git.
+There is also new driver, maintained by QLogic, which, among other,
+supports 32G FC, see http://scst.sourceforge.net/target_qla2x00t.html.
+You can find the latest version of it in git://git.qlogic.com/scst-qla2xxx.git.
 
-To integrate it into the SCST build tree you need:
+To integrate it into the SCST build tree you need to clone the QLogic
+git tree in a subdirectory of this directory (SCST root tree) with name
+qla2x00t_git (or create a symlink with this name pointing to any other
+location in your system).
 
-1. Clone the QLogic git tree somewhere in your system.
-
-2. Create in the SCST root, i.e. this directory, a subdirectory with name
-qla2x00t_git
-
-3. Optional for the in-tree build: symlink drivers/scsi/qla2xxx
-subdirectory in the cloned git tree to the qla2x00t_git subdirectory
-
-Thats all. Now common and QLA specific root Makefile targets "magically"
-start working with the new driver.
-
-For detail instructions how to setup QLA target build environment see
-its README or HOWTO. Run either "make all" to build the SCST core and
-all target drivers with in-tree QLogic drivers, or the following command
-with standalone QLogic drivers:
-
-BUILD_2X_MODULE=y CONFIG_SCSI_QLA_FC=y CONFIG_SCSI_QLA2XXX_TARGET=y make all
+Now common and QLA specific root Makefile targets "magically" start
+working with the new driver. Then follow instructions in the git's
+README.
 
 In presence of qla2x00t_git subdirectory you can still build the
 qla2x00t using qla_old* root Makefile targets.
