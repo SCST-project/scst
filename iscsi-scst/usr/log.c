@@ -1,7 +1,7 @@
 /*
  *  Copyright (C) 2002 - 2003 Ardis Technologies <roman@ardistech.com>
- *  Copyright (C) 2007 - 2017 Vladislav Bolkhovitin
- *  Copyright (C) 2007 - 2017 SanDisk Corporation
+ *  Copyright (C) 2007 - 2018 Vladislav Bolkhovitin
+ *  Copyright (C) 2007 - 2018 Western Digital Corporation
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
