@@ -2,7 +2,7 @@
 #define _SCST_BACKPORT_H_
 
 /*
- *  Copyright (C) 2015 - 2017 SanDisk Corporation
+ *  Copyright (C) 2015 - 2018 Western Digital Corporation
  *
  *  Backports of functions introduced in recent kernel versions.
  *

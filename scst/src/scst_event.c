@@ -1,7 +1,7 @@
 /*
  *  scst_event.c
  *
- *  Copyright (C) 2014 - 2017 SanDisk Corporation
+ *  Copyright (C) 2014 - 2018 Western Digital Corporation
  *
  */
 

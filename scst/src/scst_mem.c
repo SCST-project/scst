@@ -1,8 +1,8 @@
 /*
  *  scst_mem.c
  *
- *  Copyright (C) 2006 - 2017 Vladislav Bolkhovitin <vst@vlnb.net>
- *  Copyright (C) 2007 - 2017 SanDisk Corporation
+ *  Copyright (C) 2006 - 2018 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2007 - 2018 Western Digital Corporation
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License

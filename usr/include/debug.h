@@ -1,9 +1,9 @@
 /*
  *  debug.h
  *
- *  Copyright (C) 2004 - 2017 Vladislav Bolkhovitin <vst@vlnb.net>
+ *  Copyright (C) 2004 - 2018 Vladislav Bolkhovitin <vst@vlnb.net>
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
- *  Copyright (C) 2007 - 2017 SanDisk Corporation
+ *  Copyright (C) 2007 - 2018 Western Digital Corporation
  *
  *  Contains macroses for execution tracing and error reporting
  *
