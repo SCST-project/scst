@@ -188,6 +188,7 @@ rm -rf /usr/local/include/scst
 %{_mandir}/man8/iscsi-scstd.8.gz
 %{_sbindir}/iscsi-scst-adm
 %{_sbindir}/iscsi-scstd
+%dir /var/lib/scst/dif_tags
 %dir /var/lib/scst/pr
 %dir /var/lib/scst/vdev_mode_pages
 

@@ -5,6 +5,9 @@ DKMS_VERSION=${PACKAGE_VERSION}
 
 case "$1" in
     configure)
+	mkdir -p /var/lib/scst/dif_tags
+	mkdir -p /var/lib/scst/pr
+	mkdir -p /var/lib/scst/vdev_mode_pages
 	/usr/lib/dkms/common.postinst "$DKMS_NAME" "$DKMS_VERSION"
     ;;
 esac
