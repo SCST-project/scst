@@ -693,11 +693,15 @@ static int srpt_refresh_port(struct srpt_port *sport)
 	sport->sm_lid = port_attr.sm_lid;
 	sport->lid = port_attr.lid;
 
+#if HAVE_RDMA_QUERY_GID
+	ret = rdma_query_gid(sport->sdev->device, sport->port, 0, &sport->gid);
+#else
 	ret = ib_query_gid(sport->sdev->device, sport->port, 0, &sport->gid
 #ifdef IB_QUERY_GID_HAS_ATTR_ARG
 			   , NULL
 #endif
 			   );
+#endif
 	if (ret)
 		return ret;
 
@@ -940,7 +944,8 @@ static int srpt_post_recv(struct srpt_device *sdev, struct srpt_rdma_ch *ch,
 			  struct srpt_recv_ioctx *ioctx)
 {
 	struct ib_sge list;
-	struct ib_recv_wr wr, *bad_wr;
+	struct ib_recv_wr wr;
+	struct ib_recv_wr *bad_wr;
 
 	BUG_ON(!sdev);
 	wr.wr_id = encode_wr_id(SRPT_RECV, ioctx->ioctx.index);
@@ -973,7 +978,8 @@ static int srpt_post_send(struct srpt_rdma_ch *ch,
 			  struct srpt_send_ioctx *ioctx, int len)
 {
 	struct ib_sge list;
-	struct ib_send_wr wr, *bad_wr;
+	struct ib_send_wr wr;
+	struct ib_send_wr *bad_wr;
 	struct srpt_device *sdev = ch->sport->sdev;
 	int ret;
 
@@ -1016,7 +1022,8 @@ out:
  */
 static int srpt_zerolength_write(struct srpt_rdma_ch *ch)
 {
-	struct ib_send_wr wr, *bad_wr;
+	struct ib_send_wr wr;
+	struct ib_send_wr *bad_wr;
 
 	memset(&wr, 0, sizeof(wr));
 	wr.opcode = IB_WR_RDMA_WRITE;
@@ -2242,17 +2249,23 @@ retry:
 	 * max_sge values < max_sge_delta, use max_sge. For intermediate
 	 * max_sge values, use max_sge_delta.
 	 */
-	ch->max_sge = sdev->dev_attr.max_sge -
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
+	ch->max_send_sge = sdev->dev_attr.max_send_sge;
+	ch->max_recv_sge = sdev->dev_attr.max_recv_sge;
+#else
+	ch->max_send_sge = sdev->dev_attr.max_sge -
 		min_t(unsigned, max_sge_delta,
 		      max_t(int, 0,
 			    sdev->dev_attr.max_sge - max_sge_delta));
-	qp_init->cap.max_send_sge = ch->max_sge;
-	qp_init->cap.max_recv_sge = ch->max_sge;
+	ch->max_recv_sge = ch->max_send_sge;
+#endif
+	qp_init->cap.max_send_sge = ch->max_send_sge;
+	qp_init->cap.max_recv_sge = ch->max_recv_sge;
 	if (sdev->use_srq) {
 		qp_init->srq = sdev->srq;
 	} else {
 		qp_init->cap.max_recv_wr = ch->rq_size;
-		qp_init->cap.max_recv_sge = ch->max_sge;
+		qp_init->cap.max_recv_sge = ch->max_recv_sge;
 	}
 
 	if (ch->using_rdma_cm) {
@@ -3112,7 +3125,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	BUG_ON(!ioctx);
 	BUG_ON(!cmd);
 	dev = ch->sport->sdev->device;
-	max_sge = ch->max_sge;
+	max_sge = ch->max_send_sge;
 	dir = scst_cmd_get_data_direction(cmd);
 	BUG_ON(dir == SCST_DATA_NONE);
 	/*
