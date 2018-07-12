@@ -693,11 +693,15 @@ static int srpt_refresh_port(struct srpt_port *sport)
 	sport->sm_lid = port_attr.sm_lid;
 	sport->lid = port_attr.lid;
 
+#if HAVE_RDMA_QUERY_GID
+	ret = rdma_query_gid(sport->sdev->device, sport->port, 0, &sport->gid);
+#else
 	ret = ib_query_gid(sport->sdev->device, sport->port, 0, &sport->gid
 #ifdef IB_QUERY_GID_HAS_ATTR_ARG
 			   , NULL
 #endif
 			   );
+#endif
 	if (ret)
 		return ret;
 
@@ -940,7 +944,8 @@ static int srpt_post_recv(struct srpt_device *sdev, struct srpt_rdma_ch *ch,
 			  struct srpt_recv_ioctx *ioctx)
 {
 	struct ib_sge list;
-	struct ib_recv_wr wr, *bad_wr;
+	struct ib_recv_wr wr;
+	struct ib_recv_wr *bad_wr;
 
 	BUG_ON(!sdev);
 	wr.wr_id = encode_wr_id(SRPT_RECV, ioctx->ioctx.index);
@@ -973,7 +978,8 @@ static int srpt_post_send(struct srpt_rdma_ch *ch,
 			  struct srpt_send_ioctx *ioctx, int len)
 {
 	struct ib_sge list;
-	struct ib_send_wr wr, *bad_wr;
+	struct ib_send_wr wr;
+	struct ib_send_wr *bad_wr;
 	struct srpt_device *sdev = ch->sport->sdev;
 	int ret;
 
@@ -1016,7 +1022,8 @@ out:
  */
 static int srpt_zerolength_write(struct srpt_rdma_ch *ch)
 {
-	struct ib_send_wr wr, *bad_wr;
+	struct ib_send_wr wr;
+	struct ib_send_wr *bad_wr;
 
 	memset(&wr, 0, sizeof(wr));
 	wr.opcode = IB_WR_RDMA_WRITE;
@@ -2242,17 +2249,23 @@ retry:
 	 * max_sge values < max_sge_delta, use max_sge. For intermediate
 	 * max_sge values, use max_sge_delta.
 	 */
-	ch->max_sge = sdev->dev_attr.max_sge -
-		min(max_sge_delta,
-		    max_t(int, 0,
-			  sdev->dev_attr.max_sge - max_sge_delta));
-	qp_init->cap.max_send_sge = ch->max_sge;
-	qp_init->cap.max_recv_sge = ch->max_sge;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
+	ch->max_send_sge = sdev->dev_attr.max_send_sge;
+	ch->max_recv_sge = sdev->dev_attr.max_recv_sge;
+#else
+	ch->max_send_sge = sdev->dev_attr.max_sge -
+		min_t(unsigned, max_sge_delta,
+		      max_t(int, 0,
+			    sdev->dev_attr.max_sge - max_sge_delta));
+	ch->max_recv_sge = ch->max_send_sge;
+#endif
+	qp_init->cap.max_send_sge = ch->max_send_sge;
+	qp_init->cap.max_recv_sge = ch->max_recv_sge;
 	if (sdev->use_srq) {
 		qp_init->srq = sdev->srq;
 	} else {
 		qp_init->cap.max_recv_wr = ch->rq_size;
-		qp_init->cap.max_recv_sge = ch->max_sge;
+		qp_init->cap.max_recv_sge = ch->max_recv_sge;
 	}
 
 	if (ch->using_rdma_cm) {
@@ -2494,8 +2507,16 @@ static u16 srpt_next_comp_vector(struct srpt_port *sport)
 	return comp_vector;
 }
 
-/*
- * srpt_cm_req_recv() - Process the IB_CM_REQ_RECEIVED event.
+/**
+ * srpt_cm_req_recv - process the event IB_CM_REQ_RECEIVED
+ * @sdev: HCA through which the login request was received.
+ * @ib_cm_id: IB/CM connection identifier in case of IB/CM.
+ * @rdma_cm_id: RDMA/CM connection identifier in case of RDMA/CM.
+ * @port_num: Port through which the REQ message was received.
+ * @pkey: P_Key of the incoming connection.
+ * @req: SRP login request.
+ * @src_addr: GID (IB/CM) or IP address (RDMA/CM) of the port that submitted
+ * the login request.
  *
  * Ownership of the cm_id is transferred to the target session if this
  * function returns zero. Otherwise the caller remains the owner of cm_id.
@@ -2597,8 +2618,9 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 		rdma_cm_id->context = ch;
 	}
 	/*
-	 * Avoid QUEUE_FULL conditions by limiting the number of buffers used
-	 * for the SRP protocol to the SCST SCSI command queue size.
+	 * ch->rq_size should be at least as large as the initiator queue
+	 * depth to avoid that the initiator driver has to report QUEUE_FULL
+	 * to the SCSI mid-layer.
 	 */
 	ch->rq_size = min(MAX_SRPT_RQ_SIZE, scst_get_max_lun_commands(NULL, 0));
 	spin_lock_init(&ch->spinlock);
@@ -2765,7 +2787,8 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 		goto reject;
 	default:
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-		pr_err("sending SRP_LOGIN_REQ response failed (error code = %d)\n", ret);
+		pr_err("sending SRP_LOGIN_REQ response failed (error code = %d)\n",
+		       ret);
 		goto reject;
 	}
 
@@ -2803,6 +2826,7 @@ reject:
 	rej->tag = req->tag;
 	rej->buf_fmt = cpu_to_be16(SRP_BUF_FORMAT_DIRECT |
 				   SRP_BUF_FORMAT_INDIRECT);
+
 	if (rdma_cm_id)
 		rdma_reject(rdma_cm_id, rej, sizeof(*rej));
 	else
@@ -3101,7 +3125,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	BUG_ON(!ioctx);
 	BUG_ON(!cmd);
 	dev = ch->sport->sdev->device;
-	max_sge = ch->max_sge;
+	max_sge = ch->max_send_sge;
 	dir = scst_cmd_get_data_direction(cmd);
 	BUG_ON(dir == SCST_DATA_NONE);
 	/*

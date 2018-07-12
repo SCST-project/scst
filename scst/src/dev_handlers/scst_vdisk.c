@@ -203,6 +203,9 @@ struct scst_vdisk_dev {
 	struct block_device *bdev;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 	struct bio_set *vdisk_bioset;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
+	struct bio_set vdisk_bioset_struct;
+#endif
 #endif
 
 	uint64_t format_progress_to_do, format_progress_done;
@@ -7817,15 +7820,22 @@ out:
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 static int vdisk_create_bioset(struct scst_vdisk_dev *virt_dev)
 {
-	int res;
+	int res = 0;
 
 	EXTRACHECKS_BUG_ON(virt_dev->vdisk_bioset || !virt_dev->blockio);
 
 	/* Pool size doesn't really matter */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
+	virt_dev->vdisk_bioset = &virt_dev->vdisk_bioset_struct;
+	res = bioset_init(&virt_dev->vdisk_bioset_struct, 2, 0,
+			  BIOSET_NEED_BVECS);
+#else
 	virt_dev->vdisk_bioset = bioset_create(2, 0, BIOSET_NEED_BVECS);
-	if (virt_dev->vdisk_bioset == NULL) {
-		PRINT_ERROR("Failed to create bioset (dev %s)", virt_dev->name);
+	if (virt_dev->vdisk_bioset == NULL)
 		res = -ENOMEM;
+#endif
+	if (res < 0) {
+		PRINT_ERROR("Failed to create bioset (dev %s)", virt_dev->name);
 		goto out;
 	}
 
@@ -7849,15 +7859,24 @@ out:
 	return res;
 
 out_free:
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
+	bioset_exit(virt_dev->vdisk_bioset);
+#else
 	bioset_free(virt_dev->vdisk_bioset);
+#endif
 	virt_dev->vdisk_bioset = NULL;
 	goto out;
 }
 
 static void vdisk_free_bioset(struct scst_vdisk_dev *virt_dev)
 {
-	if (virt_dev->vdisk_bioset != NULL)
-		bioset_free(virt_dev->vdisk_bioset);
+	if (virt_dev->vdisk_bioset == NULL)
+		return;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
+	bioset_exit(virt_dev->vdisk_bioset);
+#else
+	bioset_free(virt_dev->vdisk_bioset);
+#endif
 }
 #endif
 
