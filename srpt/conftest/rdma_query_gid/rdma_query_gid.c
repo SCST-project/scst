@@ -1,5 +1,5 @@
 #include <linux/module.h>
-#include <rdma/ib_verbs.h>
+#include <rdma/ib_cache.h>
 
 static int modinit(void)
 {
