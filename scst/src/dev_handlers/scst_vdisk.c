@@ -4142,7 +4142,9 @@ static int vdisk_usn_vpd(uint8_t *buf, struct scst_cmd *cmd,
 		usn_len = strlen(virt_dev->usn);
 		buf[3] = usn_len;
 #pragma GCC diagnostic push
+#if __GNUC__ -0 >= 8
 #pragma GCC diagnostic ignored "-Wstringop-truncation"
+#endif
 		strncpy(&buf[4], virt_dev->usn, usn_len);
 #pragma GCC diagnostic pop
 		read_unlock(&vdisk_serial_rwlock);
