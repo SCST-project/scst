@@ -184,6 +184,12 @@ conftest/create_send_mad_base/result-$(KVER).txt:			\
 	echo "$(call run_conftest,create_send_mad_base,			\
 		-DCREATE_SEND_MAD_HAS_BASE_ARG)" >"$@"
 
+conftest/dev_attr_max_send_sge/result-$(KVER).txt:			\
+	conftest/dev_attr_max_send_sge/dev_attr_max_send_sge.c		\
+	conftest/dev_attr_max_send_sge/Makefile
+	echo "$(call run_conftest_bool,dev_attr_max_send_sge,		\
+		HAVE_DEV_ATTR_MAX_SEND_SGE)" >"$@"
+
 conftest/gid_change/result-$(KVER).txt:					\
 	conftest/gid_change/gid_change.c				\
 	conftest/gid_change/Makefile
