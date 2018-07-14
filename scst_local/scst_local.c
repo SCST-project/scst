@@ -1230,7 +1230,14 @@ static int scst_local_change_queue_depth(struct scsi_device *sdev, int qdepth)
 
 static int scst_local_slave_alloc(struct scsi_device *sdev)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0)
+#if !defined(RHEL_MAJOR) || RHEL_MAJOR -0 >= 6
+	queue_flag_set_unlocked(QUEUE_FLAG_BIDI, sdev->request_queue);
+#endif
+#else
 	blk_queue_flag_set(QUEUE_FLAG_BIDI, sdev->request_queue);
+#endif
+
 	return 0;
 }
 
