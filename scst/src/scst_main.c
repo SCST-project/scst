@@ -2578,7 +2578,6 @@ static int __init init_scst(void)
  * Used for structures with fast path write access accessed from user space.
  * See also commit 8eb8284b4129 ("usercopy: Prepare for usercopy whitelisting").
  */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 16, 0)
 #define INIT_CACHEP_ALIGN_USERCOPY(p, s) ({				\
 		(p) = kmem_cache_create_usercopy(#s, sizeof(struct s), 	\
 			__alignof__(struct s),				\
@@ -2588,9 +2587,6 @@ static int __init init_scst(void)
 			  sizeof(struct s));				\
 		(p);							\
 	})
-#else
-#define INIT_CACHEP_ALIGN_USERCOPY(p, s) INIT_CACHEP_ALIGN(p, s)
-#endif
 
 	res = -ENOMEM;
 	if (!INIT_CACHEP(scst_mgmt_cachep, scst_mgmt_cmd))
