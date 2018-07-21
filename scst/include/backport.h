@@ -680,7 +680,7 @@ static inline void *kmalloc_array(size_t n, size_t size, gfp_t flags)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
 static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
 			unsigned int size, unsigned int align,
-			slab_flags_t flags,
+			unsigned long flags,
 			unsigned int useroffset, unsigned int usersize,
 			void (*ctor)(void *))
 {
@@ -689,7 +689,7 @@ static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0)
 static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
 			unsigned int size, unsigned int align,
-			slab_flags_t flags,
+			unsigned long flags,
 			unsigned int useroffset, unsigned int usersize,
 			void (*ctor)(void *))
 {
