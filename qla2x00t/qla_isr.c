@@ -1228,7 +1228,7 @@ qla24xx_els_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 			    type, sp->handle, comp_status, fw_status[1], fw_status[2],
 			    le16_to_cpu(((struct els_sts_entry_24xx *)
 				pkt)->total_byte_count));
-			fw_sts_ptr = ((uint8_t*)scsi_req(bsg_job->req)->sense) +
+			fw_sts_ptr = bsg_job_sense(bsg_job) +
 				sizeof(struct fc_bsg_reply);
 			memcpy( fw_sts_ptr, fw_status, sizeof(fw_status));
 		}
@@ -1246,7 +1246,7 @@ qla24xx_els_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 #else
 			bsg_reply->reply_payload_rcv_len = 0;
 #endif
-			fw_sts_ptr = ((uint8_t*)scsi_req(bsg_job->req)->sense) +
+			fw_sts_ptr = bsg_job_sense(bsg_job) +
 				sizeof(struct fc_bsg_reply);
 			memcpy( fw_sts_ptr, fw_status, sizeof(fw_status));
 		}
