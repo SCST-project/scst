@@ -30,8 +30,8 @@ INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
 # The file Modules.symvers has been renamed in the 2.6.18 kernel to
 # Module.symvers. Find out which name to use by looking in $(KDIR).
-MODULE_SYMVERS:=$(shell if [ -e $(KDIR)/Module.symvers ]; then \
-		       echo Module.symvers; else echo Modules.symvers; fi)
+MODULE_SYMVERS:=$(shell if [ -e $(KDIR)/Modules.symvers ]; then \
+		       echo Modules.symvers; else echo Module.symvers; fi)
 
 
 all: src/$(MODULE_SYMVERS)

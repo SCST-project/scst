@@ -7,22 +7,28 @@ if [ "$1" = "" ]; then
   exit 1
 fi
 
-if [ "${1#2.6.26}" = "$1" ]; then
-  # Exit silently for other kernel versions than 2.6.26.x.
-  exit 0
-fi
-
 if [ ! -e qla2xxx-orig/$1 ]; then
   ./extract-qla2xxx-orig "$1"
 fi
 
 mkdir -p in-tree-patches/"${kernel_version}"
 
-for f in qla2xxx-orig/"${kernel_version}"/*
-do
-  g="${f#qla2xxx-orig/${kernel_version}/}"
-  f1="$f"
+for g in Kconfig *.[ch]; do
+  f1="qla2xxx-orig/${kernel_version}/$g"
   f2="$g"
+  f3="in-tree-patches/${kernel_version}/$g.patch"
+  if [ "$f1" -nt "$f3" -o "$f2" -nt "$f3" ]; then
+    if [ -e "$f1" ]; then
+      diff -up "$f1" "$f2" > "$f3"
+    else
+      diff -up /dev/null "$f2" > "$f3"
+    fi
+  fi
+done
+
+for g in Makefile; do
+  f1="qla2xxx-orig/${kernel_version}/$g"
+  f2="${g}_in-tree"
   f3="in-tree-patches/${kernel_version}/$g.patch"
   if [ "$f1" -nt "$f3" -o "$f2" -nt "$f3" ]; then
     diff -up "$f1" "$f2" > "$f3"

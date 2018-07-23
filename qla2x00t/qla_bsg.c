@@ -10,6 +10,53 @@
 #include <linux/vmalloc.h>
 #include <linux/delay.h>
 
+/*
+ * See also commit 17d5363b83f8 ("scsi: introduce a result field in struct
+ * scsi_request"). See also commit caf7df122721 ("block: remove the errors
+ * field from struct request").
+ */
+#ifndef NEW_LIBFC_API
+static inline void set_bsg_result(struct fc_bsg_job *job, int result)
+{
+	job->req->errors = result;
+}
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
+static inline void set_bsg_result(struct bsg_job *job, int result)
+{
+	job->req->errors = result;
+}
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0)
+static inline void set_bsg_result(struct bsg_job *job, int result)
+{
+	scsi_req(job->req)->result = result;
+}
+#else
+static inline void set_bsg_result(struct bsg_job *job, int result)
+{
+	scsi_req(blk_mq_rq_from_pdu(job))->result = result;
+}
+#endif
+
+#ifndef NEW_LIBFC_API
+static inline struct Scsi_Host *fc_bsg_to_shost(struct fc_bsg_job *job)
+{
+	return job->shost;
+}
+
+static inline struct fc_rport *fc_bsg_to_rport(struct fc_bsg_job *job)
+{
+	return job->rport;
+}
+
+static inline void bsg_job_done_backport(struct fc_bsg_job *job, int result,
+					 unsigned int reply_payload_rcv_len)
+{
+	job->job_done(job);
+}
+
+#define bsg_job_done bsg_job_done_backport
+#endif
+
 /* BSG support for ELS/CT pass through */
 void
 qla2x00_bsg_job_done(void *data, void *ptr, int res)
@@ -20,17 +67,11 @@ qla2x00_bsg_job_done(void *data, void *ptr, int res)
 	struct fc_bsg_job *bsg_job = sp->u.bsg_job;
 #else
 	struct bsg_job *bsg_job = sp->u.bsg_job;
+#endif
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
-#endif
 
-#ifndef NEW_LIBFC_API
-	bsg_job->reply->result = res;
-	bsg_job->job_done(bsg_job);
-#else
 	bsg_reply->result = res;
-	bsg_job_done(bsg_job, bsg_reply->result,
-		       bsg_reply->reply_payload_rcv_len);
-#endif
+	bsg_job_done(bsg_job, res, bsg_reply->reply_payload_rcv_len);
 	sp->free(vha, sp);
 }
 
@@ -120,13 +161,9 @@ qla24xx_proc_fcp_prio_cfg_cmd(struct fc_bsg_job *bsg_job)
 qla24xx_proc_fcp_prio_cfg_cmd(struct bsg_job *bsg_job)
 #endif
 {
-#ifndef NEW_LIBFC_API
-	struct Scsi_Host *host = bsg_job->shost;
-#else
 	struct Scsi_Host *host = fc_bsg_to_shost(bsg_job);
 	struct fc_bsg_request *bsg_request = bsg_job->request;
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
-#endif
 	scsi_qla_host_t *vha = shost_priv(host);
 	struct qla_hw_data *ha = vha->hw;
 	int ret = 0;
@@ -139,11 +176,7 @@ qla24xx_proc_fcp_prio_cfg_cmd(struct bsg_job *bsg_job)
 	}
 
 	/* Get the sub command */
-#ifndef NEW_LIBFC_API
-	oper = bsg_job->request->rqst_data.h_vendor.vendor_cmd[1];
-#else
 	oper = bsg_request->rqst_data.h_vendor.vendor_cmd[1];
-#endif
 
 	/* Only set config is allowed if config memory is not allocated */
 	if (!ha->fcp_prio_cfg && (oper != QLFC_FCP_PRIO_SET_CONFIG)) {
@@ -157,18 +190,10 @@ qla24xx_proc_fcp_prio_cfg_cmd(struct bsg_job *bsg_job)
 			ha->fcp_prio_cfg->attributes &=
 				~FCP_PRIO_ATTR_ENABLE;
 			qla24xx_update_all_fcp_prio(vha);
-#ifndef NEW_LIBFC_API
-			bsg_job->reply->result = DID_OK;
-#else
 			bsg_reply->result = DID_OK;
-#endif
 		} else {
 			ret = -EINVAL;
-#ifndef NEW_LIBFC_API
-			bsg_job->reply->result = (DID_ERROR << 16);
-#else
 			bsg_reply->result = (DID_ERROR << 16);
-#endif
 			goto exit_fcp_prio_cfg;
 		}
 		break;
@@ -180,18 +205,10 @@ qla24xx_proc_fcp_prio_cfg_cmd(struct bsg_job *bsg_job)
 				ha->fcp_prio_cfg->attributes |=
 				    FCP_PRIO_ATTR_ENABLE;
 				qla24xx_update_all_fcp_prio(vha);
-#ifndef NEW_LIBFC_API
-				bsg_job->reply->result = DID_OK;
-#else
 				bsg_reply->result = DID_OK;
-#endif
 			} else {
 				ret = -EINVAL;
-#ifndef NEW_LIBFC_API
-				bsg_job->reply->result = (DID_ERROR << 16);
-#else
 				bsg_reply->result = (DID_ERROR << 16);
-#endif
 				goto exit_fcp_prio_cfg;
 			}
 		}
@@ -201,21 +218,12 @@ qla24xx_proc_fcp_prio_cfg_cmd(struct bsg_job *bsg_job)
 		len = bsg_job->reply_payload.payload_len;
 		if (!len || len > FCP_PRIO_CFG_SIZE) {
 			ret = -EINVAL;
-#ifndef NEW_LIBFC_API
-			bsg_job->reply->result = (DID_ERROR << 16);
-#else
 			bsg_reply->result = (DID_ERROR << 16);
-#endif
 			goto exit_fcp_prio_cfg;
 		}
 
-#ifndef NEW_LIBFC_API
-		bsg_job->reply->result = DID_OK;
-		bsg_job->reply->reply_payload_rcv_len =
-#else
 		bsg_reply->result = DID_OK;
 		bsg_reply->reply_payload_rcv_len =
-#endif
 			sg_copy_from_buffer(
 			bsg_job->reply_payload.sg_list,
 			bsg_job->reply_payload.sg_cnt, ha->fcp_prio_cfg,
@@ -226,11 +234,7 @@ qla24xx_proc_fcp_prio_cfg_cmd(struct bsg_job *bsg_job)
 	case QLFC_FCP_PRIO_SET_CONFIG:
 		len = bsg_job->request_payload.payload_len;
 		if (!len || len > FCP_PRIO_CFG_SIZE) {
-#ifndef NEW_LIBFC_API
-			bsg_job->reply->result = (DID_ERROR << 16);
-#else
 			bsg_reply->result = (DID_ERROR << 16);
-#endif
 			ret = -EINVAL;
 			goto exit_fcp_prio_cfg;
 		}
@@ -241,11 +245,7 @@ qla24xx_proc_fcp_prio_cfg_cmd(struct bsg_job *bsg_job)
 				ql_log(ql_log_warn, vha, 0x7050,
 				    "Unable to allocate memory for fcp prio "
 				    "config data (%x).\n", FCP_PRIO_CFG_SIZE);
-#ifndef NEW_LIBFC_API
-				bsg_job->reply->result = (DID_ERROR << 16);
-#else
 				bsg_reply->result = (DID_ERROR << 16);
-#endif
 				ret = -ENOMEM;
 				goto exit_fcp_prio_cfg;
 			}
@@ -260,11 +260,7 @@ qla24xx_proc_fcp_prio_cfg_cmd(struct bsg_job *bsg_job)
 
 		if (!qla24xx_fcp_prio_cfg_valid(vha,
 		    (struct qla_fcp_prio_cfg *) ha->fcp_prio_cfg, 1)) {
-#ifndef NEW_LIBFC_API
-			bsg_job->reply->result = (DID_ERROR << 16);
-#else
 			bsg_reply->result = (DID_ERROR << 16);
-#endif
 			ret = -EINVAL;
 			/* If buffer was invalidatic int
 			 * fcp_prio_cfg is of no use
@@ -278,11 +274,7 @@ qla24xx_proc_fcp_prio_cfg_cmd(struct bsg_job *bsg_job)
 		if (ha->fcp_prio_cfg->attributes & FCP_PRIO_ATTR_ENABLE)
 			ha->flags.fcp_prio_enabled = 1;
 		qla24xx_update_all_fcp_prio(vha);
-#ifndef NEW_LIBFC_API
-		bsg_job->reply->result = DID_OK;
-#else
 		bsg_reply->result = DID_OK;
-#endif
 		break;
 	default:
 		ret = -EINVAL;
@@ -306,9 +298,7 @@ qla2x00_process_els(struct fc_bsg_job *bsg_job)
 qla2x00_process_els(struct bsg_job *bsg_job)
 #endif
 {
-#ifdef NEW_LIBFC_API
 	struct fc_bsg_request *bsg_request = bsg_job->request;
-#endif
 	struct fc_rport *rport;
 	fc_port_t *fcport = NULL;
 	struct Scsi_Host *host;
@@ -321,33 +311,19 @@ qla2x00_process_els(struct bsg_job *bsg_job)
 	uint16_t nextlid = 0;
 
 #ifdef __COVERITY__
-#ifndef NEW_LIBFC_API
-	BUG_ON(bsg_job->request->msgcode != FC_BSG_RPT_ELS &&
-	       bsg_job->request->msgcode != FC_BSG_HST_ELS_NOLOGIN);
-#else
 	BUG_ON(bsg_request->msgcode != FC_BSG_RPT_ELS &&
 	       bsg_request->msgcode != FC_BSG_HST_ELS_NOLOGIN);
 #endif
-#endif
 
-#ifndef NEW_LIBFC_API
-	if (bsg_job->request->msgcode == FC_BSG_RPT_ELS) {
-		rport = bsg_job->rport;
-#else
 	if (bsg_request->msgcode == FC_BSG_RPT_ELS) {
-		rport = fc_bsg_to_rport(bsg_job);;
-#endif
+		rport = fc_bsg_to_rport(bsg_job);
 		fcport = *(fc_port_t **) rport->dd_data;
 		host = rport_to_shost(rport);
 		vha = shost_priv(host);
 		ha = vha->hw;
 		type = "FC_BSG_RPT_ELS";
 	} else {
-#ifndef NEW_LIBFC_API
-		host = bsg_job->shost;
-#else
 		host = fc_bsg_to_shost(bsg_job);
-#endif
 		vha = shost_priv(host);
 		ha = vha->hw;
 		type = "FC_BSG_HST_ELS_NOLOGIN";
@@ -374,11 +350,7 @@ qla2x00_process_els(struct bsg_job *bsg_job)
 	}
 
 	/* ELS request for rport */
-#ifndef NEW_LIBFC_API
-	if (bsg_job->request->msgcode == FC_BSG_RPT_ELS) {
-#else
 	if (bsg_request->msgcode == FC_BSG_RPT_ELS) {
-#endif
 		/* make sure the rport is logged in,
 		 * if not perform fabric login
 		 */
@@ -403,21 +375,12 @@ qla2x00_process_els(struct bsg_job *bsg_job)
 
 		/* Initialize all required  fields of fcport */
 		fcport->vha = vha;
-#ifndef NEW_LIBFC_API
-		fcport->d_id.b.al_pa =
-			bsg_job->request->rqst_data.h_els.port_id[0];
-		fcport->d_id.b.area =
-			bsg_job->request->rqst_data.h_els.port_id[1];
-		fcport->d_id.b.domain =
-			bsg_job->request->rqst_data.h_els.port_id[2];
-#else
 		fcport->d_id.b.al_pa =
 			bsg_request->rqst_data.h_els.port_id[0];
 		fcport->d_id.b.area =
 			bsg_request->rqst_data.h_els.port_id[1];
 		fcport->d_id.b.domain =
 			bsg_request->rqst_data.h_els.port_id[2];
-#endif
 		fcport->loop_id =
 			(fcport->d_id.b.al_pa == 0xFD) ?
 			NPH_FABRIC_CONTROLLER : NPH_F_PORT;
@@ -462,21 +425,12 @@ qla2x00_process_els(struct bsg_job *bsg_job)
 		goto done_unmap_sg;
 	}
 
-#ifndef NEW_LIBFC_API
-	sp->type =
-		(bsg_job->request->msgcode == FC_BSG_RPT_ELS ?
-		SRB_ELS_CMD_RPT : SRB_ELS_CMD_HST);
-	sp->name =
-		(bsg_job->request->msgcode == FC_BSG_RPT_ELS ?
-		"bsg_els_rpt" : "bsg_els_hst");
-#else
 	sp->type =
 		(bsg_request->msgcode == FC_BSG_RPT_ELS ?
 		SRB_ELS_CMD_RPT : SRB_ELS_CMD_HST);
 	sp->name =
 		(bsg_request->msgcode == FC_BSG_RPT_ELS ?
 		"bsg_els_rpt" : "bsg_els_hst");
-#endif
 	sp->u.bsg_job = bsg_job;
 	sp->free = qla2x00_bsg_sp_free;
 	sp->done = qla2x00_bsg_job_done;
@@ -484,11 +438,7 @@ qla2x00_process_els(struct bsg_job *bsg_job)
 	ql_dbg(ql_dbg_user, vha, 0x700a,
 	    "bsg rqst type: %s els type: %x - loop-id=%x "
 	    "portid=%-2x%02x%02x.\n", type,
-#ifndef NEW_LIBFC_API
-	    bsg_job->request->rqst_data.h_els.command_code, fcport->loop_id,
-#else
 	    bsg_request->rqst_data.h_els.command_code, fcport->loop_id,
-#endif
 	    fcport->d_id.b.domain, fcport->d_id.b.area, fcport->d_id.b.al_pa);
 
 	rval = qla2x00_start_sp(sp);
@@ -509,11 +459,7 @@ done_unmap_sg:
 	goto done_free_fcport;
 
 done_free_fcport:
-#ifndef NEW_LIBFC_API
-	if (bsg_job->request->msgcode == FC_BSG_HST_ELS_NOLOGIN)
-#else
 	if (bsg_request->msgcode == FC_BSG_HST_ELS_NOLOGIN)
-#endif
 		kfree(fcport);
 done:
 	return rval;
@@ -543,9 +489,9 @@ qla2x00_process_ct(struct bsg_job *bsg_job)
 #ifndef NEW_LIBFC_API
 	struct Scsi_Host *host = bsg_job->shost;
 #else
-	struct fc_bsg_request *bsg_request = bsg_job->request;
 	struct Scsi_Host *host = fc_bsg_to_shost(bsg_job);
 #endif
+	struct fc_bsg_request *bsg_request = bsg_job->request;
 	scsi_qla_host_t *vha = shost_priv(host);
 	struct qla_hw_data *ha = vha->hw;
 	int rval = (DRIVER_ERROR << 16);
@@ -591,11 +537,7 @@ qla2x00_process_ct(struct bsg_job *bsg_job)
 	}
 
 	loop_id =
-#ifndef NEW_LIBFC_API
-		(bsg_job->request->rqst_data.h_ct.preamble_word1 & 0xFF000000)
-#else
 		(bsg_request->rqst_data.h_ct.preamble_word1 & 0xFF000000)
-#endif
 			>> 24;
 	switch (loop_id) {
 	case 0xFC:
@@ -626,15 +568,9 @@ qla2x00_process_ct(struct bsg_job *bsg_job)
 
 	/* Initialize all required  fields of fcport */
 	fcport->vha = vha;
-#ifndef NEW_LIBFC_API
-	fcport->d_id.b.al_pa = bsg_job->request->rqst_data.h_ct.port_id[0];
-	fcport->d_id.b.area = bsg_job->request->rqst_data.h_ct.port_id[1];
-	fcport->d_id.b.domain = bsg_job->request->rqst_data.h_ct.port_id[2];
-#else
 	fcport->d_id.b.al_pa = bsg_request->rqst_data.h_ct.port_id[0];
 	fcport->d_id.b.area = bsg_request->rqst_data.h_ct.port_id[1];
 	fcport->d_id.b.domain = bsg_request->rqst_data.h_ct.port_id[2];
-#endif
 	fcport->loop_id = loop_id;
 
 	/* Alloc SRB structure */
@@ -656,11 +592,7 @@ qla2x00_process_ct(struct bsg_job *bsg_job)
 	ql_dbg(ql_dbg_user, vha, 0x7016,
 	    "bsg rqst type: %s else type: %x - "
 	    "loop-id=%x portid=%02x%02x%02x.\n", type,
-#ifndef NEW_LIBFC_API
-	    (bsg_job->request->rqst_data.h_ct.preamble_word2 >> 16),
-#else
 	    (bsg_request->rqst_data.h_ct.preamble_word2 >> 16),
-#endif
 	    fcport->loop_id, fcport->d_id.b.domain, fcport->d_id.b.area,
 	    fcport->d_id.b.al_pa);
 
@@ -785,10 +717,10 @@ qla2x00_process_loopback(struct bsg_job *bsg_job)
 #ifndef NEW_LIBFC_API
 	struct Scsi_Host *host = bsg_job->shost;
 #else
-	struct fc_bsg_request *bsg_request = bsg_job->request;
-	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
 	struct Scsi_Host *host = fc_bsg_to_shost(bsg_job);
 #endif
+	struct fc_bsg_request *bsg_request = bsg_job->request;
+	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
 	scsi_qla_host_t *vha = shost_priv(host);
 	struct qla_hw_data *ha = vha->hw;
 	int rval;
@@ -870,11 +802,7 @@ qla2x00_process_loopback(struct bsg_job *bsg_job)
 	elreq.rcv_dma = rsp_data_dma;
 	elreq.transfer_size = req_data_len;
 
-#ifndef NEW_LIBFC_API
-	elreq.options = bsg_job->request->rqst_data.h_vendor.vendor_cmd[1];
-#else
 	elreq.options = bsg_request->rqst_data.h_vendor.vendor_cmd[1];
-#endif
 
 	if ((ha->current_topology == ISP_CFG_F ||
 	    ((IS_QLA81XX(ha) || IS_QLA8031(ha)) &&
@@ -893,11 +821,7 @@ qla2x00_process_loopback(struct bsg_job *bsg_job)
 			if (qla81xx_get_port_config(vha, config)) {
 				ql_log(ql_log_warn, vha, 0x701f,
 				    "Get port config failed.\n");
-#ifndef NEW_LIBFC_API
-				bsg_job->reply->result = (DID_ERROR << 16);
-#else
 				bsg_reply->result = (DID_ERROR << 16);
-#endif
 				rval = -EPERM;
 				goto done_free_dma_req;
 			}
@@ -910,11 +834,7 @@ qla2x00_process_loopback(struct bsg_job *bsg_job)
 					new_config)) {
 					ql_log(ql_log_warn, vha, 0x7024,
 					    "Internal loopback failed.\n");
-#ifndef NEW_LIBFC_API
-					bsg_job->reply->result =
-#else
 					bsg_reply->result =
-#endif
 						(DID_ERROR << 16);
 					rval = -EPERM;
 					goto done_free_dma_req;
@@ -925,11 +845,7 @@ qla2x00_process_loopback(struct bsg_job *bsg_job)
 				 */
 				if (qla81xx_reset_internal_loopback(vha,
 					config, 1)) {
-#ifndef NEW_LIBFC_API
-					bsg_job->reply->result =
-#else
 					bsg_reply->result =
-#endif
 						(DID_ERROR << 16);
 					rval = -EPERM;
 					goto done_free_dma_req;
@@ -965,11 +881,7 @@ qla2x00_process_loopback(struct bsg_job *bsg_job)
 					    "MPI reset failed.\n");
 				}
 
-#ifndef NEW_LIBFC_API
-				bsg_job->reply->result = (DID_ERROR << 16);
-#else
 				bsg_reply->result = (DID_ERROR << 16);
-#endif
 				rval = -EIO;
 				goto done_free_dma_req;
 			}
@@ -986,50 +898,28 @@ qla2x00_process_loopback(struct bsg_job *bsg_job)
 		ql_log(ql_log_warn, vha, 0x702c,
 		    "Vendor request %s failed.\n", type);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
-		fw_sts_ptr = ((uint8_t *)scsi_req(bsg_job->req)->sense) +
+		fw_sts_ptr = bsg_job_sense(bsg_job) +
 			 sizeof(struct fc_bsg_reply);
-#else
-		fw_sts_ptr = ((uint8_t *)bsg_job->req->sense) +
-			sizeof(struct fc_bsg_reply);
-#endif
 
 		memcpy(fw_sts_ptr, response, sizeof(response));
 		fw_sts_ptr += sizeof(response);
 		*fw_sts_ptr = command_sent;
 		rval = 0;
-#ifndef NEW_LIBFC_API
-		bsg_job->reply->result = (DID_ERROR << 16);
-#else
 		bsg_reply->result = (DID_ERROR << 16);
-#endif
 	} else {
 		ql_dbg(ql_dbg_user, vha, 0x702d,
 		    "Vendor request %s completed.\n", type);
 
 		bsg_job->reply_len = sizeof(struct fc_bsg_reply) +
 			sizeof(response) + sizeof(uint8_t);
-#ifndef NEW_LIBFC_API
-		bsg_job->reply->reply_payload_rcv_len =
-#else
 		bsg_reply->reply_payload_rcv_len =
-#endif
 			bsg_job->reply_payload.payload_len;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
-		fw_sts_ptr = ((uint8_t *)scsi_req(bsg_job->req)->sense) +
+		fw_sts_ptr = bsg_job_sense(bsg_job) +
 			 sizeof(struct fc_bsg_reply);
-#else
-		fw_sts_ptr = ((uint8_t *)bsg_job->req->sense) +
-			sizeof(struct fc_bsg_reply);
-#endif
 		memcpy(fw_sts_ptr, response, sizeof(response));
 		fw_sts_ptr += sizeof(response);
 		*fw_sts_ptr = command_sent;
-#ifndef NEW_LIBFC_API
-		bsg_job->reply->result = DID_OK;
-#else
 		bsg_reply->result = DID_OK;
-#endif
 		sg_copy_from_buffer(bsg_job->reply_payload.sg_list,
 			bsg_job->reply_payload.sg_cnt, rsp_data,
 			rsp_data_len);
@@ -1065,13 +955,9 @@ qla84xx_reset(struct fc_bsg_job *bsg_job)
 qla84xx_reset(struct bsg_job *bsg_job)
 #endif
 {
-#ifndef NEW_LIBFC_API
-	struct Scsi_Host *host = bsg_job->shost;
-#else
-	struct fc_bsg_request *bsg_request = bsg_job->request;
 	struct Scsi_Host *host = fc_bsg_to_shost(bsg_job);
+	struct fc_bsg_request *bsg_request = bsg_job->request;
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
-#endif
 	scsi_qla_host_t *vha = shost_priv(host);
 	struct qla_hw_data *ha = vha->hw;
 	int rval = 0;
@@ -1082,11 +968,7 @@ qla84xx_reset(struct bsg_job *bsg_job)
 		return -EINVAL;
 	}
 
-#ifndef NEW_LIBFC_API
-	flag = bsg_job->request->rqst_data.h_vendor.vendor_cmd[1];
-#else
 	flag = bsg_request->rqst_data.h_vendor.vendor_cmd[1];
-#endif
 
 	rval = qla84xx_reset_chip(vha, flag == A84_ISSUE_RESET_DIAG_FW);
 
@@ -1094,19 +976,11 @@ qla84xx_reset(struct bsg_job *bsg_job)
 		ql_log(ql_log_warn, vha, 0x7030,
 		    "Vendor request 84xx reset failed.\n");
 		rval = 0;
-#ifndef NEW_LIBFC_API
-		bsg_job->reply->result = (DID_ERROR << 16);
-#else
 		bsg_reply->result = (DID_ERROR << 16);
-#endif
 	} else {
 		ql_dbg(ql_dbg_user, vha, 0x7031,
 		    "Vendor request 84xx reset completed.\n");
-#ifndef NEW_LIBFC_API
-		bsg_job->reply->result = DID_OK;
-#else
 		bsg_reply->result = DID_OK;
-#endif
 	}
 
 #ifndef NEW_LIBFC_API
@@ -1126,13 +1000,9 @@ qla84xx_updatefw(struct fc_bsg_job *bsg_job)
 qla84xx_updatefw(struct bsg_job *bsg_job)
 #endif
 {
-#ifndef NEW_LIBFC_API
-	struct Scsi_Host *host = bsg_job->shost;
-#else
+	struct Scsi_Host *host = fc_bsg_to_shost(bsg_job);
 	struct fc_bsg_request *bsg_request = bsg_job->request;
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
-	struct Scsi_Host *host = fc_bsg_to_shost(bsg_job);
-#endif
 	scsi_qla_host_t *vha = shost_priv(host);
 	struct qla_hw_data *ha = vha->hw;
 	struct verify_chip_entry_84xx *mn = NULL;
@@ -1189,11 +1059,7 @@ qla84xx_updatefw(struct bsg_job *bsg_job)
 		goto done_free_fw_buf;
 	}
 
-#ifndef NEW_LIBFC_API
-	flag = bsg_job->request->rqst_data.h_vendor.vendor_cmd[1];
-#else
 	flag = bsg_request->rqst_data.h_vendor.vendor_cmd[1];
-#endif
 	fw_ver = le32_to_cpu(*((uint32_t *)((uint32_t *)fw_buf + 2)));
 
 	memset(mn, 0, sizeof(struct access_chip_84xx));
@@ -1220,21 +1086,13 @@ qla84xx_updatefw(struct bsg_job *bsg_job)
 		    "Vendor request 84xx updatefw failed.\n");
 
 		rval = 0;
-#ifndef NEW_LIBFC_API
-		bsg_job->reply->result = (DID_ERROR << 16);
-#else
 		bsg_reply->result = (DID_ERROR << 16);
-#endif
 	} else {
 		ql_dbg(ql_dbg_user, vha, 0x7038,
 		    "Vendor request 84xx updatefw completed.\n");
 
 		bsg_job->reply_len = sizeof(struct fc_bsg_reply);
-#ifndef NEW_LIBFC_API
-		bsg_job->reply->result = DID_OK;
-#else
 		bsg_reply->result = DID_OK;
-#endif
 	}
 
 #ifndef NEW_LIBFC_API
@@ -1263,13 +1121,9 @@ qla84xx_mgmt_cmd(struct fc_bsg_job *bsg_job)
 qla84xx_mgmt_cmd(struct bsg_job *bsg_job)
 #endif
 {
-#ifndef NEW_LIBFC_API
-	struct Scsi_Host *host = bsg_job->shost;
-#else
+	struct Scsi_Host *host = fc_bsg_to_shost(bsg_job);
 	struct fc_bsg_request *bsg_request = bsg_job->request;
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
-	struct Scsi_Host *host = fc_bsg_to_shost(bsg_job);
-#endif
 	scsi_qla_host_t *vha = shost_priv(host);
 	struct qla_hw_data *ha = vha->hw;
 	struct access_chip_84xx *mn = NULL;
@@ -1287,12 +1141,7 @@ qla84xx_mgmt_cmd(struct bsg_job *bsg_job)
 		return -EINVAL;
 	}
 
-#ifndef NEW_LIBFC_API
-	ql84_mgmt = (struct qla_bsg_a84_mgmt *)((char *)bsg_job->request +
-		sizeof(struct fc_bsg_request));
-#else
 	ql84_mgmt = (void *)bsg_request + sizeof(struct fc_bsg_request);
-#endif
 
 	mn = dma_pool_alloc(ha->s_dma_pool, GFP_KERNEL, &mn_dma);
 	if (!mn) {
@@ -1430,29 +1279,17 @@ qla84xx_mgmt_cmd(struct bsg_job *bsg_job)
 		    "Vendor request 84xx mgmt failed.\n");
 
 		rval = 0;
-#ifndef NEW_LIBFC_API
-		bsg_job->reply->result = (DID_ERROR << 16);
-#else
 		bsg_reply->result = (DID_ERROR << 16);
-#endif
 	} else {
 		ql_dbg(ql_dbg_user, vha, 0x7044,
 		    "Vendor request 84xx mgmt completed.\n");
 
 		bsg_job->reply_len = sizeof(struct fc_bsg_reply);
-#ifndef NEW_LIBFC_API
-		bsg_job->reply->result = DID_OK;
-#else
 		bsg_reply->result = DID_OK;
-#endif
 
 		if ((ql84_mgmt->mgmt.cmd == QLA84_MGMT_READ_MEM) ||
 			(ql84_mgmt->mgmt.cmd == QLA84_MGMT_GET_INFO)) {
-#ifndef NEW_LIBFC_API
-			bsg_job->reply->reply_payload_rcv_len =
-#else
 			bsg_reply->reply_payload_rcv_len =
-#endif
 				bsg_job->reply_payload.payload_len;
 
 			sg_copy_from_buffer(bsg_job->reply_payload.sg_list,
@@ -1493,13 +1330,9 @@ qla24xx_iidma(struct fc_bsg_job *bsg_job)
 qla24xx_iidma(struct bsg_job *bsg_job)
 #endif
 {
-#ifndef NEW_LIBFC_API
-	struct Scsi_Host *host = bsg_job->shost;
-#else
+	struct Scsi_Host *host = fc_bsg_to_shost(bsg_job);
 	struct fc_bsg_request *bsg_request = bsg_job->request;
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
-	struct Scsi_Host *host = fc_bsg_to_shost(bsg_job);
-#endif
 	scsi_qla_host_t *vha = shost_priv(host);
 	int rval = 0;
 	struct qla_port_param *port_param = NULL;
@@ -1512,12 +1345,7 @@ qla24xx_iidma(struct bsg_job *bsg_job)
 		return -EINVAL;
 	}
 
-#ifndef NEW_LIBFC_API
-	port_param = (struct qla_port_param *)((char *)bsg_job->request +
-		sizeof(struct fc_bsg_request));
-#else
 	port_param = (void *)bsg_request + sizeof(struct fc_bsg_request);
-#endif
 	if (port_param->fc_scsi_addr.dest_type != EXT_DEF_TYPE_WWPN) {
 		ql_log(ql_log_warn, vha, 0x7048,
 		    "Invalid destination type.\n");
@@ -1568,11 +1396,7 @@ qla24xx_iidma(struct bsg_job *bsg_job)
 		    fcport->port_name[5], fcport->port_name[6],
 		    fcport->port_name[7], rval, fcport->fp_speed, mb[0], mb[1]);
 		rval = 0;
-#ifndef NEW_LIBFC_API
-		bsg_job->reply->result = (DID_ERROR << 16);
-#else
 		bsg_reply->result = (DID_ERROR << 16);
-#endif
 	} else {
 		if (!port_param->mode) {
 			bsg_job->reply_len = sizeof(struct fc_bsg_reply) +
@@ -1585,11 +1409,7 @@ qla24xx_iidma(struct bsg_job *bsg_job)
 				sizeof(struct qla_port_param));
 		}
 
-#ifndef NEW_LIBFC_API
-		bsg_job->reply->result = DID_OK;
-#else
 		bsg_reply->result = DID_OK;
-#endif
 	}
 
 #ifndef NEW_LIBFC_API
@@ -1610,9 +1430,7 @@ qla2x00_optrom_setup(struct bsg_job *bsg_job, scsi_qla_host_t *vha,
 #endif
     uint8_t is_update)
 {
-#ifdef NEW_LIBFC_API
 	struct fc_bsg_request *bsg_request = bsg_job->request;
-#endif
 	uint32_t start = 0;
 	int valid = 0;
 	struct qla_hw_data *ha = vha->hw;
@@ -1620,11 +1438,7 @@ qla2x00_optrom_setup(struct bsg_job *bsg_job, scsi_qla_host_t *vha,
 	if (unlikely(pci_channel_offline(ha->pdev)))
 		return -EINVAL;
 
-#ifndef NEW_LIBFC_API
-	start = bsg_job->request->rqst_data.h_vendor.vendor_cmd[1];
-#else
 	start = bsg_request->rqst_data.h_vendor.vendor_cmd[1];
-#endif
 	if (start > ha->optrom_size) {
 		ql_log(ql_log_warn, vha, 0x7055,
 		    "start %d > optrom_size %d.\n", start, ha->optrom_size);
@@ -1689,12 +1503,8 @@ qla2x00_read_optrom(struct fc_bsg_job *bsg_job)
 qla2x00_read_optrom(struct bsg_job *bsg_job)
 #endif
 {
-#ifndef NEW_LIBFC_API
-	struct Scsi_Host *host = bsg_job->shost;
-#else
-	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
 	struct Scsi_Host *host = fc_bsg_to_shost(bsg_job);
-#endif
+	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
 	scsi_qla_host_t *vha = shost_priv(host);
 	struct qla_hw_data *ha = vha->hw;
 	int rval = 0;
@@ -1713,22 +1523,13 @@ qla2x00_read_optrom(struct bsg_job *bsg_job)
 	    bsg_job->reply_payload.sg_cnt, ha->optrom_buffer,
 	    ha->optrom_region_size);
 
-#ifndef NEW_LIBFC_API
-	bsg_job->reply->reply_payload_rcv_len = ha->optrom_region_size;
-	bsg_job->reply->result = DID_OK;
-#else
 	bsg_reply->reply_payload_rcv_len = ha->optrom_region_size;
 	bsg_reply->result = DID_OK;
-#endif
 	vfree(ha->optrom_buffer);
 	ha->optrom_buffer = NULL;
 	ha->optrom_state = QLA_SWAITING;
-#ifndef NEW_LIBFC_API
-	bsg_job->job_done(bsg_job);
-#else
 	bsg_job_done(bsg_job, bsg_reply->result,
 		bsg_reply->reply_payload_rcv_len);
-#endif
 	return rval;
 }
 
@@ -1739,12 +1540,8 @@ qla2x00_update_optrom(struct fc_bsg_job *bsg_job)
 qla2x00_update_optrom(struct bsg_job *bsg_job)
 #endif
 {
-#ifndef NEW_LIBFC_API
-	struct Scsi_Host *host = bsg_job->shost;
-#else
-	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
 	struct Scsi_Host *host = fc_bsg_to_shost(bsg_job);
-#endif
+	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
 	scsi_qla_host_t *vha = shost_priv(host);
 	struct qla_hw_data *ha = vha->hw;
 	int rval = 0;
@@ -1763,20 +1560,12 @@ qla2x00_update_optrom(struct bsg_job *bsg_job)
 	ha->isp_ops->write_optrom(vha, ha->optrom_buffer,
 	    ha->optrom_region_start, ha->optrom_region_size);
 
-#ifndef NEW_LIBFC_API
-	bsg_job->reply->result = DID_OK;
-#else
 	bsg_reply->result = DID_OK;
-#endif
 	vfree(ha->optrom_buffer);
 	ha->optrom_buffer = NULL;
 	ha->optrom_state = QLA_SWAITING;
-#ifndef NEW_LIBFC_API
-	bsg_job->job_done(bsg_job);
-#else
 	bsg_job_done(bsg_job, bsg_reply->result,
 		bsg_reply->reply_payload_rcv_len);
-#endif
 	return rval;
 }
 
@@ -1787,12 +1576,8 @@ qla2x00_update_fru_versions(struct fc_bsg_job *bsg_job)
 qla2x00_update_fru_versions(struct bsg_job *bsg_job)
 #endif
 {
-#ifndef NEW_LIBFC_API
-	struct Scsi_Host *host = bsg_job->shost;
-#else
-	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
 	struct Scsi_Host *host = fc_bsg_to_shost(bsg_job);
-#endif
+	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
 	scsi_qla_host_t *vha = shost_priv(host);
 	struct qla_hw_data *ha = vha->hw;
 	int rval = 0;
@@ -1803,11 +1588,7 @@ qla2x00_update_fru_versions(struct bsg_job *bsg_job)
 	dma_addr_t sfp_dma;
 	void *sfp = dma_pool_alloc(ha->s_dma_pool, GFP_KERNEL, &sfp_dma);
 	if (!sfp) {
-#ifndef NEW_LIBFC_API
-		bsg_job->reply->reply_data.vendor_reply.vendor_rsp[0] =
-#else
 		bsg_reply->reply_data.vendor_reply.vendor_rsp[0] =
-#endif
 		    EXT_STATUS_NO_MEMORY;
 		goto done;
 	}
@@ -1823,36 +1604,23 @@ qla2x00_update_fru_versions(struct bsg_job *bsg_job)
 		    image->field_address.device, image->field_address.offset,
 		    sizeof(image->field_info), image->field_address.option);
 		if (rval) {
-#ifndef NEW_LIBFC_API
-			bsg_job->reply->reply_data.vendor_reply.vendor_rsp[0] =
-#else
 			bsg_reply->reply_data.vendor_reply.vendor_rsp[0] =
-#endif
 			    EXT_STATUS_MAILBOX;
 			goto dealloc;
 		}
 		image++;
 	}
 
-#ifndef NEW_LIBFC_API
-	bsg_job->reply->reply_data.vendor_reply.vendor_rsp[0] = 0;
-#else
 	bsg_reply->reply_data.vendor_reply.vendor_rsp[0] = 0;
-#endif
 
 dealloc:
 	dma_pool_free(ha->s_dma_pool, sfp, sfp_dma);
 
 done:
 	bsg_job->reply_len = sizeof(struct fc_bsg_reply);
-#ifndef NEW_LIBFC_API
-	bsg_job->reply->result = DID_OK << 16;
-	bsg_job->job_done(bsg_job);
-#else
 	bsg_reply->result = DID_OK << 16;
 	bsg_job_done(bsg_job, bsg_reply->result,
 		bsg_reply->reply_payload_rcv_len);
-#endif
 
 	return 0;
 }
@@ -1864,12 +1632,8 @@ qla2x00_read_fru_status(struct fc_bsg_job *bsg_job)
 qla2x00_read_fru_status(struct bsg_job *bsg_job)
 #endif
 {
-#ifndef NEW_LIBFC_API
-	struct Scsi_Host *host = bsg_job->shost;
-#else
-	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
 	struct Scsi_Host *host = fc_bsg_to_shost(bsg_job);
-#endif
+	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
 	scsi_qla_host_t *vha = shost_priv(host);
 	struct qla_hw_data *ha = vha->hw;
 	int rval = 0;
@@ -1878,11 +1642,7 @@ qla2x00_read_fru_status(struct bsg_job *bsg_job)
 	dma_addr_t sfp_dma;
 	uint8_t *sfp = dma_pool_alloc(ha->s_dma_pool, GFP_KERNEL, &sfp_dma);
 	if (!sfp) {
-#ifndef NEW_LIBFC_API
-		bsg_job->reply->reply_data.vendor_reply.vendor_rsp[0] =
-#else
 		bsg_reply->reply_data.vendor_reply.vendor_rsp[0] =
-#endif
 		    EXT_STATUS_NO_MEMORY;
 		goto done;
 	}
@@ -1896,11 +1656,7 @@ qla2x00_read_fru_status(struct bsg_job *bsg_job)
 	sr->status_reg = *sfp;
 
 	if (rval) {
-#ifndef NEW_LIBFC_API
-		bsg_job->reply->reply_data.vendor_reply.vendor_rsp[0] =
-#else
 		bsg_reply->reply_data.vendor_reply.vendor_rsp[0] =
-#endif
 		    EXT_STATUS_MAILBOX;
 		goto dealloc;
 	}
@@ -1908,27 +1664,17 @@ qla2x00_read_fru_status(struct bsg_job *bsg_job)
 	sg_copy_from_buffer(bsg_job->reply_payload.sg_list,
 	    bsg_job->reply_payload.sg_cnt, sr, sizeof(*sr));
 
-#ifndef NEW_LIBFC_API
-	bsg_job->reply->reply_data.vendor_reply.vendor_rsp[0] = 0;
-#else
 	bsg_reply->reply_data.vendor_reply.vendor_rsp[0] = 0;
-#endif
 
 dealloc:
 	dma_pool_free(ha->s_dma_pool, sfp, sfp_dma);
 
 done:
 	bsg_job->reply_len = sizeof(struct fc_bsg_reply);
-#ifndef NEW_LIBFC_API
-	bsg_job->reply->reply_payload_rcv_len = sizeof(*sr);
-	bsg_job->reply->result = DID_OK << 16;
-	bsg_job->job_done(bsg_job);
-#else
 	bsg_reply->reply_payload_rcv_len = sizeof(*sr);
 	bsg_reply->result = DID_OK << 16;
 	bsg_job_done(bsg_job, bsg_reply->result,
 		bsg_reply->reply_payload_rcv_len);
-#endif
 
 	return 0;
 }
@@ -1940,12 +1686,8 @@ qla2x00_write_fru_status(struct fc_bsg_job *bsg_job)
 qla2x00_write_fru_status(struct bsg_job *bsg_job)
 #endif
 {
-#ifndef NEW_LIBFC_API
-	struct Scsi_Host *host = bsg_job->shost;
-#else
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
 	struct Scsi_Host *host = fc_bsg_to_shost(bsg_job);
-#endif
 	scsi_qla_host_t *vha = shost_priv(host);
 	struct qla_hw_data *ha = vha->hw;
 	int rval = 0;
@@ -1954,11 +1696,7 @@ qla2x00_write_fru_status(struct bsg_job *bsg_job)
 	dma_addr_t sfp_dma;
 	uint8_t *sfp = dma_pool_alloc(ha->s_dma_pool, GFP_KERNEL, &sfp_dma);
 	if (!sfp) {
-#ifndef NEW_LIBFC_API
-		bsg_job->reply->reply_data.vendor_reply.vendor_rsp[0] =
-#else
 		bsg_reply->reply_data.vendor_reply.vendor_rsp[0] =
-#endif
 		    EXT_STATUS_NO_MEMORY;
 		goto done;
 	}
@@ -1972,34 +1710,21 @@ qla2x00_write_fru_status(struct bsg_job *bsg_job)
 	    sizeof(sr->status_reg), sr->field_address.option);
 
 	if (rval) {
-#ifndef NEW_LIBFC_API
-		bsg_job->reply->reply_data.vendor_reply.vendor_rsp[0] =
-#else
 		bsg_reply->reply_data.vendor_reply.vendor_rsp[0] =
-#endif
 		    EXT_STATUS_MAILBOX;
 		goto dealloc;
 	}
 
-#ifndef NEW_LIBFC_API
-	bsg_job->reply->reply_data.vendor_reply.vendor_rsp[0] = 0;
-#else
 	bsg_reply->reply_data.vendor_reply.vendor_rsp[0] = 0;
-#endif
 
 dealloc:
 	dma_pool_free(ha->s_dma_pool, sfp, sfp_dma);
 
 done:
 	bsg_job->reply_len = sizeof(struct fc_bsg_reply);
-#ifndef NEW_LIBFC_API
-	bsg_job->reply->result = DID_OK << 16;
-	bsg_job->job_done(bsg_job);
-#else
 	bsg_reply->result = DID_OK << 16;
 	bsg_job_done(bsg_job, bsg_reply->result,
 		bsg_reply->reply_payload_rcv_len);
-#endif
 
 	return 0;
 }
@@ -2011,16 +1736,10 @@ qla2x00_process_vendor_specific(struct fc_bsg_job *bsg_job)
 qla2x00_process_vendor_specific(struct bsg_job *bsg_job)
 #endif
 {
-#ifdef NEW_LIBFC_API
 	struct fc_bsg_request *bsg_request = bsg_job->request;
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
-#endif
 
-#ifndef NEW_LIBFC_API
-	switch (bsg_job->request->rqst_data.h_vendor.vendor_cmd[0]) {
-#else
 	switch (bsg_request->rqst_data.h_vendor.vendor_cmd[0]) {
-#endif
 	case QL_VND_LOOPBACK:
 		return qla2x00_process_loopback(bsg_job);
 
@@ -2055,11 +1774,9 @@ qla2x00_process_vendor_specific(struct bsg_job *bsg_job)
 		return qla2x00_write_fru_status(bsg_job);
 
 	default:
-#ifndef NEW_LIBFC_API
-		bsg_job->reply->result = (DID_ERROR << 16);
-		bsg_job->job_done(bsg_job);
-#else
 		bsg_reply->result = (DID_ERROR << 16);
+#ifndef NEW_LIBFC_API
+		bsg_job->job_done(bsg_job);
 #endif
 		return -ENOTSUPP;
 	}
@@ -2072,48 +1789,32 @@ qla24xx_bsg_request(struct fc_bsg_job *bsg_job)
 qla24xx_bsg_request(struct bsg_job *bsg_job)
 #endif
 {
-#ifdef NEW_LIBFC_API
 	struct fc_bsg_request *bsg_request = bsg_job->request;
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
-#endif
 	int ret = -EINVAL;
 	struct fc_rport *rport;
 	struct Scsi_Host *host;
 	scsi_qla_host_t *vha;
 
 	/* In case no data transferred. */
-#ifndef NEW_LIBFC_API
-	bsg_job->reply->reply_payload_rcv_len = 0;
-
-	if (bsg_job->request->msgcode == FC_BSG_RPT_ELS) {
-		rport = bsg_job->rport;
-#else
 	bsg_reply->reply_payload_rcv_len = 0;
 
 	if (bsg_request->msgcode == FC_BSG_RPT_ELS) {
 		rport = fc_bsg_to_rport(bsg_job);
-#endif
 		host = rport_to_shost(rport);
 		vha = shost_priv(host);
 	} else {
-#ifndef NEW_LIBFC_API
-		host = bsg_job->shost;
-#else
 		host = fc_bsg_to_shost(bsg_job);
-#endif
 		vha = shost_priv(host);
 	}
 
 	if (qla2x00_reset_active(vha)) {
 		ql_dbg(ql_dbg_user, vha, 0x709f,
 		    "BSG: ISP abort active/needed -- cmd=%d.\n",
-#ifndef NEW_LIBFC_API
-		    bsg_job->request->msgcode);
-		bsg_job->reply->result = (DID_ERROR << 16);
-		bsg_job->job_done(bsg_job);
-#else
 		    bsg_request->msgcode);
 		bsg_reply->result = (DID_ERROR << 16);
+#ifndef NEW_LIBFC_API
+		bsg_job->job_done(bsg_job);
 #endif
 		return -EBUSY;
 	}
@@ -2125,11 +1826,7 @@ qla24xx_bsg_request(struct bsg_job *bsg_job)
 	    "Entered %s msgcode=0x%x.\n", __func__, bsg_request->msgcode);
 #endif
 
-#ifndef NEW_LIBFC_API
-	switch (bsg_job->request->msgcode) {
-#else
 	switch (bsg_request->msgcode) {
-#endif
 	case FC_BSG_RPT_ELS:
 	case FC_BSG_HST_ELS_NOLOGIN:
 		ret = qla2x00_process_els(bsg_job);
@@ -2145,11 +1842,7 @@ qla24xx_bsg_request(struct bsg_job *bsg_job)
 	case FC_BSG_RPT_CT:
 	default:
 		ql_log(ql_log_warn, vha, 0x705a, "Unsupported BSG request.\n");
-#ifndef NEW_LIBFC_API
-		bsg_job->reply->result = ret;
-#else
 		bsg_reply->result = ret;
-#endif
 		break;
 	}
 	return ret;
@@ -2162,13 +1855,9 @@ qla24xx_bsg_timeout(struct fc_bsg_job *bsg_job)
 qla24xx_bsg_timeout(struct bsg_job *bsg_job)
 #endif
 {
-#ifndef NEW_LIBFC_API
-	scsi_qla_host_t *vha = shost_priv(bsg_job->shost);
-#else
 	struct fc_bsg_request *bsg_request = bsg_job->request;
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
 	scsi_qla_host_t *vha = shost_priv(fc_bsg_to_shost(bsg_job));
-#endif
 	struct qla_hw_data *ha = vha->hw;
 	srb_t *sp;
 	int cnt, que;
@@ -2193,30 +1882,14 @@ qla24xx_bsg_timeout(struct bsg_job *bsg_job)
 						ql_log(ql_log_warn, vha, 0x7089,
 						    "mbx abort_command "
 						    "failed.\n");
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
-						scsi_req(bsg_job->req)->result =
-#else
-						bsg_job->req->errors =
-#endif
-#ifndef NEW_LIBFC_API
-						bsg_job->reply->result = -EIO;
-#else
+						set_bsg_result(bsg_job, -EIO);
 						bsg_reply->result = -EIO;
-#endif
 					} else {
 						ql_dbg(ql_dbg_user, vha, 0x708a,
 						    "mbx abort_command "
 						    "success.\n");
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
-						scsi_req(bsg_job->req)->result =
-#else
-						bsg_job->req->errors =
-#endif
-#ifndef NEW_LIBFC_API
-						bsg_job->reply->result = 0;
-#else
+						set_bsg_result(bsg_job, 0);
 						bsg_reply->result = 0;
-#endif
 					}
 					spin_lock_irqsave(&ha->hardware_lock, flags);
 					goto done;
@@ -2226,25 +1899,13 @@ qla24xx_bsg_timeout(struct bsg_job *bsg_job)
 	}
 	spin_unlock_irqrestore(&ha->hardware_lock, flags);
 	ql_log(ql_log_info, vha, 0x708b, "SRB not found to abort.\n");
-#ifndef NEW_LIBFC_API
-	bsg_job->req->errors = bsg_job->reply->result = -ENXIO;
-#else
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
-	scsi_req(bsg_job->req)->result =
-#else
-	bsg_job->req->errors =
-#endif
+	set_bsg_result(bsg_job, -ENXIO);
 	bsg_reply->result = -ENXIO;
-#endif
 	return 0;
 
 done:
 	spin_unlock_irqrestore(&ha->hardware_lock, flags);
-#ifndef NEW_LIBFC_API
-	if (bsg_job->request->msgcode == FC_BSG_HST_CT)
-#else
 	if (bsg_request->msgcode == FC_BSG_HST_CT)
-#endif
 		kfree(sp->fcport);
 	mempool_free(sp, ha->srb_mempool);
 	return 0;

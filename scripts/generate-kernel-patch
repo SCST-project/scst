@@ -48,8 +48,8 @@ function add_patch {
     exit 1
   fi
 
-  sed -e "s:^--- [^ ]*:--- orig/linux-${kver}/$2:" \
-      -e "s:^+++ [^ ]*:+++ linux-${kver}/$2:"      \
+  sed -e "s:^--- [^ ]*:--- linux-${kver}/$2:" \
+      -e "s:^+++ [^ ]*:+++ linux-${kver}/$2:" \
       < "$1"
 }
 
@@ -70,8 +70,8 @@ function add_file {
   # -- skip *.mod.c.
   if [ "$1" = "${1%.mod.c}" ] && [ "$1" ]; then
     cat <<EOF
-diff -uprN orig/linux-${kver}/$2 linux-${kver}/$2
---- orig/linux-${kver}/$2
+diff -uprN linux-${kver}/$2 linux-${kver}/$2
+--- linux-${kver}/$2
 +++ linux-${kver}/$2
 @@ -0,0 +1,$(wc -l "$1" | { read -r a b; echo "$a"; echo "$b" >/dev/null; }) @@
 EOF
@@ -94,8 +94,8 @@ EOF
 
 function add_empty_file {
   cat <<EOF
-diff -uprN orig/linux-${kver}/$1 linux-${kver}/$1
---- orig/linux-${kver}/$1
+diff -uprN linux-${kver}/$1 linux-${kver}/$1
+--- linux-${kver}/$1
 +++ linux-${kver}/$1
 @@ -0,0 +1,1 @@
 +

@@ -210,7 +210,6 @@ function generate_kernel_patch {
   kver="$(kernel_version "$1")"
   driver_options=(-l)
   [ "${mpt_scst}" = "true" ] && driver_options+=("-m")
-  [ "${qla2x00t}" = "true" ] && driver_options+=("-q")
 
   "${scriptsdir}"/generate-kernel-patch "${driver_options[@]}" "$2" "$1" > "${patchfile}"
 
@@ -343,19 +342,20 @@ function compile_patched_kernel {
   return 0
 }
 
-# Compile subdirectory $2 of the patched kernel tree linux-$1.
+# Compile subdirectories $2..$n of the patched kernel tree linux-$1.
 function compile_kernel {
   local kver plevel
+  local k=$1
   kver="$(kernel_version "$1")"
   plevel="$(patchlevel "$1")"
   local outputfile="${outputdir}/compilation-$1-output.txt"
-  local subdir="$2"
+  shift
 
   echo "Compiling the patched kernel ..."
-  if (cd "${outputdir}/linux-$1" \
+  if (cd "${outputdir}/linux-$k" \
       && make -s prepare \
       && make -s scripts \
-      && LC_ALL=C make -k M="${subdir}"
+      && for subdir; do LC_ALL=C make -k M="${subdir}"; done
      ) &> "${outputfile}"
   then
     local errors warnings
@@ -379,16 +379,16 @@ function run_sparse {
   kver="$(kernel_version "$1")"
   plevel="$(patchlevel "$1")"
   local outputfile="${outputdir}/sparse-$1-output.txt"
-  local subdir="$2"
-  shift
   shift
 
-  echo "Running sparse on the patched kernel in ${subdir} $* ..."
+  echo "Running sparse on the patched kernel in $* ..."
   if (cd "${outputdir}/linux-$k" \
       && make -s prepare \
       && make -s scripts \
       && if grep -q '^CONFIG_PPC=y$' .config; then LC_ALL=C make -k M=arch/powerpc/lib; fi \
-      && LC_ALL=C make -k C=2 CF="-D__CHECK_ENDIAN__ -DCONFIG_SPARSE_RCU_POINTER" M="${subdir}" "$@"
+      && for subdir; do
+	  LC_ALL=C make -k C=2 CF="-D__CHECK_ENDIAN__ -DCONFIG_SPARSE_RCU_POINTER" M="${subdir}"
+      done
     ) &> "${outputfile}"
   then
     local errors warnings
@@ -410,25 +410,26 @@ function run_sparse {
   return 0
 }
 
+# Run smatch for kernel version $1 on directories $2..$n
 function run_smatch {
   local k="$1"
   local kver plevel
   kver="$(kernel_version "$1")"
   plevel="$(patchlevel "$1")"
   local outputfile="${outputdir}/smatch-$1-output.txt"
-  local subdir="$2"
   local disable="CONFIG_DYNAMIC_DEBUG"
   shift
-  shift
 
-  echo "Running smatch on the patched kernel in ${subdir} $* ..."
+  echo "Running smatch on the patched kernel in $* ..."
   if (cd "${outputdir}/linux-$k" &&
       for c in $disable; do sed -i.tmp "s/^$c=y\$/$c=n/" .config; done &&
       make -s oldconfig </dev/null &&
       make -s prepare &&
       make -s scripts &&
       if grep -q '^CONFIG_PPC=y$' .config; then LC_ALL=C make -k M=arch/powerpc/lib; fi &&
-      LC_ALL=C make -k CHECK="smatch -p=kernel" C=2 CF=-D__CHECK_ENDIAN__ M="${subdir}" "$@"
+      for subdir; do
+	LC_ALL=C make -k CHECK="smatch -p=kernel" C=2 CF=-D__CHECK_ENDIAN__ M="${subdir}"
+      done
     ) &> "${outputfile}"
   then
     local errors warnings
@@ -542,7 +543,7 @@ outputdir="${PWD}/regression-test-output-$(date +%Y-%m-%d_%Hh%Mm%Ss)"
 # Driver configuration.
 mpt_scst="false"
 multiple_patches="false"
-qla2x00t="false"
+qla2x00t="true"
 remove_temporary_files_at_end="false"
 run_local_compilation="true"
 quiet_download="false"
@@ -668,8 +669,9 @@ do
     run_checkpatch "$k"
   fi
   patch_and_configure_kernel "$k"
+  subdirs=(drivers/scst)
   if [ "${run_sparse}" = "true" ]; then
-    run_sparse "$k" drivers/scst
+    run_sparse "$k" "${subdirs[@]}"
     mv "${outputdir}/sparse-$k-output.txt" \
        "${outputdir}/sparse-$k-scst-output.txt"
     if [ "${ibmvio}" = "true" ]; then
@@ -685,9 +687,12 @@ do
     fi
   fi
   if [ "${run_smatch}" = "true" ]; then
-    run_smatch "$k" drivers/scst
+    run_smatch "$k" "${subdirs[@]}"
   fi
-  compile_kernel "$k" drivers/scst
+  if [ "${qla2x00t}" = "true" ] && $(kernel_version_le 2.6.37 $k); then
+    subdirs+=(drivers/scsi/qla2xxx)
+  fi
+  compile_kernel "$k" "${subdirs[@]}"
   if [ "${full_check}" = "true" ]; then
     run_headers_check "$k"
     compile_patched_kernel "$k"

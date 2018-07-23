@@ -3950,7 +3950,6 @@ static int iscsi_get_initiator_port_transport_id(struct scst_tgt *tgt,
 	union iscsi_sid sid;
 	int tr_id_size;
 	uint8_t *tr_id;
-	uint8_t q;
 
 	TRACE_ENTRY();
 
@@ -3965,7 +3964,7 @@ static int iscsi_get_initiator_port_transport_id(struct scst_tgt *tgt,
 	sid.id.tsih = 0;
 
 	tr_id_size = 4 + strlen(sess->initiator_name) + 5 +
-		snprintf(&q, sizeof(q), "%llx", sid.id64) + 1;
+		snprintf(NULL, 0, "%llx", sid.id64) + 1;
 	tr_id_size = (tr_id_size + 3) & -4;
 
 	tr_id = kzalloc(tr_id_size, GFP_KERNEL);

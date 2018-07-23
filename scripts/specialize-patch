@@ -587,7 +587,7 @@ BEGIN {
     config_scst_proc_undefined = 0
 
   # Variable initialization.
-  is_c_source = 0
+  process_file = 0
   reset_hunk_state_variables()
 }
 
@@ -599,10 +599,11 @@ BEGIN {
     # Start of new file.
     dump_lines()
     reset_hunk_state_variables()
-    is_c_source = match(filename[1], "\\.[ch]$") != 0
+    process_file = match(filename[1], "\\.[ch]$") != 0 &&
+      match(filename[1], "drivers/scsi/qla2xxx/") == 0
   }
 
-  if (!is_c_source)
+  if (!process_file)
   {
     print
     next
@@ -647,6 +648,8 @@ BEGIN {
   else if (lines >= 2 && !match(line[lines-2], ":$") &&
            line[lines-1] == "+\x9return;" && $0 == "+}")
   {
+    # Delete "return;" statements at the end of a function that are not
+    # preceded by a label.
     line[lines-1] = $0
     lines_less_added++
   }
