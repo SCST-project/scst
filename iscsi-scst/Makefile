@@ -122,11 +122,12 @@ CONFTEST_OUTPUTS = $(shell			\
 		echo $$t/result-$(KVER).txt;	\
 	done)
 
-PRE_CFLAGS = $(OFED_CFLAGS)			\
-	-DOFED_FLAVOR=$(OFED_FLAVOR)		\
-	$(shell for t in $(CONFTESTS); do 	\
-		cat $$t/result-$(KVER).txt 2>/dev/null; \
+PRE_CFLAGS = $(shell					\
+	for t in $(CONFTESTS); do			\
+		cat $$t/result-$(KVER).txt 2>/dev/null;	\
 	done)
+
+ISER_CFLAGS = $(OFED_CFLAGS) -DOFED_FLAVOR=$(OFED_FLAVOR) $(PRE_CFLAGS)
 
 mods: include/iscsi_scst_itf_ver.h Modules.symvers Module.symvers	\
 	$(CONFTEST_OUTPUTS)
@@ -136,7 +137,7 @@ mods: include/iscsi_scst_itf_ver.h Modules.symvers Module.symvers	\
 	if $(INFINIBAND_ENABLED); then					       \
 	  echo "  Building against $(OFED_FLAVOR) InfiniBand kernel headers."; \
 	  $(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(ISERTMOD)  \
-	  PRE_CFLAGS="$(PRE_CFLAGS)"	                                       \
+	  PRE_CFLAGS="$(ISER_CFLAGS)"	                                       \
 	  KBUILD_EXTRA_SYMBOLS=$(ISER_SYMVERS) modules;			       \
 	fi
 
