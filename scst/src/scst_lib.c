@@ -8059,7 +8059,14 @@ static struct request *blk_make_request(struct request_queue *q,
 					struct bio *bio,
 					gfp_t gfp_mask)
 {
-	struct request *rq = blk_get_request(q, bio_data_dir(bio), gfp_mask);
+	struct request *rq;
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
+	rq = blk_get_request(q, bio_data_dir(bio), gfp_mask);
+#else
+	rq = blk_get_request(q, bio_data_dir(bio) == READ ? REQ_OP_SCSI_IN :
+			     REQ_OP_SCSI_OUT, gfp_mask);
+#endif
 
 	if (IS_ERR(rq))
 		return rq;
@@ -8068,12 +8075,6 @@ static struct request *blk_make_request(struct request_queue *q,
 	scsi_req_init(scsi_req(rq));
 #else
 	scsi_req_init(rq);
-#endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
-	rq->cmd_flags = bio_data_dir(bio) == READ ? REQ_OP_SCSI_IN :
-		REQ_OP_SCSI_OUT;
-#else
-	blk_rq_set_block_pc(rq);
 #endif
 
 	for_each_bio(bio) {
@@ -8259,9 +8260,6 @@ static struct request *__blk_map_kern_sg(struct request_queue *q,
 	 */
 	rq->cmd_type = REQ_TYPE_BLOCK_PC;
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
-	rq->cmd_flags = reading ? REQ_OP_SCSI_IN : REQ_OP_SCSI_OUT;
-#endif
 
 	if (bw != NULL) {
 		atomic_set(&bw->bios_inflight, bios);
@@ -8307,7 +8305,12 @@ static struct request *blk_map_kern_sg(struct request_queue *q,
 	struct request *rq;
 
 	if (!sgl) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
 		rq = blk_get_request(q, reading ? READ : WRITE, gfp);
+#else
+		rq = blk_get_request(q, reading ? REQ_OP_SCSI_IN :
+				     REQ_OP_SCSI_OUT, gfp);
+#endif
 		if (unlikely(!rq))
 			return ERR_PTR(-ENOMEM);
 
@@ -8315,9 +8318,6 @@ static struct request *blk_map_kern_sg(struct request_queue *q,
 		scsi_req_init(scsi_req(rq));
 #else
 		scsi_req_init(rq);
-#endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
-		rq->cmd_flags = reading ? REQ_OP_SCSI_IN : REQ_OP_SCSI_OUT;
 #endif
 		goto out;
 	}
