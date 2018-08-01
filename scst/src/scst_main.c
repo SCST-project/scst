@@ -2574,20 +2574,6 @@ static int __init init_scst(void)
 		(p);							\
 	})
 
-/*
- * Used for structures with fast path write access accessed from user space.
- * See also commit 8eb8284b4129 ("usercopy: Prepare for usercopy whitelisting").
- */
-#define INIT_CACHEP_ALIGN_USERCOPY(p, s) ({				\
-		(p) = kmem_cache_create_usercopy(#s, sizeof(struct s), 	\
-			__alignof__(struct s),				\
-			SCST_SLAB_FLAGS | SLAB_HWCACHE_ALIGN,		\
-			0, sizeof(struct s), NULL);			\
-		TRACE_MEM("Slab create: %s at %p size %zd", #s, (p),	\
-			  sizeof(struct s));				\
-		(p);							\
-	})
-
 	res = -ENOMEM;
 	if (!INIT_CACHEP(scst_mgmt_cachep, scst_mgmt_cmd))
 		goto out_lib_exit;
@@ -2602,7 +2588,7 @@ static int __init init_scst(void)
 	}
 	if (!INIT_CACHEP(scst_aen_cachep, scst_aen)) /* read-mostly */
 		goto out_destroy_sense_cache;
-	if (!INIT_CACHEP_ALIGN_USERCOPY(scst_cmd_cachep, scst_cmd))
+	if (!INIT_CACHEP_ALIGN(scst_cmd_cachep, scst_cmd))
 		goto out_destroy_aen_cache;
 #ifdef CONFIG_SCST_MEASURE_LATENCY
 	if (!INIT_CACHEP_ALIGN(scst_sess_cachep, scst_session))
