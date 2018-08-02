@@ -305,7 +305,7 @@ qla81xx_idc_event(scsi_qla_host_t *vha, uint16_t aen, uint16_t descr)
 	    event[aen & 0xff], mb[0], mb[1], mb[2], mb[3],
 	    mb[4], mb[5], mb[6]);
 
-	/* Acknowledgement needed? [Notify && non-zero timeout]. */
+	/* Acknowledgment needed? [Notify && non-zero timeout]. */
 	timeout = (descr >> 8) & 0xf;
 	if (aen != MBA_IDC_NOTIFY || !timeout)
 		return;
