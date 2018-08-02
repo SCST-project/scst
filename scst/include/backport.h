@@ -391,10 +391,10 @@ enum umh_wait {
 /* <linux/kref.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 8, 0) &&		      \
-	! (LINUX_VERSION_CODE >> 8 == KERNEL_VERSION(3, 4, 0) >> 8 && \
-	   LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 41)) &&	      \
-	! (LINUX_VERSION_CODE >> 8 == KERNEL_VERSION(3, 2, 0) >> 8 && \
-	   LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 44)) &&	      \
+	!(LINUX_VERSION_CODE >> 8 == KERNEL_VERSION(3, 4, 0) >> 8 &&  \
+	  LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 41)) &&	      \
+	!(LINUX_VERSION_CODE >> 8 == KERNEL_VERSION(3, 2, 0) >> 8 &&  \
+	  LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 44)) &&	      \
 	(!defined(CONFIG_SUSE_KERNEL) ||			      \
 	 LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 101)) &&	      \
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6 ||		      \

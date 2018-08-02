@@ -1143,7 +1143,7 @@ struct mid_db_entry_24xx {
 /*
  * Virtual Port Control IOCB
  */
-#define VP_CTRL_IOCB_TYPE	0x30	/* Vitual Port Control entry. */
+#define VP_CTRL_IOCB_TYPE	0x30	/* Virtual Port Control entry. */
 struct vp_ctrl_entry_24xx {
 	uint8_t entry_type;		/* Entry type. */
 	uint8_t entry_count;		/* Entry count. */
@@ -1179,7 +1179,7 @@ struct vp_ctrl_entry_24xx {
 /*
  * Modify Virtual Port Configuration IOCB
  */
-#define VP_CONFIG_IOCB_TYPE	0x31	/* Vitual Port Config entry. */
+#define VP_CONFIG_IOCB_TYPE	0x31	/* Virtual Port Config entry. */
 struct vp_config_entry_24xx {
 	uint8_t entry_type;		/* Entry type. */
 	uint8_t entry_count;		/* Entry count. */
@@ -1250,27 +1250,27 @@ struct vp_rpt_id_entry_24xx {
 
 #define VF_EVFP_IOCB_TYPE       0x26    /* Exchange Virtual Fabric Parameters entry. */
 struct vf_evfp_entry_24xx {
-        uint8_t entry_type;             /* Entry type. */
-        uint8_t entry_count;            /* Entry count. */
-        uint8_t sys_define;             /* System defined. */
-        uint8_t entry_status;           /* Entry Status. */
+	uint8_t entry_type;             /* Entry type. */
+	uint8_t entry_count;            /* Entry count. */
+	uint8_t sys_define;             /* System defined. */
+	uint8_t entry_status;           /* Entry Status. */
 
-        uint32_t handle;                /* System handle. */
-        uint16_t comp_status;           /* Completion status. */
-        uint16_t timeout;               /* timeout */
-        uint16_t adim_tagging_mode;
+	uint32_t handle;                /* System handle. */
+	uint16_t comp_status;           /* Completion status. */
+	uint16_t timeout;               /* timeout */
+	uint16_t adim_tagging_mode;
 
-        uint16_t vfport_id;
-        uint32_t exch_addr;
+	uint16_t vfport_id;
+	uint32_t exch_addr;
 
-        uint16_t nport_handle;          /* N_PORT handle. */
-        uint16_t control_flags;
-        uint32_t io_parameter_0;
-        uint32_t io_parameter_1;
-        uint32_t tx_address[2];         /* Data segment 0 address. */
-        uint32_t tx_len;                /* Data segment 0 length. */
-        uint32_t rx_address[2];         /* Data segment 1 address. */
-        uint32_t rx_len;                /* Data segment 1 length. */
+	uint16_t nport_handle;          /* N_PORT handle. */
+	uint16_t control_flags;
+	uint32_t io_parameter_0;
+	uint32_t io_parameter_1;
+	uint32_t tx_address[2];         /* Data segment 0 address. */
+	uint32_t tx_len;                /* Data segment 0 length. */
+	uint32_t rx_address[2];         /* Data segment 1 address. */
+	uint32_t rx_len;                /* Data segment 1 length. */
 };
 
 /* END MID Support ***********************************************************/

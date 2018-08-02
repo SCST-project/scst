@@ -61,7 +61,7 @@ static inline void bsg_job_done_backport(struct fc_bsg_job *job, int result,
 void
 qla2x00_bsg_job_done(void *data, void *ptr, int res)
 {
-	srb_t *sp = (srb_t*)ptr;
+	srb_t *sp = ptr;
 	struct scsi_qla_host *vha = (scsi_qla_host_t *)data;
 #ifndef NEW_LIBFC_API
 	struct fc_bsg_job *bsg_job = sp->u.bsg_job;
@@ -78,7 +78,7 @@ qla2x00_bsg_job_done(void *data, void *ptr, int res)
 void
 qla2x00_bsg_sp_free(void *data, void *ptr)
 {
-	srb_t *sp = (srb_t*)ptr;
+	srb_t *sp = ptr;
 	struct scsi_qla_host *vha = (scsi_qla_host_t *)data;
 #ifndef NEW_LIBFC_API
 	struct fc_bsg_job *bsg_job = sp->u.bsg_job;
@@ -341,7 +341,7 @@ qla2x00_process_els(struct bsg_job *bsg_job)
 	if (bsg_job->request_payload.sg_cnt > 1 ||
 		bsg_job->reply_payload.sg_cnt > 1) {
 		ql_dbg(ql_dbg_user, vha, 0x7002,
-		    "Multiple SG's are not suppored for ELS requests, "
+		    "Multiple SG's are not supported for ELS requests, "
 		    "request_sg_cnt=%x reply_sg_cnt=%x.\n",
 		    bsg_job->request_payload.sg_cnt,
 		    bsg_job->reply_payload.sg_cnt);
@@ -814,7 +814,7 @@ qla2x00_process_loopback(struct bsg_job *bsg_job)
 		    "BSG request type: %s.\n", type);
 		command_sent = INT_DEF_LB_ECHO_CMD;
 		rval = qla2x00_echo_test(vha, &elreq, response);
-       } else {
+	} else {
 		if (IS_QLA81XX(ha) || IS_QLA8031(ha)) {
 			memset(config, 0, sizeof(config));
 			memset(new_config, 0, sizeof(new_config));

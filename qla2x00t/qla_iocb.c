@@ -1913,7 +1913,7 @@ qla2x00_alloc_iocbs(scsi_qla_host_t *vha, srb_t *sp)
 	}
 	if (index == MAX_OUTSTANDING_COMMANDS) {
 		ql_log(ql_log_warn, vha, 0x700b,
-		    "No room on oustanding cmd array.\n");
+		    "No room on outstanding cmd array.\n");
 		goto queuing_error;
 	}
 
@@ -2106,16 +2106,16 @@ qla24xx_els_iocb(srb_t *sp, struct els_entry_24xx *els_iocb)
 	struct fc_bsg_request *bsg_request = bsg_job->request;
 #endif
 
-        els_iocb->entry_type = ELS_IOCB_TYPE;
-        els_iocb->entry_count = 1;
-        els_iocb->sys_define = 0;
-        els_iocb->entry_status = 0;
-        els_iocb->handle = sp->handle;
-        els_iocb->nport_handle = cpu_to_le16(sp->fcport->loop_id);
-        els_iocb->tx_dsd_count = cpu_to_le16(bsg_job->request_payload.sg_cnt);
+	els_iocb->entry_type = ELS_IOCB_TYPE;
+	els_iocb->entry_count = 1;
+	els_iocb->sys_define = 0;
+	els_iocb->entry_status = 0;
+	els_iocb->handle = sp->handle;
+	els_iocb->nport_handle = cpu_to_le16(sp->fcport->loop_id);
+	els_iocb->tx_dsd_count = cpu_to_le16(bsg_job->request_payload.sg_cnt);
 	els_iocb->vp_index = sp->fcport->vha->vp_idx;
-        els_iocb->sof_type = EST_SOFI3;
-        els_iocb->rx_dsd_count = cpu_to_le16(bsg_job->reply_payload.sg_cnt);
+	els_iocb->sof_type = EST_SOFI3;
+	els_iocb->rx_dsd_count = cpu_to_le16(bsg_job->reply_payload.sg_cnt);
 
 	els_iocb->opcode =
 	    sp->type == SRB_ELS_CMD_RPT ?
@@ -2126,28 +2126,28 @@ qla24xx_els_iocb(srb_t *sp, struct els_entry_24xx *els_iocb)
 	    bsg_request->rqst_data.r_els.els_code :
 	    bsg_request->rqst_data.h_els.command_code;
 #endif
-        els_iocb->port_id[0] = sp->fcport->d_id.b.al_pa;
-        els_iocb->port_id[1] = sp->fcport->d_id.b.area;
-        els_iocb->port_id[2] = sp->fcport->d_id.b.domain;
-        els_iocb->control_flags = 0;
-        els_iocb->rx_byte_count =
-            cpu_to_le32(bsg_job->reply_payload.payload_len);
-        els_iocb->tx_byte_count =
-            cpu_to_le32(bsg_job->request_payload.payload_len);
+	els_iocb->port_id[0] = sp->fcport->d_id.b.al_pa;
+	els_iocb->port_id[1] = sp->fcport->d_id.b.area;
+	els_iocb->port_id[2] = sp->fcport->d_id.b.domain;
+	els_iocb->control_flags = 0;
+	els_iocb->rx_byte_count =
+	    cpu_to_le32(bsg_job->reply_payload.payload_len);
+	els_iocb->tx_byte_count =
+	    cpu_to_le32(bsg_job->request_payload.payload_len);
 
-        els_iocb->tx_address[0] = cpu_to_le32(LSD(sg_dma_address
-            (bsg_job->request_payload.sg_list)));
-        els_iocb->tx_address[1] = cpu_to_le32(MSD(sg_dma_address
-            (bsg_job->request_payload.sg_list)));
-        els_iocb->tx_len = cpu_to_le32(sg_dma_len
-            (bsg_job->request_payload.sg_list));
+	els_iocb->tx_address[0] = cpu_to_le32(LSD(sg_dma_address
+	    (bsg_job->request_payload.sg_list)));
+	els_iocb->tx_address[1] = cpu_to_le32(MSD(sg_dma_address
+	    (bsg_job->request_payload.sg_list)));
+	els_iocb->tx_len = cpu_to_le32(sg_dma_len
+	    (bsg_job->request_payload.sg_list));
 
-        els_iocb->rx_address[0] = cpu_to_le32(LSD(sg_dma_address
-            (bsg_job->reply_payload.sg_list)));
-        els_iocb->rx_address[1] = cpu_to_le32(MSD(sg_dma_address
-            (bsg_job->reply_payload.sg_list)));
-        els_iocb->rx_len = cpu_to_le32(sg_dma_len
-            (bsg_job->reply_payload.sg_list));
+	els_iocb->rx_address[0] = cpu_to_le32(LSD(sg_dma_address
+	    (bsg_job->reply_payload.sg_list)));
+	els_iocb->rx_address[1] = cpu_to_le32(MSD(sg_dma_address
+	    (bsg_job->reply_payload.sg_list)));
+	els_iocb->rx_len = cpu_to_le32(sg_dma_len
+	    (bsg_job->reply_payload.sg_list));
 }
 
 static void
@@ -2237,7 +2237,7 @@ qla24xx_ct_iocb(srb_t *sp, struct ct_entry_24xx *ct_iocb)
 	struct scatterlist *sg;
 	int index;
 	uint16_t tot_dsds;
-        scsi_qla_host_t *vha = sp->fcport->vha;
+	scsi_qla_host_t *vha = sp->fcport->vha;
 	struct qla_hw_data *ha = vha->hw;
 #ifndef NEW_LIBFC_API
 	struct fc_bsg_job *bsg_job = sp->u.bsg_job;
@@ -2248,29 +2248,29 @@ qla24xx_ct_iocb(srb_t *sp, struct ct_entry_24xx *ct_iocb)
 	int entry_count = 1;
 
 	ct_iocb->entry_type = CT_IOCB_TYPE;
-        ct_iocb->entry_status = 0;
-        ct_iocb->sys_define = 0;
-        ct_iocb->handle = sp->handle;
+	ct_iocb->entry_status = 0;
+	ct_iocb->sys_define = 0;
+	ct_iocb->handle = sp->handle;
 
 	ct_iocb->nport_handle = cpu_to_le16(sp->fcport->loop_id);
 	ct_iocb->vp_index = sp->fcport->vha->vp_idx;
-        ct_iocb->comp_status = cpu_to_le16(0);
+	ct_iocb->comp_status = cpu_to_le16(0);
 
 	ct_iocb->cmd_dsd_count =
-            cpu_to_le16(bsg_job->request_payload.sg_cnt);
-        ct_iocb->timeout = 0;
-        ct_iocb->rsp_dsd_count =
-            cpu_to_le16(bsg_job->reply_payload.sg_cnt);
-        ct_iocb->rsp_byte_count =
-            cpu_to_le32(bsg_job->reply_payload.payload_len);
-        ct_iocb->cmd_byte_count =
-            cpu_to_le32(bsg_job->request_payload.payload_len);
-        ct_iocb->dseg_0_address[0] = cpu_to_le32(LSD(sg_dma_address
-            (bsg_job->request_payload.sg_list)));
-        ct_iocb->dseg_0_address[1] = cpu_to_le32(MSD(sg_dma_address
-           (bsg_job->request_payload.sg_list)));
-        ct_iocb->dseg_0_len = cpu_to_le32(sg_dma_len
-            (bsg_job->request_payload.sg_list));
+	    cpu_to_le16(bsg_job->request_payload.sg_cnt);
+	ct_iocb->timeout = 0;
+	ct_iocb->rsp_dsd_count =
+	    cpu_to_le16(bsg_job->reply_payload.sg_cnt);
+	ct_iocb->rsp_byte_count =
+	    cpu_to_le32(bsg_job->reply_payload.payload_len);
+	ct_iocb->cmd_byte_count =
+	    cpu_to_le32(bsg_job->request_payload.payload_len);
+	ct_iocb->dseg_0_address[0] = cpu_to_le32(LSD(sg_dma_address
+	    (bsg_job->request_payload.sg_list)));
+	ct_iocb->dseg_0_address[1] = cpu_to_le32(MSD(sg_dma_address
+	   (bsg_job->request_payload.sg_list)));
+	ct_iocb->dseg_0_len = cpu_to_le32(sg_dma_len
+	    (bsg_job->request_payload.sg_list));
 
 	avail_dsds = 1;
 	cur_dsd = (uint32_t *)ct_iocb->dseg_1_address;
@@ -2301,7 +2301,7 @@ qla24xx_ct_iocb(srb_t *sp, struct ct_entry_24xx *ct_iocb)
 		loop_iterartion++;
 		avail_dsds--;
 	}
-        ct_iocb->entry_count = entry_count;
+	ct_iocb->entry_count = entry_count;
 }
 
 /*

@@ -75,7 +75,7 @@ extern void qla2x00_async_login_done(struct scsi_qla_host *, fc_port_t *,
 extern void qla2x00_async_logout_done(struct scsi_qla_host *, fc_port_t *,
     uint16_t *);
 extern void qla2x00_async_adisc_done(struct scsi_qla_host *, fc_port_t *,
-   uint16_t *);
+    uint16_t *);
 extern void *qla2x00_alloc_iocbs(struct scsi_qla_host *, srb_t *);
 
 extern fc_port_t *
@@ -401,7 +401,7 @@ extern int qla2x00_request_irqs(struct qla_hw_data *, struct rsp_que *);
 extern void qla2x00_free_irqs(scsi_qla_host_t *);
 
 extern int qla2x00_get_data_rate(scsi_qla_host_t *);
-extern char* qla2x00_get_link_speed_str(struct qla_hw_data *);
+extern char *qla2x00_get_link_speed_str(struct qla_hw_data *);
 
 /*
  * Global Function Prototypes in qla_sup.c source file.

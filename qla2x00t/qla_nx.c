@@ -1283,7 +1283,7 @@ qla82xx_pinit_from_rom(scsi_qla_host_t *vha)
 
 		if (off == ADDR_ERROR) {
 			ql_log(ql_log_fatal, vha, 0x0116,
-			    "Unknow addr: 0x%08lx.\n", buf[i].addr);
+			    "Unknown addr: 0x%08lx.\n", buf[i].addr);
 			continue;
 		}
 
@@ -1898,7 +1898,7 @@ qla82xx_validate_firmware_blob(scsi_qla_host_t *vha, uint8_t fw_type)
 
 	if (fw->size < min_size)
 		return -EINVAL;
- 	return 0;
+	return 0;
 }
 
 static int
@@ -4009,7 +4009,7 @@ qla82xx_minidump_process_rdmem(scsi_qla_host_t *vha,
 
 	if (r_addr & 0xf) {
 		ql_log(ql_log_warn, vha, 0xb033,
-		    "Read addr 0x%x not 16 bytes alligned\n", r_addr);
+		    "Read addr 0x%x not 16 bytes aligned\n", r_addr);
 		return rval;
 	}
 

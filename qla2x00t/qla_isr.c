@@ -305,7 +305,7 @@ qla81xx_idc_event(scsi_qla_host_t *vha, uint16_t aen, uint16_t descr)
 	    event[aen & 0xff], mb[0], mb[1], mb[2], mb[3],
 	    mb[4], mb[5], mb[6]);
 
-	/* Acknowledgement needed? [Notify && non-zero timeout]. */
+	/* Acknowledgment needed? [Notify && non-zero timeout]. */
 	timeout = (descr >> 8) & 0xf;
 	if (aen != MBA_IDC_NOTIFY || !timeout)
 		return;
@@ -1174,7 +1174,7 @@ qla24xx_els_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 #endif
 	uint16_t comp_status;
 	uint32_t fw_status[3];
-	uint8_t* fw_sts_ptr;
+	uint8_t *fw_sts_ptr;
 
 	sp = qla2x00_get_sp_from_handle(vha, func, req, pkt);
 	if (!sp)
@@ -1200,8 +1200,8 @@ qla24xx_els_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 	}
 
 	comp_status = fw_status[0] = le16_to_cpu(pkt->comp_status);
-	fw_status[1] = le16_to_cpu(((struct els_sts_entry_24xx*)pkt)->error_subcode_1);
-	fw_status[2] = le16_to_cpu(((struct els_sts_entry_24xx*)pkt)->error_subcode_2);
+	fw_status[1] = le16_to_cpu(((struct els_sts_entry_24xx *)pkt)->error_subcode_1);
+	fw_status[2] = le16_to_cpu(((struct els_sts_entry_24xx *)pkt)->error_subcode_2);
 
 	/* return FC_CTELS_STATUS_OK and leave the decoding of the ELS/CT
 	 * fc payload  to the caller
@@ -1220,7 +1220,7 @@ qla24xx_els_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 #else
 			bsg_reply->reply_payload_rcv_len =
 #endif
-			    le16_to_cpu(((struct els_sts_entry_24xx*)pkt)->total_byte_count);
+			    le16_to_cpu(((struct els_sts_entry_24xx *)pkt)->total_byte_count);
 
 			ql_dbg(ql_dbg_user, vha, 0x503f,
 			    "ELS-CT pass-through-%s error hdl=%x comp_status-status=0x%x "
@@ -1230,7 +1230,7 @@ qla24xx_els_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 				pkt)->total_byte_count));
 			fw_sts_ptr = bsg_job_sense(bsg_job) +
 				sizeof(struct fc_bsg_reply);
-			memcpy( fw_sts_ptr, fw_status, sizeof(fw_status));
+			memcpy(fw_sts_ptr, fw_status, sizeof(fw_status));
 		}
 		else {
 			ql_dbg(ql_dbg_user, vha, 0x5040,
@@ -1248,7 +1248,7 @@ qla24xx_els_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 #endif
 			fw_sts_ptr = bsg_job_sense(bsg_job) +
 				sizeof(struct fc_bsg_reply);
-			memcpy( fw_sts_ptr, fw_status, sizeof(fw_status));
+			memcpy(fw_sts_ptr, fw_status, sizeof(fw_status));
 		}
 		ql_dump_buffer(ql_dbg_user + ql_dbg_buffer, vha, 0x5056,
 				(uint8_t *)pkt, sizeof(*pkt));
@@ -2269,10 +2269,10 @@ void qla24xx_process_response_queue(struct scsi_qla_host *vha,
 			qla24xx_tm_iocb_entry(vha, rsp->req,
 			    (struct tsk_mgmt_entry *)pkt);
 			break;
-                case CT_IOCB_TYPE:
+		case CT_IOCB_TYPE:
 			qla24xx_els_ct_entry(vha, rsp->req, pkt, CT_IOCB_TYPE);
 			break;
-                case ELS_IOCB_TYPE:
+		case ELS_IOCB_TYPE:
 			qla24xx_els_ct_entry(vha, rsp->req, pkt, ELS_IOCB_TYPE);
 			break;
 		case MARKER_TYPE:

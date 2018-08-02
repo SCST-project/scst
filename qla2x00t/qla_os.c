@@ -92,7 +92,7 @@ MODULE_PARM_DESC(ql2xplogiabsentdevice,
 		"a Fabric scan.  This is needed for several broken switches. "
 		"Default is 0 - no PLOGI. 1 - perfom PLOGI.");
 
-int ql2xloginretrycount = 0;
+int ql2xloginretrycount;
 module_param(ql2xloginretrycount, int, S_IRUGO);
 MODULE_PARM_DESC(ql2xloginretrycount,
 		"Specify an alternate value for the NVRAM login retry count.");
@@ -143,7 +143,7 @@ MODULE_PARM_DESC(ql2xmaxqdepth,
 		"Maximum queue depth to report for target devices.");
 
 /* Do not change the value of this after module load */
-int ql2xenabledif = 0;
+int ql2xenabledif;
 module_param(ql2xenabledif, int, S_IRUGO|S_IWUSR);
 MODULE_PARM_DESC(ql2xenabledif,
 		" Enable T10-CRC-DIF "
@@ -220,7 +220,7 @@ MODULE_PARM_DESC(ql2xtargetreset,
 		 "Enable target reset."
 		 "Default is 1 - use hw defaults.");
 
-int ql2xgffidenable = 0;
+int ql2xgffidenable;
 module_param(ql2xgffidenable, int, S_IRUGO);
 MODULE_PARM_DESC(ql2xgffidenable,
 		"Enables GFF_ID checks of port type. "
@@ -672,7 +672,7 @@ static void
 qla2x00_sp_compl(void *data, void *ptr, int res)
 {
 	struct qla_hw_data *ha = (struct qla_hw_data *)data;
-	srb_t *sp = (srb_t*)ptr;
+	srb_t *sp = ptr;
 	struct scsi_cmnd *cmd = GET_CMD_SP(sp);
 
 	cmd->result = res;
@@ -2968,21 +2968,21 @@ qla2x00_shutdown(struct pci_dev *pdev)
 static void
 qla2x00_stop_dpc_thread(struct qla_hw_data *ha)
 {
-        struct task_struct *t = NULL;
+	struct task_struct *t = NULL;
 
-        spin_lock_irq(&ha->dpc_lock);
-        if (ha->dpc_thread != NULL) {
-                t = ha->dpc_thread;
-                /*
-                 * qla2xxx_wake_dpc checks for ->dpc_thread
-                 * so we need to zero it out.
-                 */
-                ha->dpc_thread = NULL;
-        }
-        spin_unlock_irq(&ha->dpc_lock);
+	spin_lock_irq(&ha->dpc_lock);
+	if (ha->dpc_thread != NULL) {
+		t = ha->dpc_thread;
+		/*
+		 * qla2xxx_wake_dpc checks for ->dpc_thread
+		 * so we need to zero it out.
+		 */
+		ha->dpc_thread = NULL;
+	}
+	spin_unlock_irq(&ha->dpc_lock);
 
-        if (t != NULL)
-                kthread_stop(t);
+	if (t != NULL)
+		kthread_stop(t);
 }
 
 
@@ -3058,8 +3058,8 @@ qla2x00_remove_one(struct pci_dev *pdev)
 		ha->wq = NULL;
 	}
 
-        /* Necessary to prevent races with it */
-        qla2x00_stop_dpc_thread(ha);
+	/* Necessary to prevent races with it */
+	qla2x00_stop_dpc_thread(ha);
 
 	qla2x00_free_sysfs_attr(base_vha);
 

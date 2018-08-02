@@ -122,7 +122,7 @@ qla2x00_async_iocb_timeout(void *data)
 static void
 qla2x00_async_login_sp_done(void *data, void *ptr, int res)
 {
-	srb_t *sp = (srb_t*)ptr;
+	srb_t *sp = ptr;
 	struct srb_iocb *lio = &sp->u.iocb_cmd;
 	struct scsi_qla_host *vha = (scsi_qla_host_t *)data;
 
@@ -272,7 +272,7 @@ done:
 static void
 qla2x00_async_tm_cmd_done(void *data, void *ptr, int res)
 {
-	srb_t *sp = (srb_t*)ptr;
+	srb_t *sp = ptr;
 	struct srb_iocb *iocb = &sp->u.iocb_cmd;
 	struct scsi_qla_host *vha = (scsi_qla_host_t *)data;
 	uint32_t flags;
@@ -947,7 +947,7 @@ qla24xx_reset_risc(scsi_qla_host_t *vha)
 	struct device_reg_24xx __iomem *reg = &ha->iobase->isp24;
 	uint32_t cnt, d2;
 	uint16_t wd;
-	static int abts_cnt = 0; /* ISP abort retry counts */
+	static int abts_cnt; /* ISP abort retry counts */
 
 	spin_lock_irqsave(&ha->hardware_lock, flags);
 
@@ -1782,7 +1782,7 @@ qla24xx_config_rings(struct scsi_qla_host *vha)
 		if (IS_ATIO_MSIX_CAPABLE(ha)) {
 			msix = &ha->msix_entries[2];
 			icb->msix_atio = cpu_to_le16(msix->entry);
-                        ql_dbg(ql_dbg_init, vha, 0xffff,
+			ql_dbg(ql_dbg_init, vha, 0xffff,
 			    "Registering ICB vector 0x%x for atio que.\n",
 			    msix->entry);
 		}
@@ -4832,7 +4832,7 @@ qla2x00_load_risc(scsi_qla_host_t *vha, uint32_t *srisc_addr)
 	blob = qla2x00_request_firmware(vha);
 	if (!blob) {
 		ql_log(ql_log_info, vha, 0x0083,
-		    "Fimware image unavailable.\n");
+		    "Firmware image unavailable.\n");
 		ql_log(ql_log_info, vha, 0x0084,
 		    "Firmware images can be retrieved from: "QLA_FW_URL ".\n");
 		return QLA_FUNCTION_FAILED;
@@ -5053,7 +5053,7 @@ qla24xx_load_risc_blob(scsi_qla_host_t *vha, uint32_t *srisc_addr)
 	blob = qla2x00_request_firmware(vha);
 	if (!blob) {
 		ql_log(ql_log_warn, vha, 0x0090,
-		    "Fimware image unavailable.\n");
+		    "Firmware image unavailable.\n");
 		ql_log(ql_log_warn, vha, 0x0091,
 		    "Firmware images can be retrieved from: "
 		    QLA_FW_URL ".\n");
