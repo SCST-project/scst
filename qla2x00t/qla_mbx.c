@@ -4274,7 +4274,7 @@ qla2x00_echo_test(scsi_qla_host_t *vha, struct msg_echo_lb *mreq, uint16_t *mres
 	}
 
 	/* Copy mailbox information */
-	memcpy( mresp, mcp->mb, 64);
+	memcpy(mresp, mcp->mb, 64);
 	return rval;
 }
 

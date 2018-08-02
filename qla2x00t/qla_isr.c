@@ -1230,7 +1230,7 @@ qla24xx_els_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 				pkt)->total_byte_count));
 			fw_sts_ptr = bsg_job_sense(bsg_job) +
 				sizeof(struct fc_bsg_reply);
-			memcpy( fw_sts_ptr, fw_status, sizeof(fw_status));
+			memcpy(fw_sts_ptr, fw_status, sizeof(fw_status));
 		}
 		else {
 			ql_dbg(ql_dbg_user, vha, 0x5040,
@@ -1248,7 +1248,7 @@ qla24xx_els_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 #endif
 			fw_sts_ptr = bsg_job_sense(bsg_job) +
 				sizeof(struct fc_bsg_reply);
-			memcpy( fw_sts_ptr, fw_status, sizeof(fw_status));
+			memcpy(fw_sts_ptr, fw_status, sizeof(fw_status));
 		}
 		ql_dump_buffer(ql_dbg_user + ql_dbg_buffer, vha, 0x5056,
 				(uint8_t *)pkt, sizeof(*pkt));
