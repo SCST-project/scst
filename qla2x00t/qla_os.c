@@ -92,7 +92,7 @@ MODULE_PARM_DESC(ql2xplogiabsentdevice,
 		"a Fabric scan.  This is needed for several broken switches. "
 		"Default is 0 - no PLOGI. 1 - perfom PLOGI.");
 
-int ql2xloginretrycount = 0;
+int ql2xloginretrycount;
 module_param(ql2xloginretrycount, int, S_IRUGO);
 MODULE_PARM_DESC(ql2xloginretrycount,
 		"Specify an alternate value for the NVRAM login retry count.");
@@ -143,7 +143,7 @@ MODULE_PARM_DESC(ql2xmaxqdepth,
 		"Maximum queue depth to report for target devices.");
 
 /* Do not change the value of this after module load */
-int ql2xenabledif = 0;
+int ql2xenabledif;
 module_param(ql2xenabledif, int, S_IRUGO|S_IWUSR);
 MODULE_PARM_DESC(ql2xenabledif,
 		" Enable T10-CRC-DIF "

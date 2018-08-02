@@ -947,7 +947,7 @@ qla24xx_reset_risc(scsi_qla_host_t *vha)
 	struct device_reg_24xx __iomem *reg = &ha->iobase->isp24;
 	uint32_t cnt, d2;
 	uint16_t wd;
-	static int abts_cnt = 0; /* ISP abort retry counts */
+	static int abts_cnt; /* ISP abort retry counts */
 
 	spin_lock_irqsave(&ha->hardware_lock, flags);
 
