@@ -2093,28 +2093,28 @@ qla2x00_login_local_device(scsi_qla_host_t *vha, fc_port_t *fcport,
 		mcp->mb[1] = fcport->loop_id << 8;
 	mcp->mb[2] = opt;
 	mcp->out_mb = MBX_2|MBX_1|MBX_0;
- 	mcp->in_mb = MBX_7|MBX_6|MBX_1|MBX_0;
+	mcp->in_mb = MBX_7|MBX_6|MBX_1|MBX_0;
 	mcp->tov = (ha->login_timeout * 2) + (ha->login_timeout / 2);
 	mcp->flags = 0;
 	rval = qla2x00_mailbox_command(vha, mcp);
 
- 	/* Return mailbox statuses. */
- 	if (mb_ret != NULL) {
- 		mb_ret[0] = mcp->mb[0];
- 		mb_ret[1] = mcp->mb[1];
- 		mb_ret[6] = mcp->mb[6];
- 		mb_ret[7] = mcp->mb[7];
- 	}
+	/* Return mailbox statuses. */
+	if (mb_ret != NULL) {
+		mb_ret[0] = mcp->mb[0];
+		mb_ret[1] = mcp->mb[1];
+		mb_ret[6] = mcp->mb[6];
+		mb_ret[7] = mcp->mb[7];
+	}
 
 	if (rval != QLA_SUCCESS) {
- 		/* AV tmp code: need to change main mailbox_command function to
- 		 * return ok even when the mailbox completion value is not
- 		 * SUCCESS. The caller needs to be responsible to interpret
- 		 * the return values of this mailbox command if we're not
- 		 * to change too much of the existing code.
- 		 */
- 		if (mcp->mb[0] == 0x4005 || mcp->mb[0] == 0x4006)
- 			rval = QLA_SUCCESS;
+		/* AV tmp code: need to change main mailbox_command function to
+		 * return ok even when the mailbox completion value is not
+		 * SUCCESS. The caller needs to be responsible to interpret
+		 * the return values of this mailbox command if we're not
+		 * to change too much of the existing code.
+		 */
+		if (mcp->mb[0] == 0x4005 || mcp->mb[0] == 0x4006)
+			rval = QLA_SUCCESS;
 
 		ql_dbg(ql_dbg_mbx, vha, 0x106b,
 		    "Failed=%x mb[0]=%x mb[1]=%x mb[6]=%x mb[7]=%x.\n",
@@ -4759,7 +4759,7 @@ qla83xx_configure_vfs(scsi_qla_host_t *vha)
 		ql_dbg(ql_dbg_mbx + ql_dbg_verbose, vha, 0x112c,
 		    "Done %s.\n", __func__);
 
-        dma_free_coherent(&ha->pdev->dev, vf_cfgblk_size, buf, buf_dma);
+	dma_free_coherent(&ha->pdev->dev, vf_cfgblk_size, buf, buf_dma);
 	return rval;
 }
 

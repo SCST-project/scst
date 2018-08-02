@@ -2968,21 +2968,21 @@ qla2x00_shutdown(struct pci_dev *pdev)
 static void
 qla2x00_stop_dpc_thread(struct qla_hw_data *ha)
 {
-        struct task_struct *t = NULL;
+	struct task_struct *t = NULL;
 
-        spin_lock_irq(&ha->dpc_lock);
-        if (ha->dpc_thread != NULL) {
-                t = ha->dpc_thread;
-                /*
-                 * qla2xxx_wake_dpc checks for ->dpc_thread
-                 * so we need to zero it out.
-                 */
-                ha->dpc_thread = NULL;
-        }
-        spin_unlock_irq(&ha->dpc_lock);
+	spin_lock_irq(&ha->dpc_lock);
+	if (ha->dpc_thread != NULL) {
+		t = ha->dpc_thread;
+		/*
+		 * qla2xxx_wake_dpc checks for ->dpc_thread
+		 * so we need to zero it out.
+		 */
+		ha->dpc_thread = NULL;
+	}
+	spin_unlock_irq(&ha->dpc_lock);
 
-        if (t != NULL)
-                kthread_stop(t);
+	if (t != NULL)
+		kthread_stop(t);
 }
 
 
@@ -3058,8 +3058,8 @@ qla2x00_remove_one(struct pci_dev *pdev)
 		ha->wq = NULL;
 	}
 
-        /* Necessary to prevent races with it */
-        qla2x00_stop_dpc_thread(ha);
+	/* Necessary to prevent races with it */
+	qla2x00_stop_dpc_thread(ha);
 
 	qla2x00_free_sysfs_attr(base_vha);
 

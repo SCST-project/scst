@@ -3093,7 +3093,7 @@ typedef struct scsi_qla_host {
 	 * Processing Q2T tgt reference. NULL on not enabled targets. Protected
 	 * by tgt_mutex AND hardware_lock for writing and tgt_mutex OR
 	 * hardware_lock for reading.
- 	 */
+	 */
 	struct q2t_tgt	*tgt;
 
 	uint16_t	current_handle;

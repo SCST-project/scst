@@ -1898,7 +1898,7 @@ qla82xx_validate_firmware_blob(scsi_qla_host_t *vha, uint8_t fw_type)
 
 	if (fw->size < min_size)
 		return -EINVAL;
- 	return 0;
+	return 0;
 }
 
 static int
