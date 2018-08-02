@@ -672,7 +672,7 @@ static void
 qla2x00_sp_compl(void *data, void *ptr, int res)
 {
 	struct qla_hw_data *ha = (struct qla_hw_data *)data;
-	srb_t *sp = (srb_t*)ptr;
+	srb_t *sp = ptr;
 	struct scsi_cmnd *cmd = GET_CMD_SP(sp);
 
 	cmd->result = res;
