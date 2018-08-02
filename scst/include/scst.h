@@ -4975,7 +4975,7 @@ static inline struct scatterlist *sg_next_inline(struct scatterlist *sg)
 static inline void sg_clear(struct scatterlist *sg)
 {
 	memset(sg, 0, sizeof(*sg));
-#ifdef CONFIG_DEBUG_SG
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0) && defined(CONFIG_DEBUG_SG)
 	sg->sg_magic = SG_MAGIC;
 #endif
 }
