@@ -220,7 +220,7 @@ MODULE_PARM_DESC(ql2xtargetreset,
 		 "Enable target reset."
 		 "Default is 1 - use hw defaults.");
 
-int ql2xgffidenable = 0;
+int ql2xgffidenable;
 module_param(ql2xgffidenable, int, S_IRUGO);
 MODULE_PARM_DESC(ql2xgffidenable,
 		"Enables GFF_ID checks of port type. "
