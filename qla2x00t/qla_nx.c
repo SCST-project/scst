@@ -1647,7 +1647,7 @@ qla82xx_pci_info_str(struct scsi_qla_host *vha, char *str, int str_len)
 	ha->link_width = (lnk >> 4) & 0x3f;
 
 	strlcpy(str, "PCIe (", str_len);
-	strncat(str, "2.5Gb/s ",str_len - (strlen(str)+1));
+	strncat(str, "2.5Gb/s ", str_len - (strlen(str)+1));
 	snprintf(lwstr, sizeof(lwstr), "x%d)", ha->link_width);
 	strncat(str, lwstr, str_len - (strlen(str)+1));
 	return str;

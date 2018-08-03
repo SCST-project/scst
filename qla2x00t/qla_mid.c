@@ -343,7 +343,7 @@ qla2x00_vp_abort_isp(scsi_qla_host_t *vha)
 		qla24xx_control_vp(vha, VCE_COMMAND_DISABLE_VPS_LOGO_ALL);
 
 	/* See comment in qla24xx_init_vp() */
-	if (qla_ini_mode_enabled(base_vha)){
+	if (qla_ini_mode_enabled(base_vha)) {
 		ql_dbg(ql_dbg_taskm, vha, 0x801d,
 		    "Scheduling enable of Vport %d.\n", vha->vp_idx);
 		ret = qla24xx_enable_vp(vha);
