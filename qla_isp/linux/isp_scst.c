@@ -1585,8 +1585,7 @@ static uint16_t isp_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 	return 0x0900; /* FCP-2 */
 }
 
-static struct scst_tgt_template isp_tgt_template =
-{
+static struct scst_tgt_template isp_tgt_template = {
     .sg_tablesize = SG_ALL, /* we set this value lately based on hardware */
     .name = "qla_isp",
     .unchecked_isa_dma = 0,
