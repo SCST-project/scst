@@ -643,7 +643,7 @@ void
 qla2x00_get_sym_node_name(scsi_qla_host_t *vha, uint8_t *snn)
 {
 	struct qla_hw_data *ha = vha->hw;
-	sprintf(snn, "%s FW:v%d.%02d.%02d DVR:v%s",ha->model_number,
+	sprintf(snn, "%s FW:v%d.%02d.%02d DVR:v%s", ha->model_number,
 	    ha->fw_major_version, ha->fw_minor_version,
 	    ha->fw_subminor_version, qla2x00_version_str);
 }
@@ -1410,7 +1410,7 @@ qla2x00_fdmi_rhba(scsi_qla_host_t *vha)
 	eiter->len = cpu_to_be16(4 + alen);
 	size += 4 + alen;
 
-	ql_dbg(ql_dbg_disc, vha , 0x202c,
+	ql_dbg(ql_dbg_disc, vha, 0x202c,
 	    "Optrom vers = %s.\n", eiter->a.orom_version);
 
 	/* Firmware version */
@@ -1583,7 +1583,7 @@ qla2x00_fdmi_rpa(scsi_qla_host_t *vha)
 		    FDMI_PORT_SPEED_1GB|FDMI_PORT_SPEED_2GB|
 		    FDMI_PORT_SPEED_4GB);
 	else if (IS_QLA23XX(ha))
-		eiter->a.sup_speed =cpu_to_be32(
+		eiter->a.sup_speed = cpu_to_be32(
 		    FDMI_PORT_SPEED_1GB|FDMI_PORT_SPEED_2GB);
 	else
 		eiter->a.sup_speed = cpu_to_be32(FDMI_PORT_SPEED_1GB);

@@ -482,11 +482,21 @@ out_id_list_failed:
 			if (size >= max_size)
 				goto out;
 			switch (atomic_read(&fcport->state)) {
-			case FCS_UNCONFIGURED : state = "Unconfigured"; break;
-			case FCS_DEVICE_DEAD : state = "Dead"; break;
-			case FCS_DEVICE_LOST : state = "Lost"; break;
-			case FCS_ONLINE	: state = "Online"; break;
-			default: state = "Unknown"; break;
+			case FCS_UNCONFIGURED:
+				state = "Unconfigured";
+				break;
+			case FCS_DEVICE_DEAD:
+				state = "Dead";
+				break;
+			case FCS_DEVICE_LOST:
+				state = "Lost";
+				break;
+			case FCS_ONLINE:
+				state = "Online";
+				break;
+			default:
+				state = "Unknown";
+				break;
 			}
 
 			size += scnprintf(buffer+size, max_size-size,
@@ -2280,7 +2290,7 @@ qla2x00_get_host_port_state(struct Scsi_Host *shost)
 		fc_host_port_state(shost) = FC_PORTSTATE_DIAGNOSTICS;
 		break;
 	case LOOP_DOWN:
-		if(test_bit(LOOP_RESYNC_NEEDED, &base_vha->dpc_flags))
+		if (test_bit(LOOP_RESYNC_NEEDED, &base_vha->dpc_flags))
 			fc_host_port_state(shost) = FC_PORTSTATE_DIAGNOSTICS;
 		else
 			fc_host_port_state(shost) = FC_PORTSTATE_LINKDOWN;

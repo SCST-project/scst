@@ -4564,7 +4564,7 @@ qla2xxx_pci_mmio_enabled(struct pci_dev *pdev)
 		return PCI_ERS_RESULT_RECOVERED;
 
 	spin_lock_irqsave(&ha->hardware_lock, flags);
-	if (IS_QLA2100(ha) || IS_QLA2200(ha)){
+	if (IS_QLA2100(ha) || IS_QLA2200(ha)) {
 		stat = RD_REG_DWORD(&reg->hccr);
 		if (stat & HCCR_RISC_PAUSE)
 			risc_paused = 1;

@@ -264,8 +264,7 @@ static struct crb_128M_2M_block_map crb_128M_2M_map[64] = {
 /*
  * top 12 bits of crb internal address (hub, agent)
  */
-static unsigned qla82xx_crb_hub_agt[64] =
-{
+static unsigned qla82xx_crb_hub_agt[64] = {
 	0,
 	QLA82XX_HW_CRB_HUB_AGT_ADR_PS,
 	QLA82XX_HW_CRB_HUB_AGT_ADR_MN,
@@ -889,7 +888,7 @@ static int
 qla82xx_wait_rom_busy(struct qla_hw_data *ha)
 {
 	long timeout = 0;
-	long done = 0 ;
+	long done = 0;
 	scsi_qla_host_t *vha = pci_get_drvdata(ha->pdev);
 
 	while (done == 0) {
@@ -910,7 +909,7 @@ static int
 qla82xx_wait_rom_done(struct qla_hw_data *ha)
 {
 	long timeout = 0;
-	long done = 0 ;
+	long done = 0;
 	scsi_qla_host_t *vha = pci_get_drvdata(ha->pdev);
 
 	while (done == 0) {
@@ -1001,7 +1000,7 @@ static int
 qla82xx_flash_wait_write_finish(struct qla_hw_data *ha)
 {
 	long timeout = 0;
-	uint32_t done = 1 ;
+	uint32_t done = 1;
 	uint32_t val;
 	int ret = 0;
 	scsi_qla_host_t *vha = pci_get_drvdata(ha->pdev);
@@ -1130,7 +1129,7 @@ static int
 qla82xx_pinit_from_rom(scsi_qla_host_t *vha)
 {
 	int addr, val;
-	int i ;
+	int i;
 	struct crb_addr_pair *buf;
 	unsigned long off;
 	unsigned offset, n;
@@ -1529,7 +1528,7 @@ qla82xx_fw_load_from_flash(struct qla_hw_data *ha)
 		    (qla82xx_rom_fast_read(ha, flashaddr + 4, (int *)&high))) {
 			return -1;
 		}
-		data = ((u64)high << 32) | low ;
+		data = ((u64)high << 32) | low;
 		qla82xx_pci_mem_write_2M(ha, memaddr, &data, 8);
 		flashaddr += 8;
 		memaddr += 8;
@@ -1647,7 +1646,7 @@ qla82xx_pci_info_str(struct scsi_qla_host *vha, char *str, int str_len)
 	ha->link_width = (lnk >> 4) & 0x3f;
 
 	strlcpy(str, "PCIe (", str_len);
-	strncat(str, "2.5Gb/s ",str_len - (strlen(str)+1));
+	strncat(str, "2.5Gb/s ", str_len - (strlen(str)+1));
 	snprintf(lwstr, sizeof(lwstr), "x%d)", ha->link_width);
 	strncat(str, lwstr, str_len - (strlen(str)+1));
 	return str;
@@ -4409,8 +4408,7 @@ qla82xx_beacon_on(struct scsi_qla_host *vha)
 	qla82xx_idc_lock(ha);
 	rval = qla82xx_mbx_beacon_ctl(vha, 1);
 
-	if (rval)
-	{
+	if (rval) {
 		ql_log(ql_log_warn, vha, 0xb050,
 		    "mbx set led config failed in %s\n", __func__);
 		goto exit;
@@ -4430,8 +4428,7 @@ qla82xx_beacon_off(struct scsi_qla_host *vha)
 	qla82xx_idc_lock(ha);
 	rval = qla82xx_mbx_beacon_ctl(vha, 0);
 
-	if (rval)
-	{
+	if (rval) {
 		ql_log(ql_log_warn, vha, 0xb051,
 		    "mbx set led config failed in %s\n", __func__);
 		goto exit;

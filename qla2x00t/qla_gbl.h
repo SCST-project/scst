@@ -329,7 +329,7 @@ extern int
 qla2x00_disable_eft_trace(scsi_qla_host_t *);
 
 extern int
-qla2x00_enable_fce_trace(scsi_qla_host_t *, dma_addr_t, uint16_t , uint16_t *,
+qla2x00_enable_fce_trace(scsi_qla_host_t *, dma_addr_t, uint16_t, uint16_t *,
     uint32_t *);
 
 extern int

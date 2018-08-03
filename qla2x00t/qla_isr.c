@@ -287,8 +287,9 @@ qla2x00_mbx_completion(scsi_qla_host_t *vha, uint16_t mb0)
 static void
 qla81xx_idc_event(scsi_qla_host_t *vha, uint16_t aen, uint16_t descr)
 {
-	static char *event[] =
-		{ "Complete", "Request Notification", "Time Extension" };
+	static char *event[] = {
+		"Complete", "Request Notification", "Time Extension"
+	};
 	int rval;
 	struct device_reg_24xx __iomem *reg24 = &vha->hw->iobase->isp24;
 	uint16_t __iomem *wptr;
@@ -1012,7 +1013,7 @@ qla2x00_mbx_iocb_entry(scsi_qla_host_t *vha, struct req_que *req,
 
 	data[0] = MBS_COMMAND_ERROR;
 	data[1] = lio->u.logio.flags & SRB_LOGIN_RETRIED ?
-	    QLA_LOGIO_LOGIN_RETRIED: 0;
+	    QLA_LOGIO_LOGIN_RETRIED : 0;
 	if (mbx->entry_status) {
 		ql_dbg(ql_dbg_async, vha, 0x5043,
 		    "Async-%s error entry - hdl=%x portid=%02x%02x%02x "
@@ -1286,7 +1287,7 @@ qla24xx_logio_entry(scsi_qla_host_t *vha, struct req_que *req,
 
 	data[0] = MBS_COMMAND_ERROR;
 	data[1] = lio->u.logio.flags & SRB_LOGIN_RETRIED ?
-	    QLA_LOGIO_LOGIN_RETRIED: 0;
+	    QLA_LOGIO_LOGIN_RETRIED : 0;
 	if (logio->entry_status) {
 		ql_log(ql_log_warn, fcport->vha, 0x5034,
 		    "Async-%s error entry - hdl=%x"
