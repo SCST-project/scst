@@ -987,8 +987,7 @@ qla24xx_reset_risc(scsi_qla_host_t *vha)
 			if (++abts_cnt < 5) {
 				set_bit(ISP_ABORT_NEEDED, &vha->dpc_flags);
 				set_bit(MPI_RESET_NEEDED, &vha->dpc_flags);
-			}
-			else {
+			} else {
 				/*
 				 * We exhausted the ISP abort retries. We have to
 				 * set the board offline.
