@@ -2025,7 +2025,7 @@ qla2x00_logout_iocb(srb_t *sp, struct mbx_entry *mbx)
 	SET_TARGET_ID(ha, mbx->loop_id, sp->fcport->loop_id);
 	mbx->mb0 = cpu_to_le16(MBC_LOGOUT_FABRIC_PORT);
 	mbx->mb1 = HAS_EXTENDED_IDS(ha) ?
-	    cpu_to_le16(sp->fcport->loop_id):
+	    cpu_to_le16(sp->fcport->loop_id) :
 	    cpu_to_le16(sp->fcport->loop_id << 8);
 	mbx->mb2 = cpu_to_le16(sp->fcport->d_id.b.domain);
 	mbx->mb3 = cpu_to_le16(sp->fcport->d_id.b.area << 8 |
@@ -2706,12 +2706,12 @@ qla2x00_start_sp(srb_t *sp)
 	switch (sp->type) {
 	case SRB_LOGIN_CMD:
 		IS_FWI2_CAPABLE(ha) ?
-		    qla24xx_login_iocb(sp, pkt):
+		    qla24xx_login_iocb(sp, pkt) :
 		    qla2x00_login_iocb(sp, pkt);
 		break;
 	case SRB_LOGOUT_CMD:
 		IS_FWI2_CAPABLE(ha) ?
-		    qla24xx_logout_iocb(sp, pkt):
+		    qla24xx_logout_iocb(sp, pkt) :
 		    qla2x00_logout_iocb(sp, pkt);
 		break;
 	case SRB_ELS_CMD_RPT:
@@ -2725,7 +2725,7 @@ qla2x00_start_sp(srb_t *sp)
 		break;
 	case SRB_ADISC_CMD:
 		IS_FWI2_CAPABLE(ha) ?
-		    qla24xx_adisc_iocb(sp, pkt):
+		    qla24xx_adisc_iocb(sp, pkt) :
 		    qla2x00_adisc_iocb(sp, pkt);
 		break;
 	case SRB_TM_CMD:
