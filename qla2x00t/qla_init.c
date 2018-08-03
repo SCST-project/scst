@@ -470,7 +470,7 @@ qla2x00_initialize_adapter(scsi_qla_host_t *vha)
 	if (rval) {
 		ql_log(ql_log_warn, vha, 0x0044,
 		    "Unable to configure PCI space.\n");
-		return (rval);
+		return rval;
 	}
 
 	ha->isp_ops->reset_chip(vha);
@@ -479,7 +479,7 @@ qla2x00_initialize_adapter(scsi_qla_host_t *vha)
 	if (rval) {
 		ql_log(ql_log_fatal, vha, 0x004f,
 		    "Unable to validate FLASH data.\n");
-		return (rval);
+		return rval;
 	}
 
 	ha->isp_ops->get_flash_version(vha, req->ring);
@@ -506,10 +506,10 @@ qla2x00_initialize_adapter(scsi_qla_host_t *vha)
 	if (qla2x00_isp_firmware(vha) != QLA_SUCCESS) {
 		rval = ha->isp_ops->chip_diag(vha);
 		if (rval)
-			return (rval);
+			return rval;
 		rval = qla2x00_setup_chip(vha);
 		if (rval)
-			return (rval);
+			return rval;
 	}
 
 	if (IS_QLA84XX(ha)) {
@@ -546,7 +546,7 @@ qla2x00_initialize_adapter(scsi_qla_host_t *vha)
 	}
 #endif
 
-	return (rval);
+	return rval;
 }
 
 /**
@@ -770,7 +770,7 @@ qla2x00_isp_firmware(scsi_qla_host_t *vha)
 		ql_dbg(ql_dbg_init, vha, 0x007a,
 		    "**** Load RISC code ****.\n");
 
-	return (rval);
+	return rval;
 }
 
 /**
@@ -1176,7 +1176,7 @@ chip_diag_failed:
 
 	spin_unlock_irqrestore(&ha->hardware_lock, flags);
 
-	return (rval);
+	return rval;
 }
 
 /**
@@ -1546,7 +1546,7 @@ failed:
 		    "Setup chip ****FAILED****.\n");
 	}
 
-	return (rval);
+	return rval;
 }
 
 /**
@@ -1905,7 +1905,7 @@ qla2x00_init_rings(scsi_qla_host_t *vha)
 		    "Init Firmware -- success.\n");
 	}
 
-	return (rval);
+	return rval;
 }
 
 /**
@@ -2034,7 +2034,7 @@ out_not_ready:
 	if ((rval != QLA_SUCCESS) && !(vha->device_flags & DFLG_NO_CABLE))
 		ql_dbg(ql_log_warn, vha, 0x803b, "Firmware not ready\n");
 
-	return (rval);
+	return rval;
 }
 
 /*
@@ -2077,13 +2077,13 @@ qla2x00_configure_hba(scsi_qla_host_t *vha)
 			    "Unable to get host loop ID.\n");
 			set_bit(ISP_ABORT_NEEDED, &vha->dpc_flags);
 		}
-		return (rval);
+		return rval;
 	}
 
 	if (topo == 4) {
 		ql_log(ql_log_info, vha, 0x200a,
 		    "Cannot get topology - retrying.\n");
-		return (QLA_FUNCTION_FAILED);
+		return QLA_FUNCTION_FAILED;
 	}
 
 	vha->loop_id = loop_id;
@@ -2641,7 +2641,7 @@ qla2x00_nvram_config(scsi_qla_host_t *vha)
 		ql_log(ql_log_warn, vha, 0x0069,
 		    "NVRAM configuration failed.\n");
 	}
-	return (rval);
+	return rval;
 }
 
 static void
@@ -2717,7 +2717,7 @@ qla2x00_configure_loop(scsi_qla_host_t *vha)
 		if (rval != QLA_SUCCESS) {
 			ql_dbg(ql_dbg_disc, vha, 0x2013,
 			    "Unable to configure HBA.\n");
-			return (rval);
+			return rval;
 		}
 	}
 
@@ -2803,7 +2803,7 @@ qla2x00_configure_loop(scsi_qla_host_t *vha)
 		}
 	}
 
-	return (rval);
+	return rval;
 }
 
 /*
@@ -2980,7 +2980,7 @@ cleanup_allocation:
 	}
 
 out:
-	return (rval);
+	return rval;
 }
 
 static void
@@ -3124,7 +3124,7 @@ qla2x00_configure_fabric(scsi_qla_host_t *vha)
 		    "MBX_GET_PORT_NAME failed, No FL Port.\n");
 
 		vha->device_flags &= ~SWITCH_FOUND;
-		return (QLA_SUCCESS);
+		return QLA_SUCCESS;
 	}
 	vha->device_flags |= SWITCH_FOUND;
 
@@ -3150,7 +3150,7 @@ qla2x00_configure_fabric(scsi_qla_host_t *vha)
 			    "Failed SNS login: loop_id=%x mb[0]=%x mb[1]=%x mb[2]=%x "
 			    "mb[6]=%x mb[7]=%x.\n", loop_id, mb[0], mb[1],
 			    mb[2], mb[6], mb[7]);
-			return (QLA_SUCCESS);
+			return QLA_SUCCESS;
 		}
 
 		if (test_and_clear_bit(REGISTER_FC4_NEEDED, &vha->dpc_flags)) {
@@ -3236,7 +3236,7 @@ qla2x00_configure_fabric(scsi_qla_host_t *vha)
 		    "Configure fabric error exit rval=%d.\n", rval);
 	}
 
-	return (rval);
+	return rval;
 }
 
 /*
@@ -3309,7 +3309,7 @@ qla2x00_find_all_fabric_devs(scsi_qla_host_t *vha,
 	if (new_fcport == NULL) {
 		ql_log(ql_log_warn, vha, 0x205e,
 		    "Failed to allocate memory for fcport.\n");
-		return (QLA_MEMORY_ALLOC_FAILED);
+		return QLA_MEMORY_ALLOC_FAILED;
 	}
 	new_fcport->flags |= (FCF_FABRIC_DEVICE | FCF_LOGIN_NEEDED);
 	/* Set start port ID scan at adapter ID. */
@@ -3486,7 +3486,7 @@ qla2x00_find_all_fabric_devs(scsi_qla_host_t *vha,
 		if (new_fcport == NULL) {
 			ql_log(ql_log_warn, vha, 0x2066,
 			    "Memory allocation failed for fcport.\n");
-			return (QLA_MEMORY_ALLOC_FAILED);
+			return QLA_MEMORY_ALLOC_FAILED;
 		}
 		new_fcport->flags |= (FCF_FABRIC_DEVICE | FCF_LOGIN_NEEDED);
 		new_fcport->d_id.b24 = nxt_d_id.b24;
@@ -3495,7 +3495,7 @@ qla2x00_find_all_fabric_devs(scsi_qla_host_t *vha,
 	kfree(new_fcport);
 
 out:
-	return (rval);
+	return rval;
 }
 
 /*
@@ -3582,7 +3582,7 @@ qla2x00_find_new_loop_id(scsi_qla_host_t *vha, fc_port_t *dev)
 		}
 	}
 
-	return (rval);
+	return rval;
 }
 
 /*
@@ -3640,7 +3640,7 @@ qla2x00_fabric_dev_login(scsi_qla_host_t *vha, fc_port_t *fcport,
 		qla2x00_mark_device_lost(vha, fcport, 1, 0);
 	}
 
-	return (rval);
+	return rval;
 }
 
 /*
@@ -3788,7 +3788,7 @@ qla2x00_fabric_login(scsi_qla_host_t *vha, fc_port_t *fcport,
 		}
 	}
 
-	return (rval);
+	return rval;
 }
 
 /*
@@ -3821,7 +3821,7 @@ qla2x00_local_device_login(scsi_qla_host_t *vha, fc_port_t *fcport)
 			rval = 3;
 	}
 
-	return (rval);
+	return rval;
 }
 
 /*
@@ -3872,13 +3872,13 @@ qla2x00_loop_resync(scsi_qla_host_t *vha)
 	}
 
 	if (test_bit(ISP_ABORT_NEEDED, &vha->dpc_flags))
-		return (QLA_FUNCTION_FAILED);
+		return QLA_FUNCTION_FAILED;
 
 	if (rval)
 		ql_dbg(ql_dbg_disc, vha, 0x206c,
 		    "%s *** FAILED ***.\n", __func__);
 
-	return (rval);
+	return rval;
 }
 
 /*
@@ -4277,7 +4277,7 @@ qla2x00_restart_isp(scsi_qla_host_t *vha)
 		ql_dbg(ql_dbg_taskm, vha, 0x8032,
 		    "Configure loop done, status = 0x%x.\n", status);
 	}
-	return (status);
+	return status;
 }
 
 static int
@@ -4726,7 +4726,7 @@ qla24xx_nvram_config(scsi_qla_host_t *vha)
 		ql_log(ql_log_warn, vha, 0x0070,
 		    "NVRAM configuration failed.\n");
 	}
-	return (rval);
+	return rval;
 }
 
 static int
@@ -5270,7 +5270,7 @@ qla24xx_configure_vhba(scsi_qla_host_t *vha)
 			    "Failed SNS login: loop_id=%x mb[0]=%x mb[1]=%x "
 			    "mb[2]=%x mb[6]=%x mb[7]=%x.\n",
 			    NPH_SNS, mb[0], mb[1], mb[2], mb[6], mb[7]);
-		return (QLA_FUNCTION_FAILED);
+		return QLA_FUNCTION_FAILED;
 	}
 
 	atomic_set(&vha->loop_down_timer, 0);
@@ -5692,7 +5692,7 @@ qla81xx_nvram_config(scsi_qla_host_t *vha)
 		ql_log(ql_log_warn, vha, 0x0076,
 		    "NVRAM configuration failed.\n");
 	}
-	return (rval);
+	return rval;
 }
 
 int

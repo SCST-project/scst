@@ -158,7 +158,7 @@ qla2x00_get_nvram_word(struct qla_hw_data *ha, uint32_t addr)
 	nv_cmd |= NV_READ_OP;
 	data = qla2x00_nvram_request(ha, nv_cmd);
 
-	return (data);
+	return data;
 }
 
 /**

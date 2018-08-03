@@ -36,7 +36,7 @@ qla2x00_get_cmd_direction(srb_t *sp)
 		cflags = CF_READ;
 		vha->qla_stats.input_bytes += scsi_bufflen(cmd);
 	}
-	return (cflags);
+	return cflags;
 }
 
 /**
@@ -58,7 +58,7 @@ qla2x00_calc_iocbs_32(uint16_t dsds)
 		if ((dsds - 3) % 7)
 			iocbs++;
 	}
-	return (iocbs);
+	return iocbs;
 }
 
 /**
@@ -80,7 +80,7 @@ qla2x00_calc_iocbs_64(uint16_t dsds)
 		if ((dsds - 2) % 5)
 			iocbs++;
 	}
-	return (iocbs);
+	return iocbs;
 }
 
 /**
@@ -108,7 +108,7 @@ qla2x00_prep_cont_type0_iocb(struct scsi_qla_host *vha)
 	/* Load packet defaults. */
 	*((uint32_t *)(&cont_pkt->entry_type)) = cpu_to_le32(CONTINUE_TYPE);
 
-	return (cont_pkt);
+	return cont_pkt;
 }
 
 /**
@@ -137,7 +137,7 @@ qla2x00_prep_cont_type1_iocb(scsi_qla_host_t *vha, struct req_que *req)
 	/* Load packet defaults. */
 	*((uint32_t *)(&cont_pkt->entry_type)) = cpu_to_le32(CONTINUE_A64_TYPE);
 
-	return (cont_pkt);
+	return cont_pkt;
 }
 
 static inline int
@@ -344,7 +344,7 @@ qla2x00_start_scsi(srb_t *sp)
 	if (vha->marker_needed != 0) {
 		if (qla2x00_marker(vha, req, rsp, 0, 0, MK_SYNC_ALL) !=
 		    QLA_SUCCESS) {
-			return (QLA_FUNCTION_FAILED);
+			return QLA_FUNCTION_FAILED;
 		}
 		vha->marker_needed = 0;
 	}
@@ -456,7 +456,7 @@ qla2x00_start_scsi(srb_t *sp)
 		qla2x00_process_response_queue(rsp);
 
 	spin_unlock_irqrestore(&ha->hardware_lock, flags);
-	return (QLA_SUCCESS);
+	return QLA_SUCCESS;
 
 queuing_error:
 	if (tot_dsds)
@@ -464,7 +464,7 @@ queuing_error:
 
 	spin_unlock_irqrestore(&ha->hardware_lock, flags);
 
-	return (QLA_FUNCTION_FAILED);
+	return QLA_FUNCTION_FAILED;
 }
 
 /*
@@ -535,7 +535,7 @@ __qla2x00_marker(struct scsi_qla_host *vha, struct req_que *req,
 		ql_log(ql_log_warn, base_vha, 0x3026,
 		    "Failed to allocate Marker IOCB.\n");
 
-		return (QLA_FUNCTION_FAILED);
+		return QLA_FUNCTION_FAILED;
 	}
 
 	mrk->entry_type = MARKER_TYPE;
@@ -558,7 +558,7 @@ __qla2x00_marker(struct scsi_qla_host *vha, struct req_que *req,
 
 	qla2x00_start_iocbs(vha, req);
 
-	return (QLA_SUCCESS);
+	return QLA_SUCCESS;
 }
 
 int
@@ -573,7 +573,7 @@ qla2x00_marker(struct scsi_qla_host *vha, struct req_que *req,
 	ret = __qla2x00_marker(vha, req, rsp, loop_id, lun, type);
 	spin_unlock_irqrestore(&vha->hw->hardware_lock, flags);
 
-	return (ret);
+	return ret;
 }
 
 /**
