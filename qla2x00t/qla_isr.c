@@ -49,7 +49,7 @@ qla2100_intr_handler(int irq, void *dev_id)
 	if (!rsp) {
 		ql_log(ql_log_info, NULL, 0x505d,
 		    "%s: NULL response queue pointer.\n", __func__);
-		return (IRQ_NONE);
+		return IRQ_NONE;
 	}
 
 	ha = rsp->hw;
@@ -116,7 +116,7 @@ qla2100_intr_handler(int irq, void *dev_id)
 		complete(&ha->mbx_intr_comp);
 	}
 
-	return (IRQ_HANDLED);
+	return IRQ_HANDLED;
 }
 
 /**
@@ -146,7 +146,7 @@ qla2300_intr_handler(int irq, void *dev_id)
 	if (!rsp) {
 		ql_log(ql_log_info, NULL, 0x5058,
 		    "%s: NULL response queue pointer.\n", __func__);
-		return (IRQ_NONE);
+		return IRQ_NONE;
 	}
 
 	ha = rsp->hw;
@@ -241,7 +241,7 @@ qla2300_intr_handler(int irq, void *dev_id)
 		complete(&ha->mbx_intr_comp);
 	}
 
-	return (IRQ_HANDLED);
+	return IRQ_HANDLED;
 }
 
 /**
@@ -1252,8 +1252,7 @@ qla24xx_els_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 		}
 		ql_dump_buffer(ql_dbg_user + ql_dbg_buffer, vha, 0x5056,
 				(uint8_t *)pkt, sizeof(*pkt));
-	}
-	else {
+	} else {
 #ifndef NEW_LIBFC_API
 		bsg_job->reply->reply_payload_rcv_len = bsg_job->reply_payload.payload_len;
 #else
