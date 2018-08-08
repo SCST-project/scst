@@ -3450,10 +3450,7 @@ out_unlock:
 		spin_unlock_irqrestore(&ha->hardware_lock, flags);
 
 	if (do_tgt_cmd_done) {
-		if (!ha_locked && !in_interrupt())
-			scst_tgt_cmd_done(&cmd->scst_cmd, SCST_CONTEXT_DIRECT);
-		else
-			scst_tgt_cmd_done(&cmd->scst_cmd, SCST_CONTEXT_TASKLET);
+		scst_tgt_cmd_done(&cmd->scst_cmd, SCST_CONTEXT_THREAD);
 		/* !! At this point cmd could be already freed !! */
 	}
 
@@ -3527,10 +3524,7 @@ out_unlock:
 		spin_unlock_irqrestore(&ha->hardware_lock, flags);
 
 	if (do_tgt_cmd_done) {
-		if (!ha_locked && !in_interrupt())
-			scst_tgt_cmd_done(&cmd->scst_cmd, SCST_CONTEXT_DIRECT);
-		else
-			scst_tgt_cmd_done(&cmd->scst_cmd, SCST_CONTEXT_TASKLET);
+		scst_tgt_cmd_done(&cmd->scst_cmd, SCST_CONTEXT_THREAD);
 		/* !! At this point cmd could be already freed !! */
 	}
 
@@ -3802,10 +3796,17 @@ static void q2t_do_ctio_completion(scsi_qla_host_t *vha, uint32_t handle,
 
 	TRACE_ENTRY();
 
+#if 1	/*
+	 * We can't do anything better, because DLM PR sync code calls
+	 * mutex_lock() on this path
+	 */
+	context = SCST_CONTEXT_THREAD;
+#else
 #ifdef CONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
 	context = SCST_CONTEXT_THREAD;
 #else
 	context = SCST_CONTEXT_TASKLET;
+#endif
 #endif
 
 	TRACE(TRACE_DEBUG|TRACE_SCSI, "qla2x00t(%ld): handle(ctio %p "
