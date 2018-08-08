@@ -1209,6 +1209,7 @@ qla2x00_init_firmware(scsi_qla_host_t *vha, uint16_t size)
 #if 0
 	if (IS_FWI2_CAPABLE(ha)) {
 		struct init_cb_24xx *icb = (struct init_cb_24xx *)ha->init_cb;
+
 		DEBUG5(printk(KERN_INFO "%s(): firmware_options_1 %x, "
 			"firmware_options_2 %x, firmware_options_3 %x\n",
 			__func__, icb->firmware_options_1,
@@ -1217,6 +1218,7 @@ qla2x00_init_firmware(scsi_qla_host_t *vha, uint16_t size)
 		DEBUG5(qla2x00_dump_buffer((uint8_t *)icb, sizeof(*icb)));
 	} else {
 		init_cb_t *icb = (init_cb_t *)ha->init_cb;
+
 		DEBUG5(printk(KERN_INFO "%s(): firmware_options[0] %x, "
 			"firmware_options[1] %x, add_firmware_options[0] %x, "
 			"add_firmware_options[1] %x\n", __func__,
@@ -1266,6 +1268,7 @@ qla2x00_init_firmware(scsi_qla_host_t *vha, uint16_t size)
 
 		if (ha->flags.npiv_supported && (ha->num_vhosts > 0)) {
 			scsi_qla_host_t *vha;
+
 			list_for_each_entry(vha, &ha->vp_list, list) {
 				struct mid_conf_entry_24xx *vpe;
 
