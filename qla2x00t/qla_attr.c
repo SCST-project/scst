@@ -158,6 +158,7 @@ qla2x00_store_tgt_enabled(struct device *dev,
 
 	if ((size > 1) && (buffer[1] == 'r')) {
 		struct scsi_qla_host *base_vha = pci_get_drvdata(vha->hw->pdev);
+
 		set_bit(ISP_ABORT_NEEDED, &base_vha->dpc_flags);
 	}
 
@@ -375,6 +376,7 @@ qla2x00_show_port_database(struct device *dev,
 
 			for (i = 0; (i < entries) && (size < max_size); ++i) {
 				uint64_t *wwn = (uint64_t *)pmap24[i].port_name;
+
 				if (*wwn == 0)
 					continue;
 				size += scnprintf(buffer+size, max_size-size,

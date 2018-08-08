@@ -1792,6 +1792,7 @@ int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark)
 
 	for (i = 0; i < NR_CPUS; i++) {
 		char name[60];
+
 		if (!cpu_online(i))
 			continue;
 		scnprintf(name, sizeof(name), "sgv-%d", i);
@@ -1803,6 +1804,7 @@ int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark)
 
 	for (i = 0; i < NR_CPUS; i++) {
 		char name[60];
+
 		if (!cpu_online(i))
 			continue;
 		scnprintf(name, sizeof(name), "sgv-clust-%d", i);
@@ -1814,6 +1816,7 @@ int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark)
 
 	for (i = 0; i < NR_CPUS; i++) {
 		char name[60];
+
 		if (!cpu_online(i))
 			continue;
 		scnprintf(name, sizeof(name), "sgv-dma-%d", i);

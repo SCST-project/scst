@@ -4458,6 +4458,7 @@ again:
 		}
 	} else if (likely(cmd->tgt_dev != NULL)) {
 		struct scst_order_data *order_data = cmd->cur_order_data;
+
 		if (unlikely(order_data->aca_tgt_dev != 0)) {
 			if (!cmd->cmd_aca_allowed) {
 				spin_lock_irq(&order_data->sn_lock);
@@ -4494,6 +4495,7 @@ again:
 	if (unlikely(cmd->queue_type == SCST_CMD_QUEUE_ACA) &&
 	    (cmd->tgt_dev != NULL)) {
 		struct scst_order_data *order_data = cmd->cur_order_data;
+
 		spin_lock_irq(&order_data->sn_lock);
 		if (order_data->aca_cmd == cmd) {
 			TRACE_MGMT_DBG("ACA cmd %p finished", cmd);
@@ -7208,6 +7210,7 @@ static void __scst_clear_aca(struct scst_tgt_dev *tgt_dev,
 	aca_cmd = order_data->aca_cmd;
 	if (aca_cmd != NULL) {
 		unsigned long flags;
+
 		TRACE_MGMT_DBG("Aborting pending ACA cmd %p", aca_cmd);
 		spin_lock_irqsave(&aca_cmd->sess->sess_list_lock, flags);
 		scst_abort_cmd(aca_cmd, mcmd, other_ini, (mcmd != NULL));
