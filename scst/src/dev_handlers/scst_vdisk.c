@@ -6621,6 +6621,7 @@ static void blockio_endio(struct bio *bio)
 #endif
 			if (error == -ENOSPC) {
 				struct scst_vdisk_dev *virt_dev = blockio_work->cmd->dev->dh_priv;
+
 				WARN_ON(!virt_dev->thin_provisioned);
 				scst_set_cmd_error(blockio_work->cmd,
 					SCST_LOAD_SENSE(scst_space_allocation_failed_write_protect));
@@ -8025,6 +8026,7 @@ static void vdev_check_node(struct scst_vdisk_dev **pvirt_dev, int orig_nodeid)
 
 	if (virt_dev->numa_node_id != orig_nodeid) {
 		struct scst_vdisk_dev *v;
+
 		TRACE_MEM("Realloc virt_dev %s on node %d", virt_dev->name, nodeid);
 		/* It's read-mostly, so cache alignment isn't needed */
 		v = kzalloc_node(sizeof(*v), GFP_KERNEL, nodeid);
