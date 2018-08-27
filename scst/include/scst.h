@@ -5724,10 +5724,38 @@ ssize_t scst_readv(struct file *file, const struct iovec *vec,
 ssize_t scst_writev(struct file *file, const struct iovec *vec,
 		    unsigned long vlen, loff_t *pos);
 void scst_write_same(struct scst_cmd *cmd, struct scst_data_descriptor *where);
-int scst_scsi_execute(struct scsi_device *sdev, const unsigned char *cmd,
-		      int data_direction, void *buffer, unsigned int bufflen,
-		      unsigned char *sense, int timeout, int retries,
-		      u64 flags);
+/**
+ * scsi_execute - insert a SCSI request and wait for the result
+ * @sdev:	scsi device
+ * @cmd:	scsi command
+ * @data_direction: data direction
+ * @buffer:	data buffer
+ * @bufflen:	length of buffer - DMA_TO_DEVICE, DMA_FROM_DEVICE or DMA_NONE
+ * @sense:	optional sense buffer
+ * @timeout:	request timeout in seconds
+ * @retries:	number of times to retry request
+ * @flags:	flags for ->cmd_flags, e.g. REQ_FAILFAST_DEV
+ *
+ * Returns the scsi_cmnd result field if a command was executed, or a negative
+ * Linux error code if we didn't get that far.
+ */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+#define scst_scsi_execute(sdev, cmd, data_direction, buffer, bufflen, sense, \
+			  timeout, retries, flags)			\
+	scsi_execute(sdev, cmd, data_direction, buffer, bufflen, sense,	\
+		     NULL /* sshdr */, timeout, retries, flags,		\
+		     0 /* rq_flags */, NULL /* resid */)
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
+#define scst_scsi_execute(sdev, cmd, data_direction, buffer, bufflen, sense, \
+			  timeout, retries, flags)			\
+	scsi_execute(sdev, cmd, data_direction, buffer, bufflen, sense,	\
+		     timeout, retries, flags, NULL /* resid */)
+#else
+#define scst_scsi_execute(sdev, cmd, data_direction, buffer, bufflen, sense, \
+			  timeout, retries, flags)			\
+	scsi_execute(sdev, cmd, data_direction, buffer, bufflen, sense,	\
+		     timeout, retries, flags)
+#endif
 
 __be64 scst_pack_lun(const uint64_t lun, enum scst_lun_addr_method addr_method);
 uint64_t scst_unpack_lun(const uint8_t *lun, int len);

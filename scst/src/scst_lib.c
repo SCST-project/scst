@@ -6965,40 +6965,6 @@ out:
 	return res;
 }
 
-/**
- * scsi_execute - insert a SCSI request and wait for the result
- * @sdev:	scsi device
- * @cmd:	scsi command
- * @data_direction: data direction
- * @buffer:	data buffer
- * @bufflen:	length of buffer - DMA_TO_DEVICE, DMA_FROM_DEVICE or DMA_NONE
- * @sense:	optional sense buffer
- * @timeout:	request timeout in seconds
- * @retries:	number of times to retry request
- * @flags:	flags for ->cmd_flags, e.g. REQ_FAILFAST_DEV
- *
- * Returns the scsi_cmnd result field if a command was executed, or a negative
- * Linux error code if we didn't get that far.
- */
-int scst_scsi_execute(struct scsi_device *sdev, const unsigned char *cmd,
-		      int data_direction, void *buffer, unsigned int bufflen,
-		      unsigned char *sense, int timeout, int retries, u64 flags)
-{
-	return scsi_execute(sdev, cmd, data_direction, buffer, bufflen, sense,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
-			    NULL, /* sshdr */
-#endif
-			    timeout, retries, flags
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
-			    , 0 /* rq_flags */
-#endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
-			    , NULL /* resid */
-#endif
-			    );
-}
-EXPORT_SYMBOL(scst_scsi_execute);
-
 static void scst_send_release(struct scst_device *dev)
 {
 	struct scsi_device *scsi_dev;
