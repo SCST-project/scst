@@ -221,6 +221,18 @@ extraclean: clean
 		kernel/isert-scst/*.orig kernel/isert-scst/*.rej
 	rm -rf conftest/*/*.rej conftest/*/*.orig
 
+conftest/bad_wr_mod/result-$(KVER).txt:					\
+	conftest/bad_wr_mod/bad_wr_mod.c				\
+	conftest/bad_wr_mod/Makefile
+	echo "$(call run_conftest,bad_wr_mod,				\
+		-DBAD_WR_MODIFIER=const,-DBAD_WR_MODIFIER=)" >"$@"
+
+conftest/cm_event_mod/result-$(KVER).txt:				\
+	conftest/cm_event_mod/cm_event_mod.c				\
+	conftest/cm_event_mod/Makefile
+	echo "$(call run_conftest,cm_event_mod,				\
+		-DCM_HANDLER_EVENT_MODIFIER=const,-DCM_HANDLER_EVENT_MODIFIER=)" >"$@"
+
 conftest/cm_listen/result-$(KVER).txt:					\
 	conftest/cm_listen/cm_listen.c					\
 	conftest/cm_listen/Makefile

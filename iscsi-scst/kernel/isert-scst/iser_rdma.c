@@ -55,7 +55,7 @@ static DEFINE_MUTEX(dev_list_mutex);
 static void isert_portal_free(struct isert_portal *portal);
 
 static int isert_num_recv_posted_on_err(struct ib_recv_wr *first_ib_wr,
-					struct ib_recv_wr *bad_wr)
+					BAD_WR_MODIFIER struct ib_recv_wr *bad_wr)
 {
 	struct ib_recv_wr *wr;
 	int num_posted = 0;
@@ -71,7 +71,7 @@ int isert_post_recv(struct isert_connection *isert_conn,
 		    int num_wr)
 {
 	struct ib_recv_wr *first_ib_wr = &first_wr->recv_wr;
-	struct ib_recv_wr *bad_wr;
+	BAD_WR_MODIFIER struct ib_recv_wr *bad_wr;
 	int num_posted;
 	int err;
 
@@ -98,7 +98,7 @@ int isert_post_recv(struct isert_connection *isert_conn,
 }
 
 static int isert_num_send_posted_on_err(struct ib_send_wr *first_ib_wr,
-					struct ib_send_wr *bad_wr)
+					BAD_WR_MODIFIER struct ib_send_wr *bad_wr)
 {
 	struct ib_send_wr *wr;
 	int num_posted = 0;
@@ -118,7 +118,7 @@ int isert_post_send(struct isert_connection *isert_conn,
 #else
 	struct ib_send_wr *first_ib_wr = &first_wr->send_wr.wr;
 #endif
-	struct ib_send_wr *bad_wr;
+	BAD_WR_MODIFIER struct ib_send_wr *bad_wr;
 	int num_posted;
 	int err;
 
@@ -146,7 +146,7 @@ int isert_post_send(struct isert_connection *isert_conn,
 
 static void isert_post_drain_sq(struct isert_connection *isert_conn)
 {
-	struct ib_send_wr *bad_wr;
+	BAD_WR_MODIFIER struct ib_send_wr *bad_wr;
 	struct isert_wr *drain_wr_sq = &isert_conn->drain_wr_sq;
 	int err;
 
@@ -177,7 +177,7 @@ static void isert_post_drain_sq(struct isert_connection *isert_conn)
 
 static void isert_post_drain_rq(struct isert_connection *isert_conn)
 {
-	struct ib_recv_wr *bad_wr;
+	BAD_WR_MODIFIER struct ib_recv_wr *bad_wr;
 	struct isert_wr *drain_wr_rq = &isert_conn->drain_wr_rq;
 	int err;
 
@@ -1292,7 +1292,11 @@ static struct isert_connection *isert_conn_create(struct rdma_cm_id *cm_id,
 	 * In mem-free devices, RC QPs can be created with a maximum of
 	 * (max_sge - 3) entries only.
 	 */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0)
 	isert_conn->max_sge = isert_dev->device_attr.max_sge - 3;
+#else
+	isert_conn->max_sge = isert_dev->device_attr.max_recv_sge - 3;
+#endif
 
 	WARN_ON(isert_conn->max_sge < 1);
 
