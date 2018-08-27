@@ -945,7 +945,7 @@ static int srpt_post_recv(struct srpt_device *sdev, struct srpt_rdma_ch *ch,
 {
 	struct ib_sge list;
 	struct ib_recv_wr wr;
-	struct ib_recv_wr *bad_wr;
+	BAD_WR_MODIFIER struct ib_recv_wr *bad_wr;
 
 	BUG_ON(!sdev);
 	wr.wr_id = encode_wr_id(SRPT_RECV, ioctx->ioctx.index);
@@ -979,7 +979,7 @@ static int srpt_post_send(struct srpt_rdma_ch *ch,
 {
 	struct ib_sge list;
 	struct ib_send_wr wr;
-	struct ib_send_wr *bad_wr;
+	BAD_WR_MODIFIER struct ib_send_wr *bad_wr;
 	struct srpt_device *sdev = ch->sport->sdev;
 	int ret;
 
@@ -1023,7 +1023,7 @@ out:
 static int srpt_zerolength_write(struct srpt_rdma_ch *ch)
 {
 	struct ib_send_wr wr;
-	struct ib_send_wr *bad_wr;
+	BAD_WR_MODIFIER struct ib_send_wr *bad_wr;
 
 	memset(&wr, 0, sizeof(wr));
 	wr.opcode = IB_WR_RDMA_WRITE;
@@ -2851,7 +2851,7 @@ out:
 }
 
 static int srpt_ib_cm_req_recv(struct ib_cm_id *cm_id,
-			       struct ib_cm_req_event_param *param,
+			       const struct ib_cm_req_event_param *param,
 			       void *private_data)
 {
 	char sgid[40];
@@ -2882,7 +2882,7 @@ static const char *inet_ntop(const void *sa, char *dst, unsigned int size)
 }
 
 static int srpt_rdma_cm_req_recv(struct rdma_cm_id *cm_id,
-				 struct rdma_cm_event *event)
+				 const struct rdma_cm_event *event)
 {
 	struct srpt_device *sdev;
 	struct srp_login_req req;
@@ -3006,7 +3006,8 @@ static void srpt_cm_rtu_recv(struct srpt_rdma_ch *ch)
  * a non-zero value in any other case will trigger a race with the
  * ib_destroy_cm_id() call in srpt_compl_thread().
  */
-static int srpt_cm_handler(struct ib_cm_id *cm_id, struct ib_cm_event *event)
+static int srpt_cm_handler(struct ib_cm_id *cm_id,
+			   CM_HANDLER_EVENT_MODIFIER struct ib_cm_event *event)
 {
 	struct srpt_rdma_ch *ch = cm_id->context;
 	int ret;
@@ -3340,7 +3341,7 @@ static int srpt_perform_rdmas(struct srpt_rdma_ch *ch,
 #else
 	struct ib_rdma_wr wr;
 #endif
-	struct ib_send_wr *bad_wr;
+	BAD_WR_MODIFIER struct ib_send_wr *bad_wr;
 	struct rdma_iu *riu;
 	int i;
 	int ret = -ENOMEM;
