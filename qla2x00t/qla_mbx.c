@@ -1315,8 +1315,8 @@ out:
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 /*
  * qla2x00_get_node_name_list
- *	Issue get node name list mailbox command, kmalloc()
- *	and return the resulting list. Caller must kfree() it!
+ *	Issue get node name list mailbox command, vmalloc()
+ *	and return the resulting list. Caller must vfree() it!
  *
  * Input:
  *	ha = adapter state pointer.
@@ -1388,7 +1388,7 @@ qla2x00_get_node_name_list(scsi_qla_host_t *vha, bool include_initiators,
 
 		left = 0;
 
-		list = kzalloc(dma_size, GFP_KERNEL);
+		list = vmalloc(dma_size);
 		if (list == NULL) {
 			printk(KERN_ERR "%s(%ld): failed to allocate node names"
 				" list structure.\n", __func__, vha->host_no);

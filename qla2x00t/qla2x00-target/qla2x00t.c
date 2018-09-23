@@ -1256,7 +1256,7 @@ retry:
 		}
 	}
 
-	kfree(pmap);
+	vfree(pmap);
 
 	if (!found) {
 		res = false;
