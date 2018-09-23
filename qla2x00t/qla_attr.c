@@ -411,7 +411,7 @@ qla2x00_show_port_database(struct device *dev,
 			}
 		}
 
-		kfree(pmap);
+		vfree(pmap);
 	}
 
 next:
