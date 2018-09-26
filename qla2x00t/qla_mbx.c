@@ -9,6 +9,7 @@
 #include "qla2x_tgt.h"
 
 #include <linux/delay.h>
+#include <linux/vmalloc.h>
 
 
 /*
