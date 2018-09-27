@@ -87,8 +87,15 @@ extern unsigned long scst_trace_flag;
 /* Set if new commands initialization is suspended for a while */
 #define SCST_FLAG_SUSPENDED		     1
 
-static inline void scst_set_cmd_state(struct scst_cmd *cmd, enum scst_cmd_state new_state)
+extern spinlock_t scst_measure_latency_lock;
+extern atomic_t scst_measure_latency;
+void scst_update_latency_stats(struct scst_cmd *cmd, int new_state);
+
+static inline void scst_set_cmd_state(struct scst_cmd *cmd,
+				      enum scst_cmd_state new_state)
 {
+	if (unlikely(atomic_read(&scst_measure_latency)))
+		scst_update_latency_stats(cmd, new_state);
 	cmd->state = new_state;
 }
 

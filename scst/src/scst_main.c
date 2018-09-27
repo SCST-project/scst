@@ -177,6 +177,9 @@ unsigned int scst_max_dev_cmd_mem;
 int scst_forcibly_close_sessions;
 int scst_auto_cm_assignment = true;
 
+spinlock_t scst_measure_latency_lock;
+atomic_t scst_measure_latency;
+
 module_param_named(scst_threads, scst_threads, int, S_IRUGO);
 MODULE_PARM_DESC(scst_threads, "SCSI target threads count");
 
@@ -715,11 +718,15 @@ static const char *const scst_cmd_state_name[] = {
 	[SCST_CMD_STATE_MODE_SELECT_CHECKS]		= "MODE_SELECT_CHECKS",
 	[SCST_CMD_STATE_DEV_DONE]			= "DEV_DONE",
 	[SCST_CMD_STATE_PRE_XMIT_RESP]			= "PRE_XMIT_RESP",
+	[SCST_CMD_STATE_PRE_XMIT_RESP1]			= "PRE_XMIT_RESP1",
+	[SCST_CMD_STATE_CSW2]				= "CSW2",
+	[SCST_CMD_STATE_PRE_XMIT_RESP2]			= "PRE_XMIT_RESP2",
 	[SCST_CMD_STATE_XMIT_RESP]			= "XMIT_RESP",
 	[SCST_CMD_STATE_FINISHED]			= "FINISHED",
 	[SCST_CMD_STATE_FINISHED_INTERNAL]		= "FINISHED_INTERNAL",
 	[SCST_CMD_STATE_INIT_WAIT]			= "INIT_WAIT",
 	[SCST_CMD_STATE_INIT]				= "INIT",
+	[SCST_CMD_STATE_CSW1]				= "CSW1",
 	[SCST_CMD_STATE_PREPROCESSING_DONE_CALLED]	= "PREP_DONE_CALLED",
 	[SCST_CMD_STATE_DATA_WAIT]			= "DATA_WAIT",
 	[SCST_CMD_STATE_EXEC_CHECK_BLOCKING]		= "EXEC_CHECK_BLOCKING",
@@ -2544,6 +2551,7 @@ static int __init init_scst(void)
 	mutex_init(&scst_cmd_threads_mutex);
 	INIT_LIST_HEAD(&scst_cmd_threads_list);
 	cpumask_setall(&default_cpu_mask);
+	spin_lock_init(&scst_measure_latency_lock);
 
 	scst_init_threads(&scst_main_cmd_threads);
 
