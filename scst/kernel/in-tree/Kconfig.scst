@@ -236,18 +236,6 @@ config SCST_TM_DBG_GO_OFFLINE
 	  completely unresponsive. When disabled, the device will receive
 	  ABORT and RESET commands.
 
-config SCST_MEASURE_LATENCY
-	bool "Commands processing latency measurement facility"
-	depends on SCST
-	help
-	  This option enables commands processing latency measurement
-	  facility in SCST. It will provide in the sysfs interface
-	  average commands processing latency statistics. You can clear
-	  already measured results by writing 0 in the corresponding sysfs file.
-	  Note, you need a non-preemtible kernel to have correct results.
-
-	  If unsure, say "N".
-
 source "drivers/scst/fcst/Kconfig"
 source "drivers/scst/iscsi-scst/Kconfig"
 source "drivers/scst/scst_local/Kconfig"

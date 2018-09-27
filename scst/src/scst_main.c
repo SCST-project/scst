@@ -2595,26 +2595,16 @@ static int __init init_scst(void)
 		goto out_destroy_sense_cache;
 	if (!INIT_CACHEP_ALIGN(scst_cmd_cachep, scst_cmd))
 		goto out_destroy_aen_cache;
-#ifdef CONFIG_SCST_MEASURE_LATENCY
-	if (!INIT_CACHEP_ALIGN(scst_sess_cachep, scst_session))
-		goto out_destroy_cmd_cache;
-#else
 	/* Big enough with read-mostly head and tail */
 	if (!INIT_CACHEP(scst_sess_cachep, scst_session))
 		goto out_destroy_cmd_cache;
-#endif
 	if (!INIT_CACHEP(scst_dev_cachep, scst_device)) /* big enough */
 		goto out_destroy_sess_cache;
 	if (!INIT_CACHEP(scst_tgt_cachep, scst_tgt)) /* read-mostly */
 		goto out_destroy_dev_cache;
-#ifdef CONFIG_SCST_MEASURE_LATENCY
-	if (!INIT_CACHEP_ALIGN(scst_tgtd_cachep, scst_tgt_dev)) /* big enough */
-		goto out_destroy_tgt_cache;
-#else
 	/* Big enough with read-mostly head and tail */
 	if (!INIT_CACHEP(scst_tgtd_cachep, scst_tgt_dev)) /* big enough */
 		goto out_destroy_tgt_cache;
-#endif
 	if (!INIT_CACHEP(scst_acgd_cachep, scst_acg_dev)) /* read-mostly */
 		goto out_destroy_tgtd_cache;
 	if (!INIT_CACHEP_ALIGN(scst_thr_cachep, scst_cmd_thread_t))

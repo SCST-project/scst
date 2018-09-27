@@ -47,31 +47,6 @@ static struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess,
 static void scst_process_redirect_cmd(struct scst_cmd *cmd,
 	enum scst_exec_context context, int check_retries);
 
-/*
- * scst_post_parse() - do post parse actions
- *
- * This function must be called by dev handler after its parse() callback
- * returned SCST_CMD_STATE_STOP before calling scst_process_active_cmd().
- */
-void scst_post_parse(struct scst_cmd *cmd)
-{
-	scst_set_parse_time(cmd);
-}
-EXPORT_SYMBOL_GPL(scst_post_parse);
-
-/*
- * scst_post_dev_alloc_data_buf() - do post dev_alloc_data_buf actions
- *
- * This function must be called by dev handler after its dev_alloc_data_buf()
- * callback returned SCST_CMD_STATE_STOP before calling
- * scst_process_active_cmd().
- */
-void scst_post_dev_alloc_data_buf(struct scst_cmd *cmd)
-{
-	scst_set_dev_alloc_buf_time(cmd);
-}
-EXPORT_SYMBOL_GPL(scst_post_dev_alloc_data_buf);
-
 static inline void scst_schedule_tasklet(struct scst_cmd *cmd)
 {
 	struct scst_percpu_info *i;
@@ -818,8 +793,6 @@ void scst_cmd_init_done(struct scst_cmd *cmd,
 
 	TRACE_ENTRY();
 
-	scst_set_start_time(cmd);
-
 	TRACE_DBG("Preferred context: %d (cmd %p)", pref_context, cmd);
 	TRACE(TRACE_SCSI, "NEW CDB: len %d, lun %lld, initiator %s, "
 		"target %s, queue_type %x, tag %llu (cmd %p, sess %p)",
@@ -1060,7 +1033,6 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 
 		TRACE_DBG("Calling dev handler %s parse(%p)",
 		      devt->name, cmd);
-		scst_set_cur_start(cmd);
 		state = devt->parse(cmd);
 		/* Caution: cmd can be already dead here */
 		TRACE_DBG("Dev handler %s parse() returned %d",
@@ -1068,7 +1040,6 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 
 		switch (state) {
 		case SCST_CMD_STATE_NEED_THREAD_CTX:
-			scst_set_parse_time(cmd);
 			TRACE_DBG("Dev handler %s parse() requested thread "
 			      "context, rescheduling", devt->name);
 			res = SCST_CMD_STATE_RES_NEED_THREAD;
@@ -1083,8 +1054,6 @@ static int scst_parse_cmd(struct scst_cmd *cmd)
 			res = SCST_CMD_STATE_RES_CONT_NEXT;
 			goto out;
 		}
-
-		scst_set_parse_time(cmd);
 	} else
 		state = scst_do_internal_parsing(cmd);
 
@@ -1504,7 +1473,6 @@ static int scst_prepare_space(struct scst_cmd *cmd)
 
 		TRACE_DBG("Calling dev handler's %s dev_alloc_data_buf(%p)",
 		      devt->name, cmd);
-		scst_set_cur_start(cmd);
 		state = devt->dev_alloc_data_buf(cmd);
 		/*
 		 * Caution: cmd can be already dead here
@@ -1516,7 +1484,6 @@ static int scst_prepare_space(struct scst_cmd *cmd)
 
 		switch (state) {
 		case SCST_CMD_STATE_NEED_THREAD_CTX:
-			scst_set_dev_alloc_buf_time(cmd);
 			TRACE_DBG("Dev handler %s dev_alloc_data_buf() requested "
 				"thread context, rescheduling", devt->name);
 			res = SCST_CMD_STATE_RES_NEED_THREAD;
@@ -1530,8 +1497,6 @@ static int scst_prepare_space(struct scst_cmd *cmd)
 			goto out;
 		}
 
-		scst_set_dev_alloc_buf_time(cmd);
-
 		if (unlikely(state != SCST_CMD_STATE_DEFAULT)) {
 			cmd->state = state;
 			goto out;
@@ -1544,10 +1509,7 @@ static int scst_prepare_space(struct scst_cmd *cmd)
 		TRACE_MEM("Calling tgt %s tgt_alloc_data_buf(cmd %p)",
 			cmd->tgt->tgt_name, cmd);
 
-		scst_set_cur_start(cmd);
 		r = cmd->tgtt->tgt_alloc_data_buf(cmd);
-		scst_set_tgt_alloc_buf_time(cmd);
-
 		if (r > 0)
 			goto alloc;
 		else if (r == 0) {
@@ -1658,7 +1620,6 @@ static int scst_preprocessing_done(struct scst_cmd *cmd)
 	cmd->state = SCST_CMD_STATE_PREPROCESSING_DONE_CALLED;
 
 	TRACE_DBG("Calling preprocessing_done(cmd %p)", cmd);
-	scst_set_cur_start(cmd);
 	cmd->tgtt->preprocessing_done(cmd);
 	TRACE_DBG("%s", "preprocessing_done() returned");
 
@@ -1686,8 +1647,6 @@ void scst_restart_cmd(struct scst_cmd *cmd, int status,
 	enum scst_exec_context pref_context)
 {
 	TRACE_ENTRY();
-
-	scst_set_restart_waiting_time(cmd);
 
 	TRACE_DBG("Preferred context: %d", pref_context);
 	TRACE_DBG("tag=%llu, status=%#x",
@@ -1821,8 +1780,6 @@ static int scst_rdy_to_xfer(struct scst_cmd *cmd)
 		}
 	}
 
-	scst_set_cur_start(cmd);
-
 	TRACE_DBG("Calling rdy_to_xfer(%p)", cmd);
 #ifdef CONFIG_SCST_DEBUG_RETRY
 	if (((scst_random() % 100) == 75))
@@ -1834,8 +1791,6 @@ static int scst_rdy_to_xfer(struct scst_cmd *cmd)
 
 	if (likely(rc == SCST_TGT_RES_SUCCESS))
 		goto out;
-
-	scst_set_rdy_to_xfer_time(cmd);
 
 	cmd->cmd_hw_pending = 0;
 
@@ -1964,8 +1919,6 @@ void scst_rx_data(struct scst_cmd *cmd, int status,
 	enum scst_exec_context pref_context)
 {
 	TRACE_ENTRY();
-
-	scst_set_rdy_to_xfer_time(cmd);
 
 	TRACE_DBG("Preferred context: %d", pref_context);
 
@@ -2135,9 +2088,7 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 		goto out_descr;
 
 	TRACE_DBG("Calling pre_exec(%p)", cmd);
-	scst_set_cur_start(cmd);
 	rc = cmd->tgtt->pre_exec(cmd);
-	scst_set_pre_exec_time(cmd);
 	TRACE_DBG("pre_exec() returned %d", rc);
 
 	if (unlikely(rc != SCST_PREPROCESS_STATUS_SUCCESS)) {
@@ -2177,8 +2128,6 @@ static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
 	const uint8_t *rq_sense, int rq_sense_len, int resid)
 {
 	TRACE_ENTRY();
-
-	scst_set_exec_time(cmd);
 
 	cmd->status = result & 0xff;
 	cmd->msg_status = msg_byte(result);
@@ -2262,8 +2211,6 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state,
 	enum scst_exec_context pref_context)
 {
 	TRACE_ENTRY();
-
-	scst_set_exec_time(cmd);
 
 	TRACE(TRACE_SCSI, "cmd %p, status %x, msg_status %x, host_status %x, "
 	      "driver_status %x, resp_data_len %d", cmd, cmd->status,
@@ -3480,15 +3427,12 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 	if (devt->exec) {
 		TRACE_DBG("Calling dev handler %s exec(%p)",
 		      devt->name, cmd);
-		scst_set_exec_start(cmd);
 		res = devt->exec(cmd);
 		TRACE_DBG("Dev handler %s exec() returned %d",
 		      devt->name, res);
 
 		if (res == SCST_EXEC_COMPLETED)
 			goto out_complete;
-
-		scst_set_exec_time(cmd);
 
 		sBUG_ON(res != SCST_EXEC_NOT_COMPLETED);
 	}
@@ -3505,8 +3449,6 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 	TRACE_DBG("Sending cmd %p to SCSI mid-level dev %d:%d:%d:%lld", cmd,
 		  scsi_dev->host->host_no, scsi_dev->channel, scsi_dev->id,
 		  (u64)scsi_dev->lun);
-
-	scst_set_exec_start(cmd);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
 	rc = scst_exec_req(scsi_dev, cmd->cdb, cmd->cdb_len,
@@ -4354,9 +4296,7 @@ static int scst_dev_done(struct scst_cmd *cmd)
 
 		TRACE_DBG("Calling dev handler %s dev_done(%p)",
 			devt->name, cmd);
-		scst_set_cur_start(cmd);
 		rc = devt->dev_done(cmd);
-		scst_set_dev_done_time(cmd);
 		TRACE_DBG("Dev handler %s dev_done() returned %d",
 		      devt->name, rc);
 		if (rc != SCST_CMD_STATE_DEFAULT)
@@ -4662,8 +4602,6 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 		}
 	}
 
-	scst_set_cur_start(cmd);
-
 #ifdef CONFIG_SCST_DEBUG_RETRY
 	if (((scst_random() % 100) == 77))
 		rc = SCST_TGT_RES_QUEUE_FULL;
@@ -4674,8 +4612,6 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 
 	if (likely(rc == SCST_TGT_RES_SUCCESS))
 		goto out;
-
-	scst_set_xmit_time(cmd);
 
 	cmd->cmd_hw_pending = 0;
 
@@ -4733,8 +4669,6 @@ void scst_tgt_cmd_done(struct scst_cmd *cmd,
 
 	sBUG_ON(cmd->state != SCST_CMD_STATE_XMIT_WAIT);
 
-	scst_set_xmit_time(cmd);
-
 	cmd->cmd_hw_pending = 0;
 
 	if (unlikely(cmd->tgt_dev == NULL))
@@ -4758,8 +4692,6 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 	uint64_t lba;
 
 	TRACE_ENTRY();
-
-	scst_update_lat_stats(cmd);
 
 	if (unlikely(cmd->delivery_status != SCST_CMD_DELIVERY_SUCCESS)) {
 		if ((cmd->tgt_dev != NULL) &&

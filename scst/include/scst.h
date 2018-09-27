@@ -23,7 +23,6 @@
 #define __SCST_H
 
 /** See README for description of those conditional defines **/
-/* #define CONFIG_SCST_MEASURE_LATENCY */
 /* #define CONFIG_SCST_DEBUG_TM */
 /* #define CONFIG_SCST_TM_DBG_GO_OFFLINE */
 
@@ -41,9 +40,6 @@
 #include <linux/wait.h>
 #include <linux/cpumask.h>
 #include <linux/dlm.h>
-#ifdef CONFIG_SCST_MEASURE_LATENCY
-#include <linux/log2.h>
-#endif
 #include <asm/unaligned.h>
 
 #if 0 /* Let's disable it for now to see if users will complain about it */
@@ -1848,51 +1844,6 @@ struct scst_tgt {
 #endif
 };
 
-#ifdef CONFIG_SCST_MEASURE_LATENCY
-
-/* Divide two 64-bit numbers with reasonably accuracy. */
-static inline void __scst_time_per_cmd(uint64_t *t, uint64_t n)
-{
-	unsigned int shift;
-
-	if (!n)
-		return;
-	shift = max(0, ilog2(n) - 32 + 1);
-	*t >>= shift;
-	n >>= shift;
-	WARN_ON(n != (uint32_t)n);
-	do_div(*t, (uint32_t)n);
-}
-
-#define scst_time_per_cmd(t, n) __scst_time_per_cmd(&(t), (n))
-
-/* Defines extended latency statistics */
-struct scst_ext_latency_stat {
-	uint64_t scst_time_rd, tgt_time_rd, dev_time_rd;
-	uint64_t processed_cmds_rd;
-	uint64_t min_scst_time_rd, min_tgt_time_rd, min_dev_time_rd;
-	uint64_t max_scst_time_rd, max_tgt_time_rd, max_dev_time_rd;
-
-	uint64_t scst_time_wr, tgt_time_wr, dev_time_wr;
-	uint64_t processed_cmds_wr;
-	uint64_t min_scst_time_wr, min_tgt_time_wr, min_dev_time_wr;
-	uint64_t max_scst_time_wr, max_tgt_time_wr, max_dev_time_wr;
-};
-
-#define SCST_IO_SIZE_THRESHOLD_SMALL		(8*1024)
-#define SCST_IO_SIZE_THRESHOLD_MEDIUM		(32*1024)
-#define SCST_IO_SIZE_THRESHOLD_LARGE		(128*1024)
-#define SCST_IO_SIZE_THRESHOLD_VERY_LARGE	(512*1024)
-
-#define SCST_LATENCY_STAT_INDEX_SMALL		0
-#define SCST_LATENCY_STAT_INDEX_MEDIUM		1
-#define SCST_LATENCY_STAT_INDEX_LARGE		2
-#define SCST_LATENCY_STAT_INDEX_VERY_LARGE	3
-#define SCST_LATENCY_STAT_INDEX_OTHER		4
-#define SCST_LATENCY_STATS_NUM		(SCST_LATENCY_STAT_INDEX_OTHER + 1)
-
-#endif /* CONFIG_SCST_MEASURE_LATENCY */
-
 struct scst_io_stat_entry {
 	uint64_t cmd_count;
 	uint64_t io_byte_count;
@@ -2030,15 +1981,6 @@ struct scst_session {
 	void (*init_result_fn)(struct scst_session *sess, void *data,
 				int result);
 	void (*unreg_done_fn)(struct scst_session *sess);
-
-#ifdef CONFIG_SCST_MEASURE_LATENCY
-	spinlock_t lat_lock;
-	uint64_t scst_time, tgt_time, dev_time;
-	uint64_t processed_cmds;
-	uint64_t min_scst_time, min_tgt_time, min_dev_time;
-	uint64_t max_scst_time, max_tgt_time, max_dev_time;
-	struct scst_ext_latency_stat sess_latency_stat[SCST_LATENCY_STATS_NUM];
-#endif
 };
 
 /*
@@ -2590,16 +2532,6 @@ struct scst_cmd {
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	char not_parsed_op_name[8];
-#endif
-
-#ifdef CONFIG_SCST_MEASURE_LATENCY
-	uint64_t start, curr_start, parse_time;
-	uint64_t tgt_alloc_buf_time, dev_alloc_buf_time;
-	uint64_t restart_waiting_time, rdy_to_xfer_time;
-	uint64_t pre_exec_time;
-	bool exec_time_counting;
-	uint64_t exec_time, dev_done_time;
-	uint64_t xmit_time;
 #endif
 
 #ifdef CONFIG_SCST_DEBUG_TM
@@ -3266,15 +3198,6 @@ struct scst_tgt_dev {
 	struct completion *tgt_dev_kobj_release_cmpl;
 
 	struct kobject tgt_dev_kobj; /* sessions' LUNs sysfs entry */
-#endif
-
-#ifdef CONFIG_SCST_MEASURE_LATENCY
-	/*
-	 * Protected by sess->lat_lock.
-	 */
-	uint64_t scst_time, tgt_time, dev_time;
-	uint64_t processed_cmds;
-	struct scst_ext_latency_stat dev_latency_stat[SCST_LATENCY_STATS_NUM];
 #endif
 };
 
@@ -5269,9 +5192,6 @@ int scst_suspend_activity(unsigned long timeout);
 void scst_resume_activity(void);
 
 void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic);
-
-void scst_post_parse(struct scst_cmd *cmd);
-void scst_post_dev_alloc_data_buf(struct scst_cmd *cmd);
 
 int __scst_check_local_events(struct scst_cmd *cmd, bool preempt_tests_only);
 
