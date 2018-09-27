@@ -165,7 +165,8 @@ enum {
 	/* Internal cmd finished */
 	SCST_CMD_STATE_FINISHED_INTERNAL,
 
-	SCST_CMD_STATE_LAST_ACTIVE = (SCST_CMD_STATE_FINISHED_INTERNAL+100),
+	/* An invalid command state */
+	SCST_CMD_STATE_LAST_ACTIVE,
 
 	/** Passive states **/
 
