@@ -149,6 +149,8 @@ enum scst_cmd_state {
 	/* Checks 1 before target driver's xmit_response() is called */
 	SCST_CMD_STATE_PRE_XMIT_RESP1,
 
+	SCST_CMD_STATE_CSW2,
+
 	/* Checks 2 before target driver's xmit_response() is called */
 	SCST_CMD_STATE_PRE_XMIT_RESP2,
 
@@ -171,6 +173,8 @@ enum scst_cmd_state {
 
 	/* LUN translation (cmd->tgt_dev assignment) */
 	SCST_CMD_STATE_INIT,
+
+	SCST_CMD_STATE_CSW1,
 
 	/* Waiting for scst_restart_cmd() */
 	SCST_CMD_STATE_PREPROCESSING_DONE_CALLED,
@@ -195,6 +199,10 @@ enum scst_cmd_state {
 
 	/* Waiting for response's transmission finish */
 	SCST_CMD_STATE_XMIT_WAIT,
+};
+
+enum {
+	SCST_CMD_STATE_COUNT = SCST_CMD_STATE_XMIT_WAIT + 1
 };
 
 /*************************************************************
@@ -1844,6 +1852,57 @@ struct scst_tgt {
 #endif
 };
 
+/**
+ * struct scst_lat_stat_entry - SCST command processing latency data
+ * @last_update: Time of last update of this data structure in 100 ns.
+ * @count: Number of samples for which statistics have been gathered.
+ * @last_update_tsc: Time of the last update of this data structure in 100
+ *         clock cycles.
+ * @min: Minimum processing time in nanoseconds.
+ * @max: Maximum processing time.
+ * @sum: Processing time sum.
+ * @sumsq: Sum of the squares of the processing times.
+ * @minc, @maxc, @sumc, @sumsqc: Similar to the above but in hundred clock
+ *         cycles instead of nanoseconds.
+ *
+ * Time unit for the uint64_t numbers: 100 ns.
+ *
+ * Size: 96 bytes.
+ */
+struct scst_lat_stat_entry {
+	ktime_t last_update;
+	uint32_t count;
+	uint32_t padding;
+#ifdef SCST_MEASURE_CLOCK_CYCLES
+	uint64_t last_update_tsc;
+#endif
+	uint64_t min;
+	uint64_t max;
+	uint64_t sum;
+	uint64_t sumsq;
+#ifdef SCST_MEASURE_CLOCK_CYCLES
+	uint64_t minc;
+	uint64_t maxc;
+	uint64_t sumc;
+	uint64_t sumsqc;
+#endif
+};
+
+/*
+ * lat_stats is an array with three indices:
+ * - Logarithm base 2 of the data length minus 9.
+ * - Data direction (SCST_DATA_*).
+ * - SCST command state.
+ *
+ * Size: 11 * 4 * 25 * 96 = 105600 bytes.
+ */
+#define SCST_STATS_LOG2_SZ_OFFSET 9
+#define SCST_STATS_MAX_LOG2_SZ 11
+struct scst_lat_stats {
+	struct scst_lat_stat_entry
+		ls[SCST_STATS_MAX_LOG2_SZ][4][SCST_CMD_STATE_COUNT];
+};
+
 struct scst_io_stat_entry {
 	uint64_t cmd_count;
 	uint64_t io_byte_count;
@@ -1975,6 +2034,7 @@ struct scst_session {
 	unsigned int sess_kobj_ready:1;
 
 	struct kobject sess_kobj; /* session sysfs entry */
+	struct kobject *lat_kobj;
 #endif
 
 	/*
@@ -1985,6 +2045,12 @@ struct scst_session {
 	void (*init_result_fn)(struct scst_session *sess, void *data,
 				int result);
 	void (*unreg_done_fn)(struct scst_session *sess);
+
+	/*
+	 * Latency measurement data.
+	 */
+	spinlock_t lat_stats_lock;
+	struct scst_lat_stats *lat_stats;
 };
 
 /*
@@ -2321,6 +2387,9 @@ struct scst_cmd {
 	uint64_t lun;			/* LUN for this cmd */
 
 	unsigned long start_time;
+
+	ktime_t init_wait_time;
+	uint64_t init_wait_tsc;
 
 	/* List entry for tgt_dev's deferred (SN, ACA, etc.) lists */
 	struct list_head deferred_cmd_list_entry;
