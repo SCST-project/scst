@@ -15707,7 +15707,7 @@ static void __scst_update_latency_stats(struct scst_cmd *cmd,
 	int64_t deltac;
 #endif
 
-	if (stat && stat->last_update) {
+	if (stat && ktime_to_ns(stat->last_update) != 0) {
 		delta = ktime_to_ns(ktime_sub(now, stat->last_update));
 		if (delta < 0 || delta > NSEC_PER_SEC) {
 			printk_once(KERN_INFO "%d: ignoring large time delta %lld\n",
