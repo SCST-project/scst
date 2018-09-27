@@ -87,6 +87,11 @@ extern unsigned long scst_trace_flag;
 /* Set if new commands initialization is suspended for a while */
 #define SCST_FLAG_SUSPENDED		     1
 
+static inline void scst_set_cmd_state(struct scst_cmd *cmd, enum scst_cmd_state new_state)
+{
+	cmd->state = new_state;
+}
+
 /**
  ** Return codes for cmd state process functions. Codes are the same as
  ** for SCST_EXEC_* to avoid translation to them and, hence, have better code.

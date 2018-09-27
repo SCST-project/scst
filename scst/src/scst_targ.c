@@ -867,7 +867,7 @@ set_state:
 	 * already preliminary completed by target driver we need to init
 	 * cmd anyway to find out in which format we should return sense.
 	 */
-	cmd->state = SCST_CMD_STATE_INIT;
+	scst_set_cmd_state(cmd, SCST_CMD_STATE_INIT);
 	rc = scst_init_cmd(cmd, &pref_context);
 	if (unlikely(rc < 0))
 		goto out;
@@ -1292,7 +1292,7 @@ set_res:
 	case SCST_CMD_STATE_FINISHED:
 	case SCST_CMD_STATE_FINISHED_INTERNAL:
 #endif
-		cmd->state = state;
+		scst_set_cmd_state(cmd, state);
 		res = SCST_CMD_STATE_RES_CONT_SAME;
 #ifdef CONFIG_SCST_EXTRACHECKS
 		break;
@@ -1498,7 +1498,7 @@ static int scst_prepare_space(struct scst_cmd *cmd)
 		}
 
 		if (unlikely(state != SCST_CMD_STATE_DEFAULT)) {
-			cmd->state = state;
+			scst_set_cmd_state(cmd, state);
 			goto out;
 		}
 	}
@@ -1575,14 +1575,14 @@ check:
 
 done:
 	if (cmd->preprocessing_only) {
-		cmd->state = SCST_CMD_STATE_PREPROCESSING_DONE;
+		scst_set_cmd_state(cmd, SCST_CMD_STATE_PREPROCESSING_DONE);
 		if (cmd->data_direction & SCST_DATA_WRITE)
 			scst_set_write_len(cmd);
 	} else if (cmd->data_direction & SCST_DATA_WRITE) {
-		cmd->state = SCST_CMD_STATE_RDY_TO_XFER;
+		scst_set_cmd_state(cmd, SCST_CMD_STATE_RDY_TO_XFER);
 		scst_set_write_len(cmd);
 	} else
-		cmd->state = SCST_CMD_STATE_TGT_PRE_EXEC;
+		scst_set_cmd_state(cmd, SCST_CMD_STATE_TGT_PRE_EXEC);
 
 out:
 	TRACE_EXIT_HRES(res);
@@ -1617,7 +1617,7 @@ static int scst_preprocessing_done(struct scst_cmd *cmd)
 	cmd->preprocessing_only = 0;
 
 	res = SCST_CMD_STATE_RES_CONT_NEXT;
-	cmd->state = SCST_CMD_STATE_PREPROCESSING_DONE_CALLED;
+	scst_set_cmd_state(cmd, SCST_CMD_STATE_PREPROCESSING_DONE_CALLED);
 
 	TRACE_DBG("Calling preprocessing_done(cmd %p)", cmd);
 	cmd->tgtt->preprocessing_done(cmd);
@@ -1668,13 +1668,13 @@ void scst_restart_cmd(struct scst_cmd *cmd, int status,
 	switch (status) {
 	case SCST_PREPROCESS_STATUS_SUCCESS:
 		if (unlikely(cmd->tgt_dev == NULL)) {
-			cmd->state = SCST_CMD_STATE_PRE_XMIT_RESP;
+			scst_set_cmd_state(cmd, SCST_CMD_STATE_PRE_XMIT_RESP);
 			pref_context = SCST_CONTEXT_THREAD;
 			break;
 		} else if (cmd->data_direction & SCST_DATA_WRITE)
-			cmd->state = SCST_CMD_STATE_RDY_TO_XFER;
+			scst_set_cmd_state(cmd, SCST_CMD_STATE_RDY_TO_XFER);
 		else
-			cmd->state = SCST_CMD_STATE_TGT_PRE_EXEC;
+			scst_set_cmd_state(cmd, SCST_CMD_STATE_TGT_PRE_EXEC);
 		if (cmd->set_sn_on_restart_cmd) {
 			EXTRACHECKS_BUG_ON(cmd->tgtt->multithreaded_init_done);
 			scst_cmd_set_sn(cmd);
@@ -1737,7 +1737,7 @@ static int scst_rdy_to_xfer(struct scst_cmd *cmd)
 	}
 
 	if ((tgtt->rdy_to_xfer == NULL) || unlikely(cmd->internal)) {
-		cmd->state = SCST_CMD_STATE_TGT_PRE_EXEC;
+		scst_set_cmd_state(cmd, SCST_CMD_STATE_TGT_PRE_EXEC);
 #ifndef CONFIG_SCST_TEST_IO_IN_SIRQ
 		/* We can't allow atomic command on the exec stages */
 		if (scst_cmd_atomic(cmd)) {
@@ -1762,7 +1762,7 @@ static int scst_rdy_to_xfer(struct scst_cmd *cmd)
 	}
 
 	res = SCST_CMD_STATE_RES_CONT_NEXT;
-	cmd->state = SCST_CMD_STATE_DATA_WAIT;
+	scst_set_cmd_state(cmd, SCST_CMD_STATE_DATA_WAIT);
 
 	if (tgtt->on_hw_pending_cmd_timeout != NULL) {
 		struct scst_session *sess = cmd->sess;
@@ -1795,7 +1795,7 @@ static int scst_rdy_to_xfer(struct scst_cmd *cmd)
 	cmd->cmd_hw_pending = 0;
 
 	/* Restore the previous state */
-	cmd->state = SCST_CMD_STATE_RDY_TO_XFER;
+	scst_set_cmd_state(cmd, SCST_CMD_STATE_RDY_TO_XFER);
 
 	switch (rc) {
 	case SCST_TGT_RES_QUEUE_FULL:
@@ -1938,7 +1938,7 @@ void scst_rx_data(struct scst_cmd *cmd, int status,
 
 	switch (status) {
 	case SCST_RX_STATUS_SUCCESS:
-		cmd->state = SCST_CMD_STATE_TGT_PRE_EXEC;
+		scst_set_cmd_state(cmd, SCST_CMD_STATE_TGT_PRE_EXEC);
 
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
 		if (cmd->op_flags & SCST_TEST_IO_IN_SIRQ_ALLOWED)
@@ -2072,7 +2072,7 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 		}
 	}
 
-	cmd->state = SCST_CMD_STATE_EXEC_CHECK_SN;
+	scst_set_cmd_state(cmd, SCST_CMD_STATE_EXEC_CHECK_SN);
 
 	if (unlikely(cmd->internal)) {
 		if (cmd->dh_data_buf_alloced && cmd->tgt_i_data_buf_alloced &&
@@ -2196,7 +2196,7 @@ void scst_pass_through_cmd_done(void *data, char *sense, int result, int resid)
 
 	scst_do_cmd_done(cmd, result, sense, SCSI_SENSE_BUFFERSIZE, resid);
 
-	cmd->state = SCST_CMD_STATE_PRE_DEV_DONE;
+	scst_set_cmd_state(cmd, SCST_CMD_STATE_PRE_DEV_DONE);
 
 	scst_process_redirect_cmd(cmd,
 	    scst_optimize_post_exec_context(cmd, scst_estimate_context()), 0);
@@ -2220,7 +2220,7 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state,
 	if (next_state == SCST_CMD_STATE_DEFAULT)
 		next_state = SCST_CMD_STATE_PRE_DEV_DONE;
 
-	cmd->state = next_state;
+	scst_set_cmd_state(cmd, next_state);
 
 #ifdef CONFIG_SCST_EXTRACHECKS
 	if ((next_state != SCST_CMD_STATE_PRE_DEV_DONE) &&
@@ -3422,7 +3422,7 @@ static int scst_do_real_exec(struct scst_cmd *cmd)
 
 	ctx_changed = scst_set_io_context(cmd, &old_ctx);
 
-	cmd->state = SCST_CMD_STATE_EXEC_WAIT;
+	scst_set_cmd_state(cmd, SCST_CMD_STATE_EXEC_WAIT);
 
 	if (devt->exec) {
 		TRACE_DBG("Calling dev handler %s exec(%p)",
@@ -3601,7 +3601,7 @@ static int scst_local_exec(struct scst_cmd *cmd)
 
 	res = scst_do_local_exec(cmd);
 	if (likely(res == SCST_EXEC_NOT_COMPLETED))
-		cmd->state = SCST_CMD_STATE_REAL_EXEC;
+		scst_set_cmd_state(cmd, SCST_CMD_STATE_REAL_EXEC);
 	else if (res == SCST_EXEC_COMPLETED)
 		scst_post_exec_sn(cmd, true);
 	else
@@ -3676,7 +3676,7 @@ static int scst_exec_check_blocking(struct scst_cmd **active_cmd)
 
 	TRACE_ENTRY();
 
-	cmd->state = SCST_CMD_STATE_EXEC_CHECK_BLOCKING;
+	scst_set_cmd_state(cmd, SCST_CMD_STATE_EXEC_CHECK_BLOCKING);
 
 	if (unlikely(scst_check_alua(cmd, &res)))
 		goto out;
@@ -3721,7 +3721,7 @@ static int scst_exec_check_blocking(struct scst_cmd **active_cmd)
 			goto done;
 		}
 
-		cmd->state = SCST_CMD_STATE_LOCAL_EXEC;
+		scst_set_cmd_state(cmd, SCST_CMD_STATE_LOCAL_EXEC);
 
 		rc = scst_do_local_exec(cmd);
 		if (likely(rc == SCST_EXEC_NOT_COMPLETED)) {
@@ -3731,7 +3731,7 @@ static int scst_exec_check_blocking(struct scst_cmd **active_cmd)
 			goto done;
 		}
 
-		cmd->state = SCST_CMD_STATE_REAL_EXEC;
+		scst_set_cmd_state(cmd, SCST_CMD_STATE_REAL_EXEC);
 
 		rc = scst_do_real_exec(cmd);
 		sBUG_ON(rc != SCST_EXEC_COMPLETED);
@@ -3744,7 +3744,7 @@ done:
 		EXTRACHECKS_BUG_ON(cmd->state != SCST_CMD_STATE_EXEC_CHECK_SN);
 		EXTRACHECKS_BUG_ON(cmd->done);
 
-		cmd->state = SCST_CMD_STATE_EXEC_CHECK_BLOCKING;
+		scst_set_cmd_state(cmd, SCST_CMD_STATE_EXEC_CHECK_BLOCKING);
 
 		if (unlikely(scst_check_alua(cmd, &res)))
 			goto out;
@@ -3989,7 +3989,7 @@ static int scst_check_sense(struct scst_cmd *cmd)
 					cmd->resp_data_len =
 						cmd->dbl_ua_orig_resp_data_len;
 
-					cmd->state = SCST_CMD_STATE_LOCAL_EXEC;
+					scst_set_cmd_state(cmd, SCST_CMD_STATE_LOCAL_EXEC);
 					cmd->retry = 1;
 					res = 1;
 					goto out;
@@ -4158,7 +4158,7 @@ next:
 		    (cmd->cdb[0] == LOG_SELECT))) {
 			TRACE(TRACE_SCSI, "MODE/LOG SELECT succeeded (LUN %lld)",
 				(unsigned long long int)cmd->lun);
-			cmd->state = SCST_CMD_STATE_MODE_SELECT_CHECKS;
+			scst_set_cmd_state(cmd, SCST_CMD_STATE_MODE_SELECT_CHECKS);
 			goto out;
 		}
 	} else {
@@ -4171,12 +4171,12 @@ next:
 					0, 0x2a, 0x01)) {
 			TRACE(TRACE_SCSI, "MODE PARAMETERS CHANGED UA (lun "
 				"%lld)", (unsigned long long int)cmd->lun);
-			cmd->state = SCST_CMD_STATE_MODE_SELECT_CHECKS;
+			scst_set_cmd_state(cmd, SCST_CMD_STATE_MODE_SELECT_CHECKS);
 			goto out;
 		}
 	}
 
-	cmd->state = SCST_CMD_STATE_DEV_DONE;
+	scst_set_cmd_state(cmd, SCST_CMD_STATE_DEV_DONE);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -4261,7 +4261,7 @@ static int scst_mode_select_checks(struct scst_cmd *cmd)
 	} else
 		sBUG();
 
-	cmd->state = SCST_CMD_STATE_DEV_DONE;
+	scst_set_cmd_state(cmd, SCST_CMD_STATE_DEV_DONE);
 
 out:
 	TRACE_EXIT_HRES(res);
@@ -4324,7 +4324,7 @@ static int scst_dev_done(struct scst_cmd *cmd)
 #else
 	default:
 #endif
-		cmd->state = state;
+		scst_set_cmd_state(cmd, state);
 		break;
 	case SCST_CMD_STATE_NEED_THREAD_CTX:
 		TRACE_DBG("Dev handler %s dev_done() requested "
@@ -4359,7 +4359,7 @@ static int scst_dev_done(struct scst_cmd *cmd)
 	}
 
 	if (unlikely(cmd->internal))
-		cmd->state = SCST_CMD_STATE_FINISHED_INTERNAL;
+		scst_set_cmd_state(cmd, SCST_CMD_STATE_FINISHED_INTERNAL);
 
 #ifndef CONFIG_SCST_TEST_IO_IN_SIRQ
 #ifdef CONFIG_SCST_EXTRACHECKS
@@ -4458,7 +4458,7 @@ again:
 		EXTRACHECKS_BUG_ON(!test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags));
 		TRACE_MGMT_DBG("Flag NO_RESP set for cmd %p (tag %llu), "
 			"skipping", cmd, (unsigned long long int)cmd->tag);
-		cmd->state = SCST_CMD_STATE_FINISHED;
+		scst_set_cmd_state(cmd, SCST_CMD_STATE_FINISHED);
 		goto out_same;
 	}
 
@@ -4467,7 +4467,7 @@ again:
 	else
 		cmd->adjusted_resp_data_len = cmd->resp_data_len;
 
-	cmd->state = SCST_CMD_STATE_XMIT_RESP;
+	scst_set_cmd_state(cmd, SCST_CMD_STATE_XMIT_RESP);
 
 out_same:
 	res = SCST_CMD_STATE_RES_CONT_SAME;
@@ -4525,7 +4525,7 @@ static int scst_pre_xmit_response1(struct scst_cmd *cmd)
 	cmd->done = 1;
 	smp_mb(); /* to sync with scst_abort_cmd() */
 
-	cmd->state = SCST_CMD_STATE_PRE_XMIT_RESP2;
+	scst_set_cmd_state(cmd, SCST_CMD_STATE_PRE_XMIT_RESP2);
 	res = scst_pre_xmit_response2(cmd);
 
 	TRACE_EXIT_RES(res);
@@ -4554,7 +4554,7 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 	}
 
 	res = SCST_CMD_STATE_RES_CONT_NEXT;
-	cmd->state = SCST_CMD_STATE_XMIT_WAIT;
+	scst_set_cmd_state(cmd, SCST_CMD_STATE_XMIT_WAIT);
 
 	TRACE_DBG("Calling xmit_response(%p)", cmd);
 
@@ -4616,7 +4616,7 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 	cmd->cmd_hw_pending = 0;
 
 	/* Restore the previous state */
-	cmd->state = SCST_CMD_STATE_XMIT_RESP;
+	scst_set_cmd_state(cmd, SCST_CMD_STATE_XMIT_RESP);
 
 	switch (rc) {
 	case SCST_TGT_RES_QUEUE_FULL:
@@ -4639,7 +4639,7 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 				"invalid value %d", tgtt->name, rc);
 		}
 		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
-		cmd->state = SCST_CMD_STATE_FINISHED;
+		scst_set_cmd_state(cmd, SCST_CMD_STATE_FINISHED);
 		res = SCST_CMD_STATE_RES_CONT_SAME;
 		goto out;
 	}
@@ -4674,7 +4674,7 @@ void scst_tgt_cmd_done(struct scst_cmd *cmd,
 	if (unlikely(cmd->tgt_dev == NULL))
 		pref_context = SCST_CONTEXT_THREAD;
 
-	cmd->state = SCST_CMD_STATE_FINISHED;
+	scst_set_cmd_state(cmd, SCST_CMD_STATE_FINISHED);
 
 	scst_process_redirect_cmd(cmd, pref_context, 1);
 
@@ -5046,7 +5046,7 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 
 		order_data = cmd->cur_order_data;
 
-		cmd->state = SCST_CMD_STATE_PARSE;
+		scst_set_cmd_state(cmd, SCST_CMD_STATE_PARSE);
 
 		cnt = atomic_inc_return(&cmd->tgt_dev->tgt_dev_cmd_count);
 		if (unlikely(cnt > cmd->dev->max_tgt_dev_commands)) {
