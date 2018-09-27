@@ -7925,9 +7925,13 @@ static struct request *blk_make_request(struct request_queue *q,
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
 	rq = blk_get_request(q, bio_data_dir(bio), gfp_mask);
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
 	rq = blk_get_request(q, bio_data_dir(bio) == READ ? REQ_OP_SCSI_IN :
 			     REQ_OP_SCSI_OUT, gfp_mask);
+#else
+	WARN_ON_ONCE(gfp_mask != GFP_KERNEL);
+	rq = blk_get_request(q, bio_data_dir(bio) == READ ? REQ_OP_SCSI_IN :
+			     REQ_OP_SCSI_OUT, 0);
 #endif
 
 	if (IS_ERR(rq))
@@ -8169,9 +8173,13 @@ static struct request *blk_map_kern_sg(struct request_queue *q,
 	if (!sgl) {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
 		rq = blk_get_request(q, reading ? READ : WRITE, gfp);
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0)
 		rq = blk_get_request(q, reading ? REQ_OP_SCSI_IN :
 				     REQ_OP_SCSI_OUT, gfp);
+#else
+		WARN_ON_ONCE(gfp != GFP_KERNEL);
+		rq = blk_get_request(q, reading ? REQ_OP_SCSI_IN :
+				     REQ_OP_SCSI_OUT, 0);
 #endif
 		if (unlikely(!rq))
 			return ERR_PTR(-ENOMEM);
