@@ -233,11 +233,6 @@ your favorite kernel configuration Makefile target, e.g. "make xconfig":
    Then sometimes get crazy itself. So, this option is disabled by
    default.
 
- - CONFIG_SCST_MEASURE_LATENCY - if defined, provides in "latency" files
-   global and per-LUN average commands processing latency statistic. You
-   can clear already measured results by writing 0 in each file. Note,
-   you need a non-preemptible kernel to have correct results.
-
  - CONFIG_SCST_DIF_INJECT_CORRUPTED_TAGS - if defined, allows injection
    of corrupted DIF tags according to the Oracle specification. This
    functionality is working only if dif_mode doesn't contain dev_store
@@ -707,9 +702,6 @@ following entries:
 
  - unknown_cmd_count - number of unknown SCSI commands received since
    beginning or last reset (writing 0 in this attribute)
-
- - latency - if CONFIG_SCST_MEASURE_LATENCY enabled, contains latency
-   statistics for this session.
 
  - *count*, e.g. read_io_count_kb, - statistics about executed
    commands and transferred data. See above for more details.
@@ -2342,8 +2334,7 @@ In order to get the maximum performance you should:
 1. For SCST:
 
  - Disable CONFIG_SCST_STRICT_SERIALIZING, CONFIG_SCST_EXTRACHECKS,
-   CONFIG_SCST_TRACING, CONFIG_SCST_DEBUG*, CONFIG_SCST_STRICT_SECURITY,
-   CONFIG_SCST_MEASURE_LATENCY
+   CONFIG_SCST_TRACING, CONFIG_SCST_DEBUG*, CONFIG_SCST_STRICT_SECURITY.
 
 2. For target drivers:
 

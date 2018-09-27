@@ -1352,7 +1352,6 @@ static int dev_user_process_reply_alloc(struct scst_user_cmd *ucmd,
 	}
 
 out_process:
-	scst_post_dev_alloc_data_buf(cmd);
 	scst_process_active_cmd(cmd, false);
 
 	TRACE_DBG("%s", "ALLOC_MEM finished");
@@ -1419,7 +1418,6 @@ static int dev_user_process_reply_parse(struct scst_user_cmd *ucmd,
 	cmd->op_flags = preply->op_flags;
 
 out_process:
-	scst_post_parse(cmd);
 	TRACE_DBG("%s", "PARSE finished");
 
 	scst_process_active_cmd(cmd, false);
@@ -2667,11 +2665,6 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 				       SCST_LOAD_SENSE(scst_sense_lun_not_supported));
 		}
 		scst_set_cmd_abnormal_done_state(ucmd->cmd);
-
-		if (state == UCMD_STATE_PARSING)
-			scst_post_parse(ucmd->cmd);
-		else
-			scst_post_dev_alloc_data_buf(ucmd->cmd);
 
 		TRACE_MGMT_DBG("Adding ucmd %p to active list", ucmd);
 		list_add(&ucmd->cmd->cmd_list_entry,
