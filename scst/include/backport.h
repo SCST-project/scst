@@ -68,7 +68,7 @@
 
 #ifdef CONFIG_X86
 #include <asm/msr.h>
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0) && !defined(RHEL_RELEASE_CODE)
 static __always_inline unsigned long long rdtsc(void)
 {
 	return native_read_tsc();
