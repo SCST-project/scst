@@ -56,7 +56,6 @@ enable_proc:
 release-archive:
 	../scripts/generate-release-archive scst \
 	  "$$(sed -n 's/^#define[[:blank:]]SCST_VERSION_NAME[[:blank:]]*\"\([^\"]*\)\".*/\1/p' include/scst_const.h)" \
-	  $(shell list-source-files) ../scripts/rebuild-rhel-kernel-rpm
 
 help:
 	@echo "		all (the default) : make all"
