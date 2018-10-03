@@ -41,7 +41,6 @@ Files: Makefile
        scripts/generate-scst-patch
        scripts/list-double-blank-lines
        scripts/monitor-memory-usage
-       scripts/rebuild-rhel-kernel-rpm
        scripts/run-regression-tests
        scripts/specialize-patch
        scst-dkms.spec.in
