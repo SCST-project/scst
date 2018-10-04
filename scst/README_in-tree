@@ -1774,7 +1774,7 @@ passive node, for instance, using iSCSI. Now you have a local SCSI
 device on the passive side pointing to the active node.
 
 6. Export this local device to the initiator(s) using SCST
-*path-through* handler (scst_disk). Pass-though is needed to redirect
+*pass-through* handler (scst_disk). Pass-though is needed to redirect
 non-block commands as well: ATS, XCOPY, etc.
 
 7. Set ALUA state to this target as "nonoptimized".
