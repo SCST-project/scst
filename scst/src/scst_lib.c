@@ -13050,7 +13050,7 @@ void scst_dev_check_set_UA(struct scst_device *dev,
 	scst_res_unlock(dev, &lksb);
 
 	if (rc)
-		scst_unblock_aborted_cmds(NULL, NULL, dev, false);
+		scst_unblock_aborted_cmds(NULL, NULL, dev);
 
 	return;
 }
@@ -13724,7 +13724,7 @@ static void scst_process_qerr(struct scst_cmd *cmd)
 	spin_unlock_bh(&dev->dev_lock);
 
 	if (unblock)
-		scst_unblock_aborted_cmds(cmd->tgt, cmd->sess, dev, false);
+		scst_unblock_aborted_cmds(cmd->tgt, cmd->sess, dev);
 
 	TRACE_EXIT();
 	return;
