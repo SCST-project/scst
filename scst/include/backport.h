@@ -569,6 +569,21 @@ static inline long get_user_pages_backport(unsigned long start,
 #endif
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30) */
 
+/* See also commit f036be96dd9c ("printk: introduce printk_once()") */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
+#define printk_once(fmt, ...)					\
+({								\
+	static bool __print_once __read_mostly;			\
+	bool __ret_print_once = !__print_once;			\
+								\
+	if (!__print_once) {					\
+		__print_once = true;				\
+		printk(fmt, ##__VA_ARGS__);			\
+	}							\
+	unlikely(__ret_print_once);				\
+})
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
 /*
  * See also patch "kernel.h: add pr_warn for symmetry to dev_warn,
