@@ -725,9 +725,10 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
 void scst_process_reset(struct scst_device *dev,
 	struct scst_session *originator, struct scst_cmd *exclude_cmd,
 	struct scst_mgmt_cmd *mcmd, bool setUA);
+void __scst_unblock_aborted_cmds(const struct scst_tgt *tgt,
+	const struct scst_session *sess, const struct scst_device *device);
 void scst_unblock_aborted_cmds(const struct scst_tgt *tgt,
-	const struct scst_session *sess, const struct scst_device *device,
-	bool scst_mutex_held);
+	const struct scst_session *sess, const struct scst_device *device);
 void scst_clear_aca(struct scst_tgt_dev *tgt_dev, bool other_ini);
 
 bool scst_is_ua_global(const uint8_t *sense, int len);

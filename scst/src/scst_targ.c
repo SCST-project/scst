@@ -6376,18 +6376,14 @@ static bool __scst_check_unblock_aborted_cmd(struct scst_cmd *cmd,
 	return res;
 }
 
-void scst_unblock_aborted_cmds(const struct scst_tgt *tgt,
-	const struct scst_session *sess, const struct scst_device *device,
-	bool scst_mutex_held)
+void __scst_unblock_aborted_cmds(const struct scst_tgt *tgt,
+	const struct scst_session *sess, const struct scst_device *device)
 {
 	struct scst_device *dev;
 
 	TRACE_ENTRY();
 
-	if (!scst_mutex_held)
-		mutex_lock(&scst_mutex);
-	else
-		lockdep_assert_held(&scst_mutex);
+	lockdep_assert_held(&scst_mutex);
 
 	list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
 		struct scst_cmd *cmd, *tcmd;
@@ -6441,11 +6437,16 @@ void scst_unblock_aborted_cmds(const struct scst_tgt *tgt,
 		local_irq_enable_nort();
 	}
 
-	if (!scst_mutex_held)
-		mutex_unlock(&scst_mutex);
-
 	TRACE_EXIT();
 	return;
+}
+
+void scst_unblock_aborted_cmds(const struct scst_tgt *tgt,
+	const struct scst_session *sess, const struct scst_device *device)
+{
+	mutex_lock(&scst_mutex);
+	__scst_unblock_aborted_cmds(tgt, sess, device);
+	mutex_unlock(&scst_mutex);
 }
 
 static void __scst_abort_task_set(struct scst_mgmt_cmd *mcmd,
@@ -6526,7 +6527,8 @@ static int scst_abort_task_set(struct scst_mgmt_cmd *mcmd)
 
 	tm_dbg_task_mgmt(mcmd->mcmd_tgt_dev->dev, "ABORT TASK SET/PR ABORT", 0);
 
-	scst_unblock_aborted_cmds(tgt_dev->sess->tgt, tgt_dev->sess, tgt_dev->dev, false);
+	scst_unblock_aborted_cmds(tgt_dev->sess->tgt, tgt_dev->sess,
+				  tgt_dev->dev);
 
 	scst_call_dev_task_mgmt_fn_received(mcmd, tgt_dev);
 
@@ -6616,7 +6618,7 @@ static int scst_clear_task_set(struct scst_mgmt_cmd *mcmd)
 
 	tm_dbg_task_mgmt(mcmd->mcmd_tgt_dev->dev, "CLEAR TASK SET", 0);
 
-	scst_unblock_aborted_cmds(NULL, NULL, dev, true);
+	__scst_unblock_aborted_cmds(NULL, NULL, dev);
 
 	if (!dev->tas) {
 		uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
@@ -6811,7 +6813,7 @@ static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 			list_add_tail(&dev->tm_dev_list_entry, &host_devs);
 	}
 
-	scst_unblock_aborted_cmds(NULL, NULL, NULL, true);
+	__scst_unblock_aborted_cmds(NULL, NULL, NULL);
 
 	/*
 	 * We suppose here that for all commands that already on devices
@@ -6917,7 +6919,7 @@ static int scst_lun_reset(struct scst_mgmt_cmd *mcmd)
 		dev->scsi_dev->was_reset = 0;
 	}
 
-	scst_unblock_aborted_cmds(NULL, NULL, dev, false);
+	scst_unblock_aborted_cmds(NULL, NULL, dev);
 
 	tm_dbg_task_mgmt(mcmd->mcmd_tgt_dev->dev, "LUN RESET", 0);
 
@@ -6997,7 +6999,7 @@ static int scst_abort_all_nexus_loss_sess(struct scst_mgmt_cmd *mcmd,
 	}
 	rcu_read_unlock();
 
-	scst_unblock_aborted_cmds(NULL, sess, NULL, false);
+	scst_unblock_aborted_cmds(NULL, sess, NULL);
 
 	res = scst_set_mcmd_next_state(mcmd);
 
@@ -7082,7 +7084,7 @@ static int scst_abort_all_nexus_loss_tgt(struct scst_mgmt_cmd *mcmd,
 	}
 	rcu_read_unlock();
 
-	scst_unblock_aborted_cmds(tgt, NULL, NULL, true);
+	__scst_unblock_aborted_cmds(tgt, NULL, NULL);
 
 	mutex_unlock(&scst_mutex);
 
@@ -7122,7 +7124,7 @@ static int scst_abort_task(struct scst_mgmt_cmd *mcmd)
 		scst_abort_cmd(cmd, mcmd, 0, 1);
 		spin_unlock_irq(&cmd->sess->sess_list_lock);
 
-		scst_unblock_aborted_cmds(cmd->tgt, cmd->sess, cmd->dev, false);
+		scst_unblock_aborted_cmds(cmd->tgt, cmd->sess, cmd->dev);
 	}
 
 	res = scst_set_mcmd_next_state(mcmd);
@@ -7231,7 +7233,7 @@ static int scst_clear_aca_mcmd(struct scst_mgmt_cmd *mcmd)
 	scst_make_deferred_commands_active(order_data);
 
 	scst_unblock_aborted_cmds(mcmd_tgt_dev->sess->tgt, mcmd_tgt_dev->sess,
-		mcmd_tgt_dev->dev, false);
+				  mcmd_tgt_dev->dev);
 
 out_state:
 	res = scst_set_mcmd_next_state(mcmd);

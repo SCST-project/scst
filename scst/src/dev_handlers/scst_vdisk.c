@@ -443,6 +443,8 @@ static ssize_t vdisk_sysfs_removable_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdev_sysfs_filename_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
+static ssize_t vdev_sysfs_filename_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count);
 static ssize_t vdev_sysfs_cluster_mode_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdev_sysfs_cluster_mode_store(struct kobject *kobj,
@@ -546,7 +548,8 @@ static struct kobj_attribute vdev_read_zero_attr =
 static struct kobj_attribute vdisk_removable_attr =
 	__ATTR(removable, S_IRUGO, vdisk_sysfs_removable_show, NULL);
 static struct kobj_attribute vdisk_filename_attr =
-	__ATTR(filename, S_IRUGO, vdev_sysfs_filename_show, NULL);
+	__ATTR(filename, S_IWUSR|S_IRUGO, vdev_sysfs_filename_show,
+	       vdev_sysfs_filename_store);
 static struct kobj_attribute vdisk_cluster_mode_attr =
 	__ATTR(cluster_mode, S_IWUSR|S_IRUGO, vdev_sysfs_cluster_mode_show,
 	       vdev_sysfs_cluster_mode_store);
@@ -9486,6 +9489,107 @@ out_put:
 	scst_sysfs_work_put(work);
 
 out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int vdev_sysfs_process_filename_store(struct scst_sysfs_work_item *work)
+{
+	struct scst_device *dev = work->dev;
+	struct scst_vdisk_dev *virt_dev;
+	int length = strlen(work->buf);
+	char *p, *fn;
+	const char *filename = NULL;
+	int res;
+
+	res = mutex_lock_interruptible(&scst_mutex);
+	if (res)
+		goto out;
+
+	res = -EINVAL;
+
+	/* Serialize against vdisk_open_fd() and vdisk_close_fd() calls. */
+	scst_alua_lock();
+
+	/*
+	 * This is safe since we hold a reference on dev_kobj and since
+	 * scst_assign_dev_handler() waits until all dev_kobj references
+	 * have been dropped before invoking .detach().
+	 */
+	virt_dev = dev->dh_priv;
+	if (virt_dev->dev_active) {
+		PRINT_ERROR("vdev %s: can't change the filename because the device is still active",
+			    dev->virt_name);
+		goto unlock;
+	}
+
+	p = work->buf;
+	while (isspace(*p) && *p)
+		p++;
+	if (*p == '\0') {
+		PRINT_ERROR("Filename is missing");
+		goto unlock;
+	}
+	filename = p;
+	p = &work->buf[length - 1];
+	while (isspace(*p))
+		p--;
+	*(p + 1) = '\0';
+	if (*filename != '/') {
+		PRINT_ERROR("Path \"%s\" is not absolute", filename);
+		goto unlock;
+	}
+	fn = kstrdup(filename, GFP_KERNEL);
+	if (fn == NULL) {
+		PRINT_ERROR("Filename allocation failed");
+		goto unlock;
+	}
+	swap(virt_dev->filename, fn);
+	kfree(fn);
+	PRINT_INFO("vdev %s: changed filename into \"%s\"", virt_dev->name,
+		   virt_dev->filename);
+	res = 0;
+
+unlock:
+	scst_alua_unlock();
+	mutex_unlock(&scst_mutex);
+
+out:
+	kobject_put(&dev->dev_kobj);
+
+	return res;
+}
+
+static ssize_t vdev_sysfs_filename_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	struct scst_device *dev = container_of(kobj, struct scst_device,
+					       dev_kobj);
+	struct scst_sysfs_work_item *work;
+	char *arg;
+	int res;
+
+	TRACE_ENTRY();
+
+	res = -ENOMEM;
+	arg = kasprintf(GFP_KERNEL, "%.*s", (int)count, buf);
+	if (!arg)
+		goto out;
+
+	res = scst_alloc_sysfs_work(vdev_sysfs_process_filename_store,
+				    false, &work);
+	if (res)
+		goto out;
+	work->dev = dev;
+	swap(work->buf, arg);
+	kobject_get(&dev->dev_kobj);
+	res = scst_sysfs_queue_wait_work(work);
+	if (res)
+		goto out;
+	res = count;
+
+out:
+	kfree(arg);
 	TRACE_EXIT_RES(res);
 	return res;
 }
