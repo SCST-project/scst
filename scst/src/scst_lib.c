@@ -14063,8 +14063,8 @@ EXPORT_SYMBOL(scst_reassign_retained_sess_states);
  * scst_get_next_lexem() - parse and return next lexem in the string
  *
  * Returns pointer to the next lexem from token_str skipping
- * spaces and '=' character and using them then as a delimeter. Content
- * of token_str is modified by setting '\0' at the delimeter's position.
+ * spaces and '=' character and using them then as a delimiter. Content
+ * of token_str is modified by setting '\0' at the delimiter's position.
  */
 char *scst_get_next_lexem(char **token_str)
 {
@@ -14107,8 +14107,8 @@ EXPORT_SYMBOL_GPL(scst_restore_token_str);
  * scst_get_next_token_str() - parse and return next token
  *
  * This function returns pointer to the next token strings from input_str
- * using '\n', ';' and '\0' as a delimeter. Content of input_str is
- * modified by setting '\0' at the delimeter's position.
+ * using '\n', ';' and '\0' as a delimiter. Content of input_str is
+ * modified by setting '\0' at the delimiter's position.
  */
 char *scst_get_next_token_str(char **input_str)
 {
