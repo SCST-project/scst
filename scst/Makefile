@@ -1,6 +1,6 @@
 #
 #  Common makefile for SCSI target mid-level and its drivers
-#  
+#
 #  Copyright (C) 2015 - 2018 Vladislav Bolkhovitin <vst@vlnb.net>
 #  Copyright (C) 2004 - 2005 Leonid Stoljar
 #  Copyright (C) 2007 - 2018 Western Digital Corporation

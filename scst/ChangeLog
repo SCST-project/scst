@@ -60,7 +60,7 @@ Summary of changes between versions 1.0.1 and 1.0.2
    /sys/module/scst and /sys/module/scst_vdisk correspondingly
 
  - Shared between devices SGV caches were implemented
- 
+
  - Possibilities to operate with single size entries as well as control of
    the reclamation time added to the SGV cache
 
@@ -69,7 +69,7 @@ Summary of changes between versions 1.0.1 and 1.0.2
  - INIT ELEMENT STATUS WRANGE added to the list of known commands.
 
  - Races on scst_user devices cleanup fixed
- 
+
  - Implemented abort on timeout of stuck in tgt hardware commands
 
  - Automatic sessions reassignment implemented with corresponding atomic
@@ -82,7 +82,7 @@ Summary of changes between versions 1.0.1 and 1.0.2
 
  - Update for 2.6.30
 
- - Other bug fixes and cleanups 
+ - Other bug fixes and cleanups
 
 
 Summary of changes between versions 1.0.0 and 1.0.1
@@ -95,12 +95,12 @@ Summary of changes between versions 1.0.0 and 1.0.1
  - Support for variable length CDB added
 
  - Support for Async. Event Notifications added
- 
+
  - Implemented "plug-and-play" notifications about new devices in security
    groups, deleted devices from security groups and changed size of a
    device. They can be delivered either through AENs (if supported), or
    Unit Attentions.
-  
+
  - New command "resync_size" added to scst_vdisk proc interface to tell
    scst_vdisk to reread size of the corresponding device after it was
    changed
@@ -117,13 +117,13 @@ Summary of changes between versions 1.0.0 and 1.0.1
  - scst_unregister_session_ex() removed, since there are no users of it
 
  -  New functions added to scst_user interface:
- 
+
     * SCST_USER_UNREGISTER_DEVICE - to unregister device, flush mem reuse
      (SGV) cache and send UCMD_STATE_ON_CACHE_FREEING notifications for all
      freed buffers to the user space handler. Simple device close doesn't
      allow that, so all the cached buffers might look as "leaked" from the
      user space handler POV.
-  
+
     * SCST_USER_FLUSH_CACHE - to flush mem reuse (SGV) cache and send
       UCMD_STATE_ON_CACHE_FREEING notifications for all freed buffers to
       the user space handler
@@ -298,7 +298,7 @@ Summary of changes between versions 0.9.4 and 0.9.5
 
  - More intelligent IO flow control implemented.
 
- - Fixed broken CDROM FILEIO. Before that it always reported 
+ - Fixed broken CDROM FILEIO. Before that it always reported
    "No medium found"
 
  - Data synchronization fixes and improvements in FILEIO. Added FUA
@@ -411,7 +411,7 @@ Summary of changes between versions 0.9.2 and 0.9.3-pre1
     * New CDROM FILEIO handler added.
 
     * Now per-session threads created to improve concurrent performance.
- 
+
     * New flags added that allow using virtual devices as read only,
       with write through caching or in O_DIRECT mode.
 
@@ -422,30 +422,30 @@ Summary of changes between versions 0.9.2 and 0.9.3-pre1
  - SCSI processor (type 3) dev handler added.
 
  - Sessions unregistration contexts cleanup.
- 
- - Dev handler's on_free_cmd() was dropped. Target driver's flag 
+
+ - Dev handler's on_free_cmd() was dropped. Target driver's flag
    "thread_per_session" was dropped as well.
- 
+
  - Internal locking partially redone.
- 
+
  - A lot of stability/bug fixes, cleanups and performance improvements.
 
 Summary of changes between versions 0.9.1 and 0.9.2
 ---------------------------------------------------
 
  - 2.6 support, developed and tested on 2.6.7.
- 
+
  - FILEIO/BLKDEV virtual disk device handler added. See main README for
    details.
- 
+
  - /proc updates, "trace_log_level" entry added to change traced
    events on the fly.
-   
+
  - Some internal interfaces changed, see the documentation.
- 
+
  - Device handlers' source code layout changed, all device handlers
    live in one subdirectory now.
- 
+
  - Crash on memory allocation failure while building SG data vector
    fixed.
 
@@ -457,11 +457,11 @@ Summary of changes between versions 0.9.0a and 0.9.1
  - scst_debug.* files are also installed together with scsi_tgt.h
    (required by QLA2x00 target and could be useful for other target
    drivers)
- 
+
  - CDB length for unknown commands (e.g. vendor ones) is now determined
    from CDB
-   
+
  - Race with the commands serialization on one drive fixed
-   
+
  - Cleanup
 
