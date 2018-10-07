@@ -404,7 +404,7 @@ static inline u32 int_sqrt64(u64 x)
 	u32 r = 0, s;
 	int i;
 
-	for (i = 8 * sizeof(r) - 2; i >= 0;i --) {
+	for (i = 8 * sizeof(r) - 2; i >= 0; i--) {
 		s = r + (1 << i);
 		if (1ll * s * s <= x)
 			r = s;
@@ -790,7 +790,10 @@ struct t10_pi_tuple {
 } while (0)
 #endif
 
-/* See also commit 1d27e3e2252b ("timer: Remove expires and data arguments from DEFINE_TIMER") */
+/*
+ * See also commit 1d27e3e2252b ("timer: Remove expires and data arguments
+ * from DEFINE_TIMER").
+ */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0)
 #undef DEFINE_TIMER
 #define DEFINE_TIMER(_name, _function)					\
