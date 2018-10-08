@@ -406,7 +406,7 @@ static inline u32 int_sqrt64(u64 x)
 
 	for (i = 8 * sizeof(r) - 2; i >= 0; i--) {
 		s = r + (1 << i);
-		if (1ll * s * s <= x)
+		if (1ull * s * s <= x)
 			r = s;
 	}
 
