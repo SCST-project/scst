@@ -97,7 +97,7 @@ HANDLER dev_cdrom {
 	DEVICE 2:0:0:0
 }
 
-Virtual devices are opened through special CREATE attributes. For example, a 
+Virtual devices are opened through special CREATE attributes. For example, a
 virtual disk named "disk1" pointing to a disk partition /dev/hda1 would be look
 like:
 

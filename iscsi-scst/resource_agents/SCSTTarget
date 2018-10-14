@@ -144,21 +144,21 @@ l_load_module () {
 }
 
 l_start_service () {
-		local running		
-		
+		local running
+
 		# Handler modules are loaded in LUN resource agent
-		
+
 		# Check if modules are loaded
 		if [ ! -d ${SYSFS_PATH} ]; then
 			ocf_log info "Loading scst Modules"
 			l_load_module scst || return 1
 			l_load_module iscsi_scst || return 1
 
-			#Not critical modules, not unloaded on stop.		
-			l_load_module crc32c				
+			#Not critical modules, not unloaded on stop.
+			l_load_module crc32c
 			l_load_module crc32c_intel
 		fi
-		
+
 		# Start Daemon
 		if [ ! "$(pidof ${ISCSI_DAEMON})" ]; then
 			ocf_run $ISCSI_DAEMON || return 1
@@ -178,7 +178,7 @@ l_stop_service () {
 		TARGET_NOT_PRESENT=false
 	fi
 	done
-	
+
 	#Close sessions
 	for i in `/bin/ls ${ISCSI_BASE}/${OCF_RESKEY_iqn}/sessions`; do
 		ocf_log warn "Force closing session to initiator ${i}"
@@ -187,8 +187,8 @@ l_stop_service () {
 
 	#Stop process and unload modules
 	if $TARGET_NOT_PRESENT ; then
-		ocf_log warn "Daemon not required, stopping ..."		
-		pkill -TERM -f $ISCSI_DAEMON	
+		ocf_log warn "Daemon not required, stopping ..."
+		pkill -TERM -f $ISCSI_DAEMON
 		rmmod iscsi_scst
 		rmmod scst
 	fi
@@ -212,9 +212,9 @@ SCSTTarget_start() {
     local name
     local value
     local initiator
-		
+
 		# Start Service
-		l_start_service		
+		l_start_service
 		# Set incoming username and password globally
 		if [ "${OCF_RESKEY_incoming_username}" != "" ]; then
 			echo "add_attribute IncomingUser ${OCF_RESKEY_incoming_username} ${OCF_RESKEY_incoming_password}" > ${ISCSI_BASE}/mgmt
@@ -222,39 +222,39 @@ SCSTTarget_start() {
 				ocf_log warn "Unable to set CHAP Authentication!"
 			fi
 		fi
-		
+
 		ocf_log info "target ${OCF_RESKEY_iqn}: Starting..."
 
 		# Create Target
 		echo "add_target ${OCF_RESKEY_iqn}" > ${ISCSI_BASE}/mgmt || exit $OCF_ERR_GENERIC
-		
+
 		# Set Allowed Portals
-		if [ "${OCF_RESKEY_portals}" != "none" ]; then				
+		if [ "${OCF_RESKEY_portals}" != "none" ]; then
 			for param in ${OCF_RESKEY_portals}; do
-			ocf_log info "Adding allowed portal ${param} to target ${OCF_RESKEY_iqn}"			
+			ocf_log info "Adding allowed portal ${param} to target ${OCF_RESKEY_iqn}"
 			echo "add_target_attribute ${OCF_RESKEY_iqn} allowed_portal ${param}" > ${ISCSI_BASE}/mgmt
 			if [ $? -ne 0 ]; then
 				ocf_log warn "Unable to set Allowed Portal!"
 			fi
-	  		done			
+	  		done
 		fi
 
 		# Set incoming username and password
-		if [ "${OCF_RESKEY_incoming_username}" != "" ]; then				
-			echo "add_target_attribute ${OCF_RESKEY_iqn} IncomingUser ${OCF_RESKEY_incoming_username} ${OCF_RESKEY_incoming_password}" > ${ISCSI_BASE}/mgmt			
+		if [ "${OCF_RESKEY_incoming_username}" != "" ]; then
+			echo "add_target_attribute ${OCF_RESKEY_iqn} IncomingUser ${OCF_RESKEY_incoming_username} ${OCF_RESKEY_incoming_password}" > ${ISCSI_BASE}/mgmt
 			if [ $? -ne 0 ]; then
 				ocf_log warn "Unable to set CHAP Authentication!"
-			fi			
+			fi
 		fi
-		
-		ocf_log info "Enabling target ${OCF_RESKEY_iqn}"	
+
+		ocf_log info "Enabling target ${OCF_RESKEY_iqn}"
 		# Enable iSCSI Target
-		echo 1 > "${ISCSI_BASE}/enabled" || exit $OCF_ERR_GENERIC		
-		
+		echo 1 > "${ISCSI_BASE}/enabled" || exit $OCF_ERR_GENERIC
+
 		ocf_log debug "SCST target ${OCF_RESKEY_iqn}: Started."
-		
+
 		#Debugging purpose
-		#scstadmin -write_config /tmp/scst.conf.start	
+		#scstadmin -write_config /tmp/scst.conf.start
     return $OCF_SUCCESS
 }
 
@@ -262,9 +262,9 @@ SCSTTarget_stop() {
     SCSTTarget_monitor
 
     if [ $? =  $OCF_SUCCESS ]; then
-	local param	
+	local param
 	ocf_log info "target ${OCF_RESKEY_iqn}: Stopping..."
-	
+
 	# Check if there are connected luns
     	for i in $( ls "${ISCSI_BASE}/${OCF_RESKEY_iqn}/luns" ) ; do
     		if [ -d "${ISCSI_BASE}/${OCF_RESKEY_iqn}/luns/${i}" ]; then
@@ -272,11 +272,11 @@ SCSTTarget_stop() {
 		exit $OCF_ERR_GENERIC
     		fi
     	done
-	
+
 	# Disable Target
 	ocf_log info "disabling target ${OCF_RESKEY_iqn}"
 	echo 0 > ${ISCSI_BASE}/${OCF_RESKEY_iqn}/enabled || exit $OCF_ERR_GENERIC
-		
+
 	#Remove Target
 	ocf_log info "deleting target ${OCF_RESKEY_iqn}"
 	echo "del_target ${OCF_RESKEY_iqn}" > ${ISCSI_BASE}/mgmt
@@ -285,20 +285,20 @@ SCSTTarget_stop() {
 		exit $OCF_ERR_GENERIC
 	fi
 	#Debugging purpose
-	#scstadmin -write_config /tmp/scst.conf.stop	
-	
-	#Check if other targets are running, then stop service and unload modules		
+	#scstadmin -write_config /tmp/scst.conf.stop
+
+	#Check if other targets are running, then stop service and unload modules
 	l_stop_service
 	ocf_log info "target ${OCF_RESKEY_iqn}: Stopped."
     fi
-    	
+
     return $OCF_SUCCESS
 }
 
 SCSTTarget_monitor() {
-	if [ -d "${SYSFS_PATH}/${OCF_RESKEY_iqn}" ]; then	 
+	if [ -d "${SYSFS_PATH}/${OCF_RESKEY_iqn}" ]; then
 		return $OCF_SUCCESS
-	else    	
+	else
 		return $OCF_NOT_RUNNING
 	fi
 }
@@ -317,7 +317,7 @@ SCSTTarget_validate() {
 
     if ! ocf_is_probe; then
 		check_binary scstadmin
-    fi    
+    fi
 
     return $OCF_SUCCESS
 }
