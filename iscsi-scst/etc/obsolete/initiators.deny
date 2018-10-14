@@ -1,9 +1,9 @@
 # The semantics are:
 # * By default, every initiator can see and connect to all targets.
-#  
+#
 # * Deny for some or every initiator access to one or all targets,
 #   by adding a line to this file.
-# 
+#
 # * Then allow some named initiators access to selected targets,
 #   by adding lines to initiators.allow
 #

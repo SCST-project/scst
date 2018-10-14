@@ -308,7 +308,7 @@ emulex_install:
 emulex_uninstall:
 	cd $(EMULEX_DIR) && $(MAKE) uninstall
 
-emulex_clean: 
+emulex_clean:
 	cd $(EMULEX_DIR) && $(MAKE) clean
 
 emulex_extraclean:
@@ -323,7 +323,7 @@ lsi_install:
 lsi_uninstall:
 	cd $(LSI_DIR) && $(MAKE) uninstall
 
-lsi_clean: 
+lsi_clean:
 	cd $(LSI_DIR) && $(MAKE) clean
 
 lsi_extraclean:
@@ -368,7 +368,7 @@ usr_install:
 usr_uninstall:
 	cd $(USR_DIR) && $(MAKE) uninstall
 
-usr_clean: 
+usr_clean:
 	cd $(USR_DIR) && $(MAKE) clean
 
 usr_extraclean:

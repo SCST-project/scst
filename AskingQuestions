@@ -107,7 +107,7 @@ For example, this will cause problems in the following situation:
 7. scst_send_to_midlev returns with SCST_CMD_STATE_RES_NEED_THREAD
 8. Now, the scst_process_active_cmd will try to reschedule command 0x8000100
    which is already destroyed at this point !
-   
+
 Can anyone on the list confirm my guess? Or, this situation should never
 happen because of some other condition which I may have missed? Right
 now I can't think of any of simple methods to work around the issue,
@@ -124,104 +124,104 @@ I have two machines (SCST targets) with the following parameters:
 - Linux 2.6.21.3, running in 64 bit mode with 16G RAM
 - SCST trunk version
 
-On the client side there is a Solaris 10 U3 machine, with the same (chip 
+On the client side there is a Solaris 10 U3 machine, with the same (chip
 wise) Qlogic controller.
 
-There is an FC switch between the three machines, and each of the 
-targets are zoned to the client's port in a one-by-one manner, so HBA 
+There is an FC switch between the three machines, and each of the
+targets are zoned to the client's port in a one-by-one manner, so HBA
 port 1 sees only target 1 and port 2 sees only target 2.
 
-The targets are configured with two large sparse files on XFS (8 TB 
+The targets are configured with two large sparse files on XFS (8 TB
 each, with dd if=/dev/zero of=file bs=1M count=0 seek=8388608).
 
-In Solaris I do various tests with SVM (Sun's built in volume manager) 
+In Solaris I do various tests with SVM (Sun's built in volume manager)
 and multiterabyte UFS. Occasionally, there are some strange write
 errors, where the volume  manager drops its volumes and without a VM, a
 simple UFS fs write can  fail too.
 
-I see various errors logged by the kernel (Solaris'), these are some 
+I see various errors logged by the kernel (Solaris'), these are some
 examples, both with and without SVM:
-Jun 21 10:42:14 solaris fctl: [ID 517869 kern.warning] WARNING: 
+Jun 21 10:42:14 solaris fctl: [ID 517869 kern.warning] WARNING:
 fp(1)::GPN_ID for D_ID=621200 failed
-Jun 21 10:42:14 solaris fctl: [ID 517869 kern.warning] WARNING: 
-fp(1)::N_x Port with D_ID=621200, PWWN=210000e08b944419 disappeared from 
+Jun 21 10:42:14 solaris fctl: [ID 517869 kern.warning] WARNING:
+fp(1)::N_x Port with D_ID=621200, PWWN=210000e08b944419 disappeared from
 fabric
-Jun 21 10:42:53 solaris scsi: [ID 107833 kern.warning] WARNING: 
-/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0 
+Jun 21 10:42:53 solaris scsi: [ID 107833 kern.warning] WARNING:
+/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0
 (sd1):
-Jun 21 10:42:53 solaris         SCSI transport failed: reason 
+Jun 21 10:42:53 solaris         SCSI transport failed: reason
 'tran_err': retrying command
-Jun 21 10:43:06 solaris scsi: [ID 107833 kern.warning] WARNING: 
-/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0 
+Jun 21 10:43:06 solaris scsi: [ID 107833 kern.warning] WARNING:
+/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0
 (sd1):
-Jun 21 10:43:06 solaris         SCSI transport failed: reason 'timeout': 
+Jun 21 10:43:06 solaris         SCSI transport failed: reason 'timeout':
 retrying command
 Jun 21 10:43:13 solaris scsi: [ID 107833 kern.notice]   Device is gone
-Jun 21 10:43:13 solaris scsi: [ID 107833 kern.warning] WARNING: 
-/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0 
+Jun 21 10:43:13 solaris scsi: [ID 107833 kern.warning] WARNING:
+/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0
 (sd1):
 Jun 21 10:43:13 solaris         transport rejected fatal error
-Jun 21 10:43:13 solaris md_stripe: [ID 641072 kern.warning] WARNING: md: 
+Jun 21 10:43:13 solaris md_stripe: [ID 641072 kern.warning] WARNING: md:
 d10: write error on /dev/dsk/c2t210000E08B944419d0s6
 Jun 21 10:43:13 solaris last message repeated 9 times
-Jun 21 10:43:13 solaris scsi: [ID 243001 kern.info] 
+Jun 21 10:43:13 solaris scsi: [ID 243001 kern.info]
 /pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0 (fcp1):
-Jun 21 10:43:13 solaris         offlining lun=0 (trace=0), target=621200 
+Jun 21 10:43:13 solaris         offlining lun=0 (trace=0), target=621200
 (trace=2800004)
-Jun 21 10:43:13 solaris ufs: [ID 702911 kern.warning] WARNING: Error 
+Jun 21 10:43:13 solaris ufs: [ID 702911 kern.warning] WARNING: Error
 writing master during ufs log roll
-Jun 21 10:43:13 solaris ufs: [ID 127457 kern.warning] WARNING: ufs log 
+Jun 21 10:43:13 solaris ufs: [ID 127457 kern.warning] WARNING: ufs log
 for /mnt changed state to Error
-Jun 21 10:43:13 solaris ufs: [ID 616219 kern.warning] WARNING: Please 
+Jun 21 10:43:13 solaris ufs: [ID 616219 kern.warning] WARNING: Please
 umount(1M) /mnt and run fsck(1M)
-Jun 21 11:08:55 solaris scsi: [ID 107833 kern.warning] WARNING: 
-/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0 
+Jun 21 11:08:55 solaris scsi: [ID 107833 kern.warning] WARNING:
+/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0
 (sd1):
 Jun 21 11:08:55 solaris         offline or reservation conflict
-Jun 21 11:09:41 solaris scsi: [ID 107833 kern.warning] WARNING: 
-/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0 
+Jun 21 11:09:41 solaris scsi: [ID 107833 kern.warning] WARNING:
+/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0
 (sd1):
 Jun 21 11:09:41 solaris         offline or reservation conflict
-Jun 21 11:09:41 solaris scsi: [ID 107833 kern.warning] WARNING: 
-/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0 
+Jun 21 11:09:41 solaris scsi: [ID 107833 kern.warning] WARNING:
+/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0
 (sd1):
 Jun 21 11:09:41 solaris         offline or reservation conflict
-Jun 21 11:09:41 solaris scsi: [ID 107833 kern.warning] WARNING: 
-/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0 
+Jun 21 11:09:41 solaris scsi: [ID 107833 kern.warning] WARNING:
+/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0
 (sd1):
 Jun 21 11:09:41 solaris         i/o to invalid geometry
-Jun 21 11:09:41 solaris scsi: [ID 107833 kern.warning] WARNING: 
-/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0 
+Jun 21 11:09:41 solaris scsi: [ID 107833 kern.warning] WARNING:
+/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0
 (sd1):
 Jun 21 11:09:41 solaris         offline or reservation conflict
-Jun 21 11:09:41 solaris scsi: [ID 107833 kern.warning] WARNING: 
-/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0 
+Jun 21 11:09:41 solaris scsi: [ID 107833 kern.warning] WARNING:
+/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0
 (sd1):
 Jun 21 11:09:41 solaris         i/o to invalid geometry
-Jun 21 11:09:41 solaris scsi: [ID 107833 kern.warning] WARNING: 
-/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0 
+Jun 21 11:09:41 solaris scsi: [ID 107833 kern.warning] WARNING:
+/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0
 (sd1):
 Jun 21 11:09:41 solaris         offline or reservation conflict
-Jun 21 11:09:41 solaris scsi: [ID 107833 kern.warning] WARNING: 
-/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0 
+Jun 21 11:09:41 solaris scsi: [ID 107833 kern.warning] WARNING:
+/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0
 (sd1):
 Jun 21 11:09:41 solaris         i/o to invalid geometry
-Jun 21 11:09:43 solaris scsi: [ID 107833 kern.warning] WARNING: 
-/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0 
+Jun 21 11:09:43 solaris scsi: [ID 107833 kern.warning] WARNING:
+/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0
 (sd1):
 Jun 21 11:09:43 solaris         offline or reservation conflict
-Jun 21 11:09:43 solaris scsi: [ID 107833 kern.warning] WARNING: 
-/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0 
+Jun 21 11:09:43 solaris scsi: [ID 107833 kern.warning] WARNING:
+/pci@1,0/pci1022,7450@a/pcie11,105@1,1/fp@0,0/disk@w210000e08b944419,0
 (sd1):
 Jun 21 11:09:43 solaris         SYNCHRONIZE CACHE command failed (5)
 
 I don't see anything in the dmesg on the target side.
 
-After these errors SCST seems to be dead. I can't unload its modules and 
+After these errors SCST seems to be dead. I can't unload its modules and
 can't communicate it via /proc.
 A simple cat vdisk just waits and waits.
 
-Could you please help? What should I set/collect/send in this case to 
+Could you please help? What should I set/collect/send in this case to
 help resolving this issue?
 
 ======================================================================

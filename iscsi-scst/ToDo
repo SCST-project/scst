@@ -7,7 +7,7 @@
    same structure. This architecture decision derived from IET and makes
    the code a lot less readable, maintainable and effective as well as more
    errors prone, so it must be corrected.
- 
+
  - Code beautifying, i.e. make it be written in the same nice looking style.
    Particularly, all functions and variables names should share the same style.
 

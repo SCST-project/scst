@@ -398,7 +398,7 @@ Device (host:ch:id:lun or name)                             Device handler
 LUN masking
 -----------
 
-SCST defines security groups. For each group, you can add LUNs. 
+SCST defines security groups. For each group, you can add LUNs.
 
 If you want to have all LUNs available for all targets, just add them to
 the "Default" group:

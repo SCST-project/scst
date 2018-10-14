@@ -36,11 +36,11 @@ a) Latest development version
   cd /root
   svn checkout svn://svn.code.sf.net/p/scst/svn/trunk scst
 
-b) Specific branch (3.0 used in example) 
+b) Specific branch (3.0 used in example)
   cd /root
   svn checkout svn://svn.code.sf.net/p/scst/svn/branches/3.0.x scst
 
-  
+
 2. Build SCST
 
   ! Important: SCST 3.1.x and trunk: Gentoo Hardened kernels uses
