@@ -282,7 +282,7 @@ static int chap_decode_string(char *encoded, u8 *decode_buf, int buf_len, int en
 		if ((strlen(encoded) - 2) > (2 * buf_len)) {
 			log_error("%s(%d) BUG? "
 				  " buf[%d] !sufficient to decode string[%d]",
-				  __FUNCTION__, __LINE__, buf_len, (int) strlen(encoded));
+				  __func__, __LINE__, buf_len, (int) strlen(encoded));
 			return CHAP_TARGET_ERROR;
 		}
 		decode_hex_string(encoded + 2, decode_buf, buf_len);
@@ -291,7 +291,7 @@ static int chap_decode_string(char *encoded, u8 *decode_buf, int buf_len, int en
 		if ((strlen(encoded) - 2) > ((buf_len - 1) / 3 + 1) * 4) {
 			log_error("%s(%d) BUG? "
 				  " buf[%d] !sufficient to decode string[%d]",
-				  __FUNCTION__, __LINE__, buf_len, (int) strlen(encoded));
+				  __func__, __LINE__, buf_len, (int) strlen(encoded));
 			return CHAP_TARGET_ERROR;
 		}
 		decode_base64_string(encoded + 2, decode_buf, buf_len);
@@ -658,7 +658,7 @@ int cmnd_exec_auth_chap(struct connection *conn)
 		break;
 	default:
 		log_error("%s(%d): BUG. unknown conn->auth_state %d",
-			  __FUNCTION__, __LINE__, conn->auth_state);
+			  __func__, __LINE__, conn->auth_state);
 		res = CHAP_TARGET_ERROR;
 	}
 
