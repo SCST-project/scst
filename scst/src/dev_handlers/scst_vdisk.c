@@ -2965,7 +2965,7 @@ static bool vdisk_use_zero_copy(const struct scst_cmd *cmd)
 
 /*
  * Compute p->loff and p->fua.
- * Returns true for success or false otherwise and set error in the commeand.
+ * Returns true for success or false otherwise and set error in the command.
  */
 static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 {
