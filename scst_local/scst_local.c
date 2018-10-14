@@ -799,7 +799,7 @@ out_up:
 
 #endif /* CONFIG_SCST_PROC */
 
-static int scst_local_abort(struct scsi_cmnd *SCpnt)
+static int scst_local_abort(struct scsi_cmnd *scmd)
 {
 	struct scst_local_sess *sess;
 	int ret;
@@ -807,9 +807,9 @@ static int scst_local_abort(struct scsi_cmnd *SCpnt)
 
 	TRACE_ENTRY();
 
-	sess = to_scst_lcl_sess(scsi_get_device(SCpnt->device->host));
+	sess = to_scst_lcl_sess(scsi_get_device(scmd->device->host));
 
-	ret = scst_rx_mgmt_fn_tag(sess->scst_sess, SCST_ABORT_TASK, SCpnt->tag,
+	ret = scst_rx_mgmt_fn_tag(sess->scst_sess, SCST_ABORT_TASK, scmd->tag,
 				 false, &dev_reset_completion);
 
 	/* Now wait for the completion ... */
@@ -824,7 +824,7 @@ static int scst_local_abort(struct scsi_cmnd *SCpnt)
 	return ret;
 }
 
-static int scst_local_device_reset(struct scsi_cmnd *SCpnt)
+static int scst_local_device_reset(struct scsi_cmnd *scmd)
 {
 	struct scst_local_sess *sess;
 	struct scsi_lun lun;
@@ -833,9 +833,9 @@ static int scst_local_device_reset(struct scsi_cmnd *SCpnt)
 
 	TRACE_ENTRY();
 
-	sess = to_scst_lcl_sess(scsi_get_device(SCpnt->device->host));
+	sess = to_scst_lcl_sess(scsi_get_device(scmd->device->host));
 
-	int_to_scsilun(SCpnt->device->lun, &lun);
+	int_to_scsilun(scmd->device->lun, &lun);
 
 	ret = scst_rx_mgmt_fn_lun(sess->scst_sess, SCST_LUN_RESET,
 				  lun.scsi_lun, sizeof(lun), false,
@@ -854,7 +854,7 @@ static int scst_local_device_reset(struct scsi_cmnd *SCpnt)
 }
 
 #if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 25))
-static int scst_local_target_reset(struct scsi_cmnd *SCpnt)
+static int scst_local_target_reset(struct scsi_cmnd *scmd)
 {
 	struct scst_local_sess *sess;
 	struct scsi_lun lun;
@@ -863,9 +863,9 @@ static int scst_local_target_reset(struct scsi_cmnd *SCpnt)
 
 	TRACE_ENTRY();
 
-	sess = to_scst_lcl_sess(scsi_get_device(SCpnt->device->host));
+	sess = to_scst_lcl_sess(scsi_get_device(scmd->device->host));
 
-	int_to_scsilun(SCpnt->device->lun, &lun);
+	int_to_scsilun(scmd->device->lun, &lun);
 
 	ret = scst_rx_mgmt_fn_lun(sess->scst_sess, SCST_TARGET_RESET,
 				  lun.scsi_lun, sizeof(lun), false,
@@ -936,9 +936,9 @@ static int scst_local_send_resp(struct scsi_cmnd *cmnd,
  */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
 static int scst_local_queuecommand(struct Scsi_Host *host,
-	struct scsi_cmnd *SCpnt)
+				   struct scsi_cmnd *scmd)
 #else
-static int scst_local_queuecommand_lck(struct scsi_cmnd *SCpnt,
+static int scst_local_queuecommand_lck(struct scsi_cmnd *scmd,
 				       void (*done)(struct scsi_cmnd *))
 	__acquires(&h->host_lock)
 	__releases(&h->host_lock)
@@ -956,26 +956,26 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *SCpnt,
 
 	TRACE_ENTRY();
 
-	TRACE_DBG("lun %lld, cmd: 0x%02X", (u64)SCpnt->device->lun,
-		  SCpnt->cmnd[0]);
+	TRACE_DBG("lun %lld, cmd: 0x%02X", (u64)scmd->device->lun,
+		  scmd->cmnd[0]);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
 	/*
-	 * We save a pointer to the done routine in SCpnt->scsi_done and
+	 * We save a pointer to the done routine in scmd->scsi_done and
 	 * we save that as tgt specific stuff below.
 	 */
-	SCpnt->scsi_done = done;
+	scmd->scsi_done = done;
 #endif
 
-	sess = to_scst_lcl_sess(scsi_get_device(SCpnt->device->host));
+	sess = to_scst_lcl_sess(scsi_get_device(scmd->device->host));
 
 	if (sess->unregistering) {
-		SCpnt->result = DID_BAD_TARGET << 16;
-		SCpnt->scsi_done(SCpnt);
+		scmd->result = DID_BAD_TARGET << 16;
+		scmd->scsi_done(scmd);
 		return 0;
 	}
 
-	scsi_set_resid(SCpnt, 0);
+	scsi_set_resid(scmd, 0);
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
 	/*
@@ -988,7 +988,7 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *SCpnt,
 			sizeof(*tgt_specific));
 		return SCSI_MLQUEUE_HOST_BUSY;
 	}
-	tgt_specific->cmnd = SCpnt;
+	tgt_specific->cmnd = scmd;
 	tgt_specific->done = done;
 #endif
 
@@ -1000,22 +1000,22 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *SCpnt,
 	 * get into mem alloc deadlock when mounting file systems over
 	 * our devices.
 	 */
-	int_to_scsilun(SCpnt->device->lun, &lun);
+	int_to_scsilun(scmd->device->lun, &lun);
 	scst_cmd = scst_rx_cmd(sess->scst_sess, lun.scsi_lun, sizeof(lun),
-			       SCpnt->cmnd, SCpnt->cmd_len, true);
+			       scmd->cmnd, scmd->cmd_len, true);
 	if (!scst_cmd) {
 		PRINT_ERROR("%s", "scst_rx_cmd() failed");
 		return SCSI_MLQUEUE_HOST_BUSY;
 	}
 
-	scst_cmd_set_tag(scst_cmd, SCpnt->tag);
+	scst_cmd_set_tag(scst_cmd, scmd->tag);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
-	if (SCpnt->device->tagged_supported && SCpnt->device->simple_tags)
+	if (scmd->device->tagged_supported && scmd->device->simple_tags)
 		scst_cmd_set_queue_type(scst_cmd, SCST_CMD_QUEUE_SIMPLE);
 	else
 		scst_cmd_set_queue_type(scst_cmd, SCST_CMD_QUEUE_UNTAGGED);
 #else
-	switch (scsi_get_tag_type(SCpnt->device)) {
+	switch (scsi_get_tag_type(scmd->device)) {
 	case MSG_SIMPLE_TAG:
 		scst_cmd_set_queue_type(scst_cmd, SCST_CMD_QUEUE_SIMPLE);
 		break;
@@ -1038,9 +1038,9 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *SCpnt,
 	 * to one. We use scsi_sg_count to isolate us from the changes from
 	 * version to version
 	 */
-	if (scsi_sg_count(SCpnt)) {
-		sgl = scsi_sglist(SCpnt);
-		sgl_count = scsi_sg_count(SCpnt);
+	if (scsi_sg_count(scmd)) {
+		sgl = scsi_sglist(scmd);
+		sgl_count = scsi_sg_count(scmd);
 	} else {
 		/*
 		 * Build a one-element scatter list out of the buffer
@@ -1050,11 +1050,11 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *SCpnt,
 		 * We use the sglist and bufflen function/macros to isolate
 		 * us from kernel version differences.
 		 */
-		if (scsi_sglist(SCpnt)) {
-			sg_init_one(&(tgt_specific->sgl),
-				scsi_sglist(SCpnt),
-				scsi_bufflen(SCpnt));
-			sgl	  = &(tgt_specific->sgl);
+		if (scsi_sglist(scmd)) {
+			sg_init_one(&tgt_specific->sgl,
+				    scsi_sglist(scmd),
+				    scsi_bufflen(scmd));
+			sgl	  = &tgt_specific->sgl;
 			sgl_count = 1;
 		} else {
 			sgl = NULL;
@@ -1062,30 +1062,30 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *SCpnt,
 		}
 	}
 #else
-	sgl = scsi_sglist(SCpnt);
-	sgl_count = scsi_sg_count(SCpnt);
+	sgl = scsi_sglist(scmd);
+	sgl_count = scsi_sg_count(scmd);
 #endif
 
-	if (scsi_bidi_cmnd(SCpnt)) {
+	if (scsi_bidi_cmnd(scmd)) {
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 24)
 		/* Some of these symbols are only defined after 2.6.24 */
 		dir = SCST_DATA_BIDI;
-		scst_cmd_set_expected(scst_cmd, dir, scsi_bufflen(SCpnt));
+		scst_cmd_set_expected(scst_cmd, dir, scsi_bufflen(scmd));
 		scst_cmd_set_expected_out_transfer_len(scst_cmd,
-			scsi_in(SCpnt)->length);
+			scsi_in(scmd)->length);
 		scst_cmd_set_noio_mem_alloc(scst_cmd);
-		scst_cmd_set_tgt_sg(scst_cmd, scsi_in(SCpnt)->table.sgl,
-			scsi_in(SCpnt)->table.nents);
+		scst_cmd_set_tgt_sg(scst_cmd, scsi_in(scmd)->table.sgl,
+			scsi_in(scmd)->table.nents);
 		scst_cmd_set_tgt_out_sg(scst_cmd, sgl, sgl_count);
 #endif
-	} else if (SCpnt->sc_data_direction == DMA_TO_DEVICE) {
+	} else if (scmd->sc_data_direction == DMA_TO_DEVICE) {
 		dir = SCST_DATA_WRITE;
-		scst_cmd_set_expected(scst_cmd, dir, scsi_bufflen(SCpnt));
+		scst_cmd_set_expected(scst_cmd, dir, scsi_bufflen(scmd));
 		scst_cmd_set_noio_mem_alloc(scst_cmd);
 		scst_cmd_set_tgt_sg(scst_cmd, sgl, sgl_count);
-	} else if (SCpnt->sc_data_direction == DMA_FROM_DEVICE) {
+	} else if (scmd->sc_data_direction == DMA_FROM_DEVICE) {
 		dir = SCST_DATA_READ;
-		scst_cmd_set_expected(scst_cmd, dir, scsi_bufflen(SCpnt));
+		scst_cmd_set_expected(scst_cmd, dir, scsi_bufflen(scmd));
 		scst_cmd_set_noio_mem_alloc(scst_cmd);
 		scst_cmd_set_tgt_sg(scst_cmd, sgl, sgl_count);
 	} else {
@@ -1097,7 +1097,7 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *SCpnt,
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
 	scst_cmd_set_tgt_priv(scst_cmd, tgt_specific);
 #else
-	scst_cmd_set_tgt_priv(scst_cmd, SCpnt);
+	scst_cmd_set_tgt_priv(scst_cmd, scmd);
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
@@ -1108,7 +1108,7 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *SCpnt,
 	 * real effect.
 	 */
 #ifdef CONFIG_SMP
-	if (spin_is_locked(SCpnt->device->host->host_lock))
+	if (spin_is_locked(scmd->device->host->host_lock))
 		scst_cmd_init_done(scst_cmd, SCST_CONTEXT_THREAD);
 	else
 #endif
@@ -1452,7 +1452,7 @@ static int scst_local_targ_xmit_response(struct scst_cmd *scst_cmd)
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
 	struct scst_local_tgt_specific *tgt_specific;
 #endif
-	struct scsi_cmnd *SCpnt = NULL;
+	struct scsi_cmnd *scmd = NULL;
 	void (*done)(struct scsi_cmnd *);
 
 	TRACE_ENTRY();
@@ -1469,11 +1469,11 @@ static int scst_local_targ_xmit_response(struct scst_cmd *scst_cmd)
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
 	tgt_specific = scst_cmd_get_tgt_priv(scst_cmd);
-	SCpnt = tgt_specific->cmnd;
+	scmd = tgt_specific->cmnd;
 	done = tgt_specific->done;
 #else
-	SCpnt = scst_cmd_get_tgt_priv(scst_cmd);
-	done = SCpnt->scsi_done;
+	scmd = scst_cmd_get_tgt_priv(scst_cmd);
+	done = scmd->scsi_done;
 #endif
 
 	/*
@@ -1484,20 +1484,20 @@ static int scst_local_targ_xmit_response(struct scst_cmd *scst_cmd)
 
 		/* Calculate the residual ... */
 		if (likely(!scst_get_resid(scst_cmd, &resid, &out_resid))) {
-			TRACE_DBG("No residuals for request %p", SCpnt);
+			TRACE_DBG("No residuals for request %p", scmd);
 		} else {
 			if (out_resid != 0)
 				PRINT_ERROR("Unable to return OUT residual %d "
-					"(op %02x)", out_resid, SCpnt->cmnd[0]);
+					"(op %02x)", out_resid, scmd->cmnd[0]);
 		}
 
-		scsi_set_resid(SCpnt, resid);
+		scsi_set_resid(scmd, resid);
 
 		/*
 		 * It seems like there is no way to set out_resid ...
 		 */
 
-		(void)scst_local_send_resp(SCpnt, scst_cmd, done,
+		(void)scst_local_send_resp(scmd, scst_cmd, done,
 					   scst_cmd_get_status(scst_cmd));
 	}
 
