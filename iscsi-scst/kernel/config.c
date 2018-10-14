@@ -340,7 +340,7 @@ static int add_conn(void __user *ptr)
 	session = session_lookup(target, info.sid);
 	if (!session) {
 		PRINT_ERROR("Session %lld not found",
-			(unsigned long long int)info.tid);
+			(unsigned long long)info.tid);
 		err = -ENOENT;
 		goto out_unlock;
 	}
@@ -384,7 +384,7 @@ static int del_conn(void __user *ptr)
 	session = session_lookup(target, info.sid);
 	if (!session) {
 		PRINT_ERROR("Session %llx not found",
-			(unsigned long long int)info.sid);
+			(unsigned long long)info.sid);
 		err = -ENOENT;
 		goto out_unlock;
 	}

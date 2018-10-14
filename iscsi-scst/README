@@ -981,7 +981,7 @@ Background information about zero-copy data sending
 As explained above the most efficient operation of the iSCSI-SCST target
 driver is achieved when the following two conditions are met:
 * Data is sent from target to initiator in a zero-copy fashion.
-* Data buffers are cached for reuse (by the so-called sgv pool). 
+* Data buffers are cached for reuse (by the so-called sgv pool).
 Unfortunately the zero-copy API in the Linux kernel (proto.sendpage() /
 tcp_sendpage()) does not yet support completion notifications. Hence the
 put_page_callback patch which adds completion notification support to
@@ -999,7 +999,7 @@ Notes:
   pool to allocate a data buffer.
 * Zero-copy sending is only possible with network interface drivers that
   support scatter/gather and checksumming (NETIF_F_SG and NETIF_F_ALL_CSUM
-  respectively). 
+  respectively).
 
 References:
 [1] James Bottomley, Linux Kernel Mailing List, December 2008,
