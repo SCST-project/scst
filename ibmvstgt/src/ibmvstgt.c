@@ -342,7 +342,7 @@ static int ibmvstgt_rdma(struct scst_cmd *sc, struct scatterlist *sg, int nsg,
 }
 
 #if !defined(CONFIG_SCST_PROC)
-/**
+/*
  * ibmvstgt_enable_target() - Allows to enable a target via sysfs.
  */
 static int ibmvstgt_enable_target(struct scst_tgt *scst_tgt, bool enable)
@@ -365,7 +365,7 @@ static int ibmvstgt_enable_target(struct scst_tgt *scst_tgt, bool enable)
 	return 0;
 }
 
-/**
+/*
  * ibmvstgt_is_target_enabled() - Allows to query a targets status via sysfs.
  */
 static bool ibmvstgt_is_target_enabled(struct scst_tgt *scst_tgt)
@@ -391,7 +391,7 @@ static bool ibmvstgt_is_target_enabled(struct scst_tgt *scst_tgt)
 }
 #endif
 
-/**
+/*
  * ibmvstgt_release() - Free the resources associated with an SCST target.
  *
  * Callback function called by the SCST core from scst_unregister_target().
@@ -413,7 +413,7 @@ static int ibmvstgt_release(struct scst_tgt *scst_tgt)
 	return 0;
 }
 
-/**
+/*
  * ibmvstgt_xmit_response() - Transmits the response to a SCSI command.
  *
  * Callback function called by the SCST core. Must not block. Must ensure that
@@ -460,7 +460,7 @@ out:
 	return SCST_TGT_RES_SUCCESS;
 }
 
-/**
+/*
  * ibmvstgt_rdy_to_xfer() - Transfers data from initiator to target.
  *
  * Called by the SCST core to transfer data from the initiator to the target
@@ -489,7 +489,7 @@ static int ibmvstgt_rdy_to_xfer(struct scst_cmd *sc)
 	return SCST_TGT_RES_SUCCESS;
 }
 
-/**
+/*
  * ibmvstgt_on_free_cmd() - Free command-private data.
  *
  * Called by the SCST core. May be called in IRQ context.
@@ -911,8 +911,8 @@ static int crq_queue_create(struct crq_queue *queue, struct srp_target *target)
 		goto reg_crq_failed;
 	}
 
-	err = request_irq(vport->dma_dev->irq, &ibmvstgt_interrupt,
-			  IRQF_DISABLED, "ibmvstgt", target);
+	err = request_irq(vport->dma_dev->irq, &ibmvstgt_interrupt, 0,
+			  "ibmvstgt", target);
 	if (err)
 		goto req_irq_failed;
 
@@ -1018,7 +1018,7 @@ static inline struct viosrp_crq *next_crq(struct crq_queue *queue)
 	return crq;
 }
 
-/**
+/*
  * handle_crq() - Process the command/response queue.
  *
  * Note: Although this function is not thread-safe because of how it is
@@ -1079,7 +1079,7 @@ static int ibmvstgt_get_serial(const struct scst_tgt_dev *tgt_dev, char *buf,
 			GETBUS(lun), GETTARGET(lun), GETLUN(lun));
 }
 
-/**
+/*
  * ibmvstgt_get_transportid() - SCST TransportID callback function.
  *
  * See also SPC-3, section 7.5.4.5, TransportID for initiator ports using SRP.
@@ -1158,10 +1158,7 @@ static ssize_t unit_address_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%x\n", vport->dma_dev->unit_address);
 }
 
-static struct class_attribute ibmvstgt_class_attrs[] = {
-	__ATTR_NULL,
-};
-
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 0)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 static struct class_device_attribute ibmvstgt_attrs[] = {
 #else
@@ -1172,6 +1169,27 @@ static struct device_attribute ibmvstgt_attrs[] = {
 	__ATTR(unit_address, S_IRUGO, unit_address_show, NULL),
 	__ATTR_NULL,
 };
+#else
+static DEVICE_ATTR_RO(system_id);
+static DEVICE_ATTR_RO(partition_number);
+static DEVICE_ATTR_RO(unit_address);
+
+static struct attribute *ibmvstgt_attrs[] = {
+	&dev_attr_system_id.attr,
+	&dev_attr_partition_number.attr,
+	&dev_attr_unit_address.attr,
+	NULL,
+};
+
+static const struct attribute_group ibmvstgt_attr_group = {
+	.attrs = ibmvstgt_attrs,
+};
+
+static const struct attribute_group *ibmvstgt_groups[] = {
+	&ibmvstgt_attr_group,
+	NULL,
+};
+#endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 static void ibmvstgt_dev_release(struct class_device *dev)
@@ -1187,11 +1205,12 @@ static struct class ibmvstgt_class = {
 #else
 	.dev_release	= ibmvstgt_dev_release,
 #endif
-	.class_attrs	= ibmvstgt_class_attrs,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 	.class_dev_attrs= ibmvstgt_attrs,
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 0)
 	.dev_attrs	= ibmvstgt_attrs,
+#else
+	.dev_groups	= ibmvstgt_groups,
 #endif
 };
 
@@ -1200,10 +1219,11 @@ static struct scst_tgt_template ibmvstgt_template = {
 	.preferred_addr_method	= SCST_LUN_ADDR_METHOD_LUN,
 #ifdef RHEL_MAJOR
 	.sg_tablesize		= 1024,
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
 	.sg_tablesize		= SCSI_MAX_SG_SEGMENTS,
+#else
+	.sg_tablesize		= SG_CHUNK_SIZE,
 #endif
-	.fake_aca		= true,
 	.get_serial		= ibmvstgt_get_serial,
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)

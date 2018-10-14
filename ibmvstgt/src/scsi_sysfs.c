@@ -728,9 +728,11 @@ sdev_store_queue_ramp_up_period(struct device *dev,
 {
 	struct scsi_device *sdev = to_scsi_device(dev);
 	unsigned long period;
+	int res;
 
-	if (strict_strtoul(buf, 10, &period))
-		return -EINVAL;
+	res = kstrtoul(buf, 10, &period);
+	if (res < 0)
+		return res;
 
 	sdev->queue_ramp_up_period = msecs_to_jiffies(period);
 	return period;
