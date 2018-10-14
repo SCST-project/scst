@@ -75,7 +75,7 @@ endif
 enable-Wextra = $(shell uname_r="$$(uname -r)"; if [ "$${uname_r%.el5}" = "$${uname_r}" ]; then echo "$(1)"; fi)
 
 EXTRA_CFLAGS += -I$(SUBDIRS) -I$(SCST_INC_DIR) $(call enable-Wextra,-Wextra \
-	-Wno-unused-parameter -Wno-missing-field-initializers)
+	-Wno-unused-parameter -Wno-missing-field-initializers -Wno-sign-compare)
 
 EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
 
