@@ -196,14 +196,14 @@ static ssize_t iscsi_get_target_ip(struct iscsi_conn *conn,
 	switch (sk->sk_family) {
 	case AF_INET:
 		pos = scnprintf(buf, size,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,33)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
 			 "%u.%u.%u.%u", NIPQUAD(inet_sk(sk)->saddr));
 #else
 			"%pI4", &inet_sk(sk)->inet_saddr);
 #endif
 		break;
 	case AF_INET6:
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,29)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
 		pos = scnprintf(buf, size,
 			 "[%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x]",
 			 NIP6(inet6_sk(sk)->saddr));
