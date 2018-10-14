@@ -1,7 +1,7 @@
 config SCST_LOCAL
 	tristate "SCST Local driver"
 	depends on SCST && !HIGHMEM4G && !HIGHMEM64G
-	---help---
+	help
 	  This module provides a LLD SCSI driver that connects to
 	  the SCST target mode subsystem in a loop-back manner.
 	  It allows you to test target-mode device-handlers locally.
