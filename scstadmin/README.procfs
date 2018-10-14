@@ -29,7 +29,7 @@ The following pertains to the older procfs based SCST.
 The scstadmin script is much more functional than scst_db at this point but uses a
 standard text-based config file. The original thought behind scst_db was to write
 a daemon process which would except network connections and issue SCST commands. A
-client app would then connect to that port. 
+client app would then connect to that port.
 
 Copy scst.conf to /etc and edit it to your liking. if you have an existing configuration
 then have scstadmin write it out to a config file for you:

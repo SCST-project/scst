@@ -11,7 +11,7 @@
  */
 
 #include <linux/module.h>
-
+#include <linux/version.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>
 #include <linux/types.h>
@@ -24,7 +24,15 @@
 #include <linux/slab.h>
 #include <linux/completion.h>
 #include <linux/spinlock.h>
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+#include <linux/blk-mq.h>
+#else
+#include <linux/blkdev.h>
+static inline u32 blk_mq_unique_tag(struct request *rq)
+{
+	return rq->tag;
+}
+#endif
 #include <scsi/scsi.h>
 #include <scsi/scsi_cmnd.h>
 #include <scsi/scsi_host.h>

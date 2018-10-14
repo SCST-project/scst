@@ -3503,13 +3503,9 @@ static ssize_t scst_dev_sysfs_max_tgt_dev_commands_store(struct kobject *kobj,
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtol(buf, 0, &newtn);
-#else
-	res = strict_strtol(buf, 0, &newtn);
-#endif
 	if (res != 0) {
-		PRINT_ERROR("strtol() for %s failed: %d ", buf, res);
+		PRINT_ERROR("kstrtol() for %s failed: %d ", buf, res);
 		goto out;
 	}
 	if (newtn < 0) {
@@ -3566,13 +3562,9 @@ static ssize_t scst_dev_numa_node_id_store(struct kobject *kobj,
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtol(buf, 0, &newtn);
-#else
-	res = strict_strtol(buf, 0, &newtn);
-#endif
 	if (res != 0) {
-		PRINT_ERROR("strtol() for %s failed: %d ", buf, res);
+		PRINT_ERROR("kstrtol() for %s failed: %d ", buf, res);
 		goto out;
 	}
 	BUILD_BUG_ON(NUMA_NO_NODE != -1);
@@ -4343,11 +4335,7 @@ static ssize_t scst_sess_latency_show(struct kobject *kobj,
 		return -EINVAL;
 	}
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtol(attr->attr.name + 1, 0, &sz);
-#else
-	res = strict_strtol(attr->attr.name + 1, 0, &sz);
-#endif
 	if (WARN_ON(res < 0))
 		goto out;
 	i = ilog2(sz) - SCST_STATS_LOG2_SZ_OFFSET;
@@ -6931,11 +6919,7 @@ static ssize_t scst_measure_latency_store(struct kobject *kobj,
 	long val;
 	int res;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtol(buf, 0, &val);
-#else
-	res = strict_strtol(buf, 0, &val);
-#endif
 	if (res < 0)
 		goto out;
 
@@ -7322,11 +7306,7 @@ static ssize_t scst_force_global_sgv_pool_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtoul(buf, 0, &v);
-#else
-	res = strict_strtoul(buf, 0, &v);
-#endif
 	if (res)
 		goto out;
 

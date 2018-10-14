@@ -1,3 +1,3 @@
 #!/bin/bash
 
-../linux-kernel/scripts/checkpatch.pl -f --show-types --ignore SPDX_LICENSE_TAG,LINUX_VERSION_CODE $(list-source-files | grep -vE 'fcst/linux-patches|patch$|pdf$|png$|ibmvstgt/') | sed 's/^#[0-9]*: FILE: \(.*\):/\1:1:/'
+../linux-kernel/scripts/checkpatch.pl -f --show-types --ignore SPDX_LICENSE_TAG,LINUX_VERSION_CODE,SYMBOLIC_PERMS,CONSTANT_COMPARISON,RETURN_VOID $(list-source-files | grep -vE 'fcst/linux-patches|patch$|pdf$|png$|^ibmvstgt/|^mpt/|^qla_isp/|^mvsas_tgt/') | sed 's/^#[0-9]*: FILE: \(.*\):/\1:1:/'
