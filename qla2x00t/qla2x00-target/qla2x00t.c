@@ -2631,8 +2631,8 @@ static void q2t_load_cont_data_segments(struct q2t_prm *prm)
 			*dword_ptr++ = cpu_to_le32(sg_dma_len(prm->sg));
 
 			TRACE_SG("S/G Segment Cont. phys_addr=%llx:%llx, len=%d",
-			      (unsigned long long int)pci_dma_hi32(dma_addr),
-			      (unsigned long long int)pci_dma_lo32(dma_addr),
+			      (unsigned long long)pci_dma_hi32(dma_addr),
+			      (unsigned long long)pci_dma_lo32(dma_addr),
 			      (int)sg_dma_len(prm->sg));
 
 			/* prm->sg might be last here */
@@ -2693,8 +2693,8 @@ static void q2x_load_data_segments(struct q2t_prm *prm)
 		*dword_ptr++ = cpu_to_le32(sg_dma_len(prm->sg));
 
 		TRACE_SG("S/G Segment phys_addr=%llx:%llx, len=%d",
-		      (unsigned long long int)pci_dma_hi32(dma_addr),
-		      (unsigned long long int)pci_dma_lo32(dma_addr),
+		      (unsigned long long)pci_dma_hi32(dma_addr),
+		      (unsigned long long)pci_dma_lo32(dma_addr),
 		      (int)sg_dma_len(prm->sg));
 
 		/* prm->sg might be last here */
@@ -2755,8 +2755,8 @@ static void q24_load_data_segments(struct q2t_prm *prm)
 		*dword_ptr++ = cpu_to_le32(sg_dma_len(prm->sg));
 
 		TRACE_SG("S/G Segment phys_addr=%llx:%llx, len=%d",
-		      (unsigned long long int)pci_dma_hi32(dma_addr),
-		      (unsigned long long int)pci_dma_lo32(dma_addr),
+		      (unsigned long long)pci_dma_hi32(dma_addr),
+		      (unsigned long long)pci_dma_lo32(dma_addr),
 		      (int)sg_dma_len(prm->sg));
 
 		/* prm->sg might be last here */
