@@ -685,13 +685,9 @@ static ssize_t iscsi_acg_sess_dedicated_threads_store(struct kobject *kobj,
 
 	acg = container_of(kobj, struct scst_acg, acg_kobj);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
 	res = kstrtoul(buf, 0, &val);
-#else
-	res = strict_strtoul(buf, 0, &val);
-#endif
 	if (res != 0) {
-		PRINT_ERROR("strict_strtoul() for %s failed: %d ", buf, res);
+		PRINT_ERROR("kstrtoul() for %s failed: %d ", buf, res);
 		goto out;
 	}
 
