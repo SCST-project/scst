@@ -1127,7 +1127,7 @@ void iscsi_extracheck_is_rd_thread(struct iscsi_conn *conn)
 		pr_emerg("rd_state %x\n", conn->rd_state);
 		pr_emerg("rd_task %p\n", conn->rd_task);
 		if (conn->rd_task)
-		    pr_emerg("rd_task->pid %d\n", conn->rd_task->pid);
+			pr_emerg("rd_task->pid %d\n", conn->rd_task->pid);
 		BUG();
 	}
 }
