@@ -234,6 +234,7 @@ static const struct file_operations dev_user_fops = {
 };
 
 static struct scst_dev_type dev_user_devtype = {
+	.no_mgmt =	1,
 	.name =		DEV_USER_NAME,
 	.type =		-1,
 	.parse =	dev_usr_parse,
