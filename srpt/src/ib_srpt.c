@@ -2948,7 +2948,7 @@ static void srpt_check_timeout(struct srpt_rdma_ch *ch)
 /**
  * srpt_cm_rtu_recv() - Process RTU event.
  *
- * An RTU (read to use) message indicates that the connection has been
+ * An RTU (ready to use) message indicates that the connection has been
  * established and that the recipient may begin transmitting.
  */
 static void srpt_cm_rtu_recv(struct srpt_rdma_ch *ch)
