@@ -7979,7 +7979,12 @@ static struct request *blk_make_request(struct request_queue *q,
 			blk_put_request(rq);
 			return ERR_PTR(ret);
 		}
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0)
+		/*
+		 * See also commit commit 0abc2a10389f ("block: fix
+		 * blk_rq_append_bio"). That commit has been backported to
+		 * kernel v4.14.11 as 88da02868f77.
+		 */
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 11)
 		ret = blk_rq_append_bio(rq, bio);
 		if (unlikely(ret)) {
 			blk_put_request(rq);
