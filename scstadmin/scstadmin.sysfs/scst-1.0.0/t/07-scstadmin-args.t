@@ -12,7 +12,7 @@ my $redirect_file;
 my $redirect;
 
 BEGIN {
-    $redirect_file = "/tmp/07-output.txt";
+    $redirect_file = "/tmp/scstadmin-test-07-output.txt";
     unlink($redirect_file);
     $testdir = dirname(abs_path($0));
     my $scstadmin_pm_dir = dirname($testdir);
