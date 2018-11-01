@@ -411,7 +411,7 @@ struct iscsi_cmnd {
 	/*
 	 * This flag might be cleared from SCST thread after/during RX digest
 	 * calculation in parallel with clearing release_called from the
-	 * read thread, so it must be modifiable inependently.
+	 * read thread, so it must be modifiable independently.
 	 */
 	unsigned long on_rx_digest_list:1 __aligned(sizeof(long));
 #endif
