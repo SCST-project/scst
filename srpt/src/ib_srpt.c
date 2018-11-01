@@ -686,17 +686,9 @@ static int srpt_refresh_port(struct srpt_port *sport)
 	int ret;
 	char tgt_name[40];
 
-	memset(&port_modify, 0, sizeof(port_modify));
-	port_modify.set_port_cap_mask = IB_PORT_DEVICE_MGMT_SUP;
-	port_modify.clr_port_cap_mask = 0;
-
-	ret = ib_modify_port(sport->sdev->device, sport->port, 0, &port_modify);
-	if (ret)
-		goto err_mod_port;
-
 	ret = ib_query_port(sport->sdev->device, sport->port, &port_attr);
 	if (ret)
-		goto err_query_port;
+		return ret;
 
 	sport->sm_lid = port_attr.sm_lid;
 	sport->lid = port_attr.lid;
@@ -707,7 +699,18 @@ static int srpt_refresh_port(struct srpt_port *sport)
 #endif
 			   );
 	if (ret)
-		goto err_query_port;
+		return ret;
+
+	memset(&port_modify, 0, sizeof(port_modify));
+	port_modify.set_port_cap_mask = IB_PORT_DEVICE_MGMT_SUP;
+	port_modify.clr_port_cap_mask = 0;
+
+	ret = ib_modify_port(sport->sdev->device, sport->port, 0, &port_modify);
+	if (ret) {
+		pr_warn("%s-%d: enabling device management failed (%d). Note: this is expected for SR-IOV virtual functions.\n",
+			sport->sdev->device->name, sport->port, ret);
+		goto register_tgt;
+	}
 
 	if (!sport->mad_agent) {
 		memset(&reg_req, 0, sizeof(reg_req));
@@ -728,12 +731,14 @@ static int srpt_refresh_port(struct srpt_port *sport)
 #endif
 							 );
 		if (IS_ERR(sport->mad_agent)) {
-			ret = PTR_ERR(sport->mad_agent);
+			pr_err("%s-%d: MAD agent registration failed (%ld). Note: this is expected for SR-IOV virtual functions.\n",
+			       sport->sdev->device->name, sport->port,
+			       PTR_ERR(sport->mad_agent));
 			sport->mad_agent = NULL;
-			goto err_query_port;
 		}
 	}
 
+register_tgt:
 	if (!sport->scst_tgt) {
 		snprintf(tgt_name, sizeof(tgt_name), "%pI6", &sport->gid);
 		sport->scst_tgt = scst_register_target(&srpt_template,
@@ -745,14 +750,6 @@ static int srpt_refresh_port(struct srpt_port *sport)
 	}
 
 	return 0;
-
-err_query_port:
-	port_modify.set_port_cap_mask = 0;
-	port_modify.clr_port_cap_mask = IB_PORT_DEVICE_MGMT_SUP;
-	ib_modify_port(sport->sdev->device, sport->port, 0, &port_modify);
-
-err_mod_port:
-	return ret;
 }
 
 /*
