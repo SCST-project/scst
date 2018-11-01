@@ -2079,7 +2079,6 @@ qla24xx_bsg_request(struct bsg_job *bsg_job)
 #endif
 	int ret = -EINVAL;
 	struct fc_rport *rport;
-	fc_port_t *fcport = NULL;
 	struct Scsi_Host *host;
 	scsi_qla_host_t *vha;
 
@@ -2095,7 +2094,6 @@ qla24xx_bsg_request(struct bsg_job *bsg_job)
 	if (bsg_request->msgcode == FC_BSG_RPT_ELS) {
 		rport = fc_bsg_to_rport(bsg_job);
 #endif
-		fcport = *(fc_port_t **) rport->dd_data;
 		host = rport_to_shost(rport);
 		vha = shost_priv(host);
 	} else {
