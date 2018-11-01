@@ -2505,10 +2505,10 @@ static u16 srpt_next_comp_vector(struct srpt_port *sport)
 }
 
 /**
- * srpt_cm_req_recv() - Process the event IB_CM_REQ_RECEIVED.
+ * srpt_cm_req_recv() - Process the IB_CM_REQ_RECEIVED event.
  *
- * Ownership of the cm_id is transferred to the SCST session if this function
- * returns zero. Otherwise the caller remains the owner of cm_id.
+ * Ownership of the cm_id is transferred to the target session if this
+ * function returns zero. Otherwise the caller remains the owner of cm_id.
  */
 static int srpt_cm_req_recv(struct srpt_device *const sdev,
 			    struct ib_cm_id *ib_cm_id,
