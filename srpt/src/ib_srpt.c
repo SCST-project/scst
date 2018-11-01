@@ -2668,7 +2668,7 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		ret = PTR_ERR(thread);
 		pr_err("failed to create kernel thread: %d\n", ret);
-		goto unreg_ch;
+		goto release_channel;
 	}
 
 	mutex_lock(&sport->mutex);
@@ -2774,7 +2774,7 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 
 	goto out;
 
-unreg_ch:
+release_channel:
 	scst_unregister_session(ch->sess, true, NULL);
 
 destroy_ib:
