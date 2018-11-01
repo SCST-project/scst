@@ -3546,56 +3546,42 @@ sub listGroups {
 sub listExported {
 	my $device = shift;
 	my $attributes = shift;
-	my $errorString;
+	my $exported = $$attributes{'exported'}->{'value'};
+	my $l_driver = length('Driver');
+	my $l_target = length('Target');
+	my $l_group  = length('Group');
 
-	if (!$attributes) {
-		($attributes, $errorString) = $SCST->deviceAttributes($device) ;
-		return TRUE if issueWarning($errorString);
-	}
+	foreach my $driver (keys %{$exported}) {
+		$l_driver = length($driver)
+		    if (length($driver) > $l_driver);
 
-	if (keys %{$$attributes{'exported'}}) {
-		my $exported = $$attributes{'exported'}->{'value'};
+		foreach my $target (keys %{$$exported{$driver}}) {
+			$l_target = length($target)
+			    if (length($target) > $l_target);
 
-		my $l_driver = length('Driver');
-		my $l_target = length('Target');
-		my $l_group  = length('Group');
-
-		foreach my $driver (keys %{$exported}) {
-			$l_driver = length($driver)
-			  if (length($driver) > $l_driver);
-
-			foreach my $target (keys %{$$exported{$driver}}) {
-				$l_target = length($target)
-				  if (length($target) > $l_target);
-
-				foreach my $group (keys %{$$exported{$driver}->{$target}}) {
-					$l_group = length($group)
-					  if (length($group) > $l_group);
-				}
+			foreach my $group (keys %{$$exported{$driver}->{$target}}) {
+				$l_group = length($group)
+				    if (length($group) > $l_group);
 			}
 		}
-
-		print "Device '$device' is currently in use by the following:\n\n";
-		printf("\t%-*s %-*s %-*s %-4s\n", $l_driver, 'Driver', $l_target, 'Target',
-		  $l_group, 'Group', 'Lun');
-		print "\t";
-		print join("", "-" x ($l_driver + $l_target + $l_group + 6));
-		print "\n";
-
-		foreach my $driver (sort keys %{$exported}) {
-			foreach my $target (sort keys %{$$exported{$driver}}) {
-				foreach my $group (sort keys %{$$exported{$driver}->{$target}}) {
-					my $lun = $$exported{$driver}->{$target}->{$group};
-					printf("\t%-*s %-*s %-*s %-4s\n", $l_driver, $driver,
-					  $l_target, $target, $l_group, $group, $lun);
-				}
-			}
-		}
-	} else {
-		print "Device '$device' is not currently in use by any group.\n";
 	}
 
-	return FALSE;
+	print "Device '$device' is currently in use by the following:\n\n";
+	printf("\t%-*s %-*s %-*s %-4s\n", $l_driver, 'Driver', $l_target, 'Target',
+	       $l_group, 'Group', 'Lun');
+	print "\t";
+	print join("", "-" x ($l_driver + $l_target + $l_group + 6));
+	print "\n";
+
+	foreach my $driver (sort keys %{$exported}) {
+		foreach my $target (sort keys %{$$exported{$driver}}) {
+			foreach my $group (sort keys %{$$exported{$driver}->{$target}}) {
+				my $lun = $$exported{$driver}->{$target}->{$group};
+				printf("\t%-*s %-*s %-*s %-4s\n", $l_driver, $driver,
+				       $l_target, $target, $l_group, $group, $lun);
+			}
+		}
+	}
 }
 
 sub listAttributes {
