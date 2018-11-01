@@ -5,6 +5,12 @@
  * See LICENSE.qla2xxx for copyright and licensing details.
  */
 
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/backport.h> /* timer_setup() */
+#else
+#include <backport.h>
+#endif
+
 /*
  * qla2x00_debounce_register
  *      Debounce register.
