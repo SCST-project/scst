@@ -4751,8 +4751,7 @@ sub closeDevice {
 	my ($attributes, $errorString) = $SCST->deviceAttributes($device);
 
 	if (!$force) {
-		if (keys %{$$attributes{'exported'}} &&
-		    $$attributes{'exported'}->{'value'}) {
+		if (keys %{$$attributes{'exported'}}) {
 			listExported($device, $attributes);
 			immediateExit("Device '$device' still in use, aborting. ".
 			  "Use -force to override.");
