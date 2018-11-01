@@ -3556,9 +3556,9 @@ sub listExported {
 	if (keys %{$$attributes{'exported'}}) {
 		my $exported = $$attributes{'exported'}->{'value'};
 
-		my $l_driver;
-		my $l_target;
-		my $l_group;
+		my $l_driver = length('Driver');
+		my $l_target = length('Target');
+		my $l_group  = length('Group');
 
 		foreach my $driver (keys %{$exported}) {
 			$l_driver = length($driver)
@@ -3579,9 +3579,7 @@ sub listExported {
 		printf("\t%-*s %-*s %-*s %-4s\n", $l_driver, 'Driver', $l_target, 'Target',
 		  $l_group, 'Group', 'Lun');
 		print "\t";
-		for (my $x = 0; $x < ($l_driver + $l_target + $l_group + 5); $x++) {
-			print "-";
-		}
+		print join("", "-" x ($l_driver + $l_target + $l_group + 6));
 		print "\n";
 
 		foreach my $driver (sort keys %{$exported}) {
