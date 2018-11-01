@@ -245,7 +245,6 @@ struct srpt_tsk_mgmt {
  * @rbufs:       Pointer to SRP data buffer array.
  * @single_rbuf: SRP data buffer if the command has only a single buffer.
  * @sg:          Pointer to sg-list associated with this I/O context.
- * @spinlock:    Protects 'state'.
  * @state:       I/O context state.
  * @rdma_aborted: If initiating a multipart RDMA transfer failed, whether
  *               the already initiated transfers have finished.
@@ -273,7 +272,6 @@ struct srpt_send_ioctx {
 	struct srp_direct_buf	single_rbuf;
 	struct scatterlist	*sg;
 	struct list_head	free_list;
-	spinlock_t		spinlock;
 	enum srpt_command_state	state;
 	bool			rdma_aborted;
 	int			sg_cnt;

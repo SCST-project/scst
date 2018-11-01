@@ -1318,7 +1318,6 @@ static struct srpt_send_ioctx *srpt_get_send_ioctx(struct srpt_rdma_ch *ch)
 		return ioctx;
 
 	BUG_ON(ioctx->ch != ch);
-	spin_lock_init(&ioctx->spinlock);
 	ioctx->state = SRPT_STATE_NEW;
 	EXTRACHECKS_WARN_ON(ioctx->recv_ioctx);
 	ioctx->n_rbuf = 0;
