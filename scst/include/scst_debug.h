@@ -339,28 +339,30 @@ do {									\
 
 #define TRACE_EXIT_RES(res)						\
 do {									\
+	unsigned long lres = res;					\
+									\
 	if (trace_flag & TRACE_ENTRYEXIT) {				\
 		if (trace_flag & TRACE_PID) {				\
 			PRINT(KERN_INFO, "[%d]: EXIT %s: %ld", current->pid, \
-			      __func__, (long)(res));			\
-		}							\
-		else {							\
+			      __func__, lres);				\
+		} else {						\
 			PRINT(KERN_INFO, "EXIT %s: %ld",		\
-				__func__, (long)(res));			\
+				__func__, lres);			\
 		}							\
 	}                                                               \
 } while (0)
 
 #define TRACE_EXIT_HRES(res)						\
 do {									\
+	unsigned long lres = (unsigned long)res;			\
+									\
 	if (trace_flag & TRACE_ENTRYEXIT) {				\
 		if (trace_flag & TRACE_PID) {				\
 			PRINT(KERN_INFO, "[%d]: EXIT %s: 0x%lx", current->pid, \
-			      __func__, (long)(res));			\
-		}							\
-		else {							\
+			      __func__, lres);				\
+		} else {						\
 			PRINT(KERN_INFO, "EXIT %s: %lx",		\
-					__func__, (long)(res));		\
+					__func__, lres);		\
 		}							\
 	}                                                               \
 } while (0)
