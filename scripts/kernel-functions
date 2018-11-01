@@ -64,10 +64,22 @@ function download_kernel {
 }
 
 function extract_kernel_archive {
+  local kver="$(kernel_version $1)"
+  local plevel="$(patchlevel $1)"
+  local series="$1"
+
   if [ -e "${kernel_sources}/linux-$1.tar.xz" ]; then
     xz -cd "${kernel_sources}/linux-$1.tar.xz" | tar xf -
-  else
+  elif [ -e "${kernel_sources}/linux-$kver.tar.xz" ]; then
+    xz -cd "${kernel_sources}/linux-$kver.tar.xz" | tar xf - &&
+      mv linux-$kver linux-$1
+  elif [ -e "${kernel_sources}/linux-$1.tar.bz2" ]; then
     tar xjf "${kernel_sources}/linux-$1.tar.bz2"
+  elif [ -e "${kernel_sources}/linux-$kver.tar.bz2" ]; then
+    tar xjf "${kernel_sources}/linux-$kver.tar.bz2" &&
+      mv linux-$kver linux-$1
+  else
+    return 1
   fi
 }
 
@@ -213,6 +225,13 @@ index 3f2793d..96e45ea 100644
 EOF
       fi
     fi
+    # After patch-v4.14.1[12] has been applied, the execute bit has to be
+    # set for sync-check.sh since patch can't do that.
+    for f in "tools/objtool/sync-check.sh"; do
+      if [ -e "$f" ]; then
+	chmod a+x "$f"
+      fi
+    done
   )
   rmdir "${tmpdir}"
 }
