@@ -469,7 +469,6 @@ struct srpt_device {
 	struct ib_event_handler	event_handler;
 };
 
-#if 0
 /**
  * struct srp_login_req_rdma - RDMA/CM login parameters.
  *
@@ -490,4 +489,3 @@ struct srp_login_req_rdma {
 };
 
 #endif				/* IB_SRPT_H */
-#endif
