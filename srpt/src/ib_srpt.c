@@ -2983,38 +2983,6 @@ static void srpt_cm_rtu_recv(struct srpt_rdma_ch *ch)
 		       ch->sess_name, ch->qp->qp_num);
 }
 
-static void srpt_cm_timewait_exit(struct srpt_rdma_ch *ch)
-{
-	pr_info("Received CM TimeWait exit for ch %s-%d.\n", ch->sess_name,
-		ch->qp->qp_num);
-	srpt_close_ch(ch);
-}
-
-static void srpt_cm_rep_error(struct srpt_rdma_ch *ch)
-{
-	pr_info("Received CM REP error for ch %s-%d.\n", ch->sess_name,
-		ch->qp->qp_num);
-}
-
-/**
- * srpt_cm_dreq_recv() - Process reception of a DREQ message.
- */
-static int srpt_cm_dreq_recv(struct srpt_rdma_ch *ch)
-{
-	srpt_disconnect_ch(ch);
-	return 0;
-}
-
-/**
- * srpt_cm_drep_recv() - Process reception of a DREP message.
- */
-static void srpt_cm_drep_recv(struct srpt_rdma_ch *ch)
-{
-	pr_info("Received CM DREP message for ch %s-%d.\n", ch->sess_name,
-		ch->qp->qp_num);
-	srpt_close_ch(ch);
-}
-
 /**
  * srpt_cm_handler() - IB connection manager callback function.
  *
@@ -3048,16 +3016,17 @@ static int srpt_cm_handler(struct ib_cm_id *cm_id, struct ib_cm_event *event)
 		srpt_cm_rtu_recv(ch);
 		break;
 	case IB_CM_DREQ_RECEIVED:
-		ret = srpt_cm_dreq_recv(ch);
+		srpt_disconnect_ch(ch);
 		break;
 	case IB_CM_DREP_RECEIVED:
-		srpt_cm_drep_recv(ch);
+		srpt_close_ch(ch);
 		break;
 	case IB_CM_TIMEWAIT_EXIT:
-		srpt_cm_timewait_exit(ch);
+		srpt_close_ch(ch);
 		break;
 	case IB_CM_REP_ERROR:
-		srpt_cm_rep_error(ch);
+		pr_info("Received CM REP error for ch %s-%d.\n", ch->sess_name,
+			ch->qp->qp_num);
 		break;
 	case IB_CM_DREQ_ERROR:
 		pr_info("Received CM DREQ ERROR event.\n");
@@ -3093,15 +3062,16 @@ static int srpt_rdma_cm_handler(struct rdma_cm_id *cm_id,
 		break;
 	case RDMA_CM_EVENT_DISCONNECTED:
 		if (ch->state < CH_DISCONNECTING)
-			srpt_cm_dreq_recv(ch);
+			srpt_disconnect_ch(ch);
 		else
-			srpt_cm_drep_recv(ch);
+			srpt_close_ch(ch);
 		break;
 	case RDMA_CM_EVENT_TIMEWAIT_EXIT:
-		srpt_cm_timewait_exit(ch);
+		srpt_close_ch(ch);
 		break;
 	case RDMA_CM_EVENT_UNREACHABLE:
-		srpt_cm_rep_error(ch);
+		pr_info("Received CM REP error for ch %s-%d.\n", ch->sess_name,
+			ch->qp->qp_num);
 		break;
 	case RDMA_CM_EVENT_DEVICE_REMOVAL:
 	case RDMA_CM_EVENT_ADDR_CHANGE:
