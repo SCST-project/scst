@@ -323,9 +323,10 @@ struct scsi_transport_template *qla2xxx_transport_vport_template = NULL;
  */
 
 __inline__ void
-qla2x00_start_timer(scsi_qla_host_t *vha, void *func, unsigned long interval)
+qla2x00_start_timer(scsi_qla_host_t *vha, void (*func)(struct timer_list *),
+		    unsigned long interval)
 {
-	init_timer(&vha->timer, func, (unsigned long)vha);
+	timer_setup(&vha->timer, func, 0);
 	vha->timer.expires = jiffies + interval * HZ;
 	add_timer(&vha->timer);
 	vha->timer_active = 1;
@@ -4267,8 +4268,9 @@ qla2x00_rst_aen(scsi_qla_host_t *vha)
 * Context: Interrupt
 ***************************************************************************/
 void
-qla2x00_timer(scsi_qla_host_t *vha)
+qla2x00_timer(struct timer_list *timer)
 {
+	scsi_qla_host_t *vha = container_of(timer, typeof(*vha), timer);
 	unsigned long	cpu_flags = 0;
 	int		start_dpc = 0;
 	int		index;
