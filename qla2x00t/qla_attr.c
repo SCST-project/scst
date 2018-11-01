@@ -92,7 +92,7 @@ qla2x00_store_class2_enabled(struct device *dev,
 		set_bit(ISP_ABORT_NEEDED, &vha->dpc_flags);
 
 out:
-	return size;
+	return res;
 
 out_unlock:
 	spin_unlock_irqrestore(&ha->hardware_lock, flags);
