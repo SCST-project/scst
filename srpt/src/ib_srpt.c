@@ -167,8 +167,6 @@ module_param(use_node_guid_in_target_name, bool, 0444);
 MODULE_PARM_DESC(use_node_guid_in_target_name,
 		 "Use HCA node GUID as SCST target name.");
 
-static struct rdma_cm_id *rdma_cm_id;
-
 static int srpt_get_u64_x(char *buffer, struct kernel_param *kp)
 {
 	return sprintf(buffer, "0x%016llx", *(u64 *)kp->arg);
@@ -194,6 +192,8 @@ static const enum scst_exec_context srpt_send_context = SCST_CONTEXT_DIRECT;
 
 static struct ib_client srpt_client;
 static struct scst_tgt_template srpt_template;
+static struct rdma_cm_id *rdma_cm_id;
+
 static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 				    struct srpt_send_ioctx *ioctx);
 static void srpt_destroy_ch_ib(struct srpt_rdma_ch *ch);
