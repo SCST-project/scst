@@ -21,7 +21,7 @@ BEGIN {
     unless(grep /blib/, @INC) {
 	unshift(@INC, File::Spec->catdir($scstadmin_pm_dir, "lib"));
     }
-    plan tests => 5;
+    plan tests => 9;
 }
 
 use Data::Dumper;
@@ -91,13 +91,20 @@ sub closeDevTest {
     $rc = system("$scstadmin -dumpAttrs $redirect");
     ok($rc, 0);
     $rc = closeDevs("nodev");
+    ok($rc, 256);
+    $rc = system("$scstadmin -noprompt -driver scst_local -target local " .
+		 "-rem_lun 0 -device nodev $redirect");
+    ok($rc, 0);
+    $rc = closeDevs("nodev");
     ok($rc, 0);
     $rc = closeDevs("disk0", "disk1");
     ok($rc, 256);
-    system("$scstadmin -noprompt -driver scst_local -target local -group ig " .
-	   "-rem_lun 0 -device disk0 $redirect");
-    system("$scstadmin -noprompt -driver scst_local -target local -group ig " .
-	   "-rem_lun 1 -device disk1 $redirect");
+    $rc = system("$scstadmin -noprompt -driver scst_local -target local " .
+		 "-group ig -rem_lun 0 -device disk0 $redirect");
+    ok($rc, 0);
+    $rc = system("$scstadmin -noprompt -driver scst_local -target local " .
+		 "-group ig -rem_lun 1 -device disk1 $redirect");
+    ok($rc, 0);
     $rc = closeDevs("disk0", "disk1");
     ok($rc, 0);
     if ($rc == 0) {
