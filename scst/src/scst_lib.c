@@ -4091,9 +4091,7 @@ int scst_alloc_tgt(struct scst_tgt_template *tgtt, struct scst_tgt **tgt)
 	t->tgt_supported_dif_block_sizes = tgtt->supported_dif_block_sizes;
 	spin_lock_init(&t->tgt_lock);
 	INIT_LIST_HEAD(&t->retry_cmd_list);
-	init_timer(&t->retry_timer);
-	t->retry_timer.data = (unsigned long)t;
-	t->retry_timer.function = scst_tgt_retry_timer_fn;
+	setup_timer(&t->retry_timer, scst_tgt_retry_timer_fn, (unsigned long)t);
 	atomic_set(&t->tgt_dif_app_failed_tgt, 0);
 	atomic_set(&t->tgt_dif_ref_failed_tgt, 0);
 	atomic_set(&t->tgt_dif_guard_failed_tgt, 0);
