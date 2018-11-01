@@ -1844,8 +1844,7 @@ static int vdisk_open_fd(struct scst_vdisk_dev *virt_dev, bool read_only)
 		virt_dev->fd = NULL;
 		goto out;
 	}
-	virt_dev->bdev = virt_dev->blockio ? file_inode(virt_dev->fd)->i_bdev :
-		NULL;
+	virt_dev->bdev = virt_dev->blockio ? file_inode(virt_dev->fd)->i_bdev : NULL;
 	res = 0;
 
 	if (virt_dev->dif_filename != NULL) {
@@ -1858,6 +1857,9 @@ static int vdisk_open_fd(struct scst_vdisk_dev *virt_dev, bool read_only)
 		}
 	}
 
+	TRACE_DBG("virt_dev %s: fd %p open (dif_fd %p)", virt_dev->name,
+		virt_dev->fd, virt_dev->dif_fd);
+
 out:
 	return res;
 
@@ -1869,6 +1871,9 @@ out_close_fd:
 
 static void vdisk_close_fd(struct scst_vdisk_dev *virt_dev)
 {
+	TRACE_DBG("virt_dev %s: closing fd %p (dif_fd %p)", virt_dev->name,
+		virt_dev->fd, virt_dev->dif_fd);
+
 	if (virt_dev->fd) {
 		filp_close(virt_dev->fd, NULL);
 		virt_dev->fd = NULL;
@@ -8695,11 +8700,24 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 	char *old_fn, *p, *pp;
 	bool old_empty;
 	struct file *old_fd;
+	struct file *old_dif_fd;
 	const char *filename = NULL;
 	int length = strlen(buffer);
 	int res = 0;
 
 	TRACE_ENTRY();
+
+	TRACE_DBG("virt_dev %s, empty %d, fd %p (dif_fd %p), filename %p", virt_dev->name,
+		virt_dev->cdrom_empty, virt_dev->fd, virt_dev->dif_fd, virt_dev->filename);
+
+	sBUG_ON(virt_dev->dif_fd); /* DIF is not supported for CDROMs */
+
+	if (virt_dev->prevent_allow_medium_removal) {
+		PRINT_ERROR("Prevent medium removal for "
+			"virtual device with name %s", virt_dev->name);
+		res = -EBUSY;
+		goto out;
+	}
 
 	p = buffer;
 
@@ -8723,6 +8741,8 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 
 	old_empty = virt_dev->cdrom_empty;
 	old_fd = virt_dev->fd;
+	old_dif_fd = virt_dev->dif_fd;
+	old_fn = virt_dev->filename;
 
 	if (*filename == '\0') {
 		virt_dev->cdrom_empty = 1;
@@ -8733,8 +8753,6 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 		goto out_e_unlock;
 	} else
 		virt_dev->cdrom_empty = 0;
-
-	old_fn = virt_dev->filename;
 
 	if (!virt_dev->cdrom_empty) {
 		char *fn = kstrdup(filename, GFP_KERNEL);
@@ -8755,18 +8773,19 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 			if (res != 0)
 				goto out_free_fn;
 			sBUG_ON(!virt_dev->fd);
+
+			TRACE_DBG("Closing old_fd %p", old_fd);
+			if (old_fd != NULL)
+				filp_close(old_fd, NULL);
+			if (old_dif_fd != NULL)
+				filp_close(old_dif_fd, NULL);
+			old_fd = NULL;
+			old_dif_fd = NULL;
 		}
 	} else {
 		err = 0;
 		virt_dev->filename = NULL;
 		virt_dev->fd = NULL;
-	}
-
-	if (virt_dev->prevent_allow_medium_removal) {
-		PRINT_ERROR("Prevent medium removal for "
-			"virtual device with name %s", virt_dev->name);
-		res = -EBUSY;
-		goto out_free_fn;
 	}
 
 	virt_dev->file_size = err;
@@ -8791,14 +8810,15 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 			virt_dev->name);
 	}
 
-	if (old_fd)
-		filp_close(old_fd, NULL);
 	kfree(old_fn);
 
 out_resume:
 	scst_resume_activity();
 
 out:
+	TRACE_DBG("virt_dev %s, empty %d, fd %p (dif_fd %p), filename %p", virt_dev->name,
+		virt_dev->cdrom_empty, virt_dev->fd, virt_dev->dif_fd, virt_dev->filename);
+
 	TRACE_EXIT_RES(res);
 	return res;
 
