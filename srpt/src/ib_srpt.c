@@ -2528,8 +2528,7 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 	struct srpt_rdma_ch *ch = NULL;
 	struct task_struct *thread;
 	u32 it_iu_len;
-	int i;
-	int ret;
+	int i, ret;
 
 	EXTRACHECKS_WARN_ON_ONCE(irqs_disabled());
 
@@ -2572,8 +2571,7 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 	}
 
 	if (!sport->enabled) {
-		rej->reason = cpu_to_be32(
-				SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
+		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		pr_info("rejected SRP_LOGIN_REQ because target port %s has not yet been enabled\n",
 			sport->scst_tgt->tgt_name);
 		goto reject;
@@ -2844,7 +2842,7 @@ static int srpt_ib_cm_req_recv(struct ib_cm_id *cm_id,
 {
 	char sgid[40];
 
-	scnprintf(sgid, sizeof(sgid), "%pI6", &param->primary_path->dgid);
+	snprintf(sgid, sizeof(sgid), "%pI6", &param->primary_path->dgid);
 
 	return srpt_cm_req_recv(cm_id->context, cm_id, NULL, param->port,
 				param->primary_path->pkey,
