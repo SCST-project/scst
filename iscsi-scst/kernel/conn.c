@@ -579,9 +579,9 @@ static void iscsi_write_space_ready(struct sock *sk)
 	return;
 }
 
-static void conn_rsp_timer_fn(unsigned long arg)
+static void conn_rsp_timer_fn(struct timer_list *timer)
 {
-	struct iscsi_conn *conn = (struct iscsi_conn *)arg;
+	struct iscsi_conn *conn = container_of(timer, typeof(*conn), rsp_timer);
 	struct iscsi_cmnd *cmnd;
 	unsigned long j = jiffies;
 
@@ -952,7 +952,7 @@ int iscsi_init_conn(struct iscsi_session *session,
 	spin_lock_init(&conn->write_list_lock);
 	INIT_LIST_HEAD(&conn->write_list);
 	INIT_LIST_HEAD(&conn->write_timeout_list);
-	setup_timer(&conn->rsp_timer, conn_rsp_timer_fn, (unsigned long)conn);
+	timer_setup(&conn->rsp_timer, conn_rsp_timer_fn, 0);
 	init_waitqueue_head(&conn->read_state_waitQ);
 	init_completion(&conn->ready_to_free);
 	INIT_LIST_HEAD(&conn->reinst_pending_cmd_list);

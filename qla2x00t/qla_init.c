@@ -43,10 +43,9 @@ int qla24xx_update_fcport_fcp_prio(scsi_qla_host_t *, fc_port_t *);
 
 /* SRB Extensions ---------------------------------------------------------- */
 
-void
-qla2x00_sp_timeout(unsigned long __data)
+void qla2x00_sp_timeout(struct timer_list *timer)
 {
-	srb_t *sp = (srb_t *)__data;
+	srb_t *sp = container_of(timer, typeof(*sp), u.iocb_cmd.timer);
 	struct srb_iocb *iocb;
 	fc_port_t *fcport = sp->fcport;
 	struct qla_hw_data *ha = fcport->vha->hw;

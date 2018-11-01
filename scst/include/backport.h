@@ -680,6 +680,21 @@ struct t10_pi_tuple {
 };
 #endif
 
+/* <linux/timer.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
+/*
+ * See also commit 686fef928bba ("timer: Prepare to change timer callback
+ * argument type").
+ */
+#define timer_setup(_timer, _fn, _flags) do {			\
+	init_timer(_timer);					\
+	(_timer)->function = (void (*)(unsigned long))(_fn);	\
+	(_timer)->data = (unsigned long)(_timer);		\
+	(_timer)->flags = (_flags);				\
+} while (0)
+#endif
+
 /* <linux/types.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
