@@ -1859,7 +1859,7 @@ static u8 scst_to_srp_tsk_mgmt_status(const int scst_mgmt_status)
 /**
  * srpt_handle_new_iu() - Process a newly received information unit.
  * @ch:      RDMA channel through which the information unit has been received.
- * @recv_ioctx: SRPT I/O context associated with the information unit.
+ * @recv_ioctx: Receive I/O context associated with the information unit.
  * @context: SCST command processing context.
  */
 static struct srpt_send_ioctx *
