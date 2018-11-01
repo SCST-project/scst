@@ -404,9 +404,16 @@ struct iscsi_cmnd {
 	 */
 	unsigned int data_out_in_data_receiving:1;
 	unsigned int force_release_done:1;
+
 #ifdef CONFIG_SCST_EXTRACHECKS
-	unsigned int on_rx_digest_list:1;
 	unsigned int release_called:1;
+
+	/*
+	 * This flag might be cleared from SCST thread after/during RX digest
+	 * calculation in parallel with clearing release_called from the
+	 * read thread, so it must be modifiable inependently.
+	 */
+	unsigned long on_rx_digest_list:1 __aligned(sizeof(long));
 #endif
 
 	/*
