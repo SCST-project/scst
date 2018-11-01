@@ -259,6 +259,7 @@ BEGIN {
 }
 
 use SCST::SCST 1.0.0;
+use Data::Dumper;
 use Getopt::Long;
 use IO::File;
 use IO::Dir;
@@ -383,6 +384,7 @@ sub getArgs {
 	my $show_usage;
 	my $nonkey;
 	my $force;
+	my $dumpAttrs;
 
 	my $p = new Getopt::Long::Parser;
 
@@ -483,6 +485,7 @@ sub getArgs {
 			    'noprompt'		=> \$_NOPROMPT_,
 			    'cont_on_err'       => \$_CONT_ON_ERR_,
 			    'force'		=> \$force,
+			    'dumpAttrs'		=> \$dumpAttrs,
 			    'debug'             => \$_DEBUG_))
 	{
 		exit 1;
@@ -823,6 +826,7 @@ sub getArgs {
 
 		nonkey				=> $nonkey,
 		force				=> $force,
+		dumpAttrs			=> $dumpAttrs,
 	    );
 	return \%args;
 }
@@ -932,6 +936,7 @@ sub main {
 
 	my $nonkey			= $args->{nonkey};
 	my $force			= $args->{force};
+	my $dumpAttrs			= $args->{dumpAttrs};
 
 	$SCST = new SCST::SCST($_DEBUG_);
 
@@ -1324,6 +1329,18 @@ sub main {
 			print "\n-> Making requested changes.\n";
 			$rc = issueLip($driver, $issueLip, TRUE) if (!$noLip);
 			print "\t-> Done.\n";
+			last SWITCH;
+		};
+		defined($dumpAttrs) && do {
+			print "SCST attributes:\n";
+			print Dumper($SCST->scstAttributes());
+			foreach my $handler (sort keys %{$CURRENT{'handler'}}) {
+				my $devices = $CURRENT{'handler'}->{$handler};
+				foreach my $device (sort @{$devices}) {
+					print "Device $device attributes:\n";
+					print Dumper($SCST->deviceAttributes($device));
+				}
+			}
 			last SWITCH;
 		};
 
