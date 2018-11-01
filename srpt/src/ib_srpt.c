@@ -2574,7 +2574,8 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 	if (!sport->enabled) {
 		rej->reason = cpu_to_be32(
 				SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-		pr_info("rejected SRP_LOGIN_REQ because target %s is not enabled\n", sport->scst_tgt->tgt_name);
+		pr_info("rejected SRP_LOGIN_REQ because target port %s has not yet been enabled\n",
+			sport->scst_tgt->tgt_name);
 		goto reject;
 	}
 
