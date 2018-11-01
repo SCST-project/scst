@@ -741,16 +741,7 @@ static int srpt_refresh_port(struct srpt_port *sport)
 	}
 
 	if (!sport->scst_tgt) {
-		snprintf(tgt_name, sizeof(tgt_name),
-			 "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x",
-			 be16_to_cpu(((__be16 *) sport->gid.raw)[0]),
-			 be16_to_cpu(((__be16 *) sport->gid.raw)[1]),
-			 be16_to_cpu(((__be16 *) sport->gid.raw)[2]),
-			 be16_to_cpu(((__be16 *) sport->gid.raw)[3]),
-			 be16_to_cpu(((__be16 *) sport->gid.raw)[4]),
-			 be16_to_cpu(((__be16 *) sport->gid.raw)[5]),
-			 be16_to_cpu(((__be16 *) sport->gid.raw)[6]),
-			 be16_to_cpu(((__be16 *) sport->gid.raw)[7]));
+		snprintf(tgt_name, sizeof(tgt_name), "%pI6", &sport->gid);
 		sport->scst_tgt = scst_register_target(&srpt_template,
 						       tgt_name);
 		if (sport->scst_tgt)
@@ -2527,7 +2518,6 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 			    const char *src_addr)
 {
 	struct srpt_port *const sport = &sdev->port[port_num - 1];
-	const __be16 *const raw_port_gid = (__be16 *)sport->gid.raw;
 	struct srpt_nexus *nexus;
 	struct srp_login_rsp *rsp = NULL;
 	struct srp_login_rej *rej = NULL;
@@ -2554,34 +2544,9 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 
 	it_iu_len = be32_to_cpu(req->req_it_iu_len);
 
-	pr_info("Received SRP_LOGIN_REQ with i_port_id %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x, t_port_id %04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x and it_iu_len %d on port %d (guid=%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x); pkey %#04x\n",
-	    be16_to_cpu(*(__be16 *)&req->initiator_port_id[0]),
-	    be16_to_cpu(*(__be16 *)&req->initiator_port_id[2]),
-	    be16_to_cpu(*(__be16 *)&req->initiator_port_id[4]),
-	    be16_to_cpu(*(__be16 *)&req->initiator_port_id[6]),
-	    be16_to_cpu(*(__be16 *)&req->initiator_port_id[8]),
-	    be16_to_cpu(*(__be16 *)&req->initiator_port_id[10]),
-	    be16_to_cpu(*(__be16 *)&req->initiator_port_id[12]),
-	    be16_to_cpu(*(__be16 *)&req->initiator_port_id[14]),
-	    be16_to_cpu(*(__be16 *)&req->target_port_id[0]),
-	    be16_to_cpu(*(__be16 *)&req->target_port_id[2]),
-	    be16_to_cpu(*(__be16 *)&req->target_port_id[4]),
-	    be16_to_cpu(*(__be16 *)&req->target_port_id[6]),
-	    be16_to_cpu(*(__be16 *)&req->target_port_id[8]),
-	    be16_to_cpu(*(__be16 *)&req->target_port_id[10]),
-	    be16_to_cpu(*(__be16 *)&req->target_port_id[12]),
-	    be16_to_cpu(*(__be16 *)&req->target_port_id[14]),
-	    it_iu_len,
-	    port_num,
-	    be16_to_cpu(raw_port_gid[0]),
-	    be16_to_cpu(raw_port_gid[1]),
-	    be16_to_cpu(raw_port_gid[2]),
-	    be16_to_cpu(raw_port_gid[3]),
-	    be16_to_cpu(raw_port_gid[4]),
-	    be16_to_cpu(raw_port_gid[5]),
-	    be16_to_cpu(raw_port_gid[6]),
-	    be16_to_cpu(raw_port_gid[7]),
-	    be16_to_cpu(pkey));
+	pr_info("Received SRP_LOGIN_REQ with i_port_id %pI6, t_port_id %pI6 and it_iu_len %d on port %d (guid=%pI6); pkey %#04x\n",
+		req->initiator_port_id, req->target_port_id, it_iu_len,
+		port_num, &sport->gid, be16_to_cpu(pkey));
 
 	nexus = srpt_get_nexus(sport, req->initiator_port_id,
 			       req->target_port_id);
@@ -2876,14 +2841,9 @@ static int srpt_ib_cm_req_recv(struct ib_cm_id *cm_id,
 			       struct ib_cm_req_event_param *param,
 			       void *private_data)
 {
-	__be16 *const raw_sgid = (__be16 *)param->primary_path->dgid.raw;
 	char sgid[40];
 
-	scnprintf(sgid, sizeof(sgid), "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x",
-		  be16_to_cpu(raw_sgid[0]), be16_to_cpu(raw_sgid[1]),
-		  be16_to_cpu(raw_sgid[2]), be16_to_cpu(raw_sgid[3]),
-		  be16_to_cpu(raw_sgid[4]), be16_to_cpu(raw_sgid[5]),
-		  be16_to_cpu(raw_sgid[6]), be16_to_cpu(raw_sgid[7]));
+	scnprintf(sgid, sizeof(sgid), "%pI6", &param->primary_path->dgid);
 
 	return srpt_cm_req_recv(cm_id->context, cm_id, NULL, param->port,
 				param->primary_path->pkey,
