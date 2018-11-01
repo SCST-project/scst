@@ -79,7 +79,9 @@ OFED_KERNEL_DIR:=/usr/src/ofa_kernel/default
 OFED_RPM_VERS=$(shell rpm -q --qf '%{version}\n' mlnx-ofa_kernel-devel 2>/dev/null | grep -v ' ')
 OFED_DEB_VERS=$(shell dpkg-query -W --showformat='$${Version}\n' mlnx-ofed-kernel-dkms 2>/dev/null)
 OFED_VERS=$(OFED_RPM_VERS)$(OFED_DEB_VERS)
-OFED_CFLAGS:=-I$(OFED_KERNEL_DIR)/include -include "linux/compat-2.6.h"
+OFED_CFLAGS:=-I$(OFED_KERNEL_DIR)/include      \
+             -I$(OFED_KERNEL_DIR)/include/uapi \
+             -include "linux/compat-2.6.h"
 else
 # OFED 1.5
 OFED_KERNEL_DIR:=/usr/src/ofa_kernel
