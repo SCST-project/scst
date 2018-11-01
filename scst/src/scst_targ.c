@@ -47,7 +47,7 @@ static struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess,
 static void scst_process_redirect_cmd(struct scst_cmd *cmd,
 	enum scst_exec_context context, int check_retries);
 
-/**
+/*
  * scst_post_parse() - do post parse actions
  *
  * This function must be called by dev handler after its parse() callback
@@ -59,7 +59,7 @@ void scst_post_parse(struct scst_cmd *cmd)
 }
 EXPORT_SYMBOL_GPL(scst_post_parse);
 
-/**
+/*
  * scst_post_dev_alloc_data_buf() - do post dev_alloc_data_buf actions
  *
  * This function must be called by dev handler after its dev_alloc_data_buf()
@@ -3190,7 +3190,7 @@ out_done:
 	return res;
 }
 
-/**
+/*
  * __scst_check_local_events() - check if there are any local SCSI events
  *
  * Description:
@@ -4811,7 +4811,7 @@ static inline void scst_inc_expected_sn_idle(struct scst_order_data *order_data)
 	return;
 }
 
-/**
+/*
  * scst_cmd_set_sn - Assign SN and a slot number to a command.
  *
  * Commands that may be executed concurrently are assigned the same slot
@@ -5347,7 +5347,7 @@ int scst_init_thread(void *arg)
 	return 0;
 }
 
-/**
+/*
  * scst_ioctx_get() - Associate an I/O context with a thread.
  *
  * Associate an I/O context with a thread in such a way that all threads in an
@@ -5418,7 +5418,7 @@ See "http://lkml.org/lkml/2012/7/17/515" for more details.
 	return;
 }
 
-/**
+/*
  * scst_ioctx_put() - Free I/O context allocated by scst_ioctx_get().
  */
 static void scst_ioctx_put(struct scst_cmd_threads *p_cmd_threads)
@@ -5434,7 +5434,7 @@ static void scst_ioctx_put(struct scst_cmd_threads *p_cmd_threads)
 	return;
 }
 
-/**
+/*
  * scst_process_active_cmd() - process active command
  *
  * Description:
@@ -6006,7 +6006,7 @@ out:
 	return;
 }
 
-/**
+/*
  * scst_prepare_async_mcmd() - prepare async management command
  *
  * Notifies SCST that management command is going to be async, i.e.
@@ -6033,7 +6033,7 @@ void scst_prepare_async_mcmd(struct scst_mgmt_cmd *mcmd)
 }
 EXPORT_SYMBOL_GPL(scst_prepare_async_mcmd);
 
-/**
+/*
  * scst_async_mcmd_completed() - async management command completed
  *
  * Notifies SCST that async management command, prepared by
@@ -7775,7 +7775,7 @@ out_unlock:
 	goto out;
 }
 
-/**
+/*
  * scst_rx_mgmt_fn() - create new management command and send it for execution
  *
  * Description:
@@ -8052,7 +8052,7 @@ struct scst_acg *scst_find_acg(const struct scst_session *sess)
 	return __scst_find_acg(sess->tgt, sess->initiator_name);
 }
 
-/**
+/*
  * scst_initiator_has_luns() - check if this initiator will see any LUNs
  *
  * Checks if this initiator will see any LUNs upon connect to this target.
@@ -8577,7 +8577,7 @@ static struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess,
 	return res;
 }
 
-/**
+/*
  * scst_find_cmd() - find command by custom comparison function
  *
  * Finds a command based on user supplied data and comparison
@@ -8624,7 +8624,7 @@ out:
 }
 EXPORT_SYMBOL(scst_find_cmd);
 
-/**
+/*
  * scst_find_cmd_by_tag() - find command by tag
  *
  * Finds a command based on the supplied tag comparing it with one

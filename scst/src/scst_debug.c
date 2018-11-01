@@ -58,7 +58,7 @@ static inline int get_current_tid(void)
 #endif
 }
 
-/**
+/*
  * debug_print_with_prefix() - prints a debug message
  *
  * Adds, if requested by trace_flag, debug prefix in the beginning
@@ -98,7 +98,7 @@ int debug_print_with_prefix(unsigned long trace_flag, const char *severity,
 }
 EXPORT_SYMBOL(debug_print_with_prefix);
 
-/**
+/*
  * debug_print_buffer() - print a buffer
  *
  * Prints in the log data from the buffer

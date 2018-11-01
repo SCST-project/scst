@@ -55,7 +55,7 @@ your kernel and CONFIG_SCST_STRICT_SERIALIZING is not defined. \
 Pass-through dev handlers will not work.
 #endif
 
-/**
+/*
  ** SCST global variables. They are all uninitialized to have their layout in
  ** memory be exactly as specified. Otherwise compiler puts zero-initialized
  ** variable separately from nonzero-initialized ones.
@@ -404,7 +404,7 @@ out:
 }
 EXPORT_SYMBOL(__scst_register_target_template_non_gpl);
 
-/**
+/*
  * scst_unregister_target_template() - unregister target template
  *
  * Target drivers supposed to behave sanely and not call register()
@@ -474,7 +474,7 @@ out_err_up:
 }
 EXPORT_SYMBOL(scst_unregister_target_template);
 
-/**
+/*
  * scst_register_target() - register target
  *
  * Registers a target for template vtt and returns new target structure on
@@ -597,7 +597,7 @@ out_free_tgt:
 }
 EXPORT_SYMBOL(scst_register_target);
 
-/**
+/*
  * scst_unregister_target() - unregister target.
  *
  * It is supposed that no attempts to create new sessions for this
@@ -933,7 +933,7 @@ out:
 #undef SCST_SUSP_WAIT_REPORT_TIMEOUT
 }
 
-/**
+/*
  * scst_suspend_activity() - globally suspend any activity
  *
  * Description:
@@ -1557,7 +1557,7 @@ out_resume:
 }
 EXPORT_SYMBOL_GPL(scst_register_virtual_device_node);
 
-/**
+/*
  * scst_unregister_virtual_device() - unegister a virtual device.
  * @id:		the device's ID, returned by the registration function
  */
@@ -1746,7 +1746,7 @@ out_resume:
 }
 EXPORT_SYMBOL_GPL(__scst_register_dev_driver);
 
-/**
+/*
  * scst_unregister_dev_driver() - unregister pass-through dev handler driver
  */
 void scst_unregister_dev_driver(struct scst_dev_type *dev_type)
@@ -1866,7 +1866,7 @@ out:
 }
 EXPORT_SYMBOL_GPL(__scst_register_virtual_dev_driver);
 
-/**
+/*
  * scst_unregister_virtual_dev_driver() - unregister virtual dev driver
  */
 void scst_unregister_virtual_dev_driver(struct scst_dev_type *dev_type)
@@ -2242,7 +2242,7 @@ out_detach:
 	goto out;
 }
 
-/**
+/*
  * scst_init_threads() - initialize SCST processing threads pool
  *
  * Initializes scst_cmd_threads structure
@@ -2269,7 +2269,7 @@ void scst_init_threads(struct scst_cmd_threads *cmd_threads)
 }
 EXPORT_SYMBOL_GPL(scst_init_threads);
 
-/**
+/*
  * scst_deinit_threads() - deinitialize SCST processing threads pool
  *
  * Deinitializes scst_cmd_threads structure

@@ -3135,7 +3135,7 @@ out:
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
-/**
+/*
  * finish_read - Release the pages referenced by prepare_read().
  */
 static void finish_read(struct scatterlist *sg, int sg_cnt)
@@ -7202,7 +7202,7 @@ static void blockio_end_sync_io(struct bio *bio)
 #endif
 }
 
-/**
+/*
  * blockio_read_sync() - read up to @len bytes from a block I/O device
  *
  * Returns:

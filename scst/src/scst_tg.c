@@ -664,7 +664,7 @@ static void scst_reset_tgt_alua_filter(struct scst_target_group *tg,
 	scst_check_alua_invariant();
 }
 
-/**
+/*
  * scst_tg_tgt_add() - Add a target to a target group.
  */
 int scst_tg_tgt_add(struct scst_target_group *tg, const char *name)
@@ -737,7 +737,7 @@ static void __scst_tg_tgt_remove(struct scst_target_group *tg,
 	TRACE_EXIT();
 }
 
-/**
+/*
  * scst_tg_tgt_remove_by_name() - Remove a target from a target group.
  */
 int scst_tg_tgt_remove_by_name(struct scst_target_group *tg, const char *name)
@@ -800,7 +800,7 @@ static struct kobj_type scst_tg_ktype = {
 	.release = scst_release_tg,
 };
 
-/**
+/*
  * scst_tg_add() - Add a target group.
  */
 int scst_tg_add(struct scst_dev_group *dg, const char *name)
@@ -868,7 +868,7 @@ static void __scst_tg_remove(struct scst_dev_group *dg,
 	TRACE_EXIT();
 }
 
-/**
+/*
  * scst_tg_remove_by_name() - Remove a target group.
  */
 int scst_tg_remove_by_name(struct scst_dev_group *dg, const char *name)
@@ -1156,7 +1156,7 @@ static void scst_reset_dev_alua_filter(struct scst_device *dev)
 	scst_check_alua_invariant();
 }
 
-/**
+/*
  * scst_dg_dev_add() - Add a device to a device group.
  *
  * It is verified whether 'name' refers to an existing device and whether that
@@ -1217,7 +1217,7 @@ static void __scst_dg_dev_remove(struct scst_dev_group *dg,
 	kfree(dgdev);
 }
 
-/**
+/*
  * scst_dg_dev_remove_by_name() - Remove a device from a device group.
  */
 int scst_dg_dev_remove_by_name(struct scst_dev_group *dg, const char *name)
@@ -1284,7 +1284,7 @@ static struct kobj_type scst_dg_ktype = {
 	.release = scst_release_dg,
 };
 
-/**
+/*
  * scst_dg_add() - Add a new device group object and make it visible in sysfs.
  */
 int scst_dg_add(struct kobject *parent, const char *name)
@@ -1664,7 +1664,7 @@ static void scst_stpg_ext_blocking_done(struct scst_device *dev,
 	scst_stpg_check_blocking_done(*((struct scst_stpg_wait **)data));
 }
 
-/**
+/*
  * scst_tg_set_group_info - SET TARGET PORT GROUPS implementation.
  *
  * Returns >=0 upon success or negative error code otherwise, for instance,
