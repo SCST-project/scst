@@ -774,6 +774,39 @@ static inline void *kmalloc_array(size_t n, size_t size, gfp_t flags)
 }
 #endif
 
+/*
+ * See also commit 8eb8284b4129 ("usercopy: Prepare for usercopy
+ * whitelisting").
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
+static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
+			unsigned int size, unsigned int align,
+			unsigned long flags,
+			unsigned int useroffset, unsigned int usersize,
+			void (*ctor)(void *))
+{
+	return kmem_cache_create(name, size, align, flags, ctor, NULL);
+}
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0)
+static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
+			unsigned int size, unsigned int align,
+			unsigned long flags,
+			unsigned int useroffset, unsigned int usersize,
+			void (*ctor)(void *))
+{
+	return kmem_cache_create(name, size, align, flags, ctor);
+}
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0)
+#define KMEM_CACHE_USERCOPY(__struct, __flags, __field)			\
+		kmem_cache_create_usercopy(#__struct,			\
+			sizeof(struct __struct),			\
+			__alignof__(struct __struct), (__flags),	\
+			offsetof(struct __struct, __field),		\
+			sizeof_field(struct __struct, __field), NULL)
+#endif
+
 /* <linux/t10-pi.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0)
