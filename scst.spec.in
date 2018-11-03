@@ -12,7 +12,7 @@
 %{echo:kversion=%{kversion}
 }
 # kernel_rpm: Name of the kernel RPM if the kernel is available as an RPM.
-# krpmver: Version of the kernel RPM. Not necessarily identical to %{kversion}.
+# krpmver: Version of the kernel RPM. Not necessarily identical to kversion.
 %if %{expand:%%(rpm --quiet -qf /lib/modules/%{kversion}/kernel/arch 2>/dev/null;
 		echo $((1-$?)))}
 %define kernel_rpm %{expand:%%(
