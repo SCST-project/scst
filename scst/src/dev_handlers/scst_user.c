@@ -4212,8 +4212,8 @@ static int __init init_scst_user(void)
 		goto out;
 	}
 
-	user_cmd_cachep = KMEM_CACHE(scst_user_cmd,
-				SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN);
+	user_cmd_cachep = KMEM_CACHE_USERCOPY(scst_user_cmd,
+				SCST_SLAB_FLAGS | SLAB_HWCACHE_ALIGN, user_cmd);
 	if (user_cmd_cachep == NULL) {
 		res = -ENOMEM;
 		goto out_dev_cache;

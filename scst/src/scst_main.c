@@ -2586,6 +2586,13 @@ static int __init init_scst(void)
 			  sizeof(struct s));				\
 		(p);							\
 	})
+#define INIT_CACHEP_ALIGN_USERCOPY(p, s, f) ({				\
+		(p) = KMEM_CACHE_USERCOPY(s, SCST_SLAB_FLAGS |		\
+					  SLAB_HWCACHE_ALIGN, f);	\
+		TRACE_MEM("Slab create: %s at %p size %zd", #s, (p),	\
+			  sizeof(struct s));				\
+		(p);							\
+	})
 
 	res = -ENOMEM;
 	if (!INIT_CACHEP(scst_mgmt_cachep, scst_mgmt_cmd))
@@ -2601,7 +2608,7 @@ static int __init init_scst(void)
 	}
 	if (!INIT_CACHEP(scst_aen_cachep, scst_aen)) /* read-mostly */
 		goto out_destroy_sense_cache;
-	if (!INIT_CACHEP_ALIGN(scst_cmd_cachep, scst_cmd))
+	if (!INIT_CACHEP_ALIGN_USERCOPY(scst_cmd_cachep, scst_cmd, cdb))
 		goto out_destroy_aen_cache;
 	/* Big enough with read-mostly head and tail */
 	if (!INIT_CACHEP(scst_sess_cachep, scst_session))
