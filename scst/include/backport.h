@@ -22,6 +22,9 @@
 
 #include <linux/bio.h>
 #include <linux/blkdev.h>	/* struct request_queue */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
+#include <linux/bsg-lib.h>	/* struct bsg_job */
+#endif
 #include <linux/scatterlist.h>	/* struct scatterlist */
 #include <linux/slab.h>		/* kmalloc() */
 #include <linux/timer.h>
@@ -29,6 +32,7 @@
 #include <linux/writeback.h>	/* sync_page_range() */
 #include <rdma/ib_verbs.h>
 #include <scsi/scsi_cmnd.h>	/* struct scsi_cmnd */
+#include <scsi/scsi_transport_fc.h> /* struct fc_bsg_job */
 
 /* <asm-generic/barrier.h> */
 
@@ -87,6 +91,34 @@ static inline void bio_set_dev(struct bio *bio, struct block_device *bdev)
 static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 {
 	return q->max_hw_sectors;
+}
+#endif
+
+/* <linux/bsg-lib.h> */
+
+/*
+ * Note: the function bsg_job_sense() exists only in SCST but not in any
+ * upstream kernel.
+ */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 31) &&		\
+	((LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) &&	\
+	  !defined(CONFIG_SUSE_KERNEL)) ||			\
+	 (LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) &&	\
+	  defined(CONFIG_SUSE_KERNEL)))
+static inline void *bsg_job_sense(struct fc_bsg_job *job)
+{
+	return job->req->sense;
+}
+#else
+static inline void *bsg_job_sense(struct bsg_job *job)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
+	return job->req->sense;
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0)
+	return scsi_req(job->req)->sense;
+#else
+	return scsi_req(blk_mq_rq_from_pdu(job))->sense;
+#endif
 }
 #endif
 

@@ -25,10 +25,15 @@ static inline void set_bsg_result(struct bsg_job *job, int result)
 {
 	job->req->errors = result;
 }
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0)
 static inline void set_bsg_result(struct bsg_job *job, int result)
 {
 	scsi_req(job->req)->result = result;
+}
+#else
+static inline void set_bsg_result(struct bsg_job *job, int result)
+{
+	scsi_req(blk_mq_rq_from_pdu(job))->result = result;
 }
 #endif
 
@@ -893,7 +898,7 @@ qla2x00_process_loopback(struct bsg_job *bsg_job)
 		ql_log(ql_log_warn, vha, 0x702c,
 		    "Vendor request %s failed.\n", type);
 
-		fw_sts_ptr = ((uint8_t *)scsi_req(bsg_job->req)->sense) +
+		fw_sts_ptr = bsg_job_sense(bsg_job) +
 			 sizeof(struct fc_bsg_reply);
 
 		memcpy(fw_sts_ptr, response, sizeof(response));
@@ -909,7 +914,7 @@ qla2x00_process_loopback(struct bsg_job *bsg_job)
 			sizeof(response) + sizeof(uint8_t);
 		bsg_reply->reply_payload_rcv_len =
 			bsg_job->reply_payload.payload_len;
-		fw_sts_ptr = ((uint8_t *)scsi_req(bsg_job->req)->sense) +
+		fw_sts_ptr = bsg_job_sense(bsg_job) +
 			 sizeof(struct fc_bsg_reply);
 		memcpy(fw_sts_ptr, response, sizeof(response));
 		fw_sts_ptr += sizeof(response);
