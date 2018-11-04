@@ -518,7 +518,7 @@ qla2x00_pci_info_str(struct scsi_qla_host *vha, char *str, int str_len)
 	}
 	strncat(str, " MHz)", str_len - (strlen(str)+1));
 
-	return (str);
+	return str;
 }
 
 static char *
@@ -584,7 +584,7 @@ qla2x00_fw_version_str(struct scsi_qla_host *vha, char *str, int str_len)
 
 	if (ha->fw_attributes & BIT_9) {
 		strncat(str, "FLX", str_len - (strlen(str)+1));
-		return (str);
+		return str;
 	}
 
 	switch (ha->fw_attributes & 0xFF) {
@@ -608,7 +608,7 @@ qla2x00_fw_version_str(struct scsi_qla_host *vha, char *str, int str_len)
 	if (ha->fw_attributes & 0x100)
 		strncat(str, "X", str_len - (strlen(str)+1));
 
-	return (str);
+	return str;
 }
 
 static char *
@@ -881,7 +881,7 @@ qla2x00_wait_for_hba_online(scsi_qla_host_t *vha)
 	else
 		return_status = QLA_FUNCTION_FAILED;
 
-	return (return_status);
+	return return_status;
 }
 EXPORT_SYMBOL(qla2x00_wait_for_hba_online);
 
@@ -1753,10 +1753,10 @@ mqiobase_exit:
 	ha->msix_count = ha->max_rsp_queues + 1;
 	ql_dbg_pci(ql_dbg_init, ha->pdev, 0x001c,
 	    "MSIX Count:%d.\n", ha->msix_count);
-	return (0);
+	return 0;
 
 iospace_error_exit:
-	return (-ENOMEM);
+	return -ENOMEM;
 }
 
 
@@ -1845,10 +1845,10 @@ mqiobase_exit:
 #endif /* CONFIG_SCSI_QLA2XXX_TARGET */
 	ql_dbg_pci(ql_dbg_init, ha->pdev, 0x011f,
 	    "MSIX Count:%d.\n", ha->msix_count);
-	return (0);
+	return 0;
 
 iospace_error_exit:
-	return (-ENOMEM);
+	return -ENOMEM;
 }
 
 static struct isp_operations qla2100_isp_ops = {

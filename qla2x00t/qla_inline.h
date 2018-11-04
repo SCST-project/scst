@@ -34,7 +34,7 @@ qla2x00_debounce_register(volatile uint16_t __iomem *addr)
 		second = RD_REG_WORD(addr);
 	} while (first != second);
 
-	return (first);
+	return first;
 }
 
 static inline void
@@ -78,10 +78,10 @@ qla2x00_is_reserved_id(scsi_qla_host_t *vha, uint16_t loop_id)
 {
 	struct qla_hw_data *ha = vha->hw;
 	if (IS_FWI2_CAPABLE(ha))
-		return (loop_id > NPH_LAST_HANDLE);
+		return loop_id > NPH_LAST_HANDLE;
 
-	return ((loop_id > ha->max_loop_id && loop_id < SNS_FIRST_LOOP_ID) ||
-	    loop_id == MANAGEMENT_SERVER || loop_id == BROADCAST);
+	return (loop_id > ha->max_loop_id && loop_id < SNS_FIRST_LOOP_ID) ||
+	       loop_id == MANAGEMENT_SERVER || loop_id == BROADCAST;
 }
 
 static inline void
@@ -199,5 +199,5 @@ qla2x00_reset_active(scsi_qla_host_t *vha)
 static inline int
 qla2x00_gid_list_size(struct qla_hw_data *ha)
 {
-	return (sizeof(struct gid_list_info) * ha->max_fibre_devices);
+	return sizeof(struct gid_list_info) * ha->max_fibre_devices;
 }

@@ -2126,7 +2126,7 @@ qla2x00_login_local_device(scsi_qla_host_t *vha, fc_port_t *fcport,
 		    "Done %s.\n", __func__);
 	}
 
-	return (rval);
+	return rval;
 }
 
 int
@@ -2417,7 +2417,7 @@ qla2x00_get_resource_cnts(scsi_qla_host_t *vha, uint16_t *cur_xchg_cnt,
 			*max_fcfs = mcp->mb[12];
 	}
 
-	return (rval);
+	return rval;
 }
 
 /*

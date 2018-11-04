@@ -611,7 +611,7 @@ qla2x00_sysfs_write_fw_dump(struct file *file,
 	int reading;
 
 	if (off != 0)
-		return (0);
+		return 0;
 
 	reading = simple_strtol(buf, NULL, 10);
 	switch (reading) {
@@ -2313,7 +2313,7 @@ qla24xx_vport_create(struct fc_vport *fc_vport, bool disable)
 	if (ret) {
 		ql_log(ql_log_warn, vha, 0x707e,
 		    "Vport sanity check failed, status %x\n", ret);
-		return (ret);
+		return ret;
 	}
 
 	vha = qla24xx_create_vhost(fc_vport);

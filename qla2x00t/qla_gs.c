@@ -49,7 +49,7 @@ qla2x00_prep_ms_iocb(scsi_qla_host_t *vha, uint32_t req_size, uint32_t rsp_size)
 	ms_pkt->dseg_rsp_address[1] = cpu_to_le32(MSD(ha->ct_sns_dma));
 	ms_pkt->dseg_rsp_length = ms_pkt->rsp_bytecount;
 
-	return (ms_pkt);
+	return ms_pkt;
 }
 
 /**
@@ -87,7 +87,7 @@ qla24xx_prep_ms_iocb(scsi_qla_host_t *vha, uint32_t req_size, uint32_t rsp_size)
 	ct_pkt->dseg_1_len = ct_pkt->rsp_byte_count;
 	ct_pkt->vp_index = vha->vp_idx;
 
-	return (ct_pkt);
+	return ct_pkt;
 }
 
 /**
@@ -111,7 +111,7 @@ qla2x00_prep_ct_req(struct ct_sns_pkt *ct_pkt, uint16_t cmd, uint16_t rsp_size)
 	ct_req->command = cpu_to_be16(cmd);
 	ct_req->max_rsp_size = cpu_to_be16((rsp_size - 16) / 4);
 
-	return (ct_req);
+	return ct_req;
 }
 
 static int
@@ -239,7 +239,7 @@ qla2x00_ga_nxt(scsi_qla_host_t *vha, fc_port_t *fcport)
 		    fcport->d_id.b.al_pa);
 	}
 
-	return (rval);
+	return rval;
 }
 
 static inline int
@@ -325,7 +325,7 @@ qla2x00_gid_pt(scsi_qla_host_t *vha, sw_info_t *list)
 			rval = QLA_FUNCTION_FAILED;
 	}
 
-	return (rval);
+	return rval;
 }
 
 /**
@@ -388,7 +388,7 @@ qla2x00_gpn_id(scsi_qla_host_t *vha, sw_info_t *list)
 			break;
 	}
 
-	return (rval);
+	return rval;
 }
 
 /**
@@ -465,7 +465,7 @@ qla2x00_gnn_id(scsi_qla_host_t *vha, sw_info_t *list)
 			break;
 	}
 
-	return (rval);
+	return rval;
 }
 
 /**
@@ -517,7 +517,7 @@ qla2x00_rft_id(scsi_qla_host_t *vha)
 		    "RFT_ID exiting normally.\n");
 	}
 
-	return (rval);
+	return rval;
 }
 
 /**
@@ -538,7 +538,7 @@ qla2x00_rff_id(scsi_qla_host_t *vha)
 	if (IS_QLA2100(ha) || IS_QLA2200(ha)) {
 		ql_dbg(ql_dbg_disc, vha, 0x2046,
 		    "RFF_ID call not supported on ISP2100/ISP2200.\n");
-		return (QLA_SUCCESS);
+		return QLA_SUCCESS;
 	}
 
 	/* Issue RFF_ID */
@@ -584,7 +584,7 @@ qla2x00_rff_id(scsi_qla_host_t *vha)
 		    "RFF_ID exiting normally.\n");
 	}
 
-	return (rval);
+	return rval;
 }
 
 /**
@@ -636,7 +636,7 @@ qla2x00_rnn_id(scsi_qla_host_t *vha)
 		    "RNN_ID exiting normally.\n");
 	}
 
-	return (rval);
+	return rval;
 }
 
 void
@@ -666,7 +666,7 @@ qla2x00_rsnn_nn(scsi_qla_host_t *vha)
 	if (IS_QLA2100(ha) || IS_QLA2200(ha)) {
 		ql_dbg(ql_dbg_disc, vha, 0x2050,
 		    "RSNN_ID call unsupported on ISP2100/ISP2200.\n");
-		return (QLA_SUCCESS);
+		return QLA_SUCCESS;
 	}
 
 	/* Issue RSNN_NN */
@@ -708,7 +708,7 @@ qla2x00_rsnn_nn(scsi_qla_host_t *vha)
 		    "RSNN_NN exiting normally.\n");
 	}
 
-	return (rval);
+	return rval;
 }
 
 /**
@@ -739,7 +739,7 @@ qla2x00_prep_sns_cmd(scsi_qla_host_t *vha, uint16_t cmd, uint16_t scmd_len,
 	wc = (data_size - 16) / 4;		/* Size in 32bit words. */
 	sns_cmd->p.cmd.size = cpu_to_le16(wc);
 
-	return (sns_cmd);
+	return sns_cmd;
 }
 
 /**
@@ -811,7 +811,7 @@ qla2x00_sns_ga_nxt(scsi_qla_host_t *vha, fc_port_t *fcport)
 		    fcport->d_id.b.al_pa);
 	}
 
-	return (rval);
+	return rval;
 }
 
 /**
@@ -884,7 +884,7 @@ qla2x00_sns_gid_pt(scsi_qla_host_t *vha, sw_info_t *list)
 			rval = QLA_FUNCTION_FAILED;
 	}
 
-	return (rval);
+	return rval;
 }
 
 /**
@@ -940,7 +940,7 @@ qla2x00_sns_gpn_id(scsi_qla_host_t *vha, sw_info_t *list)
 			break;
 	}
 
-	return (rval);
+	return rval;
 }
 
 /**
@@ -1011,7 +1011,7 @@ qla2x00_sns_gnn_id(scsi_qla_host_t *vha, sw_info_t *list)
 			break;
 	}
 
-	return (rval);
+	return rval;
 }
 
 /**
@@ -1060,7 +1060,7 @@ qla2x00_sns_rft_id(scsi_qla_host_t *vha)
 		    "RFT_ID exiting normally.\n");
 	}
 
-	return (rval);
+	return rval;
 }
 
 /**
@@ -1116,7 +1116,7 @@ qla2x00_sns_rnn_id(scsi_qla_host_t *vha)
 		    "RNN_ID exiting normally.\n");
 	}
 
-	return (rval);
+	return rval;
 }
 
 /**
@@ -1792,7 +1792,7 @@ qla2x00_gfpn_id(scsi_qla_host_t *vha, sw_info_t *list)
 			break;
 	}
 
-	return (rval);
+	return rval;
 }
 
 static inline void *
@@ -1945,7 +1945,7 @@ qla2x00_gpsc(scsi_qla_host_t *vha, sw_info_t *list)
 			break;
 	}
 
-	return (rval);
+	return rval;
 }
 
 /**
