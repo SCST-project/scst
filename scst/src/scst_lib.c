@@ -13901,6 +13901,7 @@ int scst_get_max_lun_commands(struct scst_session *sess, uint64_t lun)
 
 	if (sess == NULL) {
 		struct scst_device *dev;
+
 		list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
 			if (dev->handler == &scst_null_devtype)
 				continue;
@@ -13916,6 +13917,7 @@ int scst_get_max_lun_commands(struct scst_session *sess, uint64_t lun)
 		struct list_head *head =
 			&sess->sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_FN(lun)];
 		struct scst_tgt_dev *tgt_dev;
+
 		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
 			if (tgt_dev->lun == lun) {
 				res = tgt_dev->dev->max_tgt_dev_commands;
@@ -13931,6 +13933,7 @@ int scst_get_max_lun_commands(struct scst_session *sess, uint64_t lun)
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		struct list_head *head = &sess->sess_tgt_dev_list[i];
 		struct scst_tgt_dev *tgt_dev;
+
 		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
 			if (res > tgt_dev->dev->max_tgt_dev_commands)
 				res = tgt_dev->dev->max_tgt_dev_commands;
@@ -15841,6 +15844,7 @@ void scst_update_lat_stats(struct scst_cmd *cmd)
 	if (unlikely((scst_time < 0) || (tgt_time < 0) || (dev_time < 0))) {
 		/* It might happen due to small difference in time between CPUs */
 		static int q;
+
 		if (q++ < 20) {
 			PRINT_WARNING("Ignoring max latency sample, because time is "
 				"moving backward (cmd %p, scst %lld, tgt %lld, "
