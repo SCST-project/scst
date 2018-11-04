@@ -40,8 +40,8 @@ endif
 SCST_DIR=scst
 DOC_DIR=doc
 SCSTADM_DIR=scstadmin
-QLA_INI_DIR=qla2x00t_git
-QLA_DIR=qla2x00t_git/qla2x00-target
+QLA_DIR=qla2xxx-unified-target
+QLA_GIT_DIR=qla2x00t_git/scst-qla2xxx-unified
 QLA_OLD_INI_DIR=qla2x00t
 QLA_OLD_DIR=qla2x00t/qla2x00-target
 LSI_DIR=mpt
@@ -185,7 +185,6 @@ uninstall:
 clean:
 	cd $(SCST_DIR) && $(MAKE) $@
 	@if [ -d $(DOC_DIR) ]; then cd $(DOC_DIR) && $(MAKE) $@; fi
-	@if [ -d $(QLA_INI_DIR) ]; then cd $(QLA_INI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_OLD_INI_DIR) ]; then cd $(QLA_OLD_INI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_OLD_DIR) ]; then cd $(QLA_OLD_DIR) && $(MAKE) $@; fi
@@ -200,7 +199,6 @@ extraclean:
 	-rm -f TAGS tags cscope.out
 	cd $(SCST_DIR) && $(MAKE) $@
 	@if [ -d $(DOC_DIR) ]; then cd $(DOC_DIR) && $(MAKE) $@; fi
-	@if [ -d $(QLA_INI_DIR) ]; then cd $(QLA_INI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_OLD_INI_DIR) ]; then cd $(QLA_OLD_INI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_OLD_DIR) ]; then cd $(QLA_OLD_DIR) && $(MAKE) $@; fi
@@ -257,7 +255,7 @@ qla:
 	cd $(QLA_DIR) && $(MAKE) all
 
 qla_pull:
-	cd $(QLA_INI_DIR) && git pull
+	cd $(QLA_GIT_DIR) && git pull
 
 qla_install:
 	cd $(QLA_DIR) && $(MAKE) install
@@ -266,11 +264,9 @@ qla_uninstall:
 	cd $(QLA_DIR) && $(MAKE) uninstall
 
 qla_clean:
-	cd $(QLA_INI_DIR) && $(MAKE) clean
 	cd $(QLA_DIR) && $(MAKE) clean
 
 qla_extraclean:
-	cd $(QLA_INI_DIR) && pwd && $(MAKE) extraclean
 	cd $(QLA_DIR) && $(MAKE) extraclean
 
 qla_old:
