@@ -1444,8 +1444,6 @@ void scst_ext_copy_remap_done(struct scst_cmd *ec_cmd,
 {
 	TRACE_ENTRY();
 
-	scst_set_exec_time(ec_cmd);
-
 	if (dds == NULL)
 		scst_cm_ec_sched_next_seg(ec_cmd);
 	else
@@ -1549,7 +1547,6 @@ static int scst_cm_try_to_remap(struct scst_cmd *ec_cmd)
 	TRACE_DBG("Calling ext_copy_remap() for dev %s (ec_cmd %p)",
 		sd->dst_tgt_dev->dev->virt_name, ec_cmd);
 
-	scst_set_exec_start(ec_cmd);
 	handler->ext_copy_remap(ec_cmd, sd);
 
 out:

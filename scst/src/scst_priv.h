@@ -1020,38 +1020,4 @@ typedef void __printf(2, 3) (*scst_show_fn)(void *arg, const char *fmt, ...);
 void scst_trace_cmds(scst_show_fn show, void *arg);
 void scst_trace_mcmds(scst_show_fn show, void *arg);
 
-#ifdef CONFIG_SCST_MEASURE_LATENCY
-
-void scst_set_start_time(struct scst_cmd *cmd);
-void scst_set_cur_start(struct scst_cmd *cmd);
-void scst_set_parse_time(struct scst_cmd *cmd);
-void scst_set_dev_alloc_buf_time(struct scst_cmd *cmd);
-void scst_set_tgt_alloc_buf_time(struct scst_cmd *cmd);
-void scst_set_restart_waiting_time(struct scst_cmd *cmd);
-void scst_set_rdy_to_xfer_time(struct scst_cmd *cmd);
-void scst_set_pre_exec_time(struct scst_cmd *cmd);
-void scst_set_exec_start(struct scst_cmd *cmd);
-void scst_set_exec_time(struct scst_cmd *cmd);
-void scst_set_dev_done_time(struct scst_cmd *cmd);
-void scst_set_xmit_time(struct scst_cmd *cmd);
-void scst_update_lat_stats(struct scst_cmd *cmd);
-
-#else
-
-static inline void scst_set_start_time(struct scst_cmd *cmd) {}
-static inline void scst_set_cur_start(struct scst_cmd *cmd) {}
-static inline void scst_set_parse_time(struct scst_cmd *cmd) {}
-static inline void scst_set_dev_alloc_buf_time(struct scst_cmd *cmd) {}
-static inline void scst_set_tgt_alloc_buf_time(struct scst_cmd *cmd) {}
-static inline void scst_set_restart_waiting_time(struct scst_cmd *cmd) {}
-static inline void scst_set_rdy_to_xfer_time(struct scst_cmd *cmd) {}
-static inline void scst_set_pre_exec_time(struct scst_cmd *cmd) {}
-static inline void scst_set_exec_start(struct scst_cmd *cmd) {}
-static inline void scst_set_exec_time(struct scst_cmd *cmd) {}
-static inline void scst_set_dev_done_time(struct scst_cmd *cmd) {}
-static inline void scst_set_xmit_time(struct scst_cmd *cmd) {}
-static inline void scst_update_lat_stats(struct scst_cmd *cmd) {}
-
-#endif /* CONFIG_SCST_MEASURE_LATENCY */
-
 #endif /* __SCST_PRIV_H */
