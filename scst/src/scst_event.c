@@ -321,7 +321,7 @@ int scst_event_queue_lun_not_found(const struct scst_cmd *cmd)
 	if (event_entry == NULL) {
 		PRINT_ERROR("Unable to allocate event (size %d). LUN not found "
 			"event is lost (LUN %lld, initiator %s, target %s)!",
-			event_entry_len, (unsigned long long int)cmd->lun,
+			event_entry_len, (unsigned long long)cmd->lun,
 			cmd->sess->initiator_name, cmd->tgt->tgt_name);
 		res = -ENOMEM;
 		goto out;

@@ -1375,7 +1375,7 @@ retry:
 			res = scst_writev(file, iop, count, &off);
 			set_fs(oldfs);
 			TRACE_WRITE("sid %#Lx, cid %u, res %d, iov_len %zd",
-				    (unsigned long long int)conn->session->sid,
+				    (unsigned long long)conn->session->sid,
 				    conn->cid, res, iop->iov_len);
 			if (unlikely(res <= 0)) {
 				if (res == -EAGAIN) {
@@ -1507,7 +1507,7 @@ retry2:
 				"index %lu, offset %u, size %u, cmd %p, "
 				"page %p)", (sendpage != sock_no_sendpage) ?
 						"sendpage" : "sock_no_sendpage",
-				(unsigned long long int)conn->session->sid,
+				(unsigned long long)conn->session->sid,
 				conn->cid, res, page->index,
 				offset, size, write_cmnd, page);
 			if (unlikely(res <= 0)) {
@@ -1593,7 +1593,7 @@ out_err:
 	{
 #endif
 		PRINT_ERROR("error %d at sid:cid %#Lx:%u, cmnd %p", res,
-			    (unsigned long long int)conn->session->sid,
+			    (unsigned long long)conn->session->sid,
 			    conn->cid, conn->write_cmnd);
 	}
 	if (ref_cmd_to_parent &&

@@ -25,14 +25,14 @@ qla2x00_dfs_fce_show(struct seq_file *s, void *unused)
 
 	seq_printf(s, "FCE Trace Buffer\n");
 	seq_printf(s, "In Pointer = %llx\n\n", (unsigned long long)ha->fce_wr);
-	seq_printf(s, "Base = %llx\n\n", (unsigned long long) ha->fce_dma);
+	seq_printf(s, "Base = %llx\n\n", (unsigned long long)ha->fce_dma);
 	seq_printf(s, "FCE Enable Registers\n");
 	seq_printf(s, "%08x %08x %08x %08x %08x %08x\n",
 	    ha->fce_mb[0], ha->fce_mb[2], ha->fce_mb[3], ha->fce_mb[4],
 	    ha->fce_mb[5], ha->fce_mb[6]);
 
 	fce = (uint32_t *) ha->fce;
-	fce_start = (unsigned long long) ha->fce_dma;
+	fce_start = (unsigned long long)ha->fce_dma;
 	for (cnt = 0; cnt < fce_calc_size(ha->fce_bufs) / 4; cnt++) {
 		if (cnt % 8 == 0)
 			seq_printf(s, "\n%llx: ",

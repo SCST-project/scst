@@ -1427,7 +1427,7 @@ out_process:
 
 out_inval:
 	PRINT_ERROR("Invalid parse_reply parameters (LUN %lld, op %s, cmd %p)",
-		(unsigned long long int)cmd->lun, scst_get_opcode_name(cmd), cmd);
+		(unsigned long long)cmd->lun, scst_get_opcode_name(cmd), cmd);
 	PRINT_BUFFER("Invalid parse_reply", reply, sizeof(*reply));
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 	res = -EINVAL;
@@ -1875,7 +1875,7 @@ out:
 
 out_inval:
 	PRINT_ERROR("Invalid exec_reply parameters (LUN %lld, op %s, cmd %p)",
-		(unsigned long long int)cmd->lun, scst_get_opcode_name(cmd), cmd);
+		(unsigned long long)cmd->lun, scst_get_opcode_name(cmd), cmd);
 	PRINT_BUFFER("Invalid exec_reply", reply, sizeof(*reply));
 
 out_intern_fail:
@@ -2353,7 +2353,7 @@ static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
 		goto out;
 	}
 
-	TRACE_DBG("ureply %lld (dev %s)", (unsigned long long int)ureply,
+	TRACE_DBG("ureply %lld (dev %s)", (unsigned long long)ureply,
 		dev->name);
 
 	if (ureply != 0) {
