@@ -3148,11 +3148,7 @@ struct scst_tgt_dev {
 	gfp_t tgt_dev_gfp_mask;
 
 	/* SGV pool from which buffers of this tgt_dev's cmds should be allocated */
-#ifdef CONFIG_CPUMASK_OFFSTACK
 	struct sgv_pool **pools;
-#else
-	struct sgv_pool *pools[NR_CPUS];
-#endif
 
 	/* Max number of allowed in this tgt_dev SG segments */
 	int max_sg_cnt;

@@ -5276,16 +5276,6 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	else
 		clear_bit(SCST_TGT_DEV_BLACK_HOLE, &tgt_dev->tgt_dev_flags);
 
-#ifdef CONFIG_CPUMASK_OFFSTACK
-	tgt_dev->pools = kzalloc_node(sizeof(tgt_dev->pools[0])*NR_CPUS,
-				GFP_KERNEL, dev->dev_numa_node_id);
-	if (tgt_dev->pools == NULL) {
-		PRINT_ERROR("Unable to alloc tgt_dev->pools (size %zd)",
-			sizeof(tgt_dev->pools[0])*NR_CPUS);
-		goto out_free;
-	}
-#endif
-
 	scst_sgv_pool_use_norm(tgt_dev);
 
 	if (dev->scsi_dev != NULL) {
@@ -5406,11 +5396,7 @@ out_dec_free:
 
 out_free_ua:
 	scst_free_all_UA(tgt_dev);
-#ifdef CONFIG_CPUMASK_OFFSTACK
-	kfree(tgt_dev->pools);
 
-out_free:
-#endif
 	kmem_cache_free(scst_tgtd_cachep, tgt_dev);
 	goto out;
 }
@@ -5467,10 +5453,6 @@ static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 	}
 
 	scst_tgt_dev_stop_threads(tgt_dev);
-
-#ifdef CONFIG_CPUMASK_OFFSTACK
-	kfree(tgt_dev->pools);
-#endif
 
 	kmem_cache_free(scst_tgtd_cachep, tgt_dev);
 
