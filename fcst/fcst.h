@@ -30,13 +30,7 @@
 #define NEW_LIBFC_API
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0) || \
-	defined(CONFIG_SUSE_KERNEL) && \
-	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)
-#define NEW_LIBFC_API
-#endif
-
-#define FT_VERSION	"3.3.0-rc"
+#define FT_VERSION	"3.3.0"
 #define FT_MODULE	"fcst"
 
 #define FT_MAX_HW_PENDING_TIME	20	/* max I/O time in seconds */
