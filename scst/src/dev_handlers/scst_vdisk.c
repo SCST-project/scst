@@ -3849,27 +3849,20 @@ static int vdisk_sup_vpd(uint8_t *buf, struct scst_cmd *cmd,
 static int vdisk_usn_vpd(uint8_t *buf, struct scst_cmd *cmd,
 			 struct scst_vdisk_dev *virt_dev)
 {
+	uint16_t usn_len, max_len = INQ_BUF_SZ - 4;
+
 	buf[1] = 0x80;
 	if (cmd->tgtt->get_serial) {
-		buf[3] = cmd->tgtt->get_serial(cmd->tgt_dev, &buf[4],
-					       INQ_BUF_SZ - 4);
+		usn_len = cmd->tgtt->get_serial(cmd->tgt_dev, &buf[4], max_len);
 	} else {
-		int usn_len;
-
 		read_lock(&vdisk_serial_rwlock);
 		usn_len = strlen(virt_dev->usn);
-		buf[3] = usn_len;
-#if __GNUC__ -0 >= 8
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wstringop-truncation"
-#endif
-		strncpy(&buf[4], virt_dev->usn, usn_len);
-#if __GNUC__ -0 >= 8
-#pragma GCC diagnostic pop
-#endif
+		WARN_ON_ONCE(usn_len > max_len);
+		memcpy(&buf[4], virt_dev->usn, usn_len);
 		read_unlock(&vdisk_serial_rwlock);
 	}
-	return buf[3] + 4;
+	put_unaligned_be16(usn_len, &buf[2]);
+	return usn_len + 4;
 }
 
 /* Device Identification VPD page (83h) */
