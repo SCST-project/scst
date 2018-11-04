@@ -1,8 +1,8 @@
 #
 #  Common makefile for SCSI target mid-level and its drivers
 #
-#  Copyright (C) 2015 - 2017 Vladislav Bolkhovitin <vst@vlnb.net>
-#  Copyright (C) 2007 - 2017 SanDisk Corporation
+#  Copyright (C) 2015 - 2018 Vladislav Bolkhovitin <vst@vlnb.net>
+#  Copyright (C) 2007 - 2018 Western Digital Corporation
 #
 #  This program is free software; you can redistribute it and/or
 #  modify it under the terms of the GNU General Public License
@@ -308,7 +308,7 @@ emulex_install:
 emulex_uninstall:
 	cd $(EMULEX_DIR) && $(MAKE) uninstall
 
-emulex_clean: 
+emulex_clean:
 	cd $(EMULEX_DIR) && $(MAKE) clean
 
 emulex_extraclean:
@@ -323,7 +323,7 @@ lsi_install:
 lsi_uninstall:
 	cd $(LSI_DIR) && $(MAKE) uninstall
 
-lsi_clean: 
+lsi_clean:
 	cd $(LSI_DIR) && $(MAKE) clean
 
 lsi_extraclean:
@@ -368,7 +368,7 @@ usr_install:
 usr_uninstall:
 	cd $(USR_DIR) && $(MAKE) uninstall
 
-usr_clean: 
+usr_clean:
 	cd $(USR_DIR) && $(MAKE) clean
 
 usr_extraclean:
@@ -404,9 +404,14 @@ fcst_clean:
 fcst_extraclean:
 	cd $(FCST_DIR) && $(MAKE) extraclean
 
-scst-dist-gzip:
+# Make an SCST source code archive. $(1) is the tar compression option, $(2)
+# is the tar filename compression suffix, $(3) is the version and $(4) is the
+# source file filter.
+make-scst-dist =							\
+	[ -n "$(1)" ] && [ -n "$(2)" ] && [ -n "$(3)" ] &&		\
+	[ -n "$(4)" ] &&						\
 	name=scst &&							\
-	mkdir $${name}-$(VERSION) &&					\
+	mkdir "$${name}-$(3)" &&					\
 	{								\
 	  {								\
 	    if [ -e qla2x00t_git ]; then				\
@@ -421,11 +426,14 @@ scst-dist-gzip:
 	  } |								\
 	  $(4) |							\
 	  tar -T- -cf- |						\
-	  tar -C $${name}-$(VERSION) -xf-;				\
+	  tar -C "$${name}-$(3)" -xf-;					\
 	} &&								\
-	rm -f $${name}-$(VERSION).tar.bz2 &&				\
-	tar -cjf $${name}-$(VERSION).tar.bz2 $${name}-$(VERSION) &&	\
-	rm -rf $${name}-$(VERSION)
+	rm -f "$${name}-$(3).tar.$(2)" &&				\
+	tar -c$(1) -f "$${name}-$(3).tar.$(2)" "$${name}-$(3)" &&	\
+	rm -rf "$${name}-$(3)"
+
+scst-dist-gzip:
+	$(call make-scst-dist,j,bz2,$(VERSION),grep -E '^doc/|^fcst/|^iscsi-scst/|^Makefile|^qla2x00t(|_git)/|^scst.spec|^scst/|^scst_local/|^srpt/|^usr/|^scstadmin/')
 
 scst-rpm:
 	name=scst &&							\
