@@ -5822,17 +5822,9 @@ again:
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
 		if (scst_poll_ns > 0) {
-			struct timespec ts;
 			ktime_t end, kt;
-			int rc;
 
-			rc = __getnstimeofday(&ts);
-			if (unlikely(rc != 0)) {
-				WARN_ON_ONCE(rc);
-				goto go;
-			}
-
-			end = timespec_to_ktime(ts);
+			end = ktime_get();
 			end = ktime_add_ns(end, scst_poll_ns);
 
 			do {
@@ -5843,16 +5835,9 @@ again:
 					goto again;
 				}
 				cpu_relax();
-				rc = __getnstimeofday(&ts);
-				if (unlikely(rc != 0)) {
-					WARN_ON_ONCE(rc);
-					goto go;
-				}
-				kt = timespec_to_ktime(ts);
+				kt = ktime_get();
 			} while (ktime_before(kt, end));
 		}
-
-go:
 #endif
 		spin_lock_irq(&p_cmd_threads->cmd_list_lock);
 		spin_lock(&thr->thr_cmd_list_lock);
