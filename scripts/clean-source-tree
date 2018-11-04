@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+
+shopt -s nullglob
+
+remove_empty_directories() {
+    find . -depth -type d |
+        sed 's|^\./||' |
+        grep -Ev '^\.$|^\.svn/|/\.svn/|/\.svn$|^\.hg/|^\.hg$|^\.git/|^\.git$' |
+        while read -r d; do
+	    for f in "$d"/{*,.*}; do
+		if ! [ -e "$f" ]; then
+		    rmdir "$d"
+		fi
+		break
+	    done
+	done
+}
+
+if [ $# = 0 ]; then
+  # shellcheck source=clean-source-tree
+  . "$0" .
+else
+  for d in "$@"; do
+  (
+    if cd "$d"; then
+      if [ -e .svn ]; then
+        if ! type -p svn >&/dev/null; then
+          echo "$0: svn: not found."
+          exit 0
+        fi
+        "$(dirname "$0")"/list-non-source-files |
+          while read -r f; do
+	    if [ "$f" != "TAGS" ]; then rm -rf -- "$f"; fi;
+	  done
+      elif [ -e .git ] || [ -e ../.git ]; then
+        if ! type -p git >&/dev/null; then
+          echo "$0: git: not found."
+          exit 0
+        fi
+        git clean -f -d -x -e TAGS >/dev/null
+        remove_empty_directories
+      elif [ -e .hg ] || [ -e ../.hg ]; then
+        if ! type -p hg >&/dev/null; then
+          echo "$0: hg: not found."
+          exit 0
+        fi
+        hg purge --all
+      else
+        echo "$0: $d: not administered by Subversion, Git or Mercurial."
+      fi
+    fi
+  )
+  done
+fi
