@@ -114,7 +114,7 @@ log message: "tgt_dev for LUN 0 not found, command to unexisting LU?"
 It is highly recommended to use scstadmin utility for configuring
 devices and security groups.
 
-The flow of SCST initialization should be as the following:
+The flow of SCST initialization should be as follows:
 
 1. Load of SCST modules with necessary module parameters, if needed.
 
@@ -1102,9 +1102,13 @@ cache. The following parameters possible for vdisk_fileio:
 
  - read_only - read only. Default is 0.
 
- - o_direct - disables both read and write caching. This mode isn't
-   currently fully implemented, you should use user space fileio_tgt
-   program in O_DIRECT mode instead (see below).
+ - async - submit I/O asynchronously to the device handler. This mode
+   allows concurrent processing of SCSI commands even when using only
+   a single SCST command thread.
+
+ - o_direct - disables both read and write caching if asynchronous
+   I/O is used. This mode bypasses the page cache and hence improves
+   performance.
 
  - nv_cache - enables "non-volatile cache" mode. In this mode it is
    assumed that the target has a GOOD UPS with ability to cleanly
@@ -1139,8 +1143,8 @@ cache. The following parameters possible for vdisk_fileio:
  - rotational - if set, this device reported as rotational. Otherwise,
    it is reported as non-rotational (SSD, etc.)
 
- - zero_copy - if set, then this device uses zero copy access to the
-   page cache. At the moment, only read side zero copy is implemented.
+ - zero_copy - ignored. For zero-copy I/O, set the async flag and
+   possibly also the o_direct flag and use Linux kernel v4.10 or later.
 
  - dif_mode - specifies which T10-PI, or DIF, mode this device will use.
    See SCSI standards from more info about T10-PI. Available DIF modes

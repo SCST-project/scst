@@ -25,6 +25,7 @@
 #ifndef INSIDE_KERNEL_TREE
 #include <linux/version.h>
 #endif
+#include <linux/aio.h>
 #include <linux/file.h>
 #include <linux/fs.h>
 #include <linux/string.h>
@@ -176,6 +177,7 @@ struct scst_vdisk_dev {
 	unsigned int nv_cache:1;
 	unsigned int o_direct_flag:1;
 	unsigned int zero_copy:1;
+	unsigned int async:1;
 	unsigned int media_changed:1;
 	unsigned int prevent_allow_medium_removal:1;
 	unsigned int nullio:1;
@@ -270,6 +272,11 @@ struct vdisk_cmd_params {
 			int iv_count;
 			struct iovec small_iv[4];
 		} sync;
+		struct {
+			struct kiocb iocb;
+			struct kvec  *kvec;
+			struct kvec small_kvec[4];
+		} async;
 	};
 	struct scst_cmd *cmd;
 	loff_t loff;
@@ -495,6 +502,8 @@ static ssize_t vdev_sysfs_inq_vend_specific_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdev_zero_copy_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
+static ssize_t vdev_async_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
 static ssize_t vdev_dif_filename_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 
@@ -590,6 +599,8 @@ static struct kobj_attribute vdev_inq_vend_specific_attr =
 	       vdev_sysfs_inq_vend_specific_store);
 static struct kobj_attribute vdev_zero_copy_attr =
 	__ATTR(zero_copy, S_IRUGO, vdev_zero_copy_show, NULL);
+static struct kobj_attribute vdev_async_attr =
+	__ATTR(async, S_IRUGO, vdev_async_show, NULL);
 static struct kobj_attribute vdev_dif_filename_attr =
 	__ATTR(dif_filename, S_IRUGO, vdev_dif_filename_show, NULL);
 
@@ -625,6 +636,7 @@ static const struct attribute *vdisk_fileio_attrs[] = {
 	&vdev_usn_attr.attr,
 	&vdev_inq_vend_specific_attr.attr,
 	&vdev_zero_copy_attr.attr,
+	&vdev_async_attr.attr,
 	NULL,
 };
 
@@ -759,12 +771,13 @@ static struct scst_dev_type vdisk_file_devtype = {
 	.del_device =		vdisk_del_device,
 	.dev_attrs =		vdisk_fileio_attrs,
 	.add_device_parameters =
+		"async, "
 		"blocksize, "
+		"cluster_mode, "
 		"filename, "
 		"numa_node_id, "
 		"nv_cache, "
 		"o_direct, "
-		"cluster_mode, "
 		"read_only, "
 		"removable, "
 		"rotational, "
@@ -977,8 +990,6 @@ static struct file *vdev_open_fd(const struct scst_vdisk_dev *virt_dev,
 		open_flags |= O_RDONLY;
 	else
 		open_flags |= O_RDWR;
-	if (virt_dev->o_direct_flag)
-		open_flags |= O_DIRECT;
 	if (virt_dev->wt_flag && !virt_dev->nv_cache)
 		open_flags |= O_DSYNC;
 
@@ -1738,6 +1749,12 @@ next:
 
 	if (virt_dev->zero_copy && virt_dev->o_direct_flag) {
 		PRINT_ERROR("%s: combining zero_copy with o_direct is not"
+			    " supported", virt_dev->filename);
+		res = -EINVAL;
+		goto out;
+	}
+	if (!virt_dev->async && virt_dev->o_direct_flag) {
+		PRINT_ERROR("%s: using o_direct without setting async is not"
 			    " supported", virt_dev->filename);
 		res = -EINVAL;
 		goto out;
@@ -3194,10 +3211,139 @@ static int fileio_exec(struct scst_cmd *cmd)
 	return vdev_do_job(cmd, ops);
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
+static bool do_fileio_async(const struct vdisk_cmd_params *p)
+{
+	struct scst_cmd *cmd = p->cmd;
+	struct scst_device *dev = cmd->dev;
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+
+	return virt_dev->async && dev->dev_dif_mode == SCST_DIF_MODE_NONE;
+}
+
+static bool vdisk_alloc_kvec(struct scst_cmd *cmd, struct vdisk_cmd_params *p)
+{
+	int n;
+
+	n = scst_get_buf_count(cmd);
+	if (n <= ARRAY_SIZE(p->async.small_kvec)) {
+		p->async.kvec = &p->async.small_kvec[0];
+		return true;
+	}
+
+	p->async.kvec = kmalloc_array(n, sizeof(*p->async.kvec),
+				      cmd->cmd_gfp_mask);
+	if (p->async.kvec == NULL) {
+		PRINT_ERROR("Unable to allocate kvecv (%d)", n);
+		return false;
+	}
+
+	return true;
+}
+
+static void fileio_async_complete(struct kiocb *iocb, long ret, long ret2)
+{
+	struct vdisk_cmd_params *p = container_of(iocb, typeof(*p), async.iocb);
+	struct scst_cmd *cmd = p->cmd;
+
+	if (ret < 0 &&
+	    scst_cmd_get_data_direction(cmd) & SCST_DATA_WRITE)
+		scst_set_cmd_error(cmd,
+				   SCST_LOAD_SENSE(scst_sense_write_error));
+	else if (ret < 0)
+		scst_set_cmd_error(cmd,
+				   SCST_LOAD_SENSE(scst_sense_hardw_error));
+	else
+		scst_set_resp_data_len(cmd, ret);
+	cmd->completed = 1;
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
+}
+
+static enum compl_status_e fileio_exec_async(struct vdisk_cmd_params *p)
+{
+	struct scst_cmd *cmd = p->cmd;
+	struct scst_device *dev = cmd->dev;
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+	struct file *fd = virt_dev->fd;
+	struct iov_iter iter = { };
+	ssize_t length, total = 0;
+	struct kvec *kvec;
+	uint8_t *address;
+	int dir, ret;
+
+	switch (cmd->data_direction) {
+	case SCST_DATA_READ:
+		dir = READ;
+		break;
+	case SCST_DATA_WRITE:
+		dir = WRITE;
+		break;
+	default:
+		WARN_ON_ONCE(true);
+		return CMD_FAILED;
+	}
+
+	if (!vdisk_alloc_kvec(cmd, p)) {
+		scst_set_busy(cmd);
+		return CMD_SUCCEEDED;
+	}
+
+	kvec = p->async.kvec;
+	length = scst_get_buf_first(cmd, &address);
+	while (length) {
+		*kvec++ = (struct kvec){
+			.iov_base = address,
+			.iov_len = length,
+		};
+		total += length;
+		length = scst_get_buf_next(cmd, &address);
+	}
+
+	iov_iter_kvec(&iter, ITER_KVEC | dir, p->async.kvec,
+		      kvec - p->async.kvec, total);
+	p->async.iocb = (struct kiocb) {
+		.ki_pos = p->loff,
+		.ki_filp = fd,
+		.ki_complete = fileio_async_complete,
+	};
+	if (virt_dev->o_direct_flag)
+		p->async.iocb.ki_flags |= IOCB_DIRECT;
+	if (dir == WRITE) {
+		if (virt_dev->wt_flag && !virt_dev->nv_cache)
+			p->async.iocb.ki_flags |= IOCB_DSYNC;
+		ret = call_write_iter(fd, &p->async.iocb, &iter);
+	} else {
+		ret = call_read_iter(fd, &p->async.iocb, &iter);
+	}
+	if (p->async.kvec != p->async.small_kvec)
+		kfree(p->async.kvec);
+	if (ret != -EIOCBQUEUED)
+		fileio_async_complete(&p->async.iocb, ret, 0);
+	/*
+	 * Return RUNNING_ASYNC even if fileio_async_complete() has been
+	 * called because that function calls cmd->scst_cmd_done().
+	 */
+	return RUNNING_ASYNC;
+}
+#else
+static bool do_fileio_async(const struct vdisk_cmd_params *p)
+{
+	return false;
+}
+
+static enum compl_status_e fileio_exec_async(struct vdisk_cmd_params *p)
+{
+	WARN_ON_ONCE(true);
+	return CMD_FAILED;
+}
+#endif
+
 static void vdisk_on_free_cmd_params(const struct vdisk_cmd_params *p)
 {
-	if (p->sync.iv != p->sync.small_iv)
-		kfree(p->sync.iv);
+	if (!do_fileio_async(p)) {
+		if (p->sync.iv != p->sync.small_iv)
+			kfree(p->sync.iv);
+	}
 }
 
 static void fileio_on_free_cmd(struct scst_cmd *cmd)
@@ -5760,6 +5906,9 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 
 	EXTRACHECKS_BUG_ON(virt_dev->nullio);
 
+	if (do_fileio_async(p))
+		return fileio_exec_async(p);
+
 	iv = vdisk_alloc_iv(cmd, p);
 	if (iv == NULL)
 		goto out_nomem;
@@ -5942,6 +6091,9 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 	TRACE_ENTRY();
 
 	EXTRACHECKS_BUG_ON(virt_dev->nullio);
+
+	if (do_fileio_async(p))
+		return fileio_exec_async(p);
 
 	rc = scst_dif_process_write(cmd);
 	if (unlikely(rc != 0))
@@ -7319,6 +7471,10 @@ static void vdisk_report_registering(const struct scst_vdisk_dev *virt_dev)
 		i += snprintf(&buf[i], buf_size - i, "%sZERO_COPY",
 			(j == i) ? "(" : ", ");
 
+	if (virt_dev->async)
+		i += snprintf(&buf[i], buf_size - i, "%sASYNC",
+			(j == i) ? "(" : ", ");
+
 	if (virt_dev->dummy)
 		i += snprintf(&buf[i], buf_size - i, "%sDUMMY",
 			(j == i) ? "(" : ", ");
@@ -7770,14 +7926,8 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 			virt_dev->nv_cache = ull_val;
 			TRACE_DBG("NON-VOLATILE CACHE %d", virt_dev->nv_cache);
 		} else if (!strcasecmp("o_direct", p)) {
-#if 0
 			virt_dev->o_direct_flag = ull_val;
 			TRACE_DBG("O_DIRECT %d", virt_dev->o_direct_flag);
-#else
-			PRINT_INFO("O_DIRECT flag doesn't currently"
-				" work, ignoring it, use fileio_tgt "
-				"in O_DIRECT mode instead (device %s)", virt_dev->name);
-#endif
 		} else if (!strcasecmp("read_only", p)) {
 			virt_dev->rd_only = ull_val;
 			TRACE_DBG("READ ONLY %d", virt_dev->rd_only);
@@ -7817,6 +7967,8 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 				virt_dev->thin_provisioned);
 		} else if (!strcasecmp("zero_copy", p)) {
 			virt_dev->zero_copy = !!ull_val;
+		} else if (!strcasecmp("async", p)) {
+			virt_dev->async = !!ull_val;
 		} else if (!strcasecmp("size", p)) {
 			virt_dev->file_size = ull_val;
 		} else if (!strcasecmp("size_mb", p)) {
@@ -10155,6 +10307,17 @@ static ssize_t vdev_zero_copy_show(struct kobject *kobj,
 
 	TRACE_EXIT_RES(pos);
 	return pos;
+}
+
+static ssize_t vdev_async_show(struct kobject *kobj,
+			       struct kobj_attribute *attr, char *buf)
+{
+	struct scst_device *dev =
+		container_of(kobj, struct scst_device, dev_kobj);
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+
+	return sprintf(buf, "%d\n%s", virt_dev->async,
+		      virt_dev->async ? SCST_SYSFS_KEY_MARK "\n" : "");
 }
 
 static ssize_t vdev_dif_filename_show(struct kobject *kobj,

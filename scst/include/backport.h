@@ -327,6 +327,25 @@ static inline int vfs_fsync_backport(struct file *file, int datasync)
 #define vfs_fsync vfs_fsync_backport
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0) && \
+	LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
+/*
+ * See also commit bb7462b6fd64 ("vfs: use helpers for calling
+ * f_op->{read,write}_iter()").
+ */
+static inline ssize_t call_read_iter(struct file *file, struct kiocb *kio,
+				     struct iov_iter *iter)
+{
+	return file->f_op->read_iter(kio, iter);
+}
+
+static inline ssize_t call_write_iter(struct file *file, struct kiocb *kio,
+				      struct iov_iter *iter)
+{
+	return file->f_op->write_iter(kio, iter);
+}
+#endif
+
 /* <linux/kernel.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
