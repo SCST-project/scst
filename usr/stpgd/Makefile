@@ -15,7 +15,8 @@ SCST_INC_DIR := $(shell if [ -e "$$PWD/../../scst" ];			\
                   else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
 DEBUG_INC_DIR := ../include
 INSTALL_DIR := $(DESTDIR)$(PREFIX)/sbin
-ON_STPG := $(DESTDIR)$(PREFIX)/bin/scst/scst_on_stpg
+ON_STPG_DIR := $(DESTDIR)$(PREFIX)/bin/scst
+ON_STPG := $(ON_STPG_DIR)/scst_on_stpg
 
 CFLAGS += -O2 -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes \
 	-I$(SCST_INC_DIR) -I$(DEBUG_INC_DIR) -D_GNU_SOURCE -D__USE_FILE_OFFSET64 \
@@ -58,6 +59,7 @@ endif
 
 install: all
 	install -d $(INSTALL_DIR)
+	install -d $(ON_STPG_DIR)
 	install -m 700 $(PROGS) $(INSTALL_DIR)
 	install -m 700 scst_on_stpg $(ON_STPG)
 
