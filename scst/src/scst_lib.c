@@ -3165,10 +3165,12 @@ void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 		PRINT_CRIT_ERROR("Wrong cmd state %d (cmd %p, op %s)",
 			cmd->state, cmd, scst_get_opcode_name(cmd));
 		sBUG();
+	default:
+		break;
 	}
 #endif
 
-	cmd->state = scst_get_cmd_abnormal_done_state(cmd);
+	scst_set_cmd_state(cmd, scst_get_cmd_abnormal_done_state(cmd));
 
 	switch (cmd->state) {
 	case SCST_CMD_STATE_INIT_WAIT:
@@ -5698,7 +5700,7 @@ struct scst_cmd *__scst_create_prepare_internal_cmd(const uint8_t *cdb,
 	rc = scst_pre_parse(res);
 	sBUG_ON(rc != 0);
 
-	res->state = SCST_CMD_STATE_PARSE;
+	scst_set_cmd_state(res, SCST_CMD_STATE_PARSE);
 
 out:
 	TRACE_EXIT_HRES((unsigned long)res);
@@ -7164,7 +7166,7 @@ int scst_pre_init_cmd(struct scst_cmd *cmd, const uint8_t *cdb,
 	}
 #endif
 
-	cmd->state = SCST_CMD_STATE_INIT_WAIT;
+	scst_set_cmd_state(cmd, SCST_CMD_STATE_INIT_WAIT);
 	cmd->start_time = jiffies;
 	atomic_set(&cmd->cmd_ref, 1);
 	cmd->cmd_threads = &scst_main_cmd_threads;

@@ -110,7 +110,7 @@
  ** !! Adding new states don't forget to update scst_cmd_state_name
  ** !! as well!
  *************************************************************/
-enum {
+enum scst_cmd_state {
 	/** Active states **/
 
 	/* Dev handler's parse() is going to be called */
@@ -2115,7 +2115,7 @@ struct scst_cmd {
 	atomic_t *cpu_cmd_counter;
 
 	/* Cmd state, one of SCST_CMD_STATE_* constants */
-	int state;
+	enum scst_cmd_state state;
 
 	/*************************************************************
 	 ** Cmd's flags
