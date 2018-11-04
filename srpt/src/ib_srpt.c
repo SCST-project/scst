@@ -2243,9 +2243,9 @@ retry:
 	 * max_sge values, use max_sge_delta.
 	 */
 	ch->max_sge = sdev->dev_attr.max_sge -
-		min(max_sge_delta,
-		    max_t(int, 0,
-			  sdev->dev_attr.max_sge - max_sge_delta));
+		min_t(unsigned, max_sge_delta,
+		      max_t(int, 0,
+			    sdev->dev_attr.max_sge - max_sge_delta));
 	qp_init->cap.max_send_sge = ch->max_sge;
 	qp_init->cap.max_recv_sge = ch->max_sge;
 	if (sdev->use_srq) {
