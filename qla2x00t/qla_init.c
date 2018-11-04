@@ -1782,7 +1782,7 @@ qla24xx_config_rings(struct scsi_qla_host *vha)
 		if (IS_ATIO_MSIX_CAPABLE(ha)) {
 			msix = &ha->msix_entries[2];
 			icb->msix_atio = cpu_to_le16(msix->entry);
-                        ql_dbg(ql_dbg_init, vha, 0xffff,
+			ql_dbg(ql_dbg_init, vha, 0xffff,
 			    "Registering ICB vector 0x%x for atio que.\n",
 			    msix->entry);
 		}

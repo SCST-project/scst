@@ -814,7 +814,7 @@ qla2x00_process_loopback(struct bsg_job *bsg_job)
 		    "BSG request type: %s.\n", type);
 		command_sent = INT_DEF_LB_ECHO_CMD;
 		rval = qla2x00_echo_test(vha, &elreq, response);
-       } else {
+	} else {
 		if (IS_QLA81XX(ha) || IS_QLA8031(ha)) {
 			memset(config, 0, sizeof(config));
 			memset(new_config, 0, sizeof(new_config));

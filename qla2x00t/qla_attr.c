@@ -2231,7 +2231,7 @@ qla2x00_get_fc_host_stats(struct Scsi_Host *shost)
 	pfc_host_stat->fcp_output_megabytes = vha->qla_stats.output_bytes >> 20;
 
 done_free:
-        dma_pool_free(ha->s_dma_pool, stats, stats_dma);
+	dma_pool_free(ha->s_dma_pool, stats, stats_dma);
 done:
 	return pfc_host_stat;
 }
@@ -2275,23 +2275,23 @@ qla2x00_get_host_port_state(struct Scsi_Host *shost)
 		return;
 	}
 
-        switch (atomic_read(&base_vha->loop_state)) {
-        case LOOP_UPDATE:
+	switch (atomic_read(&base_vha->loop_state)) {
+	case LOOP_UPDATE:
 		fc_host_port_state(shost) = FC_PORTSTATE_DIAGNOSTICS;
 		break;
-        case LOOP_DOWN:
+	case LOOP_DOWN:
 		if(test_bit(LOOP_RESYNC_NEEDED, &base_vha->dpc_flags))
 			fc_host_port_state(shost) = FC_PORTSTATE_DIAGNOSTICS;
 		else
 			fc_host_port_state(shost) = FC_PORTSTATE_LINKDOWN;
 		break;
-        case LOOP_DEAD:
+	case LOOP_DEAD:
 		fc_host_port_state(shost) = FC_PORTSTATE_LINKDOWN;
 		break;
-        case LOOP_READY:
+	case LOOP_READY:
 		fc_host_port_state(shost) = FC_PORTSTATE_ONLINE;
 		break;
-        default:
+	default:
 		fc_host_port_state(shost) = FC_PORTSTATE_UNKNOWN;
 		break;
 	}

@@ -2269,10 +2269,10 @@ void qla24xx_process_response_queue(struct scsi_qla_host *vha,
 			qla24xx_tm_iocb_entry(vha, rsp->req,
 			    (struct tsk_mgmt_entry *)pkt);
 			break;
-                case CT_IOCB_TYPE:
+		case CT_IOCB_TYPE:
 			qla24xx_els_ct_entry(vha, rsp->req, pkt, CT_IOCB_TYPE);
 			break;
-                case ELS_IOCB_TYPE:
+		case ELS_IOCB_TYPE:
 			qla24xx_els_ct_entry(vha, rsp->req, pkt, ELS_IOCB_TYPE);
 			break;
 		case MARKER_TYPE:
