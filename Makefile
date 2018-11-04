@@ -501,7 +501,7 @@ dpkg: ../scst_$(VERSION).orig.tar.xz
 	output_files=(							\
 		../*_$(VERSION)-$(DEBIAN_REVISION)_*.deb		\
 		../*_$(VERSION)-$(DEBIAN_REVISION)_*.ddeb		\
-		../scst_$(VERSION)-$(DEBIAN_REVISION).debian.tar.xz	\
+		../scst_$(VERSION)-$(DEBIAN_REVISION).debian.tar.[gx]z	\
 		../scst_$(VERSION)-$(DEBIAN_REVISION).dsc		\
 		../scst_$(VERSION)-$(DEBIAN_REVISION)_amd64.build	\
 		../scst_$(VERSION)-$(DEBIAN_REVISION)_amd64.buildinfo	\
