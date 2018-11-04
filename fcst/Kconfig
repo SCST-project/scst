@@ -1,5 +1,15 @@
 config FCST
-	tristate "SCST target module for Fibre Channel using libfc"
+	tristate "SCST FCoE target module"
 	depends on LIBFC && SCST
-	---help---
-	  Supports using libfc HBAs as target adapters with SCST
+	help
+	  The fcst kernel module implements an SCST target driver for the FCoE
+	  protocol. FCoE or Fibre Channel over Ethernet is a protocol that
+	  allows to communicate fibre channel frames over an Ethernet
+	  network. Since the FCoE protocol requires a lossless Ethernet
+	  network, special network adapters and switches are required.
+	  Ethernet network adapters that support FCoE are called Converged
+	  Network Adapters (CNA). The standard that makes lossless Ethernet
+	  communication possible is called DCB or Data Center Bridging. Since
+	  FCoE frames are a kind of Ethernet frames, communication between
+	  FCoE clients and servers is limited to a single Ethernet broadcast
+	  domain.
