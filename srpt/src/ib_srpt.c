@@ -2765,7 +2765,8 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 		goto reject;
 	default:
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-		pr_err("sending SRP_LOGIN_REQ response failed (error code = %d)\n", ret);
+		pr_err("sending SRP_LOGIN_REQ response failed (error code = %d)\n",
+		       ret);
 		goto reject;
 	}
 
