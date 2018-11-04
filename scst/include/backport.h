@@ -27,6 +27,7 @@
 #endif
 #include <linux/scatterlist.h>	/* struct scatterlist */
 #include <linux/slab.h>		/* kmalloc() */
+#include <linux/stddef.h>	/* sizeof_field() */
 #include <linux/timer.h>
 #include <linux/version.h>
 #include <linux/vmalloc.h>
@@ -304,18 +305,18 @@ typedef unsigned int __bitwise __poll_t;
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
-#define EPOLLIN		(__force __poll_t)0x00000001
-#define EPOLLPRI	(__force __poll_t)0x00000002
-#define EPOLLOUT	(__force __poll_t)0x00000004
-#define EPOLLERR	(__force __poll_t)0x00000008
-#define EPOLLHUP	(__force __poll_t)0x00000010
-#define EPOLLNVAL	(__force __poll_t)0x00000020
-#define EPOLLRDNORM	(__force __poll_t)0x00000040
-#define EPOLLRDBAND	(__force __poll_t)0x00000080
-#define EPOLLWRNORM	(__force __poll_t)0x00000100
-#define EPOLLWRBAND	(__force __poll_t)0x00000200
-#define EPOLLMSG	(__force __poll_t)0x00000400
-#define EPOLLRDHUP	(__force __poll_t)0x00002000
+#define EPOLLIN		(__force __poll_t)POLLIN
+#define EPOLLPRI	(__force __poll_t)POLLPRI
+#define EPOLLOUT	(__force __poll_t)POLLOUT
+#define EPOLLERR	(__force __poll_t)POLLERR
+#define EPOLLHUP	(__force __poll_t)POLLHUP
+#define EPOLLNVAL	(__force __poll_t)POLLNVAL
+#define EPOLLRDNORM	(__force __poll_t)POLLRDNORM
+#define EPOLLRDBAND	(__force __poll_t)POLLRDBAND
+#define EPOLLWRNORM	(__force __poll_t)POLLWRNORM
+#define EPOLLWRBAND	(__force __poll_t)POLLWRBAND
+#define EPOLLMSG	(__force __poll_t)POLLMSG
+#define EPOLLRDHUP	(__force __poll_t)POLLRDHUP
 #endif
 
 /* <linux/fs.h> */
@@ -836,6 +837,12 @@ struct t10_pi_tuple {
 	__be16 app_tag;
 	__be32 ref_tag;
 };
+#endif
+
+/* <linux/stddef.h> */
+
+#ifndef sizeof_field
+#define sizeof_field(TYPE, MEMBER) sizeof((((TYPE *)0)->MEMBER))
 #endif
 
 /* <linux/timer.h> */
