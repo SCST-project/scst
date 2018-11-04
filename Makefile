@@ -58,7 +58,7 @@ REVISION ?= $(shell if svn info >/dev/null 2>&1;			 \
 		    then svn info | sed -n 's/^Revision:[[:blank:]]*//p';\
 		    else git log | grep -c ^commit;			 \
 		    fi)
-VERSION = $(shell echo -n "$$(sed -n 's/^\#define[[:blank:]]SCST_VERSION_NAME[[:blank:]]*\"\([^-]*\).*\"/\1/p' scst/include/scst_const.h).$(REVISION)")
+VERSION := $(shell echo -n "$$(sed -n 's/^\#define[[:blank:]]SCST_VERSION_NAME[[:blank:]]*\"\([^-]*\).*\"/\1/p' scst/include/scst_const.h).$(REVISION)")
 
 help:
 	@echo "		all               : make all"
