@@ -110,10 +110,11 @@ install: all
 	echo Error: the scst and/or scst-devel RPMs must be uninstalled first; \
 	false; fi
 	-rm -f $(INSTALL_DIR)/scsi_tgt.ko
-	install -d $(INSTALL_DIR)
-	install -d $(INSTALL_DIR)/dev_handlers
-	install -m 644 dev_handlers/*.ko $(INSTALL_DIR)/dev_handlers
-	install -m 644 scst.ko $(INSTALL_DIR)
+	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/dev_handlers		\
+	  modules_install
+	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)				\
+	  $$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true)\
+	  modules_install
 	install -d $(INSTALL_DIR_H)
 	header_files="backport.h scst.h scst_const.h scst_debug.h	\
 		      scst_itf_ver.h scst_sgv.h scst_user.h";		\
@@ -122,7 +123,6 @@ install: all
 	done
 	rm -f $(INSTALL_DIR_H)/$(MODULE_SYMVERS)
 	install -m 644 $(MODULE_SYMVERS) $(INSTALL_DIR_H)
-	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
 	mkdir -p $(DESTDIR)/var/lib/scst/pr
 	mkdir -p $(DESTDIR)/var/lib/scst/dif_tags
 	mkdir -p $(DESTDIR)/var/lib/scst/vdev_mode_pages
