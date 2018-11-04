@@ -76,8 +76,6 @@ OFED_VERS=$(shell rpm -q --qf '%{version}\n' mlnx-ofa_kernel-devel 2>/dev/null |
 OFED_CFLAGS:=-I$(OFED_KERNEL_DIR)/include      \
              -I$(OFED_KERNEL_DIR)/include/uapi \
              -include "linux/compat-2.6.h"
-OFED_CFLAGS+=-DMOFED_MAJOR=$(shell echo "$(OFED_VERS)" | sed 's/\([0-9]\+\)[^0-9]\+\([0-9]\+\).*/\1/g')
-OFED_CFLAGS+=-DMOFED_MINOR=$(shell echo "$(OFED_VERS)" | sed 's/\([0-9]\+\)[^0-9]\+\([0-9]\+\).*/\2/g')
 else
 # OFED 1.5
 OFED_KERNEL_DIR:=/usr/src/ofa_kernel
