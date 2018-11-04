@@ -832,15 +832,18 @@ static inline void put_unaligned_be64(uint64_t i, void *p)
 
 /* <linux/vmalloc.h> */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
-static inline void *vzalloc(size_t size)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37) && \
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 5 || \
+	 RHEL_MAJOR -0 == 5 && RHEL_MINOR -0 < 10 || \
+	 RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 < 1)
+/*
+ * See also patch "mm: add vzalloc() and vzalloc_node() helpers" (commit
+ * e1ca7788dec6773b1a2bce51b7141948f2b8bccf).
+ */
+static inline void *vzalloc(unsigned long size)
 {
-	void *p;
-
-	p = vmalloc(size);
-	if (p)
-		memset(p, 0, size);
-	return p;
+	return __vmalloc(size, GFP_KERNEL | __GFP_HIGHMEM | __GFP_ZERO,
+			 PAGE_KERNEL);
 }
 #endif
 
