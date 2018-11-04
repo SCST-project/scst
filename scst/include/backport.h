@@ -796,23 +796,6 @@ typedef unsigned long uintptr_t;
 char *kvasprintf(gfp_t gfp, const char *fmt, va_list ap);
 #endif
 
-/* <linux/vmalloc.h> */
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37) && \
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 5 || \
-	 RHEL_MAJOR -0 == 5 && RHEL_MINOR -0 < 10 || \
-	 RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 < 1)
-/*
- * See also patch "mm: add vzalloc() and vzalloc_node() helpers" (commit
- * e1ca7788dec6773b1a2bce51b7141948f2b8bccf).
- */
-static inline void *vzalloc(unsigned long size)
-{
-	return __vmalloc(size, GFP_KERNEL | __GFP_HIGHMEM | __GFP_ZERO,
-			 PAGE_KERNEL);
-}
-#endif
-
 /* <linux/unaligned.h> */
 
 #if defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
