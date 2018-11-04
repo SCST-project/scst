@@ -3,8 +3,8 @@
  *
  *  Copyright (C) 2004 Xiranet Communications GmbH <arne.redlich@xiranet.com>
  *  Copyright (C) 2002 - 2003 Ardis Technologies <roman@ardistech.com>,
- *  Copyright (C) 2007 - 2017 Vladislav Bolkhovitin
- *  Copyright (C) 2007 - 2017 SanDisk Corporation
+ *  Copyright (C) 2007 - 2018 Vladislav Bolkhovitin
+ *  Copyright (C) 2007 - 2018 Western Digital Corporation
  *
  *  and code taken from UNH iSCSI software:
  *  Copyright (C) 2001-2003 InterOperability Lab (IOL)

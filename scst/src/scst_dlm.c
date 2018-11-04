@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2013 - 2014 Fusion-io, Inc. All rights reserved.
- * Copyright (C) 2014 - 2017 SanDisk Corporation.
+ * Copyright (C) 2014 - 2018 Western Digital Corporation.
  *
  * Synchronization of persistent registration data with DLM lock value blocks.
  *

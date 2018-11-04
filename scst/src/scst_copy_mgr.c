@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2013 - 2017 SanDisk Corporation
+ *  Copyright (C) 2013 - 2018 Western Digital Corporation
  *
  */
 
