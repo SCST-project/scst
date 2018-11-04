@@ -122,7 +122,7 @@ qla2x00_async_iocb_timeout(void *data)
 static void
 qla2x00_async_login_sp_done(void *data, void *ptr, int res)
 {
-	srb_t *sp = (srb_t*)ptr;
+	srb_t *sp = ptr;
 	struct srb_iocb *lio = &sp->u.iocb_cmd;
 	struct scsi_qla_host *vha = (scsi_qla_host_t *)data;
 
@@ -272,7 +272,7 @@ done:
 static void
 qla2x00_async_tm_cmd_done(void *data, void *ptr, int res)
 {
-	srb_t *sp = (srb_t*)ptr;
+	srb_t *sp = ptr;
 	struct srb_iocb *iocb = &sp->u.iocb_cmd;
 	struct scsi_qla_host *vha = (scsi_qla_host_t *)data;
 	uint32_t flags;

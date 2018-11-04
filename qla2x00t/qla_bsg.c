@@ -61,7 +61,7 @@ static inline void bsg_job_done_backport(struct fc_bsg_job *job, int result,
 void
 qla2x00_bsg_job_done(void *data, void *ptr, int res)
 {
-	srb_t *sp = (srb_t*)ptr;
+	srb_t *sp = ptr;
 	struct scsi_qla_host *vha = (scsi_qla_host_t *)data;
 #ifndef NEW_LIBFC_API
 	struct fc_bsg_job *bsg_job = sp->u.bsg_job;
@@ -78,7 +78,7 @@ qla2x00_bsg_job_done(void *data, void *ptr, int res)
 void
 qla2x00_bsg_sp_free(void *data, void *ptr)
 {
-	srb_t *sp = (srb_t*)ptr;
+	srb_t *sp = ptr;
 	struct scsi_qla_host *vha = (scsi_qla_host_t *)data;
 #ifndef NEW_LIBFC_API
 	struct fc_bsg_job *bsg_job = sp->u.bsg_job;
