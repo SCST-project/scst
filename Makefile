@@ -501,7 +501,7 @@ dpkg: ../scst_$(VERSION).orig.tar.xz
 	) &&								\
 	rm -f "$${output_files[@]}" &&					\
 	buildopts=(-uc -us) &&						\
-	if dpkg-buildpackage --help 2>&1 | grep -- '-ui'; then		\
+	if dpkg-buildpackage --help 2>&1 | grep -q -- '-ui'; then	\
 	  buildopts+=(-ui);						\
 	fi &&								\
 	if dpkg-buildpackage --help 2>&1 |				\
