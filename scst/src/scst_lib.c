@@ -15368,7 +15368,7 @@ EXPORT_SYMBOL_GPL(scst_random);
 
 #define INIT_TM_DBG_STATE		TM_DBG_STATE_ABORT
 
-static void tm_dbg_timer_fn(unsigned long arg);
+static void tm_dbg_timer_fn(struct timer_list *timer);
 
 static DEFINE_SPINLOCK(scst_tm_dbg_lock);
 /* All serialized by scst_tm_dbg_lock */
@@ -15422,7 +15422,7 @@ static void tm_dbg_deinit_tgt_dev(struct scst_tgt_dev *tgt_dev)
 	return;
 }
 
-static void tm_dbg_timer_fn(unsigned long arg)
+static void tm_dbg_timer_fn(struct timer_list *timer)
 {
 	TRACE_MGMT_DBG("%s", "delayed cmd timer expired");
 	tm_dbg_flags.tm_dbg_release = 1;
