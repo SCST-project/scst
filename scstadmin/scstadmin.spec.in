@@ -40,6 +40,8 @@ if test -n "$RPM_BUILD_ROOT" -a -d $RPM_BUILD_ROOT%perl_vendorarch/auto; then \
   fi; \
   rm -f $RPM_BUILD_ROOT%{perl_archlib}/perllocal.pod; set +x
 
+%global debug_package %{nil}
+
 %prep
 
 %setup -q
