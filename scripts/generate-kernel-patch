@@ -395,7 +395,9 @@ EOF
 done
 
 {
-  add_file "scst/README_in-tree" "Documentation/scst/README.scst"
+  if [ -e scst/README_in-tree ]; then
+    add_file "scst/README_in-tree" "Documentation/scst/README.scst"
+  fi
   add_file "scst/SysfsRules" "Documentation/scst/SysfsRules"
 } | process_patch "scst_11_core_doc.diff"
 
