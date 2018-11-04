@@ -59,6 +59,7 @@ REVISION ?= $(shell if svn info >/dev/null 2>&1;			 \
 		    else git log | grep -c ^commit;			 \
 		    fi)
 VERSION := $(shell echo -n "$$(sed -n 's/^\#define[[:blank:]]SCST_VERSION_NAME[[:blank:]]*\"\([^-]*\).*\"/\1/p' scst/include/scst_const.h).$(REVISION)")
+DEBIAN_REVISION=1
 
 help:
 	@echo "		all               : make all"
@@ -411,15 +412,18 @@ scst-dist-gzip:
 	name=scst &&							\
 	mkdir $${name}-$(VERSION) &&					\
 	{								\
-	  if [ -e qla2x00t_git ]; then					\
-	    scripts/list-source-files | grep -v ^qla2x00t/;		\
-	    ( dir="$$PWD" && cd qla2x00t_git &&				\
-	      "$$dir/scripts/list-source-files" ) |			\
-	    sed 's,^,qla2x00t_git/,';					\
-	  else								\
-	    scripts/list-source-files;					\
-	  fi | \
-	  grep -E '^doc/|^fcst/|^iscsi-scst/|^Makefile|^qla2x00t(|_git)/|^scst.spec|^scst/|^scst_local/|^srpt/|^usr/|^scstadmin/'|\
+	  {								\
+	    if [ -e qla2x00t_git ]; then				\
+	      scripts/list-source-files | grep -v ^qla2x00t/;		\
+	      ( dir="$$PWD" && cd qla2x00t_git &&			\
+	        "$$dir/scripts/list-source-files" ) |			\
+	      sed 's,^,qla2x00t_git/,';					\
+	    else							\
+	      scripts/list-source-files;				\
+	    fi &&							\
+	    if [ -e debian/changelog ]; then echo debian/changelog; fi;	\
+	  } |								\
+	  $(4) |							\
 	  tar -T- -cf- |						\
 	  tar -C $${name}-$(VERSION) -xf-;				\
 	} &&								\
@@ -468,6 +472,50 @@ rpm:
 	    echo "The following RPMs have been built:";	\
 	    find -name '*.rpm';				\
 	fi
+
+debian/changelog: debian/changelog.in
+	sed 's/%{scst_version}/$(VERSION)-$(DEBIAN_REVISION)/'		\
+	  <debian/changelog.in >debian/changelog
+
+../scst_$(VERSION).orig.tar.xz: debian/changelog Makefile
+	$(call make-scst-dist,J,xz,$(VERSION),cat) &&			\
+	mv "scst-$(VERSION).tar.xz" "$@"
+
+dpkg: ../scst_$(VERSION).orig.tar.xz
+	@if [ -z "$$DEBEMAIL" ]; then					\
+	  echo "Error: \$$DEBEMAIL has not been set";			\
+	  false;							\
+	fi &&								\
+	if [ -z "$$DEBFULLNAME" ]; then					\
+	  echo "Error: \$$DEBFULLNAME has not been set";		\
+	  false;							\
+	fi &&								\
+	sed 's/%{scst_version}/$(VERSION)/'				\
+	  <debian/scst.dkms.in >debian/scst.dkms &&			\
+	output_files=(							\
+		../iscsi-scst_$(VERSION)-$(DEBIAN_REVISION)_amd64.deb	\
+		../scst-dev_$(VERSION)-$(DEBIAN_REVISION)_all.deb	\
+		../scst-dkms_$(VERSION)-$(DEBIAN_REVISION)_all.deb	\
+		../scst_$(VERSION)-$(DEBIAN_REVISION).debian.tar.xz	\
+		../scst_$(VERSION)-$(DEBIAN_REVISION).dsc		\
+		../scst_$(VERSION)-$(DEBIAN_REVISION)_amd64.build	\
+		../scst_$(VERSION)-$(DEBIAN_REVISION)_amd64.buildinfo	\
+		../scst_$(VERSION)-$(DEBIAN_REVISION)_amd64.changes	\
+		../scst_$(VERSION)-$(DEBIAN_REVISION)_amd64.deb		\
+		../scstadmin_$(VERSION)-$(DEBIAN_REVISION)_amd64.deb	\
+	) &&								\
+	rm -f "$${output_files[@]}" &&					\
+	if false; then							\
+	  dpkg-buildpackage -uc -us -ui -jauto;				\
+	else								\
+	  debuild -uc -us -ui -jauto --lintian-opts --profile debian;	\
+	fi &&								\
+	mkdir -p dpkg &&						\
+	for f in "$${output_files[@]}" ../scst_$(VERSION).orig.tar.xz; do\
+		mv $$f dpkg || true;					\
+	done &&								\
+	echo "Output files:" &&						\
+	ls -l dpkg
 
 release-archive:
 	$(MAKE) 2release
@@ -546,4 +594,5 @@ disable_proc: extraclean
 	scst_local scst_local_install scst_local_uninstall scst_local_clean scst_local_extraclean \
 	mvsas mvsas_install mvsas_uninstall mvsas_clean mvsas_extraclean \
 	fcst fcst_install fcst_uninstall fcst_clean fcst_extraclean \
+	scst-rpm scst-dkms-rpm dpkg \
 	2perf 2release 2debug enable_proc disable_proc

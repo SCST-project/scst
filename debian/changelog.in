@@ -1,0 +1,5 @@
+scst (%{scst_version}) unstable; urgency=medium
+
+  * Initial release.
+
+ -- Bart Van Assche <bvanassche@acm.org>  Fri, 12 Jan 2018 20:14:02 -0800
