@@ -100,11 +100,11 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
  * Note: the function bsg_job_sense() exists only in SCST but not in any
  * upstream kernel.
  */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 31) &&		\
-	((LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) &&	\
-	  !defined(CONFIG_SUSE_KERNEL)) ||			\
-	 (LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) &&	\
-	  defined(CONFIG_SUSE_KERNEL)))
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 31)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) &&	\
+     !defined(CONFIG_SUSE_KERNEL)) ||			\
+    (LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) &&	\
+     defined(CONFIG_SUSE_KERNEL))
 static inline void *bsg_job_sense(struct fc_bsg_job *job)
 {
 	return job->req->sense;
@@ -121,6 +121,7 @@ static inline void *bsg_job_sense(struct bsg_job *job)
 #endif
 }
 #endif
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 31) */
 
 /* <linux/compiler.h> */
 
