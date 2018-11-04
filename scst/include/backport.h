@@ -29,6 +29,7 @@
 #include <linux/slab.h>		/* kmalloc() */
 #include <linux/timer.h>
 #include <linux/version.h>
+#include <linux/vmalloc.h>
 #include <linux/writeback.h>	/* sync_page_range() */
 #include <rdma/ib_verbs.h>
 #include <scsi/scsi_cmnd.h>	/* struct scsi_cmnd */
@@ -61,6 +62,24 @@
 #ifndef O_DSYNC
 #define O_DSYNC O_SYNC
 #endif
+#endif
+
+/* <asm/msr.h> */
+
+#ifdef CONFIG_X86
+#include <asm/msr.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0)
+static __always_inline unsigned long long rdtsc(void)
+{
+	return native_read_tsc();
+}
+#endif
+#else
+static __always_inline unsigned long long rdtsc(void)
+{
+	return 0;
+}
+#define tsc_khz 1000
 #endif
 
 /* <linux/bio.h> */
@@ -375,6 +394,23 @@ static inline int __must_check kstrtol(const char *s, unsigned int base,
 				       long *res)
 {
 	return strict_strtol(s, base, res);
+}
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0)
+/* Suboptimal algorithm for computing the square root of a 64-bit number */
+static inline u32 int_sqrt64(u64 x)
+{
+	u32 r = 0, s;
+	int i;
+
+	for (i = 8 * sizeof(r) - 2; i >= 0;i --) {
+		s = r + (1 << i);
+		if (1ll * s * s <= x)
+			r = s;
+	}
+
+	return r;
 }
 #endif
 
@@ -808,6 +844,20 @@ static inline uint64_t get_unaligned_be64(const void *p)
 static inline void put_unaligned_be64(uint64_t i, void *p)
 {
 	put_unaligned(cpu_to_be64(i), (__be64 *)p);
+}
+#endif
+
+/* <linux/vmalloc.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
+static inline void *vzalloc(size_t size)
+{
+	void *p;
+
+	p = vmalloc(size);
+	if (p)
+		memset(p, 0, size);
+	return p;
 }
 #endif
 

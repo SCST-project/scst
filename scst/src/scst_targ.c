@@ -872,6 +872,9 @@ set_state:
 	if (unlikely(rc < 0))
 		goto out;
 
+	if (cmd->state == SCST_CMD_STATE_PARSE)
+		scst_set_cmd_state(cmd, SCST_CMD_STATE_CSW1);
+
 active:
 	/* Here cmd must not be in any cmd list, no locks */
 	switch (pref_context) {
@@ -4383,6 +4386,9 @@ static int scst_dev_done(struct scst_cmd *cmd)
 #endif
 
 out:
+	if (cmd->state == SCST_CMD_STATE_PRE_XMIT_RESP1)
+		scst_set_cmd_state(cmd, SCST_CMD_STATE_CSW2);
+
 	TRACE_EXIT_HRES(res);
 	return res;
 }
@@ -5430,6 +5436,7 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 
 	do {
 		switch (cmd->state) {
+		case SCST_CMD_STATE_CSW1:
 		case SCST_CMD_STATE_PARSE:
 			res = scst_parse_cmd(cmd);
 			break;
@@ -5507,6 +5514,7 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 			res = scst_dev_done(cmd);
 			break;
 
+		case SCST_CMD_STATE_CSW2:
 		case SCST_CMD_STATE_PRE_XMIT_RESP1:
 			res = scst_pre_xmit_response1(cmd);
 			EXTRACHECKS_BUG_ON(res == SCST_CMD_STATE_RES_NEED_THREAD);

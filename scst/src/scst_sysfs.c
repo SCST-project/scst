@@ -4313,6 +4313,132 @@ void scst_tgt_dev_sysfs_del(struct scst_tgt_dev *tgt_dev)
  ** Sessions subdirectory implementation
  **/
 
+static u64 calc_stddev(u64 sumsq, u64 sum, u32 count)
+{
+	return int_sqrt64((sumsq - sum * sum / count) / count);
+}
+
+static ssize_t scst_sess_latency_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct scst_session *sess =
+		container_of(kobj->parent, struct scst_session, sess_kobj);
+	int res = 0, i, j, k;
+	long sz;
+	struct scst_lat_stat_entry *d;
+	uint64_t avg, stddev;
+#ifdef SCST_MEASURE_CLOCK_CYCLES
+	uint64_t min, max, sumc = 0, sumsqc = 0;
+#else
+	uint64_t sum = 0, sumsq = 0;
+#endif
+	unsigned count = 0, numst = 0;
+	char state_name[32];
+
+	switch (attr->attr.name[0]) {
+	case 'n': j = SCST_DATA_NONE & 3; break;
+	case 'r': j = SCST_DATA_READ;     break;
+	case 'w': j = SCST_DATA_WRITE;    break;
+	case 'b': j = SCST_DATA_BIDI;     break;
+	default:
+		return -EINVAL;
+	}
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+	res = kstrtol(attr->attr.name + 1, 0, &sz);
+#else
+	res = strict_strtol(attr->attr.name + 1, 0, &sz);
+#endif
+	if (WARN_ON(res < 0))
+		goto out;
+	i = ilog2(sz) - SCST_STATS_LOG2_SZ_OFFSET;
+	if (WARN_ON(i < 0 || i >= SCST_STATS_MAX_LOG2_SZ)) {
+		res = -EINVAL;
+		goto out;
+	}
+
+	res += scnprintf(buf + res, PAGE_SIZE - res,
+			 "state count min max avg stddev\n");
+
+	spin_lock_irq(&sess->lat_stats_lock);
+	for (k = 0; k < SCST_CMD_STATE_COUNT; k++) {
+		struct scst_lat_stats *lat_stats = sess->lat_stats;
+
+		d = &lat_stats->ls[i][j][k];
+		if (!lat_stats || d->count == 0 || res >= PAGE_SIZE)
+			continue;
+		scst_get_cmd_state_name(state_name, sizeof(state_name),
+					k);
+		avg = d->sum / d->count;
+		stddev = calc_stddev(d->sumsq, d->sum, d->count);
+		res += scnprintf(buf + res, PAGE_SIZE - res,
+				 "%s %d %lld.%01lld %lld.%01lld %lld.%01lld %lld.%01lld us\n",
+				 state_name, d->count,
+				 d->min / 10, d->min % 10,
+				 d->max / 10, d->max % 10,
+				 avg / 10, avg % 10,
+				 stddev / 10, stddev % 10);
+#ifdef SCST_MEASURE_CLOCK_CYCLES
+		min = d->minc * 10000 / (tsc_khz / 100);
+		max = d->maxc * 10000 / (tsc_khz / 100);
+		avg = d->sumc * 10000 / (d->count * 1ull * tsc_khz / 100);
+		stddev = calc_stddev(d->sumsqc, d->sumc, d->count)
+			* 1000000 / tsc_khz;
+		res += scnprintf(buf + res, PAGE_SIZE - res,
+				 "%s %d %lld.%01lld %lld.%01lld %lld.%01lld %lld.%01lld cc -> us\n",
+				 state_name, d->count,
+				 min / 10, min % 10,
+				 max / 10, max % 10,
+				 avg / 10, avg % 10,
+				 stddev / 10, stddev % 10);
+		sumc += d->sumc;
+		sumsqc += d->sumsqc;
+#else
+		sum += d->sum;
+		sumsq += d->sumsq;
+#endif
+		count += d->count;
+		numst++;
+	}
+	spin_unlock_irq(&sess->lat_stats_lock);
+
+	if (count != 0) {
+#ifdef SCST_MEASURE_CLOCK_CYCLES
+		avg = numst * sumc / (count * 1ull * tsc_khz / 1000000);
+		stddev = calc_stddev(sumsqc, sumc, count) * numst *
+			1000000 / tsc_khz;
+		res += scnprintf(buf + res, PAGE_SIZE - res,
+				 "total %d - - %lld.%01lld %lld.%01lld cc -> us\n",
+				 count / numst, avg / 10, avg % 10, stddev / 10,
+				 stddev % 10);
+#else
+		avg = numst * sum / count;
+		stddev = calc_stddev(sumsq, sum, count) * numst;
+		res += scnprintf(buf + res, PAGE_SIZE - res,
+				 "total %d - - %lld.%01lld %lld.%01lld us\n",
+				 count / numst, avg / 10, avg % 10, stddev / 10,
+				 stddev % 10);
+#endif
+	}
+
+out:
+	return res;
+}
+
+static ssize_t scst_sess_latency_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	struct scst_session *sess =
+		container_of(kobj->parent, struct scst_session, sess_kobj);
+
+	spin_lock_irq(&sess->lat_stats_lock);
+	BUILD_BUG_ON(sizeof(*sess->lat_stats) != sizeof(struct scst_lat_stats));
+	memset(sess->lat_stats, 0, sizeof(*sess->lat_stats));
+	spin_unlock_irq(&sess->lat_stats_lock);
+
+	return count;
+}
+
 static ssize_t scst_sess_sysfs_commands_show(struct kobject *kobj,
 			    struct kobj_attribute *attr, char *buf)
 {
@@ -4679,6 +4805,74 @@ static struct kobj_type scst_session_ktype = {
 	.default_attrs = scst_session_attrs,
 };
 
+#define SCST_LAT_ATTRS(size)		\
+	&sess_lat_attr_n##size.attr,	\
+	&sess_lat_attr_r##size.attr,	\
+	&sess_lat_attr_w##size.attr,	\
+	&sess_lat_attr_b##size.attr
+
+#define SCST_LAT_ATTR(size)						\
+	static struct kobj_attribute sess_lat_attr_n##size =		\
+		__ATTR(n##size, S_IRUGO | S_IWUSR, scst_sess_latency_show,\
+		       scst_sess_latency_store);			\
+	static struct kobj_attribute sess_lat_attr_r##size =		\
+		__ATTR(r##size, S_IRUGO | S_IWUSR, scst_sess_latency_show, \
+		       scst_sess_latency_store);			\
+	static struct kobj_attribute sess_lat_attr_w##size =		\
+		__ATTR(w##size, S_IRUGO | S_IWUSR, scst_sess_latency_show, \
+		       scst_sess_latency_store);			\
+	static struct kobj_attribute sess_lat_attr_b##size =		\
+		__ATTR(b##size, S_IRUGO | S_IWUSR, scst_sess_latency_show, \
+		       scst_sess_latency_store);
+SCST_LAT_ATTR(512);
+SCST_LAT_ATTR(1024);
+SCST_LAT_ATTR(2048);
+SCST_LAT_ATTR(4096);
+SCST_LAT_ATTR(8192);
+SCST_LAT_ATTR(16384);
+SCST_LAT_ATTR(32768);
+SCST_LAT_ATTR(65536);
+SCST_LAT_ATTR(131072);
+SCST_LAT_ATTR(262144);
+SCST_LAT_ATTR(524288);
+
+static const struct attribute *scst_sess_lat_attr[] = {
+	SCST_LAT_ATTRS(512),
+	SCST_LAT_ATTRS(1024),
+	SCST_LAT_ATTRS(2048),
+	SCST_LAT_ATTRS(4096),
+	SCST_LAT_ATTRS(8192),
+	SCST_LAT_ATTRS(16384),
+	SCST_LAT_ATTRS(32768),
+	SCST_LAT_ATTRS(65536),
+	SCST_LAT_ATTRS(131072),
+	SCST_LAT_ATTRS(262144),
+	SCST_LAT_ATTRS(524288),
+	NULL,
+};
+
+static int scst_create_latency_attrs(struct scst_session *sess)
+{
+	int res;
+
+	res = -ENOMEM;
+	sess->lat_kobj = kobject_create_and_add("latency", &sess->sess_kobj);
+	if (sess->lat_kobj == NULL)
+		goto out;
+
+	res = sysfs_create_files(sess->lat_kobj, scst_sess_lat_attr);
+	if (res < 0)
+		goto out;
+
+out:
+	return res;
+}
+
+static void scst_remove_latency_attrs(struct scst_session *sess)
+{
+	kobject_del(sess->lat_kobj);
+}
+
 static int scst_create_sess_luns_link(struct scst_session *sess)
 {
 	int res;
@@ -4764,6 +4958,10 @@ int scst_sess_sysfs_create(struct scst_session *sess)
 		goto out_del;
 	}
 
+	res = scst_create_latency_attrs(sess);
+	if (res != 0)
+		goto out_del;
+
 out:
 	TRACE_EXIT_RES(res);
 	return res;
@@ -4794,6 +4992,7 @@ void scst_sess_sysfs_del(struct scst_session *sess)
 
 	sess->sess_kobj_release_cmpl = &c;
 
+	scst_remove_latency_attrs(sess);
 	kobject_del(&sess->sess_kobj);
 
 	SCST_KOBJECT_PUT_AND_WAIT(&sess->sess_kobj, "session", &c,
@@ -6689,6 +6888,112 @@ static const struct attribute *scst_device_groups_attrs[] = {
 
 static struct kobject scst_sysfs_root_kobj;
 
+static ssize_t scst_measure_latency_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%d\n", atomic_read(&scst_measure_latency));
+}
+
+static void scst_free_lat_stats_mem(void)
+{
+	struct scst_tgt_template *tt;
+	struct scst_tgt *tgt;
+	struct scst_session *sess;
+
+	lockdep_assert_held(&scst_mutex);
+
+	list_for_each_entry(tt, &scst_template_list, scst_template_list_entry) {
+		list_for_each_entry(tgt, &tt->tgt_list, tgt_list_entry) {
+			list_for_each_entry(sess, &tgt->sess_list,
+					    sess_list_entry) {
+				vfree(sess->lat_stats);
+				sess->lat_stats = NULL;
+			}
+		}
+	}
+}
+
+static int scst_alloc_lat_stats_mem(void)
+{
+	struct scst_tgt_template *tt;
+	struct scst_tgt *tgt;
+	struct scst_session *sess;
+
+	lockdep_assert_held(&scst_mutex);
+
+	list_for_each_entry(tt, &scst_template_list, scst_template_list_entry) {
+		list_for_each_entry(tgt, &tt->tgt_list, tgt_list_entry) {
+			list_for_each_entry(sess, &tgt->sess_list,
+					    sess_list_entry) {
+				sess->lat_stats =
+					vzalloc(sizeof(*sess->lat_stats));
+				if (!sess->lat_stats) {
+					scst_free_lat_stats_mem();
+					return -ENOMEM;
+				}
+			}
+		}
+	}
+
+	return 0;
+}
+
+static ssize_t scst_measure_latency_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	bool prev_val;
+	long val;
+	int res;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39)
+	res = kstrtol(buf, 0, &val);
+#else
+	res = strict_strtol(buf, 0, &val);
+#endif
+	if (res < 0)
+		goto out;
+
+	val = !!val;
+
+	res = scst_suspend_activity(true);
+	if (res)
+		goto out;
+	res = mutex_lock_interruptible(&scst_mutex);
+	if (res)
+		goto out_resume;
+
+	spin_lock(&scst_measure_latency_lock);
+	prev_val = atomic_read(&scst_measure_latency);
+	atomic_set(&scst_measure_latency, val);
+	spin_unlock(&scst_measure_latency_lock);
+
+	if (prev_val != val) {
+		if (val) {
+			res = scst_alloc_lat_stats_mem();
+			if (res)
+				goto out_unlock;
+		} else {
+			scst_free_lat_stats_mem();
+		}
+	}
+
+	res = count;
+
+out_unlock:
+	mutex_unlock(&scst_mutex);
+
+out_resume:
+	scst_resume_activity();
+
+out:
+	return res;
+}
+
+static struct kobj_attribute scst_measure_latency_attr =
+	__ATTR(measure_latency, S_IRUGO | S_IWUSR,
+	       scst_measure_latency_show,
+	       scst_measure_latency_store);
+
 static ssize_t scst_threads_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
@@ -7238,6 +7543,7 @@ static struct kobj_attribute scst_last_sysfs_mgmt_res_attr =
 		scst_last_sysfs_mgmt_res_show, NULL);
 
 static struct attribute *scst_sysfs_root_default_attrs[] = {
+	&scst_measure_latency_attr.attr,
 	&scst_threads_attr.attr,
 	&scst_setup_id_attr.attr,
 	&scst_max_tasklet_cmd_attr.attr,
