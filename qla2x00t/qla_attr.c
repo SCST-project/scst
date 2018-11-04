@@ -2280,7 +2280,7 @@ qla2x00_get_host_port_state(struct Scsi_Host *shost)
 		fc_host_port_state(shost) = FC_PORTSTATE_DIAGNOSTICS;
 		break;
 	case LOOP_DOWN:
-		if(test_bit(LOOP_RESYNC_NEEDED, &base_vha->dpc_flags))
+		if (test_bit(LOOP_RESYNC_NEEDED, &base_vha->dpc_flags))
 			fc_host_port_state(shost) = FC_PORTSTATE_DIAGNOSTICS;
 		else
 			fc_host_port_state(shost) = FC_PORTSTATE_LINKDOWN;

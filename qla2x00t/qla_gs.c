@@ -643,7 +643,7 @@ void
 qla2x00_get_sym_node_name(scsi_qla_host_t *vha, uint8_t *snn)
 {
 	struct qla_hw_data *ha = vha->hw;
-	sprintf(snn, "%s FW:v%d.%02d.%02d DVR:v%s",ha->model_number,
+	sprintf(snn, "%s FW:v%d.%02d.%02d DVR:v%s", ha->model_number,
 	    ha->fw_major_version, ha->fw_minor_version,
 	    ha->fw_subminor_version, qla2x00_version_str);
 }

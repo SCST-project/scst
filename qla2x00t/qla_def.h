@@ -37,7 +37,7 @@
 #include <linux/bsg-lib.h>
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,32)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
 #error
 #error ***This version of qla2xxx does not support distributions based on***
 #error ***kernels less than 2.6.32.***
