@@ -10,6 +10,28 @@
 #include <linux/vmalloc.h>
 #include <linux/delay.h>
 
+/*
+ * See also commit 17d5363b83f8 ("scsi: introduce a result field in struct
+ * scsi_request"). See also commit caf7df122721 ("block: remove the errors
+ * field from struct request").
+ */
+#ifndef NEW_LIBFC_API
+static inline void set_bsg_result(struct fc_bsg_job *job, int result)
+{
+	job->req->errors = result;
+}
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
+static inline void set_bsg_result(struct bsg_job *job, int result)
+{
+	job->req->errors = result;
+}
+#else
+static inline void set_bsg_result(struct bsg_job *job, int result)
+{
+	scsi_req(job->req)->result = result;
+}
+#endif
+
 /* BSG support for ELS/CT pass through */
 void
 qla2x00_bsg_job_done(void *data, void *ptr, int res)
@@ -2193,11 +2215,7 @@ qla24xx_bsg_timeout(struct bsg_job *bsg_job)
 						ql_log(ql_log_warn, vha, 0x7089,
 						    "mbx abort_command "
 						    "failed.\n");
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
-						scsi_req(bsg_job->req)->result =
-#else
-						bsg_job->req->errors =
-#endif
+						set_bsg_result(bsg_job, -EIO);
 #ifndef NEW_LIBFC_API
 						bsg_job->reply->result = -EIO;
 #else
@@ -2207,11 +2225,7 @@ qla24xx_bsg_timeout(struct bsg_job *bsg_job)
 						ql_dbg(ql_dbg_user, vha, 0x708a,
 						    "mbx abort_command "
 						    "success.\n");
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
-						scsi_req(bsg_job->req)->result =
-#else
-						bsg_job->req->errors =
-#endif
+						set_bsg_result(bsg_job, 0);
 #ifndef NEW_LIBFC_API
 						bsg_job->reply->result = 0;
 #else
@@ -2226,14 +2240,10 @@ qla24xx_bsg_timeout(struct bsg_job *bsg_job)
 	}
 	spin_unlock_irqrestore(&ha->hardware_lock, flags);
 	ql_log(ql_log_info, vha, 0x708b, "SRB not found to abort.\n");
+	set_bsg_result(bsg_job, -ENXIO);
 #ifndef NEW_LIBFC_API
-	bsg_job->req->errors = bsg_job->reply->result = -ENXIO;
+	bsg_job->reply->result = -ENXIO;
 #else
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
-	scsi_req(bsg_job->req)->result =
-#else
-	bsg_job->req->errors =
-#endif
 	bsg_reply->result = -ENXIO;
 #endif
 	return 0;
