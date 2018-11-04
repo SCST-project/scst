@@ -559,8 +559,13 @@ function dump_lines() {
   {
     if (h[0] != "")
       printf "@@ -%d,%d +%d,%d @@%s\n",h[1],h[2]-lines_less_deleted,h[3],h[4]-lines_less_added,h[5]
-    for (i = 0; i < lines; i++)
+    for (i = 0; i < lines; i++) {
+      gsub("BAD_WR_MODIFIER",
+           LINUX_VERSION_CODE < version_code("4.19.0") ? "" : "const", line[i])
+      gsub("CM_HANDLER_EVENT_MODIFIER",
+           LINUX_VERSION_CODE < version_code("4.19.0") ? "" : "const", line[i])
       print line[i]
+    }
   }
 }
 
