@@ -4,12 +4,12 @@
 #
 #  Copyright (C) 2006 - 2008 Jacky Feng <jfeng@marvell.com>
 #  Copyright (C) 2011 - 2018 Bart Van Assche <bvanassche@acm.org>
-#  
+#
 #  This program is free software; you can redistribute it and/or
 #  modify it under the terms of the GNU General Public License
 #  as published by the Free Software Foundation, version 2
 #  of the License.
-# 
+#
 #  This program is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -20,8 +20,8 @@
 #    all (the default) : make all
 #    clean             : clean files
 #    extraclean        : clean + clean dependencies
-#    install           : install 
-#    uninstall         : uninstall 
+#    install           : install
+#    uninstall         : uninstall
 #
 # Notes :
 #    - install and uninstall must be made as root
