@@ -2494,8 +2494,16 @@ static u16 srpt_next_comp_vector(struct srpt_port *sport)
 	return comp_vector;
 }
 
-/*
- * srpt_cm_req_recv() - Process the IB_CM_REQ_RECEIVED event.
+/**
+ * srpt_cm_req_recv - process the event IB_CM_REQ_RECEIVED
+ * @sdev: HCA through which the login request was received.
+ * @ib_cm_id: IB/CM connection identifier in case of IB/CM.
+ * @rdma_cm_id: RDMA/CM connection identifier in case of RDMA/CM.
+ * @port_num: Port through which the REQ message was received.
+ * @pkey: P_Key of the incoming connection.
+ * @req: SRP login request.
+ * @src_addr: GID (IB/CM) or IP address (RDMA/CM) of the port that submitted
+ * the login request.
  *
  * Ownership of the cm_id is transferred to the target session if this
  * function returns zero. Otherwise the caller remains the owner of cm_id.
@@ -2597,8 +2605,9 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 		rdma_cm_id->context = ch;
 	}
 	/*
-	 * Avoid QUEUE_FULL conditions by limiting the number of buffers used
-	 * for the SRP protocol to the SCST SCSI command queue size.
+	 * ch->rq_size should be at least as large as the initiator queue
+	 * depth to avoid that the initiator driver has to report QUEUE_FULL
+	 * to the SCSI mid-layer.
 	 */
 	ch->rq_size = min(MAX_SRPT_RQ_SIZE, scst_get_max_lun_commands(NULL, 0));
 	spin_lock_init(&ch->spinlock);
@@ -2804,6 +2813,7 @@ reject:
 	rej->tag = req->tag;
 	rej->buf_fmt = cpu_to_be16(SRP_BUF_FORMAT_DIRECT |
 				   SRP_BUF_FORMAT_INDIRECT);
+
 	if (rdma_cm_id)
 		rdma_reject(rdma_cm_id, rej, sizeof(*rej));
 	else
