@@ -264,9 +264,13 @@ struct scst_vdisk_dev {
 };
 
 struct vdisk_cmd_params {
-	struct iovec *iv;
-	int iv_count;
-	struct iovec small_iv[4];
+	union {
+		struct {
+			struct iovec *iv;
+			int iv_count;
+			struct iovec small_iv[4];
+		} sync;
+	};
 	struct scst_cmd *cmd;
 	loff_t loff;
 	int fua;
@@ -3192,8 +3196,8 @@ static int fileio_exec(struct scst_cmd *cmd)
 
 static void vdisk_on_free_cmd_params(const struct vdisk_cmd_params *p)
 {
-	if (p->iv != p->small_iv)
-		kfree(p->iv);
+	if (p->sync.iv != p->sync.small_iv)
+		kfree(p->sync.iv);
 }
 
 static void fileio_on_free_cmd(struct scst_cmd *cmd)
@@ -5409,23 +5413,24 @@ static struct iovec *vdisk_alloc_iv(struct scst_cmd *cmd,
 	int iv_count;
 
 	iv_count = min_t(int, scst_get_buf_count(cmd), UIO_MAXIOV);
-	if (iv_count > p->iv_count) {
-		if (p->iv != p->small_iv)
-			kfree(p->iv);
-		p->iv_count = 0;
+	if (iv_count > p->sync.iv_count) {
+		if (p->sync.iv != p->sync.small_iv)
+			kfree(p->sync.iv);
+		p->sync.iv_count = 0;
 		/* It can't be called in atomic context */
-		p->iv = (iv_count <= ARRAY_SIZE(p->small_iv)) ? p->small_iv :
-			kmalloc_array(iv_count, sizeof(*p->iv),
+		p->sync.iv = iv_count <= ARRAY_SIZE(p->sync.small_iv) ?
+			p->sync.small_iv :
+			kmalloc_array(iv_count, sizeof(*p->sync.iv),
 				      cmd->cmd_gfp_mask);
-		if (p->iv == NULL) {
+		if (p->sync.iv == NULL) {
 			PRINT_ERROR("Unable to allocate iv (%d)", iv_count);
 			goto out;
 		}
-		p->iv_count = iv_count;
+		p->sync.iv_count = iv_count;
 	}
 
 out:
-	return p->iv;
+	return p->sync.iv;
 }
 
 static enum compl_status_e nullio_exec_read(struct vdisk_cmd_params *p)
@@ -5491,7 +5496,7 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 	if (unlikely(tags_num == 0))
 		goto out;
 
-	iv = p->iv;
+	iv = p->sync.iv;
 	if (iv == NULL) {
 		iv = vdisk_alloc_iv(cmd, p);
 		if (iv == NULL) {
@@ -5505,7 +5510,7 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 			goto out;
 		}
 	}
-	max_iv_count = p->iv_count;
+	max_iv_count = p->sync.iv_count;
 
 	old_fs = get_fs();
 	set_fs(get_ds());
@@ -5612,7 +5617,7 @@ static int vdev_write_dif_tags(struct vdisk_cmd_params *p)
 	if (unlikely(tags_num == 0))
 		goto out;
 
-	iv = p->iv;
+	iv = p->sync.iv;
 	if (iv == NULL) {
 		iv = vdisk_alloc_iv(cmd, p);
 		if (iv == NULL) {
@@ -5626,7 +5631,7 @@ static int vdev_write_dif_tags(struct vdisk_cmd_params *p)
 			goto out;
 		}
 	}
-	max_iv_count = p->iv_count;
+	max_iv_count = p->sync.iv_count;
 
 	old_fs = get_fs();
 	set_fs(get_ds());
@@ -5759,7 +5764,7 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 	if (iv == NULL)
 		goto out_nomem;
 
-	max_iv_count = p->iv_count;
+	max_iv_count = p->sync.iv_count;
 
 	length = scst_get_buf_first(cmd, (uint8_t __force **)&address);
 	if (unlikely(length < 0)) {
@@ -5946,7 +5951,7 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 	if (iv == NULL)
 		goto out_nomem;
 
-	max_iv_count = p->iv_count;
+	max_iv_count = p->sync.iv_count;
 
 	length = scst_get_buf_first(cmd, &address);
 	if (unlikely(length < 0)) {
