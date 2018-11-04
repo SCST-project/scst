@@ -109,6 +109,7 @@ qla2x00_async_iocb_timeout(void *data)
 	fcport->flags &= ~FCF_ASYNC_SENT;
 	if (sp->type == SRB_LOGIN_CMD) {
 		struct srb_iocb *lio = &sp->u.iocb_cmd;
+
 		qla2x00_post_async_logout_work(fcport->vha, fcport, NULL);
 		/* Retry as needed. */
 		lio->u.logio.data[0] = MBS_COMMAND_ERROR;
@@ -2027,7 +2028,7 @@ qla2x00_fw_ready(scsi_qla_host_t *vha)
 	} while (1);
 
 	ql_dbg(ql_dbg_taskm, vha, 0x803a,
-	    "fw_state=%x (%x, %x, %x, %x) " "curr time=%lx.\n", state[0],
+	    "fw_state=%x (%x, %x, %x, %x) curr time=%lx.\n", state[0],
 	    state[1], state[2], state[3], state[4], jiffies);
 
 out_not_ready:

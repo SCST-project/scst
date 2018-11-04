@@ -1801,6 +1801,7 @@ qla24xx_prep_ms_fm_iocb(scsi_qla_host_t *vha, uint32_t req_size,
 {
 	struct ct_entry_24xx *ct_pkt;
 	struct qla_hw_data *ha = vha->hw;
+
 	ct_pkt = (struct ct_entry_24xx *)ha->ms_iocb;
 	memset(ct_pkt, 0, sizeof(struct ct_entry_24xx));
 

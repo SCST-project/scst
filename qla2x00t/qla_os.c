@@ -2285,6 +2285,7 @@ qla2xxx_add_targets(void)
 
 		for_each_mapped_vp_idx(base_vha, i) {
 			scsi_qla_host_t *vha;
+
 			list_for_each_entry(vha, &base_vha->hw->vp_list, list) {
 				if (i == vha->vp_idx) {
 					qla_target.tgt_host_action(vha, ADD_TARGET);
@@ -2316,6 +2317,7 @@ size_t qla2xxx_add_vtarget(u64 port_name, u64 node_name, u64 parent_host)
 	mutex_lock(&qla_ha_list_mutex);
 	list_for_each_entry(ha, &qla_ha_list, ha_list_entry) {
 		scsi_qla_host_t *base_vha = pci_get_drvdata(ha->pdev);
+
 		if (!memcmp(parent_wwn,
 				base_vha->port_name_set ? base_vha->hw->orig_hw_port_name :
 							  base_vha->port_name,
@@ -2355,6 +2357,7 @@ size_t qla2xxx_del_vtarget(u64 port_name)
 	mutex_lock(&qla_ha_list_mutex);
 	list_for_each_entry(ha, &qla_ha_list, ha_list_entry) {
 		scsi_qla_host_t *base_vha = pci_get_drvdata(ha->pdev);
+
 		shost = base_vha->host;
 		fc_host = shost_to_fc_host(shost);
 		spin_lock_irqsave(shost->host_lock, flags);
