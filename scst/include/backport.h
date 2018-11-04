@@ -715,14 +715,14 @@ struct t10_pi_tuple {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
 #define timer_setup(_timer, _fn, _flags) do {			\
 	init_timer(_timer);					\
-	(_timer)->function = (void (*)(unsigned long))(_fn);	\
+	(_timer)->function = (void *)(_fn);	\
 	(_timer)->data = (unsigned long)(_timer);		\
 	WARN_ON_ONCE((_flags) != 0);				\
 } while (0)
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
 #define timer_setup(_timer, _fn, _flags) do {			\
 	init_timer(_timer);					\
-	(_timer)->function = (void (*)(unsigned long))(_fn);	\
+	(_timer)->function = (void *)(_fn);\
 	(_timer)->data = (unsigned long)(_timer);		\
 	(_timer)->flags = (_flags);				\
 } while (0)
