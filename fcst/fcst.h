@@ -30,6 +30,7 @@
 #define NEW_LIBFC_API
 #endif
 
+<<<<<<< .working
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0) || \
 	defined(CONFIG_SUSE_KERNEL) && \
 	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)
