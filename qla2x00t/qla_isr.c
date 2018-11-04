@@ -287,8 +287,9 @@ qla2x00_mbx_completion(scsi_qla_host_t *vha, uint16_t mb0)
 static void
 qla81xx_idc_event(scsi_qla_host_t *vha, uint16_t aen, uint16_t descr)
 {
-	static char *event[] =
-		{ "Complete", "Request Notification", "Time Extension" };
+	static char *event[] = {
+		"Complete", "Request Notification", "Time Extension"
+	};
 	int rval;
 	struct device_reg_24xx __iomem *reg24 = &vha->hw->iobase->isp24;
 	uint16_t __iomem *wptr;

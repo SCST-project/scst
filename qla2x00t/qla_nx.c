@@ -264,8 +264,7 @@ static struct crb_128M_2M_block_map crb_128M_2M_map[64] = {
 /*
  * top 12 bits of crb internal address (hub, agent)
  */
-static unsigned qla82xx_crb_hub_agt[64] =
-{
+static unsigned qla82xx_crb_hub_agt[64] = {
 	0,
 	QLA82XX_HW_CRB_HUB_AGT_ADR_PS,
 	QLA82XX_HW_CRB_HUB_AGT_ADR_MN,
@@ -4409,8 +4408,7 @@ qla82xx_beacon_on(struct scsi_qla_host *vha)
 	qla82xx_idc_lock(ha);
 	rval = qla82xx_mbx_beacon_ctl(vha, 1);
 
-	if (rval)
-	{
+	if (rval) {
 		ql_log(ql_log_warn, vha, 0xb050,
 		    "mbx set led config failed in %s\n", __func__);
 		goto exit;
@@ -4430,8 +4428,7 @@ qla82xx_beacon_off(struct scsi_qla_host *vha)
 	qla82xx_idc_lock(ha);
 	rval = qla82xx_mbx_beacon_ctl(vha, 0);
 
-	if (rval)
-	{
+	if (rval) {
 		ql_log(ql_log_warn, vha, 0xb051,
 		    "mbx set led config failed in %s\n", __func__);
 		goto exit;
