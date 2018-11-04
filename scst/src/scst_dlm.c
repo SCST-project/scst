@@ -519,7 +519,13 @@ out:
 	return ret;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0) ||		\
+	(defined(RHEL_RELEASE_CODE) &&				\
+	 RHEL_RELEASE_CODE -0 >= RHEL_RELEASE_VERSION(7, 5))
+#define HAVE_ITERATE_DIR
+#endif
+
+#ifdef HAVE_ITERATE_DIR
 struct scst_dlm_readdir_context {
 	struct dir_context ctx;
 	char *entries;
@@ -537,7 +543,7 @@ static int scst_dlm_filldir(struct dir_context *arg, const char *name_arg,
 #endif
 {
 	char *p, *q, name[64];
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 11, 0)
+#ifndef HAVE_ITERATE_DIR
 	char **entries = arg;
 #else
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
@@ -593,7 +599,7 @@ static int scst_dlm_update_nodeids(struct scst_pr_dlm_data *pr_dlm)
 		ret = PTR_ERR(comms);
 		goto out;
 	}
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 11, 0)
+#ifndef HAVE_ITERATE_DIR
 	ret = vfs_readdir(comms, scst_dlm_filldir, &entries);
 #else
 	{
