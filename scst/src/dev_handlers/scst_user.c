@@ -188,7 +188,7 @@ static int __dev_user_set_opt(struct scst_user_dev *dev,
 static int dev_user_set_opt(struct file *file, const struct scst_user_opt *opt);
 static int dev_user_get_opt(struct file *file, void __user *arg);
 
-static unsigned int dev_user_poll(struct file *filp, poll_table *wait);
+static __poll_t dev_user_poll(struct file *filp, poll_table *wait);
 static long dev_user_ioctl(struct file *file, unsigned int cmd,
 	unsigned long arg);
 static int dev_user_release(struct inode *inode, struct file *file);
@@ -2586,23 +2586,23 @@ out:
 	return res;
 }
 
-static unsigned int dev_user_poll(struct file *file, poll_table *wait)
+static __poll_t dev_user_poll(struct file *file, poll_table *wait)
 {
-	int res = 0;
+	__poll_t res;
 	struct scst_user_dev *dev;
 
 	TRACE_ENTRY();
 
+	res = EPOLLNVAL;
 	dev = file->private_data;
-	res = dev_user_check_reg(dev);
-	if (unlikely(res != 0))
+	if (unlikely(dev_user_check_reg(dev) != 0))
 		goto out;
 
 	spin_lock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
 	if (!list_empty(&dev->ready_cmd_list) ||
 	    !list_empty(&dev->udev_cmd_threads.active_cmd_list)) {
-		res |= POLLIN | POLLRDNORM;
+		res = EPOLLIN | EPOLLRDNORM;
 		goto out_unlock;
 	}
 
@@ -2616,7 +2616,7 @@ static unsigned int dev_user_poll(struct file *file, poll_table *wait)
 
 	if (!list_empty(&dev->ready_cmd_list) ||
 	    !list_empty(&dev->udev_cmd_threads.active_cmd_list)) {
-		res |= POLLIN | POLLRDNORM;
+		res = EPOLLIN | EPOLLRDNORM;
 		goto out_unlock;
 	}
 
@@ -2624,7 +2624,7 @@ out_unlock:
 	spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
 out:
-	TRACE_EXIT_HRES(res);
+	TRACE_EXIT_HRES((__force unsigned int)res);
 	return res;
 }
 

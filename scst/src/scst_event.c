@@ -965,9 +965,9 @@ out_unlock:
 	return res;
 }
 
-static unsigned int scst_event_poll(struct file *file, poll_table *wait)
+static __poll_t scst_event_poll(struct file *file, poll_table *wait)
 {
-	int res = 0;
+	__poll_t res = 0;
 	struct scst_event_priv *priv;
 
 	TRACE_ENTRY();
@@ -977,12 +977,12 @@ static unsigned int scst_event_poll(struct file *file, poll_table *wait)
 	priv = file->private_data;
 	if (unlikely(priv == NULL)) {
 		PRINT_ERROR("At least one allowed event must be set");
-		res = -EINVAL;
+		res = EPOLLNVAL;
 		goto out_unlock;
 	}
 
 	if (!list_empty(&priv->queued_events_list)) {
-		res |= POLLIN | POLLRDNORM;
+		res = EPOLLIN | EPOLLRDNORM;
 		goto out_unlock;
 	}
 
@@ -995,14 +995,14 @@ static unsigned int scst_event_poll(struct file *file, poll_table *wait)
 	mutex_lock(&scst_event_mutex);
 
 	if (!list_empty(&priv->queued_events_list)) {
-		res |= POLLIN | POLLRDNORM;
+		res = EPOLLIN | EPOLLRDNORM;
 		goto out_unlock;
 	}
 
 out_unlock:
 	mutex_unlock(&scst_event_mutex);
 
-	TRACE_EXIT_HRES(res);
+	TRACE_EXIT_HRES((__force unsigned int)res);
 	return res;
 }
 
