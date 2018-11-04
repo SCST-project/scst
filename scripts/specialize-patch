@@ -647,6 +647,8 @@ BEGIN {
   else if (lines >= 2 && !match(line[lines-2], ":$") &&
            line[lines-1] == "+\x9return;" && $0 == "+}")
   {
+    # Delete "return;" statements at the end of a function that are not
+    # preceded by a label.
     line[lines-1] = $0
     lines_less_added++
   }
