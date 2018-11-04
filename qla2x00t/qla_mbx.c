@@ -4166,7 +4166,7 @@ qla2x00_loopback_test(scsi_qla_host_t *vha, struct msg_echo_lb *mreq, uint16_t *
 	ql_dbg(ql_dbg_mbx + ql_dbg_verbose, vha, 0x10f7,
 	    "Entered %s.\n", __func__);
 
-	memset(mcp->mb, 0 , sizeof(mcp->mb));
+	memset(mcp->mb, 0, sizeof(mcp->mb));
 	mcp->mb[0] = MBC_DIAGNOSTIC_LOOP_BACK;
 	mcp->mb[1] = mreq->options | BIT_6;	// BIT_6 specifies 64 bit addressing
 
@@ -4228,7 +4228,7 @@ qla2x00_echo_test(scsi_qla_host_t *vha, struct msg_echo_lb *mreq, uint16_t *mres
 	ql_dbg(ql_dbg_mbx + ql_dbg_verbose, vha, 0x10fa,
 	    "Entered %s.\n", __func__);
 
-	memset(mcp->mb, 0 , sizeof(mcp->mb));
+	memset(mcp->mb, 0, sizeof(mcp->mb));
 	mcp->mb[0] = MBC_DIAGNOSTIC_ECHO;
 	mcp->mb[1] = mreq->options | BIT_6;	/* BIT_6 specifies 64bit address */
 	if (IS_CNA_CAPABLE(ha)) {
@@ -4775,7 +4775,7 @@ qla82xx_md_get_template_size(scsi_qla_host_t *vha)
 	ql_dbg(ql_dbg_mbx + ql_dbg_verbose, vha, 0x111f,
 	    "Entered %s.\n", __func__);
 
-	memset(mcp->mb, 0 , sizeof(mcp->mb));
+	memset(mcp->mb, 0, sizeof(mcp->mb));
 	mcp->mb[0] = LSW(MBC_DIAGNOSTIC_MINIDUMP_TEMPLATE);
 	mcp->mb[1] = MSW(MBC_DIAGNOSTIC_MINIDUMP_TEMPLATE);
 	mcp->mb[2] = LSW(RQST_TMPLT_SIZE);
@@ -4827,7 +4827,7 @@ qla82xx_md_get_template(scsi_qla_host_t *vha)
 		return rval;
 	}
 
-	memset(mcp->mb, 0 , sizeof(mcp->mb));
+	memset(mcp->mb, 0, sizeof(mcp->mb));
 	mcp->mb[0] = LSW(MBC_DIAGNOSTIC_MINIDUMP_TEMPLATE);
 	mcp->mb[1] = MSW(MBC_DIAGNOSTIC_MINIDUMP_TEMPLATE);
 	mcp->mb[2] = LSW(RQST_TMPLT);

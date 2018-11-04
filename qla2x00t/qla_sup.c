@@ -962,7 +962,7 @@ qla2xxx_get_idc_param(scsi_qla_host_t *vha)
 
 	wptr = (uint32_t *)req->ring;
 	ha->isp_ops->read_optrom(vha, (uint8_t *)req->ring,
-		QLA82XX_IDC_PARAM_ADDR , 8);
+		QLA82XX_IDC_PARAM_ADDR, 8);
 
 	if (*wptr == cpu_to_le32(0xffffffff)) {
 		ha->nx_dev_init_timeout = QLA82XX_ROM_DEV_INIT_TIMEOUT;
@@ -1682,7 +1682,7 @@ qla83xx_beacon_blink(struct scsi_qla_host *vha)
 		qla83xx_write_remote_reg(vha, led_select_value + 4, 0x40002000);
 		msleep(1000);
 		qla83xx_write_remote_reg(vha, led_select_value, 0x40004000);
-		qla83xx_write_remote_reg(vha, led_select_value + 4 , 0x40004000);
+		qla83xx_write_remote_reg(vha, led_select_value + 4, 0x40004000);
 	} else if ((IS_QLA8031(ha) || IS_QLA81XX(ha)) && ha->beacon_blink_led) {
 		int rval;
 

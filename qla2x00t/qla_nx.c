@@ -889,7 +889,7 @@ static int
 qla82xx_wait_rom_busy(struct qla_hw_data *ha)
 {
 	long timeout = 0;
-	long done = 0 ;
+	long done = 0;
 	scsi_qla_host_t *vha = pci_get_drvdata(ha->pdev);
 
 	while (done == 0) {
@@ -910,7 +910,7 @@ static int
 qla82xx_wait_rom_done(struct qla_hw_data *ha)
 {
 	long timeout = 0;
-	long done = 0 ;
+	long done = 0;
 	scsi_qla_host_t *vha = pci_get_drvdata(ha->pdev);
 
 	while (done == 0) {
@@ -1001,7 +1001,7 @@ static int
 qla82xx_flash_wait_write_finish(struct qla_hw_data *ha)
 {
 	long timeout = 0;
-	uint32_t done = 1 ;
+	uint32_t done = 1;
 	uint32_t val;
 	int ret = 0;
 	scsi_qla_host_t *vha = pci_get_drvdata(ha->pdev);
@@ -1130,7 +1130,7 @@ static int
 qla82xx_pinit_from_rom(scsi_qla_host_t *vha)
 {
 	int addr, val;
-	int i ;
+	int i;
 	struct crb_addr_pair *buf;
 	unsigned long off;
 	unsigned offset, n;
@@ -1529,7 +1529,7 @@ qla82xx_fw_load_from_flash(struct qla_hw_data *ha)
 		    (qla82xx_rom_fast_read(ha, flashaddr + 4, (int *)&high))) {
 			return -1;
 		}
-		data = ((u64)high << 32) | low ;
+		data = ((u64)high << 32) | low;
 		qla82xx_pci_mem_write_2M(ha, memaddr, &data, 8);
 		flashaddr += 8;
 		memaddr += 8;

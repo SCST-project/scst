@@ -1410,7 +1410,7 @@ qla2x00_fdmi_rhba(scsi_qla_host_t *vha)
 	eiter->len = cpu_to_be16(4 + alen);
 	size += 4 + alen;
 
-	ql_dbg(ql_dbg_disc, vha , 0x202c,
+	ql_dbg(ql_dbg_disc, vha, 0x202c,
 	    "Optrom vers = %s.\n", eiter->a.orom_version);
 
 	/* Firmware version */

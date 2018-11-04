@@ -482,10 +482,10 @@ out_id_list_failed:
 			if (size >= max_size)
 				goto out;
 			switch (atomic_read(&fcport->state)) {
-			case FCS_UNCONFIGURED : state = "Unconfigured"; break;
-			case FCS_DEVICE_DEAD : state = "Dead"; break;
-			case FCS_DEVICE_LOST : state = "Lost"; break;
-			case FCS_ONLINE	: state = "Online"; break;
+			case FCS_UNCONFIGURED: state = "Unconfigured"; break;
+			case FCS_DEVICE_DEAD: state = "Dead"; break;
+			case FCS_DEVICE_LOST: state = "Lost"; break;
+			case FCS_ONLINE: state = "Online"; break;
 			default: state = "Unknown"; break;
 			}
 

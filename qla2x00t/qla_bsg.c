@@ -632,7 +632,7 @@ qla81xx_set_internal_loopback(scsi_qla_host_t *vha, uint16_t *config,
 		goto done_set_internal;
 
 	new_config[0] = config[0] | (ENABLE_INTERNAL_LOOPBACK << 1);
-	memcpy(&new_config[1], &config[1], sizeof(uint16_t) * 3) ;
+	memcpy(&new_config[1], &config[1], sizeof(uint16_t) * 3);
 
 	ha->notify_dcbx_comp = 1;
 	ret = qla81xx_set_port_config(vha, new_config);
@@ -673,11 +673,11 @@ qla81xx_reset_internal_loopback(scsi_qla_host_t *vha, uint16_t *config,
 	if (!IS_QLA81XX(ha) && !IS_QLA8031(ha))
 		goto done_reset_internal;
 
-	memset(new_config, 0 , sizeof(new_config));
+	memset(new_config, 0, sizeof(new_config));
 	if ((config[0] & INTERNAL_LOOPBACK_MASK) >> 1 ==
 			ENABLE_INTERNAL_LOOPBACK) {
 		new_config[0] = config[0] & ~INTERNAL_LOOPBACK_MASK;
-		memcpy(&new_config[1], &config[1], sizeof(uint16_t) * 3) ;
+		memcpy(&new_config[1], &config[1], sizeof(uint16_t) * 3);
 
 		ha->notify_dcbx_comp = wait;
 		ret = qla81xx_set_port_config(vha, new_config);
