@@ -1,15 +1,15 @@
 #
 #  SCSI target mid-level dev handler's makefile
-#  
+#
 #  Copyright (C) 2015 - 2018 Vladislav Bolkhovitin <vst@vlnb.net>
 #  Copyright (C) 2004 - 2005 Leonid Stoljar
 #  Copyright (C) 2007 - 2018 Western Digital Corporation
-#  
+#
 #  This program is free software; you can redistribute it and/or
 #  modify it under the terms of the GNU General Public License
 #  as published by the Free Software Foundation, version 2
 #  of the License.
-# 
+#
 #  This program is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -20,8 +20,8 @@
 #    all (the default) : make all
 #    clean             : clean files
 #    extraclean        : clean + clean dependencies
-#    install           : install 
-#    uninstall         : uninstall 
+#    install           : install
+#    uninstall         : uninstall
 #
 # Notes :
 #    - install and uninstall must be made as root

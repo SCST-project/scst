@@ -250,7 +250,7 @@ start_scst() {
             options=""
             if [ "$(basename "$d")" = "iscsi-scstd" ]; then
                 options="${ISCSID_OPTIONS}"
-            fi            
+            fi
             if ! start_daemon $d $options; then
                 echo "Starting $d failed"
                 unload_scst

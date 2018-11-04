@@ -20,8 +20,8 @@
 #    all (the default) : make all
 #    clean             : clean files
 #    extraclean        : clean + clean dependencies
-#    install           : install 
-#    uninstall         : uninstall 
+#    install           : install
+#    uninstall         : uninstall
 #
 # Notes :
 #    - install and uninstall must be made as root

@@ -7,8 +7,8 @@
 #		and Linux-HA contributors
 #
 #   Based on ISCSILogicalUnit from Florian Haas, Dejan Muhamedagic,
-#                 
-#				  
+#
+#
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of version 2 of the GNU General Public License as
@@ -43,7 +43,7 @@ meta_data() {
 <version>1.0</version>
 
 <longdesc lang="en">
-Manages SCST iSCSI Logical Unit. An iSCSI Logical unit is a subdivision of 
+Manages SCST iSCSI Logical Unit. An iSCSI Logical unit is a subdivision of
 an SCSI Target, exported via a daemon that speaks the iSCSI protocol.
 </longdesc>
 <shortdesc lang="en">Manages iSCSI Logical Units (LUs)</shortdesc>
@@ -86,7 +86,7 @@ The handler used (vdisk_blockio, vdisk_fileio, dev_tape ...).</longdesc>
 <parameter name="scsi_id" required="0" unique="0">
 <longdesc lang="en">
 The t10 device ID of LUN. If not specified default SCST value will be used.
-Please note that some initiators, like ESXi, are using only some of the first 
+Please note that some initiators, like ESXi, are using only some of the first
 characters to identify LUN, like 4-6 chars.
 </longdesc>
 <shortdesc lang="en">t10 device id</shortdesc>
@@ -171,7 +171,7 @@ l_check_module () {
 }
 
 l_start_handler () {
-	#Check Handler, then load module	
+	#Check Handler, then load module
 	l_check_module
 	l_load_module $l_module
 }
@@ -179,21 +179,21 @@ l_start_handler () {
 l_stop_handler () {
 	local HANDLER_NOT_REQUIRED=true;
 	#Check if handler is used for other devices, then unload module.
-	
+
 	for i in $( ls "${SYSFS_ROOTPATH}/handlers/${OCF_RESKEY_handler}" ) ; do
 	if [ -d ${SYSFS_ROOTPATH}/handlers/${OCF_RESKEY_handler}/${i} ]; then
 		HANDLER_NOT_REQUIRED=false
 		break
 	fi
 	done
-	
+
 	if $HANDLER_NOT_REQUIRED ; then
 		ocf_log info "Handler ${OCF_RESKEY_handler} not required, unloading kernel module"
-		l_check_module		
+		l_check_module
 		rmmod $l_module
 		return $?
 	fi
-	return 0	
+	return 0
 }
 
 SCSTLun_usage() {
@@ -210,48 +210,48 @@ SCSTLun_start() {
 	return $OCF_SUCCESS
     fi
 
-    local params	
+    local params
 	if [ ! ${OCF_RESKEY_path} == "" ]; then
 		params="filename=${OCF_RESKEY_path}"
-	fi	    
-	if [ ! ${OCF_RESKEY_additional_parameters} == "" ]; then	
+	fi
+	if [ ! ${OCF_RESKEY_additional_parameters} == "" ]; then
 		params="${params} ${OCF_RESKEY_additional_parameters}"
 	fi
-	
+
 	ocf_log info "Disabling target ${OCF_RESKEY_target_iqn}"
-	echo 0 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/enabled"    	
-	
+	echo 0 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/enabled"
+
 	ocf_log info "Starting lun ${OCF_RESKEY_lun} on target ${OCF_RESKEY_target_iqn}"
 	# Load Handler Modules
 	l_start_handler #|| exit $OCF_ERR_GENERIC
-		
+
 	# Open Device
 	ocf_log info "Opening device ${OCF_RESKEY_device_name}, target ${OCF_RESKEY_target_iqn}"
-	echo "add_device ${OCF_RESKEY_device_name} ${params// /;}" > "${SCST_BASE}/handlers/${OCF_RESKEY_handler}/mgmt"	
+	echo "add_device ${OCF_RESKEY_device_name} ${params// /;}" > "${SCST_BASE}/handlers/${OCF_RESKEY_handler}/mgmt"
 		 if [ $? -ne 0 ]; then
 			ocf_log err "FAILED to open device ${OCF_RESKEY_device_name}"
 			return $OCF_ERR_GENERIC
 		 fi
-	
+
 	# Set SCSI SN and t10 dev id
 	if [ ! ${OCF_RESKEY_scsi_sn} == "" ]; then
 		ocf_log info "Setting SCSI S/N ${OCF_RESKEY_scsi_sn}"
-		
+
 		echo "${OCF_RESKEY_scsi_sn}" > "${SCST_BASE}/devices/${OCF_RESKEY_device_name}/usn"
 		if [ $? -ne 0 ]; then
 			ocf_log warn "FAILED to set SCSI S/N!"
-		fi 
-			
+		fi
+
 		if [ ! ${OCF_RESKEY_scsi_id} == "" ]; then
 			ocf_log info "Setting SCSI ID ${OCF_RESKEY_scsi_sn}-${OCF_RESKEY_scsi_id}"
 			echo "${OCF_RESKEY_scsi_sn}-${OCF_RESKEY_scsi_id}" > "${SCST_BASE}/devices/${OCF_RESKEY_device_name}/t10_dev_id"
 			if [ $? -ne 0 ]; then
 				ocf_log warn "FAILED to set SCSI ID!"
-		 	fi 
+		 	fi
 		fi
 
-	fi	
-	
+	fi
+
 	# Assign Device to the Target
 	ocf_log info "Adding LUN ${OCF_RESKEY_lun}, device ${OCF_RESKEY_device_name}, target ${OCF_RESKEY_target_iqn}"
 	echo "add ${OCF_RESKEY_device_name} ${OCF_RESKEY_lun}" > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/luns/mgmt"
@@ -259,11 +259,11 @@ SCSTLun_start() {
 			ocf_log err "FAILED to add lun ${OCF_RESKEY_lun}"
 			return $OCF_ERR_GENERIC
 		 fi
-	
+
 	#Enable target
 	ocf_log info "Enabling target ${OCF_RESKEY_target_iqn}"
 	echo 1 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/enabled"
-	
+
 	ocf_log info "Started lun ${OCF_RESKEY_lun} on target ${OCF_RESKEY_target_iqn}"
 
 	#Debugging purpose
@@ -276,23 +276,23 @@ SCSTLun_stop() {
     if [ $? =  $OCF_SUCCESS ]; then
 	ocf_log info "Stopping lun ${OCF_RESKEY_lun} on target ${OCF_RESKEY_target_iqn}"
 	# Disable Target
-	
+
 	ocf_log info "Disabling target ${OCF_RESKEY_target_iqn}"
 	echo 0 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/enabled"
 
         # Drop connections, only if session is using lun
-        for i in $( ls "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions" ) ; do                
+        for i in $( ls "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions" ) ; do
 		if [ -d "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions/${i}/luns/${OCF_RESKEY_lun}" ]; then
 			ocf_log warn "Force closing session to initiator ${i}"
 	                echo 1 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/sessions/${i}/force_close"
 		fi
         done
-        
+
 	ocf_log info "Removing LUN ${OCF_RESKEY_lun}, device ${OCF_RESKEY_device_name}, target ${OCF_RESKEY_target_iqn}"
 	echo "del ${OCF_RESKEY_lun}" >${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/luns/mgmt
 	if [ $? -ne 0 ]; then
 		ocf_log err "FAILED to remove LUN ${OCF_RESKEY_lun} from target ${OCF_RESKEY_target_iqn}"
-		#return $OCF_ERR_GENERIC	
+		#return $OCF_ERR_GENERIC
 		#Don't exit, try to remove device anyway.
 	fi
 
@@ -302,20 +302,20 @@ SCSTLun_stop() {
 	if [ $? -ne 0 ]; then
 		ocf_log err "FAILED to remove device ${OCF_RESKEY_device_name}"
 		return $OCF_ERR_GENERIC
-	fi        
+	fi
 
         # Enable Target
 	ocf_log info "Enabling target ${OCF_RESKEY_target_iqn}"
 	echo 1 > "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/enabled"
-	
-	
+
+
 	#Debugging purpose
 	#scstadmin -write_config /tmp/scst.conf.stop
-        
+
 	#Stop Handler
         l_stop_handler || exit $OCF_ERR_GENERIC
     fi
-    
+
     return $OCF_SUCCESS
 }
 
@@ -324,7 +324,7 @@ SCSTLun_monitor() {
     if [ -e "${SCST_BASE}/handlers/${OCF_RESKEY_handler}/${OCF_RESKEY_device_name}" ]; then
        return $OCF_SUCCESS
     fi
-	
+
     # Check if lun is running.
     if [ -e "${ISCSI_BASE}/${OCF_RESKEY_target_iqn}/luns/${OCF_RESKEY_lun}" ]; then
 	return $OCF_SUCCESS
@@ -336,7 +336,7 @@ SCSTLun_monitor() {
 SCSTLun_validate() {
     # Do we have all required variables?
     # TODO: make this check more precise considering handler used!
-    
+
     for var in target_iqn lun device_name handler; do
 	param="OCF_RESKEY_${var}"
 	if [ -z "${!param}" ]; then
@@ -348,7 +348,7 @@ SCSTLun_validate() {
     if ! ocf_is_probe; then
     # Do we have all required binaries?
 	check_binary scstadmin
-        
+
 	# Is the required kernel functionality available?
 	if [ ! -d ${SCST_BASE} ]; then
 		    ocf_log err "${SCST_BASE} does not exist or is not a directory -- check if required modules are loaded."

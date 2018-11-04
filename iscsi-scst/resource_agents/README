@@ -13,14 +13,14 @@ mail.
 
 INSTALLATION
 
-Place files SCSTTarget and SCSTLun into pacemaker ocf directory (usually 
+Place files SCSTTarget and SCSTLun into pacemaker ocf directory (usually
 /usr/lib/ocf/resource.d or /usr/lib64/ocf/resource.d)
 
 
 
 EXAMPLE OF USAGE
 
-Assumptions: 
+Assumptions:
 - you are using DRBD as backing device (/dev/drbd1)
 - your target iqn is iqn.2012-02.com.mysuperhasan:vdisk.lun
 - your nic reserved for iscsi is eth2 and your iscsi subnet is 192.168.103.x
@@ -36,7 +36,7 @@ primitive ISCSI_IP ocf:heartbeat:IPaddr2 \
 	op monitor interval="10s"
 primitive ISCSI_LUN ocf:scst:SCSTLun \
 	params target_iqn="iqn.2012-02.com.mysuperhasan:vdisk.lun" lun="0" \
-	path="/dev/drbd1" handler="vdisk_fileio" device_name="VDISK-LUN10" \ 		
+	path="/dev/drbd1" handler="vdisk_fileio" device_name="VDISK-LUN10" \
 	additional_parameters="nv_cache=1" \
 	op monitor interval="10s" timeout="120s"
 primitive ISCSI_TGT ocf:scst:SCSTTarget \
@@ -54,7 +54,7 @@ order OR_DRBD_BEFORE_ISCSI inf: MS_DRBD_VOLUME:promote GR_ISCSI:start
 
 CURRENT LIMITATIONS
 
-Scripts are tested only with straight drbd or lvm over drbd as backing device, 
+Scripts are tested only with straight drbd or lvm over drbd as backing device,
 using vdisk_fileio, with one lun per target.
 
 CHAP authentication is configurable, but not yet tested. My current version of SCST
