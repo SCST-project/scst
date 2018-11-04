@@ -1583,7 +1583,7 @@ qla2x00_fdmi_rpa(scsi_qla_host_t *vha)
 		    FDMI_PORT_SPEED_1GB|FDMI_PORT_SPEED_2GB|
 		    FDMI_PORT_SPEED_4GB);
 	else if (IS_QLA23XX(ha))
-		eiter->a.sup_speed =cpu_to_be32(
+		eiter->a.sup_speed = cpu_to_be32(
 		    FDMI_PORT_SPEED_1GB|FDMI_PORT_SPEED_2GB);
 	else
 		eiter->a.sup_speed = cpu_to_be32(FDMI_PORT_SPEED_1GB);
