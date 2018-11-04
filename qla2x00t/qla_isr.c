@@ -1252,8 +1252,7 @@ qla24xx_els_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 		}
 		ql_dump_buffer(ql_dbg_user + ql_dbg_buffer, vha, 0x5056,
 				(uint8_t *)pkt, sizeof(*pkt));
-	}
-	else {
+	} else {
 #ifndef NEW_LIBFC_API
 		bsg_job->reply->reply_payload_rcv_len = bsg_job->reply_payload.payload_len;
 #else
