@@ -963,7 +963,8 @@ static struct file *vdev_open_fd(const struct scst_vdisk_dev *virt_dev,
 	sBUG_ON(!name);
 
 	if (!virt_dev->dev_active) {
-		TRACE_MGMT_DBG("Skip openning for not active dev %s", virt_dev->dev->virt_name);
+		TRACE_MGMT_DBG("Skip opening for not active dev %s",
+			       virt_dev->dev->virt_name);
 		fd = ERR_PTR(-EMEDIUMTYPE);
 		goto out;
 	}
