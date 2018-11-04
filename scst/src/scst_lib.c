@@ -7909,6 +7909,22 @@ static void bio_kmalloc_destructor(struct bio *bio)
 }
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
+static blk_mq_req_flags_t gfp_mask_to_flags(gfp_t gfp_mask)
+{
+	switch (gfp_mask) {
+	case GFP_KERNEL:
+		return 0;
+	case GFP_ATOMIC:
+	case GFP_NOIO:
+		return BLK_MQ_REQ_NOWAIT;
+	default:
+		WARN_ONCE(true, "gfp_mask = %#x\n", gfp_mask);
+	}
+	return 0;
+}
+#endif
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0) ||			\
 (defined(CONFIG_SUSE_KERNEL) && LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
 static struct request *blk_make_request(struct request_queue *q,
@@ -7919,13 +7935,12 @@ static struct request *blk_make_request(struct request_queue *q,
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
 	rq = blk_get_request(q, bio_data_dir(bio), gfp_mask);
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0)
 	rq = blk_get_request(q, bio_data_dir(bio) == READ ? REQ_OP_SCSI_IN :
 			     REQ_OP_SCSI_OUT, gfp_mask);
 #else
-	WARN_ON_ONCE(gfp_mask != GFP_KERNEL);
 	rq = blk_get_request(q, bio_data_dir(bio) == READ ? REQ_OP_SCSI_IN :
-			     REQ_OP_SCSI_OUT, 0);
+			     REQ_OP_SCSI_OUT, gfp_mask_to_flags(gfp_mask));
 #endif
 
 	if (IS_ERR(rq))
@@ -8171,9 +8186,8 @@ static struct request *blk_map_kern_sg(struct request_queue *q,
 		rq = blk_get_request(q, reading ? REQ_OP_SCSI_IN :
 				     REQ_OP_SCSI_OUT, gfp);
 #else
-		WARN_ON_ONCE(gfp != GFP_KERNEL);
 		rq = blk_get_request(q, reading ? REQ_OP_SCSI_IN :
-				     REQ_OP_SCSI_OUT, 0);
+				     REQ_OP_SCSI_OUT, gfp_mask_to_flags(gfp));
 #endif
 		if (unlikely(!rq))
 			return ERR_PTR(-ENOMEM);
