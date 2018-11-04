@@ -2603,7 +2603,7 @@ static int __init init_scst(void)
 	}
 	if (!INIT_CACHEP(scst_aen_cachep, scst_aen)) /* read-mostly */
 		goto out_destroy_sense_cache;
-	if (!INIT_CACHEP_ALIGN_USERCOPY(scst_cmd_cachep, scst_cmd, cdb))
+	if (!INIT_CACHEP_ALIGN_USERCOPY(scst_cmd_cachep, scst_cmd, cdb_buf))
 		goto out_destroy_aen_cache;
 	/* Big enough with read-mostly head and tail */
 	if (!INIT_CACHEP(scst_sess_cachep, scst_session))
