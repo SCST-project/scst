@@ -248,6 +248,12 @@ conftest/register_mad_agent/result-$(KVER).txt:				\
 	echo "$(call run_conftest,register_mad_agent,			\
 		-DREGISTER_MAD_AGENT_HAS_FLAGS_ARG)" >"$@"
 
+conftest/srp_login_req_rdma/result-$(KVER).txt:				\
+	conftest/srp_login_req_rdma/srp_login_req_rdma.c		\
+	conftest/srp_login_req_rdma/Makefile
+	echo "$(call run_conftest_bool,srp_login_req_rdma,		\
+		HAVE_STRUCT_SRP_LOGIN_REQ_RDMA)" >"$@"
+
 conftest/use_pre_440_wr_structure/result-$(KVER).txt:			\
 	conftest/use_pre_440_wr_structure/use_pre_440_wr_structure.c	\
 	conftest/use_pre_440_wr_structure/Makefile
