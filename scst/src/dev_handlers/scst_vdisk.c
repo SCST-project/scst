@@ -51,7 +51,6 @@
 #include <linux/slab.h>
 #include <linux/bio.h>
 #include <linux/crc32c.h>
-#include <linux/swap.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
 #include <linux/falloc.h>
 #endif
@@ -265,14 +264,12 @@ struct scst_vdisk_dev {
 };
 
 struct vdisk_cmd_params {
-	struct scatterlist small_sg[4];
 	struct iovec *iv;
 	int iv_count;
 	struct iovec small_iv[4];
 	struct scst_cmd *cmd;
 	loff_t loff;
 	int fua;
-	bool use_zero_copy;
 };
 
 static bool vdev_saved_mode_pages_enabled = true;
@@ -316,7 +313,6 @@ static int vdisk_get_supported_opcodes(struct scst_cmd *cmd,
 static int vcdrom_get_supported_opcodes(struct scst_cmd *cmd,
 	const struct scst_opcode_descriptor ***out_supp_opcodes,
 	int *out_supp_opcodes_cnt);
-static int fileio_alloc_data_buf(struct scst_cmd *cmd);
 static int vdisk_parse(struct scst_cmd *);
 static int vcdrom_parse(struct scst_cmd *);
 static int non_fileio_parse(struct scst_cmd *);
@@ -743,7 +739,6 @@ static struct scst_dev_type vdisk_file_devtype = {
 	.attach_tgt =		vdisk_attach_tgt,
 	.detach_tgt =		vdisk_detach_tgt,
 	.parse =		vdisk_parse,
-	.dev_alloc_data_buf =	fileio_alloc_data_buf,
 	.exec =			fileio_exec,
 	.on_free_cmd =		fileio_on_free_cmd,
 	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
@@ -905,7 +900,6 @@ static struct scst_dev_type vcdrom_devtype = {
 	.attach_tgt =		vdisk_attach_tgt,
 	.detach_tgt =		vdisk_detach_tgt,
 	.parse =		vcdrom_parse,
-	.dev_alloc_data_buf =	fileio_alloc_data_buf,
 	.exec =			vcdrom_exec,
 	.on_free_cmd =		fileio_on_free_cmd,
 	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
@@ -2941,28 +2935,6 @@ static int vcdrom_get_supported_opcodes(struct scst_cmd *cmd,
 	return 0;
 }
 
-static bool vdisk_use_zero_copy(const struct scst_cmd *cmd)
-{
-	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
-
-	if (!virt_dev->zero_copy)
-		return false;
-
-	switch (cmd->cdb[0]) {
-	case VARIABLE_LENGTH_CMD:
-		if (cmd->cdb[9] != SUBCODE_READ_32)
-			break;
-		/* fall through */
-	case READ_6:
-	case READ_10:
-	case READ_12:
-	case READ_16:
-		return true;
-	}
-
-	return false;
-}
-
 /*
  * Compute p->loff and p->fua.
  * Returns true for success or false otherwise and set error in the command.
@@ -3063,7 +3035,6 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 
 	p->loff = loff;
 	p->fua = fua;
-	p->use_zero_copy = vdisk_use_zero_copy(cmd);
 
 	res = true;
 
@@ -3145,397 +3116,6 @@ static int non_fileio_parse(struct scst_cmd *cmd)
 out:
 	return res;
 }
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
-/*
- * finish_read - Release the pages referenced by prepare_read().
- */
-static void finish_read(struct scatterlist *sg, int sg_cnt)
-{
-	struct page *page;
-	int i;
-
-	TRACE_ENTRY();
-
-	for (i = 0; i < sg_cnt; ++i) {
-		page = sg_page(&sg[i]);
-		EXTRACHECKS_BUG_ON(!page);
-		put_page(page);
-	}
-
-	TRACE_EXIT();
-	return;
-}
-
-/**
- * prepare_read_page - Bring a single page into the page cache.
- *
- * @filp: file pointer
- * @len: number of bytes to read from the file
- * @offset: offset of first byte to read (from start of file)
- * @last: offset of first byte that will not be read - used for readahead
- * @pageptr: page pointer output variable.
- *
- * Returns a negative number if an error occurred, zero upon EOF or a positive
- * number - the number of bytes that can be read from the file via the returned
- * page. If a positive number is returned, it is the responsibility of the
- * caller to release the returned page.
- *
- * Based on do_generic_file_read().
- */
-static int prepare_read_page(struct file *filp, int len,
-			     loff_t offset, loff_t last, struct page **pageptr)
-{
-	struct address_space *mapping = filp->f_mapping;
-	struct inode *inode = mapping->host;
-	struct file_ra_state *ra = &filp->f_ra;
-	struct page *page;
-	unsigned long index, last_index;
-	long end_index, nr;
-	loff_t isize;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 15, 0)
-	read_descriptor_t desc = { .count = len };
-#endif
-	int error;
-
-	TRACE_ENTRY();
-
-	WARN((offset & ~PAGE_MASK) + len > PAGE_SIZE,
-	     "offset = %lld + %lld, len = %d\n", offset & PAGE_MASK,
-	     offset & ~PAGE_MASK, len);
-	sBUG_ON(!mapping->a_ops);
-
-	index = offset >> PAGE_SHIFT;
-	last_index = (last + PAGE_SIZE - 1) >> PAGE_SHIFT;
-
-find_page:
-	page = find_get_page(mapping, index);
-	if (!page) {
-		page_cache_sync_readahead(mapping, ra, filp, index,
-					  last_index - index);
-		page = find_get_page(mapping, index);
-		if (unlikely(!page)) {
-			/*
-			 * Not cached so create a new page.
-			 */
-			page = page_cache_alloc(mapping);
-			if (!page) {
-				error = -ENOMEM;
-				goto err;
-			}
-			error = add_to_page_cache_lru(page, mapping, index,
-						      GFP_KERNEL);
-			if (error) {
-				put_page(page);
-				if (error == -EEXIST)
-					goto find_page;
-				else
-					goto err;
-			} else {
-				goto readpage;
-			}
-		}
-	}
-	if (PageReadahead(page))
-		page_cache_async_readahead(mapping, ra, filp, page,
-					   index, last_index - index);
-	if (!PageUptodate(page)) {
-		if (inode->i_blkbits == PAGE_SHIFT ||
-		    !mapping->a_ops->is_partially_uptodate)
-			goto page_not_up_to_date;
-		if (!trylock_page(page))
-			goto page_not_up_to_date;
-		/* Did it get truncated before we got the lock? */
-		if (!page->mapping)
-			goto page_not_up_to_date_locked;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 15, 0)
-		if (!mapping->a_ops->is_partially_uptodate(page,
-						offset & ~PAGE_MASK, len))
-#else
-		if (!mapping->a_ops->is_partially_uptodate(page, &desc,
-						offset & ~PAGE_MASK))
-#endif
-			goto page_not_up_to_date_locked;
-		unlock_page(page);
-	}
-page_ok:
-	/*
-	 * i_size must be checked after we know the page is Uptodate.
-	 *
-	 * Checking i_size after the check allows us to calculate the correct
-	 * value for "nr", which means the zero-filled part of the page is not
-	 * accessed (unless another truncate extends the file - this is
-	 * desired though).
-	 */
-
-	isize = i_size_read(inode);
-	end_index = (isize - 1) >> PAGE_SHIFT;
-	if (unlikely(isize == 0 || index > end_index)) {
-		put_page(page);
-		goto eof;
-	}
-
-	/* nr is the maximum number of bytes to copy from this page */
-	if (index < end_index) {
-		nr = PAGE_SIZE - (offset & ~PAGE_MASK);
-	} else {
-		nr = ((isize - 1) & ~PAGE_MASK) + 1 - (offset & ~PAGE_MASK);
-		if (nr <= 0) {
-			put_page(page);
-			goto eof;
-		}
-	}
-
-	/*
-	 * If users can be writing to this page using arbitrary virtual
-	 * addresses, take care about potential aliasing before reading the
-	 * page on the kernel side.
-	 */
-	if (mapping_writably_mapped(mapping))
-		flush_dcache_page(page);
-
-	mark_page_accessed(page);
-
-	/* Ok, we have the page and it's up to date. */
-	*pageptr = page;
-	TRACE_EXIT_RES(nr);
-	return nr;
-eof:
-	TRACE_EXIT();
-	return 0;
-err:
-	TRACE_EXIT_RES(error);
-	return error;
-
-page_not_up_to_date:
-	/* Try to get exclusive access to the page. */
-	error = lock_page_killable(page);
-	if (unlikely(error != 0)) {
-		put_page(page);
-		goto err;
-	}
-
-page_not_up_to_date_locked:
-	/* Did it get truncated before we got the lock? */
-	if (!page->mapping) {
-		unlock_page(page);
-		put_page(page);
-		goto find_page;
-	}
-
-	/* Did somebody else fill it already? */
-	if (PageUptodate(page)) {
-		unlock_page(page);
-		goto page_ok;
-	}
-
-readpage:
-	/*
-	 * A previous I/O error may have been due to temporary
-	 * failures, eg. multipath errors.
-	 * PG_error will be set again if readpage fails.
-	 */
-	ClearPageError(page);
-	/* Start the actual read. The read will unlock the page. */
-	error = mapping->a_ops->readpage(filp, page);
-	if (unlikely(error)) {
-		if (error == AOP_TRUNCATED_PAGE) {
-			put_page(page);
-			goto find_page;
-		}
-		WARN(error >= 0, "error = %d\n", error);
-		put_page(page);
-		goto err;
-	}
-
-	if (!PageUptodate(page)) {
-		error = lock_page_killable(page);
-		if (unlikely(error != 0)) {
-			put_page(page);
-			goto err;
-		}
-		if (!PageUptodate(page)) {
-			if (page->mapping == NULL) {
-				/*
-				 * invalidate_mapping_pages got it
-				 */
-				unlock_page(page);
-				put_page(page);
-				goto find_page;
-			}
-			unlock_page(page);
-			put_page(page);
-			error = -EIO;
-			goto err;
-		}
-		unlock_page(page);
-	}
-
-	goto page_ok;
-}
-
-/**
- * prepare_read - Lock page cache pages corresponding to an sg vector
- * @filp: file the sg vector applies to
- * @sg: sg vector
- * @sg_cnt: sg vector size
- * @offset: file offset the first byte of the first sg element corresponds to
- */
-static int prepare_read(struct file *filp, struct scatterlist *sg, int sg_cnt,
-			pgoff_t offset)
-{
-	struct page *page = NULL;
-	int i, res;
-	loff_t off, last = ((offset + sg_cnt - 1) << PAGE_SHIFT) +
-		sg[sg_cnt - 1].offset + sg[sg_cnt - 1].length;
-
-	TRACE_ENTRY();
-
-	for (i = 0; i < sg_cnt; ++i) {
-		off = (offset + i) << PAGE_SHIFT | sg[i].offset;
-		res = prepare_read_page(filp, sg[i].length, off, last, &page);
-		if (res <= 0)
-			goto err;
-		if (res < sg[i].length) {
-			put_page(page);
-			goto err;
-		}
-		sg_assign_page(&sg[i], page);
-	}
-
-	file_accessed(filp);
-
-out:
-	TRACE_EXIT_RES(i);
-	return i;
-
-err:
-	finish_read(sg, i);
-	i = -EIO;
-	goto out;
-}
-
-/**
- * alloc_sg - Allocate an SG vector.
- * @size: number of bytes that will be stored in the pages of the sg vector
- * @off: first page data offset
- * @gfp_mask: allocation flags for dynamic sg vector allocation
- * @small_sg: pointer to a candidate sg vector
- * @small_sg_size: size of @small_sg
- * @p_sg_cnt: pointer to an int where the sg vector size will be written
- */
-static struct scatterlist *alloc_sg(size_t size, unsigned int off,
-				    gfp_t gfp_mask,
-				    struct scatterlist *small_sg,
-				    int small_sg_size, int *p_sg_cnt)
-{
-	struct scatterlist *sg;
-	int i, sg_cnt, remaining_sz, sg_sz, sg_off;
-
-	TRACE_ENTRY();
-
-	sg_cnt = PAGE_ALIGN(size + off) >> PAGE_SHIFT;
-	sg = sg_cnt <= small_sg_size ? small_sg :
-		kmalloc_array(sg_cnt, sizeof(*sg), gfp_mask);
-	if (!sg)
-		goto out;
-
-	sg_init_table(sg, sg_cnt);
-	remaining_sz = size;
-	sg_off = off;
-	for (i = 0; i < sg_cnt; ++i) {
-		sg_sz = min_t(int, PAGE_SIZE - sg_off, remaining_sz);
-		sg_set_page(&sg[i], NULL, sg_sz, sg_off);
-		remaining_sz -= sg_sz;
-		sg_off = 0;
-	}
-	*p_sg_cnt = sg_cnt;
-
-out:
-	TRACE_EXIT();
-	return sg;
-}
-
-static int fileio_alloc_data_buf(struct scst_cmd *cmd)
-{
-	struct vdisk_cmd_params *p;
-	struct scst_vdisk_dev *virt_dev;
-	int sg_cnt, nr;
-	const gfp_t gfp_mask = GFP_KERNEL;
-	struct scatterlist *sg;
-
-	TRACE_ENTRY();
-
-	p = cmd->dh_priv;
-	EXTRACHECKS_BUG_ON(!p);
-	virt_dev = cmd->dev->dh_priv;
-	/*
-	 * If the target driver (e.g. scst_local) allocates the sg vector
-	 * itself or the command is a write or bidi command, don't use zero
-	 * copy.
-	 */
-	if (cmd->tgt_i_data_buf_alloced ||
-	    (cmd->data_direction & SCST_DATA_READ) == 0 ||
-	    (virt_dev->fd && !virt_dev->fd->f_mapping->a_ops->readpage)) {
-		p->use_zero_copy = false;
-	}
-	if (!p->use_zero_copy)
-		goto out;
-
-	EXTRACHECKS_BUG_ON(!(cmd->data_direction & SCST_DATA_READ));
-
-	scst_cmd_set_dh_data_buff_alloced(cmd);
-
-	cmd->sg = alloc_sg(cmd->bufflen, p->loff & ~PAGE_MASK, gfp_mask,
-			   p->small_sg, ARRAY_SIZE(p->small_sg), &cmd->sg_cnt);
-	if (!cmd->sg) {
-		PRINT_ERROR("sg allocation failed (bufflen = %d, off = %lld)\n",
-			    cmd->bufflen, p->loff & ~PAGE_MASK);
-		goto enomem;
-	}
-	sg_cnt = scst_cmd_get_sg_cnt(cmd);
-	sg = cmd->sg;
-	nr = prepare_read(virt_dev->fd, sg, sg_cnt, p->loff >> PAGE_SHIFT);
-	if (nr < 0) {
-		PRINT_ERROR("prepare_read() failed: %d", nr);
-		goto out_free_sg;
-	}
-out:
-	TRACE_EXIT();
-	return SCST_CMD_STATE_DEFAULT;
-
-out_free_sg:
-	kfree(cmd->sg);
-	cmd->sg = NULL;
-	cmd->sg_cnt = 0;
-
-enomem:
-	scst_set_busy(cmd);
-	TRACE_EXIT_RES(-ENOMEM);
-	return scst_get_cmd_abnormal_done_state(cmd);
-}
-
-#else
-
-static int fileio_alloc_data_buf(struct scst_cmd *cmd)
-{
-	struct vdisk_cmd_params *p;
-
-	TRACE_ENTRY();
-
-	p = cmd->dh_priv;
-	EXTRACHECKS_BUG_ON(!p);
-	p->use_zero_copy = false;
-
-	TRACE_EXIT();
-	return SCST_CMD_STATE_DEFAULT;
-}
-
-static void finish_read(struct scatterlist *sg, int sg_cnt)
-{
-}
-
-#endif
 
 static int vdev_do_job(struct scst_cmd *cmd, const vdisk_op_fn *ops)
 {
@@ -3619,26 +3199,11 @@ static void vdisk_on_free_cmd_params(const struct vdisk_cmd_params *p)
 static void fileio_on_free_cmd(struct scst_cmd *cmd)
 {
 	struct vdisk_cmd_params *p = cmd->dh_priv;
-	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
 
 	if (!p)
 		goto out;
-
-	virt_dev = cmd->dev->dh_priv;
-
-	if (p->use_zero_copy) {
-		if ((cmd->data_direction & SCST_DATA_READ) &&
-		    virt_dev->zero_copy)
-			finish_read(cmd->sg, cmd->sg_cnt);
-		if (cmd->sg != p->small_sg)
-			kfree(cmd->sg);
-		cmd->sg_cnt = 0;
-		cmd->sg = NULL;
-		cmd->bufflen = 0;
-		cmd->data_len = 0;
-	}
 
 	vdisk_on_free_cmd_params(p);
 
@@ -5919,11 +5484,6 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 
 	EXTRACHECKS_BUG_ON(virt_dev->nullio);
 
-#if 0 /* no zero-copy (yet) */
-	if (p->use_zero_copy)
-		goto out;
-#endif
-
 	EXTRACHECKS_BUG_ON(!(cmd->dev->dev_dif_mode & SCST_DIF_MODE_DEV_STORE) ||
 	    (scst_get_dif_action(scst_get_dev_dif_actions(cmd->cmd_dif_actions)) == SCST_DIF_ACTION_NONE));
 
@@ -6044,11 +5604,6 @@ static int vdev_write_dif_tags(struct vdisk_cmd_params *p)
 	 */
 
 	EXTRACHECKS_BUG_ON(virt_dev->nullio);
-
-#if 0 /* no zero-copy (yet) */
-	if (p->use_zero_copy)
-		goto out;
-#endif
 
 	EXTRACHECKS_BUG_ON(!(cmd->dev->dev_dif_mode & SCST_DIF_MODE_DEV_STORE) ||
 	    (scst_get_dif_action(scst_get_dev_dif_actions(cmd->cmd_dif_actions)) == SCST_DIF_ACTION_NONE));
@@ -6200,9 +5755,6 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 
 	EXTRACHECKS_BUG_ON(virt_dev->nullio);
 
-	if (p->use_zero_copy)
-		goto out_dif;
-
 	iv = vdisk_alloc_iv(cmd, p);
 	if (iv == NULL)
 		goto out_nomem;
@@ -6281,7 +5833,6 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 			goto out;
 	}
 
-out_dif:
 	scst_dif_process_read(cmd);
 
 out:
@@ -6390,9 +5941,6 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 	rc = scst_dif_process_write(cmd);
 	if (unlikely(rc != 0))
 		goto out;
-
-	if (p->use_zero_copy)
-		goto out_sync;
 
 	iv = vdisk_alloc_iv(cmd, p);
 	if (iv == NULL)
