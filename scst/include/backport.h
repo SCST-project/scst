@@ -27,8 +27,8 @@
 #include <linux/timer.h>
 #include <linux/version.h>
 #include <linux/writeback.h>	/* sync_page_range() */
-#include <scsi/scsi_cmnd.h>	/* struct scsi_cmnd */
 #include <rdma/ib_verbs.h>
+#include <scsi/scsi_cmnd.h>	/* struct scsi_cmnd */
 
 /* <asm-generic/barrier.h> */
 
