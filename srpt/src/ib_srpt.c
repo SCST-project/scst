@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2006 - 2009 Mellanox Technology Inc.  All rights reserved.
- * Copyright (C) 2008 - 2017 Bart Van Assche <bvanassche@acm.org>.
+ * Copyright (C) 2008 - 2018 Bart Van Assche <bvanassche@acm.org>.
  * Copyright (C) 2008 Vladislav Bolkhovitin <vst@vlnb.net>
  *
  * This software is available to you under a choice of one of two
@@ -2249,7 +2249,7 @@ retry:
 	 * max_sge values < max_sge_delta, use max_sge. For intermediate
 	 * max_sge values, use max_sge_delta.
 	 */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
+#if HAVE_DEV_ATTR_MAX_SEND_SGE
 	ch->max_send_sge = sdev->dev_attr.max_send_sge;
 	ch->max_recv_sge = sdev->dev_attr.max_recv_sge;
 #else
