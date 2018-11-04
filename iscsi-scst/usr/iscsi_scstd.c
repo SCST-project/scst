@@ -705,9 +705,9 @@ static void event_loop(void)
 					"you can decrease iscsi_scstd.c::INCOMING_MAX "
 					"constant to a lower value, e.g. 128, then "
 					"recompile and reinstall the user space part "
-					"of iSCSI-SCST.", __FUNCTION__);
+					"of iSCSI-SCST.", __func__);
 			else
-				log_error("%s: poll() failed: %s", __FUNCTION__,
+				log_error("%s: poll() failed: %s", __func__,
 					strerror(errno));
 			exit(1);
 		}

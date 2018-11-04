@@ -1185,7 +1185,7 @@ int nl_open(void)
 
 	nl_fd = socket(PF_NETLINK, SOCK_RAW, NETLINK_ISCSI_SCST);
 	if (nl_fd == -1) {
-		log_error("%s %s\n", __FUNCTION__, strerror(errno));
+		log_error("%s %s\n", __func__, strerror(errno));
 		return -1;
 	}
 
@@ -1201,7 +1201,7 @@ int nl_open(void)
 
 	res = nl_write(nl_fd, NULL, 0);
 	if (res < 0) {
-		log_error("%s %d\n", __FUNCTION__, res);
+		log_error("%s %d\n", __func__, res);
 		close(nl_fd);
 		return res;
 	}
