@@ -2579,6 +2579,13 @@ static int __init init_scst(void)
 		(p);							\
 	})
 
+#define INIT_CACHEP_USERCOPY(p, s, f) ({				\
+		(p) = KMEM_CACHE_USERCOPY(s, SCST_SLAB_FLAGS, f);	\
+		TRACE_MEM("Slab create: %s at %p size %zd", #s, (p),	\
+			  sizeof(struct s));				\
+		(p);							\
+	})
+
 /* Used for structures with fast path write access */
 #define INIT_CACHEP_ALIGN(p, s) ({					\
 		(p) = KMEM_CACHE(s, SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN);\
@@ -2603,7 +2610,7 @@ static int __init init_scst(void)
 		goto out_destroy_mgmt_stub_cache;
 	{
 		struct scst_sense { uint8_t s[SCST_SENSE_BUFFERSIZE]; };
-		if (!INIT_CACHEP(scst_sense_cachep, scst_sense))
+		if (!INIT_CACHEP_USERCOPY(scst_sense_cachep, scst_sense, s))
 			goto out_destroy_ua_cache;
 	}
 	if (!INIT_CACHEP(scst_aen_cachep, scst_aen)) /* read-mostly */
