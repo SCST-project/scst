@@ -20,6 +20,7 @@
 #include <linux/kthread.h>
 #include <linux/delay.h>
 #include <linux/poll.h>
+#include <linux/eventpoll.h>
 #include <linux/stddef.h>
 #include <linux/slab.h>
 
