@@ -301,22 +301,29 @@ enum {
 /* <linux/eventpoll.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0)
-typedef unsigned int __bitwise __poll_t;
+/*
+ * See also commit 65aaf87b3aa2 ("add EPOLLNVAL, annotate EPOLL... and
+ * event_poll->event").
+ */
+typedef unsigned int __poll_t;
+#define EPOLLNVAL	POLLNVAL
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
-#define EPOLLIN		(__force __poll_t)POLLIN
-#define EPOLLPRI	(__force __poll_t)POLLPRI
-#define EPOLLOUT	(__force __poll_t)POLLOUT
-#define EPOLLERR	(__force __poll_t)POLLERR
-#define EPOLLHUP	(__force __poll_t)POLLHUP
-#define EPOLLNVAL	(__force __poll_t)POLLNVAL
-#define EPOLLRDNORM	(__force __poll_t)POLLRDNORM
-#define EPOLLRDBAND	(__force __poll_t)POLLRDBAND
-#define EPOLLWRNORM	(__force __poll_t)POLLWRNORM
-#define EPOLLWRBAND	(__force __poll_t)POLLWRBAND
-#define EPOLLMSG	(__force __poll_t)POLLMSG
-#define EPOLLRDHUP	(__force __poll_t)POLLRDHUP
+/*
+ * See also commit 7e040726850a ("eventpoll.h: add missing epoll event masks").
+ */
+#define EPOLLIN		POLLIN
+#define EPOLLPRI	POLLPRI
+#define EPOLLOUT	POLLOUT
+#define EPOLLERR	POLLERR
+#define EPOLLHUP	POLLHUP
+#define EPOLLRDNORM	POLLRDNORM
+#define EPOLLRDBAND	POLLRDBAND
+#define EPOLLWRNORM	POLLWRNORM
+#define EPOLLWRBAND	POLLWRBAND
+#define EPOLLMSG	POLLMSG
+#define EPOLLRDHUP	POLLRDHUP
 #endif
 
 /* <linux/fs.h> */
@@ -347,6 +354,11 @@ static inline int vfs_fsync_backport(struct file *file, int datasync)
 }
 
 #define vfs_fsync vfs_fsync_backport
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
+/* See also commit dde0c2e79848 ("fs: add IOCB_SYNC and IOCB_DSYNC") */
+#define IOCB_DSYNC 0
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0) && \
