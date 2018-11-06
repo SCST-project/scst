@@ -349,6 +349,11 @@ static inline int vfs_fsync_backport(struct file *file, int datasync)
 #define vfs_fsync vfs_fsync_backport
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
+/* See also commit dde0c2e79848 ("fs: add IOCB_SYNC and IOCB_DSYNC") */
+#define IOCB_DSYNC 0
+#endif
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0) && \
 	LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
 /*
