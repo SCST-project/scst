@@ -483,11 +483,15 @@ debian/changelog: debian/changelog.in
 	sed 's/%{scst_version}/$(VERSION)-$(DEBIAN_REVISION)/'		\
 	  <debian/changelog.in >debian/changelog
 
+../scst_$(VERSION).orig.tar.gz: debian/changelog Makefile
+	$(call make-scst-dist,z,gz,$(VERSION),cat) &&			\
+	mv "scst-$(VERSION).tar.gz" "$@"
+
 ../scst_$(VERSION).orig.tar.xz: debian/changelog Makefile
 	$(call make-scst-dist,J,xz,$(VERSION),cat) &&			\
 	mv "scst-$(VERSION).tar.xz" "$@"
 
-dpkg: ../scst_$(VERSION).orig.tar.xz
+dpkg: ../scst_$(VERSION).orig.tar.gz
 	@if [ -z "$$DEBEMAIL" ]; then					\
 	  echo "Error: \$$DEBEMAIL has not been set";			\
 	  false;							\
@@ -501,7 +505,7 @@ dpkg: ../scst_$(VERSION).orig.tar.xz
 	output_files=(							\
 		../*_$(VERSION)-$(DEBIAN_REVISION)_*.deb		\
 		../*_$(VERSION)-$(DEBIAN_REVISION)_*.ddeb		\
-		../scst_$(VERSION)-$(DEBIAN_REVISION).debian.tar.xz	\
+		../scst_$(VERSION)-$(DEBIAN_REVISION).debian.tar.[gx]z	\
 		../scst_$(VERSION)-$(DEBIAN_REVISION).dsc		\
 		../scst_$(VERSION)-$(DEBIAN_REVISION)_amd64.build	\
 		../scst_$(VERSION)-$(DEBIAN_REVISION)_amd64.buildinfo	\
@@ -524,7 +528,7 @@ dpkg: ../scst_$(VERSION).orig.tar.xz
 	  debuild "$${buildopts[@]}" --lintian-opts --profile debian;	\
 	fi &&								\
 	mkdir -p dpkg &&						\
-	for f in "$${output_files[@]}" ../scst_$(VERSION).orig.tar.xz; do\
+	for f in "$${output_files[@]}" ../scst_$(VERSION).orig.tar.[gx]z; do\
 		mv $$f dpkg || true;					\
 	done &&								\
 	echo "Output files:" &&						\

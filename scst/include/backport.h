@@ -27,6 +27,7 @@
 #endif
 #include <linux/scatterlist.h>	/* struct scatterlist */
 #include <linux/slab.h>		/* kmalloc() */
+#include <linux/stddef.h>	/* sizeof_field() */
 #include <linux/timer.h>
 #include <linux/version.h>
 #include <linux/vmalloc.h>
@@ -297,6 +298,34 @@ enum {
 };
 #endif
 
+/* <linux/eventpoll.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0)
+/*
+ * See also commit 65aaf87b3aa2 ("add EPOLLNVAL, annotate EPOLL... and
+ * event_poll->event").
+ */
+typedef unsigned int __poll_t;
+#define EPOLLNVAL	POLLNVAL
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
+/*
+ * See also commit 7e040726850a ("eventpoll.h: add missing epoll event masks").
+ */
+#define EPOLLIN		POLLIN
+#define EPOLLPRI	POLLPRI
+#define EPOLLOUT	POLLOUT
+#define EPOLLERR	POLLERR
+#define EPOLLHUP	POLLHUP
+#define EPOLLRDNORM	POLLRDNORM
+#define EPOLLRDBAND	POLLRDBAND
+#define EPOLLWRNORM	POLLWRNORM
+#define EPOLLWRBAND	POLLWRBAND
+#define EPOLLMSG	POLLMSG
+#define EPOLLRDHUP	POLLRDHUP
+#endif
+
 /* <linux/fs.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0) && \
@@ -325,6 +354,11 @@ static inline int vfs_fsync_backport(struct file *file, int datasync)
 }
 
 #define vfs_fsync vfs_fsync_backport
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
+/* See also commit dde0c2e79848 ("fs: add IOCB_SYNC and IOCB_DSYNC") */
+#define IOCB_DSYNC 0
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0) && \
@@ -474,7 +508,9 @@ static inline int __must_check kref_get_unless_zero(struct kref *kref)
 /* <linux/kthread.h> */
 
 /* See also commit 207205a2ba26 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39) && \
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6 || \
+	 RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 < 9)
 #define kthread_create_on_node(threadfn, data, node, namefmt, arg...)\
 	kthread_create((threadfn), (data), (namefmt), ##arg)
 #endif
@@ -815,6 +851,12 @@ struct t10_pi_tuple {
 	__be16 app_tag;
 	__be32 ref_tag;
 };
+#endif
+
+/* <linux/stddef.h> */
+
+#ifndef sizeof_field
+#define sizeof_field(TYPE, MEMBER) sizeof((((TYPE *)0)->MEMBER))
 #endif
 
 /* <linux/timer.h> */
