@@ -53,9 +53,7 @@ struct iscsit_transport {
 
 	void (*iscsit_close_all_portals)(void);
 
-#if !defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 	unsigned int need_alloc_write_buf:1;
-#endif
 
 	struct module *owner;
 	const char name[SCST_MAX_NAME];

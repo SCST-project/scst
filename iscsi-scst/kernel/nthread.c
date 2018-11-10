@@ -56,118 +56,6 @@ enum tx_state {
 	TX_END,
 };
 
-#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
-static void iscsi_check_closewait(struct iscsi_conn *conn)
-{
-	struct iscsi_cmnd *cmnd;
-
-	TRACE_ENTRY();
-
-	TRACE_CONN_CLOSE_DBG("conn %p, sk_state %d", conn,
-		conn->sock->sk->sk_state);
-
-	if (conn->sock->sk->sk_state != TCP_CLOSE) {
-		TRACE_CONN_CLOSE_DBG("conn %p, skipping", conn);
-		goto out;
-	}
-
-	/*
-	 * No data are going to be sent, so all queued buffers can be freed
-	 * now. In many cases TCP does that only in close(), but we can't rely
-	 * on user space on calling it.
-	 */
-
-again:
-	spin_lock_bh(&conn->cmd_list_lock);
-	list_for_each_entry(cmnd, &conn->cmd_list, cmd_list_entry) {
-		struct iscsi_cmnd *rsp;
-
-		TRACE_CONN_CLOSE_DBG("cmd %p, scst_state %x, "
-			"r2t_len_to_receive %d, ref_cnt %d, parent_req %p, "
-			"net_ref_cnt %d, sg %p", cmnd, cmnd->scst_state,
-			cmnd->r2t_len_to_receive, atomic_read(&cmnd->ref_cnt),
-			cmnd->parent_req, atomic_read(&cmnd->net_ref_cnt),
-			cmnd->sg);
-
-		sBUG_ON(cmnd->parent_req != NULL);
-
-		if (cmnd->sg != NULL) {
-			int i;
-
-			if (cmnd_get_check(cmnd))
-				continue;
-
-			/*
-			 * If we don't unlock here, we are risking to get into
-			 * recursive deadlock in cmnd_done() called from cmnd_put()
-			 */
-			spin_unlock_bh(&conn->cmd_list_lock);
-
-			for (i = 0; i < cmnd->sg_cnt; i++) {
-				struct page *page = sg_page(&cmnd->sg[i]);
-
-				TRACE_CONN_CLOSE_DBG("page %p, net_priv %p, "
-					"_count %d", page, page->net_priv,
-					atomic_read(&page->_count));
-
-				if (page->net_priv != NULL) {
-					while (page->net_priv != NULL)
-						iscsi_put_page_callback(page);
-				}
-			}
-			cmnd_put(cmnd);
-			goto again;
-		}
-
-		list_for_each_entry(rsp, &cmnd->rsp_cmd_list,
-				rsp_cmd_list_entry) {
-			TRACE_CONN_CLOSE_DBG("  rsp %p, ref_cnt %d, "
-				"net_ref_cnt %d, sg %p",
-				rsp, atomic_read(&rsp->ref_cnt),
-				atomic_read(&rsp->net_ref_cnt), rsp->sg);
-
-			if ((rsp->sg != cmnd->sg) && (rsp->sg != NULL)) {
-				int i;
-
-				if (cmnd_get_check(rsp))
-					continue;
-
-				/*
-				 * If we don't unlock here, we are risking to
-				 * get into recursive deadlock in cmnd_done()
-				 * called from cmnd_put()
-				 */
-				spin_unlock_bh(&conn->cmd_list_lock);
-
-				for (i = 0; i < rsp->sg_cnt; i++) {
-					struct page *page =
-						sg_page(&rsp->sg[i]);
-					TRACE_CONN_CLOSE_DBG(
-						"    page %p, net_priv %p, "
-						"_count %d",
-						page, page->net_priv,
-						atomic_read(&page->_count));
-
-					if (page->net_priv != NULL) {
-						while (page->net_priv != NULL)
-							iscsi_put_page_callback(page);
-					}
-				}
-				cmnd_put(rsp);
-				goto again;
-			}
-		}
-	}
-	spin_unlock_bh(&conn->cmd_list_lock);
-
-out:
-	TRACE_EXIT();
-	return;
-}
-#else
-static inline void iscsi_check_closewait(struct iscsi_conn *conn) {};
-#endif
-
 static void free_pending_commands(struct iscsi_conn *conn)
 {
 	struct iscsi_session *session = conn->session;
@@ -256,9 +144,6 @@ static void free_orphaned_pending_commands(struct iscsi_conn *conn)
 static void trace_conn_close(struct iscsi_conn *conn)
 {
 	struct iscsi_cmnd *cmnd;
-#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
-	struct iscsi_cmnd *rsp;
-#endif
 
 #if 0
 	if (time_after(jiffies, start_waiting + 10*HZ))
@@ -277,45 +162,6 @@ static void trace_conn_close(struct iscsi_conn *conn)
 				cmnd->scst_cmd->state : -1,
 			cmnd->r2t_len_to_receive, atomic_read(&cmnd->ref_cnt),
 			cmnd->pdu.bhs.sn, cmnd->parent_req, cmnd->pending);
-#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
-		TRACE_CONN_CLOSE_DBG("net_ref_cnt %d, sg %p",
-			atomic_read(&cmnd->net_ref_cnt),
-			cmnd->sg);
-		if (cmnd->sg != NULL) {
-			int i;
-
-			for (i = 0; i < cmnd->sg_cnt; i++) {
-				struct page *page = sg_page(&cmnd->sg[i]);
-
-				TRACE_CONN_CLOSE_DBG("page %p, "
-					"net_priv %p, _count %d",
-					page, page->net_priv,
-					atomic_read(&page->_count));
-			}
-		}
-
-		sBUG_ON(cmnd->parent_req != NULL);
-
-		list_for_each_entry(rsp, &cmnd->rsp_cmd_list,
-				rsp_cmd_list_entry) {
-			TRACE_CONN_CLOSE_DBG("  rsp %p, "
-			    "ref_cnt %d, net_ref_cnt %d, sg %p",
-			    rsp, atomic_read(&rsp->ref_cnt),
-			    atomic_read(&rsp->net_ref_cnt), rsp->sg);
-			if (rsp->sg != cmnd->sg && rsp->sg) {
-				int i;
-
-				for (i = 0; i < rsp->sg_cnt; i++) {
-					TRACE_CONN_CLOSE_DBG("    page %p, "
-					  "net_priv %p, _count %d",
-					  sg_page(&rsp->sg[i]),
-					  sg_page(&rsp->sg[i])->net_priv,
-					  atomic_read(&sg_page(&rsp->sg[i])->
-						_count));
-				}
-			}
-		}
-#endif /* CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION */
 	}
 	spin_unlock_bh(&conn->cmd_list_lock);
 	return;
@@ -529,8 +375,6 @@ static void close_conn(struct iscsi_conn *conn)
 		if (!conn->session->sess_params.rdma_extensions) {
 			/* It might never be called for being closed conn */
 			__iscsi_write_space_ready(conn);
-
-			iscsi_check_closewait(conn);
 		}
 	}
 
@@ -1136,80 +980,6 @@ int istrd(void *arg)
 	return 0;
 }
 
-#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
-static inline void __iscsi_get_page_callback(struct iscsi_cmnd *cmd)
-{
-	int v;
-
-	TRACE_NET_PAGE("cmd %p, new net_ref_cnt %d",
-		cmd, atomic_read(&cmd->net_ref_cnt)+1);
-
-	v = atomic_inc_return(&cmd->net_ref_cnt);
-	if (v == 1) {
-		TRACE_NET_PAGE("getting cmd %p", cmd);
-		cmnd_get(cmd);
-	}
-	return;
-}
-
-void iscsi_get_page_callback(struct page *page)
-{
-	struct iscsi_cmnd *cmd = page->net_priv;
-
-	TRACE_NET_PAGE("page %p, _count %d", page,
-		atomic_read(&page->_count));
-
-	__iscsi_get_page_callback(cmd);
-	return;
-}
-
-static inline void __iscsi_put_page_callback(struct iscsi_cmnd *cmd)
-{
-	TRACE_NET_PAGE("cmd %p, new net_ref_cnt %d", cmd,
-		atomic_read(&cmd->net_ref_cnt)-1);
-
-	if (atomic_dec_and_test(&cmd->net_ref_cnt)) {
-		int i, sg_cnt = cmd->sg_cnt;
-
-		for (i = 0; i < sg_cnt; i++) {
-			struct page *page = sg_page(&cmd->sg[i]);
-
-			TRACE_NET_PAGE("Clearing page %p", page);
-			if (page->net_priv == cmd)
-				page->net_priv = NULL;
-		}
-		cmnd_put(cmd);
-	}
-	return;
-}
-
-void iscsi_put_page_callback(struct page *page)
-{
-	struct iscsi_cmnd *cmd = page->net_priv;
-
-	TRACE_NET_PAGE("page %p, _count %d", page,
-		atomic_read(&page->_count));
-
-	__iscsi_put_page_callback(cmd);
-	return;
-}
-
-static void check_net_priv(struct iscsi_cmnd *cmd, struct page *page)
-{
-	smp_rmb(); /* to sync with __iscsi_get_page_callback() */
-	if ((atomic_read(&cmd->net_ref_cnt) == 1) && (page->net_priv == cmd)) {
-		TRACE_DBG("sendpage() not called get_page(), zeroing net_priv "
-			"%p (page %p)", page->net_priv, page);
-		page->net_priv = NULL;
-	}
-	return;
-}
-#else
-static inline void check_net_priv(struct iscsi_cmnd *cmd, struct page *page) {}
-static inline void __iscsi_get_page_callback(struct iscsi_cmnd *cmd) {}
-static inline void __iscsi_put_page_callback(struct iscsi_cmnd *cmd) {}
-#endif
-
 void req_add_to_write_timeout_list(struct iscsi_cmnd *req)
 {
 	struct iscsi_conn *conn;
@@ -1341,7 +1111,7 @@ static int write_data(struct iscsi_conn *conn)
 	int saved_size, size, sendsize;
 	int length, offset, idx;
 	int flags, res, count, sg_size;
-	bool do_put = false, ref_cmd_to_parent;
+	bool ref_cmd_to_parent;
 
 	TRACE_ENTRY();
 
@@ -1415,21 +1185,13 @@ retry:
 		goto out;
 	}
 
-	/* To protect from too early transfer completion race */
-	__iscsi_get_page_callback(ref_cmd);
-	do_put = true;
-
 	sock = conn->sock;
 
-#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
-	sock_sendpage = sock->ops->sendpage;
-#else
 	if ((write_cmnd->parent_req->scst_cmd != NULL) &&
 	    scst_cmd_get_dh_data_buff_alloced(write_cmnd->parent_req->scst_cmd))
 		sock_sendpage = sock_no_sendpage;
 	else
 		sock_sendpage = sock->ops->sendpage;
-#endif
 
 	flags = MSG_DONTWAIT;
 	sg_size = size;
@@ -1471,34 +1233,6 @@ retry:
 	while (1) {
 		sendpage = sock_sendpage;
 
-#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
-		{
-			static DEFINE_SPINLOCK(net_priv_lock);
-
-			spin_lock(&net_priv_lock);
-			if (unlikely(page->net_priv != NULL)) {
-				if (page->net_priv != ref_cmd) {
-					/*
-					 * This might happen if user space
-					 * supplies to scst_user the same
-					 * pages in different commands or in
-					 * case of zero-copy FILEIO, when
-					 * several initiators request the same
-					 * data simultaneously.
-					 */
-					TRACE_DBG("net_priv isn't NULL and != "
-					    "ref_cmd (write_cmnd %p, ref_cmd "
-					    "%p, sg %p, idx %d, page %p, "
-					    "net_priv %p)",
-					    write_cmnd, ref_cmd, sg, idx,
-					    page, page->net_priv);
-					sendpage = sock_no_sendpage;
-				}
-			} else
-				page->net_priv = ref_cmd;
-			spin_unlock(&net_priv_lock);
-		}
-#endif
 		sendsize = min(size, length);
 		if (size <= sendsize) {
 retry2:
@@ -1517,11 +1251,10 @@ retry2:
 					goto out_res;
 			}
 
-			check_net_priv(ref_cmd, page);
 			if (res == size) {
 				conn->write_size = 0;
 				res = saved_size;
-				goto out_put;
+				goto out;
 			}
 
 			offset += res;
@@ -1545,8 +1278,6 @@ retry1:
 				goto out_res;
 		}
 
-		check_net_priv(ref_cmd, page);
-
 		size -= res;
 
 		if (res == sendsize) {
@@ -1568,20 +1299,15 @@ out_off:
 out_iov:
 	conn->write_size = size;
 	if ((saved_size == size) && res == -EAGAIN)
-		goto out_put;
+		goto out;
 
 	res = saved_size - size;
-
-out_put:
-	if (do_put)
-		__iscsi_put_page_callback(ref_cmd);
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 
 out_res:
-	check_net_priv(ref_cmd, page);
 	if (res == -EAGAIN)
 		goto out_off;
 	/* else go through */
@@ -1605,7 +1331,7 @@ out_err:
 			scst_set_delivery_status(ref_cmd->scst_cmd,
 				SCST_CMD_DELIVERY_FAILED);
 	}
-	goto out_put;
+	goto out;
 }
 
 static int exit_tx(struct iscsi_conn *conn, int res)

@@ -131,15 +131,6 @@ Files: iscsi-scst/AskingQuestions
        iscsi-scst/kernel/Kconfig
        iscsi-scst/kernel/Makefile.in-kernel
        iscsi-scst/kernel/iscsit_transport.c
-       iscsi-scst/kernel/patches/put_page_callback-2.6.16.29.patch
-       iscsi-scst/kernel/patches/put_page_callback-2.6.18.1.patch
-       iscsi-scst/kernel/patches/put_page_callback-2.6.21.1.patch
-       iscsi-scst/kernel/patches/put_page_callback-2.6.22.patch
-       iscsi-scst/kernel/patches/put_page_callback-2.6.23.patch
-       iscsi-scst/kernel/patches/put_page_callback-2.6.24.patch
-       iscsi-scst/kernel/patches/put_page_callback-2.6.25.patch
-       iscsi-scst/kernel/patches/rhel/put_page_callback-2.6.18.patch
-       iscsi-scst/kernel/patches/rhel/put_page_callback-rhel5.patch
        iscsi-scst/usr/sha1.h
 Copyright: 2007-2017, Vladislav Bolkhovitin
 License: GPL-2
