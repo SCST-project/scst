@@ -336,8 +336,8 @@ void iscsi_cmnd_init(struct iscsi_conn *conn, struct iscsi_cmnd *cmnd,
 }
 EXPORT_SYMBOL(iscsi_cmnd_init);
 
-struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *conn,
-			      struct iscsi_cmnd *parent)
+static struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *conn,
+				     struct iscsi_cmnd *parent)
 {
 	struct iscsi_cmnd *cmnd;
 

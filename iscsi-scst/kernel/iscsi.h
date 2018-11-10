@@ -547,8 +547,6 @@ extern struct kmem_cache *iscsi_conn_cache;
 extern struct kmem_cache *iscsi_sess_cache;
 
 /* iscsi.c */
-extern struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *conn,
-	struct iscsi_cmnd *parent);
 extern int cmnd_rx_start(struct iscsi_cmnd *cmnd);
 extern int cmnd_rx_continue(struct iscsi_cmnd *req);
 extern void cmnd_rx_end(struct iscsi_cmnd *cmnd);
