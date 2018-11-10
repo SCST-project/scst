@@ -5888,6 +5888,7 @@ ssize_t scst_readv(struct file *file, const struct iovec *vec,
 	if (ret < 0)
 		return ret;
 	ret = vfs_iter_read(file, &iter, pos, 0);
+	BUG_ON(iov == iovstack);
 	kfree(iov);
 	return ret;
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0) ||	\
@@ -5926,6 +5927,7 @@ ssize_t scst_writev(struct file *file, const struct iovec *vec,
 	file_start_write(file);
 	ret = vfs_iter_write(file, &iter, pos, 0);
 	file_end_write(file);
+	BUG_ON(iov == iovstack);
 	kfree(iov);
 	return ret;
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0) ||	\
