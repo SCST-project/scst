@@ -18,33 +18,7 @@ command in a shell:
 
   svn co https://scst.svn.sourceforge.net/svnroot/scst/trunk scst
 
-While SCST and iSCSI-SCST work fine with an unpatched Linux kernel with
-the same or better speed as other open source iSCSI targets, if you want
-even better performance you need to patch and rebuild the kernel. Select
-the patch according to your kernel version (2.6.38.x in the example
-below):
-
-  cd /usr/src/kernels/linux-2.6.38.8
-  patch -p1 < $HOME/scst/iscsi-scst/kernel/patches/put_page_callback-2.6.38.patch
-  make clean
-
-If you can't find put_page_callback for your kernel, then the patching
-is not needed for it, so you can skip this and next (kernel rebuild and
-reboot) steps.
-
-Next, build and install the kernel:
-
-  make && make modules
-  make modules_install && make install
-
-For some Linux distributions (e.g. Ubuntu) the above steps do not rebuild the
-initial RAM disk. Make sure you regenerate the RAM disk before rebooting.
-Please look up the documentation of the update-initrd, update-initramfs or the
-mkinitrd command supplied with your distribution.
-
-Now reboot your system such that the newly built kernel is loaded.
-
-Once the system is again up and running the next step is to build and install
+The next step is to build and install
 SCST, iSCSI-SCST and scstadmin. With most distros (including RHEL 6) you can
 do that by running the following command from the SCST directory:
 

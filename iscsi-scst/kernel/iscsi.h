@@ -502,9 +502,6 @@ struct iscsi_cmnd {
 	};
 
 	atomic_t ref_cnt;
-#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
-	atomic_t net_ref_cnt;
-#endif
 
 	struct iscsi_pdu pdu;
 
@@ -547,8 +544,6 @@ extern struct kmem_cache *iscsi_conn_cache;
 extern struct kmem_cache *iscsi_sess_cache;
 
 /* iscsi.c */
-extern struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *conn,
-	struct iscsi_cmnd *parent);
 extern int cmnd_rx_start(struct iscsi_cmnd *cmnd);
 extern int cmnd_rx_continue(struct iscsi_cmnd *req);
 extern void cmnd_rx_end(struct iscsi_cmnd *cmnd);
@@ -596,10 +591,6 @@ extern void __iscsi_write_space_ready(struct iscsi_conn *conn);
 
 /* nthread.c */
 extern int iscsi_send(struct iscsi_conn *conn);
-#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
-extern void iscsi_get_page_callback(struct page *page);
-extern void iscsi_put_page_callback(struct page *page);
-#endif
 extern int istrd(void *arg);
 extern int istwr(void *arg);
 extern void iscsi_task_mgmt_affected_cmds_done(struct scst_mgmt_cmd *scst_mcmd);

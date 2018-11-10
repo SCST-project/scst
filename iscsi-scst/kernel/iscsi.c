@@ -32,15 +32,6 @@
 #include "iscsi.h"
 #include "digest.h"
 
-#if 0 && !defined(GENERATING_UPSTREAM_PATCH)
-#if !defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
-#warning Patch put_page_callback-<kernel-version>.patch not applied on your \
-kernel or CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION \
-config option not set. ISCSI-SCST will be working with not the best \
-performance. Refer README file for details.
-#endif
-#endif
-
 #define ISCSI_INIT_WRITE_WAKE		0x1
 
 static int ctr_major;
@@ -336,8 +327,8 @@ void iscsi_cmnd_init(struct iscsi_conn *conn, struct iscsi_cmnd *cmnd,
 }
 EXPORT_SYMBOL(iscsi_cmnd_init);
 
-struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *conn,
-			      struct iscsi_cmnd *parent)
+static struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *conn,
+				     struct iscsi_cmnd *parent)
 {
 	struct iscsi_cmnd *cmnd;
 
@@ -345,12 +336,6 @@ struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *conn,
 	cmnd = kmem_cache_zalloc(iscsi_cmnd_cache, GFP_KERNEL|__GFP_NOFAIL);
 
 	iscsi_cmnd_init(conn, cmnd, parent);
-
-	if (parent == NULL) {
-#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
-		atomic_set(&cmnd->net_ref_cnt, 0);
-#endif
-	}
 
 	TRACE_DBG("conn %p, parent %p, cmnd %p", conn, parent, cmnd);
 	return cmnd;
@@ -1513,7 +1498,9 @@ static void cmnd_prepare_get_rejected_immed_data(struct iscsi_cmnd *cmnd)
 		e = min_t(u32, s, PAGE_SIZE);
 		conn->read_iov[i].iov_len = e;
 	}
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
+	iov_iter_kvec(&conn->read_msg.msg_iter, READ, conn->read_iov, i, size);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
 	iov_iter_kvec(&conn->read_msg.msg_iter, READ | ITER_KVEC,
 		      conn->read_iov, i, size);
 #else
@@ -1666,7 +1653,10 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 	}
 
 	i++;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
+	iov_iter_kvec(&conn->read_msg.msg_iter, READ, conn->read_iov, i,
+		      read_size);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
 	iov_iter_kvec(&conn->read_msg.msg_iter, READ | ITER_KVEC,
 		      conn->read_iov, i, read_size);
 #else
@@ -1860,7 +1850,10 @@ static int nop_out_start(struct iscsi_cmnd *cmnd)
 			sBUG_ON(size != 0);
 		}
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
+		iov_iter_kvec(&conn->read_msg.msg_iter, READ, conn->read_iov,
+			      i, cmnd->pdu.datasize);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
 		iov_iter_kvec(&conn->read_msg.msg_iter, READ | ITER_KVEC,
 			      conn->read_iov, i, cmnd->pdu.datasize);
 #else
@@ -2077,19 +2070,15 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 			scst_cmd_set_expected(scst_cmd, dir, sz);
 			scst_cmd_set_expected_out_transfer_len(scst_cmd,
 				be32_to_cpu(req_hdr->data_length));
-#if !defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 			if (conn->transport->need_alloc_write_buf)
 				scst_cmd_set_tgt_need_alloc_data_buf(scst_cmd);
-#endif
 		}
 	} else if (req_hdr->flags & ISCSI_CMD_READ) {
 		dir = SCST_DATA_READ;
 		scst_cmd_set_expected(scst_cmd, dir,
 			be32_to_cpu(req_hdr->data_length));
-#if !defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 		if (conn->transport->need_alloc_write_buf)
 			scst_cmd_set_tgt_need_alloc_data_buf(scst_cmd);
-#endif
 	} else if (req_hdr->flags & ISCSI_CMD_WRITE) {
 		dir = SCST_DATA_WRITE;
 		scst_cmd_set_expected(scst_cmd, dir,
@@ -2352,10 +2341,6 @@ static void __cmnd_abort(struct iscsi_cmnd *cmnd)
 		cmnd_write_size(cmnd), cmnd->outstanding_r2t,
 		cmnd->conn->session->exp_cmd_sn, cmnd->conn,
 		rdt, cmnd->conn->read_cmnd, cmnd->conn->read_state);
-
-#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
-	TRACE_MGMT_DBG("net_ref_cnt %d", atomic_read(&cmnd->net_ref_cnt));
-#endif
 
 	/*
 	 * Lock to sync with iscsi_check_tm_data_wait_timeouts(), including
@@ -3344,7 +3329,6 @@ static ssize_t iscsi_tcp_get_initiator_ip(struct iscsi_conn *conn,
 	return pos;
 }
 
-#if !defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 static int iscsi_alloc_data_buf(struct scst_cmd *cmd)
 {
 	/*
@@ -3358,7 +3342,6 @@ static int iscsi_alloc_data_buf(struct scst_cmd *cmd)
 	scst_cmd_set_no_sgv(cmd);
 	return 1;
 }
-#endif
 
 static void iscsi_tcp_preprocessing_done(struct iscsi_cmnd *req)
 {
@@ -4119,9 +4102,7 @@ struct scst_tgt_template iscsi_template = {
 #endif
 	.release = iscsi_target_release,
 	.xmit_response = iscsi_xmit_response,
-#if !defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 	.tgt_alloc_data_buf = iscsi_alloc_data_buf,
-#endif
 	.preprocessing_done = iscsi_preprocessing_done,
 	.pre_exec = iscsi_pre_exec,
 	.task_mgmt_affected_cmds_done = iscsi_task_mgmt_affected_cmds_done,
@@ -4136,9 +4117,7 @@ static struct iscsit_transport iscsi_tcp_transport = {
 	.owner = THIS_MODULE,
 	.name = "iSCSI-TCP",
 	.transport_type = ISCSI_TCP,
-#if !defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 	.need_alloc_write_buf = 1,
-#endif
 	.iscsit_conn_alloc = iscsi_conn_alloc,
 	.iscsit_conn_activate = conn_activate,
 	.iscsit_conn_free = iscsi_tcp_conn_free,
@@ -4349,22 +4328,6 @@ static int __init iscsi_init(void)
 		goto out_free_dummy;
 	}
 
-#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
-	err = net_set_get_put_page_callbacks(iscsi_get_page_callback,
-			iscsi_put_page_callback);
-	if (err != 0) {
-		PRINT_INFO("Unable to set page callbacks: %d", err);
-		goto out_destroy_mempool;
-	}
-#else
-#if 0 && !defined(GENERATING_UPSTREAM_PATCH)
-	PRINT_WARNING("%s",
-		"CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION "
-		"not enabled in your kernel. ISCSI-SCST will be working with "
-		"not the best performance. Refer README file for details.");
-#endif
-#endif
-
 	ctr_major = register_chrdev(0, ctr_name, &ctr_fops);
 	if (ctr_major < 0) {
 		PRINT_ERROR("failed to register the control device %d",
@@ -4451,11 +4414,6 @@ out_reg:
 	unregister_chrdev(ctr_major, ctr_name);
 
 out_callb:
-#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
-	net_set_get_put_page_callbacks(NULL, NULL);
-
-out_destroy_mempool:
-#endif
 	mempool_destroy(iscsi_cmnd_abort_mempool);
 
 out_free_dummy:
@@ -4484,10 +4442,6 @@ static void __exit iscsi_exit(void)
 	scst_unregister_target_template(&iscsi_template);
 
 	iscsit_unreg_transport(&iscsi_tcp_transport);
-
-#if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
-	net_set_get_put_page_callbacks(NULL, NULL);
-#endif
 
 	mempool_destroy(iscsi_cmnd_abort_mempool);
 

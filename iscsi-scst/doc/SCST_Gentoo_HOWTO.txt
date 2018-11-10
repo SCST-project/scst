@@ -138,14 +138,6 @@ is the only safe option for VMware ESXi or older windows versions, for
 best performance with newer windows versions a blocksize of 4096 will be
 much faster.
 
-The TCP/IP zero-copy transfer completion notification provided by the
-put_page_callback patch will only improve performance if your network
-adapter supports TX offloading. You can check this by running ethtool -k
-eth0 (substitute eth0 for the nic you use),  at least "tx-checksumming"
-and "scatter-gather" should be enabled. If your adapter is unable to do
-so consider upgrading to a good server grade nic, both Intel and
-Broadcom make good server grade nics.
-
 If you have an Intel CPU that supports SSE4.2 make sure to add the
 crc32c-intel module to the kernel, so iSCSI-SCST will do all digest
 calculations with hardware acceleration. You can find this option in the
