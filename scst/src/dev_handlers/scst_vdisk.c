@@ -3857,7 +3857,8 @@ static int vdisk_usn_vpd(uint8_t *buf, struct scst_cmd *cmd,
 	} else {
 		read_lock(&vdisk_serial_rwlock);
 		usn_len = strlen(virt_dev->usn);
-		WARN_ON_ONCE(usn_len > max_len);
+		if (WARN_ON_ONCE(usn_len > max_len))
+			usn_len = max_len;
 		memcpy(&buf[4], virt_dev->usn, usn_len);
 		read_unlock(&vdisk_serial_rwlock);
 	}
