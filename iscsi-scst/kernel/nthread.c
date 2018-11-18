@@ -626,7 +626,9 @@ static inline void iscsi_conn_init_read(struct iscsi_conn *conn,
 {
 	conn->read_iov[0].iov_base = data;
 	conn->read_iov[0].iov_len = len;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
+	iov_iter_kvec(&conn->read_msg.msg_iter, READ, conn->read_iov, 1, len);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
 	iov_iter_kvec(&conn->read_msg.msg_iter, READ | ITER_KVEC,
 		      conn->read_iov, 1, len);
 #else

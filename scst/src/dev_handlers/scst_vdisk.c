@@ -3299,8 +3299,12 @@ static enum compl_status_e fileio_exec_async(struct vdisk_cmd_params *p)
 		length = scst_get_buf_next(cmd, &address);
 	}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
+	iov_iter_kvec(&iter, dir, p->async.kvec, kvec - p->async.kvec, total);
+#else
 	iov_iter_kvec(&iter, ITER_KVEC | dir, p->async.kvec,
 		      kvec - p->async.kvec, total);
+#endif
 	p->async.iocb = (struct kiocb) {
 		.ki_pos = p->loff,
 		.ki_filp = fd,
