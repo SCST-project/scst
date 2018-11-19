@@ -20,7 +20,9 @@ if [ -z "$files" ]; then
     fi
 fi
 
+result=../$name-$version.tar.bz2
+rm -f "${result}"
 for f in "${files[@]}"; do echo "$f"; done | \
-    tar --owner=root --group=root --transform="s|^|$name-$version/|" \
-	-cjf "$name-$version.tar.bz2" -T- -h &&
-    ls -l "$name-$version.tar.bz2"
+    tar --owner=root --group=root --transform="s|^|$name-$version/|;s|^$name-$version/../scst/include/backport.h$|../scst/include/backport.h|;s|^$name-$version/scstadmin.sysfs$|scstadmin.sysfs|" \
+	-cjf "${result}" -T- &&
+    ls -l "${result}"
