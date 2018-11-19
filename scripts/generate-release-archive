@@ -1,7 +1,7 @@
 #!/bin/bash
 
 usage() {
-    echo "Usage: $(basename $0) name version"
+    echo "Usage: $(basename "$0") name version"
 }
 
 if [ $# -lt 2 ]; then
@@ -14,12 +14,13 @@ name="$1"; shift
 version="$1"; shift
 files="$*"
 if [ -z "$files" ]; then
-    files=$($scriptdir/list-source-files)
+    read -d\\n -r -a files < <("$scriptdir/list-source-files")
     if [ -e build_mode ]; then
-	files="${files} build_mode"
+	files+=(build_mode)
     fi
 fi
 
-tar --owner=root --group=root --transform="s|^|$name-$version/|" \
-  -cjf $name-$version.tar.bz2 $files &&
-ls -l $name-$version.tar.bz2
+for f in "${files[@]}"; do echo "$f"; done | \
+    tar --owner=root --group=root --transform="s|^|$name-$version/|" \
+	-cjf "$name-$version.tar.bz2" -T- -h &&
+    ls -l "$name-$version.tar.bz2"
