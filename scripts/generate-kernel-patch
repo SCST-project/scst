@@ -219,7 +219,7 @@ else
 fi
 
 # Include fcst in the patch for kernel versions 2.6.33 and later.
-if [ "${kver}" ">" "2.6.32" ]; then
+if kernel_version_le "2.6.33" "${kver}"; then
   include_fcst="true"
 else
   include_fcst="false"
@@ -338,7 +338,7 @@ mkdir -p "${tmpdir}"
 tmp_Kconfig="${tmpdir}/Kconfig.scst-${kver}"
 # shellcheck disable=SC2002
 cat "scst/kernel/in-tree/Kconfig.scst" | \
-if [ "${include_fcst}" ]; then
+if [ "${include_fcst}" = true ]; then
   cat
 else
   grep -v '^source "drivers/scst/fcst/Kconfig"$'
@@ -353,7 +353,7 @@ if [ "$include_proc_impl" != "true" ]; then
 else
   cat
 fi | \
-  if [ "${include_fcst}" ] && [ "${kver}" != "2.6.37" ] &&
+  if [ "${include_fcst}" = true ] && [ "${kver}" != "2.6.37" ] &&
 	 [ "${kver}" != "2.6.38" ]; then
   cat
 else
@@ -426,7 +426,7 @@ done \
 
 # Directory drivers/scst/fcst/
 
-{
+if [ "${include_fcst}" = true ]; then
   if [ -e "${fcst_patch_series}" ]; then
     grep -v '^#' "${fcst_patch_series}" |
       while read -r f; do
@@ -443,7 +443,7 @@ done \
     [ -e "$f" ] || continue
     add_file "${f}" "drivers/scst/fcst/${f#fcst/}"
   done
-} \
+fi \
 | process_patch "fcst.diff"
 
 add_file "fcst/README" "Documentation/scst/README.fcst" \
