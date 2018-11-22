@@ -223,24 +223,4 @@ extraclean: clean
 	rm Makefile.aa
 	cd $(DEV_HANDLERS_DIR) && $(MAKE) $@
 
-disable_proc:
-	sed -i.aa s/"^#\?define CONFIG_SCST_PROC"/"\/* #define CONFIG_SCST_PROC *\/"/ ../include/scst.h
-	grep "^\/\* #define CONFIG_SCST_PROC \*\/" ../include/scst.h >/dev/null
-	rm ../include/scst.h.aa
-	sed -i.aa s/"^s\?cst-y        += scst_proc.o"/"#scst\-y        += scst_proc.o"/ Makefile
-	grep "^#scst\-y        += scst_proc.o" Makefile >/dev/null
-	sed -i.aa s/"^#\?scst\-y        += scst_sysfs.o"/"scst\-y        += scst_sysfs.o"/ Makefile
-	grep "^scst\-y        += scst_sysfs.o" Makefile >/dev/null
-	rm Makefile.aa
-
-enable_proc:
-	sed -i.aa s/"^\/\?\* #define CONFIG_SCST_PROC \*\/"/"#define CONFIG_SCST_PROC"/ ../include/scst.h
-	grep "^#define CONFIG_SCST_PROC" ../include/scst.h >/dev/null
-	rm ../include/scst.h.aa
-	sed -i.aa s/"^#\?scst\-y        += scst_proc.o"/"scst\-y        += scst_proc.o"/ Makefile
-	grep "^scst\-y        += scst_proc.o" Makefile >/dev/null
-	sed -i.aa s/"^s\?cst\-y        += scst_sysfs.o"/"#scst\-y        += scst_sysfs.o"/ Makefile
-	grep "^#scst\-y        += scst_sysfs.o" Makefile >/dev/null
-	rm Makefile.aa
-
-.PHONY: all install uninstall clean extraclean 2release 2debug 2perf disable_proc enable_proc
+.PHONY: all install uninstall clean extraclean 2release 2debug 2perf

@@ -63,16 +63,6 @@ extraclean:
 	cd $(STPGD_DIR) && $(MAKE) $@
 	cd $(EVENTS_DIR) && $(MAKE) $@
 
-disable_proc:
-	cd $(FILEIO_DIR) && $(MAKE) $@
-	cd $(STPGD_DIR) && $(MAKE) $@
-	cd $(EVENTS_DIR) && $(MAKE) $@
-
-enable_proc:
-	cd $(FILEIO_DIR) && $(MAKE) $@
-	cd $(STPGD_DIR) && $(MAKE) $@
-	cd $(EVENTS_DIR) && $(MAKE) $@
-
 help:
 	@echo "		all (the default) : make all"
 	@echo "		clean             : clean files"
@@ -84,4 +74,4 @@ help:
 	@echo "         - be sure to compile qla against the correct initiator"
 	@echo "           driver. Read its README for details."
 
-.PHONY: all install uninstall clean extraclean help 2release 2debug 2perf disable_proc enable_proc
+.PHONY: all install uninstall clean extraclean help 2release 2debug 2perf

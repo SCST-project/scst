@@ -25,12 +25,6 @@ do that by running the following command from the SCST directory:
   make 2release
   make scst scst_install iscsi iscsi_install scstadm scstadm_install
 
-When using RHEL 5 or CentOS 5, use these commands instead:
-
-  make 2release
-  make enable_proc
-  make scst scst_install iscsi iscsi_install scstadm scstadm_install
-
 iSCSI-SCST includes the following components:
    * kernel modules: iscsi-scst.ko scst.ko scst_vdisk.ko
    * iscsi-scstd - daemon
