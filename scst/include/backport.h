@@ -25,6 +25,7 @@
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
 #include <linux/bsg-lib.h>	/* struct bsg_job */
 #endif
+#include <linux/eventpoll.h>
 #include <linux/scatterlist.h>	/* struct scatterlist */
 #include <linux/slab.h>		/* kmalloc() */
 #include <linux/stddef.h>	/* sizeof_field() */
@@ -309,9 +310,11 @@ typedef unsigned int __poll_t;
 #define EPOLLNVAL	POLLNVAL
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0) && !defined(EPOLLIN)
 /*
  * See also commit 7e040726850a ("eventpoll.h: add missing epoll event masks").
+ * Note: this commit got backported to multiple stable kernels, including
+ * v3.18.93.
  */
 #define EPOLLIN		POLLIN
 #define EPOLLPRI	POLLPRI
