@@ -603,7 +603,7 @@ if [ "${run_local_compilation}" = "true" ]; then
   compile_scst_no_dlm    || exit $?
   compile_scst_patched 2release || exit $?
   compile_scst_patched 2perf    || exit $?
-  compile_scst_patched enable_proc  || exit $?
+  # compile_scst_patched enable_proc  || exit $?
   if type rpmbuild >/dev/null 2>&1; then
       make_rpm || exit $?
   fi
