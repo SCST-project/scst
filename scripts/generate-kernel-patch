@@ -269,8 +269,6 @@ do
    fi
 done
 
-download_kernel "${kver}" || exit $?
-
 # General kernel patches.
 
 scsi_exec_req_fifo_defined=0
@@ -498,6 +496,8 @@ add_file "iscsi-scst/README_in-tree" "Documentation/scst/README.iscsi" \
 # Directory drivers/scst/qla2x00-target/
 
 if [ "${qla2x00t}" = "true" ]; then
+
+  download_kernel "${kver3}" || exit $?
 
   ( cd qla2x00t && ./generate-in-tree-patches "$1" )
 
