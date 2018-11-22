@@ -161,15 +161,7 @@ distclean:
 extraclean:
 	cd $(SCSTADMIN_DIR) && $(MAKE) $@
 
-disable_proc:
-	-rm -f scstadmin
-	ln -s scstadmin.sysfs scstadmin
-
-enable_proc:
-	-rm -f scstadmin
-	ln -s scstadmin.procfs scstadmin
-
 release-archive:
 	../scripts/generate-release-archive scstadmin "$$(sed -n 's/^\$$Version[[:blank:]]*=[[:blank:]]*'"'"'SCST Configurator v\([^'"'"']*\)'"'"'.*/\1/p' scstadmin.sysfs/scstadmin)"
 
-.PHONY: all install uninstall perl-module clean distclean extraclean disable_proc enable_proc
+.PHONY: all install uninstall perl-module clean distclean extraclean

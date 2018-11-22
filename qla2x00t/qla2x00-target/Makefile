@@ -182,14 +182,4 @@ extraclean: clean
 	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions" Makefile >/dev/null
 	rm Makefile.aa
 
-disable_proc:
-	sed -i.aa s/"^#\?define CONFIG_SCST_PROC"/"\/* #define CONFIG_SCST_PROC *\/"/ ../qla_attr.c
-	grep "^\/\* #define CONFIG_SCST_PROC \*\/" ../qla_attr.c >/dev/null
-	rm ../qla_attr.c.aa
-
-enable_proc:
-	sed -i.aa s/"^\/\?\* #define CONFIG_SCST_PROC \*\/"/"#define CONFIG_SCST_PROC"/ ../qla_attr.c
-	grep "^#define CONFIG_SCST_PROC" ../qla_attr.c >/dev/null
-	rm ../qla_attr.c.aa
-
-.PHONY: all tgt install uninstall clean extraclean 2perf 2release 2debug disable_proc enable_proc qla2xxx_scst
+.PHONY: all tgt install uninstall clean extraclean 2perf 2release 2debug qla2xxx_scst

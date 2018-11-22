@@ -47,12 +47,6 @@ extraclean:
 2perf:
 	cd $(SCST_DIR) && $(MAKE) $@
 
-disable_proc:
-	cd $(SCST_DIR) && $(MAKE) $@
-
-enable_proc:
-	cd $(SCST_DIR) && $(MAKE) $@
-
 release-archive:
 	../scripts/generate-release-archive scst \
 	  "$$(sed -n 's/^#define[[:blank:]]SCST_VERSION_NAME[[:blank:]]*\"\([^\"]*\)\".*/\1/p' include/scst_const.h)" \
@@ -68,4 +62,4 @@ help:
 	@echo "         - be sure to compile qla against the correct initiator"
 	@echo "           driver. Read its README for details."
 
-.PHONY: all install uninstall clean extraclean help 2release 2debug 2perf disable_proc enable_proc
+.PHONY: all install uninstall clean extraclean help 2release 2debug 2perf

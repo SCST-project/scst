@@ -138,9 +138,6 @@ help:
 	@echo "		usr_install       : usr target: install"
 	@echo "		usr_uninstall     : usr target: uninstall"
 	@echo ""
-	@echo "		enable_proc       : switch to procfs interface"
-	@echo "		disable_proc      : switch to sysfs interface (default)"
-	@echo ""
 	@echo "		2perf             : changes debug state to full performance"
 	@echo "		2release          : changes debug state to release"
 	@echo "		2debug            : changes debug state to full debug"
@@ -579,26 +576,6 @@ release-archive:
 	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
 	@if [ -d $(FCST_DIR) ]; then cd $(FCST_DIR) && $(MAKE) $@; fi
 
-enable_proc: extraclean
-	cd $(SCST_DIR) && $(MAKE) $@
-	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
-	@if [ -d $(QLA_OLD_DIR) ]; then cd $(QLA_OLD_DIR) && $(MAKE) $@; fi
-#	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
-#	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
-	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
-#	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
-	@if [ -d $(SCSTADM_DIR) ]; then cd $(SCSTADM_DIR) && $(MAKE) $@; fi
-
-disable_proc: extraclean
-	cd $(SCST_DIR) && $(MAKE) $@
-	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
-	@if [ -d $(QLA_OLD_DIR) ]; then cd $(QLA_OLD_DIR) && $(MAKE) $@; fi
-#	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
-#	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
-	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
-#	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
-	@if [ -d $(SCSTADM_DIR) ]; then cd $(SCSTADM_DIR) && $(MAKE) $@; fi
-
 .PHONY: all install uninstall clean extraclean tags help \
 	qla qla_install qla_uninstall qla_clean qla_extraclean \
 	qla_old qla_old_install qla_old_uninstall qla_old_clean qla_old_extraclean \
@@ -614,4 +591,4 @@ disable_proc: extraclean
 	mvsas mvsas_install mvsas_uninstall mvsas_clean mvsas_extraclean \
 	fcst fcst_install fcst_uninstall fcst_clean fcst_extraclean \
 	scst-rpm scst-dkms-rpm dpkg \
-	2perf 2release 2debug enable_proc disable_proc
+	2perf 2release 2debug
