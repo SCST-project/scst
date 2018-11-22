@@ -7,7 +7,7 @@ kernel_sources="$HOME/software/downloads"
 
 # Whether or not kernel version $1 is lower than or equal kernel version $2.
 function kernel_version_le {
-    awk -v "v1=$1" -v "v2=$2" 'BEGIN { n1 = split(v1, v1a, "."); n2 = split(v2, v2a, "."); for (i=1;;i++) { e1 = i <= n1 ? v1a[i] : 0; e2 = i <= n2 ? v2a[i] : 0; if (e1 < e2 || i >= n1 && i >= n2) exit 0; if (e1 > e2) exit 1; }}'
+    awk -v "v1=$1" -v "v2=$2" 'BEGIN { n1 = split(v1, v1a, "."); n2 = split(v2, v2a, "."); for (i=1;;i++) { e1 = i <= n1 ? v1a[i] : 0; e2 = i <= n2 ? v2a[i] : 0; if (e1 < e2 || i > n1 && i > n2) exit 0; if (e1 > e2) exit 1; }}'
 }
 
 # Kernel version number.
