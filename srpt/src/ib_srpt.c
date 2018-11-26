@@ -71,7 +71,7 @@
 /* Name of this kernel module. */
 #define DRV_NAME		"ib_srpt"
 #define DRV_VERSION		"3.3.0" __stringify(OFED_FLAVOR)
-#define DRV_RELDATE		"04 November 2018"
+#define DRV_RELDATE		"25 November 2018"
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 /* Flags to be used in SCST debug tracing statements. */
 #define DEFAULT_SRPT_TRACE_FLAGS (TRACE_OUT_OF_MEM | TRACE_MINOR \

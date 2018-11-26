@@ -1,7 +1,7 @@
 iSCSI SCST target driver
 ========================
 
-Version 3.3.0, 04 November 2018
+Version 3.3.0, 25 November 2018
 ----------------------------
 
 ISCSI-SCST is a deeply reworked fork of iSCSI Enterprise Target (IET)

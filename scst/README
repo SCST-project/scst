@@ -1,7 +1,7 @@
 Generic SCSI target mid-level for Linux (SCST)
 ==============================================
 
-Version 3.3.0, 04 November 2018
+Version 3.3.0, 25 November 2018
 ----------------------------
 
 SCST is designed to provide unified, consistent interface between SCSI
