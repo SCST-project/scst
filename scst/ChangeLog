@@ -1,3 +1,45 @@
+Summary of changes between versions 3.2 and 3.3
+-----------------------------------------------
+- Support for a new build method ("make dpkg").
+- Support for the latest kernels has been added, up to and including
+  Linux kernel v4.19.
+- A much more powerful latency measurement infrastructure has been added.
+- Support for asynchronous buffered and direct I/O has been added to scst_vdisk.
+- H.A. support has been improved.
+- SCSI pass-through support is now compatible with Linux kernel versions 4.11
+  and later.
+- ACA support has been added.
+- The scst_user driver is now compatible with usercopy hardening.
+- "make install" is now compatible with SELinux.
+
+Summary of changes between versions 3.1 and 3.2
+-----------------------------------------------
+[ ... ]
+
+Summary of changes between versions 3.0 and 3.1
+-----------------------------------------------
+- vdisk_nullio: the "read_zero" attribute has been added.
+- scst_vdisk: LBPRZ now follows limits.discard_zeroes_data.
+- scst core: support for 64-bit LUNs has been added. This requires a Linux
+  kernel that supports 64-bit LUNs.
+- A new kernel module parameter, scst_forcibly_close_sessions, controls wheter
+  or not attempting to remove an access control group with one or more active
+  sessions succeeds or fails with -EBUSY.
+- scst_vdisk: the EUI-64 and NAA IDs are now configurable.
+- scst_vdisk: the device name length has been increased from 16 to 64
+  characters for OpenStack.
+- The SCSI-passthrough code has been reworked such that SCSI pass-through
+  works with kernel versions >= 2.6.30 without patching the kernel.
+- T10-PI support has been added to the SCST core.
+- Counters have been added to keep track of unaligned I/O.
+- The "forwarding" sysfs attribute has been added.
+- Support for iSER has been added.
+- SCST command thread creation has been made faster.
+- Support for synchronizing persistent reservation information between cluster
+  nodes via the DLM has been added.
+- Explicit ALUA support has been added.
+- EXTENDED COPY support has been added.
+
 Summary of changes between versions 2.1.0 and 3.0
 -------------------------------------------------
 
