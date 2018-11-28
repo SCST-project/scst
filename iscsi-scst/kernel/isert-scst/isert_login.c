@@ -286,16 +286,16 @@ out:
 	return res;
 }
 
-static unsigned int isert_listen_poll(struct file *filp,
-				      struct poll_table_struct *wait)
+static __poll_t isert_listen_poll(struct file *filp,
+				  struct poll_table_struct *wait)
 {
 	struct isert_listener_dev *dev = filp->private_data;
-	unsigned int mask = 0;
+	__poll_t mask = 0;
 
 	poll_wait(filp, &dev->waitqueue, wait);
 
 	if (have_new_connection(dev))
-		mask |= POLLIN | POLLRDNORM;
+		mask |= EPOLLIN | EPOLLRDNORM;
 
 	return mask;
 }
@@ -832,21 +832,20 @@ out:
 	return res;
 }
 
-static unsigned int isert_poll(struct file *filp,
-			       struct poll_table_struct *wait)
+static __poll_t isert_poll(struct file *filp, struct poll_table_struct *wait)
 {
 	struct isert_conn_dev *dev = filp->private_data;
-	unsigned int mask = 0;
+	__poll_t mask = 0;
 
 	poll_wait(filp, &dev->waitqueue, wait);
 
-	if (!dev->conn || dev->state == CS_DISCONNECTED)
-		mask |= POLLHUP | POLLIN;
-	else {
+	if (!dev->conn || dev->state == CS_DISCONNECTED) {
+		mask |= EPOLLHUP | EPOLLIN;
+	} else {
 		if (!will_read_block(dev))
-			mask |= POLLIN | POLLRDNORM;
+			mask |= EPOLLIN | EPOLLRDNORM;
 
-		mask |= POLLOUT | POLLWRNORM;
+		mask |= EPOLLOUT | EPOLLWRNORM;
 	}
 
 	return mask;
