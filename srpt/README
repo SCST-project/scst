@@ -366,8 +366,7 @@ Performance Notes - Initiator Side
   If the HCA model in your initiator system supports multiple MSI-X interrupts
   the next step is either to stop the irqbalance service or to write a policy
   script that stops irqbalance from modifying the IB interrupt CPU
-  affinity. Once this has been done spread the IB interrupts uniformly over
-  CPU cores via e.g. scripts/spread-mlx4-ib-interrupts.
+  affinity.
 
   For more information about scsi-mq see also Michael Larabel, SCSI
   Multi-Queue Performance Appears Great For Linux 3.17, Phoronix, June 18,
