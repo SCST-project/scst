@@ -82,8 +82,8 @@ enum {
 	SRP_RDMA_WRITE_FROM_IOC = 0x20,
 
 	/*
-	 * srp_login_cmd.req_flags bitmasks. See also table 9 in the SRP r16a
-	 * document.
+	 * srp_login_cmd.req_flags bitmasks. See also table 9 in the SRP
+	 * specification.
 	 */
 	SRP_MTCH_ACTION = 0x03, /* MULTI-CHANNEL ACTION */
 	SRP_LOSOLNT = 0x10, /* logout solicited notification */
@@ -201,7 +201,7 @@ enum srpt_command_state {
 };
 
 /**
- * struct srpt_ioctx - Shared SRPT I/O context information.
+ * struct srpt_ioctx - shared SRPT I/O context information
  * @buf:    Pointer to the buffer.
  * @dma:    DMA address of the buffer.
  * @offset: Offset of the first byte in @buf and @dma that is actually used.
@@ -215,7 +215,7 @@ struct srpt_ioctx {
 };
 
 /**
- * struct srpt_recv_ioctx - SRPT receive I/O context.
+ * struct srpt_recv_ioctx - SRPT receive I/O context
  * @ioctx:     See above.
  * @wait_list: Node for insertion in srpt_rdma_ch.cmd_wait_list.
  * @byte_len:  Number of bytes in @ioctx.buf.
@@ -235,7 +235,7 @@ struct srpt_tsk_mgmt {
 };
 
 /**
- * struct srpt_send_ioctx - SRPT send I/O context.
+ * struct srpt_send_ioctx - SRPT send I/O context
  * @ioctx:       See above.
  * @ch:          Channel pointer.
  * @recv_ioctx:  Receive I/O context associated with this send I/O context.
@@ -289,7 +289,7 @@ struct srpt_send_ioctx {
 };
 
 /**
- * enum rdma_ch_state - SRP channel state.
+ * enum rdma_ch_state - SRP channel state
  * @CH_CONNECTING:    QP is in RTR state; waiting for RTU.
  * @CH_LIVE:	      QP is in RTS state.
  * @CH_DISCONNECTING: DREQ has been sent and waiting for DREP or DREQ has
@@ -307,14 +307,14 @@ enum rdma_ch_state {
 };
 
 /**
- * struct srpt_rdma_ch - RDMA channel.
+ * struct srpt_rdma_ch - RDMA channel
  * @thread:        Kernel thread that processes the IB queues associated with
  *                 the channel.
  * @nexus:         I_T nexus this channel is associated with.
- * @cm_id:         IB CM ID associated with the channel.
  * @qp:            IB queue pair used for communicating over this channel.
+ * @cm_id:         IB CM ID associated with the channel.
  * @cq:            IB completion queue for this channel.
- * @kref:          Per-channel reference count.
+ * @kref:	   kref for this channel.
  * @rq_size:       IB receive queue size.
  * @max_send_sge:  Maximum length of RDMA send scatter list.
  * @max_recv_sge:  Maximum length of RDMA receive scatter list.
@@ -325,25 +325,23 @@ enum rdma_ch_state {
  * @max_ti_iu_len: maximum target-to-initiator information unit length.
  * @req_lim:       request limit: maximum number of requests that may be sent
  *                 by the initiator without having received a response.
- * @req_lim_delta: One less than the req_lim_delta value that will be included
- *                 in the next reply sent to the initiator. See also the SRP
- *                 credit algorithm in the SRP spec.
- * @spinlock:      Protects free_list.
+ * @req_lim_delta: Number of credits not yet sent back to the initiator.
+ * @spinlock:      Protects free_list and state.
  * @free_list:     Head of list with free send I/O contexts.
- * @ioctx_ring:    Send I/O context ring.
- * @ioctx_recv_ring: Receive I/O context ring.
  * @wc:            Work completion array.
  * @state:         channel state. See also enum rdma_ch_state.
+ * @using_rdma_cm: Whether the RDMA/CM or IB/CM is used for this channel.
  * @processing_wait_list: Whether or not cmd_wait_list is being processed.
- * @list:          Entry in srpt_nexus.ch_list;
- * @cmd_wait_list: list of SCST commands that arrived before the RTU event. This
+ * @ioctx_ring:    Send ring.
+ * @ioctx_recv_ring: Receive I/O context ring.
+ * @list:          Node in srpt_nexus.ch_list.
+ * @cmd_wait_list: List of SCSI commands that arrived before the RTU event. This
  *                 list contains struct srpt_ioctx elements and is protected
  *                 against concurrent modification by the cm_id spinlock.
  * @pkey:          P_Key of the IB partition for this SRP channel.
  * @comp_vector:   Completion vector assigned to the QP.
- * @using_rdma_cm: Whether to use the RDMA/CM or the IB/CM.
- * @sess_name:     SCST session name.
- * @sess:          SCST session information associated with this SRP channel.
+ * @sess:          Session information associated with this SRP channel.
+ * @sess_name:     Session name.
  */
 struct srpt_rdma_ch {
 	struct task_struct	*thread;
@@ -361,9 +359,9 @@ struct srpt_rdma_ch {
 	struct kref		kref;
 	struct rcu_head		rcu;
 	int			rq_size;
-	int			max_send_sge;
-	int			max_recv_sge;
-	int			max_rsp_size;
+	u32			max_send_sge;
+	u32			max_recv_sge;
+	u32			max_rsp_size;
 	atomic_t		sq_wr_avail;
 	struct srpt_port	*sport;
 	int			max_ti_iu_len;
@@ -371,10 +369,10 @@ struct srpt_rdma_ch {
 	int			req_lim_delta;
 	spinlock_t		spinlock;
 	struct list_head	free_list;
+	enum rdma_ch_state	state;
 	struct srpt_send_ioctx	**ioctx_ring;
 	struct srpt_recv_ioctx	**ioctx_recv_ring;
 	struct ib_wc		wc[16];
-	enum rdma_ch_state	state;
 	struct list_head	list;
 	struct list_head	cmd_wait_list;
 	uint16_t		pkey;
@@ -383,27 +381,28 @@ struct srpt_rdma_ch {
 #endif
 	bool			using_rdma_cm;
 	bool			processing_wait_list;
-	u8			sess_name[40];
 	struct scst_session	*sess;
+	u8			sess_name[40];
 };
 
 /**
  * struct srpt_nexus - I_T nexus
+ * @rcu:       RCU head for this data structure.
  * @entry:     srpt_port.nexus_list list node.
  * @ch_list:   struct srpt_rdma_ch list. Protected by srpt_port.mutex.
  * @i_port_id: 128-bit initiator port identifier copied from SRP_LOGIN_REQ.
  * @t_port_id: 128-bit target port identifier copied from SRP_LOGIN_REQ.
  */
 struct srpt_nexus {
+	struct rcu_head		rcu;
 	struct list_head	entry;
 	struct list_head	ch_list;
-	struct rcu_head		rcu;
 	u8			i_port_id[16];
 	u8			t_port_id[16];
 };
 
 /**
- * struct srpt_port - Information associated by SRPT with a single IB port.
+ * struct srpt_port - information associated by SRPT with a single IB port
  * @sdev:      backpointer to the HCA information.
  * @mad_agent: per-port management datagram processing information.
  * @port:      one-based port number.
@@ -424,8 +423,8 @@ struct srpt_port {
 	struct srpt_device	*sdev;
 	struct ib_mad_agent	*mad_agent;
 	u8			port;
-	u16			sm_lid;
-	u16			lid;
+	u32			sm_lid;
+	u32			lid;
 	union ib_gid		gid;
 	struct work_struct	work;
 	wait_queue_head_t	ch_releaseQ;
@@ -451,7 +450,7 @@ struct srpt_port {
  * @srq_size:      SRQ size.
  * @use_srq:       Whether or not to use SRQ.
  * @ioctx_ring:    Per-HCA SRQ.
- * @port:	   Information about the ports owned by this HCA.
+ * @port:          Information about the ports owned by this HCA.
  * @event_handler: Per-HCA asynchronous IB event handler.
  */
 struct srpt_device {

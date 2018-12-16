@@ -257,8 +257,10 @@ static int srpt_undo_inc_req_lim(struct srpt_rdma_ch *ch, int req_lim_delta)
 	return srpt_adjust_req_lim(ch, -req_lim_delta, req_lim_delta - 1);
 }
 
-/*
- * srpt_event_handler() - Asynchronous IB event callback function.
+/**
+ * srpt_event_handler - asynchronous IB event callback function
+ * @handler: IB event handler registered by ib_register_event_handler().
+ * @event: Description of the event that occurred.
  *
  * Callback function called by the InfiniBand core when an asynchronous IB
  * event occurs. This callback may occur in interrupt context. See also
@@ -277,7 +279,7 @@ static void srpt_event_handler(struct ib_event_handler *handler,
 		return;
 
 	pr_debug("ASYNC event= %d on device= %s\n", event->event,
-		 sdev->device->name);
+		 dev_name(&sdev->device->dev));
 
 	switch (event->event) {
 	case IB_EVENT_PORT_ERR:
@@ -316,8 +318,10 @@ static void srpt_event_handler(struct ib_event_handler *handler,
 	}
 }
 
-/*
- * srpt_srq_event() - IB SRQ event callback function.
+/**
+ * srpt_srq_event - SRQ event callback function
+ * @event: Description of the event that occurred.
+ * @ctx: Context pointer specified at SRQ creation time.
  */
 static void srpt_srq_event(struct ib_event *event, void *ctx)
 {
@@ -341,8 +345,10 @@ static const char *get_ch_state_name(enum rdma_ch_state s)
 	return "???";
 }
 
-/*
- * srpt_qp_event() - IB QP event callback function.
+/**
+ * srpt_qp_event - QP event callback function
+ * @event: Description of the event that occurred.
+ * @ch: SRPT RDMA channel.
  */
 static void srpt_qp_event(struct ib_event *event, struct srpt_rdma_ch *ch)
 {
@@ -374,8 +380,8 @@ static void srpt_qp_event(struct ib_event *event, struct srpt_rdma_ch *ch)
 }
 
 /**
- * srpt_set_ioc() - Helper function for initializing an IOUnitInfo structure.
- * @c_list: I/O controller list.
+ * srpt_set_ioc - initialize a IOUnitInfo structure
+ * @c_list: controller list.
  * @slot: one-based slot number.
  * @value: four-bit value.
  *
@@ -397,8 +403,9 @@ static void srpt_set_ioc(u8 *c_list, u32 slot, u8 value)
 	}
 }
 
-/*
- * srpt_get_class_port_info() - Copy ClassPortInfo to a management datagram.
+/**
+ * srpt_get_class_port_info - copy ClassPortInfo to a management datagram
+ * @mad: Datagram that will be sent as response to DM_ATTR_CLASS_PORT_INFO.
  *
  * See also section 16.3.3.1 ClassPortInfo in the InfiniBand Architecture
  * Specification.
@@ -420,8 +427,9 @@ static void srpt_get_class_port_info(struct ib_dm_mad *mad)
 	mad->mad_hdr.status = 0;
 }
 
-/*
- * srpt_get_iou() - Write IOUnitInfo to a management datagram.
+/**
+ * srpt_get_iou - write IOUnitInfo to a management datagram
+ * @mad: Datagram that will be sent as response to DM_ATTR_IOU_INFO.
  *
  * See also section 16.3.3.3 IOUnitInfo in the InfiniBand Architecture
  * Specification. See also section B.7, table B.6 in the SRP r16a document.
@@ -444,8 +452,11 @@ static void srpt_get_iou(struct ib_dm_mad *mad)
 	mad->mad_hdr.status = 0;
 }
 
-/*
- * srpt_get_ioc() - Write IOControllerprofile to a management datagram.
+/**
+ * srpt_get_ioc - write IOControllerprofile to a management datagram
+ * @sport: HCA port through which the MAD has been received.
+ * @slot: Slot number specified in DM_ATTR_IOC_PROFILE query.
+ * @mad: Datagram that will be sent as response to DM_ATTR_IOC_PROFILE.
  *
  * See also section 16.3.3.4 IOControllerProfile in the InfiniBand
  * Architecture Specification. See also section B.7, table B.7 in the SRP
@@ -461,19 +472,22 @@ static void srpt_get_ioc(struct srpt_port *sport, u32 slot,
 	iocp = (struct ib_dm_ioc_profile *)mad->data;
 
 	if (!slot || slot > 16) {
-		mad->mad_hdr.status = cpu_to_be16(DM_MAD_STATUS_INVALID_FIELD);
+		mad->mad_hdr.status
+			= cpu_to_be16(DM_MAD_STATUS_INVALID_FIELD);
 		return;
 	}
 
 	if (slot > 2) {
-		mad->mad_hdr.status = cpu_to_be16(DM_MAD_STATUS_NO_IOC);
+		mad->mad_hdr.status
+			= cpu_to_be16(DM_MAD_STATUS_NO_IOC);
 		return;
 	}
 
 	if (sdev->use_srq)
 		send_queue_depth = sdev->srq_size;
 	else
-		send_queue_depth = min(MAX_SRPT_RQ_SIZE, sdev->dev_attr.max_qp_wr);
+		send_queue_depth = min(MAX_SRPT_RQ_SIZE,
+				       sdev->dev_attr.max_qp_wr);
 
 	memset(iocp, 0, sizeof(*iocp));
 	mutex_lock(&sport->mutex);
@@ -502,8 +516,13 @@ static void srpt_get_ioc(struct srpt_port *sport, u32 slot,
 	mad->mad_hdr.status = 0;
 }
 
-/*
- * srpt_get_svc_entries() - Write ServiceEntries to a management datagram.
+/**
+ * srpt_get_svc_entries - write ServiceEntries to a management datagram
+ * @ioc_guid: I/O controller GUID to use in reply.
+ * @slot: I/O controller number.
+ * @hi: End of the range of service entries to be specified in the reply.
+ * @lo: Start of the range of service entries to be specified in the reply..
+ * @mad: Datagram that will be sent as response to DM_ATTR_SVC_ENTRIES.
  *
  * See also section 16.3.3.5 ServiceEntries in the InfiniBand Architecture
  * Specification. See also section B.7, table B.8 in the SRP r16a document.
@@ -516,12 +535,14 @@ static void srpt_get_svc_entries(u64 ioc_guid,
 	WARN_ON(!ioc_guid);
 
 	if (!slot || slot > 16) {
-		mad->mad_hdr.status = cpu_to_be16(DM_MAD_STATUS_INVALID_FIELD);
+		mad->mad_hdr.status
+			= cpu_to_be16(DM_MAD_STATUS_INVALID_FIELD);
 		return;
 	}
 
 	if (slot > 2 || lo > hi || hi > 1) {
-		mad->mad_hdr.status = cpu_to_be16(DM_MAD_STATUS_NO_IOC);
+		mad->mad_hdr.status
+			= cpu_to_be16(DM_MAD_STATUS_NO_IOC);
 		return;
 	}
 
@@ -538,8 +559,8 @@ static void srpt_get_svc_entries(u64 ioc_guid,
 }
 
 /**
- * srpt_mgmt_method_get() - Process a received management datagram.
- * @sp:      source port through which the MAD has been received.
+ * srpt_mgmt_method_get - process a received management datagram
+ * @sp:      HCA port through which the MAD has been received.
  * @rq_mad:  received MAD.
  * @rsp_mad: response MAD.
  */
@@ -577,8 +598,10 @@ static void srpt_mgmt_method_get(struct srpt_port *sp, struct ib_mad *rq_mad,
 	}
 }
 
-/*
- * srpt_mad_send_handler() - Post MAD-send callback function.
+/**
+ * srpt_mad_send_handler - MAD send completion callback
+ * @mad_agent: Return value of ib_register_mad_agent().
+ * @mad_wc: Work completion reporting that the MAD has been sent.
  */
 static void srpt_mad_send_handler(struct ib_mad_agent *mad_agent,
 				  struct ib_mad_send_wc *mad_wc)
@@ -591,8 +614,11 @@ static void srpt_mad_send_handler(struct ib_mad_agent *mad_agent,
 	ib_free_send_mad(mad_wc->send_buf);
 }
 
-/*
- * srpt_mad_recv_handler() - MAD reception callback function.
+/**
+ * srpt_mad_recv_handler - MAD reception callback function
+ * @mad_agent: Return value of ib_register_mad_agent().
+ * @send_buf: Not used.
+ * @mad_wc: Work completion reporting that a MAD has been received.
  */
 static void srpt_mad_recv_handler(struct ib_mad_agent *mad_agent,
 #ifdef MAD_HANDLER_TAKES_SEND_BUF
@@ -669,8 +695,9 @@ err:
 	ib_free_recv_mad(mad_wc);
 }
 
-/*
- * srpt_refresh_port() - Configure a HCA port.
+/**
+ * srpt_refresh_port - configure a HCA port
+ * @sport: SRPT HCA port.
  *
  * Enable InfiniBand management datagram processing, update the cached sm_lid,
  * lid and gid values, and register a callback function for processing MADs
@@ -712,7 +739,7 @@ static int srpt_refresh_port(struct srpt_port *sport)
 	ret = ib_modify_port(sport->sdev->device, sport->port, 0, &port_modify);
 	if (ret) {
 		pr_warn("%s-%d: enabling device management failed (%d). Note: this is expected if SR-IOV is enabled.\n",
-			sport->sdev->device->name, sport->port, ret);
+			dev_name(&sport->sdev->device->dev), sport->port, ret);
 		goto register_tgt;
 	}
 
@@ -736,7 +763,7 @@ static int srpt_refresh_port(struct srpt_port *sport)
 							 );
 		if (IS_ERR(sport->mad_agent)) {
 			pr_err("%s-%d: MAD agent registration failed (%ld). Note: this is expected if SR-IOV is enabled.\n",
-			       sport->sdev->device->name, sport->port,
+			       dev_name(&sport->sdev->device->dev), sport->port,
 			       PTR_ERR(sport->mad_agent));
 			sport->mad_agent = NULL;
 		}
@@ -756,8 +783,9 @@ register_tgt:
 	return 0;
 }
 
-/*
- * srpt_unregister_mad_agent() - Unregister MAD callback functions.
+/**
+ * srpt_unregister_mad_agent - unregister MAD callback functions
+ * @sdev: SRPT HCA pointer.
  *
  * Note: It is safe to call this function more than once for the same device.
  */
@@ -781,8 +809,13 @@ static void srpt_unregister_mad_agent(struct srpt_device *sdev)
 	}
 }
 
-/*
- * srpt_alloc_ioctx() - Allocate an SRPT I/O context structure.
+/**
+ * srpt_alloc_ioctx - allocate a SRPT I/O context structure
+ * @sdev: SRPT HCA pointer.
+ * @ioctx_size: I/O context size.
+ * @dma_size: Size of I/O context DMA buffer.
+ * @alignment_offset: Offset to use to align immediate data.
+ * @dir: DMA data direction.
  */
 static struct srpt_ioctx *srpt_alloc_ioctx(struct srpt_device *sdev,
 					   int ioctx_size, int dma_size,
@@ -822,8 +855,12 @@ err:
 	return NULL;
 }
 
-/*
- * srpt_free_ioctx() - Free an SRPT I/O context structure.
+/**
+ * srpt_free_ioctx - free a SRPT I/O context structure
+ * @sdev: SRPT HCA pointer.
+ * @ioctx: I/O context pointer.
+ * @dma_size: Size of I/O context DMA buffer.
+ * @dir: DMA data direction.
  */
 static void srpt_free_ioctx(struct srpt_device *sdev, struct srpt_ioctx *ioctx,
 			    int dma_size, enum dma_data_direction dir)
@@ -836,12 +873,13 @@ static void srpt_free_ioctx(struct srpt_device *sdev, struct srpt_ioctx *ioctx,
 	kfree(ioctx);
 }
 
-/*
- * srpt_alloc_ioctx_ring() - Allocate a ring of SRPT I/O context structures.
+/**
+ * srpt_alloc_ioctx_ring - allocate a ring of SRPT I/O context structures.
  * @sdev:       Device to allocate the I/O context ring for.
  * @ring_size:  Number of elements in the I/O context ring.
  * @ioctx_size: I/O context size.
  * @dma_size:   DMA buffer size.
+ * @alignment_offset: Offset to use to align immediate data.
  * @dir:        DMA data direction.
  */
 static struct srpt_ioctx **srpt_alloc_ioctx_ring(struct srpt_device *sdev,
@@ -876,8 +914,13 @@ out:
 	return ring;
 }
 
-/*
- * srpt_free_ioctx_ring() - Free the ring of SRPT I/O context structures.
+/**
+ * srpt_free_ioctx_ring - free the ring of SRPT I/O context structures
+ * @ioctx_ring: I/O context ring to be freed.
+ * @sdev: SRPT HCA pointer.
+ * @ring_size: Number of ring elements.
+ * @dma_size: Size of I/O context DMA buffer.
+ * @dir: DMA data direction.
  */
 static void srpt_free_ioctx_ring(struct srpt_ioctx **ioctx_ring,
 				 struct srpt_device *sdev, int ring_size,
@@ -894,9 +937,10 @@ static void srpt_free_ioctx_ring(struct srpt_ioctx **ioctx_ring,
 	kfree(ioctx_ring);
 }
 
-/*
- * srpt_set_cmd_state() - Set the state of a SCSI command.
- * @new: New state.
+/**
+ * srpt_set_cmd_state - set the state of a SCSI command
+ * @ioctx: Send I/O context.
+ * @new: New I/O context state.
  *
  * Does not modify the state of aborted commands. Returns the previous command
  * state.
@@ -906,8 +950,6 @@ static enum srpt_command_state srpt_set_cmd_state(struct srpt_send_ioctx *ioctx,
 {
 	enum srpt_command_state previous;
 
-	EXTRACHECKS_BUG_ON(!ioctx);
-
 	previous = ioctx->state;
 	if (previous != SRPT_STATE_DONE)
 		ioctx->state = new;
@@ -915,8 +957,11 @@ static enum srpt_command_state srpt_set_cmd_state(struct srpt_send_ioctx *ioctx,
 	return previous;
 }
 
-/*
- * srpt_test_and_set_cmd_state() - Test and set the state of a command.
+/**
+ * srpt_test_and_set_cmd_state - test and set the state of a command
+ * @ioctx: Send I/O context.
+ * @old: Current I/O context state.
+ * @new: New I/O context state.
  *
  * Returns true if and only if the previous command state was equal to 'old'.
  */
@@ -926,9 +971,9 @@ static bool srpt_test_and_set_cmd_state(struct srpt_send_ioctx *ioctx,
 {
 	enum srpt_command_state previous;
 
-	EXTRACHECKS_BUG_ON(!ioctx);
-	EXTRACHECKS_BUG_ON(old == SRPT_STATE_DONE);
-	EXTRACHECKS_BUG_ON(new == SRPT_STATE_NEW);
+	WARN_ON(!ioctx);
+	WARN_ON(old == SRPT_STATE_DONE);
+	WARN_ON(new == SRPT_STATE_NEW);
 
 	previous = ioctx->state;
 	if (previous == old)
@@ -937,8 +982,11 @@ static bool srpt_test_and_set_cmd_state(struct srpt_send_ioctx *ioctx,
 	return previous == old;
 }
 
-/*
- * srpt_post_recv() - Post an IB receive request.
+/**
+ * srpt_post_recv - post an IB receive request
+ * @sdev: SRPT HCA pointer.
+ * @ch: SRPT RDMA channel.
+ * @ioctx: Receive I/O context pointer.
  */
 static int srpt_post_recv(struct srpt_device *sdev, struct srpt_rdma_ch *ch,
 			  struct srpt_recv_ioctx *ioctx)
@@ -969,8 +1017,11 @@ static int srpt_adjust_sq_wr_avail(struct srpt_rdma_ch *ch, int delta)
 	return atomic_add_return(delta, &ch->sq_wr_avail);
 }
 
-/*
- * srpt_post_send() - Post an IB send request.
+/**
+ * srpt_post_send - post an IB send request
+ * @ch: SRPT RDMA channel.
+ * @ioctx: I/O context. 
+ * @len: Length in bytes of request to send.
  *
  * Returns zero upon success and a non-zero value upon failure.
  */
@@ -1012,8 +1063,9 @@ out:
 	return ret;
 }
 
-/*
- * srpt_zerolength_write() - Perform a zero-length RDMA write.
+/**
+ * srpt_zerolength_write - perform a zero-length RDMA write
+ * @ch: SRPT RDMA channel.
  *
  * A quote from the InfiniBand specification: C9-88: For an HCA responder
  * using Reliable Connection service, for each zero-length RDMA READ or WRITE
@@ -1032,9 +1084,10 @@ static int srpt_zerolength_write(struct srpt_rdma_ch *ch)
 	return ib_post_send(ch->qp, &wr, &bad_wr);
 }
 
-/*
- * srpt_get_desc_tbl() - Parse the data descriptors of an SRP_CMD request.
+/**
+ * srpt_get_desc_tbl - parse the data descriptors of an SRP_CMD request
  * @ioctx: Pointer to the I/O context associated with the request.
+ * @recv_ioctx: Receive I/O context that may be associated with @ioctx.
  * @srp_cmd: Pointer to the SRP_CMD request data.
  * @dir: Pointer to the variable to which the transfer direction will be
  *   written.
@@ -1179,8 +1232,10 @@ out:
 	return ret;
 }
 
-/*
- * srpt_init_ch_qp() - Initialize queue pair attributes.
+/**
+ * srpt_init_ch_qp - initialize queue pair attributes
+ * @ch: SRPT RDMA channel.
+ * @qp: Queue pair pointer.
  *
  * Initialized the attributes of queue pair 'qp' by allowing local write,
  * remote read and remote write. Also transitions 'qp' to state IB_QPS_INIT.
@@ -1197,6 +1252,7 @@ static int srpt_init_ch_qp(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 		return -ENOMEM;
 
 	attr->qp_state = IB_QPS_INIT;
+	attr->qp_access_flags = IB_ACCESS_LOCAL_WRITE;
 	attr->port_num = ch->sport->port;
 
 	ret = ib_find_cached_pkey(ch->sport->sdev->device, ch->sport->port,
@@ -1214,7 +1270,7 @@ static int srpt_init_ch_qp(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 }
 
 /**
- * srpt_ch_qp_rtr() - Change the state of a channel to 'ready to receive' (RTR).
+ * srpt_ch_qp_rtr - change the state of a channel to 'ready to receive' (RTR)
  * @ch: channel of the queue pair.
  * @qp: queue pair to change the state of.
  *
@@ -1248,7 +1304,7 @@ out:
 }
 
 /**
- * srpt_ch_qp_rts() - Change the state of a channel to 'ready to send' (RTS).
+ * srpt_ch_qp_rts - change the state of a channel to 'ready to send' (RTS)
  * @ch: channel of the queue pair.
  * @qp: queue pair to change the state of.
  *
@@ -1281,8 +1337,9 @@ out:
 	return ret;
 }
 
-/*
- * srpt_ch_qp_err() - Set the channel queue pair state to 'error'.
+/**
+ * srpt_ch_qp_err - set the channel queue pair state to 'error'
+ * @ch: SRPT RDMA channel.
  */
 static int srpt_ch_qp_err(struct srpt_rdma_ch *ch)
 {
@@ -1299,8 +1356,9 @@ static int srpt_ch_qp_err(struct srpt_rdma_ch *ch)
 	return ret;
 }
 
-/*
- * srpt_get_send_ioctx() - Obtain an I/O context for sending to the initiator.
+/**
+ * srpt_get_send_ioctx - obtain an I/O context for sending to the initiator
+ * @ch: SRPT RDMA channel.
  */
 static struct srpt_send_ioctx *srpt_get_send_ioctx(struct srpt_rdma_ch *ch)
 {
@@ -1336,8 +1394,9 @@ static struct srpt_send_ioctx *srpt_get_send_ioctx(struct srpt_rdma_ch *ch)
 	return ioctx;
 }
 
-/*
- * srpt_put_send_ioctx() - Free up resources.
+/**
+ * srpt_put_send_ioctx() - free up resources
+ * @ioctx: I/O context to free.
  */
 static void srpt_put_send_ioctx(struct srpt_send_ioctx *ioctx)
 {
@@ -1369,7 +1428,7 @@ static void srpt_put_send_ioctx(struct srpt_send_ioctx *ioctx)
 }
 
 /**
- * srpt_abort_cmd() - Make SCST stop processing a SCSI command.
+ * srpt_abort_cmd - abort a SCSI command
  * @ioctx:   I/O context associated with the SCSI command.
  * @context: Preferred execution context.
  *
@@ -1583,7 +1642,7 @@ static void srpt_handle_rdma_err_comp(struct srpt_rdma_ch *ch,
 }
 
 /**
- * srpt_build_cmd_rsp() - Build an SRP_RSP response.
+ * srpt_build_cmd_rsp - build an SRP_RSP response
  * @ch: RDMA channel through which the request has been received.
  * @ioctx: I/O context associated with the SRP_CMD request. The response will
  *   be built in the buffer ioctx->buf points at and hence this function will
@@ -1660,7 +1719,7 @@ static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 }
 
 /**
- * srpt_build_tskmgmt_rsp() - Build a task management response.
+ * srpt_build_tskmgmt_rsp - build a task management response
  * @ch:       RDMA channel through which the request has been received.
  * @ioctx:    I/O context in which the SRP_RSP response will be built.
  * @rsp_code: RSP_CODE that will be stored in the response.
@@ -1698,8 +1757,12 @@ static int srpt_build_tskmgmt_rsp(struct srpt_rdma_ch *ch,
 	return resp_len;
 }
 
-/*
- * srpt_handle_cmd() - Process SRP_CMD.
+/**
+ * srpt_handle_cmd - process a SRP_CMD information unit
+ * @ch: SRPT RDMA channel.
+ * @recv_ioctx: Receive I/O context.
+ * @send_ioctx: Send I/O context.
+ * @context: SCST command processing context.
  */
 static int srpt_handle_cmd(struct srpt_rdma_ch *ch,
 			   struct srpt_recv_ioctx *recv_ioctx,
@@ -1765,8 +1828,11 @@ err:
 	return -1;
 }
 
-/*
- * srpt_handle_tsk_mgmt() - Process an SRP_TSK_MGMT information unit.
+/**
+ * srpt_handle_tsk_mgmt - process a SRP_TSK_MGMT information unit
+ * @ch: SRPT RDMA channel.
+ * @recv_ioctx: Receive I/O context.
+ * @send_ioctx: Send I/O context.
  *
  * Each task management function is performed by calling one of the
  * scst_rx_mgmt_fn*() functions. These functions will either report failure
@@ -1861,8 +1927,8 @@ static u8 scst_to_srp_tsk_mgmt_status(const int scst_mgmt_status)
 }
 
 /**
- * srpt_handle_new_iu() - Process a newly received information unit.
- * @ch:      RDMA channel through which the information unit has been received.
+ * srpt_handle_new_iu - process a newly received information unit
+ * @ch:    RDMA channel through which the information unit has been received.
  * @recv_ioctx: Receive I/O context associated with the information unit.
  * @context: SCST command processing context.
  */
@@ -1960,6 +2026,11 @@ static void srpt_process_rcv_completion(struct ib_cq *cq,
 	}
 }
 
+/*
+ * This function must be called from the context in which RDMA completions are
+ * processed because it accesses the wait list without protection against
+ * access from other threads.
+ */
 static void srpt_process_wait_list(struct srpt_rdma_ch *ch)
 {
 	struct srpt_recv_ioctx *recv_ioctx, *tmp;
@@ -2196,8 +2267,9 @@ static int srpt_compl_thread(void *arg)
 	return 0;
 }
 
-/*
- * srpt_create_ch_ib() - Create receive and send completion queues.
+/**
+ * srpt_create_ch_ib - create receive and send completion queues
+ * @ch: SRPT RDMA channel.
  */
 static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 {
@@ -2323,8 +2395,9 @@ static void srpt_destroy_ch_ib(struct srpt_rdma_ch *ch)
 	ib_destroy_cq(ch->cq);
 }
 
-/*
- * srpt_close_ch() - Close an RDMA channel.
+/**
+ * srpt_close_ch - close a RDMA channel
+ * @ch: SRPT RDMA channel.
  *
  * Make sure all resources associated with the channel will be deallocated at
  * an appropriate time.
@@ -2336,8 +2409,10 @@ static bool srpt_close_ch(struct srpt_rdma_ch *ch)
 {
 	int ret;
 
-	if (!srpt_set_ch_state(ch, CH_DRAINING))
+	if (!srpt_set_ch_state(ch, CH_DRAINING)) {
+		pr_debug("%s: already closed\n", ch->sess_name);
 		return false;
+	}
 
 	kref_get(&ch->kref);
 
@@ -2541,7 +2616,7 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 	u32 it_iu_len;
 	int i, ret;
 
-	EXTRACHECKS_WARN_ON_ONCE(irqs_disabled());
+	WARN_ON_ONCE(irqs_disabled());
 
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18)
 	WARN_ON(!sdev || !req);
@@ -2682,7 +2757,8 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 	}
 
 	thread = kthread_run(srpt_compl_thread, ch, "srpt_%s-%d",
-			     ch->sport->sdev->device->name, ch->sport->port);
+			     dev_name(&ch->sport->sdev->device->dev),
+			     ch->sport->port);
 	if (IS_ERR(thread)) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		ret = PTR_ERR(thread);
@@ -2696,6 +2772,7 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 		struct srpt_rdma_ch *ch2;
 
 		rsp->rsp_flags = SRP_LOGIN_RSP_MULTICHAN_NO_CHAN;
+
 		list_for_each_entry(ch2, &nexus->ch_list, list) {
 			if (srpt_disconnect_ch(ch2) < 0)
 				continue;
@@ -2714,7 +2791,8 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 		rej->reason = cpu_to_be32(
 				SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		pr_info("rejected SRP_LOGIN_REQ because the target %s (%s) is not enabled\n",
-			sport->scst_tgt->tgt_name, sdev->device->name);
+			sport->scst_tgt->tgt_name,
+			dev_name(&sdev->device->dev));
 		mutex_unlock(&sport->mutex);
 		goto reject;
 	}
@@ -2818,7 +2896,7 @@ free_ch:
 	kfree(ch);
 	ch = NULL;
 
-	BUG_ON(ret == 0);
+	WARN_ON_ONCE(ret == 0);
 
 reject:
 	pr_info("Rejecting login with reason %#x\n", be32_to_cpu(rej->reason));
@@ -2918,16 +2996,17 @@ static void srpt_cm_rej_recv(struct srpt_rdma_ch *ch,
 			     const u8 *private_data,
 			     u8 private_data_len)
 {
-	char *priv = kmalloc(private_data_len * 3 + 1, GFP_KERNEL);
+	char *priv = NULL;
 	int i;
 
-	if (priv) {
-		priv[0] = '\0';
+	if (private_data_len && (priv = kmalloc(private_data_len * 3 + 1,
+						GFP_KERNEL))) {
 		for (i = 0; i < private_data_len; i++)
-			sprintf(priv + 3 * i, "%02x ", private_data[i]);
+			sprintf(priv + 3 * i, " %02x", private_data[i]);
 	}
-	pr_info("Received CM REJ for ch %s-%d; reason %d; private data %s.\n",
-		ch->sess_name, ch->qp->qp_num, reason, priv ? : "(?)");
+	pr_info("Received CM REJ for ch %s-%d; reason %d%s%s.\n",
+		ch->sess_name, ch->qp->qp_num, reason, private_data_len ?
+		"; private data" : "", priv ? priv : " (?)");
 	kfree(priv);
 }
 
@@ -2966,8 +3045,9 @@ static void srpt_check_timeout(struct srpt_rdma_ch *ch)
 	}
 }
 
-/*
- * srpt_cm_rtu_recv() - Process RTU event.
+/**
+ * srpt_cm_rtu_recv - process an IB_CM_RTU_RECEIVED or USER_ESTABLISHED event
+ * @ch: SRPT RDMA channel.
  *
  * An RTU (ready to use) message indicates that the connection has been
  * established and that the recipient may begin transmitting.
@@ -2996,13 +3076,15 @@ static void srpt_cm_rtu_recv(struct srpt_rdma_ch *ch)
 		       ch->sess_name, ch->qp->qp_num);
 }
 
-/*
- * srpt_cm_handler() - IB connection manager callback function.
+/**
+ * srpt_cm_handler - IB connection manager callback function
+ * @cm_id: IB/CM connection identifier.
+ * @event: IB/CM event.
  *
  * A non-zero return value will cause the caller destroy the CM ID.
  *
  * Note: srpt_cm_handler() must only return a non-zero value when transferring
- * ownership of the cm_id to a channel if srpt_cm_req_recv() failed. Returning
+ * ownership of the cm_id to a channel by srpt_cm_req_recv() failed. Returning
  * a non-zero value in any other case will trigger a race with the
  * ib_destroy_cm_id() call in srpt_compl_thread().
  */
@@ -3011,8 +3093,6 @@ static int srpt_cm_handler(struct ib_cm_id *cm_id,
 {
 	struct srpt_rdma_ch *ch = cm_id->context;
 	int ret;
-
-	BUG_ON(!cm_id->context);
 
 	ret = 0;
 	switch (event->event) {
@@ -3033,9 +3113,13 @@ static int srpt_cm_handler(struct ib_cm_id *cm_id,
 		srpt_disconnect_ch(ch);
 		break;
 	case IB_CM_DREP_RECEIVED:
+		pr_info("Received CM DREP message for ch %s-%d.\n",
+			ch->sess_name, ch->qp->qp_num);
 		srpt_close_ch(ch);
 		break;
 	case IB_CM_TIMEWAIT_EXIT:
+		pr_info("Received CM TimeWait exit for ch %s-%d.\n",
+			ch->sess_name, ch->qp->qp_num);
 		srpt_close_ch(ch);
 		break;
 	case IB_CM_REP_ERROR:
@@ -3049,7 +3133,7 @@ static int srpt_cm_handler(struct ib_cm_id *cm_id,
 		pr_info("Received CM MRA event\n");
 		break;
 	default:
-		pr_err("received unrecognized IB CM event %d\n", event->event);
+		pr_err("received unrecognized CM event %d\n", event->event);
 		break;
 	}
 
@@ -3837,8 +3921,9 @@ static bool srpt_ch_list_empty(struct srpt_port *sport)
 	return res;
 }
 
-/*
- * srpt_release_sport() - Free channel resources associated with a target.
+/**
+ * srpt_release_sport - disable login and wait for associated channels
+ * @sport: SRPT HCA port.
  */
 static int srpt_release_sport(struct srpt_port *sport)
 {
@@ -3846,7 +3931,6 @@ static int srpt_release_sport(struct srpt_port *sport)
 	struct srpt_rdma_ch *ch;
 
 	WARN_ON_ONCE(irqs_disabled());
-	BUG_ON(!sport);
 
 	/* Disallow new logins and close all active sessions. */
 	mutex_lock(&sport->mutex);
@@ -3858,8 +3942,8 @@ static int srpt_release_sport(struct srpt_port *sport)
 				  srpt_ch_list_empty(sport), 5 * HZ) <= 0) {
 		pr_info("%s: waiting for session unregistration ...\n",
 			sport->scst_tgt->tgt_name);
-		mutex_lock(&sport->mutex);
-		list_for_each_entry(nexus, &sport->nexus_list, entry) {
+		rcu_read_lock();
+		list_for_each_entry_rcu(nexus, &sport->nexus_list, entry) {
 			list_for_each_entry(ch, &nexus->ch_list, list) {
 				pr_info("%s-%d: state %s; %d commands in progress\n",
 					ch->sess_name, ch->qp->qp_num,
@@ -3867,7 +3951,7 @@ static int srpt_release_sport(struct srpt_port *sport)
 					atomic_read(&ch->sess->sess_cmd_count));
 			}
 		}
-		mutex_unlock(&sport->mutex);
+		rcu_read_unlock();
 	}
 
 	mutex_lock(&sport->mutex);
@@ -3994,7 +4078,7 @@ static ssize_t srpt_show_device(struct kobject *kobj,
 		goto out;
 
 	sdev = sport->sdev;
-	res = sprintf(buf, "%s\n", sdev->device->name);
+	res = sprintf(buf, "%s\n", dev_name(&sdev->device->dev));
 
 out:
 	return res;
@@ -4382,7 +4466,7 @@ static void srpt_add_one(struct ib_device *device)
 #endif
 		if (srpt_refresh_port(sport)) {
 			pr_err("MAD registration failed for %s-%d.\n",
-			       sdev->device->name, i);
+			       dev_name(&sdev->device->dev), i);
 			goto err_ring;
 		}
 	}
@@ -4576,11 +4660,11 @@ static void srpt_unregister_procfs_entry(struct scst_tgt_template *tgt)
 #endif /* CONFIG_SCST_PROC */
 
 /**
- * srpt_init_module() - Kernel module initialization.
+ * srpt_init_module - kernel module initialization
  *
  * Note: Since ib_register_client() registers callback functions, and since at
  * least one of these callback functions (srpt_add_one()) calls target core
- * functions, this driver must be registered with the SCSI target core before
+ * functions, this driver must be registered with the target core before
  * ib_register_client() is called.
  */
 static int __init srpt_init_module(void)
