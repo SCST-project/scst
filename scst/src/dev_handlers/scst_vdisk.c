@@ -8756,11 +8756,13 @@ static ssize_t vdev_size_show(struct kobject *kobj, struct kobj_attribute *attr,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
 	size = READ_ONCE(virt_dev->file_size);
-
-	if (virt_dev->nullio && size == VDISK_NULLIO_SIZE)
-		key = false;
-	else
-		key = virt_dev->size_key;
+	/*
+	 * Make sure that scstadmin only stores the 'size' attribute and that
+	 * the 'size_mb' attribute is not stored. Otherwise when restoring
+	 * scst.conf if 'size' is not a multiple of 1 MB it will be rounded
+	 * down.
+	 */
+	key = !(virt_dev->nullio && size == VDISK_NULLIO_SIZE) && !size_shift;
 
 	return sprintf(buf, "%llu\n%s", size >> size_shift,
 		       key ? SCST_SYSFS_KEY_MARK "\n" : "");
